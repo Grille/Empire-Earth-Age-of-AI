@@ -38,6 +38,12 @@ internal inline int goal_get_unload_y(const ee_goal *g) { return FIELD(g, GOAL_A
 internal inline float goal_get_reach_sq(const ee_goal *g) { return FIELD(g, GOAL_ARGS + 0x1C, float); }
 
 // FUNCTIONS
+// where the goal sends unit u (its vtable: PrepareToMove asks it before the route request)
+internal inline vec3 goal_target(ee_goal *goal, ee_unit *u) {
+    float p[3] = { 0, 0, 0 };
+    ((void (__thiscall *)(ee_goal *, ee_unit *, float *))(*(void ***)goal)[GA(SLOT_GOAL_TARGET)])(goal, u, p);
+    return v3(p[0], p[1], p[2]);
+}
 // the goals the mod makes: built in game_new(GA(SIZE_GOAL_..)) memory, then given with unit_set_goal
 // build or repair: pl's builder at building
 internal inline ee_goal *goal_build_init(void *mem, ee_player *pl, ee_unit *building, int flag) { return (ee_goal *)GF(FN_BUILD_GOAL)(mem, pl, building, flag); }

@@ -1,0 +1,16 @@
+// tests/probes/ship_long.eeai's first leg in a busy game (run with ai_count=3): 120 of P1's macemen on its island march
+// between 24,38 and 30,30 every 15 s (each one its own path request, `move`), while the dreadnought sails 60,14 -> 45,70
+// traced every step (# fmtrace) - does it wait for its next piece of route when the path requests queue up?
+wait_until(0.1min)
+spawn(1, unit.s10_dreadnought_battleship, 60, 14, 1)
+spawn(1, unit.inf03_maceman, 22, 40, 60)
+spawn(1, unit.inf03_maceman, 26, 36, 60)
+wait_until(0.3min)
+cmd("fmove go 1 60 14 2 45 70")
+cmd("fmove trace 0")
+every(30s, 0.3min, 3min, (run) => {
+    cmd("move 1 24 38 14 30 30")
+    wait(15s)
+    cmd("move 1 30 30 14 24 38")
+})
+wait_until(3min)

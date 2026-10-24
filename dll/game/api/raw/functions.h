@@ -110,10 +110,10 @@
     F(FN_MSG_PATH, void, __thiscall, (void *), 0x004B9D7B, 0x004C281C)        /* EEMPathTo's Execute */ \
     F(FN_PAY_TRIBUTE, void, __thiscall, (void *), 0x004BA6BE, 0x004C315B) \
     F(FN_RESIGN, void, __thiscall, (void *), 0x004BB906, 0x004C44BB) \
-    F(FN_MSG_UNLOAD, void, __thiscall, (void *), 0x004BF756, 0x004C8615)      /* EEMUnloadTransport's Execute */ \
     /* EEMSelectUnits: thiscall(msg, rect, type, 0x4E) */ \
     F(FN_SELECT_MSG_INIT, void, __thiscall, (void *, void *, int, int), 0x004BD072, 0x004C5D7F) \
     F(FN_SEL_PACK, unsigned, __cdecl, (void *, uint32_t, uint8_t *), 0x004BD15A, 0x004C5E67) \
+    F(FN_MSG_UNLOAD, void, __thiscall, (void *), 0x004BF756, 0x004C8615)      /* EEMUnloadTransport's Execute */ \
     F(FN_DAMAGE_POINTS, int, __thiscall, (void *, int, unsigned), 0x004D291F, 0x004D84EC) \
     /* thiscall(G_BONUS_TABLE, weapon kind, target type data, attacker, target player) */ \
     F(FN_ATTACK_BONUS, float, __thiscall, (void *, int, void *, int, int), 0x004D5F2C, 0x004DBE44) \
@@ -174,6 +174,7 @@
     F(FN_CHAT_MSG_CTOR, void *, __thiscall, (void *, void *), 0x005C2A2F, 0x005D3196) /* new 0x24; (UWideString *) */ \
     F(FN_RESIGN_SEND, void, __cdecl, (void), 0x005D05CC, 0x005E0E7F) \
     F(FN_EXIT_CONFIRM, void, __cdecl, (void), 0x005D0B4F, 0x005E145B) \
+    F(FN_ADD_WAYPOINT, void, __thiscall, (void *, float *, int), 0x005E8BAC, 0x005F625B) /* thiscall(unit, float pt[3], 1): one more waypoint at the end of the unit's list (+0x7C); 1 keeps a point on the map's edge lines */ \
     F(FN_UNIT_RELEASE, void, __thiscall, (void *), 0x005ED71E, 0x005FB7FB) \
     /* thiscall(unit, 0x1F51) - as the assignment does after the order */ \
     F(FN_UNIT_SET_STATE, void, __thiscall, (void *, int), 0x005EFCF0, 0x005FDFA5) \
@@ -246,6 +247,8 @@
 #define ADDR_NUMBERS_FUNCTIONS(D) \
     D(SLOT_TECH_AVAILABLE, 1, 1)        /* EETechTreeNode: char thiscall(tech) */ \
     D(SLOT_GOAL_PART, 4, 4)             /* EEUGLoadTransport: a unit's part of the load goal */ \
+    D(SLOT_GOAL_TARGET, 2, 2)           /* EEUGoal: thiscall(goal, unit, float out[3]) - where the goal sends the unit (PrepareToMove 0x6222A8) */ \
+    D(SLOT_UNIT_LETS_PASS, 18, 18)      /* EEUnit: char thiscall(object, unit) - may unit enter the object's tile (the path search's tile test 0x41D36A) */ \
     D(SLOT_GOAL_DROP, 19, 19)           /* EEUGLoadContainer: thiscall(goal, unit) - the unit out of its holder's load goal's pending passengers (0x613992; AoC 0x626229, the same code) */ \
     D(SLOT_UNIT_DAMAGE, 28, 29)         /* EEUnit: thiscall(unit, attacker, damage, its player index, 1) - an attack's hit points (0x61E0B2); AoC put a stub (ret 4) at 28 */ \
     D(SLOT_TYPE_ASSIGN, 29, 29)         /* EEUnitClass: thiscall(type data, unit), as the game's goal assignment */ \

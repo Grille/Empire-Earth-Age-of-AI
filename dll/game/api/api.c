@@ -40,6 +40,7 @@
 #include "game/api/ai_managers.c"
 #include "game/api/attack.c"
 #include "game/api/map.c"
+#include "game/api/path.c"
 #include "game/api/setup.c"
 #include "game/api/messages.c"
 #include "game/api/scenario.c"

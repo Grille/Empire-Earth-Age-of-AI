@@ -367,6 +367,7 @@ internal char __thiscall hook_game_start(void *state, ee_setup *setup, void *p2)
 #include "engine/playername.c"
 #include "engine/sound.c"
 #include "engine/select.c"
+#include "engine/shiproute.c"
 #include "engine/drawlist.c"
 #include "engine/asg_queue.c"
 #include "voice/llm.c"
@@ -565,6 +566,7 @@ internal void install(HMODULE self) {
     display_install(g_aimod_ini, g_autotest ? g_ini : NULL);
     sound_install(g_aimod_ini, g_autotest ? g_ini : NULL);
     select_install(g_aimod_ini, g_autotest ? g_ini : NULL);
+    shiproute_install(g_aimod_ini, g_autotest ? g_ini : NULL);
     drawlist_install(g_aimod_ini, g_autotest ? g_ini : NULL);
     asg_queue_install();
     llm_install(g_aimod_ini, g_autotest ? g_ini : NULL);

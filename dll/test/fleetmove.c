@@ -35,6 +35,17 @@ internal void fm_tick(void) {
     vec3 p = unit_get_pos(u), f = unit_get_facing(u);
     fprintf(g_log, "# fmtrace %u pos %.3f,%.3f head %.1f spd %.3f state %u wp %d at %.2f,%.2f\n", now, p.x, p.y, atan2f(f.x, f.y) * 57.29578f,
             unit_get_speed(u), unit_ai_state_id(u), FIELD(u, 0x8C, int), FIELD(u, 0x118, float), FIELD(u, 0x11C, float));
+    static unsigned last_state;
+    unsigned st = unit_ai_state_id(u);
+    if (st == 9002 && last_state != 9002)   // RepathAroundObstacle: what is near
+        for (struct grid_it it = grid_it_box(unit_get_x(u), unit_get_y(u), 4, 1); grid_it_next(&it); ) {
+            if (it.u == u) continue;
+            vec3 q = unit_get_pos(it.u);
+            if (fabsf(q.x - p.x) > 4 || fabsf(q.y - p.y) > 4) continue;
+            ee_player *o = unit_get_owner(it.u);
+            fprintf(g_log, "# fmtrace near %.2f,%.2f type %d P%d family %d\n", q.x, q.y, type_get_id(it.td), o ? player_get_index(o) : -1, type_get_family(it.td));
+        }
+    last_state = st;
 }
 
 internal void fm_sample(char *out, int quiet) {

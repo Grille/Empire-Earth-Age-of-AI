@@ -268,6 +268,12 @@ Settings in `aimod.ini`:
   Loading and unloading both first work out all the spots (the groups of units, the landing tiles), then match the
   transports to them so that the ways together are the shortest - so their ways don't cross.
   Both run inside the game's simulation like the original commands: in multiplayer every PC needs the same settings.
+- `[general] ship_routes=0` (default off while it is measured): the game plans a ship's route in pieces of 8-18
+  tiles, each in the 8 tile directions only, so a route at any angle between them zigzags and a slow-turning ship
+  keeps swinging its bow. With 1 a ship's route is planned whole at once, in straight lines wherever the water between
+  two points is clear, around the shallows a big ship can't enter, and keeping to the middle of channels; a fleet
+  doesn't get the game's chain of in-between stops through the map's sectors. The player's and the AI's ships alike
+  (the 2017 update; not yet in Art of Conquest). In multiplayer every PC needs the same setting.
 - `[sound] clamp_channels=1` (default): the "Max Number Of Sounds" slider goes to 200%, which asks for 32 sound
   channels, but the sound mixer has only 16 on current Windows. Sounds put on the 16 missing channels were silent,
   and a looping one (unit movement such as the U-boats', ambience) stayed stuck there and never played again -

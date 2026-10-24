@@ -200,6 +200,38 @@ vf26 members and route released, vf12, the group's reference) frees nothing twic
   (the last 184-214 s against 171-230 s): the blocking, not the speeds, keeps the fleet apart. A per-unit speed is
   a hook of 0x46123F's calls (patch_all_calls).
 
+### Routes (dll/game/api/path.c, dll/engine/shiproute.c; 2026-10-24)
+
+- **Waypoints:** a std::deque of 20-byte points at unit +0x7C (+0x80 block map, +0x84 map size, +0x88 the front's
+  index, +0x8C the count left; 0xCC points a block): {x, y, z, the path's length there +0xC, at the one before +0x10}.
+  The front is the current one, the last the destination. 0x5E8BAC thiscall(unit, float pt[3], mode) adds one at the
+  end (mode 1 keeps a point on the map's edge lines, 0 drops it), 0x5EC69D reads the front (every movement model
+  steers to it each tick; nothing to do without one), 0x5EDCF4 pops it (GetNextMoveWaypoint, EEUnitClass::vf50
+  0x620C31), 0x5E9770 clears them. Arrival (unit +0x33F, EEUnitClass::vf34 0x6213D8): an intermediate point within the
+  type's +0x474 AND the unit on the point's own tile; the last one within 0.05.
+- **The request:** PrepareToMove (8000, EEUnitClass::vf52 0x6222A8) clears the waypoints, asks the goal (unit +0x1F0,
+  vtable slot 2) for its target and calls 0x4A1AFF thiscall(path manager 0x917D00, unit, from tile, to tile, sync,
+  node limit, use sectors, ctx; ret 0x1C - AoC 0x4A6E88 has an 8th argument). The manager (ticked at 0x546D56) runs a
+  tile A* in the 8 directions (EEAIAStarMachine, expansion 0x4A5428) at once or queued in slices (about 32 nodes a
+  step for the whole queue), then refines the first 10 points in a +-26-tile box (0x4A2B29) and writes the result
+  through 0x5EE4E6. In an empty game and in a busy one (3 AIs, 115 soldiers re-routing every 15 s) a ship's piece
+  came within one step: the queue doesn't stop ships.
+- **The pieces:** a long order becomes a chain of auto-waypoint goals (EEUGLocation, +0x32 set) at the centres of the
+  map's sectors (7-21 tiles by map size), made by 0x4A26E3 after a sector search. For a group's move the search is
+  EEActiveGroup::vf16's (0x5DB4B8): for each cluster of its units FN_GROUP_SECTOR_ROUTE 0x5F670A (call 0x5DB5C8) -
+  not the request's own sector flag. The next leg is asked for when [0x917DC8] waypoints are left (8-18 by map size;
+  10 on a small map; ShouldMoveToNextAutoWaypoint 0x5F0844). Each leg is its own 8-direction A*, so the legs alternate
+  (tests/probes/ship_long.eeai: 45, 0, 45, 0 ... degrees, 12-21% longer than straight).
+- **Which tiles:** the search's test 0x41D36A: not on the map diamond's edge lines (map +0x1816EC / +0x1816F0 for x +
+  y, +0x1816F4 for y - x and x - y), the type's byte +0x5D6 + the tile's kind (+4) set, and every object on the tile
+  (+8: nodes {object +4, next +8}) answering its vtable slot 18 (thiscall(object, unit)) true. No unit size anywhere.
+  Ships add the sea modifier: the naval movement's step test (EEPMNaval::vf21 0x550300) refuses a tile whose signed
+  byte +0x14 is below 0 unless the ship's +0x2E0 is 0, or above 0 when it is 3 (a guess: shallows and draught; AoC
+  the ship's +0x2E4). A route over such a tile is refused at its edge (the ship slid along x = 53.025 for 10 s), then
+  RepathAroundObstacle (entered on unit +0x20C or 3-5 s standing) rebuilds the list a few points ahead and drops the
+  rest - with sparse points it dropped the destination. A ship's collision sphere +0x470 (dreadnought 4, cruiser 3;
+  AoC +0x174) plays no part in the step test: only the tile under its centre counts.
+
 ## Orders, game end, splash
 
 - Give a unit a goal (as EECPAttackSubGroup::vf57 0x45CBEA): alive (+0x3C > 0, +0x1C != -10000, +0x33B == 0),
@@ -490,7 +522,7 @@ conditions, 162 states with their ids) were dumped by a helper, not kept in the 
   Conditions ask the unit's goal first (vf+0x64), then the class switch 0x61B677, else false; a goal that answers
   while +0x1EC != +0x1F0 pops (0x5EE965). SetState 0x5EFCF0 with an id the script lacks leaves a NULL state: the unit
   freezes.
-- Idle (0x61B05B) keeps the unit's goal; without one it registers the unit as idle (0x917D00). PrepareToMove goes
+- Idle (0x61B05B) keeps the unit's goal; without one it tells the path manager 0x917D00 (not an idle list: "Routes"). PrepareToMove goes
   Idle after the goal's retries. UnderAttack (2018) is entered from EEUnit::TakeDamage 0x617423 only from Idle and
   only if the script has it; CheckRange from outside only when an EEUGAttackUnit is retargeted (0x62CD12).
   ObstacleDetected: unit+0x20C set, or standing still 3-5 s (+0x248 vs 4000 x rnd(0.75, 1.25)). CanIMove: speed >

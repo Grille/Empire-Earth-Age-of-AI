@@ -34,6 +34,7 @@
     D(CALL_FISH_TYPE_1, 0x0048F823, 0x0049457C)                               /* the calls of FN_FISH_TYPE */ \
     D(CALL_FISH_TYPE_2, 0x0048FB16, 0x0049488C) \
     D(CALL_CITIZENS_WANTED, 0x00490BC2, 0x00495A15)                           /* a call of FN_UM_CITIZENS_WANTED */ \
+    F(FN_PATH_REQUEST, void, __thiscall, (void *, void *, int *, int *, int, int, int, void *), 0x004A1AFF, 0x004A6E88) /* the path manager's route request: thiscall(mgr, unit, from tile, to tile, sync, node limit, use sectors, ctx), ret 0x1C (AoC: an 8th argument, ret 0x20 - its continent routing; port_addrs 69%) - PrepareToMove's (0x6224D0), a sector route's first leg, the re-path of all */ \
     D(CALL_SEL_PACK, 0x004BD133, 0x004C5E40) \
     F(START_EXEC, void, __thiscall, (ee_msg *), 0x004BEE57, 0x004C7CDC) \
     D(CALL_GAME_START, 0x004CEC14, 0x004D4443) \
@@ -50,11 +51,13 @@
     D(SITE_SIM_WAIT, 0x005533C5, 0x005614D6) \
     D(CALL_EPOCH_CATCH_UP, 0x0055A5B5, 0x00569633)                            /* its one call: EEPlayer::vf41, a human reached an epoch */ \
     D(EXIT_CONFIRM_AT, 0x005D0B2C, 0x005E1438) \
+    D(CALL_GROUP_SECTOR_ROUTE, 0x005DB5C8, 0x005EBF0C)                        /* EEActiveGroup::vf16's call of FN_GROUP_SECTOR_ROUTE, for each cluster of the group */ \
     D(CALL_UNLOAD_MARKS, 0x005DCDBD, 0x005ED592)                              /* the group's unload order (0x5DB641): FN_ORDER_MARKS */ \
     D(CALL_GOAL_FBA_CHECK, 0x005ED9BF, 0x005FBA9C)                            /* in 0x5ED24B: FN_GOAL_FBA_CHECK on a dynamic_cast, unchecked */ \
     D(AT_GOAL_SET_READ, 0x005F0634, 0x005FE8DA) \
     D(CALL_GOALSET_ASK, 0x005F0FFA, 0x005FF364) \
     D(CALL_GOALSET_AGAIN, 0x005F1029, 0x005FF393) \
+    F(FN_GROUP_SECTOR_ROUTE, void, __thiscall, (void *, int *, int *, void *), 0x005F670A, 0x00606581) /* thiscall(group, int from[2], int to[2], units): a sector route for a cluster of a group's units, each given its chain of auto-waypoint goals */ \
     D(CALL_KILL_STAT, 0x00617780, 0x0062A2DF) \
     D(CALL_ATTACK_ALERT, 0x006177CF, 0x0062A366) \
     D(CALL_AIM, 0x0061E1D7, 0x006313D6) \
@@ -72,6 +75,7 @@
     D(IAT_TS_RECEIVE, 0x008236B0, 0x0083765C) \
     D(IAT_SND_SETMAXCH, 0x00823AD4, 0x00837AC4) \
     D(IAT_SRAND, 0x00824644, 0x00838638) \
+    D(VT_MSG_LOAD, 0x00824E00, 0x00838DDC)                                   /* EEMLoadTransport */ \
     D(VT_SCROLL, 0x00825098, 0x0083907C) \
     D(VT_ROUTE_PLANNER, 0x00825CC4, 0x00839C70)                               /* EEAIGPGModifierLandAttackSubGroupRoutePlanner */ \
     D(VT_COMPUTER_PLAYER, 0x008264C0, 0x0083A57C) \
@@ -79,7 +83,6 @@
     D(VT_ASG_LAND, 0x00826CA8, 0x0083AD7C)                                    /* EECPASGLand */ \
     D(VT_ASG_SEA, 0x00826F10, 0x0083AFEC) \
     D(VT_ASG_SEA_TRANSPORT, 0x008270F8, 0x0083B1D8) \
-    D(VT_MSG_LOAD, 0x00824E00, 0x00838DDC)                                   /* EEMLoadTransport */ \
     D(START_VTBL_EXEC, 0x008285D8, 0x0083D2A0) \
     D(VT_RESIGN, 0x00828820, 0x0083D4E8) \
     D(VT_PAY_TRIBUTE, 0x008289C0, 0x0083D688) \

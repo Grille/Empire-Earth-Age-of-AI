@@ -49,6 +49,8 @@
 //   CMLIST       the civilization manager's list nodes
 //   MAP          the map, [G_MAP] (EEMap)
 //   TILE         a map tile
+//   TILENODE     a node of a tile's object list (TILE_OBJECTS)
+//   UNITLIST     a cluster of a group's units (FN_GROUP_SECTOR_ROUTE's units)
 //   GRID         the map's unit grid, MAP +0x181724
 //   GRIDCELL     a cell of the unit grid
 //   DMGMODEL     the object of FN_DAMAGE_POINTS
@@ -212,6 +214,9 @@
     O(GRID_NY, 0x14, 0x14) /* s */ \
     O(GRIDCELL_UNITS, 0x4, 0x4) /* s */ \
     O(MAP_TILES, 0x1816D4, 0x1955F0) /* c */ \
+    O(MAP_EDGE_SUM, 0x1816EC, 0x195608) /* c: the path search's tile test (0x41D36A): x + y on it is off the map's diamond */ \
+    O(MAP_EDGE_SUM_2, 0x1816F0, 0x19560C) /* c: the same, the other edge */ \
+    O(MAP_EDGE_DIFF, 0x1816F4, 0x195610) /* c: the same for y - x and x - y */ \
     O(MAP_SIZE, 0x1816FC, 0x195618) /* c */ \
     O(MAP_GRID, 0x181724, 0x195640) /* c */ \
     O(MAP_FLAGS, 0x181730, 0x19564C) /* c */ \
@@ -501,6 +506,8 @@
     O(TD_HP, 0x55C, 0x25C) /* c: the type data's constructors */ \
     O(TD_MISSILE_DELAY, 0x588, 0x288) /* c: the type data's constructors */ \
     O(TD_SIZE, 0x58C, 0x28C) /* c */ \
+    O(TD_COLLISION, 0x470, 0x174) /* c: a collision sphere (float; dreadnought 4, cruiser 3): AoC the shift of +0x474 (0x178, EEUnitClass::vf34's arrival test) */ \
+    O(TD_TERRAIN_OK, 0x5D6, 0x2D2) /* c: a byte per terrain kind (TILE_KIND): may the type enter it (the path search's tile test 0x41D36A; AoC 0x41990C asks 0x634AD8, which reads it only without a unit - with one a bit mask in its stats +0x160) */ \
     O(TD_BEHAVIOURS, 0x621, 0x31F) /* c: the type data's constructors */ \
     O(TECH_RESEARCHED, 0x4, 0x4) /* c: researched - EETechTreeNode::vf6 sets it (0x5BF335 / 0x5CFA53) */ \
     O(TECH_AVAILABLE, 0x6, 0x6) /* c: available - vf1 and vf6 test it */ \
@@ -516,6 +523,11 @@
     O(TECHDATA_AOC_NEW, 0x81, 0x81) /* h: AoC's epoch upgrades (standard only) grant only a tech with it set: dbtechtree byte 0xF7, clear on civ power and special unit upgrades (0 on all of the 2017 update's) - read in AoC only */ \
     O(TECHNODE_TREE, 0xC, 0xC) /* c */ \
     O(TECHNODE_KIDS, 0x24, 0x24) /* v */ \
+    O(TILENODE_OBJECT, 0x4, 0x4) /* c: the path search's tile test (0x41D36A / AoC 0x41990C) */ \
+    O(TILENODE_NEXT, 0x8, 0x8) /* c: the same */ \
+    O(TILE_SEA_CLASS, 0x14, 0x14) /* c: EEPMNaval::vf21's step test (0x550300 / AoC the same read): a signed byte against UNIT_SEA_MODE */ \
+    O(TILE_KIND, 0x4, 0x4) /* c: the terrain kind (an index into TD_TERRAIN_OK; 0 land, 1 water - a guess) */ \
+    O(TILE_OBJECTS, 0x8, 0x8) /* c: the objects on it, a list of {?, object +4, next +8} */ \
     O(TILE_HEIGHT, 0x10, 0x10) /* c */ \
     O(TRIGCOND_INDEX, 0x4, 0x4) /* c: its file's code (the scenario manager) */ \
     O(TRIGCOND_JOIN, 0x8, 0x8) /* c: its file's code (the scenario manager) */ \
@@ -569,6 +581,9 @@
     O(UNIT_CHAIN, 0x1CC, 0x1CC) /* c */ \
     O(UNIT_HOLDER, 0x1D8, 0x1D8) /* c */ \
     O(UNIT_AI_STATE, 0x1E8, 0x1E8) /* c */ \
+    O(UNITLIST_UNITS, 0x4, 0x4) /* c: FN_GROUP_SECTOR_ROUTE's reads (both builds): a vector of ee_unit * (begin, end +4) */ \
+    O(UNIT_SEA_MODE, 0x2E0, 0x2E4) /* c: EEPMNaval::vf21's step test (0x550300 / AoC 0x55xxxx's read of +0x2E4) against TILE_SEA_CLASS */ \
+    O(UNIT_WAYPOINTS_LEFT, 0x8C, 0x8C) /* c: port_fields EEUnit (1 vote); the waypoint deque's (+0x7C) size */ \
     O(UNIT_GOAL, 0x1EC, 0x1EC) /* c */ \
     O(UNIT_GOAL_OBJECT, 0x1F0, 0x1F0) /* c */ \
     O(UNIT_BEHAVIOUR, 0x208, 0x208) /* c */ \

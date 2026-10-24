@@ -15,6 +15,12 @@ internal inline float type_get_unknown_430(const ee_unit_type *td) { return FIEL
 internal inline float type_get_accel(const ee_unit_type *td) { return FIELD(td, TD_ACCEL, float); }      // +0x438 base accel (a projectile's: its fall)
 internal inline int type_get_family(const ee_unit_type *td) { return FIELD(td, TD_FAMILY, int); }         // +0x4B4 2 building, 29 fortress, 5/6 units ...
 internal inline int type_get_id(const ee_unit_type *td) { return FIELD(td, TD_ID, int); }             // +0x4B8 the type (UT(...))
+// +0x470 a collision sphere (dreadnought 4, cruiser 3): half of it is about a ship's hull radius in tiles (a dreadnought
+// is stopped 1.7 tiles from the coast)
+internal inline float type_get_collision(const ee_unit_type *td) { return FIELD(td, TD_COLLISION, float); }
+// +0x5D6 a byte per terrain kind (tile_get_kind): may the type enter it (0 land, 1 water - a guess; AoC asks a
+// unit's stats instead, its own copy of the path search's tile test)
+internal inline int type_terrain_ok(const ee_unit_type *td, int kind) { return FIELD_AT(td, TD_TERRAIN_OK)[kind] != 0; }
 internal inline int type_get_damage_class(const ee_unit_type *td) { return FIELD(td, TD_DAMAGE_CLASS, int); }   // +0x4C0 the damage table's class
 internal inline int type_get_category(const ee_unit_type *td) { return FIELD(td, TD_CATEGORY, int); }       // +0x4C4 as a target (the hit table's row)
 internal inline int type_get_weapon(const ee_unit_type *td) { return FIELD(td, TD_WEAPON, int); }         // +0x4C8 ammo type (the hit table's weapon kind)

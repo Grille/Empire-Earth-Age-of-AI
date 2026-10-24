@@ -42,6 +42,10 @@ internal inline ee_ai_state *unit_get_ai_state(const ee_unit *u) { return FIELD(
 // the state's id (the .tai state names' numbers: Idle 5000, WaitForPassengers 12010 ... - engine-notes.md), 0 without one
 internal inline unsigned unit_ai_state_id(const ee_unit *u) { ee_ai_state *s = unit_get_ai_state(u); return s ? FIELD(s, AISTATE_ID, unsigned) : 0; }
 internal inline ee_goal *unit_get_goal(const ee_unit *u) { return FIELD(u, UNIT_GOAL, ee_goal *); }   // +0x1EC its goal (GOAL)
+// +0x2E0 a ship's mode against a tile's tile_get_sea_class (0, 3 ... - a guess: its draught)
+internal inline int unit_get_sea_mode(const ee_unit *u) { return FIELD(u, UNIT_SEA_MODE, int); }
+// +0x8C its waypoints left (the deque at +0x7C: the front the current one, the last the destination)
+internal inline int unit_get_waypoints_left(const ee_unit *u) { return FIELD(u, UNIT_WAYPOINTS_LEFT, int); }
 internal inline ee_goal *unit_get_goal_object(const ee_unit *u) { return FIELD(u, UNIT_GOAL_OBJECT, ee_goal *); } // +0x1F0 the goal object (0x5ED24B casts it)
 internal inline void *unit_get_behaviour(const ee_unit *u) { return FIELD(u, UNIT_BEHAVIOUR, void *); }    // +0x208 its behaviour (behaviour_table())
 internal inline void unit_set_behaviour(ee_unit *u, void *b) { FIELD(u, UNIT_BEHAVIOUR, void *) = b; }
@@ -57,6 +61,12 @@ internal inline uint8_t unit_get_finished(const ee_unit *u) { return FIELD(u, UN
 internal inline uint8_t unit_get_ai_held(const ee_unit *u) { return FIELD(u, UNIT_AI_HELD, uint8_t); }
 
 // FUNCTIONS
+// may unit enter the tile object stands on (its vtable: the path search's tile test asks every object there)
+internal inline int unit_lets_pass(ee_unit *object, ee_unit *unit) {
+    return ((char (__thiscall *)(ee_unit *, ee_unit *))(*(void ***)object)[GA(SLOT_UNIT_LETS_PASS)])(object, unit) != 0;
+}
+// one more waypoint at the end of the unit's list (a deque at +0x7C, the front its current; the movement steers to it)
+internal inline void unit_add_waypoint(ee_unit *u, float *pt) { GF(FN_ADD_WAYPOINT)(u, pt, 1); }
 // the citizens working site (all players)
 internal inline unsigned site_gatherers(ee_unit *site) { return GF(FN_SITE_GATHERERS)((void *)GA(G_GAME_STATE), site); }
 // a shot's ballistic path from -> to for unit u (type: its live stats): reachable (pitch out); the aim at target
