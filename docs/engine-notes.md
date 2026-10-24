@@ -783,6 +783,15 @@ conditions, 162 states with their ids) were dumped by a helper, not kept in the 
   1 (fog) while they stood there. The player's 5600 archers: along a row 3, 43, 67, 102, 127, 151, 167 rising
   with the crowd, on another 224, 250, 16, 24 - wrapped. `[general] sight_counts` (dll/engine/sight.c) replaces the add and remove and gives the minimap's
   rebuild the rest. AoC: the same code (port_addrs 100%).
+- The minimap (RTSMiniMap, global 0x9428A8, 0x12188 bytes) keeps per cell of a 64 x 64 grid two dot lists (+0x15C:
+  {first, count}, 16-byte nodes, next +0xC; +0x815C: 24-byte nodes, next +0x14) and a uint16 sight count (+0x1015C);
+  a tile's cell comes from its GETransformation at +0xA4 (the imported Apply, IAT 0x8231C4) and is used unchecked. A
+  unit in the corners of the tile square outside the map's diamond (MAP_EDGE_SUM/_2/DIFF) gets a cell outside the
+  grid (tile 40,40 of a 210-tile map: -7,32; 100,90 of a small one: 65,33), its dot added at 0x515F27 lands in the
+  neighbouring memory, and the game crashed a minute later in the lists (0x516079 read via 0x514305, 0x516235 write
+  via 0x515D68 from EEWorld::vf10). The game never puts a unit there; the test command `spawn` did (2026-10-24, found
+  with a diagnostic build hooking that Apply and walking the lists after every step: broken in the step after the
+  first out-of-grid dot).
 - A second sight count, for the viewed player only: the map's view table (MAP_VIEW_ROWS, map +0x17B598, AoC
   +0x18F49C: a row of {first x, length, data} per y, 4 bytes an x - its uint16 the count, bytes 2 and 3 other uses).
   Kept in 16 bits beside the tiles' (0x55EA8B: 0 -> 2, else +1; 0x55E904 / 0x5F896F: -1 with no floor), so in the

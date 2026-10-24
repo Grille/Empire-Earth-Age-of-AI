@@ -284,8 +284,8 @@ task: a poll left running after its caller gave up keeps sending commands to wha
 | `diplo [A B S]`, `diplo observer 0\|1` | stance matrix, AI opinions, power and wars answered; with arguments player A takes stance S (0 allied, 1 enemy) towards B, as the stance message does |
 | `diplo tribute A B N` | player A's tribute of N reaches AI B (the tribute hook's logic) |
 | `persona [P name]` | personalities loaded and assigned (traits, lines said); with arguments AI P gets personality `name` |
-| `spawn P type x y [n]` | create n units of a type for player P around tile x, y (2-tile grid), through the game's own debug spawner (EEMHackANewUnit, executed in the next tick like a player command). Types: [units.md](units.md) |
-| `spawnline P type x0 y0 x1 y1 [step]` | one unit every step tiles along a line, e.g. a wall |
+| `spawn P type x y [n]` | create n units of a type for player P around tile x, y (2-tile grid), through the game's own debug spawner (EEMHackANewUnit, executed in the next tick like a player command); places outside the map's diamond (the square's corners) are skipped - a unit there crashed the game through the minimap (engine-notes, the minimap), and the reply says when some were. The game refuses a unit whose spot is blocked (trees, another unit) without a word: `count P` tells how many came. Types: [units.md](units.md) |
+| `spawnline P type x0 y0 x1 y1 [step]` | one unit every step tiles along a line, e.g. a wall (outside the diamond skipped) |
 | `script dryrun <file> <out>` | a setup script run without the game: the clock jumps to where it waits, its commands go into `<out>` (`<ms> <command>`) instead of being run - [scripts.md](scripts.md) |
 | `texts corpus [file]` | every expression of the text files worked out, for comparing two builds of the engine - "Text engine comparison" below |
 | `watch <hex> [len]` | set the hardware watchpoint at runtime |

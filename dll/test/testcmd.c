@@ -249,8 +249,16 @@ internal void cmd_train(char *out, const char *args) {
     REPLY("P%d: %u of %d x type %d ordered\n", p, got, count, type);
 }
 
+// a unit's place within the map's diamond (the square's corners outside it are no map: the game never puts a unit
+// there, and the minimap indexes its 64 x 64 tables with such a place unchecked - spawned units in a corner wrote
+// over its dot lists and the game crashed a minute later, 0x516079 / 0x516235)
+internal int spawn_on_map(ee_map *map, const float *xy) {
+    int x = (int)xy[0], y = (int)xy[1];
+    return x + y > map_get_edge_sum(map) && x + y < map_get_edge_sum_2(map) && abs(x - y) < map_get_edge_diff(map);
+}
+
 internal void cmd_spawn(char *out, const char *args) {
-    int p, type, x, y, n = 1;
+    int p, type, x, y, n = 1, off = 0;
     if (sscanf(args, "%d %d %d %d %d", &p, &type, &x, &y, &n) < 4 || p < 0 || p > 15 || type < 0 || type >= 0x300 || n < 1 || n > 100) {
         REPLY("error: usage: spawn <player> <type> <x> <y> [count]\n");
         return;
@@ -266,12 +274,15 @@ internal void cmd_spawn(char *out, const char *args) {
     while (side * side < n) side++;
     for (int i = 0; i < n; i++) {
         float xy[2] = { (float)(x + (i % side) * 2) + 0.5f, (float)(y + (i / side) * 2) + 0.5f };
+        if (!spawn_on_map(game_map(), xy)) { off++; continue; }
         void *msg = new_unit_msg_alloc();
         if (!msg) { REPLY("error: out of memory\n"); return; }
         new_unit_msg_init(msg, &type, xy, (char)p);
         server_send_all(srv, msg);
     }
-    REPLY("ok: %d x type %d (%s) for P%d at %d,%d queued\n", n, type, unit_ident(type), p, x, y);
+    if (off == n) { REPLY("error: %d,%d is off the map's diamond\n", x, y); return; }
+    REPLY("ok: %d x type %d (%s) for P%d at %d,%d queued%s\n", n - off, type, unit_ident(type), p, x, y,
+          off ? " (the rest off the map's diamond)" : "");
 }
 
 // spawnline <player> <type> <x0> <y0> <x1> <y1> [step]: one unit every <step> tiles (default 1) along the line,
@@ -285,10 +296,12 @@ internal void cmd_spawnline(char *out, const char *args) {
     }
     void *srv = game_server();
     if (!type_data(type) || !srv) { REPLY("error: no type %d or no game\n", type); return; }
+    ee_map *map = game_map();
     int dx = x1 - x0, dy = y1 - y0, len = abs(dx) > abs(dy) ? abs(dx) : abs(dy), n = 0;
     for (int i = 0; i <= len; i += step) {
         float xy[2] = { (float)x0 + (len ? (float)(dx * i) / (float)len : 0) + 0.5f,
                         (float)y0 + (len ? (float)(dy * i) / (float)len : 0) + 0.5f };
+        if (!map || !spawn_on_map(map, xy)) continue;
         void *msg = new_unit_msg_alloc();
         if (!msg) break;
         new_unit_msg_init(msg, &type, xy, (char)p);
