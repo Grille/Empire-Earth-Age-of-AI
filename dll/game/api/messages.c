@@ -45,6 +45,16 @@ internal inline void unload_msg_make(ee_msg *msg, int from, int x, int y) {
     FIELD(msg, MSG_UNLOAD_X, int) = x;
     FIELD(msg, MSG_UNLOAD_Y, int) = y;
 }
+// a move (EEMPathTo, the right-click's; vtable 0x824D84, 0x20 bytes): the target +0x14, +0x18 (floats), +0x10 the
+// facing of a drag, +0x1C / +0x1D the move goal's +0x30 / +0x31 (1, 1 for a plain click), +0x1E queued (shift),
+// +0x1F the goal's +0x33. The Execute splits the selection into a group per kind and hands each the move.
+internal inline void path_msg_make(ee_msg *msg, int from, float x, float y) {
+    FIELD(msg, MSG_CHAT_FROM, uint8_t) = (uint8_t)from;
+    FIELD(msg, MSG_PATH_X, float) = x;
+    FIELD(msg, MSG_PATH_Y, float) = y;
+    FIELD(msg, MSG_PATH_GOAL_30, uint8_t) = 1;
+    FIELD(msg, MSG_PATH_GOAL_31, uint8_t) = 1;
+}
 // the game start (EEMStartLoading): +0x14 the game's seed
 internal inline unsigned start_msg_get_seed(const ee_msg *msg) { return FIELD(msg, MSG_START_SEED, unsigned); }
 internal inline void start_msg_set_seed(ee_msg *msg, unsigned v) { FIELD(msg, MSG_START_SEED, unsigned) = v; }
@@ -56,6 +66,7 @@ internal inline void msg_pay_tribute(ee_msg *msg) { GF(FN_PAY_TRIBUTE)(msg); }
 internal inline void msg_ingame_chat(ee_msg *msg) { GF(FN_INGAME_CHAT)(msg); }
 internal inline void msg_load(ee_msg *msg) { GF(FN_MSG_LOAD)(msg); }
 internal inline void msg_unload(ee_msg *msg) { GF(FN_MSG_UNLOAD)(msg); }
+internal inline void msg_path(ee_msg *msg) { GF(FN_MSG_PATH)(msg); }
 internal inline void *msg_chat_init(void *mem, void *wide_text) { return GF(FN_CHAT_MSG_CTOR)(mem, wide_text); }
 internal inline void server_send_all(ee_server *net, void *msg) {
     ((void (__thiscall *)(void *, void *, int))(*(void ***)net)[GA(SLOT_SERVER_SEND)])(net, msg, 0xFF);

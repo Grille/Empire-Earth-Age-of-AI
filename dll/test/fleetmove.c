@@ -1,0 +1,115 @@
+// FLEET MOVES (tests only; docs/testing.md `fmove`): how long a group given one move order takes to get going and to
+// arrive - the measure of the local movement (units blocking each other, the 3-5 s wait before ObstacleDetected, the
+// repaths) before anything there is changed. `fmove go` gives the order as the player's right-click does (the units
+// selected, EEMPathTo executed: a group per kind, each handed the move); `fmove stat`, called every second or so by
+// the setup script, samples each unit: moving (it covered 0.15 tiles a second since the last sample - not its speed:
+// a ship pressed against another keeps the least speed, 0.1, and goes nowhere), standing short of its goal (creeping
+// when its speed says it moves), or done (no move goal left); `fmove sum` the times per unit.
+
+#define FM_MAX 128
+internal struct fm_unit {
+    unsigned id;                    // +0x24, found back with unit_by_id (a sunk unit isn't)
+    int type;
+    float moved, done, stood;       // s after the order: first moving, done (-1 not yet); s standing short of the goal
+    float crept;                    // s of it with a speed (pressed against another)
+    float x, y;                     // its position at the last sample
+    int repaths, states;            // samples newly in RepathAroundObstacle (9002), state changes seen
+    unsigned state;
+} g_fm[FM_MAX];
+internal int g_fm_n;
+internal uint32_t g_fm_t0, g_fm_last;   // the order's game time, the last sample's (ms)
+internal float g_fm_tx, g_fm_ty;
+
+internal void fm_sample(char *out, int quiet) {
+    uint32_t now = game_time();
+    float t = (float)(now - g_fm_t0) / 1000.0f, dt = (float)(now - g_fm_last) / 1000.0f;
+    g_fm_last = now;
+    int moving = 0, standing = 0, creeping = 0, done = 0, gone = 0, hist_n = 0;
+    unsigned hist_id[16];
+    int hist_c[16];
+    float dist = 0;
+    for (int i = 0; i < g_fm_n; i++) {
+        struct fm_unit *f = &g_fm[i];
+        ee_unit *u = unit_by_id(f->id);
+        if (!u || unit_get_hp(u) <= 0) { gone++; continue; }
+        ee_goal *g = unit_get_goal(u);
+        unsigned s = unit_ai_state_id(u);
+        float v = unit_get_speed(u);
+        vec3 p = unit_get_pos(u);
+        dist += sqrtf((p.x - g_fm_tx) * (p.x - g_fm_tx) + (p.y - g_fm_ty) * (p.y - g_fm_ty));
+        if (s != f->state) { f->states++; if (s == 9002) f->repaths++; f->state = s; }
+        float step = sqrtf((p.x - f->x) * (p.x - f->x) + (p.y - f->y) * (p.y - f->y));
+        f->x = p.x;
+        f->y = p.y;
+        if (!g || !goal_is_location(g)) { done++; if (f->done < 0) f->done = t; }
+        else if (dt > 0 && step > 0.15f * dt) { moving++; if (f->moved < 0) f->moved = t; }
+        else { standing++; f->stood += dt; if (v > 0.1f) { creeping++; f->crept += dt; } }
+        int k = 0;
+        while (k < hist_n && hist_id[k] != s) k++;
+        if (k == hist_n && hist_n < 16) { hist_id[hist_n] = s; hist_c[hist_n++] = 0; }
+        if (k < hist_n) hist_c[k]++;
+    }
+    if (quiet) return;
+    int alive = g_fm_n - gone;
+    REPLY("fmove t %.1f: moving %d standing %d (creeping %d) done %d gone %d, dist %.1f, states", t, moving, standing, creeping, done, gone, alive ? dist / (float)alive : 0.0f);
+    for (int k = 0; k < hist_n; k++) REPLY(" %u:%d", hist_id[k], hist_c[k]);
+    REPLY("\n");
+}
+
+// pipe `fmove go P x y r tx ty`: P's units within r tiles of x, y (no buildings) selected and sent to tx, ty by the
+// right-click's message; `fmove stat`: a sample (above); `fmove sum`: per unit its type, first moving, done, time
+// standing short of the goal, repaths, state changes - and the slowest of each
+internal void cmd_fmove(char *out, const char *args) {
+    char what[8] = "";
+    int p = 0, x = 0, y = 0, r = 0, tx = 0, ty = 0;
+    if (sscanf(args, "%7s %d %d %d %d %d %d", what, &p, &x, &y, &r, &tx, &ty) < 1 || !game_map()) { REPLY("fmove go P x y r tx ty | stat | sum\n"); return; }
+    if (!strcmp(what, "stat")) { if (g_fm_n) fm_sample(out, 0); else REPLY("fmove: no order given\n"); return; }
+    if (!strcmp(what, "sum")) {
+        float moved = 0, done = 0, stood = 0, crept = 0;
+        int n_done = 0;
+        for (int i = 0; i < g_fm_n; i++) {
+            struct fm_unit *f = &g_fm[i];
+            REPLY("fmove %06x type %d moved %.1f done %.1f stood %.1f (crept %.1f) repaths %d states %d\n", f->id & 0xFFFFFF, f->type, f->moved, f->done, f->stood,
+                  f->crept, f->repaths, f->states);
+            if (f->moved > moved) moved = f->moved;
+            if (f->done >= 0) { n_done++; if (f->done > done) done = f->done; }
+            stood += f->stood;
+            crept += f->crept;
+        }
+        REPLY("fmove sum: %d units, the last moving at %.1f s, %d done (the last at %.1f s), standing short of the goal %.1f s together (creeping %.1f)\n",
+              g_fm_n, moved, n_done, done, stood, crept);
+        return;
+    }
+    if (strcmp(what, "go")) { REPLY("fmove go P x y r tx ty | stat | sum\n"); return; }
+    ee_player *pl = p > 0 && p < 16 ? game_players()[p] : NULL;
+    if (!pl) { REPLY("fmove: no player %d\n", p); return; }
+    static uint32_t ids[FM_MAX];
+    static __attribute__((aligned(8))) uint8_t mem[0x40];
+    g_fm_n = 0;
+    for (struct grid_it it = grid_it_box(x, y, r, 1); g_fm_n < FM_MAX && grid_it_next(&it); ) {
+        ee_unit *u = it.u;
+        if (unit_get_owner(u) != pl || unit_get_hp(u) <= 0 || type_get_family(it.td) == 2) continue;
+        if (abs(unit_get_x(u) - x) > r || abs(unit_get_y(u) - y) > r) continue;
+        struct fm_unit *f = &g_fm[g_fm_n];
+        memset(f, 0, sizeof *f);
+        f->id = (unsigned)unit_get_serial(u);
+        f->type = type_get_id(it.td);
+        f->moved = f->done = -1;
+        f->state = unit_ai_state_id(u);
+        vec3 q = unit_get_pos(u);
+        f->x = q.x;
+        f->y = q.y;
+        ids[g_fm_n++] = f->id;
+    }
+    if (!g_fm_n) { REPLY("fmove: no units of P%d within %d of %d,%d\n", p, r, x, y); return; }
+    uint32_t *sel[3] = { NULL, ids, ids + g_fm_n };   // a select message's selection: its ids at +4 .. +8
+    player_select(pl, sel);
+    memset(mem, 0, sizeof mem);
+    g_fm_tx = (float)tx + 0.5f;
+    g_fm_ty = (float)ty + 0.5f;
+    path_msg_make((ee_msg *)mem, player_get_msg_id(pl), g_fm_tx, g_fm_ty);
+    msg_path((ee_msg *)mem);
+    g_fm_t0 = g_fm_last = game_time();
+    int *grp = player_get_selected_group(pl);
+    REPLY("fmove: %d units of P%d sent to %d,%d (%u in the selected group)\n", g_fm_n, p, tx, ty, grp ? group_count(grp) : 0);
+}

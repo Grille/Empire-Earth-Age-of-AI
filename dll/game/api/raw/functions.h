@@ -107,6 +107,7 @@
     F(FN_ORDER_MARKS, void, __cdecl, (void *, void *, int, int, unsigned), 0x004B12A2, 0x004B86CD) \
     F(FN_INGAME_CHAT, void, __thiscall, (void *), 0x004B78C7, 0x004BFDD2) \
     F(FN_MSG_LOAD, void, __thiscall, (void *), 0x004B9446, 0x004C1B79)        /* EEMLoadTransport's Execute */ \
+    F(FN_MSG_PATH, void, __thiscall, (void *), 0x004B9D7B, 0x004C281C)        /* EEMPathTo's Execute */ \
     F(FN_PAY_TRIBUTE, void, __thiscall, (void *), 0x004BA6BE, 0x004C315B) \
     F(FN_RESIGN, void, __thiscall, (void *), 0x004BB906, 0x004C44BB) \
     F(FN_MSG_UNLOAD, void, __thiscall, (void *), 0x004BF756, 0x004C8615)      /* EEMUnloadTransport's Execute */ \

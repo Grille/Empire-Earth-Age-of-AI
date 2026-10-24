@@ -77,6 +77,7 @@
 //   MSG_START    the game start message (EEMStartLoading)
 //   MSG_LOAD     the load-into-a-transport message (EEMLoadTransport)
 //   MSG_UNLOAD   the unload message (EEMUnloadTransport)
+//   MSG_PATH     the move message (EEMPathTo)
 //   NATIVECHAT   the object of FN_NATIVE_CHAT
 //   UIFORM       the UI manager's current form
 //   UISCREEN     a single-player menu screen (EEUIESP*)
@@ -228,6 +229,10 @@
     O(MSG_SELECT_FLAG, 0x134, 0x134) /* c */ \
     O(MSG_LOAD_TRANSPORT, 0x10, 0x10) /* c: its Execute's reads (both builds) */ \
     O(MSG_LOAD_UNIT, 0x14, 0x14) /* c: its Execute's reads (both builds) */ \
+    O(MSG_PATH_X, 0x14, 0x14) /* c: its Execute's reads (both builds) */ \
+    O(MSG_PATH_Y, 0x18, 0x18) /* c: its Execute's reads (both builds) */ \
+    O(MSG_PATH_GOAL_30, 0x1C, 0x1C) /* c: its Execute's reads (both builds) - the move goal's +0x30 */ \
+    O(MSG_PATH_GOAL_31, 0x1D, 0x1D) /* c: its Execute's reads (both builds) - the move goal's +0x31 */ \
     O(MSG_START_SEED, 0x14, 0x14) /* c */ \
     O(MSG_TRIBUTE_FOOD, 0x10, 0x10) /* c */ \
     O(MSG_TRIBUTE_GOLD, 0x14, 0x14) /* c */ \

@@ -372,6 +372,7 @@ internal char __thiscall hook_game_start(void *state, ee_setup *setup, void *p2)
 #include "voice/llm.c"
 #include "test/testcmd.c"
 #include "test/testopp.c"
+#include "test/fleetmove.c"
 #include "test/ecolog.c"
 
 

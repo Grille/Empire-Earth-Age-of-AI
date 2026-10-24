@@ -76,6 +76,7 @@ internal void cmd_camtrace(char *out, const char *args);
 internal void cmd_aim(char *out, const char *args);     // aim.c
 internal void cmd_uinfo(char *out, const char *args);
 internal void cmd_move(char *out, const char *args);
+internal void cmd_fmove(char *out, const char *args);    // fleetmove.c
 internal void aim_tick(void);
 internal void cmd_ddinfo(char *out, const char *args);
 internal void cmd_topbar(char *out, const char *args);
@@ -405,6 +406,7 @@ internal void execute(const char *cmd, char *out) {
     else if (!strcmp(verb, "aim")) cmd_aim(out, args);
     else if (!strcmp(verb, "uinfo")) cmd_uinfo(out, args);
     else if (!strcmp(verb, "move")) cmd_move(out, args);
+    else if (!strcmp(verb, "fmove")) cmd_fmove(out, args);
     else if (!strcmp(verb, "ddinfo")) cmd_ddinfo(out, args);
     else if (!strcmp(verb, "topbar")) cmd_topbar(out, args);
     else if (!strcmp(verb, "ddpoke")) cmd_ddpoke(out, args);
