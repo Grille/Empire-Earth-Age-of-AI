@@ -12,14 +12,17 @@
 // same owner steps aside by its part. A unit heading into another veers off to the right. As in the game's test a
 // unit at work (gathering, building: UNIT_AT_WORK on a kind 6 or 4 goal) is passed, but by one at the same work. The
 // push goes through the game's own (SLOT_PM_PUSH: terrain and buildings tested, no faster than the top speed); the
-// speed is left alone, so a unit pressing on another slides along it. Only + - * / and sqrtf: the same on every PC.
+// speed is left alone, so a unit pressing on another slides along it. A unit at rest (not at work) moves its share off
+// other units at rest every UC_REST_EVERY steps - else a crowd that stopped on one spot stays one blob. Only + - * / and sqrtf: the same on every PC.
 
 #define UC_WIDTH 0.35f   // a ship's width, a share of its length
 #define UC_RELAX 0.5f    // the share of an overlap undone a step
 #define UC_SIDESTEP 0.5f   // heading into another: the push turned this much (x how straight) to the side, starboard unless the other lies clearly to port
+#define UC_REST_EVERY 4   // a unit at rest looks for overlaps every this many steps (its share of each, the other does its own)
 #define UC_REACH 2       // tiles looked beyond the unit's half length for the other's (the largest ship, a carrier, 3.2 long)
 
 internal int g_uc_on[4];                  // by model_kind
+internal unsigned g_uc_rest;                 // pushes of units at rest off each other
 internal unsigned g_uc_steps, g_uc_hits;   // collision steps taken over, overlaps pushed off
 internal float g_uc_deepest;               // the deepest overlap met (tiles)
 
@@ -87,10 +90,10 @@ internal int uc_moves(ee_unit *u) { return unit_get_speed(u) > 0.05f || unit_get
 
 // the push off every overlapping hull near u, added to its push velocity; a standing ship of u's owner gets its part
 // at once (its own collision step doesn't run while it stands)
-internal void uc_separate(int kind, ee_unit *u) {
+internal int uc_separate(int kind, ee_unit *u, int resting) {
     ee_physics *ph = game_physics();
     float dt = ph ? phys_get_step_s(ph) * (float)phys_substeps() : 0;
-    if (dt <= 0) return;
+    if (dt <= 0) return 0;
     struct uc_hull h = uc_hull_of(u, kind);
     float mu = h.len * h.len;
     vec2 corr = v2(0, 0);
@@ -125,8 +128,9 @@ internal void uc_separate(int kind, ee_unit *u) {
             d = vec2_scale(d, 1.0f / vec2_len(d));
         }
         float over = rr - dist, oc = o.len * o.len, share = oc / (mu + oc);
-        int moves = uc_moves(c), nudge = !moves && unit_get_owner(c) == unit_get_owner(u) && !unit_get_frozen(c);
-        if (!moves && !nudge) share = 1.0f;
+        int moves = uc_moves(c), nudge = !resting && !moves && unit_get_owner(c) == unit_get_owner(u) && !unit_get_frozen(c);
+        if (resting && moves) continue;   // a moving one does it in its own step
+        if (!resting && !moves && !nudge) share = 1.0f;
         corr = vec2_add(corr, vec2_scale(d, over * share * UC_RELAX));
         if (nudge) {   // the standing one steps aside by its part
             unit_set_push(c, vec2_add(unit_get_push(c), vec2_scale(d, -over * (1.0f - share) * UC_RELAX / dt)));
@@ -135,21 +139,34 @@ internal void uc_separate(int kind, ee_unit *u) {
         g_uc_hits++;
         if (over > g_uc_deepest) g_uc_deepest = over;
     }
-    if (corr.x == 0 && corr.y == 0) return;
+    if (corr.x == 0 && corr.y == 0) return 0;
     unit_set_push(u, vec2_add(unit_get_push(u), vec2_scale(corr, 1.0f / dt)));
+    return 1;
 }
 
 internal void __thiscall hook_collide(void *model, ee_unit *u) {
     int kind = model_kind(model);
-    if (!u || !g_uc_on[kind] || !unit_get_moving(u)) { model_collide(model, u); return; }
+    if (!u || !g_uc_on[kind]) { model_collide(model, u); return; }
     vec2 push = unit_get_push(u);
-    if (unit_get_speed(u) == 0 && unit_get_turn_rate(u) == 0 && fabsf(push.x) < 0.001f && fabsf(push.y) < 0.001f) { model_collide(model, u); return; }
+    if (!unit_get_moving(u) || (unit_get_speed(u) == 0 && unit_get_turn_rate(u) == 0 && fabsf(push.x) < 0.001f && fabsf(push.y) < 0.001f)) {
+        // at rest: the game's step (its blocked time, the idle states), then, every UC_REST_EVERY steps, off the other
+        // units at rest it overlaps - else units that stop on one spot (a rally point, a crowd) stay one blob; a unit
+        // at work keeps its place
+        model_collide(model, u);
+        ee_physics *ph = game_physics();
+        if (ph && !unit_get_at_work(u) && !unit_get_frozen(u) && unit_get_hp(u) > 0 && !unit_get_holder(u)
+            && ((unsigned)unit_get_serial(u) + phys_get_step(ph)) % UC_REST_EVERY == 0 && uc_separate(kind, u, 1)) {
+            g_uc_rest++;
+            model_push(model, u);
+        }
+        return;
+    }
     g_uc_steps++;
-    uc_separate(kind, u);
+    uc_separate(kind, u, 0);
     model_push(model, u);
 }
 
-internal void collide_new_game(void) { g_uc_steps = g_uc_hits = 0; g_uc_deepest = 0; }
+internal void collide_new_game(void) { g_uc_steps = g_uc_hits = g_uc_rest = 0; g_uc_deepest = 0; }
 
 internal void collide_install(void) {
     g_uc_on[MODEL_SHIPS] = g_uc_on[MODEL_SUBS] = g_set.ship_collide;

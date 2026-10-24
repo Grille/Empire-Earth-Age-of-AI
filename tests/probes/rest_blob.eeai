@@ -1,0 +1,13 @@
+// Units that stop on one spot (the player: idle units pushed into one blob - longswords and cataphracts on the very
+// same coordinates after a fight): Continental (seed 101, start_epoch 12), 12 long swords and 6 cataphracts of P1 beside
+// 3 of P2's war elephants, which they fight on their own; then all of P1's there watched standing (`fmove add`,
+// `fmove watch`: the overlaps at rest, units on one spot).
+wait_until(0.1min)
+spawn(1, unit.inf06_longsword, 44, 44, 12)
+spawn(1, unit.cav05_cataphract, 48, 44, 6)
+spawn(2, unit.cav04_war_elephant, 46, 47, 3)
+wait_until(1.5min)
+cmd("fmove add 1 46 46 8")
+cmd("fmove watch 1")
+wait_until(1.8min)
+cmd("fmove watch 0")

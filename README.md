@@ -323,7 +323,8 @@ Settings in `aimod.ini`:
   big as the game's size for them (a citizen 0.3 tiles, infantry 0.5, a tank 1), pushed apart gently instead of
   slowed and jumped back, a unit walking into another veers off and slides past, and a standing unit of the same
   player steps aside. Units at work (gathering, building) are walked through as in the game, so citizens at a mine
-  don't wall it off. Tanks through a block of standing infantry: about a quarter of the overlap, the deepest 0.79 ->
+  don't wall it off. Units at rest drift apart too, so a crowd that stopped on one spot (after a melee fight, say)
+  doesn't stay one blob. Tanks through a block of standing infantry: about a quarter of the overlap, the deepest 0.79 ->
   0.24 tiles. In multiplayer every PC needs the same setting.
 - `[general] group_block=10` (default; 0 the original): a group sent somewhere took up the formation's grid - only 5
   columns, every row and column as wide as the group's largest unit - so a big army, worst with small and large units
