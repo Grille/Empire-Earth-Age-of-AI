@@ -323,6 +323,29 @@ internal int tw_meeting(ee_unit *t, ee_unit **list, int n, const ivec2 *meet, in
     return 0;
 }
 
+// The slots (the units' groups of a load, the tiles of an unload) handed to the transports so that the way all sail
+// together is the shortest: transport i takes slot slot[i]; two swap theirs while that shortens their two ways - two
+// straight ways that cross are always longer than the two swapped (the triangle inequality), so none cross after.
+// cost[i][s]: transport i's way to slot s (TW_NO: it can't take it); the tiles the ways got shorter by.
+#define TW_NO 1e30f
+internal float tw_uncross(int n, float cost[16][16], int *slot) {
+    float saved = 0.0f;
+    for (int round = 0, changed = 1; changed && round < 64; round++) {
+        changed = 0;
+        for (int i = 0; i < n; i++)
+            for (int j = i + 1; j < n; j++) {
+                float now = cost[i][slot[i]] + cost[j][slot[j]], swapped = cost[i][slot[j]] + cost[j][slot[i]];
+                if (swapped < TW_NO && swapped < now - 0.01f) { int t = slot[i]; slot[i] = slot[j]; slot[j] = t; changed = 1; saved += now - swapped; }
+            }
+    }
+    return saved;
+}
+internal float tw_way(ivec2 a, ivec2 b) { return sqrtf((float)ivec2_dist2(a, b)); }
+// two transports may trade slots: the same kind, ships on the same sea
+internal int tw_alike(ee_unit *a, ee_unit *b) {
+    return tw_kind(a) == tw_kind(b) && (tw_kind(a) != TW_SEA || area_id(unit_get_tile(a), 1) == area_id(unit_get_tile(b), 1));
+}
+
 // the units us[nu] shared out over pl's transports tr[nt] (sorted here: nearest the units first): *used the transports
 // given units; the units given. A ship's new load a meeting point of its own - the game's (EEUCNavalTransport's
 // vf56) is the transport's own tile when it finds the units' region the same as its own (a copper
@@ -336,15 +359,17 @@ internal int tw_load_split(ee_player *pl, ee_unit **tr, int nt, ee_unit **us, in
         for (int j = i; j > 0 && ivec2_dist2(unit_get_tile(tr[j]), c) < ivec2_dist2(unit_get_tile(tr[j - 1]), c); j--) { ee_unit *t = tr[j]; tr[j] = tr[j - 1]; tr[j - 1] = t; }
     static signed char owner[1024];   // the transport each unit goes to, -1 none
     memset(owner, -1, (size_t)nu);
-    int m[16] = { 0 }, given = 0;
+    int m[16] = { 0 }, room0[16], busy[16], given = 0;
     for (int k = 0; k < nt; k++) {   // first who goes where
         ee_unit *t = tr[k];
         ee_unit_type *ttd = unit_get_type_data(t);
         ee_goal *g = unit_get_goal(t);
         int room = unit_get_room(t);
-        if (g && goal_is_load(g) && goal_get_holder(g) == t)   // a load under way: what it still awaits
+        busy[k] = g && goal_is_load(g) && goal_get_holder(g) == t;
+        if (busy[k])   // a load under way: what it still awaits
             for (ee_unit **p = goal_get_pending_begin(g); p && p < goal_get_pending_end(g); p++)
                 if (*p && unit_get_hp(*p) > 0) room -= tw_size(*p);
+        room0[k] = room;
         while (room > 0) {   // its nearest unit that it can carry and that fits
             int best = -1, bd = 0;
             for (int i = 0; i < nu; i++) {
@@ -358,15 +383,34 @@ internal int tw_load_split(ee_player *pl, ee_unit **tr, int nt, ee_unit **us, in
         if (g_log) fprintf(g_log, "# tw: P%d load: transport %06x type %d (%s) at %d,%d - room %d, %d given, %d aboard\n", player_get_index(pl), tw_id(t),
                            type_get_id(ttd), rtti_name(ttd), unit_get_x(t), unit_get_y(t), unit_get_room(t), m[k], units_inside(t));
     }
+    // then which transport takes which group (slot s: the units transport s found): the shortest ways, none crossing -
+    // a transport may take another's group it has room for and can carry; one with a load under way keeps its own
+    int slot[16], size[16] = { 0 }, swapped = 0;
+    ivec2 ctr[16];
+    float cost[16][16];
+    for (int s = 0; s < nt; s++) {
+        int sx = 0, sy = 0;
+        for (int i = 0; i < nu; i++) if (owner[i] == s) { sx += unit_get_x(us[i]); sy += unit_get_y(us[i]); size[s] += tw_size(us[i]); }
+        ctr[s] = m[s] ? iv2(sx / m[s], sy / m[s]) : unit_get_tile(tr[s]);
+        slot[s] = s;
+    }
+    for (int k = 0; k < nt; k++)
+        for (int s = 0; s < nt; s++) {
+            int ok = s == k || (!busy[k] && !busy[s] && tw_alike(tr[k], tr[s]) && size[s] <= room0[k]);
+            for (int i = 0; i < nu && ok && s != k; i++) ok = owner[i] != s || type_can_carry(unit_get_type_data(tr[k]), tr[k], us[i]);
+            cost[k][s] = !ok ? TW_NO : m[s] ? tw_way(unit_get_tile(tr[k]), ctr[s]) : 0.0f;   // an empty group: it stays
+        }
+    float saved = tw_uncross(nt, cost, slot);
+    for (int k = 0; k < nt; k++) swapped += slot[k] != k;
     static ee_unit *list[1024];
     ivec2 meet[16];
     int nmeet = 0, moved = 0;
     *used = 0;
     for (int k = 0; k < nt; k++) {   // then the goals
-        if (!m[k]) continue;
+        if (!m[slot[k]]) continue;
         ee_unit *t = tr[k];
         int n = 0;
-        for (int i = 0; i < nu; i++) if (owner[i] == k) list[n++] = us[i];
+        for (int i = 0; i < nu; i++) if (owner[i] == slot[k]) list[n++] = us[i];
         ee_goal *g = unit_get_goal(t);
         if (g && goal_is_load(g) && goal_get_holder(g) == t) {   // under way: the units added, as the game does
             for (int i = 0; i < n; i++) goal_add_passenger(g, list[i]);
@@ -398,8 +442,8 @@ internal int tw_load_split(ee_player *pl, ee_unit **tr, int nt, ee_unit **us, in
         for (int i = 0; i < n; i++) given += unit_goal(list[i], goal_load_part(g), 0, TW_PREPARE_TO_MOVE);
         (*used)++;
     }
-    if (g_log) fprintf(g_log, "# tw: P%d at %.2f min: load - %d units over %d of %d transports (%d meeting points moved apart), %d without room\n", player_get_index(pl),
-                       game_time() / 60000.0, given, *used, nt, moved, nu - given);
+    if (g_log) fprintf(g_log, "# tw: P%d at %.2f min: load - %d units over %d of %d transports (%d meeting points moved apart, %d groups traded, the ways %.0f tiles shorter), %d without room\n",
+                       player_get_index(pl), game_time() / 60000.0, given, *used, nt, moved, swapped, (double)saved, nu - given);
     return given;
 }
 // The mouse click's confirmation (this PC's, drawn at the click, before the command's message runs; GFX_CLICK,
@@ -456,16 +500,28 @@ internal int tw_unload_spread(ee_player *pl, ee_unit **tr, int nt, ivec2 p, ivec
     if (!cont) return 0;   // not a tile on land: as the game gave it
     for (int i = 1; i < nt; i++)
         for (int j = i; j > 0 && ivec2_dist2(unit_get_tile(tr[j]), p) < ivec2_dist2(unit_get_tile(tr[j - 1]), p); j--) { ee_unit *t = tr[j]; tr[j] = tr[j - 1]; tr[j - 1] = t; }
-    int spread = 0;
-    for (int k = 0; k < nt; k++) {
+    int spread = 0, slot[16], swapped = 0;
+    ivec2 tile[16];
+    float cost[16][16];
+    for (int k = 0; k < nt; k++) {   // the tiles first (nearest p first)
         ivec2 *o = &at[taken + k];
         if (!tw_beach(p, cont, tw_kind(tr[k]), area_id(unit_get_tile(tr[k]), 1), at, taken + k, 8 + 2 * (taken + nt), o)) *o = p;
-        if (o->x == p.x && o->y == p.y) continue;   // its tile is the clicked one: the game's goal stays
-        ee_goal *g = goal_unload(tr[k], o->x, o->y, 0);
+        tile[k] = *o;
+        slot[k] = k;
+    }
+    for (int k = 0; k < nt; k++)   // then who takes which: the shortest ways, none crossing (a ship's tile is at its sea)
+        for (int s = 0; s < nt; s++) cost[k][s] = s == k || tw_alike(tr[k], tr[s]) ? tw_way(unit_get_tile(tr[k]), tile[s]) : TW_NO;
+    float saved = tw_uncross(nt, cost, slot);
+    for (int k = 0; k < nt; k++) {
+        ivec2 o = tile[slot[k]];
+        at[taken + k] = o;
+        swapped += slot[k] != k;
+        if (o.x == p.x && o.y == p.y) continue;   // its tile is the clicked one: the game's goal stays
+        ee_goal *g = goal_unload(tr[k], o.x, o.y, 0);
         spread += g && unit_goal(tr[k], g, 0, TW_PREPARE_TO_MOVE);
     }
-    if (g_log) fprintf(g_log, "# tw: P%d at %.2f min: unload at %d,%d - %d transports, %d sent to their own tile\n", player_get_index(pl), game_time() / 60000.0,
-                       p.x, p.y, nt, spread);
+    if (g_log) fprintf(g_log, "# tw: P%d at %.2f min: unload at %d,%d - %d transports, %d sent to their own tile (%d tiles traded, the ways %.0f tiles shorter)\n", player_get_index(pl),
+                       game_time() / 60000.0, p.x, p.y, nt, spread, swapped, (double)saved);
     return spread;
 }
 // The unload command: the Execute gives the selected group its unload goal at the clicked tile, the group hands it to

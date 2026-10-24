@@ -264,6 +264,8 @@ Settings in `aimod.ini`:
 - `[general] transport_unload_spread=1` (default): several loaded transports told to unload at one spot all headed
   for that one tile; each now gets its own tile there, a few tiles apart, and they unload side by side - a yellow
   circle on each one's tile. Ships, helicopters and land transports alike, also mixed in one selection.
+  Loading and unloading both first work out all the spots (the groups of units, the landing tiles), then match the
+  transports to them so that the ways together are the shortest - so their ways don't cross.
   Both run inside the game's simulation like the original commands: in multiplayer every PC needs the same settings.
 - `[sound] clamp_channels=1` (default): the "Max Number Of Sounds" slider goes to 200%, which asks for 32 sound
   channels, but the sound mixer has only 16 on current Windows. Sounds put on the 16 missing channels were silent,
