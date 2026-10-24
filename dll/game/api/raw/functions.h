@@ -185,6 +185,7 @@
     /* thiscall(unit, 0x1F51) - as the assignment does after the order */ \
     F(FN_UNIT_SET_STATE, void, __thiscall, (void *, int), 0x005EFCF0, 0x005FDFA5) \
     F(FN_SET_GOAL, void, __thiscall, (void *, void *, char, int), 0x005F05BD, 0x005FE863) /* thiscall(unit, goal, 0, 0) */ \
+    F(FN_UNIT_GOAL_QUEUE, void *, __thiscall, (void *, int), 0x005F3473, 0x005FA1CD) /* thiscall(unit, slot): the slot's goal queue (unit +0x94 a vector of 0x28-byte slots; +4 a deque of goal pointers: +4 block map, +8 its size, +0xC the front's index, +0x10 the count; 0x400 a block) - slot 0 the orders, the front the current, shift appends */ \
     /* EEUCMissile vf42, thiscall(class, missile, aim) - ret 8, the aim unused */ \
     F(FN_MISSILE_LAUNCH, int, __thiscall, (void *, void *, float *), 0x00606109, 0x0061799B) \
     F(FN_PROJ_DOWN, char, __thiscall, (void *, void *), 0x006078F9, 0x00619143) \

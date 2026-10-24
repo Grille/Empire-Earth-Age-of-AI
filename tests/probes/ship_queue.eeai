@@ -1,0 +1,12 @@
+// Shift-queued moves (the player: are the queued points separate paths, does the ship stop at each?): Small Islands
+// (map seed 1, start_epoch 9), a dreadnought in the open north sea traced every step (# fmtrace), sent 52,12 -> 62,20
+// with 72,14, 66,26 and 52,24 queued after it (`fmove then`) - at each queued point: its speed, state and heading.
+wait_until(0.1min)
+spawn(1, unit.s10_dreadnought_battleship, 52, 12, 1)
+wait_until(0.3min)
+cmd("fmove go 1 52 12 2 62 20")
+cmd("fmove trace 0")
+cmd("fmove then 1 72 14")
+cmd("fmove then 1 66 26")
+cmd("fmove then 1 52 24")
+wait_until(3.3min)

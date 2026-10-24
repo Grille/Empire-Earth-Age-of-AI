@@ -33,8 +33,10 @@ internal void fm_tick(void) {
     ee_unit *u = unit_by_id(g_fm_trace);
     if (!u) { fprintf(g_log, "# fmtrace %u gone\n", now); g_fm_trace = 0; return; }
     vec3 p = unit_get_pos(u), f = unit_get_facing(u);
-    fprintf(g_log, "# fmtrace %u pos %.3f,%.3f head %.1f spd %.3f state %u wp %d at %.2f,%.2f\n", now, p.x, p.y, atan2f(f.x, f.y) * 57.29578f,
-            unit_get_speed(u), unit_ai_state_id(u), FIELD(u, 0x8C, int), FIELD(u, 0x118, float), FIELD(u, 0x11C, float));
+    ee_goal *g0 = unit_order_at(u, 0), *g1 = unit_order_at(u, 1);
+    fprintf(g_log, "# fmtrace %u pos %.3f,%.3f head %.1f spd %.3f state %u wp %d at %.2f,%.2f orders %d (%d %d)\n", now, p.x, p.y, atan2f(f.x, f.y) * 57.29578f,
+            unit_get_speed(u), unit_ai_state_id(u), FIELD(u, 0x8C, int), FIELD(u, 0x118, float), FIELD(u, 0x11C, float), unit_orders(u),
+            g0 ? goal_get_state(g0) : -1, g1 ? goal_get_state(g1) : -1);
     static unsigned last_state;
     unsigned st = unit_ai_state_id(u);
     if (st == 9002 && last_state != 9002)   // RepathAroundObstacle: what is near
@@ -114,11 +116,26 @@ internal void cmd_fmove(char *out, const char *args) {
             crept += f->crept;
         }
         REPLY("fmove sum: %d units, the last moving at %.1f s, %d done (the last at %.1f s), standing short of the goal %.1f s together (creeping %.1f); "
-              "ship_turns so far: %u ticks kept the speed, %u steered along the route, %u waypoints dropped\n", g_fm_n, moved, n_done, done, stood, crept, g_st_kept,
-              g_st_steered, g_st_skipped);
+              "ship_turns so far: %u ticks kept the speed, %u steered along the route, %u waypoints dropped, %u passing a queued point\n", g_fm_n, moved, n_done, done, stood, crept, g_st_kept,
+              g_st_steered, g_st_skipped, g_st_passing);
         return;
     }
-    if (strcmp(what, "go")) { REPLY("fmove go P x y r tx ty | stat | sum\n"); return; }
+    if (!strcmp(what, "then")) {   // fmove then P tx ty: the order's units (still there) also sent on to tx, ty, queued as with shift
+        static uint32_t qids[FM_MAX];
+        static __attribute__((aligned(8))) uint8_t qmem[0x40];
+        ee_player *qpl = p > 0 && p < 16 ? game_players()[p] : NULL;
+        int n = 0;
+        for (int i = 0; i < g_fm_n; i++) if (unit_by_id(g_fm[i].id)) qids[n++] = g_fm[i].id;
+        if (!qpl || !n) { REPLY("fmove: no order's units of P%d left\n", p); return; }
+        uint32_t *sel[3] = { NULL, qids, qids + n };
+        player_select(qpl, sel);
+        memset(qmem, 0, sizeof qmem);
+        path_msg_make((ee_msg *)qmem, player_get_msg_id(qpl), (float)x + 0.5f, (float)y + 0.5f, 0, 1);
+        msg_path((ee_msg *)qmem);
+        REPLY("fmove: %d units of P%d then to %d,%d (queued)\n", n, p, x, y);
+        return;
+    }
+    if (strcmp(what, "go")) { REPLY("fmove go P x y r tx ty | then P tx ty | stat | sum\n"); return; }
     ee_player *pl = p > 0 && p < 16 ? game_players()[p] : NULL;
     if (!pl) { REPLY("fmove: no player %d\n", p); return; }
     static uint32_t ids[FM_MAX];
@@ -145,7 +162,7 @@ internal void cmd_fmove(char *out, const char *args) {
     memset(mem, 0, sizeof mem);
     g_fm_tx = (float)tx + 0.5f;
     g_fm_ty = (float)ty + 0.5f;
-    path_msg_make((ee_msg *)mem, player_get_msg_id(pl), g_fm_tx, g_fm_ty, together);
+    path_msg_make((ee_msg *)mem, player_get_msg_id(pl), g_fm_tx, g_fm_ty, together, 0);
     msg_path((ee_msg *)mem);
     g_fm_t0 = g_fm_last = game_time();
     int *grp = player_get_selected_group(pl);

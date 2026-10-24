@@ -253,6 +253,16 @@ vf26 members and route released, vf12, the group's reference) frees nothing twic
   target[3], out angle left, out turn rate, out heading, facing; ret 0x1C), whose angle left is the speed decision's
   angle: a hook of slot 7 can steer at any point while the waypoints, the arrival and the obstacle detour stay the
   game's (ship_turns steers at a point sliding along the route).
+- **Orders and shift:** a unit's goals live in slots (unit +0x94, a vector of 0x28-byte slots; 0x5F3473 thiscall(unit,
+  slot) gives the slot's +4: a deque of goal pointers, +4 block map, +8 its size, +0xC the front's index, +0x10 the
+  count, 0x400 a block). Slot 0 holds the orders: the front is the current goal (unit +0x1F0), a shift-click (the move
+  message's +0x1E, handed out by 0x5DD436) appends; each runs its own route request when it starts. A move goal's +5
+  is 1. The arrival (EEUnitClass::vf34 0x6213D8) takes a leg's end as an in-between point (within the type's +0x474,
+  on its tile) when the current order is a move (+5 1, or 10) and slot 0 holds 2 or more, else within 0.05. But the
+  speed step (slot 8, EEPhysicsModel::vf8 0x54858E: the decision with the same distance; on the last waypoint no
+  faster than the distance) and the decision's stopping distance brake for it as for a stop (a dreadnought 0.6 ->
+  0.34 at each queued point), and the hand-over (9000 -> 9006 -> 5001 -> 8000 -> 2015, a step each) slows the unit by
+  0.05 a step for the dreadnought (a Hammerhead 5.65 -> 3.9) without the speed step - from where not found yet.
 - **The rotation:** the turn step 0x548266 (from vf7 0x5484D9, the tick's +0x1C) keeps a turn rate at unit +0x17C
   and asks slot 11 (0x54880E; thiscall(model, unit, rate, angle left)): 3 the rate up by the turn acceleration
   (0x54A504, stats +0xB0) x the step towards the angle (at most 0x54A4E7's top rate), 4 down towards 0, 2 hold; the

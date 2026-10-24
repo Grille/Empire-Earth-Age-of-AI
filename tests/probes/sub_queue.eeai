@@ -1,0 +1,9 @@
+// Shift-queued moves with the player's fast Hammerheads ("transport test" scenario, 5.65 tiles/s): one sub traced
+// (# fmtrace) out of the pack to 80,64 with 66,58 ... queued after it - does it stop at each queued point?
+wait_until(0.1min)
+cmd("fmove go 1 64 75 1 74 70")
+cmd("fmove trace 0")
+cmd("fmove then 1 80 64")
+cmd("fmove then 1 74 60")
+cmd("fmove then 1 66 66")
+wait_until(0.5min)

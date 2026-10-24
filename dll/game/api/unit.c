@@ -57,6 +57,16 @@ internal inline int unit_waypoint_at(ee_unit *u, int i, float *pt) {
     pt[0] = e[0]; pt[1] = e[1]; pt[2] = e[2];
     return 0;
 }
+// moves its waypoint i to x, y (its z and the route lengths stay): 0, else it has no such
+internal inline int unit_set_waypoint_at(ee_unit *u, int i, float x, float y) {
+    if (i < 0 || i >= unit_get_waypoints_left(u)) return 7;
+    uint8_t *dq = FIELD_AT(u, UNIT_WAYPOINTS);
+    uint32_t pos = *(uint32_t *)(dq + 0xC) + (uint32_t)i, blocks = *(uint32_t *)(dq + 8), blk = pos / 0xCC;
+    if (blk >= blocks) blk -= blocks;
+    float *e = (float *)((*(uint8_t ***)(dq + 4))[blk] + (pos % 0xCC) * 20);
+    e[0] = x; e[1] = y;
+    return 0;
+}
 internal inline ee_goal *unit_get_goal_object(const ee_unit *u) { return FIELD(u, UNIT_GOAL_OBJECT, ee_goal *); } // +0x1F0 the goal object (0x5ED24B casts it)
 internal inline void *unit_get_behaviour(const ee_unit *u) { return FIELD(u, UNIT_BEHAVIOUR, void *); }    // +0x208 its behaviour (behaviour_table())
 internal inline void unit_set_behaviour(ee_unit *u, void *b) { FIELD(u, UNIT_BEHAVIOUR, void *) = b; }
@@ -84,6 +94,18 @@ internal inline float unit_max_turn(ee_unit *u) { return GF(FN_UNIT_MAX_TURN)(u)
 internal inline float unit_turn_accel(ee_unit *u) { return GF(FN_UNIT_TURN_ACCEL)(u); }   // radians/s per s
 // its current waypoint (the list's front) into pt[3]: 0, else it has none
 internal inline int unit_waypoint(ee_unit *u, float *pt) { return GF(FN_UNIT_WAYPOINT)(u, pt); }
+// its orders (goal slot 0's queue: the front the current goal, shift-clicked moves after it): how many, and order i
+internal inline int unit_orders(ee_unit *u) {
+    uint8_t *q = (uint8_t *)GF(FN_UNIT_GOAL_QUEUE)(u, 0);
+    return q ? *(int *)(q + 0x10) : 0;
+}
+internal inline ee_goal *unit_order_at(ee_unit *u, int i) {
+    uint8_t *q = (uint8_t *)GF(FN_UNIT_GOAL_QUEUE)(u, 0);
+    if (!q || i < 0 || i >= *(int *)(q + 0x10)) return NULL;
+    uint32_t pos = *(uint32_t *)(q + 0xC) + (uint32_t)i, blocks = *(uint32_t *)(q + 8), blk = pos >> 10;
+    if (blk >= blocks) blk -= blocks;
+    return ((ee_goal ***)*(void **)(q + 4))[blk][pos & 0x3FF];
+}
 // drops its current waypoint, the next the current (as GetNextMoveWaypoint does on arrival): 0, else it had none
 internal inline int unit_pop_waypoint(ee_unit *u) { return GF(FN_POP_WAYPOINT)(u); }
 // one more waypoint at the end of the unit's list (a deque at +0x7C, the front its current; the movement steers to it)

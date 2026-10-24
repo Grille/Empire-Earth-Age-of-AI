@@ -51,12 +51,13 @@ internal inline void unload_msg_make(ee_msg *msg, int from, int x, int y) {
 // members at the group's speed (+0x70: their average, at most the slowest one's x the settings table's 0x31) instead
 // of each its type's - a plain click sends 0. The Execute splits the selection into a group per kind and hands each
 // the move.
-internal inline void path_msg_make(ee_msg *msg, int from, float x, float y, int together) {
+internal inline void path_msg_make(ee_msg *msg, int from, float x, float y, int together, int queued) {
     FIELD(msg, MSG_CHAT_FROM, uint8_t) = (uint8_t)from;
     FIELD(msg, MSG_PATH_X, float) = x;
     FIELD(msg, MSG_PATH_Y, float) = y;
     FIELD(msg, MSG_PATH_GOAL_30, uint8_t) = 1;
     FIELD(msg, MSG_PATH_GOAL_31, uint8_t) = 1;
+    FIELD(msg, MSG_PATH_QUEUED, uint8_t) = (uint8_t)queued;
     FIELD(msg, MSG_PATH_TOGETHER, uint8_t) = (uint8_t)together;
 }
 // the game start (EEMStartLoading): +0x14 the game's seed

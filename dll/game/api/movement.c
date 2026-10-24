@@ -36,3 +36,11 @@ internal inline int patch_ship_turn_towards(turn_towards_hook h) {
     return patch_vtable(GA(VT_PM_NAVAL), GA(SLOT_PM_TURN_TOWARDS), GA(FN_TURN_TOWARDS), (void *)h)
          + patch_vtable(GA(VT_PM_SUBMERGED), GA(SLOT_PM_TURN_TOWARDS), GA(FN_TURN_TOWARDS), (void *)h);
 }
+// the tick's speed step (slot 8: FN_SPEED_DECIDE asked with the same distance and angle; on the last waypoint it
+// speeds up no further than the distance, and the decision brakes when the way left is within the stopping distance)
+typedef float (__thiscall *speed_step_hook)(void *model, ee_unit *u, float dist, float angle);
+internal inline float model_speed_step(void *model, ee_unit *u, float dist, float angle) { return GF(FN_SPEED_STEP)(model, u, dist, angle); }
+internal inline int patch_ship_speed_step(speed_step_hook h) {
+    return patch_vtable(GA(VT_PM_NAVAL), GA(SLOT_PM_SPEED_STEP), GA(FN_SPEED_STEP), (void *)h)
+         + patch_vtable(GA(VT_PM_SUBMERGED), GA(SLOT_PM_SPEED_STEP), GA(FN_SPEED_STEP), (void *)h);
+}

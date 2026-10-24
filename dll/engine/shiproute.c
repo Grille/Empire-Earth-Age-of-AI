@@ -319,8 +319,9 @@ internal int st_circle_clear(ee_unit *u, float cx, float cy, float r) {
 #define ST_SCAN 8                       // waypoints looked along for the point
 internal unsigned g_st_skipped;          // waypoints dropped
 internal unsigned g_st_steered;          // ticks steered at a point on the route
+internal unsigned g_st_passing;          // ticks a leg's end was passed through (another move queued)
 internal ee_unit *g_st_aim_unit;         // this tick's unit steered at a point and its distance (for the speed's turn)
-internal float g_st_aim_dist;
+internal float g_st_aim_dist, g_st_aim_x, g_st_aim_y;
 
 // the stamp of the tiles' cache once a step: the clear lines of all ships in a step share it (a route search takes
 // its own)
@@ -365,14 +366,42 @@ internal void st_drop_passed(ee_unit *u, ee_map *map, ee_unit_type *td, int size
     }
 }
 
-// the point on u's route (from p along its waypoints) reach away from p, the furthest such: 1, else the waypoint is
-// nearer to steer at (it lies further, or the route ends within reach)
-internal int st_aim_point(ee_unit *u, float px, float py, float reach, float *out) {
-    int n = unit_get_waypoints_left(u);
-    float from[2] = {px, py}, pt[3];
-    for (int i = 0; i < n && i < ST_SCAN; i++) {
-        if (unit_waypoint_at(u, i, pt)) return 0;
-        float dx = pt[0] - px, dy = pt[1] - py;
+// PASSING THROUGH: a leg's end with another move queued after it (shift) is an in-between point to the game's arrival
+// (EEUnitClass::vf34: within the type's +0x474 on its tile, when the current order is a move, +5 1, and more are
+// queued), but its speed step brakes for it as for a stop - on the last waypoint no faster than the distance left,
+// and slower within the stopping distance - and the steering ends there: a dreadnought slowed from 0.6 to 0.34 at each
+// queued point, the game's crawled at 0.1 where the next leg turned more than 45 degrees. While the next order is a
+// move too, its target continues the route: the point slides on towards it and the speed step is given the way on.
+// the order after u's current one when u passes its leg's end without stopping - on its last waypoint, the next order a
+// move whose target lies in a clear line from that end (into onward) - else NULL: where the next leg starts round land
+// the point slid onto the blocked line and the ship circled short of the end
+internal ee_goal *st_pass_through(ee_unit *u, float *onward) {
+    if (unit_get_waypoints_left(u) != 1 || unit_orders(u) < 2) return NULL;
+    ee_goal *g = unit_order_at(u, 0), *next = unit_order_at(u, 1);
+    if (!g || !next || goal_get_state(g) != 1 || goal_get_state(next) != 1) return NULL;
+    ee_map *map = game_map();
+    ee_unit_type *td = unit_get_type_data(u);
+    int size = map ? (int)map_get_size(map) : 0;
+    float end[3];
+    if (!td || size <= 0 || !sr_alloc((uint32_t)(size * size)) || unit_waypoint_at(u, 0, end)) return NULL;
+    st_stamp_step();
+    vec3 t = goal_target(next, u);
+    if (!sr_clear(map, u, td, size, end[0], end[1], t.x, t.y)) return NULL;
+    onward[0] = t.x; onward[1] = t.y; onward[2] = t.z;
+    return next;
+}
+
+// the point on u's route (from p along its waypoints, then on to onward when given) reach away from p, the furthest
+// such: 1, else the waypoint is nearer to steer at (it lies further, or the route ends within reach)
+internal int st_aim_point(ee_unit *u, float px, float py, float reach, const float *onward, float *out) {
+    float pts[ST_SCAN + 1][3];
+    int n = 0, left = unit_get_waypoints_left(u);
+    for (; n < left && n < ST_SCAN; n++)
+        if (unit_waypoint_at(u, n, pts[n])) return 0;
+    if (onward && n == left) { pts[n][0] = onward[0]; pts[n][1] = onward[1]; pts[n][2] = onward[2]; n++; }
+    float from[2] = {px, py};
+    for (int i = 0; i < n; i++) {
+        float *pt = pts[i], dx = pt[0] - px, dy = pt[1] - py;
         if (dx * dx + dy * dy >= reach * reach) {
             if (i == 0) return 0;
             float sx = pt[0] - from[0], sy = pt[1] - from[1], fx = from[0] - px, fy = from[1] - py;   // the leg's way out of the circle
@@ -383,9 +412,10 @@ internal int st_aim_point(ee_unit *u, float px, float py, float reach, float *ou
             return 1;
         }
         from[0] = pt[0]; from[1] = pt[1];
-        if (i == n - 1) { out[0] = pt[0]; out[1] = pt[1]; out[2] = pt[2]; return i > 0; }   // the route ends within reach: its end
     }
-    return 0;
+    if (n < 2) return 0;
+    out[0] = pts[n - 1][0]; out[1] = pts[n - 1][1]; out[2] = pts[n - 1][2];   // the route ends within reach: its end
+    return 1;
 }
 
 internal void __thiscall hook_ship_turn_towards(void *model, ee_unit *u, float *pos, float *target, float *left, float *rate, float *heading, char facing) {
@@ -393,19 +423,30 @@ internal void __thiscall hook_ship_turn_towards(void *model, ee_unit *u, float *
     if (u == g_st_aim_unit) g_st_aim_unit = NULL;
     ee_map *map = game_map();
     ee_unit_type *td = u ? unit_get_type_data(u) : NULL;
-    int size = map ? (int)map_get_size(map) : 0;
-    float w = u ? unit_max_turn(u) : 0;
-    if (g_st_on && !facing && td && size > 0 && w > 0 && unit_get_waypoints_left(u) >= 2 && sr_alloc((uint32_t)(size * size))) {
+    int size = map ? (int)map_get_size(map) : 0, wps = u ? unit_get_waypoints_left(u) : 0;
+    float w = u ? unit_max_turn(u) : 0, onward[3];
+    ee_goal *next = g_st_on && u ? st_pass_through(u, onward) : NULL;
+    if (g_st_on && !facing && td && size > 0 && w > 0 && (wps >= 2 || next) && sr_alloc((uint32_t)(size * size))) {
         st_stamp_step();
         float reach = ST_AHEAD * unit_max_speed(u) / w;
         st_drop_passed(u, map, td, size, pos[0], pos[1], reach / ST_AHEAD);
+        // the leg's end passed (or within a turning radius) on the way to the next order's target: it moves onto the
+        // ship, so the game's arrival takes it next tick - the point had slid on, the ship cut the corner, never came
+        // within the type's +0x474 of the end and circled it
+        float a[3];
+        if (next && unit_get_waypoints_left(u) == 1 && !unit_waypoint_at(u, 0, a)) {
+            float dx = a[0] - pos[0], dy = a[1] - pos[1], rad = reach / ST_AHEAD;
+            int passed = (pos[0] - a[0]) * (onward[0] - a[0]) + (pos[1] - a[1]) * (onward[1] - a[1]) > 0;
+            if ((passed || dx * dx + dy * dy < rad * rad) && sr_clear(map, u, td, size, pos[0], pos[1], onward[0], onward[1]))
+                unit_set_waypoint_at(u, 0, pos[0], pos[1]);
+        }
         // a point whose line clips land comes nearer along the route (from the far one straight to the waypoint the
         // heading jumped up to 20 degrees along a coast); it goes out again slowly - from the full distance each tick
         // the point flicked between two and the heading by a turn step (3 degrees)
         float *last = st_unit_mem(u), r = last && *last > 0 && *last * ST_GROW < reach ? *last * ST_GROW : reach;
         int found = 0;
-        for (; r >= reach * 0.2f && unit_get_waypoints_left(u) >= 2; r *= ST_SHRINK)
-            if ((found = st_aim_point(u, pos[0], pos[1], r, aim) && sr_clear_by(map, u, td, size, pos[0], pos[1], aim[0], aim[1], ST_AIM_MARGIN))) break;
+        for (; r >= reach * 0.2f; r *= ST_SHRINK)
+            if ((found = st_aim_point(u, pos[0], pos[1], r, next ? onward : NULL, aim) && sr_clear_by(map, u, td, size, pos[0], pos[1], aim[0], aim[1], ST_AIM_MARGIN))) break;
         if (last) *last = found ? r : 0;
         if (found) {
             to = aim;
@@ -414,18 +455,32 @@ internal void __thiscall hook_ship_turn_towards(void *model, ee_unit *u, float *
         float dx = to[0] - pos[0], dy = to[1] - pos[1];
         g_st_aim_unit = u;
         g_st_aim_dist = sqrtf(dx * dx + dy * dy);
+        g_st_aim_x = to[0];
+        g_st_aim_y = to[1];
     }
     model_turn_towards(model, u, pos, to, left, rate, heading, facing);
 }
 
+// the speed step at a leg's end that is passed through: given the way on to the next order's target, it neither
+// brakes for the stop nor caps the speed at the distance left
+internal float __thiscall hook_ship_speed_step(void *model, ee_unit *u, float dist, float angle) {
+    float wp[3], t[3];
+    if (g_st_on && u && st_pass_through(u, t) && !unit_waypoint(u, wp)) {
+        dist += sqrtf((t[0] - wp[0]) * (t[0] - wp[0]) + (t[1] - wp[1]) * (t[1] - wp[1]));
+        g_st_passing++;
+    }
+    return model_speed_step(model, u, dist, angle);
+}
+
 internal int __thiscall hook_ship_speed(void *model, ee_unit *u, float dist, float angle) {
-    if (u && u == g_st_aim_unit) {   // the turn steered at another point this tick: the arc's distance is to it
+    int d = model_speed_decide(model, u, dist, angle), aimed = u && u == g_st_aim_unit;
+    float e = fabsf(angle), wp[3], onward[3];
+    if (aimed) {   // the turn steered at another point this tick: the arc's distance and side are to it
         dist = g_st_aim_dist;
+        wp[0] = g_st_aim_x; wp[1] = g_st_aim_y;
         g_st_aim_unit = NULL;
     }
-    int d = model_speed_decide(model, u, dist, angle);
-    float e = fabsf(angle);
-    if (!g_st_on || !u || e <= 0.7853982f || unit_get_waypoints_left(u) < 2 || dist <= 0) return d;
+    if (!g_st_on || !u || e <= 0.7853982f || (unit_get_waypoints_left(u) < 2 && !st_pass_through(u, onward)) || dist <= 0) return d;
     ee_physics *ph = game_physics();
     float w = unit_max_turn(u), v = unit_get_speed(u), top = unit_max_speed(u), step = ph ? phys_get_step_s(ph) * unit_accel(u) : 0;
     float s = sinf(e), keep = s > 0.001f ? ST_SPARE * w * dist / (2 * s) : top;
@@ -433,8 +488,8 @@ internal int __thiscall hook_ship_speed(void *model, ee_unit *u, float dist, flo
     // the circle it would sweep must be free (water it may enter, no other ship in it): else a tighter, slower one, at
     // the least the game's crawl - a U-turn at speed out of a packed fleet ran into the others and the game gave up
     vec3 p = unit_get_pos(u), f = unit_get_facing(u);
-    float wp[3], fl = sqrtf(f.x * f.x + f.y * f.y);
-    if (w <= 0 || fl <= 0 || unit_waypoint(u, wp)) return d;
+    float fl = sqrtf(f.x * f.x + f.y * f.y);
+    if (w <= 0 || fl <= 0 || (!aimed && unit_waypoint(u, wp))) return d;
     float side = (f.x * (wp[1] - p.y) - f.y * (wp[0] - p.x)) >= 0 ? 1.0f : -1.0f, nx = -f.y / fl * side, ny = f.x / fl * side;
     for (;;) {
         float r = keep / w;
@@ -469,9 +524,10 @@ internal int __thiscall hook_ship_turn(void *model, ee_unit *u, float rate, floa
 internal void shiproute_install(const char *aimod_ini, const char *autotest_ini) {
     g_st_on = ini_int("general", "ship_turns", 0, aimod_ini);
     if (autotest_ini) g_st_on = ini_int("autotest", "ship_turns", g_st_on, autotest_ini);
-    int st = g_st_on ? patch_ship_speed_decide(hook_ship_speed) + patch_ship_turn_towards(hook_ship_turn_towards) : 0;
+    int st = g_st_on ? patch_ship_speed_decide(hook_ship_speed) + patch_ship_turn_towards(hook_ship_turn_towards)
+                         + patch_ship_speed_step(hook_ship_speed_step) : 0;
     int rot = g_st_on ? patch_ship_turn_decide(hook_ship_turn) : 0;
-    if (g_log) fprintf(g_log, "# shipturns: ship_turns=%d (hooks %s, rotation %s)\n", g_st_on, !g_st_on ? "-" : st == 4 ? "ok" : "FAILED",
+    if (g_log) fprintf(g_log, "# shipturns: ship_turns=%d (hooks %s, rotation %s)\n", g_st_on, !g_st_on ? "-" : st == 6 ? "ok" : "FAILED",
                        !g_st_on ? "-" : rot == 2 ? "ok" : build_is("aoc") ? "AoC's own" : "FAILED");
     g_sr_on = ini_int("general", "ship_routes", 0, aimod_ini);
     if (autotest_ini) {
