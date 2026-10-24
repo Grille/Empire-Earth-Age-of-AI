@@ -259,7 +259,77 @@ internal void __thiscall hook_group_sector_route(void *group, int *from, int *to
     group_sector_route(group, from, to, units);
 }
 
+// SHIP TURNS (`ship_turns`, default 0 until measured): the naval movement brakes to a crawl whenever the waypoint
+// lies more than 45 degrees off the bow - a new order while under way, a corner - and turns almost on the spot
+// (tests/probes/ship_reorder.eeai: 0.6 -> 0.09 in 1.7 s, 6-7 s for a 100-degree turn). A ship turning at its top
+// rate w at speed v sweeps a circle of radius v / w and still reaches a point d away at e off the bow while
+// d >= 2 (v / w) sin e: so it keeps the speed v = w d / (2 sin e) (at most its top speed, a tenth to spare) and turns
+// in an arc - wide towards a far point, tight and slower towards a near one. Within 45 degrees and on the last
+// waypoint (the approach and stop) the game's decision stays.
+#define ST_SPARE 0.9f
+#define ST_MIN_RADIUS 0.6f              // tiles: a tighter circle is the game's crawl
+#define ST_HULL 1.0f                    // tiles: another ship this near the circle is in the way
+internal int g_st_on;
+internal unsigned g_st_kept;             // ticks the game would have braked and the arc kept the speed
+
+// is the circle (cx, cy, r) free for u: every tile in it one u may enter (the route's test, a new stamp: things move),
+// no other unit that doesn't let it pass within the circle and a hull of it
+internal int st_circle_clear(ee_unit *u, float cx, float cy, float r) {
+    ee_map *map = game_map();
+    ee_unit_type *td = unit_get_type_data(u);
+    int size = map ? (int)map_get_size(map) : 0;
+    if (!td || size <= 0 || !sr_alloc((uint32_t)(size * size))) return 0;
+    if (++g_sr.gen == 0) {
+        memset(g_sr.seen, 0, g_sr.n * 4); memset(g_sr.closed, 0, g_sr.n * 4); memset(g_sr.seen_pass, 0, g_sr.n * 4);
+        g_sr.gen = 1;
+    }
+    int x0 = (int)floorf(cx - r), x1 = (int)floorf(cx + r), y0 = (int)floorf(cy - r), y1 = (int)floorf(cy + r);
+    for (int y = y0; y <= y1; y++)
+        for (int x = x0; x <= x1; x++) {
+            float dx = (float)x + 0.5f - cx, dy = (float)y + 0.5f - cy;
+            if (dx * dx + dy * dy <= (r + 0.5f) * (r + 0.5f) && !sr_pass(map, u, td, size, x, y)) return 0;
+        }
+    int reach = (int)ceilf(r + ST_HULL) + 1;
+    for (struct grid_it it = grid_it_box((int)cx, (int)cy, reach, 1); grid_it_next(&it); ) {
+        ee_unit *o = it.u;
+        if (o == u || unit_get_hp(o) <= 0 || unit_lets_pass(o, u)) continue;
+        vec3 q = unit_get_pos(o);
+        float dx = q.x - cx, dy = q.y - cy;
+        if (dx * dx + dy * dy <= (r + ST_HULL) * (r + ST_HULL)) return 0;
+    }
+    return 1;
+}
+
+internal int __thiscall hook_ship_speed(void *model, ee_unit *u, float dist, float angle) {
+    int d = model_speed_decide(model, u, dist, angle);
+    float e = fabsf(angle);
+    if (!g_st_on || !u || e <= 0.7853982f || unit_get_waypoints_left(u) < 2 || dist <= 0) return d;
+    ee_physics *ph = game_physics();
+    float w = unit_max_turn(u), v = unit_get_speed(u), top = unit_max_speed(u), step = ph ? phys_get_step_s(ph) * unit_accel(u) : 0;
+    float s = sinf(e), keep = s > 0.001f ? ST_SPARE * w * dist / (2 * s) : top;
+    if (keep > top) keep = top;
+    // the circle it would sweep must be free (water it may enter, no other ship in it): else a tighter, slower one, at
+    // the least the game's crawl - a U-turn at speed out of a packed fleet ran into the others and the game gave up
+    vec3 p = unit_get_pos(u), f = unit_get_facing(u);
+    float wp[3], fl = sqrtf(f.x * f.x + f.y * f.y);
+    if (w <= 0 || fl <= 0 || unit_waypoint(u, wp)) return d;
+    float side = (f.x * (wp[1] - p.y) - f.y * (wp[0] - p.x)) >= 0 ? 1.0f : -1.0f, nx = -f.y / fl * side, ny = f.x / fl * side;
+    for (;;) {
+        float r = keep / w;
+        if (r < ST_MIN_RADIUS) return d;
+        if (st_circle_clear(u, p.x + nx * r, p.y + ny * r, r)) break;
+        keep *= 0.6f;
+    }
+    int arc = v < keep ? 3 : v > keep + step ? 4 : 2;
+    if (arc != 4 && d == 4) g_st_kept++;
+    return arc;
+}
+
 internal void shiproute_install(const char *aimod_ini, const char *autotest_ini) {
+    g_st_on = ini_int("general", "ship_turns", 0, aimod_ini);
+    if (autotest_ini) g_st_on = ini_int("autotest", "ship_turns", g_st_on, autotest_ini);
+    int st = g_st_on ? patch_ship_speed_decide(hook_ship_speed) : 0;
+    if (g_log) fprintf(g_log, "# shipturns: ship_turns=%d (hooks %s)\n", g_st_on, !g_st_on ? "-" : st == 2 ? "ok" : "FAILED");
     g_sr_on = ini_int("general", "ship_routes", 0, aimod_ini);
     if (autotest_ini) {
         g_sr_on = ini_int("autotest", "ship_routes", g_sr_on, autotest_ini);

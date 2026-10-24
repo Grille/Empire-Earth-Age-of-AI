@@ -274,6 +274,11 @@ Settings in `aimod.ini`:
   two points is clear, around the shallows a big ship can't enter, and keeping to the middle of channels; a fleet
   doesn't get the game's chain of in-between stops through the map's sectors. The player's and the AI's ships alike
   (the 2017 update; not yet in Art of Conquest). In multiplayer every PC needs the same setting.
+- `[general] ship_turns=0` (default off while it is measured): told to go somewhere more than 45 degrees off its
+  bow - a new order while it sails, or a sharp corner - a ship braked to a crawl, turned almost on the spot and
+  sped up again (a U-turn took 6 s nearly standing). With 1 it turns in an arc: at full speed towards a far point,
+  slower and tighter towards a near one, and only where the circle it sweeps is free of land, shallows and other
+  ships - otherwise it turns as before. In multiplayer every PC needs the same setting.
 - `[sound] clamp_channels=1` (default): the "Max Number Of Sounds" slider goes to 200%, which asks for 32 sound
   channels, but the sound mixer has only 16 on current Windows. Sounds put on the 16 missing channels were silent,
   and a looping one (unit movement such as the U-boats', ambience) stayed stuck there and never played again -

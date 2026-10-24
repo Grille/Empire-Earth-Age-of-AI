@@ -46,6 +46,7 @@
     D(CODE_SPLASH_START_JNE, 0x00534400, 0x0053F2FE)                          /* the loading splash's start (jne) */ \
     D(CODE_SPLASH_STOP_JNE, 0x0053443D, 0x0053F33B)                           /* the loading splash's stop (jne) */ \
     D(CALL_PARSE_CMDLINE, 0x00535EF2, 0x005410C8)                             /* call ParseCommandLine(const char *) 0x522A36 */ \
+    F(FN_SPEED_DECIDE, int, __thiscall, (void *, void *, float, float), 0x00548645, 0x00554CB2) /* EEPhysicsModel::vf9 thiscall(model, unit, distance to the waypoint, angle off the bow): 2 hold, 3 faster, 4 slower - more than 45 degrees off, slower */ \
     D(CALL_MISSILE_AIM, 0x0054E850, 0x0055B1C3) \
     D(SITE_SIM_RECEIVE, 0x00553348, 0x00561459) \
     D(SITE_SIM_WAIT, 0x005533C5, 0x005614D6) \
@@ -89,6 +90,8 @@
     D(VT_MSG_UNLOAD, 0x00828AC4, 0x0083D78C)                                 /* EEMUnloadTransport */ \
     D(VT_INGAME_CHAT, 0x0082936C, 0x0083E0BC) \
     D(VTBL_PHYS_STEP, 0x0082CB7C, 0x00842324)                                 /* EEPhysics vtable slot 8: one simulation step */ \
+    D(VT_PM_SUBMERGED, 0x0082CDD4, 0x008425F8)                                /* EEPMSubmergedNaval, the submarines' movement */ \
+    D(VT_PM_NAVAL, 0x0082CE30, 0x00842658)                                    /* EEPMNaval, the ships' movement */ \
     D(VTS_TECH_RESEARCHED, 0x00830874, 0x00846168)                            /* EETechTreeNode::vf6's vtable slot */ \
     D(VT_COMPLEX_UNIT, 0x00831494, 0x00846DDC) \
     D(VT_MISSILE, 0x00832E90, 0x00848CF8) \
@@ -97,6 +100,7 @@
 
 
 #define ADDR_NUMBERS_HOOKS(D) \
+    D(SLOT_PM_SPEED_DECIDE, 9, 9)       /* EEPhysicsModel: FN_SPEED_DECIDE */ \
     D(SLOT_SERVER_SEND, 6, 6)           /* [G_SERVER] (EEServer, EEClient): thiscall(net, message, 0xFF) */ \
     D(SLOT_ROUTE_COST, 1, 1)            /* VT_ROUTE_PLANNER: FN_ROUTE_COST */ \
     D(SLOT_ASGU_SCORE, 2, 2)            /* ASGU_VTABLES */ \

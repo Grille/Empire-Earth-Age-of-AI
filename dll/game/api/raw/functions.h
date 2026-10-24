@@ -53,6 +53,7 @@
     F(FN_ATTACK_GROUP_NEW, uint8_t *, __thiscall, (void *, void *, void *, void *), 0x0045106C, 0x00451D8E) \
     F(FN_ASG_STATS, void, __thiscall, (void *), 0x0045AD2F, 0x0045C925) \
     F(FN_ASG_GIVE_GOAL, char, __thiscall, (void *, void *, void *, int, int), 0x0045CBEA, 0x0045E7F9) \
+    F(FN_UNIT_MAX_SPEED, float, __thiscall, (void *), 0x0046123F, 0x0045E407) /* thiscall(unit): its top speed (tiles/s; its group's with the group speed on) - every movement model asks it */ \
     F(FN_ASGU_SCORE, float, __thiscall, (ee_asg_unit *, ee_asgu_info *), 0x00461854, 0x00463494) /* float thiscall(info *) */ \
     F(FN_BM_QUEUED, char, __thiscall, (void *, int), 0x00465640, 0x004672FA)  /* thiscall(build manager, type): queued */ \
     F(FN_PLACE, char, __thiscall, (void *, int, int, int), 0x0046580A, 0x004674C4) \
@@ -141,6 +142,8 @@
     F(FN_UNIT_BY_ID, ee_unit *, __thiscall, (void *, unsigned), 0x0053B889, 0x0054804F) \
     F(FN_SAVE_GAME, int, __cdecl, (void *, int, int, struct ustring), 0x00540ACA, 0x0054D066) \
     F(FN_PHYS_STEP, void, __thiscall, (void *), 0x00546C63, 0x00553082) \
+    F(FN_UNIT_ACCEL, float, __thiscall, (void *), 0x0054A4CA, 0x00554C95) /* thiscall(unit): its acceleration (stats +0xA8; its group's with the group speed on) */ \
+    F(FN_UNIT_MAX_TURN, float, __thiscall, (void *), 0x0054A4E7, 0x0055463E) /* thiscall(unit): its top turn rate (radians/s, stats +0xB4; its group's with the group speed on) */ \
     /* thiscall(player, type, 0x20, 0): can train or build one now */ \
     F(FN_CAN_BUILD, char, __thiscall, (void *, int, int, int), 0x00555710, 0x005639E8) \
     F(FN_POPULATION, int, __thiscall, (void *, int, int), 0x00556E11, 0x005651E0) /* thiscall(player, 1, 0) */ \
@@ -175,6 +178,7 @@
     F(FN_RESIGN_SEND, void, __cdecl, (void), 0x005D05CC, 0x005E0E7F) \
     F(FN_EXIT_CONFIRM, void, __cdecl, (void), 0x005D0B4F, 0x005E145B) \
     F(FN_ADD_WAYPOINT, void, __thiscall, (void *, float *, int), 0x005E8BAC, 0x005F625B) /* thiscall(unit, float pt[3], 1): one more waypoint at the end of the unit's list (+0x7C); 1 keeps a point on the map's edge lines */ \
+    F(FN_UNIT_WAYPOINT, int, __thiscall, (void *, float *), 0x005EC69D, 0x005FA229) /* thiscall(unit, float out[3]): its current waypoint (the deque's front); 0, or 7 with none */ \
     F(FN_UNIT_RELEASE, void, __thiscall, (void *), 0x005ED71E, 0x005FB7FB) \
     /* thiscall(unit, 0x1F51) - as the assignment does after the order */ \
     F(FN_UNIT_SET_STATE, void, __thiscall, (void *, int), 0x005EFCF0, 0x005FDFA5) \

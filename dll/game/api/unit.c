@@ -65,6 +65,13 @@ internal inline uint8_t unit_get_ai_held(const ee_unit *u) { return FIELD(u, UNI
 internal inline int unit_lets_pass(ee_unit *object, ee_unit *unit) {
     return ((char (__thiscall *)(ee_unit *, ee_unit *))(*(void ***)object)[GA(SLOT_UNIT_LETS_PASS)])(object, unit) != 0;
 }
+// its top speed (tiles/s), acceleration and top turn rate (radians/s) as its movement uses them (its group's with the
+// group speed on: engine-notes "top speed")
+internal inline float unit_max_speed(ee_unit *u) { return GF(FN_UNIT_MAX_SPEED)(u); }
+internal inline float unit_accel(ee_unit *u) { return GF(FN_UNIT_ACCEL)(u); }
+internal inline float unit_max_turn(ee_unit *u) { return GF(FN_UNIT_MAX_TURN)(u); }
+// its current waypoint (the list's front) into pt[3]: 0, else it has none
+internal inline int unit_waypoint(ee_unit *u, float *pt) { return GF(FN_UNIT_WAYPOINT)(u, pt); }
 // one more waypoint at the end of the unit's list (a deque at +0x7C, the front its current; the movement steers to it)
 internal inline void unit_add_waypoint(ee_unit *u, float *pt) { GF(FN_ADD_WAYPOINT)(u, pt, 1); }
 // the citizens working site (all players)

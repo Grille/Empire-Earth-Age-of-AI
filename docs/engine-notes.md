@@ -231,6 +231,16 @@ vf26 members and route released, vf12, the group's reference) frees nothing twic
   RepathAroundObstacle (entered on unit +0x20C or 3-5 s standing) rebuilds the list a few points ahead and drops the
   rest - with sparse points it dropped the destination. A ship's collision sphere +0x470 (dreadnought 4, cruiser 3;
   AoC +0x174) plays no part in the step test: only the tile under its centre counts.
+- **Speed in turns** (dll/game/api/movement.c): a movement model's tick (EEPMNaval::vf1 0x54EB00) reads the front
+  waypoint (0x5EC69D), turns (vtable +0x1C) and sets the speed from EEPhysicsModel::vf8 0x54858E, which asks
+  vf9 0x548645 (unit, distance, angle off the bow in radians): 2 hold, 3 faster (up to 0x46123F's top speed; on the
+  last waypoint no faster than the distance), 4 slower (by acceleration x step a tick, 0 below 0.005), else 0. More
+  than 45 degrees off (+-pi/4 at 0x82C5C0 / 0x82B668) it is 4 whatever the distance, within it 3 - unless the way
+  left (0x5EC655 over the waypoints' lengths) is within the stopping distance. EEPMNaval (vtable 0x82CE30) and
+  EEPMSubmergedNaval (0x82CDD4) share vf9 with the land units. A new order more than 45 degrees off: 0.6 -> 0.09 in
+  1.7 s, a 100-degree turn 6-7 s, a U-turn 5 s nearly standing (tests/probes/ship_reorder.eeai). Top turn rate
+  0x54A4E7 (stats +0xB4, a dreadnought about 0.44 rad/s), acceleration 0x54A4CA (+0xA8). A unit pressed against
+  another keeps the least speed 0.1 and CanIMove (speed > 0.1) never lets ObstacleDetected fire: it creeps for ever.
 
 ## Orders, game end, splash
 
