@@ -1,0 +1,23 @@
+// Fast submarines (the player's "transport test" scenario: P1's 8 Hammerheads with their speed raised to 5.65 tiles/s,
+// a stress test of the steering) sent across the bay and back, re-ordered under way: the game steers straight at the
+// current waypoint, so a waypoint inside a fast ship's turning circle is circled (the look-ahead of `ship_turns`).
+// `fmove stat` every 2 s, `fmove sum` after each leg, one sub traced (# fmtrace).
+wait_until(0.1min)
+cmd("fmove go 1 68 77 6 80 64")
+cmd("fmove trace 0")
+every(2s, 0.1min, 0.4min, (run) => cmd("fmove stat"))
+cmd("fmove sum")
+cmd("fmove go 1 80 64 8 66 77")
+cmd("fmove trace 0")
+wait_until(0.47min)
+cmd("fmove go 1 74 70 8 78 78")
+cmd("fmove trace 0")
+every(2s, 0.47min, 0.75min, (run) => cmd("fmove stat"))
+cmd("fmove sum")
+cmd("fmove go 1 78 78 8 62 70")
+cmd("fmove trace 0")
+wait_until(0.82min)
+cmd("fmove go 1 72 74 8 70 64")
+cmd("fmove trace 0")
+every(2s, 0.82min, 1.1min, (run) => cmd("fmove stat"))
+cmd("fmove sum")

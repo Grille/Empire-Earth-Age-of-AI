@@ -46,6 +46,17 @@ internal inline ee_goal *unit_get_goal(const ee_unit *u) { return FIELD(u, UNIT_
 internal inline int unit_get_sea_mode(const ee_unit *u) { return FIELD(u, UNIT_SEA_MODE, int); }
 // +0x8C its waypoints left (the deque at +0x7C: the front the current one, the last the destination)
 internal inline int unit_get_waypoints_left(const ee_unit *u) { return FIELD(u, UNIT_WAYPOINTS_LEFT, int); }
+// its waypoint i (0 the current) into pt[3] - the deque's element as the game's own accessor (0x5E80BE) finds it: 0,
+// else it has no such
+internal inline int unit_waypoint_at(ee_unit *u, int i, float *pt) {
+    if (i < 0 || i >= unit_get_waypoints_left(u)) return 7;
+    uint8_t *dq = FIELD_AT(u, UNIT_WAYPOINTS);
+    uint32_t pos = *(uint32_t *)(dq + 0xC) + (uint32_t)i, blocks = *(uint32_t *)(dq + 8), blk = pos / 0xCC;
+    if (blk >= blocks) blk -= blocks;
+    float *e = (float *)((*(uint8_t ***)(dq + 4))[blk] + (pos % 0xCC) * 20);
+    pt[0] = e[0]; pt[1] = e[1]; pt[2] = e[2];
+    return 0;
+}
 internal inline ee_goal *unit_get_goal_object(const ee_unit *u) { return FIELD(u, UNIT_GOAL_OBJECT, ee_goal *); } // +0x1F0 the goal object (0x5ED24B casts it)
 internal inline void *unit_get_behaviour(const ee_unit *u) { return FIELD(u, UNIT_BEHAVIOUR, void *); }    // +0x208 its behaviour (behaviour_table())
 internal inline void unit_set_behaviour(ee_unit *u, void *b) { FIELD(u, UNIT_BEHAVIOUR, void *) = b; }
@@ -72,6 +83,8 @@ internal inline float unit_accel(ee_unit *u) { return GF(FN_UNIT_ACCEL)(u); }
 internal inline float unit_max_turn(ee_unit *u) { return GF(FN_UNIT_MAX_TURN)(u); }
 // its current waypoint (the list's front) into pt[3]: 0, else it has none
 internal inline int unit_waypoint(ee_unit *u, float *pt) { return GF(FN_UNIT_WAYPOINT)(u, pt); }
+// drops its current waypoint, the next the current (as GetNextMoveWaypoint does on arrival): 0, else it had none
+internal inline int unit_pop_waypoint(ee_unit *u) { return GF(FN_POP_WAYPOINT)(u); }
 // one more waypoint at the end of the unit's list (a deque at +0x7C, the front its current; the movement steers to it)
 internal inline void unit_add_waypoint(ee_unit *u, float *pt) { GF(FN_ADD_WAYPOINT)(u, pt, 1); }
 // the citizens working site (all players)

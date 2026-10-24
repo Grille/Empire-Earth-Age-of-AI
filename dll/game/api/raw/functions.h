@@ -179,6 +179,7 @@
     F(FN_EXIT_CONFIRM, void, __cdecl, (void), 0x005D0B4F, 0x005E145B) \
     F(FN_ADD_WAYPOINT, void, __thiscall, (void *, float *, int), 0x005E8BAC, 0x005F625B) /* thiscall(unit, float pt[3], 1): one more waypoint at the end of the unit's list (+0x7C); 1 keeps a point on the map's edge lines */ \
     F(FN_UNIT_WAYPOINT, int, __thiscall, (void *, float *), 0x005EC69D, 0x005FA229) /* thiscall(unit, float out[3]): its current waypoint (the deque's front); 0, or 7 with none */ \
+    F(FN_POP_WAYPOINT, int, __thiscall, (void *), 0x005EDCF4, 0x005FBDD1) /* thiscall(unit): drops its current waypoint (the deque's front; GetNextMoveWaypoint); 0, or 7 with none */ \
     F(FN_UNIT_RELEASE, void, __thiscall, (void *), 0x005ED71E, 0x005FB7FB) \
     /* thiscall(unit, 0x1F51) - as the assignment does after the order */ \
     F(FN_UNIT_SET_STATE, void, __thiscall, (void *, int), 0x005EFCF0, 0x005FDFA5) \

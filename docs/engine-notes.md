@@ -241,6 +241,13 @@ vf26 members and route released, vf12, the group's reference) frees nothing twic
   1.7 s, a 100-degree turn 6-7 s, a U-turn 5 s nearly standing (tests/probes/ship_reorder.eeai). Top turn rate
   0x54A4E7 (stats +0xB4, a dreadnought about 0.44 rad/s), acceleration 0x54A4CA (+0xA8). A unit pressed against
   another keeps the least speed 0.1 and CanIMove (speed > 0.1) never lets ObstacleDetected fire: it creeps for ever.
+- **Circling a waypoint:** the tick steers straight at the front waypoint, with no look further on, and arrival wants
+  it within the type's +0x474 on its own tile: a waypoint off to the side within the turning circle (radius v / w)
+  can't be hit, the unit overshoots, steers back and circles it. The player's Hammerheads at 5.65 tiles/s (the
+  data's 0.65) looped 1.5 times around one and once more at the end. 0x5EDCF4 (thiscall(unit)) pops the front as
+  GetNextMoveWaypoint does (it also clears +0x248 and, with [0x941440] set, a tile mark); the deque's element i as
+  the game's accessor 0x5E80BE finds it: block (front index + i) / 0xCC, less the map size when past it, then
+  (front index + i) % 0xCC x 20 bytes into that block.
 
 ## Orders, game end, splash
 

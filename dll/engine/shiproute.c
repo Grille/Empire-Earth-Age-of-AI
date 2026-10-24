@@ -54,6 +54,14 @@ internal int sr_alloc(uint32_t n) {
     return g_sr.n != 0;
 }
 
+// a new stamp: every cached entry unset (a search, or a test of things that move)
+internal void sr_stamp(void) {
+    if (++g_sr.gen == 0) {   // the stamps wrapped: clear them
+        memset(g_sr.seen, 0, g_sr.n * 4); memset(g_sr.closed, 0, g_sr.n * 4); memset(g_sr.seen_pass, 0, g_sr.n * 4);
+        g_sr.gen = 1;
+    }
+}
+
 // the game's tile test for u (0x41D36A) with the naval movement's test of the water (EEPMNaval::vf21), but for the
 // units that move, cached for this search
 internal int sr_pass(ee_map *map, ee_unit *u, ee_unit_type *td, int size, int x, int y) {
@@ -138,10 +146,7 @@ internal int sr_route(ee_unit *u, int *from, int *to, void *caller, int sectors)
         if (g_log && g_sr_log) fprintf(g_log, "# shiproute: %06x -> %d,%d: %s - the game's\n", unit_get_serial(u) & 0xFFFFFF, to[0], to[1], why);
         return 0;
     }
-    if (++g_sr.gen == 0) {   // the stamps wrapped: clear them
-        memset(g_sr.seen, 0, g_sr.n * 4); memset(g_sr.closed, 0, g_sr.n * 4); memset(g_sr.seen_pass, 0, g_sr.n * 4);
-        g_sr.gen = 1;
-    }
+    sr_stamp();
     int sx = from[0], sy = from[1], tx = to[0], ty = to[1];
     g_sr_radius = type_get_collision(td) * 0.5f;
     if (g_sr_radius < 0.35f) g_sr_radius = 0.35f;
@@ -279,10 +284,7 @@ internal int st_circle_clear(ee_unit *u, float cx, float cy, float r) {
     ee_unit_type *td = unit_get_type_data(u);
     int size = map ? (int)map_get_size(map) : 0;
     if (!td || size <= 0 || !sr_alloc((uint32_t)(size * size))) return 0;
-    if (++g_sr.gen == 0) {
-        memset(g_sr.seen, 0, g_sr.n * 4); memset(g_sr.closed, 0, g_sr.n * 4); memset(g_sr.seen_pass, 0, g_sr.n * 4);
-        g_sr.gen = 1;
-    }
+    sr_stamp();
     int x0 = (int)floorf(cx - r), x1 = (int)floorf(cx + r), y0 = (int)floorf(cy - r), y1 = (int)floorf(cy + r);
     for (int y = y0; y <= y1; y++)
         for (int x = x0; x <= x1; x++) {
@@ -300,7 +302,47 @@ internal int st_circle_clear(ee_unit *u, float cx, float cy, float r) {
     return 1;
 }
 
+// LOOK-AHEAD: the movement steers straight at the current waypoint and takes it only within the type's +0x474 and on
+// its tile, so a waypoint off to the side within the ship's turning circle can't be hit - the ship overshoots, steers
+// back hard and circles it (a submarine at 5.65 tiles/s looped one and a half times around one, then once more at the
+// end). A waypoint nearer than ST_AHEAD turning radii (v / w), or one already passed, is dropped for the next when
+// that lies in a clear line - in effect the ship steers at a point a turning circle ahead on the route. Never the
+// last (the stop is the game's).
+#define ST_AHEAD 2.0f
+internal unsigned g_st_skipped;          // waypoints dropped by the look-ahead
+
+// drops the waypoints u can't steer onto; 1 when it dropped one
+internal int st_look_ahead(ee_unit *u, float w) {
+    ee_map *map = game_map();
+    ee_unit_type *td = unit_get_type_data(u);
+    int size = map ? (int)map_get_size(map) : 0, dropped = 0;
+    if (!td || size <= 0 || w <= 0 || !sr_alloc((uint32_t)(size * size))) return 0;
+    sr_stamp();
+    vec3 p = unit_get_pos(u);
+    float reach = ST_AHEAD * unit_get_speed(u) / w;
+    for (int k = 0; k < 4 && unit_get_waypoints_left(u) >= 2; k++) {
+        float a[3], b[3];
+        if (unit_waypoint_at(u, 0, a) || unit_waypoint_at(u, 1, b)) break;
+        float dx = a[0] - p.x, dy = a[1] - p.y;
+        int passed = (p.x - a[0]) * (b[0] - a[0]) + (p.y - a[1]) * (b[1] - a[1]) > 0;
+        if (!passed && dx * dx + dy * dy >= reach * reach) break;
+        if (!sr_clear(map, u, td, size, p.x, p.y, b[0], b[1]) || unit_pop_waypoint(u)) break;
+        g_st_skipped++;
+        dropped = 1;
+    }
+    return dropped;
+}
+
 internal int __thiscall hook_ship_speed(void *model, ee_unit *u, float dist, float angle) {
+    if (g_st_on && u && unit_get_waypoints_left(u) >= 2 && st_look_ahead(u, unit_max_turn(u))) {
+        vec3 p = unit_get_pos(u), f = unit_get_facing(u);   // the decision's distance and angle to the new current one
+        float wp[3];
+        if (!unit_waypoint(u, wp)) {
+            float dx = wp[0] - p.x, dy = wp[1] - p.y;
+            dist = sqrtf(dx * dx + dy * dy);
+            angle = atan2f(f.x * dy - f.y * dx, f.x * dx + f.y * dy);
+        }
+    }
     int d = model_speed_decide(model, u, dist, angle);
     float e = fabsf(angle);
     if (!g_st_on || !u || e <= 0.7853982f || unit_get_waypoints_left(u) < 2 || dist <= 0) return d;

@@ -583,6 +583,7 @@
     O(UNIT_AI_STATE, 0x1E8, 0x1E8) /* c */ \
     O(UNITLIST_UNITS, 0x4, 0x4) /* c: FN_GROUP_SECTOR_ROUTE's reads (both builds): a vector of ee_unit * (begin, end +4) */ \
     O(UNIT_SEA_MODE, 0x2E0, 0x2E4) /* c: EEPMNaval::vf21's step test (0x550300 / AoC 0x55xxxx's read of +0x2E4) against TILE_SEA_CLASS */ \
+    O(UNIT_WAYPOINTS, 0x7C, 0x7C) /* c: FN_UNIT_WAYPOINT's reads (both builds): the waypoint deque (+4 block map, +8 its size, +0xC the front's index, +0x10 the count; 0xCC 20-byte points a block) */ \
     O(UNIT_WAYPOINTS_LEFT, 0x8C, 0x8C) /* c: port_fields EEUnit (1 vote); the waypoint deque's (+0x7C) size */ \
     O(UNIT_GOAL, 0x1EC, 0x1EC) /* c */ \
     O(UNIT_GOAL_OBJECT, 0x1F0, 0x1F0) /* c */ \
