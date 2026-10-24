@@ -282,6 +282,7 @@ internal int matches(const struct entry *e, const char *filter) {
 
 internal void show_editor(void);
 internal void place_default(void);
+internal void repaint(void);
 internal void fill_list(void) {
     char filter[64];
     GetWindowTextA(g_filter, filter, sizeof filter);
@@ -339,6 +340,7 @@ internal void show_editor(void) {
         SetWindowTextA(g_name, "");
         SetWindowTextA(g_help, "");
         SetWindowTextA(g_status, "");
+        repaint();
         g_filling = 0;
         return;
     }
@@ -378,6 +380,7 @@ internal void show_editor(void) {
     } else SetWindowTextA(g_edit, e->text);
     show_status(e);
     place_default();
+    repaint();
     g_filling = 0;
 }
 
@@ -423,13 +426,18 @@ internal void show_unknown(void) {
     ShowWindow(g_remove, g_nunk && !g_remove_unknown ? SW_SHOW : SW_HIDE);
 }
 
+// the whole window painted again, the controls too: the window doesn't paint under its controls (WS_CLIPCHILDREN, no
+// flicker), so where one moved away from or was hidden (a resize, the editor switching from a checkbox to a text
+// field) nothing else would paint it - the old picture stayed
+internal void repaint(void) { RedrawWindow(g_wnd, NULL, NULL, RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN); }
+
 // the Default button right of the editor shown
 internal void place_default(void) {
     RECT r;
     HWND c = IsWindowVisible(g_check) ? g_check : IsWindowVisible(g_combo) ? g_combo : g_edit;
     GetWindowRect(c, &r);
     MapWindowPoints(NULL, g_wnd, (POINT *)&r, 2);
-    MoveWindow(g_default, r.right + dpi_px(10), r.top - dpi_px(1), dpi_px(90), dpi_px(26), TRUE);
+    MoveWindow(g_default, r.right + dpi_px(10), r.top - dpi_px(1), dpi_px(90), dpi_px(26), FALSE);
 }
 
 internal void layout(void) {
@@ -437,30 +445,31 @@ internal void layout(void) {
     GetClientRect(g_wnd, &rc);
     int w = rc.right, h = rc.bottom, m = dpi_px(8), left = dpi_px(170), x = m + left + m, rw = w - x - m;
     int unk = g_nunk ? dpi_px(40) : 0, bottom = dpi_px(32) + unk, editor = dpi_px(200);
-    MoveWindow(g_pages, m, m, left, h - 2 * m - bottom, TRUE);
-    MoveWindow(g_filter, x, m, dpi_px(260), dpi_px(24), TRUE);
+    MoveWindow(g_pages, m, m, left, h - 2 * m - bottom, FALSE);
+    MoveWindow(g_filter, x, m, dpi_px(260), dpi_px(24), FALSE);
     int list_h = h - m - dpi_px(32) - editor - bottom - m;
-    MoveWindow(g_list, x, m + dpi_px(32), rw, list_h, TRUE);
+    MoveWindow(g_list, x, m + dpi_px(32), rw, list_h, FALSE);
     int y = m + dpi_px(32) + list_h + m;
-    MoveWindow(g_name, x, y, rw, dpi_px(20), TRUE);
-    MoveWindow(g_help, x, y + dpi_px(22), rw, editor - dpi_px(22) - dpi_px(64), TRUE);
+    MoveWindow(g_name, x, y, rw, dpi_px(20), FALSE);
+    MoveWindow(g_help, x, y + dpi_px(22), rw, editor - dpi_px(22) - dpi_px(64), FALSE);
     int ey = y + editor - dpi_px(56);
-    MoveWindow(g_check, x, ey, dpi_px(60), dpi_px(24), TRUE);
-    MoveWindow(g_combo, x, ey, dpi_px(260), dpi_px(300), TRUE);
-    MoveWindow(g_edit, x, ey, dpi_px(360), dpi_px(24), TRUE);
+    MoveWindow(g_check, x, ey, dpi_px(60), dpi_px(24), FALSE);
+    MoveWindow(g_combo, x, ey, dpi_px(260), dpi_px(300), FALSE);
+    MoveWindow(g_edit, x, ey, dpi_px(360), dpi_px(24), FALSE);
     place_default();
-    MoveWindow(g_status, x, ey + dpi_px(30), rw, dpi_px(20), TRUE);
+    MoveWindow(g_status, x, ey + dpi_px(30), rw, dpi_px(20), FALSE);
     int by = h - dpi_px(32) - m / 2;
     if (unk) {
-        MoveWindow(g_unk_label, m, by - unk, w - 3 * m - dpi_px(110), unk - dpi_px(4), TRUE);
-        MoveWindow(g_remove, w - m - dpi_px(110), by - unk, dpi_px(110), dpi_px(26), TRUE);
+        MoveWindow(g_unk_label, m, by - unk, w - 3 * m - dpi_px(110), unk - dpi_px(4), FALSE);
+        MoveWindow(g_remove, w - m - dpi_px(110), by - unk, dpi_px(110), dpi_px(26), FALSE);
     }
-    MoveWindow(g_file_label, m, by + dpi_px(5), w - 3 * m - dpi_px(200), dpi_px(20), TRUE);
-    MoveWindow(g_save, w - m - dpi_px(196), by, dpi_px(94), dpi_px(28), TRUE);
-    MoveWindow(g_close, w - m - dpi_px(96), by, dpi_px(94), dpi_px(28), TRUE);
+    MoveWindow(g_file_label, m, by + dpi_px(5), w - 3 * m - dpi_px(200), dpi_px(20), FALSE);
+    MoveWindow(g_save, w - m - dpi_px(196), by, dpi_px(94), dpi_px(28), FALSE);
+    MoveWindow(g_close, w - m - dpi_px(96), by, dpi_px(94), dpi_px(28), FALSE);
     ListView_SetColumnWidth(g_list, 0, dpi_px(240));
     ListView_SetColumnWidth(g_list, 1, (rw - dpi_px(260)) * 6 / 10);
     ListView_SetColumnWidth(g_list, 2, (rw - dpi_px(260)) * 4 / 10);
+    repaint();
 }
 
 internal HWND make_child(const char *cls, const char *text, DWORD style, int id) {
@@ -614,6 +623,7 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmd, int show) {
     read_file();
 
     WNDCLASSA wc = { 0 };
+    wc.style = CS_HREDRAW | CS_VREDRAW;   // a resize paints the whole window
     wc.lpfnWndProc = wnd_proc;
     wc.hInstance = inst;
     wc.hCursor = LoadCursor(NULL, IDC_ARROW);
