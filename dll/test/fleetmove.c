@@ -56,13 +56,16 @@ internal void fm_sample(char *out, int quiet) {
     REPLY("\n");
 }
 
-// pipe `fmove go P x y r tx ty`: P's units within r tiles of x, y (no buildings) selected and sent to tx, ty by the
-// right-click's message; `fmove stat`: a sample (above); `fmove sum`: per unit its type, first moving, done, time
+// pipe `fmove go P x y r tx ty [together]`: P's units within r tiles of x, y (no buildings) selected and sent to tx, ty
+// by the right-click's message (together 1: its +0x1F set - the group's speed for all); `fmove stat`: a sample (above); `fmove sum`: per unit its type, first moving, done, time
 // standing short of the goal, repaths, state changes - and the slowest of each
 internal void cmd_fmove(char *out, const char *args) {
     char what[8] = "";
-    int p = 0, x = 0, y = 0, r = 0, tx = 0, ty = 0;
-    if (sscanf(args, "%7s %d %d %d %d %d %d", what, &p, &x, &y, &r, &tx, &ty) < 1 || !game_map()) { REPLY("fmove go P x y r tx ty | stat | sum\n"); return; }
+    int p = 0, x = 0, y = 0, r = 0, tx = 0, ty = 0, together = 0;
+    if (sscanf(args, "%7s %d %d %d %d %d %d %d", what, &p, &x, &y, &r, &tx, &ty, &together) < 1 || !game_map()) {
+        REPLY("fmove go P x y r tx ty [together] | stat | sum\n");
+        return;
+    }
     if (!strcmp(what, "stat")) { if (g_fm_n) fm_sample(out, 0); else REPLY("fmove: no order given\n"); return; }
     if (!strcmp(what, "sum")) {
         float moved = 0, done = 0, stood = 0, crept = 0;
@@ -107,9 +110,9 @@ internal void cmd_fmove(char *out, const char *args) {
     memset(mem, 0, sizeof mem);
     g_fm_tx = (float)tx + 0.5f;
     g_fm_ty = (float)ty + 0.5f;
-    path_msg_make((ee_msg *)mem, player_get_msg_id(pl), g_fm_tx, g_fm_ty);
+    path_msg_make((ee_msg *)mem, player_get_msg_id(pl), g_fm_tx, g_fm_ty, together);
     msg_path((ee_msg *)mem);
     g_fm_t0 = g_fm_last = game_time();
     int *grp = player_get_selected_group(pl);
-    REPLY("fmove: %d units of P%d sent to %d,%d (%u in the selected group)\n", g_fm_n, p, tx, ty, grp ? group_count(grp) : 0);
+    REPLY("fmove: %d units of P%d sent to %d,%d%s (%u in the selected group)\n", g_fm_n, p, tx, ty, together ? " together" : "", grp ? group_count(grp) : 0);
 }

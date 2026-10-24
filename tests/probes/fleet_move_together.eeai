@@ -1,0 +1,21 @@
+// tests/probes/fleet_move.eeai with the move message's together flag (+0x1F) set: the game's own group speed - the
+// group's members at their average top speed, at most the slowest one's x the settings table's 0x31 (dll/game/api/messages.c).
+wait_until(0.1min)
+spawn(1, unit.s10_dreadnought_battleship, 58, 11, 6)
+spawn(1, unit.s10_cruiser, 64, 15, 6)
+spawn(1, unit.s10_good_hope_frigate, 56, 17, 4)
+wait_until(0.4min)
+cmd("fmove go 1 60 14 10 45 70 1")
+every(2s, 0.4min, 4.4min, (run) => {
+    cmd("fmove stat")
+})
+wait_until(4.45min)
+cmd("fmove sum")
+cmd("uinfo 45 66 12")
+cmd("fmove go 1 45 66 14 60 14 1")
+every(2s, 4.5min, 8.5min, (run) => {
+    cmd("fmove stat")
+})
+wait_until(8.55min)
+cmd("fmove sum")
+cmd("uinfo 60 14 12")

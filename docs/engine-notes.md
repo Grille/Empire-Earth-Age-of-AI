@@ -189,6 +189,16 @@ vf26 members and route released, vf12, the group's reference) frees nothing twic
 - Unit movement: +0x238 current speed (tiles/s, 0 standing, set by 0x54A55B), +0x21C the same clamped to
   the type's minimum; facing = matrix +0x130 local y axis (+0x134, +0x144). +0x118/+0x11C is a waypoint, not
   the previous position.
+- A unit's top speed, acceleration and turning come through getters on the unit (thiscall): 0x46123F max velocity
+  (42 calls: every movement model - EEPhysicsModel, Land, Naval, Submerged, Helicopter, Airplane, SeaAnimal - and
+  4 others), 0x54A4CA +0xA8, 0x54A4E7 +0xB4, 0x54A504 +0xB0 of its stats record (+0x34). With a group (unit +0x1C8,
+  an EEActiveGroup) whose +0xB6 is set they return the group's +0x70 / +0x7C / +0x88 / +0x94 instead: vf19 0x5DCE49
+  sets them to the members' average, at most the slowest one's x the settings table's 0x31 (so the slow ships go
+  faster than their own speed, the fast ones slower). +0xB6 is set by the group's hand-out 0x5DD436 from the move
+  goal's +5 == 1 and +0x33 - the move message's +0x1F (EEMPathTo, 0x4B9D7B; a plain click sends 0). Measured
+  (tests/probes/fleet_move_together.eeai, 2026-10-24): one speed for all, but the arrivals are as spread as without
+  (the last 184-214 s against 171-230 s): the blocking, not the speeds, keeps the fleet apart. A per-unit speed is
+  a hook of 0x46123F's calls (patch_all_calls).
 
 ## Orders, game end, splash
 

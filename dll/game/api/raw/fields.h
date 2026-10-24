@@ -233,6 +233,7 @@
     O(MSG_PATH_Y, 0x18, 0x18) /* c: its Execute's reads (both builds) */ \
     O(MSG_PATH_GOAL_30, 0x1C, 0x1C) /* c: its Execute's reads (both builds) - the move goal's +0x30 */ \
     O(MSG_PATH_GOAL_31, 0x1D, 0x1D) /* c: its Execute's reads (both builds) - the move goal's +0x31 */ \
+    O(MSG_PATH_TOGETHER, 0x1F, 0x1F) /* c: its Execute's reads (both builds) - the move goal's +0x33 */ \
     O(MSG_START_SEED, 0x14, 0x14) /* c */ \
     O(MSG_TRIBUTE_FOOD, 0x10, 0x10) /* c */ \
     O(MSG_TRIBUTE_GOLD, 0x14, 0x14) /* c */ \
