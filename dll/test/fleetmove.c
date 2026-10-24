@@ -19,6 +19,23 @@ internal struct fm_unit {
 internal int g_fm_n;
 internal uint32_t g_fm_t0, g_fm_last;   // the order's game time, the last sample's (ms)
 internal float g_fm_tx, g_fm_ty;
+internal unsigned g_fm_trace;            // `fmove trace`: the unit logged every step (its id), 0 none
+internal uint32_t g_fm_trace_last;
+
+// each simulation step (control.c's safe point) while a unit is traced: its position, heading (degrees, 0 = +y,
+// clockwise), speed, script state and the raw +0x8C (waypoints) and +0x118/+0x11C (a waypoint - engine-notes) - a
+// raw dump to see how it turns
+internal void fm_tick(void) {
+    if (!g_fm_trace || !g_log) return;
+    uint32_t now = game_time();
+    if (now == g_fm_trace_last) return;
+    g_fm_trace_last = now;
+    ee_unit *u = unit_by_id(g_fm_trace);
+    if (!u) { fprintf(g_log, "# fmtrace %u gone\n", now); g_fm_trace = 0; return; }
+    vec3 p = unit_get_pos(u), f = unit_get_facing(u);
+    fprintf(g_log, "# fmtrace %u pos %.3f,%.3f head %.1f spd %.3f state %u wp %d at %.2f,%.2f\n", now, p.x, p.y, atan2f(f.x, f.y) * 57.29578f,
+            unit_get_speed(u), unit_ai_state_id(u), FIELD(u, 0x8C, int), FIELD(u, 0x118, float), FIELD(u, 0x11C, float));
+}
 
 internal void fm_sample(char *out, int quiet) {
     uint32_t now = game_time();
@@ -64,6 +81,12 @@ internal void cmd_fmove(char *out, const char *args) {
     int p = 0, x = 0, y = 0, r = 0, tx = 0, ty = 0, together = 0;
     if (sscanf(args, "%7s %d %d %d %d %d %d %d", what, &p, &x, &y, &r, &tx, &ty, &together) < 1 || !game_map()) {
         REPLY("fmove go P x y r tx ty [together] | stat | sum\n");
+        return;
+    }
+    if (!strcmp(what, "trace")) {   // fmove trace i: the order's unit i (0-based) logged every step, -1 off
+        int i = p;
+        g_fm_trace = i >= 0 && i < g_fm_n ? g_fm[i].id : 0;
+        REPLY("fmove: tracing %06x\n", g_fm_trace & 0xFFFFFF);
         return;
     }
     if (!strcmp(what, "stat")) { if (g_fm_n) fm_sample(out, 0); else REPLY("fmove: no order given\n"); return; }

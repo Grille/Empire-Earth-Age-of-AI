@@ -450,10 +450,12 @@ internal void upgrade_stragglers(void); // defence.c: towers/walls/gates finishe
 internal void sound_tick(uint32_t now);  // sound.c: sound_log
 internal void llm_tick(void);           // llm.c: the language model's answers
 internal void script_triggers(uint32_t now);   // scripts.c: the setup scripts' triggers
+internal void fm_tick(void);            // fleetmove.c: `fmove trace`
 internal long __thiscall hook_sim_receive(void *thread, void *a, void *b, void *c) {
     diplo_safe_point();
     upgrade_stragglers();
     aim_tick();
+    fm_tick();
     sound_tick(game_time());
     llm_tick();
     if (!g_rm_seen && game_time() > 0) autotest_tick(game_time());   // games without AI (scenarios)
