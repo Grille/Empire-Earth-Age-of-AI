@@ -1,6 +1,6 @@
 // AIMOD_CONFIG.EXE: the mod's settings (aimod.ini) in a window - for players who'd rather not edit the file. A page per
-// section (General, Display ... the AI's [all] and its three difficulties), the page's settings in a list (value,
-// default), and for the one selected its help - the comment above its key in the shipped config/aimod.ini, built in
+// section (rows.h SETTING_SECTIONS: General, Display ... the AI's [all] and its three difficulties), the page's
+// settings in a list (value, default), and for the one selected its help - the comment above its key in the shipped config/aimod.ini, built in
 // (aimod_config.rc), so it is the text of this version - and an editor: on / off, a choice, or a text field. A value
 // is checked as it is typed, by the DLL's own code (settings/settings.c setting_value, the language's x_const_eval:
 // 35%, 2 * 60, min(...)), and its mistake told as the game would log it. Saving writes only the keys changed, each
@@ -31,17 +31,32 @@
 enum { ID_PAGES = 100, ID_FILTER, ID_LIST, ID_HELP, ID_NAME, ID_CHECK, ID_COMBO, ID_EDIT, ID_DEFAULT, ID_STATUS, ID_FILE,
        ID_SAVE, ID_CLOSE, ID_UNKNOWN, ID_REMOVE, ID_GAME_TEXT, ID_GAME_APPLY, ID_GAME_RESTORE };
 
-// THE PAGES: a section each; diff >= 0: a difficulty's own section, its rows those of [all]; GAME_PAGE: the exe (no
-// settings: its 4 GB flag)
+// THE PAGES: a section each (rows.h SETTING_SECTIONS by their order, the test ini's left out), then GAME_PAGE: the exe
+// (no settings: its 4 GB flag); diff >= 0: a difficulty's own section, its rows those of [all]
 #define GAME_PAGE -2
-struct page { const char *title, *sec; int diff; };
-internal const struct page k_pages[] = {
-    { "General", "general", -1 }, { "Camera", "camera", -1 }, { "Display", "display", -1 },
-    { "Scenario editor", "editor", -1 }, { "Sound", "sound", -1 }, { "Language model", "llm", -1 },
-    { "AI: every difficulty", "all", -1 }, { "AI: easy only", "easy", 0 }, { "AI: medium only", "medium", 1 },
-    { "AI: hard only", "hard", 2 }, { "Game (exe)", "", GAME_PAGE },
-};
-#define NPAGES ((int)(sizeof k_pages / sizeof *k_pages))
+struct page { const char *title, *sec; int section, diff; };   // section: of k_setting_sections, -1 none
+internal struct page g_page_of[SETTING_SECTION_N + 1];
+internal int g_npages;
+
+internal void make_pages(void) {
+    g_npages = 0;
+    for (int s = 0; s < SETTING_SECTION_N; s++) {
+        const struct setting_section *t = &k_setting_sections[s];
+        if (t->kind == SECK_TEST) continue;
+        int at = g_npages++;   // sorted in by order
+        while (at > 0 && k_setting_sections[g_page_of[at - 1].section].order > t->order) {
+            g_page_of[at] = g_page_of[at - 1];
+            at--;
+        }
+        struct page *pg = &g_page_of[at];
+        pg->title = t->title;
+        pg->sec = t->sec;
+        pg->section = s;
+        pg->diff = -1;
+        for (int d = 0; d < 3 && t->kind == SECK_DIFF; d++) if (!lstrcmpA(k_set_diff[d], t->sec)) pg->diff = d;
+    }
+    g_page_of[g_npages++] = (struct page){ "Game (exe)", "", -1, GAME_PAGE };
+}
 #define TEXT_CAP (MAX_PATH + 8)
 #define PLAYER_SLOTS 8   // personality_P1 .. P8: the game's players (P0 is nature)
 
@@ -66,8 +81,11 @@ internal float g_dpi = 1;
 
 internal int dpi_px(int n) { return (int)(n * g_dpi + 0.5f); }   // n pixels at 96 dpi on this screen
 internal const struct setting_row *row_of(const struct entry *e) { return &k_settings[e->row]; }
-internal const char *sec_of(const struct entry *e) { return k_pages[e->page].sec; }
-internal int on_diff_page(const struct entry *e) { return k_pages[e->page].diff >= 0; }
+internal int page_kind(int p) {   // SECK_*, -1 the game page
+    return g_page_of[p].section < 0 ? -1 : k_setting_sections[g_page_of[p].section].kind;
+}
+internal const char *sec_of(const struct entry *e) { return g_page_of[e->page].sec; }
+internal int on_diff_page(const struct entry *e) { return g_page_of[e->page].diff >= 0; }
 
 internal void key_of(const struct entry *e, char *out, int cap) {
     if (e->slot >= 0) snprintf(out, cap, "%s%d", row_of(e)->key, e->slot);
@@ -99,7 +117,7 @@ internal int check(const struct setting_row *r, const char *sec, const char *key
 
 // the easy AI's own default of the entry's row (an entry of the easy page), NULL none
 internal const char *easy_default(const struct entry *e) {
-    if (k_pages[e->page].diff != 0) return NULL;
+    if (g_page_of[e->page].diff != 0) return NULL;
     for (size_t i = 0; i < sizeof k_settings_easy / sizeof *k_settings_easy; i++)
         if (!lstrcmpA(k_settings_easy[i].key, row_of(e)->key)) return k_settings_easy[i].text;
     return NULL;
@@ -154,33 +172,35 @@ internal void update_title(void) { SetWindowTextA(g_wnd, unsaved() ? TITLE " *" 
 // THE FILE
 internal void read_file(void) {
     g_ne = 0;
-    for (int p = 0; p < NPAGES; p++)
+    for (int p = 0; p < g_npages; p++)
         for (int i = 0; i < SETTING_N; i++) {
             const struct setting_row *r = &k_settings[i];
-            if (k_pages[p].diff >= 0 ? !r->ai : lstrcmpA(r->sec, k_pages[p].sec)) continue;
+            if (g_page_of[p].diff >= 0 ? !r->ai : lstrcmpA(r->sec, g_page_of[p].sec)) continue;
             for (int s = r->kind == SETK_STR_P ? 1 : -1; s <= (r->kind == SETK_STR_P ? PLAYER_SLOTS : -1); s++) {
                 struct entry *e = &g_e[g_ne++];
                 e->page = p; e->row = i; e->slot = s;
                 char key[64];
                 key_of(e, key, sizeof key);
-                e->has = e->had = ini_raw(k_pages[p].sec, key, g_ini_path, e->text, sizeof e->text);
+                e->has = e->had = ini_raw(g_page_of[p].sec, key, g_ini_path, e->text, sizeof e->text);
                 if (!e->has) e->text[0] = 0;
                 lstrcpyA(e->was, e->text);
-                if (!lstrcmpA(k_pages[p].sec, "all")) g_all_of[i] = g_ne - 1;
+                if (page_kind(p) == SECK_ALL) g_all_of[i] = g_ne - 1;
             }
         }
     g_nunk = 0;
     g_unknown[0] = 0;
     g_remove_unknown = 0;
-    for (size_t s = 0; s < sizeof k_settings_whole / sizeof *k_settings_whole; s++) {
+    for (int p = 0; p < g_npages; p++) {
+        if (g_page_of[p].section < 0) continue;
+        const char *sec = g_page_of[p].sec;
         static char keys[16384];
-        DWORD n = GetPrivateProfileStringA(k_settings_whole[s], NULL, "", keys, sizeof keys, g_ini_path);
+        DWORD n = GetPrivateProfileStringA(sec, NULL, "", keys, sizeof keys, g_ini_path);
         for (const char *k = keys; k < keys + n && *k; k += strlen(k) + 1) {
-            if (setting_known(k_settings_whole[s], k) || g_nunk >= 64) continue;
-            lstrcpynA(g_unk[g_nunk].sec, k_settings_whole[s], sizeof g_unk[0].sec);
+            if (setting_known(sec, k) || g_nunk >= 64) continue;
+            lstrcpynA(g_unk[g_nunk].sec, sec, sizeof g_unk[0].sec);
             lstrcpynA(g_unk[g_nunk].key, k, sizeof g_unk[0].key);
             size_t o = strlen(g_unknown);
-            snprintf(g_unknown + o, sizeof g_unknown - o, "%s[%s] %s", g_nunk ? ", " : "", k_settings_whole[s], k);
+            snprintf(g_unknown + o, sizeof g_unknown - o, "%s[%s] %s", g_nunk ? ", " : "", sec, k);
             g_nunk++;
         }
     }
@@ -632,7 +652,7 @@ internal HWND make_child(const char *cls, const char *text, DWORD style, int id)
 
 internal void create_controls(void) {
     g_pages = make_child(WC_LISTBOXA, "", LBS_NOTIFY | WS_VSCROLL | WS_TABSTOP, ID_PAGES);
-    for (int p = 0; p < NPAGES; p++) SendMessageA(g_pages, LB_ADDSTRING, 0, (LPARAM)k_pages[p].title);
+    for (int p = 0; p < g_npages; p++) SendMessageA(g_pages, LB_ADDSTRING, 0, (LPARAM)g_page_of[p].title);
     g_filter = make_child(WC_EDITA, "", ES_AUTOHSCROLL | WS_TABSTOP, ID_FILTER);
     SendMessageW(g_filter, EM_SETCUEBANNER, TRUE, (LPARAM)L"Search this page");
     g_list = CreateWindowExA(WS_EX_CLIENTEDGE, WC_LISTVIEWA, "", WS_CHILD | WS_VISIBLE | WS_TABSTOP | LVS_REPORT |
@@ -683,7 +703,7 @@ internal int ask_close(void) {
 
 // the page g_page shown: its settings, or the game page
 internal void show_page(void) {
-    int game = k_pages[g_page].diff == GAME_PAGE;
+    int game = g_page_of[g_page].diff == GAME_PAGE;
     HWND list_side[] = { g_filter, g_list, g_name, g_help, g_default, g_status, g_check, g_combo, g_edit };
     for (size_t i = 0; i < sizeof list_side / sizeof *list_side; i++) if (game) ShowWindow(list_side[i], SW_HIDE);
     if (!game) for (int i = 0; i < 6; i++) ShowWindow(list_side[i], SW_SHOW);
@@ -794,6 +814,7 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmd, int show) {
     ncm.lfMessageFont.lfWeight = FW_BOLD;
     g_bold = CreateFontIndirectA(&ncm.lfMessageFont);
     g_mono = CreateFontA(ncm.lfMessageFont.lfHeight, 0, 0, 0, FW_NORMAL, 0, 0, 0, DEFAULT_CHARSET, 0, 0, CLEARTYPE_QUALITY, FIXED_PITCH, "Consolas");
+    make_pages();
     read_file();
 
     WNDCLASSA wc = { 0 };

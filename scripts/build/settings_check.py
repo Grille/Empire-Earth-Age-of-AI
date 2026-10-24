@@ -1,26 +1,29 @@
 """The settings' rows (dll/settings/rows.h) against the shipped config/aimod.ini, run by dll/build.sh: every row of
 aimod.ini's sections is in the file - set (key=value, then with the row's default: the built-in default is what the
-shipped file says) or shown commented out (;key=example) - every key set in a whole section (k_settings_whole) is a
-row, a key of [easy] / [medium] / [hard] a row of [all] (D), and the shipped [easy] sets what SETTINGS_EASY says. A row
-of section autotest is the test ini's own and not looked for. Exit 1 with the differences."""
+shipped file says) or shown commented out (;key=example) - every key set in a section is a row, a key of [easy] /
+[medium] / [hard] a row of [all] (D), and the shipped [easy] sets what SETTINGS_EASY says. The sections
+(SETTING_SECTIONS): every row's section is one, every section of the file is one and every one of them is in the file
+(but the test ini's, kind TEST: its rows aren't looked for), each named once, each order its own, the DIFF ones
+easy, medium and hard. Exit 1 with the differences."""
 import os
 import re
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 ROW = re.compile(r'\b(?:[XS]\((\w+),\s*(\w+),|D\((\w+),)\s*(\w+),\s*("[^"]*"|-?\w+),')
+SECTION = re.compile(r'\bT\((\w+),\s*(-?\d+),\s*(\w+),\s*"[^"]*"\)')
 EASY = re.compile(r'\bE\((\w+),\s*"([^"]*)"\)')
 DIFF = ('easy', 'medium', 'hard')
 
 
 def rows():
     src = open(os.path.join(ROOT, 'dll', 'settings', 'rows.h'), encoding='utf-8').read()
-    whole = re.search(r'k_settings_whole\[\]\s*=\s*\{([^}]*)\}', src).group(1)
+    sections = [(sec, int(order), kind) for sec, order, kind in SECTION.findall(src)]
     table = []
     for m in ROW.finditer(src):
         kind, sec = (m.group(1), m.group(2)) if m.group(1) else (m.group(3), 'all')
         table.append((kind, sec, m.group(4), m.group(5)))
-    return table, re.findall(r'"(\w+)"', whole), dict(EASY.findall(src))
+    return table, sections, dict(EASY.findall(src))
 
 
 def ini():
@@ -54,12 +57,28 @@ def same(kind, value, default):
 
 
 def main():
-    table, whole, easy = rows()
+    table, sections, easy = rows()
     keys = ini()
     bad = []
+    secs = [sec for sec, _, _ in sections]
+    for sec in sorted({sec for sec in secs if secs.count(sec) > 1}):
+        bad.append('[%s]: two section rows in dll/settings/rows.h' % sec)
+    orders = [order for _, order, _ in sections]
+    for sec, order, _ in sections:
+        if orders.count(order) > 1: bad.append('[%s]: its order %d is another section\'s too' % (sec, order))
+    diff = [sec for sec, _, kind in sections if kind == 'DIFF']
+    if sorted(diff) != sorted(DIFF): bad.append('the DIFF sections are %s, settings.c k_set_diff %s' % (diff, list(DIFF)))
+    test = {sec for sec, _, kind in sections if kind == 'TEST'}
+    whole = [sec for sec, _, kind in sections if kind != 'TEST']
+    for sec in sorted({sec for _, sec, _, _ in table} - set(secs)):
+        bad.append('[%s]: a row\'s section, but not in SETTING_SECTIONS' % sec)
+    for sec in keys:
+        if sec not in secs or sec in test: bad.append('[%s] in config/aimod.ini, but no section of SETTING_SECTIONS' % sec)
+    for sec in whole:
+        if sec not in keys: bad.append('[%s]: in SETTING_SECTIONS, but not in config/aimod.ini' % sec)
     known = {}
     for kind, sec, key, default in table:
-        if sec == 'autotest': continue
+        if sec in test: continue
         known.setdefault(sec, []).append((kind, key))
         have = keys.get(sec, {})
         names = [k for k in have if k == key or (kind == 'STR_P' and re.fullmatch(re.escape(key) + r'\d+', k))]

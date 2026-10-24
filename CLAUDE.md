@@ -68,7 +68,8 @@ and the runners, eectl, the MCP server), `results/` (log readers, scorers), `re/
   sections: `g_set.display_present`) or `g_set_ai[d].key` ([all], a value per difficulty from [easy] / [medium] /
   [hard], else [all]; code that doesn't tell difficulties apart reads [1]), and the test ini's [autotest] overrides a
   row by that same name (`scripts/build/settings_check.py`, run by the build, holds rows and file together). Nothing
-  reads aimod.ini itself any more; a test-only knob is a row of section autotest.
+  reads aimod.ini itself any more; a test-only knob is a row of section autotest. A new section is a row of
+  `SETTING_SECTIONS` there too (its order and title make aimod_config.exe's page).
 - The game reads the personality files from `config/aimod_ai/` (`ai_dir` in the user's aimod.ini): a change to
   their format needs the matching installed DLL.
 

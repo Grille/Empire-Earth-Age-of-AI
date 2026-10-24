@@ -433,7 +433,8 @@ dll/              the mod (C), one translation unit: eeaimod.c includes every pa
   test/             control.c the control pipe, testcmd.c / testopp.c test commands and the sea opponent, randmap.c
                     test-game setup, autotest.c, scripts.c the setup scripts (cmd_verbs.h, generated: the commands
                     they call), trace.c call tracing, ecolog.c the economy log
-  settings/         rows.h every aimod.ini key as a row (kind, section, default, limits), settings.c reads them once into
+  settings/         rows.h every aimod.ini key as a row (kind, section, default, limits) and every section (order, kind,
+                    title: aimod_config.exe's pages), settings.c reads them once into
                     g_set / g_set_ai (a value per AI difficulty) - the parts read those, never the file
   tool/             aimod_config.c: aimod_config.exe, the settings in a window (from base/, script/ and settings/ only:
                     the DLL's own rows and checks; the shipped aimod.ini built in as the help)

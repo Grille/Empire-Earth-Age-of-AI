@@ -235,10 +235,26 @@
     X(FLAG,  autotest, landing_trace,                0, 0, 0) \
     X(NUM,   autotest, transport_log,                0, 0, 0)
 
-// The sections whose every key is a row (all of aimod.ini's): a key there that isn't one is told in the log (a
-// misspelt key otherwise silently kept its default).
-internal const char *const k_settings_whole[] = { "general", "camera", "display", "editor", "sound", "llm", "all", "easy",
-                                                  "medium", "hard" };
+// THE SECTIONS: every section a row names, one row each - its name, its place (aimod_config.exe's pages sort by it),
+// its kind and its title (the page's). Every key of a section of aimod.ini is a row: one that isn't is told in the log
+// (a misspelt key otherwise silently kept its default) - the test ini's [autotest] has knobs of its own besides the rows.
+//
+//   PLAIN   a section of its own rows
+//   ALL     [all]: the rows of D, for every AI difficulty
+//   DIFF    a difficulty's own section ([easy] / [medium] / [hard]: settings.c k_set_diff), the rows of [all] again
+//   TEST    the test ini's own: not in aimod.ini, no page
+#define SETTING_SECTIONS(T) \
+    T(general,   10, PLAIN, "General") \
+    T(camera,    20, PLAIN, "Camera") \
+    T(display,   30, PLAIN, "Display") \
+    T(editor,    40, PLAIN, "Scenario editor") \
+    T(sound,     50, PLAIN, "Sound") \
+    T(llm,       60, PLAIN, "Language model") \
+    T(all,       70, ALL,   "AI: every difficulty") \
+    T(easy,      80, DIFF,  "AI: easy only") \
+    T(medium,    90, DIFF,  "AI: medium only") \
+    T(hard,     100, DIFF,  "AI: hard only") \
+    T(autotest,   0, TEST,  "Tests")
 
 // What the easy AI gets where neither [easy] nor [all] says otherwise (instead of the row's default): it eases off -
 // keeps to the human's epoch and population. The shipped [easy] says the same (settings_check.py).

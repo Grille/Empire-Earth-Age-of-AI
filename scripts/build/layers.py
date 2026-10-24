@@ -184,6 +184,7 @@ def analyse():
     if 'settings/rows.h' in code:
         blank = lambda m: ' ' * len(m.group(0))
         rows = re.sub(r'\b[XS]\(\s*\w+\s*,\s*\w+\s*,\s*\w+\s*,', blank, code['settings/rows.h'])
+        rows = re.sub(r'\bT\(\s*\w+\s*,\s*\d+\s*,\s*\w+\s*,', blank, rows)
         code['settings/rows.h'] = re.sub(r'\b[DE]\(\s*\w+\s*,(\s*\w+\s*,)?', blank, rows)
     owner = collections.defaultdict(set)
     for f in files:

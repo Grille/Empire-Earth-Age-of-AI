@@ -3,8 +3,8 @@
 // ini's [autotest] (a test run), else from its section of aimod.ini (a row of [all]: the difficulty's own section
 // first), else its default - and checked by its kind; a mistake is logged (ini.c: file, section, key) and the row
 // keeps its default. The parts read g_set / g_set_ai instead of the file: one reading of each key, one rule for the
-// test ini's overrides, and the keys of a whole section (k_settings_whole) known, so a key that is none of them is
-// told. Included by eeaimod.c after base/ini.c, before every part that reads a setting.
+// test ini's overrides, and the keys of every section of aimod.ini (rows.h SETTING_SECTIONS) known, so a key that is
+// none of them is told. Included by eeaimod.c after base/ini.c, before every part that reads a setting.
 #include "settings/rows.h"
 
 #define SET_FIELD_FLAG(name, a) int name;
@@ -49,6 +49,12 @@ internal const struct setting_row k_settings[SETTING_N] = { SETTINGS(SET_ROW_X, 
 
 #define SET_EASY(key, text) { #key, text },
 internal const struct { const char *key, *text; } k_settings_easy[] = { SETTINGS_EASY(SET_EASY) };
+
+enum { SECK_PLAIN, SECK_ALL, SECK_DIFF, SECK_TEST };
+struct setting_section { const char *sec; int order, kind; const char *title; };
+#define SET_SECTION(sec, order, kind, title) { #sec, order, SECK_##kind, title },
+internal const struct setting_section k_setting_sections[] = { SETTING_SECTIONS(SET_SECTION) };
+#define SETTING_SECTION_N ((int)(sizeof k_setting_sections / sizeof *k_setting_sections))
 
 // where each row's value came from: 0 its default, 1 aimod.ini, 2 the test ini ([autotest]); a row of [all]: the
 // furthest of its difficulties
@@ -214,7 +220,8 @@ internal void settings_read(const char *ini, const char *test_ini) {
             if (from > g_set_from[i]) g_set_from[i] = from;
         }
     }
-    for (size_t s = 0; s < sizeof k_settings_whole / sizeof *k_settings_whole; s++) settings_unknown(ini, k_settings_whole[s]);
+    for (int s = 0; s < SETTING_SECTION_N; s++)
+        if (k_setting_sections[s].kind != SECK_TEST) settings_unknown(ini, k_setting_sections[s].sec);
 }
 
 // row r's value at at as text (out, cap)
