@@ -15,3 +15,14 @@ internal inline int patch_ship_speed_decide(speed_decide_hook h) {
     return patch_vtable(GA(VT_PM_NAVAL), GA(SLOT_PM_SPEED_DECIDE), GA(FN_SPEED_DECIDE), (void *)h)
          + patch_vtable(GA(VT_PM_SUBMERGED), GA(SLOT_PM_SPEED_DECIDE), GA(FN_SPEED_DECIDE), (void *)h);
 }
+// the turn decision (the turn step 0x548266 asks it each tick with the unit's turn rate now, +0x17C, and the angle
+// left, both signed): 3 turn faster towards it (up to FN_UNIT_MAX_TURN), 4 slower (by the turn acceleration a tick, 0
+// at the end), 2 hold. The 2017 update's takes both as sizes and doesn't look a step ahead, so a unit swings past the
+// heading and back; AoC's (slot 12) has both - not patched there (0)
+typedef int (__thiscall *turn_decide_hook)(void *model, ee_unit *u, float rate, float left);
+internal inline int model_turn_decide(void *model, ee_unit *u, float rate, float left) { return GF(FN_TURN_DECIDE)(model, u, rate, left); }
+internal inline int patch_ship_turn_decide(turn_decide_hook h) {
+    if (build_is("aoc")) return 0;
+    return patch_vtable(GA(VT_PM_NAVAL), GA(SLOT_PM_TURN_DECIDE), GA(FN_TURN_DECIDE), (void *)h)
+         + patch_vtable(GA(VT_PM_SUBMERGED), GA(SLOT_PM_TURN_DECIDE), GA(FN_TURN_DECIDE), (void *)h);
+}

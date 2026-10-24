@@ -144,6 +144,7 @@
     F(FN_PHYS_STEP, void, __thiscall, (void *), 0x00546C63, 0x00553082) \
     F(FN_UNIT_ACCEL, float, __thiscall, (void *), 0x0054A4CA, 0x00554C95) /* thiscall(unit): its acceleration (stats +0xA8; its group's with the group speed on) */ \
     F(FN_UNIT_MAX_TURN, float, __thiscall, (void *), 0x0054A4E7, 0x0055463E) /* thiscall(unit): its top turn rate (radians/s, stats +0xB4; its group's with the group speed on) */ \
+    F(FN_UNIT_TURN_ACCEL, float, __thiscall, (void *), 0x0054A504, 0x0055465B) /* thiscall(unit): its turn acceleration (radians/s per s, stats +0xB0; its group's with the group speed on) */ \
     /* thiscall(player, type, 0x20, 0): can train or build one now */ \
     F(FN_CAN_BUILD, char, __thiscall, (void *, int, int, int), 0x00555710, 0x005639E8) \
     F(FN_POPULATION, int, __thiscall, (void *, int, int), 0x00556E11, 0x005651E0) /* thiscall(player, 1, 0) */ \

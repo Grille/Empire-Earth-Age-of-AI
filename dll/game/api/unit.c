@@ -81,6 +81,7 @@ internal inline int unit_lets_pass(ee_unit *object, ee_unit *unit) {
 internal inline float unit_max_speed(ee_unit *u) { return GF(FN_UNIT_MAX_SPEED)(u); }
 internal inline float unit_accel(ee_unit *u) { return GF(FN_UNIT_ACCEL)(u); }
 internal inline float unit_max_turn(ee_unit *u) { return GF(FN_UNIT_MAX_TURN)(u); }
+internal inline float unit_turn_accel(ee_unit *u) { return GF(FN_UNIT_TURN_ACCEL)(u); }   // radians/s per s
 // its current waypoint (the list's front) into pt[3]: 0, else it has none
 internal inline int unit_waypoint(ee_unit *u, float *pt) { return GF(FN_UNIT_WAYPOINT)(u, pt); }
 // drops its current waypoint, the next the current (as GetNextMoveWaypoint does on arrival): 0, else it had none

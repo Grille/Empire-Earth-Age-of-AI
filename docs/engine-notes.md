@@ -248,6 +248,15 @@ vf26 members and route released, vf12, the group's reference) frees nothing twic
   GetNextMoveWaypoint does (it also clears +0x248 and, with [0x941440] set, a tile mark); the deque's element i as
   the game's accessor 0x5E80BE finds it: block (front index + i) / 0xCC, less the map size when past it, then
   (front index + i) % 0xCC x 20 bytes into that block.
+- **The rotation:** the turn step 0x548266 (from vf7 0x5484D9, the tick's +0x1C) keeps a turn rate at unit +0x17C
+  and asks slot 11 (0x54880E; thiscall(model, unit, rate, angle left)): 3 the rate up by the turn acceleration
+  (0x54A504, stats +0xB0) x the step towards the angle (at most 0x54A4E7's top rate), 4 down towards 0, 2 hold; the
+  angle step is then cut at the heading, the rate not. The 2017 decision takes both as sizes, from the rate now, with
+  the steps to stop from the type's +0xC8 x the settings' +0x88: it brakes a step late, and a unit turning away is
+  let turn on - it swings past the heading and back (a Hammerhead 7.5 -> 0 -> -6.1 degrees at the end of a move).
+  AoC rewrote it (EEPhysicsModel::vf12 0x554F56, slot 12 - AoC's model vtables have a slot more before slot 7, its
+  speed decision is slot 10): turning away brake; turn faster only when a step on at the higher rate the braking still
+  ends within the angle left.
 
 ## Orders, game end, splash
 

@@ -280,7 +280,8 @@ Settings in `aimod.ini`:
   slower and tighter towards a near one, and only where the circle it sweeps is free of land, shallows and other
   ships - otherwise it turns as before. It also looks ahead: a waypoint inside the ship's turning circle, or one
   it has already passed, is skipped for the next when the way there is clear - a fast ship steered at it, overshot
-  and circled it. In multiplayer every PC needs the same setting.
+  and circled it. And it stops rotating on its heading instead of swinging past it and back (as Art of Conquest
+  already does). In multiplayer every PC needs the same setting.
 - `[sound] clamp_channels=1` (default): the "Max Number Of Sounds" slider goes to 200%, which asks for 32 sound
   channels, but the sound mixer has only 16 on current Windows. Sounds put on the 16 missing channels were silent,
   and a looping one (unit movement such as the U-boats', ambience) stayed stuck there and never played again -
