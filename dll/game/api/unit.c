@@ -82,6 +82,7 @@ internal inline int unit_get_flight_ms(const ee_unit *u) { return FIELD(u, UNIT_
 internal inline int unit_get_reload(const ee_unit *u) { return FIELD(u, UNIT_RELOAD, int); }            // +0x2A0 its own reload (ms, 0: its class's)
 internal inline int unit_get_room(const ee_unit *u) { return FIELD(u, UNIT_ROOM, int); }                // +0x2A4 a transport's room left (EEUGLoadTransport::vf34; full below 1)
 internal inline uint8_t unit_get_frozen(const ee_unit *u) { return FIELD(u, UNIT_FROZEN, uint8_t); }     // +0x33B frozen (the scenario effect)
+internal inline uint8_t unit_get_at_work(const ee_unit *u) { return FIELD(u, UNIT_AT_WORK, uint8_t); }  // +0x347 at work (the contact test passes it on a kind 6 / 4 goal)
 internal inline uint8_t unit_get_finished(const ee_unit *u) { return FIELD(u, UNIT_FINISHED, uint8_t); }   // +0x340 on a building's +0x30: built
 // +0x341: held by the AI (EEComputerPlayer vf19 sets it; cleared when the AI takes the unit for an attack)
 internal inline uint8_t unit_get_ai_held(const ee_unit *u) { return FIELD(u, UNIT_AI_HELD, uint8_t); }

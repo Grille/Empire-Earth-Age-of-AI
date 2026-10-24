@@ -1,0 +1,16 @@
+// The land units' sizes as the collision reads them (`fmove watch`'s size and class, as unit_sizes.eeai for the
+// ships): Continental (seed 101, start_epoch 12), one of each kind on open land, logged for a few steps.
+wait_until(0.1min)
+spawn(1, unit.citizen, 40, 40, 1)
+spawn(1, unit.inf10_doughboy, 42, 40, 1)
+spawn(1, unit.inf10_machine_gun, 44, 40, 1)
+spawn(1, unit.cav04_war_elephant, 46, 40, 1)
+spawn(1, unit.tank10_mk_v, 40, 43, 1)
+spawn(1, unit.tank12_m1a1, 43, 43, 1)
+spawn(1, unit.mech_minotaur, 46, 43, 1)
+spawn(1, unit.mech_hyperion, 49, 43, 1)
+wait_until(0.2min)
+cmd("fmove go 1 44 41 6 44 50")
+cmd("fmove watch 1")
+wait_until(0.25min)
+cmd("fmove watch 0")

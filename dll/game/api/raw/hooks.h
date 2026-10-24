@@ -99,7 +99,9 @@
     D(VT_INGAME_CHAT, 0x0082936C, 0x0083E0BC) \
     D(VTBL_PHYS_STEP, 0x0082CB7C, 0x00842324)                                 /* EEPhysics vtable slot 8: one simulation step */ \
     D(VT_PM_SUBMERGED, 0x0082CDD4, 0x008425F8)                                /* EEPMSubmergedNaval, the submarines' movement */ \
-    D(VT_PM_NAVAL, 0x0082CE30, 0x00842658)                                    /* EEPMNaval, the ships' movement */ \
+    D(VT_PM_LAND, 0x0082CFB0, 0x008427E8)                                     /* EEPMLand, the land units' movement */ \
+    D(VT_PM_HOVER, 0x0082CE8C, 0x008426B8)                                    /* EEPMHovercraft */ \
+    D(VT_PM_NAVAL, 0x0082CE30, 0x00842658)                                /* EEPMNaval, the ships' movement */ \
     D(VTS_TECH_RESEARCHED, 0x00830874, 0x00846168)                            /* EETechTreeNode::vf6's vtable slot */ \
     D(VT_COMPLEX_UNIT, 0x00831494, 0x00846DDC) \
     D(VT_MISSILE, 0x00832E90, 0x00848CF8) \

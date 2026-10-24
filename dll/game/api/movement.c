@@ -42,14 +42,23 @@ internal inline int patch_ship_speed_step(speed_step_hook h) {
     return patch_vtable(GA(VT_PM_NAVAL), GA(SLOT_PM_SPEED_STEP), GA(FN_SPEED_STEP), (void *)h)
          + patch_vtable(GA(VT_PM_SUBMERGED), GA(SLOT_PM_SPEED_STEP), GA(FN_SPEED_STEP), (void *)h);
 }
-// the collision step (slot 18, after each step of the movement: docs/engine-notes.md "Collision") of the ships' and the
-// submarines' models (both hold the same thunk; the submarines' slot 14 tests the tiles for other submarines) - the hook calls model_collide for what it
-// leaves to the game, model_push to move the unit by its push velocity (the model's own: the terrain and buildings
-// tested, the larger axis no faster than the top speed, under 0.02 tiles/s nothing; the push zeroed)
+// the collision step (slot 18, after each step of the movement: docs/engine-notes.md "Collision") of the ships',
+// the submarines', the land units' and the hovercraft's models (all hold the same thunk; the submarines' slot 14 tests
+// the tiles for other submarines) - the hook calls model_collide for what it leaves to the game, model_push to move
+// the unit by its push velocity (the model's own: the terrain and buildings tested, the larger axis no faster than
+// the top speed, under 0.02 tiles/s nothing; the push zeroed)
 typedef void (__thiscall *collide_hook)(void *model, ee_unit *u);
 internal inline void model_collide(void *model, ee_unit *u) { GF(FN_PM_COLLIDE)(model, u); }
 internal inline void model_push(void *model, ee_unit *u) { ((void (__thiscall *)(void *, ee_unit *))(*(void ***)model)[GA(SLOT_PM_PUSH)])(model, u); }
-internal inline int patch_ship_collide(collide_hook h) {
-    return patch_vtable(GA(VT_PM_NAVAL), GA(SLOT_PM_COLLIDE), GA(FN_PM_COLLIDE), (void *)h)
-         + patch_vtable(GA(VT_PM_SUBMERGED), GA(SLOT_PM_COLLIDE), GA(FN_PM_COLLIDE), (void *)h);
+// which of them a model is: MODEL_SHIPS, MODEL_SUBS, MODEL_LAND (the land units' and the hovercraft's), else 0
+enum { MODEL_SHIPS = 1, MODEL_SUBS, MODEL_LAND };
+internal inline int model_kind(const void *model) {
+    uintptr_t vt = model ? *(const uintptr_t *)model : 0;
+    return vt == GA(VT_PM_NAVAL) ? MODEL_SHIPS : vt == GA(VT_PM_SUBMERGED) ? MODEL_SUBS : vt == GA(VT_PM_LAND) || vt == GA(VT_PM_HOVER) ? MODEL_LAND : 0;
+}
+internal inline int patch_collide(int kind, collide_hook h) {   // a kind's models
+    if (kind == MODEL_SHIPS) return patch_vtable(GA(VT_PM_NAVAL), GA(SLOT_PM_COLLIDE), GA(FN_PM_COLLIDE), (void *)h);
+    if (kind == MODEL_SUBS) return patch_vtable(GA(VT_PM_SUBMERGED), GA(SLOT_PM_COLLIDE), GA(FN_PM_COLLIDE), (void *)h);
+    return patch_vtable(GA(VT_PM_LAND), GA(SLOT_PM_COLLIDE), GA(FN_PM_COLLIDE), (void *)h)
+         + patch_vtable(GA(VT_PM_HOVER), GA(SLOT_PM_COLLIDE), GA(FN_PM_COLLIDE), (void *)h);
 }

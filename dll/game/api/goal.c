@@ -3,6 +3,8 @@
 // FIELDS: a unit's +0x1EC; the kind by its vtable (goal_is_attack(g) ...), the fields of each kind from +0x20 on
 // (GOAL_ARGS) its own
 internal inline uint8_t goal_get_state(const ee_goal *g) { return FIELD(g, GOAL_STATE, uint8_t); }        // +0x5 (aim.c: 2 while it attacks)
+internal inline void *goal_get_0x38(const ee_goal *g) { return FIELD(g, GOAL_0x38, void *); }          // +0x38 a kind 6 goal's target
+internal inline void *goal_get_0x3c(const ee_goal *g) { return FIELD(g, GOAL_0x3C, void *); }          // +0x3C a kind 4 goal's target
 // a move goal (goal_is_location): where to
 internal inline float goal_get_dest_x(const ee_goal *g) { return FIELD(g, GOAL_ARGS, float); }         // +0x20
 internal inline float goal_get_dest_y(const ee_goal *g) { return FIELD(g, GOAL_ARGS + 0x4, float); }         // +0x24

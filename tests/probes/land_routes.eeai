@@ -1,0 +1,19 @@
+// Land routes (land_routes): Continental (seed 101, start_epoch 12), 10 doughboys and 4 Mark V tanks sent from 38,40
+// to 66,56 (about 30 degrees off the tile directions, through whatever lies between), then back to 40,52, sampled every
+// 2 s (`fmove stat`, `fmove sum`: the arrivals, the time standing; the land route searches and their time).
+wait_until(0.1min)
+spawn(1, unit.inf10_doughboy, 38, 40, 10)
+spawn(1, unit.tank10_mk_v, 36, 43, 4)
+wait_until(0.3min)
+cmd("fmove go 1 37 41 5 66 56")
+every(2s, 0.3min, 2.3min, (run) => {
+    cmd("fmove stat")
+})
+wait_until(2.35min)
+cmd("fmove sum")
+cmd("fmove go 1 66 56 6 40 52")
+every(2s, 2.4min, 4.4min, (run) => {
+    cmd("fmove stat")
+})
+wait_until(4.45min)
+cmd("fmove sum")

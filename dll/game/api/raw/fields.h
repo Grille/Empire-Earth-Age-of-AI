@@ -209,6 +209,8 @@
     O(GOAL_STATE, 0x5, 0x5) /* b */ \
     O(GOAL_ARGS, 0x20, 0x20) /* c */ \
     O(GOAL_HOLDER, 0x50, 0x50) /* c */ \
+    O(GOAL_0x38, 0x38, 0x38) /* c: a kind 6 goal's target - the contact test (EEPhysicsModel::vf14, AoC vf15) lets two units at work on kind 6 meet only when it is the same */ \
+    O(GOAL_0x3C, 0x3C, 0x3C) /* c: a kind 4 goal's target - the same for kind 4 */ \
     O(GRID_CELLS, 0x4, 0x4) /* s */ \
     O(GRID_CELL_SIZE, 0x8, 0x8) /* s */ \
     O(GRID_NX, 0x10, 0x10) /* s */ \
@@ -509,6 +511,7 @@
     O(TD_HP, 0x55C, 0x25C) /* c: the type data's constructors */ \
     O(TD_MISSILE_DELAY, 0x588, 0x288) /* c: the type data's constructors */ \
     O(TD_SIZE, 0x58C, 0x28C) /* c */ \
+    O(TD_MODEL, 0x40C, 0x110) /* c: its movement model (EEPhysicsModel: VT_PM_LAND, VT_PM_NAVAL ...), shared by the type's units - EEUCNaval::vf45 0x60686F calls the movement step on it */ \
     O(TD_COLLISION, 0x470, 0x174) /* c: a collision sphere (float; dreadnought 4, cruiser 3): AoC the shift of +0x474 (0x178, EEUnitClass::vf34's arrival test) */ \
     O(TD_TERRAIN_OK, 0x5D6, 0x2D2) /* c: a byte per terrain kind (TILE_KIND): may the type enter it (the path search's tile test 0x41D36A; AoC 0x41990C asks 0x634AD8, which reads it only without a unit - with one a bit mask in its stats +0x160) */ \
     O(TD_BEHAVIOURS, 0x621, 0x31F) /* c: the type data's constructors */ \
@@ -603,6 +606,7 @@
     O(UNIT_RELOAD, 0x2A0, 0x2A4) /* c */ \
     O(UNIT_ROOM, 0x2A4, 0x2A8) /* c: 2 votes, UNIT_RELOAD's shift */ \
     O(UNIT_FROZEN, 0x33B, 0x347) /* c */ \
+    O(UNIT_AT_WORK, 0x347, 0x353) /* c: set while at work (byte): the contact test passes a unit with it on a kind 6 or 4 goal, but for one at the same work - in both builds' test */ \
     O(UNIT_FINISHED, 0x340, 0x34C) /* c */ \
     O(UNIT_AI_HELD, 0x341, 0x34D) /* c */ \
     O(USTAT_TYPE_DATA, 0x60, 0x60) /* b: between fields read through a unit's +0x34, unchanged */ \

@@ -14,6 +14,7 @@ internal inline float type_get_unknown_42c(const ee_unit_type *td) { return FIEL
 internal inline float type_get_unknown_430(const ee_unit_type *td) { return FIELD(td, TD_0x430, float); }
 internal inline float type_get_accel(const ee_unit_type *td) { return FIELD(td, TD_ACCEL, float); }      // +0x438 base accel (a projectile's: its fall)
 internal inline int type_get_family(const ee_unit_type *td) { return FIELD(td, TD_FAMILY, int); }         // +0x4B4 2 building, 29 fortress, 5/6 units ...
+internal inline void *type_get_model(const ee_unit_type *td) { return FIELD(td, TD_MODEL, void *); }        // +0x40C its movement model (movement.c model_kind)
 internal inline int type_get_id(const ee_unit_type *td) { return FIELD(td, TD_ID, int); }             // +0x4B8 the type (UT(...))
 // +0x470 a collision sphere (dreadnought 4, cruiser 3): half of it is about a ship's hull radius in tiles (a dreadnought
 // is stopped 1.7 tiles from the coast)

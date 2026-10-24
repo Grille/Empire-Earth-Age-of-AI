@@ -13,7 +13,10 @@
 // the tiles' corners. The movement turns at the corners in its own arcs. A target it can't reach (land, another sea) or a search too big
 // goes to the game's request as before. A group sent far gets no sector route for a cluster of ships (the game's
 // chain of auto-waypoint goals through the sector centres, EEActiveGroup::vf16): each ship asks for its own route.
-// Only the 2017 update (AoC's request takes another argument).
+// Only the 2017 update (AoC's request takes another argument). `land_routes` (default 0 until measured): the same for
+// land units (and hovercraft: model_kind's MODEL_LAND) - the game's tile test as it is (buildings, walls, gates, the
+// terrain byte), without the ships' water test and their dearer tiles near the shore; each search timed (fmove sum
+// prints them: land units ask for routes far more often than ships).
 
 #define SR_COST_STRAIGHT 10
 #define SR_COST_DIAGONAL 14
@@ -24,7 +27,10 @@
 #define SR_STEP 2.0f                    // a waypoint at least every this many tiles along a straight leg
 #define SR_MAX_POINTS 512
 
-internal int g_sr_on, g_sr_log;
+internal int g_sr_on, g_sr_log, g_lr_on;
+internal int g_sr_ship;                 // this search's unit is a ship (the water test, the shore)
+internal unsigned g_lr_routes;           // land searches made, and their time (ms): all, the longest
+internal double g_lr_ms, g_lr_ms_max;
 internal float g_sr_radius;             // this search's ship: its hull radius in tiles
 internal unsigned g_sr_routed, g_sr_passed;   // routes given, requests left to the game
 internal struct {
@@ -43,6 +49,14 @@ internal int sr_is_ship(ee_unit *u) {
     ee_unit_type *td = unit_get_type_data(u);
     return td && type_terrain_ok(td, 1) && !type_terrain_ok(td, 0);
 }
+
+internal int sr_is_land(ee_unit *u) {
+    ee_unit_type *td = unit_get_type_data(u);
+    return td && model_kind(type_get_model(td)) == MODEL_LAND;
+}
+
+// a request this planner answers: a ship's with ship_routes, a land unit's with land_routes
+internal int sr_wants(ee_unit *u) { return u && ((g_sr_on && sr_is_ship(u)) || (g_lr_on && sr_is_land(u))); }
 
 internal int sr_alloc(uint32_t n) {
     if (n <= g_sr.n) return 1;
@@ -74,7 +88,7 @@ internal int sr_pass(ee_map *map, ee_unit *u, ee_unit_type *td, int size, int x,
     ee_tile *tile = map_get_tiles(map)[i];
     if (!tile || !type_terrain_ok(td, tile_get_kind(tile))) return 0;
     int sea = tile_get_sea_class(tile), mode = unit_get_sea_mode(u);   // the naval movement's own test (its route search's sea modifier)
-    if ((sea < 0 && mode != 0) || (sea > 0 && mode == 3)) return 0;
+    if (g_sr_ship && ((sea < 0 && mode != 0) || (sea > 0 && mode == 3))) return 0;
     for (void *node = tile_get_objects(tile); node; node = tilenode_get_next(node)) {
         ee_unit *o = tilenode_get_object(node);   // units that move are left to the movement (they won't be there)
         ee_unit_stats *st = o && o != u ? unit_get_stats(o) : NULL;
@@ -151,9 +165,11 @@ internal int sr_route(ee_unit *u, int *from, int *to, void *caller, int sectors)
     }
     sr_stamp();
     int sx = from[0], sy = from[1], tx = to[0], ty = to[1];
+    g_sr_ship = sr_is_ship(u);
     g_sr_radius = type_get_collision(td) * 0.5f;
     if (g_sr_radius < 0.35f) g_sr_radius = 0.35f;
     if (g_sr_radius > SR_RADIUS_MAX) g_sr_radius = SR_RADIUS_MAX;
+    if (!g_sr_ship) g_sr_radius = 0;   // a land unit: no dearer tiles near what blocks
     if (sx < 0 || sy < 0 || sx >= size || sy >= size) return 0;
     if (!sr_pass(map, u, td, size, tx, ty)) {   // a target it can't enter (shallows, land, a building): the nearest it can, as the game's search ends there
         int best = -1, bx = tx, by = ty;
@@ -163,7 +179,7 @@ internal int sr_route(ee_unit *u, int *from, int *to, void *caller, int sectors)
                 if ((best < 0 || d2 < best) && sr_pass(map, u, td, size, tx + dx, ty + dy)) { best = d2; bx = tx + dx; by = ty + dy; }
             }
         if (best < 0) {
-            if (g_log && g_sr_log) fprintf(g_log, "# shiproute: %06x -> %d,%d: no water within %d tiles of the target - the game's\n", unit_get_serial(u) & 0xFFFFFF, tx, ty, SR_RETARGET);
+            if (g_log && g_sr_log) fprintf(g_log, "# shiproute: %06x -> %d,%d: nothing it can enter within %d tiles of the target - the game's\n", unit_get_serial(u) & 0xFFFFFF, tx, ty, SR_RETARGET);
             return 0;
         }
         tx = bx;
@@ -247,8 +263,22 @@ internal int sr_route(ee_unit *u, int *from, int *to, void *caller, int sectors)
 }
 
 internal void __thiscall hook_path_request(void *mgr, ee_unit *u, int *from, int *to, int sync, int limit, int sectors, void *ctx) {
-    if (g_sr_on && u && from && to && sr_is_ship(u) && sr_route(u, from, to, __builtin_return_address(0), sectors)) return;
-    if (g_sr_on && u && sr_is_ship(u)) g_sr_passed++;
+    if (sr_wants(u) && from && to) {
+        int land = !sr_is_ship(u);
+        LARGE_INTEGER t0, t1, f;
+        if (land) QueryPerformanceCounter(&t0);
+        int done = sr_route(u, from, to, __builtin_return_address(0), sectors);
+        if (land) {
+            QueryPerformanceCounter(&t1);
+            QueryPerformanceFrequency(&f);
+            double ms = (double)(t1.QuadPart - t0.QuadPart) * 1000.0 / (double)f.QuadPart;
+            g_lr_routes++;
+            g_lr_ms += ms;
+            if (ms > g_lr_ms_max) g_lr_ms_max = ms;
+        }
+        if (done) return;
+        g_sr_passed++;
+    }
     path_request(mgr, u, from, to, sync, limit, sectors, ctx);
 }
 
@@ -256,11 +286,11 @@ internal void __thiscall hook_group_sector_route(void *group, int *from, int *to
     if (g_sr_on && units) {
         int ships = 0, others = 0;
         for (ee_unit **p = unitlist_get_begin(units); p && p < unitlist_get_end(units); p++) {
-            if (*p && sr_is_ship(*p)) ships++;
+            if (sr_wants(*p)) ships++;
             else others++;
         }
         if (ships && !others) {
-            if (g_log && g_sr_log) fprintf(g_log, "# shiproute: a group's %d ships to %d,%d without the sector route\n", ships, to ? to[0] : -1, to ? to[1] : -1);
+            if (g_log && g_sr_log) fprintf(g_log, "# shiproute: a group's %d units to %d,%d without the sector route\n", ships, to ? to[0] : -1, to ? to[1] : -1);
             return;
         }
     }
@@ -509,7 +539,8 @@ internal void shiproute_install(const char *autotest_ini) {
     if (g_log) fprintf(g_log, "# shipturns: ship_turns=%d (hooks %s)\n", g_st_on, !g_st_on ? "-" : st == 6 ? "ok" : "FAILED");
     g_sr_on = g_set.ship_routes;
     if (autotest_ini) g_sr_log = ini_int("autotest", "ship_route_log", 0, autotest_ini);
-    int ok = g_sr_on ? patch_path_request(hook_path_request) && patch_group_sector_route(hook_group_sector_route) : 0;
-    if (g_log) fprintf(g_log, "# shiproute: ship_routes=%d (hook %s)%s\n", g_sr_on, !g_sr_on ? "-" : ok ? "ok" : build_is("aoc") ? "not in AoC" : "FAILED",
+    g_lr_on = g_set.land_routes;
+    int ok = g_sr_on || g_lr_on ? patch_path_request(hook_path_request) && patch_group_sector_route(hook_group_sector_route) : 0;
+    if (g_log) fprintf(g_log, "# shiproute: ship_routes=%d land_routes=%d (hook %s)%s\n", g_sr_on, g_lr_on, !g_sr_on && !g_lr_on ? "-" : ok ? "ok" : build_is("aoc") ? "not in AoC" : "FAILED",
                        g_sr_log ? ", routes logged" : "");
 }

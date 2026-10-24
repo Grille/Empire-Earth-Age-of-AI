@@ -1,0 +1,28 @@
+// Land units meeting land units (land_collide): Continental (seed 101, start_epoch 12), open land around 40-56,
+// 36-50, every unit watched every step (`fmove watch`, `fmove add`) and sampled every 2 s (`fmove stat`). Head-on:
+// 12 doughboys from 38,40 to 54,46 and 12 machine gunners the other way; then 8 Mark V tanks from 38,48 through 16
+// doughboys standing at 46,44 to 54,40.
+wait_until(0.1min)
+spawn(1, unit.inf10_doughboy, 38, 40, 12)
+spawn(1, unit.inf10_machine_gun, 54, 46, 12)
+wait_until(0.3min)
+cmd("fmove go 1 38 40 5 54 46")
+cmd("fmove also 1 54 46 5 38 40")
+cmd("fmove watch 1")
+every(2s, 0.3min, 1.3min, (run) => {
+    cmd("fmove stat")
+})
+wait_until(1.35min)
+cmd("fmove sum")
+cmd("fmove watch 0")
+spawn(1, unit.tank10_mk_v, 38, 48, 8)
+spawn(1, unit.inf10_doughboy, 46, 44, 16)
+wait_until(1.5min)
+cmd("fmove go 1 38 48 4 54 40")
+cmd("fmove add 1 46 44 4")
+cmd("fmove watch 1")
+every(2s, 1.5min, 2.5min, (run) => {
+    cmd("fmove stat")
+})
+wait_until(2.55min)
+cmd("fmove sum")
