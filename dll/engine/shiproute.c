@@ -502,33 +502,12 @@ internal int __thiscall hook_ship_speed(void *model, ee_unit *u, float dist, flo
     return arc;
 }
 
-// THE ROTATION: the turn decision brakes the turn when the angle it would still turn while braking reaches the angle
-// left - the 2017 update's from the sizes alone and from the rate now, so the unit braked a step late and swung past
-// the heading, then back (the angle step is cut at the heading, the rate isn't); a unit turning away it let turn on.
-// As AoC's (EEPhysicsModel::vf12): turning away, brake; else turn faster only when, a step on at the higher rate,
-// the braking from there still ends within the angle left. The braking counted step by step from the turn
-// acceleration (AoC takes the steps from the type's +0xC8). At rest it may always start: the step is cut at the heading.
-internal int __thiscall hook_ship_turn(void *model, ee_unit *u, float rate, float left) {
-    ee_physics *ph = game_physics();
-    float dt = ph ? phys_get_step_s(ph) : 0, a = u ? dt * unit_turn_accel(u) : 0;
-    if (!g_st_on || dt <= 0 || a <= 0) return model_turn_decide(model, u, rate, left);
-    if ((rate < 0 && left > 0) || (rate > 0 && left < 0)) return 4;
-    if (left == 0) return rate == 0 ? 2 : 4;
-    if (rate == 0) return 3;
-    float w = fabsf(rate) + a, e = fabsf(left) - dt * w;
-    if (e < 0) return 4;
-    int n = (int)(w / a);   // the braking's steps at w - a, w - 2a ... above 0
-    return dt * ((float)n * w - a * (float)(n * (n + 1)) * 0.5f) <= e ? 3 : 4;
-}
-
 internal void shiproute_install(const char *aimod_ini, const char *autotest_ini) {
     g_st_on = ini_int("general", "ship_turns", 0, aimod_ini);
     if (autotest_ini) g_st_on = ini_int("autotest", "ship_turns", g_st_on, autotest_ini);
     int st = g_st_on ? patch_ship_speed_decide(hook_ship_speed) + patch_ship_turn_towards(hook_ship_turn_towards)
                          + patch_ship_speed_step(hook_ship_speed_step) : 0;
-    int rot = g_st_on ? patch_ship_turn_decide(hook_ship_turn) : 0;
-    if (g_log) fprintf(g_log, "# shipturns: ship_turns=%d (hooks %s, rotation %s)\n", g_st_on, !g_st_on ? "-" : st == 6 ? "ok" : "FAILED",
-                       !g_st_on ? "-" : rot == 2 ? "ok" : build_is("aoc") ? "AoC's own" : "FAILED");
+    if (g_log) fprintf(g_log, "# shipturns: ship_turns=%d (hooks %s)\n", g_st_on, !g_st_on ? "-" : st == 6 ? "ok" : "FAILED");
     g_sr_on = ini_int("general", "ship_routes", 0, aimod_ini);
     if (autotest_ini) {
         g_sr_on = ini_int("autotest", "ship_routes", g_sr_on, autotest_ini);

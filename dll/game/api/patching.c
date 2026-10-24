@@ -33,6 +33,29 @@ internal inline int patch_all_calls(uintptr_t fn, void *hook) {
     return sites;
 }
 
+// every vtable whose slot `slot` holds fn and whose slot `key_slot` holds key (a 4-aligned word outside .text, a code
+// address on both sides of it - the other entries of its vtable): for a virtual function many classes share, in the
+// classes that call it from key; their count
+internal inline int patch_vtables_with(uintptr_t key, int key_slot, int slot, uintptr_t fn, void *hook) {
+    uint8_t *base = (uint8_t *)GetModuleHandleA(NULL);
+    IMAGE_NT_HEADERS *nt = (IMAGE_NT_HEADERS *)(base + ((IMAGE_DOS_HEADER *)base)->e_lfanew);
+    IMAGE_SECTION_HEADER *sec = IMAGE_FIRST_SECTION(nt), *text = NULL;
+    for (int s = 0; s < nt->FileHeader.NumberOfSections; s++)
+        if (!memcmp(sec[s].Name, ".text", 6)) text = &sec[s];
+    if (!text) return 0;
+    uintptr_t lo = (uintptr_t)base + text->VirtualAddress, hi = lo + text->Misc.VirtualSize;
+    int n = 0, d = slot - key_slot;
+    for (int s = 0; s < nt->FileHeader.NumberOfSections; s++) {
+        if (&sec[s] == text) continue;
+        uint32_t *p = (uint32_t *)(base + sec[s].VirtualAddress), *e = p + sec[s].Misc.VirtualSize / 4;
+        for (uint32_t *q = p + 1; q + 1 < e; q++) {
+            if (*q != key || q[-1] < lo || q[-1] >= hi || q[1] < lo || q[1] >= hi || q + d < p || q + d >= e || q[d] != fn) continue;
+            n += patch_vtable((uintptr_t)(q - key_slot), slot, fn, hook);
+        }
+    }
+    return n;
+}
+
 // a 6-byte `call [import]` at `at` (the import slot iat) -> `call hook; nop`, only while it still calls through iat
 internal inline int patch_import_call(uintptr_t at, uintptr_t iat, void *hook) {
     uint8_t *p = (uint8_t *)at;

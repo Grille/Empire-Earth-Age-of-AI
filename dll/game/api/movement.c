@@ -18,14 +18,12 @@ internal inline int patch_ship_speed_decide(speed_decide_hook h) {
 // the turn decision (the turn step 0x548266 asks it each tick with the unit's turn rate now, +0x17C, and the angle
 // left, both signed): 3 turn faster towards it (up to FN_UNIT_MAX_TURN), 4 slower (by the turn acceleration a tick, 0
 // at the end), 2 hold. The 2017 update's takes both as sizes and doesn't look a step ahead, so a unit swings past the
-// heading and back; AoC's (slot 12) has both - not patched there (0)
+// heading and back; AoC's (slot 12) has both - not patched there (0). Patched in every model whose turn is the shared
+// FN_TURN_TOWARDS (slot 7: ships, submarines and 7 others - land units turn at a fixed rate in their own tick, without
+// it), slot 11 - not where some models hold it in slot 10 too (another axis's turn, 0x5480A2, which AoC kept): their count
 typedef int (__thiscall *turn_decide_hook)(void *model, ee_unit *u, float rate, float left);
 internal inline int model_turn_decide(void *model, ee_unit *u, float rate, float left) { return GF(FN_TURN_DECIDE)(model, u, rate, left); }
-internal inline int patch_ship_turn_decide(turn_decide_hook h) {
-    if (build_is("aoc")) return 0;
-    return patch_vtable(GA(VT_PM_NAVAL), GA(SLOT_PM_TURN_DECIDE), GA(FN_TURN_DECIDE), (void *)h)
-         + patch_vtable(GA(VT_PM_SUBMERGED), GA(SLOT_PM_TURN_DECIDE), GA(FN_TURN_DECIDE), (void *)h);
-}
+internal inline int patch_turn_decide(turn_decide_hook h) { return build_is("aoc") ? 0 : patch_vtables_with(GA(FN_TURN_TOWARDS), GA(SLOT_PM_TURN_TOWARDS), GA(SLOT_PM_TURN_DECIDE), GA(FN_TURN_DECIDE), (void *)h); }
 // the tick's turn towards a point (slot 7: the front waypoint, from EEPMNaval::vf1, which measures the arrival to
 // the waypoint itself): its outputs the angle left (the speed decision's angle), the turn rate and the new heading
 typedef void (__thiscall *turn_towards_hook)(void *model, ee_unit *u, float *pos, float *target, float *left, float *rate, float *heading, char facing);

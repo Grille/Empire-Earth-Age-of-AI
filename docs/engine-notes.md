@@ -271,7 +271,11 @@ vf26 members and route released, vf12, the group's reference) frees nothing twic
   let turn on - it swings past the heading and back (a Hammerhead 7.5 -> 0 -> -6.1 degrees at the end of a move).
   AoC rewrote it (EEPhysicsModel::vf12 0x554F56, slot 12 - AoC's model vtables have a slot more before slot 7, its
   speed decision is slot 10): turning away brake; turn faster only when a step on at the higher rate the braking still
-  ends within the angle left.
+  ends within the angle left (`turn_fix`, dll/engine/turns.c). Nine models turn with vf7 and so with slot 11 - ships,
+  submarines, helicopters and six others (aircraft, animals ...); two have their own turn (0x550F41, 0x54B132). Some
+  hold 0x54880E in slot 10 too: the other axis's turn (EEPhysicsModel::vf6 0x5480A2, rate unit +0x180, its step not
+  cut at the target), which AoC kept. Land units turn at their top rate in their own tick, no turn rate kept (a Mark V
+  17 degrees a step, stopping on the heading).
 
 ## Orders, game end, splash
 

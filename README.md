@@ -285,8 +285,13 @@ Settings in `aimod.ini`:
   ships - otherwise it turns as before. It also looks ahead: the ship steers at a point sliding along its route
   two turning circles ahead, where the way there is clear, instead of at the next waypoint - a fast ship steered at
   a waypoint inside its turning circle, overshot and circled it - and rounds corners in arcs. Through a shift-queued point
-  it sails on in an arc instead of braking for it, where the way on to the next point is clear. And it stops rotating on its heading instead of swinging past it and back (as Art of Conquest
-  already does). In multiplayer every PC needs the same setting.
+  it sails on in an arc instead of braking for it, where the way on to the next point is clear. In multiplayer every
+  PC needs the same setting.
+- `[general] turn_fix=0` (default off while it is measured): Art of Conquest's fix of the turn, brought back. Ships,
+  submarines, helicopters and the other units that turn with momentum braked their turn a step late and swung past
+  the heading, then back (a unit turning the wrong way was even let turn on). With 1 they brake in time and stop on
+  the heading, as in Art of Conquest. Land units turn at a fixed rate and aren't affected. In multiplayer every PC
+  needs the same setting.
 - `[sound] clamp_channels=1` (default): the "Max Number Of Sounds" slider goes to 200%, which asks for 32 sound
   channels, but the sound mixer has only 16 on current Windows. Sounds put on the 16 missing channels were silent,
   and a looping one (unit movement such as the U-boats', ambience) stayed stuck there and never played again -

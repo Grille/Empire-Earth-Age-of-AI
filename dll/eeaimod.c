@@ -106,6 +106,7 @@ internal void navy_install(const char *aimod_ini, const char *autotest_ini);
 internal PRINTF_LIKE(1, 2) void log_line(const char *fmt, ...);
 internal BOOL install_srand(void);
 #include "base/ini.c"
+#include "settings/settings.c"   // the settings: aimod.ini's keys as rows, read once into g_set
 #include "engine/scenario_ai.c"
 #include "game/world.c"
 #include "ai/econ_rows.c"
@@ -370,6 +371,7 @@ internal char __thiscall hook_game_start(void *state, ee_setup *setup, void *p2)
 #include "engine/sound.c"
 #include "engine/select.c"
 #include "engine/shiproute.c"
+#include "engine/turns.c"
 #include "engine/drawlist.c"
 #include "engine/sight.c"
 #include "engine/asg_queue.c"
@@ -399,7 +401,8 @@ internal void config_missing(const char *ini) {
 // goes through g_aimod_ini / g_ai_dir, so the whole file ([general], [all], the difficulties, [display], [llm] ...)
 // comes from the chosen one. The personality folder otherwise: aimod.ini [general] ai_dir (the same path rules), so a
 // developer's game reads the repository's files (ai_dir = _aimod\config\aimod_ai) instead of a copy. A folder that
-// isn't there: the one next to the game, told in the log (g_ai_dir_why).
+// isn't there: the one next to the game, told in the log (g_ai_dir_why). config_paths picks the file, config_ai_dir
+// the folder once the settings are read.
 internal char g_ai_dir_why[MAX_PATH + 64];
 internal void game_path(const char *v, char *out, int cap) {   // absolute, or relative to the game folder; '/' as '\'
     if (v[1] == ':' || (v[0] == '\\' && v[1] == '\\')) lstrcpynA(out, v, cap);
@@ -412,13 +415,12 @@ internal void config_paths(void) {
         GetPrivateProfileStringA("autotest", "config", "", v, sizeof v, g_ini);
         if (v[0]) game_path(v, g_aimod_ini, MAX_PATH);
     }
-    const char *from = "autotest";
-    if (!g_autotest || !ini_raw("autotest", "ai_dir", g_ini, v, sizeof v)) {
-        from = "general";
-        if (!ini_raw("general", "ai_dir", g_aimod_ini, v, sizeof v)) return;
-    }
+}
+internal void config_ai_dir(void) {
+    if (!g_set.ai_dir[0]) return;
+    const char *from = settings_section(SETTING_ai_dir);
     char dir[MAX_PATH];
-    game_path(v, dir, MAX_PATH - 1);
+    game_path(g_set.ai_dir, dir, MAX_PATH - 1);
     size_t n = strlen(dir);
     while (n > 3 && (dir[n - 1] == '\\' || dir[n - 1] == ' ')) dir[--n] = 0;
     DWORD a = GetFileAttributesA(dir);
@@ -480,16 +482,17 @@ internal void install(HMODULE self) {
         config_paths();
         // required: missing -> error and quit; [general] enabled=0 -> no hooks
         if (GetFileAttributesA(g_aimod_ini) == INVALID_FILE_ATTRIBUTES) config_missing(g_aimod_ini);
+        settings_load(g_aimod_ini, g_autotest ? g_ini : NULL);
+        config_ai_dir();
         wsprintfA(g_log_path, "%saimod_econ.csv", dir);
-        if (!ini_int("general", "enabled", 1, g_aimod_ini)) {
+        if (!g_set.enabled) {
             FILE *f = fopen(g_log_path, "a");
             if (f) { fputs("# eeaimod: switched off in aimod.ini (enabled=0) - nothing installed\n", f); fclose(f); }
             return;
         }
-        g_fix_scenario_ai = ini_int("general", "scenario_ai",
-                                                  ini_int("fixes", "scenario_ai", 1, g_aimod_ini), g_aimod_ini);
-        g_mem_dumps = g_autotest || ini_int("general", "memory_dumps", 0, g_aimod_ini);
-        if (g_mem_dumps || g_autotest || ini_int("general", "control_pipe", 0, g_aimod_ini))
+        g_fix_scenario_ai = g_set.scenario_ai;
+        g_mem_dumps = g_autotest || g_set.memory_dumps;
+        if (g_mem_dumps || g_autotest || g_set.control_pipe)
             CreateDirectoryA(g_dump_dir, NULL);   // memory dumps, shot / ddinfo pictures
     }
     g_session = GetTickCount();
@@ -503,6 +506,7 @@ internal void install(HMODULE self) {
                 st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond);
         log_header();
         ini_flush();   // a setting's mistakes found before the log was open
+        settings_log(g_log);
         api_log(g_log);
         fprintf(g_log, "# config: %s (personalities: %s%s%s)\n", g_aimod_ini, g_ai_dir, g_ai_dir_why[0] ? " - " : "", g_ai_dir_why);
         char me[MAX_PATH];
@@ -541,7 +545,7 @@ internal void install(HMODULE self) {
         fflush(g_log);
     }
     // normal play: aimod.ini [general] skip_intro = 1 skips the intro movies (autotest has its own key)
-    if (!g_autotest && ini_int("general", "skip_intro", 0, g_aimod_ini)) {
+    if (!g_autotest && g_set.skip_intro) {
         BOOL ok = skip_intro_movies();
         if (g_log) fprintf(g_log, "# skip_intro: %s\n", ok ? "ok" : "FAILED");
     }
@@ -560,21 +564,22 @@ internal void install(HMODULE self) {
     navy_install(g_aimod_ini, g_autotest ? g_ini : NULL);
     intel_install(g_aimod_ini, g_autotest ? g_ini : NULL);
     defence_install(g_aimod_ini, g_autotest ? g_ini : NULL);
-    chat_install(g_aimod_ini, g_autotest ? g_ini : NULL);
+    chat_install();
     persona_install(g_aimod_ini, g_autotest ? g_ini : NULL);
     diplo_install(g_aimod_ini, g_autotest ? g_ini : NULL);
-    persist_install(g_aimod_ini, g_autotest ? g_ini : NULL);
+    persist_install();
     aim_install(g_aimod_ini, g_autotest ? g_ini : NULL);
     camera_install(g_aimod_ini, g_autotest ? g_ini : NULL);
     display_install(g_aimod_ini, g_autotest ? g_ini : NULL);
     sound_install(g_aimod_ini, g_autotest ? g_ini : NULL);
-    select_install(g_aimod_ini, g_autotest ? g_ini : NULL);
+    select_install();
+    turns_install(g_aimod_ini, g_autotest ? g_ini : NULL);   // before ship_turns: it finds the models by their slot 7, which ship_turns replaces
     shiproute_install(g_aimod_ini, g_autotest ? g_ini : NULL);
     drawlist_install(g_aimod_ini, g_autotest ? g_ini : NULL);
     sight_install(g_aimod_ini, g_autotest ? g_ini : NULL);
     asg_queue_install();
     llm_install(g_aimod_ini, g_autotest ? g_ini : NULL);
-    ctl_start(g_autotest || ini_int("general", "control_pipe", 0, g_aimod_ini));
+    ctl_start(g_autotest || g_set.control_pipe);
     if (g_autotest && g_auto.game_seed) {
         BOOL ok = install_srand(), start = start_hook();
         if (g_log) fprintf(g_log, "# autotest: game_seed=%d (srand hook %s, start message hook %s)\n", g_auto.game_seed,

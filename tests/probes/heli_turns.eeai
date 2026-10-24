@@ -1,0 +1,19 @@
+// A helicopter told new ways while it moves (`turn_fix`: the turn's overshoot is not only the ships'):
+// Continental (seed 101, start_epoch 12), a gunship helicopter traced every step (# fmtrace), sent 40,40 ->
+// 52,46, then under way to 40,52 (about 120 degrees off), to 52,38 (behind it), to 44,44 - each 10 s after the one
+// before - and left to stop.
+wait_until(0.1min)
+spawn(1, unit.a_helicoptergunship12_gun_ship, 40, 40, 1)
+wait_until(0.3min)
+cmd("fmove go 1 40 40 2 52 46")
+cmd("fmove trace 0")
+wait_until(0.47min)
+cmd("fmove go 1 47 43 6 40 52")
+cmd("fmove trace 0")
+wait_until(0.64min)
+cmd("fmove go 1 44 48 6 52 38")
+cmd("fmove trace 0")
+wait_until(0.81min)
+cmd("fmove go 1 48 43 6 44 44")
+cmd("fmove trace 0")
+wait_until(1.3min)
