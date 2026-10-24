@@ -256,17 +256,30 @@ internal int tw_carrier(ee_player *pl, ee_unit *u) {   // pl's transport on the 
 }
 internal int tw_dist2(ee_unit *a, ee_unit *b) { return ivec2_dist2(unit_get_tile(a), unit_get_tile(b)); }
 internal int tw_size(ee_unit *u) { int s = type_get_transport_size(unit_get_type_data(u)); return s > 0 ? s : 1; }
+// How far two transports' spots stay apart, by their size (the user: ships need half the old 4 tiles, trucks far
+// less): the type's selection circle (TD_MARK_SIZE, tiles: copper transport 1.2, atomic 2.0, Chinook 1.0, Pegasus
+// 1.3, cargo truck 0.7) - the two's mean rounded up, a tile less where there is little room, 1 at least (another
+// tile); spots q and at[j] (sizes sz[j]) apart in x or y by that many.
+internal float tw_space(ee_unit *t) { float r = type_get_mark_size(unit_get_type_data(t)); return r > 0.0f && r < 8.0f ? r : 1.0f; }
+internal int tw_apart(ivec2 q, float r, const ivec2 *at, const float *sz, int n, int tight) {
+    for (int j = 0; j < n; j++) {
+        int g = (int)ceilf((r + sz[j]) * 0.5f) - tight;
+        if (g < 1) g = 1;
+        if (abs(q.x - at[j].x) < g && abs(q.y - at[j].y) < g) return 0;
+    }
+    return 1;
+}
 
-// an unload tile near p for transport k of kind: on land cont, free, gap tiles from the others' at[0..k-1] (4, else
-// 3), a ship's on the beach of its sea ocean; the nearest p within reach; 0 none
-internal int tw_beach(ivec2 p, unsigned cont, int kind, unsigned ocean, const ivec2 *at, int k, int reach, ivec2 *o) {
-    for (int gap = 4; gap >= 3; gap--)
+// an unload tile near p for transport k of kind and size r: on land cont, free, apart from the others' at[0..k-1]
+// (sizes sz), a ship's on the beach of its sea ocean; the nearest p within reach; 0 none
+internal int tw_beach(ivec2 p, unsigned cont, int kind, unsigned ocean, float r, const ivec2 *at, const float *sz, int k, int reach, ivec2 *o) {
+    for (int tight = 0; tight <= 1; tight++)
         for (int d = 0; d <= reach; d++)
             for (int dx = -d; dx <= d; dx++)
                 for (int dy = -d; dy <= d; dy += (abs(dx) == d || !d ? 1 : 2 * d)) {
                     ivec2 q = iv2(p.x + dx, p.y + dy);
-                    int ok = area_id(q, 2) == cont && !area_id(q, 1) && (kind != TW_SEA || ocean_near(q, 2, NULL) == ocean) && ld_tile_free(q);
-                    for (int j = 0; j < k && ok; j++) ok = abs(q.x - at[j].x) >= gap || abs(q.y - at[j].y) >= gap;
+                    int ok = area_id(q, 2) == cont && !area_id(q, 1) && (kind != TW_SEA || ocean_near(q, 2, NULL) == ocean) && ld_tile_free(q) &&
+                             tw_apart(q, r, at, sz, k, tight);
                     if (ok) { *o = q; return 1; }
                 }
     return 0;
@@ -290,10 +303,10 @@ internal ivec2 tw_land_by(ivec2 p, unsigned cont) {
         }
     return iv2(-1, -1);
 }
-// a meeting point for transport t and its units list[n]: the beach tile (on their land, clear, 4
-// tiles from the others' meet[nmeet], else 3) with a tile of t's sea beside it, the nearest the units and the transport -
-// the units' walk weighing double; 0 none (or the transport more than 60 tiles off: the game's point stays)
-internal int tw_meeting(ee_unit *t, ee_unit **list, int n, const ivec2 *meet, int nmeet, ivec2 *beach, ivec2 *water) {
+// a meeting point for transport t and its units list[n]: the beach tile (on their land, clear, apart from the others'
+// meet[nmeet], sizes msz) with a tile of t's sea beside it, the nearest the units and the transport - the units' walk
+// weighing double; 0 none (or the transport more than 60 tiles off: the game's point stays)
+internal int tw_meeting(ee_unit *t, ee_unit **list, int n, const ivec2 *meet, const float *msz, int nmeet, ivec2 *beach, ivec2 *water) {
     ee_player *pl = unit_get_owner(t);
     int cx = 0, cy = 0;
     for (int i = 0; i < n; i++) { cx += unit_get_x(list[i]); cy += unit_get_y(list[i]); }
@@ -301,14 +314,13 @@ internal int tw_meeting(ee_unit *t, ee_unit **list, int n, const ivec2 *meet, in
     unsigned cont = area_id(unit_get_tile(list[0]), 2), ocean = area_id(s, 1);
     int x0 = (c.x < s.x ? c.x : s.x) - 8, x1 = (c.x > s.x ? c.x : s.x) + 8, y0 = (c.y < s.y ? c.y : s.y) - 8, y1 = (c.y > s.y ? c.y : s.y) + 8;
     if (x1 - x0 > 60 || y1 - y0 > 60) return 0;   // the transport far off: the game's own
-    for (int gap = 4; gap >= 3; gap--) {
+    for (int tight = 0; tight <= 1; tight++) {
         int best = -1;
         for (int x = x0; x <= x1; x++)
             for (int y = y0; y <= y1; y++) {
                 ivec2 q = iv2(x, y), v, w = iv2(0, 0);
                 if (area_id(q, 2) != cont || area_id(q, 1)) continue;
-                int ok = 1, wd = -1;
-                for (int j = 0; j < nmeet && ok; j++) ok = abs(q.x - meet[j].x) >= gap || abs(q.y - meet[j].y) >= gap;
+                int ok = tw_apart(q, tw_space(t), meet, msz, nmeet, tight), wd = -1;
                 for (int k = 0; k < 8 && ok; k++) {   // the water beside it nearest the transport
                     static const signed char k_dx[8] = { 1, -1, 0, 0, 1, 1, -1, -1 }, k_dy[8] = { 0, 0, 1, -1, 1, -1, 1, -1 };
                     v = iv2(q.x + k_dx[k], q.y + k_dy[k]);
@@ -380,8 +392,8 @@ internal int tw_load_split(ee_player *pl, ee_unit **tr, int nt, ee_unit **us, in
             if (best < 0) break;
             owner[best] = (signed char)k; room -= tw_size(us[best]); m[k]++;
         }
-        if (g_log) fprintf(g_log, "# tw: P%d load: transport %06x type %d (%s) at %d,%d - room %d, %d given, %d aboard\n", player_get_index(pl), tw_id(t),
-                           type_get_id(ttd), rtti_name(ttd), unit_get_x(t), unit_get_y(t), unit_get_room(t), m[k], units_inside(t));
+        if (g_log) fprintf(g_log, "# tw: P%d load: transport %06x type %d (%s, size %.2f) at %d,%d - room %d, %d given, %d aboard\n", player_get_index(pl),
+                           tw_id(t), type_get_id(ttd), rtti_name(ttd), (double)tw_space(t), unit_get_x(t), unit_get_y(t), unit_get_room(t), m[k], units_inside(t));
     }
     // then which transport takes which group (slot s: the units transport s found): the shortest ways, none crossing -
     // a transport may take another's group it has room for and can carry; one with a load under way keeps its own
@@ -404,6 +416,7 @@ internal int tw_load_split(ee_player *pl, ee_unit **tr, int nt, ee_unit **us, in
     for (int k = 0; k < nt; k++) swapped += slot[k] != k;
     static ee_unit *list[1024];
     ivec2 meet[16];
+    float msz[16];
     int nmeet = 0, moved = 0;
     *used = 0;
     for (int k = 0; k < nt; k++) {   // then the goals
@@ -420,9 +433,8 @@ internal int tw_load_split(ee_player *pl, ee_unit **tr, int nt, ee_unit **us, in
             if (!mem || !(g = goal_load_init(mem, t, vec))) continue;
             if (g_tw_meet && tw_kind(t) == TW_SEA) {   // a ship: the game's meeting point while its units' tile is at their beach and apart from the others', else the mod's
                 ivec2 beach, water, at = tw_land_by(iv2(goal_get_meeting_x(g), goal_get_meeting_y(g)), area_id(unit_get_tile(list[0]), 2));
-                int ok = at.x >= 0;
-                for (int j = 0; j < nmeet && ok; j++) ok = abs(at.x - meet[j].x) >= 4 || abs(at.y - meet[j].y) >= 4;
-                int found = !ok && tw_meeting(t, list, n, meet, nmeet, &beach, &water);
+                int ok = at.x >= 0 && tw_apart(at, tw_space(t), meet, msz, nmeet, 0);
+                int found = !ok && tw_meeting(t, list, n, meet, msz, nmeet, &beach, &water);
                 if (g_log) {
                     fprintf(g_log, "# tw: P%d transport %06x at %d,%d: the game's meeting point %d,%d / %d,%d %s", player_get_index(pl), tw_id(t), unit_get_x(t),
                             unit_get_y(t), goal_get_meeting_ship_x(g), goal_get_meeting_ship_y(g), goal_get_meeting_x(g), goal_get_meeting_y(g),
@@ -434,6 +446,7 @@ internal int tw_load_split(ee_player *pl, ee_unit **tr, int nt, ee_unit **us, in
                     goal_set_meeting(g, water.x, water.y, beach.x, beach.y);
                     at = beach; moved++;
                 }
+                msz[nmeet] = tw_space(t);
                 meet[nmeet++] = at;
             }
             if (!unit_goal(t, g, 0, TW_PREPARE_TO_MOVE)) continue;   // refused: deleted, no parts from it
@@ -495,7 +508,7 @@ internal void __thiscall hook_msg_load(ee_msg *msg) {
 // pl's transports tr[nt] (with an unload goal each, units aboard) each to its own tile near p (sorted here: nearest p
 // first), apart from the taken tiles at[0..taken-1] too (another group's of the same command); their tiles at[taken
 // ..]; the transports sent elsewhere than p
-internal int tw_unload_spread(ee_player *pl, ee_unit **tr, int nt, ivec2 p, ivec2 *at, int taken) {
+internal int tw_unload_spread(ee_player *pl, ee_unit **tr, int nt, ivec2 p, ivec2 *at, float *sz, int taken) {
     unsigned cont = area_id(p, 2);
     if (!cont) return 0;   // not a tile on land: as the game gave it
     for (int i = 1; i < nt; i++)
@@ -505,7 +518,8 @@ internal int tw_unload_spread(ee_player *pl, ee_unit **tr, int nt, ivec2 p, ivec
     float cost[16][16];
     for (int k = 0; k < nt; k++) {   // the tiles first (nearest p first)
         ivec2 *o = &at[taken + k];
-        if (!tw_beach(p, cont, tw_kind(tr[k]), area_id(unit_get_tile(tr[k]), 1), at, taken + k, 8 + 2 * (taken + nt), o)) *o = p;
+        sz[taken + k] = tw_space(tr[k]);
+        if (!tw_beach(p, cont, tw_kind(tr[k]), area_id(unit_get_tile(tr[k]), 1), sz[taken + k], at, sz, taken + k, 8 + 2 * (taken + nt), o)) *o = p;
         tile[k] = *o;
         slot[k] = k;
     }
@@ -532,6 +546,7 @@ internal int tw_unload_spread(ee_player *pl, ee_unit **tr, int nt, ivec2 p, ivec
 internal ee_msg *g_tw_unload_msg;   // the unload command being executed
 internal int g_tw_unload_groups;    // ... its groups spread
 internal ivec2 g_tw_unload_at[64];  // ... the tiles taken
+internal float g_tw_unload_sz[64];  // ... the sizes of their transports
 internal int g_tw_unload_taken;
 internal void tw_unload_group(ee_msg *msg, void *grp) {
     ee_player *pl = game_player(msg_get_from(msg));
@@ -547,8 +562,8 @@ internal void tw_unload_group(ee_msg *msg, void *grp) {
     g_tw_unload_groups++;
     if (!nt) return;
     g_tw_unload_taken += nt;
-    if (nt == 1 && !taken) { g_tw_unload_at[0] = p; return; }   // one transport (so far): the game's tile, kept for the next groups
-    if (tw_unload_spread(pl, tr, nt, p, g_tw_unload_at, taken)) tw_click_mark_off(pl, -1, p);   // the click's confirmation: the circles say it
+    if (nt == 1 && !taken) { g_tw_unload_at[0] = p; g_tw_unload_sz[0] = tw_space(tr[0]); return; }   // one transport (so far): the game's tile, kept for the next groups
+    if (tw_unload_spread(pl, tr, nt, p, g_tw_unload_at, g_tw_unload_sz, taken)) tw_click_mark_off(pl, -1, p);   // the click's confirmation: the circles say it
 }
 internal void __cdecl hook_unload_marks(void *grp, void *on, int owner, int how, unsigned goal) {
     if (g_tw_unload_msg) tw_unload_group(g_tw_unload_msg, grp);
@@ -580,6 +595,7 @@ internal void cmd_transports(char *out, const char *args) {
     static ee_unit *us[1024];
     ee_unit *tr[16];
     ivec2 at[16], c = iv2(x, y);
+    float asz[16];
     int nt = 0, nu = 0, used = 0;
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
@@ -661,7 +677,7 @@ internal void cmd_transports(char *out, const char *args) {
             ee_goal *g = goal_unload(tr[k], x, y, 0);
             if (g && unit_goal(tr[k], g, 0, TW_PREPARE_TO_MOVE)) tr[n++] = tr[k];
         }
-        int s = n >= 2 && g_tw_spread ? tw_unload_spread(pl, tr, n, c, at, 0) : 0;
+        int s = n >= 2 && g_tw_spread ? tw_unload_spread(pl, tr, n, c, at, asz, 0) : 0;
         REPLY("%d loaded transports, %d sent to their own tile:", n, s);
         for (int k = 0; k < n && n >= 2; k++) REPLY(" %06x %d aboard -> %d,%d;", tw_id(tr[k]), units_inside(tr[k]), at[k].x, at[k].y);
         REPLY("\n");

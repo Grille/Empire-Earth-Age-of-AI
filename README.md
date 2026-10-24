@@ -262,7 +262,8 @@ Settings in `aimod.ini`:
   units could not reach it, or the same spot for two ships). A yellow circle shows where each transport goes (the
   game's was a single one on the transport clicked).
 - `[general] transport_unload_spread=1` (default): several loaded transports told to unload at one spot all headed
-  for that one tile; each now gets its own tile there, a few tiles apart, and they unload side by side - a yellow
+  for that one tile; each now gets its own tile there, apart by its size (ships 2 tiles, trucks and helicopters
+  side by side), and they unload side by side - a yellow
   circle on each one's tile. Ships, helicopters and land transports alike, also mixed in one selection.
   Loading and unloading both first work out all the spots (the groups of units, the landing tiles), then match the
   transports to them so that the ways together are the shortest - so their ways don't cross.
