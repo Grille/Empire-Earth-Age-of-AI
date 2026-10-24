@@ -431,21 +431,18 @@ __attribute__((naked, used)) void own_hit_alert_thunk(void) {
             "ret $4");
 }
 
-internal void aim_install(const char *aimod_ini, const char *autotest_ini) {
+internal void aim_install(const char *autotest_ini) {
     g_alert_fn = game_attack_alert();
     g_local_player_at = local_player_index_at();
     BOOL own_hit = patch_attack_alert(own_hit_alert_thunk);
     if (g_log) fprintf(g_log, "# aim: no attack alert for the player's own hits (hook %s)\n", own_hit ? "ok" : "FAILED");
-    if (autotest_ini && ini_int("autotest", "aim_hits", 1, autotest_ini))
+    if (autotest_ini && g_set.aim_hits)
         patch_proj_down(hook_proj_down);
-    g_lead = ini_int("general", "lead_targets", 1, aimod_ini) != 0;
-    g_lead_missiles = ini_int("general", "lead_missiles", 0, aimod_ini) != 0;
-    g_spread = ini_int("general", "spread_missiles", 1, aimod_ini) != 0;
+    g_lead = g_set.lead_targets;
+    g_lead_missiles = g_set.lead_missiles;
+    g_spread = g_set.spread_missiles;
     if (autotest_ini) {
-        g_spread = ini_int("autotest", "spread_missiles", g_spread, autotest_ini) != 0;
-        g_lead = ini_int("autotest", "lead_targets", g_lead, autotest_ini) != 0;
-        g_lead_missiles = ini_int("autotest", "lead_missiles", g_lead_missiles, autotest_ini) != 0;
-        g_lead_log = ini_int("autotest", "aim_log", 0, autotest_ini);
+        g_lead_log = g_set.aim_log;
         g_measure = 1;
     }
     // hooked also when off in tests (the measurement); in play only when on

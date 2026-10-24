@@ -174,12 +174,8 @@ internal void cmd_chatme(char *out, const char *args) {
     REPLY("ok: sent \"%s\" (cheats %s, cheat code %d)\n", args, cheats ? "on" : "off", code);
 }
 
-internal void chat_install(const char *ini, const char *test_ini) {
-    g_chat = ini_int("general", "chat", 0, ini);
-    g_chat_ms = ini_int("general", "chat_seconds", 15, ini) * 1000;
-    if (test_ini) {
-        g_chat = ini_int("autotest", "chat", g_chat, test_ini);
-        g_chat_ms = ini_int("autotest", "chat_seconds", g_chat_ms / 1000, test_ini) * 1000;
-    }
+internal void chat_install(void) {
+    g_chat = g_set.chat;
+    g_chat_ms = g_set.chat_seconds * 1000;
     if (g_log) fprintf(g_log, "# chat: level %d, %d s per line\n", g_chat, g_chat_ms / 1000);
 }

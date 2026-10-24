@@ -188,9 +188,8 @@ internal void persist_load(const char *name) {
 }
 
 // all call sites of the save function: E8 rel32 to it in .text
-internal void persist_install(const char *ini, const char *test_ini) {
-    g_persist = ini_int("general", "save_state", 1, ini);
-    if (test_ini) g_persist = ini_int("autotest", "save_state", g_persist, test_ini);
+internal void persist_install(void) {
+    g_persist = g_set.save_state;
     int sites = patch_save_game(hook_save_game);
     if (g_log) fprintf(g_log, "# persist: save_state=%d, save hooks %d/4\n", g_persist, sites);
 }

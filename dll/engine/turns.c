@@ -23,9 +23,8 @@ internal int __thiscall hook_turn_decide(void *model, ee_unit *u, float rate, fl
     return dt * ((float)n * w - a * (float)(n * (n + 1)) * 0.5f) <= e ? 3 : 4;
 }
 
-internal void turns_install(const char *aimod_ini, const char *autotest_ini) {
-    g_tf_on = ini_int("general", "turn_fix", 0, aimod_ini);
-    if (autotest_ini) g_tf_on = ini_int("autotest", "turn_fix", g_tf_on, autotest_ini);
+internal void turns_install(void) {
+    g_tf_on = g_set.turn_fix;
     int n = g_tf_on ? patch_turn_decide(hook_turn_decide) : 0;
     if (g_log) fprintf(g_log, "# turnfix: turn_fix=%d (%s)\n", g_tf_on, !g_tf_on ? "-" : build_is("aoc") ? "AoC's own" : n ? "hooked" : "FAILED");
     if (g_log && g_tf_on && n) fprintf(g_log, "# turnfix: %d vtable slots\n", n);

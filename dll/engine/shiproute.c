@@ -502,17 +502,13 @@ internal int __thiscall hook_ship_speed(void *model, ee_unit *u, float dist, flo
     return arc;
 }
 
-internal void shiproute_install(const char *aimod_ini, const char *autotest_ini) {
-    g_st_on = ini_int("general", "ship_turns", 0, aimod_ini);
-    if (autotest_ini) g_st_on = ini_int("autotest", "ship_turns", g_st_on, autotest_ini);
+internal void shiproute_install(const char *autotest_ini) {
+    g_st_on = g_set.ship_turns;
     int st = g_st_on ? patch_ship_speed_decide(hook_ship_speed) + patch_ship_turn_towards(hook_ship_turn_towards)
                          + patch_ship_speed_step(hook_ship_speed_step) : 0;
     if (g_log) fprintf(g_log, "# shipturns: ship_turns=%d (hooks %s)\n", g_st_on, !g_st_on ? "-" : st == 6 ? "ok" : "FAILED");
-    g_sr_on = ini_int("general", "ship_routes", 0, aimod_ini);
-    if (autotest_ini) {
-        g_sr_on = ini_int("autotest", "ship_routes", g_sr_on, autotest_ini);
-        g_sr_log = ini_int("autotest", "ship_route_log", 0, autotest_ini);
-    }
+    g_sr_on = g_set.ship_routes;
+    if (autotest_ini) g_sr_log = ini_int("autotest", "ship_route_log", 0, autotest_ini);
     int ok = g_sr_on ? patch_path_request(hook_path_request) && patch_group_sector_route(hook_group_sector_route) : 0;
     if (g_log) fprintf(g_log, "# shiproute: ship_routes=%d (hook %s)%s\n", g_sr_on, !g_sr_on ? "-" : ok ? "ok" : build_is("aoc") ? "not in AoC" : "FAILED",
                        g_sr_log ? ", routes logged" : "");

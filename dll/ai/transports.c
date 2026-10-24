@@ -692,13 +692,9 @@ internal void tw_install(const char *aimod_ini, const char *autotest_ini) {
     g_tw_dog = cfg_int(aimod_ini, autotest_ini, 1, "transport_watchdog", 0);
     g_v_tw_dog = autotest_ini ? ini_int("autotest", "v_transport_watchdog", -1, autotest_ini) : -1;
     if (g_log) fprintf(g_log, "# tw: watchdog %s (variant players %d)%s\n", g_tw_dog ? "on" : "off", g_v_tw_dog, g_tw_log ? ", transport states logged" : "");
-    g_tw_split = ini_int("general", "transport_split", 1, aimod_ini);
-    g_tw_spread = ini_int("general", "transport_unload_spread", 1, aimod_ini);
-    if (autotest_ini) {
-        g_tw_split = ini_int("autotest", "transport_split", g_tw_split, autotest_ini);
-        g_tw_spread = ini_int("autotest", "transport_unload_spread", g_tw_spread, autotest_ini);
-        g_tw_meet = ini_int("autotest", "transport_meeting", 1, autotest_ini);
-    }
+    g_tw_split = g_set.transport_split;
+    g_tw_spread = g_set.transport_unload_spread;
+    if (autotest_ini) g_tw_meet = ini_int("autotest", "transport_meeting", 1, autotest_ini);
     int hc = g_tw_split || g_tw_spread ? patch_click_mark(hook_click_mark) : 0;
     int hl = g_tw_split ? patch_msg_load(hook_msg_load) + hc : 0, hu = g_tw_spread ? patch_msg_unload(hook_msg_unload) + patch_unload_marks(hook_unload_marks) + hc : 0;
     if (g_log) fprintf(g_log, "# tw: the player's load split %d (hooks %s), unload spread %d (hooks %s)\n", g_tw_split, g_tw_split ? (hl == 2 ? "ok" : "FAILED") : "-",

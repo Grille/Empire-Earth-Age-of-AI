@@ -68,9 +68,8 @@ internal void cmd_seltest(char *out, const char *args) {
     REPLY("\n");
 }
 
-internal void select_install(const char *aimod_ini, const char *autotest_ini) {
-    g_big_selection = ini_int("general", "big_selection", 1, aimod_ini);
-    if (autotest_ini) g_big_selection = ini_int("autotest", "big_selection", g_big_selection, autotest_ini);
+internal void select_install(void) {
+    g_big_selection = g_set.big_selection;
     BOOL ok = patch_sel_pack(hook_sel_pack);
     if (g_log) fprintf(g_log, "# selection: big_selection=%d (hook %s)\n", g_big_selection, ok ? "ok" : "FAILED");
 }

@@ -23,7 +23,8 @@ and the runners, eectl, the MCP server), `results/` (log readers, scorers), `re/
 - `dll/` has a folder per part, and which part may use which is a rule the build checks (`scripts/build/layers.py`):
   base (nothing) <- game/api (the game's code and objects, one module: nothing of its raw/ outside it) <- game <- engine, ai (and voice/say.h: what the AI says goes through it); script (base only: the
   language knows no game - script/host.h asks the program); voice (base, game, ai, script); game_script (the game in
-  the language: all of those);
+  the language: all of those); settings (base only: aimod.ini's keys as rows, read once into `g_set` - used by
+  engine, ai, voice, game_script, test and the wiring);
   test and the wiring (`eeaimod.c`, `persist.c`) everything. A new crossing fails the build - put the code where it
   belongs (a shared helper down into base/ or game/) instead of adding an exception. `--why <folder>` lists the uses.
 - A move that should change no code (files, functions between files): `scripts/build/code_same.py HEAD` must say "0 differ".
@@ -61,6 +62,10 @@ and the runners, eectl, the MCP server), `results/` (log readers, scorers), `re/
   change there must keep the machine code (`scripts/build/code_same.py`, which compares the address and field tables by name) or, where it
   can't, play the same game (the same game_seed, the logs compared).
 - The engine loads every DLL in the game folder: never leave copies of DLLs there (a stray dinput copy crashed it).
+- A setting of aimod.ini is a row in `dll/settings/rows.h` (kind, section, key, default, limits) and its key in
+  `config/aimod.ini` with that default; the code reads `g_set.key`, the test ini's [autotest] overrides any row
+  (`scripts/build/settings_check.py`, run by the build, holds rows and file together). Moved so far: [general]
+  (sight_counts' reader still to follow); the other sections still read the file with `ini_int` / `cfg_int`.
 - The game reads the personality files from `config/aimod_ai/` (`ai_dir` in the user's aimod.ini): a change to
   their format needs the matching installed DLL.
 

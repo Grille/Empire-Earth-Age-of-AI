@@ -1126,30 +1126,18 @@ internal void x_errors_show(void) {
     g_x_queued = g_x_dropped = 0;
     LeaveCriticalSection(&g_x_lock);
 }
-internal void persona_install(const char *ini, const char *test_ini) {
-    g_ai_talk = ini_int("general", "ai_talk", 1, ini);
-    g_ai_names = ini_int("general", "ai_names", 1, ini);
-    g_ai_style = ini_int("general", "ai_style", 0, ini);
-    g_strict = ini_int("general", "strict_parsing", 0, ini);
+internal void persona_install(const char *test_ini) {
+    g_ai_talk = g_set.ai_talk;
+    g_ai_names = g_set.ai_names;
+    g_ai_style = g_set.ai_style;
+    g_strict = g_set.strict_parsing;
     InitializeCriticalSection(&g_x_lock);
-    for (int i = 0; i < 16; i++) {
-        char key[24];
-        wsprintfA(key, "personality_P%d", i);
-        GetPrivateProfileStringA("general", key, "", g_persona_force[i], sizeof g_persona_force[i], ini);
-        if (test_ini) GetPrivateProfileStringA("autotest", key, g_persona_force[i], g_persona_force[i], sizeof g_persona_force[i], test_ini);
-    }
-    if (test_ini) {
-        g_ai_talk = ini_int("autotest", "ai_talk", g_ai_talk, test_ini);
-        g_ai_names = ini_int("autotest", "ai_names", g_ai_names, test_ini);
-        g_ai_style = ini_int("autotest", "ai_style", g_ai_style, test_ini);
-        g_strict = ini_int("autotest", "strict_parsing", g_strict, test_ini);
-        g_personas_only_computer = !ini_int("autotest", "personas", 1, test_ini);
-    }
+    for (int i = 0; i < 16; i++) lstrcpynA(g_persona_force[i], g_set.personality_P[i], sizeof g_persona_force[i]);
+    if (test_ini) g_personas_only_computer = !ini_int("autotest", "personas", 1, test_ini);
     g_rnd ^= test_ini ? 0x5EED : GetTickCount();
     g_rnd_game ^= test_ini ? 0x5EED : GetTickCount() * 2654435761u;
     if (!g_rnd) g_rnd = 1;
-    GetPrivateProfileStringA("general", "language", "", g_lang, sizeof g_lang, ini);
-    if (test_ini) GetPrivateProfileStringA("autotest", "language", g_lang, g_lang, sizeof g_lang, test_ini);
+    lstrcpynA(g_lang, g_set.language, sizeof g_lang);
     if (!g_lang[0]) lang_detect();
     personas_load();
     texts_load();   // mod/system.eeai now: its mistakes come up with the personalities'

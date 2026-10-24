@@ -1874,7 +1874,7 @@ internal void diplo_install(const char *ini, const char *test_ini) {
     g_blocks = ini_int("all", "alliance_blocks", 1, ini);
     g_stance_lines = ini_int("all", "stance_lines", 1, ini);
     g_offer_min = ini_int("all", "offer_minutes", 2, ini);
-    g_auto_victory = ini_int("general", "auto_victory", 1, ini);
+    g_auto_victory = g_set.auto_victory;
     if (test_ini) {
         g_answer_war = ini_int("autotest", "answer_war", g_answer_war, test_ini);
         g_ai_diplomacy = ini_int("autotest", "ai_diplomacy", g_ai_diplomacy, test_ini);
@@ -1882,7 +1882,6 @@ internal void diplo_install(const char *ini, const char *test_ini) {
         g_blocks = ini_int("autotest", "alliance_blocks", g_blocks, test_ini);
         g_stance_lines = ini_int("autotest", "stance_lines", g_stance_lines, test_ini);
         g_offer_min = ini_int("autotest", "offer_minutes", g_offer_min, test_ini);
-        g_auto_victory = ini_int("autotest", "auto_victory", g_auto_victory, test_ini);
         g_block_observer = ini_int("autotest", "block_observer", 0, test_ini);
     }
     if (g_texts_missing) g_ai_diplomacy = g_surrender = g_blocks = g_stance_lines = g_auto_victory = 0;   // they speak (texts.c)

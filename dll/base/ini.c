@@ -10,10 +10,7 @@ internal int (*g_ini_eval)(const char *src, double *out, const char **why);   //
 
 internal char g_ini_pending[8][200];   // mistakes found before the log is open (load_autotest): written when it opens
 internal int g_ini_npending;
-internal void ini_error(const char *file, const char *sec, const char *key, const char *val, const char *why) {
-    const char *name = strrchr(file, '\\');
-    char line[200];
-    snprintf(line, sizeof line, "%s [%s] %s=%.40s: %s - the default instead", name ? name + 1 : file, sec, key, val, why);
+internal void ini_tell(const char *line) {
     static uint32_t told[32];   // once: a key of [all] or [autotest] is read for each difficulty
     uint32_t h = 2166136261u;
     for (const char *t = line; *t; t++) h = (h ^ (uint8_t)*t) * 16777619u;
@@ -22,6 +19,18 @@ internal void ini_error(const char *file, const char *sec, const char *key, cons
     for (int i = 0; i < 32; i++) if (!told[i]) { told[i] = h; break; }
     if (g_log) { fprintf(g_log, "# ini: %s\n", line); fflush(g_log); }
     else if (g_ini_npending < 8) lstrcpynA(g_ini_pending[g_ini_npending++], line, sizeof g_ini_pending[0]);
+}
+internal void ini_error(const char *file, const char *sec, const char *key, const char *val, const char *why) {
+    const char *name = strrchr(file, '\\');
+    char line[200];
+    snprintf(line, sizeof line, "%s [%s] %s=%.40s: %s - the default instead", name ? name + 1 : file, sec, key, val, why);
+    ini_tell(line);
+}
+internal void ini_unknown(const char *file, const char *sec, const char *key) {   // a key that is no setting
+    const char *name = strrchr(file, '\\');
+    char line[200];
+    snprintf(line, sizeof line, "%s [%s] %.60s: no such setting (a misspelt key?) - ignored", name ? name + 1 : file, sec, key);
+    ini_tell(line);
 }
 internal void ini_flush(void) {   // the log just opened
     for (int i = 0; i < g_ini_npending && g_log; i++) fprintf(g_log, "# ini: %s\n", g_ini_pending[i]);
