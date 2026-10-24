@@ -1,0 +1,19 @@
+// The view table's refill (dll/engine/sight.c): 950 of P1's snipers packed at 50,50 as in sight.eeai; the tiles'
+// counts and the view table's (the viewed player's: +1 / -1 beside them), then the table refilled as a load or a
+// change of the viewed player does (0x55BC4E; `sightcount ... refill`) and read again - with sight_counts=1 the
+// counts stay, the original's refill takes their low byte. (A save of it loaded stalls at its start, turbo or not.)
+wait_until(0.1min)
+spawn(1, unit.inf10_sniper, 48, 48, 100)
+spawn(1, unit.inf10_sniper, 48, 50, 100)
+spawn(1, unit.inf10_sniper, 48, 52, 100)
+spawn(1, unit.inf10_sniper, 50, 48, 100)
+spawn(1, unit.inf10_sniper, 50, 50, 100)
+spawn(1, unit.inf10_sniper, 50, 52, 100)
+spawn(1, unit.inf10_sniper, 52, 48, 100)
+spawn(1, unit.inf10_sniper, 52, 50, 100)
+spawn(1, unit.inf10_sniper, 52, 52, 100)
+spawn(1, unit.inf10_sniper, 49, 49, 100)
+wait_until(1.5min)
+cmd("sightcount 50 50 1")
+cmd("sightcount 52 50 1 refill")
+cmd("sightcount 50 50 1")

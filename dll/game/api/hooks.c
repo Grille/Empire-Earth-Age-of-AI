@@ -107,6 +107,33 @@ internal inline int patch_draw_list(int limit, uint8_t **recs, int *ok_out, int 
     *recs = r;
     return 1;
 }
+// the small objects' list the same way (0x600 records of 0x3C at DRAW_SMALL_OLD; the static constructor 0x506333 only
+// zeroes their first 3 dwords, +0xC a handle the frame's start releases (0x500CE6) - a zeroed allocation is the same)
+#define DRAW_SMALL_REC 0x3C
+#define DRAW_SMALL_OLD_N 0x600
+internal inline int patch_draw_small(int limit, uint8_t **recs, int *ok_out, int *n_out) {
+    const uint32_t *at = GL(DRAW_SMALL_SITES);   // in this order (raw/hooks.h)
+    const struct { uint32_t at, want; int kind; } k[] = {
+        { at[0], DRAW_SMALL_OLD_N, 0 },          // cmp [G_DRAW_SMALL_N], 0x600 (0x5008B8: room for one more)
+        { at[1], DRAW_SMALL_OLD_N, 0 },          // push 0x600 (0x502224: its sub-objects)
+        { at[2], GA(DRAW_SMALL_OLD), 1 },        // push records (0x500CE6: frame start)
+        { at[3], GA(DRAW_SMALL_OLD) + 0x24, 1 }, // add eax, records +0x24 (collection)
+        { at[4], GA(DRAW_SMALL_OLD), 1 },        // add eax, records (collection)
+        { at[5], GA(DRAW_SMALL_OLD), 1 },        // add ecx, records (sub-objects)
+        { at[6], GA(DRAW_SMALL_OLD), 1 },        // push records (frame end)
+    };
+    int n = (int)(sizeof k / sizeof k[0]), ok = 0;
+    for (int i = 0; i < n; i++) ok += *(uint32_t *)(uintptr_t)k[i].at == k[i].want;
+    *ok_out = ok; *n_out = n;
+    if (ok != n) return 0;
+    uint8_t *r = VirtualAlloc(NULL, (SIZE_T)limit * DRAW_SMALL_REC, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+    if (!r) return -1;
+    uint32_t base = (uint32_t)(uintptr_t)r;
+    for (int i = 0; i < n; i++)
+        patch_code32(k[i].at, k[i].want, k[i].kind == 0 ? (uint32_t)limit : base + (k[i].want - GA(DRAW_SMALL_OLD)));
+    *recs = r;
+    return 1;
+}
 
 // THE SIMULATION AND THE TESTS (test/control.c, autotest.c, trace.c)
 // the simulation thread's receive (each pass of its loop: the pipe's safe point) and its timer wait (turbo)

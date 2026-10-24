@@ -783,6 +783,16 @@ conditions, 162 states with their ids) were dumped by a helper, not kept in the 
   1 (fog) while they stood there. The player's 5600 archers: along a row 3, 43, 67, 102, 127, 151, 167 rising
   with the crowd, on another 224, 250, 16, 24 - wrapped. `[general] sight_counts` (dll/engine/sight.c) replaces the add and remove and gives the minimap's
   rebuild the rest. AoC: the same code (port_addrs 100%).
+- A second sight count, for the viewed player only: the map's view table (MAP_VIEW_ROWS, map +0x17B598, AoC
+  +0x18F49C: a row of {first x, length, data} per y, 4 bytes an x - its uint16 the count, bytes 2 and 3 other uses).
+  Kept in 16 bits beside the tiles' (0x55EA8B: 0 -> 2, else +1; 0x55E904 / 0x5F896F: -1 with no floor), so in the
+  original it stays right where the tile's own wrapped (304 against the tile's 49) - until its refill from the
+  tiles (0x55BC4E, AoC 0x56AEC0: a load, a change of the viewed player) takes their low byte: 304 -> 49, and the
+  plain -1 then runs it to 0 and below while units stand there. `sight_counts` refills it with the whole count.
+- The small objects' list (1536 records of 0x3C at 0x8FBD30, count 0x91253C): referenced only by the room check
+  0x5008B8 (`cmp [0x91253C], 0x600`), the collection (records +0, +0x24), the sub-objects' call 0x502224 (push 0x600)
+  and the frame's start and end (0x500CE6: each record's +0xC handle released); the static constructor zeroes each
+  record's first 3 dwords. `draw_limit` moves it to three times the main list's size (patch_draw_small).
 
 ## Sound
 

@@ -3,12 +3,13 @@
 // +0x78 = 0x8D2D30, count 0x912538); the render thread draws them (0x50BD9D). Units, buildings and every missile
 // in flight or stuck in the ground share it (a 360-archer fight reached 445), so in big fights and at high
 // resolutions the list was full and whatever came last - the farthest objects - blinked out. The small objects
-// (trees, decorations: 1536 records of 0x3C at 0x8FBD30) have their own array and are not changed.
+// (type +0x619: decorations, 1536 records of 0x3C at 0x8FBD30) have their own array: moved the same way, three times
+// the size as in the game (12288 at the default).
 // The array is moved to a larger one: each record is built with the game's constructor (0x506442), and the
 // references (found by a disassembly scan of the exe, all in the render code) and the two 512 limits point there.
-// (DRAW_REC, DRAW_OLD_N and the operands: game/api/hooks.c patch_draw_list)
+// (DRAW_REC, DRAW_OLD_N and the operands: game/api/hooks.c patch_draw_list, patch_draw_small)
 internal int g_draw_limit = 4096;
-internal uint8_t *g_draw_recs;
+internal uint8_t *g_draw_recs, *g_draw_small_recs;
 
 internal void drawlist_install(const char *aimod_ini, const char *autotest_ini) {
     g_draw_limit = ini_int("display", "draw_limit", 4096, aimod_ini);
@@ -29,11 +30,15 @@ internal void drawlist_install(const char *aimod_ini, const char *autotest_ini) 
     }
     if (g_log) fprintf(g_log, "# draw limit: %d objects on screen (was %d), records at %p\n", g_draw_limit, DRAW_OLD_N,
                        g_draw_recs);
+    r = patch_draw_small(g_draw_limit * 3, &g_draw_small_recs, &ok, &n);
+    if (g_log && r > 0) fprintf(g_log, "# draw limit: %d small objects (was %d)\n", g_draw_limit * 3, DRAW_SMALL_OLD_N);
+    else if (g_log) fprintf(g_log, "# draw limit: small objects the original %d (%s)\n", DRAW_SMALL_OLD_N,
+                            r ? "no memory" : "exe differs");
 }
 
 // drawcount: objects collected for the last frame (units etc. / small objects). Tests.
 internal void cmd_drawcount(char *out, const char *args) {
     (void)args;
-    REPLY("objects %u of %d, small objects %u of 1536\n", draw_count(),
-          g_draw_recs ? g_draw_limit : DRAW_OLD_N, draw_small_count());
+    REPLY("objects %u of %d, small objects %u of %d\n", draw_count(),
+          g_draw_recs ? g_draw_limit : DRAW_OLD_N, draw_small_count(), g_draw_small_recs ? g_draw_limit * 3 : DRAW_SMALL_OLD_N);
 }

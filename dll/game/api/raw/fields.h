@@ -51,6 +51,7 @@
 //   TILE         a map tile
 //   TILENODE     a node of a tile's object list (TILE_OBJECTS)
 //   UNITLIST     a cluster of a group's units (FN_GROUP_SECTOR_ROUTE's units)
+//   VIEWROW      a row of the map's per-tile view table (MAP_VIEW_ROWS): {first x, length, data}
 //   GRID         the map's unit grid, MAP +0x181724
 //   GRIDCELL     a cell of the unit grid
 //   DMGMODEL     the object of FN_DAMAGE_POINTS
@@ -213,6 +214,7 @@
     O(GRID_NX, 0x10, 0x10) /* s */ \
     O(GRID_NY, 0x14, 0x14) /* s */ \
     O(GRIDCELL_UNITS, 0x4, 0x4) /* s */ \
+    O(MAP_VIEW_ROWS, 0x17B598, 0x18F49C) /* c: port_fields EEMap (x6): a row of VIEWROW per y, 0xC each */ \
     O(MAP_TILES, 0x1816D4, 0x1955F0) /* c */ \
     O(MAP_EDGE_SUM, 0x1816EC, 0x195608) /* c: the path search's tile test (0x41D36A): x + y on it is off the map's diamond */ \
     O(MAP_EDGE_SUM_2, 0x1816F0, 0x19560C) /* c: the same, the other edge */ \
@@ -609,6 +611,9 @@
     O(USTAT_ARMOR, 0xE0, 0xE0) /* b: between fields read through a unit's +0x34, unchanged */ \
     O(USTAT_RELOAD, 0x138, 0x138) /* c: read through a unit's +0x34 */ \
     O(USTAT_HP, 0x144, 0x144) /* c: read through a unit's +0x34 */ \
+    O(VIEWROW_START, 0x0, 0x0) /* c: 0x55BC4E (AoC: the same code): the row's first x */ \
+    O(VIEWROW_LEN, 0x4, 0x4) /* c: the path search's and the camera's bounds tests (x - start < len) */ \
+    O(VIEWROW_DATA, 0x8, 0x8) /* c: 0x55BC4E: 4 bytes an x, its uint16 the viewed player's sight count */ \
     O(WORLD_SEED, 0x54, 0x54) /* b */ \
     O(WORLD_THREAD, 0x40, 0x40) /* b: EEWorld's +0x1C and +0x5C the same in AoC */ \
     O(ZONE_SITES, 0x8, 0x8) /* s */ \

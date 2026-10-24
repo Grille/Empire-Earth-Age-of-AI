@@ -16,6 +16,15 @@ internal inline void *tilenode_get_next(const void *node) { return FIELD(node, T
 internal inline ee_tile **map_get_tiles(const ee_map *map) { return FIELD(map, MAP_TILES, ee_tile **); }   // [y * size + x]
 internal inline uint32_t map_get_size(const ee_map *map) { return FIELD(map, MAP_SIZE, uint32_t); }     // tiles a side
 internal inline uint32_t map_get_flags(const ee_map *map) { return FIELD(map, MAP_FLAGS, uint32_t); }    // bit 0: water
+// the view table: per tile 4 bytes, the first 2 the viewed player's sight count (kept beside the tiles' own: 0x55EA8B
+// adds as FN_TILE_SIGHT_ADD does, 0x55E904 / 0x5F896F take one off, no floor), bytes 2 and 3 other uses - a row per
+// y of {first x, length, data}
+internal inline void *map_get_view_rows(const ee_map *map) { return FIELD(map, MAP_VIEW_ROWS, void *); }
+internal inline void *map_view_row(const ee_map *map, unsigned y) { return (uint8_t *)map_get_view_rows(map) + y * 0xC; }
+internal inline uint16_t *viewrow_count_at(const void *row, unsigned x) {
+    unsigned i = x - FIELD(row, VIEWROW_START, unsigned);
+    return i < FIELD(row, VIEWROW_LEN, unsigned) ? (uint16_t *)(FIELD(row, VIEWROW_DATA, uint8_t *) + i * 4) : NULL;
+}
 // the map's diamond: a tile with x + y = edge_sum or edge_sum_2, or y - x or x - y = edge_diff, is on its edge (no
 // unit enters it - the path search's tile test)
 internal inline int map_get_edge_sum(const ee_map *map) { return FIELD(map, MAP_EDGE_SUM, int); }
@@ -73,3 +82,7 @@ internal inline int patch_tile_sight(tile_sight_hook add, tile_sight_hook sub) {
 typedef void (__thiscall *minimap_tile_hook)(void *mm, ee_tile *tile, int x, int y);
 internal inline void minimap_tile(void *mm, ee_tile *tile, int x, int y) { GF(FN_MINIMAP_TILE)(mm, tile, x, y); }
 internal inline int patch_minimap_tile(minimap_tile_hook h) { return patch_all_calls(GA(FN_MINIMAP_TILE), (void *)h); }
+// the view table's refill from the tiles' counts (FN_VIEW_SIGHT_COPY: a load, the viewed player changed) - their low byte
+typedef void (__thiscall *view_sight_copy_hook)(ee_player *pl);
+internal inline void view_sight_copy(ee_player *pl) { GF(FN_VIEW_SIGHT_COPY)(pl); }
+internal inline int patch_view_sight_copy(view_sight_copy_hook h) { return patch_all_calls(GA(FN_VIEW_SIGHT_COPY), (void *)h); }

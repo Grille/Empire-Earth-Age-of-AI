@@ -44,6 +44,7 @@
     D(FN_ATTACK_ALERT, 0x00519BC1, 0x00524497) \
     D(FN_TILE_SIGHT_SUB, 0x00519E26, 0x005246C4)                            /* thiscall(tile, player), ret 4: a unit less sees it */ \
     D(FN_TILE_SIGHT_ADD, 0x00519F4F, 0x005247ED)                            /* thiscall(tile, player), ret 4: a unit more sees it */ \
+    F(FN_VIEW_SIGHT_COPY, void, __thiscall, (ee_player *), 0x0055BC4E, 0x0056AEC0) /* thiscall(player): every tile's sight count (its low byte) into MAP_VIEW_ROWS - a load, the viewed player changed */ \
     D(CALL_LOAD_SAVED, 0x00522BF8, 0x0052D8F9)                                /* call LoadSavedGameFromCmdline(UString *) 0x521F94 */ \
     D(CALL_PLAYER_COLOR, 0x005262E4, 0x00531057) \
     D(CODE_SPLASH_START_JNE, 0x00534400, 0x0053F2FE)                          /* the loading splash's start (jne) */ \
@@ -103,6 +104,7 @@
     D(VT_MISSILE, 0x00832E90, 0x00848CF8) \
     D(VT_PROJECTILE, 0x00833060, 0x00848ED0)                                  /* EEUCProjectile */ \
     D(DRAW_OLD, 0x008D2D30, 0x008E94D0) \
+    D(DRAW_SMALL_OLD, 0x008FBD30, 0x009124D0)                                /* the small objects' draw list: 0x600 records of 0x3C */ \
 
 
 #define ADDR_NUMBERS_HOOKS(D) \
@@ -194,4 +196,7 @@
     L(DRAW_SITES, 9, (0x0050099C, 0x00504158, 0x005007B2, 0x005007CC, 0x00503C69, 0x00503ED0, 0x00503FCC, 0x005043B5, \
         0x0050DC5A), \
         (0x0050B497, 0x0050F093, 0x0050B2AD, 0x0050B2C7, 0x0050EBA4, 0x0050EE0B, 0x0050EF07, 0x0050F2F0, 0x0051854F)) \
+    /* the small objects' draw list's operands to move (drawlist.c, in its table's order) */ \
+    L(DRAW_SMALL_SITES, 7, (0x00500BBC, 0x0050419D, 0x00503C5A, 0x00504016, 0x00504041, 0x005041AD, 0x005043A6), \
+        (0x0050B6B7, 0x0050F0D8, 0x0050EB95, 0x0050EF51, 0x0050EF7C, 0x0050F0E8, 0x0050F2E1)) \
 
