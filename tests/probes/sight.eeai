@@ -1,0 +1,21 @@
+// A crowd's sight counts (dll/engine/sight.c, `sightcount`): 300 of P1's snipers (sight 11) packed around 50,50 in
+// the default test game. With sight_counts=1 the middle tile counts about 300; with 0 (the original) a count reaching
+// 256 restarts at 2, so it reads far less and passes through a low byte of 0 or 1 (unexplored, explored only: the
+// draw list leaves the tile out). Then the crowd sent 40 tiles away (128 units an order; 950 units at once crawl -
+// 5 game minutes in 11 real ones, in both settings): the middle tile back to 1 (explored), the adds and removes
+// balanced, and the destination counting them.
+wait_until(0.1min)
+spawn(1, unit.inf10_sniper, 50, 50, 100)
+spawn(1, unit.inf10_sniper, 49, 50, 100)
+spawn(1, unit.inf10_sniper, 51, 50, 100)
+wait_until(1min)
+count(1)
+cmd("sightcount 50 50 1")
+cmd("fmove go 1 50 50 25 90 50")
+wait_until(1.1min)
+cmd("fmove go 1 50 50 25 90 50")
+wait_until(1.2min)
+cmd("fmove go 1 50 50 25 90 50")
+wait_until(3.5min)
+cmd("sightcount 50 50 1")
+cmd("sightcount 90 50 1")

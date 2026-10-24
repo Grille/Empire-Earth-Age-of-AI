@@ -529,6 +529,7 @@
     O(TILE_SEA_CLASS, 0x14, 0x14) /* c: EEPMNaval::vf21's step test (0x550300 / AoC the same read): a signed byte against UNIT_SEA_MODE */ \
     O(TILE_KIND, 0x4, 0x4) /* c: the terrain kind (an index into TD_TERRAIN_OK; 0 land, 1 water - a guess) */ \
     O(TILE_OBJECTS, 0x8, 0x8) /* c: the objects on it, a list of {?, object +4, next +8} */ \
+    O(TILE_SIGHT, 0xC, 0xC) /* c: its sight count per player slot, a uint16 each (FN_TILE_SIGHT_ADD 0x519F4F, AoC 0x5247ED: the same code; = SITEOWN_SEEN, a unit's +0x14 is its tile) */ \
     O(TILE_HEIGHT, 0x10, 0x10) /* c */ \
     O(TRIGCOND_INDEX, 0x4, 0x4) /* c: its file's code (the scenario manager) */ \
     O(TRIGCOND_JOIN, 0x8, 0x8) /* c: its file's code (the scenario manager) */ \

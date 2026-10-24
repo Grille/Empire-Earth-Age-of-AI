@@ -248,6 +248,10 @@ Settings in `aimod.ini`:
 - `[display] draw_limit=4096` (default): the game drew at most 512 units, buildings and missiles per frame - arrows
   in flight or stuck in the ground included (a 360-archer fight reached 445) - so in big fights, and the more so at
   high resolutions, the farthest objects blinked in and out. `0` keeps the 512.
+- `[general] sight_counts=1` (default): every map tile counts how many of a player's units see it, but the game read
+  only one byte of that count - a tile seen by more than 254 units took itself for unexplored, and in a big army
+  random tiles with everything on them (units, trees) blinked out, then went to fog while units still stood there.
+  Now the whole count is kept (up to 65000). `0` = the original.
 - `[general] big_selection=1` (default): double-clicking a unit (all of its kind on screen) or dragging a box selected
   at most 63 units - with a large army only a part. Now up to about 240, as many as the game's selection message
   can carry; the message keeps its format, so it should stay compatible in multiplayer.

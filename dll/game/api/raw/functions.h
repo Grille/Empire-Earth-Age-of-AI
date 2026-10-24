@@ -124,6 +124,7 @@
     F(FN_GFX_REMOVE, int, __thiscall, (void *, int), 0x004FBEB2, 0x005068C6)      /* thiscall([G_GFX_EFFECTS], handle) */ \
     F(FN_MOUSE_CLAMP, void, __thiscall, (void *), 0x00510DAD, 0x0051B31C) \
     F(FN_MOUSE_UPDATE, void, __thiscall, (void *), 0x00510E5D, 0x0051B3CC) \
+    F(FN_MINIMAP_SIGHT_ADD, void, __thiscall, (void *, int, int), 0x0051426E, 0x0051E8BF) /* thiscall(minimap, tile x, y): a unit more sees the tile (its pixel's count +1) */ \
     /* thiscall on G_CAMERA (float dx, float dy) */ \
     F(FN_CAMERA_MOVE, void, __thiscall, (void *, float, float), 0x0051E2E6, 0x00528EA5) \
     /* thiscall([G_CHEAT_PARSER], UWideString *, int *code, int *arg) */ \
@@ -180,8 +181,8 @@
     F(FN_EXIT_CONFIRM, void, __cdecl, (void), 0x005D0B4F, 0x005E145B) \
     F(FN_ADD_WAYPOINT, void, __thiscall, (void *, float *, int), 0x005E8BAC, 0x005F625B) /* thiscall(unit, float pt[3], 1): one more waypoint at the end of the unit's list (+0x7C); 1 keeps a point on the map's edge lines */ \
     F(FN_UNIT_WAYPOINT, int, __thiscall, (void *, float *), 0x005EC69D, 0x005FA229) /* thiscall(unit, float out[3]): its current waypoint (the deque's front); 0, or 7 with none */ \
-    F(FN_POP_WAYPOINT, int, __thiscall, (void *), 0x005EDCF4, 0x005FBDD1) /* thiscall(unit): drops its current waypoint (the deque's front; GetNextMoveWaypoint); 0, or 7 with none */ \
     F(FN_UNIT_RELEASE, void, __thiscall, (void *), 0x005ED71E, 0x005FB7FB) \
+    F(FN_POP_WAYPOINT, int, __thiscall, (void *), 0x005EDCF4, 0x005FBDD1) /* thiscall(unit): drops its current waypoint (the deque's front; GetNextMoveWaypoint); 0, or 7 with none */ \
     /* thiscall(unit, 0x1F51) - as the assignment does after the order */ \
     F(FN_UNIT_SET_STATE, void, __thiscall, (void *, int), 0x005EFCF0, 0x005FDFA5) \
     F(FN_SET_GOAL, void, __thiscall, (void *, void *, char, int), 0x005F05BD, 0x005FE863) /* thiscall(unit, goal, 0, 0) */ \

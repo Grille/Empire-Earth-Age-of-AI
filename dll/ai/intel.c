@@ -90,7 +90,7 @@ struct intel_scan {
     // the grid's order: in the address order (until 2026-10-22) the memory's order, so the float sums over it and which
     // record a full memory drops, followed the heap - which differs between two runs of the same game, more so under load
     int nlive; ee_unit *live[6000], *by_addr[6000];
-    uint8_t floor[16]; int fseen[16];
+    uint16_t floor[16]; int fseen[16];
     int ne; ivec2 eye[3000];             // eyes: its and its allies' units
 };
 internal void intel_unit(ee_unit *u, void *ctx) {
@@ -103,8 +103,8 @@ internal void intel_unit(ee_unit *u, void *ctx) {
     if (!is_enemy(s->pl, o)) { if (s->ne < 3000) s->eye[s->ne++] = unit_get_tile(u); return; }
     ee_unit_vis *v = unit_get_vis(u);
     uint16_t *vis = v ? siteown_get_seen(v) : NULL;
-    unsigned c = vis ? vis[s->pi] & 0xFF : 0;
-    if (!s->fseen[oi] || c < s->floor[oi]) { s->floor[oi] = (uint8_t)c; s->fseen[oi] = 1; }
+    unsigned c = vis ? sight_count(vis[s->pi]) : 0;
+    if (!s->fseen[oi] || c < s->floor[oi]) { s->floor[oi] = (uint16_t)c; s->fseen[oi] = 1; }
 }
 internal int intel_ptr_cmp(const void *a, const void *b) {
     uintptr_t x = *(const uintptr_t *)a, y = *(const uintptr_t *)b;
@@ -167,7 +167,7 @@ internal void intel_tick(ee_player *pl, uint32_t now) {
         ee_unit_vis *v = unit_get_vis(u);
         uint16_t *vis = v ? siteown_get_seen(v) : NULL;
         int oi = player_get_index(o) & 15;
-        if (!vis || (vis[pi] & 0xFF) <= g_vis_floor[pi][oi]) continue;
+        if (!vis || sight_count(vis[pi]) <= g_vis_floor[pi][oi]) continue;
         in->seen_now++;
         int j = 0;
         while (j < in->n && in->r[j].u != u) j++;

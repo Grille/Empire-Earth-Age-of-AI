@@ -34,6 +34,23 @@ internal inline ee_unit **cell_get_units_end(const ee_grid_cell *cell) { return 
 internal inline int siteown_get_flag(const ee_unit_vis *so) { return FIELD(so, SITEOWN_FLAG, int); }
 // a unit's visibility: a uint16 per vision slot (player +0x45C, the player's index), its low byte != 0 seen by it
 internal inline uint16_t *siteown_get_seen(const ee_unit_vis *v) { return FIELD(v, SITEOWN_SEEN, uint16_t *); }
+// THE SIGHT COUNT. That record is the unit's map tile (TILE_SIGHT the same field), the slot its sight count: 0
+// unexplored, 1 explored, 2 + n while n units of the player see it. Every reader of the game takes its low byte only
+// (FN_EXPLORED, the draw list's collection 0x503B83, the fog's ...), and its add restarts a low byte of 0 at 2: a tile
+// seen by 255 units turned unexplored, and its count fell behind for good. engine/sight.c keeps the count so that its
+// low byte means the same - 0, 1, or 2 .. 255 for any count from 2 on, the rest in the high byte -; sight_count reads
+// it (a count below 256 is stored as the game stores it).
+internal inline uint16_t *tile_get_sight(const ee_tile *tile) { return FIELD(tile, TILE_SIGHT, uint16_t *); }   // [player index]
+#define SIGHT_MAX 65025u   // 0xFFFF
+internal inline unsigned sight_count(uint16_t raw) {
+    unsigned lo = raw & 0xFFu;
+    return lo < 2 ? lo : 2u + (raw >> 8) * 254u + (lo - 2u);
+}
+internal inline uint16_t sight_raw(unsigned count) {
+    if (count < 2) return (uint16_t)count;
+    unsigned d = count - 2;
+    return (uint16_t)((d / 254u) << 8 | (2u + d % 254u));
+}
 
 // FUNCTIONS
 // the map's area id at pt (kind 1 water, 2 land): one id per connected region
@@ -42,3 +59,17 @@ internal inline unsigned short map_area(ivec2 p, int kind) {
 }
 // the map's area object at a tile (regions, continents)
 internal inline uint8_t *area_at(int *pt) { return GF(FN_AREA_AT)((void *)GA(G_MAP_AREAS), pt); }
+// the minimap (RTSMiniMap): a unit more sees the tile (x, y) - its pixel's own count of them +1
+internal inline void minimap_sight_add(void *mm, int x, int y) { GF(FN_MINIMAP_SIGHT_ADD)(mm, x, y); }
+
+// HOOKS
+// a tile's sight count for the player: a unit more (FN_TILE_SIGHT_ADD) or less (FN_TILE_SIGHT_SUB) sees it - every
+// change of the count but its setter (0x51979C: unexplored, explored, the fog's reset)
+typedef void (__thiscall *tile_sight_hook)(ee_tile *tile, ee_player *pl);
+internal inline int patch_tile_sight(tile_sight_hook add, tile_sight_hook sub) {
+    return patch_all_calls(GA(FN_TILE_SIGHT_ADD), (void *)add) + patch_all_calls(GA(FN_TILE_SIGHT_SUB), (void *)sub);
+}
+// the minimap's rebuild (0x5150F2: the viewed player changed, a new game) takes each tile's count from its low byte
+typedef void (__thiscall *minimap_tile_hook)(void *mm, ee_tile *tile, int x, int y);
+internal inline void minimap_tile(void *mm, ee_tile *tile, int x, int y) { GF(FN_MINIMAP_TILE)(mm, tile, x, y); }
+internal inline int patch_minimap_tile(minimap_tile_hook h) { return patch_all_calls(GA(FN_MINIMAP_TILE), (void *)h); }

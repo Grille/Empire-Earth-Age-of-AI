@@ -39,6 +39,7 @@ internal void cmd_sndstate(char *out, const char *args);
 internal void cmd_sndchan(char *out, const char *args);
 internal void cmd_seltest(char *out, const char *args);
 internal void cmd_drawcount(char *out, const char *args);
+internal void cmd_sightcount(char *out, const char *args);
 internal void cmd_textlog(char *out, const char *args);
 internal void cmd_textstate(char *out, const char *args);
 internal void cmd_llm(char *out, const char *args);
@@ -370,6 +371,7 @@ internal void execute(const char *cmd, char *out) {
     else if (!strcmp(verb, "sndchan")) cmd_sndchan(out, args);
     else if (!strcmp(verb, "seltest")) cmd_seltest(out, args);
     else if (!strcmp(verb, "drawcount")) cmd_drawcount(out, args);
+    else if (!strcmp(verb, "sightcount")) cmd_sightcount(out, args);
     else if (!strcmp(verb, "textlog")) cmd_textlog(out, args);
     else if (!strcmp(verb, "textstate")) cmd_textstate(out, args);
     else if (!strcmp(verb, "llm")) cmd_llm(out, args);

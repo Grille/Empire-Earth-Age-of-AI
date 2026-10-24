@@ -40,15 +40,18 @@
     D(CALL_GAME_START, 0x004CEC14, 0x004D4443) \
     D(CALL_DAMAGE_POINTS, 0x004F80A4, 0x0050232D) \
     F(FN_DRAW_REC_CTOR, void, __thiscall, (void *), 0x00506442, 0x005118E9)   /* a draw list record */ \
+    F(FN_MINIMAP_TILE, void, __thiscall, (void *, ee_tile *, int, int), 0x00514A8A, 0x0051F0DB) /* thiscall(minimap, tile, x, y), ret 0xC: the tile's sight count into the minimap's (its rebuild 0x5150F2) */ \
     D(FN_ATTACK_ALERT, 0x00519BC1, 0x00524497) \
+    D(FN_TILE_SIGHT_SUB, 0x00519E26, 0x005246C4)                            /* thiscall(tile, player), ret 4: a unit less sees it */ \
+    D(FN_TILE_SIGHT_ADD, 0x00519F4F, 0x005247ED)                            /* thiscall(tile, player), ret 4: a unit more sees it */ \
     D(CALL_LOAD_SAVED, 0x00522BF8, 0x0052D8F9)                                /* call LoadSavedGameFromCmdline(UString *) 0x521F94 */ \
     D(CALL_PLAYER_COLOR, 0x005262E4, 0x00531057) \
     D(CODE_SPLASH_START_JNE, 0x00534400, 0x0053F2FE)                          /* the loading splash's start (jne) */ \
     D(CODE_SPLASH_STOP_JNE, 0x0053443D, 0x0053F33B)                           /* the loading splash's stop (jne) */ \
     D(CALL_PARSE_CMDLINE, 0x00535EF2, 0x005410C8)                             /* call ParseCommandLine(const char *) 0x522A36 */ \
+    F(FN_TURN_TOWARDS, void, __thiscall, (void *, void *, float *, float *, float *, float *, float *, char), 0x005484D9, 0x00554A25) /* EEPhysicsModel::vf7 thiscall(model, unit, float pos[3], float target[3], out angle left, out turn rate, out new heading, 0 / 1 to the unit's facing): the tick's turn towards a point (EEPMNaval::vf1 0x54EB00 gives the front waypoint); ret 0x1C */ \
     F(FN_SPEED_STEP, float, __thiscall, (void *, void *, float, float), 0x0054858E, 0x00554BDE) /* EEPhysicsModel::vf8 thiscall(model, unit, distance to the waypoint, angle off the bow): the new speed from FN_SPEED_DECIDE (given the same) - on the last waypoint faster no further than the distance */ \
     F(FN_SPEED_DECIDE, int, __thiscall, (void *, void *, float, float), 0x00548645, 0x00554CB2) /* EEPhysicsModel::vf9 thiscall(model, unit, distance to the waypoint, angle off the bow): 2 hold, 3 faster, 4 slower - more than 45 degrees off, slower */ \
-    F(FN_TURN_TOWARDS, void, __thiscall, (void *, void *, float *, float *, float *, float *, float *, char), 0x005484D9, 0x00554A25) /* EEPhysicsModel::vf7 thiscall(model, unit, float pos[3], float target[3], out angle left, out turn rate, out new heading, 0 / 1 to the unit's facing): the tick's turn towards a point (EEPMNaval::vf1 0x54EB00 gives the front waypoint); ret 0x1C */ \
     F(FN_TURN_DECIDE, int, __thiscall, (void *, void *, float, float), 0x0054880E, 0x00554F56) /* EEPhysicsModel slot 11 (AoC 12: its vtables have a slot more before; AoC rewrote it - the signs, a step ahead -, so not patched there) thiscall(model, unit, turn rate now (unit +0x17C, radians/s), angle left to turn): 3 turn faster towards it, 4 slower - from a stopping angle of the type's +0xC8 x the settings' +0x88 */ \
     D(CALL_MISSILE_AIM, 0x0054E850, 0x0055B1C3) \
     D(SITE_SIM_RECEIVE, 0x00553348, 0x00561459) \
