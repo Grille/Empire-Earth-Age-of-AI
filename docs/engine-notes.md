@@ -279,7 +279,10 @@ vf26 members and route released, vf12, the group's reference) frees nothing twic
     (dll/engine/collide.c) replaces the ships' slot 18: hulls as capsules (the size long, 0.35 of it wide) found
     through the unit grid, half the overlap undone a step by the push, shared by size with a moving partner, nudging a
     standing one of the same owner (its push applied at once: a standing ship's own step doesn't run), a ship heading
-    into another turned off to starboard.
+    into another turned off to starboard. EEPMSubmergedNaval's slot 18 holds the same thunk; its slot 14 (0x551FDC) scans
+    the tiles within its size for objects whose class (type +0x4B4) is 10 or 27 - the submarines (Hammerhead and U-boat
+    10; warships 4, the carrier 21, transports 18) - so submarines meet only submarines and pass under ships;
+    `ship_collide` keeps that (sub against sub, ship against ship).
 - **Circling a waypoint:** the tick steers straight at the front waypoint, with no look further on, and arrival wants
   it within the type's +0x474 on its own tile: a waypoint off to the side within the turning circle (radius v / w)
   can't be hit, the unit overshoots, steers back and circles it. The player's Hammerheads at 5.65 tiles/s (the

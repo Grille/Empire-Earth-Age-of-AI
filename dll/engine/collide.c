@@ -8,7 +8,9 @@
 // their nearest points: UC_RELAX of the overlap a step, shared by size when the other moves too (it does its own part
 // in its own step), all of it against one standing. The push goes through the game's own (SLOT_PM_PUSH: terrain and
 // buildings tested, no faster than the top speed); the speed is left alone, so a ship pressing on another slides
-// along it. Submarines keep the game's (their model tests tiles). Only + - * / and sqrtf: the same on every PC.
+// along it. Submarines too (their model's slot 18 is the same): the game lets them meet only submarines - its test
+// (EEPMSubmergedNaval::vf14) takes the classes 10 and 27 - so they pass under ships, and here as well.
+// Only + - * / and sqrtf: the same on every PC.
 
 #define UC_WIDTH 0.35f   // a hull's width, a share of its length
 #define UC_RELAX 0.5f    // the share of an overlap undone a step
@@ -60,9 +62,12 @@ internal void uc_nearest(vec2 p1, vec2 q1, vec2 p2, vec2 q2, vec2 *c1, vec2 *c2)
     *c2 = vec2_add(p2, vec2_scale(d2, t));
 }
 
-internal int uc_is_hull(ee_unit *u) {
-    ee_unit_type *td = unit_get_type_data(u);
-    return td && unit_get_valid(u) && unit_get_hp(u) > 0 && !unit_get_holder(u) && type_get_category(td) != KIND_SUBMARINE && sr_is_ship(u);
+internal int uc_is_sub(ee_unit_type *td) { int c = type_get_family(td); return c == 10 || c == 27; }   // the classes the submarines' test takes
+
+// a hull u meets: a ship afloat, a submarine only if u is one
+internal int uc_is_hull(ee_unit *c, int sub) {
+    ee_unit_type *td = unit_get_type_data(c);
+    return td && unit_get_valid(c) && unit_get_hp(c) > 0 && !unit_get_holder(c) && uc_is_sub(td) == sub && sr_is_ship(c);
 }
 
 internal int uc_moves(ee_unit *u) { return unit_get_speed(u) > 0.05f || unit_get_turn_rate(u) != 0; }
@@ -77,10 +82,11 @@ internal void uc_separate(void *model, ee_unit *u) {
     float mu = h.len * h.len;
     vec2 corr = v2(0, 0);
     vec3 p = unit_get_pos(u);
+    int sub = uc_is_sub(unit_get_type_data(u));
     int reach = (int)(h.len * 0.5f) + UC_REACH + 1;
     for (struct grid_it it = grid_it_box(unit_get_x(u), unit_get_y(u), reach, 1); grid_it_next(&it); ) {
         ee_unit *c = it.u;
-        if (c == u || !uc_is_hull(c)) continue;
+        if (c == u || !uc_is_hull(c, sub)) continue;
         vec3 q = unit_get_pos(c);
         float cl = unit_get_size(c), lim = (h.len + cl) * 0.5f;
         if (fabsf(q.x - p.x) > lim || fabsf(q.y - p.y) > lim) continue;
@@ -134,5 +140,5 @@ internal void collide_new_game(void) { g_uc_steps = g_uc_hits = 0; g_uc_deepest 
 internal void collide_install(void) {
     g_uc_on = g_set.ship_collide;
     int n = g_uc_on ? patch_ship_collide(hook_ship_collide) : 0;
-    if (g_log) fprintf(g_log, "# shipcollide: ship_collide=%d (hook %s)\n", g_uc_on, !g_uc_on ? "-" : n ? "ok" : "FAILED");
+    if (g_log) fprintf(g_log, "# shipcollide: ship_collide=%d (hooks %d/2: ships, submarines)\n", g_uc_on, n);
 }

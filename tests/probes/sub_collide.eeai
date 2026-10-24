@@ -1,0 +1,22 @@
+// Submarines meeting submarines and ships (ship_collide): Small Islands (map seed 1, start_epoch 9), the open north
+// sea, every unit watched every step (`fmove watch`, `fmove add`). Head-on: 4 Hammerheads from 52,14 to 70,20 and 4
+// U-boats the other way; then a packed pack of 8 Hammerheads from 60,26 through 4 frigates standing at 66,18 to
+// 70,14 - the submarines pass under the ships (the game's test takes only submarines), so only sub against sub counts.
+wait_until(0.1min)
+spawn(1, unit.s14_hammerhead_submarine, 52, 14, 4)
+spawn(1, unit.s10_u_boat, 70, 20, 4)
+wait_until(0.3min)
+cmd("fmove go 1 52 14 3 70 20")
+cmd("fmove also 1 70 20 3 52 14")
+cmd("fmove watch 1")
+wait_until(1.6min)
+cmd("fmove sum")
+cmd("fmove watch 0")
+spawn(1, unit.s14_hammerhead_submarine, 60, 26, 8)
+spawn(1, unit.s10_good_hope_frigate, 66, 18, 4)
+wait_until(1.8min)
+cmd("fmove go 1 60 26 3 70 14")
+cmd("fmove add 1 66 18 3")
+cmd("fmove watch 1")
+wait_until(3.6min)
+cmd("fmove sum")
