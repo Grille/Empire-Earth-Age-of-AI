@@ -34,6 +34,10 @@ internal inline int patch_ship_turn_towards(turn_towards_hook h) {
     return patch_vtable(GA(VT_PM_NAVAL), GA(SLOT_PM_TURN_TOWARDS), GA(FN_TURN_TOWARDS), (void *)h)
          + patch_vtable(GA(VT_PM_SUBMERGED), GA(SLOT_PM_TURN_TOWARDS), GA(FN_TURN_TOWARDS), (void *)h);
 }
+internal inline int patch_land_turn_towards(turn_towards_hook h) {   // the land units' and the hovercraft's (EEPMLand::vf1 calls it too)
+    return patch_vtable(GA(VT_PM_LAND), GA(SLOT_PM_TURN_TOWARDS), GA(FN_TURN_TOWARDS), (void *)h)
+         + patch_vtable(GA(VT_PM_HOVER), GA(SLOT_PM_TURN_TOWARDS), GA(FN_TURN_TOWARDS), (void *)h);
+}
 // the tick's speed step (slot 8: FN_SPEED_DECIDE asked with the same distance and angle; on the last waypoint it
 // speeds up no further than the distance, and the decision brakes when the way left is within the stopping distance)
 typedef float (__thiscall *speed_step_hook)(void *model, ee_unit *u, float dist, float angle);

@@ -299,11 +299,17 @@ Settings in `aimod.ini`:
   a waypoint inside its turning circle, overshot and circled it - and rounds corners in arcs. Through a shift-queued point
   it sails on in an arc instead of braking for it, where the way on to the next point is clear. In multiplayer every
   PC needs the same setting.
-- `[general] turn_fix=0` (default off while it is measured): Art of Conquest's fix of the turn, brought back. Ships,
+- `[general] turn_fix=1` (default; 0 the original): Art of Conquest's fix of the turn, brought back. Ships,
   submarines, helicopters and the other units that turn with momentum braked their turn a step late and swung past
   the heading, then back (a unit turning the wrong way was even let turn on). With 1 they brake in time and stop on
-  the heading, as in Art of Conquest. Land units turn at a fixed rate and aren't affected. In multiplayer every PC
-  needs the same setting.
+  the heading, as in Art of Conquest. Tanks and hovercraft too (infantry and riders turn without momentum). A
+  helicopter told four ways under way reversed its heading 19 times, now 7. In multiplayer every PC needs the same
+  setting.
+- `[general] land_turns=0` (default off while it is measured): land units and hovercraft steered at each tile centre
+  of their route, so the heading jumped at every waypoint and a tank swung back and forth. With 1 they steer at a point
+  sliding along the route, as ship_turns does for ships, and walk on through shift-queued points. A tank told four
+  ways under way, with land_routes and turn_fix: 11 heading reversals and 837 degrees turned -> 5 and 680. In
+  multiplayer every PC needs the same setting.
 - `[general] ship_collide=1` (default; 0 the original): ships ran through each other, jumped back and got
   stuck on each other - the game tests two ships as thin lines along their headings (side by side or at a shallow
   angle they miss), a small ship next to a big one may not see it at all, and a hit halves the smaller one's speed

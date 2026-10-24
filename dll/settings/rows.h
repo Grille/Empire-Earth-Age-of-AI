@@ -32,7 +32,8 @@
     X(FLAG,   general,  ship_routes,              0,  0, 0) \
     X(FLAG,   general,  land_routes,              0,  0, 0) \
     X(FLAG,   general,  ship_turns,               0,  0, 0) \
-    X(FLAG,   general,  turn_fix,                 0,  0, 0) \
+    X(FLAG,   general,  land_turns,               0,  0, 0) \
+    X(FLAG,   general,  turn_fix,                 1,  0, 0) \
     X(FLAG,   general,  ship_collide,             1,  0, 0) \
     X(FLAG,   general,  land_collide,             0,  0, 0) \
     X(FLAG,   general,  sight_counts,             1,  0, 0) \

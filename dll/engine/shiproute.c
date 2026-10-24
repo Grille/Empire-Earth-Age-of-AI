@@ -307,7 +307,7 @@ internal void __thiscall hook_group_sector_route(void *group, int *from, int *to
 #define ST_SPARE 0.9f
 #define ST_MIN_RADIUS 0.6f              // tiles: a tighter circle is the game's crawl
 #define ST_HULL 1.0f                    // tiles: another ship this near the circle is in the way
-internal int g_st_on;
+internal int g_st_on, g_lt_on;           // ship_turns; land_turns: the steering along the route (slot 7) for land units too
 internal unsigned g_st_kept;             // ticks the game would have braked and the arc kept the speed
 
 // is the circle (cx, cy, r) free for u: every tile in it one u may enter (the route's test, a new stamp: things move),
@@ -455,8 +455,9 @@ internal void __thiscall hook_ship_turn_towards(void *model, ee_unit *u, float *
     ee_unit_type *td = u ? unit_get_type_data(u) : NULL;
     int size = map ? (int)map_get_size(map) : 0, wps = u ? unit_get_waypoints_left(u) : 0;
     float w = u ? unit_max_turn(u) : 0, onward[3];
-    ee_goal *next = g_st_on && u ? st_pass_through(u, onward) : NULL;
-    if (g_st_on && !facing && td && size > 0 && w > 0 && (wps >= 2 || next) && sr_alloc((uint32_t)(size * size))) {
+    int on = model_kind(model) == MODEL_LAND ? g_lt_on : g_st_on;
+    ee_goal *next = on && u ? st_pass_through(u, onward) : NULL;
+    if (on && !facing && td && size > 0 && w > 0 && (wps >= 2 || next) && sr_alloc((uint32_t)(size * size))) {
         st_stamp_step();
         float reach = ST_AHEAD * unit_max_speed(u) / w;
         st_drop_passed(u, map, td, size, pos[0], pos[1], reach / ST_AHEAD);
@@ -534,9 +535,11 @@ internal int __thiscall hook_ship_speed(void *model, ee_unit *u, float dist, flo
 
 internal void shiproute_install(const char *autotest_ini) {
     g_st_on = g_set.ship_turns;
+    g_lt_on = g_set.land_turns;
+    int lt = g_lt_on ? patch_land_turn_towards(hook_ship_turn_towards) : 0;
     int st = g_st_on ? patch_ship_speed_decide(hook_ship_speed) + patch_ship_turn_towards(hook_ship_turn_towards)
                          + patch_ship_speed_step(hook_ship_speed_step) : 0;
-    if (g_log) fprintf(g_log, "# shipturns: ship_turns=%d (hooks %s)\n", g_st_on, !g_st_on ? "-" : st == 6 ? "ok" : "FAILED");
+    if (g_log) fprintf(g_log, "# shipturns: ship_turns=%d (hooks %s) land_turns=%d (hooks %d/2)\n", g_st_on, !g_st_on ? "-" : st == 6 ? "ok" : "FAILED", g_lt_on, lt);
     g_sr_on = g_set.ship_routes;
     if (autotest_ini) g_sr_log = ini_int("autotest", "ship_route_log", 0, autotest_ini);
     g_lr_on = g_set.land_routes;
