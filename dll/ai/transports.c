@@ -223,8 +223,8 @@ internal void tw_tick(ee_player *pl, uint32_t now) {
 // game's, kept in step by the select messages), so the mod's split decides the same everywhere - in multiplayer only
 // while every PC has the same settings, like the rest of the mod.
 // The transports: every class that carries (the data's "unit type", TD_FAMILY) - the ships (18), the helicopters
-// (17), on land the cargo truck, the staff car, the siege towers and the Trojan Horse (16); not the aircraft carriers
-// (planes) nor the buildings.
+// (17), on land the cargo truck, the staff car, the siege towers and the Trojan Horse (16), and the fortress (29: the
+// same command, only the room part matters there); not the aircraft carriers (planes) nor the airport.
 // Load: the units right-clicked onto a transport are shared out over it and the other selected transports - the
 // transports nearest the units first, each takes its nearest units that it can carry (the game's own test, its
 // type's vf60) while its room lasts (its room left +0x2A4, less what its load under way still awaits; a unit's size
@@ -245,11 +245,11 @@ internal ivec2 g_tw_click_at;
 internal int ld_tile_free(ivec2 p);                       // landing.c
 internal unsigned ocean_near(ivec2 p, int r, ivec2 *w);   // landing.c
 
-enum { TW_SEA, TW_LAND, TW_AIR };
-internal int tw_kind(ee_unit *u) {   // a transport's: by its class (TW_SEA ...), -1 none
+enum { TW_SEA, TW_LAND, TW_AIR, TW_FORT };
+internal int tw_kind(ee_unit *u) {   // a transport's: by its class (TW_SEA ...; a fortress too), -1 none
     ee_unit_type *td = u ? unit_get_type_data(u) : NULL;
     int c = td ? type_get_family(td) : 0;
-    return c == CLS_TRANSPORT ? TW_SEA : c == CLS_LAND_TRANSPORT ? TW_LAND : c == CLS_AIR_TRANSPORT ? TW_AIR : -1;
+    return c == CLS_TRANSPORT ? TW_SEA : c == CLS_LAND_TRANSPORT ? TW_LAND : c == CLS_AIR_TRANSPORT ? TW_AIR : c == CLS_FORTRESS ? TW_FORT : -1;
 }
 internal int tw_carrier(ee_player *pl, ee_unit *u) {   // pl's transport on the map
     return tw_kind(u) >= 0 && unit_get_owner(u) == pl && unit_get_hp(u) > 0 && unit_get_x(u) >= 0;
@@ -355,6 +355,8 @@ internal int tw_load_split(ee_player *pl, ee_unit **tr, int nt, ee_unit **us, in
             if (best < 0) break;
             owner[best] = (signed char)k; room -= tw_size(us[best]); m[k]++;
         }
+        if (g_log) fprintf(g_log, "# tw: P%d load: transport %06x type %d (%s) at %d,%d - room %d, %d given, %d aboard\n", player_get_index(pl), tw_id(t),
+                           type_get_id(ttd), rtti_name(ttd), unit_get_x(t), unit_get_y(t), unit_get_room(t), m[k], units_inside(t));
     }
     static ee_unit *list[1024];
     ivec2 meet[16];
@@ -417,9 +419,18 @@ internal void tw_click_mark_off(ee_player *pl, int on, ivec2 at) {
     gfx_remove(g_tw_click_mark);
     g_tw_click_mark = 0;
 }
+// The click's message (0x403ADE): with transports selected it takes the selection's first transport of one class
+// (helicopters, else land transports, else ships, else a fortress); the one clicked is the transport (unit -1) when it
+// is that one or of its type, else the message loads the clicked unit into that one - a transport of another type
+// clicked (a Pegasus beside a Chinook, a ship beside a helicopter) became a transport to be loaded into another, and
+// failed. Here the clicked transport is the one loaded onto, whatever its type.
 internal void __thiscall hook_msg_load(ee_msg *msg) {
-    ee_player *pl = g_tw_split && load_msg_get_unit(msg) == -1 ? game_player(msg_get_from(msg)) : NULL;
+    ee_player *pl = g_tw_split ? game_player(msg_get_from(msg)) : NULL;
     ee_unit *clicked = pl ? unit_by_id(load_msg_get_transport(msg)) : NULL;
+    if (pl && load_msg_get_unit(msg) != -1) {   // a transport clicked: that one; another unit (into the selected transport): the game's
+        ee_unit *u = unit_by_id((unsigned)load_msg_get_unit(msg));
+        clicked = tw_carrier(pl, u) && tw_carrier(pl, clicked) ? u : NULL;
+    }
     void *grp = pl ? player_get_selected_group(pl) : NULL;
     if (!grp || !tw_carrier(pl, clicked)) { msg_load(msg); return; }
     static ee_unit *us[1024];
@@ -545,20 +556,27 @@ internal void cmd_transports(char *out, const char *args) {
     if (order && nt && (nu || strcmp(what, "load"))) {
         static uint32_t ids[1040];
         static __attribute__((aligned(8))) uint8_t mem[0x40];
-        unsigned n = 0, first = 0;
+        unsigned n = 0;
+        ee_unit *click = NULL, *sel1 = NULL;   // the transport clicked (the nearest x, y), the selection's first of the click's class
         for (int k = 0; k < nt; k++) {
-            if (strcmp(what, "load") && units_inside(tr[k]) <= 0) continue;
-            int d = ivec2_dist2(unit_get_tile(tr[k]), c);
-            if (!n || d < ivec2_dist2(unit_get_tile(unit_by_id(ids[first])), c)) first = n;
+            if (!click || ivec2_dist2(unit_get_tile(tr[k]), c) < ivec2_dist2(unit_get_tile(click), c)) click = tr[k];
+            if (tw_kind(tr[k]) == TW_FORT || (strcmp(what, "load") && units_inside(tr[k]) <= 0)) continue;   // a building isn't selected with units
             ids[n++] = (uint32_t)unit_get_serial(tr[k]);
         }
+        for (int want = TW_AIR, j = 0; want >= 0 && !sel1; want = want == TW_AIR ? TW_LAND : want == TW_LAND ? TW_SEA : -1)   // 0x403ADE's order
+            for (j = 0; j < nt && !sel1; j++)
+                if (tw_kind(tr[j]) == want && tw_kind(tr[j]) != TW_FORT && (!strcmp(what, "load") ? 1 : units_inside(tr[j]) > 0)) sel1 = tr[j];
         for (int i = 0; i < nu; i++) ids[n++] = (uint32_t)unit_get_serial(us[i]);
         uint32_t *sel[3] = { NULL, ids, ids + n };   // a select message's selection: its ids at +4 .. +8
         player_select(pl, sel);
         void *grp = player_get_selected_group(pl);
         memset(mem, 0, sizeof mem);
         ee_msg *msg = (ee_msg *)mem;
-        if (!strcmp(what, "load")) { load_msg_make(msg, player_get_msg_id(pl), ids[first], -1); hook_msg_load(msg); }
+        if (!strcmp(what, "load")) {   // as the click makes it: the clicked one, or the selection's first transport and the clicked one as its unit
+            int same = !sel1 || sel1 == click || unit_get_type_data(sel1) == unit_get_type_data(click);
+            load_msg_make(msg, player_get_msg_id(pl), (unsigned)unit_get_serial(same ? click : sel1), same ? -1 : unit_get_serial(click));
+            hook_msg_load(msg);
+        }
         else { unload_msg_make(msg, player_get_msg_id(pl), x, y); hook_msg_unload(msg); }
         REPLY("%s by P%d (this PC's P%u): %u selected, %u in the group;", what, p, local_player_index(), n, grp ? group_count(grp) : 0);
         for (int k = 0; k < nt; k++) {

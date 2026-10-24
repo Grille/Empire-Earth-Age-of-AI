@@ -252,7 +252,9 @@ Settings in `aimod.ini`:
   at most 63 units - with a large army only a part. Now up to about 240, as many as the game's selection message
   can carry; the message keeps its format, so it should stay compatible in multiplayer.
 - `[general] transport_split=1` (default): units right-clicked onto a transport - a ship, a helicopter or a land
-  transport (cargo truck, staff car, siege tower, Trojan Horse). The game sent every unit to the clicked transport
+  transport (cargo truck, staff car, siege tower, Trojan Horse), mixed too, or a fortress. With transports of more
+  than one type selected the game's command broke (it tried to load the clicked transport into another one, and
+  nobody boarded); now the clicked one is the one loaded onto. The game sent every unit to the clicked transport
   alone - the first 10 boarded, the rest walked there anyway and were turned back at its side, and the other selected
   transports got nothing. Now the units are shared out: the clicked transport and every other selected one take the
   nearest units they can carry while they have room; units without room keep what they did (with one transport too).

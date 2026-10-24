@@ -1,0 +1,11 @@
+// Soldiers right-clicked onto a fortress (the load command with the fortress as its transport - dll/ai/transports.c
+// takes it like a transport: only those with room go): Small Islands (map seed 1), P1's island - a fortress (40) and
+// 50 macemen; at 0.5 min `transports order load` onto it. [autotest] transport_split=0: the game's own command.
+wait_until(0.2min)
+cmd("spawn 1 672 27 45 1")   // fortress
+spawn(1, unit.inf03_maceman, 20, 38, 50)
+wait_until(0.5min)
+cmd("transports order load 1 27 45 14")
+wait_until(2.5min)
+cmd("transports id 1")
+cmd("objs 1 21")
