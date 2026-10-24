@@ -25,11 +25,22 @@ internal uint32_t g_fm_trace_last;
 // each simulation step (control.c's safe point) while a unit is traced: its position, heading (degrees, 0 = +y,
 // clockwise), speed, script state and the raw +0x8C (waypoints) and +0x118/+0x11C (a waypoint - engine-notes) - a
 // raw dump to see how it turns
+internal int g_fm_watch;                 // `fmove watch 1`: every unit of the order logged every step (# fmwatch)
 internal void fm_tick(void) {
-    if (!g_fm_trace || !g_log) return;
+    if ((!g_fm_trace && !g_fm_watch) || !g_log) return;
     uint32_t now = game_time();
     if (now == g_fm_trace_last) return;
     g_fm_trace_last = now;
+    if (g_fm_watch)   // id, position, heading, speed, state, the raw +0x345 (moving: lets others pass) and +0x248 (blocked time)
+        for (int i = 0; i < g_fm_n; i++) {
+            ee_unit *w = unit_by_id(g_fm[i].id);
+            if (!w) continue;
+            vec3 q = unit_get_pos(w), fq = unit_get_facing(w);
+            fprintf(g_log, "# fmwatch %u %06x %.3f %.3f %.1f %.3f %u %u %.2f push %.3f %.3f obst %d contacts %d\n", now, g_fm[i].id & 0xFFFFFF, q.x, q.y,
+                    atan2f(fq.x, fq.y) * 57.29578f, unit_get_speed(w), unit_ai_state_id(w), FIELD(w, 0x345, uint8_t), FIELD(w, 0x248, float),
+                    FIELD(w, 0x230, float), FIELD(w, 0x234, float), FIELD(w, 0x20C, int) != 0, FIELD(w, 0xC8, int));
+        }
+    if (!g_fm_trace) return;
     ee_unit *u = unit_by_id(g_fm_trace);
     if (!u) { fprintf(g_log, "# fmtrace %u gone\n", now); g_fm_trace = 0; return; }
     vec3 p = unit_get_pos(u), f = unit_get_facing(u);
@@ -102,6 +113,7 @@ internal void cmd_fmove(char *out, const char *args) {
         REPLY("fmove: tracing %06x\n", g_fm_trace & 0xFFFFFF);
         return;
     }
+    if (!strcmp(what, "watch")) { g_fm_watch = p; REPLY("fmove: watch %s\n", p ? "on" : "off"); return; }   // fmove watch 1|0
     if (!strcmp(what, "stat")) { if (g_fm_n) fm_sample(out, 0); else REPLY("fmove: no order given\n"); return; }
     if (!strcmp(what, "sum")) {
         float moved = 0, done = 0, stood = 0, crept = 0;
@@ -135,12 +147,14 @@ internal void cmd_fmove(char *out, const char *args) {
         REPLY("fmove: %d units of P%d then to %d,%d (queued)\n", n, p, x, y);
         return;
     }
-    if (strcmp(what, "go")) { REPLY("fmove go P x y r tx ty | then P tx ty | stat | sum\n"); return; }
+    int also = !strcmp(what, "also");   // fmove also ...: as go, the units added to the order's (the watch, sum)
+    if (strcmp(what, "go") && !also) { REPLY("fmove go|also P x y r tx ty | then P tx ty | watch 1|0 | stat | sum\n"); return; }
     ee_player *pl = p > 0 && p < 16 ? game_players()[p] : NULL;
     if (!pl) { REPLY("fmove: no player %d\n", p); return; }
     static uint32_t ids[FM_MAX];
     static __attribute__((aligned(8))) uint8_t mem[0x40];
-    g_fm_n = 0;
+    int first = also ? g_fm_n : 0;
+    g_fm_n = first;
     for (struct grid_it it = grid_it_box(x, y, r, 1); g_fm_n < FM_MAX && grid_it_next(&it); ) {
         ee_unit *u = it.u;
         if (unit_get_owner(u) != pl || unit_get_hp(u) <= 0 || type_get_family(it.td) == 2) continue;
@@ -164,7 +178,7 @@ internal void cmd_fmove(char *out, const char *args) {
     g_fm_ty = (float)ty + 0.5f;
     path_msg_make((ee_msg *)mem, player_get_msg_id(pl), g_fm_tx, g_fm_ty, together, 0);
     msg_path((ee_msg *)mem);
-    g_fm_t0 = g_fm_last = game_time();
+    if (!also) g_fm_t0 = g_fm_last = game_time();
     int *grp = player_get_selected_group(pl);
-    REPLY("fmove: %d units of P%d sent to %d,%d%s (%u in the selected group)\n", g_fm_n, p, tx, ty, together ? " together" : "", grp ? group_count(grp) : 0);
+    REPLY("fmove: %d units of P%d sent to %d,%d%s (%u in the selected group)\n", g_fm_n - first, p, tx, ty, together ? " together" : "", grp ? group_count(grp) : 0);
 }

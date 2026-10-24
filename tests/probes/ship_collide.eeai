@@ -1,0 +1,22 @@
+// Ships meeting ships (the player: ships phase through each other, jump back, get stuck on each other): Small Islands
+// (map seed 1, start_epoch 9), the open north sea, every ship of the orders logged every step (`fmove watch`,
+// # fmwatch: position, heading, speed, state, the raw +0x345 and +0x248). Head-on: 3 dreadnoughts from 52,14 to
+// 70,20 and 3 cruisers the other way; then a packed fleet of 6 dreadnoughts from 60,24 through 4 frigates standing at
+// 66,18 to 72,12.
+wait_until(0.1min)
+spawn(1, unit.s10_dreadnought_battleship, 52, 14, 3)
+spawn(1, unit.s10_cruiser, 70, 20, 3)
+wait_until(0.3min)
+cmd("fmove go 1 52 14 3 70 20")
+cmd("fmove also 1 70 20 3 52 14")
+cmd("fmove watch 1")
+wait_until(1.6min)
+cmd("fmove sum")
+cmd("fmove watch 0")
+spawn(1, unit.s10_dreadnought_battleship, 60, 26, 6)
+spawn(1, unit.s10_good_hope_frigate, 66, 18, 4)
+wait_until(1.8min)
+cmd("fmove go 1 60 26 3 72 12")
+cmd("fmove watch 1")
+wait_until(3.6min)
+cmd("fmove sum")

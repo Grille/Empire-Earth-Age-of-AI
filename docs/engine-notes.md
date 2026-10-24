@@ -240,7 +240,37 @@ vf26 members and route released, vf12, the group's reference) frees nothing twic
   EEPMSubmergedNaval (0x82CDD4) share vf9 with the land units. A new order more than 45 degrees off: 0.6 -> 0.09 in
   1.7 s, a 100-degree turn 6-7 s, a U-turn 5 s nearly standing (tests/probes/ship_reorder.eeai). Top turn rate
   0x54A4E7 (stats +0xB4, a dreadnought about 0.44 rad/s), acceleration 0x54A4CA (+0xA8). A unit pressed against
-  another keeps the least speed 0.1 and CanIMove (speed > 0.1) never lets ObstacleDetected fire: it creeps for ever.
+  another creeps for ever: see "Collision".
+- **Collision** (read from the decompilation 2026-10-24, the marked points checked in game with `fmove watch`,
+  tests/probes/ship_collide.eeai):
+  - Units never block a tile: lets-pass (EEUnit::vf18 0x6167C7, EEComplexUnit::vf18 0x5EC317) is 1 while type
+    +0x600 is 0 - every ship and land unit (dbobjects.dat record +0x37C; buildings 1). The step test, the route
+    search and 0x5EFF37's obstacle branch only ever meet buildings, walls and gates. Unit +0x345 is not "moving"
+    (a foundation, under construction; 0 for every ship - checked).
+  - A unit is on one tile (EEUnitClass::vf33 0x621259 into the list of the tile at unit +0x14; vf37 0x6225D3 out;
+    0x616F9D on a tile change, from the position writers 0x5F043B / 0x5F0252, which also zero +0x248).
+  - The only unit-unit collision is a contact list (unit +0xC4, count +0xC8 - checked: 0-2 for ships in the probe),
+    rebuilt (0x5E8F0E) only on a tile change, from the tiles within the unit's own radius (type +0x474 x scale, unit
+    +0x244). Each step (EEUCNaval::vf45 0x60686F -> 0x549F82 the movement mode +0x264 -> vf18 0x549E61, not in mode 2,
+    nothing for a ship standing still, not turning and not pushed) vf14 0x5498C4 tests each contact: ships with both
+    radii >= 1 by EEPMNaval::vf16 0x54F84C - each ship a line along its heading (no width), a hit when the lines
+    cross within 0.75 of both lengths, or headings within 5 degrees with an offset <= 0.75 - else a circle test
+    (vf15 0x549179, distance below the mean radius). The smaller ship (or the one whose partner moves on a goal)
+    yields: its speed x 0.5, at 0.5 or less 0 and +0x248 += the step; a push velocity +0x230/+0x234 grows (checked:
+    1.33, 0.29 after the speed fell 0.1 -> 0). Two ships standing: push 0.001, the partner's +0x320 = now + 5 s.
+    Aligned and moving with +0x330 2: the ship drops its waypoints and goes Idle; against one standing, 0x5EFF37 sets
+    the obstacle +0x20C.
+  - The push moves the ship in EEPMNaval::vf3 0x54F05E ("Collision: Turning Unit"): position + step x push, the
+    larger axis clamped to the top speed, under 0.02 ignored, the tile tested only for terrain and buildings, then
+    written (0x5F0252) and the push zeroed - after the forward step, with no test against other ships (checked: the
+    cruiser 0.09 tiles back in that step).
+  - ObstacleDetected (0x61B677): +0x20C set, or +0x248 > 4000 x rnd(0.75..1.25) ms. +0x248 grows by a third of the
+    step on every naval step test and is zeroed on every tile change and waypoint pop: a ship that creeps on, or is
+    pushed across a tile line, never reaches it (checked: the cruiser's 283 -> 0 -> 283 -> 0 ...). CanIMove (0x1F4C)
+    tests the top speed (0x46123F) > 0.1, not the speed, and the sea movement script doesn't use it.
+  - So: phasing through - nothing blocks a ship, and line tests miss side-by-side and shallow-angle overlaps, contacts
+    only come from tile changes within the mover's radius; jumping back - the push after the step, the speed halved
+    per contact per step; stuck - halve, push back, speed up again, the obstacle timer zeroed by each tile change.
 - **Circling a waypoint:** the tick steers straight at the front waypoint, with no look further on, and arrival wants
   it within the type's +0x474 on its own tile: a waypoint off to the side within the turning circle (radius v / w)
   can't be hit, the unit overshoots, steers back and circles it. The player's Hammerheads at 5.65 tiles/s (the
@@ -570,8 +600,8 @@ conditions, 162 states with their ids) were dumped by a helper, not kept in the 
 - Idle (0x61B05B) keeps the unit's goal; without one it tells the path manager 0x917D00 (not an idle list: "Routes"). PrepareToMove goes
   Idle after the goal's retries. UnderAttack (2018) is entered from EEUnit::TakeDamage 0x617423 only from Idle and
   only if the script has it; CheckRange from outside only when an EEUGAttackUnit is retargeted (0x62CD12).
-  ObstacleDetected: unit+0x20C set, or standing still 3-5 s (+0x248 vs 4000 x rnd(0.75, 1.25)). CanIMove: speed >
-  0.1. MovePreparationComplete: unit+0x33E (path ready, set 0x4A2BA0) and waypoints +0x8C > 0.
+  ObstacleDetected: unit+0x20C set, or +0x248 above 4000 x rnd(0.75, 1.25) ms ("Collision"). CanIMove: the top
+  speed (0x46123F) > 0.1. MovePreparationComplete: unit+0x33E (path ready, set 0x4A2BA0) and waypoints +0x8C > 0.
 - Transports (transport.tai, load container.tai, sea transport.tai): NoMoreLoadableUnitsToPickUp (EEUGLoadContainer
   vf64 0x613C20) = full or the pending passengers (goal+0x20) none; HaveReachedRendezvousPoint distance <= 1.0 to
   goal+0x54 (transport) / +0x5C (passenger); WaitForPassengers (0x6137C7) only idles, no time limit. The pending
