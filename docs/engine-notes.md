@@ -918,7 +918,7 @@ conditions, 162 states with their ids) were dumped by a helper, not kept in the 
 
 The mod's addresses are those of the 1.04 exe with the 2017 "Difficulty Setting & Multiplayer Lobby" update (build
 timestamp 0x594D0000). game/api/exe.c `game_build` checks the exe file before installing anything: an FNV-1a hash over every
-section but `.rsrc` (`k_exe_builds`, raw/builds.h); another build gets no hooks and one message (`build_unknown`). All addresses are
+section but `.rsrc` (`k_exe_builds`, game/api/builds.h); another build gets no hooks and one message (`build_unknown`). All addresses are
 in `dll/game/api/raw/` (the row files functions.h, hooks.h, data.h, made a table by tables.c), one row per name with a value per known build (the hash's index picks the column): supporting
 another build means its hash and its column there - the generated editor layout (`raw/editor_layout.h`) and the two
 Low-Level Engine.dll operands of display.c are that build's own as well. Compared on
@@ -964,7 +964,7 @@ that handle - the redirect follows handle paths. Two values were REG_SZ of 0 byt
 ## Art of Conquest (EE-AOC.exe) - first overview
 
 Not supported yet; notes for the port. Steam and GOG `EE-AOC.exe` have identical code (build hash 0x0644BA54, in
-game/api/raw/builds.h but not ready). AoC's `Low-Level Engine.dll` also loads every `*.dll` in its folder, so the mod gets in the
+game/api/builds.h but not ready). AoC's `Low-Level Engine.dll` also loads every `*.dll` in its folder, so the mod gets in the
 same way; all its engine DLLs (Low-Level Engine, DX7HRDisplay, Default, Language ...) differ from the base's.
 
 - RTTI: 1741 classes (base 1717), 1696 shared. New: the Space Age (EECPASGSpace*, EEUCSpaceship..., carriers),

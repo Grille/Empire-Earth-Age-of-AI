@@ -5,34 +5,9 @@
 // 1.04 with its copy protection, its no-CD cracks, NeoEE (the same code, but its imports elsewhere - docs/engine-notes.md
 // "Exe builds"). Known by a hash (FNV-1a) of every section but .rsrc, read from the file: in memory another DLL may have
 // patched the code already, and run_test.ps1 patches it before the game runs.
-// (the builds and their hashes: raw/builds.h)
+// (the builds, their hashes and the hash: builds.h)
 // the running build by its name ("ee", "aoc"): for code that differs by more than an address (AoC's rewrites)
 internal int build_is(const char *name) { return g_exe_build >= 0 && !lstrcmpA(k_exe_builds[g_exe_build].name, name); }
-internal uint32_t exe_build_hash(const char *path) {   // 0: not a readable PE file
-    HANDLE f = CreateFileA(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, 0, NULL);
-    if (f == INVALID_HANDLE_VALUE) return 0;
-    uint32_t h = 0, size = GetFileSize(f, NULL);
-    uint8_t *b = size != INVALID_FILE_SIZE && size > 0x400 && size < (64u << 20) ? malloc(size) : NULL;
-    DWORD got = 0;
-    if (b && ReadFile(f, b, size, &got, NULL) && got == size) {
-        uint32_t o = *(uint32_t *)(b + 0x3C);
-        if (o < size - 0xF8 && *(uint32_t *)(b + o) == 0x00004550) {
-            IMAGE_NT_HEADERS32 *nt = (IMAGE_NT_HEADERS32 *)(b + o);
-            IMAGE_SECTION_HEADER *s = (IMAGE_SECTION_HEADER *)((uint8_t *)&nt->OptionalHeader + nt->FileHeader.SizeOfOptionalHeader);
-            h = 2166136261u;
-            for (int i = 0; i < nt->FileHeader.NumberOfSections; i++, s++) {
-                if ((uint8_t *)(s + 1) > b + size) { h = 0; break; }
-                if (!memcmp(s->Name, ".rsrc", 6)) continue;
-                uint32_t n = s->Misc.VirtualSize && s->Misc.VirtualSize < s->SizeOfRawData ? s->Misc.VirtualSize : s->SizeOfRawData;
-                if (s->PointerToRawData > size || n > size - s->PointerToRawData) { h = 0; break; }
-                for (const uint8_t *p = b + s->PointerToRawData, *e = p + n; p < e; p++) h = (h ^ *p) * 16777619u;
-            }
-        }
-    }
-    free(b);
-    CloseHandle(f);
-    return h;
-}
 // 1: the game in a build the mod knows and is ready for (its column selected: g_exe_build, the tables); 0: not the game (another
 // program loading the folder's DLLs) or a known build that isn't ready (the player's game runs without the mod); -1:
 // the game, another build (*hash its hash). A test run (run_test.ps1: EEAIMOD_UNREADY=1) plays a build that isn't

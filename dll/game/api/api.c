@@ -3,7 +3,7 @@
 // what the rest of the code uses of it - its fields, the game's functions on it (by their first argument, the C++
 // object of a thiscall), its hooks; game.c the game's global state and its getters (game_map(), game_players() ...),
 // hooks.c the patches of the game's code that are about no object. types.h names the objects' types (one place: they
-// point at each other). raw/ is the module's inside: the addresses and offsets per exe build (builds.h, functions.h,
+// point at each other). raw/ is the module's inside: the addresses and offsets per exe build (functions.h,
 // hooks.h, data.h, fields.h, editor_layout.h) and tables.c, which makes them tables, GA, GF, GL and the fields' names -
 // nothing raw/ defines is used outside game/api/, and game/api/ uses only base/ (scripts/build/layers.py). exe.c finds the
 // running build (game_build, build_is) and takes its column; api_log tells the start's log what is missing.
@@ -24,7 +24,7 @@
 // places it patched; of (may be NULL) gets the number there are. Kinds not typed yet are void *. Assembler stubs (they
 // read registers) are void (*)(void).
 #include "game/api/types.h"        // the game's objects typed: ee_player *, ee_unit * ...
-#include "game/api/raw/builds.h"   // the exe builds the mod knows: the tables' columns
+#include "game/api/builds.h"       // the exe builds the mod knows: the tables' columns
 #include "game/api/raw/tables.c"   // the game's addresses and objects' fields per exe build: GA(G_WORLD_CLOCK), UNIT_HP
 #include "game/api/exe.c"          // which build runs: game_build
 #include "game/api/raw/editor_layout.h"   // the scenario editor's layout sites (generated, the 2017 update)

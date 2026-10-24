@@ -38,7 +38,7 @@ and the runners, eectl, the MCP server), `results/` (log readers, scorers), `re/
   - test runs start no game meanwhile, the running ones (and the player's) are waited for; nobody has to pause.
 - What the mod knows of the game's code and objects lives in `dll/game/api/`. The raw rows, api/'s own, in `raw/`: `functions.h`
   (the functions the mod calls), `hooks.h` (what it patches to hook), `data.h` (the game's data), made a table by
-  `tables.c` (with `fields.h`'s; the builds `builds.h`'s) - `api.c` the module's one entry - by name with one value per exe build: `GA(G_WORLD_CLOCK)`,
+  `tables.c` (with `fields.h`'s; the builds: `game/api/builds.h`) - `api.c` the module's one entry - by name with one value per exe build: `GA(G_WORLD_CLOCK)`,
   `GF(FN_CAN_BUILD)(pl, t, 0x20, 0)`, `GL(TRAIN_SITES)`, a vtable slot `GA(SLOT_ASG_UPDATE)`, an object's size
   `GA(SIZE_GOAL_BUILD)` - never a literal address, slot or size in the code. The game objects' fields likewise live
   in `raw/fields.h`, one row each, named by kind and what it is (`O(UNIT_X, 0x1C, 0x1C)`, `UNIT_0x50` while not

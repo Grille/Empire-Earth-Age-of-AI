@@ -27,7 +27,7 @@ MAY_USE = {
     'script': ['base'],                                    # the language: knows no game (script/host.h asks it)
     'game_script': ['base', 'settings', 'game/api', 'game', 'ai', 'script', 'voice'],   # the game in the language: constants, values, relations
     'voice':  ['base', 'settings', 'game/api', 'game', 'ai', 'script'],   # what the AI says: reads the AI, speaks the language
-    'tool':   ['base', 'settings', 'script'],               # aimod_config.exe, a program of its own: no game
+    'tool':   ['base', 'settings', 'script', 'game/api/builds.h'],   # aimod_config.exe, a program of its own: no game, only which exe it is
     'test':   ['base', 'settings', 'game/api', 'game', 'engine', 'ai', 'script', 'game_script', 'voice', 'dll'],
     'dll':    ['base', 'settings', 'game/api', 'game', 'engine', 'ai', 'script', 'game_script', 'voice', 'test'],
 }

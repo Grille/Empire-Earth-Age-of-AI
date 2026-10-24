@@ -199,7 +199,9 @@ siege, home guard.
    explanation, its value and its default; a value is checked as you type, as the game reads it, and Save
    writes only what you changed, keeping the file's comments. It also lists keys in your file that this
    version no longer knows (old experiments, typing mistakes) and can remove them. Without an `aimod.ini` it
-   offers to make one with the default settings.
+   offers to make one with the default settings. Its Game page shows which exe is next to it and can give the
+   game 4 GB of memory instead of 2 (the Large Address Aware flag - big armies and maps need it; one bit in the
+   exe's header, the game closed, the exe kept as `Empire Earth.exe.original` and put back by Restore).
 5. Optional: copy `dinput.dll` into the same folder too. The game then keeps its own settings (graphics,
    sound, scroll speed, the last game's options - what the options screen sets) in `eesettings.ini` in the
    game folder instead of the Windows registry, so they travel with the folder; the first start copies the

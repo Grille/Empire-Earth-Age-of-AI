@@ -30,7 +30,7 @@ else echo "no Python: persist_layout.h and cmd_verbs.h left as they are, the fol
 # -Wno-unused-function: it takes those files whole and calls only part of them
 WINDRES=${WINDRES:-${CC%clang}windres}
 "$WINDRES" -I. tool/aimod_config.rc -O coff -o aimod_config_res.o || exit 1
-"$CC" -O2 -Wall -Wextra -Wformat=2 -Wstrict-prototypes -Wimplicit-fallthrough -Wvla -Wshadow -Wno-unused-function -mwindows -static -I. -o aimod_config.exe tool/aimod_config.c aimod_config_res.o -lcomctl32 -lgdi32 || { rm -f aimod_config_res.o; exit 1; }
+"$CC" -O2 -Wall -Wextra -Wformat=2 -Wstrict-prototypes -Wimplicit-fallthrough -Wvla -Wshadow -Wno-unused-function -mwindows -static -I. -o aimod_config.exe tool/aimod_config.c aimod_config_res.o -lcomctl32 -lgdi32 -limagehlp || { rm -f aimod_config_res.o; exit 1; }
 rm -f aimod_config_res.o
 if [ "$1" = install ]; then   # the working tree's build (scripts/build/install.sh: the committed one) into the game folder
     REPO="$(cd .. && pwd)"; . ../scripts/game_dir.sh   # GAME

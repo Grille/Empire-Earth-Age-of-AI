@@ -16,6 +16,7 @@
 #include <math.h>
 #include <ctype.h>
 #include <stdlib.h>
+#include <imagehlp.h>   // CheckSumMappedFile: the exe header's checksum
 
 #include "base/lang.h"
 #include "base/log.c"
@@ -24,18 +25,21 @@
 #include "base/ini.c"
 #include "script/expr.c"
 #include "settings/settings.c"
+#include "game/api/builds.h"   // the exe builds the mod knows, and how a file is known as one
 
 #define TITLE "Empire Earth: Age of AI - settings"
 enum { ID_PAGES = 100, ID_FILTER, ID_LIST, ID_HELP, ID_NAME, ID_CHECK, ID_COMBO, ID_EDIT, ID_DEFAULT, ID_STATUS, ID_FILE,
-       ID_SAVE, ID_CLOSE, ID_UNKNOWN, ID_REMOVE };
+       ID_SAVE, ID_CLOSE, ID_UNKNOWN, ID_REMOVE, ID_GAME_TEXT, ID_GAME_APPLY, ID_GAME_RESTORE };
 
-// THE PAGES: a section each; diff >= 0: a difficulty's own section, its rows those of [all]
+// THE PAGES: a section each; diff >= 0: a difficulty's own section, its rows those of [all]; GAME_PAGE: the exe (no
+// settings: its 4 GB flag)
+#define GAME_PAGE -2
 struct page { const char *title, *sec; int diff; };
 internal const struct page k_pages[] = {
     { "General", "general", -1 }, { "Camera", "camera", -1 }, { "Display", "display", -1 },
     { "Scenario editor", "editor", -1 }, { "Sound", "sound", -1 }, { "Language model", "llm", -1 },
     { "AI: every difficulty", "all", -1 }, { "AI: easy only", "easy", 0 }, { "AI: medium only", "medium", 1 },
-    { "AI: hard only", "hard", 2 },
+    { "AI: hard only", "hard", 2 }, { "Game (exe)", "", GAME_PAGE },
 };
 #define NPAGES ((int)(sizeof k_pages / sizeof *k_pages))
 #define TEXT_CAP (MAX_PATH + 8)
@@ -55,7 +59,7 @@ internal struct { char sec[16], key[64]; } g_unk[64];
 internal int g_nunk, g_remove_unknown;
 
 internal HWND g_wnd, g_pages, g_filter, g_list, g_help, g_name, g_check, g_combo, g_edit, g_default, g_status, g_file_label,
-              g_save, g_close, g_unk_label, g_remove;
+              g_save, g_close, g_unk_label, g_remove, g_game_text, g_game_apply, g_game_restore;
 internal HFONT g_font, g_bold, g_mono;   // g_mono: the help, aligned in the ini for a fixed-width font
 internal int g_page, g_sel = -1, g_filling;   // g_filling: the controls set by the program, not the player
 internal float g_dpi = 1;
@@ -252,6 +256,149 @@ internal void help_of(const char *sec, const char *key, int slots, char *out, in
     }
     out[o] = 0;
     if (!out[0]) lstrcpynA(out, "(no description in config/aimod.ini)", cap);
+}
+
+// THE GAME PAGE: the exe next to the program (Empire Earth.exe, else The Art of Conquest's EE-AOC.exe) - which build
+// (by builds.h's hash of its code, as the DLL tells it), and its 4 GB flag (Large Address Aware, bit 0x20 of the PE
+// header's characteristics): Windows gives a 32-bit program 2 GB of memory unless its exe says it can use more, and
+// reads that from the file when the program starts - no DLL can set it later, so this is the one change to the exe the
+// mod asks for (everything else it patches in memory while the game runs). Set only on a build the mod knows, the game
+// closed, the exe copied first to <exe>.original (kept: Restore puts it back); the header's checksum made anew. The
+// code hash leaves the header out, so the mod knows the build afterwards as before.
+internal char g_exe[MAX_PATH], g_exe_backup[MAX_PATH + 16];
+internal const char *g_exe_name;
+
+internal void exe_find(void) {
+    static const char *const names[2] = { "Empire Earth.exe", "EE-AOC.exe" };
+    char dir[MAX_PATH];
+    lstrcpynA(dir, g_ini_path, sizeof dir);
+    char *s = strrchr(dir, '\\');
+    if (s) s[1] = 0; else dir[0] = 0;
+    g_exe_name = NULL;
+    for (int i = 0; i < 2 && !g_exe_name; i++) {
+        snprintf(g_exe, sizeof g_exe, "%s%s", dir, names[i]);
+        if (GetFileAttributesA(g_exe) != INVALID_FILE_ATTRIBUTES) g_exe_name = names[i];
+    }
+    snprintf(g_exe_backup, sizeof g_exe_backup, "%s.original", g_exe);
+}
+
+// the 4 GB flag of the exe at path: 1 set, 0 not, -1 not a readable PE file
+internal int exe_laa(const char *path) {
+    uint8_t b[4096];
+    DWORD got = 0;
+    HANDLE f = CreateFileA(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, 0, NULL);
+    if (f == INVALID_HANDLE_VALUE) return -1;
+    ReadFile(f, b, sizeof b, &got, NULL);
+    CloseHandle(f);
+    uint32_t o = got >= 0x40 ? *(uint32_t *)(b + 0x3C) : 0;
+    if (!o || o > got - sizeof(IMAGE_NT_HEADERS32) || *(uint32_t *)(b + o) != IMAGE_NT_SIGNATURE) return -1;
+    return (((IMAGE_NT_HEADERS32 *)(b + o))->FileHeader.Characteristics & IMAGE_FILE_LARGE_ADDRESS_AWARE) != 0;
+}
+
+internal int exe_build_of(uint32_t hash) {   // its index in k_exe_builds, -1 none
+    for (int i = 0; i < ADDR_BUILDS; i++) if (k_exe_builds[i].hash == hash) return i;
+    return -1;
+}
+
+internal void game_show(void) {
+    char t[3072];
+    exe_find();
+    if (!g_exe_name) {
+        snprintf(t, sizeof t, "No Empire Earth.exe (or EE-AOC.exe) next to this program (%s).\r\n\r\n"
+                 "aimod_config.exe belongs in the game folder, next to the game and aimod.ini.", g_ini_path);
+        SetWindowTextA(g_game_text, t);
+        EnableWindow(g_game_apply, FALSE);
+        EnableWindow(g_game_restore, FALSE);
+        return;
+    }
+    uint32_t hash = exe_build_hash(g_exe);
+    g_exe_build = exe_build_of(hash);
+    int laa = exe_laa(g_exe), backup = GetFileAttributesA(g_exe_backup) != INVALID_FILE_ATTRIBUTES;
+    const char *build = g_exe_build < 0 ? NULL : !lstrcmpA(k_exe_builds[g_exe_build].name, "ee")
+                        ? "the 2017 update (1.04: GOG, Steam, empireearth.eu) - the one the mod is made for"
+                        : !lstrcmpA(k_exe_builds[g_exe_build].name, "aoc") ? "The Art of Conquest - the mod plays it in test runs only, so far"
+                        : k_exe_builds[g_exe_build].name;
+    char ver[160];
+    if (build) lstrcpynA(ver, build, sizeof ver);
+    else snprintf(ver, sizeof ver, "not one the mod knows (code hash %08X): the mod stays off, and this page leaves it alone", (unsigned)hash);
+    snprintf(t, sizeof t,
+             "%s\r\n%s\r\n\r\n"
+             "Version:  %s\r\n\r\n"
+             "Memory:   %s\r\n"
+             "          A 32-bit game gets 2 GB of memory unless its exe says it can use more; with this flag\r\n"
+             "          (Large Address Aware) 64-bit Windows gives it 4 GB. Big armies, big maps and the mod's higher\r\n"
+             "          draw limits need it - without it a long game can run out of memory and crash. Windows reads\r\n"
+             "          the flag from the file when the game starts, so the mod can't set it while running: setting\r\n"
+             "          it changes one bit in the exe's header (and the header's checksum); the game's code stays as\r\n"
+             "          it is, and the mod still knows the build.\r\n\r\n"
+             "Backup:   %s\r\n",
+             g_exe_name, g_exe, ver,
+             laa < 0 ? "the file can't be read" : laa ? "4 GB - the flag is set" : "2 GB - the flag is not set",
+             backup ? "the exe as it was before this page changed it is kept as " : "none (made before a change)");
+    if (backup) {
+        size_t o = strlen(t) - 2;
+        snprintf(t + o, sizeof t - o, "%s - Restore puts it back\r\n", strrchr(g_exe_backup, '\\') + 1);
+    }
+    SetWindowTextA(g_game_text, t);
+    EnableWindow(g_game_apply, laa == 0 && g_exe_build >= 0);
+    EnableWindow(g_game_restore, backup);
+}
+
+internal void game_message(const char *what, UINT icon) { MessageBoxA(g_wnd, what, TITLE, MB_OK | icon); }
+
+// the 4 GB flag set: the exe copied first, the file opened alone (the game closed), the bit and the checksum written
+internal void game_apply(void) {
+    uint32_t hash = exe_build_hash(g_exe);
+    if (exe_build_of(hash) < 0) return;
+    // the file alone (the game closed) and writable - checked first, then the backup made (CopyFile opens it itself),
+    // then opened alone again for the change
+    HANDLE f = CreateFileA(g_exe, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
+    if (f != INVALID_HANDLE_VALUE) CloseHandle(f);
+    else {
+        game_message(GetLastError() == ERROR_SHARING_VIOLATION ? "The game is running - close Empire Earth first."
+                     : "The exe can't be written (a folder that needs administrator rights?).", MB_ICONWARNING);
+        return;
+    }
+    if (GetFileAttributesA(g_exe_backup) == INVALID_FILE_ATTRIBUTES && !CopyFileA(g_exe, g_exe_backup, TRUE)) {
+        game_message("The backup of the exe couldn't be made - nothing changed.", MB_ICONERROR);
+        return;
+    }
+    f = CreateFileA(g_exe, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
+    DWORD size = f != INVALID_HANDLE_VALUE ? GetFileSize(f, NULL) : 0, got = 0;
+    uint8_t *b = size != INVALID_FILE_SIZE && size > 0x1000 && size < (64u << 20) ? malloc(size) : NULL;
+    int ok = b && ReadFile(f, b, size, &got, NULL) && got == size;
+    if (!ok) {
+        if (f != INVALID_HANDLE_VALUE) CloseHandle(f);
+        free(b);
+        game_message("The exe couldn't be read - nothing changed.", MB_ICONERROR);
+        return;
+    }
+    DWORD header_sum, sum;
+    IMAGE_NT_HEADERS32 *nt = (IMAGE_NT_HEADERS32 *)(b + *(uint32_t *)(b + 0x3C));
+    nt->FileHeader.Characteristics |= IMAGE_FILE_LARGE_ADDRESS_AWARE;
+    if (CheckSumMappedFile(b, size, &header_sum, &sum)) nt->OptionalHeader.CheckSum = sum;
+    DWORD put = 0;
+    ok = SetFilePointer(f, 0, NULL, FILE_BEGIN) == 0 && WriteFile(f, b, size, &put, NULL) && put == size;
+    CloseHandle(f);
+    free(b);
+    if (!ok || exe_laa(g_exe) != 1 || exe_build_hash(g_exe) != hash) {
+        CopyFileA(g_exe_backup, g_exe, FALSE);
+        game_message("Writing the exe failed - the backup was put back.", MB_ICONERROR);
+    } else game_message("Done: the game gets 4 GB of memory from its next start.", MB_ICONINFORMATION);
+    game_show();
+}
+
+internal void game_restore(void) {
+    char q[MAX_PATH * 2 + 96];
+    snprintf(q, sizeof q, "Put the original exe back?\r\n\r\n%s\r\nreplaces\r\n%s", g_exe_backup, g_exe);
+    if (MessageBoxA(g_wnd, q, TITLE, MB_YESNO | MB_ICONQUESTION) != IDYES) return;
+    if (!CopyFileA(g_exe_backup, g_exe, FALSE)) {
+        game_message(GetLastError() == ERROR_SHARING_VIOLATION ? "The game is running - close Empire Earth first."
+                     : "The exe can't be written - nothing changed.", MB_ICONWARNING);
+        return;
+    }
+    DeleteFileA(g_exe_backup);
+    game_show();
 }
 
 // THE WINDOW
@@ -466,6 +613,10 @@ internal void layout(void) {
     MoveWindow(g_file_label, m, by + dpi_px(5), w - 3 * m - dpi_px(200), dpi_px(20), FALSE);
     MoveWindow(g_save, w - m - dpi_px(196), by, dpi_px(94), dpi_px(28), FALSE);
     MoveWindow(g_close, w - m - dpi_px(96), by, dpi_px(94), dpi_px(28), FALSE);
+    int gh = h - 2 * m - bottom - dpi_px(40);   // the game page: its text, the buttons under it
+    MoveWindow(g_game_text, x, m, rw, gh, FALSE);
+    MoveWindow(g_game_apply, x, m + gh + dpi_px(8), dpi_px(140), dpi_px(28), FALSE);
+    MoveWindow(g_game_restore, x + dpi_px(150), m + gh + dpi_px(8), dpi_px(200), dpi_px(28), FALSE);
     ListView_SetColumnWidth(g_list, 0, dpi_px(240));
     ListView_SetColumnWidth(g_list, 1, (rw - dpi_px(260)) * 6 / 10);
     ListView_SetColumnWidth(g_list, 2, (rw - dpi_px(260)) * 4 / 10);
@@ -510,6 +661,13 @@ internal void create_controls(void) {
     g_close = make_child(WC_BUTTONA, "Close", BS_PUSHBUTTON | WS_TABSTOP, ID_CLOSE);
     g_unk_label = make_child(WC_STATICA, "", SS_LEFT | SS_NOPREFIX, ID_UNKNOWN);
     g_remove = make_child(WC_BUTTONA, "Remove them", BS_PUSHBUTTON | WS_TABSTOP, ID_REMOVE);
+    g_game_text = make_child(WC_EDITA, "", ES_MULTILINE | ES_READONLY | WS_VSCROLL, ID_GAME_TEXT);
+    SendMessageA(g_game_text, WM_SETFONT, (WPARAM)g_mono, TRUE);
+    g_game_apply = make_child(WC_BUTTONA, "Allow 4 GB", BS_PUSHBUTTON | WS_TABSTOP, ID_GAME_APPLY);
+    g_game_restore = make_child(WC_BUTTONA, "Restore the original exe", BS_PUSHBUTTON | WS_TABSTOP, ID_GAME_RESTORE);
+    ShowWindow(g_game_text, SW_HIDE);
+    ShowWindow(g_game_apply, SW_HIDE);
+    ShowWindow(g_game_restore, SW_HIDE);
     char f[MAX_PATH + 16];
     snprintf(f, sizeof f, "File: %s", g_ini_path);
     SetWindowTextA(g_file_label, f);
@@ -523,6 +681,20 @@ internal int ask_close(void) {
     return a == IDNO || (a == IDYES && save_file());
 }
 
+// the page g_page shown: its settings, or the game page
+internal void show_page(void) {
+    int game = k_pages[g_page].diff == GAME_PAGE;
+    HWND list_side[] = { g_filter, g_list, g_name, g_help, g_default, g_status, g_check, g_combo, g_edit };
+    for (size_t i = 0; i < sizeof list_side / sizeof *list_side; i++) if (game) ShowWindow(list_side[i], SW_HIDE);
+    if (!game) for (int i = 0; i < 6; i++) ShowWindow(list_side[i], SW_SHOW);
+    ShowWindow(g_game_text, game ? SW_SHOW : SW_HIDE);
+    ShowWindow(g_game_apply, game ? SW_SHOW : SW_HIDE);
+    ShowWindow(g_game_restore, game ? SW_SHOW : SW_HIDE);
+    if (game) game_show();
+    else fill_list();
+    repaint();
+}
+
 internal LRESULT CALLBACK wnd_proc(HWND w, UINT msg, WPARAM wp, LPARAM lp) {
     switch (msg) {
     case WM_SIZE: if (g_list) layout(); return 0;
@@ -531,14 +703,16 @@ internal LRESULT CALLBACK wnd_proc(HWND w, UINT msg, WPARAM wp, LPARAM lp) {
         int id = LOWORD(wp), code = HIWORD(wp);
         if (id == ID_PAGES && code == LBN_SELCHANGE) {
             g_page = (int)SendMessageA(g_pages, LB_GETCURSEL, 0, 0);
-            fill_list();
+            show_page();
         } else if (id == ID_FILTER && code == EN_CHANGE) fill_list();
         else if ((id == ID_CHECK && code == BN_CLICKED) || (id == ID_COMBO && code == CBN_SELCHANGE) || (id == ID_EDIT && code == EN_CHANGE))
             editor_changed(id);
         else if (id == ID_DEFAULT) set_default();
+        else if (id == ID_GAME_APPLY) game_apply();
+        else if (id == ID_GAME_RESTORE) game_restore();
         else if (id == ID_REMOVE) { g_remove_unknown = 1; show_unknown(); update_title(); }
         else if (id == ID_SAVE) {
-            if (save_file()) { read_file(); fill_list(); show_unknown(); layout(); update_title(); }
+            if (save_file()) { read_file(); show_page(); show_unknown(); layout(); update_title(); }
         } else if (id == ID_CLOSE || id == IDCANCEL) SendMessageA(w, WM_CLOSE, 0, 0);
         return 0;
     }
