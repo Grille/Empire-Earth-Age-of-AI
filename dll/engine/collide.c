@@ -18,6 +18,8 @@
 #define UC_WIDTH 0.35f   // a ship's width, a share of its length
 #define UC_RELAX 0.5f    // the share of an overlap undone a step
 #define UC_SIDESTEP 0.5f   // heading into another: the push turned this much (x how straight) to the side, starboard unless the other lies clearly to port
+#define UC_REST_DEEP 0.4f  // at rest only an overlap deeper than this share of the two radii counts, undone to half of it at once: every
+                          // push of a unit at rest plays its walk (the game's state 13), so light overlaps stay and no wave runs through a crowd
 #define UC_REST_EVERY 4   // a unit at rest looks for overlaps every this many steps (its share of each, the other does its own)
 #define UC_REACH 2       // tiles looked beyond the unit's half length for the other's (the largest ship, a carrier, 3.2 long)
 
@@ -131,13 +133,17 @@ internal int uc_separate(int kind, ee_unit *u, int resting) {
         int moves = uc_moves(c), nudge = !resting && !moves && unit_get_owner(c) == unit_get_owner(u) && !unit_get_frozen(c);
         if (resting && moves) continue;   // a moving one does it in its own step
         if (!resting && !moves && !nudge) share = 1.0f;
-        corr = vec2_add(corr, vec2_scale(d, over * share * UC_RELAX));
+        if (over > g_uc_deepest) g_uc_deepest = over;
+        if (resting) {
+            if (over < UC_REST_DEEP * rr) continue;
+            over -= UC_REST_DEEP * rr * 0.5f;
+        } else over *= UC_RELAX;
+        corr = vec2_add(corr, vec2_scale(d, over * share));
         if (nudge) {   // the standing one steps aside by its part
-            unit_set_push(c, vec2_add(unit_get_push(c), vec2_scale(d, -over * (1.0f - share) * UC_RELAX / dt)));
+            unit_set_push(c, vec2_add(unit_get_push(c), vec2_scale(d, -over * (1.0f - share) / dt)));
             model_push(type_get_model(unit_get_type_data(c)), c);
         }
         g_uc_hits++;
-        if (over > g_uc_deepest) g_uc_deepest = over;
     }
     if (corr.x == 0 && corr.y == 0) return 0;
     unit_set_push(u, vec2_add(unit_get_push(u), vec2_scale(corr, 1.0f / dt)));
