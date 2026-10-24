@@ -13,18 +13,32 @@
 // unit at work (gathering, building: UNIT_AT_WORK on a kind 6 or 4 goal) is passed, but by one at the same work. The
 // push goes through the game's own (SLOT_PM_PUSH: terrain and buildings tested, no faster than the top speed); the
 // speed is left alone, so a unit pressing on another slides along it. A unit at rest (not at work) moves its share off
-// other units at rest every UC_REST_EVERY steps - else a crowd that stopped on one spot stays one blob. Only + - * / and sqrtf: the same on every PC.
+// other units at rest every UC_REST_EVERY steps - else a crowd that stopped on one spot stays one blob - in movement
+// mode 0 for the push, so it doesn't play its walk; overlaps under UC_REST_SLOP are left, so the crowd settles. Only + - * / and sqrtf: the same on every PC.
 
 #define UC_WIDTH 0.35f   // a ship's width, a share of its length
 #define UC_RELAX 0.5f    // the share of an overlap undone a step
 #define UC_SIDESTEP 0.5f   // heading into another: the push turned this much (x how straight) to the side, starboard unless the other lies clearly to port
-#define UC_REST_DEEP 0.4f  // at rest only an overlap deeper than this share of the two radii counts, undone to half of it at once: every
-                          // push of a unit at rest plays its walk (the game's state 13), so light overlaps stay and no wave runs through a crowd
+#define UC_REST_SLOP 0.05f // tiles: at rest a lighter overlap is left - the positions settle instead of trading shoves
 #define UC_REST_EVERY 4   // a unit at rest looks for overlaps every this many steps (its share of each, the other does its own)
 #define UC_REACH 2       // tiles looked beyond the unit's half length for the other's (the largest ship, a carrier, 3.2 long)
 
 internal int g_uc_on[4];                  // by model_kind
 internal unsigned g_uc_rest;                 // pushes of units at rest off each other
+#define UC_REST_LOCK 3          // pushes at rest back against the one before, since it last moved on its own: then it
+                                // stays put - units pressed between others and something the push can't move shuffled
+                                // for ever; pushes on the same way are progress and don't count
+#define UC_MEM 4096
+struct uc_rest { uint32_t id; int n; vec2 last; };   // a unit's reversals at rest and its last push
+internal struct uc_rest g_uc_mem[UC_MEM];
+
+internal struct uc_rest *uc_rest_of(ee_unit *u) {
+    uint32_t id = (uint32_t)unit_get_serial(u), h = (id * 2654435761u) % UC_MEM, i = h;
+    for (int k = 0; k < 8; k++, i = (h + (uint32_t)k) % UC_MEM)
+        if (g_uc_mem[i].id == id || !g_uc_mem[i].id) break;
+    if (g_uc_mem[i].id != id) { g_uc_mem[i].id = id; g_uc_mem[i].n = 0; g_uc_mem[i].last = v2(0, 0); }
+    return &g_uc_mem[i];
+}
 internal unsigned g_uc_steps, g_uc_hits;   // collision steps taken over, overlaps pushed off
 internal float g_uc_deepest;               // the deepest overlap met (tiles)
 
@@ -88,6 +102,14 @@ internal int uc_passes(ee_unit *u, ee_unit *c) {
     return k == 6 ? goal_get_0x38(gu) != goal_get_0x38(gc) : goal_get_0x3c(gu) != goal_get_0x3c(gc);
 }
 
+// a standing unit's push applied in movement mode 0: it moves without the pushed walk (the game's state 13)
+internal void uc_push_quiet(void *model, ee_unit *u) {
+    int mode = unit_get_move_mode(u);
+    unit_set_move_mode(u, 0);
+    model_push(model, u);
+    unit_set_move_mode(u, mode);
+}
+
 internal int uc_moves(ee_unit *u) { return unit_get_speed(u) > 0.05f || unit_get_turn_rate(u) != 0; }
 
 // the push off every overlapping hull near u, added to its push velocity; a standing ship of u's owner gets its part
@@ -134,14 +156,12 @@ internal int uc_separate(int kind, ee_unit *u, int resting) {
         if (resting && moves) continue;   // a moving one does it in its own step
         if (!resting && !moves && !nudge) share = 1.0f;
         if (over > g_uc_deepest) g_uc_deepest = over;
-        if (resting) {
-            if (over < UC_REST_DEEP * rr) continue;
-            over -= UC_REST_DEEP * rr * 0.5f;
-        } else over *= UC_RELAX;
+        if (resting && over < UC_REST_SLOP) continue;
+        over *= UC_RELAX;
         corr = vec2_add(corr, vec2_scale(d, over * share));
         if (nudge) {   // the standing one steps aside by its part
             unit_set_push(c, vec2_add(unit_get_push(c), vec2_scale(d, -over * (1.0f - share) / dt)));
-            model_push(type_get_model(unit_get_type_data(c)), c);
+            uc_push_quiet(type_get_model(unit_get_type_data(c)), c);
         }
         g_uc_hits++;
     }
@@ -153,26 +173,33 @@ internal int uc_separate(int kind, ee_unit *u, int resting) {
 internal void __thiscall hook_collide(void *model, ee_unit *u) {
     int kind = model_kind(model);
     if (!u || !g_uc_on[kind]) { model_collide(model, u); return; }
-    vec2 push = unit_get_push(u);
-    if (!unit_get_moving(u) || (unit_get_speed(u) == 0 && unit_get_turn_rate(u) == 0 && fabsf(push.x) < 0.001f && fabsf(push.y) < 0.001f)) {
+    if (!unit_get_moving(u) || (unit_get_speed(u) == 0 && unit_get_turn_rate(u) == 0)) {
         // at rest: the game's step (its blocked time, the idle states), then, every UC_REST_EVERY steps, off the other
         // units at rest it overlaps - else units that stop on one spot (a rally point, a crowd) stay one blob; a unit
-        // at work keeps its place
+        // at work keeps its place. A push the game's contact test gave it (its circle test pushes the partner too) is
+        // dropped: the units around a pair that couldn't part shuffled for ever
+        unit_set_push(u, v2(0, 0));
         model_collide(model, u);
         ee_physics *ph = game_physics();
+        struct uc_rest *r = NULL;
         if (ph && !unit_get_at_work(u) && !unit_get_frozen(u) && unit_get_hp(u) > 0 && !unit_get_holder(u)
-            && ((unsigned)unit_get_serial(u) + phys_get_step(ph)) % UC_REST_EVERY == 0 && uc_separate(kind, u, 1)) {
+            && ((unsigned)unit_get_serial(u) + phys_get_step(ph)) % UC_REST_EVERY == 0
+            && (r = uc_rest_of(u))->n < UC_REST_LOCK && uc_separate(kind, u, 1)) {
+            vec2 p = unit_get_push(u);
+            if (vec2_dot(p, r->last) < 0) r->n++;
+            r->last = p;
             g_uc_rest++;
-            model_push(model, u);
+            uc_push_quiet(model, u);
         }
         return;
     }
     g_uc_steps++;
+    uc_rest_of(u)->n = 0;   // it moves: free to be pushed at rest again
     uc_separate(kind, u, 0);
     model_push(model, u);
 }
 
-internal void collide_new_game(void) { g_uc_steps = g_uc_hits = g_uc_rest = 0; g_uc_deepest = 0; }
+internal void collide_new_game(void) { g_uc_steps = g_uc_hits = g_uc_rest = 0; g_uc_deepest = 0; memset(g_uc_mem, 0, sizeof g_uc_mem); }
 
 internal void collide_install(void) {
     g_uc_on[MODEL_SHIPS] = g_uc_on[MODEL_SUBS] = g_set.ship_collide;

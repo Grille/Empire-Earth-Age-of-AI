@@ -75,6 +75,8 @@ internal inline float unit_get_speed(const ee_unit *u) { return FIELD(u, UNIT_SP
 internal inline float unit_get_size(const ee_unit *u) { return FIELD(u, UNIT_SIZE, float); }            // +0x244 the type's size x its scale (tiles)
 internal inline float unit_get_turn_rate(const ee_unit *u) { return FIELD(u, UNIT_TURN_RATE, float); }  // +0x17C radians/s, signed
 internal inline int unit_get_moving(const ee_unit *u) { return FIELD(u, UNIT_MOVING, int); }            // +0x2D8 set while it moves
+internal inline int unit_get_move_mode(const ee_unit *u) { return FIELD(u, UNIT_MOVE_MODE, int); }      // +0x264 the movement mode
+internal inline void unit_set_move_mode(ee_unit *u, int m) { FIELD(u, UNIT_MOVE_MODE, int) = m; }
 internal inline vec2 unit_get_push(const ee_unit *u) { return FIELD(u, UNIT_PUSH, vec2); }              // +0x230 the push velocity (tiles/s)
 internal inline void unit_set_push(ee_unit *u, vec2 v) { FIELD(u, UNIT_PUSH, vec2) = v; }
 internal inline int unit_get_producing(const ee_unit *u) { return FIELD(u, UNIT_PRODUCING, int); }          // +0x25C what a building makes now

@@ -605,6 +605,7 @@
     O(UNIT_SPEED, 0x238, 0x238) /* c */ \
     O(UNIT_SIZE, 0x244, 0x244) /* c: the type's size (+0x474) x the unit's scale, in tiles - a diameter to the circle test (EEPhysicsModel::vf15), the line's length to the ships' (EEPMNaval::vf16) - FN_PM_COLLIDE in both builds */ \
     O(UNIT_PRODUCING, 0x25C, 0x260) /* c */ \
+    O(UNIT_MOVE_MODE, 0x264, 0x268) /* c: the movement mode (0x549F82 picks the model's step by it; 2 no collisions) - the push (SLOT_PM_PUSH) sets an idle unit's pushed walk (+0x260 13) only while it is neither 0 nor 5, in both builds */ \
     O(UNIT_MOVING, 0x2D8, 0x2DC) /* c: set while it moves (FN_PM_COLLIDE's first test in both builds) */ \
     O(UNIT_TURN_RATE, 0x17C, 0x17C) /* c: the turn rate now (radians/s, signed) - FN_PM_COLLIDE in both builds, FN_TURN_DECIDE's caller */ \
     O(UNIT_FLIGHT_MS, 0x28C, 0x290) /* c */ \
