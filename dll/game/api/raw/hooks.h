@@ -53,6 +53,7 @@
     F(FN_TURN_TOWARDS, void, __thiscall, (void *, void *, float *, float *, float *, float *, float *, char), 0x005484D9, 0x00554A25) /* EEPhysicsModel::vf7 thiscall(model, unit, float pos[3], float target[3], out angle left, out turn rate, out new heading, 0 / 1 to the unit's facing): the tick's turn towards a point (EEPMNaval::vf1 0x54EB00 gives the front waypoint); ret 0x1C */ \
     F(FN_SPEED_STEP, float, __thiscall, (void *, void *, float, float), 0x0054858E, 0x00554BDE) /* EEPhysicsModel::vf8 thiscall(model, unit, distance to the waypoint, angle off the bow): the new speed from FN_SPEED_DECIDE (given the same) - on the last waypoint faster no further than the distance */ \
     F(FN_SPEED_DECIDE, int, __thiscall, (void *, void *, float, float), 0x00548645, 0x00554CB2) /* EEPhysicsModel::vf9 thiscall(model, unit, distance to the waypoint, angle off the bow): 2 hold, 3 faster, 4 slower - more than 45 degrees off, slower */ \
+    F(FN_PM_COLLIDE, void, __thiscall, (void *, void *), 0x0054CABF, 0x0055BE0E) /* the ships' (and helicopters') slot 18 (AoC 19): a thunk to EEPhysicsModel::vf18 0x549E61 (AoC vf19 0x556710) thiscall(model, unit), the collision step - while the unit moves (+0x2D8, AoC +0x2DC) and has contacts (+0xC8) or a blocked time (+0x248): the contacts tested (slot 14, AoC 15: the speed cut, the push +0x230/+0x234) and the push applied (SLOT_PM_PUSH) - docs/engine-notes.md "Collision" */ \
     F(FN_TURN_DECIDE, int, __thiscall, (void *, void *, float, float), 0x0054880E, 0x00554F56) /* EEPhysicsModel slot 11 (AoC 12: its vtables have a slot more before; AoC rewrote it - the signs, a step ahead -, so not patched there) thiscall(model, unit, turn rate now (unit +0x17C, radians/s), angle left to turn): 3 turn faster towards it, 4 slower - from a stopping angle of the type's +0xC8 x the settings' +0x88 */ \
     D(CALL_MISSILE_AIM, 0x0054E850, 0x0055B1C3) \
     D(SITE_SIM_RECEIVE, 0x00553348, 0x00561459) \
@@ -112,6 +113,8 @@
     D(SLOT_PM_SPEED_STEP, 8, 9)         /* EEPhysicsModel: FN_SPEED_STEP (the tick's +0x20) */ \
     D(SLOT_PM_SPEED_DECIDE, 9, 10)      /* EEPhysicsModel: FN_SPEED_DECIDE (AoC: its vf8 0x554BDE calls +0x28) */ \
     D(SLOT_PM_TURN_DECIDE, 11, 12)      /* EEPhysicsModel: FN_TURN_DECIDE (called from the turn step 0x548266 / AoC 0x554738: +0x2C / +0x30) */ \
+    D(SLOT_PM_COLLIDE, 18, 19)          /* EEPhysicsModel: FN_PM_COLLIDE (after each movement mode's step, 0x549F82 +0x48) */ \
+    D(SLOT_PM_PUSH, 3, 3)               /* EEPhysicsModel: the push applied (FN_PM_COLLIDE's +0xC; EEPMNaval::vf3 0x54F05E, AoC 0x55B9D1) */ \
     D(SLOT_SERVER_SEND, 6, 6)           /* [G_SERVER] (EEServer, EEClient): thiscall(net, message, 0xFF) */ \
     D(SLOT_ROUTE_COST, 1, 1)            /* VT_ROUTE_PLANNER: FN_ROUTE_COST */ \
     D(SLOT_ASGU_SCORE, 2, 2)            /* ASGU_VTABLES */ \

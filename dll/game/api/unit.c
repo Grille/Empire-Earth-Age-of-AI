@@ -72,6 +72,11 @@ internal inline void *unit_get_behaviour(const ee_unit *u) { return FIELD(u, UNI
 internal inline void unit_set_behaviour(ee_unit *u, void *b) { FIELD(u, UNIT_BEHAVIOUR, void *) = b; }
 internal inline float unit_get_speed_min(const ee_unit *u) { return FIELD(u, UNIT_SPEED_MIN, float); }      // +0x21C the speed, at least the type's minimum
 internal inline float unit_get_speed(const ee_unit *u) { return FIELD(u, UNIT_SPEED, float); }          // +0x238 tiles/s (0 standing)
+internal inline float unit_get_size(const ee_unit *u) { return FIELD(u, UNIT_SIZE, float); }            // +0x244 the type's size x its scale (tiles)
+internal inline float unit_get_turn_rate(const ee_unit *u) { return FIELD(u, UNIT_TURN_RATE, float); }  // +0x17C radians/s, signed
+internal inline int unit_get_moving(const ee_unit *u) { return FIELD(u, UNIT_MOVING, int); }            // +0x2D8 set while it moves
+internal inline vec2 unit_get_push(const ee_unit *u) { return FIELD(u, UNIT_PUSH, vec2); }              // +0x230 the push velocity (tiles/s)
+internal inline void unit_set_push(ee_unit *u, vec2 v) { FIELD(u, UNIT_PUSH, vec2) = v; }
 internal inline int unit_get_producing(const ee_unit *u) { return FIELD(u, UNIT_PRODUCING, int); }          // +0x25C what a building makes now
 internal inline int unit_get_flight_ms(const ee_unit *u) { return FIELD(u, UNIT_FLIGHT_MS, int); }          // +0x28C a missile's climb left (ms)
 internal inline int unit_get_reload(const ee_unit *u) { return FIELD(u, UNIT_RELOAD, int); }            // +0x2A0 its own reload (ms, 0: its class's)

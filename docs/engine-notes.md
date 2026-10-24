@@ -271,6 +271,15 @@ vf26 members and route released, vf12, the group's reference) frees nothing twic
   - So: phasing through - nothing blocks a ship, and line tests miss side-by-side and shallow-angle overlaps, contacts
     only come from tile changes within the mover's radius; jumping back - the push after the step, the speed halved
     per contact per step; stuck - halve, push back, speed up again, the obstacle timer zeroed by each tile change.
+  - The models' slot 18 (AoC 19) is the step: EEPMNaval's holds a thunk 0x54CABF (AoC 0x55BE0E; the helicopters'
+    too) to the base's 0x549E61, slot 14 likewise a thunk 0x54C191 to vf14; slot 3 the push (EEPMNaval::vf3, AoC
+    0x55B9D1). The push moves by push x step x [0x8ABC84] (AoC 0x8C237C: an int, ceil(0x918DEC / 0x8ABC80), at least
+    1). The unit's size +0x244 is the type's +0x474 (scale 1 in the probe: dreadnought 3.0, carrier 3.2, frigate 2.5,
+    transport 2.3, cruiser 1.95, U-boat 1.5); +0x470 is larger (4, 5, 3, 4.5, 3, 2.5). `ship_collide`
+    (dll/engine/collide.c) replaces the ships' slot 18: hulls as capsules (the size long, 0.35 of it wide) found
+    through the unit grid, half the overlap undone a step by the push, shared by size with a moving partner, nudging a
+    standing one of the same owner (its push applied at once: a standing ship's own step doesn't run), a ship heading
+    into another turned off to starboard.
 - **Circling a waypoint:** the tick steers straight at the front waypoint, with no look further on, and arrival wants
   it within the type's +0x474 on its own tile: a waypoint off to the side within the turning circle (radius v / w)
   can't be hit, the unit overshoots, steers back and circles it. The player's Hammerheads at 5.65 tiles/s (the

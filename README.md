@@ -300,6 +300,15 @@ Settings in `aimod.ini`:
   the heading, then back (a unit turning the wrong way was even let turn on). With 1 they brake in time and stop on
   the heading, as in Art of Conquest. Land units turn at a fixed rate and aren't affected. In multiplayer every PC
   needs the same setting.
+- `[general] ship_collide=0` (default off while it is measured): ships ran through each other, jumped back and got
+  stuck on each other - the game tests two ships as thin lines along their headings (side by side or at a shallow
+  angle they miss), a small ship next to a big one may not see it at all, and a hit halves the smaller one's speed
+  and pushes it back in one jump. With 1 every ship has a hull (a capsule as long as the game's size for it, a third
+  as wide), and ships whose hulls overlap are pushed apart gently, a little each step, the smaller one moving more; a
+  ship heading into another veers off to starboard and slides past, and a standing ship of the same player is
+  nudged aside instead of blocking. Submarines keep the game's. In a 16-ship fleet move through a channel the last
+  ship arrived 50-70 s sooner and the ships stood about 70% less time short of their goal. The player's and the AI's
+  ships alike; in multiplayer every PC needs the same setting.
 - `[sound] clamp_channels=1` (default): the "Max Number Of Sounds" slider goes to 200%, which asks for 32 sound
   channels, but the sound mixer has only 16 on current Windows. Sounds put on the 16 missing channels were silent,
   and a looping one (unit movement such as the U-boats', ambience) stayed stuck there and never played again -

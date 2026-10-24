@@ -21,6 +21,7 @@ internal inline uint8_t *dmgmodel_map_at(const ee_dmg_model *model) { return (ui
 // THE GAME'S DATA (raw/data.h's G_ rows): its globals read through these, typed - NULL / 0 before they exist
 internal inline ee_map *game_map(void) { return *(ee_map **)GA(G_MAP); }                   // +0x1816FC its size in tiles
 internal inline ee_physics *game_physics(void) { return *(ee_physics **)GA(G_WORLD_CLOCK); }       // EEPhysics: +0xD0 the game time
+internal inline int phys_substeps(void) { return *(int *)GA(G_PHYS_SUBSTEPS); }                    // the push's factor on a step (at least 1)
 internal inline ee_world *game_world(void) { return *(ee_world **)GA(G_WORLD); }                     // the action queue's owner, the UI's
 internal inline ee_server *game_server(void) { return *(ee_server **)GA(G_SERVER); }                   // the lockstep server (EEServer, EEClient)
 internal inline ee_game_data *game_data(void) { return *(ee_game_data **)GA(G_GAME_DATA); }            // the game data loaded (GAMEDATA)

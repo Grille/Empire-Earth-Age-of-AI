@@ -1,0 +1,15 @@
+// The units' sizes as the collision reads them (`fmove watch`'s size: the unit's +0x244, the type's +0x474 and
+// +0x470): Small Islands (map seed 1, start_epoch 9), a ship of each kind in the open north sea and land units on
+// the home island, each order logged for a few steps.
+wait_until(0.1min)
+spawn(1, unit.s10_dreadnought_battleship, 52, 14, 1)
+spawn(1, unit.s10_cruiser, 56, 14, 1)
+spawn(1, unit.s10_good_hope_frigate, 60, 14, 1)
+spawn(1, unit.s11_enterprise_aircraft_carrier, 60, 20, 1)
+spawn(1, unit.s10_atomic_age_transport, 56, 20, 1)
+spawn(1, unit.s10_u_boat, 64, 14, 1)
+wait_until(0.2min)
+cmd("fmove go 1 58 16 10 62 24")
+cmd("fmove watch 1")
+wait_until(0.25min)
+cmd("fmove watch 0")

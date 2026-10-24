@@ -36,9 +36,10 @@ internal void fm_tick(void) {
             ee_unit *w = unit_by_id(g_fm[i].id);
             if (!w) continue;
             vec3 q = unit_get_pos(w), fq = unit_get_facing(w);
-            fprintf(g_log, "# fmwatch %u %06x %.3f %.3f %.1f %.3f %u %u %.2f push %.3f %.3f obst %d contacts %d\n", now, g_fm[i].id & 0xFFFFFF, q.x, q.y,
+            fprintf(g_log, "# fmwatch %u %06x %.3f %.3f %.1f %.3f %u %u %.2f push %.3f %.3f obst %d contacts %d size %.2f %.2f %.2f\n", now, g_fm[i].id & 0xFFFFFF, q.x, q.y,
                     atan2f(fq.x, fq.y) * 57.29578f, unit_get_speed(w), unit_ai_state_id(w), FIELD(w, 0x345, uint8_t), FIELD(w, 0x248, float),
-                    FIELD(w, 0x230, float), FIELD(w, 0x234, float), FIELD(w, 0x20C, int) != 0, FIELD(w, 0xC8, int));
+                    FIELD(w, 0x230, float), FIELD(w, 0x234, float), FIELD(w, 0x20C, int) != 0, FIELD(w, 0xC8, int),
+                    FIELD(w, 0x244, float), FIELD(unit_get_type_data(w), 0x474, float), FIELD(unit_get_type_data(w), 0x470, float));
         }
     if (!g_fm_trace) return;
     ee_unit *u = unit_by_id(g_fm_trace);
@@ -128,8 +129,9 @@ internal void cmd_fmove(char *out, const char *args) {
             crept += f->crept;
         }
         REPLY("fmove sum: %d units, the last moving at %.1f s, %d done (the last at %.1f s), standing short of the goal %.1f s together (creeping %.1f); "
-              "ship_turns so far: %u ticks kept the speed, %u steered along the route, %u waypoints dropped, %u passing a queued point\n", g_fm_n, moved, n_done, done, stood, crept, g_st_kept,
-              g_st_steered, g_st_skipped, g_st_passing);
+              "ship_turns so far: %u ticks kept the speed, %u steered along the route, %u waypoints dropped, %u passing a queued point; "
+              "ship_collide: %u steps, %u overlaps pushed off, the deepest %.2f tiles\n", g_fm_n, moved, n_done, done, stood, crept, g_st_kept,
+              g_st_steered, g_st_skipped, g_st_passing, g_uc_steps, g_uc_hits, g_uc_deepest);
         return;
     }
     if (!strcmp(what, "then")) {   // fmove then P tx ty: the order's units (still there) also sent on to tx, ty, queued as with shift
@@ -147,13 +149,13 @@ internal void cmd_fmove(char *out, const char *args) {
         REPLY("fmove: %d units of P%d then to %d,%d (queued)\n", n, p, x, y);
         return;
     }
-    int also = !strcmp(what, "also");   // fmove also ...: as go, the units added to the order's (the watch, sum)
-    if (strcmp(what, "go") && !also) { REPLY("fmove go|also P x y r tx ty | then P tx ty | watch 1|0 | stat | sum\n"); return; }
+    int also = !strcmp(what, "also"), add = !strcmp(what, "add");   // fmove also ...: as go, the units added to the order's (the watch, sum); add P x y r: added without an order
+    if (strcmp(what, "go") && !also && !add) { REPLY("fmove go|also P x y r tx ty | add P x y r | then P tx ty | watch 1|0 | stat | sum\n"); return; }
     ee_player *pl = p > 0 && p < 16 ? game_players()[p] : NULL;
     if (!pl) { REPLY("fmove: no player %d\n", p); return; }
     static uint32_t ids[FM_MAX];
     static __attribute__((aligned(8))) uint8_t mem[0x40];
-    int first = also ? g_fm_n : 0;
+    int first = also || add ? g_fm_n : 0;
     g_fm_n = first;
     for (struct grid_it it = grid_it_box(x, y, r, 1); g_fm_n < FM_MAX && grid_it_next(&it); ) {
         ee_unit *u = it.u;
@@ -170,8 +172,9 @@ internal void cmd_fmove(char *out, const char *args) {
         f->y = q.y;
         ids[g_fm_n++] = f->id;
     }
-    if (!g_fm_n) { REPLY("fmove: no units of P%d within %d of %d,%d\n", p, r, x, y); return; }
-    uint32_t *sel[3] = { NULL, ids, ids + g_fm_n };   // a select message's selection: its ids at +4 .. +8
+    if (g_fm_n == first) { REPLY("fmove: no units of P%d within %d of %d,%d\n", p, r, x, y); return; }
+    if (add) { REPLY("fmove: %d units of P%d added\n", g_fm_n - first, p); return; }
+    uint32_t *sel[3] = { NULL, ids + first, ids + g_fm_n };   // a select message's selection: its ids at +4 .. +8 (only the units just added)
     player_select(pl, sel);
     memset(mem, 0, sizeof mem);
     g_fm_tx = (float)tx + 0.5f;

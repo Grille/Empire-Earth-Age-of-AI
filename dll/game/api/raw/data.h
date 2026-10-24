@@ -50,6 +50,7 @@
     D(G_FULLSCREEN, 0x0091945A, 0x009308DB) \
     D(G_RESOURCES, 0x00919770, 0x009318EC)                                    /* the string resources */ \
     D(G_WORLD_CLOCK, 0x00919774, 0x009318F0)                                  /* ptr to EEPhysics; +0xD0 = game time in ms */ \
+    D(G_PHYS_SUBSTEPS, 0x008ABC84, 0x008C237C)                                /* int: ceil([0x918DEC] / [0x8ABC80]), at least 1 (0x547AAD) - the push moves a unit by push x step x it (SLOT_PM_PUSH) */ \
     D(G_WORLD, 0x0091977C, 0x009318F8)                                        /* action queue owner: QueueAction 0x66192F (thiscall, takes action ptr) */ \
     D(G_RASTERIZER, 0x00919794, 0x00931910) \
     D(G_UI_MANAGER, 0x009197A0, 0x0093191C) \

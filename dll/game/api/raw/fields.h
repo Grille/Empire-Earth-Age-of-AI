@@ -593,8 +593,12 @@
     O(UNIT_GOAL_OBJECT, 0x1F0, 0x1F0) /* c */ \
     O(UNIT_BEHAVIOUR, 0x208, 0x208) /* c */ \
     O(UNIT_SPEED_MIN, 0x21C, 0x21C) /* c */ \
+    O(UNIT_PUSH, 0x230, 0x230) /* c: the push velocity {x, y} (tiles/s; the collision test adds, SLOT_PM_PUSH moves the unit by it x a step x G_PHYS_SUBSTEPS and zeroes it) - FN_PM_COLLIDE in both builds */ \
     O(UNIT_SPEED, 0x238, 0x238) /* c */ \
+    O(UNIT_SIZE, 0x244, 0x244) /* c: the type's size (+0x474) x the unit's scale, in tiles - a diameter to the circle test (EEPhysicsModel::vf15), the line's length to the ships' (EEPMNaval::vf16) - FN_PM_COLLIDE in both builds */ \
     O(UNIT_PRODUCING, 0x25C, 0x260) /* c */ \
+    O(UNIT_MOVING, 0x2D8, 0x2DC) /* c: set while it moves (FN_PM_COLLIDE's first test in both builds) */ \
+    O(UNIT_TURN_RATE, 0x17C, 0x17C) /* c: the turn rate now (radians/s, signed) - FN_PM_COLLIDE in both builds, FN_TURN_DECIDE's caller */ \
     O(UNIT_FLIGHT_MS, 0x28C, 0x290) /* c */ \
     O(UNIT_RELOAD, 0x2A0, 0x2A4) /* c */ \
     O(UNIT_ROOM, 0x2A4, 0x2A8) /* c: 2 votes, UNIT_RELOAD's shift */ \
