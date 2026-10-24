@@ -15,7 +15,7 @@ and the runners, eectl, the MCP server), `results/` (log readers, scorers), `re/
 
 ## Build and install
 
-- `sh dll/build.sh` builds `dll/eeaimod.dll` and `dll/dinput.dll` (llvm-mingw in `local/tools/`, 32-bit; it also
+- `sh dll/build.sh` builds `dll/eeaimod.dll`, `dll/dinput.dll` and `dll/aimod_config.exe` (llvm-mingw in `local/tools/`, 32-bit; it also
   regenerates `dll/persist_layout.h` and `dll/test/cmd_verbs.h`). One translation unit: `dll/eeaimod.c` includes the rest.
   A build must be free of warnings. It also writes `.editor/compile_commands.json` (git-ignored, read by VS Code's
   C/C++ through `.vscode/c_cpp_properties.json`): each part with the text eeaimod.c has before it, so the editor
@@ -24,7 +24,8 @@ and the runners, eectl, the MCP server), `results/` (log readers, scorers), `re/
   base (nothing) <- game/api (the game's code and objects, one module: nothing of its raw/ outside it) <- game <- engine, ai (and voice/say.h: what the AI says goes through it); script (base only: the
   language knows no game - script/host.h asks the program); voice (base, game, ai, script); game_script (the game in
   the language: all of those); settings (base only: aimod.ini's keys as rows, read once into `g_set` - used by
-  engine, ai, voice, game_script, test and the wiring);
+  engine, ai, voice, game_script, test and the wiring); tool (base, settings, script: aimod_config.exe, a program of
+  its own - a name there must not be one of the DLL's too: layers.py reads the tree as one namespace);
   test and the wiring (`eeaimod.c`, `persist.c`) everything. A new crossing fails the build - put the code where it
   belongs (a shared helper down into base/ or game/) instead of adding an exception. `--why <folder>` lists the uses.
 - A move that should change no code (files, functions between files): `scripts/build/code_same.py HEAD` must say "0 differ".

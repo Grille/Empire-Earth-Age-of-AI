@@ -194,6 +194,12 @@ siege, home guard.
 3. Optional: copy the folder [`config/aimod_ai`](config/aimod_ai) into the same folder for the AI
    personalities. Add or edit `.eeai` files there to make your own; they are read when Empire Earth starts.
 4. Start the game normally. Changes to `aimod.ini` take effect when a game starts or a save is loaded.
+   Instead of editing the file you can copy `aimod_config.exe` into the same folder and start it: every
+   setting by section (General, Display, ... the AI for every difficulty and each one alone) with its
+   explanation, its value and its default; a value is checked as you type, as the game reads it, and Save
+   writes only what you changed, keeping the file's comments. It also lists keys in your file that this
+   version no longer knows (old experiments, typing mistakes) and can remove them. Without an `aimod.ini` it
+   offers to make one with the default settings.
 5. Optional: copy `dinput.dll` into the same folder too. The game then keeps its own settings (graphics,
    sound, scroll speed, the last game's options - what the options screen sets) in `eesettings.ini` in the
    game folder instead of the Windows registry, so they travel with the folder; the first start copies the
@@ -416,6 +422,10 @@ dll/              the mod (C), one translation unit: eeaimod.c includes every pa
   test/             control.c the control pipe, testcmd.c / testopp.c test commands and the sea opponent, randmap.c
                     test-game setup, autotest.c, scripts.c the setup scripts (cmd_verbs.h, generated: the commands
                     they call), trace.c call tracing, ecolog.c the economy log
+  settings/         rows.h every aimod.ini key as a row (kind, section, default, limits), settings.c reads them once into
+                    g_set / g_set_ai (a value per AI difficulty) - the parts read those, never the file
+  tool/             aimod_config.c: aimod_config.exe, the settings in a window (from base/, script/ and settings/ only:
+                    the DLL's own rows and checks; the shipped aimod.ini built in as the help)
   dinput/           eesettings.c: dinput.dll, the game's settings in eesettings.ini instead of the registry
 config/           aimod.ini and the aimod_ai personalities, shipped to players
 tests/            what the tests run: scenarios/ the setup scripts (docs/scripts.md) that turn a save into a test

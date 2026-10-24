@@ -20,7 +20,9 @@ internal void ini_tell(const char *line) {
     if (g_log) { fprintf(g_log, "# ini: %s\n", line); fflush(g_log); }
     else if (g_ini_npending < 8) lstrcpynA(g_ini_pending[g_ini_npending++], line, sizeof g_ini_pending[0]);
 }
+internal char *g_ini_why;   // set (MAX_PATH): a mistake's reason goes here instead of the log (the settings program)
 internal void ini_error(const char *file, const char *sec, const char *key, const char *val, const char *why) {
+    if (g_ini_why) { lstrcpynA(g_ini_why, why, MAX_PATH); return; }
     const char *name = strrchr(file, '\\');
     char line[200];
     snprintf(line, sizeof line, "%s [%s] %s=%.40s: %s - the default instead", name ? name + 1 : file, sec, key, val, why);

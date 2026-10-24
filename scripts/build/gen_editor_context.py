@@ -6,7 +6,7 @@ extension: .vscode/c_cpp_properties.json points it here) finds none of that. So 
 #include as a forced include (-include .editor/<part>.pre.c): eeaimod.c up to that line, and for a part a part
 includes (engine/display.c's present_d3d.c) the includer's lines up to it as well - the editor sees what the
 compiler sees there. #line keeps the pasted lines' own file and line (go to definition lands in eeaimod.c).
-dinput/eesettings.c is a compile of its own, as build.sh does it. The output is git-ignored (.editor/.gitignore).
+dinput/eesettings.c and tool/aimod_config.c are compiles of their own, as build.sh does them. The output is git-ignored (.editor/.gitignore).
 
     python scripts/build/gen_editor_context.py
 """
@@ -60,6 +60,8 @@ def main():
     commands = [{'directory': slash(DLL), 'file': slash(unit), 'arguments': [slash(CC), '-I.', '-c', slash(unit)]}]
     dinput = os.path.join(DLL, 'dinput', 'eesettings.c')
     commands.append({'directory': slash(DLL), 'file': slash(dinput), 'arguments': [slash(CC), '-c', slash(dinput)]})
+    tool = os.path.join(DLL, 'tool', 'aimod_config.c')   # the settings program: its own unit, its includes whole
+    commands.append({'directory': slash(DLL), 'file': slash(tool), 'arguments': [slash(CC), '-I.', '-c', slash(tool)]})
     wanted = set()
     for target, chunks in sorted(entries.items()):
         rel = os.path.relpath(target, DLL)

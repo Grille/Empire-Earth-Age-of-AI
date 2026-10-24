@@ -1,5 +1,5 @@
 #!/bin/sh
-# Installs the committed build into the game folder: eeaimod.dll (and the mod's dinput.dll) built from a clean
+# Installs the committed build into the game folder: eeaimod.dll (and the mod's dinput.dll, aimod_config.exe) built from a clean
 # `git archive HEAD` - never from the working tree, which may hold another session's unfinished changes. A DLL a
 # running game has loaded can't be replaced: it builds first (HEAD as it is now), then reserves the game folder
 # (reserve.sh: no test starts a game any more, the running ones - and the player's - are waited for) and copies.
@@ -16,5 +16,7 @@ reserve_begin "install $REV"
 cp "$B/dll/eeaimod.dll" "$G/eeaimod.dll" || exit 1
 # another program's dinput.dll is never replaced (then the game's settings stay in the registry)
 if [ ! -f "$G/dinput.dll" ] || grep -q EEAimodSettings "$G/dinput.dll"; then cp "$B/dll/dinput.dll" "$G/dinput.dll" || exit 1; fi
+# the settings program: one the player has open stays (the next install replaces it)
+cp "$B/dll/aimod_config.exe" "$G/aimod_config.exe" 2>/dev/null || echo "aimod_config.exe is open - not replaced"
 reserve_end
 echo "installed $REV"

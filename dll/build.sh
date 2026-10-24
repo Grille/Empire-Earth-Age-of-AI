@@ -25,9 +25,17 @@ else echo "no Python: persist_layout.h and cmd_verbs.h left as they are, the fol
 "$CC" -O2 -mstackrealign -fno-strict-aliasing -Wall -Wextra -Wformat=2 -Wstrict-prototypes -Wimplicit-fallthrough -Wvla -Wshadow -shared -static -I. -o eeaimod.dll eeaimod.c -lgdi32 -ldxguid -lwinmm -lwinhttp -Wl,--image-base,0x6E000000 -Wl,--exclude-all-symbols || exit 1
 # dinput.dll (optional): the game's settings in eesettings.ini instead of the registry (dinput/eesettings.c)
 "$CC" -O2 -Wall -Wextra -Wformat=2 -Wstrict-prototypes -Wimplicit-fallthrough -Wvla -Wshadow -shared -static -o dinput.dll dinput/eesettings.c dinput/eesettings.def -ladvapi32 -luser32 || exit 1
+# aimod_config.exe: the settings in a window (tool/aimod_config.c), a program of its own from base/, script/ and
+# settings/ - the DLL's rows and checks; its resources the shipped config/aimod.ini (the help) and a manifest.
+# -Wno-unused-function: it takes those files whole and calls only part of them
+WINDRES=${WINDRES:-${CC%clang}windres}
+"$WINDRES" -I. tool/aimod_config.rc -O coff -o aimod_config_res.o || exit 1
+"$CC" -O2 -Wall -Wextra -Wformat=2 -Wstrict-prototypes -Wimplicit-fallthrough -Wvla -Wshadow -Wno-unused-function -mwindows -static -I. -o aimod_config.exe tool/aimod_config.c aimod_config_res.o -lcomctl32 -lgdi32 || { rm -f aimod_config_res.o; exit 1; }
+rm -f aimod_config_res.o
 if [ "$1" = install ]; then   # the working tree's build (scripts/build/install.sh: the committed one) into the game folder
     REPO="$(cd .. && pwd)"; . ../scripts/game_dir.sh   # GAME
     cp eeaimod.dll "$GAME/eeaimod.dll" && echo "installed to $GAME/eeaimod.dll"
+    cp aimod_config.exe "$GAME/aimod_config.exe" && echo "installed to $GAME/aimod_config.exe" || echo "aimod_config.exe is open - not replaced"
     # another program's dinput.dll is never replaced (then the settings simply stay in the registry)
     if [ ! -f "$GAME/dinput.dll" ] || grep -q EEAimodSettings "$GAME/dinput.dll"; then
         cp dinput.dll "$GAME/dinput.dll" && echo "installed to $GAME/dinput.dll (settings in eesettings.ini)"

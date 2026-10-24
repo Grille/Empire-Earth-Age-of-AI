@@ -98,14 +98,20 @@ internal int setting_raw(const struct setting_row *r, int d, const char *key, co
     return 0;
 }
 
-// one key of row r (difficulty d) into at (name: its test ini key); 1: read (not the default)
-internal int setting_read(const struct setting_row *r, int d, const char *key, const char *name, void *at, const char *ini,
-                          const char *test_ini, uint8_t *from) {
-    char v[MAX_PATH + 8], why[96];
-    const char *f, *s, *k;
+// row r's default into at
+internal void setting_default(const struct setting_row *r, void *at) {
+    if (r->kind == SETK_STR || r->kind == SETK_STR_P) lstrcpynA((char *)at, r->def_s, r->a);
+    else if (r->kind == SETK_CHOICE) *(int *)at = setting_choice(r->choices, r->def_s);
+    else if (r->kind == SETK_SHARE) *(float *)at = (float)(r->def / 100.0);
+    else *(int *)at = r->def;
+}
+
+// text v as row r's value into at (f, s, k: the file, section and key it was read from, for a mistake's message);
+// 0: a mistake (told: ini_error), at keeps the default
+internal int setting_value(const struct setting_row *r, const char *f, const char *s, const char *k, const char *v, void *at) {
+    char why[96];
+    setting_default(r, at);
     if (r->kind == SETK_STR || r->kind == SETK_STR_P) {
-        lstrcpynA((char *)at, r->def_s, r->a);
-        if (!setting_raw(r, d, key, name, ini, test_ini, v, sizeof v, &f, &s, &k, from)) return 0;
         if ((int)strlen(v) >= r->a) {
             snprintf(why, sizeof why, "at most %d characters", r->a - 1);
             ini_error(f, s, k, v, why);
@@ -115,8 +121,6 @@ internal int setting_read(const struct setting_row *r, int d, const char *key, c
         return 1;
     }
     if (r->kind == SETK_CHOICE) {
-        *(int *)at = setting_choice(r->choices, r->def_s);
-        if (!setting_raw(r, d, key, name, ini, test_ini, v, sizeof v, &f, &s, &k, from)) return 0;
         int i = setting_choice(r->choices, v);
         if (i < 0) {
             snprintf(why, sizeof why, "one of %s expected", r->choices);
@@ -126,15 +130,10 @@ internal int setting_read(const struct setting_row *r, int d, const char *key, c
         *(int *)at = i;
         return 1;
     }
-    if (r->kind == SETK_SHARE) {
-        double def = r->def / 100.0;
-        *(float *)at = (float)def;
-        if (!setting_raw(r, d, key, name, ini, test_ini, v, sizeof v, &f, &s, &k, from)) return 0;
-        *(float *)at = (float)ini_share_of(f, s, k, v, def, r->a / 100.0, r->b / 100.0);
+    if (r->kind == SETK_SHARE) {   // a mistake: told, the default
+        *(float *)at = (float)ini_share_of(f, s, k, v, r->def / 100.0, r->a / 100.0, r->b / 100.0);
         return 1;
     }
-    *(int *)at = r->def;
-    if (!setting_raw(r, d, key, name, ini, test_ini, v, sizeof v, &f, &s, &k, from)) return 0;
     if (r->kind == SETK_PCT) {
         *(int *)at = ini_pct_of(f, s, k, v, r->def, r->a);
         return 1;
@@ -153,24 +152,41 @@ internal int setting_read(const struct setting_row *r, int d, const char *key, c
     return 1;
 }
 
+// one key of row r (difficulty d) into at (name: its test ini key); 1: read (not the default)
+internal int setting_read(const struct setting_row *r, int d, const char *key, const char *name, void *at, const char *ini,
+                          const char *test_ini, uint8_t *from) {
+    char v[MAX_PATH + 8];
+    const char *f, *s, *k;
+    setting_default(r, at);
+    if (!setting_raw(r, d, key, name, ini, test_ini, v, sizeof v, &f, &s, &k, from)) return 0;
+    setting_value(r, f, s, k, v, at);
+    return 1;
+}
+
+// key k of section sec is a row's (a row of [all] in [easy] / [medium] / [hard] too)
+internal int setting_known(const char *sec, const char *k) {
+    int diff = !lstrcmpiA(sec, "easy") || !lstrcmpiA(sec, "medium") || !lstrcmpiA(sec, "hard");
+    for (int i = 0; i < SETTING_N; i++) {
+        const struct setting_row *r = &k_settings[i];
+        if (lstrcmpiA(r->sec, sec) && !(diff && r->ai)) continue;
+        if (r->kind != SETK_STR_P) {
+            if (!lstrcmpiA(r->key, k)) return 1;
+            continue;
+        }
+        size_t len = strlen(r->key);   // key0 .. key15
+        char *end = NULL;
+        long p = !_strnicmp(k, r->key, len) && k[len] >= '0' && k[len] <= '9' ? strtol(k + len, &end, 10) : -1;
+        if (p >= 0 && p < 16 && !*end) return 1;
+    }
+    return 0;
+}
+
 // the keys of a whole section that are no row: told
 internal void settings_unknown(const char *ini, const char *sec) {
     static char keys[16384];   // the section's key names, each 0-ended, a 0 after the last
     DWORD n = GetPrivateProfileStringA(sec, NULL, "", keys, sizeof keys, ini);
-    int diff = !lstrcmpiA(sec, "easy") || !lstrcmpiA(sec, "medium") || !lstrcmpiA(sec, "hard");
-    for (const char *k = keys; k < keys + n && *k; k += strlen(k) + 1) {
-        int known = 0;
-        for (int i = 0; i < SETTING_N && !known; i++) {
-            const struct setting_row *r = &k_settings[i];
-            if (lstrcmpiA(r->sec, sec) && !(diff && r->ai)) continue;
-            if (r->kind != SETK_STR_P) { known = !lstrcmpiA(r->key, k); continue; }
-            size_t len = strlen(r->key);   // key0 .. key15
-            char *end = NULL;
-            long p = !_strnicmp(k, r->key, len) && k[len] >= '0' && k[len] <= '9' ? strtol(k + len, &end, 10) : -1;
-            known = p >= 0 && p < 16 && !*end;
-        }
-        if (!known) ini_unknown(ini, sec, k);
-    }
+    for (const char *k = keys; k < keys + n && *k; k += strlen(k) + 1)
+        if (!setting_known(sec, k)) ini_unknown(ini, sec, k);
 }
 
 internal void settings_read(const char *ini, const char *test_ini) {

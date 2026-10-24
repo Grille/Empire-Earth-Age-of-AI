@@ -1,0 +1,5 @@
+// aimod_config.exe's resources: the manifest (common controls 6 - the current look -, system DPI aware: sharp at
+// Windows' display scaling) and the shipped config/aimod.ini, whose comments are the settings' help and which makes a
+// missing aimod.ini (aimod_config.c shipped_text). Paths relative to dll/, where build.sh runs.
+1 24 "tool/aimod_config.manifest"
+101 RCDATA "../config/aimod.ini"
