@@ -278,9 +278,9 @@ Settings in `aimod.ini`:
   bow - a new order while it sails, or a sharp corner - a ship braked to a crawl, turned almost on the spot and
   sped up again (a U-turn took 6 s nearly standing). With 1 it turns in an arc: at full speed towards a far point,
   slower and tighter towards a near one, and only where the circle it sweeps is free of land, shallows and other
-  ships - otherwise it turns as before. It also looks ahead: a waypoint inside the ship's turning circle, or one
-  it has already passed, is skipped for the next when the way there is clear - a fast ship steered at it, overshot
-  and circled it. And it stops rotating on its heading instead of swinging past it and back (as Art of Conquest
+  ships - otherwise it turns as before. It also looks ahead: the ship steers at a point sliding along its route
+  two turning circles ahead, where the way there is clear, instead of at the next waypoint - a fast ship steered at
+  a waypoint inside its turning circle, overshot and circled it - and rounds corners in arcs. And it stops rotating on its heading instead of swinging past it and back (as Art of Conquest
   already does). In multiplayer every PC needs the same setting.
 - `[sound] clamp_channels=1` (default): the "Max Number Of Sounds" slider goes to 200%, which asks for 32 sound
   channels, but the sound mixer has only 16 on current Windows. Sounds put on the 16 missing channels were silent,

@@ -114,7 +114,8 @@ internal void cmd_fmove(char *out, const char *args) {
             crept += f->crept;
         }
         REPLY("fmove sum: %d units, the last moving at %.1f s, %d done (the last at %.1f s), standing short of the goal %.1f s together (creeping %.1f); "
-              "ship_turns so far: %u ticks kept the speed, %u waypoints looked past\n", g_fm_n, moved, n_done, done, stood, crept, g_st_kept, g_st_skipped);
+              "ship_turns so far: %u ticks kept the speed, %u steered along the route, %u waypoints dropped\n", g_fm_n, moved, n_done, done, stood, crept, g_st_kept,
+              g_st_steered, g_st_skipped);
         return;
     }
     if (strcmp(what, "go")) { REPLY("fmove go P x y r tx ty | stat | sum\n"); return; }

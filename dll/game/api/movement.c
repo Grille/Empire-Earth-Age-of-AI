@@ -26,3 +26,13 @@ internal inline int patch_ship_turn_decide(turn_decide_hook h) {
     return patch_vtable(GA(VT_PM_NAVAL), GA(SLOT_PM_TURN_DECIDE), GA(FN_TURN_DECIDE), (void *)h)
          + patch_vtable(GA(VT_PM_SUBMERGED), GA(SLOT_PM_TURN_DECIDE), GA(FN_TURN_DECIDE), (void *)h);
 }
+// the tick's turn towards a point (slot 7: the front waypoint, from EEPMNaval::vf1, which measures the arrival to
+// the waypoint itself): its outputs the angle left (the speed decision's angle), the turn rate and the new heading
+typedef void (__thiscall *turn_towards_hook)(void *model, ee_unit *u, float *pos, float *target, float *left, float *rate, float *heading, char facing);
+internal inline void model_turn_towards(void *model, ee_unit *u, float *pos, float *target, float *left, float *rate, float *heading, char facing) {
+    GF(FN_TURN_TOWARDS)(model, u, pos, target, left, rate, heading, facing);
+}
+internal inline int patch_ship_turn_towards(turn_towards_hook h) {
+    return patch_vtable(GA(VT_PM_NAVAL), GA(SLOT_PM_TURN_TOWARDS), GA(FN_TURN_TOWARDS), (void *)h)
+         + patch_vtable(GA(VT_PM_SUBMERGED), GA(SLOT_PM_TURN_TOWARDS), GA(FN_TURN_TOWARDS), (void *)h);
+}

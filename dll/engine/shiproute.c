@@ -84,18 +84,21 @@ internal int sr_pass(ee_map *map, ee_unit *u, ee_unit_type *td, int size, int x,
     return 1;
 }
 
-// is the straight line between two points clear, SR_MARGIN to each side
-internal int sr_clear(ee_map *map, ee_unit *u, ee_unit_type *td, int size, float ax, float ay, float bx, float by) {
+// is the straight line between two points clear, margin to each side
+internal int sr_clear_by(ee_map *map, ee_unit *u, ee_unit_type *td, int size, float ax, float ay, float bx, float by, float margin) {
     float dx = bx - ax, dy = by - ay, len = sqrtf(dx * dx + dy * dy);
     int steps = (int)(len / 0.2f) + 1;
     for (int k = 0; k <= steps; k++) {
         float px = ax + dx * (float)k / (float)steps, py = ay + dy * (float)k / (float)steps;
         for (int c = 0; c < 4; c++) {
-            float qx = px + (c & 1 ? SR_MARGIN : -SR_MARGIN), qy = py + (c & 2 ? SR_MARGIN : -SR_MARGIN);
+            float qx = px + (c & 1 ? margin : -margin), qy = py + (c & 2 ? margin : -margin);
             if (!sr_pass(map, u, td, size, (int)floorf(qx), (int)floorf(qy))) return 0;
         }
     }
     return 1;
+}
+internal int sr_clear(ee_map *map, ee_unit *u, ee_unit_type *td, int size, float ax, float ay, float bx, float by) {
+    return sr_clear_by(map, u, td, size, ax, ay, bx, by, SR_MARGIN);
 }
 
 // how much nearer to land than the hull radius the tile lies (tiles, 0: clear)
@@ -302,49 +305,123 @@ internal int st_circle_clear(ee_unit *u, float cx, float cy, float r) {
     return 1;
 }
 
-// LOOK-AHEAD: the movement steers straight at the current waypoint and takes it only within the type's +0x474 and on
+// STEERING: the movement steers straight at the current waypoint and takes it only within the type's +0x474 and on
 // its tile, so a waypoint off to the side within the ship's turning circle can't be hit - the ship overshoots, steers
 // back hard and circles it (a submarine at 5.65 tiles/s looped one and a half times around one, then once more at the
-// end). A waypoint nearer than ST_AHEAD turning radii at its top speed (v / w), or one already passed, is dropped for
-// the next when that lies in a clear line - in effect the ship steers at a point two turning circles ahead on the
-// route. From the top speed, not the speed now: starting from rest the radius is small, the ship steered at the near
-// waypoint, drifted while it turned and swung 30 degrees past the route, then 10 back; 2 radii still swung 21, 4 swing
-// 11 and settle without swinging back. Never the last (the stop is the game's).
+// end). Here the tick's turn (slot 7) is given another point: the one on the route ST_AHEAD turning radii (at the top
+// speed, v / w) away from the ship - it slides along the route as the ship moves, so the ship homes in on the route
+// and rounds a corner in an arc - when the line there is clear, else the waypoint. The waypoints stay the game's (its
+// arrival, the obstacle detour and the approach to the last read them); one passed, or within a turning radius, is
+// dropped for the next when that lies in a clear line. From the top speed, not the speed now: from rest the radius is
+// small - the ship steered at the near waypoint, drifted while it turned and swung 30 degrees past the route, then 10
+// back. The last waypoint, the turn to a facing and the stop are the game's.
 #define ST_AHEAD 4.0f
-internal unsigned g_st_skipped;          // waypoints dropped by the look-ahead
+#define ST_SCAN 8                       // waypoints looked along for the point
+internal unsigned g_st_skipped;          // waypoints dropped
+internal unsigned g_st_steered;          // ticks steered at a point on the route
+internal ee_unit *g_st_aim_unit;         // this tick's unit steered at a point and its distance (for the speed's turn)
+internal float g_st_aim_dist;
 
-// drops the waypoints u can't steer onto; 1 when it dropped one
-internal int st_look_ahead(ee_unit *u, float w) {
-    ee_map *map = game_map();
-    ee_unit_type *td = unit_get_type_data(u);
-    int size = map ? (int)map_get_size(map) : 0, dropped = 0;
-    if (!td || size <= 0 || w <= 0 || !sr_alloc((uint32_t)(size * size))) return 0;
-    sr_stamp();
-    vec3 p = unit_get_pos(u);
-    float reach = ST_AHEAD * unit_max_speed(u) / w;
-    if (g_log && g_sr_log) { static int once; if (!once++) fprintf(g_log, "# shipturns: look-ahead %.2f tiles (top %.2f, turn %.2f rad/s)\n", reach, unit_max_speed(u), w); }
+// the stamp of the tiles' cache once a step: the clear lines of all ships in a step share it (a route search takes
+// its own)
+internal void st_stamp_step(void) {
+    static unsigned last = ~0u;
+    ee_physics *ph = game_physics();
+    unsigned step = ph ? phys_get_step(ph) : 0;
+    if (step != last || g_sr.gen == 0) { sr_stamp(); last = step; }
+}
+
+// per ship the distance its point was last at (by serial, a small open table: a ship not found takes the slot over)
+#define ST_MEM_UNITS 1024
+#define ST_GROW 1.05f                   // the point goes out by this a tick
+#define ST_SHRINK 0.85f                 // and in by this a try
+#define ST_AIM_MARGIN 0.1f              // tiles: the line to the point (the movement tests only the tile under the centre)
+internal struct { uint32_t id; float reach; } g_st_mem[ST_MEM_UNITS];
+// a new game starts the table empty: it steers the simulation, so every PC of a game must start alike
+internal void shipturns_new_game(void) { memset(g_st_mem, 0, sizeof g_st_mem); }
+
+internal float *st_unit_mem(ee_unit *u) {
+    uint32_t id = unit_get_serial(u), h = (id * 2654435761u) % ST_MEM_UNITS;
+    for (int k = 0; k < 8; k++) {
+        uint32_t i = (h + (uint32_t)k) % ST_MEM_UNITS;
+        if (g_st_mem[i].id == id) return &g_st_mem[i].reach;
+        if (!g_st_mem[i].id) { g_st_mem[i].id = id; g_st_mem[i].reach = 0; return &g_st_mem[i].reach; }
+    }
+    g_st_mem[h].id = id;
+    g_st_mem[h].reach = 0;
+    return &g_st_mem[h].reach;
+}
+
+// drops the waypoints u has passed or can't steer onto
+internal void st_drop_passed(ee_unit *u, ee_map *map, ee_unit_type *td, int size, float px, float py, float radius) {
     for (int k = 0; k < 4 && unit_get_waypoints_left(u) >= 2; k++) {
         float a[3], b[3];
         if (unit_waypoint_at(u, 0, a) || unit_waypoint_at(u, 1, b)) break;
-        float dx = a[0] - p.x, dy = a[1] - p.y;
-        int passed = (p.x - a[0]) * (b[0] - a[0]) + (p.y - a[1]) * (b[1] - a[1]) > 0;
-        if (!passed && dx * dx + dy * dy >= reach * reach) break;
-        if (!sr_clear(map, u, td, size, p.x, p.y, b[0], b[1]) || unit_pop_waypoint(u)) break;
+        float dx = a[0] - px, dy = a[1] - py;
+        int passed = (px - a[0]) * (b[0] - a[0]) + (py - a[1]) * (b[1] - a[1]) > 0;
+        if (!passed && dx * dx + dy * dy >= radius * radius) break;
+        if (!sr_clear(map, u, td, size, px, py, b[0], b[1]) || unit_pop_waypoint(u)) break;
         g_st_skipped++;
-        dropped = 1;
     }
-    return dropped;
+}
+
+// the point on u's route (from p along its waypoints) reach away from p, the furthest such: 1, else the waypoint is
+// nearer to steer at (it lies further, or the route ends within reach)
+internal int st_aim_point(ee_unit *u, float px, float py, float reach, float *out) {
+    int n = unit_get_waypoints_left(u);
+    float from[2] = {px, py}, pt[3];
+    for (int i = 0; i < n && i < ST_SCAN; i++) {
+        if (unit_waypoint_at(u, i, pt)) return 0;
+        float dx = pt[0] - px, dy = pt[1] - py;
+        if (dx * dx + dy * dy >= reach * reach) {
+            if (i == 0) return 0;
+            float sx = pt[0] - from[0], sy = pt[1] - from[1], fx = from[0] - px, fy = from[1] - py;   // the leg's way out of the circle
+            float qa = sx * sx + sy * sy, qb = 2 * (fx * sx + fy * sy), qc = fx * fx + fy * fy - reach * reach, disc = qb * qb - 4 * qa * qc;
+            if (qa <= 0 || disc < 0) return 0;
+            float t = (-qb + sqrtf(disc)) / (2 * qa);
+            out[0] = from[0] + sx * t; out[1] = from[1] + sy * t; out[2] = pt[2];
+            return 1;
+        }
+        from[0] = pt[0]; from[1] = pt[1];
+        if (i == n - 1) { out[0] = pt[0]; out[1] = pt[1]; out[2] = pt[2]; return i > 0; }   // the route ends within reach: its end
+    }
+    return 0;
+}
+
+internal void __thiscall hook_ship_turn_towards(void *model, ee_unit *u, float *pos, float *target, float *left, float *rate, float *heading, char facing) {
+    float aim[3], *to = target;
+    if (u == g_st_aim_unit) g_st_aim_unit = NULL;
+    ee_map *map = game_map();
+    ee_unit_type *td = u ? unit_get_type_data(u) : NULL;
+    int size = map ? (int)map_get_size(map) : 0;
+    float w = u ? unit_max_turn(u) : 0;
+    if (g_st_on && !facing && td && size > 0 && w > 0 && unit_get_waypoints_left(u) >= 2 && sr_alloc((uint32_t)(size * size))) {
+        st_stamp_step();
+        float reach = ST_AHEAD * unit_max_speed(u) / w;
+        st_drop_passed(u, map, td, size, pos[0], pos[1], reach / ST_AHEAD);
+        // a point whose line clips land comes nearer along the route (from the far one straight to the waypoint the
+        // heading jumped up to 20 degrees along a coast); it goes out again slowly - from the full distance each tick
+        // the point flicked between two and the heading by a turn step (3 degrees)
+        float *last = st_unit_mem(u), r = last && *last > 0 && *last * ST_GROW < reach ? *last * ST_GROW : reach;
+        int found = 0;
+        for (; r >= reach * 0.2f && unit_get_waypoints_left(u) >= 2; r *= ST_SHRINK)
+            if ((found = st_aim_point(u, pos[0], pos[1], r, aim) && sr_clear_by(map, u, td, size, pos[0], pos[1], aim[0], aim[1], ST_AIM_MARGIN))) break;
+        if (last) *last = found ? r : 0;
+        if (found) {
+            to = aim;
+            g_st_steered++;
+        } else if (!unit_waypoint(u, aim)) to = aim;   // the current one (it may have moved on)
+        float dx = to[0] - pos[0], dy = to[1] - pos[1];
+        g_st_aim_unit = u;
+        g_st_aim_dist = sqrtf(dx * dx + dy * dy);
+    }
+    model_turn_towards(model, u, pos, to, left, rate, heading, facing);
 }
 
 internal int __thiscall hook_ship_speed(void *model, ee_unit *u, float dist, float angle) {
-    if (g_st_on && u && unit_get_waypoints_left(u) >= 2 && st_look_ahead(u, unit_max_turn(u))) {
-        vec3 p = unit_get_pos(u), f = unit_get_facing(u);   // the decision's distance and angle to the new current one
-        float wp[3];
-        if (!unit_waypoint(u, wp)) {
-            float dx = wp[0] - p.x, dy = wp[1] - p.y;
-            dist = sqrtf(dx * dx + dy * dy);
-            angle = atan2f(f.x * dy - f.y * dx, f.x * dx + f.y * dy);
-        }
+    if (u && u == g_st_aim_unit) {   // the turn steered at another point this tick: the arc's distance is to it
+        dist = g_st_aim_dist;
+        g_st_aim_unit = NULL;
     }
     int d = model_speed_decide(model, u, dist, angle);
     float e = fabsf(angle);
@@ -392,8 +469,9 @@ internal int __thiscall hook_ship_turn(void *model, ee_unit *u, float rate, floa
 internal void shiproute_install(const char *aimod_ini, const char *autotest_ini) {
     g_st_on = ini_int("general", "ship_turns", 0, aimod_ini);
     if (autotest_ini) g_st_on = ini_int("autotest", "ship_turns", g_st_on, autotest_ini);
-    int st = g_st_on ? patch_ship_speed_decide(hook_ship_speed) : 0, rot = g_st_on ? patch_ship_turn_decide(hook_ship_turn) : 0;
-    if (g_log) fprintf(g_log, "# shipturns: ship_turns=%d (hooks %s, rotation %s)\n", g_st_on, !g_st_on ? "-" : st == 2 ? "ok" : "FAILED",
+    int st = g_st_on ? patch_ship_speed_decide(hook_ship_speed) + patch_ship_turn_towards(hook_ship_turn_towards) : 0;
+    int rot = g_st_on ? patch_ship_turn_decide(hook_ship_turn) : 0;
+    if (g_log) fprintf(g_log, "# shipturns: ship_turns=%d (hooks %s, rotation %s)\n", g_st_on, !g_st_on ? "-" : st == 4 ? "ok" : "FAILED",
                        !g_st_on ? "-" : rot == 2 ? "ok" : build_is("aoc") ? "AoC's own" : "FAILED");
     g_sr_on = ini_int("general", "ship_routes", 0, aimod_ini);
     if (autotest_ini) {

@@ -248,6 +248,11 @@ vf26 members and route released, vf12, the group's reference) frees nothing twic
   GetNextMoveWaypoint does (it also clears +0x248 and, with [0x941440] set, a tile mark); the deque's element i as
   the game's accessor 0x5E80BE finds it: block (front index + i) / 0xCC, less the map size when past it, then
   (front index + i) % 0xCC x 20 bytes into that block.
+- **Steering at another point:** EEPMNaval::vf1 measures the arrival from the front waypoint itself, then turns with
+  slot 7 (EEPhysicsModel::vf7 0x5484D9, AoC 0x554A25, the same slot) thiscall(model, unit, float pos[3], float
+  target[3], out angle left, out turn rate, out heading, facing; ret 0x1C), whose angle left is the speed decision's
+  angle: a hook of slot 7 can steer at any point while the waypoints, the arrival and the obstacle detour stay the
+  game's (ship_turns steers at a point sliding along the route).
 - **The rotation:** the turn step 0x548266 (from vf7 0x5484D9, the tick's +0x1C) keeps a turn rate at unit +0x17C
   and asks slot 11 (0x54880E; thiscall(model, unit, rate, angle left)): 3 the rate up by the turn acceleration
   (0x54A504, stats +0xB0) x the step towards the angle (at most 0x54A4E7's top rate), 4 down towards 0, 2 hold; the
