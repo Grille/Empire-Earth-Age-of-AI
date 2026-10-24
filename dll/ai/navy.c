@@ -42,7 +42,7 @@ internal uint32_t g_nv_count_t;
 
 internal void nv_mix_reset(void);   // the fleet mix (below)
 internal void fleet_new_game(void);   // fleet.c (stage 3)
-internal void fleet_install(const char *aimod_ini, const char *autotest_ini);
+internal void fleet_install(const char *autotest_ini);
 internal void fleet_tick(ee_player *pl, uint32_t now);
 internal int nv_role(ee_unit_type *td);
 internal int fleet_sheltering(unsigned idx);   // fleet.c: the fleet shelters from a much stronger enemy fleet (no build-up then)
@@ -813,23 +813,23 @@ internal int __thiscall hook_fish_type(ee_civ_mgr *o) {
     if (best) g_fish_last[idx] = best;
     return best ? best : t;
 }
-internal void navy_install(const char *aimod_ini, const char *autotest_ini) {
-    g_fish_boat = cfg_int(aimod_ini, autotest_ini, 1, "fishing_boat", 1);
+internal void navy_install(const char *autotest_ini) {
+    g_fish_boat = g_set_ai[1].fishing_boat;
     int ok = g_fish_boat ? patch_fish_type(hook_fish_type, NULL) : 0;
     if (g_log) fprintf(g_log, "# fishing: boat choice %s (hooks %d/2)\n", g_fish_boat ? "newest available" : "the game's", ok);
-    g_navy = cfg_int(aimod_ini, autotest_ini, 1, "navy", 1);
-    g_navy_share = cfg_pct(aimod_ini, autotest_ini, 1, "navy_share", 25, 100);
+    g_navy = g_set_ai[1].navy;
+    g_navy_share = g_set_ai[1].navy_share;
     if (g_navy_share < 0) g_navy_share = 0;
     if (g_navy_share > 80) g_navy_share = 80;
-    g_navy_fleet_pop = cfg_pct(aimod_ini, autotest_ini, 1, "navy_fleet_pop", 15, 100);
-    g_navy_share_max = cfg_pct(aimod_ini, autotest_ini, 1, "navy_share_max", 50, 100);
+    g_navy_fleet_pop = g_set_ai[1].navy_fleet_pop;
+    g_navy_share_max = g_set_ai[1].navy_share_max;
     if (g_navy_share_max > 80) g_navy_share_max = 80;
     if (autotest_ini) g_v_navy = ini_int("autotest", "v_navy", -1, autotest_ini);
-    g_navy_mines = cfg_int(aimod_ini, autotest_ini, 1, "navy_mines", 1);
+    g_navy_mines = g_set_ai[1].navy_mines;
     if (autotest_ini) g_v_navy_mines = ini_int("autotest", "v_navy_mines", -1, autotest_ini);
     if (g_log) fprintf(g_log, "# navy: account %s, share %d%% on islands (v_navy %d for the variant players)\n",
                        g_navy ? "on" : "off", g_navy_share, g_v_navy);
-    fleet_install(aimod_ini, autotest_ini);
+    fleet_install(autotest_ini);
 }
 
 internal int mt_fleet_target(ee_player *pl, unsigned idx, int t);   // metal.c metal_plan FLEET: at most what the sea needs

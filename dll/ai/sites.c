@@ -240,10 +240,10 @@ internal void *__thiscall hook_find_wood(ee_resource_mgr *rm, uintptr_t flag, ee
     return refuse_danger(rm, rm_find_wood(rm, flag, unit), 0, 3);
 }
 
-internal void sites_install(const char *aimod_ini, const char *autotest_ini) {
-    g_site_max_dist = cfg_int(aimod_ini, autotest_ini, 1, "site_max_distance", 20);
-    g_mine_choice = cfg_int(aimod_ini, autotest_ini, 1, "mine_choice", 1);
-    g_overseas_mines = cfg_int(aimod_ini, autotest_ini, 1, "overseas_mines", 1);
+internal void sites_install(void) {
+    g_site_max_dist = g_set_ai[1].site_max_distance;
+    g_mine_choice = g_set_ai[1].mine_choice;
+    g_overseas_mines = g_set_ai[1].overseas_mines;
     int ok = 0, total = 0;
     // always: the searches refuse sites behind known enemy towers (avoid_towers_citizens, attack.c)
     ok += patch_find_mine(hook_find_mine, &total) + patch_find_food(hook_find_food, &total) + patch_find_wood(hook_find_wood, &total) +

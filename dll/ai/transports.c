@@ -687,9 +687,9 @@ internal void cmd_transports(char *out, const char *args) {
 }
 
 internal void tw_new_game(void) { memset(g_tw, 0, sizeof g_tw); g_tw_n = 0; g_tw_last = 0; g_tw_dropped = g_tw_kicked = 0; }
-internal void tw_install(const char *aimod_ini, const char *autotest_ini) {
-    g_tw_log = autotest_ini ? cfg_int(aimod_ini, autotest_ini, 1, "transport_log", 0) : 0;
-    g_tw_dog = cfg_int(aimod_ini, autotest_ini, 1, "transport_watchdog", 0);
+internal void tw_install(const char *autotest_ini) {
+    g_tw_log = g_set.transport_log;
+    g_tw_dog = g_set_ai[1].transport_watchdog;
     g_v_tw_dog = autotest_ini ? ini_int("autotest", "v_transport_watchdog", -1, autotest_ini) : -1;
     if (g_log) fprintf(g_log, "# tw: watchdog %s (variant players %d)%s\n", g_tw_dog ? "on" : "off", g_v_tw_dog, g_tw_log ? ", transport states logged" : "");
     g_tw_split = g_set.transport_split;

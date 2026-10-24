@@ -361,11 +361,11 @@ internal void mt_tick(ee_player *pl, uint32_t now) {
     m->min = now / 300000;
     mt_log(pl, idx, m->min * 5);
 }
-internal void mt_install(const char *aimod_ini, const char *autotest_ini) {
-    g_metal_plan = cfg_int(aimod_ini, autotest_ini, 1, "metal_plan", 0);
-    g_mt_fleet_pct = cfg_int(aimod_ini, autotest_ini, 1, "metal_fleet_pct", 250);
-    g_mt_fleet_min = cfg_int(aimod_ini, autotest_ini, 1, "metal_fleet_min", 20);
-    g_mt_cap = cfg_int(aimod_ini, autotest_ini, 1, "metal_cap", 250);
+internal void mt_install(const char *autotest_ini) {
+    g_metal_plan = g_set_ai[1].metal_plan;
+    g_mt_fleet_pct = g_set_ai[1].metal_fleet_pct;
+    g_mt_fleet_min = g_set_ai[1].metal_fleet_min;
+    g_mt_cap = g_set_ai[1].metal_cap;
     if (autotest_ini) g_v_metal_plan = ini_int("autotest", "v_metal_plan", -1, autotest_ini);
     if (g_log) fprintf(g_log, "# metal plan: %d (variant %d), fleet %d%% of the enemy's + 6, at least %d\n", g_metal_plan, g_v_metal_plan,
                        g_mt_fleet_pct, g_mt_fleet_min);

@@ -426,14 +426,14 @@ internal void wf_log(ee_player *pl, unsigned idx, unsigned min) {
     w->held = w->moved = w->thrift = 0;
 }
 
-internal void cz_install(const char *aimod_ini, const char *autotest_ini) {
-    g_cit_plan = cfg_int(aimod_ini, autotest_ini, 1, "citizen_plan", 3);
-    g_cit_army = cfg_share(aimod_ini, autotest_ini, 1, "citizen_army_share", 0.40, 0, 0.9);
-    g_cit_train_ms = cfg_int(aimod_ini, autotest_ini, 1, "citizen_train_ms", 28000);
+internal void cz_install(const char *autotest_ini) {
+    g_cit_plan = g_set_ai[1].citizen_plan;
+    g_cit_army = g_set_ai[1].citizen_army_share;
+    g_cit_train_ms = g_set.citizen_train_ms;
     if (g_cit_train_ms < 5000) g_cit_train_ms = 5000;
     if (autotest_ini) g_v_cit_plan = ini_int("autotest", "v_citizen_plan", -1, autotest_ini);
-    g_wf_plan = cfg_int(aimod_ini, autotest_ini, 1, "workforce_plan", 0);
-    g_wf_army_cap = cfg_int(aimod_ini, autotest_ini, 1, "workforce_army_cap", 250);
+    g_wf_plan = g_set_ai[1].workforce_plan;
+    g_wf_army_cap = g_set_ai[1].workforce_army_cap;
     if (autotest_ini) g_v_wf_plan = ini_int("autotest", "v_workforce_plan", -1, autotest_ini);
     if (g_log) fprintf(g_log, "# workforce plan: %d (variant %d), army from a cap of %d\n", g_wf_plan, g_v_wf_plan, g_wf_army_cap);
     BOOL ok = patch_citizens_wanted(hook_cit_wanted);

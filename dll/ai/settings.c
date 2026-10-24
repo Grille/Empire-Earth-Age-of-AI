@@ -1,9 +1,8 @@
-// User settings per AI difficulty (aimod.ini next to the DLL). Every key is looked up in the difficulty's
-// own section ([easy], [medium], [hard]), then in [all], then falls back to the built-in default (for keys an
-// older file doesn't have yet; the file itself is required, see config_missing in eeaimod.c). The built-in
-// defaults are the shipped config/aimod.ini's values - the AI at its strongest without cheating, [easy] eased off -
-// so an older file without a key gets what a new one has. The autotest ini can override
-// any key for all difficulties (A/B tests). Included by eeaimod.c before sites.c/econ.c.
+// User settings per AI difficulty (aimod.ini next to the DLL), applied to the game's player fields. The values come
+// from the rows (dll/settings/: g_set_ai[d], each key from the difficulty's own section - [easy], [medium], [hard] -,
+// then [all], then the built-in default, the test ini's [autotest] over all of them); the built-in defaults are the
+// shipped config/aimod.ini's values - the AI at its strongest without cheating, [easy] eased off (SETTINGS_EASY).
+// Included by eeaimod.c before sites.c/econ.c.
 //
 // Difficulty = player+0xBA4 (0 easy, 1 medium, 2 hard).
 // Cost: AdjustCost (vtable 0x8264C0 slot 27, 0x430FBD) multiplies prices by pct/100 while the player's
@@ -34,7 +33,7 @@ struct ai_cfg {
     int attack_group_percent;                                         // 0 = leave
     int attack_on_contact, attack_for_resources, attack_revenge;      // percent, -1 = leave
     float citizen_share;    // share of the population cap for citizens (+0xBDC, the rest is military), 0 = leave
-    float home_guard_share; // < 0 = [all] home_guard_share (defence.c)
+    float home_guard_share; // of the military room (defence.c)
     int pop_follow;         // pop_follow_human: 1 = the game's cap that follows the humans, 0 = the game limit (econ.c)
 };
 enum { PACE_CLASSIC, PACE_TIMER, PACE_RUSH, PACE_FOLLOW, PACE_INDEPENDENT, PACE_N };
@@ -112,73 +111,34 @@ internal void cfg_style_fix(struct ai_cfg *c) {   // a max below its min follows
     if (c->attack_max < c->attack_min) c->attack_max = c->attack_min;
 }
 
-// the text that counts for key in difficulty d: [autotest] of the test ini, else [<difficulty>], else [all] (*file,
-// *sec: where); 0: none (the default)
-internal int cfg_raw(const char *ini, const char *test_ini, int d, const char *key, char *out, int cap, const char **file, const char **sec) {
-    if (test_ini && ini_raw("autotest", key, test_ini, out, cap)) { *file = test_ini; *sec = "autotest"; return 1; }
-    if (ini_raw(k_diff_sections[d], key, ini, out, cap)) { *file = ini; *sec = k_diff_sections[d]; return 1; }
-    if (ini_raw("all", key, ini, out, cap)) { *file = ini; *sec = "all"; return 1; }
-    return 0;
-}
-internal int cfg_int(const char *ini, const char *test_ini, int d, const char *key, int def) {
-    char v[128];
-    const char *f, *s;
-    double x;
-    int r;
-    if (!cfg_raw(ini, test_ini, d, key, v, sizeof v, &f, &s) || !ini_eval(f, s, key, v, &x) || !ini_whole(f, s, key, v, x, &r)) return def;
-    return r;
-}
-// a share kept as whole percents (attack_on_contact=20% -> 20), 0% .. max_pct%
-internal int cfg_pct(const char *ini, const char *test_ini, int d, const char *key, int def, int max_pct) {
-    char v[128];
-    const char *f, *s;
-    return cfg_raw(ini, test_ini, d, key, v, sizeof v, &f, &s) ? ini_pct_of(f, s, key, v, def, max_pct) : def;
-}
-// a share kept as it is (home_guard_share=35% -> 0.35), lo .. hi
-internal float cfg_share(const char *ini, const char *test_ini, int d, const char *key, double def, double lo, double hi) {
-    char v[128];
-    const char *f, *s;
-    return (float)(cfg_raw(ini, test_ini, d, key, v, sizeof v, &f, &s) ? ini_share_of(f, s, key, v, def, lo, hi) : def);
-}
-
-internal int cfg_pacing(const char *ini, const char *test_ini, int d, int def) {
-    char v[32];
-    const char *f, *s;
-    if (!cfg_raw(ini, test_ini, d, "epoch_pacing", v, sizeof v, &f, &s)) return def;
-    for (int i = 0; i < PACE_N; i++) {
-        if (lstrcmpA(v, k_pacing[i])) continue;
-        return i;
-    }
-    ini_error(f, s, "epoch_pacing", v, "classic, timer, rush, follow or independent expected");
-    return def;
-}
-
-internal void settings_load(const char *ini, const char *test_ini) {
+// g_cfg from the rows (dll/settings/: g_set_ai, each difficulty's own), logged
+internal void settings_load(void) {
     for (int d = 0; d < 3; d++) {
         struct ai_cfg *c = &g_cfg[d];
-        c->copper_plan = cfg_int(ini, test_ini, d, "copper_plan", 1);
-        c->budget = cfg_int(ini, test_ini, d, "budget", 1) || c->copper_plan;   // the plan works through the budget
-        c->mil_start_share = cfg_share(ini, test_ini, d, "military_start_share", 0.30, 0, 1);
-        c->mil_income_share = cfg_share(ini, test_ini, d, "military_income_share", 0.40, 0, 1);
-        c->mil_income_share_farms = cfg_share(ini, test_ini, d, "military_income_share_farms", 0.65, 0, 1);
-        c->cost_percent = cfg_pct(ini, test_ini, d, "cost_percent", 100, 1000);
-        c->pacing = cfg_pacing(ini, test_ini, d, d == 0 ? PACE_CLASSIC : PACE_INDEPENDENT);   // [easy] keeps to the human
-        c->epoch_min = cfg_int(ini, test_ini, d, "epoch_min", 50);
-        c->epoch_max = cfg_int(ini, test_ini, d, "epoch_max", 70);
+        const struct settings_ai *v = &g_set_ai[d];
+        c->copper_plan = v->copper_plan;
+        c->budget = v->budget || c->copper_plan;   // the plan works through the budget
+        c->mil_start_share = v->military_start_share;
+        c->mil_income_share = v->military_income_share;
+        c->mil_income_share_farms = v->military_income_share_farms;
+        c->cost_percent = v->cost_percent;
+        c->pacing = v->epoch_pacing;   // the names in PACE_ order (rows.h)
+        c->epoch_min = v->epoch_min;
+        c->epoch_max = v->epoch_max;
         if (c->epoch_max < c->epoch_min) c->epoch_max = c->epoch_min;
-        c->first_attack_min = cfg_int(ini, test_ini, d, "first_attack_min", 0);
-        c->first_attack_max = cfg_int(ini, test_ini, d, "first_attack_max", c->first_attack_min);
+        c->first_attack_min = v->first_attack_min;
+        c->first_attack_max = v->first_attack_max;
         if (c->first_attack_max < c->first_attack_min) c->first_attack_max = c->first_attack_min;
-        c->attack_min = cfg_int(ini, test_ini, d, "attack_interval_min", 20);
-        c->attack_max = cfg_int(ini, test_ini, d, "attack_interval_max", 25);
+        c->attack_min = v->attack_interval_min;
+        c->attack_max = v->attack_interval_max;
         if (c->attack_max < c->attack_min) c->attack_max = c->attack_min;
-        c->attack_group_percent = cfg_pct(ini, test_ini, d, "attack_group_percent", 150, 1000);
-        c->attack_on_contact = cfg_pct(ini, test_ini, d, "attack_on_contact", 0, 100);
-        c->attack_for_resources = cfg_pct(ini, test_ini, d, "attack_for_resources", 0, 100);
-        c->attack_revenge = cfg_pct(ini, test_ini, d, "attack_revenge", -1, 100);
-        c->citizen_share = cfg_share(ini, test_ini, d, "citizen_share", 0, 0, 1);
-        c->home_guard_share = cfg_share(ini, test_ini, d, "home_guard_share", -1, 0, 1);
-        c->pop_follow = cfg_int(ini, test_ini, d, "pop_follow_human", d == 0);   // [easy] follows the human
+        c->attack_group_percent = v->attack_group_percent;
+        c->attack_on_contact = v->attack_on_contact;
+        c->attack_for_resources = v->attack_for_resources;
+        c->attack_revenge = v->attack_revenge;
+        c->citizen_share = v->citizen_share;
+        c->home_guard_share = v->home_guard_share;
+        c->pop_follow = v->pop_follow_human;
         if (g_log)
             fprintf(g_log, "# settings %-6s copper_plan=%d budget=%d (military %.2f/%.2f/%.2f) cost=%d%% "
                     "pacing=%s epoch=%d-%d attacks first %d-%d every %d-%d group %d%% "

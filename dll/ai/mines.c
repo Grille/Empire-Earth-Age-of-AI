@@ -177,7 +177,7 @@ internal void mines_log(ee_player *pl, unsigned idx, uint32_t now) {
             m->home_slots[5], m->home_slots[6], m->g[4], m->g[5], m->g[6], m->add[4], m->add[5], m->add[6], m->drops_queued);
     LeaveCriticalSection(&g_lock);
 }
-internal void mines_install(const char *aimod_ini, const char *autotest_ini) {
-    g_mine_fill = cfg_int(aimod_ini, autotest_ini, 1, "mine_fill", 0);
+internal void mines_install(const char *autotest_ini) {
+    g_mine_fill = g_set_ai[1].mine_fill;
     if (autotest_ini) g_v_mine_fill = ini_int("autotest", "v_mine_fill", -1, autotest_ini);
 }

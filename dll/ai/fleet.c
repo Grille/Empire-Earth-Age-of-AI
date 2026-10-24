@@ -1307,13 +1307,13 @@ internal void fleet_tick(ee_player *pl, uint32_t now) {
 }
 
 internal void fleet_new_game(void) { memset(g_fl, 0, sizeof g_fl); memset(g_tf, 0, sizeof g_tf); memset(g_ntfm, 0, sizeof g_ntfm); }
-internal void fleet_install(const char *aimod_ini, const char *autotest_ini) {
-    g_navy_fleet = cfg_int(aimod_ini, autotest_ini, 1, "navy_fleet", 2);
+internal void fleet_install(const char *autotest_ini) {
+    g_navy_fleet = g_set_ai[1].navy_fleet;
     if (autotest_ini) g_v_navy_fleet = ini_int("autotest", "v_navy_fleet", -1, autotest_ini);
-    g_fl_boats = cfg_int(aimod_ini, autotest_ini, 1, "navy_fleet_boats", 1);
-    g_fl_coast = cfg_int(aimod_ini, autotest_ini, 1, "navy_fleet_coast", 1);
-    g_fl_raid = cfg_int(aimod_ini, autotest_ini, 1, "navy_fleet_raid", 130);
-    g_fl_mass = cfg_int(aimod_ini, autotest_ini, 1, "navy_fleet_mass", 1);
+    g_fl_boats = g_set.navy_fleet_boats;
+    g_fl_coast = g_set.navy_fleet_coast;
+    g_fl_raid = g_set.navy_fleet_raid;
+    g_fl_mass = g_set_ai[1].navy_fleet_mass;
     int ok = 0;
     if (g_navy_fleet || g_v_navy_fleet > 0) {
         ok = asg_order_hooks() + patch_maint_delete(hook_nv_maint_delete);

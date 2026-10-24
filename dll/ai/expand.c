@@ -1194,14 +1194,14 @@ internal void expand_tick(ee_player *pl, uint32_t now) {
     }
     if (!is_vanilla(pl) && (g_expand || g_v_expand > 0)) expand_act(pl, idx, now);
 }
-internal void expand_install(const char *aimod_ini, const char *autotest_ini) {
-    g_expand = cfg_int(aimod_ini, autotest_ini, 1, "expand_islands", 0);
+internal void expand_install(const char *autotest_ini) {
+    g_expand = g_set_ai[1].expand_islands;
     if (autotest_ini) g_v_expand = ini_int("autotest", "v_expand_islands", -1, autotest_ini);
-    g_ex_cits = cfg_int(aimod_ini, autotest_ini, 1, "expand_citizens", 8);
-    g_ex_guard = cfg_int(aimod_ini, autotest_ini, 1, "expand_guard", 3);
-    g_ex_min = cfg_int(aimod_ini, autotest_ini, 1, "expand_minute", 8);
-    g_ex_trips = cfg_int(aimod_ini, autotest_ini, 1, "expand_trips", 4);
-    g_ex_max = cfg_int(aimod_ini, autotest_ini, 1, "expand_max", 3);
+    g_ex_cits = g_set_ai[1].expand_citizens;
+    g_ex_guard = g_set_ai[1].expand_guard;
+    g_ex_min = g_set_ai[1].expand_minute;
+    g_ex_trips = g_set_ai[1].expand_trips;
+    g_ex_max = g_set_ai[1].expand_max;
     if (g_ex_max < 1) g_ex_max = 1;
     if (g_ex_max > 4) g_ex_max = 4;
     if (g_ex_cits < 3) g_ex_cits = 3;

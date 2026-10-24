@@ -369,12 +369,12 @@ internal void ap_upgrades(ee_player *pl, unsigned idx) {
         if (g_log) fprintf(g_log, "# upgrades: P%u at %.1f min: line upgrade %d scheduled - the line is in use now\n", idx, game_time() / 60000.0, id);
     }
 }
-internal void ap_install(const char *aimod_ini, const char *autotest_ini) {
-    g_army_plan = cfg_int(aimod_ini, autotest_ini, 1, "army_plan", 39);
-    g_army_keep[2] = g_army_keep[3] = cfg_int(aimod_ini, autotest_ini, 1, "army_float_keep", 300);
-    g_army_keep[4] = g_army_keep[5] = g_army_keep[6] = cfg_int(aimod_ini, autotest_ini, 1, "army_float_keep_mineral", 100);
-    g_army_mix_food = cfg_int(aimod_ini, autotest_ini, 1, "army_mix_food", 500);
-    g_army_epoch = cfg_int(aimod_ini, autotest_ini, 1, "army_plan_epoch", 5);
+internal void ap_install(const char *autotest_ini) {
+    g_army_plan = g_set_ai[1].army_plan;
+    g_army_keep[2] = g_army_keep[3] = g_set_ai[1].army_float_keep;
+    g_army_keep[4] = g_army_keep[5] = g_army_keep[6] = g_set_ai[1].army_float_keep_mineral;
+    g_army_mix_food = g_set_ai[1].army_mix_food;
+    g_army_epoch = g_set_ai[1].army_plan_epoch;
     if (autotest_ini) g_v_army_plan = ini_int("autotest", "v_army_plan", -1, autotest_ini);
     if (g_log) fprintf(g_log, "# army plan: %d (variant %d), keep %d/%d\n", g_army_plan, g_v_army_plan, g_army_keep[2], g_army_keep[4]);
 }

@@ -178,10 +178,12 @@ def analyse():
                    glob.glob(os.path.join(DLL, '**', '*.c'), recursive=True) + glob.glob(os.path.join(DLL, '**', '*.h'), recursive=True))
     files = [f for f in files if not f.startswith('dinput/')]   # another DLL (its own rule below)
     code = {f: strip(open(os.path.join(DLL, f), 'rb').read().decode('latin-1')) for f in files}
-    # the settings' rows name a kind, a section and an ini key (X(FLAG, display, frame_watch, ...)): words of the ini,
-    # not uses of a function that happens to share the name
+    # the settings' rows name a kind, a section and an ini key (X(FLAG, display, frame_watch, ...), D(FLAG, muster, ...),
+    # E(epoch_pacing, ...)): words of the ini, not uses of a function that happens to share the name
     if 'settings/rows.h' in code:
-        code['settings/rows.h'] = re.sub(r'\b[XS]\(\s*\w+\s*,\s*\w+\s*,\s*\w+\s*,', lambda m: ' ' * len(m.group(0)), code['settings/rows.h'])
+        blank = lambda m: ' ' * len(m.group(0))
+        rows = re.sub(r'\b[XS]\(\s*\w+\s*,\s*\w+\s*,\s*\w+\s*,', blank, code['settings/rows.h'])
+        code['settings/rows.h'] = re.sub(r'\b[DE]\(\s*\w+\s*,(\s*\w+\s*,)?', blank, rows)
     owner = collections.defaultdict(set)
     for f in files:
         for n in definitions(code[f]): owner[n].add(f)

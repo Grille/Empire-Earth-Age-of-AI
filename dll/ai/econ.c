@@ -1869,45 +1869,45 @@ __attribute__((noinline)) internal uintptr_t __thiscall hook_train_units(ee_unit
     return res;
 }
 
-internal void econ_install(const char *aimod_ini, const char *autotest_ini) {
-    settings_load(aimod_ini, autotest_ini);
-    sites_install(aimod_ini, autotest_ini);
+internal void econ_install(const char *autotest_ini) {
+    settings_load();
+    sites_install();
     // finer tuning, same for all difficulties ([all] section; autotest may override)
-    g_citizen_slack = cfg_int(aimod_ini, autotest_ini, 1, "idle_citizen_slack", 9999);
-    g_hoard_cap = cfg_int(aimod_ini, autotest_ini, 1, "hoard_cap", 3000);
-    g_hoard_cap_mineral = cfg_int(aimod_ini, autotest_ini, 1, "hoard_cap_mineral", 200);
-    g_min_workforce = cfg_int(aimod_ini, autotest_ini, 1, "min_workforce", 40);
-    g_wild_share = cfg_share(aimod_ini, autotest_ini, 1, "wild_food_share", 0.6, 0, 1);
-    g_reserve_window_ms = cfg_int(aimod_ini, autotest_ini, 1, "reserve_window_min", 5) * 60000;
-    g_rebalance = cfg_int(aimod_ini, autotest_ini, 1, "rebalance_workers", 1);
-    g_late_targets = cfg_int(aimod_ini, autotest_ini, 1, "late_targets", 7);
-    g_reserve_plan = cfg_int(aimod_ini, autotest_ini, 1, "reserve_plan", 1);
-    g_mineral_margin = cfg_int(aimod_ini, autotest_ini, 1, "mineral_worker_margin", 300);
-    g_early_requirements = cfg_int(aimod_ini, autotest_ini, 1, "early_requirements", 1);
-    g_build_fix = cfg_int(aimod_ini, autotest_ini, 1, "build_fix", 1);
-    g_train_room = cfg_int(aimod_ini, autotest_ini, 1, "train_room", 0xFFFF);
-    g_build_fields = cfg_int(aimod_ini, autotest_ini, 1, "build_fields", 1);
-    g_paid_upgrades = cfg_int(aimod_ini, autotest_ini, 1, "paid_upgrades", 1);
+    g_citizen_slack = g_set_ai[1].idle_citizen_slack;
+    g_hoard_cap = g_set_ai[1].hoard_cap;
+    g_hoard_cap_mineral = g_set_ai[1].hoard_cap_mineral;
+    g_min_workforce = g_set_ai[1].min_workforce;
+    g_wild_share = g_set_ai[1].wild_food_share;
+    g_reserve_window_ms = g_set_ai[1].reserve_window_min * 60000;
+    g_rebalance = g_set_ai[1].rebalance_workers;
+    g_late_targets = g_set_ai[1].late_targets;
+    g_reserve_plan = g_set_ai[1].reserve_plan;
+    g_mineral_margin = g_set_ai[1].mineral_worker_margin;
+    g_early_requirements = g_set_ai[1].early_requirements;
+    g_build_fix = g_set_ai[1].build_fix;
+    g_train_room = g_set_ai[1].train_room;
+    g_build_fields = g_set_ai[1].build_fields;
+    g_paid_upgrades = g_set_ai[1].paid_upgrades;
     if (autotest_ini) g_tech_log = ini_int("autotest", "tech_log", 0, autotest_ini);
     if (g_tech_log && build_is("aoc")) {   // AoC's vf6 takes an argument: the hook is the 2017 update's only yet
         if (g_log) fprintf(g_log, "# tech_log: free research not logged in this build\n");
     } else if (g_tech_log) {
         patch_tech_grant(hook_tech_grant);
     }
-    g_more_granaries = cfg_int(aimod_ini, autotest_ini, 1, "more_granaries", 1);
-    g_unit_sub = cfg_int(aimod_ini, autotest_ini, 1, "unit_substitution", 1);
-    g_sub_wait = cfg_int(aimod_ini, autotest_ini, 1, "substitute_wait", 90);
-    g_gather_research = cfg_int(aimod_ini, autotest_ini, 1, "gather_research", 1);
-    g_early_towers = cfg_int(aimod_ini, autotest_ini, 1, "early_towers", 1);
-    g_tower_bait = cfg_int(aimod_ini, autotest_ini, 1, "tower_bait", 1);
-    g_early_militia = cfg_int(aimod_ini, autotest_ini, 1, "early_militia", 1);
-    g_early_army = cfg_int(aimod_ini, autotest_ini, 1, "early_army", 0);
-    g_early_soldiers = cfg_int(aimod_ini, autotest_ini, 1, "early_soldiers", 0);
-    g_early_food_share = cfg_share(aimod_ini, autotest_ini, 1, "early_army_food_share", 0.10, 0, 1);
-    g_early_workers = cfg_int(aimod_ini, autotest_ini, 1, "early_army_workers", 60);
-    g_cit_queue = cfg_int(aimod_ini, autotest_ini, 1, "citizen_queue", 0);
-    g_epoch_share = cfg_share(aimod_ini, autotest_ini, 1, "epoch_share", 0.40, 0, 1);
-    g_food_floor = cfg_int(aimod_ini, autotest_ini, 1, "food_floor", 18);
+    g_more_granaries = g_set_ai[1].more_granaries;
+    g_unit_sub = g_set_ai[1].unit_substitution;
+    g_sub_wait = g_set_ai[1].substitute_wait;
+    g_gather_research = g_set_ai[1].gather_research;
+    g_early_towers = g_set_ai[1].early_towers;
+    g_tower_bait = g_set_ai[1].tower_bait;
+    g_early_militia = g_set_ai[1].early_militia;
+    g_early_army = g_set_ai[1].early_army;
+    g_early_soldiers = g_set_ai[1].early_soldiers;
+    g_early_food_share = g_set_ai[1].early_army_food_share;
+    g_early_workers = g_set_ai[1].early_army_workers;
+    g_cit_queue = g_set.citizen_queue;
+    g_epoch_share = g_set_ai[1].epoch_share;
+    g_food_floor = g_set_ai[1].food_floor;
     if (autotest_ini) {
         char vp[32];
         GetPrivateProfileStringA("autotest", "variant_players", "", vp, sizeof vp, autotest_ini);

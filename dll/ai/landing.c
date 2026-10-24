@@ -2380,18 +2380,18 @@ internal int asg_order_hooks(void) {
         done = patch_asg_give_goal(hook_asg_give_goal, hook_asg_air_give_goal);
     return done;
 }
-internal void landing_install(const char *aimod_ini, const char *autotest_ini) {
+internal void landing_install(void) {
     BOOL gs = patch_goalset_ask(hook_goalset_ask, NULL) == 2 && patch_goalset_read(goalset_read_thunk);
     if (g_log) fprintf(g_log, "# engine guard: goal set after a dropped goal %s\n", gs ? "ok" : "FAILED");
-    g_landing = cfg_int(aimod_ini, autotest_ini, 1, "landing", 1);
-    g_land_bombard = cfg_int(aimod_ini, autotest_ini, 1, "landing_bombard", 0);
-    g_land_keep = cfg_int(aimod_ini, autotest_ini, 1, "landing_keep_transports", 1);
-    g_land_ships = cfg_int(aimod_ini, autotest_ini, 1, "landing_transports", 8);
-    g_land_flag = cfg_int(aimod_ini, autotest_ini, 1, "landing_flag", 0);
-    g_land_knows = cfg_int(aimod_ini, autotest_ini, 1, "landing_knows_map", 0);
-    g_land_trace = cfg_int(aimod_ini, autotest_ini, 1, "landing_trace", 0);
-    g_land_cits = cfg_int(aimod_ini, autotest_ini, 1, "landing_citizens", 10);
-    g_land_waves = cfg_int(aimod_ini, autotest_ini, 1, "landing_waves", 3);
+    g_landing = g_set_ai[1].landing;
+    g_land_bombard = g_set_ai[1].landing_bombard;
+    g_land_keep = g_set_ai[1].landing_keep_transports;
+    g_land_ships = g_set_ai[1].landing_transports;
+    g_land_flag = g_set.landing_flag;
+    g_land_knows = g_set.landing_knows_map;
+    g_land_trace = g_set.landing_trace;
+    g_land_cits = g_set_ai[1].landing_citizens;
+    g_land_waves = g_set_ai[1].landing_waves;
     if (g_land_waves < 0) g_land_waves = 0;
     if (g_land_waves > 10) g_land_waves = 10;
     if (g_land_cits < 0) g_land_cits = 0;

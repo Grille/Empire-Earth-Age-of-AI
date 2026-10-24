@@ -1494,7 +1494,7 @@ internal char __thiscall hook_goal_cast(ee_goal *goal, void *unit) {
                 unit && unit_get_type_data(unit) ? type_get_id(unit_get_type_data(unit)) : -1, game_time() / 60000.0);
     return 0;
 }
-internal void attack_install(const char *aimod_ini, const char *autotest_ini) {
+internal void attack_install(void) {
     BOOL cast_guard = patch_goal_fits(hook_goal_cast);
     if (g_log) fprintf(g_log, "# engine guard: goal 0xFBA without its object %s\n", cast_guard ? "ok" : "FAILED");
     g_op_delete = game_op_delete();
@@ -1508,22 +1508,22 @@ internal void attack_install(const char *aimod_ini, const char *autotest_ini) {
     if (g_log) fprintf(g_log, "# engine guard: attack subgroup members %s\n", stat_guard ? "ok" : "FAILED");
     BOOL add_guard = patch_unit_to_group(hook_unit_to_group);
     if (g_log) fprintf(g_log, "# engine guard: no unit offered to attack groups during a call-off %s\n", add_guard ? "ok" : "FAILED");
-    g_avoid_towers = cfg_int(aimod_ini, autotest_ini, 1, "avoid_towers", 1);
-    g_avoid_citizens = cfg_int(aimod_ini, autotest_ini, 1, "avoid_towers_citizens", 1);
-    g_cit_threats = cfg_int(aimod_ini, autotest_ini, 1, "citizen_threats", 1);
-    g_bunkers = cfg_int(aimod_ini, autotest_ini, 1, "bunkers", 1);
-    g_bk_res = cfg_int(aimod_ini, autotest_ini, 1, "bunker_reserve", 0xFFFF);
+    g_avoid_towers = g_set_ai[1].avoid_towers;
+    g_avoid_citizens = g_set_ai[1].avoid_towers_citizens;
+    g_cit_threats = g_set_ai[1].citizen_threats;
+    g_bunkers = g_set_ai[1].bunkers;
+    g_bk_res = g_set_ai[1].bunker_reserve;
     BOOL repair = patch_repair_goal(hook_repair_goal);
     if (g_log) fprintf(g_log, "# repairs under attack: refused (hook %s)\n", repair ? "ok" : "FAILED");
-    g_avoid_weight = cfg_int(aimod_ini, autotest_ini, 1, "avoid_towers_weight", 2000);
-    g_avoid_margin = cfg_int(aimod_ini, autotest_ini, 1, "avoid_towers_margin", 6);
-    g_weak_spots = cfg_int(aimod_ini, autotest_ini, 1, "attack_weak_spots", 1);
-    g_weak_radius = cfg_int(aimod_ini, autotest_ini, 1, "attack_weak_spot_radius", 60);
-    g_leash = cfg_int(aimod_ini, autotest_ini, 1, "attack_leash", 1);
-    g_citizen_attacks = cfg_int(aimod_ini, autotest_ini, 1, "citizen_attacks", 0);
-    g_breach = cfg_int(aimod_ini, autotest_ini, 1, "attack_breach", 1);
-    g_siege = cfg_int(aimod_ini, autotest_ini, 1, "attack_siege", 1);
-    g_ignore_air = cfg_int(aimod_ini, autotest_ini, 1, "attack_ignore_air", 1);
+    g_avoid_weight = g_set_ai[1].avoid_towers_weight;
+    g_avoid_margin = g_set_ai[1].avoid_towers_margin;
+    g_weak_spots = g_set_ai[1].attack_weak_spots;
+    g_weak_radius = g_set_ai[1].attack_weak_spot_radius;
+    g_leash = g_set_ai[1].attack_leash;
+    g_citizen_attacks = g_set_ai[1].citizen_attacks;
+    g_breach = g_set_ai[1].attack_breach;
+    g_siege = g_set_ai[1].attack_siege;
+    g_ignore_air = g_set_ai[1].attack_ignore_air;
     int a = patch_route_cost(hook_route_cost);
     int b = patch_asg_route(hook_asg_route);
     int c = patch_asg_route_done(hook_asg_route_done);

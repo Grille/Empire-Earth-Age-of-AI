@@ -274,9 +274,9 @@ internal void food_log(ee_player *pl, unsigned idx, uint32_t now) {
             FOOD_PLAN(idx), g_fd[idx].pulled, g_fd[idx].hunt_sent, g_fd[idx].near_pick);
     LeaveCriticalSection(&g_lock);
 }
-internal void food_install(const char *aimod_ini, const char *autotest_ini) {
-    g_food_plan = cfg_int(aimod_ini, autotest_ini, 1, "food_plan", 3);
-    g_hunt_range = cfg_int(aimod_ini, autotest_ini, 1, "food_hunt_range", 15);
+internal void food_install(const char *autotest_ini) {
+    g_food_plan = g_set_ai[1].food_plan;
+    g_hunt_range = g_set_ai[1].food_hunt_range;
     if (autotest_ini) g_v_food_plan = ini_int("autotest", "v_food_plan", -1, autotest_ini);
 }
 // 16 WILD (econ_fields, from the Copper Age on): no builders for field foundations while wild food is free in reach -

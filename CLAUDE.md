@@ -63,10 +63,11 @@ and the runners, eectl, the MCP server), `results/` (log readers, scorers), `re/
   can't, play the same game (the same game_seed, the logs compared).
 - The engine loads every DLL in the game folder: never leave copies of DLLs there (a stray dinput copy crashed it).
 - A setting of aimod.ini is a row in `dll/settings/rows.h` (kind, section, key, default, limits) and its key in
-  `config/aimod.ini` with that default; the code reads `g_set.key` ([general]) or `g_set.section_key` (the other
-  sections: `g_set.display_present`), and the test ini's [autotest] overrides a row by that same name
-  (`scripts/build/settings_check.py`, run by the build, holds rows and file together). Moved so far: [general],
-  [camera], [display], [editor], [sound], [llm]; [all] and the difficulties still read the file with `ini_int` / `cfg_int`.
+  `config/aimod.ini` with that default; the code reads `g_set.key` ([general]), `g_set.section_key` (the other
+  sections: `g_set.display_present`) or `g_set_ai[d].key` ([all], a value per difficulty from [easy] / [medium] /
+  [hard], else [all]; code that doesn't tell difficulties apart reads [1]), and the test ini's [autotest] overrides a
+  row by that same name (`scripts/build/settings_check.py`, run by the build, holds rows and file together). Nothing
+  reads aimod.ini itself any more; a test-only knob is a row of section autotest.
 - The game reads the personality files from `config/aimod_ai/` (`ai_dir` in the user's aimod.ini): a change to
   their format needs the matching installed DLL.
 

@@ -423,13 +423,13 @@ internal void mass_tick(ee_player *pl, uint32_t now) {
     m->held = m->released = m->refused = m->waits = m->waited = m->goes = 0;
     m->min = now / 60000;
 }
-internal void mass_install(const char *aimod_ini, const char *autotest_ini) {
-    g_army_mass = cfg_int(aimod_ini, autotest_ini, 1, "army_mass", 0);
-    g_mass_group = cfg_int(aimod_ini, autotest_ini, 1, "army_mass_group", 5);
-    g_mass_hold = cfg_int(aimod_ini, autotest_ini, 1, "army_mass_hold", 120);
-    g_mass_ratio = cfg_pct(aimod_ini, autotest_ini, 1, "army_mass_ratio", 130, 1000);
-    g_mass_wait = cfg_int(aimod_ini, autotest_ini, 1, "army_mass_wait", 10);
-    g_mass_tether = cfg_int(aimod_ini, autotest_ini, 1, "army_mass_tether", 12);
+internal void mass_install(const char *autotest_ini) {
+    g_army_mass = g_set_ai[1].army_mass;
+    g_mass_group = g_set_ai[1].army_mass_group;
+    g_mass_hold = g_set_ai[1].army_mass_hold;
+    g_mass_ratio = g_set_ai[1].army_mass_ratio;
+    g_mass_wait = g_set_ai[1].army_mass_wait;
+    g_mass_tether = g_set_ai[1].army_mass_tether;
     if (autotest_ini) g_v_army_mass = ini_int("autotest", "v_army_mass", -1, autotest_ini);
     if (g_log) fprintf(g_log, "# army mass: %d (variant %d), group %d, hold %d s, ratio %d%%, wait %d min, tether %d\n", g_army_mass, g_v_army_mass,
                        g_mass_group, g_mass_hold, g_mass_ratio, g_mass_wait, g_mass_tether);

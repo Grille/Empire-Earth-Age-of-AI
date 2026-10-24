@@ -69,24 +69,24 @@ internal void cz_tick(ee_player *pl, uint32_t now);   // citizens.c: citizen pro
 internal void cz_new_game(void);
 internal void am_tick(ee_player *pl, uint32_t now);   // army.c: army spending
 internal void mt_tick(ee_player *pl, uint32_t now);   // metal.c: gold and iron
-internal void mt_install(const char *aimod_ini, const char *autotest_ini);
+internal void mt_install(const char *autotest_ini);
 internal void am_new_game(void);
 internal void mass_tick(ee_player *pl, uint32_t now);   // mass.c: the army as one
 internal void mass_new_game(void);
-internal void mass_install(const char *aimod_ini, const char *autotest_ini);
+internal void mass_install(const char *autotest_ini);
 internal void cover_tick(ee_player *pl, uint32_t now);   // cover.c: fall back to cover
 internal void cover_new_game(void);
-internal void cover_install(const char *aimod_ini, const char *autotest_ini);
+internal void cover_install(const char *autotest_ini);
 internal void expand_tick(ee_player *pl, uint32_t now);   // expand.c: other islands
 internal void expand_new_game(void);
-internal void expand_install(const char *aimod_ini, const char *autotest_ini);
+internal void expand_install(const char *autotest_ini);
 internal void tw_tick(ee_player *pl, uint32_t now);   // transports.c: the transports' script states (a test's log)
 internal void tw_new_game(void);
-internal void tw_install(const char *aimod_ini, const char *autotest_ini);
+internal void tw_install(const char *autotest_ini);
 internal void ap_new_game(void);
 internal void mt_new_game(void);   // metal.c
 internal void army_plan_tick(ee_player *pl, unsigned idx, uint32_t now);
-internal void ap_install(const char *aimod_ini, const char *autotest_ini);
+internal void ap_install(const char *autotest_ini);
 internal void early_new_game(void);   // early.c
 internal void landing_tick(ee_player *pl, uint32_t now);
 internal void navy_tick(ee_player *pl, uint32_t now);
@@ -100,9 +100,9 @@ internal void navy_new_game(void);
 internal void bunker_new_game(void);
 internal void defence_new_game(void);
 internal void sites_new_game(void);
-internal void intel_install(const char *aimod_ini, const char *autotest_ini);
-internal void landing_install(const char *aimod_ini, const char *autotest_ini);
-internal void navy_install(const char *aimod_ini, const char *autotest_ini);
+internal void intel_install(void);
+internal void landing_install(void);
+internal void navy_install(const char *autotest_ini);
 internal PRINTF_LIKE(1, 2) void log_line(const char *fmt, ...);
 internal BOOL install_srand(void);
 #include "base/ini.c"
@@ -549,24 +549,24 @@ internal void install(HMODULE self) {
         BOOL ok = skip_intro_movies();
         if (g_log) fprintf(g_log, "# skip_intro: %s\n", ok ? "ok" : "FAILED");
     }
-    econ_install(g_aimod_ini, g_autotest ? g_ini : NULL);
-    food_install(g_aimod_ini, g_autotest ? g_ini : NULL);
-    mines_install(g_aimod_ini, g_autotest ? g_ini : NULL);
-    cz_install(g_aimod_ini, g_autotest ? g_ini : NULL);
-    ap_install(g_aimod_ini, g_autotest ? g_ini : NULL);
-    mt_install(g_aimod_ini, g_autotest ? g_ini : NULL);
-    mass_install(g_aimod_ini, g_autotest ? g_ini : NULL);
-    cover_install(g_aimod_ini, g_autotest ? g_ini : NULL);
-    expand_install(g_aimod_ini, g_autotest ? g_ini : NULL);
-    tw_install(g_aimod_ini, g_autotest ? g_ini : NULL);
-    attack_install(g_aimod_ini, g_autotest ? g_ini : NULL);
-    landing_install(g_aimod_ini, g_autotest ? g_ini : NULL);
-    navy_install(g_aimod_ini, g_autotest ? g_ini : NULL);
-    intel_install(g_aimod_ini, g_autotest ? g_ini : NULL);
-    defence_install(g_aimod_ini, g_autotest ? g_ini : NULL);
+    econ_install(g_autotest ? g_ini : NULL);
+    food_install(g_autotest ? g_ini : NULL);
+    mines_install(g_autotest ? g_ini : NULL);
+    cz_install(g_autotest ? g_ini : NULL);
+    ap_install(g_autotest ? g_ini : NULL);
+    mt_install(g_autotest ? g_ini : NULL);
+    mass_install(g_autotest ? g_ini : NULL);
+    cover_install(g_autotest ? g_ini : NULL);
+    expand_install(g_autotest ? g_ini : NULL);
+    tw_install(g_autotest ? g_ini : NULL);
+    attack_install();
+    landing_install();
+    navy_install(g_autotest ? g_ini : NULL);
+    intel_install();
+    defence_install();
     chat_install();
     persona_install(g_autotest ? g_ini : NULL);
-    diplo_install(g_aimod_ini, g_autotest ? g_ini : NULL);
+    diplo_install(g_autotest ? g_ini : NULL);
     persist_install();
     aim_install(g_autotest ? g_ini : NULL);
     camera_install();

@@ -526,7 +526,7 @@ internal void counter_siege(ee_player *pl, unsigned idx, uint32_t now) {
 // the train hook (budget applies), type: the strongest trainable land soldier (substitution picks what the budget
 // pays for).
 internal int g_home_guard = 4;
-internal float g_home_share = 0.35f;   // aimod.ini home_guard_share: of the military room (cap x (1 - citizen share))
+internal float g_home_share = 0.35f;   // the medium AI's home_guard_share (the log; each AI uses its own: cfg_of)
 internal unsigned g_home_trained[16];
 struct home_scan { ee_player *pl; int bx, by, n; };
 internal void home_unit(ee_unit *u, void *ctx) {
@@ -555,8 +555,8 @@ internal void home_guard(ee_player *pl, unsigned idx, uint32_t now) {
     // and a share of the military room: population cap (vf31 - follows the human's population unless Ignorieren) x
     // (1 - citizen share +0xBDC)
     int cap = unit_limit(pl);
-    float share = cfg_of(pl)->home_guard_share;   // a difficulty's or personality's own, else [all]
-    int room = (int)((float)cap * (1.0f - player_get_citizen_share(pl)) * (share >= 0 ? share : g_home_share));
+    float share = cfg_of(pl)->home_guard_share;   // the difficulty's (its section, else [all]) or the personality's
+    int room = (int)((float)cap * (1.0f - player_get_citizen_share(pl)) * share);
     if (room > target) target = room;
     // early_army (econ.c train_budget): no soldiers in the first epoch - towers and citizens; early_soldiers=N (the
     // alternative to the towers): N soldiers there from minute 2
@@ -1044,23 +1044,23 @@ __attribute__((naked, used)) void damage_points_thunk(void) {
             "jmp _hook_damage_points");
 }
 
-internal void defence_install(const char *aimod_ini, const char *autotest_ini) {
-    g_def = cfg_int(aimod_ini, autotest_ini, 1, "defence_layout", 1);
-    g_def_dist = cfg_int(aimod_ini, autotest_ini, 1, "defence_distance", 10);
-    g_def_walls = cfg_int(aimod_ini, autotest_ini, 1, "defence_walls", 1);
-    g_def_more = cfg_int(aimod_ini, autotest_ini, 1, "defence_towers", 1);
-    g_csiege = cfg_int(aimod_ini, autotest_ini, 1, "counter_siege", 1);
-    g_militia = cfg_int(aimod_ini, autotest_ini, 1, "citizen_militia", 1);
-    g_militia_est = cfg_int(aimod_ini, autotest_ini, 1, "militia_estimate", 0);
-    g_militia_share = cfg_share(aimod_ini, autotest_ini, 1, "militia_caught_share", 1, 0, 1);
-    g_home_guard = cfg_int(aimod_ini, autotest_ini, 1, "home_guard", 4);
-    g_home_share = cfg_share(aimod_ini, autotest_ini, 1, "home_guard_share", 0.35, 0, 1);
-    g_muster = cfg_int(aimod_ini, autotest_ini, 1, "muster", 1);
-    g_fight_est = cfg_int(aimod_ini, autotest_ini, 1, "fight_estimate", 0);
-    g_aa = cfg_int(aimod_ini, autotest_ini, 1, "anti_air", 1);
-    g_aa_ahead = cfg_int(aimod_ini, autotest_ini, 1, "aa_ahead", 1);
-    g_aa_ahead_b = cfg_int(aimod_ini, autotest_ini, 1, "aa_ahead_buildings", 3);
-    g_hold = cfg_int(aimod_ini, autotest_ini, 1, "hold_town", 0);
+internal void defence_install(void) {
+    g_def = g_set_ai[1].defence_layout;
+    g_def_dist = g_set_ai[1].defence_distance;
+    g_def_walls = g_set_ai[1].defence_walls;
+    g_def_more = g_set_ai[1].defence_towers;
+    g_csiege = g_set_ai[1].counter_siege;
+    g_militia = g_set_ai[1].citizen_militia;
+    g_militia_est = g_set_ai[1].militia_estimate;
+    g_militia_share = g_set_ai[1].militia_caught_share;
+    g_home_guard = g_set_ai[1].home_guard;
+    g_home_share = g_set_ai[1].home_guard_share;
+    g_muster = g_set_ai[1].muster;
+    g_fight_est = g_set_ai[1].fight_estimate;
+    g_aa = g_set_ai[1].anti_air;
+    g_aa_ahead = g_set_ai[1].aa_ahead;
+    g_aa_ahead_b = g_set_ai[1].aa_ahead_buildings;
+    g_hold = g_set_ai[1].hold_town;
     BOOL guard = patch_damage_points(damage_points_thunk);
     if (g_log) fprintf(g_log, "# engine guard: damage points %s\n", guard ? "ok" : "FAILED");
     if (g_log) fprintf(g_log, "# defence: layout=%d distance=%d walls=%d own towers=%d counter-siege=%d home guard=%d/epoch, %.2f of the military room, fight_estimate=%d hold_town=%d\n", g_def, g_def_dist, g_def_walls, g_def_more, g_csiege, g_home_guard, g_home_share, g_fight_est, g_hold);

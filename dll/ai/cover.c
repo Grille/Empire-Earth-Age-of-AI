@@ -557,14 +557,14 @@ internal void cover_tick(ee_player *pl, uint32_t now) {
     c->heal_sent = c->heal_done = c->broke = c->back = c->refused = c->judged = c->gaveup = c->home = c->ended = 0;
     c->min = now / 60000;
 }
-internal void cover_install(const char *aimod_ini, const char *autotest_ini) {
-    g_fall_back = cfg_int(aimod_ini, autotest_ini, 1, "fall_back", 7);
-    g_fb_ratio = cfg_pct(aimod_ini, autotest_ini, 1, "fall_back_ratio", 50, 1000);
-    g_fb_hp = cfg_pct(aimod_ini, autotest_ini, 1, "fall_back_hp", 40, 100);
-    g_fb_value = cfg_int(aimod_ini, autotest_ini, 1, "fall_back_value", 100);
-    g_fb_dist = cfg_int(aimod_ini, autotest_ini, 1, "fall_back_dist", 60);
-    g_fb_breaks = cfg_int(aimod_ini, autotest_ini, 1, "fall_back_breaks", 2);
-    g_fb_end = cfg_pct(aimod_ini, autotest_ini, 1, "fall_back_end", 50, 100);
+internal void cover_install(const char *autotest_ini) {
+    g_fall_back = g_set_ai[1].fall_back;
+    g_fb_ratio = g_set_ai[1].fall_back_ratio;
+    g_fb_hp = g_set_ai[1].fall_back_hp;
+    g_fb_value = g_set_ai[1].fall_back_value;
+    g_fb_dist = g_set_ai[1].fall_back_dist;
+    g_fb_breaks = g_set_ai[1].fall_back_breaks;
+    g_fb_end = g_set_ai[1].fall_back_end;
     if (autotest_ini) g_v_fall_back = ini_int("autotest", "v_fall_back", -1, autotest_ini);
     if (g_log) fprintf(g_log, "# fall back: %d (variant %d), ratio %d%%, hp %d%%, value %d, dist %d, breaks %d, end %d%%\n", g_fall_back, g_v_fall_back,
                        g_fb_ratio, g_fb_hp, g_fb_value, g_fb_dist, g_fb_breaks, g_fb_end);
