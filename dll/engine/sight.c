@@ -54,9 +54,8 @@ internal void __thiscall hook_view_sight_copy(ee_player *pl) {
     }
 }
 
-internal void sight_install(const char *aimod_ini, const char *autotest_ini) {
-    g_sight_on = ini_int("general", "sight_counts", 1, aimod_ini);
-    if (autotest_ini) g_sight_on = ini_int("autotest", "sight_counts", g_sight_on, autotest_ini);
+internal void sight_install(void) {
+    g_sight_on = g_set.sight_counts;
     if (!g_sight_on) {
         if (g_log) fprintf(g_log, "# sight counts: the original (a low byte)\n");
         return;

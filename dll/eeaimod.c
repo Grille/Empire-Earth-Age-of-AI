@@ -569,16 +569,16 @@ internal void install(HMODULE self) {
     diplo_install(g_aimod_ini, g_autotest ? g_ini : NULL);
     persist_install();
     aim_install(g_autotest ? g_ini : NULL);
-    camera_install(g_aimod_ini, g_autotest ? g_ini : NULL);
-    display_install(g_aimod_ini, g_autotest ? g_ini : NULL);
-    sound_install(g_aimod_ini, g_autotest ? g_ini : NULL);
+    camera_install();
+    display_install(g_autotest ? g_ini : NULL);
+    sound_install();
     select_install();
     turns_install();   // before ship_turns: it finds the models by their slot 7, which ship_turns replaces
     shiproute_install(g_autotest ? g_ini : NULL);
-    drawlist_install(g_aimod_ini, g_autotest ? g_ini : NULL);
-    sight_install(g_aimod_ini, g_autotest ? g_ini : NULL);
+    drawlist_install();
+    sight_install();
     asg_queue_install();
-    llm_install(g_aimod_ini, g_autotest ? g_ini : NULL);
+    llm_install();
     ctl_start(g_autotest || g_set.control_pipe);
     if (g_autotest && g_auto.game_seed) {
         BOOL ok = install_srand(), start = start_hook();

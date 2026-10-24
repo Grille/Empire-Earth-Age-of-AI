@@ -11,9 +11,8 @@
 internal int g_draw_limit = 4096;
 internal uint8_t *g_draw_recs, *g_draw_small_recs;
 
-internal void drawlist_install(const char *aimod_ini, const char *autotest_ini) {
-    g_draw_limit = ini_int("display", "draw_limit", 4096, aimod_ini);
-    if (autotest_ini) g_draw_limit = ini_int("autotest", "draw_limit", g_draw_limit, autotest_ini);
+internal void drawlist_install(void) {
+    g_draw_limit = g_set.display_draw_limit;
     if (g_draw_limit <= DRAW_OLD_N) {
         if (g_log) fprintf(g_log, "# draw limit: the original %d\n", DRAW_OLD_N);
         return;

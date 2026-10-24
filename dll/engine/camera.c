@@ -82,18 +82,12 @@ internal void __thiscall hook_scroll_execute(ee_scroll *self) {
     if (dx != 0 || dy != 0) camera_move(dx, dy);
 }
 
-internal void camera_install(const char *aimod_ini, const char *autotest_ini) {
-    char mode[16], tmp[16];
+internal void camera_install(void) {
     int build_aoc = build_is("aoc");
-    GetPrivateProfileStringA("camera", "scroll", "game", mode, sizeof mode, aimod_ini);
-    if (autotest_ini) {   // tests: [autotest] camera_scroll overrides
-        lstrcpynA(tmp, mode, sizeof tmp);
-        GetPrivateProfileStringA("autotest", "camera_scroll", tmp, mode, sizeof mode, autotest_ini);
-    }
-    g_scroll_aoc = !lstrcmpiA(mode, "game") ? build_aoc : !lstrcmpiA(mode, "aoc");
+    enum { SCROLL_GAME, SCROLL_EE, SCROLL_AOC };   // [camera] scroll's names (rows.h)
+    g_scroll_aoc = g_set.camera_scroll == SCROLL_GAME ? build_aoc : g_set.camera_scroll == SCROLL_AOC;
     g_scroll_native = g_scroll_aoc == build_aoc;
-    g_cam_smooth = ini_int("camera", "smooth", 1, aimod_ini);
-    if (autotest_ini) g_cam_smooth = ini_int("autotest", "camera_smooth", g_cam_smooth, autotest_ini);
+    g_cam_smooth = g_set.camera_smooth;
     if (g_scroll_native && !g_cam_smooth) return;   // the build's own way without smoothing: the game untouched
     int ok = patch_scroll_execute(hook_scroll_execute);
     ok += patch_scroll_timer(build_aoc ? 0x0A : 0x19, g_cam_smooth ? 0x01 : 0x0A);   // push 25 (AoC 10) -> 10 ms ticks like AoC, 1 ms fine

@@ -7,7 +7,7 @@ import re
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-ROW = re.compile(r'X\((\w+),\s*(\w+),\s*(\w+),\s*("[^"]*"|-?\d+),')
+ROW = re.compile(r'\b[XS]\((\w+),\s*(\w+),\s*(\w+),\s*("[^"]*"|-?\d+),')
 
 
 def rows():
@@ -47,7 +47,7 @@ def main():
         for name in names:
             value = have[name]
             if value is None: continue
-            want = default.strip('"')
+            want = default.strip('"') + ('%' if kind == 'PCT' else '')
             if value != want:
                 bad.append('[%s] %s=%s in config/aimod.ini, the row\'s default %s' % (sec, name, value, want))
     for sec in whole:

@@ -1,7 +1,7 @@
 // THE INI FILES' NUMBERS (aimod.ini, aimod_autotest.ini): every number setting is read here, as a constant expression
 // of the text language (expr.c x_const_eval) - numbers, % (35% is 0.35), + - * / ( ), min, max, abs, round, floor; no
 // names, no chance() or rnd(): a setting is a fixed value (tests repeat, every PC of a multiplayer game reads the same).
-// A share is written as one, 35% or 0.35, whatever the code keeps: ini_share_of gives it as it is, ini_pct as whole
+// A share is written as one, 35% or 0.35, whatever the code keeps: ini_share_of gives it as it is, ini_pct_of as whole
 // percents (navy_share=25% -> 25) - so a bare navy_share=25 is 2500%, out of its range. A mistake (no number, a whole
 // number expected, out of range) is logged with file, section and key, and the key keeps its default - never read
 // half (GetPrivateProfileInt took the digits in front: 25% as 25, 0.35 as 0). Missing or empty: the default. An
@@ -78,10 +78,6 @@ internal int ini_pct_of(const char *file, const char *sec, const char *key, cons
         return def;
     }
     return (int)(x * 100 + 0.5);
-}
-internal int ini_pct(const char *sec, const char *key, int def, int max_pct, const char *file) {
-    char v[128];
-    return ini_raw(sec, key, file, v, sizeof v) ? ini_pct_of(file, sec, key, v, def, max_pct) : def;
 }
 // a share kept as it is (home_guard_share=35% -> 0.35), lo .. hi
 internal double ini_share_of(const char *file, const char *sec, const char *key, const char *v, double def, double lo, double hi) {

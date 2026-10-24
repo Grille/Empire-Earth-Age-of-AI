@@ -200,16 +200,13 @@ internal int __thiscall hook_set_max_channels(ee_sound_mgr *sm, uint32_t n) {
     return g_set_max_ch(sm, n);
 }
 
-internal void sound_install(const char *aimod_ini, const char *autotest_ini) {
-    g_clamp_channels = ini_int("sound", "clamp_channels", 1, aimod_ini);
-    g_sound_channels = ini_int("sound", "channels", 32, aimod_ini);
-    if (autotest_ini) g_sound_channels = ini_int("autotest", "sound_channels", g_sound_channels, autotest_ini);
-    if (autotest_ini) g_clamp_channels = ini_int("autotest", "clamp_channels", g_clamp_channels, autotest_ini);
+internal void sound_install(void) {
+    g_clamp_channels = g_set.sound_clamp_channels;
+    g_sound_channels = g_set.sound_channels;
     int ok = patch_snd_set_max_channels(hook_set_max_channels, &g_set_max_ch);
     if (g_log) fprintf(g_log, "# sound: clamp_channels=%d channels=%d (hook %s)\n", g_clamp_channels, g_sound_channels, ok ? "ok" : "FAILED");
     // aimod.ini [sound] log = 1 (counts once a minute) | 2 (every play) - diagnostics in normal play too
-    g_sound_log = ini_int("sound", "log", 0, aimod_ini);
-    if (autotest_ini) g_sound_log = ini_int("autotest", "sound_log", g_sound_log, autotest_ini);
+    g_sound_log = g_set.sound_log;
 }
 
 // sndstate: the manager's channels (node, sound id, node channel, sample channel, Miles status), the mixer's

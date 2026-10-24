@@ -1709,53 +1709,30 @@ internal void cmd_llm(char *out, const char *args) {
           g_llm_n_fixed, q, g_llm_think, g_llm_effort_refused ? " (refused by the server)" : "", g_llm_last_err[0] ? "; last error: " : "", g_llm_last_err);
 }
 
-internal void llm_install(const char *ini, const char *test_ini) {
-    g_llm_on = ini_int("llm", "enabled", 0, ini);
-    g_llm_lines = ini_int("llm", "lines", 1, ini);
-    g_llm_chat = ini_int("llm", "chat", 1, ini);
-    g_llm_timeout = ini_int("llm", "timeout", 20, ini);
-    g_llm_max_tokens = ini_int("llm", "max_tokens", 300, ini);
-    g_llm_temp = ini_pct("llm", "temperature", 80, 200, ini);   // 80% = 0.8
-    g_llm_log = ini_int("llm", "log", 1, ini);
-    g_llm_think = ini_int("llm", "think", 0, ini);
-    g_llm_decide = ini_int("llm", "decide", 0, ini);
-    g_llm_ai_talk = ini_int("llm", "ai_talk", 0, ini);
-    g_llm_talk_show = ini_int("llm", "ai_talk_show", 1, ini);
-    g_llm_talk_gap = ini_int("llm", "ai_talk_gap", 60, ini);
-    g_llm_talk_turns = ini_int("llm", "ai_talk_turns", 4, ini);
-    g_llm_ai_decide = ini_int("llm", "ai_decide", 0, ini);
-    g_llm_equal = ini_int("llm", "equal", 0, ini);
-    g_llm_memory = ini_int("llm", "memory", 8, ini);
-    char mm[16];
-    GetPrivateProfileStringA("llm", "memory_mode", "pair", mm, sizeof mm, ini);
-    char fb[16];
-    GetPrivateProfileStringA("llm", "fallback", "rules", fb, sizeof fb, ini);
-    g_llm_constrained = ini_int("llm", "constrained", 1, ini);
-    GetPrivateProfileStringA("llm", "url", g_llm_url, g_llm_url, sizeof g_llm_url, ini);
-    GetPrivateProfileStringA("llm", "model", "", g_llm_model, sizeof g_llm_model, ini);
-    GetPrivateProfileStringA("llm", "api_key", "", g_llm_key, sizeof g_llm_key, ini);
-    GetPrivateProfileStringA("llm", "extra", "", g_llm_extra, sizeof g_llm_extra, ini);
-    if (test_ini) {
-        g_llm_on = ini_int("autotest", "llm", g_llm_on, test_ini);
-        g_llm_lines = ini_int("autotest", "llm_lines", g_llm_lines, test_ini);
-        g_llm_chat = ini_int("autotest", "llm_chat", g_llm_chat, test_ini);
-        g_llm_timeout = ini_int("autotest", "llm_timeout", g_llm_timeout, test_ini);
-        g_llm_decide = ini_int("autotest", "llm_decide", g_llm_decide, test_ini);
-        g_llm_ai_talk = ini_int("autotest", "llm_ai_talk", g_llm_ai_talk, test_ini);
-        g_llm_talk_show = ini_int("autotest", "llm_ai_talk_show", g_llm_talk_show, test_ini);
-        g_llm_talk_gap = ini_int("autotest", "llm_ai_talk_gap", g_llm_talk_gap, test_ini);
-        g_llm_talk_turns = ini_int("autotest", "llm_ai_talk_turns", g_llm_talk_turns, test_ini);
-        g_llm_ai_decide = ini_int("autotest", "llm_ai_decide", g_llm_ai_decide, test_ini);
-        g_llm_equal = ini_int("autotest", "llm_equal", g_llm_equal, test_ini);
-        g_llm_memory = ini_int("autotest", "llm_memory", g_llm_memory, test_ini);
-        GetPrivateProfileStringA("autotest", "llm_memory_mode", mm, mm, sizeof mm, test_ini);
-        GetPrivateProfileStringA("autotest", "llm_fallback", fb, fb, sizeof fb, test_ini);
-        g_llm_constrained = ini_int("autotest", "llm_constrained", g_llm_constrained, test_ini);
-        GetPrivateProfileStringA("autotest", "llm_url", g_llm_url, g_llm_url, sizeof g_llm_url, test_ini);
-        GetPrivateProfileStringA("autotest", "llm_model", g_llm_model, g_llm_model, sizeof g_llm_model, test_ini);
-    }
-    g_llm_wait = !lstrcmpiA(fb, "pause");
-    g_llm_mem_player = !lstrcmpiA(mm, "player");
+internal void llm_install(void) {
+    g_llm_on = g_set.llm_enabled;
+    g_llm_lines = g_set.llm_lines;
+    g_llm_chat = g_set.llm_chat;
+    g_llm_timeout = g_set.llm_timeout;
+    g_llm_max_tokens = g_set.llm_max_tokens;
+    g_llm_temp = g_set.llm_temperature;   // 80% = 0.8
+    g_llm_log = g_set.llm_log;
+    g_llm_think = g_set.llm_think;
+    g_llm_decide = g_set.llm_decide;
+    g_llm_ai_talk = g_set.llm_ai_talk;
+    g_llm_talk_show = g_set.llm_ai_talk_show;
+    g_llm_talk_gap = g_set.llm_ai_talk_gap;
+    g_llm_talk_turns = g_set.llm_ai_talk_turns;
+    g_llm_ai_decide = g_set.llm_ai_decide;
+    g_llm_equal = g_set.llm_equal;
+    g_llm_memory = g_set.llm_memory;
+    g_llm_constrained = g_set.llm_constrained;
+    lstrcpynA(g_llm_url, g_set.llm_url, sizeof g_llm_url);
+    lstrcpynA(g_llm_model, g_set.llm_model, sizeof g_llm_model);
+    lstrcpynA(g_llm_key, g_set.llm_api_key, sizeof g_llm_key);
+    lstrcpynA(g_llm_extra, g_set.llm_extra, sizeof g_llm_extra);
+    g_llm_wait = g_set.llm_fallback == 1;           // rules | pause (rows.h)
+    g_llm_mem_player = g_set.llm_memory_mode == 1;  // pair | player
     if (g_llm_timeout < 2) g_llm_timeout = 2;
     if (g_llm_timeout > 120) g_llm_timeout = 120;
     if (g_llm_max_tokens < 16) g_llm_max_tokens = 16;
