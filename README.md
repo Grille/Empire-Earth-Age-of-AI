@@ -325,6 +325,13 @@ Settings in `aimod.ini`:
   player steps aside. Units at work (gathering, building) are walked through as in the game, so citizens at a mine
   don't wall it off. Tanks through a block of standing infantry: about a quarter of the overlap, the deepest 0.79 ->
   0.24 tiles. In multiplayer every PC needs the same setting.
+- `[general] group_block=10` (default; 0 the original): a group sent somewhere took up the formation's grid - only 5
+  columns, every row and column as wide as the group's largest unit - so a big army, worst with small and large units
+  mixed, spread into a column dozens of tiles deep: 174 soldiers, riders and tanks sent 20 tiles stood half of them
+  more than 27 tiles from the click. A group of more units than this now gathers as one compact block around the
+  clicked point, about twice as wide as deep, facing the way it came, spaced by the units' mean size: half within 4
+  tiles, all within 10, everyone there in half the time. Smaller groups keep the formation as before. The player's
+  and the AI's groups alike; in multiplayer every PC needs the same setting.
 - `[sound] clamp_channels=1` (default): the "Max Number Of Sounds" slider goes to 200%, which asks for 32 sound
   channels, but the sound mixer has only 16 on current Windows. Sounds put on the 16 missing channels were silent,
   and a looping one (unit movement such as the U-boats', ambience) stayed stuck there and never played again -

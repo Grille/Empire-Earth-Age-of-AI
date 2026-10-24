@@ -375,6 +375,7 @@ internal char __thiscall hook_game_start(void *state, ee_setup *setup, void *p2)
 #include "engine/shiproute.c"
 #include "engine/turns.c"
 #include "engine/collide.c"
+#include "engine/groupmove.c"
 #include "engine/drawlist.c"
 #include "engine/sight.c"
 #include "engine/asg_queue.c"
@@ -578,6 +579,7 @@ internal void install(HMODULE self) {
     select_install();
     turns_install();   // before ship_turns: it finds the models by their slot 7, which ship_turns replaces
     collide_install();
+    groupmove_install();
     shiproute_install(g_autotest ? g_ini : NULL);
     drawlist_install();
     sight_install();

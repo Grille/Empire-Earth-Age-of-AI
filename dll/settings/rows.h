@@ -36,6 +36,7 @@
     X(FLAG,   general,  turn_fix,                 1,  0, 0) \
     X(FLAG,   general,  ship_collide,             1,  0, 0) \
     X(FLAG,   general,  land_collide,             0,  0, 0) \
+    X(INT,    general,  group_block,              10, 0, 1000) \
     X(FLAG,   general,  sight_counts,             1,  0, 0) \
     X(INT,    general,  chat,                     0,  0, 2) \
     X(INT,    general,  chat_seconds,             15, 0, 3600) \

@@ -1,0 +1,22 @@
+// A big mixed army's move (the player: 200-unit armies spread over half the map, small and large units mixed worst):
+// Continental (seed 101, start_epoch 12), 80 doughboys, 40 machine gunners, 40 dragoons and 40 Mark V tanks around
+// 36,44, given one move as the right-click gives it to 56,50, then back to 36,44. Every 2 s `fmove stat`: moving,
+// standing, done, and the spread - the radius around the clicked point holding half, 90% and all of them.
+wait_until(0.1min)
+spawn(1, unit.inf10_doughboy, 34, 42, 80)
+spawn(1, unit.inf10_machine_gun, 38, 42, 40)
+spawn(1, unit.cav09_dragoon_gun, 34, 46, 40)
+spawn(1, unit.tank10_mk_v, 38, 46, 40)
+wait_until(0.4min)
+cmd("fmove go 1 36 44 12 56 50")
+every(2s, 0.4min, 2.4min, (run) => {
+    cmd("fmove stat")
+})
+wait_until(2.45min)
+cmd("fmove sum")
+cmd("fmove go 1 56 50 25 36 44")
+every(2s, 2.5min, 4.5min, (run) => {
+    cmd("fmove stat")
+})
+wait_until(4.55min)
+cmd("fmove sum")

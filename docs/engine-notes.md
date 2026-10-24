@@ -324,8 +324,24 @@ vf26 members and route released, vf12, the group's reference) frees nothing twic
   ends within the angle left (`turn_fix`, dll/engine/turns.c). Nine models turn with vf7 and so with slot 11 - ships,
   submarines, helicopters and six others (aircraft, animals ...); two have their own turn (0x550F41, 0x54B132). Some
   hold 0x54880E in slot 10 too: the other axis's turn (EEPhysicsModel::vf6 0x5480A2, rate unit +0x180, its step not
-  cut at the target), which AoC kept. Land units turn at their top rate in their own tick, no turn rate kept (a Mark V
-  17 degrees a step, stopping on the heading).
+  cut at the target), which AoC kept. Land units and hovercraft turn with vf7 too (EEPMLand::vf1 0x54D7AE calls the
+  tick's +0x1C and keeps the rate at +0x17C - an earlier note here said otherwise): a Mark V 17 degrees a step, infantry
+  and riders at once (their turn acceleration lets the rate jump to the top), so turn_fix and land_turns reach them.
+- **Group moves** (read 2026-10-25): EEMPathTo::vf10 makes up to four EEActiveGroups (one per kind, FUN_005dd18b
+  (selection, 0, k)), each handed a location goal at the clicked point (0x614D47; +0x33 the "together" flag) and set
+  to 8000; the group's dispatch 0x5DB641 sets its formation's centre (group +0x34, an EEFormation - EEFShortLine
+  by default, the selection's or EEMChangeFormation's) to the point and asks it for slots (EEFormation::vf1 0x4D7E0B,
+  slot 1 of all 12 formation vtables, AoC 0x4DDDD5; vf2 per kind: EEFLine 0x4D79D9, EEFWedge 0x4D8079, EEFCircle
+  0x4D7235): slots of 0x14 bytes {x, y, z, unit, facing}, a line's front row on the centre and the rows behind it,
+  every row and column spaced by the group's largest type +0x470 (the collision sphere, larger than the size: a
+  Mark V 1.0 size) x the kind's spacing (ShortLine 1.0, 5 columns; LongLine 10; LooseLine 2.0; Staggered 1.5), an
+  empty row every 6th. Then units and slots are paired - the nearest when the target is near the group, else both
+  sorted along the move (0x5DFC79); skipped with "together", all sizes below 1 and speed > 0.5 - and each unit gets
+  its own EEUGLocation at its slot (0x5DC902) and goes to 8000; nothing recomputes them. Arrival is the unit's own
+  (EEUnitClass::vf34: within its size on the target tile, or within 0.05) - nothing waits for the others or looks for
+  a free spot. So one big unit spreads the whole army: tests/probes/army_move.eeai's 174 soldiers, riders and tanks
+  sent 20 tiles stood half beyond 27 tiles of the click, all within 40, the last in after 108 s. `group_block`
+  (dll/engine/groupmove.c) lays a big group's slots out again as a block around the point.
 
 ## Orders, game end, splash
 

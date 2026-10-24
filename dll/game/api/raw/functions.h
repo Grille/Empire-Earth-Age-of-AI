@@ -118,6 +118,7 @@
     F(FN_DAMAGE_POINTS, int, __thiscall, (void *, int, unsigned), 0x004D291F, 0x004D84EC) \
     /* thiscall(G_BONUS_TABLE, weapon kind, target type data, attacker, target player) */ \
     F(FN_ATTACK_BONUS, float, __thiscall, (void *, int, void *, int, int), 0x004D5F2C, 0x004DBE44) \
+    F(FN_FORMATION_SLOTS, void, __thiscall, (void *, void *, void *), 0x004D7E0B, 0x004DDDD5) /* EEFormation::vf1 thiscall(formation, group, vector *slots), slot 1 of every formation's vtable (EEFLine, EEFShortLine, EEFWedge, EEFCircle ... 12): the group's units into a list, then the kind's vf2 (EEFLine 0x4D79D9) fills the slots - SIZE_FORMATION_SLOT each {x, y, z, unit, facing} - from FORMATION_CENTER (the clicked point, set by the group's dispatch 0x5DB641 just before, 0x5DBC89), every row and column spaced by the group's largest type +0x470; a line's front row on the centre, the rows behind it. The dispatch then pairs units and slots (nearest, or by their order along the move) and gives each unit an EEUGLocation at its slot (0x5DC902) */ \
     /* thiscall([G_GFX_EFFECTS], unit or 0, float pos[3], kind, int *handle, 0): a graphical effect added (0: done) */ \
     F(FN_GFX_ADD, int, __thiscall, (void *, void *, float *, void *, int *, int), 0x004FB6D4, 0x00506038) \
     F(FN_GFX_GET, ee_gfx *, __thiscall, (void *, int), 0x004FBE3E, 0x00506852)   /* thiscall([G_GFX_EFFECTS], handle): NULL gone */ \
@@ -282,6 +283,8 @@
     D(SM_CLASS_FAMILY, 15, 16)          /* SM_CLASS_TEST: a scenario object's class from here is a family (AoC: 15 epochs before) */ \
     D(SM_CLASS_RPS, 72, 76)             /* from here an RPS class */ \
     D(SM_CLASS_GROUP, 113, 117)         /* from here a unit group */ \
+    D(SLOT_FORMATION_SLOTS, 1, 1)       /* the formations' vtables: FN_FORMATION_SLOTS */ \
+    D(SIZE_FORMATION_SLOT, 0x14, 0x14)  /* FN_FORMATION_SLOTS: a slot {x, y, z, unit, facing} (both builds' EEFLine::vf2 steps 0x14) */ \
 
 
 #define ADDR_LISTS_FUNCTIONS(L) \

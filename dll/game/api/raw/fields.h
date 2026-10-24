@@ -51,6 +51,8 @@
 //   TILE         a map tile
 //   TILENODE     a node of a tile's object list (TILE_OBJECTS)
 //   UNITLIST     a cluster of a group's units (FN_GROUP_SECTOR_ROUTE's units)
+//   FORMATION    a group's formation, its +0x34 (EEFormation, EEFLine, EEFWedge ...)
+//   FSLOT        a formation's slot (FN_FORMATION_SLOTS)
 //   VIEWROW      a row of the map's per-tile view table (MAP_VIEW_ROWS): {first x, length, data}
 //   GRID         the map's unit grid, MAP +0x181724
 //   GRIDCELL     a cell of the unit grid
@@ -209,6 +211,9 @@
     O(GOAL_STATE, 0x5, 0x5) /* b */ \
     O(GOAL_ARGS, 0x20, 0x20) /* c */ \
     O(GOAL_HOLDER, 0x50, 0x50) /* c */ \
+    O(FORMATION_CENTER, 0x48, 0x48) /* c: the formation's centre {x, y, z} - a group move's clicked point (both builds' EEFLine::vf2 read it) */ \
+    O(FSLOT_POS, 0x0, 0x0) /* c: a formation slot's point {x, y, z} (EEFLine::vf2 in both builds) */ \
+    O(FSLOT_UNIT, 0xC, 0xC) /* c: the slot's unit (the same) */ \
     O(GOAL_0x38, 0x38, 0x38) /* c: a kind 6 goal's target - the contact test (EEPhysicsModel::vf14, AoC vf15) lets two units at work on kind 6 meet only when it is the same */ \
     O(GOAL_0x3C, 0x3C, 0x3C) /* c: a kind 4 goal's target - the same for kind 4 */ \
     O(GRID_CELLS, 0x4, 0x4) /* s */ \

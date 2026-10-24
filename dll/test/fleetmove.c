@@ -6,7 +6,7 @@
 // a ship pressed against another keeps the least speed, 0.1, and goes nowhere), standing short of its goal (creeping
 // when its speed says it moves), or done (no move goal left); `fmove sum` the times per unit.
 
-#define FM_MAX 128
+#define FM_MAX 512
 internal struct fm_unit {
     unsigned id;                    // +0x24, found back with unit_by_id (a sunk unit isn't)
     int type;
@@ -70,6 +70,8 @@ internal void fm_sample(char *out, int quiet) {
     unsigned hist_id[16];
     int hist_c[16];
     float dist = 0;
+    static float dists[FM_MAX];
+    int nd = 0;
     for (int i = 0; i < g_fm_n; i++) {
         struct fm_unit *f = &g_fm[i];
         ee_unit *u = unit_by_id(f->id);
@@ -78,7 +80,8 @@ internal void fm_sample(char *out, int quiet) {
         unsigned s = unit_ai_state_id(u);
         float v = unit_get_speed(u);
         vec3 p = unit_get_pos(u);
-        dist += sqrtf((p.x - g_fm_tx) * (p.x - g_fm_tx) + (p.y - g_fm_ty) * (p.y - g_fm_ty));
+        dists[nd] = sqrtf((p.x - g_fm_tx) * (p.x - g_fm_tx) + (p.y - g_fm_ty) * (p.y - g_fm_ty));
+        dist += dists[nd++];
         if (s != f->state) { f->states++; if (s == 9002) f->repaths++; f->state = s; }
         float step = sqrtf((p.x - f->x) * (p.x - f->x) + (p.y - f->y) * (p.y - f->y));
         f->x = p.x;
@@ -93,7 +96,14 @@ internal void fm_sample(char *out, int quiet) {
     }
     if (quiet) return;
     int alive = g_fm_n - gone;
-    REPLY("fmove t %.1f: moving %d standing %d (creeping %d) done %d gone %d, dist %.1f, states", t, moving, standing, creeping, done, gone, alive ? dist / (float)alive : 0.0f);
+    for (int a = 1; a < nd; a++) {   // the spread: the distances sorted, the radius around the goal holding half, 90% and all
+        float v = dists[a];
+        int b = a - 1;
+        while (b >= 0 && dists[b] > v) { dists[b + 1] = dists[b]; b--; }
+        dists[b + 1] = v;
+    }
+    REPLY("fmove t %.1f: moving %d standing %d (creeping %d) done %d gone %d, dist %.1f (half within %.1f, 90%% %.1f, all %.1f), states", t, moving, standing, creeping, done, gone,
+          alive ? dist / (float)alive : 0.0f, nd ? dists[nd / 2] : 0.0f, nd ? dists[nd * 9 / 10] : 0.0f, nd ? dists[nd - 1] : 0.0f);
     for (int k = 0; k < hist_n; k++) REPLY(" %u:%d", hist_id[k], hist_c[k]);
     REPLY("\n");
 }
