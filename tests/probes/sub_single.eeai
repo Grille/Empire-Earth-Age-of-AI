@@ -1,0 +1,13 @@
+// One of the player's fast Hammerheads ("transport test" scenario, 5.65 tiles/s) alone, traced every step (# fmtrace):
+// out of the pack across the bay, back, then re-ordered under way - how it steers along its waypoints without
+// other ships in the way.
+wait_until(0.1min)
+cmd("fmove go 1 64 75 1 80 64")
+cmd("fmove trace 0")
+wait_until(0.3min)
+cmd("fmove go 1 80 64 3 62 70")
+cmd("fmove trace 0")
+wait_until(0.36min)
+cmd("fmove go 1 76 66 6 74 80")
+cmd("fmove trace 0")
+wait_until(0.55min)

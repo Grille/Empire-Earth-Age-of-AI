@@ -305,10 +305,12 @@ internal int st_circle_clear(ee_unit *u, float cx, float cy, float r) {
 // LOOK-AHEAD: the movement steers straight at the current waypoint and takes it only within the type's +0x474 and on
 // its tile, so a waypoint off to the side within the ship's turning circle can't be hit - the ship overshoots, steers
 // back hard and circles it (a submarine at 5.65 tiles/s looped one and a half times around one, then once more at the
-// end). A waypoint nearer than ST_AHEAD turning radii (v / w), or one already passed, is dropped for the next when
-// that lies in a clear line - in effect the ship steers at a point a turning circle ahead on the route. Never the
-// last (the stop is the game's).
-#define ST_AHEAD 2.0f
+// end). A waypoint nearer than ST_AHEAD turning radii at its top speed (v / w), or one already passed, is dropped for
+// the next when that lies in a clear line - in effect the ship steers at a point two turning circles ahead on the
+// route. From the top speed, not the speed now: starting from rest the radius is small, the ship steered at the near
+// waypoint, drifted while it turned and swung 30 degrees past the route, then 10 back; 2 radii still swung 21, 4 swing
+// 11 and settle without swinging back. Never the last (the stop is the game's).
+#define ST_AHEAD 4.0f
 internal unsigned g_st_skipped;          // waypoints dropped by the look-ahead
 
 // drops the waypoints u can't steer onto; 1 when it dropped one
@@ -319,7 +321,8 @@ internal int st_look_ahead(ee_unit *u, float w) {
     if (!td || size <= 0 || w <= 0 || !sr_alloc((uint32_t)(size * size))) return 0;
     sr_stamp();
     vec3 p = unit_get_pos(u);
-    float reach = ST_AHEAD * unit_get_speed(u) / w;
+    float reach = ST_AHEAD * unit_max_speed(u) / w;
+    if (g_log && g_sr_log) { static int once; if (!once++) fprintf(g_log, "# shipturns: look-ahead %.2f tiles (top %.2f, turn %.2f rad/s)\n", reach, unit_max_speed(u), w); }
     for (int k = 0; k < 4 && unit_get_waypoints_left(u) >= 2; k++) {
         float a[3], b[3];
         if (unit_waypoint_at(u, 0, a) || unit_waypoint_at(u, 1, b)) break;
