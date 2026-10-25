@@ -1,5 +1,5 @@
 // A gently turning queued move (formations, formation_follow): 20 doughboys (Continental seed 101) sent 20 tiles east to
-// 56,44, then with shift on to 76,54 (a turn of about 27 degrees) - under 90 degrees the formation goes on as it marches,
+// 56,44, then with shift on to 76,54 (a turn of about 27 degrees) - under 45 degrees the formation goes on as it marches,
 // swinging through the corner, instead of breaking up at the waypoint and forming anew (march_queued.eeai: 90 degrees)
 wait_until(0.1min)
 spawn(1, unit.inf10_doughboy, 35, 44, 20)

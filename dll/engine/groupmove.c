@@ -284,7 +284,7 @@ internal void fo_march(ee_active_group *grp) {
 // the leader's spot, or the leader is gone or given another order, the march ends: each unit goes on to its own spot.
 // The members' speeds are their own then (formation_march's group speed would hold the ones behind back). A queued move
 // (shift) is laid out from the units' last order's points and its march sets out when the leader takes it up: the
-// march before it goes on till then; turning less than 90 degrees, the same formation goes on - the anchor runs through
+// march before it goes on till then; turning less than 45 degrees, the same formation goes on - the anchor runs through
 // the corner, turning into the next leg FF_LOOK before it, the leader's leg ended there. Units far apart (two groups
 // sent to the point between them) march as blocks, each behind a leader of its own (ff_start). All from the game's
 // state in the simulation: the same on every PC
@@ -307,7 +307,7 @@ internal void fo_march(ee_active_group *grp) {
 #define FF_SETTLE_MAX 15.0f    // up to this long when its outermost units need it to swing round at its speed
 #define FF_SWING 1.0f          // its facing turns at most this much x its speed / its reach a second (its outermost units
                                // swing round at about its speed)
-#define FF_ARC 0.0f            // a queued move turning less than this (cos 90 degrees) goes on in the same formation
+#define FF_ARC 0.7071f         // a queued move turning less than this (cos 45 degrees) goes on in the same formation
 // fwd: the formation's final facing, way: where it goes, face: its facing now, reach: its outermost unit's distance from
 // the leader, goal: the leader's goal of this move (NULL: not known - its group
 // tells), live: on its way this step (else queued behind the leader's current order), lead_off: the leader's spot from
@@ -436,7 +436,7 @@ internal void ff_start(void *group, int n, vec2 c, vec2 fwd, vec2 right, int que
     if (g_ff_count > 1) g_ff_split++;
 }
 
-// a queued move turning less than 90 degrees from the march its units are on (all of them, all on it): the same
+// a queued move turning less than 45 degrees from the march its units are on (all of them, all on it): the same
 // formation goes on - each unit's spot its offset from the leader in that march, turned to the new facing around the
 // leader's spot (as far from the point c as before) - instead of a new layout; the march's index, else -1
 internal int ff_arc_layout(int n, vec2 c, vec2 fwd, vec2 right) {
