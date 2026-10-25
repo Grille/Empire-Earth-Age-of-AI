@@ -409,11 +409,11 @@ internal inline ee_unit **eeug_unload_transport_holder_at(const eeug_unload_tran
 internal inline ivec2 eeug_unload_transport_get_first_cargo_tile(const eeug_unload_transport *o) { return *(ivec2 *)((uint8_t *)o + of_eeug_unload_transport_first_cargo_tile); }
 internal inline void eeug_unload_transport_set_first_cargo_tile(eeug_unload_transport *o, ivec2 v) { *(ivec2 *)((uint8_t *)o + of_eeug_unload_transport_first_cargo_tile) = v; }
 internal inline ivec2 *eeug_unload_transport_first_cargo_tile_at(const eeug_unload_transport *o) { return (ivec2 *)((uint8_t *)o + of_eeug_unload_transport_first_cargo_tile); }
-// its dump's "Unload Tile": unload_init stores x, y, 0x483D97 tries shore tiles into it, 0x48CE8F copies it into a
-// new unload goal
-internal inline ivec2 eeug_unload_transport_get_unload_tile(const eeug_unload_transport *o) { return *(ivec2 *)((uint8_t *)o + of_eeug_unload_transport_unload_tile); }
-internal inline void eeug_unload_transport_set_unload_tile(eeug_unload_transport *o, ivec2 v) { *(ivec2 *)((uint8_t *)o + of_eeug_unload_transport_unload_tile) = v; }
-internal inline ivec2 *eeug_unload_transport_unload_tile_at(const eeug_unload_transport *o) { return (ivec2 *)((uint8_t *)o + of_eeug_unload_transport_unload_tile); }
+// its dump's "Unload Tile", x (y at +0x38: the base's _0x38): unload_init stores x, y, 0x483D97 tries shore
+// tiles into it, 0x48CE8F copies it into a new unload goal
+internal inline int eeug_unload_transport_get_unload_tile_x(const eeug_unload_transport *o) { return *(int *)((uint8_t *)o + of_eeug_unload_transport_unload_tile_x); }
+internal inline void eeug_unload_transport_set_unload_tile_x(eeug_unload_transport *o, int v) { *(int *)((uint8_t *)o + of_eeug_unload_transport_unload_tile_x) = v; }
+internal inline int *eeug_unload_transport_unload_tile_x_at(const eeug_unload_transport *o) { return (int *)((uint8_t *)o + of_eeug_unload_transport_unload_tile_x); }
 // its dump's "Unload Range Squared": unload_init sets the transport type's +0x4AC squared (AoC type +0x1B0)
 internal inline float eeug_unload_transport_get_unload_range_sq(const eeug_unload_transport *o) { return *(float *)((uint8_t *)o + of_eeug_unload_transport_unload_range_sq); }
 internal inline void eeug_unload_transport_set_unload_range_sq(eeug_unload_transport *o, float v) { *(float *)((uint8_t *)o + of_eeug_unload_transport_unload_range_sq) = v; }
@@ -604,7 +604,7 @@ internal int spec_goal_select(int build) {
         of_eeug_attack_unit_target = 0x30;
         vt_eeug_unload_transport = 0x00831F5C;
         of_eeug_unload_transport_first_cargo_tile = 0x2C;
-        of_eeug_unload_transport_unload_tile = 0x34;
+        of_eeug_unload_transport_unload_tile_x = 0x34;
         of_eeug_unload_transport_unload_range_sq = 0x3C;
         vt_eeug_explore = 0x00831AE8;
         of_eeug_explore_tile_x = 0x3C;
@@ -674,7 +674,7 @@ internal int spec_goal_select(int build) {
         of_eeug_attack_unit_target = 0x30;
         vt_eeug_unload_transport = 0x008479A0;
         of_eeug_unload_transport_first_cargo_tile = 0x2C;
-        of_eeug_unload_transport_unload_tile = 0x34;
+        of_eeug_unload_transport_unload_tile_x = 0x34;
         of_eeug_unload_transport_unload_range_sq = 0x3C;
         vt_eeug_explore = 0x0084750C;
         of_eeug_explore_tile_x = 0x3C;

@@ -230,10 +230,10 @@ unsafe struct EEUGUnloadTransport
     [offset(0x2C), found(c)]
     ivec2 first_cargo_tile;
 
-    /// its dump's "Unload Tile": unload_init stores x, y, 0x483D97 tries shore tiles into it, 0x48CE8F copies it into a
-    /// new unload goal
+    /// its dump's "Unload Tile", x (y at +0x38: the base's _0x38): unload_init stores x, y, 0x483D97 tries shore
+    /// tiles into it, 0x48CE8F copies it into a new unload goal
     [offset(0x34), found(c)]
-    ivec2 unload_tile;
+    int32 unload_tile_x;
 
     /// its dump's "Unload Range Squared": unload_init sets the transport type's +0x4AC squared (AoC type +0x1B0)
     [offset(0x3C), found(c)]

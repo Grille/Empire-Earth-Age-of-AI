@@ -625,6 +625,11 @@ static unsafe class unit
 [c_type("ee_ai_state")]
 unsafe struct EEUnitAction
 {
+    /// its goal handlers: ask (0x619FF5, AoC 0x62CD8B) walks begin +0x8 to end +0xC, asking each (0x618CCB) until one
+    /// gives the unit a goal
+    [offset(0x8), found(c), guess]
+    vector handlers;
+
     /// the state's id, read by every condition through a unit's +0x1E8
     [offset(0x24), found(c)]
     uint32 id;

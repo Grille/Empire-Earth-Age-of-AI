@@ -598,6 +598,10 @@ internal inline int patch_missile_aim(unit_aim_fn h) { return patch_call(call_mi
 // class EEUnitAction (ee_ai_state)
 // a unit's script state, its +0x1E8 (EEUnitAction: a state of its .tai, engine-notes.md "Unit AI scripts"; its RTTI
 // in a running game, every unit's)
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// its goal handlers: ask (0x619FF5, AoC 0x62CD8B) walks begin +0x8 to end +0xC, asking each (0x618CCB) until one
+// gives the unit a goal
+internal inline uint8_t *ai_state_handlers_at(const ee_ai_state *o) { return (uint8_t *)o + of_ai_state_handlers; }
 // the state's id, read by every condition through a unit's +0x1E8
 internal inline uint32_t ai_state_get_id(const ee_ai_state *o) { return *(uint32_t *)((uint8_t *)o + of_ai_state_id); }
 internal inline void ai_state_set_id(ee_ai_state *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ai_state_id) = v; }
@@ -771,6 +775,7 @@ internal int spec_unit_select(int build) {
         fn_unit_aim = (unit_aim_fn)0x00633413;
         call_aim = 0x0061E1D7;
         call_missile_aim = 0x0054E850;
+        of_ai_state_handlers = 0x8;
         of_ai_state_id = 0x24;
         fn_ai_state_ask = (ai_state_ask_fn)0x00619FF5;
         calls_goalset_ask[0] = 0x005F0FFA;
@@ -924,6 +929,7 @@ internal int spec_unit_select(int build) {
         fn_unit_aim = (unit_aim_fn)0x0064939D;
         call_aim = 0x006313D6;
         call_missile_aim = 0x0055B1C3;
+        of_ai_state_handlers = 0x8;
         of_ai_state_id = 0x24;
         fn_ai_state_ask = (ai_state_ask_fn)0x0062CD8B;
         calls_goalset_ask[0] = 0x005FF364;

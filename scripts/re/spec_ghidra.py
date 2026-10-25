@@ -132,8 +132,11 @@ def main():
     def size_of(st):
         if st.get('done'):
             return st['size']
-        for fl in st['fields']:
-            fl['length'] = length(fl['type'])
+        fs = sorted(st['fields'], key=lambda f: f['offset'])
+        for k, fl in enumerate(fs):   # a block (bytes:0): up to the next field, else 4
+            fl['length'] = length(fl['type']) or ((fs[k + 1]['offset'] - fl['offset']) if k + 1 < len(fs) else 4)
+            if fl['type'] == 'bytes:0':
+                fl['type'] = 'bytes:%d' % fl['length']
         end = max([fl['offset'] + fl['length'] for fl in st['fields']] + [1])
         st['size'] = max(st['size'] or 0, end)
         st['done'] = True

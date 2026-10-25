@@ -97,3 +97,5 @@ ee_unit_vis +0x8  ee_unit_vis is the unit's tile (ee_tile): its objects' list he
 EEUnitClass +0x4  a pointer walking a vector (0x502622) or a unit fixed up after a load (0x5E6024: RTSUnit.refs) typed as the class
 ee_unit_stats +0x4  a unit fixed up after a load (0x5E6024) typed as stats: RTSUnit.refs
 ee_unit_stats +0x10  the unit's tile (0x502622's local_18 = unit->vis) typed as stats: ee_tile.height
+EEUnit +0x0  pointer arithmetic over a local typed as a unit (0x5DB641, 0x5E6024)
+EEGraphicObject +0x4  EEE3DParticleEmitter::vf19's this (an emitter - a vector's allocator word, vector_size takes its address), typed as the graphics object

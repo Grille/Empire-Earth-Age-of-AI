@@ -375,7 +375,7 @@ internal uint32_t vt_eeug_attack_unit;
 internal uint32_t of_eeug_attack_unit_target;
 internal uint32_t vt_eeug_unload_transport;
 internal uint32_t of_eeug_unload_transport_first_cargo_tile;
-internal uint32_t of_eeug_unload_transport_unload_tile;
+internal uint32_t of_eeug_unload_transport_unload_tile_x;
 internal uint32_t of_eeug_unload_transport_unload_range_sq;
 internal uint32_t vt_eeug_explore;
 internal uint32_t of_eeug_explore_tile_x;
@@ -1238,6 +1238,7 @@ internal uint32_t data_unit_call_node_del_2;
 internal uint32_t data_unit_fn_op_delete;
 internal uint32_t call_aim;
 internal uint32_t call_missile_aim;
+internal uint32_t of_ai_state_handlers;
 internal uint32_t of_ai_state_id;
 internal uint32_t calls_goalset_ask[2];
 
