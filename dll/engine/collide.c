@@ -28,19 +28,17 @@ internal unsigned g_uc_rest;                 // pushes of units at rest off each
 #define UC_REST_LOCK 3          // pushes at rest back against the one before, since it last moved on its own: then it
                                 // stays put - units pressed between others and something the push can't move shuffled
                                 // for ever; pushes on the same way are progress and don't count
-#define UC_CROWD 3.0f           // a standing unit's weight in a push: its size squared x (1 + this x the standing units
-                                // it touches) - one in a packed crowd barely gives way, the mover goes round instead of
-                                // pressing it into the others (they sprang back after it, or slid round each other)
-#define UC_TOUCH 0.1f           // tiles: a gap this narrow counts as touching
+#define UC_TOUCH 0.1f           // tiles: a gap this narrow counts as touching (uc_weight_against)
+#define UC_BEHIND 0.5f          // a neighbour within 60 degrees of the push's direction is in its way
 #define UC_MEM 16384
-struct uc_rest { uint32_t id; int n, contacts; vec2 last; };   // a unit's reversals at rest, the units it touches, its last push
+struct uc_rest { uint32_t id; int n; vec2 last; };   // a unit's reversals at rest and its last push
 internal struct uc_rest g_uc_mem[UC_MEM];
 
 internal struct uc_rest *uc_rest_of(ee_unit *u) {
     uint32_t id = (uint32_t)unit_get_serial(u), h = (id * 2654435761u) % UC_MEM, i = h;
     for (int k = 0; k < 8; k++, i = (h + (uint32_t)k) % UC_MEM)
         if (g_uc_mem[i].id == id || !g_uc_mem[i].id) break;
-    if (g_uc_mem[i].id != id) { g_uc_mem[i].id = id; g_uc_mem[i].n = g_uc_mem[i].contacts = 0; g_uc_mem[i].last = v2(0, 0); }
+    if (g_uc_mem[i].id != id) { g_uc_mem[i].id = id; g_uc_mem[i].n = 0; g_uc_mem[i].last = v2(0, 0); }
     return &g_uc_mem[i];
 }
 internal unsigned g_uc_steps, g_uc_hits;   // collision steps taken over, overlaps pushed off
@@ -96,11 +94,18 @@ internal int uc_kind(ee_unit *c) {
     return cat == KIND_RESOURCE || cat == KIND_FISH ? 0 : model_kind(type_get_model(td));
 }
 
-// c at work (on a kind 6 or 4 goal): u passes it, unless u is at the same work
+// u's work (a kind 6 or 4 goal it is at: gathering, building), else 0 - the flag alone stays set on an idle citizen
+internal int uc_work(ee_unit *u) {
+    ee_goal *g = unit_get_goal_object(u);
+    int k = g && unit_get_at_work(u) ? goal_get_state(g) : 0;
+    return k == 6 || k == 4 ? k : 0;
+}
+
+// c at work: u passes it, unless u is at the same work
 internal int uc_passes(ee_unit *u, ee_unit *c) {
     ee_goal *gc = unit_get_goal_object(c);
-    int k = gc && unit_get_at_work(c) ? goal_get_state(gc) : 0;
-    if (k != 6 && k != 4) return 0;
+    int k = uc_work(c);
+    if (!k) return 0;
     ee_goal *gu = unit_get_goal_object(u);
     if (!gu || !unit_get_at_work(u) || goal_get_state(gu) != k) return 1;
     return k == 6 ? goal_get_0x38(gu) != goal_get_0x38(gc) : goal_get_0x3c(gu) != goal_get_0x3c(gc);
@@ -116,23 +121,35 @@ internal void uc_push_quiet(void *model, ee_unit *u) {
 
 internal int uc_moves(ee_unit *u) { return unit_get_speed(u) > 0.05f || unit_get_turn_rate(u) != 0; }
 
-// a unit's weight in a push: its size squared, a standing land unit's against a mover times its crowd (UC_CROWD;
-// ships don't sidestep a crowd as infantry does - dreadnoughts through standing frigates overlapped more and deeper)
-internal float uc_weight(ee_unit *u, float len, int moves) {
-    return len * len * (moves ? 1.0f : 1.0f + UC_CROWD * (float)uc_rest_of(u)->contacts);
+// a standing land unit's weight against a mover pushing it along dir: its size squared x (1 + 8^n) for the n standing
+// units it touches on that side (within UC_BEHIND of dir; none: x 1) - a unit steps aside freely, but not into the
+// others: they had been pressed into each other, sprang back after the mover or slid round one another. A count of
+// every neighbour weighed the crowd's edge light, which then was pushed into the heavy middle; 1 + 2^n of the units
+// behind still let a truck press citizens together (their size squared 0.09 against its 0.49)
+internal float uc_weight_against(int kind, ee_unit *c, float len, vec2 dir) {
+    vec3 p = unit_get_pos(c);
+    int n = 0, reach = (int)((len + g_uc_biggest[kind]) * 0.5f + UC_TOUCH) + 1;
+    for (struct grid_it it = grid_it_box(unit_get_x(c), unit_get_y(c), reach, 1); grid_it_next(&it); ) {
+        ee_unit *b = it.u;
+        if (b == c) continue;
+        vec3 q = unit_get_pos(b);
+        vec2 rel = v2(q.x - p.x, q.y - p.y);
+        float lim = (len + unit_get_size(b)) * 0.5f + UC_TOUCH, d2 = vec2_len2(rel);
+        if (d2 >= lim * lim || d2 < 1e-8f || vec2_dot(rel, dir) < UC_BEHIND * sqrtf(d2)) continue;
+        if (uc_kind(b) != kind || uc_moves(b)) continue;
+        n++;
+    }
+    return len * len * (n ? 1.0f + (float)(1 << (n < 4 ? 3 * n : 12)) : 1.0f);
 }
 
 // the push off every overlapping hull near u, added to its push velocity; a standing ship of u's owner gets its part
-// at once (its own collision step doesn't run while it stands). resting: 1 u stands (it counts the standing units it
-// touches too), 2 it only counts them (it is locked: UC_REST_LOCK)
+// at once (its own collision step doesn't run while it stands)
 internal int uc_separate(int kind, ee_unit *u, int resting) {
     ee_physics *ph = game_physics();
     float dt = ph ? phys_get_step_s(ph) * (float)phys_substeps() : 0;
     if (dt <= 0) return 0;
     struct uc_hull h = uc_hull_of(u, kind);
-    float mu = h.len * h.len;   // standing units among themselves by size alone: crowd weights that change as they
-                                // part kept a gathered army shuffling
-    int contacts = 0;
+    float mu = h.len * h.len;
     vec2 corr = v2(0, 0);
     vec3 p = unit_get_pos(u);
     if (h.len > g_uc_biggest[kind]) g_uc_biggest[kind] = h.len;
@@ -141,7 +158,7 @@ internal int uc_separate(int kind, ee_unit *u, int resting) {
         ee_unit *c = it.u;
         if (c == u) continue;
         vec3 q = unit_get_pos(c);   // the near test first: most units in the box are far, and uc_kind costs
-        float cl = unit_get_size(c), lim = (h.len + cl) * 0.5f + UC_TOUCH;
+        float cl = unit_get_size(c), lim = (h.len + cl) * 0.5f;
         if (fabsf(q.x - p.x) > lim || fabsf(q.y - p.y) > lim) continue;
         if (uc_kind(c) != kind || uc_passes(u, c)) continue;
         struct uc_hull o = uc_hull_of(c, kind);
@@ -149,9 +166,7 @@ internal int uc_separate(int kind, ee_unit *u, int resting) {
         uc_nearest(h.a, h.b, o.a, o.b, &n1, &n2);
         vec2 d = vec2_sub(n1, n2);
         float d2 = vec2_len2(d), rr = h.r + o.r;
-        int moves = uc_moves(c);
-        if (resting && !moves && d2 < (rr + UC_TOUCH) * (rr + UC_TOUCH)) contacts++;
-        if (d2 >= rr * rr || resting == 2) continue;
+        if (d2 >= rr * rr) continue;
         float dist = sqrtf(d2);
         if (dist > 0.0001f) d = vec2_scale(d, 1.0f / dist);
         else {   // the axes cross: off sideways from the other's heading, to the side u's centre is on
@@ -167,21 +182,22 @@ internal int uc_separate(int kind, ee_unit *u, int resting) {
             d = vec2_add(d, vec2_scale(right, side * k * UC_SIDESTEP));
             d = vec2_scale(d, 1.0f / vec2_len(d));
         }
-        float over = rr - dist, oc = uc_weight(c, o.len, moves || resting || kind != MODEL_LAND), share = oc / (mu + oc);
-        int nudge =!resting && !moves && unit_get_owner(c) == unit_get_owner(u) && !unit_get_frozen(c);
+        int moves = uc_moves(c), nudge = !resting && !moves && unit_get_owner(c) == unit_get_owner(u) && !unit_get_frozen(c);
+        float over = rr - dist, oc = nudge && kind == MODEL_LAND ? uc_weight_against(kind, c, o.len, v2(-d.x, -d.y)) : o.len * o.len;
+        float share = oc / (mu + oc);
         if (resting && moves) continue;   // a moving one does it in its own step
         if (!resting && !moves && !nudge) share = 1.0f;
         if (over > g_uc_deepest) g_uc_deepest = over;
         if (resting && over < UC_REST_SLOP) continue;
         over *= UC_RELAX;
         corr = vec2_add(corr, vec2_scale(d, over * share));
-        if (nudge) {   // the standing one steps aside by its part
+        if (nudge) {   // the standing one steps aside by its part, and may part from the others again (its lock undone)
+            uc_rest_of(c)->n = 0;
             unit_set_push(c, vec2_add(unit_get_push(c), vec2_scale(d, -over * (1.0f - share) / dt)));
             uc_push_quiet(type_get_model(unit_get_type_data(c)), c);
         }
         g_uc_hits++;
     }
-    if (resting) uc_rest_of(u)->contacts = contacts;
     if (corr.x == 0 && corr.y == 0) return 0;
     unit_set_push(u, vec2_add(unit_get_push(u), vec2_scale(corr, 1.0f / dt)));
     return 1;
@@ -199,9 +215,9 @@ internal void __thiscall hook_collide(void *model, ee_unit *u) {
         model_collide(model, u);
         ee_physics *ph = game_physics();
         struct uc_rest *r = NULL;
-        if (ph && !unit_get_at_work(u) && !unit_get_frozen(u) && unit_get_hp(u) > 0 && !unit_get_holder(u)
+        if (ph && !uc_work(u) && !unit_get_frozen(u) && unit_get_hp(u) > 0 && !unit_get_holder(u)
             && ((unsigned)unit_get_serial(u) + phys_get_step(ph)) % UC_REST_EVERY == 0
-            && ((r = uc_rest_of(u))->n < UC_REST_LOCK || (uc_separate(kind, u, 2), 0)) && uc_separate(kind, u, 1)) {
+            && (r = uc_rest_of(u))->n < UC_REST_LOCK && uc_separate(kind, u, 1)) {
             vec2 p = unit_get_push(u);
             if (vec2_dot(p, r->last) < 0) r->n++;
             r->last = p;
@@ -211,8 +227,7 @@ internal void __thiscall hook_collide(void *model, ee_unit *u) {
         return;
     }
     g_uc_steps++;
-    struct uc_rest *r = uc_rest_of(u);
-    r->n = r->contacts = 0;   // it moves: free to be pushed at rest again, no crowd's weight
+    uc_rest_of(u)->n = 0;   // it moves: free to be pushed at rest again
     uc_separate(kind, u, 0);
     model_push(model, u);
 }

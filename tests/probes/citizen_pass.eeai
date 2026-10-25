@@ -1,0 +1,20 @@
+// Trucks through standing citizens (the player: a few citizens a truck drove through, all in each other again): Continental
+// (seed 101, start_epoch 12), 40 citizens gathered at 46,44 by a group move and settled, then 2 cargo trucks from 38,48
+// through them to 54,40 and at 1.9 min back. Every unit watched every step (`fmove watch`, # fmwatch): read as
+// crowd_pass.eeai (its phases at 1.0 and 1.9 min).
+wait_until(0.1min)
+spawn(1, unit.citizen, 28, 30, 40)
+wait_until(0.15min)
+cmd("fmove go 1 34 36 10 46 44")
+wait_until(0.9min)
+spawn(1, unit.x10_cargo_truck, 38, 48, 2)
+wait_until(1.0min)
+cmd("fmove go 1 38 48 3 54 40")
+cmd("fmove add 1 46 44 5")
+cmd("fmove watch 1")
+wait_until(1.9min)
+cmd("fmove go 1 54 40 3 38 48")
+cmd("fmove add 1 46 44 5")
+wait_until(2.7min)
+cmd("fmove sum")
+cmd("fmove watch 0")
