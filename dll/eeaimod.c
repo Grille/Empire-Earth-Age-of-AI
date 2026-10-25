@@ -274,7 +274,7 @@ internal char __thiscall hook_game_start(void *state, ee_setup *setup, void *p2)
             const char *pn = FIELD(setup_slot_name_at(setup_slot_at(setup, i)), 4, const char *);
             fprintf(g_log, "# setup slot %d type=%d name=\"%s\"\n", i, setup_slot_get_type(setup_slot_at(setup, i)), pn ? pn : "");
         }
-        fprintf(g_log, "# setup seed(world+0x54)=%u\n", game_world() ? world_get_seed(game_world()) : 0);
+        fprintf(g_log, "# setup seed(world+0x54)=%u\n", game_get_ui() ? ui_get_seed(game_get_ui()) : 0);
         fflush(g_log);
         LeaveCriticalSection(&g_lock);
     }

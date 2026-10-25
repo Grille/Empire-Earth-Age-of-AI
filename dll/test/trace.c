@@ -174,8 +174,8 @@ internal unsigned g_sync_left;
 // 0x5D7A25, 0x5D8871, 0x65C955): there game_seed takes effect only here.
 internal void __thiscall hook_start_exec(ee_start_msg *msg) {
     if (g_auto.game_seed) start_msg_set_seed(msg, (unsigned)g_auto.game_seed);
-    ee_physics *phys = game_physics(); ee_world *world = game_world();
-    unsigned map_seed = world ? world_get_seed(world) : 0;
+    ee_physics *phys = game_physics(); ee_ui *world = game_get_ui();
+    unsigned map_seed = world ? ui_get_seed(world) : 0;
     start_msg_execute(msg);
     EnterCriticalSection(&g_lock);
     if (g_sync) fprintf(g_sync, "start message: seed %u (generator %u, world+0x54 was %u)\n", start_msg_get_seed(msg),

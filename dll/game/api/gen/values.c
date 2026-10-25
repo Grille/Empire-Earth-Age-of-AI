@@ -2,7 +2,6 @@
 // each the running build's once spec_select has run; included by game/api/api.c ahead of the module's code.
 
 // ai_managers.cs
-internal uint32_t data_hooks_site_goal_markers_max;
 internal uint32_t of_build_mgr_queues;
 internal uint32_t of_build_mgr_base_x;
 internal uint32_t of_build_mgr_base_y;
@@ -27,7 +26,6 @@ internal uint32_t of_civ_mgr_att_epoch_techs;
 internal uint32_t of_civ_mgr_att_build;
 internal uint32_t of_civ_mgr_att_7c;
 internal uint32_t calls_fish_type[2];
-internal uint32_t of_path_msg_facing;
 internal uint32_t of_plan_node_next;
 internal uint32_t of_plan_node_unknown_c;
 internal uint32_t of_plan_node_unknown_10;
@@ -238,7 +236,7 @@ internal uint32_t data_game_table_values;
 internal uint32_t data_game_teams_locked;
 internal uint32_t data_game_types;
 internal uint32_t data_game_ui_manager;
-internal uint32_t data_game_world;
+internal uint32_t data_game_ui;
 internal uint32_t data_game_iat_cos;
 internal uint32_t data_game_iat_rand;
 internal uint32_t data_game_iat_release;
@@ -319,6 +317,7 @@ internal uint32_t value_hooks_rva_lle_input_coop;
 internal uint32_t value_hooks_rva_lle_mouse_coop;
 internal uint32_t value_hooks_rva_lle_send_wait;
 internal uint32_t data_hooks_site_close_window_je;
+internal uint32_t data_hooks_site_goal_markers_max;
 internal uint32_t data_hooks_site_editor_menu;
 internal uint32_t data_hooks_site_editor_res;
 internal uint32_t data_hooks_site_sim_receive;
@@ -364,6 +363,7 @@ internal uint32_t of_select_msg_ids_begin;
 internal uint32_t of_select_msg_flag;
 internal uint32_t of_load_msg_transport;
 internal uint32_t of_load_msg_unit;
+internal uint32_t of_path_msg_facing;
 internal uint32_t of_path_msg_x;
 internal uint32_t of_path_msg_y;
 internal uint32_t of_path_msg_goal_30;
@@ -686,6 +686,8 @@ internal uint32_t value_tech_slot_tech_available;
 internal uint32_t data_tech_vts_tech_researched;
 
 // ui.cs
+internal uint32_t of_ui_thread;
+internal uint32_t of_ui_seed;
 internal uint32_t of_camera_x;
 internal uint32_t of_camera_zoom;
 internal uint32_t of_gfx_owner;
@@ -849,8 +851,6 @@ internal uint32_t of_physics_steps;
 internal uint32_t of_physics_step_s;
 internal uint32_t of_physics_steps_granted;
 internal uint32_t of_physics_time;
-internal uint32_t of_world_thread;
-internal uint32_t of_world_seed;
 
 // zone.cs
 internal uint32_t of_zone_sites_begin;

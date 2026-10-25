@@ -46,18 +46,6 @@ typedef void (__thiscall *physics_step_fn)(ee_physics *);
 internal physics_step_fn fn_physics_step;
 internal inline void physics_step(ee_physics *physics) { fn_physics_step(physics); }
 
-// class EEWorld (ee_world)
-// the world, [game.world] (EEWorld)
-// its thread (TSThread::Post)
-// EEWorld's +0x1C and +0x5C the same in AoC
-internal inline void *world_get_thread(const ee_world *o) { return *(void **)((uint8_t *)o + of_world_thread); }
-internal inline void world_set_thread(ee_world *o, void *v) { *(void **)((uint8_t *)o + of_world_thread) = v; }
-internal inline void **world_thread_at(const ee_world *o) { return (void **)((uint8_t *)o + of_world_thread); }
-// the map's seed
-internal inline uint32_t world_get_seed(const ee_world *o) { return *(uint32_t *)((uint8_t *)o + of_world_seed); }
-internal inline void world_set_seed(ee_world *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_world_seed) = v; }
-internal inline uint32_t *world_seed_at(const ee_world *o) { return (uint32_t *)((uint8_t *)o + of_world_seed); }
-
 // the running build's values (spec_select, with addr_select): how many it hasn't got
 internal int spec_world_select(int build) {
     switch (build) {
@@ -72,8 +60,6 @@ internal int spec_world_select(int build) {
         of_physics_steps_granted = 0xB8;
         of_physics_time = 0xD0;
         fn_physics_step = (physics_step_fn)0x00546C63;
-        of_world_thread = 0x40;
-        of_world_seed = 0x54;
         return 0;
     case 1:   // aoc
         of_damage_model_map = 0x14C;
@@ -86,8 +72,6 @@ internal int spec_world_select(int build) {
         of_physics_steps_granted = 0xB8;
         of_physics_time = 0xD0;
         fn_physics_step = (physics_step_fn)0x00553082;
-        of_world_thread = 0x40;
-        of_world_seed = 0x54;
         return 0;
     }
     return 0;

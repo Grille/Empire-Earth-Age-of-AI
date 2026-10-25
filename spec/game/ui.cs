@@ -1,3 +1,18 @@
+/// the user interface, [game.ui] (its RTTI's; the spec called it EEWorld until 2026-10-25 - the world is game.world):
+/// the action queue, the chat lines, its thread
+[c_type("ee_ui")]
+unsafe struct EEUserInterface
+{
+    /// its thread (TSThread::Post)
+    /// +0x1C and +0x5C the same in AoC
+    [offset(0x40), found(b)]
+    void* thread;
+
+    /// the map's seed
+    [offset(0x54), found(b)]
+    uint32 seed;
+}
+
 /// the camera, game.camera (EECameraControl)
 [c_type("ee_camera")]
 unsafe struct EECameraControl

@@ -45,7 +45,7 @@ typedef struct ee_player_stats ee_player_stats; // PLSTATS: a player's statistic
 typedef struct ee_player_b98 ee_player_b98;     // PLB98: the object at a player's +0xB98
 typedef struct ee_dmg_model ee_dmg_model;       // DMGMODEL: the object of damage_points
 typedef struct ee_physics ee_physics;           // PHYS: the simulation, [data_api_world_clock] (EEPhysics)
-typedef struct ee_world ee_world;               // WORLD: the world, [data_game_world] (EEWorld)
+typedef struct ee_ui ee_ui;                     // UI: the user interface, [data_game_ui] (EEUserInterface)
 typedef struct ee_server ee_server;             // SERVER: the lockstep server or client, [data_game_server]
 typedef struct ee_msg ee_msg;                   // MSG: a message players send (EEMessage: tribute, chat, select ...)
 typedef struct ee_game_data ee_game_data;       // GAMEDATA: the game data, [data_game_game_data]

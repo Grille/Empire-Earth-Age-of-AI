@@ -48,16 +48,3 @@ unsafe struct EEPhysics
     [address((ee)0x00546C63, (aoc)0x00553082)]
     extern void step();
 }
-
-/// the world, [game.world] (EEWorld)
-unsafe struct EEWorld
-{
-    /// its thread (TSThread::Post)
-    /// EEWorld's +0x1C and +0x5C the same in AoC
-    [offset(0x40), found(b)]
-    void* thread;
-
-    /// the map's seed
-    [offset(0x54), found(b)]
-    uint32 seed;
-}

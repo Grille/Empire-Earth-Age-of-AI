@@ -198,9 +198,9 @@ static unsafe class game
     [address((ee)0x009197A0, (aoc)0x0093191C)]
     static block ui_manager;
 
-    /// action queue owner: QueueAction 0x66192F (thiscall, takes action ptr)
+    /// the user interface: the action queue's owner, the chat lines'
     [address((ee)0x0091977C, (aoc)0x009318F8)]
-    static block world;
+    static EEUserInterface* ui;
 
     /// cos (the game's)
     [address((ee)0x00823304, (aoc)0x00837340)]

@@ -111,12 +111,12 @@ internal void randmap_rewrite(ee_setup *setup) {
     setup_set_unknown_3fc(setup, 0);
     setup_set_flag(setup, 0, 1); setup_set_flag(setup, 1, 0); setup_set_flag(setup, 2, 0); setup_set_flag(setup, 3, (uint8_t)g_rm.reveal);
     *game_type_var() = 0;   // game type: random map
-    ee_world *world = game_world();
-    if (world && g_rm.seed) world_set_seed(world, (unsigned)g_rm.seed);
+    ee_ui *world = game_get_ui();
+    if (world && g_rm.seed) ui_set_seed(world, (unsigned)g_rm.seed);
     if (g_log) {
         ee_game_data *lim = game_data();   // the game's unit limits: default +0x2E8, the most +0x2EC (more: the default)
         fprintf(g_log, "# random map: \"%s\" size %d, %d AIs (%s), start epoch %d, seed %d, difficulty %d%s%s, unit limit %d (game default %d, max %d)\n",
-                g_rm.map, g_rm.size, g_rm.ais, g_rm.pairs ? "pairs" : "ffa", g_rm.start_epoch, world ? (int)world_get_seed(world) : -1, g_rm.difficulty,
+                g_rm.map, g_rm.size, g_rm.ais, g_rm.pairs ? "pairs" : "ffa", g_rm.start_epoch, world ? (int)ui_get_seed(world) : -1, g_rm.difficulty,
                 g_rm.scale != 1 ? ", map scale " : "", g_rm.scale != 1 ? k_rm_scale[g_rm.scale] : "", g_rm.unit_limit,
                 lim ? game_data_get_unit_limit(lim) : -1, lim ? game_data_get_unit_limit_max(lim) : -1);
         fflush(g_log);

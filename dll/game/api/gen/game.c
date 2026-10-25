@@ -94,8 +94,10 @@ internal inline uint8_t *game_table_values_at(void) { return (uint8_t *)(uintptr
 internal inline uint8_t *game_teams_locked_at(void) { return (uint8_t *)(uintptr_t)data_game_teams_locked; }
 internal inline uint8_t *game_types_at(void) { return (uint8_t *)(uintptr_t)data_game_types; }
 internal inline uint8_t *game_ui_manager_at(void) { return (uint8_t *)(uintptr_t)data_game_ui_manager; }
-// action queue owner: QueueAction 0x66192F (thiscall, takes action ptr)
-internal inline uint8_t *game_world_at(void) { return (uint8_t *)(uintptr_t)data_game_world; }
+// the user interface: the action queue's owner, the chat lines'
+internal inline ee_ui *game_get_ui(void) { return *(ee_ui **)(uint8_t *)(uintptr_t)data_game_ui; }
+internal inline void game_set_ui(ee_ui *v) { *(ee_ui **)(uint8_t *)(uintptr_t)data_game_ui = v; }
+internal inline ee_ui **game_ui_at(void) { return (ee_ui **)(uint8_t *)(uintptr_t)data_game_ui; }
 // cos (the game's)
 internal inline uint8_t *game_iat_cos_at(void) { return (uint8_t *)(uintptr_t)data_game_iat_cos; }
 // the game's rand
@@ -284,7 +286,7 @@ internal int spec_game_select(int build) {
         data_game_teams_locked = 0x00918E9F;
         data_game_types = 0x009418A0;
         data_game_ui_manager = 0x009197A0;
-        data_game_world = 0x0091977C;
+        data_game_ui = 0x0091977C;
         data_game_iat_cos = 0x00823304;
         data_game_iat_rand = 0x00824648;
         data_game_iat_release = 0x008231AC;
@@ -390,7 +392,7 @@ internal int spec_game_select(int build) {
         data_game_teams_locked = 0x009318DF;
         data_game_types = 0x009636AC;
         data_game_ui_manager = 0x0093191C;
-        data_game_world = 0x009318F8;
+        data_game_ui = 0x009318F8;
         data_game_iat_cos = 0x00837340;
         data_game_iat_rand = 0x0083863C;
         data_game_iat_release = 0x008371A8;
@@ -503,7 +505,7 @@ internal int spec_game_check(void) {
     bad += spec_data(data_game_teams_locked, "game.teams_locked");
     bad += spec_data(data_game_types, "game.types");
     bad += spec_data(data_game_ui_manager, "game.ui_manager");
-    bad += spec_data(data_game_world, "game.world");
+    bad += spec_data(data_game_ui, "game.ui");
     bad += spec_data(data_game_iat_cos, "game.iat_cos");
     bad += spec_data(data_game_iat_rand, "game.iat_rand");
     bad += spec_data(data_game_iat_release, "game.iat_release");

@@ -1443,7 +1443,7 @@ internal void cmd_mapshot(const char *args, char *out) {
         a += k;
     }
     if (size != 1024 && size != 2048 && size != 4096) { REPLY("error: size 1024, 2048 or 4096 (and/or all)\n"); return; }
-    ee_world *w = game_world();
+    ee_ui *w = game_get_ui();
     if (!w || !game_map() || !game_physics()) { REPLY("error: no game running\n"); return; }
     CreateDirectoryA("aimod_dumps", NULL);
     char dir[MAX_PATH], dst[MAX_PATH];
@@ -1459,7 +1459,7 @@ internal void cmd_mapshot(const char *args, char *out) {
     ee_player *me = game_players()[(int)local_player_index()];
     uint8_t had = me ? player_get_explore_all(me) : 0;
     if (all && me) player_set_explore_all(me, 1);
-    world_screenshot(w, size, 0);
+    ui_screenshot(w, size, 0);
     mapshot_take(size, since, dst, out);
     if (all && me) player_set_explore_all(me, had);
 }

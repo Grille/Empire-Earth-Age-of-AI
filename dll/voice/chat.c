@@ -31,7 +31,7 @@ internal const char *epoch_name(int e) { return e >= 0 && e < 15 ? k_epoch_names
 
 // one chat line from player pl (name and colour from the player), shown for ms milliseconds
 internal void chat_line(ee_player *pl, const char *text, int ms) {
-    void *ui = game_world();
+    void *ui = game_get_ui();
     if (!pl || !ui || !*text) return;
     __attribute__((aligned(8))) uint8_t s[32];
     wstring_init(s);
@@ -47,7 +47,7 @@ internal void chat_line(ee_player *pl, const char *text, int ms) {
 // a line from nobody in particular, as the game shows "<name> wurde besiegt" (0x55BCEA): white, and as the
 // sender string 0x7C45 of the language file
 internal void system_line(const char *text, int ms) {
-    void *res = string_resources(), *ui = game_world();
+    void *res = string_resources(), *ui = game_get_ui();
     if (!res || !ui || !*text) return;
     float white[3] = { 1.0f, 1.0f, 1.0f };
     __attribute__((aligned(8))) uint8_t name[32], line[32];
@@ -61,7 +61,7 @@ internal void system_line(const char *text, int ms) {
 }
 
 internal void chat_stance_line(ee_player *pl, int stance) {
-    void *res = string_resources(), *ui = game_world();
+    void *res = string_resources(), *ui = game_get_ui();
     ee_game_data *opt = game_data();
     if (!pl || !res || !ui || !opt) return;
     __attribute__((aligned(8))) uint8_t verb[32], word[32], line[32];

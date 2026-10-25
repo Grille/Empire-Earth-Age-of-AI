@@ -108,7 +108,7 @@ internal PRINTF_LIKE(1, 2) void ctl_log(const char *fmt, ...) {
 
 
 internal void queue_action(void *act) {
-    world_queue_action(act);
+    ui_queue_action(act);
     action_release(act);
 }
 
@@ -677,8 +677,8 @@ internal DWORD WINAPI pipe_thread(LPVOID unused) {
                 // menus where no simulation runs - e.g. 413 opens the scenario editor from the main menu
                 unsigned msg = 0, p1 = 0;
                 sscanf(cmd + n, "%x %x", &msg, &p1);
-                ee_world *ui = game_world();
-                void *thread = ui ? world_get_thread(ui) : NULL;
+                ee_ui *ui = game_get_ui();
+                void *thread = ui ? ui_get_thread(ui) : NULL;
                 typedef long (__thiscall *PostFn)(void *, unsigned long, void *, void *, int);
                 PostFn post = (PostFn)GetProcAddress(GetModuleHandleA("Low-Level Engine.dll"), "?Post@TSThread@@QAEJKPAX0_N@Z");
                 if (thread && post && msg) wsprintfA(reply, "ok: posted %x (result %ld)\n", msg, post(thread, msg, (void *)(uintptr_t)p1, NULL, 1));
