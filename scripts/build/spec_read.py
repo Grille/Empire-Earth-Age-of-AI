@@ -141,6 +141,15 @@ def read_file(path):
             cur.members.append(Member(name, ctype, params, func, static, fixed, attrs_of(attr_text), doc, where))
             attr_text, doc = '', []
         depth += code.count('{') - code.count('}')
+    text = None
+    for t in types:   # an enum's members: [(name, value or None)] - its body read whole (one line or several)
+        t.values = []
+        if t.enum:
+            text = text or re.sub(r'//[^\n]*', '', open(path, encoding='utf-8').read())
+            m = re.search(r'\benum\s+%s\s*(?::\s*\w+\s*)?\{([^}]*)\}' % t.name, text)
+            for part in [p.strip() for p in m.group(1).split(',') if p.strip()]:
+                pm = re.match(r'^@?(\w+)(?:\s*=\s*(-?\w+))?$', part)
+                t.values.append((pm.group(1), int(pm.group(2), 0) if pm.group(2) else None))
     return types
 
 

@@ -30,7 +30,8 @@
 #include "game/api/raw/editor_layout.h"   // the scenario editor's layout sites (generated, the 2017 update)
 #include "game/api/layout.h"       // FIELD: a read at a field's offset or a plain number
 #include "game/api/patching.c"     // the installers' helpers: patch_calls, PATCH_LIST, site_index
-#include "game/api/scenario_lists.c"   // the scenario editor's lists: enums the spec's C types fields by
+#include "game/api/gen/enums.c"    // the game's enums (spec/game/scenario_lists.cs ...): the spec's C types fields by them
+#include "game/api/scenario_lists.c"   // the scenario editor's lists: a player by number, the class filter by build
 #include "game/api/gen/gen.c"      // the spec's C (spec/game/, scripts/build/gen_api.py)
 #include "game/api/game.c"         // the game's globals, memory, strings, actions, simulation, run
 #include "game/api/unit.c"

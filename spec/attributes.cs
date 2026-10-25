@@ -105,9 +105,10 @@ public sealed class c_type : Attribute
     public c_type(string name) { }
 }
 
-// a static class's C prefix: "" for the one whose functions keep names of their own (explored_by); a class's struct
-// has none - its prefix is its C type without ee_ (the player, 2026-10-25: one name for type and functions)
-[AttributeUsage(AttributeTargets.Struct | AttributeTargets.Class)]
+// a static class's C prefix: "" for the one whose functions keep names of their own (explored_by); an enum's: its
+// constants' (SM_CAT: SM_CAT_OBJECT, gen/enums.c); a class's struct has none - its prefix is its C type without ee_
+// (the player, 2026-10-25: one name for type and functions)
+[AttributeUsage(AttributeTargets.Struct | AttributeTargets.Class | AttributeTargets.Enum)]
 public sealed class c_prefix : Attribute
 {
     public c_prefix(string name) { }
