@@ -23,6 +23,8 @@ public class player
     /// epoch's: kind.towers, kind.citizen), or a list of them - any of them: them.count(kind.towers),
     /// me.count([kind.tank, kind.tank_strong]) (docs/units.md: the identifiers and kinds)
     [method] public extern int count(filter of);
+    /// its units and buildings on the map now, by id - of a filter (as count's: p.units(kind.tank)) or all (p.units())
+    [method, script] public extern unit[] units(filter of = default);
     /// its Town Centers and Capitols
     public int centers;
     /// its fighting strength (its soldiers' hit points, 30 a building) - to compare: them.strength > me.strength *

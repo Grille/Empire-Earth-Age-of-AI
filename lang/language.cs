@@ -45,6 +45,10 @@ public sealed class effect : Attribute { }
 [AttributeUsage(AttributeTargets.Method)]
 public sealed class method : Attribute { }
 
+// a script's only - a text has no use for it (p.units(): a list of units); not in the texts' README
+[AttributeUsage(AttributeTargets.Method | AttributeTargets.Field)]
+public sealed class script : Attribute { }
+
 // a value a script may set: p.gold = 500, slot.persona = persona.fuchs
 [AttributeUsage(AttributeTargets.Field)]
 public sealed class set : Attribute { }

@@ -1,0 +1,21 @@
+// units as values (lang/unit.cs, game_script/units.c): Continental (seed 101) - 4 doughboys for P2 at 40,40, listed
+// by p.units(filter), read (id, owner, pos, hp, type), found again by id, hurt, destroyed: alive false, game.unit
+// null, the list without them (the hit takes all four). The pings say each step.
+wait_until(0.05min)
+spawn(2, unit.inf10_doughboy, 40, 40, 4)
+wait_until(0.1min)
+let p = player(2)
+let men = p.units(unit.inf10_doughboy)
+ping("P2: {len(p.units())} units and buildings, {len(men)} doughboys")
+let u = men[1]
+ping("{u}: id {u.id}, of {u.owner}, at {u.pos}, hp {u.hp} of {u.max_hp}, a doughboy: {u.type == unit.inf10_doughboy}")
+let again = game.unit(u.id)
+if again != null { ping("found by id: the same {again == u}, alive {again.alive}") }
+hurt(2, unit.inf10_doughboy, 40, 40, 1, 30)
+wait_until(0.15min)
+ping("hurt: {u.hp} of {u.max_hp}")
+hurt(2, unit.inf10_doughboy, 40, 40, 1, 5000)
+wait_until(0.3min)
+ping("after: alive {u.alive}, found {game.unit(u.id) != null}, doughboys {len(p.units(unit.inf10_doughboy))}")
+ping("a gone unit's hp next - a mistake, the script stops there")
+ping("{u.hp}")

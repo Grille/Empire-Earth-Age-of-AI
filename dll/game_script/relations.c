@@ -14,8 +14,8 @@
 // The members, the text's own names and the kinds' tables are declared in lang/ (player.cs, names.cs, game.cs,
 // slot.cs - C#, the language's objects): names, types, arguments, docs - scripts/build/gen_lang.py makes lang.h of
 // them, gen_eeai_readme.py the README's tables. What each one is worked out as is here.
-// THE KINDS OF OBJECTS (script/host.h): a player, the game, a slot
-enum { XK_PLAYER = 1, XK_GAME, XK_SLOT };
+// THE KINDS OF OBJECTS (script/host.h): a player, the game, a slot, a unit (game_script/units.c)
+enum { XK_PLAYER = 1, XK_GAME, XK_SLOT, XK_UNIT };
 #include "game_script/lang.h"
 internal int g_llm_equal, g_llm_constrained;   // llm.c: [llm] equal, constrained
 internal void *x_player_named(const char *n) {
@@ -298,7 +298,7 @@ internal int x_method(struct xctx *c, const char *name, const struct xval *a, in
     const char *dot = strrchr(name, '.');
     const char *rel = dot ? dot + 1 : name;
     const struct xmember *m = x_find_member(rel, (int)strlen(rel));
-    if (m && m->kind == XM_FILTER) return na == 1 && x_count(c, name, dot, a, v);
+    if (m && m->kind == XM_FILTER && strcmp(rel, "units")) return na == 1 && x_count(c, name, dot, a, v);   // (units: a script's)
     // (B) or, counting events, (B, minutes) - kills also with a filter last: (B, kind.tank), (B, 10, kind.tank) - lang/player.cs
     if (!m || m->kind != XM_REL || na < m->amin || na > m->amax) return 0;
     int ok = 1;
@@ -375,12 +375,13 @@ internal int x_stock_index(const char *name) {   // food .. iron: the stock's in
 
 // THE KINDS (script/host.h: the check reads them, x_kmember): a player, the game, a slot - their members lang.h's
 // k_xk_player / game / slot (lang/: a value, a player, a method with its arguments; the type of what each gives)
-internal struct x_kind g_xkinds[3] = {
+internal struct x_kind g_xkinds[4] = {
     { "player", XK_NUMBERED(XK_PLAYER), k_xk_player, (int)(sizeof k_xk_player / sizeof *k_xk_player) },
     { "game", XK_NUMBERED(XK_GAME), k_xk_game, (int)(sizeof k_xk_game / sizeof *k_xk_game) },
     { "slot", XK_NUMBERED(XK_SLOT), k_xk_slot, (int)(sizeof k_xk_slot / sizeof *k_xk_slot) },
+    { "unit", XK_NUMBERED(XK_UNIT), k_xk_unit, (int)(sizeof k_xk_unit / sizeof *k_xk_unit) },
 };
-internal const struct x_kind *x_kind_of(int k) { return k >= XK_PLAYER && k <= XK_SLOT ? &g_xkinds[k - 1] : NULL; }
+internal const struct x_kind *x_kind_of(int k) { return k >= XK_PLAYER && k <= XK_UNIT ? &g_xkinds[k - 1] : NULL; }
 internal int x_root_kind(const char *name) {   // a text's players (me, them, enemy; lord one or none: a player?), the game
     int t = x_name_type(name);
     if (X_TBASE(t) == XK_PLAYER && !(t & X_LIST_OF)) return t;
@@ -490,6 +491,7 @@ internal int x_player_set(struct xctx *c, const struct xval *o, const char *name
 // personality and colour; a human's colour one of the game's)
 internal int x_obj_set(struct xctx *c, const struct xval *o, const char *name, const struct xval *v) {
     if (o->okind == XK_PLAYER) return x_player_set(c, o, name, v);
+    if (o->okind == XK_UNIT) { x_host_fail(c, "a unit's %s can't be set", name); return 0; }   // (lang/unit.cs: none is [set] yet)
     int number = o->obj - 1, s = o->okind == XK_SLOT ? x_slot_index(number) : -1;
     if (s < 0) { x_host_fail(c, "%s.%s = ...: only in game.setup (before the game starts)", o->okind == XK_SLOT ? "slot" : "it", name); return 0; }
     int human = setup_slot_get_type(setup_slot_at(g_x_setup, s)) == 1;
@@ -520,9 +522,13 @@ internal int x_obj_set(struct xctx *c, const struct xval *o, const char *name, c
     }
     return 0;
 }
+internal int x_unit_member_of(struct xctx *c, const struct xval *o, const char *name, struct xval *v);   // units.c
+internal int x_units_of(struct xctx *c, int pl, const struct xval *a, int na, struct xval *v);
+internal void x_unit_by_id(struct xctx *c, const struct xval *id, struct xval *v);
 // o.name, o.name(a ...) (expr.c x_obj_member: a member of its kind, its arguments counted)
 internal int x_obj_member_of(struct xctx *c, const struct xval *o, const char *name, const struct xval *a, int na, struct xval *v) {
     if (o->okind == XK_SLOT) return x_slot_member(c, o, name, v);
+    if (o->okind == XK_UNIT) return x_unit_member_of(c, o, name, v);
     if (o->okind == XK_GAME && g_x_setup && strcmp(name, "slots") && strcmp(name, "slot")) {
         x_host_fail(c, "game.%s: not before the game starts - game.setup has game.slots, game.slot(n)", name);
         return 1;
@@ -535,7 +541,8 @@ internal int x_obj_member_of(struct xctx *c, const struct xval *o, const char *n
         void *p = player_at(o->obj - 1);
         const struct xmember *m = x_find_member(name, (int)strlen(name));
         if (!m) return 0;
-        if (m->kind == XM_PLAYER) x_member(p, m, v);
+        if (!strcmp(name, "units")) x_units_of(c, o->obj - 1, a, na, v);
+        else if (m->kind == XM_PLAYER) x_member(p, m, v);
         else if (m->kind == XM_LINK) x_player(v, x_lord(p), "lord");
         else if (m->kind == XM_FILTER) x_count_of(c, p, "player", name, &a[0], v);
         else if (m->kind == XM_DO) x_player_do(c, o->obj - 1, name, a, na, v);
@@ -554,7 +561,8 @@ internal int x_obj_member_of(struct xctx *c, const struct xval *o, const char *n
         if (!c->script) x_host_fail(c, "game.timer: only in a script");
         else if (!a[0].w || !a[0].has_n || a[0].ln || !x_timer_make(c, a[0].n, &a[1], v, &why)) x_host_fail(c, "%s", why);
     } else if (!strcmp(name, "setup")) {   // (its blocks ran at the game's start - here, in their place, nothing)
-    } else if (!strcmp(name, "slots")) {
+    } else if (!strcmp(name, "unit")) x_unit_by_id(c, &a[0], v);
+    else if (!strcmp(name, "slots")) {
         int n = 0;
         while (x_slot_index(n + 1) >= 0) n++;
         struct xval *it = n > 0 ? x_alloc((size_t)n * sizeof *it) : NULL;

@@ -1545,6 +1545,8 @@ internal int x_path_kind(struct xcheck *k, const struct xnode *n, const char *s,
     if (at >= upto && (kind & X_NULLABLE) && xn_narrowed(k, s, upto)) kind &= ~X_NULLABLE;   // checked: there
     return at >= upto ? kind : X_ANY;
 }
+// "n" where a type's name takes "an" (an int, an epoch - a unit, a unit type)
+internal const char *xan(const char *name) { return strchr("aeio", *name) || (*name == 'u' && strncmp(name, "unit", 4)) ? "n" : ""; }
 // a type's name for the messages: int, list of player, player? ...
 internal const char *xty_name(int t, char *buf, int cap) {
     static const char *const own[] = { "int", "float", "bool", "text", "vec2", "vec3", "vec4", "epoch", "color", "unit type",
@@ -1773,7 +1775,7 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
             if ((int)pi->n && k->ctx && !xt_fits((int)pi->n, k->ctx)) {   // every's run as a text
                 char a[40], b[40];
                 snprintf(k->whybuf, sizeof k->whybuf, "%s: %s - it gets a%s %s here", pi->s, xty_name((int)pi->n, a, sizeof a),
-                         strchr("aeiou", *xty_name(k->ctx, b, sizeof b)) ? "n" : "", b);
+                         xan(xty_name(k->ctx, b, sizeof b)), b);
                 return xc_fail(k, pi, k->whybuf);
             }
             xsc_add(&s, pi->s);
@@ -1798,7 +1800,7 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
             if (!xt_fits(tw, tv)) {
                 char a[40], b[40];
                 snprintf(k->whybuf, sizeof k->whybuf, "let %s: %s = ...: a%s %s can't go in%s", n->s, xty_name(tw, a, sizeof a),
-                         strchr("aeiou", *xty_name(tv, b, sizeof b)) ? "n" : "", b, xt_hint(tw, tv));
+                         xan(xty_name(tv, b, sizeof b)), b, xt_hint(tw, tv));
                 return xc_fail(k, n, k->whybuf);
             }
             xsc_pass(sc, n->s, tw ? tw : tv, n->a && n->a->k == XN_LAMBDA ? n->a : NULL);
@@ -1816,8 +1818,8 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
             if (xt_fits(kv, kr) && (kv & X_NULLABLE) && kr && !(kr & X_NULLABLE) && k->n_nn < 32) { k->nn[k->n_nn] = n->s; k->nl[k->n_nn++] = (unsigned char)strlen(n->s); }
             if (xt_fits(kv, kr)) return 1;   // a type it has from its let: another can't go in (an int a float can't)
             char tv[40], tr[40];
-            snprintf(k->whybuf, sizeof k->whybuf, "%s is a%s %s (its let) - a%s %s can't go in%s", n->s, strchr("aeiou", *xty_name(kv, tv, sizeof tv)) ? "n" : "", tv,
-                     strchr("aeiou", *xty_name(kr, tr, sizeof tr)) ? "n" : "", tr, xt_hint(kv, kr));
+            snprintf(k->whybuf, sizeof k->whybuf, "%s is a%s %s (its let) - a%s %s can't go in%s", n->s, xan(xty_name(kv, tv, sizeof tv)), tv,
+                     xan(xty_name(kr, tr, sizeof tr)), tr, xt_hint(kv, kr));
         }
         return xc_fail(k, n, k->whybuf);
     }
@@ -1876,7 +1878,7 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
         else if (!m->set) snprintf(k->whybuf, sizeof k->whybuf, ".%s = ...: a %s's %s can't be set", n->s, x_kind_name(a), n->s);
         else if (!xt_fits(m->result, tr))   // p.gold = 10.5: an int's place
             snprintf(k->whybuf, sizeof k->whybuf, ".%s = ...: a %s's %s is a%s %s - a%s %s can't go in%s", n->s, x_kind_name(a), n->s,
-                     strchr("aeiou", *xty_name(m->result, tm, sizeof tm)) ? "n" : "", tm, strchr("aeiou", *xty_name(tr, tv, sizeof tv)) ? "n" : "", tv,
+                     xan(xty_name(m->result, tm, sizeof tm)), tm, xan(xty_name(tr, tv, sizeof tv)), tv,
                      xt_hint(m->result, tr));
         else return 1;
         return xc_fail(k, n, k->whybuf);
@@ -1906,7 +1908,7 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
         }
         if (a >= XT_INT && n->k == XN_MEMBER && xt_own_member(a, n->s) >= 0) return 1;
         if (a >= XT_INT) {
-            snprintf(k->whybuf, sizeof k->whybuf, ".%s: a%s %s has no %s", n->s, strchr("aeiou", *xty_name(a, ta, sizeof ta)) ? "n" : "", ta, n->s);
+            snprintf(k->whybuf, sizeof k->whybuf, ".%s: a%s %s has no %s", n->s, xan(xty_name(a, ta, sizeof ta)), ta, n->s);
             return xc_fail(k, n, k->whybuf);
         }
         if (n->k == XN_MCALL) return x_check_method(k, n, a, n->s, n->n_items);
@@ -1956,7 +1958,7 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
                     char a[40], b[40];
                     if (xt_fits(tp, ta)) continue;
                     snprintf(k->whybuf, sizeof k->whybuf, "%s(...): its %s is a%s %s - a%s %s can't go in%s", name, fd->items[i]->s,
-                             strchr("aeiou", *xty_name(tp, a, sizeof a)) ? "n" : "", a, strchr("aeiou", *xty_name(ta, b, sizeof b)) ? "n" : "", b,
+                             xan(xty_name(tp, a, sizeof a)), a, xan(xty_name(ta, b, sizeof b)), b,
                              xt_hint(tp, ta));
                     return xc_fail(k, n, k->whybuf);
                 }
@@ -2015,12 +2017,12 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
             if (i && !n->b) continue;
             if (t & X_NULLABLE) {   // p.war_minutes + 1: a number that may be none
                 snprintf(k->whybuf, sizeof k->whybuf, "%c: a%s %s may be null - check it != null first, or (... ?? 0)", n->k == XN_NEG ? '-' : n->op ? n->op : '+',
-                         strchr("aeiou", *xty_name(t, tn, sizeof tn)) ? "n" : "", tn);
+                         xan(xty_name(t, tn, sizeof tn)), tn);
                 return xc_fail(k, n, k->whybuf);
             }
             if (!t || xt_numeric(t) || (t >= XT_VEC2 && t <= XT_VEC4)) continue;
             snprintf(k->whybuf, sizeof k->whybuf, "%c: a%s %s is no number%s", n->k == XN_NEG ? '-' : n->op ? n->op : '+',
-                     strchr("aeiou", *xty_name(t, tn, sizeof tn)) ? "n" : "", tn,
+                     xan(xty_name(t, tn, sizeof tn)), tn,
                      t == XT_EPOCH || t == XT_COLOR ? " - int(...) for its number" : t == XT_TEXT ? " (a text is built in its string: \"{a}{b}\")" : "");
             return xc_fail(k, n, k->whybuf);
         }
@@ -2040,7 +2042,7 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
             char tn[40];
             if (n->op != '=' && n->op != '!') return xc_fail(k, n, "null has no order - x == null or x != null");
             if (!tx || (tx & X_NULLABLE)) return 1;
-            snprintf(k->whybuf, sizeof k->whybuf, "a%s %s is never null - compared with null", strchr("aeiou", *xty_name(tx, tn, sizeof tn)) ? "n" : "", tn);
+            snprintf(k->whybuf, sizeof k->whybuf, "a%s %s is never null - compared with null", xan(xty_name(tx, tn, sizeof tn)), tn);
             return xc_fail(k, n, k->whybuf);
         }
         int ta = x_stype(k, n->a, sc) & ~X_NULLABLE, tb = x_stype(k, n->b, sc) & ~X_NULLABLE;   // both known: of one type
@@ -2048,8 +2050,8 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
         if (!ta || !tb || (xt_numeric(ta) && xt_numeric(tb)) || (ta == tb && !(order && (ta == XT_BOOL || ta >= XT_FN || ta < XT_INT || (ta & X_LIST_OF)))))
             return 1;
         char tn[40], tm[40];
-        snprintf(k->whybuf, sizeof k->whybuf, "a%s %s %s a%s %s%s", strchr("aeiou", *xty_name(ta, tn, sizeof tn)) ? "n" : "", tn,
-                 ta == tb ? "has no order - compared with" : "compared with", strchr("aeiou", *xty_name(tb, tm, sizeof tm)) ? "n" : "", tm,
+        snprintf(k->whybuf, sizeof k->whybuf, "a%s %s %s a%s %s%s", xan(xty_name(ta, tn, sizeof tn)), tn,
+                 ta == tb ? "has no order - compared with" : "compared with", xan(xty_name(tb, tm, sizeof tm)), tm,
                  ta == XT_EPOCH || tb == XT_EPOCH ? " - epoch.middle, or int(epoch) for its number" :
                  ta == XT_COLOR || tb == XT_COLOR ? " - color.red, or int(color) for its number" : "");
         return xc_fail(k, n, k->whybuf);

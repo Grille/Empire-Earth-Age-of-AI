@@ -14,6 +14,8 @@ public class game
     [method] public extern trigger timer(float every, function run);
     /// game.setup(() => ...): before the game starts (relations.c SETUP)
     [method] public extern void setup(function run);
+    /// the unit of an id (u.id) while it is on the map - null once it is gone
+    [method] public extern unit? unit(int id);
     /// the players to be, by number: game.slots[2]
     public slot[] slots;
     /// game.slot(2)

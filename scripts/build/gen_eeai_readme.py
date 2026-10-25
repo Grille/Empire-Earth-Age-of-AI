@@ -39,7 +39,8 @@ situations = '\n'.join(t)
 # values
 kinds = {'XM_PLAYER': [], 'XM_LINK': [], 'XM_REL': [], 'XM_FILTER': [], 'XM_DO': []}   # XM_DO: a script's effects (docs/scripts.md), not a text's
 for m in lang['player'].members:
-    kinds[lang_read.xm_kind(m)].append((m.name, m.doc))
+    if not m.has('script'):   # (a script's only: p.units() - docs/scripts.md)
+        kinds[lang_read.xm_kind(m)].append((m.name, m.doc))
 def table(rows, prefix, head, suffix=''):
     out = ['| %s | |' % head, '|---|---|']
     pending = []

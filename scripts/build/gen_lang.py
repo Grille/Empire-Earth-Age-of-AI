@@ -11,9 +11,10 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import lang_read   # noqa: E402
 
 OUT = os.path.join(lang_read.ROOT, 'dll', 'game_script', 'lang.h')
+KINDS = ('player', 'game', 'slot', 'unit')   # relations.c's XK_ order: k_xk_<kind> each
 OWN = {'int': 'XT_INT', 'float': 'XT_FLOAT', 'bool': 'XT_BOOL', 'text': 'XT_TEXT', 'vec2': 'XT_VEC2', 'vec3': 'XT_VEC3',
        'vec4': 'XT_VEC4', 'epoch': 'XT_EPOCH', 'color': 'XT_COLOR', 'unit_type': 'XT_UTYPE', 'function': 'XT_FN',
-       'record': 'XT_REC', 'trigger': 'XT_TRIG', 'player': 'XK_PLAYER', 'game': 'XK_GAME', 'slot': 'XK_SLOT',
+       'record': 'XT_REC', 'trigger': 'XT_TRIG', 'player': 'XK_PLAYER', 'game': 'XK_GAME', 'slot': 'XK_SLOT', 'unit': 'XK_UNIT',
        'void': 'X_ANY', 'any': 'X_ANY', 'filter': 'X_ANY'}
 
 
@@ -62,16 +63,15 @@ def main():
     out.append('#define N_XMEMBERS (int)(sizeof k_xmembers / sizeof *k_xmembers)')
     xmembers('k_xglobals', kinds['names'])
     out.append('#define N_XGLOBALS (int)(sizeof k_xglobals / sizeof *k_xglobals)')
-    for k in ('player', 'game', 'slot'):
+    for k in KINDS:
         kmembers('k_xk_' + k, kinds[k])
-    out.append('#define XK_NUMBERED(k) (%s)' % ' || '.join('(k) == XK_%s' % k.upper() for k in ('player', 'game', 'slot')
-                                                         if kinds[k].has('numbered')))
+    out.append('#define XK_NUMBERED(k) (%s)' % ' || '.join('(k) == XK_%s' % k.upper() for k in KINDS if kinds[k].has('numbered')))
     text = '\n'.join(out) + '\n'
     old = open(OUT, encoding='utf-8').read() if os.path.exists(OUT) else None
     if old != text:
         open(OUT, 'w', encoding='utf-8', newline='\n').write(text)
-        print('lang.h: %d player members, %d text names, game %d, slot %d' % (len(kinds['player'].members),
-              len(kinds['names'].members), len(kinds['game'].members), len(kinds['slot'].members)))
+        print('lang.h: %d text names; members: %s' % (len(kinds['names'].members),
+              ', '.join('%s %d' % (k, len(kinds[k].members)) for k in KINDS)))
 
 
 if __name__ == '__main__':

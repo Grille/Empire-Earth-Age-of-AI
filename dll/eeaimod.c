@@ -358,6 +358,7 @@ internal char __thiscall hook_game_start(ee_world *state, ee_setup *setup, void 
 #include "voice/texts.c"
 #include "ai/diplo.c"
 #include "game_script/relations.c"
+#include "game_script/units.c"
 #include "test/scripts.c"
 #include "ai/navy.c"
 #include "ai/fleet.c"

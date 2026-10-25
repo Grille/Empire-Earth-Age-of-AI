@@ -11,6 +11,7 @@ internal const struct xmember k_xmembers[] = {
     { "towers", XM_PLAYER, "its towers", XT_INT, -1, -1, 0, 0 },
     { "walls", XM_PLAYER, "its wall pieces", XT_INT, -1, -1, 0, 0 },
     { "count", XM_FILTER, "its units and buildings of a filter: unit.<identifier> (one type), kind.<kind> (the game's family, every epoch's: kind.towers, kind.citizen), or a list of them - any of them: them.count(kind.towers), me.count([kind.tank, kind.tank_strong]) (docs/units.md: the identifiers and kinds)", XT_INT, 1, 1, 0, 0 },
+    { "units", XM_FILTER, "its units and buildings on the map now, by id - of a filter (as count's: p.units(kind.tank)) or all (p.units())", X_LIST_OF + XK_UNIT, 0, 1, 0, 0 },
     { "centers", XM_PLAYER, "its Town Centers and Capitols", XT_INT, -1, -1, 0, 0 },
     { "strength", XM_PLAYER, "its fighting strength (its soldiers' hit points, 30 a building) - to compare: them.strength > me.strength * 2", XT_INT, -1, -1, 0, 0 },
     { "rank", XM_PLAYER, "its place by strength among the players still in, 1 = the strongest", XT_INT, -1, -1, 0, 0 },
@@ -84,6 +85,7 @@ internal const struct x_kmember k_xk_player[] = {
     { "towers", -1, -1, XT_INT, 0 },
     { "walls", -1, -1, XT_INT, 0 },
     { "count", 1, 1, XT_INT, 0 },
+    { "units", 0, 1, X_LIST_OF + XK_UNIT, 0 },
     { "centers", -1, -1, XT_INT, 0 },
     { "strength", -1, -1, XT_INT, 0 },
     { "rank", -1, -1, XT_INT, 0 },
@@ -136,6 +138,7 @@ internal const struct x_kmember k_xk_game[] = {
     { "player", 1, 1, XK_PLAYER, 0 },
     { "timer", 2, 2, XT_TRIG, 0 },
     { "setup", 1, 1, X_ANY, 0 },
+    { "unit", 1, 1, XK_UNIT | X_NULLABLE, 0 },
     { "slots", -1, -1, X_LIST_OF + XK_SLOT, 0 },
     { "slot", 1, 1, XK_SLOT, 0 },
 };
@@ -144,5 +147,14 @@ internal const struct x_kmember k_xk_slot[] = {
     { "human", -1, -1, XT_BOOL, 0 },
     { "persona", -1, -1, XT_TEXT | X_NULLABLE, 1 },
     { "color", -1, -1, X_ANY, 1 },
+};
+internal const struct x_kmember k_xk_unit[] = {
+    { "id", -1, -1, XT_INT, 0 },
+    { "alive", -1, -1, XT_BOOL, 0 },
+    { "type", -1, -1, XT_UTYPE, 0 },
+    { "owner", -1, -1, XK_PLAYER, 0 },
+    { "pos", -1, -1, XT_VEC2, 0 },
+    { "hp", -1, -1, XT_INT, 0 },
+    { "max_hp", -1, -1, XT_INT, 0 },
 };
 #define XK_NUMBERED(k) ((k) == XK_PLAYER || (k) == XK_SLOT)

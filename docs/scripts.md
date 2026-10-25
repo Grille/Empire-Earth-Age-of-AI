@@ -92,7 +92,7 @@ Everything the personalities' expressions have (numbers, `70%`, texts with `{pla
 Every value has a type the check works out when the file is read - nothing to write for it: a variable has its
 `let`'s. `int` (`5`, `p.gold`, `game.minutes`), `float` (`5.0`, `.72`, `70%`, `20s`, `game.time`, an opinion), `bool`
 (`true`, `a > b`, `p.alive`), `text`, `vec2` .. `vec4`, `epoch`, `color`, `unit type` (`unit.x`, `kind.x`), lists of
-one of them, records, functions, triggers, and the game's objects (player, game, slot).
+one of them, records, functions, triggers, and the game's objects (player, game, slot, unit).
 
 - An int goes where a float belongs, never the other way: `let n = 5` then `n = n * 1.5` is a mistake - `int(...)`
   (toward 0), `round`, `floor`, `ceil` make an int. `/` always gives a float (`7 / 2` is 3.5).
@@ -131,6 +131,7 @@ the README read them).
 | `game` | the game: `game.time` (seconds), `game.minutes`, `game.players` (every player, in or out - `game.players[3]` is player 3), `game.player(3)`, `game.timer(20s, f)` ("Timers" below), `game.setup(f)`, `game.slots` ("Before the game starts") |
 | slot | a player to be, in `game.setup`: `s.number`, `s.human`, `s.persona`, `s.color` (the last two set) |
 | player | `player(3)`, `game.player(3)`, `game.players[3]`, `me`/`them` in the texts: every value of `them.` in the README (`p.towers`, `p.epoch`, `p.lord` - a player again), its relations as methods (`p.opinion(q)`, `p.kills(q, 10)`), `p.count(kind.towers)`; as a command's argument its number (`spawn(p, ...)`). What it does below |
+| unit | one on the map - a soldier, a citizen, a ship, a building: `p.units()` (all of a player's, by id), `p.units(kind.tank)` (of a filter, as count's), `game.unit(id)` (`null` once it is gone). `u.id`, `u.alive`, `u.type` (`== unit.inf10_doughboy`), `u.owner`, `u.pos` (a `vec2` in tiles), `u.hp`, `u.max_hp`. Held by its id, not as the unit itself: it stays a value when the unit is destroyed - `u.alive` is false then, and any other member is a mistake (check `u.alive` after a wait). Read when used, never kept: `u.hp` is the hit points now. tests/probes/units.eeai |
 
 ```
 let p2 = game.player(2)
