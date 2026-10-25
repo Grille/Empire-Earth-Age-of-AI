@@ -235,6 +235,8 @@ internal unsigned g_fo_marches;         // groups set to march at their slowest 
 #define FO_CLICK 0.985f                 // cos 10 degrees: a queued move's facing this near the way from where they stand
 internal unsigned g_fo_refaced;         // queued moves turned to the way from the last order's points
 internal int g_fo_queued;               // the move being carried out is queued after the units' others (shift)
+internal vec2 g_fo_march[FO_MAX];       // the march's own layout (formation_follow: the way it goes off the final facing)
+internal int g_fo_has_march;
 internal unsigned g_fo_queued_n;        // group moves laid out from the units' last queued points
 
 // the move (EEMPathTo's Execute, the formation's slots laid out within it): whether it is queued - then the formation is
@@ -315,7 +317,7 @@ internal void fo_march(ee_active_group *grp) {
 // short of the leader's spot), onward: then the next leg's way, passed: the anchor past the leader's spot then; anchor:
 // the point the formation hangs on (ff_leader), way its heading, vel its speed, turning its share of the tightest turn
 // last step, started: set out (prev: the march it went on from, else -1)
-struct ff_group { uint32_t leader; ee_group *grp; ee_goal *goal; vec2 fwd, way, face, end, lead_off, onward, anchor; float speed, reach, err, err_sum, vel, turning; int err_n; uint32_t step; int on, live, through, passed, started, prev; };
+struct ff_group { uint32_t leader; ee_group *grp; ee_goal *goal; vec2 fwd, way, face, end, lead_off, onward, anchor; float speed, reach, err, err_sum, vel, turning; int err_n; uint32_t step; int on, live, through, passed, started, prev, reform; };
 internal struct ff_group g_ff[FF_GROUPS];
 internal unsigned g_ff_next;
 internal int g_ff_first, g_ff_count;   // the marches started by the move being dispatched, for their leaders' goals
@@ -365,6 +367,7 @@ internal void ff_start_block(void *group, const int *idx, int k, vec2 c, vec2 fw
     vec2 lc = vec2_sub(gr->end, c);
     gr->lead_off = v2(vec2_dot(lc, right), vec2_dot(lc, fwd));
     gr->through = gr->passed = gr->started = 0;
+    gr->reform = from < 0 && g_fo_has_march;
     gr->prev = from;
     gr->vel = gr->turning = 0;
     gr->onward = v2(0, 0);
@@ -387,6 +390,7 @@ internal void ff_start_block(void *group, const int *idx, int k, vec2 c, vec2 fw
         int i = idx[j];
         struct ff_unit *e = ff_find((uint32_t)unit_get_serial(g_fo[i].u), 1);
         vec2 d = vec2_sub(g_fo[i].at, g_fo[lead].at), off = v2(vec2_dot(d, right), vec2_dot(d, fwd));
+        if (gr->reform) { off = vec2_sub(g_fo_march[i], g_fo_march[lead]); d = off; }   // the march's own layout (its frame: x right, y ahead)
         if (vec2_len(d) > gr->reach) gr->reach = vec2_len(d);
         if (queued && e->g >= 0 && e->g != gi && g_ff[e->g].on) { e->next = gi + 1; e->next_off = off; continue; }
         e->g = gi;
@@ -551,7 +555,7 @@ internal ee_unit *ff_leader(struct ff_group *gr, uint32_t step) {
     float spd = gr->speed > 0.05f ? gr->speed : 0.05f, left = de / spd;
     float span = gr->reach * vec2_len(vec2_sub(gr->fwd, gr->way)) * 1.5708f / spd;
     span = span < FF_SETTLE ? FF_SETTLE : span > FF_SETTLE_MAX ? FF_SETTLE_MAX : span;
-    vec2 want = left >= span || gr->through ? gr->way : fo_turn(gr->way, gr->fwd, 1 - left / span);
+    vec2 want = left >= span || gr->through || gr->reform ? gr->way : fo_turn(gr->way, gr->fwd, 1 - left / span);
     float swing = FF_SWING * spd / (gr->reach > 1 ? gr->reach : 1) * dt;
     ch = vec2_len(vec2_sub(want, gr->face));
     gr->face = ch <= swing ? want : fo_turn(gr->face, want, swing / ch);
@@ -713,13 +717,31 @@ internal void __thiscall hook_formation_slots(void *f, void *group, void *slots)
         g_fo_refaced++;
     }
     vec2 right = v2(fwd.y, -fwd.x);
+    int circle = kind >= FORMATION_INWARD_CIRCLE;
+    // following, with the final facing 45 degrees or more off the way it goes (FF_ARC, as at a waypoint): the march
+    // forms for its way first - the same rows, the units given their places by where they stand along that way (a wedge
+    // sent behind itself facing back: before, each unit crossed to the far side of the formation to walk with its final
+    // front first, and the formation swung round at the goal) - and each unit goes on to its final place at the goal
+    vec2 go = vec2_sub(c, mean);
+    float gl = vec2_len(go);
+    g_fo_has_march = 0;
+    if (g_ff_on && !circle && gl > 0.5f && vec2_dot(vec2_scale(go, 1.0f / gl), fwd) < FF_ARC) {
+        vec2 wf = vec2_scale(go, 1.0f / gl), wr = v2(wf.y, -wf.x);
+        for (int i = 0; i < n; i++) {
+            vec2 d = vec2_sub(g_fo[i].p, mean);
+            g_fo[i].along = vec2_dot(d, wf);
+            g_fo[i].across = vec2_dot(d, wr);
+        }
+        fo_rows(g_fo_order, n, kind, front);
+        for (int i = 0; i < n; i++) { g_fo_march[i] = g_fo[i].at; g_fo_order[i] = i; }
+        g_fo_has_march = 1;
+    }
     for (int i = 0; i < n; i++) {
         vec2 d = vec2_sub(g_fo[i].p, mean);
         g_fo[i].along = vec2_dot(d, fwd);
         g_fo[i].across = vec2_dot(d, right);
         g_fo[i].p = vec2_sub(g_fo[i].p, c);   // the circles' angles: around the point
     }
-    int circle = kind >= FORMATION_INWARD_CIRCLE;
     if (circle) fo_rings(g_fo_order, n); else fo_rows(g_fo_order, n, kind, front);
     // the front row (a wedge's tip) on the clicked point, as the game's: the mouse gives the front line; a circle around it
     vec2 mid = v2(0, 0);
