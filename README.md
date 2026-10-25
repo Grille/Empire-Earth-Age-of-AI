@@ -357,6 +357,9 @@ Settings in `aimod.ini`:
 - `[general] formation_catchup=200%` (with formation_follow): how fast a unit behind its place may go to keep it, in
   percent of its own top speed (100% never faster than its own) - near its place only (all of it within its size,
   none from four times that) or within 5 seconds of last being in it (a re-form); one fallen behind walks.
+- `[general] formation_collision=75%` (with formation_follow and land_collide): units marching in the same
+  formation push each other off at this share of their size - they slip past each other to their places, which
+  stay as far apart (100% as any two units).
 - `[general] goal_markers=1` (default; 0 the original): a move order drew its circle at the goal of only the group's
   first 15 units (20 in the other lines and wedges, every few in a circle formation). Now every unit's shows.
 - `[sound] clamp_channels=1` (default): the "Max Number Of Sounds" slider goes to 200%, which asks for 32 sound

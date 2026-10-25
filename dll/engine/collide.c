@@ -41,6 +41,7 @@ internal struct uc_rest *uc_rest_of(ee_unit *u) {
     if (g_uc_mem[i].id != id) { g_uc_mem[i].id = id; g_uc_mem[i].n = 0; g_uc_mem[i].last = v2(0, 0); }
     return &g_uc_mem[i];
 }
+internal int ff_same_march(ee_unit *a, ee_unit *b);   // engine/groupmove.c
 internal unsigned g_uc_steps, g_uc_hits;   // collision steps taken over, overlaps pushed off
 internal float g_uc_deepest;               // the deepest overlap met (tiles)
 
@@ -166,6 +167,9 @@ internal int uc_separate(int kind, ee_unit *u, int resting) {
         uc_nearest(h.a, h.b, o.a, o.b, &n1, &n2);
         vec2 d = vec2_sub(n1, n2);
         float d2 = vec2_len2(d), rr = h.r + o.r;
+        // two units marching in the same formation (formation_follow) collide at formation_collision of their radii -
+        // their places stay as far apart: they slip past each other to them
+        if (kind == MODEL_LAND && d2 < rr * rr && ff_same_march(u, c)) rr *= g_set.formation_collision;
         if (d2 >= rr * rr) continue;
         float dist = sqrtf(d2);
         if (dist > 0.0001f) d = vec2_scale(d, 1.0f / dist);

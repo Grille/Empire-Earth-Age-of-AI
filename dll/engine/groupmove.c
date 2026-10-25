@@ -566,6 +566,13 @@ internal ee_unit *ff_leader(struct ff_group *gr, uint32_t step) {
 
 internal uint32_t ff_step(void) { ee_physics *ph = game_physics(); return ph ? physics_get_steps(ph) : 0; }
 
+// collide.c: are a and b marching in the same formation (the same march, on its way)
+internal int ff_same_march(ee_unit *a, ee_unit *b) {
+    if (!g_ff_on) return 0;
+    struct ff_unit *ea = ff_find((uint32_t)unit_get_serial(a), 0), *eb = ea && ea->g >= 0 ? ff_find((uint32_t)unit_get_serial(b), 0) : NULL;
+    return eb && eb->g == ea->g && g_ff[ea->g].on && g_ff[ea->g].live;
+}
+
 // u's march on its way this step and its leader (*l), else NULL: a queued move's march taken up once it sets out;
 // u in its leader's group (both moved on together: a queued move's dispatch puts them in a group of its own)
 internal struct ff_group *ff_march(struct ff_unit *e, ee_unit *u, uint32_t step, ee_unit **l) {
