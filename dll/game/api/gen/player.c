@@ -388,60 +388,72 @@ internal inline float player_get_guard_high_ground_pct(const ee_player *o) { ret
 internal inline void player_set_guard_high_ground_pct(ee_player *o, float v) { *(float *)((uint8_t *)o + of_player_guard_high_ground_pct) = v; }
 internal inline float *player_guard_high_ground_pct_at(const ee_player *o) { return (float *)((uint8_t *)o + of_player_guard_high_ground_pct); }
 // A GUESS (the spec's [guess]): its name and type, from what the code does with it -
-// record 79, no name in the game's strings; one of the guard percentages (records 70..85) by its place
+// record 79, no name in the game's strings; one of the guard percentages (records 70..85) by its place - no
+// reader in either build (0)
 internal inline float player_get_guard_pct_79(const ee_player *o) { return *(float *)((uint8_t *)o + of_player_guard_pct_79); }
 internal inline void player_set_guard_pct_79(ee_player *o, float v) { *(float *)((uint8_t *)o + of_player_guard_pct_79) = v; }
 internal inline float *player_guard_pct_79_at(const ee_player *o) { return (float *)((uint8_t *)o + of_player_guard_pct_79); }
 // A GUESS (the spec's [guess]): its name and type, from what the code does with it -
-// record 83, no name in the game's strings; one of the guard percentages (records 70..85) by its place
+// record 83, no name in the game's strings; one of the guard percentages (records 70..85) by its place - no
+// reader in either build (0)
 internal inline float player_get_guard_pct_83(const ee_player *o) { return *(float *)((uint8_t *)o + of_player_guard_pct_83); }
 internal inline void player_set_guard_pct_83(ee_player *o, float v) { *(float *)((uint8_t *)o + of_player_guard_pct_83) = v; }
 internal inline float *player_guard_pct_83_at(const ee_player *o) { return (float *)((uint8_t *)o + of_player_guard_pct_83); }
 // A GUESS (the spec's [guess]): its name and type, from what the code does with it -
-// record 80, no name in the game's strings; one of the guard percentages (records 70..85) by its place
+// record 80, no name in the game's strings; one of the guard percentages (records 70..85) by its place - no
+// reader in either build (0)
 internal inline float player_get_guard_pct_80(const ee_player *o) { return *(float *)((uint8_t *)o + of_player_guard_pct_80); }
 internal inline void player_set_guard_pct_80(ee_player *o, float v) { *(float *)((uint8_t *)o + of_player_guard_pct_80) = v; }
 internal inline float *player_guard_pct_80_at(const ee_player *o) { return (float *)((uint8_t *)o + of_player_guard_pct_80); }
 // A GUESS (the spec's [guess]): its name and type, from what the code does with it -
-// record 74, no name in the game's strings; one of the guard percentages (records 70..85) by its place
+// record 74, no name in the game's strings; one of the guard percentages (records 70..85) by its place - no
+// reader in either build (0)
 internal inline float player_get_guard_pct_74(const ee_player *o) { return *(float *)((uint8_t *)o + of_player_guard_pct_74); }
 internal inline void player_set_guard_pct_74(ee_player *o, float v) { *(float *)((uint8_t *)o + of_player_guard_pct_74) = v; }
 internal inline float *player_guard_pct_74_at(const ee_player *o) { return (float *)((uint8_t *)o + of_player_guard_pct_74); }
 // A GUESS (the spec's [guess]): its name and type, from what the code does with it -
-// record 84, no name in the game's strings; one of the guard percentages (records 70..85) by its place
+// record 84, no name in the game's strings; one of the guard percentages (records 70..85) by its place - no
+// reader in either build (0)
 internal inline float player_get_guard_pct_84(const ee_player *o) { return *(float *)((uint8_t *)o + of_player_guard_pct_84); }
 internal inline void player_set_guard_pct_84(ee_player *o, float v) { *(float *)((uint8_t *)o + of_player_guard_pct_84) = v; }
 internal inline float *player_guard_pct_84_at(const ee_player *o) { return (float *)((uint8_t *)o + of_player_guard_pct_84); }
 // A GUESS (the spec's [guess]): its name and type, from what the code does with it -
-// record 81, no name in the game's strings; one of the guard percentages (records 70..85) by its place
+// record 81, no name in the game's strings; one of the guard percentages (records 70..85) by its place - no
+// reader in either build (0)
 internal inline float player_get_guard_pct_81(const ee_player *o) { return *(float *)((uint8_t *)o + of_player_guard_pct_81); }
 internal inline void player_set_guard_pct_81(ee_player *o, float v) { *(float *)((uint8_t *)o + of_player_guard_pct_81) = v; }
 internal inline float *player_guard_pct_81_at(const ee_player *o) { return (float *)((uint8_t *)o + of_player_guard_pct_81); }
 // A GUESS (the spec's [guess]): its name and type, from what the code does with it -
-// record 75, no name in the game's strings; one of the guard percentages (records 70..85) by its place
+// record 75, no name in the game's strings; one of the guard percentages (records 70..85) by its place - no
+// reader in either build (0)
 internal inline float player_get_guard_pct_75(const ee_player *o) { return *(float *)((uint8_t *)o + of_player_guard_pct_75); }
 internal inline void player_set_guard_pct_75(ee_player *o, float v) { *(float *)((uint8_t *)o + of_player_guard_pct_75) = v; }
 internal inline float *player_guard_pct_75_at(const ee_player *o) { return (float *)((uint8_t *)o + of_player_guard_pct_75); }
 // A GUESS (the spec's [guess]): its name and type, from what the code does with it -
-// record 85, no name in the game's strings; one of the guard percentages (records 70..85) by its place
+// record 85, no name in the game's strings; one of the guard percentages (records 70..85) by its place - no
+// reader in either build (0)
 internal inline float player_get_guard_pct_85(const ee_player *o) { return *(float *)((uint8_t *)o + of_player_guard_pct_85); }
 internal inline void player_set_guard_pct_85(ee_player *o, float v) { *(float *)((uint8_t *)o + of_player_guard_pct_85) = v; }
 internal inline float *player_guard_pct_85_at(const ee_player *o) { return (float *)((uint8_t *)o + of_player_guard_pct_85); }
 // A GUESS (the spec's [guess]): its name and type, from what the code does with it -
-// record 76, no name in the game's strings; one of the guard percentages (records 70..85) by its place
+// record 76, no name in the game's strings; one of the guard percentages (records 70..85) by its place - no
+// reader in either build (0)
 internal inline float player_get_guard_pct_76(const ee_player *o) { return *(float *)((uint8_t *)o + of_player_guard_pct_76); }
 internal inline void player_set_guard_pct_76(ee_player *o, float v) { *(float *)((uint8_t *)o + of_player_guard_pct_76) = v; }
 internal inline float *player_guard_pct_76_at(const ee_player *o) { return (float *)((uint8_t *)o + of_player_guard_pct_76); }
-// of two places to guard, the chance it picks the town one (record 78 "Guard Town Percentage")
+// of two places to guard, the chance it picks the town one (record 78 "Guard Town Percentage") - for aircraft
+// only: EECPASGAir::vf45 0x4447EF returns it, the land subgroups' guard_town_land_pct (0x4769F7 rolls by vf45)
 internal inline float player_get_guard_town_pct(const ee_player *o) { return *(float *)((uint8_t *)o + of_player_guard_town_pct); }
 internal inline void player_set_guard_town_pct(ee_player *o, float v) { *(float *)((uint8_t *)o + of_player_guard_town_pct) = v; }
 internal inline float *player_guard_town_pct_at(const ee_player *o) { return (float *)((uint8_t *)o + of_player_guard_town_pct); }
 // A GUESS (the spec's [guess]): its name and type, from what the code does with it -
-// record 73, no name in the game's strings; one of the guard percentages (records 70..85) by its place
-internal inline float player_get_guard_pct_73(const ee_player *o) { return *(float *)((uint8_t *)o + of_player_guard_pct_73); }
-internal inline void player_set_guard_pct_73(ee_player *o, float v) { *(float *)((uint8_t *)o + of_player_guard_pct_73) = v; }
-internal inline float *player_guard_pct_73_at(const ee_player *o) { return (float *)((uint8_t *)o + of_player_guard_pct_73); }
-// of two places to guard, the chance it picks the waterway one (record 82 "Guard Waterway Percentage")
+// record 73, no name in the game's strings (0.85): the land subgroups' town guard chance - EECPASGLand::vf45
+// 0x446910 returns it, which the guard spot's choice 0x4769F7 rolls against (the aircraft's: guard_town_pct)
+internal inline float player_get_guard_town_land_pct(const ee_player *o) { return *(float *)((uint8_t *)o + of_player_guard_town_land_pct); }
+internal inline void player_set_guard_town_land_pct(ee_player *o, float v) { *(float *)((uint8_t *)o + of_player_guard_town_land_pct) = v; }
+internal inline float *player_guard_town_land_pct_at(const ee_player *o) { return (float *)((uint8_t *)o + of_player_guard_town_land_pct); }
+// of two places to guard, the chance it picks the waterway one (record 82 "Guard Waterway Percentage") -
+// no reader in either build
 internal inline float player_get_guard_waterway_pct(const ee_player *o) { return *(float *)((uint8_t *)o + of_player_guard_waterway_pct); }
 internal inline void player_set_guard_waterway_pct(ee_player *o, float v) { *(float *)((uint8_t *)o + of_player_guard_waterway_pct) = v; }
 internal inline float *player_guard_waterway_pct_at(const ee_player *o) { return (float *)((uint8_t *)o + of_player_guard_waterway_pct); }
@@ -470,11 +482,13 @@ internal inline float *player_response_range_at(const ee_player *o) { return (fl
 internal inline float player_get_military_pct(const ee_player *o) { return *(float *)((uint8_t *)o + of_player_military_pct); }
 internal inline void player_set_military_pct(ee_player *o, float v) { *(float *)((uint8_t *)o + of_player_military_pct) = v; }
 internal inline float *player_military_pct_at(const ee_player *o) { return (float *)((uint8_t *)o + of_player_military_pct); }
-// record 69, no name in the game's strings (0.1); seven functions of the combat and defence compare with it
-// (0x4813AE ...)
-internal inline float player_get_record_69(const ee_player *o) { return *(float *)((uint8_t *)o + of_player_record_69); }
-internal inline void player_set_record_69(ee_player *o, float v) { *(float *)((uint8_t *)o + of_player_record_69) = v; }
-internal inline float *player_record_69_at(const ee_player *o) { return (float *)((uint8_t *)o + of_player_record_69); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// record 69, no name in the game's strings (0.1): the enemy strength near another player over that player's own
+// (0x4759CE, at most 1) above which it sends a military aid package (0x474E85) and keeps helping (the package's
+// states 0x4813AE, 0x48143E, 0x48149D, 0x4814F3, its done test 0x47A606)
+internal inline float player_get_aid_threat_min(const ee_player *o) { return *(float *)((uint8_t *)o + of_player_aid_threat_min); }
+internal inline void player_set_aid_threat_min(ee_player *o, float v) { *(float *)((uint8_t *)o + of_player_aid_threat_min) = v; }
+internal inline float *player_aid_threat_min_at(const ee_player *o) { return (float *)((uint8_t *)o + of_player_aid_threat_min); }
 // the most of its population cap priests may be (record 49 "Priest Usage", the float)
 internal inline float player_get_priest_pop_share(const ee_player *o) { return *(float *)((uint8_t *)o + of_player_priest_pop_share); }
 internal inline void player_set_priest_pop_share(ee_player *o, float v) { *(float *)((uint8_t *)o + of_player_priest_pop_share) = v; }
@@ -495,15 +509,18 @@ internal inline float *player_prophet_chance_at(const ee_player *o) { return (fl
 internal inline float player_get_attention_period(const ee_player *o) { return *(float *)((uint8_t *)o + of_player_attention_period); }
 internal inline void player_set_attention_period(ee_player *o, float v) { *(float *)((uint8_t *)o + of_player_attention_period) = v; }
 internal inline float *player_attention_period_at(const ee_player *o) { return (float *)((uint8_t *)o + of_player_attention_period); }
-// record 12, no name in the game's strings: its second value x 0.01 (the scenario's Set AI Variable writes it into
-// record_12_a and leaves this one)
-internal inline float player_get_record_12_b(const ee_player *o) { return *(float *)((uint8_t *)o + of_player_record_12_b); }
-internal inline void player_set_record_12_b(ee_player *o, float v) { *(float *)((uint8_t *)o + of_player_record_12_b) = v; }
-internal inline float *player_record_12_b_at(const ee_player *o) { return (float *)((uint8_t *)o + of_player_record_12_b); }
-// record 12: its first value x 0.01
-internal inline float player_get_record_12_a(const ee_player *o) { return *(float *)((uint8_t *)o + of_player_record_12_a); }
-internal inline void player_set_record_12_a(ee_player *o, float v) { *(float *)((uint8_t *)o + of_player_record_12_a) = v; }
-internal inline float *player_record_12_a_at(const ee_player *o) { return (float *)((uint8_t *)o + of_player_record_12_a); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// record 12, no name in the game's strings, its second value x 0.01 (0.4): a citizen's weight in a player's
+// strength (0x47CBCC: intel +0x4C = it x citizens + strength_weight_military x military units; no reader of that
+// found). The scenario's Set AI Variable writes strength_weight_military twice and never this one
+internal inline float player_get_strength_weight_citizen(const ee_player *o) { return *(float *)((uint8_t *)o + of_player_strength_weight_citizen); }
+internal inline void player_set_strength_weight_citizen(ee_player *o, float v) { *(float *)((uint8_t *)o + of_player_strength_weight_citizen) = v; }
+internal inline float *player_strength_weight_citizen_at(const ee_player *o) { return (float *)((uint8_t *)o + of_player_strength_weight_citizen); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// record 12's first value x 0.01 (0.6): a military unit's weight in that strength (0x47CBCC)
+internal inline float player_get_strength_weight_military(const ee_player *o) { return *(float *)((uint8_t *)o + of_player_strength_weight_military); }
+internal inline void player_set_strength_weight_military(ee_player *o, float v) { *(float *)((uint8_t *)o + of_player_strength_weight_military) = v; }
+internal inline float *player_strength_weight_military_at(const ee_player *o) { return (float *)((uint8_t *)o + of_player_strength_weight_military); }
 // with fewer ships than the humans: the share of the difference it adds to the ships it builds (record 111 "Naval
 // Unit Weight")
 internal inline float player_get_naval_weight(const ee_player *o) { return *(float *)((uint8_t *)o + of_player_naval_weight); }
@@ -620,11 +637,12 @@ internal inline int *player_group_pct_hard_at(const ee_player *o) { return (int 
 internal inline int player_get_bonzai_level(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_bonzai_level); }
 internal inline void player_set_bonzai_level(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_bonzai_level) = v; }
 internal inline int *player_bonzai_level_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_bonzai_level); }
-// record 17, no name in the game's strings (60)
+// record 17, no name in the game's strings (60): the most of a range with record_16 (Set AI Variable writes the
+// larger value here); no reader in either build
 internal inline int player_get_record_17(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_record_17); }
 internal inline void player_set_record_17(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_record_17) = v; }
 internal inline int *player_record_17_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_record_17); }
-// record 16, no name in the game's strings (25)
+// record 16, no name in the game's strings (25): the least of that range; no reader in either build
 internal inline int player_get_record_16(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_record_16); }
 internal inline void player_set_record_16(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_record_16) = v; }
 internal inline int *player_record_16_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_record_16); }
@@ -689,10 +707,12 @@ internal inline int *player_refill_delay_min_at(const ee_player *o) { return (in
 internal inline int player_get_land_explorers(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_land_explorers); }
 internal inline void player_set_land_explorers(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_land_explorers) = v; }
 internal inline int *player_land_explorers_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_land_explorers); }
-// record 86, no name in the game's strings (3); a cap in 0x4769F7
-internal inline int player_get_record_86(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_record_86); }
-internal inline void player_set_record_86(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_record_86) = v; }
-internal inline int *player_record_86_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_record_86); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// record 86, no name in the game's strings (3): the guard spot's choice 0x4769F7 picks a chokepoint at random
+// among the nearest this many (with no more than this, the other branch)
+internal inline int player_get_guard_chokepoints_nearest(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_guard_chokepoints_nearest); }
+internal inline void player_set_guard_chokepoints_nearest(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_guard_chokepoints_nearest) = v; }
+internal inline int *player_guard_chokepoints_nearest_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_guard_chokepoints_nearest); }
 // the most it builds (record 109, the rounded float)
 internal inline int player_get_anti_air_max(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_anti_air_max); }
 internal inline void player_set_anti_air_max(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_anti_air_max) = v; }
@@ -737,6 +757,11 @@ internal inline int *player_naval_yards_max_at(const ee_player *o) { return (int
 internal inline int player_get_siege_factories_max(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_siege_factories_max); }
 internal inline void player_set_siege_factories_max(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_siege_factories_max) = v; }
 internal inline int *player_siege_factories_max_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_siege_factories_max); }
+// AoC only (its record 117, no name in its strings either): the most Space Docks it builds (the rounded float;
+// AoC 0x46xxxx puts it into the build plan's second map under type 0x2D8, the Space Dock)
+internal inline int player_get_space_docks_max(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_space_docks_max); }
+internal inline void player_set_space_docks_max(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_space_docks_max) = v; }
+internal inline int *player_space_docks_max_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_space_docks_max); }
 // the most it builds (record 32, the rounded float)
 internal inline int player_get_stables_max(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_stables_max); }
 internal inline void player_set_stables_max(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_stables_max) = v; }
@@ -888,6 +913,11 @@ internal inline int *player_naval_yards_units_each_at(const ee_player *o) { retu
 internal inline int player_get_siege_factories_units_each(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_siege_factories_units_each); }
 internal inline void player_set_siege_factories_units_each(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_siege_factories_units_each) = v; }
 internal inline int *player_siege_factories_units_each_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_siege_factories_units_each); }
+// AoC only (record 117): the units it has per Space Dock before it builds another (the build plan's map under
+// type 0x2D8, as EE's anti_air_units_each under 0x91; AoC's Set AI Variable 0x5C238D writes both)
+internal inline int player_get_space_docks_units_each(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_space_docks_units_each); }
+internal inline void player_set_space_docks_units_each(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_space_docks_units_each) = v; }
+internal inline int *player_space_docks_units_each_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_space_docks_units_each); }
 // the units it has per building before it builds another (record 32 "Desired Number of Stables", first value)
 internal inline int player_get_stables_units_each(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_stables_units_each); }
 internal inline void player_set_stables_units_each(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_stables_units_each) = v; }
@@ -1167,7 +1197,7 @@ internal int spec_player_select(int build) {
         of_player_guard_pct_85 = 0xC1C;
         of_player_guard_pct_76 = 0xC20;
         of_player_guard_town_pct = 0xC24;
-        of_player_guard_pct_73 = 0xC28;
+        of_player_guard_town_land_pct = 0xC28;
         of_player_guard_waterway_pct = 0xC2C;
         of_player_hero_chance = 0xC30;
         of_player_hero_pop_share = 0xC34;
@@ -1175,14 +1205,14 @@ internal int spec_player_select(int build) {
         of_player_siege_pct = 0xC3C;
         of_player_response_range = 0xC40;
         of_player_military_pct = 0xC44;
-        of_player_record_69 = 0xC48;
+        of_player_aid_threat_min = 0xC48;
         of_player_priest_pop_share = 0xC4C;
         of_player_priest_chance = 0xC50;
         of_player_prophet_pop_share = 0xC54;
         of_player_prophet_chance = 0xC58;
         of_player_attention_period = 0xC5C;
-        of_player_record_12_b = 0xC60;
-        of_player_record_12_a = 0xC64;
+        of_player_strength_weight_citizen = 0xC60;
+        of_player_strength_weight_military = 0xC64;
         of_player_naval_weight = 0xC68;
         of_player_air_weight = 0xC6C;
         of_player_tower_spacing = 0xC70;
@@ -1227,7 +1257,7 @@ internal int spec_player_select(int build) {
         of_player_refill_delay_max = 0xD88;
         of_player_refill_delay_min = 0xD8C;
         of_player_land_explorers = 0xD90;
-        of_player_record_86 = 0xD94;
+        of_player_guard_chokepoints_nearest = 0xD94;
         of_player_anti_air_max = 0xD98;
         of_player_airports_max = 0xD9C;
         of_player_archery_ranges_max = 0xDA0;
@@ -1239,6 +1269,7 @@ internal int spec_player_select(int build) {
         of_player_cyber_labs_max = 0xDB8;
         of_player_naval_yards_max = 0xDBC;
         of_player_siege_factories_max = 0xDC0;
+        of_player_space_docks_max = NA;
         of_player_stables_max = 0xDC4;
         of_player_tank_factories_max = 0xDC8;
         of_player_temples_max = 0xDCC;
@@ -1275,6 +1306,7 @@ internal int spec_player_select(int build) {
         of_player_cyber_labs_units_each = 0xE70;
         of_player_naval_yards_units_each = 0xE74;
         of_player_siege_factories_units_each = 0xE78;
+        of_player_space_docks_units_each = NA;
         of_player_stables_units_each = 0xE7C;
         of_player_tank_factories_units_each = 0xE80;
         of_player_temples_units_each = 0xE84;
@@ -1322,7 +1354,7 @@ internal int spec_player_select(int build) {
         fn_place_foundation = (place_foundation_fn)0x0062EF8A;
         fn_type_stats_game = (type_stats_game_fn)0x00492969;
         fn_vector_size = (vector_size_fn)0x004A670A;
-        return 0;
+        return 2;
     case 1:   // aoc
         of_player_list_begin = 0x18;
         of_player_name = 0x24;
@@ -1435,7 +1467,7 @@ internal int spec_player_select(int build) {
         of_player_guard_pct_85 = 0xC54;
         of_player_guard_pct_76 = 0xC58;
         of_player_guard_town_pct = 0xC5C;
-        of_player_guard_pct_73 = 0xC60;
+        of_player_guard_town_land_pct = 0xC60;
         of_player_guard_waterway_pct = 0xC64;
         of_player_hero_chance = 0xC68;
         of_player_hero_pop_share = 0xC6C;
@@ -1443,14 +1475,14 @@ internal int spec_player_select(int build) {
         of_player_siege_pct = 0xC74;
         of_player_response_range = 0xC78;
         of_player_military_pct = 0xC7C;
-        of_player_record_69 = 0xC80;
+        of_player_aid_threat_min = 0xC80;
         of_player_priest_pop_share = 0xC84;
         of_player_priest_chance = 0xC88;
         of_player_prophet_pop_share = 0xC8C;
         of_player_prophet_chance = 0xC90;
         of_player_attention_period = 0xC94;
-        of_player_record_12_b = 0xC98;
-        of_player_record_12_a = 0xC9C;
+        of_player_strength_weight_citizen = 0xC98;
+        of_player_strength_weight_military = 0xC9C;
         of_player_naval_weight = 0xCA0;
         of_player_air_weight = 0xCA4;
         of_player_tower_spacing = 0xCA8;
@@ -1495,7 +1527,7 @@ internal int spec_player_select(int build) {
         of_player_refill_delay_max = 0xDC0;
         of_player_refill_delay_min = 0xDC4;
         of_player_land_explorers = 0xDC8;
-        of_player_record_86 = 0xDCC;
+        of_player_guard_chokepoints_nearest = 0xDCC;
         of_player_anti_air_max = 0xDD0;
         of_player_airports_max = 0xDD4;
         of_player_archery_ranges_max = 0xDD8;
@@ -1507,6 +1539,7 @@ internal int spec_player_select(int build) {
         of_player_cyber_labs_max = 0xDF0;
         of_player_naval_yards_max = 0xDF4;
         of_player_siege_factories_max = 0xDF8;
+        of_player_space_docks_max = 0xDFC;
         of_player_stables_max = 0xE00;
         of_player_tank_factories_max = 0xE04;
         of_player_temples_max = 0xE08;
@@ -1543,6 +1576,7 @@ internal int spec_player_select(int build) {
         of_player_cyber_labs_units_each = 0xEAC;
         of_player_naval_yards_units_each = 0xEB0;
         of_player_siege_factories_units_each = 0xEB4;
+        of_player_space_docks_units_each = 0xEB8;
         of_player_stables_units_each = 0xEBC;
         of_player_tank_factories_units_each = 0xEC0;
         of_player_temples_units_each = 0xEC4;
@@ -1595,7 +1629,7 @@ internal int spec_player_select(int build) {
     return 0;
 }
 // the names a build hasn't got, by build
-internal const char *const k_spec_player_missing[ADDR_BUILDS] = { "", "" };
+internal const char *const k_spec_player_missing[ADDR_BUILDS] = { "EEComputerPlayer.space_docks_max EEComputerPlayer.space_docks_units_each", "" };
 // the load-time check: what the spec says of the running build's exe (spec_check): the failures
 internal int spec_player_check(void) {
     int bad = 0;

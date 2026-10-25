@@ -400,51 +400,63 @@ unsafe struct EEComputerPlayer
     [offset((ee)0xBFC, (aoc)0xC34), found(c)]
     float32 guard_high_ground_pct;
 
-    /// record 79, no name in the game's strings; one of the guard percentages (records 70..85) by its place
+    /// record 79, no name in the game's strings; one of the guard percentages (records 70..85) by its place - no
+    /// reader in either build (0)
     [offset((ee)0xC00, (aoc)0xC38), found(c), guess]
     float32 guard_pct_79;
 
-    /// record 83, no name in the game's strings; one of the guard percentages (records 70..85) by its place
+    /// record 83, no name in the game's strings; one of the guard percentages (records 70..85) by its place - no
+    /// reader in either build (0)
     [offset((ee)0xC04, (aoc)0xC3C), found(c), guess]
     float32 guard_pct_83;
 
-    /// record 80, no name in the game's strings; one of the guard percentages (records 70..85) by its place
+    /// record 80, no name in the game's strings; one of the guard percentages (records 70..85) by its place - no
+    /// reader in either build (0)
     [offset((ee)0xC08, (aoc)0xC40), found(c), guess]
     float32 guard_pct_80;
 
-    /// record 74, no name in the game's strings; one of the guard percentages (records 70..85) by its place
+    /// record 74, no name in the game's strings; one of the guard percentages (records 70..85) by its place - no
+    /// reader in either build (0)
     [offset((ee)0xC0C, (aoc)0xC44), found(c), guess]
     float32 guard_pct_74;
 
-    /// record 84, no name in the game's strings; one of the guard percentages (records 70..85) by its place
+    /// record 84, no name in the game's strings; one of the guard percentages (records 70..85) by its place - no
+    /// reader in either build (0)
     [offset((ee)0xC10, (aoc)0xC48), found(c), guess]
     float32 guard_pct_84;
 
-    /// record 81, no name in the game's strings; one of the guard percentages (records 70..85) by its place
+    /// record 81, no name in the game's strings; one of the guard percentages (records 70..85) by its place - no
+    /// reader in either build (0)
     [offset((ee)0xC14, (aoc)0xC4C), found(c), guess]
     float32 guard_pct_81;
 
-    /// record 75, no name in the game's strings; one of the guard percentages (records 70..85) by its place
+    /// record 75, no name in the game's strings; one of the guard percentages (records 70..85) by its place - no
+    /// reader in either build (0)
     [offset((ee)0xC18, (aoc)0xC50), found(c), guess]
     float32 guard_pct_75;
 
-    /// record 85, no name in the game's strings; one of the guard percentages (records 70..85) by its place
+    /// record 85, no name in the game's strings; one of the guard percentages (records 70..85) by its place - no
+    /// reader in either build (0)
     [offset((ee)0xC1C, (aoc)0xC54), found(c), guess]
     float32 guard_pct_85;
 
-    /// record 76, no name in the game's strings; one of the guard percentages (records 70..85) by its place
+    /// record 76, no name in the game's strings; one of the guard percentages (records 70..85) by its place - no
+    /// reader in either build (0)
     [offset((ee)0xC20, (aoc)0xC58), found(c), guess]
     float32 guard_pct_76;
 
-    /// of two places to guard, the chance it picks the town one (record 78 "Guard Town Percentage")
+    /// of two places to guard, the chance it picks the town one (record 78 "Guard Town Percentage") - for aircraft
+    /// only: EECPASGAir::vf45 0x4447EF returns it, the land subgroups' guard_town_land_pct (0x4769F7 rolls by vf45)
     [offset((ee)0xC24, (aoc)0xC5C), found(c)]
     float32 guard_town_pct;
 
-    /// record 73, no name in the game's strings; one of the guard percentages (records 70..85) by its place
+    /// record 73, no name in the game's strings (0.85): the land subgroups' town guard chance - EECPASGLand::vf45
+    /// 0x446910 returns it, which the guard spot's choice 0x4769F7 rolls against (the aircraft's: guard_town_pct)
     [offset((ee)0xC28, (aoc)0xC60), found(c), guess]
-    float32 guard_pct_73;
+    float32 guard_town_land_pct;
 
-    /// of two places to guard, the chance it picks the waterway one (record 82 "Guard Waterway Percentage")
+    /// of two places to guard, the chance it picks the waterway one (record 82 "Guard Waterway Percentage") -
+    /// no reader in either build
     [offset((ee)0xC2C, (aoc)0xC64), found(c)]
     float32 guard_waterway_pct;
 
@@ -473,10 +485,11 @@ unsafe struct EEComputerPlayer
     [offset((ee)0xC44, (aoc)0xC7C), found(c)]
     float32 military_pct;
 
-    /// record 69, no name in the game's strings (0.1); seven functions of the combat and defence compare with it
-    /// (0x4813AE ...)
-    [offset((ee)0xC48, (aoc)0xC80), found(c)]
-    float32 record_69;
+    /// record 69, no name in the game's strings (0.1): the enemy strength near another player over that player's own
+    /// (0x4759CE, at most 1) above which it sends a military aid package (0x474E85) and keeps helping (the package's
+    /// states 0x4813AE, 0x48143E, 0x48149D, 0x4814F3, its done test 0x47A606)
+    [offset((ee)0xC48, (aoc)0xC80), found(c), guess]
+    float32 aid_threat_min;
 
     /// the most of its population cap priests may be (record 49 "Priest Usage", the float)
     [offset((ee)0xC4C, (aoc)0xC84), found(c)]
@@ -498,14 +511,15 @@ unsafe struct EEComputerPlayer
     [offset((ee)0xC5C, (aoc)0xC94), found(c)]
     float32 attention_period;
 
-    /// record 12, no name in the game's strings: its second value x 0.01 (the scenario's Set AI Variable writes it into
-    /// record_12_a and leaves this one)
-    [offset((ee)0xC60, (aoc)0xC98), found(c)]
-    float32 record_12_b;
+    /// record 12, no name in the game's strings, its second value x 0.01 (0.4): a citizen's weight in a player's
+    /// strength (0x47CBCC: intel +0x4C = it x citizens + strength_weight_military x military units; no reader of that
+    /// found). The scenario's Set AI Variable writes strength_weight_military twice and never this one
+    [offset((ee)0xC60, (aoc)0xC98), found(c), guess]
+    float32 strength_weight_citizen;
 
-    /// record 12: its first value x 0.01
-    [offset((ee)0xC64, (aoc)0xC9C), found(c)]
-    float32 record_12_a;
+    /// record 12's first value x 0.01 (0.6): a military unit's weight in that strength (0x47CBCC)
+    [offset((ee)0xC64, (aoc)0xC9C), found(c), guess]
+    float32 strength_weight_military;
 
     /// with fewer ships than the humans: the share of the difference it adds to the ships it builds (record 111 "Naval
     /// Unit Weight")
@@ -620,11 +634,12 @@ unsafe struct EEComputerPlayer
     [offset((ee)0xD3C, (aoc)0xD74), found(c)]
     int32 bonzai_level;
 
-    /// record 17, no name in the game's strings (60)
+    /// record 17, no name in the game's strings (60): the most of a range with record_16 (Set AI Variable writes the
+    /// larger value here); no reader in either build
     [offset((ee)0xD40, (aoc)0xD78), found(c)]
     int32 record_17;
 
-    /// record 16, no name in the game's strings (25)
+    /// record 16, no name in the game's strings (25): the least of that range; no reader in either build
     [offset((ee)0xD44, (aoc)0xD7C), found(c)]
     int32 record_16;
 
@@ -689,9 +704,10 @@ unsafe struct EEComputerPlayer
     [offset((ee)0xD90, (aoc)0xDC8), found(c)]
     int32 land_explorers;
 
-    /// record 86, no name in the game's strings (3); a cap in 0x4769F7
-    [offset((ee)0xD94, (aoc)0xDCC), found(c)]
-    int32 record_86;
+    /// record 86, no name in the game's strings (3): the guard spot's choice 0x4769F7 picks a chokepoint at random
+    /// among the nearest this many (with no more than this, the other branch)
+    [offset((ee)0xD94, (aoc)0xDCC), found(c), guess]
+    int32 guard_chokepoints_nearest;
 
     /// the most it builds (record 109, the rounded float)
     [offset((ee)0xD98, (aoc)0xDD0), found(c)]
@@ -736,6 +752,11 @@ unsafe struct EEComputerPlayer
     /// the most it builds (record 34, the rounded float)
     [offset((ee)0xDC0, (aoc)0xDF8), found(c)]
     int32 siege_factories_max;
+
+    /// AoC only (its record 117, no name in its strings either): the most Space Docks it builds (the rounded float;
+    /// AoC 0x46xxxx puts it into the build plan's second map under type 0x2D8, the Space Dock)
+    [offset((ee)none, (aoc)0xDFC), found(c)]
+    int32 space_docks_max;
 
     /// the most it builds (record 32, the rounded float)
     [offset((ee)0xDC4, (aoc)0xE00), found(c)]
@@ -886,6 +907,11 @@ unsafe struct EEComputerPlayer
     /// value)
     [offset((ee)0xE78, (aoc)0xEB4), found(c)]
     int32 siege_factories_units_each;
+
+    /// AoC only (record 117): the units it has per Space Dock before it builds another (the build plan's map under
+    /// type 0x2D8, as EE's anti_air_units_each under 0x91; AoC's Set AI Variable 0x5C238D writes both)
+    [offset((ee)none, (aoc)0xEB8), found(c)]
+    int32 space_docks_units_each;
 
     /// the units it has per building before it builds another (record 32 "Desired Number of Stables", first value)
     [offset((ee)0xE7C, (aoc)0xEBC), found(c)]
