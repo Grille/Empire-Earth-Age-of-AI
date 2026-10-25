@@ -1138,6 +1138,7 @@ internal uint32_t of_unit_hp;
 internal uint32_t of_unit_amount;
 internal uint32_t slot_unit_lets_pass;
 internal uint32_t slot_unit_damage;
+internal uint32_t slot_unit_destroy;
 internal uint32_t of_unit_neighbour_flags;
 internal uint32_t vt_ee_complex_unit;
 internal uint32_t size_ee_complex_unit;

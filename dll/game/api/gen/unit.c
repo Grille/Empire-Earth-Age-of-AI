@@ -95,6 +95,11 @@ internal inline int8_t ee_unit_lets_pass(ee_unit *o, ee_unit *unit) { return fn_
 // a stub (ret 4) at 28
 typedef void (__thiscall *unit_damage_fn)(ee_unit *, ee_unit *, int, int, int);
 internal inline void unit_damage(ee_unit *unit, ee_unit *attacker, int dmg, int player, int one) { ((unit_damage_fn)(*(void ***)unit)[slot_unit_damage])(unit, attacker, dmg, player, one); }
+// vf24: off the map - die 1 dies (its death shown), 0 vanishes: the scenario's Kill / Remove (0x5AF26F: (die, 0,
+// 0), then the owner's drop when its list_node is cleared), the AI's deletions (1, 0, 0), unit_give's old one
+// (0, 0, 1)
+typedef void (__thiscall *unit_destroy_fn)(ee_unit *, int, int, int);
+internal inline void unit_destroy(ee_unit *unit, int die, int p3, int p4) { ((unit_destroy_fn)(*(void ***)unit)[slot_unit_destroy])(unit, die, p3, p4); }
 // freed: its slot 12 (+0x30), its references 0, then deleted
 internal unit_release_fn fn_ee_unit_release;
 internal inline void ee_unit_release(ee_unit *unit) { fn_ee_unit_release(unit); }
@@ -632,6 +637,18 @@ internal inline int unit_convert(ee_unit *u, int pi, ee_unit_type *new_td) { ret
 typedef float (__cdecl *unit_distance_fn)(ee_unit *, ee_unit *);
 internal unit_distance_fn fn_unit_distance;
 internal inline float unit_distance(ee_unit *a, ee_unit *b) { return fn_unit_distance(a, b); }
+// cdecl(unit, player index, count): the scenario's Owner effect (0x5ACC11: count 0) - the unit made anew for the
+// player (0x62F2E5: its type's create, its hit points and state carried over), the old one destroyed (0, 0, 1);
+// count 1 adds a conversion to the statistics. The new unit (its +0x30); its id comes with the player's adopt
+typedef ee_unit *(__cdecl *unit_give_fn)(ee_unit *, int, char);
+internal unit_give_fn fn_unit_give;
+internal inline ee_unit *unit_give(ee_unit *u, int pi, char count) { return fn_unit_give(u, pi, count); }
+// cdecl(attribute, percent, unit, value, hi, outside, op): the scenario's Unit-Attribute effect on one unit -
+// value a random one of value..hi when hi isn't 0 (outside: outside the range), op SM_INCREASE / SM_DECREASE /
+// SM_EXACTLY, percent of the type's value; results not below 0 (docs/triggers.md "2. Attribute effects")
+typedef void (__cdecl *unit_attr_set_fn)(enum sm_unit_attr, char, ee_unit *, int, int, char, enum sm_unit_op);
+internal unit_attr_set_fn fn_unit_attr_set;
+internal inline void unit_attr_set(enum sm_unit_attr attr, char percent, ee_unit *u, int value, int hi, char outside, enum sm_unit_op op) { fn_unit_attr_set(attr, percent, u, value, hi, outside, op); }
 
 // the running build's values (spec_select, with addr_select): how many it hasn't got
 internal int spec_unit_select(int build) {
@@ -662,6 +679,7 @@ internal int spec_unit_select(int build) {
         slot_unit_lets_pass = 18;
         fn_ee_unit_lets_pass = (unit_lets_pass_fn)0x006167C7;
         slot_unit_damage = 28;
+        slot_unit_destroy = 24;
         fn_ee_unit_release = (unit_release_fn)0x00616DBB;
         fn_unit_pop_waypoint = (unit_pop_waypoint_fn)0x005EDCF4;
         fn_unit_accel = (unit_accel_fn)0x0054A4CA;
@@ -790,6 +808,8 @@ internal int spec_unit_select(int build) {
         fn_ballistic_game = (ballistic_game_fn)0x0062CBB3;
         fn_unit_convert = (unit_convert_fn)0x0062F192;
         fn_unit_distance = (unit_distance_fn)0x0062D5A4;
+        fn_unit_give = (unit_give_fn)0x00638670;
+        fn_unit_attr_set = (unit_attr_set_fn)0x005B8823;
         return 0;
     case 1:   // aoc
         size_rts_unit = 0x2C;
@@ -817,6 +837,7 @@ internal int spec_unit_select(int build) {
         slot_unit_lets_pass = 18;
         fn_ee_unit_lets_pass = (unit_lets_pass_fn)0x006292C9;
         slot_unit_damage = 29;
+        slot_unit_destroy = 24;
         fn_ee_unit_release = (unit_release_fn)0x006298E1;
         fn_unit_pop_waypoint = (unit_pop_waypoint_fn)0x005FBDD1;
         fn_unit_accel = (unit_accel_fn)0x00554C95;
@@ -945,6 +966,8 @@ internal int spec_unit_select(int build) {
         fn_ballistic_game = (ballistic_game_fn)0x00641A6A;
         fn_unit_convert = (unit_convert_fn)0x00644E95;
         fn_unit_distance = (unit_distance_fn)0x00642489;
+        fn_unit_give = (unit_give_fn)0x0064E7DA;
+        fn_unit_attr_set = (unit_attr_set_fn)0x005C8F28;
         return 0;
     }
     return 0;
@@ -993,5 +1016,7 @@ internal int spec_unit_check(void) {
     bad += spec_code((uintptr_t)fn_ballistic_game, "unit_functions.ballistic_game");
     bad += spec_code((uintptr_t)fn_unit_convert, "unit_functions.unit_convert");
     bad += spec_code((uintptr_t)fn_unit_distance, "unit_functions.unit_distance");
+    bad += spec_code((uintptr_t)fn_unit_give, "unit_functions.unit_give");
+    bad += spec_code((uintptr_t)fn_unit_attr_set, "unit_functions.unit_attr_set");
     return bad;
 }

@@ -1,0 +1,34 @@
+// a script's effects on units (lang/unit.cs, game_script/units.c SCRIPTS' EFFECTS ON UNITS): Continental (seed 101) -
+// hit points, ammunition and power set (the next step: read back after the hold), a unit given to another player (it
+// follows: another id, the new owner), one killed and one removed (alive false, the count down by two), and a
+// trigger's kill done at once.
+wait_until(0.05min)
+let p = player(2)
+let men = p.spawn(unit.inf10_doughboy, vec(40, 40), 4)
+men[1].hp = 100
+men[2].hp -= 300
+ping("hp set: {men[1].hp} and {men[2].hp} of {men[1].max_hp} at {time} s")
+let f = p.spawn(unit.a_fighter10_sopwith_camel_f_1, vec(44, 50))
+ping("a fighter's ammo {f[1].ammo}")
+f[1].ammo = 1
+ping("set to {f[1].ammo}")
+let pr = p.spawn(unit.prophet, vec(36, 40))
+ping("a prophet's power {pr[1].power}")
+pr[1].power = 7
+ping("set to {pr[1].power}")
+let before = men[3].id
+men[3].owner = player(3)
+ping("given away: owner {men[3].owner}, id {before} -> {men[3].id}, alive {men[3].alive}, hp {men[3].hp}")
+let n = len(p.units(unit.inf10_doughboy))
+men[1].kill()
+men[2].remove()
+ping("killed and removed: alive {men[1].alive} {men[2].alive}, P2 doughboys {n} -> {len(p.units(unit.inf10_doughboy))}")
+let t = trigger({
+    name = "kill",
+    when = () => time > 6,
+    run = () => {
+        men[4].kill()
+        ping("a trigger's kill: alive {men[4].alive} at once")
+    },
+})
+wait(3s)

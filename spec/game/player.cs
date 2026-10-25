@@ -319,6 +319,11 @@ unsafe struct EEPlayer
     /// then with refresh vf3 - thiscall(player, 0, 1) after the scenario's Create (unit.c unit_create)
     [slot(1)]
     extern void adopt(int32 ids, char8 refresh);
+
+    /// thiscall(player, unit, again): a unit off the map dropped from its lists (its released flag set first; again
+    /// drops a released one once more) - the scenario's Kill / Remove after EEUnit.destroy left the unit's list_node
+    [address((ee)0x0055FD76, (aoc)0x0056F6AE)]
+    extern void drop(EEUnit* u, char8 again);
 }
 
 /// the object at a player's +0xB98

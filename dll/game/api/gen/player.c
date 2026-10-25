@@ -310,6 +310,11 @@ internal inline void player_set_diplomacy(ee_player *player, ee_player *other, i
 // then with refresh vf3 - thiscall(player, 0, 1) after the scenario's Create (unit.c unit_create)
 typedef void (__thiscall *player_adopt_fn)(ee_player *, int, char);
 internal inline void player_adopt(ee_player *player, int ids, char refresh) { ((player_adopt_fn)(*(void ***)player)[slot_player_adopt])(player, ids, refresh); }
+// thiscall(player, unit, again): a unit off the map dropped from its lists (its released flag set first; again
+// drops a released one once more) - the scenario's Kill / Remove after EEUnit.destroy left the unit's list_node
+typedef void (__thiscall *player_drop_fn)(ee_player *, ee_unit *, char);
+internal player_drop_fn fn_player_drop;
+internal inline void player_drop(ee_player *player, ee_unit *u, char again) { fn_player_drop(player, u, again); }
 
 // class ee_player_b98 (ee_player_b98)
 // the object at a player's +0xB98
@@ -1192,6 +1197,7 @@ internal int spec_player_select(int build) {
         fn_player_game_limit = (player_game_limit_fn)0x00556EBC;
         fn_player_set_diplomacy = (player_set_diplomacy_fn)0x0055B8E1;
         slot_player_adopt = 1;
+        fn_player_drop = (player_drop_fn)0x0055FD76;
         of_player_b98_att = 0x2D;
         vt_ee_computer_player = 0x008264C0;
         of_player_doomed_begin = 0xB80;
@@ -1467,6 +1473,7 @@ internal int spec_player_select(int build) {
         fn_player_game_limit = (player_game_limit_fn)0x0056528B;
         fn_player_set_diplomacy = (player_set_diplomacy_fn)0x0056AB41;
         slot_player_adopt = 1;
+        fn_player_drop = (player_drop_fn)0x0056F6AE;
         of_player_b98_att = 0x2D;
         vt_ee_computer_player = 0x0083A57C;
         of_player_doomed_begin = 0xBB4;
@@ -1677,6 +1684,7 @@ internal int spec_player_check(void) {
     bad += spec_code((uintptr_t)fn_player_can_build, "EEPlayer.can_build");
     bad += spec_code((uintptr_t)fn_player_game_limit, "EEPlayer.game_limit");
     bad += spec_code((uintptr_t)fn_player_set_diplomacy, "EEPlayer.set_diplomacy");
+    bad += spec_code((uintptr_t)fn_player_drop, "EEPlayer.drop");
     bad += spec_vtable(vt_ee_computer_player, ".?AVEEComputerPlayer@@", "EEComputerPlayer [vtable]");
     bad += spec_code((uintptr_t)fn_player_adjust_cost, "EEComputerPlayer.adjust_cost");
     bad += spec_code((uintptr_t)fn_player_add_resource, "EEComputerPlayer.add_resource");

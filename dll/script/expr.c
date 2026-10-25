@@ -1171,10 +1171,13 @@ internal void xps_stmt(struct xps *p, struct xnode **out) {
     p->s = r + (op ? 2 : 1);
     xps_expr(p, &v);
     if (p->err) return;
-    if (op && !(v = xps_bin(p, op == '+' || op == '-' ? XN_ADD : XN_MUL, op, *out, v))) return;   // p.gold = p.gold + 100
+    // p.gold += 100: p.gold = p.gold + 100 (its object a name of its own); l[1].hp -= 50: the set keeps the op - its
+    // object is worked out once (a call in it not made twice) and is in the tree once
+    if (op && t->k != XN_MEMBER && !(v = xps_bin(p, op == '+' || op == '-' ? XN_ADD : XN_MUL, op, *out, v))) return;
     struct xnode *o = xn_new(p, XN_SETM, at);
     if (!o) return;
     o->a = obj; o->b = v;
+    if (t->k == XN_MEMBER) o->op = (unsigned char)op;
     o->s = _strdup(member);
     *out = XOFF(p, o);
 }
@@ -1872,6 +1875,14 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
         const struct x_kmember *m = a & X_LIST_OF || a >= XT_INT ? NULL : x_kind_member(a, n->s);
         char t[100], tv[40], tm[40];
         int tr = x_stype(k, n->b, sc);
+        if (n->op && m && m->set) {   // l[1].hp -= 50: the member's now op b, as + - * / type it
+            if (!xt_numeric(m->result) || !xt_numeric(tr)) {
+                snprintf(k->whybuf, sizeof k->whybuf, ".%s %c= ...: numbers only - a %s's %s is a%s %s, the value a%s %s", n->s, n->op,
+                         x_kind_name(a), n->s, xan(xty_name(m->result, tm, sizeof tm)), tm, xan(xty_name(tr, tv, sizeof tv)), tv);
+                return xc_fail(k, n, k->whybuf);
+            }
+            tr = m->result == XT_INT && tr == XT_INT && n->op != '/' ? XT_INT : XT_FLOAT;
+        }
         if (a & X_LIST_OF) snprintf(k->whybuf, sizeof k->whybuf, ".%s = ...: a %s - one of them: [1].%s", n->s, xty_name(a, tv, sizeof tv), n->s);
         else if (a >= XT_INT) snprintf(k->whybuf, sizeof k->whybuf, ".%s = ...: a %s has no members to set", n->s, xty_name(a, tv, sizeof tv));
         else if (!m) { x_kind_list(a, t, sizeof t); snprintf(k->whybuf, sizeof k->whybuf, ".%s = ...: a %s has no %s - its members: %s", n->s, x_kind_name(a), n->s, t); }
@@ -2996,6 +3007,16 @@ internal void x_stmt(struct xe *e, const struct xnode *s) {
         if (!o.obj || !o.w) { x_fail(e, ".%s = ...: %.40s is no object", s->s, xtext_of(&o)); return; }
         const struct x_kmember *m = x_kind_member(o.okind, s->s);
         if (!m || !m->set) { x_fail(e, ".%s = ...: a %s's %s can't be set", s->s, x_kind_name(o.okind), s->s); return; }
+        if (s->op) {   // l[1].hp -= 50: what it is now, op the value
+            struct xval cur;
+            char whole[60];
+            snprintf(whole, sizeof whole, ".%s %c= ...", s->s, s->op);
+            x_obj_member(e, &o, s->s, NULL, 0, 0, &cur, whole);
+            if (e->err || !x_numeric_ok(e, &cur) || !x_numeric_ok(e, &v)) return;
+            double x = xto_num(&cur), y = xto_num(&v);
+            if (s->op == '/' && y == 0) { x_fail(e, "a division by 0"); return; }
+            xnum(&v, s->op == '+' ? x + y : s->op == '-' ? x - y : s->op == '*' ? x * y : x / y);
+        }
         if (!g_x_host.set(e->c, &o, s->s, &v)) { e->c->missed = 0; e->err = 1; e->why = "a mistake while working it out"; }   // (told)
         break;
     }

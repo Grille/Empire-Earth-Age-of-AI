@@ -441,7 +441,7 @@ internal int x_slot_member(struct xctx *c, const struct xval *o, const char *nam
 // stock written as the scenario's Set-Attribute does, without the AI's demand noticing; a win or a defeat waits for the
 // next point between the simulation's steps (x_effects_flush, test/scripts.c script_triggers), where the game's own
 // resign runs: as the scenario's Victory / Defeat (docs/triggers.md "2 Player"); p.spawn's units are made there too
-// (units.c SPAWNING)
+// with the other effects on units (units.c SCRIPTS' EFFECTS ON UNITS)
 internal int g_x_outcome[16];   // [player]: 1 wins, 2 loses - to be carried out
 internal int x_did(struct xctx *c, const char *what) {   // 1: only told (or not a script's: a mistake, told)
     if (!c->script) { x_host_fail(c, "%s: a script's - a text changes nothing", what); return 1; }
@@ -465,9 +465,9 @@ internal void x_player_do(struct xctx *c, int i, const char *name, const struct 
     wsprintfA(t, "player %d.%s(player %d)", i, name, j);
     if (!x_did(c, t) && stance_of(p, j) != s) set_stance(i, j, s);
 }
-internal void x_spawn_flush(void);   // units.c: the spawned units made
+internal void x_units_flush(void);   // units.c: the units' effects done (spawns too)
 internal void x_effects_flush(void) {
-    x_spawn_flush();
+    x_units_flush();
     for (int i = 1; i < 16; i++) {
         int w = g_x_outcome[i];
         g_x_outcome[i] = 0;
@@ -492,11 +492,12 @@ internal int x_player_set(struct xctx *c, const struct xval *o, const char *name
     return c->script;
 }
 
+internal int x_unit_set(struct xctx *c, const struct xval *o, const char *name, const struct xval *v);   // units.c
 // slot.persona = persona.fuchs, slot.color = color.red / rgb(40, 200, 120): for this game's planning (a computer's
 // personality and colour; a human's colour one of the game's)
 internal int x_obj_set(struct xctx *c, const struct xval *o, const char *name, const struct xval *v) {
     if (o->okind == XK_PLAYER) return x_player_set(c, o, name, v);
-    if (o->okind == XK_UNIT) { x_host_fail(c, "a unit's %s can't be set", name); return 0; }   // (lang/unit.cs: none is [set] yet)
+    if (o->okind == XK_UNIT) return x_unit_set(c, o, name, v);
     int number = o->obj - 1, s = o->okind == XK_SLOT ? x_slot_index(number) : -1;
     if (s < 0) { x_host_fail(c, "%s.%s = ...: only in game.setup (before the game starts)", o->okind == XK_SLOT ? "slot" : "it", name); return 0; }
     int human = setup_slot_get_type(setup_slot_at(g_x_setup, s)) == 1;
@@ -530,10 +531,11 @@ internal int x_obj_set(struct xctx *c, const struct xval *o, const char *name, c
 internal int x_unit_member_of(struct xctx *c, const struct xval *o, const char *name, struct xval *v);   // units.c
 internal int x_units_of(struct xctx *c, int pl, const struct xval *a, int na, struct xval *v);
 internal void x_unit_by_id(struct xctx *c, const struct xval *id, struct xval *v);
+internal int x_unit_do(struct xctx *c, const struct xval *o, const char *name, struct xval *v);
 // o.name, o.name(a ...) (expr.c x_obj_member: a member of its kind, its arguments counted)
 internal int x_obj_member_of(struct xctx *c, const struct xval *o, const char *name, const struct xval *a, int na, struct xval *v) {
     if (o->okind == XK_SLOT) return x_slot_member(c, o, name, v);
-    if (o->okind == XK_UNIT) return x_unit_member_of(c, o, name, v);
+    if (o->okind == XK_UNIT) return x_unit_do(c, o, name, v) || x_unit_member_of(c, o, name, v);
     if (o->okind == XK_GAME && g_x_setup && strcmp(name, "slots") && strcmp(name, "slot")) {
         x_host_fail(c, "game.%s: not before the game starts - game.setup has game.slots, game.slot(n)", name);
         return 1;

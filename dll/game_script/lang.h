@@ -56,7 +56,7 @@ internal const struct xmember k_xmembers[] = {
     { "lose", XM_DO, "a script's: p.lose() - the player is defeated, as a scenario's Defeat", X_ANY, 0, 0, 0, 0 },
     { "war", XM_DO, "a script's: A.war(B) - A treats B as an enemy (one way, as the game's stances: B's towards A stays; an AI may change its mind later)", X_ANY, 1, 1, 0, 0 },
     { "ally", XM_DO, "a script's: A.ally(B) - A treats B as an ally (one way)", X_ANY, 1, 1, 0, 0 },
-    { "spawn", XM_DO, "a script's: p.spawn(unit.inf10_doughboy, vec(40, 40), 10) - new units of one type at a place (2 tiles apart, in a square), returned at once: the script goes on, and holds only when it first uses one of them or asks the map (p.units(), game.unit(id)) - till the game has made them (a unit that doesn't come in 5 s is gone)", X_LIST_OF + XK_UNIT, 2, 3, 0, 0 },
+    { "spawn", XM_DO, "a script's: p.spawn(unit.inf10_doughboy, vec(40, 40), 10) - new units of one type at a place (2 tiles apart, in a square), as a scenario's Create makes them, at the game's next step: returned at once, the script goes on and holds only when it first uses one of them or asks the map (p.units(), game.unit(id)); a trigger's are there at once", X_LIST_OF + XK_UNIT, 2, 3, 0, 0 },
 };
 #define N_XMEMBERS (int)(sizeof k_xmembers / sizeof *k_xmembers)
 internal const struct xmember k_xglobals[] = {
@@ -154,9 +154,13 @@ internal const struct x_kmember k_xk_unit[] = {
     { "id", -1, -1, XT_INT, 0 },
     { "alive", -1, -1, XT_BOOL, 0 },
     { "type", -1, -1, XT_UTYPE, 0 },
-    { "owner", -1, -1, XK_PLAYER, 0 },
+    { "owner", -1, -1, XK_PLAYER, 1 },
     { "pos", -1, -1, XT_VEC2, 0 },
-    { "hp", -1, -1, XT_INT, 0 },
+    { "hp", -1, -1, XT_INT, 1 },
     { "max_hp", -1, -1, XT_INT, 0 },
+    { "ammo", -1, -1, XT_INT, 1 },
+    { "power", -1, -1, XT_INT, 1 },
+    { "kill", 0, 0, X_ANY, 0 },
+    { "remove", 0, 0, X_ANY, 0 },
 };
 #define XK_NUMBERED(k) ((k) == XK_PLAYER || (k) == XK_SLOT)

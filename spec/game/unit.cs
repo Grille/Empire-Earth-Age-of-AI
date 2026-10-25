@@ -112,6 +112,11 @@ unsafe struct EEUnit
     /// a stub (ret 4) at 28
     [slot((ee)28, (aoc)29)]
     extern void damage(EEComplexUnit* attacker, int32 dmg, int32 player, int32 one);
+    /// vf24: off the map - die 1 dies (its death shown), 0 vanishes: the scenario's Kill / Remove (0x5AF26F: (die, 0,
+    /// 0), then the owner's drop when its list_node is cleared), the AI's deletions (1, 0, 0), unit_give's old one
+    /// (0, 0, 1)
+    [slot(24)]
+    extern void destroy(int32 die, int32 p3, int32 p4);
 
     /// freed: its slot 12 (+0x30), its references 0, then deleted
     [address((ee)0x00616DBB, (aoc)0x006298E1), overrides(typeof(RTSUnit))]
@@ -661,5 +666,17 @@ static unsafe class unit_functions
     /// cdecl(unit, other)
     [address((ee)0x0062D5A4, (aoc)0x00642489), cdecl]
     static extern float32 unit_distance(EEUnit* a, EEUnit* b);
+
+    /// cdecl(unit, player index, count): the scenario's Owner effect (0x5ACC11: count 0) - the unit made anew for the
+    /// player (0x62F2E5: its type's create, its hit points and state carried over), the old one destroyed (0, 0, 1);
+    /// count 1 adds a conversion to the statistics. The new unit (its +0x30); its id comes with the player's adopt
+    [address((ee)0x00638670, (aoc)0x0064E7DA), cdecl]
+    static extern EEUnit* unit_give(EEUnit* u, int32 pi, char8 count);
+
+    /// cdecl(attribute, percent, unit, value, hi, outside, op): the scenario's Unit-Attribute effect on one unit -
+    /// value a random one of value..hi when hi isn't 0 (outside: outside the range), op SM_INCREASE / SM_DECREASE /
+    /// SM_EXACTLY, percent of the type's value; results not below 0 (docs/triggers.md "2. Attribute effects")
+    [address((ee)0x005B8823, (aoc)0x005C8F28), cdecl]
+    static extern void unit_attr_set(sm_unit_attr attr, char8 percent, EEUnit* u, int32 value, int32 hi, char8 outside, sm_unit_op op);
 
 }
