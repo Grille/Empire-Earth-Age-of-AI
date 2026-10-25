@@ -294,6 +294,11 @@ Settings in `aimod.ini`:
   planned whole, straight wherever the ground between two points is clear, around buildings, walls and forests by
   the game's own tile test, instead of pieces in the 8 tile directions. A search takes well under a millisecond.
   The 2017 update; in multiplayer every PC needs the same setting.
+- `[general] land_widen=0` (default off while it is measured; with land_routes): a route pulled straight hugs
+  everything it rounds, so units scrape each building corner, tree and cliff on the way. With 1 each corner of a
+  land route is moved away from what it rounds, up to 1.5 tiles, till the unit has its own radius and half a tile
+  of room - only where there is room (through a gap it keeps to the middle, so choke points are still taken) and
+  the legs to it stay clear.
 - `[general] ship_turns=0` (default off while it is measured): told to go somewhere more than 45 degrees off its
   bow - a new order while it sails, or a sharp corner - a ship braked to a crawl, turned almost on the spot and
   sped up again (a U-turn took 6 s nearly standing). With 1 it turns in an arc: at full speed towards a far point,

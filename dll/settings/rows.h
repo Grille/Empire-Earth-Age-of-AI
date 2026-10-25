@@ -36,6 +36,7 @@
     X(CHOICE, general,  improved_unit_movement,   "default", "default|enabled|disabled", 0) \
     X(CHILD,  general,  ship_routes,              0,  improved_unit_movement, 0) \
     X(CHILD,  general,  land_routes,              0,  improved_unit_movement, 0) \
+    X(CHILD,  general,  land_widen,               0,  improved_unit_movement, 0) \
     X(CHILD,  general,  ship_turns,               0,  improved_unit_movement, 0) \
     X(CHILD,  general,  land_turns,               0,  improved_unit_movement, 0) \
     X(CHILD,  general,  turn_fix,                 1,  improved_unit_movement, 0) \

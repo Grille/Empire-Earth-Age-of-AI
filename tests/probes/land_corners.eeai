@@ -1,0 +1,21 @@
+// Land route corners (land_widen): Continental (seed 101, start_epoch 12), 20 doughboys and 4 Mark V tanks sent from
+// 36,44 to 66,44 through a line of the player's own houses at x 46 with a gap near y 44 and past three single houses
+// beyond (corners to round, a choke point to take) - `fmove stat` / `fmove sum`: arrivals, time standing, the corners
+// widened and their room
+wait_until(0.1min)
+spawn(1, unit.b_house, 46, 36, 1)
+spawn(1, unit.b_house, 46, 39, 1)
+spawn(1, unit.b_house, 46, 49, 1)
+spawn(1, unit.b_house, 46, 52, 1)
+spawn(1, unit.b_house, 54, 41, 1)
+spawn(1, unit.b_house, 57, 47, 1)
+spawn(1, unit.b_house, 61, 42, 1)
+spawn(1, unit.inf10_doughboy, 35, 44, 20)
+spawn(1, unit.tank10_mk_v, 34, 47, 4)
+wait_until(0.3min)
+cmd("fmove go 1 35 45 6 66 44")
+every(2s, 0.3min, 2.3min, (run) => {
+    cmd("fmove stat")
+})
+wait_until(2.35min)
+cmd("fmove sum")

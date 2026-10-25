@@ -16,7 +16,12 @@
 // Only the 2017 update (AoC's request takes another argument). `land_routes` (default 0 until measured): the same for
 // land units (and hovercraft: model_kind's MODEL_LAND) - the game's tile test as it is (buildings, walls, gates, the
 // terrain byte), without the ships' water test and their dearer tiles near the shore; each search timed (fmove sum
-// prints them: land units ask for routes far more often than ships).
+// prints them: land units ask for routes far more often than ships). `land_widen` (with land_routes, default 0 until
+// measured; the player: units scraped every corner on their way): the pulled route's corners hug what they round - a
+// tile's centre beside it, the leg past its corner by SR_MARGIN -, so each corner of a land unit's route is moved away
+// from what blocks around it, towards where the room grows, up to LR_WIDEN and only while the room still grows (in a
+// gap it stops in the middle: a choke point is still taken) and both legs to it stay clear; then the points along the
+// legs as before.
 
 #define SR_COST_STRAIGHT 10
 #define SR_COST_DIAGONAL 14
@@ -26,8 +31,13 @@
 #define SR_RETARGET 6                   // tiles: a target it can't enter moves to the nearest one it can this near
 #define SR_STEP 2.0f                    // a waypoint at least every this many tiles along a straight leg
 #define SR_MAX_POINTS 512
+#define LR_WIDEN 1.5f                   // tiles: a land route's corner moved at most this far (land_widen)
+#define LR_LOOK 3                       // tiles around a corner looked at for what blocks
+#define LR_GAP 0.6f                     // tiles: the room wanted at a corner beyond the unit's own radius
 
-internal int g_sr_on, g_sr_log, g_lr_on;
+internal int g_sr_on, g_sr_log, g_lr_on, g_lr_widen;
+internal unsigned g_lr_corners, g_lr_widened;   // land_widen: corners looked at, moved
+internal double g_lr_room0, g_lr_room1;         // their room before and after (tiles, summed)
 internal int g_sr_ship;                 // this search's unit is a ship (the water test, the shore)
 internal unsigned g_lr_routes;           // land searches made, and their time (ms): all, the longest
 internal double g_lr_ms, g_lr_ms_max;
@@ -126,6 +136,50 @@ internal float sr_crowded(ee_map *map, ee_unit *u, ee_unit_type *td, int size, i
             if (d < nearest && !sr_pass(map, u, td, size, x + dx, y + dy)) nearest = d;
         }
     return nearest < g_sr_radius ? g_sr_radius - nearest : 0;
+}
+
+// the room around a point: its distance to the nearest tile it may not enter (LR_LOOK + 1 when none within LR_LOOK);
+// *away the way from what blocks, weighted by nearness
+internal float lr_room(ee_map *map, ee_unit *u, ee_unit_type *td, int size, float x, float y, vec2 *away) {
+    int fx = (int)floorf(x), fy = (int)floorf(y);
+    float room = LR_LOOK + 1;
+    vec2 a = v2(0, 0);
+    for (int dy = -LR_LOOK; dy <= LR_LOOK; dy++)
+        for (int dx = -LR_LOOK; dx <= LR_LOOK; dx++) {
+            int tx = fx + dx, ty = fy + dy;
+            if (sr_pass(map, u, td, size, tx, ty)) continue;
+            float ex = x < tx ? tx - x : x > tx + 1 ? x - tx - 1 : 0, ey = y < ty ? ty - y : y > ty + 1 ? y - ty - 1 : 0;
+            float d = sqrtf(ex * ex + ey * ey);
+            if (d < room) room = d;
+            vec2 from = v2(x - ((float)tx + 0.5f), y - ((float)ty + 0.5f));
+            float l2 = vec2_dot(from, from);
+            if (l2 > 1e-6f) a = vec2_add(a, vec2_scale(from, 1.0f / (l2 * sqrtf(l2))));
+        }
+    if (away) *away = a;
+    return room;
+}
+
+// land_widen: corner c (between the legs from prev and to next) moved away from what blocks around it till it has the
+// room wanted (want: the unit's radius + LR_GAP; further only lengthens the route), while the room grows, up to
+// LR_WIDEN, both legs clear
+internal void lr_widen(ee_map *map, ee_unit *u, ee_unit_type *td, int size, float *c, const float *prev, const float *next, float want) {
+    vec2 away;
+    float room = lr_room(map, u, td, size, c[0], c[1], &away), l = vec2_len(away), room0 = room;
+    g_lr_corners++;
+    g_lr_room0 += room0;
+    if (l > 1e-6f && room < want) {
+        away = vec2_scale(away, 1.0f / l);
+        float bx = c[0], by = c[1];
+        for (float s = 0.25f; s <= LR_WIDEN + 0.01f; s += 0.25f) {
+            float qx = c[0] + away.x * s, qy = c[1] + away.y * s, r = lr_room(map, u, td, size, qx, qy, NULL);
+            if (r <= room + 0.01f) break;   // past the middle of the room
+            if (!sr_clear(map, u, td, size, prev[0], prev[1], qx, qy) || !sr_clear(map, u, td, size, qx, qy, next[0], next[1])) break;
+            bx = qx; by = qy; room = r;
+            if (room >= want) break;
+        }
+        if (bx != c[0] || by != c[1]) { c[0] = bx; c[1] = by; g_lr_widened++; }
+    }
+    g_lr_room1 += room;
 }
 
 internal void sr_heap_push(uint32_t i) {
@@ -227,13 +281,21 @@ internal int sr_route(ee_unit *u, int *from, int *to, void *caller, int sectors)
     static uint32_t path[65536];
     int n = 0;
     for (int32_t i = (int32_t)goal; i >= 0 && n < 65536; i = g_sr.parent[i]) path[n++] = (uint32_t)i;
-    static float pts[SR_MAX_POINTS][3];
-    int np = 0, corners = 0, at = n - 1;
-    while (at > 0 && np < SR_MAX_POINTS - 1) {
+    static float pts[SR_MAX_POINTS][3], cn[SR_MAX_POINTS][2];
+    int np = 0, nc = 0, at = n - 1;
+    cn[nc][0] = (float)(path[at] % (uint32_t)size) + 0.5f; cn[nc][1] = (float)(path[at] / (uint32_t)size) + 0.5f; nc++;
+    while (at > 0 && nc < SR_MAX_POINTS) {
         float ax = (float)(path[at] % (uint32_t)size) + 0.5f, ay = (float)(path[at] / (uint32_t)size) + 0.5f;
         int next = at - 1;
         while (next > 0 && sr_clear(map, u, td, size, ax, ay, (float)(path[next - 1] % (uint32_t)size) + 0.5f, (float)(path[next - 1] / (uint32_t)size) + 0.5f)) next--;
-        float bx = (float)(path[next] % (uint32_t)size) + 0.5f, by = (float)(path[next] / (uint32_t)size) + 0.5f;
+        cn[nc][0] = (float)(path[next] % (uint32_t)size) + 0.5f; cn[nc][1] = (float)(path[next] / (uint32_t)size) + 0.5f; nc++;
+        at = next;
+    }
+    int corners = nc - 1;
+    if (g_lr_widen && !g_sr_ship)   // the corners between start and goal moved off what they round
+        for (int c = 1; c < nc - 1; c++) lr_widen(map, u, td, size, cn[c], cn[c - 1], cn[c + 1], unit_type_get_collision(td) * 0.5f + LR_GAP);
+    for (int c = 1; c < nc; c++) {
+        float ax = cn[c - 1][0], ay = cn[c - 1][1], bx = cn[c][0], by = cn[c][1];
         int steps = (int)ceilf(sqrtf((bx - ax) * (bx - ax) + (by - ay) * (by - ay)) / SR_STEP);
         for (int k = 1; k <= steps && np < SR_MAX_POINTS - 1; k++) {
             pts[np][0] = ax + (bx - ax) * (float)k / (float)steps;
@@ -241,8 +303,6 @@ internal int sr_route(ee_unit *u, int *from, int *to, void *caller, int sectors)
             pts[np][2] = 0;
             np++;
         }
-        corners++;
-        at = next;
     }
     if (np == 0) return 0;
     // the last point where the goal wants it (a group's place inside the tile)
@@ -548,7 +608,8 @@ internal void shiproute_install(const char *autotest_ini) {
     g_sr_on = g_set.ship_routes;
     if (autotest_ini) g_sr_log = ini_int("autotest", "ship_route_log", 0, autotest_ini);
     g_lr_on = g_set.land_routes;
+    g_lr_widen = g_lr_on && g_set.land_widen;
     int ok = g_sr_on || g_lr_on ? patch_path_request(hook_path_request) && patch_group_sector_route(hook_group_sector_route) : 0;
-    if (g_log) fprintf(g_log, "# shiproute: ship_routes=%d land_routes=%d (hook %s)%s\n", g_sr_on, g_lr_on, !g_sr_on && !g_lr_on ? "-" : ok ? "ok" : build_is("aoc") ? "not in AoC" : "FAILED",
+    if (g_log) fprintf(g_log, "# shiproute: ship_routes=%d land_routes=%d (corners widened: %d) (hook %s)%s\n", g_sr_on, g_lr_on, g_lr_widen, !g_sr_on && !g_lr_on ? "-" : ok ? "ok" : build_is("aoc") ? "not in AoC" : "FAILED",
                        g_sr_log ? ", routes logged" : "");
 }
