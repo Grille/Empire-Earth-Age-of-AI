@@ -93,6 +93,13 @@ internal inline int patch_goalset_ask(goalset_ask_hook h, int *of) {
 }
 typedef char (__thiscall *goal_fits_hook)(ee_goal *goal, void *unit);
 internal inline int patch_goal_fits(goal_fits_hook h) { return patch_call(GA(CALL_GOAL_FBA_CHECK), GA(FN_GOAL_FBA_CHECK), (void *)h); }
+// a group move's location goal for each unit at its slot (the group's dispatch, after units and slots are paired:
+// groupmove.c); pt the caller's copy of the slot's point, the rest passed on as they are
+typedef void *(__thiscall *slot_goal_hook)(ee_goal *g, float *pt, uint32_t a, uint32_t b, uint32_t c, uint32_t d, uint32_t e, uint32_t f);
+internal inline void *goal_move_at(ee_goal *g, float *pt, uint32_t a, uint32_t b, uint32_t c, uint32_t d, uint32_t e, uint32_t f) {
+    return GF(FN_GOAL_MOVE_AT)(g, pt, a, b, c, d, e, f);
+}
+internal inline int patch_slot_goal(slot_goal_hook h) { return patch_call(GA(CALL_SLOT_GOAL), GA(FN_GOAL_MOVE_AT), (void *)h); }
 // the unload goal's construction (landing.c)
 typedef void *(__thiscall *unload_ctor_hook)(ee_goal *g, ee_unit *transport, int x, int y, int flag);
 internal inline int patch_unload_ctor(unload_ctor_hook h, int *of) { return patch_calls(PATCH_LIST(UNLOAD_SITES), GA(FN_GOAL_UNLOAD_CTOR), (void *)h, of); }

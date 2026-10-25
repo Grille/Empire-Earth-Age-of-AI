@@ -1,6 +1,6 @@
 // Units passing through a standing crowd (the player: standing units get pressed into each other, flung back once the
 // mover is through, or slide in circles round another for a free place): Continental (seed 101, start_epoch 12),
-// 40 doughboys gathered at 46,44 by a group move (group_block: a packed block) and settled, then 6 Mark V tanks from 38,48 through them to 54,40, then
+// 40 doughboys gathered at 46,44 by a group move (then group_block: a packed block) and settled, then 6 Mark V tanks from 38,48 through them to 54,40, then
 // 8 dragoons from 54,40 back through to 38,48. Every unit watched every step (`fmove watch`, # fmwatch).
 wait_until(0.1min)
 spawn(1, unit.inf10_doughboy, 28, 30, 40)

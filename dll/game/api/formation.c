@@ -4,6 +4,10 @@
 // its slot. docs/engine-notes.md "Group moves".
 
 internal inline vec3 formation_get_center(const void *f) { return FIELD(f, FORMATION_CENTER, vec3); }   // +0x48 the clicked point
+// +0x58 its kind: FORMATION_SHORT_LINE ... (the game's factory numbers them so)
+enum { FORMATION_SHORT_LINE, FORMATION_LONG_LINE, FORMATION_LOOSE_LINE, FORMATION_STAGGERED_LINE, FORMATION_DEEP_WEDGE,
+       FORMATION_SHALLOW_WEDGE, FORMATION_INWARD_CIRCLE, FORMATION_OUTWARD_CIRCLE };
+internal inline int formation_get_kind(const void *f) { return FIELD(f, FORMATION_KIND, int); }
 // a formation's slots: the vector FN_FORMATION_SLOTS fills (begin +4, end +8 - the runtime library's), SIZE_FORMATION_SLOT each
 internal inline int formation_slot_count(const void *v) {
     uint8_t *b = FIELD(v, 4, uint8_t *), *e = FIELD(v, 8, uint8_t *);
@@ -13,6 +17,9 @@ internal inline void *formation_slot(void *v, int i) { return FIELD(v, 4, uint8_
 internal inline vec3 fslot_get_pos(const void *s) { return FIELD(s, FSLOT_POS, vec3); }
 internal inline void fslot_set_pos(void *s, vec3 p) { FIELD(s, FSLOT_POS, vec3) = p; }
 internal inline ee_unit *fslot_get_unit(const void *s) { return FIELD(s, FSLOT_UNIT, ee_unit *); }
+// +0x10 the facing the unit takes there - kept as the game wrote it (copied between slots, not read)
+internal inline uint32_t fslot_get_facing(const void *s) { return FIELD(s, FSLOT_FACING, uint32_t); }
+internal inline void fslot_set_facing(void *s, uint32_t v) { FIELD(s, FSLOT_FACING, uint32_t) = v; }
 
 // the slots of a group's move (slot 1 of every formation's vtable) - the hook calls formation_slots for the game's
 typedef void (__thiscall *formation_slots_hook)(void *formation, void *group, void *slots);

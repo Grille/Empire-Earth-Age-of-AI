@@ -340,8 +340,10 @@ vf26 members and route released, vf12, the group's reference) frees nothing twic
   its own EEUGLocation at its slot (0x5DC902) and goes to 8000; nothing recomputes them. Arrival is the unit's own
   (EEUnitClass::vf34: within its size on the target tile, or within 0.05) - nothing waits for the others or looks for
   a free spot. So one big unit spreads the whole army: tests/probes/army_move.eeai's 174 soldiers, riders and tanks
-  sent 20 tiles stood half beyond 27 tiles of the click, all within 40, the last in after 108 s. `group_block`
-  (dll/engine/groupmove.c) lays a big group's slots out again as a block around the point.
+  sent 20 tiles stood half beyond 27 tiles of the click, all within 40, the last in after 108 s. `formations`
+  (dll/engine/groupmove.c, default off) lays every formation out again by the units' sizes; the pairing stays the
+  game's (that block also prepares the group's route - skipping it, at the je on +0xB6 before it, sent units on
+  detours) and each unit's goal is set to its own spot at the goal loop's call (CALL_SLOT_GOAL, FN_GOAL_MOVE_AT 0x614D47).
 
 ## Orders, game end, splash
 

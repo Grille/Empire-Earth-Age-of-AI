@@ -212,8 +212,10 @@
     O(GOAL_ARGS, 0x20, 0x20) /* c */ \
     O(GOAL_HOLDER, 0x50, 0x50) /* c */ \
     O(FORMATION_CENTER, 0x48, 0x48) /* c: the formation's centre {x, y, z} - a group move's clicked point (both builds' EEFLine::vf2 read it) */ \
+    O(FORMATION_KIND, 0x58, 0x58) /* c: 0 ShortLine, 1 LongLine, 2 LooseLine, 3 StaggeredLine, 4 DeepWedge, 5 ShallowWedge, 6 InwardCircle, 7 OutwardCircle (the factory 0x4D84xx; both builds' EEFormation ctor) */ \
     O(FSLOT_POS, 0x0, 0x0) /* c: a formation slot's point {x, y, z} (EEFLine::vf2 in both builds) */ \
     O(FSLOT_UNIT, 0xC, 0xC) /* c: the slot's unit (the same) */ \
+    O(FSLOT_FACING, 0x10, 0x10) /* c: the slot's facing (the dispatch passes it to the unit's EEUGLocation) */ \
     O(GOAL_0x38, 0x38, 0x38) /* c: a kind 6 goal's target - the contact test (EEPhysicsModel::vf14, AoC vf15) lets two units at work on kind 6 meet only when it is the same */ \
     O(GOAL_0x3C, 0x3C, 0x3C) /* c: a kind 4 goal's target - the same for kind 4 */ \
     O(GRID_CELLS, 0x4, 0x4) /* s */ \

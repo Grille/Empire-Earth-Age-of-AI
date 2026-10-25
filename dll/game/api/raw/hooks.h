@@ -61,12 +61,15 @@
     F(FN_VIEW_SIGHT_COPY, void, __thiscall, (ee_player *), 0x0055BC4E, 0x0056AEC0) /* thiscall(player): every tile's sight count (its low byte) into MAP_VIEW_ROWS - a load, the viewed player changed */ \
     D(EXIT_CONFIRM_AT, 0x005D0B2C, 0x005E1438) \
     D(CALL_GROUP_SECTOR_ROUTE, 0x005DB5C8, 0x005EBF0C)                        /* EEActiveGroup::vf16's call of FN_GROUP_SECTOR_ROUTE, for each cluster of the group */ \
+    D(CALL_SLOT_GOAL, 0x005DC902, 0x005ED231)                                 /* the group's dispatch (0x5DB641): each unit's location goal at its slot, FN_GOAL_MOVE_AT */ \
     D(CALL_UNLOAD_MARKS, 0x005DCDBD, 0x005ED592)                              /* the group's unload order (0x5DB641): FN_ORDER_MARKS */ \
     D(CALL_GOAL_FBA_CHECK, 0x005ED9BF, 0x005FBA9C)                            /* in 0x5ED24B: FN_GOAL_FBA_CHECK on a dynamic_cast, unchecked */ \
     D(AT_GOAL_SET_READ, 0x005F0634, 0x005FE8DA) \
     D(CALL_GOALSET_ASK, 0x005F0FFA, 0x005FF364) \
     D(CALL_GOALSET_AGAIN, 0x005F1029, 0x005FF393) \
     F(FN_GROUP_SECTOR_ROUTE, void, __thiscall, (void *, int *, int *, void *), 0x005F670A, 0x00606581) /* thiscall(group, int from[2], int to[2], units): a sector route for a cluster of a group's units, each given its chain of auto-waypoint goals */ \
+    /* the same goal's other constructor: thiscall(goal, float pt[3], 6 dwords - a float among them), the group's dispatch gives each unit its slot with it */ \
+    F(FN_GOAL_MOVE_AT, void *, __thiscall, (void *, float *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t), 0x00614D47, 0x00627742) \
     D(CALL_KILL_STAT, 0x00617780, 0x0062A2DF) \
     D(CALL_ATTACK_ALERT, 0x006177CF, 0x0062A366) \
     D(CALL_AIM, 0x0061E1D7, 0x006313D6) \

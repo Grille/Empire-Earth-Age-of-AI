@@ -40,7 +40,7 @@
     X(CHILD,  general,  turn_fix,                 1,  improved_unit_movement, 0) \
     X(CHILD,  general,  ship_collide,             1,  improved_unit_movement, 0) \
     X(CHILD,  general,  land_collide,             0,  improved_unit_movement, 0) \
-    X(INT,    general,  group_block,              10, 0, 1000) \
+    X(CHILD,  general,  formations,               0,  improved_unit_movement, 0) \
     X(FLAG,   general,  sight_counts,             1,  0, 0) \
     X(INT,    general,  chat,                     0,  0, 2) \
     X(INT,    general,  chat_seconds,             15, 0, 3600) \
@@ -233,6 +233,7 @@
     D(NUM,   site_max_distance,            20, 0, 0) \
     X(FLAG,   autotest, aim_hits,                 1,  0, 0) \
     X(INT,    autotest, aim_log,                  0,  0, 1000000) \
+    X(INT,    autotest, formation_kind,           -1, -1, 7) \
     X(NUM,   autotest, citizen_train_ms,             28000, 0, 0) \
     X(NUM,   autotest, citizen_queue,                0, 0, 0) \
     X(FLAG,  autotest, navy_fleet_boats,             1, 0, 0) \
