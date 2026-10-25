@@ -340,6 +340,9 @@ Settings in `aimod.ini`:
   settings). The ranks front to back: who fights up close (melee, tanks, the fighting heroes), the ranged soldiers and
   the healing heroes, siege and rams, then who doesn't fight (citizens, priests, medics) - in a circle formation they
   are in the middle. Off while it is tried in games. (It replaces `group_block`, a big group gathered as one block.)
+- `[general] formation_march=0` (default, being tried; 1 on, with `formations`): a group sent somewhere marches at its
+  slowest unit's speed, so riders and tanks stay with the infantry: a mixed army sent 40 tiles strung out to 14 tiles
+  front to back, now about 10 - but they reach the goal all at once and the last is in about 15 s later.
 - `[general] goal_markers=1` (default; 0 the original): a move order drew its circle at the goal of only the group's
   first 15 units (20 in the other lines and wedges, every few in a circle formation). Now every unit's shows.
 - `[sound] clamp_channels=1` (default): the "Max Number Of Sounds" slider goes to 200%, which asks for 32 sound

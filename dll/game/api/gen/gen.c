@@ -24,6 +24,7 @@ typedef struct ee_new_unit_msg ee_new_unit_msg;
 typedef struct ee_cheat_msg ee_cheat_msg;
 typedef struct ee_physics_model ee_physics_model;
 typedef struct ee_group ee_group;
+typedef struct ee_active_group ee_active_group;
 typedef struct ee_path_mgr ee_path_mgr;
 typedef struct ee_editor_form ee_editor_form;
 typedef struct ee_save_action ee_save_action;

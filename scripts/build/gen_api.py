@@ -279,8 +279,10 @@ class Gen:
         if site:
             if not (over and fv and t.attr('vtable')):
                 raise Fail('%s: a [vtable_site] needs [overrides], [address] and its class\'s [vtable]' % m.where)
+            # the slot by the name of the class that declares it (a derived class of a C type of its own has none)
+            holder = self.base_slot(m, over[1][0][1])
             self.lines.append('internal inline int patch_%s(%s h) { return patch_vtable(vt_%s, (int)slot_%s, (uintptr_t)%s, '
-                              '(void *)h); }' % (site[1][0], fn_t, S, self.name(P, m.name), fv))
+                              '(void *)h); }' % (site[1][0], fn_t, S, self.name(self.prefix(holder), m.name), fv))
 
     def base_slot(self, m, base):   # the class of base or its bases with a [slot] of the same name
         b = self.types.get(base)

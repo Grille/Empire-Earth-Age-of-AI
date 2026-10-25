@@ -200,6 +200,30 @@ internal void fo_rings(int *idx, int n) {
 
 internal void *g_fo_slots;   // the slots of the group move being dispatched, laid out (NULL: the game's own)
 internal int g_fo_n;
+internal ee_active_group *g_fo_group;   // its group, till its march is set (formation_march)
+internal unsigned g_fo_marches;         // groups set to march at their slowest unit's speed
+
+// `formation_march`: the group marches at its slowest unit's speed. The group's together flag set makes every member's
+// speed getter return the group's speed, acceleration and turns, which its vf19 works out from the members' - again
+// whenever members come or go (one arrives and leaves), so that is hooked: the speed then the slowest member's instead
+// of their average. Set when the units get their goals, not with the move's own together flag: that one also skips
+// the dispatch's pairing of units and slots for small fast units, and with it the group's route preparation (detours).
+// Only the groups marched here (the last FO_MARCHED): the game's own together moves keep the game's speed
+#define FO_MARCHED 64
+internal ee_active_group *g_fo_marched[FO_MARCHED];
+internal unsigned g_fo_marched_n;
+internal void __thiscall hook_group_speeds(ee_active_group *grp) {
+    ee_active_group_speeds(grp);
+    if (!active_group_get_together(grp)) return;
+    for (int i = 0; i < FO_MARCHED; i++)
+        if (g_fo_marched[i] == grp) { active_group_set_speed(grp, active_group_get_speed_min(grp)); return; }
+}
+internal void fo_march(ee_active_group *grp) {
+    g_fo_marched[g_fo_marched_n++ % FO_MARCHED] = grp;
+    active_group_set_together(grp, 1);
+    hook_group_speeds(grp);
+    g_fo_marches++;
+}
 
 internal void __thiscall hook_formation_slots(void *f, void *group, void *slots) {
     formation_slots(f, group, slots);
@@ -276,6 +300,7 @@ internal void __thiscall hook_formation_slots(void *f, void *group, void *slots)
         fslot_set_facing(s, u->facing);
     }
     g_fo_slots = slots;
+    g_fo_group = (ee_active_group *)group;
     g_fo_n = n;
     g_fo_moves++;
 }
@@ -293,6 +318,8 @@ internal void *__thiscall hook_slot_goal(ee_goal *g, float *pt, uint32_t a, uint
                 if (g_fo[k].u == u) { pt[0] = g_fo[k].at.x; pt[1] = g_fo[k].at.y; facing = g_fo[k].facing; break; }
             break;
         }
+    if (g_fo_group && g_set.formation_march) fo_march(g_fo_group);
+    g_fo_group = NULL;
     return goal_move_at(g, pt, a, b, c, facing, e, f);
 }
 
@@ -300,6 +327,7 @@ internal void groupmove_install(void) {
     g_fo_on = g_set.formations;
     int n = g_fo_on ? patch_formation_slots(hook_formation_slots) : 0, goals = n ? patch_slot_goal(hook_slot_goal) : 0;
     int markers = g_set.goal_markers ? patch_order_marks_all() : 0;   // every unit's circle shows where it goes
-    if (g_log) fprintf(g_log, "# groupmove: formations=%d (%d formation vtables, goals hooked %d), goal markers for every unit: %d\n",
-                       g_fo_on, n, goals, markers);
+    int march = goals && g_set.formation_march ? patch_group_speeds(hook_group_speeds) : 0;
+    if (g_log) fprintf(g_log, "# groupmove: formations=%d (%d formation vtables, goals hooked %d), goal markers for every unit: %d, march at the slowest speed: %d\n",
+                       g_fo_on, n, goals, markers, march);
 }

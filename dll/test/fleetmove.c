@@ -102,8 +102,10 @@ internal void fm_sample(char *out, int quiet) {
         while (b >= 0 && dists[b] > v) { dists[b + 1] = dists[b]; b--; }
         dists[b + 1] = v;
     }
-    REPLY("fmove t %.1f: moving %d standing %d (creeping %d) done %d gone %d, dist %.1f (half within %.1f, 90%% %.1f, all %.1f), states", t, moving, standing, creeping, done, gone,
-          alive ? dist / (float)alive : 0.0f, nd ? dists[nd / 2] : 0.0f, nd ? dists[nd * 9 / 10] : 0.0f, nd ? dists[nd - 1] : 0.0f);
+    // the column: how far the 95th unit from the goal is behind the 5th - on the way, how strung out the group marches
+    REPLY("fmove t %.1f: moving %d standing %d (creeping %d) done %d gone %d, dist %.1f (half within %.1f, 90%% %.1f, all %.1f, column %.1f), states",
+          t, moving, standing, creeping, done, gone, alive ? dist / (float)alive : 0.0f, nd ? dists[nd / 2] : 0.0f, nd ? dists[nd * 9 / 10] : 0.0f,
+          nd ? dists[nd - 1] : 0.0f, nd ? dists[nd * 19 / 20] - dists[nd / 20] : 0.0f);
     for (int k = 0; k < hist_n; k++) REPLY(" %u:%d", hist_id[k], hist_c[k]);
     REPLY("\n");
 }
@@ -142,9 +144,9 @@ internal void cmd_fmove(char *out, const char *args) {
         }
         REPLY("fmove sum: %d units, the last moving at %.1f s, %d done (the last at %.1f s), standing short of the goal %.1f s together (creeping %.1f); "
               "ship_turns so far: %u ticks kept the speed, %u steered along the route, %u waypoints dropped, %u passing a queued point; "
-              "collide: %u steps, %u overlaps pushed off, the deepest %.2f tiles, %u pushes at rest; land routes: %u searches, %.1f ms, the longest %.2f ms; formations: %u group moves laid out\n", g_fm_n, moved, n_done,
+              "collide: %u steps, %u overlaps pushed off, the deepest %.2f tiles, %u pushes at rest; land routes: %u searches, %.1f ms, the longest %.2f ms; formations: %u group moves laid out, %u marching\n", g_fm_n, moved, n_done,
               done, stood, crept, g_st_kept, g_st_steered, g_st_skipped, g_st_passing, g_uc_steps, g_uc_hits, g_uc_deepest, g_uc_rest, g_lr_routes,
-              g_lr_ms, g_lr_ms_max, g_fo_moves);
+              g_lr_ms, g_lr_ms_max, g_fo_moves, g_fo_marches);
         return;
     }
     if (!strcmp(what, "then")) {   // fmove then P tx ty: the order's units (still there) also sent on to tx, ty, queued as with shift

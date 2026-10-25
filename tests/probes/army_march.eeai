@@ -1,0 +1,15 @@
+// A mixed army marching far (formation_march): Continental (seed 101, start_epoch 12), 40 doughboys (0.6 tiles/s),
+// 20 dragoons (0.8) and 10 Mark V tanks gathered at 36,44 and sent 40 tiles to 76,50 in one right-click. Every 2 s
+// `fmove stat`: the column (how far the 95th unit from the goal is behind the 5th) shows how strung out they march;
+// fmove sum: the last one in.
+wait_until(0.1min)
+spawn(1, unit.inf10_doughboy, 35, 44, 40)
+spawn(1, unit.cav09_dragoon_gun, 37, 42, 20)
+spawn(1, unit.tank10_mk_v, 37, 46, 10)
+wait_until(0.4min)
+cmd("fmove go 1 36 44 8 76 50")
+every(2s, 0.4min, 2.4min, (run) => {
+    cmd("fmove stat")
+})
+wait_until(2.45min)
+cmd("fmove sum")

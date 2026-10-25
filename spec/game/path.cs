@@ -17,6 +17,36 @@ unsafe struct EEGroup
     // EEActiveGroup::vf16's call of group_sector_route, for each cluster of the group
     [call_site("group_sector_route", (ee)0x005DB5C8, (aoc)0x005EBF0C)]
     extern void sector_route(int32* from, int32* to, void* units);
+
+    /// the group's speed, acceleration and turns from its members' (EEActiveGroup's)
+    [slot(19)]
+    extern void speeds();
+}
+
+/// a group move's group (EEActiveGroup): one per kind of a move order (EEMPathTo::vf10), a unit's +0x1C8 while it is in
+/// one; the formation's slots are laid for it (formation_slots' group)
+[@base(typeof(EEGroup)), c_type("ee_active_group"), vtable((ee)0x0083141C, (aoc)0x00846CF8)]
+unsafe struct EEActiveGroup
+{
+    /// the members' top speed, tiles/s - the average, at most the slowest x the settings table's 0x31 (speeds); every
+    /// member's top speed while together is set (0x46123F through 0x5DD355)
+    [offset(0x70), found(c)]
+    float32 speed;
+
+    /// the slowest member's top speed (speeds)
+    [offset(0x78), found(c)]
+    float32 speed_min;
+
+    /// set: the members move with the group's speed, acceleration and turns (+0x70 / +0x7C / +0x88 / +0x94) instead
+    /// of their own - the group's hand-out 0x5DD436 sets it from the move goal's "together" (EEMPathTo +0x1F)
+    [offset(0xB6), found(c)]
+    uint8 together;
+
+    /// vf19: the group's speed, acceleration and turns from its members' (+0x70 .. +0xAC: average, fastest, slowest
+    /// of each) - again whenever members come or go
+    [address((ee)0x005DCE49, (aoc)0x005ED692), overrides(typeof(EEGroup))]
+    [vtable_site("group_speeds")]
+    extern void speeds();
 }
 
 /// the path manager, a static object at 0x917D00 (AoC not looked up) (EEPathManager)

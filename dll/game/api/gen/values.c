@@ -481,6 +481,11 @@ internal uint32_t data_patching_ret_asg_land_handoff_give;
 internal uint32_t of_unit_list_units;
 internal uint32_t vt_ee_group;
 internal uint32_t call_group_sector_route;
+internal uint32_t slot_group_speeds;
+internal uint32_t vt_ee_active_group;
+internal uint32_t of_active_group_speed;
+internal uint32_t of_active_group_speed_min;
+internal uint32_t of_active_group_together;
 internal uint32_t vt_ee_path_manager;
 
 // player.cs
