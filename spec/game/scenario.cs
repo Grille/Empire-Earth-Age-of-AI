@@ -8,27 +8,27 @@ unsafe struct EEScenarioManager
 
     /// its file's code (the scenario manager)
     [offset(0xE8), found(c)]
-    block triggers;
+    vector triggers;
 
     /// its file's code (the scenario manager)
     [offset(0xF8), found(c)]
-    block conds;
+    vector conds;
 
     /// its file's code (the scenario manager)
     [offset(0x108), found(c)]
-    block effects;
+    vector effects;
 
     /// its file's code (the scenario manager)
     [offset(0x118), found(c)]
-    block objects;
+    vector objects;
 
     /// its file's code (the scenario manager)
     [offset(0x128), found(c)]
-    block areas;
+    vector areas;
 
     /// its file's code (the scenario manager)
     [offset(0x168), found(c)]
-    block queue;
+    vector queue;
 
     /// ms
     /// its file's code (the scenario manager)
@@ -69,11 +69,11 @@ unsafe struct ee_scen_cond
 {
     /// its file's code (the scenario manager)
     [offset(0x4), found(c)]
-    block name;
+    wstring name;
 
     /// its file's code (the scenario manager)
     [offset(0x2C), found(c)]
-    block text;
+    wstring text;
 
     /// its file's code (the scenario manager)
     [offset(0x40), found(c)]
@@ -180,7 +180,7 @@ unsafe struct EESMArea
 {
     /// its file's code (the scenario manager)
     [offset(0x4), found(c)]
-    block name;
+    wstring name;
 
     /// its file's code (the scenario manager)
     [offset(0x2C), found(c)]
@@ -211,7 +211,7 @@ unsafe struct ee_scen_effect
 
     /// its file's code (the scenario manager)
     [offset(0x50), found(c)]
-    block text;
+    wstring text;
 
     /// its file's code (the scenario manager)
     [offset(0x8C), found(c)]
@@ -478,7 +478,7 @@ unsafe struct EESMObject
 {
     /// its file's code (the scenario manager)
     [offset(0x4), found(c)]
-    block name;
+    wstring name;
 
     /// its file's code (the scenario manager)
     [offset(0x1C), found(c)]
@@ -626,19 +626,19 @@ unsafe struct EESMTrigger
 {
     /// its file's code (the scenario manager)
     [offset(0x4), found(c)]
-    block name;
+    wstring name;
 
     /// its file's code (the scenario manager)
     [offset(0x18), found(c)]
-    block desc;
+    wstring desc;
 
     /// a trigger's condition references, as its +0x40
     [offset(0x30), found(s)]
-    block conds;
+    vector conds;
 
     /// its file's code (the scenario manager)
     [offset(0x40), found(c)]
-    block effects;
+    vector effects;
 
     /// s the conditions held
     /// its file's code (the scenario manager)

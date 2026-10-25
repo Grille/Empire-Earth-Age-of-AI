@@ -17,7 +17,8 @@ internal inline void **resource_mgr_get_hunt_end(const ee_resource_mgr *rm) { re
 internal inline void **resource_mgr_get_fish_end(const ee_resource_mgr *rm) { return FIELD(rm, of_resource_mgr_fish_begin + 0x4, void **); }
 // +0xA4 7 unit lists by resource (2 food .. 6 iron), deques 0x14 apart: their gatherers
 internal inline uint8_t *resource_mgr_list_at(const ee_resource_mgr *rm, int r) { return (uint8_t *)FIELD_AT(rm, of_resource_mgr_lists + r * 0x14); }
-internal inline uint32_t resource_mgr_get_timer(const ee_resource_mgr *rm, int i) { return FIELD(rm, of_resource_mgr_timers + i * 4, uint32_t); } // +0x16C uint[5] next runs (game time)
+// its five next times (game time) in a row, for the log: next_fishing_boat, _0x170, next_targets, next_assign, next_prune
+internal inline uint32_t resource_mgr_get_timer(const ee_resource_mgr *rm, int i) { return FIELD(rm, of_resource_mgr_next_fishing_boat + i * 4, uint32_t); }
 
 // A BUILD MANAGER (EECPBuildManager, CM +0x3C; Update 0x468540)
 // +0x4 14 queues by epoch, deques 0x14 apart of {type, x, y}; the placement area follows at +0x11C

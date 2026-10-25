@@ -5,7 +5,7 @@ unsafe struct EEPlayer
     uint8* list_begin;
 
     [offset(0x24), found(c)]
-    block name;
+    wstring name;
 
     [offset(0x438), found(c)]
     block color;
@@ -26,7 +26,7 @@ unsafe struct EEPlayer
     uint8 @out;
 
     [offset(0x488), found(b)]
-    block civ_name;
+    wstring civ_name;
 
     [offset(0x4A8), found(c)]
     EEPlayerStatistics stats;

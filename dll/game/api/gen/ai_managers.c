@@ -23,7 +23,9 @@ internal inline ee_player *build_mgr_get_player(const ee_build_mgr *o) { return 
 internal inline void build_mgr_set_player(ee_build_mgr *o, ee_player *v) { *(ee_player **)((uint8_t *)o + of_build_mgr_player) = v; }
 internal inline ee_player **build_mgr_player_at(const ee_build_mgr *o) { return (ee_player **)((uint8_t *)o + of_build_mgr_player); }
 // its file's code (+0x24)
-internal inline uint8_t *build_mgr_initialized_at(const ee_build_mgr *o) { return (uint8_t *)o + of_build_mgr_initialized; }
+internal inline uint8_t build_mgr_get_initialized(const ee_build_mgr *o) { return *(uint8_t *)((uint8_t *)o + of_build_mgr_initialized); }
+internal inline void build_mgr_set_initialized(ee_build_mgr *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_build_mgr_initialized) = v; }
+internal inline uint8_t *build_mgr_initialized_at(const ee_build_mgr *o) { return (uint8_t *)((uint8_t *)o + of_build_mgr_initialized); }
 // thiscall(build manager, type): queued
 typedef char (__thiscall *build_mgr_queued_fn)(ee_build_mgr *, int);
 internal build_mgr_queued_fn fn_build_mgr_queued;
@@ -78,7 +80,9 @@ internal inline uint32_t *civ_mgr_timers_at(const ee_civ_mgr *o) { return (uint3
 // its file's code (+4 from 0x74)
 internal inline uint8_t *civ_mgr_flag_at(const ee_civ_mgr *o) { return (uint8_t *)o + of_civ_mgr_flag; }
 // its file's code (+4 from 0x74)
-internal inline uint8_t *civ_mgr_setup_done_at(const ee_civ_mgr *o) { return (uint8_t *)o + of_civ_mgr_setup_done; }
+internal inline uint8_t civ_mgr_get_setup_done(const ee_civ_mgr *o) { return *(uint8_t *)((uint8_t *)o + of_civ_mgr_setup_done); }
+internal inline void civ_mgr_set_setup_done(ee_civ_mgr *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_civ_mgr_setup_done) = v; }
+internal inline uint8_t *civ_mgr_setup_done_at(const ee_civ_mgr *o) { return (uint8_t *)((uint8_t *)o + of_civ_mgr_setup_done); }
 // its file's code (+4 from 0x74)
 internal inline uint8_t civ_mgr_get_request_out(const ee_civ_mgr *o) { return *(uint8_t *)((uint8_t *)o + of_civ_mgr_request_out); }
 internal inline void civ_mgr_set_request_out(ee_civ_mgr *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_civ_mgr_request_out) = v; }
@@ -148,8 +152,28 @@ internal inline int *resource_mgr_demand_at(const ee_resource_mgr *o) { return (
 internal inline uint32_t resource_mgr_get_target(const ee_resource_mgr *o, int i) { return ((uint32_t *)((uint8_t *)o + of_resource_mgr_target))[i]; }
 internal inline void resource_mgr_set_target(ee_resource_mgr *o, int i, uint32_t v) { ((uint32_t *)((uint8_t *)o + of_resource_mgr_target))[i] = v; }
 internal inline uint32_t *resource_mgr_target_at(const ee_resource_mgr *o) { return (uint32_t *)((uint8_t *)o + of_resource_mgr_target); }
-// its file's code (the resource manager)
-internal inline uint8_t *resource_mgr_timers_at(const ee_resource_mgr *o) { return (uint8_t *)o + of_resource_mgr_timers; }
+// the next fishing boat it orders when food is short (assign_citizens: fewer than 8 boats, boats_for_food, then
+// now + 30 s; update sets it to now + 30 s at the start)
+internal inline uint32_t resource_mgr_get_next_fishing_boat(const ee_resource_mgr *o) { return *(uint32_t *)((uint8_t *)o + of_resource_mgr_next_fishing_boat); }
+internal inline void resource_mgr_set_next_fishing_boat(ee_resource_mgr *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_resource_mgr_next_fishing_boat) = v; }
+internal inline uint32_t *resource_mgr_next_fishing_boat_at(const ee_resource_mgr *o) { return (uint32_t *)((uint8_t *)o + of_resource_mgr_next_fishing_boat); }
+// update sets it to now + 20 s at the start; nothing reads it (the 2017 update)
+internal inline uint32_t resource_mgr_get_0x170(const ee_resource_mgr *o) { return *(uint32_t *)((uint8_t *)o + of_resource_mgr_0x170); }
+internal inline void resource_mgr_set_0x170(ee_resource_mgr *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_resource_mgr_0x170) = v; }
+internal inline uint32_t *resource_mgr_0x170_at(const ee_resource_mgr *o) { return (uint32_t *)((uint8_t *)o + of_resource_mgr_0x170); }
+// update's next compute_targets (every 5 s)
+internal inline uint32_t resource_mgr_get_next_targets(const ee_resource_mgr *o) { return *(uint32_t *)((uint8_t *)o + of_resource_mgr_next_targets); }
+internal inline void resource_mgr_set_next_targets(ee_resource_mgr *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_resource_mgr_next_targets) = v; }
+internal inline uint32_t *resource_mgr_next_targets_at(const ee_resource_mgr *o) { return (uint32_t *)((uint8_t *)o + of_resource_mgr_next_targets); }
+// update's next assign_citizens (every 10 s)
+internal inline uint32_t resource_mgr_get_next_assign(const ee_resource_mgr *o) { return *(uint32_t *)((uint8_t *)o + of_resource_mgr_next_assign); }
+internal inline void resource_mgr_set_next_assign(ee_resource_mgr *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_resource_mgr_next_assign) = v; }
+internal inline uint32_t *resource_mgr_next_assign_at(const ee_resource_mgr *o) { return (uint32_t *)((uint8_t *)o + of_resource_mgr_next_assign); }
+// update's next pruning of the hunt and fish lists (their dead and empty sites; every 15 s, the player not
+// exploring all and its +0xEFD set)
+internal inline uint32_t resource_mgr_get_next_prune(const ee_resource_mgr *o) { return *(uint32_t *)((uint8_t *)o + of_resource_mgr_next_prune); }
+internal inline void resource_mgr_set_next_prune(ee_resource_mgr *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_resource_mgr_next_prune) = v; }
+internal inline uint32_t *resource_mgr_next_prune_at(const ee_resource_mgr *o) { return (uint32_t *)((uint8_t *)o + of_resource_mgr_next_prune); }
 // (the timers reset while 0)
 // its file's code (the resource manager)
 internal inline uint8_t resource_mgr_get_initialized(const ee_resource_mgr *o) { return *(uint8_t *)((uint8_t *)o + of_resource_mgr_initialized); }
@@ -218,7 +242,9 @@ internal inline uint8_t *research_mgr_epoch_at(const ee_research_mgr *o) { retur
 internal inline int research_mgr_get_current(const ee_research_mgr *o) { return *(int *)((uint8_t *)o + of_research_mgr_current); }
 internal inline void research_mgr_set_current(ee_research_mgr *o, int v) { *(int *)((uint8_t *)o + of_research_mgr_current) = v; }
 internal inline int *research_mgr_current_at(const ee_research_mgr *o) { return (int *)((uint8_t *)o + of_research_mgr_current); }
-internal inline uint8_t *research_mgr_initialized_at(const ee_research_mgr *o) { return (uint8_t *)o + of_research_mgr_initialized; }
+internal inline uint8_t research_mgr_get_initialized(const ee_research_mgr *o) { return *(uint8_t *)((uint8_t *)o + of_research_mgr_initialized); }
+internal inline void research_mgr_set_initialized(ee_research_mgr *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_research_mgr_initialized) = v; }
+internal inline uint8_t *research_mgr_initialized_at(const ee_research_mgr *o) { return (uint8_t *)((uint8_t *)o + of_research_mgr_initialized); }
 // the attention's activity 2 (random research)
 internal inline uint8_t research_mgr_get_att_random(const ee_research_mgr *o) { return *(uint8_t *)((uint8_t *)o + of_research_mgr_att_random); }
 internal inline void research_mgr_set_att_random(ee_research_mgr *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_research_mgr_att_random) = v; }
@@ -344,7 +370,11 @@ internal int spec_ai_managers_select(int build) {
         of_resource_mgr_owner = 0x130;
         of_resource_mgr_demand = 0x134;
         of_resource_mgr_target = 0x150;
-        of_resource_mgr_timers = 0x16C;
+        of_resource_mgr_next_fishing_boat = 0x16C;
+        of_resource_mgr_0x170 = 0x170;
+        of_resource_mgr_next_targets = 0x174;
+        of_resource_mgr_next_assign = 0x178;
+        of_resource_mgr_next_prune = 0x17C;
         of_resource_mgr_initialized = 0x187;
         of_resource_mgr_att_188 = 0x188;
         fn_resource_mgr_assign_citizens = (resource_mgr_assign_citizens_fn)0x0048A554;
@@ -460,7 +490,11 @@ internal int spec_ai_managers_select(int build) {
         of_resource_mgr_owner = 0x130;
         of_resource_mgr_demand = 0x134;
         of_resource_mgr_target = 0x150;
-        of_resource_mgr_timers = 0x16C;
+        of_resource_mgr_next_fishing_boat = 0x16C;
+        of_resource_mgr_0x170 = 0x170;
+        of_resource_mgr_next_targets = 0x174;
+        of_resource_mgr_next_assign = 0x178;
+        of_resource_mgr_next_prune = 0x17C;
         of_resource_mgr_initialized = 0x187;
         of_resource_mgr_att_188 = 0x188;
         fn_resource_mgr_assign_citizens = (resource_mgr_assign_citizens_fn)0x0048EECF;

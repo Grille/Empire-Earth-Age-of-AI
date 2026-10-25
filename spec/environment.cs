@@ -40,6 +40,9 @@ public enum how
 // THE RUNTIME LIBRARY'S LAYOUTS: the code walks them itself (game/api's helpers)
 public struct deque { }    // std::deque: +4 block map, +8 its size, +0xC the front's index, +0x10 the count
 public struct vector { }   // std::vector: begin, end, capacity end
+// the game's strings in an object (a field of these: its address, the helpers of game.c read and set it): UString and
+// UWideString (8-bit characters despite its name), 16 bytes each, the text at +4
+public struct wstring { }
 // a structure inside an object whose parts are plain numbers from its start (the code adds them: the matrix's,
 // a list's begin and end) - its address only
 public struct block { }

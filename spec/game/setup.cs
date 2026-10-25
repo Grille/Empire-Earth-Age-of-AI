@@ -3,7 +3,7 @@ unsafe struct ee_setup
 {
     /// the setup copy 0x524B8F and game_start
     [offset(0x3A8), found(c)]
-    block map_name;
+    ustring map_name;
 
     /// the setup copy 0x524B8F and game_start; the registry's "Game Speed" (Game Options, the options loader
     /// 0x52A19A at +4)
@@ -75,7 +75,7 @@ unsafe struct ee_setup_slot
 
     /// the player's name, as the slot's others
     [offset(0x8), found(s)]
-    block name;
+    ustring name;
 
     /// as the slot's others (engine-notes.md "Game start")
     [offset(0x1C), found(s)]

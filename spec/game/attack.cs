@@ -52,7 +52,7 @@ unsafe struct ee_attack_cmd
 {
     /// the groups' deque (its count +0x10)
     [offset(0x4), found(s)]
-    block groups;
+    deque groups;
 
     /// thiscall(attack manager, task, strategy, unit ids) -> the attack group
     [address((ee)0x0045106C, (aoc)0x00451D8E)]
@@ -72,7 +72,7 @@ unsafe struct EECPAttackSubGroup
     EECPAttackSubGroupUnit** units_begin;
 
     [offset(0x60), found(c)]
-    block route;
+    deque route;
 
     [offset(0x70), found(c)]
     uint32 waypoints;

@@ -34,7 +34,7 @@ UNMOVED = ()   # spec files whose rows are still raw/'s (their members not made 
 SIZES = {'int8': 'int8_t', 'uint8': 'uint8_t', 'int16': 'int16_t', 'uint16': 'uint16_t', 'int32': 'int',
          'uint32': 'uint32_t', 'int64': 'int64_t', 'uint64': 'uint64_t', 'float32': 'float', 'float64': 'double',
          'nint': 'intptr_t', 'nuint': 'uintptr_t', 'char8': 'char', 'void': 'void'}
-LAYOUTS = ('deque', 'vector', 'block')   # environment.cs's: only their address
+LAYOUTS = ('deque', 'vector', 'block', 'wstring', 'ustring')   # environment.cs's: only their address (a ustring field too)
 CONV = {'cdecl': '__cdecl', 'stdcall': '__stdcall', 'thiscall': '__thiscall'}   # a static class's function's
 
 

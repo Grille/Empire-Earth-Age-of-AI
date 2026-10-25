@@ -4,7 +4,7 @@ unsafe struct ee_unit_list
 {
     /// group_sector_route's reads (both builds): a vector of ee_unit * (begin, end +4)
     [offset(0x4), found(c)]
-    block units;
+    vector units;
 }
 
 /// a group of units moving together (EEGroup; EEActiveGroup ...)

@@ -10,7 +10,7 @@ import spec_read
 
 SIZES = {'int8': 1, 'uint8': 1, 'char8': 1, 'int16': 2, 'uint16': 2, 'int32': 4, 'uint32': 4, 'float32': 4,
          'int64': 8, 'uint64': 8, 'float64': 8, 'nint': 4, 'nuint': 4}
-LAYOUT = {'deque': 0x14, 'vector': 0xC, 'ustring': 0x10}   # their bytes (environment.cs, types.h)
+LAYOUT = {'deque': 0x14, 'vector': 0xC, 'ustring': 0x10, 'wstring': 0x10}   # their bytes (environment.cs, types.h)
 VALUES = {'vec2': [('x', 'float32'), ('y', 'float32')], 'vec3': [('x', 'float32'), ('y', 'float32'), ('z', 'float32')],
           'ivec2': [('x', 'int32'), ('y', 'int32')]}
 

@@ -25,7 +25,7 @@ unsafe struct EECPBuildManager
 
     /// its file's code (+0x24)
     [offset((ee)0x148, (aoc)0x16C), found(c)]
-    block initialized;
+    uint8 initialized;
 
     /// thiscall(build manager, type): queued
     [address((ee)0x00465640, (aoc)0x004672FA)]
@@ -86,7 +86,7 @@ unsafe struct EECPCivilizationManager
 
     /// its file's code (+4 from 0x74)
     [offset((ee)0x75, (aoc)0x79), found(c)]
-    block setup_done;
+    uint8 setup_done;
 
     /// its file's code (+4 from 0x74)
     [offset((ee)0x76, (aoc)0x7A), found(c)]
@@ -164,9 +164,27 @@ unsafe struct EECPResourceManager
     [offset(0x150), found(c)]
     fixed uint32 target[7];
 
-    /// its file's code (the resource manager)
+    /// the next fishing boat it orders when food is short (assign_citizens: fewer than 8 boats, boats_for_food, then
+    /// now + 30 s; update sets it to now + 30 s at the start)
     [offset(0x16C), found(c)]
-    block timers;
+    uint32 next_fishing_boat;
+
+    /// update sets it to now + 20 s at the start; nothing reads it (the 2017 update)
+    [offset(0x170), found(c)]
+    uint32 _0x170;
+
+    /// update's next compute_targets (every 5 s)
+    [offset(0x174), found(c)]
+    uint32 next_targets;
+
+    /// update's next assign_citizens (every 10 s)
+    [offset(0x178), found(c)]
+    uint32 next_assign;
+
+    /// update's next pruning of the hunt and fish lists (their dead and empty sites; every 15 s, the player not
+    /// exploring all and its +0xEFD set)
+    [offset(0x17C), found(c)]
+    uint32 next_prune;
 
     /// (the timers reset while 0)
     /// its file's code (the resource manager)
@@ -271,7 +289,7 @@ unsafe struct EECPResearchManager
     int32 current;
 
     [offset((ee)0x118, (aoc)0x128), found(v)]
-    block initialized;
+    uint8 initialized;
 
     /// the attention's activity 2 (random research)
     [offset((ee)0x11A, (aoc)0x12A), found(v)]
