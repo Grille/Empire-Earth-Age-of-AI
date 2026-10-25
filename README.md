@@ -334,9 +334,12 @@ Settings in `aimod.ini`:
   columns, every row and column as wide as the group's largest unit, units and places paired by distance alone - so a
   big army, worst with small and large units mixed, spread into a column dozens of tiles deep: 174 soldiers, riders and
   tanks sent 20 tiles stood half of them more than 27 tiles from the click. With it every formation (lines, wedges,
-  circles) is laid out by its units' own sizes around the clicked point, like sizes in rows of their own, each unit
-  keeping its place in the group: half within 4.3 tiles, 90% within 6.6. Still off: on the way back some units of a
-  tightly packed army took long detours. (It replaces `group_block`, a big group gathered as one block.)
+  circles) is laid out by its units' own sizes, its front row on the clicked point and facing the way the mouse was
+  dragged with the right button (a plain click: the way it moves), like sizes in rows of their own, each unit keeping
+  its place in the group: the army in after 46 s instead of 52, back in 57 instead of 79 (with the land movement
+  settings). Off while it is tried in games. (It replaces `group_block`, a big group gathered as one block.)
+- `[general] goal_markers=1` (default; 0 the original): with 10 or more units selected the game drew no circle at each
+  one's goal. Now up to 126 selected units show theirs.
 - `[sound] clamp_channels=1` (default): the "Max Number Of Sounds" slider goes to 200%, which asks for 32 sound
   channels, but the sound mixer has only 16 on current Windows. Sounds put on the 16 missing channels were silent,
   and a looping one (unit movement such as the U-boats', ambience) stayed stuck there and never played again -

@@ -3,7 +3,8 @@
 // - one tank stretches the grid of 170 soldiers - in as few as 5 columns, the rows stacked behind the clicked point,
 // and pairs units with slots by distance alone (a tank may get a slot among infantry): a 174-unit army sent 20 tiles
 // ended with half of it more than 28 tiles from the click (tests/probes/army_move.eeai). Here every formation is laid
-// out again, for any group, from its units' own sizes and around the clicked point, keeping its kind's shape:
+// out again, for any group, from its units' own sizes, its front row on the clicked point and facing the way the game's
+// own slots face (a right-button drag turns them), keeping its kind's shape:
 //   lines (short, long, loose, staggered): rows of FO_ASPECT[kind] times as wide as deep, each unit as wide as its
 //     size x FO_PAD[kind], a row as deep as its largest unit, a staggered line's every other row shifted half a unit;
 //   wedges (deep, shallow): rows from a tip, each as wide as the wedge's opening allows at its depth;
@@ -171,9 +172,36 @@ internal void __thiscall hook_formation_slots(void *f, void *group, void *slots)
         g_fo_order[i] = i;
     }
     mean = vec2_scale(mean, 1.0f / (float)n);
-    vec2 fwd = vec2_sub(c, mean);
+    // the game's slots as they were: its front row on the clicked point and the rest behind, turned the way the mouse
+    // was dragged with the right button - the way to face; a circle's facings are taken from its nearest one
+    static vec2 game_at[FO_MAX];
+    static uint32_t game_facing[FO_MAX];
+    vec2 game_mid = v2(0, 0);
+    for (int i = 0; i < n; i++) {
+        void *s = formation_slot(slots, i);
+        vec3 p = fslot_get_pos(s);
+        game_at[i] = v2(p.x, p.y);
+        game_facing[i] = fslot_get_facing(s);
+        game_mid = vec2_add(game_mid, game_at[i]);
+    }
+    game_mid = vec2_scale(game_mid, 1.0f / (float)n);
+    // A click without a drag gives the facing of a drag of no length, 0: the game's slots face +y exactly - then the way
+    // from the group to the point
+    vec2 to = vec2_sub(c, mean), fwd = vec2_sub(c, game_mid);
     float len = vec2_len(fwd);
-    fwd = len > 0.5f ? vec2_scale(fwd, 1.0f / len) : v2(0, 1);
+    int undirected;
+    if (len > 0.3f) {
+        fwd = vec2_scale(fwd, 1.0f / len);
+        undirected = fabsf(fwd.x) < 0.01f && fwd.y > 0;
+    } else {   // one row: across its line, on the side the group comes from
+        vec2 line = vec2_sub(game_at[n - 1], game_at[0]);
+        float ll = vec2_len(line);
+        fwd = ll > 0.01f ? v2(-line.y / ll, line.x / ll) : v2(0, 1);
+        if (vec2_dot(fwd, to) < 0) fwd = vec2_scale(fwd, -1.0f);
+        undirected = ll <= 0.01f || fabsf(line.y) < 0.01f * ll;
+    }
+    float tl = vec2_len(to);
+    if (undirected) fwd = tl > 0.5f ? vec2_scale(to, 1.0f / tl) : v2(0, 1);
     vec2 right = v2(fwd.y, -fwd.x);
     for (int i = 0; i < n; i++) {
         vec2 d = vec2_sub(g_fo[i].p, mean);
@@ -183,21 +211,8 @@ internal void __thiscall hook_formation_slots(void *f, void *group, void *slots)
     }
     int circle = kind >= FORMATION_INWARD_CIRCLE;
     if (circle) fo_rings(g_fo_order, n); else fo_rows(g_fo_order, n, kind);
-    // the shape's middle on the clicked point (a circle's already is), turned to face the move
+    // the front row (a wedge's tip) on the clicked point, as the game's: the mouse gives the front line; a circle around it
     vec2 mid = v2(0, 0);
-    if (!circle) {
-        for (int i = 0; i < n; i++) mid = vec2_add(mid, g_fo[i].at);
-        mid = vec2_scale(mid, 1.0f / (float)n);
-    }
-    // the game's slots as they were: a circle's facings are taken from its nearest one
-    static vec2 game_at[FO_MAX];
-    static uint32_t game_facing[FO_MAX];
-    for (int i = 0; i < n; i++) {
-        void *s = formation_slot(slots, i);
-        vec3 p = fslot_get_pos(s);
-        game_at[i] = v2(p.x, p.y);
-        game_facing[i] = fslot_get_facing(s);
-    }
     // each unit's spot, and the slots moved there (the game pairs units with them by these points)
     for (int i = 0; i < n; i++) {
         struct fo_unit *u = &g_fo[i];
@@ -238,5 +253,7 @@ internal void *__thiscall hook_slot_goal(ee_goal *g, float *pt, uint32_t a, uint
 internal void groupmove_install(void) {
     g_fo_on = g_set.formations;
     int n = g_fo_on ? patch_formation_slots(hook_formation_slots) : 0, goals = n ? patch_slot_goal(hook_slot_goal) : 0;
-    if (g_log) fprintf(g_log, "# groupmove: formations=%d (%d formation vtables, goals hooked %d)\n", g_fo_on, n, goals);
+    int markers = g_set.goal_markers ? patch_goal_markers_max(127) : 0;   // every unit's circle shows where it goes
+    if (g_log) fprintf(g_log, "# groupmove: formations=%d (%d formation vtables, goals hooked %d), goal markers up to 126: %d\n",
+                       g_fo_on, n, goals, markers);
 }

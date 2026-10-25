@@ -120,6 +120,11 @@ static unsafe class hooks
     [address((ee)0x00662666, (aoc)0x00679C57)]
     static code site_close_window_je;
 
+    /// the graphical goal manager (0x4FCDF9): cmp [selection + count], 10 - with 10 or more units selected their own
+    /// goal markers are left out; the 10 its last byte (+6)
+    [address((ee)0x004FCE70, (aoc)0x00507940)]
+    static code site_goal_markers_max;
+
     [address((ee)0x006601F1, (aoc)0x006777E5)]
     static code site_editor_menu;
 

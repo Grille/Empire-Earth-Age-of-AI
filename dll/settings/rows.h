@@ -30,6 +30,7 @@
     X(FLAG,   general,  spread_missiles,          1,  0, 0) \
     X(FLAG,   general,  skip_intro,               0,  0, 0) \
     X(FLAG,   general,  big_selection,            1,  0, 0) \
+    X(FLAG,   general,  goal_markers,             1,  0, 0) \
     X(FLAG,   general,  transport_split,          1,  0, 0) \
     X(FLAG,   general,  transport_unload_spread,  1,  0, 0) \
     X(CHOICE, general,  improved_unit_movement,   "default", "default|enabled|disabled", 0) \

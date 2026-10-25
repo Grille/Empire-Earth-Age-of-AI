@@ -62,6 +62,11 @@ unsafe struct EEMLoadTransport
 [@base(typeof(EEMessage)), c_type("ee_path_msg")]
 unsafe struct EEMPathTo
 {
+    /// the right-button drag's facing (the drag handler after 0x403542: atan2(-dx, dy) of the drag, 0 for a click),
+    /// the move goal's +0x2C - the group's formation turned to it
+    [offset(0x10), found(c)]
+    float32 facing;
+
     /// its Execute's reads (both builds)
     [offset(0x14), found(c)]
     float32 x;

@@ -39,6 +39,9 @@ internal inline uint8_t *hooks_iat_srand_at(void) { return (uint8_t *)(uintptr_t
 // NESynchronousServer::Send: call [WaitForMultipleObjects] (turbo)
 // je over the CloseWindow call on WM_ACTIVATEAPP(0)
 internal inline uint8_t *hooks_site_close_window_je_at(void) { return (uint8_t *)(uintptr_t)data_hooks_site_close_window_je; }
+// the graphical goal manager (0x4FCDF9): cmp [selection + count], 10 - with 10 or more units selected their own
+// goal markers are left out; the 10 its last byte (+6)
+internal inline uint8_t *hooks_site_goal_markers_max_at(void) { return (uint8_t *)(uintptr_t)data_hooks_site_goal_markers_max; }
 internal inline uint8_t *hooks_site_editor_menu_at(void) { return (uint8_t *)(uintptr_t)data_hooks_site_editor_menu; }
 internal inline uint8_t *hooks_site_editor_res_at(void) { return (uint8_t *)(uintptr_t)data_hooks_site_editor_res; }
 internal inline uint8_t *hooks_site_sim_receive_at(void) { return (uint8_t *)(uintptr_t)data_hooks_site_sim_receive; }
@@ -108,6 +111,7 @@ internal int spec_hooks_select(int build) {
         value_hooks_rva_lle_mouse_coop = 313400;
         value_hooks_rva_lle_send_wait = 351733;
         data_hooks_site_close_window_je = 0x00662666;
+        data_hooks_site_goal_markers_max = 0x004FCE70;
         data_hooks_site_editor_menu = 0x006601F1;
         data_hooks_site_editor_res = 0x0065FD6D;
         data_hooks_site_sim_receive = 0x00553348;
@@ -176,6 +180,7 @@ internal int spec_hooks_select(int build) {
         value_hooks_rva_lle_mouse_coop = 244229;
         value_hooks_rva_lle_send_wait = 302554;
         data_hooks_site_close_window_je = 0x00679C57;
+        data_hooks_site_goal_markers_max = 0x00507940;
         data_hooks_site_editor_menu = 0x006777E5;
         data_hooks_site_editor_res = 0x00677361;
         data_hooks_site_sim_receive = 0x00561459;
@@ -243,6 +248,7 @@ internal int spec_hooks_check(void) {
     bad += spec_code(data_hooks_minimap_fy_ops[1], "hooks.minimap_fy_ops 1");
     bad += spec_code(data_hooks_minimap_fy_ops[2], "hooks.minimap_fy_ops 2");
     bad += spec_code(data_hooks_site_close_window_je, "hooks.site_close_window_je");
+    bad += spec_code(data_hooks_site_goal_markers_max, "hooks.site_goal_markers_max");
     bad += spec_code(data_hooks_site_editor_menu, "hooks.site_editor_menu");
     bad += spec_code(data_hooks_site_editor_res, "hooks.site_editor_res");
     bad += spec_code(data_hooks_site_sim_receive, "hooks.site_sim_receive");

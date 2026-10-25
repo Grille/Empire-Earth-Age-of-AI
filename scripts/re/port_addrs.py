@@ -109,6 +109,7 @@ EXE_HAND = {
     0x006177CF: (0x0062A366, 'the only call of data_hooks_fn_attack_alert'),
     0x00607D79: (0x00619604, 'the second of the calls of unit_fire, after the projectile code (proj_down 0x619143)'),
     0x0050FEC8: (0x0051A487, 'the call of mouse_update the others leave'),
+    0x004FCE70: (0x00507940, "the goal markers' cmp [selection + count], 10 (AoC's count at +0x538): the only such cmp before a setge"),
     0x005007B2: (0x0050B2AD, 'mov esi, data_hooks_draw_old + 0x58 (the draw records\' init loop)'),
     0x005007CC: (0x0050B2C7, 'cmp esi, its end (data_hooks_draw_old + 0x58 + 0x200 x 0x148): the operand of the cmp at 0x50B2C5'),
     0x005D88C0: (0x005E8B68, 'EEUIESPEMainMenu slot 1: AoC\'s copies the name field first (0x5E8ACC) - a partial fix of its own'),

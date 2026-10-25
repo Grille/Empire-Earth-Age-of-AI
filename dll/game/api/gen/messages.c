@@ -74,6 +74,11 @@ internal inline void load_msg_execute(ee_load_msg *load_msg) { fn_load_msg_execu
 internal inline int8_t path_msg_get_from(const ee_path_msg *o) { return *(int8_t *)((uint8_t *)o + of_msg_from); }
 internal inline void path_msg_set_from(ee_path_msg *o, int8_t v) { *(int8_t *)((uint8_t *)o + of_msg_from) = v; }
 internal inline int8_t *path_msg_from_at(const ee_path_msg *o) { return (int8_t *)((uint8_t *)o + of_msg_from); }
+// the right-button drag's facing (the drag handler after 0x403542: atan2(-dx, dy) of the drag, 0 for a click),
+// the move goal's +0x2C - the group's formation turned to it
+internal inline float path_msg_get_facing(const ee_path_msg *o) { return *(float *)((uint8_t *)o + of_path_msg_facing); }
+internal inline void path_msg_set_facing(ee_path_msg *o, float v) { *(float *)((uint8_t *)o + of_path_msg_facing) = v; }
+internal inline float *path_msg_facing_at(const ee_path_msg *o) { return (float *)((uint8_t *)o + of_path_msg_facing); }
 // its Execute's reads (both builds)
 internal inline float path_msg_get_x(const ee_path_msg *o) { return *(float *)((uint8_t *)o + of_path_msg_x); }
 internal inline void path_msg_set_x(ee_path_msg *o, float v) { *(float *)((uint8_t *)o + of_path_msg_x) = v; }
@@ -242,6 +247,7 @@ internal int spec_messages_select(int build) {
         of_load_msg_transport = 0x10;
         of_load_msg_unit = 0x14;
         fn_load_msg_execute = (load_msg_execute_fn)0x004B9446;
+        of_path_msg_facing = 0x10;
         of_path_msg_x = 0x14;
         of_path_msg_y = 0x18;
         of_path_msg_goal_30 = 0x1C;
@@ -294,6 +300,7 @@ internal int spec_messages_select(int build) {
         of_load_msg_transport = 0x10;
         of_load_msg_unit = 0x14;
         fn_load_msg_execute = (load_msg_execute_fn)0x004C1B79;
+        of_path_msg_facing = 0x10;
         of_path_msg_x = 0x14;
         of_path_msg_y = 0x18;
         of_path_msg_goal_30 = 0x1C;
