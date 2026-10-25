@@ -227,11 +227,11 @@ internal void fo_march(ee_active_group *grp) {
 
 // FOLLOWING (`formation_follow`, with formations; step 2 of moving in formation): a group laid out here marches in its
 // formation behind a leader - the unit whose spot is nearest the formation's middle - instead of each unit running its
-// own route to its spot. The leader keeps its route and goes at FF_LEAD of the slowest member's top speed; every other
+// own route to its spot. The leader keeps its route and goes at the slowest member's top speed; every other
 // land unit steers each tick at its point (its spot's offset from the leader's, turned with the formation's heading,
 // which follows the leader's own) plus FF_AHEAD along the heading, through the turn (shiproute.c's hook of the land
-// models' slot 7), and its speed (the land models' speed decision) is the leader's plus FF_GAIN for each tile it is
-// behind its point, at most its own top speed. Its own route stays: whenever its point is further than FF_FAR, on a
+// models' slot 7), and its speed (the land models' speed step) is the leader's plus FF_GAIN for each tile it is
+// behind its point, while behind up to FF_BOOST of its own top speed. Its own route stays: whenever its point is further than FF_FAR, on a
 // tile it may not enter or not in a clear line, it takes its route for that tick; while it follows, the waypoints it
 // passed (or that are within FF_DROP in a clear line) are dropped so the route is where it stands. Once the leader is
 // within FF_END of its spot, or gone, or given another order, the march ends: each unit goes on to its own spot. The
@@ -242,10 +242,11 @@ internal void fo_march(ee_active_group *grp) {
 #define FF_FAR 24.0f           // tiles
 #define FF_END 3.0f            // tiles
 #define FF_GAIN 0.5f           // tiles/s for each tile behind
-#define FF_LEAD 0.85f
+#define FF_BOOST 1.25f         // a follower behind its point: at most this much of its own top speed
 #define FF_AHEAD 1.5f          // tiles: the point steered at lies this far ahead of the follower's own (no circling on it)
 #define FF_TURN 0.05f          // the formation's heading: this share of the way from the leader to its spot a step
-#define FF_FORM 4.0f           // tiles: the followers this far from their points on average - the leader waits
+#define FF_FORM_FREE 2.0f      // tiles: the followers this far from their points on average and further - the leader waits,
+#define FF_FORM 4.0f           // down to FF_CRAWL this much further
 #define FF_CRAWL 0.15f         // the leader's least share of the march's speed while they form up
 #define FF_DROP 2.0f           // tiles
 struct ff_group { uint32_t leader; ee_group *grp; vec2 fwd, end; float speed, err, err_sum; int err_n; uint32_t step; int on; };
@@ -292,7 +293,7 @@ internal void ff_start(void *group, int n, vec2 fwd, vec2 right) {
     gr->grp = (ee_group *)group;
     gr->fwd = fwd;
     gr->end = g_fo[lead].at;
-    gr->speed = slow * FF_LEAD;
+    gr->speed = slow;
     gr->step = ~0u;
     gr->on = 1;
     for (int i = 0; i < n; i++) {
@@ -360,28 +361,31 @@ internal int fo_follow_aim(ee_unit *u, const float *pos, float *aim) {
     return 1;
 }
 
-// the land models' speed decision: the leader at the march's speed, a follower that steered this step at the leader's
-// plus FF_GAIN for each tile behind its point; the game's own while it turns more than 45 degrees or brakes for that
-internal int __thiscall hook_ff_speed(void *model, ee_unit *u, float dist, float angle) {
-    int d = physics_model_speed_decide(model, u, dist, angle);
+// the land models' speed step: the leader at the march's speed (the slowest member's top speed), less while the
+// followers are still forming up; a follower that steered this step at the leader's plus FF_GAIN for each tile behind its
+// point - while behind up to FF_BOOST of its own top speed (the slowest ones could never catch up at their top speed,
+// and the formation as a whole still goes no faster than its slowest unit) - towards it by its own acceleration a tick;
+// the game's own step while it turns more than 45 degrees
+internal float __thiscall hook_ff_speed(void *model, ee_unit *u, float dist, float angle) {
+    float s = physics_model_speed_step(model, u, dist, angle);
     struct ff_unit *e = g_ff_on && u ? ff_find((uint32_t)unit_get_serial(u), 0) : NULL;
-    if (!e || d == 4) return d;
+    if (!e || fabsf(angle) > 0.7853982f) return s;
     struct ff_group *gr = &g_ff[e->g];
     uint32_t step = ff_step();
-    if (!gr->on || unit_get_group(u) != gr->grp || !ff_leader(gr, step)) return d;
-    float want;
+    if (!gr->on || unit_get_group(u) != gr->grp || !ff_leader(gr, step)) return s;
+    float top = unit_max_speed(u), want, cap = top;
     if (e->id == gr->leader) {
-        float wait = 1 - gr->err / FF_FORM;
-        want = gr->speed * (wait > FF_CRAWL ? wait : FF_CRAWL);
-    }
-    else if (e->step == step) want = gr->speed + FF_GAIN * e->along;
-    else return d;
-    float top = unit_max_speed(u), v = unit_get_speed(u);
-    ee_physics *ph = game_physics();
-    float acc = ph ? physics_get_step_s(ph) * unit_accel(u) : 0.01f;
-    if (want > top) want = top;
+        float wait = 1 - (gr->err - FF_FORM_FREE) / FF_FORM;
+        want = gr->speed * (wait > 1 ? 1 : wait > FF_CRAWL ? wait : FF_CRAWL);
+    } else if (e->step == step) {
+        want = gr->speed + FF_GAIN * e->along;
+        if (e->along > 0) cap = top * FF_BOOST;
+    } else return s;
+    if (want > cap) want = cap;
     if (want < 0) want = 0;
-    return v < want ? 3 : v > want + acc ? 4 : 2;
+    ee_physics *ph = game_physics();
+    float v = unit_get_speed(u), acc = ph ? physics_get_step_s(ph) * unit_accel(u) : 0.01f;
+    return v < want ? (v + acc < want ? v + acc : want) : (v - acc > want ? v - acc : want);
 }
 
 internal void groupmove_new_game(void) {
@@ -495,7 +499,7 @@ internal void groupmove_install(void) {
     int n = g_fo_on ? patch_formation_slots(hook_formation_slots) : 0, goals = n ? patch_slot_goal(hook_slot_goal) : 0;
     int markers = g_set.goal_markers ? patch_order_marks_all() : 0;   // every unit's circle shows where it goes
     int march = goals && g_set.formation_march ? patch_group_speeds(hook_group_speeds) : 0;
-    g_ff_on = goals && g_set.formation_follow ? patch_land_speed_decide(hook_ff_speed) == 2 : 0;   // the turn: shiproute.c's hook
+    g_ff_on = goals && g_set.formation_follow ? patch_land_speed_step(hook_ff_speed) == 2 : 0;   // the turn: shiproute.c's hook
     if (g_log) fprintf(g_log, "# groupmove: formations=%d (%d formation vtables, goals hooked %d), goal markers for every unit: %d, march at the slowest speed: %d, follow a leader: %d\n",
                        g_fo_on, n, goals, markers, march, g_ff_on);
 }

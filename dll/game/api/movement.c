@@ -14,11 +14,6 @@ internal inline int patch_ship_speed_decide(speed_decide_hook h) {
     return patch_vtable(data_movement_vt_pm_naval, value_movement_slot_pm_speed_decide, (uintptr_t)fn_physics_model_speed_decide, (void *)h)
          + patch_vtable(data_movement_vt_pm_submerged, value_movement_slot_pm_speed_decide, (uintptr_t)fn_physics_model_speed_decide, (void *)h);
 }
-// the same of the land units' and the hovercraft's models
-internal inline int patch_land_speed_decide(speed_decide_hook h) {
-    return patch_vtable(data_movement_vt_pm_land, value_movement_slot_pm_speed_decide, (uintptr_t)fn_physics_model_speed_decide, (void *)h)
-         + patch_vtable(data_movement_vt_pm_hover, value_movement_slot_pm_speed_decide, (uintptr_t)fn_physics_model_speed_decide, (void *)h);
-}
 // the turn decision (the turn step 0x548266 asks it each tick with the unit's turn rate now, +0x17C, and the angle
 // left, both signed): 3 turn faster towards it (up to unit_max_turn), 4 slower (by the turn acceleration a tick, 0
 // at the end), 2 hold. The 2017 update's takes both as sizes and doesn't look a step ahead, so a unit swings past the
@@ -44,6 +39,10 @@ typedef float (__thiscall *speed_step_hook)(void *model, ee_unit *u, float dist,
 internal inline int patch_ship_speed_step(speed_step_hook h) {
     return patch_vtable(data_movement_vt_pm_naval, value_movement_slot_pm_speed_step, (uintptr_t)fn_physics_model_speed_step, (void *)h)
          + patch_vtable(data_movement_vt_pm_submerged, value_movement_slot_pm_speed_step, (uintptr_t)fn_physics_model_speed_step, (void *)h);
+}
+internal inline int patch_land_speed_step(speed_step_hook h) {   // the land units' and the hovercraft's
+    return patch_vtable(data_movement_vt_pm_land, value_movement_slot_pm_speed_step, (uintptr_t)fn_physics_model_speed_step, (void *)h)
+         + patch_vtable(data_movement_vt_pm_hover, value_movement_slot_pm_speed_step, (uintptr_t)fn_physics_model_speed_step, (void *)h);
 }
 // the collision step (slot 18, after each step of the movement: docs/engine-notes.md "Collision") of the ships',
 // the submarines', the land units' and the hovercraft's models (all hold the same thunk; the submarines' slot 14 tests
