@@ -84,15 +84,17 @@ internal inline float *unit_type_heading_offset_at(const ee_unit_type *o) { retu
 internal inline float unit_type_get_mark_size(const ee_unit_type *o) { return *(float *)((uint8_t *)o + of_unit_type_mark_size); }
 internal inline void unit_type_set_mark_size(ee_unit_type *o, float v) { *(float *)((uint8_t *)o + of_unit_type_mark_size) = v; }
 internal inline float *unit_type_mark_size_at(const ee_unit_type *o) { return (float *)((uint8_t *)o + of_unit_type_mark_size); }
-// a collision sphere (float; dreadnought 4, cruiser 3): AoC the shift of +0x474 (0x178, EEUnitClass::vf34's
-// arrival test). The constructor 0x61C35B copies it from the data's column 0x200, which the community editor
-// calls "Size in formation" (collider_size: its "Size of collider") - which of the two the name fits is open
-internal inline float unit_type_get_collision(const ee_unit_type *o) { return *(float *)((uint8_t *)o + of_unit_type_collision); }
-internal inline void unit_type_set_collision(ee_unit_type *o, float v) { *(float *)((uint8_t *)o + of_unit_type_collision) = v; }
-internal inline float *unit_type_collision_at(const ee_unit_type *o) { return (float *)((uint8_t *)o + of_unit_type_collision); }
-// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
-// the data's column 0x204 (the editor: "Size of collider"; dreadnought 3, cruiser 1.95): the movement's waypoint
-// and arrival radius (EEUnitClass::vf34; x unit +0x240 at 0x5F0000)
+// its room in a formation (dreadnought 4, cruiser 3; the data's column 0x200, the community editor's "Size in
+// formation", copied by the constructor 0x61C35B): the formations lay their slots out by the members' largest
+// (EEFCircle / EEFLine / EEFWedge::vf2 0x4D7235 / 0x4D79D9 / 0x4D8079, EECPAttackFormation::vf15 0x45257A); the
+// debug message EEMChangeSelectedUnitCollisionSphere (vf10 0x4B4AF6) edits it as its second sphere (mode 10).
+// The spec called it collision until 2026-10-25. AoC +0x174 (the shift of +0x474)
+internal inline float unit_type_get_formation_size(const ee_unit_type *o) { return *(float *)((uint8_t *)o + of_unit_type_formation_size); }
+internal inline void unit_type_set_formation_size(ee_unit_type *o, float v) { *(float *)((uint8_t *)o + of_unit_type_formation_size) = v; }
+internal inline float *unit_type_formation_size_at(const ee_unit_type *o) { return (float *)((uint8_t *)o + of_unit_type_formation_size); }
+// its collision sphere (dreadnought 3, cruiser 1.95; the data's column 0x204, the editor's "Size of collider"):
+// the debug message EEMChangeSelectedUnitCollisionSphere (vf10 0x4B4AF6, mode 9) edits it and copies it into the
+// unit's size (+0x244); the movement's waypoint and arrival radius (EEUnitClass::vf34; x unit +0x240 at 0x5F0000)
 internal inline float unit_type_get_collider_size(const ee_unit_type *o) { return *(float *)((uint8_t *)o + of_unit_type_collider_size); }
 internal inline void unit_type_set_collider_size(ee_unit_type *o, float v) { *(float *)((uint8_t *)o + of_unit_type_collider_size) = v; }
 internal inline float *unit_type_collider_size_at(const ee_unit_type *o) { return (float *)((uint8_t *)o + of_unit_type_collider_size); }
@@ -389,7 +391,7 @@ internal int spec_unit_type_select(int build) {
         of_unit_type_bank_angle = 0x454;
         of_unit_type_heading_offset = 0x458;
         of_unit_type_mark_size = 0x464;
-        of_unit_type_collision = 0x470;
+        of_unit_type_formation_size = 0x470;
         of_unit_type_collider_size = 0x474;
         of_unit_type_class_id = 0x4B4;
         of_unit_type_id = 0x4B8;
@@ -477,7 +479,7 @@ internal int spec_unit_type_select(int build) {
         of_unit_type_bank_angle = 0x158;
         of_unit_type_heading_offset = 0x15C;
         of_unit_type_mark_size = 0x168;
-        of_unit_type_collision = 0x174;
+        of_unit_type_formation_size = 0x174;
         of_unit_type_collider_size = 0x178;
         of_unit_type_class_id = 0x1B8;
         of_unit_type_id = 0x1BC;

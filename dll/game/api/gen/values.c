@@ -1189,7 +1189,7 @@ internal uint32_t of_unit_type_accel;
 internal uint32_t of_unit_type_bank_angle;
 internal uint32_t of_unit_type_heading_offset;
 internal uint32_t of_unit_type_mark_size;
-internal uint32_t of_unit_type_collision;
+internal uint32_t of_unit_type_formation_size;
 internal uint32_t of_unit_type_collider_size;
 internal uint32_t of_unit_type_class_id;
 internal uint32_t of_unit_type_id;

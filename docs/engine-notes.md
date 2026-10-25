@@ -229,8 +229,8 @@ vf26 members and route released, vf12, the group's reference) frees nothing twic
   byte +0x14 is below 0 unless the ship's +0x2E0 is 0, or above 0 when it is 3 (a guess: shallows and draught; AoC
   the ship's +0x2E4). A route over such a tile is refused at its edge (the ship slid along x = 53.025 for 10 s), then
   RepathAroundObstacle (entered on unit +0x20C or 3-5 s standing) rebuilds the list a few points ahead and drops the
-  rest - with sparse points it dropped the destination. A ship's collision sphere +0x470 (dreadnought 4, cruiser 3;
-  AoC +0x174) plays no part in the step test: only the tile under its centre counts.
+  rest - with sparse points it dropped the destination. A ship's formation size +0x470 (dreadnought 4, cruiser 3;
+  AoC +0x174) and its collision sphere +0x474 play no part in the step test: only the tile under its centre counts.
 - **Speed in turns** (dll/game/api/movement.c): a movement model's tick (EEPMNaval::vf1 0x54EB00) reads the front
   waypoint (0x5EC69D), turns (vtable +0x1C) and sets the speed from EEPhysicsModel::vf8 0x54858E, which asks
   vf9 0x548645 (unit, distance, angle off the bow in radians): 2 hold, 3 faster (up to 0x46123F's top speed; on the
@@ -333,7 +333,7 @@ vf26 members and route released, vf12, the group's reference) frees nothing twic
   by default, the selection's or EEMChangeFormation's) to the point and asks it for slots (EEFormation::vf1 0x4D7E0B,
   slot 1 of all 12 formation vtables, AoC 0x4DDDD5; vf2 per kind: EEFLine 0x4D79D9, EEFWedge 0x4D8079, EEFCircle
   0x4D7235): slots of 0x14 bytes {x, y, z, unit, facing}, a line's front row on the centre and the rows behind it,
-  every row and column spaced by the group's largest type +0x470 (the collision sphere, larger than the size: a
+  every row and column spaced by the group's largest type +0x470 (formation_size, larger than the size: a
   Mark V 1.0 size) x the kind's spacing (ShortLine 1.0, 5 columns; LongLine 10; LooseLine 2.0; Staggered 1.5), an
   empty row every 6th. Then units and slots are paired - the nearest when the target is near the group, else both
   sorted along the move (0x5DFC79); skipped with "together", all sizes below 1 and speed > 0.5 - and each unit gets
@@ -516,7 +516,7 @@ vf26 members and route released, vf12, the group's reference) frees nothing twic
   angular velocity, +0x4C8 ammo type (the hit table's weapon kind), +0x4BC combat reaction, +0x514 work rate, +0x554
   repair rate, +0x574 healing points, +0x570 carry amount, +0x53C max objects carried, +0x534 flight time, +0x588
   missile delay time, +0x5A0 ammunition, +0x5FC fire while moving, +0x5FF build on elevation, +0x60A/+0x60B convert
-  buildings/priests, +0x470/+0x474 collision spheres; stats +0xA4 LOS, +0xAC max velocity, +0xB0 angular accel,
+  buildings/priests, +0x470 formation size, +0x474 collision sphere; stats +0xA4 LOS, +0xAC max velocity, +0xB0 angular accel,
   +0xB4 max angular velocity, +0x8C convert %/s; physics +0x238 velocity, +0x2E4 ammunition, +0x28C flight time,
   +0x278 crew hit points, +0x210 cruise altitude.
 - **Reload in play:** the stats record (unit +0x34) is the player's own record of the type (= 0x492969 on player

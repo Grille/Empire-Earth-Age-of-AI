@@ -5,7 +5,7 @@
 // longer, tests/probes/ship_long.eeai). Here a ship's request is answered at once: an A* over the whole map on the
 // game's own tile test (the type's terrain byte, the edge of the map's diamond, the water's class against the ship's
 // mode - the shallows, which the naval movement refuses -, every object on the tile asked), tiles nearer to land than
-// the ship's hull radius (half its collision sphere) dearer so the route keeps to the middle of a channel, then pulled
+// the ship's hull radius (half its formation size, the larger of its two spheres) dearer so the route keeps to the middle of a channel, then pulled
 // straight - from each corner on to the furthest tile still in a clear line - and given as the unit's waypoints, one
 // every 2 tiles along each straight leg (the game's obstacle detour, RepathAroundObstacle, rebuilds the list up to a
 // few points ahead and drops the rest: with the corners alone it dropped the destination). The movement tests only
@@ -220,7 +220,7 @@ internal int sr_route(ee_unit *u, int *from, int *to, void *caller, int sectors)
     sr_stamp();
     int sx = from[0], sy = from[1], tx = to[0], ty = to[1];
     g_sr_ship = sr_is_ship(u);
-    g_sr_radius = unit_type_get_collision(td) * 0.5f;
+    g_sr_radius = unit_type_get_formation_size(td) * 0.5f;
     if (g_sr_radius < 0.35f) g_sr_radius = 0.35f;
     if (g_sr_radius > SR_RADIUS_MAX) g_sr_radius = SR_RADIUS_MAX;
     if (!g_sr_ship) g_sr_radius = 0;   // a land unit: no dearer tiles near what blocks
@@ -293,7 +293,7 @@ internal int sr_route(ee_unit *u, int *from, int *to, void *caller, int sectors)
     }
     int corners = nc - 1;
     if (g_lr_widen && !g_sr_ship)   // the corners between start and goal moved off what they round
-        for (int c = 1; c < nc - 1; c++) lr_widen(map, u, td, size, cn[c], cn[c - 1], cn[c + 1], unit_type_get_collision(td) * 0.5f + LR_GAP);
+        for (int c = 1; c < nc - 1; c++) lr_widen(map, u, td, size, cn[c], cn[c - 1], cn[c + 1], unit_type_get_formation_size(td) * 0.5f + LR_GAP);
     for (int c = 1; c < nc; c++) {
         float ax = cn[c - 1][0], ay = cn[c - 1][1], bx = cn[c][0], by = cn[c][1];
         int steps = (int)ceilf(sqrtf((bx - ax) * (bx - ax) + (by - ay) * (by - ay)) / SR_STEP);

@@ -81,15 +81,18 @@ unsafe struct EEUnitClass
     [offset((ee)0x464, (aoc)0x168), found(c)]
     float32 mark_size;
 
-    /// a collision sphere (float; dreadnought 4, cruiser 3): AoC the shift of +0x474 (0x178, EEUnitClass::vf34's
-    /// arrival test). The constructor 0x61C35B copies it from the data's column 0x200, which the community editor
-    /// calls "Size in formation" (collider_size: its "Size of collider") - which of the two the name fits is open
+    /// its room in a formation (dreadnought 4, cruiser 3; the data's column 0x200, the community editor's "Size in
+    /// formation", copied by the constructor 0x61C35B): the formations lay their slots out by the members' largest
+    /// (EEFCircle / EEFLine / EEFWedge::vf2 0x4D7235 / 0x4D79D9 / 0x4D8079, EECPAttackFormation::vf15 0x45257A); the
+    /// debug message EEMChangeSelectedUnitCollisionSphere (vf10 0x4B4AF6) edits it as its second sphere (mode 10).
+    /// The spec called it collision until 2026-10-25. AoC +0x174 (the shift of +0x474)
     [offset((ee)0x470, (aoc)0x174), found(c)]
-    float32 collision;
+    float32 formation_size;
 
-    /// the data's column 0x204 (the editor: "Size of collider"; dreadnought 3, cruiser 1.95): the movement's waypoint
-    /// and arrival radius (EEUnitClass::vf34; x unit +0x240 at 0x5F0000)
-    [offset((ee)0x474, (aoc)0x178), found(c), guess]
+    /// its collision sphere (dreadnought 3, cruiser 1.95; the data's column 0x204, the editor's "Size of collider"):
+    /// the debug message EEMChangeSelectedUnitCollisionSphere (vf10 0x4B4AF6, mode 9) edits it and copies it into the
+    /// unit's size (+0x244); the movement's waypoint and arrival radius (EEUnitClass::vf34; x unit +0x240 at 0x5F0000)
+    [offset((ee)0x474, (aoc)0x178), found(c)]
     float32 collider_size;
 
     /// the game data's "Unit type" (dbobjects column 36): the class of the type data - EEUCBuilding, EEUCNaval ... (the
