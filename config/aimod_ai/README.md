@@ -248,7 +248,7 @@ lines = {
 |---|---|
 | Numbers, texts | `85`, `0.5`, `70%` (the same as `0.7` - `%` only right after a number), `"text"`, `'text'` |
 | Arithmetic | `+ - * /` on numbers only. A text is built in its string: `"Gold: {me.gold}"`, `"{a}{b}"` - `"a" + b` is a mistake (b added to the text, or the text to each of b's items?). Dividing by 0 is a mistake too; `me.strength * 150%` |
-| Comparisons | `< <= > >= == !=` - numbers when both are numbers, else texts (case ignored). A text against a number (`"12" == 12`) is a mistake: logged, and only `!=` holds. A list compared is a mistake - `contains(l, x)` |
+| Comparisons | `< <= > >= == !=` - numbers when both are numbers, else texts (case ignored). A text against a number (`"12" == 12`) is a mistake: logged, and only `!=` holds. A list compared is a mistake - `contains(l, x)`. Values of different types are told when the file is read, as in scripts (docs/scripts.md "Types"): `them == "x"`, `epoch + 1` (`int(epoch) + 1`, `epoch >= epoch.middle`) |
 | Logic | `and or not` - only the words (`&&`, `\|\|` and `!` are a mistake; `!=` is a comparison) |
 | Choice | `a ? b : c`, `a ? b` (nothing when `a` doesn't hold), `a ?? b` (`b` when `a` is nothing) |
 | Lists | `[a, b, c]` - leaving out what is nothing, a list in a list giving its items. A list holds its items only: a line and a `{placeholder}` say one of them at random, `pick(l)` takes one; where one value belongs otherwise (`+`, `<`, a number's place) it is a mistake. A list with items is true, an empty one nothing |
@@ -372,7 +372,11 @@ lines = {
 
 A condition (`lord != null ? ...`, `lord ? ...`, `lord and ...`, `not lord`), `??` and a comparison (`lord == them`) check it. Used without
 a check - in a text (`{lord}`), a sum, a member (`lord.soldiers`) or a relation (`opinion(lord)`) - it is a
-mistake: a line that names a lord nobody has makes no sense, so it is left out (the list item, else the line).
+mistake, told when the file is read (the line is skipped): a line that names a lord nobody has makes no sense. A check
+holds where it guards - right of `and`, in the `?` branch, in `if`'s block - and works for a relation's value too
+(`me.war_minutes(them) != null ? "{me.war_minutes(them)} minutes of war"`); a name set elsewhere (`long_war =
+me.war_minutes(them) > 30`) is no check where it is used. Where the code guarantees a lord - `vassal_ask_lord` in
+`mod/system.eeai` and `terms_vassal` in `mod/prompt.eeai` are only said by a vassal - `{lord}` needs none.
 
 Shortcuts: my own `epoch`, traits, `allies` and `enemies` without `me.` (`aggression` is `me.aggression`), a relation of mine without
 `me.` (`opinion(enemy)` is `me.opinion(enemy)`), and `opinion`, `at_war`, `allied` alone: mine with them

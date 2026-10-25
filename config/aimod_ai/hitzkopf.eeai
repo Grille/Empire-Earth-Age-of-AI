@@ -89,7 +89,7 @@ lines = {
             "The last time we were friends you stuck a knife in me, {them}! Fighting you is safer - at least I see you coming!",
         ],
         them.refusals(me, 15) > 0 and chance(60%) ? "You said no to MY peace, {them}! Now I say no! HA! ...What were we fighting about again?",
-        long_war and chance(60%) ? "{me.war_minutes(them)} minutes of brawling and you want to stop NOW, {them}? It's only just getting good!",
+        me.war_minutes(them) != null and long_war and chance(60%) ? "{me.war_minutes(them)} minutes of brawling and you want to stop NOW, {them}? It's only just getting good!",
         me.kills(them, 20, units) > many_dead / 2 and chance(60%) ? "Stop? I'm on a roll, {them}! {me.kills(them, 20, units)} of yours just lately!",
     ] ?? [
         "Peace? I've only just warmed up, {them}!",

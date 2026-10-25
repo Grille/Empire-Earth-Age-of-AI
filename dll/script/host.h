@@ -42,6 +42,9 @@ struct x_host {
     int (*set)(struct xctx *c, const struct xval *o, const char *name, const struct xval *v);
     int (*const_type)(const char *name);   // a constant's type (unit.x: XT_UTYPE, epoch.middle: XT_EPOCH), X_ANY not known
     int (*name_type)(const char *name);    // a name of its own that is a value (minutes, epoch, opinion): its type
+    // the names the code guarantees for a key - " lord " where it is only said to a vassal (lord a player there, not
+    // a player?), or NULL
+    const char *(*has)(const char *file, const char *sec, const char *key);
 };
 internal int xh_value(struct xctx *c, const char *name, struct xval *v) { (void)c; (void)name; (void)v; return 0; }
 internal int xh_name(const char *name) { (void)name; return 0; }
@@ -62,4 +65,4 @@ internal int xh_set(struct xctx *c, const struct xval *o, const char *name, cons
 }
 internal struct x_host g_x_host = { xh_value, xh_name, xh_name, xh_method, xh_object, xh_constant, xh_rnd, xh_rnd, xh_scan,
                                   xh_placeholders, xh_name, xh_name, xh_kind, xh_name, xh_name, xh_member, xh_set, xh_name,
-                                  xh_name };
+                                  xh_name, xh_placeholders };

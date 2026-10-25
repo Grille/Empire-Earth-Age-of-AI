@@ -298,6 +298,7 @@ internal int x_var_known(const char *name) {
 // entry of any file, game value or placeholder the code fills for this key - is told with its file and line (strict
 // parsing: in the startup box); the key is kept, at run time the name fails what it is in (x_fail)
 internal const char *g_x_check_file, *g_x_check_ph;   // the file being read; " a b " the code's placeholders for the key
+internal const char *g_x_check_has;   // " lord " the names the code guarantees for the key (g_x_host.has): not null there
 internal int g_x_check_line;
 internal int xvec_member(const char *m) {   // a vector's number by its name: .x .y .z .w - 0..3, -1 none
     return !strcmp(m, "x") ? 0 : !strcmp(m, "y") ? 1 : !strcmp(m, "z") ? 2 : !strcmp(m, "w") ? 3 : -1;
@@ -1375,11 +1376,43 @@ internal int xsc_kind(const struct xscope *s, const char *name, size_t len) {
 // each condition's pushed for what it guards and taken off after; a path set anew is struck (its length 0). nn_low: a
 // function's body sees only those from there up (it runs later: those around it hold no more then)
 struct xcheck { struct xctx *c; int script; const char *why; int line; char whybuf[200]; int loops; int ctx;
-                const char *nn[32]; unsigned char nl[32]; int n_nn, nn_low; };
+                const char *nn[32]; unsigned char nl[32]; int n_nn, nn_low; int texts; };
 internal int xn_null(const struct xnode *n) { return n && n->k == XN_NUM && n->op == 'n'; }   // the null literal
 internal int xn_narrowed(const struct xcheck *k, const char *s, size_t len) {
     for (int i = k->nn_low; i < k->n_nn; i++) if (k->nl[i] == len && !strncmp(k->nn[i], s, len)) return 1;
     return 0;
+}
+// a checked value's key: a path (p.lord), or a call of paths and numbers (me.attack_minutes(them) - the game's relations
+// give the same within a check); its text kept in a ring the stack points into. 0: none (f(x).y, a + b: not narrowed)
+internal char g_xn_keys[256][64];
+internal int g_xn_key_n;
+internal const char *xn_key(const struct xnode *x, int *len) {
+    char *b = g_xn_keys[g_xn_key_n++ & 255];
+    int o;
+    if (x->k == XN_NAME) o = snprintf(b, 64, "%s", x->s);
+    else if (x->k == XN_CALL) {
+        o = snprintf(b, 64, "%s(", x->s);
+        for (int i = 0; i < x->n_items && o < 63; i++) {
+            const struct xnode *a = x->items[i];
+            if (a->k == XN_NAME) o += snprintf(b + o, (size_t)(64 - o), "%s%s", i ? "," : "", a->s);
+            else if (a->k == XN_NUM && a->op != 'n') o += snprintf(b + o, (size_t)(64 - o), "%s%g", i ? "," : "", a->n);
+            else return NULL;
+        }
+        if (o < 63) o += snprintf(b + o, (size_t)(64 - o), ")");
+    } else return NULL;
+    if (o >= 63) return NULL;
+    *len = o;
+    return b;
+}
+internal void xn_push(struct xcheck *k, const struct xnode *x) {
+    int len;
+    const char *key = x ? xn_key(x, &len) : NULL;
+    if (key && k->n_nn < 32) { k->nn[k->n_nn] = key; k->nl[k->n_nn++] = (unsigned char)len; }
+}
+internal int xn_checked(const struct xcheck *k, const struct xnode *x) {   // x's key on the stack: not null here
+    int len;
+    const char *key = xn_key(x, &len);
+    return key && xn_narrowed(k, key, (size_t)len);
 }
 // what holds when cond is want (1 true, 0 false): the paths it shows aren't null - x != null, x == null (false), a and b
 // (true), a or b (false), not; a path alone (until bools are required: lord ? ...) - pushed onto k's stack
@@ -1388,21 +1421,28 @@ internal void xn_facts(struct xcheck *k, const struct xnode *c, int want) {
     switch (c->k) {
     case XN_CMP:
         if ((c->op == '!') == (want != 0) && (c->op == '!' || c->op == '=')) {
-            const struct xnode *x = xn_null(c->a) ? c->b : xn_null(c->b) ? c->a : NULL;
-            if (x && x->k == XN_NAME && k->n_nn < 32) { k->nn[k->n_nn] = x->s; k->nl[k->n_nn++] = (unsigned char)strlen(x->s); }
+            xn_push(k, xn_null(c->a) ? c->b : xn_null(c->b) ? c->a : NULL);
         }
         break;
     case XN_AND: if (want) { xn_facts(k, c->a, 1); xn_facts(k, c->b, 1); } break;
     case XN_OR: if (!want) { xn_facts(k, c->a, 0); xn_facts(k, c->b, 0); } break;
     case XN_NOT: xn_facts(k, c->a, !want); break;
-    case XN_NAME: if (want && k->n_nn < 32) { k->nn[k->n_nn] = c->s; k->nl[k->n_nn++] = (unsigned char)strlen(c->s); } break;
+    case XN_NAME: case XN_CALL: if (want) xn_push(k, c); break;
     default: break;
+    }
+}
+internal void xn_has(struct xcheck *k) {   // the key's guaranteed names (g_x_check_has): there from the start
+    for (const char *w = g_x_check_has; w && *w && k->n_nn < 32; ) {
+        while (*w == ' ') w++;
+        size_t n = strcspn(w, " ");
+        if (n) { k->nn[k->n_nn] = w; k->nl[k->n_nn++] = (unsigned char)n; }
+        w += n;
     }
 }
 internal void xn_strike(struct xcheck *k, const char *name) {   // name set anew: it and its paths (name.lord) not known any more
     size_t len = strlen(name);
     for (int i = 0; i < k->n_nn; i++)
-        if (k->nl[i] >= len && !strncmp(k->nn[i], name, len) && (k->nl[i] == len || k->nn[i][len] == '.')) k->nl[i] = 0;
+        if (k->nl[i] >= len && !strncmp(k->nn[i], name, len) && (k->nl[i] == len || k->nn[i][len] == '.' || k->nn[i][len] == '(')) k->nl[i] = 0;
 }
 // a node's value as the old parser saw it while only reading: a number or a text written as such, nothing for the
 // rest - what "12" == 12 is caught with when a file is read
@@ -1551,7 +1591,15 @@ internal int xt_builtin(struct xcheck *k, const struct xnode *n, int f, const st
     case 3: return xt_numeric(a0) ? a0 : X_ANY;                   // abs
     case 4: case 6: case 7: case 20: case 21: return XT_INT;      // round, floor, len, int, ceil
     case 5: case 14: case 18: return XT_FLOAT;                    // rnd, log2, distance
-    case 8: case 9: case 15: return a0 & X_LIST_OF ? (X_TBASE(a0) ? X_TBASE(a0) | X_NULLABLE : X_ANY) : f == 15 ? a0 : X_ANY;   // first, item, pick
+    case 8: case 9: case 15:   // first, item, pick: one of its items - or none (an empty list, item past its end); a list
+        if (!(a0 & X_LIST_OF)) return f == 15 ? a0 : X_ANY;   // written with an item that always holds has one: pick([10, 20])
+        if (!X_TBASE(a0)) return X_ANY;
+        if (f != 9 && n->items[0]->k == XN_LIST)
+            for (int i = 0; i < n->items[0]->n_items; i++) {
+                const struct xnode *it = n->items[0]->items[i];
+                if (!(it->k == XN_COND && !it->b) && !(x_stype(k, it, sc) & X_NULLABLE)) return X_TBASE(a0);
+            }
+        return X_TBASE(a0) | X_NULLABLE;
     case 11: r = n->n_items > 2 ? x_stype(k, n->items[2], sc) : X_ANY; return r & X_LIST_OF ? X_TBASE(r) : X_ANY;   // map_range
     case 12: return XT_TEXT;                                       // str
     case 13: return XT_FLOAT | X_NULLABLE;                         // number: nothing for a text that is none
@@ -1562,7 +1610,7 @@ internal int xt_builtin(struct xcheck *k, const struct xnode *n, int f, const st
 }
 // WHAT A VALUE IS, worked out when the file is read (a script's): host.h's types - X_ANY where it can't be told
 internal int x_stype(struct xcheck *k, const struct xnode *n, const struct xscope *sc) {
-    if (!n || !k->script) return X_ANY;
+    if (!n || !(k->script || k->texts)) return X_ANY;
     int known, r, a, b;
     const struct x_kmember *m;
     switch (n->k) {
@@ -1580,7 +1628,8 @@ internal int x_stype(struct xcheck *k, const struct xnode *n, const struct xscop
         if (!var && !n->s[len] && !strcmp(n->s, "time")) return XT_FLOAT;   // the script's: game seconds
         if (!var && !n->s[len] && !strcmp(n->s, "stop")) return XT_STOP;
         if (!var && (r = g_x_host.const_type(n->s)) != X_ANY) return r;   // unit.x, epoch.middle, color.red
-        if (!var && !n->s[len] && (r = g_x_host.name_type(n->s)) != X_ANY) return r;   // minutes, epoch
+        if (!var && !n->s[len] && (r = g_x_host.name_type(n->s)) != X_ANY)   // minutes, epoch, lord (checked: there)
+            return (r & X_NULLABLE) && xn_narrowed(k, n->s, len) ? r & ~X_NULLABLE : r;
         r = x_path_kind(k, n, n->s, strlen(n->s), sc, &known);
         return r < 0 ? X_ANY : r;
     }
@@ -1591,7 +1640,8 @@ internal int x_stype(struct xcheck *k, const struct xnode *n, const struct xscop
         if (!dot) return x_script_fn(n->s) >= 0 ? g_x_host.fn_kind(n->s) : X_ANY;   // player(2)
         r = x_path_kind(k, n, n->s, (size_t)(dot - n->s), sc, &known);
         m = r > 0 && r < XT_INT ? x_kind_member(r, dot + 1) : NULL;
-        return m && m->amin >= 0 ? m->result : X_ANY;
+        r = m && m->amin >= 0 ? m->result : X_ANY;
+        return (r & X_NULLABLE) && xn_checked(k, n) ? r & ~X_NULLABLE : r;   // me.attack_minutes(them) != null ? ...
     }
     case XN_MEMBER: case XN_MCALL:
         a = x_stype(k, n->a, sc);
@@ -1695,7 +1745,7 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
         size_t len = strcspn(n->s, ".");
         int f = xsc_find(sc, n->s, len, NULL);
         if (f == 2) { snprintf(k->whybuf, sizeof k->whybuf, "%.*s is read before its let", (int)len, n->s); return xc_fail(k, n, k->whybuf); }
-        if (k->script && n->s[len]) {   // p.towers, game.players: the members its kind has (a kind known)
+        if ((k->script || k->texts) && n->s[len]) {   // p.towers, game.players: the members its kind has (a kind known)
             int known;
             if (x_path_kind(k, n, n->s, strlen(n->s), sc, &known) < 0) return 0;
             if (known) return 1;
@@ -1856,7 +1906,7 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
         }
         if (a >= XT_INT && n->k == XN_MEMBER && xt_own_member(a, n->s) >= 0) return 1;
         if (a >= XT_INT) {
-            snprintf(k->whybuf, sizeof k->whybuf, ".%s: a %s has no %s", n->s, xty_name(a, ta, sizeof ta), n->s);
+            snprintf(k->whybuf, sizeof k->whybuf, ".%s: a%s %s has no %s", n->s, strchr("aeiou", *xty_name(a, ta, sizeof ta)) ? "n" : "", ta, n->s);
             return xc_fail(k, n, k->whybuf);
         }
         if (n->k == XN_MCALL) return x_check_method(k, n, a, n->s, n->n_items);
@@ -1884,6 +1934,14 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
         struct xsv a0 = nk ? xsv_of(n->items[0]) : (struct xsv){ 0, 0, 0, 0 };
         if (f == 1 && a0.has_n && a0.n > 1) return xc_fail(k, n, "chance takes a probability, 0 to 1: chance(70%) or chance(0.7)");
         if (f) return 1;
+        if (!xsc_find(sc, name, strlen(name), NULL))   // a relation's, a method's, a command's: a player that is there
+            for (int i = 0; i < n->n_items; i++) {     // (opinion(lord) without a lord: a mistake - a function of a let's
+                char tn[40];                           // checks its parameters' types)
+                int ta = x_stype(k, n->items[i], sc);
+                if (!(ta & X_NULLABLE) || ta == X_NULLABLE) continue;
+                snprintf(k->whybuf, sizeof k->whybuf, "%s(...): its argument %d, a %s, may be null - check it != null first", name, i + 1, xty_name(ta, tn, sizeof tn));
+                return xc_fail(k, n, k->whybuf);
+            }
         if (!strchr(name, '.')) {
             int v = xsc_find(sc, name, strlen(name), NULL);
             if (v == 2) { snprintf(k->whybuf, sizeof k->whybuf, "%s is called before its let", name); return xc_fail(k, n, k->whybuf); }
@@ -1919,10 +1977,14 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
         const char *dot = strrchr(name, '.');
         if (k->script && !strcmp(name, "game.setup"))   // (one at the script's top is checked there, not here)
             return xc_fail(k, n, "game.setup(() => { ... }): a statement at the script's top (its function runs before the game starts)");
-        if (k->script && dot) {   // p.opinion(q), game.player(2): a method of its kind (a variable of no kind known: when it runs)
+        if ((k->script || k->texts) && dot) {   // p.opinion(q), game.player(2): a method of its kind (a variable of no kind known: when it runs)
             int known, r = x_path_kind(k, n, name, (size_t)(dot - name), sc, &known);
             if (r < 0) return 0;
-            if (known) {
+            if (known && (r & X_NULLABLE)) {   // lord.opinion(them): checked first
+                snprintf(k->whybuf, sizeof k->whybuf, "%.*s may be null (none there) - check %.*s != null first", (int)(dot - name), name, (int)(dot - name), name);
+                return xc_fail(k, n, k->whybuf);
+            }
+            if (known && k->script) {
                 if (r == X_ANY) return 1;
                 if (r & X_LIST_OF) {
                     snprintf(k->whybuf, sizeof k->whybuf, "%s(...): a list of %s - one of them: [1].%s(...)", name, x_kind_name(r), dot + 1);
@@ -3260,16 +3322,21 @@ internal int x_const_eval(const char *src, double *out, const char **why) {
 }
 // the syntax of an expression, and the checks a file gets when read (x_check); nothing worked out (no game needed);
 // 0: a mistake, *why what it is when known
-internal int x_syntax(const char *src, const char **why) {
+internal int x_ph_ok(struct xcheck *k, const struct xnode *root, struct xscope *sc, const char *src, const char **why);
+// ph: src is a {placeholder}'s - what may be null is a mistake there. Typed (k.texts): a text's names have their types,
+// the key's guaranteed ones (g_x_check_has) are there
+internal int x_syntax_at(const char *src, const char **why, int ph) {
     struct xctx c = { 0 };
     c.found = 1;   // no players looked up
     const struct xunit *u = x_compiled(src);
     if (!u->ok) { *why = u->why ? u->why : "not an expression"; return 0; }
-    struct xcheck k = { &c, 0, NULL, 0, "", 0, 0, { 0 }, { 0 }, 0, 0 };
+    struct xcheck k = { &c, 0, NULL, 0, "", 0, 0, { 0 }, { 0 }, 0, 0, 1 };
     struct xscope sc = { NULL, { 0 }, 0, { 0 }, 0, { 0 }, { 0 } };
+    xn_has(&k);
     if (!x_check(&k, u->root, &sc)) { *why = k.why ? k.why : "not an expression"; return 0; }
-    return 1;
+    return !ph || x_ph_ok(&k, u->root, &sc, src, why);
 }
+internal int x_syntax(const char *src, const char **why) { return x_syntax_at(src, why, 0); }
 
 internal const char *x_close(const char *s);
 // A placeholder's FORMAT: {x:%} {x:.1%} {x:.2} - after a ':' that belongs to no '?' (outside strings and brackets: the
@@ -3342,16 +3409,24 @@ internal int x_fills_ok(const char *text, const char **why, struct xcheck *k, st
         }
         int expr = strpbrk(src, " <>=?\"'(+[!&|") != NULL;
         int name = !expr && n && strspn(src, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.") == (size_t)n && !isdigit((unsigned char)*src);
-        if ((expr || name) && k && (expr || k->script)) {
+        if ((expr || name) && k) {   // in an expression: the checks around it hold ("{lord}" in lord != null ? ...)
             const struct xunit *u = x_compiled(src);
             if (!u->ok) { *why = u->why ? u->why : "not an expression"; return 0; }
-            if (!x_check(k, u->root, sc)) { *why = k->why ? k->why : "not an expression"; return 0; }
+            if (!x_check(k, u->root, sc) || !x_ph_ok(k, u->root, sc, src, why)) { *why = k->why ? k->why : *why; return 0; }
         }
-        else if (expr) { if (!x_syntax(src, why)) return 0; }
-        else if (name) x_name_check(src);
+        else if (expr || name) { if (!x_syntax_at(src, why, 1)) return 0; }
         s = close;
     }
     return 1;
+}
+// a {placeholder}'s value: none that may be null - the text would have a hole ("{lord}" said where there is none)
+internal int x_ph_ok(struct xcheck *k, const struct xnode *root, struct xscope *sc, const char *src, const char **why) {
+    int t = x_stype(k, root, sc);
+    if (!(t & X_NULLABLE) || t == X_NULLABLE) return 1;
+    snprintf(k->whybuf, sizeof k->whybuf, "{%.60s} may be null (none there) - check it first (... != null ? ...) or give another ({%.60s ?? ...})", src, src);
+    k->why = k->whybuf;
+    *why = k->whybuf;
+    return 0;
 }
 // the end of a {placeholder} that starts at s ('{'): quotes and nested braces skipped; NULL: none
 internal const char *x_close(const char *s) {
@@ -3705,7 +3780,9 @@ internal void tfile_parse(const char *file, const char *text, tfile_fn fn, void 
                 g_x_check_file = file;
                 g_x_check_line = l.line;
                 g_x_check_ph = g_x_host.placeholders(file, record, key);
+                g_x_check_has = g_x_host.has(file, record, key);
                 tl_value(&l, &v, depth > 0);
+                g_x_check_has = NULL;
                 g_x_check_par = NULL;
                 g_x_check_file = NULL;
                 if (!l.err) {

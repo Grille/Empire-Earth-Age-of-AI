@@ -500,8 +500,9 @@ internal const struct x_kind *x_kind_of(int k) {
         }
     return k >= XK_PLAYER && k <= XK_SLOT ? &g_xkinds[k - 1] : NULL;
 }
-internal int x_root_kind(const char *name) {   // me, them, enemy, lord: players; game
-    if (!strcmp(name, "me") || !strcmp(name, "them") || !strcmp(name, "enemy") || !strcmp(name, "lord")) return XK_PLAYER;
+internal int x_root_kind(const char *name) {   // me, them, enemy: players; lord: one, or none (a player?); game
+    if (!strcmp(name, "lord")) return XK_PLAYER | X_NULLABLE;
+    if (!strcmp(name, "me") || !strcmp(name, "them") || !strcmp(name, "enemy")) return XK_PLAYER;
     return !strcmp(name, "game") ? XK_GAME : 0;
 }
 internal int x_fn_kind(const char *name) { return !strcmp(name, "player") ? XK_PLAYER : X_ANY; }

@@ -77,7 +77,7 @@ internal int script_load(const char *path, char **text, struct xunit *u, const c
     if (!u->ok) { *why = u->why ? u->why : "not a script (a statement that is none, or nested too deep)"; *line = u->line; return 0; }
     struct xctx c = { 0 };
     c.found = 1;
-    struct xcheck k = { &c, 1, NULL, 0, "", 0, 0, { 0 }, { 0 }, 0, 0 };
+    struct xcheck k = { &c, 1, NULL, 0, "", 0, 0, { 0 }, { 0 }, 0, 0, 0 };
     struct xscope sc = { NULL, { 0 }, 0, { 0 }, 0, { 0 }, { 0 } };
     const char *f0 = g_x_check_file, *ph0 = g_x_check_ph, *par0 = g_x_check_par;
     const char *base = strrchr(path, '\\') ? strrchr(path, '\\') + 1 : strrchr(path, '/') ? strrchr(path, '/') + 1 : path;

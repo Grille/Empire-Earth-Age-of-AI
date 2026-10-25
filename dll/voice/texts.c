@@ -133,6 +133,13 @@ internal const char *x_code_placeholders(const char *file, const char *sec, cons
     if (!lstrcmpiA(sec, "lines")) return " tribute tribute_total ";   // a personality's line (line_ctx_init)
     return all;
 }
+// the names the code guarantees for a key (g_x_host.has): lord where only a vassal's texts are said (diplo.c: is_vassal)
+internal const char *x_code_has(const char *file, const char *sec, const char *key) {
+    (void)file;
+    if (!lstrcmpiA(sec, "system") && !lstrcmpiA(key, "vassal_ask_lord")) return " lord ";
+    if (!lstrcmpiA(sec, "prompt") && !lstrcmpiA(key, "terms_vassal")) return " lord ";
+    return NULL;
+}
 internal void texts_load(void) {
     if (g_texts_loaded) return;
     g_texts_loaded = 1;
