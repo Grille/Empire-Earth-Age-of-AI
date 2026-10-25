@@ -395,6 +395,10 @@ mkdir -p local/work && local/venv/Scripts/python scripts/re/rtti_names.py local/
 cp "../Empire Earth.exe" local/work/EE.exe
 local/tools/ghidra12/support/analyzeHeadless local/games/ee/ghidra_proj EE -import local/work/EE.exe \
     -scriptPath scripts/re/ghidra -postScript ExportDecomp.java "$(pwd)/local/games/ee/decomp"
+# the spec's names, types, structures and enums into the project (before the decompilation above, so it reads with
+# them; again after a change of spec/ - the spec's names win): local/work/spec_ee.json, then ApplySpec (aoc: AOC's project)
+local/venv/Scripts/python scripts/re/spec_ghidra.py ee
+local/tools/ghidra12/support/analyzeHeadless local/games/ee/ghidra_proj EE -process -noanalysis     -scriptPath scripts/re/ghidra -postScript ApplySpec.java "$(pwd)/local/work/spec_ee.json"
 # the same for each engine DLL (scripts/re/port_dll.py; Art of Conquest's into local/games/aoc/decomp/dll/ from its folder)
 local/tools/ghidra12/support/analyzeHeadless local/games/ee/ghidra_proj DLL_LowLevelEngine -import "../Low-Level Engine.dll" \
     -scriptPath scripts/re/ghidra -postScript ExportDecomp.java "$(pwd)/local/games/ee/decomp/dll/LowLevelEngine"
@@ -480,8 +484,8 @@ scripts/          game_dir.py / .sh: where the game is (every script's)
   re/             reverse engineering: the exe and dump helpers, port_*.py for Art of Conquest, gen_units.py +
                   dat_read.py (docs/units.md and dll/game/unit_names.h from the game data: the community DB editor's
                   field layouts and English strings, downloaded into local/games/ee/dats/), make_cpbehavior.py (a
-                  tuned dbcpbehavior.dat; superseded by aimod.ini), ghidra/ the headless script that names and
-                  decompiles the exe
+                  tuned dbcpbehavior.dat; superseded by aimod.ini), ghidra/ the headless scripts that name and
+                  decompile the exe (ExportDecomp) and put the spec into a project (ApplySpec, from spec_ghidra.py's file)
 extensions/       eeaimod-texts: the VS Code extension for the .eeai files
 local/            git-ignored: this machine's tools, test output and what is derived from the games (Setup)
 docs/             engine notes, AI analysis, testing guide, units.md (every type: id, identifier, stats),

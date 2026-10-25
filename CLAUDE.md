@@ -59,7 +59,8 @@ and the runners, eectl, the MCP server), `results/` (log readers, scorers), `re/
   (no C type), an installer over two functions or by build. A function of the game on an object is a method of its class in the
   spec (`extern void update(uint32 now)` in EECPResourceManager: C resource_mgr_update); still in `<file>_functions` with
   [thiscall]: those whose class isn't known yet (their object a void*). The game's enums are the spec's too (`[c_prefix("SM_CAT")] enum sm_category : int32 { @object = 1, ... }`: gen/enums.c's
-  SM_CAT_OBJECT ...; the scenario editor's lists so far). Still to do: a Ghidra export. Two builds: the 2017 update and Art of Conquest (not ready: tested in AoC only since 2026-10-21 -
+  SM_CAT_OBJECT ...; the scenario editor's lists so far). Ghidra knows the spec too: scripts/re/spec_ghidra.py + ApplySpec.java (README "Setup") name
+  the functions Class::member with their types, the structures and enums under /spec - run them after a spec change. Two builds: the 2017 update and Art of Conquest (not ready: tested in AoC only since 2026-10-21 -
   test runs play it, `EE_GAME_DIR=<its folder>`, docs/testing.md); a new value needs both. The port scripts read the
   spec (`scripts/re/port_addrs.py`: every address's AoC value found again and compared with the spec's - same,
   DIFFERS, NEW; `port_check.py` a class's fields by its code; `port_fields.py`, `port_dll.py`): a value they find goes
