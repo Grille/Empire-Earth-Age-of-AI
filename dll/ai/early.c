@@ -239,7 +239,7 @@ internal void early_range(ee_player *pl, unsigned idx, uint32_t now) {
     ee_build_mgr *bm = cm ? civ_mgr_get_build_mgr(cm) : NULL;
     if (!um || !bm) return;
     uint8_t *q = type_list(um, UT(B_ARCHERY_RANGE));
-    for (unsigned k = 0, f = q ? FIELD(q, 0xC, unsigned) : 0, n = q ? FIELD(q, 0x10, unsigned) : 0; k < n; k++) {
+    for (unsigned k = 0, f = q ? deque_front(q) : 0, n = q ? deque_count(q) : 0; k < n; k++) {
         ee_unit *b = deque_at(q, f + k);
         if (b && unit_get_hp(b) > 0) return;
     }

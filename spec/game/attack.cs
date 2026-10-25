@@ -77,8 +77,9 @@ unsafe struct EECPAttackSubGroup
     [offset(0x70), found(c)]
     uint32 waypoints;
 
+    /// its target: the game sets it with EECPILocation::set (0x47C8B7)
     [offset(0x100), found(c)]
-    ee_asg_target target_rec;
+    EECPILocation target_rec;
 
     [offset(0x104), found(c)]
     int32 goal_x;
@@ -246,10 +247,23 @@ unsafe struct EECPAGTask
     extern void set_target(EEUnit* t);
 }
 
-/// a location an attack task heads for, the task's +0x4 (EECPILocation)
-[c_type("ee_location"), vtable((ee)0x008265F4, (aoc)0x0083A6B4)]
+/// a location an attack heads for - a task's +0x4, a subgroup's target (EECPILocation): a tile, or a unit (its
+/// position taken when the tile is none, 0x47C537); 0x18 bytes (set copies five fields; AoC the same)
+[size(0x18), c_type("ee_location"), vtable((ee)0x008265F4, (aoc)0x0083A6B4)]
 unsafe struct EECPILocation
 {
+    /// the tile (point_set at +4 sets it from int x, y)
+    [offset(0x4), found(c)]
+    ivec2 tile;
+
+    /// the unit's id (0: a place)
+    [offset(0xC), found(c)]
+    int32 unit_id;
+
+    /// 1: a unit (as the mod sets it); copied with the rest
+    [offset(0x10), found(c)]
+    int32 kind;
+
     [address((ee)0x0047C4E8, (aoc)0x00480873)]
     extern void init();
 

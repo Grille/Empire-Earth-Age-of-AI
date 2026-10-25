@@ -78,7 +78,7 @@ internal void cz_sample(ee_player *pl, unsigned idx) {
     int idle = 0;
     for (int k = 0; k < g_cz_np; k++) {
         uint8_t *q = unit_mgr_type_list(um, g_cz_ptypes[k]);
-        for (unsigned j = 0, f = q ? FIELD(q, 0xC, unsigned) : 0, n = q ? FIELD(q, 0x10, unsigned) : 0; j < n && j < 64; j++) {
+        for (unsigned j = 0, f = q ? deque_front(q) : 0, n = q ? deque_count(q) : 0; j < n && j < 64; j++) {
             ee_unit *b = deque_at(q, f + j);
             if (!b || unit_get_hp(b) <= 0 || !cz_finished(b)) continue;
             z->m.prod++;
@@ -177,7 +177,7 @@ internal int cz_producers(ee_player *pl) {
     cz_types(pl);
     for (int k = 0; k < g_cz_np; k++) {
         uint8_t *q = unit_mgr_type_list(um, g_cz_ptypes[k]);
-        for (unsigned j = 0, f = q ? FIELD(q, 0xC, unsigned) : 0, c = q ? FIELD(q, 0x10, unsigned) : 0; j < c && j < 64; j++) {
+        for (unsigned j = 0, f = q ? deque_front(q) : 0, c = q ? deque_count(q) : 0; j < c && j < 64; j++) {
             ee_unit *b = deque_at(q, f + j);
             if (b && unit_get_hp(b) > 0 && cz_finished(b)) n++;
         }
@@ -242,7 +242,7 @@ internal void cz_targets(ee_resource_mgr *rm) {
     // floors: food keeps FEED's gatherers and its fields + 2 (farmers), wood its late target (late_targets bit 1),
     // a metal its gatherers (nobody is pulled off a mine for food)
     void *fq = type_list(um, UT(B_FARM));
-    int fields = fq ? FIELD(fq, 0x10, int) : 0;
+    int fields = fq ? deque_count(fq) : 0;
     int feed = plan & 2 ? cz_feed(pl, idx, goal - wf) : 0;
     g_czp[idx].feed = feed;
     int fl[7] = { 0, 0, 0, g_wood_want[idx] > 4 ? g_wood_want[idx] : 4, 0, 0, 0 };
@@ -360,7 +360,7 @@ internal void wf_targets(ee_resource_mgr *rm) {
     struct mf_st *m = &g_mf[idx];
     mf_scan(pl, idx, now);
     void *fq = type_list(um, UT(B_FARM));
-    int fields = fq ? FIELD(fq, 0x10, int) : 0, metal = 0, food = rm_count(rm, 2);
+    int fields = fq ? deque_count(fq) : 0, metal = 0, food = rm_count(rm, 2);
     for (int r = 4; r < 7; r++) metal += m->slots[r] > rm_count(rm, r) ? m->slots[r] : rm_count(rm, r);
     if (food < fields + 2) food = fields + 2;
     if (food < g_czp[idx].feed) food = g_czp[idx].feed;

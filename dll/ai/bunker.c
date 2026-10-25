@@ -184,7 +184,7 @@ internal int bk_builders(ee_player *pl, ee_unit *b, int n) {
     if (!rm) return 0;
     for (int r = 0; r < 7; r++) {   // already on it
         uint8_t *list = resource_mgr_list_at(rm, r);
-        for (unsigned k = 0, first = FIELD(list, 0xC, unsigned), cnt = FIELD(list, 0x10, unsigned); k < cnt; k++) {
+        for (unsigned k = 0, first = deque_front(list), cnt = deque_count(list); k < cnt; k++) {
             ee_unit *u = deque_at(list, first + k); ee_goal *g = u ? unit_get_goal(u) : NULL;
             if (g && !strcmp(rtti_name(g), "EEUGBuildRepair@@") && goal_get_building(g) == b) have++;
         }
@@ -194,7 +194,7 @@ internal int bk_builders(ee_player *pl, ee_unit *b, int n) {
         int bd = 0x7FFFFFFF;
         for (int r = 2; r < 7; r++) {
             uint8_t *list = resource_mgr_list_at(rm, r);
-            for (unsigned k = 0, first = FIELD(list, 0xC, unsigned), cnt = FIELD(list, 0x10, unsigned); k < cnt; k++) {
+            for (unsigned k = 0, first = deque_front(list), cnt = deque_count(list); k < cnt; k++) {
                 ee_unit *u = deque_at(list, first + k);
                 if (!citizen_free(u, 0)) continue;
                 int d = ivec2_dist2(unit_get_tile(u), iv2(bx, by));

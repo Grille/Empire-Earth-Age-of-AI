@@ -139,7 +139,7 @@ internal void mine_drops(ee_player *pl, unsigned idx, uint32_t now) {
     void *um = cm ? civ_mgr_get_unit_mgr(cm) : NULL;
     if (!bm || !um || !ut_has(UT(B_SETTLEMENT)) || bq_has(bm, UT(B_SETTLEMENT)) || bq_has(bm, UT(X_SINGLE_PLAYER_SETTLEMENT))) return;
     uint8_t *q = type_list(um, UT(B_SETTLEMENT));   // one being built: wait for it
-    for (unsigned k = 0, f = q ? FIELD(q, 0xC, unsigned) : 0, n = q ? FIELD(q, 0x10, unsigned) : 0; k < n; k++) {
+    for (unsigned k = 0, f = q ? deque_front(q) : 0, n = q ? deque_count(q) : 0; k < n; k++) {
         ee_unit *b = deque_at(q, f + k), *st = b ? unit_get_physics(b) : NULL;
         if (b && unit_get_hp(b) > 0 && (!st || !unit_get_finished(st))) return;
     }

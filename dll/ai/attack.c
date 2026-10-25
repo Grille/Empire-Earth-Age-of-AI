@@ -304,7 +304,7 @@ internal void citizen_attack_scan(ee_player *pl, uint32_t now) {
     ee_combat_mgr *cbm = player_get_combat_mgr(pl); ee_attack_cmd *cmd = cbm ? combat_mgr_get_commander(cbm) : NULL;
     if (!cmd) return;
     uint8_t *dq = attack_cmd_groups_at(cmd);
-    unsigned first = FIELD(dq, 0xC, unsigned), cnt = FIELD(dq, 0x10, unsigned);
+    unsigned first = deque_front(dq), cnt = deque_count(dq);
     for (unsigned k = 0; k < cnt && k < 64; k++) {
         ee_attack_group *g = deque_at(dq, first + k);
         ee_player *target = g ? attack_group_get_target(g) : NULL;
@@ -337,14 +337,14 @@ internal void __thiscall hook_asg_route(ee_attack_subgroup *self, int *start, in
         float t = threat_at(pi, iv2(dest[0], dest[1]));
         ee_unit *u = t > 0 && building_at(pl, dest, 4) ? find_weak_spot(pl, pi, start, dest) : NULL;
         if (u) {
-            ee_asg_target *tg = attack_subgroup_target_rec_at(self);
+            ee_location *tg = attack_subgroup_target_rec_at(self);
             if (g_log)
                 fprintf(g_log, "# weak spot: P%u goal %d,%d (threat %.1f, target kind %d id %d) -> type %d of P%d at %d,%d\n",
-                        pi, dest[0], dest[1], t, asg_target_get_kind(tg), asg_target_get_id(tg),
+                        pi, dest[0], dest[1], t, location_get_kind(tg), location_get_unit_id(tg),
                         unit_type_get_id(unit_get_type_data(u)), player_get_index(unit_get_owner(u)),
                         unit_get_x(u), unit_get_y(u));
             dest[0] = unit_get_x(u); dest[1] = unit_get_y(u);
-            asg_target_set_unit(tg, dest[0], dest[1], unit_get_id(u));
+            location_set_unit(tg, dest[0], dest[1], unit_get_id(u));
         }
     }
     if (pl && start && dest && g_breach) {
@@ -353,13 +353,13 @@ internal void __thiscall hook_asg_route(ee_attack_subgroup *self, int *start, in
         ee_unit *w = cross ? find_breach(pl, pi, start, dest, cross) : NULL;
         breach_note(pl, self, w ? unit_get_x(w) : -1, w ? unit_get_y(w) : -1);
         if (w) {
-            ee_asg_target *tg = attack_subgroup_target_rec_at(self);
+            ee_location *tg = attack_subgroup_target_rec_at(self);
             if (g_log)
                 fprintf(g_log, "# breach: P%u goal %d,%d: wall crossed at %d,%d (threat %.1f) -> attack wall at %d,%d\n",
                         pi, dest[0], dest[1], unit_get_x(cross), unit_get_y(cross),
                         threat_at(pi, unit_get_tile(cross)), unit_get_x(w), unit_get_y(w));
             dest[0] = unit_get_x(w); dest[1] = unit_get_y(w);
-            asg_target_set_unit(tg, dest[0], dest[1], unit_get_id(w));
+            location_set_unit(tg, dest[0], dest[1], unit_get_id(w));
         }
     }
     if (g_log && pl && start && dest) {
@@ -490,7 +490,7 @@ internal float __thiscall hook_asgu_score(ee_asg_unit *self, ee_asgu_info *info)
 // +0xC first index, +0x10 count).
 internal int *route_waypoint(ee_attack_subgroup *asg, unsigned i) {
     uint8_t *dq = attack_subgroup_route_at(asg);
-    unsigned idx = FIELD(dq, 0xC, unsigned) + i, blk = idx / 0x155, msz = FIELD(dq, 8, unsigned);
+    unsigned idx = deque_front(dq) + i, blk = idx / 0x155, msz = deque_map_size(dq);
     uint8_t **map = FIELD(dq, 4, uint8_t **);
     if (!map || !msz) return NULL;
     if (blk >= msz) blk -= msz;
@@ -794,7 +794,7 @@ internal void citizens_safety(ee_resource_mgr *rm) {   // before the citizen ass
     if (g_bunkers || g_bk_res) bk_refresh(pl, idx);
     for (int r = 0; r < 7; r++) {
         uint8_t *list = resource_mgr_list_at(rm, r);
-        for (unsigned k = 0, first = FIELD(list, 0xC, unsigned), cnt = FIELD(list, 0x10, unsigned); k < cnt; k++) {
+        for (unsigned k = 0, first = deque_front(list), cnt = deque_count(list); k < cnt; k++) {
             ee_unit *u = deque_at(list, first + k);
             ee_goal *goal = u ? unit_get_goal(u) : NULL;
             if (!u || unit_get_hp(u) <= 0) continue;
@@ -957,7 +957,7 @@ internal struct { uint32_t last_try, factory_req; unsigned trained, failed, no_f
 // past the end. 14 queues (epochs 0..13); the placement area follows at +0x11C.
 internal int *bq_entry(ee_build_mgr *bm, int e, unsigned i) {
     uint8_t *dq = build_mgr_queue_at(bm, e);
-    unsigned first = FIELD(dq, 0xC, unsigned), n = FIELD(dq, 0x10, unsigned), msz = FIELD(dq, 8, unsigned);
+    unsigned first = deque_front(dq), n = deque_count(dq), msz = deque_map_size(dq);
     uint8_t **map = FIELD(dq, 4, uint8_t **);
     if (e < 0 || e >= 14 || i >= n || !map || !msz || first >= msz * 0x155 || n > msz * 0x155) return NULL;
     unsigned idx = first + i, blk = idx / 0x155;
@@ -1219,7 +1219,7 @@ internal void asg_trace_tick(ee_player *pl, uint32_t now) {
     ee_combat_mgr *cbm = player_get_combat_mgr(pl); ee_attack_cmd *cmd = cbm ? combat_mgr_get_commander(cbm) : NULL;
     if (!cmd) return;
     uint8_t *dq = attack_cmd_groups_at(cmd);
-    unsigned first = FIELD(dq, 0xC, unsigned), cnt = FIELD(dq, 0x10, unsigned);
+    unsigned first = deque_front(dq), cnt = deque_count(dq);
     for (unsigned k = 0; k < cnt && k < 32; k++) {
         ee_attack_group *g = deque_at(dq, first + k);
         for (ee_attack_subgroup **sp = g ? attack_group_get_subgroups_begin(g) : NULL; sp && sp < attack_group_get_subgroups_end(g); sp++) {
@@ -1374,7 +1374,7 @@ internal void asg_purge_all(ee_player *pl) {
     ee_combat_mgr *cbm = pl ? player_get_combat_mgr(pl) : NULL; ee_attack_cmd *cmd = cbm ? combat_mgr_get_commander(cbm) : NULL;
     if (!cmd) return;
     uint8_t *dq = attack_cmd_groups_at(cmd);
-    unsigned first = FIELD(dq, 0xC, unsigned), cnt = FIELD(dq, 0x10, unsigned);
+    unsigned first = deque_front(dq), cnt = deque_count(dq);
     for (unsigned k = 0; k < cnt && k < 64; k++) {
         ee_attack_group *g = deque_at(dq, first + k);
         for (ee_attack_subgroup **sp = g ? attack_group_get_subgroups_begin(g) : NULL; sp && sp < attack_group_get_subgroups_end(g); sp++)
@@ -1554,7 +1554,7 @@ internal void cmd_attacks(char *out, const char *args) {
     ee_combat_mgr *cbm = pl ? player_get_combat_mgr(pl) : NULL; ee_attack_cmd *cmd = cbm ? combat_mgr_get_commander(cbm) : NULL;
     if (!cmd) { REPLY("error: no AI player %d with an attack commander\n", p); return; }
     uint8_t *dq = attack_cmd_groups_at(cmd);
-    unsigned first = FIELD(dq, 0xC, unsigned), cnt = FIELD(dq, 0x10, unsigned);
+    unsigned first = deque_front(dq), cnt = deque_count(dq);
     REPLY("P%d: %u attack groups, next attack at %.1f min\n", p, cnt, player_get_next_attack(pl) / 60000.0);
     for (unsigned k = 0; k < cnt && k < 16; k++) {
         ee_attack_group *g = deque_at(dq, first + k);

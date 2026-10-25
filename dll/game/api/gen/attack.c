@@ -65,7 +65,8 @@ internal inline uint8_t *attack_subgroup_route_at(const ee_attack_subgroup *o) {
 internal inline uint32_t attack_subgroup_get_waypoints(const ee_attack_subgroup *o) { return *(uint32_t *)((uint8_t *)o + of_attack_subgroup_waypoints); }
 internal inline void attack_subgroup_set_waypoints(ee_attack_subgroup *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_attack_subgroup_waypoints) = v; }
 internal inline uint32_t *attack_subgroup_waypoints_at(const ee_attack_subgroup *o) { return (uint32_t *)((uint8_t *)o + of_attack_subgroup_waypoints); }
-internal inline ee_asg_target *attack_subgroup_target_rec_at(const ee_attack_subgroup *o) { return (ee_asg_target *)((uint8_t *)o + of_attack_subgroup_target_rec); }
+// its target: the game sets it with EECPILocation::set (0x47C8B7)
+internal inline ee_location *attack_subgroup_target_rec_at(const ee_attack_subgroup *o) { return (ee_location *)((uint8_t *)o + of_attack_subgroup_target_rec); }
 internal inline int attack_subgroup_get_goal_x(const ee_attack_subgroup *o) { return *(int *)((uint8_t *)o + of_attack_subgroup_goal_x); }
 internal inline void attack_subgroup_set_goal_x(ee_attack_subgroup *o, int v) { *(int *)((uint8_t *)o + of_attack_subgroup_goal_x) = v; }
 internal inline int *attack_subgroup_goal_x_at(const ee_attack_subgroup *o) { return (int *)((uint8_t *)o + of_attack_subgroup_goal_x); }
@@ -221,7 +222,20 @@ internal task_set_target_fn fn_task_set_target;
 internal inline void task_set_target(ee_task *task, ee_unit *t) { fn_task_set_target(task, t); }
 
 // class EECPILocation (ee_location)
-// a location an attack task heads for, the task's +0x4 (EECPILocation)
+// a location an attack heads for - a task's +0x4, a subgroup's target (EECPILocation): a tile, or a unit (its
+// position taken when the tile is none, 0x47C537); 0x18 bytes (set copies five fields; AoC the same)
+// the tile (point_set at +4 sets it from int x, y)
+internal inline ivec2 location_get_tile(const ee_location *o) { return *(ivec2 *)((uint8_t *)o + of_location_tile); }
+internal inline void location_set_tile(ee_location *o, ivec2 v) { *(ivec2 *)((uint8_t *)o + of_location_tile) = v; }
+internal inline ivec2 *location_tile_at(const ee_location *o) { return (ivec2 *)((uint8_t *)o + of_location_tile); }
+// the unit's id (0: a place)
+internal inline int location_get_unit_id(const ee_location *o) { return *(int *)((uint8_t *)o + of_location_unit_id); }
+internal inline void location_set_unit_id(ee_location *o, int v) { *(int *)((uint8_t *)o + of_location_unit_id) = v; }
+internal inline int *location_unit_id_at(const ee_location *o) { return (int *)((uint8_t *)o + of_location_unit_id); }
+// 1: a unit (as the mod sets it); copied with the rest
+internal inline int location_get_kind(const ee_location *o) { return *(int *)((uint8_t *)o + of_location_kind); }
+internal inline void location_set_kind(ee_location *o, int v) { *(int *)((uint8_t *)o + of_location_kind) = v; }
+internal inline int *location_kind_at(const ee_location *o) { return (int *)((uint8_t *)o + of_location_kind); }
 typedef void (__thiscall *location_init_fn)(ee_location *);
 internal location_init_fn fn_location_init;
 internal inline void location_init(ee_location *location) { fn_location_init(location); }
@@ -337,6 +351,10 @@ internal int spec_attack_select(int build) {
         fn_task_free = (task_free_fn)0x00442283;
         fn_task_set_target = (task_set_target_fn)0x00442246;
         vt_eecpi_location = 0x008265F4;
+        size_eecpi_location = 0x18;
+        of_location_tile = 0x4;
+        of_location_unit_id = 0xC;
+        of_location_kind = 0x10;
         fn_location_init = (location_init_fn)0x0047C4E8;
         fn_location_set = (location_set_fn)0x0047C8B7;
         data_attack_asgu_vtables[0] = 0x00827844;
@@ -437,6 +455,10 @@ internal int spec_attack_select(int build) {
         fn_task_free = (task_free_fn)0x004417F5;
         fn_task_set_target = (task_set_target_fn)0x00441912;
         vt_eecpi_location = 0x0083A6B4;
+        size_eecpi_location = 0x18;
+        of_location_tile = 0x4;
+        of_location_unit_id = 0xC;
+        of_location_kind = 0x10;
         fn_location_init = (location_init_fn)0x00480873;
         fn_location_set = (location_set_fn)0x00480C42;
         data_attack_asgu_vtables[0] = 0x0083BF4C;

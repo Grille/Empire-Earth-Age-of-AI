@@ -293,7 +293,7 @@ internal void cmd_units(char *out, const char *args) {
     static const char *names[7] = { "list0", "list1", "food", "wood", "stone", "gold", "iron" };
     for (int i = 0; i < 7; i++) {
         uint8_t *dq = resource_mgr_list_at(rm, i);
-        unsigned first = FIELD(dq, 0xC, unsigned), n = FIELD(dq, 0x10, unsigned);
+        unsigned first = deque_front(dq), n = deque_count(dq);
         if (!n) continue;
         REPLY("%s: %u units\n", names[i], n);
         struct { const char *goal; void *target; int count, x, y; } g[48];

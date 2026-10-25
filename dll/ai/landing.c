@@ -1929,7 +1929,7 @@ internal void landing_tick(ee_player *pl, uint32_t now) {
     ee_combat_mgr *cbm = player_get_combat_mgr(pl); ee_attack_cmd *cmd = cbm ? combat_mgr_get_commander(cbm) : NULL;
     if (!cmd || !bm || !um || build_mgr_get_base_x(bm) == -10000) { if (l->phase) ld_release(pi, "no base", now); return; }
     uint8_t *dq = attack_cmd_groups_at(cmd);
-    unsigned first = FIELD(dq, 0xC, unsigned), cnt = FIELD(dq, 0x10, unsigned);
+    unsigned first = deque_front(dq), cnt = deque_count(dq);
     {   // subgroups the game deleted meanwhile (never read a stored one without this)
         int nf = 0;
         for (int f = 0; f < l->nfrozen; f++) if (asg_live(pl, l->frozen[f])) l->frozen[nf++] = l->frozen[f];

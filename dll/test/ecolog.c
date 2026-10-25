@@ -119,7 +119,7 @@ internal void eco_food(ee_player *pl, ee_resource_mgr *rm, struct eco_food *f) {
     if (!rm) return;
     drops_cached(pl);
     uint8_t *list = resource_mgr_list_at(rm, 2);
-    for (unsigned k = 0, first = FIELD(list, 0xC, unsigned), n = FIELD(list, 0x10, unsigned); k < n && k < 1024; k++) {
+    for (unsigned k = 0, first = deque_front(list), n = deque_count(list); k < n && k < 1024; k++) {
         ee_unit *u = deque_at(list, first + k);
         ee_unit_type *td = u ? unit_get_type_data(u) : NULL;
         if (!td || unit_get_hp(u) <= 0) continue;
@@ -174,7 +174,7 @@ internal void eco_food(ee_player *pl, ee_resource_mgr *rm, struct eco_food *f) {
     }
     void *um = cm ? civ_mgr_get_unit_mgr(cm) : NULL;
     uint8_t *fq = type_list(um, UT(B_FARM));
-    for (unsigned k = 0, first = fq ? FIELD(fq, 0xC, unsigned) : 0, n = fq ? FIELD(fq, 0x10, unsigned) : 0; k < n && k < 512; k++) {
+    for (unsigned k = 0, first = fq ? deque_front(fq) : 0, n = fq ? deque_count(fq) : 0; k < n && k < 512; k++) {
         ee_unit *fl = deque_at(fq, first + k), *b = fl ? unit_get_physics(fl) : NULL;
         if (!fl) continue;
         f->fld++;
@@ -210,7 +210,7 @@ internal void ecolog_tick(ee_player *pl, uint32_t now) {
     int cit = 0, gat[7] = { 0 }, build = 0, walk = 0, att = 0, load = 0, other = 0, none = 0, idle0 = 0;
     for (int r = 0; rm && r < 7; r++) {   // the resource lists (deques): who gathers for which resource, list 0 idle
         uint8_t *list = resource_mgr_list_at(rm, r);
-        for (unsigned k = 0, first = FIELD(list, 0xC, unsigned), n = FIELD(list, 0x10, unsigned); k < n && k < 1024; k++) {
+        for (unsigned k = 0, first = deque_front(list), n = deque_count(list); k < n && k < 1024; k++) {
             ee_unit *u = deque_at(list, first + k);
             if (!u || unit_get_hp(u) <= 0) continue;
             int res;

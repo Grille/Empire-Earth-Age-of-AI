@@ -56,7 +56,7 @@ internal void am_train_note(ee_player *pl, unsigned idx, const int *req, int blo
 internal void am_bld(void *um, int type, int *have, int *busy) {
     uint8_t *q = type_list(um, type);
     *have = *busy = 0;
-    for (unsigned j = 0, f = q ? FIELD(q, 0xC, unsigned) : 0, c = q ? FIELD(q, 0x10, unsigned) : 0; j < c && j < 128; j++) {
+    for (unsigned j = 0, f = q ? deque_front(q) : 0, c = q ? deque_count(q) : 0; j < c && j < 128; j++) {
         ee_unit *b = deque_at(q, f + j);
         ee_unit *bs = b ? unit_get_physics(b) : NULL;
         if (!b || unit_get_hp(b) <= 0 || !bs || !unit_get_finished(bs)) continue;
@@ -71,7 +71,7 @@ internal int am_wishes(ee_unit_mgr *um) {
     int n = 0;
     for (int i = 0; i < 14; i++) {
         uint8_t *dq = unit_mgr_request_at(um, i);
-        unsigned first = FIELD(dq, 0xC, unsigned), cnt = FIELD(dq, 0x10, unsigned), mapsz = FIELD(dq, 8, unsigned);
+        unsigned first = deque_front(dq), cnt = deque_count(dq), mapsz = deque_map_size(dq);
         int **map = FIELD(dq, 4, int **);
         for (unsigned k = 0; map && k < cnt && k < 512; k++) {
             unsigned off = first + k, blk = off >> 8;
@@ -153,7 +153,7 @@ internal int navy_land(unsigned idx);   // navy.c
 internal int ap_type(ee_player *pl, unsigned idx, ee_unit_mgr *um, const int *vis) {
     for (int i = 0; i < 14; i++) {
         uint8_t *dq = unit_mgr_request_at(um, i);
-        unsigned first = FIELD(dq, 0xC, unsigned), cnt = FIELD(dq, 0x10, unsigned), mapsz = FIELD(dq, 8, unsigned);
+        unsigned first = deque_front(dq), cnt = deque_count(dq), mapsz = deque_map_size(dq);
         int **map = FIELD(dq, 4, int **);
         for (unsigned k = 0; map && k < cnt && k < 512; k++) {
             unsigned off = first + k, blk = off >> 8;
@@ -310,7 +310,7 @@ internal void ap_owned(ee_player *pl, unsigned idx) {
     ee_civ_mgr *cm = player_get_civ_mgr(pl); ee_unit_mgr *um = cm ? civ_mgr_get_unit_mgr(cm) : NULL;
     for (int i = 0; um && i < 14; i++) {
         uint8_t *dq = unit_mgr_request_at(um, i);
-        unsigned first = FIELD(dq, 0xC, unsigned), cnt = FIELD(dq, 0x10, unsigned), mapsz = FIELD(dq, 8, unsigned);
+        unsigned first = deque_front(dq), cnt = deque_count(dq), mapsz = deque_map_size(dq);
         int **map = FIELD(dq, 4, int **);
         for (unsigned k = 0; map && k < cnt && k < 512; k++) {
             unsigned off = first + k, blk = off >> 8;

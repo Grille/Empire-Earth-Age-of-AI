@@ -360,7 +360,7 @@ internal void cv_groups(ee_player *pl) {
     ee_combat_mgr *cbm = player_get_combat_mgr(pl); ee_attack_cmd *cmd = cbm ? combat_mgr_get_commander(cbm) : NULL;
     if (!cmd) return;
     uint8_t *dq = attack_cmd_groups_at(cmd);
-    unsigned first = FIELD(dq, 0xC, unsigned), cnt = FIELD(dq, 0x10, unsigned), used = 0;
+    unsigned first = deque_front(dq), cnt = deque_count(dq), used = 0;
     for (unsigned k = 0; k < cnt && g_cvg_n < CV_GRP; k++) {
         ee_attack_group *g = deque_at(dq, first + k);
         if (!g) continue;

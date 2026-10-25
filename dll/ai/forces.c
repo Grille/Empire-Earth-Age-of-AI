@@ -24,7 +24,7 @@ internal int asg_live(ee_player *pl, ee_attack_subgroup *sg) {
     ee_combat_mgr *cbm = player_get_combat_mgr(pl); ee_attack_cmd *cmd = cbm ? combat_mgr_get_commander(cbm) : NULL;
     if (!cmd || !sg) return 0;
     uint8_t *dq = attack_cmd_groups_at(cmd);
-    unsigned first = FIELD(dq, 0xC, unsigned), cnt = FIELD(dq, 0x10, unsigned);
+    unsigned first = deque_front(dq), cnt = deque_count(dq);
     for (unsigned k = 0; k < cnt && k < 64; k++) {
         ee_attack_group *g = deque_at(dq, first + k);
         for (ee_attack_subgroup **sp = g ? attack_group_get_subgroups_begin(g) : NULL; sp && sp < attack_group_get_subgroups_end(g); sp++)

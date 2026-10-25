@@ -380,7 +380,7 @@ internal void gather_log(ee_player *pl, unsigned idx, uint32_t now) {
     fprintf(g_log, "# gather: P%u at %u min, drop sites %d (+%d granaries):", idx, now / 60000, ndrop, nd - ndrop);
     for (int r = 2; r < 7; r++) {
         uint8_t *dq = resource_mgr_list_at(rm, r);
-        unsigned first = FIELD(dq, 0xC, unsigned), n = FIELD(dq, 0x10, unsigned), m = 0;
+        unsigned first = deque_front(dq), n = deque_count(dq), m = 0;
         int sum = 0;
         for (unsigned k = 0; k < n; k++) {
             ee_unit *u = deque_at(dq, first + k); ee_goal *goal = u ? unit_get_goal(u) : NULL;
@@ -644,7 +644,7 @@ internal void retry_dropped(ee_player *pl, unsigned idx, uint32_t now) {
         if (!type || now < g_retry[idx][k].next) continue;
         type = upgraded_type(pl, type);
         uint8_t *dq = unit_mgr_type_list(um, type);
-        if (dq && FIELD(dq, 0x10, int) > 0) { g_retry[idx][k].type = 0; continue; }   // it has one now
+        if (dq && deque_count(dq) > 0) { g_retry[idx][k].type = 0; continue; }   // it has one now
         int pay = 1;
         for (int r = 2; r < 7; r++) if (unit_cost(pl, type, r) > stock[r]) pay = 0;
         if (!pay) { g_retry[idx][k].next = now + 30000; continue; }
@@ -918,7 +918,7 @@ internal void econ_targets(ee_resource_mgr *rm) {
         }
         void *um = cm ? civ_mgr_get_unit_mgr(cm) : NULL;
         uint8_t *fq = type_list(um, UT(B_FARM));
-        int fields = fq ? FIELD(fq, 0x10, int) : 0;
+        int fields = fq ? deque_count(fq) : 0;
         if (lt & 4) {   // the overflow to the metals (see LATE WOOD, bit 4)
             int cap = fields + 2;
             if (fields >= 8 && (int)target[2] > cap && stock[2] >= reserve[2] + 2000) {   // food to spare
@@ -1032,7 +1032,7 @@ internal unsigned g_moved[16][7];
 internal int rm_count(ee_resource_mgr *rm, int t) { return FIELD(resource_mgr_list_at(rm, t), 0x10, int); }
 internal ee_unit *movable_gatherer(ee_resource_mgr *rm, int t) {
     uint8_t *dq = resource_mgr_list_at(rm, t);
-    unsigned first = FIELD(dq, 0xC, unsigned), n = FIELD(dq, 0x10, unsigned);
+    unsigned first = deque_front(dq), n = deque_count(dq);
     for (unsigned k = n; k-- > 0; ) {   // the newest first
         ee_unit *u = deque_at(dq, first + k);
         if (!u || unit_get_hp(u) <= 0 || unit_get_frozen(u) || unit_get_ai_held(u) || unit_get_busy(u))
@@ -1098,7 +1098,7 @@ internal int field_worked(ee_resource_mgr *rm, ee_unit *f) {   // a citizen of t
     // (0x52E5F7 counts only those at the field - one carrying food to the granary left it "free")
     for (int r = 0; r < 7; r++) {
         uint8_t *list = resource_mgr_list_at(rm, r);
-        for (unsigned k = 0, first = FIELD(list, 0xC, unsigned), cnt = FIELD(list, 0x10, unsigned); k < cnt; k++) {
+        for (unsigned k = 0, first = deque_front(list), cnt = deque_count(list); k < cnt; k++) {
             ee_unit *u = deque_at(list, first + k); ee_goal *goal = u ? unit_get_goal(u) : NULL;
             if (goal && goal_get_site(goal) == f && !strcmp(rtti_name(goal), "EEUGGather@@")) return 1;
         }
@@ -1119,7 +1119,7 @@ internal int can_place(ee_player *pl, int type, ivec2 p);   // defence.c
 internal int raiders_near(ee_player *pl, ivec2 p, int r);     // attack.c: enemy soldiers it can see
 internal void fields_rebuild(ee_player *pl, unsigned idx, void *um, uint8_t *dq, uint32_t now) {
     if (now < 60000) g_field_n[idx] = 0;   // new game
-    unsigned first = dq ? FIELD(dq, 0xC, unsigned) : 0, cnt = dq ? FIELD(dq, 0x10, unsigned) : 0;
+    unsigned first = dq ? deque_front(dq) : 0, cnt = dq ? deque_count(dq) : 0;
     for (unsigned k = 0; k < cnt; k++) {   // remember every field's tile
         ee_unit *f = deque_at(dq, first + k);
         if (!f || unit_get_hp(f) <= 0) continue;
@@ -1138,7 +1138,7 @@ internal void fields_rebuild(ee_player *pl, unsigned idx, void *um, uint8_t *dq,
             there = f && unit_get_hp(f) > 0 && unit_get_x(f) == x && unit_get_y(f) == y;
         }
         if (there || (g_field_at[idx][j].queued && now - g_field_at[idx][j].queued < 120000)) continue;
-        for (unsigned k = 0, gf = FIELD(gq, 0xC, unsigned), gc = FIELD(gq, 0x10, unsigned); k < gc && !granary; k++) {
+        for (unsigned k = 0, gf = deque_front(gq), gc = deque_count(gq); k < gc && !granary; k++) {
             ee_unit *g = deque_at(gq, gf + k);
             granary = g && unit_get_hp(g) > 0 && abs(unit_get_x(g) - x) <= 4 && abs(unit_get_y(g) - y) <= 4;
         }
@@ -1169,7 +1169,7 @@ internal int granary_spot(ee_player *pl, void *um, int *ox, int *oy) {
     static const enum ut_name centers[] = { UT_B_TOWN_CENTER, UT_B_CAPITOL, UT_B_SETTLEMENT };
     for (int c = 0; c < 3; c++) {
         uint8_t *q = type_list(um, g_ut[centers[c]]);
-        for (unsigned k = 0, f = q ? FIELD(q, 0xC, unsigned) : 0, n = q ? FIELD(q, 0x10, unsigned) : 0; k < n; k++) {
+        for (unsigned k = 0, f = q ? deque_front(q) : 0, n = q ? deque_count(q) : 0; k < n; k++) {
             ee_unit *b = deque_at(q, f + k);
             if (!b || unit_get_hp(b) <= 0) continue;
             int cx = unit_get_x(b), cy = unit_get_y(b);
@@ -1200,7 +1200,7 @@ internal void more_granaries(ee_player *pl, unsigned idx, ee_resource_mgr *rm, v
     ee_build_mgr *bm = civ_mgr_get_build_mgr(cm);
     uint8_t *gq = type_list(um, UT(B_GRANARY));
     int granaries = 0;
-    for (unsigned k = 0, f = gq ? FIELD(gq, 0xC, unsigned) : 0, c = gq ? FIELD(gq, 0x10, unsigned) : 0; k < c; k++) {
+    for (unsigned k = 0, f = gq ? deque_front(gq) : 0, c = gq ? deque_count(gq) : 0; k < c; k++) {
         ee_unit *g = deque_at(gq, f + k), *st = g ? unit_get_physics(g) : NULL;
         if (!g || unit_get_hp(g) <= 0) continue;
         if (!st || !unit_get_finished(st)) return;   // one is being built
@@ -1240,7 +1240,7 @@ internal int field_place_ok(ee_build_mgr *bm, int x, int y, int lay_out) {
     void *um = cm ? civ_mgr_get_unit_mgr(cm) : NULL;
     if (!pl || !um || (!x && !y)) return 0;
     uint8_t *dq = type_list(um, UT(B_FARM));
-    for (unsigned k = 0, first = dq ? FIELD(dq, 0xC, unsigned) : 0, cnt = dq ? FIELD(dq, 0x10, unsigned) : 0; k < cnt; k++) {
+    for (unsigned k = 0, first = dq ? deque_front(dq) : 0, cnt = dq ? deque_count(dq) : 0; k < cnt; k++) {
         ee_unit *f = deque_at(dq, first + k);
         if (f && unit_get_hp(f) > 0 && unit_get_x(f) == x && unit_get_y(f) == y) return 1;
     }
@@ -1269,7 +1269,7 @@ internal void econ_fields(ee_resource_mgr *rm) {   // before the citizen assignm
     }
     ee_unit *todo[16], *done[16];
     int nt = 0, nd = 0, ordered = 0, farmers = 0;
-    for (unsigned k = 0, first = FIELD(dq, 0xC, unsigned), cnt = FIELD(dq, 0x10, unsigned); k < cnt && nt < 16; k++) {
+    for (unsigned k = 0, first = deque_front(dq), cnt = deque_count(dq); k < cnt && nt < 16; k++) {
         ee_unit *f = deque_at(dq, first + k), *st = f ? unit_get_physics(f) : NULL;
         if (!st || unit_get_hp(f) <= 0) continue;
         if (site_danger(pl, f, 1)) continue;   // under known enemy towers: no builders, no farmers (attack.c)
@@ -1291,7 +1291,7 @@ internal void econ_fields(ee_resource_mgr *rm) {   // before the citizen assignm
         int fx = unit_get_x(todo[i]), fy = unit_get_y(todo[i]), bd = 0x7FFFFFFF, busy = 0;
         for (int r = 0; r < 7 && !busy; r++) {   // a builder already on it?
             uint8_t *list = resource_mgr_list_at(rm, r);
-            for (unsigned k = 0, first = FIELD(list, 0xC, unsigned), cnt = FIELD(list, 0x10, unsigned); k < cnt; k++) {
+            for (unsigned k = 0, first = deque_front(list), cnt = deque_count(list); k < cnt; k++) {
                 ee_unit *u = deque_at(list, first + k); ee_goal *goal = u ? unit_get_goal(u) : NULL;
                 if (goal && goal_get_building(goal) == site && !strcmp(rtti_name(goal), "EEUGBuildRepair@@")) { busy = 1; break; }
             }
@@ -1301,7 +1301,7 @@ internal void econ_fields(ee_resource_mgr *rm) {   // before the citizen assignm
             for (int r = 0; r < 7; r++) {
                 if (pass == 1 ? r != 2 : pass == 2 ? r < 4 : 0) continue;
                 uint8_t *list = resource_mgr_list_at(rm, r);
-                for (unsigned k = 0, first = FIELD(list, 0xC, unsigned), cnt = FIELD(list, 0x10, unsigned); k < cnt; k++) {
+                for (unsigned k = 0, first = deque_front(list), cnt = deque_count(list); k < cnt; k++) {
                     ee_unit *u = deque_at(list, first + k);
                     if (!citizen_free(u, pass == 0)) continue;
                     int d = ivec2_dist2(unit_get_tile(u), iv2(fx, fy));
@@ -1330,7 +1330,7 @@ internal void econ_fields(ee_resource_mgr *rm) {   // before the citizen assignm
             for (int r = pass ? 4 : 0; r < 7; r++) {
                 if (pass && rm_count(rm, r) <= (int)target[r]) continue;   // only a surplus
                 uint8_t *list = resource_mgr_list_at(rm, r);
-                for (unsigned k = 0, first = FIELD(list, 0xC, unsigned), cnt = FIELD(list, 0x10, unsigned); k < cnt; k++) {
+                for (unsigned k = 0, first = deque_front(list), cnt = deque_count(list); k < cnt; k++) {
                     ee_unit *u = deque_at(list, first + k);
                     if (!citizen_free(u, pass == 0)) continue;
                     int d = ivec2_dist2(unit_get_tile(u), iv2(fx, fy));

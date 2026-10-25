@@ -19,14 +19,11 @@ internal inline ee_attack_subgroup **attack_group_get_subgroups_end(const ee_att
 internal inline ee_asg_unit **attack_subgroup_get_units_end(const ee_attack_subgroup *sg) { return FIELD(sg, of_attack_subgroup_units_begin + 0x4, ee_asg_unit **); }
 internal inline void attack_subgroup_set_units_end(ee_attack_subgroup *sg, ee_asg_unit **e) { FIELD(sg, of_attack_subgroup_units_begin + 0x4, ee_asg_unit **) = e; }
 // +0x60 the route, a deque of {x, y, ?} (attack.c route_waypoint); +0x70 its waypoints
-// +0x100 the target: +4 x, +8 y, +0xC the unit's id, +0x10 its kind (1: a unit)
-// its target record: +4 / +8 the place, +0xC the unit's id, +0x10 the kind (1 a unit)
-internal inline int asg_target_get_id(const ee_asg_target *tg) { return FIELD(tg, 0xC, int); }
-internal inline int asg_target_get_kind(const ee_asg_target *tg) { return FIELD(tg, 0x10, int); }
-internal inline void asg_target_set_unit(ee_asg_target *tg, int x, int y, int id) {
-    FIELD(tg, 4, int) = x; FIELD(tg, 8, int) = y;
-    FIELD(tg, 0xC, int) = id;
-    FIELD(tg, 0x10, int) = 1;
+// a location set to a unit at its tile x, y (kind 1, as the game's own unit targets)
+internal inline void location_set_unit(ee_location *loc, int x, int y, int id) {
+    location_set_tile(loc, iv2(x, y));
+    location_set_unit_id(loc, id);
+    location_set_kind(loc, 1);
 }
 
 // A SUBGROUP'S UNIT RECORD (EECPAttackSubGroupUnit)

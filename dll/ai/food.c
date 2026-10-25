@@ -122,7 +122,7 @@ internal void food_hunt(ee_resource_mgr *rm) {
     uint32_t *target = resource_mgr_target_at(rm);
     int room = (int)target[2] - rm_count(rm, 2);
     uint8_t *dq = resource_mgr_list_at(rm, 0);   // list 0: idle
-    for (unsigned k = FIELD(dq, 0x10, unsigned), first = FIELD(dq, 0xC, unsigned); k-- > 0 && room > 0; ) {
+    for (unsigned k = deque_count(dq), first = deque_front(dq); k-- > 0 && room > 0; ) {
         ee_unit *u = deque_at(dq, first + k);
         if (!u || unit_get_hp(u) <= 0 || unit_get_frozen(u) || unit_get_ai_held(u) || unit_get_busy(u)) continue;
         ee_unit_type *td = unit_get_type_data(u);
@@ -203,7 +203,7 @@ internal void food_camp(ee_player *pl, unsigned idx, uint32_t now) {
     void *um = cm ? civ_mgr_get_unit_mgr(cm) : NULL;
     if (!bm || !um || !ut_has(UT(B_SETTLEMENT)) || build_mgr_get_base_x(bm) == -10000 || bq_has(bm, UT(B_SETTLEMENT)) || bq_has(bm, UT(X_SINGLE_PLAYER_SETTLEMENT))) return;
     uint8_t *q = type_list(um, UT(B_SETTLEMENT));
-    for (unsigned k = 0, f = q ? FIELD(q, 0xC, unsigned) : 0, n = q ? FIELD(q, 0x10, unsigned) : 0; k < n; k++) {
+    for (unsigned k = 0, f = q ? deque_front(q) : 0, n = q ? deque_count(q) : 0; k < n; k++) {
         ee_unit *b = deque_at(q, f + k), *st = b ? unit_get_physics(b) : NULL;
         if (b && unit_get_hp(b) > 0 && (!st || !unit_get_finished(st))) return;
     }
@@ -299,7 +299,7 @@ internal int food_fields_wait(ee_player *pl, ee_resource_mgr *rm) {
         if (*h && unit_get_amount(*h) > 0) fish += unit_get_amount(*h);
     if (fish < 3000) return 0;
     uint8_t *list = resource_mgr_list_at(rm, 2);
-    for (unsigned k = 0, first = FIELD(list, 0xC, unsigned), n = FIELD(list, 0x10, unsigned); k < n && k < 1024; k++) {
+    for (unsigned k = 0, first = deque_front(list), n = deque_count(list); k < n && k < 1024; k++) {
         ee_unit *u = deque_at(list, first + k); ee_unit_type *td = u ? unit_get_type_data(u) : NULL;
         if (td && unit_get_hp(u) > 0 && unit_type_get_class_id(td) == CLS_NAVAL_CITIZEN) boats++;
     }

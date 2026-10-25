@@ -3,8 +3,6 @@
 
 // class ee_mixer (ee_mixer)
 
-// class ee_asg_target (ee_asg_target)
-
 // the running build's values (spec_select, with addr_select): how many it hasn't got
 internal int spec_stubs_select(int build) {
     switch (build) {

@@ -23,10 +23,16 @@ internal const char *rtti_name(void *obj) {
     return n[0] == '.' && n[1] == '?' && n[2] == 'A' ? n + 4 : n;
 }
 
+// An MSVC std::deque (the runtime library's, the same in both builds): +4 its map of blocks, +8 the map's size, +0xC
+// the front element's index, +0x10 the count - its elements' size sets how many a block holds.
+internal inline unsigned deque_map_size(const void *dq) { return FIELD(dq, 8, unsigned); }
+internal inline unsigned deque_front(const void *dq) { return FIELD(dq, 0xC, unsigned); }
+internal inline unsigned deque_count(const void *dq) { return FIELD(dq, 0x10, unsigned); }
+
 // Element i of an MSVC std::deque<T*> (block of 1024 pointers; container +4 map, +8 map size), as the
 // game's iterator deref 0x5F1BC6 computes it.
 internal void *deque_at(uint8_t *dq, unsigned off) {
-    unsigned blk = off >> 10, mapsz = FIELD(dq, 8, unsigned);
+    unsigned blk = off >> 10, mapsz = deque_map_size(dq);
     if (blk >= mapsz) blk -= mapsz;
     return FIELD(dq, 4, void ***)[blk][off & 1023];
 }
