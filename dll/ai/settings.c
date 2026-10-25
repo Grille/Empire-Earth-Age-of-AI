@@ -185,7 +185,11 @@ internal void settings_apply(ee_player *pl) {
         }
     }
     if (c->attack_min > 0) { player_set_attack_min(pl, c->attack_min); player_set_attack_max(pl, c->attack_max); }
-    if (c->attack_group_percent > 0) FIELD(pl, d == 0 ? 0xD30 : d == 2 ? 0xD38 : 0xD34, int) = c->attack_group_percent;
+    if (c->attack_group_percent > 0) {   // by the spec: AoC's are 0x38 later (the 2017 offsets were its attack_floor ...)
+        if (d == 0) player_set_group_pct_easy(pl, c->attack_group_percent);
+        else if (d == 2) player_set_group_pct_hard(pl, c->attack_group_percent);
+        else player_set_group_pct_medium(pl, c->attack_group_percent);
+    }
     if (c->attack_on_contact >= 0) player_set_attack_on_contact(pl, c->attack_on_contact);
     if (c->attack_for_resources >= 0) player_set_attack_for_resources(pl, c->attack_for_resources);
     if (c->attack_revenge >= 0) player_set_attack_revenge(pl, c->attack_revenge);
