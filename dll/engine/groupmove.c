@@ -736,10 +736,15 @@ internal void __thiscall hook_formation_slots(void *f, void *group, void *slots)
         for (int i = 0; i < n; i++) { g_fo_march[i] = g_fo[i].at; g_fo_order[i] = i; }
         g_fo_has_march = 1;
     }
+    // the places: by where the units stand along the facing - following under 45 degrees off it, along the way they
+    // go (the march is this layout turned to the way, and it turns into it at the goal: units standing for the way they
+    // go - a formation on the move - keep their places)
+    vec2 pf = fwd, pr = right;
+    if (g_ff_on && !circle && gl > 0.5f && !g_fo_has_march) { pf = vec2_scale(go, 1.0f / gl); pr = v2(pf.y, -pf.x); }
     for (int i = 0; i < n; i++) {
         vec2 d = vec2_sub(g_fo[i].p, mean);
-        g_fo[i].along = vec2_dot(d, fwd);
-        g_fo[i].across = vec2_dot(d, right);
+        g_fo[i].along = vec2_dot(d, pf);
+        g_fo[i].across = vec2_dot(d, pr);
         g_fo[i].p = vec2_sub(g_fo[i].p, c);   // the circles' angles: around the point
     }
     if (circle) fo_rings(g_fo_order, n); else fo_rows(g_fo_order, n, kind, front);
