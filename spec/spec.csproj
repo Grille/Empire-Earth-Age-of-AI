@@ -10,6 +10,6 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <!-- CS8981: lower-case type names, C's convention (uint32) and not .NET's; CS0169 / CS0649: fields never used
          or set - the spec's fields describe the game, nothing reads them -->
-    <NoWarn>CS8981;CS0169;CS0649</NoWarn>
+    <NoWarn>CS8981;CS0169;CS0649;IDE0380</NoWarn>
   </PropertyGroup>
 </Project>
