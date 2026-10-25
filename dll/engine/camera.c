@@ -20,23 +20,23 @@ internal volatile LONG g_scroll_calls;   // scroll steps run (for camtrace)
 
 // Fine scrolling ([camera] smooth, default 1, both builds): the scroll steps come from a timer (10 ms AoC, 25 ms EE) on the
 // game's thread, and each moved the camera by a fixed distance, while the frames are drawn on another thread every
-// 4-13 ms: per frame 0 or 1 steps of the same size whatever the frame time (camtrace: about every fifth frame
-// without a step) - visible jitter. Now the timer runs every 1 ms (the game thread then makes one step per frame)
-// and each step moves by speed x the time of the frames drawn since the last step: the render thread adds each
-// frame's duration to a budget, a step takes all of it - the camera moves in proportion to the frame times and
-// over all exactly as far as the time passed (the step's own time if no frames are counted). Same speeds as
+// 4-13 ms: per frame 0 or 1 steps of the same size whatever the frame time - visible jitter; and a busy game thread
+// (heavy simulation steps late in a big game) held the camera until it got round to the next step. Now the render
+// thread moves the camera, every frame by speed x the frame's time; the game's steps (the timer every 1 ms, run only
+// while a direction is held - camtrace: none at rest) only tell which directions are held. When they stop coming,
+// that is either the player letting go or the game thread busy: the render thread goes on only while the input says
+// so itself - the arrow key down, or the cursor at that edge of the game's foreground window (windowed and
+// borderless; native fullscreen's DirectInput mouse isn't the OS cursor) - up to CAM_HOLD_MS. Same speeds as
 // before: EE (speed + 0.5) * (setting + 0.5) * 0.01 tiles per ms; AoC ramps its velocity from 10% to that by 1%
-// of the top speed per 10 ms.
+// of the top speed per 10 ms. The game's camera move (FN_CAMERA_MOVE) sets the scene's camera node, which is what
+// the render thread draws from - between its frames it has the node to itself.
+#define CAM_FRESH_MS 40    // the game's last step this recent: its directions stand
+#define CAM_HOLD_MS 500    // a late step's directions kept this long while the input agrees
+#define CAM_EDGE_PX 8      // the cursor this near a window edge counts as at it
 internal int g_cam_smooth = 1;
-internal int g_cam_scrolling;            // the last step had a direction held
-internal LARGE_INTEGER g_cam_last, g_cam_freq, g_cam_frame;
-internal volatile LONG64 g_cam_budget;   // QPC ticks of frames not yet used by a scroll step
-internal void camera_frame(void) {       // the render thread, every presented frame
-    LARGE_INTEGER now;
-    QueryPerformanceCounter(&now);
-    if (g_cam_frame.QuadPart) InterlockedExchangeAdd64(&g_cam_budget, now.QuadPart - g_cam_frame.QuadPart);
-    g_cam_frame = now;
-}
+internal volatile LONG g_cam_keys;     // the directions of the game's last step: bit k = SCROLL_KEYS + k (left, right, down, up)
+internal volatile DWORD g_cam_keys_at; // GetTickCount of that step
+internal LARGE_INTEGER g_cam_freq, g_cam_frame;
 
 internal void scroll_axis(float *vel, int neg, int pos, float minv, float maxv, float step) {
     if (neg) {
@@ -50,41 +50,68 @@ internal void scroll_axis(float *vel, int neg, int pos, float minv, float maxv, 
     }
 }
 
-internal void __thiscall hook_scroll_execute(ee_scroll *self) {
-    InterlockedIncrement(&g_scroll_calls);
-    if (g_scroll_native && !g_cam_smooth) { scroll_execute(self); return; }
-    // elapsed time: real time with fine scrolling, else the timer's ticks (10 ms AoC)
-    float ms = (float)scroll_get_ticks(self) * 10.0f;
-    if (g_cam_smooth) {
-        LARGE_INTEGER now;
-        if (!g_cam_freq.QuadPart) QueryPerformanceFrequency(&g_cam_freq);
-        QueryPerformanceCounter(&now);
-        double since = g_cam_last.QuadPart ? (double)(now.QuadPart - g_cam_last.QuadPart) * 1000.0 / (double)g_cam_freq.QuadPart : 1e9;
-        g_cam_last = now;
-        LONG64 budget = InterlockedExchange64(&g_cam_budget, 0);
-        double d = g_cam_frame.QuadPart ? (double)budget * 1000.0 / (double)g_cam_freq.QuadPart : since;
-        // the first step of a scroll: one timer period (the budget is old frames). Only then - a step late because the
-        // game thread was busy (a heavy simulation step late in a big game) takes the whole time, else the camera
-        // lost that distance and slowed down at every hitch
-        if (!g_cam_scrolling || since > 250.0) d = 1.0;
-        ms = d > 250.0 ? 250.0f : (float)d;
-    }
+// the camera moved by ms of scrolling in the directions k (bits as g_cam_keys)
+internal void scroll_move(float ms, int k) {
+    int l = k & 1, r = k >> 1 & 1, dn = k >> 2 & 1, up = k >> 3 & 1;
     float speed = scroll_speed() + 0.5f, maxv = scroll_setting() + 0.5f;
     float dx = 0, dy = 0;
     if (!g_scroll_aoc) {   // EE: constant speed, as 0x4050FC
         float step = speed * maxv * ms * 0.01f;
-        dx = scroll_get_key(self, 1) ? step : scroll_get_key(self, 0) ? -step : 0;
-        dy = scroll_get_key(self, 2) ? step : scroll_get_key(self, 3) ? -step : 0;
+        dx = r ? step : l ? -step : 0;
+        dy = dn ? step : up ? -step : 0;
     } else {               // AoC: velocity ramp
         DWORD t = GetTickCount();
         if (t - g_scroll_last > 100) g_vel_x = g_vel_y = 0;   // scrolling had stopped: start slow again
         g_scroll_last = t;
         float minv = maxv * 0.1f, scale = speed * ms * 0.01f, ramp = ms * 0.001f * maxv;
-        if (scroll_get_key(self, 0) || scroll_get_key(self, 1)) { scroll_axis(&g_vel_x, scroll_get_key(self, 0), scroll_get_key(self, 1), minv, maxv, ramp); dx = g_vel_x * scale; }
-        if (scroll_get_key(self, 3) || scroll_get_key(self, 2)) { scroll_axis(&g_vel_y, scroll_get_key(self, 3), scroll_get_key(self, 2), minv, maxv, ramp); dy = g_vel_y * scale; }
+        if (l || r) { scroll_axis(&g_vel_x, l, r, minv, maxv, ramp); dx = g_vel_x * scale; }
+        if (up || dn) { scroll_axis(&g_vel_y, up, dn, minv, maxv, ramp); dy = g_vel_y * scale; }
     }
-    g_cam_scrolling = scroll_get_key(self, 0) || scroll_get_key(self, 1) || scroll_get_key(self, 2) || scroll_get_key(self, 3);
     if (dx != 0 || dy != 0) camera_move(dx, dy);
+}
+
+internal void __thiscall hook_scroll_execute(ee_scroll *self) {
+    InterlockedIncrement(&g_scroll_calls);
+    if (g_scroll_native && !g_cam_smooth) { scroll_execute(self); return; }
+    int k = 0;
+    for (int i = 0; i < 4; i++) if (scroll_get_key(self, i)) k |= 1 << i;
+    if (g_cam_smooth) {   // the render thread moves it (camera_frame)
+        g_cam_keys_at = GetTickCount();
+        InterlockedExchange(&g_cam_keys, k);
+        return;
+    }
+    scroll_move((float)scroll_get_ticks(self) * 10.0f, k);   // the timer's ticks (10 ms AoC)
+}
+
+// the directions of k the player still holds by the input itself: an arrow key, the cursor at a window edge
+internal int scroll_input_agrees(int k) {
+    int held = (GetAsyncKeyState(VK_LEFT) < 0) | (GetAsyncKeyState(VK_RIGHT) < 0) << 1
+             | (GetAsyncKeyState(VK_DOWN) < 0) << 2 | (GetAsyncKeyState(VK_UP) < 0) << 3;
+    HWND w = GetForegroundWindow();
+    DWORD pid = 0;
+    POINT p;
+    RECT rc;
+    if (w && GetWindowThreadProcessId(w, &pid) && pid == GetCurrentProcessId() && GetCursorPos(&p)
+        && ScreenToClient(w, &p) && GetClientRect(w, &rc))
+        held |= (p.x <= rc.left + CAM_EDGE_PX) | (p.x >= rc.right - 1 - CAM_EDGE_PX) << 1
+              | (p.y >= rc.bottom - 1 - CAM_EDGE_PX) << 2 | (p.y <= rc.top + CAM_EDGE_PX) << 3;
+    return k & held;
+}
+
+internal void camera_frame(void) {   // the render thread, every presented frame
+    if (!g_cam_smooth) return;
+    LARGE_INTEGER now;
+    if (!g_cam_freq.QuadPart) QueryPerformanceFrequency(&g_cam_freq);
+    QueryPerformanceCounter(&now);
+    double ms = g_cam_frame.QuadPart ? (double)(now.QuadPart - g_cam_frame.QuadPart) * 1000.0 / (double)g_cam_freq.QuadPart : 0;
+    g_cam_frame = now;
+    int k = (int)g_cam_keys;
+    if (!k || !game_camera()) return;
+    DWORD age = GetTickCount() - g_cam_keys_at;
+    if (age > CAM_HOLD_MS) k = 0;
+    else if (age > CAM_FRESH_MS) k = scroll_input_agrees(k);
+    if (!k) return;
+    scroll_move(ms > 100.0 ? 100.0f : (float)ms, k);   // a frame that long (a window drag): no leap
 }
 
 internal void camera_install(void) {
