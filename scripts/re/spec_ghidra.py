@@ -48,8 +48,8 @@ def main():
         v = spec_read.values(attr)[b]
         return None if v == spec_read.NONE else v
 
-    def doc(m):
-        return '\n'.join(m.doc)
+    def doc(m):   # a [guess] says so first
+        return '\n'.join((['A GUESS (spec [guess]):'] if m.attr('guess') else []) + m.doc)
 
     out = {'build': build, 'enums': [], 'structs': [], 'functions': [], 'labels': []}
     out['structs'] += [{'name': n, 'size': 4 * len(f), 'doc': '', 'fields': [{'name': x, 'offset': 4 * k, 'type': t}

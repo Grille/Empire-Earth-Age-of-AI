@@ -173,4 +173,11 @@ public sealed class found : Attribute
     public found(how how, string why) { }
 }
 
+// WHAT IT IS: its name and type an educated guess from what the code does with it, not confirmed - its doc comment
+// says the evidence (scripts/build/spec_check.py); the generated C and Ghidra's comment say "a guess", and
+// scripts/re/spec_gaps.py guesses lists them with the mod's uses. Removed when a read or a test confirms it; a name
+// that turns out wrong is renamed. (Where it is, [offset] and [found], is the reads' and holds either way.)
+[AttributeUsage(AttributeTargets.Field | AttributeTargets.Method)]
+public sealed class guess : Attribute { }
+
 

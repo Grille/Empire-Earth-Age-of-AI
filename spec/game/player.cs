@@ -136,58 +136,70 @@ unsafe struct EEPlayer
     [offset((ee)0xBA4, (aoc)0xBD8), found(c)]
     int32 difficulty;
 
+    /// medium: the share of a unit's cost it pays (record 67 "Unit Cost Reduction - Medium")
     [offset((ee)0xBB4, (aoc)0xBEC), found(c)]
     float32 cost_medium;
 
-    /// of the cap (0.45)
-    [offset((ee)0xBDC, (aoc)0xC14), found(b)]
+    /// the share of its population to be citizens (record 3 "Citizen Percentage"; 0.45 of the cap)
+    [offset((ee)0xBDC, (aoc)0xC14), found(c)]
     float32 citizen_share;
 
     /// its own cap (vf31)
     [offset((ee)0xCCC, (aoc)0xD04), found(b)]
     int32 pop_cap;
 
-    [offset((ee)0xCD8, (aoc)0xD10), found(b)]
+    /// percent: it attacks at once when an enemy is hit, not waiting for the attack interval (record 25 "Attack Enemy")
+    [offset((ee)0xCD8, (aoc)0xD10), found(c)]
     int32 attack_on_contact;
 
-    [offset((ee)0xCDC, (aoc)0xD14), found(b)]
+    /// percent: it attacks at once when another player needs resources (record 26 "Attack to Claim Resource")
+    [offset((ee)0xCDC, (aoc)0xD14), found(c)]
     int32 attack_for_resources;
 
-    [offset((ee)0xCE0, (aoc)0xD18), found(b)]
+    /// percent: it attacks at once when an enemy attacks it (record 27 "Attack for Revenge")
+    [offset((ee)0xCE0, (aoc)0xD18), found(c)]
     int32 attack_revenge;
 
-    /// between attacks
+    /// minutes between attacks, the most (record 6 "Attack Frequency", second value)
     [offset((ee)0xCFC, (aoc)0xD34), found(c)]
     int32 attack_max;
 
+    /// minutes between attacks, the least (record 6, first value)
     [offset((ee)0xD00, (aoc)0xD38), found(c)]
     int32 attack_min;
 
-    [offset((ee)0xD28, (aoc)0xD60), found(b)]
+    /// minutes before its first attack, the most (record 1 "Initial Attack Delay", second value)
+    [offset((ee)0xD28, (aoc)0xD60), found(c)]
     int32 first_attack_max;
 
-    [offset((ee)0xD2C, (aoc)0xD64), found(b)]
+    /// minutes before its first attack, the least (record 1, first value)
+    [offset((ee)0xD2C, (aoc)0xD64), found(c)]
     int32 first_attack_min;
 
+    /// easy: the share of a unit's cost it pays (record 96 "Unit Cost Reduction - Easy & Hard", first value)
     [offset((ee)0xD48, (aoc)0xD80), found(c)]
     int32 cost_easy;
 
+    /// hard: the same (record 96, second value)
     [offset((ee)0xD4C, (aoc)0xD84), found(c)]
     int32 cost_hard;
 
-    /// the epoch timer's draw, random(+0xD5C, +0xD58) (0x46DE8C)
+    /// minutes before it starts a new epoch, the most (record 28 "Epoch Frequency", second value): the epoch timer
+    /// draws random(epoch_min, epoch_max) (0x46DE8C)
     [offset((ee)0xD58, (aoc)0xD90), found(c)]
     int32 epoch_max;
 
-    /// the epoch timer's minutes
+    /// minutes before it starts a new epoch, the least (record 28, first value)
     [offset((ee)0xD5C, (aoc)0xD94), found(c)]
     int32 epoch_min;
 
+    /// tiles its citizens walk between a resource and a drop-off before they build one nearer (record 14 "Resource
+    /// Drop-off Distance": the loader keeps its square root, the record holds it squared - 36)
     [offset((ee)0xE10, (aoc)0xE4C), found(c)]
     int32 dropoff_distance;
 
-    /// activities a period (+1)
-    [offset((ee)0xE20, (aoc)0xE5C), found(v)]
+    /// activities a period (+1) (record 66, no name in the game's strings; 4)
+    [offset((ee)0xE20, (aoc)0xE5C), found(c)]
     int32 attention;
 
     /// game time
@@ -282,9 +294,44 @@ unsafe struct EEComputerPlayer
     [offset((ee)0xBB0, (aoc)0xBE4), found(c)]
     int32 favorite_sea;
 
+    /// the chance it attacks another computer player instead of a human (record 91 "Computer vs Computer Aggression")
+    [offset((ee)0xBB8, (aoc)0xBF0), found(c)]
+    float32 cvc_aggression;
+
+    /// the chance a carrier is picked for an attack or defence group (record 52 "Carrier Usage", second value x 0.01)
+    [offset((ee)0xBBC, (aoc)0xBF4), found(c)]
+    float32 carrier_chance;
+
+    /// the most of its population cap carriers may be (record 52, the float)
+    [offset((ee)0xBC0, (aoc)0xBF8), found(c)]
+    float32 carrier_pop_share;
+
     /// minutes added to the interval between attacks per epoch of the game's range (record 22)
     [offset((ee)0xBC4, (aoc)0xBFC), found(c)]
     float32 attack_interval_per_epoch;
+
+    /// the share of its population cap to be specialized units, priests, prophets ... (record 45 "Specialized Unit
+    /// Percentage")
+    [offset((ee)0xBC8, (aoc)0xC00), found(c)]
+    float32 specialized_pct;
+
+    /// not on island maps: the share of an attack group picked to counter the enemy's units (record 53 "RPS Selection
+    /// Non-Islands")
+    [offset((ee)0xBCC, (aoc)0xC04), found(c)]
+    float32 rps_pct;
+
+    /// the same on island maps (record 110 "RPS Selection Islands")
+    [offset((ee)0xBD0, (aoc)0xC08), found(c)]
+    float32 rps_pct_islands;
+
+    /// the chance a specialized unit takes a free place in an attack or defence group instead of an RPS unit (record 54
+    /// "Specialized Unit Selection Chance")
+    [offset((ee)0xBD4, (aoc)0xC0C), found(c)]
+    float32 specialized_chance;
+
+    /// the chance a military unit is assigned to guard a town (record 90 "Town Guard Percentage")
+    [offset((ee)0xBD8, (aoc)0xC10), found(c)]
+    float32 town_guard_pct;
 
     /// deathmatch: attack groups scaled by it until dm_group_until (record 105, x 0.01)
     [offset((ee)0xBE0, (aoc)0xC18), found(c)]
@@ -302,13 +349,142 @@ unsafe struct EEComputerPlayer
     [offset((ee)0xBEC, (aoc)0xC24), found(c)]
     float32 catch_up_dm;
 
+    /// of two places to guard, the chance it picks the continent one (record 71 "Guard Continent Percentage")
+    [offset((ee)0xBF0, (aoc)0xC28), found(c)]
+    float32 guard_continent_pct;
+
+    /// of two places to guard, the chance it picks the chokepoint air one (record 77 "Guard Chokepoint-Air Percentage")
+    [offset((ee)0xBF4, (aoc)0xC2C), found(c)]
+    float32 guard_chokepoint_air_pct;
+
+    /// of two places to guard, the chance it picks the chokepoint one (record 70 "Guard Chokepoint Percentage")
+    [offset((ee)0xBF8, (aoc)0xC30), found(c)]
+    float32 guard_chokepoint_pct;
+
+    /// of two places to guard, the chance it picks the high ground one (record 72 "Guard High Ground Percentage")
+    [offset((ee)0xBFC, (aoc)0xC34), found(c)]
+    float32 guard_high_ground_pct;
+
+    /// record 79, no name in the game's strings; one of the guard percentages (records 70..85) by its place
+    [offset((ee)0xC00, (aoc)0xC38), found(c), guess]
+    float32 guard_pct_79;
+
+    /// record 83, no name in the game's strings; one of the guard percentages (records 70..85) by its place
+    [offset((ee)0xC04, (aoc)0xC3C), found(c), guess]
+    float32 guard_pct_83;
+
+    /// record 80, no name in the game's strings; one of the guard percentages (records 70..85) by its place
+    [offset((ee)0xC08, (aoc)0xC40), found(c), guess]
+    float32 guard_pct_80;
+
+    /// record 74, no name in the game's strings; one of the guard percentages (records 70..85) by its place
+    [offset((ee)0xC0C, (aoc)0xC44), found(c), guess]
+    float32 guard_pct_74;
+
+    /// record 84, no name in the game's strings; one of the guard percentages (records 70..85) by its place
+    [offset((ee)0xC10, (aoc)0xC48), found(c), guess]
+    float32 guard_pct_84;
+
+    /// record 81, no name in the game's strings; one of the guard percentages (records 70..85) by its place
+    [offset((ee)0xC14, (aoc)0xC4C), found(c), guess]
+    float32 guard_pct_81;
+
+    /// record 75, no name in the game's strings; one of the guard percentages (records 70..85) by its place
+    [offset((ee)0xC18, (aoc)0xC50), found(c), guess]
+    float32 guard_pct_75;
+
+    /// record 85, no name in the game's strings; one of the guard percentages (records 70..85) by its place
+    [offset((ee)0xC1C, (aoc)0xC54), found(c), guess]
+    float32 guard_pct_85;
+
+    /// record 76, no name in the game's strings; one of the guard percentages (records 70..85) by its place
+    [offset((ee)0xC20, (aoc)0xC58), found(c), guess]
+    float32 guard_pct_76;
+
+    /// of two places to guard, the chance it picks the town one (record 78 "Guard Town Percentage")
+    [offset((ee)0xC24, (aoc)0xC5C), found(c)]
+    float32 guard_town_pct;
+
+    /// record 73, no name in the game's strings; one of the guard percentages (records 70..85) by its place
+    [offset((ee)0xC28, (aoc)0xC60), found(c), guess]
+    float32 guard_pct_73;
+
+    /// of two places to guard, the chance it picks the waterway one (record 82 "Guard Waterway Percentage")
+    [offset((ee)0xC2C, (aoc)0xC64), found(c)]
+    float32 guard_waterway_pct;
+
+    /// the chance a hero is picked for an attack or defence group (record 51 "Hero Usage", second value x 0.01)
+    [offset((ee)0xC30, (aoc)0xC68), found(c)]
+    float32 hero_chance;
+
+    /// the most of its population cap heroes may be (record 51, the float)
+    [offset((ee)0xC34, (aoc)0xC6C), found(c)]
+    float32 hero_pop_share;
+
     /// the most of its population defensive military units may be (record 20)
     [offset((ee)0xC38, (aoc)0xC70), found(c)]
     float32 defence_share;
 
+    /// record 119 "Siege Weapon Percentage" (its float x 0.01)
+    [offset((ee)0xC3C, (aoc)0xC74), found(c)]
+    float32 siege_pct;
+
+    /// tiles between an attacker and its victim within which the victim still reacts (record 48 "Maximum Attack
+    /// Response Range")
+    [offset((ee)0xC40, (aoc)0xC78), found(c)]
+    float32 response_range;
+
+    /// the share of its population cap to be military units (record 43 "Number of Military Units to Train")
+    [offset((ee)0xC44, (aoc)0xC7C), found(c)]
+    float32 military_pct;
+
+    /// record 69, no name in the game's strings (0.1); seven functions of the combat and defence compare with it
+    /// (0x4813AE ...)
+    [offset((ee)0xC48, (aoc)0xC80), found(c)]
+    float32 record_69;
+
+    /// the most of its population cap priests may be (record 49 "Priest Usage", the float)
+    [offset((ee)0xC4C, (aoc)0xC84), found(c)]
+    float32 priest_pop_share;
+
+    /// the chance a priest is picked for an attack or defence group (record 49, second value x 0.01)
+    [offset((ee)0xC50, (aoc)0xC88), found(c)]
+    float32 priest_chance;
+
+    /// the most of its population cap prophets may be (record 50 "Prophet Usage", the float)
+    [offset((ee)0xC54, (aoc)0xC8C), found(c)]
+    float32 prophet_pop_share;
+
+    /// the chance a prophet is picked for an attack or defence group (record 50, second value x 0.01)
+    [offset((ee)0xC58, (aoc)0xC90), found(c)]
+    float32 prophet_chance;
+
     /// seconds between the attention's redraws (record 68; 30)
     [offset((ee)0xC5C, (aoc)0xC94), found(c)]
     float32 attention_period;
+
+    /// record 12, no name in the game's strings: its second value x 0.01 (the scenario's Set AI Variable writes it into
+    /// record_12_a and leaves this one)
+    [offset((ee)0xC60, (aoc)0xC98), found(c)]
+    float32 record_12_b;
+
+    /// record 12: its first value x 0.01
+    [offset((ee)0xC64, (aoc)0xC9C), found(c)]
+    float32 record_12_a;
+
+    /// with fewer ships than the humans: the share of the difference it adds to the ships it builds (record 111 "Naval
+    /// Unit Weight")
+    [offset((ee)0xC68, (aoc)0xCA0), found(c)]
+    float32 naval_weight;
+
+    /// the same for aircraft (record 112 "Air Unit Weight")
+    [offset((ee)0xC6C, (aoc)0xCA4), found(c)]
+    float32 air_weight;
+
+    /// record 95 "Desired Number of Towers", its float (0.99): by the record's text the least room between two towers
+    /// in shares of a tower's range
+    [offset((ee)0xC70, (aoc)0xCA8), found(c), guess]
+    float32 tower_spacing;
 
     /// deathmatch: the factor on the attack interval by difficulty (record 122)
     [offset((ee)0xC74, (aoc)0xCAC), found(c)]
@@ -318,9 +494,32 @@ unsafe struct EEComputerPlayer
     [offset((ee)0xC80, (aoc)0xCB8), found(c)]
     fixed float32 dm_first_attack_factor[3];
 
+    /// its player index % 10 (the loader), given to the object at +0xB9C (0x484E25): which of ten updates is its turn,
+    /// an update stagger
+    [offset((ee)0xCA0, (aoc)0xCD8), found(c), guess]
+    int32 update_slot;
+
+    /// deathmatch: the least ships it keeps by difficulty (record 44 "Ships to Maintain (Deathmatch)"; the hard one the
+    /// rounded float)
+    [offset((ee)0xCA4, (aoc)0xCDC), found(c)]
+    fixed int32 dm_ships[3];
+
+    /// the least ships it keeps by difficulty (record 5 "Ships to Maintain"; the hard one the rounded float)
+    [offset((ee)0xCB0, (aoc)0xCE8), found(c)]
+    fixed int32 ships[3];
+
     /// minutes between the defence manager's naval checks (record 118)
     [offset((ee)0xCBC, (aoc)0xCF4), found(c)]
     int32 naval_check_min;
+
+    /// record 4 "Troops to Assist Allies" by difficulty - the record's text says the troops it sends an ally, but the
+    /// loader stores minutes x 60000: a time in ms
+    [offset((ee)0xCC0, (aoc)0xCF8), found(c), guess]
+    fixed int32 assist_allies_ms[3];
+
+    /// the most carriers in an attack or defence group (record 52 "Carrier Usage", first value)
+    [offset((ee)0xCD0, (aoc)0xD08), found(c)]
+    int32 carrier_max;
 
     /// aircraft it sends exploring (record 10)
     [offset((ee)0xCD4, (aoc)0xD0C), found(c)]
@@ -382,6 +581,18 @@ unsafe struct EEComputerPlayer
     [offset((ee)0xD38, (aoc)0xD70), found(c)]
     int32 group_pct_hard;
 
+    /// the fewest of its buildings left before it starts a last all-out attack (record 120 "Bonzai Attack Level"; 9)
+    [offset((ee)0xD3C, (aoc)0xD74), found(c)]
+    int32 bonzai_level;
+
+    /// record 17, no name in the game's strings (60)
+    [offset((ee)0xD40, (aoc)0xD78), found(c)]
+    int32 record_17;
+
+    /// record 16, no name in the game's strings (25)
+    [offset((ee)0xD44, (aoc)0xD7C), found(c)]
+    int32 record_16;
+
     /// a defence group's random size range, its top in percent (record 87)
     [offset((ee)0xD50, (aoc)0xD88), found(c)]
     int32 defence_group_max_pct;
@@ -418,6 +629,19 @@ unsafe struct EEComputerPlayer
     [offset((ee)0xD78, (aoc)0xDB0), found(c)]
     int32 expansion_secs_hard;
 
+    /// the most heroes in an attack or defence group (record 51 "Hero Usage", first value)
+    [offset((ee)0xD7C, (aoc)0xDB4), found(c)]
+    int32 hero_max;
+
+    /// attributes it picks to improve per unit type before an attack (record 47 "Unit Attributes Selected for
+    /// Improvements")
+    [offset((ee)0xD80, (aoc)0xDB8), found(c)]
+    int32 improve_attributes;
+
+    /// unit types it picks to improve before an attack (record 46 "Unit Selected for Improvements")
+    [offset((ee)0xD84, (aoc)0xDBC), found(c)]
+    int32 improve_units;
+
     /// minutes before a defence group is refilled, the most (record 89)
     [offset((ee)0xD88, (aoc)0xDC0), found(c)]
     int32 refill_delay_max;
@@ -429,6 +653,74 @@ unsafe struct EEComputerPlayer
     /// land units it sends exploring (record 8)
     [offset((ee)0xD90, (aoc)0xDC8), found(c)]
     int32 land_explorers;
+
+    /// record 86, no name in the game's strings (3); a cap in 0x4769F7
+    [offset((ee)0xD94, (aoc)0xDCC), found(c)]
+    int32 record_86;
+
+    /// the most it builds (record 109, the rounded float)
+    [offset((ee)0xD98, (aoc)0xDD0), found(c)]
+    int32 anti_air_max;
+
+    /// the most it builds (record 36, the rounded float)
+    [offset((ee)0xD9C, (aoc)0xDD4), found(c)]
+    int32 airports_max;
+
+    /// the most it builds (record 31, the rounded float)
+    [offset((ee)0xDA0, (aoc)0xDD8), found(c)]
+    int32 archery_ranges_max;
+
+    /// the most it builds (record 30, the rounded float)
+    [offset((ee)0xDA4, (aoc)0xDDC), found(c)]
+    int32 barracks_max;
+
+    /// the most it builds (record 33, the rounded float)
+    [offset((ee)0xDA8, (aoc)0xDE0), found(c)]
+    int32 docks_max;
+
+    /// the most it builds (record 41, the rounded float)
+    [offset((ee)0xDAC, (aoc)0xDE4), found(c)]
+    int32 granaries_max;
+
+    /// the most it builds (record 40, the rounded float)
+    [offset((ee)0xDB0, (aoc)0xDE8), found(c)]
+    int32 hospitals_max;
+
+    /// the most it builds (record 37, the rounded float)
+    [offset((ee)0xDB4, (aoc)0xDEC), found(c)]
+    int32 cyber_factories_max;
+
+    /// the most it builds (record 42, the rounded float)
+    [offset((ee)0xDB8, (aoc)0xDF0), found(c)]
+    int32 cyber_labs_max;
+
+    /// the most it builds (record 35, the rounded float)
+    [offset((ee)0xDBC, (aoc)0xDF4), found(c)]
+    int32 naval_yards_max;
+
+    /// the most it builds (record 34, the rounded float)
+    [offset((ee)0xDC0, (aoc)0xDF8), found(c)]
+    int32 siege_factories_max;
+
+    /// the most it builds (record 32, the rounded float)
+    [offset((ee)0xDC4, (aoc)0xE00), found(c)]
+    int32 stables_max;
+
+    /// the most it builds (record 108, the rounded float)
+    [offset((ee)0xDC8, (aoc)0xE04), found(c)]
+    int32 tank_factories_max;
+
+    /// the most it builds (record 39, the rounded float)
+    [offset((ee)0xDCC, (aoc)0xE08), found(c)]
+    int32 temples_max;
+
+    /// record 95 "Desired Number of Towers", second value (16) - the most, as the other buildings' rounded float
+    [offset((ee)0xDD0, (aoc)0xE0C), found(c), guess]
+    int32 towers_max;
+
+    /// the most it builds (record 38, the rounded float)
+    [offset((ee)0xDD4, (aoc)0xE10), found(c)]
+    int32 universities_max;
 
     /// easy: the least military buildings of each kind (record 103)
     [offset((ee)0xDD8, (aoc)0xE14), found(c)]
@@ -465,6 +757,14 @@ unsafe struct EEComputerPlayer
     /// hard: percent on its population cap
     [offset((ee)0xDF8, (aoc)0xE34), found(c)]
     int32 pop_pct_hard;
+
+    /// the most priests in an attack or defence group (record 49 "Priest Usage", first value)
+    [offset((ee)0xDFC, (aoc)0xE38), found(c)]
+    int32 priest_max;
+
+    /// the most prophets in an attack or defence group (record 50 "Prophet Usage", first value)
+    [offset((ee)0xE00, (aoc)0xE3C), found(c)]
+    int32 prophet_max;
 
     /// seconds between random researches (record 15), times research_pct
     [offset((ee)0xE04, (aoc)0xE40), found(c)]
@@ -503,9 +803,101 @@ unsafe struct EEComputerPlayer
     [offset((ee)0xE2C, (aoc)0xE68), found(c)]
     fixed int32 min_stock[9];
 
+    /// the units it has per building before it builds another (record 109 "Desired Number of Anti-Air Buildings", first
+    /// value)
+    [offset((ee)0xE50, (aoc)0xE8C), found(c)]
+    int32 anti_air_units_each;
+
+    /// the units it has per building before it builds another (record 36 "Desired Number of Airports", first value)
+    [offset((ee)0xE54, (aoc)0xE90), found(c)]
+    int32 airports_units_each;
+
+    /// the units it has per building before it builds another (record 31 "Desired Number of Archery Ranges", first
+    /// value)
+    [offset((ee)0xE58, (aoc)0xE94), found(c)]
+    int32 archery_ranges_units_each;
+
+    /// the units it has per building before it builds another (record 30 "Desired Number of Barracks", first value)
+    [offset((ee)0xE5C, (aoc)0xE98), found(c)]
+    int32 barracks_units_each;
+
+    /// the units it has per building before it builds another (record 33 "Desired Number of Docks", first value)
+    [offset((ee)0xE60, (aoc)0xE9C), found(c)]
+    int32 docks_units_each;
+
+    /// the units it has per building before it builds another (record 41 "Desired Number of Granaries", first value)
+    [offset((ee)0xE64, (aoc)0xEA0), found(c)]
+    int32 granaries_units_each;
+
+    /// the units it has per building before it builds another (record 40 "Desired Number of Hospitals", first value)
+    [offset((ee)0xE68, (aoc)0xEA4), found(c)]
+    int32 hospitals_units_each;
+
+    /// the units it has per building before it builds another (record 37 "Desired Number of Cyber Factories", first
+    /// value)
+    [offset((ee)0xE6C, (aoc)0xEA8), found(c)]
+    int32 cyber_factories_units_each;
+
+    /// the units it has per building before it builds another (record 42 "Desired Number of Cyber Laboratories", first
+    /// value)
+    [offset((ee)0xE70, (aoc)0xEAC), found(c)]
+    int32 cyber_labs_units_each;
+
+    /// the units it has per building before it builds another (record 35 "Desired Number of Naval Yards", first value)
+    [offset((ee)0xE74, (aoc)0xEB0), found(c)]
+    int32 naval_yards_units_each;
+
+    /// the units it has per building before it builds another (record 34 "Desired Number of Siege Factories", first
+    /// value)
+    [offset((ee)0xE78, (aoc)0xEB4), found(c)]
+    int32 siege_factories_units_each;
+
+    /// the units it has per building before it builds another (record 32 "Desired Number of Stables", first value)
+    [offset((ee)0xE7C, (aoc)0xEBC), found(c)]
+    int32 stables_units_each;
+
+    /// the units it has per building before it builds another (record 108 "Desired Number of Tank Factories", first
+    /// value)
+    [offset((ee)0xE80, (aoc)0xEC0), found(c)]
+    int32 tank_factories_units_each;
+
+    /// the units it has per building before it builds another (record 39 "Desired Number of Temples", first value)
+    [offset((ee)0xE84, (aoc)0xEC4), found(c)]
+    int32 temples_units_each;
+
+    /// walls and towers to other buildings (record 95 "Desired Number of Towers", first value)
+    [offset((ee)0xE88, (aoc)0xEC8), found(c)]
+    int32 towers_each;
+
+    /// the units it has per building before it builds another (record 38 "Desired Number of Universities", first value)
+    [offset((ee)0xE8C, (aoc)0xECC), found(c)]
+    int32 universities_units_each;
+
     /// minutes before it upgrades a settlement to a town center (record 100)
     [offset((ee)0xE90, (aoc)0xED0), found(c)]
     int32 tc_timer;
+
+    /// the most flame throwers it has (record 113 "Desired Number of Flame Throwers")
+    [offset((ee)0xE94, (aoc)0xED4), found(c)]
+    int32 flame_throwers_max;
+
+    /// ms before it checks whether lost town guards are replaced, by difficulty (record 114 "Town Guard Update",
+    /// minutes x 60000)
+    [offset((ee)0xE98, (aoc)0xED8), found(c)]
+    fixed int32 town_guard_update_ms[3];
+
+    /// the same in deathmatch (record 115 "Town Guard Update - Deathmatch")
+    [offset((ee)0xEA4, (aoc)0xEE4), found(c)]
+    fixed int32 dm_town_guard_update_ms[3];
+
+    /// ms before it checks whether lost defensive units are replaced, by difficulty (record 88 "Defensive Unit Update",
+    /// minutes x 60000)
+    [offset((ee)0xEB0, (aoc)0xEF0), found(c)]
+    fixed int32 defence_update_ms[3];
+
+    /// the same in deathmatch (record 116 "Defensive Unit Update - Deathmatch")
+    [offset((ee)0xEBC, (aoc)0xEFC), found(c)]
+    fixed int32 dm_defence_update_ms[3];
 
     /// minutes between overseas expansions by difficulty (record 121)
     [offset((ee)0xEC8, (aoc)0xF08), found(c)]

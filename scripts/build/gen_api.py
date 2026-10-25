@@ -98,6 +98,8 @@ class Gen:
         return decl(self.ctype(cs, where), name)
 
     def doc(self, m):
+        if m.attr('guess'):
+            self.lines.append('// A GUESS (the spec\'s [guess]): its name and type, from what the code does with it -')
         for d in m.doc:
             self.lines.append('// ' + d if d else '//')
 

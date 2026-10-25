@@ -595,6 +595,10 @@ manager (0x48B344). Then it writes cp+0xEF9. The others are plain byte writes: 1
 +0x114 int1, +0x118 int2 (text boxes), +0x110 float (slider / record "Scen Float Divisor"). Skips humans. Most
 cases write the same cp field that the loader 0x431697 fills from that record, so the trigger replaces the
 .dat value at run time. "now" stamps are `_ftol(float)` (0x53BA92), i.e. round(+0x110). "x c" = x 0.01.
+A record's name is string 28000 + its number: the .dat's own name ids (and the editor's texts with them) are one off
+from record 109 on (109 shows 28110 "RPS Selection Islands"), which the loader's use of each record settles (114 is
+loaded as minutes like 88, 120 is a count of buildings). The spec has every loaded field by its record
+(EEComputerPlayer, EEPlayer's older ones).
 | rec | name | written |
 |---|---|---|
 | 1 | Initial Attack Delay | +0xD2C min, +0xD28 max (int1, int2) |
@@ -610,16 +614,16 @@ cases write the same cp field that the loader 0x431697 fills from that record, s
 | 30..42, 95, 108, 109 | Desired number of barracks ... towers, tank factories; **109 shows "RPS Selection Islands" but sets the anti-air buildings** | setters 0x5B4xxx(cp, int): int1 -> v1 field (e.g. +0xE5C), round(f) -> second field (e.g. +0xDA4). **Both write the same build-plan entry** `[cp+0xB90]+0x1C` map{type, 0}+0x10 (type 0x22 barracks, 0x2F towers, 0x91 AA), so the plan ends up with round(float). Logged by 0x59FE04. |
 | 46, 47 | Unit / attributes selected for improvements | +0xD84, +0xD80 |
 | 49/50/51/52 | Priest / Prophet / Hero / Carrier usage | int1 -> +0xDFC/+0xE00/+0xD7C/+0xCD0, int2 x c -> +0xC50/+0xC58/+0xC30/+0xBBC, f -> +0xC4C/+0xC54/+0xC34/+0xBC0 |
-| 53, 54 | RPS non-islands +0xBCC; **54 writes +0xBD0** (the loader puts it in +0xBD4; +0xBD0 is rec 110 Naval Unit Weight) | |
+| 53, 54 | RPS non-islands +0xBCC; **54 writes +0xBD0** (the loader puts it in +0xBD4; +0xBD0 is rec 110 RPS Selection Islands) | |
 | 67, 70..85, 90, 91 | Unit cost reduction medium +0xBB4 (x c); guard %s chokepoint +0xBF8, continent +0xBF0, high ground +0xBFC, chokepoint-air +0xBF4, town +0xC24, waterway +0xC2C (and unnamed +0xC00..+0xC28); town guard % +0xBD8; CvC aggression +0xBB8 | floats |
-| 87, 89, 88, 113 | Defense group size % (+0xD54/+0xD50), replenish delay (+0xD8C/+0xD88), defensive unit update +0xEB0/+0xEB4/+0xEB8, town guard update +0xE94 | |
+| 87, 89, 88, 113 | Defense group size % (+0xD54/+0xD50), replenish delay (+0xD8C/+0xD88), defensive unit update +0xEB0/+0xEB4/+0xEB8, flame throwers (the most) +0xE94 | |
 | 96 | Unit Cost Reduction Easy & Hard | **writes +0xD60/+0xD64 (Epoch Freq. Modifier)**, not the cheat % fields +0xD48/+0xD4C (bug) |
 | 97, 98, 102 | Expansion timer +0xD70/+0xD74/+0xD78; Pop limit adjustment +0xDF0/+0xDF4/+0xDF8 (easy/med/hard); +0xD68/+0xD6C | |
 | 99, 100 | Capitol upgrade timer +0xE1C, TC upgrade timer +0xE90 | |
 | 103/104/106 | Min military buildings easy/hard/med | only v1: +0xDD8 / +0xDE8 / +0xDE0 |
-| 110, 111, 112 | Naval weight +0xBD0, Air weight +0xC68, Flame throwers +0xC6C | floats |
-| 114/115/116 | Bonzai attack level +0xE98.., Island expansion timer +0xEA4.., DM initial attack mod +0xEBC.. | int1, int2, round(f) |
-| 118..120 | unnamed (EE strings missing) | +0xCBC, +0xC3C, +0xD3C |
+| 110, 111, 112 | RPS Selection Islands +0xBD0, Naval Unit Weight +0xC68, Air Unit Weight +0xC6C | floats |
+| 114/115/116 | Town Guard Update +0xE98.., the same in deathmatch +0xEA4.., Defensive Unit Update - Deathmatch +0xEBC.. | int1, int2, round(f) |
+| 118..120 | Minimum Ship Maintenance Timer, Siege Weapon Percentage, Bonzai Attack Level | +0xCBC, +0xC3C, +0xD3C |
 | 121/122/123 | per difficulty (cp+0xBA4 picks the slot) | 0x43F4B4 -> +0xEC8/+0xECC/+0xED0; 0x43F442 -> +0xC74/C78/C7C; 0x43F47B -> +0xC80/C84/C88 |
 | 2 | Attack Delay Modifier (hidden) | **writes the difficulty +0xBA4 = int1** (the loader puts it in +0xD08/+0xD0C) |
 | 12 | hidden | +0xC64 = int1 x c, then overwritten by int2 x c (+0xC60 never set) |
