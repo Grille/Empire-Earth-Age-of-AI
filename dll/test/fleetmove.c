@@ -31,15 +31,15 @@ internal void fm_tick(void) {
     uint32_t now = game_time();
     if (now == g_fm_trace_last) return;
     g_fm_trace_last = now;
-    if (g_fm_watch)   // id, position, heading, speed, state, the raw +0x345 (moving: lets others pass) and +0x248 (blocked time)
+    if (g_fm_watch)   // id, position, heading, speed, state, the raw +0x345 (moving: lets others pass) and the blocked time
         for (int i = 0; i < g_fm_n; i++) {
             ee_unit *w = unit_by_id(g_fm[i].id);
             if (!w) continue;
             vec3 q = unit_get_pos(w), fq = unit_get_facing(w);
             fprintf(g_log, "# fmwatch %u %06x %.3f %.3f %.1f %.3f %u %u %.2f push %.3f %.3f obst %d contacts %d size %.2f %.2f %.2f class %d\n", now, g_fm[i].id & 0xFFFFFF, q.x, q.y,
-                    atan2f(fq.x, fq.y) * 57.29578f, unit_get_speed(w), unit_ai_state_id(w), FIELD(w, 0x345, uint8_t), FIELD(w, 0x248, float),
+                    atan2f(fq.x, fq.y) * 57.29578f, unit_get_speed(w), unit_ai_state_id(w), FIELD(w, 0x345, uint8_t), unit_get_blocked_ms(w),
                     FIELD(w, 0x230, float), FIELD(w, 0x234, float), FIELD(w, 0x20C, int) != 0, FIELD(w, 0xC8, int),
-                    FIELD(w, 0x244, float), FIELD(unit_get_type_data(w), 0x474, float), FIELD(unit_get_type_data(w), 0x470, float), unit_type_get_class_id(unit_get_type_data(w)));
+                    unit_get_size(w), FIELD(unit_get_type_data(w), 0x474, float), unit_type_get_collision(unit_get_type_data(w)), unit_type_get_class_id(unit_get_type_data(w)));
         }
     if (!g_fm_trace) return;
     ee_unit *u = unit_by_id(g_fm_trace);
@@ -47,7 +47,7 @@ internal void fm_tick(void) {
     vec3 p = unit_get_pos(u), f = unit_get_facing(u);
     ee_goal *g0 = unit_order_at(u, 0), *g1 = unit_order_at(u, 1);
     fprintf(g_log, "# fmtrace %u pos %.3f,%.3f head %.1f spd %.3f state %u wp %d at %.2f,%.2f orders %d (%d %d)\n", now, p.x, p.y, atan2f(f.x, f.y) * 57.29578f,
-            unit_get_speed(u), unit_ai_state_id(u), FIELD(u, 0x8C, int), FIELD(u, 0x118, float), FIELD(u, 0x11C, float), unit_orders(u),
+            unit_get_speed(u), unit_ai_state_id(u), FIELD(u, 0x8C, int), unit_guard_pos_at(u)->x, unit_guard_pos_at(u)->y, unit_orders(u),
             g0 ? goal_get_state(g0) : -1, g1 ? goal_get_state(g1) : -1);
     static unsigned last_state;
     unsigned st = unit_ai_state_id(u);
