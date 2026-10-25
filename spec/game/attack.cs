@@ -91,6 +91,38 @@ unsafe struct EECPAttackSubGroup
 
     [offset((ee)0x238, (aoc)0x23C), found(c)]
     int32 y;
+
+    [address((ee)0x00442AD8, (aoc)0x00442220)]
+    extern char8 air_give_goal(EEUnit* u, EEUnitGoal* goal, int32 a, int32 prio);
+
+    /// EECPASGAir slot 90: update(now)
+    [address((ee)0x00442DBA, (aoc)0x0045019D)]
+    extern void air_update(int32 now);
+
+    [address((ee)0x0045CBEA, (aoc)0x0045E7F9)]
+    extern char8 give_goal(EEUnit* u, EEUnitGoal* goal, int32 a, int32 prio);
+
+    [address((ee)0x004472A9, (aoc)0x004466DD)]
+    extern void land_stats();
+
+    /// its slot 97: route arrived, waypoints in the deque at +0x60
+    [address((ee)0x0044BDBF, (aoc)0x0044B53D)]
+    extern void route_done();
+
+    /// EECPASGSeaTransport slot 90: update(now)
+    [address((ee)0x0044FB92, (aoc)0x0044E9BB)]
+    extern void sea_transport_update(int32 now);
+
+    /// EECPASGSea slot 90: update(now)
+    [address((ee)0x0044ED11, (aoc)0x0044F70E)]
+    extern void sea_update(int32 now);
+
+    [address((ee)0x0045AD2F, (aoc)0x0045C925)]
+    extern void stats();
+
+    /// EECPASGLand slot 90: update(now)
+    [address((ee)0x004491DD, (aoc)0x004488CE)]
+    extern void update(int32 now);
 }
 
 /// an attack subgroup's unit record (EECPAttackSubGroupUnit, EECPASGU*)
@@ -106,6 +138,10 @@ unsafe struct EECPAttackSubGroupUnit
 
     [offset(0x4C), found(c)]
     EECPAttackSubGroup* subgroup;
+
+    /// float thiscall(info *)
+    [address((ee)0x00461854, (aoc)0x00463494)]
+    extern float32 score(ee_asgu_info* info);
 }
 
 /// what asgu_score scores
@@ -253,45 +289,9 @@ static unsafe class attack
 [c_prefix("")]
 static unsafe class attack_functions
 {
-    /// float thiscall(info *)
-    [address((ee)0x00461854, (aoc)0x00463494), thiscall]
-    static extern float32 asgu_score(EECPAttackSubGroupUnit* member, ee_asgu_info* info);
-
-    [address((ee)0x00442AD8, (aoc)0x00442220), thiscall]
-    static extern char8 asg_air_give_goal(EECPAttackSubGroup* sg, EEUnit* u, EEUnitGoal* goal, int32 a, int32 prio);
-
-    /// EECPASGAir slot 90: update(now)
-    [address((ee)0x00442DBA, (aoc)0x0045019D), thiscall]
-    static extern void asg_air_update(EECPAttackSubGroup* sg, int32 now);
-
-    [address((ee)0x0045CBEA, (aoc)0x0045E7F9), thiscall]
-    static extern char8 asg_give_goal(EECPAttackSubGroup* sg, EEUnit* u, EEUnitGoal* goal, int32 a, int32 prio);
-
-    [address((ee)0x004472A9, (aoc)0x004466DD), thiscall]
-    static extern void asg_land_stats(EECPAttackSubGroup* sg);
-
     /// its slot 94: void thiscall(int start[2], int dest[2])
     [address((ee)0x0044BC57, (aoc)0x0044B3C7), thiscall]
     static extern void asg_route(EECPAttackSubGroup* sg, int32* start, int32* dest);
-
-    /// its slot 97: route arrived, waypoints in the deque at +0x60
-    [address((ee)0x0044BDBF, (aoc)0x0044B53D), thiscall]
-    static extern void asg_route_done(EECPAttackSubGroup* sg);
-
-    /// EECPASGSeaTransport slot 90: update(now)
-    [address((ee)0x0044FB92, (aoc)0x0044E9BB), thiscall]
-    static extern void asg_sea_transport_update(EECPAttackSubGroup* sg, int32 now);
-
-    /// EECPASGSea slot 90: update(now)
-    [address((ee)0x0044ED11, (aoc)0x0044F70E), thiscall]
-    static extern void asg_sea_update(EECPAttackSubGroup* sg, int32 now);
-
-    [address((ee)0x0045AD2F, (aoc)0x0045C925), thiscall]
-    static extern void asg_stats(EECPAttackSubGroup* sg);
-
-    /// EECPASGLand slot 90: update(now)
-    [address((ee)0x004491DD, (aoc)0x004488CE), thiscall]
-    static extern void asg_update(EECPAttackSubGroup* sg, int32 now);
 
     /// thiscall(attack manager, task, strategy, unit ids) -> the attack group
     [address((ee)0x0045106C, (aoc)0x00451D8E), thiscall]

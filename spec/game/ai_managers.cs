@@ -26,6 +26,18 @@ unsafe struct ee_build_mgr
     /// its file's code (+0x24)
     [offset((ee)0x148, (aoc)0x16C), found(c)]
     block initialized;
+
+    /// thiscall(build manager, type): queued
+    [address((ee)0x00465640, (aoc)0x004672FA)]
+    extern char8 queued(int32 type);
+
+    /// thiscall(build manager, x, y) -> bool
+    [address((ee)0x004660B9, (aoc)0x00467E10)]
+    extern char8 enemy_near(int32 x, int32 y);
+
+    [address((ee)0x0046580A, (aoc)0x004674C4)]
+    [call_site("place", (ee)0x00468629, (aoc)0x0046B044)]
+    extern char8 place(int32 type, int32 x, int32 y);
 }
 
 /// the AI's civilization manager, player +0xB90 (EECPCivilizationManager)
@@ -91,6 +103,10 @@ unsafe struct EECPCivilizationManager
     /// its file's code (+4 from 0x74)
     [offset((ee)0x7C, (aoc)0x80), found(c)]
     uint8 att_7c;
+
+    /// SetNextEpochAdvanceTime
+    [address((ee)0x0046DE8C, (aoc)0x00470B04)]
+    extern void set_epoch_time(uint32 now, char8 flag);
 }
 
 /// the civilization manager's list nodes
@@ -151,6 +167,21 @@ unsafe struct EECPResourceManager
     /// its file's code (the resource manager)
     [offset(0x188), found(c)]
     uint8 att_188;
+
+    [address((ee)0x0048A554, (aoc)0x0048EECF)]
+    // call EECPResourceManager::AssignCitizens (0x48A554)
+    [call_site("rm_assign_citizens", (ee)0x0048D36A, (aoc)0x00491E3B)]
+    extern char8 assign_citizens();
+
+    [address((ee)0x0048D0A2, (aoc)0x00491B78)]
+    // call EECPResourceManager::ComputeGathererTargets (0x48D0A2)
+    [call_site("rm_compute_targets", (ee)0x0048D347, (aoc)0x00491E18)]
+    extern char8 compute_targets();
+
+    [address((ee)0x0048D263, (aoc)0x00491D34)]
+    // call EECPResourceManager::Update(now) (0x48D263)
+    [call_site("rm_update", (ee)0x0046E3C6, (aoc)0x00471051)]
+    extern void update(uint32 now);
 }
 
 /// the AI's research manager, CM +0x40 (EECPResearchManager)
@@ -176,6 +207,13 @@ unsafe struct EECPResearchManager
     /// the attention's activity 2 (random research)
     [offset((ee)0x11A, (aoc)0x12A), found(v)]
     uint8 att_random;
+
+    /// thiscall(research manager cm+0x40, count): the AI's request for an epoch's required techs
+    [address((ee)0x004860D6, (aoc)0x0048A91E)]
+    extern void request_requirements(int32 count);
+
+    [address((ee)0x00485F57, (aoc)0x0048A79F)]
+    extern void schedule(int32 id);
 }
 
 /// the AI's unit manager, CM +0x44
@@ -199,12 +237,43 @@ unsafe struct ee_unit_mgr
     /// its file's code (+0x14)
     [offset((ee)0x140, (aoc)0x154), found(c)]
     uint8 att_140;
+
+    [address((ee)0x0048EE84, (aoc)0x00493B97)]
+    // a call of um_train_citizens
+    [call_site("train_citizens", (ee)0x00430740, (aoc)0x0042E23C)]
+    extern nuint train_citizens(nuint a);
+
+    [address((ee)0x0049014F, (aoc)0x00494F42)]
+    // the calls of um_train (econ.c: the game's unit orders)
+    [call_site("train_units", (ee)0x0046CCE6, (aoc)0x0046F786)]
+    [call_site("train_units", (ee)0x00490CAC, (aoc)0x00495AFF)]
+    [call_site("train_units", (ee)0x00490E12, (aoc)0x00495C65)]
+    [call_site("train_units", (ee)0x00490F1F, (aoc)0x00495D72)]
+    [call_site("train_units", (ee)0x00490FA9, (aoc)0x00495DFC)]
+    extern nuint train(int32* req, nuint b);
+
+    /// citizens of both sexes and the epoch's fishing boat type
+    [address((ee)0x0048F819, (aoc)0x00494572)]
+    extern int32 citizens();
+
+    /// citizen share x population cap
+    [address((ee)0x0048EDDB, (aoc)0x00493AEE)]
+    // a call of um_citizens_wanted
+    [call_site("citizens_wanted", (ee)0x00490BC2, (aoc)0x00495A15)]
+    extern int32 citizens_wanted();
+
+    /// thiscall(unit manager, type)
+    [address((ee)0x0048E9D8, (aoc)0x00493696)]
+    extern char8 pending(int32 type);
+
+    /// thiscall(unit manager, type): its units and buildings of that type
+    [address((ee)0x0048F8AF, (aoc)0x00494608)]
+    extern uint8* type_list(int32 type);
 }
 
 /// ai_managers's data of the game, places in its code and numbers
 static unsafe class ai_managers
 {
-
     /// the call of farms_game
     [address((ee)0x0048AC54, (aoc)0x0048F643)]
     static code call_farms;
@@ -218,11 +287,6 @@ static unsafe class ai_managers
 [c_prefix("")]
 static unsafe class ai_managers_functions
 {
-    [address((ee)0x0048A554, (aoc)0x0048EECF), thiscall]
-    // call EECPResourceManager::AssignCitizens (0x48A554)
-    [call_site("rm_assign_citizens", (ee)0x0048D36A, (aoc)0x00491E3B)]
-    static extern char8 rm_assign_citizens(EECPResourceManager* rm);
-
     /// (unit, target, 0)
     [address((ee)0x0048C81C, (aoc)0x004912BE), thiscall]
     // the calls of assign_to_site (trace.c)
@@ -239,10 +303,6 @@ static unsafe class ai_managers_functions
     [call_site("gather", (ee)0x0048B261, (aoc)0x0048FC37)]
     static extern void assign_to_site(EECPResourceManager* rm, EEUnit* u, EEUnit* site, int32 c);
 
-    /// thiscall(build manager, type): queued
-    [address((ee)0x00465640, (aoc)0x004672FA), thiscall]
-    static extern char8 bm_queued(ee_build_mgr* bm, int32 type);
-
     /// thiscall(build manager, type, 1, 0): one building requested
     [address((ee)0x0046802D, (aoc)0x0046A9C1), thiscall]
     static extern void bm_request_game(void* p1, int32 p2, int32 p3, int32 p4);
@@ -254,15 +314,6 @@ static unsafe class ai_managers_functions
     /// thiscall(cm, unit state): in no group
     [address((ee)0x004707D8, (aoc)0x0047377E), thiscall]
     static extern char8 cm_unit_free(void* cm, void* unit_state);
-
-    [address((ee)0x0048D0A2, (aoc)0x00491B78), thiscall]
-    // call EECPResourceManager::ComputeGathererTargets (0x48D0A2)
-    [call_site("rm_compute_targets", (ee)0x0048D347, (aoc)0x00491E18)]
-    static extern char8 rm_compute_targets(EECPResourceManager* rm);
-
-    /// thiscall(build manager, x, y) -> bool
-    [address((ee)0x004660B9, (aoc)0x00467E10), thiscall]
-    static extern char8 bm_enemy_near(ee_build_mgr* bm, int32 x, int32 y);
 
     /// (count, out list)
     [address((ee)0x0048BFD0, (aoc)0x00490A63), thiscall]
@@ -308,63 +359,11 @@ static unsafe class ai_managers_functions
     // the calls of hunt_game
     [call_site("hunt", (ee)0x0048ACE4, (aoc)0x0048F6D2)]
     [call_site("hunt", (ee)0x0048AFC4, (aoc)0x0048F9B3)]
-    static extern void* hunt_game(EECPResourceManager* rm, nuint n, nuint f, nuint out);
-
-    [address((ee)0x0046580A, (aoc)0x004674C4), thiscall]
-    [call_site("place", (ee)0x00468629, (aoc)0x0046B044)]
-    static extern char8 bm_place(ee_build_mgr* bm, int32 type, int32 x, int32 y);
-
-    /// thiscall(research manager cm+0x40, count): the AI's request for an epoch's required techs
-    [address((ee)0x004860D6, (aoc)0x0048A91E), thiscall]
-    static extern void rs_request_requirements(EECPResearchManager* rs, int32 count);
-
-    [address((ee)0x0048D263, (aoc)0x00491D34), thiscall]
-    // call EECPResourceManager::Update(now) (0x48D263)
-    [call_site("rm_update", (ee)0x0046E3C6, (aoc)0x00471051)]
-    static extern void rm_update(EECPResourceManager* rm, uint32 now);
-
-    [address((ee)0x00485F57, (aoc)0x0048A79F), thiscall]
-    static extern void rs_schedule(EECPResearchManager* rs, int32 id);
-
-    /// SetNextEpochAdvanceTime
-    [address((ee)0x0046DE8C, (aoc)0x00470B04), thiscall]
-    static extern void cm_set_epoch_time(EECPCivilizationManager* cm, uint32 now, char8 flag);
-
-    [address((ee)0x0048EE84, (aoc)0x00493B97), thiscall]
-    // a call of um_train_citizens
-    [call_site("train_citizens", (ee)0x00430740, (aoc)0x0042E23C)]
-    static extern nuint um_train_citizens(ee_unit_mgr* um, nuint a);
-
-    [address((ee)0x0049014F, (aoc)0x00494F42), thiscall]
-    // the calls of um_train (econ.c: the game's unit orders)
-    [call_site("train_units", (ee)0x0046CCE6, (aoc)0x0046F786)]
-    [call_site("train_units", (ee)0x00490CAC, (aoc)0x00495AFF)]
-    [call_site("train_units", (ee)0x00490E12, (aoc)0x00495C65)]
-    [call_site("train_units", (ee)0x00490F1F, (aoc)0x00495D72)]
-    [call_site("train_units", (ee)0x00490FA9, (aoc)0x00495DFC)]
-    static extern nuint um_train(ee_unit_mgr* um, int32* req, nuint b);
-
-    /// citizens of both sexes and the epoch's fishing boat type
-    [address((ee)0x0048F819, (aoc)0x00494572), thiscall]
-    static extern int32 um_citizens(ee_unit_mgr* um);
-
-    /// citizen share x population cap
-    [address((ee)0x0048EDDB, (aoc)0x00493AEE), thiscall]
-    // a call of um_citizens_wanted
-    [call_site("citizens_wanted", (ee)0x00490BC2, (aoc)0x00495A15)]
-    static extern int32 um_citizens_wanted(ee_unit_mgr* um);
+    static extern void* hunt_game(EECPResourceManager* rm, nuint n, nuint f, nuint @out);
 
     /// thiscall(unit manager, type)
     [address((ee)0x0048EA2E, (aoc)0x004936EC), thiscall]
     static extern char8 um_in_production(ee_unit_mgr* um, int32 type);
-
-    /// thiscall(unit manager, type)
-    [address((ee)0x0048E9D8, (aoc)0x00493696), thiscall]
-    static extern char8 um_pending(ee_unit_mgr* um, int32 type);
-
-    /// thiscall(unit manager, type): its units and buildings of that type
-    [address((ee)0x0048F8AF, (aoc)0x00494608), thiscall]
-    static extern uint8* um_type_list(ee_unit_mgr* um, int32 type);
 
     [address((ee)0x0048BF4F, (aoc)0x004909D7), thiscall]
     static extern void* unbuilt_farms(void* p1, nuint p2, nuint p3);

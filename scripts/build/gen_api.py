@@ -209,7 +209,7 @@ class Gen:
             raise Fail('%s: a static member belongs in a static class' % m.where)
         if m.attr('import'):
             raise Fail('%s: an [import] - not made yet (gen_api.py)' % m.where)
-        this = P[0] if P and P[0] not in [n for _, n in m.params] else 'o'
+        this = P if P and P not in [n for _, n in m.params] else 'o'   # the object by its prefix (rm, um, unit)
         self.doc(m)
         fn_t = self.fn_type(t, m, P, obj)
         label = '%s.%s' % (t.name, m.name)

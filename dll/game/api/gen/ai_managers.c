@@ -24,6 +24,18 @@ internal inline void bm_set_player(ee_build_mgr *o, ee_player *v) { *(ee_player 
 internal inline ee_player **bm_player_at(const ee_build_mgr *o) { return (ee_player **)((uint8_t *)o + of_bm_player); }
 // its file's code (+0x24)
 internal inline uint8_t *bm_initialized_at(const ee_build_mgr *o) { return (uint8_t *)o + of_bm_initialized; }
+// thiscall(build manager, type): queued
+typedef char (__thiscall *bm_queued_fn)(ee_build_mgr *, int);
+internal bm_queued_fn fn_bm_queued;
+internal inline char bm_queued(ee_build_mgr *bm, int type) { return fn_bm_queued(bm, type); }
+// thiscall(build manager, x, y) -> bool
+typedef char (__thiscall *bm_enemy_near_fn)(ee_build_mgr *, int, int);
+internal bm_enemy_near_fn fn_bm_enemy_near;
+internal inline char bm_enemy_near(ee_build_mgr *bm, int x, int y) { return fn_bm_enemy_near(bm, x, y); }
+typedef char (__thiscall *bm_place_fn)(ee_build_mgr *, int, int, int);
+internal bm_place_fn fn_bm_place;
+internal inline char bm_place(ee_build_mgr *bm, int type, int x, int y) { return fn_bm_place(bm, type, x, y); }
+internal inline int patch_place(bm_place_fn h) { return patch_call(call_place, (uintptr_t)fn_bm_place, (void *)h); }
 
 // class EECPCivilizationManager (ee_civ_mgr)
 // the AI's civilization manager, player +0xB90 (EECPCivilizationManager)
@@ -83,6 +95,10 @@ internal inline uint8_t *cm_att_build_at(const ee_civ_mgr *o) { return (uint8_t 
 internal inline uint8_t cm_get_att_7c(const ee_civ_mgr *o) { return *(uint8_t *)((uint8_t *)o + of_cm_att_7c); }
 internal inline void cm_set_att_7c(ee_civ_mgr *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_cm_att_7c) = v; }
 internal inline uint8_t *cm_att_7c_at(const ee_civ_mgr *o) { return (uint8_t *)((uint8_t *)o + of_cm_att_7c); }
+// SetNextEpochAdvanceTime
+typedef void (__thiscall *cm_set_epoch_time_fn)(ee_civ_mgr *, uint32_t, char);
+internal cm_set_epoch_time_fn fn_cm_set_epoch_time;
+internal inline void cm_set_epoch_time(ee_civ_mgr *cm, uint32_t now, char flag) { fn_cm_set_epoch_time(cm, now, flag); }
 
 // class ee_plan_node (ee_plan_node)
 // the civilization manager's list nodes
@@ -136,6 +152,18 @@ internal inline uint8_t *rm_initialized_at(const ee_resource_mgr *o) { return (u
 internal inline uint8_t rm_get_att_188(const ee_resource_mgr *o) { return *(uint8_t *)((uint8_t *)o + of_rm_att_188); }
 internal inline void rm_set_att_188(ee_resource_mgr *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_rm_att_188) = v; }
 internal inline uint8_t *rm_att_188_at(const ee_resource_mgr *o) { return (uint8_t *)((uint8_t *)o + of_rm_att_188); }
+typedef char (__thiscall *rm_assign_citizens_fn)(ee_resource_mgr *);
+internal rm_assign_citizens_fn fn_rm_assign_citizens;
+internal inline char rm_assign_citizens(ee_resource_mgr *rm) { return fn_rm_assign_citizens(rm); }
+internal inline int patch_rm_assign_citizens(rm_assign_citizens_fn h) { return patch_call(call_rm_assign_citizens, (uintptr_t)fn_rm_assign_citizens, (void *)h); }
+typedef char (__thiscall *rm_compute_targets_fn)(ee_resource_mgr *);
+internal rm_compute_targets_fn fn_rm_compute_targets;
+internal inline char rm_compute_targets(ee_resource_mgr *rm) { return fn_rm_compute_targets(rm); }
+internal inline int patch_rm_compute_targets(rm_compute_targets_fn h) { return patch_call(call_rm_compute_targets, (uintptr_t)fn_rm_compute_targets, (void *)h); }
+typedef void (__thiscall *rm_update_fn)(ee_resource_mgr *, uint32_t);
+internal rm_update_fn fn_rm_update;
+internal inline void rm_update(ee_resource_mgr *rm, uint32_t now) { fn_rm_update(rm, now); }
+internal inline int patch_rm_update(rm_update_fn h) { return patch_call(call_rm_update, (uintptr_t)fn_rm_update, (void *)h); }
 
 // class EECPResearchManager (ee_research_mgr)
 // the AI's research manager, CM +0x40 (EECPResearchManager)
@@ -155,6 +183,13 @@ internal inline uint8_t *rs_initialized_at(const ee_research_mgr *o) { return (u
 internal inline uint8_t rs_get_att_random(const ee_research_mgr *o) { return *(uint8_t *)((uint8_t *)o + of_rs_att_random); }
 internal inline void rs_set_att_random(ee_research_mgr *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_rs_att_random) = v; }
 internal inline uint8_t *rs_att_random_at(const ee_research_mgr *o) { return (uint8_t *)((uint8_t *)o + of_rs_att_random); }
+// thiscall(research manager cm+0x40, count): the AI's request for an epoch's required techs
+typedef void (__thiscall *rs_request_requirements_fn)(ee_research_mgr *, int);
+internal rs_request_requirements_fn fn_rs_request_requirements;
+internal inline void rs_request_requirements(ee_research_mgr *rs, int count) { fn_rs_request_requirements(rs, count); }
+typedef void (__thiscall *rs_schedule_fn)(ee_research_mgr *, int);
+internal rs_schedule_fn fn_rs_schedule;
+internal inline void rs_schedule(ee_research_mgr *rs, int id) { fn_rs_schedule(rs, id); }
 
 // class ee_unit_mgr (ee_unit_mgr)
 // the AI's unit manager, CM +0x44
@@ -174,6 +209,31 @@ internal inline int *um_in_production_at(const ee_unit_mgr *o) { return (int *)(
 internal inline uint8_t um_get_att_140(const ee_unit_mgr *o) { return *(uint8_t *)((uint8_t *)o + of_um_att_140); }
 internal inline void um_set_att_140(ee_unit_mgr *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_um_att_140) = v; }
 internal inline uint8_t *um_att_140_at(const ee_unit_mgr *o) { return (uint8_t *)((uint8_t *)o + of_um_att_140); }
+typedef uintptr_t (__thiscall *um_train_citizens_fn)(ee_unit_mgr *, uintptr_t);
+internal um_train_citizens_fn fn_um_train_citizens;
+internal inline uintptr_t um_train_citizens(ee_unit_mgr *um, uintptr_t a) { return fn_um_train_citizens(um, a); }
+internal inline int patch_train_citizens(um_train_citizens_fn h) { return patch_call(call_train_citizens, (uintptr_t)fn_um_train_citizens, (void *)h); }
+typedef uintptr_t (__thiscall *um_train_fn)(ee_unit_mgr *, int *, uintptr_t);
+internal um_train_fn fn_um_train;
+internal inline uintptr_t um_train(ee_unit_mgr *um, int *req, uintptr_t b) { return fn_um_train(um, req, b); }
+internal inline int patch_train_units(um_train_fn h, int *of) { return patch_calls(calls_train_units, 5, (uintptr_t)fn_um_train, (void *)h, of); }
+// citizens of both sexes and the epoch's fishing boat type
+typedef int (__thiscall *um_citizens_fn)(ee_unit_mgr *);
+internal um_citizens_fn fn_um_citizens;
+internal inline int um_citizens(ee_unit_mgr *um) { return fn_um_citizens(um); }
+// citizen share x population cap
+typedef int (__thiscall *um_citizens_wanted_fn)(ee_unit_mgr *);
+internal um_citizens_wanted_fn fn_um_citizens_wanted;
+internal inline int um_citizens_wanted(ee_unit_mgr *um) { return fn_um_citizens_wanted(um); }
+internal inline int patch_citizens_wanted(um_citizens_wanted_fn h) { return patch_call(call_citizens_wanted, (uintptr_t)fn_um_citizens_wanted, (void *)h); }
+// thiscall(unit manager, type)
+typedef char (__thiscall *um_pending_fn)(ee_unit_mgr *, int);
+internal um_pending_fn fn_um_pending;
+internal inline char um_pending(ee_unit_mgr *um, int type) { return fn_um_pending(um, type); }
+// thiscall(unit manager, type): its units and buildings of that type
+typedef uint8_t *(__thiscall *um_type_list_fn)(ee_unit_mgr *, int);
+internal um_type_list_fn fn_um_type_list;
+internal inline uint8_t *um_type_list(ee_unit_mgr *um, int type) { return fn_um_type_list(um, type); }
 
 // static class ai_managers
 // ai_managers's data of the game, places in its code and numbers
@@ -183,19 +243,11 @@ internal inline uint8_t *ai_managers_call_unbuilt_farms_at(void) { return (uint8
 
 // static class ai_managers_functions
 // the game's functions ai_managers.c wraps, by the names the C side gives them
-typedef char (__thiscall *rm_assign_citizens_fn)(ee_resource_mgr *);
-internal rm_assign_citizens_fn fn_rm_assign_citizens;
-internal inline char rm_assign_citizens(ee_resource_mgr *rm) { return fn_rm_assign_citizens(rm); }
-internal inline int patch_rm_assign_citizens(rm_assign_citizens_fn h) { return patch_call(call_rm_assign_citizens, (uintptr_t)fn_rm_assign_citizens, (void *)h); }
 // (unit, target, 0)
 typedef void (__thiscall *assign_to_site_fn)(ee_resource_mgr *, ee_unit *, ee_unit *, int);
 internal assign_to_site_fn fn_assign_to_site;
 internal inline void assign_to_site(ee_resource_mgr *rm, ee_unit *u, ee_unit *site, int c) { fn_assign_to_site(rm, u, site, c); }
 internal inline int patch_gather(assign_to_site_fn h, int *of) { return patch_calls(calls_gather, 11, (uintptr_t)fn_assign_to_site, (void *)h, of); }
-// thiscall(build manager, type): queued
-typedef char (__thiscall *bm_queued_fn)(ee_build_mgr *, int);
-internal bm_queued_fn fn_bm_queued;
-internal inline char bm_queued(ee_build_mgr *bm, int type) { return fn_bm_queued(bm, type); }
 // thiscall(build manager, type, 1, 0): one building requested
 typedef void (__thiscall *bm_request_game_fn)(void *, int, int, int);
 internal bm_request_game_fn fn_bm_request_game;
@@ -208,14 +260,6 @@ internal inline void bq_add(void *p1, int *p2) { fn_bq_add(p1, p2); }
 typedef char (__thiscall *cm_unit_free_fn)(void *, void *);
 internal cm_unit_free_fn fn_cm_unit_free;
 internal inline char cm_unit_free(void *cm, void *unit_state) { return fn_cm_unit_free(cm, unit_state); }
-typedef char (__thiscall *rm_compute_targets_fn)(ee_resource_mgr *);
-internal rm_compute_targets_fn fn_rm_compute_targets;
-internal inline char rm_compute_targets(ee_resource_mgr *rm) { return fn_rm_compute_targets(rm); }
-internal inline int patch_rm_compute_targets(rm_compute_targets_fn h) { return patch_call(call_rm_compute_targets, (uintptr_t)fn_rm_compute_targets, (void *)h); }
-// thiscall(build manager, x, y) -> bool
-typedef char (__thiscall *bm_enemy_near_fn)(ee_build_mgr *, int, int);
-internal bm_enemy_near_fn fn_bm_enemy_near;
-internal inline char bm_enemy_near(ee_build_mgr *bm, int x, int y) { return fn_bm_enemy_near(bm, x, y); }
 // (count, out list)
 typedef void *(__thiscall *farms_game_fn)(void *, uintptr_t, uintptr_t);
 internal farms_game_fn fn_farms_game;
@@ -244,54 +288,10 @@ typedef void *(__thiscall *hunt_game_fn)(ee_resource_mgr *, uintptr_t, uintptr_t
 internal hunt_game_fn fn_hunt_game;
 internal inline void *hunt_game(ee_resource_mgr *rm, uintptr_t n, uintptr_t f, uintptr_t out) { return fn_hunt_game(rm, n, f, out); }
 internal inline int patch_hunt(hunt_game_fn h, int *of) { return patch_calls(calls_hunt, 2, (uintptr_t)fn_hunt_game, (void *)h, of); }
-typedef char (__thiscall *bm_place_fn)(ee_build_mgr *, int, int, int);
-internal bm_place_fn fn_bm_place;
-internal inline char bm_place(ee_build_mgr *bm, int type, int x, int y) { return fn_bm_place(bm, type, x, y); }
-internal inline int patch_place(bm_place_fn h) { return patch_call(call_place, (uintptr_t)fn_bm_place, (void *)h); }
-// thiscall(research manager cm+0x40, count): the AI's request for an epoch's required techs
-typedef void (__thiscall *rs_request_requirements_fn)(ee_research_mgr *, int);
-internal rs_request_requirements_fn fn_rs_request_requirements;
-internal inline void rs_request_requirements(ee_research_mgr *rs, int count) { fn_rs_request_requirements(rs, count); }
-typedef void (__thiscall *rm_update_fn)(ee_resource_mgr *, uint32_t);
-internal rm_update_fn fn_rm_update;
-internal inline void rm_update(ee_resource_mgr *rm, uint32_t now) { fn_rm_update(rm, now); }
-internal inline int patch_rm_update(rm_update_fn h) { return patch_call(call_rm_update, (uintptr_t)fn_rm_update, (void *)h); }
-typedef void (__thiscall *rs_schedule_fn)(ee_research_mgr *, int);
-internal rs_schedule_fn fn_rs_schedule;
-internal inline void rs_schedule(ee_research_mgr *rs, int id) { fn_rs_schedule(rs, id); }
-// SetNextEpochAdvanceTime
-typedef void (__thiscall *cm_set_epoch_time_fn)(ee_civ_mgr *, uint32_t, char);
-internal cm_set_epoch_time_fn fn_cm_set_epoch_time;
-internal inline void cm_set_epoch_time(ee_civ_mgr *cm, uint32_t now, char flag) { fn_cm_set_epoch_time(cm, now, flag); }
-typedef uintptr_t (__thiscall *um_train_citizens_fn)(ee_unit_mgr *, uintptr_t);
-internal um_train_citizens_fn fn_um_train_citizens;
-internal inline uintptr_t um_train_citizens(ee_unit_mgr *um, uintptr_t a) { return fn_um_train_citizens(um, a); }
-internal inline int patch_train_citizens(um_train_citizens_fn h) { return patch_call(call_train_citizens, (uintptr_t)fn_um_train_citizens, (void *)h); }
-typedef uintptr_t (__thiscall *um_train_fn)(ee_unit_mgr *, int *, uintptr_t);
-internal um_train_fn fn_um_train;
-internal inline uintptr_t um_train(ee_unit_mgr *um, int *req, uintptr_t b) { return fn_um_train(um, req, b); }
-internal inline int patch_train_units(um_train_fn h, int *of) { return patch_calls(calls_train_units, 5, (uintptr_t)fn_um_train, (void *)h, of); }
-// citizens of both sexes and the epoch's fishing boat type
-typedef int (__thiscall *um_citizens_fn)(ee_unit_mgr *);
-internal um_citizens_fn fn_um_citizens;
-internal inline int um_citizens(ee_unit_mgr *um) { return fn_um_citizens(um); }
-// citizen share x population cap
-typedef int (__thiscall *um_citizens_wanted_fn)(ee_unit_mgr *);
-internal um_citizens_wanted_fn fn_um_citizens_wanted;
-internal inline int um_citizens_wanted(ee_unit_mgr *um) { return fn_um_citizens_wanted(um); }
-internal inline int patch_citizens_wanted(um_citizens_wanted_fn h) { return patch_call(call_citizens_wanted, (uintptr_t)fn_um_citizens_wanted, (void *)h); }
 // thiscall(unit manager, type)
 typedef char (__thiscall *um_in_production_fn)(ee_unit_mgr *, int);
 internal um_in_production_fn fn_um_in_production;
 internal inline char um_in_production(ee_unit_mgr *um, int type) { return fn_um_in_production(um, type); }
-// thiscall(unit manager, type)
-typedef char (__thiscall *um_pending_fn)(ee_unit_mgr *, int);
-internal um_pending_fn fn_um_pending;
-internal inline char um_pending(ee_unit_mgr *um, int type) { return fn_um_pending(um, type); }
-// thiscall(unit manager, type): its units and buildings of that type
-typedef uint8_t *(__thiscall *um_type_list_fn)(ee_unit_mgr *, int);
-internal um_type_list_fn fn_um_type_list;
-internal inline uint8_t *um_type_list(ee_unit_mgr *um, int type) { return fn_um_type_list(um, type); }
 typedef void *(__thiscall *unbuilt_farms_fn)(void *, uintptr_t, uintptr_t);
 internal unbuilt_farms_fn fn_unbuilt_farms;
 internal inline void *unbuilt_farms(void *p1, uintptr_t p2, uintptr_t p3) { return fn_unbuilt_farms(p1, p2, p3); }
@@ -306,6 +306,10 @@ internal int spec_ai_managers_select(int build) {
         of_bm_owner = 0x134;
         of_bm_player = 0x138;
         of_bm_initialized = 0x148;
+        fn_bm_queued = (bm_queued_fn)0x00465640;
+        fn_bm_enemy_near = (bm_enemy_near_fn)0x004660B9;
+        fn_bm_place = (bm_place_fn)0x0046580A;
+        call_place = 0x00468629;
         of_cm_plan = 0x8;
         of_cm_resource_mgr = 0x38;
         of_cm_build_mgr = 0x3C;
@@ -322,6 +326,7 @@ internal int spec_ai_managers_select(int build) {
         of_cm_att_epoch_techs = 0x7A;
         of_cm_att_build = 0x7B;
         of_cm_att_7c = 0x7C;
+        fn_cm_set_epoch_time = (cm_set_epoch_time_fn)0x0046DE8C;
         of_plan_node_next = 0x0;
         of_plan_node_unknown_c = 0xC;
         of_plan_node_unknown_10 = 0x10;
@@ -334,19 +339,38 @@ internal int spec_ai_managers_select(int build) {
         of_rm_timers = 0x16C;
         of_rm_initialized = 0x187;
         of_rm_att_188 = 0x188;
+        fn_rm_assign_citizens = (rm_assign_citizens_fn)0x0048A554;
+        call_rm_assign_citizens = 0x0048D36A;
+        fn_rm_compute_targets = (rm_compute_targets_fn)0x0048D0A2;
+        call_rm_compute_targets = 0x0048D347;
+        fn_rm_update = (rm_update_fn)0x0048D263;
+        call_rm_update = 0x0046E3C6;
         of_rs_pool_begin = 0x8;
         of_rs_epoch = 0x18;
         of_rs_current = 0x114;
         of_rs_initialized = 0x118;
         of_rs_att_random = 0x11A;
+        fn_rs_request_requirements = (rs_request_requirements_fn)0x004860D6;
+        fn_rs_schedule = (rs_schedule_fn)0x00485F57;
         of_um_requests = 0xC;
         of_um_player = 0x134;
         of_um_in_production = 0x13C;
         of_um_att_140 = 0x140;
+        fn_um_train_citizens = (um_train_citizens_fn)0x0048EE84;
+        call_train_citizens = 0x00430740;
+        fn_um_train = (um_train_fn)0x0049014F;
+        calls_train_units[0] = 0x0046CCE6;
+        calls_train_units[1] = 0x00490CAC;
+        calls_train_units[2] = 0x00490E12;
+        calls_train_units[3] = 0x00490F1F;
+        calls_train_units[4] = 0x00490FA9;
+        fn_um_citizens = (um_citizens_fn)0x0048F819;
+        fn_um_citizens_wanted = (um_citizens_wanted_fn)0x0048EDDB;
+        call_citizens_wanted = 0x00490BC2;
+        fn_um_pending = (um_pending_fn)0x0048E9D8;
+        fn_um_type_list = (um_type_list_fn)0x0048F8AF;
         data_ai_managers_call_farms = 0x0048AC54;
         data_ai_managers_call_unbuilt_farms = 0x0048B0FD;
-        fn_rm_assign_citizens = (rm_assign_citizens_fn)0x0048A554;
-        call_rm_assign_citizens = 0x0048D36A;
         fn_assign_to_site = (assign_to_site_fn)0x0048C81C;
         calls_gather[0] = 0x0048A2A6;
         calls_gather[1] = 0x0048A372;
@@ -359,13 +383,9 @@ internal int spec_ai_managers_select(int build) {
         calls_gather[8] = 0x0048AF60;
         calls_gather[9] = 0x0048B0A6;
         calls_gather[10] = 0x0048B261;
-        fn_bm_queued = (bm_queued_fn)0x00465640;
         fn_bm_request_game = (bm_request_game_fn)0x0046802D;
         fn_bq_add = (bq_add_fn)0x00468C37;
         fn_cm_unit_free = (cm_unit_free_fn)0x004707D8;
-        fn_rm_compute_targets = (rm_compute_targets_fn)0x0048D0A2;
-        call_rm_compute_targets = 0x0048D347;
-        fn_bm_enemy_near = (bm_enemy_near_fn)0x004660B9;
         fn_farms_game = (farms_game_fn)0x0048BFD0;
         fn_find_food_game = (find_food_game_fn)0x0048BBA8;
         calls_find_food[0] = 0x0048AB8D;
@@ -390,27 +410,7 @@ internal int spec_ai_managers_select(int build) {
         fn_hunt_game = (hunt_game_fn)0x0048BA3B;
         calls_hunt[0] = 0x0048ACE4;
         calls_hunt[1] = 0x0048AFC4;
-        fn_bm_place = (bm_place_fn)0x0046580A;
-        call_place = 0x00468629;
-        fn_rs_request_requirements = (rs_request_requirements_fn)0x004860D6;
-        fn_rm_update = (rm_update_fn)0x0048D263;
-        call_rm_update = 0x0046E3C6;
-        fn_rs_schedule = (rs_schedule_fn)0x00485F57;
-        fn_cm_set_epoch_time = (cm_set_epoch_time_fn)0x0046DE8C;
-        fn_um_train_citizens = (um_train_citizens_fn)0x0048EE84;
-        call_train_citizens = 0x00430740;
-        fn_um_train = (um_train_fn)0x0049014F;
-        calls_train_units[0] = 0x0046CCE6;
-        calls_train_units[1] = 0x00490CAC;
-        calls_train_units[2] = 0x00490E12;
-        calls_train_units[3] = 0x00490F1F;
-        calls_train_units[4] = 0x00490FA9;
-        fn_um_citizens = (um_citizens_fn)0x0048F819;
-        fn_um_citizens_wanted = (um_citizens_wanted_fn)0x0048EDDB;
-        call_citizens_wanted = 0x00490BC2;
         fn_um_in_production = (um_in_production_fn)0x0048EA2E;
-        fn_um_pending = (um_pending_fn)0x0048E9D8;
-        fn_um_type_list = (um_type_list_fn)0x0048F8AF;
         fn_unbuilt_farms = (unbuilt_farms_fn)0x0048BF4F;
         return 0;
     case 1:   // aoc
@@ -420,6 +420,10 @@ internal int spec_ai_managers_select(int build) {
         of_bm_owner = 0x158;
         of_bm_player = 0x15C;
         of_bm_initialized = 0x16C;
+        fn_bm_queued = (bm_queued_fn)0x004672FA;
+        fn_bm_enemy_near = (bm_enemy_near_fn)0x00467E10;
+        fn_bm_place = (bm_place_fn)0x004674C4;
+        call_place = 0x0046B044;
         of_cm_plan = 0x8;
         of_cm_resource_mgr = 0x38;
         of_cm_build_mgr = 0x3C;
@@ -436,6 +440,7 @@ internal int spec_ai_managers_select(int build) {
         of_cm_att_epoch_techs = 0x7E;
         of_cm_att_build = 0x7F;
         of_cm_att_7c = 0x80;
+        fn_cm_set_epoch_time = (cm_set_epoch_time_fn)0x00470B04;
         of_plan_node_next = 0x0;
         of_plan_node_unknown_c = 0xC;
         of_plan_node_unknown_10 = 0x10;
@@ -448,19 +453,38 @@ internal int spec_ai_managers_select(int build) {
         of_rm_timers = 0x16C;
         of_rm_initialized = 0x187;
         of_rm_att_188 = 0x188;
+        fn_rm_assign_citizens = (rm_assign_citizens_fn)0x0048EECF;
+        call_rm_assign_citizens = 0x00491E3B;
+        fn_rm_compute_targets = (rm_compute_targets_fn)0x00491B78;
+        call_rm_compute_targets = 0x00491E18;
+        fn_rm_update = (rm_update_fn)0x00491D34;
+        call_rm_update = 0x00471051;
         of_rs_pool_begin = 0x8;
         of_rs_epoch = 0x18;
         of_rs_current = 0x124;
         of_rs_initialized = 0x128;
         of_rs_att_random = 0x12A;
+        fn_rs_request_requirements = (rs_request_requirements_fn)0x0048A91E;
+        fn_rs_schedule = (rs_schedule_fn)0x0048A79F;
         of_um_requests = 0xC;
         of_um_player = 0x148;
         of_um_in_production = 0x150;
         of_um_att_140 = 0x154;
+        fn_um_train_citizens = (um_train_citizens_fn)0x00493B97;
+        call_train_citizens = 0x0042E23C;
+        fn_um_train = (um_train_fn)0x00494F42;
+        calls_train_units[0] = 0x0046F786;
+        calls_train_units[1] = 0x00495AFF;
+        calls_train_units[2] = 0x00495C65;
+        calls_train_units[3] = 0x00495D72;
+        calls_train_units[4] = 0x00495DFC;
+        fn_um_citizens = (um_citizens_fn)0x00494572;
+        fn_um_citizens_wanted = (um_citizens_wanted_fn)0x00493AEE;
+        call_citizens_wanted = 0x00495A15;
+        fn_um_pending = (um_pending_fn)0x00493696;
+        fn_um_type_list = (um_type_list_fn)0x00494608;
         data_ai_managers_call_farms = 0x0048F643;
         data_ai_managers_call_unbuilt_farms = 0x0048FAD4;
-        fn_rm_assign_citizens = (rm_assign_citizens_fn)0x0048EECF;
-        call_rm_assign_citizens = 0x00491E3B;
         fn_assign_to_site = (assign_to_site_fn)0x004912BE;
         calls_gather[0] = 0x0048EC21;
         calls_gather[1] = 0x0048ECED;
@@ -473,13 +497,9 @@ internal int spec_ai_managers_select(int build) {
         calls_gather[8] = 0x0048F94F;
         calls_gather[9] = 0x0048FA80;
         calls_gather[10] = 0x0048FC37;
-        fn_bm_queued = (bm_queued_fn)0x004672FA;
         fn_bm_request_game = (bm_request_game_fn)0x0046A9C1;
         fn_bq_add = (bq_add_fn)0x0046B798;
         fn_cm_unit_free = (cm_unit_free_fn)0x0047377E;
-        fn_rm_compute_targets = (rm_compute_targets_fn)0x00491B78;
-        call_rm_compute_targets = 0x00491E18;
-        fn_bm_enemy_near = (bm_enemy_near_fn)0x00467E10;
         fn_farms_game = (farms_game_fn)0x00490A63;
         fn_find_food_game = (find_food_game_fn)0x00490602;
         calls_find_food[0] = 0x0048F57C;
@@ -504,27 +524,7 @@ internal int spec_ai_managers_select(int build) {
         fn_hunt_game = (hunt_game_fn)0x00490458;
         calls_hunt[0] = 0x0048F6D2;
         calls_hunt[1] = 0x0048F9B3;
-        fn_bm_place = (bm_place_fn)0x004674C4;
-        call_place = 0x0046B044;
-        fn_rs_request_requirements = (rs_request_requirements_fn)0x0048A91E;
-        fn_rm_update = (rm_update_fn)0x00491D34;
-        call_rm_update = 0x00471051;
-        fn_rs_schedule = (rs_schedule_fn)0x0048A79F;
-        fn_cm_set_epoch_time = (cm_set_epoch_time_fn)0x00470B04;
-        fn_um_train_citizens = (um_train_citizens_fn)0x00493B97;
-        call_train_citizens = 0x0042E23C;
-        fn_um_train = (um_train_fn)0x00494F42;
-        calls_train_units[0] = 0x0046F786;
-        calls_train_units[1] = 0x00495AFF;
-        calls_train_units[2] = 0x00495C65;
-        calls_train_units[3] = 0x00495D72;
-        calls_train_units[4] = 0x00495DFC;
-        fn_um_citizens = (um_citizens_fn)0x00494572;
-        fn_um_citizens_wanted = (um_citizens_wanted_fn)0x00493AEE;
-        call_citizens_wanted = 0x00495A15;
         fn_um_in_production = (um_in_production_fn)0x004936EC;
-        fn_um_pending = (um_pending_fn)0x00493696;
-        fn_um_type_list = (um_type_list_fn)0x00494608;
         fn_unbuilt_farms = (unbuilt_farms_fn)0x004909D7;
         return 0;
     }
@@ -535,10 +535,34 @@ internal const char *const k_spec_ai_managers_missing[ADDR_BUILDS] = { "", "" };
 // the load-time check: what the spec says of the running build's exe (spec_check): the failures
 internal int spec_ai_managers_check(void) {
     int bad = 0;
+    bad += spec_code((uintptr_t)fn_bm_queued, "ee_build_mgr.queued");
+    bad += spec_code((uintptr_t)fn_bm_enemy_near, "ee_build_mgr.enemy_near");
+    bad += spec_code((uintptr_t)fn_bm_place, "ee_build_mgr.place");
+    bad += spec_call(call_place, (uintptr_t)fn_bm_place, "ee_build_mgr.place [call_site place]");
+    bad += spec_code((uintptr_t)fn_cm_set_epoch_time, "EECPCivilizationManager.set_epoch_time");
+    bad += spec_code((uintptr_t)fn_rm_assign_citizens, "EECPResourceManager.assign_citizens");
+    bad += spec_call(call_rm_assign_citizens, (uintptr_t)fn_rm_assign_citizens, "EECPResourceManager.assign_citizens [call_site rm_assign_citizens]");
+    bad += spec_code((uintptr_t)fn_rm_compute_targets, "EECPResourceManager.compute_targets");
+    bad += spec_call(call_rm_compute_targets, (uintptr_t)fn_rm_compute_targets, "EECPResourceManager.compute_targets [call_site rm_compute_targets]");
+    bad += spec_code((uintptr_t)fn_rm_update, "EECPResourceManager.update");
+    bad += spec_call(call_rm_update, (uintptr_t)fn_rm_update, "EECPResourceManager.update [call_site rm_update]");
+    bad += spec_code((uintptr_t)fn_rs_request_requirements, "EECPResearchManager.request_requirements");
+    bad += spec_code((uintptr_t)fn_rs_schedule, "EECPResearchManager.schedule");
+    bad += spec_code((uintptr_t)fn_um_train_citizens, "ee_unit_mgr.train_citizens");
+    bad += spec_call(call_train_citizens, (uintptr_t)fn_um_train_citizens, "ee_unit_mgr.train_citizens [call_site train_citizens]");
+    bad += spec_code((uintptr_t)fn_um_train, "ee_unit_mgr.train");
+    bad += spec_call(calls_train_units[0], (uintptr_t)fn_um_train, "ee_unit_mgr.train [call_site train_units 0]");
+    bad += spec_call(calls_train_units[1], (uintptr_t)fn_um_train, "ee_unit_mgr.train [call_site train_units 1]");
+    bad += spec_call(calls_train_units[2], (uintptr_t)fn_um_train, "ee_unit_mgr.train [call_site train_units 2]");
+    bad += spec_call(calls_train_units[3], (uintptr_t)fn_um_train, "ee_unit_mgr.train [call_site train_units 3]");
+    bad += spec_call(calls_train_units[4], (uintptr_t)fn_um_train, "ee_unit_mgr.train [call_site train_units 4]");
+    bad += spec_code((uintptr_t)fn_um_citizens, "ee_unit_mgr.citizens");
+    bad += spec_code((uintptr_t)fn_um_citizens_wanted, "ee_unit_mgr.citizens_wanted");
+    bad += spec_call(call_citizens_wanted, (uintptr_t)fn_um_citizens_wanted, "ee_unit_mgr.citizens_wanted [call_site citizens_wanted]");
+    bad += spec_code((uintptr_t)fn_um_pending, "ee_unit_mgr.pending");
+    bad += spec_code((uintptr_t)fn_um_type_list, "ee_unit_mgr.type_list");
     bad += spec_code(data_ai_managers_call_farms, "ai_managers.call_farms");
     bad += spec_code(data_ai_managers_call_unbuilt_farms, "ai_managers.call_unbuilt_farms");
-    bad += spec_code((uintptr_t)fn_rm_assign_citizens, "ai_managers_functions.rm_assign_citizens");
-    bad += spec_call(call_rm_assign_citizens, (uintptr_t)fn_rm_assign_citizens, "ai_managers_functions.rm_assign_citizens [call_site rm_assign_citizens]");
     bad += spec_code((uintptr_t)fn_assign_to_site, "ai_managers_functions.assign_to_site");
     bad += spec_call(calls_gather[0], (uintptr_t)fn_assign_to_site, "ai_managers_functions.assign_to_site [call_site gather 0]");
     bad += spec_call(calls_gather[1], (uintptr_t)fn_assign_to_site, "ai_managers_functions.assign_to_site [call_site gather 1]");
@@ -551,13 +575,9 @@ internal int spec_ai_managers_check(void) {
     bad += spec_call(calls_gather[8], (uintptr_t)fn_assign_to_site, "ai_managers_functions.assign_to_site [call_site gather 8]");
     bad += spec_call(calls_gather[9], (uintptr_t)fn_assign_to_site, "ai_managers_functions.assign_to_site [call_site gather 9]");
     bad += spec_call(calls_gather[10], (uintptr_t)fn_assign_to_site, "ai_managers_functions.assign_to_site [call_site gather 10]");
-    bad += spec_code((uintptr_t)fn_bm_queued, "ai_managers_functions.bm_queued");
     bad += spec_code((uintptr_t)fn_bm_request_game, "ai_managers_functions.bm_request_game");
     bad += spec_code((uintptr_t)fn_bq_add, "ai_managers_functions.bq_add");
     bad += spec_code((uintptr_t)fn_cm_unit_free, "ai_managers_functions.cm_unit_free");
-    bad += spec_code((uintptr_t)fn_rm_compute_targets, "ai_managers_functions.rm_compute_targets");
-    bad += spec_call(call_rm_compute_targets, (uintptr_t)fn_rm_compute_targets, "ai_managers_functions.rm_compute_targets [call_site rm_compute_targets]");
-    bad += spec_code((uintptr_t)fn_bm_enemy_near, "ai_managers_functions.bm_enemy_near");
     bad += spec_code((uintptr_t)fn_farms_game, "ai_managers_functions.farms_game");
     bad += spec_code((uintptr_t)fn_find_food_game, "ai_managers_functions.find_food_game");
     bad += spec_call(calls_find_food[0], (uintptr_t)fn_find_food_game, "ai_managers_functions.find_food_game [call_site find_food 0]");
@@ -582,27 +602,7 @@ internal int spec_ai_managers_check(void) {
     bad += spec_code((uintptr_t)fn_hunt_game, "ai_managers_functions.hunt_game");
     bad += spec_call(calls_hunt[0], (uintptr_t)fn_hunt_game, "ai_managers_functions.hunt_game [call_site hunt 0]");
     bad += spec_call(calls_hunt[1], (uintptr_t)fn_hunt_game, "ai_managers_functions.hunt_game [call_site hunt 1]");
-    bad += spec_code((uintptr_t)fn_bm_place, "ai_managers_functions.bm_place");
-    bad += spec_call(call_place, (uintptr_t)fn_bm_place, "ai_managers_functions.bm_place [call_site place]");
-    bad += spec_code((uintptr_t)fn_rs_request_requirements, "ai_managers_functions.rs_request_requirements");
-    bad += spec_code((uintptr_t)fn_rm_update, "ai_managers_functions.rm_update");
-    bad += spec_call(call_rm_update, (uintptr_t)fn_rm_update, "ai_managers_functions.rm_update [call_site rm_update]");
-    bad += spec_code((uintptr_t)fn_rs_schedule, "ai_managers_functions.rs_schedule");
-    bad += spec_code((uintptr_t)fn_cm_set_epoch_time, "ai_managers_functions.cm_set_epoch_time");
-    bad += spec_code((uintptr_t)fn_um_train_citizens, "ai_managers_functions.um_train_citizens");
-    bad += spec_call(call_train_citizens, (uintptr_t)fn_um_train_citizens, "ai_managers_functions.um_train_citizens [call_site train_citizens]");
-    bad += spec_code((uintptr_t)fn_um_train, "ai_managers_functions.um_train");
-    bad += spec_call(calls_train_units[0], (uintptr_t)fn_um_train, "ai_managers_functions.um_train [call_site train_units 0]");
-    bad += spec_call(calls_train_units[1], (uintptr_t)fn_um_train, "ai_managers_functions.um_train [call_site train_units 1]");
-    bad += spec_call(calls_train_units[2], (uintptr_t)fn_um_train, "ai_managers_functions.um_train [call_site train_units 2]");
-    bad += spec_call(calls_train_units[3], (uintptr_t)fn_um_train, "ai_managers_functions.um_train [call_site train_units 3]");
-    bad += spec_call(calls_train_units[4], (uintptr_t)fn_um_train, "ai_managers_functions.um_train [call_site train_units 4]");
-    bad += spec_code((uintptr_t)fn_um_citizens, "ai_managers_functions.um_citizens");
-    bad += spec_code((uintptr_t)fn_um_citizens_wanted, "ai_managers_functions.um_citizens_wanted");
-    bad += spec_call(call_citizens_wanted, (uintptr_t)fn_um_citizens_wanted, "ai_managers_functions.um_citizens_wanted [call_site citizens_wanted]");
     bad += spec_code((uintptr_t)fn_um_in_production, "ai_managers_functions.um_in_production");
-    bad += spec_code((uintptr_t)fn_um_pending, "ai_managers_functions.um_pending");
-    bad += spec_code((uintptr_t)fn_um_type_list, "ai_managers_functions.um_type_list");
     bad += spec_code((uintptr_t)fn_unbuilt_farms, "ai_managers_functions.unbuilt_farms");
     return bad;
 }

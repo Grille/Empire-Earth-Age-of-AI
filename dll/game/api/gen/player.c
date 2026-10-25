@@ -160,6 +160,14 @@ internal inline uint8_t *player_ignore_at(const ee_player *o) { return (uint8_t 
 internal inline uint8_t player_get_first_attack_done(const ee_player *o) { return *(uint8_t *)((uint8_t *)o + of_player_first_attack_done); }
 internal inline void player_set_first_attack_done(ee_player *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_player_first_attack_done) = v; }
 internal inline uint8_t *player_first_attack_done_at(const ee_player *o) { return (uint8_t *)((uint8_t *)o + of_player_first_attack_done); }
+// thiscall(player, 2) as EEMResign
+typedef void (__thiscall *player_resign_fn)(ee_player *, int);
+internal player_resign_fn fn_player_resign;
+internal inline void player_resign(ee_player *player, int how) { fn_player_resign(player, how); }
+// EEMSelectUnits carried out on the player
+typedef void (__thiscall *player_select_fn)(ee_player *, void *);
+internal player_select_fn fn_player_select;
+internal inline void player_select(ee_player *player, void *selection) { fn_player_select(player, selection); }
 
 // class ee_player_b98 (ee_player_b98)
 // the object at a player's +0xB98
@@ -228,10 +236,6 @@ internal inline int game_limit(void *p1, int p2) { return fn_game_limit(p1, p2);
 typedef ee_unit *(__cdecl *place_foundation_fn)(ee_player *, int, int, int);
 internal place_foundation_fn fn_place_foundation;
 internal inline ee_unit *place_foundation(ee_player *pl, int type, int x, int y) { return fn_place_foundation(pl, type, x, y); }
-// thiscall(player, 2) as EEMResign
-typedef void (__thiscall *player_resign_fn)(ee_player *, int);
-internal player_resign_fn fn_player_resign;
-internal inline void player_resign(ee_player *pl, int how) { fn_player_resign(pl, how); }
 // thiscall(player, 1, 0)
 typedef int (__thiscall *population_fn)(ee_player *, int, int);
 internal population_fn fn_population;
@@ -245,10 +249,6 @@ internal inline int patch_pop_cap(cp_update_pop_cap_fn h, int *of) { return patc
 typedef void (__thiscall *cp_schedule_attack_fn)(ee_player *, uint32_t);
 internal cp_schedule_attack_fn fn_cp_schedule_attack;
 internal inline void cp_schedule_attack(ee_player *pl, uint32_t now) { fn_cp_schedule_attack(pl, now); }
-// EEMSelectUnits carried out on the player
-typedef void (__thiscall *player_select_fn)(ee_player *, void *);
-internal player_select_fn fn_player_select;
-internal inline void player_select(ee_player *pl, void *selection) { fn_player_select(pl, selection); }
 typedef void (__thiscall *set_diplomacy_game_fn)(void *, void *, int, int);
 internal set_diplomacy_game_fn fn_set_diplomacy_game;
 internal inline void set_diplomacy_game(void *p1, void *p2, int p3, int p4) { fn_set_diplomacy_game(p1, p2, p3, p4); }
@@ -318,6 +318,8 @@ internal int spec_player_select(int build) {
         of_player_build = 0xEFC;
         of_player_ignore = 0xF02;
         of_player_first_attack_done = 0xF05;
+        fn_player_resign = (player_resign_fn)0x0055BCEA;
+        fn_player_select = (player_select_fn)0x0055B3FB;
         of_b98_att = 0x2D;
         of_plstats_lists = 0x1C;
         data_player_call_kill_stat = 0x00617780;
@@ -340,14 +342,12 @@ internal int spec_player_select(int build) {
         call_epoch_catch_up = 0x0055A5B5;
         fn_game_limit = (game_limit_fn)0x00556EBC;
         fn_place_foundation = (place_foundation_fn)0x0062EF8A;
-        fn_player_resign = (player_resign_fn)0x0055BCEA;
         fn_population = (population_fn)0x00556E11;
         fn_cp_update_pop_cap = (cp_update_pop_cap_fn)0x0042F7A5;
         calls_pop_cap[0] = 0x004311E5;
         calls_pop_cap[1] = 0x0043FA9B;
         calls_pop_cap[2] = 0x00474AF0;
         fn_cp_schedule_attack = (cp_schedule_attack_fn)0x0043DD2F;
-        fn_player_select = (player_select_fn)0x0055B3FB;
         fn_set_diplomacy_game = (set_diplomacy_game_fn)0x0055B8E1;
         fn_stat_add = (stat_add_fn)0x0055DBCF;
         fn_type_stats_game = (type_stats_game_fn)0x00492969;
@@ -405,6 +405,8 @@ internal int spec_player_select(int build) {
         of_player_build = 0xF4C;
         of_player_ignore = 0xF52;
         of_player_first_attack_done = 0xF55;
+        fn_player_resign = (player_resign_fn)0x0056AF5C;
+        fn_player_select = (player_select_fn)0x0056A658;
         of_b98_att = 0x2D;
         of_plstats_lists = 0x1C;
         data_player_call_kill_stat = 0x0062A2DF;
@@ -427,14 +429,12 @@ internal int spec_player_select(int build) {
         call_epoch_catch_up = 0x00569633;
         fn_game_limit = (game_limit_fn)0x0056528B;
         fn_place_foundation = (place_foundation_fn)0x00644C83;
-        fn_player_resign = (player_resign_fn)0x0056AF5C;
         fn_population = (population_fn)0x005651E0;
         fn_cp_update_pop_cap = (cp_update_pop_cap_fn)0x0042D1C7;
         calls_pop_cap[0] = 0x0042ECF6;
         calls_pop_cap[1] = 0x0043F2F6;
         calls_pop_cap[2] = 0x004781C9;
         fn_cp_schedule_attack = (cp_schedule_attack_fn)0x0043D4CD;
-        fn_player_select = (player_select_fn)0x0056A658;
         fn_set_diplomacy_game = (set_diplomacy_game_fn)0x0056AB41;
         fn_stat_add = (stat_add_fn)0x0056D507;
         fn_type_stats_game = (type_stats_game_fn)0x0051E2A5;
@@ -448,6 +448,8 @@ internal const char *const k_spec_player_missing[ADDR_BUILDS] = { "", "" };
 // the load-time check: what the spec says of the running build's exe (spec_check): the failures
 internal int spec_player_check(void) {
     int bad = 0;
+    bad += spec_code((uintptr_t)fn_player_resign, "EEPlayer.resign");
+    bad += spec_code((uintptr_t)fn_player_select, "EEPlayer.select");
     bad += spec_code(data_player_call_kill_stat, "player.call_kill_stat");
     bad += spec_data(data_player_vt_computer_player, "player.vt_computer_player");
     bad += spec_code((uintptr_t)fn_cp_adjust_cost, "player_functions.cp_adjust_cost");
@@ -464,14 +466,12 @@ internal int spec_player_check(void) {
     bad += spec_call(call_epoch_catch_up, (uintptr_t)fn_cp_epoch_catch_up, "player_functions.cp_epoch_catch_up [call_site epoch_catch_up]");
     bad += spec_code((uintptr_t)fn_game_limit, "player_functions.game_limit");
     bad += spec_code((uintptr_t)fn_place_foundation, "player_functions.place_foundation");
-    bad += spec_code((uintptr_t)fn_player_resign, "player_functions.player_resign");
     bad += spec_code((uintptr_t)fn_population, "player_functions.population");
     bad += spec_code((uintptr_t)fn_cp_update_pop_cap, "player_functions.cp_update_pop_cap");
     bad += spec_call(calls_pop_cap[0], (uintptr_t)fn_cp_update_pop_cap, "player_functions.cp_update_pop_cap [call_site pop_cap 0]");
     bad += spec_call(calls_pop_cap[1], (uintptr_t)fn_cp_update_pop_cap, "player_functions.cp_update_pop_cap [call_site pop_cap 1]");
     bad += spec_call(calls_pop_cap[2], (uintptr_t)fn_cp_update_pop_cap, "player_functions.cp_update_pop_cap [call_site pop_cap 2]");
     bad += spec_code((uintptr_t)fn_cp_schedule_attack, "player_functions.cp_schedule_attack");
-    bad += spec_code((uintptr_t)fn_player_select, "player_functions.player_select");
     bad += spec_code((uintptr_t)fn_set_diplomacy_game, "player_functions.set_diplomacy_game");
     bad += spec_code((uintptr_t)fn_stat_add, "player_functions.stat_add");
     bad += spec_code((uintptr_t)fn_type_stats_game, "player_functions.type_stats_game");

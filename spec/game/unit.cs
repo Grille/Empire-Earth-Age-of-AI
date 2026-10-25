@@ -102,6 +102,29 @@ unsafe struct EEUnit
     /// freed: its slot 12 (+0x30), its references 0, then deleted
     [address((ee)0x00616DBB, (aoc)0x006298E1), overrides(typeof(RTSUnit))]
     extern void release();
+
+    /// thiscall(unit): drops its current waypoint (the deque's front; GetNextMoveWaypoint); 0, or 7 with none
+    [address((ee)0x005EDCF4, (aoc)0x005FBDD1)]
+    extern int32 pop_waypoint();
+
+    /// thiscall(unit): its acceleration (stats +0xA8; its group's with the group speed on)
+    [address((ee)0x0054A4CA, (aoc)0x00554C95)]
+    extern float32 accel();
+
+    /// thiscall(unit): its top turn rate (radians/s, stats +0xB4; its group's with the group speed on)
+    [address((ee)0x0054A4E7, (aoc)0x0055463E)]
+    extern float32 max_turn();
+
+    /// thiscall(unit, 0x1F51) - as the assignment does after the order
+    [address((ee)0x005EFCF0, (aoc)0x005FDFA5)]
+    extern void set_state(int32 state);
+
+    /// thiscall(unit): its turn acceleration (radians/s per s, stats +0xB0; its group's with the group speed on)
+    [address((ee)0x0054A504, (aoc)0x0055465B)]
+    extern float32 turn_accel();
+
+    [address((ee)0x00628E29, (aoc)0x0063DBDA)]
+    extern void unlink();
 }
 
 /// a unit, building, ship or projectile: everything on the map that moves or is built
@@ -319,20 +342,12 @@ static unsafe class unit_functions
     [address((ee)0x0062CBB3, (aoc)0x00641A6A), cdecl]
     static extern char8 ballistic_game(EEUnit* p1, ee_unit_stats* p2, float32* p3, float32* p4, float32* p5);
 
-    /// thiscall(unit): drops its current waypoint (the deque's front; GetNextMoveWaypoint); 0, or 7 with none
-    [address((ee)0x005EDCF4, (aoc)0x005FBDD1), thiscall]
-    static extern int32 unit_pop_waypoint(EEUnit* u);
-
     [address((ee)0x0052E5F7, (aoc)0x00539532), thiscall]
     static extern uint32 site_gatherers_game(void* p1, void* p2);
 
     /// units aboard a transport or inside a building
     [address((ee)0x0042E347, (aoc)0x0040D5C5), thiscall]
     static extern int32 units_inside(EEUnit* u);
-
-    /// thiscall(unit): its acceleration (stats +0xA8; its group's with the group speed on)
-    [address((ee)0x0054A4CA, (aoc)0x00554C95), thiscall]
-    static extern float32 unit_accel(EEUnit* u);
 
     /// cdecl(unit, player index, new type data)
     [address((ee)0x0062F192, (aoc)0x00644E95), cdecl]
@@ -348,18 +363,4 @@ static unsafe class unit_functions
     [address((ee)0x005F3473, (aoc)0x005FA1CD), thiscall]
     static extern void* unit_goal_queue(void* p1, int32 p2);
 
-    /// thiscall(unit): its top turn rate (radians/s, stats +0xB4; its group's with the group speed on)
-    [address((ee)0x0054A4E7, (aoc)0x0055463E), thiscall]
-    static extern float32 unit_max_turn(EEUnit* u);
-
-    /// thiscall(unit, 0x1F51) - as the assignment does after the order
-    [address((ee)0x005EFCF0, (aoc)0x005FDFA5), thiscall]
-    static extern void unit_set_state(EEUnit* u, int32 state);
-
-    /// thiscall(unit): its turn acceleration (radians/s per s, stats +0xB0; its group's with the group speed on)
-    [address((ee)0x0054A504, (aoc)0x0055465B), thiscall]
-    static extern float32 unit_turn_accel(EEUnit* u);
-
-    [address((ee)0x00628E29, (aoc)0x0063DBDA), thiscall]
-    static extern void unit_unlink(EEUnit* u);
 }

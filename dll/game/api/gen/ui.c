@@ -60,6 +60,10 @@ internal inline float *mouse_y_min_at(const ee_mouse *o) { return (float *)((uin
 internal inline uint8_t mouse_get_frozen(const ee_mouse *o) { return *(uint8_t *)((uint8_t *)o + of_mouse_frozen); }
 internal inline void mouse_set_frozen(ee_mouse *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_mouse_frozen) = v; }
 internal inline uint8_t *mouse_frozen_at(const ee_mouse *o) { return (uint8_t *)((uint8_t *)o + of_mouse_frozen); }
+typedef void (__thiscall *mouse_update_fn)(ee_mouse *);
+internal mouse_update_fn fn_mouse_update;
+internal inline void mouse_update(ee_mouse *mouse) { fn_mouse_update(mouse); }
+internal inline int patch_mouse_update(mouse_update_fn h, int *of) { return patch_calls(calls_mouse_update, 4, (uintptr_t)fn_mouse_update, (void *)h, of); }
 
 // class ee_native_chat (ee_native_chat)
 // the object of native_chat
@@ -152,10 +156,6 @@ internal inline int gfx_remove_game(void *p1, int p2) { return fn_gfx_remove_gam
 typedef void (__thiscall *mouse_clamp_fn)(void *);
 internal mouse_clamp_fn fn_mouse_clamp;
 internal inline void mouse_clamp(void *m) { fn_mouse_clamp(m); }
-typedef void (__thiscall *mouse_update_fn)(ee_mouse *);
-internal mouse_update_fn fn_mouse_update;
-internal inline void mouse_update(ee_mouse *m) { fn_mouse_update(m); }
-internal inline int patch_mouse_update(mouse_update_fn h, int *of) { return patch_calls(calls_mouse_update, 4, (uintptr_t)fn_mouse_update, (void *)h, of); }
 typedef char (__thiscall *native_chat_fn)(ee_native_chat *, int, int);
 internal native_chat_fn fn_native_chat;
 internal inline char native_chat(ee_native_chat *pim, int base, int ms) { return fn_native_chat(pim, base, ms); }
@@ -192,6 +192,11 @@ internal int spec_ui_select(int build) {
         of_mouse_x_max = 0x1C;
         of_mouse_y_min = 0x20;
         of_mouse_frozen = 0xA4;
+        fn_mouse_update = (mouse_update_fn)0x00510E5D;
+        calls_mouse_update[0] = 0x004B8ABB;
+        calls_mouse_update[1] = 0x0050FEC8;
+        calls_mouse_update[2] = 0x005111CF;
+        calls_mouse_update[3] = 0x006618B8;
         of_nativechat_player = 0x20;
         of_scroll_ticks = 0x40;
         of_scroll_keys = 0x44;
@@ -232,11 +237,6 @@ internal int spec_ui_select(int build) {
         fn_gfx_kind_game = (gfx_kind_game_fn)0x00404C83;
         fn_gfx_remove_game = (gfx_remove_game_fn)0x004FBEB2;
         fn_mouse_clamp = (mouse_clamp_fn)0x00510DAD;
-        fn_mouse_update = (mouse_update_fn)0x00510E5D;
-        calls_mouse_update[0] = 0x004B8ABB;
-        calls_mouse_update[1] = 0x0050FEC8;
-        calls_mouse_update[2] = 0x005111CF;
-        calls_mouse_update[3] = 0x006618B8;
         fn_native_chat = (native_chat_fn)0x00484EB3;
         calls_native_chat[0] = 0x00470040;
         calls_native_chat[1] = 0x004715F8;
@@ -263,6 +263,11 @@ internal int spec_ui_select(int build) {
         of_mouse_x_max = 0x1C;
         of_mouse_y_min = 0x20;
         of_mouse_frozen = 0xA4;
+        fn_mouse_update = (mouse_update_fn)0x0051B3CC;
+        calls_mouse_update[0] = 0x004C11FE;
+        calls_mouse_update[1] = 0x0051A487;
+        calls_mouse_update[2] = 0x0051B73E;
+        calls_mouse_update[3] = 0x00678F02;
         of_nativechat_player = 0x20;
         of_scroll_ticks = 0x40;
         of_scroll_keys = 0x44;
@@ -303,11 +308,6 @@ internal int spec_ui_select(int build) {
         fn_gfx_kind_game = (gfx_kind_game_fn)0x0040432F;
         fn_gfx_remove_game = (gfx_remove_game_fn)0x005068C6;
         fn_mouse_clamp = (mouse_clamp_fn)0x0051B31C;
-        fn_mouse_update = (mouse_update_fn)0x0051B3CC;
-        calls_mouse_update[0] = 0x004C11FE;
-        calls_mouse_update[1] = 0x0051A487;
-        calls_mouse_update[2] = 0x0051B73E;
-        calls_mouse_update[3] = 0x00678F02;
         fn_native_chat = (native_chat_fn)0x0048966C;
         calls_native_chat[0] = 0x00472F4C;
         calls_native_chat[1] = 0x00474682;
@@ -327,6 +327,11 @@ internal const char *const k_spec_ui_missing[ADDR_BUILDS] = { "", "" };
 // the load-time check: what the spec says of the running build's exe (spec_check): the failures
 internal int spec_ui_check(void) {
     int bad = 0;
+    bad += spec_code((uintptr_t)fn_mouse_update, "RTSMouse.update");
+    bad += spec_call(calls_mouse_update[0], (uintptr_t)fn_mouse_update, "RTSMouse.update [call_site mouse_update 0]");
+    bad += spec_call(calls_mouse_update[1], (uintptr_t)fn_mouse_update, "RTSMouse.update [call_site mouse_update 1]");
+    bad += spec_call(calls_mouse_update[2], (uintptr_t)fn_mouse_update, "RTSMouse.update [call_site mouse_update 2]");
+    bad += spec_call(calls_mouse_update[3], (uintptr_t)fn_mouse_update, "RTSMouse.update [call_site mouse_update 3]");
     bad += spec_data(data_ui_gfx_effects, "ui.gfx_effects");
     bad += spec_data(data_ui_iat_edit_get_text, "ui.iat_edit_get_text");
     bad += spec_data(data_ui_iat_uiform_add_hotkey, "ui.iat_uiform_add_hotkey");
@@ -358,11 +363,6 @@ internal int spec_ui_check(void) {
     bad += spec_code((uintptr_t)fn_gfx_kind_game, "ui_functions.gfx_kind_game");
     bad += spec_code((uintptr_t)fn_gfx_remove_game, "ui_functions.gfx_remove_game");
     bad += spec_code((uintptr_t)fn_mouse_clamp, "ui_functions.mouse_clamp");
-    bad += spec_code((uintptr_t)fn_mouse_update, "ui_functions.mouse_update");
-    bad += spec_call(calls_mouse_update[0], (uintptr_t)fn_mouse_update, "ui_functions.mouse_update [call_site mouse_update 0]");
-    bad += spec_call(calls_mouse_update[1], (uintptr_t)fn_mouse_update, "ui_functions.mouse_update [call_site mouse_update 1]");
-    bad += spec_call(calls_mouse_update[2], (uintptr_t)fn_mouse_update, "ui_functions.mouse_update [call_site mouse_update 2]");
-    bad += spec_call(calls_mouse_update[3], (uintptr_t)fn_mouse_update, "ui_functions.mouse_update [call_site mouse_update 3]");
     bad += spec_code((uintptr_t)fn_native_chat, "ui_functions.native_chat");
     bad += spec_call(calls_native_chat[0], (uintptr_t)fn_native_chat, "ui_functions.native_chat [call_site native_chat 0]");
     bad += spec_call(calls_native_chat[1], (uintptr_t)fn_native_chat, "ui_functions.native_chat [call_site native_chat 1]");

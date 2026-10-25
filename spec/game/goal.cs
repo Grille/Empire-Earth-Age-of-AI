@@ -22,6 +22,37 @@ unsafe struct EEUnitGoal
 
     [offset(0x50), found(c)]
     EEUnit* holder;
+
+    /// thiscall(goal 0xFBA object, unit) (0x5ED24B)
+    [address((ee)0x0060FE7E, (aoc)0x006226CF)]
+    // in 0x5ED24B: goal_fits on a dynamic_cast, unchecked
+    [call_site("goal_fits", (ee)0x005ED9BF, (aoc)0x005FBA9C)]
+    extern char8 fits(void* unit);
+
+    /// the same goal's other constructor: thiscall(goal, float pt[3], 6 dwords - a float among them), the group's
+    /// dispatch gives each unit its slot with it
+    [address((ee)0x00614D47, (aoc)0x00627742)]
+    // the group's dispatch (0x5DB641): each unit's location goal at its slot, goal_move_at_game
+    [call_site("slot_goal", (ee)0x005DC902, (aoc)0x005ED231)]
+    extern void* move_at_game(float32* p2, uint32 p3, uint32 p4, uint32 p5, uint32 p6, uint32 p7, uint32 p8);
+
+    /// EEUGUnloadTransport: new 0x40
+    [address((ee)0x00615A1F, (aoc)0x006283FF)]
+    // the calls of goal_unload_init (landing.c; the last, 0x615AE6, the unload goal's copy)
+    [call_site("unload_ctor", (ee)0x00445AAD, (aoc)0x00444CCD)]
+    [call_site("unload_ctor", (ee)0x00483E4D, (aoc)0x004884B9)]
+    [call_site("unload_ctor", (ee)0x0048CC5D, (aoc)0x00491733)]
+    [call_site("unload_ctor", (ee)0x0048D022, (aoc)0x00491AF8)]
+    [call_site("unload_ctor", (ee)0x004BF82A, (aoc)0x004C86E9)]
+    [call_site("unload_ctor", (ee)0x005B3E23, (aoc)0x005C4E31)]
+    [call_site("unload_ctor", (ee)0x005DC81B, (aoc)0x005ED156)]
+    [call_site("unload_ctor", (ee)0x00615AE6, (aoc)0x006284E2)]
+    extern EEUnitGoal* unload_init(EEUnit* holder, int32 x, int32 y, int32 flag);
+
+    /// thiscall(load goal, unit): the unit into its pending passengers (if not there), as EEMLoadTransport adds to a
+    /// load under way
+    [address((ee)0x0061321D, (aoc)0x00625AB4)]
+    extern void add_passenger(EEUnit* u);
 }
 
 /// goal's data of the game, places in its code and numbers
@@ -98,42 +129,12 @@ static unsafe class goal_functions
     [call_site("goalset_ask", (ee)0x005F1029, (aoc)0x005FF393)]
     static extern int32 goalset_ask(void* set, EEUnit* u, int32* @out);
 
-    /// thiscall(goal 0xFBA object, unit) (0x5ED24B)
-    [address((ee)0x0060FE7E, (aoc)0x006226CF), thiscall]
-    // in 0x5ED24B: goal_fits on a dynamic_cast, unchecked
-    [call_site("goal_fits", (ee)0x005ED9BF, (aoc)0x005FBA9C)]
-    static extern char8 goal_fits(EEUnitGoal* goal, void* unit);
-
     /// EEUGLoadTransport: new 0x68
     [address((ee)0x0061487F, (aoc)0x00627286), thiscall]
     static extern void* goal_load_ctor(void* p1, void* p2, void* p3, int32 p4);
-
-    /// the same goal's other constructor: thiscall(goal, float pt[3], 6 dwords - a float among them), the group's
-    /// dispatch gives each unit its slot with it
-    [address((ee)0x00614D47, (aoc)0x00627742), thiscall]
-    // the group's dispatch (0x5DB641): each unit's location goal at its slot, goal_move_at_game
-    [call_site("slot_goal", (ee)0x005DC902, (aoc)0x005ED231)]
-    static extern void* goal_move_at_game(EEUnitGoal* g, float32* p2, uint32 p3, uint32 p4, uint32 p5, uint32 p6, uint32 p7, uint32 p8);
 
     /// new 0x38
     [address((ee)0x00614CE6, (aoc)0x006276E1), thiscall]
     static extern void* goal_move_ctor(void* p1, float32* p2, int32 p3, char8 p4, char8 p5, float32 p6, char8 p7, char8 p8);
 
-    /// EEUGUnloadTransport: new 0x40
-    [address((ee)0x00615A1F, (aoc)0x006283FF), thiscall]
-    // the calls of goal_unload_init (landing.c; the last, 0x615AE6, the unload goal's copy)
-    [call_site("unload_ctor", (ee)0x00445AAD, (aoc)0x00444CCD)]
-    [call_site("unload_ctor", (ee)0x00483E4D, (aoc)0x004884B9)]
-    [call_site("unload_ctor", (ee)0x0048CC5D, (aoc)0x00491733)]
-    [call_site("unload_ctor", (ee)0x0048D022, (aoc)0x00491AF8)]
-    [call_site("unload_ctor", (ee)0x004BF82A, (aoc)0x004C86E9)]
-    [call_site("unload_ctor", (ee)0x005B3E23, (aoc)0x005C4E31)]
-    [call_site("unload_ctor", (ee)0x005DC81B, (aoc)0x005ED156)]
-    [call_site("unload_ctor", (ee)0x00615AE6, (aoc)0x006284E2)]
-    static extern EEUnitGoal* goal_unload_init(EEUnitGoal* mem, EEUnit* holder, int32 x, int32 y, int32 flag);
-
-    /// thiscall(load goal, unit): the unit into its pending passengers (if not there), as EEMLoadTransport adds to a
-    /// load under way
-    [address((ee)0x0061321D, (aoc)0x00625AB4), thiscall]
-    static extern void goal_add_passenger(EEUnitGoal* goal, EEUnit* u);
 }

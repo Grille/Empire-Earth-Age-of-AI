@@ -173,6 +173,14 @@ unsafe struct EEPlayer
     /// set when 0x43DD2F draws the next attack from the interval (+0xEF5 is the first update's flag, 0x43F91A)
     [offset((ee)0xF05, (aoc)0xF55), found(c)]
     uint8 first_attack_done;
+
+    /// thiscall(player, 2) as EEMResign
+    [address((ee)0x0055BCEA, (aoc)0x0056AF5C)]
+    extern void resign(int32 how);
+
+    /// EEMSelectUnits carried out on the player
+    [address((ee)0x0055B3FB, (aoc)0x0056A658)]
+    extern void select(void* selection);
 }
 
 /// the object at a player's +0xB98
@@ -195,7 +203,6 @@ unsafe struct EEPlayerStatistics
 /// player's data of the game, places in its code and numbers
 static unsafe class player
 {
-
     [address((ee)0x00617780, (aoc)0x0062A2DF)]
     static code call_kill_stat;
 
@@ -269,10 +276,6 @@ static unsafe class player_functions
     [address((ee)0x0062EF8A, (aoc)0x00644C83), cdecl]
     static extern EEUnit* place_foundation(EEPlayer* pl, int32 type, int32 x, int32 y);
 
-    /// thiscall(player, 2) as EEMResign
-    [address((ee)0x0055BCEA, (aoc)0x0056AF5C), thiscall]
-    static extern void player_resign(EEPlayer* pl, int32 how);
-
     /// thiscall(player, 1, 0)
     [address((ee)0x00556E11, (aoc)0x005651E0), thiscall]
     static extern int32 population(EEPlayer* pl, int32 with_list, int32 with_aboard);
@@ -288,10 +291,6 @@ static unsafe class player_functions
     /// thiscall(player, now): the next attack time (+0xED8)
     [address((ee)0x0043DD2F, (aoc)0x0043D4CD), thiscall]
     static extern void cp_schedule_attack(EEPlayer* pl, uint32 now);
-
-    /// EEMSelectUnits carried out on the player
-    [address((ee)0x0055B3FB, (aoc)0x0056A658), thiscall]
-    static extern void player_select(EEPlayer* pl, void* selection);
 
     [address((ee)0x0055B8E1, (aoc)0x0056AB41), thiscall]
     static extern void set_diplomacy_game(void* p1, void* p2, int32 p3, int32 p4);

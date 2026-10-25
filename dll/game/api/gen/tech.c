@@ -58,6 +58,10 @@ internal inline int *tech_epoch_at(const ee_tech *o) { return (int *)((uint8_t *
 internal inline uint8_t *tech_get_kids_begin(const ee_tech *o) { return *(uint8_t **)((uint8_t *)o + of_tech_kids_begin); }
 internal inline void tech_set_kids_begin(ee_tech *o, uint8_t *v) { *(uint8_t **)((uint8_t *)o + of_tech_kids_begin) = v; }
 internal inline uint8_t **tech_kids_begin_at(const ee_tech *o) { return (uint8_t **)((uint8_t *)o + of_tech_kids_begin); }
+// AoC's takes an argument: called in the 2017 update only
+typedef int (__thiscall *tech_grant_fn)(ee_tech *);
+internal tech_grant_fn fn_tech_grant;
+internal inline int tech_grant(ee_tech *tech) { return fn_tech_grant(tech); }
 
 // class ee_tech_data (ee_tech_data)
 // a tech's data, TECH +8 (costs, its building ...)
@@ -139,10 +143,6 @@ internal inline uint8_t *tech_vts_tech_researched_at(void) { return (uint8_t *)(
 typedef void (__thiscall *epoch_next_fn)(ee_tech_tree *);
 internal epoch_next_fn fn_epoch_next;
 internal inline void epoch_next(ee_tech_tree *tt) { fn_epoch_next(tt); }
-// AoC's takes an argument: called in the 2017 update only
-typedef int (__thiscall *tech_grant_fn)(ee_tech *);
-internal tech_grant_fn fn_tech_grant;
-internal inline int tech_grant(ee_tech *t) { return fn_tech_grant(t); }
 typedef ee_tech *(__thiscall *tech_lookup_fn)(ee_tech_tree *, int);
 internal tech_lookup_fn fn_tech_lookup;
 internal inline ee_tech *tech_lookup(ee_tech_tree *tt, int id) { return fn_tech_lookup(tt, id); }
@@ -163,6 +163,7 @@ internal int spec_tech_select(int build) {
         of_tech_tree = 0xC;
         of_tech_epoch = 0x14;
         of_tech_kids_begin = 0x24;
+        fn_tech_grant = (tech_grant_fn)0x005BF335;
         of_techdata_makers_begin = 0x10;
         of_techdata_costs = 0x24;
         of_techdata_category = 0x48;
@@ -182,7 +183,6 @@ internal int spec_tech_select(int build) {
         value_tech_slot_tech_available = 1;
         data_tech_vts_tech_researched = 0x00830874;
         fn_epoch_next = (epoch_next_fn)0x005BC15D;
-        fn_tech_grant = (tech_grant_fn)0x005BF335;
         fn_tech_lookup = (tech_lookup_fn)0x004019A1;
         return 0;
     case 1:   // aoc
@@ -198,6 +198,7 @@ internal int spec_tech_select(int build) {
         of_tech_tree = 0xC;
         of_tech_epoch = 0x14;
         of_tech_kids_begin = 0x24;
+        fn_tech_grant = (tech_grant_fn)0x005CFA53;
         of_techdata_makers_begin = 0x10;
         of_techdata_costs = 0x24;
         of_techdata_category = 0x48;
@@ -217,7 +218,6 @@ internal int spec_tech_select(int build) {
         value_tech_slot_tech_available = 1;
         data_tech_vts_tech_researched = 0x00846168;
         fn_epoch_next = (epoch_next_fn)0x005CCB34;
-        fn_tech_grant = (tech_grant_fn)0x005CFA53;
         fn_tech_lookup = (tech_lookup_fn)0x004018A4;
         return 0;
     }
@@ -228,11 +228,11 @@ internal const char *const k_spec_tech_missing[ADDR_BUILDS] = { "", "" };
 // the load-time check: what the spec says of the running build's exe (spec_check): the failures
 internal int spec_tech_check(void) {
     int bad = 0;
+    bad += spec_code((uintptr_t)fn_tech_grant, "EETechTreeNode.grant");
     bad += spec_code(data_tech_call_epoch_upgrades, "tech.call_epoch_upgrades");
     bad += spec_code(data_tech_fn_epoch_upgrades, "tech.fn_epoch_upgrades");
     bad += spec_data(data_tech_vts_tech_researched, "tech.vts_tech_researched");
     bad += spec_code((uintptr_t)fn_epoch_next, "tech_functions.epoch_next");
-    bad += spec_code((uintptr_t)fn_tech_grant, "tech_functions.tech_grant");
     bad += spec_code((uintptr_t)fn_tech_lookup, "tech_functions.tech_lookup");
     return bad;
 }

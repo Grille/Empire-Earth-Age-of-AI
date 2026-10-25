@@ -77,6 +77,38 @@ internal inline int *asg_x_at(const ee_attack_subgroup *o) { return (int *)((uin
 internal inline int asg_get_y(const ee_attack_subgroup *o) { return *(int *)((uint8_t *)o + of_asg_y); }
 internal inline void asg_set_y(ee_attack_subgroup *o, int v) { *(int *)((uint8_t *)o + of_asg_y) = v; }
 internal inline int *asg_y_at(const ee_attack_subgroup *o) { return (int *)((uint8_t *)o + of_asg_y); }
+typedef char (__thiscall *asg_air_give_goal_fn)(ee_attack_subgroup *, ee_unit *, ee_goal *, int, int);
+internal asg_air_give_goal_fn fn_asg_air_give_goal;
+internal inline char asg_air_give_goal(ee_attack_subgroup *asg, ee_unit *u, ee_goal *goal, int a, int prio) { return fn_asg_air_give_goal(asg, u, goal, a, prio); }
+// EECPASGAir slot 90: update(now)
+typedef void (__thiscall *asg_air_update_fn)(ee_attack_subgroup *, int);
+internal asg_air_update_fn fn_asg_air_update;
+internal inline void asg_air_update(ee_attack_subgroup *asg, int now) { fn_asg_air_update(asg, now); }
+typedef char (__thiscall *asg_give_goal_fn)(ee_attack_subgroup *, ee_unit *, ee_goal *, int, int);
+internal asg_give_goal_fn fn_asg_give_goal;
+internal inline char asg_give_goal(ee_attack_subgroup *asg, ee_unit *u, ee_goal *goal, int a, int prio) { return fn_asg_give_goal(asg, u, goal, a, prio); }
+typedef void (__thiscall *asg_land_stats_fn)(ee_attack_subgroup *);
+internal asg_land_stats_fn fn_asg_land_stats;
+internal inline void asg_land_stats(ee_attack_subgroup *asg) { fn_asg_land_stats(asg); }
+// its slot 97: route arrived, waypoints in the deque at +0x60
+typedef void (__thiscall *asg_route_done_fn)(ee_attack_subgroup *);
+internal asg_route_done_fn fn_asg_route_done;
+internal inline void asg_route_done(ee_attack_subgroup *asg) { fn_asg_route_done(asg); }
+// EECPASGSeaTransport slot 90: update(now)
+typedef void (__thiscall *asg_sea_transport_update_fn)(ee_attack_subgroup *, int);
+internal asg_sea_transport_update_fn fn_asg_sea_transport_update;
+internal inline void asg_sea_transport_update(ee_attack_subgroup *asg, int now) { fn_asg_sea_transport_update(asg, now); }
+// EECPASGSea slot 90: update(now)
+typedef void (__thiscall *asg_sea_update_fn)(ee_attack_subgroup *, int);
+internal asg_sea_update_fn fn_asg_sea_update;
+internal inline void asg_sea_update(ee_attack_subgroup *asg, int now) { fn_asg_sea_update(asg, now); }
+typedef void (__thiscall *asg_stats_fn)(ee_attack_subgroup *);
+internal asg_stats_fn fn_asg_stats;
+internal inline void asg_stats(ee_attack_subgroup *asg) { fn_asg_stats(asg); }
+// EECPASGLand slot 90: update(now)
+typedef void (__thiscall *asg_update_fn)(ee_attack_subgroup *, int);
+internal asg_update_fn fn_asg_update;
+internal inline void asg_update(ee_attack_subgroup *asg, int now) { fn_asg_update(asg, now); }
 
 // class EECPAttackSubGroupUnit (ee_asg_unit)
 // an attack subgroup's unit record (EECPAttackSubGroupUnit, EECPASGU*)
@@ -90,6 +122,10 @@ internal inline void **asgu_engaged_at(const ee_asg_unit *o) { return (void **)(
 internal inline ee_attack_subgroup *asgu_get_subgroup(const ee_asg_unit *o) { return *(ee_attack_subgroup **)((uint8_t *)o + of_asgu_subgroup); }
 internal inline void asgu_set_subgroup(ee_asg_unit *o, ee_attack_subgroup *v) { *(ee_attack_subgroup **)((uint8_t *)o + of_asgu_subgroup) = v; }
 internal inline ee_attack_subgroup **asgu_subgroup_at(const ee_asg_unit *o) { return (ee_attack_subgroup **)((uint8_t *)o + of_asgu_subgroup); }
+// float thiscall(info *)
+typedef float (__thiscall *asgu_score_fn)(ee_asg_unit *, ee_asgu_info *);
+internal asgu_score_fn fn_asgu_score;
+internal inline float asgu_score(ee_asg_unit *asgu, ee_asgu_info *info) { return fn_asgu_score(asgu, info); }
 
 // class ee_asgu_info (ee_asgu_info)
 // what asgu_score scores
@@ -165,46 +201,10 @@ internal inline uint8_t *attack_vt_route_planner_at(void) { return (uint8_t *)(u
 
 // static class attack_functions
 // the game's functions attack.c wraps, by the names the C side gives them
-// float thiscall(info *)
-typedef float (__thiscall *asgu_score_fn)(ee_asg_unit *, ee_asgu_info *);
-internal asgu_score_fn fn_asgu_score;
-internal inline float asgu_score(ee_asg_unit *member, ee_asgu_info *info) { return fn_asgu_score(member, info); }
-typedef char (__thiscall *asg_air_give_goal_fn)(ee_attack_subgroup *, ee_unit *, ee_goal *, int, int);
-internal asg_air_give_goal_fn fn_asg_air_give_goal;
-internal inline char asg_air_give_goal(ee_attack_subgroup *sg, ee_unit *u, ee_goal *goal, int a, int prio) { return fn_asg_air_give_goal(sg, u, goal, a, prio); }
-// EECPASGAir slot 90: update(now)
-typedef void (__thiscall *asg_air_update_fn)(ee_attack_subgroup *, int);
-internal asg_air_update_fn fn_asg_air_update;
-internal inline void asg_air_update(ee_attack_subgroup *sg, int now) { fn_asg_air_update(sg, now); }
-typedef char (__thiscall *asg_give_goal_fn)(ee_attack_subgroup *, ee_unit *, ee_goal *, int, int);
-internal asg_give_goal_fn fn_asg_give_goal;
-internal inline char asg_give_goal(ee_attack_subgroup *sg, ee_unit *u, ee_goal *goal, int a, int prio) { return fn_asg_give_goal(sg, u, goal, a, prio); }
-typedef void (__thiscall *asg_land_stats_fn)(ee_attack_subgroup *);
-internal asg_land_stats_fn fn_asg_land_stats;
-internal inline void asg_land_stats(ee_attack_subgroup *sg) { fn_asg_land_stats(sg); }
 // its slot 94: void thiscall(int start[2], int dest[2])
 typedef void (__thiscall *asg_route_fn)(ee_attack_subgroup *, int *, int *);
 internal asg_route_fn fn_asg_route;
 internal inline void asg_route(ee_attack_subgroup *sg, int *start, int *dest) { fn_asg_route(sg, start, dest); }
-// its slot 97: route arrived, waypoints in the deque at +0x60
-typedef void (__thiscall *asg_route_done_fn)(ee_attack_subgroup *);
-internal asg_route_done_fn fn_asg_route_done;
-internal inline void asg_route_done(ee_attack_subgroup *sg) { fn_asg_route_done(sg); }
-// EECPASGSeaTransport slot 90: update(now)
-typedef void (__thiscall *asg_sea_transport_update_fn)(ee_attack_subgroup *, int);
-internal asg_sea_transport_update_fn fn_asg_sea_transport_update;
-internal inline void asg_sea_transport_update(ee_attack_subgroup *sg, int now) { fn_asg_sea_transport_update(sg, now); }
-// EECPASGSea slot 90: update(now)
-typedef void (__thiscall *asg_sea_update_fn)(ee_attack_subgroup *, int);
-internal asg_sea_update_fn fn_asg_sea_update;
-internal inline void asg_sea_update(ee_attack_subgroup *sg, int now) { fn_asg_sea_update(sg, now); }
-typedef void (__thiscall *asg_stats_fn)(ee_attack_subgroup *);
-internal asg_stats_fn fn_asg_stats;
-internal inline void asg_stats(ee_attack_subgroup *sg) { fn_asg_stats(sg); }
-// EECPASGLand slot 90: update(now)
-typedef void (__thiscall *asg_update_fn)(ee_attack_subgroup *, int);
-internal asg_update_fn fn_asg_update;
-internal inline void asg_update(ee_attack_subgroup *sg, int now) { fn_asg_update(sg, now); }
 // thiscall(attack manager, task, strategy, unit ids) -> the attack group
 typedef ee_attack_group *(__thiscall *attack_group_new_fn)(ee_attack_cmd *, void *, void *, void *);
 internal attack_group_new_fn fn_attack_group_new;
@@ -287,9 +287,19 @@ internal int spec_attack_select(int build) {
         of_asg_state = 0x1D0;
         of_asg_x = 0x234;
         of_asg_y = 0x238;
+        fn_asg_air_give_goal = (asg_air_give_goal_fn)0x00442AD8;
+        fn_asg_air_update = (asg_air_update_fn)0x00442DBA;
+        fn_asg_give_goal = (asg_give_goal_fn)0x0045CBEA;
+        fn_asg_land_stats = (asg_land_stats_fn)0x004472A9;
+        fn_asg_route_done = (asg_route_done_fn)0x0044BDBF;
+        fn_asg_sea_transport_update = (asg_sea_transport_update_fn)0x0044FB92;
+        fn_asg_sea_update = (asg_sea_update_fn)0x0044ED11;
+        fn_asg_stats = (asg_stats_fn)0x0045AD2F;
+        fn_asg_update = (asg_update_fn)0x004491DD;
         of_asgu_unit = 0x44;
         of_asgu_engaged = 0x48;
         of_asgu_subgroup = 0x4C;
+        fn_asgu_score = (asgu_score_fn)0x00461854;
         of_score_info_enemy = 0x4;
         of_route_node_x = 0x3C;
         of_route_node_y = 0x40;
@@ -329,17 +339,7 @@ internal int spec_attack_select(int build) {
         data_attack_vt_asg_sea = 0x00826F10;
         data_attack_vt_asg_sea_transport = 0x008270F8;
         data_attack_vt_route_planner = 0x00825CC4;
-        fn_asgu_score = (asgu_score_fn)0x00461854;
-        fn_asg_air_give_goal = (asg_air_give_goal_fn)0x00442AD8;
-        fn_asg_air_update = (asg_air_update_fn)0x00442DBA;
-        fn_asg_give_goal = (asg_give_goal_fn)0x0045CBEA;
-        fn_asg_land_stats = (asg_land_stats_fn)0x004472A9;
         fn_asg_route = (asg_route_fn)0x0044BC57;
-        fn_asg_route_done = (asg_route_done_fn)0x0044BDBF;
-        fn_asg_sea_transport_update = (asg_sea_transport_update_fn)0x0044FB92;
-        fn_asg_sea_update = (asg_sea_update_fn)0x0044ED11;
-        fn_asg_stats = (asg_stats_fn)0x0045AD2F;
-        fn_asg_update = (asg_update_fn)0x004491DD;
         fn_attack_group_new = (attack_group_new_fn)0x0045106C;
         fn_attack_plan_ok = (attack_plan_ok_fn)0x0047067A;
         fn_group_stat = (group_stat_fn)0x00450554;
@@ -382,9 +382,19 @@ internal int spec_attack_select(int build) {
         of_asg_state = 0x1D4;
         of_asg_x = 0x238;
         of_asg_y = 0x23C;
+        fn_asg_air_give_goal = (asg_air_give_goal_fn)0x00442220;
+        fn_asg_air_update = (asg_air_update_fn)0x0045019D;
+        fn_asg_give_goal = (asg_give_goal_fn)0x0045E7F9;
+        fn_asg_land_stats = (asg_land_stats_fn)0x004466DD;
+        fn_asg_route_done = (asg_route_done_fn)0x0044B53D;
+        fn_asg_sea_transport_update = (asg_sea_transport_update_fn)0x0044E9BB;
+        fn_asg_sea_update = (asg_sea_update_fn)0x0044F70E;
+        fn_asg_stats = (asg_stats_fn)0x0045C925;
+        fn_asg_update = (asg_update_fn)0x004488CE;
         of_asgu_unit = 0x44;
         of_asgu_engaged = 0x48;
         of_asgu_subgroup = 0x4C;
+        fn_asgu_score = (asgu_score_fn)0x00463494;
         of_score_info_enemy = 0x4;
         of_route_node_x = 0x3C;
         of_route_node_y = 0x40;
@@ -424,17 +434,7 @@ internal int spec_attack_select(int build) {
         data_attack_vt_asg_sea = 0x0083AFEC;
         data_attack_vt_asg_sea_transport = 0x0083B1D8;
         data_attack_vt_route_planner = 0x00839C70;
-        fn_asgu_score = (asgu_score_fn)0x00463494;
-        fn_asg_air_give_goal = (asg_air_give_goal_fn)0x00442220;
-        fn_asg_air_update = (asg_air_update_fn)0x0045019D;
-        fn_asg_give_goal = (asg_give_goal_fn)0x0045E7F9;
-        fn_asg_land_stats = (asg_land_stats_fn)0x004466DD;
         fn_asg_route = (asg_route_fn)0x0044B3C7;
-        fn_asg_route_done = (asg_route_done_fn)0x0044B53D;
-        fn_asg_sea_transport_update = (asg_sea_transport_update_fn)0x0044E9BB;
-        fn_asg_sea_update = (asg_sea_update_fn)0x0044F70E;
-        fn_asg_stats = (asg_stats_fn)0x0045C925;
-        fn_asg_update = (asg_update_fn)0x004488CE;
         fn_attack_group_new = (attack_group_new_fn)0x00451D8E;
         fn_attack_plan_ok = (attack_plan_ok_fn)0x0047360A;
         fn_group_stat = (group_stat_fn)0x00451239;
@@ -463,6 +463,16 @@ internal const char *const k_spec_attack_missing[ADDR_BUILDS] = { "", "" };
 // the load-time check: what the spec says of the running build's exe (spec_check): the failures
 internal int spec_attack_check(void) {
     int bad = 0;
+    bad += spec_code((uintptr_t)fn_asg_air_give_goal, "EECPAttackSubGroup.air_give_goal");
+    bad += spec_code((uintptr_t)fn_asg_air_update, "EECPAttackSubGroup.air_update");
+    bad += spec_code((uintptr_t)fn_asg_give_goal, "EECPAttackSubGroup.give_goal");
+    bad += spec_code((uintptr_t)fn_asg_land_stats, "EECPAttackSubGroup.land_stats");
+    bad += spec_code((uintptr_t)fn_asg_route_done, "EECPAttackSubGroup.route_done");
+    bad += spec_code((uintptr_t)fn_asg_sea_transport_update, "EECPAttackSubGroup.sea_transport_update");
+    bad += spec_code((uintptr_t)fn_asg_sea_update, "EECPAttackSubGroup.sea_update");
+    bad += spec_code((uintptr_t)fn_asg_stats, "EECPAttackSubGroup.stats");
+    bad += spec_code((uintptr_t)fn_asg_update, "EECPAttackSubGroup.update");
+    bad += spec_code((uintptr_t)fn_asgu_score, "EECPAttackSubGroupUnit.score");
     bad += spec_data(data_attack_asgu_vtables[0], "attack.asgu_vtables 0");
     bad += spec_data(data_attack_asgu_vtables[1], "attack.asgu_vtables 1");
     bad += spec_data(data_attack_asgu_vtables[2], "attack.asgu_vtables 2");
@@ -483,17 +493,7 @@ internal int spec_attack_check(void) {
     bad += spec_data(data_attack_vt_asg_sea, "attack.vt_asg_sea");
     bad += spec_data(data_attack_vt_asg_sea_transport, "attack.vt_asg_sea_transport");
     bad += spec_data(data_attack_vt_route_planner, "attack.vt_route_planner");
-    bad += spec_code((uintptr_t)fn_asgu_score, "attack_functions.asgu_score");
-    bad += spec_code((uintptr_t)fn_asg_air_give_goal, "attack_functions.asg_air_give_goal");
-    bad += spec_code((uintptr_t)fn_asg_air_update, "attack_functions.asg_air_update");
-    bad += spec_code((uintptr_t)fn_asg_give_goal, "attack_functions.asg_give_goal");
-    bad += spec_code((uintptr_t)fn_asg_land_stats, "attack_functions.asg_land_stats");
     bad += spec_code((uintptr_t)fn_asg_route, "attack_functions.asg_route");
-    bad += spec_code((uintptr_t)fn_asg_route_done, "attack_functions.asg_route_done");
-    bad += spec_code((uintptr_t)fn_asg_sea_transport_update, "attack_functions.asg_sea_transport_update");
-    bad += spec_code((uintptr_t)fn_asg_sea_update, "attack_functions.asg_sea_update");
-    bad += spec_code((uintptr_t)fn_asg_stats, "attack_functions.asg_stats");
-    bad += spec_code((uintptr_t)fn_asg_update, "attack_functions.asg_update");
     bad += spec_code((uintptr_t)fn_attack_group_new, "attack_functions.attack_group_new");
     bad += spec_code((uintptr_t)fn_attack_plan_ok, "attack_functions.attack_plan_ok");
     bad += spec_code((uintptr_t)fn_group_stat, "attack_functions.group_stat");

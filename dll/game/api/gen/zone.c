@@ -14,13 +14,13 @@ internal inline int *zone_drop_at(const ee_zone *o) { return (int *)((uint8_t *)
 internal inline uint8_t zone_get_active(const ee_zone *o) { return *(uint8_t *)((uint8_t *)o + of_zone_active); }
 internal inline void zone_set_active(ee_zone *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_zone_active) = v; }
 internal inline uint8_t *zone_active_at(const ee_zone *o) { return (uint8_t *)((uint8_t *)o + of_zone_active); }
-
-// static class zone_functions
-// the game's functions zone.c wraps, by the names the C side gives them
 // thiscall(zone, type) -> first site of that type with amount > 0
 typedef ee_unit *(__thiscall *zone_site_fn)(ee_zone *, int);
 internal zone_site_fn fn_zone_site;
-internal inline ee_unit *zone_site(ee_zone *z, int kind) { return fn_zone_site(z, kind); }
+internal inline ee_unit *zone_site(ee_zone *zone, int kind) { return fn_zone_site(zone, kind); }
+
+// static class zone_functions
+// the game's functions zone.c wraps, by the names the C side gives them
 
 // the running build's values (spec_select, with addr_select): how many it hasn't got
 internal int spec_zone_select(int build) {
@@ -45,6 +45,6 @@ internal const char *const k_spec_zone_missing[ADDR_BUILDS] = { "", "" };
 // the load-time check: what the spec says of the running build's exe (spec_check): the failures
 internal int spec_zone_check(void) {
     int bad = 0;
-    bad += spec_code((uintptr_t)fn_zone_site, "zone_functions.zone_site");
+    bad += spec_code((uintptr_t)fn_zone_site, "ee_zone.site");
     return bad;
 }

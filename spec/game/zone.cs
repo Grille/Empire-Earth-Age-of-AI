@@ -11,13 +11,14 @@ unsafe struct ee_zone
 
     [offset(0x18), found(s)]
     uint8 active;
+
+    /// thiscall(zone, type) -> first site of that type with amount > 0
+    [address((ee)0x004886F2, (aoc)0x0048D065)]
+    extern EEUnit* site(int32 kind);
 }
 
 /// the game's functions zone.c wraps, by the names the C side gives them
 [c_prefix("")]
 static unsafe class zone_functions
 {
-    /// thiscall(zone, type) -> first site of that type with amount > 0
-    [address((ee)0x004886F2, (aoc)0x0048D065), thiscall]
-    static extern EEUnit* zone_site(ee_zone* z, int32 kind);
 }

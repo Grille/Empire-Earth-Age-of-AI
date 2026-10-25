@@ -61,6 +61,14 @@ unsafe struct RTSMouse
 
     [offset(0xA4), found(c)]
     uint8 frozen;
+
+    [address((ee)0x00510E5D, (aoc)0x0051B3CC)]
+    // the calls of mouse_update
+    [call_site("mouse_update", (ee)0x004B8ABB, (aoc)0x004C11FE)]
+    [call_site("mouse_update", (ee)0x0050FEC8, (aoc)0x0051A487)]
+    [call_site("mouse_update", (ee)0x005111CF, (aoc)0x0051B73E)]
+    [call_site("mouse_update", (ee)0x006618B8, (aoc)0x00678F02)]
+    extern void update();
 }
 
 /// the object of native_chat
@@ -103,7 +111,6 @@ unsafe struct ee_ui_screen
 /// ui's data of the game, places in its code and numbers
 static unsafe class ui
 {
-
     /// the graphical effects (a command's circles): handle -> effect
     [address((ee)0x00918E1C, (aoc)0x0093185C)]
     static block gfx_effects;
@@ -210,14 +217,6 @@ static unsafe class ui_functions
 
     [address((ee)0x00510DAD, (aoc)0x0051B31C), thiscall]
     static extern void mouse_clamp(void* m);
-
-    [address((ee)0x00510E5D, (aoc)0x0051B3CC), thiscall]
-    // the calls of mouse_update
-    [call_site("mouse_update", (ee)0x004B8ABB, (aoc)0x004C11FE)]
-    [call_site("mouse_update", (ee)0x0050FEC8, (aoc)0x0051A487)]
-    [call_site("mouse_update", (ee)0x005111CF, (aoc)0x0051B73E)]
-    [call_site("mouse_update", (ee)0x006618B8, (aoc)0x00678F02)]
-    static extern void mouse_update(RTSMouse* m);
 
     [address((ee)0x00484EB3, (aoc)0x0048966C), thiscall]
     // the calls of native_chat (the AI's own lines)

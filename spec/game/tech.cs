@@ -59,6 +59,10 @@ unsafe struct EETechTreeNode
 
     [offset(0x24), found(v)]
     uint8* kids_begin;
+
+    /// AoC's takes an argument: called in the 2017 update only
+    [address((ee)0x005BF335, (aoc)0x005CFA53)]
+    extern int32 grant();
 }
 
 /// a tech's data, TECH +8 (costs, its building ...)
@@ -162,10 +166,6 @@ static unsafe class tech_functions
     /// thiscall(tech tree): the next epoch (to the game's end epoch) - 0x5BC893 sets it, sends the epoch event
     [address((ee)0x005BC15D, (aoc)0x005CCB34), thiscall]
     static extern void epoch_next(EETechTree* tt);
-
-    /// AoC's takes an argument: called in the 2017 update only
-    [address((ee)0x005BF335, (aoc)0x005CFA53), thiscall]
-    static extern int32 tech_grant(EETechTreeNode* t);
 
     [address((ee)0x004019A1, (aoc)0x004018A4), thiscall]
     static extern EETechTreeNode* tech_lookup(EETechTree* tt, int32 id);
