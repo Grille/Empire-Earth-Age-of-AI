@@ -301,7 +301,7 @@ internal int food_fields_wait(ee_player *pl, ee_resource_mgr *rm) {
     uint8_t *list = resource_mgr_list_at(rm, 2);
     for (unsigned k = 0, first = FIELD(list, 0xC, unsigned), n = FIELD(list, 0x10, unsigned); k < n && k < 1024; k++) {
         ee_unit *u = deque_at(list, first + k); ee_unit_type *td = u ? unit_get_type_data(u) : NULL;
-        if (td && unit_get_hp(u) > 0 && unit_type_get_family(td) == 22) boats++;
+        if (td && unit_get_hp(u) > 0 && unit_type_get_class_id(td) == CLS_NAVAL_CITIZEN) boats++;
     }
     int short_ = (int)resource_mgr_get_target(rm, 2) - rm_count(rm, 2);
     return !(boats >= 8 && short_ >= 4);

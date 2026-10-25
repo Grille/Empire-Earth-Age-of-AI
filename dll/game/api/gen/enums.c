@@ -2,49 +2,51 @@
 // the code that types by them (scenario_lists.c, gen/).
 
 // an effect's category (29321) and each category's actions (scen_effect_get_kind)
-enum sm_category { SM_CAT_OBJECT = 1, SM_CAT_PLAYER, SM_CAT_TRIGGER, SM_CAT_MEDIA, SM_CAT_GAME, SM_CAT_AI };
+enum sm_category : int32_t { SM_CAT_OBJECT = 1, SM_CAT_PLAYER, SM_CAT_TRIGGER, SM_CAT_MEDIA, SM_CAT_GAME, SM_CAT_AI };
 
 // 29350
-enum sm_object_action {
+enum sm_object_action : int32_t {
     SM_OBJ_CREATE, SM_OBJ_FREEZE, SM_OBJ_UNFREEZE, SM_OBJ_KILL, SM_OBJ_REMOVE, SM_OBJ_TASK_OBJECT, SM_OBJ_TASK_AREA,
     SM_OBJ_STANCE, SM_OBJ_UNIT_ATTRIBUTE, SM_OBJ_OWNER, SM_OBJ_CLASS_NAME, SM_OBJ_FACE_OBJECT, SM_OBJ_CLASS_ATTRIBUTE
 };
 
 // 29452
-enum sm_player_action {
+enum sm_player_action : int32_t {
     SM_PL_VICTORY, SM_PL_SCRIPT_CAMERA, SM_PL_DEFEAT, SM_PL_DIPLOMACY, SM_PL_SET_ATTRIBUTE_LEVEL,
     SM_PL_MODIFY_TECH_TREE, SM_PL_AWARD_CIV_POINTS, SM_PL_FADE_IN, SM_PL_FADE_OUT, SM_PL_VISIBILITY_ON,
     SM_PL_VISIBILITY_OFF, SM_PL_MINIMAP_FLARE
 };
 
 // 29650
-enum sm_trigger_action { SM_TRIG_ON, SM_TRIG_OFF, SM_TRIG_FIRED, SM_TRIG_NOT_FIRED };
+enum sm_trigger_action : int32_t { SM_TRIG_ON, SM_TRIG_OFF, SM_TRIG_FIRED, SM_TRIG_NOT_FIRED };
 
 // 29525
-enum sm_media_action { SM_MEDIA_PLAY_SOUND, SM_MEDIA_CHANGE_TEXT, SM_MEDIA_SEND_DIALOGUE, SM_MEDIA_SEND_CHAT_MESSAGE };
+enum sm_media_action : int32_t {
+    SM_MEDIA_PLAY_SOUND, SM_MEDIA_CHANGE_TEXT, SM_MEDIA_SEND_DIALOGUE, SM_MEDIA_SEND_CHAT_MESSAGE
+};
 
 // 29575
-enum sm_game_action {
+enum sm_game_action : int32_t {
     SM_GAME_DAYLIGHT_HOUR, SM_GAME_DAY_NIGHT_CYCLE_TIME, SM_GAME_CALAMITY, SM_GAME_GRAPHIC_EFFECT,
     SM_GAME_START_CINEMATIC_MODE, SM_GAME_END_CINEMATIC_MODE, SM_GAME_AMBIENT_WEATHER
 };
 
 // 29690; Maintain Object does nothing
-enum sm_ai_action {
+enum sm_ai_action : int32_t {
     SM_AI_MODIFY_AI_MILITARY_TARGET, SM_AI_CREATE_AI_MILITARY_GROUP, SM_AI_BUILD_OBJECT, SM_AI_MAINTAIN_OBJECT,
     SM_AI_SET_AI_TOGGLE, SM_AI_SET_AI_VARIABLE, SM_AI_SET_FAVORITE_UNITS
 };
 
 // a condition's type (29300 from Player-Attribute; 0 always true, 1 an object), its compare (29310: unsigned)
-enum sm_cond_type {
+enum sm_cond_type : int32_t {
     SM_COND_TRUE, SM_COND_OBJECT, SM_COND_PLAYER_ATTRIBUTE, SM_COND_PLAYER_TECHNOLOGY, SM_COND_TRIGGER_ATTRIBUTE,
     SM_COND_PLAYER_DIPLOMACY, SM_COND_GAME_ATTRIBUTE, SM_COND_CHAT_MESSAGE_CONTAINS
 };
 
-enum sm_compare { SM_LESS, SM_LESS_EQUAL, SM_EQUAL, SM_GREATER_EQUAL, SM_GREATER };
+enum sm_compare : int32_t { SM_LESS, SM_LESS_EQUAL, SM_EQUAL, SM_GREATER_EQUAL, SM_GREATER };
 
 // a player spec (29050): a group, or one player - SM_PLAYER(n). In conditions "any" and "all" are swapped
-enum sm_player_spec {
+enum sm_player_spec : int32_t {
     SM_WORLD, SM_ANY_HUMAN, SM_ANY_COMPUTER, SM_ALL_HUMAN, SM_ALL_COMPUTER, SM_ANY_PLAYER, SM_ANY_EXCLUDE_WORLD,
     SM_PLAYER_0
 };
@@ -52,7 +54,7 @@ enum sm_player_spec {
 // a player attribute (29670; the editor offers up to Difficulty Level, the rest work too): the variables, the
 // tribute sent / received by resource, then statistics series n as SM_PA_STATS + n (AoC: only 1..30, then its mining
 // restriction - 29681, player +0xAE4, read and set)
-enum sm_player_attr {
+enum sm_player_attr : int32_t {
     SM_PA_ANY_RESOURCE, SM_PA_ALL_RESOURCES, SM_PA_STONE, SM_PA_GOLD, SM_PA_WOOD, SM_PA_FOOD, SM_PA_IRON,
     SM_PA_CURRENT_POP, SM_PA_POP_CAP, SM_PA_UNIT_COUNT, SM_PA_DIFFICULTY_LEVEL, SM_PA_VARIABLE0, SM_PA_FOOD_SENT = 21,
     SM_PA_FOOD_RECEIVED, SM_PA_WOOD_SENT, SM_PA_WOOD_RECEIVED, SM_PA_STONE_SENT, SM_PA_STONE_RECEIVED, SM_PA_GOLD_SENT,
@@ -60,12 +62,12 @@ enum sm_player_attr {
 };
 
 // 29500: Set-Attribute Level
-enum sm_attr_mode { SM_TO_EXACTLY, SM_TO_INCREASE_BY, SM_TO_DECREASE_BY };
+enum sm_attr_mode : int32_t { SM_TO_EXACTLY, SM_TO_INCREASE_BY, SM_TO_DECREASE_BY };
 
 // a unit attribute (29100; Unit-Attribute sets them), from SM_UA_SHOCK_ARMOR the class's (Class-Attribute), from
 // SM_UA_TOTAL_SHOCK_ARMOR the totals only an object tests; the operation (29590; a class attribute only increases or
 // decreases)
-enum sm_unit_attr {
+enum sm_unit_attr : int32_t {
     SM_UA_HITPOINTS, SM_UA_ANY_RESOURCE, SM_UA_STONE, SM_UA_GOLD, SM_UA_WOOD, SM_UA_FOOD, SM_UA_IRON, SM_UA_FLIGHT_TIME,
     SM_UA_CARGO_COUNT, SM_UA_GARRISON_LEVEL, SM_UA_AMMUNITION, SM_UA_ANIMATION_IS_PAUSED, SM_UA_RELOAD_TIME,
     SM_UA_GRAPHIC_SCALE, SM_UA_POWER, SM_UA_ROTTING_TIME, SM_UA_CONSTRUCTION_COMPLETE, SM_UA_UNIT_VARIABLE1,
@@ -84,27 +86,27 @@ enum sm_unit_attr {
     SM_UA_TOTAL_PLACE_HOLDER2, SM_UA_TOTAL_PLACE_HOLDER3
 };
 
-enum sm_unit_op { SM_INCREASE, SM_DECREASE, SM_EXACTLY };
+enum sm_unit_op : int32_t { SM_INCREASE, SM_DECREASE, SM_EXACTLY };
 
 // Task-Object / Task-Area (29375), then a power cast: SM_TASK_POWER + its calamity (sm_calamity); Stance (29475)
-enum sm_task {
+enum sm_task : int32_t {
     SM_TASK_NORMAL, SM_TASK_PATROL, SM_TASK_ATTACK_MOVE, SM_TASK_LOAD, SM_TASK_UNLOAD, SM_TASK_GARRISON, SM_TASK_POWER
 };
 
-enum sm_stance {
+enum sm_stance : int32_t {
     SM_STANCE_EXPLORE, SM_STANCE_IDLE, SM_STANCE_LOCKED, SM_STANCE_UNLOCKED, SM_STANCE_TOWN_PATROL, SM_STANCE_SCOUT,
     SM_STANCE_STAND_GROUND, SM_STANCE_GUARD, SM_STANCE_HARASS, SM_STANCE_CAUTIOUS, SM_STANCE_AGGRESSIVE
 };
 
 // 29510: Diplomacy, Player-Diplomacy
-enum sm_diplomacy { SM_ALLIED, SM_ENEMY };
+enum sm_diplomacy : int32_t { SM_ALLIED, SM_ENEMY };
 
 // 29550: Change Text
-enum sm_text_kind { SM_TEXT_HINTS, SM_TEXT_INSTRUCTIONS, SM_TEXT_HISTORY };
+enum sm_text_kind : int32_t { SM_TEXT_HINTS, SM_TEXT_INSTRUCTIONS, SM_TEXT_HISTORY };
 
 // a calamity: the records of db\dbcalamity.dat - the editor offers the prophets' (29600, Any: one of them at random),
 // the powers after them work too (campaigns use Time Warp and Battlecry); AoC's file has 13 more, from Flaming Arrows
-enum sm_calamity {
+enum sm_calamity : int32_t {
     SM_CAL_ANY, SM_CAL_GLOBAL_WARMING, SM_CAL_ICE_AGE, SM_CAL_EARTHQUAKE, SM_CAL_HURRICANE, SM_CAL_SLAVE_REVOLT,
     SM_CAL_REBELLION, SM_CAL_PLAGUE, SM_CAL_MALARIA, SM_CAL_VOLCANO, SM_CAL_FIRE, SM_CAL_ASTEROID, SM_CAL_FLOOD,
     SM_CAL_SHIELD_BATTERY, SM_CAL_ION_PULSE_CANNON, SM_CAL_TIME_WARP, SM_CAL_TELEPORT, SM_CAL_RESONATOR,
@@ -115,21 +117,33 @@ enum sm_calamity {
 };
 
 // 29625: Set AI Toggle
-enum sm_ai_toggle {
+enum sm_ai_toggle : int32_t {
     SM_AIT_ACTIVE, SM_AIT_CHEAT, SM_AIT_ATTACK, SM_AIT_DEFEND, SM_AIT_BUILD_REPAIR, SM_AIT_EXPLORE, SM_AIT_IGNORE,
     SM_AIT_GATHER
 };
 
 // 29665: Game-Attribute, Difficulty Level
-enum sm_difficulty { SM_EASY, SM_MEDIUM, SM_HARD };
+enum sm_difficulty : int32_t { SM_EASY, SM_MEDIUM, SM_HARD };
 
 // an object's tests: each one's mode, the relation's kind (29001); its class filter: any, an epoch (1..14, AoC 1..15),
 // then a family, an RPS class, a unit group - their ranges move with AoC's 15th epoch: sm_class_family(f) ...
-enum sm_test_mode { SM_IGNORE, SM_MUST, SM_MUST_NOT };
+enum sm_test_mode : int32_t { SM_IGNORE, SM_MUST, SM_MUST_NOT };
 
-enum sm_relation { SM_REL_LOS, SM_REL_RANGE, SM_REL_NEAR };
+enum sm_relation : int32_t { SM_REL_LOS, SM_REL_RANGE, SM_REL_NEAR };
 
-enum sm_class { SM_CLASS_ANY };
+enum sm_class : int32_t { SM_CLASS_ANY };
 
 // an area's type: its rectangle, the land or sea its point is on, a player's shape round its point
-enum sm_area_type { SM_AREA_RECTANGLE, SM_AREA_REGION, SM_AREA_PLAYER_SHAPE };
+enum sm_area_type : int32_t { SM_AREA_RECTANGLE, SM_AREA_REGION, SM_AREA_PLAYER_SHAPE };
+
+// a unit type's class_id, the game data's "Unit type": the class of its type data, one each (EEUC + the name: 4
+// EEUCNaval) - every type's read in a running game of both builds 2026-10-25
+enum unit_class : int32_t {
+    CLS_AMBIENT = 0, CLS_RESOURCE = 1, CLS_BUILDING = 2, CLS_AIRPLANE = 3, CLS_NAVAL = 4, CLS_LAND = 5,
+    CLS_LAND_CITIZEN = 6, CLS_HELICOPTER = 7, CLS_PROJECTILE = 9, CLS_SUBMERGED_NAVAL = 10, CLS_BOMB = 11,
+    CLS_MISSILE = 12, CLS_LAND_PRIEST = 13, CLS_LAND_TRANSPORT = 16, CLS_HELICOPTER_TRANSPORT = 17,
+    CLS_NAVAL_TRANSPORT = 18, CLS_TORPEDO = 20, CLS_NAVAL_BUILDING = 21, CLS_NAVAL_CITIZEN = 22,
+    CLS_LAND_MILITARY_HERO = 23, CLS_GATE = 25, CLS_HELICOPTER_PRIEST = 26, CLS_SEA_ANIMAL = 27, CLS_AIR_ANIMAL = 28,
+    CLS_FORTRESS = 29, CLS_BUILDING_PRIEST = 30, CLS_SPACESHIP = 31, CLS_SPACE_BUILDING = 32, CLS_SPACE_TRANSPORT = 33,
+    CLS_PLANET_SPACESHIP = 34
+};

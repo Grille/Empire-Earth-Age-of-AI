@@ -101,7 +101,7 @@ internal void eco_mines(ee_player *pl, struct eco_mines *c) {
 
 // Food sources (in the # eco line): the food list's gatherers by what they gather - fo forage (berry bushes, res_forage_bush),
 // fh hunt (animals: food units of class +0x4C4 0x11 - Deer, Goat, Ostrich, Elephant ...; the carcass too), ff fields
-// (b_farm), fb fishing boats (family 22), fx anything else. The hunt list (rm +0x88: built once at the AI's start
+// (b_farm), fb fishing boats (CLS_NAVAL_CITIZEN), fx anything else. The hunt list (rm +0x88: built once at the AI's start
 // (0x48D263 -> 0x48B778) from the world's food units of class 0x11, sorted by distance, pruned of the dead every 15 s;
 // fish, class 0x12, go to rm +0x98): hl its entries with food left, hlF their food, hl15 / hl30 those within 15 / 30
 // tiles of a drop site (not granaries). Animals on the map (grid, class 0x11, food left): an all, an30 within 30 tiles
@@ -125,7 +125,7 @@ internal void eco_food(ee_player *pl, ee_resource_mgr *rm, struct eco_food *f) {
         if (!td || unit_get_hp(u) <= 0) continue;
         int res;
         if (strcmp(eco_goal(u, &res), "gather")) continue;
-        if (unit_type_get_family(td) == 22) f->fb++;
+        if (unit_type_get_class_id(td) == CLS_NAVAL_CITIZEN) f->fb++;
         else if (res == UT(RES_FORAGE_BUSH)) f->fo++;
         else if (res == UT(B_FARM)) f->ff++;
         else {
@@ -243,7 +243,7 @@ internal void ecolog_tick(ee_player *pl, uint32_t now) {
             ee_unit *u = it.u;
             ee_unit_type *td = it.td;
             if (unit_get_owner(u) != pl || unit_get_hp(u) <= 0) continue;
-            int t = unit_type_get_id(td), fam = unit_type_get_family(td), is_cit = is_citizen_type(t);
+            int t = unit_type_get_id(td), fam = unit_type_get_class_id(td), is_cit = is_citizen_type(t);
             if (!is_cit && !is_army_family(fam)) continue;
             if (!eco_new_id(idx, ((uint32_t)unit_get_id(u))) || first) continue;
             if (is_cit) { sp->tc++; sp->tcF += (unsigned)unit_cost(pl, t, 2); }
@@ -296,14 +296,14 @@ internal void eco_death(ee_unit *dead, int k, int v) {
         if (!t || unit_get_hp(u) <= 0) continue;
         ee_player *o = unit_get_owner(u);
         int ux = unit_get_x(u) - x, uy = unit_get_y(u) - y, d2 = ux * ux + uy * uy;
-        int fam = unit_type_get_family(t);
-        int sc = d2 + (is_army_family(fam) ? 0 : fam == 0x1D ? 1000 : 2000);   // soldiers, ships, aircraft first, then towers
-        if (o == kp && sc < best && d2 <= 144 && fam != 6 && fam != 22 && fam != 0 && fam != 1 && !is_citizen_type(unit_type_get_id(t))) { best = sc; att = u; }
+        int fam = unit_type_get_class_id(t);
+        int sc = d2 + (is_army_family(fam) ? 0 : fam == CLS_FORTRESS ? 1000 : 2000);   // soldiers, ships, aircraft first, then towers
+        if (o == kp && sc < best && d2 <= 144 && fam != CLS_LAND_CITIZEN && fam != CLS_NAVAL_CITIZEN && fam != CLS_AMBIENT && fam != CLS_RESOURCE && !is_citizen_type(unit_type_get_id(t))) { best = sc; att = u; }
         if (!is_army_family(fam)) continue;
         if (o == pl && d2 <= 100) own++;
         else if (o == kp && d2 <= 64) foe++;
     }
-    int atype = att ? unit_type_get_id(unit_get_type_data(att)) : -1, acls = att ? unit_type_get_family(unit_get_type_data(att)) : -1;
+    int atype = att ? unit_type_get_id(unit_get_type_data(att)) : -1, acls = att ? unit_type_get_class_id(unit_get_type_data(att)) : -1;
     struct eco_dead *d = &g_eco_dead[v & 15];
     d->n++;
     if (dist >= 0 && dist <= 6) d->town++; else if (dist >= 0 && dist <= 15) d->near_++; else d->far_++;

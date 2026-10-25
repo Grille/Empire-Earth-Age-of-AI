@@ -81,13 +81,13 @@ internal void ex_scan(ee_player *pl, uint32_t now, int new_log) {
         ee_unit_type *td = it.td;
         ee_player *o = unit_get_owner(u);
         if (!o || unit_get_hp(u) <= 0) continue;
-        int pi = player_get_index(o), fam = unit_type_get_family(td), t = unit_type_get_id(td), x = unit_get_x(u), y = unit_get_y(u);
+        int pi = player_get_index(o), fam = unit_type_get_class_id(td), t = unit_type_get_id(td), x = unit_get_x(u), y = unit_get_y(u);
         if (pi <= 0 || pi >= 16) continue;
         if (is_transport(t)) { g_exs.tr[pi]++; continue; }
         if (x < 0) { if (is_citizen_type(t)) g_exs.aboard[pi]++; continue; }
         struct ex_cont *c = ex_cont_of(area_id(iv2(x, y), 2), 1);
         if (!c) continue;
-        if (fam == 2 || fam == 29) {
+        if (fam == CLS_BUILDING || fam == CLS_FORTRESS) {
             if (is_wall(t)) continue;
             c->bld[pi]++;
             // # isl new: off its home continent, first seen - on land with sites (a dock stands in its shore area, a
@@ -589,8 +589,8 @@ internal float ex_sea_risk(ee_player *pl, struct ex_st *x, ee_unit_type *trtd, f
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
         if (unit_get_owner(u) != pl || unit_get_hp(u) <= 0 || unit_get_x(u) < 0) continue;
-        int fam = unit_type_get_family(it.td), t = unit_type_get_id(it.td);
-        if ((fam == 4 || fam == 10) && !is_transport(t) && !is_fishing_boat(t) && unit_type_get_attack(it.td) > 0) ld_sea_add(&o, &e, u);
+        int fam = unit_type_get_class_id(it.td), t = unit_type_get_id(it.td);
+        if ((fam == CLS_NAVAL || fam == CLS_SUBMERGED_NAVAL) && !is_transport(t) && !is_fishing_boat(t) && unit_type_get_attack(it.td) > 0) ld_sea_add(&o, &e, u);
     }
     return ld_sea_risk(&e, &o, hp);
 }
@@ -741,8 +741,8 @@ internal void ex_isle_unit(ee_unit *u, void *ctx) {
     int x = unit_get_x(u), y = unit_get_y(u);
     if (o == e->pl) {
         if (area_id(iv2(x, y), 2) != e->cont) return;
-        int fam = unit_type_get_family(td), t = unit_type_get_id(td);
-        if (fam == 2 || fam == 29) e->nb++;
+        int fam = unit_type_get_class_id(td), t = unit_type_get_id(td);
+        if (fam == CLS_BUILDING || fam == CLS_FORTRESS) e->nb++;
         else if (is_citizen_type(t)) { if (e->nc < 64) e->c[e->nc++] = u; }
         else if (is_soldier(td) && !is_ship_or_air(td) && !is_transport(t) && e->ns < 32) e->s[e->ns++] = u;
         return;

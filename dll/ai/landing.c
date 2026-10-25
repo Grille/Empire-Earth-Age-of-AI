@@ -279,15 +279,15 @@ internal void ld_unit(ee_unit *u, void *ctx) {
     ee_unit_type *td = unit_get_type_data(u);
     ee_player *o = unit_get_owner(u);
     if (unit_get_hp(u) <= 0 || !o) return;
-    int fam = unit_type_get_family(td), t = unit_type_get_id(td);
-    if (o == s->target && (fam == 2 || fam == 29) && !is_wall(t) && (g_land_knows || seen_by(u, s->pl)) && s->nb < 2000) {
+    int fam = unit_type_get_class_id(td), t = unit_type_get_id(td);
+    if (o == s->target && (fam == CLS_BUILDING || fam == CLS_FORTRESS) && !is_wall(t) && (g_land_knows || seen_by(u, s->pl)) && s->nb < 2000) {
         s->b[s->nb++] = unit_get_tile(u);
     } else if (o == s->pl && t == UT(B_DOCK) && s->nd < 16) {
         s->dk[s->nd++] = unit_get_tile(u);
     } else if (o == s->pl && is_transport(t) && unit_get_x(u) >= 0 && !expand_ship(u) && s->nt < 32) s->tr[s->nt++] = u;   // not an outpost's ferry (expand.c)
-    else if (o == s->pl && fam == 4 && !is_transport(t) && !is_fishing_boat(t) && unit_type_get_attack(td) > 0 && s->nw < 32)
+    else if (o == s->pl && fam == CLS_NAVAL && !is_transport(t) && !is_fishing_boat(t) && unit_type_get_attack(td) > 0 && s->nw < 32)
         s->war[s->nw++] = u;
-    else if (o == s->pl && (fam == 3 || fam == 7 || fam == 17) && unit_type_get_attack(td) > 0 && unit_get_x(u) >= 0 && !is_aa(u) && s->na < 16)
+    else if (o == s->pl && (fam == CLS_AIRPLANE || fam == CLS_HELICOPTER || fam == CLS_HELICOPTER_TRANSPORT) && unit_type_get_attack(td) > 0 && unit_get_x(u) >= 0 && !is_aa(u) && s->na < 16)
         s->air[s->na++] = u;
 }
 
@@ -435,7 +435,7 @@ internal ee_unit *ld_naval_target(ee_player *pl, ivec2 p, int r, int soldiers) {
         if (!o || player_get_index(o) <= 0 || !is_enemy(pl, o) || !seen_by(u, pl)) continue;
         float rr, a;
         int t = unit_type_get_id(td);
-        if (!defence_stats(u, &rr, &a) && !(unit_type_get_family(td) == 4 && !is_transport(t) && !is_fishing_boat(t)) &&
+        if (!defence_stats(u, &rr, &a) && !(unit_type_get_class_id(td) == CLS_NAVAL && !is_transport(t) && !is_fishing_boat(t)) &&
             !(soldiers && (is_soldier(td) || is_siege(t))))
             continue;
         float d2 = (float)ivec2_dist2(unit_get_tile(u), p);
@@ -449,8 +449,8 @@ internal ee_unit *ld_naval_target(ee_player *pl, ivec2 p, int r, int soldiers) {
 // From the plan on: they shell the beach free (its defences, the warships off it, then the soldiers on it) while
 // the transports are built and boarded.
 internal int ld_is_air(ee_unit *u) {
-    int fam = unit_type_get_family(unit_get_type_data(u));
-    return fam == 3 || fam == 7 || fam == 17;
+    int fam = unit_type_get_class_id(unit_get_type_data(u));
+    return fam == CLS_AIRPLANE || fam == CLS_HELICOPTER || fam == CLS_HELICOPTER_TRANSPORT;
 }
 // THE SEA ON THE WAY (the user: "I certainly place subs or planes before my coasts on patrol now"; "subs are always
 // visible, but can only be attacked by frigates and towers"; "best to take the game's own table as source of truth"):
@@ -458,7 +458,7 @@ internal int ld_is_air(ee_unit *u) {
 // the target's type, both players' indices) - the table 0x8D200C [target category, type +0x4C4][weapon kind], 0: it
 // cannot (the game's attack subgroups test it the same way, 0x4504FD). A threat: an enemy unit afloat or in the air
 // whose weapon hits the transport type; an escort counts against the threats of a category when its weapon hits them.
-enum { LDS_SHIP, LDS_SUB, LDS_AIR };   // for the log only: afloat, submarines (family 10), aircraft
+enum { LDS_SHIP, LDS_SUB, LDS_AIR };   // for the log only: afloat, submarines (CLS_SUBMERGED_NAVAL), aircraft
 struct ld_sea { float h[64], a[64]; ee_unit_type *rep[64]; int rpi[64], n[3]; };
 internal float ld_factor(ee_unit_type *atd, int api, ee_unit_type *ttd, int tpi) {
     if (!atd || !ttd || unit_type_get_attack(atd) <= 0) return 0.0f;
@@ -491,7 +491,7 @@ internal void ld_sea_unit(ee_unit *u, void *ctx) {
     int k = unit_type_get_category(td) & 63;
     c->t->h[k] += (float)unit_get_hp(u); c->t->a[k] += ld_attack(u);
     if (!c->t->rep[k]) { c->t->rep[k] = td; c->t->rpi[k] = ld_pidx(u); }
-    c->t->n[air ? LDS_AIR : unit_type_get_family(td) == 10 ? LDS_SUB : LDS_SHIP]++;
+    c->t->n[air ? LDS_AIR : unit_type_get_class_id(td) == CLS_SUBMERGED_NAVAL ? LDS_SUB : LDS_SHIP]++;
 }
 internal void ld_sea_threat(ee_player *pl, ee_unit_type *trtd, ivec2 from, ivec2 water, ivec2 site, struct ld_sea *t) {
     static struct ld_sea_scan c;
@@ -1200,7 +1200,7 @@ internal int ld_war_type(ee_player *pl, ee_player *target, ee_unit_type *tw, int
     float bv = 0;
     for (int t = 1; t < 724; t++) {
         ee_unit_type *td = type_data(t);
-        if (!td || unit_type_get_id(td) != t || unit_type_get_family(td) != 4 || is_transport(t) || is_fishing_boat(t) || unit_type_get_attack(td) <= 0) continue;
+        if (!td || unit_type_get_id(td) != t || unit_type_get_class_id(td) != CLS_NAVAL || is_transport(t) || is_fishing_boat(t) || unit_type_get_attack(td) <= 0) continue;
         if (!ld_type_avail(pl, t)) continue;
         if (now_only && !can_build(pl, t)) continue;   // trainable and payable now
         float v = ld_war_value(pl, td, tw, target);
@@ -1991,12 +1991,12 @@ internal ee_unit *ld_raid_target(ee_player *pl, ee_player *target, ivec2 p, int 
         if (!o || player_get_index(o) <= 0 || !is_enemy(pl, o) || !seen_by(u, pl)) continue;
         float d2 = (float)ivec2_dist2(unit_get_tile(u), p), rr, a;
         if (d2 > (float)(r * r)) continue;
-        int fam = unit_type_get_family(td), type = unit_type_get_id(td), k;
-        if (fam == 3 || fam == 7 || fam == 17 || fam == 4) continue;   // aircraft, ships
+        int fam = unit_type_get_class_id(td), type = unit_type_get_id(td), k;
+        if (fam == CLS_AIRPLANE || fam == CLS_HELICOPTER || fam == CLS_HELICOPTER_TRANSPORT || fam == CLS_NAVAL) continue;   // aircraft, ships
         if (is_soldier(td) || is_siege(type)) { if (d2 > 64.0f) continue; k = 0; }
         else if (is_citizen_type(type)) k = 1;   // citizens
         else if (defence_stats(u, &rr, &a)) { if (d2 > (rr + 1.0f) * (rr + 1.0f)) continue; k = 3; }
-        else if (o == target && (fam == 2 || fam == 29) && !is_wall(type) && d2 <= 64.0f) k = 2;
+        else if (o == target && (fam == CLS_BUILDING || fam == CLS_FORTRESS) && !is_wall(type) && d2 <= 64.0f) k = 2;
         else continue;
         if (d2 < bd[k]) { bd[k] = d2; best[k] = u; }
     }
@@ -2009,9 +2009,9 @@ struct ld_obj { ee_player *pl; ee_player *target; unsigned pi, cont; ivec2 p; ee
 internal void ld_obj_unit(ee_unit *u, void *ctx) {
     struct ld_obj *s = ctx;
     ee_unit_type *td = unit_get_type_data(u);
-    int fam = unit_type_get_family(td);
+    int fam = unit_type_get_class_id(td);
     float rr, a;
-    if (unit_get_owner(u) != s->target || (fam != 2 && fam != 29) || unit_get_hp(u) <= 0 ||
+    if (unit_get_owner(u) != s->target || (fam != CLS_BUILDING && fam != CLS_FORTRESS) || unit_get_hp(u) <= 0 ||
         is_wall(unit_type_get_id(td)) || defence_stats(u, &rr, &a) || !seen_by(u, s->pl))
         return;
     int x = unit_get_x(u), y = unit_get_y(u);
@@ -2052,8 +2052,8 @@ internal void cmd_terrain(char *out, const char *args) {
             int x = unit_get_x(u) - x0 + r, y = unit_get_y(u) - y0 + r;
             if (x < 0 || y < 0 || x >= w || y >= w) continue;
             ee_player *o = unit_get_owner(u);
-            int fam = unit_type_get_family(td), pi = o ? player_get_index(o) : 0;
-            char ch = pi <= 0 ? 'T' : (fam == 2 || fam == 29) ? (char)('A' + pi) : (char)('a' + pi);
+            int fam = unit_type_get_class_id(td), pi = o ? player_get_index(o) : 0;
+            char ch = pi <= 0 ? 'T' : (fam == CLS_BUILDING || fam == CLS_FORTRESS) ? (char)('A' + pi) : (char)('a' + pi);
             g[y * w + x] = ch;
         }
     }

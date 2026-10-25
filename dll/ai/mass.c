@@ -75,9 +75,9 @@ internal struct mass {
 internal void mass_new_game(void) { memset(g_mss, 0, sizeof g_mss); }
 
 internal int ms_land_soldier(ee_unit *u, ee_unit_type *td) {
-    int fam = unit_type_get_family(td);
-    return unit_get_hp(u) > 0 && unit_get_x(u) >= 0 && is_soldier(td) && fam != 3 && fam != 4 && fam != 7 &&
-           fam != 10 && fam != 17 && fam != 18 && fam != 21 && fam != 22;
+    int fam = unit_type_get_class_id(td);
+    return unit_get_hp(u) > 0 && unit_get_x(u) >= 0 && is_soldier(td) && fam != CLS_AIRPLANE && fam != CLS_NAVAL && fam != CLS_HELICOPTER &&
+           fam != CLS_SUBMERGED_NAVAL && fam != CLS_HELICOPTER_TRANSPORT && fam != CLS_NAVAL_TRANSPORT && fam != CLS_NAVAL_BUILDING && fam != CLS_NAVAL_CITIZEN;
 }
 internal int ms_base(ee_player *pl, ivec2 *b) {   // an AI's (a human player's +0xB90 is no computer manager: garbage)
     int i = pl ? player_get_index(pl) & 15 : 0;
@@ -185,9 +185,9 @@ internal void mass_death(ee_unit *dead) {
     ee_unit_type *td = unit_get_type_data(dead);
     ee_player *pl = unit_get_owner(dead);
     ivec2 b;
-    int fam = td ? unit_type_get_family(td) : 3;
-    if (!pl || !td || unit_get_x(dead) < 0 || !is_soldier(td) || fam == 3 || fam == 4 || fam == 7 || fam == 10 ||
-        fam == 17 || fam == 18 || fam == 21 || fam == 22 || !ms_base(pl, &b)) return;
+    int fam = td ? unit_type_get_class_id(td) : 3;
+    if (!pl || !td || unit_get_x(dead) < 0 || !is_soldier(td) || fam == CLS_AIRPLANE || fam == CLS_NAVAL || fam == CLS_HELICOPTER || fam == CLS_SUBMERGED_NAVAL ||
+        fam == CLS_HELICOPTER_TRANSPORT || fam == CLS_NAVAL_TRANSPORT || fam == CLS_NAVAL_BUILDING || fam == CLS_NAVAL_CITIZEN || !ms_base(pl, &b)) return;
     struct mass *m = &g_mss[(unsigned)player_get_index(pl) & 15];
     ivec2 p = unit_get_tile(dead);
     int en, own = ms_near(pl, dead, p, 6, NULL);
@@ -367,7 +367,7 @@ internal int mass_tether(ee_attack_subgroup *sg, ee_unit *me, ee_unit *enemy) {
     int plan = ARMY_MASS(idx);
     if (!m->ntc || !(plan & 16)) return 0;
     ee_unit_type *etd = unit_get_type_data(enemy);   // 128: buildings only - enemy units are fought wherever they are
-    if ((plan & 128) && (!etd || (unit_type_get_family(etd) != 2 && unit_type_get_family(etd) != 29))) return 0;
+    if ((plan & 128) && (!etd || (unit_type_get_class_id(etd) != CLS_BUILDING && unit_type_get_class_id(etd) != CLS_FORTRESS))) return 0;
     int k = 0;
     while (k < m->ntc && m->tc[k].sg != sg) k++;
     if (k == m->ntc) return 0;

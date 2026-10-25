@@ -436,13 +436,13 @@ internal void am_tick(ee_player *pl, uint32_t now) {
         ee_unit *u = it.u;
         ee_unit_type *td = it.td;
         if (unit_get_owner(u) != pl || unit_get_hp(u) <= 0) continue;
-        int t = unit_type_get_id(td), fam = unit_type_get_family(td);
+        int t = unit_type_get_id(td), fam = unit_type_get_class_id(td);
         ee_unit *bs = unit_get_physics(u);
         if (ut_role(t, UTR_TOWER)) { towers += bs && unit_get_finished(bs); continue; }
         if (ut_role(t, UTR_WALL) && !ut_role(t, UTR_GATE)) { walls += bs && unit_get_finished(bs); continue; }
-        if (!is_army_family(fam) || is_citizen_type(t) || fam == 18) continue;   // transports aside
-        if (fam == 4 || fam == 10 || fam == 21) ships++;
-        else if (fam == 3 || fam == 7 || fam == 17) air++;
+        if (!is_army_family(fam) || is_citizen_type(t) || fam == CLS_NAVAL_TRANSPORT) continue;   // transports aside
+        if (fam == CLS_NAVAL || fam == CLS_SUBMERGED_NAVAL || fam == CLS_NAVAL_BUILDING) ships++;
+        else if (fam == CLS_AIRPLANE || fam == CLS_HELICOPTER || fam == CLS_HELICOPTER_TRANSPORT) air++;
         else if (is_siege(t) || is_ram(t)) siege++;
         else sold++;
         value += am_raw_cost(pl, t);

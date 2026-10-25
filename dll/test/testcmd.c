@@ -129,7 +129,7 @@ internal void cmd_tinfo(char *out, const char *args) {
         args += n;
         ee_unit_type *td = type_data(t);
         if (!td) { REPLY("%d: none\n", t); continue; }
-        REPLY("%d: family %d hp %d attack %d range %.1f can %d\n", t, unit_type_get_family(td), unit_type_get_hp(td),
+        REPLY("%d: family %d hp %d attack %d range %.1f can %d\n", t, unit_type_get_class_id(td), unit_type_get_hp(td),
               unit_type_get_attack(td), unit_type_get_range(td),
               can_build(pl, t));
     }
@@ -206,7 +206,7 @@ internal void cmd_targets(char *out, const char *args) {
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
         ee_unit_type *td = it.td;
-        if (!td || (unit_type_get_family(td) != 2 && unit_type_get_family(td) != 29) || !is_enemy(pl, unit_get_owner(u)))
+        if (!td || (unit_type_get_class_id(td) != CLS_BUILDING && unit_type_get_class_id(td) != CLS_FORTRESS) || !is_enemy(pl, unit_get_owner(u)))
             continue;
         int x = unit_get_x(u), y = unit_get_y(u);
         if (strlen(out) > 15000) { REPLY("...\n"); return; }
@@ -376,7 +376,7 @@ internal void cmd_gridcheck(char *out, const char *args) {
         unsigned k = ((uintptr_t)it.u >> 4) % HN, n = 0;
         while (h[k].u && h[k].u != it.u && n++ < HN) k = (k + 1) % HN;
         if (n >= HN) { full = 1; break; }
-        if (!h[k].u) { h[k].u = it.u; h[k].fam = unit_type_get_family(it.td); }
+        if (!h[k].u) { h[k].u = it.u; h[k].fam = unit_type_get_class_id(it.td); }
         h[k].cells++;
         if (unit_get_x(it.u) / it.cs == it.cx && unit_get_y(it.u) / it.cs == it.cy) h[k].own = 1;
     }
@@ -443,7 +443,7 @@ internal void cmd_build(char *out, const char *args) {
         ee_unit_type *td = it.td;
         if (unit_get_owner(u) != pl || unit_get_hp(u) <= 0) continue;
         int t = unit_type_get_id(td), ux = unit_get_x(u), uy = unit_get_y(u);
-        if (ux == bx && uy == by && (unit_type_get_family(td) == 2 || unit_type_get_family(td) == 29)) bld = u;
+        if (ux == bx && uy == by && (unit_type_get_class_id(td) == CLS_BUILDING || unit_type_get_class_id(td) == CLS_FORTRESS)) bld = u;
         else if (is_citizen_type(t) && abs(ux - x) <= r && abs(uy - y) <= r && nc < 32) {
             int dup = 0;
             for (int k = 0; k < nc; k++) dup |= civ[k] == u;
@@ -528,7 +528,7 @@ internal void units_of(int p, int want, struct w_scan *o) {   // want: 0 soldier
         ee_unit_type *td = it.td;
         ee_player *owner = unit_get_owner(u);
         if (!td || !owner || player_get_index(owner) != p || unit_get_hp(u) <= 0) continue;
-        int fam = unit_type_get_family(td), ty = unit_type_get_id(td);
+        int fam = unit_type_get_class_id(td), ty = unit_type_get_id(td);
         int civ = is_citizen_type(ty), sold = !civ && is_army_family(fam);
         if (want == 2 ? !civ : want == 1 ? civ || sold : !sold) continue;   // 1: the rest - buildings, walls, towers
         if (o->n < 1024) o->u[o->n++] = u;
@@ -574,7 +574,7 @@ internal void cmd_wave(char *out, const char *args) {
         while (j < mix[d].nt && mix[d].type[j] != t) j++;
         if (j == mix[d].nt) {
             if (j == 64) continue;
-            mix[d].type[j] = t; mix[d].cnt[j] = 0; mix[d].fam[j] = unit_type_get_family(td); mix[d].nt++;
+            mix[d].type[j] = t; mix[d].cnt[j] = 0; mix[d].fam[j] = unit_type_get_class_id(td); mix[d].nt++;
         }
         ct[j]++; total++;
     }
@@ -689,7 +689,7 @@ internal void cmd_army(char *out, const char *args) {
         ee_unit_type *td = it.td;
         ee_player *owner = unit_get_owner(u);
         if (!td || !owner || player_get_index(owner) != p) continue;
-        if (!is_army_family(unit_type_get_family(td))) continue;
+        if (!is_army_family(unit_type_get_class_id(td))) continue;
         if (only >= 0 && unit_type_get_id(td) != only) continue;
         const char *gn = rtti_name(unit_get_goal(u));
         int j = 0;
@@ -737,13 +737,13 @@ internal void ag_unit(ee_unit *u, void *ctx) {
     ee_unit_type *td = unit_get_type_data(u);
     ee_player *owner = unit_get_owner(u);
     if (unit_get_hp(u) <= 0 || !owner || !td) return;
-    int fam = unit_type_get_family(td), x = unit_get_x(u), y = unit_get_y(u);
+    int fam = unit_type_get_class_id(td), x = unit_get_x(u), y = unit_get_y(u);
     if (owner == s->pl && s->x < 0) {
         if (is_soldier(td) && !is_ship_or_air(td) && s->n < 256 &&
             combat_mgr_unit_free(s->cm, unit_get_physics(u))) {
             s->ids[s->n++] = unit_get_serial(u); s->sx += x; s->sy += y;
         }
-    } else if (s->x >= 0 && is_enemy(s->pl, owner) && (fam == 2 || fam == 29)) {
+    } else if (s->x >= 0 && is_enemy(s->pl, owner) && (fam == CLS_BUILDING || fam == CLS_FORTRESS)) {
         float r, a;
         if (s->nodef && defence_stats(u, &r, &a)) return;
         long d = ivec2_dist2(iv2(x, y), iv2(s->x, s->y));
@@ -837,7 +837,7 @@ internal void cmd_move(char *out, const char *args) {
         ee_unit *u = it.u;
         ee_unit_type *td = it.td;
         ee_player *owner = unit_get_owner(u);
-        if (!owner || player_get_index(owner) != p || unit_type_get_family(td) == 2) continue;
+        if (!owner || player_get_index(owner) != p || unit_type_get_class_id(td) == CLS_BUILDING) continue;
         if (abs(unit_get_x(u) - x) > r || abs(unit_get_y(u) - y) > r) continue;
         found[nf++] = u;
     }

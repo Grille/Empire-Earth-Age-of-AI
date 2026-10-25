@@ -248,8 +248,8 @@ internal unsigned ocean_near(ivec2 p, int r, ivec2 *w);   // landing.c
 enum { TW_SEA, TW_LAND, TW_AIR, TW_FORT };
 internal int tw_kind(ee_unit *u) {   // a transport's: by its class (TW_SEA ...; a fortress too), -1 none
     ee_unit_type *td = u ? unit_get_type_data(u) : NULL;
-    int c = td ? unit_type_get_family(td) : 0;
-    return c == CLS_TRANSPORT ? TW_SEA : c == CLS_LAND_TRANSPORT ? TW_LAND : c == CLS_AIR_TRANSPORT ? TW_AIR : c == CLS_FORTRESS ? TW_FORT : -1;
+    int c = td ? unit_type_get_class_id(td) : 0;
+    return c == CLS_NAVAL_TRANSPORT ? TW_SEA : c == CLS_LAND_TRANSPORT ? TW_LAND : c == CLS_HELICOPTER_TRANSPORT ? TW_AIR : c == CLS_FORTRESS ? TW_FORT : -1;
 }
 internal int tw_carrier(ee_player *pl, ee_unit *u) {   // pl's transport on the map
     return tw_kind(u) >= 0 && unit_get_owner(u) == pl && unit_get_hp(u) > 0 && unit_get_x(u) >= 0;

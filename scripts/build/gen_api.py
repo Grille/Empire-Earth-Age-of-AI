@@ -379,11 +379,12 @@ def gen_enums(files):   # the game's enums: their constants, the [c_prefix] and 
             out.append('')
             out += ['// ' + d for d in t.doc]
             consts = ['%s_%s%s' % (a[1][0], n.upper(), '' if v is None else ' = %d' % v) for n, v in t.values]
-            line = 'enum %s { %s };' % (t.name, ', '.join(consts))
+            head = 'enum %s : %s_t' % (t.name, t.base) if t.base else 'enum %s' % t.name   # the spec's size and sign
+            line = '%s { %s };' % (head, ', '.join(consts))
             if len(line) <= 120:
                 out.append(line)
                 continue
-            out.append('enum %s {' % t.name)
+            out.append(head + ' {')
             cur = '   '
             for c in consts:
                 if len(cur) + len(c) + 2 > 120:

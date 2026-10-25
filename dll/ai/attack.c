@@ -12,7 +12,7 @@
 //   +8 cell size, +0x10/+0x14 cells per axis). EEUnit: +0x18 owner player, +0x1C/+0x20 tile x/y,
 //   +0x2C type data, +0x34 live stats (+0x9C range, +0xD8 attack; floats), +0x14 -> +0xC uint16 per player:
 //   low byte != 0 = seen by that player (0x404A8A "explored").
-// Type data: +0x4B4 family (2 = building, 29 = fortress), +0x4B8 type id, +0x420 range, +0x510 attack,
+// Type data: +0x4B4 class_id (CLS_BUILDING, CLS_FORTRESS), +0x4B8 type id, +0x420 range, +0x510 attack,
 //   +0x55C hit points.
 
 #define MAX_DEFENCES 256
@@ -50,16 +50,16 @@ internal int seen_by(ee_unit *u, ee_player *pl) {
     ee_player *o = unit_get_owner(u);
     unsigned oi = o ? (unsigned)player_get_index(o) & 15 : 0;
     if (c > g_vis_floor[pi][oi]) return 1;
-    int fam = unit_type_get_family(unit_get_type_data(u));
-    return (fam == 2 || fam == 29) && intel_remembers(pl, u);
+    int fam = unit_type_get_class_id(unit_get_type_data(u));
+    return (fam == CLS_BUILDING || fam == CLS_FORTRESS) && intel_remembers(pl, u);
 }
 
 // Defence building with a ground attack (AA guns and missile towers only shoot at aircraft).
 internal int defence_stats(ee_unit *u, float *range, float *attack) {
     ee_unit_type *td = unit_get_type_data(u);
     if (!td) return 0;
-    int fam = unit_type_get_family(td), type = unit_type_get_id(td);
-    if (fam != 2 && fam != 29) return 0;
+    int fam = unit_type_get_class_id(td), type = unit_type_get_id(td);
+    if (fam != CLS_BUILDING && fam != CLS_FORTRESS) return 0;
     if (type == UT(B_AA10_GUN_88MM) || type == UT(B_AA13_MISSILE_TOWER)) return 0;
     ee_unit_stats *st = unit_get_stats(u);
     float r = st ? unit_stats_get_range(st) : unit_type_get_range(td);
@@ -141,7 +141,7 @@ internal int building_at(ee_player *pl, const int *dest, int r) {
     for (struct grid_it it = grid_it_box(dest[0], dest[1], r, 1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
         ee_unit_type *td = it.td;
-        if (!td || unit_type_get_family(td) != 2 || is_wall(unit_type_get_id(td)) || !is_enemy(pl, unit_get_owner(u)))
+        if (!td || unit_type_get_class_id(td) != CLS_BUILDING || is_wall(unit_type_get_id(td)) || !is_enemy(pl, unit_get_owner(u)))
             continue;
         if (ivec2_dist2(unit_get_tile(u), iv2(dest[0], dest[1])) <= r * r) return 1;
     }
@@ -159,7 +159,7 @@ internal ee_unit *find_weak_spot(ee_player *pl, unsigned pi, const int *start, c
     for (struct grid_it it = grid_it_box(dest[0], dest[1], r, 1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
         ee_unit_type *td = it.td;
-        if (!td || unit_type_get_family(td) != 2 || is_wall(unit_type_get_id(td)) || !is_enemy(pl, unit_get_owner(u)) ||
+        if (!td || unit_type_get_class_id(td) != CLS_BUILDING || is_wall(unit_type_get_id(td)) || !is_enemy(pl, unit_get_owner(u)) ||
             !seen_by(u, pl))
             continue;
         ivec2 pos = unit_get_tile(u);
@@ -420,7 +420,7 @@ internal int guarded(ee_player *pl, int x, int y, int r) {
     for (struct grid_it it = grid_it_box(x, y, r, 1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
         ee_unit_type *td = it.td;
-        if (!td || unit_type_get_family(td) != 5 || unit_get_hp(u) <= 0 || !is_enemy(pl, unit_get_owner(u)))
+        if (!td || unit_type_get_class_id(td) != CLS_LAND || unit_get_hp(u) <= 0 || !is_enemy(pl, unit_get_owner(u)))
             continue;
         int t = unit_type_get_id(td);
         if (ut_role(t, UTR_CITIZEN | UTR_RAM | UTR_SIEGE))
@@ -451,8 +451,8 @@ internal float __thiscall hook_asgu_score(ee_asg_unit *self, ee_asgu_info *info)
     // planes over P3's town kept its main force at its docks for 9+ minutes, AA tanks running after them). In reach
     // (its range + 3 tiles) they still shoot.
     ee_unit_type *etd = unit_get_type_data(enemy);
-    int efam = etd ? unit_type_get_family(etd) : 0;
-    if (g_ignore_air && s != 0.0f && me && (efam == 3 || efam == 7 || efam == 17)) {
+    int efam = etd ? unit_type_get_class_id(etd) : 0;
+    if (g_ignore_air && s != 0.0f && me && (efam == CLS_AIRPLANE || efam == CLS_HELICOPTER || efam == CLS_HELICOPTER_TRANSPORT)) {
         ee_unit_stats *st = unit_get_stats(me);
         float r = (st ? unit_stats_get_range(st) : unit_type_get_range(mtd)) + 3.0f;
         if ((float)ivec2_dist2(unit_get_tile(enemy), unit_get_tile(me)) > r * r) {
@@ -527,7 +527,7 @@ internal int army_size(ee_player *pl) {
         ee_unit_type *td = it.td;
         if (!td || unit_get_owner(u) != pl) continue;
         // units only sit in the cell of their position
-        if (is_army_family(unit_type_get_family(td))) n++;
+        if (is_army_family(unit_type_get_class_id(td))) n++;
     }
     return n;
 }
@@ -663,8 +663,8 @@ internal int raiders_near(ee_player *pl, ivec2 p, int r0) {
         ee_unit *u = it.u;
         ee_unit_type *td = it.td;
         if (!td || unit_get_hp(u) <= 0 || abs(unit_get_x(u) - p.x) > r || abs(unit_get_y(u) - p.y) > r) continue;
-        int fam = unit_type_get_family(td), t = unit_type_get_id(td);
-        if ((fam != 5 && fam != 4 && !(g_cit_threats && fam == 10)) || is_citizen_type(t) || unit_type_get_attack(td) <= 0) continue;
+        int fam = unit_type_get_class_id(td), t = unit_type_get_id(td);
+        if ((fam != CLS_LAND && fam != CLS_NAVAL && !(g_cit_threats && fam == CLS_SUBMERGED_NAVAL)) || is_citizen_type(t) || unit_type_get_attack(td) <= 0) continue;
         ee_unit_stats *st = unit_get_stats(u);
         float rng = st ? unit_stats_get_range(st) : unit_type_get_range(td);
         int reach = rng > 0.0f && rng < 30.0f ? (int)(rng + 0.5f) + RAID_MARGIN : 0;
@@ -707,7 +707,7 @@ internal void flee_point(ee_player *pl, int x, int y, float rx, float ry, float 
 // wood can be gathered elsewhere, and farms rebuilt at a safer spot - in the WW1 save lots of citizens gather wood right
 // under my artillery and my planes"). raiders_near saw land units and ships within 15 tiles only, and nothing it
 // can't see: artillery shooting from the fog, aircraft. With citizen_threats: the reach up to 27 tiles (ships of
-// family 10 too), and every 4 s (citizens_safety) each citizen's hit points are compared with the last look - where
+// class 10 too), and every 4 s (citizens_safety) each citizen's hit points are compared with the last look - where
 // one lost some, the spot is remembered for 2 minutes. A site within 6 tiles of such spots is dangerous: food and wood
 // from one (they can be had elsewhere), stone, gold and iron from 3 (worth some risk). Aircraft count only where they
 // do harm, so a town they merely fly over keeps working. The searches refuse such sites too (no sent back, sent again).
@@ -803,9 +803,9 @@ internal void citizens_safety(ee_resource_mgr *rm) {   // before the citizen ass
                 doing[r][!goal ? 3 : !strcmp(gd, "EEUGGather@@") ? 0 : !strcmp(gd, "EEUGBuildRepair@@") ? 1 :
                          goal_is_location(goal) ? 2 : 3]++;
             }
-            if (g_cit_threats) {   // not hunters: the animals hurt them (a farm is a building, family 2)
+            if (g_cit_threats) {   // not hunters: the animals hurt them (a farm is a building, CLS_BUILDING)
                 ee_unit *gs = goal && !strcmp(rtti_name(goal), "EEUGGather@@") ? goal_get_site(goal) : NULL;
-                hurt_note(idx, u, now, !(r == 2 && gs && unit_type_get_family(unit_get_type_data(gs)) != 2));
+                hurt_note(idx, u, now, !(r == 2 && gs && unit_type_get_class_id(unit_get_type_data(gs)) != CLS_BUILDING));
             }
             if (r == 0 && goal && goal_is_location(goal)) {   // a stray: an attack's leftover order
                 float gx = goal_get_dest_x(goal), gy = goal_get_dest_y(goal);
@@ -1171,8 +1171,8 @@ internal void siege_tick(ee_player *pl, uint32_t now) {
         ee_unit *u = it.u;
         ee_unit_type *td = it.td;
         if (!td || unit_get_owner(u) != pl || unit_get_goal(u) || unit_get_hp(u) <= 0) continue;
-        int fam = unit_type_get_family(td);
-        idle += fam == 5 && is_soldier(td);   // land soldiers (is_soldier: no citizens, siege, rams - the ram 158 was missed)
+        int fam = unit_type_get_class_id(td);
+        idle += fam == CLS_LAND && is_soldier(td);   // land soldiers (is_soldier: no citizens, siege, rams - the ram 158 was missed)
     }
     if (!hold && idle < 2) hold = "no escorts";
     if (hold) {
@@ -1194,8 +1194,8 @@ internal void siege_tick(ee_player *pl, uint32_t now) {
         ee_unit *u = it.u;
         ee_unit_type *td = it.td;
         if (unit_get_owner(u) != pl || unit_get_goal(u) || unit_get_hp(u) <= 0) continue;
-        int fam = unit_type_get_family(td);
-        if (fam != 5 || !is_soldier(td)) continue;   // land soldiers only (no citizens, siege, rams - 158 too)
+        int fam = unit_type_get_class_id(td);
+        if (fam != CLS_LAND || !is_soldier(td)) continue;   // land soldiers only (no citizens, siege, rams - 158 too)
         float ex = (float)unit_get_x(u) - px, ey = (float)unit_get_y(u) - py;
         if (ex * ex + ey * ey < 9.0f) { escorts++; continue; }   // already there
         escorts += unit_goal(u, goal_move(px + (float)(escorts % 3) - 1.0f, py + (float)(escorts / 3 % 3) - 1.0f), 0, 0x1F40);
@@ -1597,7 +1597,7 @@ internal void cmd_attacks(char *out, const char *args) {
                     REPLY("       %d at %d,%d hp %d: %s", unit_type_get_id(unit_get_type_data(u)),
                           unit_get_x(u), unit_get_y(u), unit_get_hp(u), gl ? rtti_name(gl) : "-");
                     if (t) REPLY(" P%d's %d (family %d) at %d,%d", player_get_index(unit_get_owner(t)),
-                                 unit_type_get_id(unit_get_type_data(t)), unit_type_get_family(unit_get_type_data(t)),
+                                 unit_type_get_id(unit_get_type_data(t)), unit_type_get_class_id(unit_get_type_data(t)),
                                  unit_get_x(t), unit_get_y(t));
                     REPLY(" rec+48 %08x\n", (unsigned)(uintptr_t)asg_unit_get_engaged(*r));
                 }
@@ -1611,8 +1611,12 @@ internal void cmd_attacks(char *out, const char *args) {
     }
 }
 
+// NOT what its name says (found 2026-10-25, every type's class read in a running game): the classes 11..17 are the
+// bombs, missiles, priests, two unused and the land and helicopter transports - the ships are CLS_NAVAL,
+// CLS_SUBMERGED_NAVAL, CLS_NAVAL_BUILDING, the aircraft CLS_AIRPLANE, CLS_HELICOPTER. Left as it is until measured
+// (bunkers, outposts and two test commands pick land soldiers by it).
 internal int is_ship_or_air(ee_unit_type *td) {   // movement type +0x10C... unknown: by the ship/air families seen in tests
-    int fam = unit_type_get_family(td);
+    int fam = unit_type_get_class_id(td);
     return fam == 0x0B || fam == 0x0C || fam == 0x0D || fam == 0x0E || fam == 0x0F || fam == 0x10 || fam == 0x11;
 }
 

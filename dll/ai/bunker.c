@@ -1,4 +1,4 @@
-// BUNKERS: the Fortress (type 672, family 29, tech 3072 - Copper Age) holds units like a transport (type +0x54C
+// BUNKERS: the Fortress (type 672, CLS_FORTRESS, tech 3072 - Copper Age) holds units like a transport (type +0x54C
 // capacity, 40): inside they are off the map, safe, and (the playtester) don't count toward the population limit. The
 // game's AI never builds or uses it. The playtester's uses: citizens out of bombing runs, a refuge for an outpost's
 // gatherers until an army comes, a reserve at low population limits that replaces losses at once. A garrison is
@@ -9,7 +9,7 @@
 #define FORTRESS_TYPE UT(B_FORTRESS)
 internal int bk_capacity(ee_unit *u) {   // what a building holds as a transport does, 0 = none
     ee_unit_type *td = u ? unit_get_type_data(u) : NULL;
-    return td && unit_type_get_family(td) == 29 ? unit_type_get_transport_capacity(td) : 0;
+    return td && unit_type_get_class_id(td) == CLS_FORTRESS ? unit_type_get_transport_capacity(td) : 0;
 }
 internal int bk_held(ee_unit *u) { return unit_count_inside(u); }   // units inside
 

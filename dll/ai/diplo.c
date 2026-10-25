@@ -239,13 +239,13 @@ internal void ws_unit(ee_unit *u, void *ctx) {
     int o = pidx(owner);
     if (o == 0) return;   // nature (wild animals): hostile to everyone, not an attack
     ee_unit_type *td = unit_get_type_data(u);
-    int fam = unit_type_get_family(td), type = unit_type_get_id(td);
+    int fam = unit_type_get_class_id(td), type = unit_type_get_id(td);
     if ((unsigned)type < G_TYPES_N) g_ws_types[o][type]++;
     if (is_citizen_type(type)) { g_ws.citizens[o]++; return; }
     if (type == UT(B_TOWN_CENTER) || type == UT(B_CAPITOL)) g_ws.centers[o]++;   // where citizens are trained
     if (is_tower_type(type)) g_ws.towers[o]++;
     else if (is_wall(type)) g_ws.walls[o]++;
-    if (fam == 2 || fam == 29) { g_ws.buildings[o]++; g_ws.power[o] += 30; return; }
+    if (fam == CLS_BUILDING || fam == CLS_FORTRESS) { g_ws.buildings[o]++; g_ws.power[o] += 30; return; }
     if (!is_soldier(td)) return;
     g_ws.soldiers[o]++;
     g_ws.power[o] += (float)unit_get_hp(u);
@@ -304,7 +304,7 @@ enum { K_ARMY, K_BUILDINGS, K_CIVIL, K_AIR, K_NAVY, K_N };
 // the class +0x4B4: 6 citizens (and the engineer), 22 fishing boats; 3 aircraft, 7 helicopters and balloons, 17
 // transport helicopters; 4 ships, 10 submarines, 18 transports, 21 carriers; the rest on land - priests, heroes, siege
 internal int kill_kind(ee_unit_type *td) {
-    int c = td ? unit_type_get_family(td) : 5;
+    int c = td ? unit_type_get_class_id(td) : 5;
     if (c == 6 || c == 22 || (td && is_citizen_type(unit_type_get_id(td)))) return K_CIVIL;
     if (c == 3 || c == 7 || c == 17) return K_AIR;
     if (c == 4 || c == 10 || c == 18 || c == 21) return K_NAVY;
@@ -313,7 +313,7 @@ internal int kill_kind(ee_unit_type *td) {
 internal uint32_t g_kills[16][16][K_N];
 internal uint16_t g_kills_min[KILLS_RING][16][16][K_N];
 internal uint32_t g_kills_min_t[KILLS_RING];   // game minute + 1 the bucket holds (0 empty)
-internal uint32_t g_nv_boat_kills[16][16];     // [killer][victim]: fishing boats (family 22) - navy.c's log, reset there
+internal uint32_t g_nv_boat_kills[16][16];     // [killer][victim]: fishing boats (CLS_NAVAL_CITIZEN) - navy.c's log, reset there
 internal uint16_t g_nv_lost_type[16][G_TYPES_N], g_nv_sunk_type[16][G_TYPES_N];   // navy (K_NAVY) by type: [victim] / [killer] - navy.c's log
 internal void kills_recent(int k, int v, uint32_t out[K_N]) {   // k's kills of v in the last KILLS_RECENT_MIN minutes (whole)
     uint32_t m = game_time() / 60000u + 1;
@@ -442,7 +442,7 @@ __attribute__((used)) void __thiscall hook_kill_stat(ee_player_stats *stats, int
         ee_unit_type *td = unit_get_type_data(g_kill_unit);
         int c = n == 2 ? K_BUILDINGS : kill_kind(td);
         g_kills[k][v][c] += (uint32_t)d;
-        if (n == 3 && td && unit_type_get_family(td) == 22) g_nv_boat_kills[k][v] += (uint32_t)d;
+        if (n == 3 && td && unit_type_get_class_id(td) == CLS_NAVAL_CITIZEN) g_nv_boat_kills[k][v] += (uint32_t)d;
         if (n == 3 && c == K_NAVY && td && (unsigned)unit_type_get_id(td) < G_TYPES_N) {
             g_nv_lost_type[v & 15][unit_type_get_id(td)] += (uint16_t)d; g_nv_sunk_type[k & 15][unit_type_get_id(td)] += (uint16_t)d;
         }

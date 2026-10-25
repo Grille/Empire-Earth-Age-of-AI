@@ -55,8 +55,8 @@ internal void def_scan_unit(ee_unit *u, void *ctx) {
     struct def_scan *s = ctx;
     ee_unit_type *td = unit_get_type_data(u);
     ee_player *owner = unit_get_owner(u);
-    int fam = unit_type_get_family(td), x = unit_get_x(u), y = unit_get_y(u);
-    if (fam != 2 && fam != 29) return;
+    int fam = unit_type_get_class_id(td), x = unit_get_x(u), y = unit_get_y(u);
+    if (fam != CLS_BUILDING && fam != CLS_FORTRESS) return;
     if (owner == s->pl) {
         if (is_tower_type(unit_type_get_id(td)) && s->towers < 64) { s->tx[s->towers] = x; s->ty[s->towers++] = y; }
         else if (is_wall(unit_type_get_id(td)) && s->walls < 256) { s->wx[s->walls] = x; s->wy[s->walls++] = y; }
@@ -281,9 +281,9 @@ internal void cs_unit(ee_unit *u, void *ctx) {
     ee_unit_type *td = unit_get_type_data(u);
     ee_player *owner = unit_get_owner(u);
     if (unit_get_hp(u) <= 0 || !owner) return;
-    int fam = unit_type_get_family(td), type = unit_type_get_id(td), x = unit_get_x(u), y = unit_get_y(u);
+    int fam = unit_type_get_class_id(td), type = unit_type_get_id(td), x = unit_get_x(u), y = unit_get_y(u);
     if (owner == s->pl) {
-        if ((fam == 2 || fam == 29) && s->nb < 256) { s->bx[s->nb] = x; s->by[s->nb++] = y; }
+        if ((fam == CLS_BUILDING || fam == CLS_FORTRESS) && s->nb < 256) { s->bx[s->nb] = x; s->by[s->nb++] = y; }
         else if (is_soldier(td) && s->ns < 128) s->sold[s->ns++] = u;
         else if (is_citizen_type(type) && s->nc < 128) { s->civ[s->nc] = u; s->cx[s->nc] = x; s->cy[s->nc++] = y; }
     } else if (is_enemy(s->pl, owner)) {
@@ -291,7 +291,7 @@ internal void cs_unit(ee_unit *u, void *ctx) {
         float r, a;
         if ((is_soldier(td) || is_citizen_type(type)) && s->nu < 128 && seen_by(u, s->pl)) s->eu[s->nu++] = u;
         if ((is_siege(type) || is_ram(type)) && s->ne < 16 && seen_by(u, s->pl)) s->esiege[s->ne++] = u;
-        else if ((fam == 2 || fam == 29) && bs && !unit_get_finished(bs) && s->nt < 16 && defence_stats(u, &r, &a) &&
+        else if ((fam == CLS_BUILDING || fam == CLS_FORTRESS) && bs && !unit_get_finished(bs) && s->nt < 16 && defence_stats(u, &r, &a) &&
                  seen_by(u, s->pl)) s->etow[s->nt++] = u;
         else if (is_soldier(td) && s->nx < 256) { s->ex[s->nx] = x; s->ey[s->nx++] = y; }
     }
@@ -940,7 +940,7 @@ internal void basemap_unit(ee_unit *u, void *ctx) {
     if (x < 0 || y < 0 || x >= w || y >= w) return;
     ee_unit_type *td = unit_get_type_data(u);
     ee_player *owner = unit_get_owner(u);
-    int type = unit_type_get_id(td), fam = unit_type_get_family(td);
+    int type = unit_type_get_id(td), fam = unit_type_get_class_id(td);
     char ch, *cell = &m->g[y * w + x];
     float r, a;
     if (owner != m->pl) {
@@ -951,7 +951,7 @@ internal void basemap_unit(ee_unit *u, void *ctx) {
     } else if (is_wall(type)) ch = ut_role(type, UTR_GATE) ? 'G' : 'W';
     else if (defence_stats(u, &r, &a)) ch = 'T';
     else if (UT_IN(type, UT_TOWNS, UT_X_SINGLE_PLAYER_SETTLEMENT)) ch = 'C';
-    else if (fam == 2 || fam == 29) ch = 'b';
+    else if (fam == CLS_BUILDING || fam == CLS_FORTRESS) ch = 'b';
     else if (is_citizen_type(type)) ch = 'c';
     else ch = 's';
     static const char prio[] = ".mcs0123456789bWGCT";   // what wins when several things share a tile
@@ -1088,7 +1088,7 @@ internal void aa_scan_unit(ee_unit *u, void *ctx) {   // anti_air: own AA, enemy
     struct aa_scan *a = ctx;
     ee_unit_type *td = unit_get_type_data(u);
     if (unit_get_hp(u) <= 0) return;
-    int fam = unit_type_get_family(td), t = unit_type_get_id(td);
+    int fam = unit_type_get_class_id(td), t = unit_type_get_id(td);
     ee_player *o = unit_get_owner(u), *pl = a->pl;
     if (o == pl) {
         for (size_t k = 0; k < sizeof k_aa_units / sizeof *k_aa_units; k++) a->have_u += t == g_ut[k_aa_units[k].type];
@@ -1099,7 +1099,7 @@ internal void aa_scan_unit(ee_unit *u, void *ctx) {   // anti_air: own AA, enemy
             }
         return;
     }
-    if ((fam != 3 && fam != 7 && fam != 17) || !o || player_get_index(o) <= 0 || !is_enemy(pl, o) || !seen_by(u, pl)) return;
+    if ((fam != CLS_AIRPLANE && fam != CLS_HELICOPTER && fam != CLS_HELICOPTER_TRANSPORT) || !o || player_get_index(o) <= 0 || !is_enemy(pl, o) || !seen_by(u, pl)) return;
     a->nall++;
     int x = unit_get_x(u), y = unit_get_y(u);
     ivec2 d;

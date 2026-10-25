@@ -57,10 +57,11 @@ internal inline float *unit_type_mark_size_at(const ee_unit_type *o) { return (f
 internal inline float unit_type_get_collision(const ee_unit_type *o) { return *(float *)((uint8_t *)o + of_unit_type_collision); }
 internal inline void unit_type_set_collision(ee_unit_type *o, float v) { *(float *)((uint8_t *)o + of_unit_type_collision) = v; }
 internal inline float *unit_type_collision_at(const ee_unit_type *o) { return (float *)((uint8_t *)o + of_unit_type_collision); }
-// 2 building, 29 fortress, 5/6 units ...
-internal inline int unit_type_get_family(const ee_unit_type *o) { return *(int *)((uint8_t *)o + of_unit_type_family); }
-internal inline void unit_type_set_family(ee_unit_type *o, int v) { *(int *)((uint8_t *)o + of_unit_type_family) = v; }
-internal inline int *unit_type_family_at(const ee_unit_type *o) { return (int *)((uint8_t *)o + of_unit_type_family); }
+// the game data's "Unit type" (dbobjects column 36): the class of the type data - EEUCBuilding, EEUCNaval ... (the
+// spec called it family until 2026-10-25; the family is category)
+internal inline enum unit_class unit_type_get_class_id(const ee_unit_type *o) { return *(enum unit_class *)((uint8_t *)o + of_unit_type_class_id); }
+internal inline void unit_type_set_class_id(ee_unit_type *o, enum unit_class v) { *(enum unit_class *)((uint8_t *)o + of_unit_type_class_id) = v; }
+internal inline enum unit_class *unit_type_class_id_at(const ee_unit_type *o) { return (enum unit_class *)((uint8_t *)o + of_unit_type_class_id); }
 // the type (UT(...))
 internal inline int unit_type_get_id(const ee_unit_type *o) { return *(int *)((uint8_t *)o + of_unit_type_id); }
 internal inline void unit_type_set_id(ee_unit_type *o, int v) { *(int *)((uint8_t *)o + of_unit_type_id) = v; }
@@ -70,7 +71,8 @@ internal inline int *unit_type_id_at(const ee_unit_type *o) { return (int *)((ui
 internal inline int unit_type_get_damage_class(const ee_unit_type *o) { return *(int *)((uint8_t *)o + of_unit_type_damage_class); }
 internal inline void unit_type_set_damage_class(ee_unit_type *o, int v) { *(int *)((uint8_t *)o + of_unit_type_damage_class) = v; }
 internal inline int *unit_type_damage_class_at(const ee_unit_type *o) { return (int *)((uint8_t *)o + of_unit_type_damage_class); }
-// as a target (the hit table's row)
+// the game data's "Family ID" (the armour and bonus class, unit_names.h's KIND_ - kind.towers): as a target the
+// hit table's row
 // the type data's constructors
 internal inline int unit_type_get_category(const ee_unit_type *o) { return *(int *)((uint8_t *)o + of_unit_type_category); }
 internal inline void unit_type_set_category(ee_unit_type *o, int v) { *(int *)((uint8_t *)o + of_unit_type_category) = v; }
@@ -191,6 +193,10 @@ typedef float (__thiscall *to_hit_table_attack_bonus_fn)(ee_to_hit_table *, int,
 internal to_hit_table_attack_bonus_fn fn_to_hit_table_attack_bonus;
 internal inline float to_hit_table_attack_bonus(ee_to_hit_table *to_hit_table, int weapon, void *target_type, int attacker, int target_player) { return fn_to_hit_table_attack_bonus(to_hit_table, weapon, target_type, attacker, target_player); }
 
+// class unit_class (enum unit_class)
+// a unit type's class_id, the game data's "Unit type": the class of its type data, one each (EEUC + the name: 4
+// EEUCNaval) - every type's read in a running game of both builds 2026-10-25
+
 // static class unit_type
 // unit_type's data of the game, places in its code and numbers
 // attack_bonus_game's object
@@ -230,7 +236,7 @@ internal int spec_unit_type_select(int build) {
         of_unit_type_accel = 0x438;
         of_unit_type_mark_size = 0x464;
         of_unit_type_collision = 0x470;
-        of_unit_type_family = 0x4B4;
+        of_unit_type_class_id = 0x4B4;
         of_unit_type_id = 0x4B8;
         of_unit_type_damage_class = 0x4C0;
         of_unit_type_category = 0x4C4;
@@ -286,7 +292,7 @@ internal int spec_unit_type_select(int build) {
         of_unit_type_accel = 0x13C;
         of_unit_type_mark_size = 0x168;
         of_unit_type_collision = 0x174;
-        of_unit_type_family = 0x1B8;
+        of_unit_type_class_id = 0x1B8;
         of_unit_type_id = 0x1BC;
         of_unit_type_damage_class = 0x1C4;
         of_unit_type_category = 0x1C8;

@@ -113,10 +113,10 @@ internal void cv_purge(uint32_t now) {   // once a minute: the records seen in t
 
 // 1 a land fighter, 2 a warship / submarine, 0 else (citizens, aircraft, transports, priests, buildings)
 internal int cv_mil(ee_unit_type *td) {
-    int fam = unit_type_get_family(td), t = unit_type_get_id(td);
+    int fam = unit_type_get_class_id(td), t = unit_type_get_id(td);
     if (!is_army_family(fam) || is_citizen_type(t) || unit_type_get_attack(td) <= 0) return 0;
-    if (fam == 3 || fam == 7 || fam == 17 || fam == 18 || fam == 21 || fam == 22) return 0;
-    if (fam == 4 || fam == 10) return 2;
+    if (fam == CLS_AIRPLANE || fam == CLS_HELICOPTER || fam == CLS_HELICOPTER_TRANSPORT || fam == CLS_NAVAL_TRANSPORT || fam == CLS_NAVAL_BUILDING || fam == CLS_NAVAL_CITIZEN) return 0;
+    if (fam == CLS_NAVAL || fam == CLS_SUBMERGED_NAVAL) return 2;
     return 1;
 }
 internal int cv_alive(ee_unit *u) { return unit_get_hp(u) > 0 && unit_get_x(u) >= 0; }
@@ -149,9 +149,9 @@ internal float cv_local(ee_player *pl, ivec2 p, int r, int honest) {
         ee_unit_type *td = it.td;
         ee_player *o = unit_get_owner(u);
         if (!o || player_get_index(o) <= 0 || !cv_alive(u)) continue;
-        int fam = unit_type_get_family(td), d2 = ivec2_dist2(unit_get_tile(u), p);
+        int fam = unit_type_get_class_id(td), d2 = ivec2_dist2(unit_get_tile(u), p);
         float rg, at;
-        if (fam == 2 || fam == 29) {
+        if (fam == CLS_BUILDING || fam == CLS_FORTRESS) {
             if (!defence_stats(u, &rg, &at) || at <= 0 || !cv_built(u) || (float)d2 > (rg + 1.0f) * (rg + 1.0f)) continue;
         } else if (!cv_mil(td) || d2 > r * r) continue;
         int foe = is_enemy(pl, o);
@@ -165,9 +165,9 @@ internal int cv_enemy_def(ee_player *pl, ivec2 p) {
     for (struct grid_it it = grid_it_box(p.x, p.y, 12, 1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
         ee_unit_type *td = it.td;
-        int fam = unit_type_get_family(td);
+        int fam = unit_type_get_class_id(td);
         float rg, at;
-        if ((fam != 2 && fam != 29) || !cv_alive(u) || !is_enemy(pl, unit_get_owner(u)) || !defence_stats(u, &rg, &at) || at <= 0 || !cv_built(u)) continue;
+        if ((fam != CLS_BUILDING && fam != CLS_FORTRESS) || !cv_alive(u) || !is_enemy(pl, unit_get_owner(u)) || !defence_stats(u, &rg, &at) || at <= 0 || !cv_built(u)) continue;
         if ((float)ivec2_dist2(unit_get_tile(u), p) <= (rg + 1.0f) * (rg + 1.0f)) return 1;
     }
     return 0;
@@ -194,10 +194,10 @@ internal void cv_scan(ee_player *pl, struct cv_pl *c) {
         ee_unit_type *td = it.td;
         ee_player *o = unit_get_owner(u);
         if (!o || player_get_index(o) <= 0 || !cv_alive(u)) continue;
-        int fam = unit_type_get_family(td), t = unit_type_get_id(td);
+        int fam = unit_type_get_class_id(td), t = unit_type_get_id(td);
         ivec2 p = unit_get_tile(u);
         if (o == pl) {
-            if (fam == 2 || fam == 29) {
+            if (fam == CLS_BUILDING || fam == CLS_FORTRESS) {
                 float rg, at;
                 if (!cv_built(u)) continue;
                 if (t == UT(B_HOSPITAL) && c->nhs < 16) c->h[c->nhs++] = p;
@@ -208,7 +208,7 @@ internal void cv_scan(ee_player *pl, struct cv_pl *c) {
         }
         if (!is_enemy(pl, o)) continue;
         float rg, at;
-        if (!cv_mil(td) && !((fam == 2 || fam == 29) && defence_stats(u, &rg, &at) && at > 0)) continue;
+        if (!cv_mil(td) && !((fam == CLS_BUILDING || fam == CLS_FORTRESS) && defence_stats(u, &rg, &at) && at > 0)) continue;
         int cx = p.x / CV_CELL, cy = p.y / CV_CELL;
         if (cx < 0 || cy < 0 || cx >= CV_CELLS || cy >= CV_CELLS) continue;
         g_cv_foe[cx][cy] = 1;

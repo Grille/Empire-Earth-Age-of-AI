@@ -34,21 +34,21 @@ internal struct mt_st {
 internal void mt_new_game(void) { memset(g_mt, 0, sizeof g_mt); }
 
 // what a type is to the army: its line (MB_*) - land soldiers by their producer (the tech's building list, data
-// +0x10..+0x14), ships by family (docs/navy.md: 4 warships, 10 submarines, 21 carriers; 18 transports, 22 fishing boats)
+// +0x10..+0x14), ships by class (docs/navy.md: 4 warships, 10 submarines, 21 carriers; 18 transports, 22 fishing boats)
 internal int mt_line(ee_player *pl, int t) {
     ee_unit_type *td = type_data(t);
     if (!td) return MB_UNK;
-    int fam = unit_type_get_family(td);
+    int fam = unit_type_get_class_id(td);
     if (is_citizen_type(t)) return MB_CIT;
     if (ut_role(t, UTR_TOWER)) return MB_TOWER;
     if (ut_role(t, UTR_WALL)) return MB_WALL;
-    if (fam == 2 || fam == 29) {
+    if (fam == CLS_BUILDING || fam == CLS_FORTRESS) {
         for (int k = 0; k < AM_NK; k++) if (t == g_ut[k_am_bld[k]]) return MB_MBL;
         return MB_BLD;
     }
-    if (fam == 4 || fam == 10 || fam == 21) return MB_WSH;
-    if (fam == 18 || fam == 22) return MB_BOAT;
-    if (fam == 3 || fam == 7 || fam == 17) return MB_AIR;
+    if (fam == CLS_NAVAL || fam == CLS_SUBMERGED_NAVAL || fam == CLS_NAVAL_BUILDING) return MB_WSH;
+    if (fam == CLS_NAVAL_TRANSPORT || fam == CLS_NAVAL_CITIZEN) return MB_BOAT;
+    if (fam == CLS_AIRPLANE || fam == CLS_HELICOPTER || fam == CLS_HELICOPTER_TRANSPORT) return MB_AIR;
     if (is_siege(t) || is_ram(t)) return MB_SIE;
     if (!is_army_family(fam)) return MB_UNK;
     ee_tech_tree *tt = player_get_tech_tree(pl);

@@ -138,10 +138,10 @@ internal float fl_range(ee_unit *u, ee_unit_type *td) {
 // does a land unit or building of type td threaten ships: a defence with a ground attack (attack.c defence_stats), or
 // a unit whose weapon hits battleships x3+ (catapults, cannons, artillery ...) or reaches 7+ tiles, and hits ships
 internal float fl_danger_r(ee_unit *u, ee_unit_type *td) {
-    int fam = unit_type_get_family(td), t = unit_type_get_id(td), kind = unit_type_get_weapon(td);
-    if (fam == 4 || fam == 10 || fam == 18 || fam == 21 || fam == 22 || fam == 3 || fam == 7 || fam == 17) return 0;   // afloat, aircraft
+    int fam = unit_type_get_class_id(td), t = unit_type_get_id(td), kind = unit_type_get_weapon(td);
+    if (fam == CLS_NAVAL || fam == CLS_SUBMERGED_NAVAL || fam == CLS_NAVAL_TRANSPORT || fam == CLS_NAVAL_BUILDING || fam == CLS_NAVAL_CITIZEN || fam == CLS_AIRPLANE || fam == CLS_HELICOPTER || fam == CLS_HELICOPTER_TRANSPORT) return 0;   // afloat, aircraft
     if (unit_type_get_attack(td) <= 0 || (nv_f(kind, NV_C_FRIG) <= 0 && nv_f(kind, NV_C_LINE) <= 0)) return 0;
-    if (fam == 2 || fam == 29) {
+    if (fam == CLS_BUILDING || fam == CLS_FORTRESS) {
         float r, a;
         if (u) return defence_stats(u, &r, &a) ? r : 0;
         return t == UT(B_AA10_GUN_88MM) || t == UT(B_AA13_MISSILE_TOWER) || unit_type_get_range(td) <= 1.0f ? 0 : unit_type_get_range(td) + 1.0f;
@@ -223,13 +223,13 @@ internal void fl_scan(ee_player *pl, unsigned idx) {
         ee_unit *u = it.u;
         ee_unit_type *td = it.td;
         ee_player *o = unit_get_owner(u);
-        int x = unit_get_x(u), y = unit_get_y(u), fam = unit_type_get_family(td);
+        int x = unit_get_x(u), y = unit_get_y(u), fam = unit_type_get_class_id(td);
         if (!o || unit_get_hp(u) <= 0 || x < 0) continue;
         int k = navy_kind(td);
         if (o == pl) {
             if ((k == NV_WAR || k == NV_SUB) && f->n < FL_MAX && !landing_has_unit(pl, u)) f->u[f->n++] = u;
             else if (k == NV_FISH && s->nb < 96) s->boat[s->nb++] = u;
-            else if (fam == 2 || fam == 29) {
+            else if (fam == CLS_BUILDING || fam == CLS_FORTRESS) {
                 if (unit_type_get_id(td) == UT(B_DOCK) && s->nd < 16) s->dk[s->nd++] = iv2(x, y);
                 float tr, ta;
                 if (s->ntw < 32 && defence_stats(u, &tr, &ta)) { s->tw[s->ntw] = iv2(x, y); s->twr[s->ntw++] = tr; }
@@ -246,10 +246,10 @@ internal void fl_scan(ee_player *pl, unsigned idx) {
             if (s->nev < 64) { struct fl_ship *e = &s->ev[s->nev++]; e->u = u; e->td = td; e->p = iv2(x, y); e->hp = unit_get_hp(u); e->pi = ld_pidx(u); e->seen = 1; e->dps = 0; }
             continue;
         }
-        if (f->ocean && s->nec < 96 && (fam == 2 || fam == 29 || is_soldier(td) || is_siege(unit_type_get_id(td))) && !is_wall(unit_type_get_id(td)) && fl_coast(iv2(x, y), f->ocean)) {
+        if (f->ocean && s->nec < 96 && (fam == CLS_BUILDING || fam == CLS_FORTRESS || is_soldier(td) || is_siege(unit_type_get_id(td))) && !is_wall(unit_type_get_id(td)) && fl_coast(iv2(x, y), f->ocean)) {
             struct fl_ship *e = &s->ec[s->nec++]; e->u = u; e->td = td; e->p = iv2(x, y); e->hp = unit_get_hp(u); e->pi = ld_pidx(u); e->seen = 1; e->dps = 0;
         }
-        if (fam == 2 || fam == 29) {
+        if (fam == CLS_BUILDING || fam == CLS_FORTRESS) {
             int d = ivec2_dist2(iv2(x, y), h);
             if (d < bd) { bd = d; s->eb = iv2(x, y); s->eb_known = 1; }
             if (unit_type_get_id(td) == UT(B_DOCK) && s->ned < 16) s->ed[s->ned++] = iv2(x, y);
@@ -417,7 +417,7 @@ internal ee_unit *fl_pick(ee_unit *u, const unsigned char *sel, ivec2 p, int r) 
         if (!e->seen || (sel && !sel[j]) || fl_in_danger_m(e->p, 3.0f)) continue;
         if (ivec2_dist2(e->p, p) > r * r || (oc && (int)area_id(e->p, 1) != oc) || !ld_hits(u, e->u)) continue;
         float d = (float)ivec2_dist2(e->p, up);
-        if (g_fl_s4 && unit_type_get_family(e->td) == 10 && nv_role(unit_get_type_data(u)) == NR_FRIG) d *= 0.25f;   // frigates: the submarines first
+        if (g_fl_s4 && unit_type_get_class_id(e->td) == CLS_SUBMERGED_NAVAL && nv_role(unit_get_type_data(u)) == NR_FRIG) d *= 0.25f;   // frigates: the submarines first
         if (d < bd) { bd = d; best = e->u; }
     }
     return best;
@@ -951,13 +951,13 @@ internal int tf_target_prey(struct fleet *f, ivec2 c, ivec2 *tp, const char **wh
         int n = pass ? g_fs.nec : g_fs.nev;
         for (int j = 0; j < n; j++) {
             struct fl_ship *e = &list[j];
-            int t = unit_type_get_id(e->td), fam = unit_type_get_family(e->td);
+            int t = unit_type_get_id(e->td), fam = unit_type_get_class_id(e->td);
             float w;
             const char *wy;
             if (!pass) { int k = navy_kind(e->td); w = k == NV_TRANSPORT ? 4.0f : 3.0f; wy = k == NV_TRANSPORT ? "transports" : "fishing boats"; }
             else if (is_citizen_type(t)) { w = 3.0f; wy = "citizens on the coast"; }
             else if (t == UT(B_DOCK)) { w = 2.0f; wy = "docks"; }
-            else if (fam == 2 || fam == 29) { w = 1.0f; wy = "buildings on the coast"; }
+            else if (fam == CLS_BUILDING || fam == CLS_FORTRESS) { w = 1.0f; wy = "buildings on the coast"; }
             else { w = 0.5f; wy = "the coast"; }
             if (pass && (!e->seen || !g_fl_coast)) continue;
             if (!pass && (int)area_id(e->p, 1) != f->ocean) continue;

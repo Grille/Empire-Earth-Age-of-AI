@@ -45,11 +45,11 @@ internal int intel_remembers(ee_player *pl, ee_unit *u) {
     return 0;
 }
 internal int intel_kind(ee_unit_type *td) {
-    int fam = unit_type_get_family(td);
-    if (fam == 2 || fam == 29) return 0;
+    int fam = unit_type_get_class_id(td);
+    if (fam == CLS_BUILDING || fam == CLS_FORTRESS) return 0;
     if (is_soldier(td) || is_siege(unit_type_get_id(td))) return 1;
-    if (fam == 4) return 2;
-    if (fam == 3 || fam == 7 || fam == 17) return 3;
+    if (fam == CLS_NAVAL) return 2;
+    if (fam == CLS_AIRPLANE || fam == CLS_HELICOPTER || fam == CLS_HELICOPTER_TRANSPORT) return 3;
     return 4;
 }
 // ms since a unit of pl or an ally was near (x, y); 0 with honest_vision off (the game's view: everything at once)
@@ -301,8 +301,8 @@ internal void cmd_vis(char *out, const char *args) {
     for (int k = 0; k < s.nu; k++) {
         ee_unit *u = s.u[k];
         ee_unit_type *td = unit_get_type_data(u);
-        int x = unit_get_x(u), y = unit_get_y(u), fam = unit_type_get_family(td);
-        int kind = fam == 2 || fam == 29 ? 0 : (is_soldier(td) || is_siege(unit_type_get_id(td))) ? 1 : fam == 4 ? 2 : (fam == 3 || fam == 7 || fam == 17) ? 3 : 4;
+        int x = unit_get_x(u), y = unit_get_y(u), fam = unit_type_get_class_id(td);
+        int kind = fam == CLS_BUILDING || fam == CLS_FORTRESS ? 0 : (is_soldier(td) || is_siege(unit_type_get_id(td))) ? 1 : fam == CLS_NAVAL ? 2 : (fam == CLS_AIRPLANE || fam == CLS_HELICOPTER || fam == CLS_HELICOPTER_TRANSPORT) ? 3 : 4;
         float bd = 1e9f;
         for (int e = 0; e < s.ne; e++) {
             float d2 = (float)ivec2_dist2(s.eye[e], iv2(x, y));

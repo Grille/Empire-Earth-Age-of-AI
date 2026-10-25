@@ -349,7 +349,7 @@ internal int __thiscall hook_missile_launch(uint8_t *cls, ee_unit *m, float *aim
 internal ee_unit *spread_target(ee_unit *u, ee_unit *t) {
     ee_player *pl = unit_get_owner(u);
     if (!pl) return NULL;
-    int fam = unit_type_get_family(unit_get_type_data(t));
+    int fam = unit_type_get_class_id(unit_get_type_data(t));
     vec2 p = vec3_xy(unit_get_pos(u));
     float range = unit_stats_get_range(unit_get_stats(u));
     int r = (int)range + 1;
@@ -359,7 +359,7 @@ internal ee_unit *spread_target(ee_unit *u, ee_unit *t) {
     for (struct grid_it it = grid_it_box((int)p.x, (int)p.y, r, 1); grid_it_next(&it); ) {
         ee_unit *c = it.u;
         ee_unit_type *cc = it.td;
-        if (c == t || unit_get_hp(c) <= 0 || unit_type_get_family(cc) != fam) continue;
+        if (c == t || unit_get_hp(c) <= 0 || unit_type_get_class_id(cc) != fam) continue;
         if (!is_enemy(pl, unit_get_owner(c)) || !seen_by(c, pl) || doomed(c)) continue;
         float d = vec2_dist2(vec3_xy(unit_get_pos(c)), p);
         if (d <= bd) { bd = d; best = c; }

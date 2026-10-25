@@ -221,7 +221,7 @@ struct st_scan { int x, y, r2, ta, tb; struct st_side *side[16]; };
 internal int st_counts(ee_unit *u, ee_unit_type *td) {   // soldiers, citizens and buildings that shoot
     if (is_citizen_type(unit_type_get_id(td))) return 1;
     if (is_soldier(td)) return 1;
-    return (unit_type_get_family(td) == 2 || unit_type_get_family(td) == 29) && unit_type_get_attack(td) > 0 && u;
+    return (unit_type_get_class_id(td) == CLS_BUILDING || unit_type_get_class_id(td) == CLS_FORTRESS) && unit_type_get_attack(td) > 0 && u;
 }
 internal void st_scan_unit(ee_unit *u, void *ctx) {
     struct st_scan *f = ctx;
@@ -256,7 +256,7 @@ internal void cmd_stats(char *out, const char *args) {
             ee_unit_type *td = type_data(t); ee_unit_stats *st = st_rec(pl, t);
             if (!td || !st || unit_stats_get_attack(st) <= 0) continue;
             REPLY("%3d fam %2d class %d cat %2d weapon %2d: att %g hp %d reload %.2f s range %g (min %g) speed %g area %g armour", t,
-                  unit_type_get_family(td), unit_type_get_damage_class(td), unit_type_get_category(td), unit_type_get_weapon(td),
+                  unit_type_get_class_id(td), unit_type_get_damage_class(td), unit_type_get_category(td), unit_type_get_weapon(td),
                   unit_stats_get_attack(st), st_maxhp(td, st), st_reload_t(td, st), unit_stats_get_range(st), unit_type_get_min_range(td), unit_stats_get_speed(st), unit_stats_get_area(st));
             for (int c = 0; c < 6; c++) REPLY(" %g", unit_stats_get_armor(st, c));
             REPLY("\n");
@@ -377,7 +377,7 @@ internal void cmd_stats(char *out, const char *args) {
         sscanf(args + 8, "%d %x", &t, &from);
         ee_unit_type *td = type_data(t);
         if (!td || !mem_readable(td, 0x700)) { REPLY("error: no type %d\n", t); return; }
-        int o = snprintf(out, 4096, "ok: type %d family %d:", t, unit_type_get_family(td));
+        int o = snprintf(out, 4096, "ok: type %d family %d:", t, unit_type_get_class_id(td));
         for (int off = from & ~3; off < from + 0x300 && off < 0x700 && o < 3900; off += 4) {
             int v = FIELD(td, off, int);
             if (v) o += snprintf(out + o, 4096 - o, " %x=%d/%g", off, v, FIELD(td, off, float));
@@ -390,7 +390,7 @@ internal void cmd_stats(char *out, const char *args) {
         for (int t = 0; t < 724 && o < 3900; t++) {   // type ids end at 723
             ee_unit_type *td = type_data(t);
             if (!td || unit_type_get_id(td) != t || unit_type_get_garrison_capacity(td) <= 0) continue;
-            o += snprintf(out + o, 4096 - o, " %d/%d/%d", t, unit_type_get_family(td), unit_type_get_garrison_capacity(td));
+            o += snprintf(out + o, 4096 - o, " %d/%d/%d", t, unit_type_get_class_id(td), unit_type_get_garrison_capacity(td));
         }
         snprintf(out + o, 4096 - o, "\n");
         return;
@@ -424,7 +424,7 @@ internal void cmd_stats(char *out, const char *args) {
             if (raiders_near(st_player(p), unit_get_tile(c), 6)) flagged++;
             int t = unit_type_get_id(unit_get_type_data(best)), j = 0;
             while (j < ntype && tt[j] != t) j++;
-            if (j == ntype && ntype < 32) { tt[ntype] = t; tr[ntype] = st_range(best); tf[ntype++] = unit_type_get_family(unit_get_type_data(best)); }
+            if (j == ntype && ntype < 32) { tt[ntype] = t; tr[ntype] = st_range(best); tf[ntype++] = unit_type_get_class_id(unit_get_type_data(best)); }
             if (j < 32) tn[j]++;
         }
         int o = snprintf(out, 4096, "ok: P%d %d citizens, %d within an enemy's reach + 3 (%d of those enemies seen, %d flagged by raiders_near); nearest threat type(family) x n:",

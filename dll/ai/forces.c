@@ -37,8 +37,8 @@ struct obj_scan { ee_player *pl; ee_player *target; unsigned pi, cont; int x, y;
 internal void objective_unit(ee_unit *u, void *ctx) {
     struct obj_scan *s = ctx;
     ee_unit_type *td = unit_get_type_data(u);
-    int fam = unit_type_get_family(td);
-    if (unit_get_owner(u) != s->target || (fam != 2 && fam != 29) || unit_get_hp(u) <= 0 ||
+    int fam = unit_type_get_class_id(td);
+    if (unit_get_owner(u) != s->target || (fam != CLS_BUILDING && fam != CLS_FORTRESS) || unit_get_hp(u) <= 0 ||
         is_wall(unit_type_get_id(td)) || !seen_by(u, s->pl))
         return;
     int x = unit_get_x(u), y = unit_get_y(u);
@@ -72,9 +72,9 @@ internal void home_threat_unit(ee_unit *u, void *ctx) {
     ee_unit_type *td = unit_get_type_data(u);
     ee_player *o = unit_get_owner(u);
     if (!o || unit_get_hp(u) <= 0) return;
-    int fam = unit_type_get_family(td);
+    int fam = unit_type_get_class_id(td);
     if (o == h->pl) {
-        if ((fam == 2 || fam == 29) && !is_wall(unit_type_get_id(td)) && h->nb < 512) h->b[h->nb++] = unit_get_tile(u);
+        if ((fam == CLS_BUILDING || fam == CLS_FORTRESS) && !is_wall(unit_type_get_id(td)) && h->nb < 512) h->b[h->nb++] = unit_get_tile(u);
     } else if (player_get_index(o) > 0 && is_enemy(h->pl, o) && (is_soldier(td) || is_siege(unit_type_get_id(td))) &&
                seen_by(u, h->pl) && h->ne < 512) h->e[h->ne++] = unit_get_tile(u);
 }

@@ -66,12 +66,12 @@ internal int unit_types_load(void) {
     for (int t = 0; t < G_TYPES_N; t++) {   // what each type is (unit_ids.h, the roles)
         ee_unit_type *td = type_data(t);
         if (!td || unit_type_get_id(td) != t) continue;
-        int f = unit_type_get_category(td), c = unit_type_get_family(td);
+        int f = unit_type_get_category(td), c = unit_type_get_class_id(td);
         g_ut_role[t] = (unsigned char)((f == KIND_TOWERS ? UTR_TOWER : 0) | (f == KIND_WALLS ? UTR_WALL : 0) |
             (c == CLS_GATE ? UTR_GATE : 0) |
             (c == CLS_LAND && (f == KIND_SIEGE || f == KIND_MACHINES) && unit_type_get_range(td) >= 3.0f ? UTR_SIEGE : 0) |
-            (c == CLS_LAND && f == KIND_RAM ? UTR_RAM : 0) | (c == CLS_CITIZEN && f == KIND_CITIZEN ? UTR_CITIZEN : 0) |
-            (c == CLS_TRANSPORT ? UTR_TRANSPORT : 0) | (c == CLS_FISHING_BOAT ? UTR_FISHING_BOAT : 0));
+            (c == CLS_LAND && f == KIND_RAM ? UTR_RAM : 0) | (c == CLS_LAND_CITIZEN && f == KIND_CITIZEN ? UTR_CITIZEN : 0) |
+            (c == CLS_NAVAL_TRANSPORT ? UTR_TRANSPORT : 0) | (c == CLS_NAVAL_CITIZEN ? UTR_FISHING_BOAT : 0));
     }
     if (g_log) {   // the roles' types by number: a data mod's new ones show here
         static const char *const rn[8] = { "towers", "walls", "gates", "siege", "rams", "citizens", "transports", "fishing boats" };

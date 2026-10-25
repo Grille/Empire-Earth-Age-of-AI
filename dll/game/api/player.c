@@ -24,7 +24,7 @@ internal inline uint8_t *player_stats_get_end(const ee_player_stats *st, int k) 
 // a statistics counter n of the stats object +d (the kill counter's original: diplo.c)
 
 // the population: player +0xB10, with_list: and the units of its +0x18 list, with_aboard: and the units inside
-// transports (type family 0x1D) - (1, 0) is what the AI's unit manager counts
+// transports (class_id 0x1D: CLS_FORTRESS) - (1, 0) is what the AI's unit manager counts
 // the game's unit limit (EEPlayer::vf31(0) called directly: a computer player's own vf31 returns its cap, +0xCCC)
 internal inline int game_unit_limit(ee_player *pl) { return fn_player_game_limit(pl, 0); }
 // can it build or train type now: available, affordable, a builder (0x20: as the AI's own checks ask)

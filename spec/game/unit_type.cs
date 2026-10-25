@@ -56,9 +56,10 @@ unsafe struct EEUnitClass
     [offset((ee)0x470, (aoc)0x174), found(c)]
     float32 collision;
 
-    /// 2 building, 29 fortress, 5/6 units ...
+    /// the game data's "Unit type" (dbobjects column 36): the class of the type data - EEUCBuilding, EEUCNaval ... (the
+    /// spec called it family until 2026-10-25; the family is category)
     [offset((ee)0x4B4, (aoc)0x1B8), found(c)]
-    int32 family;
+    unit_class class_id;
 
     /// the type (UT(...))
     [offset((ee)0x4B8, (aoc)0x1BC), found(c)]
@@ -69,7 +70,8 @@ unsafe struct EEUnitClass
     [offset((ee)0x4C0, (aoc)0x1C4), found(c)]
     int32 damage_class;
 
-    /// as a target (the hit table's row)
+    /// the game data's "Family ID" (the armour and bonus class, unit_names.h's KIND_ - kind.towers): as a target the
+    /// hit table's row
     /// the type data's constructors
     [offset((ee)0x4C4, (aoc)0x1C8), found(c)]
     int32 category;
@@ -199,6 +201,50 @@ unsafe struct EEToHitTable
     /// thiscall(unit_type.bonus_table, weapon kind, target type data, attacker, target player)
     [address((ee)0x004D5F2C, (aoc)0x004DBE44)]
     extern float32 attack_bonus(int32 weapon, void* target_type, int32 attacker, int32 target_player);
+}
+
+/// a unit type's class_id, the game data's "Unit type": the class of its type data, one each (EEUC + the name: 4
+/// EEUCNaval) - every type's read in a running game of both builds 2026-10-25
+[c_prefix("CLS")]
+enum unit_class : int32
+{
+    ambient = 0,
+    resource = 1,
+    building = 2,
+    airplane = 3,
+    /// the warships (and the fish)
+    naval = 4,
+    /// the land units, siege included
+    land = 5,
+    land_citizen = 6,
+    helicopter = 7,
+    projectile = 9,
+    /// the submarines
+    submerged_naval = 10,
+    bomb = 11,
+    missile = 12,
+    land_priest = 13,
+    land_transport = 16,
+    helicopter_transport = 17,
+    /// the transport ships
+    naval_transport = 18,
+    torpedo = 20,
+    /// the aircraft carriers
+    naval_building = 21,
+    /// the fishing boats
+    naval_citizen = 22,
+    land_military_hero = 23,
+    gate = 25,
+    helicopter_priest = 26,
+    sea_animal = 27,
+    air_animal = 28,
+    fortress = 29,
+    /// AoC's own classes
+    building_priest = 30,
+    spaceship = 31,
+    space_building = 32,
+    space_transport = 33,
+    planet_spaceship = 34,
 }
 
 /// unit_type's data of the game, places in its code and numbers

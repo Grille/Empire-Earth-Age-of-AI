@@ -129,10 +129,10 @@ internal int so_in_danger(int x, int y, float margin) {
         if (so_d2(x, y, g_sos.zx[k], g_sos.zy[k]) < (g_sos.zr[k] + margin) * (g_sos.zr[k] + margin)) return 1;
     return 0;
 }
-internal int so_family(ee_unit_type *td) { return td ? unit_type_get_family(td) : -1; }
+internal int so_family(ee_unit_type *td) { return td ? unit_type_get_class_id(td) : -1; }
 internal int so_warship(ee_unit_type *td) {   // warships and submarines with a weapon (no transports, fishing boats, carriers)
     int fam = so_family(td), t = td ? unit_type_get_id(td) : 0;
-    return (fam == 4 || fam == 10) && unit_type_get_attack(td) > 0 && !is_transport(t) && !is_fishing_boat(t);
+    return (fam == CLS_NAVAL || fam == CLS_SUBMERGED_NAVAL) && unit_type_get_attack(td) > 0 && !is_transport(t) && !is_fishing_boat(t);
 }
 internal int so_role(ee_unit_type *td) {
     int k = unit_type_get_weapon(td);
@@ -233,7 +233,7 @@ internal void so_types(void) {
         if (!o || player_get_index(o) != g_so.ai || unit_get_hp(it.u) <= 0) continue;
         int t = unit_type_get_id(it.td), fam = so_family(it.td);
         float r, a;
-        if (is_soldier(it.td) && fam != 4 && fam != 10 && fam != 18 && fam != 21 && fam != 22 && fam != 3 && fam != 7 && fam != 17 && t > 0 && t < G_TYPES_N) cnt[t]++;
+        if (is_soldier(it.td) && fam != CLS_NAVAL && fam != CLS_SUBMERGED_NAVAL && fam != CLS_NAVAL_TRANSPORT && fam != CLS_NAVAL_BUILDING && fam != CLS_NAVAL_CITIZEN && fam != CLS_AIRPLANE && fam != CLS_HELICOPTER && fam != CLS_HELICOPTER_TRANSPORT && t > 0 && t < G_TYPES_N) cnt[t]++;
         else if (defence_stats(it.u, &r, &a) && !UT_IN(t, UT_TOWNS, UT_B_DOCK, UT_B_NAVY_YARD, UT_B_FORTRESS) && r * a > tr) { tr = r * a; tower = t; }
     }
     int s0 = 0, s1 = 0;
@@ -258,9 +258,9 @@ internal void so_scan(uint32_t now) {
         if (p == 1) {
             if (g_sos.ne < 1024) { g_sos.ex[g_sos.ne] = x; g_sos.ey[g_sos.ne++] = y; }
             if (so_warship(td)) { if (g_sos.nps < SO_N) { g_sos.psid[g_sos.nps] = unit_get_serial(u); g_sos.ps[g_sos.nps++] = u; } }
-            else if (fam == 18 || is_transport(t)) { if (g_sos.npt < 32) g_sos.pt[g_sos.npt++] = u; }
-            else if (fam == 2 || fam == 29) { if (g_sos.npb < 256) { g_sos.pbx[g_sos.npb] = x; g_sos.pby[g_sos.npb++] = y; } }
-            else if (is_soldier(td) && fam != 3 && fam != 7 && fam != 17 && g_sos.npl < 400) {
+            else if (fam == CLS_NAVAL_TRANSPORT || is_transport(t)) { if (g_sos.npt < 32) g_sos.pt[g_sos.npt++] = u; }
+            else if (fam == CLS_BUILDING || fam == CLS_FORTRESS) { if (g_sos.npb < 256) { g_sos.pbx[g_sos.npb] = x; g_sos.pby[g_sos.npb++] = y; } }
+            else if (is_soldier(td) && fam != CLS_AIRPLANE && fam != CLS_HELICOPTER && fam != CLS_HELICOPTER_TRANSPORT && g_sos.npl < 400) {
                 g_sos.pl[g_sos.npl++] = u;
                 if (cont_at(iv2(x, y)) != g_so.hcont) g_sos.opp_off_home++;
             }
@@ -268,20 +268,20 @@ internal void so_scan(uint32_t now) {
             struct so_eu *e = &g_sos.u[g_sos.nu++];
             float r, a;
             e->u = u; e->td = td; e->x = x; e->y = y; e->seen = 0;
-            e->cls = so_warship(td) ? SC_WAR : (fam == 18 || is_transport(t)) ? SC_TR : (fam == 22 || is_fishing_boat(t)) ? SC_BOAT :
+            e->cls = so_warship(td) ? SC_WAR : (fam == CLS_NAVAL_TRANSPORT || is_transport(t)) ? SC_TR : (fam == CLS_NAVAL_CITIZEN || is_fishing_boat(t)) ? SC_BOAT :
                      is_citizen_type(t) ? SC_CIT : (t == UT(B_DOCK) || t == UT(B_NAVY_YARD)) ? SC_DOCK : defence_stats(u, &r, &a) ? SC_DEF :
-                     (fam == 2 || fam == 29) ? SC_BLD : is_siege(t) ? SC_SIEGE : is_soldier(td) ? SC_SOLD : SC_OTHER;
+                     (fam == CLS_BUILDING || fam == CLS_FORTRESS) ? SC_BLD : is_siege(t) ? SC_SIEGE : is_soldier(td) ? SC_SOLD : SC_OTHER;
             if (e->cls == SC_WAR) g_sos.ai_war++;
             else if (e->cls == SC_TR) g_sos.ai_tr++;
             else if (e->cls == SC_BOAT) g_sos.ai_boats++;
-            if (fam == 2 || fam == 29) {
+            if (fam == CLS_BUILDING || fam == CLS_FORTRESS) {
                 unsigned c = cont_at(iv2(x, y));
                 if (c && c != g_so.econt && t != UT(B_DOCK) && t != UT(B_NAVY_YARD)) {
                     g_sos.ai_isl++;
                     if (UT_IN(t, UT_TOWNS, UT_X_SINGLE_PLAYER_SETTLEMENT)) g_sos.ai_towns++;
                 }
             }
-            if (fam != 4 && fam != 10 && fam != 18 && fam != 21 && fam != 22 && cont_at(iv2(x, y)) == g_so.hcont) g_sos.ai_on_opp++;
+            if (fam != CLS_NAVAL && fam != CLS_SUBMERGED_NAVAL && fam != CLS_NAVAL_TRANSPORT && fam != CLS_NAVAL_BUILDING && fam != CLS_NAVAL_CITIZEN && cont_at(iv2(x, y)) == g_so.hcont) g_sos.ai_on_opp++;
         }
     }
     // what P1 sees: within SO_SIGHT of any of its units or buildings

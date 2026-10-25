@@ -146,8 +146,9 @@ def read_file(path):
         t.values = []
         if t.enum:
             text = text or re.sub(r'//[^\n]*', '', open(path, encoding='utf-8').read())
-            m = re.search(r'\benum\s+%s\s*(?::\s*\w+\s*)?\{([^}]*)\}' % t.name, text)
-            for part in [p.strip() for p in m.group(1).split(',') if p.strip()]:
+            m = re.search(r'\benum\s+%s\s*(?::\s*(\w+)\s*)?\{([^}]*)\}' % t.name, text)
+            t.base = m.group(1)   # its integer type (int32 ...), None: C#'s default
+            for part in [p.strip() for p in m.group(2).split(',') if p.strip()]:
                 pm = re.match(r'^@?(\w+)(?:\s*=\s*(-?\w+))?$', part)
                 t.values.append((pm.group(1), int(pm.group(2), 0) if pm.group(2) else None))
     return types

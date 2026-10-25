@@ -39,7 +39,7 @@ internal void fm_tick(void) {
             fprintf(g_log, "# fmwatch %u %06x %.3f %.3f %.1f %.3f %u %u %.2f push %.3f %.3f obst %d contacts %d size %.2f %.2f %.2f class %d\n", now, g_fm[i].id & 0xFFFFFF, q.x, q.y,
                     atan2f(fq.x, fq.y) * 57.29578f, unit_get_speed(w), unit_ai_state_id(w), FIELD(w, 0x345, uint8_t), FIELD(w, 0x248, float),
                     FIELD(w, 0x230, float), FIELD(w, 0x234, float), FIELD(w, 0x20C, int) != 0, FIELD(w, 0xC8, int),
-                    FIELD(w, 0x244, float), FIELD(unit_get_type_data(w), 0x474, float), FIELD(unit_get_type_data(w), 0x470, float), unit_type_get_family(unit_get_type_data(w)));
+                    FIELD(w, 0x244, float), FIELD(unit_get_type_data(w), 0x474, float), FIELD(unit_get_type_data(w), 0x470, float), unit_type_get_class_id(unit_get_type_data(w)));
         }
     if (!g_fm_trace) return;
     ee_unit *u = unit_by_id(g_fm_trace);
@@ -57,7 +57,7 @@ internal void fm_tick(void) {
             vec3 q = unit_get_pos(it.u);
             if (fabsf(q.x - p.x) > 4 || fabsf(q.y - p.y) > 4) continue;
             ee_player *o = unit_get_owner(it.u);
-            fprintf(g_log, "# fmtrace near %.2f,%.2f type %d P%d family %d\n", q.x, q.y, unit_type_get_id(it.td), o ? player_get_index(o) : -1, unit_type_get_family(it.td));
+            fprintf(g_log, "# fmtrace near %.2f,%.2f type %d P%d family %d\n", q.x, q.y, unit_type_get_id(it.td), o ? player_get_index(o) : -1, unit_type_get_class_id(it.td));
         }
     last_state = st;
 }
@@ -172,7 +172,7 @@ internal void cmd_fmove(char *out, const char *args) {
     g_fm_n = first;
     for (struct grid_it it = grid_it_box(x, y, r, 1); g_fm_n < FM_MAX && grid_it_next(&it); ) {
         ee_unit *u = it.u;
-        if (unit_get_owner(u) != pl || unit_get_hp(u) <= 0 || unit_type_get_family(it.td) == 2) continue;
+        if (unit_get_owner(u) != pl || unit_get_hp(u) <= 0 || unit_type_get_class_id(it.td) == CLS_BUILDING) continue;
         if (abs(unit_get_x(u) - x) > r || abs(unit_get_y(u) - y) > r) continue;
         struct fm_unit *f = &g_fm[g_fm_n];
         memset(f, 0, sizeof *f);

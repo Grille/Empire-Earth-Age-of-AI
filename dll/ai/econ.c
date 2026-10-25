@@ -1515,7 +1515,7 @@ internal int unit_cost(ee_player *pl, int type, int r) {
 // (a hero, 65 gold), Incan Warriors and Simple Bowmen (gold), Clubmen and Rock Throwers (upgraded away) - hundreds
 // of failed requests every 5 minutes, 10-12 soldiers at minute 45 with 2900 food and 400-600 iron in the military
 // account. A military request (no ship, siege, ram) the budget refuses or the game can't train (0x555710) trains
-// the strongest land soldier (family 5, no siege/ram/citizen/priest) (hit points x attack) that the budget pays for and the game can
+// the strongest land soldier (CLS_LAND, no siege/ram/citizen/priest) (hit points x attack) that the budget pays for and the game can
 // train right now instead - a player builds what his resources allow. Candidates: researched land soldiers, per
 // player, refreshed every 30 s. Counted in the 5-minute army line ("substituted"). Never one without an attack: the
 // Domestic Wolf (615, a leftover of the game's data: attack 0, food only) was the last candidate and so the one
@@ -1531,20 +1531,20 @@ internal int base_threatened(unsigned idx);   // diplo.c: enemy soldiers in its 
 internal struct { ee_player *pl; uint32_t t; int n; int type[48]; } g_cand[16];
 internal int land_soldier(int type) {
     ee_unit_type *td = type_data(type);
-    if (!td || unit_type_get_id(td) != type || unit_type_get_family(td) != 5) return 0;   // a real record of this type
+    if (!td || unit_type_get_id(td) != type || unit_type_get_class_id(td) != CLS_LAND) return 0;   // a real record of this type
     if (ut_role(type, UTR_SIEGE | UTR_RAM | UTR_CITIZEN) || type == UT(PRIEST) || type == UT(PROPHET)) return 0;
     return 1;
 }
 // Requests that may be replaced: every military unit but ships (navies on water maps), siege and rams (the siege
-// controller's business) - heroes, priests and the like included. Ships are every water family (+0x4B4, docs/navy.md):
+// controller's business) - heroes, priests and the like included. Ships are every water class (+0x4B4, docs/navy.md):
 // 4 warships, 10 submarines, 18 transports, 21 carriers, 22 fishing boats. Only 4 was excluded before: a fishing boat
 // the budget refused (wood short: 109 failed 72 times in the island baseline) was saved for 90 s and then trained as
 // a land soldier, and so could a transport, a submarine or a carrier.
 internal int substitutable(int type) {
     ee_unit_type *td = type_data(type);
     if (!td || unit_type_get_id(td) != type) return 0;
-    int fam = unit_type_get_family(td);
-    if (fam == 4 || fam == 10 || fam == 18 || fam == 21 || fam == 22) return 0;
+    int fam = unit_type_get_class_id(td);
+    if (fam == CLS_NAVAL || fam == CLS_SUBMERGED_NAVAL || fam == CLS_NAVAL_TRANSPORT || fam == CLS_NAVAL_BUILDING || fam == CLS_NAVAL_CITIZEN) return 0;
     if (ut_role(type, UTR_SIEGE | UTR_RAM | UTR_CITIZEN)) return 0;
     return 1;
 }

@@ -70,13 +70,12 @@ internal int ut_in(int t, const enum ut_name *set, int n) {   // t one of the na
 #define UT_IN(t, ...) ut_in((t), (const enum ut_name[]){ __VA_ARGS__ }, (int)(sizeof (const enum ut_name[]){ __VA_ARGS__ } / sizeof(enum ut_name)))
 
 // WHAT A TYPE IS, BY THE DATA: its family (+0x4C4, kind.<kind>: the armour and bonus class) and its class (+0x4B4: how
-// the engine runs it - 5 land unit, 6 citizen, 18 transport ship ...), so a data mod's new tower, wall, ram or
+// the engine runs it, class_id: CLS_LAND, CLS_LAND_CITIZEN, CLS_NAVAL_TRANSPORT ... - gen/enums.c), so a data mod's new tower, wall, ram or
 // transport counts without a name here. Set per type at the game start (unitnames.c ut_roles_load). Which type of a
 // line the AI builds is another matter: the game's own test (0x555710, the pipe's canbuild) says yes to campaign and
 // scenario objects too - the Missile Base and castle walls, the Sampson (a siege-family melee unit) - so towers, walls
 // and gates are still built from their named lines; only transports and fishing boats, one per epoch by their tech
 // record's test (landing.c ld_type_avail), are chosen by their class.
-enum { CLS_LAND = 5, CLS_CITIZEN = 6, CLS_LAND_TRANSPORT = 16, CLS_AIR_TRANSPORT = 17, CLS_TRANSPORT = 18, CLS_FISHING_BOAT = 22, CLS_GATE = 25, CLS_FORTRESS = 29 };
 enum {
     UTR_TOWER = 1,          // family towers (the guard towers, the Missile Base)
     UTR_WALL = 2,           // family walls: walls, gates, barbed wire, the castle pieces
