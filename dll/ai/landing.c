@@ -455,7 +455,7 @@ internal int ld_is_air(ee_unit *u) {
 // THE SEA ON THE WAY (the user: "I certainly place subs or planes before my coasts on patrol now"; "subs are always
 // visible, but can only be attacked by frigates and towers"; "best to take the game's own table as source of truth"):
 // who can hit whom is the game's own factor 0x4D5F2C (thiscall on 0x917DE0: the attacker's weapon kind - type +0x4C8,
-// the target's type, both players' indices) - the table 0x8D200C [target category, type +0x4C4][weapon kind], 0: it
+// the target's type, both players' indices) - the table 0x8D200C [target family, type +0x4C4][weapon kind], 0: it
 // cannot (the game's attack subgroups test it the same way, 0x4504FD). A threat: an enemy unit afloat or in the air
 // whose weapon hits the transport type; an escort counts against the threats of a category when its weapon hits them.
 enum { LDS_SHIP, LDS_SUB, LDS_AIR };   // for the log only: afloat, submarines (CLS_SUBMERGED_NAVAL), aircraft
@@ -488,7 +488,7 @@ internal void ld_sea_unit(ee_unit *u, void *ctx) {
     for (int q = 0; q < c->npt && !on; q++) on = ivec2_dist2(up, c->pt[q]) <= 100;
     if (!on) return;
     ee_unit_type *td = unit_get_type_data(u);
-    int k = unit_type_get_category(td) & 63;
+    int k = unit_type_get_family(td) & 63;
     c->t->h[k] += (float)unit_get_hp(u); c->t->a[k] += ld_attack(u);
     if (!c->t->rep[k]) { c->t->rep[k] = td; c->t->rpi[k] = ld_pidx(u); }
     c->t->n[air ? LDS_AIR : unit_type_get_class_id(td) == CLS_SUBMERGED_NAVAL ? LDS_SUB : LDS_SHIP]++;
@@ -2185,7 +2185,7 @@ internal void cmd_board(char *out, const char *args) {
             if (!td) continue;
             REPLY("type data %d:", tt[j]);
             for (int off = 0x410; off < 0x440; off += 4) REPLY(" %X=%g", off, FIELD(td, off, float));
-            REPLY(" | reload 50C=%d missile delay 588=%d | 510=%d 4C0=%d 4C4=%d 4C8=%d", unit_type_get_reload(td), unit_type_get_missile_delay(td), unit_type_get_attack(td), unit_type_get_damage_class(td), unit_type_get_category(td), unit_type_get_weapon(td));
+            REPLY(" | reload 50C=%d missile delay 588=%d | 510=%d 4C0=%d 4C4=%d 4C8=%d", unit_type_get_reload(td), unit_type_get_missile_delay(td), unit_type_get_attack(td), unit_type_get_damage_class(td), unit_type_get_family(td), unit_type_get_weapon(td));
             for (int off = 0x514; off < 0x530; off += 4) REPLY(" %X=%d", off, FIELD(td, off, int));
             REPLY("\n");
         }

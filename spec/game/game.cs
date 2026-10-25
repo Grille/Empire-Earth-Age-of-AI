@@ -88,7 +88,7 @@ static unsafe class game
     [address((ee)0x009197A4, (aoc)0x00931920)]
     static block game_window;
 
-    /// [target category][weapon kind]: 0 = it cannot hit
+    /// [target family][weapon kind]: 0 = it cannot hit
     [address((ee)0x008D200C, (aoc)0x008E8708)]
     static block hit_table;
 

@@ -57,7 +57,7 @@ unsafe struct EEUnitClass
     float32 collision;
 
     /// the game data's "Unit type" (dbobjects column 36): the class of the type data - EEUCBuilding, EEUCNaval ... (the
-    /// spec called it family until 2026-10-25; the family is category)
+    /// spec called it family until 2026-10-25, and the family category)
     [offset((ee)0x4B4, (aoc)0x1B8), found(c)]
     unit_class class_id;
 
@@ -70,11 +70,11 @@ unsafe struct EEUnitClass
     [offset((ee)0x4C0, (aoc)0x1C4), found(c)]
     int32 damage_class;
 
-    /// the game data's "Family ID" (the armour and bonus class, unit_names.h's KIND_ - kind.towers): as a target the
-    /// hit table's row
+    /// the game data's "Family ID" (the armour and bonus class, unit_names.h's KIND_ - kind.towers; the spec's category
+    /// until 2026-10-25): as a target the hit table's row
     /// the type data's constructors
     [offset((ee)0x4C4, (aoc)0x1C8), found(c)]
-    int32 category;
+    int32 family;
 
     /// ammo type (the hit table's weapon kind)
     /// the type data's constructors

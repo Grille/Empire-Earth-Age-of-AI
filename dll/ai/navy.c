@@ -514,8 +514,8 @@ internal int navy_room_reserve(ee_player *pl) {
 // of its own training sites (econ.c hook_train_units; not the mod's orders, not a landing's) is trained as the type the
 // mix wants. The game's request entry is counted down as if its own type came (0x490AD6 subtracts what 0x49014F
 // trained), so it asks for no more than before - no duplicate orders, as with the land unit substitution.
-// - Roles, from the game's hit table 0x8D200C [target category][weapon kind] (docs/navy.md 1) and the type's family:
-//   F frigates (hit ships and submarines: factor > 0 against c7), L battleships (category c21), A galleys and
+// - Roles, from the game's hit table 0x8D200C [target family][weapon kind] (docs/navy.md 1) and the type's family:
+//   F frigates (hit ships and submarines: factor > 0 against c7), L battleships (family c21), A galleys and
 //   catapult ships (x3+ against c21), S attack submarines (CLS_SUBMERGED_NAVAL that hits ships), AA cruisers (hit only aircraft).
 //   Missile subs (hit no ship) and carriers stay out (a carrier the game asks for stays its own).
 // - The base mix (the playtester): frigates first, a battleship per 2 frigates, galleys or catapult ships 0.5 - or,
@@ -553,7 +553,7 @@ internal float nv_f(int kind, int cat) {   // the hit factor [cat][kind]; 0 outs
         for (int t = 0; t < G_TYPES_N; t++) {
             ee_unit_type *td = type_data(t);
             if (!td) continue;
-            int c = unit_type_get_category(td), k = unit_type_get_weapon(td), fam = unit_type_get_class_id(td);
+            int c = unit_type_get_family(td), k = unit_type_get_weapon(td), fam = unit_type_get_class_id(td);
             if (c >= 0 && c < 64 && c >= g_nv_nc) g_nv_nc = c + 1;
             if (k >= 0 && k < 64 && k >= g_nv_nk) g_nv_nk = k + 1;
             if ((fam == CLS_AIRPLANE || fam == CLS_HELICOPTER || fam == CLS_HELICOPTER_TRANSPORT) && c >= 0 && c < 64) g_nv_aircat |= 1ull << c;
@@ -573,8 +573,8 @@ internal int nv_role(ee_unit_type *td) {
     int t = td ? unit_type_get_id(td) : -1;
     if (t < 0 || t >= G_TYPES_N) return NR_NONE;
     if (g_nv_role[t]) return g_nv_role[t] - 1;
-    int r = NR_NONE, fam = unit_type_get_class_id(td), kind = unit_type_get_weapon(td), cat = unit_type_get_category(td);
-    // ships only by their target category (the Naval Mine 386 is CLS_NAVAL, category 22, 1350 attack and 1 hit point);
+    int r = NR_NONE, fam = unit_type_get_class_id(td), kind = unit_type_get_weapon(td), cat = unit_type_get_family(td);
+    // ships only by their target family (the Naval Mine 386 is CLS_NAVAL, family 22, 1350 attack and 1 hit point);
     // not the hero ships Golden Hind and Agincourt (x07_golden_hind, x09_agincourt_battleship: tech 9035 - no dock trains them)
     int ship = cat == NV_C_SUB || cat == NV_C_FRIG || cat == NV_C_LINE || cat == NV_C_GALLEY;
     if ((fam == CLS_NAVAL || fam == CLS_SUBMERGED_NAVAL) && ship && t != UT(X09_AGINCOURT_BATTLESHIP) && t != UT(X07_GOLDEN_HIND) && unit_type_get_attack(td) > 0 && !is_transport(t) && !is_fishing_boat(t)) {
@@ -871,7 +871,7 @@ internal void cmd_navy(char *out, const char *args) {
             int naval = navy_kind(td) != NV_NONE || unit_type_get_class_id(td) == CLS_NAVAL;
             if (!naval && !all) continue;
             REPLY("T %d fam %d cat %d kind %d cls %d hp %d att %d rng %.1f min %.1f area %.2f rel %d tech %d",
-                  t, unit_type_get_class_id(td), unit_type_get_category(td), unit_type_get_weapon(td), unit_type_get_damage_class(td),
+                  t, unit_type_get_class_id(td), unit_type_get_family(td), unit_type_get_weapon(td), unit_type_get_damage_class(td),
                   unit_type_get_hp(td), unit_type_get_attack(td), unit_type_get_range(td), unit_type_get_min_range(td),
                   unit_type_get_area(td), unit_type_get_reload(td), unit_type_get_tech(td));
             if (naval && pl) {
@@ -887,12 +887,12 @@ internal void cmd_navy(char *out, const char *args) {
         }
         return;
     }
-    if (!strncmp(args, "table", 5)) {   // the hit factor table 0x8D200C [target category][weapon kind] (and the 6x6 class table)
+    if (!strncmp(args, "table", 5)) {   // the hit factor table 0x8D200C [target family][weapon kind] (and the 6x6 class table)
         int nc = 0, nk = 0;
         for (int t = 0; t < G_TYPES_N; t++) {
             ee_unit_type *td = type_data(t);
             if (!td) continue;
-            int c = unit_type_get_category(td), k = unit_type_get_weapon(td);
+            int c = unit_type_get_family(td), k = unit_type_get_weapon(td);
             if (c >= 0 && c < 64 && c >= nc) nc = c + 1;
             if (k >= 0 && k < 64 && k >= nk) nk = k + 1;
         }

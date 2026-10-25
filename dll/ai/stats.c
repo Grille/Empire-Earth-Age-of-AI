@@ -11,7 +11,7 @@
 // Damage per shot (0x61DE61, docs/engine-notes.md): attack (the attacker's per-player stats +0xD8)
 //   x table 0x8D2050[attacker class + target class x 6] (class = type +0x4C0; filled at load)
 //   x hit factor 0x4D5F2C (thiscall on 0x917DE0: weapon kind type +0x4C8, target type, both player indices;
-//     the table 0x8D200C[target category type +0x4C4][weapon kind], 0 = cannot hit)
+//     the table 0x8D200C[target family, type +0x4C4][weapon kind], 0 = cannot hit)
 //   - armour (the target's stats +0xE0 + attacker class x 4); rounded, at least 1; a height factor for land
 //   attackers (ignored here). Area damage (stats +0xA0) is not counted.
 // Time between shots: the unit's own +0x2A0, 0 = the class value (stats +0x138, per player; the game refills +0x2A0
@@ -256,7 +256,7 @@ internal void cmd_stats(char *out, const char *args) {
             ee_unit_type *td = type_data(t); ee_unit_stats *st = st_rec(pl, t);
             if (!td || !st || unit_stats_get_attack(st) <= 0) continue;
             REPLY("%3d fam %2d class %d cat %2d weapon %2d: att %g hp %d reload %.2f s range %g (min %g) speed %g area %g armour", t,
-                  unit_type_get_class_id(td), unit_type_get_damage_class(td), unit_type_get_category(td), unit_type_get_weapon(td),
+                  unit_type_get_class_id(td), unit_type_get_damage_class(td), unit_type_get_family(td), unit_type_get_weapon(td),
                   unit_stats_get_attack(st), st_maxhp(td, st), st_reload_t(td, st), unit_stats_get_range(st), unit_type_get_min_range(td), unit_stats_get_speed(st), unit_stats_get_area(st));
             for (int c = 0; c < 6; c++) REPLY(" %g", unit_stats_get_armor(st, c));
             REPLY("\n");

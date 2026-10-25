@@ -117,7 +117,7 @@ internal void cmd_rlist(char *out, const char *args) {
     }
 }
 
-// tinfo P type...: type data of unit types - family +0x4B4, hit points +0x55C, attack +0x510, range +0x420 - and
+// tinfo P type...: type data of unit types - class +0x4B4, hit points +0x55C, attack +0x510, range +0x420 - and
 // whether player P could train/build one now (0x555710: available, affordable, a building/builder)
 internal void cmd_tinfo(char *out, const char *args) {
     int p = 0, n = 0, t;

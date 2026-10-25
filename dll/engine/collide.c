@@ -90,7 +90,7 @@ internal void uc_nearest(vec2 p1, vec2 q1, vec2 p2, vec2 q2, vec2 *c1, vec2 *c2)
 internal int uc_kind(ee_unit *c) {
     ee_unit_type *td = unit_get_type_data(c);
     if (!td || !unit_get_valid(c) || unit_get_hp(c) <= 0 || unit_get_holder(c)) return 0;
-    int cat = unit_type_get_category(td);
+    int cat = unit_type_get_family(td);
     return cat == KIND_RESOURCE || cat == KIND_FISH ? 0 : model_kind(unit_type_get_model(td));
 }
 

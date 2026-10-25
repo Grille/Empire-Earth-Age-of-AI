@@ -58,7 +58,7 @@ internal inline float unit_type_get_collision(const ee_unit_type *o) { return *(
 internal inline void unit_type_set_collision(ee_unit_type *o, float v) { *(float *)((uint8_t *)o + of_unit_type_collision) = v; }
 internal inline float *unit_type_collision_at(const ee_unit_type *o) { return (float *)((uint8_t *)o + of_unit_type_collision); }
 // the game data's "Unit type" (dbobjects column 36): the class of the type data - EEUCBuilding, EEUCNaval ... (the
-// spec called it family until 2026-10-25; the family is category)
+// spec called it family until 2026-10-25, and the family category)
 internal inline enum unit_class unit_type_get_class_id(const ee_unit_type *o) { return *(enum unit_class *)((uint8_t *)o + of_unit_type_class_id); }
 internal inline void unit_type_set_class_id(ee_unit_type *o, enum unit_class v) { *(enum unit_class *)((uint8_t *)o + of_unit_type_class_id) = v; }
 internal inline enum unit_class *unit_type_class_id_at(const ee_unit_type *o) { return (enum unit_class *)((uint8_t *)o + of_unit_type_class_id); }
@@ -71,12 +71,12 @@ internal inline int *unit_type_id_at(const ee_unit_type *o) { return (int *)((ui
 internal inline int unit_type_get_damage_class(const ee_unit_type *o) { return *(int *)((uint8_t *)o + of_unit_type_damage_class); }
 internal inline void unit_type_set_damage_class(ee_unit_type *o, int v) { *(int *)((uint8_t *)o + of_unit_type_damage_class) = v; }
 internal inline int *unit_type_damage_class_at(const ee_unit_type *o) { return (int *)((uint8_t *)o + of_unit_type_damage_class); }
-// the game data's "Family ID" (the armour and bonus class, unit_names.h's KIND_ - kind.towers): as a target the
-// hit table's row
+// the game data's "Family ID" (the armour and bonus class, unit_names.h's KIND_ - kind.towers; the spec's category
+// until 2026-10-25): as a target the hit table's row
 // the type data's constructors
-internal inline int unit_type_get_category(const ee_unit_type *o) { return *(int *)((uint8_t *)o + of_unit_type_category); }
-internal inline void unit_type_set_category(ee_unit_type *o, int v) { *(int *)((uint8_t *)o + of_unit_type_category) = v; }
-internal inline int *unit_type_category_at(const ee_unit_type *o) { return (int *)((uint8_t *)o + of_unit_type_category); }
+internal inline int unit_type_get_family(const ee_unit_type *o) { return *(int *)((uint8_t *)o + of_unit_type_family); }
+internal inline void unit_type_set_family(ee_unit_type *o, int v) { *(int *)((uint8_t *)o + of_unit_type_family) = v; }
+internal inline int *unit_type_family_at(const ee_unit_type *o) { return (int *)((uint8_t *)o + of_unit_type_family); }
 // ammo type (the hit table's weapon kind)
 // the type data's constructors
 internal inline int unit_type_get_weapon(const ee_unit_type *o) { return *(int *)((uint8_t *)o + of_unit_type_weapon); }
@@ -239,7 +239,7 @@ internal int spec_unit_type_select(int build) {
         of_unit_type_class_id = 0x4B4;
         of_unit_type_id = 0x4B8;
         of_unit_type_damage_class = 0x4C0;
-        of_unit_type_category = 0x4C4;
+        of_unit_type_family = 0x4C4;
         of_unit_type_weapon = 0x4C8;
         of_unit_type_tech = 0x4E0;
         of_unit_type_reload = 0x50C;
@@ -295,7 +295,7 @@ internal int spec_unit_type_select(int build) {
         of_unit_type_class_id = 0x1B8;
         of_unit_type_id = 0x1BC;
         of_unit_type_damage_class = 0x1C4;
-        of_unit_type_category = 0x1C8;
+        of_unit_type_family = 0x1C8;
         of_unit_type_weapon = 0x1CC;
         of_unit_type_tech = 0x1E4;
         of_unit_type_reload = 0x210;

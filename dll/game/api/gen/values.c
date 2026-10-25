@@ -831,7 +831,7 @@ internal uint32_t of_unit_type_collision;
 internal uint32_t of_unit_type_class_id;
 internal uint32_t of_unit_type_id;
 internal uint32_t of_unit_type_damage_class;
-internal uint32_t of_unit_type_category;
+internal uint32_t of_unit_type_family;
 internal uint32_t of_unit_type_weapon;
 internal uint32_t of_unit_type_tech;
 internal uint32_t of_unit_type_reload;

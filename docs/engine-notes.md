@@ -119,7 +119,7 @@ Unit grid [[0x9183BC]+0x181724]: +4 cells of 16 bytes {?, begin, end, cap} holdi
 | +0x34 | live stats: +0x9C range, +0xD8 attack (floats) |
 | +0x60 | unit id (lookup 0x4111F6) |
 
-Type data (0x9418A0[type]): +0x4B4 family (2 building, 29 fortress, 5/6 units), +0x4B8 type id, +0x420 range,
+Type data (0x9418A0[type]): +0x4B4 class_id (2 building, 29 fortress, 5/6 units: the type data's class, CLS_), +0x4B8 type id, +0x420 range,
 +0x460 line of sight, +0x510 attack, +0x55C hit points, +0x540 influence. Type names: `local/games/ee/data/db/converteroutput.log`.
 Guard towers 47, 461..466; AA 145/147; town center 35; house 37; citizen 32.
 
@@ -528,7 +528,7 @@ vf26 members and route released, vf12, the group's reference) frees nothing twic
   the artillery then fired less than 4 times in 84 s instead of every 12.3 s; small changes (+1, =10) show nothing.
   The game refills +0x2A0 from the class value (spawn, some attack states).
 - **Who can hit whom:** 0x4D5F2C thiscall on 0x917DE0 (weapon kind = attacker type +0x4C8, target type, attacker
-  player index, target player index) -> the factor from the table 0x8D200C [target category = type +0x4C4][weapon kind]
+  player index, target player index) -> the factor from the table 0x8D200C [target family = type +0x4C4][weapon kind]
   (variants 0x8D2008/0x8D2010 by game mode); 0 = it cannot hit (the AI's attack subgroups test `!= 0`, 0x4504FD).
   Frigates (kind 1) hit submarines and ships, not aircraft; cruisers and fighters (12) and AA (7) only aircraft;
   battleships (34) not submarines; towers (44) hit submarines. Type +0x4C0 (the damage table's class) is 5 for
@@ -674,7 +674,7 @@ conditions, 162 states with their ids) were dumped by a helper, not kept in the 
   clicked transport's id = its object's +0x24, +0x14 a unit's id or -1), Execute 0x4B9446: the player by the
   message's sender byte (0x52E6EF), -1 = the player's selection (player +0x9BC, EEGroup: slot 6 count, slot 5 the i-th
   unit), the transport's type vf63 0x60A1FE splits them into those it may carry (each unit alone: +0x335, +0x250
-  flags, not inside anything (+0x1D8), not on water, the class's vf60 0x609095: its family +0x4B4 against the unit
+  flags, not inside anything (+0x1D8), not on water, the class's vf60 0x609095: its class +0x4B4 against the unit
   type's flags +0x601..+0x604) and the rest; a new load goal (0x61487F) for the transport, or the units added to the
   one under way (0x613277 -> 0x61321D each); each unit its part (goal vf4), state 8000; the rest walk to the meeting
   point in groups. No room check: every unit goes to the one transport, those beyond its room are turned back at its
@@ -719,7 +719,7 @@ conditions, 162 states with their ids) were dumped by a helper, not kept in the 
 - AssignCitizens: fills deficits per type. Mines go via 0x48C204 (free slot, no enemy near, same continent),
   leftovers via 0x48A1AE (mines, then wood 0x48C060). Surplus workers are never taken back.
 - Demand: added by 0x48B9E9 (costs via AdjustCost), subtracted by 0x48D050 / 0x48B6E8 and by AddResource.
-- Unit type table 0x9418A0 has 0x300 slots (the game loops to 0x9424A0; type ids 0..723 used, dll type_data()); typedata +0x4B4 family: 5 land units (siege
+- Unit type table 0x9418A0 has 0x300 slots (the game loops to 0x9424A0; type ids 0..723 used, dll type_data()); typedata +0x4B4 class_id: 5 land units (siege
   included), 4 ships, 2 buildings. 0x555710(type, 0x20, 0) thiscall on the player: can train/build one now
   (available, affordable, building/builder, pop room) - true for campaign heroes too.
 - Damage effect EEEDamagedEffect::vf19 0x4F8048: model = unit vtable +0x54; 0x4D291F(index, state) looks up

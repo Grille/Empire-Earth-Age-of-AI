@@ -132,7 +132,7 @@ internal void eco_food(ee_player *pl, ee_resource_mgr *rm, struct eco_food *f) {
             ee_goal *g = unit_get_goal(u);
             ee_unit *s = goal_get_site(g);
             ee_unit_type *st = s ? unit_get_type_data(s) : NULL;
-            if (st && unit_type_get_category(st) == 0x11) f->fh++; else f->fx++;
+            if (st && unit_type_get_family(st) == 0x11) f->fh++; else f->fx++;
         }
     }
     void **hb = resource_mgr_get_hunt_begin(rm), **he = resource_mgr_get_hunt_end(rm);
@@ -150,7 +150,7 @@ internal void eco_food(ee_player *pl, ee_resource_mgr *rm, struct eco_food *f) {
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
         ee_unit_type *td = it.td;
-        if (!td || unit_get_resource(u) != 2 || unit_get_amount(u) <= 0 || unit_type_get_category(td) != 0x11) continue;
+        if (!td || unit_get_resource(u) != 2 || unit_get_amount(u) <= 0 || unit_type_get_family(td) != 0x11) continue;
         f->an++;
         if (eco_drop_d2(pl, unit_get_x(u), unit_get_y(u)) > 900) continue;
         f->an30++; f->anF30 += unit_get_amount(u);

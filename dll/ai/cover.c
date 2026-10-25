@@ -273,7 +273,7 @@ internal void cover_death(ee_unit *dead, int k) {
     ivec2 p = unit_get_tile(dead);
     char line = 'o';
     if (kind == 2) line = 'w';
-    else if (unit_type_get_category(td) == KIND_HERO) line = 'h';
+    else if (unit_type_get_family(td) == KIND_HERO) line = 'h';
     else switch (mt_line(pl, t)) { case MB_INF: line = 'i'; break; case MB_RNG: line = 'r'; break; case MB_CAV: line = 'c'; break; case MB_SIE: line = 's'; break; default: break; }
     for (struct grid_it it = grid_it_box(p.x, p.y, 6, 1); grid_it_next(&it); ) {
         ee_player *o = unit_get_owner(it.u);

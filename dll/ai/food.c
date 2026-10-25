@@ -54,7 +54,7 @@ internal ee_unit *food_animal(ee_player *pl, ee_resource_mgr *rm, ee_unit *u) {
         for (struct grid_it it = grid_it_box(d->p.x, d->p.y, g_hunt_range, 1); grid_it_next(&it); ) {
             ee_unit *a = it.u;
             ee_unit_type *td = it.td;
-            if (!td || unit_get_resource(a) != 2 || unit_get_amount(a) <= 0 || unit_type_get_category(td) != 0x11) continue;
+            if (!td || unit_get_resource(a) != 2 || unit_get_amount(a) <= 0 || unit_type_get_family(td) != KIND_ANIMAL) continue;
             if (food_fierce(unit_type_get_id(td))) continue;
             ivec2 pos = unit_get_tile(a);
             int d2 = ivec2_dist2(pos, d->p);
@@ -215,7 +215,7 @@ internal void food_camp(ee_player *pl, unsigned idx, uint32_t now) {
     for (struct grid_it it = grid_it_box(base.x, base.y, 30, 1); grid_it_next(&it) && n < 512; ) {   // animals
         ee_unit *a = it.u;
         ee_unit_type *td = it.td;
-        if (!td || unit_get_resource(a) != 2 || unit_get_amount(a) <= 0 || unit_type_get_category(td) != 0x11 || food_fierce(unit_type_get_id(td))) continue;
+        if (!td || unit_get_resource(a) != 2 || unit_get_amount(a) <= 0 || unit_type_get_family(td) != KIND_ANIMAL || food_fierce(unit_type_get_id(td))) continue;
         fp[n] = unit_get_tile(a); ff[n++] = unit_get_amount(a);
     }
     ee_zone **zb = player_get_zones_begin(pl); ee_zone **ze = player_get_zones_end(pl);   // bushes

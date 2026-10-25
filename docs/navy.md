@@ -29,16 +29,16 @@ Tools:
 
 **Damage model.** A hit does `attack x class table x hit factor - armour`, at least 1 (engine-notes.md, Ranged attacks):
 - The **class table** 0x8D2050 is 1 almost everywhere.
-- The **hit factor** is the table 0x8D200C [target category, type +0x4C4][weapon kind, type +0x4C8]. 0 means
+- The **hit factor** is the table 0x8D200C [target family, type +0x4C4][weapon kind, type +0x4C8]. 0 means
   the unit cannot hit that target. The game's attack subgroups test exactly this (0x4504FD), and landing.c's
   `ld_factor` uses it.
 - **Armour** is indexed by the attacker's damage class. Every ship has class 5 and armour 0 there, so armour
   plays no part at sea.
 - So the **factor x attack / reload** is the whole story.
 
-**Ship families** (+0x4B4):
+**Ship classes** (+0x4B4, class_id: the type data's class - EEUCNaval ...):
 
-| Family | Ships |
+| Class | Ships |
 |---|---|
 | 4 | warships |
 | 10 | submarines |
@@ -46,7 +46,7 @@ Tools:
 | 21 | carriers |
 | 22 | fishing boats |
 
-Fish (315) are family 4 with attack 0.
+Fish (315) are class 4 with attack 0.
 
 **Target categories:**
 - c9: frigates, cruisers, transports and fishing boats
@@ -60,7 +60,7 @@ Fish (315) are family 4 with attack 0.
 
 ### Weapon kinds and their factors
 
-Rows are weapon kinds, columns are the factor against each target category:
+Rows are weapon kinds, columns are the factor against each target family:
 
 | Kind | Ships (epochs) | frig c9 | bship c21 | galley c47 | sub c7 | carrier c50 | tower c37 | bldg c3 | land | air |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -188,14 +188,14 @@ From the code, via a read-only research pass. Addresses are in the decomp.
   - Every ship request went through the military budget (econ.c `military = !is_citizen_type`), fishing boats
     included. A refused ship is simply not trained. **Stage 1:** on water maps warships are paid from a navy
     account, fishing boats and a landing's transports as economy.
-  - `unit_substitution` excluded family 4 only, so a refused submarine, transport, carrier or fishing boat
+  - `unit_substitution` excluded class 4 only, so a refused submarine, transport, carrier or fishing boat
     became a land soldier after 90 s of saving (the baseline had fishing boat 109 failed 72 times, transports
-    111/113 in the failed lists). **Fixed (stage 0):** every water family (4, 10, 18, 21, 22) is excluded.
+    111/113 in the failed lists). **Fixed (stage 0):** every water class (4, 10, 18, 21, 22) is excluded.
   - landing.c:
     - Leads its own transports and escorts. It skips the sea, transport and air subgroups' updates and refuses
       their orders while it leads them (vf57).
     - Trains transports and, with `landing_bombard` (off by default), a bombardment fleet (`ld_war_type`:
-      family 4 only, so no missile subs).
+      class 4 only, so no missile subs).
   - Nothing else touches warships (stage 1 pays for them, keeps 2-3 docks and holds room; it gives no orders).
 
 ## 3. Baseline (shipped config, 2 AIs, seed 101 map, 6 game seeds, 60 minutes, 2026-10-18)
@@ -241,7 +241,7 @@ What the baseline shows:
 ### Stage 0 - the e9-e10 food hole (economy, before any navy) - DONE
 
 - **Fishing boat** ([all] `fishing_boat`, default 1; dll/ai/navy.c `hook_fish_type`). Both callers of the game's pick
-  0x46D209 (0x48F819 counts the boats, 0x48FB05 orders one) get the newest fishing boat (family 22, highest tech)
+  0x46D209 (0x48F819 counts the boats, 0x48FB05 orders one) get the newest fishing boat (class 22, highest tech)
   the player has available by its tech record's test (landing.c `ld_type_avail`), every epoch: 108 (tech 2000),
   109 (4005), 365 (8090), 211 (11090), 332 (13098). None available: the game's pick. `# fishing:` log line when
   the choice changes (e9/e10 starts: "the game asks for boat 211, trains 365").
@@ -251,7 +251,7 @@ What the baseline shows:
   had no field at all. Now the granary pass runs without fields, and the first granary comes once food lacks 2
   citizens (6 for each further one, as before). The mod's passes build and farm the fields on every map; the
   farmers stay at the game's food target, so fish income lowers the farms' share on its own.
-- **Unit substitution** skips every water family (above).
+- **Unit substitution** skips every water class (above).
 
 Result (shipped config, 2 AIs, seed 101 map, 12 game seeds, 60 min; HEAD 325e4fb vs stage 0; per AI;
 `scripts/results/navy.py`, score.py):
@@ -364,13 +364,13 @@ under `navy_fleet=2`, docs/experiments.md):
   into the unit manager's request list, so it gets its own type back after the call. The game then counts the
   entry down as if its own type came (0x490AD6 subtracts what 0x49014F trained): no duplicate orders, as with the
   land unit substitution.
-- **Roles from the hit table** (0x8D200C, categories c7/c9/c21/c47, family):
+- **Roles from the hit table** (0x8D200C, families c7/c9/c21/c47, class):
   - F: frigates (factor > 0 against c7, the submarines);
   - L: battleships (category c21);
   - A: galleys and catapult ships (x3 or more against c21);
-  - S: attack submarines (family 10 that hits ships);
+  - S: attack submarines (class 10 that hits ships);
   - AA: cruisers (hit only aircraft).
-  - Not used: the Naval Mine 386 (family 4, category 22) and the hero ships 268 (Agincourt, tech 9035, picked
+  - Not used: the Naval Mine 386 (class 4, family 22) and the hero ships 268 (Agincourt, tech 9035, picked
     before the filter and never trained) and 611. Missile subs hit no ship and are left out too.
 - **The wanted shares:**
   - Base mix: F 2 : L 1 : A 0.5. Once an attack sub is available (e10): S 1 in place of A.

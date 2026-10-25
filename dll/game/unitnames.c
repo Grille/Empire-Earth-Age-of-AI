@@ -42,7 +42,7 @@ internal int unit_types_load(void) {
                 g_unit_ident[t][0] = 0;
                 break;
             }
-        int f = unit_type_get_category(td);
+        int f = unit_type_get_family(td);
         if (f >= 0 && f < UNIT_KINDS && k_kind_ident[f]) { kind[t] = (unsigned char)f; cnt[f]++; }
         else x_error("type %d (unit.%s): its family %d has no kind - in no kind.<kind>", t, g_unit_ident[t], f);
     }
@@ -66,7 +66,7 @@ internal int unit_types_load(void) {
     for (int t = 0; t < G_TYPES_N; t++) {   // what each type is (unit_ids.h, the roles)
         ee_unit_type *td = type_data(t);
         if (!td || unit_type_get_id(td) != t) continue;
-        int f = unit_type_get_category(td), c = unit_type_get_class_id(td);
+        int f = unit_type_get_family(td), c = unit_type_get_class_id(td);
         g_ut_role[t] = (unsigned char)((f == KIND_TOWERS ? UTR_TOWER : 0) | (f == KIND_WALLS ? UTR_WALL : 0) |
             (c == CLS_GATE ? UTR_GATE : 0) |
             (c == CLS_LAND && (f == KIND_SIEGE || f == KIND_MACHINES) && unit_type_get_range(td) >= 3.0f ? UTR_SIEGE : 0) |

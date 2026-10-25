@@ -44,7 +44,7 @@ internal inline ee_world *game_game_state_at(void) { return (ee_world *)(uint8_t
 internal inline uint8_t *game_game_type_at(void) { return (uint8_t *)(uintptr_t)data_game_game_type; }
 // GEWindow* (+0 HWND)
 internal inline uint8_t *game_game_window_at(void) { return (uint8_t *)(uintptr_t)data_game_game_window; }
-// [target category][weapon kind]: 0 = it cannot hit
+// [target family][weapon kind]: 0 = it cannot hit
 internal inline uint8_t *game_hit_table_at(void) { return (uint8_t *)(uintptr_t)data_game_hit_table; }
 // the hit table's variants by game mode
 internal inline uint8_t *game_hit_table_a_at(void) { return (uint8_t *)(uintptr_t)data_game_hit_table_a; }

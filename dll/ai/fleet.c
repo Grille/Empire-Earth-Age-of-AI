@@ -302,8 +302,8 @@ internal float fl_ratio(struct fleet *f, ivec2 p, int r, const unsigned char *se
         for (int j = 0; j < g_fs.ne; j++) {
             if (sel && !sel[j]) continue;
             struct fl_ship *e = &g_fs.es[j];
-            fh += (float)e->hp * nv_f(unit_type_get_weapon(td), unit_type_get_category(e->td));
-            de += e->dps * hpu * nv_f(unit_type_get_weapon(e->td), unit_type_get_category(td));
+            fh += (float)e->hp * nv_f(unit_type_get_weapon(td), unit_type_get_family(e->td));
+            de += e->dps * hpu * nv_f(unit_type_get_weapon(e->td), unit_type_get_family(td));
         }
         dofs += dp * fh / he;
     }
