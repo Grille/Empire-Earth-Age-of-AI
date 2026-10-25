@@ -1,0 +1,13 @@
+// formation_follow sent behind itself: army_march.eeai's army (Continental seed 101) sent 18 tiles west to 28,44 with a
+// drag facing east, back towards where it stood, as the player gave a wedge (formation_kind=4) - it stood stuck
+wait_until(0.1min)
+spawn(1, unit.inf10_doughboy, 45, 44, 40)
+spawn(1, unit.cav09_dragoon_gun, 47, 42, 20)
+spawn(1, unit.tank10_mk_v, 47, 46, 10)
+wait_until(0.4min)
+cmd("fmove go 1 46 44 8 28 44 0 -90")
+every(2s, 0.4min, 1.9min, (run) => {
+    cmd("fmove stat")
+})
+wait_until(1.95min)
+cmd("fmove sum")

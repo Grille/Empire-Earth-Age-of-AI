@@ -228,10 +228,11 @@ internal void fo_march(ee_active_group *grp) {
 // FOLLOWING (`formation_follow`, with formations; step 2 of moving in formation): a group laid out here marches in its
 // formation behind a leader - the unit whose spot is nearest the formation's middle - instead of each unit running its
 // own route to its spot. The leader keeps its route and goes at the slowest member's top speed; every other
-// land unit steers each tick at its point (its spot's offset from the leader's, turned with the formation's heading,
-// which follows the leader's own) plus FF_AHEAD along the heading, through the turn (shiproute.c's hook of the land
-// models' slot 7), and its speed (the land models' speed step) is the leader's plus FF_GAIN for each tile it is
-// behind its point, while behind up to FF_BOOST of its own top speed. Its own route stays: whenever its point is further than FF_FAR, on a
+// land unit steers each tick at its point (its spot's offset from the leader's: the formation keeps its final
+// orientation all the way and arrives the right way round - sent behind itself and facing back, it walks there and
+// turns at the end) plus FF_AHEAD along the way, through the turn (shiproute.c's hook of the land models' slot 7), and
+// its speed (the land models' speed step) is the leader's plus FF_GAIN for each tile it is behind its point along the
+// way (towards the leader's spot, smoothed), while behind up to FF_BOOST of its own top speed. Its own route stays: whenever its point is further than FF_FAR, on a
 // tile it may not enter or not in a clear line, it takes its route for that tick; while it follows, the waypoints it
 // passed (or that are within FF_DROP in a clear line) are dropped so the route is where it stands. Once the leader is
 // within FF_END of its spot, or gone, or given another order, the march ends: each unit goes on to its own spot. The
@@ -244,12 +245,12 @@ internal void fo_march(ee_active_group *grp) {
 #define FF_GAIN 0.5f           // tiles/s for each tile behind
 #define FF_BOOST 1.25f         // a follower behind its point: at most this much of its own top speed
 #define FF_AHEAD 1.5f          // tiles: the point steered at lies this far ahead of the follower's own (no circling on it)
-#define FF_TURN 0.05f          // the formation's heading: this share of the way from the leader to its spot a step
+#define FF_TURN 0.05f          // the way: this share of the direction from the leader to its spot a step
 #define FF_FORM_FREE 2.0f      // tiles: the followers this far from their points on average and further - the leader waits,
 #define FF_FORM 4.0f           // down to FF_CRAWL this much further
 #define FF_CRAWL 0.15f         // the leader's least share of the march's speed while they form up
 #define FF_DROP 2.0f           // tiles
-struct ff_group { uint32_t leader; ee_group *grp; vec2 fwd, end; float speed, err, err_sum; int err_n; uint32_t step; int on; };
+struct ff_group { uint32_t leader; ee_group *grp; vec2 fwd, way, end; float speed, err, err_sum; int err_n; uint32_t step; int on; };   // fwd: the formation's facing, way: where it goes
 internal struct ff_group g_ff[FF_GROUPS];
 internal unsigned g_ff_next;
 struct ff_unit { uint32_t id; int g; vec2 off; uint32_t step; float along; };   // step: the last it followed
@@ -292,6 +293,10 @@ internal void ff_start(void *group, int n, vec2 fwd, vec2 right) {
     gr->leader = (uint32_t)unit_get_serial(g_fo[lead].u);
     gr->grp = (ee_group *)group;
     gr->fwd = fwd;
+    vec3 lp = unit_get_pos(g_fo[lead].u);
+    vec2 to = vec2_sub(g_fo[lead].at, v2(lp.x, lp.y));
+    float tl = vec2_len(to);
+    gr->way = tl > 0.01f ? vec2_scale(to, 1.0f / tl) : fwd;
     gr->end = g_fo[lead].at;
     gr->speed = slow;
     gr->step = ~0u;
@@ -318,13 +323,13 @@ internal ee_unit *ff_leader(struct ff_group *gr, uint32_t step) {
     gr->err = gr->err_n ? gr->err_sum / (float)gr->err_n : 0;
     gr->err_sum = 0;
     gr->err_n = 0;
-    // the heading: towards the leader's spot - its own facing swings with every leg of the game's route (straight and
-    // 45 degrees by turns) and the formation's edges with it
+    // the way: towards the leader's spot, smoothed - its own facing swings with every leg of the game's route (straight
+    // and 45 degrees by turns)
     vec2 to = vec2_sub(gr->end, v2(p.x, p.y));
     float tl = vec2_len(to);
-    vec2 h = tl > 0.01f ? vec2_add(vec2_scale(gr->fwd, 1 - FF_TURN), vec2_scale(to, FF_TURN / tl)) : gr->fwd;
+    vec2 h = tl > 0.01f ? vec2_add(vec2_scale(gr->way, 1 - FF_TURN), vec2_scale(to, FF_TURN / tl)) : gr->way;
     float hl = vec2_len(h);
-    if (hl > 0.01f) gr->fwd = vec2_scale(h, 1.0f / hl);
+    if (hl > 0.01f) gr->way = vec2_scale(h, 1.0f / hl);
     return l;
 }
 
@@ -344,13 +349,13 @@ internal int fo_follow_aim(ee_unit *u, const float *pos, float *aim) {
     vec2 right = v2(gr->fwd.y, -gr->fwd.x);
     vec2 pt = vec2_add(v2(lp.x, lp.y), vec2_add(vec2_scale(right, e->off.x), vec2_scale(gr->fwd, e->off.y)));
     vec2 d = vec2_sub(pt, v2(pos[0], pos[1]));
-    e->along = vec2_dot(d, gr->fwd);
+    e->along = vec2_dot(d, gr->way);
     gr->err_sum += vec2_len(d);
     gr->err_n++;
     ee_map *map = game_map();
     ee_unit_type *td = unit_get_type_data(u);
     int size = map ? (int)map_get_size(map) : 0;
-    vec2 at = vec2_add(pt, vec2_scale(gr->fwd, FF_AHEAD));
+    vec2 at = vec2_add(pt, vec2_scale(gr->way, FF_AHEAD));
     if (vec2_len(d) > FF_FAR || !td || size <= 0 || !sr_alloc((uint32_t)(size * size))) { g_ff_own++; return 0; }
     st_stamp_step();
     if (!sr_pass(map, u, td, size, (int)floorf(at.x), (int)floorf(at.y)) || !sr_clear(map, u, td, size, pos[0], pos[1], at.x, at.y)) { g_ff_own++; return 0; }
