@@ -15,6 +15,7 @@
 #define SET_FIELD_CHOICE(name, a) int name;
 #define SET_FIELD_STR(name, a) char name[a];
 #define SET_FIELD_STR_P(name, a) char name[16][a];
+#define SET_FIELD_CHILD(name, a) int name;
 #define SET_FIELD_X(kind, sec, key, def, a, b) SET_FIELD_##kind(key, a)
 #define SET_FIELD_S(kind, sec, key, def, a, b) SET_FIELD_##kind(sec##_##key, a)
 #define SET_NONE(...)
@@ -30,9 +31,9 @@ internal const char *const k_set_diff[3] = { "easy", "medium", "hard" };
 #define SET_ID_D(kind, key, def, a, b) SETTING_##key,
 enum { SETTINGS(SET_ID_X, SET_ID_S, SET_ID_D) SETTING_N };
 
-enum { SETK_FLAG, SETK_INT, SETK_NUM, SETK_PCT, SETK_SHARE, SETK_CHOICE, SETK_STR, SETK_STR_P };
+enum { SETK_FLAG, SETK_INT, SETK_NUM, SETK_PCT, SETK_SHARE, SETK_CHOICE, SETK_STR, SETK_STR_P, SETK_CHILD };
 // name: the field's, and the key that overrides it in the test ini; choices: a CHOICE's names, '|' between them;
-// ai: a row of [all] (its field in struct settings_ai, a value per difficulty)
+// ai: a row of [all] (its field in struct settings_ai, a value per difficulty); a: a CHILD's master (its row's id)
 struct setting_row { const char *sec, *key, *name; int kind, ai; size_t off; int def; const char *def_s, *choices; int a, b; };
 #define SET_ROW_FLAG(sec, key, name, st, ai, def, a, b) { #sec, #key, #name, SETK_FLAG, ai, offsetof(st, name), def, NULL, NULL, a, b },
 #define SET_ROW_INT(sec, key, name, st, ai, def, a, b) { #sec, #key, #name, SETK_INT, ai, offsetof(st, name), def, NULL, NULL, a, b },
@@ -42,6 +43,7 @@ struct setting_row { const char *sec, *key, *name; int kind, ai; size_t off; int
 #define SET_ROW_CHOICE(sec, key, name, st, ai, def, a, b) { #sec, #key, #name, SETK_CHOICE, ai, offsetof(st, name), 0, def, a, 0, b },
 #define SET_ROW_STR(sec, key, name, st, ai, def, a, b) { #sec, #key, #name, SETK_STR, ai, offsetof(st, name), 0, def, NULL, a, b },
 #define SET_ROW_STR_P(sec, key, name, st, ai, def, a, b) { #sec, #key, #name, SETK_STR_P, ai, offsetof(st, name), 0, def, NULL, a, b },
+#define SET_ROW_CHILD(sec, key, name, st, ai, def, a, b) { #sec, #key, #name, SETK_CHILD, ai, offsetof(st, name), def, NULL, NULL, SETTING_##a, b },
 #define SET_ROW_X(kind, sec, key, def, a, b) SET_ROW_##kind(sec, key, key, struct settings, 0, def, a, b)
 #define SET_ROW_S(kind, sec, key, def, a, b) SET_ROW_##kind(sec, key, sec##_##key, struct settings, 0, def, a, b)
 #define SET_ROW_D(kind, key, def, a, b) SET_ROW_##kind(all, key, key, struct settings_ai, 1, def, a, b)
@@ -147,9 +149,9 @@ internal int setting_value(const struct setting_row *r, const char *f, const cha
     double x;
     int n;
     if (!ini_eval(f, s, k, v, &x) || !ini_whole(f, s, k, v, x, &n)) return 0;
-    int lo = r->kind == SETK_FLAG ? 0 : r->a, hi = r->kind == SETK_FLAG ? 1 : r->b;
+    int flag = r->kind == SETK_FLAG || r->kind == SETK_CHILD, lo = flag ? 0 : r->a, hi = flag ? 1 : r->b;
     if (r->kind != SETK_NUM && (n < lo || n > hi)) {
-        if (r->kind == SETK_FLAG) lstrcpyA(why, "0 or 1 expected");
+        if (flag) lstrcpyA(why, "0 or 1 expected");
         else snprintf(why, sizeof why, "%d to %d expected", lo, hi);
         ini_error(f, s, k, v, why);
         return 0;
@@ -195,6 +197,13 @@ internal void settings_unknown(const char *ini, const char *sec) {
         if (!setting_known(sec, k)) ini_unknown(ini, sec, k);
 }
 
+// a CHILD row that isn't set, in the values at base (g_set, or a difficulty's g_set_ai): its master's word - default
+// (0) keeps the child's own default, enabled (1) is on, disabled (2) off; the master is read before it (an earlier row)
+internal void setting_follow(const struct setting_row *r, uint8_t *base) {
+    int m = *(int *)(base + k_settings[r->a].off);
+    if (m) *(int *)(base + r->off) = m == 1;
+}
+
 internal void settings_read(const char *ini, const char *test_ini) {
     for (int i = 0; i < SETTING_N; i++) {
         const struct setting_row *r = &k_settings[i];
@@ -202,14 +211,17 @@ internal void settings_read(const char *ini, const char *test_ini) {
         if (r->ai) {
             for (int d = 0; d < 3; d++) {
                 uint8_t from = 0;
-                setting_read(r, d, r->key, r->name, (uint8_t *)&g_set_ai[d] + r->off, ini, test_ini, &from);
+                if (!setting_read(r, d, r->key, r->name, (uint8_t *)&g_set_ai[d] + r->off, ini, test_ini, &from) &&
+                    r->kind == SETK_CHILD)
+                    setting_follow(r, (uint8_t *)&g_set_ai[d]);
                 if (from > g_set_from[i]) g_set_from[i] = from;
             }
             continue;
         }
         uint8_t *at = (uint8_t *)&g_set + r->off;
         if (r->kind != SETK_STR_P) {
-            setting_read(r, 0, r->key, r->name, at, ini, test_ini, &g_set_from[i]);
+            if (!setting_read(r, 0, r->key, r->name, at, ini, test_ini, &g_set_from[i]) && r->kind == SETK_CHILD)
+                setting_follow(r, (uint8_t *)&g_set);
             continue;
         }
         for (int p = 0; p < 16; p++) {

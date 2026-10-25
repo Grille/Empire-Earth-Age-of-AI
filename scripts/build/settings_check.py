@@ -4,13 +4,15 @@ shipped file says) or shown commented out (;key=example) - every key set in a se
 [medium] / [hard] a row of [all] (D), and the shipped [easy] sets what SETTINGS_EASY says. The sections
 (SETTING_SECTIONS): every row's section is one, every section of the file is one and every one of them is in the file
 (but the test ini's, kind TEST: its rows aren't looked for), each named once, each order its own, the DIFF ones
-easy, medium and hard. Exit 1 with the differences."""
+easy, medium and hard. A CHILD's master is a CHOICE default|enabled|disabled (default "default") before it in its
+section, and the child is only commented out in the file (set, it would never follow). Exit 1 with the differences."""
 import os
 import re
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-ROW = re.compile(r'\b(?:[XS]\((\w+),\s*(\w+),|D\((\w+),)\s*(\w+),\s*("[^"]*"|-?\w+),')
+ROW = re.compile(r'\b(?:[XS]\((\w+),\s*(\w+),|D\((\w+),)\s*(\w+),\s*("[^"]*"|-?\w+),\s*("[^"]*"|-?\w+),')
+MASTER = '"default|enabled|disabled"'
 SECTION = re.compile(r'\bT\((\w+),\s*(-?\d+),\s*(\w+),\s*"[^"]*"\)')
 EASY = re.compile(r'\bE\((\w+),\s*"([^"]*)"\)')
 DIFF = ('easy', 'medium', 'hard')
@@ -22,7 +24,7 @@ def rows():
     table = []
     for m in ROW.finditer(src):
         kind, sec = (m.group(1), m.group(2)) if m.group(1) else (m.group(3), 'all')
-        table.append((kind, sec, m.group(4), m.group(5)))
+        table.append((kind, sec, m.group(4), m.group(5), m.group(6)))
     return table, sections, dict(EASY.findall(src))
 
 
@@ -50,7 +52,7 @@ def same(kind, value, default):
         try: x = float(value[:-1]) / 100 if value.endswith('%') else float(value)
         except ValueError: return False
         return abs(x - int(want) / 100) < 1e-9
-    if kind in ('FLAG', 'INT', 'NUM'):
+    if kind in ('FLAG', 'CHILD', 'INT', 'NUM'):
         try: return int(value, 0) == int(want, 0)
         except ValueError: return False
     return value == want
@@ -70,14 +72,23 @@ def main():
     if sorted(diff) != sorted(DIFF): bad.append('the DIFF sections are %s, settings.c k_set_diff %s' % (diff, list(DIFF)))
     test = {sec for sec, _, kind in sections if kind == 'TEST'}
     whole = [sec for sec, _, kind in sections if kind != 'TEST']
-    for sec in sorted({sec for _, sec, _, _ in table} - set(secs)):
+    for sec in sorted({row[1] for row in table} - set(secs)):
         bad.append('[%s]: a row\'s section, but not in SETTING_SECTIONS' % sec)
     for sec in keys:
         if sec not in secs or sec in test: bad.append('[%s] in config/aimod.ini, but no section of SETTING_SECTIONS' % sec)
     for sec in whole:
         if sec not in keys: bad.append('[%s]: in SETTING_SECTIONS, but not in config/aimod.ini' % sec)
+    for i, (kind, sec, key, default, lo) in enumerate(table):   # a CHILD's master: a CHOICE before it, in its section
+        if kind != 'CHILD': continue
+        master = [r for r in table[:i] if r[2] == lo and r[1] == sec]
+        if not master or master[0][0] != 'CHOICE' or master[0][4] != MASTER or master[0][3] != '"default"':
+            bad.append('[%s] %s: its master %s is no CHOICE row before it in its section, %s, default "default"'
+                       % (sec, key, lo, MASTER))
+        if keys.get(sec, {}).get(key) is not None:
+            bad.append('[%s] %s: set in config/aimod.ini - a child follows its master only commented out (;%s=...)'
+                       % (sec, key, key))
     known = {}
-    for kind, sec, key, default in table:
+    for kind, sec, key, default, _ in table:
         if sec in test: continue
         known.setdefault(sec, []).append((kind, key))
         have = keys.get(sec, {})

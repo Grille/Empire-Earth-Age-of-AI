@@ -280,6 +280,10 @@ Settings in `aimod.ini`:
   Loading and unloading both first work out all the spots (the groups of units, the landing tiles), then match the
   transports to them so that the ways together are the shortest - so their ways don't cross.
   Both run inside the game's simulation like the original commands: in multiplayer every PC needs the same settings.
+- `[general] improved_unit_movement=default`: the seven movement settings below (ship_routes, land_routes,
+  ship_turns, land_turns, turn_fix, ship_collide, land_collide) as one. `default` gives each its own default (on
+  what is measured and helps), `enabled` all of them on, `disabled` all off - the game's own movement. Each one set
+  on its own wins over it; the shipped file shows them commented out, so they follow it.
 - `[general] ship_routes=0` (default off while it is measured): the game plans a ship's route in pieces of 8-18
   tiles, each in the 8 tile directions only, so a route at any angle between them zigzags and a slow-turning ship
   keeps swinging its bow. With 1 a ship's route is planned whole at once, in straight lines wherever the water between

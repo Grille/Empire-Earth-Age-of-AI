@@ -12,6 +12,9 @@
 //   CHOICE  one of the names in lo ("auto|d3d|gdi"), kept as its index (auto 0, d3d 1 ...); the default by name
 //   STR     a text, shorter than lo characters (the buffer's size)
 //   STR_P   a text per player slot: the keys key0 .. key15 (personality_P2)
+//   CHILD   0 or 1 under a master, the row lo (a CHOICE default|enabled|disabled before it, in its section): not set,
+//           it follows the master - default: the child's own default, enabled: 1, disabled: 0; set, its own value
+//           wins (improved_unit_movement over ship_routes, land_collide ...). The code reads the child as a FLAG.
 //
 // X: a row of [general] (or of the test ini's [autotest], which exists only there) - g_set.key. S: a row of another
 // section, whose keys repeat across sections (enabled, smooth, log) - g_set.section_key. D: a row of [all], one value
@@ -29,13 +32,14 @@
     X(FLAG,   general,  big_selection,            1,  0, 0) \
     X(FLAG,   general,  transport_split,          1,  0, 0) \
     X(FLAG,   general,  transport_unload_spread,  1,  0, 0) \
-    X(FLAG,   general,  ship_routes,              0,  0, 0) \
-    X(FLAG,   general,  land_routes,              0,  0, 0) \
-    X(FLAG,   general,  ship_turns,               0,  0, 0) \
-    X(FLAG,   general,  land_turns,               0,  0, 0) \
-    X(FLAG,   general,  turn_fix,                 1,  0, 0) \
-    X(FLAG,   general,  ship_collide,             1,  0, 0) \
-    X(FLAG,   general,  land_collide,             0,  0, 0) \
+    X(CHOICE, general,  improved_unit_movement,   "default", "default|enabled|disabled", 0) \
+    X(CHILD,  general,  ship_routes,              0,  improved_unit_movement, 0) \
+    X(CHILD,  general,  land_routes,              0,  improved_unit_movement, 0) \
+    X(CHILD,  general,  ship_turns,               0,  improved_unit_movement, 0) \
+    X(CHILD,  general,  land_turns,               0,  improved_unit_movement, 0) \
+    X(CHILD,  general,  turn_fix,                 1,  improved_unit_movement, 0) \
+    X(CHILD,  general,  ship_collide,             1,  improved_unit_movement, 0) \
+    X(CHILD,  general,  land_collide,             0,  improved_unit_movement, 0) \
     X(INT,    general,  group_block,              10, 0, 1000) \
     X(FLAG,   general,  sight_counts,             1,  0, 0) \
     X(INT,    general,  chat,                     0,  0, 2) \

@@ -69,7 +69,9 @@ and the runners, eectl, the MCP server), `results/` (log readers, scorers), `re/
   [hard], else [all]; code that doesn't tell difficulties apart reads [1]), and the test ini's [autotest] overrides a
   row by that same name (`scripts/build/settings_check.py`, run by the build, holds rows and file together). Nothing
   reads aimod.ini itself any more; a test-only knob is a row of section autotest. A new section is a row of
-  `SETTING_SECTIONS` there too (its order and title make aimod_config.exe's page).
+  `SETTING_SECTIONS` there too (its order and title make aimod_config.exe's page). A CHILD row is a flag under a
+  master CHOICE `default|enabled|disabled` (improved_unit_movement over the seven movement keys): not set, it follows
+  the master; the shipped file has it commented out.
 - The game reads the personality files from `config/aimod_ai/` (`ai_dir` in the user's aimod.ini): a change to
   their format needs the matching installed DLL.
 

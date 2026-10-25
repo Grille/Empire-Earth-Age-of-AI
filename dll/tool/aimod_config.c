@@ -87,6 +87,29 @@ internal int page_kind(int p) {   // SECK_*, -1 the game page
 internal const char *sec_of(const struct entry *e) { return g_page_of[e->page].sec; }
 internal int on_diff_page(const struct entry *e) { return g_page_of[e->page].diff >= 0; }
 
+// MASTERS AND CHILDREN: a CHILD row follows its master (row a) where the file doesn't set it; the master's entry shows
+// its children under it when opened (g_open)
+internal int g_open[SETTING_N];
+internal int is_child(const struct entry *e) { return row_of(e)->kind == SETK_CHILD; }
+internal int is_master(int row) {
+    for (int i = 0; i < SETTING_N; i++) if (k_settings[i].kind == SETK_CHILD && k_settings[i].a == row) return 1;
+    return 0;
+}
+// an entry without a value of its own takes another's: [all]'s on a difficulty's page, a child its master's
+internal int inherits(const struct entry *e) { return on_diff_page(e) || is_child(e); }
+
+// the child's master on its page: 0 default, 1 enabled, 2 disabled (its text, else its default); *name: the word
+internal int master_word(const struct entry *e, char *name, int cap) {
+    const struct setting_row *m = &k_settings[row_of(e)->a];
+    const char *text = m->def_s;
+    for (int i = 0; i < g_ne; i++)
+        if (g_e[i].page == e->page && g_e[i].row == row_of(e)->a && g_e[i].text[0]) text = g_e[i].text;
+    int w = setting_choice(m->choices, text);
+    if (w < 0) w = 0;   // a mistake: the DLL keeps the master's default
+    setting_choice_name(m->choices, w, name, cap);
+    return w;
+}
+
 internal void key_of(const struct entry *e, char *out, int cap) {
     if (e->slot >= 0) snprintf(out, cap, "%s%d", row_of(e)->key, e->slot);
     else lstrcpynA(out, row_of(e)->key, cap);
@@ -109,7 +132,7 @@ internal int check(const struct setting_row *r, const char *sec, const char *key
     setting_value(r, g_ini_path, sec, key, text, val);
     g_ini_why = NULL;
     if (why[0]) return 0;
-    if (r->kind == SETK_FLAG) lstrcpynA(shown, *(int *)val ? "on" : "off", cap);
+    if (r->kind == SETK_FLAG || r->kind == SETK_CHILD) lstrcpynA(shown, *(int *)val ? "on" : "off", cap);
     else if (r->kind == SETK_STR_P) lstrcpynA(shown, (char *)val, cap);
     else setting_text(r, val, shown, cap);
     return 1;
@@ -146,15 +169,21 @@ internal void shown_value(const struct entry *e, char *out, int cap, int *grey) 
         snprintf(out, cap, "as [all]: %s", v);
         return;
     }
+    if (is_child(e)) {   // as settings.c setting_follow
+        char word[32];
+        int w = master_word(e, word, sizeof word), on = w == 0 ? row_of(e)->def : w == 1;
+        snprintf(out, cap, "%s (follows %s=%s)", on ? "on" : "off", k_settings[row_of(e)->a].key, word);
+        return;
+    }
     char def[TEXT_CAP];
     default_text(row_of(e), def, sizeof def);
     if (!check(row_of(e), sec_of(e), key, def, why, out, cap)) lstrcpynA(out, "(the game's own)", cap);   // a default that leaves it: -1
 }
 
-// changed from the default: shown bold (a difficulty's page: any value of its own)
+// changed from the default: shown bold (a difficulty's page, a child: any value of its own)
 internal int is_changed(const struct entry *e) {
     if (!e->text[0]) return 0;
-    if (on_diff_page(e)) return 1;
+    if (inherits(e)) return 1;
     char def[TEXT_CAP], a[TEXT_CAP], b[TEXT_CAP], why[MAX_PATH], key[64];
     key_of(e, key, sizeof key);
     default_text(row_of(e), def, sizeof def);
@@ -428,6 +457,7 @@ internal void fill_item(int item, const struct entry *e) {
     key_of(e, key, sizeof key);
     shown_value(e, v, sizeof v, &grey);
     if (on_diff_page(e)) lstrcpyA(def, "[all]");
+    else if (is_child(e)) lstrcpyA(def, "follow");
     else {
         char d[TEXT_CAP];
         default_text(row_of(e), d, sizeof d);
@@ -450,7 +480,10 @@ internal int matches(const struct entry *e, const char *filter) {
 internal void show_editor(void);
 internal void place_default(void);
 internal void repaint(void);
-internal void fill_list(void) {
+internal int item_of(int entry);
+// the page's entries in the list (those the search finds; a child while its master is open, or found by the search),
+// keep: the entry selected afterwards (-1 the first)
+internal void fill_list(int keep) {
     char filter[64];
     GetWindowTextA(g_filter, filter, sizeof filter);
     CharLowerA(filter);
@@ -459,20 +492,37 @@ internal void fill_list(void) {
     int n = 0;
     for (int i = 0; i < g_ne; i++) {
         if (g_e[i].page != g_page || !matches(&g_e[i], filter)) continue;
+        if (is_child(&g_e[i]) && !filter[0] && !g_open[row_of(&g_e[i])->a]) continue;
         char key[64];
+        wchar_t text[80];
         key_of(&g_e[i], key, sizeof key);
-        LVITEMA it = { 0 };
+        int o = 0;
+        if (is_master(g_e[i].row)) { text[o++] = g_open[g_e[i].row] ? 0x25BE : 0x25B8; text[o++] = ' '; }   // a triangle down / right
+        else if (is_child(&g_e[i])) for (int k = 0; k < 6; k++) text[o++] = ' ';
+        MultiByteToWideChar(CP_ACP, 0, key, -1, text + o, 80 - o);
+        LVITEMW it = { 0 };
         it.mask = LVIF_TEXT | LVIF_PARAM;
         it.iItem = n;
-        it.pszText = key;
+        it.pszText = text;
         it.lParam = i;
-        SendMessageA(g_list, LVM_INSERTITEMA, 0, (LPARAM)&it);
+        SendMessageW(g_list, LVM_INSERTITEMW, 0, (LPARAM)&it);
         fill_item(n++, &g_e[i]);
     }
     SendMessageA(g_list, WM_SETREDRAW, TRUE, 0);
     g_sel = -1;
-    if (n) { ListView_SetItemState(g_list, 0, LVIS_SELECTED | LVIS_FOCUSED, LVIS_SELECTED | LVIS_FOCUSED); }
-    else show_editor();
+    int item = keep >= 0 ? item_of(keep) : -1;
+    if (item < 0) item = 0;
+    if (n) {
+        ListView_SetItemState(g_list, item, LVIS_SELECTED | LVIS_FOCUSED, LVIS_SELECTED | LVIS_FOCUSED);
+        ListView_EnsureVisible(g_list, item, FALSE);
+    } else show_editor();
+}
+
+// a master's children shown or hidden
+internal void toggle(int entry) {
+    if (entry < 0 || !is_master(g_e[entry].row)) return;
+    g_open[g_e[entry].row] ^= 1;
+    fill_list(entry);
 }
 
 internal int item_of(int entry) {
@@ -485,20 +535,22 @@ internal int item_of(int entry) {
 internal void show_status(const struct entry *e) {
     char why[MAX_PATH], shown[TEXT_CAP], msg[MAX_PATH + 64], key[64];
     key_of(e, key, sizeof key);
-    if (!e->text[0]) lstrcpyA(msg, on_diff_page(e) ? "Not set here: [all]'s value counts." : "Not in the file: the default counts.");
+    if (!e->text[0] && is_child(e)) snprintf(msg, sizeof msg, "Not in the file: follows %s.", k_settings[row_of(e)->a].key);
+    else if (!e->text[0]) lstrcpyA(msg, on_diff_page(e) ? "Not set here: [all]'s value counts." : "Not in the file: the default counts.");
     else if (check(row_of(e), sec_of(e), key, e->text, why, shown, sizeof shown)) snprintf(msg, sizeof msg, "= %s", shown);
     else snprintf(msg, sizeof msg, "Mistake: %s - the game would use the default.", why);
     SetWindowTextA(g_status, msg);
 }
 
 // the editor for the selected entry: a checkbox (on / off), a list (a choice; on a difficulty's page on / off too, with
-// "as [all]" first), or a text field
+// "as [all]" first; a child: follow its master, off, on), or a text field
 internal void show_editor(void) {
     g_filling = 1;
     int has = g_sel >= 0;
     struct entry *e = has ? &g_e[g_sel] : NULL;
     const struct setting_row *r = has ? row_of(e) : NULL;
-    int box = has && r->kind == SETK_FLAG && !on_diff_page(e), list = has && (r->kind == SETK_CHOICE || (r->kind == SETK_FLAG && on_diff_page(e)));
+    int flag = has && (r->kind == SETK_FLAG || r->kind == SETK_CHILD);
+    int box = flag && !inherits(e), list = has && (r->kind == SETK_CHOICE || (flag && inherits(e)));
     ShowWindow(g_check, box ? SW_SHOW : SW_HIDE);
     ShowWindow(g_combo, list ? SW_SHOW : SW_HIDE);
     ShowWindow(g_edit, has && !box && !list ? SW_SHOW : SW_HIDE);
@@ -517,7 +569,7 @@ internal void show_editor(void) {
     SetWindowTextA(g_name, title);
     help_of(on_diff_page(e) ? "all" : sec_of(e), r->key, r->kind == SETK_STR_P, help, sizeof help);
     SetWindowTextA(g_help, help);
-    SetWindowTextA(g_default, on_diff_page(e) ? "As [all]" : "Default");
+    SetWindowTextA(g_default, on_diff_page(e) ? "As [all]" : is_child(e) ? "Follow" : "Default");
     char def[TEXT_CAP];
     default_text(r, def, sizeof def);
     const char *v = e->text[0] ? e->text : def;
@@ -527,10 +579,12 @@ internal void show_editor(void) {
         SendMessageA(g_check, BM_SETCHECK, x_const_eval(v, &x, &why) && x != 0 ? BST_CHECKED : BST_UNCHECKED, 0);
     } else if (list) {
         SendMessageA(g_combo, CB_RESETCONTENT, 0, 0);
-        int base = on_diff_page(e);
-        if (base) SendMessageA(g_combo, CB_ADDSTRING, 0, (LPARAM)"as [all]");
+        int base = inherits(e);
+        char follow[96];
+        snprintf(follow, sizeof follow, "follow %s", is_child(e) ? k_settings[r->a].key : "");
+        if (base) SendMessageA(g_combo, CB_ADDSTRING, 0, (LPARAM)(on_diff_page(e) ? "as [all]" : follow));
         int sel = base && !e->text[0] ? 0 : -1;
-        if (r->kind == SETK_FLAG) {
+        if (flag) {
             SendMessageA(g_combo, CB_ADDSTRING, 0, (LPARAM)"off (0)");
             SendMessageA(g_combo, CB_ADDSTRING, 0, (LPARAM)"on (1)");
             if (sel < 0) { double x; const char *why; sel = base + (x_const_eval(v, &x, &why) && x != 0); }
@@ -558,9 +612,9 @@ internal void editor_changed(int id) {
     const struct setting_row *r = row_of(e);
     if (id == ID_CHECK) lstrcpyA(e->text, SendMessageA(g_check, BM_GETCHECK, 0, 0) == BST_CHECKED ? "1" : "0");
     else if (id == ID_COMBO) {
-        int i = (int)SendMessageA(g_combo, CB_GETCURSEL, 0, 0) - on_diff_page(e);
+        int i = (int)SendMessageA(g_combo, CB_GETCURSEL, 0, 0) - inherits(e);
         if (i < 0) e->text[0] = 0;
-        else if (r->kind == SETK_FLAG) lstrcpyA(e->text, i ? "1" : "0");
+        else if (r->kind == SETK_FLAG || r->kind == SETK_CHILD) lstrcpyA(e->text, i ? "1" : "0");
         else setting_choice_name(r->choices, i, e->text, sizeof e->text);
     } else GetWindowTextA(g_edit, e->text, sizeof e->text);
     e->has = e->text[0] != 0;
@@ -568,6 +622,9 @@ internal void editor_changed(int id) {
     if (item >= 0) { fill_item(item, e); ListView_RedrawItems(g_list, item, item); }
     if (!lstrcmpA(sec_of(e), "all"))   // the difficulties' pages show it where they fall back to it
         for (int i = 0; i < g_ne; i++) if (g_e[i].row == e->row && on_diff_page(&g_e[i]) && item_of(i) >= 0) fill_item(item_of(i), &g_e[i]);
+    if (is_master(e->row))   // its children show what they follow
+        for (int i = 0; i < g_ne; i++)
+            if (g_e[i].page == e->page && is_child(&g_e[i]) && row_of(&g_e[i])->a == e->row && item_of(i) >= 0) fill_item(item_of(i), &g_e[i]);
     show_status(e);
     update_title();
 }
@@ -575,7 +632,7 @@ internal void editor_changed(int id) {
 internal void set_default(void) {
     if (g_sel < 0) return;
     struct entry *e = &g_e[g_sel];
-    if (on_diff_page(e) || !e->had) e->text[0] = 0;
+    if (inherits(e) || !e->had) e->text[0] = 0;
     else default_text(row_of(e), e->text, sizeof e->text);   // a key the file has keeps its line, with the default
     e->has = e->text[0] != 0;
     show_editor();
@@ -711,7 +768,7 @@ internal void show_page(void) {
     ShowWindow(g_game_apply, game ? SW_SHOW : SW_HIDE);
     ShowWindow(g_game_restore, game ? SW_SHOW : SW_HIDE);
     if (game) game_show();
-    else fill_list();
+    else fill_list(-1);
     repaint();
 }
 
@@ -724,7 +781,7 @@ internal LRESULT CALLBACK wnd_proc(HWND w, UINT msg, WPARAM wp, LPARAM lp) {
         if (id == ID_PAGES && code == LBN_SELCHANGE) {
             g_page = (int)SendMessageA(g_pages, LB_GETCURSEL, 0, 0);
             show_page();
-        } else if (id == ID_FILTER && code == EN_CHANGE) fill_list();
+        } else if (id == ID_FILTER && code == EN_CHANGE) fill_list(-1);
         else if ((id == ID_CHECK && code == BN_CLICKED) || (id == ID_COMBO && code == CBN_SELCHANGE) || (id == ID_EDIT && code == EN_CHANGE))
             editor_changed(id);
         else if (id == ID_DEFAULT) set_default();
@@ -742,6 +799,21 @@ internal LRESULT CALLBACK wnd_proc(HWND w, UINT msg, WPARAM wp, LPARAM lp) {
         if (n->code == LVN_ITEMCHANGED) {
             NMLISTVIEW *v = (NMLISTVIEW *)lp;
             if ((v->uChanged & LVIF_STATE) && (v->uNewState & LVIS_SELECTED)) { g_sel = (int)v->lParam; show_editor(); }
+            return 0;
+        }
+        // a master opened or closed: a click on its triangle, a double click on it, the right / left arrow key (on a
+        // child the left key goes to its master)
+        if (n->code == NM_CLICK || n->code == NM_DBLCLK) {
+            NMITEMACTIVATE *a = (NMITEMACTIVATE *)lp;
+            if (a->iItem >= 0 && g_sel >= 0 && (n->code == NM_DBLCLK || a->ptAction.x < dpi_px(22))) toggle(g_sel);
+            return 0;
+        }
+        if (n->code == LVN_KEYDOWN && g_sel >= 0) {
+            WORD k = ((NMLVKEYDOWN *)lp)->wVKey;
+            const struct entry *e = &g_e[g_sel];
+            if (is_master(e->row) && ((k == VK_RIGHT && !g_open[e->row]) || (k == VK_LEFT && g_open[e->row]))) toggle(g_sel);
+            else if (k == VK_LEFT && is_child(e))
+                for (int i = 0; i < g_ne; i++) if (g_e[i].page == e->page && g_e[i].row == row_of(e)->a) toggle(i);
             return 0;
         }
         if (n->code == NM_CUSTOMDRAW) {   // changed: bold; not in the file: grey
@@ -831,7 +903,7 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmd, int show) {
     create_controls();
     show_unknown();
     layout();
-    fill_list();
+    fill_list(-1);
     ShowWindow(g_wnd, show);
     SetFocus(g_pages);
     MSG m;
