@@ -136,6 +136,9 @@ compatibility shims before the release. English only until the release.
   checked.
 - Never commit files another session is changing (check `git status` and `git diff` before `git add`; add files by
   name, never `git add -A`).
+- `dll/game/api/gen/` is made from all of spec/, another session's unfinished changes too: never `git add` it from
+  the working tree - `sh scripts/build/stage_gen.sh <your spec files, gen_api.py ...>` stages it as HEAD's spec plus
+  yours make it (twice a commit took another session's half of a rename, 2026-10-25).
 
 ## Pitfalls
 
