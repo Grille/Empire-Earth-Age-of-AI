@@ -58,10 +58,10 @@ internal inline char player_is_human(ee_player *pl) { return ((char (__thiscall 
 // COMPUTER PLAYERS (econ.c)
 // the computer player's update (engine/scenario_ai.c: the scenario flag cleared meanwhile)
 typedef void (__thiscall *cp_pay_hook)(ee_player *pl, void *what, int b, int c);
-internal inline int patch_cp_pay(cp_pay_hook h) { return patch_vtable(data_player_vt_computer_player, value_player_slot_cp_pay, (uintptr_t)fn_cp_pay, (void *)h); }
+internal inline int patch_cp_pay(cp_pay_hook h) { return patch_vtable(vt_ee_computer_player, value_player_slot_cp_pay, (uintptr_t)fn_cp_pay, (void *)h); }
 typedef void (__thiscall *cp_add_resource_hook)(ee_player *pl, int type, int amount);
 internal inline int patch_cp_add_resource(cp_add_resource_hook h) {
-    return patch_vtable(data_player_vt_computer_player, value_player_slot_cp_add_resource, (uintptr_t)fn_cp_add_resource, (void *)h);
+    return patch_vtable(vt_ee_computer_player, value_player_slot_cp_add_resource, (uintptr_t)fn_cp_add_resource, (void *)h);
 }
 // the maintenance's deletion of units for room (the navy keeps its ships: fleet.c)
 // a kill counted in the statistics (diplo.c - a thunk)

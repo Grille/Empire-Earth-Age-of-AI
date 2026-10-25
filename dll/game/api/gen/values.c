@@ -468,17 +468,17 @@ internal uint32_t of_player_build;
 internal uint32_t of_player_ignore;
 internal uint32_t of_player_first_attack_done;
 internal uint32_t of_b98_att;
+internal uint32_t vt_ee_computer_player;
+internal uint32_t call_cp_update;
+internal uint32_t call_epoch_catch_up;
+internal uint32_t calls_pop_cap[3];
 internal uint32_t of_plstats_lists;
 internal uint32_t data_player_call_kill_stat;
 internal uint32_t value_player_slot_cp_add_resource;
 internal uint32_t value_player_slot_cp_pay;
 internal uint32_t value_player_slot_player_human;
 internal uint32_t value_player_slot_unit_limit;
-internal uint32_t data_player_vt_computer_player;
-internal uint32_t call_cp_update;
 internal uint32_t call_maint_delete;
-internal uint32_t call_epoch_catch_up;
-internal uint32_t calls_pop_cap[3];
 
 // scenario.cs
 internal uint32_t of_scen_chat;
