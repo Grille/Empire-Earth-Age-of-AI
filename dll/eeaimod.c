@@ -47,6 +47,7 @@ internal void chat_new_game(void);
 internal void llm_new_game(void);
 internal void shipturns_new_game(void);   // engine/shiproute.c
 internal void collide_new_game(void);      // engine/collide.c
+internal void groupmove_new_game(void);    // engine/groupmove.c
 internal void persist_load(const char *name);
 internal void econ_targets(ee_resource_mgr *rm);
 internal void econ_rebalance(ee_resource_mgr *rm);
@@ -304,6 +305,7 @@ internal char __thiscall hook_game_start(ee_world *state, ee_setup *setup, void 
     aim_new_game();
     shipturns_new_game();
     collide_new_game();
+    groupmove_new_game();
     landing_new_game();
     navy_new_game();
     bunker_new_game();

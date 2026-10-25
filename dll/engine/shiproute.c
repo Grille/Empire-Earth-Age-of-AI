@@ -448,8 +448,13 @@ internal int st_aim_point(ee_unit *u, float px, float py, float reach, const flo
     return 1;
 }
 
+internal int fo_follow_aim(ee_unit *u, const float *pos, float *aim);   // groupmove.c: formation_follow's point
 internal void __thiscall hook_ship_turn_towards(void *model, ee_unit *u, float *pos, float *target, float *left, float *rate, float *heading, char facing) {
     float aim[3], *to = target;
+    if (!facing && model_kind(model) == MODEL_LAND && fo_follow_aim(u, pos, aim)) {   // a follower of a formation's march
+        physics_model_turn_towards(model, u, pos, aim, left, rate, heading, facing);
+        return;
+    }
     if (u == g_st_aim_unit) g_st_aim_unit = NULL;
     ee_map *map = game_map();
     ee_unit_type *td = u ? unit_get_type_data(u) : NULL;
@@ -536,7 +541,7 @@ internal int __thiscall hook_ship_speed(void *model, ee_unit *u, float dist, flo
 internal void shiproute_install(const char *autotest_ini) {
     g_st_on = g_set.ship_turns;
     g_lt_on = g_set.land_turns;
-    int lt = g_lt_on ? patch_land_turn_towards(hook_ship_turn_towards) : 0;
+    int lt = g_lt_on || (g_set.formations && g_set.formation_follow) ? patch_land_turn_towards(hook_ship_turn_towards) : 0;   // formation_follow steers there too
     int st = g_st_on ? patch_ship_speed_decide(hook_ship_speed) + patch_ship_turn_towards(hook_ship_turn_towards)
                          + patch_ship_speed_step(hook_ship_speed_step) : 0;
     if (g_log) fprintf(g_log, "# shipturns: ship_turns=%d (hooks %s) land_turns=%d (hooks %d/2)\n", g_st_on, !g_st_on ? "-" : st == 6 ? "ok" : "FAILED", g_lt_on, lt);
