@@ -42,50 +42,41 @@ internal inline int unit_set_waypoint_at(ee_unit *u, int i, float x, float y) {
 // FUNCTIONS
 // its acceleration and top turn rate (radians/s) as its movement uses them (its group's with the group speed on:
 // engine-notes "top speed"; its top speed: unit_max_speed)
-internal inline float unit_accel(ee_unit *u) { return GF(FN_UNIT_ACCEL)(u); }
-internal inline float unit_max_turn(ee_unit *u) { return GF(FN_UNIT_MAX_TURN)(u); }
-internal inline float unit_turn_accel(ee_unit *u) { return GF(FN_UNIT_TURN_ACCEL)(u); }   // radians/s per s
 // its orders (goal slot 0's queue: the front the current goal, shift-clicked moves after it): how many, and order i
 internal inline int unit_orders(ee_unit *u) {
-    uint8_t *q = (uint8_t *)GF(FN_UNIT_GOAL_QUEUE)(u, 0);
+    uint8_t *q = (uint8_t *)fn_unit_goal_queue(u, 0);
     return q ? *(int *)(q + 0x10) : 0;
 }
 internal inline ee_goal *unit_order_at(ee_unit *u, int i) {
-    uint8_t *q = (uint8_t *)GF(FN_UNIT_GOAL_QUEUE)(u, 0);
+    uint8_t *q = (uint8_t *)fn_unit_goal_queue(u, 0);
     if (!q || i < 0 || i >= *(int *)(q + 0x10)) return NULL;
     uint32_t pos = *(uint32_t *)(q + 0xC) + (uint32_t)i, blocks = *(uint32_t *)(q + 8), blk = pos >> 10;
     if (blk >= blocks) blk -= blocks;
     return ((ee_goal ***)*(void **)(q + 4))[blk][pos & 0x3FF];
 }
 // drops its current waypoint, the next the current (as GetNextMoveWaypoint does on arrival): 0, else it had none
-internal inline int unit_pop_waypoint(ee_unit *u) { return GF(FN_POP_WAYPOINT)(u); }
 // the citizens working site (all players)
-internal inline unsigned site_gatherers(ee_unit *site) { return GF(FN_SITE_GATHERERS)((void *)GA(G_GAME_STATE), site); }
+internal inline unsigned site_gatherers(ee_unit *site) { return fn_site_gatherers_game((void *)data_game_game_state, site); }
 // a shot's ballistic path from -> to for unit u (type: its live stats): reachable (pitch out); the aim at target
 internal inline char ballistic(ee_unit *u, ee_unit_stats *type, float *from, float *to, float *pitch) {
-    return GF(FN_BALLISTIC)(u, type, from, to, pitch);
+    return fn_ballistic_game(u, type, from, to, pitch);
 }
 // is the map object explored by pl (a site's +0x14: its map object)
-internal inline char explored_by(ee_unit *site, ee_player *pl) { return GF(FN_EXPLORED)(FIELD(site, of_unit_vis, void *), pl); }
+internal inline char explored_by(ee_unit *site, ee_player *pl) { return fn_explored_game(FIELD(site, of_unit_vis, void *), pl); }
 
 // the unit's script state set (SetState: its .tai state by id - engine-notes.md "Unit AI scripts"; entered, it runs once):
 // 8000 PrepareToMove after every order, 5000 Idle, 0x1F51 MoveToRepairSite (the game's builder order)
-internal inline void unit_set_state(ee_unit *u, unsigned state) { GF(FN_UNIT_SET_STATE)(u, (int)state); }
 // the units aboard a transport or inside a building
-internal inline int units_inside(ee_unit *u) { return GF(FN_UNITS_INSIDE)(u); }
 // the distance between two units (tiles)
-internal inline float unit_distance(ee_unit *a, ee_unit *b) { return GF(FN_UNIT_DISTANCE)(a, b); }
 // the unit changed in place into the type of new_td, owner player index pi (defence.c: a line upgrade)
-internal inline int unit_convert(ee_unit *u, int pi, ee_unit_type *new_td) { return GF(FN_UNIT_CONVERT)(u, pi, (uint32_t)new_td); }
 // the unit taken out of the map's unit list (the original of attack.c's guards; given back to the pool:
 // ee_complex_unit_release)
-internal inline void unit_unlink(ee_unit *u) { GF(FN_UNIT_UNLINK)(u); }
 
 // HOOKS
 // (the spec's in gen/unit.c: patch_aim, patch_missile_aim, patch_repair_goal, patch_unload_retry_give, patch_unit_release)
 // the unit list's node deletions (operator delete of a node, the unit in ESI): the thunk ends in game_op_delete
 internal inline int patch_unit_node_free(thunk_fn thunk, int *of) {
-    const uint32_t sites[2] = { GA(CALL_NODE_DEL_1), GA(CALL_NODE_DEL_2) };
-    return patch_calls(sites, 2, GA(FN_OP_DELETE), (void *)thunk, of);
+    const uint32_t sites[2] = { data_unit_call_node_del_1, data_unit_call_node_del_2 };
+    return patch_calls(sites, 2, data_unit_fn_op_delete, (void *)thunk, of);
 }
-internal inline uintptr_t game_op_delete(void) { return GA(FN_OP_DELETE); }
+internal inline uintptr_t game_op_delete(void) { return data_unit_fn_op_delete; }

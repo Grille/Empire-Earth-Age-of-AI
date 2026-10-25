@@ -125,3 +125,45 @@ unsafe struct ee_view_row
     [offset(0x8), found(c)]
     uint8* data;
 }
+
+/// map's data of the game, places in its code and numbers (raw/'s address rows)
+static unsafe class map
+{
+    /// thiscall(tile, player), ret 4: a unit more sees it
+    [address((ee)0x00519F4F, (aoc)0x005247ED)]
+    static code fn_tile_sight_add;
+
+    /// thiscall(tile, player), ret 4: a unit less sees it
+    [address((ee)0x00519E26, (aoc)0x005246C4)]
+    static code fn_tile_sight_sub;
+
+    /// the map's areas (regions, continents)
+    [address((ee)0x00917BC8, (aoc)0x00930BF0)]
+    static block map_areas;
+}
+
+/// the game's functions map.c wraps, by the names the C side gives them
+[c_prefix("")]
+static unsafe class map_functions
+{
+    /// the area object at a tile (thiscall on the map areas G_MAP_AREAS)
+    [address((ee)0x00425F16, (aoc)0x00422AD9), thiscall]
+    static extern uint8* area_at_game(void* p1, int32* p2);
+
+    /// thiscall(minimap, tile x, y): a unit more sees the tile (its pixel's count +1)
+    [address((ee)0x0051426E, (aoc)0x0051E8BF), thiscall]
+    static extern void minimap_sight_add(void* mm, int32 x, int32 y);
+
+    /// thiscall(minimap, tile, x, y), ret 0xC: the tile's sight count into the minimap's (its rebuild 0x5150F2)
+    [address((ee)0x00514A8A, (aoc)0x0051F0DB), thiscall]
+    static extern void minimap_tile(void* mm, ee_tile* tile, int32 x, int32 y);
+
+    /// thiscall(0x917BC8, int pos[2], 2) -> short region id
+    [address((ee)0x00425F9F, (aoc)0x00422B86), thiscall]
+    static extern uint16 region_game(void* p1, int32* p2, int32 p3);
+
+    /// thiscall(player): every tile's sight count (its low byte) into MAP_VIEW_ROWS - a load, the viewed player
+    /// changed
+    [address((ee)0x0055BC4E, (aoc)0x0056AEC0), thiscall]
+    static extern void view_sight_copy(EEPlayer* pl);
+}

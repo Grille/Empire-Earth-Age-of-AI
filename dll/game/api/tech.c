@@ -25,18 +25,15 @@ internal inline int techdata_get_cost(const ee_tech_data *d, int r) { return FIE
 // (-1 all; a line upgrade's old type), +0x18 a line upgrade's new type, +0x2C the attribute
 
 // FUNCTIONS
-internal inline ee_tech *tech_lookup(ee_tech_tree *tt, int id) { return (ee_tech *)GF(FN_TECH_LOOKUP)(tt, id); }
 // can it be researched now (EETechTreeNode's vtable)
-internal inline char tech_available(ee_tech *t) { return ((char (__thiscall *)(void *))(*(void ***)t)[GA(SLOT_TECH_AVAILABLE)])(t); }
+internal inline char tech_available(ee_tech *t) { return ((char (__thiscall *)(void *))(*(void ***)t)[value_tech_slot_tech_available])(t); }
 // researched for nothing (EETechTreeNode::vf6) - the 2017 update's, AoC's takes an argument
-internal inline int tech_grant(ee_tech *t) { return GF(FN_TECH_GRANT)(t); }
 // the tech tree's next epoch (to the game's end epoch: it sets it and sends the epoch event)
-internal inline void epoch_next(ee_tech_tree *tt) { GF(FN_EPOCH_NEXT)(tt); }
 // the epoch's line upgrades granted (node: the epoch's tech, cat 7); Art of Conquest: only_new - only the ones with
 // data +0x81 set (econ.c PAID UPGRADES)
 internal inline void epoch_upgrades_grant(ee_tech *node, int cat, int only_new) {
-    if (build_is("aoc")) ((void (__thiscall *)(void *, int, int))GA(FN_EPOCH_UPGRADES))(node, cat, only_new);
-    else ((void (__thiscall *)(void *, int))GA(FN_EPOCH_UPGRADES))(node, cat);
+    if (build_is("aoc")) ((void (__thiscall *)(void *, int, int))data_tech_fn_epoch_upgrades)(node, cat, only_new);
+    else ((void (__thiscall *)(void *, int))data_tech_fn_epoch_upgrades)(node, cat);
 }
 
 // HOOKS
@@ -44,8 +41,8 @@ internal inline void epoch_upgrades_grant(ee_tech *node, int cat, int only_new) 
 typedef void (__thiscall *epoch_upgrades_hook)(ee_tech *node, int cat);
 typedef void (__thiscall *epoch_upgrades_aoc_hook)(ee_tech *node, int cat, int only_new);
 internal inline int patch_epoch_upgrades(epoch_upgrades_hook h, epoch_upgrades_aoc_hook h_aoc) {
-    return patch_call(GA(CALL_EPOCH_UPGRADES), GA(FN_EPOCH_UPGRADES), build_is("aoc") ? (void *)h_aoc : (void *)h);
+    return patch_call(data_tech_call_epoch_upgrades, data_tech_fn_epoch_upgrades, build_is("aoc") ? (void *)h_aoc : (void *)h);
 }
 // a tech researched for nothing (EETechTreeNode::vf6, its vtable slot VTS_TECH_RESEARCHED)
 typedef int (__thiscall *tech_grant_hook)(ee_tech *t);
-internal inline int patch_tech_grant(tech_grant_hook h) { return patch_vtable(GA(VTS_TECH_RESEARCHED), 0, GA(FN_TECH_GRANT), (void *)h); }
+internal inline int patch_tech_grant(tech_grant_hook h) { return patch_vtable(data_tech_vts_tech_researched, 0, (uintptr_t)fn_tech_grant, (void *)h); }

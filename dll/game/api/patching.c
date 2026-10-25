@@ -15,7 +15,7 @@ internal inline int patch_vtables(const uint32_t *vts, size_t n, int slot, uintp
     if (of) *of += (int)n;
     return ok;
 }
-#define PATCH_LIST(L) GL(L), sizeof GL(L) / sizeof *GL(L)
+#define PATCH_LIST(a) (a), sizeof (a) / sizeof *(a)   // a list of places of the spec (data_hooks_train_sites): it and its count
 
 // every call of fn in the exe's code (E8 rel32 to it in .text): for a function called from many places
 internal inline int patch_all_calls(uintptr_t fn, void *hook) {
@@ -76,10 +76,10 @@ internal inline int site_index(const uint32_t *sites, size_t n, uintptr_t at) {
         if (sites[i] == at) return (int)i;
     return -1;
 }
-internal inline int train_site(uintptr_t at) { return site_index(PATCH_LIST(TRAIN_SITES), at); }    // the game's 5 unit orders
-internal inline int mine_site(uintptr_t at) { return site_index(PATCH_LIST(MINE_SITES), at); }      // 5: the citizen assignment's last
-internal inline int unload_site(uintptr_t at) { return site_index(PATCH_LIST(UNLOAD_SITES), at); }  // 7: the unload goal's copy
-internal inline uintptr_t unload_site_at(int i) { return GL(UNLOAD_SITES)[i]; }
-internal inline int unload_from_rm(uintptr_t at) { return at == GA(CALL_UNLOAD_RM); }   // the resource manager's ferry
+internal inline int train_site(uintptr_t at) { return site_index(PATCH_LIST(data_ai_managers_train_sites), at); }    // the game's 5 unit orders
+internal inline int mine_site(uintptr_t at) { return site_index(PATCH_LIST(data_ai_managers_mine_sites), at); }      // 5: the citizen assignment's last
+internal inline int unload_site(uintptr_t at) { return site_index(PATCH_LIST(data_patching_unload_sites), at); }  // 7: the unload goal's copy
+internal inline uintptr_t unload_site_at(int i) { return data_patching_unload_sites[i]; }
+internal inline int unload_from_rm(uintptr_t at) { return at == data_patching_call_unload_rm; }   // the resource manager's ferry
 // a land subgroup's goal handed over with its unit (the return address of its give_goal call: landing.c)
-internal inline int from_land_handoff(uintptr_t ret) { return ret == GA(RET_ASG_LAND_HANDOFF_GIVE); }
+internal inline int from_land_handoff(uintptr_t ret) { return ret == data_patching_ret_asg_land_handoff_give; }

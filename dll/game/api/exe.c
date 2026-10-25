@@ -24,8 +24,7 @@ internal int game_build(uint32_t *hash) {
     for (int i = 0; i < ADDR_BUILDS; i++)
         if (*hash == k_exe_builds[i].hash && (k_exe_builds[i].ready || test)) {
             g_exe_build = i;
-            g_addr_missing = addr_select();
-            g_of_missing = fields_select();
+            image_ranges();   // the exe's code and data sections (base/patch.c checks a patch against them)
             g_spec_missing = spec_select(i);
             return 1;
         }
@@ -35,8 +34,6 @@ internal int game_build(uint32_t *hash) {
 internal void api_log(FILE *log) {
     if (!log) return;
     if (!k_exe_builds[g_exe_build].ready) fprintf(log, "# build: %s - not ready, a test run's\n", k_exe_builds[g_exe_build].name);
-    addr_log(log);
-    fields_log(log);
     spec_log(log);
 }
 // Another build: nothing installed - the player is told once a start (a test run, which has nobody to click: only

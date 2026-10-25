@@ -2,68 +2,64 @@
 // sh dll/build.sh. What each name is: gen_api.py's header; the classes, fields and functions: the spec.
 
 // class SEMixer (void)
-internal uint32_t of_se_mixer_spim;
 internal inline uint8_t *se_mixer_spim_at(const void *o) { return (uint8_t *)o + of_se_mixer_spim; }
 
 // class SESample (ee_sample)
-internal uint32_t of_sample_channel;
 internal inline int sample_get_channel(const ee_sample *o) { return *(int *)((uint8_t *)o + of_sample_channel); }
 internal inline void sample_set_channel(ee_sample *o, int v) { *(int *)((uint8_t *)o + of_sample_channel) = v; }
 internal inline int *sample_channel_at(const ee_sample *o) { return (int *)((uint8_t *)o + of_sample_channel); }
 
 // class ee_sound_cat (ee_sound_cat)
-internal uint32_t of_sndcat_share;
 internal inline float sndcat_get_share(const ee_sound_cat *o) { return *(float *)((uint8_t *)o + of_sndcat_share); }
 internal inline void sndcat_set_share(ee_sound_cat *o, float v) { *(float *)((uint8_t *)o + of_sndcat_share) = v; }
 internal inline float *sndcat_share_at(const ee_sound_cat *o) { return (float *)((uint8_t *)o + of_sndcat_share); }
-internal uint32_t of_sndcat_max;
 internal inline int sndcat_get_max(const ee_sound_cat *o) { return *(int *)((uint8_t *)o + of_sndcat_max); }
 internal inline void sndcat_set_max(ee_sound_cat *o, int v) { *(int *)((uint8_t *)o + of_sndcat_max) = v; }
 internal inline int *sndcat_max_at(const ee_sound_cat *o) { return (int *)((uint8_t *)o + of_sndcat_max); }
-internal uint32_t of_sndcat_used;
 internal inline int sndcat_get_used(const ee_sound_cat *o) { return *(int *)((uint8_t *)o + of_sndcat_used); }
 internal inline void sndcat_set_used(ee_sound_cat *o, int v) { *(int *)((uint8_t *)o + of_sndcat_used) = v; }
 internal inline int *sndcat_used_at(const ee_sound_cat *o) { return (int *)((uint8_t *)o + of_sndcat_used); }
-internal uint32_t of_sndcat_priority;
 internal inline int sndcat_get_priority(const ee_sound_cat *o) { return *(int *)((uint8_t *)o + of_sndcat_priority); }
 internal inline void sndcat_set_priority(ee_sound_cat *o, int v) { *(int *)((uint8_t *)o + of_sndcat_priority) = v; }
 internal inline int *sndcat_priority_at(const ee_sound_cat *o) { return (int *)((uint8_t *)o + of_sndcat_priority); }
 
 // class SESMInstanceNode (ee_sound_node)
-internal uint32_t of_sndnode_id;
 internal inline int sndnode_get_id(const ee_sound_node *o) { return *(int *)((uint8_t *)o + of_sndnode_id); }
 internal inline void sndnode_set_id(ee_sound_node *o, int v) { *(int *)((uint8_t *)o + of_sndnode_id) = v; }
 internal inline int *sndnode_id_at(const ee_sound_node *o) { return (int *)((uint8_t *)o + of_sndnode_id); }
-internal uint32_t of_sndnode_channel;
 internal inline int sndnode_get_channel(const ee_sound_node *o) { return *(int *)((uint8_t *)o + of_sndnode_channel); }
 internal inline void sndnode_set_channel(ee_sound_node *o, int v) { *(int *)((uint8_t *)o + of_sndnode_channel) = v; }
 internal inline int *sndnode_channel_at(const ee_sound_node *o) { return (int *)((uint8_t *)o + of_sndnode_channel); }
-internal uint32_t of_sndnode_sample;
 internal inline ee_sample *sndnode_get_sample(const ee_sound_node *o) { return *(ee_sample **)((uint8_t *)o + of_sndnode_sample); }
 internal inline void sndnode_set_sample(ee_sound_node *o, ee_sample *v) { *(ee_sample **)((uint8_t *)o + of_sndnode_sample) = v; }
 internal inline ee_sample **sndnode_sample_at(const ee_sound_node *o) { return (ee_sample **)((uint8_t *)o + of_sndnode_sample); }
 
 // class SESoundManager (ee_sound_mgr)
-internal uint32_t of_sndmgr_slots;
 internal inline ee_sound_node **sndmgr_get_slots(const ee_sound_mgr *o) { return *(ee_sound_node ***)((uint8_t *)o + of_sndmgr_slots); }
 internal inline void sndmgr_set_slots(ee_sound_mgr *o, ee_sound_node **v) { *(ee_sound_node ***)((uint8_t *)o + of_sndmgr_slots) = v; }
 internal inline ee_sound_node ***sndmgr_slots_at(const ee_sound_mgr *o) { return (ee_sound_node ***)((uint8_t *)o + of_sndmgr_slots); }
-internal uint32_t of_sndmgr_paused_begin;
 internal inline uint8_t *sndmgr_get_paused_begin(const ee_sound_mgr *o) { return *(uint8_t **)((uint8_t *)o + of_sndmgr_paused_begin); }
 internal inline void sndmgr_set_paused_begin(ee_sound_mgr *o, uint8_t *v) { *(uint8_t **)((uint8_t *)o + of_sndmgr_paused_begin) = v; }
 internal inline uint8_t **sndmgr_paused_begin_at(const ee_sound_mgr *o) { return (uint8_t **)((uint8_t *)o + of_sndmgr_paused_begin); }
-internal uint32_t of_sndmgr_cats_begin;
 internal inline ee_sound_cat **sndmgr_get_cats_begin(const ee_sound_mgr *o) { return *(ee_sound_cat ***)((uint8_t *)o + of_sndmgr_cats_begin); }
 internal inline void sndmgr_set_cats_begin(ee_sound_mgr *o, ee_sound_cat **v) { *(ee_sound_cat ***)((uint8_t *)o + of_sndmgr_cats_begin) = v; }
 internal inline ee_sound_cat ***sndmgr_cats_begin_at(const ee_sound_mgr *o) { return (ee_sound_cat ***)((uint8_t *)o + of_sndmgr_cats_begin); }
-internal uint32_t of_sndmgr_mixer;
 internal inline ee_mixer *sndmgr_get_mixer(const ee_sound_mgr *o) { return *(ee_mixer **)((uint8_t *)o + of_sndmgr_mixer); }
 internal inline void sndmgr_set_mixer(ee_sound_mgr *o, ee_mixer *v) { *(ee_mixer **)((uint8_t *)o + of_sndmgr_mixer) = v; }
 internal inline ee_mixer **sndmgr_mixer_at(const ee_sound_mgr *o) { return (ee_mixer **)((uint8_t *)o + of_sndmgr_mixer); }
-internal uint32_t of_sndmgr_channels;
 internal inline uint32_t sndmgr_get_channels(const ee_sound_mgr *o) { return *(uint32_t *)((uint8_t *)o + of_sndmgr_channels); }
 internal inline void sndmgr_set_channels(ee_sound_mgr *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_sndmgr_channels) = v; }
 internal inline uint32_t *sndmgr_channels_at(const ee_sound_mgr *o) { return (uint32_t *)((uint8_t *)o + of_sndmgr_channels); }
+
+// static class engine_sound
+// engine_sound's data of the game, places in its code and numbers (raw/'s address rows)
+// SESoundManager::Play(id, vol, pan, pitch, bool queue, char *) -> id or -1
+internal inline uint8_t *engine_sound_iat_snd_play_at(void) { return (uint8_t *)(uintptr_t)data_engine_sound_iat_snd_play; }
+// SESoundManager::PlayAndReturnReferencedNode(same) -> node or NULL
+internal inline uint8_t *engine_sound_iat_snd_playref_at(void) { return (uint8_t *)(uintptr_t)data_engine_sound_iat_snd_playref; }
+internal inline uint8_t *engine_sound_iat_snd_setmaxch_at(void) { return (uint8_t *)(uintptr_t)data_engine_sound_iat_snd_setmaxch; }
+// Miles Sound System Mixer.dll: its channels, a vector of 8 bytes each
+// int: the most channels it gives
 
 // the running build's values (spec_select, with addr_select): how many it hasn't got
 internal int spec_engine_sound_select(int build) {
@@ -83,6 +79,11 @@ internal int spec_engine_sound_select(int build) {
         of_sndmgr_cats_begin = 0x54;
         of_sndmgr_mixer = 0x70;
         of_sndmgr_channels = 0x88;
+        data_engine_sound_iat_snd_play = 0x008232D0;
+        data_engine_sound_iat_snd_playref = 0x008233EC;
+        data_engine_sound_iat_snd_setmaxch = 0x00823AD4;
+        value_engine_sound_rva_mix_channels = 21164;
+        value_engine_sound_rva_mix_max_channels = 21280;
         return 0;
     case 1:   // aoc
         of_se_mixer_spim = 0xB0;
@@ -99,6 +100,11 @@ internal int spec_engine_sound_select(int build) {
         of_sndmgr_cats_begin = 0x54;
         of_sndmgr_mixer = 0x70;
         of_sndmgr_channels = 0x88;
+        data_engine_sound_iat_snd_play = 0x008372CC;
+        data_engine_sound_iat_snd_playref = 0x00837380;
+        data_engine_sound_iat_snd_setmaxch = 0x00837AC4;
+        value_engine_sound_rva_mix_channels = 21164;
+        value_engine_sound_rva_mix_max_channels = 21280;
         return 0;
     }
     return 0;

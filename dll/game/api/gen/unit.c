@@ -4,102 +4,81 @@
 // class RTSUnit (ee_unit)
 // the engine's map object: the unit list's node, tile, owner and id (RTSDummyUnit, the list's head at 0x918314, is
 // only this)
-internal uint32_t size_rts_unit;
 // references (release 0x4FCAD3)
-internal uint32_t of_unit_refs;
 internal inline int unit_get_refs(const ee_unit *o) { return *(int *)((uint8_t *)o + of_unit_refs); }
 internal inline void unit_set_refs(ee_unit *o, int v) { *(int *)((uint8_t *)o + of_unit_refs) = v; }
 internal inline int *unit_refs_at(const ee_unit *o) { return (int *)((uint8_t *)o + of_unit_refs); }
 // its node in the unit list {next, prev}
-internal uint32_t of_unit_list_node;
 internal inline void *unit_get_list_node(const ee_unit *o) { return *(void **)((uint8_t *)o + of_unit_list_node); }
 internal inline void unit_set_list_node(ee_unit *o, void *v) { *(void **)((uint8_t *)o + of_unit_list_node) = v; }
 internal inline void **unit_list_node_at(const ee_unit *o) { return (void **)((uint8_t *)o + of_unit_list_node); }
 // visibility: +0xC a uint16 per player, seen
-internal uint32_t of_unit_vis;
 internal inline ee_unit_vis *unit_get_vis(const ee_unit *o) { return *(ee_unit_vis **)((uint8_t *)o + of_unit_vis); }
 internal inline void unit_set_vis(ee_unit *o, ee_unit_vis *v) { *(ee_unit_vis **)((uint8_t *)o + of_unit_vis) = v; }
 internal inline ee_unit_vis **unit_vis_at(const ee_unit *o) { return (ee_unit_vis **)((uint8_t *)o + of_unit_vis); }
 // tile x (-10000: off the map)
-internal uint32_t of_unit_x;
 internal inline int unit_get_x(const ee_unit *o) { return *(int *)((uint8_t *)o + of_unit_x); }
 internal inline void unit_set_x(ee_unit *o, int v) { *(int *)((uint8_t *)o + of_unit_x) = v; }
 internal inline int *unit_x_at(const ee_unit *o) { return (int *)((uint8_t *)o + of_unit_x); }
 // tile y
-internal uint32_t of_unit_y;
 internal inline int unit_get_y(const ee_unit *o) { return *(int *)((uint8_t *)o + of_unit_y); }
 internal inline void unit_set_y(ee_unit *o, int v) { *(int *)((uint8_t *)o + of_unit_y) = v; }
 internal inline int *unit_y_at(const ee_unit *o) { return (int *)((uint8_t *)o + of_unit_y); }
-internal uint32_t of_unit_serial;
 internal inline int unit_get_serial(const ee_unit *o) { return *(int *)((uint8_t *)o + of_unit_serial); }
 internal inline void unit_set_serial(ee_unit *o, int v) { *(int *)((uint8_t *)o + of_unit_serial) = v; }
 internal inline int *unit_serial_at(const ee_unit *o) { return (int *)((uint8_t *)o + of_unit_serial); }
 // back in the pool (vf12 sets it)
-internal uint32_t of_unit_released;
 internal inline uint8_t unit_get_released(const ee_unit *o) { return *(uint8_t *)((uint8_t *)o + of_unit_released); }
 internal inline void unit_set_released(ee_unit *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_unit_released) = v; }
 internal inline uint8_t *unit_released_at(const ee_unit *o) { return (uint8_t *)((uint8_t *)o + of_unit_released); }
 // mIsValid
-internal uint32_t of_unit_valid;
 internal inline uint8_t unit_get_valid(const ee_unit *o) { return *(uint8_t *)((uint8_t *)o + of_unit_valid); }
 internal inline void unit_set_valid(ee_unit *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_unit_valid) = v; }
 internal inline uint8_t *unit_valid_at(const ee_unit *o) { return (uint8_t *)((uint8_t *)o + of_unit_valid); }
 // its owner
-internal uint32_t of_unit_owner;
 internal inline ee_player *unit_get_owner(const ee_unit *o) { return *(ee_player **)((uint8_t *)o + of_unit_owner); }
 internal inline void unit_set_owner(ee_unit *o, ee_player *v) { *(ee_player **)((uint8_t *)o + of_unit_owner) = v; }
 internal inline ee_player **unit_owner_at(const ee_unit *o) { return (ee_player **)((uint8_t *)o + of_unit_owner); }
 // the object freed: the release 0x4FCAD3 calls it when the last reference goes (RTSUnit::vf13 0x628D98 jumps
 // to the imported release, IAT_RELEASE)
 typedef void (__thiscall *unit_release_fn)(ee_unit *);
-internal uint32_t slot_unit_release;
 internal inline void unit_release(ee_unit *u) { ((unit_release_fn)(*(void ***)u)[slot_unit_release])(u); }
 
 // class EEUnit (ee_unit)
 // an ambient object or resource site (a tree, a gold mine); the base of every unit
-internal uint32_t vt_ee_unit;
-internal uint32_t size_ee_unit;
 // its type's data (TD)
-internal uint32_t of_unit_type_data;
 internal inline ee_unit_type *unit_get_type_data(const ee_unit *o) { return *(ee_unit_type **)((uint8_t *)o + of_unit_type_data); }
 internal inline void unit_set_type_data(ee_unit *o, ee_unit_type *v) { *(ee_unit_type **)((uint8_t *)o + of_unit_type_data) = v; }
 internal inline ee_unit_type **unit_type_data_at(const ee_unit *o) { return (ee_unit_type **)((uint8_t *)o + of_unit_type_data); }
 // (the game's dump: physics) - a unit too
-internal uint32_t of_unit_physics;
 internal inline ee_unit *unit_get_physics(const ee_unit *o) { return *(ee_unit **)((uint8_t *)o + of_unit_physics); }
 internal inline void unit_set_physics(ee_unit *o, ee_unit *v) { *(ee_unit **)((uint8_t *)o + of_unit_physics) = v; }
 internal inline ee_unit **unit_physics_at(const ee_unit *o) { return (ee_unit **)((uint8_t *)o + of_unit_physics); }
 // its player's stats of the type (USTAT)
-internal uint32_t of_unit_stats;
 internal inline ee_unit_stats *unit_get_stats(const ee_unit *o) { return *(ee_unit_stats **)((uint8_t *)o + of_unit_stats); }
 internal inline void unit_set_stats(ee_unit *o, ee_unit_stats *v) { *(ee_unit_stats **)((uint8_t *)o + of_unit_stats) = v; }
 internal inline ee_unit_stats **unit_stats_at(const ee_unit *o) { return (ee_unit_stats **)((uint8_t *)o + of_unit_stats); }
 // a resource site's resource
-internal uint32_t of_unit_resource;
 internal inline int unit_get_resource(const ee_unit *o) { return *(int *)((uint8_t *)o + of_unit_resource); }
 internal inline void unit_set_resource(ee_unit *o, int v) { *(int *)((uint8_t *)o + of_unit_resource) = v; }
 internal inline int *unit_resource_at(const ee_unit *o) { return (int *)((uint8_t *)o + of_unit_resource); }
 // hit points (> 0: alive)
-internal uint32_t of_unit_hp;
 internal inline int unit_get_hp(const ee_unit *o) { return *(int *)((uint8_t *)o + of_unit_hp); }
 internal inline void unit_set_hp(ee_unit *o, int v) { *(int *)((uint8_t *)o + of_unit_hp) = v; }
 internal inline int *unit_hp_at(const ee_unit *o) { return (int *)((uint8_t *)o + of_unit_hp); }
 // a resource site's amount left
-internal uint32_t of_unit_amount;
 internal inline int unit_get_amount(const ee_unit *o) { return *(int *)((uint8_t *)o + of_unit_amount); }
 internal inline void unit_set_amount(ee_unit *o, int v) { *(int *)((uint8_t *)o + of_unit_amount) = v; }
 internal inline int *unit_amount_at(const ee_unit *o) { return (int *)((uint8_t *)o + of_unit_amount); }
 // may unit enter the tile this object stands on (the path search's tile test 0x41D36A asks every object there):
 // EEUnit's by its type data (a flag +0x600, its family, +0x568 - AoC moved them all) and its hit points
 typedef int8_t (__thiscall *unit_lets_pass_fn)(ee_unit *, ee_unit *);
-internal uint32_t slot_unit_lets_pass;
 internal inline int8_t unit_lets_pass(ee_unit *u, ee_unit *unit) { return ((unit_lets_pass_fn)(*(void ***)u)[slot_unit_lets_pass])(u, unit); }
 internal unit_lets_pass_fn fn_ee_unit_lets_pass;
 internal inline int8_t ee_unit_lets_pass(ee_unit *u, ee_unit *unit) { return fn_ee_unit_lets_pass(u, unit); }
 // an attack's hit points (EEUnit::vf28 0x6172BC, the call 0x61E0B2), the attacker's player index, one 1; AoC put
 // a stub (ret 4) at 28
 typedef void (__thiscall *unit_damage_fn)(ee_unit *, ee_unit *, int, int, int);
-internal uint32_t slot_unit_damage;
 internal inline void unit_damage(ee_unit *u, ee_unit *attacker, int dmg, int player, int one) { ((unit_damage_fn)(*(void ***)u)[slot_unit_damage])(u, attacker, dmg, player, one); }
 // freed: its slot 12 (+0x30), its references 0, then deleted
 internal unit_release_fn fn_ee_unit_release;
@@ -107,156 +86,125 @@ internal inline void ee_unit_release(ee_unit *u) { fn_ee_unit_release(u); }
 
 // class EEComplexUnit (ee_unit)
 // a unit, building, ship or projectile: everything on the map that moves or is built
-internal uint32_t vt_ee_complex_unit;
-internal uint32_t size_ee_complex_unit;
 // a building's queue
-internal uint32_t of_unit_queue_begin;
 internal inline int *unit_get_queue_begin(const ee_unit *o) { return *(int **)((uint8_t *)o + of_unit_queue_begin); }
 internal inline void unit_set_queue_begin(ee_unit *o, int *v) { *(int **)((uint8_t *)o + of_unit_queue_begin) = v; }
 internal inline int **unit_queue_begin_at(const ee_unit *o) { return (int **)((uint8_t *)o + of_unit_queue_begin); }
 // (lookup 0x4111F6)
-internal uint32_t of_unit_id;
 internal inline int unit_get_id(const ee_unit *o) { return *(int *)((uint8_t *)o + of_unit_id); }
 internal inline void unit_set_id(ee_unit *o, int v) { *(int *)((uint8_t *)o + of_unit_id) = v; }
 internal inline int *unit_id_at(const ee_unit *o) { return (int *)((uint8_t *)o + of_unit_id); }
-internal uint32_t of_unit_busy;
 internal inline int unit_get_busy(const ee_unit *o) { return *(int *)((uint8_t *)o + of_unit_busy); }
 internal inline void unit_set_busy(ee_unit *o, int v) { *(int *)((uint8_t *)o + of_unit_busy) = v; }
 internal inline int *unit_busy_at(const ee_unit *o) { return (int *)((uint8_t *)o + of_unit_busy); }
 // radians/s, signed
 // the turn rate now (radians/s, signed) - FN_PM_COLLIDE in both builds, FN_TURN_DECIDE's caller
-internal uint32_t of_unit_turn_rate;
 internal inline float unit_get_turn_rate(const ee_unit *o) { return *(float *)((uint8_t *)o + of_unit_turn_rate); }
 internal inline void unit_set_turn_rate(ee_unit *o, float v) { *(float *)((uint8_t *)o + of_unit_turn_rate) = v; }
 internal inline float *unit_turn_rate_at(const ee_unit *o) { return (float *)((uint8_t *)o + of_unit_turn_rate); }
 // a projectile's: the attack's type data
-internal uint32_t of_unit_attacker_type;
 internal inline ee_unit_type *unit_get_attacker_type(const ee_unit *o) { return *(ee_unit_type **)((uint8_t *)o + of_unit_attacker_type); }
 internal inline void unit_set_attacker_type(ee_unit *o, ee_unit_type *v) { *(ee_unit_type **)((uint8_t *)o + of_unit_attacker_type) = v; }
 internal inline ee_unit_type **unit_attacker_type_at(const ee_unit *o) { return (ee_unit_type **)((uint8_t *)o + of_unit_attacker_type); }
-internal uint32_t of_unit_chain;
 internal inline ee_unit *unit_get_chain(const ee_unit *o) { return *(ee_unit **)((uint8_t *)o + of_unit_chain); }
 internal inline void unit_set_chain(ee_unit *o, ee_unit *v) { *(ee_unit **)((uint8_t *)o + of_unit_chain) = v; }
 internal inline ee_unit **unit_chain_at(const ee_unit *o) { return (ee_unit **)((uint8_t *)o + of_unit_chain); }
 // set while inside a transport or building (EEUCTransport::vf63: none may board)
-internal uint32_t of_unit_holder;
 internal inline void *unit_get_holder(const ee_unit *o) { return *(void **)((uint8_t *)o + of_unit_holder); }
 internal inline void unit_set_holder(ee_unit *o, void *v) { *(void **)((uint8_t *)o + of_unit_holder) = v; }
 internal inline void **unit_holder_at(const ee_unit *o) { return (void **)((uint8_t *)o + of_unit_holder); }
 // its script state (AISTATE)
-internal uint32_t of_unit_ai_state;
 internal inline ee_ai_state *unit_get_ai_state(const ee_unit *o) { return *(ee_ai_state **)((uint8_t *)o + of_unit_ai_state); }
 internal inline void unit_set_ai_state(ee_unit *o, ee_ai_state *v) { *(ee_ai_state **)((uint8_t *)o + of_unit_ai_state) = v; }
 internal inline ee_ai_state **unit_ai_state_at(const ee_unit *o) { return (ee_ai_state **)((uint8_t *)o + of_unit_ai_state); }
 // its goal (GOAL)
-internal uint32_t of_unit_goal;
 internal inline ee_goal *unit_get_goal(const ee_unit *o) { return *(ee_goal **)((uint8_t *)o + of_unit_goal); }
 internal inline void unit_set_goal(ee_unit *o, ee_goal *v) { *(ee_goal **)((uint8_t *)o + of_unit_goal) = v; }
 internal inline ee_goal **unit_goal_at(const ee_unit *o) { return (ee_goal **)((uint8_t *)o + of_unit_goal); }
 // the goal object (0x5ED24B casts it)
-internal uint32_t of_unit_goal_object;
 internal inline ee_goal *unit_get_goal_object(const ee_unit *o) { return *(ee_goal **)((uint8_t *)o + of_unit_goal_object); }
 internal inline void unit_set_goal_object(ee_unit *o, ee_goal *v) { *(ee_goal **)((uint8_t *)o + of_unit_goal_object) = v; }
 internal inline ee_goal **unit_goal_object_at(const ee_unit *o) { return (ee_goal **)((uint8_t *)o + of_unit_goal_object); }
 // its behaviour (behaviour_table())
-internal uint32_t of_unit_behaviour;
 internal inline void *unit_get_behaviour(const ee_unit *o) { return *(void **)((uint8_t *)o + of_unit_behaviour); }
 internal inline void unit_set_behaviour(ee_unit *o, void *v) { *(void **)((uint8_t *)o + of_unit_behaviour) = v; }
 internal inline void **unit_behaviour_at(const ee_unit *o) { return (void **)((uint8_t *)o + of_unit_behaviour); }
 // the push velocity (tiles/s)
 // the push velocity {x, y} (tiles/s; the collision test adds, SLOT_PM_PUSH moves the unit by it x a step x
 // G_PHYS_SUBSTEPS and zeroes it) - FN_PM_COLLIDE in both builds
-internal uint32_t of_unit_push;
 internal inline vec2 unit_get_push(const ee_unit *o) { return *(vec2 *)((uint8_t *)o + of_unit_push); }
 internal inline void unit_set_push(ee_unit *o, vec2 v) { *(vec2 *)((uint8_t *)o + of_unit_push) = v; }
 internal inline vec2 *unit_push_at(const ee_unit *o) { return (vec2 *)((uint8_t *)o + of_unit_push); }
 // what a building makes now
-internal uint32_t of_unit_producing;
 internal inline int unit_get_producing(const ee_unit *o) { return *(int *)((uint8_t *)o + of_unit_producing); }
 internal inline void unit_set_producing(ee_unit *o, int v) { *(int *)((uint8_t *)o + of_unit_producing) = v; }
 internal inline int *unit_producing_at(const ee_unit *o) { return (int *)((uint8_t *)o + of_unit_producing); }
 // the movement mode
 // the movement mode (0x549F82 picks the model's step by it; 2 no collisions) - the push (SLOT_PM_PUSH) sets an
 // idle unit's pushed walk (+0x260 13) only while it is neither 0 nor 5, in both builds
-internal uint32_t of_unit_move_mode;
 internal inline int unit_get_move_mode(const ee_unit *o) { return *(int *)((uint8_t *)o + of_unit_move_mode); }
 internal inline void unit_set_move_mode(ee_unit *o, int v) { *(int *)((uint8_t *)o + of_unit_move_mode) = v; }
 internal inline int *unit_move_mode_at(const ee_unit *o) { return (int *)((uint8_t *)o + of_unit_move_mode); }
 // a missile's climb left (ms)
-internal uint32_t of_unit_flight_ms;
 internal inline int unit_get_flight_ms(const ee_unit *o) { return *(int *)((uint8_t *)o + of_unit_flight_ms); }
 internal inline void unit_set_flight_ms(ee_unit *o, int v) { *(int *)((uint8_t *)o + of_unit_flight_ms) = v; }
 internal inline int *unit_flight_ms_at(const ee_unit *o) { return (int *)((uint8_t *)o + of_unit_flight_ms); }
 // its own reload (ms, 0: its class's)
-internal uint32_t of_unit_reload;
 internal inline int unit_get_reload(const ee_unit *o) { return *(int *)((uint8_t *)o + of_unit_reload); }
 internal inline void unit_set_reload(ee_unit *o, int v) { *(int *)((uint8_t *)o + of_unit_reload) = v; }
 internal inline int *unit_reload_at(const ee_unit *o) { return (int *)((uint8_t *)o + of_unit_reload); }
 // a transport's room left (EEUGLoadTransport::vf34; full below 1)
 // 2 votes, UNIT_RELOAD's shift
-internal uint32_t of_unit_room;
 internal inline int unit_get_room(const ee_unit *o) { return *(int *)((uint8_t *)o + of_unit_room); }
 internal inline void unit_set_room(ee_unit *o, int v) { *(int *)((uint8_t *)o + of_unit_room) = v; }
 internal inline int *unit_room_at(const ee_unit *o) { return (int *)((uint8_t *)o + of_unit_room); }
 // set while it moves
 // set while it moves (FN_PM_COLLIDE's first test in both builds)
-internal uint32_t of_unit_moving;
 internal inline int unit_get_moving(const ee_unit *o) { return *(int *)((uint8_t *)o + of_unit_moving); }
 internal inline void unit_set_moving(ee_unit *o, int v) { *(int *)((uint8_t *)o + of_unit_moving) = v; }
 internal inline int *unit_moving_at(const ee_unit *o) { return (int *)((uint8_t *)o + of_unit_moving); }
 // EEPMNaval::vf21's step test (0x550300 / AoC 0x55xxxx's read of +0x2E4) against TILE_SEA_CLASS
-internal uint32_t of_unit_sea_mode;
 internal inline int unit_get_sea_mode(const ee_unit *o) { return *(int *)((uint8_t *)o + of_unit_sea_mode); }
 internal inline void unit_set_sea_mode(ee_unit *o, int v) { *(int *)((uint8_t *)o + of_unit_sea_mode) = v; }
 internal inline int *unit_sea_mode_at(const ee_unit *o) { return (int *)((uint8_t *)o + of_unit_sea_mode); }
 // frozen (the scenario effect)
-internal uint32_t of_unit_frozen;
 internal inline uint8_t unit_get_frozen(const ee_unit *o) { return *(uint8_t *)((uint8_t *)o + of_unit_frozen); }
 internal inline void unit_set_frozen(ee_unit *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_unit_frozen) = v; }
 internal inline uint8_t *unit_frozen_at(const ee_unit *o) { return (uint8_t *)((uint8_t *)o + of_unit_frozen); }
 // on a building's +0x30: built
-internal uint32_t of_unit_finished;
 internal inline uint8_t unit_get_finished(const ee_unit *o) { return *(uint8_t *)((uint8_t *)o + of_unit_finished); }
 internal inline void unit_set_finished(ee_unit *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_unit_finished) = v; }
 internal inline uint8_t *unit_finished_at(const ee_unit *o) { return (uint8_t *)((uint8_t *)o + of_unit_finished); }
-internal uint32_t of_unit_ai_held;
 internal inline uint8_t unit_get_ai_held(const ee_unit *o) { return *(uint8_t *)((uint8_t *)o + of_unit_ai_held); }
 internal inline void unit_set_ai_held(ee_unit *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_unit_ai_held) = v; }
 internal inline uint8_t *unit_ai_held_at(const ee_unit *o) { return (uint8_t *)((uint8_t *)o + of_unit_ai_held); }
 // at work (the contact test passes it on a kind 6 / 4 goal)
 // set while at work (byte): the contact test passes a unit with it on a kind 6 or 4 goal, but for one at the same
 // work - in both builds' test
-internal uint32_t of_unit_at_work;
 internal inline uint8_t unit_get_at_work(const ee_unit *o) { return *(uint8_t *)((uint8_t *)o + of_unit_at_work); }
 internal inline void unit_set_at_work(ee_unit *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_unit_at_work) = v; }
 internal inline uint8_t *unit_at_work_at(const ee_unit *o) { return (uint8_t *)((uint8_t *)o + of_unit_at_work); }
 // its waypoints (20-byte points, 0xCC a block): the front the current one, the last the destination
-internal uint32_t of_unit_waypoints;
 internal inline uint8_t *unit_waypoints_at(const ee_unit *o) { return (uint8_t *)o + of_unit_waypoints; }
 // its waypoints left (the deque's size)
-internal uint32_t of_unit_waypoints_left;
 internal inline int unit_get_waypoints_left(const ee_unit *o) { return *(int *)((uint8_t *)o + of_unit_waypoints_left); }
 internal inline void unit_set_waypoints_left(ee_unit *o, int v) { *(int *)((uint8_t *)o + of_unit_waypoints_left) = v; }
 internal inline int *unit_waypoints_left_at(const ee_unit *o) { return (int *)((uint8_t *)o + of_unit_waypoints_left); }
 // its matrix (GETransformation, 3 x 4 floats by row): [1] [5] [9] the local y axis (facing), [3] [7] [11] the
 // position in tiles
-internal uint32_t of_unit_matrix;
 internal inline float unit_get_matrix(const ee_unit *o, int i) { return ((float *)((uint8_t *)o + of_unit_matrix))[i]; }
 internal inline void unit_set_matrix(ee_unit *o, int i, float v) { ((float *)((uint8_t *)o + of_unit_matrix))[i] = v; }
 internal inline float *unit_matrix_at(const ee_unit *o) { return (float *)((uint8_t *)o + of_unit_matrix); }
 // the speed, at least the type's minimum
-internal uint32_t of_unit_speed_min;
 internal inline float unit_get_speed_min(const ee_unit *o) { return *(float *)((uint8_t *)o + of_unit_speed_min); }
 internal inline void unit_set_speed_min(ee_unit *o, float v) { *(float *)((uint8_t *)o + of_unit_speed_min) = v; }
 internal inline float *unit_speed_min_at(const ee_unit *o) { return (float *)((uint8_t *)o + of_unit_speed_min); }
 // tiles/s (0 standing)
-internal uint32_t of_unit_speed;
 internal inline float unit_get_speed(const ee_unit *o) { return *(float *)((uint8_t *)o + of_unit_speed); }
 internal inline void unit_set_speed(ee_unit *o, float v) { *(float *)((uint8_t *)o + of_unit_speed) = v; }
 internal inline float *unit_speed_at(const ee_unit *o) { return (float *)((uint8_t *)o + of_unit_speed); }
 // the type's size (+0x474) x the unit's scale, in tiles - a diameter to the circle test (EEPhysicsModel::vf15), the
 // line's length to the ships' (EEPMNaval::vf16) - FN_PM_COLLIDE in both builds
-internal uint32_t of_unit_size;
 internal inline float unit_get_size(const ee_unit *o) { return *(float *)((uint8_t *)o + of_unit_size); }
 internal inline void unit_set_size(ee_unit *o, float v) { *(float *)((uint8_t *)o + of_unit_size) = v; }
 internal inline float *unit_size_at(const ee_unit *o) { return (float *)((uint8_t *)o + of_unit_size); }
@@ -280,13 +228,11 @@ internal inline void unit_add_waypoint(ee_unit *u, float *pt, int keep_edge) { f
 typedef void (__thiscall *unit_give_goal_fn)(ee_unit *, ee_goal *, int);
 internal unit_give_goal_fn fn_unit_give_goal;
 internal inline void unit_give_goal(ee_unit *u, ee_goal *goal, int slot) { fn_unit_give_goal(u, goal, slot); }
-internal uint32_t call_unload_retry_give;
 internal inline int patch_unload_retry_give(unit_give_goal_fn h) { return patch_call(call_unload_retry_give, (uintptr_t)fn_unit_give_goal, (void *)h); }
 // the goal as its order (append: after the ones it has)
 typedef void (__thiscall *unit_assign_goal_fn)(ee_unit *, ee_goal *, int8_t, int);
 internal unit_assign_goal_fn fn_unit_assign_goal;
 internal inline void unit_assign_goal(ee_unit *u, ee_goal *goal, int8_t append, int prio) { fn_unit_assign_goal(u, goal, append, prio); }
-internal uint32_t call_repair_goal;
 internal inline int patch_repair_goal(unit_assign_goal_fn h) { return patch_call(call_repair_goal, (uintptr_t)fn_unit_assign_goal, (void *)h); }
 // freed: its slot 12 (+0x30), its references 0, then back to the game's pool (0x5F20FB / AoC 0x60096B)
 internal unit_release_fn fn_ee_complex_unit_release;
@@ -299,42 +245,88 @@ internal inline int patch_unit_release(unit_release_fn h) { return patch_vtable(
 // caller's +0xE4 - callers 0x562D07, 0x64F72A (a tech's unit type) and the scenario's Move Unit effect
 // (EESEAMoveUnit::vf1) - what for (a placement preview?) not established. Its destructor 0x5F3DE5 tells 0x4CEEF4
 // (the player's index, the type id) unless +0x331 is set.
-internal uint32_t vt_ee_ghost_unit;
-internal uint32_t size_ee_ghost_unit;
 // the player it is for (its +0x45C, the index, read by the destructor)
-internal uint32_t of_ghost_unit_player;
 internal inline ee_player *ghost_unit_get_player(const ee_ghost_unit *o) { return *(ee_player **)((uint8_t *)o + of_ghost_unit_player); }
 internal inline void ghost_unit_set_player(ee_ghost_unit *o, ee_player *v) { *(ee_player **)((uint8_t *)o + of_ghost_unit_player) = v; }
 internal inline ee_player **ghost_unit_player_at(const ee_ghost_unit *o) { return (ee_player **)((uint8_t *)o + of_ghost_unit_player); }
 // its type's data (G_TYPES[type id])
-internal uint32_t of_ghost_unit_type_data;
 internal inline ee_unit_type *ghost_unit_get_type_data(const ee_ghost_unit *o) { return *(ee_unit_type **)((uint8_t *)o + of_ghost_unit_type_data); }
 internal inline void ghost_unit_set_type_data(ee_ghost_unit *o, ee_unit_type *v) { *(ee_unit_type **)((uint8_t *)o + of_ghost_unit_type_data) = v; }
 internal inline ee_unit_type **ghost_unit_type_data_at(const ee_ghost_unit *o) { return (ee_unit_type **)((uint8_t *)o + of_ghost_unit_type_data); }
 // set: the destructor doesn't tell 0x4CEEF4
-internal uint32_t of_ghost_unit_untold;
 internal inline uint8_t ghost_unit_get_untold(const ee_ghost_unit *o) { return *(uint8_t *)((uint8_t *)o + of_ghost_unit_untold); }
 internal inline void ghost_unit_set_untold(ee_ghost_unit *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_ghost_unit_untold) = v; }
 internal inline uint8_t *ghost_unit_untold_at(const ee_ghost_unit *o) { return (uint8_t *)((uint8_t *)o + of_ghost_unit_untold); }
 
 // static class unit
 // the game's functions on units that belong to no class: the unit an ordinary argument, all on the stack
+internal inline uint8_t *unit_call_node_del_1_at(void) { return (uint8_t *)(uintptr_t)data_unit_call_node_del_1; }
+internal inline uint8_t *unit_call_node_del_2_at(void) { return (uint8_t *)(uintptr_t)data_unit_call_node_del_2; }
+internal inline uint8_t *unit_fn_op_delete_at(void) { return (uint8_t *)(uintptr_t)data_unit_fn_op_delete; }
 // the aim of u's shot at target (0x633413: the shooter its first argument)
 typedef void (__cdecl *unit_aim_fn)(ee_unit *, ee_unit **, float *, void *);
 internal unit_aim_fn fn_unit_aim;
 internal inline void unit_aim(ee_unit *u, ee_unit **target, float *aim, void *zero) { fn_unit_aim(u, target, aim, zero); }
-internal uint32_t call_aim;
 internal inline int patch_aim(unit_aim_fn h) { return patch_call(call_aim, (uintptr_t)fn_unit_aim, (void *)h); }
-internal uint32_t call_missile_aim;
 internal inline int patch_missile_aim(unit_aim_fn h) { return patch_call(call_missile_aim, (uintptr_t)fn_unit_aim, (void *)h); }
 
 // class ee_ai_state (ee_ai_state)
 // a unit's script state, its +0x1E8 (a state of its .tai, engine-notes.md "Unit AI scripts")
 // the state's id, read by every condition through a unit's +0x1E8
-internal uint32_t of_ai_state_id;
 internal inline uint32_t ai_state_get_id(const ee_ai_state *o) { return *(uint32_t *)((uint8_t *)o + of_ai_state_id); }
 internal inline void ai_state_set_id(ee_ai_state *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ai_state_id) = v; }
 internal inline uint32_t *ai_state_id_at(const ee_ai_state *o) { return (uint32_t *)((uint8_t *)o + of_ai_state_id); }
+
+// static class unit_functions
+// the game's functions unit.c wraps, by the names the C side gives them
+typedef char (__cdecl *ballistic_game_fn)(ee_unit *, ee_unit_stats *, float *, float *, float *);
+internal ballistic_game_fn fn_ballistic_game;
+internal inline char ballistic_game(ee_unit *p1, ee_unit_stats *p2, float *p3, float *p4, float *p5) { return fn_ballistic_game(p1, p2, p3, p4, p5); }
+// thiscall(unit): drops its current waypoint (the deque's front; GetNextMoveWaypoint); 0, or 7 with none
+typedef int (__thiscall *unit_pop_waypoint_fn)(ee_unit *);
+internal unit_pop_waypoint_fn fn_unit_pop_waypoint;
+internal inline int unit_pop_waypoint(ee_unit *u) { return fn_unit_pop_waypoint(u); }
+typedef uint32_t (__thiscall *site_gatherers_game_fn)(void *, void *);
+internal site_gatherers_game_fn fn_site_gatherers_game;
+internal inline uint32_t site_gatherers_game(void *p1, void *p2) { return fn_site_gatherers_game(p1, p2); }
+// units aboard a transport or inside a building
+typedef int (__thiscall *units_inside_fn)(ee_unit *);
+internal units_inside_fn fn_units_inside;
+internal inline int units_inside(ee_unit *u) { return fn_units_inside(u); }
+// thiscall(unit): its acceleration (stats +0xA8; its group's with the group speed on)
+typedef float (__thiscall *unit_accel_fn)(ee_unit *);
+internal unit_accel_fn fn_unit_accel;
+internal inline float unit_accel(ee_unit *u) { return fn_unit_accel(u); }
+// cdecl(unit, player index, new type data)
+typedef int (__cdecl *unit_convert_fn)(ee_unit *, int, ee_unit_type *);
+internal unit_convert_fn fn_unit_convert;
+internal inline int unit_convert(ee_unit *u, int pi, ee_unit_type *new_td) { return fn_unit_convert(u, pi, new_td); }
+// cdecl(unit, other)
+typedef float (__cdecl *unit_distance_fn)(ee_unit *, ee_unit *);
+internal unit_distance_fn fn_unit_distance;
+internal inline float unit_distance(ee_unit *a, ee_unit *b) { return fn_unit_distance(a, b); }
+// thiscall(unit, slot): the slot's goal queue (unit +0x94 a vector of 0x28-byte slots; +4 a deque of goal
+// pointers: +4 block map, +8 its size, +0xC the front's index, +0x10 the count; 0x400 a block) - slot 0 the
+// orders, the front the current, shift appends
+typedef void *(__thiscall *unit_goal_queue_fn)(void *, int);
+internal unit_goal_queue_fn fn_unit_goal_queue;
+internal inline void *unit_goal_queue(void *p1, int p2) { return fn_unit_goal_queue(p1, p2); }
+// thiscall(unit): its top turn rate (radians/s, stats +0xB4; its group's with the group speed on)
+typedef float (__thiscall *unit_max_turn_fn)(ee_unit *);
+internal unit_max_turn_fn fn_unit_max_turn;
+internal inline float unit_max_turn(ee_unit *u) { return fn_unit_max_turn(u); }
+// thiscall(unit, 0x1F51) - as the assignment does after the order
+typedef void (__thiscall *unit_set_state_fn)(ee_unit *, int);
+internal unit_set_state_fn fn_unit_set_state;
+internal inline void unit_set_state(ee_unit *u, int state) { fn_unit_set_state(u, state); }
+// radians/s per s
+// thiscall(unit): its turn acceleration (radians/s per s, stats +0xB0; its group's with the group speed on)
+typedef float (__thiscall *unit_turn_accel_fn)(ee_unit *);
+internal unit_turn_accel_fn fn_unit_turn_accel;
+internal inline float unit_turn_accel(ee_unit *u) { return fn_unit_turn_accel(u); }
+typedef void (__thiscall *unit_unlink_fn)(ee_unit *);
+internal unit_unlink_fn fn_unit_unlink;
+internal inline void unit_unlink(ee_unit *u) { fn_unit_unlink(u); }
 
 // the running build's values (spec_select, with addr_select): how many it hasn't got
 internal int spec_unit_select(int build) {
@@ -408,10 +400,25 @@ internal int spec_unit_select(int build) {
         of_ghost_unit_player = 0x294;
         of_ghost_unit_type_data = 0x298;
         of_ghost_unit_untold = 0x331;
+        data_unit_call_node_del_1 = 0x00628BE7;
+        data_unit_call_node_del_2 = 0x00628B7F;
+        data_unit_fn_op_delete = 0x006836F0;
         fn_unit_aim = (unit_aim_fn)0x00633413;
         call_aim = 0x0061E1D7;
         call_missile_aim = 0x0054E850;
         of_ai_state_id = 0x24;
+        fn_ballistic_game = (ballistic_game_fn)0x0062CBB3;
+        fn_unit_pop_waypoint = (unit_pop_waypoint_fn)0x005EDCF4;
+        fn_site_gatherers_game = (site_gatherers_game_fn)0x0052E5F7;
+        fn_units_inside = (units_inside_fn)0x0042E347;
+        fn_unit_accel = (unit_accel_fn)0x0054A4CA;
+        fn_unit_convert = (unit_convert_fn)0x0062F192;
+        fn_unit_distance = (unit_distance_fn)0x0062D5A4;
+        fn_unit_goal_queue = (unit_goal_queue_fn)0x005F3473;
+        fn_unit_max_turn = (unit_max_turn_fn)0x0054A4E7;
+        fn_unit_set_state = (unit_set_state_fn)0x005EFCF0;
+        fn_unit_turn_accel = (unit_turn_accel_fn)0x0054A504;
+        fn_unit_unlink = (unit_unlink_fn)0x00628E29;
         return 0;
     case 1:   // aoc
         size_rts_unit = 0x2C;
@@ -482,10 +489,25 @@ internal int spec_unit_select(int build) {
         of_ghost_unit_player = 0x294;
         of_ghost_unit_type_data = 0x298;
         of_ghost_unit_untold = 0x331;
+        data_unit_call_node_del_1 = 0x0063D998;
+        data_unit_call_node_del_2 = 0x0063D930;
+        data_unit_fn_op_delete = 0x0069D150;
         fn_unit_aim = (unit_aim_fn)0x0064939D;
         call_aim = 0x006313D6;
         call_missile_aim = 0x0055B1C3;
         of_ai_state_id = 0x24;
+        fn_ballistic_game = (ballistic_game_fn)0x00641A6A;
+        fn_unit_pop_waypoint = (unit_pop_waypoint_fn)0x005FBDD1;
+        fn_site_gatherers_game = (site_gatherers_game_fn)0x00539532;
+        fn_units_inside = (units_inside_fn)0x0040D5C5;
+        fn_unit_accel = (unit_accel_fn)0x00554C95;
+        fn_unit_convert = (unit_convert_fn)0x00644E95;
+        fn_unit_distance = (unit_distance_fn)0x00642489;
+        fn_unit_goal_queue = (unit_goal_queue_fn)0x005FA1CD;
+        fn_unit_max_turn = (unit_max_turn_fn)0x0055463E;
+        fn_unit_set_state = (unit_set_state_fn)0x005FDFA5;
+        fn_unit_turn_accel = (unit_turn_accel_fn)0x0055465B;
+        fn_unit_unlink = (unit_unlink_fn)0x0063DBDA;
         return 0;
     }
     return 0;

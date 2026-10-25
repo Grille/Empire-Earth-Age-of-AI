@@ -43,8 +43,14 @@ public struct vector { }   // std::vector: begin, end, capacity end
 // a structure inside an object whose parts are plain numbers from its start (the code adds them: the matrix's,
 // a list's begin and end) - its address only
 public struct block { }
+// a place in the game's code (a call, an operand, a jump the mod patches): its address only
+public struct code { }
 
 // VALUES OF MORE THAN ONE NUMBER: their C types (base/), read and written whole
 [c_type("vec2")] public struct vec2 { float32 x, y; }
 [c_type("vec3")] public struct vec3 { float32 x, y, z; }
 [c_type("ivec2")] public struct ivec2 { int32 x, y; }
+// the game's string (UString) by value, as some of its functions take it: 16 bytes (types.h)
+[c_type("struct ustring")] public struct ustring { }
+// a string the game only reads (C's const char *)
+[c_type("const char *")] public struct cstr { }

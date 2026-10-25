@@ -3,22 +3,17 @@
 
 // class EEMInGameChat (ee_msg)
 // the in-game chat message (EEMInGameChat)
-internal uint32_t of_chat_msg_from;
 internal inline uint8_t chat_msg_get_from(const ee_msg *o) { return *(uint8_t *)((uint8_t *)o + of_chat_msg_from); }
 internal inline void chat_msg_set_from(ee_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_chat_msg_from) = v; }
 internal inline uint8_t *chat_msg_from_at(const ee_msg *o) { return (uint8_t *)((uint8_t *)o + of_chat_msg_from); }
-internal uint32_t of_chat_msg_text;
 internal inline uint8_t *chat_msg_text_at(const ee_msg *o) { return (uint8_t *)o + of_chat_msg_text; }
 
 // class EEMSelectUnits (ee_msg)
 // the select message (EEMSelectUnits)
-internal uint32_t of_select_msg_selection;
 internal inline uint8_t *select_msg_selection_at(const ee_msg *o) { return (uint8_t *)o + of_select_msg_selection; }
-internal uint32_t of_select_msg_ids_begin;
 internal inline uint32_t *select_msg_get_ids_begin(const ee_msg *o) { return *(uint32_t **)((uint8_t *)o + of_select_msg_ids_begin); }
 internal inline void select_msg_set_ids_begin(ee_msg *o, uint32_t *v) { *(uint32_t **)((uint8_t *)o + of_select_msg_ids_begin) = v; }
 internal inline uint32_t **select_msg_ids_begin_at(const ee_msg *o) { return (uint32_t **)((uint8_t *)o + of_select_msg_ids_begin); }
-internal uint32_t of_select_msg_flag;
 internal inline uint8_t select_msg_get_flag(const ee_msg *o) { return *(uint8_t *)((uint8_t *)o + of_select_msg_flag); }
 internal inline void select_msg_set_flag(ee_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_select_msg_flag) = v; }
 internal inline uint8_t *select_msg_flag_at(const ee_msg *o) { return (uint8_t *)((uint8_t *)o + of_select_msg_flag); }
@@ -26,12 +21,10 @@ internal inline uint8_t *select_msg_flag_at(const ee_msg *o) { return (uint8_t *
 // class EEMLoadTransport (ee_msg)
 // the load-into-a-transport message (EEMLoadTransport)
 // its Execute's reads (both builds)
-internal uint32_t of_load_msg_transport;
 internal inline uint32_t load_msg_get_transport(const ee_msg *o) { return *(uint32_t *)((uint8_t *)o + of_load_msg_transport); }
 internal inline void load_msg_set_transport(ee_msg *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_load_msg_transport) = v; }
 internal inline uint32_t *load_msg_transport_at(const ee_msg *o) { return (uint32_t *)((uint8_t *)o + of_load_msg_transport); }
 // its Execute's reads (both builds)
-internal uint32_t of_load_msg_unit;
 internal inline int load_msg_get_unit(const ee_msg *o) { return *(int *)((uint8_t *)o + of_load_msg_unit); }
 internal inline void load_msg_set_unit(ee_msg *o, int v) { *(int *)((uint8_t *)o + of_load_msg_unit) = v; }
 internal inline int *load_msg_unit_at(const ee_msg *o) { return (int *)((uint8_t *)o + of_load_msg_unit); }
@@ -39,67 +32,54 @@ internal inline int *load_msg_unit_at(const ee_msg *o) { return (int *)((uint8_t
 // class EEMPathTo (ee_msg)
 // the move message (EEMPathTo)
 // its Execute's reads (both builds)
-internal uint32_t of_path_msg_x;
 internal inline float path_msg_get_x(const ee_msg *o) { return *(float *)((uint8_t *)o + of_path_msg_x); }
 internal inline void path_msg_set_x(ee_msg *o, float v) { *(float *)((uint8_t *)o + of_path_msg_x) = v; }
 internal inline float *path_msg_x_at(const ee_msg *o) { return (float *)((uint8_t *)o + of_path_msg_x); }
 // its Execute's reads (both builds)
-internal uint32_t of_path_msg_y;
 internal inline float path_msg_get_y(const ee_msg *o) { return *(float *)((uint8_t *)o + of_path_msg_y); }
 internal inline void path_msg_set_y(ee_msg *o, float v) { *(float *)((uint8_t *)o + of_path_msg_y) = v; }
 internal inline float *path_msg_y_at(const ee_msg *o) { return (float *)((uint8_t *)o + of_path_msg_y); }
 // its Execute's reads (both builds) - the move goal's +0x30
-internal uint32_t of_path_msg_goal_30;
 internal inline uint8_t path_msg_get_goal_30(const ee_msg *o) { return *(uint8_t *)((uint8_t *)o + of_path_msg_goal_30); }
 internal inline void path_msg_set_goal_30(ee_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_path_msg_goal_30) = v; }
 internal inline uint8_t *path_msg_goal_30_at(const ee_msg *o) { return (uint8_t *)((uint8_t *)o + of_path_msg_goal_30); }
 // its Execute's reads (both builds) - the move goal's +0x31
-internal uint32_t of_path_msg_goal_31;
 internal inline uint8_t path_msg_get_goal_31(const ee_msg *o) { return *(uint8_t *)((uint8_t *)o + of_path_msg_goal_31); }
 internal inline void path_msg_set_goal_31(ee_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_path_msg_goal_31) = v; }
 internal inline uint8_t *path_msg_goal_31_at(const ee_msg *o) { return (uint8_t *)((uint8_t *)o + of_path_msg_goal_31); }
 // its Execute's reads (both builds: the hand-out 0x5DD436 / AoC 0x5EDC93) - shift held: the goal queued after the
 // unit's others
-internal uint32_t of_path_msg_queued;
 internal inline uint8_t path_msg_get_queued(const ee_msg *o) { return *(uint8_t *)((uint8_t *)o + of_path_msg_queued); }
 internal inline void path_msg_set_queued(ee_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_path_msg_queued) = v; }
 internal inline uint8_t *path_msg_queued_at(const ee_msg *o) { return (uint8_t *)((uint8_t *)o + of_path_msg_queued); }
 // its Execute's reads (both builds) - the move goal's +0x33
-internal uint32_t of_path_msg_together;
 internal inline uint8_t path_msg_get_together(const ee_msg *o) { return *(uint8_t *)((uint8_t *)o + of_path_msg_together); }
 internal inline void path_msg_set_together(ee_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_path_msg_together) = v; }
 internal inline uint8_t *path_msg_together_at(const ee_msg *o) { return (uint8_t *)((uint8_t *)o + of_path_msg_together); }
 
 // class EEMStartLoading (ee_msg)
 // the game start message (EEMStartLoading)
-internal uint32_t of_start_msg_seed;
 internal inline uint32_t start_msg_get_seed(const ee_msg *o) { return *(uint32_t *)((uint8_t *)o + of_start_msg_seed); }
 internal inline void start_msg_set_seed(ee_msg *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_start_msg_seed) = v; }
 internal inline uint32_t *start_msg_seed_at(const ee_msg *o) { return (uint32_t *)((uint8_t *)o + of_start_msg_seed); }
 
 // class EEMPayTribute (ee_msg)
 // the tribute message (EEMPayTribute)
-internal uint32_t of_tribute_food;
 internal inline int tribute_get_food(const ee_msg *o) { return *(int *)((uint8_t *)o + of_tribute_food); }
 internal inline void tribute_set_food(ee_msg *o, int v) { *(int *)((uint8_t *)o + of_tribute_food) = v; }
 internal inline int *tribute_food_at(const ee_msg *o) { return (int *)((uint8_t *)o + of_tribute_food); }
-internal uint32_t of_tribute_gold;
 internal inline int tribute_get_gold(const ee_msg *o) { return *(int *)((uint8_t *)o + of_tribute_gold); }
 internal inline void tribute_set_gold(ee_msg *o, int v) { *(int *)((uint8_t *)o + of_tribute_gold) = v; }
 internal inline int *tribute_gold_at(const ee_msg *o) { return (int *)((uint8_t *)o + of_tribute_gold); }
-internal uint32_t of_tribute_iron;
 internal inline int tribute_get_iron(const ee_msg *o) { return *(int *)((uint8_t *)o + of_tribute_iron); }
 internal inline void tribute_set_iron(ee_msg *o, int v) { *(int *)((uint8_t *)o + of_tribute_iron) = v; }
 internal inline int *tribute_iron_at(const ee_msg *o) { return (int *)((uint8_t *)o + of_tribute_iron); }
-internal uint32_t of_tribute_stone;
 internal inline int tribute_get_stone(const ee_msg *o) { return *(int *)((uint8_t *)o + of_tribute_stone); }
 internal inline void tribute_set_stone(ee_msg *o, int v) { *(int *)((uint8_t *)o + of_tribute_stone) = v; }
 internal inline int *tribute_stone_at(const ee_msg *o) { return (int *)((uint8_t *)o + of_tribute_stone); }
-internal uint32_t of_tribute_wood;
 internal inline int tribute_get_wood(const ee_msg *o) { return *(int *)((uint8_t *)o + of_tribute_wood); }
 internal inline void tribute_set_wood(ee_msg *o, int v) { *(int *)((uint8_t *)o + of_tribute_wood) = v; }
 internal inline int *tribute_wood_at(const ee_msg *o) { return (int *)((uint8_t *)o + of_tribute_wood); }
-internal uint32_t of_tribute_to;
 internal inline uint8_t tribute_get_to(const ee_msg *o) { return *(uint8_t *)((uint8_t *)o + of_tribute_to); }
 internal inline void tribute_set_to(ee_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_tribute_to) = v; }
 internal inline uint8_t *tribute_to_at(const ee_msg *o) { return (uint8_t *)((uint8_t *)o + of_tribute_to); }
@@ -107,12 +87,10 @@ internal inline uint8_t *tribute_to_at(const ee_msg *o) { return (uint8_t *)((ui
 // class EEMUnloadTransport (ee_msg)
 // the unload message (EEMUnloadTransport)
 // its Execute's reads (both builds)
-internal uint32_t of_unload_msg_x;
 internal inline int unload_msg_get_x(const ee_msg *o) { return *(int *)((uint8_t *)o + of_unload_msg_x); }
 internal inline void unload_msg_set_x(ee_msg *o, int v) { *(int *)((uint8_t *)o + of_unload_msg_x) = v; }
 internal inline int *unload_msg_x_at(const ee_msg *o) { return (int *)((uint8_t *)o + of_unload_msg_x); }
 // its Execute's reads (both builds)
-internal uint32_t of_unload_msg_y;
 internal inline int unload_msg_get_y(const ee_msg *o) { return *(int *)((uint8_t *)o + of_unload_msg_y); }
 internal inline void unload_msg_set_y(ee_msg *o, int v) { *(int *)((uint8_t *)o + of_unload_msg_y) = v; }
 internal inline int *unload_msg_y_at(const ee_msg *o) { return (int *)((uint8_t *)o + of_unload_msg_y); }
@@ -120,33 +98,82 @@ internal inline int *unload_msg_y_at(const ee_msg *o) { return (int *)((uint8_t 
 // class EEServer (ee_server)
 // the lockstep server or client, [G_SERVER] (EEServer, EEClient)
 // / +0x190 sent / done
-internal uint32_t of_server_sent;
 internal inline uint32_t server_get_sent(const ee_server *o) { return *(uint32_t *)((uint8_t *)o + of_server_sent); }
 internal inline void server_set_sent(ee_server *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_server_sent) = v; }
 internal inline uint32_t *server_sent_at(const ee_server *o) { return (uint32_t *)((uint8_t *)o + of_server_sent); }
 // messages waiting
 // the next tick's messages, NESynchronousServer (port_dll.py)
-internal uint32_t of_server_waiting;
 internal inline uint8_t *server_waiting_at(const ee_server *o) { return (uint8_t *)o + of_server_waiting; }
-internal uint32_t of_server_done;
 internal inline uint32_t server_get_done(const ee_server *o) { return *(uint32_t *)((uint8_t *)o + of_server_done); }
 internal inline void server_set_done(ee_server *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_server_done) = v; }
 internal inline uint32_t *server_done_at(const ee_server *o) { return (uint32_t *)((uint8_t *)o + of_server_done); }
 // NESynchronousServer::TuneForSlowCPU (port_dll.py)
-internal uint32_t of_server_rate_max;
 internal inline uint32_t server_get_rate_max(const ee_server *o) { return *(uint32_t *)((uint8_t *)o + of_server_rate_max); }
 internal inline void server_set_rate_max(ee_server *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_server_rate_max) = v; }
 internal inline uint32_t *server_rate_max_at(const ee_server *o) { return (uint32_t *)((uint8_t *)o + of_server_rate_max); }
 // NESynchronousServer::TuneForSlowCPU (port_dll.py)
-internal uint32_t of_server_rate_min;
 internal inline uint32_t server_get_rate_min(const ee_server *o) { return *(uint32_t *)((uint8_t *)o + of_server_rate_min); }
 internal inline void server_set_rate_min(ee_server *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_server_rate_min) = v; }
 internal inline uint32_t *server_rate_min_at(const ee_server *o) { return (uint32_t *)((uint8_t *)o + of_server_rate_min); }
 // NESynchronousServer::TuneForSlowCPU (port_dll.py)
-internal uint32_t of_server_rate;
 internal inline uint8_t server_get_rate(const ee_server *o) { return *(uint8_t *)((uint8_t *)o + of_server_rate); }
 internal inline void server_set_rate(ee_server *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_server_rate) = v; }
 internal inline uint8_t *server_rate_at(const ee_server *o) { return (uint8_t *)((uint8_t *)o + of_server_rate); }
+
+// static class messages
+// messages's data of the game, places in its code and numbers (raw/'s address rows)
+internal inline uint8_t *messages_call_sel_pack_at(void) { return (uint8_t *)(uintptr_t)data_messages_call_sel_pack; }
+// FN_CHEAT_MSG_CTOR
+// FN_CHAT_MSG_CTOR
+// VT_PAY_TRIBUTE, VT_INGAME_CHAT, VT_RESIGN, VT_MSG_LOAD, VT_MSG_UNLOAD: the message's Execute
+// [G_SERVER] (EEServer, EEClient): thiscall(net, message, 0xFF)
+internal inline uint8_t *messages_start_vtbl_exec_at(void) { return (uint8_t *)(uintptr_t)data_messages_start_vtbl_exec; }
+internal inline uint8_t *messages_vt_ingame_chat_at(void) { return (uint8_t *)(uintptr_t)data_messages_vt_ingame_chat; }
+// EEMLoadTransport
+internal inline uint8_t *messages_vt_msg_load_at(void) { return (uint8_t *)(uintptr_t)data_messages_vt_msg_load; }
+// EEMUnloadTransport
+internal inline uint8_t *messages_vt_msg_unload_at(void) { return (uint8_t *)(uintptr_t)data_messages_vt_msg_unload; }
+internal inline uint8_t *messages_vt_pay_tribute_at(void) { return (uint8_t *)(uintptr_t)data_messages_vt_pay_tribute; }
+internal inline uint8_t *messages_vt_resign_at(void) { return (uint8_t *)(uintptr_t)data_messages_vt_resign; }
+
+// static class messages_functions
+// the game's functions messages.c wraps, by the names the C side gives them
+// new 0x24; (UWideString *)
+typedef void *(__thiscall *msg_chat_init_fn)(void *, void *);
+internal msg_chat_init_fn fn_msg_chat_init;
+internal inline void *msg_chat_init(void *mem, void *wide_text) { return fn_msg_chat_init(mem, wide_text); }
+// new 0x18; (code, arg)
+typedef void *(__thiscall *msg_cheat_init_fn)(void *, int, int);
+internal msg_cheat_init_fn fn_msg_cheat_init;
+internal inline void *msg_cheat_init(void *mem, int code, int arg) { return fn_msg_cheat_init(mem, code, arg); }
+typedef void (__thiscall *msg_ingame_chat_fn)(ee_msg *);
+internal msg_ingame_chat_fn fn_msg_ingame_chat;
+internal inline void msg_ingame_chat(ee_msg *msg) { fn_msg_ingame_chat(msg); }
+// EEMLoadTransport's Execute
+typedef void (__thiscall *msg_load_fn)(ee_msg *);
+internal msg_load_fn fn_msg_load;
+internal inline void msg_load(ee_msg *msg) { fn_msg_load(msg); }
+// EEMPathTo's Execute
+typedef void (__thiscall *msg_path_fn)(ee_msg *);
+internal msg_path_fn fn_msg_path;
+internal inline void msg_path(ee_msg *msg) { fn_msg_path(msg); }
+// EEMUnloadTransport's Execute
+typedef void (__thiscall *msg_unload_fn)(ee_msg *);
+internal msg_unload_fn fn_msg_unload;
+internal inline void msg_unload(ee_msg *msg) { fn_msg_unload(msg); }
+typedef void (__thiscall *msg_pay_tribute_fn)(ee_msg *);
+internal msg_pay_tribute_fn fn_msg_pay_tribute;
+internal inline void msg_pay_tribute(ee_msg *msg) { fn_msg_pay_tribute(msg); }
+typedef void (__thiscall *msg_resign_fn)(ee_msg *);
+internal msg_resign_fn fn_msg_resign;
+internal inline void msg_resign(ee_msg *msg) { fn_msg_resign(msg); }
+// EEMSelectUnits: thiscall(msg, rect, type, 0x4E)
+typedef void (__thiscall *select_msg_init_fn)(void *, float *, int, int);
+internal select_msg_init_fn fn_select_msg_init;
+internal inline void select_msg_init(void *msg, float *rect, int type, int flags) { fn_select_msg_init(msg, rect, type, flags); }
+typedef uint32_t (__cdecl *sel_pack_fn)(uint8_t *, uint32_t, uint8_t *);
+internal sel_pack_fn fn_sel_pack;
+internal inline uint32_t sel_pack(uint8_t *list, uint32_t player_byte, uint8_t *out) { return fn_sel_pack(list, player_byte, out); }
 
 // the running build's values (spec_select, with addr_select): how many it hasn't got
 internal int spec_messages_select(int build) {
@@ -180,6 +207,27 @@ internal int spec_messages_select(int build) {
         of_server_rate_max = 0x1B4;
         of_server_rate_min = 0x1B8;
         of_server_rate = 0x1FB;
+        data_messages_call_sel_pack = 0x004BD133;
+        value_messages_size_cheat_msg = 24;
+        value_messages_size_msg_chat = 36;
+        value_messages_slot_msg_execute = 10;
+        value_messages_slot_server_send = 6;
+        data_messages_start_vtbl_exec = 0x008285D8;
+        data_messages_vt_ingame_chat = 0x0082936C;
+        data_messages_vt_msg_load = 0x00824E00;
+        data_messages_vt_msg_unload = 0x00828AC4;
+        data_messages_vt_pay_tribute = 0x008289C0;
+        data_messages_vt_resign = 0x00828820;
+        fn_msg_chat_init = (msg_chat_init_fn)0x005C2A2F;
+        fn_msg_cheat_init = (msg_cheat_init_fn)0x005C29FB;
+        fn_msg_ingame_chat = (msg_ingame_chat_fn)0x004B78C7;
+        fn_msg_load = (msg_load_fn)0x004B9446;
+        fn_msg_path = (msg_path_fn)0x004B9D7B;
+        fn_msg_unload = (msg_unload_fn)0x004BF756;
+        fn_msg_pay_tribute = (msg_pay_tribute_fn)0x004BA6BE;
+        fn_msg_resign = (msg_resign_fn)0x004BB906;
+        fn_select_msg_init = (select_msg_init_fn)0x004BD072;
+        fn_sel_pack = (sel_pack_fn)0x004BD15A;
         return 0;
     case 1:   // aoc
         of_chat_msg_from = 0xA;
@@ -210,6 +258,27 @@ internal int spec_messages_select(int build) {
         of_server_rate_max = 0x1B4;
         of_server_rate_min = 0x1B8;
         of_server_rate = 0x1FB;
+        data_messages_call_sel_pack = 0x004C5E40;
+        value_messages_size_cheat_msg = 24;
+        value_messages_size_msg_chat = 36;
+        value_messages_slot_msg_execute = 10;
+        value_messages_slot_server_send = 6;
+        data_messages_start_vtbl_exec = 0x0083D2A0;
+        data_messages_vt_ingame_chat = 0x0083E0BC;
+        data_messages_vt_msg_load = 0x00838DDC;
+        data_messages_vt_msg_unload = 0x0083D78C;
+        data_messages_vt_pay_tribute = 0x0083D688;
+        data_messages_vt_resign = 0x0083D4E8;
+        fn_msg_chat_init = (msg_chat_init_fn)0x005D3196;
+        fn_msg_cheat_init = (msg_cheat_init_fn)0x005D3162;
+        fn_msg_ingame_chat = (msg_ingame_chat_fn)0x004BFDD2;
+        fn_msg_load = (msg_load_fn)0x004C1B79;
+        fn_msg_path = (msg_path_fn)0x004C281C;
+        fn_msg_unload = (msg_unload_fn)0x004C8615;
+        fn_msg_pay_tribute = (msg_pay_tribute_fn)0x004C315B;
+        fn_msg_resign = (msg_resign_fn)0x004C44BB;
+        fn_select_msg_init = (select_msg_init_fn)0x004C5D7F;
+        fn_sel_pack = (sel_pack_fn)0x004C5E67;
         return 0;
     }
     return 0;

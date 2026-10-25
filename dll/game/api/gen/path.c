@@ -4,17 +4,41 @@
 // class ee_unit_list (void)
 // a cluster of a group's units (FN_GROUP_SECTOR_ROUTE's units)
 // FN_GROUP_SECTOR_ROUTE's reads (both builds): a vector of ee_unit * (begin, end +4)
-internal uint32_t of_unit_list_units;
 internal inline uint8_t *unit_list_units_at(const void *o) { return (uint8_t *)o + of_unit_list_units; }
+
+// static class path
+// path's data of the game, places in its code and numbers (raw/'s address rows)
+// EEActiveGroup::vf16's call of FN_GROUP_SECTOR_ROUTE, for each cluster of the group
+internal inline uint8_t *path_call_group_sector_route_at(void) { return (uint8_t *)(uintptr_t)data_path_call_group_sector_route; }
+
+// static class path_functions
+// the game's functions path.c wraps, by the names the C side gives them
+// thiscall(group, int from[2], int to[2], units): a sector route for a cluster of a group's units, each given
+// its chain of auto-waypoint goals
+typedef void (__thiscall *group_sector_route_fn)(void *, int *, int *, void *);
+internal group_sector_route_fn fn_group_sector_route;
+internal inline void group_sector_route(void *group, int *from, int *to, void *units) { fn_group_sector_route(group, from, to, units); }
+// the path manager's route request: thiscall(mgr, unit, from tile, to tile, sync, node limit, use sectors, ctx),
+// ret 0x1C (AoC: an 8th argument, ret 0x20 - its continent routing; port_addrs 69%) - PrepareToMove's
+// (0x6224D0), a sector route's first leg, the re-path of all
+typedef void (__thiscall *path_request_game_fn)(void *, void *, int *, int *, int, int, int, void *);
+internal path_request_game_fn fn_path_request_game;
+internal inline void path_request_game(void *p1, void *p2, int *p3, int *p4, int p5, int p6, int p7, void *p8) { fn_path_request_game(p1, p2, p3, p4, p5, p6, p7, p8); }
 
 // the running build's values (spec_select, with addr_select): how many it hasn't got
 internal int spec_path_select(int build) {
     switch (build) {
     case 0:   // ee
         of_unit_list_units = 0x4;
+        data_path_call_group_sector_route = 0x005DB5C8;
+        fn_group_sector_route = (group_sector_route_fn)0x005F670A;
+        fn_path_request_game = (path_request_game_fn)0x004A1AFF;
         return 0;
     case 1:   // aoc
         of_unit_list_units = 0x4;
+        data_path_call_group_sector_route = 0x005EBF0C;
+        fn_group_sector_route = (group_sector_route_fn)0x00606581;
+        fn_path_request_game = (path_request_game_fn)0x004A6E88;
         return 0;
     }
     return 0;

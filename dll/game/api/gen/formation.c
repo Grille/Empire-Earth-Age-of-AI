@@ -4,13 +4,11 @@
 // class EEFormation (void)
 // a group's formation, its +0x34 (EEFormation, EEFLine, EEFWedge ...)
 // the formation's centre {x, y, z} - a group move's clicked point (both builds' EEFLine::vf2 read it)
-internal uint32_t of_formation_center;
 internal inline vec3 formation_get_center(const void *o) { return *(vec3 *)((uint8_t *)o + of_formation_center); }
 internal inline void formation_set_center(void *o, vec3 v) { *(vec3 *)((uint8_t *)o + of_formation_center) = v; }
 internal inline vec3 *formation_center_at(const void *o) { return (vec3 *)((uint8_t *)o + of_formation_center); }
 // 0 ShortLine, 1 LongLine, 2 LooseLine, 3 StaggeredLine, 4 DeepWedge, 5 ShallowWedge, 6 InwardCircle, 7
 // OutwardCircle (the factory 0x4D84xx; both builds' EEFormation ctor)
-internal uint32_t of_formation_kind;
 internal inline int formation_get_kind(const void *o) { return *(int *)((uint8_t *)o + of_formation_kind); }
 internal inline void formation_set_kind(void *o, int v) { *(int *)((uint8_t *)o + of_formation_kind) = v; }
 internal inline int *formation_kind_at(const void *o) { return (int *)((uint8_t *)o + of_formation_kind); }
@@ -18,20 +16,35 @@ internal inline int *formation_kind_at(const void *o) { return (int *)((uint8_t 
 // class ee_formation_slot (void)
 // a formation's slot (FN_FORMATION_SLOTS)
 // a formation slot's point {x, y, z} (EEFLine::vf2 in both builds)
-internal uint32_t of_formation_slot_pos;
 internal inline vec3 formation_slot_get_pos(const void *o) { return *(vec3 *)((uint8_t *)o + of_formation_slot_pos); }
 internal inline void formation_slot_set_pos(void *o, vec3 v) { *(vec3 *)((uint8_t *)o + of_formation_slot_pos) = v; }
 internal inline vec3 *formation_slot_pos_at(const void *o) { return (vec3 *)((uint8_t *)o + of_formation_slot_pos); }
 // the slot's unit (the same)
-internal uint32_t of_formation_slot_unit;
 internal inline ee_unit *formation_slot_get_unit(const void *o) { return *(ee_unit **)((uint8_t *)o + of_formation_slot_unit); }
 internal inline void formation_slot_set_unit(void *o, ee_unit *v) { *(ee_unit **)((uint8_t *)o + of_formation_slot_unit) = v; }
 internal inline ee_unit **formation_slot_unit_at(const void *o) { return (ee_unit **)((uint8_t *)o + of_formation_slot_unit); }
 // the slot's facing (the dispatch passes it to the unit's EEUGLocation)
-internal uint32_t of_formation_slot_facing;
 internal inline uint32_t formation_slot_get_facing(const void *o) { return *(uint32_t *)((uint8_t *)o + of_formation_slot_facing); }
 internal inline void formation_slot_set_facing(void *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_formation_slot_facing) = v; }
 internal inline uint32_t *formation_slot_facing_at(const void *o) { return (uint32_t *)((uint8_t *)o + of_formation_slot_facing); }
+
+// static class formation
+// formation's data of the game, places in its code and numbers (raw/'s address rows)
+// FN_FORMATION_SLOTS: a slot {x, y, z, unit, facing} (both builds' EEFLine::vf2 steps 0x14)
+// the formations' vtables: FN_FORMATION_SLOTS
+
+// static class formation_functions
+// the game's functions formation.c wraps, by the names the C side gives them
+// EEFormation::vf1 thiscall(formation, group, vector *slots), slot 1 of every formation's vtable (EEFLine,
+// EEFShortLine, EEFWedge, EEFCircle ... 12): the group's units into a list, then the kind's vf2 (EEFLine
+// 0x4D79D9) fills the slots - SIZE_FORMATION_SLOT each {x, y, z, unit, facing} - from FORMATION_CENTER (the
+// clicked point, set by the group's dispatch 0x5DB641 just before, 0x5DBC89), every row and column spaced by the
+// group's largest type +0x470; a line's front row on the centre, the rows behind it. The dispatch then pairs
+// units and slots (nearest, or by their order along the move) and gives each unit an EEUGLocation at its slot
+// (0x5DC902)
+typedef void (__thiscall *formation_slots_fn)(void *, void *, void *);
+internal formation_slots_fn fn_formation_slots;
+internal inline void formation_slots(void *formation, void *group, void *slots) { fn_formation_slots(formation, group, slots); }
 
 // the running build's values (spec_select, with addr_select): how many it hasn't got
 internal int spec_formation_select(int build) {
@@ -42,6 +55,9 @@ internal int spec_formation_select(int build) {
         of_formation_slot_pos = 0x0;
         of_formation_slot_unit = 0xC;
         of_formation_slot_facing = 0x10;
+        value_formation_size_formation_slot = 20;
+        value_formation_slot_formation_slots = 1;
+        fn_formation_slots = (formation_slots_fn)0x004D7E0B;
         return 0;
     case 1:   // aoc
         of_formation_center = 0x48;
@@ -49,6 +65,9 @@ internal int spec_formation_select(int build) {
         of_formation_slot_pos = 0x0;
         of_formation_slot_unit = 0xC;
         of_formation_slot_facing = 0x10;
+        value_formation_size_formation_slot = 20;
+        value_formation_slot_formation_slots = 1;
+        fn_formation_slots = (formation_slots_fn)0x004DDDD5;
         return 0;
     }
     return 0;

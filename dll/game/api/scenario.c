@@ -6,7 +6,7 @@
 // "Scenario triggers"): the lists are vectors (begin, end) - the address of each list's begin
 // the last chat line received (UWideString; the 500 ms check empties it - one line a check), the queued effects (a
 // vector of {effect id, time ms, cinematic} 12 bytes each: an effect's delay, SM_QUEUE_EFFECT)
-internal inline float scen_step(void) { return *(const float *)GA(G_SM_STEP); }                       // 500 ms
+internal inline float scen_step(void) { return *(const float *)data_scenario_sm_step; }                       // 500 ms
 // a trigger (EESMTrigger): its name and description (UWideString), the lists of its condition and effect references
 // a trigger's condition reference: the condition's index, the join to the next (0 end, 1 and, 2 or), not
 // a trigger's effect reference: its kind (2: "or" between random groups), delay (s), the effect's index
@@ -35,25 +35,15 @@ internal inline ivec2 scen_area_get_point(const ee_scen_area *a) {
 
 // FUNCTIONS
 // the lists' entries by id (their index; NULL out of range)
-internal inline ee_trigger *sm_trigger(ee_scen_mgr *m, int id) { return GF(SM_GET_TRIGGER)(m, id); }
-internal inline ee_scen_cond *sm_cond(ee_scen_mgr *m, int id) { return GF(SM_GET_COND)(m, id); }
-internal inline ee_scen_effect *sm_effect(ee_scen_mgr *m, int id) { return GF(SM_GET_EFFECT)(m, id); }
-internal inline ee_scen_object *sm_object(ee_scen_mgr *m, int id) { return GF(SM_GET_OBJECT)(m, id); }
-internal inline ee_scen_area *sm_area(ee_scen_mgr *m, int id) { return GF(SM_GET_AREA)(m, id); }
 // a condition holds now, as the 500 ms check asks it (an object it tests may lock onto its units)
-internal inline int sm_cond_holds(ee_scen_cond *c) { return GF(SM_COND_EVAL)(c) != 0; }
+internal inline int sm_cond_holds(ee_scen_cond *c) { return fn_sm_cond_eval(c) != 0; }
 // an object picks its units (or filters its locked ones): any left (dead: dying units count too)
-internal inline int sm_object_holds(ee_scen_object *o, int dead) { return GF(SM_OBJECT_EVAL)(o, (char)dead) != 0; }
-internal inline int sm_area_contains(ee_scen_area *a, ee_unit *u) { return GF(SM_AREA_CONTAINS)(a, u) != 0; }
-internal inline int sm_class_test(ee_scen_object *o, int type) { return GF(SM_CLASS_TEST)(o, type) != 0; }
+internal inline int sm_object_holds(ee_scen_object *o, int dead) { return fn_sm_object_eval(o, (char)dead) != 0; }
+internal inline int sm_area_contains(ee_scen_area *a, ee_unit *u) { return fn_sm_area_contains_game(a, u) != 0; }
+internal inline int sm_class_test(ee_scen_object *o, int type) { return fn_sm_class_test_game(o, type) != 0; }
 // one player of a player spec, as an effect picks it (-1: none; a random one of "any ...")
-internal inline int sm_pick_player(ee_scen_mgr *m, enum sm_player_spec spec) { return GF(SM_PLAYERS)(m, spec, NULL, 1); }
+internal inline int sm_pick_player(ee_scen_mgr *m, enum sm_player_spec spec) { return fn_sm_players(m, spec, NULL, 1); }
 // a player's attribute as conditions read it (resources, population, statistics ...), as effects set it
-internal inline int sm_player_attr(ee_scen_cond *c, int player, enum sm_player_attr attr) { return GF(SM_PLAYER_ATTR)(c, player, attr); }
-internal inline void sm_set_player_attr(ee_scen_effect *ef, int player, enum sm_player_attr attr, enum sm_attr_mode mode, int v) { GF(SM_SET_PLAYER_ATTR)(ef, player, attr, mode, v); }
 // a trigger's check at scenario time now (ms): conditions, true-for, its effects queued
-internal inline void sm_trigger_update(ee_trigger *t, float now) { GF(SM_TRIGGER_UPDATE)(t, now); }
 // an effect queued to run at scenario time at (ms), as a trigger's delayed effects
-internal inline void sm_queue_effect(ee_scen_mgr *m, int effect, int at, int cinematic) { GF(SM_QUEUE_EFFECT)(m, effect, at, (char)cinematic); }
 // a scenario effect run now (its trigger's conditions and delay not asked)
-internal inline void sm_run_effect(ee_scen_effect *effect, int flag) { GF(SM_RUN_EFFECT)(effect, flag); }

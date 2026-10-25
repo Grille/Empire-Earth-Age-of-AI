@@ -4,31 +4,90 @@
 // class EEUnitGoal (ee_goal)
 // a unit's goal, its +0x1EC (EEUnitGoal, EEUG*)
 // (aim.c: 2 while it attacks)
-internal uint32_t of_goal_state;
 internal inline uint8_t goal_get_state(const ee_goal *o) { return *(uint8_t *)((uint8_t *)o + of_goal_state); }
 internal inline void goal_set_state(ee_goal *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_goal_state) = v; }
 internal inline uint8_t *goal_state_at(const ee_goal *o) { return (uint8_t *)((uint8_t *)o + of_goal_state); }
-internal uint32_t of_goal_dest_x;
 internal inline float goal_get_dest_x(const ee_goal *o) { return *(float *)((uint8_t *)o + of_goal_dest_x); }
 internal inline void goal_set_dest_x(ee_goal *o, float v) { *(float *)((uint8_t *)o + of_goal_dest_x) = v; }
 internal inline float *goal_dest_x_at(const ee_goal *o) { return (float *)((uint8_t *)o + of_goal_dest_x); }
 // a kind 6 goal's target
 // a kind 6 goal's target - the contact test (EEPhysicsModel::vf14, AoC vf15) lets two units at work on kind 6 meet
 // only when it is the same
-internal uint32_t of_goal_0x38;
 internal inline void *goal_get_0x38(const ee_goal *o) { return *(void **)((uint8_t *)o + of_goal_0x38); }
 internal inline void goal_set_0x38(ee_goal *o, void *v) { *(void **)((uint8_t *)o + of_goal_0x38) = v; }
 internal inline void **goal_0x38_at(const ee_goal *o) { return (void **)((uint8_t *)o + of_goal_0x38); }
 // a kind 4 goal's target
 // a kind 4 goal's target - the same for kind 4
-internal uint32_t of_goal_0x3c;
 internal inline void *goal_get_0x3c(const ee_goal *o) { return *(void **)((uint8_t *)o + of_goal_0x3c); }
 internal inline void goal_set_0x3c(ee_goal *o, void *v) { *(void **)((uint8_t *)o + of_goal_0x3c) = v; }
 internal inline void **goal_0x3c_at(const ee_goal *o) { return (void **)((uint8_t *)o + of_goal_0x3c); }
-internal uint32_t of_goal_holder;
 internal inline ee_unit *goal_get_holder(const ee_goal *o) { return *(ee_unit **)((uint8_t *)o + of_goal_holder); }
 internal inline void goal_set_holder(ee_goal *o, ee_unit *v) { *(ee_unit **)((uint8_t *)o + of_goal_holder) = v; }
 internal inline ee_unit **goal_holder_at(const ee_goal *o) { return (ee_unit **)((uint8_t *)o + of_goal_holder); }
+
+// static class goal
+// goal's data of the game, places in its code and numbers (raw/'s address rows)
+internal inline uint8_t *goal_at_goal_set_read_at(void) { return (uint8_t *)(uintptr_t)data_goal_at_goal_set_read; }
+internal inline uint8_t *goal_call_goalset_again_at(void) { return (uint8_t *)(uintptr_t)data_goal_call_goalset_again; }
+internal inline uint8_t *goal_call_goalset_ask_at(void) { return (uint8_t *)(uintptr_t)data_goal_call_goalset_ask; }
+// in 0x5ED24B: FN_GOAL_FBA_CHECK on a dynamic_cast, unchecked
+internal inline uint8_t *goal_call_goal_fba_check_at(void) { return (uint8_t *)(uintptr_t)data_goal_call_goal_fba_check; }
+// the group's dispatch (0x5DB641): each unit's location goal at its slot, FN_GOAL_MOVE_AT
+internal inline uint8_t *goal_call_slot_goal_at(void) { return (uint8_t *)(uintptr_t)data_goal_call_slot_goal; }
+// EEUGAttack(unit, target, 1); AoC + a byte: attack.c
+internal inline uint8_t *goal_fn_goal_attack_ctor_at(void) { return (uint8_t *)(uintptr_t)data_goal_fn_goal_attack_ctor; }
+// FN_GOAL_ATTACK_CTOR
+// FN_BUILD_GOAL
+// FN_GOAL_LOAD_CTOR
+// FN_GOAL_MOVE_CTOR
+// FN_GOAL_UNLOAD_CTOR
+// EEUGLoadContainer: thiscall(goal, unit) - the unit out of its holder's load goal's pending passengers
+// (0x613992; AoC 0x626229, the same code)
+// EEUGLoadTransport: a unit's part of the load goal
+// EEUGoal: thiscall(goal, unit, float out[3]) - where the goal sends the unit (PrepareToMove 0x6222A8)
+internal inline uint8_t *goal_vt_goal_attack_at(void) { return (uint8_t *)(uintptr_t)data_goal_vt_goal_attack; }
+internal inline uint8_t *goal_vt_goal_build_at(void) { return (uint8_t *)(uintptr_t)data_goal_vt_goal_build; }
+// EEUGLoadTransport: the holder's goal and each unit's part (0x614833), the holder at +0x50
+internal inline uint8_t *goal_vt_goal_load_at(void) { return (uint8_t *)(uintptr_t)data_goal_vt_goal_load; }
+internal inline uint8_t *goal_vt_goal_location_at(void) { return (uint8_t *)(uintptr_t)data_goal_vt_goal_location; }
+// EEUGUnloadTransport (new 0x40, ctor 0x615A1F(transport, x, y, flag))
+internal inline uint8_t *goal_vt_goal_unload_at(void) { return (uint8_t *)(uintptr_t)data_goal_vt_goal_unload; }
+
+// static class goal_functions
+// the game's functions goal.c wraps, by the names the C side gives them
+// EEUGBuildRepair constructor: thiscall(goal, player, building, 1)
+typedef ee_goal *(__thiscall *goal_build_init_fn)(void *, ee_player *, ee_unit *, int);
+internal goal_build_init_fn fn_goal_build_init;
+internal inline ee_goal *goal_build_init(void *mem, ee_player *pl, ee_unit *building, int flag) { return fn_goal_build_init(mem, pl, building, flag); }
+typedef int (__thiscall *goalset_ask_fn)(void *, ee_unit *, int *);
+internal goalset_ask_fn fn_goalset_ask;
+internal inline int goalset_ask(void *set, ee_unit *u, int *out) { return fn_goalset_ask(set, u, out); }
+// thiscall(goal 0xFBA object, unit) (0x5ED24B)
+typedef char (__thiscall *goal_fits_fn)(ee_goal *, void *);
+internal goal_fits_fn fn_goal_fits;
+internal inline char goal_fits(ee_goal *goal, void *unit) { return fn_goal_fits(goal, unit); }
+// EEUGLoadTransport: new 0x68
+typedef void *(__thiscall *goal_load_ctor_fn)(void *, void *, void *, int);
+internal goal_load_ctor_fn fn_goal_load_ctor;
+internal inline void *goal_load_ctor(void *p1, void *p2, void *p3, int p4) { return fn_goal_load_ctor(p1, p2, p3, p4); }
+// the same goal's other constructor: thiscall(goal, float pt[3], 6 dwords - a float among them), the group's
+// dispatch gives each unit its slot with it
+typedef void *(__thiscall *goal_move_at_game_fn)(void *, float *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+internal goal_move_at_game_fn fn_goal_move_at_game;
+internal inline void *goal_move_at_game(void *p1, float *p2, uint32_t p3, uint32_t p4, uint32_t p5, uint32_t p6, uint32_t p7, uint32_t p8) { return fn_goal_move_at_game(p1, p2, p3, p4, p5, p6, p7, p8); }
+// new 0x38
+typedef void *(__thiscall *goal_move_ctor_fn)(void *, float *, int, char, char, float, char, char);
+internal goal_move_ctor_fn fn_goal_move_ctor;
+internal inline void *goal_move_ctor(void *p1, float *p2, int p3, char p4, char p5, float p6, char p7, char p8) { return fn_goal_move_ctor(p1, p2, p3, p4, p5, p6, p7, p8); }
+// EEUGUnloadTransport: new 0x40
+typedef ee_goal *(__thiscall *goal_unload_init_fn)(void *, ee_unit *, int, int, int);
+internal goal_unload_init_fn fn_goal_unload_init;
+internal inline ee_goal *goal_unload_init(void *mem, ee_unit *holder, int x, int y, int flag) { return fn_goal_unload_init(mem, holder, x, y, flag); }
+// thiscall(load goal, unit): the unit into its pending passengers (if not there), as EEMLoadTransport adds to a
+// load under way
+typedef void (__thiscall *goal_add_passenger_fn)(ee_goal *, ee_unit *);
+internal goal_add_passenger_fn fn_goal_add_passenger;
+internal inline void goal_add_passenger(ee_goal *goal, ee_unit *u) { fn_goal_add_passenger(goal, u); }
 
 // the running build's values (spec_select, with addr_select): how many it hasn't got
 internal int spec_goal_select(int build) {
@@ -39,6 +98,33 @@ internal int spec_goal_select(int build) {
         of_goal_0x38 = 0x38;
         of_goal_0x3c = 0x3C;
         of_goal_holder = 0x50;
+        data_goal_at_goal_set_read = 0x005F0634;
+        data_goal_call_goalset_again = 0x005F1029;
+        data_goal_call_goalset_ask = 0x005F0FFA;
+        data_goal_call_goal_fba_check = 0x005ED9BF;
+        data_goal_call_slot_goal = 0x005DC902;
+        data_goal_fn_goal_attack_ctor = 0x0060AD45;
+        value_goal_size_goal_attack = 64;
+        value_goal_size_goal_build = 92;
+        value_goal_size_goal_load = 104;
+        value_goal_size_goal_move = 56;
+        value_goal_size_goal_unload = 64;
+        value_goal_slot_goal_drop = 19;
+        value_goal_slot_goal_part = 4;
+        value_goal_slot_goal_target = 2;
+        data_goal_vt_goal_attack = 0x00831968;
+        data_goal_vt_goal_build = 0x008319F0;
+        data_goal_vt_goal_load = 0x00831DC0;
+        data_goal_vt_goal_location = 0x00831E64;
+        data_goal_vt_goal_unload = 0x00831F5C;
+        fn_goal_build_init = (goal_build_init_fn)0x0060BAD0;
+        fn_goalset_ask = (goalset_ask_fn)0x00619FF5;
+        fn_goal_fits = (goal_fits_fn)0x0060FE7E;
+        fn_goal_load_ctor = (goal_load_ctor_fn)0x0061487F;
+        fn_goal_move_at_game = (goal_move_at_game_fn)0x00614D47;
+        fn_goal_move_ctor = (goal_move_ctor_fn)0x00614CE6;
+        fn_goal_unload_init = (goal_unload_init_fn)0x00615A1F;
+        fn_goal_add_passenger = (goal_add_passenger_fn)0x0061321D;
         return 0;
     case 1:   // aoc
         of_goal_state = 0x5;
@@ -46,6 +132,33 @@ internal int spec_goal_select(int build) {
         of_goal_0x38 = 0x38;
         of_goal_0x3c = 0x3C;
         of_goal_holder = 0x50;
+        data_goal_at_goal_set_read = 0x005FE8DA;
+        data_goal_call_goalset_again = 0x005FF393;
+        data_goal_call_goalset_ask = 0x005FF364;
+        data_goal_call_goal_fba_check = 0x005FBA9C;
+        data_goal_call_slot_goal = 0x005ED231;
+        data_goal_fn_goal_attack_ctor = 0x0061D337;
+        value_goal_size_goal_attack = 68;
+        value_goal_size_goal_build = 92;
+        value_goal_size_goal_load = 104;
+        value_goal_size_goal_move = 56;
+        value_goal_size_goal_unload = 64;
+        value_goal_slot_goal_drop = 19;
+        value_goal_slot_goal_part = 4;
+        value_goal_slot_goal_target = 2;
+        data_goal_vt_goal_attack = 0x00847380;
+        data_goal_vt_goal_build = 0x0084740C;
+        data_goal_vt_goal_load = 0x008477F8;
+        data_goal_vt_goal_location = 0x008478A0;
+        data_goal_vt_goal_unload = 0x008479A0;
+        fn_goal_build_init = (goal_build_init_fn)0x0061E164;
+        fn_goalset_ask = (goalset_ask_fn)0x0062CD8B;
+        fn_goal_fits = (goal_fits_fn)0x006226CF;
+        fn_goal_load_ctor = (goal_load_ctor_fn)0x00627286;
+        fn_goal_move_at_game = (goal_move_at_game_fn)0x00627742;
+        fn_goal_move_ctor = (goal_move_ctor_fn)0x006276E1;
+        fn_goal_unload_init = (goal_unload_init_fn)0x006283FF;
+        fn_goal_add_passenger = (goal_add_passenger_fn)0x00625AB4;
         return 0;
     }
     return 0;

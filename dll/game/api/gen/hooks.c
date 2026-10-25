@@ -4,11 +4,63 @@
 // class ee_draw_record (void)
 // the draw list's records, DRAW_OLD (0x148 each)
 // the same in AoC: its draw list sites read DRAW_OLD + 0x58 and + 0xFC (0x50B2AD, 0x50EF07)
-internal uint32_t of_draw_record_0x58;
 internal inline uint8_t *draw_record_0x58_at(const void *o) { return (uint8_t *)o + of_draw_record_0x58; }
 // the same in AoC: its draw list sites read DRAW_OLD + 0x58 and + 0xFC (0x50B2AD, 0x50EF07)
-internal uint32_t of_draw_record_0xfc;
 internal inline uint8_t *draw_record_0xfc_at(const void *o) { return (uint8_t *)o + of_draw_record_0xfc; }
+
+// static class hooks
+// hooks's data of the game, places in its code and numbers (raw/'s address rows)
+internal inline uint8_t *hooks_call_attack_alert_at(void) { return (uint8_t *)(uintptr_t)data_hooks_call_attack_alert; }
+internal inline uint8_t *hooks_call_game_start_at(void) { return (uint8_t *)(uintptr_t)data_hooks_call_game_start; }
+// call LoadSavedGameFromCmdline(UString *) 0x521F94
+internal inline uint8_t *hooks_call_load_saved_at(void) { return (uint8_t *)(uintptr_t)data_hooks_call_load_saved; }
+// call ParseCommandLine(const char *) 0x522A36
+internal inline uint8_t *hooks_call_parse_cmdline_at(void) { return (uint8_t *)(uintptr_t)data_hooks_call_parse_cmdline; }
+// the idle transports' call of FN_SHORE_TO_UNLOAD
+internal inline uint8_t *hooks_call_shore_to_unload_at(void) { return (uint8_t *)(uintptr_t)data_hooks_call_shore_to_unload; }
+// the loading splash's start (jne)
+internal inline uint8_t *hooks_code_splash_start_jne_at(void) { return (uint8_t *)(uintptr_t)data_hooks_code_splash_start_jne; }
+// the loading splash's stop (jne)
+internal inline uint8_t *hooks_code_splash_stop_jne_at(void) { return (uint8_t *)(uintptr_t)data_hooks_code_splash_stop_jne; }
+internal inline uint8_t *hooks_draw_old_at(void) { return (uint8_t *)(uintptr_t)data_hooks_draw_old; }
+// the small objects' draw list's operands to move (drawlist.c, in its table's order)
+// the small objects' draw list: 0x600 records of 0x3C
+internal inline uint8_t *hooks_draw_small_old_at(void) { return (uint8_t *)(uintptr_t)data_hooks_draw_small_old; }
+internal inline uint8_t *hooks_exit_confirm_at_at(void) { return (uint8_t *)(uintptr_t)data_hooks_exit_confirm_at; }
+// __thiscall, ret 4
+internal inline uint8_t *hooks_fn_add_movie_at(void) { return (uint8_t *)(uintptr_t)data_hooks_fn_add_movie; }
+internal inline uint8_t *hooks_fn_attack_alert_at(void) { return (uint8_t *)(uintptr_t)data_hooks_fn_attack_alert; }
+// the float 1/600 (the minimap's y scale operand)
+internal inline uint8_t *hooks_float_1_600_at(void) { return (uint8_t *)(uintptr_t)data_hooks_float_1_600; }
+// the float 1/800 (the minimap's x scale operand)
+internal inline uint8_t *hooks_float_1_800_at(void) { return (uint8_t *)(uintptr_t)data_hooks_float_1_800; }
+internal inline uint8_t *hooks_iat_srand_at(void) { return (uint8_t *)(uintptr_t)data_hooks_iat_srand; }
+// the calls of FN_FIRE (aim.c)
+// the minimap's operands of G_FLOAT_1_600
+// the other calls of FN_SET_RESOLUTION (display.c)
+// the calls of FN_MOUSE_UPDATE
+// GEFontBitmap::Draw (both overloads): movsx of a character
+// its import slot
+// ISInitialize's, setting up the device
+// Low-Level Engine, ISMouse::Resume: the 5 of push 5 (DISCL_ flags)
+// NESynchronousServer::Send: call [WaitForMultipleObjects] (turbo)
+// the calls of FN_ASSIGN_TO_SITE (trace.c)
+// je over the CloseWindow call on WM_ACTIVATEAPP(0)
+internal inline uint8_t *hooks_site_close_window_je_at(void) { return (uint8_t *)(uintptr_t)data_hooks_site_close_window_je; }
+internal inline uint8_t *hooks_site_editor_menu_at(void) { return (uint8_t *)(uintptr_t)data_hooks_site_editor_menu; }
+internal inline uint8_t *hooks_site_editor_res_at(void) { return (uint8_t *)(uintptr_t)data_hooks_site_editor_res; }
+internal inline uint8_t *hooks_site_sim_receive_at(void) { return (uint8_t *)(uintptr_t)data_hooks_site_sim_receive; }
+internal inline uint8_t *hooks_site_sim_wait_at(void) { return (uint8_t *)(uintptr_t)data_hooks_site_sim_wait; }
+
+// static class hooks_functions
+// the game's functions hooks.c wraps, by the names the C side gives them
+// a draw list record
+typedef void (__thiscall *draw_rec_ctor_fn)(void *);
+internal draw_rec_ctor_fn fn_draw_rec_ctor;
+internal inline void draw_rec_ctor(void *p1) { fn_draw_rec_ctor(p1); }
+typedef void (__stdcall *set_resolution_fn)(int, int, int, int);
+internal set_resolution_fn fn_set_resolution;
+internal inline void set_resolution(int w, int h, int force, int flag) { fn_set_resolution(w, h, force, flag); }
 
 // the running build's values (spec_select, with addr_select): how many it hasn't got
 internal int spec_hooks_select(int build) {
@@ -16,10 +68,146 @@ internal int spec_hooks_select(int build) {
     case 0:   // ee
         of_draw_record_0x58 = 0x58;
         of_draw_record_0xfc = 0xFC;
+        data_hooks_call_attack_alert = 0x006177CF;
+        data_hooks_call_game_start = 0x004CEC14;
+        data_hooks_call_load_saved = 0x00522BF8;
+        data_hooks_call_parse_cmdline = 0x00535EF2;
+        data_hooks_call_shore_to_unload = 0x00483E24;
+        data_hooks_code_splash_start_jne = 0x00534400;
+        data_hooks_code_splash_stop_jne = 0x0053443D;
+        data_hooks_draw_old = 0x008D2D30;
+        data_hooks_draw_sites[0] = 0x0050099C;
+        data_hooks_draw_sites[1] = 0x00504158;
+        data_hooks_draw_sites[2] = 0x005007B2;
+        data_hooks_draw_sites[3] = 0x005007CC;
+        data_hooks_draw_sites[4] = 0x00503C69;
+        data_hooks_draw_sites[5] = 0x00503ED0;
+        data_hooks_draw_sites[6] = 0x00503FCC;
+        data_hooks_draw_sites[7] = 0x005043B5;
+        data_hooks_draw_sites[8] = 0x0050DC5A;
+        data_hooks_draw_small_old = 0x008FBD30;
+        data_hooks_draw_small_sites[0] = 0x00500BBC;
+        data_hooks_draw_small_sites[1] = 0x0050419D;
+        data_hooks_draw_small_sites[2] = 0x00503C5A;
+        data_hooks_draw_small_sites[3] = 0x00504016;
+        data_hooks_draw_small_sites[4] = 0x00504041;
+        data_hooks_draw_small_sites[5] = 0x005041AD;
+        data_hooks_draw_small_sites[6] = 0x005043A6;
+        data_hooks_exit_confirm_at = 0x005D0B2C;
+        data_hooks_fn_add_movie = 0x00441432;
+        data_hooks_fn_attack_alert = 0x00519BC1;
+        data_hooks_float_1_600 = 0x0082CBCC;
+        data_hooks_float_1_800 = 0x008358A8;
+        data_hooks_iat_srand = 0x00824644;
+        data_hooks_intro_calls[0] = 0x00538909;
+        data_hooks_intro_calls[1] = 0x0053892A;
+        data_hooks_intro_calls[2] = 0x00538945;
+        data_hooks_minimap_fx_ops[0] = 0x0065E01D;
+        data_hooks_minimap_fx_ops[1] = 0x0065E8A3;
+        data_hooks_minimap_fx_ops[2] = 0x0065EB3E;
+        data_hooks_minimap_fy_ops[0] = 0x0065E032;
+        data_hooks_minimap_fy_ops[1] = 0x0065E8CE;
+        data_hooks_minimap_fy_ops[2] = 0x0065EB68;
+        data_hooks_other_resolution_sites[0] = 0x0065F30A;
+        data_hooks_other_resolution_sites[1] = 0x0065F61B;
+        data_hooks_other_resolution_sites[2] = 0x0065F945;
+        data_hooks_other_resolution_sites[3] = 0x0065FAD4;
+        data_hooks_other_resolution_sites[4] = 0x00660CD3;
+        data_hooks_other_resolution_sites[5] = 0x00661329;
+        data_hooks_other_resolution_sites[6] = 0x00661363;
+        value_hooks_rva_lle_font_movsx_1 = 162374;
+        value_hooks_rva_lle_font_movsx_2 = 162970;
+        value_hooks_rva_lle_iat_wfmo = 606444;
+        value_hooks_rva_lle_input_coop = 305007;
+        value_hooks_rva_lle_mouse_coop = 313400;
+        value_hooks_rva_lle_send_wait = 351733;
+        data_hooks_rva_tcp_ports[0] = 0x000017E2;
+        data_hooks_rva_tcp_ports[1] = 0x0000196F;
+        data_hooks_rva_tcp_ports[2] = 0x000019EB;
+        data_hooks_rva_tcp_ports[3] = 0x00001EB8;
+        data_hooks_rva_tcp_ports[4] = 0x00001FBD;
+        data_hooks_rva_tcp_ports[5] = 0x00002148;
+        data_hooks_rva_tcp_ports[6] = 0x0000279C;
+        data_hooks_rva_tcp_ports[7] = 0x00002F2C;
+        data_hooks_site_close_window_je = 0x00662666;
+        data_hooks_site_editor_menu = 0x006601F1;
+        data_hooks_site_editor_res = 0x0065FD6D;
+        data_hooks_site_sim_receive = 0x00553348;
+        data_hooks_site_sim_wait = 0x005533C5;
+        fn_draw_rec_ctor = (draw_rec_ctor_fn)0x00506442;
+        fn_set_resolution = (set_resolution_fn)0x0065F314;
         return 0;
     case 1:   // aoc
         of_draw_record_0x58 = 0x58;
         of_draw_record_0xfc = 0xFC;
+        data_hooks_call_attack_alert = 0x0062A366;
+        data_hooks_call_game_start = 0x004D4443;
+        data_hooks_call_load_saved = 0x0052D8F9;
+        data_hooks_call_parse_cmdline = 0x005410C8;
+        data_hooks_call_shore_to_unload = 0x00488490;
+        data_hooks_code_splash_start_jne = 0x0053F2FE;
+        data_hooks_code_splash_stop_jne = 0x0053F33B;
+        data_hooks_draw_old = 0x008E94D0;
+        data_hooks_draw_sites[0] = 0x0050B497;
+        data_hooks_draw_sites[1] = 0x0050F093;
+        data_hooks_draw_sites[2] = 0x0050B2AD;
+        data_hooks_draw_sites[3] = 0x0050B2C7;
+        data_hooks_draw_sites[4] = 0x0050EBA4;
+        data_hooks_draw_sites[5] = 0x0050EE0B;
+        data_hooks_draw_sites[6] = 0x0050EF07;
+        data_hooks_draw_sites[7] = 0x0050F2F0;
+        data_hooks_draw_sites[8] = 0x0051854F;
+        data_hooks_draw_small_old = 0x009124D0;
+        data_hooks_draw_small_sites[0] = 0x0050B6B7;
+        data_hooks_draw_small_sites[1] = 0x0050F0D8;
+        data_hooks_draw_small_sites[2] = 0x0050EB95;
+        data_hooks_draw_small_sites[3] = 0x0050EF51;
+        data_hooks_draw_small_sites[4] = 0x0050EF7C;
+        data_hooks_draw_small_sites[5] = 0x0050F0E8;
+        data_hooks_draw_small_sites[6] = 0x0050F2E1;
+        data_hooks_exit_confirm_at = 0x005E1438;
+        data_hooks_fn_add_movie = 0x00440E57;
+        data_hooks_fn_attack_alert = 0x00524497;
+        data_hooks_float_1_600 = 0x00842374;
+        data_hooks_float_1_800 = 0x0084B940;
+        data_hooks_iat_srand = 0x00838638;
+        data_hooks_intro_calls[0] = 0x00543A57;
+        data_hooks_intro_calls[1] = 0x00543A78;
+        data_hooks_intro_calls[2] = 0x00543A93;
+        data_hooks_minimap_fx_ops[0] = 0x00675618;
+        data_hooks_minimap_fx_ops[1] = 0x00675E95;
+        data_hooks_minimap_fx_ops[2] = 0x00676130;
+        data_hooks_minimap_fy_ops[0] = 0x0067562D;
+        data_hooks_minimap_fy_ops[1] = 0x00675EC0;
+        data_hooks_minimap_fy_ops[2] = 0x0067615A;
+        data_hooks_other_resolution_sites[0] = 0x006768F4;
+        data_hooks_other_resolution_sites[1] = 0x00676C0A;
+        data_hooks_other_resolution_sites[2] = 0x00676F39;
+        data_hooks_other_resolution_sites[3] = 0x006770C8;
+        data_hooks_other_resolution_sites[4] = 0x0067831D;
+        data_hooks_other_resolution_sites[5] = 0x00678973;
+        data_hooks_other_resolution_sites[6] = 0x006789AD;
+        value_hooks_rva_lle_font_movsx_1 = 89089;
+        value_hooks_rva_lle_font_movsx_2 = 89685;
+        value_hooks_rva_lle_iat_wfmo = 618732;
+        value_hooks_rva_lle_input_coop = 235015;
+        value_hooks_rva_lle_mouse_coop = 244229;
+        value_hooks_rva_lle_send_wait = 302554;
+        data_hooks_rva_tcp_ports[0] = 0x00001684;
+        data_hooks_rva_tcp_ports[1] = 0x0000185C;
+        data_hooks_rva_tcp_ports[2] = 0x000018D8;
+        data_hooks_rva_tcp_ports[3] = 0x00001DA5;
+        data_hooks_rva_tcp_ports[4] = 0x00001EAA;
+        data_hooks_rva_tcp_ports[5] = 0x00002035;
+        data_hooks_rva_tcp_ports[6] = 0x00002689;
+        data_hooks_rva_tcp_ports[7] = 0x00002E1C;
+        data_hooks_site_close_window_je = 0x00679C57;
+        data_hooks_site_editor_menu = 0x006777E5;
+        data_hooks_site_editor_res = 0x00677361;
+        data_hooks_site_sim_receive = 0x00561459;
+        data_hooks_site_sim_wait = 0x005614D6;
+        fn_draw_rec_ctor = (draw_rec_ctor_fn)0x005118E9;
+        fn_set_resolution = (set_resolution_fn)0x006768FE;
         return 0;
     }
     return 0;

@@ -59,3 +59,26 @@ unsafe struct SESoundManager
     [offset(0x88), found(c)]
     uint32 channels;
 }
+
+/// engine_sound's data of the game, places in its code and numbers (raw/'s address rows)
+static unsafe class engine_sound
+{
+    /// SESoundManager::Play(id, vol, pan, pitch, bool queue, char *) -> id or -1
+    [address((ee)0x008232D0, (aoc)0x008372CC)]
+    static block iat_snd_play;
+
+    /// SESoundManager::PlayAndReturnReferencedNode(same) -> node or NULL
+    [address((ee)0x008233EC, (aoc)0x00837380)]
+    static block iat_snd_playref;
+
+    [address((ee)0x00823AD4, (aoc)0x00837AC4)]
+    static block iat_snd_setmaxch;
+
+    /// Miles Sound System Mixer.dll: its channels, a vector of 8 bytes each
+    [value(0x52AC)]
+    static uint32 rva_mix_channels;
+
+    /// int: the most channels it gives
+    [value(0x5320)]
+    static uint32 rva_mix_max_channels;
+}

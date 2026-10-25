@@ -191,3 +191,129 @@ unsafe struct EEPlayerStatistics
     [offset(0x1C), found(b)]
     block lists;
 }
+
+/// player's data of the game, places in its code and numbers (raw/'s address rows)
+static unsafe class player
+{
+    [address((ee)0x0042F3CD, (aoc)0x0042CDD1)]
+    static code call_cp_update;
+
+    /// its one call: EEPlayer::vf41, a human reached an epoch
+    [address((ee)0x0055A5B5, (aoc)0x00569633)]
+    static code call_epoch_catch_up;
+
+    [address((ee)0x00617780, (aoc)0x0062A2DF)]
+    static code call_kill_stat;
+
+    [address((ee)0x00477B17, (aoc)0x0047B635)]
+    static code call_nv_maint_delete;
+
+    /// the callers of FN_POP_CAP
+    [address((ee)0x004311E5, (aoc)0x0042ECF6)]
+    static code call_pop_cap_1;
+
+    [address((ee)0x0043FA9B, (aoc)0x0043F2F6)]
+    static code call_pop_cap_2;
+
+    [address((ee)0x00474AF0, (aoc)0x004781C9)]
+    static code call_pop_cap_3;
+
+    /// VT_COMPUTER_PLAYER: FN_CP_ADD_RESOURCE (econ.c's hook; AoC as before)
+    [value(18)]
+    static uint32 slot_cp_add_resource;
+
+    /// VT_COMPUTER_PLAYER: FN_CP_PAY (econ.c's hook; AoC as before)
+    [value(45)]
+    static uint32 slot_cp_pay;
+
+    /// EEPlayer: char thiscall(player) - human (EEHumanPlayer's returns 1; FN_HUMAN_EPOCH's test)
+    [value(29)]
+    static uint32 slot_player_human;
+
+    /// EEPlayer: int thiscall(player, 0), the unit limit (FN_GAME_LIMIT)
+    [value(31)]
+    static uint32 slot_unit_limit;
+
+    [address((ee)0x008264C0, (aoc)0x0083A57C)]
+    static block vt_computer_player;
+}
+
+/// the game's functions player.c wraps, by the names the C side gives them
+[c_prefix("")]
+static unsafe class player_functions
+{
+    /// EEComputerPlayer::AdjustCost (vf27): a price with the cheat
+    [address((ee)0x00430FBD, (aoc)0x0042EACE), thiscall]
+    static extern int32 cp_adjust_cost(EEPlayer* pl, int32 price);
+
+    /// thiscall(player, on player, 1): calls off its attack groups on that player
+    [address((ee)0x0043033E, (aoc)0x0042DCA6), thiscall]
+    static extern void call_off_attacks(EEPlayer* pl, EEPlayer* target, int32 flag);
+
+    /// thiscall(player, type, 0x20, 0): can train or build one now
+    [address((ee)0x00555710, (aoc)0x005639E8), thiscall]
+    static extern char8 can_build_game(void* p1, int32 p2, int32 p3, int32 p4);
+
+    /// cdecl char(player, type, x, y, w, h, 0)
+    [address((ee)0x0062E940, (aoc)0x00643CE6), cdecl]
+    static extern char8 can_place_game(void* p1, int32 p2, int32 p3, int32 p4, int32 p5, int32 p6, int32 p7);
+
+    /// EEComputerPlayer::vf18(type, amount)
+    [address((ee)0x0042F783, (aoc)0x0042D1A5), thiscall]
+    static extern void cp_add_resource(EEPlayer* pl, int32 type, int32 amount);
+
+    /// EEComputerPlayer::vf45(cost object, ?, ?): pays a unit/building/tech
+    [address((ee)0x0043F53D, (aoc)0x0043ED98), thiscall]
+    static extern void cp_pay(EEPlayer* pl, void* what, int32 b, int32 c);
+
+    [address((ee)0x0043F91A, (aoc)0x0043F175), thiscall]
+    static extern void cp_update(EEPlayer* pl, uint32 now);
+
+    [address((ee)0x00430D40, (aoc)0x0042E851), thiscall]
+    static extern int32 delete_for_room(EEPlayer* pl, void* req, int32 flag);
+
+    /// thiscall(computer player, human): the attempt redrawn soon when the human is ahead
+    [address((ee)0x00431533, (aoc)0x0042F064), thiscall]
+    static extern void cp_epoch_catch_up(EEPlayer* ai, EEPlayer* human);
+
+    /// EEPlayer::vf31 thiscall(player, 0): the game's unit limit for this player
+    [address((ee)0x00556EBC, (aoc)0x0056528B), thiscall]
+    static extern int32 game_limit(void* p1, int32 p2);
+
+    /// cdecl(player, type, x, y): a building placed (a foundation)
+    [address((ee)0x0062EF8A, (aoc)0x00644C83), cdecl]
+    static extern EEUnit* place_foundation(EEPlayer* pl, int32 type, int32 x, int32 y);
+
+    /// thiscall(player, 2) as EEMResign
+    [address((ee)0x0055BCEA, (aoc)0x0056AF5C), thiscall]
+    static extern void player_resign(EEPlayer* pl, int32 how);
+
+    /// thiscall(player, 1, 0)
+    [address((ee)0x00556E11, (aoc)0x005651E0), thiscall]
+    static extern int32 population(EEPlayer* pl, int32 with_list, int32 with_aboard);
+
+    /// thiscall(player), called at 0x4311E5, 0x43FA9B, 0x474AF0
+    [address((ee)0x0042F7A5, (aoc)0x0042D1C7), thiscall]
+    static extern void cp_update_pop_cap(EEPlayer* pl);
+
+    /// thiscall(player, now): the next attack time (+0xED8)
+    [address((ee)0x0043DD2F, (aoc)0x0043D4CD), thiscall]
+    static extern void cp_schedule_attack(EEPlayer* pl, uint32 now);
+
+    /// EEMSelectUnits carried out on the player
+    [address((ee)0x0055B3FB, (aoc)0x0056A658), thiscall]
+    static extern void player_select(EEPlayer* pl, void* selection);
+
+    [address((ee)0x0055B8E1, (aoc)0x0056AB41), thiscall]
+    static extern void set_diplomacy_game(void* p1, void* p2, int32 p3, int32 p4);
+
+    [address((ee)0x0055DBCF, (aoc)0x0056D507), thiscall]
+    static extern void stat_add(void* stats, int32 n, int32 d);
+
+    /// thiscall(player +0x874, type): the per-player stats record
+    [address((ee)0x00492969, (aoc)0x0051E2A5), thiscall]
+    static extern uint8** type_stats_game(void* p1, int32 p2);
+
+    [address((ee)0x004A670A, (aoc)0x0047C428), thiscall]
+    static extern uint32 vector_size(void* p1);
+}

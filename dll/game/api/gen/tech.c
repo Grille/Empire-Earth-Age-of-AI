@@ -4,22 +4,18 @@
 // class ee_effect (ee_effect)
 // G_EFFECTS' records
 // the tech tree code's reads (unchanged)
-internal uint32_t of_effect_type;
 internal inline int effect_get_type(const ee_effect *o) { return *(int *)((uint8_t *)o + of_effect_type); }
 internal inline void effect_set_type(ee_effect *o, int v) { *(int *)((uint8_t *)o + of_effect_type) = v; }
 internal inline int *effect_type_at(const ee_effect *o) { return (int *)((uint8_t *)o + of_effect_type); }
 // the tech tree code's reads (unchanged)
-internal uint32_t of_effect_new_type;
 internal inline int effect_get_new_type(const ee_effect *o) { return *(int *)((uint8_t *)o + of_effect_new_type); }
 internal inline void effect_set_new_type(ee_effect *o, int v) { *(int *)((uint8_t *)o + of_effect_new_type) = v; }
 internal inline int *effect_new_type_at(const ee_effect *o) { return (int *)((uint8_t *)o + of_effect_new_type); }
 // the tech tree code's reads (unchanged)
-internal uint32_t of_effect_kind;
 internal inline int effect_get_kind(const ee_effect *o) { return *(int *)((uint8_t *)o + of_effect_kind); }
 internal inline void effect_set_kind(ee_effect *o, int v) { *(int *)((uint8_t *)o + of_effect_kind) = v; }
 internal inline int *effect_kind_at(const ee_effect *o) { return (int *)((uint8_t *)o + of_effect_kind); }
 // the tech tree code's reads (unchanged)
-internal uint32_t of_effect_attr;
 internal inline int effect_get_attr(const ee_effect *o) { return *(int *)((uint8_t *)o + of_effect_attr); }
 internal inline void effect_set_attr(ee_effect *o, int v) { *(int *)((uint8_t *)o + of_effect_attr) = v; }
 internal inline int *effect_attr_at(const ee_effect *o) { return (int *)((uint8_t *)o + of_effect_attr); }
@@ -27,12 +23,10 @@ internal inline int *effect_attr_at(const ee_effect *o) { return (int *)((uint8_
 // class ee_epoch_techs (ee_epoch_techs)
 // G_EPOCH_TECHS' records
 // the tech tree code's reads (unchanged)
-internal uint32_t of_effects_ids;
 internal inline uint32_t *effects_get_ids(const ee_epoch_techs *o) { return *(uint32_t **)((uint8_t *)o + of_effects_ids); }
 internal inline void effects_set_ids(ee_epoch_techs *o, uint32_t *v) { *(uint32_t **)((uint8_t *)o + of_effects_ids) = v; }
 internal inline uint32_t **effects_ids_at(const ee_epoch_techs *o) { return (uint32_t **)((uint8_t *)o + of_effects_ids); }
 // the tech tree code's reads (unchanged)
-internal uint32_t of_effects_count;
 internal inline uint32_t effects_get_count(const ee_epoch_techs *o) { return *(uint32_t *)((uint8_t *)o + of_effects_count); }
 internal inline void effects_set_count(ee_epoch_techs *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_effects_count) = v; }
 internal inline uint32_t *effects_count_at(const ee_epoch_techs *o) { return (uint32_t *)((uint8_t *)o + of_effects_count); }
@@ -41,32 +35,26 @@ internal inline uint32_t *effects_count_at(const ee_epoch_techs *o) { return (ui
 // a tech, FN_TECH_LOOKUP
 // (vf6 sets it)
 // researched - EETechTreeNode::vf6 sets it (0x5BF335 / 0x5CFA53)
-internal uint32_t of_tech_researched;
 internal inline uint8_t tech_get_researched(const ee_tech *o) { return *(uint8_t *)((uint8_t *)o + of_tech_researched); }
 internal inline void tech_set_researched(ee_tech *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_tech_researched) = v; }
 internal inline uint8_t *tech_researched_at(const ee_tech *o) { return (uint8_t *)((uint8_t *)o + of_tech_researched); }
 // (vf1, vf6 test it)
 // available - vf1 and vf6 test it
-internal uint32_t of_tech_available;
 internal inline uint8_t tech_get_available(const ee_tech *o) { return *(uint8_t *)((uint8_t *)o + of_tech_available); }
 internal inline void tech_set_available(ee_tech *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_tech_available) = v; }
 internal inline uint8_t *tech_available_at(const ee_tech *o) { return (uint8_t *)((uint8_t *)o + of_tech_available); }
 // the tech tree code's reads (unchanged)
-internal uint32_t of_tech_data;
 internal inline ee_tech_data *tech_get_data(const ee_tech *o) { return *(ee_tech_data **)((uint8_t *)o + of_tech_data); }
 internal inline void tech_set_data(ee_tech *o, ee_tech_data *v) { *(ee_tech_data **)((uint8_t *)o + of_tech_data) = v; }
 internal inline ee_tech_data **tech_data_at(const ee_tech *o) { return (ee_tech_data **)((uint8_t *)o + of_tech_data); }
 // its tree
-internal uint32_t of_tech_tree;
 internal inline ee_tech_tree *tech_get_tree(const ee_tech *o) { return *(ee_tech_tree **)((uint8_t *)o + of_tech_tree); }
 internal inline void tech_set_tree(ee_tech *o, ee_tech_tree *v) { *(ee_tech_tree **)((uint8_t *)o + of_tech_tree) = v; }
 internal inline ee_tech_tree **tech_tree_at(const ee_tech *o) { return (ee_tech_tree **)((uint8_t *)o + of_tech_tree); }
 // the tech tree code's reads (unchanged)
-internal uint32_t of_tech_epoch;
 internal inline int tech_get_epoch(const ee_tech *o) { return *(int *)((uint8_t *)o + of_tech_epoch); }
 internal inline void tech_set_epoch(ee_tech *o, int v) { *(int *)((uint8_t *)o + of_tech_epoch) = v; }
 internal inline int *tech_epoch_at(const ee_tech *o) { return (int *)((uint8_t *)o + of_tech_epoch); }
-internal uint32_t of_tech_kids_begin;
 internal inline uint8_t *tech_get_kids_begin(const ee_tech *o) { return *(uint8_t **)((uint8_t *)o + of_tech_kids_begin); }
 internal inline void tech_set_kids_begin(ee_tech *o, uint8_t *v) { *(uint8_t **)((uint8_t *)o + of_tech_kids_begin) = v; }
 internal inline uint8_t **tech_kids_begin_at(const ee_tech *o) { return (uint8_t **)((uint8_t *)o + of_tech_kids_begin); }
@@ -74,59 +62,48 @@ internal inline uint8_t **tech_kids_begin_at(const ee_tech *o) { return (uint8_t
 // class ee_tech_data (ee_tech_data)
 // a tech's data, TECH +8 (costs, its building ...)
 // the tech tree code's reads (unchanged)
-internal uint32_t of_techdata_makers_begin;
 internal inline int *techdata_get_makers_begin(const ee_tech_data *o) { return *(int **)((uint8_t *)o + of_techdata_makers_begin); }
 internal inline void techdata_set_makers_begin(ee_tech_data *o, int *v) { *(int **)((uint8_t *)o + of_techdata_makers_begin) = v; }
 internal inline int **techdata_makers_begin_at(const ee_tech_data *o) { return (int **)((uint8_t *)o + of_techdata_makers_begin); }
 // the tech tree code's reads (unchanged)
-internal uint32_t of_techdata_costs;
 internal inline uint8_t *techdata_costs_at(const ee_tech_data *o) { return (uint8_t *)o + of_techdata_costs; }
 // (7: a line upgrade)
 // the tech tree code's reads (unchanged)
-internal uint32_t of_techdata_category;
 internal inline int techdata_get_category(const ee_tech_data *o) { return *(int *)((uint8_t *)o + of_techdata_category); }
 internal inline void techdata_set_category(ee_tech_data *o, int v) { *(int *)((uint8_t *)o + of_techdata_category) = v; }
 internal inline int *techdata_category_at(const ee_tech_data *o) { return (int *)((uint8_t *)o + of_techdata_category); }
 // the tech tree code's reads (unchanged)
-internal uint32_t of_techdata_id;
 internal inline int techdata_get_id(const ee_tech_data *o) { return *(int *)((uint8_t *)o + of_techdata_id); }
 internal inline void techdata_set_id(ee_tech_data *o, int v) { *(int *)((uint8_t *)o + of_techdata_id) = v; }
 internal inline int *techdata_id_at(const ee_tech_data *o) { return (int *)((uint8_t *)o + of_techdata_id); }
 // its effect list (effect_list(i))
 // the tech tree code's reads (unchanged)
-internal uint32_t of_techdata_effects;
 internal inline int techdata_get_effects(const ee_tech_data *o) { return *(int *)((uint8_t *)o + of_techdata_effects); }
 internal inline void techdata_set_effects(ee_tech_data *o, int v) { *(int *)((uint8_t *)o + of_techdata_effects) = v; }
 internal inline int *techdata_effects_at(const ee_tech_data *o) { return (int *)((uint8_t *)o + of_techdata_effects); }
 // the unit type it makes (< 0: a tech)
 // the tech tree code's reads (unchanged)
-internal uint32_t of_techdata_unit_type;
 internal inline int techdata_get_unit_type(const ee_tech_data *o) { return *(int *)((uint8_t *)o + of_techdata_unit_type); }
 internal inline void techdata_set_unit_type(ee_tech_data *o, int v) { *(int *)((uint8_t *)o + of_techdata_unit_type) = v; }
 internal inline int *techdata_unit_type_at(const ee_tech_data *o) { return (int *)((uint8_t *)o + of_techdata_unit_type); }
 // the tech tree code's reads (unchanged)
-internal uint32_t of_techdata_counts;
 internal inline uint8_t techdata_get_counts(const ee_tech_data *o) { return *(uint8_t *)((uint8_t *)o + of_techdata_counts); }
 internal inline void techdata_set_counts(ee_tech_data *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_techdata_counts) = v; }
 internal inline uint8_t *techdata_counts_at(const ee_tech_data *o) { return (uint8_t *)((uint8_t *)o + of_techdata_counts); }
 // AoC's epoch upgrades (standard only) grant only a tech with it set: dbtechtree byte 0xF7, clear on civ power and
 // special unit upgrades (0 on all of the 2017 update's) - read in AoC only
-internal uint32_t of_techdata_aoc_new;
 internal inline uint8_t techdata_get_aoc_new(const ee_tech_data *o) { return *(uint8_t *)((uint8_t *)o + of_techdata_aoc_new); }
 internal inline void techdata_set_aoc_new(ee_tech_data *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_techdata_aoc_new) = v; }
 internal inline uint8_t *techdata_aoc_new_at(const ee_tech_data *o) { return (uint8_t *)((uint8_t *)o + of_techdata_aoc_new); }
 
 // class EETechTree (ee_tech_tree)
 // a player's tech tree, player +0x9D4 (EETechTree)
-internal uint32_t of_tt_player_index;
 internal inline int tt_get_player_index(const ee_tech_tree *o) { return *(int *)((uint8_t *)o + of_tt_player_index); }
 internal inline void tt_set_player_index(ee_tech_tree *o, int v) { *(int *)((uint8_t *)o + of_tt_player_index) = v; }
 internal inline int *tt_player_index_at(const ee_tech_tree *o) { return (int *)((uint8_t *)o + of_tt_player_index); }
 // the epoch records, 0x54 apart (AoC: one more, its 0x4E4 one record on)
-internal uint32_t of_tt_epoch_recs;
 internal inline uint8_t *tt_epoch_recs_at(const ee_tech_tree *o) { return (uint8_t *)o + of_tt_epoch_recs; }
 // the current epoch (0 = Prehistoric)
-internal uint32_t of_tt_epoch;
 internal inline int tt_get_epoch(const ee_tech_tree *o) { return *(int *)((uint8_t *)o + of_tt_epoch); }
 internal inline void tt_set_epoch(ee_tech_tree *o, int v) { *(int *)((uint8_t *)o + of_tt_epoch) = v; }
 internal inline int *tt_epoch_at(const ee_tech_tree *o) { return (int *)((uint8_t *)o + of_tt_epoch); }
@@ -134,20 +111,41 @@ internal inline int *tt_epoch_at(const ee_tech_tree *o) { return (int *)((uint8_
 // class ee_tt_epoch (ee_tt_epoch)
 // the tech tree's epoch records, TT + 8 + epoch * 0x54
 // the tech tree code's reads (unchanged)
-internal uint32_t of_ttrec_tech_data;
 internal inline ee_tech_data *ttrec_get_tech_data(const ee_tt_epoch *o) { return *(ee_tech_data **)((uint8_t *)o + of_ttrec_tech_data); }
 internal inline void ttrec_set_tech_data(ee_tt_epoch *o, ee_tech_data *v) { *(ee_tech_data **)((uint8_t *)o + of_ttrec_tech_data) = v; }
 internal inline ee_tech_data **ttrec_tech_data_at(const ee_tt_epoch *o) { return (ee_tech_data **)((uint8_t *)o + of_ttrec_tech_data); }
 // the tech tree code's reads (unchanged)
-internal uint32_t of_ttrec_needed;
 internal inline int ttrec_get_needed(const ee_tt_epoch *o) { return *(int *)((uint8_t *)o + of_ttrec_needed); }
 internal inline void ttrec_set_needed(ee_tt_epoch *o, int v) { *(int *)((uint8_t *)o + of_ttrec_needed) = v; }
 internal inline int *ttrec_needed_at(const ee_tt_epoch *o) { return (int *)((uint8_t *)o + of_ttrec_needed); }
 // the tech tree code's reads (unchanged)
-internal uint32_t of_ttrec_done;
 internal inline int ttrec_get_done(const ee_tt_epoch *o) { return *(int *)((uint8_t *)o + of_ttrec_done); }
 internal inline void ttrec_set_done(ee_tt_epoch *o, int v) { *(int *)((uint8_t *)o + of_ttrec_done) = v; }
 internal inline int *ttrec_done_at(const ee_tt_epoch *o) { return (int *)((uint8_t *)o + of_ttrec_done); }
+
+// static class tech
+// tech's data of the game, places in its code and numbers (raw/'s address rows)
+// the call of FN_EPOCH_UPGRADES
+internal inline uint8_t *tech_call_epoch_upgrades_at(void) { return (uint8_t *)(uintptr_t)data_tech_call_epoch_upgrades; }
+// thiscall(node, category), AoC's (+ only new): econ.c
+internal inline uint8_t *tech_fn_epoch_upgrades_at(void) { return (uint8_t *)(uintptr_t)data_tech_fn_epoch_upgrades; }
+// EETechTreeNode: char thiscall(tech)
+// EETechTreeNode::vf6's vtable slot
+internal inline uint8_t *tech_vts_tech_researched_at(void) { return (uint8_t *)(uintptr_t)data_tech_vts_tech_researched; }
+
+// static class tech_functions
+// the game's functions tech.c wraps, by the names the C side gives them
+// thiscall(tech tree): the next epoch (to the game's end epoch) - 0x5BC893 sets it, sends the epoch event
+typedef void (__thiscall *epoch_next_fn)(ee_tech_tree *);
+internal epoch_next_fn fn_epoch_next;
+internal inline void epoch_next(ee_tech_tree *tt) { fn_epoch_next(tt); }
+// AoC's takes an argument: called in the 2017 update only
+typedef int (__thiscall *tech_grant_fn)(ee_tech *);
+internal tech_grant_fn fn_tech_grant;
+internal inline int tech_grant(ee_tech *t) { return fn_tech_grant(t); }
+typedef ee_tech *(__thiscall *tech_lookup_fn)(ee_tech_tree *, int);
+internal tech_lookup_fn fn_tech_lookup;
+internal inline ee_tech *tech_lookup(ee_tech_tree *tt, int id) { return fn_tech_lookup(tt, id); }
 
 // the running build's values (spec_select, with addr_select): how many it hasn't got
 internal int spec_tech_select(int build) {
@@ -179,6 +177,13 @@ internal int spec_tech_select(int build) {
         of_ttrec_tech_data = 0x8;
         of_ttrec_needed = 0x40;
         of_ttrec_done = 0x48;
+        data_tech_call_epoch_upgrades = 0x0043D365;
+        data_tech_fn_epoch_upgrades = 0x005BDDBD;
+        value_tech_slot_tech_available = 1;
+        data_tech_vts_tech_researched = 0x00830874;
+        fn_epoch_next = (epoch_next_fn)0x005BC15D;
+        fn_tech_grant = (tech_grant_fn)0x005BF335;
+        fn_tech_lookup = (tech_lookup_fn)0x004019A1;
         return 0;
     case 1:   // aoc
         of_effect_type = 0x14;
@@ -207,6 +212,13 @@ internal int spec_tech_select(int build) {
         of_ttrec_tech_data = 0x8;
         of_ttrec_needed = 0x40;
         of_ttrec_done = 0x48;
+        data_tech_call_epoch_upgrades = 0x0043C9FC;
+        data_tech_fn_epoch_upgrades = 0x005CE8C5;
+        value_tech_slot_tech_available = 1;
+        data_tech_vts_tech_researched = 0x00846168;
+        fn_epoch_next = (epoch_next_fn)0x005CCB34;
+        fn_tech_grant = (tech_grant_fn)0x005CFA53;
+        fn_tech_lookup = (tech_lookup_fn)0x004018A4;
         return 0;
     }
     return 0;

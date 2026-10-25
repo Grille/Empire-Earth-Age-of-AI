@@ -44,25 +44,22 @@ internal inline uint16_t sight_raw(unsigned count) {
 // FUNCTIONS
 // the map's area id at pt (kind 1 water, 2 land): one id per connected region
 internal inline unsigned short map_area(ivec2 p, int kind) {
-    return GF(FN_REGION)((void *)GA(G_MAP_AREAS), &p.x, kind);   // &p.x: the game's int pos[2]
+    return fn_region_game((void *)data_map_map_areas, &p.x, kind);   // &p.x: the game's int pos[2]
 }
 // the map's area object at a tile (regions, continents)
-internal inline uint8_t *area_at(int *pt) { return GF(FN_AREA_AT)((void *)GA(G_MAP_AREAS), pt); }
+internal inline uint8_t *area_at(int *pt) { return fn_area_at_game((void *)data_map_map_areas, pt); }
 // the minimap (RTSMiniMap): a unit more sees the tile (x, y) - its pixel's own count of them +1
-internal inline void minimap_sight_add(void *mm, int x, int y) { GF(FN_MINIMAP_SIGHT_ADD)(mm, x, y); }
 
 // HOOKS
 // a tile's sight count for the player: a unit more (FN_TILE_SIGHT_ADD) or less (FN_TILE_SIGHT_SUB) sees it - every
 // change of the count but its setter (0x51979C: unexplored, explored, the fog's reset)
 typedef void (__thiscall *tile_sight_hook)(ee_tile *tile, ee_player *pl);
 internal inline int patch_tile_sight(tile_sight_hook add, tile_sight_hook sub) {
-    return patch_all_calls(GA(FN_TILE_SIGHT_ADD), (void *)add) + patch_all_calls(GA(FN_TILE_SIGHT_SUB), (void *)sub);
+    return patch_all_calls(data_map_fn_tile_sight_add, (void *)add) + patch_all_calls(data_map_fn_tile_sight_sub, (void *)sub);
 }
 // the minimap's rebuild (0x5150F2: the viewed player changed, a new game) takes each tile's count from its low byte
 typedef void (__thiscall *minimap_tile_hook)(void *mm, ee_tile *tile, int x, int y);
-internal inline void minimap_tile(void *mm, ee_tile *tile, int x, int y) { GF(FN_MINIMAP_TILE)(mm, tile, x, y); }
-internal inline int patch_minimap_tile(minimap_tile_hook h) { return patch_all_calls(GA(FN_MINIMAP_TILE), (void *)h); }
+internal inline int patch_minimap_tile(minimap_tile_hook h) { return patch_all_calls((uintptr_t)fn_minimap_tile, (void *)h); }
 // the view table's refill from the tiles' counts (FN_VIEW_SIGHT_COPY: a load, the viewed player changed) - their low byte
 typedef void (__thiscall *view_sight_copy_hook)(ee_player *pl);
-internal inline void view_sight_copy(ee_player *pl) { GF(FN_VIEW_SIGHT_COPY)(pl); }
-internal inline int patch_view_sight_copy(view_sight_copy_hook h) { return patch_all_calls(GA(FN_VIEW_SIGHT_COPY), (void *)h); }
+internal inline int patch_view_sight_copy(view_sight_copy_hook h) { return patch_all_calls((uintptr_t)fn_view_sight_copy, (void *)h); }

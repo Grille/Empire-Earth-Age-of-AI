@@ -1,5 +1,6 @@
-// THE GAME'S OBJECTS: FIELD, a read at an offset - the accessors with the running build's offset (a field's
-// name, raw/tables.c: only inside game/api/), elsewhere the runtime library's layouts (deque, vector, UString) and raw dumps.
+// THE GAME'S OBJECTS: FIELD, a read at an offset - the hand-written accessors with the running build's offset (of_unit_hp,
+// gen/'s: only inside game/api/), elsewhere the runtime library's layouts (deque, vector, UString) and raw dumps.
+#define NA 0xFFFFFFFFu   // an offset or slot a build hasn't got, or that isn't known yet (gen/'s none)
 // counts of indexed fields (player.c, ai_managers.c)
 #define PL_TOGGLES_LEN  18             // the AI toggle bytes 0xEF4..0xF05 (player_get_toggle)
 #define CM_TIMERS_N     6              // cm_get_timer

@@ -3,81 +3,66 @@
 
 // class EECameraControl (ee_camera)
 // the camera, G_CAMERA (EECameraControl)
-internal uint32_t of_camera_x;
 internal inline float camera_get_x(const ee_camera *o) { return *(float *)((uint8_t *)o + of_camera_x); }
 internal inline void camera_set_x(ee_camera *o, float v) { *(float *)((uint8_t *)o + of_camera_x) = v; }
 internal inline float *camera_x_at(const ee_camera *o) { return (float *)((uint8_t *)o + of_camera_x); }
-internal uint32_t of_camera_zoom;
 internal inline float camera_get_zoom(const ee_camera *o) { return *(float *)((uint8_t *)o + of_camera_zoom); }
 internal inline void camera_set_zoom(ee_camera *o, float v) { *(float *)((uint8_t *)o + of_camera_zoom) = v; }
 internal inline float *camera_zoom_at(const ee_camera *o) { return (float *)((uint8_t *)o + of_camera_zoom); }
 
-// class ee_gfx (void)
+// class ee_gfx (ee_gfx)
 // a graphical effect (a command's circle), [G_GFX_EFFECTS] by its handle (FN_GFX_GET)
 // 0x663138's writes (both builds; FN_ORDER_MARKS' the same): the player index that sees it
-internal uint32_t of_gfx_owner;
-internal inline int gfx_get_owner(const void *o) { return *(int *)((uint8_t *)o + of_gfx_owner); }
-internal inline void gfx_set_owner(void *o, int v) { *(int *)((uint8_t *)o + of_gfx_owner) = v; }
-internal inline int *gfx_owner_at(const void *o) { return (int *)((uint8_t *)o + of_gfx_owner); }
+internal inline int gfx_get_owner(const ee_gfx *o) { return *(int *)((uint8_t *)o + of_gfx_owner); }
+internal inline void gfx_set_owner(ee_gfx *o, int v) { *(int *)((uint8_t *)o + of_gfx_owner) = v; }
+internal inline int *gfx_owner_at(const ee_gfx *o) { return (int *)((uint8_t *)o + of_gfx_owner); }
 // 0x663138's writes (both builds; FN_ORDER_MARKS' the same), 1
-internal uint32_t of_gfx_shown;
-internal inline uint8_t gfx_get_shown(const void *o) { return *(uint8_t *)((uint8_t *)o + of_gfx_shown); }
-internal inline void gfx_set_shown(void *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_gfx_shown) = v; }
-internal inline uint8_t *gfx_shown_at(const void *o) { return (uint8_t *)((uint8_t *)o + of_gfx_shown); }
+internal inline uint8_t gfx_get_shown(const ee_gfx *o) { return *(uint8_t *)((uint8_t *)o + of_gfx_shown); }
+internal inline void gfx_set_shown(ee_gfx *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_gfx_shown) = v; }
+internal inline uint8_t *gfx_shown_at(const ee_gfx *o) { return (uint8_t *)((uint8_t *)o + of_gfx_shown); }
 // 0x663138's writes (both builds; FN_ORDER_MARKS' the same), 0
-internal uint32_t of_gfx_0x2e;
-internal inline uint8_t gfx_get_0x2e(const void *o) { return *(uint8_t *)((uint8_t *)o + of_gfx_0x2e); }
-internal inline void gfx_set_0x2e(void *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_gfx_0x2e) = v; }
-internal inline uint8_t *gfx_0x2e_at(const void *o) { return (uint8_t *)((uint8_t *)o + of_gfx_0x2e); }
+internal inline uint8_t gfx_get_0x2e(const ee_gfx *o) { return *(uint8_t *)((uint8_t *)o + of_gfx_0x2e); }
+internal inline void gfx_set_0x2e(ee_gfx *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_gfx_0x2e) = v; }
+internal inline uint8_t *gfx_0x2e_at(const ee_gfx *o) { return (uint8_t *)((uint8_t *)o + of_gfx_0x2e); }
 // EEE3DCommandConfirmation vf12 (port_fields 9 votes): the record's +0x1C, x the unit's TD_MARK_SIZE x 1.25
-internal uint32_t of_gfx_size;
-internal inline float gfx_get_size(const void *o) { return *(float *)((uint8_t *)o + of_gfx_size); }
-internal inline void gfx_set_size(void *o, float v) { *(float *)((uint8_t *)o + of_gfx_size) = v; }
-internal inline float *gfx_size_at(const void *o) { return (float *)((uint8_t *)o + of_gfx_size); }
+internal inline float gfx_get_size(const ee_gfx *o) { return *(float *)((uint8_t *)o + of_gfx_size); }
+internal inline void gfx_set_size(ee_gfx *o, float v) { *(float *)((uint8_t *)o + of_gfx_size) = v; }
+internal inline float *gfx_size_at(const ee_gfx *o) { return (float *)((uint8_t *)o + of_gfx_size); }
 // EEE3DCommandConfirmation vf12 (port_fields 5 votes): the record's +0x18, with a unit its TD_MARK_SIZE x 1.25
-internal uint32_t of_gfx_size_2;
-internal inline float gfx_get_size_2(const void *o) { return *(float *)((uint8_t *)o + of_gfx_size_2); }
-internal inline void gfx_set_size_2(void *o, float v) { *(float *)((uint8_t *)o + of_gfx_size_2) = v; }
-internal inline float *gfx_size_2_at(const void *o) { return (float *)((uint8_t *)o + of_gfx_size_2); }
+internal inline float gfx_get_size_2(const ee_gfx *o) { return *(float *)((uint8_t *)o + of_gfx_size_2); }
+internal inline void gfx_set_size_2(ee_gfx *o, float v) { *(float *)((uint8_t *)o + of_gfx_size_2) = v; }
+internal inline float *gfx_size_2_at(const ee_gfx *o) { return (float *)((uint8_t *)o + of_gfx_size_2); }
 
 // class RTSMouse (ee_mouse)
 // the game cursor, [G_MOUSE] (RTSMouse) - not the DirectInput device (E_MOUSE)
-internal uint32_t of_mouse_x;
 internal inline float mouse_get_x(const ee_mouse *o) { return *(float *)((uint8_t *)o + of_mouse_x); }
 internal inline void mouse_set_x(ee_mouse *o, float v) { *(float *)((uint8_t *)o + of_mouse_x) = v; }
 internal inline float *mouse_x_at(const ee_mouse *o) { return (float *)((uint8_t *)o + of_mouse_x); }
-internal uint32_t of_mouse_y;
 internal inline float mouse_get_y(const ee_mouse *o) { return *(float *)((uint8_t *)o + of_mouse_y); }
 internal inline void mouse_set_y(ee_mouse *o, float v) { *(float *)((uint8_t *)o + of_mouse_y) = v; }
 internal inline float *mouse_y_at(const ee_mouse *o) { return (float *)((uint8_t *)o + of_mouse_y); }
 // as the 2017 update (were rows of RM, which this is not: not checked in AoC)
-internal uint32_t of_mouse_y_max;
 internal inline float mouse_get_y_max(const ee_mouse *o) { return *(float *)((uint8_t *)o + of_mouse_y_max); }
 internal inline void mouse_set_y_max(ee_mouse *o, float v) { *(float *)((uint8_t *)o + of_mouse_y_max) = v; }
 internal inline float *mouse_y_max_at(const ee_mouse *o) { return (float *)((uint8_t *)o + of_mouse_y_max); }
 // as the 2017 update (were rows of RM, which this is not: not checked in AoC)
-internal uint32_t of_mouse_x_min;
 internal inline float mouse_get_x_min(const ee_mouse *o) { return *(float *)((uint8_t *)o + of_mouse_x_min); }
 internal inline void mouse_set_x_min(ee_mouse *o, float v) { *(float *)((uint8_t *)o + of_mouse_x_min) = v; }
 internal inline float *mouse_x_min_at(const ee_mouse *o) { return (float *)((uint8_t *)o + of_mouse_x_min); }
 // as the 2017 update (were rows of RM, which this is not: not checked in AoC)
-internal uint32_t of_mouse_x_max;
 internal inline float mouse_get_x_max(const ee_mouse *o) { return *(float *)((uint8_t *)o + of_mouse_x_max); }
 internal inline void mouse_set_x_max(ee_mouse *o, float v) { *(float *)((uint8_t *)o + of_mouse_x_max) = v; }
 internal inline float *mouse_x_max_at(const ee_mouse *o) { return (float *)((uint8_t *)o + of_mouse_x_max); }
 // as the 2017 update (were rows of RM, which this is not: not checked in AoC)
-internal uint32_t of_mouse_y_min;
 internal inline float mouse_get_y_min(const ee_mouse *o) { return *(float *)((uint8_t *)o + of_mouse_y_min); }
 internal inline void mouse_set_y_min(ee_mouse *o, float v) { *(float *)((uint8_t *)o + of_mouse_y_min) = v; }
 internal inline float *mouse_y_min_at(const ee_mouse *o) { return (float *)((uint8_t *)o + of_mouse_y_min); }
-internal uint32_t of_mouse_frozen;
 internal inline uint8_t mouse_get_frozen(const ee_mouse *o) { return *(uint8_t *)((uint8_t *)o + of_mouse_frozen); }
 internal inline void mouse_set_frozen(ee_mouse *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_mouse_frozen) = v; }
 internal inline uint8_t *mouse_frozen_at(const ee_mouse *o) { return (uint8_t *)((uint8_t *)o + of_mouse_frozen); }
 
 // class ee_native_chat (ee_native_chat)
 // the object of FN_NATIVE_CHAT
-internal uint32_t of_nativechat_player;
 internal inline ee_player *nativechat_get_player(const ee_native_chat *o) { return *(ee_player **)((uint8_t *)o + of_nativechat_player); }
 internal inline void nativechat_set_player(ee_native_chat *o, ee_player *v) { *(ee_player **)((uint8_t *)o + of_nativechat_player) = v; }
 internal inline ee_player **nativechat_player_at(const ee_native_chat *o) { return (ee_player **)((uint8_t *)o + of_nativechat_player); }
@@ -85,27 +70,113 @@ internal inline ee_player **nativechat_player_at(const ee_native_chat *o) { retu
 // class EEAScroll (ee_scroll)
 // the scroll action (EEAScroll)
 // elapsed (10 ms)
-internal uint32_t of_scroll_ticks;
 internal inline uint32_t scroll_get_ticks(const ee_scroll *o) { return *(uint32_t *)((uint8_t *)o + of_scroll_ticks); }
 internal inline void scroll_set_ticks(ee_scroll *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_scroll_ticks) = v; }
 internal inline uint32_t *scroll_ticks_at(const ee_scroll *o) { return (uint32_t *)((uint8_t *)o + of_scroll_ticks); }
-internal uint32_t of_scroll_keys;
 internal inline uint8_t *scroll_keys_at(const ee_scroll *o) { return (uint8_t *)o + of_scroll_keys; }
 
 // class ee_ui_form (ee_ui_form)
 // the UI manager's current form
 // votes 6/7
-internal uint32_t of_uiform_top_bar;
 internal inline int uiform_get_top_bar(const ee_ui_form *o) { return *(int *)((uint8_t *)o + of_uiform_top_bar); }
 internal inline void uiform_set_top_bar(ee_ui_form *o, int v) { *(int *)((uint8_t *)o + of_uiform_top_bar) = v; }
 internal inline int *uiform_top_bar_at(const ee_ui_form *o) { return (int *)((uint8_t *)o + of_uiform_top_bar); }
 
 // class ee_ui_screen (ee_ui_screen)
 // a single-player menu screen (EEUIESP*)
-internal uint32_t of_uiscreen_controls;
 internal inline uint8_t **uiscreen_get_controls(const ee_ui_screen *o) { return *(uint8_t ***)((uint8_t *)o + of_uiscreen_controls); }
 internal inline void uiscreen_set_controls(ee_ui_screen *o, uint8_t **v) { *(uint8_t ***)((uint8_t *)o + of_uiscreen_controls) = v; }
 internal inline uint8_t ***uiscreen_controls_at(const ee_ui_screen *o) { return (uint8_t ***)((uint8_t *)o + of_uiscreen_controls); }
+
+// static class ui
+// ui's data of the game, places in its code and numbers (raw/'s address rows)
+// EEAMouseClick::vf3's FN_GFX_ADD: the command's circle
+internal inline uint8_t *ui_call_click_mark_at(void) { return (uint8_t *)(uintptr_t)data_ui_call_click_mark; }
+internal inline uint8_t *ui_call_player_color_at(void) { return (uint8_t *)(uintptr_t)data_ui_call_player_color; }
+// the group's unload order (0x5DB641): FN_ORDER_MARKS
+internal inline uint8_t *ui_call_unload_marks_at(void) { return (uint8_t *)(uintptr_t)data_ui_call_unload_marks; }
+// the graphical effects (a command's circles): handle -> effect
+internal inline uint8_t *ui_gfx_effects_at(void) { return (uint8_t *)(uintptr_t)data_ui_gfx_effects; }
+// UIEditBox::GetText
+internal inline uint8_t *ui_iat_edit_get_text_at(void) { return (uint8_t *)(uintptr_t)data_ui_iat_edit_get_text; }
+// UIForm::AddHotKey(key, 3 masks, 4 events, K, bool)
+internal inline uint8_t *ui_iat_uiform_add_hotkey_at(void) { return (uint8_t *)(uintptr_t)data_ui_iat_uiform_add_hotkey; }
+// the UI manager's current form
+internal inline uint8_t *ui_iat_uim_form_at(void) { return (uint8_t *)(uintptr_t)data_ui_iat_uim_form; }
+// the single player screens' vtables (playername.c)
+// TCP Protocol.dll, relative to its base: the network ports' immediates (UDP 33334, TCP 33335), moved for a test
+// slot
+internal inline uint8_t *ui_site_editor_form_at(void) { return (uint8_t *)(uintptr_t)data_ui_site_editor_form; }
+// operand of push 0x19 (timer period in ms)
+internal inline uint8_t *ui_site_scroll_timer_at(void) { return (uint8_t *)(uintptr_t)data_ui_site_scroll_timer; }
+// FN_CAMACT_CTOR
+// EEUIEKeyboardScroll: vtable, refcount, 0, direction
+// VT_SCROLL: Execute
+// SP_VTABLES: a button's handler
+// the draw list's operands to move (drawlist.c, in its table's order)
+// their slot 1
+// EEUIEKeyboardScroll (0x10 bytes: vtable, refcount, 0, direction); Execute 0x5C9070 moves G_CAMERA
+internal inline uint8_t *ui_vt_key_scroll_at(void) { return (uint8_t *)(uintptr_t)data_ui_vt_key_scroll; }
+internal inline uint8_t *ui_vt_scroll_at(void) { return (uint8_t *)(uintptr_t)data_ui_vt_scroll; }
+
+// static class ui_functions
+// the game's functions ui.c wraps, by the names the C side gives them
+// EEACenterCamera ctor (0x1C bytes)
+typedef void *(__thiscall *camera_action_init_fn)(void *);
+internal camera_action_init_fn fn_camera_action_init;
+internal inline void *camera_action_init(void *mem) { return fn_camera_action_init(mem); }
+// thiscall (tile x, tile y): set target + queue (only if tile valid)
+typedef void (__thiscall *camera_action_set_fn)(void *, int, int);
+internal camera_action_set_fn fn_camera_action_set;
+internal inline void camera_action_set(void *act, int x, int y) { fn_camera_action_set(act, x, y); }
+// thiscall on G_CAMERA (float dx, float dy)
+typedef void (__thiscall *camera_move_game_fn)(void *, float, float);
+internal camera_move_game_fn fn_camera_move_game;
+internal inline void camera_move_game(void *p1, float p2, float p3) { fn_camera_move_game(p1, p2, p3); }
+// thiscall([G_CHEAT_PARSER], UWideString *, int *code, int *arg)
+typedef void (__thiscall *cheat_parse_fn)(void *, void *, int *, int *);
+internal cheat_parse_fn fn_cheat_parse;
+internal inline void cheat_parse(void *parser, void *wtext, int *code, int *arg) { fn_cheat_parse(parser, wtext, code, arg); }
+typedef void *(__cdecl *game_color_rgb_fn)(uint32_t);
+internal game_color_rgb_fn fn_game_color_rgb;
+internal inline void *game_color_rgb(uint32_t idx) { return fn_game_color_rgb(idx); }
+// thiscall([G_GFX_EFFECTS], unit or 0, float pos[3], kind, int *handle, 0): a graphical effect added (0: done)
+typedef int (__thiscall *gfx_add_fn)(void *, void *, float *, void *, int *, int);
+internal gfx_add_fn fn_gfx_add;
+internal inline int gfx_add(void *fx, void *on, float *pos, void *kind, int *handle, int arg) { return fn_gfx_add(fx, on, pos, kind, handle, arg); }
+// thiscall([G_GFX_EFFECTS], handle): NULL gone
+typedef ee_gfx *(__thiscall *gfx_get_fn)(void *, int);
+internal gfx_get_fn fn_gfx_get;
+internal inline ee_gfx *gfx_get(void *p1, int p2) { return fn_gfx_get(p1, p2); }
+// a graphical effect's record by its id (enum gfx_kind)
+typedef void *(__cdecl *gfx_kind_game_fn)(uint32_t);
+internal gfx_kind_game_fn fn_gfx_kind_game;
+internal inline void *gfx_kind_game(uint32_t p1) { return fn_gfx_kind_game(p1); }
+// thiscall([G_GFX_EFFECTS], handle)
+typedef int (__thiscall *gfx_remove_game_fn)(void *, int);
+internal gfx_remove_game_fn fn_gfx_remove_game;
+internal inline int gfx_remove_game(void *p1, int p2) { return fn_gfx_remove_game(p1, p2); }
+typedef void (__thiscall *mouse_clamp_fn)(void *);
+internal mouse_clamp_fn fn_mouse_clamp;
+internal inline void mouse_clamp(void *m) { fn_mouse_clamp(m); }
+typedef void (__thiscall *mouse_update_fn)(ee_mouse *);
+internal mouse_update_fn fn_mouse_update;
+internal inline void mouse_update(ee_mouse *m) { fn_mouse_update(m); }
+typedef char (__thiscall *native_chat_fn)(ee_native_chat *, int, int);
+internal native_chat_fn fn_native_chat;
+internal inline char native_chat(ee_native_chat *pim, int base, int ms) { return fn_native_chat(pim, base, ms); }
+// cdecl(group, 0, owner (a player's +0x45C), how (0xBB: a GFX_ORDER_ON circle at each unit's goal), 0): a
+// command's circles
+typedef void (__cdecl *order_marks_fn)(void *, void *, int, int, uint32_t);
+internal order_marks_fn fn_order_marks;
+internal inline void order_marks(void *grp, void *on, int owner, int how, uint32_t goal) { fn_order_marks(grp, on, owner, how, goal); }
+typedef void (__thiscall *scroll_execute_fn)(void *);
+internal scroll_execute_fn fn_scroll_execute;
+internal inline void scroll_execute(void *self) { fn_scroll_execute(self); }
+// thiscall(ui [G_UI], colour, name, line, ms, 0): a chat or system line
+typedef void (__thiscall *ui_line_game_fn)(void *, void *, void *, void *, int, int);
+internal ui_line_game_fn fn_ui_line_game;
+internal inline void ui_line_game(void *p1, void *p2, void *p3, void *p4, int p5, int p6) { fn_ui_line_game(p1, p2, p3, p4, p5, p6); }
 
 // the running build's values (spec_select, with addr_select): how many it hasn't got
 internal int spec_ui_select(int build) {
@@ -130,6 +201,57 @@ internal int spec_ui_select(int build) {
         of_scroll_keys = 0x44;
         of_uiform_top_bar = 0x5D8;
         of_uiscreen_controls = 0xF8;
+        data_ui_call_click_mark = 0x00404A26;
+        data_ui_call_player_color = 0x005262E4;
+        data_ui_call_unload_marks = 0x005DCDBD;
+        data_ui_gfx_effects = 0x00918E1C;
+        data_ui_iat_edit_get_text = 0x00823328;
+        data_ui_iat_uiform_add_hotkey = 0x00824048;
+        data_ui_iat_uim_form = 0x00823D60;
+        data_ui_mouse_update_sites[0] = 0x004B8ABB;
+        data_ui_mouse_update_sites[1] = 0x0050FEC8;
+        data_ui_mouse_update_sites[2] = 0x005111CF;
+        data_ui_mouse_update_sites[3] = 0x006618B8;
+        data_ui_native_chat_sites[0] = 0x00470040;
+        data_ui_native_chat_sites[1] = 0x004715F8;
+        data_ui_native_chat_sites[2] = 0x0047166E;
+        data_ui_native_chat_sites[3] = 0x0047280E;
+        data_ui_native_chat_sites[4] = 0x00472B9D;
+        data_ui_site_editor_form = 0x0065BA13;
+        data_ui_site_scroll_timer = 0x004050C2;
+        value_ui_size_camera_action = 28;
+        value_ui_size_key_scroll = 16;
+        value_ui_slot_scroll_execute = 1;
+        value_ui_slot_sp_button = 1;
+        data_ui_sp_fns[0] = 0x005D80D5;
+        data_ui_sp_fns[1] = 0x005D812B;
+        data_ui_sp_fns[2] = 0x00628E89;
+        data_ui_sp_fns[3] = 0x005D8156;
+        data_ui_sp_fns[4] = 0x005D88C0;
+        data_ui_sp_fns[5] = 0x005D817A;
+        data_ui_sp_vtables[0] = 0x00835740;
+        data_ui_sp_vtables[1] = 0x00835754;
+        data_ui_sp_vtables[2] = 0x00835768;
+        data_ui_sp_vtables[3] = 0x00835560;
+        data_ui_sp_vtables[4] = 0x0083577C;
+        data_ui_sp_vtables[5] = 0x00835790;
+        data_ui_vt_key_scroll = 0x008348FC;
+        data_ui_vt_scroll = 0x00825098;
+        fn_camera_action_init = (camera_action_init_fn)0x00560179;
+        fn_camera_action_set = (camera_action_set_fn)0x00401F3E;
+        fn_camera_move_game = (camera_move_game_fn)0x0051E2E6;
+        fn_cheat_parse = (cheat_parse_fn)0x00520A17;
+        fn_game_color_rgb = (game_color_rgb_fn)0x00526B85;
+        fn_gfx_add = (gfx_add_fn)0x004FB6D4;
+        fn_gfx_get = (gfx_get_fn)0x004FBE3E;
+        fn_gfx_kind_game = (gfx_kind_game_fn)0x00404C83;
+        fn_gfx_remove_game = (gfx_remove_game_fn)0x004FBEB2;
+        fn_mouse_clamp = (mouse_clamp_fn)0x00510DAD;
+        fn_mouse_update = (mouse_update_fn)0x00510E5D;
+        fn_native_chat = (native_chat_fn)0x00484EB3;
+        fn_order_marks = (order_marks_fn)0x004B12A2;
+        fn_scroll_execute = (scroll_execute_fn)0x004050FC;
+        fn_ui_line_game = (ui_line_game_fn)0x00661E91;
         return 0;
     case 1:   // aoc
         of_camera_x = 0x78;
@@ -151,6 +273,57 @@ internal int spec_ui_select(int build) {
         of_scroll_keys = 0x44;
         of_uiform_top_bar = 0x5E8;
         of_uiscreen_controls = 0xF8;
+        data_ui_call_click_mark = 0x0040416B;
+        data_ui_call_player_color = 0x00531057;
+        data_ui_call_unload_marks = 0x005ED592;
+        data_ui_gfx_effects = 0x0093185C;
+        data_ui_iat_edit_get_text = 0x00837EE0;
+        data_ui_iat_uiform_add_hotkey = 0x00837BE0;
+        data_ui_iat_uim_form = 0x00837B44;
+        data_ui_mouse_update_sites[0] = 0x004C11FE;
+        data_ui_mouse_update_sites[1] = 0x0051A487;
+        data_ui_mouse_update_sites[2] = 0x0051B73E;
+        data_ui_mouse_update_sites[3] = 0x00678F02;
+        data_ui_native_chat_sites[0] = 0x00472F4C;
+        data_ui_native_chat_sites[1] = 0x00474682;
+        data_ui_native_chat_sites[2] = 0x00474705;
+        data_ui_native_chat_sites[3] = 0x004758D5;
+        data_ui_native_chat_sites[4] = 0x00475C65;
+        data_ui_site_editor_form = 0x00673E9B;
+        data_ui_site_scroll_timer = 0x00404734;
+        value_ui_size_camera_action = 28;
+        value_ui_size_key_scroll = 16;
+        value_ui_slot_scroll_execute = 1;
+        value_ui_slot_sp_button = 1;
+        data_ui_sp_fns[0] = 0x005E8A41;
+        data_ui_sp_fns[1] = 0x005E8B10;
+        data_ui_sp_fns[2] = 0x0067CF38;
+        data_ui_sp_fns[3] = 0x005E8B44;
+        data_ui_sp_fns[4] = 0x005E8B68;
+        data_ui_sp_fns[5] = 0x005E8B86;
+        data_ui_sp_vtables[0] = 0x0084B814;
+        data_ui_sp_vtables[1] = 0x0084B828;
+        data_ui_sp_vtables[2] = 0x0084B83C;
+        data_ui_sp_vtables[3] = 0x0084B65C;
+        data_ui_sp_vtables[4] = 0x0084B850;
+        data_ui_sp_vtables[5] = 0x0084B864;
+        data_ui_vt_key_scroll = 0x0084A998;
+        data_ui_vt_scroll = 0x0083907C;
+        fn_camera_action_init = (camera_action_init_fn)0x0056FAD4;
+        fn_camera_action_set = (camera_action_set_fn)0x00401EE0;
+        fn_camera_move_game = (camera_move_game_fn)0x00528EA5;
+        fn_cheat_parse = (cheat_parse_fn)0x0052B5D6;
+        fn_game_color_rgb = (game_color_rgb_fn)0x005318BD;
+        fn_gfx_add = (gfx_add_fn)0x00506038;
+        fn_gfx_get = (gfx_get_fn)0x00506852;
+        fn_gfx_kind_game = (gfx_kind_game_fn)0x0040432F;
+        fn_gfx_remove_game = (gfx_remove_game_fn)0x005068C6;
+        fn_mouse_clamp = (mouse_clamp_fn)0x0051B31C;
+        fn_mouse_update = (mouse_update_fn)0x0051B3CC;
+        fn_native_chat = (native_chat_fn)0x0048966C;
+        fn_order_marks = (order_marks_fn)0x004B86CD;
+        fn_scroll_execute = (scroll_execute_fn)0x0040478E;
+        fn_ui_line_game = (ui_line_game_fn)0x006794C6;
         return 0;
     }
     return 0;

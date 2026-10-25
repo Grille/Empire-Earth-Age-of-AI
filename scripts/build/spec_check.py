@@ -16,12 +16,12 @@ GAME = os.path.join(ROOT, 'spec', 'game')   # the game's description (the spec's
 RAW = os.path.join(ROOT, 'dll', 'game', 'api', 'raw')
 CSHARP = r'\b(int|uint|short|ushort|long|ulong|float|double|decimal|byte|sbyte|char|bool|string|object)\b'
 TYPE = re.compile(r'\b(?:(static)\s+(?:unsafe\s+)?class|struct)\s+(\w+)')
-WHERE_FIELD = {False: ('offset',), True: ('address',)}
+WHERE_FIELD = {False: ('offset',), True: ('address', 'value')}
 WHERE_FUNC = ('address', 'slot', 'import')
 BUILDS = ('ee', 'aoc')                  # builds.h's order: the rows' columns
 NONE = 0xFFFFFFFF                       # values.none; a row's NA, or 0 for an address the build hasn't got
 NUM = r'0x[0-9A-Fa-f]+|\d+|NA'
-VALUE_ATTR = re.compile(r'\b(offset|address|slot|import)\(((?:[^()]|\([^()]*\))*)\)')
+VALUE_ATTR = re.compile(r'\b(offset|address|slot|import|value)\(((?:[^()]|\([^()]*\))*)\)')
 
 
 def code(line):   # the line without its comment and its strings' contents
@@ -35,6 +35,8 @@ def num(s):
 def raw_rows():   # today's tables: name -> (its attribute, value per build); a list's: [(value per build) per site]
     rows = {}
     for f in ('functions.h', 'hooks.h', 'data.h', 'fields.h'):
+        if not os.path.exists(os.path.join(RAW, f)):   # moved into the spec (2026-10-25): nothing to compare with
+            continue
         src = open(os.path.join(RAW, f), encoding='latin-1').read().replace('\\\n', ' ')
         for m in re.finditer(r'\b([DO])\((\w+),\s*(%s),\s*(%s)\)' % (NUM, NUM), src):
             rows[m.group(2)] = (row_attr(m.group(1), m.group(2)), (num(m.group(3)), num(m.group(4))))
@@ -107,7 +109,9 @@ def check_was(where, text, rows):
     if name not in rows:
         return ['%s: was("%s") - no such row in raw/' % (where, name)]
     attr, row = rows[name]
-    spec = [values(args) for a, args in VALUE_ATTR.findall(text) if a == attr]
+    found = VALUE_ATTR.findall(text)
+    # a row the spec holds as the attribute of its kind ([slot] a slot) or, moved as it was, a [value] / an [address]
+    spec = [values(args) for a, args in found if a == attr] or [values(args) for a, args in found if a in ('value', 'address')]
     if isinstance(row, list):   # a list: one [address] per site
         if len(spec) != len(row) or not all(same(s, r) for s, r in zip(spec, row)):
             return ['%s: was("%s") - the sites %s, the row %s' % (where, name, fmt(spec), fmt(row))]

@@ -61,6 +61,15 @@ public sealed class import : Attribute
     public import(ee ee, aoc aoc) { }
 }
 
+// a number of the game's that is no address: a virtual function's slot index, an object's size, a place relative to
+// an engine DLL's base (each build ships its own DLLs: the mod adds the DLL's base)
+[AttributeUsage(AttributeTargets.Field)]
+public sealed class value : Attribute
+{
+    public value(uint all) { }
+    public value(ee ee, aoc aoc) { }
+}
+
 // a class of an engine DLL: its members' addresses relative to the DLL's base (each build ships its own DLLs)
 [AttributeUsage(AttributeTargets.Class)]
 public sealed class dll : Attribute
@@ -110,6 +119,9 @@ public sealed class c_prefix : Attribute
 // a function's calling convention other than thiscall (an instance method is thiscall, the object its this)
 [AttributeUsage(AttributeTargets.Method)] public sealed class cdecl : Attribute { }
 [AttributeUsage(AttributeTargets.Method)] public sealed class stdcall : Attribute { }
+// a static class's function that is a method of a class the spec doesn't describe yet: thiscall, its first parameter
+// the object
+[AttributeUsage(AttributeTargets.Method)] public sealed class thiscall : Attribute { }
 
 // a call of this function in the game's code (a call instruction there), by a name of its own: the place a hook goes
 [AttributeUsage(AttributeTargets.Method, AllowMultiple = true)]

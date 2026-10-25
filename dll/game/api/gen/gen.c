@@ -5,17 +5,22 @@
 typedef struct ee_ghost_unit ee_ghost_unit;
 
 #include "game/api/gen/ai_managers.c"
+#include "game/api/gen/api.c"
 #include "game/api/gen/attack.c"
 #include "game/api/gen/engine_display.c"
 #include "game/api/gen/engine_sound.c"
 #include "game/api/gen/formation.c"
+#include "game/api/gen/game.c"
 #include "game/api/gen/goal.c"
 #include "game/api/gen/hooks.c"
 #include "game/api/gen/map.c"
 #include "game/api/gen/messages.c"
+#include "game/api/gen/movement.c"
+#include "game/api/gen/patching.c"
 #include "game/api/gen/path.c"
 #include "game/api/gen/player.c"
 #include "game/api/gen/scenario.c"
+#include "game/api/gen/scenario_lists.c"
 #include "game/api/gen/setup.c"
 #include "game/api/gen/stubs.c"
 #include "game/api/gen/tech.c"
@@ -26,22 +31,27 @@ typedef struct ee_ghost_unit ee_ghost_unit;
 #include "game/api/gen/zone.c"
 
 // g_spec_missing: exe.c's (game_build sets it)
-internal int spec_select(int build) { return spec_ai_managers_select(build) + spec_attack_select(build) + spec_engine_display_select(build) + spec_engine_sound_select(build) + spec_formation_select(build) + spec_goal_select(build) + spec_hooks_select(build) + spec_map_select(build) + spec_messages_select(build) + spec_path_select(build) + spec_player_select(build) + spec_scenario_select(build) + spec_setup_select(build) + spec_stubs_select(build) + spec_tech_select(build) + spec_ui_select(build) + spec_unit_select(build) + spec_unit_type_select(build) + spec_world_select(build) + spec_zone_select(build); }
+internal int spec_select(int build) { return spec_ai_managers_select(build) + spec_api_select(build) + spec_attack_select(build) + spec_engine_display_select(build) + spec_engine_sound_select(build) + spec_formation_select(build) + spec_game_select(build) + spec_goal_select(build) + spec_hooks_select(build) + spec_map_select(build) + spec_messages_select(build) + spec_movement_select(build) + spec_patching_select(build) + spec_path_select(build) + spec_player_select(build) + spec_scenario_select(build) + spec_scenario_lists_select(build) + spec_setup_select(build) + spec_stubs_select(build) + spec_tech_select(build) + spec_ui_select(build) + spec_unit_select(build) + spec_unit_type_select(build) + spec_world_select(build) + spec_zone_select(build); }
 internal void spec_log(FILE *log) {
     if (!log || !g_spec_missing) return;
     fprintf(log, "# spec: build %d hasn't got %d:", g_exe_build, g_spec_missing);
     if (*k_spec_ai_managers_missing[g_exe_build]) fprintf(log, " %s", k_spec_ai_managers_missing[g_exe_build]);
+    if (*k_spec_api_missing[g_exe_build]) fprintf(log, " %s", k_spec_api_missing[g_exe_build]);
     if (*k_spec_attack_missing[g_exe_build]) fprintf(log, " %s", k_spec_attack_missing[g_exe_build]);
     if (*k_spec_engine_display_missing[g_exe_build]) fprintf(log, " %s", k_spec_engine_display_missing[g_exe_build]);
     if (*k_spec_engine_sound_missing[g_exe_build]) fprintf(log, " %s", k_spec_engine_sound_missing[g_exe_build]);
     if (*k_spec_formation_missing[g_exe_build]) fprintf(log, " %s", k_spec_formation_missing[g_exe_build]);
+    if (*k_spec_game_missing[g_exe_build]) fprintf(log, " %s", k_spec_game_missing[g_exe_build]);
     if (*k_spec_goal_missing[g_exe_build]) fprintf(log, " %s", k_spec_goal_missing[g_exe_build]);
     if (*k_spec_hooks_missing[g_exe_build]) fprintf(log, " %s", k_spec_hooks_missing[g_exe_build]);
     if (*k_spec_map_missing[g_exe_build]) fprintf(log, " %s", k_spec_map_missing[g_exe_build]);
     if (*k_spec_messages_missing[g_exe_build]) fprintf(log, " %s", k_spec_messages_missing[g_exe_build]);
+    if (*k_spec_movement_missing[g_exe_build]) fprintf(log, " %s", k_spec_movement_missing[g_exe_build]);
+    if (*k_spec_patching_missing[g_exe_build]) fprintf(log, " %s", k_spec_patching_missing[g_exe_build]);
     if (*k_spec_path_missing[g_exe_build]) fprintf(log, " %s", k_spec_path_missing[g_exe_build]);
     if (*k_spec_player_missing[g_exe_build]) fprintf(log, " %s", k_spec_player_missing[g_exe_build]);
     if (*k_spec_scenario_missing[g_exe_build]) fprintf(log, " %s", k_spec_scenario_missing[g_exe_build]);
+    if (*k_spec_scenario_lists_missing[g_exe_build]) fprintf(log, " %s", k_spec_scenario_lists_missing[g_exe_build]);
     if (*k_spec_setup_missing[g_exe_build]) fprintf(log, " %s", k_spec_setup_missing[g_exe_build]);
     if (*k_spec_stubs_missing[g_exe_build]) fprintf(log, " %s", k_spec_stubs_missing[g_exe_build]);
     if (*k_spec_tech_missing[g_exe_build]) fprintf(log, " %s", k_spec_tech_missing[g_exe_build]);

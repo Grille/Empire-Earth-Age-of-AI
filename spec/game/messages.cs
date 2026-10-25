@@ -137,3 +137,87 @@ unsafe struct EEServer
     [offset(0x1FB), found(c)]
     uint8 rate;
 }
+
+/// messages's data of the game, places in its code and numbers (raw/'s address rows)
+static unsafe class messages
+{
+    [address((ee)0x004BD133, (aoc)0x004C5E40)]
+    static code call_sel_pack;
+
+    /// FN_CHEAT_MSG_CTOR
+    [value(24)]
+    static uint32 size_cheat_msg;
+
+    /// FN_CHAT_MSG_CTOR
+    [value(36)]
+    static uint32 size_msg_chat;
+
+    /// VT_PAY_TRIBUTE, VT_INGAME_CHAT, VT_RESIGN, VT_MSG_LOAD, VT_MSG_UNLOAD: the message's Execute
+    [value(10)]
+    static uint32 slot_msg_execute;
+
+    /// [G_SERVER] (EEServer, EEClient): thiscall(net, message, 0xFF)
+    [value(6)]
+    static uint32 slot_server_send;
+
+    [address((ee)0x008285D8, (aoc)0x0083D2A0)]
+    static code start_vtbl_exec;
+
+    [address((ee)0x0082936C, (aoc)0x0083E0BC)]
+    static block vt_ingame_chat;
+
+    /// EEMLoadTransport
+    [address((ee)0x00824E00, (aoc)0x00838DDC)]
+    static block vt_msg_load;
+
+    /// EEMUnloadTransport
+    [address((ee)0x00828AC4, (aoc)0x0083D78C)]
+    static block vt_msg_unload;
+
+    [address((ee)0x008289C0, (aoc)0x0083D688)]
+    static block vt_pay_tribute;
+
+    [address((ee)0x00828820, (aoc)0x0083D4E8)]
+    static block vt_resign;
+}
+
+/// the game's functions messages.c wraps, by the names the C side gives them
+[c_prefix("")]
+static unsafe class messages_functions
+{
+    /// new 0x24; (UWideString *)
+    [address((ee)0x005C2A2F, (aoc)0x005D3196), thiscall]
+    static extern void* msg_chat_init(void* mem, void* wide_text);
+
+    /// new 0x18; (code, arg)
+    [address((ee)0x005C29FB, (aoc)0x005D3162), thiscall]
+    static extern void* msg_cheat_init(void* mem, int32 code, int32 arg);
+
+    [address((ee)0x004B78C7, (aoc)0x004BFDD2), thiscall]
+    static extern void msg_ingame_chat(EEMInGameChat* msg);
+
+    /// EEMLoadTransport's Execute
+    [address((ee)0x004B9446, (aoc)0x004C1B79), thiscall]
+    static extern void msg_load(EEMInGameChat* msg);
+
+    /// EEMPathTo's Execute
+    [address((ee)0x004B9D7B, (aoc)0x004C281C), thiscall]
+    static extern void msg_path(EEMInGameChat* msg);
+
+    /// EEMUnloadTransport's Execute
+    [address((ee)0x004BF756, (aoc)0x004C8615), thiscall]
+    static extern void msg_unload(EEMInGameChat* msg);
+
+    [address((ee)0x004BA6BE, (aoc)0x004C315B), thiscall]
+    static extern void msg_pay_tribute(EEMInGameChat* msg);
+
+    [address((ee)0x004BB906, (aoc)0x004C44BB), thiscall]
+    static extern void msg_resign(EEMInGameChat* msg);
+
+    /// EEMSelectUnits: thiscall(msg, rect, type, 0x4E)
+    [address((ee)0x004BD072, (aoc)0x004C5D7F), thiscall]
+    static extern void select_msg_init(void* msg, float32* rect, int32 type, int32 flags);
+
+    [address((ee)0x004BD15A, (aoc)0x004C5E67), cdecl]
+    static extern uint32 sel_pack(uint8* list, uint32 player_byte, uint8* @out);
+}

@@ -3,26 +3,21 @@
 
 // class ee_grid (ee_grid)
 // the map's unit grid, MAP +0x181724
-internal uint32_t of_grid_cells;
 internal inline ee_grid_cell *grid_get_cells(const ee_grid *o) { return *(ee_grid_cell **)((uint8_t *)o + of_grid_cells); }
 internal inline void grid_set_cells(ee_grid *o, ee_grid_cell *v) { *(ee_grid_cell **)((uint8_t *)o + of_grid_cells) = v; }
 internal inline ee_grid_cell **grid_cells_at(const ee_grid *o) { return (ee_grid_cell **)((uint8_t *)o + of_grid_cells); }
-internal uint32_t of_grid_cell_size;
 internal inline int grid_get_cell_size(const ee_grid *o) { return *(int *)((uint8_t *)o + of_grid_cell_size); }
 internal inline void grid_set_cell_size(ee_grid *o, int v) { *(int *)((uint8_t *)o + of_grid_cell_size) = v; }
 internal inline int *grid_cell_size_at(const ee_grid *o) { return (int *)((uint8_t *)o + of_grid_cell_size); }
-internal uint32_t of_grid_nx;
 internal inline int grid_get_nx(const ee_grid *o) { return *(int *)((uint8_t *)o + of_grid_nx); }
 internal inline void grid_set_nx(ee_grid *o, int v) { *(int *)((uint8_t *)o + of_grid_nx) = v; }
 internal inline int *grid_nx_at(const ee_grid *o) { return (int *)((uint8_t *)o + of_grid_nx); }
-internal uint32_t of_grid_ny;
 internal inline int grid_get_ny(const ee_grid *o) { return *(int *)((uint8_t *)o + of_grid_ny); }
 internal inline void grid_set_ny(ee_grid *o, int v) { *(int *)((uint8_t *)o + of_grid_ny) = v; }
 internal inline int *grid_ny_at(const ee_grid *o) { return (int *)((uint8_t *)o + of_grid_ny); }
 
 // class ee_grid_cell (ee_grid_cell)
 // a cell of the unit grid
-internal uint32_t of_cell_units_begin;
 internal inline ee_unit **cell_get_units_begin(const ee_grid_cell *o) { return *(ee_unit ***)((uint8_t *)o + of_cell_units_begin); }
 internal inline void cell_set_units_begin(ee_grid_cell *o, ee_unit **v) { *(ee_unit ***)((uint8_t *)o + of_cell_units_begin) = v; }
 internal inline ee_unit ***cell_units_begin_at(const ee_grid_cell *o) { return (ee_unit ***)((uint8_t *)o + of_cell_units_begin); }
@@ -30,54 +25,44 @@ internal inline ee_unit ***cell_units_begin_at(const ee_grid_cell *o) { return (
 // class EEMap (ee_map)
 // the map, [G_MAP] (EEMap)
 // port_fields EEMap (x6): a row of VIEWROW per y, 0xC each
-internal uint32_t of_map_view_rows;
 internal inline void *map_get_view_rows(const ee_map *o) { return *(void **)((uint8_t *)o + of_map_view_rows); }
 internal inline void map_set_view_rows(ee_map *o, void *v) { *(void **)((uint8_t *)o + of_map_view_rows) = v; }
 internal inline void **map_view_rows_at(const ee_map *o) { return (void **)((uint8_t *)o + of_map_view_rows); }
 // [y * size + x]
-internal uint32_t of_map_tiles;
 internal inline ee_tile **map_get_tiles(const ee_map *o) { return *(ee_tile ***)((uint8_t *)o + of_map_tiles); }
 internal inline void map_set_tiles(ee_map *o, ee_tile **v) { *(ee_tile ***)((uint8_t *)o + of_map_tiles) = v; }
 internal inline ee_tile ***map_tiles_at(const ee_map *o) { return (ee_tile ***)((uint8_t *)o + of_map_tiles); }
 // the path search's tile test (0x41D36A): x + y on it is off the map's diamond
-internal uint32_t of_map_edge_sum;
 internal inline int map_get_edge_sum(const ee_map *o) { return *(int *)((uint8_t *)o + of_map_edge_sum); }
 internal inline void map_set_edge_sum(ee_map *o, int v) { *(int *)((uint8_t *)o + of_map_edge_sum) = v; }
 internal inline int *map_edge_sum_at(const ee_map *o) { return (int *)((uint8_t *)o + of_map_edge_sum); }
 // the same, the other edge
-internal uint32_t of_map_edge_sum_2;
 internal inline int map_get_edge_sum_2(const ee_map *o) { return *(int *)((uint8_t *)o + of_map_edge_sum_2); }
 internal inline void map_set_edge_sum_2(ee_map *o, int v) { *(int *)((uint8_t *)o + of_map_edge_sum_2) = v; }
 internal inline int *map_edge_sum_2_at(const ee_map *o) { return (int *)((uint8_t *)o + of_map_edge_sum_2); }
 // the same for y - x and x - y
-internal uint32_t of_map_edge_diff;
 internal inline int map_get_edge_diff(const ee_map *o) { return *(int *)((uint8_t *)o + of_map_edge_diff); }
 internal inline void map_set_edge_diff(ee_map *o, int v) { *(int *)((uint8_t *)o + of_map_edge_diff) = v; }
 internal inline int *map_edge_diff_at(const ee_map *o) { return (int *)((uint8_t *)o + of_map_edge_diff); }
 // tiles a side
-internal uint32_t of_map_size;
 internal inline uint32_t map_get_size(const ee_map *o) { return *(uint32_t *)((uint8_t *)o + of_map_size); }
 internal inline void map_set_size(ee_map *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_map_size) = v; }
 internal inline uint32_t *map_size_at(const ee_map *o) { return (uint32_t *)((uint8_t *)o + of_map_size); }
 // the unit grid (game/grid.c)
-internal uint32_t of_map_grid;
 internal inline ee_grid *map_get_grid(const ee_map *o) { return *(ee_grid **)((uint8_t *)o + of_map_grid); }
 internal inline void map_set_grid(ee_map *o, ee_grid *v) { *(ee_grid **)((uint8_t *)o + of_map_grid) = v; }
 internal inline ee_grid **map_grid_at(const ee_map *o) { return (ee_grid **)((uint8_t *)o + of_map_grid); }
 // bit 0: water
-internal uint32_t of_map_flags;
 internal inline uint32_t map_get_flags(const ee_map *o) { return *(uint32_t *)((uint8_t *)o + of_map_flags); }
 internal inline void map_set_flags(ee_map *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_map_flags) = v; }
 internal inline uint32_t *map_flags_at(const ee_map *o) { return (uint32_t *)((uint8_t *)o + of_map_flags); }
 
 // class ee_unit_vis (ee_unit_vis)
 // a unit's visibility record, its +0x14 (a site's: its ownership flag too)
-internal uint32_t of_siteown_flag;
 internal inline int siteown_get_flag(const ee_unit_vis *o) { return *(int *)((uint8_t *)o + of_siteown_flag); }
 internal inline void siteown_set_flag(ee_unit_vis *o, int v) { *(int *)((uint8_t *)o + of_siteown_flag) = v; }
 internal inline int *siteown_flag_at(const ee_unit_vis *o) { return (int *)((uint8_t *)o + of_siteown_flag); }
 // FN_EXPLORED 0x404A8A, AoC's 0x4042E2
-internal uint32_t of_siteown_seen;
 internal inline uint16_t *siteown_get_seen(const ee_unit_vis *o) { return *(uint16_t **)((uint8_t *)o + of_siteown_seen); }
 internal inline void siteown_set_seen(ee_unit_vis *o, uint16_t *v) { *(uint16_t **)((uint8_t *)o + of_siteown_seen) = v; }
 internal inline uint16_t **siteown_seen_at(const ee_unit_vis *o) { return (uint16_t **)((uint8_t *)o + of_siteown_seen); }
@@ -85,12 +70,10 @@ internal inline uint16_t **siteown_seen_at(const ee_unit_vis *o) { return (uint1
 // class ee_tile_node (void)
 // a node of a tile's object list (TILE_OBJECTS)
 // the path search's tile test (0x41D36A / AoC 0x41990C)
-internal uint32_t of_tile_node_object;
 internal inline ee_unit *tile_node_get_object(const void *o) { return *(ee_unit **)((uint8_t *)o + of_tile_node_object); }
 internal inline void tile_node_set_object(void *o, ee_unit *v) { *(ee_unit **)((uint8_t *)o + of_tile_node_object) = v; }
 internal inline ee_unit **tile_node_object_at(const void *o) { return (ee_unit **)((uint8_t *)o + of_tile_node_object); }
 // the same
-internal uint32_t of_tile_node_next;
 internal inline void *tile_node_get_next(const void *o) { return *(void **)((uint8_t *)o + of_tile_node_next); }
 internal inline void tile_node_set_next(void *o, void *v) { *(void **)((uint8_t *)o + of_tile_node_next) = v; }
 internal inline void **tile_node_next_at(const void *o) { return (void **)((uint8_t *)o + of_tile_node_next); }
@@ -99,28 +82,23 @@ internal inline void **tile_node_next_at(const void *o) { return (void **)((uint
 // a map tile
 // +4 its terrain kind (type_terrain_ok)
 // the terrain kind (an index into TD_TERRAIN_OK; 0 land, 1 water - a guess)
-internal uint32_t of_tile_kind;
 internal inline int tile_get_kind(const ee_tile *o) { return *(int *)((uint8_t *)o + of_tile_kind); }
 internal inline void tile_set_kind(ee_tile *o, int v) { *(int *)((uint8_t *)o + of_tile_kind) = v; }
 internal inline int *tile_kind_at(const ee_tile *o) { return (int *)((uint8_t *)o + of_tile_kind); }
 // the objects on it, a list of {?, object +4, next +8}
-internal uint32_t of_tile_objects;
 internal inline void *tile_get_objects(const ee_tile *o) { return *(void **)((uint8_t *)o + of_tile_objects); }
 internal inline void tile_set_objects(ee_tile *o, void *v) { *(void **)((uint8_t *)o + of_tile_objects) = v; }
 internal inline void **tile_objects_at(const ee_tile *o) { return (void **)((uint8_t *)o + of_tile_objects); }
 // [player index]
 // its sight count per player slot, a uint16 each (FN_TILE_SIGHT_ADD 0x519F4F, AoC 0x5247ED: the same code; =
 // SITEOWN_SEEN, a unit's +0x14 is its tile)
-internal uint32_t of_tile_sight;
 internal inline uint16_t *tile_get_sight(const ee_tile *o) { return *(uint16_t **)((uint8_t *)o + of_tile_sight); }
 internal inline void tile_set_sight(ee_tile *o, uint16_t *v) { *(uint16_t **)((uint8_t *)o + of_tile_sight) = v; }
 internal inline uint16_t **tile_sight_at(const ee_tile *o) { return (uint16_t **)((uint8_t *)o + of_tile_sight); }
-internal uint32_t of_tile_height;
 internal inline float tile_get_height(const ee_tile *o) { return *(float *)((uint8_t *)o + of_tile_height); }
 internal inline void tile_set_height(ee_tile *o, float v) { *(float *)((uint8_t *)o + of_tile_height) = v; }
 internal inline float *tile_height_at(const ee_tile *o) { return (float *)((uint8_t *)o + of_tile_height); }
 // EEPMNaval::vf21's step test (0x550300 / AoC the same read): a signed byte against UNIT_SEA_MODE
-internal uint32_t of_tile_sea_class;
 internal inline int8_t tile_get_sea_class(const ee_tile *o) { return *(int8_t *)((uint8_t *)o + of_tile_sea_class); }
 internal inline void tile_set_sea_class(ee_tile *o, int8_t v) { *(int8_t *)((uint8_t *)o + of_tile_sea_class) = v; }
 internal inline int8_t *tile_sea_class_at(const ee_tile *o) { return (int8_t *)((uint8_t *)o + of_tile_sea_class); }
@@ -128,20 +106,50 @@ internal inline int8_t *tile_sea_class_at(const ee_tile *o) { return (int8_t *)(
 // class ee_view_row (void)
 // a row of the map's per-tile view table (MAP_VIEW_ROWS): {first x, length, data}
 // 0x55BC4E (AoC: the same code): the row's first x
-internal uint32_t of_view_row_start;
 internal inline uint32_t view_row_get_start(const void *o) { return *(uint32_t *)((uint8_t *)o + of_view_row_start); }
 internal inline void view_row_set_start(void *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_view_row_start) = v; }
 internal inline uint32_t *view_row_start_at(const void *o) { return (uint32_t *)((uint8_t *)o + of_view_row_start); }
 // the path search's and the camera's bounds tests (x - start < len)
-internal uint32_t of_view_row_len;
 internal inline uint32_t view_row_get_len(const void *o) { return *(uint32_t *)((uint8_t *)o + of_view_row_len); }
 internal inline void view_row_set_len(void *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_view_row_len) = v; }
 internal inline uint32_t *view_row_len_at(const void *o) { return (uint32_t *)((uint8_t *)o + of_view_row_len); }
 // 0x55BC4E: 4 bytes an x, its uint16 the viewed player's sight count
-internal uint32_t of_view_row_data;
 internal inline uint8_t *view_row_get_data(const void *o) { return *(uint8_t **)((uint8_t *)o + of_view_row_data); }
 internal inline void view_row_set_data(void *o, uint8_t *v) { *(uint8_t **)((uint8_t *)o + of_view_row_data) = v; }
 internal inline uint8_t **view_row_data_at(const void *o) { return (uint8_t **)((uint8_t *)o + of_view_row_data); }
+
+// static class map
+// map's data of the game, places in its code and numbers (raw/'s address rows)
+// thiscall(tile, player), ret 4: a unit more sees it
+internal inline uint8_t *map_fn_tile_sight_add_at(void) { return (uint8_t *)(uintptr_t)data_map_fn_tile_sight_add; }
+// thiscall(tile, player), ret 4: a unit less sees it
+internal inline uint8_t *map_fn_tile_sight_sub_at(void) { return (uint8_t *)(uintptr_t)data_map_fn_tile_sight_sub; }
+// the map's areas (regions, continents)
+internal inline uint8_t *map_map_areas_at(void) { return (uint8_t *)(uintptr_t)data_map_map_areas; }
+
+// static class map_functions
+// the game's functions map.c wraps, by the names the C side gives them
+// the area object at a tile (thiscall on the map areas G_MAP_AREAS)
+typedef uint8_t *(__thiscall *area_at_game_fn)(void *, int *);
+internal area_at_game_fn fn_area_at_game;
+internal inline uint8_t *area_at_game(void *p1, int *p2) { return fn_area_at_game(p1, p2); }
+// thiscall(minimap, tile x, y): a unit more sees the tile (its pixel's count +1)
+typedef void (__thiscall *minimap_sight_add_fn)(void *, int, int);
+internal minimap_sight_add_fn fn_minimap_sight_add;
+internal inline void minimap_sight_add(void *mm, int x, int y) { fn_minimap_sight_add(mm, x, y); }
+// thiscall(minimap, tile, x, y), ret 0xC: the tile's sight count into the minimap's (its rebuild 0x5150F2)
+typedef void (__thiscall *minimap_tile_fn)(void *, ee_tile *, int, int);
+internal minimap_tile_fn fn_minimap_tile;
+internal inline void minimap_tile(void *mm, ee_tile *tile, int x, int y) { fn_minimap_tile(mm, tile, x, y); }
+// thiscall(0x917BC8, int pos[2], 2) -> short region id
+typedef uint16_t (__thiscall *region_game_fn)(void *, int *, int);
+internal region_game_fn fn_region_game;
+internal inline uint16_t region_game(void *p1, int *p2, int p3) { return fn_region_game(p1, p2, p3); }
+// thiscall(player): every tile's sight count (its low byte) into MAP_VIEW_ROWS - a load, the viewed player
+// changed
+typedef void (__thiscall *view_sight_copy_fn)(ee_player *);
+internal view_sight_copy_fn fn_view_sight_copy;
+internal inline void view_sight_copy(ee_player *pl) { fn_view_sight_copy(pl); }
 
 // the running build's values (spec_select, with addr_select): how many it hasn't got
 internal int spec_map_select(int build) {
@@ -172,6 +180,14 @@ internal int spec_map_select(int build) {
         of_view_row_start = 0x0;
         of_view_row_len = 0x4;
         of_view_row_data = 0x8;
+        data_map_fn_tile_sight_add = 0x00519F4F;
+        data_map_fn_tile_sight_sub = 0x00519E26;
+        data_map_map_areas = 0x00917BC8;
+        fn_area_at_game = (area_at_game_fn)0x00425F16;
+        fn_minimap_sight_add = (minimap_sight_add_fn)0x0051426E;
+        fn_minimap_tile = (minimap_tile_fn)0x00514A8A;
+        fn_region_game = (region_game_fn)0x00425F9F;
+        fn_view_sight_copy = (view_sight_copy_fn)0x0055BC4E;
         return 0;
     case 1:   // aoc
         of_grid_cells = 0x4;
@@ -199,6 +215,14 @@ internal int spec_map_select(int build) {
         of_view_row_start = 0x0;
         of_view_row_len = 0x4;
         of_view_row_data = 0x8;
+        data_map_fn_tile_sight_add = 0x005247ED;
+        data_map_fn_tile_sight_sub = 0x005246C4;
+        data_map_map_areas = 0x00930BF0;
+        fn_area_at_game = (area_at_game_fn)0x00422AD9;
+        fn_minimap_sight_add = (minimap_sight_add_fn)0x0051E8BF;
+        fn_minimap_tile = (minimap_tile_fn)0x0051F0DB;
+        fn_region_game = (region_game_fn)0x00422B86;
+        fn_view_sight_copy = (view_sight_copy_fn)0x0056AEC0;
         return 0;
     }
     return 0;

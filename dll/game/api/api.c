@@ -3,22 +3,19 @@
 // what the rest of the code uses of it - its fields, the game's functions on it (by their first argument, the C++
 // object of a thiscall), its hooks; game.c the game's global state and its getters (game_map(), game_players() ...),
 // hooks.c the patches of the game's code that are about no object. types.h names the objects' types (one place: they
-// point at each other). raw/ is the module's inside: the addresses and offsets per exe build (functions.h,
-// hooks.h, data.h, fields.h, editor_layout.h) and tables.c, which makes them tables, GA, GF, GL and the fields' names -
-// nothing raw/ defines is used outside game/api/, and game/api/ uses only base/ (scripts/build/layers.py). gen/ is the
+// point at each other). raw/ is the module's inside: editor_layout.h (the scenario editor's layout sites, generated) - nothing raw/
+// defines is used outside game/api/, and game/api/ uses only base/ (scripts/build/layers.py). gen/ is the
 // spec's C (spec/game/, made by scripts/build/gen_api.py, never edited): the objects moved there from raw/ have their
 // fields, functions and hooks in plain declarations - unit_get_speed, unit_max_speed, patch_aim - and their values set
 // per build by spec_select. exe.c finds the running build (game_build, build_is) and takes its column; api_log tells the
 // start's log what is missing.
 //
-// FIELDS: kind_get_x(obj) reads a field, kind_set_x(obj, v) writes one (only those the mod writes), kind_x_at(obj) its
-// address - the offsets per build from raw/fields.h, rows named for what they are (the 2017 update's offset beside
-// each, as engine-notes.md and the decompile name them). Inlined: the machine code is FIELD's. Where a field's meaning
-// isn't known, its comment says how the code uses it.
-// FUNCTIONS: the game's functions as plain C functions over types.h's objects - explored_by(site, pl) instead of
-// GF(FN_EXPLORED)(FIELD(site, UNIT_VIS, void *), pl) - and its data as accessors; raw/functions.h has their
-// addresses and raw signatures. Each wrapper is the call itself: inlined, the machine code is the same as GF's
-// (scripts/build/code_same.py).
+// FIELDS: kind_get_x(obj) reads a field, kind_set_x(obj, v) writes one, kind_x_at(obj) its address - gen/'s, from the
+// spec's classes (spec/game/); a hand-written accessor here where a field is read otherwise (an index, two fields
+// gathered), with the generated offset (FIELD(u, of_unit_queue + 0x4, int *)).
+// FUNCTIONS: the game's functions as plain C functions over types.h's objects - gen/'s from the spec (its wrappers
+// keep the names the C side gave them: unit_distance, explored_by's game function), hand-written here where a call
+// does more than pass its arguments on (explored_by(site, pl): the site's visibility record first).
 // HOOKS: for each hooked function the type of its hook and the installer. A hook stands in for the game's function at
 // its calls (patch_call: the call instruction redirected, only while it still calls that function) or in its class's
 // vtable (patch_vtable: only while the slot still holds it); it calls the original through the function's wrapper
@@ -27,8 +24,8 @@
 // places it patched; of (may be NULL) gets the number there are. Kinds not typed yet are void *. Assembler stubs (they
 // read registers) are void (*)(void).
 #include "game/api/types.h"        // the game's objects typed: ee_player *, ee_unit * ...
-#include "game/api/builds.h"       // the exe builds the mod knows: the tables' columns
-#include "game/api/raw/tables.c"   // the game's addresses and objects' fields per exe build: GA(G_WORLD_CLOCK), UNIT_HP
+#include "game/api/builds.h"       // the exe builds the mod knows: the spec's builds (ee, aoc)
+#include "game/api/gen/values.c"   // the spec's values: offsets, addresses, slots (spec_select sets them)
 #include "game/api/exe.c"          // which build runs: game_build
 #include "game/api/raw/editor_layout.h"   // the scenario editor's layout sites (generated, the 2017 update)
 #include "game/api/layout.h"       // FIELD: a read at a field's offset or a plain number

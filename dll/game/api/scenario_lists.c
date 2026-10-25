@@ -96,9 +96,9 @@ enum sm_test_mode { SM_IGNORE, SM_MUST, SM_MUST_NOT };
 enum sm_relation { SM_REL_LOS, SM_REL_RANGE, SM_REL_NEAR };
 enum sm_class { SM_CLASS_ANY };
 internal inline enum sm_class sm_class_epoch(int epoch) { return (enum sm_class)epoch; }
-internal inline enum sm_class sm_class_family(int family) { return (enum sm_class)((int)GA(SM_CLASS_FAMILY) + family); }
-internal inline enum sm_class sm_class_rps(int rps) { return (enum sm_class)((int)GA(SM_CLASS_RPS) + rps); }
-internal inline enum sm_class sm_class_group(int group) { return (enum sm_class)((int)GA(SM_CLASS_GROUP) + group); }
+internal inline enum sm_class sm_class_family(int family) { return (enum sm_class)((int)value_scenario_lists_sm_class_family + family); }
+internal inline enum sm_class sm_class_rps(int rps) { return (enum sm_class)((int)value_scenario_lists_sm_class_rps + rps); }
+internal inline enum sm_class sm_class_group(int group) { return (enum sm_class)((int)value_scenario_lists_sm_class_group + group); }
 // an area's type: its rectangle, the land or sea its point is on, a player's shape round its point
 enum sm_area_type { SM_AREA_RECTANGLE, SM_AREA_REGION, SM_AREA_PLAYER_SHAPE };
 _Static_assert(SM_UA_CAMERA_FOCUS == 41 && SM_UA_TOTAL_PLACE_HOLDER3 == 74, "the unit attributes are strings 29100..29174");

@@ -134,3 +134,39 @@ unsafe struct ee_tt_epoch
     [offset(0x48), found(v)]
     int32 done;
 }
+
+/// tech's data of the game, places in its code and numbers (raw/'s address rows)
+static unsafe class tech
+{
+    /// the call of FN_EPOCH_UPGRADES
+    [address((ee)0x0043D365, (aoc)0x0043C9FC)]
+    static code call_epoch_upgrades;
+
+    /// thiscall(node, category), AoC's (+ only new): econ.c
+    [address((ee)0x005BDDBD, (aoc)0x005CE8C5)]
+    static code fn_epoch_upgrades;
+
+    /// EETechTreeNode: char thiscall(tech)
+    [value(1)]
+    static uint32 slot_tech_available;
+
+    /// EETechTreeNode::vf6's vtable slot
+    [address((ee)0x00830874, (aoc)0x00846168)]
+    static block vts_tech_researched;
+}
+
+/// the game's functions tech.c wraps, by the names the C side gives them
+[c_prefix("")]
+static unsafe class tech_functions
+{
+    /// thiscall(tech tree): the next epoch (to the game's end epoch) - 0x5BC893 sets it, sends the epoch event
+    [address((ee)0x005BC15D, (aoc)0x005CCB34), thiscall]
+    static extern void epoch_next(EETechTree* tt);
+
+    /// AoC's takes an argument: called in the 2017 update only
+    [address((ee)0x005BF335, (aoc)0x005CFA53), thiscall]
+    static extern int32 tech_grant(EETechTreeNode* t);
+
+    [address((ee)0x004019A1, (aoc)0x004018A4), thiscall]
+    static extern EETechTreeNode* tech_lookup(EETechTree* tt, int32 id);
+}

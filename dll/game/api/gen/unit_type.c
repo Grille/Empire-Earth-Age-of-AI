@@ -3,159 +3,131 @@
 
 // class EEUnitClass (ee_unit_type)
 // a unit type's data, G_TYPES[type] and a unit's +0x2C (EEUnitClass, EEUC*)
-internal uint32_t of_type_vtable;
 internal inline uint8_t *type_get_vtable(const ee_unit_type *o) { return *(uint8_t **)((uint8_t *)o + of_type_vtable); }
 internal inline void type_set_vtable(ee_unit_type *o, uint8_t *v) { *(uint8_t **)((uint8_t *)o + of_type_vtable) = v; }
 internal inline uint8_t **type_vtable_at(const ee_unit_type *o) { return (uint8_t **)((uint8_t *)o + of_type_vtable); }
 // its data name
-internal uint32_t of_type_name;
 internal inline char *type_get_name(const ee_unit_type *o) { return *(char **)((uint8_t *)o + of_type_name); }
 internal inline void type_set_name(ee_unit_type *o, char *v) { *(char **)((uint8_t *)o + of_type_name) = v; }
 internal inline char **type_name_at(const ee_unit_type *o) { return (char **)((uint8_t *)o + of_type_name); }
 // what it fires
-internal uint32_t of_type_projectile;
 internal inline ee_unit_type *type_get_projectile(const ee_unit_type *o) { return *(ee_unit_type **)((uint8_t *)o + of_type_projectile); }
 internal inline void type_set_projectile(ee_unit_type *o, ee_unit_type *v) { *(ee_unit_type **)((uint8_t *)o + of_type_projectile) = v; }
 internal inline ee_unit_type **type_projectile_at(const ee_unit_type *o) { return (ee_unit_type **)((uint8_t *)o + of_type_projectile); }
 // its movement model (movement.c model_kind)
 // its movement model (EEPhysicsModel: VT_PM_LAND, VT_PM_NAVAL ...), shared by the type's units - EEUCNaval::vf45
 // 0x60686F calls the movement step on it
-internal uint32_t of_type_model;
 internal inline void *type_get_model(const ee_unit_type *o) { return *(void **)((uint8_t *)o + of_type_model); }
 internal inline void type_set_model(ee_unit_type *o, void *v) { *(void **)((uint8_t *)o + of_type_model) = v; }
 internal inline void **type_model_at(const ee_unit_type *o) { return (void **)((uint8_t *)o + of_type_model); }
 // the type data's constructors
-internal uint32_t of_type_min_range;
 internal inline float type_get_min_range(const ee_unit_type *o) { return *(float *)((uint8_t *)o + of_type_min_range); }
 internal inline void type_set_min_range(ee_unit_type *o, float v) { *(float *)((uint8_t *)o + of_type_min_range) = v; }
 internal inline float *type_min_range_at(const ee_unit_type *o) { return (float *)((uint8_t *)o + of_type_min_range); }
 // base range
 // the type data's constructors
-internal uint32_t of_type_range;
 internal inline float type_get_range(const ee_unit_type *o) { return *(float *)((uint8_t *)o + of_type_range); }
 internal inline void type_set_range(ee_unit_type *o, float v) { *(float *)((uint8_t *)o + of_type_range) = v; }
 internal inline float *type_range_at(const ee_unit_type *o) { return (float *)((uint8_t *)o + of_type_range); }
 // area effect
 // the type data's constructors
-internal uint32_t of_type_area;
 internal inline float type_get_area(const ee_unit_type *o) { return *(float *)((uint8_t *)o + of_type_area); }
 internal inline void type_set_area(ee_unit_type *o, float v) { *(float *)((uint8_t *)o + of_type_area) = v; }
 internal inline float *type_area_at(const ee_unit_type *o) { return (float *)((uint8_t *)o + of_type_area); }
 // the type data's constructors
-internal uint32_t of_type_unknown_42c;
 internal inline float type_get_unknown_42c(const ee_unit_type *o) { return *(float *)((uint8_t *)o + of_type_unknown_42c); }
 internal inline void type_set_unknown_42c(ee_unit_type *o, float v) { *(float *)((uint8_t *)o + of_type_unknown_42c) = v; }
 internal inline float *type_unknown_42c_at(const ee_unit_type *o) { return (float *)((uint8_t *)o + of_type_unknown_42c); }
 // the type data's constructors
-internal uint32_t of_type_unknown_430;
 internal inline float type_get_unknown_430(const ee_unit_type *o) { return *(float *)((uint8_t *)o + of_type_unknown_430); }
 internal inline void type_set_unknown_430(ee_unit_type *o, float v) { *(float *)((uint8_t *)o + of_type_unknown_430) = v; }
 internal inline float *type_unknown_430_at(const ee_unit_type *o) { return (float *)((uint8_t *)o + of_type_unknown_430); }
 // base accel (a projectile's: its fall)
 // the type data's constructors
-internal uint32_t of_type_accel;
 internal inline float type_get_accel(const ee_unit_type *o) { return *(float *)((uint8_t *)o + of_type_accel); }
 internal inline void type_set_accel(ee_unit_type *o, float v) { *(float *)((uint8_t *)o + of_type_accel) = v; }
 internal inline float *type_accel_at(const ee_unit_type *o) { return (float *)((uint8_t *)o + of_type_accel); }
 // its selection circle's size (tiles)
 // EEE3DCommandConfirmation vf12's read (0x4E28E9 / AoC 0x4E9F49) - a circle's scale for the unit (float)
-internal uint32_t of_type_mark_size;
 internal inline float type_get_mark_size(const ee_unit_type *o) { return *(float *)((uint8_t *)o + of_type_mark_size); }
 internal inline void type_set_mark_size(ee_unit_type *o, float v) { *(float *)((uint8_t *)o + of_type_mark_size) = v; }
 internal inline float *type_mark_size_at(const ee_unit_type *o) { return (float *)((uint8_t *)o + of_type_mark_size); }
 // a collision sphere (float; dreadnought 4, cruiser 3): AoC the shift of +0x474 (0x178, EEUnitClass::vf34's
 // arrival test)
-internal uint32_t of_type_collision;
 internal inline float type_get_collision(const ee_unit_type *o) { return *(float *)((uint8_t *)o + of_type_collision); }
 internal inline void type_set_collision(ee_unit_type *o, float v) { *(float *)((uint8_t *)o + of_type_collision) = v; }
 internal inline float *type_collision_at(const ee_unit_type *o) { return (float *)((uint8_t *)o + of_type_collision); }
 // 2 building, 29 fortress, 5/6 units ...
-internal uint32_t of_type_family;
 internal inline int type_get_family(const ee_unit_type *o) { return *(int *)((uint8_t *)o + of_type_family); }
 internal inline void type_set_family(ee_unit_type *o, int v) { *(int *)((uint8_t *)o + of_type_family) = v; }
 internal inline int *type_family_at(const ee_unit_type *o) { return (int *)((uint8_t *)o + of_type_family); }
 // the type (UT(...))
-internal uint32_t of_type_id;
 internal inline int type_get_id(const ee_unit_type *o) { return *(int *)((uint8_t *)o + of_type_id); }
 internal inline void type_set_id(ee_unit_type *o, int v) { *(int *)((uint8_t *)o + of_type_id) = v; }
 internal inline int *type_id_at(const ee_unit_type *o) { return (int *)((uint8_t *)o + of_type_id); }
 // the damage table's class
 // the type data's constructors
-internal uint32_t of_type_damage_class;
 internal inline int type_get_damage_class(const ee_unit_type *o) { return *(int *)((uint8_t *)o + of_type_damage_class); }
 internal inline void type_set_damage_class(ee_unit_type *o, int v) { *(int *)((uint8_t *)o + of_type_damage_class) = v; }
 internal inline int *type_damage_class_at(const ee_unit_type *o) { return (int *)((uint8_t *)o + of_type_damage_class); }
 // as a target (the hit table's row)
 // the type data's constructors
-internal uint32_t of_type_category;
 internal inline int type_get_category(const ee_unit_type *o) { return *(int *)((uint8_t *)o + of_type_category); }
 internal inline void type_set_category(ee_unit_type *o, int v) { *(int *)((uint8_t *)o + of_type_category) = v; }
 internal inline int *type_category_at(const ee_unit_type *o) { return (int *)((uint8_t *)o + of_type_category); }
 // ammo type (the hit table's weapon kind)
 // the type data's constructors
-internal uint32_t of_type_weapon;
 internal inline int type_get_weapon(const ee_unit_type *o) { return *(int *)((uint8_t *)o + of_type_weapon); }
 internal inline void type_set_weapon(ee_unit_type *o, int v) { *(int *)((uint8_t *)o + of_type_weapon) = v; }
 internal inline int *type_weapon_at(const ee_unit_type *o) { return (int *)((uint8_t *)o + of_type_weapon); }
 // the tech that makes it (its price)
 // the type data's constructors
-internal uint32_t of_type_tech;
 internal inline int type_get_tech(const ee_unit_type *o) { return *(int *)((uint8_t *)o + of_type_tech); }
 internal inline void type_set_tech(ee_unit_type *o, int v) { *(int *)((uint8_t *)o + of_type_tech) = v; }
 internal inline int *type_tech_at(const ee_unit_type *o) { return (int *)((uint8_t *)o + of_type_tech); }
 // base reload time (ms)
 // the type data's constructors
-internal uint32_t of_type_reload;
 internal inline int type_get_reload(const ee_unit_type *o) { return *(int *)((uint8_t *)o + of_type_reload); }
 internal inline void type_set_reload(ee_unit_type *o, int v) { *(int *)((uint8_t *)o + of_type_reload) = v; }
 internal inline int *type_reload_at(const ee_unit_type *o) { return (int *)((uint8_t *)o + of_type_reload); }
 // base attack
 // the type data's constructors
-internal uint32_t of_type_attack;
 internal inline int type_get_attack(const ee_unit_type *o) { return *(int *)((uint8_t *)o + of_type_attack); }
 internal inline void type_set_attack(ee_unit_type *o, int v) { *(int *)((uint8_t *)o + of_type_attack) = v; }
 internal inline int *type_attack_at(const ee_unit_type *o) { return (int *)((uint8_t *)o + of_type_attack); }
 // (0 for soldiers)
 // the type data's constructors
-internal uint32_t of_type_transport_capacity;
 internal inline int type_get_transport_capacity(const ee_unit_type *o) { return *(int *)((uint8_t *)o + of_type_transport_capacity); }
 internal inline void type_set_transport_capacity(ee_unit_type *o, int v) { *(int *)((uint8_t *)o + of_type_transport_capacity) = v; }
 internal inline int *type_transport_capacity_at(const ee_unit_type *o) { return (int *)((uint8_t *)o + of_type_transport_capacity); }
 // the type data's constructors
-internal uint32_t of_type_garrison_capacity;
 internal inline int type_get_garrison_capacity(const ee_unit_type *o) { return *(int *)((uint8_t *)o + of_type_garrison_capacity); }
 internal inline void type_set_garrison_capacity(ee_unit_type *o, int v) { *(int *)((uint8_t *)o + of_type_garrison_capacity) = v; }
 internal inline int *type_garrison_capacity_at(const ee_unit_type *o) { return (int *)((uint8_t *)o + of_type_garrison_capacity); }
 // the room it takes aboard (the load goal's vf33 sums it)
 // 2 votes, the shift of its neighbours
-internal uint32_t of_type_transport_size;
 internal inline int type_get_transport_size(const ee_unit_type *o) { return *(int *)((uint8_t *)o + of_type_transport_size); }
 internal inline void type_set_transport_size(ee_unit_type *o, int v) { *(int *)((uint8_t *)o + of_type_transport_size) = v; }
 internal inline int *type_transport_size_at(const ee_unit_type *o) { return (int *)((uint8_t *)o + of_type_transport_size); }
 // base hit points
 // the type data's constructors
-internal uint32_t of_type_hp;
 internal inline int type_get_hp(const ee_unit_type *o) { return *(int *)((uint8_t *)o + of_type_hp); }
 internal inline void type_set_hp(ee_unit_type *o, int v) { *(int *)((uint8_t *)o + of_type_hp) = v; }
 internal inline int *type_hp_at(const ee_unit_type *o) { return (int *)((uint8_t *)o + of_type_hp); }
 // missile delay time
 // the type data's constructors
-internal uint32_t of_type_missile_delay;
 internal inline int type_get_missile_delay(const ee_unit_type *o) { return *(int *)((uint8_t *)o + of_type_missile_delay); }
 internal inline void type_set_missile_delay(ee_unit_type *o, int v) { *(int *)((uint8_t *)o + of_type_missile_delay) = v; }
 internal inline int *type_missile_delay_at(const ee_unit_type *o) { return (int *)((uint8_t *)o + of_type_missile_delay); }
 // its footprint (tiles a side)
-internal uint32_t of_type_size;
 internal inline int type_get_size(const ee_unit_type *o) { return *(int *)((uint8_t *)o + of_type_size); }
 internal inline void type_set_size(ee_unit_type *o, int v) { *(int *)((uint8_t *)o + of_type_size) = v; }
 internal inline int *type_size_at(const ee_unit_type *o) { return (int *)((uint8_t *)o + of_type_size); }
 // a byte per terrain kind (TILE_KIND): may the type enter it (the path search's tile test 0x41D36A; AoC 0x41990C
 // asks 0x634AD8, which reads it only without a unit - with one a bit mask in its stats +0x160)
-internal uint32_t of_type_terrain_ok;
 internal inline uint8_t *type_terrain_ok_at(const ee_unit_type *o) { return (uint8_t *)o + of_type_terrain_ok; }
 // takes a behaviour (stances)
 // the type data's constructors
-internal uint32_t of_type_behaviours;
 internal inline uint8_t type_get_behaviours(const ee_unit_type *o) { return *(uint8_t *)((uint8_t *)o + of_type_behaviours); }
 internal inline void type_set_behaviours(ee_unit_type *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_type_behaviours) = v; }
 internal inline uint8_t *type_behaviours_at(const ee_unit_type *o) { return (uint8_t *)((uint8_t *)o + of_type_behaviours); }
@@ -163,59 +135,81 @@ internal inline uint8_t *type_behaviours_at(const ee_unit_type *o) { return (uin
 // class ee_unit_stats (ee_unit_stats)
 // a unit type's per-player values, a unit's +0x34 (range, attack ...)
 // between fields read through a unit's +0x34, unchanged
-internal uint32_t of_stat_type_data;
 internal inline ee_unit_type *stat_get_type_data(const ee_unit_stats *o) { return *(ee_unit_type **)((uint8_t *)o + of_stat_type_data); }
 internal inline void stat_set_type_data(ee_unit_stats *o, ee_unit_type *v) { *(ee_unit_type **)((uint8_t *)o + of_stat_type_data) = v; }
 internal inline ee_unit_type **stat_type_data_at(const ee_unit_stats *o) { return (ee_unit_type **)((uint8_t *)o + of_stat_type_data); }
 // read through a unit's +0x34
-internal uint32_t of_stat_height;
 internal inline float stat_get_height(const ee_unit_stats *o) { return *(float *)((uint8_t *)o + of_stat_height); }
 internal inline void stat_set_height(ee_unit_stats *o, float v) { *(float *)((uint8_t *)o + of_stat_height) = v; }
 internal inline float *stat_height_at(const ee_unit_stats *o) { return (float *)((uint8_t *)o + of_stat_height); }
 // tiles
 // read through a unit's +0x34
-internal uint32_t of_stat_range;
 internal inline float stat_get_range(const ee_unit_stats *o) { return *(float *)((uint8_t *)o + of_stat_range); }
 internal inline void stat_set_range(ee_unit_stats *o, float v) { *(float *)((uint8_t *)o + of_stat_range) = v; }
 internal inline float *stat_range_at(const ee_unit_stats *o) { return (float *)((uint8_t *)o + of_stat_range); }
 // the area its shots hit
 // read through a unit's +0x34
-internal uint32_t of_stat_area;
 internal inline float stat_get_area(const ee_unit_stats *o) { return *(float *)((uint8_t *)o + of_stat_area); }
 internal inline void stat_set_area(ee_unit_stats *o, float v) { *(float *)((uint8_t *)o + of_stat_area) = v; }
 internal inline float *stat_area_at(const ee_unit_stats *o) { return (float *)((uint8_t *)o + of_stat_area); }
 // tiles/s (0: cannot move)
 // read through a unit's +0x34
-internal uint32_t of_stat_speed;
 internal inline float stat_get_speed(const ee_unit_stats *o) { return *(float *)((uint8_t *)o + of_stat_speed); }
 internal inline void stat_set_speed(ee_unit_stats *o, float v) { *(float *)((uint8_t *)o + of_stat_speed) = v; }
 internal inline float *stat_speed_at(const ee_unit_stats *o) { return (float *)((uint8_t *)o + of_stat_speed); }
 // its projectile's launch speed
 // between fields read through a unit's +0x34, unchanged
-internal uint32_t of_stat_shot_speed;
 internal inline float stat_get_shot_speed(const ee_unit_stats *o) { return *(float *)((uint8_t *)o + of_stat_shot_speed); }
 internal inline void stat_set_shot_speed(ee_unit_stats *o, float v) { *(float *)((uint8_t *)o + of_stat_shot_speed) = v; }
 internal inline float *stat_shot_speed_at(const ee_unit_stats *o) { return (float *)((uint8_t *)o + of_stat_shot_speed); }
 // read through a unit's +0x34
-internal uint32_t of_stat_attack;
 internal inline float stat_get_attack(const ee_unit_stats *o) { return *(float *)((uint8_t *)o + of_stat_attack); }
 internal inline void stat_set_attack(ee_unit_stats *o, float v) { *(float *)((uint8_t *)o + of_stat_attack) = v; }
 internal inline float *stat_attack_at(const ee_unit_stats *o) { return (float *)((uint8_t *)o + of_stat_attack); }
 // between fields read through a unit's +0x34, unchanged
-internal uint32_t of_stat_armor;
 internal inline uint8_t *stat_armor_at(const ee_unit_stats *o) { return (uint8_t *)o + of_stat_armor; }
 // ms between shots
 // read through a unit's +0x34
-internal uint32_t of_stat_reload;
 internal inline int stat_get_reload(const ee_unit_stats *o) { return *(int *)((uint8_t *)o + of_stat_reload); }
 internal inline void stat_set_reload(ee_unit_stats *o, int v) { *(int *)((uint8_t *)o + of_stat_reload) = v; }
 internal inline int *stat_reload_at(const ee_unit_stats *o) { return (int *)((uint8_t *)o + of_stat_reload); }
 // its full hit points
 // read through a unit's +0x34
-internal uint32_t of_stat_hp;
 internal inline int stat_get_hp(const ee_unit_stats *o) { return *(int *)((uint8_t *)o + of_stat_hp); }
 internal inline void stat_set_hp(ee_unit_stats *o, int v) { *(int *)((uint8_t *)o + of_stat_hp) = v; }
 internal inline int *stat_hp_at(const ee_unit_stats *o) { return (int *)((uint8_t *)o + of_stat_hp); }
+
+// static class unit_type
+// unit_type's data of the game, places in its code and numbers (raw/'s address rows)
+// the minimap's operands of G_FLOAT_1_800
+// FN_ATTACK_BONUS's object
+internal inline uint8_t *unit_type_bonus_table_at(void) { return (uint8_t *)(uintptr_t)data_unit_type_bonus_table; }
+// VT_MISSILE
+// VT_PROJECTILE
+// EEUnitClass: thiscall(type data, unit), as the game's goal assignment
+// EEUCTransport: char thiscall(type data, transport, unit) - its family against the unit type's board flags
+// (0x609095; AoC put a stub at 60)
+internal inline uint8_t *unit_type_vt_missile_at(void) { return (uint8_t *)(uintptr_t)data_unit_type_vt_missile; }
+// EEUCProjectile
+internal inline uint8_t *unit_type_vt_projectile_at(void) { return (uint8_t *)(uintptr_t)data_unit_type_vt_projectile; }
+
+// static class unit_type_functions
+// the game's functions unit_type.c wraps, by the names the C side gives them
+// thiscall(G_BONUS_TABLE, weapon kind, target type data, attacker, target player)
+typedef float (__thiscall *attack_bonus_game_fn)(void *, int, void *, int, int);
+internal attack_bonus_game_fn fn_attack_bonus_game;
+internal inline float attack_bonus_game(void *p1, int p2, void *p3, int p4, int p5) { return fn_attack_bonus_game(p1, p2, p3, p4, p5); }
+// thiscall(attacker class, attacker)
+typedef void (__thiscall *unit_fire_fn)(void *, ee_unit *);
+internal unit_fire_fn fn_unit_fire;
+internal inline void unit_fire(void *cls, ee_unit *u) { fn_unit_fire(cls, u); }
+// EEUCMissile vf42, thiscall(class, missile, aim) - ret 8, the aim unused
+typedef int (__thiscall *missile_launch_fn)(void *, ee_unit *, float *);
+internal missile_launch_fn fn_missile_launch;
+internal inline int missile_launch(void *cls, ee_unit *m, float *aim) { return fn_missile_launch(cls, m, aim); }
+typedef char (__thiscall *proj_down_fn)(void *, void *);
+internal proj_down_fn fn_proj_down;
+internal inline char proj_down(void *cls, void *projectile) { return fn_proj_down(cls, projectile); }
 
 // the running build's values (spec_select, with addr_select): how many it hasn't got
 internal int spec_unit_type_select(int build) {
@@ -259,6 +253,21 @@ internal int spec_unit_type_select(int build) {
         of_stat_armor = 0xE0;
         of_stat_reload = 0x138;
         of_stat_hp = 0x144;
+        data_unit_type_fire_calls[0] = 0x00606067;
+        data_unit_type_fire_calls[1] = 0x00607D79;
+        data_unit_type_fire_calls[2] = 0x0060ABB0;
+        data_unit_type_fire_calls[3] = 0x0060B33C;
+        data_unit_type_bonus_table = 0x00917DE0;
+        value_unit_type_slot_missile_launch = 42;
+        value_unit_type_slot_proj_down = 55;
+        value_unit_type_slot_type_assign = 29;
+        value_unit_type_slot_type_can_carry = 60;
+        data_unit_type_vt_missile = 0x00832E90;
+        data_unit_type_vt_projectile = 0x00833060;
+        fn_attack_bonus_game = (attack_bonus_game_fn)0x004D5F2C;
+        fn_unit_fire = (unit_fire_fn)0x0061E11C;
+        fn_missile_launch = (missile_launch_fn)0x00606109;
+        fn_proj_down = (proj_down_fn)0x006078F9;
         return 0;
     case 1:   // aoc
         of_type_vtable = 0x0;
@@ -299,6 +308,21 @@ internal int spec_unit_type_select(int build) {
         of_stat_armor = 0xE0;
         of_stat_reload = 0x138;
         of_stat_hp = 0x144;
+        data_unit_type_fire_calls[0] = 0x00617838;
+        data_unit_type_fire_calls[1] = 0x00619604;
+        data_unit_type_fire_calls[2] = 0x0061D174;
+        data_unit_type_fire_calls[3] = 0x0061D997;
+        data_unit_type_bonus_table = 0x009318E8;
+        value_unit_type_slot_missile_launch = 43;
+        value_unit_type_slot_proj_down = 56;
+        value_unit_type_slot_type_assign = 29;
+        value_unit_type_slot_type_can_carry = 61;
+        data_unit_type_vt_missile = 0x00848CF8;
+        data_unit_type_vt_projectile = 0x00848ED0;
+        fn_attack_bonus_game = (attack_bonus_game_fn)0x004DBE44;
+        fn_unit_fire = (unit_fire_fn)0x00631312;
+        fn_missile_launch = (missile_launch_fn)0x0061799B;
+        fn_proj_down = (proj_down_fn)0x00619143;
         return 0;
     }
     return 0;

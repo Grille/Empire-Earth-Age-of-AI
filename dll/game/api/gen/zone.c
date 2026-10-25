@@ -4,19 +4,23 @@
 // class ee_zone (ee_zone)
 // an AI town or resource zone
 // .. +0xC its sites (ee_unit *)
-internal uint32_t of_zone_sites_begin;
 internal inline void **zone_get_sites_begin(const ee_zone *o) { return *(void ***)((uint8_t *)o + of_zone_sites_begin); }
 internal inline void zone_set_sites_begin(ee_zone *o, void **v) { *(void ***)((uint8_t *)o + of_zone_sites_begin) = v; }
 internal inline void ***zone_sites_begin_at(const ee_zone *o) { return (void ***)((uint8_t *)o + of_zone_sites_begin); }
 // a drop site serves it
-internal uint32_t of_zone_drop;
 internal inline int zone_get_drop(const ee_zone *o) { return *(int *)((uint8_t *)o + of_zone_drop); }
 internal inline void zone_set_drop(ee_zone *o, int v) { *(int *)((uint8_t *)o + of_zone_drop) = v; }
 internal inline int *zone_drop_at(const ee_zone *o) { return (int *)((uint8_t *)o + of_zone_drop); }
-internal uint32_t of_zone_active;
 internal inline uint8_t zone_get_active(const ee_zone *o) { return *(uint8_t *)((uint8_t *)o + of_zone_active); }
 internal inline void zone_set_active(ee_zone *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_zone_active) = v; }
 internal inline uint8_t *zone_active_at(const ee_zone *o) { return (uint8_t *)((uint8_t *)o + of_zone_active); }
+
+// static class zone_functions
+// the game's functions zone.c wraps, by the names the C side gives them
+// thiscall(zone, type) -> first site of that type with amount > 0
+typedef ee_unit *(__thiscall *zone_site_fn)(ee_zone *, int);
+internal zone_site_fn fn_zone_site;
+internal inline ee_unit *zone_site(ee_zone *z, int kind) { return fn_zone_site(z, kind); }
 
 // the running build's values (spec_select, with addr_select): how many it hasn't got
 internal int spec_zone_select(int build) {
@@ -25,11 +29,13 @@ internal int spec_zone_select(int build) {
         of_zone_sites_begin = 0x8;
         of_zone_drop = 0x14;
         of_zone_active = 0x18;
+        fn_zone_site = (zone_site_fn)0x004886F2;
         return 0;
     case 1:   // aoc
         of_zone_sites_begin = 0x8;
         of_zone_drop = 0x14;
         of_zone_active = 0x18;
+        fn_zone_site = (zone_site_fn)0x0048D065;
         return 0;
     }
     return 0;

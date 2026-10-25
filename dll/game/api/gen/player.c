@@ -3,211 +3,160 @@
 
 // class EEPlayer (ee_player)
 // a player (EEPlayer, EEComputerPlayer)
-internal uint32_t of_player_list_begin;
 internal inline uint8_t *player_get_list_begin(const ee_player *o) { return *(uint8_t **)((uint8_t *)o + of_player_list_begin); }
 internal inline void player_set_list_begin(ee_player *o, uint8_t *v) { *(uint8_t **)((uint8_t *)o + of_player_list_begin) = v; }
 internal inline uint8_t **player_list_begin_at(const ee_player *o) { return (uint8_t **)((uint8_t *)o + of_player_list_begin); }
-internal uint32_t of_player_name;
 internal inline uint8_t *player_name_at(const ee_player *o) { return (uint8_t *)o + of_player_name; }
-internal uint32_t of_player_color;
 internal inline uint8_t *player_color_at(const ee_player *o) { return (uint8_t *)o + of_player_color; }
-internal uint32_t of_player_index;
 internal inline int player_get_index(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_index); }
 internal inline void player_set_index(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_index) = v; }
 internal inline int *player_index_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_index); }
 // its id in a chat message (msg +0xA)
-internal uint32_t of_player_msg_id;
 internal inline int8_t player_get_msg_id(const ee_player *o) { return *(int8_t *)((uint8_t *)o + of_player_msg_id); }
 internal inline void player_set_msg_id(ee_player *o, int8_t v) { *(int8_t *)((uint8_t *)o + of_player_msg_id) = v; }
 internal inline int8_t *player_msg_id_at(const ee_player *o) { return (int8_t *)((uint8_t *)o + of_player_msg_id); }
 // no fog
-internal uint32_t of_player_explore_all;
 internal inline uint8_t player_get_explore_all(const ee_player *o) { return *(uint8_t *)((uint8_t *)o + of_player_explore_all); }
 internal inline void player_set_explore_all(ee_player *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_player_explore_all) = v; }
 internal inline uint8_t *player_explore_all_at(const ee_player *o) { return (uint8_t *)((uint8_t *)o + of_player_explore_all); }
 // out of the game (resigned, defeated)
-internal uint32_t of_player_out;
 internal inline uint8_t player_get_out(const ee_player *o) { return *(uint8_t *)((uint8_t *)o + of_player_out); }
 internal inline void player_set_out(ee_player *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_player_out) = v; }
 internal inline uint8_t *player_out_at(const ee_player *o) { return (uint8_t *)((uint8_t *)o + of_player_out); }
-internal uint32_t of_player_civ_name;
 internal inline uint8_t *player_civ_name_at(const ee_player *o) { return (uint8_t *)o + of_player_civ_name; }
-internal uint32_t of_player_stats;
 internal inline ee_player_stats *player_stats_at(const ee_player *o) { return (ee_player_stats *)((uint8_t *)o + of_player_stats); }
-internal uint32_t of_player_type_stats;
 internal inline uint8_t *player_type_stats_at(const ee_player *o) { return (uint8_t *)o + of_player_type_stats; }
-internal uint32_t of_player_selected_group;
 internal inline int *player_get_selected_group(const ee_player *o) { return *(int **)((uint8_t *)o + of_player_selected_group); }
 internal inline void player_set_selected_group(ee_player *o, int *v) { *(int **)((uint8_t *)o + of_player_selected_group) = v; }
 internal inline int **player_selected_group_at(const ee_player *o) { return (int **)((uint8_t *)o + of_player_selected_group); }
-internal uint32_t of_player_tech_tree;
 internal inline ee_tech_tree *player_get_tech_tree(const ee_player *o) { return *(ee_tech_tree **)((uint8_t *)o + of_player_tech_tree); }
 internal inline void player_set_tech_tree(ee_player *o, ee_tech_tree *v) { *(ee_tech_tree **)((uint8_t *)o + of_player_tech_tree) = v; }
 internal inline ee_tech_tree **player_tech_tree_at(const ee_player *o) { return (ee_tech_tree **)((uint8_t *)o + of_player_tech_tree); }
-internal uint32_t of_player_chat_to;
 internal inline int player_get_chat_to(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_chat_to); }
 internal inline void player_set_chat_to(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_chat_to) = v; }
 internal inline int *player_chat_to_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_chat_to); }
-internal uint32_t of_player_stance;
 internal inline uint8_t *player_stance_at(const ee_player *o) { return (uint8_t *)o + of_player_stance; }
 // orders the attention's activities
-internal uint32_t of_player_strategy;
 internal inline int player_get_strategy(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_strategy); }
 internal inline void player_set_strategy(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_strategy) = v; }
 internal inline int *player_strategy_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_strategy); }
 // 1 won, 2 lost
-internal uint32_t of_player_result;
 internal inline int player_get_result(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_result); }
 internal inline void player_set_result(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_result) = v; }
 internal inline int *player_result_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_result); }
 // int[7]: 2 food, 3 wood, 4 stone, 5 gold, 6 iron
-internal uint32_t of_player_stock;
 internal inline int player_get_stock(const ee_player *o, int i) { return ((int *)((uint8_t *)o + of_player_stock))[i]; }
 internal inline void player_set_stock(ee_player *o, int i, int v) { ((int *)((uint8_t *)o + of_player_stock))[i] = v; }
 internal inline int *player_stock_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_stock); }
-internal uint32_t of_player_pop_b10;
 internal inline int player_get_pop_b10(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_pop_b10); }
 internal inline void player_set_pop_b10(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_pop_b10) = v; }
 internal inline int *player_pop_b10_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_pop_b10); }
 // its objects (< 1: out)
-internal uint32_t of_player_objects;
 internal inline int player_get_objects(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_objects); }
 internal inline void player_set_objects(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_objects) = v; }
 internal inline int *player_objects_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_objects); }
-internal uint32_t of_player_pop_b1c;
 internal inline int player_get_pop_b1c(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_pop_b1c); }
 internal inline void player_set_pop_b1c(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_pop_b1c) = v; }
 internal inline int *player_pop_b1c_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_pop_b1c); }
-internal uint32_t of_player_pop_b20;
 internal inline int player_get_pop_b20(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_pop_b20); }
 internal inline void player_set_pop_b20(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_pop_b20) = v; }
 internal inline int *player_pop_b20_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_pop_b20); }
-internal uint32_t of_player_chat_to_player;
 internal inline uint8_t *player_chat_to_player_at(const ee_player *o) { return (uint8_t *)o + of_player_chat_to_player; }
 // (0: the civ dialog opens)
-internal uint32_t of_player_civ_chosen;
 internal inline uint8_t player_get_civ_chosen(const ee_player *o) { return *(uint8_t *)((uint8_t *)o + of_player_civ_chosen); }
 internal inline void player_set_civ_chosen(ee_player *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_player_civ_chosen) = v; }
 internal inline uint8_t *player_civ_chosen_at(const ee_player *o) { return (uint8_t *)((uint8_t *)o + of_player_civ_chosen); }
 // the resource zones (map-wide)
-internal uint32_t of_player_zones_begin;
 internal inline ee_zone **player_get_zones_begin(const ee_player *o) { return *(ee_zone ***)((uint8_t *)o + of_player_zones_begin); }
 internal inline void player_set_zones_begin(ee_player *o, ee_zone **v) { *(ee_zone ***)((uint8_t *)o + of_player_zones_begin) = v; }
 internal inline ee_zone ***player_zones_begin_at(const ee_player *o) { return (ee_zone ***)((uint8_t *)o + of_player_zones_begin); }
-internal uint32_t of_player_combat_mgr;
 internal inline ee_combat_mgr *player_get_combat_mgr(const ee_player *o) { return *(ee_combat_mgr **)((uint8_t *)o + of_player_combat_mgr); }
 internal inline void player_set_combat_mgr(ee_player *o, ee_combat_mgr *v) { *(ee_combat_mgr **)((uint8_t *)o + of_player_combat_mgr) = v; }
 internal inline ee_combat_mgr **player_combat_mgr_at(const ee_player *o) { return (ee_combat_mgr **)((uint8_t *)o + of_player_combat_mgr); }
 // a computer player's
-internal uint32_t of_player_civ_mgr;
 internal inline ee_civ_mgr *player_get_civ_mgr(const ee_player *o) { return *(ee_civ_mgr **)((uint8_t *)o + of_player_civ_mgr); }
 internal inline void player_set_civ_mgr(ee_player *o, ee_civ_mgr *v) { *(ee_civ_mgr **)((uint8_t *)o + of_player_civ_mgr) = v; }
 internal inline ee_civ_mgr **player_civ_mgr_at(const ee_player *o) { return (ee_civ_mgr **)((uint8_t *)o + of_player_civ_mgr); }
 // (PLB98: not known)
-internal uint32_t of_player_b98;
 internal inline ee_player_b98 *player_get_b98(const ee_player *o) { return *(ee_player_b98 **)((uint8_t *)o + of_player_b98); }
 internal inline void player_set_b98(ee_player *o, ee_player_b98 *v) { *(ee_player_b98 **)((uint8_t *)o + of_player_b98) = v; }
 internal inline ee_player_b98 **player_b98_at(const ee_player *o) { return (ee_player_b98 **)((uint8_t *)o + of_player_b98); }
 // 0 easy, 1 medium, 2 hard
-internal uint32_t of_player_difficulty;
 internal inline int player_get_difficulty(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_difficulty); }
 internal inline void player_set_difficulty(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_difficulty) = v; }
 internal inline int *player_difficulty_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_difficulty); }
-internal uint32_t of_player_cost_medium;
 internal inline float player_get_cost_medium(const ee_player *o) { return *(float *)((uint8_t *)o + of_player_cost_medium); }
 internal inline void player_set_cost_medium(ee_player *o, float v) { *(float *)((uint8_t *)o + of_player_cost_medium) = v; }
 internal inline float *player_cost_medium_at(const ee_player *o) { return (float *)((uint8_t *)o + of_player_cost_medium); }
 // of the cap (0.45)
-internal uint32_t of_player_citizen_share;
 internal inline float player_get_citizen_share(const ee_player *o) { return *(float *)((uint8_t *)o + of_player_citizen_share); }
 internal inline void player_set_citizen_share(ee_player *o, float v) { *(float *)((uint8_t *)o + of_player_citizen_share) = v; }
 internal inline float *player_citizen_share_at(const ee_player *o) { return (float *)((uint8_t *)o + of_player_citizen_share); }
 // its own cap (vf31)
-internal uint32_t of_player_pop_cap;
 internal inline int player_get_pop_cap(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_pop_cap); }
 internal inline void player_set_pop_cap(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_pop_cap) = v; }
 internal inline int *player_pop_cap_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_pop_cap); }
-internal uint32_t of_player_attack_on_contact;
 internal inline int player_get_attack_on_contact(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_attack_on_contact); }
 internal inline void player_set_attack_on_contact(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_attack_on_contact) = v; }
 internal inline int *player_attack_on_contact_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_attack_on_contact); }
-internal uint32_t of_player_attack_for_resources;
 internal inline int player_get_attack_for_resources(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_attack_for_resources); }
 internal inline void player_set_attack_for_resources(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_attack_for_resources) = v; }
 internal inline int *player_attack_for_resources_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_attack_for_resources); }
-internal uint32_t of_player_attack_revenge;
 internal inline int player_get_attack_revenge(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_attack_revenge); }
 internal inline void player_set_attack_revenge(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_attack_revenge) = v; }
 internal inline int *player_attack_revenge_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_attack_revenge); }
 // between attacks
-internal uint32_t of_player_attack_max;
 internal inline int player_get_attack_max(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_attack_max); }
 internal inline void player_set_attack_max(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_attack_max) = v; }
 internal inline int *player_attack_max_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_attack_max); }
-internal uint32_t of_player_attack_min;
 internal inline int player_get_attack_min(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_attack_min); }
 internal inline void player_set_attack_min(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_attack_min) = v; }
 internal inline int *player_attack_min_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_attack_min); }
-internal uint32_t of_player_first_attack_max;
 internal inline int player_get_first_attack_max(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_first_attack_max); }
 internal inline void player_set_first_attack_max(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_first_attack_max) = v; }
 internal inline int *player_first_attack_max_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_first_attack_max); }
-internal uint32_t of_player_first_attack_min;
 internal inline int player_get_first_attack_min(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_first_attack_min); }
 internal inline void player_set_first_attack_min(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_first_attack_min) = v; }
 internal inline int *player_first_attack_min_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_first_attack_min); }
-internal uint32_t of_player_cost_easy;
 internal inline int player_get_cost_easy(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_cost_easy); }
 internal inline void player_set_cost_easy(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_cost_easy) = v; }
 internal inline int *player_cost_easy_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_cost_easy); }
-internal uint32_t of_player_cost_hard;
 internal inline int player_get_cost_hard(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_cost_hard); }
 internal inline void player_set_cost_hard(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_cost_hard) = v; }
 internal inline int *player_cost_hard_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_cost_hard); }
 // the epoch timer's draw, random(+0xD5C, +0xD58) (0x46DE8C)
-internal uint32_t of_player_epoch_max;
 internal inline int player_get_epoch_max(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_epoch_max); }
 internal inline void player_set_epoch_max(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_epoch_max) = v; }
 internal inline int *player_epoch_max_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_epoch_max); }
 // the epoch timer's minutes
-internal uint32_t of_player_epoch_min;
 internal inline int player_get_epoch_min(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_epoch_min); }
 internal inline void player_set_epoch_min(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_epoch_min) = v; }
 internal inline int *player_epoch_min_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_epoch_min); }
-internal uint32_t of_player_dropoff_distance;
 internal inline int player_get_dropoff_distance(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_dropoff_distance); }
 internal inline void player_set_dropoff_distance(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_dropoff_distance) = v; }
 internal inline int *player_dropoff_distance_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_dropoff_distance); }
 // activities a period (+1)
-internal uint32_t of_player_attention;
 internal inline int player_get_attention(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_attention); }
 internal inline void player_set_attention(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_attention) = v; }
 internal inline int *player_attention_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_attention); }
 // game time
-internal uint32_t of_player_next_attack;
 internal inline uint32_t player_get_next_attack(const ee_player *o) { return *(uint32_t *)((uint8_t *)o + of_player_next_attack); }
 internal inline void player_set_next_attack(ee_player *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_player_next_attack) = v; }
 internal inline uint32_t *player_next_attack_at(const ee_player *o) { return (uint32_t *)((uint8_t *)o + of_player_next_attack); }
-internal uint32_t of_player_toggles;
 internal inline uint8_t *player_toggles_at(const ee_player *o) { return (uint8_t *)o + of_player_toggles; }
-internal uint32_t of_player_boats_for_food;
 internal inline uint8_t player_get_boats_for_food(const ee_player *o) { return *(uint8_t *)((uint8_t *)o + of_player_boats_for_food); }
 internal inline void player_set_boats_for_food(ee_player *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_player_boats_for_food) = v; }
 internal inline uint8_t *player_boats_for_food_at(const ee_player *o) { return (uint8_t *)((uint8_t *)o + of_player_boats_for_food); }
-internal uint32_t of_player_cheat;
 internal inline uint8_t player_get_cheat(const ee_player *o) { return *(uint8_t *)((uint8_t *)o + of_player_cheat); }
 internal inline void player_set_cheat(ee_player *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_player_cheat) = v; }
 internal inline uint8_t *player_cheat_at(const ee_player *o) { return (uint8_t *)((uint8_t *)o + of_player_cheat); }
-internal uint32_t of_player_build;
 internal inline uint8_t player_get_build(const ee_player *o) { return *(uint8_t *)((uint8_t *)o + of_player_build); }
 internal inline void player_set_build(ee_player *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_player_build) = v; }
 internal inline uint8_t *player_build_at(const ee_player *o) { return (uint8_t *)((uint8_t *)o + of_player_build); }
-internal uint32_t of_player_ignore;
 internal inline uint8_t player_get_ignore(const ee_player *o) { return *(uint8_t *)((uint8_t *)o + of_player_ignore); }
 internal inline void player_set_ignore(ee_player *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_player_ignore) = v; }
 internal inline uint8_t *player_ignore_at(const ee_player *o) { return (uint8_t *)((uint8_t *)o + of_player_ignore); }
 // set when 0x43DD2F draws the next attack from the interval (+0xEF5 is the first update's flag, 0x43F91A)
-internal uint32_t of_player_first_attack_done;
 internal inline uint8_t player_get_first_attack_done(const ee_player *o) { return *(uint8_t *)((uint8_t *)o + of_player_first_attack_done); }
 internal inline void player_set_first_attack_done(ee_player *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_player_first_attack_done) = v; }
 internal inline uint8_t *player_first_attack_done_at(const ee_player *o) { return (uint8_t *)((uint8_t *)o + of_player_first_attack_done); }
@@ -215,15 +164,108 @@ internal inline uint8_t *player_first_attack_done_at(const ee_player *o) { retur
 // class ee_player_b98 (ee_player_b98)
 // the object at a player's +0xB98
 // read through a player's +0xB98
-internal uint32_t of_b98_att;
 internal inline uint8_t b98_get_att(const ee_player_b98 *o) { return *(uint8_t *)((uint8_t *)o + of_b98_att); }
 internal inline void b98_set_att(ee_player_b98 *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_b98_att) = v; }
 internal inline uint8_t *b98_att_at(const ee_player_b98 *o) { return (uint8_t *)((uint8_t *)o + of_b98_att); }
 
 // class EEPlayerStatistics (ee_player_stats)
 // a player's statistics, player +0x4A8 (EEPlayerStatistics)
-internal uint32_t of_plstats_lists;
 internal inline uint8_t *plstats_lists_at(const ee_player_stats *o) { return (uint8_t *)o + of_plstats_lists; }
+
+// static class player
+// player's data of the game, places in its code and numbers (raw/'s address rows)
+internal inline uint8_t *player_call_cp_update_at(void) { return (uint8_t *)(uintptr_t)data_player_call_cp_update; }
+// its one call: EEPlayer::vf41, a human reached an epoch
+internal inline uint8_t *player_call_epoch_catch_up_at(void) { return (uint8_t *)(uintptr_t)data_player_call_epoch_catch_up; }
+internal inline uint8_t *player_call_kill_stat_at(void) { return (uint8_t *)(uintptr_t)data_player_call_kill_stat; }
+internal inline uint8_t *player_call_nv_maint_delete_at(void) { return (uint8_t *)(uintptr_t)data_player_call_nv_maint_delete; }
+// the callers of FN_POP_CAP
+internal inline uint8_t *player_call_pop_cap_1_at(void) { return (uint8_t *)(uintptr_t)data_player_call_pop_cap_1; }
+internal inline uint8_t *player_call_pop_cap_2_at(void) { return (uint8_t *)(uintptr_t)data_player_call_pop_cap_2; }
+internal inline uint8_t *player_call_pop_cap_3_at(void) { return (uint8_t *)(uintptr_t)data_player_call_pop_cap_3; }
+// VT_COMPUTER_PLAYER: FN_CP_ADD_RESOURCE (econ.c's hook; AoC as before)
+// VT_COMPUTER_PLAYER: FN_CP_PAY (econ.c's hook; AoC as before)
+// EEPlayer: char thiscall(player) - human (EEHumanPlayer's returns 1; FN_HUMAN_EPOCH's test)
+// EEPlayer: int thiscall(player, 0), the unit limit (FN_GAME_LIMIT)
+internal inline uint8_t *player_vt_computer_player_at(void) { return (uint8_t *)(uintptr_t)data_player_vt_computer_player; }
+
+// static class player_functions
+// the game's functions player.c wraps, by the names the C side gives them
+// EEComputerPlayer::AdjustCost (vf27): a price with the cheat
+typedef int (__thiscall *cp_adjust_cost_fn)(ee_player *, int);
+internal cp_adjust_cost_fn fn_cp_adjust_cost;
+internal inline int cp_adjust_cost(ee_player *pl, int price) { return fn_cp_adjust_cost(pl, price); }
+// thiscall(player, on player, 1): calls off its attack groups on that player
+typedef void (__thiscall *call_off_attacks_fn)(ee_player *, ee_player *, int);
+internal call_off_attacks_fn fn_call_off_attacks;
+internal inline void call_off_attacks(ee_player *pl, ee_player *target, int flag) { fn_call_off_attacks(pl, target, flag); }
+// thiscall(player, type, 0x20, 0): can train or build one now
+typedef char (__thiscall *can_build_game_fn)(void *, int, int, int);
+internal can_build_game_fn fn_can_build_game;
+internal inline char can_build_game(void *p1, int p2, int p3, int p4) { return fn_can_build_game(p1, p2, p3, p4); }
+// cdecl char(player, type, x, y, w, h, 0)
+typedef char (__cdecl *can_place_game_fn)(void *, int, int, int, int, int, int);
+internal can_place_game_fn fn_can_place_game;
+internal inline char can_place_game(void *p1, int p2, int p3, int p4, int p5, int p6, int p7) { return fn_can_place_game(p1, p2, p3, p4, p5, p6, p7); }
+// EEComputerPlayer::vf18(type, amount)
+typedef void (__thiscall *cp_add_resource_fn)(ee_player *, int, int);
+internal cp_add_resource_fn fn_cp_add_resource;
+internal inline void cp_add_resource(ee_player *pl, int type, int amount) { fn_cp_add_resource(pl, type, amount); }
+// EEComputerPlayer::vf45(cost object, ?, ?): pays a unit/building/tech
+typedef void (__thiscall *cp_pay_fn)(ee_player *, void *, int, int);
+internal cp_pay_fn fn_cp_pay;
+internal inline void cp_pay(ee_player *pl, void *what, int b, int c) { fn_cp_pay(pl, what, b, c); }
+typedef void (__thiscall *cp_update_fn)(ee_player *, uint32_t);
+internal cp_update_fn fn_cp_update;
+internal inline void cp_update(ee_player *pl, uint32_t now) { fn_cp_update(pl, now); }
+typedef int (__thiscall *delete_for_room_fn)(ee_player *, void *, int);
+internal delete_for_room_fn fn_delete_for_room;
+internal inline int delete_for_room(ee_player *pl, void *req, int flag) { return fn_delete_for_room(pl, req, flag); }
+// thiscall(computer player, human): the attempt redrawn soon when the human is ahead
+typedef void (__thiscall *cp_epoch_catch_up_fn)(ee_player *, ee_player *);
+internal cp_epoch_catch_up_fn fn_cp_epoch_catch_up;
+internal inline void cp_epoch_catch_up(ee_player *ai, ee_player *human) { fn_cp_epoch_catch_up(ai, human); }
+// EEPlayer::vf31 thiscall(player, 0): the game's unit limit for this player
+typedef int (__thiscall *game_limit_fn)(void *, int);
+internal game_limit_fn fn_game_limit;
+internal inline int game_limit(void *p1, int p2) { return fn_game_limit(p1, p2); }
+// cdecl(player, type, x, y): a building placed (a foundation)
+typedef ee_unit *(__cdecl *place_foundation_fn)(ee_player *, int, int, int);
+internal place_foundation_fn fn_place_foundation;
+internal inline ee_unit *place_foundation(ee_player *pl, int type, int x, int y) { return fn_place_foundation(pl, type, x, y); }
+// thiscall(player, 2) as EEMResign
+typedef void (__thiscall *player_resign_fn)(ee_player *, int);
+internal player_resign_fn fn_player_resign;
+internal inline void player_resign(ee_player *pl, int how) { fn_player_resign(pl, how); }
+// thiscall(player, 1, 0)
+typedef int (__thiscall *population_fn)(ee_player *, int, int);
+internal population_fn fn_population;
+internal inline int population(ee_player *pl, int with_list, int with_aboard) { return fn_population(pl, with_list, with_aboard); }
+// thiscall(player), called at 0x4311E5, 0x43FA9B, 0x474AF0
+typedef void (__thiscall *cp_update_pop_cap_fn)(ee_player *);
+internal cp_update_pop_cap_fn fn_cp_update_pop_cap;
+internal inline void cp_update_pop_cap(ee_player *pl) { fn_cp_update_pop_cap(pl); }
+// thiscall(player, now): the next attack time (+0xED8)
+typedef void (__thiscall *cp_schedule_attack_fn)(ee_player *, uint32_t);
+internal cp_schedule_attack_fn fn_cp_schedule_attack;
+internal inline void cp_schedule_attack(ee_player *pl, uint32_t now) { fn_cp_schedule_attack(pl, now); }
+// EEMSelectUnits carried out on the player
+typedef void (__thiscall *player_select_fn)(ee_player *, void *);
+internal player_select_fn fn_player_select;
+internal inline void player_select(ee_player *pl, void *selection) { fn_player_select(pl, selection); }
+typedef void (__thiscall *set_diplomacy_game_fn)(void *, void *, int, int);
+internal set_diplomacy_game_fn fn_set_diplomacy_game;
+internal inline void set_diplomacy_game(void *p1, void *p2, int p3, int p4) { fn_set_diplomacy_game(p1, p2, p3, p4); }
+typedef void (__thiscall *stat_add_fn)(void *, int, int);
+internal stat_add_fn fn_stat_add;
+internal inline void stat_add(void *stats, int n, int d) { fn_stat_add(stats, n, d); }
+// thiscall(player +0x874, type): the per-player stats record
+typedef uint8_t **(__thiscall *type_stats_game_fn)(void *, int);
+internal type_stats_game_fn fn_type_stats_game;
+internal inline uint8_t **type_stats_game(void *p1, int p2) { return fn_type_stats_game(p1, p2); }
+typedef uint32_t (__thiscall *vector_size_fn)(void *);
+internal vector_size_fn fn_vector_size;
+internal inline uint32_t vector_size(void *p1) { return fn_vector_size(p1); }
 
 // the running build's values (spec_select, with addr_select): how many it hasn't got
 internal int spec_player_select(int build) {
@@ -282,6 +324,38 @@ internal int spec_player_select(int build) {
         of_player_first_attack_done = 0xF05;
         of_b98_att = 0x2D;
         of_plstats_lists = 0x1C;
+        data_player_call_cp_update = 0x0042F3CD;
+        data_player_call_epoch_catch_up = 0x0055A5B5;
+        data_player_call_kill_stat = 0x00617780;
+        data_player_call_nv_maint_delete = 0x00477B17;
+        data_player_call_pop_cap_1 = 0x004311E5;
+        data_player_call_pop_cap_2 = 0x0043FA9B;
+        data_player_call_pop_cap_3 = 0x00474AF0;
+        value_player_slot_cp_add_resource = 18;
+        value_player_slot_cp_pay = 45;
+        value_player_slot_player_human = 29;
+        value_player_slot_unit_limit = 31;
+        data_player_vt_computer_player = 0x008264C0;
+        fn_cp_adjust_cost = (cp_adjust_cost_fn)0x00430FBD;
+        fn_call_off_attacks = (call_off_attacks_fn)0x0043033E;
+        fn_can_build_game = (can_build_game_fn)0x00555710;
+        fn_can_place_game = (can_place_game_fn)0x0062E940;
+        fn_cp_add_resource = (cp_add_resource_fn)0x0042F783;
+        fn_cp_pay = (cp_pay_fn)0x0043F53D;
+        fn_cp_update = (cp_update_fn)0x0043F91A;
+        fn_delete_for_room = (delete_for_room_fn)0x00430D40;
+        fn_cp_epoch_catch_up = (cp_epoch_catch_up_fn)0x00431533;
+        fn_game_limit = (game_limit_fn)0x00556EBC;
+        fn_place_foundation = (place_foundation_fn)0x0062EF8A;
+        fn_player_resign = (player_resign_fn)0x0055BCEA;
+        fn_population = (population_fn)0x00556E11;
+        fn_cp_update_pop_cap = (cp_update_pop_cap_fn)0x0042F7A5;
+        fn_cp_schedule_attack = (cp_schedule_attack_fn)0x0043DD2F;
+        fn_player_select = (player_select_fn)0x0055B3FB;
+        fn_set_diplomacy_game = (set_diplomacy_game_fn)0x0055B8E1;
+        fn_stat_add = (stat_add_fn)0x0055DBCF;
+        fn_type_stats_game = (type_stats_game_fn)0x00492969;
+        fn_vector_size = (vector_size_fn)0x004A670A;
         return 0;
     case 1:   // aoc
         of_player_list_begin = 0x18;
@@ -337,6 +411,38 @@ internal int spec_player_select(int build) {
         of_player_first_attack_done = 0xF55;
         of_b98_att = 0x2D;
         of_plstats_lists = 0x1C;
+        data_player_call_cp_update = 0x0042CDD1;
+        data_player_call_epoch_catch_up = 0x00569633;
+        data_player_call_kill_stat = 0x0062A2DF;
+        data_player_call_nv_maint_delete = 0x0047B635;
+        data_player_call_pop_cap_1 = 0x0042ECF6;
+        data_player_call_pop_cap_2 = 0x0043F2F6;
+        data_player_call_pop_cap_3 = 0x004781C9;
+        value_player_slot_cp_add_resource = 18;
+        value_player_slot_cp_pay = 45;
+        value_player_slot_player_human = 29;
+        value_player_slot_unit_limit = 31;
+        data_player_vt_computer_player = 0x0083A57C;
+        fn_cp_adjust_cost = (cp_adjust_cost_fn)0x0042EACE;
+        fn_call_off_attacks = (call_off_attacks_fn)0x0042DCA6;
+        fn_can_build_game = (can_build_game_fn)0x005639E8;
+        fn_can_place_game = (can_place_game_fn)0x00643CE6;
+        fn_cp_add_resource = (cp_add_resource_fn)0x0042D1A5;
+        fn_cp_pay = (cp_pay_fn)0x0043ED98;
+        fn_cp_update = (cp_update_fn)0x0043F175;
+        fn_delete_for_room = (delete_for_room_fn)0x0042E851;
+        fn_cp_epoch_catch_up = (cp_epoch_catch_up_fn)0x0042F064;
+        fn_game_limit = (game_limit_fn)0x0056528B;
+        fn_place_foundation = (place_foundation_fn)0x00644C83;
+        fn_player_resign = (player_resign_fn)0x0056AF5C;
+        fn_population = (population_fn)0x005651E0;
+        fn_cp_update_pop_cap = (cp_update_pop_cap_fn)0x0042D1C7;
+        fn_cp_schedule_attack = (cp_schedule_attack_fn)0x0043D4CD;
+        fn_player_select = (player_select_fn)0x0056A658;
+        fn_set_diplomacy_game = (set_diplomacy_game_fn)0x0056AB41;
+        fn_stat_add = (stat_add_fn)0x0056D507;
+        fn_type_stats_game = (type_stats_game_fn)0x0051E2A5;
+        fn_vector_size = (vector_size_fn)0x0047C428;
         return 0;
     }
     return 0;

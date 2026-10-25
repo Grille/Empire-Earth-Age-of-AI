@@ -161,3 +161,197 @@ unsafe struct EECPAGTask
     [offset(0x30), found(c)]
     uint8 _0x30;
 }
+
+/// attack's data of the game, places in its code and numbers (raw/'s address rows)
+static unsafe class attack
+{
+    /// the attack subgroups' vtables
+    [address((ee)0x00827844, (aoc)0x0083BF4C)]
+    [address((ee)0x008253C0, (aoc)0x0083936C)]
+    [address((ee)0x00825708, (aoc)0x008396BC)]
+    [address((ee)0x008257F0, (aoc)0x008397A8)]
+    [address((ee)0x00825458, (aoc)0x00839404)]
+    [address((ee)0x00825540, (aoc)0x008394F0)]
+    static code asgu_vtables;
+
+    /// the calls of FN_NATIVE_CHAT (the AI's own lines)
+    [address((ee)0x00827620, (aoc)0x0083BD20)]
+    [address((ee)0x00826610, (aoc)0x0083A6D8)]
+    [address((ee)0x00826818, (aoc)0x0083A8E0)]
+    [address((ee)0x00826F10, (aoc)0x0083AFEC)]
+    [address((ee)0x008270F8, (aoc)0x0083B1D8)]
+    [address((ee)0x00827318, (aoc)0x0083B9F0)]
+    static code asg_vtables;
+
+    /// EECPASGAir vf85: the waiting units' pop (asg_queue.c)
+    [address((ee)0x00442718, (aoc)0x00441E02)]
+    static code call_asg_air_queue_pop;
+
+    /// the other subgroups' vf85 (0x45BD56): the waiting units' pop
+    [address((ee)0x0045BDA2, (aoc)0x0045D974)]
+    static code call_asg_queue_pop;
+
+    [address((ee)0x00450546, (aoc)0x0045122B)]
+    static code call_group_stat;
+
+    [address((ee)0x0063052E, (aoc)0x0064631B)]
+    static code call_range_sort;
+
+    [address((ee)0x004824BF, (aoc)0x004869F3)]
+    static code call_unit_to_group;
+
+    /// thiscall(queue): releases the front unit, removes it
+    [address((ee)0x00482028, (aoc)0x0048655C)]
+    static code fn_asg_queue_pop;
+
+    /// ASGU_VTABLES
+    [value(2)]
+    static uint32 slot_asgu_score;
+
+    /// the attack subgroups
+    [value(57)]
+    static uint32 slot_asg_give_goal;
+
+    /// VT_ASG_LAND
+    [value(94)]
+    static uint32 slot_asg_route;
+
+    /// VT_ASG_LAND
+    [value(97)]
+    static uint32 slot_asg_route_done;
+
+    /// the attack subgroups: FN_ASG_STATS, VT_ASG_LAND's FN_ASG_LAND_STATS
+    [value(20)]
+    static uint32 slot_asg_stats;
+
+    /// the attack subgroups: update(now)
+    [value(90)]
+    static uint32 slot_asg_update;
+
+    /// the selected group (player +0x9BC): unsigned thiscall(group) (EEGroup, both builds)
+    [value(6)]
+    static uint32 slot_group_count;
+
+    /// the selected group: ee_unit *thiscall(group, i) (EEGroup, both builds: 16 slots, its vector +0x24)
+    [value(5)]
+    static uint32 slot_group_get;
+
+    /// VT_ROUTE_PLANNER: FN_ROUTE_COST
+    [value(1)]
+    static uint32 slot_route_cost;
+
+    [address((ee)0x00826610, (aoc)0x0083A6D8)]
+    static block vt_asg_air;
+
+    /// EECPASGLand
+    [address((ee)0x00826CA8, (aoc)0x0083AD7C)]
+    static block vt_asg_land;
+
+    [address((ee)0x00826F10, (aoc)0x0083AFEC)]
+    static block vt_asg_sea;
+
+    [address((ee)0x008270F8, (aoc)0x0083B1D8)]
+    static block vt_asg_sea_transport;
+
+    /// EEAIGPGModifierLandAttackSubGroupRoutePlanner
+    [address((ee)0x00825CC4, (aoc)0x00839C70)]
+    static block vt_route_planner;
+}
+
+/// the game's functions attack.c wraps, by the names the C side gives them
+[c_prefix("")]
+static unsafe class attack_functions
+{
+    /// float thiscall(info *)
+    [address((ee)0x00461854, (aoc)0x00463494), thiscall]
+    static extern float32 asgu_score(EECPAttackSubGroupUnit* member, ee_asgu_info* info);
+
+    [address((ee)0x00442AD8, (aoc)0x00442220), thiscall]
+    static extern char8 asg_air_give_goal(EECPAttackSubGroup* sg, EEUnit* u, EEUnitGoal* goal, int32 a, int32 prio);
+
+    /// EECPASGAir slot 90: update(now)
+    [address((ee)0x00442DBA, (aoc)0x0045019D), thiscall]
+    static extern void asg_air_update(EECPAttackSubGroup* sg, int32 now);
+
+    [address((ee)0x0045CBEA, (aoc)0x0045E7F9), thiscall]
+    static extern char8 asg_give_goal(EECPAttackSubGroup* sg, EEUnit* u, EEUnitGoal* goal, int32 a, int32 prio);
+
+    [address((ee)0x004472A9, (aoc)0x004466DD), thiscall]
+    static extern void asg_land_stats(EECPAttackSubGroup* sg);
+
+    /// its slot 94: void thiscall(int start[2], int dest[2])
+    [address((ee)0x0044BC57, (aoc)0x0044B3C7), thiscall]
+    static extern void asg_route(EECPAttackSubGroup* sg, int32* start, int32* dest);
+
+    /// its slot 97: route arrived, waypoints in the deque at +0x60
+    [address((ee)0x0044BDBF, (aoc)0x0044B53D), thiscall]
+    static extern void asg_route_done(EECPAttackSubGroup* sg);
+
+    /// EECPASGSeaTransport slot 90: update(now)
+    [address((ee)0x0044FB92, (aoc)0x0044E9BB), thiscall]
+    static extern void asg_sea_transport_update(EECPAttackSubGroup* sg, int32 now);
+
+    /// EECPASGSea slot 90: update(now)
+    [address((ee)0x0044ED11, (aoc)0x0044F70E), thiscall]
+    static extern void asg_sea_update(EECPAttackSubGroup* sg, int32 now);
+
+    [address((ee)0x0045AD2F, (aoc)0x0045C925), thiscall]
+    static extern void asg_stats(EECPAttackSubGroup* sg);
+
+    /// EECPASGLand slot 90: update(now)
+    [address((ee)0x004491DD, (aoc)0x004488CE), thiscall]
+    static extern void asg_update(EECPAttackSubGroup* sg, int32 now);
+
+    /// thiscall(attack manager, task, strategy, unit ids) -> the attack group
+    [address((ee)0x0045106C, (aoc)0x00451D8E), thiscall]
+    static extern EECPAttackGroup* attack_group_new(ee_attack_cmd* cmd, void* task, void* strategy, void* ids);
+
+    /// thiscall(cm, task, strategy, unit ids)
+    [address((ee)0x0047067A, (aoc)0x0047360A), thiscall]
+    static extern char8 attack_plan_ok(EECPCombatManager* cm, void* task, void* strategy, void* ids);
+
+    [address((ee)0x00450554, (aoc)0x00451239), thiscall]
+    static extern void group_stat(void* stats, EEUnit* u);
+
+    [address((ee)0x0047C4E8, (aoc)0x00480873), thiscall]
+    static extern void location_init(void* loc);
+
+    /// point from int x, y (the task location's point)
+    [address((ee)0x0040D29D, (aoc)0x0044D28B), thiscall]
+    static extern void point_set(void* point, int32* pt);
+
+    [address((ee)0x0063A355, (aoc)0x006509AF), cdecl]
+    static extern void range_sort(void** b, void** e, EEUnit* unit);
+
+    [address((ee)0x0046FFB7, (aoc)0x00472EC3), thiscall]
+    static extern void revenge(EECPCombatManager* combat_mgr, EEPlayer* target);
+
+    /// its slot 1: int thiscall(edge*, node*)
+    [address((ee)0x004141E8, (aoc)0x00410074), thiscall]
+    static extern int32 route_cost_game(EEAIGPGModifierLandAttackSubGroupRoutePlanner* p1, int32* p2, ee_route_node* p3);
+
+    [address((ee)0x00473BC4, (aoc)0x00477084), thiscall]
+    static extern void strategy_init(void* s);
+
+    [address((ee)0x00473C99, (aoc)0x0047716D), thiscall]
+    static extern void strategy_free(void* s);
+
+    [address((ee)0x00473CA7, (aoc)0x0047717B), thiscall]
+    static extern void strategy_reset(void* s);
+
+    /// an attack task
+    [address((ee)0x00441FB3, (aoc)0x0044162F), thiscall]
+    static extern void task_init(void* task);
+
+    [address((ee)0x00442283, (aoc)0x004417F5), thiscall]
+    static extern void task_free(void* task);
+
+    [address((ee)0x0047C8B7, (aoc)0x00480C42), thiscall]
+    static extern void task_set_location(void* task_loc, void* loc);
+
+    [address((ee)0x00442246, (aoc)0x00441912), thiscall]
+    static extern void task_set_target(void* task, EEUnit* t);
+
+    [address((ee)0x00450E07, (aoc)0x00451A8A), thiscall]
+    static extern char8 unit_to_group(void* cmd, EEUnit* u);
+}

@@ -17,27 +17,27 @@ internal inline void **mixer_fn_at(ee_mixer *mx, enum mixer_fn k) {
 
 // FUNCTIONS
 // the sound manager's channel count set (as the options screen does: the original of sound.c's hook through its import)
-internal inline int snd_set_max_channels(ee_sound_mgr *sm, int n) { return (*(int (__thiscall **)(ee_sound_mgr *, int))GA(IAT_SND_SETMAXCH))(sm, n); }
+internal inline int snd_set_max_channels(ee_sound_mgr *sm, int n) { return (*(int (__thiscall **)(ee_sound_mgr *, int))data_engine_sound_iat_snd_setmaxch)(sm, n); }
 // the Miles mixer plugin's channels (Miles Sound System Mixer.dll at base: a vector of 8-byte entries) and its maximum
 internal inline uint8_t *mix_channels(uintptr_t base, uint8_t **end) {
-    uint8_t *v = *(uint8_t **)(base + GA(RVA_MIX_CHANNELS));
-    if (end) *end = v ? *(uint8_t **)(base + GA(RVA_MIX_CHANNELS) + 4) : NULL;
+    uint8_t *v = *(uint8_t **)(base + value_engine_sound_rva_mix_channels);
+    if (end) *end = v ? *(uint8_t **)(base + value_engine_sound_rva_mix_channels + 4) : NULL;
     return v;
 }
-internal inline int mix_max_channels(uintptr_t base) { return *(int *)(base + GA(RVA_MIX_MAX_CHANNELS)); }
+internal inline int mix_max_channels(uintptr_t base) { return *(int *)(base + value_engine_sound_rva_mix_max_channels); }
 
 // HOOKS
 // the sound manager (sound.c, through the exe's imports of Low-Level Engine: the slots checked against the exports)
 typedef uint32_t (__thiscall *snd_play_fn)(void *sm, uint32_t id, float vol, float pan, float pitch, int queue, void *name);
 internal inline int patch_snd_play(snd_play_fn h, snd_play_fn *orig) {
-    return iat_hook(GA(IAT_SND_PLAY), "Low-Level Engine.dll", "?Play@SESoundManager@@QAEKKMMM_NPAD@Z", (void *)h, (void **)orig);
+    return iat_hook(data_engine_sound_iat_snd_play, "Low-Level Engine.dll", "?Play@SESoundManager@@QAEKKMMM_NPAD@Z", (void *)h, (void **)orig);
 }
 internal inline int patch_snd_playref(snd_play_fn h, snd_play_fn *orig) {
-    return iat_hook(GA(IAT_SND_PLAYREF), "Low-Level Engine.dll", "?PlayAndReturnReferencedNode@SESoundManager@@QAEPAVSESMInstanceNode@@KMMM_NPAD@Z",
+    return iat_hook(data_engine_sound_iat_snd_playref, "Low-Level Engine.dll", "?PlayAndReturnReferencedNode@SESoundManager@@QAEPAVSESMInstanceNode@@KMMM_NPAD@Z",
                     (void *)h, (void **)orig);
 }
 // the sound manager's channel limit (sound.c: the exe's import of SetMaxChannels) - the original into *orig
 typedef int (__thiscall *set_max_ch_fn)(ee_sound_mgr *sm, uint32_t n);
 internal inline int patch_snd_set_max_channels(set_max_ch_fn h, set_max_ch_fn *orig) {
-    return iat_hook(GA(IAT_SND_SETMAXCH), "Low-Level Engine.dll", "?SetMaxChannels@SESoundManager@@QAEJK@Z", (void *)h, (void **)orig);
+    return iat_hook(data_engine_sound_iat_snd_setmaxch, "Low-Level Engine.dll", "?SetMaxChannels@SESoundManager@@QAEJK@Z", (void *)h, (void **)orig);
 }

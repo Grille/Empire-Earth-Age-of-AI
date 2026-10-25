@@ -1,4 +1,3 @@
-
 // THE MAP'S OBJECTS: three classes, each the one before it and more. RTSUnit, the engine's (the unit list's node, tile,
 // owner, id); EEUnit, its game's (type data, hit points, a resource's amount) - an ambient object or resource site, a
 // tree, a gold mine; EEComplexUnit everything that moves or is built: units, buildings, ships, projectiles, the attack
@@ -289,6 +288,15 @@ unsafe struct EEGhostUnit
 /// the game's functions on units that belong to no class: the unit an ordinary argument, all on the stack
 static unsafe class unit
 {
+    [address((ee)0x00628BE7, (aoc)0x0063D998)]
+    static code call_node_del_1;
+
+    [address((ee)0x00628B7F, (aoc)0x0063D930)]
+    static code call_node_del_2;
+
+    [address((ee)0x006836F0, (aoc)0x0069D150)]
+    static code fn_op_delete;
+
     /// the aim of u's shot at target (0x633413: the shooter its first argument)
     [address((ee)0x00633413, (aoc)0x0064939D), cdecl]
     [call_site("aim", (ee)0x0061E1D7, (aoc)0x006313D6)]                 // a unit's shot
@@ -302,4 +310,57 @@ unsafe struct ee_ai_state
     /// the state's id, read by every condition through a unit's +0x1E8
     [offset(0x24), found(c)]
     uint32 id;
+}
+
+/// the game's functions unit.c wraps, by the names the C side gives them
+[c_prefix("")]
+static unsafe class unit_functions
+{
+    [address((ee)0x0062CBB3, (aoc)0x00641A6A), cdecl]
+    static extern char8 ballistic_game(EEUnit* p1, ee_unit_stats* p2, float32* p3, float32* p4, float32* p5);
+
+    /// thiscall(unit): drops its current waypoint (the deque's front; GetNextMoveWaypoint); 0, or 7 with none
+    [address((ee)0x005EDCF4, (aoc)0x005FBDD1), thiscall]
+    static extern int32 unit_pop_waypoint(EEUnit* u);
+
+    [address((ee)0x0052E5F7, (aoc)0x00539532), thiscall]
+    static extern uint32 site_gatherers_game(void* p1, void* p2);
+
+    /// units aboard a transport or inside a building
+    [address((ee)0x0042E347, (aoc)0x0040D5C5), thiscall]
+    static extern int32 units_inside(EEUnit* u);
+
+    /// thiscall(unit): its acceleration (stats +0xA8; its group's with the group speed on)
+    [address((ee)0x0054A4CA, (aoc)0x00554C95), thiscall]
+    static extern float32 unit_accel(EEUnit* u);
+
+    /// cdecl(unit, player index, new type data)
+    [address((ee)0x0062F192, (aoc)0x00644E95), cdecl]
+    static extern int32 unit_convert(EEUnit* u, int32 pi, EEUnitClass* new_td);
+
+    /// cdecl(unit, other)
+    [address((ee)0x0062D5A4, (aoc)0x00642489), cdecl]
+    static extern float32 unit_distance(EEUnit* a, EEUnit* b);
+
+    /// thiscall(unit, slot): the slot's goal queue (unit +0x94 a vector of 0x28-byte slots; +4 a deque of goal
+    /// pointers: +4 block map, +8 its size, +0xC the front's index, +0x10 the count; 0x400 a block) - slot 0 the
+    /// orders, the front the current, shift appends
+    [address((ee)0x005F3473, (aoc)0x005FA1CD), thiscall]
+    static extern void* unit_goal_queue(void* p1, int32 p2);
+
+    /// thiscall(unit): its top turn rate (radians/s, stats +0xB4; its group's with the group speed on)
+    [address((ee)0x0054A4E7, (aoc)0x0055463E), thiscall]
+    static extern float32 unit_max_turn(EEUnit* u);
+
+    /// thiscall(unit, 0x1F51) - as the assignment does after the order
+    [address((ee)0x005EFCF0, (aoc)0x005FDFA5), thiscall]
+    static extern void unit_set_state(EEUnit* u, int32 state);
+
+    /// radians/s per s
+    /// thiscall(unit): its turn acceleration (radians/s per s, stats +0xB0; its group's with the group speed on)
+    [address((ee)0x0054A504, (aoc)0x0055465B), thiscall]
+    static extern float32 unit_turn_accel(EEUnit* u);
+
+    [address((ee)0x00628E29, (aoc)0x0063DBDA), thiscall]
+    static extern void unit_unlink(EEUnit* u);
 }

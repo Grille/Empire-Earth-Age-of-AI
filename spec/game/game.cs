@@ -1,53 +1,380 @@
-/// the game's global state, its imports and the places in its code the mod changes in place
+/// game's data of the game, places in its code and numbers (raw/'s address rows)
 static unsafe class game
 {
-    // DATA
+    [address((ee)0x004F80A4, (aoc)0x0050232D)]
+    static code call_damage_points;
 
-    /// the players by index, player_count of them
-    [address((ee)0x00918374, (aoc)0x00930DB4), was("G_PLAYERS")]
-    static EEPlayer** players;
+    /// the unit behaviours (stances)
+    [address((ee)0x008D2044, (aoc)0x008E8744)]
+    static block behaviour_table;
+
+    /// EECameraControl; +0x78/+0x7C/+0x80 look-at x/y/z (tiles), +0xE0 zoom
+    [address((ee)0x00918CD0, (aoc)0x00931710)]
+    static block camera;
+
+    [address((ee)0x00918E9A, (aoc)0x009318DA)]
+    static block cheats_on;
+
+    [address((ee)0x00919858, (aoc)0x009319D4)]
+    static block cheat_parser;
+
+    /// the player colour table (vector begin, end)
+    [address((ee)0x008CFA74, (aoc)0x008E610C)]
+    static block colors_begin;
+
+    [address((ee)0x008CFA78, (aoc)0x008E6110)]
+    static block colors_end;
+
+    /// [attacker class + target class x 6]
+    [address((ee)0x008D2050, (aoc)0x008E8750)]
+    static block damage_table;
+
+    /// the AIs' difficulty (the setup's)
+    [address((ee)0x00918C14, (aoc)0x00931654)]
+    static block difficulty;
+
+    /// draw list counts: objects, small objects
+    [address((ee)0x00912538, (aoc)0x00928CD8)]
+    static block draw_n;
+
+    [address((ee)0x0091253C, (aoc)0x00928CDC)]
+    static block draw_small_n;
+
+    /// the scenario editor's file buttons: 6 of {id, x, y, u0, v0, u1, v1, tooltip}
+    [address((ee)0x008AE0A0, (aoc)0x008C47B0)]
+    static block editor_file_buttons;
+
+    /// tech effects, 0x44 each
+    [address((ee)0x00919E70, (aoc)0x00931FF8)]
+    static block effects;
+
+    /// the game's end epoch
+    [address((ee)0x009187F4, (aoc)0x00931234)]
+    static block end_epoch;
+
+    /// per epoch 0x10: the tech lists
+    [address((ee)0x0093B1B8, (aoc)0x0095CF80)]
+    static block epoch_techs;
+
+    [address((ee)0x0091945A, (aoc)0x009308DB)]
+    static block fullscreen;
+
+    /// game data loaded (unit limit +0x2EC, chat time +0x2CC)
+    [address((ee)0x00917BB8, (aoc)0x0092FCA8)]
+    static block game_data;
+
+    [address((ee)0x00918808, (aoc)0x00931248)]
+    static block game_mode;
+
+    [address((ee)0x009193F8, (aoc)0x00930878)]
+    static block game_res_h;
+
+    [address((ee)0x009193FC, (aoc)0x0093087C)]
+    static block game_res_w;
+
+    /// float; set like EEMGameSpeed::Apply (0x4B6BD4)
+    [address((ee)0x009183C0, (aoc)0x00930E00)]
+    static block game_speed;
+
+    /// object; vtable slot 11 called after a speed change
+    [address((ee)0x00918300, (aoc)0x00930D40)]
+    static block game_state;
+
+    /// 0 random map, 1 scenario, 2 saved game, 3/4 other
+    [address((ee)0x00918BF4, (aoc)0x00931634)]
+    static block game_type;
+
+    /// GEWindow* (+0 HWND)
+    [address((ee)0x009197A4, (aoc)0x00931920)]
+    static block game_window;
+
+    /// [target category][weapon kind]: 0 = it cannot hit
+    [address((ee)0x008D200C, (aoc)0x008E8708)]
+    static block hit_table;
+
+    /// the hit table's variants by game mode
+    [address((ee)0x008D2008, (aoc)0x008E870C)]
+    static block hit_table_a;
+
+    [address((ee)0x008D2010, (aoc)0x008E8710)]
+    static block hit_table_b;
+
+    /// the user-input messages processed so far
+    [address((ee)0x00919B68, (aoc)0x00931CF0)]
+    static block input_msgs_done;
+
+    /// int: index of the player on this PC (the human in single player)
+    [address((ee)0x00918E84, (aoc)0x009318C4)]
+    static block local_player;
+
+    /// ptr; +0x1816FC = map size in tiles
+    [address((ee)0x009183BC, (aoc)0x00930DFC)]
+    static block map;
+
+    /// RTSMouse
+    [address((ee)0x009197A8, (aoc)0x00931924)]
+    static block mouse;
+
+    /// byte, toggled by EEAUserPauseGame::Execute (0x4064F1)
+    [address((ee)0x00918EA2, (aoc)0x009318E2)]
+    static block paused;
+
+    /// int: ceil([0x918DEC] / [0x8ABC80]), at least 1 (0x547AAD) - the push moves a unit by push x step x it
+    /// (SLOT_PM_PUSH)
+    [address((ee)0x008ABC84, (aoc)0x008C237C)]
+    static block phys_substeps;
+
+    [address((ee)0x00918374, (aoc)0x00930DB4)]
+    static block players;
+
     /// the number of players
-    [address((ee)0x009183CC, (aoc)0x00930E0C), was("G_PLAYERS_N")]
-    static uint32 player_count;
-    /// the game speed; EEMGameSpeed::Apply (0x4B6BD4) sets it
-    [address((ee)0x009183C0, (aoc)0x00930E00), was("G_GAME_SPEED")]
-    static float32 speed;
-    /// the float 1/800 (the minimap's x scale operand)
-    [address((ee)0x008358A8, (aoc)0x0084B940), was("G_FLOAT_1_800")]
-    static float32 float_1_800;
+    [address((ee)0x009183CC, (aoc)0x00930E0C)]
+    static block players_n;
 
-    // FUNCTIONS
+    /// the player name (UWideString)
+    [address((ee)0x00919308, (aoc)0x00930768)]
+    static block player_name;
 
-    /// operator delete; the unit list's node deletions call it with the unit in ESI
-    [address((ee)0x006836F0, (aoc)0x0069D150), cdecl, was("FN_OP_DELETE")]
-    [call_site("unit_node_free", (ee)0x00628BE7, (aoc)0x0063D998)]
-    [call_site("unit_node_free", (ee)0x00628B7F, (aoc)0x0063D930)]
-    static extern void op_delete(void* p);
+    /// the population limit game setting
+    [address((ee)0x009183D4, (aoc)0x00930E14)]
+    static block pop_limit;
+
+    [address((ee)0x00919794, (aoc)0x00931910)]
+    static block rasterizer;
+
+    /// the string resources
+    [address((ee)0x00919770, (aoc)0x009318EC)]
+    static block resources;
+
+    /// byte: game is a scenario/campaign (settings 0x918410 + 0x409)
+    [address((ee)0x00918819, (aoc)0x00931259)]
+    static block scenario_flag;
+
+    /// the current screen index
+    [address((ee)0x00919428, (aoc)0x009308A8)]
+    static block screen;
+
+    /// float, settings slider x 0.01
+    [address((ee)0x009193A8, (aoc)0x00930828)]
+    static block scroll_setting;
+
+    /// float
+    [address((ee)0x00918DB0, (aoc)0x009317F0)]
+    static block scroll_speed;
+
+    /// a default selection rectangle
+    [address((ee)0x008D2778, (aoc)0x008E8F18)]
+    static block select_rect;
+
+    /// EEClient/EEServer (lockstep server, slot 6 takes a message); UI checks [+0x10] != 0 and vtable+0x10 before
+    /// pausing
+    [address((ee)0x0091984C, (aoc)0x009319C8)]
+    static block server;
+
+    /// the game settings object
+    [address((ee)0x00918EA8, (aoc)0x00930308)]
+    static block settings;
+
+    /// the scenario manager
+    [address((ee)0x00918E24, (aoc)0x00931864)]
+    static block sm_mgr;
+
+    [address((ee)0x00919848, (aoc)0x009319C4)]
+    static block sound_manager;
+
+    [address((ee)0x009193B8, (aoc)0x00930838)]
+    static block sound_percent;
+
+    /// FN_TABLE_VALUE's table (0x16: the population limit)
+    [address((ee)0x00917BB0, (aoc)0x0092FCA0)]
+    static block table_values;
+
+    [address((ee)0x00918E9F, (aoc)0x009318DF)]
+    static block teams_locked;
+
+    [address((ee)0x009418A0, (aoc)0x009636AC)]
+    static block types;
+
+    [address((ee)0x009197A0, (aoc)0x0093191C)]
+    static block ui_manager;
+
+    /// action queue owner: QueueAction 0x66192F (thiscall, takes action ptr)
+    [address((ee)0x0091977C, (aoc)0x009318F8)]
+    static block world;
+
+    /// cos (the game's)
+    [address((ee)0x00823304, (aoc)0x00837340)]
+    static block iat_cos;
+
+    /// the game's rand
+    [address((ee)0x00824648, (aoc)0x0083863C)]
+    static block iat_rand;
+
+    /// imported refcount release, thiscall on the action
+    [address((ee)0x008231AC, (aoc)0x008371A8)]
+    static block iat_release;
+
+    /// the game's string resource (a language entry)
+    [address((ee)0x0082319C, (aoc)0x00837198)]
+    static block iat_resource_string;
+
+    [address((ee)0x008236B0, (aoc)0x0083765C)]
+    static block iat_ts_receive;
+
+    [address((ee)0x00823688, (aoc)0x00837634)]
+    static block iat_ts_wait;
+
+    /// UString::operator=(const char *)
+    [address((ee)0x00823228, (aoc)0x00837224)]
+    static block iat_ustring_assign;
+
     /// UString::UString()
-    [import((ee)0x008231E4, (aoc)0x008371E0), was("IAT_USTRING_CTOR")]
-    static extern void ustring_init(void* s);
+    [address((ee)0x008231E4, (aoc)0x008371E0)]
+    static block iat_ustring_ctor;
 
-    // CODE
+    /// UString::~UString()
+    [address((ee)0x008245BC, (aoc)0x008385B0)]
+    static block iat_ustring_dtor;
 
-    /// the scroll action's timer period in ms: the operand of a push 0x19
-    [address((ee)0x004050C2, (aoc)0x00404734), expect(-1, 0x6A, 0x19), was("SITE_SCROLL_TIMER")]
-    static uint8 scroll_timer;
-    /// the minimap's operands of float_1_800
-    [address((ee)0x0065E01D, (aoc)0x00675618)]
-    [address((ee)0x0065E8A3, (aoc)0x00675E95)]
-    [address((ee)0x0065EB3E, (aoc)0x00676130)]
-    [expect(nameof(float_1_800)), was("MINIMAP_FX_OPS")]
-    static float32* minimap_fx_ops;
+    /// UWideString::operator=(const char *)
+    [address((ee)0x00823224, (aoc)0x00837220)]
+    static block iat_wstring_assign;
+
+    /// UWideString::UWideString()
+    [address((ee)0x008231A4, (aoc)0x008371A0)]
+    static block iat_wstring_ctor;
+
+    /// UWideString::UWideString(const char *)
+    [address((ee)0x008232C4, (aoc)0x008372C0)]
+    static block iat_wstring_ctor_c;
+
+    /// UWideString::~UWideString()
+    [address((ee)0x00823AEC, (aoc)0x00837194)]
+    static block iat_wstring_dtor;
+
+    /// UWideString::Format(const char *, ...)
+    [address((ee)0x008232C8, (aoc)0x008372C4)]
+    static block iat_wstring_format;
+
+    [address((ee)0x008235D0, (aoc)0x00837574)]
+    static block iat_wstring_reserve;
+
+    /// import: &ISKeyboard* in Low-Level Engine.dll
+    [address((ee)0x00823AF8, (aoc)0x00837AE8)]
+    static code imp_is_keyboard;
+
+    /// import: &ISMouse* in Low-Level Engine.dll
+    [address((ee)0x008235CC, (aoc)0x00837570)]
+    static code imp_is_mouse;
+
+    /// FN_NEW_UNIT_MSG_CTOR
+    [value(32)]
+    static uint32 size_new_unit_msg;
+
+    /// EEAUserPauseGame: vtable, refcount, byte
+    [value(12)]
+    static uint32 size_pause_action;
+
+    /// FN_SAVE_ACTION_CTOR
+    [value(48)]
+    static uint32 size_save_action;
+
+    /// EEPhysics vtable slot 8: one simulation step
+    [address((ee)0x0082CB7C, (aoc)0x00842324)]
+    static block vtbl_phys_step;
+
+    /// EEAUserPauseGame vtable (0xC bytes: vtable, refcount, byte)
+    [address((ee)0x00830E94, (aoc)0x00846790)]
+    static block vt_pause_action;
 }
 
-/// Miles Sound System Mixer.dll
-[dll("Miles Sound System Mixer.dll")]
-static unsafe class mixer
+/// the game's functions game.c wraps, by the names the C side gives them
+[c_prefix("")]
+static unsafe class game_functions
 {
-    /// its channels, 8 bytes each
-    [address(0x52AC), was("RVA_MIX_CHANNELS")]
-    static vector channels;
-    /// the most channels it gives
-    [address(0x5320), was("RVA_MIX_MAX_CHANNELS")]
-    static int32 max_channels;
+    /// thiscall(wall manager, int from[2], int to[2], type, char)
+    [address((ee)0x00497C3F, (aoc)0x0049D05F), thiscall]
+    static extern void build_wall_game(void* p1, int32* p2, int32* p3, int32 p4, char8 p5);
+
+    [address((ee)0x004D291F, (aoc)0x004D84EC), thiscall]
+    static extern int32 damage_points(void* model, int32 index, uint32 state);
+
+    [address((ee)0x0058D3E1, (aoc)0x0059D615), thiscall]
+    static extern void* editor_form(void* form, void* owner);
+
+    [address((ee)0x005D0B4F, (aoc)0x005E145B), cdecl]
+    static extern void exit_confirm();
+
+    /// thiscall(G_GAME_STATE, index)
+    [address((ee)0x0052E6EF, (aoc)0x00539670), thiscall]
+    static extern void* game_player_game(void* p1, int32 p2);
+
+    /// thiscall(G_GAME_STATE, char won, index)
+    [address((ee)0x0052E2B7, (aoc)0x005391F2), thiscall]
+    static extern void game_player_out_game(void* p1, int32 p2, int32 p3);
+
+    [address((ee)0x0052599B, (aoc)0x005306F2), thiscall]
+    static extern char8 game_start(void* state, ee_setup* setup, void* p2);
+
+    /// the highest epoch of the players SLOT_PLAYER_HUMAN says are human, 0 without
+    [address((ee)0x0046D436, (aoc)0x0047005A), cdecl]
+    static extern int32 highest_human_epoch();
+
+    [address((ee)0x00521F94, (aoc)0x0052CB90), cdecl]
+    static extern int32 load_saved(void* name);
+
+    /// the game's operator new
+    [address((ee)0x00683718, (aoc)0x0069D178), cdecl]
+    static extern void* game_new(nuint n);
+
+    /// EEMHackANewUnit: thiscall(int *type, float xy[2], char player)
+    [address((ee)0x00650B3C, (aoc)0x00662C24), thiscall]
+    static extern void new_unit_msg_init(void* mem, int32* type, float32* xy, char8 player);
+
+    [address((ee)0x00522A36, (aoc)0x0052D703), cdecl]
+    static extern char8 parse_cmdline(cstr cmd);
+
+    [address((ee)0x00546C63, (aoc)0x00553082), thiscall]
+    static extern void phys_step(EEPhysics* phys);
+
+    [address((ee)0x0066192F, (aoc)0x00678F79), thiscall]
+    static extern void queue_action_game(void* p1, void* p2);
+
+    [address((ee)0x005D05CC, (aoc)0x005E0E7F), cdecl]
+    static extern void resign_send();
+
+    [address((ee)0x00404FA1, (aoc)0x00404613), thiscall]
+    static extern void* save_action_init(void* mem, ustring* path, int32 flag, ustring dir);
+
+    [address((ee)0x00540ACA, (aoc)0x0054D066), cdecl]
+    static extern int32 save_game(void* file, int32 a, int32 b, ustring folder);
+
+    [address((ee)0x00661B04, (aoc)0x00679139), thiscall]
+    static extern void screenshot_game(void* p1, int32 p2, int32 p3, int32 p4);
+
+    /// every setting into the registry
+    [address((ee)0x0052AA81, (aoc)0x00535943), thiscall]
+    static extern void settings_save_game(void* p1);
+
+    [address((ee)0x0052D5D7, (aoc)0x005384DD), thiscall]
+    static extern void set_stance_game(void* p1, int32 p2, int32 p3, int32 p4);
+
+    /// where an idle transport lands (thiscall(transport manager, transport))
+    [address((ee)0x0042C49A, (aoc)0x00422658), thiscall]
+    static extern int32 shore_to_unload(void* mgr, EEUnit* transport);
+
+    [address((ee)0x0048E817, (aoc)0x004CD4B3), thiscall]
+    static extern uint32 table_value_game(void* p1, int32 p2);
+
+    /// thiscall(G_GAME_STATE, id): a unit's handle by its id (the player in bits 24..31), its +0x30 the unit; NULL
+    /// unknown
+    [address((ee)0x0053B889, (aoc)0x0054804F), thiscall]
+    static extern EEUnit* unit_by_id_game(void* p1, uint32 p2);
+
+    /// a vector's dtor (the game's delete)
+    [address((ee)0x0061ABEC, (aoc)0x006002C7), thiscall]
+    static extern void vector_free(void* v);
+
+    [address((ee)0x004BEE57, (aoc)0x004C7CDC), thiscall]
+    static extern void start_exec(EEMInGameChat* msg);
 }

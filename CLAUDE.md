@@ -36,45 +36,36 @@ and the runners, eectl, the MCP server), `results/` (log readers, scorers), `re/
   user's own game to end, then install.sh; log `local/work/install.log`. No manual install after a commit.
 - A task that needs the game folder to itself (an install, a slot-0 run): `sh scripts/test/reserve.sh "<what>" <command>`
   - test runs start no game meanwhile, the running ones (and the player's) are waited for; nobody has to pause.
-- `spec/` is the source of truth about the game (2026-10-25, being built up): its classes, fields, functions, call
-  sites and data, build by build, as C# declarations that compile (`dotnet build` in spec/; `scripts/build/spec_check.py`,
-  run by the build, holds the rules the compiler leaves open and checks each `was(...)` against today's rows). It
-  describes the game only - the C comes from `scripts/build/gen_api.py` (run by the build: plain C in `dll/game/api/gen/`,
-  no table macros, never edited by hand; what each generated name is: its header) and the hand-written code on top;
-  the format: spec/attributes.cs's header. Moved so far: every object's fields (raw/fields.h is empty: a field is
-  changed in its class in spec/game/) and unit.cs's functions; the address rows (functions.h, hooks.h, data.h) and
-  game.cs next (gen_api.py's UNMOVED). Names: a class's C prefix is its C type without ee_, else `[c_prefix]` keeps
-  the one the C side had (cm_, asg_ ... - the player: the C types renamed to fit, later). The generated values
-  (of_unit_hp, fn_..., call_...) are game/api/'s only, as raw/'s were (layers.py). A move: the rows' `was(...)` equal
-  (spec_check), the generated names in place of the hand-written wrappers, the rows and the `was` out, then the same
-  game played with the DLL before and after - logs equal with the run-to-run heap addresses masked (and AoC's player
-  stock 0 and 1: memory it never sets).
-- What the mod knows of the game's code and objects lives in `dll/game/api/`. The raw rows, api/'s own, in `raw/`: `functions.h`
-  (the functions the mod calls), `hooks.h` (what it patches to hook), `data.h` (the game's data), made a table by
-  `tables.c` (with `fields.h`'s; the builds: `game/api/builds.h`) - `api.c` the module's one entry - by name with one value per exe build: `GA(G_WORLD_CLOCK)`,
-  `GF(FN_CAN_BUILD)(pl, t, 0x20, 0)`, `GL(TRAIN_SITES)`, a vtable slot `GA(SLOT_ASG_UPDATE)`, an object's size
-  `GA(SIZE_GOAL_BUILD)` - never a literal address, slot or size in the code. The game objects' fields likewise live
-  in `raw/fields.h`, one row each, named by kind and what it is (`O(UNIT_X, 0x1C, 0x1C)`, `UNIT_0x50` while not
-  understood, a structure inside the object one row; the name is a variable holding the running build's offset:
-  `FIELD(u, UNIT_X, int)`; a field not in the table doesn't build; the runtime library's layouts - deque, vector,
-  string - stay plain numbers), read by name through the object's file: `unit_get_x(u)`, `unit_set_behaviour(u, b)` (a setter only where the mod writes), typed by kind
-  (types.h); a field's name only in game/api/ (it is raw/'s: scripts/build/layers.py) - a new field: its row, then its
-  accessor. FIELD with a plain number stays for the runtime library's layouts and raw dumps. Two columns:
-  the 2017 update and Art of Conquest (not ready: tested in AoC only since 2026-10-21 - test runs play it,
-  `EE_GAME_DIR=<its folder>`, docs/testing.md). A new row needs both: `scripts/re/port_addrs.py` /
-  `scripts/re/port_fields.py Class[,Class] offset` find the AoC value, `scripts/re/port_check.py` checks it in the object's
-  own code (and a called function's stack arguments: `rets`), `scripts/re/port_dll.py` for the engine DLLs (AoC ships
-  its own builds: an RVA_ row, or better the export by name). Code that differs by more than an address:
-  `build_is("aoc")` (AoC rewrote a few functions - docs/engine-notes.md).
-- `dll/game/api/`: a file per object of the game (`unit.c`, `player.c`, `attack.c`, `tech.c` ... - by the first
-  argument, the C++ object of a thiscall): its fields, the game's functions on it as typed wrappers (`explored_by(site,
-  pl)`, `rm_assign(rm, u, site)`, `goal_is_attack(g)`, `goal_build_alloc()`), its hooks' types and installers
-  (`patch_place(hook_place)` - a hook with other parameters doesn't build); `game.c` the game's global state and its getters
-  (`game_map()`, `game_players()`, `end_epoch()`, `game_new(n)`), `hooks.c` the patches of the game's code, `types.h` the types' names. GA, GF
-  and GL only in game/api/ (scripts/build/layers.py; elsewhere add a wrapper, an accessor or an installer); a kind not typed
-  yet is `void *`. `scripts/build/addr_sort.py` moves the rows into the file their use calls for (the build checks it). A
-  change there must keep the machine code (`scripts/build/code_same.py`, which compares the address and field tables by name) or, where it
-  can't, play the same game (the same game_seed, the logs compared).
+- `spec/` is the source of truth about the game (2026-10-25): every class, field, function, call site, number and place
+  in its code the mod knows, build by build, as C# declarations that compile (`dotnet build` in spec/;
+  `scripts/build/spec_check.py`, run by the build, holds the rules the compiler leaves open). It describes the game only
+  - the C comes from `scripts/build/gen_api.py` (run by the build: plain C in `dll/game/api/gen/`, never edited by
+  hand; what each generated name is: its header) and the hand-written code on top; the format: spec/attributes.cs's
+  header. A class per object of the game (spec/game/<its api file>.cs: EEPlayer, EECPCivilizationManager ...) with its
+  fields' offsets; a static class per file for its data, numbers and places in the code (`[address] code
+  call_rm_update`, `[value] uint32 slot_asg_update`) and one `<file>_functions` (`[c_prefix("")]`) for the game's
+  functions by the names the C side gives them. Never a literal address, slot or size in the code: the generated
+  value (`data_ai_managers_call_rm_update`, `value_attack_slot_asg_update`, `fn_unit_distance`, `of_unit_hp`) or its
+  accessor / wrapper (`unit_get_hp(u)`, `unit_distance(a, b)`); the values only inside game/api/ (layers.py), the
+  accessors for everyone. Names: a class's C prefix is its C type without ee_, else `[c_prefix]` keeps the one the C
+  side had (cm_, asg_ ... - the player: the C types renamed to fit, later). Still to do: the call sites as
+  `[call_site]` of their function (they are places now, the hand-written patch_ functions use them), the game's
+  functions as methods of their classes, game enums, a load-time check of the spec against the running exe, a
+  Ghidra export. Two builds: the 2017 update and Art of Conquest (not ready: tested in AoC only since 2026-10-21 -
+  test runs play it, `EE_GAME_DIR=<its folder>`, docs/testing.md); a new value needs both. The port scripts
+  (`scripts/re/port_addrs.py`, `port_fields.py`, `port_check.py`, `port_dll.py`) still read and write the old rows
+  of raw/: until they work on the spec, an AoC value they find goes into the spec by hand. Code that differs by more
+  than an address: `build_is("aoc")` (AoC rewrote a few functions - docs/engine-notes.md).
+- `dll/game/api/`: a file per object of the game (`unit.c`, `player.c`, `attack.c`, `tech.c` ...): the hand-written
+  code over the generated - accessors that read more than one field (`unit_get_pos(u)`), wrappers that do more than
+  pass their arguments on (`explored_by(site, pl)`), its hooks' types and installers (`patch_place(hook_place)` - a
+  hook with other parameters doesn't build); `game.c` the game's global state and its getters (`game_map()`,
+  `game_players()`, `end_epoch()`, `game_new(n)`), `hooks.c` the patches of the game's code, `types.h` the types'
+  names, `raw/editor_layout.h` the scenario editor's layout (generated, the 2017 update). A kind not typed yet is
+  `void *`. A change there must keep the machine code (`scripts/build/code_same.py`) or, where it can't, play the same
+  game (the same game_seed, the logs compared - with the run-to-run heap addresses masked; AoC's player stock 0 and 1
+  are memory it never sets, and an AoC game parts ways now and then with any DLL: seed 9 on Small Islands, about one
+  run in 15 when many run at once, at 36 s - a control pair of one DLL first).
 - The engine loads every DLL in the game folder: never leave copies of DLLs there (a stray dinput copy crashed it).
 - A setting of aimod.ini is a row in `dll/settings/rows.h` (kind, section, key, default, limits) and its key in
   `config/aimod.ini` with that default; the code reads `g_set.key` ([general]), `g_set.section_key` (the other

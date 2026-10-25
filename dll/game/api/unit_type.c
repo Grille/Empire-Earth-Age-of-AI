@@ -17,27 +17,24 @@ internal inline float stat_get_armor(const ee_unit_stats *st, int c) { return FI
 // FUNCTIONS
 // the damage bonus of an attacker type (data atd) against a target type (data ttd), the players' indices
 internal inline float attack_bonus(ee_unit_type *atd, ee_unit_type *ttd, int api, int tpi) {
-    return GF(FN_ATTACK_BONUS)((void *)GA(G_BONUS_TABLE), FIELD(atd, of_type_weapon, int), ttd, api, tpi);
+    return fn_attack_bonus_game((void *)data_unit_type_bonus_table, FIELD(atd, of_type_weapon, int), ttd, api, tpi);
 }
 // a projectile class's: the projectile down (1: on the ground or the target), a missile launched, a unit's shot fired
-internal inline char proj_down(void *cls, void *projectile) { return GF(FN_PROJ_DOWN)(cls, projectile); }
-internal inline int missile_launch(void *cls, ee_unit *m, float *aim) { return GF(FN_MISSILE_LAUNCH)(cls, m, aim); }
-internal inline void unit_fire(void *cls, ee_unit *u) { GF(FN_FIRE)(cls, u); }
 // a unit type's projectile class (type data +0x3FC) by its vtable: a plain projectile (arrows, shells), a missile
-internal inline int is_projectile_class(const void *pc) { return *(const uintptr_t *)pc == GA(VT_PROJECTILE); }
-internal inline int is_missile_class(const void *pc) { return *(const uintptr_t *)pc == GA(VT_MISSILE); }
+internal inline int is_projectile_class(const void *pc) { return *(const uintptr_t *)pc == data_unit_type_vt_projectile; }
+internal inline int is_missile_class(const void *pc) { return *(const uintptr_t *)pc == data_unit_type_vt_missile; }
 // the unit's type told that the unit got a goal (EEUnitClass's vtable, as the game's own goal assignment does)
 // may the transport (of this type) carry the unit: its family against the unit type's board flags (EEUCTransport only)
 internal inline char type_can_carry(ee_unit_type *td, ee_unit *transport, ee_unit *u) {
-    return ((char (__thiscall *)(void *, void *, void *))(*(void ***)td)[GA(SLOT_TYPE_CAN_CARRY)])(td, transport, u);
+    return ((char (__thiscall *)(void *, void *, void *))(*(void ***)td)[value_unit_type_slot_type_can_carry])(td, transport, u);
 }
-internal inline void type_goal_assigned(ee_unit_type *td, ee_unit *u) { ((void (__thiscall *)(void *, void *))(*(void ***)td)[GA(SLOT_TYPE_ASSIGN)])(td, u); }
+internal inline void type_goal_assigned(ee_unit_type *td, ee_unit *u) { ((void (__thiscall *)(void *, void *))(*(void ***)td)[value_unit_type_slot_type_assign])(td, u); }
 
 // HOOKS
 // shots (aim.c): a projectile down, a missile launched, a shot fired
 typedef char (__thiscall *proj_down_hook)(void *cls, ee_unit *projectile);
-internal inline int patch_proj_down(proj_down_hook h) { return patch_vtable(GA(VT_PROJECTILE), GA(SLOT_PROJ_DOWN), GA(FN_PROJ_DOWN), (void *)h); }
+internal inline int patch_proj_down(proj_down_hook h) { return patch_vtable(data_unit_type_vt_projectile, value_unit_type_slot_proj_down, (uintptr_t)fn_proj_down, (void *)h); }
 typedef int (__thiscall *missile_launch_hook)(uint8_t *cls, ee_unit *m, float *aim);
-internal inline int patch_missile_launch(missile_launch_hook h) { return patch_vtable(GA(VT_MISSILE), GA(SLOT_MISSILE_LAUNCH), GA(FN_MISSILE_LAUNCH), (void *)h); }
+internal inline int patch_missile_launch(missile_launch_hook h) { return patch_vtable(data_unit_type_vt_missile, value_unit_type_slot_missile_launch, (uintptr_t)fn_missile_launch, (void *)h); }
 typedef void (__thiscall *fire_hook)(ee_unit_type *cls, ee_unit *u);
-internal inline int patch_fire(fire_hook h, int *of) { return patch_calls(PATCH_LIST(FIRE_CALLS), GA(FN_FIRE), (void *)h, of); }
+internal inline int patch_fire(fire_hook h, int *of) { return patch_calls(PATCH_LIST(data_unit_type_fire_calls), (uintptr_t)fn_unit_fire, (void *)h, of); }

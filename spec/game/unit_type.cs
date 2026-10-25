@@ -183,3 +183,62 @@ unsafe struct ee_unit_stats
     [offset(0x144), found(c)]
     int32 hp;
 }
+
+/// unit_type's data of the game, places in its code and numbers (raw/'s address rows)
+static unsafe class unit_type
+{
+    /// the minimap's operands of G_FLOAT_1_800
+    [address((ee)0x00606067, (aoc)0x00617838)]
+    [address((ee)0x00607D79, (aoc)0x00619604)]
+    [address((ee)0x0060ABB0, (aoc)0x0061D174)]
+    [address((ee)0x0060B33C, (aoc)0x0061D997)]
+    static code fire_calls;
+
+    /// FN_ATTACK_BONUS's object
+    [address((ee)0x00917DE0, (aoc)0x009318E8)]
+    static block bonus_table;
+
+    /// VT_MISSILE
+    [value((ee)42, (aoc)43)]
+    static uint32 slot_missile_launch;
+
+    /// VT_PROJECTILE
+    [value((ee)55, (aoc)56)]
+    static uint32 slot_proj_down;
+
+    /// EEUnitClass: thiscall(type data, unit), as the game's goal assignment
+    [value(29)]
+    static uint32 slot_type_assign;
+
+    /// EEUCTransport: char thiscall(type data, transport, unit) - its family against the unit type's board flags
+    /// (0x609095; AoC put a stub at 60)
+    [value((ee)60, (aoc)61)]
+    static uint32 slot_type_can_carry;
+
+    [address((ee)0x00832E90, (aoc)0x00848CF8)]
+    static block vt_missile;
+
+    /// EEUCProjectile
+    [address((ee)0x00833060, (aoc)0x00848ED0)]
+    static block vt_projectile;
+}
+
+/// the game's functions unit_type.c wraps, by the names the C side gives them
+[c_prefix("")]
+static unsafe class unit_type_functions
+{
+    /// thiscall(G_BONUS_TABLE, weapon kind, target type data, attacker, target player)
+    [address((ee)0x004D5F2C, (aoc)0x004DBE44), thiscall]
+    static extern float32 attack_bonus_game(void* p1, int32 p2, void* p3, int32 p4, int32 p5);
+
+    /// thiscall(attacker class, attacker)
+    [address((ee)0x0061E11C, (aoc)0x00631312), thiscall]
+    static extern void unit_fire(void* cls, EEUnit* u);
+
+    /// EEUCMissile vf42, thiscall(class, missile, aim) - ret 8, the aim unused
+    [address((ee)0x00606109, (aoc)0x0061799B), thiscall]
+    static extern int32 missile_launch(void* cls, EEUnit* m, float32* aim);
+
+    [address((ee)0x006078F9, (aoc)0x00619143), thiscall]
+    static extern char8 proj_down(void* cls, void* projectile);
+}
