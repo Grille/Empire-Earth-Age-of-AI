@@ -110,6 +110,12 @@ internal int master_word(const struct entry *e, char *name, int cap) {
     return w;
 }
 
+// what the child comes to while it follows its master (as settings.c setting_follow): 1 on, 0 off; *word the master's
+internal int child_follows(const struct entry *e, char *word, int cap) {
+    int w = master_word(e, word, cap);
+    return w == 0 ? row_of(e)->def : w == 1;
+}
+
 internal void key_of(const struct entry *e, char *out, int cap) {
     if (e->slot >= 0) snprintf(out, cap, "%s%d", row_of(e)->key, e->slot);
     else lstrcpynA(out, row_of(e)->key, cap);
@@ -169,10 +175,9 @@ internal void shown_value(const struct entry *e, char *out, int cap, int *grey) 
         snprintf(out, cap, "as [all]: %s", v);
         return;
     }
-    if (is_child(e)) {   // as settings.c setting_follow
+    if (is_child(e)) {
         char word[32];
-        int w = master_word(e, word, sizeof word), on = w == 0 ? row_of(e)->def : w == 1;
-        snprintf(out, cap, "%s (follows %s=%s)", on ? "on" : "off", k_settings[row_of(e)->a].key, word);
+        lstrcpynA(out, child_follows(e, word, sizeof word) ? "on" : "off", cap);   // grey: it follows (the status says whom)
         return;
     }
     char def[TEXT_CAP];
@@ -180,12 +185,18 @@ internal void shown_value(const struct entry *e, char *out, int cap, int *grey) 
     if (!check(row_of(e), sec_of(e), key, def, why, out, cap)) lstrcpynA(out, "(the game's own)", cap);   // a default that leaves it: -1
 }
 
-// changed from the default: shown bold (a difficulty's page, a child: any value of its own)
+// changed from the default: shown bold (a difficulty's page: any value of its own; a child: other than what it would
+// follow under its master as it is set now)
 internal int is_changed(const struct entry *e) {
     if (!e->text[0]) return 0;
-    if (inherits(e)) return 1;
+    if (on_diff_page(e)) return 1;
     char def[TEXT_CAP], a[TEXT_CAP], b[TEXT_CAP], why[MAX_PATH], key[64];
     key_of(e, key, sizeof key);
+    if (is_child(e)) {
+        char word[32];
+        if (!check(row_of(e), sec_of(e), key, e->text, why, a, sizeof a)) return 1;
+        return strcmp(a, child_follows(e, word, sizeof word) ? "on" : "off") != 0;
+    }
     default_text(row_of(e), def, sizeof def);
     if (!check(row_of(e), sec_of(e), key, e->text, why, a, sizeof a)) return 1;
     check(row_of(e), sec_of(e), key, def, why, b, sizeof b);
@@ -457,7 +468,10 @@ internal void fill_item(int item, const struct entry *e) {
     key_of(e, key, sizeof key);
     shown_value(e, v, sizeof v, &grey);
     if (on_diff_page(e)) lstrcpyA(def, "[all]");
-    else if (is_child(e)) lstrcpyA(def, "follow");
+    else if (is_child(e)) {   // what it comes to under its master as set now
+        char word[32];
+        lstrcpyA(def, child_follows(e, word, sizeof word) ? "on" : "off");
+    }
     else {
         char d[TEXT_CAP];
         default_text(row_of(e), d, sizeof d);
@@ -533,10 +547,12 @@ internal int item_of(int entry) {
 }
 
 internal void show_status(const struct entry *e) {
-    char why[MAX_PATH], shown[TEXT_CAP], msg[MAX_PATH + 64], key[64];
+    char why[MAX_PATH], shown[TEXT_CAP], msg[MAX_PATH + 64], key[64], word[32];
     key_of(e, key, sizeof key);
-    if (!e->text[0] && is_child(e)) snprintf(msg, sizeof msg, "Not in the file: follows %s.", k_settings[row_of(e)->a].key);
-    else if (!e->text[0]) lstrcpyA(msg, on_diff_page(e) ? "Not set here: [all]'s value counts." : "Not in the file: the default counts.");
+    if (!e->text[0] && is_child(e)) {
+        int on = child_follows(e, word, sizeof word);
+        snprintf(msg, sizeof msg, "Not in the file: follows %s=%s - %s.", k_settings[row_of(e)->a].key, word, on ? "on" : "off");
+    } else if (!e->text[0]) lstrcpyA(msg, on_diff_page(e) ? "Not set here: [all]'s value counts." : "Not in the file: the default counts.");
     else if (check(row_of(e), sec_of(e), key, e->text, why, shown, sizeof shown)) snprintf(msg, sizeof msg, "= %s", shown);
     else snprintf(msg, sizeof msg, "Mistake: %s - the game would use the default.", why);
     SetWindowTextA(g_status, msg);
