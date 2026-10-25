@@ -159,8 +159,8 @@ internal void cmd_fmove(char *out, const char *args) {
         }
         REPLY("fmove sum: %d units, the last moving at %.1f s, %d done (the last at %.1f s), standing short of the goal %.1f s together (creeping %.1f); "
               "ship_turns so far: %u ticks kept the speed, %u steered along the route, %u waypoints dropped, %u passing a queued point; "
-              "collide: %u steps, %u overlaps pushed off, the deepest %.2f tiles, %u pushes at rest, %u steps walking back to a formation spot; land routes: %u searches, %.1f ms, the longest %.2f ms, %u of %u corners widened (room %.2f -> %.2f tiles); formations: %u group moves laid out (%u queued), %u marching, %u following (%u moves split into blocks, %u went on in the same formation (%u legs ended where the unit stood), %u ticks steered, %u on the own route)\n", g_fm_n, moved, n_done,
-              done, stood, crept, g_st_kept, g_st_steered, g_st_skipped, g_st_passing, g_uc_steps, g_uc_hits, g_uc_deepest, g_uc_rest, g_uc_home, g_lr_routes,
+              "collide: %u steps, %u overlaps pushed off, the deepest %.2f tiles, %u pushes at rest; %u walks back to a formation spot; land routes: %u searches, %.1f ms, the longest %.2f ms, %u of %u corners widened (room %.2f -> %.2f tiles); formations: %u group moves laid out (%u queued), %u marching, %u following (%u moves split into blocks, %u went on in the same formation (%u legs ended where the unit stood), %u ticks steered, %u on the own route)\n", g_fm_n, moved, n_done,
+              done, stood, crept, g_st_kept, g_st_steered, g_st_skipped, g_st_passing, g_uc_steps, g_uc_hits, g_uc_deepest, g_uc_rest, g_ff_walks, g_lr_routes,
               g_lr_ms, g_lr_ms_max, g_lr_widened, g_lr_corners, g_lr_corners ? g_lr_room0 / g_lr_corners : 0.0, g_lr_corners ? g_lr_room1 / g_lr_corners : 0.0, g_fo_moves, g_fo_queued_n, g_fo_marches, g_ff_marches, g_ff_split, g_ff_arcs, g_ff_finished, g_ff_steered, g_ff_own);
         return;
     }

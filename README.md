@@ -360,7 +360,8 @@ Settings in `aimod.ini`:
 - `[general] formation_collision=75%` (with formation_follow and land_collide): units marching in the same
   formation push each other off at this share of their size - they slip past each other to their places, which
   stay as far apart (100% as any two units). It eases in over the march's first 2 seconds and back out over 10
-  seconds after the formation arrived; meanwhile a unit standing in it that is pushed off its spot walks back to it.
+  seconds after the formation arrived; meanwhile a unit standing in it that is pushed off its spot turns, walks
+  back to it and turns to the formation's facing.
 - `[general] goal_markers=1` (default; 0 the original): a move order drew its circle at the goal of only the group's
   first 15 units (20 in the other lines and wedges, every few in a circle formation). Now every unit's shows.
 - `[sound] clamp_channels=1` (default): the "Max Number Of Sounds" slider goes to 200%, which asks for 32 sound

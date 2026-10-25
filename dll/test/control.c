@@ -453,10 +453,12 @@ internal void sound_tick(uint32_t now);  // sound.c: sound_log
 internal void llm_tick(void);           // llm.c: the language model's answers
 internal void script_triggers(uint32_t now);   // scripts.c: the setup scripts' triggers
 internal void fm_tick(void);            // fleetmove.c: `fmove trace`
+internal void ff_linger_tick(void);     // groupmove.c: units of an arrived formation back to their spots
 internal long __thiscall hook_sim_receive(void *thread, void *a, void *b, void *c) {
     diplo_safe_point();
     upgrade_stragglers();
     aim_tick();
+    ff_linger_tick();
     fm_tick();
     sound_tick(game_time());
     llm_tick();

@@ -313,10 +313,12 @@ internal void fo_march(ee_active_group *grp) {
 #define FF_ARC 0.7071f         // a queued move turning less than this (cos 45 degrees) goes on in the same formation
 #define FF_EASE 2.0f           // s: formation_collision takes effect over this long from the march's start,
 #define FF_LINGER 10.0f        // and the formation lingers this long after it arrived: back to the full collision by then,
-                               // a unit at rest pushed off its spot meanwhile walks back to it -
-#define FF_HOME_FAR 3.0f       // tiles: from no further (one further off didn't stray by a push: it never got there, blocked)
-#define FF_HOME_GAIN 0.05f     // tiles: and only while it gets this much nearer
-#define FF_HOME_STUCK 1.0f     // s: within this long
+                               // an idle unit pushed off its spot meanwhile walks back to it (ff_linger_tick) -
+#define FF_HOME_SLOP 0.5f      // x its size (at least FF_HOME_MIN): further off than this,
+#define FF_HOME_MIN 0.25f      // tiles
+#define FF_HOME_FAR 3.0f       // tiles: and no further (one further off didn't stray by a push: it never got there, blocked)
+#define FF_HOME_TRIES 3        // walks back at most in a linger (a spot it can't reach - behind a wall - isn't tried for ever)
+#define FF_HOME_EVERY 10       // steps: the idle units looked at this often
 // fwd: the formation's final facing, way: where it goes, face: its facing now, reach: its outermost unit's distance from
 // the leader, goal: the leader's goal of this move (NULL: not known - its group
 // tells), live: on its way this step (else queued behind the leader's current order), lead_off: the leader's spot from
@@ -331,7 +333,7 @@ internal unsigned g_ff_next;
 internal int g_ff_first, g_ff_count;   // the marches started by the move being dispatched, for their leaders' goals
 // step: the last it followed; next (1-based): a queued move's march it joins when that one sets out, with next_off, its
 // goal in that move next_goal; home its spot at the goal (next_home the queued move's)
-struct ff_unit { uint32_t id; int g, next; vec2 off, next_off, home, next_home; ee_goal *next_goal; uint32_t step; float along, with, off_by, home_best; uint32_t in_at, home_at; };   // in_at: the step it was last in its place (or its march began); home_best its nearest to home walking back, home_at the step then
+struct ff_unit { uint32_t id; int g, next; vec2 off, next_off, home, next_home; ee_goal *next_goal; uint32_t step; float along, with, off_by; uint32_t in_at, yaw, next_yaw; int tries; };   // in_at: the step it was last in its place (or its march began); yaw its facing there (the slot's float, 0: none), tries its walks back
 internal struct ff_unit g_ff_u[FF_UNITS];
 internal int g_ff_on;
 internal unsigned g_ff_marches, g_ff_split, g_ff_arcs, g_ff_finished, g_ff_steered, g_ff_own;   // marches started, moves split into blocks; follower ticks steered, left to the own route
@@ -401,13 +403,15 @@ internal void ff_start_block(void *group, const int *idx, int k, vec2 c, vec2 fw
         vec2 d = vec2_sub(g_fo[i].at, g_fo[lead].at), off = v2(vec2_dot(d, right), vec2_dot(d, fwd));
         if (gr->reform) { off = vec2_sub(g_fo_march[i], g_fo_march[lead]); d = off; }   // the march's own layout (its frame: x right, y ahead)
         if (vec2_len(d) > gr->reach) gr->reach = vec2_len(d);
-        if (queued && e->g >= 0 && e->g != gi && g_ff[e->g].on) { e->next = gi + 1; e->next_off = off; e->next_home = g_fo[i].at; continue; }
+        if (queued && e->g >= 0 && e->g != gi && g_ff[e->g].on) { e->next = gi + 1; e->next_off = off; e->next_home = g_fo[i].at; e->next_yaw = g_fo[i].facing; continue; }
         e->g = gi;
         e->next = 0;
         e->off = off;
         e->home = g_fo[i].at;
         e->step = ~0u;
-        e->in_at = e->home_at = 0;
+        e->in_at = 0;
+        e->yaw = g_fo[i].facing;
+        e->tries = 0;
     }
     if (g_ff_count++ == 0) g_ff_first = gi;
     g_ff_marches++;
@@ -610,21 +614,48 @@ internal int ff_spot(ee_unit *u, vec2 *spot) {
     return 1;
 }
 
-// collide.c, u at rest at pos: its spot (*spot) to walk back to, 1 - in a formation that arrived less than FF_LINGER
-// ago, pushed further than slop off it and no further than FF_HOME_FAR, and getting nearer: FF_HOME_GAIN closer within
-// FF_HOME_STUCK (a spot behind a wall: the units pressed against it piled up); 0 for a unit given another order since,
-// or of no such formation
-internal int ff_home(ee_unit *u, vec2 pos, float slop, vec2 *spot) {
-    if (!g_ff_on) return 0;
-    struct ff_unit *e = ff_find((uint32_t)unit_get_serial(u), 0);
-    if (!e || e->g < 0 || e->next || unit_orders(u)) return 0;
-    struct ff_group *gr = &g_ff[e->g];
-    if (gr->on || !gr->linger || ff_since(gr->linger) >= FF_LINGER) return 0;
-    float d = vec2_len(vec2_sub(e->home, pos));
-    if (d <= slop || !e->home_at || d < e->home_best - FF_HOME_GAIN) { e->home_best = d; e->home_at = ff_step(); }   // in it, or nearer
-    if (d <= slop || d > FF_HOME_FAR || ff_since(e->home_at) > FF_HOME_STUCK) return 0;
-    *spot = e->home;
-    return 1;
+// the safe point between simulation steps, every FF_HOME_EVERY: an idle unit of a formation that arrived less than
+// FF_LINGER ago, pushed off its spot (further than FF_HOME_SLOP x its size, no further than FF_HOME_FAR), walks back to
+// it - a move order of its own, turning to its formation's facing there: it turns, walks and turns again (a push slid it
+// back sideways). The game's own goal, as the AI gives one: the same on every PC
+internal unsigned g_ff_walks;   // walks back given
+internal void ff_linger_tick(void) {
+    uint32_t step = ff_step();
+    if (!g_ff_on || step % FF_HOME_EVERY) return;
+    int any = 0;
+    for (int k = 0; k < FF_GROUPS && !any; k++) any = !g_ff[k].on && g_ff[k].linger && ff_since(g_ff[k].linger) < FF_LINGER;
+    if (!any) return;
+    for (int k = 0; k < FF_UNITS; k++) {
+        struct ff_unit *e = &g_ff_u[k];
+        if (!e->id || e->g < 0 || e->next || e->tries >= FF_HOME_TRIES) continue;
+        struct ff_group *gr = &g_ff[e->g];
+        if (gr->on || !gr->linger || ff_since(gr->linger) >= FF_LINGER) continue;
+        ee_unit *u = unit_by_id(e->id);
+        ee_unit_type *td = u ? unit_get_type_data(u) : NULL;
+        if (!td || unit_get_hp(u) <= 0 || unit_get_holder(u) || unit_get_frozen(u) || unit_orders(u) || unit_get_speed(u) > 0.05f) continue;
+        vec3 p = unit_get_pos(u);
+        float d = vec2_len(vec2_sub(e->home, v2(p.x, p.y))), slop = unit_get_size(u) * FF_HOME_SLOP;
+        if (d <= (slop > FF_HOME_MIN ? slop : FF_HOME_MIN) || d > FF_HOME_FAR) continue;
+        // straight there only: a spot behind a wall would send it round it
+        ee_map *map = game_map();
+        int size = map ? (int)map_get_size(map) : 0;
+        if (size <= 0 || !sr_alloc((uint32_t)(size * size))) return;
+        st_stamp_step();
+        if (!sr_pass(map, u, td, size, (int)floorf(e->home.x), (int)floorf(e->home.y)) || !sr_clear(map, u, td, size, p.x, p.y, e->home.x, e->home.y)) { e->tries = FF_HOME_TRIES; continue; }
+        void *mem = goal_move_alloc();
+        if (!mem) return;
+        float xy[2] = { e->home.x, e->home.y }, yaw;
+        ee_goal *g = goal_move_init(mem, xy);
+        memcpy(&yaw, &e->yaw, sizeof yaw);
+        if (e->yaw == 0) yaw = fo_atan2(-gr->fwd.x, gr->fwd.y);   // a click: the formation's facing
+        location_goal_set_yaw((ee_location_goal *)g, yaw);
+        location_goal_set_face((ee_location_goal *)g, 1);
+        unit_assign_goal(u, g, 0, 0);
+        unit_set_state(u, 0x1F40);
+        unit_type_goal_assigned(td, u);
+        e->tries++;
+        g_ff_walks++;
+    }
 }
 
 // u's march on its way this step and its leader (*l), else NULL: a queued move's march taken up once it sets out;
@@ -634,7 +665,7 @@ internal struct ff_group *ff_march(struct ff_unit *e, ee_unit *u, uint32_t step,
         struct ff_group *n = &g_ff[e->next - 1];
         if (ff_leader(n, step)) {   // its leg before ended where it stands, if it hasn't reached it
             if (e->next_goal && unit_orders(u) >= 2 && unit_order_at(u, 0) != e->next_goal && unit_order_at(u, 1) == e->next_goal) ff_finish_leg(u);
-            e->g = e->next - 1; e->off = e->next_off; e->home = e->next_home; e->step = ~0u; e->next = 0; e->next_goal = NULL; e->in_at = e->home_at = 0;
+            e->g = e->next - 1; e->off = e->next_off; e->home = e->next_home; e->yaw = e->next_yaw; e->tries = 0; e->step = ~0u; e->next = 0; e->next_goal = NULL; e->in_at = 0;
         }
         else if (!n->on) e->next = 0;
     }
