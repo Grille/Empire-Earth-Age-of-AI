@@ -101,6 +101,19 @@ internal vec2 fo_turn(vec2 a, vec2 b, float s) {
     return fo_half(a, b);
 }
 
+// atan2(y, x) from + - * / alone (the same on every PC): the octant reduced to [0, 1], then a polynomial (error
+// under 1e-5 radians)
+internal float fo_atan2(float y, float x) {
+    const float PI = 3.14159265f;
+    float ax = fabsf(x), ay = fabsf(y), mx = ax > ay ? ax : ay, mn = ax > ay ? ay : ax;
+    if (mx < 1e-12f) return 0;
+    float t = mn / mx, t2 = t * t;
+    float r = t * (0.99997726f + t2 * (-0.33262347f + t2 * (0.19354346f + t2 * (-0.11643287f + t2 * (0.05265332f + t2 * -0.01172120f)))));
+    if (ay > ax) r = PI / 2 - r;
+    if (x < 0) r = PI - r;
+    return y < 0 ? -r : r;
+}
+
 // a direction's angle as a number in [0, 4) that orders like the angle (counter-clockwise from +x)
 internal float fo_pseudo_angle(vec2 d) {
     float s = fabsf(d.x) + fabsf(d.y);
@@ -219,6 +232,8 @@ internal void *g_fo_slots;   // the slots of the group move being dispatched, la
 internal int g_fo_n;
 internal ee_active_group *g_fo_group;   // its group, till its march is set (formation_march)
 internal unsigned g_fo_marches;         // groups set to march at their slowest unit's speed
+#define FO_CLICK 0.985f                 // cos 10 degrees: a queued move's facing this near the way from where they stand
+internal unsigned g_fo_refaced;         // queued moves turned to the way from the last order's points
 internal int g_fo_queued;               // the move being carried out is queued after the units' others (shift)
 internal unsigned g_fo_queued_n;        // group moves laid out from the units' last queued points
 
@@ -521,13 +536,14 @@ internal void __thiscall hook_formation_slots(void *f, void *group, void *slots)
     int n = formation_slot_count(slots), kind = g_set.formation_kind >= 0 ? g_set.formation_kind : formation_get_kind(f);   // (tests: a kind's layout without its button)
     if (!g_fo_on || n < 2 || n > FO_MAX || kind < 0 || kind > FORMATION_OUTWARD_CIRCLE) return;
     vec3 c3 = formation_get_center(f);
-    vec2 c = v2(c3.x, c3.y), mean = v2(0, 0);
+    vec2 c = v2(c3.x, c3.y), mean = v2(0, 0), now = v2(0, 0);   // now: where they stand
     int from_last = 0;
     for (int i = 0; i < n; i++) {
         struct fo_unit *u = &g_fo[i];
         u->u = fslot_get_unit(formation_slot(slots, i));
         if (!u->u) return;
         vec3 p = unit_get_pos(u->u);
+        now = vec2_add(now, v2(p.x, p.y));
         int orders = g_fo_queued ? unit_orders(u->u) : 0;
         ee_goal *last = orders > 0 ? unit_order_at(u->u, orders - 1) : NULL;
         if (last && goal_is_location(last)) { p = goal_target(last, u->u); from_last++; }   // queued: from its last order's point
@@ -539,6 +555,7 @@ internal void __thiscall hook_formation_slots(void *f, void *group, void *slots)
         g_fo_order[i] = i;
     }
     mean = vec2_scale(mean, 1.0f / (float)n);
+    now = vec2_scale(now, 1.0f / (float)n);
     // the game's slots as they were: its front row on the clicked point and the rest behind; a circle's facings are
     // taken from its nearest one
     static vec2 game_at[FO_MAX];
@@ -559,6 +576,13 @@ internal void __thiscall hook_formation_slots(void *f, void *group, void *slots)
     while (ang < 0) ang += 2 * PI;
     while (ang >= 2 * PI) ang -= 2 * PI;
     vec2 to = vec2_sub(c, mean), fwd = facing == 0 ? v2(0, 1) : fo_dir(ang);
+    // a click in the game's view comes with a facing too - the way from the selection where it stands to the point
+    // (the player's games: every move a "drag"): for a queued move that is the way from the wrong place, so a facing
+    // within FO_CLICK of it counts as a click, laid out from the last order's points and turned to on arrival
+    vec2 cur = vec2_sub(c, now);
+    float cl = vec2_len(cur);
+    int reface = g_fo_queued && facing != 0 && from_last && cl > 0.5f && vec2_dot(fwd, vec2_scale(cur, 1.0f / cl)) > FO_CLICK;
+    if (reface) facing = 0;
     // the game's own front row (lines): its slots ahead along the way it laid them out, before a click's direction
     int front = 0;
     float most = -1e30f;
@@ -566,6 +590,13 @@ internal void __thiscall hook_formation_slots(void *f, void *group, void *slots)
     for (int i = 0; i < n; i++) if (vec2_dot(game_at[i], fwd) > most - 0.3f) front++;
     float tl = vec2_len(to);
     if (facing == 0) fwd = tl > 0.5f ? vec2_scale(to, 1.0f / tl) : v2(0, 1);
+    if (reface) {   // the units' facing on arrival: the drag's angle of the new way, atan2(-x, y)
+        float a = fo_atan2(-fwd.x, fwd.y);
+        uint32_t bits;
+        memcpy(&bits, &a, sizeof bits);
+        for (int i = 0; i < n; i++) game_facing[i] = bits;
+        g_fo_refaced++;
+    }
     vec2 right = v2(fwd.y, -fwd.x);
     for (int i = 0; i < n; i++) {
         vec2 d = vec2_sub(g_fo[i].p, mean);
@@ -601,8 +632,8 @@ internal void __thiscall hook_formation_slots(void *f, void *group, void *slots)
     g_ff_count = 0;
     if (g_ff_on) ff_start(group, n, fwd, right, g_fo_queued);
     // a line a move (the player's games: what a reported layout or march did)
-    if (g_log) fprintf(g_log, "# formation: %d units, kind %d, %s%d from their last order, from %.1f,%.1f to %.1f,%.1f facing %.2f,%.2f (%s), %d marches\n",
-                       n, kind, g_fo_queued ? "queued, " : "", from_last, mean.x, mean.y, c.x, c.y, fwd.x, fwd.y, facing == 0 ? "click" : "drag", g_ff_on ? g_ff_count : 0);
+    if (g_log) fprintf(g_log, "# formation: %d units, kind %d, %s%d from their last order%s, from %.1f,%.1f to %.1f,%.1f facing %.2f,%.2f (%s), %d marches\n",
+                       n, kind, g_fo_queued ? "queued, " : "", from_last, reface ? " (the click's facing turned to their way)" : "", mean.x, mean.y, c.x, c.y, fwd.x, fwd.y, facing == 0 ? "click" : "drag", g_ff_on ? g_ff_count : 0);
 }
 
 // a unit's location goal in the dispatch: its own spot (and facing) instead of the slot it was paired with - the slot

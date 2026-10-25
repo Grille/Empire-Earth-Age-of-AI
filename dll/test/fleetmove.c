@@ -149,17 +149,26 @@ internal void cmd_fmove(char *out, const char *args) {
               g_lr_ms, g_lr_ms_max, g_lr_widened, g_lr_corners, g_lr_corners ? g_lr_room0 / g_lr_corners : 0.0, g_lr_corners ? g_lr_room1 / g_lr_corners : 0.0, g_fo_moves, g_fo_queued_n, g_fo_marches, g_ff_marches, g_ff_split, g_ff_steered, g_ff_own);
         return;
     }
-    if (!strcmp(what, "then")) {   // fmove then P tx ty: the order's units (still there) also sent on to tx, ty, queued as with shift
+    if (!strcmp(what, "then")) {   // fmove then P tx ty: the order's units (still there) also sent on to tx, ty, queued as with shift, the
+        // facing the game's view gives a click (the way from where they stand to the point)
         static uint32_t qids[FM_MAX];
         static __attribute__((aligned(8))) uint8_t qmem[0x40];
         ee_player *qpl = p > 0 && p < 16 ? game_players()[p] : NULL;
         int n = 0;
-        for (int i = 0; i < g_fm_n; i++) if (unit_by_id(g_fm[i].id)) qids[n++] = g_fm[i].id;
+        float cx = 0, cy = 0;
+        for (int i = 0; i < g_fm_n; i++) {
+            ee_unit *w = unit_by_id(g_fm[i].id);
+            if (!w) continue;
+            vec3 q = unit_get_pos(w);
+            cx += q.x; cy += q.y;
+            qids[n++] = g_fm[i].id;
+        }
         if (!qpl || !n) { REPLY("fmove: no order's units of P%d left\n", p); return; }
         uint32_t *sel[3] = { NULL, qids, qids + n };
         player_select(qpl, sel);
         memset(qmem, 0, sizeof qmem);
         path_msg_make((ee_path_msg *)qmem, player_get_msg_id(qpl), (float)x + 0.5f, (float)y + 0.5f, 0, 1);
+        path_msg_set_facing((ee_path_msg *)qmem, atan2f(-((float)x + 0.5f - cx / (float)n), (float)y + 0.5f - cy / (float)n));
         msg_execute((ee_msg *)qmem);
         REPLY("fmove: %d units of P%d then to %d,%d (queued)\n", n, p, x, y);
         return;
