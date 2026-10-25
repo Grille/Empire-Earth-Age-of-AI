@@ -76,23 +76,12 @@ internal inline void goal_drop_passenger(ee_goal *goal, ee_unit *u) { ((void (__
 // a goal set's answer for the unit (the original of landing.c's hook)
 
 // HOOKS
-typedef int (__thiscall *goalset_ask_hook)(void *set, ee_unit *unit, int *out);
-internal inline int patch_goalset_ask(goalset_ask_hook h, int *of) {
-    const uint32_t sites[2] = { data_goal_call_goalset_ask, data_goal_call_goalset_again };
-    return patch_calls(sites, 2, (uintptr_t)fn_goalset_ask, (void *)h, of);
-}
-typedef char (__thiscall *goal_fits_hook)(ee_goal *goal, void *unit);
-internal inline int patch_goal_fits(goal_fits_hook h) { return patch_call(data_goal_call_goal_fba_check, (uintptr_t)fn_goal_fits, (void *)h); }
 // a group move's location goal for each unit at its slot (the group's dispatch, after units and slots are paired:
 // groupmove.c); pt the caller's copy of the slot's point, the rest passed on as they are
-typedef void *(__thiscall *slot_goal_hook)(ee_goal *g, float *pt, uint32_t a, uint32_t b, uint32_t c, uint32_t d, uint32_t e, uint32_t f);
 internal inline void *goal_move_at(ee_goal *g, float *pt, uint32_t a, uint32_t b, uint32_t c, uint32_t d, uint32_t e, uint32_t f) {
     return fn_goal_move_at_game(g, pt, a, b, c, d, e, f);
 }
-internal inline int patch_slot_goal(slot_goal_hook h) { return patch_call(data_goal_call_slot_goal, (uintptr_t)fn_goal_move_at_game, (void *)h); }
 // the unload goal's construction (landing.c)
-typedef void *(__thiscall *unload_ctor_hook)(ee_goal *g, ee_unit *transport, int x, int y, int flag);
-internal inline int patch_unload_ctor(unload_ctor_hook h, int *of) { return patch_calls(PATCH_LIST(data_patching_unload_sites), (uintptr_t)fn_goal_unload_init, (void *)h, of); }
 // the goal set's read of a unit's goal object (6 bytes: mov ecx, [esi+0x1E8]) -> call thunk; nop
 internal inline int patch_goalset_read(thunk_fn thunk) {
     static const uint8_t want[6] = { 0x8B, 0x8E, 0xE8, 0x01, 0x00, 0x00 };

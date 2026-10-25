@@ -76,10 +76,10 @@ internal inline int site_index(const uint32_t *sites, size_t n, uintptr_t at) {
         if (sites[i] == at) return (int)i;
     return -1;
 }
-internal inline int train_site(uintptr_t at) { return site_index(PATCH_LIST(data_ai_managers_train_sites), at); }    // the game's 5 unit orders
-internal inline int mine_site(uintptr_t at) { return site_index(PATCH_LIST(data_ai_managers_mine_sites), at); }      // 5: the citizen assignment's last
-internal inline int unload_site(uintptr_t at) { return site_index(PATCH_LIST(data_patching_unload_sites), at); }  // 7: the unload goal's copy
-internal inline uintptr_t unload_site_at(int i) { return data_patching_unload_sites[i]; }
+internal inline int train_site(uintptr_t at) { return site_index(PATCH_LIST(calls_train_units), at); }    // the game's 5 unit orders
+internal inline int mine_site(uintptr_t at) { return site_index(PATCH_LIST(calls_find_mine), at); }      // 5: the citizen assignment's last
+internal inline int unload_site(uintptr_t at) { return site_index(PATCH_LIST(calls_unload_ctor), at); }  // 7: the unload goal's copy
+internal inline uintptr_t unload_site_at(int i) { return calls_unload_ctor[i]; }
 internal inline int unload_from_rm(uintptr_t at) { return at == data_patching_call_unload_rm; }   // the resource manager's ferry
 // a land subgroup's goal handed over with its unit (the return address of its give_goal call: landing.c)
 internal inline int from_land_handoff(uintptr_t ret) { return ret == data_patching_ret_asg_land_handoff_give; }

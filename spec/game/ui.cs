@@ -103,16 +103,6 @@ unsafe struct ee_ui_screen
 /// ui's data of the game, places in its code and numbers
 static unsafe class ui
 {
-    /// EEAMouseClick::vf3's gfx_add: the command's circle
-    [address((ee)0x00404A26, (aoc)0x0040416B)]
-    static code call_click_mark;
-
-    [address((ee)0x005262E4, (aoc)0x00531057)]
-    static code call_player_color;
-
-    /// the group's unload order (0x5DB641): order_marks
-    [address((ee)0x005DCDBD, (aoc)0x005ED592)]
-    static code call_unload_marks;
 
     /// the graphical effects (a command's circles): handle -> effect
     [address((ee)0x00918E1C, (aoc)0x0093185C)]
@@ -129,24 +119,6 @@ static unsafe class ui
     /// the UI manager's current form
     [address((ee)0x00823D60, (aoc)0x00837B44)]
     static block iat_uim_form;
-
-    /// the calls of mouse_update
-    [address((ee)0x004B8ABB, (aoc)0x004C11FE)]
-    [address((ee)0x0050FEC8, (aoc)0x0051A487)]
-    [address((ee)0x005111CF, (aoc)0x0051B73E)]
-    [address((ee)0x006618B8, (aoc)0x00678F02)]
-    static code mouse_update_sites;
-
-    /// the calls of native_chat (the AI's own lines)
-    [address((ee)0x00470040, (aoc)0x00472F4C)]
-    [address((ee)0x004715F8, (aoc)0x00474682)]
-    [address((ee)0x0047166E, (aoc)0x00474705)]
-    [address((ee)0x0047280E, (aoc)0x004758D5)]
-    [address((ee)0x00472B9D, (aoc)0x00475C65)]
-    static code native_chat_sites;
-
-    [address((ee)0x0065BA13, (aoc)0x00673E9B)]
-    static code site_editor_form;
 
     /// operand of push 0x19 (timer period in ms)
     [address((ee)0x004050C2, (aoc)0x00404734)]
@@ -215,10 +187,13 @@ static unsafe class ui_functions
     static extern void cheat_parse(void* parser, void* wtext, int32* code, int32* arg);
 
     [address((ee)0x00526B85, (aoc)0x005318BD), cdecl]
+    [call_site("player_color", (ee)0x005262E4, (aoc)0x00531057)]
     static extern void* game_color_rgb(uint32 idx);
 
     /// thiscall([ui.gfx_effects], unit or 0, float pos[3], kind, int *handle, 0): a graphical effect added (0: done)
     [address((ee)0x004FB6D4, (aoc)0x00506038), thiscall]
+    // EEAMouseClick::vf3's gfx_add: the command's circle
+    [call_site("click_mark", (ee)0x00404A26, (aoc)0x0040416B)]
     static extern int32 gfx_add(void* fx, void* on, float32* pos, void* kind, int32* handle, int32 arg);
 
     /// thiscall([ui.gfx_effects], handle): NULL gone
@@ -237,14 +212,27 @@ static unsafe class ui_functions
     static extern void mouse_clamp(void* m);
 
     [address((ee)0x00510E5D, (aoc)0x0051B3CC), thiscall]
+    // the calls of mouse_update
+    [call_site("mouse_update", (ee)0x004B8ABB, (aoc)0x004C11FE)]
+    [call_site("mouse_update", (ee)0x0050FEC8, (aoc)0x0051A487)]
+    [call_site("mouse_update", (ee)0x005111CF, (aoc)0x0051B73E)]
+    [call_site("mouse_update", (ee)0x006618B8, (aoc)0x00678F02)]
     static extern void mouse_update(RTSMouse* m);
 
     [address((ee)0x00484EB3, (aoc)0x0048966C), thiscall]
+    // the calls of native_chat (the AI's own lines)
+    [call_site("native_chat", (ee)0x00470040, (aoc)0x00472F4C)]
+    [call_site("native_chat", (ee)0x004715F8, (aoc)0x00474682)]
+    [call_site("native_chat", (ee)0x0047166E, (aoc)0x00474705)]
+    [call_site("native_chat", (ee)0x0047280E, (aoc)0x004758D5)]
+    [call_site("native_chat", (ee)0x00472B9D, (aoc)0x00475C65)]
     static extern char8 native_chat(ee_native_chat* pim, int32 @base, int32 ms);
 
     /// cdecl(group, 0, owner (a player's +0x45C), how (0xBB: a GFX_ORDER_ON circle at each unit's goal), 0): a
     /// command's circles
     [address((ee)0x004B12A2, (aoc)0x004B86CD), cdecl]
+    // the group's unload order (0x5DB641): order_marks
+    [call_site("unload_marks", (ee)0x005DCDBD, (aoc)0x005ED592)]
     static extern void order_marks(void* grp, void* on, int32 owner, int32 how, uint32 goal);
 
     [address((ee)0x004050FC, (aoc)0x0040478E), thiscall]

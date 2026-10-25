@@ -55,8 +55,6 @@ internal inline void *msg_cheat_alloc(void) { return game_new(value_messages_siz
 
 // HOOKS
 // the selection's packing into a message (select.c)
-typedef unsigned (__cdecl *sel_pack_hook)(uint8_t *list, uint32_t player_byte, uint8_t *out);
-internal inline int patch_sel_pack(sel_pack_hook h) { return patch_call(data_messages_call_sel_pack, (uintptr_t)fn_sel_pack, (void *)h); }
 // the lockstep server's send (its vtable slot 6, on the live object: EEServer or EEClient) - the slot's previous
 // function, NULL when not patched; two hooks chain (the second calls the first)
 typedef void (__thiscall *server_send_fn)(ee_server *net, ee_msg *msg, int to);

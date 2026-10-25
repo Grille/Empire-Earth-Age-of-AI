@@ -11,13 +11,6 @@ internal inline uint8_t *draw_record_0xfc_at(const void *o) { return (uint8_t *)
 // static class hooks
 // hooks's data of the game, places in its code and numbers
 internal inline uint8_t *hooks_call_attack_alert_at(void) { return (uint8_t *)(uintptr_t)data_hooks_call_attack_alert; }
-internal inline uint8_t *hooks_call_game_start_at(void) { return (uint8_t *)(uintptr_t)data_hooks_call_game_start; }
-// call LoadSavedGameFromCmdline(UString *) 0x521F94
-internal inline uint8_t *hooks_call_load_saved_at(void) { return (uint8_t *)(uintptr_t)data_hooks_call_load_saved; }
-// call ParseCommandLine(const char *) 0x522A36
-internal inline uint8_t *hooks_call_parse_cmdline_at(void) { return (uint8_t *)(uintptr_t)data_hooks_call_parse_cmdline; }
-// the idle transports' call of shore_to_unload
-internal inline uint8_t *hooks_call_shore_to_unload_at(void) { return (uint8_t *)(uintptr_t)data_hooks_call_shore_to_unload; }
 // the loading splash's start (jne)
 internal inline uint8_t *hooks_code_splash_start_jne_at(void) { return (uint8_t *)(uintptr_t)data_hooks_code_splash_start_jne; }
 // the loading splash's stop (jne)
@@ -39,7 +32,6 @@ internal inline uint8_t *hooks_iat_srand_at(void) { return (uint8_t *)(uintptr_t
 // call AddMovie(path) in PlayIntro 0x538867
 // the minimap's operands of hooks.float_1_800
 // the minimap's operands of hooks.float_1_600
-// the other calls of set_resolution (display.c)
 // GEFontBitmap::Draw (both overloads): movsx of a character
 // its import slot
 // ISInitialize's, setting up the device
@@ -61,6 +53,7 @@ internal inline void draw_rec_ctor(void *p1) { fn_draw_rec_ctor(p1); }
 typedef void (__stdcall *set_resolution_fn)(int, int, int, int);
 internal set_resolution_fn fn_set_resolution;
 internal inline void set_resolution(int w, int h, int force, int flag) { fn_set_resolution(w, h, force, flag); }
+internal inline int patch_other_resolution(set_resolution_fn h, int *of) { return patch_calls(calls_other_resolution, 7, (uintptr_t)fn_set_resolution, (void *)h, of); }
 
 // static class tcp_protocol
 // TCP Protocol.dll's code (each build ships its own): its places relative to the DLL's base
@@ -73,10 +66,6 @@ internal int spec_hooks_select(int build) {
         of_draw_record_0x58 = 0x58;
         of_draw_record_0xfc = 0xFC;
         data_hooks_call_attack_alert = 0x006177CF;
-        data_hooks_call_game_start = 0x004CEC14;
-        data_hooks_call_load_saved = 0x00522BF8;
-        data_hooks_call_parse_cmdline = 0x00535EF2;
-        data_hooks_call_shore_to_unload = 0x00483E24;
         data_hooks_code_splash_start_jne = 0x00534400;
         data_hooks_code_splash_stop_jne = 0x0053443D;
         data_hooks_draw_old = 0x008D2D30;
@@ -112,13 +101,6 @@ internal int spec_hooks_select(int build) {
         data_hooks_minimap_fy_ops[0] = 0x0065E032;
         data_hooks_minimap_fy_ops[1] = 0x0065E8CE;
         data_hooks_minimap_fy_ops[2] = 0x0065EB68;
-        data_hooks_other_resolution_sites[0] = 0x0065F30A;
-        data_hooks_other_resolution_sites[1] = 0x0065F61B;
-        data_hooks_other_resolution_sites[2] = 0x0065F945;
-        data_hooks_other_resolution_sites[3] = 0x0065FAD4;
-        data_hooks_other_resolution_sites[4] = 0x00660CD3;
-        data_hooks_other_resolution_sites[5] = 0x00661329;
-        data_hooks_other_resolution_sites[6] = 0x00661363;
         value_hooks_rva_lle_font_movsx_1 = 162374;
         value_hooks_rva_lle_font_movsx_2 = 162970;
         value_hooks_rva_lle_iat_wfmo = 606444;
@@ -132,6 +114,13 @@ internal int spec_hooks_select(int build) {
         data_hooks_site_sim_wait = 0x005533C5;
         fn_draw_rec_ctor = (draw_rec_ctor_fn)0x00506442;
         fn_set_resolution = (set_resolution_fn)0x0065F314;
+        calls_other_resolution[0] = 0x0065F30A;
+        calls_other_resolution[1] = 0x0065F61B;
+        calls_other_resolution[2] = 0x0065F945;
+        calls_other_resolution[3] = 0x0065FAD4;
+        calls_other_resolution[4] = 0x00660CD3;
+        calls_other_resolution[5] = 0x00661329;
+        calls_other_resolution[6] = 0x00661363;
         data_tcp_protocol_ports[0] = 0x000017E2;
         data_tcp_protocol_ports[1] = 0x0000196F;
         data_tcp_protocol_ports[2] = 0x000019EB;
@@ -145,10 +134,6 @@ internal int spec_hooks_select(int build) {
         of_draw_record_0x58 = 0x58;
         of_draw_record_0xfc = 0xFC;
         data_hooks_call_attack_alert = 0x0062A366;
-        data_hooks_call_game_start = 0x004D4443;
-        data_hooks_call_load_saved = 0x0052D8F9;
-        data_hooks_call_parse_cmdline = 0x005410C8;
-        data_hooks_call_shore_to_unload = 0x00488490;
         data_hooks_code_splash_start_jne = 0x0053F2FE;
         data_hooks_code_splash_stop_jne = 0x0053F33B;
         data_hooks_draw_old = 0x008E94D0;
@@ -184,13 +169,6 @@ internal int spec_hooks_select(int build) {
         data_hooks_minimap_fy_ops[0] = 0x0067562D;
         data_hooks_minimap_fy_ops[1] = 0x00675EC0;
         data_hooks_minimap_fy_ops[2] = 0x0067615A;
-        data_hooks_other_resolution_sites[0] = 0x006768F4;
-        data_hooks_other_resolution_sites[1] = 0x00676C0A;
-        data_hooks_other_resolution_sites[2] = 0x00676F39;
-        data_hooks_other_resolution_sites[3] = 0x006770C8;
-        data_hooks_other_resolution_sites[4] = 0x0067831D;
-        data_hooks_other_resolution_sites[5] = 0x00678973;
-        data_hooks_other_resolution_sites[6] = 0x006789AD;
         value_hooks_rva_lle_font_movsx_1 = 89089;
         value_hooks_rva_lle_font_movsx_2 = 89685;
         value_hooks_rva_lle_iat_wfmo = 618732;
@@ -204,6 +182,13 @@ internal int spec_hooks_select(int build) {
         data_hooks_site_sim_wait = 0x005614D6;
         fn_draw_rec_ctor = (draw_rec_ctor_fn)0x005118E9;
         fn_set_resolution = (set_resolution_fn)0x006768FE;
+        calls_other_resolution[0] = 0x006768F4;
+        calls_other_resolution[1] = 0x00676C0A;
+        calls_other_resolution[2] = 0x00676F39;
+        calls_other_resolution[3] = 0x006770C8;
+        calls_other_resolution[4] = 0x0067831D;
+        calls_other_resolution[5] = 0x00678973;
+        calls_other_resolution[6] = 0x006789AD;
         data_tcp_protocol_ports[0] = 0x00001684;
         data_tcp_protocol_ports[1] = 0x0000185C;
         data_tcp_protocol_ports[2] = 0x000018D8;
@@ -222,10 +207,6 @@ internal const char *const k_spec_hooks_missing[ADDR_BUILDS] = { "", "" };
 internal int spec_hooks_check(void) {
     int bad = 0;
     bad += spec_code(data_hooks_call_attack_alert, "hooks.call_attack_alert");
-    bad += spec_code(data_hooks_call_game_start, "hooks.call_game_start");
-    bad += spec_code(data_hooks_call_load_saved, "hooks.call_load_saved");
-    bad += spec_code(data_hooks_call_parse_cmdline, "hooks.call_parse_cmdline");
-    bad += spec_code(data_hooks_call_shore_to_unload, "hooks.call_shore_to_unload");
     bad += spec_code(data_hooks_code_splash_start_jne, "hooks.code_splash_start_jne");
     bad += spec_code(data_hooks_code_splash_stop_jne, "hooks.code_splash_stop_jne");
     bad += spec_data(data_hooks_draw_old, "hooks.draw_old");
@@ -261,13 +242,6 @@ internal int spec_hooks_check(void) {
     bad += spec_code(data_hooks_minimap_fy_ops[0], "hooks.minimap_fy_ops 0");
     bad += spec_code(data_hooks_minimap_fy_ops[1], "hooks.minimap_fy_ops 1");
     bad += spec_code(data_hooks_minimap_fy_ops[2], "hooks.minimap_fy_ops 2");
-    bad += spec_code(data_hooks_other_resolution_sites[0], "hooks.other_resolution_sites 0");
-    bad += spec_code(data_hooks_other_resolution_sites[1], "hooks.other_resolution_sites 1");
-    bad += spec_code(data_hooks_other_resolution_sites[2], "hooks.other_resolution_sites 2");
-    bad += spec_code(data_hooks_other_resolution_sites[3], "hooks.other_resolution_sites 3");
-    bad += spec_code(data_hooks_other_resolution_sites[4], "hooks.other_resolution_sites 4");
-    bad += spec_code(data_hooks_other_resolution_sites[5], "hooks.other_resolution_sites 5");
-    bad += spec_code(data_hooks_other_resolution_sites[6], "hooks.other_resolution_sites 6");
     bad += spec_code(data_hooks_site_close_window_je, "hooks.site_close_window_je");
     bad += spec_code(data_hooks_site_editor_menu, "hooks.site_editor_menu");
     bad += spec_code(data_hooks_site_editor_res, "hooks.site_editor_res");
@@ -275,5 +249,12 @@ internal int spec_hooks_check(void) {
     bad += spec_code(data_hooks_site_sim_wait, "hooks.site_sim_wait");
     bad += spec_code((uintptr_t)fn_draw_rec_ctor, "hooks_functions.draw_rec_ctor");
     bad += spec_code((uintptr_t)fn_set_resolution, "hooks_functions.set_resolution");
+    bad += spec_call(calls_other_resolution[0], (uintptr_t)fn_set_resolution, "hooks_functions.set_resolution [call_site other_resolution 0]");
+    bad += spec_call(calls_other_resolution[1], (uintptr_t)fn_set_resolution, "hooks_functions.set_resolution [call_site other_resolution 1]");
+    bad += spec_call(calls_other_resolution[2], (uintptr_t)fn_set_resolution, "hooks_functions.set_resolution [call_site other_resolution 2]");
+    bad += spec_call(calls_other_resolution[3], (uintptr_t)fn_set_resolution, "hooks_functions.set_resolution [call_site other_resolution 3]");
+    bad += spec_call(calls_other_resolution[4], (uintptr_t)fn_set_resolution, "hooks_functions.set_resolution [call_site other_resolution 4]");
+    bad += spec_call(calls_other_resolution[5], (uintptr_t)fn_set_resolution, "hooks_functions.set_resolution [call_site other_resolution 5]");
+    bad += spec_call(calls_other_resolution[6], (uintptr_t)fn_set_resolution, "hooks_functions.set_resolution [call_site other_resolution 6]");
     return bad;
 }

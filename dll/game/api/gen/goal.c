@@ -28,12 +28,6 @@ internal inline ee_unit **goal_holder_at(const ee_goal *o) { return (ee_unit **)
 // static class goal
 // goal's data of the game, places in its code and numbers
 internal inline uint8_t *goal_at_goal_set_read_at(void) { return (uint8_t *)(uintptr_t)data_goal_at_goal_set_read; }
-internal inline uint8_t *goal_call_goalset_again_at(void) { return (uint8_t *)(uintptr_t)data_goal_call_goalset_again; }
-internal inline uint8_t *goal_call_goalset_ask_at(void) { return (uint8_t *)(uintptr_t)data_goal_call_goalset_ask; }
-// in 0x5ED24B: goal_fits on a dynamic_cast, unchecked
-internal inline uint8_t *goal_call_goal_fba_check_at(void) { return (uint8_t *)(uintptr_t)data_goal_call_goal_fba_check; }
-// the group's dispatch (0x5DB641): each unit's location goal at its slot, goal_move_at_game
-internal inline uint8_t *goal_call_slot_goal_at(void) { return (uint8_t *)(uintptr_t)data_goal_call_slot_goal; }
 // EEUGAttack(unit, target, 1); AoC + a byte: attack.c
 internal inline uint8_t *goal_fn_goal_attack_ctor_at(void) { return (uint8_t *)(uintptr_t)data_goal_fn_goal_attack_ctor; }
 // goal.fn_goal_attack_ctor
@@ -62,27 +56,31 @@ internal inline ee_goal *goal_build_init(void *mem, ee_player *pl, ee_unit *buil
 typedef int (__thiscall *goalset_ask_fn)(void *, ee_unit *, int *);
 internal goalset_ask_fn fn_goalset_ask;
 internal inline int goalset_ask(void *set, ee_unit *u, int *out) { return fn_goalset_ask(set, u, out); }
+internal inline int patch_goalset_ask(goalset_ask_fn h, int *of) { return patch_calls(calls_goalset_ask, 2, (uintptr_t)fn_goalset_ask, (void *)h, of); }
 // thiscall(goal 0xFBA object, unit) (0x5ED24B)
 typedef char (__thiscall *goal_fits_fn)(ee_goal *, void *);
 internal goal_fits_fn fn_goal_fits;
 internal inline char goal_fits(ee_goal *goal, void *unit) { return fn_goal_fits(goal, unit); }
+internal inline int patch_goal_fits(goal_fits_fn h) { return patch_call(call_goal_fits, (uintptr_t)fn_goal_fits, (void *)h); }
 // EEUGLoadTransport: new 0x68
 typedef void *(__thiscall *goal_load_ctor_fn)(void *, void *, void *, int);
 internal goal_load_ctor_fn fn_goal_load_ctor;
 internal inline void *goal_load_ctor(void *p1, void *p2, void *p3, int p4) { return fn_goal_load_ctor(p1, p2, p3, p4); }
 // the same goal's other constructor: thiscall(goal, float pt[3], 6 dwords - a float among them), the group's
 // dispatch gives each unit its slot with it
-typedef void *(__thiscall *goal_move_at_game_fn)(void *, float *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+typedef void *(__thiscall *goal_move_at_game_fn)(ee_goal *, float *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 internal goal_move_at_game_fn fn_goal_move_at_game;
-internal inline void *goal_move_at_game(void *p1, float *p2, uint32_t p3, uint32_t p4, uint32_t p5, uint32_t p6, uint32_t p7, uint32_t p8) { return fn_goal_move_at_game(p1, p2, p3, p4, p5, p6, p7, p8); }
+internal inline void *goal_move_at_game(ee_goal *g, float *p2, uint32_t p3, uint32_t p4, uint32_t p5, uint32_t p6, uint32_t p7, uint32_t p8) { return fn_goal_move_at_game(g, p2, p3, p4, p5, p6, p7, p8); }
+internal inline int patch_slot_goal(goal_move_at_game_fn h) { return patch_call(call_slot_goal, (uintptr_t)fn_goal_move_at_game, (void *)h); }
 // new 0x38
 typedef void *(__thiscall *goal_move_ctor_fn)(void *, float *, int, char, char, float, char, char);
 internal goal_move_ctor_fn fn_goal_move_ctor;
 internal inline void *goal_move_ctor(void *p1, float *p2, int p3, char p4, char p5, float p6, char p7, char p8) { return fn_goal_move_ctor(p1, p2, p3, p4, p5, p6, p7, p8); }
 // EEUGUnloadTransport: new 0x40
-typedef ee_goal *(__thiscall *goal_unload_init_fn)(void *, ee_unit *, int, int, int);
+typedef ee_goal *(__thiscall *goal_unload_init_fn)(ee_goal *, ee_unit *, int, int, int);
 internal goal_unload_init_fn fn_goal_unload_init;
-internal inline ee_goal *goal_unload_init(void *mem, ee_unit *holder, int x, int y, int flag) { return fn_goal_unload_init(mem, holder, x, y, flag); }
+internal inline ee_goal *goal_unload_init(ee_goal *mem, ee_unit *holder, int x, int y, int flag) { return fn_goal_unload_init(mem, holder, x, y, flag); }
+internal inline int patch_unload_ctor(goal_unload_init_fn h, int *of) { return patch_calls(calls_unload_ctor, 8, (uintptr_t)fn_goal_unload_init, (void *)h, of); }
 // thiscall(load goal, unit): the unit into its pending passengers (if not there), as EEMLoadTransport adds to a
 // load under way
 typedef void (__thiscall *goal_add_passenger_fn)(ee_goal *, ee_unit *);
@@ -99,10 +97,6 @@ internal int spec_goal_select(int build) {
         of_goal_0x3c = 0x3C;
         of_goal_holder = 0x50;
         data_goal_at_goal_set_read = 0x005F0634;
-        data_goal_call_goalset_again = 0x005F1029;
-        data_goal_call_goalset_ask = 0x005F0FFA;
-        data_goal_call_goal_fba_check = 0x005ED9BF;
-        data_goal_call_slot_goal = 0x005DC902;
         data_goal_fn_goal_attack_ctor = 0x0060AD45;
         value_goal_size_goal_attack = 64;
         value_goal_size_goal_build = 92;
@@ -119,11 +113,23 @@ internal int spec_goal_select(int build) {
         data_goal_vt_goal_unload = 0x00831F5C;
         fn_goal_build_init = (goal_build_init_fn)0x0060BAD0;
         fn_goalset_ask = (goalset_ask_fn)0x00619FF5;
+        calls_goalset_ask[0] = 0x005F0FFA;
+        calls_goalset_ask[1] = 0x005F1029;
         fn_goal_fits = (goal_fits_fn)0x0060FE7E;
+        call_goal_fits = 0x005ED9BF;
         fn_goal_load_ctor = (goal_load_ctor_fn)0x0061487F;
         fn_goal_move_at_game = (goal_move_at_game_fn)0x00614D47;
+        call_slot_goal = 0x005DC902;
         fn_goal_move_ctor = (goal_move_ctor_fn)0x00614CE6;
         fn_goal_unload_init = (goal_unload_init_fn)0x00615A1F;
+        calls_unload_ctor[0] = 0x00445AAD;
+        calls_unload_ctor[1] = 0x00483E4D;
+        calls_unload_ctor[2] = 0x0048CC5D;
+        calls_unload_ctor[3] = 0x0048D022;
+        calls_unload_ctor[4] = 0x004BF82A;
+        calls_unload_ctor[5] = 0x005B3E23;
+        calls_unload_ctor[6] = 0x005DC81B;
+        calls_unload_ctor[7] = 0x00615AE6;
         fn_goal_add_passenger = (goal_add_passenger_fn)0x0061321D;
         return 0;
     case 1:   // aoc
@@ -133,10 +139,6 @@ internal int spec_goal_select(int build) {
         of_goal_0x3c = 0x3C;
         of_goal_holder = 0x50;
         data_goal_at_goal_set_read = 0x005FE8DA;
-        data_goal_call_goalset_again = 0x005FF393;
-        data_goal_call_goalset_ask = 0x005FF364;
-        data_goal_call_goal_fba_check = 0x005FBA9C;
-        data_goal_call_slot_goal = 0x005ED231;
         data_goal_fn_goal_attack_ctor = 0x0061D337;
         value_goal_size_goal_attack = 68;
         value_goal_size_goal_build = 92;
@@ -153,11 +155,23 @@ internal int spec_goal_select(int build) {
         data_goal_vt_goal_unload = 0x008479A0;
         fn_goal_build_init = (goal_build_init_fn)0x0061E164;
         fn_goalset_ask = (goalset_ask_fn)0x0062CD8B;
+        calls_goalset_ask[0] = 0x005FF364;
+        calls_goalset_ask[1] = 0x005FF393;
         fn_goal_fits = (goal_fits_fn)0x006226CF;
+        call_goal_fits = 0x005FBA9C;
         fn_goal_load_ctor = (goal_load_ctor_fn)0x00627286;
         fn_goal_move_at_game = (goal_move_at_game_fn)0x00627742;
+        call_slot_goal = 0x005ED231;
         fn_goal_move_ctor = (goal_move_ctor_fn)0x006276E1;
         fn_goal_unload_init = (goal_unload_init_fn)0x006283FF;
+        calls_unload_ctor[0] = 0x00444CCD;
+        calls_unload_ctor[1] = 0x004884B9;
+        calls_unload_ctor[2] = 0x00491733;
+        calls_unload_ctor[3] = 0x00491AF8;
+        calls_unload_ctor[4] = 0x004C86E9;
+        calls_unload_ctor[5] = 0x005C4E31;
+        calls_unload_ctor[6] = 0x005ED156;
+        calls_unload_ctor[7] = 0x006284E2;
         fn_goal_add_passenger = (goal_add_passenger_fn)0x00625AB4;
         return 0;
     }
@@ -169,10 +183,6 @@ internal const char *const k_spec_goal_missing[ADDR_BUILDS] = { "", "" };
 internal int spec_goal_check(void) {
     int bad = 0;
     bad += spec_code(data_goal_at_goal_set_read, "goal.at_goal_set_read");
-    bad += spec_code(data_goal_call_goalset_again, "goal.call_goalset_again");
-    bad += spec_code(data_goal_call_goalset_ask, "goal.call_goalset_ask");
-    bad += spec_code(data_goal_call_goal_fba_check, "goal.call_goal_fba_check");
-    bad += spec_code(data_goal_call_slot_goal, "goal.call_slot_goal");
     bad += spec_code(data_goal_fn_goal_attack_ctor, "goal.fn_goal_attack_ctor");
     bad += spec_data(data_goal_vt_goal_attack, "goal.vt_goal_attack");
     bad += spec_data(data_goal_vt_goal_build, "goal.vt_goal_build");
@@ -181,11 +191,23 @@ internal int spec_goal_check(void) {
     bad += spec_data(data_goal_vt_goal_unload, "goal.vt_goal_unload");
     bad += spec_code((uintptr_t)fn_goal_build_init, "goal_functions.goal_build_init");
     bad += spec_code((uintptr_t)fn_goalset_ask, "goal_functions.goalset_ask");
+    bad += spec_call(calls_goalset_ask[0], (uintptr_t)fn_goalset_ask, "goal_functions.goalset_ask [call_site goalset_ask 0]");
+    bad += spec_call(calls_goalset_ask[1], (uintptr_t)fn_goalset_ask, "goal_functions.goalset_ask [call_site goalset_ask 1]");
     bad += spec_code((uintptr_t)fn_goal_fits, "goal_functions.goal_fits");
+    bad += spec_call(call_goal_fits, (uintptr_t)fn_goal_fits, "goal_functions.goal_fits [call_site goal_fits]");
     bad += spec_code((uintptr_t)fn_goal_load_ctor, "goal_functions.goal_load_ctor");
     bad += spec_code((uintptr_t)fn_goal_move_at_game, "goal_functions.goal_move_at_game");
+    bad += spec_call(call_slot_goal, (uintptr_t)fn_goal_move_at_game, "goal_functions.goal_move_at_game [call_site slot_goal]");
     bad += spec_code((uintptr_t)fn_goal_move_ctor, "goal_functions.goal_move_ctor");
     bad += spec_code((uintptr_t)fn_goal_unload_init, "goal_functions.goal_unload_init");
+    bad += spec_call(calls_unload_ctor[0], (uintptr_t)fn_goal_unload_init, "goal_functions.goal_unload_init [call_site unload_ctor 0]");
+    bad += spec_call(calls_unload_ctor[1], (uintptr_t)fn_goal_unload_init, "goal_functions.goal_unload_init [call_site unload_ctor 1]");
+    bad += spec_call(calls_unload_ctor[2], (uintptr_t)fn_goal_unload_init, "goal_functions.goal_unload_init [call_site unload_ctor 2]");
+    bad += spec_call(calls_unload_ctor[3], (uintptr_t)fn_goal_unload_init, "goal_functions.goal_unload_init [call_site unload_ctor 3]");
+    bad += spec_call(calls_unload_ctor[4], (uintptr_t)fn_goal_unload_init, "goal_functions.goal_unload_init [call_site unload_ctor 4]");
+    bad += spec_call(calls_unload_ctor[5], (uintptr_t)fn_goal_unload_init, "goal_functions.goal_unload_init [call_site unload_ctor 5]");
+    bad += spec_call(calls_unload_ctor[6], (uintptr_t)fn_goal_unload_init, "goal_functions.goal_unload_init [call_site unload_ctor 6]");
+    bad += spec_call(calls_unload_ctor[7], (uintptr_t)fn_goal_unload_init, "goal_functions.goal_unload_init [call_site unload_ctor 7]");
     bad += spec_code((uintptr_t)fn_goal_add_passenger, "goal_functions.goal_add_passenger");
     return bad;
 }

@@ -65,12 +65,6 @@ internal inline int route_cost(ee_route_planner *planner, int *edge, ee_route_no
 
 // HOOKS
 // ATTACK GROUPS AND SUBGROUPS (attack.c, forces.c, landing.c)
-typedef char (__thiscall *unit_to_group_hook)(void *cmd, ee_unit *u);
-internal inline int patch_unit_to_group(unit_to_group_hook h) { return patch_call(data_attack_call_unit_to_group, (uintptr_t)fn_unit_to_group, (void *)h); }
-typedef void (__thiscall *group_stat_hook)(void *stats, ee_unit *u);
-internal inline int patch_group_stat(group_stat_hook h) { return patch_call(data_attack_call_group_stat, (uintptr_t)fn_group_stat, (void *)h); }
-typedef void (__cdecl *range_sort_hook)(void **b, void **e, ee_unit *unit);
-internal inline int patch_range_sort(range_sort_hook h) { return patch_call(data_attack_call_range_sort, (uintptr_t)fn_range_sort, (void *)h); }
 typedef void (__thiscall *asg_hook)(ee_attack_subgroup *sg);
 // the subgroups' stats: the land subgroups' own, the others' (data_attack_asg_vtables)
 internal inline int patch_asg_land_stats(asg_hook h) { return patch_vtable(data_attack_vt_asg_land, value_attack_slot_asg_stats, (uintptr_t)fn_asg_land_stats, (void *)h); }

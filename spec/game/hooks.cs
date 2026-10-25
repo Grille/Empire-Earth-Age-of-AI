@@ -17,21 +17,6 @@ static unsafe class hooks
     [address((ee)0x006177CF, (aoc)0x0062A366)]
     static code call_attack_alert;
 
-    [address((ee)0x004CEC14, (aoc)0x004D4443)]
-    static code call_game_start;
-
-    /// call LoadSavedGameFromCmdline(UString *) 0x521F94
-    [address((ee)0x00522BF8, (aoc)0x0052D8F9)]
-    static code call_load_saved;
-
-    /// call ParseCommandLine(const char *) 0x522A36
-    [address((ee)0x00535EF2, (aoc)0x005410C8)]
-    static code call_parse_cmdline;
-
-    /// the idle transports' call of shore_to_unload
-    [address((ee)0x00483E24, (aoc)0x00488490)]
-    static code call_shore_to_unload;
-
     /// the loading splash's start (jne)
     [address((ee)0x00534400, (aoc)0x0053F2FE)]
     static code code_splash_start_jne;
@@ -108,16 +93,6 @@ static unsafe class hooks
     [address((ee)0x0065EB68, (aoc)0x0067615A)]
     static code minimap_fy_ops;
 
-    /// the other calls of set_resolution (display.c)
-    [address((ee)0x0065F30A, (aoc)0x006768F4)]
-    [address((ee)0x0065F61B, (aoc)0x00676C0A)]
-    [address((ee)0x0065F945, (aoc)0x00676F39)]
-    [address((ee)0x0065FAD4, (aoc)0x006770C8)]
-    [address((ee)0x00660CD3, (aoc)0x0067831D)]
-    [address((ee)0x00661329, (aoc)0x00678973)]
-    [address((ee)0x00661363, (aoc)0x006789AD)]
-    static code other_resolution_sites;
-
     /// GEFontBitmap::Draw (both overloads): movsx of a character
     [value((ee)0x27A46, (aoc)0x15C01)]
     static uint32 rva_lle_font_movsx_1;
@@ -167,6 +142,14 @@ static unsafe class hooks_functions
     static extern void draw_rec_ctor(void* p1);
 
     [address((ee)0x0065F314, (aoc)0x006768FE), stdcall]
+    // the other calls of set_resolution (display.c)
+    [call_site("other_resolution", (ee)0x0065F30A, (aoc)0x006768F4)]
+    [call_site("other_resolution", (ee)0x0065F61B, (aoc)0x00676C0A)]
+    [call_site("other_resolution", (ee)0x0065F945, (aoc)0x00676F39)]
+    [call_site("other_resolution", (ee)0x0065FAD4, (aoc)0x006770C8)]
+    [call_site("other_resolution", (ee)0x00660CD3, (aoc)0x0067831D)]
+    [call_site("other_resolution", (ee)0x00661329, (aoc)0x00678973)]
+    [call_site("other_resolution", (ee)0x00661363, (aoc)0x006789AD)]
     static extern void set_resolution(int32 w, int32 h, int32 force, int32 flag);
 }
 

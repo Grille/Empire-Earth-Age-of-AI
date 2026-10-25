@@ -36,5 +36,3 @@ typedef char (__thiscall *proj_down_hook)(void *cls, ee_unit *projectile);
 internal inline int patch_proj_down(proj_down_hook h) { return patch_vtable(data_unit_type_vt_projectile, value_unit_type_slot_proj_down, (uintptr_t)fn_proj_down, (void *)h); }
 typedef int (__thiscall *missile_launch_hook)(uint8_t *cls, ee_unit *m, float *aim);
 internal inline int patch_missile_launch(missile_launch_hook h) { return patch_vtable(data_unit_type_vt_missile, value_unit_type_slot_missile_launch, (uintptr_t)fn_missile_launch, (void *)h); }
-typedef void (__thiscall *fire_hook)(ee_unit_type *cls, ee_unit *u);
-internal inline int patch_fire(fire_hook h, int *of) { return patch_calls(PATCH_LIST(data_unit_type_fire_calls), (uintptr_t)fn_unit_fire, (void *)h, of); }

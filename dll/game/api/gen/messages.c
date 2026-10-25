@@ -122,7 +122,6 @@ internal inline uint8_t *server_rate_at(const ee_server *o) { return (uint8_t *)
 
 // static class messages
 // messages's data of the game, places in its code and numbers
-internal inline uint8_t *messages_call_sel_pack_at(void) { return (uint8_t *)(uintptr_t)data_messages_call_sel_pack; }
 // msg_cheat_init
 // msg_chat_init
 // messages.vt_pay_tribute, messages.vt_ingame_chat, messages.vt_resign, messages.vt_msg_load, messages.vt_msg_unload: the message's Execute
@@ -176,6 +175,7 @@ internal inline void select_msg_init(void *msg, float *rect, int type, int flags
 typedef uint32_t (__cdecl *sel_pack_fn)(uint8_t *, uint32_t, uint8_t *);
 internal sel_pack_fn fn_sel_pack;
 internal inline uint32_t sel_pack(uint8_t *list, uint32_t player_byte, uint8_t *out) { return fn_sel_pack(list, player_byte, out); }
+internal inline int patch_sel_pack(sel_pack_fn h) { return patch_call(call_sel_pack, (uintptr_t)fn_sel_pack, (void *)h); }
 
 // the running build's values (spec_select, with addr_select): how many it hasn't got
 internal int spec_messages_select(int build) {
@@ -209,7 +209,6 @@ internal int spec_messages_select(int build) {
         of_server_rate_max = 0x1B4;
         of_server_rate_min = 0x1B8;
         of_server_rate = 0x1FB;
-        data_messages_call_sel_pack = 0x004BD133;
         value_messages_size_cheat_msg = 24;
         value_messages_size_msg_chat = 36;
         value_messages_slot_msg_execute = 10;
@@ -230,6 +229,7 @@ internal int spec_messages_select(int build) {
         fn_msg_resign = (msg_resign_fn)0x004BB906;
         fn_select_msg_init = (select_msg_init_fn)0x004BD072;
         fn_sel_pack = (sel_pack_fn)0x004BD15A;
+        call_sel_pack = 0x004BD133;
         return 0;
     case 1:   // aoc
         of_chat_msg_from = 0xA;
@@ -260,7 +260,6 @@ internal int spec_messages_select(int build) {
         of_server_rate_max = 0x1B4;
         of_server_rate_min = 0x1B8;
         of_server_rate = 0x1FB;
-        data_messages_call_sel_pack = 0x004C5E40;
         value_messages_size_cheat_msg = 24;
         value_messages_size_msg_chat = 36;
         value_messages_slot_msg_execute = 10;
@@ -281,6 +280,7 @@ internal int spec_messages_select(int build) {
         fn_msg_resign = (msg_resign_fn)0x004C44BB;
         fn_select_msg_init = (select_msg_init_fn)0x004C5D7F;
         fn_sel_pack = (sel_pack_fn)0x004C5E67;
+        call_sel_pack = 0x004C5E40;
         return 0;
     }
     return 0;
@@ -290,7 +290,6 @@ internal const char *const k_spec_messages_missing[ADDR_BUILDS] = { "", "" };
 // the load-time check: what the spec says of the running build's exe (spec_check): the failures
 internal int spec_messages_check(void) {
     int bad = 0;
-    bad += spec_code(data_messages_call_sel_pack, "messages.call_sel_pack");
     bad += spec_data(data_messages_start_vtbl_exec, "messages.start_vtbl_exec");
     bad += spec_data(data_messages_vt_ingame_chat, "messages.vt_ingame_chat");
     bad += spec_data(data_messages_vt_msg_load, "messages.vt_msg_load");
@@ -307,5 +306,6 @@ internal int spec_messages_check(void) {
     bad += spec_code((uintptr_t)fn_msg_resign, "messages_functions.msg_resign");
     bad += spec_code((uintptr_t)fn_select_msg_init, "messages_functions.select_msg_init");
     bad += spec_code((uintptr_t)fn_sel_pack, "messages_functions.sel_pack");
+    bad += spec_call(call_sel_pack, (uintptr_t)fn_sel_pack, "messages_functions.sel_pack [call_site sel_pack]");
     return bad;
 }

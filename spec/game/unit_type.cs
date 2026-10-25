@@ -187,12 +187,6 @@ unsafe struct ee_unit_stats
 /// unit_type's data of the game, places in its code and numbers
 static unsafe class unit_type
 {
-    /// the calls of unit_fire (aim.c)
-    [address((ee)0x00606067, (aoc)0x00617838)]
-    [address((ee)0x00607D79, (aoc)0x00619604)]
-    [address((ee)0x0060ABB0, (aoc)0x0061D174)]
-    [address((ee)0x0060B33C, (aoc)0x0061D997)]
-    static code fire_calls;
 
     /// attack_bonus_game's object
     [address((ee)0x00917DE0, (aoc)0x009318E8)]
@@ -233,7 +227,12 @@ static unsafe class unit_type_functions
 
     /// thiscall(attacker class, attacker)
     [address((ee)0x0061E11C, (aoc)0x00631312), thiscall]
-    static extern void unit_fire(void* cls, EEUnit* u);
+    // the calls of unit_fire (aim.c)
+    [call_site("fire", (ee)0x00606067, (aoc)0x00617838)]
+    [call_site("fire", (ee)0x00607D79, (aoc)0x00619604)]
+    [call_site("fire", (ee)0x0060ABB0, (aoc)0x0061D174)]
+    [call_site("fire", (ee)0x0060B33C, (aoc)0x0061D997)]
+    static extern void unit_fire(EEUnitClass* cls, EEUnit* u);
 
     /// EEUCMissile vf42, thiscall(class, missile, aim) - ret 8, the aim unused
     [address((ee)0x00606109, (aoc)0x0061799B), thiscall]

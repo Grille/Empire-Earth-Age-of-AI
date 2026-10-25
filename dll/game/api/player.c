@@ -57,23 +57,12 @@ internal inline char player_is_human(ee_player *pl) { return ((char (__thiscall 
 // HOOKS
 // COMPUTER PLAYERS (econ.c)
 // the computer player's update (engine/scenario_ai.c: the scenario flag cleared meanwhile)
-typedef void (__thiscall *cp_update_hook)(ee_player *pl, uint32_t now);
-internal inline int patch_cp_update(cp_update_hook h) { return patch_call(data_player_call_cp_update, (uintptr_t)fn_cp_update, (void *)h); }
 typedef void (__thiscall *cp_pay_hook)(ee_player *pl, void *what, int b, int c);
 internal inline int patch_cp_pay(cp_pay_hook h) { return patch_vtable(data_player_vt_computer_player, value_player_slot_cp_pay, (uintptr_t)fn_cp_pay, (void *)h); }
 typedef void (__thiscall *cp_add_resource_hook)(ee_player *pl, int type, int amount);
 internal inline int patch_cp_add_resource(cp_add_resource_hook h) {
     return patch_vtable(data_player_vt_computer_player, value_player_slot_cp_add_resource, (uintptr_t)fn_cp_add_resource, (void *)h);
 }
-typedef void (__thiscall *pop_cap_hook)(ee_player *pl);
-internal inline int patch_pop_cap(pop_cap_hook h, int *of) {
-    const uint32_t sites[3] = { data_player_call_pop_cap_1, data_player_call_pop_cap_2, data_player_call_pop_cap_3 };
-    return patch_calls(sites, 3, (uintptr_t)fn_cp_update_pop_cap, (void *)h, of);
-}
-typedef void (__thiscall *epoch_catch_up_hook)(ee_player *ai, ee_player *human);
-internal inline int patch_epoch_catch_up(epoch_catch_up_hook h) { return patch_call(data_player_call_epoch_catch_up, (uintptr_t)fn_cp_epoch_catch_up, (void *)h); }
 // the maintenance's deletion of units for room (the navy keeps its ships: fleet.c)
-typedef int (__thiscall *delete_for_room_hook)(ee_player *pl, void *req, int flag);
-internal inline int patch_maint_delete(delete_for_room_hook h) { return patch_call(data_player_call_nv_maint_delete, (uintptr_t)fn_delete_for_room, (void *)h); }
 // a kill counted in the statistics (diplo.c - a thunk)
 internal inline int patch_kill_stat(thunk_fn thunk) { return patch_call(data_player_call_kill_stat, (uintptr_t)fn_stat_add, (void *)thunk); }

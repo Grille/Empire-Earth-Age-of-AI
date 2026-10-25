@@ -2303,7 +2303,7 @@ internal void ld_fu_check(uint32_t now) {
         else if (f->state < 2 && now - f->t > 30000) ld_fu_log(f, "never its goal", n);
     }
 }
-internal void *__thiscall hook_unload_ctor(ee_goal *g, ee_unit *tr, int x, int y, int flag) {
+internal ee_goal *__thiscall hook_unload_ctor(ee_goal *g, ee_unit *tr, int x, int y, int flag) {
     uintptr_t ret = (uintptr_t)__builtin_return_address(0) - 5;
     if (unload_from_rm(ret) && tr && expand_ship(tr)) return NULL;   // an outpost's ferry (expand.c): not the transport manager's crossing
     for (int p = 0; p < 16 && tr && !is_vanilla(unit_get_owner(tr)); p++)   // a vanilla player's transport: never a landing's
@@ -2318,7 +2318,7 @@ internal void *__thiscall hook_unload_ctor(ee_goal *g, ee_unit *tr, int x, int y
                     return NULL;
                 }
                 if (g_log) fprintf(g_log, "# landing: P%d's transport %d (phase %d) told to unload at %d,%d by the game (call at 0x%X)\n", p, k, g_ld[p].phase, x, y, (unsigned)ret);
-                void *r = goal_unload_init(g, tr, x, y, flag);
+                ee_goal *r = goal_unload_init(g, tr, x, y, flag);
                 int j = 0;
                 while (j < 15 && g_fu[j].sh) j++;
                 if (r) {

@@ -174,15 +174,7 @@ internal inline uint8_t *plstats_lists_at(const ee_player_stats *o) { return (ui
 
 // static class player
 // player's data of the game, places in its code and numbers
-internal inline uint8_t *player_call_cp_update_at(void) { return (uint8_t *)(uintptr_t)data_player_call_cp_update; }
-// its one call: EEPlayer::vf41, a human reached an epoch
-internal inline uint8_t *player_call_epoch_catch_up_at(void) { return (uint8_t *)(uintptr_t)data_player_call_epoch_catch_up; }
 internal inline uint8_t *player_call_kill_stat_at(void) { return (uint8_t *)(uintptr_t)data_player_call_kill_stat; }
-internal inline uint8_t *player_call_nv_maint_delete_at(void) { return (uint8_t *)(uintptr_t)data_player_call_nv_maint_delete; }
-// the callers of cp_update_pop_cap
-internal inline uint8_t *player_call_pop_cap_1_at(void) { return (uint8_t *)(uintptr_t)data_player_call_pop_cap_1; }
-internal inline uint8_t *player_call_pop_cap_2_at(void) { return (uint8_t *)(uintptr_t)data_player_call_pop_cap_2; }
-internal inline uint8_t *player_call_pop_cap_3_at(void) { return (uint8_t *)(uintptr_t)data_player_call_pop_cap_3; }
 // player.vt_computer_player: cp_add_resource (econ.c's hook; AoC as before)
 // player.vt_computer_player: cp_pay (econ.c's hook; AoC as before)
 // EEPlayer: char thiscall(player) - human (EEHumanPlayer's returns 1; highest_human_epoch's test)
@@ -218,13 +210,16 @@ internal inline void cp_pay(ee_player *pl, void *what, int b, int c) { fn_cp_pay
 typedef void (__thiscall *cp_update_fn)(ee_player *, uint32_t);
 internal cp_update_fn fn_cp_update;
 internal inline void cp_update(ee_player *pl, uint32_t now) { fn_cp_update(pl, now); }
+internal inline int patch_cp_update(cp_update_fn h) { return patch_call(call_cp_update, (uintptr_t)fn_cp_update, (void *)h); }
 typedef int (__thiscall *delete_for_room_fn)(ee_player *, void *, int);
 internal delete_for_room_fn fn_delete_for_room;
 internal inline int delete_for_room(ee_player *pl, void *req, int flag) { return fn_delete_for_room(pl, req, flag); }
+internal inline int patch_maint_delete(delete_for_room_fn h) { return patch_call(call_maint_delete, (uintptr_t)fn_delete_for_room, (void *)h); }
 // thiscall(computer player, human): the attempt redrawn soon when the human is ahead
 typedef void (__thiscall *cp_epoch_catch_up_fn)(ee_player *, ee_player *);
 internal cp_epoch_catch_up_fn fn_cp_epoch_catch_up;
 internal inline void cp_epoch_catch_up(ee_player *ai, ee_player *human) { fn_cp_epoch_catch_up(ai, human); }
+internal inline int patch_epoch_catch_up(cp_epoch_catch_up_fn h) { return patch_call(call_epoch_catch_up, (uintptr_t)fn_cp_epoch_catch_up, (void *)h); }
 // EEPlayer::vf31 thiscall(player, 0): the game's unit limit for this player
 typedef int (__thiscall *game_limit_fn)(void *, int);
 internal game_limit_fn fn_game_limit;
@@ -245,6 +240,7 @@ internal inline int population(ee_player *pl, int with_list, int with_aboard) { 
 typedef void (__thiscall *cp_update_pop_cap_fn)(ee_player *);
 internal cp_update_pop_cap_fn fn_cp_update_pop_cap;
 internal inline void cp_update_pop_cap(ee_player *pl) { fn_cp_update_pop_cap(pl); }
+internal inline int patch_pop_cap(cp_update_pop_cap_fn h, int *of) { return patch_calls(calls_pop_cap, 3, (uintptr_t)fn_cp_update_pop_cap, (void *)h, of); }
 // thiscall(player, now): the next attack time (+0xED8)
 typedef void (__thiscall *cp_schedule_attack_fn)(ee_player *, uint32_t);
 internal cp_schedule_attack_fn fn_cp_schedule_attack;
@@ -324,13 +320,7 @@ internal int spec_player_select(int build) {
         of_player_first_attack_done = 0xF05;
         of_b98_att = 0x2D;
         of_plstats_lists = 0x1C;
-        data_player_call_cp_update = 0x0042F3CD;
-        data_player_call_epoch_catch_up = 0x0055A5B5;
         data_player_call_kill_stat = 0x00617780;
-        data_player_call_nv_maint_delete = 0x00477B17;
-        data_player_call_pop_cap_1 = 0x004311E5;
-        data_player_call_pop_cap_2 = 0x0043FA9B;
-        data_player_call_pop_cap_3 = 0x00474AF0;
         value_player_slot_cp_add_resource = 18;
         value_player_slot_cp_pay = 45;
         value_player_slot_player_human = 29;
@@ -343,13 +333,19 @@ internal int spec_player_select(int build) {
         fn_cp_add_resource = (cp_add_resource_fn)0x0042F783;
         fn_cp_pay = (cp_pay_fn)0x0043F53D;
         fn_cp_update = (cp_update_fn)0x0043F91A;
+        call_cp_update = 0x0042F3CD;
         fn_delete_for_room = (delete_for_room_fn)0x00430D40;
+        call_maint_delete = 0x00477B17;
         fn_cp_epoch_catch_up = (cp_epoch_catch_up_fn)0x00431533;
+        call_epoch_catch_up = 0x0055A5B5;
         fn_game_limit = (game_limit_fn)0x00556EBC;
         fn_place_foundation = (place_foundation_fn)0x0062EF8A;
         fn_player_resign = (player_resign_fn)0x0055BCEA;
         fn_population = (population_fn)0x00556E11;
         fn_cp_update_pop_cap = (cp_update_pop_cap_fn)0x0042F7A5;
+        calls_pop_cap[0] = 0x004311E5;
+        calls_pop_cap[1] = 0x0043FA9B;
+        calls_pop_cap[2] = 0x00474AF0;
         fn_cp_schedule_attack = (cp_schedule_attack_fn)0x0043DD2F;
         fn_player_select = (player_select_fn)0x0055B3FB;
         fn_set_diplomacy_game = (set_diplomacy_game_fn)0x0055B8E1;
@@ -411,13 +407,7 @@ internal int spec_player_select(int build) {
         of_player_first_attack_done = 0xF55;
         of_b98_att = 0x2D;
         of_plstats_lists = 0x1C;
-        data_player_call_cp_update = 0x0042CDD1;
-        data_player_call_epoch_catch_up = 0x00569633;
         data_player_call_kill_stat = 0x0062A2DF;
-        data_player_call_nv_maint_delete = 0x0047B635;
-        data_player_call_pop_cap_1 = 0x0042ECF6;
-        data_player_call_pop_cap_2 = 0x0043F2F6;
-        data_player_call_pop_cap_3 = 0x004781C9;
         value_player_slot_cp_add_resource = 18;
         value_player_slot_cp_pay = 45;
         value_player_slot_player_human = 29;
@@ -430,13 +420,19 @@ internal int spec_player_select(int build) {
         fn_cp_add_resource = (cp_add_resource_fn)0x0042D1A5;
         fn_cp_pay = (cp_pay_fn)0x0043ED98;
         fn_cp_update = (cp_update_fn)0x0043F175;
+        call_cp_update = 0x0042CDD1;
         fn_delete_for_room = (delete_for_room_fn)0x0042E851;
+        call_maint_delete = 0x0047B635;
         fn_cp_epoch_catch_up = (cp_epoch_catch_up_fn)0x0042F064;
+        call_epoch_catch_up = 0x00569633;
         fn_game_limit = (game_limit_fn)0x0056528B;
         fn_place_foundation = (place_foundation_fn)0x00644C83;
         fn_player_resign = (player_resign_fn)0x0056AF5C;
         fn_population = (population_fn)0x005651E0;
         fn_cp_update_pop_cap = (cp_update_pop_cap_fn)0x0042D1C7;
+        calls_pop_cap[0] = 0x0042ECF6;
+        calls_pop_cap[1] = 0x0043F2F6;
+        calls_pop_cap[2] = 0x004781C9;
         fn_cp_schedule_attack = (cp_schedule_attack_fn)0x0043D4CD;
         fn_player_select = (player_select_fn)0x0056A658;
         fn_set_diplomacy_game = (set_diplomacy_game_fn)0x0056AB41;
@@ -452,13 +448,7 @@ internal const char *const k_spec_player_missing[ADDR_BUILDS] = { "", "" };
 // the load-time check: what the spec says of the running build's exe (spec_check): the failures
 internal int spec_player_check(void) {
     int bad = 0;
-    bad += spec_code(data_player_call_cp_update, "player.call_cp_update");
-    bad += spec_code(data_player_call_epoch_catch_up, "player.call_epoch_catch_up");
     bad += spec_code(data_player_call_kill_stat, "player.call_kill_stat");
-    bad += spec_code(data_player_call_nv_maint_delete, "player.call_nv_maint_delete");
-    bad += spec_code(data_player_call_pop_cap_1, "player.call_pop_cap_1");
-    bad += spec_code(data_player_call_pop_cap_2, "player.call_pop_cap_2");
-    bad += spec_code(data_player_call_pop_cap_3, "player.call_pop_cap_3");
     bad += spec_data(data_player_vt_computer_player, "player.vt_computer_player");
     bad += spec_code((uintptr_t)fn_cp_adjust_cost, "player_functions.cp_adjust_cost");
     bad += spec_code((uintptr_t)fn_call_off_attacks, "player_functions.call_off_attacks");
@@ -467,13 +457,19 @@ internal int spec_player_check(void) {
     bad += spec_code((uintptr_t)fn_cp_add_resource, "player_functions.cp_add_resource");
     bad += spec_code((uintptr_t)fn_cp_pay, "player_functions.cp_pay");
     bad += spec_code((uintptr_t)fn_cp_update, "player_functions.cp_update");
+    bad += spec_call(call_cp_update, (uintptr_t)fn_cp_update, "player_functions.cp_update [call_site cp_update]");
     bad += spec_code((uintptr_t)fn_delete_for_room, "player_functions.delete_for_room");
+    bad += spec_call(call_maint_delete, (uintptr_t)fn_delete_for_room, "player_functions.delete_for_room [call_site maint_delete]");
     bad += spec_code((uintptr_t)fn_cp_epoch_catch_up, "player_functions.cp_epoch_catch_up");
+    bad += spec_call(call_epoch_catch_up, (uintptr_t)fn_cp_epoch_catch_up, "player_functions.cp_epoch_catch_up [call_site epoch_catch_up]");
     bad += spec_code((uintptr_t)fn_game_limit, "player_functions.game_limit");
     bad += spec_code((uintptr_t)fn_place_foundation, "player_functions.place_foundation");
     bad += spec_code((uintptr_t)fn_player_resign, "player_functions.player_resign");
     bad += spec_code((uintptr_t)fn_population, "player_functions.population");
     bad += spec_code((uintptr_t)fn_cp_update_pop_cap, "player_functions.cp_update_pop_cap");
+    bad += spec_call(calls_pop_cap[0], (uintptr_t)fn_cp_update_pop_cap, "player_functions.cp_update_pop_cap [call_site pop_cap 0]");
+    bad += spec_call(calls_pop_cap[1], (uintptr_t)fn_cp_update_pop_cap, "player_functions.cp_update_pop_cap [call_site pop_cap 1]");
+    bad += spec_call(calls_pop_cap[2], (uintptr_t)fn_cp_update_pop_cap, "player_functions.cp_update_pop_cap [call_site pop_cap 2]");
     bad += spec_code((uintptr_t)fn_cp_schedule_attack, "player_functions.cp_schedule_attack");
     bad += spec_code((uintptr_t)fn_player_select, "player_functions.player_select");
     bad += spec_code((uintptr_t)fn_set_diplomacy_game, "player_functions.set_diplomacy_game");

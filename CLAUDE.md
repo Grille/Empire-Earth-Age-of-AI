@@ -51,10 +51,12 @@ and the runners, eectl, the MCP server), `results/` (log readers, scorers), `re/
   side had (cm_, asg_ ... - the player: the C types renamed to fit, later). At load, before any patch, the spec is
   checked against the running exe (gen/'s spec_check, exe.c's helpers: code in .text, data in the image, a [vtable]
   its class's RTTI name, a class's own function in its slot, a [call_site] a call of its function) - the start's log
-  says `# spec: N checks against the exe, all hold` or names what fails: read it after a spec change or a port. Still
-  to do: the call sites as `[call_site]` of their function (they are places now, the hand-written patch_ functions
-  use them - the check doesn't see them yet), the game's functions as methods of their classes, game enums, a Ghidra
-  export. Two builds: the 2017 update and Art of Conquest (not ready: tested in AoC only since 2026-10-21 -
+  says `# spec: N checks against the exe, all hold` or names what fails: read it after a spec change or a port. A call site
+  the mod patches is a `[call_site("x", ...)]` of its function: gen/ makes call_x (several: calls_x[]) and
+  patch_x(hook), the hook the function's own type (`<function>_fn` - a hook with other parameters doesn't build:
+  wrong types are the spec's to fix). Still places (`code`, a hand-written installer): a call hooked by an asm thunk
+  (no C type), an installer over two functions or by build. Still to do: the game's functions as methods of their
+  classes, game enums, a Ghidra export. Two builds: the 2017 update and Art of Conquest (not ready: tested in AoC only since 2026-10-21 -
   test runs play it, `EE_GAME_DIR=<its folder>`, docs/testing.md); a new value needs both. The port scripts read the
   spec (`scripts/re/port_addrs.py`: every address's AoC value found again and compared with the spec's - same,
   DIFFERS, NEW; `port_check.py` a class's fields by its code; `port_fields.py`, `port_dll.py`): a value they find goes

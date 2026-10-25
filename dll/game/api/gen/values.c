@@ -45,23 +45,21 @@ internal uint32_t of_um_requests;
 internal uint32_t of_um_player;
 internal uint32_t of_um_in_production;
 internal uint32_t of_um_att_140;
-internal uint32_t data_ai_managers_call_assign_citizens;
-internal uint32_t data_ai_managers_call_citizens_wanted;
-internal uint32_t data_ai_managers_call_compute_targets;
 internal uint32_t data_ai_managers_call_farms;
-internal uint32_t data_ai_managers_call_fish_type_1;
-internal uint32_t data_ai_managers_call_fish_type_2;
-internal uint32_t data_ai_managers_call_hunt_1;
-internal uint32_t data_ai_managers_call_hunt_2;
-internal uint32_t data_ai_managers_call_place;
-internal uint32_t data_ai_managers_call_rm_update;
-internal uint32_t data_ai_managers_call_train_citizens;
 internal uint32_t data_ai_managers_call_unbuilt_farms;
-internal uint32_t data_ai_managers_food_sites[6];
-internal uint32_t data_ai_managers_gather_sites[11];
-internal uint32_t data_ai_managers_mine_sites[6];
-internal uint32_t data_ai_managers_train_sites[5];
-internal uint32_t data_ai_managers_wood_sites[2];
+internal uint32_t call_rm_assign_citizens;
+internal uint32_t calls_gather[11];
+internal uint32_t call_rm_compute_targets;
+internal uint32_t calls_find_food[6];
+internal uint32_t calls_find_mine[6];
+internal uint32_t calls_find_wood[2];
+internal uint32_t calls_fish_type[2];
+internal uint32_t calls_hunt[2];
+internal uint32_t call_place;
+internal uint32_t call_rm_update;
+internal uint32_t call_train_citizens;
+internal uint32_t calls_train_units[5];
+internal uint32_t call_citizens_wanted;
 
 // api.cs
 internal uint32_t data_api_world_clock;
@@ -105,9 +103,6 @@ internal uint32_t data_attack_asgu_vtables[6];
 internal uint32_t data_attack_asg_vtables[6];
 internal uint32_t data_attack_call_asg_air_queue_pop;
 internal uint32_t data_attack_call_asg_queue_pop;
-internal uint32_t data_attack_call_group_stat;
-internal uint32_t data_attack_call_range_sort;
-internal uint32_t data_attack_call_unit_to_group;
 internal uint32_t data_attack_fn_asg_queue_pop;
 internal uint32_t value_attack_slot_asgu_score;
 internal uint32_t value_attack_slot_asg_give_goal;
@@ -123,6 +118,9 @@ internal uint32_t data_attack_vt_asg_land;
 internal uint32_t data_attack_vt_asg_sea;
 internal uint32_t data_attack_vt_asg_sea_transport;
 internal uint32_t data_attack_vt_route_planner;
+internal uint32_t call_group_stat;
+internal uint32_t call_range_sort;
+internal uint32_t call_unit_to_group;
 
 // engine_display.cs
 internal uint32_t of_dstate_device;
@@ -261,6 +259,11 @@ internal uint32_t value_game_size_pause_action;
 internal uint32_t value_game_size_save_action;
 internal uint32_t data_game_vtbl_phys_step;
 internal uint32_t data_game_vt_pause_action;
+internal uint32_t call_editor_form;
+internal uint32_t call_game_start;
+internal uint32_t call_load_saved;
+internal uint32_t call_parse_cmdline;
+internal uint32_t call_shore_to_unload;
 
 // goal.cs
 internal uint32_t of_goal_state;
@@ -269,10 +272,6 @@ internal uint32_t of_goal_0x38;
 internal uint32_t of_goal_0x3c;
 internal uint32_t of_goal_holder;
 internal uint32_t data_goal_at_goal_set_read;
-internal uint32_t data_goal_call_goalset_again;
-internal uint32_t data_goal_call_goalset_ask;
-internal uint32_t data_goal_call_goal_fba_check;
-internal uint32_t data_goal_call_slot_goal;
 internal uint32_t data_goal_fn_goal_attack_ctor;
 internal uint32_t value_goal_size_goal_attack;
 internal uint32_t value_goal_size_goal_build;
@@ -287,15 +286,15 @@ internal uint32_t data_goal_vt_goal_build;
 internal uint32_t data_goal_vt_goal_load;
 internal uint32_t data_goal_vt_goal_location;
 internal uint32_t data_goal_vt_goal_unload;
+internal uint32_t calls_goalset_ask[2];
+internal uint32_t call_goal_fits;
+internal uint32_t call_slot_goal;
+internal uint32_t calls_unload_ctor[8];
 
 // hooks.cs
 internal uint32_t of_draw_record_0x58;
 internal uint32_t of_draw_record_0xfc;
 internal uint32_t data_hooks_call_attack_alert;
-internal uint32_t data_hooks_call_game_start;
-internal uint32_t data_hooks_call_load_saved;
-internal uint32_t data_hooks_call_parse_cmdline;
-internal uint32_t data_hooks_call_shore_to_unload;
 internal uint32_t data_hooks_code_splash_start_jne;
 internal uint32_t data_hooks_code_splash_stop_jne;
 internal uint32_t data_hooks_draw_old;
@@ -311,7 +310,6 @@ internal uint32_t data_hooks_iat_srand;
 internal uint32_t data_hooks_intro_calls[3];
 internal uint32_t data_hooks_minimap_fx_ops[3];
 internal uint32_t data_hooks_minimap_fy_ops[3];
-internal uint32_t data_hooks_other_resolution_sites[7];
 internal uint32_t value_hooks_rva_lle_font_movsx_1;
 internal uint32_t value_hooks_rva_lle_font_movsx_2;
 internal uint32_t value_hooks_rva_lle_iat_wfmo;
@@ -323,6 +321,7 @@ internal uint32_t data_hooks_site_editor_menu;
 internal uint32_t data_hooks_site_editor_res;
 internal uint32_t data_hooks_site_sim_receive;
 internal uint32_t data_hooks_site_sim_wait;
+internal uint32_t calls_other_resolution[7];
 internal uint32_t data_tcp_protocol_ports[8];
 
 // map.cs
@@ -384,7 +383,6 @@ internal uint32_t of_server_done;
 internal uint32_t of_server_rate_max;
 internal uint32_t of_server_rate_min;
 internal uint32_t of_server_rate;
-internal uint32_t data_messages_call_sel_pack;
 internal uint32_t value_messages_size_cheat_msg;
 internal uint32_t value_messages_size_msg_chat;
 internal uint32_t value_messages_slot_msg_execute;
@@ -395,6 +393,7 @@ internal uint32_t data_messages_vt_msg_load;
 internal uint32_t data_messages_vt_msg_unload;
 internal uint32_t data_messages_vt_pay_tribute;
 internal uint32_t data_messages_vt_resign;
+internal uint32_t call_sel_pack;
 
 // movement.cs
 internal uint32_t value_movement_slot_pm_collide;
@@ -411,11 +410,10 @@ internal uint32_t data_movement_vt_pm_submerged;
 // patching.cs
 internal uint32_t data_patching_call_unload_rm;
 internal uint32_t data_patching_ret_asg_land_handoff_give;
-internal uint32_t data_patching_unload_sites[8];
 
 // path.cs
 internal uint32_t of_unit_list_units;
-internal uint32_t data_path_call_group_sector_route;
+internal uint32_t call_group_sector_route;
 
 // player.cs
 internal uint32_t of_player_list_begin;
@@ -471,18 +469,16 @@ internal uint32_t of_player_ignore;
 internal uint32_t of_player_first_attack_done;
 internal uint32_t of_b98_att;
 internal uint32_t of_plstats_lists;
-internal uint32_t data_player_call_cp_update;
-internal uint32_t data_player_call_epoch_catch_up;
 internal uint32_t data_player_call_kill_stat;
-internal uint32_t data_player_call_nv_maint_delete;
-internal uint32_t data_player_call_pop_cap_1;
-internal uint32_t data_player_call_pop_cap_2;
-internal uint32_t data_player_call_pop_cap_3;
 internal uint32_t value_player_slot_cp_add_resource;
 internal uint32_t value_player_slot_cp_pay;
 internal uint32_t value_player_slot_player_human;
 internal uint32_t value_player_slot_unit_limit;
 internal uint32_t data_player_vt_computer_player;
+internal uint32_t call_cp_update;
+internal uint32_t call_maint_delete;
+internal uint32_t call_epoch_catch_up;
+internal uint32_t calls_pop_cap[3];
 
 // scenario.cs
 internal uint32_t of_scen_chat;
@@ -707,16 +703,10 @@ internal uint32_t of_scroll_ticks;
 internal uint32_t of_scroll_keys;
 internal uint32_t of_uiform_top_bar;
 internal uint32_t of_uiscreen_controls;
-internal uint32_t data_ui_call_click_mark;
-internal uint32_t data_ui_call_player_color;
-internal uint32_t data_ui_call_unload_marks;
 internal uint32_t data_ui_gfx_effects;
 internal uint32_t data_ui_iat_edit_get_text;
 internal uint32_t data_ui_iat_uiform_add_hotkey;
 internal uint32_t data_ui_iat_uim_form;
-internal uint32_t data_ui_mouse_update_sites[4];
-internal uint32_t data_ui_native_chat_sites[5];
-internal uint32_t data_ui_site_editor_form;
 internal uint32_t data_ui_site_scroll_timer;
 internal uint32_t value_ui_size_camera_action;
 internal uint32_t value_ui_size_key_scroll;
@@ -726,6 +716,11 @@ internal uint32_t data_ui_sp_fns[6];
 internal uint32_t data_ui_sp_vtables[6];
 internal uint32_t data_ui_vt_key_scroll;
 internal uint32_t data_ui_vt_scroll;
+internal uint32_t call_player_color;
+internal uint32_t call_click_mark;
+internal uint32_t calls_mouse_update[4];
+internal uint32_t calls_native_chat[5];
+internal uint32_t call_unload_marks;
 
 // unit.cs
 internal uint32_t size_rts_unit;
@@ -833,7 +828,6 @@ internal uint32_t of_stat_attack;
 internal uint32_t of_stat_armor;
 internal uint32_t of_stat_reload;
 internal uint32_t of_stat_hp;
-internal uint32_t data_unit_type_fire_calls[4];
 internal uint32_t data_unit_type_bonus_table;
 internal uint32_t value_unit_type_slot_missile_launch;
 internal uint32_t value_unit_type_slot_proj_down;
@@ -841,6 +835,7 @@ internal uint32_t value_unit_type_slot_type_assign;
 internal uint32_t value_unit_type_slot_type_can_carry;
 internal uint32_t data_unit_type_vt_missile;
 internal uint32_t data_unit_type_vt_projectile;
+internal uint32_t calls_fire[4];
 
 // world.cs
 internal uint32_t of_dmgmodel_map;

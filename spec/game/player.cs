@@ -195,28 +195,9 @@ unsafe struct EEPlayerStatistics
 /// player's data of the game, places in its code and numbers
 static unsafe class player
 {
-    [address((ee)0x0042F3CD, (aoc)0x0042CDD1)]
-    static code call_cp_update;
-
-    /// its one call: EEPlayer::vf41, a human reached an epoch
-    [address((ee)0x0055A5B5, (aoc)0x00569633)]
-    static code call_epoch_catch_up;
 
     [address((ee)0x00617780, (aoc)0x0062A2DF)]
     static code call_kill_stat;
-
-    [address((ee)0x00477B17, (aoc)0x0047B635)]
-    static code call_nv_maint_delete;
-
-    /// the callers of cp_update_pop_cap
-    [address((ee)0x004311E5, (aoc)0x0042ECF6)]
-    static code call_pop_cap_1;
-
-    [address((ee)0x0043FA9B, (aoc)0x0043F2F6)]
-    static code call_pop_cap_2;
-
-    [address((ee)0x00474AF0, (aoc)0x004781C9)]
-    static code call_pop_cap_3;
 
     /// player.vt_computer_player: cp_add_resource (econ.c's hook; AoC as before)
     [value(18)]
@@ -267,13 +248,17 @@ static unsafe class player_functions
     static extern void cp_pay(EEPlayer* pl, void* what, int32 b, int32 c);
 
     [address((ee)0x0043F91A, (aoc)0x0043F175), thiscall]
+    [call_site("cp_update", (ee)0x0042F3CD, (aoc)0x0042CDD1)]
     static extern void cp_update(EEPlayer* pl, uint32 now);
 
     [address((ee)0x00430D40, (aoc)0x0042E851), thiscall]
+    [call_site("maint_delete", (ee)0x00477B17, (aoc)0x0047B635)]
     static extern int32 delete_for_room(EEPlayer* pl, void* req, int32 flag);
 
     /// thiscall(computer player, human): the attempt redrawn soon when the human is ahead
     [address((ee)0x00431533, (aoc)0x0042F064), thiscall]
+    // its one call: EEPlayer::vf41, a human reached an epoch
+    [call_site("epoch_catch_up", (ee)0x0055A5B5, (aoc)0x00569633)]
     static extern void cp_epoch_catch_up(EEPlayer* ai, EEPlayer* human);
 
     /// EEPlayer::vf31 thiscall(player, 0): the game's unit limit for this player
@@ -294,6 +279,10 @@ static unsafe class player_functions
 
     /// thiscall(player), called at 0x4311E5, 0x43FA9B, 0x474AF0
     [address((ee)0x0042F7A5, (aoc)0x0042D1C7), thiscall]
+    // the callers of cp_update_pop_cap
+    [call_site("pop_cap", (ee)0x004311E5, (aoc)0x0042ECF6)]
+    [call_site("pop_cap", (ee)0x0043FA9B, (aoc)0x0043F2F6)]
+    [call_site("pop_cap", (ee)0x00474AF0, (aoc)0x004781C9)]
     static extern void cp_update_pop_cap(EEPlayer* pl);
 
     /// thiscall(player, now): the next attack time (+0xED8)

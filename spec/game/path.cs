@@ -10,9 +10,6 @@ unsafe struct ee_unit_list
 /// path's data of the game, places in its code and numbers
 static unsafe class path
 {
-    /// EEActiveGroup::vf16's call of group_sector_route, for each cluster of the group
-    [address((ee)0x005DB5C8, (aoc)0x005EBF0C)]
-    static code call_group_sector_route;
 }
 
 /// the game's functions path.c wraps, by the names the C side gives them
@@ -22,6 +19,8 @@ static unsafe class path_functions
     /// thiscall(group, int from[2], int to[2], units): a sector route for a cluster of a group's units, each given
     /// its chain of auto-waypoint goals
     [address((ee)0x005F670A, (aoc)0x00606581), thiscall]
+    // EEActiveGroup::vf16's call of group_sector_route, for each cluster of the group
+    [call_site("group_sector_route", (ee)0x005DB5C8, (aoc)0x005EBF0C)]
     static extern void group_sector_route(void* group, int32* from, int32* to, void* units);
 
     /// the path manager's route request: thiscall(mgr, unit, from tile, to tile, sync, node limit, use sectors, ctx),

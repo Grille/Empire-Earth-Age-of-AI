@@ -90,11 +90,6 @@ internal inline uint8_t ***uiscreen_controls_at(const ee_ui_screen *o) { return 
 
 // static class ui
 // ui's data of the game, places in its code and numbers
-// EEAMouseClick::vf3's gfx_add: the command's circle
-internal inline uint8_t *ui_call_click_mark_at(void) { return (uint8_t *)(uintptr_t)data_ui_call_click_mark; }
-internal inline uint8_t *ui_call_player_color_at(void) { return (uint8_t *)(uintptr_t)data_ui_call_player_color; }
-// the group's unload order (0x5DB641): order_marks
-internal inline uint8_t *ui_call_unload_marks_at(void) { return (uint8_t *)(uintptr_t)data_ui_call_unload_marks; }
 // the graphical effects (a command's circles): handle -> effect
 internal inline uint8_t *ui_gfx_effects_at(void) { return (uint8_t *)(uintptr_t)data_ui_gfx_effects; }
 // UIEditBox::GetText
@@ -103,9 +98,6 @@ internal inline uint8_t *ui_iat_edit_get_text_at(void) { return (uint8_t *)(uint
 internal inline uint8_t *ui_iat_uiform_add_hotkey_at(void) { return (uint8_t *)(uintptr_t)data_ui_iat_uiform_add_hotkey; }
 // the UI manager's current form
 internal inline uint8_t *ui_iat_uim_form_at(void) { return (uint8_t *)(uintptr_t)data_ui_iat_uim_form; }
-// the calls of mouse_update
-// the calls of native_chat (the AI's own lines)
-internal inline uint8_t *ui_site_editor_form_at(void) { return (uint8_t *)(uintptr_t)data_ui_site_editor_form; }
 // operand of push 0x19 (timer period in ms)
 internal inline uint8_t *ui_site_scroll_timer_at(void) { return (uint8_t *)(uintptr_t)data_ui_site_scroll_timer; }
 // camera_action_init
@@ -139,10 +131,12 @@ internal inline void cheat_parse(void *parser, void *wtext, int *code, int *arg)
 typedef void *(__cdecl *game_color_rgb_fn)(uint32_t);
 internal game_color_rgb_fn fn_game_color_rgb;
 internal inline void *game_color_rgb(uint32_t idx) { return fn_game_color_rgb(idx); }
+internal inline int patch_player_color(game_color_rgb_fn h) { return patch_call(call_player_color, (uintptr_t)fn_game_color_rgb, (void *)h); }
 // thiscall([ui.gfx_effects], unit or 0, float pos[3], kind, int *handle, 0): a graphical effect added (0: done)
 typedef int (__thiscall *gfx_add_fn)(void *, void *, float *, void *, int *, int);
 internal gfx_add_fn fn_gfx_add;
 internal inline int gfx_add(void *fx, void *on, float *pos, void *kind, int *handle, int arg) { return fn_gfx_add(fx, on, pos, kind, handle, arg); }
+internal inline int patch_click_mark(gfx_add_fn h) { return patch_call(call_click_mark, (uintptr_t)fn_gfx_add, (void *)h); }
 // thiscall([ui.gfx_effects], handle): NULL gone
 typedef ee_gfx *(__thiscall *gfx_get_fn)(void *, int);
 internal gfx_get_fn fn_gfx_get;
@@ -161,14 +155,17 @@ internal inline void mouse_clamp(void *m) { fn_mouse_clamp(m); }
 typedef void (__thiscall *mouse_update_fn)(ee_mouse *);
 internal mouse_update_fn fn_mouse_update;
 internal inline void mouse_update(ee_mouse *m) { fn_mouse_update(m); }
+internal inline int patch_mouse_update(mouse_update_fn h, int *of) { return patch_calls(calls_mouse_update, 4, (uintptr_t)fn_mouse_update, (void *)h, of); }
 typedef char (__thiscall *native_chat_fn)(ee_native_chat *, int, int);
 internal native_chat_fn fn_native_chat;
 internal inline char native_chat(ee_native_chat *pim, int base, int ms) { return fn_native_chat(pim, base, ms); }
+internal inline int patch_native_chat(native_chat_fn h, int *of) { return patch_calls(calls_native_chat, 5, (uintptr_t)fn_native_chat, (void *)h, of); }
 // cdecl(group, 0, owner (a player's +0x45C), how (0xBB: a GFX_ORDER_ON circle at each unit's goal), 0): a
 // command's circles
 typedef void (__cdecl *order_marks_fn)(void *, void *, int, int, uint32_t);
 internal order_marks_fn fn_order_marks;
 internal inline void order_marks(void *grp, void *on, int owner, int how, uint32_t goal) { fn_order_marks(grp, on, owner, how, goal); }
+internal inline int patch_unload_marks(order_marks_fn h) { return patch_call(call_unload_marks, (uintptr_t)fn_order_marks, (void *)h); }
 typedef void (__thiscall *scroll_execute_fn)(void *);
 internal scroll_execute_fn fn_scroll_execute;
 internal inline void scroll_execute(void *self) { fn_scroll_execute(self); }
@@ -200,23 +197,10 @@ internal int spec_ui_select(int build) {
         of_scroll_keys = 0x44;
         of_uiform_top_bar = 0x5D8;
         of_uiscreen_controls = 0xF8;
-        data_ui_call_click_mark = 0x00404A26;
-        data_ui_call_player_color = 0x005262E4;
-        data_ui_call_unload_marks = 0x005DCDBD;
         data_ui_gfx_effects = 0x00918E1C;
         data_ui_iat_edit_get_text = 0x00823328;
         data_ui_iat_uiform_add_hotkey = 0x00824048;
         data_ui_iat_uim_form = 0x00823D60;
-        data_ui_mouse_update_sites[0] = 0x004B8ABB;
-        data_ui_mouse_update_sites[1] = 0x0050FEC8;
-        data_ui_mouse_update_sites[2] = 0x005111CF;
-        data_ui_mouse_update_sites[3] = 0x006618B8;
-        data_ui_native_chat_sites[0] = 0x00470040;
-        data_ui_native_chat_sites[1] = 0x004715F8;
-        data_ui_native_chat_sites[2] = 0x0047166E;
-        data_ui_native_chat_sites[3] = 0x0047280E;
-        data_ui_native_chat_sites[4] = 0x00472B9D;
-        data_ui_site_editor_form = 0x0065BA13;
         data_ui_site_scroll_timer = 0x004050C2;
         value_ui_size_camera_action = 28;
         value_ui_size_key_scroll = 16;
@@ -241,14 +225,26 @@ internal int spec_ui_select(int build) {
         fn_camera_move_game = (camera_move_game_fn)0x0051E2E6;
         fn_cheat_parse = (cheat_parse_fn)0x00520A17;
         fn_game_color_rgb = (game_color_rgb_fn)0x00526B85;
+        call_player_color = 0x005262E4;
         fn_gfx_add = (gfx_add_fn)0x004FB6D4;
+        call_click_mark = 0x00404A26;
         fn_gfx_get = (gfx_get_fn)0x004FBE3E;
         fn_gfx_kind_game = (gfx_kind_game_fn)0x00404C83;
         fn_gfx_remove_game = (gfx_remove_game_fn)0x004FBEB2;
         fn_mouse_clamp = (mouse_clamp_fn)0x00510DAD;
         fn_mouse_update = (mouse_update_fn)0x00510E5D;
+        calls_mouse_update[0] = 0x004B8ABB;
+        calls_mouse_update[1] = 0x0050FEC8;
+        calls_mouse_update[2] = 0x005111CF;
+        calls_mouse_update[3] = 0x006618B8;
         fn_native_chat = (native_chat_fn)0x00484EB3;
+        calls_native_chat[0] = 0x00470040;
+        calls_native_chat[1] = 0x004715F8;
+        calls_native_chat[2] = 0x0047166E;
+        calls_native_chat[3] = 0x0047280E;
+        calls_native_chat[4] = 0x00472B9D;
         fn_order_marks = (order_marks_fn)0x004B12A2;
+        call_unload_marks = 0x005DCDBD;
         fn_scroll_execute = (scroll_execute_fn)0x004050FC;
         fn_ui_line_game = (ui_line_game_fn)0x00661E91;
         return 0;
@@ -272,23 +268,10 @@ internal int spec_ui_select(int build) {
         of_scroll_keys = 0x44;
         of_uiform_top_bar = 0x5E8;
         of_uiscreen_controls = 0xF8;
-        data_ui_call_click_mark = 0x0040416B;
-        data_ui_call_player_color = 0x00531057;
-        data_ui_call_unload_marks = 0x005ED592;
         data_ui_gfx_effects = 0x0093185C;
         data_ui_iat_edit_get_text = 0x00837EE0;
         data_ui_iat_uiform_add_hotkey = 0x00837BE0;
         data_ui_iat_uim_form = 0x00837B44;
-        data_ui_mouse_update_sites[0] = 0x004C11FE;
-        data_ui_mouse_update_sites[1] = 0x0051A487;
-        data_ui_mouse_update_sites[2] = 0x0051B73E;
-        data_ui_mouse_update_sites[3] = 0x00678F02;
-        data_ui_native_chat_sites[0] = 0x00472F4C;
-        data_ui_native_chat_sites[1] = 0x00474682;
-        data_ui_native_chat_sites[2] = 0x00474705;
-        data_ui_native_chat_sites[3] = 0x004758D5;
-        data_ui_native_chat_sites[4] = 0x00475C65;
-        data_ui_site_editor_form = 0x00673E9B;
         data_ui_site_scroll_timer = 0x00404734;
         value_ui_size_camera_action = 28;
         value_ui_size_key_scroll = 16;
@@ -313,14 +296,26 @@ internal int spec_ui_select(int build) {
         fn_camera_move_game = (camera_move_game_fn)0x00528EA5;
         fn_cheat_parse = (cheat_parse_fn)0x0052B5D6;
         fn_game_color_rgb = (game_color_rgb_fn)0x005318BD;
+        call_player_color = 0x00531057;
         fn_gfx_add = (gfx_add_fn)0x00506038;
+        call_click_mark = 0x0040416B;
         fn_gfx_get = (gfx_get_fn)0x00506852;
         fn_gfx_kind_game = (gfx_kind_game_fn)0x0040432F;
         fn_gfx_remove_game = (gfx_remove_game_fn)0x005068C6;
         fn_mouse_clamp = (mouse_clamp_fn)0x0051B31C;
         fn_mouse_update = (mouse_update_fn)0x0051B3CC;
+        calls_mouse_update[0] = 0x004C11FE;
+        calls_mouse_update[1] = 0x0051A487;
+        calls_mouse_update[2] = 0x0051B73E;
+        calls_mouse_update[3] = 0x00678F02;
         fn_native_chat = (native_chat_fn)0x0048966C;
+        calls_native_chat[0] = 0x00472F4C;
+        calls_native_chat[1] = 0x00474682;
+        calls_native_chat[2] = 0x00474705;
+        calls_native_chat[3] = 0x004758D5;
+        calls_native_chat[4] = 0x00475C65;
         fn_order_marks = (order_marks_fn)0x004B86CD;
+        call_unload_marks = 0x005ED592;
         fn_scroll_execute = (scroll_execute_fn)0x0040478E;
         fn_ui_line_game = (ui_line_game_fn)0x006794C6;
         return 0;
@@ -332,23 +327,10 @@ internal const char *const k_spec_ui_missing[ADDR_BUILDS] = { "", "" };
 // the load-time check: what the spec says of the running build's exe (spec_check): the failures
 internal int spec_ui_check(void) {
     int bad = 0;
-    bad += spec_code(data_ui_call_click_mark, "ui.call_click_mark");
-    bad += spec_code(data_ui_call_player_color, "ui.call_player_color");
-    bad += spec_code(data_ui_call_unload_marks, "ui.call_unload_marks");
     bad += spec_data(data_ui_gfx_effects, "ui.gfx_effects");
     bad += spec_data(data_ui_iat_edit_get_text, "ui.iat_edit_get_text");
     bad += spec_data(data_ui_iat_uiform_add_hotkey, "ui.iat_uiform_add_hotkey");
     bad += spec_data(data_ui_iat_uim_form, "ui.iat_uim_form");
-    bad += spec_code(data_ui_mouse_update_sites[0], "ui.mouse_update_sites 0");
-    bad += spec_code(data_ui_mouse_update_sites[1], "ui.mouse_update_sites 1");
-    bad += spec_code(data_ui_mouse_update_sites[2], "ui.mouse_update_sites 2");
-    bad += spec_code(data_ui_mouse_update_sites[3], "ui.mouse_update_sites 3");
-    bad += spec_code(data_ui_native_chat_sites[0], "ui.native_chat_sites 0");
-    bad += spec_code(data_ui_native_chat_sites[1], "ui.native_chat_sites 1");
-    bad += spec_code(data_ui_native_chat_sites[2], "ui.native_chat_sites 2");
-    bad += spec_code(data_ui_native_chat_sites[3], "ui.native_chat_sites 3");
-    bad += spec_code(data_ui_native_chat_sites[4], "ui.native_chat_sites 4");
-    bad += spec_code(data_ui_site_editor_form, "ui.site_editor_form");
     bad += spec_code(data_ui_site_scroll_timer, "ui.site_scroll_timer");
     bad += spec_code(data_ui_sp_fns[0], "ui.sp_fns 0");
     bad += spec_code(data_ui_sp_fns[1], "ui.sp_fns 1");
@@ -369,14 +351,26 @@ internal int spec_ui_check(void) {
     bad += spec_code((uintptr_t)fn_camera_move_game, "ui_functions.camera_move_game");
     bad += spec_code((uintptr_t)fn_cheat_parse, "ui_functions.cheat_parse");
     bad += spec_code((uintptr_t)fn_game_color_rgb, "ui_functions.game_color_rgb");
+    bad += spec_call(call_player_color, (uintptr_t)fn_game_color_rgb, "ui_functions.game_color_rgb [call_site player_color]");
     bad += spec_code((uintptr_t)fn_gfx_add, "ui_functions.gfx_add");
+    bad += spec_call(call_click_mark, (uintptr_t)fn_gfx_add, "ui_functions.gfx_add [call_site click_mark]");
     bad += spec_code((uintptr_t)fn_gfx_get, "ui_functions.gfx_get");
     bad += spec_code((uintptr_t)fn_gfx_kind_game, "ui_functions.gfx_kind_game");
     bad += spec_code((uintptr_t)fn_gfx_remove_game, "ui_functions.gfx_remove_game");
     bad += spec_code((uintptr_t)fn_mouse_clamp, "ui_functions.mouse_clamp");
     bad += spec_code((uintptr_t)fn_mouse_update, "ui_functions.mouse_update");
+    bad += spec_call(calls_mouse_update[0], (uintptr_t)fn_mouse_update, "ui_functions.mouse_update [call_site mouse_update 0]");
+    bad += spec_call(calls_mouse_update[1], (uintptr_t)fn_mouse_update, "ui_functions.mouse_update [call_site mouse_update 1]");
+    bad += spec_call(calls_mouse_update[2], (uintptr_t)fn_mouse_update, "ui_functions.mouse_update [call_site mouse_update 2]");
+    bad += spec_call(calls_mouse_update[3], (uintptr_t)fn_mouse_update, "ui_functions.mouse_update [call_site mouse_update 3]");
     bad += spec_code((uintptr_t)fn_native_chat, "ui_functions.native_chat");
+    bad += spec_call(calls_native_chat[0], (uintptr_t)fn_native_chat, "ui_functions.native_chat [call_site native_chat 0]");
+    bad += spec_call(calls_native_chat[1], (uintptr_t)fn_native_chat, "ui_functions.native_chat [call_site native_chat 1]");
+    bad += spec_call(calls_native_chat[2], (uintptr_t)fn_native_chat, "ui_functions.native_chat [call_site native_chat 2]");
+    bad += spec_call(calls_native_chat[3], (uintptr_t)fn_native_chat, "ui_functions.native_chat [call_site native_chat 3]");
+    bad += spec_call(calls_native_chat[4], (uintptr_t)fn_native_chat, "ui_functions.native_chat [call_site native_chat 4]");
     bad += spec_code((uintptr_t)fn_order_marks, "ui_functions.order_marks");
+    bad += spec_call(call_unload_marks, (uintptr_t)fn_order_marks, "ui_functions.order_marks [call_site unload_marks]");
     bad += spec_code((uintptr_t)fn_scroll_execute, "ui_functions.scroll_execute");
     bad += spec_code((uintptr_t)fn_ui_line_game, "ui_functions.ui_line_game");
     return bad;

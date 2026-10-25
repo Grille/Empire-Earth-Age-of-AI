@@ -141,8 +141,6 @@ unsafe struct EEServer
 /// messages's data of the game, places in its code and numbers
 static unsafe class messages
 {
-    [address((ee)0x004BD133, (aoc)0x004C5E40)]
-    static code call_sel_pack;
 
     /// msg_cheat_init
     [value(24)]
@@ -219,5 +217,6 @@ static unsafe class messages_functions
     static extern void select_msg_init(void* msg, float32* rect, int32 type, int32 flags);
 
     [address((ee)0x004BD15A, (aoc)0x004C5E67), cdecl]
+    [call_site("sel_pack", (ee)0x004BD133, (aoc)0x004C5E40)]
     static extern uint32 sel_pack(uint8* list, uint32 player_byte, uint8* @out);
 }

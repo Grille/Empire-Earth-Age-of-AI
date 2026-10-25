@@ -13,8 +13,6 @@ internal inline void path_request(void *mgr, ee_unit *u, int *from, int *to, int
 internal inline int patch_path_request(path_request_hook h) { return build_is("aoc") ? 0 : patch_all_calls((uintptr_t)fn_path_request_game, (void *)h); }
 // a group's move far away (EEActiveGroup::vf16): for each cluster of its units a sector route, each unit given its
 // chain of auto-waypoint goals (the sector centres) - the hook calls group_sector_route for what it leaves to it
-typedef void (__thiscall *group_sector_route_hook)(void *group, int *from, int *to, void *units);
-internal inline int patch_group_sector_route(group_sector_route_hook h) { return patch_call(data_path_call_group_sector_route, (uintptr_t)fn_group_sector_route, (void *)h); }
 // the units of such a cluster: begin .. end
 internal inline ee_unit **unitlist_get_begin(const void *units) { return FIELD(units, of_unit_list_units, ee_unit **); }
 internal inline ee_unit **unitlist_get_end(const void *units) { return FIELD(units, of_unit_list_units + 0x4, ee_unit **); }

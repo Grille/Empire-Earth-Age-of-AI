@@ -8,8 +8,6 @@ internal inline uint8_t *unit_list_units_at(const void *o) { return (uint8_t *)o
 
 // static class path
 // path's data of the game, places in its code and numbers
-// EEActiveGroup::vf16's call of group_sector_route, for each cluster of the group
-internal inline uint8_t *path_call_group_sector_route_at(void) { return (uint8_t *)(uintptr_t)data_path_call_group_sector_route; }
 
 // static class path_functions
 // the game's functions path.c wraps, by the names the C side gives them
@@ -18,6 +16,7 @@ internal inline uint8_t *path_call_group_sector_route_at(void) { return (uint8_t
 typedef void (__thiscall *group_sector_route_fn)(void *, int *, int *, void *);
 internal group_sector_route_fn fn_group_sector_route;
 internal inline void group_sector_route(void *group, int *from, int *to, void *units) { fn_group_sector_route(group, from, to, units); }
+internal inline int patch_group_sector_route(group_sector_route_fn h) { return patch_call(call_group_sector_route, (uintptr_t)fn_group_sector_route, (void *)h); }
 // the path manager's route request: thiscall(mgr, unit, from tile, to tile, sync, node limit, use sectors, ctx),
 // ret 0x1C (AoC: an 8th argument, ret 0x20 - its continent routing; port_addrs 69%) - PrepareToMove's
 // (0x6224D0), a sector route's first leg, the re-path of all
@@ -30,14 +29,14 @@ internal int spec_path_select(int build) {
     switch (build) {
     case 0:   // ee
         of_unit_list_units = 0x4;
-        data_path_call_group_sector_route = 0x005DB5C8;
         fn_group_sector_route = (group_sector_route_fn)0x005F670A;
+        call_group_sector_route = 0x005DB5C8;
         fn_path_request_game = (path_request_game_fn)0x004A1AFF;
         return 0;
     case 1:   // aoc
         of_unit_list_units = 0x4;
-        data_path_call_group_sector_route = 0x005EBF0C;
         fn_group_sector_route = (group_sector_route_fn)0x00606581;
+        call_group_sector_route = 0x005EBF0C;
         fn_path_request_game = (path_request_game_fn)0x004A6E88;
         return 0;
     }
@@ -48,8 +47,8 @@ internal const char *const k_spec_path_missing[ADDR_BUILDS] = { "", "" };
 // the load-time check: what the spec says of the running build's exe (spec_check): the failures
 internal int spec_path_check(void) {
     int bad = 0;
-    bad += spec_code(data_path_call_group_sector_route, "path.call_group_sector_route");
     bad += spec_code((uintptr_t)fn_group_sector_route, "path_functions.group_sector_route");
+    bad += spec_call(call_group_sector_route, (uintptr_t)fn_group_sector_route, "path_functions.group_sector_route [call_site group_sector_route]");
     bad += spec_code((uintptr_t)fn_path_request_game, "path_functions.path_request_game");
     return bad;
 }

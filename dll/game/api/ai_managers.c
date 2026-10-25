@@ -63,13 +63,13 @@ internal inline void bm_queue_add(ee_build_mgr *bm, int e, int *entry) { fn_bq_a
 
 // THE RESOURCE MANAGER'S SEARCHES (the originals of sites.c's hooks; arguments as the game passes them)
 internal inline ee_unit *rm_find_mine(ee_resource_mgr *rm, uintptr_t type, ee_unit *unit, uintptr_t rev) {
-    return fn_find_mine_game(rm, type, (uintptr_t)unit, rev);
+    return fn_find_mine_game(rm, (int)type, unit, rev);
 }
 internal inline ee_unit *rm_find_food(ee_resource_mgr *rm, uintptr_t need_drop, uintptr_t near_base, ee_unit *unit) {
-    return fn_find_food_game(rm, need_drop, near_base, (uintptr_t)unit);
+    return fn_find_food_game(rm, need_drop, near_base, unit);
 }
 internal inline ee_unit *rm_find_wood(ee_resource_mgr *rm, uintptr_t flag, ee_unit *unit) {
-    return fn_find_wood_game(rm, flag, (uintptr_t)unit);
+    return fn_find_wood_game(rm, flag, unit);
 }
 // the lists of fields, unbuilt fields and animals to hunt (n wanted, into out)
 internal inline void *rm_farms(ee_resource_mgr *rm, uintptr_t n, uintptr_t out) {
@@ -84,42 +84,11 @@ internal inline void *rm_hunt(ee_resource_mgr *rm, uintptr_t n, uintptr_t f, uin
 
 // HOOKS
 // the resource manager's turn (the wiring, eeaimod.c): its gatherer targets, its citizens' assignment, its update
-typedef char (__thiscall *rm_hook)(ee_resource_mgr *rm);
-internal inline int patch_rm_compute_targets(rm_hook h) { return patch_call(data_ai_managers_call_compute_targets, (uintptr_t)fn_rm_compute_targets, (void *)h); }
-internal inline int patch_rm_assign_citizens(rm_hook h) { return patch_call(data_ai_managers_call_assign_citizens, (uintptr_t)fn_rm_assign_citizens, (void *)h); }
-typedef void (__thiscall *rm_update_hook)(ee_resource_mgr *rm, uint32_t now);
-internal inline int patch_rm_update(rm_update_hook h) { return patch_call(data_ai_managers_call_rm_update, (uintptr_t)fn_rm_update, (void *)h); }
-typedef char (__thiscall *place_hook)(ee_build_mgr *bm, int type, int x, int y);
-internal inline int patch_place(place_hook h) { return patch_call(data_ai_managers_call_place, (uintptr_t)fn_bm_place, (void *)h); }
-typedef uintptr_t (__thiscall *train_units_hook)(ee_unit_mgr *um, int *req, uintptr_t b);
-internal inline int patch_train_units(train_units_hook h, int *of) { return patch_calls(PATCH_LIST(data_ai_managers_train_sites), (uintptr_t)fn_um_train, (void *)h, of); }
-typedef int (__thiscall *citizens_wanted_hook)(ee_unit_mgr *um);
-internal inline int patch_citizens_wanted(citizens_wanted_hook h) { return patch_call(data_ai_managers_call_citizens_wanted, (uintptr_t)fn_um_citizens_wanted, (void *)h); }
-typedef int (__thiscall *fish_type_hook)(ee_civ_mgr *cm);
-internal inline int patch_fish_type(fish_type_hook h, int *of) {
-    const uint32_t sites[2] = { data_ai_managers_call_fish_type_1, data_ai_managers_call_fish_type_2 };
-    return patch_calls(sites, 2, (uintptr_t)fn_fish_type, (void *)h, of);
-}
 
 // THE RESOURCE MANAGER'S SEARCHES (sites.c)
-typedef void *(__thiscall *find_mine_hook)(ee_resource_mgr *rm, int type, ee_unit *unit, uintptr_t rev);
-internal inline int patch_find_mine(find_mine_hook h, int *of) { return patch_calls(PATCH_LIST(data_ai_managers_mine_sites), (uintptr_t)fn_find_mine_game, (void *)h, of); }
-typedef void *(__thiscall *find_food_hook)(ee_resource_mgr *rm, uintptr_t need_drop, uintptr_t near_base, ee_unit *unit);
-internal inline int patch_find_food(find_food_hook h, int *of) { return patch_calls(PATCH_LIST(data_ai_managers_food_sites), (uintptr_t)fn_find_food_game, (void *)h, of); }
-typedef void *(__thiscall *find_wood_hook)(ee_resource_mgr *rm, uintptr_t flag, ee_unit *unit);
-internal inline int patch_find_wood(find_wood_hook h, int *of) { return patch_calls(PATCH_LIST(data_ai_managers_wood_sites), (uintptr_t)fn_find_wood_game, (void *)h, of); }
 typedef void *(__thiscall *farms_hook)(ee_resource_mgr *rm, uintptr_t n, uintptr_t out);
 internal inline int patch_farms(farms_hook h, farms_hook unbuilt, int *of) {   // unbuilt NULL: the fields only
     if (of) *of += unbuilt ? 2 : 1;
     return patch_call(data_ai_managers_call_farms, (uintptr_t)fn_farms_game, (void *)h) + (unbuilt ? patch_call(data_ai_managers_call_unbuilt_farms, (uintptr_t)fn_unbuilt_farms, (void *)unbuilt) : 0);
 }
-// a citizen sent to work at a site (the calls of the assignment: data_ai_managers_gather_sites), the citizens trained (trace.c)
-typedef void (__thiscall *gather_hook)(ee_resource_mgr *rm, ee_unit *u, ee_unit *site, int c);
-internal inline int patch_gather(gather_hook h, int *of) { return patch_calls(PATCH_LIST(data_ai_managers_gather_sites), (uintptr_t)fn_assign_to_site, (void *)h, of); }
-typedef uintptr_t (__thiscall *train_citizens_hook)(ee_unit_mgr *um, uintptr_t a);
-internal inline int patch_train_citizens(train_citizens_hook h) { return patch_call(data_ai_managers_call_train_citizens, (uintptr_t)fn_um_train_citizens, (void *)h); }
-typedef void *(__thiscall *hunt_hook)(ee_resource_mgr *rm, uintptr_t n, uintptr_t f, uintptr_t out);
-internal inline int patch_hunt(hunt_hook h, int *of) {
-    const uint32_t sites[2] = { data_ai_managers_call_hunt_1, data_ai_managers_call_hunt_2 };
-    return patch_calls(sites, 2, (uintptr_t)fn_hunt_game, (void *)h, of);
-}
+// a citizen sent to work at a site (the calls of the assignment: calls_gather), the citizens trained (trace.c)

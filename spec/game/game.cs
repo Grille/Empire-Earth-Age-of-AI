@@ -300,6 +300,7 @@ static unsafe class game_functions
     static extern int32 damage_points(void* model, int32 index, uint32 state);
 
     [address((ee)0x0058D3E1, (aoc)0x0059D615), thiscall]
+    [call_site("editor_form", (ee)0x0065BA13, (aoc)0x00673E9B)]
     static extern void* editor_form(void* form, void* owner);
 
     [address((ee)0x005D0B4F, (aoc)0x005E145B), cdecl]
@@ -314,6 +315,7 @@ static unsafe class game_functions
     static extern void game_player_out_game(void* p1, int32 p2, int32 p3);
 
     [address((ee)0x0052599B, (aoc)0x005306F2), thiscall]
+    [call_site("game_start", (ee)0x004CEC14, (aoc)0x004D4443)]
     static extern char8 game_start(void* state, ee_setup* setup, void* p2);
 
     /// the highest epoch of the players player.slot_player_human says are human, 0 without
@@ -321,6 +323,8 @@ static unsafe class game_functions
     static extern int32 highest_human_epoch();
 
     [address((ee)0x00521F94, (aoc)0x0052CB90), cdecl]
+    // call LoadSavedGameFromCmdline(UString *) 0x521F94
+    [call_site("load_saved", (ee)0x00522BF8, (aoc)0x0052D8F9)]
     static extern int32 load_saved(void* name);
 
     /// the game's operator new
@@ -332,6 +336,8 @@ static unsafe class game_functions
     static extern void new_unit_msg_init(void* mem, int32* type, float32* xy, char8 player);
 
     [address((ee)0x00522A36, (aoc)0x0052D703), cdecl]
+    // call ParseCommandLine(const char *) 0x522A36
+    [call_site("parse_cmdline", (ee)0x00535EF2, (aoc)0x005410C8)]
     static extern char8 parse_cmdline(cstr cmd);
 
     [address((ee)0x00546C63, (aoc)0x00553082), thiscall]
@@ -361,6 +367,8 @@ static unsafe class game_functions
 
     /// where an idle transport lands (thiscall(transport manager, transport))
     [address((ee)0x0042C49A, (aoc)0x00422658), thiscall]
+    // the idle transports' call of shore_to_unload
+    [call_site("shore_to_unload", (ee)0x00483E24, (aoc)0x00488490)]
     static extern int32 shore_to_unload(void* mgr, EEUnit* transport);
 
     [address((ee)0x0048E817, (aoc)0x004CD4B3), thiscall]

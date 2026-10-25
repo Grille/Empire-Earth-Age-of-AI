@@ -191,15 +191,6 @@ static unsafe class attack
     [address((ee)0x0045BDA2, (aoc)0x0045D974)]
     static code call_asg_queue_pop;
 
-    [address((ee)0x00450546, (aoc)0x0045122B)]
-    static code call_group_stat;
-
-    [address((ee)0x0063052E, (aoc)0x0064631B)]
-    static code call_range_sort;
-
-    [address((ee)0x004824BF, (aoc)0x004869F3)]
-    static code call_unit_to_group;
-
     /// thiscall(queue): releases the front unit, removes it
     [address((ee)0x00482028, (aoc)0x0048655C)]
     static code fn_asg_queue_pop;
@@ -311,6 +302,7 @@ static unsafe class attack_functions
     static extern char8 attack_plan_ok(EECPCombatManager* cm, void* task, void* strategy, void* ids);
 
     [address((ee)0x00450554, (aoc)0x00451239), thiscall]
+    [call_site("group_stat", (ee)0x00450546, (aoc)0x0045122B)]
     static extern void group_stat(void* stats, EEUnit* u);
 
     [address((ee)0x0047C4E8, (aoc)0x00480873), thiscall]
@@ -321,6 +313,7 @@ static unsafe class attack_functions
     static extern void point_set(void* point, int32* pt);
 
     [address((ee)0x0063A355, (aoc)0x006509AF), cdecl]
+    [call_site("range_sort", (ee)0x0063052E, (aoc)0x0064631B)]
     static extern void range_sort(void** b, void** e, EEUnit* unit);
 
     [address((ee)0x0046FFB7, (aoc)0x00472EC3), thiscall]
@@ -353,5 +346,6 @@ static unsafe class attack_functions
     static extern void task_set_target(void* task, EEUnit* t);
 
     [address((ee)0x00450E07, (aoc)0x00451A8A), thiscall]
+    [call_site("unit_to_group", (ee)0x004824BF, (aoc)0x004869F3)]
     static extern char8 unit_to_group(void* cmd, EEUnit* u);
 }

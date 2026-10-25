@@ -94,10 +94,6 @@ internal inline int patch_scroll_execute(scroll_hook h) { return patch_vtable(da
 // the windowed mode's input (display.c): the mouse's update (its 4 calls), the cooperative level of Low-Level Engine's
 // input (push 5 -> push 6, exclusive -> non-exclusive: the mouse's Resume and the device setup), no minimize on focus
 // loss (je -> jmp)
-typedef void (__thiscall *mouse_update_hook)(ee_mouse *m);
-internal inline int patch_mouse_update(mouse_update_hook h, int *of) { return patch_calls(PATCH_LIST(data_ui_mouse_update_sites), (uintptr_t)fn_mouse_update, (void *)h, of); }
-typedef char (__thiscall *native_chat_hook)(ee_native_chat *pim, int base, int ms);
-internal inline int patch_native_chat(native_chat_hook h, int *of) { return patch_calls(PATCH_LIST(data_ui_native_chat_sites), (uintptr_t)fn_native_chat, (void *)h, of); }
 // the scroll action's timer (camera.c): its push old_ms -> ms
 internal inline int patch_scroll_timer(uint8_t old_ms, uint8_t ms) {
     uint8_t *p = (uint8_t *)data_ui_site_scroll_timer;
@@ -119,15 +115,7 @@ internal inline int patch_sp_buttons(void *const hooks[6], void *orig[6]) {
     return ok;
 }
 // the editor's main form built (display.c)
-typedef void *(__thiscall *editor_form_hook)(void *form, void *owner);
-internal inline int patch_editor_form(editor_form_hook h) { return patch_call(data_ui_site_editor_form, (uintptr_t)fn_editor_form, (void *)h); }
 // a command's circle (transports.c): the mouse click's one effect (on: the unit clicked, its id +0x24; NULL the ground)
-typedef int (__thiscall *click_mark_hook)(void *fx, void *on, float *pos, void *kind, int *handle, int arg);
-internal inline int patch_click_mark(click_mark_hook h) { return patch_call(data_ui_call_click_mark, (uintptr_t)fn_gfx_add, (void *)h); }
 internal inline int click_mark_on_id(const void *on) { return FIELD(on, of_unit_serial, int); }
 // the group's unload order's circles (transports.c: the spread comes first)
-typedef void (__cdecl *order_marks_hook)(void *grp, void *on, int owner, int how, unsigned goal);
-internal inline int patch_unload_marks(order_marks_hook h) { return patch_call(data_ui_call_unload_marks, (uintptr_t)fn_order_marks, (void *)h); }
 // the players' colours (voice/persona.c)
-typedef void *(__cdecl *player_color_hook)(unsigned idx);
-internal inline int patch_player_color(player_color_hook h) { return patch_call(data_ui_call_player_color, (uintptr_t)fn_game_color_rgb, (void *)h); }

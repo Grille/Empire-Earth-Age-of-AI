@@ -6,7 +6,6 @@
 // an unload call (the resource manager's ferry)
 internal inline uint8_t *patching_call_unload_rm_at(void) { return (uint8_t *)(uintptr_t)data_patching_call_unload_rm; }
 internal inline uint8_t *patching_ret_asg_land_handoff_give_at(void) { return (uint8_t *)(uintptr_t)data_patching_ret_asg_land_handoff_give; }
-// the calls of goal_unload_init (landing.c; the last, 0x615AE6, the unload goal's copy)
 
 // the running build's values (spec_select, with addr_select): how many it hasn't got
 internal int spec_patching_select(int build) {
@@ -14,26 +13,10 @@ internal int spec_patching_select(int build) {
     case 0:   // ee
         data_patching_call_unload_rm = 0x0048CC5D;
         data_patching_ret_asg_land_handoff_give = 0x0044AF88;
-        data_patching_unload_sites[0] = 0x00445AAD;
-        data_patching_unload_sites[1] = 0x00483E4D;
-        data_patching_unload_sites[2] = 0x0048CC5D;
-        data_patching_unload_sites[3] = 0x0048D022;
-        data_patching_unload_sites[4] = 0x004BF82A;
-        data_patching_unload_sites[5] = 0x005B3E23;
-        data_patching_unload_sites[6] = 0x005DC81B;
-        data_patching_unload_sites[7] = 0x00615AE6;
         return 0;
     case 1:   // aoc
         data_patching_call_unload_rm = 0x00491733;
         data_patching_ret_asg_land_handoff_give = 0x0044A6A3;
-        data_patching_unload_sites[0] = 0x00444CCD;
-        data_patching_unload_sites[1] = 0x004884B9;
-        data_patching_unload_sites[2] = 0x00491733;
-        data_patching_unload_sites[3] = 0x00491AF8;
-        data_patching_unload_sites[4] = 0x004C86E9;
-        data_patching_unload_sites[5] = 0x005C4E31;
-        data_patching_unload_sites[6] = 0x005ED156;
-        data_patching_unload_sites[7] = 0x006284E2;
         return 0;
     }
     return 0;
@@ -45,13 +28,5 @@ internal int spec_patching_check(void) {
     int bad = 0;
     bad += spec_code(data_patching_call_unload_rm, "patching.call_unload_rm");
     bad += spec_code(data_patching_ret_asg_land_handoff_give, "patching.ret_asg_land_handoff_give");
-    bad += spec_code(data_patching_unload_sites[0], "patching.unload_sites 0");
-    bad += spec_code(data_patching_unload_sites[1], "patching.unload_sites 1");
-    bad += spec_code(data_patching_unload_sites[2], "patching.unload_sites 2");
-    bad += spec_code(data_patching_unload_sites[3], "patching.unload_sites 3");
-    bad += spec_code(data_patching_unload_sites[4], "patching.unload_sites 4");
-    bad += spec_code(data_patching_unload_sites[5], "patching.unload_sites 5");
-    bad += spec_code(data_patching_unload_sites[6], "patching.unload_sites 6");
-    bad += spec_code(data_patching_unload_sites[7], "patching.unload_sites 7");
     return bad;
 }

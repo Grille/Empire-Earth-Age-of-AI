@@ -2,12 +2,6 @@
 // (operands, jumps, single bytes) - each checked against what it expects there first.
 
 // THE GAME'S RUN (the wiring: eeaimod.c, persist.c; test/autotest.c's command line)
-typedef char (__thiscall *game_start_hook)(void *state, ee_setup *setup, void *p2);
-internal inline int patch_game_start(game_start_hook h) { return patch_call(data_hooks_call_game_start, (uintptr_t)fn_game_start, (void *)h); }
-typedef char (__cdecl *parse_cmdline_hook)(const char *cmd);
-internal inline int patch_parse_cmdline(parse_cmdline_hook h) { return patch_call(data_hooks_call_parse_cmdline, (uintptr_t)fn_parse_cmdline, (void *)h); }
-typedef int (__cdecl *load_saved_hook)(void *name);
-internal inline int patch_load_saved(load_saved_hook h) { return patch_call(data_hooks_call_load_saved, (uintptr_t)fn_load_saved, (void *)h); }
 // the game saved (every call of it: 4)
 typedef int (__cdecl *save_game_hook)(void *file, int a, int b, struct ustring folder);
 internal inline int patch_save_game(save_game_hook h) { return patch_all_calls((uintptr_t)fn_save_game, (void *)h); }
@@ -31,7 +25,6 @@ typedef void (__stdcall *resolution_hook)(int w, int h, int force, int flag);
 internal inline int patch_editor_resolution(resolution_hook h) {
     return patch_call(data_hooks_site_editor_menu, (uintptr_t)fn_set_resolution, (void *)h) + patch_call(data_hooks_site_editor_res, (uintptr_t)fn_set_resolution, (void *)h);
 }
-internal inline int patch_other_resolution(resolution_hook h, int *of) { return patch_calls(PATCH_LIST(data_hooks_other_resolution_sites), (uintptr_t)fn_set_resolution, (void *)h, of); }
 internal inline int patch_input_coop(HMODULE lle) {
     uint8_t *b = (uint8_t *)lle;
     int n = 0;
@@ -178,8 +171,6 @@ internal inline int patch_tcp_ports(HMODULE m, int add) {
     }
     return n;
 }
-typedef int (__thiscall *shore_to_unload_hook)(void *mgr, ee_unit *transport);
-internal inline int patch_shore_to_unload(shore_to_unload_hook h) { return patch_call(data_hooks_call_shore_to_unload, (uintptr_t)fn_shore_to_unload, (void *)h); }
 
 // THE PLAYERS' COLOURS AND LINES (voice/persona.c)
 // the exit dialog's confirmation (a code pointer in the menu's table)
