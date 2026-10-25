@@ -62,7 +62,7 @@ and the runners, eectl, the MCP server), `results/` (log readers, scorers), `re/
   ops among them). An object's class: its vtable's RTTI - in a running game (`peek` its first dword, then vtable-4 ->
   locator +0xC -> type descriptor +8: `.?AVName@@`), a constructor's by the vtable it writes, scripts/re/vtables.py a
   class's in both exes; a class's [vtable] is checked by that name at load. The game's enums are the spec's too (`[c_prefix("SM_CAT")] enum sm_category : int32 { @object = 1, ... }`: gen/enums.c's
-  SM_CAT_OBJECT ...; the scenario editor's lists so far). Ghidra knows the spec too: scripts/re/spec_ghidra.py + ApplySpec.java (README "Setup") name
+  SM_CAT_OBJECT ..., as the spec's integer type: enum sm_category : int32_t; the scenario editor's lists, the unit type's class_id: CLS_NAVAL ... - its family is still the field category, the data's Family ID). Ghidra knows the spec too: scripts/re/spec_ghidra.py + ApplySpec.java (README "Setup") name
   the functions Class::member with their types, the structures and enums under /spec - run them after a spec change. Two builds: the 2017 update and Art of Conquest (not ready: tested in AoC only since 2026-10-21 -
   test runs play it, `EE_GAME_DIR=<its folder>`, docs/testing.md); a new value needs both. The port scripts read the
   spec (`scripts/re/port_addrs.py`: every address's AoC value found again and compared with the spec's - same,
