@@ -257,7 +257,7 @@ internal void log_rotate(void) {
 }
 
 internal int unit_types_load(void);   // unitnames.c
-internal char __thiscall hook_game_start(void *state, ee_setup *setup, void *p2) {
+internal char __thiscall hook_game_start(ee_world *state, ee_setup *setup, void *p2) {
     char *name = FIELD(setup_map_name_at(setup), 4, char *);   // the UString's characters
     int mode = setup_get_mode(setup);
     log_rotate();
@@ -322,7 +322,7 @@ internal char __thiscall hook_game_start(void *state, ee_setup *setup, void *p2)
     defence_new_game();
     sites_new_game();
     if (mode == 2) persist_load(name);   // a saved game: the mod's state from its .aimod file
-    char r = game_start(state, setup, p2);
+    char r = world_start(state, setup, p2);
     log_line("# game start returned %d\n", r);
     return r;
 }

@@ -7,6 +7,10 @@
 internal inline uint8_t *draw_record_0x58_at(const void *o) { return (uint8_t *)o + of_draw_record_0x58; }
 // the same in AoC: its draw list sites read hooks.draw_old + 0x58 and + 0xFC (0x50B2AD, 0x50EF07)
 internal inline uint8_t *draw_record_0xfc_at(const void *o) { return (uint8_t *)o + of_draw_record_0xfc; }
+// a draw list record
+typedef void (__thiscall *draw_record_init_fn)(void *);
+internal draw_record_init_fn fn_draw_record_init;
+internal inline void draw_record_init(void *draw_record) { fn_draw_record_init(draw_record); }
 
 // static class hooks
 // hooks's data of the game, places in its code and numbers
@@ -49,10 +53,6 @@ internal inline uint8_t *hooks_site_sim_wait_at(void) { return (uint8_t *)(uintp
 
 // static class hooks_functions
 // the game's functions hooks.c wraps, by the names the C side gives them
-// a draw list record
-typedef void (__thiscall *draw_rec_ctor_fn)(void *);
-internal draw_rec_ctor_fn fn_draw_rec_ctor;
-internal inline void draw_rec_ctor(void *p1) { fn_draw_rec_ctor(p1); }
 typedef void (__stdcall *set_resolution_fn)(int, int, int, int);
 internal set_resolution_fn fn_set_resolution;
 internal inline void set_resolution(int w, int h, int force, int flag) { fn_set_resolution(w, h, force, flag); }
@@ -68,6 +68,7 @@ internal int spec_hooks_select(int build) {
     case 0:   // ee
         of_draw_record_0x58 = 0x58;
         of_draw_record_0xfc = 0xFC;
+        fn_draw_record_init = (draw_record_init_fn)0x00506442;
         data_hooks_call_attack_alert = 0x006177CF;
         data_hooks_code_splash_start_jne = 0x00534400;
         data_hooks_code_splash_stop_jne = 0x0053443D;
@@ -116,7 +117,6 @@ internal int spec_hooks_select(int build) {
         data_hooks_site_editor_res = 0x0065FD6D;
         data_hooks_site_sim_receive = 0x00553348;
         data_hooks_site_sim_wait = 0x005533C5;
-        fn_draw_rec_ctor = (draw_rec_ctor_fn)0x00506442;
         fn_set_resolution = (set_resolution_fn)0x0065F314;
         calls_other_resolution[0] = 0x0065F30A;
         calls_other_resolution[1] = 0x0065F61B;
@@ -137,6 +137,7 @@ internal int spec_hooks_select(int build) {
     case 1:   // aoc
         of_draw_record_0x58 = 0x58;
         of_draw_record_0xfc = 0xFC;
+        fn_draw_record_init = (draw_record_init_fn)0x005118E9;
         data_hooks_call_attack_alert = 0x0062A366;
         data_hooks_code_splash_start_jne = 0x0053F2FE;
         data_hooks_code_splash_stop_jne = 0x0053F33B;
@@ -185,7 +186,6 @@ internal int spec_hooks_select(int build) {
         data_hooks_site_editor_res = 0x00677361;
         data_hooks_site_sim_receive = 0x00561459;
         data_hooks_site_sim_wait = 0x005614D6;
-        fn_draw_rec_ctor = (draw_rec_ctor_fn)0x005118E9;
         fn_set_resolution = (set_resolution_fn)0x006768FE;
         calls_other_resolution[0] = 0x006768F4;
         calls_other_resolution[1] = 0x00676C0A;
@@ -211,6 +211,7 @@ internal const char *const k_spec_hooks_missing[ADDR_BUILDS] = { "", "" };
 // the load-time check: what the spec says of the running build's exe (spec_check): the failures
 internal int spec_hooks_check(void) {
     int bad = 0;
+    bad += spec_code((uintptr_t)fn_draw_record_init, "ee_draw_record.init");
     bad += spec_code(data_hooks_call_attack_alert, "hooks.call_attack_alert");
     bad += spec_code(data_hooks_code_splash_start_jne, "hooks.code_splash_start_jne");
     bad += spec_code(data_hooks_code_splash_stop_jne, "hooks.code_splash_stop_jne");
@@ -253,7 +254,6 @@ internal int spec_hooks_check(void) {
     bad += spec_code(data_hooks_site_editor_res, "hooks.site_editor_res");
     bad += spec_code(data_hooks_site_sim_receive, "hooks.site_sim_receive");
     bad += spec_code(data_hooks_site_sim_wait, "hooks.site_sim_wait");
-    bad += spec_code((uintptr_t)fn_draw_rec_ctor, "hooks_functions.draw_rec_ctor");
     bad += spec_code((uintptr_t)fn_set_resolution, "hooks_functions.set_resolution");
     bad += spec_call(calls_other_resolution[0], (uintptr_t)fn_set_resolution, "hooks_functions.set_resolution [call_site other_resolution 0]");
     bad += spec_call(calls_other_resolution[1], (uintptr_t)fn_set_resolution, "hooks_functions.set_resolution [call_site other_resolution 1]");

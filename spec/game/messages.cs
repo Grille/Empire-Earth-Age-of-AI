@@ -25,6 +25,10 @@ unsafe struct EEMInGameChat
 
     [address((ee)0x004B78C7, (aoc)0x004BFDD2)]
     extern void execute();
+
+    /// new 0x24; (UWideString *)
+    [address((ee)0x005C2A2F, (aoc)0x005D3196)]
+    extern void* init(void* wide_text);
 }
 
 /// the select message (EEMSelectUnits)
@@ -39,6 +43,10 @@ unsafe struct EEMSelectUnits
 
     [offset(0x134), found(c)]
     uint8 flag;
+
+    /// EEMSelectUnits: thiscall(msg, rect, type, 0x4E)
+    [address((ee)0x004BD072, (aoc)0x004C5D7F)]
+    extern void init(float32* rect, int32 type, int32 flags);
 }
 
 /// the load-into-a-transport message (EEMLoadTransport)
@@ -179,6 +187,24 @@ unsafe struct EEServer
     uint8 rate;
 }
 
+/// the new-unit message, the cheat that makes a unit (EEMHackANewUnit)
+[@base(typeof(EEMessage)), c_type("ee_new_unit_msg"), vtable((ee)0x00829338, (aoc)0x0083E088)]
+unsafe struct EEMHackANewUnit
+{
+    /// EEMHackANewUnit: thiscall(int *type, float xy[2], char player)
+    [address((ee)0x00650B3C, (aoc)0x00662C24)]
+    extern void init(int32* type, float32* xy, char8 player);
+}
+
+/// a cheat code's message (EEMCheatCode)
+[@base(typeof(EEMessage)), c_type("ee_cheat_msg"), vtable((ee)0x0082907C, (aoc)0x0083DDE0)]
+unsafe struct EEMCheatCode
+{
+    /// new 0x18; (code, arg)
+    [address((ee)0x005C29FB, (aoc)0x005D3162)]
+    extern void* init(int32 code, int32 arg);
+}
+
 /// messages's data of the game, places in its code and numbers
 static unsafe class messages
 {
@@ -223,18 +249,6 @@ static unsafe class messages
 [c_prefix("")]
 static unsafe class messages_functions
 {
-    /// new 0x24; (UWideString *)
-    [address((ee)0x005C2A2F, (aoc)0x005D3196), thiscall]
-    static extern void* msg_chat_init(void* mem, void* wide_text);
-
-    /// new 0x18; (code, arg)
-    [address((ee)0x005C29FB, (aoc)0x005D3162), thiscall]
-    static extern void* msg_cheat_init(void* mem, int32 code, int32 arg);
-
-    /// EEMSelectUnits: thiscall(msg, rect, type, 0x4E)
-    [address((ee)0x004BD072, (aoc)0x004C5D7F), thiscall]
-    static extern void select_msg_init(void* msg, float32* rect, int32 type, int32 flags);
-
     [address((ee)0x004BD15A, (aoc)0x004C5E67), cdecl]
     [call_site("sel_pack", (ee)0x004BD133, (aoc)0x004C5E40)]
     static extern uint32 sel_pack(uint8* list, uint32 player_byte, uint8* @out);

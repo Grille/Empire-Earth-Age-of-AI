@@ -8,21 +8,15 @@ internal inline uint8_t *api_world_clock_at(void) { return (uint8_t *)(uintptr_t
 
 // static class api_functions
 // the game's functions api.c wraps, by the names the C side gives them
-// thiscall(site+0x14 object, player) -> bool
-typedef char (__thiscall *explored_game_fn)(void *, void *);
-internal explored_game_fn fn_explored_game;
-internal inline char explored_game(void *p1, void *p2) { return fn_explored_game(p1, p2); }
 
 // the running build's values (spec_select, with addr_select): how many it hasn't got
 internal int spec_api_select(int build) {
     switch (build) {
     case 0:   // ee
         data_api_world_clock = 0x00919774;
-        fn_explored_game = (explored_game_fn)0x00404A8A;
         return 0;
     case 1:   // aoc
         data_api_world_clock = 0x009318F0;
-        fn_explored_game = (explored_game_fn)0x004042E2;
         return 0;
     }
     return 0;
@@ -33,6 +27,5 @@ internal const char *const k_spec_api_missing[ADDR_BUILDS] = { "", "" };
 internal int spec_api_check(void) {
     int bad = 0;
     bad += spec_data(data_api_world_clock, "api.world_clock");
-    bad += spec_code((uintptr_t)fn_explored_game, "api_functions.explored_game");
     return bad;
 }

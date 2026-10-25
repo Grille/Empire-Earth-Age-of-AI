@@ -184,10 +184,17 @@ internal inline int unit_stats_get_hp(const ee_unit_stats *o) { return *(int *)(
 internal inline void unit_stats_set_hp(ee_unit_stats *o, int v) { *(int *)((uint8_t *)o + of_unit_stats_hp) = v; }
 internal inline int *unit_stats_hp_at(const ee_unit_stats *o) { return (int *)((uint8_t *)o + of_unit_stats_hp); }
 
+// class EEToHitTable (ee_to_hit_table)
+// the attack bonuses by weapon and target, unit_type.bonus_table - a static object (EEToHitTable)
+// thiscall(unit_type.bonus_table, weapon kind, target type data, attacker, target player)
+typedef float (__thiscall *to_hit_table_attack_bonus_fn)(ee_to_hit_table *, int, void *, int, int);
+internal to_hit_table_attack_bonus_fn fn_to_hit_table_attack_bonus;
+internal inline float to_hit_table_attack_bonus(ee_to_hit_table *to_hit_table, int weapon, void *target_type, int attacker, int target_player) { return fn_to_hit_table_attack_bonus(to_hit_table, weapon, target_type, attacker, target_player); }
+
 // static class unit_type
 // unit_type's data of the game, places in its code and numbers
 // attack_bonus_game's object
-internal inline uint8_t *unit_type_bonus_table_at(void) { return (uint8_t *)(uintptr_t)data_unit_type_bonus_table; }
+internal inline ee_to_hit_table *unit_type_bonus_table_at(void) { return (ee_to_hit_table *)(uint8_t *)(uintptr_t)data_unit_type_bonus_table; }
 // unit_type.vt_missile
 // unit_type.vt_projectile
 // EEUnitClass: thiscall(type data, unit), as the game's goal assignment
@@ -199,10 +206,6 @@ internal inline uint8_t *unit_type_vt_projectile_at(void) { return (uint8_t *)(u
 
 // static class unit_type_functions
 // the game's functions unit_type.c wraps, by the names the C side gives them
-// thiscall(unit_type.bonus_table, weapon kind, target type data, attacker, target player)
-typedef float (__thiscall *attack_bonus_game_fn)(void *, int, void *, int, int);
-internal attack_bonus_game_fn fn_attack_bonus_game;
-internal inline float attack_bonus_game(void *p1, int p2, void *p3, int p4, int p5) { return fn_attack_bonus_game(p1, p2, p3, p4, p5); }
 // EEUCMissile vf42, thiscall(class, missile, aim) - ret 8, the aim unused
 typedef int (__thiscall *missile_launch_fn)(void *, ee_unit *, float *);
 internal missile_launch_fn fn_missile_launch;
@@ -258,6 +261,8 @@ internal int spec_unit_type_select(int build) {
         of_unit_stats_armor = 0xE0;
         of_unit_stats_reload = 0x138;
         of_unit_stats_hp = 0x144;
+        vt_ee_to_hit_table = 0x0082C920;
+        fn_to_hit_table_attack_bonus = (to_hit_table_attack_bonus_fn)0x004D5F2C;
         data_unit_type_bonus_table = 0x00917DE0;
         value_unit_type_slot_missile_launch = 42;
         value_unit_type_slot_proj_down = 55;
@@ -265,7 +270,6 @@ internal int spec_unit_type_select(int build) {
         value_unit_type_slot_type_can_carry = 60;
         data_unit_type_vt_missile = 0x00832E90;
         data_unit_type_vt_projectile = 0x00833060;
-        fn_attack_bonus_game = (attack_bonus_game_fn)0x004D5F2C;
         fn_missile_launch = (missile_launch_fn)0x00606109;
         fn_proj_down = (proj_down_fn)0x006078F9;
         return 0;
@@ -313,6 +317,8 @@ internal int spec_unit_type_select(int build) {
         of_unit_stats_armor = 0xE0;
         of_unit_stats_reload = 0x138;
         of_unit_stats_hp = 0x144;
+        vt_ee_to_hit_table = 0x008420C0;
+        fn_to_hit_table_attack_bonus = (to_hit_table_attack_bonus_fn)0x004DBE44;
         data_unit_type_bonus_table = 0x009318E8;
         value_unit_type_slot_missile_launch = 43;
         value_unit_type_slot_proj_down = 56;
@@ -320,7 +326,6 @@ internal int spec_unit_type_select(int build) {
         value_unit_type_slot_type_can_carry = 61;
         data_unit_type_vt_missile = 0x00848CF8;
         data_unit_type_vt_projectile = 0x00848ED0;
-        fn_attack_bonus_game = (attack_bonus_game_fn)0x004DBE44;
         fn_missile_launch = (missile_launch_fn)0x0061799B;
         fn_proj_down = (proj_down_fn)0x00619143;
         return 0;
@@ -337,10 +342,11 @@ internal int spec_unit_type_check(void) {
     bad += spec_call(calls_fire[1], (uintptr_t)fn_unit_type_fire, "EEUnitClass.fire [call_site fire 1]");
     bad += spec_call(calls_fire[2], (uintptr_t)fn_unit_type_fire, "EEUnitClass.fire [call_site fire 2]");
     bad += spec_call(calls_fire[3], (uintptr_t)fn_unit_type_fire, "EEUnitClass.fire [call_site fire 3]");
+    bad += spec_vtable(vt_ee_to_hit_table, ".?AVEEToHitTable@@", "EEToHitTable [vtable]");
+    bad += spec_code((uintptr_t)fn_to_hit_table_attack_bonus, "EEToHitTable.attack_bonus");
     bad += spec_data(data_unit_type_bonus_table, "unit_type.bonus_table");
     bad += spec_data(data_unit_type_vt_missile, "unit_type.vt_missile");
     bad += spec_data(data_unit_type_vt_projectile, "unit_type.vt_projectile");
-    bad += spec_code((uintptr_t)fn_attack_bonus_game, "unit_type_functions.attack_bonus_game");
     bad += spec_code((uintptr_t)fn_missile_launch, "unit_type_functions.missile_launch");
     bad += spec_code((uintptr_t)fn_proj_down, "unit_type_functions.proj_down");
     return bad;

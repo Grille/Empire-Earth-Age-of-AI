@@ -433,10 +433,10 @@ internal void fleet_kill(int k, ee_unit *dead, int n);   // fleet.c: which task 
 internal void fleet_lost(int v, ee_unit *dead);          // fleet.c: an own ship of a task force sunk
 internal void mass_death(ee_unit *dead);                 // mass.c: a land soldier killed - who stood by it
 internal void cover_death(ee_unit *dead, int k);         // cover.c: a military unit killed - its fight, its hit points
-__attribute__((used)) void __thiscall hook_kill_stat(uint8_t *stats, int n, int d) {
+__attribute__((used)) void __thiscall hook_kill_stat(ee_player_stats *stats, int n, int d) {
     ee_player *owner = g_kill_unit ? unit_get_owner(g_kill_unit) : NULL;
     if (stats && owner && (n == 2 || n == 3)) {
-        int k = pidx(stats - 0x4A8), v = pidx(owner);
+        int k = pidx(player_of_stats(stats)), v = pidx(owner);
         uint32_t m = game_time() / 60000u + 1, b = m % KILLS_RING;
         if (g_kills_min_t[b] != m) { memset(g_kills_min[b], 0, sizeof g_kills_min[b]); g_kills_min_t[b] = m; }
         ee_unit_type *td = unit_get_type_data(g_kill_unit);
@@ -454,7 +454,7 @@ __attribute__((used)) void __thiscall hook_kill_stat(uint8_t *stats, int n, int 
         if (n == 3) cover_death(g_kill_unit, k);
         if (n == 3) eco_death(g_kill_unit, k, v);
     }
-    stat_add(stats, n, d);
+    player_stats_add(stats, n, d);
 }
 __attribute__((naked, used)) void kill_stat_thunk(void) {
     __asm__("movl %esi, _g_kill_unit\n\t"
@@ -1736,7 +1736,7 @@ internal void chat_send(const char *text) {   // a chat line from the local play
     wstring_set(u, text);
     void *msg = msg_chat_alloc();
     if (msg) {
-        msg_chat_init(msg, u);
+        chat_msg_init(msg, u);
         server_send_all(net, msg);
     }
     wstring_free(u);

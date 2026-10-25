@@ -66,6 +66,10 @@ internal inline int *unit_vis_flag_at(const ee_unit_vis *o) { return (int *)((ui
 internal inline uint16_t *unit_vis_get_seen(const ee_unit_vis *o) { return *(uint16_t **)((uint8_t *)o + of_unit_vis_seen); }
 internal inline void unit_vis_set_seen(ee_unit_vis *o, uint16_t *v) { *(uint16_t **)((uint8_t *)o + of_unit_vis_seen) = v; }
 internal inline uint16_t **unit_vis_seen_at(const ee_unit_vis *o) { return (uint16_t **)((uint8_t *)o + of_unit_vis_seen); }
+// thiscall(site+0x14 object, player) -> bool
+typedef char (__thiscall *unit_vis_explored_fn)(ee_unit_vis *, ee_player *);
+internal unit_vis_explored_fn fn_unit_vis_explored;
+internal inline char unit_vis_explored(ee_unit_vis *unit_vis, ee_player *pl) { return fn_unit_vis_explored(unit_vis, pl); }
 
 // class ee_tile_node (void)
 // a node of a tile's object list (TILE_OBJECTS)
@@ -118,6 +122,34 @@ internal inline uint8_t *view_row_get_data(const void *o) { return *(uint8_t **)
 internal inline void view_row_set_data(void *o, uint8_t *v) { *(uint8_t **)((uint8_t *)o + of_view_row_data) = v; }
 internal inline uint8_t **view_row_data_at(const void *o) { return (uint8_t **)((uint8_t *)o + of_view_row_data); }
 
+// class EEAIContinentManager (ee_continent_mgr)
+// the map's continents and areas, map.map_areas - a static object (EEAIContinentManager)
+// where an idle transport lands - the continent manager's (the doc said a transport manager until 2026-10-25:
+// two of its three callers pass map.map_areas)
+typedef int (__thiscall *continent_mgr_shore_to_unload_fn)(ee_continent_mgr *, ee_unit *);
+internal continent_mgr_shore_to_unload_fn fn_continent_mgr_shore_to_unload;
+internal inline int continent_mgr_shore_to_unload(ee_continent_mgr *continent_mgr, ee_unit *transport) { return fn_continent_mgr_shore_to_unload(continent_mgr, transport); }
+internal inline int patch_shore_to_unload(continent_mgr_shore_to_unload_fn h) { return patch_call(call_shore_to_unload, (uintptr_t)fn_continent_mgr_shore_to_unload, (void *)h); }
+// the area object at a tile (thiscall on the map areas map.map_areas)
+typedef uint8_t *(__thiscall *continent_mgr_area_at_fn)(ee_continent_mgr *, int *);
+internal continent_mgr_area_at_fn fn_continent_mgr_area_at;
+internal inline uint8_t *continent_mgr_area_at(ee_continent_mgr *continent_mgr, int *pt) { return fn_continent_mgr_area_at(continent_mgr, pt); }
+// thiscall(0x917BC8, int pos[2], 2) -> short region id
+typedef uint16_t (__thiscall *continent_mgr_region_fn)(ee_continent_mgr *, int *, int);
+internal continent_mgr_region_fn fn_continent_mgr_region;
+internal inline uint16_t continent_mgr_region(ee_continent_mgr *continent_mgr, int *pos, int kind) { return fn_continent_mgr_region(continent_mgr, pos, kind); }
+
+// class EEMiniMap (ee_minimap)
+// the minimap (EEMiniMap)
+// thiscall(minimap, tile x, y): a unit more sees the tile (its pixel's count +1)
+typedef void (__thiscall *minimap_sight_add_fn)(ee_minimap *, int, int);
+internal minimap_sight_add_fn fn_minimap_sight_add;
+internal inline void minimap_sight_add(ee_minimap *minimap, int x, int y) { fn_minimap_sight_add(minimap, x, y); }
+// thiscall(minimap, tile, x, y), ret 0xC: the tile's sight count into the minimap's (its rebuild 0x5150F2)
+typedef void (__thiscall *minimap_tile_fn)(ee_minimap *, ee_tile *, int, int);
+internal minimap_tile_fn fn_minimap_tile;
+internal inline void minimap_tile(ee_minimap *minimap, ee_tile *tile, int x, int y) { fn_minimap_tile(minimap, tile, x, y); }
+
 // static class map
 // map's data of the game, places in its code and numbers
 // thiscall(tile, player), ret 4: a unit more sees it
@@ -125,26 +157,10 @@ internal inline uint8_t *map_fn_tile_sight_add_at(void) { return (uint8_t *)(uin
 // thiscall(tile, player), ret 4: a unit less sees it
 internal inline uint8_t *map_fn_tile_sight_sub_at(void) { return (uint8_t *)(uintptr_t)data_map_fn_tile_sight_sub; }
 // the map's areas (regions, continents)
-internal inline uint8_t *map_map_areas_at(void) { return (uint8_t *)(uintptr_t)data_map_map_areas; }
+internal inline ee_continent_mgr *map_map_areas_at(void) { return (ee_continent_mgr *)(uint8_t *)(uintptr_t)data_map_map_areas; }
 
 // static class map_functions
 // the game's functions map.c wraps, by the names the C side gives them
-// the area object at a tile (thiscall on the map areas map.map_areas)
-typedef uint8_t *(__thiscall *area_at_game_fn)(void *, int *);
-internal area_at_game_fn fn_area_at_game;
-internal inline uint8_t *area_at_game(void *p1, int *p2) { return fn_area_at_game(p1, p2); }
-// thiscall(minimap, tile x, y): a unit more sees the tile (its pixel's count +1)
-typedef void (__thiscall *minimap_sight_add_fn)(void *, int, int);
-internal minimap_sight_add_fn fn_minimap_sight_add;
-internal inline void minimap_sight_add(void *mm, int x, int y) { fn_minimap_sight_add(mm, x, y); }
-// thiscall(minimap, tile, x, y), ret 0xC: the tile's sight count into the minimap's (its rebuild 0x5150F2)
-typedef void (__thiscall *minimap_tile_fn)(void *, ee_tile *, int, int);
-internal minimap_tile_fn fn_minimap_tile;
-internal inline void minimap_tile(void *mm, ee_tile *tile, int x, int y) { fn_minimap_tile(mm, tile, x, y); }
-// thiscall(0x917BC8, int pos[2], 2) -> short region id
-typedef uint16_t (__thiscall *region_game_fn)(void *, int *, int);
-internal region_game_fn fn_region_game;
-internal inline uint16_t region_game(void *p1, int *p2, int p3) { return fn_region_game(p1, p2, p3); }
 
 // the running build's values (spec_select, with addr_select): how many it hasn't got
 internal int spec_map_select(int build) {
@@ -165,6 +181,7 @@ internal int spec_map_select(int build) {
         of_map_flags = 0x181730;
         of_unit_vis_flag = 0x4;
         of_unit_vis_seen = 0xC;
+        fn_unit_vis_explored = (unit_vis_explored_fn)0x00404A8A;
         of_tile_node_object = 0x4;
         of_tile_node_next = 0x8;
         of_tile_kind = 0x4;
@@ -175,13 +192,17 @@ internal int spec_map_select(int build) {
         of_view_row_start = 0x0;
         of_view_row_len = 0x4;
         of_view_row_data = 0x8;
+        vt_eeai_continent_manager = 0x008261FC;
+        fn_continent_mgr_shore_to_unload = (continent_mgr_shore_to_unload_fn)0x0042C49A;
+        call_shore_to_unload = 0x00483E24;
+        fn_continent_mgr_area_at = (continent_mgr_area_at_fn)0x00425F16;
+        fn_continent_mgr_region = (continent_mgr_region_fn)0x00425F9F;
+        vt_ee_mini_map = 0x0082C5A8;
+        fn_minimap_sight_add = (minimap_sight_add_fn)0x0051426E;
+        fn_minimap_tile = (minimap_tile_fn)0x00514A8A;
         data_map_fn_tile_sight_add = 0x00519F4F;
         data_map_fn_tile_sight_sub = 0x00519E26;
         data_map_map_areas = 0x00917BC8;
-        fn_area_at_game = (area_at_game_fn)0x00425F16;
-        fn_minimap_sight_add = (minimap_sight_add_fn)0x0051426E;
-        fn_minimap_tile = (minimap_tile_fn)0x00514A8A;
-        fn_region_game = (region_game_fn)0x00425F9F;
         return 0;
     case 1:   // aoc
         of_grid_cells = 0x4;
@@ -199,6 +220,7 @@ internal int spec_map_select(int build) {
         of_map_flags = 0x19564C;
         of_unit_vis_flag = 0x4;
         of_unit_vis_seen = 0xC;
+        fn_unit_vis_explored = (unit_vis_explored_fn)0x004042E2;
         of_tile_node_object = 0x4;
         of_tile_node_next = 0x8;
         of_tile_kind = 0x4;
@@ -209,13 +231,17 @@ internal int spec_map_select(int build) {
         of_view_row_start = 0x0;
         of_view_row_len = 0x4;
         of_view_row_data = 0x8;
+        vt_eeai_continent_manager = 0x0083A210;
+        fn_continent_mgr_shore_to_unload = (continent_mgr_shore_to_unload_fn)0x00422658;
+        call_shore_to_unload = 0x00488490;
+        fn_continent_mgr_area_at = (continent_mgr_area_at_fn)0x00422AD9;
+        fn_continent_mgr_region = (continent_mgr_region_fn)0x00422B86;
+        vt_ee_mini_map = 0x00841D44;
+        fn_minimap_sight_add = (minimap_sight_add_fn)0x0051E8BF;
+        fn_minimap_tile = (minimap_tile_fn)0x0051F0DB;
         data_map_fn_tile_sight_add = 0x005247ED;
         data_map_fn_tile_sight_sub = 0x005246C4;
         data_map_map_areas = 0x00930BF0;
-        fn_area_at_game = (area_at_game_fn)0x00422AD9;
-        fn_minimap_sight_add = (minimap_sight_add_fn)0x0051E8BF;
-        fn_minimap_tile = (minimap_tile_fn)0x0051F0DB;
-        fn_region_game = (region_game_fn)0x00422B86;
         return 0;
     }
     return 0;
@@ -225,12 +251,17 @@ internal const char *const k_spec_map_missing[ADDR_BUILDS] = { "", "" };
 // the load-time check: what the spec says of the running build's exe (spec_check): the failures
 internal int spec_map_check(void) {
     int bad = 0;
+    bad += spec_code((uintptr_t)fn_unit_vis_explored, "ee_unit_vis.explored");
+    bad += spec_vtable(vt_eeai_continent_manager, ".?AVEEAIContinentManager@@", "EEAIContinentManager [vtable]");
+    bad += spec_code((uintptr_t)fn_continent_mgr_shore_to_unload, "EEAIContinentManager.shore_to_unload");
+    bad += spec_call(call_shore_to_unload, (uintptr_t)fn_continent_mgr_shore_to_unload, "EEAIContinentManager.shore_to_unload [call_site shore_to_unload]");
+    bad += spec_code((uintptr_t)fn_continent_mgr_area_at, "EEAIContinentManager.area_at");
+    bad += spec_code((uintptr_t)fn_continent_mgr_region, "EEAIContinentManager.region");
+    bad += spec_vtable(vt_ee_mini_map, ".?AVEEMiniMap@@", "EEMiniMap [vtable]");
+    bad += spec_code((uintptr_t)fn_minimap_sight_add, "EEMiniMap.sight_add");
+    bad += spec_code((uintptr_t)fn_minimap_tile, "EEMiniMap.tile");
     bad += spec_code(data_map_fn_tile_sight_add, "map.fn_tile_sight_add");
     bad += spec_code(data_map_fn_tile_sight_sub, "map.fn_tile_sight_sub");
     bad += spec_data(data_map_map_areas, "map.map_areas");
-    bad += spec_code((uintptr_t)fn_area_at_game, "map_functions.area_at_game");
-    bad += spec_code((uintptr_t)fn_minimap_sight_add, "map_functions.minimap_sight_add");
-    bad += spec_code((uintptr_t)fn_minimap_tile, "map_functions.minimap_tile");
-    bad += spec_code((uintptr_t)fn_region_game, "map_functions.region_game");
     return bad;
 }

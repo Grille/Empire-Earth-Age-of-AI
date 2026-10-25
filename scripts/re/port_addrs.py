@@ -105,7 +105,7 @@ class Exe:
 EXE_HAND = {
     0x0048BBA8: (0x00490602, 'find_food_game: AssignCitizens (0x48EECF) calls it six times where the base calls 0x48BBA8'),
     0x004050C2: (0x00404734, 'the scroll timer period: push 0xA in the EEAScroll ctor (0x404733; the base: push 0x19)'),
-    0x00617780: (0x0062A2DF, 'the kill statistic: the call of stat_add just before the attack alert, as in the base'),
+    0x00617780: (0x0062A2DF, 'the kill statistic: the call of player_stats_add just before the attack alert, as in the base'),
     0x006177CF: (0x0062A366, 'the only call of data_hooks_fn_attack_alert'),
     0x00607D79: (0x00619604, 'the second of the calls of unit_fire, after the projectile code (proj_down 0x619143)'),
     0x0050FEC8: (0x0051A487, 'the call of mouse_update the others leave'),
@@ -113,7 +113,7 @@ EXE_HAND = {
     0x005007B2: (0x0050B2AD, 'mov esi, data_hooks_draw_old + 0x58 (the draw records\' init loop)'),
     0x005007CC: (0x0050B2C7, 'cmp esi, its end (data_hooks_draw_old + 0x58 + 0x200 x 0x148): the operand of the cmp at 0x50B2C5'),
     0x005D88C0: (0x005E8B68, 'EEUIESPEMainMenu slot 1: AoC\'s copies the name field first (0x5E8ACC) - a partial fix of its own'),
-    0x0054880E: (0x00554F56, 'model_turn_decide, slot 11 (AoC 12): its rewrite - the same code (0x554E98) is AoC\'s slot 11, '
+    0x0054880E: (0x00554F56, 'physics_model_turn_decide, slot 11 (AoC 12): its rewrite - the same code (0x554E98) is AoC\'s slot 11, '
                  'the base\'s slot 10, which the base fills with this function too'),
     0x005DC902: (0x005ED231, 'call_slot_goal: the group dispatch\'s call of goal_move_at (AoC 9 calls of it there, the base 8)'),
     0x005D05CC: (0x005E0E7F, 'game_functions.resign_send: a function of its own in the 2017 list (ApplySpec made it), inside '

@@ -192,12 +192,21 @@ unsafe struct ee_unit_stats
     int32 hp;
 }
 
+/// the attack bonuses by weapon and target, unit_type.bonus_table - a static object (EEToHitTable)
+[c_type("ee_to_hit_table"), vtable((ee)0x0082C920, (aoc)0x008420C0)]
+unsafe struct EEToHitTable
+{
+    /// thiscall(unit_type.bonus_table, weapon kind, target type data, attacker, target player)
+    [address((ee)0x004D5F2C, (aoc)0x004DBE44)]
+    extern float32 attack_bonus(int32 weapon, void* target_type, int32 attacker, int32 target_player);
+}
+
 /// unit_type's data of the game, places in its code and numbers
 static unsafe class unit_type
 {
     /// attack_bonus_game's object
     [address((ee)0x00917DE0, (aoc)0x009318E8)]
-    static block bonus_table;
+    static EEToHitTable bonus_table;
 
     /// unit_type.vt_missile
     [value((ee)42, (aoc)43)]
@@ -228,10 +237,6 @@ static unsafe class unit_type
 [c_prefix("")]
 static unsafe class unit_type_functions
 {
-    /// thiscall(unit_type.bonus_table, weapon kind, target type data, attacker, target player)
-    [address((ee)0x004D5F2C, (aoc)0x004DBE44), thiscall]
-    static extern float32 attack_bonus_game(void* p1, int32 p2, void* p3, int32 p4, int32 p5);
-
     /// EEUCMissile vf42, thiscall(class, missile, aim) - ret 8, the aim unused
     [address((ee)0x00606109, (aoc)0x0061799B), thiscall]
     static extern int32 missile_launch(void* cls, EEUnit* m, float32* aim);

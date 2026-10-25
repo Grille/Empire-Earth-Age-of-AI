@@ -108,7 +108,7 @@ internal PRINTF_LIKE(1, 2) void ctl_log(const char *fmt, ...) {
 
 
 internal void queue_action(void *act) {
-    ui_queue_action(act);
+    ui_queue_action(game_get_ui(), act);
     action_release(act);
 }
 
@@ -137,7 +137,7 @@ internal void cmd_save(char *out, const char *args) {
     struct ustring upath, udir;
     ustring_init(&upath); ustring_set(&upath, path);
     ustring_init(&udir); ustring_set(&udir, "data\\Saved Games\\");   // relative to the game folder
-    uint8_t *act = save_action_alloc();
+    ee_save_action *act = save_action_alloc();
     if (!act) { ustring_free(&upath); ustring_free(&udir); REPLY("error: out of memory\n"); return; }
     // the ctor takes the folder by value and destroys its copy: ownership passes with the bytes
     save_action_init(act, &upath, 1, udir);
@@ -182,8 +182,8 @@ internal void cmd_camera(char *out, const char *args) {
         if (x < 0 || y < 0 || (uint32_t)x >= size || (uint32_t)y >= size) { REPLY("error: tile outside map (size %u)\n", size); return; }
         void *act = camera_action_alloc();
         if (!act) { REPLY("error: alloc\n"); return; }
-        act = camera_action_init(act);
-        camera_action_set(act, x, y);
+        act = center_camera_init(act);
+        center_camera_set(act, x, y);
         action_release(act);
         REPLY("ok: camera queued to tile %d %d\n", x, y);
         return;

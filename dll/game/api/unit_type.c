@@ -17,7 +17,7 @@ internal inline float unit_stats_get_armor(const ee_unit_stats *st, int c) { ret
 // FUNCTIONS
 // the damage bonus of an attacker type (data atd) against a target type (data ttd), the players' indices
 internal inline float attack_bonus(ee_unit_type *atd, ee_unit_type *ttd, int api, int tpi) {
-    return fn_attack_bonus_game((void *)data_unit_type_bonus_table, FIELD(atd, of_unit_type_weapon, int), ttd, api, tpi);
+    return fn_to_hit_table_attack_bonus((void *)data_unit_type_bonus_table, FIELD(atd, of_unit_type_weapon, int), ttd, api, tpi);
 }
 // a projectile class's: the projectile down (1: on the ground or the target), a missile launched, a unit's shot fired
 // a unit type's projectile class (type data +0x3FC) by its vtable: a plain projectile (arrows, shells), a missile

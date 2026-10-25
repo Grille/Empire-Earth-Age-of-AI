@@ -66,6 +66,10 @@ unsafe struct ee_unit_vis
     /// explored_game 0x404A8A, AoC's 0x4042E2
     [offset(0xC), found(c)]
     uint16* seen;
+
+    /// thiscall(site+0x14 object, player) -> bool
+    [address((ee)0x00404A8A, (aoc)0x004042E2)]
+    extern char8 explored(EEPlayer* pl);
 }
 
 /// a node of a tile's object list (TILE_OBJECTS)
@@ -124,6 +128,39 @@ unsafe struct ee_view_row
     uint8* data;
 }
 
+/// the map's continents and areas, map.map_areas - a static object (EEAIContinentManager)
+[c_type("ee_continent_mgr"), vtable((ee)0x008261FC, (aoc)0x0083A210)]
+unsafe struct EEAIContinentManager
+{
+    /// where an idle transport lands - the continent manager's (the doc said a transport manager until 2026-10-25:
+    /// two of its three callers pass map.map_areas)
+    [address((ee)0x0042C49A, (aoc)0x00422658)]
+    // the idle transports' call of shore_to_unload
+    [call_site("shore_to_unload", (ee)0x00483E24, (aoc)0x00488490)]
+    extern int32 shore_to_unload(EEUnit* transport);
+
+    /// the area object at a tile (thiscall on the map areas map.map_areas)
+    [address((ee)0x00425F16, (aoc)0x00422AD9)]
+    extern uint8* area_at(int32* pt);
+
+    /// thiscall(0x917BC8, int pos[2], 2) -> short region id
+    [address((ee)0x00425F9F, (aoc)0x00422B86)]
+    extern uint16 region(int32* pos, int32 kind);
+}
+
+/// the minimap (EEMiniMap)
+[c_type("ee_minimap"), vtable((ee)0x0082C5A8, (aoc)0x00841D44)]
+unsafe struct EEMiniMap
+{
+    /// thiscall(minimap, tile x, y): a unit more sees the tile (its pixel's count +1)
+    [address((ee)0x0051426E, (aoc)0x0051E8BF)]
+    extern void sight_add(int32 x, int32 y);
+
+    /// thiscall(minimap, tile, x, y), ret 0xC: the tile's sight count into the minimap's (its rebuild 0x5150F2)
+    [address((ee)0x00514A8A, (aoc)0x0051F0DB)]
+    extern void tile(ee_tile* tile, int32 x, int32 y);
+}
+
 /// map's data of the game, places in its code and numbers
 static unsafe class map
 {
@@ -137,27 +174,11 @@ static unsafe class map
 
     /// the map's areas (regions, continents)
     [address((ee)0x00917BC8, (aoc)0x00930BF0)]
-    static block map_areas;
+    static EEAIContinentManager map_areas;
 }
 
 /// the game's functions map.c wraps, by the names the C side gives them
 [c_prefix("")]
 static unsafe class map_functions
 {
-    /// the area object at a tile (thiscall on the map areas map.map_areas)
-    [address((ee)0x00425F16, (aoc)0x00422AD9), thiscall]
-    static extern uint8* area_at_game(void* p1, int32* p2);
-
-    /// thiscall(minimap, tile x, y): a unit more sees the tile (its pixel's count +1)
-    [address((ee)0x0051426E, (aoc)0x0051E8BF), thiscall]
-    static extern void minimap_sight_add(void* mm, int32 x, int32 y);
-
-    /// thiscall(minimap, tile, x, y), ret 0xC: the tile's sight count into the minimap's (its rebuild 0x5150F2)
-    [address((ee)0x00514A8A, (aoc)0x0051F0DB), thiscall]
-    static extern void minimap_tile(void* mm, ee_tile* tile, int32 x, int32 y);
-
-    /// thiscall(0x917BC8, int pos[2], 2) -> short region id
-    [address((ee)0x00425F9F, (aoc)0x00422B86), thiscall]
-    static extern uint16 region_game(void* p1, int32* p2, int32 p3);
-
 }

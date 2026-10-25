@@ -10,13 +10,13 @@ static unsafe class game
 
     /// EECameraControl; +0x78/+0x7C/+0x80 look-at x/y/z (tiles), +0xE0 zoom
     [address((ee)0x00918CD0, (aoc)0x00931710)]
-    static block camera;
+    static EECameraControl camera;
 
     [address((ee)0x00918E9A, (aoc)0x009318DA)]
     static block cheats_on;
 
     [address((ee)0x00919858, (aoc)0x009319D4)]
-    static block cheat_parser;
+    static EECheatCodes* cheat_parser;
 
     /// the player colour table (vector begin, end)
     [address((ee)0x008CFA74, (aoc)0x008E610C)]
@@ -76,9 +76,9 @@ static unsafe class game
     [address((ee)0x009183C0, (aoc)0x00930E00)]
     static block game_speed;
 
-    /// object; vtable slot 11 called after a speed change
+    /// the world (EEWorld, a static object); its vtable slot 11 called after a speed change
     [address((ee)0x00918300, (aoc)0x00930D40)]
-    static block game_state;
+    static EEWorld game_state;
 
     /// 0 random map, 1 scenario, 2 saved game, 3/4 other
     [address((ee)0x00918BF4, (aoc)0x00931634)]
@@ -187,7 +187,7 @@ static unsafe class game
 
     /// table_value_game's table (0x16: the population limit)
     [address((ee)0x00917BB0, (aoc)0x0092FCA0)]
-    static block table_values;
+    static EEWorldTable table_values;
 
     [address((ee)0x00918E9F, (aoc)0x009318DF)]
     static block teams_locked;
@@ -292,31 +292,11 @@ static unsafe class game
 [c_prefix("")]
 static unsafe class game_functions
 {
-    /// thiscall(wall manager, int from[2], int to[2], type, char)
-    [address((ee)0x00497C3F, (aoc)0x0049D05F), thiscall]
-    static extern void build_wall_game(void* p1, int32* p2, int32* p3, int32 p4, char8 p5);
-
     [address((ee)0x004D291F, (aoc)0x004D84EC), thiscall]
     static extern int32 damage_points(void* model, int32 index, uint32 state);
 
-    [address((ee)0x0058D3E1, (aoc)0x0059D615), thiscall]
-    [call_site("editor_form", (ee)0x0065BA13, (aoc)0x00673E9B)]
-    static extern void* editor_form(void* form, void* owner);
-
     [address((ee)0x005D0B4F, (aoc)0x005E145B), cdecl]
     static extern void exit_confirm();
-
-    /// thiscall(game.game_state, index)
-    [address((ee)0x0052E6EF, (aoc)0x00539670), thiscall]
-    static extern void* game_player_game(void* p1, int32 p2);
-
-    /// thiscall(game.game_state, char won, index)
-    [address((ee)0x0052E2B7, (aoc)0x005391F2), thiscall]
-    static extern void game_player_out_game(void* p1, int32 p2, int32 p3);
-
-    [address((ee)0x0052599B, (aoc)0x005306F2), thiscall]
-    [call_site("game_start", (ee)0x004CEC14, (aoc)0x004D4443)]
-    static extern char8 game_start(void* state, ee_setup* setup, void* p2);
 
     /// the highest epoch of the players player.slot_player_human says are human, 0 without
     [address((ee)0x0046D436, (aoc)0x0047005A), cdecl]
@@ -331,50 +311,20 @@ static unsafe class game_functions
     [address((ee)0x00683718, (aoc)0x0069D178), cdecl]
     static extern void* game_new(nuint n);
 
-    /// EEMHackANewUnit: thiscall(int *type, float xy[2], char player)
-    [address((ee)0x00650B3C, (aoc)0x00662C24), thiscall]
-    static extern void new_unit_msg_init(void* mem, int32* type, float32* xy, char8 player);
-
     [address((ee)0x00522A36, (aoc)0x0052D703), cdecl]
     // call ParseCommandLine(const char *) 0x522A36
     [call_site("parse_cmdline", (ee)0x00535EF2, (aoc)0x005410C8)]
     static extern char8 parse_cmdline(cstr cmd);
 
-    [address((ee)0x0066192F, (aoc)0x00678F79), thiscall]
-    static extern void queue_action_game(void* p1, void* p2);
-
     [address((ee)0x005D05CC, (aoc)0x005E0E7F), cdecl]
     static extern void resign_send();
-
-    [address((ee)0x00404FA1, (aoc)0x00404613), thiscall]
-    static extern void* save_action_init(void* mem, ustring* path, int32 flag, ustring dir);
 
     [address((ee)0x00540ACA, (aoc)0x0054D066), cdecl]
     static extern int32 save_game(void* file, int32 a, int32 b, ustring folder);
 
-    [address((ee)0x00661B04, (aoc)0x00679139), thiscall]
-    static extern void screenshot_game(void* p1, int32 p2, int32 p3, int32 p4);
-
     /// every setting into the registry
     [address((ee)0x0052AA81, (aoc)0x00535943), thiscall]
     static extern void settings_save_game(void* p1);
-
-    [address((ee)0x0052D5D7, (aoc)0x005384DD), thiscall]
-    static extern void set_stance_game(void* p1, int32 p2, int32 p3, int32 p4);
-
-    /// where an idle transport lands (thiscall(transport manager, transport))
-    [address((ee)0x0042C49A, (aoc)0x00422658), thiscall]
-    // the idle transports' call of shore_to_unload
-    [call_site("shore_to_unload", (ee)0x00483E24, (aoc)0x00488490)]
-    static extern int32 shore_to_unload(void* mgr, EEUnit* transport);
-
-    [address((ee)0x0048E817, (aoc)0x004CD4B3), thiscall]
-    static extern uint32 table_value_game(void* p1, int32 p2);
-
-    /// thiscall(game.game_state, id): a unit's handle by its id (the player in bits 24..31), its +0x30 the unit; NULL
-    /// unknown
-    [address((ee)0x0053B889, (aoc)0x0054804F), thiscall]
-    static extern EEUnit* unit_by_id_game(void* p1, uint32 p2);
 
     /// a vector's dtor (the game's delete)
     [address((ee)0x0061ABEC, (aoc)0x006002C7), thiscall]

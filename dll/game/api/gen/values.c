@@ -2,6 +2,7 @@
 // each the running build's once spec_select has run; included by game/api/api.c ahead of the module's code.
 
 // ai_managers.cs
+internal uint32_t vt_eecp_build_manager;
 internal uint32_t of_build_mgr_queues;
 internal uint32_t of_build_mgr_base_x;
 internal uint32_t of_build_mgr_base_y;
@@ -58,6 +59,7 @@ internal uint32_t of_unit_mgr_att_140;
 internal uint32_t call_train_citizens;
 internal uint32_t calls_train_units[5];
 internal uint32_t call_citizens_wanted;
+internal uint32_t vt_eecp_wall_manager;
 internal uint32_t data_ai_managers_call_farms;
 internal uint32_t data_ai_managers_call_unbuilt_farms;
 
@@ -73,6 +75,7 @@ internal uint32_t of_combat_mgr_0x4c;
 internal uint32_t of_combat_mgr_att_62;
 internal uint32_t of_combat_mgr_4c_0x48;
 internal uint32_t of_attack_cmd_groups;
+internal uint32_t call_unit_to_group;
 internal uint32_t of_attack_subgroup_units_begin;
 internal uint32_t of_attack_subgroup_route;
 internal uint32_t of_attack_subgroup_waypoints;
@@ -93,12 +96,16 @@ internal uint32_t of_asgu_info_enemy;
 internal uint32_t of_route_node_x;
 internal uint32_t of_route_node_y;
 internal uint32_t of_route_planner_player_index;
+internal uint32_t vt_eecp_combat_strategy;
 internal uint32_t of_strategy_0x3c;
 internal uint32_t of_strategy_0x40;
+internal uint32_t vt_eecpag_task;
+internal uint32_t of_task_location;
 internal uint32_t of_task_target_player;
 internal uint32_t of_task_0x28;
 internal uint32_t of_task_0x2c;
 internal uint32_t of_task_0x30;
+internal uint32_t vt_eecpi_location;
 internal uint32_t data_attack_asgu_vtables[6];
 internal uint32_t data_attack_asg_vtables[6];
 internal uint32_t data_attack_call_asg_air_queue_pop;
@@ -120,7 +127,6 @@ internal uint32_t data_attack_vt_asg_sea_transport;
 internal uint32_t data_attack_vt_route_planner;
 internal uint32_t call_group_stat;
 internal uint32_t call_range_sort;
-internal uint32_t call_unit_to_group;
 
 // engine_display.cs
 internal uint32_t of_draw_state_device;
@@ -259,11 +265,8 @@ internal uint32_t value_game_size_pause_action;
 internal uint32_t value_game_size_save_action;
 internal uint32_t data_game_vtbl_phys_step;
 internal uint32_t data_game_vt_pause_action;
-internal uint32_t call_editor_form;
-internal uint32_t call_game_start;
 internal uint32_t call_load_saved;
 internal uint32_t call_parse_cmdline;
-internal uint32_t call_shore_to_unload;
 
 // goal.cs
 internal uint32_t of_goal_state;
@@ -274,6 +277,9 @@ internal uint32_t of_goal_holder;
 internal uint32_t call_goal_fits;
 internal uint32_t call_slot_goal;
 internal uint32_t calls_unload_ctor[8];
+internal uint32_t vt_eeug_build_repair;
+internal uint32_t vt_eeug_load_transport;
+internal uint32_t vt_eeug_location;
 internal uint32_t data_goal_at_goal_set_read;
 internal uint32_t data_goal_fn_goal_attack_ctor;
 internal uint32_t value_goal_size_goal_attack;
@@ -351,6 +357,9 @@ internal uint32_t of_tile_sea_class;
 internal uint32_t of_view_row_start;
 internal uint32_t of_view_row_len;
 internal uint32_t of_view_row_data;
+internal uint32_t vt_eeai_continent_manager;
+internal uint32_t call_shore_to_unload;
+internal uint32_t vt_ee_mini_map;
 internal uint32_t data_map_fn_tile_sight_add;
 internal uint32_t data_map_fn_tile_sight_sub;
 internal uint32_t data_map_map_areas;
@@ -385,6 +394,8 @@ internal uint32_t of_server_done;
 internal uint32_t of_server_rate_max;
 internal uint32_t of_server_rate_min;
 internal uint32_t of_server_rate;
+internal uint32_t vt_eem_hack_a_new_unit;
+internal uint32_t vt_eem_cheat_code;
 internal uint32_t value_messages_size_cheat_msg;
 internal uint32_t value_messages_size_msg_chat;
 internal uint32_t value_messages_slot_msg_execute;
@@ -398,6 +409,7 @@ internal uint32_t data_messages_vt_resign;
 internal uint32_t call_sel_pack;
 
 // movement.cs
+internal uint32_t vt_ee_physics_model;
 internal uint32_t value_movement_slot_pm_collide;
 internal uint32_t value_movement_slot_pm_push;
 internal uint32_t value_movement_slot_pm_speed_decide;
@@ -415,7 +427,9 @@ internal uint32_t data_patching_ret_asg_land_handoff_give;
 
 // path.cs
 internal uint32_t of_unit_list_units;
+internal uint32_t vt_ee_group;
 internal uint32_t call_group_sector_route;
+internal uint32_t vt_ee_path_manager;
 
 // player.cs
 internal uint32_t of_player_list_begin;
@@ -686,6 +700,7 @@ internal uint32_t value_tech_slot_tech_available;
 internal uint32_t data_tech_vts_tech_researched;
 
 // ui.cs
+internal uint32_t vt_ee_user_interface;
 internal uint32_t of_ui_thread;
 internal uint32_t of_ui_seed;
 internal uint32_t of_camera_x;
@@ -709,6 +724,13 @@ internal uint32_t of_scroll_ticks;
 internal uint32_t of_scroll_keys;
 internal uint32_t of_ui_form_top_bar;
 internal uint32_t of_ui_screen_controls;
+internal uint32_t vt_eeuif_scenario_editor;
+internal uint32_t call_editor_form;
+internal uint32_t vt_eea_save_game;
+internal uint32_t vt_eea_center_camera;
+internal uint32_t vt_ee_cheat_codes;
+internal uint32_t vt_ee_effect_manager;
+internal uint32_t call_click_mark;
 internal uint32_t data_ui_gfx_effects;
 internal uint32_t data_ui_iat_edit_get_text;
 internal uint32_t data_ui_iat_uiform_add_hotkey;
@@ -723,7 +745,6 @@ internal uint32_t data_ui_sp_vtables[6];
 internal uint32_t data_ui_vt_key_scroll;
 internal uint32_t data_ui_vt_scroll;
 internal uint32_t call_player_color;
-internal uint32_t call_click_mark;
 internal uint32_t call_unload_marks;
 
 // unit.cs
@@ -833,6 +854,7 @@ internal uint32_t of_unit_stats_attack;
 internal uint32_t of_unit_stats_armor;
 internal uint32_t of_unit_stats_reload;
 internal uint32_t of_unit_stats_hp;
+internal uint32_t vt_ee_to_hit_table;
 internal uint32_t data_unit_type_bonus_table;
 internal uint32_t value_unit_type_slot_missile_launch;
 internal uint32_t value_unit_type_slot_proj_down;
@@ -851,6 +873,9 @@ internal uint32_t of_physics_steps;
 internal uint32_t of_physics_step_s;
 internal uint32_t of_physics_steps_granted;
 internal uint32_t of_physics_time;
+internal uint32_t vt_ee_world;
+internal uint32_t call_game_start;
+internal uint32_t vt_ee_world_table;
 
 // zone.cs
 internal uint32_t of_zone_sites_begin;

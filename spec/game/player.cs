@@ -198,6 +198,17 @@ unsafe struct EEPlayer
     /// thiscall(player, 1, 0)
     [address((ee)0x00556E11, (aoc)0x005651E0)]
     extern int32 population(int32 with_list, int32 with_aboard);
+
+    /// thiscall(player, type, 0x20, 0): can train or build one now
+    [address((ee)0x00555710, (aoc)0x005639E8)]
+    extern char8 can_build(int32 type, int32 flags, int32 zero);
+
+    /// EEPlayer::vf31 thiscall(player, 0): the game's unit limit for this player
+    [address((ee)0x00556EBC, (aoc)0x0056528B)]
+    extern int32 game_limit(int32 zero);
+
+    [address((ee)0x0055B8E1, (aoc)0x0056AB41)]
+    extern void set_diplomacy(EEPlayer* other, int32 stance, int32 flag);
 }
 
 /// the object at a player's +0xB98
@@ -253,6 +264,9 @@ unsafe struct EEPlayerStatistics
 {
     [offset(0x1C), found(b)]
     block lists;
+
+    [address((ee)0x0055DBCF, (aoc)0x0056D507)]
+    extern void add(int32 n, int32 d);
 }
 
 /// player's data of the game, places in its code and numbers
@@ -283,27 +297,13 @@ static unsafe class player
 [c_prefix("")]
 static unsafe class player_functions
 {
-    /// thiscall(player, type, 0x20, 0): can train or build one now
-    [address((ee)0x00555710, (aoc)0x005639E8), thiscall]
-    static extern char8 can_build_game(void* p1, int32 p2, int32 p3, int32 p4);
-
     /// cdecl char(player, type, x, y, w, h, 0)
     [address((ee)0x0062E940, (aoc)0x00643CE6), cdecl]
     static extern char8 can_place_game(void* p1, int32 p2, int32 p3, int32 p4, int32 p5, int32 p6, int32 p7);
 
-    /// EEPlayer::vf31 thiscall(player, 0): the game's unit limit for this player
-    [address((ee)0x00556EBC, (aoc)0x0056528B), thiscall]
-    static extern int32 game_limit(void* p1, int32 p2);
-
     /// cdecl(player, type, x, y): a building placed (a foundation)
     [address((ee)0x0062EF8A, (aoc)0x00644C83), cdecl]
     static extern EEUnit* place_foundation(EEPlayer* pl, int32 type, int32 x, int32 y);
-
-    [address((ee)0x0055B8E1, (aoc)0x0056AB41), thiscall]
-    static extern void set_diplomacy_game(void* p1, void* p2, int32 p3, int32 p4);
-
-    [address((ee)0x0055DBCF, (aoc)0x0056D507), thiscall]
-    static extern void stat_add(void* stats, int32 n, int32 d);
 
     /// thiscall(player +0x874, type): the per-player stats record
     [address((ee)0x00492969, (aoc)0x0051E2A5), thiscall]

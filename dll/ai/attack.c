@@ -1398,9 +1398,9 @@ internal void __thiscall hook_asg_land_stats(ee_attack_subgroup *sg) {
 // taken" (the caller only notes it), the unit stays free and the game assigns it on its next pass.
 internal int g_in_calloff;
 internal unsigned g_calloff_skips;
-internal char __thiscall hook_unit_to_group(void *cmd, ee_unit *unit) {
+internal char __thiscall hook_unit_to_group(ee_attack_cmd *cmd, ee_unit *unit) {
     if (g_in_calloff) { g_calloff_skips++; return 0; }
-    return unit_to_group(cmd, unit);
+    return attack_cmd_unit_to_group(cmd, unit);
 }
 
 // UNIT LIST: every unit - also the PathPoint markers (type 223) of an attack's route - sits in one list sorted by tile

@@ -248,7 +248,7 @@ internal void army_plan_tick(ee_player *pl, unsigned idx, uint32_t now) {
             if (bt && a->busy * 10 >= a->have * 7 && acc >= 600 && nb < lim &&
                 !build_mgr_queued(bm, bt) &&
                 can_build(pl, bt)) {
-                build_mgr_request(bm, bt);
+                build_mgr_request_one(bm, bt);
                 a->bld++;
                 if (g_log) fprintf(g_log, "# army: P%u at %.1f min: production busy %u/%u, %d buildings, account %.0f - one more %d (for type %d)\n",
                                    idx, now / 60000.0, a->busy, a->have, nb, acc, bt, a->last_type);

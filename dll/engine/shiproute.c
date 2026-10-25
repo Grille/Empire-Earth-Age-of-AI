@@ -279,10 +279,10 @@ internal void __thiscall hook_path_request(void *mgr, ee_unit *u, int *from, int
         if (done) return;
         g_sr_passed++;
     }
-    path_request(mgr, u, from, to, sync, limit, sectors, ctx);
+    path_mgr_request(mgr, u, from, to, sync, limit, sectors, ctx);
 }
 
-internal void __thiscall hook_group_sector_route(void *group, int *from, int *to, void *units) {
+internal void __thiscall hook_group_sector_route(ee_group *group, int *from, int *to, void *units) {
     if (g_sr_on && units) {
         int ships = 0, others = 0;
         for (ee_unit **p = unitlist_get_begin(units); p && p < unitlist_get_end(units); p++) {
@@ -489,7 +489,7 @@ internal void __thiscall hook_ship_turn_towards(void *model, ee_unit *u, float *
         g_st_aim_x = to[0];
         g_st_aim_y = to[1];
     }
-    model_turn_towards(model, u, pos, to, left, rate, heading, facing);
+    physics_model_turn_towards(model, u, pos, to, left, rate, heading, facing);
 }
 
 // the speed step at a leg's end that is passed through: given the way on to the next order's target, it neither
@@ -500,11 +500,11 @@ internal float __thiscall hook_ship_speed_step(void *model, ee_unit *u, float di
         dist += sqrtf((t[0] - wp[0]) * (t[0] - wp[0]) + (t[1] - wp[1]) * (t[1] - wp[1]));
         g_st_passing++;
     }
-    return model_speed_step(model, u, dist, angle);
+    return physics_model_speed_step(model, u, dist, angle);
 }
 
 internal int __thiscall hook_ship_speed(void *model, ee_unit *u, float dist, float angle) {
-    int d = model_speed_decide(model, u, dist, angle), aimed = u && u == g_st_aim_unit;
+    int d = physics_model_speed_decide(model, u, dist, angle), aimed = u && u == g_st_aim_unit;
     float e = fabsf(angle), wp[3], onward[3];
     if (aimed) {   // the turn steered at another point this tick: the arc's distance and side are to it
         dist = g_st_aim_dist;

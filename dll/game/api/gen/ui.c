@@ -13,6 +13,16 @@ internal inline void **ui_thread_at(const ee_ui *o) { return (void **)((uint8_t 
 internal inline uint32_t ui_get_seed(const ee_ui *o) { return *(uint32_t *)((uint8_t *)o + of_ui_seed); }
 internal inline void ui_set_seed(ee_ui *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_seed) = v; }
 internal inline uint32_t *ui_seed_at(const ee_ui *o) { return (uint32_t *)((uint8_t *)o + of_ui_seed); }
+typedef void (__thiscall *ui_queue_action_fn)(ee_ui *, void *);
+internal ui_queue_action_fn fn_ui_queue_action;
+internal inline void ui_queue_action(ee_ui *ui, void *action) { fn_ui_queue_action(ui, action); }
+typedef void (__thiscall *ui_screenshot_fn)(ee_ui *, int, int, int);
+internal ui_screenshot_fn fn_ui_screenshot;
+internal inline void ui_screenshot(ee_ui *ui, int size, int run_on, int zero) { fn_ui_screenshot(ui, size, run_on, zero); }
+// thiscall(ui [G_UI], colour, name, line, ms, 0): a chat or system line
+typedef void (__thiscall *ui_line_fn)(ee_ui *, void *, void *, void *, int, int);
+internal ui_line_fn fn_ui_line;
+internal inline void ui_line(ee_ui *ui, void *rgb, void *name, void *line, int ms, int zero) { fn_ui_line(ui, rgb, name, line, ms, zero); }
 
 // class EECameraControl (ee_camera)
 // the camera, game.camera (EECameraControl)
@@ -22,6 +32,10 @@ internal inline float *camera_x_at(const ee_camera *o) { return (float *)((uint8
 internal inline float camera_get_zoom(const ee_camera *o) { return *(float *)((uint8_t *)o + of_camera_zoom); }
 internal inline void camera_set_zoom(ee_camera *o, float v) { *(float *)((uint8_t *)o + of_camera_zoom) = v; }
 internal inline float *camera_zoom_at(const ee_camera *o) { return (float *)((uint8_t *)o + of_camera_zoom); }
+// thiscall on game.camera (float dx, float dy)
+typedef void (__thiscall *camera_move_fn)(ee_camera *, float, float);
+internal camera_move_fn fn_camera_move;
+internal inline void camera_move(ee_camera *camera, float dx, float dy) { fn_camera_move(camera, dx, dy); }
 
 // class ee_gfx (ee_gfx)
 // a graphical effect (a command's circle), [ui.gfx_effects] by its handle (gfx_get)
@@ -77,6 +91,9 @@ typedef void (__thiscall *mouse_update_fn)(ee_mouse *);
 internal mouse_update_fn fn_mouse_update;
 internal inline void mouse_update(ee_mouse *mouse) { fn_mouse_update(mouse); }
 internal inline int patch_mouse_update(mouse_update_fn h, int *of) { return patch_calls(calls_mouse_update, 4, (uintptr_t)fn_mouse_update, (void *)h, of); }
+typedef void (__thiscall *mouse_clamp_fn)(ee_mouse *);
+internal mouse_clamp_fn fn_mouse_clamp;
+internal inline void mouse_clamp(ee_mouse *mouse) { fn_mouse_clamp(mouse); }
 
 // class ee_native_chat (ee_native_chat)
 // the object of native_chat_say
@@ -95,6 +112,9 @@ internal inline uint32_t scroll_get_ticks(const ee_scroll *o) { return *(uint32_
 internal inline void scroll_set_ticks(ee_scroll *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_scroll_ticks) = v; }
 internal inline uint32_t *scroll_ticks_at(const ee_scroll *o) { return (uint32_t *)((uint8_t *)o + of_scroll_ticks); }
 internal inline uint8_t *scroll_keys_at(const ee_scroll *o) { return (uint8_t *)o + of_scroll_keys; }
+typedef void (__thiscall *scroll_execute_fn)(ee_scroll *);
+internal scroll_execute_fn fn_scroll_execute;
+internal inline void scroll_execute(ee_scroll *scroll) { fn_scroll_execute(scroll); }
 
 // class ee_ui_form (ee_ui_form)
 // the UI manager's current form
@@ -109,10 +129,59 @@ internal inline uint8_t **ui_screen_get_controls(const ee_ui_screen *o) { return
 internal inline void ui_screen_set_controls(ee_ui_screen *o, uint8_t **v) { *(uint8_t ***)((uint8_t *)o + of_ui_screen_controls) = v; }
 internal inline uint8_t ***ui_screen_controls_at(const ee_ui_screen *o) { return (uint8_t ***)((uint8_t *)o + of_ui_screen_controls); }
 
+// class EEUIFScenarioEditor (ee_editor_form)
+// the scenario editor's form (EEUIFScenarioEditor)
+typedef void *(__thiscall *editor_form_init_fn)(ee_editor_form *, void *);
+internal editor_form_init_fn fn_editor_form_init;
+internal inline void *editor_form_init(ee_editor_form *editor_form, void *owner) { return fn_editor_form_init(editor_form, owner); }
+internal inline int patch_editor_form(editor_form_init_fn h) { return patch_call(call_editor_form, (uintptr_t)fn_editor_form_init, (void *)h); }
+
+// class EEASaveGame (ee_save_action)
+// the save-game action (EEASaveGame)
+typedef void *(__thiscall *save_action_init_fn)(ee_save_action *, struct ustring *, int, struct ustring);
+internal save_action_init_fn fn_save_action_init;
+internal inline void *save_action_init(ee_save_action *save_action, struct ustring *path, int flag, struct ustring dir) { return fn_save_action_init(save_action, path, flag, dir); }
+
+// class EEACenterCamera (ee_center_camera)
+// the centre-the-camera action (EEACenterCamera)
+// EEACenterCamera ctor (0x1C bytes)
+typedef void *(__thiscall *center_camera_init_fn)(ee_center_camera *);
+internal center_camera_init_fn fn_center_camera_init;
+internal inline void *center_camera_init(ee_center_camera *center_camera) { return fn_center_camera_init(center_camera); }
+// thiscall (tile x, tile y): set target + queue (only if tile valid)
+typedef void (__thiscall *center_camera_set_fn)(ee_center_camera *, int, int);
+internal center_camera_set_fn fn_center_camera_set;
+internal inline void center_camera_set(ee_center_camera *center_camera, int x, int y) { fn_center_camera_set(center_camera, x, y); }
+
+// class EECheatCodes (ee_cheat_codes)
+// the cheat codes' parser, [game.cheat_parser] (EECheatCodes)
+// thiscall([game.cheat_parser], UWideString *, int *code, int *arg)
+typedef void (__thiscall *cheat_codes_parse_fn)(ee_cheat_codes *, void *, int *, int *);
+internal cheat_codes_parse_fn fn_cheat_codes_parse;
+internal inline void cheat_codes_parse(ee_cheat_codes *cheat_codes, void *wtext, int *code, int *arg) { fn_cheat_codes_parse(cheat_codes, wtext, code, arg); }
+
+// class EEEffectManager (ee_effect_mgr)
+// the graphical effects (a command's circles), [ui.gfx_effects]: handle -> effect (EEEffectManager)
+// thiscall([ui.gfx_effects], unit or 0, float pos[3], kind, int *handle, 0): a graphical effect added (0: done)
+typedef int (__thiscall *effect_mgr_add_fn)(ee_effect_mgr *, void *, float *, void *, int *, int);
+internal effect_mgr_add_fn fn_effect_mgr_add;
+internal inline int effect_mgr_add(ee_effect_mgr *effect_mgr, void *on, float *pos, void *kind, int *handle, int arg) { return fn_effect_mgr_add(effect_mgr, on, pos, kind, handle, arg); }
+internal inline int patch_click_mark(effect_mgr_add_fn h) { return patch_call(call_click_mark, (uintptr_t)fn_effect_mgr_add, (void *)h); }
+// thiscall([ui.gfx_effects], handle): NULL gone
+typedef ee_gfx *(__thiscall *effect_mgr_get_fn)(ee_effect_mgr *, int);
+internal effect_mgr_get_fn fn_effect_mgr_get;
+internal inline ee_gfx *effect_mgr_get(ee_effect_mgr *effect_mgr, int handle) { return fn_effect_mgr_get(effect_mgr, handle); }
+// thiscall([ui.gfx_effects], handle)
+typedef int (__thiscall *effect_mgr_remove_fn)(ee_effect_mgr *, int);
+internal effect_mgr_remove_fn fn_effect_mgr_remove;
+internal inline int effect_mgr_remove(ee_effect_mgr *effect_mgr, int handle) { return fn_effect_mgr_remove(effect_mgr, handle); }
+
 // static class ui
 // ui's data of the game, places in its code and numbers
 // the graphical effects (a command's circles): handle -> effect
-internal inline uint8_t *ui_gfx_effects_at(void) { return (uint8_t *)(uintptr_t)data_ui_gfx_effects; }
+internal inline ee_effect_mgr *ui_get_gfx_effects(void) { return *(ee_effect_mgr **)(uint8_t *)(uintptr_t)data_ui_gfx_effects; }
+internal inline void ui_set_gfx_effects(ee_effect_mgr *v) { *(ee_effect_mgr **)(uint8_t *)(uintptr_t)data_ui_gfx_effects = v; }
+internal inline ee_effect_mgr **ui_gfx_effects_at(void) { return (ee_effect_mgr **)(uint8_t *)(uintptr_t)data_ui_gfx_effects; }
 // UIEditBox::GetText
 internal inline uint8_t *ui_iat_edit_get_text_at(void) { return (uint8_t *)(uintptr_t)data_ui_iat_edit_get_text; }
 // UIForm::AddHotKey(key, 3 masks, 4 events, K, bool)
@@ -133,68 +202,34 @@ internal inline uint8_t *ui_vt_scroll_at(void) { return (uint8_t *)(uintptr_t)da
 
 // static class ui_functions
 // the game's functions ui.c wraps, by the names the C side gives them
-// EEACenterCamera ctor (0x1C bytes)
-typedef void *(__thiscall *camera_action_init_fn)(void *);
-internal camera_action_init_fn fn_camera_action_init;
-internal inline void *camera_action_init(void *mem) { return fn_camera_action_init(mem); }
-// thiscall (tile x, tile y): set target + queue (only if tile valid)
-typedef void (__thiscall *camera_action_set_fn)(void *, int, int);
-internal camera_action_set_fn fn_camera_action_set;
-internal inline void camera_action_set(void *act, int x, int y) { fn_camera_action_set(act, x, y); }
-// thiscall on game.camera (float dx, float dy)
-typedef void (__thiscall *camera_move_game_fn)(void *, float, float);
-internal camera_move_game_fn fn_camera_move_game;
-internal inline void camera_move_game(void *p1, float p2, float p3) { fn_camera_move_game(p1, p2, p3); }
-// thiscall([game.cheat_parser], UWideString *, int *code, int *arg)
-typedef void (__thiscall *cheat_parse_fn)(void *, void *, int *, int *);
-internal cheat_parse_fn fn_cheat_parse;
-internal inline void cheat_parse(void *parser, void *wtext, int *code, int *arg) { fn_cheat_parse(parser, wtext, code, arg); }
 typedef void *(__cdecl *game_color_rgb_fn)(uint32_t);
 internal game_color_rgb_fn fn_game_color_rgb;
 internal inline void *game_color_rgb(uint32_t idx) { return fn_game_color_rgb(idx); }
 internal inline int patch_player_color(game_color_rgb_fn h) { return patch_call(call_player_color, (uintptr_t)fn_game_color_rgb, (void *)h); }
-// thiscall([ui.gfx_effects], unit or 0, float pos[3], kind, int *handle, 0): a graphical effect added (0: done)
-typedef int (__thiscall *gfx_add_fn)(void *, void *, float *, void *, int *, int);
-internal gfx_add_fn fn_gfx_add;
-internal inline int gfx_add(void *fx, void *on, float *pos, void *kind, int *handle, int arg) { return fn_gfx_add(fx, on, pos, kind, handle, arg); }
-internal inline int patch_click_mark(gfx_add_fn h) { return patch_call(call_click_mark, (uintptr_t)fn_gfx_add, (void *)h); }
-// thiscall([ui.gfx_effects], handle): NULL gone
-typedef ee_gfx *(__thiscall *gfx_get_fn)(void *, int);
-internal gfx_get_fn fn_gfx_get;
-internal inline ee_gfx *gfx_get(void *p1, int p2) { return fn_gfx_get(p1, p2); }
 // a graphical effect's record by its id (enum gfx_kind)
 typedef void *(__cdecl *gfx_kind_game_fn)(uint32_t);
 internal gfx_kind_game_fn fn_gfx_kind_game;
 internal inline void *gfx_kind_game(uint32_t p1) { return fn_gfx_kind_game(p1); }
-// thiscall([ui.gfx_effects], handle)
-typedef int (__thiscall *gfx_remove_game_fn)(void *, int);
-internal gfx_remove_game_fn fn_gfx_remove_game;
-internal inline int gfx_remove_game(void *p1, int p2) { return fn_gfx_remove_game(p1, p2); }
-typedef void (__thiscall *mouse_clamp_fn)(void *);
-internal mouse_clamp_fn fn_mouse_clamp;
-internal inline void mouse_clamp(void *m) { fn_mouse_clamp(m); }
 // cdecl(group, 0, owner (a player's +0x45C), how (0xBB: a GFX_ORDER_ON circle at each unit's goal), 0): a
 // command's circles
 typedef void (__cdecl *order_marks_fn)(void *, void *, int, int, uint32_t);
 internal order_marks_fn fn_order_marks;
 internal inline void order_marks(void *grp, void *on, int owner, int how, uint32_t goal) { fn_order_marks(grp, on, owner, how, goal); }
 internal inline int patch_unload_marks(order_marks_fn h) { return patch_call(call_unload_marks, (uintptr_t)fn_order_marks, (void *)h); }
-typedef void (__thiscall *scroll_execute_fn)(void *);
-internal scroll_execute_fn fn_scroll_execute;
-internal inline void scroll_execute(void *self) { fn_scroll_execute(self); }
-// thiscall(ui [G_UI], colour, name, line, ms, 0): a chat or system line
-typedef void (__thiscall *ui_line_game_fn)(void *, void *, void *, void *, int, int);
-internal ui_line_game_fn fn_ui_line_game;
-internal inline void ui_line_game(void *p1, void *p2, void *p3, void *p4, int p5, int p6) { fn_ui_line_game(p1, p2, p3, p4, p5, p6); }
 
 // the running build's values (spec_select, with addr_select): how many it hasn't got
 internal int spec_ui_select(int build) {
     switch (build) {
     case 0:   // ee
+        vt_ee_user_interface = 0x008359A4;
         of_ui_thread = 0x40;
         of_ui_seed = 0x54;
+        fn_ui_queue_action = (ui_queue_action_fn)0x0066192F;
+        fn_ui_screenshot = (ui_screenshot_fn)0x00661B04;
+        fn_ui_line = (ui_line_fn)0x00661E91;
         of_camera_x = 0x78;
         of_camera_zoom = 0xE0;
+        fn_camera_move = (camera_move_fn)0x0051E2E6;
         of_gfx_owner = 0x20;
         of_gfx_shown = 0x2D;
         of_gfx_0x2e = 0x2E;
@@ -212,6 +247,7 @@ internal int spec_ui_select(int build) {
         calls_mouse_update[1] = 0x0050FEC8;
         calls_mouse_update[2] = 0x005111CF;
         calls_mouse_update[3] = 0x006618B8;
+        fn_mouse_clamp = (mouse_clamp_fn)0x00510DAD;
         of_native_chat_player = 0x20;
         fn_native_chat_say = (native_chat_say_fn)0x00484EB3;
         calls_native_chat[0] = 0x00470040;
@@ -221,8 +257,24 @@ internal int spec_ui_select(int build) {
         calls_native_chat[4] = 0x00472B9D;
         of_scroll_ticks = 0x40;
         of_scroll_keys = 0x44;
+        fn_scroll_execute = (scroll_execute_fn)0x004050FC;
         of_ui_form_top_bar = 0x5D8;
         of_ui_screen_controls = 0xF8;
+        vt_eeuif_scenario_editor = 0x0082F7B4;
+        fn_editor_form_init = (editor_form_init_fn)0x0058D3E1;
+        call_editor_form = 0x0065BA13;
+        vt_eea_save_game = 0x00825084;
+        fn_save_action_init = (save_action_init_fn)0x00404FA1;
+        vt_eea_center_camera = 0x0082D2F0;
+        fn_center_camera_init = (center_camera_init_fn)0x00560179;
+        fn_center_camera_set = (center_camera_set_fn)0x00401F3E;
+        vt_ee_cheat_codes = 0x0082C744;
+        fn_cheat_codes_parse = (cheat_codes_parse_fn)0x00520A17;
+        vt_ee_effect_manager = 0x0082C164;
+        fn_effect_mgr_add = (effect_mgr_add_fn)0x004FB6D4;
+        call_click_mark = 0x00404A26;
+        fn_effect_mgr_get = (effect_mgr_get_fn)0x004FBE3E;
+        fn_effect_mgr_remove = (effect_mgr_remove_fn)0x004FBEB2;
         data_ui_gfx_effects = 0x00918E1C;
         data_ui_iat_edit_get_text = 0x00823328;
         data_ui_iat_uiform_add_hotkey = 0x00824048;
@@ -246,28 +298,22 @@ internal int spec_ui_select(int build) {
         data_ui_sp_vtables[5] = 0x00835790;
         data_ui_vt_key_scroll = 0x008348FC;
         data_ui_vt_scroll = 0x00825098;
-        fn_camera_action_init = (camera_action_init_fn)0x00560179;
-        fn_camera_action_set = (camera_action_set_fn)0x00401F3E;
-        fn_camera_move_game = (camera_move_game_fn)0x0051E2E6;
-        fn_cheat_parse = (cheat_parse_fn)0x00520A17;
         fn_game_color_rgb = (game_color_rgb_fn)0x00526B85;
         call_player_color = 0x005262E4;
-        fn_gfx_add = (gfx_add_fn)0x004FB6D4;
-        call_click_mark = 0x00404A26;
-        fn_gfx_get = (gfx_get_fn)0x004FBE3E;
         fn_gfx_kind_game = (gfx_kind_game_fn)0x00404C83;
-        fn_gfx_remove_game = (gfx_remove_game_fn)0x004FBEB2;
-        fn_mouse_clamp = (mouse_clamp_fn)0x00510DAD;
         fn_order_marks = (order_marks_fn)0x004B12A2;
         call_unload_marks = 0x005DCDBD;
-        fn_scroll_execute = (scroll_execute_fn)0x004050FC;
-        fn_ui_line_game = (ui_line_game_fn)0x00661E91;
         return 0;
     case 1:   // aoc
+        vt_ee_user_interface = 0x0084BA40;
         of_ui_thread = 0x40;
         of_ui_seed = 0x54;
+        fn_ui_queue_action = (ui_queue_action_fn)0x00678F79;
+        fn_ui_screenshot = (ui_screenshot_fn)0x00679139;
+        fn_ui_line = (ui_line_fn)0x006794C6;
         of_camera_x = 0x78;
         of_camera_zoom = 0xE0;
+        fn_camera_move = (camera_move_fn)0x00528EA5;
         of_gfx_owner = 0x20;
         of_gfx_shown = 0x2D;
         of_gfx_0x2e = 0x2E;
@@ -285,6 +331,7 @@ internal int spec_ui_select(int build) {
         calls_mouse_update[1] = 0x0051A487;
         calls_mouse_update[2] = 0x0051B73E;
         calls_mouse_update[3] = 0x00678F02;
+        fn_mouse_clamp = (mouse_clamp_fn)0x0051B31C;
         of_native_chat_player = 0x20;
         fn_native_chat_say = (native_chat_say_fn)0x0048966C;
         calls_native_chat[0] = 0x00472F4C;
@@ -294,8 +341,24 @@ internal int spec_ui_select(int build) {
         calls_native_chat[4] = 0x00475C65;
         of_scroll_ticks = 0x40;
         of_scroll_keys = 0x44;
+        fn_scroll_execute = (scroll_execute_fn)0x0040478E;
         of_ui_form_top_bar = 0x5E8;
         of_ui_screen_controls = 0xF8;
+        vt_eeuif_scenario_editor = 0x00845084;
+        fn_editor_form_init = (editor_form_init_fn)0x0059D615;
+        call_editor_form = 0x00673E9B;
+        vt_eea_save_game = 0x00839060;
+        fn_save_action_init = (save_action_init_fn)0x00404613;
+        vt_eea_center_camera = 0x00842BA0;
+        fn_center_camera_init = (center_camera_init_fn)0x0056FAD4;
+        fn_center_camera_set = (center_camera_set_fn)0x00401EE0;
+        vt_ee_cheat_codes = 0x00841EE4;
+        fn_cheat_codes_parse = (cheat_codes_parse_fn)0x0052B5D6;
+        vt_ee_effect_manager = 0x008411C0;
+        fn_effect_mgr_add = (effect_mgr_add_fn)0x00506038;
+        call_click_mark = 0x0040416B;
+        fn_effect_mgr_get = (effect_mgr_get_fn)0x00506852;
+        fn_effect_mgr_remove = (effect_mgr_remove_fn)0x005068C6;
         data_ui_gfx_effects = 0x0093185C;
         data_ui_iat_edit_get_text = 0x00837EE0;
         data_ui_iat_uiform_add_hotkey = 0x00837BE0;
@@ -319,22 +382,11 @@ internal int spec_ui_select(int build) {
         data_ui_sp_vtables[5] = 0x0084B864;
         data_ui_vt_key_scroll = 0x0084A998;
         data_ui_vt_scroll = 0x0083907C;
-        fn_camera_action_init = (camera_action_init_fn)0x0056FAD4;
-        fn_camera_action_set = (camera_action_set_fn)0x00401EE0;
-        fn_camera_move_game = (camera_move_game_fn)0x00528EA5;
-        fn_cheat_parse = (cheat_parse_fn)0x0052B5D6;
         fn_game_color_rgb = (game_color_rgb_fn)0x005318BD;
         call_player_color = 0x00531057;
-        fn_gfx_add = (gfx_add_fn)0x00506038;
-        call_click_mark = 0x0040416B;
-        fn_gfx_get = (gfx_get_fn)0x00506852;
         fn_gfx_kind_game = (gfx_kind_game_fn)0x0040432F;
-        fn_gfx_remove_game = (gfx_remove_game_fn)0x005068C6;
-        fn_mouse_clamp = (mouse_clamp_fn)0x0051B31C;
         fn_order_marks = (order_marks_fn)0x004B86CD;
         call_unload_marks = 0x005ED592;
-        fn_scroll_execute = (scroll_execute_fn)0x0040478E;
-        fn_ui_line_game = (ui_line_game_fn)0x006794C6;
         return 0;
     }
     return 0;
@@ -344,17 +396,39 @@ internal const char *const k_spec_ui_missing[ADDR_BUILDS] = { "", "" };
 // the load-time check: what the spec says of the running build's exe (spec_check): the failures
 internal int spec_ui_check(void) {
     int bad = 0;
+    bad += spec_vtable(vt_ee_user_interface, ".?AVEEUserInterface@@", "EEUserInterface [vtable]");
+    bad += spec_code((uintptr_t)fn_ui_queue_action, "EEUserInterface.queue_action");
+    bad += spec_code((uintptr_t)fn_ui_screenshot, "EEUserInterface.screenshot");
+    bad += spec_code((uintptr_t)fn_ui_line, "EEUserInterface.line");
+    bad += spec_code((uintptr_t)fn_camera_move, "EECameraControl.move");
     bad += spec_code((uintptr_t)fn_mouse_update, "RTSMouse.update");
     bad += spec_call(calls_mouse_update[0], (uintptr_t)fn_mouse_update, "RTSMouse.update [call_site mouse_update 0]");
     bad += spec_call(calls_mouse_update[1], (uintptr_t)fn_mouse_update, "RTSMouse.update [call_site mouse_update 1]");
     bad += spec_call(calls_mouse_update[2], (uintptr_t)fn_mouse_update, "RTSMouse.update [call_site mouse_update 2]");
     bad += spec_call(calls_mouse_update[3], (uintptr_t)fn_mouse_update, "RTSMouse.update [call_site mouse_update 3]");
+    bad += spec_code((uintptr_t)fn_mouse_clamp, "RTSMouse.clamp");
     bad += spec_code((uintptr_t)fn_native_chat_say, "ee_native_chat.say");
     bad += spec_call(calls_native_chat[0], (uintptr_t)fn_native_chat_say, "ee_native_chat.say [call_site native_chat 0]");
     bad += spec_call(calls_native_chat[1], (uintptr_t)fn_native_chat_say, "ee_native_chat.say [call_site native_chat 1]");
     bad += spec_call(calls_native_chat[2], (uintptr_t)fn_native_chat_say, "ee_native_chat.say [call_site native_chat 2]");
     bad += spec_call(calls_native_chat[3], (uintptr_t)fn_native_chat_say, "ee_native_chat.say [call_site native_chat 3]");
     bad += spec_call(calls_native_chat[4], (uintptr_t)fn_native_chat_say, "ee_native_chat.say [call_site native_chat 4]");
+    bad += spec_code((uintptr_t)fn_scroll_execute, "EEAScroll.execute");
+    bad += spec_vtable(vt_eeuif_scenario_editor, ".?AVEEUIFScenarioEditor@@", "EEUIFScenarioEditor [vtable]");
+    bad += spec_code((uintptr_t)fn_editor_form_init, "EEUIFScenarioEditor.init");
+    bad += spec_call(call_editor_form, (uintptr_t)fn_editor_form_init, "EEUIFScenarioEditor.init [call_site editor_form]");
+    bad += spec_vtable(vt_eea_save_game, ".?AVEEASaveGame@@", "EEASaveGame [vtable]");
+    bad += spec_code((uintptr_t)fn_save_action_init, "EEASaveGame.init");
+    bad += spec_vtable(vt_eea_center_camera, ".?AVEEACenterCamera@@", "EEACenterCamera [vtable]");
+    bad += spec_code((uintptr_t)fn_center_camera_init, "EEACenterCamera.init");
+    bad += spec_code((uintptr_t)fn_center_camera_set, "EEACenterCamera.set");
+    bad += spec_vtable(vt_ee_cheat_codes, ".?AVEECheatCodes@@", "EECheatCodes [vtable]");
+    bad += spec_code((uintptr_t)fn_cheat_codes_parse, "EECheatCodes.parse");
+    bad += spec_vtable(vt_ee_effect_manager, ".?AVEEEffectManager@@", "EEEffectManager [vtable]");
+    bad += spec_code((uintptr_t)fn_effect_mgr_add, "EEEffectManager.add");
+    bad += spec_call(call_click_mark, (uintptr_t)fn_effect_mgr_add, "EEEffectManager.add [call_site click_mark]");
+    bad += spec_code((uintptr_t)fn_effect_mgr_get, "EEEffectManager.get");
+    bad += spec_code((uintptr_t)fn_effect_mgr_remove, "EEEffectManager.remove");
     bad += spec_data(data_ui_gfx_effects, "ui.gfx_effects");
     bad += spec_data(data_ui_iat_edit_get_text, "ui.iat_edit_get_text");
     bad += spec_data(data_ui_iat_uiform_add_hotkey, "ui.iat_uiform_add_hotkey");
@@ -374,21 +448,10 @@ internal int spec_ui_check(void) {
     bad += spec_data(data_ui_sp_vtables[5], "ui.sp_vtables 5");
     bad += spec_data(data_ui_vt_key_scroll, "ui.vt_key_scroll");
     bad += spec_data(data_ui_vt_scroll, "ui.vt_scroll");
-    bad += spec_code((uintptr_t)fn_camera_action_init, "ui_functions.camera_action_init");
-    bad += spec_code((uintptr_t)fn_camera_action_set, "ui_functions.camera_action_set");
-    bad += spec_code((uintptr_t)fn_camera_move_game, "ui_functions.camera_move_game");
-    bad += spec_code((uintptr_t)fn_cheat_parse, "ui_functions.cheat_parse");
     bad += spec_code((uintptr_t)fn_game_color_rgb, "ui_functions.game_color_rgb");
     bad += spec_call(call_player_color, (uintptr_t)fn_game_color_rgb, "ui_functions.game_color_rgb [call_site player_color]");
-    bad += spec_code((uintptr_t)fn_gfx_add, "ui_functions.gfx_add");
-    bad += spec_call(call_click_mark, (uintptr_t)fn_gfx_add, "ui_functions.gfx_add [call_site click_mark]");
-    bad += spec_code((uintptr_t)fn_gfx_get, "ui_functions.gfx_get");
     bad += spec_code((uintptr_t)fn_gfx_kind_game, "ui_functions.gfx_kind_game");
-    bad += spec_code((uintptr_t)fn_gfx_remove_game, "ui_functions.gfx_remove_game");
-    bad += spec_code((uintptr_t)fn_mouse_clamp, "ui_functions.mouse_clamp");
     bad += spec_code((uintptr_t)fn_order_marks, "ui_functions.order_marks");
     bad += spec_call(call_unload_marks, (uintptr_t)fn_order_marks, "ui_functions.order_marks [call_site unload_marks]");
-    bad += spec_code((uintptr_t)fn_scroll_execute, "ui_functions.scroll_execute");
-    bad += spec_code((uintptr_t)fn_ui_line_game, "ui_functions.ui_line_game");
     return bad;
 }

@@ -1,3 +1,30 @@
+/// a unit kind's movement, the physics model (EEPhysicsModel; EEPMNaval, EEPMLand, EEPMHelicopter ... - AoC's vtables have a slot more before the speed and turn functions)
+[c_type("ee_physics_model"), vtable((ee)0x0082D010, (aoc)0x00842848)]
+unsafe struct EEPhysicsModel
+{
+    /// EEPhysicsModel::vf9 thiscall(model, unit, distance to the waypoint, angle off the bow): 2 hold, 3 faster, 4
+    /// slower - more than 45 degrees off, slower
+    [address((ee)0x00548645, (aoc)0x00554CB2)]
+    extern int32 speed_decide(EEUnit* u, float32 dist, float32 angle);
+
+    /// EEPhysicsModel::vf8 thiscall(model, unit, distance to the waypoint, angle off the bow): the new speed from
+    /// model_speed_decide (given the same) - on the last waypoint faster no further than the distance
+    [address((ee)0x0054858E, (aoc)0x00554BDE)]
+    extern float32 speed_step(EEUnit* u, float32 dist, float32 angle);
+
+    /// EEPhysicsModel slot 11 (AoC 12: its vtables have a slot more before; AoC rewrote it - the signs, a step ahead
+    /// -, so not patched there) thiscall(model, unit, turn rate now (unit +0x17C, radians/s), angle left to turn): 3
+    /// turn faster towards it, 4 slower - from a stopping angle of the type's +0xC8 x the settings' +0x88
+    [address((ee)0x0054880E, (aoc)0x00554F56)]
+    extern int32 turn_decide(EEUnit* u, float32 rate, float32 left);
+
+    /// EEPhysicsModel::vf7 thiscall(model, unit, float pos[3], float target[3], out angle left, out turn rate, out
+    /// new heading, 0 / 1 to the unit's facing): the tick's turn towards a point (EEPMNaval::vf1 0x54EB00 gives the
+    /// front waypoint); ret 0x1C
+    [address((ee)0x005484D9, (aoc)0x00554A25)]
+    extern void turn_towards(EEUnit* u, float32* pos, float32* target, float32* left, float32* rate, float32* heading, char8 facing);
+}
+
 /// movement's data of the game, places in its code and numbers
 static unsafe class movement
 {
@@ -53,25 +80,4 @@ static unsafe class movement_functions
     [address((ee)0x0054CABF, (aoc)0x0055BE0E), thiscall]
     static extern void model_collide(void* model, EEUnit* u);
 
-    /// EEPhysicsModel::vf9 thiscall(model, unit, distance to the waypoint, angle off the bow): 2 hold, 3 faster, 4
-    /// slower - more than 45 degrees off, slower
-    [address((ee)0x00548645, (aoc)0x00554CB2), thiscall]
-    static extern int32 model_speed_decide(void* model, EEUnit* u, float32 dist, float32 angle);
-
-    /// EEPhysicsModel::vf8 thiscall(model, unit, distance to the waypoint, angle off the bow): the new speed from
-    /// model_speed_decide (given the same) - on the last waypoint faster no further than the distance
-    [address((ee)0x0054858E, (aoc)0x00554BDE), thiscall]
-    static extern float32 model_speed_step(void* model, EEUnit* u, float32 dist, float32 angle);
-
-    /// EEPhysicsModel slot 11 (AoC 12: its vtables have a slot more before; AoC rewrote it - the signs, a step ahead
-    /// -, so not patched there) thiscall(model, unit, turn rate now (unit +0x17C, radians/s), angle left to turn): 3
-    /// turn faster towards it, 4 slower - from a stopping angle of the type's +0xC8 x the settings' +0x88
-    [address((ee)0x0054880E, (aoc)0x00554F56), thiscall]
-    static extern int32 model_turn_decide(void* model, EEUnit* u, float32 rate, float32 left);
-
-    /// EEPhysicsModel::vf7 thiscall(model, unit, float pos[3], float target[3], out angle left, out turn rate, out
-    /// new heading, 0 / 1 to the unit's facing): the tick's turn towards a point (EEPMNaval::vf1 0x54EB00 gives the
-    /// front waypoint); ret 0x1C
-    [address((ee)0x005484D9, (aoc)0x00554A25), thiscall]
-    static extern void turn_towards(void* p1, void* p2, float32* p3, float32* p4, float32* p5, float32* p6, float32* p7, char8 p8);
 }

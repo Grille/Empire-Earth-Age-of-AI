@@ -244,7 +244,7 @@ internal void early_range(ee_player *pl, unsigned idx, uint32_t now) {
         if (b && unit_get_hp(b) > 0) return;
     }
     if (!ut_has(UT(B_ARCHERY_RANGE)) || build_mgr_queued(bm, UT(B_ARCHERY_RANGE))) return;
-    build_mgr_request(bm, UT(B_ARCHERY_RANGE));
+    build_mgr_request_one(bm, UT(B_ARCHERY_RANGE));
     st->ranges++;
     if (g_log) fprintf(g_log, "# early: P%u at %.1f min: no Archery Range - one requested\n", idx, now / 60000.0);
 }

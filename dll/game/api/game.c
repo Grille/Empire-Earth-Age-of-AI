@@ -2,9 +2,6 @@
 // files), settings and tables, its memory, strings, actions, the simulation and the game's run.
 
 // THE SIMULATION ([data_api_world_clock], game_physics(): EEPhysics), THE WORLD ([data_game_ui])
-// the screenshot keys' request, posted to the UI thread: size -1 the screen, else the whole map size x size/2, the game
-// paused while it renders (run_on 0); the file is EE###.bmp in the game folder
-internal inline void ui_screenshot(ee_ui *w, int size, int run_on) { fn_screenshot_game(w, size, run_on, 0); }
 
 // THE GAME DATA ([data_game_game_data], game_data()): a chat line's time on screen (ms), the unit limits (default, most)
 // a damage model's map by state (damage_points' object)
@@ -74,19 +71,19 @@ internal inline void *player_name_wstring(void) { return (void *)data_game_playe
 
 // the game's operator new: memory the game may free
 // a value of the game's table of settings (0x16: the gatherers a site takes)
-internal inline unsigned table_value(int key) { return fn_table_value_game((void *)data_game_table_values, key); }
+internal inline unsigned table_value(int key) { return fn_world_table_value((void *)data_game_table_values, key); }
 // the player object of a player index (the game state's, humans too)
-internal inline ee_player *game_player(int index) { return fn_game_player_game((void *)data_game_game_state, index); }
+internal inline ee_player *game_player(int index) { return fn_world_player((void *)data_game_game_state, index); }
 // the unit of an id (a message's: the player in bits 24..31) - its handle's +0x30, as EEMLoadTransport finds its
 // transport; NULL unknown
 internal inline ee_unit *unit_by_id(unsigned id) {
-    ee_unit *h = fn_unit_by_id_game((void *)data_game_game_state, id);
+    ee_unit *h = fn_world_unit_by_id((void *)data_game_game_state, id);
     return h ? FIELD(h, of_unit_physics, ee_unit *) : NULL;
 }
 // the stance of player index from towards to (the game's own change, with its message)
-internal inline void game_set_stance(int from, int to, int stance) { fn_set_stance_game((void *)data_game_game_state, from, to, stance); }
+internal inline void game_set_stance(int from, int to, int stance) { fn_world_set_stance((void *)data_game_game_state, from, to, stance); }
 // player index out of the game (the resign's first step)
-internal inline void game_player_out(int flag, int index) { fn_game_player_out_game((void *)data_game_game_state, flag, index); }
+internal inline void game_player_out(int flag, int index) { fn_world_player_out((void *)data_game_game_state, flag, index); }
 // the local player resigns (the menu's message sent), the exit dialog's confirmation (the originals of diplo.c's hooks)
 // the game's rand() (msvcrt's, through its import): the generator every PC of a game shares
 internal inline int game_rand(void) { return (*(int (__cdecl **)(void))data_game_iat_rand)(); }
@@ -110,8 +107,7 @@ internal inline int resource_string(void *res, int id, void *s) { return ((int (
 internal inline void *pause_action_alloc(void) { return game_new(value_game_size_pause_action); }
 internal inline void *save_action_alloc(void) { return game_new(value_game_size_save_action); }
 internal inline void *new_unit_msg_alloc(void) { return game_new(value_game_size_new_unit_msg); }
-// an action into the world's queue (QueueAction on [data_game_ui]), an action's reference given back
-internal inline void ui_queue_action(void *act) { fn_queue_action_game(*(void **)data_game_ui, act); }
+// an action's reference given back (after ui_queue_action(game_get_ui(), act) - the UI's queue keeps its own)
 internal inline void action_release(void *act) { (*(void (__thiscall **)(void *))data_game_iat_release)(act); }
 // the pause button's action (EEAUserPauseGame: vtable, refcount 1, a byte - it toggles the pause)
 internal inline uint8_t *pause_action_init(uint8_t *mem) {
@@ -146,7 +142,7 @@ internal inline void settings_save(void) { fn_settings_save_game((void *)data_ga
 // the highest epoch of the human players, 0 without
 // a model's damage points (the original of defence.c's guard)
 // a wall of type from a to b (int[2] each) by the wall manager
-internal inline void build_wall(void *wall_mgr, int *a, int *b, int type) { fn_build_wall_game(wall_mgr, a, b, type, 0); }
+internal inline void build_wall(void *wall_mgr, int *a, int *b, int type) { fn_wall_mgr_build_wall(wall_mgr, a, b, type, 0); }
 // the shore an idle transport unloads at (the original of landing.c's hook)
 // a vector the game made (its memory freed with the game's delete)
 

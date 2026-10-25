@@ -10,6 +10,16 @@ unsafe struct EEFormation
     /// OutwardCircle (the factory 0x4D84xx; both builds' EEFormation ctor)
     [offset(0x58), found(c)]
     int32 kind;
+
+    /// EEFormation::vf1 thiscall(formation, group, vector *slots), slot 1 of every formation's vtable (EEFLine,
+    /// EEFShortLine, EEFWedge, EEFCircle ... 12): the group's units into a list, then the kind's vf2 (EEFLine
+    /// 0x4D79D9) fills the slots - formation.size_formation_slot each {x, y, z, unit, facing} - from FORMATION_CENTER (the
+    /// clicked point, set by the group's dispatch 0x5DB641 just before, 0x5DBC89), every row and column spaced by the
+    /// group's largest type +0x470; a line's front row on the centre, the rows behind it. The dispatch then pairs
+    /// units and slots (nearest, or by their order along the move) and gives each unit an EEUGLocation at its slot
+    /// (0x5DC902)
+    [address((ee)0x004D7E0B, (aoc)0x004DDDD5)]
+    extern void slots(void* group, void* slots);
 }
 
 /// a formation's slot (formation_slots)
@@ -45,13 +55,4 @@ static unsafe class formation
 [c_prefix("")]
 static unsafe class formation_functions
 {
-    /// EEFormation::vf1 thiscall(formation, group, vector *slots), slot 1 of every formation's vtable (EEFLine,
-    /// EEFShortLine, EEFWedge, EEFCircle ... 12): the group's units into a list, then the kind's vf2 (EEFLine
-    /// 0x4D79D9) fills the slots - formation.size_formation_slot each {x, y, z, unit, facing} - from FORMATION_CENTER (the
-    /// clicked point, set by the group's dispatch 0x5DB641 just before, 0x5DBC89), every row and column spaced by the
-    /// group's largest type +0x470; a line's front row on the centre, the rows behind it. The dispatch then pairs
-    /// units and slots (nearest, or by their order along the move) and gives each unit an EEUGLocation at its slot
-    /// (0x5DC902)
-    [address((ee)0x004D7E0B, (aoc)0x004DDDD5), thiscall]
-    static extern void formation_slots(void* formation, void* group, void* slots);
 }

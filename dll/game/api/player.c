@@ -26,23 +26,25 @@ internal inline uint8_t *player_stats_get_end(const ee_player_stats *st, int k) 
 // the population: player +0xB10, with_list: and the units of its +0x18 list, with_aboard: and the units inside
 // transports (type family 0x1D) - (1, 0) is what the AI's unit manager counts
 // the game's unit limit (EEPlayer::vf31(0) called directly: a computer player's own vf31 returns its cap, +0xCCC)
-internal inline int game_unit_limit(ee_player *pl) { return fn_game_limit(pl, 0); }
+internal inline int game_unit_limit(ee_player *pl) { return fn_player_game_limit(pl, 0); }
 // can it build or train type now: available, affordable, a builder (0x20: as the AI's own checks ask)
-internal inline char can_build(ee_player *pl, int type) { return fn_can_build_game(pl, type, 0x20, 0); }
+internal inline char can_build(ee_player *pl, int type) { return fn_player_can_build(pl, type, 0x20, 0); }
 // a foundation of type laid out at x, y (the player pays): the new building, NULL: none
 // can a building of type stand at x, y (size x size tiles: the game's placement test, every tile)
 internal inline char can_place_area(ee_player *pl, int type, int x, int y, int size) { return fn_can_place_game(pl, type, x, y, size, size, 0); }
 // the player's per-type stats records (player +0x874, a vector): their count, the record of type
 internal inline unsigned type_stats_count(ee_player *pl) { return fn_vector_size(FIELD_AT(pl, of_player_type_stats)); }
 internal inline ee_unit_stats **type_stats(ee_player *pl, int type) { return (ee_unit_stats **)fn_type_stats_game(FIELD_AT(pl, of_player_type_stats), type); }
+// the player whose statistics these are (they sit inside it, its stats)
+internal inline ee_player *player_of_stats(ee_player_stats *s) { return (ee_player *)((uint8_t *)s - of_player_stats); }
 // the player resigns (how: 2 as the resign message does)
 // player a's stance towards b (1 enemy, 0 ally) set as the game does (EEPlayer's diplomacy, both its lists)
 internal inline void set_diplomacy(ee_player *a, ee_player *b, int stance, int flag) {
-    fn_set_diplomacy_game(a, b, stance, flag);
+    fn_player_set_diplomacy(a, b, stance, flag);
 }
 // the player's attacks on target called off (the units back to the pool)
 // units of the player deleted to make room for req (the original of fleet.c's hook)
-// the game's unit limit for the player (EEPlayer::vf31(0) through the player's own vtable, as game_limit; it pops
+// the game's unit limit for the player (EEPlayer::vf31(0) through the player's own vtable, as player_game_limit; it pops
 // its argument)
 internal inline int unit_limit(ee_player *pl) { return ((int (__thiscall *)(void *, int))(*(void ***)pl)[value_player_slot_unit_limit])(pl, 0); }
 // does the game count the player as human (EEHumanPlayer's answers 1; highest_human_epoch's test)
@@ -65,4 +67,4 @@ internal inline int patch_cp_add_resource(cp_add_resource_hook h) {
 }
 // the maintenance's deletion of units for room (the navy keeps its ships: fleet.c)
 // a kill counted in the statistics (diplo.c - a thunk)
-internal inline int patch_kill_stat(thunk_fn thunk) { return patch_call(data_player_call_kill_stat, (uintptr_t)fn_stat_add, (void *)thunk); }
+internal inline int patch_kill_stat(thunk_fn thunk) { return patch_call(data_player_call_kill_stat, (uintptr_t)fn_player_stats_add, (void *)thunk); }

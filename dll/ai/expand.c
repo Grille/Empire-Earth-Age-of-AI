@@ -457,7 +457,7 @@ internal unsigned ex_pick(ee_player *pl, unsigned idx, struct ex_st *x, unsigned
     return best;
 }
 // the passengers: citizens nearest the home shore (within 35 tiles), soldiers at home (free ones first)
-struct ex_pick_scan { ee_player *pl; void *cm; struct ex_st *x; unsigned hc; int cx, cy, nc, ns; ee_unit *c[48], *s[48]; int cd[48], sd[48]; };
+struct ex_pick_scan { ee_player *pl; ee_combat_mgr *am; struct ex_st *x; unsigned hc; int cx, cy, nc, ns; ee_unit *c[48], *s[48]; int cd[48], sd[48]; };
 internal void ex_pick_unit(ee_unit *u, void *ctx) {
     struct ex_pick_scan *p = ctx;
     ee_unit_type *td = unit_get_type_data(u);
@@ -480,7 +480,7 @@ internal void ex_pick_unit(ee_unit *u, void *ctx) {
         }
         if (p->nc < 48) { p->c[p->nc] = u; p->cd[p->nc++] = d; }
     } else if (land_soldier(t) && is_soldier(td) && !is_ship_or_air(td) && !is_transport(t) && !is_siege(t) && !unit_fighting(u) && p->ns < 48) {   // land soldiers only (a transport counted as one and got a part of its own load goal: _purecall)
-        if (!cm_unit_free(p->cm, unit_get_physics(u))) d += 10000;   // in a group: after the free ones
+        if (!combat_mgr_unit_free(p->am, unit_get_physics(u))) d += 10000;   // in a group: after the free ones
         p->s[p->ns] = u; p->sd[p->ns++] = d;
     }
 }
@@ -549,7 +549,7 @@ internal void ex_ferry_ship(ee_player *pl, unsigned idx, struct ex_st *x, uint32
     // the passengers
     static struct ex_pick_scan p;
     memset(&p, 0, sizeof p);
-    p.pl = pl; p.cm = cm; p.x = x; p.hc = area_id(x->home, 2); p.cx = x->home.x; p.cy = x->home.y;
+    p.pl = pl; p.am = player_get_combat_mgr(pl); p.x = x; p.hc = area_id(x->home, 2); p.cx = x->home.x; p.cy = x->home.y;
     grid_each(ex_pick_unit, &p);
     int cap = ld_cap(unit_type_get_id(unit_get_type_data(best))), guard = x->guard_trip ? EX_GUARD(idx) - x->nsold : 0;
     if (guard < 0) guard = 0;
@@ -982,7 +982,7 @@ internal void ex_outpost(ee_player *pl, unsigned idx, struct ex_st *x, uint32_t 
         int gathering = !strcmp(gn, "EEUGGather@@");
         if (j >= 0 && (!gathering || !drop_ok)) {
             void *bg = goal_build_alloc();
-            if (bg) bg = goal_build_init(bg, pl, x->proj[j].b, 0);
+            if (bg) bg = build_goal_init(bg, pl, x->proj[j].b, 0);
             if (bg && unit_goal(u, bg, 0, 0x1F51)) { have[j]++; nb++; x->orders++; }
             continue;
         }

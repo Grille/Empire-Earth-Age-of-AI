@@ -91,7 +91,7 @@ internal inline int patch_draw_list(int limit, uint8_t **recs, int *ok_out, int 
     uint8_t *r = VirtualAlloc(NULL, (SIZE_T)limit * DRAW_REC, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
     if (!r) return -1;
     for (int i = 0; i < limit; i++)
-        fn_draw_rec_ctor(r + (size_t)i * DRAW_REC);
+        fn_draw_record_init(r + (size_t)i * DRAW_REC);
     uint32_t base = (uint32_t)(uintptr_t)r;
     for (int i = 0; i < n; i++) {
         uint32_t v = k[i].kind == 0 ? (uint32_t)limit

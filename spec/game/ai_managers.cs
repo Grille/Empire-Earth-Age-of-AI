@@ -1,5 +1,6 @@
-/// the AI's build manager, CM +0x3C
-unsafe struct ee_build_mgr
+/// the AI's build manager, CM +0x3C (EECPBuildManager)
+[c_type("ee_build_mgr"), vtable((ee)0x00827928, (aoc)0x0083C050)]
+unsafe struct EECPBuildManager
 {
     /// the per-epoch build lists, 0x14 each - bm_request_game 0x46802D / 0x46A9C1
     [offset(0x4), found(c)]
@@ -37,6 +38,10 @@ unsafe struct ee_build_mgr
     [address((ee)0x0046580A, (aoc)0x004674C4)]
     [call_site("place", (ee)0x00468629, (aoc)0x0046B044)]
     extern char8 place(int32 type, int32 x, int32 y);
+
+    /// thiscall(build manager, type, 1, 0): one building requested
+    [address((ee)0x0046802D, (aoc)0x0046A9C1)]
+    extern void request(int32 type, int32 count, int32 flag);
 }
 
 /// the AI's civilization manager, player +0xB90 (EECPCivilizationManager)
@@ -51,7 +56,7 @@ unsafe struct EECPCivilizationManager
     EECPResourceManager* resource_mgr;
 
     [offset(0x3C), found(b)]
-    ee_build_mgr* build_mgr;
+    EECPBuildManager* build_mgr;
 
     [offset(0x40), found(b)]
     EECPResearchManager* research_mgr;
@@ -61,7 +66,7 @@ unsafe struct EECPCivilizationManager
 
     /// EECPWallManager
     [offset(0x48), found(c)]
-    void* wall_mgr;
+    EECPWallManager* wall_mgr;
 
     /// its player
     /// between +0x48 and +0x50, unchanged (0x46D209 reads it: the player)
@@ -239,6 +244,13 @@ unsafe struct EECPResourceManager
     [call_site("hunt", (ee)0x0048ACE4, (aoc)0x0048F6D2)]
     [call_site("hunt", (ee)0x0048AFC4, (aoc)0x0048F9B3)]
     extern void* hunt(nuint n, nuint f, nuint @out);
+
+    /// (count, out list)
+    [address((ee)0x0048BFD0, (aoc)0x00490A63)]
+    extern void* farms(nuint count, nuint @out);
+
+    [address((ee)0x0048BF4F, (aoc)0x004909D7)]
+    extern void* unbuilt_farms(nuint count, nuint @out);
 }
 
 /// the AI's research manager, CM +0x40 (EECPResearchManager)
@@ -331,6 +343,15 @@ unsafe struct ee_unit_mgr
     extern char8 in_production_of(int32 type);
 }
 
+/// the AI's wall manager, CM +0x48 (EECPWallManager)
+[c_type("ee_wall_mgr"), vtable((ee)0x00827AE4, (aoc)0x0083C2C8)]
+unsafe struct EECPWallManager
+{
+    /// thiscall(wall manager, int from[2], int to[2], type, char)
+    [address((ee)0x00497C3F, (aoc)0x0049D05F)]
+    extern void build_wall(int32* from, int32* to, int32 type, char8 flag);
+}
+
 /// ai_managers's data of the game, places in its code and numbers
 static unsafe class ai_managers
 {
@@ -347,22 +368,8 @@ static unsafe class ai_managers
 [c_prefix("")]
 static unsafe class ai_managers_functions
 {
-    /// thiscall(build manager, type, 1, 0): one building requested
-    [address((ee)0x0046802D, (aoc)0x0046A9C1), thiscall]
-    static extern void bm_request_game(void* p1, int32 p2, int32 p3, int32 p4);
-
     /// an entry into a build manager epoch queue
     [address((ee)0x00468C37, (aoc)0x0046B798), thiscall]
     static extern void bq_add(void* p1, int32* p2);
 
-    /// thiscall(cm, unit state): in no group
-    [address((ee)0x004707D8, (aoc)0x0047377E), thiscall]
-    static extern char8 cm_unit_free(void* cm, void* unit_state);
-
-    /// (count, out list)
-    [address((ee)0x0048BFD0, (aoc)0x00490A63), thiscall]
-    static extern void* farms_game(void* p1, nuint p2, nuint p3);
-
-    [address((ee)0x0048BF4F, (aoc)0x004909D7), thiscall]
-    static extern void* unbuilt_farms(void* p1, nuint p2, nuint p3);
 }

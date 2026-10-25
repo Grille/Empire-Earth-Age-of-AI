@@ -56,13 +56,13 @@ internal inline ee_goal *unit_order_at(ee_unit *u, int i) {
 }
 // drops its current waypoint, the next the current (as GetNextMoveWaypoint does on arrival): 0, else it had none
 // the citizens working site (all players)
-internal inline unsigned site_gatherers(ee_unit *site) { return fn_site_gatherers_game((void *)data_game_game_state, site); }
+internal inline unsigned site_gatherers(ee_unit *site) { return fn_world_site_gatherers((void *)data_game_game_state, site); }
 // a shot's ballistic path from -> to for unit u (type: its live stats): reachable (pitch out); the aim at target
 internal inline char ballistic(ee_unit *u, ee_unit_stats *type, float *from, float *to, float *pitch) {
     return fn_ballistic_game(u, type, from, to, pitch);
 }
 // is the map object explored by pl (a site's +0x14: its map object)
-internal inline char explored_by(ee_unit *site, ee_player *pl) { return fn_explored_game(FIELD(site, of_unit_vis, void *), pl); }
+internal inline char explored_by(ee_unit *site, ee_player *pl) { return fn_unit_vis_explored(FIELD(site, of_unit_vis, void *), pl); }
 
 // the unit's script state set (SetState: its .tai state by id - engine-notes.md "Unit AI scripts"; entered, it runs once):
 // 8000 PrepareToMove after every order, 5000 Idle, 0x1F51 MoveToRepairSite (the game's builder order)

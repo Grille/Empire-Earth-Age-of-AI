@@ -110,6 +110,12 @@ internal inline void unit_unlink(ee_unit *unit) { fn_unit_unlink(unit); }
 typedef int (__thiscall *unit_count_inside_fn)(ee_unit *);
 internal unit_count_inside_fn fn_unit_count_inside;
 internal inline int unit_count_inside(ee_unit *unit) { return fn_unit_count_inside(unit); }
+// thiscall(unit, slot): the slot's goal queue (unit +0x94 a vector of 0x28-byte slots; +4 a deque of goal
+// pointers: +4 block map, +8 its size, +0xC the front's index, +0x10 the count; 0x400 a block) - slot 0 the
+// orders, the front the current, shift appends
+typedef void *(__thiscall *unit_goal_queue_fn)(ee_unit *, int);
+internal unit_goal_queue_fn fn_unit_goal_queue;
+internal inline void *unit_goal_queue(ee_unit *unit, int slot) { return fn_unit_goal_queue(unit, slot); }
 
 // class EEComplexUnit (ee_unit)
 // a unit, building, ship or projectile: everything on the map that moves or is built
@@ -309,9 +315,6 @@ internal inline uint32_t *ai_state_id_at(const ee_ai_state *o) { return (uint32_
 typedef char (__cdecl *ballistic_game_fn)(ee_unit *, ee_unit_stats *, float *, float *, float *);
 internal ballistic_game_fn fn_ballistic_game;
 internal inline char ballistic_game(ee_unit *p1, ee_unit_stats *p2, float *p3, float *p4, float *p5) { return fn_ballistic_game(p1, p2, p3, p4, p5); }
-typedef uint32_t (__thiscall *site_gatherers_game_fn)(void *, void *);
-internal site_gatherers_game_fn fn_site_gatherers_game;
-internal inline uint32_t site_gatherers_game(void *p1, void *p2) { return fn_site_gatherers_game(p1, p2); }
 // cdecl(unit, player index, new type data)
 typedef int (__cdecl *unit_convert_fn)(ee_unit *, int, ee_unit_type *);
 internal unit_convert_fn fn_unit_convert;
@@ -320,12 +323,6 @@ internal inline int unit_convert(ee_unit *u, int pi, ee_unit_type *new_td) { ret
 typedef float (__cdecl *unit_distance_fn)(ee_unit *, ee_unit *);
 internal unit_distance_fn fn_unit_distance;
 internal inline float unit_distance(ee_unit *a, ee_unit *b) { return fn_unit_distance(a, b); }
-// thiscall(unit, slot): the slot's goal queue (unit +0x94 a vector of 0x28-byte slots; +4 a deque of goal
-// pointers: +4 block map, +8 its size, +0xC the front's index, +0x10 the count; 0x400 a block) - slot 0 the
-// orders, the front the current, shift appends
-typedef void *(__thiscall *unit_goal_queue_fn)(void *, int);
-internal unit_goal_queue_fn fn_unit_goal_queue;
-internal inline void *unit_goal_queue(void *p1, int p2) { return fn_unit_goal_queue(p1, p2); }
 
 // the running build's values (spec_select, with addr_select): how many it hasn't got
 internal int spec_unit_select(int build) {
@@ -361,6 +358,7 @@ internal int spec_unit_select(int build) {
         fn_unit_turn_accel = (unit_turn_accel_fn)0x0054A504;
         fn_unit_unlink = (unit_unlink_fn)0x00628E29;
         fn_unit_count_inside = (unit_count_inside_fn)0x0042E347;
+        fn_unit_goal_queue = (unit_goal_queue_fn)0x005F3473;
         vt_ee_complex_unit = 0x00831494;
         size_ee_complex_unit = 0x348;
         of_unit_queue_begin = 0x4C;
@@ -414,10 +412,8 @@ internal int spec_unit_select(int build) {
         call_missile_aim = 0x0054E850;
         of_ai_state_id = 0x24;
         fn_ballistic_game = (ballistic_game_fn)0x0062CBB3;
-        fn_site_gatherers_game = (site_gatherers_game_fn)0x0052E5F7;
         fn_unit_convert = (unit_convert_fn)0x0062F192;
         fn_unit_distance = (unit_distance_fn)0x0062D5A4;
-        fn_unit_goal_queue = (unit_goal_queue_fn)0x005F3473;
         return 0;
     case 1:   // aoc
         size_rts_unit = 0x2C;
@@ -450,6 +446,7 @@ internal int spec_unit_select(int build) {
         fn_unit_turn_accel = (unit_turn_accel_fn)0x0055465B;
         fn_unit_unlink = (unit_unlink_fn)0x0063DBDA;
         fn_unit_count_inside = (unit_count_inside_fn)0x0040D5C5;
+        fn_unit_goal_queue = (unit_goal_queue_fn)0x005FA1CD;
         vt_ee_complex_unit = 0x00846DDC;
         size_ee_complex_unit = 0x364;
         of_unit_queue_begin = 0x4C;
@@ -503,10 +500,8 @@ internal int spec_unit_select(int build) {
         call_missile_aim = 0x0055B1C3;
         of_ai_state_id = 0x24;
         fn_ballistic_game = (ballistic_game_fn)0x00641A6A;
-        fn_site_gatherers_game = (site_gatherers_game_fn)0x00539532;
         fn_unit_convert = (unit_convert_fn)0x00644E95;
         fn_unit_distance = (unit_distance_fn)0x00642489;
-        fn_unit_goal_queue = (unit_goal_queue_fn)0x005FA1CD;
         return 0;
     }
     return 0;
@@ -528,6 +523,7 @@ internal int spec_unit_check(void) {
     bad += spec_code((uintptr_t)fn_unit_turn_accel, "EEUnit.turn_accel");
     bad += spec_code((uintptr_t)fn_unit_unlink, "EEUnit.unlink");
     bad += spec_code((uintptr_t)fn_unit_count_inside, "EEUnit.count_inside");
+    bad += spec_code((uintptr_t)fn_unit_goal_queue, "EEUnit.goal_queue");
     bad += spec_vtable(vt_ee_complex_unit, ".?AVEEComplexUnit@@", "EEComplexUnit [vtable]");
     bad += spec_code((uintptr_t)fn_ee_complex_unit_lets_pass, "EEComplexUnit.lets_pass");
     bad += spec_slot(vt_ee_complex_unit, slot_unit_lets_pass, (uintptr_t)fn_ee_complex_unit_lets_pass, "EEComplexUnit.lets_pass [slot]");
@@ -548,9 +544,7 @@ internal int spec_unit_check(void) {
     bad += spec_call(call_aim, (uintptr_t)fn_unit_aim, "unit.aim [call_site aim]");
     bad += spec_call(call_missile_aim, (uintptr_t)fn_unit_aim, "unit.aim [call_site missile_aim]");
     bad += spec_code((uintptr_t)fn_ballistic_game, "unit_functions.ballistic_game");
-    bad += spec_code((uintptr_t)fn_site_gatherers_game, "unit_functions.site_gatherers_game");
     bad += spec_code((uintptr_t)fn_unit_convert, "unit_functions.unit_convert");
     bad += spec_code((uintptr_t)fn_unit_distance, "unit_functions.unit_distance");
-    bad += spec_code((uintptr_t)fn_unit_goal_queue, "unit_functions.unit_goal_queue");
     return bad;
 }

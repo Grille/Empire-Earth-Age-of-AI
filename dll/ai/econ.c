@@ -1225,7 +1225,7 @@ internal void more_granaries(ee_player *pl, unsigned idx, ee_resource_mgr *rm, v
     }
     req[idx].t = now ? now : 1;
     req[idx].n = granaries;
-    build_mgr_request(bm, UT(B_GRANARY));
+    build_mgr_request_one(bm, UT(B_GRANARY));
     if (g_log) fprintf(g_log, "# fields: P%u at %.1f min: food target %d, %d on food, %d granaries - one more requested\n",
                        idx, now / 60000.0, want, have, granaries);
 }
@@ -1311,7 +1311,7 @@ internal void econ_fields(ee_resource_mgr *rm) {   // before the citizen assignm
         if (!best) break;
         void *mem = goal_build_alloc();
         if (!mem) break;
-        ee_goal *goal = goal_build_init(mem, pl, todo[i], 1);
+        ee_goal *goal = build_goal_init(mem, pl, todo[i], 1);
         unit_assign_goal(best, goal, 0, 0);
         unit_set_state(best, 0x1F51);
         ee_unit_type *td = unit_get_type_data(best);

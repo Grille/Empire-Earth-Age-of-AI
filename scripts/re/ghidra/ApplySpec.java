@@ -71,9 +71,12 @@ public class ApplySpec extends GhidraScript {
                 f.setName(str(o, "name"), SourceType.USER_DEFINED);
                 String conv = "__" + str(o, "convention");
                 List<Variable> params = new ArrayList<>();
+                boolean first = true;
                 for (JsonElement pe : o.getAsJsonArray("params")) {
                     JsonObject p = pe.getAsJsonObject();
-                    if (ns instanceof GhidraClass && conv.equals("__thiscall") && str(p, "name").equals("this")) continue;   // Ghidra's own
+                    boolean obj = first && conv.equals("__thiscall");
+                    first = false;
+                    if (obj) continue;   // the object (a method's this, a static class's first): Ghidra's own this
                     params.add(new ParameterImpl(str(p, "name"), type(str(p, "type")), currentProgram));
                 }
                 f.updateFunction(conv, new ReturnParameterImpl(type(str(o, "ret")), currentProgram), params,

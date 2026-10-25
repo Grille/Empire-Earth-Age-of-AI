@@ -153,6 +153,11 @@ class Gen:
         if m.type in LAYOUTS + ('code', 'vftable'):
             self.lines.append('internal inline uint8_t *%s_at(void) { return %s; }' % (self.name(P, m.name), at))
             return
+        cls = self.types.get(m.type)
+        if cls and not cls.static and not cls.enum and m.type not in self.env:   # an object of the game there: its address
+            c = ptr(self.c_type_of(cls))
+            self.lines.append('internal inline %s(void) { return (%s)%s; }' % (decl(c, self.name(P, m.name) + '_at'), c, at))
+            return
         c = self.ctype(m.type, m.where)
         p = ptr(c)
         self.lines += ['internal inline %s(void) { return *(%s)%s; }' % (decl(c, self.name(P, 'get_' + m.name)), p, at),

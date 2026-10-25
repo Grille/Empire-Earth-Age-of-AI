@@ -36,7 +36,7 @@ internal void chat_line(ee_player *pl, const char *text, int ms) {
     __attribute__((aligned(8))) uint8_t s[32];
     wstring_init(s);
     wstring_set(s, text);
-    ui_line(ui, player_color_at(pl), player_name_at(pl), s, ms);
+    ui_show_line(ui, player_color_at(pl), player_name_at(pl), s, ms);
     wstring_free(s);
 }
 
@@ -55,7 +55,7 @@ internal void system_line(const char *text, int ms) {
     wstring_init(line);
     resource_string(res, 0x7C45, name);
     wstring_set(line, text);
-    ui_line(ui, white, name, line, ms);
+    ui_show_line(ui, white, name, line, ms);
     wstring_free(line);
     wstring_free(name);
 }
@@ -71,7 +71,7 @@ internal void chat_stance_line(ee_player *pl, int stance) {
     resource_string(res, 0x7B71, verb);
     resource_string(res, stance ? 0x734A : 0x7349, word);
     wstring_format(line, "%s %s %s", ((void *)player_get_name(pl)), FIELD(verb, 4, void *), FIELD(word, 4, void *));
-    ui_line(ui, player_color_at(pl), player_name_at(pl), line, game_data_get_line_ms(opt));
+    ui_show_line(ui, player_color_at(pl), player_name_at(pl), line, game_data_get_line_ms(opt));
     wstring_free(line);
     wstring_free(word);
     wstring_free(verb);
@@ -162,14 +162,14 @@ internal void cmd_chatme(char *out, const char *args) {
     wstring_init_text(s, args);
     int code = 0, arg = 0, cheats = cheats_on() != 0;
     if (cheats && cheat_parser()) {
-        cheat_parse(cheat_parser(), s, &code, &arg);
+        cheat_codes_parse(cheat_parser(), s, &code, &arg);
         if (code) {
             void *m = msg_cheat_alloc();
-            if (m) server_send_all(net, msg_cheat_init(m, code, arg));
+            if (m) server_send_all(net, cheat_msg_init(m, code, arg));
         }
     }
     void *m = msg_chat_alloc();
-    if (m) server_send_all(net, msg_chat_init(m, s));
+    if (m) server_send_all(net, chat_msg_init(m, s));
     wstring_free(s);
     REPLY("ok: sent \"%s\" (cheats %s, cheat code %d)\n", args, cheats ? "on" : "off", code);
 }

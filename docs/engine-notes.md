@@ -837,13 +837,13 @@ conditions, 162 states with their ids) were dumped by a helper, not kept in the 
   count). Every reference to the unit records (disassembly scan of .text): 0x5007B1/0x5007CA (game-start init loop,
   start and end), 0x503C68, 0x503ECF, 0x503FCB (+0xFC), 0x5043B4, 0x50DC59. Measured (360 longbows fighting): up to 445
   objects; 600: the original list stays at 512 (full), `[display] draw_limit` 4096: up to 727.
-- The collection goes tile by tile (the map's tiles, MAP +0x1816D4) and asks each tile first: 0x404A8A (explored_game)
+- The collection goes tile by tile (the map's tiles, MAP +0x1816D4) and asks each tile first: 0x404A8A (unit_vis_explored)
   false - left out with everything on it; 0x44E46E false (explored, not in sight) - only the remembered objects. Both
   read the tile's sight count for the viewed player (+0xC: a uint16 per player slot, player +0x45C, two to a dword):
   0 unexplored, 1 explored, 2 + n while n of the player's units see it - but only its low byte. The count changes in
   three RTSTile methods only (a scan of every function for writes through the slot's shift): 0x519F4F +1 (a low byte
   of 0 -> set to 2, else +1 on the whole 16 bits), 0x519E26 -1 (while the low byte > 1), 0x51979C set (0 / 1 / 2:
-  the fog's reset 0x517E3A, the explore-all paths); its 19 readers all take the low byte (explored_game, 0x44E46E,
+  the fog's reset 0x517E3A, the explore-all paths); its 19 readers all take the low byte (unit_vis_explored, 0x44E46E,
   0x40F478, the fog's, the minimap's, the viewed player's copy 0x55BC4E into MAP +0x17B598), one its size: the
   minimap's rebuild 0x5150F2 -> 0x514A8A adds count - 1 to its pixel's own count (+0x1015C, 64 x 64 shorts, kept
   +1 / -1 by 0x51426E / 0x5141E9 after that). So at 256 units a tile read unexplored (not drawn), at 257 explored

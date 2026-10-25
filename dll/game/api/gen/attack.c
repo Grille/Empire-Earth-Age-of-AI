@@ -33,6 +33,10 @@ internal inline char combat_mgr_attack_plan_ok(ee_combat_mgr *combat_mgr, void *
 typedef void (__thiscall *combat_mgr_revenge_fn)(ee_combat_mgr *, ee_player *);
 internal combat_mgr_revenge_fn fn_combat_mgr_revenge;
 internal inline void combat_mgr_revenge(ee_combat_mgr *combat_mgr, ee_player *target) { fn_combat_mgr_revenge(combat_mgr, target); }
+// the unit (its state, unit +0x30) in none of the combat manager's groups (the game's caller 0x471F29 its own)
+typedef char (__thiscall *combat_mgr_unit_free_fn)(ee_combat_mgr *, void *);
+internal combat_mgr_unit_free_fn fn_combat_mgr_unit_free;
+internal inline char combat_mgr_unit_free(ee_combat_mgr *combat_mgr, void *unit_state) { return fn_combat_mgr_unit_free(combat_mgr, unit_state); }
 
 // class ee_combat_mgr_4c (void)
 // the object at the combat manager's +0x4C
@@ -46,6 +50,10 @@ internal inline uint8_t *attack_cmd_groups_at(const ee_attack_cmd *o) { return (
 typedef ee_attack_group *(__thiscall *attack_cmd_new_group_fn)(ee_attack_cmd *, void *, void *, void *);
 internal attack_cmd_new_group_fn fn_attack_cmd_new_group;
 internal inline ee_attack_group *attack_cmd_new_group(ee_attack_cmd *attack_cmd, void *task, void *strategy, void *ids) { return fn_attack_cmd_new_group(attack_cmd, task, strategy, ids); }
+typedef char (__thiscall *attack_cmd_unit_to_group_fn)(ee_attack_cmd *, ee_unit *);
+internal attack_cmd_unit_to_group_fn fn_attack_cmd_unit_to_group;
+internal inline char attack_cmd_unit_to_group(ee_attack_cmd *attack_cmd, ee_unit *u) { return fn_attack_cmd_unit_to_group(attack_cmd, u); }
+internal inline int patch_unit_to_group(attack_cmd_unit_to_group_fn h) { return patch_call(call_unit_to_group, (uintptr_t)fn_attack_cmd_unit_to_group, (void *)h); }
 
 // class EECPAttackSubGroup (ee_attack_subgroup)
 // an attack subgroup (EECPAttackSubGroup, EECPASG*)
@@ -175,9 +183,20 @@ internal inline int *strategy_0x3c_at(const ee_strategy *o) { return (int *)((ui
 internal inline uint8_t strategy_get_0x40(const ee_strategy *o) { return *(uint8_t *)((uint8_t *)o + of_strategy_0x40); }
 internal inline void strategy_set_0x40(ee_strategy *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_strategy_0x40) = v; }
 internal inline uint8_t *strategy_0x40_at(const ee_strategy *o) { return (uint8_t *)((uint8_t *)o + of_strategy_0x40); }
+typedef void (__thiscall *strategy_init_fn)(ee_strategy *);
+internal strategy_init_fn fn_strategy_init;
+internal inline void strategy_init(ee_strategy *strategy) { fn_strategy_init(strategy); }
+typedef void (__thiscall *strategy_free_fn)(ee_strategy *);
+internal strategy_free_fn fn_strategy_free;
+internal inline void strategy_free(ee_strategy *strategy) { fn_strategy_free(strategy); }
+typedef void (__thiscall *strategy_reset_fn)(ee_strategy *);
+internal strategy_reset_fn fn_strategy_reset;
+internal inline void strategy_reset(ee_strategy *strategy) { fn_strategy_reset(strategy); }
 
 // class EECPAGTask (ee_task)
 // an attack task (EECPAGTask)
+// where it heads (task_init constructs it there)
+internal inline ee_location *task_location_at(const ee_task *o) { return (ee_location *)((uint8_t *)o + of_task_location); }
 internal inline ee_player *task_get_target_player(const ee_task *o) { return *(ee_player **)((uint8_t *)o + of_task_target_player); }
 internal inline void task_set_target_player(ee_task *o, ee_player *v) { *(ee_player **)((uint8_t *)o + of_task_target_player) = v; }
 internal inline ee_player **task_target_player_at(const ee_task *o) { return (ee_player **)((uint8_t *)o + of_task_target_player); }
@@ -190,6 +209,25 @@ internal inline int *task_0x2c_at(const ee_task *o) { return (int *)((uint8_t *)
 internal inline uint8_t task_get_0x30(const ee_task *o) { return *(uint8_t *)((uint8_t *)o + of_task_0x30); }
 internal inline void task_set_0x30(ee_task *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_task_0x30) = v; }
 internal inline uint8_t *task_0x30_at(const ee_task *o) { return (uint8_t *)((uint8_t *)o + of_task_0x30); }
+// an attack task
+typedef void (__thiscall *task_init_fn)(ee_task *);
+internal task_init_fn fn_task_init;
+internal inline void task_init(ee_task *task) { fn_task_init(task); }
+typedef void (__thiscall *task_free_fn)(ee_task *);
+internal task_free_fn fn_task_free;
+internal inline void task_free(ee_task *task) { fn_task_free(task); }
+typedef void (__thiscall *task_set_target_fn)(ee_task *, ee_unit *);
+internal task_set_target_fn fn_task_set_target;
+internal inline void task_set_target(ee_task *task, ee_unit *t) { fn_task_set_target(task, t); }
+
+// class EECPILocation (ee_location)
+// a location an attack task heads for, the task's +0x4 (EECPILocation)
+typedef void (__thiscall *location_init_fn)(ee_location *);
+internal location_init_fn fn_location_init;
+internal inline void location_init(ee_location *location) { fn_location_init(location); }
+typedef void (__thiscall *location_set_fn)(ee_location *, ee_location *);
+internal location_set_fn fn_location_set;
+internal inline void location_set(ee_location *location, ee_location *from) { fn_location_set(location, from); }
 
 // static class attack
 // attack's data of the game, places in its code and numbers
@@ -224,9 +262,6 @@ typedef void (__thiscall *group_stat_fn)(void *, ee_unit *);
 internal group_stat_fn fn_group_stat;
 internal inline void group_stat(void *stats, ee_unit *u) { fn_group_stat(stats, u); }
 internal inline int patch_group_stat(group_stat_fn h) { return patch_call(call_group_stat, (uintptr_t)fn_group_stat, (void *)h); }
-typedef void (__thiscall *location_init_fn)(void *);
-internal location_init_fn fn_location_init;
-internal inline void location_init(void *loc) { fn_location_init(loc); }
 // point from int x, y (the task location's point)
 typedef void (__thiscall *point_set_fn)(void *, int *);
 internal point_set_fn fn_point_set;
@@ -235,32 +270,6 @@ typedef void (__cdecl *range_sort_fn)(void **, void **, ee_unit *);
 internal range_sort_fn fn_range_sort;
 internal inline void range_sort(void **b, void **e, ee_unit *unit) { fn_range_sort(b, e, unit); }
 internal inline int patch_range_sort(range_sort_fn h) { return patch_call(call_range_sort, (uintptr_t)fn_range_sort, (void *)h); }
-typedef void (__thiscall *strategy_init_fn)(void *);
-internal strategy_init_fn fn_strategy_init;
-internal inline void strategy_init(void *s) { fn_strategy_init(s); }
-typedef void (__thiscall *strategy_free_fn)(void *);
-internal strategy_free_fn fn_strategy_free;
-internal inline void strategy_free(void *s) { fn_strategy_free(s); }
-typedef void (__thiscall *strategy_reset_fn)(void *);
-internal strategy_reset_fn fn_strategy_reset;
-internal inline void strategy_reset(void *s) { fn_strategy_reset(s); }
-// an attack task
-typedef void (__thiscall *task_init_fn)(void *);
-internal task_init_fn fn_task_init;
-internal inline void task_init(void *task) { fn_task_init(task); }
-typedef void (__thiscall *task_free_fn)(void *);
-internal task_free_fn fn_task_free;
-internal inline void task_free(void *task) { fn_task_free(task); }
-typedef void (__thiscall *task_set_location_fn)(void *, void *);
-internal task_set_location_fn fn_task_set_location;
-internal inline void task_set_location(void *task_loc, void *loc) { fn_task_set_location(task_loc, loc); }
-typedef void (__thiscall *task_set_target_fn)(void *, ee_unit *);
-internal task_set_target_fn fn_task_set_target;
-internal inline void task_set_target(void *task, ee_unit *t) { fn_task_set_target(task, t); }
-typedef char (__thiscall *unit_to_group_fn)(void *, ee_unit *);
-internal unit_to_group_fn fn_unit_to_group;
-internal inline char unit_to_group(void *cmd, ee_unit *u) { return fn_unit_to_group(cmd, u); }
-internal inline int patch_unit_to_group(unit_to_group_fn h) { return patch_call(call_unit_to_group, (uintptr_t)fn_unit_to_group, (void *)h); }
 
 // the running build's values (spec_select, with addr_select): how many it hasn't got
 internal int spec_attack_select(int build) {
@@ -274,9 +283,12 @@ internal int spec_attack_select(int build) {
         of_combat_mgr_att_62 = 0x62;
         fn_combat_mgr_attack_plan_ok = (combat_mgr_attack_plan_ok_fn)0x0047067A;
         fn_combat_mgr_revenge = (combat_mgr_revenge_fn)0x0046FFB7;
+        fn_combat_mgr_unit_free = (combat_mgr_unit_free_fn)0x004707D8;
         of_combat_mgr_4c_0x48 = 0x48;
         of_attack_cmd_groups = 0x4;
         fn_attack_cmd_new_group = (attack_cmd_new_group_fn)0x0045106C;
+        fn_attack_cmd_unit_to_group = (attack_cmd_unit_to_group_fn)0x00450E07;
+        call_unit_to_group = 0x004824BF;
         of_attack_subgroup_units_begin = 0x54;
         of_attack_subgroup_route = 0x60;
         of_attack_subgroup_waypoints = 0x70;
@@ -309,12 +321,24 @@ internal int spec_attack_select(int build) {
         of_route_node_y = 0x40;
         of_route_planner_player_index = 0x48;
         fn_route_planner_cost = (route_planner_cost_fn)0x004141E8;
+        vt_eecp_combat_strategy = 0x0082795C;
         of_strategy_0x3c = 0x3C;
         of_strategy_0x40 = 0x40;
+        fn_strategy_init = (strategy_init_fn)0x00473BC4;
+        fn_strategy_free = (strategy_free_fn)0x00473C99;
+        fn_strategy_reset = (strategy_reset_fn)0x00473CA7;
+        vt_eecpag_task = 0x008265FC;
+        of_task_location = 0x4;
         of_task_target_player = 0x20;
         of_task_0x28 = 0x28;
         of_task_0x2c = 0x2C;
         of_task_0x30 = 0x30;
+        fn_task_init = (task_init_fn)0x00441FB3;
+        fn_task_free = (task_free_fn)0x00442283;
+        fn_task_set_target = (task_set_target_fn)0x00442246;
+        vt_eecpi_location = 0x008265F4;
+        fn_location_init = (location_init_fn)0x0047C4E8;
+        fn_location_set = (location_set_fn)0x0047C8B7;
         data_attack_asgu_vtables[0] = 0x00827844;
         data_attack_asgu_vtables[1] = 0x008253C0;
         data_attack_asgu_vtables[2] = 0x00825708;
@@ -346,19 +370,9 @@ internal int spec_attack_select(int build) {
         data_attack_vt_route_planner = 0x00825CC4;
         fn_group_stat = (group_stat_fn)0x00450554;
         call_group_stat = 0x00450546;
-        fn_location_init = (location_init_fn)0x0047C4E8;
         fn_point_set = (point_set_fn)0x0040D29D;
         fn_range_sort = (range_sort_fn)0x0063A355;
         call_range_sort = 0x0063052E;
-        fn_strategy_init = (strategy_init_fn)0x00473BC4;
-        fn_strategy_free = (strategy_free_fn)0x00473C99;
-        fn_strategy_reset = (strategy_reset_fn)0x00473CA7;
-        fn_task_init = (task_init_fn)0x00441FB3;
-        fn_task_free = (task_free_fn)0x00442283;
-        fn_task_set_location = (task_set_location_fn)0x0047C8B7;
-        fn_task_set_target = (task_set_target_fn)0x00442246;
-        fn_unit_to_group = (unit_to_group_fn)0x00450E07;
-        call_unit_to_group = 0x004824BF;
         return 0;
     case 1:   // aoc
         of_attack_group_subgroups_begin = 0x8;
@@ -369,9 +383,12 @@ internal int spec_attack_select(int build) {
         of_combat_mgr_att_62 = 0x62;
         fn_combat_mgr_attack_plan_ok = (combat_mgr_attack_plan_ok_fn)0x0047360A;
         fn_combat_mgr_revenge = (combat_mgr_revenge_fn)0x00472EC3;
+        fn_combat_mgr_unit_free = (combat_mgr_unit_free_fn)0x0047377E;
         of_combat_mgr_4c_0x48 = 0x48;
         of_attack_cmd_groups = 0x4;
         fn_attack_cmd_new_group = (attack_cmd_new_group_fn)0x00451D8E;
+        fn_attack_cmd_unit_to_group = (attack_cmd_unit_to_group_fn)0x00451A8A;
+        call_unit_to_group = 0x004869F3;
         of_attack_subgroup_units_begin = 0x54;
         of_attack_subgroup_route = 0x60;
         of_attack_subgroup_waypoints = 0x70;
@@ -404,12 +421,24 @@ internal int spec_attack_select(int build) {
         of_route_node_y = 0x40;
         of_route_planner_player_index = 0x48;
         fn_route_planner_cost = (route_planner_cost_fn)0x00410074;
+        vt_eecp_combat_strategy = 0x0083C0A4;
         of_strategy_0x3c = 0x3C;
         of_strategy_0x40 = 0x40;
+        fn_strategy_init = (strategy_init_fn)0x00477084;
+        fn_strategy_free = (strategy_free_fn)0x0047716D;
+        fn_strategy_reset = (strategy_reset_fn)0x0047717B;
+        vt_eecpag_task = 0x0083A6C0;
+        of_task_location = 0x4;
         of_task_target_player = 0x20;
         of_task_0x28 = 0x28;
         of_task_0x2c = 0x2C;
         of_task_0x30 = 0x30;
+        fn_task_init = (task_init_fn)0x0044162F;
+        fn_task_free = (task_free_fn)0x004417F5;
+        fn_task_set_target = (task_set_target_fn)0x00441912;
+        vt_eecpi_location = 0x0083A6B4;
+        fn_location_init = (location_init_fn)0x00480873;
+        fn_location_set = (location_set_fn)0x00480C42;
         data_attack_asgu_vtables[0] = 0x0083BF4C;
         data_attack_asgu_vtables[1] = 0x0083936C;
         data_attack_asgu_vtables[2] = 0x008396BC;
@@ -441,19 +470,9 @@ internal int spec_attack_select(int build) {
         data_attack_vt_route_planner = 0x00839C70;
         fn_group_stat = (group_stat_fn)0x00451239;
         call_group_stat = 0x0045122B;
-        fn_location_init = (location_init_fn)0x00480873;
         fn_point_set = (point_set_fn)0x0044D28B;
         fn_range_sort = (range_sort_fn)0x006509AF;
         call_range_sort = 0x0064631B;
-        fn_strategy_init = (strategy_init_fn)0x00477084;
-        fn_strategy_free = (strategy_free_fn)0x0047716D;
-        fn_strategy_reset = (strategy_reset_fn)0x0047717B;
-        fn_task_init = (task_init_fn)0x0044162F;
-        fn_task_free = (task_free_fn)0x004417F5;
-        fn_task_set_location = (task_set_location_fn)0x00480C42;
-        fn_task_set_target = (task_set_target_fn)0x00441912;
-        fn_unit_to_group = (unit_to_group_fn)0x00451A8A;
-        call_unit_to_group = 0x004869F3;
         return 0;
     }
     return 0;
@@ -465,7 +484,10 @@ internal int spec_attack_check(void) {
     int bad = 0;
     bad += spec_code((uintptr_t)fn_combat_mgr_attack_plan_ok, "EECPCombatManager.attack_plan_ok");
     bad += spec_code((uintptr_t)fn_combat_mgr_revenge, "EECPCombatManager.revenge");
+    bad += spec_code((uintptr_t)fn_combat_mgr_unit_free, "EECPCombatManager.unit_free");
     bad += spec_code((uintptr_t)fn_attack_cmd_new_group, "ee_attack_cmd.new_group");
+    bad += spec_code((uintptr_t)fn_attack_cmd_unit_to_group, "ee_attack_cmd.unit_to_group");
+    bad += spec_call(call_unit_to_group, (uintptr_t)fn_attack_cmd_unit_to_group, "ee_attack_cmd.unit_to_group [call_site unit_to_group]");
     bad += spec_code((uintptr_t)fn_attack_subgroup_air_give_goal, "EECPAttackSubGroup.air_give_goal");
     bad += spec_code((uintptr_t)fn_attack_subgroup_air_update, "EECPAttackSubGroup.air_update");
     bad += spec_code((uintptr_t)fn_attack_subgroup_give_goal, "EECPAttackSubGroup.give_goal");
@@ -478,6 +500,17 @@ internal int spec_attack_check(void) {
     bad += spec_code((uintptr_t)fn_attack_subgroup_plan_route, "EECPAttackSubGroup.plan_route");
     bad += spec_code((uintptr_t)fn_asg_unit_score, "EECPAttackSubGroupUnit.score");
     bad += spec_code((uintptr_t)fn_route_planner_cost, "EEAIGPGModifierLandAttackSubGroupRoutePlanner.cost");
+    bad += spec_vtable(vt_eecp_combat_strategy, ".?AVEECPCombatStrategy@@", "EECPCombatStrategy [vtable]");
+    bad += spec_code((uintptr_t)fn_strategy_init, "EECPCombatStrategy.init");
+    bad += spec_code((uintptr_t)fn_strategy_free, "EECPCombatStrategy.free");
+    bad += spec_code((uintptr_t)fn_strategy_reset, "EECPCombatStrategy.reset");
+    bad += spec_vtable(vt_eecpag_task, ".?AVEECPAGTask@@", "EECPAGTask [vtable]");
+    bad += spec_code((uintptr_t)fn_task_init, "EECPAGTask.init");
+    bad += spec_code((uintptr_t)fn_task_free, "EECPAGTask.free");
+    bad += spec_code((uintptr_t)fn_task_set_target, "EECPAGTask.set_target");
+    bad += spec_vtable(vt_eecpi_location, ".?AVEECPILocation@@", "EECPILocation [vtable]");
+    bad += spec_code((uintptr_t)fn_location_init, "EECPILocation.init");
+    bad += spec_code((uintptr_t)fn_location_set, "EECPILocation.set");
     bad += spec_data(data_attack_asgu_vtables[0], "attack.asgu_vtables 0");
     bad += spec_data(data_attack_asgu_vtables[1], "attack.asgu_vtables 1");
     bad += spec_data(data_attack_asgu_vtables[2], "attack.asgu_vtables 2");
@@ -500,18 +533,8 @@ internal int spec_attack_check(void) {
     bad += spec_data(data_attack_vt_route_planner, "attack.vt_route_planner");
     bad += spec_code((uintptr_t)fn_group_stat, "attack_functions.group_stat");
     bad += spec_call(call_group_stat, (uintptr_t)fn_group_stat, "attack_functions.group_stat [call_site group_stat]");
-    bad += spec_code((uintptr_t)fn_location_init, "attack_functions.location_init");
     bad += spec_code((uintptr_t)fn_point_set, "attack_functions.point_set");
     bad += spec_code((uintptr_t)fn_range_sort, "attack_functions.range_sort");
     bad += spec_call(call_range_sort, (uintptr_t)fn_range_sort, "attack_functions.range_sort [call_site range_sort]");
-    bad += spec_code((uintptr_t)fn_strategy_init, "attack_functions.strategy_init");
-    bad += spec_code((uintptr_t)fn_strategy_free, "attack_functions.strategy_free");
-    bad += spec_code((uintptr_t)fn_strategy_reset, "attack_functions.strategy_reset");
-    bad += spec_code((uintptr_t)fn_task_init, "attack_functions.task_init");
-    bad += spec_code((uintptr_t)fn_task_free, "attack_functions.task_free");
-    bad += spec_code((uintptr_t)fn_task_set_location, "attack_functions.task_set_location");
-    bad += spec_code((uintptr_t)fn_task_set_target, "attack_functions.task_set_target");
-    bad += spec_code((uintptr_t)fn_unit_to_group, "attack_functions.unit_to_group");
-    bad += spec_call(call_unit_to_group, (uintptr_t)fn_unit_to_group, "attack_functions.unit_to_group [call_site unit_to_group]");
     return bad;
 }

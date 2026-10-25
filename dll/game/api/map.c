@@ -26,7 +26,7 @@ internal inline ee_unit **grid_cell_get_units_end(const ee_grid_cell *cell) { re
 // a unit's visibility: a uint16 per vision slot (player +0x45C, the player's index), its low byte != 0 seen by it
 // THE SIGHT COUNT. That record is the unit's map tile (TILE_SIGHT the same field), the slot its sight count: 0
 // unexplored, 1 explored, 2 + n while n units of the player see it. Every reader of the game takes its low byte only
-// (explored_game, the draw list's collection 0x503B83, the fog's ...), and its add restarts a low byte of 0 at 2: a tile
+// (unit_vis_explored, the draw list's collection 0x503B83, the fog's ...), and its add restarts a low byte of 0 at 2: a tile
 // seen by 255 units turned unexplored, and its count fell behind for good. engine/sight.c keeps the count so that its
 // low byte means the same - 0, 1, or 2 .. 255 for any count from 2 on, the rest in the high byte -; sight_count reads
 // it (a count below 256 is stored as the game stores it).
@@ -44,10 +44,10 @@ internal inline uint16_t sight_raw(unsigned count) {
 // FUNCTIONS
 // the map's area id at pt (kind 1 water, 2 land): one id per connected region
 internal inline unsigned short map_area(ivec2 p, int kind) {
-    return fn_region_game((void *)data_map_map_areas, &p.x, kind);   // &p.x: the game's int pos[2]
+    return fn_continent_mgr_region((void *)data_map_map_areas, &p.x, kind);   // &p.x: the game's int pos[2]
 }
 // the map's area object at a tile (regions, continents)
-internal inline uint8_t *area_at(int *pt) { return fn_area_at_game((void *)data_map_map_areas, pt); }
+internal inline uint8_t *area_at(int *pt) { return fn_continent_mgr_area_at((void *)data_map_map_areas, pt); }
 // the minimap (RTSMiniMap): a unit more sees the tile (x, y) - its pixel's own count of them +1
 
 // HOOKS

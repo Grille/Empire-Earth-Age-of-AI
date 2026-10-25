@@ -2,6 +2,16 @@
 // takes the running build's values (game_build, beside addr_select); spec_log names those it hasn't got.
 
 // the classes types.h hasn't got
+typedef struct ee_wall_mgr ee_wall_mgr;
+typedef struct ee_location ee_location;
+typedef struct ee_cheat_codes ee_cheat_codes;
+typedef struct ee_world ee_world;
+typedef struct ee_world_table ee_world_table;
+typedef struct ee_build_goal ee_build_goal;
+typedef struct ee_load_goal ee_load_goal;
+typedef struct ee_location_goal ee_location_goal;
+typedef struct ee_continent_mgr ee_continent_mgr;
+typedef struct ee_minimap ee_minimap;
 typedef struct ee_resign_msg ee_resign_msg;
 typedef struct ee_chat_msg ee_chat_msg;
 typedef struct ee_select_msg ee_select_msg;
@@ -10,7 +20,17 @@ typedef struct ee_path_msg ee_path_msg;
 typedef struct ee_start_msg ee_start_msg;
 typedef struct ee_tribute_msg ee_tribute_msg;
 typedef struct ee_unload_msg ee_unload_msg;
+typedef struct ee_new_unit_msg ee_new_unit_msg;
+typedef struct ee_cheat_msg ee_cheat_msg;
+typedef struct ee_physics_model ee_physics_model;
+typedef struct ee_group ee_group;
+typedef struct ee_path_mgr ee_path_mgr;
+typedef struct ee_editor_form ee_editor_form;
+typedef struct ee_save_action ee_save_action;
+typedef struct ee_center_camera ee_center_camera;
+typedef struct ee_effect_mgr ee_effect_mgr;
 typedef struct ee_ghost_unit ee_ghost_unit;
+typedef struct ee_to_hit_table ee_to_hit_table;
 
 #include "game/api/gen/ai_managers.c"
 #include "game/api/gen/api.c"

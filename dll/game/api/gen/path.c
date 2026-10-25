@@ -6,38 +6,48 @@
 // group_sector_route's reads (both builds): a vector of ee_unit * (begin, end +4)
 internal inline uint8_t *unit_list_units_at(const void *o) { return (uint8_t *)o + of_unit_list_units; }
 
+// class EEGroup (ee_group)
+// a group of units moving together (EEGroup; EEActiveGroup ...)
+// thiscall(group, int from[2], int to[2], units): a sector route for a cluster of a group's units, each given
+// its chain of auto-waypoint goals
+typedef void (__thiscall *group_sector_route_fn)(ee_group *, int *, int *, void *);
+internal group_sector_route_fn fn_group_sector_route;
+internal inline void group_sector_route(ee_group *group, int *from, int *to, void *units) { fn_group_sector_route(group, from, to, units); }
+internal inline int patch_group_sector_route(group_sector_route_fn h) { return patch_call(call_group_sector_route, (uintptr_t)fn_group_sector_route, (void *)h); }
+
+// class EEPathManager (ee_path_mgr)
+// the path manager, a static object at 0x917D00 (AoC not looked up) (EEPathManager)
+// the path manager's route request: thiscall(mgr, unit, from tile, to tile, sync, node limit, use sectors, ctx),
+// ret 0x1C (AoC: an 8th argument, ret 0x20 - its continent routing; port_addrs 69%) - PrepareToMove's
+// (0x6224D0), a sector route's first leg, the re-path of all
+typedef void (__thiscall *path_mgr_request_fn)(ee_path_mgr *, ee_unit *, int *, int *, int, int, int, void *);
+internal path_mgr_request_fn fn_path_mgr_request;
+internal inline void path_mgr_request(ee_path_mgr *path_mgr, ee_unit *u, int *from, int *to, int sync, int limit, int sectors, void *ctx) { fn_path_mgr_request(path_mgr, u, from, to, sync, limit, sectors, ctx); }
+
 // static class path
 // path's data of the game, places in its code and numbers
 
 // static class path_functions
 // the game's functions path.c wraps, by the names the C side gives them
-// thiscall(group, int from[2], int to[2], units): a sector route for a cluster of a group's units, each given
-// its chain of auto-waypoint goals
-typedef void (__thiscall *group_sector_route_fn)(void *, int *, int *, void *);
-internal group_sector_route_fn fn_group_sector_route;
-internal inline void group_sector_route(void *group, int *from, int *to, void *units) { fn_group_sector_route(group, from, to, units); }
-internal inline int patch_group_sector_route(group_sector_route_fn h) { return patch_call(call_group_sector_route, (uintptr_t)fn_group_sector_route, (void *)h); }
-// the path manager's route request: thiscall(mgr, unit, from tile, to tile, sync, node limit, use sectors, ctx),
-// ret 0x1C (AoC: an 8th argument, ret 0x20 - its continent routing; port_addrs 69%) - PrepareToMove's
-// (0x6224D0), a sector route's first leg, the re-path of all
-typedef void (__thiscall *path_request_game_fn)(void *, void *, int *, int *, int, int, int, void *);
-internal path_request_game_fn fn_path_request_game;
-internal inline void path_request_game(void *p1, void *p2, int *p3, int *p4, int p5, int p6, int p7, void *p8) { fn_path_request_game(p1, p2, p3, p4, p5, p6, p7, p8); }
 
 // the running build's values (spec_select, with addr_select): how many it hasn't got
 internal int spec_path_select(int build) {
     switch (build) {
     case 0:   // ee
         of_unit_list_units = 0x4;
+        vt_ee_group = 0x008315AC;
         fn_group_sector_route = (group_sector_route_fn)0x005F670A;
         call_group_sector_route = 0x005DB5C8;
-        fn_path_request_game = (path_request_game_fn)0x004A1AFF;
+        vt_ee_path_manager = 0x00827C44;
+        fn_path_mgr_request = (path_mgr_request_fn)0x004A1AFF;
         return 0;
     case 1:   // aoc
         of_unit_list_units = 0x4;
+        vt_ee_group = 0x00846F20;
         fn_group_sector_route = (group_sector_route_fn)0x00606581;
         call_group_sector_route = 0x005EBF0C;
-        fn_path_request_game = (path_request_game_fn)0x004A6E88;
+        vt_ee_path_manager = 0x0083C438;
+        fn_path_mgr_request = (path_mgr_request_fn)0x004A6E88;
         return 0;
     }
     return 0;
@@ -47,8 +57,10 @@ internal const char *const k_spec_path_missing[ADDR_BUILDS] = { "", "" };
 // the load-time check: what the spec says of the running build's exe (spec_check): the failures
 internal int spec_path_check(void) {
     int bad = 0;
-    bad += spec_code((uintptr_t)fn_group_sector_route, "path_functions.group_sector_route");
-    bad += spec_call(call_group_sector_route, (uintptr_t)fn_group_sector_route, "path_functions.group_sector_route [call_site group_sector_route]");
-    bad += spec_code((uintptr_t)fn_path_request_game, "path_functions.path_request_game");
+    bad += spec_vtable(vt_ee_group, ".?AVEEGroup@@", "EEGroup [vtable]");
+    bad += spec_code((uintptr_t)fn_group_sector_route, "EEGroup.sector_route");
+    bad += spec_call(call_group_sector_route, (uintptr_t)fn_group_sector_route, "EEGroup.sector_route [call_site group_sector_route]");
+    bad += spec_vtable(vt_ee_path_manager, ".?AVEEPathManager@@", "EEPathManager [vtable]");
+    bad += spec_code((uintptr_t)fn_path_mgr_request, "EEPathManager.request");
     return bad;
 }

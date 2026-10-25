@@ -28,7 +28,7 @@ internal volatile LONG g_scroll_calls;   // scroll steps run (for camtrace)
 // so itself - the arrow key down, or the cursor at that edge of the game's foreground window (windowed and
 // borderless; native fullscreen's DirectInput mouse isn't the OS cursor) - up to CAM_HOLD_MS. Same speeds as
 // before: EE (speed + 0.5) * (setting + 0.5) * 0.01 tiles per ms; AoC ramps its velocity from 10% to that by 1%
-// of the top speed per 10 ms. The game's camera move (camera_move_game) sets the scene's camera node, which is what
+// of the top speed per 10 ms. The game's camera move (camera_move) sets the scene's camera node, which is what
 // the render thread draws from - between its frames it has the node to itself.
 #define CAM_FRESH_MS 40    // the game's last step this recent: its directions stand
 #define CAM_HOLD_MS 500    // a late step's directions kept this long while the input agrees
@@ -67,7 +67,7 @@ internal void scroll_move(float ms, int k) {
         if (l || r) { scroll_axis(&g_vel_x, l, r, minv, maxv, ramp); dx = g_vel_x * scale; }
         if (up || dn) { scroll_axis(&g_vel_y, up, dn, minv, maxv, ramp); dy = g_vel_y * scale; }
     }
-    if (dx != 0 || dy != 0) camera_move(dx, dy);
+    if (dx != 0 || dy != 0) camera_pan(dx, dy);
 }
 
 internal void __thiscall hook_scroll_execute(ee_scroll *self) {

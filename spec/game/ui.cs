@@ -1,6 +1,6 @@
 /// the user interface, [game.ui] (its RTTI's; the spec called it EEWorld until 2026-10-25 - the world is game.world):
 /// the action queue, the chat lines, its thread
-[c_type("ee_ui")]
+[c_type("ee_ui"), vtable((ee)0x008359A4, (aoc)0x0084BA40)]
 unsafe struct EEUserInterface
 {
     /// its thread (TSThread::Post)
@@ -11,6 +11,16 @@ unsafe struct EEUserInterface
     /// the map's seed
     [offset(0x54), found(b)]
     uint32 seed;
+
+    [address((ee)0x0066192F, (aoc)0x00678F79)]
+    extern void queue_action(void* action);
+
+    [address((ee)0x00661B04, (aoc)0x00679139)]
+    extern void screenshot(int32 size, int32 run_on, int32 zero);
+
+    /// thiscall(ui [G_UI], colour, name, line, ms, 0): a chat or system line
+    [address((ee)0x00661E91, (aoc)0x006794C6)]
+    extern void line(void* rgb, void* name, void* line, int32 ms, int32 zero);
 }
 
 /// the camera, game.camera (EECameraControl)
@@ -22,6 +32,10 @@ unsafe struct EECameraControl
 
     [offset(0xE0), found(s)]
     float32 zoom;
+
+    /// thiscall on game.camera (float dx, float dy)
+    [address((ee)0x0051E2E6, (aoc)0x00528EA5)]
+    extern void move(float32 dx, float32 dy);
 }
 
 /// a graphical effect (a command's circle), [ui.gfx_effects] by its handle (gfx_get)
@@ -84,6 +98,9 @@ unsafe struct RTSMouse
     [call_site("mouse_update", (ee)0x005111CF, (aoc)0x0051B73E)]
     [call_site("mouse_update", (ee)0x006618B8, (aoc)0x00678F02)]
     extern void update();
+
+    [address((ee)0x00510DAD, (aoc)0x0051B31C)]
+    extern void clamp();
 }
 
 /// the object of native_chat_say
@@ -112,6 +129,9 @@ unsafe struct EEAScroll
 
     [offset(0x44), found(v)]
     block keys;
+
+    [address((ee)0x004050FC, (aoc)0x0040478E)]
+    extern void execute();
 }
 
 /// the UI manager's current form
@@ -129,12 +149,70 @@ unsafe struct ee_ui_screen
     uint8** controls;
 }
 
+/// the scenario editor's form (EEUIFScenarioEditor)
+[c_type("ee_editor_form"), vtable((ee)0x0082F7B4, (aoc)0x00845084)]
+unsafe struct EEUIFScenarioEditor
+{
+    [address((ee)0x0058D3E1, (aoc)0x0059D615)]
+    [call_site("editor_form", (ee)0x0065BA13, (aoc)0x00673E9B)]
+    extern void* init(void* owner);
+}
+
+/// the save-game action (EEASaveGame)
+[c_type("ee_save_action"), vtable((ee)0x00825084, (aoc)0x00839060)]
+unsafe struct EEASaveGame
+{
+    [address((ee)0x00404FA1, (aoc)0x00404613)]
+    extern void* init(ustring* path, int32 flag, ustring dir);
+}
+
+/// the centre-the-camera action (EEACenterCamera)
+[c_type("ee_center_camera"), vtable((ee)0x0082D2F0, (aoc)0x00842BA0)]
+unsafe struct EEACenterCamera
+{
+    /// EEACenterCamera ctor (0x1C bytes)
+    [address((ee)0x00560179, (aoc)0x0056FAD4)]
+    extern void* init();
+
+    /// thiscall (tile x, tile y): set target + queue (only if tile valid)
+    [address((ee)0x00401F3E, (aoc)0x00401EE0)]
+    extern void set(int32 x, int32 y);
+}
+
+/// the cheat codes' parser, [game.cheat_parser] (EECheatCodes)
+[c_type("ee_cheat_codes"), vtable((ee)0x0082C744, (aoc)0x00841EE4)]
+unsafe struct EECheatCodes
+{
+    /// thiscall([game.cheat_parser], UWideString *, int *code, int *arg)
+    [address((ee)0x00520A17, (aoc)0x0052B5D6)]
+    extern void parse(void* wtext, int32* code, int32* arg);
+}
+
+/// the graphical effects (a command's circles), [ui.gfx_effects]: handle -> effect (EEEffectManager)
+[c_type("ee_effect_mgr"), vtable((ee)0x0082C164, (aoc)0x008411C0)]
+unsafe struct EEEffectManager
+{
+    /// thiscall([ui.gfx_effects], unit or 0, float pos[3], kind, int *handle, 0): a graphical effect added (0: done)
+    [address((ee)0x004FB6D4, (aoc)0x00506038)]
+    // EEAMouseClick::vf3's gfx_add: the command's circle
+    [call_site("click_mark", (ee)0x00404A26, (aoc)0x0040416B)]
+    extern int32 add(void* on, float32* pos, void* kind, int32* handle, int32 arg);
+
+    /// thiscall([ui.gfx_effects], handle): NULL gone
+    [address((ee)0x004FBE3E, (aoc)0x00506852)]
+    extern ee_gfx* get(int32 handle);
+
+    /// thiscall([ui.gfx_effects], handle)
+    [address((ee)0x004FBEB2, (aoc)0x005068C6)]
+    extern int32 remove(int32 handle);
+}
+
 /// ui's data of the game, places in its code and numbers
 static unsafe class ui
 {
     /// the graphical effects (a command's circles): handle -> effect
     [address((ee)0x00918E1C, (aoc)0x0093185C)]
-    static block gfx_effects;
+    static EEEffectManager* gfx_effects;
 
     /// UIEditBox::GetText
     [address((ee)0x00823328, (aoc)0x00837EE0)]
@@ -198,46 +276,13 @@ static unsafe class ui
 [c_prefix("")]
 static unsafe class ui_functions
 {
-    /// EEACenterCamera ctor (0x1C bytes)
-    [address((ee)0x00560179, (aoc)0x0056FAD4), thiscall]
-    static extern void* camera_action_init(void* mem);
-
-    /// thiscall (tile x, tile y): set target + queue (only if tile valid)
-    [address((ee)0x00401F3E, (aoc)0x00401EE0), thiscall]
-    static extern void camera_action_set(void* act, int32 x, int32 y);
-
-    /// thiscall on game.camera (float dx, float dy)
-    [address((ee)0x0051E2E6, (aoc)0x00528EA5), thiscall]
-    static extern void camera_move_game(void* p1, float32 p2, float32 p3);
-
-    /// thiscall([game.cheat_parser], UWideString *, int *code, int *arg)
-    [address((ee)0x00520A17, (aoc)0x0052B5D6), thiscall]
-    static extern void cheat_parse(void* parser, void* wtext, int32* code, int32* arg);
-
     [address((ee)0x00526B85, (aoc)0x005318BD), cdecl]
     [call_site("player_color", (ee)0x005262E4, (aoc)0x00531057)]
     static extern void* game_color_rgb(uint32 idx);
 
-    /// thiscall([ui.gfx_effects], unit or 0, float pos[3], kind, int *handle, 0): a graphical effect added (0: done)
-    [address((ee)0x004FB6D4, (aoc)0x00506038), thiscall]
-    // EEAMouseClick::vf3's gfx_add: the command's circle
-    [call_site("click_mark", (ee)0x00404A26, (aoc)0x0040416B)]
-    static extern int32 gfx_add(void* fx, void* on, float32* pos, void* kind, int32* handle, int32 arg);
-
-    /// thiscall([ui.gfx_effects], handle): NULL gone
-    [address((ee)0x004FBE3E, (aoc)0x00506852), thiscall]
-    static extern ee_gfx* gfx_get(void* p1, int32 p2);
-
     /// a graphical effect's record by its id (enum gfx_kind)
     [address((ee)0x00404C83, (aoc)0x0040432F), cdecl]
     static extern void* gfx_kind_game(uint32 p1);
-
-    /// thiscall([ui.gfx_effects], handle)
-    [address((ee)0x004FBEB2, (aoc)0x005068C6), thiscall]
-    static extern int32 gfx_remove_game(void* p1, int32 p2);
-
-    [address((ee)0x00510DAD, (aoc)0x0051B31C), thiscall]
-    static extern void mouse_clamp(void* m);
 
     /// cdecl(group, 0, owner (a player's +0x45C), how (0xBB: a GFX_ORDER_ON circle at each unit's goal), 0): a
     /// command's circles
@@ -246,10 +291,4 @@ static unsafe class ui_functions
     [call_site("unload_marks", (ee)0x005DCDBD, (aoc)0x005ED592)]
     static extern void order_marks(void* grp, void* on, int32 owner, int32 how, uint32 goal);
 
-    [address((ee)0x004050FC, (aoc)0x0040478E), thiscall]
-    static extern void scroll_execute(void* self);
-
-    /// thiscall(ui [G_UI], colour, name, line, ms, 0): a chat or system line
-    [address((ee)0x00661E91, (aoc)0x006794C6), thiscall]
-    static extern void ui_line_game(void* p1, void* p2, void* p3, void* p4, int32 p5, int32 p6);
 }

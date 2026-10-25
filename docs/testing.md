@@ -214,7 +214,7 @@ task: a poll left running after its caller gave up keeps sending commands to wha
 | `speed [s]`, `pause`, `resume`, `quit` | |
 | `peek <hex> [len]`, `poke <hex> <bytes>` | read/write memory (safe: bad addresses return an error) |
 | `sites P`, `foodcheck P`, `units P` | resource sites, food search, citizens by job for AI player P |
-| `explored P` | how many of the map's objects player P (any, by the game's index) has explored, by the game's own test (explored_game: the object's seen counter for P, or P's explore-all), and P's explore-all |
+| `explored P` | how many of the map's objects player P (any, by the game's index) has explored, by the game's own test (unit_vis_explored: the object's seen counter for P, or P's explore-all), and P's explore-all |
 | `costs P [types]` | next epoch and unit costs |
 | `wmclose` | WM_CLOSE to the game's windows: the game's own way out with its teardown - `quit` and the end of a run (`quit_minutes`) terminate the process and never run it, so exit crashes need this. `tests/probes/exit.eeai` (on a copy of a save: `wait_until(77min)`, `save("zz_exit2")`, `wait_until(77.5min)`, `wmclose()`) |
 | `attacks P` | AI P's attack groups: target, next attack time, per subgroup its class (EECPASGLand, Sea, Air, SeaTransport ...), members alive and their centre (about -1000 or -10000: aboard a transport), how many march, fight, do something else or nothing. `tests/probes/waves_ref*.eeai` (copies of `aimod_ref_ww1.ees`): P3's main force stays in its own town for 9+ minutes, re-routed to its docks again and again, only stragglers leave; 3 more transports change nothing |

@@ -9,6 +9,10 @@ unsafe struct ee_draw_record
     /// the same in AoC: its draw list sites read hooks.draw_old + 0x58 and + 0xFC (0x50B2AD, 0x50EF07)
     [offset(0xFC), found(h, "the same in AoC: its draw list sites read hooks.draw_old + 0x58 and + 0xFC (0x50B2AD, 0x50EF07)")]
     block _0xfc;
+
+    /// a draw list record
+    [address((ee)0x00506442, (aoc)0x005118E9)]
+    extern void init();
 }
 
 /// hooks's data of the game, places in its code and numbers
@@ -142,10 +146,6 @@ static unsafe class hooks
 [c_prefix("")]
 static unsafe class hooks_functions
 {
-    /// a draw list record
-    [address((ee)0x00506442, (aoc)0x005118E9), thiscall]
-    static extern void draw_rec_ctor(void* p1);
-
     [address((ee)0x0065F314, (aoc)0x006768FE), stdcall]
     // the other calls of set_resolution (display.c)
     [call_site("other_resolution", (ee)0x0065F30A, (aoc)0x006768F4)]

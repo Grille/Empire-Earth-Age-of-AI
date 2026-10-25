@@ -46,6 +46,38 @@ typedef void (__thiscall *physics_step_fn)(ee_physics *);
 internal physics_step_fn fn_physics_step;
 internal inline void physics_step(ee_physics *physics) { fn_physics_step(physics); }
 
+// class EEWorld (ee_world)
+// the world, game.world - a static object: its players at +0x74 (game.players), its map at +0xBC (EEWorld)
+// thiscall(game.game_state, index)
+typedef void *(__thiscall *world_player_fn)(ee_world *, int);
+internal world_player_fn fn_world_player;
+internal inline void *world_player(ee_world *world, int index) { return fn_world_player(world, index); }
+// thiscall(game.game_state, char won, index)
+typedef void (__thiscall *world_player_out_fn)(ee_world *, int, int);
+internal world_player_out_fn fn_world_player_out;
+internal inline void world_player_out(ee_world *world, int won, int index) { fn_world_player_out(world, won, index); }
+typedef char (__thiscall *world_start_fn)(ee_world *, ee_setup *, void *);
+internal world_start_fn fn_world_start;
+internal inline char world_start(ee_world *world, ee_setup *setup, void *p2) { return fn_world_start(world, setup, p2); }
+internal inline int patch_game_start(world_start_fn h) { return patch_call(call_game_start, (uintptr_t)fn_world_start, (void *)h); }
+typedef void (__thiscall *world_set_stance_fn)(ee_world *, int, int, int);
+internal world_set_stance_fn fn_world_set_stance;
+internal inline void world_set_stance(ee_world *world, int from, int to, int stance) { fn_world_set_stance(world, from, to, stance); }
+// thiscall(game.game_state, id): a unit's handle by its id (the player in bits 24..31), its +0x30 the unit; NULL
+// unknown
+typedef ee_unit *(__thiscall *world_unit_by_id_fn)(ee_world *, uint32_t);
+internal world_unit_by_id_fn fn_world_unit_by_id;
+internal inline ee_unit *world_unit_by_id(ee_world *world, uint32_t id) { return fn_world_unit_by_id(world, id); }
+typedef uint32_t (__thiscall *world_site_gatherers_fn)(ee_world *, ee_unit *);
+internal world_site_gatherers_fn fn_world_site_gatherers;
+internal inline uint32_t world_site_gatherers(ee_world *world, ee_unit *site) { return fn_world_site_gatherers(world, site); }
+
+// class EEWorldTable (ee_world_table)
+// the game's tables of values, game.table_values (EEWorldTable)
+typedef uint32_t (__thiscall *world_table_value_fn)(ee_world_table *, int);
+internal world_table_value_fn fn_world_table_value;
+internal inline uint32_t world_table_value(ee_world_table *world_table, int key) { return fn_world_table_value(world_table, key); }
+
 // the running build's values (spec_select, with addr_select): how many it hasn't got
 internal int spec_world_select(int build) {
     switch (build) {
@@ -60,6 +92,16 @@ internal int spec_world_select(int build) {
         of_physics_steps_granted = 0xB8;
         of_physics_time = 0xD0;
         fn_physics_step = (physics_step_fn)0x00546C63;
+        vt_ee_world = 0x0082C84C;
+        fn_world_player = (world_player_fn)0x0052E6EF;
+        fn_world_player_out = (world_player_out_fn)0x0052E2B7;
+        fn_world_start = (world_start_fn)0x0052599B;
+        call_game_start = 0x004CEC14;
+        fn_world_set_stance = (world_set_stance_fn)0x0052D5D7;
+        fn_world_unit_by_id = (world_unit_by_id_fn)0x0053B889;
+        fn_world_site_gatherers = (world_site_gatherers_fn)0x0052E5F7;
+        vt_ee_world_table = 0x0082AB14;
+        fn_world_table_value = (world_table_value_fn)0x0048E817;
         return 0;
     case 1:   // aoc
         of_damage_model_map = 0x14C;
@@ -72,6 +114,16 @@ internal int spec_world_select(int build) {
         of_physics_steps_granted = 0xB8;
         of_physics_time = 0xD0;
         fn_physics_step = (physics_step_fn)0x00553082;
+        vt_ee_world = 0x00841FEC;
+        fn_world_player = (world_player_fn)0x00539670;
+        fn_world_player_out = (world_player_out_fn)0x005391F2;
+        fn_world_start = (world_start_fn)0x005306F2;
+        call_game_start = 0x004D4443;
+        fn_world_set_stance = (world_set_stance_fn)0x005384DD;
+        fn_world_unit_by_id = (world_unit_by_id_fn)0x0054804F;
+        fn_world_site_gatherers = (world_site_gatherers_fn)0x00539532;
+        vt_ee_world_table = 0x0083F810;
+        fn_world_table_value = (world_table_value_fn)0x004CD4B3;
         return 0;
     }
     return 0;
@@ -82,5 +134,15 @@ internal const char *const k_spec_world_missing[ADDR_BUILDS] = { "", "" };
 internal int spec_world_check(void) {
     int bad = 0;
     bad += spec_code((uintptr_t)fn_physics_step, "EEPhysics.step");
+    bad += spec_vtable(vt_ee_world, ".?AVEEWorld@@", "EEWorld [vtable]");
+    bad += spec_code((uintptr_t)fn_world_player, "EEWorld.player");
+    bad += spec_code((uintptr_t)fn_world_player_out, "EEWorld.player_out");
+    bad += spec_code((uintptr_t)fn_world_start, "EEWorld.start");
+    bad += spec_call(call_game_start, (uintptr_t)fn_world_start, "EEWorld.start [call_site game_start]");
+    bad += spec_code((uintptr_t)fn_world_set_stance, "EEWorld.set_stance");
+    bad += spec_code((uintptr_t)fn_world_unit_by_id, "EEWorld.unit_by_id");
+    bad += spec_code((uintptr_t)fn_world_site_gatherers, "EEWorld.site_gatherers");
+    bad += spec_vtable(vt_ee_world_table, ".?AVEEWorldTable@@", "EEWorldTable [vtable]");
+    bad += spec_code((uintptr_t)fn_world_table_value, "EEWorldTable.value");
     return bad;
 }

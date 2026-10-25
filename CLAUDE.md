@@ -58,7 +58,10 @@ and the runners, eectl, the MCP server), `results/` (log readers, scorers), `re/
   wrong types are the spec's to fix). Still places (`code`, a hand-written installer): a call hooked by an asm thunk
   (no C type), an installer over two functions or by build. A function of the game on an object is a method of its class in the
   spec (`extern void update(uint32 now)` in EECPResourceManager: C resource_mgr_update); still in `<file>_functions` with
-  [thiscall]: those whose class isn't known yet (their object a void*). The game's enums are the spec's too (`[c_prefix("SM_CAT")] enum sm_category : int32 { @object = 1, ... }`: gen/enums.c's
+  [thiscall]: those whose class isn't known yet (their object a void*; 12 since 2026-10-25, the runtime library's vector
+  ops among them). An object's class: its vtable's RTTI - in a running game (`peek` its first dword, then vtable-4 ->
+  locator +0xC -> type descriptor +8: `.?AVName@@`), a constructor's by the vtable it writes, scripts/re/vtables.py a
+  class's in both exes; a class's [vtable] is checked by that name at load. The game's enums are the spec's too (`[c_prefix("SM_CAT")] enum sm_category : int32 { @object = 1, ... }`: gen/enums.c's
   SM_CAT_OBJECT ...; the scenario editor's lists so far). Ghidra knows the spec too: scripts/re/spec_ghidra.py + ApplySpec.java (README "Setup") name
   the functions Class::member with their types, the structures and enums under /spec - run them after a spec change. Two builds: the 2017 update and Art of Conquest (not ready: tested in AoC only since 2026-10-21 -
   test runs play it, `EE_GAME_DIR=<its folder>`, docs/testing.md); a new value needs both. The port scripts read the

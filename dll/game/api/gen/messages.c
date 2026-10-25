@@ -31,6 +31,10 @@ internal inline uint8_t *chat_msg_text_at(const ee_chat_msg *o) { return (uint8_
 typedef void (__thiscall *chat_msg_execute_fn)(ee_chat_msg *);
 internal chat_msg_execute_fn fn_chat_msg_execute;
 internal inline void chat_msg_execute(ee_chat_msg *chat_msg) { fn_chat_msg_execute(chat_msg); }
+// new 0x24; (UWideString *)
+typedef void *(__thiscall *chat_msg_init_fn)(ee_chat_msg *, void *);
+internal chat_msg_init_fn fn_chat_msg_init;
+internal inline void *chat_msg_init(ee_chat_msg *chat_msg, void *wide_text) { return fn_chat_msg_init(chat_msg, wide_text); }
 
 // class EEMSelectUnits (ee_select_msg)
 // the select message (EEMSelectUnits)
@@ -46,6 +50,10 @@ internal inline uint32_t **select_msg_ids_begin_at(const ee_select_msg *o) { ret
 internal inline uint8_t select_msg_get_flag(const ee_select_msg *o) { return *(uint8_t *)((uint8_t *)o + of_select_msg_flag); }
 internal inline void select_msg_set_flag(ee_select_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_select_msg_flag) = v; }
 internal inline uint8_t *select_msg_flag_at(const ee_select_msg *o) { return (uint8_t *)((uint8_t *)o + of_select_msg_flag); }
+// EEMSelectUnits: thiscall(msg, rect, type, 0x4E)
+typedef void (__thiscall *select_msg_init_fn)(ee_select_msg *, float *, int, int);
+internal select_msg_init_fn fn_select_msg_init;
+internal inline void select_msg_init(ee_select_msg *select_msg, float *rect, int type, int flags) { fn_select_msg_init(select_msg, rect, type, flags); }
 
 // class EEMLoadTransport (ee_load_msg)
 // the load-into-a-transport message (EEMLoadTransport)
@@ -197,6 +205,30 @@ internal inline uint8_t server_get_rate(const ee_server *o) { return *(uint8_t *
 internal inline void server_set_rate(ee_server *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_server_rate) = v; }
 internal inline uint8_t *server_rate_at(const ee_server *o) { return (uint8_t *)((uint8_t *)o + of_server_rate); }
 
+// class EEMHackANewUnit (ee_new_unit_msg)
+// the new-unit message, the cheat that makes a unit (EEMHackANewUnit)
+// EEMessage's, the base's
+// the sender's message id (every message's)
+internal inline int8_t new_unit_msg_get_from(const ee_new_unit_msg *o) { return *(int8_t *)((uint8_t *)o + of_msg_from); }
+internal inline void new_unit_msg_set_from(ee_new_unit_msg *o, int8_t v) { *(int8_t *)((uint8_t *)o + of_msg_from) = v; }
+internal inline int8_t *new_unit_msg_from_at(const ee_new_unit_msg *o) { return (int8_t *)((uint8_t *)o + of_msg_from); }
+// EEMHackANewUnit: thiscall(int *type, float xy[2], char player)
+typedef void (__thiscall *new_unit_msg_init_fn)(ee_new_unit_msg *, int *, float *, char);
+internal new_unit_msg_init_fn fn_new_unit_msg_init;
+internal inline void new_unit_msg_init(ee_new_unit_msg *new_unit_msg, int *type, float *xy, char player) { fn_new_unit_msg_init(new_unit_msg, type, xy, player); }
+
+// class EEMCheatCode (ee_cheat_msg)
+// a cheat code's message (EEMCheatCode)
+// EEMessage's, the base's
+// the sender's message id (every message's)
+internal inline int8_t cheat_msg_get_from(const ee_cheat_msg *o) { return *(int8_t *)((uint8_t *)o + of_msg_from); }
+internal inline void cheat_msg_set_from(ee_cheat_msg *o, int8_t v) { *(int8_t *)((uint8_t *)o + of_msg_from) = v; }
+internal inline int8_t *cheat_msg_from_at(const ee_cheat_msg *o) { return (int8_t *)((uint8_t *)o + of_msg_from); }
+// new 0x18; (code, arg)
+typedef void *(__thiscall *cheat_msg_init_fn)(ee_cheat_msg *, int, int);
+internal cheat_msg_init_fn fn_cheat_msg_init;
+internal inline void *cheat_msg_init(ee_cheat_msg *cheat_msg, int code, int arg) { return fn_cheat_msg_init(cheat_msg, code, arg); }
+
 // static class messages
 // messages's data of the game, places in its code and numbers
 // msg_cheat_init
@@ -216,18 +248,6 @@ internal inline uint8_t *messages_vt_resign_at(void) { return (uint8_t *)(uintpt
 
 // static class messages_functions
 // the game's functions messages.c wraps, by the names the C side gives them
-// new 0x24; (UWideString *)
-typedef void *(__thiscall *msg_chat_init_fn)(void *, void *);
-internal msg_chat_init_fn fn_msg_chat_init;
-internal inline void *msg_chat_init(void *mem, void *wide_text) { return fn_msg_chat_init(mem, wide_text); }
-// new 0x18; (code, arg)
-typedef void *(__thiscall *msg_cheat_init_fn)(void *, int, int);
-internal msg_cheat_init_fn fn_msg_cheat_init;
-internal inline void *msg_cheat_init(void *mem, int code, int arg) { return fn_msg_cheat_init(mem, code, arg); }
-// EEMSelectUnits: thiscall(msg, rect, type, 0x4E)
-typedef void (__thiscall *select_msg_init_fn)(void *, float *, int, int);
-internal select_msg_init_fn fn_select_msg_init;
-internal inline void select_msg_init(void *msg, float *rect, int type, int flags) { fn_select_msg_init(msg, rect, type, flags); }
 typedef uint32_t (__cdecl *sel_pack_fn)(uint8_t *, uint32_t, uint8_t *);
 internal sel_pack_fn fn_sel_pack;
 internal inline uint32_t sel_pack(uint8_t *list, uint32_t player_byte, uint8_t *out) { return fn_sel_pack(list, player_byte, out); }
@@ -241,9 +261,11 @@ internal int spec_messages_select(int build) {
         fn_resign_msg_execute = (resign_msg_execute_fn)0x004BB906;
         of_chat_msg_text = 0x10;
         fn_chat_msg_execute = (chat_msg_execute_fn)0x004B78C7;
+        fn_chat_msg_init = (chat_msg_init_fn)0x005C2A2F;
         of_select_msg_selection = 0x10;
         of_select_msg_ids_begin = 0x14;
         of_select_msg_flag = 0x134;
+        fn_select_msg_init = (select_msg_init_fn)0x004BD072;
         of_load_msg_transport = 0x10;
         of_load_msg_unit = 0x14;
         fn_load_msg_execute = (load_msg_execute_fn)0x004B9446;
@@ -273,6 +295,10 @@ internal int spec_messages_select(int build) {
         of_server_rate_max = 0x1B4;
         of_server_rate_min = 0x1B8;
         of_server_rate = 0x1FB;
+        vt_eem_hack_a_new_unit = 0x00829338;
+        fn_new_unit_msg_init = (new_unit_msg_init_fn)0x00650B3C;
+        vt_eem_cheat_code = 0x0082907C;
+        fn_cheat_msg_init = (cheat_msg_init_fn)0x005C29FB;
         value_messages_size_cheat_msg = 24;
         value_messages_size_msg_chat = 36;
         value_messages_slot_msg_execute = 10;
@@ -283,9 +309,6 @@ internal int spec_messages_select(int build) {
         data_messages_vt_msg_unload = 0x00828AC4;
         data_messages_vt_pay_tribute = 0x008289C0;
         data_messages_vt_resign = 0x00828820;
-        fn_msg_chat_init = (msg_chat_init_fn)0x005C2A2F;
-        fn_msg_cheat_init = (msg_cheat_init_fn)0x005C29FB;
-        fn_select_msg_init = (select_msg_init_fn)0x004BD072;
         fn_sel_pack = (sel_pack_fn)0x004BD15A;
         call_sel_pack = 0x004BD133;
         return 0;
@@ -294,9 +317,11 @@ internal int spec_messages_select(int build) {
         fn_resign_msg_execute = (resign_msg_execute_fn)0x004C44BB;
         of_chat_msg_text = 0x10;
         fn_chat_msg_execute = (chat_msg_execute_fn)0x004BFDD2;
+        fn_chat_msg_init = (chat_msg_init_fn)0x005D3196;
         of_select_msg_selection = 0x10;
         of_select_msg_ids_begin = 0x14;
         of_select_msg_flag = 0x134;
+        fn_select_msg_init = (select_msg_init_fn)0x004C5D7F;
         of_load_msg_transport = 0x10;
         of_load_msg_unit = 0x14;
         fn_load_msg_execute = (load_msg_execute_fn)0x004C1B79;
@@ -326,6 +351,10 @@ internal int spec_messages_select(int build) {
         of_server_rate_max = 0x1B4;
         of_server_rate_min = 0x1B8;
         of_server_rate = 0x1FB;
+        vt_eem_hack_a_new_unit = 0x0083E088;
+        fn_new_unit_msg_init = (new_unit_msg_init_fn)0x00662C24;
+        vt_eem_cheat_code = 0x0083DDE0;
+        fn_cheat_msg_init = (cheat_msg_init_fn)0x005D3162;
         value_messages_size_cheat_msg = 24;
         value_messages_size_msg_chat = 36;
         value_messages_slot_msg_execute = 10;
@@ -336,9 +365,6 @@ internal int spec_messages_select(int build) {
         data_messages_vt_msg_unload = 0x0083D78C;
         data_messages_vt_pay_tribute = 0x0083D688;
         data_messages_vt_resign = 0x0083D4E8;
-        fn_msg_chat_init = (msg_chat_init_fn)0x005D3196;
-        fn_msg_cheat_init = (msg_cheat_init_fn)0x005D3162;
-        fn_select_msg_init = (select_msg_init_fn)0x004C5D7F;
         fn_sel_pack = (sel_pack_fn)0x004C5E67;
         call_sel_pack = 0x004C5E40;
         return 0;
@@ -352,20 +378,23 @@ internal int spec_messages_check(void) {
     int bad = 0;
     bad += spec_code((uintptr_t)fn_resign_msg_execute, "EEMResign.execute");
     bad += spec_code((uintptr_t)fn_chat_msg_execute, "EEMInGameChat.execute");
+    bad += spec_code((uintptr_t)fn_chat_msg_init, "EEMInGameChat.init");
+    bad += spec_code((uintptr_t)fn_select_msg_init, "EEMSelectUnits.init");
     bad += spec_code((uintptr_t)fn_load_msg_execute, "EEMLoadTransport.execute");
     bad += spec_code((uintptr_t)fn_path_msg_execute, "EEMPathTo.execute");
     bad += spec_code((uintptr_t)fn_start_msg_execute, "EEMStartLoading.execute");
     bad += spec_code((uintptr_t)fn_tribute_msg_execute, "EEMPayTribute.execute");
     bad += spec_code((uintptr_t)fn_unload_msg_execute, "EEMUnloadTransport.execute");
+    bad += spec_vtable(vt_eem_hack_a_new_unit, ".?AVEEMHackANewUnit@@", "EEMHackANewUnit [vtable]");
+    bad += spec_code((uintptr_t)fn_new_unit_msg_init, "EEMHackANewUnit.init");
+    bad += spec_vtable(vt_eem_cheat_code, ".?AVEEMCheatCode@@", "EEMCheatCode [vtable]");
+    bad += spec_code((uintptr_t)fn_cheat_msg_init, "EEMCheatCode.init");
     bad += spec_data(data_messages_start_vtbl_exec, "messages.start_vtbl_exec");
     bad += spec_data(data_messages_vt_ingame_chat, "messages.vt_ingame_chat");
     bad += spec_data(data_messages_vt_msg_load, "messages.vt_msg_load");
     bad += spec_data(data_messages_vt_msg_unload, "messages.vt_msg_unload");
     bad += spec_data(data_messages_vt_pay_tribute, "messages.vt_pay_tribute");
     bad += spec_data(data_messages_vt_resign, "messages.vt_resign");
-    bad += spec_code((uintptr_t)fn_msg_chat_init, "messages_functions.msg_chat_init");
-    bad += spec_code((uintptr_t)fn_msg_cheat_init, "messages_functions.msg_cheat_init");
-    bad += spec_code((uintptr_t)fn_select_msg_init, "messages_functions.select_msg_init");
     bad += spec_code((uintptr_t)fn_sel_pack, "messages_functions.sel_pack");
     bad += spec_call(call_sel_pack, (uintptr_t)fn_sel_pack, "messages_functions.sel_pack [call_site sel_pack]");
     return bad;

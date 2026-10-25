@@ -42,7 +42,7 @@ internal inline int *research_mgr_get_epoch_end(const ee_research_mgr *rs, int e
 
 // the build manager places type at x, y (0, 0: where it finds room) - the original of econ.c's hook_place
 // one building of type into the build manager's list (as the AI's own requests: (1, 0))
-internal inline void build_mgr_request(ee_build_mgr *bm, int type) { fn_bm_request_game(bm, type, 1, 0); }
+internal inline void build_mgr_request_one(ee_build_mgr *bm, int type) { fn_build_mgr_request(bm, type, 1, 0); }
 // the resource manager's turn (the originals of the wiring's hooks, eeaimod.c): its gatherer targets computed (1: they
 // changed), its citizens assigned, its update
 // the citizen u to work at site (a resource, a field, a building); resource_mgr_assign_as: with the game's third argument
@@ -56,19 +56,13 @@ internal inline void resource_mgr_assign_as(ee_resource_mgr *rm, ee_unit *u, ee_
 // enemies near x, y as the build manager sees them (its threat test)
 // entry (type, x, y) into the build manager's list of epoch e (the lists at +4, 0x14 each)
 internal inline void build_mgr_queue_add(ee_build_mgr *bm, int e, int *entry) { fn_bq_add(FIELD_AT(bm, of_build_mgr_queues + e * 0x14), entry); }
-// the unit (its state, unit +0x30) in none of the civilization manager's groups
+// the unit (its state, unit +0x30) in none of the combat manager's groups (combat_mgr_unit_free)
 // a unit of type ordered but not started yet, one in production (the unit manager's queues)
 // the unit manager's citizens, the citizens it wants (share x population cap: the original of citizens.c's hook)
 // the fishing boat type of a player (the original of navy.c's hook)
 
 // THE RESOURCE MANAGER'S SEARCHES (the originals of sites.c's hooks; arguments as the game passes them)
 // the lists of fields, unbuilt fields and animals to hunt (n wanted, into out)
-internal inline void *resource_mgr_farms(ee_resource_mgr *rm, uintptr_t n, uintptr_t out) {
-    return fn_farms_game(rm, n, out);
-}
-internal inline void *resource_mgr_unbuilt_farms(ee_resource_mgr *rm, uintptr_t n, uintptr_t out) {
-    return fn_unbuilt_farms(rm, n, out);
-}
 
 // HOOKS
 // the resource manager's turn (the wiring, eeaimod.c): its gatherer targets, its citizens' assignment, its update
@@ -77,6 +71,6 @@ internal inline void *resource_mgr_unbuilt_farms(ee_resource_mgr *rm, uintptr_t 
 typedef void *(__thiscall *farms_hook)(ee_resource_mgr *rm, uintptr_t n, uintptr_t out);
 internal inline int patch_farms(farms_hook h, farms_hook unbuilt, int *of) {   // unbuilt NULL: the fields only
     if (of) *of += unbuilt ? 2 : 1;
-    return patch_call(data_ai_managers_call_farms, (uintptr_t)fn_farms_game, (void *)h) + (unbuilt ? patch_call(data_ai_managers_call_unbuilt_farms, (uintptr_t)fn_unbuilt_farms, (void *)unbuilt) : 0);
+    return patch_call(data_ai_managers_call_farms, (uintptr_t)fn_resource_mgr_farms, (void *)h) + (unbuilt ? patch_call(data_ai_managers_call_unbuilt_farms, (uintptr_t)fn_resource_mgr_unbuilt_farms, (void *)unbuilt) : 0);
 }
 // a citizen sent to work at a site (the calls of the assignment: calls_gather), the citizens trained (trace.c)

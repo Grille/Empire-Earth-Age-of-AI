@@ -129,6 +129,12 @@ unsafe struct EEUnit
     /// units aboard a transport or inside a building
     [address((ee)0x0042E347, (aoc)0x0040D5C5)]
     extern int32 count_inside();
+
+    /// thiscall(unit, slot): the slot's goal queue (unit +0x94 a vector of 0x28-byte slots; +4 a deque of goal
+    /// pointers: +4 block map, +8 its size, +0xC the front's index, +0x10 the count; 0x400 a block) - slot 0 the
+    /// orders, the front the current, shift appends
+    [address((ee)0x005F3473, (aoc)0x005FA1CD)]
+    extern void* goal_queue(int32 slot);
 }
 
 /// a unit, building, ship or projectile: everything on the map that moves or is built
@@ -346,9 +352,6 @@ static unsafe class unit_functions
     [address((ee)0x0062CBB3, (aoc)0x00641A6A), cdecl]
     static extern char8 ballistic_game(EEUnit* p1, ee_unit_stats* p2, float32* p3, float32* p4, float32* p5);
 
-    [address((ee)0x0052E5F7, (aoc)0x00539532), thiscall]
-    static extern uint32 site_gatherers_game(void* p1, void* p2);
-
     /// cdecl(unit, player index, new type data)
     [address((ee)0x0062F192, (aoc)0x00644E95), cdecl]
     static extern int32 unit_convert(EEUnit* u, int32 pi, EEUnitClass* new_td);
@@ -356,11 +359,5 @@ static unsafe class unit_functions
     /// cdecl(unit, other)
     [address((ee)0x0062D5A4, (aoc)0x00642489), cdecl]
     static extern float32 unit_distance(EEUnit* a, EEUnit* b);
-
-    /// thiscall(unit, slot): the slot's goal queue (unit +0x94 a vector of 0x28-byte slots; +4 a deque of goal
-    /// pointers: +4 block map, +8 its size, +0xC the front's index, +0x10 the count; 0x400 a block) - slot 0 the
-    /// orders, the front the current, shift appends
-    [address((ee)0x005F3473, (aoc)0x005FA1CD), thiscall]
-    static extern void* unit_goal_queue(void* p1, int32 p2);
 
 }

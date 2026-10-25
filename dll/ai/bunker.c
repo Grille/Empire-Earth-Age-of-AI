@@ -204,7 +204,7 @@ internal int bk_builders(ee_player *pl, ee_unit *b, int n) {
         if (!best) break;
         void *mem = goal_build_alloc();
         if (!mem) break;
-        ee_goal *goal = goal_build_init(mem, pl, b, 1);
+        ee_goal *goal = build_goal_init(mem, pl, b, 1);
         if (!unit_goal(best, goal, 0, 0x1F51)) break;   // with the unit type's vf29 (+0x74) as the game's assignment
         sent++;
     }
@@ -299,7 +299,7 @@ internal void bk_free_unit(ee_unit *u, void *ctx) {
     ee_unit_type *td = unit_get_type_data(u);
     if (unit_get_owner(u) != f->pl || unit_get_hp(u) <= 0 || !td || f->n >= 64) return;
     if (ivec2_dist2(unit_get_tile(u), f->b) > 25 * 25 || !is_soldier(td) || is_ship_or_air(td)) return;
-    if (cm_unit_free(f->cm, unit_get_physics(u))) f->u[f->n++] = u;
+    if (combat_mgr_unit_free(f->cm, unit_get_physics(u))) f->u[f->n++] = u;
 }
 internal void bk_reserve_tick(ee_player *pl, unsigned pi, uint32_t now) {
     static uint32_t last[16];

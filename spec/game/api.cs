@@ -10,7 +10,4 @@ static unsafe class api
 [c_prefix("")]
 static unsafe class api_functions
 {
-    /// thiscall(site+0x14 object, player) -> bool
-    [address((ee)0x00404A8A, (aoc)0x004042E2), thiscall]
-    static extern char8 explored_game(void* p1, void* p2);
 }

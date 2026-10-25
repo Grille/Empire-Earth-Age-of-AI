@@ -50,14 +50,14 @@ internal void __stdcall hook_other_resolution(int w, int h, int force, int flag)
 // switch - and keeps its layout; its sub-pages are built later. The layout is computed right before it.
 // The arrow keys: the game's form registers them (four EEUIEKeyboardScroll hotkeys, 0x64D0AB), the editor's
 // never did (in neither build: it scrolls only at the screen edge and by dragging) - given to it the same way.
-internal void *__thiscall hook_editor_form(void *form, void *owner) {
+internal void *__thiscall hook_editor_form(ee_editor_form *form, void *owner) {
     if (g_editor_layout) {
         int w = 800, h = 600;
         editor_size(&w, &h);
         int lay = apply_editor_layout(w, h);
         if (g_log) { log_locked("# editor: building the editor for %dx%d, layout patches %d/%d\n", w, h, lay, (int)N_LAYOUT + 6); }
     }
-    void *r = editor_form(form, owner);
+    void *r = editor_form_init(form, owner);
     static const unsigned long keys[4] = { 0xC8, 0xD0, 0xCB, 0xCD };   // DIK_UP, DOWN, LEFT, RIGHT: directions 0..3
     int n = 0;
     for (int i = 0; i < 4; i++) {
@@ -1459,7 +1459,7 @@ internal void cmd_mapshot(const char *args, char *out) {
     ee_player *me = game_players()[(int)local_player_index()];
     uint8_t had = me ? player_get_explore_all(me) : 0;
     if (all && me) player_set_explore_all(me, 1);
-    ui_screenshot(w, size, 0);
+    ui_screenshot(w, size, 0, 0);
     mapshot_take(size, since, dst, out);
     if (all && me) player_set_explore_all(me, had);
 }

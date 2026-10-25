@@ -49,10 +49,10 @@ internal inline ee_goal *goal_attack_init(void *mem, ee_unit *u, ee_unit *target
     return ((ee_goal *(__thiscall *)(void *, void *, void *, int))data_goal_fn_goal_attack_ctor)(mem, u, target, 1);
 }
 // the units of vec (a std::vector) into holder (a transport or a building)
-internal inline ee_goal *goal_load_init(void *mem, ee_unit *holder, void *vec) { return (ee_goal *)fn_goal_load_ctor(mem, holder, vec, 1); }
+internal inline ee_goal *goal_load_init(void *mem, ee_unit *holder, void *vec) { return (ee_goal *)fn_load_goal_init(mem, holder, vec, 1); }
 // the holder's units out at x, y
 // a move to xy (float[2])
-internal inline ee_goal *goal_move_init(void *mem, float *xy) { return (ee_goal *)fn_goal_move_ctor(mem, xy, 1, 1, 0, 0.0f, 0, 0); }
+internal inline ee_goal *goal_move_init(void *mem, float *xy) { return (ee_goal *)fn_location_goal_init(mem, xy, 1, 1, 0, 0.0f, 0, 0); }
 // a goal's kind, by its vtable: an attack (EEUGAttackUnit, its target +0x30), a move (EEUGLocation), build or repair
 // (EEUGBuildRepair, the building +0x3C), a load (EEUGLoadTransport, the holder +0x50), an unload (EEUGUnloadTransport)
 internal inline int goal_is_attack(const ee_goal *g) { return *(const uintptr_t *)g == data_goal_vt_goal_attack; }

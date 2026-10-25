@@ -55,6 +55,33 @@ unsafe struct EEUnitGoal
     extern void add_passenger(EEUnit* u);
 }
 
+/// the build-or-repair goal (EEUGBuildRepair)
+[@base(typeof(EEUnitGoal)), c_type("ee_build_goal"), vtable((ee)0x008319F0, (aoc)0x0084740C)]
+unsafe struct EEUGBuildRepair
+{
+    /// EEUGBuildRepair constructor: thiscall(goal, player, building, 1)
+    [address((ee)0x0060BAD0, (aoc)0x0061E164)]
+    extern EEUnitGoal* init(EEPlayer* pl, EEUnit* building, int32 flag);
+}
+
+/// the load-into-a-transport goal (EEUGLoadTransport)
+[@base(typeof(EEUnitGoal)), c_type("ee_load_goal"), vtable((ee)0x00831DC0, (aoc)0x008477F8)]
+unsafe struct EEUGLoadTransport
+{
+    /// EEUGLoadTransport: new 0x68
+    [address((ee)0x0061487F, (aoc)0x00627286)]
+    extern void* init(void* p2, void* p3, int32 p4);
+}
+
+/// the go-to-a-location goal (EEUGLocation)
+[@base(typeof(EEUnitGoal)), c_type("ee_location_goal"), vtable((ee)0x00831E64, (aoc)0x008478A0)]
+unsafe struct EEUGLocation
+{
+    /// new 0x38
+    [address((ee)0x00614CE6, (aoc)0x006276E1)]
+    extern void* init(float32* p2, int32 p3, char8 p4, char8 p5, float32 p6, char8 p7, char8 p8);
+}
+
 /// goal's data of the game, places in its code and numbers
 static unsafe class goal
 {
@@ -120,21 +147,9 @@ static unsafe class goal
 [c_prefix("")]
 static unsafe class goal_functions
 {
-    /// EEUGBuildRepair constructor: thiscall(goal, player, building, 1)
-    [address((ee)0x0060BAD0, (aoc)0x0061E164), thiscall]
-    static extern EEUnitGoal* goal_build_init(void* mem, EEPlayer* pl, EEUnit* building, int32 flag);
-
     [address((ee)0x00619FF5, (aoc)0x0062CD8B), thiscall]
     [call_site("goalset_ask", (ee)0x005F0FFA, (aoc)0x005FF364)]
     [call_site("goalset_ask", (ee)0x005F1029, (aoc)0x005FF393)]
     static extern int32 goalset_ask(void* set, EEUnit* u, int32* @out);
-
-    /// EEUGLoadTransport: new 0x68
-    [address((ee)0x0061487F, (aoc)0x00627286), thiscall]
-    static extern void* goal_load_ctor(void* p1, void* p2, void* p3, int32 p4);
-
-    /// new 0x38
-    [address((ee)0x00614CE6, (aoc)0x006276E1), thiscall]
-    static extern void* goal_move_ctor(void* p1, float32* p2, int32 p3, char8 p4, char8 p5, float32 p6, char8 p7, char8 p8);
 
 }

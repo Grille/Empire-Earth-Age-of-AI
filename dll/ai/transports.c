@@ -462,9 +462,9 @@ internal int tw_load_split(ee_player *pl, ee_unit **tr, int nt, ee_unit **us, in
 // The mouse click's confirmation (this PC's, drawn at the click, before the command's message runs; GFX_CLICK,
 // GFX_CLICK_ON): the last one, its handle, the unit clicked's id (-1: the ground) and the tile. The load split and the
 // unload spread take it away - the yellow circles where each transport goes say it (this PC's player's command).
-internal int __thiscall hook_click_mark(void *fx, void *on, float *pos, void *kind, int *handle, int arg) {
+internal int __thiscall hook_click_mark(ee_effect_mgr *fx, void *on, float *pos, void *kind, int *handle, int arg) {
     if (handle) *handle = 0;   // (its result isn't a success flag: the handle says whether it was drawn)
-    int r = gfx_add(fx, on, pos, kind, handle, arg);
+    int r = effect_mgr_add(fx, on, pos, kind, handle, arg);
     g_tw_click_mark = handle && *handle && gfx_alive(*handle) ? *handle : 0;
     g_tw_click_on = g_tw_click_mark && on ? click_mark_on_id(on) : -1;
     g_tw_click_at = pos ? iv2((int)pos[0], (int)pos[1]) : iv2(-1, -1);

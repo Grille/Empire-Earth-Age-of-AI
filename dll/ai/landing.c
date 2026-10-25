@@ -909,7 +909,7 @@ internal void ld_bridgehead(ee_player *pl, unsigned pi, struct landing *l, uint3
         if (!b || ld_aboard(u) || (g && !strcmp(rtti_name(g), "EEUGBuildRepair@@") && goal_get_building(g) == b)) continue;
         void *bg = goal_build_alloc();
         if (!bg) continue;
-        bg = goal_build_init(bg, pl, b, 0);
+        bg = build_goal_init(bg, pl, b, 0);
         l->orders += unit_goal(u, bg, 0, 0x1F51);
     }
 }
@@ -2364,12 +2364,12 @@ give:
 
 // the game's idle-transport code (0x483E10: cargo aboard, no order, at a shore - 0x42C49A at 0x483E24 says where to
 // land) unloads a transport of a landing waiting for its last passengers or for the warships: for those "nowhere"
-internal int __thiscall hook_idle_unload_shore(void *mgr, ee_unit *tr) {
+internal int __thiscall hook_idle_unload_shore(ee_continent_mgr *mgr, ee_unit *tr) {
     if (tr && expand_ship(tr)) return 0;   // an outpost's ferry (expand.c) unloads where it decides
     for (int p = 0; p < 16 && tr && !is_vanilla(unit_get_owner(tr)); p++)   // a vanilla player's transport: never a landing's
         for (int k = 0; k < g_ld[p].nships && g_ld[p].phase; k++)
             if (g_ld[p].ships[k] == tr) return 0;
-    return shore_to_unload(mgr, tr);
+    return continent_mgr_shore_to_unload(mgr, tr);
 }
 
 // the subgroups' orders (vf57: transport, sea, land, air) through hook_asg_give_goal - once, for the landing and the

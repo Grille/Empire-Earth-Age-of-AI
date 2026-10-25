@@ -1,6 +1,6 @@
 // TURN FIX (`turn_fix`; docs/engine-notes.md "The rotation"): Art of Conquest's fix of the turn, brought back. Every
 // movement model turns a unit by a turn rate it keeps (unit +0x17C) and asks each tick whether to turn faster or
-// slower (the shared EEPhysicsModel decision, model_turn_decide): the 2017 update's takes rate and angle left as sizes
+// slower (the shared EEPhysicsModel decision, physics_model_turn_decide): the 2017 update's takes rate and angle left as sizes
 // and decides from the rate now, so it brakes a step late and the unit swings past its heading, then back (the angle
 // step is cut at the heading, the rate isn't), and a unit turning away it lets turn on. AoC rewrote it
 // (EEPhysicsModel::vf12): turning away, brake; else turn faster only when, a step on at the higher rate, the braking
@@ -13,7 +13,7 @@ internal int g_tf_on;
 internal int __thiscall hook_turn_decide(void *model, ee_unit *u, float rate, float left) {
     ee_physics *ph = game_physics();
     float dt = ph ? physics_get_step_s(ph) : 0, a = u ? dt * unit_turn_accel(u) : 0;
-    if (dt <= 0 || a <= 0) return model_turn_decide(model, u, rate, left);
+    if (dt <= 0 || a <= 0) return physics_model_turn_decide(model, u, rate, left);
     if ((rate < 0 && left > 0) || (rate > 0 && left < 0)) return 4;
     if (left == 0) return rate == 0 ? 2 : 4;
     if (rate == 0) return 3;

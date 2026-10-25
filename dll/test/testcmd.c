@@ -5,7 +5,7 @@
 // stay with their feature.
 
 // ---- from econ.c ----
-// explored <player>: how many of the map's objects the player has explored (the game's own test, explored_game) - the
+// explored <player>: how many of the map's objects the player has explored (the game's own test, unit_vis_explored) - the
 // setup's reveal map (randmap.c reveal_map) explores them all at the start, its fog stays
 internal void cmd_explored(char *out, const char *args) {
     int p = atoi(args), n = 0, seen = 0;
@@ -453,7 +453,7 @@ internal void cmd_build(char *out, const char *args) {
     if (!bld) { REPLY("error: no building of P%d at %d,%d\n", p, bx, by); return; }
     for (int k = 0; k < nc; k++) {
         void *mem = goal_build_alloc();
-        ee_goal *g = mem ? goal_build_init(mem, pl, bld, 1) : NULL;
+        ee_goal *g = mem ? build_goal_init(mem, pl, bld, 1) : NULL;
         n += unit_goal(civ[k], g, 0, 0x1F51);
     }
     REPLY("ok: %d citizens of P%d build at %d,%d\n", n, p, bx, by);
@@ -740,7 +740,7 @@ internal void ag_unit(ee_unit *u, void *ctx) {
     int fam = unit_type_get_family(td), x = unit_get_x(u), y = unit_get_y(u);
     if (owner == s->pl && s->x < 0) {
         if (is_soldier(td) && !is_ship_or_air(td) && s->n < 256 &&
-            cm_unit_free(s->cm, unit_get_physics(u))) {
+            combat_mgr_unit_free(s->cm, unit_get_physics(u))) {
             s->ids[s->n++] = unit_get_serial(u); s->sx += x; s->sy += y;
         }
     } else if (s->x >= 0 && is_enemy(s->pl, owner) && (fam == 2 || fam == 29)) {
@@ -767,15 +767,15 @@ internal void cmd_aigroup(char *out, const char *args) {
     if (!s.best) { REPLY("error: no enemy building\n"); return; }
     ee_unit *t = s.best;
         ee_player *tpl = unit_get_owner(t);
-    __attribute__((aligned(8))) uint8_t task_mem[0x40], loc[0x20], strat_mem[0x50];
-    ee_task *task = (ee_task *)task_mem; ee_strategy *strat = (ee_strategy *)strat_mem;
+    __attribute__((aligned(8))) uint8_t task_mem[0x40], loc_mem[0x20], strat_mem[0x50];
+    ee_task *task = (ee_task *)task_mem; ee_strategy *strat = (ee_strategy *)strat_mem; ee_location *loc = (ee_location *)loc_mem;
     task_init(task);
     location_init(loc);
     strategy_init(strat);
     task_set_target(task, t);
     int pt[2] = { unit_get_x(t), unit_get_y(t) };
-    point_set(loc + 4, pt);
-    task_set_location(task_mem + 4, loc);
+    point_set(loc_mem + 4, pt);
+    location_set(task_location_at(task), loc);
     task_set_target_player(task, game_players()[player_get_index(tpl) & 15]);
     task_set_unknown_28(task, 7); task_set_unknown_2c(task, 2); task_set_unknown_30(task, 1);
     strategy_reset(strat);

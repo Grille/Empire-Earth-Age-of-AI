@@ -7,9 +7,11 @@ internal inline uint8_t *game_call_damage_points_at(void) { return (uint8_t *)(u
 // the unit behaviours (stances)
 internal inline uint8_t *game_behaviour_table_at(void) { return (uint8_t *)(uintptr_t)data_game_behaviour_table; }
 // EECameraControl; +0x78/+0x7C/+0x80 look-at x/y/z (tiles), +0xE0 zoom
-internal inline uint8_t *game_camera_at(void) { return (uint8_t *)(uintptr_t)data_game_camera; }
+internal inline ee_camera *game_camera_at(void) { return (ee_camera *)(uint8_t *)(uintptr_t)data_game_camera; }
 internal inline uint8_t *game_cheats_on_at(void) { return (uint8_t *)(uintptr_t)data_game_cheats_on; }
-internal inline uint8_t *game_cheat_parser_at(void) { return (uint8_t *)(uintptr_t)data_game_cheat_parser; }
+internal inline ee_cheat_codes *game_get_cheat_parser(void) { return *(ee_cheat_codes **)(uint8_t *)(uintptr_t)data_game_cheat_parser; }
+internal inline void game_set_cheat_parser(ee_cheat_codes *v) { *(ee_cheat_codes **)(uint8_t *)(uintptr_t)data_game_cheat_parser = v; }
+internal inline ee_cheat_codes **game_cheat_parser_at(void) { return (ee_cheat_codes **)(uint8_t *)(uintptr_t)data_game_cheat_parser; }
 // the player colour table (vector begin, end)
 internal inline uint8_t *game_colors_begin_at(void) { return (uint8_t *)(uintptr_t)data_game_colors_begin; }
 internal inline uint8_t *game_colors_end_at(void) { return (uint8_t *)(uintptr_t)data_game_colors_end; }
@@ -36,8 +38,8 @@ internal inline uint8_t *game_game_res_h_at(void) { return (uint8_t *)(uintptr_t
 internal inline uint8_t *game_game_res_w_at(void) { return (uint8_t *)(uintptr_t)data_game_game_res_w; }
 // float; set like EEMGameSpeed::Apply (0x4B6BD4)
 internal inline uint8_t *game_game_speed_at(void) { return (uint8_t *)(uintptr_t)data_game_game_speed; }
-// object; vtable slot 11 called after a speed change
-internal inline uint8_t *game_game_state_at(void) { return (uint8_t *)(uintptr_t)data_game_game_state; }
+// the world (EEWorld, a static object); its vtable slot 11 called after a speed change
+internal inline ee_world *game_game_state_at(void) { return (ee_world *)(uint8_t *)(uintptr_t)data_game_game_state; }
 // 0 random map, 1 scenario, 2 saved game, 3/4 other
 internal inline uint8_t *game_game_type_at(void) { return (uint8_t *)(uintptr_t)data_game_game_type; }
 // GEWindow* (+0 HWND)
@@ -90,7 +92,7 @@ internal inline uint8_t *game_sm_mgr_at(void) { return (uint8_t *)(uintptr_t)dat
 internal inline uint8_t *game_sound_manager_at(void) { return (uint8_t *)(uintptr_t)data_game_sound_manager; }
 internal inline uint8_t *game_sound_percent_at(void) { return (uint8_t *)(uintptr_t)data_game_sound_percent; }
 // table_value_game's table (0x16: the population limit)
-internal inline uint8_t *game_table_values_at(void) { return (uint8_t *)(uintptr_t)data_game_table_values; }
+internal inline ee_world_table *game_table_values_at(void) { return (ee_world_table *)(uint8_t *)(uintptr_t)data_game_table_values; }
 internal inline uint8_t *game_teams_locked_at(void) { return (uint8_t *)(uintptr_t)data_game_teams_locked; }
 internal inline uint8_t *game_types_at(void) { return (uint8_t *)(uintptr_t)data_game_types; }
 internal inline uint8_t *game_ui_manager_at(void) { return (uint8_t *)(uintptr_t)data_game_ui_manager; }
@@ -143,32 +145,12 @@ internal inline uint8_t *game_vt_pause_action_at(void) { return (uint8_t *)(uint
 
 // static class game_functions
 // the game's functions game.c wraps, by the names the C side gives them
-// thiscall(wall manager, int from[2], int to[2], type, char)
-typedef void (__thiscall *build_wall_game_fn)(void *, int *, int *, int, char);
-internal build_wall_game_fn fn_build_wall_game;
-internal inline void build_wall_game(void *p1, int *p2, int *p3, int p4, char p5) { fn_build_wall_game(p1, p2, p3, p4, p5); }
 typedef int (__thiscall *damage_points_fn)(void *, int, uint32_t);
 internal damage_points_fn fn_damage_points;
 internal inline int damage_points(void *model, int index, uint32_t state) { return fn_damage_points(model, index, state); }
-typedef void *(__thiscall *editor_form_fn)(void *, void *);
-internal editor_form_fn fn_editor_form;
-internal inline void *editor_form(void *form, void *owner) { return fn_editor_form(form, owner); }
-internal inline int patch_editor_form(editor_form_fn h) { return patch_call(call_editor_form, (uintptr_t)fn_editor_form, (void *)h); }
 typedef void (__cdecl *exit_confirm_fn)(void);
 internal exit_confirm_fn fn_exit_confirm;
 internal inline void exit_confirm(void) { fn_exit_confirm(); }
-// thiscall(game.game_state, index)
-typedef void *(__thiscall *game_player_game_fn)(void *, int);
-internal game_player_game_fn fn_game_player_game;
-internal inline void *game_player_game(void *p1, int p2) { return fn_game_player_game(p1, p2); }
-// thiscall(game.game_state, char won, index)
-typedef void (__thiscall *game_player_out_game_fn)(void *, int, int);
-internal game_player_out_game_fn fn_game_player_out_game;
-internal inline void game_player_out_game(void *p1, int p2, int p3) { fn_game_player_out_game(p1, p2, p3); }
-typedef char (__thiscall *game_start_fn)(void *, ee_setup *, void *);
-internal game_start_fn fn_game_start;
-internal inline char game_start(void *state, ee_setup *setup, void *p2) { return fn_game_start(state, setup, p2); }
-internal inline int patch_game_start(game_start_fn h) { return patch_call(call_game_start, (uintptr_t)fn_game_start, (void *)h); }
 // the highest epoch of the players player.slot_player_human says are human, 0 without
 typedef int (__cdecl *highest_human_epoch_fn)(void);
 internal highest_human_epoch_fn fn_highest_human_epoch;
@@ -181,49 +163,20 @@ internal inline int patch_load_saved(load_saved_fn h) { return patch_call(call_l
 typedef void *(__cdecl *game_new_fn)(uintptr_t);
 internal game_new_fn fn_game_new;
 internal inline void *game_new(uintptr_t n) { return fn_game_new(n); }
-// EEMHackANewUnit: thiscall(int *type, float xy[2], char player)
-typedef void (__thiscall *new_unit_msg_init_fn)(void *, int *, float *, char);
-internal new_unit_msg_init_fn fn_new_unit_msg_init;
-internal inline void new_unit_msg_init(void *mem, int *type, float *xy, char player) { fn_new_unit_msg_init(mem, type, xy, player); }
 typedef char (__cdecl *parse_cmdline_fn)(const char *);
 internal parse_cmdline_fn fn_parse_cmdline;
 internal inline char parse_cmdline(const char *cmd) { return fn_parse_cmdline(cmd); }
 internal inline int patch_parse_cmdline(parse_cmdline_fn h) { return patch_call(call_parse_cmdline, (uintptr_t)fn_parse_cmdline, (void *)h); }
-typedef void (__thiscall *queue_action_game_fn)(void *, void *);
-internal queue_action_game_fn fn_queue_action_game;
-internal inline void queue_action_game(void *p1, void *p2) { fn_queue_action_game(p1, p2); }
 typedef void (__cdecl *resign_send_fn)(void);
 internal resign_send_fn fn_resign_send;
 internal inline void resign_send(void) { fn_resign_send(); }
-typedef void *(__thiscall *save_action_init_fn)(void *, struct ustring *, int, struct ustring);
-internal save_action_init_fn fn_save_action_init;
-internal inline void *save_action_init(void *mem, struct ustring *path, int flag, struct ustring dir) { return fn_save_action_init(mem, path, flag, dir); }
 typedef int (__cdecl *save_game_fn)(void *, int, int, struct ustring);
 internal save_game_fn fn_save_game;
 internal inline int save_game(void *file, int a, int b, struct ustring folder) { return fn_save_game(file, a, b, folder); }
-typedef void (__thiscall *screenshot_game_fn)(void *, int, int, int);
-internal screenshot_game_fn fn_screenshot_game;
-internal inline void screenshot_game(void *p1, int p2, int p3, int p4) { fn_screenshot_game(p1, p2, p3, p4); }
 // every setting into the registry
 typedef void (__thiscall *settings_save_game_fn)(void *);
 internal settings_save_game_fn fn_settings_save_game;
 internal inline void settings_save_game(void *p1) { fn_settings_save_game(p1); }
-typedef void (__thiscall *set_stance_game_fn)(void *, int, int, int);
-internal set_stance_game_fn fn_set_stance_game;
-internal inline void set_stance_game(void *p1, int p2, int p3, int p4) { fn_set_stance_game(p1, p2, p3, p4); }
-// where an idle transport lands (thiscall(transport manager, transport))
-typedef int (__thiscall *shore_to_unload_fn)(void *, ee_unit *);
-internal shore_to_unload_fn fn_shore_to_unload;
-internal inline int shore_to_unload(void *mgr, ee_unit *transport) { return fn_shore_to_unload(mgr, transport); }
-internal inline int patch_shore_to_unload(shore_to_unload_fn h) { return patch_call(call_shore_to_unload, (uintptr_t)fn_shore_to_unload, (void *)h); }
-typedef uint32_t (__thiscall *table_value_game_fn)(void *, int);
-internal table_value_game_fn fn_table_value_game;
-internal inline uint32_t table_value_game(void *p1, int p2) { return fn_table_value_game(p1, p2); }
-// thiscall(game.game_state, id): a unit's handle by its id (the player in bits 24..31), its +0x30 the unit; NULL
-// unknown
-typedef ee_unit *(__thiscall *unit_by_id_game_fn)(void *, uint32_t);
-internal unit_by_id_game_fn fn_unit_by_id_game;
-internal inline ee_unit *unit_by_id_game(void *p1, uint32_t p2) { return fn_unit_by_id_game(p1, p2); }
 // a vector's dtor (the game's delete)
 typedef void (__thiscall *vector_free_fn)(void *);
 internal vector_free_fn fn_vector_free;
@@ -309,33 +262,17 @@ internal int spec_game_select(int build) {
         value_game_size_save_action = 48;
         data_game_vtbl_phys_step = 0x0082CB7C;
         data_game_vt_pause_action = 0x00830E94;
-        fn_build_wall_game = (build_wall_game_fn)0x00497C3F;
         fn_damage_points = (damage_points_fn)0x004D291F;
-        fn_editor_form = (editor_form_fn)0x0058D3E1;
-        call_editor_form = 0x0065BA13;
         fn_exit_confirm = (exit_confirm_fn)0x005D0B4F;
-        fn_game_player_game = (game_player_game_fn)0x0052E6EF;
-        fn_game_player_out_game = (game_player_out_game_fn)0x0052E2B7;
-        fn_game_start = (game_start_fn)0x0052599B;
-        call_game_start = 0x004CEC14;
         fn_highest_human_epoch = (highest_human_epoch_fn)0x0046D436;
         fn_load_saved = (load_saved_fn)0x00521F94;
         call_load_saved = 0x00522BF8;
         fn_game_new = (game_new_fn)0x00683718;
-        fn_new_unit_msg_init = (new_unit_msg_init_fn)0x00650B3C;
         fn_parse_cmdline = (parse_cmdline_fn)0x00522A36;
         call_parse_cmdline = 0x00535EF2;
-        fn_queue_action_game = (queue_action_game_fn)0x0066192F;
         fn_resign_send = (resign_send_fn)0x005D05CC;
-        fn_save_action_init = (save_action_init_fn)0x00404FA1;
         fn_save_game = (save_game_fn)0x00540ACA;
-        fn_screenshot_game = (screenshot_game_fn)0x00661B04;
         fn_settings_save_game = (settings_save_game_fn)0x0052AA81;
-        fn_set_stance_game = (set_stance_game_fn)0x0052D5D7;
-        fn_shore_to_unload = (shore_to_unload_fn)0x0042C49A;
-        call_shore_to_unload = 0x00483E24;
-        fn_table_value_game = (table_value_game_fn)0x0048E817;
-        fn_unit_by_id_game = (unit_by_id_game_fn)0x0053B889;
         fn_vector_free = (vector_free_fn)0x0061ABEC;
         return 0;
     case 1:   // aoc
@@ -415,33 +352,17 @@ internal int spec_game_select(int build) {
         value_game_size_save_action = 48;
         data_game_vtbl_phys_step = 0x00842324;
         data_game_vt_pause_action = 0x00846790;
-        fn_build_wall_game = (build_wall_game_fn)0x0049D05F;
         fn_damage_points = (damage_points_fn)0x004D84EC;
-        fn_editor_form = (editor_form_fn)0x0059D615;
-        call_editor_form = 0x00673E9B;
         fn_exit_confirm = (exit_confirm_fn)0x005E145B;
-        fn_game_player_game = (game_player_game_fn)0x00539670;
-        fn_game_player_out_game = (game_player_out_game_fn)0x005391F2;
-        fn_game_start = (game_start_fn)0x005306F2;
-        call_game_start = 0x004D4443;
         fn_highest_human_epoch = (highest_human_epoch_fn)0x0047005A;
         fn_load_saved = (load_saved_fn)0x0052CB90;
         call_load_saved = 0x0052D8F9;
         fn_game_new = (game_new_fn)0x0069D178;
-        fn_new_unit_msg_init = (new_unit_msg_init_fn)0x00662C24;
         fn_parse_cmdline = (parse_cmdline_fn)0x0052D703;
         call_parse_cmdline = 0x005410C8;
-        fn_queue_action_game = (queue_action_game_fn)0x00678F79;
         fn_resign_send = (resign_send_fn)0x005E0E7F;
-        fn_save_action_init = (save_action_init_fn)0x00404613;
         fn_save_game = (save_game_fn)0x0054D066;
-        fn_screenshot_game = (screenshot_game_fn)0x00679139;
         fn_settings_save_game = (settings_save_game_fn)0x00535943;
-        fn_set_stance_game = (set_stance_game_fn)0x005384DD;
-        fn_shore_to_unload = (shore_to_unload_fn)0x00422658;
-        call_shore_to_unload = 0x00488490;
-        fn_table_value_game = (table_value_game_fn)0x004CD4B3;
-        fn_unit_by_id_game = (unit_by_id_game_fn)0x0054804F;
         fn_vector_free = (vector_free_fn)0x006002C7;
         return 0;
     }
@@ -525,33 +446,17 @@ internal int spec_game_check(void) {
     bad += spec_data(data_game_imp_is_mouse, "game.imp_is_mouse");
     bad += spec_data(data_game_vtbl_phys_step, "game.vtbl_phys_step");
     bad += spec_data(data_game_vt_pause_action, "game.vt_pause_action");
-    bad += spec_code((uintptr_t)fn_build_wall_game, "game_functions.build_wall_game");
     bad += spec_code((uintptr_t)fn_damage_points, "game_functions.damage_points");
-    bad += spec_code((uintptr_t)fn_editor_form, "game_functions.editor_form");
-    bad += spec_call(call_editor_form, (uintptr_t)fn_editor_form, "game_functions.editor_form [call_site editor_form]");
     bad += spec_code((uintptr_t)fn_exit_confirm, "game_functions.exit_confirm");
-    bad += spec_code((uintptr_t)fn_game_player_game, "game_functions.game_player_game");
-    bad += spec_code((uintptr_t)fn_game_player_out_game, "game_functions.game_player_out_game");
-    bad += spec_code((uintptr_t)fn_game_start, "game_functions.game_start");
-    bad += spec_call(call_game_start, (uintptr_t)fn_game_start, "game_functions.game_start [call_site game_start]");
     bad += spec_code((uintptr_t)fn_highest_human_epoch, "game_functions.highest_human_epoch");
     bad += spec_code((uintptr_t)fn_load_saved, "game_functions.load_saved");
     bad += spec_call(call_load_saved, (uintptr_t)fn_load_saved, "game_functions.load_saved [call_site load_saved]");
     bad += spec_code((uintptr_t)fn_game_new, "game_functions.game_new");
-    bad += spec_code((uintptr_t)fn_new_unit_msg_init, "game_functions.new_unit_msg_init");
     bad += spec_code((uintptr_t)fn_parse_cmdline, "game_functions.parse_cmdline");
     bad += spec_call(call_parse_cmdline, (uintptr_t)fn_parse_cmdline, "game_functions.parse_cmdline [call_site parse_cmdline]");
-    bad += spec_code((uintptr_t)fn_queue_action_game, "game_functions.queue_action_game");
     bad += spec_code((uintptr_t)fn_resign_send, "game_functions.resign_send");
-    bad += spec_code((uintptr_t)fn_save_action_init, "game_functions.save_action_init");
     bad += spec_code((uintptr_t)fn_save_game, "game_functions.save_game");
-    bad += spec_code((uintptr_t)fn_screenshot_game, "game_functions.screenshot_game");
     bad += spec_code((uintptr_t)fn_settings_save_game, "game_functions.settings_save_game");
-    bad += spec_code((uintptr_t)fn_set_stance_game, "game_functions.set_stance_game");
-    bad += spec_code((uintptr_t)fn_shore_to_unload, "game_functions.shore_to_unload");
-    bad += spec_call(call_shore_to_unload, (uintptr_t)fn_shore_to_unload, "game_functions.shore_to_unload [call_site shore_to_unload]");
-    bad += spec_code((uintptr_t)fn_table_value_game, "game_functions.table_value_game");
-    bad += spec_code((uintptr_t)fn_unit_by_id_game, "game_functions.unit_by_id_game");
     bad += spec_code((uintptr_t)fn_vector_free, "game_functions.vector_free");
     return bad;
 }

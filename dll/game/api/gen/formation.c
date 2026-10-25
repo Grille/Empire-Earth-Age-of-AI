@@ -12,6 +12,16 @@ internal inline vec3 *formation_center_at(const void *o) { return (vec3 *)((uint
 internal inline int formation_get_kind(const void *o) { return *(int *)((uint8_t *)o + of_formation_kind); }
 internal inline void formation_set_kind(void *o, int v) { *(int *)((uint8_t *)o + of_formation_kind) = v; }
 internal inline int *formation_kind_at(const void *o) { return (int *)((uint8_t *)o + of_formation_kind); }
+// EEFormation::vf1 thiscall(formation, group, vector *slots), slot 1 of every formation's vtable (EEFLine,
+// EEFShortLine, EEFWedge, EEFCircle ... 12): the group's units into a list, then the kind's vf2 (EEFLine
+// 0x4D79D9) fills the slots - formation.size_formation_slot each {x, y, z, unit, facing} - from FORMATION_CENTER (the
+// clicked point, set by the group's dispatch 0x5DB641 just before, 0x5DBC89), every row and column spaced by the
+// group's largest type +0x470; a line's front row on the centre, the rows behind it. The dispatch then pairs
+// units and slots (nearest, or by their order along the move) and gives each unit an EEUGLocation at its slot
+// (0x5DC902)
+typedef void (__thiscall *formation_slots_fn)(void *, void *, void *);
+internal formation_slots_fn fn_formation_slots;
+internal inline void formation_slots(void *formation, void *group, void *slots) { fn_formation_slots(formation, group, slots); }
 
 // class ee_formation_slot (void)
 // a formation's slot (formation_slots)
@@ -35,16 +45,6 @@ internal inline uint32_t *formation_slot_facing_at(const void *o) { return (uint
 
 // static class formation_functions
 // the game's functions formation.c wraps, by the names the C side gives them
-// EEFormation::vf1 thiscall(formation, group, vector *slots), slot 1 of every formation's vtable (EEFLine,
-// EEFShortLine, EEFWedge, EEFCircle ... 12): the group's units into a list, then the kind's vf2 (EEFLine
-// 0x4D79D9) fills the slots - formation.size_formation_slot each {x, y, z, unit, facing} - from FORMATION_CENTER (the
-// clicked point, set by the group's dispatch 0x5DB641 just before, 0x5DBC89), every row and column spaced by the
-// group's largest type +0x470; a line's front row on the centre, the rows behind it. The dispatch then pairs
-// units and slots (nearest, or by their order along the move) and gives each unit an EEUGLocation at its slot
-// (0x5DC902)
-typedef void (__thiscall *formation_slots_fn)(void *, void *, void *);
-internal formation_slots_fn fn_formation_slots;
-internal inline void formation_slots(void *formation, void *group, void *slots) { fn_formation_slots(formation, group, slots); }
 
 // the running build's values (spec_select, with addr_select): how many it hasn't got
 internal int spec_formation_select(int build) {
@@ -52,22 +52,22 @@ internal int spec_formation_select(int build) {
     case 0:   // ee
         of_formation_center = 0x48;
         of_formation_kind = 0x58;
+        fn_formation_slots = (formation_slots_fn)0x004D7E0B;
         of_formation_slot_pos = 0x0;
         of_formation_slot_unit = 0xC;
         of_formation_slot_facing = 0x10;
         value_formation_size_formation_slot = 20;
         value_formation_slot_formation_slots = 1;
-        fn_formation_slots = (formation_slots_fn)0x004D7E0B;
         return 0;
     case 1:   // aoc
         of_formation_center = 0x48;
         of_formation_kind = 0x58;
+        fn_formation_slots = (formation_slots_fn)0x004DDDD5;
         of_formation_slot_pos = 0x0;
         of_formation_slot_unit = 0xC;
         of_formation_slot_facing = 0x10;
         value_formation_size_formation_slot = 20;
         value_formation_slot_formation_slots = 1;
-        fn_formation_slots = (formation_slots_fn)0x004DDDD5;
         return 0;
     }
     return 0;
@@ -77,6 +77,6 @@ internal const char *const k_spec_formation_missing[ADDR_BUILDS] = { "", "" };
 // the load-time check: what the spec says of the running build's exe (spec_check): the failures
 internal int spec_formation_check(void) {
     int bad = 0;
-    bad += spec_code((uintptr_t)fn_formation_slots, "formation_functions.formation_slots");
+    bad += spec_code((uintptr_t)fn_formation_slots, "EEFormation.slots");
     return bad;
 }

@@ -16,7 +16,7 @@ internal inline void scroll_set_key(ee_scroll *s, int k, uint8_t v) { FIELD(s, o
 // FUNCTIONS
 // THE UI AND THE PLAYERS' LINES (voice/)
 // a chat or system line on ui: the sender's colour (rgb floats), name and the line (UWideStrings), shown ms
-internal inline void ui_line(void *ui, const void *rgb, void *name, void *line, int ms) { fn_ui_line_game(ui, (void *)rgb, name, line, ms, 0); }
+internal inline void ui_show_line(void *ui, const void *rgb, void *name, void *line, int ms) { fn_ui_line(ui, (void *)rgb, name, line, ms, 0); }
 // a typed line read as a cheat by the parser: its code and argument (0: no cheat)
 // the colour table's rgb of a colour index (the original of persona.c's hook)
 // one of the game's own AI lines (base: its string block, ms shown; the original of persona.c's hook)
@@ -24,7 +24,7 @@ internal inline void *camera_action_alloc(void) { return game_new(value_ui_size_
 // the camera's move to a tile (EEACenterCamera): made, then set (it queues itself)
 // the scroll action executed (the original of camera.c's hook), the camera moved by dx, dy; a scroll action object
 // made by hand (camera.c's test: vtable, then its fields)
-internal inline void camera_move(float dx, float dy) { fn_camera_move_game((void *)data_game_camera, dx, dy); }
+internal inline void camera_pan(float dx, float dy) { fn_camera_move((void *)data_game_camera, dx, dy); }
 internal inline void scroll_action_init(ee_scroll *obj) { *(uint32_t *)obj = data_ui_vt_scroll; }
 // the arrow keys' scrolling (display.c gives it to the editor, which has none): an EEUIEKeyboardScroll event (vtable,
 // refcount 1, 0, the direction: 0 up, 1 down, 2 left, 3 right - its Execute moves the camera) made in the game's
@@ -62,10 +62,10 @@ enum { ORDER_MARKS_GOALS = 0xBB };   // order_marks' how: a GFX_ORDER_ON at each
 // graphical effects by handle - added (the original of the click's hook), gone already (they fade) or taken away (as
 // the game's area effects end theirs); a command's circles as the game draws them (every PC, seen by owner - a player
 // index): of kind k at a tile's centre on the ground, or at each of a group's units' goals
-internal inline int gfx_alive(int handle) { return fn_gfx_get(*(void **)data_ui_gfx_effects, handle) != NULL; }
-internal inline void gfx_remove(int handle) { if (gfx_alive(handle)) fn_gfx_remove_game(*(void **)data_ui_gfx_effects, handle); }
+internal inline int gfx_alive(int handle) { return fn_effect_mgr_get(*(void **)data_ui_gfx_effects, handle) != NULL; }
+internal inline void gfx_remove(int handle) { if (gfx_alive(handle)) fn_effect_mgr_remove(*(void **)data_ui_gfx_effects, handle); }
 // - sized as for a unit of type size_of (NULL: the record's own size): drawn without the unit (with one it is drawn on
-// the unit, coloured by its order), then the size the effect's set-up (vf12, run once in gfx_add) gives a unit's
+// the unit, coloured by its order), then the size the effect's set-up (vf12, run once in effect_mgr_add) gives a unit's
 internal inline void gfx_mark(enum gfx_kind k, const ee_unit_type *size_of, int x, int y, int owner) {
     void *fx = *(void **)data_ui_gfx_effects, *rec = fn_gfx_kind_game((unsigned)k);
     ee_map *map = game_map();
@@ -74,8 +74,8 @@ internal inline void gfx_mark(enum gfx_kind k, const ee_unit_type *size_of, int 
     ee_tile *t = map_get_tiles(map)[(unsigned)y * n + (unsigned)x];
     float pos[3] = { (float)x + 0.5f, (float)y + 0.5f, t && tile_get_height(t) > 0.0f ? tile_get_height(t) : 0.0f };
     int h = 0;
-    fn_gfx_add(fx, NULL, pos, rec, &h, 0);
-    ee_gfx *e = h ? fn_gfx_get(fx, h) : NULL;
+    fn_effect_mgr_add(fx, NULL, pos, rec, &h, 0);
+    ee_gfx *e = h ? fn_effect_mgr_get(fx, h) : NULL;
     if (!e) return;
     if (size_of) {
         float s = FIELD(size_of, of_unit_type_mark_size, float) * 1.25f;   // vf12's factor (0x827588)

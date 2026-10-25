@@ -33,6 +33,10 @@ unsafe struct EECPCombatManager
 
     [address((ee)0x0046FFB7, (aoc)0x00472EC3)]
     extern void revenge(EEPlayer* target);
+
+    /// the unit (its state, unit +0x30) in none of the combat manager's groups (the game's caller 0x471F29 its own)
+    [address((ee)0x004707D8, (aoc)0x0047377E)]
+    extern char8 unit_free(void* unit_state);
 }
 
 /// the object at the combat manager's +0x4C
@@ -53,6 +57,10 @@ unsafe struct ee_attack_cmd
     /// thiscall(attack manager, task, strategy, unit ids) -> the attack group
     [address((ee)0x0045106C, (aoc)0x00451D8E)]
     extern EECPAttackGroup* new_group(void* task, void* strategy, void* ids);
+
+    [address((ee)0x00450E07, (aoc)0x00451A8A)]
+    [call_site("unit_to_group", (ee)0x004824BF, (aoc)0x004869F3)]
+    extern char8 unit_to_group(EEUnit* u);
 }
 
 /// an attack subgroup (EECPAttackSubGroup, EECPASG*)
@@ -188,7 +196,7 @@ unsafe struct EEAIGPGModifierLandAttackSubGroupRoutePlanner
 }
 
 /// an attack strategy (EECPCombatStrategy)
-[c_type("ee_strategy")]
+[c_type("ee_strategy"), vtable((ee)0x0082795C, (aoc)0x0083C0A4)]
 unsafe struct EECPCombatStrategy
 {
     [offset(0x3C), found(s)]
@@ -196,12 +204,25 @@ unsafe struct EECPCombatStrategy
 
     [offset(0x40), found(s)]
     uint8 _0x40;
+
+    [address((ee)0x00473BC4, (aoc)0x00477084)]
+    extern void init();
+
+    [address((ee)0x00473C99, (aoc)0x0047716D)]
+    extern void free();
+
+    [address((ee)0x00473CA7, (aoc)0x0047717B)]
+    extern void reset();
 }
 
 /// an attack task (EECPAGTask)
-[c_type("ee_task")]
+[c_type("ee_task"), vtable((ee)0x008265FC, (aoc)0x0083A6C0)]
 unsafe struct EECPAGTask
 {
+    /// where it heads (task_init constructs it there)
+    [offset(0x4), found(c)]
+    EECPILocation location;
+
     [offset(0x20), found(c)]
     EEPlayer* target_player;
 
@@ -213,6 +234,27 @@ unsafe struct EECPAGTask
 
     [offset(0x30), found(c)]
     uint8 _0x30;
+
+    /// an attack task
+    [address((ee)0x00441FB3, (aoc)0x0044162F)]
+    extern void init();
+
+    [address((ee)0x00442283, (aoc)0x004417F5)]
+    extern void free();
+
+    [address((ee)0x00442246, (aoc)0x00441912)]
+    extern void set_target(EEUnit* t);
+}
+
+/// a location an attack task heads for, the task's +0x4 (EECPILocation)
+[c_type("ee_location"), vtable((ee)0x008265F4, (aoc)0x0083A6B4)]
+unsafe struct EECPILocation
+{
+    [address((ee)0x0047C4E8, (aoc)0x00480873)]
+    extern void init();
+
+    [address((ee)0x0047C8B7, (aoc)0x00480C42)]
+    extern void set(EECPILocation* from);
 }
 
 /// attack's data of the game, places in its code and numbers
@@ -310,9 +352,6 @@ static unsafe class attack_functions
     [call_site("group_stat", (ee)0x00450546, (aoc)0x0045122B)]
     static extern void group_stat(void* stats, EEUnit* u);
 
-    [address((ee)0x0047C4E8, (aoc)0x00480873), thiscall]
-    static extern void location_init(void* loc);
-
     /// point from int x, y (the task location's point)
     [address((ee)0x0040D29D, (aoc)0x0044D28B), thiscall]
     static extern void point_set(void* point, int32* pt);
@@ -321,29 +360,4 @@ static unsafe class attack_functions
     [call_site("range_sort", (ee)0x0063052E, (aoc)0x0064631B)]
     static extern void range_sort(void** b, void** e, EEUnit* unit);
 
-    [address((ee)0x00473BC4, (aoc)0x00477084), thiscall]
-    static extern void strategy_init(void* s);
-
-    [address((ee)0x00473C99, (aoc)0x0047716D), thiscall]
-    static extern void strategy_free(void* s);
-
-    [address((ee)0x00473CA7, (aoc)0x0047717B), thiscall]
-    static extern void strategy_reset(void* s);
-
-    /// an attack task
-    [address((ee)0x00441FB3, (aoc)0x0044162F), thiscall]
-    static extern void task_init(void* task);
-
-    [address((ee)0x00442283, (aoc)0x004417F5), thiscall]
-    static extern void task_free(void* task);
-
-    [address((ee)0x0047C8B7, (aoc)0x00480C42), thiscall]
-    static extern void task_set_location(void* task_loc, void* loc);
-
-    [address((ee)0x00442246, (aoc)0x00441912), thiscall]
-    static extern void task_set_target(void* task, EEUnit* t);
-
-    [address((ee)0x00450E07, (aoc)0x00451A8A), thiscall]
-    [call_site("unit_to_group", (ee)0x004824BF, (aoc)0x004869F3)]
-    static extern char8 unit_to_group(void* cmd, EEUnit* u);
 }
