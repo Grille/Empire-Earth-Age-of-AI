@@ -84,6 +84,11 @@ internal inline void physics_step(ee_physics *physics) { fn_physics_step(physics
 
 // class EEWorld (ee_world)
 // the world, game.world - a static object: its players at +0x74 (game.players), its map at +0xBC (EEWorld)
+// the standard victory (the game settings' +0x408 at the start, the editor's flag): while set, 0x531913 ends the
+// game once one alliance is left and takes out every player without units (both builds' +0xB96)
+internal inline uint8_t world_get_standard_victory(const ee_world *o) { return *(uint8_t *)((uint8_t *)o + of_world_standard_victory); }
+internal inline void world_set_standard_victory(ee_world *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_world_standard_victory) = v; }
+internal inline uint8_t *world_standard_victory_at(const ee_world *o) { return (uint8_t *)((uint8_t *)o + of_world_standard_victory); }
 // thiscall(game.game_state, index)
 typedef void *(__thiscall *world_player_fn)(ee_world *, int);
 internal world_player_fn fn_world_player;
@@ -138,6 +143,7 @@ internal int spec_world_select(int build) {
         of_physics_time = 0xD0;
         fn_physics_step = (physics_step_fn)0x00546C63;
         vt_ee_world = 0x0082C84C;
+        of_world_standard_victory = 0xB96;
         fn_world_player = (world_player_fn)0x0052E6EF;
         fn_world_player_out = (world_player_out_fn)0x0052E2B7;
         fn_world_start = (world_start_fn)0x0052599B;
@@ -169,6 +175,7 @@ internal int spec_world_select(int build) {
         of_physics_time = 0xD0;
         fn_physics_step = (physics_step_fn)0x00553082;
         vt_ee_world = 0x00841FEC;
+        of_world_standard_victory = 0xB96;
         fn_world_player = (world_player_fn)0x00539670;
         fn_world_player_out = (world_player_out_fn)0x005391F2;
         fn_world_start = (world_start_fn)0x005306F2;

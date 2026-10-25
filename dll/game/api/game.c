@@ -12,7 +12,7 @@ internal inline ee_physics *game_physics(void) { return *(ee_physics **)data_api
 internal inline int phys_substeps(void) { return *(int *)data_game_phys_substeps; }                    // the push's factor on a step (at least 1)
 internal inline ee_server *game_server(void) { return *(ee_server **)data_game_server; }                   // the lockstep server (EEServer, EEClient)
 internal inline ee_game_data *game_data(void) { return *(ee_game_data **)data_game_game_data; }            // the game data loaded (GAMEDATA)
-internal inline void *game_state(void) { return (void *)data_game_game_state; }                 // the game state object itself
+internal inline ee_world *game_state(void) { return game_game_state_at(); }                 // the world (EEWorld), a static object
 internal inline ee_player **game_players(void) { return (ee_player **)data_game_players; }      // [index], game_player_count() of them
 internal inline unsigned game_player_count(void) { return *(unsigned *)data_game_players_n; }
 internal inline unsigned local_player_index(void) { return *(unsigned *)data_game_local_player; }   // the player on this PC

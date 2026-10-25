@@ -89,6 +89,11 @@ unsafe struct EEPhysics
 [c_type("ee_world"), vtable((ee)0x0082C84C, (aoc)0x00841FEC)]
 unsafe struct EEWorld
 {
+    /// the standard victory (the game settings' +0x408 at the start, the editor's flag): while set, 0x531913 ends the
+    /// game once one alliance is left and takes out every player without units (both builds' +0xB96)
+    [offset(0xB96), found(c)]
+    uint8 standard_victory;
+
     /// thiscall(game.game_state, index)
     [address((ee)0x0052E6EF, (aoc)0x00539670)]
     extern void* player(int32 index);

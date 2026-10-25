@@ -1094,6 +1094,7 @@ internal uint32_t of_physics_work_ms_sum;
 internal uint32_t of_physics_work_count;
 internal uint32_t of_physics_time;
 internal uint32_t vt_ee_world;
+internal uint32_t of_world_standard_victory;
 internal uint32_t call_game_start;
 internal uint32_t vt_ee_world_table;
 

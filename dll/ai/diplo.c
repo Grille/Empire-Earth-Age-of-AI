@@ -1577,14 +1577,13 @@ internal void __thiscall hook_tribute(ee_tribute_msg *msg) {
 // text = UWideString msg+0x10 (char * at +4, as every UWideString here); sent by EEUIECESendMessage::vf1 (0x5C28D6, after the cheat codes):
 // 0x5C2A2F thiscall(new(0x24), UWideString *) and [0x91984C] vtable +0x18 (message, 0xFF).
 // g_victory_told: the hint was given (once a game, again after loading)
-// AUTO VICTORY ([general] auto_victory, default 1 = the game's own end). The standard victory is the game state's
-// byte +0xB96 (from the game settings +0x408 at the game start, the editor's flag): 0x531913 ends the game every step
+// AUTO VICTORY ([general] auto_victory, default 1 = the game's own end). The standard victory is the world's
+// standard_victory (from the game settings +0x408 at the game start, the editor's flag): 0x531913 ends the game every step
 // once one alliance group is left, and takes out every player without units (+0xB14 = its unit count). With
 // auto_victory=0 the mod clears the byte (every pass, so saved games too) and takes out unit-less players itself
 // (next safe point); the game goes on until the player ends it - "sieg"/"victory" in the chat, Resign or Exit - once
 // everyone still in is allied with him (vassals or allies) or nobody is left: his vassals resign, the byte comes
 // back and the game's own check ends it at the next step, his side winning. A hint says when.
-#define STATE_STD_VICTORY ((uint8_t *)GAME_STATE + 0xB96)
 internal int g_auto_victory = 1;
 
 internal int can_claim(int me) {   // everyone else still in is allied with me (vassals included), or nobody is left
@@ -1635,7 +1634,7 @@ internal int claim_victory(int me, const char *how) {
     for (int j = 1; ok && j < nplayers(); j++) { void *pj = player_at(j); n += pj && j != me && !is_out(pj) && g_lord[j] == me; }
     if (g_log) fprintf(g_log, "# victory: P%d claims victory at %.1f min (%s): %d vassals%s\n", me, game_time() / 60000.0, how,
                        n, ok ? " resign" : ", but not everyone has submitted - refused");
-    if (ok && g_victory_off) { g_victory_claimed = 1; *STATE_STD_VICTORY = 1; }   // the game's own check ends it
+    if (ok && g_victory_off) { g_victory_claimed = 1; world_set_standard_victory(GAME_STATE, 1); }   // the game's own check ends it
     for (int j = 1; ok && j < nplayers(); j++) {   // every other AI still in has a word (other_victory: lord == them, allied)
         void *pj = player_at(j);
         if (j == me || !pj || is_out(pj) || !g_players[j]) continue;
@@ -1648,8 +1647,8 @@ internal int claim_victory(int me, const char *how) {
 }
 internal void victory_off_pass(void) {   // auto_victory=0, every pass between simulation steps
     if (g_auto_victory || g_victory_claimed || !game_physics()) return;
-    if (*STATE_STD_VICTORY) {
-        *STATE_STD_VICTORY = 0;
+    if (world_get_standard_victory(GAME_STATE)) {
+        world_set_standard_victory(GAME_STATE, 0);
         if (!g_victory_off && g_log) fprintf(g_log, "# victory: automatic end off - the game goes on until the player ends it\n");
         g_victory_off = 1;
     }
