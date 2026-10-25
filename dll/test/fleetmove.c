@@ -36,10 +36,11 @@ internal void fm_tick(void) {
             ee_unit *w = unit_by_id(g_fm[i].id);
             if (!w) continue;
             vec3 q = unit_get_pos(w), fq = unit_get_facing(w);
-            fprintf(g_log, "# fmwatch %u %06x %.3f %.3f %.1f %.3f %u %u %.2f push %.3f %.3f obst %d contacts %d size %.2f %.2f %.2f class %d\n", now, g_fm[i].id & 0xFFFFFF, q.x, q.y,
+            fprintf(g_log, "# fmwatch %u %06x %.3f %.3f %.1f %.3f %u %u %.2f push %.3f %.3f obst %d contacts %d size %.2f %.2f %.2f class %d ff %d orders %d\n", now, g_fm[i].id & 0xFFFFFF, q.x, q.y,
                     atan2f(fq.x, fq.y) * 57.29578f, unit_get_speed(w), unit_ai_state_id(w), unit_get_foundation(w), unit_get_blocked_ms(w),
                     FIELD(w, 0x230, float), FIELD(w, 0x234, float), unit_get_blocker(w) != NULL, unit_get_contacts_count(w),
-                    unit_get_size(w), unit_type_get_collider_size(unit_get_type_data(w)), unit_type_get_formation_size(unit_get_type_data(w)), unit_type_get_class_id(unit_get_type_data(w)));
+                    unit_get_size(w), unit_type_get_collider_size(unit_get_type_data(w)), unit_type_get_formation_size(unit_get_type_data(w)), unit_type_get_class_id(unit_get_type_data(w)),
+                    ff_watch_state(w), unit_orders(w));
         }
     if (!g_fm_trace) return;
     ee_unit *u = unit_by_id(g_fm_trace);
