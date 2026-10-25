@@ -21,7 +21,7 @@ and the runners, eectl, the MCP server), `results/` (log readers, scorers), `re/
   C/C++ through `.vscode/c_cpp_properties.json`): each part with the text eeaimod.c has before it, so the editor
   knows what the compiler knows there.
 - `dll/` has a folder per part, and which part may use which is a rule the build checks (`scripts/build/layers.py`):
-  base (nothing) <- game/api (the game's code and objects, one module: nothing of its raw/ outside it) <- game <- engine, ai (and voice/say.h: what the AI says goes through it); script (base only: the
+  base (nothing) <- game/api (the game's code and objects, one module: nothing of its gen/ values or editor_layout.h outside it) <- game <- engine, ai (and voice/say.h: what the AI says goes through it); script (base only: the
   language knows no game - script/host.h asks the program); voice (base, game, ai, script); game_script (the game in
   the language: all of those); settings (base only: aimod.ini's keys as rows, read once into `g_set` - used by
   engine, ai, voice, game_script, test and the wiring); tool (base, settings, script: aimod_config.exe, a program of
@@ -76,7 +76,7 @@ and the runners, eectl, the MCP server), `results/` (log readers, scorers), `re/
   pass their arguments on (`explored_by(site, pl)`), its hooks' types and installers (`patch_place(hook_place)` - a
   hook with other parameters doesn't build); `game.c` the game's global state and its getters (`game_map()`,
   `game_players()`, `end_epoch()`, `game_new(n)`), `hooks.c` the patches of the game's code, `types.h` the types'
-  names, `raw/editor_layout.h` the scenario editor's layout (generated, the 2017 update). A kind not typed yet is
+  names, `editor_layout.h` the scenario editor's layout (generated, the 2017 update). A kind not typed yet is
   `void *`. A change there must keep the machine code (`scripts/build/code_same.py`) or, where it can't, play the same
   game (the same game_seed, the logs compared - with the run-to-run heap addresses masked; AoC's player stock 0 and 1
   are memory it never sets, and an AoC game parts ways now and then with any DLL: seed 9 on Small Islands, about one

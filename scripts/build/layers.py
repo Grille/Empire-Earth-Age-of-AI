@@ -52,7 +52,7 @@ EXCEPTIONS = [
 ]
 
 # game/api/'s VALUES ARE THE MODULE'S INSIDE: the spec's generated variables (gen/: of_, fn_, data_, value_ ... - the
-# addresses and offsets per build) and raw/ (the scenario editor's layout). Nothing of them is used outside game/api/ -
+# addresses and offsets per build) and editor_layout.h (the scenario editor's layout). Nothing of them is used outside game/api/ -
 # the rest of the code calls the accessors, typed wrappers and installers (gen/'s and the object files': unit.c,
 # player.c ...), exe.c's build_is and layout.h's FIELD; anything else fails the build.
 
@@ -250,15 +250,15 @@ def main():
     for f in glob.glob(os.path.join(DLL, 'dinput', '*.c')):
         for inc in re.findall(r'#include\s+"([^"]+)"', open(f, encoding='latin-1').read()):
             if inc not in ('../base/headless_win.c', '../base/lang.h'): bad.append('dinput/%s includes %s' % (os.path.basename(f), inc))
-    # game/api/raw/ only inside game/api/; the variables of the spec's C too (its accessors are for everyone)
+    # game/api/editor_layout.h only inside game/api/; the variables of the spec's C too (its accessors are for everyone)
     gen_values = set()
     for f in glob.glob(os.path.join(DLL, 'game', 'api', 'gen', '*.c')):
         gen_values |= set(re.findall(r'^internal (?!inline)[\w ]+?\b(\w+)(?:\[\d+\])?;', open(f, encoding='latin-1').read(), re.M))
     for u in sorted(edges):
         if u.startswith('game/api/'): continue
         for d, ns in sorted(edges[u].items()):
-            if d.startswith('game/api/raw/'):
-                bad.append('%s uses %s of %s - game/api/raw/ only inside game/api/: an accessor, wrapper or installer in '
+            if d == 'game/api/editor_layout.h':
+                bad.append('%s uses %s of %s - game/api/editor_layout.h only inside game/api/: an accessor, wrapper or installer in '
                            'the object\'s file of game/api/' % (u, ', '.join(sorted(ns)), d))
             # the spec's C: its values (of_unit_hp, fn_unit_max_speed, slot_, call_, vt_, size_) are game/api/'s -
             # outside it the accessors, wrappers and installers (unit_get_hp, unit_max_speed, patch_aim)

@@ -472,7 +472,7 @@ dll/              the mod (C), one translation unit: eeaimod.c includes every pa
                     (ini.c), watchpoints, headless_win.c test windows without focus or taskbar button (also in dinput.dll)
   game/             what the mod knows of the game: api/ the game's own code and objects, one module (api.c) - exe.c
                     the exe build, its addresses per build (gen/: the spec's C, generated; builds.h;
-                    raw/editor_layout.h generated), its objects typed (types.h), a file per object (unit.c, player.c,
+                    editor_layout.h generated), its objects typed (types.h), a file per object (unit.c, player.c,
                     attack.c ...: its fields by name, the game's functions on it, its hooks; per build:
                     spec/game/), game.c the globals, hooks.c the code patches; world.c
                     type data, game time, RTTI names, players.c the players (and the vanilla

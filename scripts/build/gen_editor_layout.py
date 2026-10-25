@@ -1,10 +1,10 @@
-# Build dll/game/api/raw/editor_layout.h from layout_diff.py output: the scenario editor's 1024x768 layout values that
+# Build dll/game/api/editor_layout.h from layout_diff.py output: the scenario editor's 1024x768 layout values that
 # EE-AOC.exe uses, as patches for Empire Earth.exe (imm32 operands, or float constants to redirect), each with how
 # it follows the screen size, so the mod can compute the layout for any resolution:
 #   value(W, H) = AoC value + fx/2 * (W - 1024) + fy/2 * (H - 768)
 # fx/fy (0, 1 or 2 halves) come from the EE -> AoC change: +224 (= 1024 - 800) follows the width (anchored right or
 # stretching), +168 (= 768 - 600) the height, half of that = centred. ANCHOR gives them for AoC's redesigns.
-# usage: python gen_editor_layout.py local/games/aoc/work/editor_layout3.tsv local/games/aoc/work/editor_layout_pages2.tsv dll/game/api/raw/editor_layout.h
+# usage: python gen_editor_layout.py local/games/aoc/work/editor_layout3.tsv local/games/aoc/work/editor_layout_pages2.tsv dll/game/api/editor_layout.h
 import sys, struct
 
 PUSH_DELTAS = {168, 224, 112, 84}

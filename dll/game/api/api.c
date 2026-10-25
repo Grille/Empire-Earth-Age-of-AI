@@ -3,11 +3,11 @@
 // what the rest of the code uses of it - its fields, the game's functions on it (by their first argument, the C++
 // object of a thiscall), its hooks; game.c the game's global state and its getters (game_map(), game_players() ...),
 // hooks.c the patches of the game's code that are about no object. types.h names the objects' types (one place: they
-// point at each other). raw/ is the module's inside: editor_layout.h (the scenario editor's layout sites, generated) - nothing raw/
-// defines is used outside game/api/, and game/api/ uses only base/ (scripts/build/layers.py). gen/ is the
-// spec's C (spec/game/, made by scripts/build/gen_api.py, never edited): every object's
-// fields, functions and hooks in plain declarations - unit_get_speed, unit_max_speed, patch_aim - and their values set
-// per build by spec_select. exe.c finds the running build (game_build, build_is) and selects its values; api_log tells the
+// point at each other). editor_layout.h is the scenario editor's layout sites (generated from the two exes' diff by
+// scripts/build/gen_editor_layout.py, no part of the spec) - nothing of it is used outside game/api/, and game/api/
+// uses only base/ (scripts/build/layers.py). gen/ is the spec's C (spec/game/, made by scripts/build/gen_api.py, never
+// edited): every object's fields, functions and hooks in plain declarations - unit_get_speed, unit_max_speed,
+// patch_aim - and their values set per build by spec_select. exe.c finds the running build (game_build, build_is) and selects its values; api_log tells the
 // start's log what is missing.
 //
 // FIELDS: kind_get_x(obj) reads a field, kind_set_x(obj, v) writes one, kind_x_at(obj) its address - gen/'s, from the
@@ -27,7 +27,7 @@
 #include "game/api/builds.h"       // the exe builds the mod knows: the spec's builds (ee, aoc)
 #include "game/api/gen/values.c"   // the spec's values: offsets, addresses, slots (spec_select sets them)
 #include "game/api/exe.c"          // which build runs: game_build
-#include "game/api/raw/editor_layout.h"   // the scenario editor's layout sites (generated, the 2017 update)
+#include "game/api/editor_layout.h"   // the scenario editor's layout sites (generated, the 2017 update)
 #include "game/api/layout.h"       // FIELD: a read at a field's offset or a plain number
 #include "game/api/patching.c"     // the installers' helpers: patch_calls, PATCH_LIST, site_index
 #include "game/api/gen/enums.c"    // the game's enums (spec/game/scenario_lists.cs ...): the spec's C types fields by them
