@@ -1392,32 +1392,12 @@ internal void cmd_profile(const char *args, char *out) {
     for (int i = 0; i < nt; i++) CloseHandle(th[i].h);
 }
 
-// mapshot <name> [size]: the whole map as the game's Ctrl/Shift+F9 draw it (size 1024, 2048 or 4096 pixels square,
-// default 1024), the game paused meanwhile -> aimod_dumps/<name>.bmp. The game writes the next free EE###.bmp (.jpg
-// with "Take JPG Screenshots") in the game folder: it creates the name empty (FSFileSpec::Create, the next free
-// number), renders, then GESurface::Save fills it. The first such file written after the request, once it has
-// content and the graphics thread has let go of it, is moved there - a player's own F9 at the same moment could be
-// taken instead. The picture is twice as wide as high (the map's diamond: 1024 -> 1024 x 512).
-internal void cmd_mapshot(const char *args, char *out) {
-    char name[64] = "map";
-    int size = 1024;
-    sscanf(args, "%63s %d", name, &size);
-    if (size != 1024 && size != 2048 && size != 4096) { REPLY("error: size 1024, 2048 or 4096\n"); return; }
-    ee_world *w = game_world();
-    if (!w || !game_map() || !game_physics()) { REPLY("error: no game running\n"); return; }
-    CreateDirectoryA("aimod_dumps", NULL);
-    char dir[MAX_PATH], dst[MAX_PATH];
-    DWORD dn = GetFullPathNameA("aimod_dumps", sizeof dir, dir, NULL);
-    if (!dn || dn >= sizeof dir || snprintf(dst, sizeof dst, "%s\\%s.bmp", dir, name) >= (int)sizeof dst) {
-        REPLY("error: the picture's path is too long\n");
-        return;
-    }
-    FILETIME t0;
-    GetSystemTimeAsFileTime(&t0);
-    ULARGE_INTEGER since = { .LowPart = t0.dwLowDateTime, .HighPart = t0.dwHighDateTime };
-    since.QuadPart -= 20000000;   // 2 s: the file system's write times are coarse
-    world_screenshot(w, size, 0);
-    for (int i = 0; i < 1200; i++) {   // 60 s: a 4096 map renders in tiles, the BMP is 48 MB
+// The game writes a map shot as the next free EE###.bmp (.jpg with "Take JPG Screenshots") in the game folder: it
+// creates the name empty (FSFileSpec::Create, the next free number), renders, then GESurface::Save fills it. The
+// first such file written since `since`, once it has content and the graphics thread has let go of it, is moved to
+// dst - a player's own F9 at the same moment could be taken instead.
+internal void mapshot_take(int size, ULARGE_INTEGER since, char *dst, char *out) {
+    for (int i = 0; i < 1200; i++) {   // 60 s: a 4096 map renders in tiles, the BMP is 24 MB
         Sleep(50);
         WIN32_FIND_DATAA f;
         HANDLE h = FindFirstFileA("EE???.*", &f);
@@ -1443,6 +1423,45 @@ internal void cmd_mapshot(const char *args, char *out) {
         return;
     }
     REPLY("error: no EE###.bmp within 60 s\n");
+}
+
+// mapshot <name> [size] [all]: the whole map as the game's Ctrl/Shift+F9 draw it (size 1024, 2048 or 4096, default
+// 1024; twice as wide as high, the map's diamond: 1024 -> 1024 x 512), the game paused meanwhile ->
+// aimod_dumps/<name>.bmp. As far as the local player has explored; "all" sets its explore all (PL_EXPLORE_ALL, what
+// a revealed map sets) for the shot and puts it back once the file is there - the game may run a few steps with it
+// meanwhile (harmless alone; in a network game the other PCs don't have it set).
+internal void cmd_mapshot(const char *args, char *out) {
+    char name[64] = "map";
+    int size = 1024, all = 0, n = 0;
+    sscanf(args, "%63s %n", name, &n);
+    for (const char *a = args + n; *a; ) {
+        char word[16] = "";
+        int k = 0;
+        if (sscanf(a, "%15s %n", word, &k) < 1 || !k) break;
+        if (!strcmp(word, "all")) all = 1;
+        else size = atoi(word);
+        a += k;
+    }
+    if (size != 1024 && size != 2048 && size != 4096) { REPLY("error: size 1024, 2048 or 4096 (and/or all)\n"); return; }
+    ee_world *w = game_world();
+    if (!w || !game_map() || !game_physics()) { REPLY("error: no game running\n"); return; }
+    CreateDirectoryA("aimod_dumps", NULL);
+    char dir[MAX_PATH], dst[MAX_PATH];
+    DWORD dn = GetFullPathNameA("aimod_dumps", sizeof dir, dir, NULL);
+    if (!dn || dn >= sizeof dir || snprintf(dst, sizeof dst, "%s\\%s.bmp", dir, name) >= (int)sizeof dst) {
+        REPLY("error: the picture's path is too long\n");
+        return;
+    }
+    FILETIME t0;
+    GetSystemTimeAsFileTime(&t0);
+    ULARGE_INTEGER since = { .LowPart = t0.dwLowDateTime, .HighPart = t0.dwHighDateTime };
+    since.QuadPart -= 20000000;   // 2 s: the file system's write times are coarse
+    ee_player *me = game_players()[(int)local_player_index()];
+    uint8_t had = me ? player_get_explore_all(me) : 0;
+    if (all && me) player_set_explore_all(me, 1);
+    world_screenshot(w, size, 0);
+    mapshot_take(size, since, dst, out);
+    if (all && me) player_set_explore_all(me, had);
 }
 
 // headless test commands (pipe thread, also in the menus and the editor):
