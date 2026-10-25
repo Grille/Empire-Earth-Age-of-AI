@@ -9,9 +9,11 @@
 //     size x FO_PAD[kind], a row as deep as its largest unit, a staggered line's every other row shifted half a unit;
 //   wedges (deep, shallow): rows from a tip, each as wide as the wedge's opening allows at its depth;
 //   circles (inward, outward): rings from the middle out, the largest units innermost, as wide as their units.
-// Units of like size are put in bands, each in rows of its own (a row is as deep as its largest unit), the bands and the
-// rows in them front to back by how far ahead their units stand now along the move, the units in a row left to right by
-// where they stand across it, so no one walks through the group. The game then pairs units with these slots as before
+// Each unit has a rank (fo_rank: the close fighters in front, then the ranged soldiers and the healing heroes, siege,
+// and who doesn't fight at the back; a circle has them inside). Units of one rank and like size are put in bands, each
+// in rows of its own (a row is as deep as its largest unit), the ranks front to back, a rank's bands and the rows in
+// them by how far ahead their units stand now along the move, the units in a row left to right by where they stand
+// across it, so no one walks through the group more than the ranks ask. The game then pairs units with these slots as before
 // (that block also prepares the group's route: skipping it sent units on detours), and each unit's goal is given its own
 // planned spot instead of its paired slot's (hook_slot_goal: the slot found by its point, the unit by the slot). The
 // collision sorts out the rest. Only + - * / and sqrtf (the circles' sines from a polynomial): the same on every PC.
@@ -26,9 +28,30 @@ internal const float FO_WEDGE_TAN[2] = { 0.4142f, 0.8391f };   // tan of half th
 internal int g_fo_on;
 internal unsigned g_fo_moves;   // group moves laid out
 
-struct fo_unit { ee_unit *u; vec2 p; float w, along, across; vec2 at; int band; uint32_t facing; };   // at: its spot
+struct fo_unit { ee_unit *u; vec2 p; float w, along, across; vec2 at; int band, rank; uint32_t facing; };   // at: its spot
 internal struct fo_unit g_fo[FO_MAX];
 internal int g_fo_order[FO_MAX];
+
+// A unit's rank, front to back (a circle's outside in): 0 who fights up close or takes the hits - melee range, the tanks
+// and mechs, the military heroes (class 23: Gilgamesh .. Molotov, the fighters); 1 the ranged soldiers and the
+// strategist heroes (class 13 of family hero: they heal those around them); 2 siege and rams; 3 who doesn't fight -
+// citizens (the diplomat and engineer too), priests and prophets, and whatever has no attack (the medics)
+#define FO_RANGED 2.0f   // a range of this many tiles or more: a ranged soldier (melee 0.5 .. 1.3, a javelin 3)
+internal int fo_rank(ee_unit *u) {
+    ee_unit_type *td = unit_get_type_data(u);
+    if (!td) return 1;
+    int cls = unit_type_get_class_id(td), kind = unit_type_get_family(td), type = unit_type_get_id(td);
+    ee_unit_stats *st = unit_get_stats(u);
+    float range = st ? unit_stats_get_range(st) : unit_type_get_range(td);
+    float attack = st ? unit_stats_get_attack(st) : (float)unit_type_get_attack(td);
+    if (cls == CLS_LAND_CITIZEN || is_citizen_type(type) || attack <= 0) return 3;
+    if (cls == CLS_LAND_MILITARY_HERO) return 0;
+    if (cls == CLS_LAND_PRIEST) return kind == KIND_HERO ? 1 : 3;
+    if (is_siege(type) || is_ram(type)) return 2;
+    if (kind == KIND_TANK || kind == KIND_TANK_STRONG || (kind >= KIND_MECH_MINOTAUR && kind <= KIND_MECH_CYCLOPS)
+        || kind == KIND_MECH_APOLLO) return 0;
+    return range >= FO_RANGED ? 1 : 0;
+}
 
 // order idx[0..n) by key descending (insertion sort: stable, and n is a group)
 internal void fo_sort(int *idx, int n, const float *key) {
@@ -39,10 +62,11 @@ internal void fo_sort(int *idx, int n, const float *key) {
     }
 }
 internal float g_fo_key[FO_MAX];
-internal void fo_sort_by(int *idx, int n, int what) {   // 0 along (front first), 1 across (left first), 2 size (largest first)
+// 0 along (front first), 1 across (left first), 2 size (largest first), 3 rank (front first), 4 rank (back first)
+internal void fo_sort_by(int *idx, int n, int what) {
     for (int i = 0; i < n; i++) {
         struct fo_unit *f = &g_fo[idx[i]];
-        g_fo_key[idx[i]] = what == 0 ? f->along : what == 1 ? -f->across : f->w;
+        g_fo_key[idx[i]] = what == 0 ? f->along : what == 1 ? -f->across : what == 2 ? f->w : what == 3 ? (float)-f->rank : (float)f->rank;
     }
     fo_sort(idx, n, g_fo_key);
 }
@@ -81,18 +105,20 @@ internal void fo_place_row(int *idx, int k, float y, float dx) {
 // lines and wedges: rows front to back (y 0, then negative), each filled to its width
 internal void fo_rows(int *idx, int n, int kind) {
     fo_sort_by(idx, n, 0);
-    // bands of like size (within FO_BAND of the band's largest), each in rows of its own - a row is as deep as its
-    // largest unit, so tanks among infantry spaced every row out; the bands front to back by where they stand on
-    // average, the units within each by where they stand (the sorts are stable)
+    // bands of one rank and like size (within FO_BAND of the band's largest), each in rows of its own - a row is as
+    // deep as its largest unit, so tanks among infantry spaced every row out; the ranks front to back, a rank's bands
+    // by where they stand on average, the units within each by where they stand (the sorts are stable)
     static int by_size[FO_MAX];
     static float band_along[FO_MAX];
+    static int band_rank[FO_MAX];
     memcpy(by_size, idx, sizeof *idx * (size_t)n);
     fo_sort_by(by_size, n, 2);
+    fo_sort_by(by_size, n, 3);
     for (int i = 0, b = -1, first = 0; i < n; i++) {
         struct fo_unit *f = &g_fo[by_size[i]];
-        if (b < 0 || f->w < g_fo[by_size[first]].w * FO_BAND) {
+        if (b < 0 || f->rank != band_rank[b] || f->w < g_fo[by_size[first]].w * FO_BAND) {
             if (b >= 0) band_along[b] /= (float)(i - first);
-            b++; first = i; band_along[b] = 0;
+            b++; first = i; band_along[b] = 0; band_rank[b] = f->rank;
         }
         f->band = b;
         band_along[b] += f->along;
@@ -100,6 +126,7 @@ internal void fo_rows(int *idx, int n, int kind) {
     }
     for (int i = 0; i < n; i++) g_fo_key[idx[i]] = band_along[g_fo[idx[i]].band];
     fo_sort(idx, n, g_fo_key);
+    fo_sort_by(idx, n, 3);
     float area = 0, wmax = 0, wmean = 0;
     for (int i = 0; i < n; i++) { float w = g_fo[idx[i]].w; area += w * w; wmean += w; if (w > wmax) wmax = w; }
     wmean /= (float)n;
@@ -124,17 +151,24 @@ internal void fo_rows(int *idx, int n, int kind) {
     }
 }
 
-// circles: rings from the middle out, the largest units innermost; on a ring by the angle they stand at now
+// circles: rings from the middle out, the ranks back first (who doesn't fight in the middle, the fighters outside), a
+// rank's largest units innermost; on a ring by the angle they stand at now
 internal void fo_rings(int *idx, int n) {
     const float TWO_PI = 6.28318531f;
     fo_sort_by(idx, n, 2);
+    fo_sort_by(idx, n, 4);
     float r = 0, prev = 0;
     for (int i = 0, ring = 0; i < n; ring++) {
-        float deep = g_fo[idx[i]].w;   // sorted: the ring's first is its largest
-        r = ring ? r + (prev + deep) * 0.5f : deep * 0.75f;
-        float sum = 0;
+        // the ring's radius from its largest unit (no longer always its first: the ranks come first) - its units taken
+        // at a radius from the first, then the radius from their largest and the units again
+        float deep = g_fo[idx[i]].w, sum = 0, r0 = r;
         int k = 0;
-        while (i + k < n && (k == 0 || sum + g_fo[idx[i + k]].w <= TWO_PI * r)) sum += g_fo[idx[i + k++]].w;
+        for (int pass = 0; pass < 2; pass++) {
+            r = ring ? r0 + (prev + deep) * 0.5f : deep * 0.75f;
+            sum = 0; k = 0;
+            while (i + k < n && (k == 0 || sum + g_fo[idx[i + k]].w <= TWO_PI * r)) sum += g_fo[idx[i + k++]].w;
+            for (int a = 0; a < k; a++) if (g_fo[idx[i + a]].w > deep) deep = g_fo[idx[i + a]].w;
+        }
         if (i + k == n && k == 1 && ring == 0) { g_fo[idx[i]].at = v2(0, 0); break; }   // one unit: the middle
         int *ix = idx + i;
         for (int a = 0; a < k; a++) g_fo_key[ix[a]] = -fo_pseudo_angle(g_fo[ix[a]].p);
@@ -168,6 +202,7 @@ internal void __thiscall hook_formation_slots(void *f, void *group, void *slots)
         u->p = v2(p.x, p.y);
         float s = unit_get_size(u->u);
         u->w = (s < FO_MIN_SIZE ? FO_MIN_SIZE : s) * FO_PAD[kind];
+        u->rank = fo_rank(u->u);
         mean = vec2_add(mean, u->p);
         g_fo_order[i] = i;
     }

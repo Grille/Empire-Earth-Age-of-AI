@@ -337,7 +337,9 @@ Settings in `aimod.ini`:
   circles) is laid out by its units' own sizes, its front row on the clicked point and facing the way the mouse was
   dragged with the right button (a plain click: the way it moves), like sizes in rows of their own, each unit keeping
   its place in the group: the army in after 46 s instead of 52, back in 57 instead of 79 (with the land movement
-  settings). Off while it is tried in games. (It replaces `group_block`, a big group gathered as one block.)
+  settings). The ranks front to back: who fights up close (melee, tanks, the fighting heroes), the ranged soldiers and
+  the healing heroes, siege and rams, then who doesn't fight (citizens, priests, medics) - in a circle formation they
+  are in the middle. Off while it is tried in games. (It replaces `group_block`, a big group gathered as one block.)
 - `[general] goal_markers=1` (default; 0 the original): a move order drew its circle at the goal of only the group's
   first 15 units (20 in the other lines and wedges, every few in a circle formation). Now every unit's shows.
 - `[sound] clamp_channels=1` (default): the "Max Number Of Sounds" slider goes to 200%, which asks for 32 sound
