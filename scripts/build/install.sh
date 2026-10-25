@@ -16,7 +16,10 @@ reserve_begin "install $REV"
 cp "$B/dll/eeaimod.dll" "$G/eeaimod.dll" || exit 1
 # another program's dinput.dll is never replaced (then the game's settings stay in the registry)
 if [ ! -f "$G/dinput.dll" ] || grep -q EEAimodSettings "$G/dinput.dll"; then cp "$B/dll/dinput.dll" "$G/dinput.dll" || exit 1; fi
-# the settings program: one the player has open stays (the next install replaces it)
-cp "$B/dll/aimod_config.exe" "$G/aimod_config.exe" 2>/dev/null || echo "aimod_config.exe is open - not replaced"
+# the settings program: one the player has open can't be replaced - said, and the exit code 3 (install_latest.sh waits
+# for it to close and installs again)
+cfg=0
+cp "$B/dll/aimod_config.exe" "$G/aimod_config.exe" 2>/dev/null || { echo "aimod_config.exe is open - NOT replaced" >&2; cfg=3; }
 reserve_end
 echo "installed $REV"
+exit $cfg
