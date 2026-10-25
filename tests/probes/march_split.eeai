@@ -1,0 +1,13 @@
+// formation_follow from two groups: two blocks of infantry (Continental seed 101) 15 tiles apart, selected together and
+// sent to the point between them, as in the player's game - they stood stuck (the leader from one block, the other
+// block's points behind it on the way: they waited for them, the leader for the formation)
+wait_until(0.1min)
+spawn(1, unit.inf10_doughboy, 37, 44, 30)
+spawn(1, unit.inf10_doughboy, 52, 44, 30)
+wait_until(0.4min)
+cmd("fmove go 1 44 44 16 44 44 0 0")
+every(2s, 0.4min, 1.4min, (run) => {
+    cmd("fmove stat")
+})
+wait_until(1.45min)
+cmd("fmove sum")

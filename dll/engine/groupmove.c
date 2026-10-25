@@ -253,7 +253,7 @@ internal void fo_march(ee_active_group *grp) {
 struct ff_group { uint32_t leader; ee_group *grp; vec2 fwd, way, end; float speed, err, err_sum; int err_n; uint32_t step; int on; };   // fwd: the formation's facing, way: where it goes
 internal struct ff_group g_ff[FF_GROUPS];
 internal unsigned g_ff_next;
-struct ff_unit { uint32_t id; int g; vec2 off; uint32_t step; float along; };   // step: the last it followed
+struct ff_unit { uint32_t id; int g; vec2 off; uint32_t step; float along, with; };   // step: the last it followed
 internal struct ff_unit g_ff_u[FF_UNITS];
 internal int g_ff_on;
 internal unsigned g_ff_marches, g_ff_steered, g_ff_own;   // marches started; follower ticks steered, left to the own route
@@ -349,13 +349,20 @@ internal int fo_follow_aim(ee_unit *u, const float *pos, float *aim) {
     vec2 right = v2(gr->fwd.y, -gr->fwd.x);
     vec2 pt = vec2_add(v2(lp.x, lp.y), vec2_add(vec2_scale(right, e->off.x), vec2_scale(gr->fwd, e->off.y)));
     vec2 d = vec2_sub(pt, v2(pos[0], pos[1]));
-    e->along = vec2_dot(d, gr->way);
     gr->err_sum += vec2_len(d);
     gr->err_n++;
     ee_map *map = game_map();
     ee_unit_type *td = unit_get_type_data(u);
     int size = map ? (int)map_get_size(map) : 0;
     vec2 at = vec2_add(pt, vec2_scale(gr->way, FF_AHEAD));
+    // behind and ahead by the way it steers (at its point): a follower with its point on the far side, against the way
+    // (two blocks sent to the point between them: the leader's block walks to the other), walks back to it - by the way
+    // it stood waiting for a point that came at the leader's crawl, and the leader for the formation
+    vec2 to = vec2_sub(at, v2(pos[0], pos[1]));
+    float tl = vec2_len(to);
+    vec2 a = tl > 0.01f ? vec2_scale(to, 1.0f / tl) : gr->way;
+    e->along = vec2_dot(d, a);
+    e->with = vec2_dot(gr->way, a);
     if (vec2_len(d) > FF_FAR || !td || size <= 0 || !sr_alloc((uint32_t)(size * size))) { g_ff_own++; return 0; }
     st_stamp_step();
     if (!sr_pass(map, u, td, size, (int)floorf(at.x), (int)floorf(at.y)) || !sr_clear(map, u, td, size, pos[0], pos[1], at.x, at.y)) { g_ff_own++; return 0; }
@@ -367,8 +374,8 @@ internal int fo_follow_aim(ee_unit *u, const float *pos, float *aim) {
 }
 
 // the land models' speed step: the leader at the march's speed (the slowest member's top speed), less while the
-// followers are still forming up; a follower that steered this step at the leader's plus FF_GAIN for each tile behind its
-// point - while behind up to FF_BOOST of its own top speed (the slowest ones could never catch up at their top speed,
+// followers are still forming up; a follower that steered this step at its point's speed (the leader's) its way plus
+// FF_GAIN for each tile behind it - while behind up to FF_BOOST of its own top speed (the slowest ones could never catch up at their top speed,
 // and the formation as a whole still goes no faster than its slowest unit) - towards it by its own acceleration a tick;
 // the game's own step while it turns more than 45 degrees
 internal float __thiscall hook_ff_speed(void *model, ee_unit *u, float dist, float angle) {
@@ -377,13 +384,14 @@ internal float __thiscall hook_ff_speed(void *model, ee_unit *u, float dist, flo
     if (!e || fabsf(angle) > 0.7853982f) return s;
     struct ff_group *gr = &g_ff[e->g];
     uint32_t step = ff_step();
-    if (!gr->on || unit_get_group(u) != gr->grp || !ff_leader(gr, step)) return s;
+    ee_unit *l = gr->on && unit_get_group(u) == gr->grp ? ff_leader(gr, step) : NULL;
+    if (!l) return s;
     float top = unit_max_speed(u), want, cap = top;
     if (e->id == gr->leader) {
         float wait = 1 - (gr->err - FF_FORM_FREE) / FF_FORM;
         want = gr->speed * (wait > 1 ? 1 : wait > FF_CRAWL ? wait : FF_CRAWL);
     } else if (e->step == step) {
-        want = gr->speed + FF_GAIN * e->along;
+        want = unit_get_speed(l) * e->with + FF_GAIN * e->along;   // its point's speed its way, and closing
         if (e->along > 0) cap = top * FF_BOOST;
     } else return s;
     if (want > cap) want = cap;
