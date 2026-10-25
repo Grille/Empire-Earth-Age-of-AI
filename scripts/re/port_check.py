@@ -1,37 +1,44 @@
-# Checks of raw/fields.h's and the address rows' Art of Conquest column against the code, beyond port_fields.py's class methods (which
-# miss objects with few virtual functions - the AI's build, unit and civilization managers moved and were taken as
-# kept): a kind's rows voted in its source file's code (the files' bounds: the static initializers Ghidra names
-# "<Class>_persist_", local/games/ee/decomp/functions.tsv), through the pointer that reaches it, and every function's stack arguments.
-# usage: python port_check.py kinds [KIND ...]        each row of the kinds in RANGES: the votes, DIFF where they disagree
-#        python port_check.py via KIND lo-hi[,..] kA kB  the kind's rows read through [this + kA] (AoC: kB) in those ranges
-#        python port_check.py rets                      the FN_ rows whose stack arguments (ret N) differ by build
+# Checks of the spec's Art of Conquest values (spec/game/: fields, functions) against the code, beyond port_fields.py's
+# class methods (which miss objects with few virtual functions - the AI's build, unit and civilization managers moved
+# and were taken as kept): a class's fields voted in its source file's code (the files' bounds: the static initializers
+# Ghidra names "<Class>_persist_", local/games/ee/decomp/functions.tsv), through the pointer that reaches it, and every
+# function's stack arguments.
+# usage: python port_check.py classes [CLASS ...]        each field of the classes in RANGES: the votes, DIFF where they disagree
+#        python port_check.py via CLASS lo-hi[,..] kA kB  the class's fields read through [this + kA] (AoC: kB) in those ranges
+#        python port_check.py rets                       the functions whose stack arguments (ret N) differ by build
 import collections, os, re, sys
 sys.path.insert(0, os.path.dirname(__file__))
 import port_addrs as P
 import port_fields as F
+import spec_read
 
 ROOT = P.ROOT
-# a kind's code: the 2017 update's address ranges (its file, or the files that use it)
+# a class's code: the 2017 update's address ranges (its file, or the files that use it)
+UNIT = ['616178-628372', '5e820a-5f5938']
 RANGES = {
-    'BM': ['464fcf-46bfc3'], 'CM': ['46bfc3-47c495'], 'CMLIST': ['46bfc3-47c495'], 'AM': ['46bfc3-47c495'],
-    'AM4C': ['440000-47c495'], 'AMCMD': ['440000-47c495'], 'STRATEGY': ['46bfc3-47c495'], 'TASK': ['440000-464fcf'],
-    'AG': ['440000-464fcf'], 'ASG': ['440000-464fcf'], 'ASGU': ['440000-464fcf'], 'ASGUINFO': ['440000-464fcf'],
-    'ZONE': ['47c495-48580b', '48730b-489d91'], 'SITEOWN': ['47c495-48580b', '48730b-489d91'], 'RS': ['48580b-48730b'],
-    'RM': ['489d91-48e85b'], 'UM': ['48e85b-49741d'], 'PLB98': ['42f434-464fcf'], 'PL': ['55370b-5bb064', '42f434-464fcf'],
-    'TECH': ['5bb064-5e820a'], 'TECHDATA': ['5bb064-5e820a'], 'TECHNODE': ['5bb064-5e820a'], 'TECHCHILD': ['5bb064-5e820a'],
-    'TT': ['5bb064-5e820a'], 'TTREC': ['5bb064-5e820a'], 'EPOCHTECHS': ['5a0000-5e820a'], 'EFFECT': ['5a0000-5e820a'],
-    'SCEN': ['590000-5bb064'], 'TRIGGER': ['590000-5bb064'], 'TRIGCOND': ['590000-5bb064'], 'TRIGEFFECT': ['590000-5bb064'],
-    'SCENCOND': ['590000-5bb064'], 'SCENEFFECT': ['590000-5bb064'], 'SETUP': ['521804-53d468'], 'SETUPSLOT': ['521804-53d468'], 'GAMEDATA': ['521804-55370b'],
-    'DMGMODEL': ['4d0000-4d84b8'], 'CAMERA': ['518000-521804'], 'USTAT': ['5e820a-628372'], 'UNIT': ['616178-628372', '5e820a-5f5938'],
-    'ROUTENODE': ['400000-420000'], 'ROUTEPLANNER': ['400000-420000'], 'SCROLL': ['404e00-405400'],
-    'GRID': ['49c657-4d0000', '53f852-55370b'], 'GRIDCELL': ['49c657-4d0000', '53f852-55370b'],
+    'ee_build_mgr': ['464fcf-46bfc3'], 'EECPCivilizationManager': ['46bfc3-47c495'], 'ee_plan_node': ['46bfc3-47c495'],
+    'EECPCombatManager': ['46bfc3-47c495'], 'ee_combat_mgr_4c': ['440000-47c495'], 'ee_attack_cmd': ['440000-47c495'],
+    'EECPCombatStrategy': ['46bfc3-47c495'], 'EECPAGTask': ['440000-464fcf'], 'EECPAttackGroup': ['440000-464fcf'],
+    'EECPAttackSubGroup': ['440000-464fcf'], 'EECPAttackSubGroupUnit': ['440000-464fcf'], 'ee_asgu_info': ['440000-464fcf'],
+    'ee_zone': ['47c495-48580b', '48730b-489d91'], 'ee_unit_vis': ['47c495-48580b', '48730b-489d91'],
+    'EECPResearchManager': ['48580b-48730b'], 'EECPResourceManager': ['489d91-48e85b'], 'ee_unit_mgr': ['48e85b-49741d'],
+    'ee_player_b98': ['42f434-464fcf'], 'EEPlayer': ['55370b-5bb064', '42f434-464fcf'],
+    'EETechTreeNode': ['5bb064-5e820a'], 'ee_tech_data': ['5bb064-5e820a'], 'EETechTree': ['5bb064-5e820a'],
+    'ee_tt_epoch': ['5bb064-5e820a'], 'ee_epoch_techs': ['5a0000-5e820a'], 'ee_effect': ['5a0000-5e820a'],
+    'EEScenarioManager': ['590000-5bb064'], 'EESMTrigger': ['590000-5bb064'], 'ee_trig_cond': ['590000-5bb064'],
+    'ee_trig_effect': ['590000-5bb064'], 'ee_scen_cond': ['590000-5bb064'], 'ee_scen_effect': ['590000-5bb064'],
+    'ee_setup': ['521804-53d468'], 'ee_setup_slot': ['521804-53d468'], 'ee_game_data': ['521804-55370b'],
+    'ee_damage_model': ['4d0000-4d84b8'], 'EECameraControl': ['518000-521804'], 'ee_unit_stats': ['5e820a-628372'],
+    'RTSUnit': UNIT, 'EEUnit': UNIT, 'EEComplexUnit': UNIT,
+    'ee_route_node': ['400000-420000'], 'EEAIGPGModifierLandAttackSubGroupRoutePlanner': ['400000-420000'],
+    'EEAScroll': ['404e00-405400'], 'ee_grid': ['49c657-4d0000', '53f852-55370b'], 'ee_grid_cell': ['49c657-4d0000', '53f852-55370b'],
 }
+SPEC = spec_read.read_all()
 
 
-def rows(kind):
-    src = open(os.path.join(ROOT, 'dll', 'game', 'api', 'raw', 'fields.h'), encoding='latin-1').read()
-    return [(int(o, 16), None if v == 'NA' else int(v, 16), how) for o, v, how in
-            re.findall(r'O\(%s_\w+, 0x([0-9A-F]+), (0x[0-9A-F]+|NA)\) /\* (.*?) \*/' % kind, src)]   # the 2017 offset: its column
+def rows(cls):
+    """the class's fields in the spec: (the 2017 offset, AoC's or None, how it was found)"""
+    return [(v[0], None if v[1] == spec_read.NONE else v[1], how) for _, v, how in spec_read.fields(cls, SPEC)]
 
 
 def show(kind, this, other):
@@ -95,7 +102,7 @@ def rng(spec): return [tuple(int(x, 16) for x in r.split('-')) for r in spec]
 if __name__ == '__main__':
     P.load()
     what, args = sys.argv[1], sys.argv[2:]
-    if what == 'kinds':
+    if what == 'classes':
         for k in args or sorted(RANGES):
             if not rows(k): continue
             print('== %s' % k)
@@ -105,11 +112,8 @@ if __name__ == '__main__':
         v = via_votes(rng(args[1].split(',')), int(args[2], 16), int(args[3], 16))
         show(args[0], v, collections.defaultdict(collections.Counter))
     elif what == 'rets':
-        src = P.addr_source()
-        for name, rest in re.findall(r'^\s*[FD]\((\w+),(.*)$', src, re.M):
-            v = re.findall(r'0x[0-9A-Fa-f]{8}', rest.split('/*')[0])
-            if len(v) < 2: continue
-            a, b = int(v[0], 16), int(v[1], 16)
+        for name, _, (a, b), m in spec_read.places(SPEC):
+            if m is None or not m.func: continue
             if a not in P.A.size or b not in P.B.size: continue
             ra = sorted({t for t in P.texts(P.A, a) if t.startswith('ret')})
             rb = sorted({t for t in P.texts(P.B, b) if t.startswith('ret')})

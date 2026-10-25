@@ -148,6 +148,37 @@ def read_environment():   # environment.cs's types: the layouts and values of mo
     return read_file(os.path.join(ROOT, 'spec', 'environment.cs'))
 
 
+def places(spec=None):
+    """every address in the exe the spec names, for the port scripts (scripts/re/port_*): (label, attribute, [v_ee,
+    v_aoc], member) - label Type.member, a list's k-th Type.member[k], a call site Type.member@name"""
+    out = []
+    for types in (spec or read_all()).values():
+        for t in types:
+            for m in [None] + t.members:
+                attrs = t.attrs if m is None else m.attrs
+                label = t.name if m is None else '%s.%s' % (t.name, m.name)
+                lists = [a for a in attrs if a[0] == 'address']
+                for a in attrs:
+                    if a[0] not in ('address', 'call_site', 'vtable', 'import'):
+                        continue
+                    k = '[%d]' % lists.index(a) if a[0] == 'address' and len(lists) > 1 else ''
+                    at = '@' + a[1][0] if a[0] == 'call_site' else ''
+                    out.append((label + k + at, a[0], values(a), m))
+    return out
+
+
+def fields(cls, spec=None):
+    """a class's fields: (name, [v_ee, v_aoc], found letter or '') by the 2017 update's offset"""
+    t = next(t for types in (spec or read_all()).values() for t in types if t.name == cls)
+    out = []
+    for m in t.members:
+        a = m.attr('offset')
+        if a:
+            f = m.attr('found')
+            out.append((m.name, values(a), f[1][0][1] if f and f[1] else ''))
+    return sorted(out, key=lambda r: r[1][0])
+
+
 def read_all():   # {file name: [types]} of every file in spec/game/ and its folders
     out = {}
     for top, dirs, files in os.walk(GAME):

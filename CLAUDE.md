@@ -52,9 +52,10 @@ and the runners, eectl, the MCP server), `results/` (log readers, scorers), `re/
   `[call_site]` of their function (they are places now, the hand-written patch_ functions use them), the game's
   functions as methods of their classes, game enums, a load-time check of the spec against the running exe, a
   Ghidra export. Two builds: the 2017 update and Art of Conquest (not ready: tested in AoC only since 2026-10-21 -
-  test runs play it, `EE_GAME_DIR=<its folder>`, docs/testing.md); a new value needs both. The port scripts
-  (`scripts/re/port_addrs.py`, `port_fields.py`, `port_check.py`, `port_dll.py`) still read and write the old rows
-  of raw/: until they work on the spec, an AoC value they find goes into the spec by hand. Code that differs by more
+  test runs play it, `EE_GAME_DIR=<its folder>`, docs/testing.md); a new value needs both. The port scripts read the
+  spec (`scripts/re/port_addrs.py`: every address's AoC value found again and compared with the spec's - same,
+  DIFFERS, NEW; `port_check.py` a class's fields by its code; `port_fields.py`, `port_dll.py`): a value they find goes
+  into the spec by hand, one found by hand also into port_addrs.py's EXE_HAND. Code that differs by more
   than an address: `build_is("aoc")` (AoC rewrote a few functions - docs/engine-notes.md).
 - `dll/game/api/`: a file per object of the game (`unit.c`, `player.c`, `attack.c`, `tech.c` ...): the hand-written
   code over the generated - accessors that read more than one field (`unit_get_pos(u)`), wrappers that do more than

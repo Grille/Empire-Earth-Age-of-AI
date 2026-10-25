@@ -1,15 +1,19 @@
-# Find the addresses of dll/game/api/raw/'s row files in another exe build (Art of Conquest): pairs the two exes' functions by their code with the
+# Find the addresses the spec names (spec/game/: [address], [call_site], [vtable], [import]) in another exe build (Art of
+# Conquest): pairs the two exes' functions by their code with the
 # addresses masked (Ghidra's function lists: local/games/ee/decomp/functions.tsv), then follows the pairs - the calls of a paired
 # function pair their callees, its operands pair the data, an instruction inside a paired function is found by aligning
 # the two functions' code. Vtables are paired by their RTTI class (and so their slots' functions), imports by name;
-# functions whose struct offsets moved by their code with every number masked. Each row says how it was found.
+# functions whose struct offsets moved by their code with every number masked. Each line says how it was found and
+# whether the spec's AoC value agrees (same, DIFFERS, NEW where the spec has none); a value goes into the spec by hand.
 # usage: python port_addrs.py [other.exe] [other functions.tsv]   (default: the AoC exe beside the game, local/games/aoc/decomp)
 # Imported, load() pairs two images (the exes by default; port_dll.py: an engine DLL's two builds, by name first).
 import bisect, collections, difflib, os, re, struct, sys
 import capstone, pefile
 sys.path.insert(0, os.path.dirname(__file__))
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))   # scripts/: game_dir.py
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'build'))   # spec_read.py
 from game_dir import game_dir
+import spec_read
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 GAME = game_dir()
@@ -108,6 +112,10 @@ EXE_HAND = {
     0x005007B2: (0x0050B2AD, 'mov esi, DRAW_OLD + 0x58 (the draw records\' init loop)'),
     0x005007CC: (0x0050B2C7, 'cmp esi, its end (DRAW_OLD + 0x58 + 0x200 x 0x148): the operand of the cmp at 0x50B2C5'),
     0x005D88C0: (0x005E8B68, 'EEUIESPEMainMenu slot 1: AoC\'s copies the name field first (0x5E8ACC) - a partial fix of its own'),
+    0x0054880E: (0x00554F56, 'model_turn_decide, slot 11 (AoC 12): its rewrite - the same code (0x554E98) is AoC\'s slot 11, '
+                 'the base\'s slot 10, which the base fills with this function too'),
+    0x005DC902: (0x005ED231, 'call_slot_goal: the group dispatch\'s call of goal_move_at (AoC 9 calls of it there, the base 8)'),
+    0x006167C7: (0x006292C9, 'EEUnit.lets_pass: slot 18 of EEUnit\'s vtable (AoC 0x847A20), unpaired by its code'),
 }
 
 def texts(e, f): return [t for _, _, t, _ in e.insns(f)]
@@ -327,22 +335,10 @@ def port(x):
     return 0, 'not found'
 
 
-def addr_source():
-    """the address tables' text: dll/game/api/raw/'s row files (the functions called, the hooks, the data)"""
-    return ''.join(open(os.path.join(ROOT, 'dll', 'game', 'api', 'raw', f), encoding='latin-1').read()
-                   for f in ('functions.h', 'hooks.h', 'data.h'))
-
-
 if __name__ == '__main__':   # (imported: load() pairs - port_fields.py, port_dll.py)
     load()
-    rows = []
-    src = addr_source()
-    for m in re.finditer(r'^\s*([FD])\((\w+),(.*)$', src, re.M):
-        v = re.findall(r'0x[0-9A-Fa-f]{8}', m.group(3).split('/*')[0])
-        if v: rows.append((m.group(2), int(v[0], 16)))   # (the numbers - SLOT_, SIZE_, RVA_ - have no address)
-    for m in re.finditer(r'L\((\w+), (\d+), \(([^)]*)\)', src):   # the base's values: the first set
-        for k, v in enumerate(re.findall(r'0x[0-9A-Fa-f]{8}', m.group(3))):
-            rows.append(('%s[%d]' % (m.group(1), k), int(v, 16)))
+    # (an RVA in an engine DLL is no address in the exe: port_dll.py's)
+    rows = [(label, v[0], v[1]) for label, _, v, _ in spec_read.places() if A.in_image(v[0])]
     def insn_at(e, va):
         """the instruction at va (masked like insns), and its start"""
         f = e.func_of(va)
@@ -367,9 +363,11 @@ if __name__ == '__main__':   # (imported: load() pairs - port_fields.py, port_dl
         return ('insn same' if same and x - ia[0] == y - ib[0] else 'INSN DIFFERS: %s / %s' % (ia[2], ib[2]))
 
 
-    found = 0
-    for name, x in rows:
+    found = differ = 0
+    for name, x, have in rows:
         y, why = port(x)
         found += y != 0
-        print('%-28s %08X  %08X  %-44s %s' % (name, x, y, why, check(x, y)))
-    print('%d of %d found' % (found, len(rows)), file=sys.stderr)
+        cmp = 'NEW' if have == spec_read.NONE else 'same' if have == y else 'DIFFERS: spec %08X' % have
+        differ += cmp.startswith('DIFFERS')
+        print('%-44s %08X  %08X  %-24s %-44s %s' % (name, x, y, cmp, why, check(x, y)))
+    print('%d of %d found, %d differ from the spec' % (found, len(rows), differ), file=sys.stderr)
