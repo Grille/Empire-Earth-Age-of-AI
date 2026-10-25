@@ -304,6 +304,7 @@ internal void fo_march(ee_active_group *grp) {
 #define FF_DROP 2.0f           // tiles
 #define FF_FALLEN 4.0f         // x its size: a follower this far from its point and further has no catch-up speed
 #define FF_GRACE 5.0f          // s: ... unless it was in its place (or its march began: a re-form) this long ago or less
+#define FF_FRESH 20            // steps: a unit whose catch-up share was reckoned this recently comes from a march, else from rest
 #define FF_LINK 4.0f           // tiles: units this close where they set out (chained) march as one block
 #define FF_SETTLE 5.0f         // s: the formation turns from the way to its final facing this long before the leader arrives,
 #define FF_SETTLE_MAX 15.0f    // up to this long when its outermost units need it to swing round at its speed
@@ -332,10 +333,21 @@ internal unsigned g_ff_next;
 internal int g_ff_first, g_ff_count;   // the marches started by the move being dispatched, for their leaders' goals
 // step: the last it followed; next (1-based): a queued move's march it joins when that one sets out, with next_off, its
 // goal in that move next_goal; home its spot at the goal (next_home the queued move's)
-struct ff_unit { uint32_t id; int g, next; vec2 off, next_off, home, next_home; ee_goal *next_goal; uint32_t step; float along, with, off_by; uint32_t in_at, yaw, next_yaw; int tries; };   // in_at: the step it was last in its place (or its march began); yaw its facing there (the slot's float, 0: none), tries its walks back
+struct ff_unit { uint32_t id; int g, next; vec2 off, next_off, home, next_home; ee_goal *next_goal; uint32_t step; float along, with, off_by, share, grace_cap; uint32_t in_at, share_at, yaw, next_yaw; int tries; };   // in_at: the step it was last in its place (or its march began); share its catch-up share at share_at, grace_cap the most of it the grace gives; yaw its facing there (the slot's float, 0: none), tries its walks back
 internal struct ff_unit g_ff_u[FF_UNITS];
 internal int g_ff_on;
 internal unsigned g_ff_marches, g_ff_split, g_ff_arcs, g_ff_finished, g_ff_steered, g_ff_own;   // marches started, moves split into blocks; follower ticks steered, left to the own route
+
+internal uint32_t ff_step(void);
+
+// a march begins for e: its grace no more than the catch-up share it had in the march before at that moment (a straggler
+// with none got the full boost from the re-form on, all its way back), none from rest (a group standing about in a jumble
+// takes its time to assemble)
+internal void ff_grace_from(struct ff_unit *e) {
+    uint32_t step = ff_step();
+    e->in_at = 0;
+    e->grace_cap = e->share_at && step - e->share_at <= FF_FRESH ? e->share : 0;
+}
 
 internal struct ff_unit *ff_find(uint32_t id, int make) {
     if (!id) return NULL;
@@ -407,7 +419,7 @@ internal void ff_start_block(void *group, const int *idx, int k, vec2 c, vec2 fw
         e->off = off;
         e->home = g_fo[i].at;
         e->step = ~0u;
-        e->in_at = 0;
+        ff_grace_from(e);
         e->yaw = g_fo[i].facing;
         e->tries = 0;
     }
@@ -668,7 +680,7 @@ internal struct ff_group *ff_march(struct ff_unit *e, ee_unit *u, uint32_t step,
         struct ff_group *n = &g_ff[e->next - 1];
         if (ff_leader(n, step)) {   // its leg before ended where it stands, if it hasn't reached it
             if (e->next_goal && unit_orders(u) >= 2 && unit_order_at(u, 0) != e->next_goal && unit_order_at(u, 1) == e->next_goal) ff_finish_leg(u);
-            e->g = e->next - 1; e->off = e->next_off; e->home = e->next_home; e->yaw = e->next_yaw; e->tries = 0; e->step = ~0u; e->next = 0; e->next_goal = NULL; e->in_at = 0;
+            e->g = e->next - 1; e->off = e->next_off; e->home = e->next_home; e->yaw = e->next_yaw; e->tries = 0; e->step = ~0u; e->next = 0; e->next_goal = NULL; ff_grace_from(e);
         }
         else if (!n->on) e->next = 0;
     }
@@ -681,15 +693,20 @@ internal struct ff_group *ff_march(struct ff_unit *e, ee_unit *u, uint32_t step,
 // u's catch-up share (of formation_catchup over its top speed): only near its place - all of it within its size, none
 // from FF_FALLEN x its size on (a unit fallen behind doesn't run for long stretches at it: it walks, and the formation
 // slows for it) - or for FF_GRACE seconds after it was last in its place (a re-form, the march's start: none is in its
-// place yet), falling off; the larger counts. e->off_by of this step
+// place yet), falling off, no more than the share it had when the march began (ff_grace_from); the larger counts.
+// e->off_by of this step
 internal float ff_share(struct ff_unit *e, ee_unit *u, uint32_t step) {
     float sz = unit_get_size(u), place = sz < FO_MIN_SIZE ? FO_MIN_SIZE : sz;
     float share = e->off_by <= place ? 1 : e->off_by >= FF_FALLEN * place ? 0 : (FF_FALLEN * place - e->off_by) / ((FF_FALLEN - 1) * place);
     ee_physics *ph = game_physics();
     float sstep = ph ? physics_get_step_s(ph) : 0.05f;
     if (!e->in_at || e->off_by <= place) e->in_at = step ? step : 1;
+    if (e->off_by <= place) e->grace_cap = 1;   // in its place: the grace's whole again
     float since = (float)(step - e->in_at) * sstep, grace = since >= FF_GRACE ? 0 : 1 - since / FF_GRACE;
-    return grace > share ? grace : share;
+    if (grace > e->grace_cap) grace = e->grace_cap;
+    e->share = grace > share ? grace : share;
+    e->share_at = step ? step : 1;
+    return e->share;
 }
 
 // the land turn (shiproute.c's hook): u's point to steer at this tick, 1 - else 0, its own route
