@@ -554,6 +554,12 @@ typedef void (__thiscall *unit_give_goal_fn)(ee_unit *, ee_goal *, int);
 internal unit_give_goal_fn fn_unit_give_goal;
 internal inline void unit_give_goal(ee_unit *unit, ee_goal *goal, int slot) { fn_unit_give_goal(unit, goal, slot); }
 internal inline int patch_unload_retry_give(unit_give_goal_fn h) { return patch_call(call_unload_retry_give, (uintptr_t)fn_unit_give_goal, (void *)h); }
+// built (done 1) or a building site (0), on it and the units chained to it (+0x1D0): the scenario's Create
+// (done, 0, 1) and its unit attribute Construction Complete (done, 1, 1); for types 0x2BA and 0x34 it sends a
+// message through the server
+typedef void (__thiscall *unit_set_built_fn)(ee_unit *, char, char, char);
+internal unit_set_built_fn fn_unit_set_built;
+internal inline void unit_set_built(ee_unit *unit, char done, char p3, char p4) { fn_unit_set_built(unit, done, p3, p4); }
 // the goal as its order (append: after the ones it has)
 typedef void (__thiscall *unit_assign_goal_fn)(ee_unit *, ee_goal *, int8_t, int);
 internal unit_assign_goal_fn fn_unit_assign_goal;
@@ -761,6 +767,7 @@ internal int spec_unit_select(int build) {
         fn_unit_add_waypoint = (unit_add_waypoint_fn)0x005E8BAC;
         fn_unit_give_goal = (unit_give_goal_fn)0x004412D4;
         call_unload_retry_give = 0x0048D03C;
+        fn_unit_set_built = (unit_set_built_fn)0x005EFF65;
         fn_unit_assign_goal = (unit_assign_goal_fn)0x005F05BD;
         call_repair_goal = 0x0046DA88;
         fn_ee_complex_unit_release = (unit_release_fn)0x005ED71E;
@@ -915,6 +922,7 @@ internal int spec_unit_select(int build) {
         fn_unit_add_waypoint = (unit_add_waypoint_fn)0x005F625B;
         fn_unit_give_goal = (unit_give_goal_fn)0x0043D416;
         call_unload_retry_give = 0x00491B12;
+        fn_unit_set_built = (unit_set_built_fn)0x005FE230;
         fn_unit_assign_goal = (unit_assign_goal_fn)0x005FE863;
         call_repair_goal = 0x004706DF;
         fn_ee_complex_unit_release = (unit_release_fn)0x005FB7FB;
@@ -967,6 +975,7 @@ internal int spec_unit_check(void) {
     bad += spec_code((uintptr_t)fn_unit_add_waypoint, "EEComplexUnit.add_waypoint");
     bad += spec_code((uintptr_t)fn_unit_give_goal, "EEComplexUnit.give_goal");
     bad += spec_call(call_unload_retry_give, (uintptr_t)fn_unit_give_goal, "EEComplexUnit.give_goal [call_site unload_retry_give]");
+    bad += spec_code((uintptr_t)fn_unit_set_built, "EEComplexUnit.set_built");
     bad += spec_code((uintptr_t)fn_unit_assign_goal, "EEComplexUnit.assign_goal");
     bad += spec_call(call_repair_goal, (uintptr_t)fn_unit_assign_goal, "EEComplexUnit.assign_goal [call_site repair_goal]");
     bad += spec_code((uintptr_t)fn_ee_complex_unit_release, "EEComplexUnit.release");

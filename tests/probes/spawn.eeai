@@ -1,6 +1,7 @@
-// p.spawn (lang/player.cs, game_script/units.c SPAWNING): Continental (seed 101) - two groups of P2 sent one after the
-// other without a wait between them (the time the same), held for at the first use of one (the time a step on), then
-// the second group there already (no second hold), a handle equal to the unit found by its id, and p.units seeing them.
+// p.spawn (lang/player.cs, game_script/units.c SPAWNING): Continental (seed 101) - two groups of P2 asked for one after
+// the other without a wait between them (the time the same), held for at the first use of one (till the next step),
+// then the second group there already (no second hold), a handle equal to the unit found by its id, p.units seeing
+// them; a trigger's spawn there at once, and a fighter with its flight time and ammo.
 wait_until(0.05min)
 let p = player(2)
 let t0 = time
@@ -16,3 +17,8 @@ let t3 = time
 ping("b[3] then: at {at}, alive {b[3].alive}, at {t3} s (no second hold)")
 let again = game.unit(a[2].id)
 ping("by id: the same {again == a[2]}, a doughboy {a[2].type == unit.inf10_doughboy}, P2 doughboys {len(p.units(unit.inf10_doughboy))}")
+let f = p.spawn(unit.a_fighter10_sopwith_camel_f_1, vec(44, 50))
+ping("a fighter: alive {f[1].alive}, hp {f[1].hp} of {f[1].max_hp}, at {f[1].pos}")
+let t = trigger({ when = () => time > t3 + 1, run = () => ping("a trigger's spawn at {time} s: {p.spawn(unit.inf10_doughboy, vec(40, 46))[1].hp} hp, there at once"), name = "spawn" })
+wait(3s)
+ping("P2 doughboys now {len(p.units(unit.inf10_doughboy))}")

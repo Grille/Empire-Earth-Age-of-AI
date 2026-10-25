@@ -161,6 +161,11 @@ unsafe struct EEWorld
     [address((ee)0x0052E6EF, (aoc)0x00539670)]
     extern void* player(int32 index);
 
+    /// thiscall(game.game_state): its vf10 and the release of the references at +8 - after the scenario's Create (unit.c
+    /// unit_create)
+    [address((ee)0x0053B8AC, (aoc)0x00548072), guess]
+    extern void settle();
+
     /// thiscall(game.game_state, char won, index)
     [address((ee)0x0052E2B7, (aoc)0x005391F2)]
     extern void player_out(int32 won, int32 index);

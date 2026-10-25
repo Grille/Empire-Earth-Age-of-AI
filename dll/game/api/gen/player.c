@@ -305,6 +305,11 @@ internal inline int player_game_limit(ee_player *player, int zero) { return fn_p
 typedef void (__thiscall *player_set_diplomacy_fn)(ee_player *, ee_player *, int, int);
 internal player_set_diplomacy_fn fn_player_set_diplomacy;
 internal inline void player_set_diplomacy(ee_player *player, ee_player *other, int stance, int flag) { fn_player_set_diplomacy(player, other, stance, flag); }
+// vf1 (EEPlayer's 0x554584, then RTSPlayer's 0x55F8BB): each of list_begin's units vf10(unit, ids) - an id for
+// one the player has just made (ids 0: its index << 24 + its counter, EEPlayer::vf10 0x5549D1 counting it in),
+// then with refresh vf3 - thiscall(player, 0, 1) after the scenario's Create (unit.c unit_create)
+typedef void (__thiscall *player_adopt_fn)(ee_player *, int, char);
+internal inline void player_adopt(ee_player *player, int ids, char refresh) { ((player_adopt_fn)(*(void ***)player)[slot_player_adopt])(player, ids, refresh); }
 
 // class ee_player_b98 (ee_player_b98)
 // the object at a player's +0xB98
@@ -1186,6 +1191,7 @@ internal int spec_player_select(int build) {
         fn_player_can_build = (player_can_build_fn)0x00555710;
         fn_player_game_limit = (player_game_limit_fn)0x00556EBC;
         fn_player_set_diplomacy = (player_set_diplomacy_fn)0x0055B8E1;
+        slot_player_adopt = 1;
         of_player_b98_att = 0x2D;
         vt_ee_computer_player = 0x008264C0;
         of_player_doomed_begin = 0xB80;
@@ -1460,6 +1466,7 @@ internal int spec_player_select(int build) {
         fn_player_can_build = (player_can_build_fn)0x005639E8;
         fn_player_game_limit = (player_game_limit_fn)0x0056528B;
         fn_player_set_diplomacy = (player_set_diplomacy_fn)0x0056AB41;
+        slot_player_adopt = 1;
         of_player_b98_att = 0x2D;
         vt_ee_computer_player = 0x0083A57C;
         of_player_doomed_begin = 0xBB4;

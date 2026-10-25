@@ -192,13 +192,16 @@ internal void run_setup(uint32_t now) {
 // the triggers' turn: at every safe point between the simulation's steps (control.c hook_sim_receive, where the pipe's
 // commands run too) - several a game second, so their 500 ms checks hold; the scripts' own turns (an AI's update,
 // about one a game second) would make it one a second. No waiting there (a trigger's run has after's). The scripts'
-// wins and defeats are carried out here too (relations.c x_effects_flush: the game's resign path wants this point)
+// wins and defeats are carried out here too (relations.c x_effects_flush: the game's resign path wants this point), and
+// their spawned units made
 internal void script_triggers(uint32_t now) {
     x_effects_flush();
     if (g_nscripts <= 0 || now < 2000) return;
     if (now > g_script_now) g_script_now = now;
     g_x_hooks.now = script_now; g_x_hooks.command = script_command; g_x_hooks.did = script_did;
+    g_x_safe = 1;   // (a trigger's spawns made at once: units.c)
     x_triggers_tick(g_script_now / 1000.0);
+    g_x_safe = 0;
     memset(&g_x_hooks, 0, sizeof g_x_hooks);
 }
 // THE DRY RUN (script dryrun <file> <out>): the script without the game - waiting moves the clock (from 2 s), the

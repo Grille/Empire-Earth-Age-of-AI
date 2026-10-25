@@ -181,6 +181,10 @@ unsafe struct EEUnitClass
     [offset((ee)0x58C, (aoc)0x28C), found(c)]
     int32 size;
 
+    /// a new aircraft's ammo (the scenario's Create 0x5ACD49 gives it this; unit attribute Ammunition's 100%)
+    [offset((ee)0x5A0, (aoc)0x29C), found(c)]
+    int32 ammo;
+
     /// bit 0 an aircraft, bit 2 a ship (1 and 3 tested too)
     [offset((ee)0x5D4, (aoc)0x2D0), found(c)]
     uint8 kind_flags;
@@ -273,6 +277,13 @@ unsafe struct EEUnitClass
     /// stub the linker shares), EEUCMissile's (and EEUCTorpedo's) launches
     [slot((ee)42, (aoc)43)]
     extern int32 launch(EEUnit* m, float32* aim);
+
+    /// vf12: a new unit of this type for a player on tile (x, y), thiscall(type, x, y, player, 0, 0) - ret 0x14; what
+    /// the scenario's Create (0x5ACD49) and the new-unit cheat's buildings (EEMHackANewUnit::vf10 0x4B7044) make one
+    /// with. Without an id yet and not placed: the Create goes on with EEComplexUnit.set_built, the player's adopt,
+    /// the world's settle and the map's place (game/api/unit.c unit_create)
+    [slot(12)]
+    extern EEUnit* create(int32 x, int32 y, int32 player, int32 p4, int32 p5);
 }
 
 /// a missile's type data (EEUCMissile; EEUCTorpedo derives from it and keeps its launch)
@@ -356,6 +367,10 @@ unsafe struct ee_unit_stats
     [offset(0xE0), found(b)]
     block armor;
 
+    /// an aircraft's flight time, ms (the scenario's Create gives a new one this)
+    [offset(0x130), found(c)]
+    int32 flight_ms;
+
     /// ms between shots
     /// read through a unit's +0x34
     [offset(0x138), found(c)]
@@ -365,6 +380,10 @@ unsafe struct ee_unit_stats
     /// read through a unit's +0x34
     [offset(0x144), found(c)]
     int32 hp;
+
+    /// a new unit's power (a priest's, a prophet's; the scenario's Create gives it this when more than 0)
+    [offset(0x148), found(c)]
+    int32 power;
 }
 
 /// the attack bonuses by weapon and target, unit_type.bonus_table - a static object (EEToHitTable)

@@ -570,6 +570,11 @@ unsafe struct EEComplexUnit
     [address((ee)0x004412D4, (aoc)0x0043D416)]
     [call_site("unload_retry_give", (ee)0x0048D03C, (aoc)0x00491B12)]   // the resource manager's unload retry
     extern void give_goal(EEUnitGoal* goal, int32 slot);
+    /// built (done 1) or a building site (0), on it and the units chained to it (+0x1D0): the scenario's Create
+    /// (done, 0, 1) and its unit attribute Construction Complete (done, 1, 1); for types 0x2BA and 0x34 it sends a
+    /// message through the server
+    [address((ee)0x005EFF65, (aoc)0x005FE230)]
+    extern void set_built(char8 done, char8 p3, char8 p4);
     /// the goal as its order (append: after the ones it has)
     [address((ee)0x005F05BD, (aoc)0x005FE863)]
     [call_site("repair_goal", (ee)0x0046DA88, (aoc)0x004706DF)]         // the game's repair orders, handed over

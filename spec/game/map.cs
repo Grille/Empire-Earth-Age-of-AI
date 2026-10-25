@@ -55,6 +55,11 @@ unsafe struct EEMap
     /// bit 0: water
     [offset((ee)0x181730, (aoc)0x19564C), found(c)]
     uint32 flags;
+
+    /// vf8 (0x5117E6): a new unit put at its place (0x5EE7D7 with its position; not for type 0x167) - the scenario's
+    /// Create's last step (unit.c unit_create)
+    [slot(8)]
+    extern void place(EEUnit* u);
 }
 
 /// a unit's visibility record, its +0x14 (a site's: its ownership flag too)

@@ -56,6 +56,10 @@ internal inline ee_grid **map_grid_at(const ee_map *o) { return (ee_grid **)((ui
 internal inline uint32_t map_get_flags(const ee_map *o) { return *(uint32_t *)((uint8_t *)o + of_map_flags); }
 internal inline void map_set_flags(ee_map *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_map_flags) = v; }
 internal inline uint32_t *map_flags_at(const ee_map *o) { return (uint32_t *)((uint8_t *)o + of_map_flags); }
+// vf8 (0x5117E6): a new unit put at its place (0x5EE7D7 with its position; not for type 0x167) - the scenario's
+// Create's last step (unit.c unit_create)
+typedef void (__thiscall *map_place_fn)(ee_map *, ee_unit *);
+internal inline void map_place(ee_map *map, ee_unit *u) { ((map_place_fn)(*(void ***)map)[slot_map_place])(map, u); }
 
 // class ee_unit_vis (ee_unit_vis)
 // a unit's visibility record, its +0x14 (a site's: its ownership flag too)
@@ -181,6 +185,7 @@ internal int spec_map_select(int build) {
         of_map_size = 0x1816FC;
         of_map_grid = 0x181724;
         of_map_flags = 0x181730;
+        slot_map_place = 8;
         of_unit_vis_flag = 0x4;
         of_unit_vis_seen = 0xC;
         fn_unit_vis_explored = (unit_vis_explored_fn)0x00404A8A;
@@ -220,6 +225,7 @@ internal int spec_map_select(int build) {
         of_map_size = 0x195618;
         of_map_grid = 0x195640;
         of_map_flags = 0x19564C;
+        slot_map_place = 8;
         of_unit_vis_flag = 0x4;
         of_unit_vis_seen = 0xC;
         fn_unit_vis_explored = (unit_vis_explored_fn)0x004042E2;

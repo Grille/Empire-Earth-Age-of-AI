@@ -185,6 +185,10 @@ internal inline int *unit_type_missile_delay_at(const ee_unit_type *o) { return 
 internal inline int unit_type_get_size(const ee_unit_type *o) { return *(int *)((uint8_t *)o + of_unit_type_size); }
 internal inline void unit_type_set_size(ee_unit_type *o, int v) { *(int *)((uint8_t *)o + of_unit_type_size) = v; }
 internal inline int *unit_type_size_at(const ee_unit_type *o) { return (int *)((uint8_t *)o + of_unit_type_size); }
+// a new aircraft's ammo (the scenario's Create 0x5ACD49 gives it this; unit attribute Ammunition's 100%)
+internal inline int unit_type_get_ammo(const ee_unit_type *o) { return *(int *)((uint8_t *)o + of_unit_type_ammo); }
+internal inline void unit_type_set_ammo(ee_unit_type *o, int v) { *(int *)((uint8_t *)o + of_unit_type_ammo) = v; }
+internal inline int *unit_type_ammo_at(const ee_unit_type *o) { return (int *)((uint8_t *)o + of_unit_type_ammo); }
 // bit 0 an aircraft, bit 2 a ship (1 and 3 tested too)
 internal inline uint8_t unit_type_get_kind_flags(const ee_unit_type *o) { return *(uint8_t *)((uint8_t *)o + of_unit_type_kind_flags); }
 internal inline void unit_type_set_kind_flags(ee_unit_type *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_unit_type_kind_flags) = v; }
@@ -275,6 +279,12 @@ internal inline int patch_fire(unit_type_fire_fn h, int *of) { return patch_call
 // stub the linker shares), EEUCMissile's (and EEUCTorpedo's) launches
 typedef int (__thiscall *unit_type_launch_fn)(ee_unit_type *, ee_unit *, float *);
 internal inline int unit_type_launch(ee_unit_type *unit_type, ee_unit *m, float *aim) { return ((unit_type_launch_fn)(*(void ***)unit_type)[slot_unit_type_launch])(unit_type, m, aim); }
+// vf12: a new unit of this type for a player on tile (x, y), thiscall(type, x, y, player, 0, 0) - ret 0x14; what
+// the scenario's Create (0x5ACD49) and the new-unit cheat's buildings (EEMHackANewUnit::vf10 0x4B7044) make one
+// with. Without an id yet and not placed: the Create goes on with EEComplexUnit.set_built, the player's adopt,
+// the world's settle and the map's place (game/api/unit.c unit_create)
+typedef ee_unit *(__thiscall *unit_type_create_fn)(ee_unit_type *, int, int, int, int, int);
+internal inline ee_unit *unit_type_create(ee_unit_type *unit_type, int x, int y, int player, int p4, int p5) { return ((unit_type_create_fn)(*(void ***)unit_type)[slot_unit_type_create])(unit_type, x, y, player, p4, p5); }
 
 // class EEUCMissile (ee_unit_type)
 // a missile's type data (EEUCMissile; EEUCTorpedo derives from it and keeps its launch)
@@ -350,6 +360,10 @@ internal inline void unit_stats_set_attack(ee_unit_stats *o, float v) { *(float 
 internal inline float *unit_stats_attack_at(const ee_unit_stats *o) { return (float *)((uint8_t *)o + of_unit_stats_attack); }
 // between fields read through a unit's +0x34, unchanged
 internal inline uint8_t *unit_stats_armor_at(const ee_unit_stats *o) { return (uint8_t *)o + of_unit_stats_armor; }
+// an aircraft's flight time, ms (the scenario's Create gives a new one this)
+internal inline int unit_stats_get_flight_ms(const ee_unit_stats *o) { return *(int *)((uint8_t *)o + of_unit_stats_flight_ms); }
+internal inline void unit_stats_set_flight_ms(ee_unit_stats *o, int v) { *(int *)((uint8_t *)o + of_unit_stats_flight_ms) = v; }
+internal inline int *unit_stats_flight_ms_at(const ee_unit_stats *o) { return (int *)((uint8_t *)o + of_unit_stats_flight_ms); }
 // ms between shots
 // read through a unit's +0x34
 internal inline int unit_stats_get_reload(const ee_unit_stats *o) { return *(int *)((uint8_t *)o + of_unit_stats_reload); }
@@ -360,6 +374,10 @@ internal inline int *unit_stats_reload_at(const ee_unit_stats *o) { return (int 
 internal inline int unit_stats_get_hp(const ee_unit_stats *o) { return *(int *)((uint8_t *)o + of_unit_stats_hp); }
 internal inline void unit_stats_set_hp(ee_unit_stats *o, int v) { *(int *)((uint8_t *)o + of_unit_stats_hp) = v; }
 internal inline int *unit_stats_hp_at(const ee_unit_stats *o) { return (int *)((uint8_t *)o + of_unit_stats_hp); }
+// a new unit's power (a priest's, a prophet's; the scenario's Create gives it this when more than 0)
+internal inline int unit_stats_get_power(const ee_unit_stats *o) { return *(int *)((uint8_t *)o + of_unit_stats_power); }
+internal inline void unit_stats_set_power(ee_unit_stats *o, int v) { *(int *)((uint8_t *)o + of_unit_stats_power) = v; }
+internal inline int *unit_stats_power_at(const ee_unit_stats *o) { return (int *)((uint8_t *)o + of_unit_stats_power); }
 
 // class EEToHitTable (ee_to_hit_table)
 // the attack bonuses by weapon and target, unit_type.bonus_table - a static object (EEToHitTable)
@@ -422,6 +440,7 @@ internal int spec_unit_type_select(int build) {
         of_unit_type_resource_type = 0x568;
         of_unit_type_missile_delay = 0x588;
         of_unit_type_size = 0x58C;
+        of_unit_type_ammo = 0x5A0;
         of_unit_type_kind_flags = 0x5D4;
         of_unit_type_terrain_ok = 0x5D6;
         of_unit_type_uses_ammo = 0x5E8;
@@ -446,6 +465,7 @@ internal int spec_unit_type_select(int build) {
         calls_fire[2] = 0x0060ABB0;
         calls_fire[3] = 0x0060B33C;
         slot_unit_type_launch = 42;
+        slot_unit_type_create = 12;
         vt_eeuc_missile = 0x00832E90;
         fn_eeuc_missile_launch = (unit_type_launch_fn)0x00606109;
         vt_eeuc_projectile = 0x00833060;
@@ -464,8 +484,10 @@ internal int spec_unit_type_select(int build) {
         of_unit_stats_shot_speed = 0xC0;
         of_unit_stats_attack = 0xD8;
         of_unit_stats_armor = 0xE0;
+        of_unit_stats_flight_ms = 0x130;
         of_unit_stats_reload = 0x138;
         of_unit_stats_hp = 0x144;
+        of_unit_stats_power = 0x148;
         vt_ee_to_hit_table = 0x0082C920;
         fn_to_hit_table_attack_bonus = (to_hit_table_attack_bonus_fn)0x004D5F2C;
         data_unit_type_bonus_table = 0x00917DE0;
@@ -511,6 +533,7 @@ internal int spec_unit_type_select(int build) {
         of_unit_type_resource_type = 0x268;
         of_unit_type_missile_delay = 0x288;
         of_unit_type_size = 0x28C;
+        of_unit_type_ammo = 0x29C;
         of_unit_type_kind_flags = 0x2D0;
         of_unit_type_terrain_ok = 0x2D2;
         of_unit_type_uses_ammo = 0x2E4;
@@ -535,6 +558,7 @@ internal int spec_unit_type_select(int build) {
         calls_fire[2] = 0x0061D174;
         calls_fire[3] = 0x0061D997;
         slot_unit_type_launch = 43;
+        slot_unit_type_create = 12;
         vt_eeuc_missile = 0x00848CF8;
         fn_eeuc_missile_launch = (unit_type_launch_fn)0x0061799B;
         vt_eeuc_projectile = 0x00848ED0;
@@ -553,8 +577,10 @@ internal int spec_unit_type_select(int build) {
         of_unit_stats_shot_speed = 0xC0;
         of_unit_stats_attack = 0xD8;
         of_unit_stats_armor = 0xE0;
+        of_unit_stats_flight_ms = 0x130;
         of_unit_stats_reload = 0x138;
         of_unit_stats_hp = 0x144;
+        of_unit_stats_power = 0x148;
         vt_ee_to_hit_table = 0x008420C0;
         fn_to_hit_table_attack_bonus = (to_hit_table_attack_bonus_fn)0x004DBE44;
         data_unit_type_bonus_table = 0x009318E8;

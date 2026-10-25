@@ -313,6 +313,12 @@ unsafe struct EEPlayer
 
     [address((ee)0x0055B8E1, (aoc)0x0056AB41)]
     extern void set_diplomacy(EEPlayer* other, int32 stance, int32 flag);
+
+    /// vf1 (EEPlayer's 0x554584, then RTSPlayer's 0x55F8BB): each of list_begin's units vf10(unit, ids) - an id for
+    /// one the player has just made (ids 0: its index << 24 + its counter, EEPlayer::vf10 0x5549D1 counting it in),
+    /// then with refresh vf3 - thiscall(player, 0, 1) after the scenario's Create (unit.c unit_create)
+    [slot(1)]
+    extern void adopt(int32 ids, char8 refresh);
 }
 
 /// the object at a player's +0xB98

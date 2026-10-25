@@ -154,6 +154,12 @@ internal inline uint8_t *world_standard_victory_at(const ee_world *o) { return (
 typedef void *(__thiscall *world_player_fn)(ee_world *, int);
 internal world_player_fn fn_world_player;
 internal inline void *world_player(ee_world *world, int index) { return fn_world_player(world, index); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// thiscall(game.game_state): its vf10 and the release of the references at +8 - after the scenario's Create (unit.c
+// unit_create)
+typedef void (__thiscall *world_settle_fn)(ee_world *);
+internal world_settle_fn fn_world_settle;
+internal inline void world_settle(ee_world *world) { fn_world_settle(world); }
 // thiscall(game.game_state, char won, index)
 typedef void (__thiscall *world_player_out_fn)(ee_world *, int, int);
 internal world_player_out_fn fn_world_player_out;
@@ -225,6 +231,7 @@ internal int spec_world_select(int build) {
         of_world_local_player = 0xB84;
         of_world_standard_victory = 0xB96;
         fn_world_player = (world_player_fn)0x0052E6EF;
+        fn_world_settle = (world_settle_fn)0x0053B8AC;
         fn_world_player_out = (world_player_out_fn)0x0052E2B7;
         fn_world_set_stance = (world_set_stance_fn)0x0052D5D7;
         fn_world_unit_by_id = (world_unit_by_id_fn)0x0053B889;
@@ -271,6 +278,7 @@ internal int spec_world_select(int build) {
         of_world_local_player = 0xB84;
         of_world_standard_victory = 0xB96;
         fn_world_player = (world_player_fn)0x00539670;
+        fn_world_settle = (world_settle_fn)0x00548072;
         fn_world_player_out = (world_player_out_fn)0x005391F2;
         fn_world_set_stance = (world_set_stance_fn)0x005384DD;
         fn_world_unit_by_id = (world_unit_by_id_fn)0x0054804F;
@@ -293,6 +301,7 @@ internal int spec_world_check(void) {
     bad += spec_code((uintptr_t)fn_physics_step, "EEPhysics.step");
     bad += spec_vtable(vt_ee_world, ".?AVEEWorld@@", "EEWorld [vtable]");
     bad += spec_code((uintptr_t)fn_world_player, "EEWorld.player");
+    bad += spec_code((uintptr_t)fn_world_settle, "EEWorld.settle");
     bad += spec_code((uintptr_t)fn_world_player_out, "EEWorld.player_out");
     bad += spec_code((uintptr_t)fn_world_set_stance, "EEWorld.set_stance");
     bad += spec_code((uintptr_t)fn_world_unit_by_id, "EEWorld.unit_by_id");

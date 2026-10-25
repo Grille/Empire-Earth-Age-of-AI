@@ -63,6 +63,27 @@ internal inline char ballistic(ee_unit *u, ee_unit_stats *type, float *from, flo
 }
 // is the map object explored by pl (a site's +0x14: its map object)
 internal inline char explored_by(ee_unit *site, ee_player *pl) { return fn_unit_vis_explored(FIELD(site, of_unit_vis, void *), pl); }
+// a new unit of type t for player pi on tile (x, y), made as the scenario's Create effect makes one (0x5ACD49,
+// docs/triggers.md): the type's create, built, an aircraft's flight time and ammo and a unit's power as new, the
+// player's id for it, the map's place - in the simulation, on every PC alike: no message (the new-unit cheat's goes
+// through the server, from one PC). The Create's turn of a new aircraft towards the map's centre is left out. NULL:
+// the type made none
+internal ee_unit *unit_create(ee_unit_type *t, int x, int y, int pi) {
+    ee_player *pl = game_players()[pi];
+    ee_unit *o = pl ? unit_type_create(t, x, y, pi, 0, 0) : NULL;
+    if (!o) return NULL;
+    ee_unit *u = unit_get_physics(o);
+    if (unit_get_list_node(o)) unit_set_built(u, 1, 0, 1);
+    if (unit_type_get_kind_flags(t) & 1) {   // an aircraft
+        unit_set_flight_ms(u, unit_stats_get_flight_ms(unit_get_stats(o)));
+        unit_set_ammo(u, unit_type_get_ammo(t));
+    }
+    if (unit_get_list_node(o) && unit_stats_get_power(unit_get_stats(u)) > 0) unit_set_power(u, unit_stats_get_power(unit_get_stats(o)));
+    player_adopt(pl, 0, 1);
+    world_settle(game_state());
+    map_place(game_map(), o);
+    return o;
+}
 
 // the unit's script state set (SetState: its .tai state by id - engine-notes.md "Unit AI scripts"; entered, it runs once):
 // 8000 PrepareToMove after every order, 5000 Idle, 0x1F51 MoveToRepairSite (the game's builder order)

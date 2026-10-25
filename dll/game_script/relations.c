@@ -440,7 +440,8 @@ internal int x_slot_member(struct xctx *c, const struct xval *o, const char *nam
 // 500). Each is told first (g_x_hooks.did: the log; a dry run's only told). A stance and a stock change at once - the
 // stock written as the scenario's Set-Attribute does, without the AI's demand noticing; a win or a defeat waits for the
 // next point between the simulation's steps (x_effects_flush, test/scripts.c script_triggers), where the game's own
-// resign runs: as the scenario's Victory / Defeat (docs/triggers.md "2 Player")
+// resign runs: as the scenario's Victory / Defeat (docs/triggers.md "2 Player"); p.spawn's units are made there too
+// (units.c SPAWNING)
 internal int g_x_outcome[16];   // [player]: 1 wins, 2 loses - to be carried out
 internal int x_did(struct xctx *c, const char *what) {   // 1: only told (or not a script's: a mistake, told)
     if (!c->script) { x_host_fail(c, "%s: a script's - a text changes nothing", what); return 1; }
@@ -464,7 +465,9 @@ internal void x_player_do(struct xctx *c, int i, const char *name, const struct 
     wsprintfA(t, "player %d.%s(player %d)", i, name, j);
     if (!x_did(c, t) && stance_of(p, j) != s) set_stance(i, j, s);
 }
+internal void x_spawn_flush(void);   // units.c: the spawned units made
 internal void x_effects_flush(void) {
+    x_spawn_flush();
     for (int i = 1; i < 16; i++) {
         int w = g_x_outcome[i];
         g_x_outcome[i] = 0;
