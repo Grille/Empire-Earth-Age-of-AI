@@ -102,8 +102,9 @@ internal void fo_place_row(int *idx, int k, float y, float dx) {
     }
 }
 
-// lines and wedges: rows front to back (y 0, then negative), each filled to its width
-internal void fo_rows(int *idx, int n, int kind) {
+// lines and wedges: rows front to back (y 0, then negative), each filled to its width - a line's at least as wide as
+// the game's own front row of `front` units (its 5 columns: 3 tanks side by side, not 2 and 1 behind)
+internal void fo_rows(int *idx, int n, int kind, int front) {
     fo_sort_by(idx, n, 0);
     // bands of one rank and like size (within FO_BAND of the band's largest), each in rows of its own - a row is as
     // deep as its largest unit, so tanks among infantry spaced every row out; the ranks front to back, a rank's bands
@@ -132,6 +133,7 @@ internal void fo_rows(int *idx, int n, int kind) {
     wmean /= (float)n;
     int wedge = kind == FORMATION_DEEP_WEDGE || kind == FORMATION_SHALLOW_WEDGE;
     float width = wedge ? 0 : sqrtf(area * FO_ASPECT[kind]);
+    if (!wedge && width < wmean * (float)front) width = wmean * (float)front;
     if (width < wmax) width = wmax;
     float y = 0, prev = 0;
     for (int i = 0, row = 0; i < n; row++) {
@@ -161,7 +163,7 @@ internal void fo_rings(int *idx, int n) {
     for (int i = 0, ring = 0; i < n; ring++) {
         // the ring's radius from its largest unit (no longer always its first: the ranks come first) - its units taken
         // at a radius from the first, then the radius from their largest and the units again
-        float deep = g_fo[idx[i]].w, sum = 0, r0 = r;
+        float deep = g_fo[idx[i]].w, sum = 0, r0 = r, rest = 0;
         int k = 0;
         for (int pass = 0; pass < 2; pass++) {
             r = ring ? r0 + (prev + deep) * 0.5f : deep * 0.75f;
@@ -169,14 +171,23 @@ internal void fo_rings(int *idx, int n) {
             while (i + k < n && (k == 0 || sum + g_fo[idx[i + k]].w <= TWO_PI * r)) sum += g_fo[idx[i + k++]].w;
             for (int a = 0; a < k; a++) if (g_fo[idx[i + a]].w > deep) deep = g_fo[idx[i + a]].w;
         }
+        // the rest all on this ring when it holds them at no more than the next ring's radius - else 8 submarines were 4
+        // on a small ring and 4 on the next at the same angles: a cross
+        for (int a = i; a < n; a++) rest += g_fo[idx[a]].w;
+        if (rest / TWO_PI <= r + deep) {
+            for (int a = i + k; a < n; a++) if (g_fo[idx[a]].w > deep) deep = g_fo[idx[a]].w;
+            if (r < rest / TWO_PI) r = rest / TWO_PI;
+            k = n - i; sum = rest;
+        }
         if (i + k == n && k == 1 && ring == 0) { g_fo[idx[i]].at = v2(0, 0); break; }   // one unit: the middle
         int *ix = idx + i;
         for (int a = 0; a < k; a++) g_fo_key[ix[a]] = -fo_pseudo_angle(g_fo[ix[a]].p);
         fo_sort(ix, k, g_fo_key);   // counter-clockwise from +x, as the ring is laid
-        float at = 0;
+        float at = ring & 1 ? sum * 0.5f / (float)k : 0;   // every other ring turned half a unit: no spokes
         for (int a = 0; a < k; a++) {
             float w = g_fo[ix[a]].w;
-            g_fo[ix[a]].at = vec2_scale(fo_dir(TWO_PI * (at + w * 0.5f) / sum), r);
+            float ang = TWO_PI * (at + w * 0.5f) / sum;
+            g_fo[ix[a]].at = vec2_scale(fo_dir(ang >= TWO_PI ? ang - TWO_PI : ang), r);
             at += w;
         }
         prev = deep;
@@ -235,6 +246,11 @@ internal void __thiscall hook_formation_slots(void *f, void *group, void *slots)
         if (vec2_dot(fwd, to) < 0) fwd = vec2_scale(fwd, -1.0f);
         undirected = ll <= 0.01f || fabsf(line.y) < 0.01f * ll;
     }
+    // the game's own front row (lines): its slots ahead along the way it laid them out, before a click's direction
+    int front = 0;
+    float most = -1e30f;
+    for (int i = 0; i < n; i++) { float a = vec2_dot(game_at[i], fwd); if (a > most) most = a; }
+    for (int i = 0; i < n; i++) if (vec2_dot(game_at[i], fwd) > most - 0.3f) front++;
     float tl = vec2_len(to);
     if (undirected) fwd = tl > 0.5f ? vec2_scale(to, 1.0f / tl) : v2(0, 1);
     vec2 right = v2(fwd.y, -fwd.x);
@@ -245,7 +261,7 @@ internal void __thiscall hook_formation_slots(void *f, void *group, void *slots)
         g_fo[i].p = vec2_sub(g_fo[i].p, c);   // the circles' angles: around the point
     }
     int circle = kind >= FORMATION_INWARD_CIRCLE;
-    if (circle) fo_rings(g_fo_order, n); else fo_rows(g_fo_order, n, kind);
+    if (circle) fo_rings(g_fo_order, n); else fo_rows(g_fo_order, n, kind, front);
     // the front row (a wedge's tip) on the clicked point, as the game's: the mouse gives the front line; a circle around it
     vec2 mid = v2(0, 0);
     // each unit's spot, and the slots moved there (the game pairs units with them by these points)
