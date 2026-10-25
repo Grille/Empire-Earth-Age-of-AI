@@ -337,7 +337,7 @@ internal void __thiscall hook_asg_route(ee_attack_subgroup *self, int *start, in
         float t = threat_at(pi, iv2(dest[0], dest[1]));
         ee_unit *u = t > 0 && building_at(pl, dest, 4) ? find_weak_spot(pl, pi, start, dest) : NULL;
         if (u) {
-            ee_asg_target *tg = asg_target_at(self);
+            ee_asg_target *tg = asg_target_rec_at(self);
             if (g_log)
                 fprintf(g_log, "# weak spot: P%u goal %d,%d (threat %.1f, target kind %d id %d) -> type %d of P%d at %d,%d\n",
                         pi, dest[0], dest[1], t, asg_target_get_kind(tg), asg_target_get_id(tg),
@@ -353,7 +353,7 @@ internal void __thiscall hook_asg_route(ee_attack_subgroup *self, int *start, in
         ee_unit *w = cross ? find_breach(pl, pi, start, dest, cross) : NULL;
         breach_note(pl, self, w ? unit_get_x(w) : -1, w ? unit_get_y(w) : -1);
         if (w) {
-            ee_asg_target *tg = asg_target_at(self);
+            ee_asg_target *tg = asg_target_rec_at(self);
             if (g_log)
                 fprintf(g_log, "# breach: P%u goal %d,%d: wall crossed at %d,%d (threat %.1f) -> attack wall at %d,%d\n",
                         pi, dest[0], dest[1], unit_get_x(cross), unit_get_y(cross),
@@ -569,7 +569,7 @@ internal int unit_goal(ee_unit *u, ee_goal *goal, int append, unsigned state) {
         ((void (__thiscall *)(void *, int))(*(void ***)goal)[0])(goal, 1);
         return 0;
     }
-    unit_set_goal(u, goal, append, 0);
+    unit_assign_goal(u, goal, append, 0);
     unit_set_state(u, state);
     ee_unit_type *td = unit_get_type_data(u);
     type_goal_assigned(td, u);
@@ -929,7 +929,7 @@ internal void __thiscall hook_repair_goal(ee_unit *u, ee_goal *goal, int8_t appe
         ((void (__thiscall *)(void *, int))(*(void ***)goal)[0])(goal, 1);
         return;
     }
-    unit_set_goal(u, goal, append, prio);
+    unit_assign_goal(u, goal, append, prio);
 }
 
 // Known defences covering tile (x, y) by their real range (+1), not counting the one at (ex, ey).

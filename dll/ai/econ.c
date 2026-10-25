@@ -1312,7 +1312,7 @@ internal void econ_fields(ee_resource_mgr *rm) {   // before the citizen assignm
         void *mem = goal_build_alloc();
         if (!mem) break;
         ee_goal *goal = goal_build_init(mem, pl, todo[i], 1);
-        unit_set_goal(best, goal, 0, 0);
+        unit_assign_goal(best, goal, 0, 0);
         unit_set_state(best, 0x1F51);
         ee_unit_type *td = unit_get_type_data(best);
         (*(void (__thiscall **)(void *, void *))(type_get_vtable(td) + 0x74))(td, best);

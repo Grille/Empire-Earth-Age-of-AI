@@ -1,4 +1,4 @@
-"""The spec made C (run by dll/build.sh): dll/game/api/gen/<file>.c for each spec file moved so far (MOVED), and
+"""The spec made C (run by dll/build.sh): dll/game/api/gen/<file>.c for each spec file (but UNMOVED), and
 gen/gen.c, which includes them and selects the running build's values (spec_select, spec_log). Plain C - no tables:
 a variable per value, a typedef per function, an accessor or a wrapper each, one assignment per value and build.
 
@@ -26,11 +26,11 @@ import spec_read   # noqa: E402
 ROOT = spec_read.ROOT
 OUT = os.path.join(ROOT, 'dll', 'game', 'api', 'gen')
 TYPES_H = os.path.join(ROOT, 'dll', 'game', 'api', 'types.h')
-MOVED = ('unit.cs',)   # the spec files the C comes from; the others' rows are still raw/'s
+UNMOVED = ('game.cs',)   # spec files whose rows are still raw/'s (their members not made yet)
 SIZES = {'int8': 'int8_t', 'uint8': 'uint8_t', 'int16': 'int16_t', 'uint16': 'uint16_t', 'int32': 'int',
          'uint32': 'uint32_t', 'int64': 'int64_t', 'uint64': 'uint64_t', 'float32': 'float', 'float64': 'double',
-         'nint': 'intptr_t', 'nuint': 'uintptr_t', 'void': 'void'}
-LAYOUTS = ('deque', 'vector')
+         'nint': 'intptr_t', 'nuint': 'uintptr_t', 'char8': 'char', 'void': 'void'}
+LAYOUTS = ('deque', 'vector', 'block')   # environment.cs's: only their address
 CONV = {'cdecl': '__cdecl', 'stdcall': '__stdcall'}
 
 
@@ -53,19 +53,29 @@ def ptr(c):   # the pointer type to c
 
 class Gen:
     def __init__(self, files, known):
-        self.types = {t.name: t for ts in files.values() for t in ts}
+        self.env = {t.name: t for t in spec_read.read_environment()}
+        self.types = dict(self.env, **{t.name: t for ts in files.values() for t in ts})
         self.known, self.new_types = known, []
         self.lines, self.assign, self.typedefs = [], [], {}
 
-    def c_type_of(self, t):
+    def c_type_of(self, t):   # a class's C type; an enum's or a value's (vec2) is C's own, a class without one void
         a = t.attr('c_type')
         c = a[1][0] if a else snake(t.name)
-        if c not in self.known and c not in self.new_types:
+        if c != 'void' and not t.enum and t.name not in self.env and c not in self.known and c not in self.new_types:
             self.new_types.append(c)
         return c
 
     def prefix(self, t):
-        return t.name if t.static else re.sub(r'^ee_', '', self.c_type_of(t))
+        a = t.attr('c_prefix')
+        if a:
+            return a[1][0]
+        if t.static:
+            return t.name
+        c = self.c_type_of(t)   # a class without a C type: its own name in C's spelling
+        return re.sub(r'^ee_', '', snake(t.name) if c == 'void' else c)
+
+    def name(self, P, x):   # a C name of the prefix P: P_x, or x alone under c_prefix("")
+        return '%s_%s' % (P, x) if P else x
 
     def ctype(self, cs, where):   # 'EEUnit**' -> 'ee_unit **'
         base = cs.rstrip('*')
@@ -109,28 +119,33 @@ class Gen:
     def gen_field(self, t, m, P, obj):
         if t.static:
             raise Fail('%s: a static class\'s data - not made yet (gen_api.py)' % m.where)
-        of = 'of_%s_%s' % (P, m.name)
+        of = 'of_' + self.name(P, m.name)
         self.doc(m)
         self.lines.append('internal uint32_t %s;' % of)
         self.value(of, m.attr('offset'), 'off', '%s.%s' % (t.name, m.name))
         at = '(uint8_t *)o + %s' % of
         if m.type in LAYOUTS:
-            self.lines.append('internal inline uint8_t *%s_%s_at(%s *o) { return %s; }' % (P, m.name, obj, at))
+            self.lines.append('internal inline uint8_t *%s_at(const %s *o) { return %s; }' % (self.name(P, m.name), obj, at))
+            return
+        cls = self.types.get(m.type)
+        if cls and not cls.static and not cls.enum and m.type not in self.env:   # an object inside the object: its address
+            c = self.c_type_of(cls)
+            self.lines.append('internal inline %s(const %s *o) { return (%s)(%s); }' % (decl(ptr(c), self.name(P, m.name) + '_at'), obj, ptr(c), at))
             return
         c = self.ctype(m.type, m.where)
         p, v = ptr(c), self.var(m.type, 'v', m.where)
-        get, set_, at_ = decl(c, '%s_get_%s' % (P, m.name)), '%s_set_%s' % (P, m.name), decl(p, '%s_%s_at' % (P, m.name))
+        get, set_, at_ = decl(c, self.name(P, 'get_' + m.name)), self.name(P, 'set_' + m.name), decl(p, self.name(P, m.name) + '_at')
         if m.fixed:
             self.lines += ['internal inline %s(const %s *o, int i) { return ((%s)(%s))[i]; }' % (get, obj, p, at),
                            'internal inline void %s(%s *o, int i, %s) { ((%s)(%s))[i] = v; }' % (set_, obj, v, p, at),
-                           'internal inline %s(%s *o) { return (%s)(%s); }' % (at_, obj, p, at)]
+                           'internal inline %s(const %s *o) { return (%s)(%s); }' % (at_, obj, p, at)]
         else:
             self.lines += ['internal inline %s(const %s *o) { return *(%s)(%s); }' % (get, obj, p, at),
                            'internal inline void %s(%s *o, %s) { *(%s)(%s) = v; }' % (set_, obj, v, p, at),
-                           'internal inline %s(%s *o) { return (%s)(%s); }' % (at_, obj, p, at)]
+                           'internal inline %s(const %s *o) { return (%s)(%s); }' % (at_, obj, p, at)]
 
     def fn_type(self, t, m, P, obj):   # the typedef P_x_fn (once: a class's own function in a base's slot shares it)
-        name = '%s_%s_fn' % (P, m.name)
+        name = self.name(P, m.name) + '_fn'
         ret = self.ctype(m.type, m.where)
         params = ([obj + ' *'] if not t.static else []) + [self.ctype(c, m.where) for c, _ in m.params]
         conv = '__thiscall' if not t.static else next((CONV[a[0]] for a in m.attrs if a[0] in CONV), None)
@@ -162,16 +177,16 @@ class Gen:
         label = '%s.%s' % (t.name, m.name)
         slot, addr, over = m.attr('slot'), m.attr('address'), m.attr('overrides')
         if slot:   # the virtual function: called through the object's vtable
-            sv = 'slot_%s_%s' % (P, m.name)
+            sv = 'slot_' + self.name(P, m.name)
             self.lines.append('internal uint32_t %s;' % sv)
             self.value(sv, slot, 'num', label + ' [slot]')
-            self.wrapper(t, m, '%s_%s' % (P, m.name), obj, '((%s)(*(void ***)%s)[%s])' % (fn_t, this, sv), this)
+            self.wrapper(t, m, self.name(P, m.name), obj, '((%s)(*(void ***)%s)[%s])' % (fn_t, this, sv), this)
         if over and not self.base_slot(m, over[1][0][1]):
             raise Fail('%s: [overrides] - %s has no [slot] %s' % (m.where, over[1][0][1], m.name))
         fv = None
         if addr:   # a class's own function in a slot is called directly by its class's name
             own = slot or over
-            fv, direct = ('fn_%s_%s' % (S, m.name), '%s_%s' % (S, m.name)) if own else ('fn_%s_%s' % (P, m.name), '%s_%s' % (P, m.name))
+            fv, direct = ('fn_%s_%s' % (S, m.name), '%s_%s' % (S, m.name)) if own else ('fn_' + self.name(P, m.name), self.name(P, m.name))
             self.lines.append('internal %s %s;' % (fn_t, fv))
             self.value(fv, addr, 'addr', label, fn_t)
             self.wrapper(t, m, direct, obj, fv, this)
@@ -196,8 +211,8 @@ class Gen:
         if site:
             if not (over and fv and t.attr('vtable')):
                 raise Fail('%s: a [vtable_site] needs [overrides], [address] and its class\'s [vtable]' % m.where)
-            self.lines.append('internal inline int patch_%s(%s h) { return patch_vtable(vt_%s, (int)slot_%s_%s, (uintptr_t)%s, '
-                              '(void *)h); }' % (site[1][0], fn_t, S, P, m.name, fv))
+            self.lines.append('internal inline int patch_%s(%s h) { return patch_vtable(vt_%s, (int)slot_%s, (uintptr_t)%s, '
+                              '(void *)h); }' % (site[1][0], fn_t, S, self.name(P, m.name), fv))
 
     def base_slot(self, m, base):   # a [slot] of the same name in base or its bases
         b = self.types.get(base)
@@ -227,17 +242,17 @@ def main():
     files = spec_read.read_all()
     known = re.findall(r'typedef struct \w+ (\w+);', open(TYPES_H, encoding='latin-1').read())
     os.makedirs(OUT, exist_ok=True)
-    stems = []
-    for f in MOVED:
+    stems, new_types = [], []
+    moved = [f for f in sorted(files) if f not in UNMOVED]
+    for f in moved:
         g = Gen(files, known)
         for t in files[f]:
             g.gen_type(t)
+        new_types += [c for c in g.new_types if c not in new_types]
         stem = re.sub(r'\.cs$', '', f).replace('/', '_')
         stems.append(stem)
         out = ['// GENERATED by scripts/build/gen_api.py from spec/game/%s - not to be edited: the spec is changed, then' % f,
                '// sh dll/build.sh. What each name is: gen_api.py\'s header; the classes, fields and functions: the spec.']
-        if g.new_types:
-            out += ['', '// the classes types.h hasn\'t got'] + ['typedef struct %s %s;' % (c, c) for c in g.new_types]
         out += g.lines
         out += ['', '// the running build\'s values (spec_select, with addr_select): how many it hasn\'t got',
                 'internal int spec_%s_select(int build) {' % stem, '    switch (build) {']
@@ -252,8 +267,11 @@ def main():
         out += ['    }', '    return 0;', '}', '// the names a build hasn\'t got, by build',
                 'internal const char *const k_spec_%s_missing[ADDR_BUILDS] = { %s };' % (stem, ', '.join('"%s"' % x for x in missing))]
         write(os.path.join(OUT, stem + '.c'), '\n'.join(out) + '\n')
-    gen = ['// GENERATED by scripts/build/gen_api.py - the spec\'s C (spec/game/: %s), included by game/api/api.c.' % ', '.join(MOVED),
-           '// spec_select takes the running build\'s values (game_build, beside addr_select); spec_log names those it hasn\'t got.']
+    gen = ['// GENERATED by scripts/build/gen_api.py - the spec\'s C (spec/game/), included by game/api/api.c. spec_select',
+           '// takes the running build\'s values (game_build, beside addr_select); spec_log names those it hasn\'t got.']
+    if new_types:
+        gen += ['', '// the classes types.h hasn\'t got'] + ['typedef struct %s %s;' % (c, c) for c in new_types]
+    gen += ['']
     gen += ['#include "game/api/gen/%s.c"' % s for s in stems]
     gen += ['', '// g_spec_missing: exe.c\'s (game_build sets it)',
             'internal int spec_select(int build) { return %s; }' % ' + '.join('spec_%s_select(build)' % s for s in stems),

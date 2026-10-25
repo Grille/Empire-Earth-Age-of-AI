@@ -13,6 +13,39 @@
 [size(0x2C), c_type("ee_unit")]   // EEUnit's own fields from +0x2C (its constructor 0x616BDD clears +0x2C .. +0x44)
 unsafe struct RTSUnit
 {
+    // FIELDS (raw/fields.h)
+
+    /// references (release 0x4FCAD3)
+    [offset(0x4), found(c)]
+    int32 refs;
+
+    /// its node in the unit list {next, prev}
+    [offset(0x8), found(c)]
+    void* list_node;
+
+    /// visibility: +0xC a uint16 per player, seen
+    [offset(0x14), found(c)]
+    ee_unit_vis* vis;
+
+    /// tile x (-10000: off the map)
+    [offset(0x1C), found(c)]
+    int32 x;
+
+    /// tile y
+    [offset(0x20), found(c)]
+    int32 y;
+
+    [offset(0x24), found(c)]
+    int32 serial;
+
+    /// back in the pool (vf12 sets it)
+    [offset(0x2A), found(c)]
+    uint8 released;
+
+    /// mIsValid
+    [offset(0x2B), found(c)]
+    uint8 valid;
+
     /// its owner
     [offset(0x18), found(c)]
     EEPlayer* owner;
@@ -30,6 +63,32 @@ unsafe struct RTSUnit
 [vtable((ee)0x00831FD8, (aoc)0x00847A20)]
 unsafe struct EEUnit
 {
+    // FIELDS (raw/fields.h)
+
+    /// its type's data (TD)
+    [offset(0x2C), found(c)]
+    EEUnitClass* type_data;
+
+    /// (the game's dump: physics) - a unit too
+    [offset(0x30), found(c)]
+    EEUnit* physics;
+
+    /// its player's stats of the type (USTAT)
+    [offset(0x34), found(c)]
+    ee_unit_stats* stats;
+
+    /// a resource site's resource
+    [offset(0x38), found(c)]
+    int32 resource;
+
+    /// hit points (> 0: alive)
+    [offset(0x3C), found(c)]
+    int32 hp;
+
+    /// a resource site's amount left
+    [offset(0x40), found(c)]
+    int32 amount;
+
     // VIRTUAL FUNCTIONS (EEUnit's slots; EEComplexUnit has its own functions in them)
 
     /// may unit enter the tile this object stands on (the path search's tile test 0x41D36A asks every object there):
@@ -51,6 +110,106 @@ unsafe struct EEUnit
 [vtable((ee)0x00831494, (aoc)0x00846DDC)]
 unsafe struct EEComplexUnit
 {
+    // FIELDS (raw/fields.h)
+
+    /// a building's queue
+    [offset(0x4C), found(c)]
+    int32* queue_begin;
+
+    /// (lookup 0x4111F6)
+    [offset(0x60), found(c)]
+    int32 id;
+
+    [offset(0x68), found(c)]
+    int32 busy;
+
+    /// radians/s, signed
+    /// the turn rate now (radians/s, signed) - FN_PM_COLLIDE in both builds, FN_TURN_DECIDE's caller
+    [offset(0x17C), found(c)]
+    float32 turn_rate;
+
+    /// a projectile's: the attack's type data
+    [offset(0x1C0), found(c)]
+    EEUnitClass* attacker_type;
+
+    [offset(0x1CC), found(c)]
+    EEUnit* chain;
+
+    /// set while inside a transport or building (EEUCTransport::vf63: none may board)
+    [offset(0x1D8), found(c)]
+    void* holder;
+
+    /// its script state (AISTATE)
+    [offset(0x1E8), found(c)]
+    ee_ai_state* ai_state;
+
+    /// its goal (GOAL)
+    [offset(0x1EC), found(c)]
+    EEUnitGoal* goal;
+
+    /// the goal object (0x5ED24B casts it)
+    [offset(0x1F0), found(c)]
+    EEUnitGoal* goal_object;
+
+    /// its behaviour (behaviour_table())
+    [offset(0x208), found(c)]
+    void* behaviour;
+
+    /// the push velocity (tiles/s)
+    /// the push velocity {x, y} (tiles/s; the collision test adds, SLOT_PM_PUSH moves the unit by it x a step x
+    /// G_PHYS_SUBSTEPS and zeroes it) - FN_PM_COLLIDE in both builds
+    [offset(0x230), found(c)]
+    vec2 push;
+
+    /// what a building makes now
+    [offset((ee)0x25C, (aoc)0x260), found(c)]
+    int32 producing;
+
+    /// the movement mode
+    /// the movement mode (0x549F82 picks the model's step by it; 2 no collisions) - the push (SLOT_PM_PUSH) sets an
+    /// idle unit's pushed walk (+0x260 13) only while it is neither 0 nor 5, in both builds
+    [offset((ee)0x264, (aoc)0x268), found(c)]
+    int32 move_mode;
+
+    /// a missile's climb left (ms)
+    [offset((ee)0x28C, (aoc)0x290), found(c)]
+    int32 flight_ms;
+
+    /// its own reload (ms, 0: its class's)
+    [offset((ee)0x2A0, (aoc)0x2A4), found(c)]
+    int32 reload;
+
+    /// a transport's room left (EEUGLoadTransport::vf34; full below 1)
+    /// 2 votes, UNIT_RELOAD's shift
+    [offset((ee)0x2A4, (aoc)0x2A8), found(c)]
+    int32 room;
+
+    /// set while it moves
+    /// set while it moves (FN_PM_COLLIDE's first test in both builds)
+    [offset((ee)0x2D8, (aoc)0x2DC), found(c)]
+    int32 moving;
+
+    /// EEPMNaval::vf21's step test (0x550300 / AoC 0x55xxxx's read of +0x2E4) against TILE_SEA_CLASS
+    [offset((ee)0x2E0, (aoc)0x2E4), found(c)]
+    int32 sea_mode;
+
+    /// frozen (the scenario effect)
+    [offset((ee)0x33B, (aoc)0x347), found(c)]
+    uint8 frozen;
+
+    /// on a building's +0x30: built
+    [offset((ee)0x340, (aoc)0x34C), found(c)]
+    uint8 finished;
+
+    [offset((ee)0x341, (aoc)0x34D), found(c)]
+    uint8 ai_held;
+
+    /// at work (the contact test passes it on a kind 6 / 4 goal)
+    /// set while at work (byte): the contact test passes a unit with it on a kind 6 or 4 goal, but for one at the same
+    /// work - in both builds' test
+    [offset((ee)0x347, (aoc)0x353), found(c)]
+    uint8 at_work;
+
     // FIELDS
 
     /// its waypoints (20-byte points, 0xCC a block): the front the current one, the last the destination
@@ -99,7 +258,7 @@ unsafe struct EEComplexUnit
     /// the goal as its order (append: after the ones it has)
     [address((ee)0x005F05BD, (aoc)0x005FE863)]
     [call_site("repair_goal", (ee)0x0046DA88, (aoc)0x004706DF)]         // the game's repair orders, handed over
-    extern void set_goal(EEUnitGoal* goal, int8 append, int32 prio);
+    extern void assign_goal(EEUnitGoal* goal, int8 append, int32 prio);
 
     /// freed: its slot 12 (+0x30), its references 0, then back to the game's pool (0x5F20FB / AoC 0x60096B)
     [address((ee)0x005ED71E, (aoc)0x005FB7FB), overrides(typeof(RTSUnit))]
@@ -135,4 +294,12 @@ static unsafe class unit
     [call_site("aim", (ee)0x0061E1D7, (aoc)0x006313D6)]                 // a unit's shot
     [call_site("missile_aim", (ee)0x0054E850, (aoc)0x0055B1C3)]         // a missile's
     static extern void aim(EEComplexUnit* u, EEUnit** target, float32* aim, void* zero);
+}
+
+/// a unit's script state, its +0x1E8 (a state of its .tai, engine-notes.md "Unit AI scripts")
+unsafe struct ee_ai_state
+{
+    /// the state's id, read by every condition through a unit's +0x1E8
+    [offset(0x24), found(c)]
+    uint32 id;
 }

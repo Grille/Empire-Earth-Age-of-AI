@@ -1,0 +1,621 @@
+/// the scenario manager (EEScenarioManager; test/scen.c)
+[c_type("ee_scen_mgr"), c_prefix("scen")]
+unsafe struct EEScenarioManager
+{
+    /// its file's code (the scenario manager)
+    [offset(0xC0), found(c)]
+    block chat;
+
+    /// its file's code (the scenario manager)
+    [offset(0xE8), found(c)]
+    block triggers;
+
+    /// its file's code (the scenario manager)
+    [offset(0xF8), found(c)]
+    block conds;
+
+    /// its file's code (the scenario manager)
+    [offset(0x108), found(c)]
+    block effects;
+
+    /// its file's code (the scenario manager)
+    [offset(0x118), found(c)]
+    block objects;
+
+    /// its file's code (the scenario manager)
+    [offset(0x128), found(c)]
+    block areas;
+
+    /// its file's code (the scenario manager)
+    [offset(0x168), found(c)]
+    block queue;
+
+    /// ms
+    /// its file's code (the scenario manager)
+    [offset(0x210), found(c)]
+    float32 time;
+}
+
+/// a scenario condition
+unsafe struct ee_scen_cond
+{
+    /// its file's code (the scenario manager)
+    [offset(0x4), found(c)]
+    block name;
+
+    /// its file's code (the scenario manager)
+    [offset(0x2C), found(c)]
+    block text;
+
+    /// its file's code (the scenario manager)
+    [offset(0x40), found(c)]
+    sm_cond_type type;
+
+    /// its file's code (the scenario manager)
+    [offset(0x44), found(c)]
+    sm_compare op;
+
+    /// game: the difficulty
+    /// its file's code (the scenario manager)
+    [offset(0x48), found(c)]
+    sm_difficulty difficulty;
+
+    /// diplomacy: 0 allied, 1 enemy
+    /// its file's code (the scenario manager)
+    [offset(0x4C), found(c)]
+    sm_diplomacy stance;
+
+    /// its file's code (the scenario manager)
+    [offset(0x50), found(c)]
+    sm_player_attr attr;
+
+    /// attribute: the other player's
+    /// its file's code (the scenario manager)
+    [offset(0x54), found(c)]
+    sm_player_attr attr2;
+
+    /// its file's code (the scenario manager)
+    [offset(0x58), found(c)]
+    int32 tech;
+
+    /// its file's code (the scenario manager)
+    [offset(0x5C), found(c)]
+    int32 value;
+
+    /// its file's code (the scenario manager)
+    [offset(0x60), found(c)]
+    int32 @object;
+
+    /// its file's code (the scenario manager)
+    [offset(0x64), found(c)]
+    sm_player_spec player;
+
+    /// diplomacy, attribute: the other spec
+    /// its file's code (the scenario manager)
+    [offset(0x68), found(c)]
+    sm_player_spec player2;
+
+    /// its file's code (the scenario manager)
+    [offset(0x6C), found(c)]
+    int32 time_from;
+
+    /// its file's code (the scenario manager)
+    [offset(0x70), found(c)]
+    int32 time_to;
+
+    /// game: at or after that hour
+    /// its file's code (the scenario manager)
+    [offset(0x74), found(c)]
+    int32 hour;
+
+    /// its file's code (the scenario manager)
+    [offset(0x78), found(c)]
+    int32 trigger;
+
+    /// its file's code (the scenario manager)
+    [offset(0x80), found(c)]
+    char8 trigger_on;
+
+    /// its file's code (the scenario manager)
+    [offset(0x81), found(c)]
+    char8 trigger_fired;
+
+    /// its file's code (the scenario manager)
+    [offset(0x82), found(c)]
+    char8 test_difficulty;
+
+    /// its file's code (the scenario manager)
+    [offset(0x83), found(c)]
+    char8 timed;
+
+    /// its file's code (the scenario manager)
+    [offset(0x84), found(c)]
+    char8 test_hour;
+
+    /// attribute against attribute
+    /// its file's code (the scenario manager)
+    [offset(0x85), found(c)]
+    char8 vs_player;
+}
+
+/// a scenario area (EESMArea)
+[c_type("ee_scen_area")]
+unsafe struct EESMArea
+{
+    /// its file's code (the scenario manager)
+    [offset(0x4), found(c)]
+    block name;
+
+    /// its file's code (the scenario manager)
+    [offset(0x2C), found(c)]
+    block point;
+
+    /// its file's code (the scenario manager)
+    [offset(0x34), found(c)]
+    block rect;
+
+    /// its file's code (the scenario manager)
+    [offset(0x5C), found(c)]
+    sm_area_type type;
+
+    /// kept: the class's other fields all kept, no read of this one in its methods
+    [offset(0x64), found(h, "kept: the class's other fields all kept, no read of this one in its methods")]
+    int32 ai_area;
+}
+
+/// a scenario effect
+unsafe struct ee_scen_effect
+{
+    /// its file's code (the scenario manager)
+    [offset(0x8), found(c)]
+    block group;
+
+    /// its file's code (the scenario manager)
+    [offset(0x50), found(c)]
+    block text;
+
+    /// its file's code (the scenario manager)
+    [offset(0x8C), found(c)]
+    block class_name;
+
+    /// kept: the class's other fields all kept, no read of this one in its methods
+    [offset(0xA4), found(h, "kept: the class's other fields all kept, no read of this one in its methods")]
+    block sound;
+
+    /// its file's code (the scenario manager)
+    [offset(0xB4), found(c)]
+    block line;
+
+    /// set attribute
+    /// its file's code (the scenario manager)
+    [offset(0xC8), found(c)]
+    sm_player_attr player_attr;
+
+    /// diplomacy
+    /// its file's code (the scenario manager)
+    [offset(0xCC), found(c)]
+    sm_diplomacy stance;
+
+    /// dialogue, chat
+    /// its file's code (the scenario manager)
+    [offset(0xD4), found(c)]
+    sm_player_spec msg_players;
+
+    /// object owner
+    /// its file's code (the scenario manager)
+    [offset(0xD8), found(c)]
+    sm_player_spec owner_players;
+
+    /// player, AI effects
+    /// its file's code (the scenario manager)
+    [offset(0xDC), found(c)]
+    sm_player_spec players;
+
+    /// diplomacy
+    /// its file's code (the scenario manager)
+    [offset(0xE0), found(c)]
+    sm_player_spec target_players;
+
+    /// its file's code (the scenario manager)
+    [offset(0xE4), found(c)]
+    block ai_kind;
+
+    /// set AI variable: the record
+    /// its file's code (the scenario manager)
+    [offset(0xE8), found(c)]
+    int32 ai_var;
+
+    /// its file's code (the scenario manager)
+    [offset(0xEC), found(c)]
+    sm_ai_toggle ai_toggle;
+
+    /// its file's code (the scenario manager)
+    [offset(0xF0), found(c)]
+    block media_kind;
+
+    /// its file's code (the scenario manager)
+    [offset(0xF8), found(c)]
+    block player_kind;
+
+    /// its file's code (the scenario manager)
+    [offset(0xFC), found(c)]
+    block trigger_kind;
+
+    /// its file's code (the scenario manager)
+    [offset(0x100), found(c)]
+    sm_category category;
+
+    /// its file's code (the scenario manager)
+    [offset(0x104), found(c)]
+    block object_kind;
+
+    /// unit / class attribute
+    /// its file's code (the scenario manager)
+    [offset(0x108), found(c)]
+    sm_unit_op op;
+
+    /// its file's code (the scenario manager)
+    [offset(0x10C), found(c)]
+    int32 tech;
+
+    /// AI variable
+    /// its file's code (the scenario manager)
+    [offset(0x110), found(c)]
+    float32 @float;
+
+    /// zoom, AI variable, land favourite
+    /// its file's code (the scenario manager)
+    [offset(0x114), found(c)]
+    int32 int1;
+
+    /// scroll speed, AI variable, air favourite
+    /// its file's code (the scenario manager)
+    [offset(0x118), found(c)]
+    int32 int2;
+
+    /// AI target / group, camera
+    /// its file's code (the scenario manager)
+    [offset(0x120), found(c)]
+    int32 area;
+
+    /// its object: AI target / group, camera
+    /// its file's code (the scenario manager)
+    [offset(0x124), found(c)]
+    int32 target;
+
+    /// calamity, graphic effect
+    /// its file's code (the scenario manager)
+    [offset(0x128), found(c)]
+    sm_calamity calamity;
+
+    /// its file's code (the scenario manager)
+    [offset(0x12C), found(c)]
+    int32 cal_area;
+
+    /// its file's code (the scenario manager)
+    [offset(0x130), found(c)]
+    int32 cal_object;
+
+    /// daylight, cinematic speed
+    /// its file's code (the scenario manager)
+    [offset(0x134), found(c)]
+    int32 hour;
+
+    /// its file's code (the scenario manager)
+    [offset(0x138), found(c)]
+    int32 day_cycle;
+
+    /// its file's code (the scenario manager)
+    [offset(0x13C), found(c)]
+    block game_kind;
+
+    /// s
+    /// its file's code (the scenario manager)
+    [offset(0x140), found(c)]
+    int32 duration;
+
+    /// 0 hints, 1 instructions, 2 history
+    /// its file's code (the scenario manager)
+    [offset(0x144), found(c)]
+    sm_text_kind text_kind;
+
+    /// < 20 unit, else class
+    /// its file's code (the scenario manager)
+    [offset(0x148), found(c)]
+    sm_unit_attr unit_attr;
+
+    /// attribute value, facing (degrees)
+    /// its file's code (the scenario manager)
+    [offset(0x14C), found(c)]
+    int32 value;
+
+    /// object effects
+    /// its file's code (the scenario manager)
+    [offset(0x158), found(c)]
+    int32 @object;
+
+    /// its file's code (the scenario manager)
+    [offset(0x15C), found(c)]
+    sm_stance obj_stance;
+
+    /// 0 normal .. 5 garrison, 7+ a power
+    /// its file's code (the scenario manager)
+    [offset(0x160), found(c)]
+    sm_task task;
+
+    /// its file's code (the scenario manager)
+    [offset(0x164), found(c)]
+    int32 task_area;
+
+    /// its file's code (the scenario manager)
+    [offset(0x168), found(c)]
+    int32 task_object;
+
+    /// its file's code (the scenario manager)
+    [offset(0x16C), found(c)]
+    int32 civ_points;
+
+    /// its file's code (the scenario manager)
+    [offset(0x170), found(c)]
+    sm_attr_mode attr_mode;
+
+    /// its file's code (the scenario manager)
+    [offset(0x174), found(c)]
+    int32 amount;
+
+    /// camera, flare
+    /// its file's code (the scenario manager)
+    [offset(0x178), found(c)]
+    int32 cam_area;
+
+    /// its file's code (the scenario manager)
+    [offset(0x17C), found(c)]
+    int32 cam_object;
+
+    /// trigger effects
+    /// its file's code (the scenario manager)
+    [offset(0x180), found(c)]
+    int32 trigger;
+
+    /// AI toggle, weather
+    /// its file's code (the scenario manager)
+    [offset(0x188), found(c)]
+    char8 on;
+
+    /// AI target / group, camera
+    /// its file's code (the scenario manager)
+    [offset(0x189), found(c)]
+    char8 use_area;
+
+    /// AI: attack (1) / defend (0)
+    /// its file's code (the scenario manager)
+    [offset(0x18A), found(c)]
+    char8 attack;
+
+    /// kept: the class's other fields all kept, no read of this one in its methods
+    [offset(0x18B), found(h, "kept: the class's other fields all kept, no read of this one in its methods")]
+    char8 favorites;
+
+    /// AI target: add (1) / remove (0)
+    /// its file's code (the scenario manager)
+    [offset(0x18C), found(c)]
+    char8 add;
+
+    /// change text: clear it
+    /// its file's code (the scenario manager)
+    [offset(0x18E), found(c)]
+    char8 clear;
+
+    /// flare, camera: the area
+    /// its file's code (the scenario manager)
+    [offset(0x18F), found(c)]
+    char8 flare_area;
+
+    /// attribute in %, face at once
+    /// its file's code (the scenario manager)
+    [offset(0x190), found(c)]
+    char8 percent;
+
+    /// tech tree: add (1) / remove (0)
+    /// its file's code (the scenario manager)
+    [offset(0x191), found(c)]
+    char8 tech_add;
+
+    /// its file's code (the scenario manager)
+    [offset(0x192), found(c)]
+    char8 cal_use_area;
+}
+
+/// a scenario object (EESMObject): units picked by owner, class, area ...
+[c_type("ee_scen_object"), c_prefix("scen_obj")]
+unsafe struct EESMObject
+{
+    /// its file's code (the scenario manager)
+    [offset(0x4), found(c)]
+    block name;
+
+    /// its file's code (the scenario manager)
+    [offset(0x1C), found(c)]
+    block units;
+
+    /// its file's code (the scenario manager)
+    [offset(0x28), found(c)]
+    sm_player_spec players;
+
+    /// 0 any, 1..14 epoch, 15..71 family, 72..112 RPS, 113+ group
+    /// its file's code (the scenario manager)
+    [offset(0x2C), found(c)]
+    sm_class @class;
+
+    /// 0: by class
+    /// its file's code (the scenario manager)
+    [offset(0x30), found(c)]
+    int32 type;
+
+    /// its file's code (the scenario manager)
+    [offset(0x34), found(c)]
+    int32 min;
+
+    /// its file's code (the scenario manager)
+    [offset(0x38), found(c)]
+    int32 max;
+
+    /// its file's code (the scenario manager)
+    [offset(0x3C), found(c)]
+    int32 area;
+
+    /// 0 sight, 1 range, 2 near
+    /// its file's code (the scenario manager)
+    [offset(0x40), found(c)]
+    sm_relation rel_kind;
+
+    /// its file's code (the scenario manager)
+    [offset(0x44), found(c)]
+    int32 rel_object;
+
+    /// its file's code (the scenario manager)
+    [offset(0x48), found(c)]
+    int32 parent;
+
+    /// its file's code (the scenario manager)
+    [offset(0x4C), found(c)]
+    sm_unit_attr attr;
+
+    /// its file's code (the scenario manager)
+    [offset(0x50), found(c)]
+    int32 attr_min;
+
+    /// its file's code (the scenario manager)
+    [offset(0x54), found(c)]
+    int32 attr_max;
+
+    /// its file's code (the scenario manager)
+    [offset(0x5C), found(c)]
+    int32 state;
+
+    /// its file's code (the scenario manager)
+    [offset(0x60), found(c)]
+    sm_player_spec seen_players;
+
+    /// its file's code (the scenario manager)
+    [offset(0x68), found(c)]
+    sm_test_mode area_mode;
+
+    /// its file's code (the scenario manager)
+    [offset(0x6C), found(c)]
+    sm_test_mode rel_mode;
+
+    /// its file's code (the scenario manager)
+    [offset(0x70), found(c)]
+    sm_test_mode attr_mode;
+
+    /// its file's code (the scenario manager)
+    [offset(0x74), found(c)]
+    sm_test_mode seen_mode;
+
+    /// its file's code (the scenario manager)
+    [offset(0x78), found(c)]
+    sm_test_mode state_mode;
+
+    /// its file's code (the scenario manager)
+    [offset(0x7C), found(c)]
+    sm_test_mode selected_mode;
+
+    /// its file's code (the scenario manager)
+    [offset(0x80), found(c)]
+    char8 locked;
+
+    /// its file's code (the scenario manager)
+    [offset(0x81), found(c)]
+    char8 dynamic;
+
+    /// its file's code (the scenario manager)
+    [offset(0x82), found(c)]
+    char8 attr_percent;
+}
+
+/// a trigger's condition reference
+[c_prefix("trigger_cond")]
+unsafe struct ee_trig_cond
+{
+    /// its file's code (the scenario manager)
+    [offset(0x4), found(c)]
+    int32 index;
+
+    /// its file's code (the scenario manager)
+    [offset(0x8), found(c)]
+    int32 join;
+
+    /// its file's code (the scenario manager)
+    [offset(0xC), found(c)]
+    char8 not;
+}
+
+/// a trigger's effect reference
+[c_prefix("trigger_effect")]
+unsafe struct ee_trig_effect
+{
+    /// its file's code (the scenario manager)
+    [offset(0x4), found(c)]
+    int32 kind;
+
+    /// its file's code (the scenario manager)
+    [offset(0x8), found(c)]
+    int32 delay;
+
+    /// its file's code (the scenario manager)
+    [offset(0xC), found(c)]
+    int32 index;
+}
+
+/// a scenario trigger (EESMTrigger)
+[c_type("ee_trigger")]
+unsafe struct EESMTrigger
+{
+    /// its file's code (the scenario manager)
+    [offset(0x4), found(c)]
+    block name;
+
+    /// its file's code (the scenario manager)
+    [offset(0x18), found(c)]
+    block desc;
+
+    /// a trigger's condition references, as its +0x40
+    [offset(0x30), found(s)]
+    block conds;
+
+    /// its file's code (the scenario manager)
+    [offset(0x40), found(c)]
+    block effects;
+
+    /// s the conditions held
+    /// its file's code (the scenario manager)
+    [offset(0x4C), found(c)]
+    int32 true_for;
+
+    /// its file's code (the scenario manager)
+    [offset(0x50), found(c)]
+    int32 since;
+
+    /// loaded and saved, not its index
+    /// its file's code (the scenario manager); an int its load and save stream - not its index (1 for trigger 0)
+    [offset(0x54), found(c)]
+    int32 _0x54;
+
+    /// its file's code (the scenario manager)
+    [offset(0x58), found(c)]
+    char8 on;
+
+    /// its file's code (the scenario manager)
+    [offset(0x59), found(c)]
+    char8 fired;
+
+    /// its file's code (the scenario manager)
+    [offset(0x5A), found(c)]
+    char8 loop;
+
+    /// checked during cinematics too
+    /// its file's code (the scenario manager)
+    [offset(0x5B), found(c)]
+    char8 cinematic;
+}

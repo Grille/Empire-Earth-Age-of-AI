@@ -3,33 +3,15 @@
 
 // FIELDS
 // THE CAMERA ([G_CAMERA], game_camera()) AND THE SCROLL ACTION (EEAScroll)
-internal inline float *camera_look_at(const ee_camera *cam) { return (float *)FIELD_AT(cam, CAMERA_POS); }   // +0x78 x, y, z
-internal inline float camera_get_x(const ee_camera *cam) { return FIELD(cam, CAMERA_POS, float); }
-internal inline float camera_get_y(const ee_camera *cam) { return FIELD(cam, CAMERA_POS + 0x4, float); }
-internal inline float camera_get_zoom(const ee_camera *cam) { return FIELD(cam, CAMERA_ZOOM, float); }
-internal inline unsigned scroll_get_ticks(const ee_scroll *s) { return FIELD(s, SCROLL_TICKS, unsigned); }    // +0x40 elapsed (10 ms)
-internal inline void scroll_set_ticks(ee_scroll *s, unsigned v) { FIELD(s, SCROLL_TICKS, unsigned) = v; }
+internal inline float *camera_look_at(const ee_camera *cam) { return (float *)FIELD_AT(cam, of_camera_x); }   // +0x78 x, y, z
+internal inline float camera_get_y(const ee_camera *cam) { return FIELD(cam, of_camera_x + 0x4, float); }
 // +0x44 .. +0x47 the keys held: left, right, down, up
-internal inline uint8_t scroll_get_key(const ee_scroll *s, int k) { return FIELD(s, SCROLL_KEYS + k, uint8_t); }
-internal inline void scroll_set_key(ee_scroll *s, int k, uint8_t v) { FIELD(s, SCROLL_KEYS + k, uint8_t) = v; }
+internal inline uint8_t scroll_get_key(const ee_scroll *s, int k) { return FIELD(s, of_scroll_keys + k, uint8_t); }
+internal inline void scroll_set_key(ee_scroll *s, int k, uint8_t v) { FIELD(s, of_scroll_keys + k, uint8_t) = v; }
 // the UI: the in-game form's top bar mode (0 age, 1 clock, 2 FPS), a single-player screen's controls, the native chat's player
-internal inline int uiform_get_top_bar(const ee_ui_form *form) { return FIELD(form, UIFORM_TOP_BAR, int); }
-internal inline void uiform_set_top_bar(ee_ui_form *form, int v) { FIELD(form, UIFORM_TOP_BAR, int) = v; }
-internal inline uint8_t **uiscreen_get_controls(const ee_ui_screen *screen) { return FIELD(screen, UISCREEN_CONTROLS, uint8_t **); }
-internal inline ee_player *nativechat_get_player(const ee_native_chat *nc) { return FIELD(nc, NATIVECHAT_PLAYER, ee_player *); }
 
 // THE GAME'S MOUSE (game_mouse(): the cursor in the game's coordinates)
-internal inline float mouse_get_x(const ee_mouse *m) { return FIELD(m, MOUSE_X, float); }            // +0x4
-internal inline void mouse_set_x(ee_mouse *m, float v) { FIELD(m, MOUSE_X, float) = v; }
-internal inline float mouse_get_y(const ee_mouse *m) { return FIELD(m, MOUSE_Y, float); }            // +0x8
-internal inline void mouse_set_y(ee_mouse *m, float v) { FIELD(m, MOUSE_Y, float) = v; }
-internal inline float mouse_get_y_max(const ee_mouse *m) { return FIELD(m, MOUSE_Y_MAX, float); }       // +0x14
-internal inline float mouse_get_x_min(const ee_mouse *m) { return FIELD(m, MOUSE_X_MIN, float); }       // +0x18
-internal inline float mouse_get_x_max(const ee_mouse *m) { return FIELD(m, MOUSE_X_MAX, float); }       // +0x1C
-internal inline float mouse_get_y_min(const ee_mouse *m) { return FIELD(m, MOUSE_Y_MIN, float); }       // +0x20
 // +0xA4 frozen: the update then only reads the wheel
-internal inline uint8_t mouse_get_frozen(const ee_mouse *m) { return FIELD(m, MOUSE_FROZEN, uint8_t); }
-internal inline void mouse_set_frozen(ee_mouse *m, uint8_t v) { FIELD(m, MOUSE_FROZEN, uint8_t) = v; }
 
 // FUNCTIONS
 // THE UI AND THE PLAYERS' LINES (voice/)
@@ -105,13 +87,13 @@ internal inline void gfx_mark(enum gfx_kind k, const ee_unit_type *size_of, int 
     ee_gfx *e = h ? GF(FN_GFX_GET)(fx, h) : NULL;
     if (!e) return;
     if (size_of) {
-        float s = FIELD(size_of, TD_MARK_SIZE, float) * 1.25f;   // vf12's factor (0x827588)
-        FIELD(e, GFX_SIZE, float) *= s;
-        FIELD(e, GFX_SIZE_2, float) = s;
+        float s = FIELD(size_of, of_type_mark_size, float) * 1.25f;   // vf12's factor (0x827588)
+        FIELD(e, of_gfx_size, float) *= s;
+        FIELD(e, of_gfx_size_2, float) = s;
     }
-    FIELD(e, GFX_SHOWN, uint8_t) = 1;
-    FIELD(e, GFX_OWNER, int) = owner;
-    FIELD(e, GFX_0x2E, uint8_t) = 0;
+    FIELD(e, of_gfx_shown, uint8_t) = 1;
+    FIELD(e, of_gfx_owner, int) = owner;
+    FIELD(e, of_gfx_0x2e, uint8_t) = 0;
 }
 internal inline void order_marks(void *grp, void *on, int owner, int how, unsigned goal) { GF(FN_ORDER_MARKS)(grp, on, owner, how, goal); }
 
@@ -152,7 +134,7 @@ internal inline int patch_editor_form(editor_form_hook h) { return patch_call(GA
 // a command's circle (transports.c): the mouse click's one effect (on: the unit clicked, its id +0x24; NULL the ground)
 typedef int (__thiscall *click_mark_hook)(void *fx, void *on, float *pos, void *kind, int *handle, int arg);
 internal inline int patch_click_mark(click_mark_hook h) { return patch_call(GA(CALL_CLICK_MARK), GA(FN_GFX_ADD), (void *)h); }
-internal inline int click_mark_on_id(const void *on) { return FIELD(on, UNIT_SERIAL, int); }
+internal inline int click_mark_on_id(const void *on) { return FIELD(on, of_unit_serial, int); }
 // the group's unload order's circles (transports.c: the spread comes first)
 typedef void (__cdecl *order_marks_hook)(void *grp, void *on, int owner, int how, unsigned goal);
 internal inline int patch_unload_marks(order_marks_hook h) { return patch_call(GA(CALL_UNLOAD_MARKS), GA(FN_ORDER_MARKS), (void *)h); }

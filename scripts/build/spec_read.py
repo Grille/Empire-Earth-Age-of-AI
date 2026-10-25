@@ -91,7 +91,7 @@ def values(attr):
 
 
 def decl(text):   # 'extern float32 max_speed(float32* pt)' -> (name, type, params, func, static, fixed)
-    words = text.rstrip(';').strip()
+    words = text.rstrip(';').strip().replace('@', '')   # @string: C#'s keyword as a name
     static = bool(re.search(r'\bstatic\b', words))
     fixed = None
     words = re.sub(r'\b(public|static|unsafe|extern|readonly)\s+', '', words)
@@ -128,18 +128,24 @@ def read_file(path):
         if not code:
             continue
         if depth == 0:
-            m = re.search(r'\b(?:(static)\s+(?:unsafe\s+)?class|struct)\s+(\w+)', code)
+            m = re.search(r'\b(?:(static)\s+(?:unsafe\s+)?class|(struct|enum))\s+(\w+)', code)
             if m:
-                cur = Type(m.group(2), bool(m.group(1)), attrs_of(attr_text), doc, path, n)
+                cur = Type(m.group(3), bool(m.group(1)), attrs_of(attr_text), doc, path, n)
+                cur.enum = m.group(2) == 'enum'
                 types.append(cur)
                 attr_text, doc = '', []
-        elif depth == 1 and code.endswith(';'):
+        elif depth == 1 and code.endswith(';') and not cur.enum:
             name, ctype, params, func, static, fixed = decl(code)
+            name = re.sub(r'^_(?=\d)', '', name.lstrip('@'))   # C's name: @string string, _0x38 0x38 (C# can't start with a digit)
             where = '%s:%d' % (os.path.relpath(path, ROOT).replace(os.sep, '/'), n)
             cur.members.append(Member(name, ctype, params, func, static, fixed, attrs_of(attr_text), doc, where))
             attr_text, doc = '', []
         depth += code.count('{') - code.count('}')
     return types
+
+
+def read_environment():   # environment.cs's types: the layouts and values of more than one number
+    return read_file(os.path.join(ROOT, 'spec', 'environment.cs'))
 
 
 def read_all():   # {file name: [types]} of every file in spec/game/ and its folders

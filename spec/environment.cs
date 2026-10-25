@@ -8,6 +8,7 @@ global using int64 = long;
 global using uint64 = ulong;
 global using float32 = float;
 global using float64 = double;
+global using char8 = sbyte;   // C's char: a character or a byte the game's code reads as char (int8 the same size)
 
 global using static how;
 global using static values;
@@ -39,3 +40,11 @@ public enum how
 // THE RUNTIME LIBRARY'S LAYOUTS: the code walks them itself (game/api's helpers)
 public struct deque { }    // std::deque: +4 block map, +8 its size, +0xC the front's index, +0x10 the count
 public struct vector { }   // std::vector: begin, end, capacity end
+// a structure inside an object whose parts are plain numbers from its start (the code adds them: the matrix's,
+// a list's begin and end) - its address only
+public struct block { }
+
+// VALUES OF MORE THAN ONE NUMBER: their C types (base/), read and written whole
+[c_type("vec2")] public struct vec2 { float32 x, y; }
+[c_type("vec3")] public struct vec3 { float32 x, y, z; }
+[c_type("ivec2")] public struct ivec2 { int32 x, y; }

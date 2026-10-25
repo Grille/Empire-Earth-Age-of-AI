@@ -17,5 +17,5 @@ typedef void (__thiscall *group_sector_route_hook)(void *group, int *from, int *
 internal inline void group_sector_route(void *group, int *from, int *to, void *units) { GF(FN_GROUP_SECTOR_ROUTE)(group, from, to, units); }
 internal inline int patch_group_sector_route(group_sector_route_hook h) { return patch_call(GA(CALL_GROUP_SECTOR_ROUTE), GA(FN_GROUP_SECTOR_ROUTE), (void *)h); }
 // the units of such a cluster: begin .. end
-internal inline ee_unit **unitlist_get_begin(const void *units) { return FIELD(units, UNITLIST_UNITS, ee_unit **); }
-internal inline ee_unit **unitlist_get_end(const void *units) { return FIELD(units, UNITLIST_UNITS + 0x4, ee_unit **); }
+internal inline ee_unit **unitlist_get_begin(const void *units) { return FIELD(units, of_unit_list_units, ee_unit **); }
+internal inline ee_unit **unitlist_get_end(const void *units) { return FIELD(units, of_unit_list_units + 0x4, ee_unit **); }

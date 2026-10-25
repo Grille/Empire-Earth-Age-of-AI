@@ -41,9 +41,14 @@ and the runners, eectl, the MCP server), `results/` (log readers, scorers), `re/
   run by the build, holds the rules the compiler leaves open and checks each `was(...)` against today's rows). It
   describes the game only - the C comes from `scripts/build/gen_api.py` (run by the build: plain C in `dll/game/api/gen/`,
   no table macros, never edited by hand; what each generated name is: its header) and the hand-written code on top;
-  the format: spec/attributes.cs's header. Moved so far (gen_api.py's MOVED): unit.cs - its rows are gone from raw/,
-  its values are changed in the spec. A move: the rows' `was(...)` equal (spec_check), the generated names in place of
-  the hand-written wrappers, the rows and the `was` out, then the same game played with the DLL before and after.
+  the format: spec/attributes.cs's header. Moved so far: every object's fields (raw/fields.h is empty: a field is
+  changed in its class in spec/game/) and unit.cs's functions; the address rows (functions.h, hooks.h, data.h) and
+  game.cs next (gen_api.py's UNMOVED). Names: a class's C prefix is its C type without ee_, else `[c_prefix]` keeps
+  the one the C side had (cm_, asg_ ... - the player: the C types renamed to fit, later). The generated values
+  (of_unit_hp, fn_..., call_...) are game/api/'s only, as raw/'s were (layers.py). A move: the rows' `was(...)` equal
+  (spec_check), the generated names in place of the hand-written wrappers, the rows and the `was` out, then the same
+  game played with the DLL before and after - logs equal with the run-to-run heap addresses masked (and AoC's player
+  stock 0 and 1: memory it never sets).
 - What the mod knows of the game's code and objects lives in `dll/game/api/`. The raw rows, api/'s own, in `raw/`: `functions.h`
   (the functions the mod calls), `hooks.h` (what it patches to hook), `data.h` (the game's data), made a table by
   `tables.c` (with `fields.h`'s; the builds: `game/api/builds.h`) - `api.c` the module's one entry - by name with one value per exe build: `GA(G_WORLD_CLOCK)`,

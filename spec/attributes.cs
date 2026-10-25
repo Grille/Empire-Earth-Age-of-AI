@@ -87,11 +87,22 @@ public sealed class size : Attribute
 }
 
 // the class's C type where it isn't its name in C's spelling: classes the C side holds as one type (ee_unit for
-// RTSUnit, EEUnit and EEComplexUnit: unit_get_speed), and the C names that came before the spec (EEUnitGoal ee_goal)
-[AttributeUsage(AttributeTargets.Struct)]
+// RTSUnit, EEUnit and EEComplexUnit: unit_get_speed), and the C names that came before the spec (EEUnitGoal ee_goal);
+// "void" where the C side has no type for it yet (its accessors take void *). An enum's: the C enum that holds its
+// values (enum sm_player_spec)
+[AttributeUsage(AttributeTargets.Struct | AttributeTargets.Enum)]
 public sealed class c_type : Attribute
 {
     public c_type(string name) { }
+}
+
+// the C functions' prefix where it isn't the C type without ee_ (cm_get_build_mgr on ee_civ_mgr) - the names the
+// C side had before the spec, kept while it moves over (the player, 2026-10-25: the C types renamed to fit later);
+// "" for a static class whose functions keep names of their own (explored_by)
+[AttributeUsage(AttributeTargets.Struct | AttributeTargets.Class)]
+public sealed class c_prefix : Attribute
+{
+    public c_prefix(string name) { }
 }
 
 // HOW THE GAME CALLS IT

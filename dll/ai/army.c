@@ -70,7 +70,7 @@ internal void am_bld(void *um, int type, int *have, int *busy) {
 internal int am_wishes(ee_unit_mgr *um) {
     int n = 0;
     for (int i = 0; i < 14; i++) {
-        uint8_t *dq = um_requests_at(um, i);
+        uint8_t *dq = um_request_at(um, i);
         unsigned first = FIELD(dq, 0xC, unsigned), cnt = FIELD(dq, 0x10, unsigned), mapsz = FIELD(dq, 8, unsigned);
         int **map = FIELD(dq, 4, int **);
         for (unsigned k = 0; map && k < cnt && k < 512; k++) {
@@ -152,7 +152,7 @@ internal int navy_land(unsigned idx);   // navy.c
 // now and vis pays, else the strongest trainable that vis pays (substitute_soldier)
 internal int ap_type(ee_player *pl, unsigned idx, ee_unit_mgr *um, const int *vis) {
     for (int i = 0; i < 14; i++) {
-        uint8_t *dq = um_requests_at(um, i);
+        uint8_t *dq = um_request_at(um, i);
         unsigned first = FIELD(dq, 0xC, unsigned), cnt = FIELD(dq, 0x10, unsigned), mapsz = FIELD(dq, 8, unsigned);
         int **map = FIELD(dq, 4, int **);
         for (unsigned k = 0; map && k < cnt && k < 512; k++) {
@@ -309,7 +309,7 @@ internal void ap_owned(ee_player *pl, unsigned idx) {
     }
     ee_civ_mgr *cm = player_get_civ_mgr(pl); ee_unit_mgr *um = cm ? cm_get_unit_mgr(cm) : NULL;
     for (int i = 0; um && i < 14; i++) {
-        uint8_t *dq = um_requests_at(um, i);
+        uint8_t *dq = um_request_at(um, i);
         unsigned first = FIELD(dq, 0xC, unsigned), cnt = FIELD(dq, 0x10, unsigned), mapsz = FIELD(dq, 8, unsigned);
         int **map = FIELD(dq, 4, int **);
         for (unsigned k = 0; map && k < cnt && k < 512; k++) {

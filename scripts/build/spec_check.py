@@ -82,7 +82,7 @@ def check(path, rows):
             texts.append(re.sub(r'//.*', '', raw))
         elif depth == 1 and line.endswith(';'):
             name, in_static = kind
-            decl = re.sub(r'\[.*?\]', '', line)
+            decl = re.sub(r'@\w+', 'x', re.sub(r'\[.*?\]', '', line))   # @string: a name, not C#'s type
             func = '(' in decl
             if 'static' in decl.split() and not in_static:
                 errors.append('%s: %s is a class\'s struct - a static member (no object of its own) belongs in a '

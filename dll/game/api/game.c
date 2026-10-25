@@ -2,24 +2,12 @@
 // files), settings and tables, its memory, strings, actions, the simulation and the game's run.
 
 // THE SIMULATION ([G_WORLD_CLOCK], game_physics(): EEPhysics), THE WORLD ([G_WORLD])
-internal inline unsigned phys_get_seed(const ee_physics *ph) { return FIELD(ph, PHYS_SEED, unsigned); }       // +0x18 the game generator
-internal inline unsigned phys_get_step(const ee_physics *ph) { return FIELD(ph, PHYS_STEP, unsigned); }       // +0x80 steps done
-internal inline float phys_get_step_s(const ee_physics *ph) { return FIELD(ph, PHYS_STEP_S, float); }          // +0x8C a step's length (s)
-internal inline unsigned phys_get_steps_granted(const ee_physics *ph) { return FIELD(ph, PHYS_STEPS_GRANTED, unsigned); } // +0xB8 steps it may still run
-internal inline uint32_t phys_get_time(const ee_physics *ph) { return FIELD(ph, PHYS_TIME, uint32_t); }      // +0xD0 game time (ms)
-internal inline unsigned world_get_seed(const ee_world *w) { return FIELD(w, WORLD_SEED, unsigned); }        // +0x54 the map's seed
-internal inline void world_set_seed(ee_world *w, unsigned v) { FIELD(w, WORLD_SEED, unsigned) = v; }
-internal inline void *world_get_thread(const ee_world *w) { return FIELD(w, WORLD_THREAD, void *); }   // its thread (TSThread::Post)
 // the screenshot keys' request, posted to the UI thread: size -1 the screen, else the whole map size x size/2, the game
 // paused while it renders (run_on 0); the file is EE###.bmp in the game folder
 internal inline void world_screenshot(ee_world *w, int size, int run_on) { GF(FN_SCREENSHOT)(w, size, run_on, 0); }
 
 // THE GAME DATA ([G_GAME_DATA], game_data()): a chat line's time on screen (ms), the unit limits (default, most)
-internal inline int gamedata_get_line_ms(const ee_game_data *gd) { return FIELD(gd, GAMEDATA_LINE_MS, int); }
-internal inline int gamedata_get_unit_limit(const ee_game_data *gd) { return FIELD(gd, GAMEDATA_UNIT_LIMIT, int); }
-internal inline int gamedata_get_unit_limit_max(const ee_game_data *gd) { return FIELD(gd, GAMEDATA_UNIT_LIMIT_MAX, int); }
 // a damage model's map by state (FN_DAMAGE_POINTS' object)
-internal inline uint8_t *dmgmodel_map_at(const ee_dmg_model *model) { return (uint8_t *)FIELD_AT(model, DMGMODEL_MAP); }
 
 // THE GAME'S DATA (raw/data.h's G_ rows): its globals read through these, typed - NULL / 0 before they exist
 internal inline ee_map *game_map(void) { return *(ee_map **)GA(G_MAP); }                   // +0x1816FC its size in tiles
@@ -95,7 +83,7 @@ internal inline ee_player *game_player(int index) { return GF(FN_GAME_PLAYER)((v
 // transport; NULL unknown
 internal inline ee_unit *unit_by_id(unsigned id) {
     ee_unit *h = GF(FN_UNIT_BY_ID)((void *)GA(G_GAME_STATE), id);
-    return h ? FIELD(h, UNIT_PHYSICS, ee_unit *) : NULL;
+    return h ? FIELD(h, of_unit_physics, ee_unit *) : NULL;
 }
 // the stance of player index from towards to (the game's own change, with its message)
 internal inline void game_set_stance(int from, int to, int stance) { GF(FN_SET_STANCE)((void *)GA(G_GAME_STATE), from, to, stance); }

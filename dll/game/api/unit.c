@@ -3,42 +3,19 @@
 // unit_max_speed, unit_set_goal, patch_aim ...); here the rows not moved yet and the code of our own on top.
 
 // FIELDS
-internal inline int unit_get_refs(const ee_unit *u) { return FIELD(u, UNIT_REFS, int); }                 // +0x4 references (release 0x4FCAD3)
-internal inline void *unit_get_list_node(const ee_unit *u) { return FIELD(u, UNIT_LIST_NODE, void *); }       // +0x8 its node in the unit list {next, prev}
-internal inline ee_unit_vis *unit_get_vis(const ee_unit *u) { return FIELD(u, UNIT_VIS, ee_unit_vis *); }      // +0x14 visibility: +0xC a uint16 per player, seen
-internal inline int unit_get_x(const ee_unit *u) { return FIELD(u, UNIT_X, int); }                   // +0x1C tile x (-10000: off the map)
-internal inline int unit_get_y(const ee_unit *u) { return FIELD(u, UNIT_Y, int); }                   // +0x20 tile y
 internal inline ivec2 unit_get_tile(const ee_unit *u) { return iv2(unit_get_x(u), unit_get_y(u)); }
 // +0x24 its id: the player in bits 24..31 (a load message names its transport by it, unit_by_id finds it back) - the
 // test opponent keeps it beside the pointer, to tell a reused unit object from the one before
-internal inline int unit_get_serial(const ee_unit *u) { return FIELD(u, UNIT_SERIAL, int); }
-internal inline uint8_t unit_get_released(const ee_unit *u) { return FIELD(u, UNIT_RELEASED, uint8_t); }    // +0x2A back in the pool (vf12 sets it)
-internal inline uint8_t unit_get_valid(const ee_unit *u) { return FIELD(u, UNIT_VALID, uint8_t); }       // +0x2B mIsValid
-internal inline ee_unit_type *unit_get_type_data(const ee_unit *u) { return FIELD(u, UNIT_TYPE_DATA, ee_unit_type *); } // +0x2C its type's data (TD)
-internal inline ee_unit *unit_get_physics(const ee_unit *u) { return FIELD(u, UNIT_PHYSICS, ee_unit *); }  // +0x30 (the game's dump: physics) - a unit too
-internal inline ee_unit_stats *unit_get_stats(const ee_unit *u) { return FIELD(u, UNIT_STATS, ee_unit_stats *); }    // +0x34 its player's stats of the type (USTAT)
-internal inline int unit_get_resource(const ee_unit *u) { return FIELD(u, UNIT_RESOURCE, int); }            // +0x38 a resource site's resource
-internal inline int unit_get_hp(const ee_unit *u) { return FIELD(u, UNIT_HP, int); }                  // +0x3C hit points (> 0: alive)
-internal inline int unit_get_amount(const ee_unit *u) { return FIELD(u, UNIT_AMOUNT, int); }              // +0x40 a resource site's amount left
-internal inline int *unit_get_queue_begin(const ee_unit *u) { return FIELD(u, UNIT_QUEUE, int *); }      // +0x4C a building's queue
-internal inline int *unit_get_queue_end(const ee_unit *u) { return FIELD(u, UNIT_QUEUE + 0x4, int *); }        // +0x50
-internal inline int unit_get_id(const ee_unit *u) { return FIELD(u, UNIT_ID, int); }                  // +0x60 (lookup 0x4111F6)
+internal inline int *unit_get_queue_end(const ee_unit *u) { return FIELD(u, of_unit_queue_begin + 0x4, int *); }        // +0x50
 // +0x68: not known - the AI's gatherer checks (econ.c, food.c) pass over a citizen where it is set
-internal inline int unit_get_busy(const ee_unit *u) { return FIELD(u, UNIT_BUSY, int); }
 // its facing (the local y axis) and position in tiles: a column of its matrix each, its parts not side by side,
 // gathered into one value
 internal inline vec3 unit_get_facing(const ee_unit *u) { return v3(unit_get_matrix(u, 1), unit_get_matrix(u, 5), unit_get_matrix(u, 9)); }
 internal inline vec3 unit_get_pos(const ee_unit *u) { return v3(unit_get_matrix(u, 3), unit_get_matrix(u, 7), unit_get_matrix(u, 11)); }
-internal inline ee_unit_type *unit_get_attacker_type(const ee_unit *u) { return FIELD(u, UNIT_ATTACKER_TYPE, ee_unit_type *); } // +0x1C0 a projectile's: the attack's type data
 // +0x1CC: the next of a chain from +0x30 - its last is what a BuildRepair goal holds (0x60BAD0)
-internal inline ee_unit *unit_get_chain(const ee_unit *u) { return FIELD(u, UNIT_CHAIN, ee_unit *); }
-internal inline void *unit_get_holder(const ee_unit *u) { return FIELD(u, UNIT_HOLDER, void *); }   // +0x1D8 set while inside a transport or building (EEUCTransport::vf63: none may board)
-internal inline ee_ai_state *unit_get_ai_state(const ee_unit *u) { return FIELD(u, UNIT_AI_STATE, ee_ai_state *); } // +0x1E8 its script state (AISTATE)
 // the state's id (the .tai state names' numbers: Idle 5000, WaitForPassengers 12010 ... - engine-notes.md), 0 without one
-internal inline unsigned unit_ai_state_id(const ee_unit *u) { ee_ai_state *s = unit_get_ai_state(u); return s ? FIELD(s, AISTATE_ID, unsigned) : 0; }
-internal inline ee_goal *unit_get_goal(const ee_unit *u) { return FIELD(u, UNIT_GOAL, ee_goal *); }   // +0x1EC its goal (GOAL)
+internal inline unsigned unit_ai_state_id(const ee_unit *u) { ee_ai_state *s = unit_get_ai_state(u); return s ? FIELD(s, of_ai_state_id, unsigned) : 0; }
 // +0x2E0 a ship's mode against a tile's tile_get_sea_class (0, 3 ... - a guess: its draught)
-internal inline int unit_get_sea_mode(const ee_unit *u) { return FIELD(u, UNIT_SEA_MODE, int); }
 // its waypoint i (0 the current) into pt[3] - the deque's element as the game's own accessor (0x5E80BE) finds it: 0,
 // else it has no such
 internal inline int unit_waypoint_at(ee_unit *u, int i, float *pt) {
@@ -60,24 +37,7 @@ internal inline int unit_set_waypoint_at(ee_unit *u, int i, float x, float y) {
     e[0] = x; e[1] = y;
     return 0;
 }
-internal inline ee_goal *unit_get_goal_object(const ee_unit *u) { return FIELD(u, UNIT_GOAL_OBJECT, ee_goal *); } // +0x1F0 the goal object (0x5ED24B casts it)
-internal inline void *unit_get_behaviour(const ee_unit *u) { return FIELD(u, UNIT_BEHAVIOUR, void *); }    // +0x208 its behaviour (behaviour_table())
-internal inline void unit_set_behaviour(ee_unit *u, void *b) { FIELD(u, UNIT_BEHAVIOUR, void *) = b; }
-internal inline float unit_get_turn_rate(const ee_unit *u) { return FIELD(u, UNIT_TURN_RATE, float); }  // +0x17C radians/s, signed
-internal inline int unit_get_moving(const ee_unit *u) { return FIELD(u, UNIT_MOVING, int); }            // +0x2D8 set while it moves
-internal inline int unit_get_move_mode(const ee_unit *u) { return FIELD(u, UNIT_MOVE_MODE, int); }      // +0x264 the movement mode
-internal inline void unit_set_move_mode(ee_unit *u, int m) { FIELD(u, UNIT_MOVE_MODE, int) = m; }
-internal inline vec2 unit_get_push(const ee_unit *u) { return FIELD(u, UNIT_PUSH, vec2); }              // +0x230 the push velocity (tiles/s)
-internal inline void unit_set_push(ee_unit *u, vec2 v) { FIELD(u, UNIT_PUSH, vec2) = v; }
-internal inline int unit_get_producing(const ee_unit *u) { return FIELD(u, UNIT_PRODUCING, int); }          // +0x25C what a building makes now
-internal inline int unit_get_flight_ms(const ee_unit *u) { return FIELD(u, UNIT_FLIGHT_MS, int); }          // +0x28C a missile's climb left (ms)
-internal inline int unit_get_reload(const ee_unit *u) { return FIELD(u, UNIT_RELOAD, int); }            // +0x2A0 its own reload (ms, 0: its class's)
-internal inline int unit_get_room(const ee_unit *u) { return FIELD(u, UNIT_ROOM, int); }                // +0x2A4 a transport's room left (EEUGLoadTransport::vf34; full below 1)
-internal inline uint8_t unit_get_frozen(const ee_unit *u) { return FIELD(u, UNIT_FROZEN, uint8_t); }     // +0x33B frozen (the scenario effect)
-internal inline uint8_t unit_get_at_work(const ee_unit *u) { return FIELD(u, UNIT_AT_WORK, uint8_t); }  // +0x347 at work (the contact test passes it on a kind 6 / 4 goal)
-internal inline uint8_t unit_get_finished(const ee_unit *u) { return FIELD(u, UNIT_FINISHED, uint8_t); }   // +0x340 on a building's +0x30: built
 // +0x341: held by the AI (EEComputerPlayer vf19 sets it; cleared when the AI takes the unit for an attack)
-internal inline uint8_t unit_get_ai_held(const ee_unit *u) { return FIELD(u, UNIT_AI_HELD, uint8_t); }
 
 // FUNCTIONS
 // its acceleration and top turn rate (radians/s) as its movement uses them (its group's with the group speed on:
@@ -106,7 +66,7 @@ internal inline char ballistic(ee_unit *u, ee_unit_stats *type, float *from, flo
     return GF(FN_BALLISTIC)(u, type, from, to, pitch);
 }
 // is the map object explored by pl (a site's +0x14: its map object)
-internal inline char explored_by(ee_unit *site, ee_player *pl) { return GF(FN_EXPLORED)(FIELD(site, UNIT_VIS, void *), pl); }
+internal inline char explored_by(ee_unit *site, ee_player *pl) { return GF(FN_EXPLORED)(FIELD(site, of_unit_vis, void *), pl); }
 
 // the unit's script state set (SetState: its .tai state by id - engine-notes.md "Unit AI scripts"; entered, it runs once):
 // 8000 PrepareToMove after every order, 5000 Idle, 0x1F51 MoveToRepairSite (the game's builder order)

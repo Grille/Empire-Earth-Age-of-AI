@@ -253,13 +253,22 @@ def main():
     for f in glob.glob(os.path.join(DLL, 'dinput', '*.c')):
         for inc in re.findall(r'#include\s+"([^"]+)"', open(f, encoding='latin-1').read()):
             if inc not in ('../base/headless_win.c', '../base/lang.h'): bad.append('dinput/%s includes %s' % (os.path.basename(f), inc))
-    # game/api/raw/ only inside game/api/
+    # game/api/raw/ only inside game/api/; the variables of the spec's C too (its accessors are for everyone)
+    gen_values = set()
+    for f in glob.glob(os.path.join(DLL, 'game', 'api', 'gen', '*.c')):
+        gen_values |= set(re.findall(r'^internal (?!inline)[\w ]+?\b(\w+)(?:\[\d+\])?;', open(f, encoding='latin-1').read(), re.M))
     for u in sorted(edges):
         if u.startswith('game/api/'): continue
         for d, ns in sorted(edges[u].items()):
             if d.startswith('game/api/raw/'):
                 bad.append('%s uses %s of %s - game/api/raw/ only inside game/api/: an accessor, wrapper or installer in '
                            'the object\'s file of game/api/' % (u, ', '.join(sorted(ns)), d))
+            # the spec's C: its values (of_unit_hp, fn_unit_max_speed, slot_, call_, vt_, size_) are game/api/'s as raw/'s
+            # were - outside it the accessors, wrappers and installers (unit_get_hp, unit_max_speed, patch_aim)
+            raw_names = sorted(n for n in ns if n in gen_values)
+            if d.startswith('game/api/gen/') and raw_names:
+                bad.append('%s uses %s of %s - the spec\'s values only inside game/api/: an accessor, wrapper or installer'
+                           % (u, ', '.join(raw_names), d))
     stale = [e for e in EXCEPTIONS if (e[0], e[1], e[2]) not in used]
     for b in bad: print('layers: ' + b)
     for e in stale: print('layers: exception no longer needed: %s -> %s (%s) - take it out of scripts/build/layers.py' % e[:3])

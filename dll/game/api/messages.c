@@ -1,49 +1,29 @@
 // THE MESSAGES (the commands players send each other) AND THE LOCKSTEP SERVER: fields, functions, hooks.
 
 // FIELDS
-internal inline unsigned server_get_sent(const ee_server *srv) { return FIELD(srv, SERVER_SENT, unsigned); }  // +0x10 / +0x190 sent / done
-internal inline unsigned server_get_done(const ee_server *srv) { return FIELD(srv, SERVER_DONE, unsigned); }
-internal inline LONG server_get_waiting(const ee_server *srv) { return FIELD(srv, SERVER_WAITING, LONG); }     // +0x94 messages waiting
+internal inline LONG server_get_waiting(const ee_server *srv) { return FIELD(srv, of_server_waiting, LONG); }     // +0x94 messages waiting
 // +0x1B4 / +0x1B8 the steps a second at most / at least, +0x1FB its current pace
-internal inline unsigned server_get_rate_max(const ee_server *srv) { return FIELD(srv, SERVER_RATE_MAX, unsigned); }
-internal inline void server_set_rate_max(ee_server *srv, unsigned v) { FIELD(srv, SERVER_RATE_MAX, unsigned) = v; }
-internal inline unsigned server_get_rate_min(const ee_server *srv) { return FIELD(srv, SERVER_RATE_MIN, unsigned); }
-internal inline void server_set_rate_min(ee_server *srv, unsigned v) { FIELD(srv, SERVER_RATE_MIN, unsigned) = v; }
-internal inline uint8_t server_get_rate(const ee_server *srv) { return FIELD(srv, SERVER_RATE, uint8_t); }
 
 // MESSAGES (the commands players send each other through the server): the sender's message id at +0xA (every
 // message's, the chat message's row)
-internal inline int8_t msg_get_from(const ee_msg *msg) { return (int8_t)FIELD(msg, MSG_CHAT_FROM, uint8_t); }
+internal inline int8_t msg_get_from(const ee_msg *msg) { return (int8_t)FIELD(msg, of_chat_msg_from, uint8_t); }
 // a tribute (EEMPayTribute): food +0x10, gold +0x14, iron +0x18, stone +0x1C, wood +0x20; to player +0x24
-internal inline int tribute_get_food(const ee_msg *msg) { return FIELD(msg, MSG_TRIBUTE_FOOD, int); }
-internal inline int tribute_get_gold(const ee_msg *msg) { return FIELD(msg, MSG_TRIBUTE_GOLD, int); }
-internal inline int tribute_get_iron(const ee_msg *msg) { return FIELD(msg, MSG_TRIBUTE_IRON, int); }
-internal inline int tribute_get_stone(const ee_msg *msg) { return FIELD(msg, MSG_TRIBUTE_STONE, int); }
-internal inline int tribute_get_wood(const ee_msg *msg) { return FIELD(msg, MSG_TRIBUTE_WOOD, int); }
-internal inline uint8_t tribute_get_to(const ee_msg *msg) { return FIELD(msg, MSG_TRIBUTE_TO, uint8_t); }
 // a chat line (EEMInGameChat): its text, a UString at +0x10 (the characters at its +4)
-internal inline const char *chat_msg_get_text(const ee_msg *msg) { return FIELD(FIELD_AT(msg, MSG_CHAT_TEXT), 4, const char *); }
+internal inline const char *chat_msg_get_text(const ee_msg *msg) { return FIELD(FIELD_AT(msg, of_chat_msg_text), 4, const char *); }
 // a selection (EEMSelectUnits): the selection +0x10 (player_select), its unit ids +0x14 .. +0x18, +0x134 a flag
-internal inline uint8_t *select_msg_selection_at(const ee_msg *msg) { return (uint8_t *)FIELD_AT(msg, MSG_SELECT_SELECTION); }
-internal inline uint32_t *select_msg_get_ids_begin(const ee_msg *msg) { return FIELD(msg, MSG_SELECT_IDS, uint32_t *); }
-internal inline uint32_t *select_msg_get_ids_end(const ee_msg *msg) { return FIELD(msg, MSG_SELECT_IDS + 0x4, uint32_t *); }
-internal inline uint8_t select_msg_get_flag(const ee_msg *msg) { return FIELD(msg, MSG_SELECT_FLAG, uint8_t); }
+internal inline uint32_t *select_msg_get_ids_end(const ee_msg *msg) { return FIELD(msg, of_select_msg_ids_begin + 0x4, uint32_t *); }
 // a load into a transport (EEMLoadTransport): the transport's id +0x10, a unit's +0x14 (-1: the player's selection)
-internal inline unsigned load_msg_get_transport(const ee_msg *msg) { return FIELD(msg, MSG_LOAD_TRANSPORT, unsigned); }
-internal inline int load_msg_get_unit(const ee_msg *msg) { return FIELD(msg, MSG_LOAD_UNIT, int); }
 // an unload (EEMUnloadTransport): the tile clicked +0x14, +0x18 (the selected transports' unload point)
-internal inline int unload_msg_get_x(const ee_msg *msg) { return FIELD(msg, MSG_UNLOAD_X, int); }
-internal inline int unload_msg_get_y(const ee_msg *msg) { return FIELD(msg, MSG_UNLOAD_Y, int); }
 // the two made by hand in zeroed memory, the fields their Executes read (transports.c's test: executed, never sent; from: the sender's player_get_msg_id)
 internal inline void load_msg_make(ee_msg *msg, int from, unsigned transport, int unit) {
-    FIELD(msg, MSG_CHAT_FROM, uint8_t) = (uint8_t)from;
-    FIELD(msg, MSG_LOAD_TRANSPORT, unsigned) = transport;
-    FIELD(msg, MSG_LOAD_UNIT, int) = unit;
+    FIELD(msg, of_chat_msg_from, uint8_t) = (uint8_t)from;
+    FIELD(msg, of_load_msg_transport, unsigned) = transport;
+    FIELD(msg, of_load_msg_unit, int) = unit;
 }
 internal inline void unload_msg_make(ee_msg *msg, int from, int x, int y) {
-    FIELD(msg, MSG_CHAT_FROM, uint8_t) = (uint8_t)from;
-    FIELD(msg, MSG_UNLOAD_X, int) = x;
-    FIELD(msg, MSG_UNLOAD_Y, int) = y;
+    FIELD(msg, of_chat_msg_from, uint8_t) = (uint8_t)from;
+    FIELD(msg, of_unload_msg_x, int) = x;
+    FIELD(msg, of_unload_msg_y, int) = y;
 }
 // a move (EEMPathTo, the right-click's; vtable 0x824D84, 0x20 bytes): the target +0x14, +0x18 (floats), +0x10 the
 // facing of a drag, +0x1C / +0x1D the move goal's +0x30 / +0x31 (1, 1 for a plain click), +0x1E queued (shift),
@@ -52,17 +32,15 @@ internal inline void unload_msg_make(ee_msg *msg, int from, int x, int y) {
 // of each its type's - a plain click sends 0. The Execute splits the selection into a group per kind and hands each
 // the move.
 internal inline void path_msg_make(ee_msg *msg, int from, float x, float y, int together, int queued) {
-    FIELD(msg, MSG_CHAT_FROM, uint8_t) = (uint8_t)from;
-    FIELD(msg, MSG_PATH_X, float) = x;
-    FIELD(msg, MSG_PATH_Y, float) = y;
-    FIELD(msg, MSG_PATH_GOAL_30, uint8_t) = 1;
-    FIELD(msg, MSG_PATH_GOAL_31, uint8_t) = 1;
-    FIELD(msg, MSG_PATH_QUEUED, uint8_t) = (uint8_t)queued;
-    FIELD(msg, MSG_PATH_TOGETHER, uint8_t) = (uint8_t)together;
+    FIELD(msg, of_chat_msg_from, uint8_t) = (uint8_t)from;
+    FIELD(msg, of_path_msg_x, float) = x;
+    FIELD(msg, of_path_msg_y, float) = y;
+    FIELD(msg, of_path_msg_goal_30, uint8_t) = 1;
+    FIELD(msg, of_path_msg_goal_31, uint8_t) = 1;
+    FIELD(msg, of_path_msg_queued, uint8_t) = (uint8_t)queued;
+    FIELD(msg, of_path_msg_together, uint8_t) = (uint8_t)together;
 }
 // the game start (EEMStartLoading): +0x14 the game's seed
-internal inline unsigned start_msg_get_seed(const ee_msg *msg) { return FIELD(msg, MSG_START_SEED, unsigned); }
-internal inline void start_msg_set_seed(ee_msg *msg, unsigned v) { FIELD(msg, MSG_START_SEED, unsigned) = v; }
 
 // FUNCTIONS
 // the network messages: executed (the originals of diplo.c's hooks), a chat line built in mem, one sent to everyone

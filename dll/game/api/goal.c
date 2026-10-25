@@ -2,42 +2,37 @@
 
 // FIELDS: a unit's +0x1EC; the kind by its vtable (goal_is_attack(g) ...), the fields of each kind from +0x20 on
 // (GOAL_ARGS) its own
-internal inline uint8_t goal_get_state(const ee_goal *g) { return FIELD(g, GOAL_STATE, uint8_t); }        // +0x5 (aim.c: 2 while it attacks)
-internal inline void *goal_get_0x38(const ee_goal *g) { return FIELD(g, GOAL_0x38, void *); }          // +0x38 a kind 6 goal's target
-internal inline void *goal_get_0x3c(const ee_goal *g) { return FIELD(g, GOAL_0x3C, void *); }          // +0x3C a kind 4 goal's target
 // a move goal (goal_is_location): where to
-internal inline float goal_get_dest_x(const ee_goal *g) { return FIELD(g, GOAL_ARGS, float); }         // +0x20
-internal inline float goal_get_dest_y(const ee_goal *g) { return FIELD(g, GOAL_ARGS + 0x4, float); }         // +0x24
+internal inline float goal_get_dest_y(const ee_goal *g) { return FIELD(g, of_goal_dest_x + 0x4, float); }         // +0x24
 // an attack goal (goal_is_attack): the unit it attacks
-internal inline ee_unit *goal_get_target(const ee_goal *g) { return FIELD(g, GOAL_ARGS + 0x10, ee_unit *); }   // +0x30
+internal inline ee_unit *goal_get_target(const ee_goal *g) { return FIELD(g, of_goal_dest_x + 0x10, ee_unit *); }   // +0x30
 // a gather goal (EEUGGather): the resource site
-internal inline ee_unit *goal_get_site(const ee_goal *g) { return FIELD(g, GOAL_ARGS + 0x18, ee_unit *); }     // +0x38
+internal inline ee_unit *goal_get_site(const ee_goal *g) { return FIELD(g, of_goal_dest_x + 0x18, ee_unit *); }     // +0x38
 // a build or repair goal (EEUGBuildRepair, goal_is_build): the building
-internal inline ee_unit *goal_get_building(const ee_goal *g) { return FIELD(g, GOAL_ARGS + 0x1C, ee_unit *); } // +0x3C
+internal inline ee_unit *goal_get_building(const ee_goal *g) { return FIELD(g, of_goal_dest_x + 0x1C, ee_unit *); } // +0x3C
 // a load goal (goal_is_load): the transport or building to board
-internal inline ee_unit *goal_get_holder(const ee_goal *g) { return FIELD(g, GOAL_HOLDER, ee_unit *); }   // +0x50
 // a load goal: the passengers still to come (a std::vector at +0x20: begin +0x28, end +0x2C) - NoMoreLoadableUnitsToPickUp
 // counts them, a passenger leaves it by boarding, by a new order or by CannotReachContainer
-internal inline ee_unit **goal_get_pending_begin(const ee_goal *g) { return FIELD(g, GOAL_ARGS + 0x8, ee_unit **); }
-internal inline ee_unit **goal_get_pending_end(const ee_goal *g) { return FIELD(g, GOAL_ARGS + 0xC, ee_unit **); }
+internal inline ee_unit **goal_get_pending_begin(const ee_goal *g) { return FIELD(g, of_goal_dest_x + 0x8, ee_unit **); }
+internal inline ee_unit **goal_get_pending_end(const ee_goal *g) { return FIELD(g, of_goal_dest_x + 0xC, ee_unit **); }
 // a load goal's meeting point, tiles: the transport's +0x54, its passengers' +0x5C - set by its constructor (the
 // transport class's vf56: EEUCNavalTransport's toward the first passenger), read by HaveReachedRendezvousPoint
 internal inline void goal_set_meeting(ee_goal *g, int sx, int sy, int px, int py) {
-    FIELD(g, GOAL_ARGS + 0x34, int) = sx; FIELD(g, GOAL_ARGS + 0x38, int) = sy;
-    FIELD(g, GOAL_ARGS + 0x3C, int) = px; FIELD(g, GOAL_ARGS + 0x40, int) = py;
+    FIELD(g, of_goal_dest_x + 0x34, int) = sx; FIELD(g, of_goal_dest_x + 0x38, int) = sy;
+    FIELD(g, of_goal_dest_x + 0x3C, int) = px; FIELD(g, of_goal_dest_x + 0x40, int) = py;
 }
-internal inline int goal_get_meeting_ship_x(const ee_goal *g) { return FIELD(g, GOAL_ARGS + 0x34, int); }
-internal inline int goal_get_meeting_ship_y(const ee_goal *g) { return FIELD(g, GOAL_ARGS + 0x38, int); }
-internal inline int goal_get_meeting_x(const ee_goal *g) { return FIELD(g, GOAL_ARGS + 0x3C, int); }
-internal inline int goal_get_meeting_y(const ee_goal *g) { return FIELD(g, GOAL_ARGS + 0x40, int); }
+internal inline int goal_get_meeting_ship_x(const ee_goal *g) { return FIELD(g, of_goal_dest_x + 0x34, int); }
+internal inline int goal_get_meeting_ship_y(const ee_goal *g) { return FIELD(g, of_goal_dest_x + 0x38, int); }
+internal inline int goal_get_meeting_x(const ee_goal *g) { return FIELD(g, of_goal_dest_x + 0x3C, int); }
+internal inline int goal_get_meeting_y(const ee_goal *g) { return FIELD(g, of_goal_dest_x + 0x40, int); }
 // an unload goal (goal_is_unload): the water tiles +0x24 / +0x2C, the point to unload at +0x34, the reach (squared)
-internal inline int goal_get_water_x(const ee_goal *g) { return FIELD(g, GOAL_ARGS + 0x4, int); }
-internal inline int goal_get_water_y(const ee_goal *g) { return FIELD(g, GOAL_ARGS + 0x8, int); }
-internal inline int goal_get_water2_x(const ee_goal *g) { return FIELD(g, GOAL_ARGS + 0xC, int); }
-internal inline int goal_get_water2_y(const ee_goal *g) { return FIELD(g, GOAL_ARGS + 0x10, int); }
-internal inline int goal_get_unload_x(const ee_goal *g) { return FIELD(g, GOAL_ARGS + 0x14, int); }
-internal inline int goal_get_unload_y(const ee_goal *g) { return FIELD(g, GOAL_ARGS + 0x18, int); }
-internal inline float goal_get_reach_sq(const ee_goal *g) { return FIELD(g, GOAL_ARGS + 0x1C, float); }
+internal inline int goal_get_water_x(const ee_goal *g) { return FIELD(g, of_goal_dest_x + 0x4, int); }
+internal inline int goal_get_water_y(const ee_goal *g) { return FIELD(g, of_goal_dest_x + 0x8, int); }
+internal inline int goal_get_water2_x(const ee_goal *g) { return FIELD(g, of_goal_dest_x + 0xC, int); }
+internal inline int goal_get_water2_y(const ee_goal *g) { return FIELD(g, of_goal_dest_x + 0x10, int); }
+internal inline int goal_get_unload_x(const ee_goal *g) { return FIELD(g, of_goal_dest_x + 0x14, int); }
+internal inline int goal_get_unload_y(const ee_goal *g) { return FIELD(g, of_goal_dest_x + 0x18, int); }
+internal inline float goal_get_reach_sq(const ee_goal *g) { return FIELD(g, of_goal_dest_x + 0x1C, float); }
 
 // FUNCTIONS
 // where the goal sends unit u (its vtable: PrepareToMove asks it before the route request)
