@@ -218,41 +218,33 @@ internal void __thiscall hook_formation_slots(void *f, void *group, void *slots)
         g_fo_order[i] = i;
     }
     mean = vec2_scale(mean, 1.0f / (float)n);
-    // the game's slots as they were: its front row on the clicked point and the rest behind, turned the way the mouse
-    // was dragged with the right button - the way to face; a circle's facings are taken from its nearest one
+    // the game's slots as they were: its front row on the clicked point and the rest behind; a circle's facings are
+    // taken from its nearest one
     static vec2 game_at[FO_MAX];
     static uint32_t game_facing[FO_MAX];
-    vec2 game_mid = v2(0, 0);
     for (int i = 0; i < n; i++) {
         void *s = formation_slot(slots, i);
         vec3 p = fslot_get_pos(s);
         game_at[i] = v2(p.x, p.y);
         game_facing[i] = fslot_get_facing(s);
-        game_mid = vec2_add(game_mid, game_at[i]);
     }
-    game_mid = vec2_scale(game_mid, 1.0f / (float)n);
-    // A click without a drag gives the facing of a drag of no length, 0: the game's slots face +y exactly - then the way
-    // from the group to the point
-    vec2 to = vec2_sub(c, mean), fwd = vec2_sub(c, game_mid);
-    float len = vec2_len(fwd);
-    int undirected;
-    if (len > 0.3f) {
-        fwd = vec2_scale(fwd, 1.0f / len);
-        undirected = fabsf(fwd.x) < 0.01f && fwd.y > 0;
-    } else {   // one row: across its line, on the side the group comes from
-        vec2 line = vec2_sub(game_at[n - 1], game_at[0]);
-        float ll = vec2_len(line);
-        fwd = ll > 0.01f ? v2(-line.y / ll, line.x / ll) : v2(0, 1);
-        if (vec2_dot(fwd, to) < 0) fwd = vec2_scale(fwd, -1.0f);
-        undirected = ll <= 0.01f || fabsf(line.y) < 0.01f * ll;
-    }
+    // The way to face: the slots' facing, the angle of the right-button drag (a float, atan2(-dx, dy): 0 faces +y) - not
+    // the clicked point less the slots' middle, which the long line's 10 columns put half a column aside (its row was
+    // turned across the move). A click gives a drag of no length, 0: then the way from the group to the point
+    float facing;
+    memcpy(&facing, &game_facing[0], sizeof facing);
+    const float PI = 3.14159265f;
+    float ang = facing + PI / 2;   // the facing's direction (-sin, cos) as an angle from +x
+    while (ang < 0) ang += 2 * PI;
+    while (ang >= 2 * PI) ang -= 2 * PI;
+    vec2 to = vec2_sub(c, mean), fwd = facing == 0 ? v2(0, 1) : fo_dir(ang);
     // the game's own front row (lines): its slots ahead along the way it laid them out, before a click's direction
     int front = 0;
     float most = -1e30f;
-    for (int i = 0; i < n; i++) { float a = vec2_dot(game_at[i], fwd); if (a > most) most = a; }
+    for (int i = 0; i < n; i++) { float d = vec2_dot(game_at[i], fwd); if (d > most) most = d; }
     for (int i = 0; i < n; i++) if (vec2_dot(game_at[i], fwd) > most - 0.3f) front++;
     float tl = vec2_len(to);
-    if (undirected) fwd = tl > 0.5f ? vec2_scale(to, 1.0f / tl) : v2(0, 1);
+    if (facing == 0) fwd = tl > 0.5f ? vec2_scale(to, 1.0f / tl) : v2(0, 1);
     vec2 right = v2(fwd.y, -fwd.x);
     for (int i = 0; i < n; i++) {
         vec2 d = vec2_sub(g_fo[i].p, mean);
