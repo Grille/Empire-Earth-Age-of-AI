@@ -71,7 +71,8 @@ internal void fm_sample(char *out, int quiet) {
     int hist_c[16];
     float dist = 0, off = 0, off_most = 0;
     static float dists[FM_MAX];
-    int n_off = 0, pairs = 0;
+    int n_off = 0, pairs = 0, n_pt = 0;
+    float pt_off = 0, pt_most = 0;
     int nd = 0;
     for (int i = 0; i < g_fm_n; i++) {
         struct fm_unit *f = &g_fm[i];
@@ -90,6 +91,8 @@ internal void fm_sample(char *out, int quiet) {
             n_off++;
             if (o > off_most) off_most = o;
         }
+        float po = ff_point_off(u);   // off its point in the marching formation
+        if (po >= 0) { pt_off += po; n_pt++; if (po > pt_most) pt_most = po; }
         for (int j = 0; j < i; j++) {   // pairs of the order closer than 3/4 of their sizes' mean
             ee_unit *w = unit_by_id(g_fm[j].id);
             if (!w || unit_get_hp(w) <= 0) continue;
@@ -122,7 +125,8 @@ internal void fm_sample(char *out, int quiet) {
           t, moving, standing, creeping, done, gone, alive ? dist / (float)alive : 0.0f, nd ? dists[nd / 2] : 0.0f, nd ? dists[nd * 9 / 10] : 0.0f,
           nd ? dists[nd - 1] : 0.0f, nd ? dists[nd * 19 / 20] - dists[nd / 20] : 0.0f);
     for (int k = 0; k < hist_n; k++) REPLY(" %u:%d", hist_id[k], hist_c[k]);
-    REPLY(", off the formation spots %.2f (most %.2f), %d pairs within 3/4 of their size\n", n_off ? off / (float)n_off : 0.0f, off_most, pairs);
+    REPLY(", off the formation spots %.2f (most %.2f), %d pairs within 3/4 of their size, %d marching off their points %.2f (most %.2f)\n", n_off ? off / (float)n_off : 0.0f,
+          off_most, pairs, n_pt, n_pt ? pt_off / (float)n_pt : 0.0f, pt_most);
 }
 
 // pipe `fmove go P x y r tx ty [together [facing]]`: P's units within r tiles of x, y (no buildings) selected and sent to tx, ty
