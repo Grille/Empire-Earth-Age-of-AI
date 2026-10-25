@@ -122,7 +122,9 @@ worked out, as before.
 ## Objects
 
 The game's things are objects, each of a kind: a value (`p.towers`) or a method (`p.opinion(q)`) by name. Its text
-is its name (`"{p}"`), it equals only itself (`game.players[2] == player(2)`).
+is its name (`"{p}"`), it equals only itself (`game.players[2] == player(2)`). Every kind's members with their types,
+arguments and docs: `lang/player.cs`, `game.cs`, `slot.cs` (the language's objects declared once, as C#: the check and
+the README read them).
 
 | Kind | |
 |---|---|

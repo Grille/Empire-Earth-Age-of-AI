@@ -1,0 +1,15 @@
+<!-- The language's objects as a C# project: for the editor (go to definition, names and types checked) and dotnet
+     build, which checks the files compile. Nothing of it runs; its build output goes to local/work/lang
+     (Directory.Build.props). -->
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Library</OutputType>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- CS8981: lower-case type names, the language's (player, text); CS0169 / CS0649 / CS8618: fields never used, set
+         or initialised - the declarations describe, nothing reads them -->
+    <NoWarn>CS8981;CS0169;CS0649;CS8618;IDE0380</NoWarn>
+  </PropertyGroup>
+</Project>

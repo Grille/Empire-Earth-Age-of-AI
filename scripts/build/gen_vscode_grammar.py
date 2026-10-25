@@ -1,7 +1,7 @@
 """Writes extensions/eeaimod-texts/syntaxes/eeai.tmLanguage.json - the highlighting of the aimod_ai\\*.eeai files
 (personalities, mod/computer.eeai, mod/prompt.eeai, mod/system.eeai; the format: dll/script/expr.c THE TEXT FILES) and of the setup scripts
 (tests/scenarios/*.eeai, tests/probes/*.eeai: docs/scripts.md - statements, functions, the commands) - with the names the DLL knows,
-read from its sources: the game's values (diplo.c k_xmembers, k_xglobals), the epochs and functions (expr.c), the situations,
+read from its sources: the game's values (lang/player.cs, names.cs, game.cs), the epochs and functions (expr.c), the situations,
 traits and decisions (persona.c), the system and prompt keys (texts.c, texts_prompt.h), the style keys (settings.c). A key the DLL
 doesn't know in its record shows as an error. Run it after changing one of them, then scripts/build/pack_vscode.py:
 local/venv/Scripts/python.exe scripts/build/gen_vscode_grammar.py"""
@@ -9,23 +9,21 @@ import json
 import glob
 import os
 import re
+import lang_read
 
 root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 def src(name):
     return open(glob.glob(os.path.join(root, 'dll', '**', name), recursive=True)[0], encoding='latin-1').read()   # dll/<folder>/<name>
 
-diplo, expr, persona, texts, tpl, settings = (src(n) for n in ('diplo.c', 'expr.c', 'persona.c', 'texts.c', 'texts_prompt.h', 'settings.c'))
-diplo += src('relations.c')   # the players' values and relations in the texts
+expr, persona, texts, tpl, settings = (src(n) for n in ('expr.c', 'persona.c', 'texts.c', 'texts_prompt.h', 'settings.c'))
 expr += src('constants.c')   # the game's constants (epoch., resource. ...) in the texts
 persona += src('players.c')   # the player colours (game/players.c)
-def xtable(name):   # diplo.c k_xmembers / k_xglobals: (name, kind)
-    body = re.search(r'internal const struct xmember %s\[\] = \{(.*?)\n\};' % name, diplo, re.S).group(1)
-    return re.findall(r'\{ "(\w+)", (XM_\w+),', body)
-members = xtable('k_xmembers')
-globals_ = [n for n, k in xtable('k_xglobals')]
+lang = lang_read.read_all()   # the players' values and relations, the texts' own names, the game's members (lang/)
+members = [(m.name, lang_read.xm_kind(m)) for m in lang['player'].members]
+globals_ = [m.name for m in lang['names'].members]
 member_names = [n for n, k in members if k not in ('XM_REL', 'XM_FILTER', 'XM_DO')]
 relations = [n for n, k in members if k in ('XM_REL', 'XM_FILTER', 'XM_DO')]   # called: A.kills(B), A.count(kind.towers), p.win()
-game_members = re.findall(r'\{ "(\w+)", ', re.search(r'k_xk_game\[\] = \{(.*?)\n\};', diplo, re.S).group(1))   # game.time ...
+game_members = [m.name for m in lang['game'].members]   # game.time ...
 # without a player: the globals (opinion, at_war, allied among them: mine with them), my epoch and traits (me.)
 bare = globals_ + ['epoch'] + \
        [n for n, k in members if k == 'XM_PLAYER' and n in ('aggression', 'loyalty', 'pride', 'greed', 'forgiveness', 'caution', 'talk', 'allies', 'enemies')]

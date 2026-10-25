@@ -1,11 +1,12 @@
 """Fills the generated tables of config/aimod_ai/README.md from the DLL's sources - the situations (persona.c k_lines,
-line_fallback; their descriptions: mod/prompt.eeai sit_<key>), the game's values (diplo.c k_xmembers, k_xglobals), the epochs (expr.c
+line_fallback; their descriptions: mod/prompt.eeai sit_<key>), the game's values (lang/player.cs, names.cs), the epochs (expr.c
 k_epoch_const), the style keys (settings.c k_style_keys) - between its <!-- name: ... --> and <!-- /name --> markers.
 Run it after changing one of them: local/venv/Scripts/python.exe scripts/build/gen_eeai_readme.py"""
 import glob
 import os
 import re
 from eeai_prompt import prompt_texts
+import lang_read
 
 root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 def src(name):
@@ -16,8 +17,8 @@ def c_string(code):   # the text of the C string literals in code, escapes undon
 def cell(t):
     return t.replace('|', '\\|').replace('<', '&lt;').replace('>', '&gt;')
 
-pers, diplo, expr, settings = (src(n) for n in ('persona.c', 'diplo.c', 'expr.c', 'settings.c'))
-diplo += src('relations.c')   # the players' values and relations in the texts
+pers, expr, settings = (src(n) for n in ('persona.c', 'expr.c', 'settings.c'))
+lang = lang_read.read_all()   # the players' values and relations, the texts' own names (lang/)
 expr += src('constants.c')   # the game's constants (epoch., resource. ...) in the texts
 prompt = prompt_texts(root)
 
@@ -36,12 +37,9 @@ for key, chance, cooldown, a in lines:
 situations = '\n'.join(t)
 
 # values
-def members(table):
-    body = re.search(r'internal const struct xmember %s\[\] = \{(.*?)\n\};' % table, diplo, re.S).group(1)
-    return re.findall(r'\{ "(\w+)", (XM_\w+), ((?:"(?:[^"\\]|\\.)*"\s*)+)\}', body)
 kinds = {'XM_PLAYER': [], 'XM_LINK': [], 'XM_REL': [], 'XM_FILTER': [], 'XM_DO': []}   # XM_DO: a script's effects (docs/scripts.md), not a text's
-for name, kind, doc in members('k_xmembers'):
-    kinds[kind].append((name, c_string(doc)))
+for m in lang['player'].members:
+    kinds[lang_read.xm_kind(m)].append((m.name, m.doc))
 def table(rows, prefix, head, suffix=''):
     out = ['| %s | |' % head, '|---|---|']
     pending = []
@@ -62,7 +60,7 @@ values = '\n\n'.join([
     '(`16.5` too), without it (or with 0) the whole game. Older events are the whole game minus the window - '
     '`them.betrayals(me) - them.betrayals(me, 20)` counts those more than 20 minutes ago, `me.kills(them, 60, buildings) - '
     'me.kills(them, 20, buildings)` those 20 to 60 minutes ago; a negative window is a mistake:\n\n' + table(kinds['XM_REL'], 'A.', 'Relation', '(B)'),
-    '**The game:**\n\n' + table([(n, c_string(d)) for n, k, d in members('k_xglobals')], '', 'Name'),
+    '**The game:**\n\n' + table([(m.name, m.doc) for m in lang['names'].members], '', 'Name'),
 ])
 
 # epochs, style keys
