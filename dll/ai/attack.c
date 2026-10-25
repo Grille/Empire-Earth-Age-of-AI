@@ -1613,7 +1613,9 @@ internal void cmd_attacks(char *out, const char *args) {
 
 // a ship or an aircraft, by the class of its type data (bunkers, outposts and two test commands pick land soldiers by
 // it). Until 2026-10-25 it tested the classes 11..17 - bombs, missiles, priests, the land and helicopter transports -
-// so a fortress took ships and aircraft near it as candidates and left priests and strategist heroes out.
+// so a fortress took ships and aircraft near it as candidates and left priests and strategist heroes out. Head-to-head
+// (h2h.sh, tests/scenarios/lowpop.eeai, 20 seeds, the old test for one AI of each game): B - A soldiers -0.65 (se 1.0),
+// kills +1.3 (se 4.0), losses -1.7 (se 4.0), none lost - no difference either way; the right classes stay.
 internal int is_ship_or_air(ee_unit_type *td) {
     switch (unit_type_get_class_id(td)) {
     case CLS_NAVAL: case CLS_SUBMERGED_NAVAL: case CLS_NAVAL_TRANSPORT: case CLS_NAVAL_BUILDING: case CLS_NAVAL_CITIZEN:
