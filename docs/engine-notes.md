@@ -1075,7 +1075,7 @@ the game data's unit limits unchanged (0x2E8, 0x2EC, not +4). The shifts:
   fewer before them.
 - Units: the same up to ~0x250, then +4 (0x25C, 0x28C, 0x2A0), +0xC around 0x33B..0x346.
 - Map: the unit grid 0x181724 -> 0x195640, the size 0x1816FC -> 0x195618 (a bigger map array).
-- Attack subgroups +4 from 0x190 (the player 0x190 -> 0x194, state 0x1D0 -> 0x1D4); the research manager +0x10 from
+- Attack subgroups +4 from between 0x12C and 0x160 (0x160 -> 0x164, the player 0x190 -> 0x194, state 0x1D0 -> 0x1D4: the spec's fields); the research manager +0x10 from
   0xF4; the build manager +0x24 from 0x12C, the unit manager +0x14 from 0x134, the civilization manager +4 from
   0x74; the UI form's 0x5D8 -> 0x5E8.
 - The same: goals, the subgroups' unit records, the resource manager, the civilization manager up to 0x70, the game
