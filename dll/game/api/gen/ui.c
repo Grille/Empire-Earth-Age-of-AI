@@ -26,9 +26,21 @@ internal inline void ui_line(ee_ui *ui, void *rgb, void *name, void *line, int m
 
 // class EECameraControl (ee_camera)
 // the camera, game.camera (EECameraControl)
+// the look-at point after the last move, x
+internal inline float camera_get_last_x(const ee_camera *o) { return *(float *)((uint8_t *)o + of_camera_last_x); }
+internal inline void camera_set_last_x(ee_camera *o, float v) { *(float *)((uint8_t *)o + of_camera_last_x) = v; }
+internal inline float *camera_last_x_at(const ee_camera *o) { return (float *)((uint8_t *)o + of_camera_last_x); }
+// the same, y
+internal inline float camera_get_last_y(const ee_camera *o) { return *(float *)((uint8_t *)o + of_camera_last_y); }
+internal inline void camera_set_last_y(ee_camera *o, float v) { *(float *)((uint8_t *)o + of_camera_last_y) = v; }
+internal inline float *camera_last_y_at(const ee_camera *o) { return (float *)((uint8_t *)o + of_camera_last_y); }
 internal inline float camera_get_x(const ee_camera *o) { return *(float *)((uint8_t *)o + of_camera_x); }
 internal inline void camera_set_x(ee_camera *o, float v) { *(float *)((uint8_t *)o + of_camera_x) = v; }
 internal inline float *camera_x_at(const ee_camera *o) { return (float *)((uint8_t *)o + of_camera_x); }
+// the look-at point's y (x +0x78)
+internal inline float camera_get_y(const ee_camera *o) { return *(float *)((uint8_t *)o + of_camera_y); }
+internal inline void camera_set_y(ee_camera *o, float v) { *(float *)((uint8_t *)o + of_camera_y) = v; }
+internal inline float *camera_y_at(const ee_camera *o) { return (float *)((uint8_t *)o + of_camera_y); }
 internal inline float camera_get_zoom(const ee_camera *o) { return *(float *)((uint8_t *)o + of_camera_zoom); }
 internal inline void camera_set_zoom(ee_camera *o, float v) { *(float *)((uint8_t *)o + of_camera_zoom) = v; }
 internal inline float *camera_zoom_at(const ee_camera *o) { return (float *)((uint8_t *)o + of_camera_zoom); }
@@ -84,6 +96,22 @@ internal inline float *mouse_x_max_at(const ee_mouse *o) { return (float *)((uin
 internal inline float mouse_get_y_min(const ee_mouse *o) { return *(float *)((uint8_t *)o + of_mouse_y_min); }
 internal inline void mouse_set_y_min(ee_mouse *o, float v) { *(float *)((uint8_t *)o + of_mouse_y_min) = v; }
 internal inline float *mouse_y_min_at(const ee_mouse *o) { return (float *)((uint8_t *)o + of_mouse_y_min); }
+// the cursor's speed factor
+internal inline float mouse_get_speed(const ee_mouse *o) { return *(float *)((uint8_t *)o + of_mouse_speed); }
+internal inline void mouse_set_speed(ee_mouse *o, float v) { *(float *)((uint8_t *)o + of_mouse_speed) = v; }
+internal inline float *mouse_speed_at(const ee_mouse *o) { return (float *)((uint8_t *)o + of_mouse_speed); }
+// the screen's height in pixels
+internal inline int mouse_get_screen_h(const ee_mouse *o) { return *(int *)((uint8_t *)o + of_mouse_screen_h); }
+internal inline void mouse_set_screen_h(ee_mouse *o, int v) { *(int *)((uint8_t *)o + of_mouse_screen_h) = v; }
+internal inline int *mouse_screen_h_at(const ee_mouse *o) { return (int *)((uint8_t *)o + of_mouse_screen_h); }
+// the screen's width in pixels
+internal inline int mouse_get_screen_w(const ee_mouse *o) { return *(int *)((uint8_t *)o + of_mouse_screen_w); }
+internal inline void mouse_set_screen_w(ee_mouse *o, int v) { *(int *)((uint8_t *)o + of_mouse_screen_w) = v; }
+internal inline int *mouse_screen_w_at(const ee_mouse *o) { return (int *)((uint8_t *)o + of_mouse_screen_w); }
+// the wheel's value this frame (0 without a wheel)
+internal inline int mouse_get_wheel(const ee_mouse *o) { return *(int *)((uint8_t *)o + of_mouse_wheel); }
+internal inline void mouse_set_wheel(ee_mouse *o, int v) { *(int *)((uint8_t *)o + of_mouse_wheel) = v; }
+internal inline int *mouse_wheel_at(const ee_mouse *o) { return (int *)((uint8_t *)o + of_mouse_wheel); }
 internal inline uint8_t mouse_get_frozen(const ee_mouse *o) { return *(uint8_t *)((uint8_t *)o + of_mouse_frozen); }
 internal inline void mouse_set_frozen(ee_mouse *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_mouse_frozen) = v; }
 internal inline uint8_t *mouse_frozen_at(const ee_mouse *o) { return (uint8_t *)((uint8_t *)o + of_mouse_frozen); }
@@ -227,7 +255,10 @@ internal int spec_ui_select(int build) {
         fn_ui_queue_action = (ui_queue_action_fn)0x0066192F;
         fn_ui_screenshot = (ui_screenshot_fn)0x00661B04;
         fn_ui_line = (ui_line_fn)0x00661E91;
+        of_camera_last_x = 0x40;
+        of_camera_last_y = 0x44;
         of_camera_x = 0x78;
+        of_camera_y = 0x7C;
         of_camera_zoom = 0xE0;
         fn_camera_move = (camera_move_fn)0x0051E2E6;
         of_gfx_owner = 0x20;
@@ -241,6 +272,10 @@ internal int spec_ui_select(int build) {
         of_mouse_x_min = 0x18;
         of_mouse_x_max = 0x1C;
         of_mouse_y_min = 0x20;
+        of_mouse_speed = 0x88;
+        of_mouse_screen_h = 0x8C;
+        of_mouse_screen_w = 0x90;
+        of_mouse_wheel = 0x94;
         of_mouse_frozen = 0xA4;
         fn_mouse_update = (mouse_update_fn)0x00510E5D;
         calls_mouse_update[0] = 0x004B8ABB;
@@ -311,7 +346,10 @@ internal int spec_ui_select(int build) {
         fn_ui_queue_action = (ui_queue_action_fn)0x00678F79;
         fn_ui_screenshot = (ui_screenshot_fn)0x00679139;
         fn_ui_line = (ui_line_fn)0x006794C6;
+        of_camera_last_x = 0x40;
+        of_camera_last_y = 0x44;
         of_camera_x = 0x78;
+        of_camera_y = 0x7C;
         of_camera_zoom = 0xE0;
         fn_camera_move = (camera_move_fn)0x00528EA5;
         of_gfx_owner = 0x20;
@@ -325,6 +363,10 @@ internal int spec_ui_select(int build) {
         of_mouse_x_min = 0x18;
         of_mouse_x_max = 0x1C;
         of_mouse_y_min = 0x20;
+        of_mouse_speed = 0x88;
+        of_mouse_screen_h = 0x8C;
+        of_mouse_screen_w = 0x90;
+        of_mouse_wheel = 0x94;
         of_mouse_frozen = 0xA4;
         fn_mouse_update = (mouse_update_fn)0x0051B3CC;
         calls_mouse_update[0] = 0x004C11FE;

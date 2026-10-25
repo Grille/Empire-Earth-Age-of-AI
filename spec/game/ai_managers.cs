@@ -23,6 +23,14 @@ unsafe struct EECPBuildManager
     [offset((ee)0x138, (aoc)0x15C), found(c)]
     EEPlayer* player;
 
+    /// every 120 s it gives build-or-repair goals to the buildings that need them (0x465A8E)
+    [offset((ee)0x140, (aoc)0x164), found(c)]
+    uint32 next_repair;
+
+    /// its update (0x468540) runs again 3 s after each run
+    [offset((ee)0x144, (aoc)0x168), found(c)]
+    uint32 next_update;
+
     /// its file's code (+0x24)
     [offset((ee)0x148, (aoc)0x16C), found(c)]
     uint8 initialized;
@@ -141,10 +149,18 @@ unsafe struct EECPResourceManager
     [offset(0x88), found(c)]
     void** hunt_begin;
 
+    /// the end of its hunt list (hunt_begin)
+    [offset(0x8C), found(c)]
+    void** hunt_end;
+
     /// the fish
     /// its file's code (the resource manager)
     [offset(0x98), found(c)]
     void** fish_begin;
+
+    /// the end of its fish list (fish_begin)
+    [offset(0x9C), found(c)]
+    void** fish_end;
 
     /// its file's code (the resource manager)
     [offset(0xA4), found(c)]
@@ -284,6 +300,22 @@ unsafe struct EECPResearchManager
     [offset(0x18), found(h, "kept: the object's start, before its first known shift (0xF4 -> 0x104)")]
     block epoch;
 
+    /// its civilization manager
+    [offset((ee)0x104, (aoc)0x114), found(c)]
+    EECPCivilizationManager* owner;
+
+    /// its player
+    [offset((ee)0x108, (aoc)0x118), found(c)]
+    EEPlayer* player;
+
+    /// its player's tech tree
+    [offset((ee)0x10C, (aoc)0x11C), found(c)]
+    EETechTree* tech_tree;
+
+    /// game time of its next random research (SetNextRandomResearchTime 0x486924)
+    [offset((ee)0x110, (aoc)0x120), found(c)]
+    uint32 next_random;
+
     /// what it researches now
     [offset((ee)0x114, (aoc)0x124), found(v)]
     int32 current;
@@ -310,9 +342,17 @@ unsafe struct ee_unit_mgr
     [offset(0xC), found(c)]
     block requests;
 
+    /// its civilization manager
+    [offset((ee)0x130, (aoc)0x144), found(c)]
+    EECPCivilizationManager* owner;
+
     /// its file's code (+0x14, 31 votes)
     [offset((ee)0x134, (aoc)0x148), found(c)]
     EEPlayer* player;
+
+    /// units requested and not ordered yet: a request adds its count, a training moves it into in_production
+    [offset((ee)0x138, (aoc)0x14C), found(c)]
+    int32 requested;
 
     /// units in production (0x49014F adds)
     /// its file's code (+0x14)

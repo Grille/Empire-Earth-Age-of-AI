@@ -61,6 +61,10 @@ internal inline int patch_unit_to_group(attack_cmd_unit_to_group_fn h) { return 
 internal inline ee_asg_unit **attack_subgroup_get_units_begin(const ee_attack_subgroup *o) { return *(ee_asg_unit ***)((uint8_t *)o + of_attack_subgroup_units_begin); }
 internal inline void attack_subgroup_set_units_begin(ee_attack_subgroup *o, ee_asg_unit **v) { *(ee_asg_unit ***)((uint8_t *)o + of_attack_subgroup_units_begin) = v; }
 internal inline ee_asg_unit ***attack_subgroup_units_begin_at(const ee_attack_subgroup *o) { return (ee_asg_unit ***)((uint8_t *)o + of_attack_subgroup_units_begin); }
+// the end of its member records' vector (units_begin)
+internal inline ee_asg_unit **attack_subgroup_get_units_end(const ee_attack_subgroup *o) { return *(ee_asg_unit ***)((uint8_t *)o + of_attack_subgroup_units_end); }
+internal inline void attack_subgroup_set_units_end(ee_attack_subgroup *o, ee_asg_unit **v) { *(ee_asg_unit ***)((uint8_t *)o + of_attack_subgroup_units_end) = v; }
+internal inline ee_asg_unit ***attack_subgroup_units_end_at(const ee_attack_subgroup *o) { return (ee_asg_unit ***)((uint8_t *)o + of_attack_subgroup_units_end); }
 internal inline uint8_t *attack_subgroup_route_at(const ee_attack_subgroup *o) { return (uint8_t *)o + of_attack_subgroup_route; }
 internal inline uint32_t attack_subgroup_get_waypoints(const ee_attack_subgroup *o) { return *(uint32_t *)((uint8_t *)o + of_attack_subgroup_waypoints); }
 internal inline void attack_subgroup_set_waypoints(ee_attack_subgroup *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_attack_subgroup_waypoints) = v; }
@@ -83,13 +87,45 @@ internal inline ee_player **attack_subgroup_target_at(const ee_attack_subgroup *
 internal inline int attack_subgroup_get_mission(const ee_attack_subgroup *o) { return *(int *)((uint8_t *)o + of_attack_subgroup_mission); }
 internal inline void attack_subgroup_set_mission(ee_attack_subgroup *o, int v) { *(int *)((uint8_t *)o + of_attack_subgroup_mission) = v; }
 internal inline int *attack_subgroup_mission_at(const ee_attack_subgroup *o) { return (int *)((uint8_t *)o + of_attack_subgroup_mission); }
+// the player index the path search runs for: the head of the movement record its members' types fill (their vf10)
+internal inline int attack_subgroup_get_move_player(const ee_attack_subgroup *o) { return *(int *)((uint8_t *)o + of_attack_subgroup_move_player); }
+internal inline void attack_subgroup_set_move_player(ee_attack_subgroup *o, int v) { *(int *)((uint8_t *)o + of_attack_subgroup_move_player) = v; }
+internal inline int *attack_subgroup_move_player_at(const ee_attack_subgroup *o) { return (int *)((uint8_t *)o + of_attack_subgroup_move_player); }
+// a byte per terrain kind: may all its members enter it (1, then ANDed by each member's type)
+internal inline uint8_t attack_subgroup_get_terrain_ok(const ee_attack_subgroup *o, int i) { return ((uint8_t *)((uint8_t *)o + of_attack_subgroup_terrain_ok))[i]; }
+internal inline void attack_subgroup_set_terrain_ok(ee_attack_subgroup *o, int i, uint8_t v) { ((uint8_t *)((uint8_t *)o + of_attack_subgroup_terrain_ok))[i] = v; }
+internal inline uint8_t *attack_subgroup_terrain_ok_at(const ee_attack_subgroup *o) { return (uint8_t *)((uint8_t *)o + of_attack_subgroup_terrain_ok); }
+// the attack group it belongs to
+internal inline ee_attack_group *attack_subgroup_get_group(const ee_attack_subgroup *o) { return *(ee_attack_group **)((uint8_t *)o + of_attack_subgroup_group); }
+internal inline void attack_subgroup_set_group(ee_attack_subgroup *o, ee_attack_group *v) { *(ee_attack_group **)((uint8_t *)o + of_attack_subgroup_group) = v; }
+internal inline ee_attack_group **attack_subgroup_group_at(const ee_attack_subgroup *o) { return (ee_attack_group **)((uint8_t *)o + of_attack_subgroup_group); }
 // its own
 internal inline ee_player *attack_subgroup_get_player(const ee_attack_subgroup *o) { return *(ee_player **)((uint8_t *)o + of_attack_subgroup_player); }
 internal inline void attack_subgroup_set_player(ee_attack_subgroup *o, ee_player *v) { *(ee_player **)((uint8_t *)o + of_attack_subgroup_player) = v; }
 internal inline ee_player **attack_subgroup_player_at(const ee_attack_subgroup *o) { return (ee_player **)((uint8_t *)o + of_attack_subgroup_player); }
+// the path request plan_route queued
+internal inline int attack_subgroup_get_route_request(const ee_attack_subgroup *o) { return *(int *)((uint8_t *)o + of_attack_subgroup_route_request); }
+internal inline void attack_subgroup_set_route_request(ee_attack_subgroup *o, int v) { *(int *)((uint8_t *)o + of_attack_subgroup_route_request) = v; }
+internal inline int *attack_subgroup_route_request_at(const ee_attack_subgroup *o) { return (int *)((uint8_t *)o + of_attack_subgroup_route_request); }
+// game time before which update only gathers (vf +0x1C0) instead of acting
+internal inline uint32_t attack_subgroup_get_hold_until(const ee_attack_subgroup *o) { return *(uint32_t *)((uint8_t *)o + of_attack_subgroup_hold_until); }
+internal inline void attack_subgroup_set_hold_until(ee_attack_subgroup *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_attack_subgroup_hold_until) = v; }
+internal inline uint32_t *attack_subgroup_hold_until_at(const ee_attack_subgroup *o) { return (uint32_t *)((uint8_t *)o + of_attack_subgroup_hold_until); }
+// game time of its next update (the caller runs its slot 90 once it passes)
+internal inline uint32_t attack_subgroup_get_next_update(const ee_attack_subgroup *o) { return *(uint32_t *)((uint8_t *)o + of_attack_subgroup_next_update); }
+internal inline void attack_subgroup_set_next_update(ee_attack_subgroup *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_attack_subgroup_next_update) = v; }
+internal inline uint32_t *attack_subgroup_next_update_at(const ee_attack_subgroup *o) { return (uint32_t *)((uint8_t *)o + of_attack_subgroup_next_update); }
 internal inline int attack_subgroup_get_state(const ee_attack_subgroup *o) { return *(int *)((uint8_t *)o + of_attack_subgroup_state); }
 internal inline void attack_subgroup_set_state(ee_attack_subgroup *o, int v) { *(int *)((uint8_t *)o + of_attack_subgroup_state) = v; }
 internal inline int *attack_subgroup_state_at(const ee_attack_subgroup *o) { return (int *)((uint8_t *)o + of_attack_subgroup_state); }
+// the route's last land waypoint before it leaves land, where the units board
+internal inline ivec2 attack_subgroup_get_embark(const ee_attack_subgroup *o) { return *(ivec2 *)((uint8_t *)o + of_attack_subgroup_embark); }
+internal inline void attack_subgroup_set_embark(ee_attack_subgroup *o, ivec2 v) { *(ivec2 *)((uint8_t *)o + of_attack_subgroup_embark) = v; }
+internal inline ivec2 *attack_subgroup_embark_at(const ee_attack_subgroup *o) { return (ivec2 *)((uint8_t *)o + of_attack_subgroup_embark); }
+// the route's point where it comes ashore
+internal inline ivec2 attack_subgroup_get_landing(const ee_attack_subgroup *o) { return *(ivec2 *)((uint8_t *)o + of_attack_subgroup_landing); }
+internal inline void attack_subgroup_set_landing(ee_attack_subgroup *o, ivec2 v) { *(ivec2 *)((uint8_t *)o + of_attack_subgroup_landing) = v; }
+internal inline ivec2 *attack_subgroup_landing_at(const ee_attack_subgroup *o) { return (ivec2 *)((uint8_t *)o + of_attack_subgroup_landing); }
 // where it is
 internal inline int attack_subgroup_get_x(const ee_attack_subgroup *o) { return *(int *)((uint8_t *)o + of_attack_subgroup_x); }
 internal inline void attack_subgroup_set_x(ee_attack_subgroup *o, int v) { *(int *)((uint8_t *)o + of_attack_subgroup_x) = v; }
@@ -168,9 +204,30 @@ internal inline int *route_node_y_at(const ee_route_node *o) { return (int *)((u
 
 // class EEAIGPGModifierLandAttackSubGroupRoutePlanner (ee_route_planner)
 // the land attack route planner (EEAIGPGModifierLandAttackSubGroupRoutePlanner)
+// cost factors by node kind (1 unchanged), from the subgroup's slot 21 in plan_route: [0] kind 4, [1] kinds 0-2
+// and 5-11, [2] kind 0xE, [3] kind 0xD, [4] the danger, [5] kind 3
+internal inline float route_planner_get_weights(const ee_route_planner *o, int i) { return ((float *)((uint8_t *)o + of_route_planner_weights))[i]; }
+internal inline void route_planner_set_weights(ee_route_planner *o, int i, float v) { ((float *)((uint8_t *)o + of_route_planner_weights))[i] = v; }
+internal inline float *route_planner_weights_at(const ee_route_planner *o) { return (float *)((uint8_t *)o + of_route_planner_weights); }
 internal inline int route_planner_get_player_index(const ee_route_planner *o) { return *(int *)((uint8_t *)o + of_route_planner_player_index); }
 internal inline void route_planner_set_player_index(ee_route_planner *o, int v) { *(int *)((uint8_t *)o + of_route_planner_player_index) = v; }
 internal inline int *route_planner_player_index_at(const ee_route_planner *o) { return (int *)((uint8_t *)o + of_route_planner_player_index); }
+// the target player's index (-1 none)
+internal inline int route_planner_get_target_index(const ee_route_planner *o) { return *(int *)((uint8_t *)o + of_route_planner_target_index); }
+internal inline void route_planner_set_target_index(ee_route_planner *o, int v) { *(int *)((uint8_t *)o + of_route_planner_target_index) = v; }
+internal inline int *route_planner_target_index_at(const ee_route_planner *o) { return (int *)((uint8_t *)o + of_route_planner_target_index); }
+// the subgroup it plans for
+internal inline ee_attack_subgroup *route_planner_get_subgroup(const ee_route_planner *o) { return *(ee_attack_subgroup **)((uint8_t *)o + of_route_planner_subgroup); }
+internal inline void route_planner_set_subgroup(ee_route_planner *o, ee_attack_subgroup *v) { *(ee_attack_subgroup **)((uint8_t *)o + of_route_planner_subgroup) = v; }
+internal inline ee_attack_subgroup **route_planner_subgroup_at(const ee_route_planner *o) { return (ee_attack_subgroup **)((uint8_t *)o + of_route_planner_subgroup); }
+// the area id of the route's start
+internal inline int16_t route_planner_get_start_area(const ee_route_planner *o) { return *(int16_t *)((uint8_t *)o + of_route_planner_start_area); }
+internal inline void route_planner_set_start_area(ee_route_planner *o, int16_t v) { *(int16_t *)((uint8_t *)o + of_route_planner_start_area) = v; }
+internal inline int16_t *route_planner_start_area_at(const ee_route_planner *o) { return (int16_t *)((uint8_t *)o + of_route_planner_start_area); }
+// the area id of the route's end
+internal inline int16_t route_planner_get_dest_area(const ee_route_planner *o) { return *(int16_t *)((uint8_t *)o + of_route_planner_dest_area); }
+internal inline void route_planner_set_dest_area(ee_route_planner *o, int16_t v) { *(int16_t *)((uint8_t *)o + of_route_planner_dest_area) = v; }
+internal inline int16_t *route_planner_dest_area_at(const ee_route_planner *o) { return (int16_t *)((uint8_t *)o + of_route_planner_dest_area); }
 // its slot 1: int thiscall(edge*, node*)
 typedef int (__thiscall *route_planner_cost_fn)(ee_route_planner *, int *, ee_route_node *);
 internal route_planner_cost_fn fn_route_planner_cost;
@@ -198,6 +255,10 @@ internal inline void strategy_reset(ee_strategy *strategy) { fn_strategy_reset(s
 // an attack task (EECPAGTask)
 // where it heads (task_init constructs it there)
 internal inline ee_location *task_location_at(const ee_task *o) { return (ee_location *)((uint8_t *)o + of_task_location); }
+// the unit it attacks, referenced (saved as its id)
+internal inline ee_unit *task_get_target_unit(const ee_task *o) { return *(ee_unit **)((uint8_t *)o + of_task_target_unit); }
+internal inline void task_set_target_unit(ee_task *o, ee_unit *v) { *(ee_unit **)((uint8_t *)o + of_task_target_unit) = v; }
+internal inline ee_unit **task_target_unit_at(const ee_task *o) { return (ee_unit **)((uint8_t *)o + of_task_target_unit); }
 internal inline ee_player *task_get_target_player(const ee_task *o) { return *(ee_player **)((uint8_t *)o + of_task_target_player); }
 internal inline void task_set_target_player(ee_task *o, ee_player *v) { *(ee_player **)((uint8_t *)o + of_task_target_player) = v; }
 internal inline ee_player **task_target_player_at(const ee_task *o) { return (ee_player **)((uint8_t *)o + of_task_target_player); }
@@ -304,6 +365,7 @@ internal int spec_attack_select(int build) {
         fn_attack_cmd_unit_to_group = (attack_cmd_unit_to_group_fn)0x00450E07;
         call_unit_to_group = 0x004824BF;
         of_attack_subgroup_units_begin = 0x54;
+        of_attack_subgroup_units_end = 0x58;
         of_attack_subgroup_route = 0x60;
         of_attack_subgroup_waypoints = 0x70;
         of_attack_subgroup_target_rec = 0x100;
@@ -312,8 +374,16 @@ internal int spec_attack_select(int build) {
         of_attack_subgroup_target_unit = 0x118;
         of_attack_subgroup_target = 0x11C;
         of_attack_subgroup_mission = 0x124;
+        of_attack_subgroup_move_player = 0x160;
+        of_attack_subgroup_terrain_ok = 0x164;
+        of_attack_subgroup_group = 0x18C;
         of_attack_subgroup_player = 0x190;
+        of_attack_subgroup_route_request = 0x194;
+        of_attack_subgroup_hold_until = 0x1A4;
+        of_attack_subgroup_next_update = 0x1A8;
         of_attack_subgroup_state = 0x1D0;
+        of_attack_subgroup_embark = 0x224;
+        of_attack_subgroup_landing = 0x22C;
         of_attack_subgroup_x = 0x234;
         of_attack_subgroup_y = 0x238;
         fn_attack_subgroup_air_give_goal = (attack_subgroup_air_give_goal_fn)0x00442AD8;
@@ -333,7 +403,12 @@ internal int spec_attack_select(int build) {
         of_asgu_info_enemy = 0x4;
         of_route_node_x = 0x3C;
         of_route_node_y = 0x40;
+        of_route_planner_weights = 0xC;
         of_route_planner_player_index = 0x48;
+        of_route_planner_target_index = 0x4C;
+        of_route_planner_subgroup = 0x50;
+        of_route_planner_start_area = 0x54;
+        of_route_planner_dest_area = 0x56;
         fn_route_planner_cost = (route_planner_cost_fn)0x004141E8;
         vt_eecp_combat_strategy = 0x0082795C;
         of_strategy_0x3c = 0x3C;
@@ -343,6 +418,7 @@ internal int spec_attack_select(int build) {
         fn_strategy_reset = (strategy_reset_fn)0x00473CA7;
         vt_eecpag_task = 0x008265FC;
         of_task_location = 0x4;
+        of_task_target_unit = 0x1C;
         of_task_target_player = 0x20;
         of_task_0x28 = 0x28;
         of_task_0x2c = 0x2C;
@@ -408,6 +484,7 @@ internal int spec_attack_select(int build) {
         fn_attack_cmd_unit_to_group = (attack_cmd_unit_to_group_fn)0x00451A8A;
         call_unit_to_group = 0x004869F3;
         of_attack_subgroup_units_begin = 0x54;
+        of_attack_subgroup_units_end = 0x58;
         of_attack_subgroup_route = 0x60;
         of_attack_subgroup_waypoints = 0x70;
         of_attack_subgroup_target_rec = 0x100;
@@ -416,8 +493,16 @@ internal int spec_attack_select(int build) {
         of_attack_subgroup_target_unit = 0x118;
         of_attack_subgroup_target = 0x11C;
         of_attack_subgroup_mission = 0x124;
+        of_attack_subgroup_move_player = 0x164;
+        of_attack_subgroup_terrain_ok = 0x168;
+        of_attack_subgroup_group = 0x190;
         of_attack_subgroup_player = 0x194;
+        of_attack_subgroup_route_request = 0x198;
+        of_attack_subgroup_hold_until = 0x1A8;
+        of_attack_subgroup_next_update = 0x1AC;
         of_attack_subgroup_state = 0x1D4;
+        of_attack_subgroup_embark = 0x228;
+        of_attack_subgroup_landing = 0x230;
         of_attack_subgroup_x = 0x238;
         of_attack_subgroup_y = 0x23C;
         fn_attack_subgroup_air_give_goal = (attack_subgroup_air_give_goal_fn)0x00442220;
@@ -437,7 +522,12 @@ internal int spec_attack_select(int build) {
         of_asgu_info_enemy = 0x4;
         of_route_node_x = 0x3C;
         of_route_node_y = 0x40;
+        of_route_planner_weights = 0xC;
         of_route_planner_player_index = 0x48;
+        of_route_planner_target_index = 0x4C;
+        of_route_planner_subgroup = 0x50;
+        of_route_planner_start_area = 0x54;
+        of_route_planner_dest_area = 0x56;
         fn_route_planner_cost = (route_planner_cost_fn)0x00410074;
         vt_eecp_combat_strategy = 0x0083C0A4;
         of_strategy_0x3c = 0x3C;
@@ -447,6 +537,7 @@ internal int spec_attack_select(int build) {
         fn_strategy_reset = (strategy_reset_fn)0x0047717B;
         vt_eecpag_task = 0x0083A6C0;
         of_task_location = 0x4;
+        of_task_target_unit = 0x1C;
         of_task_target_player = 0x20;
         of_task_0x28 = 0x28;
         of_task_0x2c = 0x2C;

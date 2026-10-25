@@ -13,8 +13,6 @@ internal inline void civ_mgr_set_timer(ee_civ_mgr *cm, int i, uint32_t v) { FIEL
 internal inline uint8_t civ_mgr_get_flag(const ee_civ_mgr *cm, int i) { return FIELD(cm, of_civ_mgr_flag + i, uint8_t); }
 
 // A RESOURCE MANAGER (EECPResourceManager, CM +0x38; constructor/serializer 0x489F76 / 0x48C5B2)
-internal inline void **resource_mgr_get_hunt_end(const ee_resource_mgr *rm) { return FIELD(rm, of_resource_mgr_hunt_begin + 0x4, void **); }
-internal inline void **resource_mgr_get_fish_end(const ee_resource_mgr *rm) { return FIELD(rm, of_resource_mgr_fish_begin + 0x4, void **); }
 // +0xA4 7 unit lists by resource (2 food .. 6 iron), deques 0x14 apart: their gatherers
 internal inline uint8_t *resource_mgr_list_at(const ee_resource_mgr *rm, int r) { return (uint8_t *)FIELD_AT(rm, of_resource_mgr_lists + r * 0x14); }
 // its five next times (game time) in a row, for the log: next_fishing_boat, _0x170, next_targets, next_assign, next_prune

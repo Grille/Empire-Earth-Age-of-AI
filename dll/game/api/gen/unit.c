@@ -130,22 +130,71 @@ internal inline int *unit_id_at(const ee_unit *o) { return (int *)((uint8_t *)o 
 internal inline int unit_get_busy(const ee_unit *o) { return *(int *)((uint8_t *)o + of_unit_busy); }
 internal inline void unit_set_busy(ee_unit *o, int v) { *(int *)((uint8_t *)o + of_unit_busy) = v; }
 internal inline int *unit_busy_at(const ee_unit *o) { return (int *)((uint8_t *)o + of_unit_busy); }
+// its height: its stats' height x scale (airplanes recompute it each tick; the scenario's attribute 0xD adds to
+// it)
+internal inline float unit_get_height(const ee_unit *o) { return *(float *)((uint8_t *)o + of_unit_height); }
+internal inline void unit_set_height(ee_unit *o, float v) { *(float *)((uint8_t *)o + of_unit_height) = v; }
+internal inline float *unit_height_at(const ee_unit *o) { return (float *)((uint8_t *)o + of_unit_height); }
+// the current frame of its animation (the dump's Current Frame)
+internal inline int unit_get_anim_frame(const ee_unit *o) { return *(int *)((uint8_t *)o + of_unit_anim_frame); }
+internal inline void unit_set_anim_frame(ee_unit *o, int v) { *(int *)((uint8_t *)o + of_unit_anim_frame) = v; }
+internal inline int *unit_anim_frame_at(const ee_unit *o) { return (int *)((uint8_t *)o + of_unit_anim_frame); }
 // radians/s, signed
 // the turn rate now (radians/s, signed) - model_collide in both builds, model_turn_decide's caller
 internal inline float unit_get_turn_rate(const ee_unit *o) { return *(float *)((uint8_t *)o + of_unit_turn_rate); }
 internal inline void unit_set_turn_rate(ee_unit *o, float v) { *(float *)((uint8_t *)o + of_unit_turn_rate) = v; }
 internal inline float *unit_turn_rate_at(const ee_unit *o) { return (float *)((uint8_t *)o + of_unit_turn_rate); }
+// pitch velocity (radians/s): the movement models set it (an airplane's climb) or zero it
+internal inline float unit_get_pitch_rate(const ee_unit *o) { return *(float *)((uint8_t *)o + of_unit_pitch_rate); }
+internal inline void unit_set_pitch_rate(ee_unit *o, float v) { *(float *)((uint8_t *)o + of_unit_pitch_rate) = v; }
+internal inline float *unit_pitch_rate_at(const ee_unit *o) { return (float *)((uint8_t *)o + of_unit_pitch_rate); }
+// roll velocity (radians/s), 0 in every movement model
+internal inline float unit_get_roll_rate(const ee_unit *o) { return *(float *)((uint8_t *)o + of_unit_roll_rate); }
+internal inline void unit_set_roll_rate(ee_unit *o, float v) { *(float *)((uint8_t *)o + of_unit_roll_rate) = v; }
+internal inline float *unit_roll_rate_at(const ee_unit *o) { return (float *)((uint8_t *)o + of_unit_roll_rate); }
+// its heading (radians) as the models give it to SetOrientationYPR
+internal inline float unit_get_yaw(const ee_unit *o) { return *(float *)((uint8_t *)o + of_unit_yaw); }
+internal inline void unit_set_yaw(ee_unit *o, float v) { *(float *)((uint8_t *)o + of_unit_yaw) = v; }
+internal inline float *unit_yaw_at(const ee_unit *o) { return (float *)((uint8_t *)o + of_unit_yaw); }
+// its pitch (radians), SetOrientationYPR's second
+internal inline float unit_get_pitch(const ee_unit *o) { return *(float *)((uint8_t *)o + of_unit_pitch); }
+internal inline void unit_set_pitch(ee_unit *o, float v) { *(float *)((uint8_t *)o + of_unit_pitch) = v; }
+internal inline float *unit_pitch_at(const ee_unit *o) { return (float *)((uint8_t *)o + of_unit_pitch); }
+// its roll (radians), SetOrientationYPR's third
+internal inline float unit_get_roll(const ee_unit *o) { return *(float *)((uint8_t *)o + of_unit_roll); }
+internal inline void unit_set_roll(ee_unit *o, float v) { *(float *)((uint8_t *)o + of_unit_roll) = v; }
+internal inline float *unit_roll_at(const ee_unit *o) { return (float *)((uint8_t *)o + of_unit_roll); }
+// the tile of its collision (the dump's Collision Tile; -10000 none)
+internal inline ivec2 unit_get_collision_tile(const ee_unit *o) { return *(ivec2 *)((uint8_t *)o + of_unit_collision_tile); }
+internal inline void unit_set_collision_tile(ee_unit *o, ivec2 v) { *(ivec2 *)((uint8_t *)o + of_unit_collision_tile) = v; }
+internal inline ivec2 *unit_collision_tile_at(const ee_unit *o) { return (ivec2 *)((uint8_t *)o + of_unit_collision_tile); }
 // a projectile's: the attack's type data
 internal inline ee_unit_type *unit_get_attacker_type(const ee_unit *o) { return *(ee_unit_type **)((uint8_t *)o + of_unit_attacker_type); }
 internal inline void unit_set_attacker_type(ee_unit *o, ee_unit_type *v) { *(ee_unit_type **)((uint8_t *)o + of_unit_attacker_type) = v; }
 internal inline ee_unit_type **unit_attacker_type_at(const ee_unit *o) { return (ee_unit_type **)((uint8_t *)o + of_unit_attacker_type); }
+// its active movement group: while it has one, max_speed is the group's
+internal inline ee_group *unit_get_group(const ee_unit *o) { return *(ee_group **)((uint8_t *)o + of_unit_group); }
+internal inline void unit_set_group(ee_unit *o, ee_group *v) { *(ee_group **)((uint8_t *)o + of_unit_group) = v; }
+internal inline ee_group **unit_group_at(const ee_unit *o) { return (ee_group **)((uint8_t *)o + of_unit_group); }
 internal inline ee_unit *unit_get_chain(const ee_unit *o) { return *(ee_unit **)((uint8_t *)o + of_unit_chain); }
 internal inline void unit_set_chain(ee_unit *o, ee_unit *v) { *(ee_unit **)((uint8_t *)o + of_unit_chain) = v; }
 internal inline ee_unit **unit_chain_at(const ee_unit *o) { return (ee_unit **)((uint8_t *)o + of_unit_chain); }
+// the unit whose chain (+0x1CC) this one is, referenced
+internal inline ee_unit *unit_get_chained(const ee_unit *o) { return *(ee_unit **)((uint8_t *)o + of_unit_chained); }
+internal inline void unit_set_chained(ee_unit *o, ee_unit *v) { *(ee_unit **)((uint8_t *)o + of_unit_chained) = v; }
+internal inline ee_unit **unit_chained_at(const ee_unit *o) { return (ee_unit **)((uint8_t *)o + of_unit_chained); }
+// an airplane's airport (its EEAirTrafficControl: +0x26C the state, +0x1C/+0x20 the tile), NULL none
+internal inline void *unit_get_air_traffic(const ee_unit *o) { return *(void **)((uint8_t *)o + of_unit_air_traffic); }
+internal inline void unit_set_air_traffic(ee_unit *o, void *v) { *(void **)((uint8_t *)o + of_unit_air_traffic) = v; }
+internal inline void **unit_air_traffic_at(const ee_unit *o) { return (void **)((uint8_t *)o + of_unit_air_traffic); }
 // set while inside a transport or building (EEUCTransport::vf63: none may board)
 internal inline void *unit_get_holder(const ee_unit *o) { return *(void **)((uint8_t *)o + of_unit_holder); }
 internal inline void unit_set_holder(ee_unit *o, void *v) { *(void **)((uint8_t *)o + of_unit_holder) = v; }
 internal inline void **unit_holder_at(const ee_unit *o) { return (void **)((uint8_t *)o + of_unit_holder); }
+// the last unit attacking it, referenced; dropped once that unit's attack goal no longer targets it (0x5F1214)
+internal inline ee_unit *unit_get_attacker(const ee_unit *o) { return *(ee_unit **)((uint8_t *)o + of_unit_attacker); }
+internal inline void unit_set_attacker(ee_unit *o, ee_unit *v) { *(ee_unit **)((uint8_t *)o + of_unit_attacker) = v; }
+internal inline ee_unit **unit_attacker_at(const ee_unit *o) { return (ee_unit **)((uint8_t *)o + of_unit_attacker); }
 // its script state (AISTATE)
 internal inline ee_ai_state *unit_get_ai_state(const ee_unit *o) { return *(ee_ai_state **)((uint8_t *)o + of_unit_ai_state); }
 internal inline void unit_set_ai_state(ee_unit *o, ee_ai_state *v) { *(ee_ai_state **)((uint8_t *)o + of_unit_ai_state) = v; }
@@ -158,6 +207,10 @@ internal inline ee_goal **unit_goal_at(const ee_unit *o) { return (ee_goal **)((
 internal inline ee_goal *unit_get_goal_object(const ee_unit *o) { return *(ee_goal **)((uint8_t *)o + of_unit_goal_object); }
 internal inline void unit_set_goal_object(ee_unit *o, ee_goal *v) { *(ee_goal **)((uint8_t *)o + of_unit_goal_object) = v; }
 internal inline ee_goal **unit_goal_object_at(const ee_unit *o) { return (ee_goal **)((uint8_t *)o + of_unit_goal_object); }
+// an animal's herd (EEHerd)
+internal inline void *unit_get_herd(const ee_unit *o) { return *(void **)((uint8_t *)o + of_unit_herd); }
+internal inline void unit_set_herd(ee_unit *o, void *v) { *(void **)((uint8_t *)o + of_unit_herd) = v; }
+internal inline void **unit_herd_at(const ee_unit *o) { return (void **)((uint8_t *)o + of_unit_herd); }
 // its behaviour (behaviour_table())
 internal inline void *unit_get_behaviour(const ee_unit *o) { return *(void **)((uint8_t *)o + of_unit_behaviour); }
 internal inline void unit_set_behaviour(ee_unit *o, void *v) { *(void **)((uint8_t *)o + of_unit_behaviour) = v; }
@@ -168,20 +221,48 @@ internal inline void **unit_behaviour_at(const ee_unit *o) { return (void **)((u
 internal inline vec2 unit_get_push(const ee_unit *o) { return *(vec2 *)((uint8_t *)o + of_unit_push); }
 internal inline void unit_set_push(ee_unit *o, vec2 v) { *(vec2 *)((uint8_t *)o + of_unit_push) = v; }
 internal inline vec2 *unit_push_at(const ee_unit *o) { return (vec2 *)((uint8_t *)o + of_unit_push); }
+// ms in an unresolved collision (the dump's Coll Resolut Cnt): + a step's ms each pushed step, 0 when it resolves
+internal inline float unit_get_blocked_ms(const ee_unit *o) { return *(float *)((uint8_t *)o + of_unit_blocked_ms); }
+internal inline void unit_set_blocked_ms(ee_unit *o, float v) { *(float *)((uint8_t *)o + of_unit_blocked_ms) = v; }
+internal inline float *unit_blocked_ms_at(const ee_unit *o) { return (float *)((uint8_t *)o + of_unit_blocked_ms); }
+// its animation's sound (the animation setter 0x5EFD6D)
+internal inline ee_sound_node *unit_get_anim_sound(const ee_unit *o) { return *(ee_sound_node **)((uint8_t *)o + of_unit_anim_sound); }
+internal inline void unit_set_anim_sound(ee_unit *o, ee_sound_node *v) { *(ee_sound_node **)((uint8_t *)o + of_unit_anim_sound) = v; }
+internal inline ee_sound_node **unit_anim_sound_at(const ee_unit *o) { return (ee_sound_node **)((uint8_t *)o + of_unit_anim_sound); }
 // what a building makes now
 internal inline int unit_get_producing(const ee_unit *o) { return *(int *)((uint8_t *)o + of_unit_producing); }
 internal inline void unit_set_producing(ee_unit *o, int v) { *(int *)((uint8_t *)o + of_unit_producing) = v; }
 internal inline int *unit_producing_at(const ee_unit *o) { return (int *)((uint8_t *)o + of_unit_producing); }
+// its animation (7/8 idle, 0xD walk, 2 carry ...: the setter 0x5EFD6D; the model from type +0x234[anim])
+internal inline int unit_get_anim(const ee_unit *o) { return *(int *)((uint8_t *)o + of_unit_anim); }
+internal inline void unit_set_anim(ee_unit *o, int v) { *(int *)((uint8_t *)o + of_unit_anim) = v; }
+internal inline int *unit_anim_at(const ee_unit *o) { return (int *)((uint8_t *)o + of_unit_anim); }
 // the movement mode
 // the movement mode (0x549F82 picks the model's step by it; 2 no collisions) - the push (movement.slot_pm_push) sets an
 // idle unit's pushed walk (+0x260 13) only while it is neither 0 nor 5, in both builds
 internal inline int unit_get_move_mode(const ee_unit *o) { return *(int *)((uint8_t *)o + of_unit_move_mode); }
 internal inline void unit_set_move_mode(ee_unit *o, int v) { *(int *)((uint8_t *)o + of_unit_move_mode) = v; }
 internal inline int *unit_move_mode_at(const ee_unit *o) { return (int *)((uint8_t *)o + of_unit_move_mode); }
+// the dump's CurrentPhysicsOrder (an airplane: 5 at a stop)
+internal inline int unit_get_physics_order(const ee_unit *o) { return *(int *)((uint8_t *)o + of_unit_physics_order); }
+internal inline void unit_set_physics_order(ee_unit *o, int v) { *(int *)((uint8_t *)o + of_unit_physics_order) = v; }
+internal inline int *unit_physics_order_at(const ee_unit *o) { return (int *)((uint8_t *)o + of_unit_physics_order); }
+// the dump's Crew Hit Points
+internal inline int unit_get_crew_hp(const ee_unit *o) { return *(int *)((uint8_t *)o + of_unit_crew_hp); }
+internal inline void unit_set_crew_hp(ee_unit *o, int v) { *(int *)((uint8_t *)o + of_unit_crew_hp) = v; }
+internal inline int *unit_crew_hp_at(const ee_unit *o) { return (int *)((uint8_t *)o + of_unit_crew_hp); }
+// room taken inside it: its occupants' transport sizes, at most its type's garrison_capacity
+internal inline int unit_get_garrisoned(const ee_unit *o) { return *(int *)((uint8_t *)o + of_unit_garrisoned); }
+internal inline void unit_set_garrisoned(ee_unit *o, int v) { *(int *)((uint8_t *)o + of_unit_garrisoned) = v; }
+internal inline int *unit_garrisoned_at(const ee_unit *o) { return (int *)((uint8_t *)o + of_unit_garrisoned); }
 // a missile's climb left (ms)
 internal inline int unit_get_flight_ms(const ee_unit *o) { return *(int *)((uint8_t *)o + of_unit_flight_ms); }
 internal inline void unit_set_flight_ms(ee_unit *o, int v) { *(int *)((uint8_t *)o + of_unit_flight_ms) = v; }
 internal inline int *unit_flight_ms_at(const ee_unit *o) { return (int *)((uint8_t *)o + of_unit_flight_ms); }
+// its hit points at the start of its tick (a script condition compares them to see a hit)
+internal inline int unit_get_hp_last(const ee_unit *o) { return *(int *)((uint8_t *)o + of_unit_hp_last); }
+internal inline void unit_set_hp_last(ee_unit *o, int v) { *(int *)((uint8_t *)o + of_unit_hp_last) = v; }
+internal inline int *unit_hp_last_at(const ee_unit *o) { return (int *)((uint8_t *)o + of_unit_hp_last); }
 // its own reload (ms, 0: its class's)
 internal inline int unit_get_reload(const ee_unit *o) { return *(int *)((uint8_t *)o + of_unit_reload); }
 internal inline void unit_set_reload(ee_unit *o, int v) { *(int *)((uint8_t *)o + of_unit_reload) = v; }
@@ -191,6 +272,11 @@ internal inline int *unit_reload_at(const ee_unit *o) { return (int *)((uint8_t 
 internal inline int unit_get_room(const ee_unit *o) { return *(int *)((uint8_t *)o + of_unit_room); }
 internal inline void unit_set_room(ee_unit *o, int v) { *(int *)((uint8_t *)o + of_unit_room) = v; }
 internal inline int *unit_room_at(const ee_unit *o) { return (int *)((uint8_t *)o + of_unit_room); }
+// ms until it next looks for a target: counted down by a step's ms, reset to type +0x564 after a search; an
+// attack-move zeroes it
+internal inline int unit_get_scan_ms(const ee_unit *o) { return *(int *)((uint8_t *)o + of_unit_scan_ms); }
+internal inline void unit_set_scan_ms(ee_unit *o, int v) { *(int *)((uint8_t *)o + of_unit_scan_ms) = v; }
+internal inline int *unit_scan_ms_at(const ee_unit *o) { return (int *)((uint8_t *)o + of_unit_scan_ms); }
 // set while it moves
 // set while it moves (model_collide's first test in both builds)
 internal inline int unit_get_moving(const ee_unit *o) { return *(int *)((uint8_t *)o + of_unit_moving); }
@@ -200,10 +286,42 @@ internal inline int *unit_moving_at(const ee_unit *o) { return (int *)((uint8_t 
 internal inline int unit_get_sea_mode(const ee_unit *o) { return *(int *)((uint8_t *)o + of_unit_sea_mode); }
 internal inline void unit_set_sea_mode(ee_unit *o, int v) { *(int *)((uint8_t *)o + of_unit_sea_mode) = v; }
 internal inline int *unit_sea_mode_at(const ee_unit *o) { return (int *)((uint8_t *)o + of_unit_sea_mode); }
+// ammunition left (the dump's Ammunition): its type's +0x5A0 on rearming
+internal inline int unit_get_ammo(const ee_unit *o) { return *(int *)((uint8_t *)o + of_unit_ammo); }
+internal inline void unit_set_ammo(ee_unit *o, int v) { *(int *)((uint8_t *)o + of_unit_ammo) = v; }
+internal inline int *unit_ammo_at(const ee_unit *o) { return (int *)((uint8_t *)o + of_unit_ammo); }
+// ms into the current frame (or the hold): + a step's ms each tick, 0 at a new animation
+internal inline int unit_get_anim_ms(const ee_unit *o) { return *(int *)((uint8_t *)o + of_unit_anim_ms); }
+internal inline void unit_set_anim_ms(ee_unit *o, int v) { *(int *)((uint8_t *)o + of_unit_anim_ms) = v; }
+internal inline int *unit_anim_ms_at(const ee_unit *o) { return (int *)((uint8_t *)o + of_unit_anim_ms); }
+// the dump's Times Updated
+internal inline int unit_get_times_updated(const ee_unit *o) { return *(int *)((uint8_t *)o + of_unit_times_updated); }
+internal inline void unit_set_times_updated(ee_unit *o, int v) { *(int *)((uint8_t *)o + of_unit_times_updated) = v; }
+internal inline int *unit_times_updated_at(const ee_unit *o) { return (int *)((uint8_t *)o + of_unit_times_updated); }
+// the animation's next frame (the setter 0x5EFD6D)
+internal inline int unit_get_next_frame(const ee_unit *o) { return *(int *)((uint8_t *)o + of_unit_next_frame); }
+internal inline void unit_set_next_frame(ee_unit *o, int v) { *(int *)((uint8_t *)o + of_unit_next_frame) = v; }
+internal inline int *unit_next_frame_at(const ee_unit *o) { return (int *)((uint8_t *)o + of_unit_next_frame); }
+// an airplane's landing or takeoff clearance granted (the dump's Clearance granted)
+internal inline uint8_t unit_get_clearance(const ee_unit *o) { return *(uint8_t *)((uint8_t *)o + of_unit_clearance); }
+internal inline void unit_set_clearance(ee_unit *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_unit_clearance) = v; }
+internal inline uint8_t *unit_clearance_at(const ee_unit *o) { return (uint8_t *)((uint8_t *)o + of_unit_clearance); }
+// the animation setter's third: the tick holds the frame until anim_ms passes type +0x318[anim]
+internal inline uint8_t unit_get_anim_hold(const ee_unit *o) { return *(uint8_t *)((uint8_t *)o + of_unit_anim_hold); }
+internal inline void unit_set_anim_hold(ee_unit *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_unit_anim_hold) = v; }
+internal inline uint8_t *unit_anim_hold_at(const ee_unit *o) { return (uint8_t *)((uint8_t *)o + of_unit_anim_hold); }
 // frozen (the scenario effect)
 internal inline uint8_t unit_get_frozen(const ee_unit *o) { return *(uint8_t *)((uint8_t *)o + of_unit_frozen); }
 internal inline void unit_set_frozen(ee_unit *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_unit_frozen) = v; }
 internal inline uint8_t *unit_frozen_at(const ee_unit *o) { return (uint8_t *)((uint8_t *)o + of_unit_frozen); }
+// a gate locked: its own and allied units no longer pass (lets_pass)
+internal inline uint8_t unit_get_gate_locked(const ee_unit *o) { return *(uint8_t *)((uint8_t *)o + of_unit_gate_locked); }
+internal inline void unit_set_gate_locked(ee_unit *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_unit_gate_locked) = v; }
+internal inline uint8_t *unit_gate_locked_at(const ee_unit *o) { return (uint8_t *)((uint8_t *)o + of_unit_gate_locked); }
+// set each physics tick by its type's arrival test (slot 34, the distance to the waypoint), cleared when it stops
+internal inline uint8_t unit_get_arrived(const ee_unit *o) { return *(uint8_t *)((uint8_t *)o + of_unit_arrived); }
+internal inline void unit_set_arrived(ee_unit *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_unit_arrived) = v; }
+internal inline uint8_t *unit_arrived_at(const ee_unit *o) { return (uint8_t *)((uint8_t *)o + of_unit_arrived); }
 // on a building's +0x30: built
 internal inline uint8_t unit_get_finished(const ee_unit *o) { return *(uint8_t *)((uint8_t *)o + of_unit_finished); }
 internal inline void unit_set_finished(ee_unit *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_unit_finished) = v; }
@@ -223,11 +341,29 @@ internal inline uint8_t *unit_waypoints_at(const ee_unit *o) { return (uint8_t *
 internal inline int unit_get_waypoints_left(const ee_unit *o) { return *(int *)((uint8_t *)o + of_unit_waypoints_left); }
 internal inline void unit_set_waypoints_left(ee_unit *o, int v) { *(int *)((uint8_t *)o + of_unit_waypoints_left) = v; }
 internal inline int *unit_waypoints_left_at(const ee_unit *o) { return (int *)((uint8_t *)o + of_unit_waypoints_left); }
+// its goal slots, 0x28 bytes each (+4 a deque of goals, +0x14 their count; slot 0 the orders: unit_goal_queue)
+internal inline uint8_t *unit_goal_slots_at(const ee_unit *o) { return (uint8_t *)o + of_unit_goal_slots; }
+// where its shots start (the dump's ProjectileStart)
+internal inline vec3 unit_get_projectile_start(const ee_unit *o) { return *(vec3 *)((uint8_t *)o + of_unit_projectile_start); }
+internal inline void unit_set_projectile_start(ee_unit *o, vec3 v) { *(vec3 *)((uint8_t *)o + of_unit_projectile_start) = v; }
+internal inline vec3 *unit_projectile_start_at(const ee_unit *o) { return (vec3 *)((uint8_t *)o + of_unit_projectile_start); }
+// the place it returns to (0x5FE8E6 sets it; state 0x7EA sends it back; the target search looks around it)
+internal inline vec3 unit_get_guard_pos(const ee_unit *o) { return *(vec3 *)((uint8_t *)o + of_unit_guard_pos); }
+internal inline void unit_set_guard_pos(ee_unit *o, vec3 v) { *(vec3 *)((uint8_t *)o + of_unit_guard_pos) = v; }
+internal inline vec3 *unit_guard_pos_at(const ee_unit *o) { return (vec3 *)((uint8_t *)o + of_unit_guard_pos); }
 // its matrix (GETransformation, 3 x 4 floats by row): [1] [5] [9] the local y axis (facing), [3] [7] [11] the
 // position in tiles
 internal inline float unit_get_matrix(const ee_unit *o, int i) { return ((float *)((uint8_t *)o + of_unit_matrix))[i]; }
 internal inline void unit_set_matrix(ee_unit *o, int i, float v) { ((float *)((uint8_t *)o + of_unit_matrix))[i] = v; }
 internal inline float *unit_matrix_at(const ee_unit *o) { return (float *)((uint8_t *)o + of_unit_matrix); }
+// the height it flies its waypoint at (the dump's Cruise Altitude), reset by its type's slot 9 on a new tile
+internal inline float unit_get_cruise_alt(const ee_unit *o) { return *(float *)((uint8_t *)o + of_unit_cruise_alt); }
+internal inline void unit_set_cruise_alt(ee_unit *o, float v) { *(float *)((uint8_t *)o + of_unit_cruise_alt) = v; }
+internal inline float *unit_cruise_alt_at(const ee_unit *o) { return (float *)((uint8_t *)o + of_unit_cruise_alt); }
+// the heading (radians) to hold at guard_pos; -10000 none
+internal inline float unit_get_guard_heading(const ee_unit *o) { return *(float *)((uint8_t *)o + of_unit_guard_heading); }
+internal inline void unit_set_guard_heading(ee_unit *o, float v) { *(float *)((uint8_t *)o + of_unit_guard_heading) = v; }
+internal inline float *unit_guard_heading_at(const ee_unit *o) { return (float *)((uint8_t *)o + of_unit_guard_heading); }
 // the speed, at least the type's minimum
 internal inline float unit_get_speed_min(const ee_unit *o) { return *(float *)((uint8_t *)o + of_unit_speed_min); }
 internal inline void unit_set_speed_min(ee_unit *o, float v) { *(float *)((uint8_t *)o + of_unit_speed_min) = v; }
@@ -236,6 +372,10 @@ internal inline float *unit_speed_min_at(const ee_unit *o) { return (float *)((u
 internal inline float unit_get_speed(const ee_unit *o) { return *(float *)((uint8_t *)o + of_unit_speed); }
 internal inline void unit_set_speed(ee_unit *o, float v) { *(float *)((uint8_t *)o + of_unit_speed) = v; }
 internal inline float *unit_speed_at(const ee_unit *o) { return (float *)((uint8_t *)o + of_unit_speed); }
+// its scale (1 normal): size = type +0x474 x scale, height = its stats' height x scale
+internal inline float unit_get_scale(const ee_unit *o) { return *(float *)((uint8_t *)o + of_unit_scale); }
+internal inline void unit_set_scale(ee_unit *o, float v) { *(float *)((uint8_t *)o + of_unit_scale) = v; }
+internal inline float *unit_scale_at(const ee_unit *o) { return (float *)((uint8_t *)o + of_unit_scale); }
 // the type's size (+0x474) x the unit's scale, in tiles - a diameter to the circle test (EEPhysicsModel::vf15), the
 // line's length to the ships' (EEPMNaval::vf16) - model_collide in both builds
 internal inline float unit_get_size(const ee_unit *o) { return *(float *)((uint8_t *)o + of_unit_size); }
@@ -364,31 +504,66 @@ internal int spec_unit_select(int build) {
         of_unit_queue_begin = 0x4C;
         of_unit_id = 0x60;
         of_unit_busy = 0x68;
+        of_unit_height = 0x174;
+        of_unit_anim_frame = 0x178;
         of_unit_turn_rate = 0x17C;
+        of_unit_pitch_rate = 0x180;
+        of_unit_roll_rate = 0x184;
+        of_unit_yaw = 0x188;
+        of_unit_pitch = 0x18C;
+        of_unit_roll = 0x190;
+        of_unit_collision_tile = 0x1A4;
         of_unit_attacker_type = 0x1C0;
+        of_unit_group = 0x1C8;
         of_unit_chain = 0x1CC;
+        of_unit_chained = 0x1D0;
+        of_unit_air_traffic = 0x1D4;
         of_unit_holder = 0x1D8;
+        of_unit_attacker = 0x1DC;
         of_unit_ai_state = 0x1E8;
         of_unit_goal = 0x1EC;
         of_unit_goal_object = 0x1F0;
+        of_unit_herd = 0x200;
         of_unit_behaviour = 0x208;
         of_unit_push = 0x230;
+        of_unit_blocked_ms = 0x248;
+        of_unit_anim_sound = 0x258;
         of_unit_producing = 0x25C;
+        of_unit_anim = 0x260;
         of_unit_move_mode = 0x264;
+        of_unit_physics_order = 0x268;
+        of_unit_crew_hp = 0x278;
+        of_unit_garrisoned = 0x284;
         of_unit_flight_ms = 0x28C;
+        of_unit_hp_last = 0x29C;
         of_unit_reload = 0x2A0;
         of_unit_room = 0x2A4;
+        of_unit_scan_ms = 0x2AC;
         of_unit_moving = 0x2D8;
         of_unit_sea_mode = 0x2E0;
+        of_unit_ammo = 0x2E4;
+        of_unit_anim_ms = 0x2FC;
+        of_unit_times_updated = 0x304;
+        of_unit_next_frame = 0x308;
+        of_unit_clearance = 0x336;
+        of_unit_anim_hold = 0x337;
         of_unit_frozen = 0x33B;
+        of_unit_gate_locked = 0x33C;
+        of_unit_arrived = 0x33F;
         of_unit_finished = 0x340;
         of_unit_ai_held = 0x341;
         of_unit_at_work = 0x347;
         of_unit_waypoints = 0x7C;
         of_unit_waypoints_left = 0x8C;
+        of_unit_goal_slots = 0x94;
+        of_unit_projectile_start = 0x10C;
+        of_unit_guard_pos = 0x118;
         of_unit_matrix = 0x130;
+        of_unit_cruise_alt = 0x210;
+        of_unit_guard_heading = 0x214;
         of_unit_speed_min = 0x21C;
         of_unit_speed = 0x238;
+        of_unit_scale = 0x240;
         of_unit_size = 0x244;
         fn_ee_complex_unit_lets_pass = (unit_lets_pass_fn)0x005EC317;
         fn_unit_max_speed = (unit_max_speed_fn)0x0046123F;
@@ -452,31 +627,66 @@ internal int spec_unit_select(int build) {
         of_unit_queue_begin = 0x4C;
         of_unit_id = 0x60;
         of_unit_busy = 0x68;
+        of_unit_height = 0x174;
+        of_unit_anim_frame = 0x178;
         of_unit_turn_rate = 0x17C;
+        of_unit_pitch_rate = 0x180;
+        of_unit_roll_rate = 0x184;
+        of_unit_yaw = 0x188;
+        of_unit_pitch = 0x18C;
+        of_unit_roll = 0x190;
+        of_unit_collision_tile = 0x1A4;
         of_unit_attacker_type = 0x1C0;
+        of_unit_group = 0x1C8;
         of_unit_chain = 0x1CC;
+        of_unit_chained = 0x1D0;
+        of_unit_air_traffic = 0x1D4;
         of_unit_holder = 0x1D8;
+        of_unit_attacker = 0x1DC;
         of_unit_ai_state = 0x1E8;
         of_unit_goal = 0x1EC;
         of_unit_goal_object = 0x1F0;
+        of_unit_herd = 0x200;
         of_unit_behaviour = 0x208;
         of_unit_push = 0x230;
+        of_unit_blocked_ms = 0x248;
+        of_unit_anim_sound = 0x25C;
         of_unit_producing = 0x260;
+        of_unit_anim = 0x264;
         of_unit_move_mode = 0x268;
+        of_unit_physics_order = 0x26C;
+        of_unit_crew_hp = 0x27C;
+        of_unit_garrisoned = 0x288;
         of_unit_flight_ms = 0x290;
+        of_unit_hp_last = 0x2A0;
         of_unit_reload = 0x2A4;
         of_unit_room = 0x2A8;
+        of_unit_scan_ms = 0x2B0;
         of_unit_moving = 0x2DC;
         of_unit_sea_mode = 0x2E4;
+        of_unit_ammo = 0x2E8;
+        of_unit_anim_ms = 0x300;
+        of_unit_times_updated = 0x308;
+        of_unit_next_frame = 0x30C;
+        of_unit_clearance = 0x342;
+        of_unit_anim_hold = 0x343;
         of_unit_frozen = 0x347;
+        of_unit_gate_locked = 0x348;
+        of_unit_arrived = 0x34B;
         of_unit_finished = 0x34C;
         of_unit_ai_held = 0x34D;
         of_unit_at_work = 0x353;
         of_unit_waypoints = 0x7C;
         of_unit_waypoints_left = 0x8C;
+        of_unit_goal_slots = 0x94;
+        of_unit_projectile_start = 0x10C;
+        of_unit_guard_pos = 0x118;
         of_unit_matrix = 0x130;
+        of_unit_cruise_alt = 0x210;
+        of_unit_guard_heading = 0x214;
         of_unit_speed_min = 0x21C;
         of_unit_speed = 0x238;
+        of_unit_scale = 0x240;
         of_unit_size = 0x244;
         fn_ee_complex_unit_lets_pass = (unit_lets_pass_fn)0x005F9E81;
         fn_unit_max_speed = (unit_max_speed_fn)0x0045E407;

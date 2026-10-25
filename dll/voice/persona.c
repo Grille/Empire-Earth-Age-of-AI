@@ -923,10 +923,10 @@ internal const char *player_name(ee_player *pl) {
     const char *s = pl ? player_get_name(pl) : NULL;
     return s ? s : "?";
 }
-// the player's civilization as the game shows it, in its language (+0x48C: "Karthago" - or a personality's
-// civilization=); en: the database's name (+0x7B0: "Carthage") - NULL: none chosen
+// the player's civilization as the game shows it, in its language (civ_name: "Karthago" - or a personality's
+// civilization=); en: the database's name (civ_name_en: "Carthage") - NULL: none chosen
 internal const char *player_civ_of(ee_player *pl, int en) {
-    const char *s = pl ? FIELD(pl, en ? 0x7B0 : 0x48C, const char *) : NULL;
+    const char *s = pl ? (en ? player_get_civ_name_en(pl) : wstring_text(player_civ_name_at(pl))) : NULL;
     return s && mem_readable(s, 1) && *s ? s : NULL;
 }
 internal const char *player_civ(ee_player *pl) { return player_civ_of(pl, 0); }

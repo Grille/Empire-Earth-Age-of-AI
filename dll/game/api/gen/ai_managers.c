@@ -22,6 +22,14 @@ internal inline ee_civ_mgr **build_mgr_owner_at(const ee_build_mgr *o) { return 
 internal inline ee_player *build_mgr_get_player(const ee_build_mgr *o) { return *(ee_player **)((uint8_t *)o + of_build_mgr_player); }
 internal inline void build_mgr_set_player(ee_build_mgr *o, ee_player *v) { *(ee_player **)((uint8_t *)o + of_build_mgr_player) = v; }
 internal inline ee_player **build_mgr_player_at(const ee_build_mgr *o) { return (ee_player **)((uint8_t *)o + of_build_mgr_player); }
+// every 120 s it gives build-or-repair goals to the buildings that need them (0x465A8E)
+internal inline uint32_t build_mgr_get_next_repair(const ee_build_mgr *o) { return *(uint32_t *)((uint8_t *)o + of_build_mgr_next_repair); }
+internal inline void build_mgr_set_next_repair(ee_build_mgr *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_build_mgr_next_repair) = v; }
+internal inline uint32_t *build_mgr_next_repair_at(const ee_build_mgr *o) { return (uint32_t *)((uint8_t *)o + of_build_mgr_next_repair); }
+// its update (0x468540) runs again 3 s after each run
+internal inline uint32_t build_mgr_get_next_update(const ee_build_mgr *o) { return *(uint32_t *)((uint8_t *)o + of_build_mgr_next_update); }
+internal inline void build_mgr_set_next_update(ee_build_mgr *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_build_mgr_next_update) = v; }
+internal inline uint32_t *build_mgr_next_update_at(const ee_build_mgr *o) { return (uint32_t *)((uint8_t *)o + of_build_mgr_next_update); }
 // its file's code (+0x24)
 internal inline uint8_t build_mgr_get_initialized(const ee_build_mgr *o) { return *(uint8_t *)((uint8_t *)o + of_build_mgr_initialized); }
 internal inline void build_mgr_set_initialized(ee_build_mgr *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_build_mgr_initialized) = v; }
@@ -131,11 +139,19 @@ internal inline int *plan_node_unknown_10_at(const ee_plan_node *o) { return (in
 internal inline void **resource_mgr_get_hunt_begin(const ee_resource_mgr *o) { return *(void ***)((uint8_t *)o + of_resource_mgr_hunt_begin); }
 internal inline void resource_mgr_set_hunt_begin(ee_resource_mgr *o, void **v) { *(void ***)((uint8_t *)o + of_resource_mgr_hunt_begin) = v; }
 internal inline void ***resource_mgr_hunt_begin_at(const ee_resource_mgr *o) { return (void ***)((uint8_t *)o + of_resource_mgr_hunt_begin); }
+// the end of its hunt list (hunt_begin)
+internal inline void **resource_mgr_get_hunt_end(const ee_resource_mgr *o) { return *(void ***)((uint8_t *)o + of_resource_mgr_hunt_end); }
+internal inline void resource_mgr_set_hunt_end(ee_resource_mgr *o, void **v) { *(void ***)((uint8_t *)o + of_resource_mgr_hunt_end) = v; }
+internal inline void ***resource_mgr_hunt_end_at(const ee_resource_mgr *o) { return (void ***)((uint8_t *)o + of_resource_mgr_hunt_end); }
 // the fish
 // its file's code (the resource manager)
 internal inline void **resource_mgr_get_fish_begin(const ee_resource_mgr *o) { return *(void ***)((uint8_t *)o + of_resource_mgr_fish_begin); }
 internal inline void resource_mgr_set_fish_begin(ee_resource_mgr *o, void **v) { *(void ***)((uint8_t *)o + of_resource_mgr_fish_begin) = v; }
 internal inline void ***resource_mgr_fish_begin_at(const ee_resource_mgr *o) { return (void ***)((uint8_t *)o + of_resource_mgr_fish_begin); }
+// the end of its fish list (fish_begin)
+internal inline void **resource_mgr_get_fish_end(const ee_resource_mgr *o) { return *(void ***)((uint8_t *)o + of_resource_mgr_fish_end); }
+internal inline void resource_mgr_set_fish_end(ee_resource_mgr *o, void **v) { *(void ***)((uint8_t *)o + of_resource_mgr_fish_end) = v; }
+internal inline void ***resource_mgr_fish_end_at(const ee_resource_mgr *o) { return (void ***)((uint8_t *)o + of_resource_mgr_fish_end); }
 // its file's code (the resource manager)
 internal inline uint8_t *resource_mgr_lists_at(const ee_resource_mgr *o) { return (uint8_t *)o + of_resource_mgr_lists; }
 // its file's code (the resource manager)
@@ -238,6 +254,22 @@ internal inline void research_mgr_set_pool_begin(ee_research_mgr *o, int *v) { *
 internal inline int **research_mgr_pool_begin_at(const ee_research_mgr *o) { return (int **)((uint8_t *)o + of_research_mgr_pool_begin); }
 // kept: the object's start, before its first known shift (0xF4 -> 0x104)
 internal inline uint8_t *research_mgr_epoch_at(const ee_research_mgr *o) { return (uint8_t *)o + of_research_mgr_epoch; }
+// its civilization manager
+internal inline ee_civ_mgr *research_mgr_get_owner(const ee_research_mgr *o) { return *(ee_civ_mgr **)((uint8_t *)o + of_research_mgr_owner); }
+internal inline void research_mgr_set_owner(ee_research_mgr *o, ee_civ_mgr *v) { *(ee_civ_mgr **)((uint8_t *)o + of_research_mgr_owner) = v; }
+internal inline ee_civ_mgr **research_mgr_owner_at(const ee_research_mgr *o) { return (ee_civ_mgr **)((uint8_t *)o + of_research_mgr_owner); }
+// its player
+internal inline ee_player *research_mgr_get_player(const ee_research_mgr *o) { return *(ee_player **)((uint8_t *)o + of_research_mgr_player); }
+internal inline void research_mgr_set_player(ee_research_mgr *o, ee_player *v) { *(ee_player **)((uint8_t *)o + of_research_mgr_player) = v; }
+internal inline ee_player **research_mgr_player_at(const ee_research_mgr *o) { return (ee_player **)((uint8_t *)o + of_research_mgr_player); }
+// its player's tech tree
+internal inline ee_tech_tree *research_mgr_get_tech_tree(const ee_research_mgr *o) { return *(ee_tech_tree **)((uint8_t *)o + of_research_mgr_tech_tree); }
+internal inline void research_mgr_set_tech_tree(ee_research_mgr *o, ee_tech_tree *v) { *(ee_tech_tree **)((uint8_t *)o + of_research_mgr_tech_tree) = v; }
+internal inline ee_tech_tree **research_mgr_tech_tree_at(const ee_research_mgr *o) { return (ee_tech_tree **)((uint8_t *)o + of_research_mgr_tech_tree); }
+// game time of its next random research (SetNextRandomResearchTime 0x486924)
+internal inline uint32_t research_mgr_get_next_random(const ee_research_mgr *o) { return *(uint32_t *)((uint8_t *)o + of_research_mgr_next_random); }
+internal inline void research_mgr_set_next_random(ee_research_mgr *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_research_mgr_next_random) = v; }
+internal inline uint32_t *research_mgr_next_random_at(const ee_research_mgr *o) { return (uint32_t *)((uint8_t *)o + of_research_mgr_next_random); }
 // what it researches now
 internal inline int research_mgr_get_current(const ee_research_mgr *o) { return *(int *)((uint8_t *)o + of_research_mgr_current); }
 internal inline void research_mgr_set_current(ee_research_mgr *o, int v) { *(int *)((uint8_t *)o + of_research_mgr_current) = v; }
@@ -261,10 +293,18 @@ internal inline void research_mgr_schedule(ee_research_mgr *research_mgr, int id
 // the AI's unit manager, CM +0x44
 // its file's code (the unit manager)
 internal inline uint8_t *unit_mgr_requests_at(const ee_unit_mgr *o) { return (uint8_t *)o + of_unit_mgr_requests; }
+// its civilization manager
+internal inline ee_civ_mgr *unit_mgr_get_owner(const ee_unit_mgr *o) { return *(ee_civ_mgr **)((uint8_t *)o + of_unit_mgr_owner); }
+internal inline void unit_mgr_set_owner(ee_unit_mgr *o, ee_civ_mgr *v) { *(ee_civ_mgr **)((uint8_t *)o + of_unit_mgr_owner) = v; }
+internal inline ee_civ_mgr **unit_mgr_owner_at(const ee_unit_mgr *o) { return (ee_civ_mgr **)((uint8_t *)o + of_unit_mgr_owner); }
 // its file's code (+0x14, 31 votes)
 internal inline ee_player *unit_mgr_get_player(const ee_unit_mgr *o) { return *(ee_player **)((uint8_t *)o + of_unit_mgr_player); }
 internal inline void unit_mgr_set_player(ee_unit_mgr *o, ee_player *v) { *(ee_player **)((uint8_t *)o + of_unit_mgr_player) = v; }
 internal inline ee_player **unit_mgr_player_at(const ee_unit_mgr *o) { return (ee_player **)((uint8_t *)o + of_unit_mgr_player); }
+// units requested and not ordered yet: a request adds its count, a training moves it into in_production
+internal inline int unit_mgr_get_requested(const ee_unit_mgr *o) { return *(int *)((uint8_t *)o + of_unit_mgr_requested); }
+internal inline void unit_mgr_set_requested(ee_unit_mgr *o, int v) { *(int *)((uint8_t *)o + of_unit_mgr_requested) = v; }
+internal inline int *unit_mgr_requested_at(const ee_unit_mgr *o) { return (int *)((uint8_t *)o + of_unit_mgr_requested); }
 // units in production (0x49014F adds)
 // its file's code (+0x14)
 internal inline int unit_mgr_get_in_production(const ee_unit_mgr *o) { return *(int *)((uint8_t *)o + of_unit_mgr_in_production); }
@@ -335,6 +375,8 @@ internal int spec_ai_managers_select(int build) {
         of_build_mgr_base_y = 0x130;
         of_build_mgr_owner = 0x134;
         of_build_mgr_player = 0x138;
+        of_build_mgr_next_repair = 0x140;
+        of_build_mgr_next_update = 0x144;
         of_build_mgr_initialized = 0x148;
         fn_build_mgr_queued = (build_mgr_queued_fn)0x00465640;
         fn_build_mgr_enemy_near = (build_mgr_enemy_near_fn)0x004660B9;
@@ -365,7 +407,9 @@ internal int spec_ai_managers_select(int build) {
         of_plan_node_unknown_c = 0xC;
         of_plan_node_unknown_10 = 0x10;
         of_resource_mgr_hunt_begin = 0x88;
+        of_resource_mgr_hunt_end = 0x8C;
         of_resource_mgr_fish_begin = 0x98;
+        of_resource_mgr_fish_end = 0x9C;
         of_resource_mgr_lists = 0xA4;
         of_resource_mgr_owner = 0x130;
         of_resource_mgr_demand = 0x134;
@@ -419,13 +463,19 @@ internal int spec_ai_managers_select(int build) {
         fn_resource_mgr_unbuilt_farms = (resource_mgr_unbuilt_farms_fn)0x0048BF4F;
         of_research_mgr_pool_begin = 0x8;
         of_research_mgr_epoch = 0x18;
+        of_research_mgr_owner = 0x104;
+        of_research_mgr_player = 0x108;
+        of_research_mgr_tech_tree = 0x10C;
+        of_research_mgr_next_random = 0x110;
         of_research_mgr_current = 0x114;
         of_research_mgr_initialized = 0x118;
         of_research_mgr_att_random = 0x11A;
         fn_research_mgr_request_requirements = (research_mgr_request_requirements_fn)0x004860D6;
         fn_research_mgr_schedule = (research_mgr_schedule_fn)0x00485F57;
         of_unit_mgr_requests = 0xC;
+        of_unit_mgr_owner = 0x130;
         of_unit_mgr_player = 0x134;
+        of_unit_mgr_requested = 0x138;
         of_unit_mgr_in_production = 0x13C;
         of_unit_mgr_att_140 = 0x140;
         fn_unit_mgr_train_citizens = (unit_mgr_train_citizens_fn)0x0048EE84;
@@ -455,6 +505,8 @@ internal int spec_ai_managers_select(int build) {
         of_build_mgr_base_y = 0x154;
         of_build_mgr_owner = 0x158;
         of_build_mgr_player = 0x15C;
+        of_build_mgr_next_repair = 0x164;
+        of_build_mgr_next_update = 0x168;
         of_build_mgr_initialized = 0x16C;
         fn_build_mgr_queued = (build_mgr_queued_fn)0x004672FA;
         fn_build_mgr_enemy_near = (build_mgr_enemy_near_fn)0x00467E10;
@@ -485,7 +537,9 @@ internal int spec_ai_managers_select(int build) {
         of_plan_node_unknown_c = 0xC;
         of_plan_node_unknown_10 = 0x10;
         of_resource_mgr_hunt_begin = 0x88;
+        of_resource_mgr_hunt_end = 0x8C;
         of_resource_mgr_fish_begin = 0x98;
+        of_resource_mgr_fish_end = 0x9C;
         of_resource_mgr_lists = 0xA4;
         of_resource_mgr_owner = 0x130;
         of_resource_mgr_demand = 0x134;
@@ -539,13 +593,19 @@ internal int spec_ai_managers_select(int build) {
         fn_resource_mgr_unbuilt_farms = (resource_mgr_unbuilt_farms_fn)0x004909D7;
         of_research_mgr_pool_begin = 0x8;
         of_research_mgr_epoch = 0x18;
+        of_research_mgr_owner = 0x114;
+        of_research_mgr_player = 0x118;
+        of_research_mgr_tech_tree = 0x11C;
+        of_research_mgr_next_random = 0x120;
         of_research_mgr_current = 0x124;
         of_research_mgr_initialized = 0x128;
         of_research_mgr_att_random = 0x12A;
         fn_research_mgr_request_requirements = (research_mgr_request_requirements_fn)0x0048A91E;
         fn_research_mgr_schedule = (research_mgr_schedule_fn)0x0048A79F;
         of_unit_mgr_requests = 0xC;
+        of_unit_mgr_owner = 0x144;
         of_unit_mgr_player = 0x148;
+        of_unit_mgr_requested = 0x14C;
         of_unit_mgr_in_production = 0x150;
         of_unit_mgr_att_140 = 0x154;
         fn_unit_mgr_train_citizens = (unit_mgr_train_citizens_fn)0x00493B97;

@@ -155,21 +155,70 @@ unsafe struct EEComplexUnit
     [offset(0x68), found(c)]
     int32 busy;
 
+    /// its height: its stats' height x scale (airplanes recompute it each tick; the scenario's attribute 0xD adds to
+    /// it)
+    [offset(0x174), found(c)]
+    float32 height;
+
+    /// the current frame of its animation (the dump's Current Frame)
+    [offset(0x178), found(c)]
+    int32 anim_frame;
+
     /// radians/s, signed
     /// the turn rate now (radians/s, signed) - model_collide in both builds, model_turn_decide's caller
     [offset(0x17C), found(c)]
     float32 turn_rate;
 
+    /// pitch velocity (radians/s): the movement models set it (an airplane's climb) or zero it
+    [offset(0x180), found(c)]
+    float32 pitch_rate;
+
+    /// roll velocity (radians/s), 0 in every movement model
+    [offset(0x184), found(c)]
+    float32 roll_rate;
+
+    /// its heading (radians) as the models give it to SetOrientationYPR
+    [offset(0x188), found(c)]
+    float32 yaw;
+
+    /// its pitch (radians), SetOrientationYPR's second
+    [offset(0x18C), found(c)]
+    float32 pitch;
+
+    /// its roll (radians), SetOrientationYPR's third
+    [offset(0x190), found(c)]
+    float32 roll;
+
+    /// the tile of its collision (the dump's Collision Tile; -10000 none)
+    [offset(0x1A4), found(c)]
+    ivec2 collision_tile;
+
     /// a projectile's: the attack's type data
     [offset(0x1C0), found(c)]
     EEUnitClass* attacker_type;
 
+    /// its active movement group: while it has one, max_speed is the group's
+    [offset(0x1C8), found(c)]
+    EEGroup* group;
+
     [offset(0x1CC), found(c)]
     EEUnit* chain;
+
+    /// the unit whose chain (+0x1CC) this one is, referenced
+    [offset(0x1D0), found(c)]
+    EEComplexUnit* chained;
+
+    /// an airplane's airport (its EEAirTrafficControl: +0x26C the state, +0x1C/+0x20 the tile), NULL none
+    [offset(0x1D4), found(c)]
+    void* air_traffic;
 
     /// set while inside a transport or building (EEUCTransport::vf63: none may board)
     [offset(0x1D8), found(c)]
     void* holder;
+
+    /// the last unit attacking it, referenced; dropped once that unit's attack goal no longer targets it (0x5F1214)
+    [offset(0x1DC), found(c)]
+    EEComplexUnit* attacker;
 
     /// its script state (AISTATE)
     [offset(0x1E8), found(c)]
@@ -183,6 +232,10 @@ unsafe struct EEComplexUnit
     [offset(0x1F0), found(c)]
     EEUnitGoal* goal_object;
 
+    /// an animal's herd (EEHerd)
+    [offset(0x200), found(c)]
+    void* herd;
+
     /// its behaviour (behaviour_table())
     [offset(0x208), found(c)]
     void* behaviour;
@@ -193,9 +246,21 @@ unsafe struct EEComplexUnit
     [offset(0x230), found(c)]
     vec2 push;
 
+    /// ms in an unresolved collision (the dump's Coll Resolut Cnt): + a step's ms each pushed step, 0 when it resolves
+    [offset(0x248), found(c)]
+    float32 blocked_ms;
+
+    /// its animation's sound (the animation setter 0x5EFD6D)
+    [offset((ee)0x258, (aoc)0x25C), found(c)]
+    SESMInstanceNode* anim_sound;
+
     /// what a building makes now
     [offset((ee)0x25C, (aoc)0x260), found(c)]
     int32 producing;
+
+    /// its animation (7/8 idle, 0xD walk, 2 carry ...: the setter 0x5EFD6D; the model from type +0x234[anim])
+    [offset((ee)0x260, (aoc)0x264), found(c)]
+    int32 anim;
 
     /// the movement mode
     /// the movement mode (0x549F82 picks the model's step by it; 2 no collisions) - the push (movement.slot_pm_push) sets an
@@ -203,9 +268,25 @@ unsafe struct EEComplexUnit
     [offset((ee)0x264, (aoc)0x268), found(c)]
     int32 move_mode;
 
+    /// the dump's CurrentPhysicsOrder (an airplane: 5 at a stop)
+    [offset((ee)0x268, (aoc)0x26C), found(c)]
+    int32 physics_order;
+
+    /// the dump's Crew Hit Points
+    [offset((ee)0x278, (aoc)0x27C), found(c)]
+    int32 crew_hp;
+
+    /// room taken inside it: its occupants' transport sizes, at most its type's garrison_capacity
+    [offset((ee)0x284, (aoc)0x288), found(c)]
+    int32 garrisoned;
+
     /// a missile's climb left (ms)
     [offset((ee)0x28C, (aoc)0x290), found(c)]
     int32 flight_ms;
+
+    /// its hit points at the start of its tick (a script condition compares them to see a hit)
+    [offset((ee)0x29C, (aoc)0x2A0), found(c)]
+    int32 hp_last;
 
     /// its own reload (ms, 0: its class's)
     [offset((ee)0x2A0, (aoc)0x2A4), found(c)]
@@ -216,6 +297,11 @@ unsafe struct EEComplexUnit
     [offset((ee)0x2A4, (aoc)0x2A8), found(c)]
     int32 room;
 
+    /// ms until it next looks for a target: counted down by a step's ms, reset to type +0x564 after a search; an
+    /// attack-move zeroes it
+    [offset((ee)0x2AC, (aoc)0x2B0), found(c)]
+    int32 scan_ms;
+
     /// set while it moves
     /// set while it moves (model_collide's first test in both builds)
     [offset((ee)0x2D8, (aoc)0x2DC), found(c)]
@@ -225,9 +311,41 @@ unsafe struct EEComplexUnit
     [offset((ee)0x2E0, (aoc)0x2E4), found(c)]
     int32 sea_mode;
 
+    /// ammunition left (the dump's Ammunition): its type's +0x5A0 on rearming
+    [offset((ee)0x2E4, (aoc)0x2E8), found(c)]
+    int32 ammo;
+
+    /// ms into the current frame (or the hold): + a step's ms each tick, 0 at a new animation
+    [offset((ee)0x2FC, (aoc)0x300), found(c)]
+    int32 anim_ms;
+
+    /// the dump's Times Updated
+    [offset((ee)0x304, (aoc)0x308), found(c)]
+    int32 times_updated;
+
+    /// the animation's next frame (the setter 0x5EFD6D)
+    [offset((ee)0x308, (aoc)0x30C), found(c)]
+    int32 next_frame;
+
+    /// an airplane's landing or takeoff clearance granted (the dump's Clearance granted)
+    [offset((ee)0x336, (aoc)0x342), found(c)]
+    uint8 clearance;
+
+    /// the animation setter's third: the tick holds the frame until anim_ms passes type +0x318[anim]
+    [offset((ee)0x337, (aoc)0x343), found(c)]
+    uint8 anim_hold;
+
     /// frozen (the scenario effect)
     [offset((ee)0x33B, (aoc)0x347), found(c)]
     uint8 frozen;
+
+    /// a gate locked: its own and allied units no longer pass (lets_pass)
+    [offset((ee)0x33C, (aoc)0x348), found(c)]
+    uint8 gate_locked;
+
+    /// set each physics tick by its type's arrival test (slot 34, the distance to the waypoint), cleared when it stops
+    [offset((ee)0x33F, (aoc)0x34B), found(c)]
+    uint8 arrived;
 
     /// on a building's +0x30: built
     [offset((ee)0x340, (aoc)0x34C), found(c)]
@@ -250,16 +368,40 @@ unsafe struct EEComplexUnit
     /// its waypoints left (the deque's size)
     [offset(0x8C), found(c)]
     int32 waypoints_left;
+    /// its goal slots, 0x28 bytes each (+4 a deque of goals, +0x14 their count; slot 0 the orders: unit_goal_queue)
+    [offset(0x94), found(c)]
+    vector goal_slots;
+
+    /// where its shots start (the dump's ProjectileStart)
+    [offset(0x10C), found(c)]
+    vec3 projectile_start;
+
+    /// the place it returns to (0x5FE8E6 sets it; state 0x7EA sends it back; the target search looks around it)
+    [offset(0x118), found(c)]
+    vec3 guard_pos;
+
     /// its matrix (GETransformation, 3 x 4 floats by row): [1] [5] [9] the local y axis (facing), [3] [7] [11] the
     /// position in tiles
     [offset(0x130), found(b)]
     fixed float32 matrix[12];
+    /// the height it flies its waypoint at (the dump's Cruise Altitude), reset by its type's slot 9 on a new tile
+    [offset(0x210), found(c)]
+    float32 cruise_alt;
+
+    /// the heading (radians) to hold at guard_pos; -10000 none
+    [offset(0x214), found(c)]
+    float32 guard_heading;
+
     /// the speed, at least the type's minimum
     [offset(0x21C), found(c)]
     float32 speed_min;
     /// tiles/s (0 standing)
     [offset(0x238), found(c)]
     float32 speed;
+    /// its scale (1 normal): size = type +0x474 x scale, height = its stats' height x scale
+    [offset(0x240), found(c)]
+    float32 scale;
+
     /// the type's size (+0x474) x the unit's scale, in tiles - a diameter to the circle test (EEPhysicsModel::vf15), the
     /// line's length to the ships' (EEPMNaval::vf16) - model_collide in both builds
     [offset(0x244), found(c)]

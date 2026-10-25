@@ -10,8 +10,17 @@ unsafe struct EEPlayer
     [offset(0x438), found(c)]
     block color;
 
+    /// the first of its units in its linked list, the next one at a unit's +0xC (set_diplomacy, delete_for_room walk
+    /// it)
+    [offset(0x450), found(c)]
+    EEUnit* units;
+
     [offset(0x45C), found(c)]
     int32 index;
+
+    /// its unit count (the scenario's player attribute unit_count; recounted on load)
+    [offset(0x460), found(c)]
+    int32 unit_count;
 
     /// its id in a chat message (msg +0xA)
     [offset(0x464), found(b)]
@@ -31,8 +40,17 @@ unsafe struct EEPlayer
     [offset(0x4A8), found(c)]
     EEPlayerStatistics stats;
 
+    /// its civilization by the database's name ("Carthage"; civ_name is the game language's: "Karthago") - both
+    /// builds' civilization lists read it
+    [offset(0x7B0), found(c)]
+    cstr civ_name_en;
+
     [offset((ee)0x874, (aoc)0x884), found(b)]
     block type_stats;
+
+    /// itself as a computer player (the computer player's constructor's dynamic cast), NULL for a human
+    [offset((ee)0x9B4, (aoc)0x9A4), found(c)]
+    EEComputerPlayer* computer;
 
     [offset((ee)0x9BC, (aoc)0x9AC), found(c)]
     int32* selected_group;
@@ -53,6 +71,23 @@ unsafe struct EEPlayer
     /// 1 won, 2 lost
     [offset((ee)0xA30, (aoc)0xA28), found(c)]
     int32 result;
+
+    /// the scenario's ten trigger variables (player_attr 11..20)
+    [offset((ee)0xA44, (aoc)0xA3C), found(c)]
+    fixed int32 variables[10];
+
+    /// its units' running attack goals: the first sets strategy 2, the last one ending strategy 1 (the attack goal's
+    /// constructor and destructor)
+    [offset((ee)0xAB4, (aoc)0xAAC), found(c)]
+    int32 attacks_running;
+
+    /// tribute sent by resource: food, wood, stone, gold, iron (player_attr 21, 23 ...)
+    [offset((ee)0xAB8, (aoc)0xAB0), found(c)]
+    fixed int32 tribute_sent[5];
+
+    /// tribute received by resource (player_attr 22, 24 ...)
+    [offset((ee)0xACC, (aoc)0xAC4), found(c)]
+    fixed int32 tribute_received[5];
 
     /// int[7]: 2 food, 3 wood, 4 stone, 5 gold, 6 iron
     [offset((ee)0xAF0, (aoc)0xAF4), found(c)]
@@ -81,6 +116,10 @@ unsafe struct EEPlayer
     /// the resource zones (map-wide)
     [offset((ee)0xB50, (aoc)0xB84), found(c)]
     ee_zone** zones_begin;
+
+    /// the end of its zones' vector (zones_begin)
+    [offset((ee)0xB54, (aoc)0xB88), found(c)]
+    ee_zone** zones_end;
 
     [offset((ee)0xB8C, (aoc)0xBC0), found(c)]
     EECPCombatManager* combat_mgr;
@@ -223,6 +262,304 @@ unsafe struct ee_player_b98
 [@base(typeof(EEPlayer)), c_type("ee_player"), vtable((ee)0x008264C0, (aoc)0x0083A57C)]
 unsafe struct EEComputerPlayer
 {
+    /// units it picked to delete: update deletes each one (its vf +0x60 (1, 0, 0)); delete_for_room passes over them
+    [offset((ee)0xB80, (aoc)0xBB4), found(c)]
+    EEUnit** doomed_begin;
+
+    /// the end of doomed_begin's vector
+    [offset((ee)0xB84, (aoc)0xBB8), found(c)]
+    EEUnit** doomed_end;
+
+    /// its favourite land unit type (default 0x14; the scenario's Set Favorite Units)
+    [offset((ee)0xBA8, (aoc)0xBDC), found(c)]
+    int32 favorite_land;
+
+    /// its favourite air unit type (default 0xF2)
+    [offset((ee)0xBAC, (aoc)0xBE0), found(c)]
+    int32 favorite_air;
+
+    /// its favourite sea unit type (default 0x48; AoC has a fourth at +0xBE8)
+    [offset((ee)0xBB0, (aoc)0xBE4), found(c)]
+    int32 favorite_sea;
+
+    /// minutes added to the interval between attacks per epoch of the game's range (record 22)
+    [offset((ee)0xBC4, (aoc)0xBFC), found(c)]
+    float32 attack_interval_per_epoch;
+
+    /// deathmatch: attack groups scaled by it until dm_group_until (record 105, x 0.01)
+    [offset((ee)0xBE0, (aoc)0xC18), found(c)]
+    float32 dm_group_scale;
+
+    /// easy: the factor on catch_up_max (record 107, x 0.01)
+    [offset((ee)0xBE4, (aoc)0xC1C), found(c)]
+    float32 catch_up_easy;
+
+    /// hard: the factor on catch_up_max
+    [offset((ee)0xBE8, (aoc)0xC20), found(c)]
+    float32 catch_up_hard;
+
+    /// deathmatch: the factor on catch_up_max, and the epoch timer's
+    [offset((ee)0xBEC, (aoc)0xC24), found(c)]
+    float32 catch_up_dm;
+
+    /// the most of its population defensive military units may be (record 20)
+    [offset((ee)0xC38, (aoc)0xC70), found(c)]
+    float32 defence_share;
+
+    /// seconds between the attention's redraws (record 68; 30)
+    [offset((ee)0xC5C, (aoc)0xC94), found(c)]
+    float32 attention_period;
+
+    /// deathmatch: the factor on the attack interval by difficulty (record 122)
+    [offset((ee)0xC74, (aoc)0xCAC), found(c)]
+    fixed float32 dm_attack_factor[3];
+
+    /// deathmatch: the factor on the first attack by difficulty (record 123)
+    [offset((ee)0xC80, (aoc)0xCB8), found(c)]
+    fixed float32 dm_first_attack_factor[3];
+
+    /// minutes between the defence manager's naval checks (record 118)
+    [offset((ee)0xCBC, (aoc)0xCF4), found(c)]
+    int32 naval_check_min;
+
+    /// aircraft it sends exploring (record 10)
+    [offset((ee)0xCD4, (aoc)0xD0C), found(c)]
+    int32 air_explorers;
+
+    /// an attack group's random size range, its top in percent (record 13)
+    [offset((ee)0xCE4, (aoc)0xD1C), found(c)]
+    int32 group_max_pct;
+
+    /// the same range's bottom in percent
+    [offset((ee)0xCE8, (aoc)0xD20), found(c)]
+    int32 group_min_pct;
+
+    /// easy: percent on the attack interval (record 7)
+    [offset((ee)0xCEC, (aoc)0xD24), found(c)]
+    int32 attack_pct_easy;
+
+    /// hard: percent on the attack interval
+    [offset((ee)0xCF0, (aoc)0xD28), found(c)]
+    int32 attack_pct_hard;
+
+    /// minutes the interval between attacks is clamped to, the most (record 21)
+    [offset((ee)0xCF4, (aoc)0xD2C), found(c)]
+    int32 attack_ceiling;
+
+    /// the same clamp's least
+    [offset((ee)0xCF8, (aoc)0xD30), found(c)]
+    int32 attack_floor;
+
+    /// minutes added to the first attack per epoch of the game's range (record 18)
+    [offset((ee)0xD04, (aoc)0xD3C), found(c)]
+    int32 first_attack_per_epoch;
+
+    /// easy: percent on the first attack's delay (record 2)
+    [offset((ee)0xD08, (aoc)0xD40), found(c)]
+    int32 first_attack_pct_easy;
+
+    /// hard: percent on the first attack's delay
+    [offset((ee)0xD0C, (aoc)0xD44), found(c)]
+    int32 first_attack_pct_hard;
+
+    /// minutes the first attack's delay is clamped to, the most (record 19)
+    [offset((ee)0xD20, (aoc)0xD58), found(c)]
+    int32 first_attack_ceiling;
+
+    /// the same clamp's least
+    [offset((ee)0xD24, (aoc)0xD5C), found(c)]
+    int32 first_attack_floor;
+
+    /// easy: an attack group's size in percent (record 11; the mod's attack_group_percent)
+    [offset((ee)0xD30, (aoc)0xD68), found(c)]
+    int32 group_pct_easy;
+
+    /// medium: an attack group's size in percent
+    [offset((ee)0xD34, (aoc)0xD6C), found(c)]
+    int32 group_pct_medium;
+
+    /// hard: an attack group's size in percent
+    [offset((ee)0xD38, (aoc)0xD70), found(c)]
+    int32 group_pct_hard;
+
+    /// a defence group's random size range, its top in percent (record 87)
+    [offset((ee)0xD50, (aoc)0xD88), found(c)]
+    int32 defence_group_max_pct;
+
+    /// the same range's bottom in percent
+    [offset((ee)0xD54, (aoc)0xD8C), found(c)]
+    int32 defence_group_min_pct;
+
+    /// easy: percent on the epoch timer (record 29)
+    [offset((ee)0xD60, (aoc)0xD98), found(c)]
+    int32 epoch_pct_easy;
+
+    /// hard: percent on the epoch timer
+    [offset((ee)0xD64, (aoc)0xD9C), found(c)]
+    int32 epoch_pct_hard;
+
+    /// minutes, the least, for the redrawn epoch attempt when a human reaches a later epoch (record 102)
+    [offset((ee)0xD68, (aoc)0xDA0), found(c)]
+    int32 catch_up_min;
+
+    /// the same, the most
+    [offset((ee)0xD6C, (aoc)0xDA4), found(c)]
+    int32 catch_up_max;
+
+    /// easy: seconds between expansions (record 97)
+    [offset((ee)0xD70, (aoc)0xDA8), found(c)]
+    int32 expansion_secs_easy;
+
+    /// medium: seconds between expansions
+    [offset((ee)0xD74, (aoc)0xDAC), found(c)]
+    int32 expansion_secs_medium;
+
+    /// hard: seconds between expansions
+    [offset((ee)0xD78, (aoc)0xDB0), found(c)]
+    int32 expansion_secs_hard;
+
+    /// minutes before a defence group is refilled, the most (record 89)
+    [offset((ee)0xD88, (aoc)0xDC0), found(c)]
+    int32 refill_delay_max;
+
+    /// the same, the least
+    [offset((ee)0xD8C, (aoc)0xDC4), found(c)]
+    int32 refill_delay_min;
+
+    /// land units it sends exploring (record 8)
+    [offset((ee)0xD90, (aoc)0xDC8), found(c)]
+    int32 land_explorers;
+
+    /// easy: the least military buildings of each kind (record 103)
+    [offset((ee)0xDD8, (aoc)0xE14), found(c)]
+    int32 min_mil_buildings_easy;
+
+    /// the same in deathmatch (record 104)
+    [offset((ee)0xDDC, (aoc)0xE18), found(c)]
+    int32 min_mil_buildings_dm_easy;
+
+    /// medium: the least military buildings of each kind (record 106)
+    [offset((ee)0xDE0, (aoc)0xE1C), found(c)]
+    int32 min_mil_buildings_medium;
+
+    /// the same in deathmatch
+    [offset((ee)0xDE4, (aoc)0xE20), found(c)]
+    int32 min_mil_buildings_dm_medium;
+
+    /// hard: the least military buildings of each kind
+    [offset((ee)0xDE8, (aoc)0xE24), found(c)]
+    int32 min_mil_buildings_hard;
+
+    /// the same in deathmatch
+    [offset((ee)0xDEC, (aoc)0xE28), found(c)]
+    int32 min_mil_buildings_dm_hard;
+
+    /// easy: percent on its population cap (record 98)
+    [offset((ee)0xDF0, (aoc)0xE2C), found(c)]
+    int32 pop_pct_easy;
+
+    /// medium: percent on its population cap
+    [offset((ee)0xDF4, (aoc)0xE30), found(c)]
+    int32 pop_pct_medium;
+
+    /// hard: percent on its population cap
+    [offset((ee)0xDF8, (aoc)0xE34), found(c)]
+    int32 pop_pct_hard;
+
+    /// seconds between random researches (record 15), times research_pct
+    [offset((ee)0xE04, (aoc)0xE40), found(c)]
+    int32 research_interval;
+
+    /// easy: percent on research_interval (record 23)
+    [offset((ee)0xE08, (aoc)0xE44), found(c)]
+    int32 research_pct_easy;
+
+    /// hard: percent on research_interval
+    [offset((ee)0xE0C, (aoc)0xE48), found(c)]
+    int32 research_pct_hard;
+
+    /// added to its gold and iron at its first update (record 101 "Extra resources")
+    [offset((ee)0xE14, (aoc)0xE50), found(c)]
+    int32 extra_gold_iron;
+
+    /// ships it sends exploring (record 9)
+    [offset((ee)0xE18, (aoc)0xE54), found(c)]
+    int32 sea_explorers;
+
+    /// minutes before it upgrades a town center to a capitol (record 99)
+    [offset((ee)0xE1C, (aoc)0xE58), found(c)]
+    int32 capitol_timer;
+
+    /// seconds: the attention's activity 3 (and 0) only while the next attack is further off (record 65)
+    [offset((ee)0xE24, (aoc)0xE60), found(c)]
+    int32 attack_lead;
+
+    /// seconds: activity 0 (the epoch) only when the civilization manager's epoch time is within it (record 64)
+    [offset((ee)0xE28, (aoc)0xE64), found(c)]
+    int32 epoch_lead;
+
+    /// the least stock of a resource the attention needs before an activity (0x43F66F; records 55..63): [0] activity
+    /// 3, [1] 1, [2] 0, [3] 7, [4] 6, [5] 4 and 9, [6] 5, [7] 2, [8] 8
+    [offset((ee)0xE2C, (aoc)0xE68), found(c)]
+    fixed int32 min_stock[9];
+
+    /// minutes before it upgrades a settlement to a town center (record 100)
+    [offset((ee)0xE90, (aoc)0xED0), found(c)]
+    int32 tc_timer;
+
+    /// minutes between overseas expansions by difficulty (record 121)
+    [offset((ee)0xEC8, (aoc)0xF08), found(c)]
+    fixed int32 island_expansion_min[3];
+
+    /// game time of the attention's next redraw (0x42F912): now + attention_period
+    [offset((ee)0xEDC, (aoc)0xF2C), found(c)]
+    uint32 next_attention;
+
+    /// game time it was last hit (its vf33); 60 s later, with no attack running, update ends the attack strategy
+    [offset((ee)0xEE0, (aoc)0xF30), found(c)]
+    uint32 last_hit;
+
+    /// when update next recomputes the population cap (every 60 s)
+    [offset((ee)0xEE4, (aoc)0xF34), found(c)]
+    uint32 next_pop_cap;
+
+    /// when update next sends citizens to an unclaimed resource zone (0x430B98)
+    [offset((ee)0xEE8, (aoc)0xF38), found(c)]
+    uint32 next_expansion;
+
+    /// deathmatch: game time until which dm_group_scale applies (record 105)
+    [offset((ee)0xEEC, (aoc)0xF3C), found(c)]
+    uint32 dm_group_until;
+
+    /// on a water map: game time from which an overseas expansion is due (0x43123A)
+    [offset((ee)0xEF0, (aoc)0xF40), found(c)]
+    uint32 next_island_expansion;
+
+    /// 0 until update's one-time setup ran (the attention, the first attack, the expansions scheduled)
+    [offset((ee)0xEF5, (aoc)0xF45), found(c)]
+    uint8 first_update_done;
+
+    /// next_attention is set; update reschedules while 0 (cleared before saving)
+    [offset((ee)0xEF6, (aoc)0xF46), found(c)]
+    uint8 attention_scheduled;
+
+    /// its vf33 found a citizen (class 6 or 22) of its hit: the attention's activity 6 (defence) until 60 s after the
+    /// last hit
+    [offset((ee)0xEF7, (aoc)0xF47), found(c)]
+    uint8 citizens_hit;
+
+    /// its vf33 found a hit its unit's type counts: the attention's activity 6 the same way
+    [offset((ee)0xEF8, (aoc)0xF48), found(c)]
+    uint8 hit;
+
+    /// the scenario's "Active" AI toggle (0); vf31 recomputes the cap only while it is clear
+    [offset((ee)0xEF9, (aoc)0xF49), found(c)]
+    uint8 active;
+
+    /// set at the end of a load (vf8); the next update runs 0x43FB96 once and clears it
+    [offset((ee)0xF04, (aoc)0xF54), found(c)]
+    uint8 reload_pending;
+
     /// EEComputerPlayer::AdjustCost (vf27): a price with the cheat
     [address((ee)0x00430FBD, (aoc)0x0042EACE)]
     extern int32 adjust_cost(int32 price);

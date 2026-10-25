@@ -37,9 +37,45 @@ unsafe struct EEPhysics
     [offset(0x8C), found(c)]
     float32 step_s;
 
+    /// game time in ms as a float: + step_ms each step
+    [offset(0x94), found(c)]
+    float32 time_ms;
+
+    /// a step's length in ms (step_s x 1000)
+    [offset(0x98), found(c)]
+    float32 step_ms;
+
+    /// TMGetTime at this step's start
+    [offset(0xA8), found(c)]
+    uint32 step_start;
+
+    /// TMGetTime at the last step's start
+    [offset(0xAC), found(c)]
+    uint32 prev_step_start;
+
+    /// steps run (a second counter: zeroed by the reset 0x54650E, saved)
+    [offset(0xB4), found(c)]
+    uint32 step_ticks;
+
     /// steps it may still run
     [offset(0xB8), found(c)]
     uint32 steps_granted;
+
+    /// ms between step starts, summed; past 999 the average goes to +0xDC and it restarts
+    [offset(0xBC), found(c)]
+    uint32 gap_ms_sum;
+
+    /// how many gap_ms_sum holds
+    [offset(0xC0), found(c)]
+    uint32 gap_count;
+
+    /// ms the steps' work took, summed; past 999 the average goes to +0xD8 and it restarts
+    [offset(0xC4), found(c)]
+    uint32 work_ms_sum;
+
+    /// how many work_ms_sum holds
+    [offset(0xC8), found(c)]
+    uint32 work_count;
 
     /// game time (ms)
     [offset(0xD0), found(c)]

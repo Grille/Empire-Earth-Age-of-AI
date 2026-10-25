@@ -3,6 +3,10 @@
 [c_type("ee_msg")]
 unsafe struct EEMessage
 {
+    /// the message's type id (0x4E select, 0x67 load ...)
+    [offset(0x8), found(c)]
+    uint8 kind;
+
     /// the sender's message id (every message's)
     [offset(0xA), found(b)]
     int8 from;
@@ -40,6 +44,18 @@ unsafe struct EEMSelectUnits
 
     [offset(0x14), found(b)]
     uint32* ids_begin;
+
+    /// the selection's rectangle
+    [offset(0x20), found(c)]
+    fixed float32 rect[4];
+
+    /// the selection's kind (init's type)
+    [offset(0x30), found(c)]
+    int32 select_kind;
+
+    /// the packed selection (sel_pack's output, its length the flag)
+    [offset(0x34), found(c)]
+    block packed;
 
     [offset(0x134), found(c)]
     uint8 flag;

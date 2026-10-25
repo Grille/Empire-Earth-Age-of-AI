@@ -71,6 +71,10 @@ unsafe struct EECPAttackSubGroup
     [offset(0x54), found(c)]
     EECPAttackSubGroupUnit** units_begin;
 
+    /// the end of its member records' vector (units_begin)
+    [offset(0x58), found(c)]
+    EECPAttackSubGroupUnit** units_end;
+
     [offset(0x60), found(c)]
     deque route;
 
@@ -97,12 +101,44 @@ unsafe struct EECPAttackSubGroup
     [offset(0x124), found(c)]
     int32 mission;
 
+    /// the player index the path search runs for: the head of the movement record its members' types fill (their vf10)
+    [offset((ee)0x160, (aoc)0x164), found(c)]
+    int32 move_player;
+
+    /// a byte per terrain kind: may all its members enter it (1, then ANDed by each member's type)
+    [offset((ee)0x164, (aoc)0x168), found(c)]
+    fixed uint8 terrain_ok[17];
+
+    /// the attack group it belongs to
+    [offset((ee)0x18C, (aoc)0x190), found(c)]
+    EECPAttackGroup* group;
+
     /// its own
     [offset((ee)0x190, (aoc)0x194), found(c)]
     EEPlayer* player;
 
+    /// the path request plan_route queued
+    [offset((ee)0x194, (aoc)0x198), found(c)]
+    int32 route_request;
+
+    /// game time before which update only gathers (vf +0x1C0) instead of acting
+    [offset((ee)0x1A4, (aoc)0x1A8), found(c)]
+    uint32 hold_until;
+
+    /// game time of its next update (the caller runs its slot 90 once it passes)
+    [offset((ee)0x1A8, (aoc)0x1AC), found(c)]
+    uint32 next_update;
+
     [offset((ee)0x1D0, (aoc)0x1D4), found(c)]
     int32 state;
+
+    /// the route's last land waypoint before it leaves land, where the units board
+    [offset((ee)0x224, (aoc)0x228), found(c)]
+    ivec2 embark;
+
+    /// the route's point where it comes ashore
+    [offset((ee)0x22C, (aoc)0x230), found(c)]
+    ivec2 landing;
 
     /// where it is
     [offset((ee)0x234, (aoc)0x238), found(c)]
@@ -188,8 +224,29 @@ unsafe struct ee_route_node
 [c_type("ee_route_planner")]
 unsafe struct EEAIGPGModifierLandAttackSubGroupRoutePlanner
 {
+    /// cost factors by node kind (1 unchanged), from the subgroup's slot 21 in plan_route: [0] kind 4, [1] kinds 0-2
+    /// and 5-11, [2] kind 0xE, [3] kind 0xD, [4] the danger, [5] kind 3
+    [offset(0xC), found(c)]
+    fixed float32 weights[15];
+
     [offset(0x48), found(c)]
     int32 player_index;
+
+    /// the target player's index (-1 none)
+    [offset(0x4C), found(c)]
+    int32 target_index;
+
+    /// the subgroup it plans for
+    [offset(0x50), found(c)]
+    EECPAttackSubGroup* subgroup;
+
+    /// the area id of the route's start
+    [offset(0x54), found(c)]
+    int16 start_area;
+
+    /// the area id of the route's end
+    [offset(0x56), found(c)]
+    int16 dest_area;
 
     /// its slot 1: int thiscall(edge*, node*)
     [address((ee)0x004141E8, (aoc)0x00410074)]
@@ -223,6 +280,10 @@ unsafe struct EECPAGTask
     /// where it heads (task_init constructs it there)
     [offset(0x4), found(c)]
     EECPILocation location;
+
+    /// the unit it attacks, referenced (saved as its id)
+    [offset(0x1C), found(c)]
+    EEUnit* target_unit;
 
     [offset(0x20), found(c)]
     EEPlayer* target_player;

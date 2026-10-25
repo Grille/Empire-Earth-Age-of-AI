@@ -10,6 +10,18 @@ internal inline uint8_t **unit_type_vtable_at(const ee_unit_type *o) { return (u
 internal inline char *unit_type_get_name(const ee_unit_type *o) { return *(char **)((uint8_t *)o + of_unit_type_name); }
 internal inline void unit_type_set_name(ee_unit_type *o, char *v) { *(char **)((uint8_t *)o + of_unit_type_name) = v; }
 internal inline char **unit_type_name_at(const ee_unit_type *o) { return (char **)((uint8_t *)o + of_unit_type_name); }
+// the graphic effect a missile or projectile plays on itself when it arrives
+internal inline void *unit_type_get_impact_gfx(const ee_unit_type *o) { return *(void **)((uint8_t *)o + of_unit_type_impact_gfx); }
+internal inline void unit_type_set_impact_gfx(ee_unit_type *o, void *v) { *(void **)((uint8_t *)o + of_unit_type_impact_gfx) = v; }
+internal inline void **unit_type_impact_gfx_at(const ee_unit_type *o) { return (void **)((uint8_t *)o + of_unit_type_impact_gfx); }
+// the graphic effect on the attacker when it fires
+internal inline void *unit_type_get_fire_gfx(const ee_unit_type *o) { return *(void **)((uint8_t *)o + of_unit_type_fire_gfx); }
+internal inline void unit_type_set_fire_gfx(ee_unit_type *o, void *v) { *(void **)((uint8_t *)o + of_unit_type_fire_gfx) = v; }
+internal inline void **unit_type_fire_gfx_at(const ee_unit_type *o) { return (void **)((uint8_t *)o + of_unit_type_fire_gfx); }
+// the shot's effect: a beam from the attacker to the target, or at the aim point without one
+internal inline void *unit_type_get_shot_gfx(const ee_unit_type *o) { return *(void **)((uint8_t *)o + of_unit_type_shot_gfx); }
+internal inline void unit_type_set_shot_gfx(ee_unit_type *o, void *v) { *(void **)((uint8_t *)o + of_unit_type_shot_gfx) = v; }
+internal inline void **unit_type_shot_gfx_at(const ee_unit_type *o) { return (void **)((uint8_t *)o + of_unit_type_shot_gfx); }
 // what it fires
 internal inline ee_unit_type *unit_type_get_projectile(const ee_unit_type *o) { return *(ee_unit_type **)((uint8_t *)o + of_unit_type_projectile); }
 internal inline void unit_type_set_projectile(ee_unit_type *o, ee_unit_type *v) { *(ee_unit_type **)((uint8_t *)o + of_unit_type_projectile) = v; }
@@ -47,6 +59,14 @@ internal inline float *unit_type_unknown_430_at(const ee_unit_type *o) { return 
 internal inline float unit_type_get_accel(const ee_unit_type *o) { return *(float *)((uint8_t *)o + of_unit_type_accel); }
 internal inline void unit_type_set_accel(ee_unit_type *o, float v) { *(float *)((uint8_t *)o + of_unit_type_accel) = v; }
 internal inline float *unit_type_accel_at(const ee_unit_type *o) { return (float *)((uint8_t *)o + of_unit_type_accel); }
+// the most it rolls in a turn (radians), with banks
+internal inline float unit_type_get_bank_angle(const ee_unit_type *o) { return *(float *)((uint8_t *)o + of_unit_type_bank_angle); }
+internal inline void unit_type_set_bank_angle(ee_unit_type *o, float v) { *(float *)((uint8_t *)o + of_unit_type_bank_angle) = v; }
+internal inline float *unit_type_bank_angle_at(const ee_unit_type *o) { return (float *)((uint8_t *)o + of_unit_type_bank_angle); }
+// radians added to its heading in the turn step
+internal inline float unit_type_get_heading_offset(const ee_unit_type *o) { return *(float *)((uint8_t *)o + of_unit_type_heading_offset); }
+internal inline void unit_type_set_heading_offset(ee_unit_type *o, float v) { *(float *)((uint8_t *)o + of_unit_type_heading_offset) = v; }
+internal inline float *unit_type_heading_offset_at(const ee_unit_type *o) { return (float *)((uint8_t *)o + of_unit_type_heading_offset); }
 // its selection circle's size (tiles)
 // EEE3DCommandConfirmation vf12's read (0x4E28E9 / AoC 0x4E9F49) - a circle's scale for the unit (float)
 internal inline float unit_type_get_mark_size(const ee_unit_type *o) { return *(float *)((uint8_t *)o + of_unit_type_mark_size); }
@@ -82,6 +102,10 @@ internal inline int *unit_type_family_at(const ee_unit_type *o) { return (int *)
 internal inline int unit_type_get_weapon(const ee_unit_type *o) { return *(int *)((uint8_t *)o + of_unit_type_weapon); }
 internal inline void unit_type_set_weapon(ee_unit_type *o, int v) { *(int *)((uint8_t *)o + of_unit_type_weapon) = v; }
 internal inline int *unit_type_weapon_at(const ee_unit_type *o) { return (int *)((uint8_t *)o + of_unit_type_weapon); }
+// its RPS class (the scenario's object class 72 + it); the attack scoring tests 3, 10, 20
+internal inline int unit_type_get_rps_class(const ee_unit_type *o) { return *(int *)((uint8_t *)o + of_unit_type_rps_class); }
+internal inline void unit_type_set_rps_class(ee_unit_type *o, int v) { *(int *)((uint8_t *)o + of_unit_type_rps_class) = v; }
+internal inline int *unit_type_rps_class_at(const ee_unit_type *o) { return (int *)((uint8_t *)o + of_unit_type_rps_class); }
 // the tech that makes it (its price)
 // the type data's constructors
 internal inline int unit_type_get_tech(const ee_unit_type *o) { return *(int *)((uint8_t *)o + of_unit_type_tech); }
@@ -97,6 +121,10 @@ internal inline int *unit_type_reload_at(const ee_unit_type *o) { return (int *)
 internal inline int unit_type_get_attack(const ee_unit_type *o) { return *(int *)((uint8_t *)o + of_unit_type_attack); }
 internal inline void unit_type_set_attack(ee_unit_type *o, int v) { *(int *)((uint8_t *)o + of_unit_type_attack) = v; }
 internal inline int *unit_type_attack_at(const ee_unit_type *o) { return (int *)((uint8_t *)o + of_unit_type_attack); }
+// a corpse's rotting time (ms): caps the unit's +0x2A8
+internal inline int unit_type_get_rot_time(const ee_unit_type *o) { return *(int *)((uint8_t *)o + of_unit_type_rot_time); }
+internal inline void unit_type_set_rot_time(ee_unit_type *o, int v) { *(int *)((uint8_t *)o + of_unit_type_rot_time) = v; }
+internal inline int *unit_type_rot_time_at(const ee_unit_type *o) { return (int *)((uint8_t *)o + of_unit_type_rot_time); }
 // (0 for soldiers)
 // the type data's constructors
 internal inline int unit_type_get_transport_capacity(const ee_unit_type *o) { return *(int *)((uint8_t *)o + of_unit_type_transport_capacity); }
@@ -125,9 +153,53 @@ internal inline int *unit_type_missile_delay_at(const ee_unit_type *o) { return 
 internal inline int unit_type_get_size(const ee_unit_type *o) { return *(int *)((uint8_t *)o + of_unit_type_size); }
 internal inline void unit_type_set_size(ee_unit_type *o, int v) { *(int *)((uint8_t *)o + of_unit_type_size) = v; }
 internal inline int *unit_type_size_at(const ee_unit_type *o) { return (int *)((uint8_t *)o + of_unit_type_size); }
+// bit 0 an aircraft, bit 2 a ship (1 and 3 tested too)
+internal inline uint8_t unit_type_get_kind_flags(const ee_unit_type *o) { return *(uint8_t *)((uint8_t *)o + of_unit_type_kind_flags); }
+internal inline void unit_type_set_kind_flags(ee_unit_type *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_unit_type_kind_flags) = v; }
+internal inline uint8_t *unit_type_kind_flags_at(const ee_unit_type *o) { return (uint8_t *)((uint8_t *)o + of_unit_type_kind_flags); }
 // a byte per terrain kind (TILE_KIND): may the type enter it (the path search's tile test 0x41D36A; AoC 0x41990C
 // asks 0x634AD8, which reads it only without a unit - with one a bit mask in its stats +0x160)
 internal inline uint8_t *unit_type_terrain_ok_at(const ee_unit_type *o) { return (uint8_t *)o + of_unit_type_terrain_ok; }
+// each shot takes one of the unit's ammo
+internal inline uint8_t unit_type_get_uses_ammo(const ee_unit_type *o) { return *(uint8_t *)((uint8_t *)o + of_unit_type_uses_ammo); }
+internal inline void unit_type_set_uses_ammo(ee_unit_type *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_unit_type_uses_ammo) = v; }
+internal inline uint8_t *unit_type_uses_ammo_at(const ee_unit_type *o) { return (uint8_t *)((uint8_t *)o + of_unit_type_uses_ammo); }
+// its shots take the high ballistic solution
+internal inline uint8_t unit_type_get_high_arc(const ee_unit_type *o) { return *(uint8_t *)((uint8_t *)o + of_unit_type_high_arc); }
+internal inline void unit_type_set_high_arc(ee_unit_type *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_unit_type_high_arc) = v; }
+internal inline uint8_t *unit_type_high_arc_at(const ee_unit_type *o) { return (uint8_t *)((uint8_t *)o + of_unit_type_high_arc); }
+// its model tilts with its speed
+internal inline uint8_t unit_type_get_pitches(const ee_unit_type *o) { return *(uint8_t *)((uint8_t *)o + of_unit_type_pitches); }
+internal inline void unit_type_set_pitches(ee_unit_type *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_unit_type_pitches) = v; }
+internal inline uint8_t *unit_type_pitches_at(const ee_unit_type *o) { return (uint8_t *)((uint8_t *)o + of_unit_type_pitches); }
+// its model rolls in turns (bank_angle)
+internal inline uint8_t unit_type_get_banks(const ee_unit_type *o) { return *(uint8_t *)((uint8_t *)o + of_unit_type_banks); }
+internal inline void unit_type_set_banks(ee_unit_type *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_unit_type_banks) = v; }
+internal inline uint8_t *unit_type_banks_at(const ee_unit_type *o) { return (uint8_t *)((uint8_t *)o + of_unit_type_banks); }
+// its heading turned by pi (the model faces backwards)
+internal inline uint8_t unit_type_get_faces_back(const ee_unit_type *o) { return *(uint8_t *)((uint8_t *)o + of_unit_type_faces_back); }
+internal inline void unit_type_set_faces_back(ee_unit_type *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_unit_type_faces_back) = v; }
+internal inline uint8_t *unit_type_faces_back_at(const ee_unit_type *o) { return (uint8_t *)((uint8_t *)o + of_unit_type_faces_back); }
+// 1: its units let no one pass (buildings), 0 ships and land units
+internal inline uint8_t unit_type_get_blocks(const ee_unit_type *o) { return *(uint8_t *)((uint8_t *)o + of_unit_type_blocks); }
+internal inline void unit_type_set_blocks(ee_unit_type *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_unit_type_blocks) = v; }
+internal inline uint8_t *unit_type_blocks_at(const ee_unit_type *o) { return (uint8_t *)((uint8_t *)o + of_unit_type_blocks); }
+// may ride a helicopter transport (CLS_HELICOPTER_TRANSPORT)
+internal inline uint8_t unit_type_get_boards_helicopter(const ee_unit_type *o) { return *(uint8_t *)((uint8_t *)o + of_unit_type_boards_helicopter); }
+internal inline void unit_type_set_boards_helicopter(ee_unit_type *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_unit_type_boards_helicopter) = v; }
+internal inline uint8_t *unit_type_boards_helicopter_at(const ee_unit_type *o) { return (uint8_t *)((uint8_t *)o + of_unit_type_boards_helicopter); }
+// may ride a land transport (CLS_LAND_TRANSPORT)
+internal inline uint8_t unit_type_get_boards_land_transport(const ee_unit_type *o) { return *(uint8_t *)((uint8_t *)o + of_unit_type_boards_land_transport); }
+internal inline void unit_type_set_boards_land_transport(ee_unit_type *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_unit_type_boards_land_transport) = v; }
+internal inline uint8_t *unit_type_boards_land_transport_at(const ee_unit_type *o) { return (uint8_t *)((uint8_t *)o + of_unit_type_boards_land_transport); }
+// may board a transport ship (CLS_NAVAL_TRANSPORT)
+internal inline uint8_t unit_type_get_boards_ship(const ee_unit_type *o) { return *(uint8_t *)((uint8_t *)o + of_unit_type_boards_ship); }
+internal inline void unit_type_set_boards_ship(ee_unit_type *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_unit_type_boards_ship) = v; }
+internal inline uint8_t *unit_type_boards_ship_at(const ee_unit_type *o) { return (uint8_t *)((uint8_t *)o + of_unit_type_boards_ship); }
+// may go into a fortress (CLS_FORTRESS; AoC's +0x300 its space transports)
+internal inline uint8_t unit_type_get_boards_fortress(const ee_unit_type *o) { return *(uint8_t *)((uint8_t *)o + of_unit_type_boards_fortress); }
+internal inline void unit_type_set_boards_fortress(ee_unit_type *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_unit_type_boards_fortress) = v; }
+internal inline uint8_t *unit_type_boards_fortress_at(const ee_unit_type *o) { return (uint8_t *)((uint8_t *)o + of_unit_type_boards_fortress); }
 // takes a behaviour (stances)
 // the type data's constructors
 internal inline uint8_t unit_type_get_behaviours(const ee_unit_type *o) { return *(uint8_t *)((uint8_t *)o + of_unit_type_behaviours); }
@@ -159,11 +231,27 @@ internal inline float *unit_stats_range_at(const ee_unit_stats *o) { return (flo
 internal inline float unit_stats_get_area(const ee_unit_stats *o) { return *(float *)((uint8_t *)o + of_unit_stats_area); }
 internal inline void unit_stats_set_area(ee_unit_stats *o, float v) { *(float *)((uint8_t *)o + of_unit_stats_area) = v; }
 internal inline float *unit_stats_area_at(const ee_unit_stats *o) { return (float *)((uint8_t *)o + of_unit_stats_area); }
+// line of sight (tiles)
+internal inline float unit_stats_get_sight(const ee_unit_stats *o) { return *(float *)((uint8_t *)o + of_unit_stats_sight); }
+internal inline void unit_stats_set_sight(ee_unit_stats *o, float v) { *(float *)((uint8_t *)o + of_unit_stats_sight) = v; }
+internal inline float *unit_stats_sight_at(const ee_unit_stats *o) { return (float *)((uint8_t *)o + of_unit_stats_sight); }
+// acceleration (EEUnit::accel)
+internal inline float unit_stats_get_accel(const ee_unit_stats *o) { return *(float *)((uint8_t *)o + of_unit_stats_accel); }
+internal inline void unit_stats_set_accel(ee_unit_stats *o, float v) { *(float *)((uint8_t *)o + of_unit_stats_accel) = v; }
+internal inline float *unit_stats_accel_at(const ee_unit_stats *o) { return (float *)((uint8_t *)o + of_unit_stats_accel); }
 // tiles/s (0: cannot move)
 // read through a unit's +0x34
 internal inline float unit_stats_get_speed(const ee_unit_stats *o) { return *(float *)((uint8_t *)o + of_unit_stats_speed); }
 internal inline void unit_stats_set_speed(ee_unit_stats *o, float v) { *(float *)((uint8_t *)o + of_unit_stats_speed) = v; }
 internal inline float *unit_stats_speed_at(const ee_unit_stats *o) { return (float *)((uint8_t *)o + of_unit_stats_speed); }
+// turn acceleration (EEUnit::turn_accel)
+internal inline float unit_stats_get_turn_accel(const ee_unit_stats *o) { return *(float *)((uint8_t *)o + of_unit_stats_turn_accel); }
+internal inline void unit_stats_set_turn_accel(ee_unit_stats *o, float v) { *(float *)((uint8_t *)o + of_unit_stats_turn_accel) = v; }
+internal inline float *unit_stats_turn_accel_at(const ee_unit_stats *o) { return (float *)((uint8_t *)o + of_unit_stats_turn_accel); }
+// the top turn rate, radians/s (EEUnit::max_turn)
+internal inline float unit_stats_get_turn_rate(const ee_unit_stats *o) { return *(float *)((uint8_t *)o + of_unit_stats_turn_rate); }
+internal inline void unit_stats_set_turn_rate(ee_unit_stats *o, float v) { *(float *)((uint8_t *)o + of_unit_stats_turn_rate) = v; }
+internal inline float *unit_stats_turn_rate_at(const ee_unit_stats *o) { return (float *)((uint8_t *)o + of_unit_stats_turn_rate); }
 // its projectile's launch speed
 // between fields read through a unit's +0x34, unchanged
 internal inline float unit_stats_get_shot_speed(const ee_unit_stats *o) { return *(float *)((uint8_t *)o + of_unit_stats_shot_speed); }
@@ -226,6 +314,9 @@ internal int spec_unit_type_select(int build) {
     case 0:   // ee
         of_unit_type_vtable = 0x0;
         of_unit_type_name = 0x1C;
+        of_unit_type_impact_gfx = 0x378;
+        of_unit_type_fire_gfx = 0x38C;
+        of_unit_type_shot_gfx = 0x3C4;
         of_unit_type_projectile = 0x3FC;
         of_unit_type_model = 0x40C;
         of_unit_type_min_range = 0x41C;
@@ -234,6 +325,8 @@ internal int spec_unit_type_select(int build) {
         of_unit_type_unknown_42c = 0x42C;
         of_unit_type_unknown_430 = 0x430;
         of_unit_type_accel = 0x438;
+        of_unit_type_bank_angle = 0x454;
+        of_unit_type_heading_offset = 0x458;
         of_unit_type_mark_size = 0x464;
         of_unit_type_collision = 0x470;
         of_unit_type_class_id = 0x4B4;
@@ -241,16 +334,29 @@ internal int spec_unit_type_select(int build) {
         of_unit_type_damage_class = 0x4C0;
         of_unit_type_family = 0x4C4;
         of_unit_type_weapon = 0x4C8;
+        of_unit_type_rps_class = 0x4CC;
         of_unit_type_tech = 0x4E0;
         of_unit_type_reload = 0x50C;
         of_unit_type_attack = 0x510;
+        of_unit_type_rot_time = 0x548;
         of_unit_type_transport_capacity = 0x54C;
         of_unit_type_garrison_capacity = 0x550;
         of_unit_type_transport_size = 0x558;
         of_unit_type_hp = 0x55C;
         of_unit_type_missile_delay = 0x588;
         of_unit_type_size = 0x58C;
+        of_unit_type_kind_flags = 0x5D4;
         of_unit_type_terrain_ok = 0x5D6;
+        of_unit_type_uses_ammo = 0x5E8;
+        of_unit_type_high_arc = 0x5E9;
+        of_unit_type_pitches = 0x5F3;
+        of_unit_type_banks = 0x5F4;
+        of_unit_type_faces_back = 0x5F5;
+        of_unit_type_blocks = 0x600;
+        of_unit_type_boards_helicopter = 0x601;
+        of_unit_type_boards_land_transport = 0x602;
+        of_unit_type_boards_ship = 0x603;
+        of_unit_type_boards_fortress = 0x604;
         of_unit_type_behaviours = 0x621;
         fn_unit_type_fire = (unit_type_fire_fn)0x0061E11C;
         calls_fire[0] = 0x00606067;
@@ -261,7 +367,11 @@ internal int spec_unit_type_select(int build) {
         of_unit_stats_height = 0x98;
         of_unit_stats_range = 0x9C;
         of_unit_stats_area = 0xA0;
+        of_unit_stats_sight = 0xA4;
+        of_unit_stats_accel = 0xA8;
         of_unit_stats_speed = 0xAC;
+        of_unit_stats_turn_accel = 0xB0;
+        of_unit_stats_turn_rate = 0xB4;
         of_unit_stats_shot_speed = 0xC0;
         of_unit_stats_attack = 0xD8;
         of_unit_stats_armor = 0xE0;
@@ -282,6 +392,9 @@ internal int spec_unit_type_select(int build) {
     case 1:   // aoc
         of_unit_type_vtable = 0x0;
         of_unit_type_name = 0x1C;
+        of_unit_type_impact_gfx = 0x68;
+        of_unit_type_fire_gfx = 0x7C;
+        of_unit_type_shot_gfx = 0xB4;
         of_unit_type_projectile = 0xF8;
         of_unit_type_model = 0x110;
         of_unit_type_min_range = 0x120;
@@ -290,6 +403,8 @@ internal int spec_unit_type_select(int build) {
         of_unit_type_unknown_42c = 0x130;
         of_unit_type_unknown_430 = 0x134;
         of_unit_type_accel = 0x13C;
+        of_unit_type_bank_angle = 0x158;
+        of_unit_type_heading_offset = 0x15C;
         of_unit_type_mark_size = 0x168;
         of_unit_type_collision = 0x174;
         of_unit_type_class_id = 0x1B8;
@@ -297,16 +412,29 @@ internal int spec_unit_type_select(int build) {
         of_unit_type_damage_class = 0x1C4;
         of_unit_type_family = 0x1C8;
         of_unit_type_weapon = 0x1CC;
+        of_unit_type_rps_class = 0x1D0;
         of_unit_type_tech = 0x1E4;
         of_unit_type_reload = 0x210;
         of_unit_type_attack = 0x214;
+        of_unit_type_rot_time = 0x248;
         of_unit_type_transport_capacity = 0x24C;
         of_unit_type_garrison_capacity = 0x250;
         of_unit_type_transport_size = 0x258;
         of_unit_type_hp = 0x25C;
         of_unit_type_missile_delay = 0x288;
         of_unit_type_size = 0x28C;
+        of_unit_type_kind_flags = 0x2D0;
         of_unit_type_terrain_ok = 0x2D2;
+        of_unit_type_uses_ammo = 0x2E4;
+        of_unit_type_high_arc = 0x2E5;
+        of_unit_type_pitches = 0x2EF;
+        of_unit_type_banks = 0x2F0;
+        of_unit_type_faces_back = 0x2F1;
+        of_unit_type_blocks = 0x2FC;
+        of_unit_type_boards_helicopter = 0x2FD;
+        of_unit_type_boards_land_transport = 0x2FE;
+        of_unit_type_boards_ship = 0x2FF;
+        of_unit_type_boards_fortress = 0x301;
         of_unit_type_behaviours = 0x31F;
         fn_unit_type_fire = (unit_type_fire_fn)0x00631312;
         calls_fire[0] = 0x00617838;
@@ -317,7 +445,11 @@ internal int spec_unit_type_select(int build) {
         of_unit_stats_height = 0x98;
         of_unit_stats_range = 0x9C;
         of_unit_stats_area = 0xA0;
+        of_unit_stats_sight = 0xA4;
+        of_unit_stats_accel = 0xA8;
         of_unit_stats_speed = 0xAC;
+        of_unit_stats_turn_accel = 0xB0;
+        of_unit_stats_turn_rate = 0xB4;
         of_unit_stats_shot_speed = 0xC0;
         of_unit_stats_attack = 0xD8;
         of_unit_stats_armor = 0xE0;

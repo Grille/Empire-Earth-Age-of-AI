@@ -3,7 +3,6 @@
 // FIELDS: a unit's +0x1EC; the kind by its vtable (goal_is_attack(g) ...), the fields of each kind from +0x20 on
 // (GOAL_ARGS) its own
 // a move goal (goal_is_location): where to
-internal inline float goal_get_dest_y(const ee_goal *g) { return FIELD(g, of_goal_dest_x + 0x4, float); }         // +0x24
 // an attack goal (goal_is_attack): the unit it attacks
 internal inline ee_unit *goal_get_target(const ee_goal *g) { return FIELD(g, of_goal_dest_x + 0x10, ee_unit *); }   // +0x30
 // a gather goal (EEUGGather): the resource site

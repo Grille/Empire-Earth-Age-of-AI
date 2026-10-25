@@ -55,6 +55,20 @@ internal inline ee_tech_tree **tech_tree_at(const ee_tech *o) { return (ee_tech_
 internal inline int tech_get_epoch(const ee_tech *o) { return *(int *)((uint8_t *)o + of_tech_epoch); }
 internal inline void tech_set_epoch(ee_tech *o, int v) { *(int *)((uint8_t *)o + of_tech_epoch) = v; }
 internal inline int *tech_epoch_at(const ee_tech *o) { return (int *)((uint8_t *)o + of_tech_epoch); }
+// the last epoch the tech belongs to (the constructor 13, AoC 14); the build manager drops a queued building
+// whose tech fell behind
+internal inline int tech_get_last_epoch(const ee_tech *o) { return *(int *)((uint8_t *)o + of_tech_last_epoch); }
+internal inline void tech_set_last_epoch(ee_tech *o, int v) { *(int *)((uint8_t *)o + of_tech_last_epoch) = v; }
+internal inline int *tech_last_epoch_at(const ee_tech *o) { return (int *)((uint8_t *)o + of_tech_last_epoch); }
+// 1 by default; cleared when a building queues the tech (a tech is queued once)
+internal inline uint8_t tech_get_queueable(const ee_tech *o) { return *(uint8_t *)((uint8_t *)o + of_tech_queueable); }
+internal inline void tech_set_queueable(ee_tech *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_tech_queueable) = v; }
+internal inline uint8_t *tech_queueable_at(const ee_tech *o) { return (uint8_t *)((uint8_t *)o + of_tech_queueable); }
+// the tech is switched off (its data's +0x7F, the scenario's player technology); 0x5BF3B3 passes it on to the
+// techs that require it
+internal inline uint8_t tech_get_disabled(const ee_tech *o) { return *(uint8_t *)((uint8_t *)o + of_tech_disabled); }
+internal inline void tech_set_disabled(ee_tech *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_tech_disabled) = v; }
+internal inline uint8_t *tech_disabled_at(const ee_tech *o) { return (uint8_t *)((uint8_t *)o + of_tech_disabled); }
 internal inline uint8_t *tech_get_kids_begin(const ee_tech *o) { return *(uint8_t **)((uint8_t *)o + of_tech_kids_begin); }
 internal inline void tech_set_kids_begin(ee_tech *o, uint8_t *v) { *(uint8_t **)((uint8_t *)o + of_tech_kids_begin) = v; }
 internal inline uint8_t **tech_kids_begin_at(const ee_tech *o) { return (uint8_t **)((uint8_t *)o + of_tech_kids_begin); }
@@ -85,6 +99,10 @@ internal inline int *tech_data_id_at(const ee_tech_data *o) { return (int *)((ui
 internal inline int tech_data_get_effects(const ee_tech_data *o) { return *(int *)((uint8_t *)o + of_tech_data_effects); }
 internal inline void tech_data_set_effects(ee_tech_data *o, int v) { *(int *)((uint8_t *)o + of_tech_data_effects) = v; }
 internal inline int *tech_data_effects_at(const ee_tech_data *o) { return (int *)((uint8_t *)o + of_tech_data_effects); }
+// the ids of up to four techs it requires
+internal inline int tech_data_get_requires(const ee_tech_data *o, int i) { return ((int *)((uint8_t *)o + of_tech_data_requires))[i]; }
+internal inline void tech_data_set_requires(ee_tech_data *o, int i, int v) { ((int *)((uint8_t *)o + of_tech_data_requires))[i] = v; }
+internal inline int *tech_data_requires_at(const ee_tech_data *o) { return (int *)((uint8_t *)o + of_tech_data_requires); }
 // the unit type it makes (< 0: a tech)
 // the tech tree code's reads (unchanged)
 internal inline int tech_data_get_unit_type(const ee_tech_data *o) { return *(int *)((uint8_t *)o + of_tech_data_unit_type); }
@@ -107,6 +125,10 @@ internal inline void tech_tree_set_player_index(ee_tech_tree *o, int v) { *(int 
 internal inline int *tech_tree_player_index_at(const ee_tech_tree *o) { return (int *)((uint8_t *)o + of_tech_tree_player_index); }
 // the epoch records, 0x54 apart (AoC: one more, its 0x4E4 one record on)
 internal inline uint8_t *tech_tree_epoch_recs_at(const ee_tech_tree *o) { return (uint8_t *)o + of_tech_tree_epoch_recs; }
+// its player
+internal inline ee_player *tech_tree_get_player(const ee_tech_tree *o) { return *(ee_player **)((uint8_t *)o + of_tech_tree_player); }
+internal inline void tech_tree_set_player(ee_tech_tree *o, ee_player *v) { *(ee_player **)((uint8_t *)o + of_tech_tree_player) = v; }
+internal inline ee_player **tech_tree_player_at(const ee_tech_tree *o) { return (ee_player **)((uint8_t *)o + of_tech_tree_player); }
 // the current epoch (0 = Prehistoric)
 internal inline int tech_tree_get_epoch(const ee_tech_tree *o) { return *(int *)((uint8_t *)o + of_tech_tree_epoch); }
 internal inline void tech_tree_set_epoch(ee_tech_tree *o, int v) { *(int *)((uint8_t *)o + of_tech_tree_epoch) = v; }
@@ -162,6 +184,9 @@ internal int spec_tech_select(int build) {
         of_tech_data = 0x8;
         of_tech_tree = 0xC;
         of_tech_epoch = 0x14;
+        of_tech_last_epoch = 0x18;
+        of_tech_queueable = 0x1D;
+        of_tech_disabled = 0x1E;
         of_tech_kids_begin = 0x24;
         fn_tech_grant = (tech_grant_fn)0x005BF335;
         of_tech_data_makers_begin = 0x10;
@@ -169,11 +194,13 @@ internal int spec_tech_select(int build) {
         of_tech_data_category = 0x48;
         of_tech_data_id = 0x4C;
         of_tech_data_effects = 0x50;
+        of_tech_data_requires = 0x5C;
         of_tech_data_unit_type = 0x6C;
         of_tech_data_counts = 0x7D;
         of_tech_data_aoc_new = 0x81;
         of_tech_tree_player_index = 0x4;
         of_tech_tree_epoch_recs = 0x8;
+        of_tech_tree_player = 0x4E0;
         of_tech_tree_epoch = 0x4E4;
         fn_tech_tree_epoch_next = (tech_tree_epoch_next_fn)0x005BC15D;
         fn_tech_tree_lookup = (tech_tree_lookup_fn)0x004019A1;
@@ -197,6 +224,9 @@ internal int spec_tech_select(int build) {
         of_tech_data = 0x8;
         of_tech_tree = 0xC;
         of_tech_epoch = 0x14;
+        of_tech_last_epoch = 0x18;
+        of_tech_queueable = 0x21;
+        of_tech_disabled = 0x22;
         of_tech_kids_begin = 0x24;
         fn_tech_grant = (tech_grant_fn)0x005CFA53;
         of_tech_data_makers_begin = 0x10;
@@ -204,11 +234,13 @@ internal int spec_tech_select(int build) {
         of_tech_data_category = 0x48;
         of_tech_data_id = 0x4C;
         of_tech_data_effects = 0x50;
+        of_tech_data_requires = 0x5C;
         of_tech_data_unit_type = 0x6C;
         of_tech_data_counts = 0x7D;
         of_tech_data_aoc_new = 0x81;
         of_tech_tree_player_index = 0x4;
         of_tech_tree_epoch_recs = 0x8;
+        of_tech_tree_player = 0x534;
         of_tech_tree_epoch = 0x538;
         fn_tech_tree_epoch_next = (tech_tree_epoch_next_fn)0x005CCB34;
         fn_tech_tree_lookup = (tech_tree_lookup_fn)0x004018A4;

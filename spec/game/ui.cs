@@ -27,8 +27,20 @@ unsafe struct EEUserInterface
 [c_type("ee_camera")]
 unsafe struct EECameraControl
 {
+    /// the look-at point after the last move, x
+    [offset(0x40), found(c)]
+    float32 last_x;
+
+    /// the same, y
+    [offset(0x44), found(c)]
+    float32 last_y;
+
     [offset(0x78), found(s)]
     float32 x;
+
+    /// the look-at point's y (x +0x78)
+    [offset(0x7C), found(c)]
+    float32 y;
 
     [offset(0xE0), found(s)]
     float32 zoom;
@@ -87,6 +99,22 @@ unsafe struct RTSMouse
     /// as the 2017 update (were rows of RM, which this is not: not checked in AoC)
     [offset(0x20), found(s)]
     float32 y_min;
+
+    /// the cursor's speed factor
+    [offset(0x88), found(c)]
+    float32 speed;
+
+    /// the screen's height in pixels
+    [offset(0x8C), found(c)]
+    int32 screen_h;
+
+    /// the screen's width in pixels
+    [offset(0x90), found(c)]
+    int32 screen_w;
+
+    /// the wheel's value this frame (0 without a wheel)
+    [offset(0x94), found(c)]
+    int32 wheel;
 
     [offset(0xA4), found(c)]
     uint8 frozen;

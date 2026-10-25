@@ -7,9 +7,22 @@
 internal inline uint8_t goal_get_state(const ee_goal *o) { return *(uint8_t *)((uint8_t *)o + of_goal_state); }
 internal inline void goal_set_state(ee_goal *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_goal_state) = v; }
 internal inline uint8_t *goal_state_at(const ee_goal *o) { return (uint8_t *)((uint8_t *)o + of_goal_state); }
+// 1 for a goal from an order (commands, the AI), 0 for the unit's own (its target search); the guard return skips
+// an ordered one
+internal inline uint8_t goal_get_ordered(const ee_goal *o) { return *(uint8_t *)((uint8_t *)o + of_goal_ordered); }
+internal inline void goal_set_ordered(ee_goal *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_goal_ordered) = v; }
+internal inline uint8_t *goal_ordered_at(const ee_goal *o) { return (uint8_t *)((uint8_t *)o + of_goal_ordered); }
 internal inline float goal_get_dest_x(const ee_goal *o) { return *(float *)((uint8_t *)o + of_goal_dest_x); }
 internal inline void goal_set_dest_x(ee_goal *o, float v) { *(float *)((uint8_t *)o + of_goal_dest_x) = v; }
 internal inline float *goal_dest_x_at(const ee_goal *o) { return (float *)((uint8_t *)o + of_goal_dest_x); }
+// the destination's y
+internal inline float goal_get_dest_y(const ee_goal *o) { return *(float *)((uint8_t *)o + of_goal_dest_y); }
+internal inline void goal_set_dest_y(ee_goal *o, float v) { *(float *)((uint8_t *)o + of_goal_dest_y) = v; }
+internal inline float *goal_dest_y_at(const ee_goal *o) { return (float *)((uint8_t *)o + of_goal_dest_y); }
+// the destination's z
+internal inline float goal_get_dest_z(const ee_goal *o) { return *(float *)((uint8_t *)o + of_goal_dest_z); }
+internal inline void goal_set_dest_z(ee_goal *o, float v) { *(float *)((uint8_t *)o + of_goal_dest_z) = v; }
+internal inline float *goal_dest_z_at(const ee_goal *o) { return (float *)((uint8_t *)o + of_goal_dest_z); }
 // a kind 6 goal's target
 // a kind 6 goal's target - the contact test (EEPhysicsModel::vf14, AoC vf15) lets two units at work on kind 6 meet
 // only when it is the same
@@ -53,9 +66,22 @@ internal inline void goal_add_passenger(ee_goal *goal, ee_unit *u) { fn_goal_add
 internal inline uint8_t build_goal_get_state(const ee_build_goal *o) { return *(uint8_t *)((uint8_t *)o + of_goal_state); }
 internal inline void build_goal_set_state(ee_build_goal *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_goal_state) = v; }
 internal inline uint8_t *build_goal_state_at(const ee_build_goal *o) { return (uint8_t *)((uint8_t *)o + of_goal_state); }
+// 1 for a goal from an order (commands, the AI), 0 for the unit's own (its target search); the guard return skips
+// an ordered one
+internal inline uint8_t build_goal_get_ordered(const ee_build_goal *o) { return *(uint8_t *)((uint8_t *)o + of_goal_ordered); }
+internal inline void build_goal_set_ordered(ee_build_goal *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_goal_ordered) = v; }
+internal inline uint8_t *build_goal_ordered_at(const ee_build_goal *o) { return (uint8_t *)((uint8_t *)o + of_goal_ordered); }
 internal inline float build_goal_get_dest_x(const ee_build_goal *o) { return *(float *)((uint8_t *)o + of_goal_dest_x); }
 internal inline void build_goal_set_dest_x(ee_build_goal *o, float v) { *(float *)((uint8_t *)o + of_goal_dest_x) = v; }
 internal inline float *build_goal_dest_x_at(const ee_build_goal *o) { return (float *)((uint8_t *)o + of_goal_dest_x); }
+// the destination's y
+internal inline float build_goal_get_dest_y(const ee_build_goal *o) { return *(float *)((uint8_t *)o + of_goal_dest_y); }
+internal inline void build_goal_set_dest_y(ee_build_goal *o, float v) { *(float *)((uint8_t *)o + of_goal_dest_y) = v; }
+internal inline float *build_goal_dest_y_at(const ee_build_goal *o) { return (float *)((uint8_t *)o + of_goal_dest_y); }
+// the destination's z
+internal inline float build_goal_get_dest_z(const ee_build_goal *o) { return *(float *)((uint8_t *)o + of_goal_dest_z); }
+internal inline void build_goal_set_dest_z(ee_build_goal *o, float v) { *(float *)((uint8_t *)o + of_goal_dest_z) = v; }
+internal inline float *build_goal_dest_z_at(const ee_build_goal *o) { return (float *)((uint8_t *)o + of_goal_dest_z); }
 // a kind 6 goal's target
 // a kind 6 goal's target - the contact test (EEPhysicsModel::vf14, AoC vf15) lets two units at work on kind 6 meet
 // only when it is the same
@@ -70,6 +96,26 @@ internal inline void **build_goal_0x3c_at(const ee_build_goal *o) { return (void
 internal inline ee_unit *build_goal_get_holder(const ee_build_goal *o) { return *(ee_unit **)((uint8_t *)o + of_goal_holder); }
 internal inline void build_goal_set_holder(ee_build_goal *o, ee_unit *v) { *(ee_unit **)((uint8_t *)o + of_goal_holder) = v; }
 internal inline ee_unit **build_goal_holder_at(const ee_build_goal *o) { return (ee_unit **)((uint8_t *)o + of_goal_holder); }
+// its dump's Target Center
+internal inline vec3 build_goal_get_center(const ee_build_goal *o) { return *(vec3 *)((uint8_t *)o + of_build_goal_center); }
+internal inline void build_goal_set_center(ee_build_goal *o, vec3 v) { *(vec3 *)((uint8_t *)o + of_build_goal_center) = v; }
+internal inline vec3 *build_goal_center_at(const ee_build_goal *o) { return (vec3 *)((uint8_t *)o + of_build_goal_center); }
+// the building's type data (its dump's Target Class)
+internal inline ee_unit_type *build_goal_get_target_class(const ee_build_goal *o) { return *(ee_unit_type **)((uint8_t *)o + of_build_goal_target_class); }
+internal inline void build_goal_set_target_class(ee_build_goal *o, ee_unit_type *v) { *(ee_unit_type **)((uint8_t *)o + of_build_goal_target_class) = v; }
+internal inline ee_unit_type **build_goal_target_class_at(const ee_build_goal *o) { return (ee_unit_type **)((uint8_t *)o + of_build_goal_target_class); }
+// the player's tech tree node of the type's tech
+internal inline ee_tech *build_goal_get_tech_node(const ee_build_goal *o) { return *(ee_tech **)((uint8_t *)o + of_build_goal_tech_node); }
+internal inline void build_goal_set_tech_node(ee_build_goal *o, ee_tech *v) { *(ee_tech **)((uint8_t *)o + of_build_goal_tech_node) = v; }
+internal inline ee_tech **build_goal_tech_node_at(const ee_build_goal *o) { return (ee_tech **)((uint8_t *)o + of_build_goal_tech_node); }
+// the type's tech (type +0x4E0; 100000 none)
+internal inline int build_goal_get_tech_id(const ee_build_goal *o) { return *(int *)((uint8_t *)o + of_build_goal_tech_id); }
+internal inline void build_goal_set_tech_id(ee_build_goal *o, int v) { *(int *)((uint8_t *)o + of_build_goal_tech_id) = v; }
+internal inline int *build_goal_tech_id_at(const ee_build_goal *o) { return (int *)((uint8_t *)o + of_build_goal_tech_id); }
+// the building's type (its dump's Target Type)
+internal inline int build_goal_get_type_id(const ee_build_goal *o) { return *(int *)((uint8_t *)o + of_build_goal_type_id); }
+internal inline void build_goal_set_type_id(ee_build_goal *o, int v) { *(int *)((uint8_t *)o + of_build_goal_type_id) = v; }
+internal inline int *build_goal_type_id_at(const ee_build_goal *o) { return (int *)((uint8_t *)o + of_build_goal_type_id); }
 // EEUGBuildRepair constructor: thiscall(goal, player, building, 1)
 typedef ee_goal *(__thiscall *build_goal_init_fn)(ee_build_goal *, ee_player *, ee_unit *, int);
 internal build_goal_init_fn fn_build_goal_init;
@@ -82,9 +128,22 @@ internal inline ee_goal *build_goal_init(ee_build_goal *build_goal, ee_player *p
 internal inline uint8_t load_goal_get_state(const ee_load_goal *o) { return *(uint8_t *)((uint8_t *)o + of_goal_state); }
 internal inline void load_goal_set_state(ee_load_goal *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_goal_state) = v; }
 internal inline uint8_t *load_goal_state_at(const ee_load_goal *o) { return (uint8_t *)((uint8_t *)o + of_goal_state); }
+// 1 for a goal from an order (commands, the AI), 0 for the unit's own (its target search); the guard return skips
+// an ordered one
+internal inline uint8_t load_goal_get_ordered(const ee_load_goal *o) { return *(uint8_t *)((uint8_t *)o + of_goal_ordered); }
+internal inline void load_goal_set_ordered(ee_load_goal *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_goal_ordered) = v; }
+internal inline uint8_t *load_goal_ordered_at(const ee_load_goal *o) { return (uint8_t *)((uint8_t *)o + of_goal_ordered); }
 internal inline float load_goal_get_dest_x(const ee_load_goal *o) { return *(float *)((uint8_t *)o + of_goal_dest_x); }
 internal inline void load_goal_set_dest_x(ee_load_goal *o, float v) { *(float *)((uint8_t *)o + of_goal_dest_x) = v; }
 internal inline float *load_goal_dest_x_at(const ee_load_goal *o) { return (float *)((uint8_t *)o + of_goal_dest_x); }
+// the destination's y
+internal inline float load_goal_get_dest_y(const ee_load_goal *o) { return *(float *)((uint8_t *)o + of_goal_dest_y); }
+internal inline void load_goal_set_dest_y(ee_load_goal *o, float v) { *(float *)((uint8_t *)o + of_goal_dest_y) = v; }
+internal inline float *load_goal_dest_y_at(const ee_load_goal *o) { return (float *)((uint8_t *)o + of_goal_dest_y); }
+// the destination's z
+internal inline float load_goal_get_dest_z(const ee_load_goal *o) { return *(float *)((uint8_t *)o + of_goal_dest_z); }
+internal inline void load_goal_set_dest_z(ee_load_goal *o, float v) { *(float *)((uint8_t *)o + of_goal_dest_z) = v; }
+internal inline float *load_goal_dest_z_at(const ee_load_goal *o) { return (float *)((uint8_t *)o + of_goal_dest_z); }
 // a kind 6 goal's target
 // a kind 6 goal's target - the contact test (EEPhysicsModel::vf14, AoC vf15) lets two units at work on kind 6 meet
 // only when it is the same
@@ -111,9 +170,22 @@ internal inline void *load_goal_init(ee_load_goal *load_goal, void *p2, void *p3
 internal inline uint8_t location_goal_get_state(const ee_location_goal *o) { return *(uint8_t *)((uint8_t *)o + of_goal_state); }
 internal inline void location_goal_set_state(ee_location_goal *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_goal_state) = v; }
 internal inline uint8_t *location_goal_state_at(const ee_location_goal *o) { return (uint8_t *)((uint8_t *)o + of_goal_state); }
+// 1 for a goal from an order (commands, the AI), 0 for the unit's own (its target search); the guard return skips
+// an ordered one
+internal inline uint8_t location_goal_get_ordered(const ee_location_goal *o) { return *(uint8_t *)((uint8_t *)o + of_goal_ordered); }
+internal inline void location_goal_set_ordered(ee_location_goal *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_goal_ordered) = v; }
+internal inline uint8_t *location_goal_ordered_at(const ee_location_goal *o) { return (uint8_t *)((uint8_t *)o + of_goal_ordered); }
 internal inline float location_goal_get_dest_x(const ee_location_goal *o) { return *(float *)((uint8_t *)o + of_goal_dest_x); }
 internal inline void location_goal_set_dest_x(ee_location_goal *o, float v) { *(float *)((uint8_t *)o + of_goal_dest_x) = v; }
 internal inline float *location_goal_dest_x_at(const ee_location_goal *o) { return (float *)((uint8_t *)o + of_goal_dest_x); }
+// the destination's y
+internal inline float location_goal_get_dest_y(const ee_location_goal *o) { return *(float *)((uint8_t *)o + of_goal_dest_y); }
+internal inline void location_goal_set_dest_y(ee_location_goal *o, float v) { *(float *)((uint8_t *)o + of_goal_dest_y) = v; }
+internal inline float *location_goal_dest_y_at(const ee_location_goal *o) { return (float *)((uint8_t *)o + of_goal_dest_y); }
+// the destination's z
+internal inline float location_goal_get_dest_z(const ee_location_goal *o) { return *(float *)((uint8_t *)o + of_goal_dest_z); }
+internal inline void location_goal_set_dest_z(ee_location_goal *o, float v) { *(float *)((uint8_t *)o + of_goal_dest_z) = v; }
+internal inline float *location_goal_dest_z_at(const ee_location_goal *o) { return (float *)((uint8_t *)o + of_goal_dest_z); }
 // a kind 6 goal's target
 // a kind 6 goal's target - the contact test (EEPhysicsModel::vf14, AoC vf15) lets two units at work on kind 6 meet
 // only when it is the same
@@ -128,6 +200,30 @@ internal inline void **location_goal_0x3c_at(const ee_location_goal *o) { return
 internal inline ee_unit *location_goal_get_holder(const ee_location_goal *o) { return *(ee_unit **)((uint8_t *)o + of_goal_holder); }
 internal inline void location_goal_set_holder(ee_location_goal *o, ee_unit *v) { *(ee_unit **)((uint8_t *)o + of_goal_holder) = v; }
 internal inline ee_unit **location_goal_holder_at(const ee_location_goal *o) { return (ee_unit **)((uint8_t *)o + of_goal_holder); }
+// the heading to face on arrival (its dump's Yaw)
+internal inline float location_goal_get_yaw(const ee_location_goal *o) { return *(float *)((uint8_t *)o + of_location_goal_yaw); }
+internal inline void location_goal_set_yaw(ee_location_goal *o, float v) { *(float *)((uint8_t *)o + of_location_goal_yaw) = v; }
+internal inline float *location_goal_yaw_at(const ee_location_goal *o) { return (float *)((uint8_t *)o + of_location_goal_yaw); }
+// a forced move; 0 an attack-move (vf8's AttackMove, vf21 zeroes the unit's scan_ms)
+internal inline uint8_t location_goal_get_forced(const ee_location_goal *o) { return *(uint8_t *)((uint8_t *)o + of_location_goal_forced); }
+internal inline void location_goal_set_forced(ee_location_goal *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_location_goal_forced) = v; }
+internal inline uint8_t *location_goal_forced_at(const ee_location_goal *o) { return (uint8_t *)((uint8_t *)o + of_location_goal_forced); }
+// Should Face: on arrival it turns to yaw (state 0x232E) instead of idling (5000)
+internal inline uint8_t location_goal_get_face(const ee_location_goal *o) { return *(uint8_t *)((uint8_t *)o + of_location_goal_face); }
+internal inline void location_goal_set_face(ee_location_goal *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_location_goal_face) = v; }
+internal inline uint8_t *location_goal_face_at(const ee_location_goal *o) { return (uint8_t *)((uint8_t *)o + of_location_goal_face); }
+// Is Auto Waypoint: assign_goal doesn't make it the current goal
+internal inline uint8_t location_goal_get_auto_waypoint(const ee_location_goal *o) { return *(uint8_t *)((uint8_t *)o + of_location_goal_auto_waypoint); }
+internal inline void location_goal_set_auto_waypoint(ee_location_goal *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_location_goal_auto_waypoint) = v; }
+internal inline uint8_t *location_goal_auto_waypoint_at(const ee_location_goal *o) { return (uint8_t *)((uint8_t *)o + of_location_goal_auto_waypoint); }
+// Use Group Movement (the copy vf4 carries it)
+internal inline uint8_t location_goal_get_group_move(const ee_location_goal *o) { return *(uint8_t *)((uint8_t *)o + of_location_goal_group_move); }
+internal inline void location_goal_set_group_move(ee_location_goal *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_location_goal_group_move) = v; }
+internal inline uint8_t *location_goal_group_move_at(const ee_location_goal *o) { return (uint8_t *)((uint8_t *)o + of_location_goal_group_move); }
+// its dump's Group Path State
+internal inline uint8_t location_goal_get_group_path_state(const ee_location_goal *o) { return *(uint8_t *)((uint8_t *)o + of_location_goal_group_path_state); }
+internal inline void location_goal_set_group_path_state(ee_location_goal *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_location_goal_group_path_state) = v; }
+internal inline uint8_t *location_goal_group_path_state_at(const ee_location_goal *o) { return (uint8_t *)((uint8_t *)o + of_location_goal_group_path_state); }
 // new 0x38
 typedef void *(__thiscall *location_goal_init_fn)(ee_location_goal *, float *, int, char, char, float, char, char);
 internal location_goal_init_fn fn_location_goal_init;
@@ -167,7 +263,10 @@ internal int spec_goal_select(int build) {
     switch (build) {
     case 0:   // ee
         of_goal_state = 0x5;
+        of_goal_ordered = 0x1C;
         of_goal_dest_x = 0x20;
+        of_goal_dest_y = 0x24;
+        of_goal_dest_z = 0x28;
         of_goal_0x38 = 0x38;
         of_goal_0x3c = 0x3C;
         of_goal_holder = 0x50;
@@ -186,10 +285,21 @@ internal int spec_goal_select(int build) {
         calls_unload_ctor[7] = 0x00615AE6;
         fn_goal_add_passenger = (goal_add_passenger_fn)0x0061321D;
         vt_eeug_build_repair = 0x008319F0;
+        of_build_goal_center = 0x2C;
+        of_build_goal_target_class = 0x40;
+        of_build_goal_tech_node = 0x44;
+        of_build_goal_tech_id = 0x48;
+        of_build_goal_type_id = 0x4C;
         fn_build_goal_init = (build_goal_init_fn)0x0060BAD0;
         vt_eeug_load_transport = 0x00831DC0;
         fn_load_goal_init = (load_goal_init_fn)0x0061487F;
         vt_eeug_location = 0x00831E64;
+        of_location_goal_yaw = 0x2C;
+        of_location_goal_forced = 0x30;
+        of_location_goal_face = 0x31;
+        of_location_goal_auto_waypoint = 0x32;
+        of_location_goal_group_move = 0x33;
+        of_location_goal_group_path_state = 0x34;
         fn_location_goal_init = (location_goal_init_fn)0x00614CE6;
         data_goal_at_goal_set_read = 0x005F0634;
         data_goal_fn_goal_attack_ctor = 0x0060AD45;
@@ -212,7 +322,10 @@ internal int spec_goal_select(int build) {
         return 0;
     case 1:   // aoc
         of_goal_state = 0x5;
+        of_goal_ordered = 0x1C;
         of_goal_dest_x = 0x20;
+        of_goal_dest_y = 0x24;
+        of_goal_dest_z = 0x28;
         of_goal_0x38 = 0x38;
         of_goal_0x3c = 0x3C;
         of_goal_holder = 0x50;
@@ -231,10 +344,21 @@ internal int spec_goal_select(int build) {
         calls_unload_ctor[7] = 0x006284E2;
         fn_goal_add_passenger = (goal_add_passenger_fn)0x00625AB4;
         vt_eeug_build_repair = 0x0084740C;
+        of_build_goal_center = 0x2C;
+        of_build_goal_target_class = 0x40;
+        of_build_goal_tech_node = 0x44;
+        of_build_goal_tech_id = 0x48;
+        of_build_goal_type_id = 0x4C;
         fn_build_goal_init = (build_goal_init_fn)0x0061E164;
         vt_eeug_load_transport = 0x008477F8;
         fn_load_goal_init = (load_goal_init_fn)0x00627286;
         vt_eeug_location = 0x008478A0;
+        of_location_goal_yaw = 0x2C;
+        of_location_goal_forced = 0x30;
+        of_location_goal_face = 0x31;
+        of_location_goal_auto_waypoint = 0x32;
+        of_location_goal_group_move = 0x33;
+        of_location_goal_group_path_state = 0x34;
         fn_location_goal_init = (location_goal_init_fn)0x006276E1;
         data_goal_at_goal_set_read = 0x005FE8DA;
         data_goal_fn_goal_attack_ctor = 0x0061D337;

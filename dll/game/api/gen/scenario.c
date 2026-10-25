@@ -180,6 +180,10 @@ internal inline char scen_area_contains(ee_scen_area *scen_area, ee_unit *p2) { 
 // a scenario effect
 // its file's code (the scenario manager)
 internal inline uint8_t *scen_effect_group_at(const ee_scen_effect *o) { return (uint8_t *)o + of_scen_effect_group; }
+// its name (the editor's list, Save Triggers Only's "Effect '%s'")
+internal inline uint8_t *scen_effect_name_at(const ee_scen_effect *o) { return (uint8_t *)o + of_scen_effect_name; }
+// its description
+internal inline uint8_t *scen_effect_description_at(const ee_scen_effect *o) { return (uint8_t *)o + of_scen_effect_description; }
 // its file's code (the scenario manager)
 internal inline uint8_t *scen_effect_text_at(const ee_scen_effect *o) { return (uint8_t *)o + of_scen_effect_text; }
 // its file's code (the scenario manager)
@@ -219,7 +223,9 @@ internal inline enum sm_player_spec scen_effect_get_target_players(const ee_scen
 internal inline void scen_effect_set_target_players(ee_scen_effect *o, enum sm_player_spec v) { *(enum sm_player_spec *)((uint8_t *)o + of_scen_effect_target_players) = v; }
 internal inline enum sm_player_spec *scen_effect_target_players_at(const ee_scen_effect *o) { return (enum sm_player_spec *)((uint8_t *)o + of_scen_effect_target_players); }
 // its file's code (the scenario manager)
-internal inline uint8_t *scen_effect_ai_kind_at(const ee_scen_effect *o) { return (uint8_t *)o + of_scen_effect_ai_kind; }
+internal inline enum sm_ai_action scen_effect_get_ai_kind(const ee_scen_effect *o) { return *(enum sm_ai_action *)((uint8_t *)o + of_scen_effect_ai_kind); }
+internal inline void scen_effect_set_ai_kind(ee_scen_effect *o, enum sm_ai_action v) { *(enum sm_ai_action *)((uint8_t *)o + of_scen_effect_ai_kind) = v; }
+internal inline enum sm_ai_action *scen_effect_ai_kind_at(const ee_scen_effect *o) { return (enum sm_ai_action *)((uint8_t *)o + of_scen_effect_ai_kind); }
 // set AI variable: the record
 // its file's code (the scenario manager)
 internal inline int scen_effect_get_ai_var(const ee_scen_effect *o) { return *(int *)((uint8_t *)o + of_scen_effect_ai_var); }
@@ -230,17 +236,25 @@ internal inline enum sm_ai_toggle scen_effect_get_ai_toggle(const ee_scen_effect
 internal inline void scen_effect_set_ai_toggle(ee_scen_effect *o, enum sm_ai_toggle v) { *(enum sm_ai_toggle *)((uint8_t *)o + of_scen_effect_ai_toggle) = v; }
 internal inline enum sm_ai_toggle *scen_effect_ai_toggle_at(const ee_scen_effect *o) { return (enum sm_ai_toggle *)((uint8_t *)o + of_scen_effect_ai_toggle); }
 // its file's code (the scenario manager)
-internal inline uint8_t *scen_effect_media_kind_at(const ee_scen_effect *o) { return (uint8_t *)o + of_scen_effect_media_kind; }
+internal inline enum sm_media_action scen_effect_get_media_kind(const ee_scen_effect *o) { return *(enum sm_media_action *)((uint8_t *)o + of_scen_effect_media_kind); }
+internal inline void scen_effect_set_media_kind(ee_scen_effect *o, enum sm_media_action v) { *(enum sm_media_action *)((uint8_t *)o + of_scen_effect_media_kind) = v; }
+internal inline enum sm_media_action *scen_effect_media_kind_at(const ee_scen_effect *o) { return (enum sm_media_action *)((uint8_t *)o + of_scen_effect_media_kind); }
 // its file's code (the scenario manager)
-internal inline uint8_t *scen_effect_player_kind_at(const ee_scen_effect *o) { return (uint8_t *)o + of_scen_effect_player_kind; }
+internal inline enum sm_player_action scen_effect_get_player_kind(const ee_scen_effect *o) { return *(enum sm_player_action *)((uint8_t *)o + of_scen_effect_player_kind); }
+internal inline void scen_effect_set_player_kind(ee_scen_effect *o, enum sm_player_action v) { *(enum sm_player_action *)((uint8_t *)o + of_scen_effect_player_kind) = v; }
+internal inline enum sm_player_action *scen_effect_player_kind_at(const ee_scen_effect *o) { return (enum sm_player_action *)((uint8_t *)o + of_scen_effect_player_kind); }
 // its file's code (the scenario manager)
-internal inline uint8_t *scen_effect_trigger_kind_at(const ee_scen_effect *o) { return (uint8_t *)o + of_scen_effect_trigger_kind; }
+internal inline enum sm_trigger_action scen_effect_get_trigger_kind(const ee_scen_effect *o) { return *(enum sm_trigger_action *)((uint8_t *)o + of_scen_effect_trigger_kind); }
+internal inline void scen_effect_set_trigger_kind(ee_scen_effect *o, enum sm_trigger_action v) { *(enum sm_trigger_action *)((uint8_t *)o + of_scen_effect_trigger_kind) = v; }
+internal inline enum sm_trigger_action *scen_effect_trigger_kind_at(const ee_scen_effect *o) { return (enum sm_trigger_action *)((uint8_t *)o + of_scen_effect_trigger_kind); }
 // its file's code (the scenario manager)
 internal inline enum sm_category scen_effect_get_category(const ee_scen_effect *o) { return *(enum sm_category *)((uint8_t *)o + of_scen_effect_category); }
 internal inline void scen_effect_set_category(ee_scen_effect *o, enum sm_category v) { *(enum sm_category *)((uint8_t *)o + of_scen_effect_category) = v; }
 internal inline enum sm_category *scen_effect_category_at(const ee_scen_effect *o) { return (enum sm_category *)((uint8_t *)o + of_scen_effect_category); }
 // its file's code (the scenario manager)
-internal inline uint8_t *scen_effect_object_kind_at(const ee_scen_effect *o) { return (uint8_t *)o + of_scen_effect_object_kind; }
+internal inline enum sm_object_action scen_effect_get_object_kind(const ee_scen_effect *o) { return *(enum sm_object_action *)((uint8_t *)o + of_scen_effect_object_kind); }
+internal inline void scen_effect_set_object_kind(ee_scen_effect *o, enum sm_object_action v) { *(enum sm_object_action *)((uint8_t *)o + of_scen_effect_object_kind) = v; }
+internal inline enum sm_object_action *scen_effect_object_kind_at(const ee_scen_effect *o) { return (enum sm_object_action *)((uint8_t *)o + of_scen_effect_object_kind); }
 // unit / class attribute
 // its file's code (the scenario manager)
 internal inline enum sm_unit_op scen_effect_get_op(const ee_scen_effect *o) { return *(enum sm_unit_op *)((uint8_t *)o + of_scen_effect_op); }
@@ -298,7 +312,9 @@ internal inline int scen_effect_get_day_cycle(const ee_scen_effect *o) { return 
 internal inline void scen_effect_set_day_cycle(ee_scen_effect *o, int v) { *(int *)((uint8_t *)o + of_scen_effect_day_cycle) = v; }
 internal inline int *scen_effect_day_cycle_at(const ee_scen_effect *o) { return (int *)((uint8_t *)o + of_scen_effect_day_cycle); }
 // its file's code (the scenario manager)
-internal inline uint8_t *scen_effect_game_kind_at(const ee_scen_effect *o) { return (uint8_t *)o + of_scen_effect_game_kind; }
+internal inline enum sm_game_action scen_effect_get_game_kind(const ee_scen_effect *o) { return *(enum sm_game_action *)((uint8_t *)o + of_scen_effect_game_kind); }
+internal inline void scen_effect_set_game_kind(ee_scen_effect *o, enum sm_game_action v) { *(enum sm_game_action *)((uint8_t *)o + of_scen_effect_game_kind) = v; }
+internal inline enum sm_game_action *scen_effect_game_kind_at(const ee_scen_effect *o) { return (enum sm_game_action *)((uint8_t *)o + of_scen_effect_game_kind); }
 // s
 // its file's code (the scenario manager)
 internal inline int scen_effect_get_duration(const ee_scen_effect *o) { return *(int *)((uint8_t *)o + of_scen_effect_duration); }
@@ -668,6 +684,8 @@ internal int spec_scenario_select(int build) {
         of_scen_area_ai_area = 0x64;
         fn_scen_area_contains = (scen_area_contains_fn)0x005A9E1D;
         of_scen_effect_group = 0x8;
+        of_scen_effect_name = 0x14;
+        of_scen_effect_description = 0x28;
         of_scen_effect_text = 0x50;
         of_scen_effect_class_name = 0x8C;
         of_scen_effect_sound = 0xA4;
@@ -821,6 +839,8 @@ internal int spec_scenario_select(int build) {
         of_scen_area_ai_area = 0x64;
         fn_scen_area_contains = (scen_area_contains_fn)0x005BA0D1;
         of_scen_effect_group = 0x8;
+        of_scen_effect_name = 0x14;
+        of_scen_effect_description = 0x28;
         of_scen_effect_text = 0x50;
         of_scen_effect_class_name = 0x8C;
         of_scen_effect_sound = 0xA4;

@@ -34,10 +34,46 @@ internal inline uint32_t *physics_steps_at(const ee_physics *o) { return (uint32
 internal inline float physics_get_step_s(const ee_physics *o) { return *(float *)((uint8_t *)o + of_physics_step_s); }
 internal inline void physics_set_step_s(ee_physics *o, float v) { *(float *)((uint8_t *)o + of_physics_step_s) = v; }
 internal inline float *physics_step_s_at(const ee_physics *o) { return (float *)((uint8_t *)o + of_physics_step_s); }
+// game time in ms as a float: + step_ms each step
+internal inline float physics_get_time_ms(const ee_physics *o) { return *(float *)((uint8_t *)o + of_physics_time_ms); }
+internal inline void physics_set_time_ms(ee_physics *o, float v) { *(float *)((uint8_t *)o + of_physics_time_ms) = v; }
+internal inline float *physics_time_ms_at(const ee_physics *o) { return (float *)((uint8_t *)o + of_physics_time_ms); }
+// a step's length in ms (step_s x 1000)
+internal inline float physics_get_step_ms(const ee_physics *o) { return *(float *)((uint8_t *)o + of_physics_step_ms); }
+internal inline void physics_set_step_ms(ee_physics *o, float v) { *(float *)((uint8_t *)o + of_physics_step_ms) = v; }
+internal inline float *physics_step_ms_at(const ee_physics *o) { return (float *)((uint8_t *)o + of_physics_step_ms); }
+// TMGetTime at this step's start
+internal inline uint32_t physics_get_step_start(const ee_physics *o) { return *(uint32_t *)((uint8_t *)o + of_physics_step_start); }
+internal inline void physics_set_step_start(ee_physics *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_physics_step_start) = v; }
+internal inline uint32_t *physics_step_start_at(const ee_physics *o) { return (uint32_t *)((uint8_t *)o + of_physics_step_start); }
+// TMGetTime at the last step's start
+internal inline uint32_t physics_get_prev_step_start(const ee_physics *o) { return *(uint32_t *)((uint8_t *)o + of_physics_prev_step_start); }
+internal inline void physics_set_prev_step_start(ee_physics *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_physics_prev_step_start) = v; }
+internal inline uint32_t *physics_prev_step_start_at(const ee_physics *o) { return (uint32_t *)((uint8_t *)o + of_physics_prev_step_start); }
+// steps run (a second counter: zeroed by the reset 0x54650E, saved)
+internal inline uint32_t physics_get_step_ticks(const ee_physics *o) { return *(uint32_t *)((uint8_t *)o + of_physics_step_ticks); }
+internal inline void physics_set_step_ticks(ee_physics *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_physics_step_ticks) = v; }
+internal inline uint32_t *physics_step_ticks_at(const ee_physics *o) { return (uint32_t *)((uint8_t *)o + of_physics_step_ticks); }
 // steps it may still run
 internal inline uint32_t physics_get_steps_granted(const ee_physics *o) { return *(uint32_t *)((uint8_t *)o + of_physics_steps_granted); }
 internal inline void physics_set_steps_granted(ee_physics *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_physics_steps_granted) = v; }
 internal inline uint32_t *physics_steps_granted_at(const ee_physics *o) { return (uint32_t *)((uint8_t *)o + of_physics_steps_granted); }
+// ms between step starts, summed; past 999 the average goes to +0xDC and it restarts
+internal inline uint32_t physics_get_gap_ms_sum(const ee_physics *o) { return *(uint32_t *)((uint8_t *)o + of_physics_gap_ms_sum); }
+internal inline void physics_set_gap_ms_sum(ee_physics *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_physics_gap_ms_sum) = v; }
+internal inline uint32_t *physics_gap_ms_sum_at(const ee_physics *o) { return (uint32_t *)((uint8_t *)o + of_physics_gap_ms_sum); }
+// how many gap_ms_sum holds
+internal inline uint32_t physics_get_gap_count(const ee_physics *o) { return *(uint32_t *)((uint8_t *)o + of_physics_gap_count); }
+internal inline void physics_set_gap_count(ee_physics *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_physics_gap_count) = v; }
+internal inline uint32_t *physics_gap_count_at(const ee_physics *o) { return (uint32_t *)((uint8_t *)o + of_physics_gap_count); }
+// ms the steps' work took, summed; past 999 the average goes to +0xD8 and it restarts
+internal inline uint32_t physics_get_work_ms_sum(const ee_physics *o) { return *(uint32_t *)((uint8_t *)o + of_physics_work_ms_sum); }
+internal inline void physics_set_work_ms_sum(ee_physics *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_physics_work_ms_sum) = v; }
+internal inline uint32_t *physics_work_ms_sum_at(const ee_physics *o) { return (uint32_t *)((uint8_t *)o + of_physics_work_ms_sum); }
+// how many work_ms_sum holds
+internal inline uint32_t physics_get_work_count(const ee_physics *o) { return *(uint32_t *)((uint8_t *)o + of_physics_work_count); }
+internal inline void physics_set_work_count(ee_physics *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_physics_work_count) = v; }
+internal inline uint32_t *physics_work_count_at(const ee_physics *o) { return (uint32_t *)((uint8_t *)o + of_physics_work_count); }
 // game time (ms)
 internal inline uint32_t physics_get_time(const ee_physics *o) { return *(uint32_t *)((uint8_t *)o + of_physics_time); }
 internal inline void physics_set_time(ee_physics *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_physics_time) = v; }
@@ -89,7 +125,16 @@ internal int spec_world_select(int build) {
         of_physics_seed = 0x18;
         of_physics_steps = 0x80;
         of_physics_step_s = 0x8C;
+        of_physics_time_ms = 0x94;
+        of_physics_step_ms = 0x98;
+        of_physics_step_start = 0xA8;
+        of_physics_prev_step_start = 0xAC;
+        of_physics_step_ticks = 0xB4;
         of_physics_steps_granted = 0xB8;
+        of_physics_gap_ms_sum = 0xBC;
+        of_physics_gap_count = 0xC0;
+        of_physics_work_ms_sum = 0xC4;
+        of_physics_work_count = 0xC8;
         of_physics_time = 0xD0;
         fn_physics_step = (physics_step_fn)0x00546C63;
         vt_ee_world = 0x0082C84C;
@@ -111,7 +156,16 @@ internal int spec_world_select(int build) {
         of_physics_seed = 0x18;
         of_physics_steps = 0x80;
         of_physics_step_s = 0x8C;
+        of_physics_time_ms = 0x94;
+        of_physics_step_ms = 0x98;
+        of_physics_step_start = 0xA8;
+        of_physics_prev_step_start = 0xAC;
+        of_physics_step_ticks = 0xB4;
         of_physics_steps_granted = 0xB8;
+        of_physics_gap_ms_sum = 0xBC;
+        of_physics_gap_count = 0xC0;
+        of_physics_work_ms_sum = 0xC4;
+        of_physics_work_count = 0xC8;
         of_physics_time = 0xD0;
         fn_physics_step = (physics_step_fn)0x00553082;
         vt_ee_world = 0x00841FEC;

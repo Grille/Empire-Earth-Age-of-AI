@@ -4,7 +4,6 @@
 // FIELDS
 // THE CAMERA ([data_game_camera], game_camera()) AND THE SCROLL ACTION (EEAScroll)
 internal inline float *camera_look_at(const ee_camera *cam) { return (float *)FIELD_AT(cam, of_camera_x); }   // +0x78 x, y, z
-internal inline float camera_get_y(const ee_camera *cam) { return FIELD(cam, of_camera_x + 0x4, float); }
 // +0x44 .. +0x47 the keys held: left, right, down, up
 internal inline uint8_t scroll_get_key(const ee_scroll *s, int k) { return FIELD(s, of_scroll_keys + k, uint8_t); }
 internal inline void scroll_set_key(ee_scroll *s, int k, uint8_t v) { FIELD(s, of_scroll_keys + k, uint8_t) = v; }

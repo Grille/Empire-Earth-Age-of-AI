@@ -9,6 +9,18 @@ unsafe struct EEUnitClass
     [offset(0x1C), found(v)]
     char8* name;
 
+    /// the graphic effect a missile or projectile plays on itself when it arrives
+    [offset((ee)0x378, (aoc)0x68), found(c)]
+    void* impact_gfx;
+
+    /// the graphic effect on the attacker when it fires
+    [offset((ee)0x38C, (aoc)0x7C), found(c)]
+    void* fire_gfx;
+
+    /// the shot's effect: a beam from the attacker to the target, or at the aim point without one
+    [offset((ee)0x3C4, (aoc)0xB4), found(c)]
+    void* shot_gfx;
+
     /// what it fires
     [offset((ee)0x3FC, (aoc)0xF8), found(c)]
     EEUnitClass* projectile;
@@ -46,6 +58,14 @@ unsafe struct EEUnitClass
     [offset((ee)0x438, (aoc)0x13C), found(c)]
     float32 accel;
 
+    /// the most it rolls in a turn (radians), with banks
+    [offset((ee)0x454, (aoc)0x158), found(c)]
+    float32 bank_angle;
+
+    /// radians added to its heading in the turn step
+    [offset((ee)0x458, (aoc)0x15C), found(c)]
+    float32 heading_offset;
+
     /// its selection circle's size (tiles)
     /// EEE3DCommandConfirmation vf12's read (0x4E28E9 / AoC 0x4E9F49) - a circle's scale for the unit (float)
     [offset((ee)0x464, (aoc)0x168), found(c)]
@@ -81,6 +101,10 @@ unsafe struct EEUnitClass
     [offset((ee)0x4C8, (aoc)0x1CC), found(c)]
     int32 weapon;
 
+    /// its RPS class (the scenario's object class 72 + it); the attack scoring tests 3, 10, 20
+    [offset((ee)0x4CC, (aoc)0x1D0), found(c)]
+    int32 rps_class;
+
     /// the tech that makes it (its price)
     /// the type data's constructors
     [offset((ee)0x4E0, (aoc)0x1E4), found(c)]
@@ -95,6 +119,10 @@ unsafe struct EEUnitClass
     /// the type data's constructors
     [offset((ee)0x510, (aoc)0x214), found(c)]
     int32 attack;
+
+    /// a corpse's rotting time (ms): caps the unit's +0x2A8
+    [offset((ee)0x548, (aoc)0x248), found(c)]
+    int32 rot_time;
 
     /// (0 for soldiers)
     /// the type data's constructors
@@ -124,10 +152,54 @@ unsafe struct EEUnitClass
     [offset((ee)0x58C, (aoc)0x28C), found(c)]
     int32 size;
 
+    /// bit 0 an aircraft, bit 2 a ship (1 and 3 tested too)
+    [offset((ee)0x5D4, (aoc)0x2D0), found(c)]
+    uint8 kind_flags;
+
     /// a byte per terrain kind (TILE_KIND): may the type enter it (the path search's tile test 0x41D36A; AoC 0x41990C
     /// asks 0x634AD8, which reads it only without a unit - with one a bit mask in its stats +0x160)
     [offset((ee)0x5D6, (aoc)0x2D2), found(c)]
     block terrain_ok;
+
+    /// each shot takes one of the unit's ammo
+    [offset((ee)0x5E8, (aoc)0x2E4), found(c)]
+    uint8 uses_ammo;
+
+    /// its shots take the high ballistic solution
+    [offset((ee)0x5E9, (aoc)0x2E5), found(c)]
+    uint8 high_arc;
+
+    /// its model tilts with its speed
+    [offset((ee)0x5F3, (aoc)0x2EF), found(c)]
+    uint8 pitches;
+
+    /// its model rolls in turns (bank_angle)
+    [offset((ee)0x5F4, (aoc)0x2F0), found(c)]
+    uint8 banks;
+
+    /// its heading turned by pi (the model faces backwards)
+    [offset((ee)0x5F5, (aoc)0x2F1), found(c)]
+    uint8 faces_back;
+
+    /// 1: its units let no one pass (buildings), 0 ships and land units
+    [offset((ee)0x600, (aoc)0x2FC), found(c)]
+    uint8 blocks;
+
+    /// may ride a helicopter transport (CLS_HELICOPTER_TRANSPORT)
+    [offset((ee)0x601, (aoc)0x2FD), found(c)]
+    uint8 boards_helicopter;
+
+    /// may ride a land transport (CLS_LAND_TRANSPORT)
+    [offset((ee)0x602, (aoc)0x2FE), found(c)]
+    uint8 boards_land_transport;
+
+    /// may board a transport ship (CLS_NAVAL_TRANSPORT)
+    [offset((ee)0x603, (aoc)0x2FF), found(c)]
+    uint8 boards_ship;
+
+    /// may go into a fortress (CLS_FORTRESS; AoC's +0x300 its space transports)
+    [offset((ee)0x604, (aoc)0x301), found(c)]
+    uint8 boards_fortress;
 
     /// takes a behaviour (stances)
     /// the type data's constructors
@@ -165,10 +237,26 @@ unsafe struct ee_unit_stats
     [offset(0xA0), found(c)]
     float32 area;
 
+    /// line of sight (tiles)
+    [offset(0xA4), found(c)]
+    float32 sight;
+
+    /// acceleration (EEUnit::accel)
+    [offset(0xA8), found(c)]
+    float32 accel;
+
     /// tiles/s (0: cannot move)
     /// read through a unit's +0x34
     [offset(0xAC), found(c)]
     float32 speed;
+
+    /// turn acceleration (EEUnit::turn_accel)
+    [offset(0xB0), found(c)]
+    float32 turn_accel;
+
+    /// the top turn rate, radians/s (EEUnit::max_turn)
+    [offset(0xB4), found(c)]
+    float32 turn_rate;
 
     /// its projectile's launch speed
     /// between fields read through a unit's +0x34, unchanged

@@ -207,7 +207,15 @@ unsafe struct ee_scen_effect
 {
     /// its file's code (the scenario manager)
     [offset(0x8), found(c)]
-    block group;
+    vector group;
+
+    /// its name (the editor's list, Save Triggers Only's "Effect '%s'")
+    [offset(0x14), found(c)]
+    wstring name;
+
+    /// its description
+    [offset(0x28), found(c)]
+    wstring description;
 
     /// its file's code (the scenario manager)
     [offset(0x50), found(c)]
@@ -257,7 +265,7 @@ unsafe struct ee_scen_effect
 
     /// its file's code (the scenario manager)
     [offset(0xE4), found(c)]
-    block ai_kind;
+    sm_ai_action ai_kind;
 
     /// set AI variable: the record
     /// its file's code (the scenario manager)
@@ -270,15 +278,15 @@ unsafe struct ee_scen_effect
 
     /// its file's code (the scenario manager)
     [offset(0xF0), found(c)]
-    block media_kind;
+    sm_media_action media_kind;
 
     /// its file's code (the scenario manager)
     [offset(0xF8), found(c)]
-    block player_kind;
+    sm_player_action player_kind;
 
     /// its file's code (the scenario manager)
     [offset(0xFC), found(c)]
-    block trigger_kind;
+    sm_trigger_action trigger_kind;
 
     /// its file's code (the scenario manager)
     [offset(0x100), found(c)]
@@ -286,7 +294,7 @@ unsafe struct ee_scen_effect
 
     /// its file's code (the scenario manager)
     [offset(0x104), found(c)]
-    block object_kind;
+    sm_object_action object_kind;
 
     /// unit / class attribute
     /// its file's code (the scenario manager)
@@ -346,7 +354,7 @@ unsafe struct ee_scen_effect
 
     /// its file's code (the scenario manager)
     [offset(0x13C), found(c)]
-    block game_kind;
+    sm_game_action game_kind;
 
     /// s
     /// its file's code (the scenario manager)
@@ -482,7 +490,7 @@ unsafe struct EESMObject
 
     /// its file's code (the scenario manager)
     [offset(0x1C), found(c)]
-    block units;
+    vector units;
 
     /// its file's code (the scenario manager)
     [offset(0x28), found(c)]

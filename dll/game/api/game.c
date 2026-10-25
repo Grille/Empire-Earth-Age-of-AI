@@ -92,6 +92,8 @@ internal inline int game_rand(void) { return (*(int (__cdecl **)(void))data_game
 // aligned 8) through the game's imports - made, set, freed as the game does
 internal inline void wstring_init(void *s) { ((void (__thiscall *)(void *))*(void **)data_game_iat_wstring_ctor)(s); }
 internal inline void wstring_init_text(void *s, const char *text) { ((void (__thiscall *)(void *, const char *))*(void **)data_game_iat_wstring_ctor_c)(s, text); }
+// a UWideString's or UString's text (8-bit characters, at +4), NULL: none
+internal inline const char *wstring_text(const void *s) { return FIELD(s, 4, const char *); }
 internal inline void *wstring_set(void *s, const char *text) { return ((void *(__thiscall *)(void *, const char *))*(void **)data_game_iat_wstring_assign)(s, text); }
 internal inline void wstring_reserve(void *s, unsigned long n) { ((void (__thiscall *)(void *, unsigned long))*(void **)data_game_iat_wstring_reserve)(s, n); }
 #define wstring_format(s, ...) ((int (__cdecl *)(void *, const char *, ...))*(void **)data_game_iat_wstring_format)((s), __VA_ARGS__)

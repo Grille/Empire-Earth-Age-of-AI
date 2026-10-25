@@ -8,9 +8,18 @@ internal inline void player_set_list_begin(ee_player *o, uint8_t *v) { *(uint8_t
 internal inline uint8_t **player_list_begin_at(const ee_player *o) { return (uint8_t **)((uint8_t *)o + of_player_list_begin); }
 internal inline uint8_t *player_name_at(const ee_player *o) { return (uint8_t *)o + of_player_name; }
 internal inline uint8_t *player_color_at(const ee_player *o) { return (uint8_t *)o + of_player_color; }
+// the first of its units in its linked list, the next one at a unit's +0xC (set_diplomacy, delete_for_room walk
+// it)
+internal inline ee_unit *player_get_units(const ee_player *o) { return *(ee_unit **)((uint8_t *)o + of_player_units); }
+internal inline void player_set_units(ee_player *o, ee_unit *v) { *(ee_unit **)((uint8_t *)o + of_player_units) = v; }
+internal inline ee_unit **player_units_at(const ee_player *o) { return (ee_unit **)((uint8_t *)o + of_player_units); }
 internal inline int player_get_index(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_index); }
 internal inline void player_set_index(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_index) = v; }
 internal inline int *player_index_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_index); }
+// its unit count (the scenario's player attribute unit_count; recounted on load)
+internal inline int player_get_unit_count(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_unit_count); }
+internal inline void player_set_unit_count(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_unit_count) = v; }
+internal inline int *player_unit_count_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_unit_count); }
 // its id in a chat message (msg +0xA)
 internal inline int8_t player_get_msg_id(const ee_player *o) { return *(int8_t *)((uint8_t *)o + of_player_msg_id); }
 internal inline void player_set_msg_id(ee_player *o, int8_t v) { *(int8_t *)((uint8_t *)o + of_player_msg_id) = v; }
@@ -25,7 +34,16 @@ internal inline void player_set_out(ee_player *o, uint8_t v) { *(uint8_t *)((uin
 internal inline uint8_t *player_out_at(const ee_player *o) { return (uint8_t *)((uint8_t *)o + of_player_out); }
 internal inline uint8_t *player_civ_name_at(const ee_player *o) { return (uint8_t *)o + of_player_civ_name; }
 internal inline ee_player_stats *player_stats_at(const ee_player *o) { return (ee_player_stats *)((uint8_t *)o + of_player_stats); }
+// its civilization by the database's name ("Carthage"; civ_name is the game language's: "Karthago") - both
+// builds' civilization lists read it
+internal inline const char *player_get_civ_name_en(const ee_player *o) { return *(const char **)((uint8_t *)o + of_player_civ_name_en); }
+internal inline void player_set_civ_name_en(ee_player *o, const char *v) { *(const char **)((uint8_t *)o + of_player_civ_name_en) = v; }
+internal inline const char **player_civ_name_en_at(const ee_player *o) { return (const char **)((uint8_t *)o + of_player_civ_name_en); }
 internal inline uint8_t *player_type_stats_at(const ee_player *o) { return (uint8_t *)o + of_player_type_stats; }
+// itself as a computer player (the computer player's constructor's dynamic cast), NULL for a human
+internal inline ee_player *player_get_computer(const ee_player *o) { return *(ee_player **)((uint8_t *)o + of_player_computer); }
+internal inline void player_set_computer(ee_player *o, ee_player *v) { *(ee_player **)((uint8_t *)o + of_player_computer) = v; }
+internal inline ee_player **player_computer_at(const ee_player *o) { return (ee_player **)((uint8_t *)o + of_player_computer); }
 internal inline int *player_get_selected_group(const ee_player *o) { return *(int **)((uint8_t *)o + of_player_selected_group); }
 internal inline void player_set_selected_group(ee_player *o, int *v) { *(int **)((uint8_t *)o + of_player_selected_group) = v; }
 internal inline int **player_selected_group_at(const ee_player *o) { return (int **)((uint8_t *)o + of_player_selected_group); }
@@ -44,6 +62,23 @@ internal inline int *player_strategy_at(const ee_player *o) { return (int *)((ui
 internal inline int player_get_result(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_result); }
 internal inline void player_set_result(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_result) = v; }
 internal inline int *player_result_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_result); }
+// the scenario's ten trigger variables (player_attr 11..20)
+internal inline int player_get_variables(const ee_player *o, int i) { return ((int *)((uint8_t *)o + of_player_variables))[i]; }
+internal inline void player_set_variables(ee_player *o, int i, int v) { ((int *)((uint8_t *)o + of_player_variables))[i] = v; }
+internal inline int *player_variables_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_variables); }
+// its units' running attack goals: the first sets strategy 2, the last one ending strategy 1 (the attack goal's
+// constructor and destructor)
+internal inline int player_get_attacks_running(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_attacks_running); }
+internal inline void player_set_attacks_running(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_attacks_running) = v; }
+internal inline int *player_attacks_running_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_attacks_running); }
+// tribute sent by resource: food, wood, stone, gold, iron (player_attr 21, 23 ...)
+internal inline int player_get_tribute_sent(const ee_player *o, int i) { return ((int *)((uint8_t *)o + of_player_tribute_sent))[i]; }
+internal inline void player_set_tribute_sent(ee_player *o, int i, int v) { ((int *)((uint8_t *)o + of_player_tribute_sent))[i] = v; }
+internal inline int *player_tribute_sent_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_tribute_sent); }
+// tribute received by resource (player_attr 22, 24 ...)
+internal inline int player_get_tribute_received(const ee_player *o, int i) { return ((int *)((uint8_t *)o + of_player_tribute_received))[i]; }
+internal inline void player_set_tribute_received(ee_player *o, int i, int v) { ((int *)((uint8_t *)o + of_player_tribute_received))[i] = v; }
+internal inline int *player_tribute_received_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_tribute_received); }
 // int[7]: 2 food, 3 wood, 4 stone, 5 gold, 6 iron
 internal inline int player_get_stock(const ee_player *o, int i) { return ((int *)((uint8_t *)o + of_player_stock))[i]; }
 internal inline void player_set_stock(ee_player *o, int i, int v) { ((int *)((uint8_t *)o + of_player_stock))[i] = v; }
@@ -70,6 +105,10 @@ internal inline uint8_t *player_civ_chosen_at(const ee_player *o) { return (uint
 internal inline ee_zone **player_get_zones_begin(const ee_player *o) { return *(ee_zone ***)((uint8_t *)o + of_player_zones_begin); }
 internal inline void player_set_zones_begin(ee_player *o, ee_zone **v) { *(ee_zone ***)((uint8_t *)o + of_player_zones_begin) = v; }
 internal inline ee_zone ***player_zones_begin_at(const ee_player *o) { return (ee_zone ***)((uint8_t *)o + of_player_zones_begin); }
+// the end of its zones' vector (zones_begin)
+internal inline ee_zone **player_get_zones_end(const ee_player *o) { return *(ee_zone ***)((uint8_t *)o + of_player_zones_end); }
+internal inline void player_set_zones_end(ee_player *o, ee_zone **v) { *(ee_zone ***)((uint8_t *)o + of_player_zones_end) = v; }
+internal inline ee_zone ***player_zones_end_at(const ee_player *o) { return (ee_zone ***)((uint8_t *)o + of_player_zones_end); }
 internal inline ee_combat_mgr *player_get_combat_mgr(const ee_player *o) { return *(ee_combat_mgr **)((uint8_t *)o + of_player_combat_mgr); }
 internal inline void player_set_combat_mgr(ee_player *o, ee_combat_mgr *v) { *(ee_combat_mgr **)((uint8_t *)o + of_player_combat_mgr) = v; }
 internal inline ee_combat_mgr **player_combat_mgr_at(const ee_player *o) { return (ee_combat_mgr **)((uint8_t *)o + of_player_combat_mgr); }
@@ -206,6 +245,304 @@ internal inline uint8_t *player_b98_att_at(const ee_player_b98 *o) { return (uin
 
 // class EEComputerPlayer (ee_player)
 // the computer's player (the AI's): an EEPlayer with the computer's managers - its own functions, the C's cp_
+// units it picked to delete: update deletes each one (its vf +0x60 (1, 0, 0)); delete_for_room passes over them
+internal inline ee_unit **player_get_doomed_begin(const ee_player *o) { return *(ee_unit ***)((uint8_t *)o + of_player_doomed_begin); }
+internal inline void player_set_doomed_begin(ee_player *o, ee_unit **v) { *(ee_unit ***)((uint8_t *)o + of_player_doomed_begin) = v; }
+internal inline ee_unit ***player_doomed_begin_at(const ee_player *o) { return (ee_unit ***)((uint8_t *)o + of_player_doomed_begin); }
+// the end of doomed_begin's vector
+internal inline ee_unit **player_get_doomed_end(const ee_player *o) { return *(ee_unit ***)((uint8_t *)o + of_player_doomed_end); }
+internal inline void player_set_doomed_end(ee_player *o, ee_unit **v) { *(ee_unit ***)((uint8_t *)o + of_player_doomed_end) = v; }
+internal inline ee_unit ***player_doomed_end_at(const ee_player *o) { return (ee_unit ***)((uint8_t *)o + of_player_doomed_end); }
+// its favourite land unit type (default 0x14; the scenario's Set Favorite Units)
+internal inline int player_get_favorite_land(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_favorite_land); }
+internal inline void player_set_favorite_land(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_favorite_land) = v; }
+internal inline int *player_favorite_land_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_favorite_land); }
+// its favourite air unit type (default 0xF2)
+internal inline int player_get_favorite_air(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_favorite_air); }
+internal inline void player_set_favorite_air(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_favorite_air) = v; }
+internal inline int *player_favorite_air_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_favorite_air); }
+// its favourite sea unit type (default 0x48; AoC has a fourth at +0xBE8)
+internal inline int player_get_favorite_sea(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_favorite_sea); }
+internal inline void player_set_favorite_sea(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_favorite_sea) = v; }
+internal inline int *player_favorite_sea_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_favorite_sea); }
+// minutes added to the interval between attacks per epoch of the game's range (record 22)
+internal inline float player_get_attack_interval_per_epoch(const ee_player *o) { return *(float *)((uint8_t *)o + of_player_attack_interval_per_epoch); }
+internal inline void player_set_attack_interval_per_epoch(ee_player *o, float v) { *(float *)((uint8_t *)o + of_player_attack_interval_per_epoch) = v; }
+internal inline float *player_attack_interval_per_epoch_at(const ee_player *o) { return (float *)((uint8_t *)o + of_player_attack_interval_per_epoch); }
+// deathmatch: attack groups scaled by it until dm_group_until (record 105, x 0.01)
+internal inline float player_get_dm_group_scale(const ee_player *o) { return *(float *)((uint8_t *)o + of_player_dm_group_scale); }
+internal inline void player_set_dm_group_scale(ee_player *o, float v) { *(float *)((uint8_t *)o + of_player_dm_group_scale) = v; }
+internal inline float *player_dm_group_scale_at(const ee_player *o) { return (float *)((uint8_t *)o + of_player_dm_group_scale); }
+// easy: the factor on catch_up_max (record 107, x 0.01)
+internal inline float player_get_catch_up_easy(const ee_player *o) { return *(float *)((uint8_t *)o + of_player_catch_up_easy); }
+internal inline void player_set_catch_up_easy(ee_player *o, float v) { *(float *)((uint8_t *)o + of_player_catch_up_easy) = v; }
+internal inline float *player_catch_up_easy_at(const ee_player *o) { return (float *)((uint8_t *)o + of_player_catch_up_easy); }
+// hard: the factor on catch_up_max
+internal inline float player_get_catch_up_hard(const ee_player *o) { return *(float *)((uint8_t *)o + of_player_catch_up_hard); }
+internal inline void player_set_catch_up_hard(ee_player *o, float v) { *(float *)((uint8_t *)o + of_player_catch_up_hard) = v; }
+internal inline float *player_catch_up_hard_at(const ee_player *o) { return (float *)((uint8_t *)o + of_player_catch_up_hard); }
+// deathmatch: the factor on catch_up_max, and the epoch timer's
+internal inline float player_get_catch_up_dm(const ee_player *o) { return *(float *)((uint8_t *)o + of_player_catch_up_dm); }
+internal inline void player_set_catch_up_dm(ee_player *o, float v) { *(float *)((uint8_t *)o + of_player_catch_up_dm) = v; }
+internal inline float *player_catch_up_dm_at(const ee_player *o) { return (float *)((uint8_t *)o + of_player_catch_up_dm); }
+// the most of its population defensive military units may be (record 20)
+internal inline float player_get_defence_share(const ee_player *o) { return *(float *)((uint8_t *)o + of_player_defence_share); }
+internal inline void player_set_defence_share(ee_player *o, float v) { *(float *)((uint8_t *)o + of_player_defence_share) = v; }
+internal inline float *player_defence_share_at(const ee_player *o) { return (float *)((uint8_t *)o + of_player_defence_share); }
+// seconds between the attention's redraws (record 68; 30)
+internal inline float player_get_attention_period(const ee_player *o) { return *(float *)((uint8_t *)o + of_player_attention_period); }
+internal inline void player_set_attention_period(ee_player *o, float v) { *(float *)((uint8_t *)o + of_player_attention_period) = v; }
+internal inline float *player_attention_period_at(const ee_player *o) { return (float *)((uint8_t *)o + of_player_attention_period); }
+// deathmatch: the factor on the attack interval by difficulty (record 122)
+internal inline float player_get_dm_attack_factor(const ee_player *o, int i) { return ((float *)((uint8_t *)o + of_player_dm_attack_factor))[i]; }
+internal inline void player_set_dm_attack_factor(ee_player *o, int i, float v) { ((float *)((uint8_t *)o + of_player_dm_attack_factor))[i] = v; }
+internal inline float *player_dm_attack_factor_at(const ee_player *o) { return (float *)((uint8_t *)o + of_player_dm_attack_factor); }
+// deathmatch: the factor on the first attack by difficulty (record 123)
+internal inline float player_get_dm_first_attack_factor(const ee_player *o, int i) { return ((float *)((uint8_t *)o + of_player_dm_first_attack_factor))[i]; }
+internal inline void player_set_dm_first_attack_factor(ee_player *o, int i, float v) { ((float *)((uint8_t *)o + of_player_dm_first_attack_factor))[i] = v; }
+internal inline float *player_dm_first_attack_factor_at(const ee_player *o) { return (float *)((uint8_t *)o + of_player_dm_first_attack_factor); }
+// minutes between the defence manager's naval checks (record 118)
+internal inline int player_get_naval_check_min(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_naval_check_min); }
+internal inline void player_set_naval_check_min(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_naval_check_min) = v; }
+internal inline int *player_naval_check_min_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_naval_check_min); }
+// aircraft it sends exploring (record 10)
+internal inline int player_get_air_explorers(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_air_explorers); }
+internal inline void player_set_air_explorers(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_air_explorers) = v; }
+internal inline int *player_air_explorers_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_air_explorers); }
+// an attack group's random size range, its top in percent (record 13)
+internal inline int player_get_group_max_pct(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_group_max_pct); }
+internal inline void player_set_group_max_pct(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_group_max_pct) = v; }
+internal inline int *player_group_max_pct_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_group_max_pct); }
+// the same range's bottom in percent
+internal inline int player_get_group_min_pct(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_group_min_pct); }
+internal inline void player_set_group_min_pct(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_group_min_pct) = v; }
+internal inline int *player_group_min_pct_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_group_min_pct); }
+// easy: percent on the attack interval (record 7)
+internal inline int player_get_attack_pct_easy(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_attack_pct_easy); }
+internal inline void player_set_attack_pct_easy(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_attack_pct_easy) = v; }
+internal inline int *player_attack_pct_easy_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_attack_pct_easy); }
+// hard: percent on the attack interval
+internal inline int player_get_attack_pct_hard(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_attack_pct_hard); }
+internal inline void player_set_attack_pct_hard(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_attack_pct_hard) = v; }
+internal inline int *player_attack_pct_hard_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_attack_pct_hard); }
+// minutes the interval between attacks is clamped to, the most (record 21)
+internal inline int player_get_attack_ceiling(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_attack_ceiling); }
+internal inline void player_set_attack_ceiling(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_attack_ceiling) = v; }
+internal inline int *player_attack_ceiling_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_attack_ceiling); }
+// the same clamp's least
+internal inline int player_get_attack_floor(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_attack_floor); }
+internal inline void player_set_attack_floor(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_attack_floor) = v; }
+internal inline int *player_attack_floor_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_attack_floor); }
+// minutes added to the first attack per epoch of the game's range (record 18)
+internal inline int player_get_first_attack_per_epoch(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_first_attack_per_epoch); }
+internal inline void player_set_first_attack_per_epoch(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_first_attack_per_epoch) = v; }
+internal inline int *player_first_attack_per_epoch_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_first_attack_per_epoch); }
+// easy: percent on the first attack's delay (record 2)
+internal inline int player_get_first_attack_pct_easy(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_first_attack_pct_easy); }
+internal inline void player_set_first_attack_pct_easy(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_first_attack_pct_easy) = v; }
+internal inline int *player_first_attack_pct_easy_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_first_attack_pct_easy); }
+// hard: percent on the first attack's delay
+internal inline int player_get_first_attack_pct_hard(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_first_attack_pct_hard); }
+internal inline void player_set_first_attack_pct_hard(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_first_attack_pct_hard) = v; }
+internal inline int *player_first_attack_pct_hard_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_first_attack_pct_hard); }
+// minutes the first attack's delay is clamped to, the most (record 19)
+internal inline int player_get_first_attack_ceiling(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_first_attack_ceiling); }
+internal inline void player_set_first_attack_ceiling(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_first_attack_ceiling) = v; }
+internal inline int *player_first_attack_ceiling_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_first_attack_ceiling); }
+// the same clamp's least
+internal inline int player_get_first_attack_floor(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_first_attack_floor); }
+internal inline void player_set_first_attack_floor(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_first_attack_floor) = v; }
+internal inline int *player_first_attack_floor_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_first_attack_floor); }
+// easy: an attack group's size in percent (record 11; the mod's attack_group_percent)
+internal inline int player_get_group_pct_easy(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_group_pct_easy); }
+internal inline void player_set_group_pct_easy(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_group_pct_easy) = v; }
+internal inline int *player_group_pct_easy_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_group_pct_easy); }
+// medium: an attack group's size in percent
+internal inline int player_get_group_pct_medium(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_group_pct_medium); }
+internal inline void player_set_group_pct_medium(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_group_pct_medium) = v; }
+internal inline int *player_group_pct_medium_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_group_pct_medium); }
+// hard: an attack group's size in percent
+internal inline int player_get_group_pct_hard(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_group_pct_hard); }
+internal inline void player_set_group_pct_hard(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_group_pct_hard) = v; }
+internal inline int *player_group_pct_hard_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_group_pct_hard); }
+// a defence group's random size range, its top in percent (record 87)
+internal inline int player_get_defence_group_max_pct(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_defence_group_max_pct); }
+internal inline void player_set_defence_group_max_pct(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_defence_group_max_pct) = v; }
+internal inline int *player_defence_group_max_pct_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_defence_group_max_pct); }
+// the same range's bottom in percent
+internal inline int player_get_defence_group_min_pct(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_defence_group_min_pct); }
+internal inline void player_set_defence_group_min_pct(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_defence_group_min_pct) = v; }
+internal inline int *player_defence_group_min_pct_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_defence_group_min_pct); }
+// easy: percent on the epoch timer (record 29)
+internal inline int player_get_epoch_pct_easy(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_epoch_pct_easy); }
+internal inline void player_set_epoch_pct_easy(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_epoch_pct_easy) = v; }
+internal inline int *player_epoch_pct_easy_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_epoch_pct_easy); }
+// hard: percent on the epoch timer
+internal inline int player_get_epoch_pct_hard(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_epoch_pct_hard); }
+internal inline void player_set_epoch_pct_hard(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_epoch_pct_hard) = v; }
+internal inline int *player_epoch_pct_hard_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_epoch_pct_hard); }
+// minutes, the least, for the redrawn epoch attempt when a human reaches a later epoch (record 102)
+internal inline int player_get_catch_up_min(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_catch_up_min); }
+internal inline void player_set_catch_up_min(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_catch_up_min) = v; }
+internal inline int *player_catch_up_min_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_catch_up_min); }
+// the same, the most
+internal inline int player_get_catch_up_max(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_catch_up_max); }
+internal inline void player_set_catch_up_max(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_catch_up_max) = v; }
+internal inline int *player_catch_up_max_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_catch_up_max); }
+// easy: seconds between expansions (record 97)
+internal inline int player_get_expansion_secs_easy(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_expansion_secs_easy); }
+internal inline void player_set_expansion_secs_easy(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_expansion_secs_easy) = v; }
+internal inline int *player_expansion_secs_easy_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_expansion_secs_easy); }
+// medium: seconds between expansions
+internal inline int player_get_expansion_secs_medium(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_expansion_secs_medium); }
+internal inline void player_set_expansion_secs_medium(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_expansion_secs_medium) = v; }
+internal inline int *player_expansion_secs_medium_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_expansion_secs_medium); }
+// hard: seconds between expansions
+internal inline int player_get_expansion_secs_hard(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_expansion_secs_hard); }
+internal inline void player_set_expansion_secs_hard(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_expansion_secs_hard) = v; }
+internal inline int *player_expansion_secs_hard_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_expansion_secs_hard); }
+// minutes before a defence group is refilled, the most (record 89)
+internal inline int player_get_refill_delay_max(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_refill_delay_max); }
+internal inline void player_set_refill_delay_max(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_refill_delay_max) = v; }
+internal inline int *player_refill_delay_max_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_refill_delay_max); }
+// the same, the least
+internal inline int player_get_refill_delay_min(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_refill_delay_min); }
+internal inline void player_set_refill_delay_min(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_refill_delay_min) = v; }
+internal inline int *player_refill_delay_min_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_refill_delay_min); }
+// land units it sends exploring (record 8)
+internal inline int player_get_land_explorers(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_land_explorers); }
+internal inline void player_set_land_explorers(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_land_explorers) = v; }
+internal inline int *player_land_explorers_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_land_explorers); }
+// easy: the least military buildings of each kind (record 103)
+internal inline int player_get_min_mil_buildings_easy(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_min_mil_buildings_easy); }
+internal inline void player_set_min_mil_buildings_easy(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_min_mil_buildings_easy) = v; }
+internal inline int *player_min_mil_buildings_easy_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_min_mil_buildings_easy); }
+// the same in deathmatch (record 104)
+internal inline int player_get_min_mil_buildings_dm_easy(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_min_mil_buildings_dm_easy); }
+internal inline void player_set_min_mil_buildings_dm_easy(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_min_mil_buildings_dm_easy) = v; }
+internal inline int *player_min_mil_buildings_dm_easy_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_min_mil_buildings_dm_easy); }
+// medium: the least military buildings of each kind (record 106)
+internal inline int player_get_min_mil_buildings_medium(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_min_mil_buildings_medium); }
+internal inline void player_set_min_mil_buildings_medium(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_min_mil_buildings_medium) = v; }
+internal inline int *player_min_mil_buildings_medium_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_min_mil_buildings_medium); }
+// the same in deathmatch
+internal inline int player_get_min_mil_buildings_dm_medium(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_min_mil_buildings_dm_medium); }
+internal inline void player_set_min_mil_buildings_dm_medium(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_min_mil_buildings_dm_medium) = v; }
+internal inline int *player_min_mil_buildings_dm_medium_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_min_mil_buildings_dm_medium); }
+// hard: the least military buildings of each kind
+internal inline int player_get_min_mil_buildings_hard(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_min_mil_buildings_hard); }
+internal inline void player_set_min_mil_buildings_hard(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_min_mil_buildings_hard) = v; }
+internal inline int *player_min_mil_buildings_hard_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_min_mil_buildings_hard); }
+// the same in deathmatch
+internal inline int player_get_min_mil_buildings_dm_hard(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_min_mil_buildings_dm_hard); }
+internal inline void player_set_min_mil_buildings_dm_hard(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_min_mil_buildings_dm_hard) = v; }
+internal inline int *player_min_mil_buildings_dm_hard_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_min_mil_buildings_dm_hard); }
+// easy: percent on its population cap (record 98)
+internal inline int player_get_pop_pct_easy(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_pop_pct_easy); }
+internal inline void player_set_pop_pct_easy(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_pop_pct_easy) = v; }
+internal inline int *player_pop_pct_easy_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_pop_pct_easy); }
+// medium: percent on its population cap
+internal inline int player_get_pop_pct_medium(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_pop_pct_medium); }
+internal inline void player_set_pop_pct_medium(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_pop_pct_medium) = v; }
+internal inline int *player_pop_pct_medium_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_pop_pct_medium); }
+// hard: percent on its population cap
+internal inline int player_get_pop_pct_hard(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_pop_pct_hard); }
+internal inline void player_set_pop_pct_hard(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_pop_pct_hard) = v; }
+internal inline int *player_pop_pct_hard_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_pop_pct_hard); }
+// seconds between random researches (record 15), times research_pct
+internal inline int player_get_research_interval(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_research_interval); }
+internal inline void player_set_research_interval(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_research_interval) = v; }
+internal inline int *player_research_interval_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_research_interval); }
+// easy: percent on research_interval (record 23)
+internal inline int player_get_research_pct_easy(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_research_pct_easy); }
+internal inline void player_set_research_pct_easy(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_research_pct_easy) = v; }
+internal inline int *player_research_pct_easy_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_research_pct_easy); }
+// hard: percent on research_interval
+internal inline int player_get_research_pct_hard(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_research_pct_hard); }
+internal inline void player_set_research_pct_hard(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_research_pct_hard) = v; }
+internal inline int *player_research_pct_hard_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_research_pct_hard); }
+// added to its gold and iron at its first update (record 101 "Extra resources")
+internal inline int player_get_extra_gold_iron(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_extra_gold_iron); }
+internal inline void player_set_extra_gold_iron(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_extra_gold_iron) = v; }
+internal inline int *player_extra_gold_iron_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_extra_gold_iron); }
+// ships it sends exploring (record 9)
+internal inline int player_get_sea_explorers(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_sea_explorers); }
+internal inline void player_set_sea_explorers(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_sea_explorers) = v; }
+internal inline int *player_sea_explorers_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_sea_explorers); }
+// minutes before it upgrades a town center to a capitol (record 99)
+internal inline int player_get_capitol_timer(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_capitol_timer); }
+internal inline void player_set_capitol_timer(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_capitol_timer) = v; }
+internal inline int *player_capitol_timer_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_capitol_timer); }
+// seconds: the attention's activity 3 (and 0) only while the next attack is further off (record 65)
+internal inline int player_get_attack_lead(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_attack_lead); }
+internal inline void player_set_attack_lead(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_attack_lead) = v; }
+internal inline int *player_attack_lead_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_attack_lead); }
+// seconds: activity 0 (the epoch) only when the civilization manager's epoch time is within it (record 64)
+internal inline int player_get_epoch_lead(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_epoch_lead); }
+internal inline void player_set_epoch_lead(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_epoch_lead) = v; }
+internal inline int *player_epoch_lead_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_epoch_lead); }
+// the least stock of a resource the attention needs before an activity (0x43F66F; records 55..63): [0] activity
+// 3, [1] 1, [2] 0, [3] 7, [4] 6, [5] 4 and 9, [6] 5, [7] 2, [8] 8
+internal inline int player_get_min_stock(const ee_player *o, int i) { return ((int *)((uint8_t *)o + of_player_min_stock))[i]; }
+internal inline void player_set_min_stock(ee_player *o, int i, int v) { ((int *)((uint8_t *)o + of_player_min_stock))[i] = v; }
+internal inline int *player_min_stock_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_min_stock); }
+// minutes before it upgrades a settlement to a town center (record 100)
+internal inline int player_get_tc_timer(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_tc_timer); }
+internal inline void player_set_tc_timer(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_tc_timer) = v; }
+internal inline int *player_tc_timer_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_tc_timer); }
+// minutes between overseas expansions by difficulty (record 121)
+internal inline int player_get_island_expansion_min(const ee_player *o, int i) { return ((int *)((uint8_t *)o + of_player_island_expansion_min))[i]; }
+internal inline void player_set_island_expansion_min(ee_player *o, int i, int v) { ((int *)((uint8_t *)o + of_player_island_expansion_min))[i] = v; }
+internal inline int *player_island_expansion_min_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_island_expansion_min); }
+// game time of the attention's next redraw (0x42F912): now + attention_period
+internal inline uint32_t player_get_next_attention(const ee_player *o) { return *(uint32_t *)((uint8_t *)o + of_player_next_attention); }
+internal inline void player_set_next_attention(ee_player *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_player_next_attention) = v; }
+internal inline uint32_t *player_next_attention_at(const ee_player *o) { return (uint32_t *)((uint8_t *)o + of_player_next_attention); }
+// game time it was last hit (its vf33); 60 s later, with no attack running, update ends the attack strategy
+internal inline uint32_t player_get_last_hit(const ee_player *o) { return *(uint32_t *)((uint8_t *)o + of_player_last_hit); }
+internal inline void player_set_last_hit(ee_player *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_player_last_hit) = v; }
+internal inline uint32_t *player_last_hit_at(const ee_player *o) { return (uint32_t *)((uint8_t *)o + of_player_last_hit); }
+// when update next recomputes the population cap (every 60 s)
+internal inline uint32_t player_get_next_pop_cap(const ee_player *o) { return *(uint32_t *)((uint8_t *)o + of_player_next_pop_cap); }
+internal inline void player_set_next_pop_cap(ee_player *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_player_next_pop_cap) = v; }
+internal inline uint32_t *player_next_pop_cap_at(const ee_player *o) { return (uint32_t *)((uint8_t *)o + of_player_next_pop_cap); }
+// when update next sends citizens to an unclaimed resource zone (0x430B98)
+internal inline uint32_t player_get_next_expansion(const ee_player *o) { return *(uint32_t *)((uint8_t *)o + of_player_next_expansion); }
+internal inline void player_set_next_expansion(ee_player *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_player_next_expansion) = v; }
+internal inline uint32_t *player_next_expansion_at(const ee_player *o) { return (uint32_t *)((uint8_t *)o + of_player_next_expansion); }
+// deathmatch: game time until which dm_group_scale applies (record 105)
+internal inline uint32_t player_get_dm_group_until(const ee_player *o) { return *(uint32_t *)((uint8_t *)o + of_player_dm_group_until); }
+internal inline void player_set_dm_group_until(ee_player *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_player_dm_group_until) = v; }
+internal inline uint32_t *player_dm_group_until_at(const ee_player *o) { return (uint32_t *)((uint8_t *)o + of_player_dm_group_until); }
+// on a water map: game time from which an overseas expansion is due (0x43123A)
+internal inline uint32_t player_get_next_island_expansion(const ee_player *o) { return *(uint32_t *)((uint8_t *)o + of_player_next_island_expansion); }
+internal inline void player_set_next_island_expansion(ee_player *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_player_next_island_expansion) = v; }
+internal inline uint32_t *player_next_island_expansion_at(const ee_player *o) { return (uint32_t *)((uint8_t *)o + of_player_next_island_expansion); }
+// 0 until update's one-time setup ran (the attention, the first attack, the expansions scheduled)
+internal inline uint8_t player_get_first_update_done(const ee_player *o) { return *(uint8_t *)((uint8_t *)o + of_player_first_update_done); }
+internal inline void player_set_first_update_done(ee_player *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_player_first_update_done) = v; }
+internal inline uint8_t *player_first_update_done_at(const ee_player *o) { return (uint8_t *)((uint8_t *)o + of_player_first_update_done); }
+// next_attention is set; update reschedules while 0 (cleared before saving)
+internal inline uint8_t player_get_attention_scheduled(const ee_player *o) { return *(uint8_t *)((uint8_t *)o + of_player_attention_scheduled); }
+internal inline void player_set_attention_scheduled(ee_player *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_player_attention_scheduled) = v; }
+internal inline uint8_t *player_attention_scheduled_at(const ee_player *o) { return (uint8_t *)((uint8_t *)o + of_player_attention_scheduled); }
+// its vf33 found a citizen (class 6 or 22) of its hit: the attention's activity 6 (defence) until 60 s after the
+// last hit
+internal inline uint8_t player_get_citizens_hit(const ee_player *o) { return *(uint8_t *)((uint8_t *)o + of_player_citizens_hit); }
+internal inline void player_set_citizens_hit(ee_player *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_player_citizens_hit) = v; }
+internal inline uint8_t *player_citizens_hit_at(const ee_player *o) { return (uint8_t *)((uint8_t *)o + of_player_citizens_hit); }
+// its vf33 found a hit its unit's type counts: the attention's activity 6 the same way
+internal inline uint8_t player_get_hit(const ee_player *o) { return *(uint8_t *)((uint8_t *)o + of_player_hit); }
+internal inline void player_set_hit(ee_player *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_player_hit) = v; }
+internal inline uint8_t *player_hit_at(const ee_player *o) { return (uint8_t *)((uint8_t *)o + of_player_hit); }
+// the scenario's "Active" AI toggle (0); vf31 recomputes the cap only while it is clear
+internal inline uint8_t player_get_active(const ee_player *o) { return *(uint8_t *)((uint8_t *)o + of_player_active); }
+internal inline void player_set_active(ee_player *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_player_active) = v; }
+internal inline uint8_t *player_active_at(const ee_player *o) { return (uint8_t *)((uint8_t *)o + of_player_active); }
+// set at the end of a load (vf8); the next update runs 0x43FB96 once and clears it
+internal inline uint8_t player_get_reload_pending(const ee_player *o) { return *(uint8_t *)((uint8_t *)o + of_player_reload_pending); }
+internal inline void player_set_reload_pending(ee_player *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_player_reload_pending) = v; }
+internal inline uint8_t *player_reload_pending_at(const ee_player *o) { return (uint8_t *)((uint8_t *)o + of_player_reload_pending); }
 // EEComputerPlayer::AdjustCost (vf27): a price with the cheat
 typedef int (__thiscall *player_adjust_cost_fn)(ee_player *, int);
 internal player_adjust_cost_fn fn_player_adjust_cost;
@@ -277,19 +614,27 @@ internal int spec_player_select(int build) {
         of_player_list_begin = 0x18;
         of_player_name = 0x24;
         of_player_color = 0x438;
+        of_player_units = 0x450;
         of_player_index = 0x45C;
+        of_player_unit_count = 0x460;
         of_player_msg_id = 0x464;
         of_player_explore_all = 0x465;
         of_player_out = 0x467;
         of_player_civ_name = 0x488;
         of_player_stats = 0x4A8;
+        of_player_civ_name_en = 0x7B0;
         of_player_type_stats = 0x874;
+        of_player_computer = 0x9B4;
         of_player_selected_group = 0x9BC;
         of_player_tech_tree = 0x9D4;
         of_player_chat_to = 0x9E0;
         of_player_stance = 0x9E4;
         of_player_strategy = 0xA28;
         of_player_result = 0xA30;
+        of_player_variables = 0xA44;
+        of_player_attacks_running = 0xAB4;
+        of_player_tribute_sent = 0xAB8;
+        of_player_tribute_received = 0xACC;
         of_player_stock = 0xAF0;
         of_player_pop_b10 = 0xB10;
         of_player_objects = 0xB14;
@@ -298,6 +643,7 @@ internal int spec_player_select(int build) {
         of_player_chat_to_player = 0xB2C;
         of_player_civ_chosen = 0xB46;
         of_player_zones_begin = 0xB50;
+        of_player_zones_end = 0xB54;
         of_player_combat_mgr = 0xB8C;
         of_player_civ_mgr = 0xB90;
         of_player_b98 = 0xB98;
@@ -337,6 +683,80 @@ internal int spec_player_select(int build) {
         fn_player_set_diplomacy = (player_set_diplomacy_fn)0x0055B8E1;
         of_player_b98_att = 0x2D;
         vt_ee_computer_player = 0x008264C0;
+        of_player_doomed_begin = 0xB80;
+        of_player_doomed_end = 0xB84;
+        of_player_favorite_land = 0xBA8;
+        of_player_favorite_air = 0xBAC;
+        of_player_favorite_sea = 0xBB0;
+        of_player_attack_interval_per_epoch = 0xBC4;
+        of_player_dm_group_scale = 0xBE0;
+        of_player_catch_up_easy = 0xBE4;
+        of_player_catch_up_hard = 0xBE8;
+        of_player_catch_up_dm = 0xBEC;
+        of_player_defence_share = 0xC38;
+        of_player_attention_period = 0xC5C;
+        of_player_dm_attack_factor = 0xC74;
+        of_player_dm_first_attack_factor = 0xC80;
+        of_player_naval_check_min = 0xCBC;
+        of_player_air_explorers = 0xCD4;
+        of_player_group_max_pct = 0xCE4;
+        of_player_group_min_pct = 0xCE8;
+        of_player_attack_pct_easy = 0xCEC;
+        of_player_attack_pct_hard = 0xCF0;
+        of_player_attack_ceiling = 0xCF4;
+        of_player_attack_floor = 0xCF8;
+        of_player_first_attack_per_epoch = 0xD04;
+        of_player_first_attack_pct_easy = 0xD08;
+        of_player_first_attack_pct_hard = 0xD0C;
+        of_player_first_attack_ceiling = 0xD20;
+        of_player_first_attack_floor = 0xD24;
+        of_player_group_pct_easy = 0xD30;
+        of_player_group_pct_medium = 0xD34;
+        of_player_group_pct_hard = 0xD38;
+        of_player_defence_group_max_pct = 0xD50;
+        of_player_defence_group_min_pct = 0xD54;
+        of_player_epoch_pct_easy = 0xD60;
+        of_player_epoch_pct_hard = 0xD64;
+        of_player_catch_up_min = 0xD68;
+        of_player_catch_up_max = 0xD6C;
+        of_player_expansion_secs_easy = 0xD70;
+        of_player_expansion_secs_medium = 0xD74;
+        of_player_expansion_secs_hard = 0xD78;
+        of_player_refill_delay_max = 0xD88;
+        of_player_refill_delay_min = 0xD8C;
+        of_player_land_explorers = 0xD90;
+        of_player_min_mil_buildings_easy = 0xDD8;
+        of_player_min_mil_buildings_dm_easy = 0xDDC;
+        of_player_min_mil_buildings_medium = 0xDE0;
+        of_player_min_mil_buildings_dm_medium = 0xDE4;
+        of_player_min_mil_buildings_hard = 0xDE8;
+        of_player_min_mil_buildings_dm_hard = 0xDEC;
+        of_player_pop_pct_easy = 0xDF0;
+        of_player_pop_pct_medium = 0xDF4;
+        of_player_pop_pct_hard = 0xDF8;
+        of_player_research_interval = 0xE04;
+        of_player_research_pct_easy = 0xE08;
+        of_player_research_pct_hard = 0xE0C;
+        of_player_extra_gold_iron = 0xE14;
+        of_player_sea_explorers = 0xE18;
+        of_player_capitol_timer = 0xE1C;
+        of_player_attack_lead = 0xE24;
+        of_player_epoch_lead = 0xE28;
+        of_player_min_stock = 0xE2C;
+        of_player_tc_timer = 0xE90;
+        of_player_island_expansion_min = 0xEC8;
+        of_player_next_attention = 0xEDC;
+        of_player_last_hit = 0xEE0;
+        of_player_next_pop_cap = 0xEE4;
+        of_player_next_expansion = 0xEE8;
+        of_player_dm_group_until = 0xEEC;
+        of_player_next_island_expansion = 0xEF0;
+        of_player_first_update_done = 0xEF5;
+        of_player_attention_scheduled = 0xEF6;
+        of_player_citizens_hit = 0xEF7;
+        of_player_hit = 0xEF8;
+        of_player_active = 0xEF9;
+        of_player_reload_pending = 0xF04;
         fn_player_adjust_cost = (player_adjust_cost_fn)0x00430FBD;
         fn_player_add_resource = (player_add_resource_fn)0x0042F783;
         fn_player_pay = (player_pay_fn)0x0043F53D;
@@ -365,19 +785,27 @@ internal int spec_player_select(int build) {
         of_player_list_begin = 0x18;
         of_player_name = 0x24;
         of_player_color = 0x438;
+        of_player_units = 0x450;
         of_player_index = 0x45C;
+        of_player_unit_count = 0x460;
         of_player_msg_id = 0x464;
         of_player_explore_all = 0x465;
         of_player_out = 0x467;
         of_player_civ_name = 0x488;
         of_player_stats = 0x4A8;
+        of_player_civ_name_en = 0x7B0;
         of_player_type_stats = 0x884;
+        of_player_computer = 0x9A4;
         of_player_selected_group = 0x9AC;
         of_player_tech_tree = 0x9CC;
         of_player_chat_to = 0x9D8;
         of_player_stance = 0x9DC;
         of_player_strategy = 0xA20;
         of_player_result = 0xA28;
+        of_player_variables = 0xA3C;
+        of_player_attacks_running = 0xAAC;
+        of_player_tribute_sent = 0xAB0;
+        of_player_tribute_received = 0xAC4;
         of_player_stock = 0xAF4;
         of_player_pop_b10 = 0xB14;
         of_player_objects = 0xB18;
@@ -386,6 +814,7 @@ internal int spec_player_select(int build) {
         of_player_chat_to_player = 0xB30;
         of_player_civ_chosen = 0xB4A;
         of_player_zones_begin = 0xB84;
+        of_player_zones_end = 0xB88;
         of_player_combat_mgr = 0xBC0;
         of_player_civ_mgr = 0xBC4;
         of_player_b98 = 0xBCC;
@@ -425,6 +854,80 @@ internal int spec_player_select(int build) {
         fn_player_set_diplomacy = (player_set_diplomacy_fn)0x0056AB41;
         of_player_b98_att = 0x2D;
         vt_ee_computer_player = 0x0083A57C;
+        of_player_doomed_begin = 0xBB4;
+        of_player_doomed_end = 0xBB8;
+        of_player_favorite_land = 0xBDC;
+        of_player_favorite_air = 0xBE0;
+        of_player_favorite_sea = 0xBE4;
+        of_player_attack_interval_per_epoch = 0xBFC;
+        of_player_dm_group_scale = 0xC18;
+        of_player_catch_up_easy = 0xC1C;
+        of_player_catch_up_hard = 0xC20;
+        of_player_catch_up_dm = 0xC24;
+        of_player_defence_share = 0xC70;
+        of_player_attention_period = 0xC94;
+        of_player_dm_attack_factor = 0xCAC;
+        of_player_dm_first_attack_factor = 0xCB8;
+        of_player_naval_check_min = 0xCF4;
+        of_player_air_explorers = 0xD0C;
+        of_player_group_max_pct = 0xD1C;
+        of_player_group_min_pct = 0xD20;
+        of_player_attack_pct_easy = 0xD24;
+        of_player_attack_pct_hard = 0xD28;
+        of_player_attack_ceiling = 0xD2C;
+        of_player_attack_floor = 0xD30;
+        of_player_first_attack_per_epoch = 0xD3C;
+        of_player_first_attack_pct_easy = 0xD40;
+        of_player_first_attack_pct_hard = 0xD44;
+        of_player_first_attack_ceiling = 0xD58;
+        of_player_first_attack_floor = 0xD5C;
+        of_player_group_pct_easy = 0xD68;
+        of_player_group_pct_medium = 0xD6C;
+        of_player_group_pct_hard = 0xD70;
+        of_player_defence_group_max_pct = 0xD88;
+        of_player_defence_group_min_pct = 0xD8C;
+        of_player_epoch_pct_easy = 0xD98;
+        of_player_epoch_pct_hard = 0xD9C;
+        of_player_catch_up_min = 0xDA0;
+        of_player_catch_up_max = 0xDA4;
+        of_player_expansion_secs_easy = 0xDA8;
+        of_player_expansion_secs_medium = 0xDAC;
+        of_player_expansion_secs_hard = 0xDB0;
+        of_player_refill_delay_max = 0xDC0;
+        of_player_refill_delay_min = 0xDC4;
+        of_player_land_explorers = 0xDC8;
+        of_player_min_mil_buildings_easy = 0xE14;
+        of_player_min_mil_buildings_dm_easy = 0xE18;
+        of_player_min_mil_buildings_medium = 0xE1C;
+        of_player_min_mil_buildings_dm_medium = 0xE20;
+        of_player_min_mil_buildings_hard = 0xE24;
+        of_player_min_mil_buildings_dm_hard = 0xE28;
+        of_player_pop_pct_easy = 0xE2C;
+        of_player_pop_pct_medium = 0xE30;
+        of_player_pop_pct_hard = 0xE34;
+        of_player_research_interval = 0xE40;
+        of_player_research_pct_easy = 0xE44;
+        of_player_research_pct_hard = 0xE48;
+        of_player_extra_gold_iron = 0xE50;
+        of_player_sea_explorers = 0xE54;
+        of_player_capitol_timer = 0xE58;
+        of_player_attack_lead = 0xE60;
+        of_player_epoch_lead = 0xE64;
+        of_player_min_stock = 0xE68;
+        of_player_tc_timer = 0xED0;
+        of_player_island_expansion_min = 0xF08;
+        of_player_next_attention = 0xF2C;
+        of_player_last_hit = 0xF30;
+        of_player_next_pop_cap = 0xF34;
+        of_player_next_expansion = 0xF38;
+        of_player_dm_group_until = 0xF3C;
+        of_player_next_island_expansion = 0xF40;
+        of_player_first_update_done = 0xF45;
+        of_player_attention_scheduled = 0xF46;
+        of_player_citizens_hit = 0xF47;
+        of_player_hit = 0xF48;
+        of_player_active = 0xF49;
+        of_player_reload_pending = 0xF54;
         fn_player_adjust_cost = (player_adjust_cost_fn)0x0042EACE;
         fn_player_add_resource = (player_add_resource_fn)0x0042D1A5;
         fn_player_pay = (player_pay_fn)0x0043ED98;

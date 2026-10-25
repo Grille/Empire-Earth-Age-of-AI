@@ -56,6 +56,20 @@ unsafe struct EETechTreeNode
     [offset(0x14), found(v)]
     int32 epoch;
 
+    /// the last epoch the tech belongs to (the constructor 13, AoC 14); the build manager drops a queued building
+    /// whose tech fell behind
+    [offset(0x18), found(c)]
+    int32 last_epoch;
+
+    /// 1 by default; cleared when a building queues the tech (a tech is queued once)
+    [offset((ee)0x1D, (aoc)0x21), found(c)]
+    uint8 queueable;
+
+    /// the tech is switched off (its data's +0x7F, the scenario's player technology); 0x5BF3B3 passes it on to the
+    /// techs that require it
+    [offset((ee)0x1E, (aoc)0x22), found(c)]
+    uint8 disabled;
+
     [offset(0x24), found(v)]
     uint8* kids_begin;
 
@@ -89,6 +103,10 @@ unsafe struct ee_tech_data
     [offset(0x50), found(v)]
     int32 effects;
 
+    /// the ids of up to four techs it requires
+    [offset(0x5C), found(c)]
+    fixed int32 requires[4];
+
     /// the unit type it makes (< 0: a tech)
     /// the tech tree code's reads (unchanged)
     [offset(0x6C), found(v)]
@@ -113,6 +131,10 @@ unsafe struct EETechTree
     /// the epoch records, 0x54 apart (AoC: one more, its 0x4E4 one record on)
     [offset(0x8), found(s)]
     block epoch_recs;
+
+    /// its player
+    [offset((ee)0x4E0, (aoc)0x534), found(c)]
+    EEPlayer* player;
 
     /// the current epoch (0 = Prehistoric)
     [offset((ee)0x4E4, (aoc)0x538), found(v)]

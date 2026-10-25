@@ -6,8 +6,21 @@ unsafe struct EEUnitGoal
     [offset(0x5), found(b)]
     uint8 state;
 
+    /// 1 for a goal from an order (commands, the AI), 0 for the unit's own (its target search); the guard return skips
+    /// an ordered one
+    [offset(0x1C), found(c)]
+    uint8 ordered;
+
     [offset(0x20), found(c)]
     float32 dest_x;
+
+    /// the destination's y
+    [offset(0x24), found(c)]
+    float32 dest_y;
+
+    /// the destination's z
+    [offset(0x28), found(c)]
+    float32 dest_z;
 
     /// a kind 6 goal's target
     /// a kind 6 goal's target - the contact test (EEPhysicsModel::vf14, AoC vf15) lets two units at work on kind 6 meet
@@ -59,6 +72,26 @@ unsafe struct EEUnitGoal
 [@base(typeof(EEUnitGoal)), c_type("ee_build_goal"), vtable((ee)0x008319F0, (aoc)0x0084740C)]
 unsafe struct EEUGBuildRepair
 {
+    /// its dump's Target Center
+    [offset(0x2C), found(c)]
+    vec3 center;
+
+    /// the building's type data (its dump's Target Class)
+    [offset(0x40), found(c)]
+    EEUnitClass* target_class;
+
+    /// the player's tech tree node of the type's tech
+    [offset(0x44), found(c)]
+    EETechTreeNode* tech_node;
+
+    /// the type's tech (type +0x4E0; 100000 none)
+    [offset(0x48), found(c)]
+    int32 tech_id;
+
+    /// the building's type (its dump's Target Type)
+    [offset(0x4C), found(c)]
+    int32 type_id;
+
     /// EEUGBuildRepair constructor: thiscall(goal, player, building, 1)
     [address((ee)0x0060BAD0, (aoc)0x0061E164)]
     extern EEUnitGoal* init(EEPlayer* pl, EEUnit* building, int32 flag);
@@ -77,6 +110,30 @@ unsafe struct EEUGLoadTransport
 [@base(typeof(EEUnitGoal)), c_type("ee_location_goal"), vtable((ee)0x00831E64, (aoc)0x008478A0)]
 unsafe struct EEUGLocation
 {
+    /// the heading to face on arrival (its dump's Yaw)
+    [offset(0x2C), found(c)]
+    float32 yaw;
+
+    /// a forced move; 0 an attack-move (vf8's AttackMove, vf21 zeroes the unit's scan_ms)
+    [offset(0x30), found(c)]
+    uint8 forced;
+
+    /// Should Face: on arrival it turns to yaw (state 0x232E) instead of idling (5000)
+    [offset(0x31), found(c)]
+    uint8 face;
+
+    /// Is Auto Waypoint: assign_goal doesn't make it the current goal
+    [offset(0x32), found(c)]
+    uint8 auto_waypoint;
+
+    /// Use Group Movement (the copy vf4 carries it)
+    [offset(0x33), found(c)]
+    uint8 group_move;
+
+    /// its dump's Group Path State
+    [offset(0x34), found(c)]
+    uint8 group_path_state;
+
     /// new 0x38
     [address((ee)0x00614CE6, (aoc)0x006276E1)]
     extern void* init(float32* p2, int32 p3, char8 p4, char8 p5, float32 p6, char8 p7, char8 p8);

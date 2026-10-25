@@ -16,8 +16,6 @@ internal inline int attack_cmd_get_group_count(const ee_attack_cmd *ac) { return
 internal inline ee_attack_subgroup **attack_group_get_subgroups_end(const ee_attack_group *g) { return FIELD(g, of_attack_group_subgroups_begin + 0x4, ee_attack_subgroup **); }
 
 // AN ATTACK SUBGROUP (EECPAttackSubGroup; EECPASGLand, attack_subgroup_is_land, has the fields from +0x60 on)
-internal inline ee_asg_unit **attack_subgroup_get_units_end(const ee_attack_subgroup *sg) { return FIELD(sg, of_attack_subgroup_units_begin + 0x4, ee_asg_unit **); }
-internal inline void attack_subgroup_set_units_end(ee_attack_subgroup *sg, ee_asg_unit **e) { FIELD(sg, of_attack_subgroup_units_begin + 0x4, ee_asg_unit **) = e; }
 // +0x60 the route, a deque of {x, y, ?} (attack.c route_waypoint); +0x70 its waypoints
 // a location set to a unit at its tile x, y (kind 1, as the game's own unit targets)
 internal inline void location_set_unit(ee_location *loc, int x, int y, int id) {
