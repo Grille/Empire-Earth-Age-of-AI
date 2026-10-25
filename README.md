@@ -354,8 +354,9 @@ Settings in `aimod.ini`:
   The formation goes at the slowest unit's speed, turning like a ship (no unit walks backwards in a turn), facing
   the way it goes and turning into its final facing at the goal (re-forming there when that is 45 degrees or more
   off); a shift-queued turn under 45 degrees keeps the formation.
-- `[general] formation_catchup=125%` (with formation_follow): how fast a unit behind its place may go to catch up,
-  in percent of its own top speed (100% never faster than its own).
+- `[general] formation_catchup=200%` (with formation_follow): how fast a unit behind its place may go to keep it, in
+  percent of its own top speed (100% never faster than its own) - near its place only (all of it within its size,
+  none from four times that) or within 5 seconds of last being in it (a re-form); one fallen behind walks.
 - `[general] goal_markers=1` (default; 0 the original): a move order drew its circle at the goal of only the group's
   first 15 units (20 in the other lines and wedges, every few in a circle formation). Now every unit's shows.
 - `[sound] clamp_channels=1` (default): the "Max Number Of Sounds" slider goes to 200%, which asks for 32 sound

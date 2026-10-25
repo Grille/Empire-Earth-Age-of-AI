@@ -45,7 +45,7 @@
     X(CHILD,  general,  formations,               0,  improved_unit_movement, 0) \
     X(CHILD,  general,  formation_march,          0,  improved_unit_movement, 0) \
     X(CHILD,  general,  formation_follow,         0,  improved_unit_movement, 0) \
-    X(SHARE,  general,  formation_catchup,        125, 100, 300) \
+    X(SHARE,  general,  formation_catchup,        200, 100, 300) \
     X(FLAG,   general,  sight_counts,             1,  0, 0) \
     X(INT,    general,  chat,                     0,  0, 2) \
     X(INT,    general,  chat_seconds,             15, 0, 3600) \
