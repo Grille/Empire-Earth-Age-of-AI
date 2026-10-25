@@ -253,7 +253,7 @@ internal void *__thiscall hook_slot_goal(ee_goal *g, float *pt, uint32_t a, uint
 internal void groupmove_install(void) {
     g_fo_on = g_set.formations;
     int n = g_fo_on ? patch_formation_slots(hook_formation_slots) : 0, goals = n ? patch_slot_goal(hook_slot_goal) : 0;
-    int markers = g_set.goal_markers ? patch_goal_markers_max(127) : 0;   // every unit's circle shows where it goes
-    if (g_log) fprintf(g_log, "# groupmove: formations=%d (%d formation vtables, goals hooked %d), goal markers up to 126: %d\n",
+    int markers = g_set.goal_markers ? patch_order_marks_all() : 0;   // every unit's circle shows where it goes
+    if (g_log) fprintf(g_log, "# groupmove: formations=%d (%d formation vtables, goals hooked %d), goal markers for every unit: %d\n",
                        g_fo_on, n, goals, markers);
 }

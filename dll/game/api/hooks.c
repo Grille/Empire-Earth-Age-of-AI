@@ -33,8 +33,12 @@ internal inline int patch_input_coop(HMODULE lle) {
     return n;
 }
 internal inline int patch_no_minimize(void) { return patch_byte(data_hooks_site_close_window_je, 0x74, 0xEB); }
-// the selected units' goal markers for up to max - 1 of them (the game's 10; a signed byte, so at most 127)
-internal inline int patch_goal_markers_max(uint8_t max) { return patch_byte(data_hooks_site_goal_markers_max + 6, 0x0A, max); }
+// order_marks' circle for every unit of the group: its filter's jne made a jmp to the drawing, and its count of
+// circles compared with 0 instead of 10 (counted up from 1 before the compare, it never ends the loop)
+internal inline int patch_order_marks_all(void) {
+    return patch_byte(data_hooks_site_order_marks_filter + 1, 0x09, 0x35) && patch_byte(data_hooks_site_order_marks_filter, 0x75, 0xEB)
+        && patch_byte(data_hooks_site_order_marks_max + 3, 0x0A, 0x00);
+}
 // the loading splash's stop (display.c): jne -> nop nop, or jmp when the start is already a jmp (*nosplash: a test run
 // started without the splash - then the stop, which waits for the splash's thread, is skipped too)
 internal inline int patch_splash_stop(int *nosplash) {

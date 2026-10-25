@@ -124,10 +124,16 @@ static unsafe class hooks
     [address((ee)0x00662666, (aoc)0x00679C57)]
     static code site_close_window_je;
 
-    /// the graphical goal manager (0x4FCDF9): cmp [selection + count], 10 - with 10 or more units selected their own
-    /// goal markers are left out; the 10 its last byte (+6)
-    [address((ee)0x004FCE70, (aoc)0x00507940)]
-    static code site_goal_markers_max;
+    /// order_marks (0x4B12A2): jne past the first of its filters - a unit of the group gets its circle only while its
+    /// +0x298 (AoC +0x29C: its number in the group) is under 15 (the formation's kind 0) or 20 (1 .. 5), or (6, 7) every
+    /// n-th; made a jmp to where the circle is drawn (EB 35 in both builds)
+    [address((ee)0x004B139C, (aoc)0x004B87C7)]
+    static code site_order_marks_filter;
+
+    /// order_marks: cmp [ebp-0x18], 10 after a circle is drawn (how 0xBB) - the group's circles end at the 10th; the
+    /// 10 its last byte (+3)
+    [address((ee)0x004B1681, (aoc)0x004B8AB3)]
+    static code site_order_marks_max;
 
     [address((ee)0x006601F1, (aoc)0x006777E5)]
     static code site_editor_menu;

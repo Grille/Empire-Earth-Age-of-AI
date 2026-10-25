@@ -338,8 +338,8 @@ Settings in `aimod.ini`:
   dragged with the right button (a plain click: the way it moves), like sizes in rows of their own, each unit keeping
   its place in the group: the army in after 46 s instead of 52, back in 57 instead of 79 (with the land movement
   settings). Off while it is tried in games. (It replaces `group_block`, a big group gathered as one block.)
-- `[general] goal_markers=1` (default; 0 the original): with 10 or more units selected the game drew no circle at each
-  one's goal. Now up to 126 selected units show theirs.
+- `[general] goal_markers=1` (default; 0 the original): a move order drew its circle at the goal of only the group's
+  first 15 units (20 in the other lines and wedges, every few in a circle formation). Now every unit's shows.
 - `[sound] clamp_channels=1` (default): the "Max Number Of Sounds" slider goes to 200%, which asks for 32 sound
   channels, but the sound mixer has only 16 on current Windows. Sounds put on the 16 missing channels were silent,
   and a looping one (unit movement such as the U-boats', ambience) stayed stuck there and never played again -
