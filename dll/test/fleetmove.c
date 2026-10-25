@@ -69,8 +69,9 @@ internal void fm_sample(char *out, int quiet) {
     int moving = 0, standing = 0, creeping = 0, done = 0, gone = 0, hist_n = 0;
     unsigned hist_id[16];
     int hist_c[16];
-    float dist = 0;
+    float dist = 0, off = 0, off_most = 0;
     static float dists[FM_MAX];
+    int n_off = 0, pairs = 0;
     int nd = 0;
     for (int i = 0; i < g_fm_n; i++) {
         struct fm_unit *f = &g_fm[i];
@@ -82,6 +83,20 @@ internal void fm_sample(char *out, int quiet) {
         vec3 p = unit_get_pos(u);
         dists[nd] = sqrtf((p.x - g_fm_tx) * (p.x - g_fm_tx) + (p.y - g_fm_ty) * (p.y - g_fm_ty));
         dist += dists[nd++];
+        vec2 spot;
+        if (ff_spot(u, &spot)) {   // off its formation spot
+            float o = sqrtf((p.x - spot.x) * (p.x - spot.x) + (p.y - spot.y) * (p.y - spot.y));
+            off += o;
+            n_off++;
+            if (o > off_most) off_most = o;
+        }
+        for (int j = 0; j < i; j++) {   // pairs of the order closer than 3/4 of their sizes' mean
+            ee_unit *w = unit_by_id(g_fm[j].id);
+            if (!w || unit_get_hp(w) <= 0) continue;
+            vec3 q = unit_get_pos(w);
+            float lim = (unit_get_size(u) + unit_get_size(w)) * 0.375f;
+            if ((p.x - q.x) * (p.x - q.x) + (p.y - q.y) * (p.y - q.y) < lim * lim) pairs++;
+        }
         if (s != f->state) { f->states++; if (s == 9002) f->repaths++; f->state = s; }
         float step = sqrtf((p.x - f->x) * (p.x - f->x) + (p.y - f->y) * (p.y - f->y));
         f->x = p.x;
@@ -107,7 +122,7 @@ internal void fm_sample(char *out, int quiet) {
           t, moving, standing, creeping, done, gone, alive ? dist / (float)alive : 0.0f, nd ? dists[nd / 2] : 0.0f, nd ? dists[nd * 9 / 10] : 0.0f,
           nd ? dists[nd - 1] : 0.0f, nd ? dists[nd * 19 / 20] - dists[nd / 20] : 0.0f);
     for (int k = 0; k < hist_n; k++) REPLY(" %u:%d", hist_id[k], hist_c[k]);
-    REPLY("\n");
+    REPLY(", off the formation spots %.2f (most %.2f), %d pairs within 3/4 of their size\n", n_off ? off / (float)n_off : 0.0f, off_most, pairs);
 }
 
 // pipe `fmove go P x y r tx ty [together [facing]]`: P's units within r tiles of x, y (no buildings) selected and sent to tx, ty
@@ -144,8 +159,8 @@ internal void cmd_fmove(char *out, const char *args) {
         }
         REPLY("fmove sum: %d units, the last moving at %.1f s, %d done (the last at %.1f s), standing short of the goal %.1f s together (creeping %.1f); "
               "ship_turns so far: %u ticks kept the speed, %u steered along the route, %u waypoints dropped, %u passing a queued point; "
-              "collide: %u steps, %u overlaps pushed off, the deepest %.2f tiles, %u pushes at rest; land routes: %u searches, %.1f ms, the longest %.2f ms, %u of %u corners widened (room %.2f -> %.2f tiles); formations: %u group moves laid out (%u queued), %u marching, %u following (%u moves split into blocks, %u went on in the same formation (%u legs ended where the unit stood), %u ticks steered, %u on the own route)\n", g_fm_n, moved, n_done,
-              done, stood, crept, g_st_kept, g_st_steered, g_st_skipped, g_st_passing, g_uc_steps, g_uc_hits, g_uc_deepest, g_uc_rest, g_lr_routes,
+              "collide: %u steps, %u overlaps pushed off, the deepest %.2f tiles, %u pushes at rest, %u steps walking back to a formation spot; land routes: %u searches, %.1f ms, the longest %.2f ms, %u of %u corners widened (room %.2f -> %.2f tiles); formations: %u group moves laid out (%u queued), %u marching, %u following (%u moves split into blocks, %u went on in the same formation (%u legs ended where the unit stood), %u ticks steered, %u on the own route)\n", g_fm_n, moved, n_done,
+              done, stood, crept, g_st_kept, g_st_steered, g_st_skipped, g_st_passing, g_uc_steps, g_uc_hits, g_uc_deepest, g_uc_rest, g_uc_home, g_lr_routes,
               g_lr_ms, g_lr_ms_max, g_lr_widened, g_lr_corners, g_lr_corners ? g_lr_room0 / g_lr_corners : 0.0, g_lr_corners ? g_lr_room1 / g_lr_corners : 0.0, g_fo_moves, g_fo_queued_n, g_fo_marches, g_ff_marches, g_ff_split, g_ff_arcs, g_ff_finished, g_ff_steered, g_ff_own);
         return;
     }

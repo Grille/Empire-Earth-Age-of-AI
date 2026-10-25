@@ -41,7 +41,10 @@ internal struct uc_rest *uc_rest_of(ee_unit *u) {
     if (g_uc_mem[i].id != id) { g_uc_mem[i].id = id; g_uc_mem[i].n = 0; g_uc_mem[i].last = v2(0, 0); }
     return &g_uc_mem[i];
 }
-internal int ff_same_march(ee_unit *a, ee_unit *b);   // engine/groupmove.c
+internal float ff_collision(ee_unit *a, ee_unit *b);   // engine/groupmove.c
+internal int ff_home(ee_unit *u, vec2 pos, float slop, vec2 *spot);
+#define UC_HOME_SLOP 0.25f      // x its size (at least 0.1 tiles): a unit of a formation that arrived this near its spot is in it
+internal unsigned g_uc_home;    // steps of units walking back to their formation spots
 internal unsigned g_uc_steps, g_uc_hits;   // collision steps taken over, overlaps pushed off
 internal float g_uc_deepest;               // the deepest overlap met (tiles)
 
@@ -169,7 +172,7 @@ internal int uc_separate(int kind, ee_unit *u, int resting) {
         float d2 = vec2_len2(d), rr = h.r + o.r;
         // two units marching in the same formation (formation_follow) collide at formation_collision of their radii -
         // their places stay as far apart: they slip past each other to them
-        if (kind == MODEL_LAND && d2 < rr * rr && ff_same_march(u, c)) rr *= g_set.formation_collision;
+        if (kind == MODEL_LAND && d2 < rr * rr) rr *= ff_collision(u, c);
         if (d2 >= rr * rr) continue;
         float dist = sqrtf(d2);
         if (dist > 0.0001f) d = vec2_scale(d, 1.0f / dist);
@@ -207,6 +210,23 @@ internal int uc_separate(int kind, ee_unit *u, int resting) {
     return 1;
 }
 
+// u at rest, of a formation that arrived (groupmove.c's linger): pushed off its spot, it walks back to it - at its top
+// speed, the last step no further than the spot; its push velocity added to, 1 - else 0
+internal int uc_home(ee_unit *u) {
+    vec2 spot;
+    ee_physics *ph = game_physics();
+    float dt = ph ? physics_get_step_s(ph) * (float)phys_substeps() : 0;
+    vec3 p = unit_get_pos(u);
+    float slop = unit_get_size(u) * UC_HOME_SLOP, v = unit_max_speed(u);
+    if (dt <= 0 || v <= 0 || unit_get_frozen(u) || unit_get_hp(u) <= 0 || unit_get_holder(u) || !ff_home(u, v2(p.x, p.y), slop > 0.1f ? slop : 0.1f, &spot)) return 0;
+    vec2 d = v2(spot.x - p.x, spot.y - p.y);
+    float dist = vec2_len(d);
+    if (v * dt > dist) v = dist / dt;
+    unit_set_push(u, vec2_add(unit_get_push(u), vec2_scale(d, v / dist)));
+    g_uc_home++;
+    return 1;
+}
+
 internal void __thiscall hook_collide(void *model, ee_unit *u) {
     int kind = model_kind(model);
     if (!u || !g_uc_on[kind]) { eepm_land_collide(model, u); return; }
@@ -214,11 +234,13 @@ internal void __thiscall hook_collide(void *model, ee_unit *u) {
         // at rest: the game's step (its blocked time, the idle states), then, every UC_REST_EVERY steps, off the other
         // units at rest it overlaps - else units that stop on one spot (a rally point, a crowd) stay one blob; a unit
         // at work keeps its place. A push the game's contact test gave it (its circle test pushes the partner too) is
-        // dropped: the units around a pair that couldn't part shuffled for ever
+        // dropped: the units around a pair that couldn't part shuffled for ever. One of a formation that just arrived,
+        // pushed off its spot, walks back to it (the push with its walk)
         unit_set_push(u, v2(0, 0));
         eepm_land_collide(model, u);
         ee_physics *ph = game_physics();
         struct uc_rest *r = NULL;
+        int sep = 0;
         if (ph && !uc_work(u) && !unit_get_frozen(u) && unit_get_hp(u) > 0 && !unit_get_holder(u)
             && ((unsigned)unit_get_serial(u) + physics_get_steps(ph)) % UC_REST_EVERY == 0
             && (r = uc_rest_of(u))->n < UC_REST_LOCK && uc_separate(kind, u, 1)) {
@@ -226,8 +248,13 @@ internal void __thiscall hook_collide(void *model, ee_unit *u) {
             if (vec2_dot(p, r->last) < 0) r->n++;
             r->last = p;
             g_uc_rest++;
-            uc_push_quiet(model, u);
+            sep = 1;
         }
+        if (kind == MODEL_LAND && uc_home(u)) {   // walking back on its own: its lock undone (back to its spot and pushed off
+            uc_rest_of(u)->n = 0;                 // it again counted as reversals - it was locked in the others)
+            model_push(model, u);
+        }
+        else if (sep) uc_push_quiet(model, u);
         return;
     }
     g_uc_steps++;
@@ -236,7 +263,7 @@ internal void __thiscall hook_collide(void *model, ee_unit *u) {
     model_push(model, u);
 }
 
-internal void collide_new_game(void) { g_uc_steps = g_uc_hits = g_uc_rest = 0; g_uc_deepest = 0; memset(g_uc_biggest, 0, sizeof g_uc_biggest); memset(g_uc_mem, 0, sizeof g_uc_mem); }
+internal void collide_new_game(void) { g_uc_steps = g_uc_hits = g_uc_rest = g_uc_home = 0; g_uc_deepest = 0; memset(g_uc_biggest, 0, sizeof g_uc_biggest); memset(g_uc_mem, 0, sizeof g_uc_mem); }
 
 internal void collide_install(void) {
     g_uc_on[MODEL_SHIPS] = g_uc_on[MODEL_SUBS] = g_set.ship_collide;
