@@ -340,9 +340,6 @@ static unsafe class game_functions
     [call_site("parse_cmdline", (ee)0x00535EF2, (aoc)0x005410C8)]
     static extern char8 parse_cmdline(cstr cmd);
 
-    [address((ee)0x00546C63, (aoc)0x00553082), thiscall]
-    static extern void phys_step(EEPhysics* phys);
-
     [address((ee)0x0066192F, (aoc)0x00678F79), thiscall]
     static extern void queue_action_game(void* p1, void* p2);
 
@@ -383,6 +380,4 @@ static unsafe class game_functions
     [address((ee)0x0061ABEC, (aoc)0x006002C7), thiscall]
     static extern void vector_free(void* v);
 
-    [address((ee)0x004BEE57, (aoc)0x004C7CDC), thiscall]
-    static extern void start_exec(EEMStartLoading* msg);
 }

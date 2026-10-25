@@ -30,7 +30,7 @@ internal int am_raw_cost(ee_player *pl, int type) {
     ee_unit_type *obj = type_data(type);
     ee_tech_tree *tt = player_get_tech_tree(pl);
     if (!obj || !tt) return 0;
-    ee_tech *tech = tech_lookup(tt, unit_type_get_tech(obj));
+    ee_tech *tech = tech_tree_lookup(tt, unit_type_get_tech(obj));
     ee_tech_data *data = tech ? tech_get_data(tech) : NULL;
     int c = 0;
     for (int r = 2; data && r < 7; r++) c += tech_data_get_cost(data, r);
@@ -171,7 +171,7 @@ internal int ap_type(ee_player *pl, unsigned idx, ee_unit_mgr *um, const int *vi
 internal int ap_producer(ee_player *pl, int type) {
     ee_unit_type *td = type_data(type);
     ee_tech_tree *tt = player_get_tech_tree(pl);
-    ee_tech *t = td && tt ? tech_lookup(tt, unit_type_get_tech(td)) : NULL;
+    ee_tech *t = td && tt ? tech_tree_lookup(tt, unit_type_get_tech(td)) : NULL;
     ee_tech_data *d = t ? tech_get_data(t) : NULL;
     int *b = d ? tech_data_get_makers_begin(d) : NULL, *e = d ? tech_data_get_makers_end(d) : NULL;
     for (int *p = b; b && e > b && e - b < 16 && p < e; p++)
@@ -219,7 +219,7 @@ internal void army_plan_tick(ee_player *pl, unsigned idx, uint32_t now) {
             if (vis[r] > (int)g_bud[idx].mil[r]) vis[r] = (int)g_bud[idx].mil[r];
         }
         int cap = unit_limit(pl);
-        int room = cap - unit_mgr_get_in_production(um) - population(pl, 1, 0);
+        int room = cap - unit_mgr_get_in_production(um) - player_population(pl, 1, 0);
         int goal = g_czp[idx].goal ? g_czp[idx].goal : unit_mgr_citizens_wanted(um);
         int miss = goal - workforce(pl);
         int free = room - (miss > 0 ? miss : 0) - landing_room_reserve(pl) - navy_room_reserve(pl) - 2;
@@ -357,7 +357,7 @@ internal void ap_upgrades(ee_player *pl, unsigned idx) {
     ee_tech_tree *tt = player_get_tech_tree(pl);
     if (!rs || !tt) return;
     for (int id = 1000; id < 15000; id++) {
-        ee_tech *t = tech_lookup(tt, id);
+        ee_tech *t = tech_tree_lookup(tt, id);
         ee_tech_data *d = t ? tech_get_data(t) : NULL;
         if (!d || tech_get_researched(t) || !tech_get_available(t) || tech_data_get_category(d) != 7) continue;
         int used, k;
@@ -389,7 +389,7 @@ internal void am_pool_log(ee_player *pl, unsigned idx) {
     EnterCriticalSection(&g_lock);
     fprintf(g_log, "# pool: P%u %d techs:", idx, b && e > b ? (int)(e - b) : 0);
     for (int *q = b; b && q < e && q - b < 300; q++) {
-        ee_tech *t = tech_lookup(tt, *q);
+        ee_tech *t = tech_tree_lookup(tt, *q);
         ee_tech_data *d = t ? tech_get_data(t) : NULL;
         if (!d) continue;
         int c = 0;
@@ -450,7 +450,7 @@ internal void am_tick(ee_player *pl, uint32_t now) {
     int tech = 0, up7 = 0, up7c = 0;
     ee_tech_tree *tt = player_get_tech_tree(pl);
     for (int id = 1000; tt && id < 15000; id++) {
-        ee_tech *t = tech_lookup(tt, id);
+        ee_tech *t = tech_tree_lookup(tt, id);
         if (!t || !tech_get_researched(t)) continue;
         ee_tech_data *d = tech_get_data(t);
         tech++;
@@ -458,7 +458,7 @@ internal void am_tick(ee_player *pl, uint32_t now) {
     }
     int *st = player_stock_at(pl);
     int cap = unit_limit(pl);
-    int pop = population(pl, 1, 0), inprod = unit_mgr_get_in_production(um);
+    int pop = player_population(pl, 1, 0), inprod = unit_mgr_get_in_production(um);
     struct am_min *m = &a->m;
     int res[7] = { 0 };
     if (!is_vanilla(pl)) am_reserve(pl, idx, res);

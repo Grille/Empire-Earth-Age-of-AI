@@ -131,6 +131,11 @@ internal inline uint8_t *unit_type_terrain_ok_at(const ee_unit_type *o) { return
 internal inline uint8_t unit_type_get_behaviours(const ee_unit_type *o) { return *(uint8_t *)((uint8_t *)o + of_unit_type_behaviours); }
 internal inline void unit_type_set_behaviours(ee_unit_type *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_unit_type_behaviours) = v; }
 internal inline uint8_t *unit_type_behaviours_at(const ee_unit_type *o) { return (uint8_t *)((uint8_t *)o + of_unit_type_behaviours); }
+// thiscall(attacker class, attacker)
+typedef void (__thiscall *unit_type_fire_fn)(ee_unit_type *, ee_unit *);
+internal unit_type_fire_fn fn_unit_type_fire;
+internal inline void unit_type_fire(ee_unit_type *unit_type, ee_unit *u) { fn_unit_type_fire(unit_type, u); }
+internal inline int patch_fire(unit_type_fire_fn h, int *of) { return patch_calls(calls_fire, 4, (uintptr_t)fn_unit_type_fire, (void *)h, of); }
 
 // class ee_unit_stats (ee_unit_stats)
 // a unit type's per-player values, a unit's +0x34 (range, attack ...)
@@ -198,11 +203,6 @@ internal inline uint8_t *unit_type_vt_projectile_at(void) { return (uint8_t *)(u
 typedef float (__thiscall *attack_bonus_game_fn)(void *, int, void *, int, int);
 internal attack_bonus_game_fn fn_attack_bonus_game;
 internal inline float attack_bonus_game(void *p1, int p2, void *p3, int p4, int p5) { return fn_attack_bonus_game(p1, p2, p3, p4, p5); }
-// thiscall(attacker class, attacker)
-typedef void (__thiscall *unit_fire_fn)(ee_unit_type *, ee_unit *);
-internal unit_fire_fn fn_unit_fire;
-internal inline void unit_fire(ee_unit_type *cls, ee_unit *u) { fn_unit_fire(cls, u); }
-internal inline int patch_fire(unit_fire_fn h, int *of) { return patch_calls(calls_fire, 4, (uintptr_t)fn_unit_fire, (void *)h, of); }
 // EEUCMissile vf42, thiscall(class, missile, aim) - ret 8, the aim unused
 typedef int (__thiscall *missile_launch_fn)(void *, ee_unit *, float *);
 internal missile_launch_fn fn_missile_launch;
@@ -243,6 +243,11 @@ internal int spec_unit_type_select(int build) {
         of_unit_type_size = 0x58C;
         of_unit_type_terrain_ok = 0x5D6;
         of_unit_type_behaviours = 0x621;
+        fn_unit_type_fire = (unit_type_fire_fn)0x0061E11C;
+        calls_fire[0] = 0x00606067;
+        calls_fire[1] = 0x00607D79;
+        calls_fire[2] = 0x0060ABB0;
+        calls_fire[3] = 0x0060B33C;
         of_unit_stats_type_data = 0x60;
         of_unit_stats_height = 0x98;
         of_unit_stats_range = 0x9C;
@@ -261,11 +266,6 @@ internal int spec_unit_type_select(int build) {
         data_unit_type_vt_missile = 0x00832E90;
         data_unit_type_vt_projectile = 0x00833060;
         fn_attack_bonus_game = (attack_bonus_game_fn)0x004D5F2C;
-        fn_unit_fire = (unit_fire_fn)0x0061E11C;
-        calls_fire[0] = 0x00606067;
-        calls_fire[1] = 0x00607D79;
-        calls_fire[2] = 0x0060ABB0;
-        calls_fire[3] = 0x0060B33C;
         fn_missile_launch = (missile_launch_fn)0x00606109;
         fn_proj_down = (proj_down_fn)0x006078F9;
         return 0;
@@ -298,6 +298,11 @@ internal int spec_unit_type_select(int build) {
         of_unit_type_size = 0x28C;
         of_unit_type_terrain_ok = 0x2D2;
         of_unit_type_behaviours = 0x31F;
+        fn_unit_type_fire = (unit_type_fire_fn)0x00631312;
+        calls_fire[0] = 0x00617838;
+        calls_fire[1] = 0x00619604;
+        calls_fire[2] = 0x0061D174;
+        calls_fire[3] = 0x0061D997;
         of_unit_stats_type_data = 0x60;
         of_unit_stats_height = 0x98;
         of_unit_stats_range = 0x9C;
@@ -316,11 +321,6 @@ internal int spec_unit_type_select(int build) {
         data_unit_type_vt_missile = 0x00848CF8;
         data_unit_type_vt_projectile = 0x00848ED0;
         fn_attack_bonus_game = (attack_bonus_game_fn)0x004DBE44;
-        fn_unit_fire = (unit_fire_fn)0x00631312;
-        calls_fire[0] = 0x00617838;
-        calls_fire[1] = 0x00619604;
-        calls_fire[2] = 0x0061D174;
-        calls_fire[3] = 0x0061D997;
         fn_missile_launch = (missile_launch_fn)0x0061799B;
         fn_proj_down = (proj_down_fn)0x00619143;
         return 0;
@@ -332,15 +332,15 @@ internal const char *const k_spec_unit_type_missing[ADDR_BUILDS] = { "", "" };
 // the load-time check: what the spec says of the running build's exe (spec_check): the failures
 internal int spec_unit_type_check(void) {
     int bad = 0;
+    bad += spec_code((uintptr_t)fn_unit_type_fire, "EEUnitClass.fire");
+    bad += spec_call(calls_fire[0], (uintptr_t)fn_unit_type_fire, "EEUnitClass.fire [call_site fire 0]");
+    bad += spec_call(calls_fire[1], (uintptr_t)fn_unit_type_fire, "EEUnitClass.fire [call_site fire 1]");
+    bad += spec_call(calls_fire[2], (uintptr_t)fn_unit_type_fire, "EEUnitClass.fire [call_site fire 2]");
+    bad += spec_call(calls_fire[3], (uintptr_t)fn_unit_type_fire, "EEUnitClass.fire [call_site fire 3]");
     bad += spec_data(data_unit_type_bonus_table, "unit_type.bonus_table");
     bad += spec_data(data_unit_type_vt_missile, "unit_type.vt_missile");
     bad += spec_data(data_unit_type_vt_projectile, "unit_type.vt_projectile");
     bad += spec_code((uintptr_t)fn_attack_bonus_game, "unit_type_functions.attack_bonus_game");
-    bad += spec_code((uintptr_t)fn_unit_fire, "unit_type_functions.unit_fire");
-    bad += spec_call(calls_fire[0], (uintptr_t)fn_unit_fire, "unit_type_functions.unit_fire [call_site fire 0]");
-    bad += spec_call(calls_fire[1], (uintptr_t)fn_unit_fire, "unit_type_functions.unit_fire [call_site fire 1]");
-    bad += spec_call(calls_fire[2], (uintptr_t)fn_unit_fire, "unit_type_functions.unit_fire [call_site fire 2]");
-    bad += spec_call(calls_fire[3], (uintptr_t)fn_unit_fire, "unit_type_functions.unit_fire [call_site fire 3]");
     bad += spec_code((uintptr_t)fn_missile_launch, "unit_type_functions.missile_launch");
     bad += spec_code((uintptr_t)fn_proj_down, "unit_type_functions.proj_down");
     return bad;

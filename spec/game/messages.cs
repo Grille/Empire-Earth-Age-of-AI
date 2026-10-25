@@ -8,12 +8,23 @@ unsafe struct EEMessage
     int8 from;
 }
 
+/// the resignation (EEMResign)
+[@base(typeof(EEMessage)), c_type("ee_resign_msg")]
+unsafe struct EEMResign
+{
+    [address((ee)0x004BB906, (aoc)0x004C44BB)]
+    extern void execute();
+}
+
 /// the in-game chat message (EEMInGameChat)
 [@base(typeof(EEMessage)), c_type("ee_chat_msg")]
 unsafe struct EEMInGameChat
 {
     [offset(0x10), found(c)]
     block text;
+
+    [address((ee)0x004B78C7, (aoc)0x004BFDD2)]
+    extern void execute();
 }
 
 /// the select message (EEMSelectUnits)
@@ -41,6 +52,10 @@ unsafe struct EEMLoadTransport
     /// its Execute's reads (both builds)
     [offset(0x14), found(c)]
     int32 unit;
+
+    /// EEMLoadTransport's Execute
+    [address((ee)0x004B9446, (aoc)0x004C1B79)]
+    extern void execute();
 }
 
 /// the move message (EEMPathTo)
@@ -71,6 +86,10 @@ unsafe struct EEMPathTo
     /// its Execute's reads (both builds) - the move goal's +0x33
     [offset(0x1F), found(c)]
     uint8 together;
+
+    /// EEMPathTo's Execute
+    [address((ee)0x004B9D7B, (aoc)0x004C281C)]
+    extern void execute();
 }
 
 /// the game start message (EEMStartLoading)
@@ -79,6 +98,9 @@ unsafe struct EEMStartLoading
 {
     [offset(0x14), found(c)]
     uint32 seed;
+
+    [address((ee)0x004BEE57, (aoc)0x004C7CDC)]
+    extern void execute();
 }
 
 /// the tribute message (EEMPayTribute)
@@ -102,6 +124,9 @@ unsafe struct EEMPayTribute
 
     [offset(0x24), found(v)]
     uint8 to;
+
+    [address((ee)0x004BA6BE, (aoc)0x004C315B)]
+    extern void execute();
 }
 
 /// the unload message (EEMUnloadTransport)
@@ -115,6 +140,10 @@ unsafe struct EEMUnloadTransport
     /// its Execute's reads (both builds)
     [offset(0x18), found(c)]
     int32 y;
+
+    /// EEMUnloadTransport's Execute
+    [address((ee)0x004BF756, (aoc)0x004C8615)]
+    extern void execute();
 }
 
 /// the lockstep server or client, [game.server] (EEServer, EEClient)
@@ -148,7 +177,6 @@ unsafe struct EEServer
 /// messages's data of the game, places in its code and numbers
 static unsafe class messages
 {
-
     /// msg_cheat_init
     [value(24)]
     static uint32 size_cheat_msg;
@@ -197,27 +225,6 @@ static unsafe class messages_functions
     /// new 0x18; (code, arg)
     [address((ee)0x005C29FB, (aoc)0x005D3162), thiscall]
     static extern void* msg_cheat_init(void* mem, int32 code, int32 arg);
-
-    [address((ee)0x004B78C7, (aoc)0x004BFDD2), thiscall]
-    static extern void msg_ingame_chat(EEMInGameChat* msg);
-
-    /// EEMLoadTransport's Execute
-    [address((ee)0x004B9446, (aoc)0x004C1B79), thiscall]
-    static extern void msg_load(EEMLoadTransport* msg);
-
-    /// EEMPathTo's Execute
-    [address((ee)0x004B9D7B, (aoc)0x004C281C), thiscall]
-    static extern void msg_path(EEMPathTo* msg);
-
-    /// EEMUnloadTransport's Execute
-    [address((ee)0x004BF756, (aoc)0x004C8615), thiscall]
-    static extern void msg_unload(EEMUnloadTransport* msg);
-
-    [address((ee)0x004BA6BE, (aoc)0x004C315B), thiscall]
-    static extern void msg_pay_tribute(EEMPayTribute* msg);
-
-    [address((ee)0x004BB906, (aoc)0x004C44BB), thiscall]
-    static extern void msg_resign(EEMessage* msg);
 
     /// EEMSelectUnits: thiscall(msg, rect, type, 0x4E)
     [address((ee)0x004BD072, (aoc)0x004C5D7F), thiscall]

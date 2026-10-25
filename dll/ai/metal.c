@@ -52,7 +52,7 @@ internal int mt_line(ee_player *pl, int t) {
     if (is_siege(t) || is_ram(t)) return MB_SIE;
     if (!is_army_family(fam)) return MB_UNK;
     ee_tech_tree *tt = player_get_tech_tree(pl);
-    ee_tech *tech = tt ? tech_lookup(tt, unit_type_get_tech(td)) : NULL;
+    ee_tech *tech = tt ? tech_tree_lookup(tt, unit_type_get_tech(td)) : NULL;
     ee_tech_data *d = tech ? tech_get_data(tech) : NULL;
     int *b = d ? tech_data_get_makers_begin(d) : NULL, *e = d ? tech_data_get_makers_end(d) : NULL;
     for (int *p = b; b && e > b && e - b < 16 && p < e; p++) {
@@ -150,7 +150,7 @@ internal void mt_values(ee_player *pl, unsigned idx) {
     if (!tt) return;
     for (int t = 0; t < 724 && v->n < MT_CAND; t++) {
         if (!land_soldier(t) || soldier_score(t) <= 0) continue;
-        ee_tech *tech = tech_lookup(tt, unit_type_get_tech(type_data(t)));
+        ee_tech *tech = tech_tree_lookup(tt, unit_type_get_tech(type_data(t)));
         int c = 0;
         for (int r = 2; r < 7; r++) c += unit_cost(pl, t, r);
         if (!tech || !tech_get_researched(tech) || c < 20) continue;   // nothing for free: the Court Jester (0), heroes of scenarios

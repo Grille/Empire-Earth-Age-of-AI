@@ -31,7 +31,7 @@ unsafe struct EEPhysics
 
     /// steps done
     [offset(0x80), found(c)]
-    uint32 step;
+    uint32 steps;
 
     /// a step's length (s)
     [offset(0x8C), found(c)]
@@ -44,6 +44,9 @@ unsafe struct EEPhysics
     /// game time (ms)
     [offset(0xD0), found(c)]
     uint32 time;
+
+    [address((ee)0x00546C63, (aoc)0x00553082)]
+    extern void step();
 }
 
 /// the world, [game.world] (EEWorld)

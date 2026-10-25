@@ -7,7 +7,7 @@
 internal inline ee_tt_epoch *tech_tree_epoch_rec_at(const ee_tech_tree *tt, int e) { return (ee_tt_epoch *)FIELD_AT(tt, of_tech_tree_epoch_recs + e * 0x54); }
 // an epoch record: +0x8 the epoch's tech's data, the new things the epoch needs +0x40 and has +0x48 (0x5BD681)
 
-// A TECH (EETechTreeNode, tech_lookup(tt, id); an epoch's node, its children: game/tech.c)
+// A TECH (EETechTreeNode, tech_tree_lookup(tt, id); an epoch's node, its children: game/tech.c)
 // an epoch node's children (game/tech.c): the 2017 update's vector +0x24 .. +0x28, Art of Conquest's map head +0x28
 internal inline uint8_t *tech_get_kids_end(const ee_tech *t) { return FIELD(t, of_tech_kids_begin + 0x4, uint8_t *); }
 

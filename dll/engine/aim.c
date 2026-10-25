@@ -407,7 +407,7 @@ internal void __thiscall hook_fire(ee_unit_type *cls, ee_unit *u) {
         g_spread_switched++;
         g_retarget = alt;
     }
-    unit_fire(cls, u);
+    unit_type_fire(cls, u);
     g_retarget = NULL;
 }
 

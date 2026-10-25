@@ -59,9 +59,6 @@ internal inline int attack_subgroup_is_land(const ee_attack_subgroup *sg) { retu
 // a land subgroup's route from start to dest (int[2] each), its arrival (waypoints at +0x60)
 // a subgroup member's score for an enemy (info: what it scores)
 // the route planner's cost of an edge into node
-internal inline int route_cost(ee_route_planner *planner, int *edge, ee_route_node *node) {
-    return fn_route_cost_game(planner, edge, node);
-}
 
 // HOOKS
 // ATTACK GROUPS AND SUBGROUPS (attack.c, forces.c, landing.c)
@@ -86,10 +83,10 @@ internal inline int patch_asg_give_goal(asg_give_goal_hook h, asg_give_goal_hook
 }
 // a land subgroup's route and its arrival, the route planner's edge cost
 typedef void (__thiscall *asg_route_hook)(ee_attack_subgroup *sg, int *start, int *dest);
-internal inline int patch_asg_route(asg_route_hook h) { return patch_vtable(data_attack_vt_asg_land, value_attack_slot_asg_route, (uintptr_t)fn_asg_route, (void *)h); }
+internal inline int patch_asg_route(asg_route_hook h) { return patch_vtable(data_attack_vt_asg_land, value_attack_slot_asg_route, (uintptr_t)fn_attack_subgroup_plan_route, (void *)h); }
 internal inline int patch_asg_route_done(asg_hook h) { return patch_vtable(data_attack_vt_asg_land, value_attack_slot_asg_route_done, (uintptr_t)fn_attack_subgroup_route_done, (void *)h); }
 typedef int (__thiscall *route_cost_hook)(ee_route_planner *planner, int *edge, ee_route_node *node);
-internal inline int patch_route_cost(route_cost_hook h) { return patch_vtable(data_attack_vt_route_planner, value_attack_slot_route_cost, (uintptr_t)fn_route_cost_game, (void *)h); }
+internal inline int patch_route_cost(route_cost_hook h) { return patch_vtable(data_attack_vt_route_planner, value_attack_slot_route_cost, (uintptr_t)fn_route_planner_cost, (void *)h); }
 // the land members' score of an enemy (base, hero, priests and prophets: data_attack_asgu_vtables)
 typedef float (__thiscall *asgu_score_hook)(ee_asg_unit *member, ee_asgu_info *info);
 internal inline int patch_asgu_score(asgu_score_hook h, int *of) {

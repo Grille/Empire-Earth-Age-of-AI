@@ -145,11 +145,6 @@ internal inline void minimap_tile(void *mm, ee_tile *tile, int x, int y) { fn_mi
 typedef uint16_t (__thiscall *region_game_fn)(void *, int *, int);
 internal region_game_fn fn_region_game;
 internal inline uint16_t region_game(void *p1, int *p2, int p3) { return fn_region_game(p1, p2, p3); }
-// thiscall(player): every tile's sight count (its low byte) into MAP_VIEW_ROWS - a load, the viewed player
-// changed
-typedef void (__thiscall *view_sight_copy_fn)(ee_player *);
-internal view_sight_copy_fn fn_view_sight_copy;
-internal inline void view_sight_copy(ee_player *pl) { fn_view_sight_copy(pl); }
 
 // the running build's values (spec_select, with addr_select): how many it hasn't got
 internal int spec_map_select(int build) {
@@ -187,7 +182,6 @@ internal int spec_map_select(int build) {
         fn_minimap_sight_add = (minimap_sight_add_fn)0x0051426E;
         fn_minimap_tile = (minimap_tile_fn)0x00514A8A;
         fn_region_game = (region_game_fn)0x00425F9F;
-        fn_view_sight_copy = (view_sight_copy_fn)0x0055BC4E;
         return 0;
     case 1:   // aoc
         of_grid_cells = 0x4;
@@ -222,7 +216,6 @@ internal int spec_map_select(int build) {
         fn_minimap_sight_add = (minimap_sight_add_fn)0x0051E8BF;
         fn_minimap_tile = (minimap_tile_fn)0x0051F0DB;
         fn_region_game = (region_game_fn)0x00422B86;
-        fn_view_sight_copy = (view_sight_copy_fn)0x0056AEC0;
         return 0;
     }
     return 0;
@@ -239,6 +232,5 @@ internal int spec_map_check(void) {
     bad += spec_code((uintptr_t)fn_minimap_sight_add, "map_functions.minimap_sight_add");
     bad += spec_code((uintptr_t)fn_minimap_tile, "map_functions.minimap_tile");
     bad += spec_code((uintptr_t)fn_region_game, "map_functions.region_game");
-    bad += spec_code((uintptr_t)fn_view_sight_copy, "map_functions.view_sight_copy");
     return bad;
 }

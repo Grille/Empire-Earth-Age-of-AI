@@ -22,6 +22,34 @@ internal inline uint8_t *scen_mgr_queue_at(const ee_scen_mgr *o) { return (uint8
 internal inline float scen_mgr_get_time(const ee_scen_mgr *o) { return *(float *)((uint8_t *)o + of_scen_mgr_time); }
 internal inline void scen_mgr_set_time(ee_scen_mgr *o, float v) { *(float *)((uint8_t *)o + of_scen_mgr_time) = v; }
 internal inline float *scen_mgr_time_at(const ee_scen_mgr *o) { return (float *)((uint8_t *)o + of_scen_mgr_time); }
+// an area by its id
+typedef ee_scen_area *(__thiscall *scen_mgr_area_fn)(ee_scen_mgr *, int);
+internal scen_mgr_area_fn fn_scen_mgr_area;
+internal inline ee_scen_area *scen_mgr_area(ee_scen_mgr *scen_mgr, int id) { return fn_scen_mgr_area(scen_mgr, id); }
+// a condition by its id (index), NULL out of range
+typedef ee_scen_cond *(__thiscall *scen_mgr_cond_fn)(ee_scen_mgr *, int);
+internal scen_mgr_cond_fn fn_scen_mgr_cond;
+internal inline ee_scen_cond *scen_mgr_cond(ee_scen_mgr *scen_mgr, int id) { return fn_scen_mgr_cond(scen_mgr, id); }
+// an effect by its id
+typedef ee_scen_effect *(__thiscall *scen_mgr_effect_fn)(ee_scen_mgr *, int);
+internal scen_mgr_effect_fn fn_scen_mgr_effect;
+internal inline ee_scen_effect *scen_mgr_effect(ee_scen_mgr *scen_mgr, int id) { return fn_scen_mgr_effect(scen_mgr, id); }
+// an object by its id
+typedef ee_scen_object *(__thiscall *scen_mgr_object_fn)(ee_scen_mgr *, int);
+internal scen_mgr_object_fn fn_scen_mgr_object;
+internal inline ee_scen_object *scen_mgr_object(ee_scen_mgr *scen_mgr, int id) { return fn_scen_mgr_object(scen_mgr, id); }
+// a trigger by its id
+typedef ee_trigger *(__thiscall *scen_mgr_trigger_fn)(ee_scen_mgr *, int);
+internal scen_mgr_trigger_fn fn_scen_mgr_trigger;
+internal inline ee_trigger *scen_mgr_trigger(ee_scen_mgr *scen_mgr, int id) { return fn_scen_mgr_trigger(scen_mgr, id); }
+// thiscall(mgr, player spec, vector<int> *out or NULL, pick one): the spec's players (docs/triggers.md)
+typedef int (__thiscall *scen_mgr_players_fn)(ee_scen_mgr *, int, void *, char);
+internal scen_mgr_players_fn fn_scen_mgr_players;
+internal inline int scen_mgr_players(ee_scen_mgr *scen_mgr, int p2, void *p3, char p4) { return fn_scen_mgr_players(scen_mgr, p2, p3, p4); }
+// thiscall(mgr, effect id, time ms, cinematic): run at that scenario time
+typedef void (__thiscall *scen_mgr_queue_effect_fn)(ee_scen_mgr *, int, int, char);
+internal scen_mgr_queue_effect_fn fn_scen_mgr_queue_effect;
+internal inline void scen_mgr_queue_effect(ee_scen_mgr *scen_mgr, int effect, int at, char cinematic) { fn_scen_mgr_queue_effect(scen_mgr, effect, at, cinematic); }
 
 // class ee_scen_cond (ee_scen_cond)
 // a scenario condition
@@ -119,6 +147,14 @@ internal inline char *scen_cond_test_hour_at(const ee_scen_cond *o) { return (ch
 internal inline char scen_cond_get_vs_player(const ee_scen_cond *o) { return *(char *)((uint8_t *)o + of_scen_cond_vs_player); }
 internal inline void scen_cond_set_vs_player(ee_scen_cond *o, char v) { *(char *)((uint8_t *)o + of_scen_cond_vs_player) = v; }
 internal inline char *scen_cond_vs_player_at(const ee_scen_cond *o) { return (char *)((uint8_t *)o + of_scen_cond_vs_player); }
+// the condition holds now (its own side effects: an object it tests may lock)
+typedef char (__thiscall *scen_cond_eval_fn)(ee_scen_cond *);
+internal scen_cond_eval_fn fn_scen_cond_eval;
+internal inline char scen_cond_eval(ee_scen_cond *scen_cond) { return fn_scen_cond_eval(scen_cond); }
+// thiscall(cond, player index, attribute): what a condition compares
+typedef int (__thiscall *scen_cond_player_attr_fn)(ee_scen_cond *, int, int);
+internal scen_cond_player_attr_fn fn_scen_cond_player_attr;
+internal inline int scen_cond_player_attr(ee_scen_cond *scen_cond, int player, int attr) { return fn_scen_cond_player_attr(scen_cond, player, attr); }
 
 // class EESMArea (ee_scen_area)
 // a scenario area (EESMArea)
@@ -136,6 +172,9 @@ internal inline enum sm_area_type *scen_area_type_at(const ee_scen_area *o) { re
 internal inline int scen_area_get_ai_area(const ee_scen_area *o) { return *(int *)((uint8_t *)o + of_scen_area_ai_area); }
 internal inline void scen_area_set_ai_area(ee_scen_area *o, int v) { *(int *)((uint8_t *)o + of_scen_area_ai_area) = v; }
 internal inline int *scen_area_ai_area_at(const ee_scen_area *o) { return (int *)((uint8_t *)o + of_scen_area_ai_area); }
+typedef char (__thiscall *scen_area_contains_fn)(ee_scen_area *, ee_unit *);
+internal scen_area_contains_fn fn_scen_area_contains;
+internal inline char scen_area_contains(ee_scen_area *scen_area, ee_unit *p2) { return fn_scen_area_contains(scen_area, p2); }
 
 // class ee_scen_effect (ee_scen_effect)
 // a scenario effect
@@ -376,6 +415,13 @@ internal inline char *scen_effect_tech_add_at(const ee_scen_effect *o) { return 
 internal inline char scen_effect_get_cal_use_area(const ee_scen_effect *o) { return *(char *)((uint8_t *)o + of_scen_effect_cal_use_area); }
 internal inline void scen_effect_set_cal_use_area(ee_scen_effect *o, char v) { *(char *)((uint8_t *)o + of_scen_effect_cal_use_area) = v; }
 internal inline char *scen_effect_cal_use_area_at(const ee_scen_effect *o) { return (char *)((uint8_t *)o + of_scen_effect_cal_use_area); }
+typedef void (__thiscall *scen_effect_run_fn)(ee_scen_effect *, int);
+internal scen_effect_run_fn fn_scen_effect_run;
+internal inline void scen_effect_run(ee_scen_effect *scen_effect, int flag) { fn_scen_effect_run(scen_effect, flag); }
+// thiscall(effect, player index, attribute, mode 0 set / 1 add / 2 subtract, value)
+typedef void (__thiscall *scen_effect_apply_player_attr_fn)(ee_scen_effect *, int, int, int, int);
+internal scen_effect_apply_player_attr_fn fn_scen_effect_apply_player_attr;
+internal inline void scen_effect_apply_player_attr(ee_scen_effect *scen_effect, int player, int attr, int mode, int v) { fn_scen_effect_apply_player_attr(scen_effect, player, attr, mode, v); }
 
 // class EESMObject (ee_scen_object)
 // a scenario object (EESMObject): units picked by owner, class, area ...
@@ -478,6 +524,14 @@ internal inline char *scen_object_dynamic_at(const ee_scen_object *o) { return (
 internal inline char scen_object_get_attr_percent(const ee_scen_object *o) { return *(char *)((uint8_t *)o + of_scen_object_attr_percent); }
 internal inline void scen_object_set_attr_percent(ee_scen_object *o, char v) { *(char *)((uint8_t *)o + of_scen_object_attr_percent) = v; }
 internal inline char *scen_object_attr_percent_at(const ee_scen_object *o) { return (char *)((uint8_t *)o + of_scen_object_attr_percent); }
+// thiscall(object, unit type): the type passes the object's class / type filter
+typedef char (__thiscall *scen_object_class_test_fn)(ee_scen_object *, int);
+internal scen_object_class_test_fn fn_scen_object_class_test;
+internal inline char scen_object_class_test(ee_scen_object *scen_object, int p2) { return fn_scen_object_class_test(scen_object, p2); }
+// thiscall(object, dead too): collects / filters its units, true when any; locks a non-dynamic object on success
+typedef char (__thiscall *scen_object_eval_fn)(ee_scen_object *, char);
+internal scen_object_eval_fn fn_scen_object_eval;
+internal inline char scen_object_eval(ee_scen_object *scen_object, char p2) { return fn_scen_object_eval(scen_object, p2); }
 
 // class ee_trig_cond (ee_trig_cond)
 // a trigger's condition reference
@@ -550,6 +604,10 @@ internal inline char *trigger_loop_at(const ee_trigger *o) { return (char *)((ui
 internal inline char trigger_get_cinematic(const ee_trigger *o) { return *(char *)((uint8_t *)o + of_trigger_cinematic); }
 internal inline void trigger_set_cinematic(ee_trigger *o, char v) { *(char *)((uint8_t *)o + of_trigger_cinematic) = v; }
 internal inline char *trigger_cinematic_at(const ee_trigger *o) { return (char *)((uint8_t *)o + of_trigger_cinematic); }
+// thiscall(trigger, scenario time ms): its conditions, true-for, effects queued
+typedef void (__thiscall *trigger_update_fn)(ee_trigger *, float);
+internal trigger_update_fn fn_trigger_update;
+internal inline void trigger_update(ee_trigger *trigger, float now) { fn_trigger_update(trigger, now); }
 
 // static class scenario
 // scenario's data of the game, places in its code and numbers
@@ -558,64 +616,6 @@ internal inline uint8_t *scenario_sm_step_at(void) { return (uint8_t *)(uintptr_
 
 // static class scenario_functions
 // the game's functions scenario.c wraps, by the names the C side gives them
-typedef char (__thiscall *sm_area_contains_game_fn)(ee_scen_area *, ee_unit *);
-internal sm_area_contains_game_fn fn_sm_area_contains_game;
-internal inline char sm_area_contains_game(ee_scen_area *p1, ee_unit *p2) { return fn_sm_area_contains_game(p1, p2); }
-// thiscall(object, unit type): the type passes the object's class / type filter
-typedef char (__thiscall *sm_class_test_game_fn)(ee_scen_object *, int);
-internal sm_class_test_game_fn fn_sm_class_test_game;
-internal inline char sm_class_test_game(ee_scen_object *p1, int p2) { return fn_sm_class_test_game(p1, p2); }
-// the condition holds now (its own side effects: an object it tests may lock)
-typedef char (__thiscall *sm_cond_eval_fn)(ee_scen_cond *);
-internal sm_cond_eval_fn fn_sm_cond_eval;
-internal inline char sm_cond_eval(ee_scen_cond *p1) { return fn_sm_cond_eval(p1); }
-// an area by its id
-typedef ee_scen_area *(__thiscall *sm_area_fn)(ee_scen_mgr *, int);
-internal sm_area_fn fn_sm_area;
-internal inline ee_scen_area *sm_area(ee_scen_mgr *m, int id) { return fn_sm_area(m, id); }
-// a condition by its id (index), NULL out of range
-typedef ee_scen_cond *(__thiscall *sm_cond_fn)(ee_scen_mgr *, int);
-internal sm_cond_fn fn_sm_cond;
-internal inline ee_scen_cond *sm_cond(ee_scen_mgr *m, int id) { return fn_sm_cond(m, id); }
-// an effect by its id
-typedef ee_scen_effect *(__thiscall *sm_effect_fn)(ee_scen_mgr *, int);
-internal sm_effect_fn fn_sm_effect;
-internal inline ee_scen_effect *sm_effect(ee_scen_mgr *m, int id) { return fn_sm_effect(m, id); }
-// an object by its id
-typedef ee_scen_object *(__thiscall *sm_object_fn)(ee_scen_mgr *, int);
-internal sm_object_fn fn_sm_object;
-internal inline ee_scen_object *sm_object(ee_scen_mgr *m, int id) { return fn_sm_object(m, id); }
-// a trigger by its id
-typedef ee_trigger *(__thiscall *sm_trigger_fn)(ee_scen_mgr *, int);
-internal sm_trigger_fn fn_sm_trigger;
-internal inline ee_trigger *sm_trigger(ee_scen_mgr *m, int id) { return fn_sm_trigger(m, id); }
-// thiscall(object, dead too): collects / filters its units, true when any; locks a non-dynamic object on success
-typedef char (__thiscall *sm_object_eval_fn)(ee_scen_object *, char);
-internal sm_object_eval_fn fn_sm_object_eval;
-internal inline char sm_object_eval(ee_scen_object *p1, char p2) { return fn_sm_object_eval(p1, p2); }
-// thiscall(mgr, player spec, vector<int> *out or NULL, pick one): the spec's players (docs/triggers.md)
-typedef int (__thiscall *sm_players_fn)(ee_scen_mgr *, int, void *, char);
-internal sm_players_fn fn_sm_players;
-internal inline int sm_players(ee_scen_mgr *p1, int p2, void *p3, char p4) { return fn_sm_players(p1, p2, p3, p4); }
-// thiscall(cond, player index, attribute): what a condition compares
-typedef int (__thiscall *sm_player_attr_fn)(ee_scen_cond *, int, int);
-internal sm_player_attr_fn fn_sm_player_attr;
-internal inline int sm_player_attr(ee_scen_cond *c, int player, int attr) { return fn_sm_player_attr(c, player, attr); }
-// thiscall(mgr, effect id, time ms, cinematic): run at that scenario time
-typedef void (__thiscall *sm_queue_effect_fn)(ee_scen_mgr *, int, int, char);
-internal sm_queue_effect_fn fn_sm_queue_effect;
-internal inline void sm_queue_effect(ee_scen_mgr *m, int effect, int at, char cinematic) { fn_sm_queue_effect(m, effect, at, cinematic); }
-typedef void (__thiscall *sm_run_effect_fn)(ee_scen_effect *, int);
-internal sm_run_effect_fn fn_sm_run_effect;
-internal inline void sm_run_effect(ee_scen_effect *effect, int flag) { fn_sm_run_effect(effect, flag); }
-// thiscall(effect, player index, attribute, mode 0 set / 1 add / 2 subtract, value)
-typedef void (__thiscall *sm_set_player_attr_fn)(ee_scen_effect *, int, int, int, int);
-internal sm_set_player_attr_fn fn_sm_set_player_attr;
-internal inline void sm_set_player_attr(ee_scen_effect *ef, int player, int attr, int mode, int v) { fn_sm_set_player_attr(ef, player, attr, mode, v); }
-// thiscall(trigger, scenario time ms): its conditions, true-for, effects queued
-typedef void (__thiscall *sm_trigger_update_fn)(ee_trigger *, float);
-internal sm_trigger_update_fn fn_sm_trigger_update;
-internal inline void sm_trigger_update(ee_trigger *t, float now) { fn_sm_trigger_update(t, now); }
 
 // the running build's values (spec_select, with addr_select): how many it hasn't got
 internal int spec_scenario_select(int build) {
@@ -629,6 +629,13 @@ internal int spec_scenario_select(int build) {
         of_scen_mgr_areas = 0x128;
         of_scen_mgr_queue = 0x168;
         of_scen_mgr_time = 0x210;
+        fn_scen_mgr_area = (scen_mgr_area_fn)0x0056DFB7;
+        fn_scen_mgr_cond = (scen_mgr_cond_fn)0x0056D186;
+        fn_scen_mgr_effect = (scen_mgr_effect_fn)0x00573183;
+        fn_scen_mgr_object = (scen_mgr_object_fn)0x00579460;
+        fn_scen_mgr_trigger = (scen_mgr_trigger_fn)0x0057ED54;
+        fn_scen_mgr_players = (scen_mgr_players_fn)0x005A23F6;
+        fn_scen_mgr_queue_effect = (scen_mgr_queue_effect_fn)0x0059FE52;
         of_scen_cond_name = 0x4;
         of_scen_cond_text = 0x2C;
         of_scen_cond_type = 0x40;
@@ -652,11 +659,14 @@ internal int spec_scenario_select(int build) {
         of_scen_cond_timed = 0x83;
         of_scen_cond_test_hour = 0x84;
         of_scen_cond_vs_player = 0x85;
+        fn_scen_cond_eval = (scen_cond_eval_fn)0x005AA80B;
+        fn_scen_cond_player_attr = (scen_cond_player_attr_fn)0x005AACC4;
         of_scen_area_name = 0x4;
         of_scen_area_point = 0x2C;
         of_scen_area_rect = 0x34;
         of_scen_area_type = 0x5C;
         of_scen_area_ai_area = 0x64;
+        fn_scen_area_contains = (scen_area_contains_fn)0x005A9E1D;
         of_scen_effect_group = 0x8;
         of_scen_effect_text = 0x50;
         of_scen_effect_class_name = 0x8C;
@@ -714,6 +724,8 @@ internal int spec_scenario_select(int build) {
         of_scen_effect_percent = 0x190;
         of_scen_effect_tech_add = 0x191;
         of_scen_effect_cal_use_area = 0x192;
+        fn_scen_effect_run = (scen_effect_run_fn)0x005AD29B;
+        fn_scen_effect_apply_player_attr = (scen_effect_apply_player_attr_fn)0x005AC7F5;
         of_scen_object_name = 0x4;
         of_scen_object_units = 0x1C;
         of_scen_object_players = 0x28;
@@ -739,6 +751,8 @@ internal int spec_scenario_select(int build) {
         of_scen_object_locked = 0x80;
         of_scen_object_dynamic = 0x81;
         of_scen_object_attr_percent = 0x82;
+        fn_scen_object_class_test = (scen_object_class_test_fn)0x005B58A3;
+        fn_scen_object_eval = (scen_object_eval_fn)0x005B5CAE;
         of_trig_cond_index = 0x4;
         of_trig_cond_join = 0x8;
         of_trig_cond_not = 0xC;
@@ -756,22 +770,8 @@ internal int spec_scenario_select(int build) {
         of_trigger_fired = 0x59;
         of_trigger_loop = 0x5A;
         of_trigger_cinematic = 0x5B;
+        fn_trigger_update = (trigger_update_fn)0x005B93B0;
         data_scenario_sm_step = 0x008306DC;
-        fn_sm_area_contains_game = (sm_area_contains_game_fn)0x005A9E1D;
-        fn_sm_class_test_game = (sm_class_test_game_fn)0x005B58A3;
-        fn_sm_cond_eval = (sm_cond_eval_fn)0x005AA80B;
-        fn_sm_area = (sm_area_fn)0x0056DFB7;
-        fn_sm_cond = (sm_cond_fn)0x0056D186;
-        fn_sm_effect = (sm_effect_fn)0x00573183;
-        fn_sm_object = (sm_object_fn)0x00579460;
-        fn_sm_trigger = (sm_trigger_fn)0x0057ED54;
-        fn_sm_object_eval = (sm_object_eval_fn)0x005B5CAE;
-        fn_sm_players = (sm_players_fn)0x005A23F6;
-        fn_sm_player_attr = (sm_player_attr_fn)0x005AACC4;
-        fn_sm_queue_effect = (sm_queue_effect_fn)0x0059FE52;
-        fn_sm_run_effect = (sm_run_effect_fn)0x005AD29B;
-        fn_sm_set_player_attr = (sm_set_player_attr_fn)0x005AC7F5;
-        fn_sm_trigger_update = (sm_trigger_update_fn)0x005B93B0;
         return 0;
     case 1:   // aoc
         of_scen_mgr_chat = 0xC0;
@@ -782,6 +782,13 @@ internal int spec_scenario_select(int build) {
         of_scen_mgr_areas = 0x128;
         of_scen_mgr_queue = 0x168;
         of_scen_mgr_time = 0x210;
+        fn_scen_mgr_area = (scen_mgr_area_fn)0x0057DA08;
+        fn_scen_mgr_cond = (scen_mgr_cond_fn)0x0057CADF;
+        fn_scen_mgr_effect = (scen_mgr_effect_fn)0x00582D82;
+        fn_scen_mgr_object = (scen_mgr_object_fn)0x00588EDD;
+        fn_scen_mgr_trigger = (scen_mgr_trigger_fn)0x0058EF8A;
+        fn_scen_mgr_players = (scen_mgr_players_fn)0x005B260A;
+        fn_scen_mgr_queue_effect = (scen_mgr_queue_effect_fn)0x005B005B;
         of_scen_cond_name = 0x4;
         of_scen_cond_text = 0x2C;
         of_scen_cond_type = 0x40;
@@ -805,11 +812,14 @@ internal int spec_scenario_select(int build) {
         of_scen_cond_timed = 0x83;
         of_scen_cond_test_hour = 0x84;
         of_scen_cond_vs_player = 0x85;
+        fn_scen_cond_eval = (scen_cond_eval_fn)0x005BAABF;
+        fn_scen_cond_player_attr = (scen_cond_player_attr_fn)0x005BAF78;
         of_scen_area_name = 0x4;
         of_scen_area_point = 0x2C;
         of_scen_area_rect = 0x34;
         of_scen_area_type = 0x5C;
         of_scen_area_ai_area = 0x64;
+        fn_scen_area_contains = (scen_area_contains_fn)0x005BA0D1;
         of_scen_effect_group = 0x8;
         of_scen_effect_text = 0x50;
         of_scen_effect_class_name = 0x8C;
@@ -867,6 +877,8 @@ internal int spec_scenario_select(int build) {
         of_scen_effect_percent = 0x190;
         of_scen_effect_tech_add = 0x191;
         of_scen_effect_cal_use_area = 0x192;
+        fn_scen_effect_run = (scen_effect_run_fn)0x005BD5EB;
+        fn_scen_effect_apply_player_attr = (scen_effect_apply_player_attr_fn)0x005BCB1F;
         of_scen_object_name = 0x4;
         of_scen_object_units = 0x1C;
         of_scen_object_players = 0x28;
@@ -892,6 +904,8 @@ internal int spec_scenario_select(int build) {
         of_scen_object_locked = 0x80;
         of_scen_object_dynamic = 0x81;
         of_scen_object_attr_percent = 0x82;
+        fn_scen_object_class_test = (scen_object_class_test_fn)0x005C6051;
+        fn_scen_object_eval = (scen_object_eval_fn)0x005C6458;
         of_trig_cond_index = 0x4;
         of_trig_cond_join = 0x8;
         of_trig_cond_not = 0xC;
@@ -909,22 +923,8 @@ internal int spec_scenario_select(int build) {
         of_trigger_fired = 0x59;
         of_trigger_loop = 0x5A;
         of_trigger_cinematic = 0x5B;
+        fn_trigger_update = (trigger_update_fn)0x005C9AB5;
         data_scenario_sm_step = 0x00845FCC;
-        fn_sm_area_contains_game = (sm_area_contains_game_fn)0x005BA0D1;
-        fn_sm_class_test_game = (sm_class_test_game_fn)0x005C6051;
-        fn_sm_cond_eval = (sm_cond_eval_fn)0x005BAABF;
-        fn_sm_area = (sm_area_fn)0x0057DA08;
-        fn_sm_cond = (sm_cond_fn)0x0057CADF;
-        fn_sm_effect = (sm_effect_fn)0x00582D82;
-        fn_sm_object = (sm_object_fn)0x00588EDD;
-        fn_sm_trigger = (sm_trigger_fn)0x0058EF8A;
-        fn_sm_object_eval = (sm_object_eval_fn)0x005C6458;
-        fn_sm_players = (sm_players_fn)0x005B260A;
-        fn_sm_player_attr = (sm_player_attr_fn)0x005BAF78;
-        fn_sm_queue_effect = (sm_queue_effect_fn)0x005B005B;
-        fn_sm_run_effect = (sm_run_effect_fn)0x005BD5EB;
-        fn_sm_set_player_attr = (sm_set_player_attr_fn)0x005BCB1F;
-        fn_sm_trigger_update = (sm_trigger_update_fn)0x005C9AB5;
         return 0;
     }
     return 0;
@@ -934,21 +934,21 @@ internal const char *const k_spec_scenario_missing[ADDR_BUILDS] = { "", "" };
 // the load-time check: what the spec says of the running build's exe (spec_check): the failures
 internal int spec_scenario_check(void) {
     int bad = 0;
+    bad += spec_code((uintptr_t)fn_scen_mgr_area, "EEScenarioManager.area");
+    bad += spec_code((uintptr_t)fn_scen_mgr_cond, "EEScenarioManager.cond");
+    bad += spec_code((uintptr_t)fn_scen_mgr_effect, "EEScenarioManager.effect");
+    bad += spec_code((uintptr_t)fn_scen_mgr_object, "EEScenarioManager.object");
+    bad += spec_code((uintptr_t)fn_scen_mgr_trigger, "EEScenarioManager.trigger");
+    bad += spec_code((uintptr_t)fn_scen_mgr_players, "EEScenarioManager.players");
+    bad += spec_code((uintptr_t)fn_scen_mgr_queue_effect, "EEScenarioManager.queue_effect");
+    bad += spec_code((uintptr_t)fn_scen_cond_eval, "ee_scen_cond.eval");
+    bad += spec_code((uintptr_t)fn_scen_cond_player_attr, "ee_scen_cond.player_attr");
+    bad += spec_code((uintptr_t)fn_scen_area_contains, "EESMArea.contains");
+    bad += spec_code((uintptr_t)fn_scen_effect_run, "ee_scen_effect.run");
+    bad += spec_code((uintptr_t)fn_scen_effect_apply_player_attr, "ee_scen_effect.apply_player_attr");
+    bad += spec_code((uintptr_t)fn_scen_object_class_test, "EESMObject.class_test");
+    bad += spec_code((uintptr_t)fn_scen_object_eval, "EESMObject.eval");
+    bad += spec_code((uintptr_t)fn_trigger_update, "EESMTrigger.update");
     bad += spec_data(data_scenario_sm_step, "scenario.sm_step");
-    bad += spec_code((uintptr_t)fn_sm_area_contains_game, "scenario_functions.sm_area_contains_game");
-    bad += spec_code((uintptr_t)fn_sm_class_test_game, "scenario_functions.sm_class_test_game");
-    bad += spec_code((uintptr_t)fn_sm_cond_eval, "scenario_functions.sm_cond_eval");
-    bad += spec_code((uintptr_t)fn_sm_area, "scenario_functions.sm_area");
-    bad += spec_code((uintptr_t)fn_sm_cond, "scenario_functions.sm_cond");
-    bad += spec_code((uintptr_t)fn_sm_effect, "scenario_functions.sm_effect");
-    bad += spec_code((uintptr_t)fn_sm_object, "scenario_functions.sm_object");
-    bad += spec_code((uintptr_t)fn_sm_trigger, "scenario_functions.sm_trigger");
-    bad += spec_code((uintptr_t)fn_sm_object_eval, "scenario_functions.sm_object_eval");
-    bad += spec_code((uintptr_t)fn_sm_players, "scenario_functions.sm_players");
-    bad += spec_code((uintptr_t)fn_sm_player_attr, "scenario_functions.sm_player_attr");
-    bad += spec_code((uintptr_t)fn_sm_queue_effect, "scenario_functions.sm_queue_effect");
-    bad += spec_code((uintptr_t)fn_sm_run_effect, "scenario_functions.sm_run_effect");
-    bad += spec_code((uintptr_t)fn_sm_set_player_attr, "scenario_functions.sm_set_player_attr");
-    bad += spec_code((uintptr_t)fn_sm_trigger_update, "scenario_functions.sm_trigger_update");
     return bad;
 }

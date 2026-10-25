@@ -358,7 +358,7 @@ internal float g_st_aim_dist, g_st_aim_x, g_st_aim_y;
 internal void st_stamp_step(void) {
     static unsigned last = ~0u;
     ee_physics *ph = game_physics();
-    unsigned step = ph ? physics_get_step(ph) : 0;
+    unsigned step = ph ? physics_get_steps(ph) : 0;
     if (step != last || g_sr.gen == 0) { sr_stamp(); last = step; }
 }
 

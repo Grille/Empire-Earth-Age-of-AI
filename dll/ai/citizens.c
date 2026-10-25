@@ -40,7 +40,7 @@ internal void cz_types(ee_player *pl) {
     for (int k = 0; k < 2; k++) {
         ee_unit_type *td = type_data(k ? UT(FEMALE_CITIZEN) : UT(CITIZEN));
         g_cz_tech[k] = td ? unit_type_get_tech(td) : -1;
-        ee_tech *t = td ? tech_lookup(tt, g_cz_tech[k]) : NULL;
+        ee_tech *t = td ? tech_tree_lookup(tt, g_cz_tech[k]) : NULL;
         ee_tech_data *d = t ? tech_get_data(t) : NULL;
         int *b = d ? tech_data_get_makers_begin(d) : NULL, *e = d ? tech_data_get_makers_end(d) : NULL;
         for (int *p = b; b && e > b && e - b < 16 && p < e; p++) {
@@ -91,7 +91,7 @@ internal void cz_sample(ee_player *pl, unsigned idx) {
         }
     }
     int cap = unit_limit(pl);
-    int room = cap - unit_mgr_get_in_production(um) - population(pl, 1, 0);
+    int room = cap - unit_mgr_get_in_production(um) - player_population(pl, 1, 0);
     int wanted = unit_mgr_citizens_wanted(um), have = unit_mgr_citizens(um);
     z->wanted = wanted; z->have = have; z->room = room; z->cap = cap;
     if (!idle) return;
@@ -100,7 +100,7 @@ internal void cz_sample(ee_player *pl, unsigned idx) {
     else if (wanted - have <= 0) r = &z->m.target;
     else if ((ut_has(UT(CITIZEN)) && unit_mgr_pending(um, UT(CITIZEN))) || (ut_has(UT(FEMALE_CITIZEN)) && unit_mgr_pending(um, UT(FEMALE_CITIZEN))))   // the game asks vf32 (can pay one) before 0x49014F: food short, else the budget
         r = player_get_stock(pl, 2) < unit_cost(pl, UT(CITIZEN), 2) ? &z->m.pfood : &z->m.pbud;
-    else if ((ut_has(UT(CITIZEN)) && um_in_production(um, UT(CITIZEN))) || (ut_has(UT(FEMALE_CITIZEN)) && um_in_production(um, UT(FEMALE_CITIZEN)))) r = &z->m.batch;
+    else if ((ut_has(UT(CITIZEN)) && unit_mgr_in_production_of(um, UT(CITIZEN))) || (ut_has(UT(FEMALE_CITIZEN)) && unit_mgr_in_production_of(um, UT(FEMALE_CITIZEN)))) r = &z->m.batch;
     else if (!unit_mgr_get_att_140(um)) r = &z->m.att;
     else r = &z->m.rest;
     *r += (unsigned)idle;
@@ -412,7 +412,7 @@ internal void wf_log(ee_player *pl, unsigned idx, unsigned min) {
     if (!rm) return;
     int rs = 0;
     for (int id = 1000; tt && id < 15000; id++) {
-        ee_tech *t = tech_lookup(tt, id);
+        ee_tech *t = tech_tree_lookup(tt, id);
         ee_tech_data *d = t ? tech_get_data(t) : NULL;
         if (d && tech_get_researched(t)) rs += tech_data_get_cost(d, 5) + tech_data_get_cost(d, 6);
     }

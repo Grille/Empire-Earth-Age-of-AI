@@ -106,6 +106,12 @@ unsafe struct EECPCivilizationManager
     /// SetNextEpochAdvanceTime
     [address((ee)0x0046DE8C, (aoc)0x00470B04)]
     extern void set_epoch_time(uint32 now, char8 flag);
+
+    [address((ee)0x0046D209, (aoc)0x0046FDD3)]
+    // the calls of civ_mgr_fish_type
+    [call_site("fish_type", (ee)0x0048F823, (aoc)0x0049457C)]
+    [call_site("fish_type", (ee)0x0048FB16, (aoc)0x0049488C)]
+    extern int32 fish_type();
 }
 
 /// the civilization manager's list nodes
@@ -181,6 +187,58 @@ unsafe struct EECPResourceManager
     // call EECPResourceManager::Update(now) (0x48D263)
     [call_site("rm_update", (ee)0x0046E3C6, (aoc)0x00471051)]
     extern void update(uint32 now);
+
+    /// (unit, target, 0)
+    [address((ee)0x0048C81C, (aoc)0x004912BE)]
+    // the calls of resource_mgr_assign_to_site (trace.c)
+    [call_site("gather", (ee)0x0048A2A6, (aoc)0x0048EC21)]
+    [call_site("gather", (ee)0x0048A372, (aoc)0x0048ECED)]
+    [call_site("gather", (ee)0x0048A9B8, (aoc)0x0048F32C)]
+    [call_site("gather", (ee)0x0048AB53, (aoc)0x0048F540)]
+    [call_site("gather", (ee)0x0048ABF3, (aoc)0x0048F5E2)]
+    [call_site("gather", (ee)0x0048ACB7, (aoc)0x0048F6A6)]
+    [call_site("gather", (ee)0x0048ADC6, (aoc)0x0048F7B3)]
+    [call_site("gather", (ee)0x0048AE7A, (aoc)0x0048F869)]
+    [call_site("gather", (ee)0x0048AF60, (aoc)0x0048F94F)]
+    [call_site("gather", (ee)0x0048B0A6, (aoc)0x0048FA80)]
+    [call_site("gather", (ee)0x0048B261, (aoc)0x0048FC37)]
+    extern void assign_to_site(EEUnit* u, EEUnit* site, int32 c);
+
+    /// (char needDropsite, char nearBase, unit) -> site
+    [address((ee)0x0048BBA8, (aoc)0x00490602)]
+    // the calls of resource_mgr_find_food
+    [call_site("find_food", (ee)0x0048AB8D, (aoc)0x0048F57C)]
+    [call_site("find_food", (ee)0x0048AC2B, (aoc)0x0048F61A)]
+    [call_site("find_food", (ee)0x0048AE14, (aoc)0x0048F803)]
+    [call_site("find_food", (ee)0x0048AEB4, (aoc)0x0048F8A3)]
+    [call_site("find_food", (ee)0x0048AEFA, (aoc)0x0048F8E9)]
+    [call_site("find_food", (ee)0x0048AF99, (aoc)0x0048F988)]
+    extern EEUnit* find_food(nuint need_drop, nuint near_base, EEUnit* unit);
+
+    /// (type, unit, reverse) -> site
+    [address((ee)0x0048C204, (aoc)0x00490CB5)]
+    // the calls of resource_mgr_find_mine
+    [call_site("find_mine", (ee)0x0048A247, (aoc)0x0048EBC2)]
+    [call_site("find_mine", (ee)0x0048A25F, (aoc)0x0048EBDA)]
+    [call_site("find_mine", (ee)0x0048A277, (aoc)0x0048EBF2)]
+    [call_site("find_mine", (ee)0x0048A952, (aoc)0x0048F2C6)]
+    [call_site("find_mine", (ee)0x0048A9F4, (aoc)0x0048F369)]
+    [call_site("find_mine", (ee)0x0048AA2B, (aoc)0x0048F3A4)]
+    extern EEUnit* find_mine(int32 type, EEUnit* unit, nuint rev);
+
+    /// (flag, unit) -> target
+    [address((ee)0x0048C060, (aoc)0x00490AF3)]
+    // the calls of resource_mgr_find_wood
+    [call_site("find_wood", (ee)0x0048A28E, (aoc)0x0048EC09)]
+    [call_site("find_wood", (ee)0x0048AAF6, (aoc)0x0048F4E1)]
+    extern EEUnit* find_wood(nuint flag, EEUnit* unit);
+
+    /// (count, flag, out list)
+    [address((ee)0x0048BA3B, (aoc)0x00490458)]
+    // the calls of resource_mgr_hunt
+    [call_site("hunt", (ee)0x0048ACE4, (aoc)0x0048F6D2)]
+    [call_site("hunt", (ee)0x0048AFC4, (aoc)0x0048F9B3)]
+    extern void* hunt(nuint n, nuint f, nuint @out);
 }
 
 /// the AI's research manager, CM +0x40 (EECPResearchManager)
@@ -267,6 +325,10 @@ unsafe struct ee_unit_mgr
     /// thiscall(unit manager, type): its units and buildings of that type
     [address((ee)0x0048F8AF, (aoc)0x00494608)]
     extern uint8* type_list(int32 type);
+
+    /// thiscall(unit manager, type)
+    [address((ee)0x0048EA2E, (aoc)0x004936EC)]
+    extern char8 in_production_of(int32 type);
 }
 
 /// ai_managers's data of the game, places in its code and numbers
@@ -285,22 +347,6 @@ static unsafe class ai_managers
 [c_prefix("")]
 static unsafe class ai_managers_functions
 {
-    /// (unit, target, 0)
-    [address((ee)0x0048C81C, (aoc)0x004912BE), thiscall]
-    // the calls of assign_to_site (trace.c)
-    [call_site("gather", (ee)0x0048A2A6, (aoc)0x0048EC21)]
-    [call_site("gather", (ee)0x0048A372, (aoc)0x0048ECED)]
-    [call_site("gather", (ee)0x0048A9B8, (aoc)0x0048F32C)]
-    [call_site("gather", (ee)0x0048AB53, (aoc)0x0048F540)]
-    [call_site("gather", (ee)0x0048ABF3, (aoc)0x0048F5E2)]
-    [call_site("gather", (ee)0x0048ACB7, (aoc)0x0048F6A6)]
-    [call_site("gather", (ee)0x0048ADC6, (aoc)0x0048F7B3)]
-    [call_site("gather", (ee)0x0048AE7A, (aoc)0x0048F869)]
-    [call_site("gather", (ee)0x0048AF60, (aoc)0x0048F94F)]
-    [call_site("gather", (ee)0x0048B0A6, (aoc)0x0048FA80)]
-    [call_site("gather", (ee)0x0048B261, (aoc)0x0048FC37)]
-    static extern void assign_to_site(EECPResourceManager* rm, EEUnit* u, EEUnit* site, int32 c);
-
     /// thiscall(build manager, type, 1, 0): one building requested
     [address((ee)0x0046802D, (aoc)0x0046A9C1), thiscall]
     static extern void bm_request_game(void* p1, int32 p2, int32 p3, int32 p4);
@@ -316,52 +362,6 @@ static unsafe class ai_managers_functions
     /// (count, out list)
     [address((ee)0x0048BFD0, (aoc)0x00490A63), thiscall]
     static extern void* farms_game(void* p1, nuint p2, nuint p3);
-
-    /// (char needDropsite, char nearBase, unit) -> site
-    [address((ee)0x0048BBA8, (aoc)0x00490602), thiscall]
-    // the calls of find_food_game
-    [call_site("find_food", (ee)0x0048AB8D, (aoc)0x0048F57C)]
-    [call_site("find_food", (ee)0x0048AC2B, (aoc)0x0048F61A)]
-    [call_site("find_food", (ee)0x0048AE14, (aoc)0x0048F803)]
-    [call_site("find_food", (ee)0x0048AEB4, (aoc)0x0048F8A3)]
-    [call_site("find_food", (ee)0x0048AEFA, (aoc)0x0048F8E9)]
-    [call_site("find_food", (ee)0x0048AF99, (aoc)0x0048F988)]
-    static extern void* find_food_game(EECPResourceManager* rm, nuint need_drop, nuint near_base, EEUnit* unit);
-
-    /// (type, unit, reverse) -> site
-    [address((ee)0x0048C204, (aoc)0x00490CB5), thiscall]
-    // the calls of find_mine_game
-    [call_site("find_mine", (ee)0x0048A247, (aoc)0x0048EBC2)]
-    [call_site("find_mine", (ee)0x0048A25F, (aoc)0x0048EBDA)]
-    [call_site("find_mine", (ee)0x0048A277, (aoc)0x0048EBF2)]
-    [call_site("find_mine", (ee)0x0048A952, (aoc)0x0048F2C6)]
-    [call_site("find_mine", (ee)0x0048A9F4, (aoc)0x0048F369)]
-    [call_site("find_mine", (ee)0x0048AA2B, (aoc)0x0048F3A4)]
-    static extern void* find_mine_game(EECPResourceManager* rm, int32 type, EEUnit* unit, nuint rev);
-
-    /// (flag, unit) -> target
-    [address((ee)0x0048C060, (aoc)0x00490AF3), thiscall]
-    // the calls of find_wood_game
-    [call_site("find_wood", (ee)0x0048A28E, (aoc)0x0048EC09)]
-    [call_site("find_wood", (ee)0x0048AAF6, (aoc)0x0048F4E1)]
-    static extern void* find_wood_game(EECPResourceManager* rm, nuint flag, EEUnit* unit);
-
-    [address((ee)0x0046D209, (aoc)0x0046FDD3), thiscall]
-    // the calls of fish_type
-    [call_site("fish_type", (ee)0x0048F823, (aoc)0x0049457C)]
-    [call_site("fish_type", (ee)0x0048FB16, (aoc)0x0049488C)]
-    static extern int32 fish_type(EECPCivilizationManager* cm);
-
-    /// (count, flag, out list)
-    [address((ee)0x0048BA3B, (aoc)0x00490458), thiscall]
-    // the calls of hunt_game
-    [call_site("hunt", (ee)0x0048ACE4, (aoc)0x0048F6D2)]
-    [call_site("hunt", (ee)0x0048AFC4, (aoc)0x0048F9B3)]
-    static extern void* hunt_game(EECPResourceManager* rm, nuint n, nuint f, nuint @out);
-
-    /// thiscall(unit manager, type)
-    [address((ee)0x0048EA2E, (aoc)0x004936EC), thiscall]
-    static extern char8 um_in_production(ee_unit_mgr* um, int32 type);
 
     [address((ee)0x0048BF4F, (aoc)0x004909D7), thiscall]
     static extern void* unbuilt_farms(void* p1, nuint p2, nuint p3);

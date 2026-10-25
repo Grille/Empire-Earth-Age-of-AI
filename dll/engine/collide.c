@@ -216,7 +216,7 @@ internal void __thiscall hook_collide(void *model, ee_unit *u) {
         ee_physics *ph = game_physics();
         struct uc_rest *r = NULL;
         if (ph && !uc_work(u) && !unit_get_frozen(u) && unit_get_hp(u) > 0 && !unit_get_holder(u)
-            && ((unsigned)unit_get_serial(u) + physics_get_step(ph)) % UC_REST_EVERY == 0
+            && ((unsigned)unit_get_serial(u) + physics_get_steps(ph)) % UC_REST_EVERY == 0
             && (r = uc_rest_of(u))->n < UC_REST_LOCK && uc_separate(kind, u, 1)) {
             vec2 p = unit_get_push(u);
             if (vec2_dot(p, r->last) < 0) r->n++;

@@ -3,7 +3,7 @@
 
 // static class scenario_lists
 // scenario_lists's data of the game, places in its code and numbers
-// sm_class_test_game: a scenario object's class from here is a family (AoC: 15 epochs before)
+// scen_object_class_test: a scenario object's class from here is a family (AoC: 15 epochs before)
 // from here a unit group
 // from here an RPS class
 

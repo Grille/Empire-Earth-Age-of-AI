@@ -181,6 +181,23 @@ unsafe struct EEPlayer
     /// EEMSelectUnits carried out on the player
     [address((ee)0x0055B3FB, (aoc)0x0056A658)]
     extern void select(void* selection);
+
+    /// thiscall(player): every tile's sight count (its low byte) into MAP_VIEW_ROWS - a load, the viewed player
+    /// changed
+    [address((ee)0x0055BC4E, (aoc)0x0056AEC0)]
+    extern void view_sight_copy();
+
+    /// thiscall(player, on player, 1): calls off its attack groups on that player
+    [address((ee)0x0043033E, (aoc)0x0042DCA6)]
+    extern void call_off_attacks(EEPlayer* target, int32 flag);
+
+    [address((ee)0x00430D40, (aoc)0x0042E851)]
+    [call_site("maint_delete", (ee)0x00477B17, (aoc)0x0047B635)]
+    extern int32 delete_for_room(void* req, int32 flag);
+
+    /// thiscall(player, 1, 0)
+    [address((ee)0x00556E11, (aoc)0x005651E0)]
+    extern int32 population(int32 with_list, int32 with_aboard);
 }
 
 /// the object at a player's +0xB98
@@ -266,10 +283,6 @@ static unsafe class player
 [c_prefix("")]
 static unsafe class player_functions
 {
-    /// thiscall(player, on player, 1): calls off its attack groups on that player
-    [address((ee)0x0043033E, (aoc)0x0042DCA6), thiscall]
-    static extern void call_off_attacks(EEPlayer* pl, EEPlayer* target, int32 flag);
-
     /// thiscall(player, type, 0x20, 0): can train or build one now
     [address((ee)0x00555710, (aoc)0x005639E8), thiscall]
     static extern char8 can_build_game(void* p1, int32 p2, int32 p3, int32 p4);
@@ -278,10 +291,6 @@ static unsafe class player_functions
     [address((ee)0x0062E940, (aoc)0x00643CE6), cdecl]
     static extern char8 can_place_game(void* p1, int32 p2, int32 p3, int32 p4, int32 p5, int32 p6, int32 p7);
 
-    [address((ee)0x00430D40, (aoc)0x0042E851), thiscall]
-    [call_site("maint_delete", (ee)0x00477B17, (aoc)0x0047B635)]
-    static extern int32 delete_for_room(EEPlayer* pl, void* req, int32 flag);
-
     /// EEPlayer::vf31 thiscall(player, 0): the game's unit limit for this player
     [address((ee)0x00556EBC, (aoc)0x0056528B), thiscall]
     static extern int32 game_limit(void* p1, int32 p2);
@@ -289,10 +298,6 @@ static unsafe class player_functions
     /// cdecl(player, type, x, y): a building placed (a foundation)
     [address((ee)0x0062EF8A, (aoc)0x00644C83), cdecl]
     static extern EEUnit* place_foundation(EEPlayer* pl, int32 type, int32 x, int32 y);
-
-    /// thiscall(player, 1, 0)
-    [address((ee)0x00556E11, (aoc)0x005651E0), thiscall]
-    static extern int32 population(EEPlayer* pl, int32 with_list, int32 with_aboard);
 
     [address((ee)0x0055B8E1, (aoc)0x0056AB41), thiscall]
     static extern void set_diplomacy_game(void* p1, void* p2, int32 p3, int32 p4);

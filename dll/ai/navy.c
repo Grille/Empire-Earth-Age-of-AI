@@ -798,7 +798,7 @@ internal void navy_docks(ee_player *pl, unsigned idx, uint32_t now) {
 // old type is not available any more), every epoch; none available: the game's pick.
 internal int g_fish_boat = 1;
 internal int __thiscall hook_fish_type(ee_civ_mgr *o) {
-    int t = fish_type(o);
+    int t = civ_mgr_fish_type(o);
     ee_player *pl = o ? civ_mgr_get_player(o) : NULL;
     if (!g_fish_boat || !pl || !((void *)player_get_tech_tree(pl)) || is_vanilla(pl)) return t;
     int best = 0, bt = 0;

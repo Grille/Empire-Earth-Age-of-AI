@@ -68,11 +68,11 @@ internal inline server_send_fn patch_server_send(ee_server *net, server_send_fn 
 }
 
 // MESSAGES AND THE MENU (diplo.c)
-internal inline int patch_msg_pay_tribute(msg_pay_tribute_fn h) { return patch_vtable(data_messages_vt_pay_tribute, value_messages_slot_msg_execute, (uintptr_t)fn_msg_pay_tribute, (void *)h); }
-internal inline int patch_msg_ingame_chat(msg_ingame_chat_fn h) { return patch_vtable(data_messages_vt_ingame_chat, value_messages_slot_msg_execute, (uintptr_t)fn_msg_ingame_chat, (void *)h); }
-internal inline int patch_msg_resign(msg_resign_fn h) { return patch_vtable(data_messages_vt_resign, value_messages_slot_msg_execute, (uintptr_t)fn_msg_resign, (void *)h); }
+internal inline int patch_msg_pay_tribute(tribute_msg_execute_fn h) { return patch_vtable(data_messages_vt_pay_tribute, value_messages_slot_msg_execute, (uintptr_t)fn_tribute_msg_execute, (void *)h); }
+internal inline int patch_msg_ingame_chat(chat_msg_execute_fn h) { return patch_vtable(data_messages_vt_ingame_chat, value_messages_slot_msg_execute, (uintptr_t)fn_chat_msg_execute, (void *)h); }
+internal inline int patch_msg_resign(resign_msg_execute_fn h) { return patch_vtable(data_messages_vt_resign, value_messages_slot_msg_execute, (uintptr_t)fn_resign_msg_execute, (void *)h); }
 // the load and unload commands (transports.c)
-internal inline int patch_msg_load(msg_load_fn h) { return patch_vtable(data_messages_vt_msg_load, value_messages_slot_msg_execute, (uintptr_t)fn_msg_load, (void *)h); }
-internal inline int patch_msg_unload(msg_unload_fn h) { return patch_vtable(data_messages_vt_msg_unload, value_messages_slot_msg_execute, (uintptr_t)fn_msg_unload, (void *)h); }
+internal inline int patch_msg_load(load_msg_execute_fn h) { return patch_vtable(data_messages_vt_msg_load, value_messages_slot_msg_execute, (uintptr_t)fn_load_msg_execute, (void *)h); }
+internal inline int patch_msg_unload(unload_msg_execute_fn h) { return patch_vtable(data_messages_vt_msg_unload, value_messages_slot_msg_execute, (uintptr_t)fn_unload_msg_execute, (void *)h); }
 // the game start message's execution (its vtable slot 10: it seeds the simulation's generator)
-internal inline int patch_start_exec(start_exec_fn h) { return patch_code32(data_messages_start_vtbl_exec, (uintptr_t)fn_start_exec, (uint32_t)(uintptr_t)h); }
+internal inline int patch_start_exec(start_msg_execute_fn h) { return patch_code32(data_messages_start_vtbl_exec, (uintptr_t)fn_start_msg_execute, (uint32_t)(uintptr_t)h); }

@@ -46,8 +46,8 @@ internal inline void build_mgr_request(ee_build_mgr *bm, int type) { fn_bm_reque
 // the resource manager's turn (the originals of the wiring's hooks, eeaimod.c): its gatherer targets computed (1: they
 // changed), its citizens assigned, its update
 // the citizen u to work at site (a resource, a field, a building); resource_mgr_assign_as: with the game's third argument
-internal inline void resource_mgr_assign(ee_resource_mgr *rm, ee_unit *u, ee_unit *site) { fn_assign_to_site(rm, u, site, 0); }
-internal inline void resource_mgr_assign_as(ee_resource_mgr *rm, ee_unit *u, ee_unit *site, int c) { fn_assign_to_site(rm, u, site, c); }
+internal inline void resource_mgr_assign(ee_resource_mgr *rm, ee_unit *u, ee_unit *site) { fn_resource_mgr_assign_to_site(rm, u, site, 0); }
+internal inline void resource_mgr_assign_as(ee_resource_mgr *rm, ee_unit *u, ee_unit *site, int c) { fn_resource_mgr_assign_to_site(rm, u, site, c); }
 // the unit manager's citizens trained (the original of trace.c's hook)
 // the unit manager's units of type: a std::deque of ee_unit *, NULL: none
 // the unit orders (req: type, count ...) - the original of econ.c's hook_train_units
@@ -62,24 +62,12 @@ internal inline void build_mgr_queue_add(ee_build_mgr *bm, int e, int *entry) { 
 // the fishing boat type of a player (the original of navy.c's hook)
 
 // THE RESOURCE MANAGER'S SEARCHES (the originals of sites.c's hooks; arguments as the game passes them)
-internal inline ee_unit *resource_mgr_find_mine(ee_resource_mgr *rm, uintptr_t type, ee_unit *unit, uintptr_t rev) {
-    return fn_find_mine_game(rm, (int)type, unit, rev);
-}
-internal inline ee_unit *resource_mgr_find_food(ee_resource_mgr *rm, uintptr_t need_drop, uintptr_t near_base, ee_unit *unit) {
-    return fn_find_food_game(rm, need_drop, near_base, unit);
-}
-internal inline ee_unit *resource_mgr_find_wood(ee_resource_mgr *rm, uintptr_t flag, ee_unit *unit) {
-    return fn_find_wood_game(rm, flag, unit);
-}
 // the lists of fields, unbuilt fields and animals to hunt (n wanted, into out)
 internal inline void *resource_mgr_farms(ee_resource_mgr *rm, uintptr_t n, uintptr_t out) {
     return fn_farms_game(rm, n, out);
 }
 internal inline void *resource_mgr_unbuilt_farms(ee_resource_mgr *rm, uintptr_t n, uintptr_t out) {
     return fn_unbuilt_farms(rm, n, out);
-}
-internal inline void *resource_mgr_hunt(ee_resource_mgr *rm, uintptr_t n, uintptr_t f, uintptr_t out) {
-    return fn_hunt_game(rm, n, f, out);
 }
 
 // HOOKS

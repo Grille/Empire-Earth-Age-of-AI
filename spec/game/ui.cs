@@ -71,11 +71,20 @@ unsafe struct RTSMouse
     extern void update();
 }
 
-/// the object of native_chat
+/// the object of native_chat_say
 unsafe struct ee_native_chat
 {
     [offset(0x20), found(s)]
     EEPlayer* player;
+
+    [address((ee)0x00484EB3, (aoc)0x0048966C)]
+    // the calls of native_chat_say (the AI's own lines)
+    [call_site("native_chat", (ee)0x00470040, (aoc)0x00472F4C)]
+    [call_site("native_chat", (ee)0x004715F8, (aoc)0x00474682)]
+    [call_site("native_chat", (ee)0x0047166E, (aoc)0x00474705)]
+    [call_site("native_chat", (ee)0x0047280E, (aoc)0x004758D5)]
+    [call_site("native_chat", (ee)0x00472B9D, (aoc)0x00475C65)]
+    extern char8 say(int32 @base, int32 ms);
 }
 
 /// the scroll action (EEAScroll)
@@ -214,15 +223,6 @@ static unsafe class ui_functions
 
     [address((ee)0x00510DAD, (aoc)0x0051B31C), thiscall]
     static extern void mouse_clamp(void* m);
-
-    [address((ee)0x00484EB3, (aoc)0x0048966C), thiscall]
-    // the calls of native_chat (the AI's own lines)
-    [call_site("native_chat", (ee)0x00470040, (aoc)0x00472F4C)]
-    [call_site("native_chat", (ee)0x004715F8, (aoc)0x00474682)]
-    [call_site("native_chat", (ee)0x0047166E, (aoc)0x00474705)]
-    [call_site("native_chat", (ee)0x0047280E, (aoc)0x004758D5)]
-    [call_site("native_chat", (ee)0x00472B9D, (aoc)0x00475C65)]
-    static extern char8 native_chat(ee_native_chat* pim, int32 @base, int32 ms);
 
     /// cdecl(group, 0, owner (a player's +0x45C), how (0xBB: a GFX_ORDER_ON circle at each unit's goal), 0): a
     /// command's circles

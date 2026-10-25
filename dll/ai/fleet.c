@@ -107,7 +107,7 @@ internal int fleet_refuses(ee_attack_subgroup *sg, ee_unit *u) {
 // thiscall(player, request, 0)) and opens a Defend group - the deletion is skipped while the fleet leads the ships
 internal int __thiscall hook_nv_maint_delete(ee_player *pl, void *req, int flag) {
     if (pl && !is_vanilla(pl) && fleet_on((unsigned)player_get_index(pl))) { g_fl[(unsigned)player_get_index(pl) & 15].maint_skipped++; return 0; }
-    return delete_for_room(pl, req, flag);
+    return player_delete_for_room(pl, req, flag);
 }
 
 // THE SCAN (every 2 s per AI with the fleet): own warships, fishing boats, docks and buildings; enemy ships; danger

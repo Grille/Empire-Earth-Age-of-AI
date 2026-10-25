@@ -5,7 +5,7 @@
 // FIELDS (scenario_manager(); test/scen.c, engine-notes.md
 // "Scenario triggers"): the lists are vectors (begin, end) - the address of each list's begin
 // the last chat line received (UWideString; the 500 ms check empties it - one line a check), the queued effects (a
-// vector of {effect id, time ms, cinematic} 12 bytes each: an effect's delay, sm_queue_effect)
+// vector of {effect id, time ms, cinematic} 12 bytes each: an effect's delay, scen_mgr_queue_effect)
 internal inline float scen_step(void) { return *(const float *)data_scenario_sm_step; }                       // 500 ms
 // a trigger (EESMTrigger): its name and description (UWideString), the lists of its condition and effect references
 // a trigger's condition reference: the condition's index, the join to the next (0 end, 1 and, 2 or), not
@@ -36,13 +36,11 @@ internal inline ivec2 scen_area_get_point(const ee_scen_area *a) {
 // FUNCTIONS
 // the lists' entries by id (their index; NULL out of range)
 // a condition holds now, as the 500 ms check asks it (an object it tests may lock onto its units)
-internal inline int sm_cond_holds(ee_scen_cond *c) { return fn_sm_cond_eval(c) != 0; }
+internal inline int sm_cond_holds(ee_scen_cond *c) { return fn_scen_cond_eval(c) != 0; }
 // an object picks its units (or filters its locked ones): any left (dead: dying units count too)
-internal inline int sm_object_holds(ee_scen_object *o, int dead) { return fn_sm_object_eval(o, (char)dead) != 0; }
-internal inline int sm_area_contains(ee_scen_area *a, ee_unit *u) { return fn_sm_area_contains_game(a, u) != 0; }
-internal inline int sm_class_test(ee_scen_object *o, int type) { return fn_sm_class_test_game(o, type) != 0; }
+internal inline int sm_object_holds(ee_scen_object *o, int dead) { return fn_scen_object_eval(o, (char)dead) != 0; }
 // one player of a player spec, as an effect picks it (-1: none; a random one of "any ...")
-internal inline int sm_pick_player(ee_scen_mgr *m, enum sm_player_spec spec) { return fn_sm_players(m, spec, NULL, 1); }
+internal inline int sm_pick_player(ee_scen_mgr *m, enum sm_player_spec spec) { return fn_scen_mgr_players(m, spec, NULL, 1); }
 // a player's attribute as conditions read it (resources, population, statistics ...), as effects set it
 // a trigger's check at scenario time now (ms): conditions, true-for, its effects queued
 // an effect queued to run at scenario time at (ms), as a trigger's delayed effects

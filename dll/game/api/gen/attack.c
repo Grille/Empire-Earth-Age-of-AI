@@ -26,6 +26,13 @@ internal inline uint8_t **combat_mgr_0x4c_at(const ee_combat_mgr *o) { return (u
 internal inline uint8_t combat_mgr_get_att_62(const ee_combat_mgr *o) { return *(uint8_t *)((uint8_t *)o + of_combat_mgr_att_62); }
 internal inline void combat_mgr_set_att_62(ee_combat_mgr *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_combat_mgr_att_62) = v; }
 internal inline uint8_t *combat_mgr_att_62_at(const ee_combat_mgr *o) { return (uint8_t *)((uint8_t *)o + of_combat_mgr_att_62); }
+// thiscall(cm, task, strategy, unit ids)
+typedef char (__thiscall *combat_mgr_attack_plan_ok_fn)(ee_combat_mgr *, void *, void *, void *);
+internal combat_mgr_attack_plan_ok_fn fn_combat_mgr_attack_plan_ok;
+internal inline char combat_mgr_attack_plan_ok(ee_combat_mgr *combat_mgr, void *task, void *strategy, void *ids) { return fn_combat_mgr_attack_plan_ok(combat_mgr, task, strategy, ids); }
+typedef void (__thiscall *combat_mgr_revenge_fn)(ee_combat_mgr *, ee_player *);
+internal combat_mgr_revenge_fn fn_combat_mgr_revenge;
+internal inline void combat_mgr_revenge(ee_combat_mgr *combat_mgr, ee_player *target) { fn_combat_mgr_revenge(combat_mgr, target); }
 
 // class ee_combat_mgr_4c (void)
 // the object at the combat manager's +0x4C
@@ -35,6 +42,10 @@ internal inline uint8_t *combat_mgr_4c_0x48_at(const void *o) { return (uint8_t 
 // the combat manager's commands, AM +0x48
 // the groups' deque (its count +0x10)
 internal inline uint8_t *attack_cmd_groups_at(const ee_attack_cmd *o) { return (uint8_t *)o + of_attack_cmd_groups; }
+// thiscall(attack manager, task, strategy, unit ids) -> the attack group
+typedef ee_attack_group *(__thiscall *attack_cmd_new_group_fn)(ee_attack_cmd *, void *, void *, void *);
+internal attack_cmd_new_group_fn fn_attack_cmd_new_group;
+internal inline ee_attack_group *attack_cmd_new_group(ee_attack_cmd *attack_cmd, void *task, void *strategy, void *ids) { return fn_attack_cmd_new_group(attack_cmd, task, strategy, ids); }
 
 // class EECPAttackSubGroup (ee_attack_subgroup)
 // an attack subgroup (EECPAttackSubGroup, EECPASG*)
@@ -109,6 +120,10 @@ internal inline void attack_subgroup_stats(ee_attack_subgroup *attack_subgroup) 
 typedef void (__thiscall *attack_subgroup_update_fn)(ee_attack_subgroup *, int);
 internal attack_subgroup_update_fn fn_attack_subgroup_update;
 internal inline void attack_subgroup_update(ee_attack_subgroup *attack_subgroup, int now) { fn_attack_subgroup_update(attack_subgroup, now); }
+// its slot 94: void thiscall(int start[2], int dest[2])
+typedef void (__thiscall *attack_subgroup_plan_route_fn)(ee_attack_subgroup *, int *, int *);
+internal attack_subgroup_plan_route_fn fn_attack_subgroup_plan_route;
+internal inline void attack_subgroup_plan_route(ee_attack_subgroup *attack_subgroup, int *start, int *dest) { fn_attack_subgroup_plan_route(attack_subgroup, start, dest); }
 
 // class EECPAttackSubGroupUnit (ee_asg_unit)
 // an attack subgroup's unit record (EECPAttackSubGroupUnit, EECPASGU*)
@@ -147,6 +162,10 @@ internal inline int *route_node_y_at(const ee_route_node *o) { return (int *)((u
 internal inline int route_planner_get_player_index(const ee_route_planner *o) { return *(int *)((uint8_t *)o + of_route_planner_player_index); }
 internal inline void route_planner_set_player_index(ee_route_planner *o, int v) { *(int *)((uint8_t *)o + of_route_planner_player_index) = v; }
 internal inline int *route_planner_player_index_at(const ee_route_planner *o) { return (int *)((uint8_t *)o + of_route_planner_player_index); }
+// its slot 1: int thiscall(edge*, node*)
+typedef int (__thiscall *route_planner_cost_fn)(ee_route_planner *, int *, ee_route_node *);
+internal route_planner_cost_fn fn_route_planner_cost;
+internal inline int route_planner_cost(ee_route_planner *route_planner, int *edge, ee_route_node *node) { return fn_route_planner_cost(route_planner, edge, node); }
 
 // class EECPCombatStrategy (ee_strategy)
 // an attack strategy (EECPCombatStrategy)
@@ -190,7 +209,7 @@ internal inline uint8_t *attack_fn_asg_queue_pop_at(void) { return (uint8_t *)(u
 // the attack subgroups: update(now)
 // the selected group (player +0x9BC): unsigned thiscall(group) (EEGroup, both builds)
 // the selected group: ee_unit *thiscall(group, i) (EEGroup, both builds: 16 slots, its vector +0x24)
-// attack.vt_route_planner: route_cost_game
+// attack.vt_route_planner: route_planner_cost
 internal inline uint8_t *attack_vt_asg_air_at(void) { return (uint8_t *)(uintptr_t)data_attack_vt_asg_air; }
 // EECPASGLand
 internal inline uint8_t *attack_vt_asg_land_at(void) { return (uint8_t *)(uintptr_t)data_attack_vt_asg_land; }
@@ -201,18 +220,6 @@ internal inline uint8_t *attack_vt_route_planner_at(void) { return (uint8_t *)(u
 
 // static class attack_functions
 // the game's functions attack.c wraps, by the names the C side gives them
-// its slot 94: void thiscall(int start[2], int dest[2])
-typedef void (__thiscall *asg_route_fn)(ee_attack_subgroup *, int *, int *);
-internal asg_route_fn fn_asg_route;
-internal inline void asg_route(ee_attack_subgroup *sg, int *start, int *dest) { fn_asg_route(sg, start, dest); }
-// thiscall(attack manager, task, strategy, unit ids) -> the attack group
-typedef ee_attack_group *(__thiscall *attack_group_new_fn)(ee_attack_cmd *, void *, void *, void *);
-internal attack_group_new_fn fn_attack_group_new;
-internal inline ee_attack_group *attack_group_new(ee_attack_cmd *cmd, void *task, void *strategy, void *ids) { return fn_attack_group_new(cmd, task, strategy, ids); }
-// thiscall(cm, task, strategy, unit ids)
-typedef char (__thiscall *attack_plan_ok_fn)(ee_combat_mgr *, void *, void *, void *);
-internal attack_plan_ok_fn fn_attack_plan_ok;
-internal inline char attack_plan_ok(ee_combat_mgr *cm, void *task, void *strategy, void *ids) { return fn_attack_plan_ok(cm, task, strategy, ids); }
 typedef void (__thiscall *group_stat_fn)(void *, ee_unit *);
 internal group_stat_fn fn_group_stat;
 internal inline void group_stat(void *stats, ee_unit *u) { fn_group_stat(stats, u); }
@@ -228,13 +235,6 @@ typedef void (__cdecl *range_sort_fn)(void **, void **, ee_unit *);
 internal range_sort_fn fn_range_sort;
 internal inline void range_sort(void **b, void **e, ee_unit *unit) { fn_range_sort(b, e, unit); }
 internal inline int patch_range_sort(range_sort_fn h) { return patch_call(call_range_sort, (uintptr_t)fn_range_sort, (void *)h); }
-typedef void (__thiscall *revenge_fn)(ee_combat_mgr *, ee_player *);
-internal revenge_fn fn_revenge;
-internal inline void revenge(ee_combat_mgr *combat_mgr, ee_player *target) { fn_revenge(combat_mgr, target); }
-// its slot 1: int thiscall(edge*, node*)
-typedef int (__thiscall *route_cost_game_fn)(ee_route_planner *, int *, ee_route_node *);
-internal route_cost_game_fn fn_route_cost_game;
-internal inline int route_cost_game(ee_route_planner *p1, int *p2, ee_route_node *p3) { return fn_route_cost_game(p1, p2, p3); }
 typedef void (__thiscall *strategy_init_fn)(void *);
 internal strategy_init_fn fn_strategy_init;
 internal inline void strategy_init(void *s) { fn_strategy_init(s); }
@@ -272,8 +272,11 @@ internal int spec_attack_select(int build) {
         of_combat_mgr_commander = 0x48;
         of_combat_mgr_0x4c = 0x4C;
         of_combat_mgr_att_62 = 0x62;
+        fn_combat_mgr_attack_plan_ok = (combat_mgr_attack_plan_ok_fn)0x0047067A;
+        fn_combat_mgr_revenge = (combat_mgr_revenge_fn)0x0046FFB7;
         of_combat_mgr_4c_0x48 = 0x48;
         of_attack_cmd_groups = 0x4;
+        fn_attack_cmd_new_group = (attack_cmd_new_group_fn)0x0045106C;
         of_attack_subgroup_units_begin = 0x54;
         of_attack_subgroup_route = 0x60;
         of_attack_subgroup_waypoints = 0x70;
@@ -296,6 +299,7 @@ internal int spec_attack_select(int build) {
         fn_attack_subgroup_sea_update = (attack_subgroup_sea_update_fn)0x0044ED11;
         fn_attack_subgroup_stats = (attack_subgroup_stats_fn)0x0045AD2F;
         fn_attack_subgroup_update = (attack_subgroup_update_fn)0x004491DD;
+        fn_attack_subgroup_plan_route = (attack_subgroup_plan_route_fn)0x0044BC57;
         of_asg_unit_unit = 0x44;
         of_asg_unit_engaged = 0x48;
         of_asg_unit_subgroup = 0x4C;
@@ -304,6 +308,7 @@ internal int spec_attack_select(int build) {
         of_route_node_x = 0x3C;
         of_route_node_y = 0x40;
         of_route_planner_player_index = 0x48;
+        fn_route_planner_cost = (route_planner_cost_fn)0x004141E8;
         of_strategy_0x3c = 0x3C;
         of_strategy_0x40 = 0x40;
         of_task_target_player = 0x20;
@@ -339,17 +344,12 @@ internal int spec_attack_select(int build) {
         data_attack_vt_asg_sea = 0x00826F10;
         data_attack_vt_asg_sea_transport = 0x008270F8;
         data_attack_vt_route_planner = 0x00825CC4;
-        fn_asg_route = (asg_route_fn)0x0044BC57;
-        fn_attack_group_new = (attack_group_new_fn)0x0045106C;
-        fn_attack_plan_ok = (attack_plan_ok_fn)0x0047067A;
         fn_group_stat = (group_stat_fn)0x00450554;
         call_group_stat = 0x00450546;
         fn_location_init = (location_init_fn)0x0047C4E8;
         fn_point_set = (point_set_fn)0x0040D29D;
         fn_range_sort = (range_sort_fn)0x0063A355;
         call_range_sort = 0x0063052E;
-        fn_revenge = (revenge_fn)0x0046FFB7;
-        fn_route_cost_game = (route_cost_game_fn)0x004141E8;
         fn_strategy_init = (strategy_init_fn)0x00473BC4;
         fn_strategy_free = (strategy_free_fn)0x00473C99;
         fn_strategy_reset = (strategy_reset_fn)0x00473CA7;
@@ -367,8 +367,11 @@ internal int spec_attack_select(int build) {
         of_combat_mgr_commander = 0x48;
         of_combat_mgr_0x4c = 0x4C;
         of_combat_mgr_att_62 = 0x62;
+        fn_combat_mgr_attack_plan_ok = (combat_mgr_attack_plan_ok_fn)0x0047360A;
+        fn_combat_mgr_revenge = (combat_mgr_revenge_fn)0x00472EC3;
         of_combat_mgr_4c_0x48 = 0x48;
         of_attack_cmd_groups = 0x4;
+        fn_attack_cmd_new_group = (attack_cmd_new_group_fn)0x00451D8E;
         of_attack_subgroup_units_begin = 0x54;
         of_attack_subgroup_route = 0x60;
         of_attack_subgroup_waypoints = 0x70;
@@ -391,6 +394,7 @@ internal int spec_attack_select(int build) {
         fn_attack_subgroup_sea_update = (attack_subgroup_sea_update_fn)0x0044F70E;
         fn_attack_subgroup_stats = (attack_subgroup_stats_fn)0x0045C925;
         fn_attack_subgroup_update = (attack_subgroup_update_fn)0x004488CE;
+        fn_attack_subgroup_plan_route = (attack_subgroup_plan_route_fn)0x0044B3C7;
         of_asg_unit_unit = 0x44;
         of_asg_unit_engaged = 0x48;
         of_asg_unit_subgroup = 0x4C;
@@ -399,6 +403,7 @@ internal int spec_attack_select(int build) {
         of_route_node_x = 0x3C;
         of_route_node_y = 0x40;
         of_route_planner_player_index = 0x48;
+        fn_route_planner_cost = (route_planner_cost_fn)0x00410074;
         of_strategy_0x3c = 0x3C;
         of_strategy_0x40 = 0x40;
         of_task_target_player = 0x20;
@@ -434,17 +439,12 @@ internal int spec_attack_select(int build) {
         data_attack_vt_asg_sea = 0x0083AFEC;
         data_attack_vt_asg_sea_transport = 0x0083B1D8;
         data_attack_vt_route_planner = 0x00839C70;
-        fn_asg_route = (asg_route_fn)0x0044B3C7;
-        fn_attack_group_new = (attack_group_new_fn)0x00451D8E;
-        fn_attack_plan_ok = (attack_plan_ok_fn)0x0047360A;
         fn_group_stat = (group_stat_fn)0x00451239;
         call_group_stat = 0x0045122B;
         fn_location_init = (location_init_fn)0x00480873;
         fn_point_set = (point_set_fn)0x0044D28B;
         fn_range_sort = (range_sort_fn)0x006509AF;
         call_range_sort = 0x0064631B;
-        fn_revenge = (revenge_fn)0x00472EC3;
-        fn_route_cost_game = (route_cost_game_fn)0x00410074;
         fn_strategy_init = (strategy_init_fn)0x00477084;
         fn_strategy_free = (strategy_free_fn)0x0047716D;
         fn_strategy_reset = (strategy_reset_fn)0x0047717B;
@@ -463,6 +463,9 @@ internal const char *const k_spec_attack_missing[ADDR_BUILDS] = { "", "" };
 // the load-time check: what the spec says of the running build's exe (spec_check): the failures
 internal int spec_attack_check(void) {
     int bad = 0;
+    bad += spec_code((uintptr_t)fn_combat_mgr_attack_plan_ok, "EECPCombatManager.attack_plan_ok");
+    bad += spec_code((uintptr_t)fn_combat_mgr_revenge, "EECPCombatManager.revenge");
+    bad += spec_code((uintptr_t)fn_attack_cmd_new_group, "ee_attack_cmd.new_group");
     bad += spec_code((uintptr_t)fn_attack_subgroup_air_give_goal, "EECPAttackSubGroup.air_give_goal");
     bad += spec_code((uintptr_t)fn_attack_subgroup_air_update, "EECPAttackSubGroup.air_update");
     bad += spec_code((uintptr_t)fn_attack_subgroup_give_goal, "EECPAttackSubGroup.give_goal");
@@ -472,7 +475,9 @@ internal int spec_attack_check(void) {
     bad += spec_code((uintptr_t)fn_attack_subgroup_sea_update, "EECPAttackSubGroup.sea_update");
     bad += spec_code((uintptr_t)fn_attack_subgroup_stats, "EECPAttackSubGroup.stats");
     bad += spec_code((uintptr_t)fn_attack_subgroup_update, "EECPAttackSubGroup.update");
+    bad += spec_code((uintptr_t)fn_attack_subgroup_plan_route, "EECPAttackSubGroup.plan_route");
     bad += spec_code((uintptr_t)fn_asg_unit_score, "EECPAttackSubGroupUnit.score");
+    bad += spec_code((uintptr_t)fn_route_planner_cost, "EEAIGPGModifierLandAttackSubGroupRoutePlanner.cost");
     bad += spec_data(data_attack_asgu_vtables[0], "attack.asgu_vtables 0");
     bad += spec_data(data_attack_asgu_vtables[1], "attack.asgu_vtables 1");
     bad += spec_data(data_attack_asgu_vtables[2], "attack.asgu_vtables 2");
@@ -493,17 +498,12 @@ internal int spec_attack_check(void) {
     bad += spec_data(data_attack_vt_asg_sea, "attack.vt_asg_sea");
     bad += spec_data(data_attack_vt_asg_sea_transport, "attack.vt_asg_sea_transport");
     bad += spec_data(data_attack_vt_route_planner, "attack.vt_route_planner");
-    bad += spec_code((uintptr_t)fn_asg_route, "attack_functions.asg_route");
-    bad += spec_code((uintptr_t)fn_attack_group_new, "attack_functions.attack_group_new");
-    bad += spec_code((uintptr_t)fn_attack_plan_ok, "attack_functions.attack_plan_ok");
     bad += spec_code((uintptr_t)fn_group_stat, "attack_functions.group_stat");
     bad += spec_call(call_group_stat, (uintptr_t)fn_group_stat, "attack_functions.group_stat [call_site group_stat]");
     bad += spec_code((uintptr_t)fn_location_init, "attack_functions.location_init");
     bad += spec_code((uintptr_t)fn_point_set, "attack_functions.point_set");
     bad += spec_code((uintptr_t)fn_range_sort, "attack_functions.range_sort");
     bad += spec_call(call_range_sort, (uintptr_t)fn_range_sort, "attack_functions.range_sort [call_site range_sort]");
-    bad += spec_code((uintptr_t)fn_revenge, "attack_functions.revenge");
-    bad += spec_code((uintptr_t)fn_route_cost_game, "attack_functions.route_cost_game");
     bad += spec_code((uintptr_t)fn_strategy_init, "attack_functions.strategy_init");
     bad += spec_code((uintptr_t)fn_strategy_free, "attack_functions.strategy_free");
     bad += spec_code((uintptr_t)fn_strategy_reset, "attack_functions.strategy_reset");

@@ -27,9 +27,9 @@ internal inline uint32_t physics_get_seed(const ee_physics *o) { return *(uint32
 internal inline void physics_set_seed(ee_physics *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_physics_seed) = v; }
 internal inline uint32_t *physics_seed_at(const ee_physics *o) { return (uint32_t *)((uint8_t *)o + of_physics_seed); }
 // steps done
-internal inline uint32_t physics_get_step(const ee_physics *o) { return *(uint32_t *)((uint8_t *)o + of_physics_step); }
-internal inline void physics_set_step(ee_physics *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_physics_step) = v; }
-internal inline uint32_t *physics_step_at(const ee_physics *o) { return (uint32_t *)((uint8_t *)o + of_physics_step); }
+internal inline uint32_t physics_get_steps(const ee_physics *o) { return *(uint32_t *)((uint8_t *)o + of_physics_steps); }
+internal inline void physics_set_steps(ee_physics *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_physics_steps) = v; }
+internal inline uint32_t *physics_steps_at(const ee_physics *o) { return (uint32_t *)((uint8_t *)o + of_physics_steps); }
 // a step's length (s)
 internal inline float physics_get_step_s(const ee_physics *o) { return *(float *)((uint8_t *)o + of_physics_step_s); }
 internal inline void physics_set_step_s(ee_physics *o, float v) { *(float *)((uint8_t *)o + of_physics_step_s) = v; }
@@ -42,6 +42,9 @@ internal inline uint32_t *physics_steps_granted_at(const ee_physics *o) { return
 internal inline uint32_t physics_get_time(const ee_physics *o) { return *(uint32_t *)((uint8_t *)o + of_physics_time); }
 internal inline void physics_set_time(ee_physics *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_physics_time) = v; }
 internal inline uint32_t *physics_time_at(const ee_physics *o) { return (uint32_t *)((uint8_t *)o + of_physics_time); }
+typedef void (__thiscall *physics_step_fn)(ee_physics *);
+internal physics_step_fn fn_physics_step;
+internal inline void physics_step(ee_physics *physics) { fn_physics_step(physics); }
 
 // class EEWorld (ee_world)
 // the world, [game.world] (EEWorld)
@@ -64,10 +67,11 @@ internal int spec_world_select(int build) {
         of_game_data_unit_limit = 0x2E8;
         of_game_data_unit_limit_max = 0x2EC;
         of_physics_seed = 0x18;
-        of_physics_step = 0x80;
+        of_physics_steps = 0x80;
         of_physics_step_s = 0x8C;
         of_physics_steps_granted = 0xB8;
         of_physics_time = 0xD0;
+        fn_physics_step = (physics_step_fn)0x00546C63;
         of_world_thread = 0x40;
         of_world_seed = 0x54;
         return 0;
@@ -77,10 +81,11 @@ internal int spec_world_select(int build) {
         of_game_data_unit_limit = 0x2E8;
         of_game_data_unit_limit_max = 0x2EC;
         of_physics_seed = 0x18;
-        of_physics_step = 0x80;
+        of_physics_steps = 0x80;
         of_physics_step_s = 0x8C;
         of_physics_steps_granted = 0xB8;
         of_physics_time = 0xD0;
+        fn_physics_step = (physics_step_fn)0x00553082;
         of_world_thread = 0x40;
         of_world_seed = 0x54;
         return 0;
@@ -92,5 +97,6 @@ internal const char *const k_spec_world_missing[ADDR_BUILDS] = { "", "" };
 // the load-time check: what the spec says of the running build's exe (spec_check): the failures
 internal int spec_world_check(void) {
     int bad = 0;
+    bad += spec_code((uintptr_t)fn_physics_step, "EEPhysics.step");
     return bad;
 }

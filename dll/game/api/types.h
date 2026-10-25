@@ -62,7 +62,7 @@ typedef struct ee_scen_area ee_scen_area;       // SCENAREA: a scenario area (EE
 typedef struct ee_draw_rec ee_draw_rec;         // DRAWREC: a draw list record
 typedef struct ee_camera ee_camera;             // CAMERA: the camera, data_game_camera (EECameraControl)
 typedef struct ee_scroll ee_scroll;             // SCROLL: the scroll action (EEAScroll)
-typedef struct ee_native_chat ee_native_chat;   // NATIVECHAT: the object of native_chat
+typedef struct ee_native_chat ee_native_chat;   // NATIVECHAT: the object of native_chat_say
 typedef struct ee_ui_form ee_ui_form;           // UIFORM: the UI manager's current form
 typedef struct ee_ui_screen ee_ui_screen;       // UISCREEN: a single-player menu screen
 // the engine DLLs' objects (E_)

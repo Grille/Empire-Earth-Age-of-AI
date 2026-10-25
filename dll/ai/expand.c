@@ -309,7 +309,7 @@ internal PRINTF_LIKE(3, 4) void ex_say(unsigned idx, uint32_t now, const char *f
     fprintf(g_log, "# expand: P%u at %.1f min: %s\n", idx, now / 60000.0, buf);
     LeaveCriticalSection(&g_lock);
 }
-internal int ex_cargo(ee_unit *sh) { return units_inside(sh); }
+internal int ex_cargo(ee_unit *sh) { return unit_count_inside(sh); }
 // the ferry's transport and passengers, and soldiers on an outpost's island (landing.c's order hooks)
 internal int expand_ship(ee_unit *u) {
     if (!u) return 0;

@@ -9,6 +9,17 @@ internal inline int8_t msg_get_from(const ee_msg *o) { return *(int8_t *)((uint8
 internal inline void msg_set_from(ee_msg *o, int8_t v) { *(int8_t *)((uint8_t *)o + of_msg_from) = v; }
 internal inline int8_t *msg_from_at(const ee_msg *o) { return (int8_t *)((uint8_t *)o + of_msg_from); }
 
+// class EEMResign (ee_resign_msg)
+// the resignation (EEMResign)
+// EEMessage's, the base's
+// the sender's message id (every message's)
+internal inline int8_t resign_msg_get_from(const ee_resign_msg *o) { return *(int8_t *)((uint8_t *)o + of_msg_from); }
+internal inline void resign_msg_set_from(ee_resign_msg *o, int8_t v) { *(int8_t *)((uint8_t *)o + of_msg_from) = v; }
+internal inline int8_t *resign_msg_from_at(const ee_resign_msg *o) { return (int8_t *)((uint8_t *)o + of_msg_from); }
+typedef void (__thiscall *resign_msg_execute_fn)(ee_resign_msg *);
+internal resign_msg_execute_fn fn_resign_msg_execute;
+internal inline void resign_msg_execute(ee_resign_msg *resign_msg) { fn_resign_msg_execute(resign_msg); }
+
 // class EEMInGameChat (ee_chat_msg)
 // the in-game chat message (EEMInGameChat)
 // EEMessage's, the base's
@@ -17,6 +28,9 @@ internal inline int8_t chat_msg_get_from(const ee_chat_msg *o) { return *(int8_t
 internal inline void chat_msg_set_from(ee_chat_msg *o, int8_t v) { *(int8_t *)((uint8_t *)o + of_msg_from) = v; }
 internal inline int8_t *chat_msg_from_at(const ee_chat_msg *o) { return (int8_t *)((uint8_t *)o + of_msg_from); }
 internal inline uint8_t *chat_msg_text_at(const ee_chat_msg *o) { return (uint8_t *)o + of_chat_msg_text; }
+typedef void (__thiscall *chat_msg_execute_fn)(ee_chat_msg *);
+internal chat_msg_execute_fn fn_chat_msg_execute;
+internal inline void chat_msg_execute(ee_chat_msg *chat_msg) { fn_chat_msg_execute(chat_msg); }
 
 // class EEMSelectUnits (ee_select_msg)
 // the select message (EEMSelectUnits)
@@ -48,6 +62,10 @@ internal inline uint32_t *load_msg_transport_at(const ee_load_msg *o) { return (
 internal inline int load_msg_get_unit(const ee_load_msg *o) { return *(int *)((uint8_t *)o + of_load_msg_unit); }
 internal inline void load_msg_set_unit(ee_load_msg *o, int v) { *(int *)((uint8_t *)o + of_load_msg_unit) = v; }
 internal inline int *load_msg_unit_at(const ee_load_msg *o) { return (int *)((uint8_t *)o + of_load_msg_unit); }
+// EEMLoadTransport's Execute
+typedef void (__thiscall *load_msg_execute_fn)(ee_load_msg *);
+internal load_msg_execute_fn fn_load_msg_execute;
+internal inline void load_msg_execute(ee_load_msg *load_msg) { fn_load_msg_execute(load_msg); }
 
 // class EEMPathTo (ee_path_msg)
 // the move message (EEMPathTo)
@@ -81,6 +99,10 @@ internal inline uint8_t *path_msg_queued_at(const ee_path_msg *o) { return (uint
 internal inline uint8_t path_msg_get_together(const ee_path_msg *o) { return *(uint8_t *)((uint8_t *)o + of_path_msg_together); }
 internal inline void path_msg_set_together(ee_path_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_path_msg_together) = v; }
 internal inline uint8_t *path_msg_together_at(const ee_path_msg *o) { return (uint8_t *)((uint8_t *)o + of_path_msg_together); }
+// EEMPathTo's Execute
+typedef void (__thiscall *path_msg_execute_fn)(ee_path_msg *);
+internal path_msg_execute_fn fn_path_msg_execute;
+internal inline void path_msg_execute(ee_path_msg *path_msg) { fn_path_msg_execute(path_msg); }
 
 // class EEMStartLoading (ee_start_msg)
 // the game start message (EEMStartLoading)
@@ -92,6 +114,9 @@ internal inline int8_t *start_msg_from_at(const ee_start_msg *o) { return (int8_
 internal inline uint32_t start_msg_get_seed(const ee_start_msg *o) { return *(uint32_t *)((uint8_t *)o + of_start_msg_seed); }
 internal inline void start_msg_set_seed(ee_start_msg *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_start_msg_seed) = v; }
 internal inline uint32_t *start_msg_seed_at(const ee_start_msg *o) { return (uint32_t *)((uint8_t *)o + of_start_msg_seed); }
+typedef void (__thiscall *start_msg_execute_fn)(ee_start_msg *);
+internal start_msg_execute_fn fn_start_msg_execute;
+internal inline void start_msg_execute(ee_start_msg *start_msg) { fn_start_msg_execute(start_msg); }
 
 // class EEMPayTribute (ee_tribute_msg)
 // the tribute message (EEMPayTribute)
@@ -118,6 +143,9 @@ internal inline int *tribute_msg_wood_at(const ee_tribute_msg *o) { return (int 
 internal inline uint8_t tribute_msg_get_to(const ee_tribute_msg *o) { return *(uint8_t *)((uint8_t *)o + of_tribute_msg_to); }
 internal inline void tribute_msg_set_to(ee_tribute_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_tribute_msg_to) = v; }
 internal inline uint8_t *tribute_msg_to_at(const ee_tribute_msg *o) { return (uint8_t *)((uint8_t *)o + of_tribute_msg_to); }
+typedef void (__thiscall *tribute_msg_execute_fn)(ee_tribute_msg *);
+internal tribute_msg_execute_fn fn_tribute_msg_execute;
+internal inline void tribute_msg_execute(ee_tribute_msg *tribute_msg) { fn_tribute_msg_execute(tribute_msg); }
 
 // class EEMUnloadTransport (ee_unload_msg)
 // the unload message (EEMUnloadTransport)
@@ -134,6 +162,10 @@ internal inline int *unload_msg_x_at(const ee_unload_msg *o) { return (int *)((u
 internal inline int unload_msg_get_y(const ee_unload_msg *o) { return *(int *)((uint8_t *)o + of_unload_msg_y); }
 internal inline void unload_msg_set_y(ee_unload_msg *o, int v) { *(int *)((uint8_t *)o + of_unload_msg_y) = v; }
 internal inline int *unload_msg_y_at(const ee_unload_msg *o) { return (int *)((uint8_t *)o + of_unload_msg_y); }
+// EEMUnloadTransport's Execute
+typedef void (__thiscall *unload_msg_execute_fn)(ee_unload_msg *);
+internal unload_msg_execute_fn fn_unload_msg_execute;
+internal inline void unload_msg_execute(ee_unload_msg *unload_msg) { fn_unload_msg_execute(unload_msg); }
 
 // class EEServer (ee_server)
 // the lockstep server or client, [game.server] (EEServer, EEClient)
@@ -187,27 +219,6 @@ internal inline void *msg_chat_init(void *mem, void *wide_text) { return fn_msg_
 typedef void *(__thiscall *msg_cheat_init_fn)(void *, int, int);
 internal msg_cheat_init_fn fn_msg_cheat_init;
 internal inline void *msg_cheat_init(void *mem, int code, int arg) { return fn_msg_cheat_init(mem, code, arg); }
-typedef void (__thiscall *msg_ingame_chat_fn)(ee_chat_msg *);
-internal msg_ingame_chat_fn fn_msg_ingame_chat;
-internal inline void msg_ingame_chat(ee_chat_msg *msg) { fn_msg_ingame_chat(msg); }
-// EEMLoadTransport's Execute
-typedef void (__thiscall *msg_load_fn)(ee_load_msg *);
-internal msg_load_fn fn_msg_load;
-internal inline void msg_load(ee_load_msg *msg) { fn_msg_load(msg); }
-// EEMPathTo's Execute
-typedef void (__thiscall *msg_path_fn)(ee_path_msg *);
-internal msg_path_fn fn_msg_path;
-internal inline void msg_path(ee_path_msg *msg) { fn_msg_path(msg); }
-// EEMUnloadTransport's Execute
-typedef void (__thiscall *msg_unload_fn)(ee_unload_msg *);
-internal msg_unload_fn fn_msg_unload;
-internal inline void msg_unload(ee_unload_msg *msg) { fn_msg_unload(msg); }
-typedef void (__thiscall *msg_pay_tribute_fn)(ee_tribute_msg *);
-internal msg_pay_tribute_fn fn_msg_pay_tribute;
-internal inline void msg_pay_tribute(ee_tribute_msg *msg) { fn_msg_pay_tribute(msg); }
-typedef void (__thiscall *msg_resign_fn)(ee_msg *);
-internal msg_resign_fn fn_msg_resign;
-internal inline void msg_resign(ee_msg *msg) { fn_msg_resign(msg); }
 // EEMSelectUnits: thiscall(msg, rect, type, 0x4E)
 typedef void (__thiscall *select_msg_init_fn)(void *, float *, int, int);
 internal select_msg_init_fn fn_select_msg_init;
@@ -222,27 +233,34 @@ internal int spec_messages_select(int build) {
     switch (build) {
     case 0:   // ee
         of_msg_from = 0xA;
+        fn_resign_msg_execute = (resign_msg_execute_fn)0x004BB906;
         of_chat_msg_text = 0x10;
+        fn_chat_msg_execute = (chat_msg_execute_fn)0x004B78C7;
         of_select_msg_selection = 0x10;
         of_select_msg_ids_begin = 0x14;
         of_select_msg_flag = 0x134;
         of_load_msg_transport = 0x10;
         of_load_msg_unit = 0x14;
+        fn_load_msg_execute = (load_msg_execute_fn)0x004B9446;
         of_path_msg_x = 0x14;
         of_path_msg_y = 0x18;
         of_path_msg_goal_30 = 0x1C;
         of_path_msg_goal_31 = 0x1D;
         of_path_msg_queued = 0x1E;
         of_path_msg_together = 0x1F;
+        fn_path_msg_execute = (path_msg_execute_fn)0x004B9D7B;
         of_start_msg_seed = 0x14;
+        fn_start_msg_execute = (start_msg_execute_fn)0x004BEE57;
         of_tribute_msg_food = 0x10;
         of_tribute_msg_gold = 0x14;
         of_tribute_msg_iron = 0x18;
         of_tribute_msg_stone = 0x1C;
         of_tribute_msg_wood = 0x20;
         of_tribute_msg_to = 0x24;
+        fn_tribute_msg_execute = (tribute_msg_execute_fn)0x004BA6BE;
         of_unload_msg_x = 0x14;
         of_unload_msg_y = 0x18;
+        fn_unload_msg_execute = (unload_msg_execute_fn)0x004BF756;
         of_server_sent = 0x10;
         of_server_waiting = 0x94;
         of_server_done = 0x190;
@@ -261,39 +279,40 @@ internal int spec_messages_select(int build) {
         data_messages_vt_resign = 0x00828820;
         fn_msg_chat_init = (msg_chat_init_fn)0x005C2A2F;
         fn_msg_cheat_init = (msg_cheat_init_fn)0x005C29FB;
-        fn_msg_ingame_chat = (msg_ingame_chat_fn)0x004B78C7;
-        fn_msg_load = (msg_load_fn)0x004B9446;
-        fn_msg_path = (msg_path_fn)0x004B9D7B;
-        fn_msg_unload = (msg_unload_fn)0x004BF756;
-        fn_msg_pay_tribute = (msg_pay_tribute_fn)0x004BA6BE;
-        fn_msg_resign = (msg_resign_fn)0x004BB906;
         fn_select_msg_init = (select_msg_init_fn)0x004BD072;
         fn_sel_pack = (sel_pack_fn)0x004BD15A;
         call_sel_pack = 0x004BD133;
         return 0;
     case 1:   // aoc
         of_msg_from = 0xA;
+        fn_resign_msg_execute = (resign_msg_execute_fn)0x004C44BB;
         of_chat_msg_text = 0x10;
+        fn_chat_msg_execute = (chat_msg_execute_fn)0x004BFDD2;
         of_select_msg_selection = 0x10;
         of_select_msg_ids_begin = 0x14;
         of_select_msg_flag = 0x134;
         of_load_msg_transport = 0x10;
         of_load_msg_unit = 0x14;
+        fn_load_msg_execute = (load_msg_execute_fn)0x004C1B79;
         of_path_msg_x = 0x14;
         of_path_msg_y = 0x18;
         of_path_msg_goal_30 = 0x1C;
         of_path_msg_goal_31 = 0x1D;
         of_path_msg_queued = 0x1E;
         of_path_msg_together = 0x1F;
+        fn_path_msg_execute = (path_msg_execute_fn)0x004C281C;
         of_start_msg_seed = 0x14;
+        fn_start_msg_execute = (start_msg_execute_fn)0x004C7CDC;
         of_tribute_msg_food = 0x10;
         of_tribute_msg_gold = 0x14;
         of_tribute_msg_iron = 0x18;
         of_tribute_msg_stone = 0x1C;
         of_tribute_msg_wood = 0x20;
         of_tribute_msg_to = 0x24;
+        fn_tribute_msg_execute = (tribute_msg_execute_fn)0x004C315B;
         of_unload_msg_x = 0x14;
         of_unload_msg_y = 0x18;
+        fn_unload_msg_execute = (unload_msg_execute_fn)0x004C8615;
         of_server_sent = 0x10;
         of_server_waiting = 0x94;
         of_server_done = 0x190;
@@ -312,12 +331,6 @@ internal int spec_messages_select(int build) {
         data_messages_vt_resign = 0x0083D4E8;
         fn_msg_chat_init = (msg_chat_init_fn)0x005D3196;
         fn_msg_cheat_init = (msg_cheat_init_fn)0x005D3162;
-        fn_msg_ingame_chat = (msg_ingame_chat_fn)0x004BFDD2;
-        fn_msg_load = (msg_load_fn)0x004C1B79;
-        fn_msg_path = (msg_path_fn)0x004C281C;
-        fn_msg_unload = (msg_unload_fn)0x004C8615;
-        fn_msg_pay_tribute = (msg_pay_tribute_fn)0x004C315B;
-        fn_msg_resign = (msg_resign_fn)0x004C44BB;
         fn_select_msg_init = (select_msg_init_fn)0x004C5D7F;
         fn_sel_pack = (sel_pack_fn)0x004C5E67;
         call_sel_pack = 0x004C5E40;
@@ -330,6 +343,13 @@ internal const char *const k_spec_messages_missing[ADDR_BUILDS] = { "", "" };
 // the load-time check: what the spec says of the running build's exe (spec_check): the failures
 internal int spec_messages_check(void) {
     int bad = 0;
+    bad += spec_code((uintptr_t)fn_resign_msg_execute, "EEMResign.execute");
+    bad += spec_code((uintptr_t)fn_chat_msg_execute, "EEMInGameChat.execute");
+    bad += spec_code((uintptr_t)fn_load_msg_execute, "EEMLoadTransport.execute");
+    bad += spec_code((uintptr_t)fn_path_msg_execute, "EEMPathTo.execute");
+    bad += spec_code((uintptr_t)fn_start_msg_execute, "EEMStartLoading.execute");
+    bad += spec_code((uintptr_t)fn_tribute_msg_execute, "EEMPayTribute.execute");
+    bad += spec_code((uintptr_t)fn_unload_msg_execute, "EEMUnloadTransport.execute");
     bad += spec_data(data_messages_start_vtbl_exec, "messages.start_vtbl_exec");
     bad += spec_data(data_messages_vt_ingame_chat, "messages.vt_ingame_chat");
     bad += spec_data(data_messages_vt_msg_load, "messages.vt_msg_load");
@@ -338,12 +358,6 @@ internal int spec_messages_check(void) {
     bad += spec_data(data_messages_vt_resign, "messages.vt_resign");
     bad += spec_code((uintptr_t)fn_msg_chat_init, "messages_functions.msg_chat_init");
     bad += spec_code((uintptr_t)fn_msg_cheat_init, "messages_functions.msg_cheat_init");
-    bad += spec_code((uintptr_t)fn_msg_ingame_chat, "messages_functions.msg_ingame_chat");
-    bad += spec_code((uintptr_t)fn_msg_load, "messages_functions.msg_load");
-    bad += spec_code((uintptr_t)fn_msg_path, "messages_functions.msg_path");
-    bad += spec_code((uintptr_t)fn_msg_unload, "messages_functions.msg_unload");
-    bad += spec_code((uintptr_t)fn_msg_pay_tribute, "messages_functions.msg_pay_tribute");
-    bad += spec_code((uintptr_t)fn_msg_resign, "messages_functions.msg_resign");
     bad += spec_code((uintptr_t)fn_select_msg_init, "messages_functions.select_msg_init");
     bad += spec_code((uintptr_t)fn_sel_pack, "messages_functions.sel_pack");
     bad += spec_call(call_sel_pack, (uintptr_t)fn_sel_pack, "messages_functions.sel_pack [call_site sel_pack]");

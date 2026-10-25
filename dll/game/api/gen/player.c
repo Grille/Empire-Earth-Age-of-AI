@@ -168,6 +168,23 @@ internal inline void player_resign(ee_player *player, int how) { fn_player_resig
 typedef void (__thiscall *player_select_fn)(ee_player *, void *);
 internal player_select_fn fn_player_select;
 internal inline void player_select(ee_player *player, void *selection) { fn_player_select(player, selection); }
+// thiscall(player): every tile's sight count (its low byte) into MAP_VIEW_ROWS - a load, the viewed player
+// changed
+typedef void (__thiscall *player_view_sight_copy_fn)(ee_player *);
+internal player_view_sight_copy_fn fn_player_view_sight_copy;
+internal inline void player_view_sight_copy(ee_player *player) { fn_player_view_sight_copy(player); }
+// thiscall(player, on player, 1): calls off its attack groups on that player
+typedef void (__thiscall *player_call_off_attacks_fn)(ee_player *, ee_player *, int);
+internal player_call_off_attacks_fn fn_player_call_off_attacks;
+internal inline void player_call_off_attacks(ee_player *player, ee_player *target, int flag) { fn_player_call_off_attacks(player, target, flag); }
+typedef int (__thiscall *player_delete_for_room_fn)(ee_player *, void *, int);
+internal player_delete_for_room_fn fn_player_delete_for_room;
+internal inline int player_delete_for_room(ee_player *player, void *req, int flag) { return fn_player_delete_for_room(player, req, flag); }
+internal inline int patch_maint_delete(player_delete_for_room_fn h) { return patch_call(call_maint_delete, (uintptr_t)fn_player_delete_for_room, (void *)h); }
+// thiscall(player, 1, 0)
+typedef int (__thiscall *player_population_fn)(ee_player *, int, int);
+internal player_population_fn fn_player_population;
+internal inline int player_population(ee_player *player, int with_list, int with_aboard) { return fn_player_population(player, with_list, with_aboard); }
 
 // class ee_player_b98 (ee_player_b98)
 // the object at a player's +0xB98
@@ -223,10 +240,6 @@ internal inline uint8_t *player_call_kill_stat_at(void) { return (uint8_t *)(uin
 
 // static class player_functions
 // the game's functions player.c wraps, by the names the C side gives them
-// thiscall(player, on player, 1): calls off its attack groups on that player
-typedef void (__thiscall *call_off_attacks_fn)(ee_player *, ee_player *, int);
-internal call_off_attacks_fn fn_call_off_attacks;
-internal inline void call_off_attacks(ee_player *pl, ee_player *target, int flag) { fn_call_off_attacks(pl, target, flag); }
 // thiscall(player, type, 0x20, 0): can train or build one now
 typedef char (__thiscall *can_build_game_fn)(void *, int, int, int);
 internal can_build_game_fn fn_can_build_game;
@@ -235,10 +248,6 @@ internal inline char can_build_game(void *p1, int p2, int p3, int p4) { return f
 typedef char (__cdecl *can_place_game_fn)(void *, int, int, int, int, int, int);
 internal can_place_game_fn fn_can_place_game;
 internal inline char can_place_game(void *p1, int p2, int p3, int p4, int p5, int p6, int p7) { return fn_can_place_game(p1, p2, p3, p4, p5, p6, p7); }
-typedef int (__thiscall *delete_for_room_fn)(ee_player *, void *, int);
-internal delete_for_room_fn fn_delete_for_room;
-internal inline int delete_for_room(ee_player *pl, void *req, int flag) { return fn_delete_for_room(pl, req, flag); }
-internal inline int patch_maint_delete(delete_for_room_fn h) { return patch_call(call_maint_delete, (uintptr_t)fn_delete_for_room, (void *)h); }
 // EEPlayer::vf31 thiscall(player, 0): the game's unit limit for this player
 typedef int (__thiscall *game_limit_fn)(void *, int);
 internal game_limit_fn fn_game_limit;
@@ -247,10 +256,6 @@ internal inline int game_limit(void *p1, int p2) { return fn_game_limit(p1, p2);
 typedef ee_unit *(__cdecl *place_foundation_fn)(ee_player *, int, int, int);
 internal place_foundation_fn fn_place_foundation;
 internal inline ee_unit *place_foundation(ee_player *pl, int type, int x, int y) { return fn_place_foundation(pl, type, x, y); }
-// thiscall(player, 1, 0)
-typedef int (__thiscall *population_fn)(ee_player *, int, int);
-internal population_fn fn_population;
-internal inline int population(ee_player *pl, int with_list, int with_aboard) { return fn_population(pl, with_list, with_aboard); }
 typedef void (__thiscall *set_diplomacy_game_fn)(void *, void *, int, int);
 internal set_diplomacy_game_fn fn_set_diplomacy_game;
 internal inline void set_diplomacy_game(void *p1, void *p2, int p3, int p4) { fn_set_diplomacy_game(p1, p2, p3, p4); }
@@ -322,6 +327,11 @@ internal int spec_player_select(int build) {
         of_player_first_attack_done = 0xF05;
         fn_player_resign = (player_resign_fn)0x0055BCEA;
         fn_player_select = (player_select_fn)0x0055B3FB;
+        fn_player_view_sight_copy = (player_view_sight_copy_fn)0x0055BC4E;
+        fn_player_call_off_attacks = (player_call_off_attacks_fn)0x0043033E;
+        fn_player_delete_for_room = (player_delete_for_room_fn)0x00430D40;
+        call_maint_delete = 0x00477B17;
+        fn_player_population = (player_population_fn)0x00556E11;
         of_player_b98_att = 0x2D;
         vt_ee_computer_player = 0x008264C0;
         fn_player_adjust_cost = (player_adjust_cost_fn)0x00430FBD;
@@ -342,14 +352,10 @@ internal int spec_player_select(int build) {
         value_player_slot_cp_pay = 45;
         value_player_slot_player_human = 29;
         value_player_slot_unit_limit = 31;
-        fn_call_off_attacks = (call_off_attacks_fn)0x0043033E;
         fn_can_build_game = (can_build_game_fn)0x00555710;
         fn_can_place_game = (can_place_game_fn)0x0062E940;
-        fn_delete_for_room = (delete_for_room_fn)0x00430D40;
-        call_maint_delete = 0x00477B17;
         fn_game_limit = (game_limit_fn)0x00556EBC;
         fn_place_foundation = (place_foundation_fn)0x0062EF8A;
-        fn_population = (population_fn)0x00556E11;
         fn_set_diplomacy_game = (set_diplomacy_game_fn)0x0055B8E1;
         fn_stat_add = (stat_add_fn)0x0055DBCF;
         fn_type_stats_game = (type_stats_game_fn)0x00492969;
@@ -409,6 +415,11 @@ internal int spec_player_select(int build) {
         of_player_first_attack_done = 0xF55;
         fn_player_resign = (player_resign_fn)0x0056AF5C;
         fn_player_select = (player_select_fn)0x0056A658;
+        fn_player_view_sight_copy = (player_view_sight_copy_fn)0x0056AEC0;
+        fn_player_call_off_attacks = (player_call_off_attacks_fn)0x0042DCA6;
+        fn_player_delete_for_room = (player_delete_for_room_fn)0x0042E851;
+        call_maint_delete = 0x0047B635;
+        fn_player_population = (player_population_fn)0x005651E0;
         of_player_b98_att = 0x2D;
         vt_ee_computer_player = 0x0083A57C;
         fn_player_adjust_cost = (player_adjust_cost_fn)0x0042EACE;
@@ -429,14 +440,10 @@ internal int spec_player_select(int build) {
         value_player_slot_cp_pay = 45;
         value_player_slot_player_human = 29;
         value_player_slot_unit_limit = 31;
-        fn_call_off_attacks = (call_off_attacks_fn)0x0042DCA6;
         fn_can_build_game = (can_build_game_fn)0x005639E8;
         fn_can_place_game = (can_place_game_fn)0x00643CE6;
-        fn_delete_for_room = (delete_for_room_fn)0x0042E851;
-        call_maint_delete = 0x0047B635;
         fn_game_limit = (game_limit_fn)0x0056528B;
         fn_place_foundation = (place_foundation_fn)0x00644C83;
-        fn_population = (population_fn)0x005651E0;
         fn_set_diplomacy_game = (set_diplomacy_game_fn)0x0056AB41;
         fn_stat_add = (stat_add_fn)0x0056D507;
         fn_type_stats_game = (type_stats_game_fn)0x0051E2A5;
@@ -452,6 +459,11 @@ internal int spec_player_check(void) {
     int bad = 0;
     bad += spec_code((uintptr_t)fn_player_resign, "EEPlayer.resign");
     bad += spec_code((uintptr_t)fn_player_select, "EEPlayer.select");
+    bad += spec_code((uintptr_t)fn_player_view_sight_copy, "EEPlayer.view_sight_copy");
+    bad += spec_code((uintptr_t)fn_player_call_off_attacks, "EEPlayer.call_off_attacks");
+    bad += spec_code((uintptr_t)fn_player_delete_for_room, "EEPlayer.delete_for_room");
+    bad += spec_call(call_maint_delete, (uintptr_t)fn_player_delete_for_room, "EEPlayer.delete_for_room [call_site maint_delete]");
+    bad += spec_code((uintptr_t)fn_player_population, "EEPlayer.population");
     bad += spec_vtable(vt_ee_computer_player, ".?AVEEComputerPlayer@@", "EEComputerPlayer [vtable]");
     bad += spec_code((uintptr_t)fn_player_adjust_cost, "EEComputerPlayer.adjust_cost");
     bad += spec_code((uintptr_t)fn_player_add_resource, "EEComputerPlayer.add_resource");
@@ -466,14 +478,10 @@ internal int spec_player_check(void) {
     bad += spec_call(calls_pop_cap[2], (uintptr_t)fn_player_update_pop_cap, "EEComputerPlayer.update_pop_cap [call_site pop_cap 2]");
     bad += spec_code((uintptr_t)fn_player_schedule_attack, "EEComputerPlayer.schedule_attack");
     bad += spec_code(data_player_call_kill_stat, "player.call_kill_stat");
-    bad += spec_code((uintptr_t)fn_call_off_attacks, "player_functions.call_off_attacks");
     bad += spec_code((uintptr_t)fn_can_build_game, "player_functions.can_build_game");
     bad += spec_code((uintptr_t)fn_can_place_game, "player_functions.can_place_game");
-    bad += spec_code((uintptr_t)fn_delete_for_room, "player_functions.delete_for_room");
-    bad += spec_call(call_maint_delete, (uintptr_t)fn_delete_for_room, "player_functions.delete_for_room [call_site maint_delete]");
     bad += spec_code((uintptr_t)fn_game_limit, "player_functions.game_limit");
     bad += spec_code((uintptr_t)fn_place_foundation, "player_functions.place_foundation");
-    bad += spec_code((uintptr_t)fn_population, "player_functions.population");
     bad += spec_code((uintptr_t)fn_set_diplomacy_game, "player_functions.set_diplomacy_game");
     bad += spec_code((uintptr_t)fn_stat_add, "player_functions.stat_add");
     bad += spec_code((uintptr_t)fn_type_stats_game, "player_functions.type_stats_game");

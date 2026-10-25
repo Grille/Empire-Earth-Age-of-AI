@@ -267,7 +267,7 @@ internal void ecolog_tick(ee_player *pl, uint32_t now) {
             "mGn=%d mGslots=%d mGg=%d mGfar=%d mIn=%d mIslots=%d mIg=%d mIfar=%d mSnd=%d mGnd=%d mInd=%d "
             "fo=%d fh=%d ff=%d fb=%d fx=%d hl=%d hlF=%d hl15=%d hl30=%d an=%d an30=%d anF30=%d anNew30=%d fsN=%d fsF=%d fsN20=%d fsF20=%d fish=%d fishF=%d fld=%d fldOK=%d\n",
             idx, now / 60000, cit, gat[2], gat[3], gat[4], gat[5], gat[6], gat[0], build, walk, att, load, other, none, idle0,
-            army_size(pl), population(pl, 1, 0),
+            army_size(pl), player_population(pl, 1, 0),
             unit_limit(pl), ump ? unit_mgr_get_in_production(ump) : -1,
             d->n, d->town, d->near_, d->far_, d->army, d->bld, d->ship, d->air, d->unk, is_vanilla(pl) ? 0u : g_site_refused[idx],
             sp->tc, sp->tcF, sp->ts, sp->tsF, sp->tsX, mn.n[4], mn.slots[4], mn.g[4], mn.far_[4], mn.n[5], mn.slots[5], mn.g[5],

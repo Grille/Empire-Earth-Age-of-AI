@@ -58,8 +58,7 @@ and the runners, eectl, the MCP server), `results/` (log readers, scorers), `re/
   wrong types are the spec's to fix). Still places (`code`, a hand-written installer): a call hooked by an asm thunk
   (no C type), an installer over two functions or by build. A function of the game on an object is a method of its class in the
   spec (`extern void update(uint32 now)` in EECPResourceManager: C resource_mgr_update); still in `<file>_functions` with
-  [thiscall]: those whose class isn't known (void*) and those whose C name would change with their class's prefix
-  (waiting for the C types' renames). Still to do: game enums, a Ghidra export. Two builds: the 2017 update and Art of Conquest (not ready: tested in AoC only since 2026-10-21 -
+  [thiscall]: those whose class isn't known yet (their object a void*). Still to do: game enums, a Ghidra export. Two builds: the 2017 update and Art of Conquest (not ready: tested in AoC only since 2026-10-21 -
   test runs play it, `EE_GAME_DIR=<its folder>`, docs/testing.md); a new value needs both. The port scripts read the
   spec (`scripts/re/port_addrs.py`: every address's AoC value found again and compared with the spec's - same,
   DIFFERS, NEW; `port_check.py` a class's fields by its code; `port_fields.py`, `port_dll.py`): a value they find goes

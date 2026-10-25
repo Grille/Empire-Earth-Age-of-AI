@@ -187,9 +187,6 @@ typedef char (__cdecl *parse_cmdline_fn)(const char *);
 internal parse_cmdline_fn fn_parse_cmdline;
 internal inline char parse_cmdline(const char *cmd) { return fn_parse_cmdline(cmd); }
 internal inline int patch_parse_cmdline(parse_cmdline_fn h) { return patch_call(call_parse_cmdline, (uintptr_t)fn_parse_cmdline, (void *)h); }
-typedef void (__thiscall *phys_step_fn)(ee_physics *);
-internal phys_step_fn fn_phys_step;
-internal inline void phys_step(ee_physics *phys) { fn_phys_step(phys); }
 typedef void (__thiscall *queue_action_game_fn)(void *, void *);
 internal queue_action_game_fn fn_queue_action_game;
 internal inline void queue_action_game(void *p1, void *p2) { fn_queue_action_game(p1, p2); }
@@ -229,9 +226,6 @@ internal inline ee_unit *unit_by_id_game(void *p1, uint32_t p2) { return fn_unit
 typedef void (__thiscall *vector_free_fn)(void *);
 internal vector_free_fn fn_vector_free;
 internal inline void vector_free(void *v) { fn_vector_free(v); }
-typedef void (__thiscall *start_exec_fn)(ee_start_msg *);
-internal start_exec_fn fn_start_exec;
-internal inline void start_exec(ee_start_msg *msg) { fn_start_exec(msg); }
 
 // the running build's values (spec_select, with addr_select): how many it hasn't got
 internal int spec_game_select(int build) {
@@ -329,7 +323,6 @@ internal int spec_game_select(int build) {
         fn_new_unit_msg_init = (new_unit_msg_init_fn)0x00650B3C;
         fn_parse_cmdline = (parse_cmdline_fn)0x00522A36;
         call_parse_cmdline = 0x00535EF2;
-        fn_phys_step = (phys_step_fn)0x00546C63;
         fn_queue_action_game = (queue_action_game_fn)0x0066192F;
         fn_resign_send = (resign_send_fn)0x005D05CC;
         fn_save_action_init = (save_action_init_fn)0x00404FA1;
@@ -342,7 +335,6 @@ internal int spec_game_select(int build) {
         fn_table_value_game = (table_value_game_fn)0x0048E817;
         fn_unit_by_id_game = (unit_by_id_game_fn)0x0053B889;
         fn_vector_free = (vector_free_fn)0x0061ABEC;
-        fn_start_exec = (start_exec_fn)0x004BEE57;
         return 0;
     case 1:   // aoc
         data_game_call_damage_points = 0x0050232D;
@@ -437,7 +429,6 @@ internal int spec_game_select(int build) {
         fn_new_unit_msg_init = (new_unit_msg_init_fn)0x00662C24;
         fn_parse_cmdline = (parse_cmdline_fn)0x0052D703;
         call_parse_cmdline = 0x005410C8;
-        fn_phys_step = (phys_step_fn)0x00553082;
         fn_queue_action_game = (queue_action_game_fn)0x00678F79;
         fn_resign_send = (resign_send_fn)0x005E0E7F;
         fn_save_action_init = (save_action_init_fn)0x00404613;
@@ -450,7 +441,6 @@ internal int spec_game_select(int build) {
         fn_table_value_game = (table_value_game_fn)0x004CD4B3;
         fn_unit_by_id_game = (unit_by_id_game_fn)0x0054804F;
         fn_vector_free = (vector_free_fn)0x006002C7;
-        fn_start_exec = (start_exec_fn)0x004C7CDC;
         return 0;
     }
     return 0;
@@ -549,7 +539,6 @@ internal int spec_game_check(void) {
     bad += spec_code((uintptr_t)fn_new_unit_msg_init, "game_functions.new_unit_msg_init");
     bad += spec_code((uintptr_t)fn_parse_cmdline, "game_functions.parse_cmdline");
     bad += spec_call(call_parse_cmdline, (uintptr_t)fn_parse_cmdline, "game_functions.parse_cmdline [call_site parse_cmdline]");
-    bad += spec_code((uintptr_t)fn_phys_step, "game_functions.phys_step");
     bad += spec_code((uintptr_t)fn_queue_action_game, "game_functions.queue_action_game");
     bad += spec_code((uintptr_t)fn_resign_send, "game_functions.resign_send");
     bad += spec_code((uintptr_t)fn_save_action_init, "game_functions.save_action_init");
@@ -562,6 +551,5 @@ internal int spec_game_check(void) {
     bad += spec_code((uintptr_t)fn_table_value_game, "game_functions.table_value_game");
     bad += spec_code((uintptr_t)fn_unit_by_id_game, "game_functions.unit_by_id_game");
     bad += spec_code((uintptr_t)fn_vector_free, "game_functions.vector_free");
-    bad += spec_code((uintptr_t)fn_start_exec, "game_functions.start_exec");
     return bad;
 }

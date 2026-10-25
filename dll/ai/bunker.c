@@ -11,7 +11,7 @@ internal int bk_capacity(ee_unit *u) {   // what a building holds as a transport
     ee_unit_type *td = u ? unit_get_type_data(u) : NULL;
     return td && unit_type_get_family(td) == 29 ? unit_type_get_transport_capacity(td) : 0;
 }
-internal int bk_held(ee_unit *u) { return units_inside(u); }   // units inside
+internal int bk_held(ee_unit *u) { return unit_count_inside(u); }   // units inside
 
 struct bk_scan { ee_player *pl; ivec2 p; int r, nf, nc; ee_unit *f[8], *c[128]; };
 internal void bk_unit(ee_unit *u, void *ctx) {
@@ -48,7 +48,7 @@ internal void cmd_bunker(char *out, const char *args) {
     }
     b.pl = st_player(p);
     grid_each(bk_unit, &b);
-    int pop1 = population(b.pl, 0, 0), pop2 = population(b.pl, 0, 1);
+    int pop1 = player_population(b.pl, 0, 0), pop2 = player_population(b.pl, 0, 1);
     REPLY("ok: P%d population %d (with fortresses' %d), %d fortresses, %d citizens within %d of %d,%d:", p, pop1, pop2, b.nf, b.nc, b.r, b.p.x, b.p.y);
     int used = 0;
     for (int k = 0; k < b.nf; k++) {
@@ -240,7 +240,7 @@ internal void bk_build(ee_player *pl, unsigned pi, uint32_t now) {
     // game's own builders take the foundation up anyway)
     ee_unit_type *od = type_data(FORTRESS_TYPE);
     ee_tech_tree *tt = player_get_tech_tree(pl);
-    ee_tech *tech = od && tt ? tech_lookup(tt, unit_type_get_tech(od)) : NULL;
+    ee_tech *tech = od && tt ? tech_tree_lookup(tt, unit_type_get_tech(od)) : NULL;
     int cost = tech && tech_get_data(tech) ? tech_data_get_cost(tech_get_data(tech), 3) : 350;   // the cost lives in its tech (wood)
     if ((player_stock_at(pl))[3] < cost) { g_bk[pi].need_wood = cost; return; }   // can't pay yet: saved for (bunker_reserve)
     // the drop site nearest the base point without a fortress within 10 tiles
@@ -291,7 +291,7 @@ internal unsigned g_bk_res_in[16], g_bk_res_out[16];
 internal uint32_t g_bk_res_load_t[16];
 internal int bk_room(ee_player *pl) {   // cap - population on the map (the fortresses' units left out)
     int cap = unit_limit(pl);
-    return cap - population(pl, 0, 0);
+    return cap - player_population(pl, 0, 0);
 }
 struct bk_free { ee_player *pl; ee_combat_mgr *cm; ivec2 b; int n; ee_unit *u[64]; };
 internal void bk_free_unit(ee_unit *u, void *ctx) {

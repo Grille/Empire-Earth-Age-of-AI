@@ -160,8 +160,4 @@ static unsafe class map_functions
     [address((ee)0x00425F9F, (aoc)0x00422B86), thiscall]
     static extern uint16 region_game(void* p1, int32* p2, int32 p3);
 
-    /// thiscall(player): every tile's sight count (its low byte) into MAP_VIEW_ROWS - a load, the viewed player
-    /// changed
-    [address((ee)0x0055BC4E, (aoc)0x0056AEC0), thiscall]
-    static extern void view_sight_copy(EEPlayer* pl);
 }

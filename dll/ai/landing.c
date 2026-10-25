@@ -659,7 +659,7 @@ internal ee_goal *ld_unload(ee_unit *sh, ivec2 p) {
 internal void ld_unload_home(struct landing *l) {
     for (int k = 0; k < l->nships; k++) {
         ee_unit *sh = l->ships[k];
-        if (units_inside(sh) <= 0) continue;   // nothing aboard
+        if (unit_count_inside(sh) <= 0) continue;   // nothing aboard
         int x0 = unit_get_x(sh), y0 = unit_get_y(sh), ux = -1, uy = -1;
         for (int d = 1; d <= 10 && ux < 0; d++)
             for (int dx = -d; dx <= d && ux < 0; dx++)
@@ -720,7 +720,7 @@ internal int ld_shore_tile(struct landing *l, int k, ivec2 p, ivec2 avoid, int g
 internal void ld_run_in(struct landing *l, unsigned pi) {
     for (int k = 0; k < l->nships; k++) l->unload[k] = iv2(-100, -100);
     for (int k = 0; k < l->nships; k++)
-        if (units_inside(l->ships[k]) <= 0) continue;   // empty (a wave on fewer transports): stays off the beach
+        if (unit_count_inside(l->ships[k]) <= 0) continue;   // empty (a wave on fewer transports): stays off the beach
         else if (!ld_shore_tile(l, k, l->site, iv2(-1, -1), 4, &l->unload[k]) && !ld_shore_tile(l, k, l->site, iv2(-1, -1), 3, &l->unload[k])) {
             l->unload[k] = l->site;
         }
@@ -975,7 +975,7 @@ internal void ld_wave_reunload(struct landing *l, unsigned pi, uint32_t now) {
     for (int k = 0; k < l->nships; k++) {
         ee_unit *sh = l->ships[k];
         ee_goal *cur = unit_get_goal(sh);
-        if (!ld_alive(sh) || (cur && goal_is_unload(cur)) || units_inside(sh) <= 0) continue;
+        if (!ld_alive(sh) || (cur && goal_is_unload(cur)) || unit_count_inside(sh) <= 0) continue;
         ld_reunload(l, pi, k, now);
     }
 }
@@ -987,7 +987,7 @@ internal void ld_wave(ee_player *pl, unsigned pi, struct landing *l, uint8_t *dq
         for (int k = 0; k < l->nships && l->all_ashore && l->meet; k++) {
             ee_unit *sh = l->ships[k];
             ee_goal *g = unit_get_goal(sh);
-            if (ivec2_dist2(unit_get_tile(sh), l->board_w) > 49 && (!g || goal_get_state(g) == 1) && units_inside(sh) <= 0)
+            if (ivec2_dist2(unit_get_tile(sh), l->board_w) > 49 && (!g || goal_get_state(g) == 1) && unit_count_inside(sh) <= 0)
                 l->orders += unit_goal(sh, goal_move((float)l->board_w.x + 0.5f, (float)l->board_w.y + 0.5f), 0, 0x1F40);
         }
         if (!l->all_ashore || l->waves >= g_land_waves || !l->meet || now - l->wt < 20000) return;
@@ -1071,10 +1071,10 @@ internal void ld_wave(ee_player *pl, unsigned pi, struct landing *l, uint8_t *dq
             ee_unit *sh = l->ships[k];
             ee_goal *g = unit_get_goal(sh);
             ivec2 w;
-            if ((g && goal_get_state(g) != 1 && !goal_is_unload(g)) || units_inside(sh) <= 0) continue;
+            if ((g && goal_get_state(g) != 1 && !goal_is_unload(g)) || unit_count_inside(sh) <= 0) continue;
             if (g && goal_is_unload(g) && g_log)
                 fprintf(g_log, "# landing: P%u at %.1f min: transport %d with %d aboard had the game's unload to %d,%d while boarding - kept off the shore\n",
-                        pi, now / 60000.0, k, units_inside(sh), goal_get_unload_x(g), goal_get_unload_y(g));
+                        pi, now / 60000.0, k, unit_count_inside(sh), goal_get_unload_x(g), goal_get_unload_y(g));
             if (ld_open_water(unit_get_tile(sh), (unsigned)l->ocean, &w))
                 l->orders += unit_goal(sh, goal_move((float)w.x + 0.5f, (float)w.y + 0.5f), 0, 0x1F40);
         }
@@ -1175,7 +1175,7 @@ internal int ld_type_avail(ee_player *pl, int t) {
     ee_unit_type *td = type_data(t);
     ee_tech_tree *tt = player_get_tech_tree(pl);
     if (!td || !tt || unit_type_get_tech(td) < 2000) return 0;   // campaign heroes: tech 14xx (Golden Hind 611: 1446; ordering it crashed the game)
-    ee_tech *tech = tech_lookup(tt, unit_type_get_tech(td));
+    ee_tech *tech = tech_tree_lookup(tt, unit_type_get_tech(td));
     return tech && tech_available(tech);
 }
 // the strongest defence of the target seen within 16 tiles of the beach (the fleet is picked against it: 463, the
@@ -1311,7 +1311,7 @@ internal void ld_bombard_tick(ee_player *pl, unsigned pi, struct landing *l, ee_
                 fprintf(g_log, "# ldbomb: P%u %.2f planned %d, epoch %d, room %d:", pi, now / 60000.0, l->war_type, current_epoch(pl), bk_room(pl));
                 for (size_t j = 0; j < sizeof tl / sizeof *tl; j++) {
                     ee_unit_type *td = type_data(tl[j]);
-                    ee_tech *tech = td && tt ? tech_lookup(tt, unit_type_get_tech(td)) : NULL;
+                    ee_tech *tech = td && tt ? tech_tree_lookup(tt, unit_type_get_tech(td)) : NULL;
                     fprintf(g_log, " %d: tech %d/%d avail %d can %d;", tl[j], tech ? tech_get_researched(tech) : -1, tech ? tech_get_available(tech) : -1,
                             tech ? tech_available(tech) : -1, can_build(pl, tl[j]));
                 }
@@ -1681,11 +1681,11 @@ internal void ld_phase_board(ee_player *pl, unsigned pi, struct landing *l, ee_u
         for (int k = 0; k < l->nships; k++) {
             ee_unit *sh = l->ships[k];
             ee_goal *g = unit_get_goal(sh);
-            if ((g && goal_get_state(g) != 1 && !goal_is_unload(g)) || units_inside(sh) <= 0) continue;
+            if ((g && goal_get_state(g) != 1 && !goal_is_unload(g)) || unit_count_inside(sh) <= 0) continue;
             ivec2 w;
             if (g && goal_is_unload(g) && g_log)
                 fprintf(g_log, "# landing: P%u at %.1f min: transport %d with %d aboard had the game's unload to %d,%d while boarding - kept off the shore\n",
-                        pi, now / 60000.0, k, units_inside(sh), goal_get_unload_x(g), goal_get_unload_y(g));
+                        pi, now / 60000.0, k, unit_count_inside(sh), goal_get_unload_x(g), goal_get_unload_y(g));
             if (ld_open_water(unit_get_tile(sh), (unsigned)l->ocean, &w))
                 l->orders += unit_goal(sh, goal_move((float)w.x + 0.5f, (float)w.y + 0.5f), 0, 0x1F40);
         }
@@ -1730,7 +1730,7 @@ internal void ld_phase_board(ee_player *pl, unsigned pi, struct landing *l, ee_u
             if (g_land_trace && g_log && (now - l->boarded_t) % 10000 < 2000)
                 for (int k = 0; k < l->nships; k++)
                     fprintf(g_log, "# ldtrace: P%u %.2f waiting ship %d at %d,%d aboard %d goal %s\n", pi, now / 60000.0, k, unit_get_x(l->ships[k]),
-                            unit_get_y(l->ships[k]), units_inside(l->ships[k]), rtti_name(unit_get_goal(l->ships[k])));
+                            unit_get_y(l->ships[k]), unit_count_inside(l->ships[k]), rtti_name(unit_get_goal(l->ships[k])));
             {   // the sea on the way (the user: subs and planes on patrol before the coast): held - the escorts get 3 minutes
                 // to clear it, then it is called off
                 struct ld_sea e;
@@ -1819,7 +1819,7 @@ internal void ld_trace_ships(struct landing *l, unsigned pi, uint32_t now) {   /
     for (int k = 0; k < l->nships; k++) {
         ee_unit *sh = l->ships[k];
         ee_goal *g = unit_get_goal(sh);
-        int n = units_inside(sh);
+        int n = unit_count_inside(sh);
         if (!n) continue;
         fprintf(g_log, "# ldtrace: P%u %.2f ship %d at %d,%d hp %d aboard %d goal %s", pi, now / 60000.0, k, unit_get_x(sh), unit_get_y(sh),
                 unit_get_hp(sh), n, rtti_name(g));
@@ -1863,7 +1863,7 @@ internal void ld_phase_land(ee_player *pl, unsigned pi, struct landing *l, ee_un
             ee_unit *sh = l->ships[k];
             ee_goal *cur = unit_get_goal(sh);
             if (cur && goal_is_unload(cur)) continue;
-            if (units_inside(sh) <= 0) continue;   // nothing aboard
+            if (unit_count_inside(sh) <= 0) continue;   // nothing aboard
             ld_reunload(l, pi, k, now);
         }
     }
@@ -2234,7 +2234,7 @@ internal void cmd_board(char *out, const char *args) {
     grid_each(ld_bd_unit, &b);
     for (int k = 0; k < b.nt; k++) {
         ee_unit *sh = b.t[k];
-        int n = units_inside(sh);
+        int n = unit_count_inside(sh);
         REPLY("transport type %d at %d,%d holds %d", unit_type_get_id(unit_get_type_data(sh)), unit_get_x(sh), unit_get_y(sh), n);
         if (!n && b.ns) {
             ee_goal *g = goal_load(sh, b.s, b.ns);
@@ -2297,7 +2297,7 @@ internal void ld_fu_check(uint32_t now) {
         ee_unit_type *td = ld_alive(f->sh) ? unit_get_type_data(f->sh) : NULL;
         if (!td || !is_transport(unit_type_get_id(td))) { ld_fu_log(f, "transport lost", 0); continue; }
         ee_goal *cur = unit_get_goal(f->sh);
-        int n = units_inside(f->sh), is = cur == f->g && goal_is_unload(cur);
+        int n = unit_count_inside(f->sh), is = cur == f->g && goal_is_unload(cur);
         if (f->state < 2 && is) { f->state = 2; f->aboard = n; continue; }
         if (f->state == 2 && !is) ld_fu_log(f, "was its goal", n);
         else if (f->state < 2 && now - f->t > 30000) ld_fu_log(f, "never its goal", n);
@@ -2323,7 +2323,7 @@ internal ee_goal *__thiscall hook_unload_ctor(ee_goal *g, ee_unit *tr, int x, in
                 while (j < 15 && g_fu[j].sh) j++;
                 if (r) {
                     if (g_fu[j].sh) ld_fu_log(&g_fu[j], "dropped from the list", g_fu[j].aboard);
-                    g_fu[j] = (struct ld_fu){ tr, r, site, p, x, y, units_inside(tr), 0, g_ld[p].phase, ld_clock() };
+                    g_fu[j] = (struct ld_fu){ tr, r, site, p, x, y, unit_count_inside(tr), 0, g_ld[p].phase, ld_clock() };
                 }
                 return r;
             }

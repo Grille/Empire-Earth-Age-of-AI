@@ -30,7 +30,7 @@ unsafe struct ee_epoch_techs
     uint32 count;
 }
 
-/// a tech, tech_lookup
+/// a tech, tech_tree_lookup
 [c_type("ee_tech")]
 unsafe struct EETechTreeNode
 {
@@ -117,6 +117,13 @@ unsafe struct EETechTree
     /// the current epoch (0 = Prehistoric)
     [offset((ee)0x4E4, (aoc)0x538), found(v)]
     int32 epoch;
+
+    /// thiscall(tech tree): the next epoch (to the game's end epoch) - 0x5BC893 sets it, sends the epoch event
+    [address((ee)0x005BC15D, (aoc)0x005CCB34)]
+    extern void epoch_next();
+
+    [address((ee)0x004019A1, (aoc)0x004018A4)]
+    extern EETechTreeNode* lookup(int32 id);
 }
 
 /// the tech tree's epoch records, TT + 8 + epoch * 0x54
@@ -159,10 +166,4 @@ static unsafe class tech
 [c_prefix("")]
 static unsafe class tech_functions
 {
-    /// thiscall(tech tree): the next epoch (to the game's end epoch) - 0x5BC893 sets it, sends the epoch event
-    [address((ee)0x005BC15D, (aoc)0x005CCB34), thiscall]
-    static extern void epoch_next(EETechTree* tt);
-
-    [address((ee)0x004019A1, (aoc)0x004018A4), thiscall]
-    static extern EETechTreeNode* tech_lookup(EETechTree* tt, int32 id);
 }

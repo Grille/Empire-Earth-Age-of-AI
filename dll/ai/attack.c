@@ -107,7 +107,7 @@ internal struct { unsigned calls, penalised; } g_route_stats[16];
 internal DWORD g_route_thread;
 
 internal int __thiscall hook_route_cost(ee_route_planner *self, int *edge, ee_route_node *node) {
-    int cost = route_cost(self, edge, node);
+    int cost = route_planner_cost(self, edge, node);
     unsigned pi = (unsigned)route_planner_get_player_index(self) & 15;     // planner +0x48 = own player index
     ee_player *pl = is_vanilla_idx((int)pi) ? NULL : g_players[pi];   // a vanilla player: the game's cost
     if (!g_route_thread) {
@@ -395,7 +395,7 @@ internal void __thiscall hook_asg_route(ee_attack_subgroup *self, int *start, in
         ai_say(pl, CHAT_ROUTE, "[ai] marching on P%d at %d,%d (%.0f tiles), %d enemy defences known",
                target ? player_get_index(target) : -1, dest[0], dest[1], sqrt((double)ivec2_dist2(iv2(dest[0], dest[1]), iv2(start[0], start[1]))), g_threat[pi].n);
     }
-    asg_route(self, start, dest);
+    attack_subgroup_plan_route(self, start, dest);
 }
 
 // Leash: each unit of an attack subgroup picks its target itself (EECPAttackSubGroupUnit vf5 0x46286F -> vf4
@@ -896,7 +896,7 @@ internal void citizens_safety(ee_resource_mgr *rm) {   // before the citizen ass
             uint8_t *v0 = player_get_list_begin(pl), *v1 = player_get_list_end(pl);
             fprintf(g_log, "# popcheck: P%u at %.1f min: cap %d, population %d (with production %d, list +0x18 %d), +0xB10 %d, +0xB1C %d +0xB20 %d, limit %d, AI's in production %d; ordered with no room by call site 46cce6/490cac/490e12/490f1f/490fa9/mod: %u/%u/%u/%u/%u/%u\n",
                     idx, now / 60000.0, unit_limit(pl),
-                    population(pl, 0, 0), population(pl, 1, 0),
+                    player_population(pl, 0, 0), player_population(pl, 1, 0),
                     v0 && v1 ? (int)((v1 - v0) / 4) : -1, player_get_pop_b10(pl), player_get_pop_b1c(pl), player_get_pop_b20(pl), pop_limit_setting(),
                     ump ? unit_mgr_get_in_production(ump) : -1, g_noroom[idx][0], g_noroom[idx][1], g_noroom[idx][2], g_noroom[idx][3], g_noroom[idx][4], g_noroom[idx][5]);
         }

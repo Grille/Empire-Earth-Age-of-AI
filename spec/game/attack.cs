@@ -26,6 +26,13 @@ unsafe struct EECPCombatManager
 
     [offset(0x62), found(v)]
     uint8 att_62;
+
+    /// thiscall(cm, task, strategy, unit ids)
+    [address((ee)0x0047067A, (aoc)0x0047360A)]
+    extern char8 attack_plan_ok(void* task, void* strategy, void* ids);
+
+    [address((ee)0x0046FFB7, (aoc)0x00472EC3)]
+    extern void revenge(EEPlayer* target);
 }
 
 /// the object at the combat manager's +0x4C
@@ -42,6 +49,10 @@ unsafe struct ee_attack_cmd
     /// the groups' deque (its count +0x10)
     [offset(0x4), found(s)]
     block groups;
+
+    /// thiscall(attack manager, task, strategy, unit ids) -> the attack group
+    [address((ee)0x0045106C, (aoc)0x00451D8E)]
+    extern EECPAttackGroup* new_group(void* task, void* strategy, void* ids);
 }
 
 /// an attack subgroup (EECPAttackSubGroup, EECPASG*)
@@ -122,6 +133,10 @@ unsafe struct EECPAttackSubGroup
     /// EECPASGLand slot 90: update(now)
     [address((ee)0x004491DD, (aoc)0x004488CE)]
     extern void update(int32 now);
+
+    /// its slot 94: void thiscall(int start[2], int dest[2])
+    [address((ee)0x0044BC57, (aoc)0x0044B3C7)]
+    extern void plan_route(int32* start, int32* dest);
 }
 
 /// an attack subgroup's unit record (EECPAttackSubGroupUnit, EECPASGU*)
@@ -166,6 +181,10 @@ unsafe struct EEAIGPGModifierLandAttackSubGroupRoutePlanner
 {
     [offset(0x48), found(c)]
     int32 player_index;
+
+    /// its slot 1: int thiscall(edge*, node*)
+    [address((ee)0x004141E8, (aoc)0x00410074)]
+    extern int32 cost(int32* edge, ee_route_node* node);
 }
 
 /// an attack strategy (EECPCombatStrategy)
@@ -261,7 +280,7 @@ static unsafe class attack
     [value(5)]
     static uint32 slot_group_get;
 
-    /// attack.vt_route_planner: route_cost_game
+    /// attack.vt_route_planner: route_planner_cost
     [value(1)]
     static uint32 slot_route_cost;
 
@@ -287,18 +306,6 @@ static unsafe class attack
 [c_prefix("")]
 static unsafe class attack_functions
 {
-    /// its slot 94: void thiscall(int start[2], int dest[2])
-    [address((ee)0x0044BC57, (aoc)0x0044B3C7), thiscall]
-    static extern void asg_route(EECPAttackSubGroup* sg, int32* start, int32* dest);
-
-    /// thiscall(attack manager, task, strategy, unit ids) -> the attack group
-    [address((ee)0x0045106C, (aoc)0x00451D8E), thiscall]
-    static extern EECPAttackGroup* attack_group_new(ee_attack_cmd* cmd, void* task, void* strategy, void* ids);
-
-    /// thiscall(cm, task, strategy, unit ids)
-    [address((ee)0x0047067A, (aoc)0x0047360A), thiscall]
-    static extern char8 attack_plan_ok(EECPCombatManager* cm, void* task, void* strategy, void* ids);
-
     [address((ee)0x00450554, (aoc)0x00451239), thiscall]
     [call_site("group_stat", (ee)0x00450546, (aoc)0x0045122B)]
     static extern void group_stat(void* stats, EEUnit* u);
@@ -313,13 +320,6 @@ static unsafe class attack_functions
     [address((ee)0x0063A355, (aoc)0x006509AF), cdecl]
     [call_site("range_sort", (ee)0x0063052E, (aoc)0x0064631B)]
     static extern void range_sort(void** b, void** e, EEUnit* unit);
-
-    [address((ee)0x0046FFB7, (aoc)0x00472EC3), thiscall]
-    static extern void revenge(EECPCombatManager* combat_mgr, EEPlayer* target);
-
-    /// its slot 1: int thiscall(edge*, node*)
-    [address((ee)0x004141E8, (aoc)0x00410074), thiscall]
-    static extern int32 route_cost_game(EEAIGPGModifierLandAttackSubGroupRoutePlanner* p1, int32* p2, ee_route_node* p3);
 
     [address((ee)0x00473BC4, (aoc)0x00477084), thiscall]
     static extern void strategy_init(void* s);

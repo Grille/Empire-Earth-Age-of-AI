@@ -221,7 +221,7 @@ internal void gather_research(ee_player *pl, unsigned idx, uint32_t now) {
     if (!rs || !tt || workforce(pl) < 10) return;
     int *b = research_mgr_get_pool_begin(rs), *e = research_mgr_get_pool_end(rs);
     for (int *q = b; b && q < e && e - b < 500; q++) {
-        ee_tech *t = tech_lookup(tt, *q);
+        ee_tech *t = tech_tree_lookup(tt, *q);
         if (!t || tech_get_researched(t) || !tech_get_available(t) || !is_gather_tech(t)) continue;
         int id = *q;
         memmove(q, q + 1, (size_t)(e - q - 1) * sizeof *q);   // out of the pool, as the planner does
@@ -344,7 +344,7 @@ internal void tech_log_tick(ee_player *pl, unsigned idx, uint32_t now) {
     char buf[1024];
     int o = 0, n = 0, cost[7] = { 0 };
     for (int id = 0; id < 16384; id++) {
-        ee_tech *t = tech_lookup(tt, id);
+        ee_tech *t = tech_tree_lookup(tt, id);
         int done = t && tech_get_researched(t);
         if (done && !seen[idx][id]) {
             ee_tech_data *d = tech_get_data(t);
@@ -576,7 +576,7 @@ internal int requirement_unit(ee_player *pl, int type) {
     ee_tech_tree *tt = player_get_tech_tree(pl);
     ee_unit_type *od = type_data(type);
     if (!g_early_requirements || !tt || !od || requirements_missing(pl) < 1) return 0;
-    ee_tech *t = tech_lookup(tt, unit_type_get_tech(od));
+    ee_tech *t = tech_tree_lookup(tt, unit_type_get_tech(od));
     ee_tech_data *d = t ? tech_get_data(t) : NULL;
     return d && !tech_get_researched(t) && tech_data_get_counts(d);
 }
@@ -597,7 +597,7 @@ internal void decoration_fix(ee_player *pl, unsigned ai) {
         ee_unit_type *od = type_data(type);
         const char *name = od ? unit_type_get_name(od) : NULL;
         if (!name || name[0] != 'x' || name[1] != ' ') continue;
-        ee_tech *t = tech_lookup(tt, unit_type_get_tech(od));
+        ee_tech *t = tech_tree_lookup(tt, unit_type_get_tech(od));
         ee_tech_data *d = t ? tech_get_data(t) : NULL;
         if (d && tech_data_get_counts(d)) { tech_data_set_counts(d, 0); n++; }
     }
@@ -768,7 +768,7 @@ internal void econ_tick(ee_player *pl, uint32_t now) {
         ee_research_mgr *rs = civ_mgr_get_research_mgr(cm);
         int *b = rs ? research_mgr_get_epoch_begin(rs, ep) : NULL, *en = rs ? research_mgr_get_epoch_end(rs, ep) : NULL;
         for (int *q = b; b && en > b && en - b < 100 && q < en; q++) {
-            ee_tech *t = tech_lookup(tt, *q);
+            ee_tech *t = tech_tree_lookup(tt, *q);
             ee_tech_data *d = t ? tech_get_data(t) : NULL;
             if (d) fprintf(g_log, " %d%s@%d(%d/%d/%d/%d/%d)", *q, tech_get_researched(t) ? "*" : "", tech_data_get_unit_type(d), tech_data_get_cost(d, 2),
                            tech_data_get_cost(d, 3), tech_data_get_cost(d, 4), tech_data_get_cost(d, 5), tech_data_get_cost(d, 6));
@@ -1498,7 +1498,7 @@ internal int unit_cost(ee_player *pl, int type, int r) {
     ee_unit_type *obj = type_data(type);
     ee_tech_tree *tt = player_get_tech_tree(pl);
     if (!obj || !tt || r < 2 || r > 6) return 0;
-    ee_tech *tech = tech_lookup(tt, unit_type_get_tech(obj));
+    ee_tech *tech = tech_tree_lookup(tt, unit_type_get_tech(obj));
     ee_tech_data *data = tech ? tech_get_data(tech) : NULL;
     if (!data) return 0;
     float c = (float)tech_data_get_cost(data, r);
@@ -1569,7 +1569,7 @@ internal int substitute_soldier(ee_player *pl, unsigned idx, const int *vis, int
         g_cand[idx].pl = pl; g_cand[idx].t = now; g_cand[idx].n = 0;
         for (int t = 0; t < 724; t++) {   // type ids end at 723 (local/games/ee/data/db/converteroutput.log); the table ends there
             if (!land_soldier(t) || soldier_score(t) <= 0) continue;   // no attack: never a soldier
-            ee_tech *tech = tech_lookup(tt, unit_type_get_tech(type_data(t)));
+            ee_tech *tech = tech_tree_lookup(tt, unit_type_get_tech(type_data(t)));
             if (!tech || !tech_get_researched(tech)) continue;
             int n = g_cand[idx].n, k = n < 48 ? n : 47;   // insert sorted by score, strongest first
             while (k > 0 && soldier_score(g_cand[idx].type[k - 1]) < soldier_score(t)) {
@@ -1766,7 +1766,7 @@ internal uintptr_t train_call(void *um, ee_player *pl, unsigned idx, int *req, u
         if (sub_type) req[0] = sub_type;
         if (afford > 0 && (afford < req[1] || sub_type)) req[1] = afford;   // the caller reads back how many via *b
         int room0 = pl ? unit_limit(pl) - unit_mgr_get_in_production(um) -
-                         population(pl, 1, 0) : 1;
+                         player_population(pl, 1, 0) : 1;
         int game_site = train_site(ra) >= 0;
         unsigned got0 = 0;
         if (!b) b = (uintptr_t)&got0;

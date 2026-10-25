@@ -15,7 +15,7 @@ internal void cmd_explored(char *out, const char *args) {
     REPLY("P%d explored %d of %d map objects (explore all %d)\n", p, seen, n, player_get_explore_all(pl));
 }
 
-// epochup P: player P - any, the tests' idle human too - gets its next epoch at once, unpaid (epoch_next: the tech
+// epochup P: player P - any, the tests' idle human too - gets its next epoch at once, unpaid (tech_tree_epoch_next: the tech
 // tree's epoch, its event and what becomes available; the epoch tech itself stays unresearched - tech_grant refuses
 // epoch techs, category 3). For epoch_pacing=follow's test: the human ahead at a set minute.
 internal void cmd_epochup(char *out, const char *args) {
@@ -24,7 +24,7 @@ internal void cmd_epochup(char *out, const char *args) {
     ee_tech_tree *tt = pl ? player_get_tech_tree(pl) : NULL;
     if (!tt) { REPLY("error: no player %d\n", p); return; }
     int e = tech_tree_get_epoch(tt);
-    epoch_next(tt);
+    tech_tree_epoch_next(tt);
     REPLY("P%d epoch %d -> %d\n", p, e, tech_tree_get_epoch(tt));
 }
 // tech P id...: the player's tech record (tech tree lookup 0x4019A1): first bytes and the data's cost
@@ -37,7 +37,7 @@ internal void cmd_tech(char *out, const char *args) {
     args += n;
     while (sscanf(args, "%d%n", &id, &n) == 1) {
         args += n;
-        ee_tech *t = tech_lookup(tt, id);
+        ee_tech *t = tech_tree_lookup(tt, id);
         if (!t) { REPLY("%d: none\n", id); continue; }
         REPLY("%d:", id);
         for (int i = 0; i < 0x20; i++) REPLY(" %02x", ((const uint8_t *)t)[i]);
@@ -68,7 +68,7 @@ internal void cmd_techs(char *out, const char *args) {
     if (!tt) { REPLY("error: no player %d\n", p); return; }
     REPLY("P%d epoch %d, new:", p, tech_tree_get_epoch(tt));
     for (int id = 0; id < 16384; id++) {
-        ee_tech *t = tech_lookup(tt, id);
+        ee_tech *t = tech_tree_lookup(tt, id);
         int done = t && tech_get_researched(t);
         total += done;
         if (done && !seen[p][id] && strlen(out) < 15000) {
@@ -89,7 +89,7 @@ internal void cmd_watchtech(char *out, const char *args) {
     sscanf(args, "%d %d", &p, &id);
     ee_player *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
     ee_tech_tree *tt = pl ? player_get_tech_tree(pl) : NULL;
-    ee_tech *t = tt ? tech_lookup(tt, id) : NULL;
+    ee_tech *t = tt ? tech_tree_lookup(tt, id) : NULL;
     if (!t) { REPLY("error: no tech %d for P%d\n", id, p); return; }
     watch_set((uintptr_t)tech_researched_at(t), 1);
     REPLY("ok: watching tech %d of P%d at %p (researched %d)\n", id, p, (void *)tech_researched_at(t), tech_get_researched(t));
@@ -110,7 +110,7 @@ internal void cmd_rlist(char *out, const char *args) {
         if (!b || en <= b || en - b > 500) continue;
         REPLY("list %d:", e);
         for (int *q = b; q < en; q++) {
-            ee_tech *t = tech_lookup(tt, *q);
+            ee_tech *t = tech_tree_lookup(tt, *q);
             REPLY(" %d%s", *q, t && tech_get_researched(t) ? "*" : "");
         }
         REPLY("\n");
@@ -184,7 +184,7 @@ internal void cmd_nullmember(char *out, const char *args) {
             if (strstr(args, "off") && target) {   // and the attack called off at once, as diplo_safe_point does
                 breach_forget(pl);
                 asg_purge_all(pl);
-                call_off_attacks(pl, target, 1);
+                player_call_off_attacks(pl, target, 1);
                 REPLY("P%d's attack on P%d called off\n", p, player_get_index(target));
             }
             return;
@@ -785,8 +785,8 @@ internal void cmd_aigroup(char *out, const char *args) {
     int *ids = game_new((unsigned)s.n * 4);
     memcpy(ids, s.ids, (size_t)s.n * 4);
     FIELD(vec, 4, int *) = ids; FIELD(vec, 8, int *) = ids + s.n; FIELD(vec, 0xC, int *) = ids + s.n;
-    char ok = attack_plan_ok(cm, task, strat, vec);
-    ee_attack_group *g = ok ? attack_group_new(cmd, task, strat, vec) : NULL;
+    char ok = combat_mgr_attack_plan_ok(cm, task, strat, vec);
+    ee_attack_group *g = ok ? attack_cmd_new_group(cmd, task, strat, vec) : NULL;
     vector_free(vec);
     task_free(task);
     strategy_free(strat);

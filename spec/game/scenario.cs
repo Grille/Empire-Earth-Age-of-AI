@@ -34,6 +34,34 @@ unsafe struct EEScenarioManager
     /// its file's code (the scenario manager)
     [offset(0x210), found(c)]
     float32 time;
+
+    /// an area by its id
+    [address((ee)0x0056DFB7, (aoc)0x0057DA08)]
+    extern EESMArea* area(int32 id);
+
+    /// a condition by its id (index), NULL out of range
+    [address((ee)0x0056D186, (aoc)0x0057CADF)]
+    extern ee_scen_cond* cond(int32 id);
+
+    /// an effect by its id
+    [address((ee)0x00573183, (aoc)0x00582D82)]
+    extern ee_scen_effect* effect(int32 id);
+
+    /// an object by its id
+    [address((ee)0x00579460, (aoc)0x00588EDD)]
+    extern EESMObject* @object(int32 id);
+
+    /// a trigger by its id
+    [address((ee)0x0057ED54, (aoc)0x0058EF8A)]
+    extern EESMTrigger* trigger(int32 id);
+
+    /// thiscall(mgr, player spec, vector<int> *out or NULL, pick one): the spec's players (docs/triggers.md)
+    [address((ee)0x005A23F6, (aoc)0x005B260A)]
+    extern int32 players(int32 p2, void* p3, char8 p4);
+
+    /// thiscall(mgr, effect id, time ms, cinematic): run at that scenario time
+    [address((ee)0x0059FE52, (aoc)0x005B005B)]
+    extern void queue_effect(int32 effect, int32 at, char8 cinematic);
 }
 
 /// a scenario condition
@@ -136,6 +164,14 @@ unsafe struct ee_scen_cond
     /// its file's code (the scenario manager)
     [offset(0x85), found(c)]
     char8 vs_player;
+
+    /// the condition holds now (its own side effects: an object it tests may lock)
+    [address((ee)0x005AA80B, (aoc)0x005BAABF)]
+    extern char8 eval();
+
+    /// thiscall(cond, player index, attribute): what a condition compares
+    [address((ee)0x005AACC4, (aoc)0x005BAF78)]
+    extern int32 player_attr(int32 player, int32 attr);
 }
 
 /// a scenario area (EESMArea)
@@ -161,6 +197,9 @@ unsafe struct EESMArea
     /// kept: the class's other fields all kept, no read of this one in its methods
     [offset(0x64), found(h, "kept: the class's other fields all kept, no read of this one in its methods")]
     int32 ai_area;
+
+    [address((ee)0x005A9E1D, (aoc)0x005BA0D1)]
+    extern char8 contains(EEUnit* p2);
 }
 
 /// a scenario effect
@@ -424,6 +463,13 @@ unsafe struct ee_scen_effect
     /// its file's code (the scenario manager)
     [offset(0x192), found(c)]
     char8 cal_use_area;
+
+    [address((ee)0x005AD29B, (aoc)0x005BD5EB)]
+    extern void run(int32 flag);
+
+    /// thiscall(effect, player index, attribute, mode 0 set / 1 add / 2 subtract, value)
+    [address((ee)0x005AC7F5, (aoc)0x005BCB1F)]
+    extern void apply_player_attr(int32 player, int32 attr, int32 mode, int32 v);
 }
 
 /// a scenario object (EESMObject): units picked by owner, class, area ...
@@ -532,6 +578,14 @@ unsafe struct EESMObject
     /// its file's code (the scenario manager)
     [offset(0x82), found(c)]
     char8 attr_percent;
+
+    /// thiscall(object, unit type): the type passes the object's class / type filter
+    [address((ee)0x005B58A3, (aoc)0x005C6051)]
+    extern char8 class_test(int32 p2);
+
+    /// thiscall(object, dead too): collects / filters its units, true when any; locks a non-dynamic object on success
+    [address((ee)0x005B5CAE, (aoc)0x005C6458)]
+    extern char8 eval(char8 p2);
 }
 
 /// a trigger's condition reference
@@ -616,6 +670,10 @@ unsafe struct EESMTrigger
     /// its file's code (the scenario manager)
     [offset(0x5B), found(c)]
     char8 cinematic;
+
+    /// thiscall(trigger, scenario time ms): its conditions, true-for, effects queued
+    [address((ee)0x005B93B0, (aoc)0x005C9AB5)]
+    extern void update(float32 now);
 }
 
 /// scenario's data of the game, places in its code and numbers
@@ -630,61 +688,4 @@ static unsafe class scenario
 [c_prefix("")]
 static unsafe class scenario_functions
 {
-    [address((ee)0x005A9E1D, (aoc)0x005BA0D1), thiscall]
-    static extern char8 sm_area_contains_game(EESMArea* p1, EEUnit* p2);
-
-    /// thiscall(object, unit type): the type passes the object's class / type filter
-    [address((ee)0x005B58A3, (aoc)0x005C6051), thiscall]
-    static extern char8 sm_class_test_game(EESMObject* p1, int32 p2);
-
-    /// the condition holds now (its own side effects: an object it tests may lock)
-    [address((ee)0x005AA80B, (aoc)0x005BAABF), thiscall]
-    static extern char8 sm_cond_eval(ee_scen_cond* p1);
-
-    /// an area by its id
-    [address((ee)0x0056DFB7, (aoc)0x0057DA08), thiscall]
-    static extern EESMArea* sm_area(EEScenarioManager* m, int32 id);
-
-    /// a condition by its id (index), NULL out of range
-    [address((ee)0x0056D186, (aoc)0x0057CADF), thiscall]
-    static extern ee_scen_cond* sm_cond(EEScenarioManager* m, int32 id);
-
-    /// an effect by its id
-    [address((ee)0x00573183, (aoc)0x00582D82), thiscall]
-    static extern ee_scen_effect* sm_effect(EEScenarioManager* m, int32 id);
-
-    /// an object by its id
-    [address((ee)0x00579460, (aoc)0x00588EDD), thiscall]
-    static extern EESMObject* sm_object(EEScenarioManager* m, int32 id);
-
-    /// a trigger by its id
-    [address((ee)0x0057ED54, (aoc)0x0058EF8A), thiscall]
-    static extern EESMTrigger* sm_trigger(EEScenarioManager* m, int32 id);
-
-    /// thiscall(object, dead too): collects / filters its units, true when any; locks a non-dynamic object on success
-    [address((ee)0x005B5CAE, (aoc)0x005C6458), thiscall]
-    static extern char8 sm_object_eval(EESMObject* p1, char8 p2);
-
-    /// thiscall(mgr, player spec, vector<int> *out or NULL, pick one): the spec's players (docs/triggers.md)
-    [address((ee)0x005A23F6, (aoc)0x005B260A), thiscall]
-    static extern int32 sm_players(EEScenarioManager* p1, int32 p2, void* p3, char8 p4);
-
-    /// thiscall(cond, player index, attribute): what a condition compares
-    [address((ee)0x005AACC4, (aoc)0x005BAF78), thiscall]
-    static extern int32 sm_player_attr(ee_scen_cond* c, int32 player, int32 attr);
-
-    /// thiscall(mgr, effect id, time ms, cinematic): run at that scenario time
-    [address((ee)0x0059FE52, (aoc)0x005B005B), thiscall]
-    static extern void sm_queue_effect(EEScenarioManager* m, int32 effect, int32 at, char8 cinematic);
-
-    [address((ee)0x005AD29B, (aoc)0x005BD5EB), thiscall]
-    static extern void sm_run_effect(ee_scen_effect* effect, int32 flag);
-
-    /// thiscall(effect, player index, attribute, mode 0 set / 1 add / 2 subtract, value)
-    [address((ee)0x005AC7F5, (aoc)0x005BCB1F), thiscall]
-    static extern void sm_set_player_attr(ee_scen_effect* ef, int32 player, int32 attr, int32 mode, int32 v);
-
-    /// thiscall(trigger, scenario time ms): its conditions, true-for, effects queued
-    [address((ee)0x005B93B0, (aoc)0x005C9AB5), thiscall]
-    static extern void sm_trigger_update(EESMTrigger* t, float32 now);
 }

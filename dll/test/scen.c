@@ -117,7 +117,7 @@ internal const char *sm_class_kind(enum sm_class c, int *n) {
 internal void sm_objects(char *out, ee_scen_mgr *m, int from) {
     char name[96];
     for (int k = from; k < sm_count(scen_mgr_objects_at(m)) && k < from + SM_PAGE; k++) {
-        ee_scen_object *o = sm_object(m, k);
+        ee_scen_object *o = scen_mgr_object(m, k);
         if (!o) continue;
         int cn = 0;
         const char *ck = sm_class_kind(scen_object_get_class(o), &cn);
@@ -131,7 +131,7 @@ internal void sm_objects(char *out, ee_scen_mgr *m, int from) {
         int holds = sm_object_holds(o, 0), n = scen_object_unit_count(o);
         REPLY(" -> %s, %d units", holds ? "holds" : "no", n);
         for (int i = 0; i < n && i < 6; i++) REPLY(" %d", scen_object_unit_id(o, i));
-        if (n && scen_object_get_type(o)) REPLY(" (type %d passes the class test: %d)", scen_object_get_type(o), sm_class_test(o, scen_object_get_type(o)));
+        if (n && scen_object_get_type(o)) REPLY(" (type %d passes the class test: %d)", scen_object_get_type(o), scen_object_class_test(o, scen_object_get_type(o)) != 0);
         REPLY("\n");
     }
 }
@@ -139,11 +139,11 @@ internal void sm_objects(char *out, ee_scen_mgr *m, int from) {
 internal void sm_areas(char *out, ee_scen_mgr *m) {
     char name[96];
     for (int k = 0; k < sm_count(scen_mgr_areas_at(m)); k++) {
-        ee_scen_area *a = sm_area(m, k);
+        ee_scen_area *a = scen_mgr_area(m, k);
         if (!a) continue;
         ivec2 p = scen_area_get_point(a);
         int in = 0;
-        for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) in += sm_area_contains(a, it.u);
+        for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) in += scen_area_contains(a, it.u) != 0;
         REPLY("a%d \"%s\" type %d at %d,%d ai-area %d: %d units in it\n", k, sm_text(scen_area_name_at(a), name, sizeof name),
               scen_area_get_type(a), p.x, p.y, scen_area_get_ai_area(a), in);
     }
@@ -152,7 +152,7 @@ internal void sm_areas(char *out, ee_scen_mgr *m) {
 internal void sm_effects(char *out, ee_scen_mgr *m, int from) {
     char name[96];
     for (int k = from; k < sm_count(scen_mgr_effects_at(m)) && k < from + SM_PAGE; k++) {
-        ee_scen_effect *ef = sm_effect(m, k);
+        ee_scen_effect *ef = scen_mgr_effect(m, k);
         if (!ef) continue;
         int cat = scen_effect_get_category(ef), sub = scen_effect_get_kind(ef, cat);
         REPLY("e%d cat %d kind %d:", k, cat, sub);
@@ -182,13 +182,13 @@ internal void sm_effects(char *out, ee_scen_mgr *m, int from) {
 // trig eval: each condition by the game's own evaluation now (objects it tests may lock), with its key values
 internal void sm_eval(char *out, ee_scen_mgr *m) {
     for (int k = 0; k < sm_count(scen_mgr_conds_at(m)); k++) {
-        ee_scen_cond *c = sm_cond(m, k);
+        ee_scen_cond *c = scen_mgr_cond(m, k);
         if (!c) continue;
         int ty = scen_cond_get_type(c);
         REPLY("c%d %s: %s", k, ty >= 0 && ty < 8 ? k_sm_cond[ty] : "?", sm_cond_holds(c) ? "true" : "false");
         if (ty == 2) {
             int p = sm_pick_player(m, scen_cond_get_player(c));
-            REPLY(" (p%d attr %d = %d%s, vs p%d attr %d)", p, scen_cond_get_attr(c), p >= 0 ? sm_player_attr(c, p, scen_cond_get_attr(c)) : 0,
+            REPLY(" (p%d attr %d = %d%s, vs p%d attr %d)", p, scen_cond_get_attr(c), p >= 0 ? scen_cond_player_attr(c, p, scen_cond_get_attr(c)) : 0,
                   scen_cond_get_vs_player(c) ? "" : " - against the constant", scen_cond_get_player2(c), scen_cond_get_attr2(c));
         } else if (ty == 5) REPLY(" (p%d to p%d stance %d)", scen_cond_get_player(c), scen_cond_get_player2(c), scen_cond_get_stance(c));
         else if (ty == 6) REPLY(" (%s%s%s difficulty %d hour %d)", scen_cond_get_timed(c) ? "time " : "", scen_cond_get_test_hour(c) ? "hour " : "",
@@ -201,13 +201,13 @@ internal void sm_check(char *out, ee_scen_mgr *m) {
     int bad = 0;
 #define SM_CHECK(c, ...) do { if (c) { bad++; REPLY(__VA_ARGS__); } } while (0)
     for (int k = 0; k < sm_count(scen_mgr_triggers_at(m)); k++) {
-        SM_CHECK(sm_trigger(m, k) != sm_at(scen_mgr_triggers_at(m), k), "trigger %d: the getter's %p, the list's %p\n", k, (void *)sm_trigger(m, k), sm_at(scen_mgr_triggers_at(m), k));
+        SM_CHECK(scen_mgr_trigger(m, k) != sm_at(scen_mgr_triggers_at(m), k), "trigger %d: the getter's %p, the list's %p\n", k, (void *)scen_mgr_trigger(m, k), sm_at(scen_mgr_triggers_at(m), k));
     }
-    for (int k = 0; k < sm_count(scen_mgr_conds_at(m)); k++) SM_CHECK(sm_cond(m, k) != sm_at(scen_mgr_conds_at(m), k), "condition %d\n", k);
-    for (int k = 0; k < sm_count(scen_mgr_effects_at(m)); k++) SM_CHECK(sm_effect(m, k) != sm_at(scen_mgr_effects_at(m), k), "effect %d\n", k);
-    for (int k = 0; k < sm_count(scen_mgr_objects_at(m)); k++) SM_CHECK(sm_object(m, k) != sm_at(scen_mgr_objects_at(m), k), "object %d\n", k);
-    for (int k = 0; k < sm_count(scen_mgr_areas_at(m)); k++) SM_CHECK(sm_area(m, k) != sm_at(scen_mgr_areas_at(m), k), "area %d\n", k);
-    SM_CHECK(sm_trigger(m, sm_count(scen_mgr_triggers_at(m))) != NULL, "trigger %d (out of range) not NULL\n", sm_count(scen_mgr_triggers_at(m)));
+    for (int k = 0; k < sm_count(scen_mgr_conds_at(m)); k++) SM_CHECK(scen_mgr_cond(m, k) != sm_at(scen_mgr_conds_at(m), k), "condition %d\n", k);
+    for (int k = 0; k < sm_count(scen_mgr_effects_at(m)); k++) SM_CHECK(scen_mgr_effect(m, k) != sm_at(scen_mgr_effects_at(m), k), "effect %d\n", k);
+    for (int k = 0; k < sm_count(scen_mgr_objects_at(m)); k++) SM_CHECK(scen_mgr_object(m, k) != sm_at(scen_mgr_objects_at(m), k), "object %d\n", k);
+    for (int k = 0; k < sm_count(scen_mgr_areas_at(m)); k++) SM_CHECK(scen_mgr_area(m, k) != sm_at(scen_mgr_areas_at(m), k), "area %d\n", k);
+    SM_CHECK(scen_mgr_trigger(m, sm_count(scen_mgr_triggers_at(m))) != NULL, "trigger %d (out of range) not NULL\n", sm_count(scen_mgr_triggers_at(m)));
 #undef SM_CHECK
     REPLY("%s: %d mismatches; trigger 0's +0x54 %d; step %.0f ms, queued %d bytes, chat \"%s\"\n", bad ? "error" : "ok", bad,
           sm_count(scen_mgr_triggers_at(m)) ? trigger_get_0x54(sm_at(scen_mgr_triggers_at(m), 0)) : -1, scen_step(),
@@ -232,16 +232,16 @@ internal void cmd_trig(char *out, const char *args) {
     if (!strcmp(verb, "attr")) {   // a player's attribute as conditions read it (the first condition as `this`: only attribute 0 uses it)
         int p = 0, a = 0;
         sscanf(arg, "%d %d", &p, &a);
-        ee_scen_cond *c = sm_cond(m, 0);
+        ee_scen_cond *c = scen_mgr_cond(m, 0);
         if (!c) { REPLY("error: the scenario has no condition\n"); return; }
-        REPLY("ok: p%d attribute %d = %d\n", p, a, sm_player_attr(c, p, a));
+        REPLY("ok: p%d attribute %d = %d\n", p, a, scen_cond_player_attr(c, p, a));
         return;
     }
     if (!strcmp(verb, "effect")) {
         int e = atoi(arg);
         ee_scen_effect *ef = sm_at(scen_mgr_effects_at(m), e);
         if (!ef) { REPLY("error: no effect %d\n", e); return; }
-        sm_run_effect(ef, 0);
+        scen_effect_run(ef, 0);
         REPLY("ok: effect %d (category %d) ran\n", e, scen_effect_get_category(ef));
         return;
     }
@@ -255,7 +255,7 @@ internal void cmd_trig(char *out, const char *args) {
         int ran = 0;
         for (int e = 0; e < sm_count(trigger_effects_at(t)); e++) {
             ee_trig_effect *w = sm_at(trigger_effects_at(t), e); ee_scen_effect *ef = w && trig_effect_get_kind(w) != 2 ? sm_at(scen_mgr_effects_at(m), trig_effect_get_index(w)) : NULL;
-            if (ef) { sm_run_effect(ef, 0); ran++; }
+            if (ef) { scen_effect_run(ef, 0); ran++; }
         }
         trigger_set_fired(t, 1);
         REPLY("ok: trigger %d fired, %d effects ran\n", idx, ran);

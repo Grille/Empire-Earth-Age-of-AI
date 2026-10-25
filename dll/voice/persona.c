@@ -1059,7 +1059,7 @@ internal char __thiscall hook_native_chat(ee_native_chat *pim, int base, int ms)
         if (k != L_WAR_DECLARED) persona_say(pl, (enum line_kind)k, NULL, NULL);
         return 1;
     }
-    return native_chat(pim, base, ms);
+    return native_chat_say(pim, base, ms);
 }
 
 // cmd: persona [P name]: who is who; with arguments AI P gets personality <name> (file name) from now on

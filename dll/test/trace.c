@@ -28,7 +28,7 @@ internal void trace_emit(const char *line) {
 
 #define CALLER() ((uintptr_t)__builtin_return_address(0) - 5)
 
-internal void *__thiscall tr_find_food(ee_resource_mgr *rm, uintptr_t a, uintptr_t b, ee_unit *u) {
+internal ee_unit *__thiscall tr_find_food(ee_resource_mgr *rm, uintptr_t a, uintptr_t b, ee_unit *u) {
     void *r = resource_mgr_find_food(rm, a, b, u);
     if (tracing(rm)) {
         char buf[300];
@@ -53,7 +53,7 @@ internal void __thiscall tr_gather(ee_resource_mgr *rm, ee_unit *u, ee_unit *t, 
     resource_mgr_assign_as(rm, u, t, c);
 }
 
-internal void *__thiscall tr_find_mine(ee_resource_mgr *rm, int type, ee_unit *u, uintptr_t rev) {
+internal ee_unit *__thiscall tr_find_mine(ee_resource_mgr *rm, int type, ee_unit *u, uintptr_t rev) {
     void *r = resource_mgr_find_mine(rm, (uintptr_t)type, u, rev);
     if (tracing(rm)) {
         char buf[300];
@@ -64,7 +64,7 @@ internal void *__thiscall tr_find_mine(ee_resource_mgr *rm, int type, ee_unit *u
     return r;
 }
 
-internal void *__thiscall tr_find_wood(ee_resource_mgr *rm, uintptr_t f, ee_unit *u) {
+internal ee_unit *__thiscall tr_find_wood(ee_resource_mgr *rm, uintptr_t f, ee_unit *u) {
     void *r = resource_mgr_find_wood(rm, f, u);
     if (tracing(rm)) {
         char buf[300];
@@ -176,7 +176,7 @@ internal void __thiscall hook_start_exec(ee_start_msg *msg) {
     if (g_auto.game_seed) start_msg_set_seed(msg, (unsigned)g_auto.game_seed);
     ee_physics *phys = game_physics(); ee_world *world = game_world();
     unsigned map_seed = world ? world_get_seed(world) : 0;
-    start_exec(msg);
+    start_msg_execute(msg);
     EnterCriticalSection(&g_lock);
     if (g_sync) fprintf(g_sync, "start message: seed %u (generator %u, world+0x54 was %u)\n", start_msg_get_seed(msg),
                         phys ? physics_get_seed(phys) : 0, map_seed);
@@ -245,7 +245,7 @@ internal void sync_step(void *phys) {   // after each step (control.c hook_phys_
     struct sync_units su = { 0, 0 };
     grid_each(sync_unit, &su);
     EnterCriticalSection(&g_lock);
-    fprintf(g_sync, "%u %u %u %u %08x %u %08x\n", physics_get_step(phys), physics_get_time(phys),
+    fprintf(g_sync, "%u %u %u %u %08x %u %08x\n", physics_get_steps(phys), physics_get_time(phys),
             physics_get_seed(phys), input_msgs_done(), h, su.n, su.h);
     if (g_sync_dump0 && physics_get_time(phys) >= g_sync_dump0 && physics_get_time(phys) <= g_sync_dump1)
         grid_each(sync_unit_dump, NULL);

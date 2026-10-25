@@ -125,6 +125,10 @@ unsafe struct EEUnit
 
     [address((ee)0x00628E29, (aoc)0x0063DBDA)]
     extern void unlink();
+
+    /// units aboard a transport or inside a building
+    [address((ee)0x0042E347, (aoc)0x0040D5C5)]
+    extern int32 count_inside();
 }
 
 /// a unit, building, ship or projectile: everything on the map that moves or is built
@@ -344,10 +348,6 @@ static unsafe class unit_functions
 
     [address((ee)0x0052E5F7, (aoc)0x00539532), thiscall]
     static extern uint32 site_gatherers_game(void* p1, void* p2);
-
-    /// units aboard a transport or inside a building
-    [address((ee)0x0042E347, (aoc)0x0040D5C5), thiscall]
-    static extern int32 units_inside(EEUnit* u);
 
     /// cdecl(unit, player index, new type data)
     [address((ee)0x0062F192, (aoc)0x00644E95), cdecl]

@@ -60,6 +60,6 @@ internal inline int patch_tile_sight(tile_sight_hook add, tile_sight_hook sub) {
 // the minimap's rebuild (0x5150F2: the viewed player changed, a new game) takes each tile's count from its low byte
 typedef void (__thiscall *minimap_tile_hook)(void *mm, ee_tile *tile, int x, int y);
 internal inline int patch_minimap_tile(minimap_tile_hook h) { return patch_all_calls((uintptr_t)fn_minimap_tile, (void *)h); }
-// the view table's refill from the tiles' counts (view_sight_copy: a load, the viewed player changed) - their low byte
+// the view table's refill from the tiles' counts (player_view_sight_copy: a load, the viewed player changed) - their low byte
 typedef void (__thiscall *view_sight_copy_hook)(ee_player *pl);
-internal inline int patch_view_sight_copy(view_sight_copy_hook h) { return patch_all_calls((uintptr_t)fn_view_sight_copy, (void *)h); }
+internal inline int patch_view_sight_copy(view_sight_copy_hook h) { return patch_all_calls((uintptr_t)fn_player_view_sight_copy, (void *)h); }

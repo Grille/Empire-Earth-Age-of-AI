@@ -709,7 +709,7 @@ internal void so_waves(uint32_t now) {
         struct so_wave *w = &g_so.w[k];
         int alive = 0, aboard = 0;
         for (int j = 0; j < w->ntr; j++)
-            if (w->tr[j] && so_tr_alive(w->tr[j], w->tr_id[j])) { alive++; aboard += units_inside(w->tr[j]); }
+            if (w->tr[j] && so_tr_alive(w->tr[j], w->tr_id[j])) { alive++; aboard += unit_count_inside(w->tr[j]); }
             else w->tr[j] = NULL;
         if (w->st == 0 && now - w->t >= 4000) {   // the spawned units are there: load them
             int nt = 0;
@@ -746,7 +746,7 @@ internal void so_waves(uint32_t now) {
                 int a = 0, cap = ld_cap(g_so.trtype);
                 for (int j = 0; j < w->ntr && a < nl; j++) {   // each transport its room's worth of those still ashore
                     if (!w->tr[j]) continue;
-                    int room = cap - units_inside(w->tr[j]), b = a + room > nl ? nl : a + room;
+                    int room = cap - unit_count_inside(w->tr[j]), b = a + room > nl ? nl : a + room;
                     if (b <= a) continue;
                     ee_goal *g = goal_load(w->tr[j], left + a, b - a);
                     for (int q = a; q < b && g; q++) g_so.orders += (unsigned)unit_goal(left[q], goal_load_part(g), 0, 0x1F40);
@@ -778,7 +778,7 @@ internal void so_waves(uint32_t now) {
             int again = !w->load_t || now - w->load_t >= 20000;
             for (int j = 0; j < w->ntr; j++) {
                 ee_unit *sh = w->tr[j];
-                if (!sh || units_inside(sh) <= 0) continue;
+                if (!sh || unit_count_inside(sh) <= 0) continue;
                 float d = so_d2(unit_get_x(sh), unit_get_y(sh), w->wx, w->wy);
                 if (d <= 16.0f || w->st == 3) {
                     if (w->st == 2) { w->st = 3; w->t = now; again = 1; }

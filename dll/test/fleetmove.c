@@ -156,7 +156,7 @@ internal void cmd_fmove(char *out, const char *args) {
         player_select(qpl, sel);
         memset(qmem, 0, sizeof qmem);
         path_msg_make((ee_path_msg *)qmem, player_get_msg_id(qpl), (float)x + 0.5f, (float)y + 0.5f, 0, 1);
-        msg_path((ee_path_msg *)qmem);
+        path_msg_execute((ee_path_msg *)qmem);
         REPLY("fmove: %d units of P%d then to %d,%d (queued)\n", n, p, x, y);
         return;
     }
@@ -191,7 +191,7 @@ internal void cmd_fmove(char *out, const char *args) {
     g_fm_tx = (float)tx + 0.5f;
     g_fm_ty = (float)ty + 0.5f;
     path_msg_make((ee_path_msg *)mem, player_get_msg_id(pl), g_fm_tx, g_fm_ty, together, 0);
-    msg_path((ee_path_msg *)mem);
+    path_msg_execute((ee_path_msg *)mem);
     if (!also) g_fm_t0 = g_fm_last = game_time();
     int *grp = player_get_selected_group(pl);
     REPLY("fmove: %d units of P%d sent to %d,%d%s (%u in the selected group)\n", g_fm_n - first, p, tx, ty, together ? " together" : "", grp ? group_count(grp) : 0);

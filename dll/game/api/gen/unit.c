@@ -106,6 +106,10 @@ internal inline float unit_turn_accel(ee_unit *unit) { return fn_unit_turn_accel
 typedef void (__thiscall *unit_unlink_fn)(ee_unit *);
 internal unit_unlink_fn fn_unit_unlink;
 internal inline void unit_unlink(ee_unit *unit) { fn_unit_unlink(unit); }
+// units aboard a transport or inside a building
+typedef int (__thiscall *unit_count_inside_fn)(ee_unit *);
+internal unit_count_inside_fn fn_unit_count_inside;
+internal inline int unit_count_inside(ee_unit *unit) { return fn_unit_count_inside(unit); }
 
 // class EEComplexUnit (ee_unit)
 // a unit, building, ship or projectile: everything on the map that moves or is built
@@ -308,10 +312,6 @@ internal inline char ballistic_game(ee_unit *p1, ee_unit_stats *p2, float *p3, f
 typedef uint32_t (__thiscall *site_gatherers_game_fn)(void *, void *);
 internal site_gatherers_game_fn fn_site_gatherers_game;
 internal inline uint32_t site_gatherers_game(void *p1, void *p2) { return fn_site_gatherers_game(p1, p2); }
-// units aboard a transport or inside a building
-typedef int (__thiscall *units_inside_fn)(ee_unit *);
-internal units_inside_fn fn_units_inside;
-internal inline int units_inside(ee_unit *u) { return fn_units_inside(u); }
 // cdecl(unit, player index, new type data)
 typedef int (__cdecl *unit_convert_fn)(ee_unit *, int, ee_unit_type *);
 internal unit_convert_fn fn_unit_convert;
@@ -360,6 +360,7 @@ internal int spec_unit_select(int build) {
         fn_unit_set_state = (unit_set_state_fn)0x005EFCF0;
         fn_unit_turn_accel = (unit_turn_accel_fn)0x0054A504;
         fn_unit_unlink = (unit_unlink_fn)0x00628E29;
+        fn_unit_count_inside = (unit_count_inside_fn)0x0042E347;
         vt_ee_complex_unit = 0x00831494;
         size_ee_complex_unit = 0x348;
         of_unit_queue_begin = 0x4C;
@@ -414,7 +415,6 @@ internal int spec_unit_select(int build) {
         of_ai_state_id = 0x24;
         fn_ballistic_game = (ballistic_game_fn)0x0062CBB3;
         fn_site_gatherers_game = (site_gatherers_game_fn)0x0052E5F7;
-        fn_units_inside = (units_inside_fn)0x0042E347;
         fn_unit_convert = (unit_convert_fn)0x0062F192;
         fn_unit_distance = (unit_distance_fn)0x0062D5A4;
         fn_unit_goal_queue = (unit_goal_queue_fn)0x005F3473;
@@ -449,6 +449,7 @@ internal int spec_unit_select(int build) {
         fn_unit_set_state = (unit_set_state_fn)0x005FDFA5;
         fn_unit_turn_accel = (unit_turn_accel_fn)0x0055465B;
         fn_unit_unlink = (unit_unlink_fn)0x0063DBDA;
+        fn_unit_count_inside = (unit_count_inside_fn)0x0040D5C5;
         vt_ee_complex_unit = 0x00846DDC;
         size_ee_complex_unit = 0x364;
         of_unit_queue_begin = 0x4C;
@@ -503,7 +504,6 @@ internal int spec_unit_select(int build) {
         of_ai_state_id = 0x24;
         fn_ballistic_game = (ballistic_game_fn)0x00641A6A;
         fn_site_gatherers_game = (site_gatherers_game_fn)0x00539532;
-        fn_units_inside = (units_inside_fn)0x0040D5C5;
         fn_unit_convert = (unit_convert_fn)0x00644E95;
         fn_unit_distance = (unit_distance_fn)0x00642489;
         fn_unit_goal_queue = (unit_goal_queue_fn)0x005FA1CD;
@@ -527,6 +527,7 @@ internal int spec_unit_check(void) {
     bad += spec_code((uintptr_t)fn_unit_set_state, "EEUnit.set_state");
     bad += spec_code((uintptr_t)fn_unit_turn_accel, "EEUnit.turn_accel");
     bad += spec_code((uintptr_t)fn_unit_unlink, "EEUnit.unlink");
+    bad += spec_code((uintptr_t)fn_unit_count_inside, "EEUnit.count_inside");
     bad += spec_vtable(vt_ee_complex_unit, ".?AVEEComplexUnit@@", "EEComplexUnit [vtable]");
     bad += spec_code((uintptr_t)fn_ee_complex_unit_lets_pass, "EEComplexUnit.lets_pass");
     bad += spec_slot(vt_ee_complex_unit, slot_unit_lets_pass, (uintptr_t)fn_ee_complex_unit_lets_pass, "EEComplexUnit.lets_pass [slot]");
@@ -548,7 +549,6 @@ internal int spec_unit_check(void) {
     bad += spec_call(call_missile_aim, (uintptr_t)fn_unit_aim, "unit.aim [call_site missile_aim]");
     bad += spec_code((uintptr_t)fn_ballistic_game, "unit_functions.ballistic_game");
     bad += spec_code((uintptr_t)fn_site_gatherers_game, "unit_functions.site_gatherers_game");
-    bad += spec_code((uintptr_t)fn_units_inside, "unit_functions.units_inside");
     bad += spec_code((uintptr_t)fn_unit_convert, "unit_functions.unit_convert");
     bad += spec_code((uintptr_t)fn_unit_distance, "unit_functions.unit_distance");
     bad += spec_code((uintptr_t)fn_unit_goal_queue, "unit_functions.unit_goal_queue");

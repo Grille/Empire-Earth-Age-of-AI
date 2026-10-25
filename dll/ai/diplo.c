@@ -1263,7 +1263,7 @@ internal void diplo_safe_point(void) {
             asg_purge_all(p);   // members without their unit: the call-off reads them first (attack.c)
             leads_release(i);   // subgroups the landing leads: back to the game before the call-off
             g_in_calloff = 1;   // attack.c: no unit offered to the groups being freed
-            call_off_attacks(p, pj, 1);
+            player_call_off_attacks(p, pj, 1);
             g_in_calloff = 0;
             if (g_log) fprintf(g_log, "# attack: P%d calls off its %s on P%d (attack groups %d -> %d)\n", i,
                                g_cancel_why[i][j] ? g_cancel_why[i][j] : "citizen attack", j, before, attack_groups(p));
@@ -1283,7 +1283,7 @@ internal void diplo_safe_point(void) {
             asg_purge_all(p);   // members without their unit: the call-off reads them first (attack.c)
             leads_release(i);   // subgroups the landing leads: back to the game before the call-off
             g_in_calloff = 1;   // attack.c: no unit offered to the groups being freed
-            call_off_attacks(p, pj, 1);
+            player_call_off_attacks(p, pj, 1);
             g_in_calloff = 0;
             if (g_log) { fprintf(g_log, "# diplomacy: P%d calls off its attacks on P%d (attack groups %d -> %d)\n", i, j, before,
                                  attack_groups(p)); fflush(g_log); }
@@ -1402,7 +1402,7 @@ internal void diplo_tick(ee_player *pl, unsigned ai, uint32_t now) {
             persona_say(pl, g_war_betrayal[ai][j] ? L_BETRAYED : L_WAR_DECLARED, pj, NULL);
             tell_event(0, 0, 0, 0);
             ee_combat_mgr *cbm = player_get_combat_mgr(pl);
-            if (cbm) revenge(cbm, pj);
+            if (cbm) combat_mgr_revenge(cbm, pj);
             g_diplo_answers[ai]++;
             if (g_log) fprintf(g_log, "# diplomacy: P%u at %.1f min answers war: now enemy of P%d (stance %d)\n",
                                ai, now / 60000.0, j, stance_of(pl, j));
@@ -1563,7 +1563,7 @@ internal void __thiscall hook_tribute(ee_tribute_msg *msg) {
     int amount[7] = { 0, 0, tribute_msg_get_food(msg), tribute_msg_get_wood(msg), tribute_msg_get_stone(msg), tribute_msg_get_gold(msg), tribute_msg_get_iron(msg) };
     void *to = player_at(tribute_msg_get_to(msg));
     void *from = game_player((int)tribute_msg_get_from(msg));
-    msg_pay_tribute(msg);
+    tribute_msg_execute(msg);
     if (from && to) hist_tribute(pidx(from), pidx(to), total);
     diplo_tribute(to, from, amount);
 }
@@ -1675,8 +1675,8 @@ internal void victory_off_pass(void) {   // auto_victory=0, every pass between s
 // every opponent has submitted gets the victory instead. Exit Game (EEUIEMGOEExitGame::vf1 0x5D0AFB, confirmed:
 // 0x5D0B4F, pushed at 0x5D0B2B) leaves without any result - in that situation it resigns instead, which ends the
 // game with the victory screen, the statistics and then the menu as usual.
-internal void __thiscall hook_resign(ee_msg *msg) {
-    int8_t from = msg_get_from(msg);
+internal void __thiscall hook_resign(ee_resign_msg *msg) {
+    int8_t from = resign_msg_get_from(msg);
     for (int i = 1; i < nplayers(); i++) {
         void *p = player_at(i);
         if (p && player_get_msg_id(p) == from && !g_players[i] && !is_out(p) && (g_victory_off ? can_claim(i) : vassals_of(i))) {
@@ -1684,7 +1684,7 @@ internal void __thiscall hook_resign(ee_msg *msg) {
             return;
         }
     }
-    msg_resign(msg);
+    resign_msg_execute(msg);
 }
 internal void __cdecl hook_exit_confirm(void) {
     int me = (int)local_player_index();
@@ -1710,7 +1710,7 @@ internal void __thiscall hook_ingame_chat(ee_chat_msg *msg) {
     }
     if (from && text && victory_word(text))
         refused = !claim_victory(from, "the chat word");
-    msg_ingame_chat(msg);
+    chat_msg_execute(msg);
     if (local && text && !refused) llm_player_chat(text);
     if (!refused || from != me) return;
     // not yet: a system line under the player's own, naming who still holds out

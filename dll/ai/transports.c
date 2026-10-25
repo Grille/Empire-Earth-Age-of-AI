@@ -103,7 +103,7 @@ internal void tw_say(struct tw *t, ee_unit *u, uint32_t now, const char *what) {
     const char *gn = tw_goal_name(g);
     tw_head(t, u, now, what);
     fprintf(g_log, " in %s %.0f s at %d,%d goal %.*s aboard %d", tw_state(t->st), (now - t->since) / 1000.0, t->at.x, t->at.y, tw_goal_len(gn), gn,
-            units_inside(u));
+            unit_count_inside(u));
     if (g && goal_is_load(g)) {
         ee_unit **b = goal_get_pending_begin(g), **e = goal_get_pending_end(g);
         int n = b && e > b ? (int)(e - b) : 0, c[5] = { 0 };
@@ -145,16 +145,16 @@ internal void tw_dog(struct tw *t, ee_unit *u, uint32_t now) {
         if (g_log && (g_tw_log || g_tw_dropped <= 20)) {
             tw_head(t, u, now, "watchdog:");
             fprintf(g_log, " after %.0f s in WaitForPassengers %d of %d pending let go (idle %d, no goal %d, other %d, gone %d), %d left, %d aboard\n",
-                    (now - t->since) / 1000.0, n - left, n, c[TWP_IDLE], c[TWP_NOGOAL], c[TWP_OTHER], c[TWP_GONE], left, units_inside(u));
+                    (now - t->since) / 1000.0, n - left, n, c[TWP_IDLE], c[TWP_NOGOAL], c[TWP_OTHER], c[TWP_GONE], left, unit_count_inside(u));
         }
         return;
     }
-    if (t->st == TW_IDLE && goal_is_unload(g) && units_inside(u) > 0 && now - t->since >= 20000 && t->kicks < 3) {
+    if (t->st == TW_IDLE && goal_is_unload(g) && unit_count_inside(u) > 0 && now - t->since >= 20000 && t->kicks < 3) {
         t->kicks++; g_tw_kicked++;
         if (g_log && (g_tw_log || g_tw_kicked <= 20)) {
             tw_head(t, u, now, "watchdog:");
             fprintf(g_log, " Idle %.0f s with its unload to %d,%d and %d aboard - PrepareToMove (%d)\n", (now - t->since) / 1000.0,
-                    goal_get_unload_x(g), goal_get_unload_y(g), units_inside(u), t->kicks);
+                    goal_get_unload_x(g), goal_get_unload_y(g), unit_count_inside(u), t->kicks);
         }
         unit_set_state(u, TW_PREPARE_TO_MOVE);
     }
@@ -186,7 +186,7 @@ internal void tw_unit(ee_unit *u, void *ctx) {
         t->st = st; t->at = at; t->since = s->now; t->stalled = 0; t->kicks = 0;
         return;
     }
-    if (!unit_get_goal(u) && units_inside(u) <= 0) { t->since = s->now; return; }   // idle and empty: not a stall
+    if (!unit_get_goal(u) && unit_count_inside(u) <= 0) { t->since = s->now; return; }   // idle and empty: not a stall
     if (g_tw_log && g_log) {
         if (!t->stalled && s->now - t->since >= 20000) { t->stalled = 1; t->said = s->now; tw_say(t, u, s->now, "stalls"); }
         else if (t->stalled && s->now - t->said >= 120000) { t->said = s->now; tw_say(t, u, s->now, "still"); }
@@ -393,7 +393,7 @@ internal int tw_load_split(ee_player *pl, ee_unit **tr, int nt, ee_unit **us, in
             owner[best] = (signed char)k; room -= tw_size(us[best]); m[k]++;
         }
         if (g_log) fprintf(g_log, "# tw: P%d load: transport %06x type %d (%s, size %.2f) at %d,%d - room %d, %d given, %d aboard\n", player_get_index(pl),
-                           tw_id(t), unit_type_get_id(ttd), rtti_name(ttd), (double)tw_space(t), unit_get_x(t), unit_get_y(t), unit_get_room(t), m[k], units_inside(t));
+                           tw_id(t), unit_type_get_id(ttd), rtti_name(ttd), (double)tw_space(t), unit_get_x(t), unit_get_y(t), unit_get_room(t), m[k], unit_count_inside(t));
     }
     // then which transport takes which group (slot s: the units transport s found): the shortest ways, none crossing -
     // a transport may take another's group it has room for and can carry; one with a load under way keeps its own
@@ -489,7 +489,7 @@ internal void __thiscall hook_msg_load(ee_load_msg *msg) {
         clicked = tw_carrier(pl, u) && tw_carrier(pl, clicked) ? u : NULL;
     }
     void *grp = pl ? player_get_selected_group(pl) : NULL;
-    if (!grp || !tw_carrier(pl, clicked)) { msg_load(msg); return; }
+    if (!grp || !tw_carrier(pl, clicked)) { load_msg_execute(msg); return; }
     static ee_unit *us[1024];
     ee_unit *tr[16];
     int nt = 0, nu = 0, used;
@@ -501,7 +501,7 @@ internal void __thiscall hook_msg_load(ee_load_msg *msg) {
         if (unit_get_owner(u) != pl || unit_get_hp(u) <= 0 || unit_get_x(u) < 0 || unit_get_holder(u) || nu >= 1024) continue;
         us[nu++] = u;
     }
-    if (!nu) { msg_load(msg); return; }
+    if (!nu) { load_msg_execute(msg); return; }
     if (tw_load_split(pl, tr, nt, us, nu, &used)) tw_click_mark_off(pl, (int)load_msg_get_transport(msg), iv2(-1, -1));
 }
 
@@ -557,7 +557,7 @@ internal void tw_unload_group(ee_unload_msg *msg, void *grp) {
     for (unsigned i = 0, n = group_count(grp); i < n && nt < 16 && taken + nt < 64; i++) {
         ee_unit *t = group_get(grp, i);
         ee_goal *g = tw_carrier(pl, t) ? unit_get_goal(t) : NULL;
-        if (g && goal_is_unload(g) && units_inside(t) > 0) tr[nt++] = t;
+        if (g && goal_is_unload(g) && unit_count_inside(t) > 0) tr[nt++] = t;
     }
     g_tw_unload_groups++;
     if (!nt) return;
@@ -572,7 +572,7 @@ internal void __cdecl hook_unload_marks(void *grp, void *on, int owner, int how,
 internal void __thiscall hook_msg_unload(ee_unload_msg *msg) {
     g_tw_unload_msg = msg;
     g_tw_unload_groups = g_tw_unload_taken = 0;
-    msg_unload(msg);
+    unload_msg_execute(msg);
     g_tw_unload_msg = NULL;
     ee_player *pl = g_tw_unload_groups ? NULL : game_player(unload_msg_get_from(msg));
     if (pl) tw_unload_group(msg, player_get_selected_group(pl));
@@ -605,7 +605,7 @@ internal void cmd_transports(char *out, const char *args) {
             ee_unit *back = unit_by_id((unsigned)unit_get_serial(u));
             const char *gn = tw_goal_name(unit_get_goal(u));
             REPLY("transport %06x (%s) at %d,%d id %08x -> %06x%s, aboard %d, room %d, %s, goal %.*s\n", tw_id(u), rtti_name(unit_get_type_data(u)), unit_get_x(u), unit_get_y(u),
-                  (unsigned)unit_get_serial(u), tw_id(back), back == u ? " (the same)" : "", units_inside(u), unit_get_room(u), tw_state(unit_ai_state_id(u)),
+                  (unsigned)unit_get_serial(u), tw_id(back), back == u ? " (the same)" : "", unit_count_inside(u), unit_get_room(u), tw_state(unit_ai_state_id(u)),
                   tw_goal_len(gn), gn);
             ee_goal *g = unit_get_goal(u);
             if (g && goal_is_load(g)) {
@@ -632,12 +632,12 @@ internal void cmd_transports(char *out, const char *args) {
         ee_unit *click = NULL, *sel1 = NULL;   // the transport clicked (the nearest x, y), the selection's first of the click's class
         for (int k = 0; k < nt; k++) {
             if (!click || ivec2_dist2(unit_get_tile(tr[k]), c) < ivec2_dist2(unit_get_tile(click), c)) click = tr[k];
-            if (tw_kind(tr[k]) == TW_FORT || (strcmp(what, "load") && units_inside(tr[k]) <= 0)) continue;   // a building isn't selected with units
+            if (tw_kind(tr[k]) == TW_FORT || (strcmp(what, "load") && unit_count_inside(tr[k]) <= 0)) continue;   // a building isn't selected with units
             ids[n++] = (uint32_t)unit_get_serial(tr[k]);
         }
         for (int want = TW_AIR, j = 0; want >= 0 && !sel1; want = want == TW_AIR ? TW_LAND : want == TW_LAND ? TW_SEA : -1)   // 0x403ADE's order
             for (j = 0; j < nt && !sel1; j++)
-                if (tw_kind(tr[j]) == want && tw_kind(tr[j]) != TW_FORT && (!strcmp(what, "load") ? 1 : units_inside(tr[j]) > 0)) sel1 = tr[j];
+                if (tw_kind(tr[j]) == want && tw_kind(tr[j]) != TW_FORT && (!strcmp(what, "load") ? 1 : unit_count_inside(tr[j]) > 0)) sel1 = tr[j];
         for (int i = 0; i < nu; i++) ids[n++] = (uint32_t)unit_get_serial(us[i]);
         uint32_t *sel[3] = { NULL, ids, ids + n };   // a select message's selection: its ids at +4 .. +8
         player_select(pl, sel);
@@ -673,13 +673,13 @@ internal void cmd_transports(char *out, const char *args) {
     if (!strcmp(what, "unload")) {
         int n = 0;
         for (int k = 0; k < nt; k++) {   // the game's command: one unload at x, y for all
-            if (units_inside(tr[k]) <= 0) continue;
+            if (unit_count_inside(tr[k]) <= 0) continue;
             ee_goal *g = goal_unload(tr[k], x, y, 0);
             if (g && unit_goal(tr[k], g, 0, TW_PREPARE_TO_MOVE)) tr[n++] = tr[k];
         }
         int s = n >= 2 && g_tw_spread ? tw_unload_spread(pl, tr, n, c, at, asz, 0) : 0;
         REPLY("%d loaded transports, %d sent to their own tile:", n, s);
-        for (int k = 0; k < n && n >= 2; k++) REPLY(" %06x %d aboard -> %d,%d;", tw_id(tr[k]), units_inside(tr[k]), at[k].x, at[k].y);
+        for (int k = 0; k < n && n >= 2; k++) REPLY(" %06x %d aboard -> %d,%d;", tw_id(tr[k]), unit_count_inside(tr[k]), at[k].x, at[k].y);
         REPLY("\n");
         return;
     }

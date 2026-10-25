@@ -274,7 +274,7 @@ internal void cmd_costs(char *out, const char *args) {
         char tag[32];
         wsprintfA(tag, "unit %d", type);
         ee_unit_type *obj = type_data(type);
-        ee_tech *tech = obj ? tech_lookup(tt, unit_type_get_tech(obj)) : NULL;
+        ee_tech *tech = obj ? tech_tree_lookup(tt, unit_type_get_tech(obj)) : NULL;
         print_costs(out, tag, tech ? tech_get_data(tech) : NULL);   // costs live in the unit's tech
         a += k;
     }
@@ -518,7 +518,7 @@ internal void (*g_step_after)(void *phys);   // trace.c: the sync trace's line a
 internal void __thiscall hook_phys_step(ee_physics *phys) {
     if (!g_srv_send_next) hook_server_send();
     InterlockedExchange(&g_in_step, 1);
-    phys_step(phys);
+    physics_step(phys);
     InterlockedExchange(&g_in_step, 0);
     if (g_step_after) g_step_after(phys);
 }

@@ -154,7 +154,7 @@ internal inline void build_wall(void *wall_mgr, int *a, int *b, int type) { fn_b
 // HOOKS
 // one simulation step (EEPhysics' vtable slot 8): the hook, and whether it is in place
 typedef void (__thiscall *phys_step_hook)(ee_physics *phys);
-internal inline int patch_phys_step(phys_step_hook h) { return patch_code32(data_game_vtbl_phys_step, (uintptr_t)fn_phys_step, (uint32_t)(uintptr_t)h); }
+internal inline int patch_phys_step(phys_step_hook h) { return patch_code32(data_game_vtbl_phys_step, (uintptr_t)fn_physics_step, (uint32_t)(uintptr_t)h); }
 internal inline int phys_step_hooked_by(phys_step_hook h) { return *(uint32_t *)data_game_vtbl_phys_step == (uint32_t)(uintptr_t)h; }
 // a model's damage points (the guard: defence.c - a thunk)
 internal inline int patch_damage_points(thunk_fn thunk) { return patch_call(data_game_call_damage_points, (uintptr_t)fn_damage_points, (void *)thunk); }

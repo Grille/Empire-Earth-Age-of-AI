@@ -124,7 +124,7 @@ internal int cv_built(ee_unit *u) { ee_unit *bs = unit_get_physics(u); return bs
 internal int cv_value(ee_player *pl, int type) {   // the base price, F+W+S+G+I (no cheat)
     ee_unit_type *obj = type_data(type);
     ee_tech_tree *tt = pl ? player_get_tech_tree(pl) : NULL;
-    ee_tech *tech = obj && tt ? tech_lookup(tt, unit_type_get_tech(obj)) : NULL;
+    ee_tech *tech = obj && tt ? tech_tree_lookup(tt, unit_type_get_tech(obj)) : NULL;
     ee_tech_data *data = tech ? tech_get_data(tech) : NULL;
     int v = 0;
     for (int r = 2; data && r < 7; r++) v += tech_data_get_cost(data, r);

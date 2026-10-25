@@ -39,7 +39,7 @@ internal void __thiscall hook_minimap_tile(void *mm, ee_tile *tile, int x, int y
 
 // the view table's refill took each tile's low byte: the count whole after it (the copy's own writes, row by row)
 internal void __thiscall hook_view_sight_copy(ee_player *pl) {
-    view_sight_copy(pl);
+    player_view_sight_copy(pl);
     ee_map *map = game_map();
     if (!map || !pl) return;
     unsigned n = map_get_size(map), pi = (unsigned)player_get_index(pl);
@@ -76,7 +76,7 @@ internal void cmd_sightcount(char *out, const char *args) {
     if (!strcmp(what, "refill")) {
         ee_player *viewed = game_players()[local_player_index()];
         if (g_sight_on) hook_view_sight_copy(viewed);
-        else view_sight_copy(viewed);
+        else player_view_sight_copy(viewed);
     }
     REPLY("sight_counts %d, highest count %u%s\n", g_sight_on, g_sight_peak, *what ? ", view table refilled" : "");
     ee_map *map = game_map();
