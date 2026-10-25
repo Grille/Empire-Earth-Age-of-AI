@@ -27,19 +27,19 @@ static unsafe class movement
 
     /// EEPMHovercraft
     [address((ee)0x0082CE8C, (aoc)0x008426B8)]
-    static block vt_pm_hover;
+    static vftable vt_pm_hover;
 
     /// EEPMLand, the land units' movement
     [address((ee)0x0082CFB0, (aoc)0x008427E8)]
-    static block vt_pm_land;
+    static vftable vt_pm_land;
 
     /// EEPMNaval, the ships' movement
     [address((ee)0x0082CE30, (aoc)0x00842658)]
-    static block vt_pm_naval;
+    static vftable vt_pm_naval;
 
     /// EEPMSubmergedNaval, the submarines' movement
     [address((ee)0x0082CDD4, (aoc)0x008425F8)]
-    static block vt_pm_submerged;
+    static vftable vt_pm_submerged;
 }
 
 /// the game's functions movement.c wraps, by the names the C side gives them

@@ -197,11 +197,11 @@ internal inline uint8_t *ai_managers_call_rm_update_at(void) { return (uint8_t *
 // a call of um_train_citizens
 internal inline uint8_t *ai_managers_call_train_citizens_at(void) { return (uint8_t *)(uintptr_t)data_ai_managers_call_train_citizens; }
 internal inline uint8_t *ai_managers_call_unbuilt_farms_at(void) { return (uint8_t *)(uintptr_t)data_ai_managers_call_unbuilt_farms; }
-// the calls of find_wood_game
-// call AddMovie(path) in PlayIntro 0x538867
 // the calls of find_food_game
+// the calls of assign_to_site (trace.c)
 // the calls of find_mine_game
-// the calls of goal_unload_init (landing.c; the last, 0x615AE6, the unload goal's copy)
+// the calls of um_train (econ.c: the game's unit orders)
+// the calls of find_wood_game
 
 // static class ai_managers_functions
 // the game's functions ai_managers.c wraps, by the names the C side gives them
@@ -541,3 +541,77 @@ internal int spec_ai_managers_select(int build) {
 }
 // the names a build hasn't got, by build
 internal const char *const k_spec_ai_managers_missing[ADDR_BUILDS] = { "", "" };
+// the load-time check: what the spec says of the running build's exe (spec_check): the failures
+internal int spec_ai_managers_check(void) {
+    int bad = 0;
+    bad += spec_code(data_ai_managers_call_assign_citizens, "ai_managers.call_assign_citizens");
+    bad += spec_code(data_ai_managers_call_citizens_wanted, "ai_managers.call_citizens_wanted");
+    bad += spec_code(data_ai_managers_call_compute_targets, "ai_managers.call_compute_targets");
+    bad += spec_code(data_ai_managers_call_farms, "ai_managers.call_farms");
+    bad += spec_code(data_ai_managers_call_fish_type_1, "ai_managers.call_fish_type_1");
+    bad += spec_code(data_ai_managers_call_fish_type_2, "ai_managers.call_fish_type_2");
+    bad += spec_code(data_ai_managers_call_hunt_1, "ai_managers.call_hunt_1");
+    bad += spec_code(data_ai_managers_call_hunt_2, "ai_managers.call_hunt_2");
+    bad += spec_code(data_ai_managers_call_place, "ai_managers.call_place");
+    bad += spec_code(data_ai_managers_call_rm_update, "ai_managers.call_rm_update");
+    bad += spec_code(data_ai_managers_call_train_citizens, "ai_managers.call_train_citizens");
+    bad += spec_code(data_ai_managers_call_unbuilt_farms, "ai_managers.call_unbuilt_farms");
+    bad += spec_code(data_ai_managers_food_sites[0], "ai_managers.food_sites 0");
+    bad += spec_code(data_ai_managers_food_sites[1], "ai_managers.food_sites 1");
+    bad += spec_code(data_ai_managers_food_sites[2], "ai_managers.food_sites 2");
+    bad += spec_code(data_ai_managers_food_sites[3], "ai_managers.food_sites 3");
+    bad += spec_code(data_ai_managers_food_sites[4], "ai_managers.food_sites 4");
+    bad += spec_code(data_ai_managers_food_sites[5], "ai_managers.food_sites 5");
+    bad += spec_code(data_ai_managers_gather_sites[0], "ai_managers.gather_sites 0");
+    bad += spec_code(data_ai_managers_gather_sites[1], "ai_managers.gather_sites 1");
+    bad += spec_code(data_ai_managers_gather_sites[2], "ai_managers.gather_sites 2");
+    bad += spec_code(data_ai_managers_gather_sites[3], "ai_managers.gather_sites 3");
+    bad += spec_code(data_ai_managers_gather_sites[4], "ai_managers.gather_sites 4");
+    bad += spec_code(data_ai_managers_gather_sites[5], "ai_managers.gather_sites 5");
+    bad += spec_code(data_ai_managers_gather_sites[6], "ai_managers.gather_sites 6");
+    bad += spec_code(data_ai_managers_gather_sites[7], "ai_managers.gather_sites 7");
+    bad += spec_code(data_ai_managers_gather_sites[8], "ai_managers.gather_sites 8");
+    bad += spec_code(data_ai_managers_gather_sites[9], "ai_managers.gather_sites 9");
+    bad += spec_code(data_ai_managers_gather_sites[10], "ai_managers.gather_sites 10");
+    bad += spec_code(data_ai_managers_mine_sites[0], "ai_managers.mine_sites 0");
+    bad += spec_code(data_ai_managers_mine_sites[1], "ai_managers.mine_sites 1");
+    bad += spec_code(data_ai_managers_mine_sites[2], "ai_managers.mine_sites 2");
+    bad += spec_code(data_ai_managers_mine_sites[3], "ai_managers.mine_sites 3");
+    bad += spec_code(data_ai_managers_mine_sites[4], "ai_managers.mine_sites 4");
+    bad += spec_code(data_ai_managers_mine_sites[5], "ai_managers.mine_sites 5");
+    bad += spec_code(data_ai_managers_train_sites[0], "ai_managers.train_sites 0");
+    bad += spec_code(data_ai_managers_train_sites[1], "ai_managers.train_sites 1");
+    bad += spec_code(data_ai_managers_train_sites[2], "ai_managers.train_sites 2");
+    bad += spec_code(data_ai_managers_train_sites[3], "ai_managers.train_sites 3");
+    bad += spec_code(data_ai_managers_train_sites[4], "ai_managers.train_sites 4");
+    bad += spec_code(data_ai_managers_wood_sites[0], "ai_managers.wood_sites 0");
+    bad += spec_code(data_ai_managers_wood_sites[1], "ai_managers.wood_sites 1");
+    bad += spec_code((uintptr_t)fn_rm_assign_citizens, "ai_managers_functions.rm_assign_citizens");
+    bad += spec_code((uintptr_t)fn_assign_to_site, "ai_managers_functions.assign_to_site");
+    bad += spec_code((uintptr_t)fn_bm_queued, "ai_managers_functions.bm_queued");
+    bad += spec_code((uintptr_t)fn_bm_request_game, "ai_managers_functions.bm_request_game");
+    bad += spec_code((uintptr_t)fn_bq_add, "ai_managers_functions.bq_add");
+    bad += spec_code((uintptr_t)fn_cm_unit_free, "ai_managers_functions.cm_unit_free");
+    bad += spec_code((uintptr_t)fn_rm_compute_targets, "ai_managers_functions.rm_compute_targets");
+    bad += spec_code((uintptr_t)fn_bm_enemy_near, "ai_managers_functions.bm_enemy_near");
+    bad += spec_code((uintptr_t)fn_farms_game, "ai_managers_functions.farms_game");
+    bad += spec_code((uintptr_t)fn_find_food_game, "ai_managers_functions.find_food_game");
+    bad += spec_code((uintptr_t)fn_find_mine_game, "ai_managers_functions.find_mine_game");
+    bad += spec_code((uintptr_t)fn_find_wood_game, "ai_managers_functions.find_wood_game");
+    bad += spec_code((uintptr_t)fn_fish_type, "ai_managers_functions.fish_type");
+    bad += spec_code((uintptr_t)fn_hunt_game, "ai_managers_functions.hunt_game");
+    bad += spec_code((uintptr_t)fn_bm_place, "ai_managers_functions.bm_place");
+    bad += spec_code((uintptr_t)fn_rs_request_requirements, "ai_managers_functions.rs_request_requirements");
+    bad += spec_code((uintptr_t)fn_rm_update, "ai_managers_functions.rm_update");
+    bad += spec_code((uintptr_t)fn_rs_schedule, "ai_managers_functions.rs_schedule");
+    bad += spec_code((uintptr_t)fn_cm_set_epoch_time, "ai_managers_functions.cm_set_epoch_time");
+    bad += spec_code((uintptr_t)fn_um_train_citizens, "ai_managers_functions.um_train_citizens");
+    bad += spec_code((uintptr_t)fn_um_train, "ai_managers_functions.um_train");
+    bad += spec_code((uintptr_t)fn_um_citizens, "ai_managers_functions.um_citizens");
+    bad += spec_code((uintptr_t)fn_um_citizens_wanted, "ai_managers_functions.um_citizens_wanted");
+    bad += spec_code((uintptr_t)fn_um_in_production, "ai_managers_functions.um_in_production");
+    bad += spec_code((uintptr_t)fn_um_pending, "ai_managers_functions.um_pending");
+    bad += spec_code((uintptr_t)fn_um_type_list, "ai_managers_functions.um_type_list");
+    bad += spec_code((uintptr_t)fn_unbuilt_farms, "ai_managers_functions.unbuilt_farms");
+    return bad;
+}

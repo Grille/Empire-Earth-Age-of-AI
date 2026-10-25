@@ -225,3 +225,14 @@ internal int spec_tech_select(int build) {
 }
 // the names a build hasn't got, by build
 internal const char *const k_spec_tech_missing[ADDR_BUILDS] = { "", "" };
+// the load-time check: what the spec says of the running build's exe (spec_check): the failures
+internal int spec_tech_check(void) {
+    int bad = 0;
+    bad += spec_code(data_tech_call_epoch_upgrades, "tech.call_epoch_upgrades");
+    bad += spec_code(data_tech_fn_epoch_upgrades, "tech.fn_epoch_upgrades");
+    bad += spec_data(data_tech_vts_tech_researched, "tech.vts_tech_researched");
+    bad += spec_code((uintptr_t)fn_epoch_next, "tech_functions.epoch_next");
+    bad += spec_code((uintptr_t)fn_tech_grant, "tech_functions.tech_grant");
+    bad += spec_code((uintptr_t)fn_tech_lookup, "tech_functions.tech_lookup");
+    return bad;
+}

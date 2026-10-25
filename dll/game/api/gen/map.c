@@ -229,3 +229,16 @@ internal int spec_map_select(int build) {
 }
 // the names a build hasn't got, by build
 internal const char *const k_spec_map_missing[ADDR_BUILDS] = { "", "" };
+// the load-time check: what the spec says of the running build's exe (spec_check): the failures
+internal int spec_map_check(void) {
+    int bad = 0;
+    bad += spec_code(data_map_fn_tile_sight_add, "map.fn_tile_sight_add");
+    bad += spec_code(data_map_fn_tile_sight_sub, "map.fn_tile_sight_sub");
+    bad += spec_data(data_map_map_areas, "map.map_areas");
+    bad += spec_code((uintptr_t)fn_area_at_game, "map_functions.area_at_game");
+    bad += spec_code((uintptr_t)fn_minimap_sight_add, "map_functions.minimap_sight_add");
+    bad += spec_code((uintptr_t)fn_minimap_tile, "map_functions.minimap_tile");
+    bad += spec_code((uintptr_t)fn_region_game, "map_functions.region_game");
+    bad += spec_code((uintptr_t)fn_view_sight_copy, "map_functions.view_sight_copy");
+    return bad;
+}

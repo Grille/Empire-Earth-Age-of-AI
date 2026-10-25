@@ -261,11 +261,11 @@ static unsafe class game
 
     /// import: &ISKeyboard* in Low-Level Engine.dll
     [address((ee)0x00823AF8, (aoc)0x00837AE8)]
-    static code imp_is_keyboard;
+    static uint8** imp_is_keyboard;
 
     /// import: &ISMouse* in Low-Level Engine.dll
     [address((ee)0x008235CC, (aoc)0x00837570)]
-    static code imp_is_mouse;
+    static ISMouse** imp_is_mouse;
 
     /// new_unit_msg_init
     [value(32)]
@@ -285,7 +285,7 @@ static unsafe class game
 
     /// EEAUserPauseGame vtable (0xC bytes: vtable, refcount, byte)
     [address((ee)0x00830E94, (aoc)0x00846790)]
-    static block vt_pause_action;
+    static vftable vt_pause_action;
 }
 
 /// the game's functions game.c wraps, by the names the C side gives them

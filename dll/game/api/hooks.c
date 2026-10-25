@@ -169,9 +169,9 @@ internal inline int patch_skip_intro(void) {
 }
 // the network ports (UDP 33334, TCP 33335: TCP Protocol.dll's immediates, the module m) moved by add - how many of 8
 internal inline int patch_tcp_ports(HMODULE m, int add) {
-    const uint32_t *imm = data_hooks_rva_tcp_ports;
+    const uint32_t *imm = data_tcp_protocol_ports;
     int n = 0;
-    for (size_t i = 0; m && i < sizeof data_hooks_rva_tcp_ports / sizeof *imm; i++) {
+    for (size_t i = 0; m && i < sizeof data_tcp_protocol_ports / sizeof *imm; i++) {
         uintptr_t at = (uintptr_t)m + imm[i];
         uint32_t old = *(uint32_t *)at;
         if (old == 33334 || old == 33335) n += patch_code32(at, old, old + (uint32_t)add);

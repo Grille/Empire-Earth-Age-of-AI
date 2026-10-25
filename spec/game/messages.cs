@@ -161,24 +161,24 @@ static unsafe class messages
     static uint32 slot_server_send;
 
     [address((ee)0x008285D8, (aoc)0x0083D2A0)]
-    static code start_vtbl_exec;
+    static void* start_vtbl_exec;
 
     [address((ee)0x0082936C, (aoc)0x0083E0BC)]
-    static block vt_ingame_chat;
+    static vftable vt_ingame_chat;
 
     /// EEMLoadTransport
     [address((ee)0x00824E00, (aoc)0x00838DDC)]
-    static block vt_msg_load;
+    static vftable vt_msg_load;
 
     /// EEMUnloadTransport
     [address((ee)0x00828AC4, (aoc)0x0083D78C)]
-    static block vt_msg_unload;
+    static vftable vt_msg_unload;
 
     [address((ee)0x008289C0, (aoc)0x0083D688)]
-    static block vt_pay_tribute;
+    static vftable vt_pay_tribute;
 
     [address((ee)0x00828820, (aoc)0x0083D4E8)]
-    static block vt_resign;
+    static vftable vt_resign;
 }
 
 /// the game's functions messages.c wraps, by the names the C side gives them

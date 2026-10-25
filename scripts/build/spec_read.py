@@ -150,10 +150,12 @@ def read_environment():   # environment.cs's types: the layouts and values of mo
 
 def places(spec=None):
     """every address in the exe the spec names, for the port scripts (scripts/re/port_*): (label, attribute, [v_ee,
-    v_aoc], member) - label Type.member, a list's k-th Type.member[k], a call site Type.member@name"""
+    v_aoc], member); an engine DLL's class ([dll]) not - label Type.member, a list's k-th Type.member[k], a call site Type.member@name"""
     out = []
     for types in (spec or read_all()).values():
         for t in types:
+            if t.attr('dll'):   # an engine DLL's: relative to its base (port_dll.py's)
+                continue
             for m in [None] + t.members:
                 attrs = t.attrs if m is None else m.attrs
                 label = t.name if m is None else '%s.%s' % (t.name, m.name)

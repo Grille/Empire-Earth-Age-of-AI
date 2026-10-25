@@ -248,7 +248,7 @@ static unsafe class ai_managers
     [address((ee)0x0048B0FD, (aoc)0x0048FAD4)]
     static code call_unbuilt_farms;
 
-    /// the calls of find_wood_game
+    /// the calls of find_food_game
     [address((ee)0x0048AB8D, (aoc)0x0048F57C)]
     [address((ee)0x0048AC2B, (aoc)0x0048F61A)]
     [address((ee)0x0048AE14, (aoc)0x0048F803)]
@@ -257,7 +257,7 @@ static unsafe class ai_managers
     [address((ee)0x0048AF99, (aoc)0x0048F988)]
     static code food_sites;
 
-    /// call AddMovie(path) in PlayIntro 0x538867
+    /// the calls of assign_to_site (trace.c)
     [address((ee)0x0048A2A6, (aoc)0x0048EC21)]
     [address((ee)0x0048A372, (aoc)0x0048ECED)]
     [address((ee)0x0048A9B8, (aoc)0x0048F32C)]
@@ -271,7 +271,7 @@ static unsafe class ai_managers
     [address((ee)0x0048B261, (aoc)0x0048FC37)]
     static code gather_sites;
 
-    /// the calls of find_food_game
+    /// the calls of find_mine_game
     [address((ee)0x0048A247, (aoc)0x0048EBC2)]
     [address((ee)0x0048A25F, (aoc)0x0048EBDA)]
     [address((ee)0x0048A277, (aoc)0x0048EBF2)]
@@ -280,7 +280,7 @@ static unsafe class ai_managers
     [address((ee)0x0048AA2B, (aoc)0x0048F3A4)]
     static code mine_sites;
 
-    /// the calls of find_mine_game
+    /// the calls of um_train (econ.c: the game's unit orders)
     [address((ee)0x0046CCE6, (aoc)0x0046F786)]
     [address((ee)0x00490CAC, (aoc)0x00495AFF)]
     [address((ee)0x00490E12, (aoc)0x00495C65)]
@@ -288,7 +288,7 @@ static unsafe class ai_managers
     [address((ee)0x00490FA9, (aoc)0x00495DFC)]
     static code train_sites;
 
-    /// the calls of goal_unload_init (landing.c; the last, 0x615AE6, the unload goal's copy)
+    /// the calls of find_wood_game
     [address((ee)0x0048A28E, (aoc)0x0048EC09)]
     [address((ee)0x0048AAF6, (aoc)0x0048F4E1)]
     static code wood_sites;

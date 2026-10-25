@@ -92,3 +92,17 @@ internal int spec_movement_select(int build) {
 }
 // the names a build hasn't got, by build
 internal const char *const k_spec_movement_missing[ADDR_BUILDS] = { "", "" };
+// the load-time check: what the spec says of the running build's exe (spec_check): the failures
+internal int spec_movement_check(void) {
+    int bad = 0;
+    bad += spec_data(data_movement_vt_pm_hover, "movement.vt_pm_hover");
+    bad += spec_data(data_movement_vt_pm_land, "movement.vt_pm_land");
+    bad += spec_data(data_movement_vt_pm_naval, "movement.vt_pm_naval");
+    bad += spec_data(data_movement_vt_pm_submerged, "movement.vt_pm_submerged");
+    bad += spec_code((uintptr_t)fn_model_collide, "movement_functions.model_collide");
+    bad += spec_code((uintptr_t)fn_model_speed_decide, "movement_functions.model_speed_decide");
+    bad += spec_code((uintptr_t)fn_model_speed_step, "movement_functions.model_speed_step");
+    bad += spec_code((uintptr_t)fn_model_turn_decide, "movement_functions.model_turn_decide");
+    bad += spec_code((uintptr_t)fn_turn_towards, "movement_functions.turn_towards");
+    return bad;
+}

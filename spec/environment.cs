@@ -45,6 +45,8 @@ public struct vector { }   // std::vector: begin, end, capacity end
 public struct block { }
 // a place in the game's code (a call, an operand, a jump the mod patches): its address only
 public struct code { }
+// a class's vtable in the game's data (its functions' addresses, slot by slot): its address only
+public struct vftable { }
 
 // VALUES OF MORE THAN ONE NUMBER: their C types (base/), read and written whole
 [c_type("vec2")] public struct vec2 { float32 x, y; }

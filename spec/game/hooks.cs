@@ -43,7 +43,7 @@ static unsafe class hooks
     [address((ee)0x008D2D30, (aoc)0x008E94D0)]
     static block draw_old;
 
-    /// the small objects' draw list's operands to move (drawlist.c, in its table's order)
+    /// the draw list's operands to move (drawlist.c, in its table's order)
     [address((ee)0x0050099C, (aoc)0x0050B497)]
     [address((ee)0x00504158, (aoc)0x0050F093)]
     [address((ee)0x005007B2, (aoc)0x0050B2AD)]
@@ -59,6 +59,7 @@ static unsafe class hooks
     [address((ee)0x008FBD30, (aoc)0x009124D0)]
     static block draw_small_old;
 
+    /// the small objects' draw list's operands to move (drawlist.c, in its table's order)
     [address((ee)0x00500BBC, (aoc)0x0050B6B7)]
     [address((ee)0x0050419D, (aoc)0x0050F0D8)]
     [address((ee)0x00503C5A, (aoc)0x0050EB95)]
@@ -89,25 +90,25 @@ static unsafe class hooks
     [address((ee)0x00824644, (aoc)0x00838638)]
     static block iat_srand;
 
-    /// the calls of unit_fire (aim.c)
+    /// call AddMovie(path) in PlayIntro 0x538867
     [address((ee)0x00538909, (aoc)0x00543A57)]
     [address((ee)0x0053892A, (aoc)0x00543A78)]
     [address((ee)0x00538945, (aoc)0x00543A93)]
     static code intro_calls;
 
-    /// the minimap's operands of hooks.float_1_600
+    /// the minimap's operands of hooks.float_1_800
     [address((ee)0x0065E01D, (aoc)0x00675618)]
     [address((ee)0x0065E8A3, (aoc)0x00675E95)]
     [address((ee)0x0065EB3E, (aoc)0x00676130)]
     static code minimap_fx_ops;
 
-    /// the other calls of set_resolution (display.c)
+    /// the minimap's operands of hooks.float_1_600
     [address((ee)0x0065E032, (aoc)0x0067562D)]
     [address((ee)0x0065E8CE, (aoc)0x00675EC0)]
     [address((ee)0x0065EB68, (aoc)0x0067615A)]
     static code minimap_fy_ops;
 
-    /// the calls of mouse_update
+    /// the other calls of set_resolution (display.c)
     [address((ee)0x0065F30A, (aoc)0x006768F4)]
     [address((ee)0x0065F61B, (aoc)0x00676C0A)]
     [address((ee)0x0065F945, (aoc)0x00676F39)]
@@ -140,17 +141,6 @@ static unsafe class hooks
     [value((ee)0x55DF5, (aoc)0x49DDA)]
     static uint32 rva_lle_send_wait;
 
-    /// the calls of assign_to_site (trace.c)
-    [address((ee)0x000017E2, (aoc)0x00001684)]
-    [address((ee)0x0000196F, (aoc)0x0000185C)]
-    [address((ee)0x000019EB, (aoc)0x000018D8)]
-    [address((ee)0x00001EB8, (aoc)0x00001DA5)]
-    [address((ee)0x00001FBD, (aoc)0x00001EAA)]
-    [address((ee)0x00002148, (aoc)0x00002035)]
-    [address((ee)0x0000279C, (aoc)0x00002689)]
-    [address((ee)0x00002F2C, (aoc)0x00002E1C)]
-    static code rva_tcp_ports;
-
     /// je over the CloseWindow call on WM_ACTIVATEAPP(0)
     [address((ee)0x00662666, (aoc)0x00679C57)]
     static code site_close_window_je;
@@ -178,4 +168,20 @@ static unsafe class hooks_functions
 
     [address((ee)0x0065F314, (aoc)0x006768FE), stdcall]
     static extern void set_resolution(int32 w, int32 h, int32 force, int32 flag);
+}
+
+/// TCP Protocol.dll's code (each build ships its own): its places relative to the DLL's base
+[dll("TCP Protocol.dll")]
+static unsafe class tcp_protocol
+{
+    /// the network ports' immediates (UDP 33334, TCP 33335), moved for a test slot
+    [address((ee)0x000017E2, (aoc)0x00001684)]
+    [address((ee)0x0000196F, (aoc)0x0000185C)]
+    [address((ee)0x000019EB, (aoc)0x000018D8)]
+    [address((ee)0x00001EB8, (aoc)0x00001DA5)]
+    [address((ee)0x00001FBD, (aoc)0x00001EAA)]
+    [address((ee)0x00002148, (aoc)0x00002035)]
+    [address((ee)0x0000279C, (aoc)0x00002689)]
+    [address((ee)0x00002F2C, (aoc)0x00002E1C)]
+    static code ports;
 }

@@ -138,8 +138,8 @@ internal inline uint8_t *task_0x30_at(const ee_task *o) { return (uint8_t *)((ui
 
 // static class attack
 // attack's data of the game, places in its code and numbers
+// the land unit records' vtables of the attack subgroups: base, hero, priests and prophets
 // the attack subgroups' vtables
-// the calls of native_chat (the AI's own lines)
 // EECPASGAir vf85: the waiting units' pop (asg_queue.c)
 internal inline uint8_t *attack_call_asg_air_queue_pop_at(void) { return (uint8_t *)(uintptr_t)data_attack_call_asg_air_queue_pop; }
 // the other subgroups' vf85 (0x45BD56): the waiting units' pop
@@ -460,3 +460,58 @@ internal int spec_attack_select(int build) {
 }
 // the names a build hasn't got, by build
 internal const char *const k_spec_attack_missing[ADDR_BUILDS] = { "", "" };
+// the load-time check: what the spec says of the running build's exe (spec_check): the failures
+internal int spec_attack_check(void) {
+    int bad = 0;
+    bad += spec_data(data_attack_asgu_vtables[0], "attack.asgu_vtables 0");
+    bad += spec_data(data_attack_asgu_vtables[1], "attack.asgu_vtables 1");
+    bad += spec_data(data_attack_asgu_vtables[2], "attack.asgu_vtables 2");
+    bad += spec_data(data_attack_asgu_vtables[3], "attack.asgu_vtables 3");
+    bad += spec_data(data_attack_asgu_vtables[4], "attack.asgu_vtables 4");
+    bad += spec_data(data_attack_asgu_vtables[5], "attack.asgu_vtables 5");
+    bad += spec_data(data_attack_asg_vtables[0], "attack.asg_vtables 0");
+    bad += spec_data(data_attack_asg_vtables[1], "attack.asg_vtables 1");
+    bad += spec_data(data_attack_asg_vtables[2], "attack.asg_vtables 2");
+    bad += spec_data(data_attack_asg_vtables[3], "attack.asg_vtables 3");
+    bad += spec_data(data_attack_asg_vtables[4], "attack.asg_vtables 4");
+    bad += spec_data(data_attack_asg_vtables[5], "attack.asg_vtables 5");
+    bad += spec_code(data_attack_call_asg_air_queue_pop, "attack.call_asg_air_queue_pop");
+    bad += spec_code(data_attack_call_asg_queue_pop, "attack.call_asg_queue_pop");
+    bad += spec_code(data_attack_call_group_stat, "attack.call_group_stat");
+    bad += spec_code(data_attack_call_range_sort, "attack.call_range_sort");
+    bad += spec_code(data_attack_call_unit_to_group, "attack.call_unit_to_group");
+    bad += spec_code(data_attack_fn_asg_queue_pop, "attack.fn_asg_queue_pop");
+    bad += spec_data(data_attack_vt_asg_air, "attack.vt_asg_air");
+    bad += spec_data(data_attack_vt_asg_land, "attack.vt_asg_land");
+    bad += spec_data(data_attack_vt_asg_sea, "attack.vt_asg_sea");
+    bad += spec_data(data_attack_vt_asg_sea_transport, "attack.vt_asg_sea_transport");
+    bad += spec_data(data_attack_vt_route_planner, "attack.vt_route_planner");
+    bad += spec_code((uintptr_t)fn_asgu_score, "attack_functions.asgu_score");
+    bad += spec_code((uintptr_t)fn_asg_air_give_goal, "attack_functions.asg_air_give_goal");
+    bad += spec_code((uintptr_t)fn_asg_air_update, "attack_functions.asg_air_update");
+    bad += spec_code((uintptr_t)fn_asg_give_goal, "attack_functions.asg_give_goal");
+    bad += spec_code((uintptr_t)fn_asg_land_stats, "attack_functions.asg_land_stats");
+    bad += spec_code((uintptr_t)fn_asg_route, "attack_functions.asg_route");
+    bad += spec_code((uintptr_t)fn_asg_route_done, "attack_functions.asg_route_done");
+    bad += spec_code((uintptr_t)fn_asg_sea_transport_update, "attack_functions.asg_sea_transport_update");
+    bad += spec_code((uintptr_t)fn_asg_sea_update, "attack_functions.asg_sea_update");
+    bad += spec_code((uintptr_t)fn_asg_stats, "attack_functions.asg_stats");
+    bad += spec_code((uintptr_t)fn_asg_update, "attack_functions.asg_update");
+    bad += spec_code((uintptr_t)fn_attack_group_new, "attack_functions.attack_group_new");
+    bad += spec_code((uintptr_t)fn_attack_plan_ok, "attack_functions.attack_plan_ok");
+    bad += spec_code((uintptr_t)fn_group_stat, "attack_functions.group_stat");
+    bad += spec_code((uintptr_t)fn_location_init, "attack_functions.location_init");
+    bad += spec_code((uintptr_t)fn_point_set, "attack_functions.point_set");
+    bad += spec_code((uintptr_t)fn_range_sort, "attack_functions.range_sort");
+    bad += spec_code((uintptr_t)fn_revenge, "attack_functions.revenge");
+    bad += spec_code((uintptr_t)fn_route_cost_game, "attack_functions.route_cost_game");
+    bad += spec_code((uintptr_t)fn_strategy_init, "attack_functions.strategy_init");
+    bad += spec_code((uintptr_t)fn_strategy_free, "attack_functions.strategy_free");
+    bad += spec_code((uintptr_t)fn_strategy_reset, "attack_functions.strategy_reset");
+    bad += spec_code((uintptr_t)fn_task_init, "attack_functions.task_init");
+    bad += spec_code((uintptr_t)fn_task_free, "attack_functions.task_free");
+    bad += spec_code((uintptr_t)fn_task_set_location, "attack_functions.task_set_location");
+    bad += spec_code((uintptr_t)fn_task_set_target, "attack_functions.task_set_target");
+    bad += spec_code((uintptr_t)fn_unit_to_group, "attack_functions.unit_to_group");
+    return bad;
+}

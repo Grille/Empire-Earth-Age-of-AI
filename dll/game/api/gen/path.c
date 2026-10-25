@@ -45,3 +45,11 @@ internal int spec_path_select(int build) {
 }
 // the names a build hasn't got, by build
 internal const char *const k_spec_path_missing[ADDR_BUILDS] = { "", "" };
+// the load-time check: what the spec says of the running build's exe (spec_check): the failures
+internal int spec_path_check(void) {
+    int bad = 0;
+    bad += spec_code(data_path_call_group_sector_route, "path.call_group_sector_route");
+    bad += spec_code((uintptr_t)fn_group_sector_route, "path_functions.group_sector_route");
+    bad += spec_code((uintptr_t)fn_path_request_game, "path_functions.path_request_game");
+    return bad;
+}

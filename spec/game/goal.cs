@@ -82,21 +82,21 @@ static unsafe class goal
     static uint32 slot_goal_target;
 
     [address((ee)0x00831968, (aoc)0x00847380)]
-    static block vt_goal_attack;
+    static vftable vt_goal_attack;
 
     [address((ee)0x008319F0, (aoc)0x0084740C)]
-    static block vt_goal_build;
+    static vftable vt_goal_build;
 
     /// EEUGLoadTransport: the holder's goal and each unit's part (0x614833), the holder at +0x50
     [address((ee)0x00831DC0, (aoc)0x008477F8)]
-    static block vt_goal_load;
+    static vftable vt_goal_load;
 
     [address((ee)0x00831E64, (aoc)0x008478A0)]
-    static block vt_goal_location;
+    static vftable vt_goal_location;
 
     /// EEUGUnloadTransport (new 0x40, ctor 0x615A1F(transport, x, y, flag))
     [address((ee)0x00831F5C, (aoc)0x008479A0)]
-    static block vt_goal_unload;
+    static vftable vt_goal_unload;
 }
 
 /// the game's functions goal.c wraps, by the names the C side gives them

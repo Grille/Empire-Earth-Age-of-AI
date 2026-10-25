@@ -12,6 +12,9 @@ spelling - ee_complex_unit):
   a [call_site]    call_n (several of one name: calls_n[]), patch_n(hook) - the hook typed P_x_fn
   a [vtable_site]  patch_n(hook): the class's vtable slot (vt_S) while it holds fn_S_x
   [vtable], [size] vt_S, size_S
+The load-time check (spec_check, game_build's after spec_select - before any patch): every function and place in the
+code in the exe's code section, every data place in its image, a [vtable] its class's RTTI name, a slot with the
+class's own function holding it, a [call_site] a call of its function - spec_<file>_check, the failures by name.
 A static class's functions: P its name, their convention [cdecl] / [stdcall]. A class types.h hasn't got is declared
 by the generated file. A value the build hasn't got (none) is 0 for an address, NA for an offset or a slot - spec_log
 names them. The spec's types: environment.cs's sizes as <stdint.h>'s (int32 int, as the code writes it), the game's
@@ -56,7 +59,7 @@ class Gen:
         self.env = {t.name: t for t in spec_read.read_environment()}
         self.types = dict(self.env, **{t.name: t for ts in files.values() for t in ts})
         self.known, self.new_types = known, []
-        self.lines, self.assign, self.typedefs = [], [], {}
+        self.lines, self.assign, self.typedefs, self.checks = [], [], {}, []
 
     def c_type_of(self, t):   # a class's C type; an enum's or a value's (vec2) is C's own, a class without one void
         a = t.attr('c_type')
@@ -110,6 +113,8 @@ class Gen:
             if a:
                 self.lines.append('internal uint32_t %s%s;' % (label, S))
                 self.value(label + S, a, kind, '%s [%s]' % (t.name, name))
+        if t.attr('vtable'):
+            self.checks.append('spec_vtable(vt_%s, ".?AV%s@@", "%s [vtable]")' % (S, t.name, t.name))
         for m in t.members:
             if m.func:
                 self.gen_func(t, m, P, S, obj)
@@ -132,11 +137,15 @@ class Gen:
             self.lines.append('internal uint32_t %s[%d];' % (v, len(addrs)))
             for k, a in enumerate(addrs):
                 self.value('%s[%d]' % (v, k), a, 'addr', '%s %d' % (label, k))
+                if not t.attr('dll'):   # an engine DLL's place: relative to its base
+                    self.checks.append('spec_%s(%s[%d], "%s %d")' % ('code' if m.type == 'code' else 'data', v, k, label, k))
             return
         self.lines.append('internal uint32_t %s;' % v)
         self.value(v, addrs[0], 'addr', label)
+        if not t.attr('dll'):
+            self.checks.append('spec_%s(%s, "%s")' % ('code' if m.type == 'code' else 'data', v, label))
         at = '(uint8_t *)(uintptr_t)%s' % v
-        if m.type in LAYOUTS + ('code',):
+        if m.type in LAYOUTS + ('code', 'vftable'):
             self.lines.append('internal inline uint8_t *%s_at(void) { return %s; }' % (self.name(P, m.name), at))
             return
         c = self.ctype(m.type, m.where)
@@ -219,6 +228,11 @@ class Gen:
             self.lines.append('internal %s %s;' % (fn_t, fv))
             self.value(fv, addr, 'addr', label, fn_t)
             self.wrapper(t, m, direct, obj, fv, this)
+            self.checks.append('spec_code((uintptr_t)%s, "%s")' % (fv, label))
+            holder = t if slot else self.base_slot(m, over[1][0][1]) if over else None
+            if holder and t.attr('vtable'):   # the class's own function in its vtable's slot
+                self.checks.append('spec_slot(vt_%s, slot_%s, (uintptr_t)%s, "%s [slot]")'
+                                   % (S, self.name(self.prefix(holder), m.name), fv, label))
         sites = {}
         for a in m.all('call_site'):
             sites.setdefault(a[1][0], []).append(a)
@@ -228,12 +242,14 @@ class Gen:
             if len(list_) == 1:
                 self.lines.append('internal uint32_t call_%s;' % n)
                 self.value('call_' + n, list_[0], 'addr', '%s [call_site %s]' % (label, n))
+                self.checks.append('spec_call(call_%s, (uintptr_t)%s, "%s [call_site %s]")' % (n, fv, label, n))
                 self.lines.append('internal inline int patch_%s(%s h) { return patch_call(call_%s, (uintptr_t)%s, (void *)h); }'
                                   % (n, fn_t, n, fv))
             else:
                 self.lines.append('internal uint32_t calls_%s[%d];' % (n, len(list_)))
                 for k, a in enumerate(list_):
                     self.value('calls_%s[%d]' % (n, k), a, 'addr', '%s [call_site %s %d]' % (label, n, k))
+                    self.checks.append('spec_call(calls_%s[%d], (uintptr_t)%s, "%s [call_site %s %d]")' % (n, k, fv, label, n, k))
                 self.lines.append('internal inline int patch_%s(%s h, int *of) { return patch_calls(calls_%s, %d, (uintptr_t)%s, '
                                   '(void *)h, of); }' % (n, fn_t, n, len(list_), fv))
         site = m.attr('vtable_site')
@@ -243,14 +259,14 @@ class Gen:
             self.lines.append('internal inline int patch_%s(%s h) { return patch_vtable(vt_%s, (int)slot_%s, (uintptr_t)%s, '
                               '(void *)h); }' % (site[1][0], fn_t, S, self.name(P, m.name), fv))
 
-    def base_slot(self, m, base):   # a [slot] of the same name in base or its bases
+    def base_slot(self, m, base):   # the class of base or its bases with a [slot] of the same name
         b = self.types.get(base)
         while b:
             if any(x.name == m.name and x.attr('slot') for x in b.members):
-                return True
+                return b
             a = b.attr('base')
             b = self.types.get(a[1][0][1]) if a else None
-        return False
+        return None
 
 
 def fmt(v, kind, cast):
@@ -299,6 +315,10 @@ def main():
             missing.append(' '.join(gone))
         out += ['    }', '    return 0;', '}', '// the names a build hasn\'t got, by build',
                 'internal const char *const k_spec_%s_missing[ADDR_BUILDS] = { %s };' % (stem, ', '.join('"%s"' % x for x in missing))]
+        out += ['// the load-time check: what the spec says of the running build\'s exe (spec_check): the failures',
+                'internal int spec_%s_check(void) {' % stem, '    int bad = 0;']
+        out += ['    bad += %s;' % c for c in g.checks]
+        out += ['    return bad;', '}']
         write(os.path.join(OUT, stem + '.c'), '\n'.join(out) + '\n')
     gen = ['// GENERATED by scripts/build/gen_api.py - the spec\'s C (spec/game/), included by game/api/api.c. spec_select',
            '// takes the running build\'s values (game_build, beside addr_select); spec_log names those it hasn\'t got.']
@@ -312,7 +332,9 @@ def main():
             '    if (!log || !g_spec_missing) return;',
             '    fprintf(log, "# spec: build %d hasn\'t got %d:", g_exe_build, g_spec_missing);']
     gen += ['    if (*k_spec_%s_missing[g_exe_build]) fprintf(log, " %%s", k_spec_%s_missing[g_exe_build]);' % (s, s) for s in stems]
-    gen += ['    fputc(10, log);', '}']
+    gen += ['    fputc(10, log);', '}',
+            '// g_spec_bad: exe.c\'s (game_build runs it before any patch, its helpers note the failures)',
+            'internal int spec_check(void) { return %s; }' % ' + '.join('spec_%s_check()' % s for s in stems)]
     write(os.path.join(OUT, 'gen.c'), '\n'.join(gen) + '\n')
     head = ['// GENERATED by scripts/build/gen_api.py - the spec\'s plain values (an offset, an address, a slot, a number),',
             '// each the running build\'s once spec_select has run; included by game/api/api.c ahead of the module\'s code.']

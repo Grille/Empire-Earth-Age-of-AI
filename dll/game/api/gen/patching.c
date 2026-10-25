@@ -6,7 +6,7 @@
 // an unload call (the resource manager's ferry)
 internal inline uint8_t *patching_call_unload_rm_at(void) { return (uint8_t *)(uintptr_t)data_patching_call_unload_rm; }
 internal inline uint8_t *patching_ret_asg_land_handoff_give_at(void) { return (uint8_t *)(uintptr_t)data_patching_ret_asg_land_handoff_give; }
-// the land unit records' vtables of the attack subgroups: base, hero, priests and prophets
+// the calls of goal_unload_init (landing.c; the last, 0x615AE6, the unload goal's copy)
 
 // the running build's values (spec_select, with addr_select): how many it hasn't got
 internal int spec_patching_select(int build) {
@@ -40,3 +40,18 @@ internal int spec_patching_select(int build) {
 }
 // the names a build hasn't got, by build
 internal const char *const k_spec_patching_missing[ADDR_BUILDS] = { "", "" };
+// the load-time check: what the spec says of the running build's exe (spec_check): the failures
+internal int spec_patching_check(void) {
+    int bad = 0;
+    bad += spec_code(data_patching_call_unload_rm, "patching.call_unload_rm");
+    bad += spec_code(data_patching_ret_asg_land_handoff_give, "patching.ret_asg_land_handoff_give");
+    bad += spec_code(data_patching_unload_sites[0], "patching.unload_sites 0");
+    bad += spec_code(data_patching_unload_sites[1], "patching.unload_sites 1");
+    bad += spec_code(data_patching_unload_sites[2], "patching.unload_sites 2");
+    bad += spec_code(data_patching_unload_sites[3], "patching.unload_sites 3");
+    bad += spec_code(data_patching_unload_sites[4], "patching.unload_sites 4");
+    bad += spec_code(data_patching_unload_sites[5], "patching.unload_sites 5");
+    bad += spec_code(data_patching_unload_sites[6], "patching.unload_sites 6");
+    bad += spec_code(data_patching_unload_sites[7], "patching.unload_sites 7");
+    return bad;
+}

@@ -165,23 +165,23 @@ unsafe struct EECPAGTask
 /// attack's data of the game, places in its code and numbers
 static unsafe class attack
 {
-    /// the attack subgroups' vtables
+    /// the land unit records' vtables of the attack subgroups: base, hero, priests and prophets
     [address((ee)0x00827844, (aoc)0x0083BF4C)]
     [address((ee)0x008253C0, (aoc)0x0083936C)]
     [address((ee)0x00825708, (aoc)0x008396BC)]
     [address((ee)0x008257F0, (aoc)0x008397A8)]
     [address((ee)0x00825458, (aoc)0x00839404)]
     [address((ee)0x00825540, (aoc)0x008394F0)]
-    static code asgu_vtables;
+    static vftable asgu_vtables;
 
-    /// the calls of native_chat (the AI's own lines)
+    /// the attack subgroups' vtables
     [address((ee)0x00827620, (aoc)0x0083BD20)]
     [address((ee)0x00826610, (aoc)0x0083A6D8)]
     [address((ee)0x00826818, (aoc)0x0083A8E0)]
     [address((ee)0x00826F10, (aoc)0x0083AFEC)]
     [address((ee)0x008270F8, (aoc)0x0083B1D8)]
     [address((ee)0x00827318, (aoc)0x0083B9F0)]
-    static code asg_vtables;
+    static vftable asg_vtables;
 
     /// EECPASGAir vf85: the waiting units' pop (asg_queue.c)
     [address((ee)0x00442718, (aoc)0x00441E02)]
@@ -241,21 +241,21 @@ static unsafe class attack
     static uint32 slot_route_cost;
 
     [address((ee)0x00826610, (aoc)0x0083A6D8)]
-    static block vt_asg_air;
+    static vftable vt_asg_air;
 
     /// EECPASGLand
     [address((ee)0x00826CA8, (aoc)0x0083AD7C)]
-    static block vt_asg_land;
+    static vftable vt_asg_land;
 
     [address((ee)0x00826F10, (aoc)0x0083AFEC)]
-    static block vt_asg_sea;
+    static vftable vt_asg_sea;
 
     [address((ee)0x008270F8, (aoc)0x0083B1D8)]
-    static block vt_asg_sea_transport;
+    static vftable vt_asg_sea_transport;
 
     /// EEAIGPGModifierLandAttackSubGroupRoutePlanner
     [address((ee)0x00825CC4, (aoc)0x00839C70)]
-    static block vt_route_planner;
+    static vftable vt_route_planner;
 }
 
 /// the game's functions attack.c wraps, by the names the C side gives them

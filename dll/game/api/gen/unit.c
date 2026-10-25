@@ -319,7 +319,6 @@ internal inline float unit_max_turn(ee_unit *u) { return fn_unit_max_turn(u); }
 typedef void (__thiscall *unit_set_state_fn)(ee_unit *, int);
 internal unit_set_state_fn fn_unit_set_state;
 internal inline void unit_set_state(ee_unit *u, int state) { fn_unit_set_state(u, state); }
-// radians/s per s
 // thiscall(unit): its turn acceleration (radians/s per s, stats +0xB0; its group's with the group speed on)
 typedef float (__thiscall *unit_turn_accel_fn)(ee_unit *);
 internal unit_turn_accel_fn fn_unit_turn_accel;
@@ -514,3 +513,44 @@ internal int spec_unit_select(int build) {
 }
 // the names a build hasn't got, by build
 internal const char *const k_spec_unit_missing[ADDR_BUILDS] = { "", "" };
+// the load-time check: what the spec says of the running build's exe (spec_check): the failures
+internal int spec_unit_check(void) {
+    int bad = 0;
+    bad += spec_vtable(vt_ee_unit, ".?AVEEUnit@@", "EEUnit [vtable]");
+    bad += spec_code((uintptr_t)fn_ee_unit_lets_pass, "EEUnit.lets_pass");
+    bad += spec_slot(vt_ee_unit, slot_unit_lets_pass, (uintptr_t)fn_ee_unit_lets_pass, "EEUnit.lets_pass [slot]");
+    bad += spec_code((uintptr_t)fn_ee_unit_release, "EEUnit.release");
+    bad += spec_slot(vt_ee_unit, slot_unit_release, (uintptr_t)fn_ee_unit_release, "EEUnit.release [slot]");
+    bad += spec_vtable(vt_ee_complex_unit, ".?AVEEComplexUnit@@", "EEComplexUnit [vtable]");
+    bad += spec_code((uintptr_t)fn_ee_complex_unit_lets_pass, "EEComplexUnit.lets_pass");
+    bad += spec_slot(vt_ee_complex_unit, slot_unit_lets_pass, (uintptr_t)fn_ee_complex_unit_lets_pass, "EEComplexUnit.lets_pass [slot]");
+    bad += spec_code((uintptr_t)fn_unit_max_speed, "EEComplexUnit.max_speed");
+    bad += spec_code((uintptr_t)fn_unit_waypoint, "EEComplexUnit.waypoint");
+    bad += spec_code((uintptr_t)fn_unit_add_waypoint, "EEComplexUnit.add_waypoint");
+    bad += spec_code((uintptr_t)fn_unit_give_goal, "EEComplexUnit.give_goal");
+    bad += spec_call(call_unload_retry_give, (uintptr_t)fn_unit_give_goal, "EEComplexUnit.give_goal [call_site unload_retry_give]");
+    bad += spec_code((uintptr_t)fn_unit_assign_goal, "EEComplexUnit.assign_goal");
+    bad += spec_call(call_repair_goal, (uintptr_t)fn_unit_assign_goal, "EEComplexUnit.assign_goal [call_site repair_goal]");
+    bad += spec_code((uintptr_t)fn_ee_complex_unit_release, "EEComplexUnit.release");
+    bad += spec_slot(vt_ee_complex_unit, slot_unit_release, (uintptr_t)fn_ee_complex_unit_release, "EEComplexUnit.release [slot]");
+    bad += spec_vtable(vt_ee_ghost_unit, ".?AVEEGhostUnit@@", "EEGhostUnit [vtable]");
+    bad += spec_code(data_unit_call_node_del_1, "unit.call_node_del_1");
+    bad += spec_code(data_unit_call_node_del_2, "unit.call_node_del_2");
+    bad += spec_code(data_unit_fn_op_delete, "unit.fn_op_delete");
+    bad += spec_code((uintptr_t)fn_unit_aim, "unit.aim");
+    bad += spec_call(call_aim, (uintptr_t)fn_unit_aim, "unit.aim [call_site aim]");
+    bad += spec_call(call_missile_aim, (uintptr_t)fn_unit_aim, "unit.aim [call_site missile_aim]");
+    bad += spec_code((uintptr_t)fn_ballistic_game, "unit_functions.ballistic_game");
+    bad += spec_code((uintptr_t)fn_unit_pop_waypoint, "unit_functions.unit_pop_waypoint");
+    bad += spec_code((uintptr_t)fn_site_gatherers_game, "unit_functions.site_gatherers_game");
+    bad += spec_code((uintptr_t)fn_units_inside, "unit_functions.units_inside");
+    bad += spec_code((uintptr_t)fn_unit_accel, "unit_functions.unit_accel");
+    bad += spec_code((uintptr_t)fn_unit_convert, "unit_functions.unit_convert");
+    bad += spec_code((uintptr_t)fn_unit_distance, "unit_functions.unit_distance");
+    bad += spec_code((uintptr_t)fn_unit_goal_queue, "unit_functions.unit_goal_queue");
+    bad += spec_code((uintptr_t)fn_unit_max_turn, "unit_functions.unit_max_turn");
+    bad += spec_code((uintptr_t)fn_unit_set_state, "unit_functions.unit_set_state");
+    bad += spec_code((uintptr_t)fn_unit_turn_accel, "unit_functions.unit_turn_accel");
+    bad += spec_code((uintptr_t)fn_unit_unlink, "unit_functions.unit_unlink");
+    return bad;
+}

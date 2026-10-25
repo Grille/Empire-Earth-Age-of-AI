@@ -15,6 +15,60 @@ internal int build_is(const char *name) { return g_exe_build >= 0 && !lstrcmpA(k
 internal int g_spec_missing;   // the spec's values the running build hasn't got (spec_log)
 internal int spec_select(int build);   // gen/gen.c: the spec's values of the build
 internal void spec_log(FILE *log);
+internal int spec_check(void);   // gen/gen.c: what the spec says of the exe, looked at (the helpers below)
+
+// THE LOAD-TIME CHECK: the spec's values against the running exe, before anything is patched - a wrong value (a slip
+// in the spec, a port gone wrong) shows in the start's log by name, not as a hook that fails to install or a crash. A
+// value the build hasn't got (0, a slot NA) is spec_log's and not looked at.
+internal int g_spec_checked, g_spec_bad;
+internal char g_spec_bad_names[600];
+internal int spec_fail(const char *what) {
+    size_t n = strlen(g_spec_bad_names);
+    if (n + strlen(what) + 6 < sizeof g_spec_bad_names) wsprintfA(g_spec_bad_names + n, " %s", what);
+    else if (n + 5 < sizeof g_spec_bad_names && !strstr(g_spec_bad_names, " ...")) lstrcatA(g_spec_bad_names, " ...");
+    g_spec_bad++;
+    return 1;
+}
+internal int spec_in_image(uint32_t a, uint32_t n) { return a >= g_image_lo && a + n <= g_image_hi && a + n >= a; }
+// a function or a place in the code: in the exe's code section
+internal int spec_code(uint32_t a, const char *what) {
+    if (!a) return 0;
+    g_spec_checked++;
+    return a >= g_code_lo && a < g_code_hi ? 0 : spec_fail(what);
+}
+// a place of the game's data: in the exe's image
+internal int spec_data(uint32_t a, const char *what) {
+    if (!a) return 0;
+    g_spec_checked++;
+    return spec_in_image(a, 1) ? 0 : spec_fail(what);
+}
+// a class's vtable: the RTTI before it names the class (its complete object locator's type descriptor, ".?AVName@@")
+internal int spec_vtable(uint32_t vt, const char *rtti, const char *what) {
+    if (!vt) return 0;
+    g_spec_checked++;
+    if (!spec_in_image(vt - 4, 4)) return spec_fail(what);
+    uint32_t col = *(uint32_t *)(uintptr_t)(vt - 4);
+    if (!spec_in_image(col, 0x10)) return spec_fail(what);
+    uint32_t td = *(uint32_t *)(uintptr_t)(col + 0xC);
+    if (!spec_in_image(td, 8 + (uint32_t)strlen(rtti) + 1)) return spec_fail(what);
+    return strcmp((const char *)(uintptr_t)(td + 8), rtti) ? spec_fail(what) : 0;
+}
+// a class's own function in its vtable's slot
+internal int spec_slot(uint32_t vt, uint32_t slot, uintptr_t fn, const char *what) {
+    if (!vt || !fn || slot == 0xFFFFFFFFu) return 0;
+    g_spec_checked++;
+    if (!spec_in_image(vt + 4 * slot, 4)) return spec_fail(what);
+    return *(uint32_t *)(uintptr_t)(vt + 4 * slot) == fn ? 0 : spec_fail(what);
+}
+// a call site: an E8 rel32 call of its function
+internal int spec_call(uint32_t site, uintptr_t fn, const char *what) {
+    if (!site || !fn) return 0;
+    g_spec_checked++;
+    if (site < g_code_lo || site + 5 > g_code_hi) return spec_fail(what);
+    const uint8_t *p = (const uint8_t *)(uintptr_t)site;
+    return p[0] == 0xE8 && site + 5 + *(const int32_t *)(p + 1) == fn ? 0 : spec_fail(what);
+}
+
 internal int game_build(uint32_t *hash) {
     char path[MAX_PATH], unready[4];
     GetModuleFileNameA(NULL, path, MAX_PATH);
@@ -26,6 +80,7 @@ internal int game_build(uint32_t *hash) {
             g_exe_build = i;
             image_ranges();   // the exe's code and data sections (base/patch.c checks a patch against them)
             g_spec_missing = spec_select(i);
+            spec_check();   // (its failures: g_spec_bad, api_log tells them)
             return 1;
         }
     return name && !lstrcmpiA(name + 1, "Empire Earth.exe") ? -1 : 0;   // a renamed copy of a known build counts above
@@ -35,6 +90,8 @@ internal void api_log(FILE *log) {
     if (!log) return;
     if (!k_exe_builds[g_exe_build].ready) fprintf(log, "# build: %s - not ready, a test run's\n", k_exe_builds[g_exe_build].name);
     spec_log(log);
+    if (g_spec_bad) fprintf(log, "# spec: %d of %d checks against the exe fail:%s\n", g_spec_bad, g_spec_checked, g_spec_bad_names);
+    else fprintf(log, "# spec: %d checks against the exe, all hold\n", g_spec_checked);
 }
 // Another build: nothing installed - the player is told once a start (a test run, which has nobody to click: only
 // the log), and the game runs as it is

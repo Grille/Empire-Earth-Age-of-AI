@@ -8,7 +8,7 @@ static unsafe class patching
     [address((ee)0x0044AF88, (aoc)0x0044A6A3)]
     static code ret_asg_land_handoff_give;
 
-    /// the land unit records' vtables of the attack subgroups: base, hero, priests and prophets
+    /// the calls of goal_unload_init (landing.c; the last, 0x615AE6, the unload goal's copy)
     [address((ee)0x00445AAD, (aoc)0x00444CCD)]
     [address((ee)0x00483E4D, (aoc)0x004884B9)]
     [address((ee)0x0048CC5D, (aoc)0x00491733)]

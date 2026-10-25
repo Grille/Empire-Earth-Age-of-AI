@@ -74,3 +74,9 @@ internal int spec_formation_select(int build) {
 }
 // the names a build hasn't got, by build
 internal const char *const k_spec_formation_missing[ADDR_BUILDS] = { "", "" };
+// the load-time check: what the spec says of the running build's exe (spec_check): the failures
+internal int spec_formation_check(void) {
+    int bad = 0;
+    bad += spec_code((uintptr_t)fn_formation_slots, "formation_functions.formation_slots");
+    return bad;
+}

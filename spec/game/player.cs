@@ -235,7 +235,7 @@ static unsafe class player
     static uint32 slot_unit_limit;
 
     [address((ee)0x008264C0, (aoc)0x0083A57C)]
-    static block vt_computer_player;
+    static vftable vt_computer_player;
 }
 
 /// the game's functions player.c wraps, by the names the C side gives them

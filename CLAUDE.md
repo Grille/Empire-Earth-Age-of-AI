@@ -48,10 +48,13 @@ and the runners, eectl, the MCP server), `results/` (log readers, scorers), `re/
   value (`data_ai_managers_call_rm_update`, `value_attack_slot_asg_update`, `fn_unit_distance`, `of_unit_hp`) or its
   accessor / wrapper (`unit_get_hp(u)`, `unit_distance(a, b)`); the values only inside game/api/ (layers.py), the
   accessors for everyone. Names: a class's C prefix is its C type without ee_, else `[c_prefix]` keeps the one the C
-  side had (cm_, asg_ ... - the player: the C types renamed to fit, later). Still to do: the call sites as
-  `[call_site]` of their function (they are places now, the hand-written patch_ functions use them), the game's
-  functions as methods of their classes, game enums, a load-time check of the spec against the running exe, a
-  Ghidra export. Two builds: the 2017 update and Art of Conquest (not ready: tested in AoC only since 2026-10-21 -
+  side had (cm_, asg_ ... - the player: the C types renamed to fit, later). At load, before any patch, the spec is
+  checked against the running exe (gen/'s spec_check, exe.c's helpers: code in .text, data in the image, a [vtable]
+  its class's RTTI name, a class's own function in its slot, a [call_site] a call of its function) - the start's log
+  says `# spec: N checks against the exe, all hold` or names what fails: read it after a spec change or a port. Still
+  to do: the call sites as `[call_site]` of their function (they are places now, the hand-written patch_ functions
+  use them - the check doesn't see them yet), the game's functions as methods of their classes, game enums, a Ghidra
+  export. Two builds: the 2017 update and Art of Conquest (not ready: tested in AoC only since 2026-10-21 -
   test runs play it, `EE_GAME_DIR=<its folder>`, docs/testing.md); a new value needs both. The port scripts read the
   spec (`scripts/re/port_addrs.py`: every address's AoC value found again and compared with the spec's - same,
   DIFFERS, NEW; `port_check.py` a class's fields by its code; `port_fields.py`, `port_dll.py`): a value they find goes

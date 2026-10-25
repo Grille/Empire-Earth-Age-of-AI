@@ -127,7 +127,9 @@ internal inline uint8_t *messages_call_sel_pack_at(void) { return (uint8_t *)(ui
 // msg_chat_init
 // messages.vt_pay_tribute, messages.vt_ingame_chat, messages.vt_resign, messages.vt_msg_load, messages.vt_msg_unload: the message's Execute
 // [game.server] (EEServer, EEClient): thiscall(net, message, 0xFF)
-internal inline uint8_t *messages_start_vtbl_exec_at(void) { return (uint8_t *)(uintptr_t)data_messages_start_vtbl_exec; }
+internal inline void *messages_get_start_vtbl_exec(void) { return *(void **)(uint8_t *)(uintptr_t)data_messages_start_vtbl_exec; }
+internal inline void messages_set_start_vtbl_exec(void *v) { *(void **)(uint8_t *)(uintptr_t)data_messages_start_vtbl_exec = v; }
+internal inline void **messages_start_vtbl_exec_at(void) { return (void **)(uint8_t *)(uintptr_t)data_messages_start_vtbl_exec; }
 internal inline uint8_t *messages_vt_ingame_chat_at(void) { return (uint8_t *)(uintptr_t)data_messages_vt_ingame_chat; }
 // EEMLoadTransport
 internal inline uint8_t *messages_vt_msg_load_at(void) { return (uint8_t *)(uintptr_t)data_messages_vt_msg_load; }
@@ -285,3 +287,25 @@ internal int spec_messages_select(int build) {
 }
 // the names a build hasn't got, by build
 internal const char *const k_spec_messages_missing[ADDR_BUILDS] = { "", "" };
+// the load-time check: what the spec says of the running build's exe (spec_check): the failures
+internal int spec_messages_check(void) {
+    int bad = 0;
+    bad += spec_code(data_messages_call_sel_pack, "messages.call_sel_pack");
+    bad += spec_data(data_messages_start_vtbl_exec, "messages.start_vtbl_exec");
+    bad += spec_data(data_messages_vt_ingame_chat, "messages.vt_ingame_chat");
+    bad += spec_data(data_messages_vt_msg_load, "messages.vt_msg_load");
+    bad += spec_data(data_messages_vt_msg_unload, "messages.vt_msg_unload");
+    bad += spec_data(data_messages_vt_pay_tribute, "messages.vt_pay_tribute");
+    bad += spec_data(data_messages_vt_resign, "messages.vt_resign");
+    bad += spec_code((uintptr_t)fn_msg_chat_init, "messages_functions.msg_chat_init");
+    bad += spec_code((uintptr_t)fn_msg_cheat_init, "messages_functions.msg_cheat_init");
+    bad += spec_code((uintptr_t)fn_msg_ingame_chat, "messages_functions.msg_ingame_chat");
+    bad += spec_code((uintptr_t)fn_msg_load, "messages_functions.msg_load");
+    bad += spec_code((uintptr_t)fn_msg_path, "messages_functions.msg_path");
+    bad += spec_code((uintptr_t)fn_msg_unload, "messages_functions.msg_unload");
+    bad += spec_code((uintptr_t)fn_msg_pay_tribute, "messages_functions.msg_pay_tribute");
+    bad += spec_code((uintptr_t)fn_msg_resign, "messages_functions.msg_resign");
+    bad += spec_code((uintptr_t)fn_select_msg_init, "messages_functions.select_msg_init");
+    bad += spec_code((uintptr_t)fn_sel_pack, "messages_functions.sel_pack");
+    return bad;
+}

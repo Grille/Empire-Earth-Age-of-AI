@@ -318,12 +318,12 @@ internal uint32_t value_hooks_rva_lle_iat_wfmo;
 internal uint32_t value_hooks_rva_lle_input_coop;
 internal uint32_t value_hooks_rva_lle_mouse_coop;
 internal uint32_t value_hooks_rva_lle_send_wait;
-internal uint32_t data_hooks_rva_tcp_ports[8];
 internal uint32_t data_hooks_site_close_window_je;
 internal uint32_t data_hooks_site_editor_menu;
 internal uint32_t data_hooks_site_editor_res;
 internal uint32_t data_hooks_site_sim_receive;
 internal uint32_t data_hooks_site_sim_wait;
+internal uint32_t data_tcp_protocol_ports[8];
 
 // map.cs
 internal uint32_t of_grid_cells;

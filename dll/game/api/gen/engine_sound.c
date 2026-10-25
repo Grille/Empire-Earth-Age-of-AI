@@ -111,3 +111,11 @@ internal int spec_engine_sound_select(int build) {
 }
 // the names a build hasn't got, by build
 internal const char *const k_spec_engine_sound_missing[ADDR_BUILDS] = { "", "" };
+// the load-time check: what the spec says of the running build's exe (spec_check): the failures
+internal int spec_engine_sound_check(void) {
+    int bad = 0;
+    bad += spec_data(data_engine_sound_iat_snd_play, "engine_sound.iat_snd_play");
+    bad += spec_data(data_engine_sound_iat_snd_playref, "engine_sound.iat_snd_playref");
+    bad += spec_data(data_engine_sound_iat_snd_setmaxch, "engine_sound.iat_snd_setmaxch");
+    return bad;
+}

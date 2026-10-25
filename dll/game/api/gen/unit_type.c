@@ -181,7 +181,7 @@ internal inline int *stat_hp_at(const ee_unit_stats *o) { return (int *)((uint8_
 
 // static class unit_type
 // unit_type's data of the game, places in its code and numbers
-// the minimap's operands of hooks.float_1_800
+// the calls of unit_fire (aim.c)
 // attack_bonus_game's object
 internal inline uint8_t *unit_type_bonus_table_at(void) { return (uint8_t *)(uintptr_t)data_unit_type_bonus_table; }
 // unit_type.vt_missile
@@ -329,3 +329,19 @@ internal int spec_unit_type_select(int build) {
 }
 // the names a build hasn't got, by build
 internal const char *const k_spec_unit_type_missing[ADDR_BUILDS] = { "", "" };
+// the load-time check: what the spec says of the running build's exe (spec_check): the failures
+internal int spec_unit_type_check(void) {
+    int bad = 0;
+    bad += spec_code(data_unit_type_fire_calls[0], "unit_type.fire_calls 0");
+    bad += spec_code(data_unit_type_fire_calls[1], "unit_type.fire_calls 1");
+    bad += spec_code(data_unit_type_fire_calls[2], "unit_type.fire_calls 2");
+    bad += spec_code(data_unit_type_fire_calls[3], "unit_type.fire_calls 3");
+    bad += spec_data(data_unit_type_bonus_table, "unit_type.bonus_table");
+    bad += spec_data(data_unit_type_vt_missile, "unit_type.vt_missile");
+    bad += spec_data(data_unit_type_vt_projectile, "unit_type.vt_projectile");
+    bad += spec_code((uintptr_t)fn_attack_bonus_game, "unit_type_functions.attack_bonus_game");
+    bad += spec_code((uintptr_t)fn_unit_fire, "unit_type_functions.unit_fire");
+    bad += spec_code((uintptr_t)fn_missile_launch, "unit_type_functions.missile_launch");
+    bad += spec_code((uintptr_t)fn_proj_down, "unit_type_functions.proj_down");
+    return bad;
+}

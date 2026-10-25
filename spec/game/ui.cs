@@ -130,15 +130,14 @@ static unsafe class ui
     [address((ee)0x00823D60, (aoc)0x00837B44)]
     static block iat_uim_form;
 
-    /// the single player screens' vtables (playername.c)
+    /// the calls of mouse_update
     [address((ee)0x004B8ABB, (aoc)0x004C11FE)]
     [address((ee)0x0050FEC8, (aoc)0x0051A487)]
     [address((ee)0x005111CF, (aoc)0x0051B73E)]
     [address((ee)0x006618B8, (aoc)0x00678F02)]
     static code mouse_update_sites;
 
-    /// TCP Protocol.dll, relative to its base: the network ports' immediates (UDP 33334, TCP 33335), moved for a test
-    /// slot
+    /// the calls of native_chat (the AI's own lines)
     [address((ee)0x00470040, (aoc)0x00472F4C)]
     [address((ee)0x004715F8, (aoc)0x00474682)]
     [address((ee)0x0047166E, (aoc)0x00474705)]
@@ -169,7 +168,7 @@ static unsafe class ui
     [value(1)]
     static uint32 slot_sp_button;
 
-    /// the draw list's operands to move (drawlist.c, in its table's order)
+    /// their slot 1
     [address((ee)0x005D80D5, (aoc)0x005E8A41)]
     [address((ee)0x005D812B, (aoc)0x005E8B10)]
     [address((ee)0x00628E89, (aoc)0x0067CF38)]
@@ -178,21 +177,21 @@ static unsafe class ui
     [address((ee)0x005D817A, (aoc)0x005E8B86)]
     static code sp_fns;
 
-    /// their slot 1
+    /// the single player screens' vtables (playername.c)
     [address((ee)0x00835740, (aoc)0x0084B814)]
     [address((ee)0x00835754, (aoc)0x0084B828)]
     [address((ee)0x00835768, (aoc)0x0084B83C)]
     [address((ee)0x00835560, (aoc)0x0084B65C)]
     [address((ee)0x0083577C, (aoc)0x0084B850)]
     [address((ee)0x00835790, (aoc)0x0084B864)]
-    static code sp_vtables;
+    static vftable sp_vtables;
 
     /// EEUIEKeyboardScroll (0x10 bytes: vtable, refcount, 0, direction); Execute 0x5C9070 moves game.camera
     [address((ee)0x008348FC, (aoc)0x0084A998)]
-    static block vt_key_scroll;
+    static vftable vt_key_scroll;
 
     [address((ee)0x00825098, (aoc)0x0083907C)]
-    static block vt_scroll;
+    static vftable vt_scroll;
 }
 
 /// the game's functions ui.c wraps, by the names the C side gives them

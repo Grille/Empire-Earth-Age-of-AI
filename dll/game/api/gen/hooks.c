@@ -23,9 +23,10 @@ internal inline uint8_t *hooks_code_splash_start_jne_at(void) { return (uint8_t 
 // the loading splash's stop (jne)
 internal inline uint8_t *hooks_code_splash_stop_jne_at(void) { return (uint8_t *)(uintptr_t)data_hooks_code_splash_stop_jne; }
 internal inline uint8_t *hooks_draw_old_at(void) { return (uint8_t *)(uintptr_t)data_hooks_draw_old; }
-// the small objects' draw list's operands to move (drawlist.c, in its table's order)
+// the draw list's operands to move (drawlist.c, in its table's order)
 // the small objects' draw list: 0x600 records of 0x3C
 internal inline uint8_t *hooks_draw_small_old_at(void) { return (uint8_t *)(uintptr_t)data_hooks_draw_small_old; }
+// the small objects' draw list's operands to move (drawlist.c, in its table's order)
 internal inline uint8_t *hooks_exit_confirm_at_at(void) { return (uint8_t *)(uintptr_t)data_hooks_exit_confirm_at; }
 // __thiscall, ret 4
 internal inline uint8_t *hooks_fn_add_movie_at(void) { return (uint8_t *)(uintptr_t)data_hooks_fn_add_movie; }
@@ -35,16 +36,15 @@ internal inline uint8_t *hooks_float_1_600_at(void) { return (uint8_t *)(uintptr
 // the float 1/800 (the minimap's x scale operand)
 internal inline uint8_t *hooks_float_1_800_at(void) { return (uint8_t *)(uintptr_t)data_hooks_float_1_800; }
 internal inline uint8_t *hooks_iat_srand_at(void) { return (uint8_t *)(uintptr_t)data_hooks_iat_srand; }
-// the calls of unit_fire (aim.c)
+// call AddMovie(path) in PlayIntro 0x538867
+// the minimap's operands of hooks.float_1_800
 // the minimap's operands of hooks.float_1_600
 // the other calls of set_resolution (display.c)
-// the calls of mouse_update
 // GEFontBitmap::Draw (both overloads): movsx of a character
 // its import slot
 // ISInitialize's, setting up the device
 // Low-Level Engine, ISMouse::Resume: the 5 of push 5 (DISCL_ flags)
 // NESynchronousServer::Send: call [WaitForMultipleObjects] (turbo)
-// the calls of assign_to_site (trace.c)
 // je over the CloseWindow call on WM_ACTIVATEAPP(0)
 internal inline uint8_t *hooks_site_close_window_je_at(void) { return (uint8_t *)(uintptr_t)data_hooks_site_close_window_je; }
 internal inline uint8_t *hooks_site_editor_menu_at(void) { return (uint8_t *)(uintptr_t)data_hooks_site_editor_menu; }
@@ -61,6 +61,10 @@ internal inline void draw_rec_ctor(void *p1) { fn_draw_rec_ctor(p1); }
 typedef void (__stdcall *set_resolution_fn)(int, int, int, int);
 internal set_resolution_fn fn_set_resolution;
 internal inline void set_resolution(int w, int h, int force, int flag) { fn_set_resolution(w, h, force, flag); }
+
+// static class tcp_protocol
+// TCP Protocol.dll's code (each build ships its own): its places relative to the DLL's base
+// the network ports' immediates (UDP 33334, TCP 33335), moved for a test slot
 
 // the running build's values (spec_select, with addr_select): how many it hasn't got
 internal int spec_hooks_select(int build) {
@@ -121,14 +125,6 @@ internal int spec_hooks_select(int build) {
         value_hooks_rva_lle_input_coop = 305007;
         value_hooks_rva_lle_mouse_coop = 313400;
         value_hooks_rva_lle_send_wait = 351733;
-        data_hooks_rva_tcp_ports[0] = 0x000017E2;
-        data_hooks_rva_tcp_ports[1] = 0x0000196F;
-        data_hooks_rva_tcp_ports[2] = 0x000019EB;
-        data_hooks_rva_tcp_ports[3] = 0x00001EB8;
-        data_hooks_rva_tcp_ports[4] = 0x00001FBD;
-        data_hooks_rva_tcp_ports[5] = 0x00002148;
-        data_hooks_rva_tcp_ports[6] = 0x0000279C;
-        data_hooks_rva_tcp_ports[7] = 0x00002F2C;
         data_hooks_site_close_window_je = 0x00662666;
         data_hooks_site_editor_menu = 0x006601F1;
         data_hooks_site_editor_res = 0x0065FD6D;
@@ -136,6 +132,14 @@ internal int spec_hooks_select(int build) {
         data_hooks_site_sim_wait = 0x005533C5;
         fn_draw_rec_ctor = (draw_rec_ctor_fn)0x00506442;
         fn_set_resolution = (set_resolution_fn)0x0065F314;
+        data_tcp_protocol_ports[0] = 0x000017E2;
+        data_tcp_protocol_ports[1] = 0x0000196F;
+        data_tcp_protocol_ports[2] = 0x000019EB;
+        data_tcp_protocol_ports[3] = 0x00001EB8;
+        data_tcp_protocol_ports[4] = 0x00001FBD;
+        data_tcp_protocol_ports[5] = 0x00002148;
+        data_tcp_protocol_ports[6] = 0x0000279C;
+        data_tcp_protocol_ports[7] = 0x00002F2C;
         return 0;
     case 1:   // aoc
         of_draw_record_0x58 = 0x58;
@@ -193,14 +197,6 @@ internal int spec_hooks_select(int build) {
         value_hooks_rva_lle_input_coop = 235015;
         value_hooks_rva_lle_mouse_coop = 244229;
         value_hooks_rva_lle_send_wait = 302554;
-        data_hooks_rva_tcp_ports[0] = 0x00001684;
-        data_hooks_rva_tcp_ports[1] = 0x0000185C;
-        data_hooks_rva_tcp_ports[2] = 0x000018D8;
-        data_hooks_rva_tcp_ports[3] = 0x00001DA5;
-        data_hooks_rva_tcp_ports[4] = 0x00001EAA;
-        data_hooks_rva_tcp_ports[5] = 0x00002035;
-        data_hooks_rva_tcp_ports[6] = 0x00002689;
-        data_hooks_rva_tcp_ports[7] = 0x00002E1C;
         data_hooks_site_close_window_je = 0x00679C57;
         data_hooks_site_editor_menu = 0x006777E5;
         data_hooks_site_editor_res = 0x00677361;
@@ -208,9 +204,76 @@ internal int spec_hooks_select(int build) {
         data_hooks_site_sim_wait = 0x005614D6;
         fn_draw_rec_ctor = (draw_rec_ctor_fn)0x005118E9;
         fn_set_resolution = (set_resolution_fn)0x006768FE;
+        data_tcp_protocol_ports[0] = 0x00001684;
+        data_tcp_protocol_ports[1] = 0x0000185C;
+        data_tcp_protocol_ports[2] = 0x000018D8;
+        data_tcp_protocol_ports[3] = 0x00001DA5;
+        data_tcp_protocol_ports[4] = 0x00001EAA;
+        data_tcp_protocol_ports[5] = 0x00002035;
+        data_tcp_protocol_ports[6] = 0x00002689;
+        data_tcp_protocol_ports[7] = 0x00002E1C;
         return 0;
     }
     return 0;
 }
 // the names a build hasn't got, by build
 internal const char *const k_spec_hooks_missing[ADDR_BUILDS] = { "", "" };
+// the load-time check: what the spec says of the running build's exe (spec_check): the failures
+internal int spec_hooks_check(void) {
+    int bad = 0;
+    bad += spec_code(data_hooks_call_attack_alert, "hooks.call_attack_alert");
+    bad += spec_code(data_hooks_call_game_start, "hooks.call_game_start");
+    bad += spec_code(data_hooks_call_load_saved, "hooks.call_load_saved");
+    bad += spec_code(data_hooks_call_parse_cmdline, "hooks.call_parse_cmdline");
+    bad += spec_code(data_hooks_call_shore_to_unload, "hooks.call_shore_to_unload");
+    bad += spec_code(data_hooks_code_splash_start_jne, "hooks.code_splash_start_jne");
+    bad += spec_code(data_hooks_code_splash_stop_jne, "hooks.code_splash_stop_jne");
+    bad += spec_data(data_hooks_draw_old, "hooks.draw_old");
+    bad += spec_code(data_hooks_draw_sites[0], "hooks.draw_sites 0");
+    bad += spec_code(data_hooks_draw_sites[1], "hooks.draw_sites 1");
+    bad += spec_code(data_hooks_draw_sites[2], "hooks.draw_sites 2");
+    bad += spec_code(data_hooks_draw_sites[3], "hooks.draw_sites 3");
+    bad += spec_code(data_hooks_draw_sites[4], "hooks.draw_sites 4");
+    bad += spec_code(data_hooks_draw_sites[5], "hooks.draw_sites 5");
+    bad += spec_code(data_hooks_draw_sites[6], "hooks.draw_sites 6");
+    bad += spec_code(data_hooks_draw_sites[7], "hooks.draw_sites 7");
+    bad += spec_code(data_hooks_draw_sites[8], "hooks.draw_sites 8");
+    bad += spec_data(data_hooks_draw_small_old, "hooks.draw_small_old");
+    bad += spec_code(data_hooks_draw_small_sites[0], "hooks.draw_small_sites 0");
+    bad += spec_code(data_hooks_draw_small_sites[1], "hooks.draw_small_sites 1");
+    bad += spec_code(data_hooks_draw_small_sites[2], "hooks.draw_small_sites 2");
+    bad += spec_code(data_hooks_draw_small_sites[3], "hooks.draw_small_sites 3");
+    bad += spec_code(data_hooks_draw_small_sites[4], "hooks.draw_small_sites 4");
+    bad += spec_code(data_hooks_draw_small_sites[5], "hooks.draw_small_sites 5");
+    bad += spec_code(data_hooks_draw_small_sites[6], "hooks.draw_small_sites 6");
+    bad += spec_code(data_hooks_exit_confirm_at, "hooks.exit_confirm_at");
+    bad += spec_code(data_hooks_fn_add_movie, "hooks.fn_add_movie");
+    bad += spec_code(data_hooks_fn_attack_alert, "hooks.fn_attack_alert");
+    bad += spec_data(data_hooks_float_1_600, "hooks.float_1_600");
+    bad += spec_data(data_hooks_float_1_800, "hooks.float_1_800");
+    bad += spec_data(data_hooks_iat_srand, "hooks.iat_srand");
+    bad += spec_code(data_hooks_intro_calls[0], "hooks.intro_calls 0");
+    bad += spec_code(data_hooks_intro_calls[1], "hooks.intro_calls 1");
+    bad += spec_code(data_hooks_intro_calls[2], "hooks.intro_calls 2");
+    bad += spec_code(data_hooks_minimap_fx_ops[0], "hooks.minimap_fx_ops 0");
+    bad += spec_code(data_hooks_minimap_fx_ops[1], "hooks.minimap_fx_ops 1");
+    bad += spec_code(data_hooks_minimap_fx_ops[2], "hooks.minimap_fx_ops 2");
+    bad += spec_code(data_hooks_minimap_fy_ops[0], "hooks.minimap_fy_ops 0");
+    bad += spec_code(data_hooks_minimap_fy_ops[1], "hooks.minimap_fy_ops 1");
+    bad += spec_code(data_hooks_minimap_fy_ops[2], "hooks.minimap_fy_ops 2");
+    bad += spec_code(data_hooks_other_resolution_sites[0], "hooks.other_resolution_sites 0");
+    bad += spec_code(data_hooks_other_resolution_sites[1], "hooks.other_resolution_sites 1");
+    bad += spec_code(data_hooks_other_resolution_sites[2], "hooks.other_resolution_sites 2");
+    bad += spec_code(data_hooks_other_resolution_sites[3], "hooks.other_resolution_sites 3");
+    bad += spec_code(data_hooks_other_resolution_sites[4], "hooks.other_resolution_sites 4");
+    bad += spec_code(data_hooks_other_resolution_sites[5], "hooks.other_resolution_sites 5");
+    bad += spec_code(data_hooks_other_resolution_sites[6], "hooks.other_resolution_sites 6");
+    bad += spec_code(data_hooks_site_close_window_je, "hooks.site_close_window_je");
+    bad += spec_code(data_hooks_site_editor_menu, "hooks.site_editor_menu");
+    bad += spec_code(data_hooks_site_editor_res, "hooks.site_editor_res");
+    bad += spec_code(data_hooks_site_sim_receive, "hooks.site_sim_receive");
+    bad += spec_code(data_hooks_site_sim_wait, "hooks.site_sim_wait");
+    bad += spec_code((uintptr_t)fn_draw_rec_ctor, "hooks_functions.draw_rec_ctor");
+    bad += spec_code((uintptr_t)fn_set_resolution, "hooks_functions.set_resolution");
+    return bad;
+}

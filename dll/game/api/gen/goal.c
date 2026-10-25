@@ -165,3 +165,27 @@ internal int spec_goal_select(int build) {
 }
 // the names a build hasn't got, by build
 internal const char *const k_spec_goal_missing[ADDR_BUILDS] = { "", "" };
+// the load-time check: what the spec says of the running build's exe (spec_check): the failures
+internal int spec_goal_check(void) {
+    int bad = 0;
+    bad += spec_code(data_goal_at_goal_set_read, "goal.at_goal_set_read");
+    bad += spec_code(data_goal_call_goalset_again, "goal.call_goalset_again");
+    bad += spec_code(data_goal_call_goalset_ask, "goal.call_goalset_ask");
+    bad += spec_code(data_goal_call_goal_fba_check, "goal.call_goal_fba_check");
+    bad += spec_code(data_goal_call_slot_goal, "goal.call_slot_goal");
+    bad += spec_code(data_goal_fn_goal_attack_ctor, "goal.fn_goal_attack_ctor");
+    bad += spec_data(data_goal_vt_goal_attack, "goal.vt_goal_attack");
+    bad += spec_data(data_goal_vt_goal_build, "goal.vt_goal_build");
+    bad += spec_data(data_goal_vt_goal_load, "goal.vt_goal_load");
+    bad += spec_data(data_goal_vt_goal_location, "goal.vt_goal_location");
+    bad += spec_data(data_goal_vt_goal_unload, "goal.vt_goal_unload");
+    bad += spec_code((uintptr_t)fn_goal_build_init, "goal_functions.goal_build_init");
+    bad += spec_code((uintptr_t)fn_goalset_ask, "goal_functions.goalset_ask");
+    bad += spec_code((uintptr_t)fn_goal_fits, "goal_functions.goal_fits");
+    bad += spec_code((uintptr_t)fn_goal_load_ctor, "goal_functions.goal_load_ctor");
+    bad += spec_code((uintptr_t)fn_goal_move_at_game, "goal_functions.goal_move_at_game");
+    bad += spec_code((uintptr_t)fn_goal_move_ctor, "goal_functions.goal_move_ctor");
+    bad += spec_code((uintptr_t)fn_goal_unload_init, "goal_functions.goal_unload_init");
+    bad += spec_code((uintptr_t)fn_goal_add_passenger, "goal_functions.goal_add_passenger");
+    return bad;
+}

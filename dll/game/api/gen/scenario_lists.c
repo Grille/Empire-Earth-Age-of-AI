@@ -25,3 +25,8 @@ internal int spec_scenario_lists_select(int build) {
 }
 // the names a build hasn't got, by build
 internal const char *const k_spec_scenario_lists_missing[ADDR_BUILDS] = { "", "" };
+// the load-time check: what the spec says of the running build's exe (spec_check): the failures
+internal int spec_scenario_lists_check(void) {
+    int bad = 0;
+    return bad;
+}

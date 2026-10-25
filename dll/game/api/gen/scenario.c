@@ -931,3 +931,24 @@ internal int spec_scenario_select(int build) {
 }
 // the names a build hasn't got, by build
 internal const char *const k_spec_scenario_missing[ADDR_BUILDS] = { "", "" };
+// the load-time check: what the spec says of the running build's exe (spec_check): the failures
+internal int spec_scenario_check(void) {
+    int bad = 0;
+    bad += spec_data(data_scenario_sm_step, "scenario.sm_step");
+    bad += spec_code((uintptr_t)fn_sm_area_contains_game, "scenario_functions.sm_area_contains_game");
+    bad += spec_code((uintptr_t)fn_sm_class_test_game, "scenario_functions.sm_class_test_game");
+    bad += spec_code((uintptr_t)fn_sm_cond_eval, "scenario_functions.sm_cond_eval");
+    bad += spec_code((uintptr_t)fn_sm_area, "scenario_functions.sm_area");
+    bad += spec_code((uintptr_t)fn_sm_cond, "scenario_functions.sm_cond");
+    bad += spec_code((uintptr_t)fn_sm_effect, "scenario_functions.sm_effect");
+    bad += spec_code((uintptr_t)fn_sm_object, "scenario_functions.sm_object");
+    bad += spec_code((uintptr_t)fn_sm_trigger, "scenario_functions.sm_trigger");
+    bad += spec_code((uintptr_t)fn_sm_object_eval, "scenario_functions.sm_object_eval");
+    bad += spec_code((uintptr_t)fn_sm_players, "scenario_functions.sm_players");
+    bad += spec_code((uintptr_t)fn_sm_player_attr, "scenario_functions.sm_player_attr");
+    bad += spec_code((uintptr_t)fn_sm_queue_effect, "scenario_functions.sm_queue_effect");
+    bad += spec_code((uintptr_t)fn_sm_run_effect, "scenario_functions.sm_run_effect");
+    bad += spec_code((uintptr_t)fn_sm_set_player_attr, "scenario_functions.sm_set_player_attr");
+    bad += spec_code((uintptr_t)fn_sm_trigger_update, "scenario_functions.sm_trigger_update");
+    return bad;
+}

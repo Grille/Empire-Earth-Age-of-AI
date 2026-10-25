@@ -103,9 +103,8 @@ internal inline uint8_t *ui_iat_edit_get_text_at(void) { return (uint8_t *)(uint
 internal inline uint8_t *ui_iat_uiform_add_hotkey_at(void) { return (uint8_t *)(uintptr_t)data_ui_iat_uiform_add_hotkey; }
 // the UI manager's current form
 internal inline uint8_t *ui_iat_uim_form_at(void) { return (uint8_t *)(uintptr_t)data_ui_iat_uim_form; }
-// the single player screens' vtables (playername.c)
-// TCP Protocol.dll, relative to its base: the network ports' immediates (UDP 33334, TCP 33335), moved for a test
-// slot
+// the calls of mouse_update
+// the calls of native_chat (the AI's own lines)
 internal inline uint8_t *ui_site_editor_form_at(void) { return (uint8_t *)(uintptr_t)data_ui_site_editor_form; }
 // operand of push 0x19 (timer period in ms)
 internal inline uint8_t *ui_site_scroll_timer_at(void) { return (uint8_t *)(uintptr_t)data_ui_site_scroll_timer; }
@@ -113,8 +112,8 @@ internal inline uint8_t *ui_site_scroll_timer_at(void) { return (uint8_t *)(uint
 // EEUIEKeyboardScroll: vtable, refcount, 0, direction
 // ui.vt_scroll: Execute
 // ui.sp_vtables: a button's handler
-// the draw list's operands to move (drawlist.c, in its table's order)
 // their slot 1
+// the single player screens' vtables (playername.c)
 // EEUIEKeyboardScroll (0x10 bytes: vtable, refcount, 0, direction); Execute 0x5C9070 moves game.camera
 internal inline uint8_t *ui_vt_key_scroll_at(void) { return (uint8_t *)(uintptr_t)data_ui_vt_key_scroll; }
 internal inline uint8_t *ui_vt_scroll_at(void) { return (uint8_t *)(uintptr_t)data_ui_vt_scroll; }
@@ -330,3 +329,55 @@ internal int spec_ui_select(int build) {
 }
 // the names a build hasn't got, by build
 internal const char *const k_spec_ui_missing[ADDR_BUILDS] = { "", "" };
+// the load-time check: what the spec says of the running build's exe (spec_check): the failures
+internal int spec_ui_check(void) {
+    int bad = 0;
+    bad += spec_code(data_ui_call_click_mark, "ui.call_click_mark");
+    bad += spec_code(data_ui_call_player_color, "ui.call_player_color");
+    bad += spec_code(data_ui_call_unload_marks, "ui.call_unload_marks");
+    bad += spec_data(data_ui_gfx_effects, "ui.gfx_effects");
+    bad += spec_data(data_ui_iat_edit_get_text, "ui.iat_edit_get_text");
+    bad += spec_data(data_ui_iat_uiform_add_hotkey, "ui.iat_uiform_add_hotkey");
+    bad += spec_data(data_ui_iat_uim_form, "ui.iat_uim_form");
+    bad += spec_code(data_ui_mouse_update_sites[0], "ui.mouse_update_sites 0");
+    bad += spec_code(data_ui_mouse_update_sites[1], "ui.mouse_update_sites 1");
+    bad += spec_code(data_ui_mouse_update_sites[2], "ui.mouse_update_sites 2");
+    bad += spec_code(data_ui_mouse_update_sites[3], "ui.mouse_update_sites 3");
+    bad += spec_code(data_ui_native_chat_sites[0], "ui.native_chat_sites 0");
+    bad += spec_code(data_ui_native_chat_sites[1], "ui.native_chat_sites 1");
+    bad += spec_code(data_ui_native_chat_sites[2], "ui.native_chat_sites 2");
+    bad += spec_code(data_ui_native_chat_sites[3], "ui.native_chat_sites 3");
+    bad += spec_code(data_ui_native_chat_sites[4], "ui.native_chat_sites 4");
+    bad += spec_code(data_ui_site_editor_form, "ui.site_editor_form");
+    bad += spec_code(data_ui_site_scroll_timer, "ui.site_scroll_timer");
+    bad += spec_code(data_ui_sp_fns[0], "ui.sp_fns 0");
+    bad += spec_code(data_ui_sp_fns[1], "ui.sp_fns 1");
+    bad += spec_code(data_ui_sp_fns[2], "ui.sp_fns 2");
+    bad += spec_code(data_ui_sp_fns[3], "ui.sp_fns 3");
+    bad += spec_code(data_ui_sp_fns[4], "ui.sp_fns 4");
+    bad += spec_code(data_ui_sp_fns[5], "ui.sp_fns 5");
+    bad += spec_data(data_ui_sp_vtables[0], "ui.sp_vtables 0");
+    bad += spec_data(data_ui_sp_vtables[1], "ui.sp_vtables 1");
+    bad += spec_data(data_ui_sp_vtables[2], "ui.sp_vtables 2");
+    bad += spec_data(data_ui_sp_vtables[3], "ui.sp_vtables 3");
+    bad += spec_data(data_ui_sp_vtables[4], "ui.sp_vtables 4");
+    bad += spec_data(data_ui_sp_vtables[5], "ui.sp_vtables 5");
+    bad += spec_data(data_ui_vt_key_scroll, "ui.vt_key_scroll");
+    bad += spec_data(data_ui_vt_scroll, "ui.vt_scroll");
+    bad += spec_code((uintptr_t)fn_camera_action_init, "ui_functions.camera_action_init");
+    bad += spec_code((uintptr_t)fn_camera_action_set, "ui_functions.camera_action_set");
+    bad += spec_code((uintptr_t)fn_camera_move_game, "ui_functions.camera_move_game");
+    bad += spec_code((uintptr_t)fn_cheat_parse, "ui_functions.cheat_parse");
+    bad += spec_code((uintptr_t)fn_game_color_rgb, "ui_functions.game_color_rgb");
+    bad += spec_code((uintptr_t)fn_gfx_add, "ui_functions.gfx_add");
+    bad += spec_code((uintptr_t)fn_gfx_get, "ui_functions.gfx_get");
+    bad += spec_code((uintptr_t)fn_gfx_kind_game, "ui_functions.gfx_kind_game");
+    bad += spec_code((uintptr_t)fn_gfx_remove_game, "ui_functions.gfx_remove_game");
+    bad += spec_code((uintptr_t)fn_mouse_clamp, "ui_functions.mouse_clamp");
+    bad += spec_code((uintptr_t)fn_mouse_update, "ui_functions.mouse_update");
+    bad += spec_code((uintptr_t)fn_native_chat, "ui_functions.native_chat");
+    bad += spec_code((uintptr_t)fn_order_marks, "ui_functions.order_marks");
+    bad += spec_code((uintptr_t)fn_scroll_execute, "ui_functions.scroll_execute");
+    bad += spec_code((uintptr_t)fn_ui_line_game, "ui_functions.ui_line_game");
+    return bad;
+}

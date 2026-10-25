@@ -187,7 +187,7 @@ unsafe struct ee_unit_stats
 /// unit_type's data of the game, places in its code and numbers
 static unsafe class unit_type
 {
-    /// the minimap's operands of hooks.float_1_800
+    /// the calls of unit_fire (aim.c)
     [address((ee)0x00606067, (aoc)0x00617838)]
     [address((ee)0x00607D79, (aoc)0x00619604)]
     [address((ee)0x0060ABB0, (aoc)0x0061D174)]
@@ -216,11 +216,11 @@ static unsafe class unit_type
     static uint32 slot_type_can_carry;
 
     [address((ee)0x00832E90, (aoc)0x00848CF8)]
-    static block vt_missile;
+    static vftable vt_missile;
 
     /// EEUCProjectile
     [address((ee)0x00833060, (aoc)0x00848ED0)]
-    static block vt_projectile;
+    static vftable vt_projectile;
 }
 
 /// the game's functions unit_type.c wraps, by the names the C side gives them

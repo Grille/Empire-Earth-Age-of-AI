@@ -152,7 +152,7 @@ static unsafe class tech
 
     /// EETechTreeNode::vf6's vtable slot
     [address((ee)0x00830874, (aoc)0x00846168)]
-    static block vts_tech_researched;
+    static vftable vts_tech_researched;
 }
 
 /// the game's functions tech.c wraps, by the names the C side gives them

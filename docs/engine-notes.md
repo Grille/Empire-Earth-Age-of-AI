@@ -1097,7 +1097,7 @@ games crashed at once, then after 4 minutes; what AoC had changed beyond address
   values "Installed From Volume" / "Directory" - read through Low-Level Engine's registry imports, so through the
   settings dinput.dll's file; a test slot's copy gets them from the registry.
 - Its single-instance check's je is at 0x540DA6 (the base's 0x535CDA); TCP Protocol.dll's port immediates moved
-  (data_hooks_rva_tcp_ports); Low-Level Engine's NESynchronousServer::Send wait (turbo) is value_hooks_rva_lle_send_wait.
+  (data_tcp_protocol_ports); Low-Level Engine's NESynchronousServer::Send wait (turbo) is value_hooks_rva_lle_send_wait.
 Then: 20- and 30-minute games on Continental and Small Islands, two at once, ran to their end - the AIs grew 44-52
 citizens by minute 20-30 and trained armies, about as in the 2017 update's game from the same command.
 

@@ -449,3 +449,36 @@ internal int spec_player_select(int build) {
 }
 // the names a build hasn't got, by build
 internal const char *const k_spec_player_missing[ADDR_BUILDS] = { "", "" };
+// the load-time check: what the spec says of the running build's exe (spec_check): the failures
+internal int spec_player_check(void) {
+    int bad = 0;
+    bad += spec_code(data_player_call_cp_update, "player.call_cp_update");
+    bad += spec_code(data_player_call_epoch_catch_up, "player.call_epoch_catch_up");
+    bad += spec_code(data_player_call_kill_stat, "player.call_kill_stat");
+    bad += spec_code(data_player_call_nv_maint_delete, "player.call_nv_maint_delete");
+    bad += spec_code(data_player_call_pop_cap_1, "player.call_pop_cap_1");
+    bad += spec_code(data_player_call_pop_cap_2, "player.call_pop_cap_2");
+    bad += spec_code(data_player_call_pop_cap_3, "player.call_pop_cap_3");
+    bad += spec_data(data_player_vt_computer_player, "player.vt_computer_player");
+    bad += spec_code((uintptr_t)fn_cp_adjust_cost, "player_functions.cp_adjust_cost");
+    bad += spec_code((uintptr_t)fn_call_off_attacks, "player_functions.call_off_attacks");
+    bad += spec_code((uintptr_t)fn_can_build_game, "player_functions.can_build_game");
+    bad += spec_code((uintptr_t)fn_can_place_game, "player_functions.can_place_game");
+    bad += spec_code((uintptr_t)fn_cp_add_resource, "player_functions.cp_add_resource");
+    bad += spec_code((uintptr_t)fn_cp_pay, "player_functions.cp_pay");
+    bad += spec_code((uintptr_t)fn_cp_update, "player_functions.cp_update");
+    bad += spec_code((uintptr_t)fn_delete_for_room, "player_functions.delete_for_room");
+    bad += spec_code((uintptr_t)fn_cp_epoch_catch_up, "player_functions.cp_epoch_catch_up");
+    bad += spec_code((uintptr_t)fn_game_limit, "player_functions.game_limit");
+    bad += spec_code((uintptr_t)fn_place_foundation, "player_functions.place_foundation");
+    bad += spec_code((uintptr_t)fn_player_resign, "player_functions.player_resign");
+    bad += spec_code((uintptr_t)fn_population, "player_functions.population");
+    bad += spec_code((uintptr_t)fn_cp_update_pop_cap, "player_functions.cp_update_pop_cap");
+    bad += spec_code((uintptr_t)fn_cp_schedule_attack, "player_functions.cp_schedule_attack");
+    bad += spec_code((uintptr_t)fn_player_select, "player_functions.player_select");
+    bad += spec_code((uintptr_t)fn_set_diplomacy_game, "player_functions.set_diplomacy_game");
+    bad += spec_code((uintptr_t)fn_stat_add, "player_functions.stat_add");
+    bad += spec_code((uintptr_t)fn_type_stats_game, "player_functions.type_stats_game");
+    bad += spec_code((uintptr_t)fn_vector_size, "player_functions.vector_size");
+    return bad;
+}

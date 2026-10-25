@@ -124,9 +124,13 @@ internal inline uint8_t *game_iat_wstring_dtor_at(void) { return (uint8_t *)(uin
 internal inline uint8_t *game_iat_wstring_format_at(void) { return (uint8_t *)(uintptr_t)data_game_iat_wstring_format; }
 internal inline uint8_t *game_iat_wstring_reserve_at(void) { return (uint8_t *)(uintptr_t)data_game_iat_wstring_reserve; }
 // import: &ISKeyboard* in Low-Level Engine.dll
-internal inline uint8_t *game_imp_is_keyboard_at(void) { return (uint8_t *)(uintptr_t)data_game_imp_is_keyboard; }
+internal inline uint8_t **game_get_imp_is_keyboard(void) { return *(uint8_t ***)(uint8_t *)(uintptr_t)data_game_imp_is_keyboard; }
+internal inline void game_set_imp_is_keyboard(uint8_t **v) { *(uint8_t ***)(uint8_t *)(uintptr_t)data_game_imp_is_keyboard = v; }
+internal inline uint8_t ***game_imp_is_keyboard_at(void) { return (uint8_t ***)(uint8_t *)(uintptr_t)data_game_imp_is_keyboard; }
 // import: &ISMouse* in Low-Level Engine.dll
-internal inline uint8_t *game_imp_is_mouse_at(void) { return (uint8_t *)(uintptr_t)data_game_imp_is_mouse; }
+internal inline ee_input_mouse **game_get_imp_is_mouse(void) { return *(ee_input_mouse ***)(uint8_t *)(uintptr_t)data_game_imp_is_mouse; }
+internal inline void game_set_imp_is_mouse(ee_input_mouse **v) { *(ee_input_mouse ***)(uint8_t *)(uintptr_t)data_game_imp_is_mouse = v; }
+internal inline ee_input_mouse ***game_imp_is_mouse_at(void) { return (ee_input_mouse ***)(uint8_t *)(uintptr_t)data_game_imp_is_mouse; }
 // new_unit_msg_init
 // EEAUserPauseGame: vtable, refcount, byte
 // save_action_init
@@ -438,3 +442,106 @@ internal int spec_game_select(int build) {
 }
 // the names a build hasn't got, by build
 internal const char *const k_spec_game_missing[ADDR_BUILDS] = { "", "" };
+// the load-time check: what the spec says of the running build's exe (spec_check): the failures
+internal int spec_game_check(void) {
+    int bad = 0;
+    bad += spec_code(data_game_call_damage_points, "game.call_damage_points");
+    bad += spec_data(data_game_behaviour_table, "game.behaviour_table");
+    bad += spec_data(data_game_camera, "game.camera");
+    bad += spec_data(data_game_cheats_on, "game.cheats_on");
+    bad += spec_data(data_game_cheat_parser, "game.cheat_parser");
+    bad += spec_data(data_game_colors_begin, "game.colors_begin");
+    bad += spec_data(data_game_colors_end, "game.colors_end");
+    bad += spec_data(data_game_damage_table, "game.damage_table");
+    bad += spec_data(data_game_difficulty, "game.difficulty");
+    bad += spec_data(data_game_draw_n, "game.draw_n");
+    bad += spec_data(data_game_draw_small_n, "game.draw_small_n");
+    bad += spec_data(data_game_editor_file_buttons, "game.editor_file_buttons");
+    bad += spec_data(data_game_effects, "game.effects");
+    bad += spec_data(data_game_end_epoch, "game.end_epoch");
+    bad += spec_data(data_game_epoch_techs, "game.epoch_techs");
+    bad += spec_data(data_game_fullscreen, "game.fullscreen");
+    bad += spec_data(data_game_game_data, "game.game_data");
+    bad += spec_data(data_game_game_mode, "game.game_mode");
+    bad += spec_data(data_game_game_res_h, "game.game_res_h");
+    bad += spec_data(data_game_game_res_w, "game.game_res_w");
+    bad += spec_data(data_game_game_speed, "game.game_speed");
+    bad += spec_data(data_game_game_state, "game.game_state");
+    bad += spec_data(data_game_game_type, "game.game_type");
+    bad += spec_data(data_game_game_window, "game.game_window");
+    bad += spec_data(data_game_hit_table, "game.hit_table");
+    bad += spec_data(data_game_hit_table_a, "game.hit_table_a");
+    bad += spec_data(data_game_hit_table_b, "game.hit_table_b");
+    bad += spec_data(data_game_input_msgs_done, "game.input_msgs_done");
+    bad += spec_data(data_game_local_player, "game.local_player");
+    bad += spec_data(data_game_map, "game.map");
+    bad += spec_data(data_game_mouse, "game.mouse");
+    bad += spec_data(data_game_paused, "game.paused");
+    bad += spec_data(data_game_phys_substeps, "game.phys_substeps");
+    bad += spec_data(data_game_players, "game.players");
+    bad += spec_data(data_game_players_n, "game.players_n");
+    bad += spec_data(data_game_player_name, "game.player_name");
+    bad += spec_data(data_game_pop_limit, "game.pop_limit");
+    bad += spec_data(data_game_rasterizer, "game.rasterizer");
+    bad += spec_data(data_game_resources, "game.resources");
+    bad += spec_data(data_game_scenario_flag, "game.scenario_flag");
+    bad += spec_data(data_game_screen, "game.screen");
+    bad += spec_data(data_game_scroll_setting, "game.scroll_setting");
+    bad += spec_data(data_game_scroll_speed, "game.scroll_speed");
+    bad += spec_data(data_game_select_rect, "game.select_rect");
+    bad += spec_data(data_game_server, "game.server");
+    bad += spec_data(data_game_settings, "game.settings");
+    bad += spec_data(data_game_sm_mgr, "game.sm_mgr");
+    bad += spec_data(data_game_sound_manager, "game.sound_manager");
+    bad += spec_data(data_game_sound_percent, "game.sound_percent");
+    bad += spec_data(data_game_table_values, "game.table_values");
+    bad += spec_data(data_game_teams_locked, "game.teams_locked");
+    bad += spec_data(data_game_types, "game.types");
+    bad += spec_data(data_game_ui_manager, "game.ui_manager");
+    bad += spec_data(data_game_world, "game.world");
+    bad += spec_data(data_game_iat_cos, "game.iat_cos");
+    bad += spec_data(data_game_iat_rand, "game.iat_rand");
+    bad += spec_data(data_game_iat_release, "game.iat_release");
+    bad += spec_data(data_game_iat_resource_string, "game.iat_resource_string");
+    bad += spec_data(data_game_iat_ts_receive, "game.iat_ts_receive");
+    bad += spec_data(data_game_iat_ts_wait, "game.iat_ts_wait");
+    bad += spec_data(data_game_iat_ustring_assign, "game.iat_ustring_assign");
+    bad += spec_data(data_game_iat_ustring_ctor, "game.iat_ustring_ctor");
+    bad += spec_data(data_game_iat_ustring_dtor, "game.iat_ustring_dtor");
+    bad += spec_data(data_game_iat_wstring_assign, "game.iat_wstring_assign");
+    bad += spec_data(data_game_iat_wstring_ctor, "game.iat_wstring_ctor");
+    bad += spec_data(data_game_iat_wstring_ctor_c, "game.iat_wstring_ctor_c");
+    bad += spec_data(data_game_iat_wstring_dtor, "game.iat_wstring_dtor");
+    bad += spec_data(data_game_iat_wstring_format, "game.iat_wstring_format");
+    bad += spec_data(data_game_iat_wstring_reserve, "game.iat_wstring_reserve");
+    bad += spec_data(data_game_imp_is_keyboard, "game.imp_is_keyboard");
+    bad += spec_data(data_game_imp_is_mouse, "game.imp_is_mouse");
+    bad += spec_data(data_game_vtbl_phys_step, "game.vtbl_phys_step");
+    bad += spec_data(data_game_vt_pause_action, "game.vt_pause_action");
+    bad += spec_code((uintptr_t)fn_build_wall_game, "game_functions.build_wall_game");
+    bad += spec_code((uintptr_t)fn_damage_points, "game_functions.damage_points");
+    bad += spec_code((uintptr_t)fn_editor_form, "game_functions.editor_form");
+    bad += spec_code((uintptr_t)fn_exit_confirm, "game_functions.exit_confirm");
+    bad += spec_code((uintptr_t)fn_game_player_game, "game_functions.game_player_game");
+    bad += spec_code((uintptr_t)fn_game_player_out_game, "game_functions.game_player_out_game");
+    bad += spec_code((uintptr_t)fn_game_start, "game_functions.game_start");
+    bad += spec_code((uintptr_t)fn_highest_human_epoch, "game_functions.highest_human_epoch");
+    bad += spec_code((uintptr_t)fn_load_saved, "game_functions.load_saved");
+    bad += spec_code((uintptr_t)fn_game_new, "game_functions.game_new");
+    bad += spec_code((uintptr_t)fn_new_unit_msg_init, "game_functions.new_unit_msg_init");
+    bad += spec_code((uintptr_t)fn_parse_cmdline, "game_functions.parse_cmdline");
+    bad += spec_code((uintptr_t)fn_phys_step, "game_functions.phys_step");
+    bad += spec_code((uintptr_t)fn_queue_action_game, "game_functions.queue_action_game");
+    bad += spec_code((uintptr_t)fn_resign_send, "game_functions.resign_send");
+    bad += spec_code((uintptr_t)fn_save_action_init, "game_functions.save_action_init");
+    bad += spec_code((uintptr_t)fn_save_game, "game_functions.save_game");
+    bad += spec_code((uintptr_t)fn_screenshot_game, "game_functions.screenshot_game");
+    bad += spec_code((uintptr_t)fn_settings_save_game, "game_functions.settings_save_game");
+    bad += spec_code((uintptr_t)fn_set_stance_game, "game_functions.set_stance_game");
+    bad += spec_code((uintptr_t)fn_shore_to_unload, "game_functions.shore_to_unload");
+    bad += spec_code((uintptr_t)fn_table_value_game, "game_functions.table_value_game");
+    bad += spec_code((uintptr_t)fn_unit_by_id_game, "game_functions.unit_by_id_game");
+    bad += spec_code((uintptr_t)fn_vector_free, "game_functions.vector_free");
+    bad += spec_code((uintptr_t)fn_start_exec, "game_functions.start_exec");
+    return bad;
+}

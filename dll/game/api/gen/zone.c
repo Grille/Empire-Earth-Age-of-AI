@@ -42,3 +42,9 @@ internal int spec_zone_select(int build) {
 }
 // the names a build hasn't got, by build
 internal const char *const k_spec_zone_missing[ADDR_BUILDS] = { "", "" };
+// the load-time check: what the spec says of the running build's exe (spec_check): the failures
+internal int spec_zone_check(void) {
+    int bad = 0;
+    bad += spec_code((uintptr_t)fn_zone_site, "zone_functions.zone_site");
+    return bad;
+}

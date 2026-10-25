@@ -62,3 +62,5 @@ internal void spec_log(FILE *log) {
     if (*k_spec_zone_missing[g_exe_build]) fprintf(log, " %s", k_spec_zone_missing[g_exe_build]);
     fputc(10, log);
 }
+// g_spec_bad: exe.c's (game_build runs it before any patch, its helpers note the failures)
+internal int spec_check(void) { return spec_ai_managers_check() + spec_api_check() + spec_attack_check() + spec_engine_display_check() + spec_engine_sound_check() + spec_formation_check() + spec_game_check() + spec_goal_check() + spec_hooks_check() + spec_map_check() + spec_messages_check() + spec_movement_check() + spec_patching_check() + spec_path_check() + spec_player_check() + spec_scenario_check() + spec_scenario_lists_check() + spec_setup_check() + spec_stubs_check() + spec_tech_check() + spec_ui_check() + spec_unit_check() + spec_unit_type_check() + spec_world_check() + spec_zone_check(); }

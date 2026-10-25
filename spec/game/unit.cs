@@ -356,7 +356,6 @@ static unsafe class unit_functions
     [address((ee)0x005EFCF0, (aoc)0x005FDFA5), thiscall]
     static extern void unit_set_state(EEUnit* u, int32 state);
 
-    /// radians/s per s
     /// thiscall(unit): its turn acceleration (radians/s per s, stats +0xB0; its group's with the group speed on)
     [address((ee)0x0054A504, (aoc)0x0055465B), thiscall]
     static extern float32 unit_turn_accel(EEUnit* u);
