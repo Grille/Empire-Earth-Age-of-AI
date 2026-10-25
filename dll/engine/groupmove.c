@@ -327,7 +327,7 @@ internal void fo_march(ee_active_group *grp) {
 // the point the formation hangs on (ff_leader), way its heading, vel its speed, turning its share of the tightest turn
 // last step, started: set out (prev: the march it went on from, else -1), t0 the step then, linger the step it arrived
 // (0: not yet, or not arrived - given another order)
-struct ff_group { uint32_t leader; ee_group *grp; ee_goal *goal; vec2 fwd, way, face, end, lead_off, onward, anchor; float speed, reach, pace, pace_next, vel, turning; uint32_t step, t0, linger; int on, live, through, passed, started, prev, reform, then; };   // then: a queued march re-forms after it (it holds at the end till that sets out)
+struct ff_group { uint32_t leader; ee_group *grp; ee_goal *goal; vec2 fwd, way, face, end, lead_off, onward, anchor; float speed, reach, pace, pace_next, vel, turning; uint32_t step, t0, linger; int on, live, through, passed, started, prev, reform, arc, pivot; };   // arc: it goes on from prev in the same formation (else it re-forms on the move: pivot - its anchor turns onto the new leg sharply)
 internal struct ff_group g_ff[FF_GROUPS];
 internal unsigned g_ff_next;
 internal int g_ff_first, g_ff_count;   // the marches started by the move being dispatched, for their leaders' goals
@@ -343,6 +343,7 @@ struct ff_pend { uint32_t id; int g, after; vec2 off, home; uint32_t yaw; ee_goa
 internal struct ff_pend g_ff_p[FF_PEND];
 internal unsigned g_ff_p_next;
 internal int g_ff_on;
+internal unsigned g_ff_flows;   // queued re-forms that took the march before's anchor over
 internal unsigned g_ff_marches, g_ff_split, g_ff_arcs, g_ff_finished, g_ff_steered, g_ff_own;   // marches started, moves split into blocks; follower ticks steered, left to the own route
 
 internal uint32_t ff_step(void);
@@ -393,8 +394,17 @@ internal void ff_start_block(void *group, const int *idx, int k, vec2 c, vec2 fw
     mid = vec2_scale(mid, 1.0f / (float)k);
     int lead = idx[0];
     for (int j = 1; j < k; j++) if (vec2_dist2(g_fo[idx[j]].at, mid) < vec2_dist2(g_fo[lead].at, mid)) lead = idx[j];
-    if (from >= 0)
-        for (int j = 0; j < k; j++) if ((uint32_t)unit_get_serial(g_fo[idx[j]].u) == g_ff[from].leader) lead = idx[j];
+    int before = -1;   // queued, re-forming: the march its units are on or queued for last
+    for (int j = 0; queued && from < 0 && j < k && before < 0; j++) {
+        struct ff_unit *e = ff_find((uint32_t)unit_get_serial(g_fo[idx[j]].u), 0);
+        struct ff_pend *p = e ? ff_pend_last(e) : NULL;
+        int b = p ? p->g : e ? e->g : -1;
+        if (b >= 0 && g_ff[b].on && !g_ff[b].through) before = b;
+    }
+    // the leader that march's: this one sets out when that leader's leg ends (another's leg still ran to its spot)
+    int keep = from >= 0 ? from : before;
+    if (keep >= 0)
+        for (int j = 0; j < k; j++) if ((uint32_t)unit_get_serial(g_fo[idx[j]].u) == g_ff[keep].leader) lead = idx[j];
     int gi = (int)(g_ff_next++ % FF_GROUPS);
     struct ff_group *gr = &g_ff[gi];
     gr->leader = (uint32_t)unit_get_serial(g_fo[lead].u);
@@ -407,7 +417,8 @@ internal void ff_start_block(void *group, const int *idx, int k, vec2 c, vec2 fw
     gr->end = g_fo[lead].at;
     vec2 lc = vec2_sub(gr->end, c);
     gr->lead_off = v2(vec2_dot(lc, right), vec2_dot(lc, fwd));
-    gr->through = gr->passed = gr->started = gr->then = 0;
+    gr->through = gr->passed = gr->started = gr->pivot = 0;
+    gr->arc = from >= 0;
     gr->reform = from < 0 && g_fo_has_march;
     gr->prev = from;
     gr->vel = gr->turning = 0;
@@ -437,7 +448,6 @@ internal void ff_start_block(void *group, const int *idx, int k, vec2 c, vec2 fw
             int pi = (int)(g_ff_p_next++ % FF_PEND);
             struct ff_pend *p = &g_ff_p[pi], *last = ff_pend_last(e);
             p->id = e->id; p->g = gi; p->after = 0; p->off = off; p->home = g_fo[i].at; p->yaw = g_fo[i].facing; p->goal = NULL;
-            g_ff[last ? last->g : e->g].then = 1;   // the march before it holds at its end till this one sets out
             if (last) last->after = pi + 1;
             else e->pend = pi + 1;
             continue;
@@ -450,6 +460,19 @@ internal void ff_start_block(void *group, const int *idx, int k, vec2 c, vec2 fw
         ff_grace_from(e);
         e->yaw = g_fo[i].facing;
         e->tries = 0;
+    }
+    // a queued re-form (45 degrees or more) after a march its units are on: that one runs through its leader's spot as an
+    // arc's does and this one takes its anchor over - the units re-form round it on the move, the pace slowing it while they
+    // do; it ended FF_END short and the units went on to their spots on their own routes (a tank rushing ahead), and
+    // holding it at its end stopped the formation at every waypoint
+    if (from < 0 && before >= 0 && before != gi && g_ff[before].on && !g_ff[before].through) {
+        struct ff_group *pv = &g_ff[before];
+        vec2 on = vec2_sub(gr->end, pv->end);
+        float ol = vec2_len(on);
+        pv->onward = ol > 0.01f ? vec2_scale(on, 1.0f / ol) : gr->way;
+        pv->through = 1;
+        gr->prev = before;
+        g_ff_flows++;
     }
     if (g_ff_count++ == 0) g_ff_first = gi;
     g_ff_marches++;
@@ -584,7 +607,7 @@ internal ee_unit *ff_leader(struct ff_group *gr, uint32_t step) {
         struct ff_group *pv = gr->prev >= 0 ? &g_ff[gr->prev] : NULL;
         gr->started = 1;
         gr->t0 = step;
-        if (pv && pv->started && pv->through) { gr->anchor = pv->anchor; gr->way = pv->way; gr->face = pv->face; }
+        if (pv && pv->started && pv->through) { gr->anchor = pv->anchor; gr->way = pv->way; if (gr->arc) gr->face = pv->face; else gr->pivot = 1; }
         else gr->anchor = v2(p.x, p.y);
     }
     vec2 to = vec2_sub(ff_pursue(gr, l), gr->anchor);
@@ -593,27 +616,22 @@ internal ee_unit *ff_leader(struct ff_group *gr, uint32_t step) {
     // its speed: the march's, no more than FF_PACE of its slowest member's speed now (a unit fallen behind has only its
     // top speed: the formation slows for it), less in a turn
     float base = gr->pace >= 0 && FF_PACE * gr->pace < gr->speed ? FF_PACE * gr->pace : gr->speed;
-    float r = gr->reach + FF_INNER, k = g_set.formation_catchup * 0.85f * r / (r + gr->reach);
+    // re-forming on the move (pivot) it turns onto the new leg at FF_INNER, not at the formation's reach: the units take new
+    // places anyway, and the wide swing at a sharp corner put their points on ground they couldn't reach
+    float r = gr->pivot ? FF_INNER : gr->reach + FF_INNER, k = gr->pivot ? 1 : g_set.formation_catchup * 0.85f * r / (r + gr->reach);
     if (k > 1) k = 1;
     float v = base * (1 - gr->turning * (1 - k));
     // its heading towards dir, no faster than the arc (the chord for the angle: small steps)
     float most = v * dt / r, ch = vec2_len(vec2_sub(dir, gr->way));
     gr->turning = ch > most ? 1 : most > 0 ? ch / most : 0;
     gr->way = ch <= most ? dir : fo_turn(gr->way, dir, most / ch);
-    // a queued march re-forming after this one (then): the anchor comes to rest at the leader's spot and the march holds
-    // there, every unit at its point, till the leader takes up the next leg - it ended FF_END short and the units went on
-    // to their spots on their own routes at their own speeds (a tank rushing ahead) for seconds
-    float rest = gr->then && !gr->through ? vec2_len(vec2_sub(gr->end, gr->anchor)) : FF_END;
-    if (rest < FF_END) {
-        if (v * dt >= rest) { gr->anchor = gr->end; v = 0; }
-        else gr->anchor = vec2_add(gr->anchor, vec2_scale(vec2_sub(gr->end, gr->anchor), v * dt / rest));
-    }
-    else gr->anchor = vec2_add(gr->anchor, vec2_scale(gr->way, v * dt));
+    if (ch <= most) gr->pivot = 0;   // on the new leg: its turns at its reach again
+    gr->anchor = vec2_add(gr->anchor, vec2_scale(gr->way, v * dt));
     gr->vel = v;
     // the anchor at the leader's spot: the march done, each unit on to its own; going on to a queued march, the anchor
     // goes on and the leader's leg ends there (its arrival starts the next order, which takes the anchor over)
     float de = vec2_len(vec2_sub(gr->end, gr->anchor));
-    if (de < FF_END && !gr->through && !gr->then) { gr->on = gr->live = 0; gr->linger = step ? step : 1; return NULL; }
+    if (de < FF_END && !gr->through) { gr->on = gr->live = 0; gr->linger = step ? step : 1; return NULL; }
     if (de < FF_END && gr->through && !gr->passed) { gr->passed = 1; ff_finish_leg(l); }
     // the facing: the heading, turned to the final facing over the last span - its share of the turn the time left on it
     // (the turn's arc for the outermost unit: at most the chord x pi / 2) - no faster than its outermost units swing round
