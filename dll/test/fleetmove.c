@@ -31,15 +31,15 @@ internal void fm_tick(void) {
     uint32_t now = game_time();
     if (now == g_fm_trace_last) return;
     g_fm_trace_last = now;
-    if (g_fm_watch)   // id, position, heading, speed, state, the raw +0x345 (moving: lets others pass) and the blocked time
+    if (g_fm_watch)   // id, position, heading, speed, state, the foundation flag (a building's: the column kept for the readers) and the blocked time
         for (int i = 0; i < g_fm_n; i++) {
             ee_unit *w = unit_by_id(g_fm[i].id);
             if (!w) continue;
             vec3 q = unit_get_pos(w), fq = unit_get_facing(w);
             fprintf(g_log, "# fmwatch %u %06x %.3f %.3f %.1f %.3f %u %u %.2f push %.3f %.3f obst %d contacts %d size %.2f %.2f %.2f class %d\n", now, g_fm[i].id & 0xFFFFFF, q.x, q.y,
-                    atan2f(fq.x, fq.y) * 57.29578f, unit_get_speed(w), unit_ai_state_id(w), FIELD(w, 0x345, uint8_t), unit_get_blocked_ms(w),
-                    FIELD(w, 0x230, float), FIELD(w, 0x234, float), FIELD(w, 0x20C, int) != 0, FIELD(w, 0xC8, int),
-                    unit_get_size(w), FIELD(unit_get_type_data(w), 0x474, float), unit_type_get_collision(unit_get_type_data(w)), unit_type_get_class_id(unit_get_type_data(w)));
+                    atan2f(fq.x, fq.y) * 57.29578f, unit_get_speed(w), unit_ai_state_id(w), unit_get_foundation(w), unit_get_blocked_ms(w),
+                    FIELD(w, 0x230, float), FIELD(w, 0x234, float), unit_get_blocker(w) != NULL, unit_get_contacts_count(w),
+                    unit_get_size(w), unit_type_get_collider_size(unit_get_type_data(w)), unit_type_get_collision(unit_get_type_data(w)), unit_type_get_class_id(unit_get_type_data(w)));
         }
     if (!g_fm_trace) return;
     ee_unit *u = unit_by_id(g_fm_trace);
