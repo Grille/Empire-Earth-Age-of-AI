@@ -12,6 +12,9 @@ internal inline uint8_t *msg_kind_at(const ee_msg *o) { return (uint8_t *)((uint
 internal inline int8_t msg_get_from(const ee_msg *o) { return *(int8_t *)((uint8_t *)o + of_msg_from); }
 internal inline void msg_set_from(ee_msg *o, int8_t v) { *(int8_t *)((uint8_t *)o + of_msg_from) = v; }
 internal inline int8_t *msg_from_at(const ee_msg *o) { return (int8_t *)((uint8_t *)o + of_msg_from); }
+// vf10: the message carried out (EEMPathTo's and EEMLoadTransport's both builds)
+typedef void (__thiscall *msg_execute_fn)(ee_msg *);
+internal inline void msg_execute(ee_msg *msg) { ((msg_execute_fn)(*(void ***)msg)[slot_msg_execute])(msg); }
 
 // class EEMResign (ee_resign_msg)
 // the resignation (EEMResign)
@@ -146,10 +149,12 @@ internal inline uint8_t *path_msg_queued_at(const ee_path_msg *o) { return (uint
 internal inline uint8_t path_msg_get_together(const ee_path_msg *o) { return *(uint8_t *)((uint8_t *)o + of_path_msg_together); }
 internal inline void path_msg_set_together(ee_path_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_path_msg_together) = v; }
 internal inline uint8_t *path_msg_together_at(const ee_path_msg *o) { return (uint8_t *)((uint8_t *)o + of_path_msg_together); }
-// EEMPathTo's Execute
+// EEMPathTo's Execute: splits the selection into a group per kind and hands each the move (the formation's slots
+// laid out within it)
 typedef void (__thiscall *path_msg_execute_fn)(ee_path_msg *);
 internal path_msg_execute_fn fn_path_msg_execute;
 internal inline void path_msg_execute(ee_path_msg *path_msg) { fn_path_msg_execute(path_msg); }
+internal inline int patch_path_msg_execute(path_msg_execute_fn h) { return patch_vtable(vt_eem_path_to, (int)slot_msg_execute, (uintptr_t)fn_path_msg_execute, (void *)h); }
 
 // class EEMStartLoading (ee_start_msg)
 // the game start message (EEMStartLoading)
@@ -313,6 +318,7 @@ internal int spec_messages_select(int build) {
     case 0:   // ee
         of_msg_kind = 0x8;
         of_msg_from = 0xA;
+        slot_msg_execute = 10;
         fn_resign_msg_execute = (resign_msg_execute_fn)0x004BB906;
         of_chat_msg_text = 0x10;
         fn_chat_msg_execute = (chat_msg_execute_fn)0x004B78C7;
@@ -327,6 +333,7 @@ internal int spec_messages_select(int build) {
         of_load_msg_transport = 0x10;
         of_load_msg_unit = 0x14;
         fn_load_msg_execute = (load_msg_execute_fn)0x004B9446;
+        vt_eem_path_to = 0x00824D84;
         of_path_msg_facing = 0x10;
         of_path_msg_x = 0x14;
         of_path_msg_y = 0x18;
@@ -373,6 +380,7 @@ internal int spec_messages_select(int build) {
     case 1:   // aoc
         of_msg_kind = 0x8;
         of_msg_from = 0xA;
+        slot_msg_execute = 10;
         fn_resign_msg_execute = (resign_msg_execute_fn)0x004C44BB;
         of_chat_msg_text = 0x10;
         fn_chat_msg_execute = (chat_msg_execute_fn)0x004BFDD2;
@@ -387,6 +395,7 @@ internal int spec_messages_select(int build) {
         of_load_msg_transport = 0x10;
         of_load_msg_unit = 0x14;
         fn_load_msg_execute = (load_msg_execute_fn)0x004C1B79;
+        vt_eem_path_to = 0x00838D5C;
         of_path_msg_facing = 0x10;
         of_path_msg_x = 0x14;
         of_path_msg_y = 0x18;
@@ -443,7 +452,9 @@ internal int spec_messages_check(void) {
     bad += spec_code((uintptr_t)fn_chat_msg_init, "EEMInGameChat.init");
     bad += spec_code((uintptr_t)fn_select_msg_init, "EEMSelectUnits.init");
     bad += spec_code((uintptr_t)fn_load_msg_execute, "EEMLoadTransport.execute");
+    bad += spec_vtable(vt_eem_path_to, ".?AVEEMPathTo@@", "EEMPathTo [vtable]");
     bad += spec_code((uintptr_t)fn_path_msg_execute, "EEMPathTo.execute");
+    bad += spec_slot(vt_eem_path_to, slot_msg_execute, (uintptr_t)fn_path_msg_execute, "EEMPathTo.execute [slot]");
     bad += spec_code((uintptr_t)fn_start_msg_execute, "EEMStartLoading.execute");
     bad += spec_code((uintptr_t)fn_tribute_msg_execute, "EEMPayTribute.execute");
     bad += spec_code((uintptr_t)fn_unload_msg_execute, "EEMUnloadTransport.execute");

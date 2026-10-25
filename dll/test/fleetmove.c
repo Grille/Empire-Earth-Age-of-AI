@@ -144,9 +144,9 @@ internal void cmd_fmove(char *out, const char *args) {
         }
         REPLY("fmove sum: %d units, the last moving at %.1f s, %d done (the last at %.1f s), standing short of the goal %.1f s together (creeping %.1f); "
               "ship_turns so far: %u ticks kept the speed, %u steered along the route, %u waypoints dropped, %u passing a queued point; "
-              "collide: %u steps, %u overlaps pushed off, the deepest %.2f tiles, %u pushes at rest; land routes: %u searches, %.1f ms, the longest %.2f ms; formations: %u group moves laid out, %u marching, %u following (%u ticks steered, %u on the own route)\n", g_fm_n, moved, n_done,
+              "collide: %u steps, %u overlaps pushed off, the deepest %.2f tiles, %u pushes at rest; land routes: %u searches, %.1f ms, the longest %.2f ms; formations: %u group moves laid out (%u queued), %u marching, %u following (%u ticks steered, %u on the own route)\n", g_fm_n, moved, n_done,
               done, stood, crept, g_st_kept, g_st_steered, g_st_skipped, g_st_passing, g_uc_steps, g_uc_hits, g_uc_deepest, g_uc_rest, g_lr_routes,
-              g_lr_ms, g_lr_ms_max, g_fo_moves, g_fo_marches, g_ff_marches, g_ff_steered, g_ff_own);
+              g_lr_ms, g_lr_ms_max, g_fo_moves, g_fo_queued_n, g_fo_marches, g_ff_marches, g_ff_steered, g_ff_own);
         return;
     }
     if (!strcmp(what, "then")) {   // fmove then P tx ty: the order's units (still there) also sent on to tx, ty, queued as with shift
@@ -160,7 +160,7 @@ internal void cmd_fmove(char *out, const char *args) {
         player_select(qpl, sel);
         memset(qmem, 0, sizeof qmem);
         path_msg_make((ee_path_msg *)qmem, player_get_msg_id(qpl), (float)x + 0.5f, (float)y + 0.5f, 0, 1);
-        path_msg_execute((ee_path_msg *)qmem);
+        msg_execute((ee_msg *)qmem);
         REPLY("fmove: %d units of P%d then to %d,%d (queued)\n", n, p, x, y);
         return;
     }
@@ -196,7 +196,7 @@ internal void cmd_fmove(char *out, const char *args) {
     g_fm_ty = (float)ty + 0.5f;
     path_msg_make((ee_path_msg *)mem, player_get_msg_id(pl), g_fm_tx, g_fm_ty, together, 0);
     path_msg_set_facing((ee_path_msg *)mem, facing * 0.01745329f);
-    path_msg_execute((ee_path_msg *)mem);
+    msg_execute((ee_msg *)mem);
     if (!also) g_fm_t0 = g_fm_last = game_time();
     int *grp = player_get_selected_group(pl);
     REPLY("fmove: %d units of P%d sent to %d,%d%s (%u in the selected group)\n", g_fm_n - first, p, tx, ty, together ? " together" : "", grp ? group_count(grp) : 0);

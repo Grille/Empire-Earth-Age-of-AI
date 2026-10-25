@@ -31,7 +31,7 @@ internal const float FO_WEDGE_GROW[2] = { 1.0f, 2.0f };
 internal int g_fo_on;
 internal unsigned g_fo_moves;   // group moves laid out
 
-struct fo_unit { ee_unit *u; vec2 p; float w, along, across; vec2 at; int band, rank; uint32_t facing; };   // at: its spot
+struct fo_unit { ee_unit *u; vec2 p, from; float w, along, across; vec2 at; int band, rank; uint32_t facing; };   // at: its spot, from: where it sets out
 internal struct fo_unit g_fo[FO_MAX];
 internal int g_fo_order[FO_MAX];
 
@@ -202,6 +202,16 @@ internal void *g_fo_slots;   // the slots of the group move being dispatched, la
 internal int g_fo_n;
 internal ee_active_group *g_fo_group;   // its group, till its march is set (formation_march)
 internal unsigned g_fo_marches;         // groups set to march at their slowest unit's speed
+internal int g_fo_queued;               // the move being carried out is queued after the units' others (shift)
+internal unsigned g_fo_queued_n;        // group moves laid out from the units' last queued points
+
+// the move (EEMPathTo's Execute, the formation's slots laid out within it): whether it is queued - then the formation is
+// laid out from where each unit's last order leaves it, not where it stands
+internal void __thiscall hook_path_execute(ee_path_msg *msg) {
+    g_fo_queued = path_msg_get_queued(msg);
+    path_msg_execute(msg);
+    g_fo_queued = 0;
+}
 
 // `formation_march`: the group marches at its slowest unit's speed. The group's together flag set makes every member's
 // speed getter return the group's speed, acceleration and turns, which its vf19 works out from the members' - again
@@ -213,7 +223,7 @@ internal unsigned g_fo_marches;         // groups set to march at their slowest 
 internal ee_active_group *g_fo_marched[FO_MARCHED];
 internal unsigned g_fo_marched_n;
 internal void __thiscall hook_group_speeds(ee_active_group *grp) {
-    ee_active_group_speeds(grp);
+    active_group_speeds(grp);
     if (!active_group_get_together(grp)) return;
     for (int i = 0; i < FO_MARCHED; i++)
         if (g_fo_marched[i] == grp) { active_group_set_speed(grp, active_group_get_speed_min(grp)); return; }
@@ -236,7 +246,9 @@ internal void fo_march(ee_active_group *grp) {
 // tile it may not enter or not in a clear line, it takes its route for that tick; while it follows, the waypoints it
 // passed (or that are within FF_DROP in a clear line) are dropped so the route is where it stands. Once the leader is
 // within FF_END of its spot, or gone, or given another order, the march ends: each unit goes on to its own spot. The
-// members' speeds are their own then (formation_march's group speed would hold the ones behind back). All from the
+// members' speeds are their own then (formation_march's group speed would hold the ones behind back). A queued move
+// (shift) is laid out from the units' last order's points and its march sets out when the leader takes it up: the
+// march before it goes on till then. All from the
 // game's state in the simulation: the same on every PC
 #define FF_GROUPS 16
 #define FF_UNITS 4096          // the followers' table (open, by unit id)
@@ -250,10 +262,14 @@ internal void fo_march(ee_active_group *grp) {
 #define FF_FORM 4.0f           // down to FF_CRAWL this much further
 #define FF_CRAWL 0.15f         // the leader's least share of the march's speed while they form up
 #define FF_DROP 2.0f           // tiles
-struct ff_group { uint32_t leader; ee_group *grp; vec2 fwd, way, end; float speed, err, err_sum; int err_n; uint32_t step; int on; };   // fwd: the formation's facing, way: where it goes
+// fwd: the formation's facing, way: where it goes, goal: the leader's goal of this move (NULL: not known - its group
+// tells), live: on its way this step (else queued behind the leader's current order)
+struct ff_group { uint32_t leader; ee_group *grp; ee_goal *goal; vec2 fwd, way, end; float speed, err, err_sum; int err_n; uint32_t step; int on, live; };
 internal struct ff_group g_ff[FF_GROUPS];
 internal unsigned g_ff_next;
-struct ff_unit { uint32_t id; int g; vec2 off; uint32_t step; float along, with; };   // step: the last it followed
+internal int g_ff_last = -1;   // the march started by the move being dispatched, for its leader's goal
+// step: the last it followed; next (1-based): a queued move's march it joins when that one sets out, with next_off
+struct ff_unit { uint32_t id; int g, next; vec2 off, next_off; uint32_t step; float along, with; };
 internal struct ff_unit g_ff_u[FF_UNITS];
 internal int g_ff_on;
 internal unsigned g_ff_marches, g_ff_steered, g_ff_own;   // marches started; follower ticks steered, left to the own route
@@ -273,8 +289,10 @@ internal struct ff_unit *ff_find(uint32_t id, int make) {
     return e;
 }
 
-// the march of the units just laid out (g_fo[0..n), their spots .at), facing fwd
-internal void ff_start(void *group, int n, vec2 fwd, vec2 right) {
+// the march of the units just laid out (g_fo[0..n), their spots .at), facing fwd; queued: it sets out once the leader
+// takes up this move, the units' marches till then go on
+internal void ff_start(void *group, int n, vec2 fwd, vec2 right, int queued) {
+    g_ff_last = -1;
     vec2 mid = v2(0, 0);
     for (int i = 0; i < n; i++) mid = vec2_add(mid, g_fo[i].at);
     mid = vec2_scale(mid, 1.0f / (float)n);
@@ -292,33 +310,50 @@ internal void ff_start(void *group, int n, vec2 fwd, vec2 right) {
     struct ff_group *gr = &g_ff[gi];
     gr->leader = (uint32_t)unit_get_serial(g_fo[lead].u);
     gr->grp = (ee_group *)group;
+    gr->goal = NULL;
     gr->fwd = fwd;
-    vec3 lp = unit_get_pos(g_fo[lead].u);
-    vec2 to = vec2_sub(g_fo[lead].at, v2(lp.x, lp.y));
+    vec2 to = vec2_sub(g_fo[lead].at, g_fo[lead].from);
     float tl = vec2_len(to);
     gr->way = tl > 0.01f ? vec2_scale(to, 1.0f / tl) : fwd;
     gr->end = g_fo[lead].at;
     gr->speed = slow;
     gr->step = ~0u;
     gr->on = 1;
+    gr->live = 0;
     for (int i = 0; i < n; i++) {
         struct ff_unit *e = ff_find((uint32_t)unit_get_serial(g_fo[i].u), 1);
-        vec2 d = vec2_sub(g_fo[i].at, g_fo[lead].at);
+        vec2 d = vec2_sub(g_fo[i].at, g_fo[lead].at), off = v2(vec2_dot(d, right), vec2_dot(d, fwd));
+        if (queued && e->g != gi && g_ff[e->g].on) { e->next = gi + 1; e->next_off = off; continue; }
         e->g = gi;
-        e->off = v2(vec2_dot(d, right), vec2_dot(d, fwd));
+        e->next = 0;
+        e->off = off;
         e->step = ~0u;
     }
+    g_ff_last = gi;
     g_ff_marches++;
 }
 
-// once a step: is the march still on (its leader there, on this move, not at its spot yet), the heading
+// is the leader on the march's move now (1), still before it in its orders (0, queued), or neither (-1: given another
+// order, or the move done)
+internal int ff_on_move(struct ff_group *gr, ee_unit *l) {
+    if (!gr->goal) return unit_get_group(l) == gr->grp && unit_get_goal(l) && goal_is_location(unit_get_goal(l)) ? 1 : -1;
+    int n = unit_orders(l);
+    for (int i = 0; i < n; i++) if (unit_order_at(l, i) == gr->goal) return i == 0;
+    return -1;
+}
+
+// once a step: is the march on its way (its leader there, on this move, not at its spot yet), the heading; NULL while
+// it is queued too (gr->on stays)
 internal ee_unit *ff_leader(struct ff_group *gr, uint32_t step) {
     ee_unit *l = gr->on ? unit_by_id(gr->leader) : NULL;
-    if (gr->step == step) return l;
+    if (gr->step == step) return gr->live ? l : NULL;
     gr->step = step;
+    gr->live = 0;
     vec3 p = l ? unit_get_pos(l) : v3(0, 0, 0);
-    if (!l || unit_get_hp(l) <= 0 || unit_get_group(l) != gr->grp || !unit_get_goal(l) || !goal_is_location(unit_get_goal(l))
-        || vec2_dist2(v2(p.x, p.y), gr->end) < FF_END * FF_END) { gr->on = 0; return NULL; }
+    int on = l && unit_get_hp(l) > 0 ? ff_on_move(gr, l) : -1;
+    if (on < 0 || (on && vec2_dist2(v2(p.x, p.y), gr->end) < FF_END * FF_END)) { gr->on = 0; return NULL; }
+    if (!on) return NULL;
+    gr->live = 1;
     // the followers' distance from their points last step, on average: the leader waits while they form up
     gr->err = gr->err_n ? gr->err_sum / (float)gr->err_n : 0;
     gr->err_sum = 0;
@@ -335,16 +370,28 @@ internal ee_unit *ff_leader(struct ff_group *gr, uint32_t step) {
 
 internal uint32_t ff_step(void) { ee_physics *ph = game_physics(); return ph ? physics_get_steps(ph) : 0; }
 
+// u's march on its way this step and its leader (*l), else NULL: a queued move's march taken up once it sets out;
+// u in its leader's group (both moved on together: a queued move's dispatch puts them in a group of its own)
+internal struct ff_group *ff_march(struct ff_unit *e, ee_unit *u, uint32_t step, ee_unit **l) {
+    if (e->next) {
+        struct ff_group *n = &g_ff[e->next - 1];
+        if (ff_leader(n, step)) { e->g = e->next - 1; e->off = e->next_off; e->step = ~0u; e->next = 0; }
+        else if (!n->on) e->next = 0;
+    }
+    struct ff_group *gr = &g_ff[e->g];
+    *l = gr->on ? ff_leader(gr, step) : NULL;
+    return *l && (e->id == gr->leader || unit_get_group(u) == unit_get_group(*l)) ? gr : NULL;
+}
+
 // the land turn (shiproute.c's hook): u's point to steer at this tick, 1 - else 0, its own route
 internal int fo_follow_aim(ee_unit *u, const float *pos, float *aim) {
     if (!g_ff_on || !u) return 0;
     struct ff_unit *e = ff_find((uint32_t)unit_get_serial(u), 0);
     if (!e) return 0;
-    struct ff_group *gr = &g_ff[e->g];
-    if (!gr->on || e->id == gr->leader || unit_get_group(u) != gr->grp) return 0;
     uint32_t step = ff_step();
-    ee_unit *l = ff_leader(gr, step);
-    if (!l) return 0;
+    ee_unit *l;
+    struct ff_group *gr = ff_march(e, u, step, &l);
+    if (!gr || e->id == gr->leader) return 0;
     vec3 lp = unit_get_pos(l);
     vec2 right = v2(gr->fwd.y, -gr->fwd.x);
     vec2 pt = vec2_add(v2(lp.x, lp.y), vec2_add(vec2_scale(right, e->off.x), vec2_scale(gr->fwd, e->off.y)));
@@ -382,10 +429,10 @@ internal float __thiscall hook_ff_speed(void *model, ee_unit *u, float dist, flo
     float s = physics_model_speed_step(model, u, dist, angle);
     struct ff_unit *e = g_ff_on && u ? ff_find((uint32_t)unit_get_serial(u), 0) : NULL;
     if (!e || fabsf(angle) > 0.7853982f) return s;
-    struct ff_group *gr = &g_ff[e->g];
     uint32_t step = ff_step();
-    ee_unit *l = gr->on && unit_get_group(u) == gr->grp ? ff_leader(gr, step) : NULL;
-    if (!l) return s;
+    ee_unit *l;
+    struct ff_group *gr = ff_march(e, u, step, &l);
+    if (!gr) return s;
     float top = unit_max_speed(u), want, cap = top;
     if (e->id == gr->leader) {
         float wait = 1 - (gr->err - FF_FORM_FREE) / FF_FORM;
@@ -406,6 +453,7 @@ internal void groupmove_new_game(void) {
     memset(g_ff_u, 0, sizeof g_ff_u);
     memset(g_fo_marched, 0, sizeof g_fo_marched);
     g_ff_next = g_fo_marched_n = 0;
+    g_ff_last = -1;
 }
 
 internal void __thiscall hook_formation_slots(void *f, void *group, void *slots) {
@@ -420,7 +468,10 @@ internal void __thiscall hook_formation_slots(void *f, void *group, void *slots)
         u->u = fslot_get_unit(formation_slot(slots, i));
         if (!u->u) return;
         vec3 p = unit_get_pos(u->u);
-        u->p = v2(p.x, p.y);
+        int orders = g_fo_queued ? unit_orders(u->u) : 0;
+        ee_goal *last = orders > 0 ? unit_order_at(u->u, orders - 1) : NULL;
+        if (last && goal_is_location(last)) p = goal_target(last, u->u);   // queued: from its last order's point
+        u->p = u->from = v2(p.x, p.y);
         float s = unit_get_size(u->u);
         u->w = (s < FO_MIN_SIZE ? FO_MIN_SIZE : s) * FO_PAD[kind];
         u->rank = fo_rank(u->u);
@@ -486,7 +537,8 @@ internal void __thiscall hook_formation_slots(void *f, void *group, void *slots)
     g_fo_group = (ee_active_group *)group;
     g_fo_n = n;
     g_fo_moves++;
-    if (g_ff_on) ff_start(group, n, fwd, right);
+    if (g_fo_queued) g_fo_queued_n++;    g_ff_last = -1;
+    if (g_ff_on) ff_start(group, n, fwd, right, g_fo_queued);
 }
 
 // a unit's location goal in the dispatch: its own spot (and facing) instead of the slot it was paired with - the slot
@@ -498,6 +550,7 @@ internal void *__thiscall hook_slot_goal(ee_goal *g, float *pt, uint32_t a, uint
             vec3 p = fslot_get_pos(s);
             if (p.x != pt[0] || p.y != pt[1]) continue;
             ee_unit *u = fslot_get_unit(s);
+            if (g_ff_last >= 0 && u && (uint32_t)unit_get_serial(u) == g_ff[g_ff_last].leader) g_ff[g_ff_last].goal = g;   // the march goes by its leader's goal
             for (int k = 0; k < g_fo_n; k++)
                 if (g_fo[k].u == u) { pt[0] = g_fo[k].at.x; pt[1] = g_fo[k].at.y; facing = g_fo[k].facing; break; }
             break;
@@ -511,8 +564,9 @@ internal void groupmove_install(void) {
     g_fo_on = g_set.formations;
     int n = g_fo_on ? patch_formation_slots(hook_formation_slots) : 0, goals = n ? patch_slot_goal(hook_slot_goal) : 0;
     int markers = g_set.goal_markers ? patch_order_marks_all() : 0;   // every unit's circle shows where it goes
+    int queued = goals ? patch_path_msg_execute(hook_path_execute) : 0;
     int march = goals && g_set.formation_march ? patch_group_speeds(hook_group_speeds) : 0;
     g_ff_on = goals && g_set.formation_follow ? patch_land_speed_step(hook_ff_speed) == 2 : 0;   // the turn: shiproute.c's hook
-    if (g_log) fprintf(g_log, "# groupmove: formations=%d (%d formation vtables, goals hooked %d), goal markers for every unit: %d, march at the slowest speed: %d, follow a leader: %d\n",
-                       g_fo_on, n, goals, markers, march, g_ff_on);
+    if (g_log) fprintf(g_log, "# groupmove: formations=%d (%d formation vtables, goals hooked %d), goal markers for every unit: %d, queued moves laid out from the last order: %d, march at the slowest speed: %d, follow a leader: %d\n",
+                       g_fo_on, n, goals, markers, queued, march, g_ff_on);
 }

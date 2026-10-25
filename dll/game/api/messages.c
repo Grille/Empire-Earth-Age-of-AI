@@ -31,6 +31,7 @@ internal inline void unload_msg_make(ee_unload_msg *msg, int from, int x, int y)
 // of each its type's - a plain click sends 0. The Execute splits the selection into a group per kind and hands each
 // the move.
 internal inline void path_msg_make(ee_path_msg *msg, int from, float x, float y, int together, int queued) {
+    *(uintptr_t *)msg = vt_eem_path_to;   // carried out through it (msg_execute) as the game does: hooks of its slot see it
     path_msg_set_from(msg, (int8_t)from);
     FIELD(msg, of_path_msg_x, float) = x;
     FIELD(msg, of_path_msg_y, float) = y;

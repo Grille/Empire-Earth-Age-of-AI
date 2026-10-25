@@ -247,8 +247,9 @@ class Gen:
         if over and not self.base_slot(m, over[1][0][1]):
             raise Fail('%s: [overrides] - %s has no [slot] %s' % (m.where, over[1][0][1], m.name))
         fv = None
-        if addr:   # a class's own function in a slot is called directly by its class's name
-            own = slot or over
+        if addr:   # a class's own function in a slot is called directly by its class's name - by its prefix when that is
+            # its own (an override in a class of a C type of its own: path_msg_execute, the slot's wrapper msg_execute)
+            own = slot or over and self.prefix(self.base_slot(m, over[1][0][1])) == P
             fv, direct = ('fn_%s_%s' % (S, m.name), '%s_%s' % (S, m.name)) if own else ('fn_' + self.name(P, m.name), self.name(P, m.name))
             self.lines.append('internal %s %s;' % (fn_t, fv))
             self.value(fv, addr, 'addr', label, fn_t)

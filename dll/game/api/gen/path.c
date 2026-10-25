@@ -39,9 +39,9 @@ internal inline uint8_t *active_group_together_at(const ee_active_group *o) { re
 // vf19: the group's speed, acceleration and turns from its members' (+0x70 .. +0xAC: average, fastest, slowest
 // of each) - again whenever members come or go
 typedef void (__thiscall *active_group_speeds_fn)(ee_active_group *);
-internal active_group_speeds_fn fn_ee_active_group_speeds;
-internal inline void ee_active_group_speeds(ee_active_group *active_group) { fn_ee_active_group_speeds(active_group); }
-internal inline int patch_group_speeds(active_group_speeds_fn h) { return patch_vtable(vt_ee_active_group, (int)slot_group_speeds, (uintptr_t)fn_ee_active_group_speeds, (void *)h); }
+internal active_group_speeds_fn fn_active_group_speeds;
+internal inline void active_group_speeds(ee_active_group *active_group) { fn_active_group_speeds(active_group); }
+internal inline int patch_group_speeds(active_group_speeds_fn h) { return patch_vtable(vt_ee_active_group, (int)slot_group_speeds, (uintptr_t)fn_active_group_speeds, (void *)h); }
 
 // class EEPathManager (ee_path_mgr)
 // the path manager, a static object at 0x917D00 (AoC not looked up) (EEPathManager)
@@ -71,7 +71,7 @@ internal int spec_path_select(int build) {
         of_active_group_speed = 0x70;
         of_active_group_speed_min = 0x78;
         of_active_group_together = 0xB6;
-        fn_ee_active_group_speeds = (active_group_speeds_fn)0x005DCE49;
+        fn_active_group_speeds = (active_group_speeds_fn)0x005DCE49;
         vt_ee_path_manager = 0x00827C44;
         fn_path_mgr_request = (path_mgr_request_fn)0x004A1AFF;
         return 0;
@@ -85,7 +85,7 @@ internal int spec_path_select(int build) {
         of_active_group_speed = 0x70;
         of_active_group_speed_min = 0x78;
         of_active_group_together = 0xB6;
-        fn_ee_active_group_speeds = (active_group_speeds_fn)0x005ED692;
+        fn_active_group_speeds = (active_group_speeds_fn)0x005ED692;
         vt_ee_path_manager = 0x0083C438;
         fn_path_mgr_request = (path_mgr_request_fn)0x004A6E88;
         return 0;
@@ -101,8 +101,8 @@ internal int spec_path_check(void) {
     bad += spec_code((uintptr_t)fn_group_sector_route, "EEGroup.sector_route");
     bad += spec_call(call_group_sector_route, (uintptr_t)fn_group_sector_route, "EEGroup.sector_route [call_site group_sector_route]");
     bad += spec_vtable(vt_ee_active_group, ".?AVEEActiveGroup@@", "EEActiveGroup [vtable]");
-    bad += spec_code((uintptr_t)fn_ee_active_group_speeds, "EEActiveGroup.speeds");
-    bad += spec_slot(vt_ee_active_group, slot_group_speeds, (uintptr_t)fn_ee_active_group_speeds, "EEActiveGroup.speeds [slot]");
+    bad += spec_code((uintptr_t)fn_active_group_speeds, "EEActiveGroup.speeds");
+    bad += spec_slot(vt_ee_active_group, slot_group_speeds, (uintptr_t)fn_active_group_speeds, "EEActiveGroup.speeds [slot]");
     bad += spec_vtable(vt_ee_path_manager, ".?AVEEPathManager@@", "EEPathManager [vtable]");
     bad += spec_code((uintptr_t)fn_path_mgr_request, "EEPathManager.request");
     return bad;

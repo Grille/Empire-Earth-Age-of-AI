@@ -1,0 +1,14 @@
+// A queued move (formations, formation_follow): 20 doughboys (Continental seed 101) sent 20 tiles east to 56,44, then
+// with shift 20 tiles north to 56,64 - the second formation laid out from where the first leaves them (facing north),
+// not from where they stood (diagonal), and its march set out once the first is done
+wait_until(0.1min)
+spawn(1, unit.inf10_doughboy, 35, 44, 20)
+wait_until(0.4min)
+cmd("fmove go 1 36 44 8 56 44 0 0")
+wait_until(0.45min)
+cmd("fmove then 1 56 64")
+every(2s, 0.45min, 1.9min, (run) => {
+    cmd("fmove stat")
+})
+wait_until(1.95min)
+cmd("fmove sum")

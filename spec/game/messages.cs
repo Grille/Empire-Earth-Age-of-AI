@@ -10,6 +10,10 @@ unsafe struct EEMessage
     /// the sender's message id (every message's)
     [offset(0xA), found(b)]
     int8 from;
+
+    /// vf10: the message carried out (EEMPathTo's and EEMLoadTransport's both builds)
+    [slot(10)]
+    extern void execute();
 }
 
 /// the resignation (EEMResign)
@@ -83,7 +87,7 @@ unsafe struct EEMLoadTransport
 }
 
 /// the move message (EEMPathTo)
-[@base(typeof(EEMessage)), c_type("ee_path_msg")]
+[@base(typeof(EEMessage)), c_type("ee_path_msg"), vtable((ee)0x00824D84, (aoc)0x00838D5C)]
 unsafe struct EEMPathTo
 {
     /// the right-button drag's facing (the drag handler after 0x403542: atan2(-dx, dy) of the drag, 0 for a click),
@@ -116,8 +120,10 @@ unsafe struct EEMPathTo
     [offset(0x1F), found(c)]
     uint8 together;
 
-    /// EEMPathTo's Execute
-    [address((ee)0x004B9D7B, (aoc)0x004C281C)]
+    /// EEMPathTo's Execute: splits the selection into a group per kind and hands each the move (the formation's slots
+    /// laid out within it)
+    [address((ee)0x004B9D7B, (aoc)0x004C281C), overrides(typeof(EEMessage))]
+    [vtable_site("path_msg_execute")]
     extern void execute();
 }
 

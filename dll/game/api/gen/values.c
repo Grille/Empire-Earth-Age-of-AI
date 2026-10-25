@@ -415,6 +415,7 @@ internal uint32_t data_map_map_areas;
 // messages.cs
 internal uint32_t of_msg_kind;
 internal uint32_t of_msg_from;
+internal uint32_t slot_msg_execute;
 internal uint32_t of_chat_msg_text;
 internal uint32_t of_select_msg_selection;
 internal uint32_t of_select_msg_ids_begin;
@@ -424,6 +425,7 @@ internal uint32_t of_select_msg_packed;
 internal uint32_t of_select_msg_flag;
 internal uint32_t of_load_msg_transport;
 internal uint32_t of_load_msg_unit;
+internal uint32_t vt_eem_path_to;
 internal uint32_t of_path_msg_facing;
 internal uint32_t of_path_msg_x;
 internal uint32_t of_path_msg_y;
