@@ -169,7 +169,7 @@ internal int uc_separate(int kind, ee_unit *u, int resting) {
         float d2 = vec2_len2(d), rr = h.r + o.r;
         // two units marching in the same formation (formation_follow) collide at formation_collision of their radii -
         // their places stay as far apart: they slip past each other to them
-        if (kind == MODEL_LAND && d2 < rr * rr) rr *= ff_collision(u, c);
+        if (d2 < rr * rr) rr *= ff_collision(u, c);
         if (d2 >= rr * rr) continue;
         float dist = sqrtf(d2);
         if (dist > 0.0001f) d = vec2_scale(d, 1.0f / dist);

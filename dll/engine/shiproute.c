@@ -509,9 +509,10 @@ internal int st_aim_point(ee_unit *u, float px, float py, float reach, const flo
 }
 
 internal int fo_follow_aim(ee_unit *u, const float *pos, float *aim);   // groupmove.c: formation_follow's point
+internal float ff_speed(ee_unit *u, float s, float angle);              // ... and its speed
 internal void __thiscall hook_ship_turn_towards(void *model, ee_unit *u, float *pos, float *target, float *left, float *rate, float *heading, char facing) {
     float aim[3], *to = target;
-    if (!facing && model_kind(model) == MODEL_LAND && fo_follow_aim(u, pos, aim)) {   // a follower of a formation's march
+    if (!facing && fo_follow_aim(u, pos, aim)) {   // a unit of a formation's march (land units and ships)
         physics_model_turn_towards(model, u, pos, aim, left, rate, heading, facing);
         return;
     }
@@ -558,14 +559,14 @@ internal void __thiscall hook_ship_turn_towards(void *model, ee_unit *u, float *
 }
 
 // the speed step at a leg's end that is passed through: given the way on to the next order's target, it neither
-// brakes for the stop nor caps the speed at the distance left
+// brakes for the stop nor caps the speed at the distance left; a ship of a formation's march at its speed there
 internal float __thiscall hook_ship_speed_step(void *model, ee_unit *u, float dist, float angle) {
     float wp[3], t[3];
     if (g_st_on && u && st_pass_through(u, t) && !unit_waypoint(u, wp)) {
         dist += sqrtf((t[0] - wp[0]) * (t[0] - wp[0]) + (t[1] - wp[1]) * (t[1] - wp[1]));
         g_st_passing++;
     }
-    return physics_model_speed_step(model, u, dist, angle);
+    return ff_speed(u, physics_model_speed_step(model, u, dist, angle), angle);
 }
 
 internal int __thiscall hook_ship_speed(void *model, ee_unit *u, float dist, float angle) {
@@ -602,9 +603,10 @@ internal void shiproute_install(const char *autotest_ini) {
     g_st_on = g_set.ship_turns;
     g_lt_on = g_set.land_turns;
     int lt = g_lt_on || (g_set.formations && g_set.formation_follow) ? patch_land_turn_towards(hook_ship_turn_towards) : 0;   // formation_follow steers there too
-    int st = g_st_on ? patch_ship_speed_decide(hook_ship_speed) + patch_ship_turn_towards(hook_ship_turn_towards)
-                         + patch_ship_speed_step(hook_ship_speed_step) : 0;
-    if (g_log) fprintf(g_log, "# shipturns: ship_turns=%d (hooks %s) land_turns=%d (hooks %d/2)\n", g_st_on, !g_st_on ? "-" : st == 6 ? "ok" : "FAILED", g_lt_on, lt);
+    int follow = g_set.formations && g_set.formation_follow;   // formation_follow steers ships and sets their speed there too
+    int st = g_st_on ? patch_ship_speed_decide(hook_ship_speed) : 0;
+    st += g_st_on || follow ? patch_ship_turn_towards(hook_ship_turn_towards) + patch_ship_speed_step(hook_ship_speed_step) : 0;
+    if (g_log) fprintf(g_log, "# shipturns: ship_turns=%d (hooks %s) land_turns=%d (hooks %d/2)\n", g_st_on, !g_st_on && !follow ? "-" : st == (g_st_on ? 6 : 4) ? "ok" : "FAILED", g_lt_on, lt);
     g_sr_on = g_set.ship_routes;
     if (autotest_ini) g_sr_log = ini_int("autotest", "ship_route_log", 0, autotest_ini);
     g_lr_on = g_set.land_routes;

@@ -348,7 +348,7 @@ Settings in `aimod.ini`:
 - `[general] formation_march=0` (default, being tried; 1 on, with `formations`): a group sent somewhere marches at its
   slowest unit's speed, so riders and tanks stay with the infantry: a mixed army sent 40 tiles strung out to 14 tiles
   front to back, now about 10 - but they reach the goal all at once and the last is in about 15 s later.
-- `[general] formation_follow=0` (default, being worked on; 1 on, with `formations`, land units): a group sent
+- `[general] formation_follow=0` (default, being worked on; 1 on, with `formations`; land units, or ships): a group sent
   somewhere marches in its formation behind a leader - the unit in its middle - each unit steering for its place
   beside and behind it, a blocked one taking its own way for a while; near the goal each goes to its own spot.
   The formation goes at the slowest unit's speed, turning like a ship (no unit walks backwards in a turn), facing

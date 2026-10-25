@@ -88,11 +88,16 @@ internal const char *sec_of(const struct entry *e) { return g_page_of[e->page].s
 internal int on_diff_page(const struct entry *e) { return g_page_of[e->page].diff >= 0; }
 
 // MASTERS AND CHILDREN: a CHILD row follows its master (row a) where the file doesn't set it; the master's entry shows
-// its children under it when opened (g_open)
+// its children under it when opened (g_open), and the rows SETTING_UNDER puts there (they keep their own values)
 internal int g_open[SETTING_N];
 internal int is_child(const struct entry *e) { return row_of(e)->kind == SETK_CHILD; }
+internal int under_of(int row) {   // the master a row is shown under: a CHILD's, SETTING_UNDER's, else -1
+    if (k_settings[row].kind == SETK_CHILD) return k_settings[row].a;
+    for (int i = 0; i < SETTING_UNDER_N; i++) if (k_settings_under[i].row == row) return k_settings_under[i].master;
+    return -1;
+}
 internal int is_master(int row) {
-    for (int i = 0; i < SETTING_N; i++) if (k_settings[i].kind == SETK_CHILD && k_settings[i].a == row) return 1;
+    for (int i = 0; i < SETTING_N; i++) if (under_of(i) == row) return 1;
     return 0;
 }
 // an entry without a value of its own takes another's: [all]'s on a difficulty's page, a child its master's
@@ -506,13 +511,14 @@ internal void fill_list(int keep) {
     int n = 0;
     for (int i = 0; i < g_ne; i++) {
         if (g_e[i].page != g_page || !matches(&g_e[i], filter)) continue;
-        if (is_child(&g_e[i]) && !filter[0] && !g_open[row_of(&g_e[i])->a]) continue;
+        int master = under_of(g_e[i].row);
+        if (master >= 0 && !filter[0] && !g_open[master]) continue;
         char key[64];
         wchar_t text[80];
         key_of(&g_e[i], key, sizeof key);
         int o = 0;
         if (is_master(g_e[i].row)) { text[o++] = g_open[g_e[i].row] ? 0x25BE : 0x25B8; text[o++] = ' '; }   // a triangle down / right
-        else if (is_child(&g_e[i])) for (int k = 0; k < 6; k++) text[o++] = ' ';
+        else if (master >= 0) for (int k = 0; k < 6; k++) text[o++] = ' ';
         MultiByteToWideChar(CP_ACP, 0, key, -1, text + o, 80 - o);
         LVITEMW it = { 0 };
         it.mask = LVIF_TEXT | LVIF_PARAM;

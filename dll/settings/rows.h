@@ -276,3 +276,9 @@
 #define SETTINGS_EASY(E) \
     E(epoch_pacing,     "classic") \
     E(pop_follow_human, "1")
+
+// Rows aimod_config.exe shows under a master, folded with its children, though they don't follow it: settings of what
+// the master's children switch on (the formation's catch-up and collision under improved_unit_movement).
+#define SETTING_UNDER(U) \
+    U(formation_catchup,   improved_unit_movement) \
+    U(formation_collision, improved_unit_movement)
