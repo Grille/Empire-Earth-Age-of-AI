@@ -10,6 +10,12 @@ internal inline uint8_t **unit_type_vtable_at(const ee_unit_type *o) { return (u
 internal inline char *unit_type_get_name(const ee_unit_type *o) { return *(char **)((uint8_t *)o + of_unit_type_name); }
 internal inline void unit_type_set_name(ee_unit_type *o, char *v) { *(char **)((uint8_t *)o + of_unit_type_name) = v; }
 internal inline char **unit_type_name_at(const ee_unit_type *o) { return (char **)((uint8_t *)o + of_unit_type_name); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// the data's column 0x344 (the community editor: "Plane refuel location") - 1 the airport planes, 2 the carriers'
+// (F-14, Corsair, Avenger); the air models (0x54A5AE, 0x54AA2B, 0x54B540, 0x54BC24) treat 2 apart, AoC also 4
+internal inline int unit_type_get_refuel_at(const ee_unit_type *o) { return *(int *)((uint8_t *)o + of_unit_type_refuel_at); }
+internal inline void unit_type_set_refuel_at(ee_unit_type *o, int v) { *(int *)((uint8_t *)o + of_unit_type_refuel_at) = v; }
+internal inline int *unit_type_refuel_at_at(const ee_unit_type *o) { return (int *)((uint8_t *)o + of_unit_type_refuel_at); }
 // the graphic effect a missile or projectile plays on itself when it arrives
 internal inline void *unit_type_get_impact_gfx(const ee_unit_type *o) { return *(void **)((uint8_t *)o + of_unit_type_impact_gfx); }
 internal inline void unit_type_set_impact_gfx(ee_unit_type *o, void *v) { *(void **)((uint8_t *)o + of_unit_type_impact_gfx) = v; }
@@ -32,6 +38,12 @@ internal inline ee_unit_type **unit_type_projectile_at(const ee_unit_type *o) { 
 internal inline void *unit_type_get_model(const ee_unit_type *o) { return *(void **)((uint8_t *)o + of_unit_type_model); }
 internal inline void unit_type_set_model(ee_unit_type *o, void *v) { *(void **)((uint8_t *)o + of_unit_type_model) = v; }
 internal inline void **unit_type_model_at(const ee_unit_type *o) { return (void **)((uint8_t *)o + of_unit_type_model); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// the data's column 0x1D4 (the editor: "Flight altitude"); below it the air models scale the height by
+// stats.height x (z / it x 0.5 + 0.5)
+internal inline float unit_type_get_flight_altitude(const ee_unit_type *o) { return *(float *)((uint8_t *)o + of_unit_type_flight_altitude); }
+internal inline void unit_type_set_flight_altitude(ee_unit_type *o, float v) { *(float *)((uint8_t *)o + of_unit_type_flight_altitude) = v; }
+internal inline float *unit_type_flight_altitude_at(const ee_unit_type *o) { return (float *)((uint8_t *)o + of_unit_type_flight_altitude); }
 // the type data's constructors
 internal inline float unit_type_get_min_range(const ee_unit_type *o) { return *(float *)((uint8_t *)o + of_unit_type_min_range); }
 internal inline void unit_type_set_min_range(ee_unit_type *o, float v) { *(float *)((uint8_t *)o + of_unit_type_min_range) = v; }
@@ -73,10 +85,17 @@ internal inline float unit_type_get_mark_size(const ee_unit_type *o) { return *(
 internal inline void unit_type_set_mark_size(ee_unit_type *o, float v) { *(float *)((uint8_t *)o + of_unit_type_mark_size) = v; }
 internal inline float *unit_type_mark_size_at(const ee_unit_type *o) { return (float *)((uint8_t *)o + of_unit_type_mark_size); }
 // a collision sphere (float; dreadnought 4, cruiser 3): AoC the shift of +0x474 (0x178, EEUnitClass::vf34's
-// arrival test)
+// arrival test). The constructor 0x61C35B copies it from the data's column 0x200, which the community editor
+// calls "Size in formation" (collider_size: its "Size of collider") - which of the two the name fits is open
 internal inline float unit_type_get_collision(const ee_unit_type *o) { return *(float *)((uint8_t *)o + of_unit_type_collision); }
 internal inline void unit_type_set_collision(ee_unit_type *o, float v) { *(float *)((uint8_t *)o + of_unit_type_collision) = v; }
 internal inline float *unit_type_collision_at(const ee_unit_type *o) { return (float *)((uint8_t *)o + of_unit_type_collision); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// the data's column 0x204 (the editor: "Size of collider"; dreadnought 3, cruiser 1.95): the movement's waypoint
+// and arrival radius (EEUnitClass::vf34; x unit +0x240 at 0x5F0000)
+internal inline float unit_type_get_collider_size(const ee_unit_type *o) { return *(float *)((uint8_t *)o + of_unit_type_collider_size); }
+internal inline void unit_type_set_collider_size(ee_unit_type *o, float v) { *(float *)((uint8_t *)o + of_unit_type_collider_size) = v; }
+internal inline float *unit_type_collider_size_at(const ee_unit_type *o) { return (float *)((uint8_t *)o + of_unit_type_collider_size); }
 // the game data's "Unit type" (dbobjects column 36): the class of the type data - EEUCBuilding, EEUCNaval ... (the
 // spec called it family until 2026-10-25, and the family category)
 internal inline enum unit_class unit_type_get_class_id(const ee_unit_type *o) { return *(enum unit_class *)((uint8_t *)o + of_unit_type_class_id); }
@@ -144,6 +163,11 @@ internal inline int *unit_type_transport_size_at(const ee_unit_type *o) { return
 internal inline int unit_type_get_hp(const ee_unit_type *o) { return *(int *)((uint8_t *)o + of_unit_type_hp); }
 internal inline void unit_type_set_hp(ee_unit_type *o, int v) { *(int *)((uint8_t *)o + of_unit_type_hp) = v; }
 internal inline int *unit_type_hp_at(const ee_unit_type *o) { return (int *)((uint8_t *)o + of_unit_type_hp); }
+// the data's column 0x198 "Resource type": lets_pass (0x6167C7) and 0x48xxxx test 3 (wood: trees) with the other
+// type's +0x617 (the data's "Can walk through trees")
+internal inline int unit_type_get_resource_type(const ee_unit_type *o) { return *(int *)((uint8_t *)o + of_unit_type_resource_type); }
+internal inline void unit_type_set_resource_type(ee_unit_type *o, int v) { *(int *)((uint8_t *)o + of_unit_type_resource_type) = v; }
+internal inline int *unit_type_resource_type_at(const ee_unit_type *o) { return (int *)((uint8_t *)o + of_unit_type_resource_type); }
 // missile delay time
 // the type data's constructors
 internal inline int unit_type_get_missile_delay(const ee_unit_type *o) { return *(int *)((uint8_t *)o + of_unit_type_missile_delay); }
@@ -200,6 +224,35 @@ internal inline uint8_t *unit_type_boards_ship_at(const ee_unit_type *o) { retur
 internal inline uint8_t unit_type_get_boards_fortress(const ee_unit_type *o) { return *(uint8_t *)((uint8_t *)o + of_unit_type_boards_fortress); }
 internal inline void unit_type_set_boards_fortress(ee_unit_type *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_unit_type_boards_fortress) = v; }
 internal inline uint8_t *unit_type_boards_fortress_at(const ee_unit_type *o) { return (uint8_t *)((uint8_t *)o + of_unit_type_boards_fortress); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// the data's column 0x245 (the editor: Can be owned by "World"; resources, scaffolding, ambient): the subgroup's
+// target filter 0x446124 skips such objects unless they are armed and the stance is 2
+internal inline uint8_t unit_type_get_world_ownable(const ee_unit_type *o) { return *(uint8_t *)((uint8_t *)o + of_unit_type_world_ownable); }
+internal inline void unit_type_set_world_ownable(ee_unit_type *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_unit_type_world_ownable) = v; }
+internal inline uint8_t *unit_type_world_ownable_at(const ee_unit_type *o) { return (uint8_t *)((uint8_t *)o + of_unit_type_world_ownable); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// set after the load (0x62188D) as membership of unit group 9 (0x4A7618(type, 9)); with is_guard_tower in freeze
+// (0x5AF0BB), death and state (0x63862x, 0x60D36C), the attack scoring and the boarding
+internal inline uint8_t unit_type_get_is_tower(const ee_unit_type *o) { return *(uint8_t *)((uint8_t *)o + of_unit_type_is_tower); }
+internal inline void unit_type_set_is_tower(ee_unit_type *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_unit_type_is_tower) = v; }
+internal inline uint8_t *unit_type_is_tower_at(const ee_unit_type *o) { return (uint8_t *)((uint8_t *)o + of_unit_type_is_tower); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// the data's column 0x248 (the editor: "You can kill this object with Delete key"; 0 for 24 types): a unit's
+// +0x334 starts as it (0x5E6024); freeze clears that and unfreeze restores it from here (0x5AF0BB, 0x5B32CB)
+internal inline uint8_t unit_type_get_deletable(const ee_unit_type *o) { return *(uint8_t *)((uint8_t *)o + of_unit_type_deletable); }
+internal inline void unit_type_set_deletable(ee_unit_type *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_unit_type_deletable) = v; }
+internal inline uint8_t *unit_type_deletable_at(const ee_unit_type *o) { return (uint8_t *)((uint8_t *)o + of_unit_type_deletable); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// the data's column 0x3B0 (the editor: "Melee attack"): EECPAttackSubGroupUnit::score 0x461854 picks its table 0
+// by it
+internal inline uint8_t unit_type_get_melee(const ee_unit_type *o) { return *(uint8_t *)((uint8_t *)o + of_unit_type_melee); }
+internal inline void unit_type_set_melee(ee_unit_type *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_unit_type_melee) = v; }
+internal inline uint8_t *unit_type_melee_at(const ee_unit_type *o) { return (uint8_t *)((uint8_t *)o + of_unit_type_melee); }
+// the constructor sets 1 only for ids 47 and 461..466, the guard towers (AoC also 0x2FD, 0x302, 0x312, 0x322);
+// attackers of rps_class 20 score a bonus against it
+internal inline uint8_t unit_type_get_is_guard_tower(const ee_unit_type *o) { return *(uint8_t *)((uint8_t *)o + of_unit_type_is_guard_tower); }
+internal inline void unit_type_set_is_guard_tower(ee_unit_type *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_unit_type_is_guard_tower) = v; }
+internal inline uint8_t *unit_type_is_guard_tower_at(const ee_unit_type *o) { return (uint8_t *)((uint8_t *)o + of_unit_type_is_guard_tower); }
 // takes a behaviour (stances)
 // the type data's constructors
 internal inline uint8_t unit_type_get_behaviours(const ee_unit_type *o) { return *(uint8_t *)((uint8_t *)o + of_unit_type_behaviours); }
@@ -217,6 +270,12 @@ internal inline int patch_fire(unit_type_fire_fn h, int *of) { return patch_call
 internal inline ee_unit_type *unit_stats_get_type_data(const ee_unit_stats *o) { return *(ee_unit_type **)((uint8_t *)o + of_unit_stats_type_data); }
 internal inline void unit_stats_set_type_data(ee_unit_stats *o, ee_unit_type *v) { *(ee_unit_type **)((uint8_t *)o + of_unit_stats_type_data) = v; }
 internal inline ee_unit_type **unit_stats_type_data_at(const ee_unit_stats *o) { return (ee_unit_type **)((uint8_t *)o + of_unit_stats_type_data); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// EEUnitClass::vf29 0x61AD41 reads its +0x318 + animation x 4 (AoC +0x328), a duration per animation (anim_ms's
+// random start): the unit's graphics data
+internal inline void *unit_stats_get_gfx(const ee_unit_stats *o) { return *(void **)((uint8_t *)o + of_unit_stats_gfx); }
+internal inline void unit_stats_set_gfx(ee_unit_stats *o, void *v) { *(void **)((uint8_t *)o + of_unit_stats_gfx) = v; }
+internal inline void **unit_stats_gfx_at(const ee_unit_stats *o) { return (void **)((uint8_t *)o + of_unit_stats_gfx); }
 // read through a unit's +0x34
 internal inline float unit_stats_get_height(const ee_unit_stats *o) { return *(float *)((uint8_t *)o + of_unit_stats_height); }
 internal inline void unit_stats_set_height(ee_unit_stats *o, float v) { *(float *)((uint8_t *)o + of_unit_stats_height) = v; }
@@ -314,11 +373,13 @@ internal int spec_unit_type_select(int build) {
     case 0:   // ee
         of_unit_type_vtable = 0x0;
         of_unit_type_name = 0x1C;
+        of_unit_type_refuel_at = 0x28;
         of_unit_type_impact_gfx = 0x378;
         of_unit_type_fire_gfx = 0x38C;
         of_unit_type_shot_gfx = 0x3C4;
         of_unit_type_projectile = 0x3FC;
         of_unit_type_model = 0x40C;
+        of_unit_type_flight_altitude = 0x418;
         of_unit_type_min_range = 0x41C;
         of_unit_type_range = 0x420;
         of_unit_type_area = 0x424;
@@ -329,6 +390,7 @@ internal int spec_unit_type_select(int build) {
         of_unit_type_heading_offset = 0x458;
         of_unit_type_mark_size = 0x464;
         of_unit_type_collision = 0x470;
+        of_unit_type_collider_size = 0x474;
         of_unit_type_class_id = 0x4B4;
         of_unit_type_id = 0x4B8;
         of_unit_type_damage_class = 0x4C0;
@@ -343,6 +405,7 @@ internal int spec_unit_type_select(int build) {
         of_unit_type_garrison_capacity = 0x550;
         of_unit_type_transport_size = 0x558;
         of_unit_type_hp = 0x55C;
+        of_unit_type_resource_type = 0x568;
         of_unit_type_missile_delay = 0x588;
         of_unit_type_size = 0x58C;
         of_unit_type_kind_flags = 0x5D4;
@@ -357,6 +420,11 @@ internal int spec_unit_type_select(int build) {
         of_unit_type_boards_land_transport = 0x602;
         of_unit_type_boards_ship = 0x603;
         of_unit_type_boards_fortress = 0x604;
+        of_unit_type_world_ownable = 0x609;
+        of_unit_type_is_tower = 0x612;
+        of_unit_type_deletable = 0x613;
+        of_unit_type_melee = 0x61A;
+        of_unit_type_is_guard_tower = 0x61E;
         of_unit_type_behaviours = 0x621;
         fn_unit_type_fire = (unit_type_fire_fn)0x0061E11C;
         calls_fire[0] = 0x00606067;
@@ -364,6 +432,7 @@ internal int spec_unit_type_select(int build) {
         calls_fire[2] = 0x0060ABB0;
         calls_fire[3] = 0x0060B33C;
         of_unit_stats_type_data = 0x60;
+        of_unit_stats_gfx = 0x68;
         of_unit_stats_height = 0x98;
         of_unit_stats_range = 0x9C;
         of_unit_stats_area = 0xA0;
@@ -392,11 +461,13 @@ internal int spec_unit_type_select(int build) {
     case 1:   // aoc
         of_unit_type_vtable = 0x0;
         of_unit_type_name = 0x1C;
+        of_unit_type_refuel_at = 0x28;
         of_unit_type_impact_gfx = 0x68;
         of_unit_type_fire_gfx = 0x7C;
         of_unit_type_shot_gfx = 0xB4;
         of_unit_type_projectile = 0xF8;
         of_unit_type_model = 0x110;
+        of_unit_type_flight_altitude = 0x11C;
         of_unit_type_min_range = 0x120;
         of_unit_type_range = 0x124;
         of_unit_type_area = 0x128;
@@ -407,6 +478,7 @@ internal int spec_unit_type_select(int build) {
         of_unit_type_heading_offset = 0x15C;
         of_unit_type_mark_size = 0x168;
         of_unit_type_collision = 0x174;
+        of_unit_type_collider_size = 0x178;
         of_unit_type_class_id = 0x1B8;
         of_unit_type_id = 0x1BC;
         of_unit_type_damage_class = 0x1C4;
@@ -421,6 +493,7 @@ internal int spec_unit_type_select(int build) {
         of_unit_type_garrison_capacity = 0x250;
         of_unit_type_transport_size = 0x258;
         of_unit_type_hp = 0x25C;
+        of_unit_type_resource_type = 0x268;
         of_unit_type_missile_delay = 0x288;
         of_unit_type_size = 0x28C;
         of_unit_type_kind_flags = 0x2D0;
@@ -435,6 +508,11 @@ internal int spec_unit_type_select(int build) {
         of_unit_type_boards_land_transport = 0x2FE;
         of_unit_type_boards_ship = 0x2FF;
         of_unit_type_boards_fortress = 0x301;
+        of_unit_type_world_ownable = 0x306;
+        of_unit_type_is_tower = 0x310;
+        of_unit_type_deletable = 0x311;
+        of_unit_type_melee = 0x318;
+        of_unit_type_is_guard_tower = 0x31C;
         of_unit_type_behaviours = 0x31F;
         fn_unit_type_fire = (unit_type_fire_fn)0x00631312;
         calls_fire[0] = 0x00617838;
@@ -442,6 +520,7 @@ internal int spec_unit_type_select(int build) {
         calls_fire[2] = 0x0061D174;
         calls_fire[3] = 0x0061D997;
         of_unit_stats_type_data = 0x60;
+        of_unit_stats_gfx = 0x68;
         of_unit_stats_height = 0x98;
         of_unit_stats_range = 0x9C;
         of_unit_stats_area = 0xA0;

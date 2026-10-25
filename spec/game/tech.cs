@@ -52,6 +52,11 @@ unsafe struct EETechTreeNode
     [offset(0xC), found(c)]
     EETechTree* tree;
 
+    /// its button: the loader 0x5BD6A8 takes it from table 0x8CFA54 by the record's dbbuttons link (0x5BB037); the
+    /// command panel (0x651A19, 0x6585BF) reads its +0x20 as the button slot (0..0x5F)
+    [offset(0x10), found(c)]
+    void* button;
+
     /// the tech tree code's reads (unchanged)
     [offset(0x14), found(v)]
     int32 epoch;
@@ -89,6 +94,11 @@ unsafe struct ee_tech_data
     [offset(0x24), found(v)]
     block costs;
 
+    /// dbtechtree's "Calamity" (record +0xCC, both loaders): the status button (0x6573D3 / 0x657893) and the tooltip
+    /// give it to the calamity manager 0x8CF8D0 for category 5 techs
+    [offset(0x44), found(c)]
+    int32 calamity;
+
     /// (7: a line upgrade)
     /// the tech tree code's reads (unchanged)
     [offset(0x48), found(v)]
@@ -112,9 +122,24 @@ unsafe struct ee_tech_data
     [offset(0x6C), found(v)]
     int32 unit_type;
 
+    /// dbtechtree's "Language ID" (record +0xB8): the portrait (EEUICPortrait::vf8 0x642496) and the tooltip pass it to
+    /// resource_string as the name of a tech that is no object (an object's: its type's +0x560)
+    [offset(0x74), found(c)]
+    int32 name_string;
+
+    /// dbtechtree's "Is object?" (record +0xB4): request_requirements 0x4860D6 researches a tech with 0, else builds or
+    /// trains its unit type
+    [offset(0x7C), found(c)]
+    uint8 is_object;
+
     /// the tech tree code's reads (unchanged)
     [offset(0x7D), found(v)]
     uint8 counts;
+
+    /// dbtechtree's "Only in scenario" (record +0xF5): 0x5BB959 disables every tech with it - the start of
+    /// node.disabled
+    [offset(0x7F), found(c)]
+    uint8 scenario_only;
 
     /// AoC's epoch upgrades (standard only) grant only a tech with it set: dbtechtree byte 0xF7, clear on civ power and
     /// special unit upgrades (0 on all of the 2017 update's) - read in AoC only
@@ -131,6 +156,21 @@ unsafe struct EETechTree
     /// the epoch records, 0x54 apart (AoC: one more, its 0x4E4 one record on)
     [offset(0x8), found(s)]
     block epoch_recs;
+
+    /// int32 tech ids: 0x5BB8C5 sets each one available and calls its vf 0x18; tree setup 0x5BC173 runs it when its
+    /// second argument is set
+    [offset((ee)0x4A4, (aoc)0x4F8), found(c), guess]
+    vector enabled_techs;
+
+    /// int32 tech ids: the same function 0x5BB8C5 calls 0x5BF4C8(1, 1) on each (node +5 set, the tech's effects
+    /// applied) - a re-grant
+    [offset((ee)0x4B4, (aoc)0x508), found(c), guess]
+    vector granted_techs;
+
+    /// int32 tech ids: 0x5BB959 adds every tech whose data's scenario_only is set, then disables each (0x5BF3B3(1, 1),
+    /// passed on to the techs that need it)
+    [offset((ee)0x4C4, (aoc)0x518), found(c), guess]
+    vector disabled_techs;
 
     /// its player
     [offset((ee)0x4E0, (aoc)0x534), found(c)]

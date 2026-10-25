@@ -144,6 +144,11 @@ unsafe struct ee_plan_node
 [c_type("ee_resource_mgr")]
 unsafe struct EECPResourceManager
 {
+    /// uint16 ids into the world's table 0x917C34 (an entry: a count +0x1C, a region +0x80, vf 0x14 its nearest point):
+    /// find_wood 0x48C060 walks them and searches trees around the nearest one's point
+    [offset(0x78), found(c), guess]
+    vector forests;
+
     /// the animals to hunt
     /// its file's code (the resource manager)
     [offset(0x88), found(c)]
@@ -201,6 +206,11 @@ unsafe struct EECPResourceManager
     /// exploring all and its +0xEFD set)
     [offset(0x17C), found(c)]
     uint32 next_prune;
+
+    /// a byte per resource, saved and loaded as 7 bytes (0x48C9xx), cleared with target[7] (0x48C95A); update's prune
+    /// 0x48D263 clears 2..6; no other reader in either build
+    [offset(0x180), found(c), guess]
+    fixed uint8 resource_flags[7];
 
     /// (the timers reset while 0)
     /// its file's code (the resource manager)
@@ -338,6 +348,15 @@ unsafe struct EECPResearchManager
 /// the AI's unit manager, CM +0x44
 unsafe struct ee_unit_mgr
 {
+    /// the head (end sentinel) of its map type -> units (the map object 0x0..0xC): type_list 0x48F8AF compares
+    /// map::find's result (0x404CA6) with it, else returns the node's +0x10
+    [offset(0x4), found(c)]
+    void* types_head;
+
+    /// the map's size: 0x490866 calls type_list only while it is not 0
+    [offset(0x8), found(c), guess]
+    uint32 types_count;
+
     /// its file's code (the unit manager)
     [offset(0xC), found(c)]
     block requests;

@@ -30,6 +30,11 @@ unsafe struct EEPlayer
     [offset(0x465), found(c)]
     uint8 explore_all;
 
+    /// not the gaia player: the constructor stores index != 0 (0x55F8xx, AoC the same); set_diplomacy 0x55B8E1 acts
+    /// only when both players have it
+    [offset(0x466), found(c)]
+    uint8 not_gaia;
+
     /// out of the game (resigned, defeated)
     [offset(0x467), found(c)]
     uint8 @out;
@@ -48,6 +53,11 @@ unsafe struct EEPlayer
     [offset((ee)0x874, (aoc)0x884), found(b)]
     block type_stats;
 
+    /// int32 kinds: 0x5564FB adds a finished building's type +0x5B4 (dbobjects' "Wonder bonus") here; set_diplomacy
+    /// looks for kind 5 and refreshes the shared sight (0x559472 / 0x5545E3), 0x52D4xx for kind 4
+    [offset(0x8EC), found(c), guess]
+    vector wonder_bonuses;
+
     /// itself as a computer player (the computer player's constructor's dynamic cast), NULL for a human
     [offset((ee)0x9B4, (aoc)0x9A4), found(c)]
     EEComputerPlayer* computer;
@@ -55,8 +65,28 @@ unsafe struct EEPlayer
     [offset((ee)0x9BC, (aoc)0x9AC), found(c)]
     int32* selected_group;
 
+    /// the UI's copy of selected_group (the same class, vtable 0x82D224): 0x55636C swaps it in for one command,
+    /// 0x4B0000 copies selected_group back when the server's command returns; the mouse click and hover code read it
+    [offset((ee)0x9C0, (aoc)0x9B0), found(c), guess]
+    void* ui_group;
+
+    /// the unit set of a wonder bonus 6 (0x40DD73 of its type's +0x5B8, "Effect apply to"), set when such a building is
+    /// finished (0x556xxx) with +0xB42 = 1; the player's init zeroes it
+    [offset((ee)0x9C8, (aoc)0x9B8), found(c), guess]
+    void* wonder_unit_set;
+
     [offset((ee)0x9D4, (aoc)0x9CC), found(c)]
     EETechTree* tech_tree;
+
+    /// a single selected unit beside selected_group (refcounted at +4): its setter 0x55BB9F clears selected_group,
+    /// 0x559E80 clears it on a deselect, set_diplomacy drops it when its owner turns hostile
+    [offset((ee)0x9D8, (aoc)0x9D0), found(c), guess]
+    EEUnit* selected_unit;
+
+    /// the UI's copy of selected_unit, as ui_group of selected_group: setter 0x55BB7C, 0x55636C and 0x4B0000 set it
+    /// from selected_unit; the hover code compares it with the unit under the mouse
+    [offset((ee)0x9DC, (aoc)0x9D4), found(c), guess]
+    EEUnit* ui_unit;
 
     [offset((ee)0x9E0, (aoc)0x9D8), found(c)]
     int32 chat_to;
@@ -108,6 +138,11 @@ unsafe struct EEPlayer
 
     [offset((ee)0xB2C, (aoc)0xB30), found(b)]
     block chat_to_player;
+
+    /// the cheat 0xD toggles it (0x520F75; its string 30633 "Brainstorm"), build time and cost code read it (0x600xxx,
+    /// 0x624DF8, 0x5592xx)
+    [offset((ee)0xB41, (aoc)0xB45), found(c), guess]
+    uint8 instant_build;
 
     /// (0: the civ dialog opens)
     [offset((ee)0xB46, (aoc)0xB4A), found(v)]

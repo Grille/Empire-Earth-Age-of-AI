@@ -17,7 +17,8 @@ for f in sorted(os.listdir(GEN)):
             guesses.append(cur)
         elif state == 'doc' and line.startswith('//'):
             cur[0] = cur[0] or line[2:].strip()
-        elif state and FN.match(line):
+        elif state and FN.match(line) and (state == 'doc' or of in line):   # the guess's own accessors only
+            of = state == 'doc' and re.search(r'\bof_\w+', line).group(0) or of
             cur[1].append(FN.match(line).group(1))
             state = 'fn'
         elif state:

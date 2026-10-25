@@ -37,6 +37,11 @@ unsafe struct RTSUnit
     [offset(0x24), found(c)]
     int32 serial;
 
+    /// the scenario editor's selection: its select 0x58E1E7 sets 1, its mouse and lasso actions (EESEAMouseClick::vf1
+    /// 0x5972DB, 0x5971B6) select a unit with 0 and deselect one with 1
+    [offset(0x29), found(c), guess]
+    uint8 selected;
+
     /// back in the pool (vf12 sets it)
     [offset(0x2A), found(c)]
     uint8 released;
@@ -135,6 +140,12 @@ unsafe struct EEUnit
     /// orders, the front the current, shift appends
     [address((ee)0x005F3473, (aoc)0x005FA1CD)]
     extern void* goal_queue(int32 slot);
+
+    /// bits 0..1 a phase (game seconds modulo 3), bit 5 while a live unit with +0x346 or a moving ambient object stands
+    /// next to it: EEUnit::vf16 0x61648E checks it again every 3 s and returns 1 while bit 5 is set; the constructor
+    /// 0x616BDD clears it
+    [offset(0x44), found(c), guess]
+    uint8 neighbour_flags;
 }
 
 /// a unit, building, ship or projectile: everything on the map that moves or is built
@@ -154,6 +165,16 @@ unsafe struct EEComplexUnit
 
     [offset(0x68), found(c)]
     int32 busy;
+
+    /// the head of its contact list (nodes {unit, prev, next}): 0x5E8B77 adds, 0x5EF0AD removes, 0x5F23E9 clears it
+    /// with contacts_count; the constructor 0x5E8394 zeroes both
+    [offset(0xC4), found(c)]
+    void* contacts;
+
+    /// the count of contacts (0x5F240E adds one): model_collide (EEPhysicsModel::vf18 0x549E61, AoC vf19) runs only
+    /// while it is not 0 or a blocked time is left
+    [offset(0xC8), found(c)]
+    int32 contacts_count;
 
     /// its height: its stats' height x scale (airplanes recompute it each tick; the scenario's attribute 0xD adds to
     /// it)
@@ -240,6 +261,24 @@ unsafe struct EEComplexUnit
     [offset(0x208), found(c)]
     void* behaviour;
 
+    /// a unit it is stuck against, referenced (0x5EFF37 releases the old one): the contact test (EEPhysicsModel::vf16
+    /// 0x548A3C, EEPMNaval::vf16) sets it while its collision_state is 0 and the other stands, and clears it when the
+    /// contact resolves; the re-path EEUnitClass::vf53 0x6225E7 avoids its tiles
+    [offset(0x20C), found(c)]
+    EEComplexUnit* blocker;
+
+    /// init 2 pi or a random 0..2 pi; helicopters (EEPMHelicopter::vf2 0x54C45C) and ships (EEPMNaval::vf2 0x54ECF5)
+    /// advance it each step and wrap it at 2 pi - cos(it) x type +0x48C their bobbing, type +0x490 a ship's rocking;
+    /// airplanes keep their bank angle here (EEPMAirplane::vf23 0x55108F)
+    [offset(0x220), found(c), guess]
+    float32 bob_phase;
+
+    /// seconds to its next heal search: state 16000 (EEUnitClass::vf29 0x61AD41) looks for a unit in sight to heal
+    /// (EEUGHealUnit) and resets it to type +0x4A4; 0x600822 counts it down by the step (EEUCBasicPriest::vf45,
+    /// EEUCLand::vf45)
+    [offset(0x22C), found(c), guess]
+    float32 heal_search_s;
+
     /// the push velocity (tiles/s)
     /// the push velocity {x, y} (tiles/s; the collision test adds, movement.slot_pm_push moves the unit by it x a step x
     /// game.phys_substeps and zeroes it) - model_collide in both builds
@@ -249,6 +288,17 @@ unsafe struct EEComplexUnit
     /// ms in an unresolved collision (the dump's Coll Resolut Cnt): + a step's ms each pushed step, 0 when it resolves
     [offset(0x248), found(c)]
     float32 blocked_ms;
+
+    /// the tile setter 0x616F9D copies blocked_ms here and zeroes blocked_ms; on the next tile change with blocked_ms 0
+    /// the model step (EEPhysicsModel::vf3 0x549A08) puts it back + step_ms, so the blocked time carries over tiles
+    /// (AoC's new field is +0x250, this one stays)
+    [offset(0x24C), found(c)]
+    float32 blocked_ms_prev;
+
+    /// game time (EEPhysics +0xD0): 0x5F0F7E asks its AI state (goalset_ask) while it isn't idle or the time is not
+    /// past this, and while idle sets it to now + 350; entering idle (vf29 state 5000) sets -1
+    [offset((ee)0x254, (aoc)0x258), found(c), guess]
+    uint32 idle_ask_until;
 
     /// its animation's sound (the animation setter 0x5EFD6D)
     [offset((ee)0x258, (aoc)0x25C), found(c)]
@@ -276,13 +326,27 @@ unsafe struct EEComplexUnit
     [offset((ee)0x278, (aoc)0x27C), found(c)]
     int32 crew_hp;
 
+    /// a building's work left on its production: the start 0x5EF9FF sets the item's time x rate (1 with the player's
+    /// instant_build), 0x5EF6A7 zeroes it when done, the progress bar 0x64297D draws the total minus it
+    [offset((ee)0x27C, (aoc)0x280), found(c), guess]
+    int32 produce_left;
+
     /// room taken inside it: its occupants' transport sizes, at most its type's garrison_capacity
     [offset((ee)0x284, (aoc)0x288), found(c)]
     int32 garrisoned;
 
+    /// beside garrisoned: entering (0x5E8830) adds the occupant type's slot 27 (0x6C, its transport size), 0x5E88C6
+    /// sets it, 0x5EB0C4 zeroes both; only passed on, never read for its value (0x46CA7E, 0x5B8823 attribute 9)
+    [offset((ee)0x288, (aoc)0x28C), found(c), guess]
+    int32 garrison_load;
+
     /// a missile's climb left (ms)
     [offset((ee)0x28C, (aoc)0x290), found(c)]
     int32 flight_ms;
+
+    /// its index in the movement group's slot list, set by the group dispatch 0x5DB641; init 1
+    [offset((ee)0x298, (aoc)0x29C), found(c), guess]
+    int32 group_index;
 
     /// its hit points at the start of its tick (a script condition compares them to see a hit)
     [offset((ee)0x29C, (aoc)0x2A0), found(c)]
@@ -297,15 +361,31 @@ unsafe struct EEComplexUnit
     [offset((ee)0x2A4, (aoc)0x2A8), found(c)]
     int32 room;
 
+    /// the out-of-synch dump's "Rotting Away Time" (0x5EBA48): set to its type's rot time (+0x548) when it dies (state
+    /// 0x1772, 0x607B11); the scenario attribute 0xF changes it
+    [offset((ee)0x2A8, (aoc)0x2AC), found(c)]
+    int32 rot_ms;
+
     /// ms until it next looks for a target: counted down by a step's ms, reset to type +0x564 after a search; an
     /// attack-move zeroes it
     [offset((ee)0x2AC, (aoc)0x2B0), found(c)]
     int32 scan_ms;
 
+    /// a priest's or prophet's power: Cast Calamity (EEMCastCalamity::vf10 0x4B455D) casts only when the calamity's
+    /// cost is within it; EEUCBasicPriest::vf45 regenerates it, the scenario attribute 0xE sets it in percent of stats
+    /// +0x148, the status box shows it
+    [offset((ee)0x2D0, (aoc)0x2D4), found(c)]
+    int32 power;
+
     /// set while it moves
     /// set while it moves (model_collide's first test in both builds)
     [offset((ee)0x2D8, (aoc)0x2DC), found(c)]
     int32 moving;
+
+    /// the group dispatch 0x5DB641 sets round(group_index / members x 4), 0..4; the group's auto waypoints (0x5F0844)
+    /// take rank / 5 x [0x917DC8] as their threshold when type +0x5D4 has bit 4
+    [offset((ee)0x2DC, (aoc)0x2E0), found(c), guess]
+    int32 group_rank;
 
     /// EEPMNaval::vf21's step test (0x550300 / AoC 0x55xxxx's read of +0x2E4) against TILE_SEA_CLASS
     [offset((ee)0x2E0, (aoc)0x2E4), found(c)]
@@ -314,6 +394,11 @@ unsafe struct EEComplexUnit
     /// ammunition left (the dump's Ammunition): its type's +0x5A0 on rearming
     [offset((ee)0x2E4, (aoc)0x2E8), found(c)]
     int32 ammo;
+
+    /// the fire point of the next shot: fire 0x61E11C steps it (+1 modulo the fire points), 0x5FC749 looks up the
+    /// projectile's start by it, EEE2DMuzzleFlash::vf12 reads it
+    [offset((ee)0x2E8, (aoc)0x2EC), found(c), guess]
+    int32 muzzle;
 
     /// ms into the current frame (or the hold): + a step's ms each tick, 0 at a new animation
     [offset((ee)0x2FC, (aoc)0x300), found(c)]
@@ -326,6 +411,27 @@ unsafe struct EEComplexUnit
     /// the animation's next frame (the setter 0x5EFD6D)
     [offset((ee)0x308, (aoc)0x30C), found(c)]
     int32 next_frame;
+
+    /// game time: the ship contact test EEPMNaval::vf16 0x54F84C sets now + 5000 when both ships stand and pushes them
+    /// apart; till then contacts with it take the push branch
+    [offset((ee)0x320, (aoc)0x324), found(c), guess]
+    uint32 nudge_until;
+
+    /// the out-of-synch dump's "Collision State" (0x5EB998): 0, 2 or 8 - at 2 the contact test 0x548A3C gives up (state
+    /// 5000 / 0xFA6, move_mode 6) and resets it; about 12 movement model functions read it
+    [offset((ee)0x330, (aoc)0x33C), found(c)]
+    uint16 collision_state;
+
+    /// init 1, set from its type's deletable (0x5B1F5B, 0x5B32CB) and cleared while frozen (0x5AF0BB): 0x5EC2C3 returns
+    /// it and EEMKillUnit::vf10 0x4B7ED0 deletes only units it allows; the calamities' functors (fire, plague,
+    /// hurricane) test it too
+    [offset((ee)0x334, (aoc)0x340), found(c), guess]
+    uint8 deletable;
+
+    /// init 1, the freeze effect 0x5AF0BB sets it to !frozen: the group orders (0x5DD463) skip members without it,
+    /// transports refuse them (EEUCTransport::vf63)
+    [offset((ee)0x335, (aoc)0x341), found(c), guess]
+    uint8 commandable;
 
     /// an airplane's landing or takeoff clearance granted (the dump's Clearance granted)
     [offset((ee)0x336, (aoc)0x342), found(c)]
@@ -343,6 +449,11 @@ unsafe struct EEComplexUnit
     [offset((ee)0x33C, (aoc)0x348), found(c)]
     uint8 gate_locked;
 
+    /// init 1, set when a path search for it finishes (0x4A24E1, 0x4A2B29, 0x4A32C0): the move state 8000's test
+    /// (EEUnitClass::vf39 0x61BE4B) and EECPASGLand::vf127 wait for it; no write of 0 outside save and load
+    [offset((ee)0x33E, (aoc)0x34A), found(c), guess]
+    uint8 path_done;
+
     /// set each physics tick by its type's arrival test (slot 34, the distance to the waypoint), cleared when it stops
     [offset((ee)0x33F, (aoc)0x34B), found(c)]
     uint8 arrived;
@@ -353,6 +464,17 @@ unsafe struct EEComplexUnit
 
     [offset((ee)0x341, (aoc)0x34D), found(c)]
     uint8 ai_held;
+
+    /// set when its projectile hits a target of unit group 0x2A (0x61F6A4): with the stats' flag +0x15C it then attacks
+    /// with animation 8 for 0 and 1.5 x its reload (EEUGAttackUnit::vf16, fire 0x61E19F), its splash skipping victims;
+    /// a new goal clears it (assign_goal 0x5F05BD)
+    [offset((ee)0x342, (aoc)0x34E), found(c), guess]
+    uint8 alt_attack;
+
+    /// a building that is only a foundation yet: vf32 0x5F34EB sets it, vf22 0x5F3487 returns it; vf25 0x5ED737 shows
+    /// the foundation's model by it (0x62C5C3), vf21 returns the foundation's stats instead of its own
+    [offset((ee)0x345, (aoc)0x351), found(c)]
+    uint8 foundation;
 
     /// at work (the contact test passes it on a kind 6 / 4 goal)
     /// set while at work (byte): the contact test passes a unit with it on a kind 6 or 4 goal, but for one at the same

@@ -6,10 +6,20 @@ unsafe struct EEUnitGoal
     [offset(0x5), found(b)]
     uint8 state;
 
+    /// 0 from the base constructor 0x6283AB: +1 per path request for the goal (EEUnitClass::vf52 0x6222A8), +8 per
+    /// detour waypoint pair (vf53 0x6225E7)
+    [offset(0x18), found(c), guess]
+    int32 path_tries;
+
     /// 1 for a goal from an order (commands, the AI), 0 for the unit's own (its target search); the guard return skips
     /// an ordered one
     [offset(0x1C), found(c)]
     uint8 ordered;
+
+    /// 0 from the base constructor; the group dispatch 0x5DB641 (and 0x5E94C1, 0x5EF6A7) sets 1 on each member's goal:
+    /// vf52 asks EEPathManager::request for a sector route only without it
+    [offset(0x1D), found(c), guess]
+    uint8 no_sectors;
 
     [offset(0x20), found(c)]
     float32 dest_x;
@@ -198,6 +208,32 @@ static unsafe class goal
     /// EEUGUnloadTransport (new 0x40, ctor 0x615A1F(transport, x, y, flag))
     [address((ee)0x00831F5C, (aoc)0x008479A0)]
     static vftable vt_goal_unload;
+}
+
+/// the attack-a-unit goal (EEUGAttackUnit, 0x40 bytes; its constructor 0x60AD45 sets the attacker +0x2C, the target
+/// +0x30 and the target's tile +0x34 / +0x38)
+[@base(typeof(EEUnitGoal)), vtable((ee)0x00831968, (aoc)0x00847380)]
+unsafe struct EEUGAttackUnit
+{
+    /// the unit it attacks, referenced (the constructor 0x60AD45); its readers take the target's hp, type and stats
+    /// (0x5F1214, EEUCMissile / EEUCProjectile::vf39, 0x61B677)
+    [offset(0x30), found(c)]
+    EEUnit* target;
+}
+
+/// the gather goal (EEUGGather)
+[@base(typeof(EEUnitGoal)), vtable((ee)0x00831B80, (aoc)0x008475A8)]
+unsafe struct EEUGGather
+{
+    /// 1 once it has found a drop-off and heads there (state 0x1F48, 0x6106F9), cleared at 0x610A3D, 0x610BB6 and in
+    /// vf20: vf18 0x611065 takes the drop-off's reach test while it is set; the script condition 0x138F returns it
+    [offset(0x40), found(c), guess]
+    uint8 returning;
+
+    /// 0x610BB6 sets 1 (returning 0) to walk to its spot at dest_x / dest_y: vf18 then tests the distance to it instead
+    /// of the reach; the script condition 0x139B returns it
+    [offset(0x41), found(c), guess]
+    uint8 to_spot;
 }
 
 /// the game's functions goal.c wraps, by the names the C side gives them

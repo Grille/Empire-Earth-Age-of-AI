@@ -28,6 +28,11 @@ internal inline int8_t *player_msg_id_at(const ee_player *o) { return (int8_t *)
 internal inline uint8_t player_get_explore_all(const ee_player *o) { return *(uint8_t *)((uint8_t *)o + of_player_explore_all); }
 internal inline void player_set_explore_all(ee_player *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_player_explore_all) = v; }
 internal inline uint8_t *player_explore_all_at(const ee_player *o) { return (uint8_t *)((uint8_t *)o + of_player_explore_all); }
+// not the gaia player: the constructor stores index != 0 (0x55F8xx, AoC the same); set_diplomacy 0x55B8E1 acts
+// only when both players have it
+internal inline uint8_t player_get_not_gaia(const ee_player *o) { return *(uint8_t *)((uint8_t *)o + of_player_not_gaia); }
+internal inline void player_set_not_gaia(ee_player *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_player_not_gaia) = v; }
+internal inline uint8_t *player_not_gaia_at(const ee_player *o) { return (uint8_t *)((uint8_t *)o + of_player_not_gaia); }
 // out of the game (resigned, defeated)
 internal inline uint8_t player_get_out(const ee_player *o) { return *(uint8_t *)((uint8_t *)o + of_player_out); }
 internal inline void player_set_out(ee_player *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_player_out) = v; }
@@ -40,6 +45,10 @@ internal inline const char *player_get_civ_name_en(const ee_player *o) { return 
 internal inline void player_set_civ_name_en(ee_player *o, const char *v) { *(const char **)((uint8_t *)o + of_player_civ_name_en) = v; }
 internal inline const char **player_civ_name_en_at(const ee_player *o) { return (const char **)((uint8_t *)o + of_player_civ_name_en); }
 internal inline uint8_t *player_type_stats_at(const ee_player *o) { return (uint8_t *)o + of_player_type_stats; }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// int32 kinds: 0x5564FB adds a finished building's type +0x5B4 (dbobjects' "Wonder bonus") here; set_diplomacy
+// looks for kind 5 and refreshes the shared sight (0x559472 / 0x5545E3), 0x52D4xx for kind 4
+internal inline uint8_t *player_wonder_bonuses_at(const ee_player *o) { return (uint8_t *)o + of_player_wonder_bonuses; }
 // itself as a computer player (the computer player's constructor's dynamic cast), NULL for a human
 internal inline ee_player *player_get_computer(const ee_player *o) { return *(ee_player **)((uint8_t *)o + of_player_computer); }
 internal inline void player_set_computer(ee_player *o, ee_player *v) { *(ee_player **)((uint8_t *)o + of_player_computer) = v; }
@@ -47,9 +56,33 @@ internal inline ee_player **player_computer_at(const ee_player *o) { return (ee_
 internal inline int *player_get_selected_group(const ee_player *o) { return *(int **)((uint8_t *)o + of_player_selected_group); }
 internal inline void player_set_selected_group(ee_player *o, int *v) { *(int **)((uint8_t *)o + of_player_selected_group) = v; }
 internal inline int **player_selected_group_at(const ee_player *o) { return (int **)((uint8_t *)o + of_player_selected_group); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// the UI's copy of selected_group (the same class, vtable 0x82D224): 0x55636C swaps it in for one command,
+// 0x4B0000 copies selected_group back when the server's command returns; the mouse click and hover code read it
+internal inline void *player_get_ui_group(const ee_player *o) { return *(void **)((uint8_t *)o + of_player_ui_group); }
+internal inline void player_set_ui_group(ee_player *o, void *v) { *(void **)((uint8_t *)o + of_player_ui_group) = v; }
+internal inline void **player_ui_group_at(const ee_player *o) { return (void **)((uint8_t *)o + of_player_ui_group); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// the unit set of a wonder bonus 6 (0x40DD73 of its type's +0x5B8, "Effect apply to"), set when such a building is
+// finished (0x556xxx) with +0xB42 = 1; the player's init zeroes it
+internal inline void *player_get_wonder_unit_set(const ee_player *o) { return *(void **)((uint8_t *)o + of_player_wonder_unit_set); }
+internal inline void player_set_wonder_unit_set(ee_player *o, void *v) { *(void **)((uint8_t *)o + of_player_wonder_unit_set) = v; }
+internal inline void **player_wonder_unit_set_at(const ee_player *o) { return (void **)((uint8_t *)o + of_player_wonder_unit_set); }
 internal inline ee_tech_tree *player_get_tech_tree(const ee_player *o) { return *(ee_tech_tree **)((uint8_t *)o + of_player_tech_tree); }
 internal inline void player_set_tech_tree(ee_player *o, ee_tech_tree *v) { *(ee_tech_tree **)((uint8_t *)o + of_player_tech_tree) = v; }
 internal inline ee_tech_tree **player_tech_tree_at(const ee_player *o) { return (ee_tech_tree **)((uint8_t *)o + of_player_tech_tree); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// a single selected unit beside selected_group (refcounted at +4): its setter 0x55BB9F clears selected_group,
+// 0x559E80 clears it on a deselect, set_diplomacy drops it when its owner turns hostile
+internal inline ee_unit *player_get_selected_unit(const ee_player *o) { return *(ee_unit **)((uint8_t *)o + of_player_selected_unit); }
+internal inline void player_set_selected_unit(ee_player *o, ee_unit *v) { *(ee_unit **)((uint8_t *)o + of_player_selected_unit) = v; }
+internal inline ee_unit **player_selected_unit_at(const ee_player *o) { return (ee_unit **)((uint8_t *)o + of_player_selected_unit); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// the UI's copy of selected_unit, as ui_group of selected_group: setter 0x55BB7C, 0x55636C and 0x4B0000 set it
+// from selected_unit; the hover code compares it with the unit under the mouse
+internal inline ee_unit *player_get_ui_unit(const ee_player *o) { return *(ee_unit **)((uint8_t *)o + of_player_ui_unit); }
+internal inline void player_set_ui_unit(ee_player *o, ee_unit *v) { *(ee_unit **)((uint8_t *)o + of_player_ui_unit) = v; }
+internal inline ee_unit **player_ui_unit_at(const ee_player *o) { return (ee_unit **)((uint8_t *)o + of_player_ui_unit); }
 internal inline int player_get_chat_to(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_chat_to); }
 internal inline void player_set_chat_to(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_chat_to) = v; }
 internal inline int *player_chat_to_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_chat_to); }
@@ -97,6 +130,12 @@ internal inline int player_get_pop_b20(const ee_player *o) { return *(int *)((ui
 internal inline void player_set_pop_b20(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_pop_b20) = v; }
 internal inline int *player_pop_b20_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_pop_b20); }
 internal inline uint8_t *player_chat_to_player_at(const ee_player *o) { return (uint8_t *)o + of_player_chat_to_player; }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// the cheat 0xD toggles it (0x520F75; its string 30633 "Brainstorm"), build time and cost code read it (0x600xxx,
+// 0x624DF8, 0x5592xx)
+internal inline uint8_t player_get_instant_build(const ee_player *o) { return *(uint8_t *)((uint8_t *)o + of_player_instant_build); }
+internal inline void player_set_instant_build(ee_player *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_player_instant_build) = v; }
+internal inline uint8_t *player_instant_build_at(const ee_player *o) { return (uint8_t *)((uint8_t *)o + of_player_instant_build); }
 // (0: the civ dialog opens)
 internal inline uint8_t player_get_civ_chosen(const ee_player *o) { return *(uint8_t *)((uint8_t *)o + of_player_civ_chosen); }
 internal inline void player_set_civ_chosen(ee_player *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_player_civ_chosen) = v; }
@@ -1025,14 +1064,20 @@ internal int spec_player_select(int build) {
         of_player_unit_count = 0x460;
         of_player_msg_id = 0x464;
         of_player_explore_all = 0x465;
+        of_player_not_gaia = 0x466;
         of_player_out = 0x467;
         of_player_civ_name = 0x488;
         of_player_stats = 0x4A8;
         of_player_civ_name_en = 0x7B0;
         of_player_type_stats = 0x874;
+        of_player_wonder_bonuses = 0x8EC;
         of_player_computer = 0x9B4;
         of_player_selected_group = 0x9BC;
+        of_player_ui_group = 0x9C0;
+        of_player_wonder_unit_set = 0x9C8;
         of_player_tech_tree = 0x9D4;
+        of_player_selected_unit = 0x9D8;
+        of_player_ui_unit = 0x9DC;
         of_player_chat_to = 0x9E0;
         of_player_stance = 0x9E4;
         of_player_strategy = 0xA28;
@@ -1047,6 +1092,7 @@ internal int spec_player_select(int build) {
         of_player_pop_b1c = 0xB1C;
         of_player_pop_b20 = 0xB20;
         of_player_chat_to_player = 0xB2C;
+        of_player_instant_build = 0xB41;
         of_player_civ_chosen = 0xB46;
         of_player_zones_begin = 0xB50;
         of_player_zones_end = 0xB54;
@@ -1286,14 +1332,20 @@ internal int spec_player_select(int build) {
         of_player_unit_count = 0x460;
         of_player_msg_id = 0x464;
         of_player_explore_all = 0x465;
+        of_player_not_gaia = 0x466;
         of_player_out = 0x467;
         of_player_civ_name = 0x488;
         of_player_stats = 0x4A8;
         of_player_civ_name_en = 0x7B0;
         of_player_type_stats = 0x884;
+        of_player_wonder_bonuses = 0x8EC;
         of_player_computer = 0x9A4;
         of_player_selected_group = 0x9AC;
+        of_player_ui_group = 0x9B0;
+        of_player_wonder_unit_set = 0x9B8;
         of_player_tech_tree = 0x9CC;
+        of_player_selected_unit = 0x9D0;
+        of_player_ui_unit = 0x9D4;
         of_player_chat_to = 0x9D8;
         of_player_stance = 0x9DC;
         of_player_strategy = 0xA20;
@@ -1308,6 +1360,7 @@ internal int spec_player_select(int build) {
         of_player_pop_b1c = 0xB20;
         of_player_pop_b20 = 0xB24;
         of_player_chat_to_player = 0xB30;
+        of_player_instant_build = 0xB45;
         of_player_civ_chosen = 0xB4A;
         of_player_zones_begin = 0xB84;
         of_player_zones_end = 0xB88;

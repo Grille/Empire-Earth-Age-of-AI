@@ -3,8 +3,29 @@
 
 // class EEScenarioManager (ee_scen_mgr)
 // the scenario manager (EEScenarioManager; test/scen.c)
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// a 4x4 matrix: the cinematic's start 0x5A1CDA saves the camera's rotation (quaternion camera +0x4C, 0x51D4CA)
+// here, its end 0x5A18D0 restores it (0x51EA3E)
+internal inline uint8_t *scen_mgr_cam_rot_at(const ee_scen_mgr *o) { return (uint8_t *)o + of_scen_mgr_cam_rot; }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// the same for the camera's quaternion +0x5C (0x51D528 saves, 0x51EAF7 restores)
+internal inline uint8_t *scen_mgr_cam_rot_2_at(const ee_scen_mgr *o) { return (uint8_t *)o + of_scen_mgr_cam_rot_2; }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// the camera's eye saved at a cinematic's start (0x51D46C), restored at its end (0x51E988)
+internal inline vec3 scen_mgr_get_cam_eye(const ee_scen_mgr *o) { return *(vec3 *)((uint8_t *)o + of_scen_mgr_cam_eye); }
+internal inline void scen_mgr_set_cam_eye(ee_scen_mgr *o, vec3 v) { *(vec3 *)((uint8_t *)o + of_scen_mgr_cam_eye) = v; }
+internal inline vec3 *scen_mgr_cam_eye_at(const ee_scen_mgr *o) { return (vec3 *)((uint8_t *)o + of_scen_mgr_cam_eye); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// the camera's look-at point saved at a cinematic's start (0x51D56A), restored at its end (0x51EC85)
+internal inline vec3 scen_mgr_get_cam_look(const ee_scen_mgr *o) { return *(vec3 *)((uint8_t *)o + of_scen_mgr_cam_look); }
+internal inline void scen_mgr_set_cam_look(ee_scen_mgr *o, vec3 v) { *(vec3 *)((uint8_t *)o + of_scen_mgr_cam_look) = v; }
+internal inline vec3 *scen_mgr_cam_look_at(const ee_scen_mgr *o) { return (vec3 *)((uint8_t *)o + of_scen_mgr_cam_look); }
 // its file's code (the scenario manager)
 internal inline uint8_t *scen_mgr_chat_at(const ee_scen_mgr *o) { return (uint8_t *)o + of_scen_mgr_chat; }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// {player index, type id} pairs of 8 bytes: vf7 0x5A26AC unloads each type's media for its player ("Scenario:
+// Unloading Media for")
+internal inline uint8_t *scen_mgr_media_loaded_at(const ee_scen_mgr *o) { return (uint8_t *)o + of_scen_mgr_media_loaded; }
 // its file's code (the scenario manager)
 internal inline uint8_t *scen_mgr_triggers_at(const ee_scen_mgr *o) { return (uint8_t *)o + of_scen_mgr_triggers; }
 // its file's code (the scenario manager)
@@ -15,8 +36,16 @@ internal inline uint8_t *scen_mgr_effects_at(const ee_scen_mgr *o) { return (uin
 internal inline uint8_t *scen_mgr_objects_at(const ee_scen_mgr *o) { return (uint8_t *)o + of_scen_mgr_objects; }
 // its file's code (the scenario manager)
 internal inline uint8_t *scen_mgr_areas_at(const ee_scen_mgr *o) { return (uint8_t *)o + of_scen_mgr_areas; }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// 64-byte records (a unit id +0x38, an int +0x2C, a cinematic byte +0x3C): 0x5A45CA takes one per call and points
+// the camera at the unit (0x51DDD7); a cinematic's start drops those of +0x3C 0, its end those of 1
+internal inline uint8_t *scen_mgr_camera_queue_at(const ee_scen_mgr *o) { return (uint8_t *)o + of_scen_mgr_camera_queue; }
 // its file's code (the scenario manager)
 internal inline uint8_t *scen_mgr_queue_at(const ee_scen_mgr *o) { return (uint8_t *)o + of_scen_mgr_queue; }
+// game.scroll_speed at a cinematic's start (0x5A1CDA), given back at its end through 0x51F2F3 (0x5A18D0)
+internal inline float scen_mgr_get_saved_scroll_speed(const ee_scen_mgr *o) { return *(float *)((uint8_t *)o + of_scen_mgr_saved_scroll_speed); }
+internal inline void scen_mgr_set_saved_scroll_speed(ee_scen_mgr *o, float v) { *(float *)((uint8_t *)o + of_scen_mgr_saved_scroll_speed) = v; }
+internal inline float *scen_mgr_saved_scroll_speed_at(const ee_scen_mgr *o) { return (float *)((uint8_t *)o + of_scen_mgr_saved_scroll_speed); }
 // ms
 // its file's code (the scenario manager)
 internal inline float scen_mgr_get_time(const ee_scen_mgr *o) { return *(float *)((uint8_t *)o + of_scen_mgr_time); }
@@ -637,13 +666,20 @@ internal inline uint8_t *scenario_sm_step_at(void) { return (uint8_t *)(uintptr_
 internal int spec_scenario_select(int build) {
     switch (build) {
     case 0:   // ee
+        of_scen_mgr_cam_rot = 0x8;
+        of_scen_mgr_cam_rot_2 = 0x48;
+        of_scen_mgr_cam_eye = 0x88;
+        of_scen_mgr_cam_look = 0x94;
         of_scen_mgr_chat = 0xC0;
+        of_scen_mgr_media_loaded = 0xD8;
         of_scen_mgr_triggers = 0xE8;
         of_scen_mgr_conds = 0xF8;
         of_scen_mgr_effects = 0x108;
         of_scen_mgr_objects = 0x118;
         of_scen_mgr_areas = 0x128;
+        of_scen_mgr_camera_queue = 0x148;
         of_scen_mgr_queue = 0x168;
+        of_scen_mgr_saved_scroll_speed = 0x204;
         of_scen_mgr_time = 0x210;
         fn_scen_mgr_area = (scen_mgr_area_fn)0x0056DFB7;
         fn_scen_mgr_cond = (scen_mgr_cond_fn)0x0056D186;
@@ -792,13 +828,20 @@ internal int spec_scenario_select(int build) {
         data_scenario_sm_step = 0x008306DC;
         return 0;
     case 1:   // aoc
+        of_scen_mgr_cam_rot = 0x8;
+        of_scen_mgr_cam_rot_2 = 0x48;
+        of_scen_mgr_cam_eye = 0x88;
+        of_scen_mgr_cam_look = 0x94;
         of_scen_mgr_chat = 0xC0;
+        of_scen_mgr_media_loaded = 0xD8;
         of_scen_mgr_triggers = 0xE8;
         of_scen_mgr_conds = 0xF8;
         of_scen_mgr_effects = 0x108;
         of_scen_mgr_objects = 0x118;
         of_scen_mgr_areas = 0x128;
+        of_scen_mgr_camera_queue = 0x148;
         of_scen_mgr_queue = 0x168;
+        of_scen_mgr_saved_scroll_speed = 0x204;
         of_scen_mgr_time = 0x210;
         fn_scen_mgr_area = (scen_mgr_area_fn)0x0057DA08;
         fn_scen_mgr_cond = (scen_mgr_cond_fn)0x0057CADF;

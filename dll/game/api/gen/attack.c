@@ -87,6 +87,19 @@ internal inline ee_player **attack_subgroup_target_at(const ee_attack_subgroup *
 internal inline int attack_subgroup_get_mission(const ee_attack_subgroup *o) { return *(int *)((uint8_t *)o + of_attack_subgroup_mission); }
 internal inline void attack_subgroup_set_mission(ee_attack_subgroup *o, int v) { *(int *)((uint8_t *)o + of_attack_subgroup_mission) = v; }
 internal inline int *attack_subgroup_mission_at(const ee_attack_subgroup *o) { return (int *)((uint8_t *)o + of_attack_subgroup_mission); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// its task's +0x2C (the task embedded at +0xFC; the combat manager sets 2 or 3 there, 0x46F289, 0x46F4FF,
+// 0x47111D, 0x472427): route_done (0x44BDBF) drops up to 7 waypoints at once when it is 3 or the mission 10
+internal inline int attack_subgroup_get_task_kind(const ee_attack_subgroup *o) { return *(int *)((uint8_t *)o + of_attack_subgroup_task_kind); }
+internal inline void attack_subgroup_set_task_kind(ee_attack_subgroup *o, int v) { *(int *)((uint8_t *)o + of_attack_subgroup_task_kind) = v; }
+internal inline int *attack_subgroup_task_kind_at(const ee_attack_subgroup *o) { return (int *)((uint8_t *)o + of_attack_subgroup_task_kind); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// its task's +0x30, set whenever a goal location is filled in (0x453E10, 0x4543BC): vf5 0x459B93 falls back to
+// mission 8 at +0xE4 while it is 0; route_done clears it when no transport is found, sea_update 0x44ED11 switches
+// missions only while it is set
+internal inline uint8_t attack_subgroup_get_task_valid(const ee_attack_subgroup *o) { return *(uint8_t *)((uint8_t *)o + of_attack_subgroup_task_valid); }
+internal inline void attack_subgroup_set_task_valid(ee_attack_subgroup *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_attack_subgroup_task_valid) = v; }
+internal inline uint8_t *attack_subgroup_task_valid_at(const ee_attack_subgroup *o) { return (uint8_t *)((uint8_t *)o + of_attack_subgroup_task_valid); }
 // the player index the path search runs for: the head of the movement record its members' types fill (their vf10)
 internal inline int attack_subgroup_get_move_player(const ee_attack_subgroup *o) { return *(int *)((uint8_t *)o + of_attack_subgroup_move_player); }
 internal inline void attack_subgroup_set_move_player(ee_attack_subgroup *o, int v) { *(int *)((uint8_t *)o + of_attack_subgroup_move_player) = v; }
@@ -115,6 +128,13 @@ internal inline uint32_t *attack_subgroup_hold_until_at(const ee_attack_subgroup
 internal inline uint32_t attack_subgroup_get_next_update(const ee_attack_subgroup *o) { return *(uint32_t *)((uint8_t *)o + of_attack_subgroup_next_update); }
 internal inline void attack_subgroup_set_next_update(ee_attack_subgroup *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_attack_subgroup_next_update) = v; }
 internal inline uint32_t *attack_subgroup_next_update_at(const ee_attack_subgroup *o) { return (uint32_t *)((uint8_t *)o + of_attack_subgroup_next_update); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// vf91 0x45CCC3 picks a kind (2/3/4/7/9) by random ratios when it splits the group, not while it is 10; vf37
+// 0x45BFC9 chooses by it which units leave (4 a random 30..70 %, 11 every free unit); update's state 0x3E9 sets 10
+// (0x4491DD), message 0x232A 11
+internal inline int attack_subgroup_get_split_kind(const ee_attack_subgroup *o) { return *(int *)((uint8_t *)o + of_attack_subgroup_split_kind); }
+internal inline void attack_subgroup_set_split_kind(ee_attack_subgroup *o, int v) { *(int *)((uint8_t *)o + of_attack_subgroup_split_kind) = v; }
+internal inline int *attack_subgroup_split_kind_at(const ee_attack_subgroup *o) { return (int *)((uint8_t *)o + of_attack_subgroup_split_kind); }
 internal inline int attack_subgroup_get_state(const ee_attack_subgroup *o) { return *(int *)((uint8_t *)o + of_attack_subgroup_state); }
 internal inline void attack_subgroup_set_state(ee_attack_subgroup *o, int v) { *(int *)((uint8_t *)o + of_attack_subgroup_state) = v; }
 internal inline int *attack_subgroup_state_at(const ee_attack_subgroup *o) { return (int *)((uint8_t *)o + of_attack_subgroup_state); }
@@ -204,6 +224,13 @@ internal inline int *route_node_y_at(const ee_route_node *o) { return (int *)((u
 
 // class EEAIGPGModifierLandAttackSubGroupRoutePlanner (ee_route_planner)
 // the land attack route planner (EEAIGPGModifierLandAttackSubGroupRoutePlanner)
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// zeroed by the base constructor 0x413FE1, the path search 0x4A1681 hands it over: cost 0x4141E8 compares its
+// +0x50's +0x50 (an area id) for node kind 0xD, vf2 0x41459A reads a terrain byte at its +0x5C + kind - the
+// request's terrain mask?
+internal inline void *route_planner_get_search(const ee_route_planner *o) { return *(void **)((uint8_t *)o + of_route_planner_search); }
+internal inline void route_planner_set_search(ee_route_planner *o, void *v) { *(void **)((uint8_t *)o + of_route_planner_search) = v; }
+internal inline void **route_planner_search_at(const ee_route_planner *o) { return (void **)((uint8_t *)o + of_route_planner_search); }
 // cost factors by node kind (1 unchanged), from the subgroup's slot 21 in plan_route: [0] kind 4, [1] kinds 0-2
 // and 5-11, [2] kind 0xE, [3] kind 0xD, [4] the danger, [5] kind 3
 internal inline float route_planner_get_weights(const ee_route_planner *o, int i) { return ((float *)((uint8_t *)o + of_route_planner_weights))[i]; }
@@ -232,12 +259,80 @@ internal inline int16_t *route_planner_dest_area_at(const ee_route_planner *o) {
 typedef int (__thiscall *route_planner_cost_fn)(ee_route_planner *, int *, ee_route_node *);
 internal route_planner_cost_fn fn_route_planner_cost;
 internal inline int route_planner_cost(ee_route_planner *route_planner, int *edge, ee_route_node *node) { return fn_route_planner_cost(route_planner, edge, node); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// plan_route's weights[5] == 0 (the constructor 0x414187): while 0, cost multiplies a node in an area other than
+// the start's and the goal's by 50
+internal inline uint8_t route_planner_get_free_crossing(const ee_route_planner *o) { return *(uint8_t *)((uint8_t *)o + of_route_planner_free_crossing); }
+internal inline void route_planner_set_free_crossing(ee_route_planner *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_route_planner_free_crossing) = v; }
+internal inline uint8_t *route_planner_free_crossing_at(const ee_route_planner *o) { return (uint8_t *)((uint8_t *)o + of_route_planner_free_crossing); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// always 1 from the constructor: vf2 then returns 0 for a kind 0xD node of its own or an allied player's object
+// (the player's +0x9E4 table)
+internal inline uint8_t route_planner_get_owner_test(const ee_route_planner *o) { return *(uint8_t *)((uint8_t *)o + of_route_planner_owner_test); }
+internal inline void route_planner_set_owner_test(ee_route_planner *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_route_planner_owner_test) = v; }
+internal inline uint8_t *route_planner_owner_test_at(const ee_route_planner *o) { return (uint8_t *)((uint8_t *)o + of_route_planner_owner_test); }
 
 // class EECPCombatStrategy (ee_strategy)
 // an attack strategy (EECPCombatStrategy)
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// 0x473CE2 scales a shortfall of its argument (+0x78) by it to share units into count_0..2 (AoC has a fourth
+// weight after weight_2)
+internal inline float strategy_get_weight_0(const ee_strategy *o) { return *(float *)((uint8_t *)o + of_strategy_weight_0); }
+internal inline void strategy_set_weight_0(ee_strategy *o, float v) { *(float *)((uint8_t *)o + of_strategy_weight_0) = v; }
+internal inline float *strategy_weight_0_at(const ee_strategy *o) { return (float *)((uint8_t *)o + of_strategy_weight_0); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// the same for the argument's +0x74 (0x473CE2)
+internal inline float strategy_get_weight_1(const ee_strategy *o) { return *(float *)((uint8_t *)o + of_strategy_weight_1); }
+internal inline void strategy_set_weight_1(ee_strategy *o, float v) { *(float *)((uint8_t *)o + of_strategy_weight_1) = v; }
+internal inline float *strategy_weight_1_at(const ee_strategy *o) { return (float *)((uint8_t *)o + of_strategy_weight_1); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// the same for the argument's +0x7C (0x473CE2)
+internal inline float strategy_get_weight_2(const ee_strategy *o) { return *(float *)((uint8_t *)o + of_strategy_weight_2); }
+internal inline void strategy_set_weight_2(ee_strategy *o, float v) { *(float *)((uint8_t *)o + of_strategy_weight_2) = v; }
+internal inline float *strategy_weight_2_at(const ee_strategy *o) { return (float *)((uint8_t *)o + of_strategy_weight_2); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// 0x4753A9 sets it from an object's +0x74 before new_group; init, reset and the copies (0x473C2E, 0x473E71) handle
+// it
+internal inline int strategy_get_target_ref(const ee_strategy *o) { return *(int *)((uint8_t *)o + of_strategy_target_ref); }
+internal inline void strategy_set_target_ref(ee_strategy *o, int v) { *(int *)((uint8_t *)o + of_strategy_target_ref) = v; }
+internal inline int *strategy_target_ref_at(const ee_strategy *o) { return (int *)((uint8_t *)o + of_strategy_target_ref); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// 0x4753A9 sets it from the looked-up object's int16 +0x70 (an area id?)
+internal inline int16_t strategy_get_target_area(const ee_strategy *o) { return *(int16_t *)((uint8_t *)o + of_strategy_target_area); }
+internal inline void strategy_set_target_area(ee_strategy *o, int16_t v) { *(int16_t *)((uint8_t *)o + of_strategy_target_area) = v; }
+internal inline int16_t *strategy_target_area_at(const ee_strategy *o) { return (int16_t *)((uint8_t *)o + of_strategy_target_area); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// the total 0x473CE2 splits into count_0..2 (the rest into count_2); its callers set 1..4, 1..20 or a rounded
+// count, always the same as units_max (0x47111D, 0x4554xx)
+internal inline int strategy_get_units(const ee_strategy *o) { return *(int *)((uint8_t *)o + of_strategy_units); }
+internal inline void strategy_set_units(ee_strategy *o, int v) { *(int *)((uint8_t *)o + of_strategy_units) = v; }
+internal inline int *strategy_units_at(const ee_strategy *o) { return (int *)((uint8_t *)o + of_strategy_units); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// written with the same value as units by every caller; no reader of its own found
+internal inline int strategy_get_units_max(const ee_strategy *o) { return *(int *)((uint8_t *)o + of_strategy_units_max); }
+internal inline void strategy_set_units_max(ee_strategy *o, int v) { *(int *)((uint8_t *)o + of_strategy_units_max) = v; }
+internal inline int *strategy_units_max_at(const ee_strategy *o) { return (int *)((uint8_t *)o + of_strategy_units_max); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// units x weight_0, rounded (0x473CE2)
+internal inline int strategy_get_count_0(const ee_strategy *o) { return *(int *)((uint8_t *)o + of_strategy_count_0); }
+internal inline void strategy_set_count_0(ee_strategy *o, int v) { *(int *)((uint8_t *)o + of_strategy_count_0) = v; }
+internal inline int *strategy_count_0_at(const ee_strategy *o) { return (int *)((uint8_t *)o + of_strategy_count_0); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// units x weight_1, rounded (0x473CE2)
+internal inline int strategy_get_count_1(const ee_strategy *o) { return *(int *)((uint8_t *)o + of_strategy_count_1); }
+internal inline void strategy_set_count_1(ee_strategy *o, int v) { *(int *)((uint8_t *)o + of_strategy_count_1) = v; }
+internal inline int *strategy_count_1_at(const ee_strategy *o) { return (int *)((uint8_t *)o + of_strategy_count_1); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// the rest of units (0x473CE2; AoC has a fourth count after it)
+internal inline int strategy_get_count_2(const ee_strategy *o) { return *(int *)((uint8_t *)o + of_strategy_count_2); }
+internal inline void strategy_set_count_2(ee_strategy *o, int v) { *(int *)((uint8_t *)o + of_strategy_count_2) = v; }
+internal inline int *strategy_count_2_at(const ee_strategy *o) { return (int *)((uint8_t *)o + of_strategy_count_2); }
+// init sets 0 (AoC adds a weight and a count before it: its init 0x477084, reset 0x47717B and copy 0x4773BF have
+// it at +0x44)
 internal inline int strategy_get_0x3c(const ee_strategy *o) { return *(int *)((uint8_t *)o + of_strategy_0x3c); }
 internal inline void strategy_set_0x3c(ee_strategy *o, int v) { *(int *)((uint8_t *)o + of_strategy_0x3c) = v; }
 internal inline int *strategy_0x3c_at(const ee_strategy *o) { return (int *)((uint8_t *)o + of_strategy_0x3c); }
+// init sets 1
 internal inline uint8_t strategy_get_0x40(const ee_strategy *o) { return *(uint8_t *)((uint8_t *)o + of_strategy_0x40); }
 internal inline void strategy_set_0x40(ee_strategy *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_strategy_0x40) = v; }
 internal inline uint8_t *strategy_0x40_at(const ee_strategy *o) { return (uint8_t *)((uint8_t *)o + of_strategy_0x40); }
@@ -262,6 +357,12 @@ internal inline ee_unit **task_target_unit_at(const ee_task *o) { return (ee_uni
 internal inline ee_player *task_get_target_player(const ee_task *o) { return *(ee_player **)((uint8_t *)o + of_task_target_player); }
 internal inline void task_set_target_player(ee_task *o, ee_player *v) { *(ee_player **)((uint8_t *)o + of_task_target_player) = v; }
 internal inline ee_player **task_target_player_at(const ee_task *o) { return (ee_player **)((uint8_t *)o + of_task_target_player); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// saved through stream slot 0x44 (floats); the subgroup's vf5 copies a nonzero one to its route weight +0x19C
+// (else vf82 0x45AF8C, random 0.01..1), which vf21 0x45B045 passes as the route's danger factor (weights[4])
+internal inline float task_get_danger_weight(const ee_task *o) { return *(float *)((uint8_t *)o + of_task_danger_weight); }
+internal inline void task_set_danger_weight(ee_task *o, float v) { *(float *)((uint8_t *)o + of_task_danger_weight) = v; }
+internal inline float *task_danger_weight_at(const ee_task *o) { return (float *)((uint8_t *)o + of_task_danger_weight); }
 internal inline int task_get_0x28(const ee_task *o) { return *(int *)((uint8_t *)o + of_task_0x28); }
 internal inline void task_set_0x28(ee_task *o, int v) { *(int *)((uint8_t *)o + of_task_0x28) = v; }
 internal inline int *task_0x28_at(const ee_task *o) { return (int *)((uint8_t *)o + of_task_0x28); }
@@ -374,6 +475,8 @@ internal int spec_attack_select(int build) {
         of_attack_subgroup_target_unit = 0x118;
         of_attack_subgroup_target = 0x11C;
         of_attack_subgroup_mission = 0x124;
+        of_attack_subgroup_task_kind = 0x128;
+        of_attack_subgroup_task_valid = 0x12C;
         of_attack_subgroup_move_player = 0x160;
         of_attack_subgroup_terrain_ok = 0x164;
         of_attack_subgroup_group = 0x18C;
@@ -381,6 +484,7 @@ internal int spec_attack_select(int build) {
         of_attack_subgroup_route_request = 0x194;
         of_attack_subgroup_hold_until = 0x1A4;
         of_attack_subgroup_next_update = 0x1A8;
+        of_attack_subgroup_split_kind = 0x1CC;
         of_attack_subgroup_state = 0x1D0;
         of_attack_subgroup_embark = 0x224;
         of_attack_subgroup_landing = 0x22C;
@@ -403,6 +507,7 @@ internal int spec_attack_select(int build) {
         of_asgu_info_enemy = 0x4;
         of_route_node_x = 0x3C;
         of_route_node_y = 0x40;
+        of_route_planner_search = 0x8;
         of_route_planner_weights = 0xC;
         of_route_planner_player_index = 0x48;
         of_route_planner_target_index = 0x4C;
@@ -410,7 +515,19 @@ internal int spec_attack_select(int build) {
         of_route_planner_start_area = 0x54;
         of_route_planner_dest_area = 0x56;
         fn_route_planner_cost = (route_planner_cost_fn)0x004141E8;
+        of_route_planner_free_crossing = 0x58;
+        of_route_planner_owner_test = 0x59;
         vt_eecp_combat_strategy = 0x0082795C;
+        of_strategy_weight_0 = 0x14;
+        of_strategy_weight_1 = 0x18;
+        of_strategy_weight_2 = 0x1C;
+        of_strategy_target_ref = 0x20;
+        of_strategy_target_area = 0x24;
+        of_strategy_units = 0x28;
+        of_strategy_units_max = 0x2C;
+        of_strategy_count_0 = 0x30;
+        of_strategy_count_1 = 0x34;
+        of_strategy_count_2 = 0x38;
         of_strategy_0x3c = 0x3C;
         of_strategy_0x40 = 0x40;
         fn_strategy_init = (strategy_init_fn)0x00473BC4;
@@ -420,6 +537,7 @@ internal int spec_attack_select(int build) {
         of_task_location = 0x4;
         of_task_target_unit = 0x1C;
         of_task_target_player = 0x20;
+        of_task_danger_weight = 0x24;
         of_task_0x28 = 0x28;
         of_task_0x2c = 0x2C;
         of_task_0x30 = 0x30;
@@ -493,6 +611,8 @@ internal int spec_attack_select(int build) {
         of_attack_subgroup_target_unit = 0x118;
         of_attack_subgroup_target = 0x11C;
         of_attack_subgroup_mission = 0x124;
+        of_attack_subgroup_task_kind = 0x128;
+        of_attack_subgroup_task_valid = 0x12C;
         of_attack_subgroup_move_player = 0x164;
         of_attack_subgroup_terrain_ok = 0x168;
         of_attack_subgroup_group = 0x190;
@@ -500,6 +620,7 @@ internal int spec_attack_select(int build) {
         of_attack_subgroup_route_request = 0x198;
         of_attack_subgroup_hold_until = 0x1A8;
         of_attack_subgroup_next_update = 0x1AC;
+        of_attack_subgroup_split_kind = 0x1D0;
         of_attack_subgroup_state = 0x1D4;
         of_attack_subgroup_embark = 0x228;
         of_attack_subgroup_landing = 0x230;
@@ -522,6 +643,7 @@ internal int spec_attack_select(int build) {
         of_asgu_info_enemy = 0x4;
         of_route_node_x = 0x3C;
         of_route_node_y = 0x40;
+        of_route_planner_search = 0x8;
         of_route_planner_weights = 0xC;
         of_route_planner_player_index = 0x48;
         of_route_planner_target_index = 0x4C;
@@ -529,9 +651,21 @@ internal int spec_attack_select(int build) {
         of_route_planner_start_area = 0x54;
         of_route_planner_dest_area = 0x56;
         fn_route_planner_cost = (route_planner_cost_fn)0x00410074;
+        of_route_planner_free_crossing = 0x58;
+        of_route_planner_owner_test = 0x59;
         vt_eecp_combat_strategy = 0x0083C0A4;
-        of_strategy_0x3c = 0x3C;
-        of_strategy_0x40 = 0x40;
+        of_strategy_weight_0 = 0x14;
+        of_strategy_weight_1 = 0x18;
+        of_strategy_weight_2 = 0x1C;
+        of_strategy_target_ref = 0x24;
+        of_strategy_target_area = 0x28;
+        of_strategy_units = 0x2C;
+        of_strategy_units_max = 0x30;
+        of_strategy_count_0 = 0x34;
+        of_strategy_count_1 = 0x38;
+        of_strategy_count_2 = 0x3C;
+        of_strategy_0x3c = 0x44;
+        of_strategy_0x40 = 0x48;
         fn_strategy_init = (strategy_init_fn)0x00477084;
         fn_strategy_free = (strategy_free_fn)0x0047716D;
         fn_strategy_reset = (strategy_reset_fn)0x0047717B;
@@ -539,6 +673,7 @@ internal int spec_attack_select(int build) {
         of_task_location = 0x4;
         of_task_target_unit = 0x1C;
         of_task_target_player = 0x20;
+        of_task_danger_weight = 0x24;
         of_task_0x28 = 0x28;
         of_task_0x2c = 0x2C;
         of_task_0x30 = 0x30;

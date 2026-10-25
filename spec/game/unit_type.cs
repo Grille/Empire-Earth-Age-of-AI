@@ -9,6 +9,11 @@ unsafe struct EEUnitClass
     [offset(0x1C), found(v)]
     char8* name;
 
+    /// the data's column 0x344 (the community editor: "Plane refuel location") - 1 the airport planes, 2 the carriers'
+    /// (F-14, Corsair, Avenger); the air models (0x54A5AE, 0x54AA2B, 0x54B540, 0x54BC24) treat 2 apart, AoC also 4
+    [offset(0x28), found(c), guess]
+    int32 refuel_at;
+
     /// the graphic effect a missile or projectile plays on itself when it arrives
     [offset((ee)0x378, (aoc)0x68), found(c)]
     void* impact_gfx;
@@ -30,6 +35,11 @@ unsafe struct EEUnitClass
     /// 0x60686F calls the movement step on it
     [offset((ee)0x40C, (aoc)0x110), found(c)]
     void* model;
+
+    /// the data's column 0x1D4 (the editor: "Flight altitude"); below it the air models scale the height by
+    /// stats.height x (z / it x 0.5 + 0.5)
+    [offset((ee)0x418, (aoc)0x11C), found(c), guess]
+    float32 flight_altitude;
 
     /// the type data's constructors
     [offset((ee)0x41C, (aoc)0x120), found(c)]
@@ -72,9 +82,15 @@ unsafe struct EEUnitClass
     float32 mark_size;
 
     /// a collision sphere (float; dreadnought 4, cruiser 3): AoC the shift of +0x474 (0x178, EEUnitClass::vf34's
-    /// arrival test)
+    /// arrival test). The constructor 0x61C35B copies it from the data's column 0x200, which the community editor
+    /// calls "Size in formation" (collider_size: its "Size of collider") - which of the two the name fits is open
     [offset((ee)0x470, (aoc)0x174), found(c)]
     float32 collision;
+
+    /// the data's column 0x204 (the editor: "Size of collider"; dreadnought 3, cruiser 1.95): the movement's waypoint
+    /// and arrival radius (EEUnitClass::vf34; x unit +0x240 at 0x5F0000)
+    [offset((ee)0x474, (aoc)0x178), found(c), guess]
+    float32 collider_size;
 
     /// the game data's "Unit type" (dbobjects column 36): the class of the type data - EEUCBuilding, EEUCNaval ... (the
     /// spec called it family until 2026-10-25, and the family category)
@@ -143,6 +159,11 @@ unsafe struct EEUnitClass
     [offset((ee)0x55C, (aoc)0x25C), found(c)]
     int32 hp;
 
+    /// the data's column 0x198 "Resource type": lets_pass (0x6167C7) and 0x48xxxx test 3 (wood: trees) with the other
+    /// type's +0x617 (the data's "Can walk through trees")
+    [offset((ee)0x568, (aoc)0x268), found(c)]
+    int32 resource_type;
+
     /// missile delay time
     /// the type data's constructors
     [offset((ee)0x588, (aoc)0x288), found(c)]
@@ -201,6 +222,31 @@ unsafe struct EEUnitClass
     [offset((ee)0x604, (aoc)0x301), found(c)]
     uint8 boards_fortress;
 
+    /// the data's column 0x245 (the editor: Can be owned by "World"; resources, scaffolding, ambient): the subgroup's
+    /// target filter 0x446124 skips such objects unless they are armed and the stance is 2
+    [offset((ee)0x609, (aoc)0x306), found(c), guess]
+    uint8 world_ownable;
+
+    /// set after the load (0x62188D) as membership of unit group 9 (0x4A7618(type, 9)); with is_guard_tower in freeze
+    /// (0x5AF0BB), death and state (0x63862x, 0x60D36C), the attack scoring and the boarding
+    [offset((ee)0x612, (aoc)0x310), found(c), guess]
+    uint8 is_tower;
+
+    /// the data's column 0x248 (the editor: "You can kill this object with Delete key"; 0 for 24 types): a unit's
+    /// +0x334 starts as it (0x5E6024); freeze clears that and unfreeze restores it from here (0x5AF0BB, 0x5B32CB)
+    [offset((ee)0x613, (aoc)0x311), found(c), guess]
+    uint8 deletable;
+
+    /// the data's column 0x3B0 (the editor: "Melee attack"): EECPAttackSubGroupUnit::score 0x461854 picks its table 0
+    /// by it
+    [offset((ee)0x61A, (aoc)0x318), found(c), guess]
+    uint8 melee;
+
+    /// the constructor sets 1 only for ids 47 and 461..466, the guard towers (AoC also 0x2FD, 0x302, 0x312, 0x322);
+    /// attackers of rps_class 20 score a bonus against it
+    [offset((ee)0x61E, (aoc)0x31C), found(c)]
+    uint8 is_guard_tower;
+
     /// takes a behaviour (stances)
     /// the type data's constructors
     [offset((ee)0x621, (aoc)0x31F), found(c)]
@@ -222,6 +268,11 @@ unsafe struct ee_unit_stats
     /// between fields read through a unit's +0x34, unchanged
     [offset(0x60), found(b)]
     EEUnitClass* type_data;
+
+    /// EEUnitClass::vf29 0x61AD41 reads its +0x318 + animation x 4 (AoC +0x328), a duration per animation (anim_ms's
+    /// random start): the unit's graphics data
+    [offset(0x68), found(c), guess]
+    void* gfx;
 
     /// read through a unit's +0x34
     [offset(0x98), found(c)]

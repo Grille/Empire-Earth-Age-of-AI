@@ -34,6 +34,12 @@ internal inline float *camera_last_x_at(const ee_camera *o) { return (float *)((
 internal inline float camera_get_last_y(const ee_camera *o) { return *(float *)((uint8_t *)o + of_camera_last_y); }
 internal inline void camera_set_last_y(ee_camera *o, float v) { *(float *)((uint8_t *)o + of_camera_last_y) = v; }
 internal inline float *camera_last_y_at(const ee_camera *o) { return (float *)((uint8_t *)o + of_camera_last_y); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// the camera's position, +0x34 its last one: 0x51D46C lerps last to it by t; AoC's setter writes it with the
+// look-at +0x78 and snaps +0x34 when its length is at most 0.001
+internal inline vec3 camera_get_eye(const ee_camera *o) { return *(vec3 *)((uint8_t *)o + of_camera_eye); }
+internal inline void camera_set_eye(ee_camera *o, vec3 v) { *(vec3 *)((uint8_t *)o + of_camera_eye) = v; }
+internal inline vec3 *camera_eye_at(const ee_camera *o) { return (vec3 *)((uint8_t *)o + of_camera_eye); }
 internal inline float camera_get_x(const ee_camera *o) { return *(float *)((uint8_t *)o + of_camera_x); }
 internal inline void camera_set_x(ee_camera *o, float v) { *(float *)((uint8_t *)o + of_camera_x) = v; }
 internal inline float *camera_x_at(const ee_camera *o) { return (float *)((uint8_t *)o + of_camera_x); }
@@ -41,6 +47,12 @@ internal inline float *camera_x_at(const ee_camera *o) { return (float *)((uint8
 internal inline float camera_get_y(const ee_camera *o) { return *(float *)((uint8_t *)o + of_camera_y); }
 internal inline void camera_set_y(ee_camera *o, float v) { *(float *)((uint8_t *)o + of_camera_y) = v; }
 internal inline float *camera_y_at(const ee_camera *o) { return (float *)((uint8_t *)o + of_camera_y); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// 0x51EE75 advances it by dt x +0xDC up to 1.0 and passes it as t to the lerps 0x51D46C / 0x51D56A and to 0x51D2F2
+// (the view matrix +0x84)
+internal inline float camera_get_blend(const ee_camera *o) { return *(float *)((uint8_t *)o + of_camera_blend); }
+internal inline void camera_set_blend(ee_camera *o, float v) { *(float *)((uint8_t *)o + of_camera_blend) = v; }
+internal inline float *camera_blend_at(const ee_camera *o) { return (float *)((uint8_t *)o + of_camera_blend); }
 internal inline float camera_get_zoom(const ee_camera *o) { return *(float *)((uint8_t *)o + of_camera_zoom); }
 internal inline void camera_set_zoom(ee_camera *o, float v) { *(float *)((uint8_t *)o + of_camera_zoom) = v; }
 internal inline float *camera_zoom_at(const ee_camera *o) { return (float *)((uint8_t *)o + of_camera_zoom); }
@@ -257,8 +269,10 @@ internal int spec_ui_select(int build) {
         fn_ui_line = (ui_line_fn)0x00661E91;
         of_camera_last_x = 0x40;
         of_camera_last_y = 0x44;
+        of_camera_eye = 0x6C;
         of_camera_x = 0x78;
         of_camera_y = 0x7C;
+        of_camera_blend = 0xD8;
         of_camera_zoom = 0xE0;
         fn_camera_move = (camera_move_fn)0x0051E2E6;
         of_gfx_owner = 0x20;
@@ -348,8 +362,10 @@ internal int spec_ui_select(int build) {
         fn_ui_line = (ui_line_fn)0x006794C6;
         of_camera_last_x = 0x40;
         of_camera_last_y = 0x44;
+        of_camera_eye = 0x6C;
         of_camera_x = 0x78;
         of_camera_y = 0x7C;
+        of_camera_blend = 0xD8;
         of_camera_zoom = 0xE0;
         fn_camera_move = (camera_move_fn)0x00528EA5;
         of_gfx_owner = 0x20;

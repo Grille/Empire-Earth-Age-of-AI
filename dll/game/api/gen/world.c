@@ -26,6 +26,17 @@ internal inline int *game_data_unit_limit_max_at(const ee_game_data *o) { return
 internal inline uint32_t physics_get_seed(const ee_physics *o) { return *(uint32_t *)((uint8_t *)o + of_physics_seed); }
 internal inline void physics_set_seed(ee_physics *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_physics_seed) = v; }
 internal inline uint32_t *physics_seed_at(const ee_physics *o) { return (uint32_t *)((uint8_t *)o + of_physics_seed); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// 0x553663 sets it with +0x54 (it in ms) and +0x58 (1 / it) and sets the timer; the step 0x546C63 passes it to
+// 0x51EE75 every step; the game speed message 0x4B9378 resets it
+internal inline float physics_get_tick_s(const ee_physics *o) { return *(float *)((uint8_t *)o + of_physics_tick_s); }
+internal inline void physics_set_tick_s(ee_physics *o, float v) { *(float *)((uint8_t *)o + of_physics_tick_s) = v; }
+internal inline float *physics_tick_s_at(const ee_physics *o) { return (float *)((uint8_t *)o + of_physics_tick_s); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// tick_s in ms (0x553663): each step adds it to sync_ms
+internal inline uint32_t physics_get_tick_ms(const ee_physics *o) { return *(uint32_t *)((uint8_t *)o + of_physics_tick_ms); }
+internal inline void physics_set_tick_ms(ee_physics *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_physics_tick_ms) = v; }
+internal inline uint32_t *physics_tick_ms_at(const ee_physics *o) { return (uint32_t *)((uint8_t *)o + of_physics_tick_ms); }
 // steps done
 internal inline uint32_t physics_get_steps(const ee_physics *o) { return *(uint32_t *)((uint8_t *)o + of_physics_steps); }
 internal inline void physics_set_steps(ee_physics *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_physics_steps) = v; }
@@ -50,6 +61,12 @@ internal inline uint32_t *physics_step_start_at(const ee_physics *o) { return (u
 internal inline uint32_t physics_get_prev_step_start(const ee_physics *o) { return *(uint32_t *)((uint8_t *)o + of_physics_prev_step_start); }
 internal inline void physics_set_prev_step_start(ee_physics *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_physics_prev_step_start) = v; }
 internal inline uint32_t *physics_prev_step_start_at(const ee_physics *o) { return (uint32_t *)((uint8_t *)o + of_physics_prev_step_start); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// each step's draw from the game's generator (+0x18, URandom::Generate) rounded; an argument of 0x40CFC7 (the
+// map's code)
+internal inline int physics_get_step_random(const ee_physics *o) { return *(int *)((uint8_t *)o + of_physics_step_random); }
+internal inline void physics_set_step_random(ee_physics *o, int v) { *(int *)((uint8_t *)o + of_physics_step_random) = v; }
+internal inline int *physics_step_random_at(const ee_physics *o) { return (int *)((uint8_t *)o + of_physics_step_random); }
 // steps run (a second counter: zeroed by the reset 0x54650E, saved)
 internal inline uint32_t physics_get_step_ticks(const ee_physics *o) { return *(uint32_t *)((uint8_t *)o + of_physics_step_ticks); }
 internal inline void physics_set_step_ticks(ee_physics *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_physics_step_ticks) = v; }
@@ -74,6 +91,12 @@ internal inline uint32_t *physics_work_ms_sum_at(const ee_physics *o) { return (
 internal inline uint32_t physics_get_work_count(const ee_physics *o) { return *(uint32_t *)((uint8_t *)o + of_physics_work_count); }
 internal inline void physics_set_work_count(ee_physics *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_physics_work_count) = v; }
 internal inline uint32_t *physics_work_count_at(const ee_physics *o) { return (uint32_t *)((uint8_t *)o + of_physics_work_count); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// ms since the last server sync: the server's step adds tick_ms and past [0x91943C] zeroes it and runs 0x547676
+// and the server's vf8 twice; 0x520DE3 zeroes it
+internal inline uint32_t physics_get_sync_ms(const ee_physics *o) { return *(uint32_t *)((uint8_t *)o + of_physics_sync_ms); }
+internal inline void physics_set_sync_ms(ee_physics *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_physics_sync_ms) = v; }
+internal inline uint32_t *physics_sync_ms_at(const ee_physics *o) { return (uint32_t *)((uint8_t *)o + of_physics_sync_ms); }
 // game time (ms)
 internal inline uint32_t physics_get_time(const ee_physics *o) { return *(uint32_t *)((uint8_t *)o + of_physics_time); }
 internal inline void physics_set_time(ee_physics *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_physics_time) = v; }
@@ -128,18 +151,22 @@ internal int spec_world_select(int build) {
         of_game_data_unit_limit = 0x2E8;
         of_game_data_unit_limit_max = 0x2EC;
         of_physics_seed = 0x18;
+        of_physics_tick_s = 0x50;
+        of_physics_tick_ms = 0x54;
         of_physics_steps = 0x80;
         of_physics_step_s = 0x8C;
         of_physics_time_ms = 0x94;
         of_physics_step_ms = 0x98;
         of_physics_step_start = 0xA8;
         of_physics_prev_step_start = 0xAC;
+        of_physics_step_random = 0xB0;
         of_physics_step_ticks = 0xB4;
         of_physics_steps_granted = 0xB8;
         of_physics_gap_ms_sum = 0xBC;
         of_physics_gap_count = 0xC0;
         of_physics_work_ms_sum = 0xC4;
         of_physics_work_count = 0xC8;
+        of_physics_sync_ms = 0xCC;
         of_physics_time = 0xD0;
         fn_physics_step = (physics_step_fn)0x00546C63;
         vt_ee_world = 0x0082C84C;
@@ -160,18 +187,22 @@ internal int spec_world_select(int build) {
         of_game_data_unit_limit = 0x2E8;
         of_game_data_unit_limit_max = 0x2EC;
         of_physics_seed = 0x18;
+        of_physics_tick_s = 0x50;
+        of_physics_tick_ms = 0x54;
         of_physics_steps = 0x80;
         of_physics_step_s = 0x8C;
         of_physics_time_ms = 0x94;
         of_physics_step_ms = 0x98;
         of_physics_step_start = 0xA8;
         of_physics_prev_step_start = 0xAC;
+        of_physics_step_random = 0xB0;
         of_physics_step_ticks = 0xB4;
         of_physics_steps_granted = 0xB8;
         of_physics_gap_ms_sum = 0xBC;
         of_physics_gap_count = 0xC0;
         of_physics_work_ms_sum = 0xC4;
         of_physics_work_count = 0xC8;
+        of_physics_sync_ms = 0xCC;
         of_physics_time = 0xD0;
         fn_physics_step = (physics_step_fn)0x00553082;
         vt_ee_world = 0x00841FEC;

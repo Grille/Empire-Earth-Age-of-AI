@@ -29,6 +29,15 @@ unsafe struct EEPhysics
     [offset(0x18), found(c)]
     uint32 seed;
 
+    /// 0x553663 sets it with +0x54 (it in ms) and +0x58 (1 / it) and sets the timer; the step 0x546C63 passes it to
+    /// 0x51EE75 every step; the game speed message 0x4B9378 resets it
+    [offset(0x50), found(c), guess]
+    float32 tick_s;
+
+    /// tick_s in ms (0x553663): each step adds it to sync_ms
+    [offset(0x54), found(c), guess]
+    uint32 tick_ms;
+
     /// steps done
     [offset(0x80), found(c)]
     uint32 steps;
@@ -53,6 +62,11 @@ unsafe struct EEPhysics
     [offset(0xAC), found(c)]
     uint32 prev_step_start;
 
+    /// each step's draw from the game's generator (+0x18, URandom::Generate) rounded; an argument of 0x40CFC7 (the
+    /// map's code)
+    [offset(0xB0), found(c), guess]
+    int32 step_random;
+
     /// steps run (a second counter: zeroed by the reset 0x54650E, saved)
     [offset(0xB4), found(c)]
     uint32 step_ticks;
@@ -76,6 +90,11 @@ unsafe struct EEPhysics
     /// how many work_ms_sum holds
     [offset(0xC8), found(c)]
     uint32 work_count;
+
+    /// ms since the last server sync: the server's step adds tick_ms and past [0x91943C] zeroes it and runs 0x547676
+    /// and the server's vf8 twice; 0x520DE3 zeroes it
+    [offset(0xCC), found(c), guess]
+    uint32 sync_ms;
 
     /// game time (ms)
     [offset(0xD0), found(c)]

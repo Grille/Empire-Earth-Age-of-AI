@@ -7,11 +7,23 @@
 internal inline uint8_t goal_get_state(const ee_goal *o) { return *(uint8_t *)((uint8_t *)o + of_goal_state); }
 internal inline void goal_set_state(ee_goal *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_goal_state) = v; }
 internal inline uint8_t *goal_state_at(const ee_goal *o) { return (uint8_t *)((uint8_t *)o + of_goal_state); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// 0 from the base constructor 0x6283AB: +1 per path request for the goal (EEUnitClass::vf52 0x6222A8), +8 per
+// detour waypoint pair (vf53 0x6225E7)
+internal inline int goal_get_path_tries(const ee_goal *o) { return *(int *)((uint8_t *)o + of_goal_path_tries); }
+internal inline void goal_set_path_tries(ee_goal *o, int v) { *(int *)((uint8_t *)o + of_goal_path_tries) = v; }
+internal inline int *goal_path_tries_at(const ee_goal *o) { return (int *)((uint8_t *)o + of_goal_path_tries); }
 // 1 for a goal from an order (commands, the AI), 0 for the unit's own (its target search); the guard return skips
 // an ordered one
 internal inline uint8_t goal_get_ordered(const ee_goal *o) { return *(uint8_t *)((uint8_t *)o + of_goal_ordered); }
 internal inline void goal_set_ordered(ee_goal *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_goal_ordered) = v; }
 internal inline uint8_t *goal_ordered_at(const ee_goal *o) { return (uint8_t *)((uint8_t *)o + of_goal_ordered); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// 0 from the base constructor; the group dispatch 0x5DB641 (and 0x5E94C1, 0x5EF6A7) sets 1 on each member's goal:
+// vf52 asks EEPathManager::request for a sector route only without it
+internal inline uint8_t goal_get_no_sectors(const ee_goal *o) { return *(uint8_t *)((uint8_t *)o + of_goal_no_sectors); }
+internal inline void goal_set_no_sectors(ee_goal *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_goal_no_sectors) = v; }
+internal inline uint8_t *goal_no_sectors_at(const ee_goal *o) { return (uint8_t *)((uint8_t *)o + of_goal_no_sectors); }
 internal inline float goal_get_dest_x(const ee_goal *o) { return *(float *)((uint8_t *)o + of_goal_dest_x); }
 internal inline void goal_set_dest_x(ee_goal *o, float v) { *(float *)((uint8_t *)o + of_goal_dest_x) = v; }
 internal inline float *goal_dest_x_at(const ee_goal *o) { return (float *)((uint8_t *)o + of_goal_dest_x); }
@@ -66,11 +78,23 @@ internal inline void goal_add_passenger(ee_goal *goal, ee_unit *u) { fn_goal_add
 internal inline uint8_t build_goal_get_state(const ee_build_goal *o) { return *(uint8_t *)((uint8_t *)o + of_goal_state); }
 internal inline void build_goal_set_state(ee_build_goal *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_goal_state) = v; }
 internal inline uint8_t *build_goal_state_at(const ee_build_goal *o) { return (uint8_t *)((uint8_t *)o + of_goal_state); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// 0 from the base constructor 0x6283AB: +1 per path request for the goal (EEUnitClass::vf52 0x6222A8), +8 per
+// detour waypoint pair (vf53 0x6225E7)
+internal inline int build_goal_get_path_tries(const ee_build_goal *o) { return *(int *)((uint8_t *)o + of_goal_path_tries); }
+internal inline void build_goal_set_path_tries(ee_build_goal *o, int v) { *(int *)((uint8_t *)o + of_goal_path_tries) = v; }
+internal inline int *build_goal_path_tries_at(const ee_build_goal *o) { return (int *)((uint8_t *)o + of_goal_path_tries); }
 // 1 for a goal from an order (commands, the AI), 0 for the unit's own (its target search); the guard return skips
 // an ordered one
 internal inline uint8_t build_goal_get_ordered(const ee_build_goal *o) { return *(uint8_t *)((uint8_t *)o + of_goal_ordered); }
 internal inline void build_goal_set_ordered(ee_build_goal *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_goal_ordered) = v; }
 internal inline uint8_t *build_goal_ordered_at(const ee_build_goal *o) { return (uint8_t *)((uint8_t *)o + of_goal_ordered); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// 0 from the base constructor; the group dispatch 0x5DB641 (and 0x5E94C1, 0x5EF6A7) sets 1 on each member's goal:
+// vf52 asks EEPathManager::request for a sector route only without it
+internal inline uint8_t build_goal_get_no_sectors(const ee_build_goal *o) { return *(uint8_t *)((uint8_t *)o + of_goal_no_sectors); }
+internal inline void build_goal_set_no_sectors(ee_build_goal *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_goal_no_sectors) = v; }
+internal inline uint8_t *build_goal_no_sectors_at(const ee_build_goal *o) { return (uint8_t *)((uint8_t *)o + of_goal_no_sectors); }
 internal inline float build_goal_get_dest_x(const ee_build_goal *o) { return *(float *)((uint8_t *)o + of_goal_dest_x); }
 internal inline void build_goal_set_dest_x(ee_build_goal *o, float v) { *(float *)((uint8_t *)o + of_goal_dest_x) = v; }
 internal inline float *build_goal_dest_x_at(const ee_build_goal *o) { return (float *)((uint8_t *)o + of_goal_dest_x); }
@@ -128,11 +152,23 @@ internal inline ee_goal *build_goal_init(ee_build_goal *build_goal, ee_player *p
 internal inline uint8_t load_goal_get_state(const ee_load_goal *o) { return *(uint8_t *)((uint8_t *)o + of_goal_state); }
 internal inline void load_goal_set_state(ee_load_goal *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_goal_state) = v; }
 internal inline uint8_t *load_goal_state_at(const ee_load_goal *o) { return (uint8_t *)((uint8_t *)o + of_goal_state); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// 0 from the base constructor 0x6283AB: +1 per path request for the goal (EEUnitClass::vf52 0x6222A8), +8 per
+// detour waypoint pair (vf53 0x6225E7)
+internal inline int load_goal_get_path_tries(const ee_load_goal *o) { return *(int *)((uint8_t *)o + of_goal_path_tries); }
+internal inline void load_goal_set_path_tries(ee_load_goal *o, int v) { *(int *)((uint8_t *)o + of_goal_path_tries) = v; }
+internal inline int *load_goal_path_tries_at(const ee_load_goal *o) { return (int *)((uint8_t *)o + of_goal_path_tries); }
 // 1 for a goal from an order (commands, the AI), 0 for the unit's own (its target search); the guard return skips
 // an ordered one
 internal inline uint8_t load_goal_get_ordered(const ee_load_goal *o) { return *(uint8_t *)((uint8_t *)o + of_goal_ordered); }
 internal inline void load_goal_set_ordered(ee_load_goal *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_goal_ordered) = v; }
 internal inline uint8_t *load_goal_ordered_at(const ee_load_goal *o) { return (uint8_t *)((uint8_t *)o + of_goal_ordered); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// 0 from the base constructor; the group dispatch 0x5DB641 (and 0x5E94C1, 0x5EF6A7) sets 1 on each member's goal:
+// vf52 asks EEPathManager::request for a sector route only without it
+internal inline uint8_t load_goal_get_no_sectors(const ee_load_goal *o) { return *(uint8_t *)((uint8_t *)o + of_goal_no_sectors); }
+internal inline void load_goal_set_no_sectors(ee_load_goal *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_goal_no_sectors) = v; }
+internal inline uint8_t *load_goal_no_sectors_at(const ee_load_goal *o) { return (uint8_t *)((uint8_t *)o + of_goal_no_sectors); }
 internal inline float load_goal_get_dest_x(const ee_load_goal *o) { return *(float *)((uint8_t *)o + of_goal_dest_x); }
 internal inline void load_goal_set_dest_x(ee_load_goal *o, float v) { *(float *)((uint8_t *)o + of_goal_dest_x) = v; }
 internal inline float *load_goal_dest_x_at(const ee_load_goal *o) { return (float *)((uint8_t *)o + of_goal_dest_x); }
@@ -170,11 +206,23 @@ internal inline void *load_goal_init(ee_load_goal *load_goal, void *p2, void *p3
 internal inline uint8_t location_goal_get_state(const ee_location_goal *o) { return *(uint8_t *)((uint8_t *)o + of_goal_state); }
 internal inline void location_goal_set_state(ee_location_goal *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_goal_state) = v; }
 internal inline uint8_t *location_goal_state_at(const ee_location_goal *o) { return (uint8_t *)((uint8_t *)o + of_goal_state); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// 0 from the base constructor 0x6283AB: +1 per path request for the goal (EEUnitClass::vf52 0x6222A8), +8 per
+// detour waypoint pair (vf53 0x6225E7)
+internal inline int location_goal_get_path_tries(const ee_location_goal *o) { return *(int *)((uint8_t *)o + of_goal_path_tries); }
+internal inline void location_goal_set_path_tries(ee_location_goal *o, int v) { *(int *)((uint8_t *)o + of_goal_path_tries) = v; }
+internal inline int *location_goal_path_tries_at(const ee_location_goal *o) { return (int *)((uint8_t *)o + of_goal_path_tries); }
 // 1 for a goal from an order (commands, the AI), 0 for the unit's own (its target search); the guard return skips
 // an ordered one
 internal inline uint8_t location_goal_get_ordered(const ee_location_goal *o) { return *(uint8_t *)((uint8_t *)o + of_goal_ordered); }
 internal inline void location_goal_set_ordered(ee_location_goal *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_goal_ordered) = v; }
 internal inline uint8_t *location_goal_ordered_at(const ee_location_goal *o) { return (uint8_t *)((uint8_t *)o + of_goal_ordered); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// 0 from the base constructor; the group dispatch 0x5DB641 (and 0x5E94C1, 0x5EF6A7) sets 1 on each member's goal:
+// vf52 asks EEPathManager::request for a sector route only without it
+internal inline uint8_t location_goal_get_no_sectors(const ee_location_goal *o) { return *(uint8_t *)((uint8_t *)o + of_goal_no_sectors); }
+internal inline void location_goal_set_no_sectors(ee_location_goal *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_goal_no_sectors) = v; }
+internal inline uint8_t *location_goal_no_sectors_at(const ee_location_goal *o) { return (uint8_t *)((uint8_t *)o + of_goal_no_sectors); }
 internal inline float location_goal_get_dest_x(const ee_location_goal *o) { return *(float *)((uint8_t *)o + of_goal_dest_x); }
 internal inline void location_goal_set_dest_x(ee_location_goal *o, float v) { *(float *)((uint8_t *)o + of_goal_dest_x) = v; }
 internal inline float *location_goal_dest_x_at(const ee_location_goal *o) { return (float *)((uint8_t *)o + of_goal_dest_x); }
@@ -251,6 +299,124 @@ internal inline uint8_t *goal_vt_goal_location_at(void) { return (uint8_t *)(uin
 // EEUGUnloadTransport (new 0x40, ctor 0x615A1F(transport, x, y, flag))
 internal inline uint8_t *goal_vt_goal_unload_at(void) { return (uint8_t *)(uintptr_t)data_goal_vt_goal_unload; }
 
+// class EEUGAttackUnit (eeug_attack_unit)
+// the attack-a-unit goal (EEUGAttackUnit, 0x40 bytes; its constructor 0x60AD45 sets the attacker +0x2C, the target
+// +0x30 and the target's tile +0x34 / +0x38)
+// EEUnitGoal's, the base's
+// (aim.c: 2 while it attacks)
+internal inline uint8_t eeug_attack_unit_get_state(const eeug_attack_unit *o) { return *(uint8_t *)((uint8_t *)o + of_goal_state); }
+internal inline void eeug_attack_unit_set_state(eeug_attack_unit *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_goal_state) = v; }
+internal inline uint8_t *eeug_attack_unit_state_at(const eeug_attack_unit *o) { return (uint8_t *)((uint8_t *)o + of_goal_state); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// 0 from the base constructor 0x6283AB: +1 per path request for the goal (EEUnitClass::vf52 0x6222A8), +8 per
+// detour waypoint pair (vf53 0x6225E7)
+internal inline int eeug_attack_unit_get_path_tries(const eeug_attack_unit *o) { return *(int *)((uint8_t *)o + of_goal_path_tries); }
+internal inline void eeug_attack_unit_set_path_tries(eeug_attack_unit *o, int v) { *(int *)((uint8_t *)o + of_goal_path_tries) = v; }
+internal inline int *eeug_attack_unit_path_tries_at(const eeug_attack_unit *o) { return (int *)((uint8_t *)o + of_goal_path_tries); }
+// 1 for a goal from an order (commands, the AI), 0 for the unit's own (its target search); the guard return skips
+// an ordered one
+internal inline uint8_t eeug_attack_unit_get_ordered(const eeug_attack_unit *o) { return *(uint8_t *)((uint8_t *)o + of_goal_ordered); }
+internal inline void eeug_attack_unit_set_ordered(eeug_attack_unit *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_goal_ordered) = v; }
+internal inline uint8_t *eeug_attack_unit_ordered_at(const eeug_attack_unit *o) { return (uint8_t *)((uint8_t *)o + of_goal_ordered); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// 0 from the base constructor; the group dispatch 0x5DB641 (and 0x5E94C1, 0x5EF6A7) sets 1 on each member's goal:
+// vf52 asks EEPathManager::request for a sector route only without it
+internal inline uint8_t eeug_attack_unit_get_no_sectors(const eeug_attack_unit *o) { return *(uint8_t *)((uint8_t *)o + of_goal_no_sectors); }
+internal inline void eeug_attack_unit_set_no_sectors(eeug_attack_unit *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_goal_no_sectors) = v; }
+internal inline uint8_t *eeug_attack_unit_no_sectors_at(const eeug_attack_unit *o) { return (uint8_t *)((uint8_t *)o + of_goal_no_sectors); }
+internal inline float eeug_attack_unit_get_dest_x(const eeug_attack_unit *o) { return *(float *)((uint8_t *)o + of_goal_dest_x); }
+internal inline void eeug_attack_unit_set_dest_x(eeug_attack_unit *o, float v) { *(float *)((uint8_t *)o + of_goal_dest_x) = v; }
+internal inline float *eeug_attack_unit_dest_x_at(const eeug_attack_unit *o) { return (float *)((uint8_t *)o + of_goal_dest_x); }
+// the destination's y
+internal inline float eeug_attack_unit_get_dest_y(const eeug_attack_unit *o) { return *(float *)((uint8_t *)o + of_goal_dest_y); }
+internal inline void eeug_attack_unit_set_dest_y(eeug_attack_unit *o, float v) { *(float *)((uint8_t *)o + of_goal_dest_y) = v; }
+internal inline float *eeug_attack_unit_dest_y_at(const eeug_attack_unit *o) { return (float *)((uint8_t *)o + of_goal_dest_y); }
+// the destination's z
+internal inline float eeug_attack_unit_get_dest_z(const eeug_attack_unit *o) { return *(float *)((uint8_t *)o + of_goal_dest_z); }
+internal inline void eeug_attack_unit_set_dest_z(eeug_attack_unit *o, float v) { *(float *)((uint8_t *)o + of_goal_dest_z) = v; }
+internal inline float *eeug_attack_unit_dest_z_at(const eeug_attack_unit *o) { return (float *)((uint8_t *)o + of_goal_dest_z); }
+// a kind 6 goal's target
+// a kind 6 goal's target - the contact test (EEPhysicsModel::vf14, AoC vf15) lets two units at work on kind 6 meet
+// only when it is the same
+internal inline void *eeug_attack_unit_get_0x38(const eeug_attack_unit *o) { return *(void **)((uint8_t *)o + of_goal_0x38); }
+internal inline void eeug_attack_unit_set_0x38(eeug_attack_unit *o, void *v) { *(void **)((uint8_t *)o + of_goal_0x38) = v; }
+internal inline void **eeug_attack_unit_0x38_at(const eeug_attack_unit *o) { return (void **)((uint8_t *)o + of_goal_0x38); }
+// a kind 4 goal's target
+// a kind 4 goal's target - the same for kind 4
+internal inline void *eeug_attack_unit_get_0x3c(const eeug_attack_unit *o) { return *(void **)((uint8_t *)o + of_goal_0x3c); }
+internal inline void eeug_attack_unit_set_0x3c(eeug_attack_unit *o, void *v) { *(void **)((uint8_t *)o + of_goal_0x3c) = v; }
+internal inline void **eeug_attack_unit_0x3c_at(const eeug_attack_unit *o) { return (void **)((uint8_t *)o + of_goal_0x3c); }
+internal inline ee_unit *eeug_attack_unit_get_holder(const eeug_attack_unit *o) { return *(ee_unit **)((uint8_t *)o + of_goal_holder); }
+internal inline void eeug_attack_unit_set_holder(eeug_attack_unit *o, ee_unit *v) { *(ee_unit **)((uint8_t *)o + of_goal_holder) = v; }
+internal inline ee_unit **eeug_attack_unit_holder_at(const eeug_attack_unit *o) { return (ee_unit **)((uint8_t *)o + of_goal_holder); }
+// the unit it attacks, referenced (the constructor 0x60AD45); its readers take the target's hp, type and stats
+// (0x5F1214, EEUCMissile / EEUCProjectile::vf39, 0x61B677)
+internal inline ee_unit *eeug_attack_unit_get_target(const eeug_attack_unit *o) { return *(ee_unit **)((uint8_t *)o + of_eeug_attack_unit_target); }
+internal inline void eeug_attack_unit_set_target(eeug_attack_unit *o, ee_unit *v) { *(ee_unit **)((uint8_t *)o + of_eeug_attack_unit_target) = v; }
+internal inline ee_unit **eeug_attack_unit_target_at(const eeug_attack_unit *o) { return (ee_unit **)((uint8_t *)o + of_eeug_attack_unit_target); }
+
+// class EEUGGather (eeug_gather)
+// the gather goal (EEUGGather)
+// EEUnitGoal's, the base's
+// (aim.c: 2 while it attacks)
+internal inline uint8_t eeug_gather_get_state(const eeug_gather *o) { return *(uint8_t *)((uint8_t *)o + of_goal_state); }
+internal inline void eeug_gather_set_state(eeug_gather *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_goal_state) = v; }
+internal inline uint8_t *eeug_gather_state_at(const eeug_gather *o) { return (uint8_t *)((uint8_t *)o + of_goal_state); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// 0 from the base constructor 0x6283AB: +1 per path request for the goal (EEUnitClass::vf52 0x6222A8), +8 per
+// detour waypoint pair (vf53 0x6225E7)
+internal inline int eeug_gather_get_path_tries(const eeug_gather *o) { return *(int *)((uint8_t *)o + of_goal_path_tries); }
+internal inline void eeug_gather_set_path_tries(eeug_gather *o, int v) { *(int *)((uint8_t *)o + of_goal_path_tries) = v; }
+internal inline int *eeug_gather_path_tries_at(const eeug_gather *o) { return (int *)((uint8_t *)o + of_goal_path_tries); }
+// 1 for a goal from an order (commands, the AI), 0 for the unit's own (its target search); the guard return skips
+// an ordered one
+internal inline uint8_t eeug_gather_get_ordered(const eeug_gather *o) { return *(uint8_t *)((uint8_t *)o + of_goal_ordered); }
+internal inline void eeug_gather_set_ordered(eeug_gather *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_goal_ordered) = v; }
+internal inline uint8_t *eeug_gather_ordered_at(const eeug_gather *o) { return (uint8_t *)((uint8_t *)o + of_goal_ordered); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// 0 from the base constructor; the group dispatch 0x5DB641 (and 0x5E94C1, 0x5EF6A7) sets 1 on each member's goal:
+// vf52 asks EEPathManager::request for a sector route only without it
+internal inline uint8_t eeug_gather_get_no_sectors(const eeug_gather *o) { return *(uint8_t *)((uint8_t *)o + of_goal_no_sectors); }
+internal inline void eeug_gather_set_no_sectors(eeug_gather *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_goal_no_sectors) = v; }
+internal inline uint8_t *eeug_gather_no_sectors_at(const eeug_gather *o) { return (uint8_t *)((uint8_t *)o + of_goal_no_sectors); }
+internal inline float eeug_gather_get_dest_x(const eeug_gather *o) { return *(float *)((uint8_t *)o + of_goal_dest_x); }
+internal inline void eeug_gather_set_dest_x(eeug_gather *o, float v) { *(float *)((uint8_t *)o + of_goal_dest_x) = v; }
+internal inline float *eeug_gather_dest_x_at(const eeug_gather *o) { return (float *)((uint8_t *)o + of_goal_dest_x); }
+// the destination's y
+internal inline float eeug_gather_get_dest_y(const eeug_gather *o) { return *(float *)((uint8_t *)o + of_goal_dest_y); }
+internal inline void eeug_gather_set_dest_y(eeug_gather *o, float v) { *(float *)((uint8_t *)o + of_goal_dest_y) = v; }
+internal inline float *eeug_gather_dest_y_at(const eeug_gather *o) { return (float *)((uint8_t *)o + of_goal_dest_y); }
+// the destination's z
+internal inline float eeug_gather_get_dest_z(const eeug_gather *o) { return *(float *)((uint8_t *)o + of_goal_dest_z); }
+internal inline void eeug_gather_set_dest_z(eeug_gather *o, float v) { *(float *)((uint8_t *)o + of_goal_dest_z) = v; }
+internal inline float *eeug_gather_dest_z_at(const eeug_gather *o) { return (float *)((uint8_t *)o + of_goal_dest_z); }
+// a kind 6 goal's target
+// a kind 6 goal's target - the contact test (EEPhysicsModel::vf14, AoC vf15) lets two units at work on kind 6 meet
+// only when it is the same
+internal inline void *eeug_gather_get_0x38(const eeug_gather *o) { return *(void **)((uint8_t *)o + of_goal_0x38); }
+internal inline void eeug_gather_set_0x38(eeug_gather *o, void *v) { *(void **)((uint8_t *)o + of_goal_0x38) = v; }
+internal inline void **eeug_gather_0x38_at(const eeug_gather *o) { return (void **)((uint8_t *)o + of_goal_0x38); }
+// a kind 4 goal's target
+// a kind 4 goal's target - the same for kind 4
+internal inline void *eeug_gather_get_0x3c(const eeug_gather *o) { return *(void **)((uint8_t *)o + of_goal_0x3c); }
+internal inline void eeug_gather_set_0x3c(eeug_gather *o, void *v) { *(void **)((uint8_t *)o + of_goal_0x3c) = v; }
+internal inline void **eeug_gather_0x3c_at(const eeug_gather *o) { return (void **)((uint8_t *)o + of_goal_0x3c); }
+internal inline ee_unit *eeug_gather_get_holder(const eeug_gather *o) { return *(ee_unit **)((uint8_t *)o + of_goal_holder); }
+internal inline void eeug_gather_set_holder(eeug_gather *o, ee_unit *v) { *(ee_unit **)((uint8_t *)o + of_goal_holder) = v; }
+internal inline ee_unit **eeug_gather_holder_at(const eeug_gather *o) { return (ee_unit **)((uint8_t *)o + of_goal_holder); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// 1 once it has found a drop-off and heads there (state 0x1F48, 0x6106F9), cleared at 0x610A3D, 0x610BB6 and in
+// vf20: vf18 0x611065 takes the drop-off's reach test while it is set; the script condition 0x138F returns it
+internal inline uint8_t eeug_gather_get_returning(const eeug_gather *o) { return *(uint8_t *)((uint8_t *)o + of_eeug_gather_returning); }
+internal inline void eeug_gather_set_returning(eeug_gather *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_eeug_gather_returning) = v; }
+internal inline uint8_t *eeug_gather_returning_at(const eeug_gather *o) { return (uint8_t *)((uint8_t *)o + of_eeug_gather_returning); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// 0x610BB6 sets 1 (returning 0) to walk to its spot at dest_x / dest_y: vf18 then tests the distance to it instead
+// of the reach; the script condition 0x139B returns it
+internal inline uint8_t eeug_gather_get_to_spot(const eeug_gather *o) { return *(uint8_t *)((uint8_t *)o + of_eeug_gather_to_spot); }
+internal inline void eeug_gather_set_to_spot(eeug_gather *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_eeug_gather_to_spot) = v; }
+internal inline uint8_t *eeug_gather_to_spot_at(const eeug_gather *o) { return (uint8_t *)((uint8_t *)o + of_eeug_gather_to_spot); }
+
 // static class goal_functions
 // the game's functions goal.c wraps, by the names the C side gives them
 typedef int (__thiscall *goalset_ask_fn)(void *, ee_unit *, int *);
@@ -263,7 +429,9 @@ internal int spec_goal_select(int build) {
     switch (build) {
     case 0:   // ee
         of_goal_state = 0x5;
+        of_goal_path_tries = 0x18;
         of_goal_ordered = 0x1C;
+        of_goal_no_sectors = 0x1D;
         of_goal_dest_x = 0x20;
         of_goal_dest_y = 0x24;
         of_goal_dest_z = 0x28;
@@ -316,13 +484,20 @@ internal int spec_goal_select(int build) {
         data_goal_vt_goal_load = 0x00831DC0;
         data_goal_vt_goal_location = 0x00831E64;
         data_goal_vt_goal_unload = 0x00831F5C;
+        vt_eeug_attack_unit = 0x00831968;
+        of_eeug_attack_unit_target = 0x30;
+        vt_eeug_gather = 0x00831B80;
+        of_eeug_gather_returning = 0x40;
+        of_eeug_gather_to_spot = 0x41;
         fn_goalset_ask = (goalset_ask_fn)0x00619FF5;
         calls_goalset_ask[0] = 0x005F0FFA;
         calls_goalset_ask[1] = 0x005F1029;
         return 0;
     case 1:   // aoc
         of_goal_state = 0x5;
+        of_goal_path_tries = 0x18;
         of_goal_ordered = 0x1C;
+        of_goal_no_sectors = 0x1D;
         of_goal_dest_x = 0x20;
         of_goal_dest_y = 0x24;
         of_goal_dest_z = 0x28;
@@ -375,6 +550,11 @@ internal int spec_goal_select(int build) {
         data_goal_vt_goal_load = 0x008477F8;
         data_goal_vt_goal_location = 0x008478A0;
         data_goal_vt_goal_unload = 0x008479A0;
+        vt_eeug_attack_unit = 0x00847380;
+        of_eeug_attack_unit_target = 0x30;
+        vt_eeug_gather = 0x008475A8;
+        of_eeug_gather_returning = 0x40;
+        of_eeug_gather_to_spot = 0x41;
         fn_goalset_ask = (goalset_ask_fn)0x0062CD8B;
         calls_goalset_ask[0] = 0x005FF364;
         calls_goalset_ask[1] = 0x005FF393;
@@ -414,6 +594,8 @@ internal int spec_goal_check(void) {
     bad += spec_data(data_goal_vt_goal_load, "goal.vt_goal_load");
     bad += spec_data(data_goal_vt_goal_location, "goal.vt_goal_location");
     bad += spec_data(data_goal_vt_goal_unload, "goal.vt_goal_unload");
+    bad += spec_vtable(vt_eeug_attack_unit, ".?AVEEUGAttackUnit@@", "EEUGAttackUnit [vtable]");
+    bad += spec_vtable(vt_eeug_gather, ".?AVEEUGGather@@", "EEUGGather [vtable]");
     bad += spec_code((uintptr_t)fn_goalset_ask, "goal_functions.goalset_ask");
     bad += spec_call(calls_goalset_ask[0], (uintptr_t)fn_goalset_ask, "goal_functions.goalset_ask [call_site goalset_ask 0]");
     bad += spec_call(calls_goalset_ask[1], (uintptr_t)fn_goalset_ask, "goal_functions.goalset_ask [call_site goalset_ask 1]");

@@ -35,12 +35,22 @@ unsafe struct EECameraControl
     [offset(0x44), found(c)]
     float32 last_y;
 
+    /// the camera's position, +0x34 its last one: 0x51D46C lerps last to it by t; AoC's setter writes it with the
+    /// look-at +0x78 and snaps +0x34 when its length is at most 0.001
+    [offset(0x6C), found(c), guess]
+    vec3 eye;
+
     [offset(0x78), found(s)]
     float32 x;
 
     /// the look-at point's y (x +0x78)
     [offset(0x7C), found(c)]
     float32 y;
+
+    /// 0x51EE75 advances it by dt x +0xDC up to 1.0 and passes it as t to the lerps 0x51D46C / 0x51D56A and to 0x51D2F2
+    /// (the view matrix +0x84)
+    [offset(0xD8), found(c), guess]
+    float32 blend;
 
     [offset(0xE0), found(s)]
     float32 zoom;

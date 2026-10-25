@@ -51,6 +51,11 @@ internal inline ee_tech_data **tech_data_at(const ee_tech *o) { return (ee_tech_
 internal inline ee_tech_tree *tech_get_tree(const ee_tech *o) { return *(ee_tech_tree **)((uint8_t *)o + of_tech_tree); }
 internal inline void tech_set_tree(ee_tech *o, ee_tech_tree *v) { *(ee_tech_tree **)((uint8_t *)o + of_tech_tree) = v; }
 internal inline ee_tech_tree **tech_tree_at(const ee_tech *o) { return (ee_tech_tree **)((uint8_t *)o + of_tech_tree); }
+// its button: the loader 0x5BD6A8 takes it from table 0x8CFA54 by the record's dbbuttons link (0x5BB037); the
+// command panel (0x651A19, 0x6585BF) reads its +0x20 as the button slot (0..0x5F)
+internal inline void *tech_get_button(const ee_tech *o) { return *(void **)((uint8_t *)o + of_tech_button); }
+internal inline void tech_set_button(ee_tech *o, void *v) { *(void **)((uint8_t *)o + of_tech_button) = v; }
+internal inline void **tech_button_at(const ee_tech *o) { return (void **)((uint8_t *)o + of_tech_button); }
 // the tech tree code's reads (unchanged)
 internal inline int tech_get_epoch(const ee_tech *o) { return *(int *)((uint8_t *)o + of_tech_epoch); }
 internal inline void tech_set_epoch(ee_tech *o, int v) { *(int *)((uint8_t *)o + of_tech_epoch) = v; }
@@ -85,6 +90,11 @@ internal inline void tech_data_set_makers_begin(ee_tech_data *o, int *v) { *(int
 internal inline int **tech_data_makers_begin_at(const ee_tech_data *o) { return (int **)((uint8_t *)o + of_tech_data_makers_begin); }
 // the tech tree code's reads (unchanged)
 internal inline uint8_t *tech_data_costs_at(const ee_tech_data *o) { return (uint8_t *)o + of_tech_data_costs; }
+// dbtechtree's "Calamity" (record +0xCC, both loaders): the status button (0x6573D3 / 0x657893) and the tooltip
+// give it to the calamity manager 0x8CF8D0 for category 5 techs
+internal inline int tech_data_get_calamity(const ee_tech_data *o) { return *(int *)((uint8_t *)o + of_tech_data_calamity); }
+internal inline void tech_data_set_calamity(ee_tech_data *o, int v) { *(int *)((uint8_t *)o + of_tech_data_calamity) = v; }
+internal inline int *tech_data_calamity_at(const ee_tech_data *o) { return (int *)((uint8_t *)o + of_tech_data_calamity); }
 // (7: a line upgrade)
 // the tech tree code's reads (unchanged)
 internal inline int tech_data_get_category(const ee_tech_data *o) { return *(int *)((uint8_t *)o + of_tech_data_category); }
@@ -108,10 +118,25 @@ internal inline int *tech_data_requires_at(const ee_tech_data *o) { return (int 
 internal inline int tech_data_get_unit_type(const ee_tech_data *o) { return *(int *)((uint8_t *)o + of_tech_data_unit_type); }
 internal inline void tech_data_set_unit_type(ee_tech_data *o, int v) { *(int *)((uint8_t *)o + of_tech_data_unit_type) = v; }
 internal inline int *tech_data_unit_type_at(const ee_tech_data *o) { return (int *)((uint8_t *)o + of_tech_data_unit_type); }
+// dbtechtree's "Language ID" (record +0xB8): the portrait (EEUICPortrait::vf8 0x642496) and the tooltip pass it to
+// resource_string as the name of a tech that is no object (an object's: its type's +0x560)
+internal inline int tech_data_get_name_string(const ee_tech_data *o) { return *(int *)((uint8_t *)o + of_tech_data_name_string); }
+internal inline void tech_data_set_name_string(ee_tech_data *o, int v) { *(int *)((uint8_t *)o + of_tech_data_name_string) = v; }
+internal inline int *tech_data_name_string_at(const ee_tech_data *o) { return (int *)((uint8_t *)o + of_tech_data_name_string); }
+// dbtechtree's "Is object?" (record +0xB4): request_requirements 0x4860D6 researches a tech with 0, else builds or
+// trains its unit type
+internal inline uint8_t tech_data_get_is_object(const ee_tech_data *o) { return *(uint8_t *)((uint8_t *)o + of_tech_data_is_object); }
+internal inline void tech_data_set_is_object(ee_tech_data *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_tech_data_is_object) = v; }
+internal inline uint8_t *tech_data_is_object_at(const ee_tech_data *o) { return (uint8_t *)((uint8_t *)o + of_tech_data_is_object); }
 // the tech tree code's reads (unchanged)
 internal inline uint8_t tech_data_get_counts(const ee_tech_data *o) { return *(uint8_t *)((uint8_t *)o + of_tech_data_counts); }
 internal inline void tech_data_set_counts(ee_tech_data *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_tech_data_counts) = v; }
 internal inline uint8_t *tech_data_counts_at(const ee_tech_data *o) { return (uint8_t *)((uint8_t *)o + of_tech_data_counts); }
+// dbtechtree's "Only in scenario" (record +0xF5): 0x5BB959 disables every tech with it - the start of
+// node.disabled
+internal inline uint8_t tech_data_get_scenario_only(const ee_tech_data *o) { return *(uint8_t *)((uint8_t *)o + of_tech_data_scenario_only); }
+internal inline void tech_data_set_scenario_only(ee_tech_data *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_tech_data_scenario_only) = v; }
+internal inline uint8_t *tech_data_scenario_only_at(const ee_tech_data *o) { return (uint8_t *)((uint8_t *)o + of_tech_data_scenario_only); }
 // AoC's epoch upgrades (standard only) grant only a tech with it set: dbtechtree byte 0xF7, clear on civ power and
 // special unit upgrades (0 on all of the 2017 update's) - read in AoC only
 internal inline uint8_t tech_data_get_aoc_new(const ee_tech_data *o) { return *(uint8_t *)((uint8_t *)o + of_tech_data_aoc_new); }
@@ -125,6 +150,18 @@ internal inline void tech_tree_set_player_index(ee_tech_tree *o, int v) { *(int 
 internal inline int *tech_tree_player_index_at(const ee_tech_tree *o) { return (int *)((uint8_t *)o + of_tech_tree_player_index); }
 // the epoch records, 0x54 apart (AoC: one more, its 0x4E4 one record on)
 internal inline uint8_t *tech_tree_epoch_recs_at(const ee_tech_tree *o) { return (uint8_t *)o + of_tech_tree_epoch_recs; }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// int32 tech ids: 0x5BB8C5 sets each one available and calls its vf 0x18; tree setup 0x5BC173 runs it when its
+// second argument is set
+internal inline uint8_t *tech_tree_enabled_techs_at(const ee_tech_tree *o) { return (uint8_t *)o + of_tech_tree_enabled_techs; }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// int32 tech ids: the same function 0x5BB8C5 calls 0x5BF4C8(1, 1) on each (node +5 set, the tech's effects
+// applied) - a re-grant
+internal inline uint8_t *tech_tree_granted_techs_at(const ee_tech_tree *o) { return (uint8_t *)o + of_tech_tree_granted_techs; }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// int32 tech ids: 0x5BB959 adds every tech whose data's scenario_only is set, then disables each (0x5BF3B3(1, 1),
+// passed on to the techs that need it)
+internal inline uint8_t *tech_tree_disabled_techs_at(const ee_tech_tree *o) { return (uint8_t *)o + of_tech_tree_disabled_techs; }
 // its player
 internal inline ee_player *tech_tree_get_player(const ee_tech_tree *o) { return *(ee_player **)((uint8_t *)o + of_tech_tree_player); }
 internal inline void tech_tree_set_player(ee_tech_tree *o, ee_player *v) { *(ee_player **)((uint8_t *)o + of_tech_tree_player) = v; }
@@ -183,6 +220,7 @@ internal int spec_tech_select(int build) {
         of_tech_available = 0x6;
         of_tech_data = 0x8;
         of_tech_tree = 0xC;
+        of_tech_button = 0x10;
         of_tech_epoch = 0x14;
         of_tech_last_epoch = 0x18;
         of_tech_queueable = 0x1D;
@@ -191,15 +229,22 @@ internal int spec_tech_select(int build) {
         fn_tech_grant = (tech_grant_fn)0x005BF335;
         of_tech_data_makers_begin = 0x10;
         of_tech_data_costs = 0x24;
+        of_tech_data_calamity = 0x44;
         of_tech_data_category = 0x48;
         of_tech_data_id = 0x4C;
         of_tech_data_effects = 0x50;
         of_tech_data_requires = 0x5C;
         of_tech_data_unit_type = 0x6C;
+        of_tech_data_name_string = 0x74;
+        of_tech_data_is_object = 0x7C;
         of_tech_data_counts = 0x7D;
+        of_tech_data_scenario_only = 0x7F;
         of_tech_data_aoc_new = 0x81;
         of_tech_tree_player_index = 0x4;
         of_tech_tree_epoch_recs = 0x8;
+        of_tech_tree_enabled_techs = 0x4A4;
+        of_tech_tree_granted_techs = 0x4B4;
+        of_tech_tree_disabled_techs = 0x4C4;
         of_tech_tree_player = 0x4E0;
         of_tech_tree_epoch = 0x4E4;
         fn_tech_tree_epoch_next = (tech_tree_epoch_next_fn)0x005BC15D;
@@ -223,6 +268,7 @@ internal int spec_tech_select(int build) {
         of_tech_available = 0x6;
         of_tech_data = 0x8;
         of_tech_tree = 0xC;
+        of_tech_button = 0x10;
         of_tech_epoch = 0x14;
         of_tech_last_epoch = 0x18;
         of_tech_queueable = 0x21;
@@ -231,15 +277,22 @@ internal int spec_tech_select(int build) {
         fn_tech_grant = (tech_grant_fn)0x005CFA53;
         of_tech_data_makers_begin = 0x10;
         of_tech_data_costs = 0x24;
+        of_tech_data_calamity = 0x44;
         of_tech_data_category = 0x48;
         of_tech_data_id = 0x4C;
         of_tech_data_effects = 0x50;
         of_tech_data_requires = 0x5C;
         of_tech_data_unit_type = 0x6C;
+        of_tech_data_name_string = 0x74;
+        of_tech_data_is_object = 0x7C;
         of_tech_data_counts = 0x7D;
+        of_tech_data_scenario_only = 0x7F;
         of_tech_data_aoc_new = 0x81;
         of_tech_tree_player_index = 0x4;
         of_tech_tree_epoch_recs = 0x8;
+        of_tech_tree_enabled_techs = 0x4F8;
+        of_tech_tree_granted_techs = 0x508;
+        of_tech_tree_disabled_techs = 0x518;
         of_tech_tree_player = 0x534;
         of_tech_tree_epoch = 0x538;
         fn_tech_tree_epoch_next = (tech_tree_epoch_next_fn)0x005CCB34;

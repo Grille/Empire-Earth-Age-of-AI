@@ -134,6 +134,10 @@ internal inline int *plan_node_unknown_10_at(const ee_plan_node *o) { return (in
 
 // class EECPResourceManager (ee_resource_mgr)
 // the AI's resource manager (EECPResourceManager)
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// uint16 ids into the world's table 0x917C34 (an entry: a count +0x1C, a region +0x80, vf 0x14 its nearest point):
+// find_wood 0x48C060 walks them and searches trees around the nearest one's point
+internal inline uint8_t *resource_mgr_forests_at(const ee_resource_mgr *o) { return (uint8_t *)o + of_resource_mgr_forests; }
 // the animals to hunt
 // its file's code (the resource manager)
 internal inline void **resource_mgr_get_hunt_begin(const ee_resource_mgr *o) { return *(void ***)((uint8_t *)o + of_resource_mgr_hunt_begin); }
@@ -190,6 +194,12 @@ internal inline uint32_t *resource_mgr_next_assign_at(const ee_resource_mgr *o) 
 internal inline uint32_t resource_mgr_get_next_prune(const ee_resource_mgr *o) { return *(uint32_t *)((uint8_t *)o + of_resource_mgr_next_prune); }
 internal inline void resource_mgr_set_next_prune(ee_resource_mgr *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_resource_mgr_next_prune) = v; }
 internal inline uint32_t *resource_mgr_next_prune_at(const ee_resource_mgr *o) { return (uint32_t *)((uint8_t *)o + of_resource_mgr_next_prune); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// a byte per resource, saved and loaded as 7 bytes (0x48C9xx), cleared with target[7] (0x48C95A); update's prune
+// 0x48D263 clears 2..6; no other reader in either build
+internal inline uint8_t resource_mgr_get_resource_flags(const ee_resource_mgr *o, int i) { return ((uint8_t *)((uint8_t *)o + of_resource_mgr_resource_flags))[i]; }
+internal inline void resource_mgr_set_resource_flags(ee_resource_mgr *o, int i, uint8_t v) { ((uint8_t *)((uint8_t *)o + of_resource_mgr_resource_flags))[i] = v; }
+internal inline uint8_t *resource_mgr_resource_flags_at(const ee_resource_mgr *o) { return (uint8_t *)((uint8_t *)o + of_resource_mgr_resource_flags); }
 // (the timers reset while 0)
 // its file's code (the resource manager)
 internal inline uint8_t resource_mgr_get_initialized(const ee_resource_mgr *o) { return *(uint8_t *)((uint8_t *)o + of_resource_mgr_initialized); }
@@ -291,6 +301,16 @@ internal inline void research_mgr_schedule(ee_research_mgr *research_mgr, int id
 
 // class ee_unit_mgr (ee_unit_mgr)
 // the AI's unit manager, CM +0x44
+// the head (end sentinel) of its map type -> units (the map object 0x0..0xC): type_list 0x48F8AF compares
+// map::find's result (0x404CA6) with it, else returns the node's +0x10
+internal inline void *unit_mgr_get_types_head(const ee_unit_mgr *o) { return *(void **)((uint8_t *)o + of_unit_mgr_types_head); }
+internal inline void unit_mgr_set_types_head(ee_unit_mgr *o, void *v) { *(void **)((uint8_t *)o + of_unit_mgr_types_head) = v; }
+internal inline void **unit_mgr_types_head_at(const ee_unit_mgr *o) { return (void **)((uint8_t *)o + of_unit_mgr_types_head); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// the map's size: 0x490866 calls type_list only while it is not 0
+internal inline uint32_t unit_mgr_get_types_count(const ee_unit_mgr *o) { return *(uint32_t *)((uint8_t *)o + of_unit_mgr_types_count); }
+internal inline void unit_mgr_set_types_count(ee_unit_mgr *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_unit_mgr_types_count) = v; }
+internal inline uint32_t *unit_mgr_types_count_at(const ee_unit_mgr *o) { return (uint32_t *)((uint8_t *)o + of_unit_mgr_types_count); }
 // its file's code (the unit manager)
 internal inline uint8_t *unit_mgr_requests_at(const ee_unit_mgr *o) { return (uint8_t *)o + of_unit_mgr_requests; }
 // its civilization manager
@@ -406,6 +426,7 @@ internal int spec_ai_managers_select(int build) {
         of_plan_node_next = 0x0;
         of_plan_node_unknown_c = 0xC;
         of_plan_node_unknown_10 = 0x10;
+        of_resource_mgr_forests = 0x78;
         of_resource_mgr_hunt_begin = 0x88;
         of_resource_mgr_hunt_end = 0x8C;
         of_resource_mgr_fish_begin = 0x98;
@@ -419,6 +440,7 @@ internal int spec_ai_managers_select(int build) {
         of_resource_mgr_next_targets = 0x174;
         of_resource_mgr_next_assign = 0x178;
         of_resource_mgr_next_prune = 0x17C;
+        of_resource_mgr_resource_flags = 0x180;
         of_resource_mgr_initialized = 0x187;
         of_resource_mgr_att_188 = 0x188;
         fn_resource_mgr_assign_citizens = (resource_mgr_assign_citizens_fn)0x0048A554;
@@ -472,6 +494,8 @@ internal int spec_ai_managers_select(int build) {
         of_research_mgr_att_random = 0x11A;
         fn_research_mgr_request_requirements = (research_mgr_request_requirements_fn)0x004860D6;
         fn_research_mgr_schedule = (research_mgr_schedule_fn)0x00485F57;
+        of_unit_mgr_types_head = 0x4;
+        of_unit_mgr_types_count = 0x8;
         of_unit_mgr_requests = 0xC;
         of_unit_mgr_owner = 0x130;
         of_unit_mgr_player = 0x134;
@@ -536,6 +560,7 @@ internal int spec_ai_managers_select(int build) {
         of_plan_node_next = 0x0;
         of_plan_node_unknown_c = 0xC;
         of_plan_node_unknown_10 = 0x10;
+        of_resource_mgr_forests = 0x78;
         of_resource_mgr_hunt_begin = 0x88;
         of_resource_mgr_hunt_end = 0x8C;
         of_resource_mgr_fish_begin = 0x98;
@@ -549,6 +574,7 @@ internal int spec_ai_managers_select(int build) {
         of_resource_mgr_next_targets = 0x174;
         of_resource_mgr_next_assign = 0x178;
         of_resource_mgr_next_prune = 0x17C;
+        of_resource_mgr_resource_flags = 0x180;
         of_resource_mgr_initialized = 0x187;
         of_resource_mgr_att_188 = 0x188;
         fn_resource_mgr_assign_citizens = (resource_mgr_assign_citizens_fn)0x0048EECF;
@@ -602,6 +628,8 @@ internal int spec_ai_managers_select(int build) {
         of_research_mgr_att_random = 0x12A;
         fn_research_mgr_request_requirements = (research_mgr_request_requirements_fn)0x0048A91E;
         fn_research_mgr_schedule = (research_mgr_schedule_fn)0x0048A79F;
+        of_unit_mgr_types_head = 0x4;
+        of_unit_mgr_types_count = 0x8;
         of_unit_mgr_requests = 0xC;
         of_unit_mgr_owner = 0x144;
         of_unit_mgr_player = 0x148;

@@ -10,6 +10,8 @@ typedef struct ee_world_table ee_world_table;
 typedef struct ee_build_goal ee_build_goal;
 typedef struct ee_load_goal ee_load_goal;
 typedef struct ee_location_goal ee_location_goal;
+typedef struct eeug_attack_unit eeug_attack_unit;
+typedef struct eeug_gather eeug_gather;
 typedef struct ee_continent_mgr ee_continent_mgr;
 typedef struct ee_minimap ee_minimap;
 typedef struct ee_resign_msg ee_resign_msg;

@@ -2,9 +2,31 @@
 [c_type("ee_scen_mgr")]
 unsafe struct EEScenarioManager
 {
+    /// a 4x4 matrix: the cinematic's start 0x5A1CDA saves the camera's rotation (quaternion camera +0x4C, 0x51D4CA)
+    /// here, its end 0x5A18D0 restores it (0x51EA3E)
+    [offset(0x8), found(c), guess]
+    block cam_rot;
+
+    /// the same for the camera's quaternion +0x5C (0x51D528 saves, 0x51EAF7 restores)
+    [offset(0x48), found(c), guess]
+    block cam_rot_2;
+
+    /// the camera's eye saved at a cinematic's start (0x51D46C), restored at its end (0x51E988)
+    [offset(0x88), found(c), guess]
+    vec3 cam_eye;
+
+    /// the camera's look-at point saved at a cinematic's start (0x51D56A), restored at its end (0x51EC85)
+    [offset(0x94), found(c), guess]
+    vec3 cam_look;
+
     /// its file's code (the scenario manager)
     [offset(0xC0), found(c)]
     block chat;
+
+    /// {player index, type id} pairs of 8 bytes: vf7 0x5A26AC unloads each type's media for its player ("Scenario:
+    /// Unloading Media for")
+    [offset(0xD8), found(c), guess]
+    vector media_loaded;
 
     /// its file's code (the scenario manager)
     [offset(0xE8), found(c)]
@@ -26,9 +48,18 @@ unsafe struct EEScenarioManager
     [offset(0x128), found(c)]
     vector areas;
 
+    /// 64-byte records (a unit id +0x38, an int +0x2C, a cinematic byte +0x3C): 0x5A45CA takes one per call and points
+    /// the camera at the unit (0x51DDD7); a cinematic's start drops those of +0x3C 0, its end those of 1
+    [offset(0x148), found(c), guess]
+    vector camera_queue;
+
     /// its file's code (the scenario manager)
     [offset(0x168), found(c)]
     vector queue;
+
+    /// game.scroll_speed at a cinematic's start (0x5A1CDA), given back at its end through 0x51F2F3 (0x5A18D0)
+    [offset(0x204), found(c)]
+    float32 saved_scroll_speed;
 
     /// ms
     /// its file's code (the scenario manager)
