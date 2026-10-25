@@ -268,22 +268,26 @@ internal void fo_march(ee_active_group *grp) {
 }
 
 // FOLLOWING (`formation_follow`, with formations; step 2 of moving in formation): a group laid out here marches in its
-// formation behind a leader - the unit whose spot is nearest the formation's middle - instead of each unit running its
-// own route to its spot. The leader keeps its route and goes at the slowest member's top speed; every other
-// land unit steers each tick at its point (its spot's offset from the leader's, turned with the formation's facing: the
-// way it goes while far - its front rank leads - and over the last FF_SETTLE seconds turned to the final facing, longer
-// when its outermost units need the time to swing round, at most FF_SETTLE_MAX; with a move queued after it, the way
-// all along) plus FF_AHEAD along the way, through the turn (shiproute.c's hook of the land models' slot 7), and
-// its speed (the land models' speed step) is the leader's plus FF_GAIN for each tile it is behind its point along the
-// way (towards the leader's spot, smoothed), while behind up to FF_BOOST of its own top speed. Its own route stays: whenever its point is further than FF_FAR, on a
-// tile it may not enter or not in a clear line, it takes its route for that tick; while it follows, the waypoints it
-// passed (or that are within FF_DROP in a clear line) are dropped so the route is where it stands. Once the leader is
-// within FF_END of its spot, or gone, or given another order, the march ends: each unit goes on to its own spot. The
-// members' speeds are their own then (formation_march's group speed would hold the ones behind back). A queued move
+// formation instead of each unit running its own route to its spot. It hangs on an anchor that marches like a ship
+// (ff_leader): set out from the leader - the unit whose spot is nearest the formation's middle -, heading for the
+// leader's route FF_LOOK ahead, its heading turned no faster than an arc that leaves the innermost unit FF_INNER inside
+// it (every unit walks forward through a turn instead of the formation wheeling round a leader on the route), at the
+// slowest member's top speed, slower in a turn so the outermost unit keeps up. Every land unit, the leader too, steers
+// each tick at its point (its spot's offset from the leader's, from the anchor, turned with the formation's facing: the
+// anchor's heading - its front rank leads - and over the last FF_SETTLE seconds turned to the final facing, longer when
+// its outermost units need the time to swing round, at most FF_SETTLE_MAX; with a move queued after it, the heading all
+// along) plus FF_AHEAD along the heading, through the turn (shiproute.c's hook of the land models' slot 7), and its speed
+// (the land models' speed step) is the anchor's plus FF_GAIN for each tile it is behind its point, while behind up to
+// FF_BOOST of its own top speed. Its own route stays: whenever its point is further than FF_FAR, on a tile it may not
+// enter or not in a clear line, it takes its route for that tick; while it follows, the waypoints it passed (or that
+// are within FF_DROP in a clear line) are dropped so the route is where it stands. Once the anchor is within FF_END of
+// the leader's spot, or the leader is gone or given another order, the march ends: each unit goes on to its own spot.
+// The members' speeds are their own then (formation_march's group speed would hold the ones behind back). A queued move
 // (shift) is laid out from the units' last order's points and its march sets out when the leader takes it up: the
-// march before it goes on till then. Units far apart (two groups sent to the point between them) march as blocks,
-// each behind a leader of its own (ff_start). All from the
-// game's state in the simulation: the same on every PC
+// march before it goes on till then; turning less than 90 degrees, the same formation goes on - the anchor runs through
+// the corner, turning into the next leg FF_LOOK before it, the leader's leg ended there. Units far apart (two groups
+// sent to the point between them) march as blocks, each behind a leader of its own (ff_start). All from the game's
+// state in the simulation: the same on every PC
 #define FF_GROUPS 64
 #define FF_UNITS 4096          // the followers' table (open, by unit id)
 #define FF_FAR 24.0f           // tiles
@@ -291,7 +295,9 @@ internal void fo_march(ee_active_group *grp) {
 #define FF_GAIN 0.5f           // tiles/s for each tile behind
 #define FF_BOOST 1.25f         // a follower behind its point: at most this much of its own top speed
 #define FF_AHEAD 1.5f          // tiles: the point steered at lies this far ahead of the follower's own (no circling on it)
-#define FF_TURN 0.05f          // the way: this share of the direction from the leader to its spot a step
+#define FF_LOOK 3.0f           // tiles: the anchor heads for the leader's route this far ahead of it
+#define FF_INNER 1.0f          // tiles: the anchor's tightest arc leaves the innermost unit this far inside it
+#define FF_GAP 2.0f            // tiles: the leader this far behind the anchor and further - it waits, to a crawl this much further
 #define FF_FORM_FREE 2.0f      // tiles: the followers this far from their points on average and further - the leader waits,
 #define FF_FORM 4.0f           // down to FF_CRAWL this much further
 #define FF_CRAWL 0.15f         // the leader's least share of the march's speed while they form up
@@ -306,8 +312,10 @@ internal void fo_march(ee_active_group *grp) {
 // the leader, goal: the leader's goal of this move (NULL: not known - its group
 // tells), live: on its way this step (else queued behind the leader's current order), lead_off: the leader's spot from
 // the formation's point in its frame, through: a queued march goes on from it in the same formation (it doesn't end
-// short of the leader's spot)
-struct ff_group { uint32_t leader; ee_group *grp; ee_goal *goal; vec2 fwd, way, face, end, lead_off; float speed, reach, err, err_sum; int err_n; uint32_t step; int on, live, through; };
+// short of the leader's spot), onward: then the next leg's way, passed: the anchor past the leader's spot then; anchor:
+// the point the formation hangs on (ff_leader), way its heading, vel its speed, turning its share of the tightest turn
+// last step, started: set out (prev: the march it went on from, else -1)
+struct ff_group { uint32_t leader; ee_group *grp; ee_goal *goal; vec2 fwd, way, face, end, lead_off, onward, anchor; float speed, reach, err, err_sum, vel, turning; int err_n; uint32_t step; int on, live, through, passed, started, prev; };
 internal struct ff_group g_ff[FF_GROUPS];
 internal unsigned g_ff_next;
 internal int g_ff_first, g_ff_count;   // the marches started by the move being dispatched, for their leaders' goals
@@ -356,8 +364,18 @@ internal void ff_start_block(void *group, const int *idx, int k, vec2 c, vec2 fw
     gr->end = g_fo[lead].at;
     vec2 lc = vec2_sub(gr->end, c);
     gr->lead_off = v2(vec2_dot(lc, right), vec2_dot(lc, fwd));
-    gr->through = 0;
-    if (from >= 0) { gr->face = g_ff[from].face; g_ff[from].through = 1; g_ff_arcs++; }
+    gr->through = gr->passed = gr->started = 0;
+    gr->prev = from;
+    gr->vel = gr->turning = 0;
+    gr->onward = v2(0, 0);
+    if (from >= 0) {
+        vec2 on = vec2_sub(gr->end, g_ff[from].end);
+        float ol = vec2_len(on);
+        g_ff[from].onward = ol > 0.01f ? vec2_scale(on, 1.0f / ol) : gr->way;
+        gr->face = g_ff[from].face;
+        g_ff[from].through = 1;
+        g_ff_arcs++;
+    }
     gr->reach = 0;
     gr->speed = slow;
     gr->step = ~0u;
@@ -461,39 +479,82 @@ internal int ff_on_move(struct ff_group *gr, ee_unit *l) {
     return -1;
 }
 
-// once a step: is the march on its way (its leader there, on this move, not at its spot yet), the heading; NULL while
-// it is queued too (gr->on stays)
+// where the anchor heads: the leader's route FF_LOOK ahead of it (its waypoints, round what blocks; only those ahead),
+// near the leader's spot on along the next leg when a march goes on from this one (the turn begins before the corner),
+// past it along the next leg
+internal vec2 ff_pursue(struct ff_group *gr, ee_unit *l) {
+    vec2 a = gr->anchor;
+    if (gr->passed) return vec2_add(a, vec2_scale(gr->onward, FF_LOOK));
+    float de = vec2_len(vec2_sub(gr->end, a));
+    if (de < FF_LOOK) return gr->through ? vec2_add(gr->end, vec2_scale(gr->onward, FF_LOOK - de)) : gr->end;
+    int n = unit_get_waypoints_left(l);
+    for (int i = 0; i < n && i < 32; i++) {
+        float w[3];
+        if (unit_waypoint_at(l, i, w)) break;
+        vec2 q = v2(w[0], w[1]), d = vec2_sub(q, a);
+        if (vec2_dot(d, gr->way) > 0 && vec2_dot(d, d) >= FF_LOOK * FF_LOOK) return q;
+    }
+    return gr->end;
+}
+
+// once a step: is the march on its way (its leader there, on this move, not done), the anchor moved on; NULL while it
+// is queued too (gr->on stays). The anchor - the point the formation hangs on, every unit's point (the leader's too) its
+// offset from it turned with the facing - heads for ff_pursue's point like a ship: its heading turns no faster than an
+// arc of radius reach + FF_INNER (the innermost unit still walks forward through the turn instead of the formation
+// wheeling round a leader on the route), and it slows in the turn so the outermost unit keeps up within FF_BOOST
 internal ee_unit *ff_leader(struct ff_group *gr, uint32_t step) {
     ee_unit *l = gr->on ? unit_by_id(gr->leader) : NULL;
     if (gr->step == step) return gr->live ? l : NULL;
+    uint32_t steps = gr->step == ~0u || step - gr->step > 20 ? 1 : step - gr->step;   // since the last (no unit of it may have moved in between)
     gr->step = step;
     gr->live = 0;
     vec3 p = l ? unit_get_pos(l) : v3(0, 0, 0);
     int on = l && unit_get_hp(l) > 0 ? ff_on_move(gr, l) : -1;
-    if (on < 0 || (on && !gr->through && vec2_dist2(v2(p.x, p.y), gr->end) < FF_END * FF_END)) { gr->on = 0; return NULL; }
+    if (on < 0) { gr->on = 0; return NULL; }
     if (!on) return NULL;
     gr->live = 1;
-    // the followers' distance from their points last step, on average: the leader waits while they form up
+    // the followers' distance from their points last step, on average: the anchor waits while they form up
     gr->err = gr->err_n ? gr->err_sum / (float)gr->err_n : 0;
     gr->err_sum = 0;
     gr->err_n = 0;
-    // the way: towards the leader's spot, smoothed - its own facing swings with every leg of the game's route (straight
-    // and 45 degrees by turns)
-    vec2 to = vec2_sub(gr->end, v2(p.x, p.y));
+    ee_physics *ph = game_physics();
+    float dt = (ph ? physics_get_step_s(ph) : 0.05f) * (float)steps;
+    if (!gr->started) {   // the anchor sets out from the leader - or where the march before left it, turning on from there
+        struct ff_group *pv = gr->prev >= 0 ? &g_ff[gr->prev] : NULL;
+        gr->started = 1;
+        if (pv && pv->started && pv->through) { gr->anchor = pv->anchor; gr->way = pv->way; gr->face = pv->face; }
+        else gr->anchor = v2(p.x, p.y);
+    }
+    vec2 to = vec2_sub(ff_pursue(gr, l), gr->anchor);
     float tl = vec2_len(to);
-    vec2 h = tl > 0.01f ? vec2_add(vec2_scale(gr->way, 1 - FF_TURN), vec2_scale(to, FF_TURN / tl)) : gr->way;
-    float hl = vec2_len(h);
-    if (hl > 0.01f) gr->way = vec2_scale(h, 1.0f / hl);
-    // the facing: the way, turned to the final facing over the last span - its share of the turn the time left on it
-    // (the turn's arc for the outermost unit: at most the chord x pi / 2)
-    float spd = gr->speed > 0.05f ? gr->speed : 0.05f, left = tl / spd;
+    vec2 dir = tl > 0.01f ? vec2_scale(to, 1.0f / tl) : gr->way;
+    // its speed: the march's, less while the formation forms up or the leader lags behind it, and in a turn
+    float wait = 1 - (gr->err - FF_FORM_FREE) / FF_FORM, gap = vec2_len(vec2_sub(v2(p.x, p.y), gr->anchor)), lag = 1 - (gap - FF_GAP) / FF_GAP;
+    if (lag < wait) wait = lag;
+    wait = wait > 1 ? 1 : wait > FF_CRAWL ? wait : FF_CRAWL;
+    float r = gr->reach + FF_INNER, k = FF_BOOST * 0.85f * r / (r + gr->reach);
+    if (k > 1) k = 1;
+    float v = gr->speed * wait * (1 - gr->turning * (1 - k));
+    // its heading towards dir, no faster than the arc (the chord for the angle: small steps)
+    float most = v * dt / r, ch = vec2_len(vec2_sub(dir, gr->way));
+    gr->turning = ch > most ? 1 : most > 0 ? ch / most : 0;
+    gr->way = ch <= most ? dir : fo_turn(gr->way, dir, most / ch);
+    gr->anchor = vec2_add(gr->anchor, vec2_scale(gr->way, v * dt));
+    gr->vel = v;
+    // the anchor at the leader's spot: the march done, each unit on to its own; going on to a queued march, the anchor
+    // goes on and the leader's leg ends there (its arrival starts the next order, which takes the anchor over)
+    float de = vec2_len(vec2_sub(gr->end, gr->anchor));
+    if (de < FF_END && !gr->through) { gr->on = gr->live = 0; return NULL; }
+    if (de < FF_END && !gr->passed) { gr->passed = 1; ff_finish_leg(l); }
+    // the facing: the heading, turned to the final facing over the last span - its share of the turn the time left on it
+    // (the turn's arc for the outermost unit: at most the chord x pi / 2) - no faster than its outermost units swing round
+    float spd = gr->speed > 0.05f ? gr->speed : 0.05f, left = de / spd;
     float span = gr->reach * vec2_len(vec2_sub(gr->fwd, gr->way)) * 1.5708f / spd;
     span = span < FF_SETTLE ? FF_SETTLE : span > FF_SETTLE_MAX ? FF_SETTLE_MAX : span;
-    vec2 want = left >= span || unit_orders(l) > 1 ? gr->way : fo_turn(gr->way, gr->fwd, 1 - left / span);
-    // turned towards it no faster than its outermost units swing round (the chord for the angle: small steps)
-    ee_physics *ph = game_physics();
-    float most = FF_SWING * spd / (gr->reach > 1 ? gr->reach : 1) * (ph ? physics_get_step_s(ph) : 0.05f), ch = vec2_len(vec2_sub(want, gr->face));
-    gr->face = ch <= most ? want : fo_turn(gr->face, want, most / ch);
+    vec2 want = left >= span || gr->through ? gr->way : fo_turn(gr->way, gr->fwd, 1 - left / span);
+    float swing = FF_SWING * spd / (gr->reach > 1 ? gr->reach : 1) * dt;
+    ch = vec2_len(vec2_sub(want, gr->face));
+    gr->face = ch <= swing ? want : fo_turn(gr->face, want, swing / ch);
     return l;
 }
 
@@ -524,10 +585,9 @@ internal int fo_follow_aim(ee_unit *u, const float *pos, float *aim) {
     uint32_t step = ff_step();
     ee_unit *l;
     struct ff_group *gr = ff_march(e, u, step, &l);
-    if (!gr || e->id == gr->leader) return 0;
-    vec3 lp = unit_get_pos(l);
+    if (!gr) return 0;
     vec2 right = v2(gr->face.y, -gr->face.x);
-    vec2 pt = vec2_add(v2(lp.x, lp.y), vec2_add(vec2_scale(right, e->off.x), vec2_scale(gr->face, e->off.y)));
+    vec2 pt = vec2_add(gr->anchor, vec2_add(vec2_scale(right, e->off.x), vec2_scale(gr->face, e->off.y)));
     vec2 d = vec2_sub(pt, v2(pos[0], pos[1]));
     gr->err_sum += vec2_len(d);
     gr->err_n++;
@@ -567,13 +627,9 @@ internal float __thiscall hook_ff_speed(void *model, ee_unit *u, float dist, flo
     struct ff_group *gr = ff_march(e, u, step, &l);
     if (!gr) return s;
     float top = unit_max_speed(u), want, cap = top;
-    if (e->id == gr->leader) {
-        float wait = 1 - (gr->err - FF_FORM_FREE) / FF_FORM;
-        want = gr->speed * (wait > 1 ? 1 : wait > FF_CRAWL ? wait : FF_CRAWL);
-    } else if (e->step == step) {
-        want = unit_get_speed(l) * e->with + FF_GAIN * e->along;   // its point's speed its way, and closing
-        if (e->along > 0) cap = top * FF_BOOST;
-    } else return s;
+    if (e->step != step) return s;
+    want = gr->vel * e->with + FF_GAIN * e->along;   // its point's speed (the anchor's) its way, and closing
+    if (e->along > 0) cap = top * FF_BOOST;
     if (want > cap) want = cap;
     if (want < 0) want = 0;
     ee_physics *ph = game_physics();
