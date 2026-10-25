@@ -19,8 +19,9 @@ PY=${PY:-../local/venv/Scripts/python.exe}   # install.sh: the repository's, for
 [ -x "$PY" ] || PY=$(command -v python3 || command -v python)
 # the folders' rules (which part may use which: scripts/build/layers.py) - a use across them fails the build
 # and the C style the compiler leaves open (scripts/build/style.py: int* a, b - only a is a pointer); the editor's view of
-# the one translation unit (scripts/build/gen_editor_context.py: what each part sees before it, for VS Code's C/C++)
-if [ -n "$PY" ]; then "$PY" ../scripts/build/persist_layout.py && "$PY" ../scripts/build/gen_cmd_verbs.py && "$PY" ../scripts/build/layers.py --quiet && "$PY" ../scripts/build/settings_check.py && "$PY" ../scripts/build/addr_sort.py --check && "$PY" ../scripts/build/style.py && "$PY" ../scripts/build/gen_editor_context.py || exit 1
+# the one translation unit (scripts/build/gen_editor_context.py: what each part sees before it, for VS Code's C/C++); the
+# spec's rules the C# compiler leaves open (scripts/build/spec_check.py: spec/)
+if [ -n "$PY" ]; then "$PY" ../scripts/build/persist_layout.py && "$PY" ../scripts/build/gen_cmd_verbs.py && "$PY" ../scripts/build/layers.py --quiet && "$PY" ../scripts/build/settings_check.py && "$PY" ../scripts/build/spec_check.py && "$PY" ../scripts/build/addr_sort.py --check && "$PY" ../scripts/build/style.py && "$PY" ../scripts/build/gen_editor_context.py || exit 1
 else echo "no Python: persist_layout.h and cmd_verbs.h left as they are, the folders' rules unchecked (scripts/build/persist_layout.py after changing a saved variable, gen_cmd_verbs.py after a new pipe command)"; fi
 "$CC" -O2 -mstackrealign -fno-strict-aliasing -Wall -Wextra -Wformat=2 -Wstrict-prototypes -Wimplicit-fallthrough -Wvla -Wshadow -shared -static -I. -o eeaimod.dll eeaimod.c -lgdi32 -ldxguid -lwinmm -lwinhttp -Wl,--image-base,0x6E000000 -Wl,--exclude-all-symbols || exit 1
 # dinput.dll (optional): the game's settings in eesettings.ini instead of the registry (dinput/eesettings.c)

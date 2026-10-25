@@ -1,0 +1,9 @@
+# The spec's C# describes the game in C's terms, not a .NET library: the editor's .NET style hints don't apply.
+[*.cs]
+dotnet_diagnostic.IDE1006.severity = none   # names upper case: the game's and C's are lower case (ee_unit, uint32)
+dotnet_diagnostic.CA1050.severity = none    # types in namespaces: one namespace, the spec's
+dotnet_diagnostic.IDE0060.severity = none   # unused parameters: the attributes' values are read from the source
+dotnet_diagnostic.IDE0290.severity = none   # primary constructors: an attribute's overloads read plainer apart
+dotnet_diagnostic.IDE0251.severity = none   # readonly members: an extern method stands for the game's function
+dotnet_diagnostic.IDE0051.severity = none   # unused private members: the spec's members describe the game, nothing calls them
+dotnet_diagnostic.IDE0044.severity = none   # readonly fields: a field is the game's, not a .NET one

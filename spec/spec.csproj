@@ -1,0 +1,15 @@
+<!-- The spec as a C# project: for the editor (go to definition, names and types checked) and dotnet build, which checks
+     the files compile. Nothing of it runs; its build output goes to local/work/spec (Directory.Build.props). -->
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Library</OutputType>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- CS8981: lower-case type names, C's convention (uint32) and not .NET's; CS0169 / CS0649: fields never used
+         or set - the spec's fields describe the game, nothing reads them -->
+    <NoWarn>CS8981;CS0169;CS0649</NoWarn>
+  </PropertyGroup>
+</Project>

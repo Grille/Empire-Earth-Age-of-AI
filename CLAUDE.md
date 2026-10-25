@@ -7,7 +7,7 @@ the setup here) - scripts find it through `scripts/game_dir.sh` / `game_dir.py` 
 docs/testing.md.
 Several sessions may work in this tree at the same time - see Git below.
 
-The tree (2026-10-23): `dll/` the mod, `config/` what ships, `tests/` what the tests run (`scenarios/`, `probes/`,
+The tree (2026-10-25): `dll/` the mod, `spec/` the game as the mod knows it (below), `config/` what ships, `tests/` what the tests run (`scenarios/`, `probes/`,
 `config/` with autotest.ini), `scripts/` by job - `build/` (the build's checks, generators, install), `test/` (run_test
 and the runners, eectl, the MCP server), `results/` (log readers, scorers), `re/` (reverse engineering, the AoC port) -,
 `extensions/` the VS Code extension, `docs/`. Everything git-ignored is in `local/`: `work/` (logs, slots, builds),
@@ -36,6 +36,12 @@ and the runners, eectl, the MCP server), `results/` (log readers, scorers), `re/
   user's own game to end, then install.sh; log `local/work/install.log`. No manual install after a commit.
 - A task that needs the game folder to itself (an install, a slot-0 run): `sh scripts/test/reserve.sh "<what>" <command>`
   - test runs start no game meanwhile, the running ones (and the player's) are waited for; nobody has to pause.
+- `spec/` is the source of truth about the game (2026-10-25, being built up): its classes, fields, functions, call
+  sites and data, build by build, as C# declarations that compile (`dotnet build` in spec/; `scripts/build/spec_check.py`,
+  run by the build, holds the rules the compiler leaves open and checks each `was(...)` against today's rows). It
+  describes the game only - the C comes from a generator (planned: plain C in `dll/game/api/gen/`, no table macros) and
+  the hand-written code on top; the format: spec/attributes.cs's header. Until an object is moved, its rows below stay
+  what the code uses; a moved object's values are changed in the spec, not in raw/.
 - What the mod knows of the game's code and objects lives in `dll/game/api/`. The raw rows, api/'s own, in `raw/`: `functions.h`
   (the functions the mod calls), `hooks.h` (what it patches to hook), `data.h` (the game's data), made a table by
   `tables.c` (with `fields.h`'s; the builds: `game/api/builds.h`) - `api.c` the module's one entry - by name with one value per exe build: `GA(G_WORLD_CLOCK)`,
