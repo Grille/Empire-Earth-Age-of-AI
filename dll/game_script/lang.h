@@ -23,7 +23,7 @@ internal const struct xmember k_xmembers[] = {
     { "vassals", XM_PLAYER, "how many have capitulated to it", XT_INT, -1, -1, 0, 0 },
     { "allies", XM_PLAYER, "how many are allied with it (both ways), still in - allies alone: mine", XT_INT, -1, -1, 0, 1 },
     { "enemies", XM_PLAYER, "how many it treats as enemies, still in - enemies alone: mine", XT_INT, -1, -1, 0, 1 },
-    { "aggression", XM_PLAYER, "its traits, 0-100 (50 without a personality)", XT_FLOAT, -1, -1, 0, 1 },
+    { "aggression", XM_PLAYER, "its traits, a share: 0% .. 100% (50% without a personality) - aggression > 60%, {pride:%} in a text", XT_FLOAT, -1, -1, 0, 1 },
     { "loyalty", XM_PLAYER, "", XT_FLOAT, -1, -1, 0, 1 },
     { "pride", XM_PLAYER, "", XT_FLOAT, -1, -1, 0, 1 },
     { "greed", XM_PLAYER, "", XT_FLOAT, -1, -1, 0, 1 },

@@ -51,7 +51,7 @@ public class player
     [mine] public int allies;
     /// how many it treats as enemies, still in - enemies alone: mine
     [mine] public int enemies;
-    /// its traits, 0-100 (50 without a personality)
+    /// its traits, a share: 0% .. 100% (50% without a personality) - aggression > 60%, {pride:%} in a text
     [mine] public float aggression;
     [mine] public float loyalty;
     [mine] public float pride;
