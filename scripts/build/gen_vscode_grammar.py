@@ -33,7 +33,7 @@ values = bare
 epochs = re.findall(r'"(\w+)"', re.search(r'k_epoch_const\[15\] = \{(.*?)\};', expr, re.S).group(1))
 colors = re.findall(r'\{ "(\w+)", "', re.search(r'k_color_names\[17\]\[3\] = \{(.*?)\};', persona, re.S).group(1))   # the English names
 resources = re.findall(r'"(\w+)"', re.search(r'k_resource_const\[5\] = \{(.*?)\};', expr, re.S).group(1)) + ['all']
-funcs = sorted(set(re.findall(r'!lstrcmpiA\(name, "(\w+)"\)', expr)) - {'true', 'false', 'return', 'and', 'or', 'not'})
+funcs = sorted(set(re.findall(r'!lstrcmpiA\(name, "(\w+)"\)', expr)) - {'true', 'false', 'null', 'return', 'and', 'or', 'not'})
 script_funcs = re.findall(r'\{ "(\w+)", \d \}', re.search(r'x_script_fn\(const char \*name\) \{(.*?)\n\}', expr, re.S).group(1))
 commands = re.findall(r'"(\w+)"', open(os.path.join(root, 'dll', 'test', 'cmd_verbs.h'), encoding='utf-8').read())
 unit_names = open(os.path.join(root, 'dll', 'game', 'unit_names.h'), encoding='utf-8').read()
@@ -75,6 +75,7 @@ expression = [
     {'name': 'constant.language.script.eeaimod', 'match': r'\b(?:stop|time)\b(?![.\w(])'},
     {'name': 'support.function.eeaimod', 'match': words(funcs) + r'(?=\s*\()'},
     {'name': 'constant.language.boolean.eeaimod', 'match': r'\b(?:true|false)\b'},
+    {'name': 'constant.language.null.eeaimod', 'match': r'\bnull\b'},
     {'name': 'keyword.control.logical.eeaimod', 'match': r'\b(?:and|or|not)\b'},
     # me.kills(them): the player, the relation - also a function's parameter that is a player: by.kills(of)
     {'match': r'(?:(' + player + r'|\b[A-Za-z_]\w*)(\.))?(' + words(relations) + r')(?=\s*\()',

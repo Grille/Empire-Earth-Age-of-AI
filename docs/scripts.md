@@ -100,6 +100,14 @@ one of them, records, functions, triggers, and the game's objects (player, game,
 - Compared are values of one type - an int with a float too: `p.epoch >= epoch.middle`, but `p.epoch == 5` is a
   mistake (`int(p.epoch) == 5`).
 - `p.gold = 10.5` (a float in an int's place), `l[1.5]`, `v.z` of a `vec2`, `t.foo` of a trigger: mistakes.
+- What may be none has a type with `?`: `p.lord` (a `player?`), `p.civilization`, `p.war_minutes`, `first(l)`,
+  `item(l, i)`, `number(t)`. It is checked before it is used - `p.lord != null` (or `== null`), then a member, a sum,
+  a place of a plain type (`let q: player = ...`); `??` gives a value instead (`p.war_minutes ?? 0`). The check holds
+  where it guards: in `if p.lord != null { ... }` (and `else` of `== null`), right of `and` / `or`, in `?:`, and below
+  an `if p.lord == null { return }` (also `break`, `continue`). Not in a function made there - it runs later - and not
+  after the name is set anew. A first(l).name of what may be null goes into a variable first (`let f = first(l)`).
+  `null` is "none there": `let q: player? = null`; it is compared only with `==` and `!=`, and only with what may be
+  none (`p != null` of a plain `player` is a mistake).
 
 Written where it can't be told - a function's parameters: `let f = (pos: vec3, id: int) => ...`. A function handed to
 `every` has its `run` from there (`(run) => ...` is an int; `(run: text)` a mistake), the others take none. A `let`

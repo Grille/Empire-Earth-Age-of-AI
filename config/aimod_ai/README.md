@@ -86,6 +86,7 @@ scripts (.rmv, .tai), where `#` is the preprocessor's (`#define`, `#include`): a
 | `allied ? "Welcome back."` | A condition without `:` - nothing when it doesn't hold |
 | `opinion > 30% ? "friend" : "stranger"` | One or the other |
 | `a ?? b` | `a`, unless it is nothing: then `b` |
+| `lord != null` | Something is there (`lord == null`: nothing) - `null` is nothing, compared only with `==` and `!=` |
 
 **Inside a string**, braces hold a placeholder or an expression: `"Hello, {them}!"`,
 `"Hello, {opinion > 30% ? "friend" : "you"}!"`. The quotes inside the braces belong to the expression and don't end
@@ -369,7 +370,7 @@ lines = {
 }
 ```
 
-A condition (`lord ? ...`, `lord and ...`, `not lord`), `??` and a comparison (`lord == them`) check it. Used without
+A condition (`lord != null ? ...`, `lord ? ...`, `lord and ...`, `not lord`), `??` and a comparison (`lord == them`) check it. Used without
 a check - in a text (`{lord}`), a sum, a member (`lord.soldiers`) or a relation (`opinion(lord)`) - it is a
 mistake: a line that names a lord nobody has makes no sense, so it is left out (the list item, else the line).
 
