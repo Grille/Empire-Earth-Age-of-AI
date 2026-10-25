@@ -1611,13 +1611,17 @@ internal void cmd_attacks(char *out, const char *args) {
     }
 }
 
-// NOT what its name says (found 2026-10-25, every type's class read in a running game): the classes 11..17 are the
-// bombs, missiles, priests, two unused and the land and helicopter transports - the ships are CLS_NAVAL,
-// CLS_SUBMERGED_NAVAL, CLS_NAVAL_BUILDING, the aircraft CLS_AIRPLANE, CLS_HELICOPTER. Left as it is until measured
-// (bunkers, outposts and two test commands pick land soldiers by it).
-internal int is_ship_or_air(ee_unit_type *td) {   // movement type +0x10C... unknown: by the ship/air families seen in tests
-    int fam = unit_type_get_class_id(td);
-    return fam == 0x0B || fam == 0x0C || fam == 0x0D || fam == 0x0E || fam == 0x0F || fam == 0x10 || fam == 0x11;
+// a ship or an aircraft, by the class of its type data (bunkers, outposts and two test commands pick land soldiers by
+// it). Until 2026-10-25 it tested the classes 11..17 - bombs, missiles, priests, the land and helicopter transports -
+// so a fortress took ships and aircraft near it as candidates and left priests and strategist heroes out.
+internal int is_ship_or_air(ee_unit_type *td) {
+    switch (unit_type_get_class_id(td)) {
+    case CLS_NAVAL: case CLS_SUBMERGED_NAVAL: case CLS_NAVAL_TRANSPORT: case CLS_NAVAL_BUILDING: case CLS_NAVAL_CITIZEN:
+    case CLS_AIRPLANE: case CLS_HELICOPTER: case CLS_HELICOPTER_TRANSPORT: case CLS_HELICOPTER_PRIEST:
+        return 1;
+    default:
+        return 0;
+    }
 }
 
 // a new game (the game start hook): subgroups, units and times of the last game - a breach, a citizen's hit points
