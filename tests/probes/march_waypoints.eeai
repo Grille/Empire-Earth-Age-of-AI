@@ -1,0 +1,18 @@
+// Queued waypoints (formations, formation_follow): a tank and 2 citizens (Continental seed 101) sent east, then with
+// shift three more legs (north-east, east, south-east) - every leg in formation (the player's tank drove the legs after
+// the first on its own at full speed: a unit held one queued march, the third waypoint's took the second's place)
+wait_until(0.1min)
+spawn(1, unit.tank10_mk_v, 36, 44, 1)
+spawn(1, unit.citizen, 35, 45, 2)
+wait_until(0.4min)
+cmd("fmove go 1 36 44 4 50 44 0 0")
+wait_until(0.42min)
+cmd("fmove then 1 60 54")
+cmd("fmove then 1 74 54")
+cmd("fmove then 1 84 44")
+cmd("fmove watch 1")
+every(2s, 0.42min, 2.4min, (run) => {
+    cmd("fmove stat")
+})
+wait_until(2.45min)
+cmd("fmove sum")
