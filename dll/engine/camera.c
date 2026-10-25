@@ -28,6 +28,7 @@ internal volatile LONG g_scroll_calls;   // scroll steps run (for camtrace)
 // before: EE (speed + 0.5) * (setting + 0.5) * 0.01 tiles per ms; AoC ramps its velocity from 10% to that by 1%
 // of the top speed per 10 ms.
 internal int g_cam_smooth = 1;
+internal int g_cam_scrolling;            // the last step had a direction held
 internal LARGE_INTEGER g_cam_last, g_cam_freq, g_cam_frame;
 internal volatile LONG64 g_cam_budget;   // QPC ticks of frames not yet used by a scroll step
 internal void camera_frame(void) {       // the render thread, every presented frame
@@ -62,8 +63,11 @@ internal void __thiscall hook_scroll_execute(ee_scroll *self) {
         g_cam_last = now;
         LONG64 budget = InterlockedExchange64(&g_cam_budget, 0);
         double d = g_cam_frame.QuadPart ? (double)budget * 1000.0 / (double)g_cam_freq.QuadPart : since;
-        if (since > 30.0) d = 1.0;   // the first step after a pause: one timer period (the budget is old frames)
-        ms = d > 50.0 ? 50.0f : (float)d;
+        // the first step of a scroll: one timer period (the budget is old frames). Only then - a step late because the
+        // game thread was busy (a heavy simulation step late in a big game) takes the whole time, else the camera
+        // lost that distance and slowed down at every hitch
+        if (!g_cam_scrolling || since > 250.0) d = 1.0;
+        ms = d > 250.0 ? 250.0f : (float)d;
     }
     float speed = scroll_speed() + 0.5f, maxv = scroll_setting() + 0.5f;
     float dx = 0, dy = 0;
@@ -79,6 +83,7 @@ internal void __thiscall hook_scroll_execute(ee_scroll *self) {
         if (scroll_get_key(self, 0) || scroll_get_key(self, 1)) { scroll_axis(&g_vel_x, scroll_get_key(self, 0), scroll_get_key(self, 1), minv, maxv, ramp); dx = g_vel_x * scale; }
         if (scroll_get_key(self, 3) || scroll_get_key(self, 2)) { scroll_axis(&g_vel_y, scroll_get_key(self, 3), scroll_get_key(self, 2), minv, maxv, ramp); dy = g_vel_y * scale; }
     }
+    g_cam_scrolling = scroll_get_key(self, 0) || scroll_get_key(self, 1) || scroll_get_key(self, 2) || scroll_get_key(self, 3);
     if (dx != 0 || dy != 0) camera_move(dx, dy);
 }
 
