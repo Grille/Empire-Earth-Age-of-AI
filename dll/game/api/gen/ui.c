@@ -67,9 +67,9 @@ internal inline int patch_mouse_update(mouse_update_fn h, int *of) { return patc
 
 // class ee_native_chat (ee_native_chat)
 // the object of native_chat
-internal inline ee_player *nativechat_get_player(const ee_native_chat *o) { return *(ee_player **)((uint8_t *)o + of_nativechat_player); }
-internal inline void nativechat_set_player(ee_native_chat *o, ee_player *v) { *(ee_player **)((uint8_t *)o + of_nativechat_player) = v; }
-internal inline ee_player **nativechat_player_at(const ee_native_chat *o) { return (ee_player **)((uint8_t *)o + of_nativechat_player); }
+internal inline ee_player *native_chat_get_player(const ee_native_chat *o) { return *(ee_player **)((uint8_t *)o + of_native_chat_player); }
+internal inline void native_chat_set_player(ee_native_chat *o, ee_player *v) { *(ee_player **)((uint8_t *)o + of_native_chat_player) = v; }
+internal inline ee_player **native_chat_player_at(const ee_native_chat *o) { return (ee_player **)((uint8_t *)o + of_native_chat_player); }
 
 // class EEAScroll (ee_scroll)
 // the scroll action (EEAScroll)
@@ -82,15 +82,15 @@ internal inline uint8_t *scroll_keys_at(const ee_scroll *o) { return (uint8_t *)
 // class ee_ui_form (ee_ui_form)
 // the UI manager's current form
 // votes 6/7
-internal inline int uiform_get_top_bar(const ee_ui_form *o) { return *(int *)((uint8_t *)o + of_uiform_top_bar); }
-internal inline void uiform_set_top_bar(ee_ui_form *o, int v) { *(int *)((uint8_t *)o + of_uiform_top_bar) = v; }
-internal inline int *uiform_top_bar_at(const ee_ui_form *o) { return (int *)((uint8_t *)o + of_uiform_top_bar); }
+internal inline int ui_form_get_top_bar(const ee_ui_form *o) { return *(int *)((uint8_t *)o + of_ui_form_top_bar); }
+internal inline void ui_form_set_top_bar(ee_ui_form *o, int v) { *(int *)((uint8_t *)o + of_ui_form_top_bar) = v; }
+internal inline int *ui_form_top_bar_at(const ee_ui_form *o) { return (int *)((uint8_t *)o + of_ui_form_top_bar); }
 
 // class ee_ui_screen (ee_ui_screen)
 // a single-player menu screen (EEUIESP*)
-internal inline uint8_t **uiscreen_get_controls(const ee_ui_screen *o) { return *(uint8_t ***)((uint8_t *)o + of_uiscreen_controls); }
-internal inline void uiscreen_set_controls(ee_ui_screen *o, uint8_t **v) { *(uint8_t ***)((uint8_t *)o + of_uiscreen_controls) = v; }
-internal inline uint8_t ***uiscreen_controls_at(const ee_ui_screen *o) { return (uint8_t ***)((uint8_t *)o + of_uiscreen_controls); }
+internal inline uint8_t **ui_screen_get_controls(const ee_ui_screen *o) { return *(uint8_t ***)((uint8_t *)o + of_ui_screen_controls); }
+internal inline void ui_screen_set_controls(ee_ui_screen *o, uint8_t **v) { *(uint8_t ***)((uint8_t *)o + of_ui_screen_controls) = v; }
+internal inline uint8_t ***ui_screen_controls_at(const ee_ui_screen *o) { return (uint8_t ***)((uint8_t *)o + of_ui_screen_controls); }
 
 // static class ui
 // ui's data of the game, places in its code and numbers
@@ -197,11 +197,11 @@ internal int spec_ui_select(int build) {
         calls_mouse_update[1] = 0x0050FEC8;
         calls_mouse_update[2] = 0x005111CF;
         calls_mouse_update[3] = 0x006618B8;
-        of_nativechat_player = 0x20;
+        of_native_chat_player = 0x20;
         of_scroll_ticks = 0x40;
         of_scroll_keys = 0x44;
-        of_uiform_top_bar = 0x5D8;
-        of_uiscreen_controls = 0xF8;
+        of_ui_form_top_bar = 0x5D8;
+        of_ui_screen_controls = 0xF8;
         data_ui_gfx_effects = 0x00918E1C;
         data_ui_iat_edit_get_text = 0x00823328;
         data_ui_iat_uiform_add_hotkey = 0x00824048;
@@ -268,11 +268,11 @@ internal int spec_ui_select(int build) {
         calls_mouse_update[1] = 0x0051A487;
         calls_mouse_update[2] = 0x0051B73E;
         calls_mouse_update[3] = 0x00678F02;
-        of_nativechat_player = 0x20;
+        of_native_chat_player = 0x20;
         of_scroll_ticks = 0x40;
         of_scroll_keys = 0x44;
-        of_uiform_top_bar = 0x5E8;
-        of_uiscreen_controls = 0xF8;
+        of_ui_form_top_bar = 0x5E8;
+        of_ui_screen_controls = 0xF8;
         data_ui_gfx_effects = 0x0093185C;
         data_ui_iat_edit_get_text = 0x00837EE0;
         data_ui_iat_uiform_add_hotkey = 0x00837BE0;

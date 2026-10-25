@@ -1,5 +1,5 @@
 /// the scenario manager (EEScenarioManager; test/scen.c)
-[c_type("ee_scen_mgr"), c_prefix("scen")]
+[c_type("ee_scen_mgr")]
 unsafe struct EEScenarioManager
 {
     /// its file's code (the scenario manager)
@@ -427,7 +427,7 @@ unsafe struct ee_scen_effect
 }
 
 /// a scenario object (EESMObject): units picked by owner, class, area ...
-[c_type("ee_scen_object"), c_prefix("scen_obj")]
+[c_type("ee_scen_object")]
 unsafe struct EESMObject
 {
     /// its file's code (the scenario manager)
@@ -535,7 +535,6 @@ unsafe struct EESMObject
 }
 
 /// a trigger's condition reference
-[c_prefix("trigger_cond")]
 unsafe struct ee_trig_cond
 {
     /// its file's code (the scenario manager)
@@ -552,7 +551,6 @@ unsafe struct ee_trig_cond
 }
 
 /// a trigger's effect reference
-[c_prefix("trigger_effect")]
 unsafe struct ee_trig_effect
 {
     /// its file's code (the scenario manager)

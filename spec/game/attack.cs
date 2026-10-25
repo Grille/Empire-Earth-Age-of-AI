@@ -1,5 +1,5 @@
 /// an attack group (EECPAttackGroup)
-[c_type("ee_attack_group"), c_prefix("ag")]
+[c_type("ee_attack_group")]
 unsafe struct EECPAttackGroup
 {
     [offset(0x8), found(c)]
@@ -15,7 +15,7 @@ unsafe struct EECPAttackGroup
 }
 
 /// the AI's combat manager, player +0xB8C (EECPCombatManager)
-[c_type("ee_combat_mgr"), c_prefix("am")]
+[c_type("ee_combat_mgr")]
 unsafe struct EECPCombatManager
 {
     [offset(0x48), found(c)]
@@ -37,7 +37,6 @@ unsafe struct ee_combat_mgr_4c
 }
 
 /// the combat manager's commands, AM +0x48
-[c_prefix("ac")]
 unsafe struct ee_attack_cmd
 {
     /// the groups' deque (its count +0x10)
@@ -46,7 +45,7 @@ unsafe struct ee_attack_cmd
 }
 
 /// an attack subgroup (EECPAttackSubGroup, EECPASG*)
-[c_type("ee_attack_subgroup"), c_prefix("asg")]
+[c_type("ee_attack_subgroup")]
 unsafe struct EECPAttackSubGroup
 {
     /// its members
@@ -126,7 +125,7 @@ unsafe struct EECPAttackSubGroup
 }
 
 /// an attack subgroup's unit record (EECPAttackSubGroupUnit, EECPASGU*)
-[c_type("ee_asg_unit"), c_prefix("asgu")]
+[c_type("ee_asg_unit")]
 unsafe struct EECPAttackSubGroupUnit
 {
     [offset(0x44), found(c)]
@@ -144,8 +143,7 @@ unsafe struct EECPAttackSubGroupUnit
     extern float32 score(ee_asgu_info* info);
 }
 
-/// what asgu_score scores
-[c_prefix("score_info")]
+/// what asg_unit_score scores
 unsafe struct ee_asgu_info
 {
     [offset(0x4), found(s)]
@@ -163,7 +161,7 @@ unsafe struct ee_route_node
 }
 
 /// the land attack route planner (EEAIGPGModifierLandAttackSubGroupRoutePlanner)
-[c_type("ee_route_planner"), c_prefix("planner")]
+[c_type("ee_route_planner")]
 unsafe struct EEAIGPGModifierLandAttackSubGroupRoutePlanner
 {
     [offset(0x48), found(c)]
@@ -247,7 +245,7 @@ static unsafe class attack
     [value(97)]
     static uint32 slot_asg_route_done;
 
-    /// the attack subgroups: asg_stats, attack.vt_asg_land's asg_land_stats
+    /// the attack subgroups: attack_subgroup_stats, attack.vt_asg_land's attack_subgroup_land_stats
     [value(20)]
     static uint32 slot_asg_stats;
 

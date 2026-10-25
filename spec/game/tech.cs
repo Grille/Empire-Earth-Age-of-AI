@@ -19,7 +19,6 @@ unsafe struct ee_effect
 }
 
 /// game.epoch_techs' records
-[c_prefix("effects")]
 unsafe struct ee_epoch_techs
 {
     /// the tech tree code's reads (unchanged)
@@ -66,7 +65,6 @@ unsafe struct EETechTreeNode
 }
 
 /// a tech's data, TECH +8 (costs, its building ...)
-[c_prefix("techdata")]
 unsafe struct ee_tech_data
 {
     /// the tech tree code's reads (unchanged)
@@ -107,7 +105,6 @@ unsafe struct ee_tech_data
 }
 
 /// a player's tech tree, player +0x9D4 (EETechTree)
-[c_prefix("tt")]
 unsafe struct EETechTree
 {
     [offset(0x4), found(v)]
@@ -123,7 +120,6 @@ unsafe struct EETechTree
 }
 
 /// the tech tree's epoch records, TT + 8 + epoch * 0x54
-[c_prefix("ttrec")]
 unsafe struct ee_tt_epoch
 {
     /// the tech tree code's reads (unchanged)

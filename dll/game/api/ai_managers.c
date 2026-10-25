@@ -5,49 +5,49 @@
 // A CIVILIZATION MANAGER (EECPCivilizationManager, a computer player's +0xB90; Update 0x46E2C7): the AI's managers
 // +0x58 uint32_t[CM_TIMERS_N] game times: 0 next epoch, 1 building count check, 2 military buildings (31 s), 3 build
 // (0x46E51E), 4 (0x46E817), 5 (59 s)
-internal inline uint32_t cm_get_timer(const ee_civ_mgr *cm, int i) { return FIELD(cm, of_cm_timers + i * 4, uint32_t); }
-internal inline void cm_set_timer(ee_civ_mgr *cm, int i, uint32_t v) { FIELD(cm, of_cm_timers + i * 4, uint32_t) = v; }
+internal inline uint32_t civ_mgr_get_timer(const ee_civ_mgr *cm, int i) { return FIELD(cm, of_civ_mgr_timers + i * 4, uint32_t); }
+internal inline void civ_mgr_set_timer(ee_civ_mgr *cm, int i, uint32_t v) { FIELD(cm, of_civ_mgr_timers + i * 4, uint32_t) = v; }
 // +0x74.. flag bytes (CM_FLAGS_LEN): +0x75 the one-time setup done, +0x76 a request for the epoch's techs is out, the
 // attention's activities +0x7A (0: request the epoch's techs), +0x7B (4: the build manager's pass), +0x7C (5); +0x78 not
 // known
-internal inline uint8_t cm_get_flag(const ee_civ_mgr *cm, int i) { return FIELD(cm, of_cm_flag + i, uint8_t); }
+internal inline uint8_t civ_mgr_get_flag(const ee_civ_mgr *cm, int i) { return FIELD(cm, of_civ_mgr_flag + i, uint8_t); }
 
 // A RESOURCE MANAGER (EECPResourceManager, CM +0x38; constructor/serializer 0x489F76 / 0x48C5B2)
-internal inline void **rm_get_hunt_end(const ee_resource_mgr *rm) { return FIELD(rm, of_rm_hunt_begin + 0x4, void **); }
-internal inline void **rm_get_fish_end(const ee_resource_mgr *rm) { return FIELD(rm, of_rm_fish_begin + 0x4, void **); }
+internal inline void **resource_mgr_get_hunt_end(const ee_resource_mgr *rm) { return FIELD(rm, of_resource_mgr_hunt_begin + 0x4, void **); }
+internal inline void **resource_mgr_get_fish_end(const ee_resource_mgr *rm) { return FIELD(rm, of_resource_mgr_fish_begin + 0x4, void **); }
 // +0xA4 7 unit lists by resource (2 food .. 6 iron), deques 0x14 apart: their gatherers
-internal inline uint8_t *rm_list_at(const ee_resource_mgr *rm, int r) { return (uint8_t *)FIELD_AT(rm, of_rm_lists + r * 0x14); }
-internal inline uint32_t rm_get_timer(const ee_resource_mgr *rm, int i) { return FIELD(rm, of_rm_timers + i * 4, uint32_t); } // +0x16C uint[5] next runs (game time)
+internal inline uint8_t *resource_mgr_list_at(const ee_resource_mgr *rm, int r) { return (uint8_t *)FIELD_AT(rm, of_resource_mgr_lists + r * 0x14); }
+internal inline uint32_t resource_mgr_get_timer(const ee_resource_mgr *rm, int i) { return FIELD(rm, of_resource_mgr_timers + i * 4, uint32_t); } // +0x16C uint[5] next runs (game time)
 
 // A BUILD MANAGER (EECPBuildManager, CM +0x3C; Update 0x468540)
 // +0x4 14 queues by epoch, deques 0x14 apart of {type, x, y}; the placement area follows at +0x11C
-internal inline uint8_t *bm_queue_at(const ee_build_mgr *bm, int e) { return (uint8_t *)FIELD_AT(bm, of_bm_queues + e * 0x14); }
-internal inline ivec2 bm_get_base(const ee_build_mgr *bm) { return iv2(bm_get_base_x(bm), bm_get_base_y(bm)); }   // -10000: none
+internal inline uint8_t *build_mgr_queue_at(const ee_build_mgr *bm, int e) { return (uint8_t *)FIELD_AT(bm, of_build_mgr_queues + e * 0x14); }
+internal inline ivec2 build_mgr_get_base(const ee_build_mgr *bm) { return iv2(build_mgr_get_base_x(bm), build_mgr_get_base_y(bm)); }   // -10000: none
 
 // A UNIT MANAGER (EECPUnitManager, CM +0x44; Update 0x490AD6)
 // +0xC 14 request lists, deques 0x14 apart of 16-byte entries {type, count, ..}
 // its request i (0x14 bytes each)
-internal inline uint8_t *um_request_at(const ee_unit_mgr *um, int i) { return (uint8_t *)FIELD_AT(um, of_um_requests + i * 0x14); }
+internal inline uint8_t *unit_mgr_request_at(const ee_unit_mgr *um, int i) { return (uint8_t *)FIELD_AT(um, of_unit_mgr_requests + i * 0x14); }
 
 // A RESEARCH MANAGER (EECPResearchManager, CM +0x40)
-internal inline int *rs_get_pool_end(const ee_research_mgr *rs) { return FIELD(rs, of_rs_pool_begin + 0x4, int *); }
-internal inline void rs_set_pool_end(ee_research_mgr *rs, int *e) { FIELD(rs, of_rs_pool_begin + 0x4, int *) = e; }
+internal inline int *research_mgr_get_pool_end(const ee_research_mgr *rs) { return FIELD(rs, of_research_mgr_pool_begin + 0x4, int *); }
+internal inline void research_mgr_set_pool_end(ee_research_mgr *rs, int *e) { FIELD(rs, of_research_mgr_pool_begin + 0x4, int *) = e; }
 // +0x18 14 lists by epoch, 0x10 apart: {begin, end} of tech ids
-internal inline int *rs_get_epoch_begin(const ee_research_mgr *rs, int e) { return FIELD(rs, of_rs_epoch + e * 0x10, int *); }
-internal inline int *rs_get_epoch_end(const ee_research_mgr *rs, int e) { return FIELD(rs, of_rs_epoch + 0x4 + e * 0x10, int *); }
-// the build plan's list nodes (cm_get_plan): +0 the next, +0xC / +0x10 the entry's values
+internal inline int *research_mgr_get_epoch_begin(const ee_research_mgr *rs, int e) { return FIELD(rs, of_research_mgr_epoch + e * 0x10, int *); }
+internal inline int *research_mgr_get_epoch_end(const ee_research_mgr *rs, int e) { return FIELD(rs, of_research_mgr_epoch + 0x4 + e * 0x10, int *); }
+// the build plan's list nodes (civ_mgr_get_plan): +0 the next, +0xC / +0x10 the entry's values
 
 // FUNCTIONS
 // the next epoch attempt's time drawn (civilization manager +0x58: SetNextEpochAdvanceTime)
 
 // the build manager places type at x, y (0, 0: where it finds room) - the original of econ.c's hook_place
 // one building of type into the build manager's list (as the AI's own requests: (1, 0))
-internal inline void bm_request(ee_build_mgr *bm, int type) { fn_bm_request_game(bm, type, 1, 0); }
+internal inline void build_mgr_request(ee_build_mgr *bm, int type) { fn_bm_request_game(bm, type, 1, 0); }
 // the resource manager's turn (the originals of the wiring's hooks, eeaimod.c): its gatherer targets computed (1: they
 // changed), its citizens assigned, its update
-// the citizen u to work at site (a resource, a field, a building); rm_assign_as: with the game's third argument
-internal inline void rm_assign(ee_resource_mgr *rm, ee_unit *u, ee_unit *site) { fn_assign_to_site(rm, u, site, 0); }
-internal inline void rm_assign_as(ee_resource_mgr *rm, ee_unit *u, ee_unit *site, int c) { fn_assign_to_site(rm, u, site, c); }
+// the citizen u to work at site (a resource, a field, a building); resource_mgr_assign_as: with the game's third argument
+internal inline void resource_mgr_assign(ee_resource_mgr *rm, ee_unit *u, ee_unit *site) { fn_assign_to_site(rm, u, site, 0); }
+internal inline void resource_mgr_assign_as(ee_resource_mgr *rm, ee_unit *u, ee_unit *site, int c) { fn_assign_to_site(rm, u, site, c); }
 // the unit manager's citizens trained (the original of trace.c's hook)
 // the unit manager's units of type: a std::deque of ee_unit *, NULL: none
 // the unit orders (req: type, count ...) - the original of econ.c's hook_train_units
@@ -55,30 +55,30 @@ internal inline void rm_assign_as(ee_resource_mgr *rm, ee_unit *u, ee_unit *site
 // count of the next epoch's missing requirements asked for (buildings, units, techs)
 // enemies near x, y as the build manager sees them (its threat test)
 // entry (type, x, y) into the build manager's list of epoch e (the lists at +4, 0x14 each)
-internal inline void bm_queue_add(ee_build_mgr *bm, int e, int *entry) { fn_bq_add(FIELD_AT(bm, of_bm_queues + e * 0x14), entry); }
+internal inline void build_mgr_queue_add(ee_build_mgr *bm, int e, int *entry) { fn_bq_add(FIELD_AT(bm, of_build_mgr_queues + e * 0x14), entry); }
 // the unit (its state, unit +0x30) in none of the civilization manager's groups
 // a unit of type ordered but not started yet, one in production (the unit manager's queues)
 // the unit manager's citizens, the citizens it wants (share x population cap: the original of citizens.c's hook)
 // the fishing boat type of a player (the original of navy.c's hook)
 
 // THE RESOURCE MANAGER'S SEARCHES (the originals of sites.c's hooks; arguments as the game passes them)
-internal inline ee_unit *rm_find_mine(ee_resource_mgr *rm, uintptr_t type, ee_unit *unit, uintptr_t rev) {
+internal inline ee_unit *resource_mgr_find_mine(ee_resource_mgr *rm, uintptr_t type, ee_unit *unit, uintptr_t rev) {
     return fn_find_mine_game(rm, (int)type, unit, rev);
 }
-internal inline ee_unit *rm_find_food(ee_resource_mgr *rm, uintptr_t need_drop, uintptr_t near_base, ee_unit *unit) {
+internal inline ee_unit *resource_mgr_find_food(ee_resource_mgr *rm, uintptr_t need_drop, uintptr_t near_base, ee_unit *unit) {
     return fn_find_food_game(rm, need_drop, near_base, unit);
 }
-internal inline ee_unit *rm_find_wood(ee_resource_mgr *rm, uintptr_t flag, ee_unit *unit) {
+internal inline ee_unit *resource_mgr_find_wood(ee_resource_mgr *rm, uintptr_t flag, ee_unit *unit) {
     return fn_find_wood_game(rm, flag, unit);
 }
 // the lists of fields, unbuilt fields and animals to hunt (n wanted, into out)
-internal inline void *rm_farms(ee_resource_mgr *rm, uintptr_t n, uintptr_t out) {
+internal inline void *resource_mgr_farms(ee_resource_mgr *rm, uintptr_t n, uintptr_t out) {
     return fn_farms_game(rm, n, out);
 }
-internal inline void *rm_unbuilt_farms(ee_resource_mgr *rm, uintptr_t n, uintptr_t out) {
+internal inline void *resource_mgr_unbuilt_farms(ee_resource_mgr *rm, uintptr_t n, uintptr_t out) {
     return fn_unbuilt_farms(rm, n, out);
 }
-internal inline void *rm_hunt(ee_resource_mgr *rm, uintptr_t n, uintptr_t f, uintptr_t out) {
+internal inline void *resource_mgr_hunt(ee_resource_mgr *rm, uintptr_t n, uintptr_t f, uintptr_t out) {
     return fn_hunt_game(rm, n, f, out);
 }
 

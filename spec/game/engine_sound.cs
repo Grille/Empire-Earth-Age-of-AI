@@ -12,7 +12,6 @@ unsafe struct SESample
     int32 channel;
 }
 
-[c_prefix("sndcat")]
 unsafe struct ee_sound_cat
 {
     [offset(0x0), found(c)]
@@ -28,7 +27,7 @@ unsafe struct ee_sound_cat
     int32 priority;
 }
 
-[c_type("ee_sound_node"), c_prefix("sndnode")]
+[c_type("ee_sound_node")]
 unsafe struct SESMInstanceNode
 {
     [offset(0xC), found(c)]
@@ -41,7 +40,7 @@ unsafe struct SESMInstanceNode
     SESample* sample;
 }
 
-[c_type("ee_sound_mgr"), c_prefix("sndmgr")]
+[c_type("ee_sound_mgr")]
 unsafe struct SESoundManager
 {
     [offset(0x24), found(c)]

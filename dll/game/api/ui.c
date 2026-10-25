@@ -39,7 +39,7 @@ internal inline void *key_scroll_new(int dir) {
     ev[3] = (uint32_t)dir;
     return ev;
 }
-internal inline void uiform_add_hotkey(void *form, unsigned long key, void *ev) {
+internal inline void ui_form_add_hotkey(void *form, unsigned long key, void *ev) {
     typedef void (__thiscall *AddHotKeyFn)(void *, unsigned long, unsigned long, unsigned long, unsigned long, void *, void *, void *, void *, unsigned long, char);
     (*(AddHotKeyFn *)data_ui_iat_uiform_add_hotkey)(form, key, 0x7FFF, 0x7FFF, 0x7FFF, NULL, ev, NULL, NULL, 0, 1);
 }
@@ -78,7 +78,7 @@ internal inline void gfx_mark(enum gfx_kind k, const ee_unit_type *size_of, int 
     ee_gfx *e = h ? fn_gfx_get(fx, h) : NULL;
     if (!e) return;
     if (size_of) {
-        float s = FIELD(size_of, of_type_mark_size, float) * 1.25f;   // vf12's factor (0x827588)
+        float s = FIELD(size_of, of_unit_type_mark_size, float) * 1.25f;   // vf12's factor (0x827588)
         FIELD(e, of_gfx_size, float) *= s;
         FIELD(e, of_gfx_size_2, float) = s;
     }

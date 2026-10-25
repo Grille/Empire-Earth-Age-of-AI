@@ -3,45 +3,45 @@
 
 // class ee_damage_model (void)
 // the object of damage_points
-internal inline uint8_t *dmgmodel_map_at(const void *o) { return (uint8_t *)o + of_dmgmodel_map; }
+internal inline uint8_t *damage_model_map_at(const void *o) { return (uint8_t *)o + of_damage_model_map; }
 
 // class ee_game_data (ee_game_data)
 // the game data, [game.game_data]
 // the code reading [game.game_data]
-internal inline int gamedata_get_line_ms(const ee_game_data *o) { return *(int *)((uint8_t *)o + of_gamedata_line_ms); }
-internal inline void gamedata_set_line_ms(ee_game_data *o, int v) { *(int *)((uint8_t *)o + of_gamedata_line_ms) = v; }
-internal inline int *gamedata_line_ms_at(const ee_game_data *o) { return (int *)((uint8_t *)o + of_gamedata_line_ms); }
+internal inline int game_data_get_line_ms(const ee_game_data *o) { return *(int *)((uint8_t *)o + of_game_data_line_ms); }
+internal inline void game_data_set_line_ms(ee_game_data *o, int v) { *(int *)((uint8_t *)o + of_game_data_line_ms) = v; }
+internal inline int *game_data_line_ms_at(const ee_game_data *o) { return (int *)((uint8_t *)o + of_game_data_line_ms); }
 // the code reading [game.game_data] (the setup copy 0x524B8F)
-internal inline int gamedata_get_unit_limit(const ee_game_data *o) { return *(int *)((uint8_t *)o + of_gamedata_unit_limit); }
-internal inline void gamedata_set_unit_limit(ee_game_data *o, int v) { *(int *)((uint8_t *)o + of_gamedata_unit_limit) = v; }
-internal inline int *gamedata_unit_limit_at(const ee_game_data *o) { return (int *)((uint8_t *)o + of_gamedata_unit_limit); }
+internal inline int game_data_get_unit_limit(const ee_game_data *o) { return *(int *)((uint8_t *)o + of_game_data_unit_limit); }
+internal inline void game_data_set_unit_limit(ee_game_data *o, int v) { *(int *)((uint8_t *)o + of_game_data_unit_limit) = v; }
+internal inline int *game_data_unit_limit_at(const ee_game_data *o) { return (int *)((uint8_t *)o + of_game_data_unit_limit); }
 // the code reading [game.game_data] (the setup copy 0x524B8F)
-internal inline int gamedata_get_unit_limit_max(const ee_game_data *o) { return *(int *)((uint8_t *)o + of_gamedata_unit_limit_max); }
-internal inline void gamedata_set_unit_limit_max(ee_game_data *o, int v) { *(int *)((uint8_t *)o + of_gamedata_unit_limit_max) = v; }
-internal inline int *gamedata_unit_limit_max_at(const ee_game_data *o) { return (int *)((uint8_t *)o + of_gamedata_unit_limit_max); }
+internal inline int game_data_get_unit_limit_max(const ee_game_data *o) { return *(int *)((uint8_t *)o + of_game_data_unit_limit_max); }
+internal inline void game_data_set_unit_limit_max(ee_game_data *o, int v) { *(int *)((uint8_t *)o + of_game_data_unit_limit_max) = v; }
+internal inline int *game_data_unit_limit_max_at(const ee_game_data *o) { return (int *)((uint8_t *)o + of_game_data_unit_limit_max); }
 
 // class EEPhysics (ee_physics)
 // the simulation, [api.world_clock] (EEPhysics)
 // the game generator
-internal inline uint32_t phys_get_seed(const ee_physics *o) { return *(uint32_t *)((uint8_t *)o + of_phys_seed); }
-internal inline void phys_set_seed(ee_physics *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_phys_seed) = v; }
-internal inline uint32_t *phys_seed_at(const ee_physics *o) { return (uint32_t *)((uint8_t *)o + of_phys_seed); }
+internal inline uint32_t physics_get_seed(const ee_physics *o) { return *(uint32_t *)((uint8_t *)o + of_physics_seed); }
+internal inline void physics_set_seed(ee_physics *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_physics_seed) = v; }
+internal inline uint32_t *physics_seed_at(const ee_physics *o) { return (uint32_t *)((uint8_t *)o + of_physics_seed); }
 // steps done
-internal inline uint32_t phys_get_step(const ee_physics *o) { return *(uint32_t *)((uint8_t *)o + of_phys_step); }
-internal inline void phys_set_step(ee_physics *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_phys_step) = v; }
-internal inline uint32_t *phys_step_at(const ee_physics *o) { return (uint32_t *)((uint8_t *)o + of_phys_step); }
+internal inline uint32_t physics_get_step(const ee_physics *o) { return *(uint32_t *)((uint8_t *)o + of_physics_step); }
+internal inline void physics_set_step(ee_physics *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_physics_step) = v; }
+internal inline uint32_t *physics_step_at(const ee_physics *o) { return (uint32_t *)((uint8_t *)o + of_physics_step); }
 // a step's length (s)
-internal inline float phys_get_step_s(const ee_physics *o) { return *(float *)((uint8_t *)o + of_phys_step_s); }
-internal inline void phys_set_step_s(ee_physics *o, float v) { *(float *)((uint8_t *)o + of_phys_step_s) = v; }
-internal inline float *phys_step_s_at(const ee_physics *o) { return (float *)((uint8_t *)o + of_phys_step_s); }
+internal inline float physics_get_step_s(const ee_physics *o) { return *(float *)((uint8_t *)o + of_physics_step_s); }
+internal inline void physics_set_step_s(ee_physics *o, float v) { *(float *)((uint8_t *)o + of_physics_step_s) = v; }
+internal inline float *physics_step_s_at(const ee_physics *o) { return (float *)((uint8_t *)o + of_physics_step_s); }
 // steps it may still run
-internal inline uint32_t phys_get_steps_granted(const ee_physics *o) { return *(uint32_t *)((uint8_t *)o + of_phys_steps_granted); }
-internal inline void phys_set_steps_granted(ee_physics *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_phys_steps_granted) = v; }
-internal inline uint32_t *phys_steps_granted_at(const ee_physics *o) { return (uint32_t *)((uint8_t *)o + of_phys_steps_granted); }
+internal inline uint32_t physics_get_steps_granted(const ee_physics *o) { return *(uint32_t *)((uint8_t *)o + of_physics_steps_granted); }
+internal inline void physics_set_steps_granted(ee_physics *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_physics_steps_granted) = v; }
+internal inline uint32_t *physics_steps_granted_at(const ee_physics *o) { return (uint32_t *)((uint8_t *)o + of_physics_steps_granted); }
 // game time (ms)
-internal inline uint32_t phys_get_time(const ee_physics *o) { return *(uint32_t *)((uint8_t *)o + of_phys_time); }
-internal inline void phys_set_time(ee_physics *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_phys_time) = v; }
-internal inline uint32_t *phys_time_at(const ee_physics *o) { return (uint32_t *)((uint8_t *)o + of_phys_time); }
+internal inline uint32_t physics_get_time(const ee_physics *o) { return *(uint32_t *)((uint8_t *)o + of_physics_time); }
+internal inline void physics_set_time(ee_physics *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_physics_time) = v; }
+internal inline uint32_t *physics_time_at(const ee_physics *o) { return (uint32_t *)((uint8_t *)o + of_physics_time); }
 
 // class EEWorld (ee_world)
 // the world, [game.world] (EEWorld)
@@ -59,28 +59,28 @@ internal inline uint32_t *world_seed_at(const ee_world *o) { return (uint32_t *)
 internal int spec_world_select(int build) {
     switch (build) {
     case 0:   // ee
-        of_dmgmodel_map = 0x14C;
-        of_gamedata_line_ms = 0x2CC;
-        of_gamedata_unit_limit = 0x2E8;
-        of_gamedata_unit_limit_max = 0x2EC;
-        of_phys_seed = 0x18;
-        of_phys_step = 0x80;
-        of_phys_step_s = 0x8C;
-        of_phys_steps_granted = 0xB8;
-        of_phys_time = 0xD0;
+        of_damage_model_map = 0x14C;
+        of_game_data_line_ms = 0x2CC;
+        of_game_data_unit_limit = 0x2E8;
+        of_game_data_unit_limit_max = 0x2EC;
+        of_physics_seed = 0x18;
+        of_physics_step = 0x80;
+        of_physics_step_s = 0x8C;
+        of_physics_steps_granted = 0xB8;
+        of_physics_time = 0xD0;
         of_world_thread = 0x40;
         of_world_seed = 0x54;
         return 0;
     case 1:   // aoc
-        of_dmgmodel_map = 0x14C;
-        of_gamedata_line_ms = 0x2CC;
-        of_gamedata_unit_limit = 0x2E8;
-        of_gamedata_unit_limit_max = 0x2EC;
-        of_phys_seed = 0x18;
-        of_phys_step = 0x80;
-        of_phys_step_s = 0x8C;
-        of_phys_steps_granted = 0xB8;
-        of_phys_time = 0xD0;
+        of_damage_model_map = 0x14C;
+        of_game_data_line_ms = 0x2CC;
+        of_game_data_unit_limit = 0x2E8;
+        of_game_data_unit_limit_max = 0x2EC;
+        of_physics_seed = 0x18;
+        of_physics_step = 0x80;
+        of_physics_step_s = 0x8C;
+        of_physics_steps_granted = 0xB8;
+        of_physics_time = 0xD0;
         of_world_thread = 0x40;
         of_world_seed = 0x54;
         return 0;

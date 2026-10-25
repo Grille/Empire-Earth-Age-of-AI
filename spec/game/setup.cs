@@ -63,7 +63,6 @@ unsafe struct ee_setup
 }
 
 /// the game setup's player slots, 0x38 each
-[c_prefix("slot")]
 unsafe struct ee_setup_slot
 {
     /// the setup code

@@ -2,9 +2,9 @@
 // sh dll/build.sh. What each name is: gen_api.py's header; the classes, fields and functions: the spec.
 
 // class ee_draw_state (ee_draw_state)
-internal inline void *dstate_get_device(const ee_draw_state *o) { return *(void **)((uint8_t *)o + of_dstate_device); }
-internal inline void dstate_set_device(ee_draw_state *o, void *v) { *(void **)((uint8_t *)o + of_dstate_device) = v; }
-internal inline void **dstate_device_at(const ee_draw_state *o) { return (void **)((uint8_t *)o + of_dstate_device); }
+internal inline void *draw_state_get_device(const ee_draw_state *o) { return *(void **)((uint8_t *)o + of_draw_state_device); }
+internal inline void draw_state_set_device(ee_draw_state *o, void *v) { *(void **)((uint8_t *)o + of_draw_state_device) = v; }
+internal inline void **draw_state_device_at(const ee_draw_state *o) { return (void **)((uint8_t *)o + of_draw_state_device); }
 
 // class GEFont (ee_font)
 internal inline uint8_t *font_hfont_at(const ee_font *o) { return (uint8_t *)o + of_font_hfont; }
@@ -13,21 +13,21 @@ internal inline void font_set_bitmap(ee_font *o, void *v) { *(void **)((uint8_t 
 internal inline void **font_bitmap_at(const ee_font *o) { return (void **)((uint8_t *)o + of_font_bitmap); }
 
 // class ISMouse (ee_input_mouse)
-internal inline uint8_t imouse_get_suspended(const ee_input_mouse *o) { return *(uint8_t *)((uint8_t *)o + of_imouse_suspended); }
-internal inline void imouse_set_suspended(ee_input_mouse *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_imouse_suspended) = v; }
-internal inline uint8_t *imouse_suspended_at(const ee_input_mouse *o) { return (uint8_t *)((uint8_t *)o + of_imouse_suspended); }
-internal inline uint8_t *imouse_buttons_at(const ee_input_mouse *o) { return (uint8_t *)o + of_imouse_buttons; }
-internal inline void **imouse_get_device(const ee_input_mouse *o) { return *(void ***)((uint8_t *)o + of_imouse_device); }
-internal inline void imouse_set_device(ee_input_mouse *o, void **v) { *(void ***)((uint8_t *)o + of_imouse_device) = v; }
-internal inline void ***imouse_device_at(const ee_input_mouse *o) { return (void ***)((uint8_t *)o + of_imouse_device); }
+internal inline uint8_t input_mouse_get_suspended(const ee_input_mouse *o) { return *(uint8_t *)((uint8_t *)o + of_input_mouse_suspended); }
+internal inline void input_mouse_set_suspended(ee_input_mouse *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_input_mouse_suspended) = v; }
+internal inline uint8_t *input_mouse_suspended_at(const ee_input_mouse *o) { return (uint8_t *)((uint8_t *)o + of_input_mouse_suspended); }
+internal inline uint8_t *input_mouse_buttons_at(const ee_input_mouse *o) { return (uint8_t *)o + of_input_mouse_buttons; }
+internal inline void **input_mouse_get_device(const ee_input_mouse *o) { return *(void ***)((uint8_t *)o + of_input_mouse_device); }
+internal inline void input_mouse_set_device(ee_input_mouse *o, void **v) { *(void ***)((uint8_t *)o + of_input_mouse_device) = v; }
+internal inline void ***input_mouse_device_at(const ee_input_mouse *o) { return (void ***)((uint8_t *)o + of_input_mouse_device); }
 
 // class DX7Rasterizer (ee_rasterizer)
-internal inline ee_screen_state **ras_get_screen_states(const ee_rasterizer *o) { return *(ee_screen_state ***)((uint8_t *)o + of_ras_screen_states); }
-internal inline void ras_set_screen_states(ee_rasterizer *o, ee_screen_state **v) { *(ee_screen_state ***)((uint8_t *)o + of_ras_screen_states) = v; }
-internal inline ee_screen_state ***ras_screen_states_at(const ee_rasterizer *o) { return (ee_screen_state ***)((uint8_t *)o + of_ras_screen_states); }
-internal inline ee_draw_state **ras_get_dstates(const ee_rasterizer *o) { return *(ee_draw_state ***)((uint8_t *)o + of_ras_dstates); }
-internal inline void ras_set_dstates(ee_rasterizer *o, ee_draw_state **v) { *(ee_draw_state ***)((uint8_t *)o + of_ras_dstates) = v; }
-internal inline ee_draw_state ***ras_dstates_at(const ee_rasterizer *o) { return (ee_draw_state ***)((uint8_t *)o + of_ras_dstates); }
+internal inline ee_screen_state **rasterizer_get_screen_states(const ee_rasterizer *o) { return *(ee_screen_state ***)((uint8_t *)o + of_rasterizer_screen_states); }
+internal inline void rasterizer_set_screen_states(ee_rasterizer *o, ee_screen_state **v) { *(ee_screen_state ***)((uint8_t *)o + of_rasterizer_screen_states) = v; }
+internal inline ee_screen_state ***rasterizer_screen_states_at(const ee_rasterizer *o) { return (ee_screen_state ***)((uint8_t *)o + of_rasterizer_screen_states); }
+internal inline ee_draw_state **rasterizer_get_dstates(const ee_rasterizer *o) { return *(ee_draw_state ***)((uint8_t *)o + of_rasterizer_dstates); }
+internal inline void rasterizer_set_dstates(ee_rasterizer *o, ee_draw_state **v) { *(ee_draw_state ***)((uint8_t *)o + of_rasterizer_dstates) = v; }
+internal inline ee_draw_state ***rasterizer_dstates_at(const ee_rasterizer *o) { return (ee_draw_state ***)((uint8_t *)o + of_rasterizer_dstates); }
 
 // class DX7Screen (ee_screen)
 internal inline uint8_t *screen_get_modes_begin(const ee_screen *o) { return *(uint8_t **)((uint8_t *)o + of_screen_modes_begin); }
@@ -48,29 +48,29 @@ internal inline void screen_set_fullscreen(ee_screen *o, uint8_t v) { *(uint8_t 
 internal inline uint8_t *screen_fullscreen_at(const ee_screen *o) { return (uint8_t *)((uint8_t *)o + of_screen_fullscreen); }
 
 // class ee_screen_state (ee_screen_state)
-internal inline ee_screen *scrstate_get_screen(const ee_screen_state *o) { return *(ee_screen **)((uint8_t *)o + of_scrstate_screen); }
-internal inline void scrstate_set_screen(ee_screen_state *o, ee_screen *v) { *(ee_screen **)((uint8_t *)o + of_scrstate_screen) = v; }
-internal inline ee_screen **scrstate_screen_at(const ee_screen_state *o) { return (ee_screen **)((uint8_t *)o + of_scrstate_screen); }
-internal inline ee_surface *scrstate_get_front(const ee_screen_state *o) { return *(ee_surface **)((uint8_t *)o + of_scrstate_front); }
-internal inline void scrstate_set_front(ee_screen_state *o, ee_surface *v) { *(ee_surface **)((uint8_t *)o + of_scrstate_front) = v; }
-internal inline ee_surface **scrstate_front_at(const ee_screen_state *o) { return (ee_surface **)((uint8_t *)o + of_scrstate_front); }
-internal inline ee_surface *scrstate_get_back(const ee_screen_state *o) { return *(ee_surface **)((uint8_t *)o + of_scrstate_back); }
-internal inline void scrstate_set_back(ee_screen_state *o, ee_surface *v) { *(ee_surface **)((uint8_t *)o + of_scrstate_back) = v; }
-internal inline ee_surface **scrstate_back_at(const ee_screen_state *o) { return (ee_surface **)((uint8_t *)o + of_scrstate_back); }
-internal inline ee_window *scrstate_get_window(const ee_screen_state *o) { return *(ee_window **)((uint8_t *)o + of_scrstate_window); }
-internal inline void scrstate_set_window(ee_screen_state *o, ee_window *v) { *(ee_window **)((uint8_t *)o + of_scrstate_window) = v; }
-internal inline ee_window **scrstate_window_at(const ee_screen_state *o) { return (ee_window **)((uint8_t *)o + of_scrstate_window); }
-internal inline uint8_t *scrstate_stats_at(const ee_screen_state *o) { return (uint8_t *)o + of_scrstate_stats; }
+internal inline ee_screen *screen_state_get_screen(const ee_screen_state *o) { return *(ee_screen **)((uint8_t *)o + of_screen_state_screen); }
+internal inline void screen_state_set_screen(ee_screen_state *o, ee_screen *v) { *(ee_screen **)((uint8_t *)o + of_screen_state_screen) = v; }
+internal inline ee_screen **screen_state_screen_at(const ee_screen_state *o) { return (ee_screen **)((uint8_t *)o + of_screen_state_screen); }
+internal inline ee_surface *screen_state_get_front(const ee_screen_state *o) { return *(ee_surface **)((uint8_t *)o + of_screen_state_front); }
+internal inline void screen_state_set_front(ee_screen_state *o, ee_surface *v) { *(ee_surface **)((uint8_t *)o + of_screen_state_front) = v; }
+internal inline ee_surface **screen_state_front_at(const ee_screen_state *o) { return (ee_surface **)((uint8_t *)o + of_screen_state_front); }
+internal inline ee_surface *screen_state_get_back(const ee_screen_state *o) { return *(ee_surface **)((uint8_t *)o + of_screen_state_back); }
+internal inline void screen_state_set_back(ee_screen_state *o, ee_surface *v) { *(ee_surface **)((uint8_t *)o + of_screen_state_back) = v; }
+internal inline ee_surface **screen_state_back_at(const ee_screen_state *o) { return (ee_surface **)((uint8_t *)o + of_screen_state_back); }
+internal inline ee_window *screen_state_get_window(const ee_screen_state *o) { return *(ee_window **)((uint8_t *)o + of_screen_state_window); }
+internal inline void screen_state_set_window(ee_screen_state *o, ee_window *v) { *(ee_window **)((uint8_t *)o + of_screen_state_window) = v; }
+internal inline ee_window **screen_state_window_at(const ee_screen_state *o) { return (ee_window **)((uint8_t *)o + of_screen_state_window); }
+internal inline uint8_t *screen_state_stats_at(const ee_screen_state *o) { return (uint8_t *)o + of_screen_state_stats; }
 
 // class DX7Surface (ee_surface)
 // IDirectDrawSurface7 *
-internal inline void *surf_get_dds(const ee_surface *o) { return *(void **)((uint8_t *)o + of_surf_dds); }
-internal inline void surf_set_dds(ee_surface *o, void *v) { *(void **)((uint8_t *)o + of_surf_dds) = v; }
-internal inline void **surf_dds_at(const ee_surface *o) { return (void **)((uint8_t *)o + of_surf_dds); }
-internal inline uint8_t *surf_dc_at(const ee_surface *o) { return (uint8_t *)o + of_surf_dc; }
-internal inline uint8_t surf_get_dc_out(const ee_surface *o) { return *(uint8_t *)((uint8_t *)o + of_surf_dc_out); }
-internal inline void surf_set_dc_out(ee_surface *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_surf_dc_out) = v; }
-internal inline uint8_t *surf_dc_out_at(const ee_surface *o) { return (uint8_t *)((uint8_t *)o + of_surf_dc_out); }
+internal inline void *surface_get_dds(const ee_surface *o) { return *(void **)((uint8_t *)o + of_surface_dds); }
+internal inline void surface_set_dds(ee_surface *o, void *v) { *(void **)((uint8_t *)o + of_surface_dds) = v; }
+internal inline void **surface_dds_at(const ee_surface *o) { return (void **)((uint8_t *)o + of_surface_dds); }
+internal inline uint8_t *surface_dc_at(const ee_surface *o) { return (uint8_t *)o + of_surface_dc; }
+internal inline uint8_t surface_get_dc_out(const ee_surface *o) { return *(uint8_t *)((uint8_t *)o + of_surface_dc_out); }
+internal inline void surface_set_dc_out(ee_surface *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_surface_dc_out) = v; }
+internal inline uint8_t *surface_dc_out_at(const ee_surface *o) { return (uint8_t *)((uint8_t *)o + of_surface_dc_out); }
 
 // class GEText (ee_text)
 internal inline char *text_get_string(const ee_text *o) { return *(char **)((uint8_t *)o + of_text_string); }
@@ -99,27 +99,27 @@ internal inline int *window_height_at(const ee_window *o) { return (int *)((uint
 internal int spec_engine_display_select(int build) {
     switch (build) {
     case 0:   // ee
-        of_dstate_device = 0x1C;
+        of_draw_state_device = 0x1C;
         of_font_hfont = 0x18;
         of_font_bitmap = 0x24;
-        of_imouse_suspended = 0x4;
-        of_imouse_buttons = 0x18;
-        of_imouse_device = 0x44;
-        of_ras_screen_states = 0x20;
-        of_ras_dstates = 0x6C;
+        of_input_mouse_suspended = 0x4;
+        of_input_mouse_buttons = 0x18;
+        of_input_mouse_device = 0x44;
+        of_rasterizer_screen_states = 0x20;
+        of_rasterizer_dstates = 0x6C;
         of_screen_modes_begin = 0x10;
         of_screen_ddraw = 0x30;
         of_screen_mode = 0x38;
         of_screen_desktop = 0x3C;
         of_screen_fullscreen = 0x3D;
-        of_scrstate_screen = 0x2A8;
-        of_scrstate_front = 0x2AC;
-        of_scrstate_back = 0x2B0;
-        of_scrstate_window = 0x2BC;
-        of_scrstate_stats = 0x2C4;
-        of_surf_dds = 0x48;
-        of_surf_dc = 0x54;
-        of_surf_dc_out = 0x5D;
+        of_screen_state_screen = 0x2A8;
+        of_screen_state_front = 0x2AC;
+        of_screen_state_back = 0x2B0;
+        of_screen_state_window = 0x2BC;
+        of_screen_state_stats = 0x2C4;
+        of_surface_dds = 0x48;
+        of_surface_dc = 0x54;
+        of_surface_dc_out = 0x5D;
         of_text_string = 0x34;
         of_text_font = 0x44;
         of_window_hwnd = 0x0;
@@ -129,27 +129,27 @@ internal int spec_engine_display_select(int build) {
         of_window_height = 0x10;
         return 0;
     case 1:   // aoc
-        of_dstate_device = 0x1C;
+        of_draw_state_device = 0x1C;
         of_font_hfont = 0x18;
         of_font_bitmap = 0x24;
-        of_imouse_suspended = 0x4;
-        of_imouse_buttons = 0x18;
-        of_imouse_device = 0x44;
-        of_ras_screen_states = 0x20;
-        of_ras_dstates = 0x6C;
+        of_input_mouse_suspended = 0x4;
+        of_input_mouse_buttons = 0x18;
+        of_input_mouse_device = 0x44;
+        of_rasterizer_screen_states = 0x20;
+        of_rasterizer_dstates = 0x6C;
         of_screen_modes_begin = 0x10;
         of_screen_ddraw = 0x30;
         of_screen_mode = 0x38;
         of_screen_desktop = 0x3C;
         of_screen_fullscreen = 0x3D;
-        of_scrstate_screen = 0x2A8;
-        of_scrstate_front = 0x2AC;
-        of_scrstate_back = 0x2B0;
-        of_scrstate_window = 0x2BC;
-        of_scrstate_stats = 0x2C4;
-        of_surf_dds = 0x48;
-        of_surf_dc = 0x54;
-        of_surf_dc_out = 0x5D;
+        of_screen_state_screen = 0x2A8;
+        of_screen_state_front = 0x2AC;
+        of_screen_state_back = 0x2B0;
+        of_screen_state_window = 0x2BC;
+        of_screen_state_stats = 0x2C4;
+        of_surface_dds = 0x48;
+        of_surface_dc = 0x54;
+        of_surface_dc_out = 0x5D;
         of_text_string = 0x34;
         of_text_font = 0x44;
         of_window_hwnd = 0x0;

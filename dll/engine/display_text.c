@@ -66,9 +66,9 @@ internal void atlas_dump(int n);   // inside our GEFontBitmap constructor call (
 internal void *(__thiscall *g_fbm_ctor)(void *, void *, void *, unsigned);
 internal void *text_bitmap_for(void *ras, void *text, void *surf) {
     if (!g_text_bitmap || !g_fbm_ctor || !text) return NULL;
-    ee_screen_state **screens = ras_get_screen_states(ras);
+    ee_screen_state **screens = rasterizer_get_screen_states(ras);
     ee_screen_state *st = screens ? screens[0] : NULL;
-    if (!st || scrstate_get_back(st) != surf) return NULL;   // only text for the back buffer
+    if (!st || screen_state_get_back(st) != surf) return NULL;   // only text for the back buffer
     // Only the game's own image (wider than the menus' 1024x768: the menus gain nothing and are scaled up), and
     // only with bitmap fonts made for this back buffer: leaving a game switches the display mode, the character
     // textures are gone and the old bitmap fonts drew nothing (menus without text). A new back buffer starts a
@@ -78,7 +78,7 @@ internal void *text_bitmap_for(void *ras, void *text, void *surf) {
     if (surf != back) {
         back = surf;
         g_fbm_n = 0;
-        IDirectDrawSurface7 *dds = surf_get_dds(surf);
+        IDirectDrawSurface7 *dds = surface_get_dds(surf);
         DDSURFACEDESC2 d = { .dwSize = sizeof d };
         back_ok = dds && dds->lpVtbl->GetSurfaceDesc(dds, &d) == DD_OK && d.dwWidth > 1024;
         if (g_log) log_locked("# text bitmap: back buffer %p %lux%lu - %s\n", surf, d.dwWidth, d.dwHeight,
@@ -155,8 +155,8 @@ internal long __thiscall hook_fc_text_rect(void *ras, void *text, void *rect, vo
     // the character textures with the device's wrap addressing: filtering at a glyph's bottom edge picked up its
     // top row (a line under the "t" of "Vorzeit") - clamped while our bitmap text draws. Device: (ras +0x6C)[0]
     // +0x1C (IDirect3DDevice7; vtable 36 GetTextureStageState, 37 SetTextureStageState; 13/14 ADDRESSU/V, 3 clamp)
-    ee_draw_state **dstate = bmp ? ras_get_dstates(ras) : NULL;
-    void *dev = dstate && dstate[0] ? dstate_get_device(dstate[0]) : NULL;
+    ee_draw_state **dstate = bmp ? rasterizer_get_dstates(ras) : NULL;
+    void *dev = dstate && dstate[0] ? draw_state_get_device(dstate[0]) : NULL;
     DWORD addr[2] = { 0, 0 };
     if (bmp) font_set_bitmap(text_get_font(text), bmp);
     // render states (IDirect3DDevice7 vtable 20 SetRenderState, 21 GetRenderState): 27 ALPHABLENDENABLE, 19 SRCBLEND,
@@ -292,13 +292,13 @@ internal int tdc_active_of(HDC dc) {   // the active text phase drawing on this 
 }
 // lock rectangle r of the phase's surface (DDLOCK_WAIT); lpSurface then points at r's top left
 internal int tdc_lock(int a, RECT *r, DDSURFACEDESC2 *d) {
-    IDirectDrawSurface7 *dds = surf_get_dds(g_tdc_active[a].surf);
+    IDirectDrawSurface7 *dds = surface_get_dds(g_tdc_active[a].surf);
     memset(d, 0, sizeof *d);
     d->dwSize = sizeof *d;
     return dds && dds->lpVtbl->Lock(dds, r, d, DDLOCK_WAIT, NULL) == DD_OK;
 }
 internal void tdc_unlock(int a, RECT *r) {
-    IDirectDrawSurface7 *dds = surf_get_dds(g_tdc_active[a].surf);
+    IDirectDrawSurface7 *dds = surface_get_dds(g_tdc_active[a].surf);
     if (dds) dds->lpVtbl->Unlock(dds, r);
 }
 // copy the tiles of `want` (1 = to load) between the DIB and the surface, through one lock of their bounding box
@@ -498,8 +498,8 @@ internal BOOL WINAPI hook_text_out_w(HDC dc, int x, int y, LPCWSTR str, int n) {
     return g_text_out_w(dc, x, y, str, n);
 }
 internal long __thiscall hook_text_lock(ee_surface *surf) {
-    if (surf_get_dc_out(surf) == 1) return 2;
-    IDirectDrawSurface7 *dds = surf_get_dds(surf);
+    if (surface_get_dc_out(surf) == 1) return 2;
+    IDirectDrawSurface7 *dds = surface_get_dds(surf);
     int a = -1;
     for (int i = 0; i < 8; i++) if (!g_tdc_active[i].surf) { a = i; break; }
     if (!dds || a < 0 || !g_ext_text_out) return text_dc_fallback(surf, 0);
@@ -526,8 +526,8 @@ internal long __thiscall hook_text_lock(ee_surface *surf) {
     }
     g_tdc_active[a].surf = surf;
     g_tdc_active[a].slot = slot;
-    surf_set_dc(surf, g_tdc[slot].dc);
-    surf_set_dc_out(surf, 1);
+    surface_set_dc(surf, g_tdc[slot].dc);
+    surface_set_dc_out(surf, 1);
     return 0;
 }
 internal long __thiscall hook_text_unlock(ee_surface *surf) {
@@ -539,6 +539,6 @@ internal long __thiscall hook_text_unlock(ee_surface *surf) {
     tdc_store(a);
     SelectObject(g_tdc[slot].dc, g_tdc_stock);
     g_tdc_active[a].surf = NULL;
-    surf_set_dc_out(surf, 0);
+    surface_set_dc_out(surf, 0);
     return 0;
 }

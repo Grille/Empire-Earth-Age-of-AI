@@ -52,7 +52,7 @@ internal void cmd_seltest(char *out, const char *args) {
     if (sscanf(args, "%d %f %f %f %f", &type, &r[0], &r[1], &r[2], &r[3]) < 5) memcpy(r, select_rect(), sizeof r);
     static __attribute__((aligned(8))) uint8_t mem[0x140];
     memset(mem, 0, sizeof mem);
-    ee_msg *msg = (ee_msg *)mem;
+    ee_select_msg *msg = (ee_select_msg *)mem;
     g_sel_last_in = g_sel_last_out = 0;
     select_msg_init(msg, r, type, 0x4E);
     uint32_t *b = select_msg_get_ids_begin(msg), *e = select_msg_get_ids_end(msg);

@@ -47,8 +47,9 @@ and the runners, eectl, the MCP server), `results/` (log readers, scorers), `re/
   functions by the names the C side gives them. Never a literal address, slot or size in the code: the generated
   value (`data_ai_managers_call_rm_update`, `value_attack_slot_asg_update`, `fn_unit_distance`, `of_unit_hp`) or its
   accessor / wrapper (`unit_get_hp(u)`, `unit_distance(a, b)`); the values only inside game/api/ (layers.py), the
-  accessors for everyone. Names: a class's C prefix is its C type without ee_, else `[c_prefix]` keeps the one the C
-  side had (cm_, asg_ ... - the player: the C types renamed to fit, later). At load, before any patch, the spec is
+  accessors for everyone. Names: a class's C prefix is its C type without ee_ (civ_mgr_get_timer on ee_civ_mgr,
+  unit_type_get_hp on ee_unit_type - one name for type and functions, the player 2026-10-25; a class of a C type of
+  its own has its base's fields under its name too: load_msg_get_from). At load, before any patch, the spec is
   checked against the running exe (gen/'s spec_check, exe.c's helpers: code in .text, data in the image, a [vtable]
   its class's RTTI name, a class's own function in its slot, a [call_site] a call of its function) - the start's log
   says `# spec: N checks against the exe, all hold` or names what fails: read it after a spec change or a port. A call site
@@ -56,7 +57,7 @@ and the runners, eectl, the MCP server), `results/` (log readers, scorers), `re/
   patch_x(hook), the hook the function's own type (`<function>_fn` - a hook with other parameters doesn't build:
   wrong types are the spec's to fix). Still places (`code`, a hand-written installer): a call hooked by an asm thunk
   (no C type), an installer over two functions or by build. A function of the game on an object is a method of its class in the
-  spec (`extern void update(uint32 now)` in EECPResourceManager: C rm_update); still in `<file>_functions` with
+  spec (`extern void update(uint32 now)` in EECPResourceManager: C resource_mgr_update); still in `<file>_functions` with
   [thiscall]: those whose class isn't known (void*) and those whose C name would change with their class's prefix
   (waiting for the C types' renames). Still to do: game enums, a Ghidra export. Two builds: the 2017 update and Art of Conquest (not ready: tested in AoC only since 2026-10-21 -
   test runs play it, `EE_GAME_DIR=<its folder>`, docs/testing.md); a new value needs both. The port scripts read the

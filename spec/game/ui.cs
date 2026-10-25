@@ -72,7 +72,6 @@ unsafe struct RTSMouse
 }
 
 /// the object of native_chat
-[c_prefix("nativechat")]
 unsafe struct ee_native_chat
 {
     [offset(0x20), found(s)]
@@ -92,7 +91,6 @@ unsafe struct EEAScroll
 }
 
 /// the UI manager's current form
-[c_prefix("uiform")]
 unsafe struct ee_ui_form
 {
     /// votes 6/7
@@ -101,7 +99,6 @@ unsafe struct ee_ui_form
 }
 
 /// a single-player menu screen (EEUIESP*)
-[c_prefix("uiscreen")]
 unsafe struct ee_ui_screen
 {
     [offset(0xF8), found(v)]

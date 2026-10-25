@@ -62,7 +62,7 @@ internal void *__thiscall hook_editor_form(void *form, void *owner) {
     int n = 0;
     for (int i = 0; i < 4; i++) {
         void *ev = key_scroll_new(i);
-        if (ev) { uiform_add_hotkey(form, keys[i], ev); n++; }
+        if (ev) { ui_form_add_hotkey(form, keys[i], ev); n++; }
     }
     if (g_log) { log_locked("# editor: arrow keys scroll %d/4\n", n); }
     return r;
@@ -299,9 +299,9 @@ internal HRESULT g_primary_hr;
 internal int present_primary(ee_rasterizer *ras, unsigned screen, ee_screen *scr, ee_surface *back, IDirectDrawSurface7 *b, HWND hwnd) {
     (void)ras; (void)screen;
     if (g_present_mode != 3 && !(g_present_mode == 0 && ddrawcompat_loaded())) return 0;
-    ee_screen_state *st = ras_get_screen_state(ras, screen);
-    ee_surface *front = scrstate_get_front(st);
-    IDirectDrawSurface7 *f = front ? surf_get_dds(front) : NULL;
+    ee_screen_state *st = rasterizer_get_screen_state(ras, screen);
+    ee_surface *front = screen_state_get_front(st);
+    IDirectDrawSurface7 *f = front ? surface_get_dds(front) : NULL;
     IDirectDraw7 *dd = screen_get_ddraw(scr);
     if (!f || !dd) return 0;
     (void)back;
@@ -375,10 +375,10 @@ internal int present_primary(ee_rasterizer *ras, unsigned screen, ee_screen *scr
 }
 
 internal int present_to_window(ee_rasterizer *ras, unsigned screen) {
-    ee_screen_state *st = ras_get_screen_state(ras, screen);
-    ee_screen *scr = scrstate_get_screen(st); ee_surface *back = scrstate_get_back(st); ee_window *win = scrstate_get_window(st);
+    ee_screen_state *st = rasterizer_get_screen_state(ras, screen);
+    ee_screen *scr = screen_state_get_screen(st); ee_surface *back = screen_state_get_back(st); ee_window *win = screen_state_get_window(st);
     if (!scr || screen_get_fullscreen(scr) || !back || !win) return 0;
-    IDirectDrawSurface7 *s = surf_get_dds(back);
+    IDirectDrawSurface7 *s = surface_get_dds(back);
     HWND hwnd = window_get_hwnd(win);
     if (!s || !hwnd) return 0;
     // the z-buffer of a new windowed back buffer starts out unusable for the terrain (it fails the depth test while
@@ -480,9 +480,9 @@ internal int present_to_window(ee_rasterizer *ras, unsigned screen) {
 // diagnostics: share of non-black pixels in the back buffer (sampled) before the original ShowScene
 internal volatile LONG g_lit_samples, g_lit_frames, g_lock_fail;
 internal void sample_back(ee_rasterizer *ras, unsigned screen) {
-    ee_screen_state *st = ras_get_screen_state(ras, screen);
-    ee_surface *back = scrstate_get_back(st);
-    IDirectDrawSurface7 *s = back ? surf_get_dds(back) : NULL;
+    ee_screen_state *st = rasterizer_get_screen_state(ras, screen);
+    ee_surface *back = screen_state_get_back(st);
+    IDirectDrawSurface7 *s = back ? surface_get_dds(back) : NULL;
     if (!s) return;
     DDSURFACEDESC2 d = { .dwSize = sizeof d };
     if (s->lpVtbl->Lock(s, NULL, &d, DDLOCK_WAIT | DDLOCK_READONLY, NULL) != DD_OK) { InterlockedIncrement(&g_lock_fail); return; }
@@ -504,7 +504,7 @@ internal void sample_back(ee_rasterizer *ras, unsigned screen) {
 typedef DWORD (__cdecl *TMGetTimeFn)(void);
 internal TMGetTimeFn g_tm_get_time;
 internal void frame_stats(ee_rasterizer *ras, unsigned screen) {
-    ee_screen_state *st = ras_get_screen_state(ras, screen);
+    ee_screen_state *st = rasterizer_get_screen_state(ras, screen);
     if (!st || ++SS_U(st, SS_FRAMES) != 12) return;
     if (!g_tm_get_time) g_tm_get_time = (TMGetTimeFn)(void *)GetProcAddress(GetModuleHandleA("Low-Level Engine.dll"), "?TMGetTime@@YAKXZ");
     if (!g_tm_get_time) return;
@@ -915,8 +915,8 @@ internal void mouse_acquire(int want) {
     static int unacquired, up_frames;
     ee_input_mouse *ms = is_mouse();
     if (!ms) return;
-    void **dev = imouse_get_device(ms);
-    if (!dev || imouse_get_suspended(ms)) { unacquired = 0; return; }   // +4: suspended by the game (window inactive)
+    void **dev = input_mouse_get_device(ms);
+    if (!dev || input_mouse_get_suspended(ms)) { unacquired = 0; return; }   // +4: suspended by the game (window inactive)
     typedef HRESULT (__stdcall *DevFn)(void *);
     if (want) {
         up_frames = 0;
@@ -938,7 +938,7 @@ internal void mouse_acquire(int want) {
 // and restored. The intro sequence (0x538xxx) also ends with Suspend. In front, a suspended device is resumed.
 internal volatile LONG g_input_resumes;
 internal void resume_if_suspended(void *d, DWORD *last) {   // the mouse or the keyboard (an ISDevice: its +4 the same)
-    if (!d || !imouse_get_suspended(d) || GetTickCount() - *last < 250) return;   // +4: suspended (ISDevice)
+    if (!d || !input_mouse_get_suspended(d) || GetTickCount() - *last < 250) return;   // +4: suspended (ISDevice)
     *last = GetTickCount();
     ((ThisFn)(*(void ***)d)[4])(d);   // Resume (vtable +0x10)
     InterlockedIncrement(&g_input_resumes);
@@ -958,7 +958,7 @@ internal void virtual_mouse(ee_mouse *m, int frozen) {
     ee_input_mouse *ms = is_mouse();
     LONG b = g_vm_button;
     if (!ms || b < 0 || b > 3) return;
-    uint8_t *st = imouse_buttons_at(ms) + b;
+    uint8_t *st = input_mouse_buttons_at(ms) + b;
     static DWORD down_at;
     LONG step = g_vm_step++;
     if (step == 0) {                                // down, held ~150 ms like a real click
@@ -1535,7 +1535,7 @@ internal void cmd_headless(const char *verb, const char *args, char *out) {
 }
 
 internal void dd_surface(char *out, const char *name, ee_surface *ges) {
-    IDirectDrawSurface7 *s = ges ? surf_get_dds(ges) : NULL;
+    IDirectDrawSurface7 *s = ges ? surface_get_dds(ges) : NULL;
     if (!s) { REPLY("%s: none\n", name); return; }
     DDSURFACEDESC2 d = { .dwSize = sizeof d };
     HRESULT hr = s->lpVtbl->GetSurfaceDesc(s, &d);
@@ -1584,16 +1584,16 @@ internal void lock_unlock(char *out, const char *name, IDirectDrawSurface7 *s) {
 }
 internal void cmd_ddpoke(char *out, const char *args) {
     ee_rasterizer *ras = rasterizer();
-    ee_screen_state *st = ras ? ras_get_screen_state(ras, screen_index()) : NULL;
+    ee_screen_state *st = ras ? rasterizer_get_screen_state(ras, screen_index()) : NULL;
     if (!st) { REPLY("error: no rasterizer\n"); return; }
-    ee_screen *scr = scrstate_get_screen(st); ee_surface *front = scrstate_get_front(st), *back = scrstate_get_back(st);
-    IDirectDrawSurface7 *b7 = back ? surf_get_dds(back) : NULL;
+    ee_screen *scr = screen_state_get_screen(st); ee_surface *front = screen_state_get_front(st), *back = screen_state_get_back(st);
+    IDirectDrawSurface7 *b7 = back ? surface_get_dds(back) : NULL;
     if (!strcmp(args, "z") && b7) {
         DDSCAPS2 zc = { .dwCaps = DDSCAPS_ZBUFFER };
         IDirectDrawSurface7 *z = NULL;
         if (b7->lpVtbl->GetAttachedSurface(b7, &zc, &z) == DD_OK) { lock_unlock(out, "z-buffer", z); z->lpVtbl->Release(z); }
     } else if (!strcmp(args, "back")) lock_unlock(out, "back", b7);
-    else if (!strcmp(args, "front")) lock_unlock(out, "front", front ? surf_get_dds(front) : NULL);
+    else if (!strcmp(args, "front")) lock_unlock(out, "front", front ? surface_get_dds(front) : NULL);
     else if (!strcmp(args, "mode")) {
         IDirectDraw7 *dd = screen_get_ddraw(scr);
         DDSURFACEDESC2 m = { .dwSize = sizeof m };
@@ -1666,16 +1666,16 @@ internal void cmd_topbar(char *out, const char *args) {
     const char *rn = form ? rtti_name(form) : "";
     if (!form || !strstr(rn, "EEUIFMainGame")) { REPLY("error: the current form is %s, not the game screen\n", form ? rn : "none"); return; }
     int v = -1;
-    if (sscanf(args, "%d", &v) == 1 && v >= 0 && v <= 2) uiform_set_top_bar(form, v);
-    REPLY("in-game form %p: top bar mode %d (0 age, 1 clock, 2 FPS)\n", (void *)form, uiform_get_top_bar(form));
+    if (sscanf(args, "%d", &v) == 1 && v >= 0 && v <= 2) ui_form_set_top_bar(form, v);
+    REPLY("in-game form %p: top bar mode %d (0 age, 1 clock, 2 FPS)\n", (void *)form, ui_form_get_top_bar(form));
 }
 
 internal void cmd_ddinfo(char *out, const char *args) {
     ee_rasterizer *ras = rasterizer();
     int idx = screen_index();
-    ee_screen_state *st = ras ? ras_get_screen_state(ras, idx) : NULL;
+    ee_screen_state *st = ras ? rasterizer_get_screen_state(ras, idx) : NULL;
     if (!st) { REPLY("error: no rasterizer\n"); return; }
-    ee_screen *scr = scrstate_get_screen(st); ee_window *win = scrstate_get_window(st);
+    ee_screen *scr = screen_state_get_screen(st); ee_window *win = screen_state_get_window(st);
     REPLY("screen %p fullscreen=%d desktop=%d flag=%d renderer %s\n", (void *)scr, screen_get_fullscreen(scr), screen_get_desktop(scr), g_fullscreen,
           g_show[DISPLAY_DLL(ras)].dll);
     {
@@ -1692,7 +1692,7 @@ internal void cmd_ddinfo(char *out, const char *args) {
     REPLY("window %p hwnd %p origin %.0f,%.0f size %ux%u; real client %ldx%ld at %ld,%ld\n", (void *)win, (void *)hwnd,
           win ? window_get_4(win) : 0, win ? window_get_8(win) : 0, win ? (unsigned)window_get_width(win) : 0,
           win ? (unsigned)window_get_height(win) : 0, cr.right, cr.bottom, o.x, o.y);
-    ee_surface *front = scrstate_get_front(st), *back = scrstate_get_back(st);
+    ee_surface *front = screen_state_get_front(st), *back = screen_state_get_back(st);
     dd_surface(out, "front", front);
     dd_surface(out, "back ", back);
     GetErrFn ge = (GetErrFn)GetProcAddress(GetModuleHandleA("Low-Level Engine.dll"), "?ESGetNativeError@@YAKXZ");
@@ -1745,7 +1745,7 @@ internal void cmd_ddinfo(char *out, const char *args) {
     if (gm) REPLY("mouse: game cursor %.1f,%.1f of x %.0f..%.0f y %.0f..%.0f, updates %ld, unacquired %ld, reacquired %ld, "
                   "device %s, resumed by us %ld, subclassed %p\n", mouse_get_x(gm), mouse_get_y(gm), mouse_get_x_min(gm),
                   mouse_get_x_max(gm), mouse_get_y_min(gm), mouse_get_y_max(gm), g_mouse_updates, g_mouse_unacq,
-                  g_mouse_reacq, ms ? (imouse_get_suspended(ms) ? "suspended" : "active") : "-", g_input_resumes, (void *)g_subclassed);
+                  g_mouse_reacq, ms ? (input_mouse_get_suspended(ms) ? "suspended" : "active") : "-", g_input_resumes, (void *)g_subclassed);
     {
         LARGE_INTEGER f;
         QueryPerformanceFrequency(&f);
@@ -1791,7 +1791,7 @@ internal void cmd_ddinfo(char *out, const char *args) {
               wr.right - wr.left, wr.bottom - wr.top, cr2.right, cr2.bottom, get_dpi ? get_dpi(g_subclassed) : 0, g_dpi_windows, g_smooth);
     }
     if (!strncmp(args, "blit", 4) && front && back) {
-        IDirectDrawSurface7 *f = surf_get_dds(front), *b = surf_get_dds(back);
+        IDirectDrawSurface7 *f = surface_get_dds(front), *b = surface_get_dds(back);
         RECT dst = { o.x, o.y, o.x + cr.right, o.y + cr.bottom };
         HRESULT hr = f->lpVtbl->Blt(f, &dst, b, NULL, DDBLT_WAIT, NULL);
         REPLY("blit to %ld,%ld-%ld,%ld: hr=%08lx\n", dst.left, dst.top, dst.right, dst.bottom, hr);
@@ -1806,7 +1806,7 @@ internal void cmd_ddinfo(char *out, const char *args) {
         ee_surface *ges[2] = { front, back };
         const char *names[2] = { "front", "back" };
         for (int i = 0; i < 2; i++) {
-            IDirectDrawSurface7 *s = ges[i] ? surf_get_dds(ges[i]) : NULL;
+            IDirectDrawSurface7 *s = ges[i] ? surface_get_dds(ges[i]) : NULL;
             char path[MAX_PATH];
             snprintf(path, sizeof path, "%s/dd_%s.bmp", g_dump_dir, names[i]);
             REPLY("dump %s: %s\n", names[i], s && dump_surface(s, path) ? path : "failed");

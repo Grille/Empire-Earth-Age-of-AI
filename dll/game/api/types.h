@@ -31,7 +31,7 @@ typedef struct ee_grid ee_grid;                 // GRID: the map's unit grid, MA
 typedef struct ee_gfx ee_gfx;                   // GFX: a graphical effect (a command's circle), gfx_get
 typedef struct ee_grid_cell ee_grid_cell;       // GRIDCELL: a cell of the unit grid (16 bytes)
 typedef struct ee_unit_vis ee_unit_vis;         // SITEOWN: a unit's visibility record, its +0x14
-typedef struct ee_asgu_info ee_asgu_info;       // ASGUINFO: what asgu_score scores
+typedef struct ee_asgu_info ee_asgu_info;       // ASGUINFO: what asg_unit_score scores
 typedef struct ee_strategy ee_strategy;         // STRATEGY: an attack strategy (EECPCombatStrategy)
 typedef struct ee_task ee_task;                 // TASK: an attack task (EECPAGTask)
 typedef struct ee_route_planner ee_route_planner; // ROUTEPLANNER: the land attack route planner

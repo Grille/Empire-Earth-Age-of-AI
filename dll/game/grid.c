@@ -53,7 +53,7 @@ internal struct grid_it grid_it_box(int x, int y, int r, int once) {
 internal struct grid_it grid_it_all(int once) { return grid_it_area(0, 0, 0x7FFFFFFF, 0x7FFFFFFF, once); }
 internal int grid_it_next(struct grid_it *it) {
     for (;;) {
-        while (it->b && it->b < cell_get_units_end(it->cell)) {
+        while (it->b && it->b < grid_cell_get_units_end(it->cell)) {
             ee_unit *u = *it->b++;
             ee_unit_type *td = u ? unit_get_type_data(u) : NULL;
             if (!td) continue;
@@ -69,7 +69,7 @@ internal int grid_it_next(struct grid_it *it) {
         if (it->gx > it->x1) return 0;
         it->cx = it->gx; it->cy = it->gy;
         it->cell = grid_cell_at(it->cells, it->cx * it->ny + it->cy);
-        it->b = cell_get_units_begin(it->cell);
+        it->b = grid_cell_get_units_begin(it->cell);
         if (++it->gy > it->y1) { it->gy = it->y0; it->gx++; }
     }
 }

@@ -18,9 +18,9 @@ internal inline int *grid_ny_at(const ee_grid *o) { return (int *)((uint8_t *)o 
 
 // class ee_grid_cell (ee_grid_cell)
 // a cell of the unit grid
-internal inline ee_unit **cell_get_units_begin(const ee_grid_cell *o) { return *(ee_unit ***)((uint8_t *)o + of_cell_units_begin); }
-internal inline void cell_set_units_begin(ee_grid_cell *o, ee_unit **v) { *(ee_unit ***)((uint8_t *)o + of_cell_units_begin) = v; }
-internal inline ee_unit ***cell_units_begin_at(const ee_grid_cell *o) { return (ee_unit ***)((uint8_t *)o + of_cell_units_begin); }
+internal inline ee_unit **grid_cell_get_units_begin(const ee_grid_cell *o) { return *(ee_unit ***)((uint8_t *)o + of_grid_cell_units_begin); }
+internal inline void grid_cell_set_units_begin(ee_grid_cell *o, ee_unit **v) { *(ee_unit ***)((uint8_t *)o + of_grid_cell_units_begin) = v; }
+internal inline ee_unit ***grid_cell_units_begin_at(const ee_grid_cell *o) { return (ee_unit ***)((uint8_t *)o + of_grid_cell_units_begin); }
 
 // class EEMap (ee_map)
 // the map, [game.map] (EEMap)
@@ -59,13 +59,13 @@ internal inline uint32_t *map_flags_at(const ee_map *o) { return (uint32_t *)((u
 
 // class ee_unit_vis (ee_unit_vis)
 // a unit's visibility record, its +0x14 (a site's: its ownership flag too)
-internal inline int siteown_get_flag(const ee_unit_vis *o) { return *(int *)((uint8_t *)o + of_siteown_flag); }
-internal inline void siteown_set_flag(ee_unit_vis *o, int v) { *(int *)((uint8_t *)o + of_siteown_flag) = v; }
-internal inline int *siteown_flag_at(const ee_unit_vis *o) { return (int *)((uint8_t *)o + of_siteown_flag); }
+internal inline int unit_vis_get_flag(const ee_unit_vis *o) { return *(int *)((uint8_t *)o + of_unit_vis_flag); }
+internal inline void unit_vis_set_flag(ee_unit_vis *o, int v) { *(int *)((uint8_t *)o + of_unit_vis_flag) = v; }
+internal inline int *unit_vis_flag_at(const ee_unit_vis *o) { return (int *)((uint8_t *)o + of_unit_vis_flag); }
 // explored_game 0x404A8A, AoC's 0x4042E2
-internal inline uint16_t *siteown_get_seen(const ee_unit_vis *o) { return *(uint16_t **)((uint8_t *)o + of_siteown_seen); }
-internal inline void siteown_set_seen(ee_unit_vis *o, uint16_t *v) { *(uint16_t **)((uint8_t *)o + of_siteown_seen) = v; }
-internal inline uint16_t **siteown_seen_at(const ee_unit_vis *o) { return (uint16_t **)((uint8_t *)o + of_siteown_seen); }
+internal inline uint16_t *unit_vis_get_seen(const ee_unit_vis *o) { return *(uint16_t **)((uint8_t *)o + of_unit_vis_seen); }
+internal inline void unit_vis_set_seen(ee_unit_vis *o, uint16_t *v) { *(uint16_t **)((uint8_t *)o + of_unit_vis_seen) = v; }
+internal inline uint16_t **unit_vis_seen_at(const ee_unit_vis *o) { return (uint16_t **)((uint8_t *)o + of_unit_vis_seen); }
 
 // class ee_tile_node (void)
 // a node of a tile's object list (TILE_OBJECTS)
@@ -80,7 +80,7 @@ internal inline void **tile_node_next_at(const void *o) { return (void **)((uint
 
 // class ee_tile (ee_tile)
 // a map tile
-// +4 its terrain kind (type_terrain_ok)
+// +4 its terrain kind (unit_type_terrain_ok)
 // the terrain kind (an index into TD_TERRAIN_OK; 0 land, 1 water - a guess)
 internal inline int tile_get_kind(const ee_tile *o) { return *(int *)((uint8_t *)o + of_tile_kind); }
 internal inline void tile_set_kind(ee_tile *o, int v) { *(int *)((uint8_t *)o + of_tile_kind) = v; }
@@ -159,7 +159,7 @@ internal int spec_map_select(int build) {
         of_grid_cell_size = 0x8;
         of_grid_nx = 0x10;
         of_grid_ny = 0x14;
-        of_cell_units_begin = 0x4;
+        of_grid_cell_units_begin = 0x4;
         of_map_view_rows = 0x17B598;
         of_map_tiles = 0x1816D4;
         of_map_edge_sum = 0x1816EC;
@@ -168,8 +168,8 @@ internal int spec_map_select(int build) {
         of_map_size = 0x1816FC;
         of_map_grid = 0x181724;
         of_map_flags = 0x181730;
-        of_siteown_flag = 0x4;
-        of_siteown_seen = 0xC;
+        of_unit_vis_flag = 0x4;
+        of_unit_vis_seen = 0xC;
         of_tile_node_object = 0x4;
         of_tile_node_next = 0x8;
         of_tile_kind = 0x4;
@@ -194,7 +194,7 @@ internal int spec_map_select(int build) {
         of_grid_cell_size = 0x8;
         of_grid_nx = 0x10;
         of_grid_ny = 0x14;
-        of_cell_units_begin = 0x4;
+        of_grid_cell_units_begin = 0x4;
         of_map_view_rows = 0x18F49C;
         of_map_tiles = 0x1955F0;
         of_map_edge_sum = 0x195608;
@@ -203,8 +203,8 @@ internal int spec_map_select(int build) {
         of_map_size = 0x195618;
         of_map_grid = 0x195640;
         of_map_flags = 0x19564C;
-        of_siteown_flag = 0x4;
-        of_siteown_seen = 0xC;
+        of_unit_vis_flag = 0x4;
+        of_unit_vis_seen = 0xC;
         of_tile_node_object = 0x4;
         of_tile_node_next = 0x8;
         of_tile_kind = 0x4;

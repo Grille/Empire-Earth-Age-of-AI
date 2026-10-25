@@ -4,101 +4,101 @@
 // class ee_build_mgr (ee_build_mgr)
 // the AI's build manager, CM +0x3C
 // the per-epoch build lists, 0x14 each - bm_request_game 0x46802D / 0x46A9C1
-internal inline uint8_t *bm_queues_at(const ee_build_mgr *o) { return (uint8_t *)o + of_bm_queues; }
+internal inline uint8_t *build_mgr_queues_at(const ee_build_mgr *o) { return (uint8_t *)o + of_build_mgr_queues; }
 // its base (-10000: none yet)
 // its file's code (+0x24, 5 votes)
-internal inline int bm_get_base_x(const ee_build_mgr *o) { return *(int *)((uint8_t *)o + of_bm_base_x); }
-internal inline void bm_set_base_x(ee_build_mgr *o, int v) { *(int *)((uint8_t *)o + of_bm_base_x) = v; }
-internal inline int *bm_base_x_at(const ee_build_mgr *o) { return (int *)((uint8_t *)o + of_bm_base_x); }
+internal inline int build_mgr_get_base_x(const ee_build_mgr *o) { return *(int *)((uint8_t *)o + of_build_mgr_base_x); }
+internal inline void build_mgr_set_base_x(ee_build_mgr *o, int v) { *(int *)((uint8_t *)o + of_build_mgr_base_x) = v; }
+internal inline int *build_mgr_base_x_at(const ee_build_mgr *o) { return (int *)((uint8_t *)o + of_build_mgr_base_x); }
 // its file's code (+0x24)
-internal inline int bm_get_base_y(const ee_build_mgr *o) { return *(int *)((uint8_t *)o + of_bm_base_y); }
-internal inline void bm_set_base_y(ee_build_mgr *o, int v) { *(int *)((uint8_t *)o + of_bm_base_y) = v; }
-internal inline int *bm_base_y_at(const ee_build_mgr *o) { return (int *)((uint8_t *)o + of_bm_base_y); }
+internal inline int build_mgr_get_base_y(const ee_build_mgr *o) { return *(int *)((uint8_t *)o + of_build_mgr_base_y); }
+internal inline void build_mgr_set_base_y(ee_build_mgr *o, int v) { *(int *)((uint8_t *)o + of_build_mgr_base_y) = v; }
+internal inline int *build_mgr_base_y_at(const ee_build_mgr *o) { return (int *)((uint8_t *)o + of_build_mgr_base_y); }
 // its file's code (+0x24, 18 votes)
-internal inline ee_civ_mgr *bm_get_owner(const ee_build_mgr *o) { return *(ee_civ_mgr **)((uint8_t *)o + of_bm_owner); }
-internal inline void bm_set_owner(ee_build_mgr *o, ee_civ_mgr *v) { *(ee_civ_mgr **)((uint8_t *)o + of_bm_owner) = v; }
-internal inline ee_civ_mgr **bm_owner_at(const ee_build_mgr *o) { return (ee_civ_mgr **)((uint8_t *)o + of_bm_owner); }
+internal inline ee_civ_mgr *build_mgr_get_owner(const ee_build_mgr *o) { return *(ee_civ_mgr **)((uint8_t *)o + of_build_mgr_owner); }
+internal inline void build_mgr_set_owner(ee_build_mgr *o, ee_civ_mgr *v) { *(ee_civ_mgr **)((uint8_t *)o + of_build_mgr_owner) = v; }
+internal inline ee_civ_mgr **build_mgr_owner_at(const ee_build_mgr *o) { return (ee_civ_mgr **)((uint8_t *)o + of_build_mgr_owner); }
 // its file's code (+0x24, 33 votes)
-internal inline ee_player *bm_get_player(const ee_build_mgr *o) { return *(ee_player **)((uint8_t *)o + of_bm_player); }
-internal inline void bm_set_player(ee_build_mgr *o, ee_player *v) { *(ee_player **)((uint8_t *)o + of_bm_player) = v; }
-internal inline ee_player **bm_player_at(const ee_build_mgr *o) { return (ee_player **)((uint8_t *)o + of_bm_player); }
+internal inline ee_player *build_mgr_get_player(const ee_build_mgr *o) { return *(ee_player **)((uint8_t *)o + of_build_mgr_player); }
+internal inline void build_mgr_set_player(ee_build_mgr *o, ee_player *v) { *(ee_player **)((uint8_t *)o + of_build_mgr_player) = v; }
+internal inline ee_player **build_mgr_player_at(const ee_build_mgr *o) { return (ee_player **)((uint8_t *)o + of_build_mgr_player); }
 // its file's code (+0x24)
-internal inline uint8_t *bm_initialized_at(const ee_build_mgr *o) { return (uint8_t *)o + of_bm_initialized; }
+internal inline uint8_t *build_mgr_initialized_at(const ee_build_mgr *o) { return (uint8_t *)o + of_build_mgr_initialized; }
 // thiscall(build manager, type): queued
-typedef char (__thiscall *bm_queued_fn)(ee_build_mgr *, int);
-internal bm_queued_fn fn_bm_queued;
-internal inline char bm_queued(ee_build_mgr *bm, int type) { return fn_bm_queued(bm, type); }
+typedef char (__thiscall *build_mgr_queued_fn)(ee_build_mgr *, int);
+internal build_mgr_queued_fn fn_build_mgr_queued;
+internal inline char build_mgr_queued(ee_build_mgr *build_mgr, int type) { return fn_build_mgr_queued(build_mgr, type); }
 // thiscall(build manager, x, y) -> bool
-typedef char (__thiscall *bm_enemy_near_fn)(ee_build_mgr *, int, int);
-internal bm_enemy_near_fn fn_bm_enemy_near;
-internal inline char bm_enemy_near(ee_build_mgr *bm, int x, int y) { return fn_bm_enemy_near(bm, x, y); }
-typedef char (__thiscall *bm_place_fn)(ee_build_mgr *, int, int, int);
-internal bm_place_fn fn_bm_place;
-internal inline char bm_place(ee_build_mgr *bm, int type, int x, int y) { return fn_bm_place(bm, type, x, y); }
-internal inline int patch_place(bm_place_fn h) { return patch_call(call_place, (uintptr_t)fn_bm_place, (void *)h); }
+typedef char (__thiscall *build_mgr_enemy_near_fn)(ee_build_mgr *, int, int);
+internal build_mgr_enemy_near_fn fn_build_mgr_enemy_near;
+internal inline char build_mgr_enemy_near(ee_build_mgr *build_mgr, int x, int y) { return fn_build_mgr_enemy_near(build_mgr, x, y); }
+typedef char (__thiscall *build_mgr_place_fn)(ee_build_mgr *, int, int, int);
+internal build_mgr_place_fn fn_build_mgr_place;
+internal inline char build_mgr_place(ee_build_mgr *build_mgr, int type, int x, int y) { return fn_build_mgr_place(build_mgr, type, x, y); }
+internal inline int patch_place(build_mgr_place_fn h) { return patch_call(call_place, (uintptr_t)fn_build_mgr_place, (void *)h); }
 
 // class EECPCivilizationManager (ee_civ_mgr)
 // the AI's civilization manager, player +0xB90 (EECPCivilizationManager)
 // the build plan's list
-internal inline ee_plan_node *cm_get_plan(const ee_civ_mgr *o) { return *(ee_plan_node **)((uint8_t *)o + of_cm_plan); }
-internal inline void cm_set_plan(ee_civ_mgr *o, ee_plan_node *v) { *(ee_plan_node **)((uint8_t *)o + of_cm_plan) = v; }
-internal inline ee_plan_node **cm_plan_at(const ee_civ_mgr *o) { return (ee_plan_node **)((uint8_t *)o + of_cm_plan); }
-internal inline ee_resource_mgr *cm_get_resource_mgr(const ee_civ_mgr *o) { return *(ee_resource_mgr **)((uint8_t *)o + of_cm_resource_mgr); }
-internal inline void cm_set_resource_mgr(ee_civ_mgr *o, ee_resource_mgr *v) { *(ee_resource_mgr **)((uint8_t *)o + of_cm_resource_mgr) = v; }
-internal inline ee_resource_mgr **cm_resource_mgr_at(const ee_civ_mgr *o) { return (ee_resource_mgr **)((uint8_t *)o + of_cm_resource_mgr); }
-internal inline ee_build_mgr *cm_get_build_mgr(const ee_civ_mgr *o) { return *(ee_build_mgr **)((uint8_t *)o + of_cm_build_mgr); }
-internal inline void cm_set_build_mgr(ee_civ_mgr *o, ee_build_mgr *v) { *(ee_build_mgr **)((uint8_t *)o + of_cm_build_mgr) = v; }
-internal inline ee_build_mgr **cm_build_mgr_at(const ee_civ_mgr *o) { return (ee_build_mgr **)((uint8_t *)o + of_cm_build_mgr); }
-internal inline ee_research_mgr *cm_get_research_mgr(const ee_civ_mgr *o) { return *(ee_research_mgr **)((uint8_t *)o + of_cm_research_mgr); }
-internal inline void cm_set_research_mgr(ee_civ_mgr *o, ee_research_mgr *v) { *(ee_research_mgr **)((uint8_t *)o + of_cm_research_mgr) = v; }
-internal inline ee_research_mgr **cm_research_mgr_at(const ee_civ_mgr *o) { return (ee_research_mgr **)((uint8_t *)o + of_cm_research_mgr); }
-internal inline ee_unit_mgr *cm_get_unit_mgr(const ee_civ_mgr *o) { return *(ee_unit_mgr **)((uint8_t *)o + of_cm_unit_mgr); }
-internal inline void cm_set_unit_mgr(ee_civ_mgr *o, ee_unit_mgr *v) { *(ee_unit_mgr **)((uint8_t *)o + of_cm_unit_mgr) = v; }
-internal inline ee_unit_mgr **cm_unit_mgr_at(const ee_civ_mgr *o) { return (ee_unit_mgr **)((uint8_t *)o + of_cm_unit_mgr); }
+internal inline ee_plan_node *civ_mgr_get_plan(const ee_civ_mgr *o) { return *(ee_plan_node **)((uint8_t *)o + of_civ_mgr_plan); }
+internal inline void civ_mgr_set_plan(ee_civ_mgr *o, ee_plan_node *v) { *(ee_plan_node **)((uint8_t *)o + of_civ_mgr_plan) = v; }
+internal inline ee_plan_node **civ_mgr_plan_at(const ee_civ_mgr *o) { return (ee_plan_node **)((uint8_t *)o + of_civ_mgr_plan); }
+internal inline ee_resource_mgr *civ_mgr_get_resource_mgr(const ee_civ_mgr *o) { return *(ee_resource_mgr **)((uint8_t *)o + of_civ_mgr_resource_mgr); }
+internal inline void civ_mgr_set_resource_mgr(ee_civ_mgr *o, ee_resource_mgr *v) { *(ee_resource_mgr **)((uint8_t *)o + of_civ_mgr_resource_mgr) = v; }
+internal inline ee_resource_mgr **civ_mgr_resource_mgr_at(const ee_civ_mgr *o) { return (ee_resource_mgr **)((uint8_t *)o + of_civ_mgr_resource_mgr); }
+internal inline ee_build_mgr *civ_mgr_get_build_mgr(const ee_civ_mgr *o) { return *(ee_build_mgr **)((uint8_t *)o + of_civ_mgr_build_mgr); }
+internal inline void civ_mgr_set_build_mgr(ee_civ_mgr *o, ee_build_mgr *v) { *(ee_build_mgr **)((uint8_t *)o + of_civ_mgr_build_mgr) = v; }
+internal inline ee_build_mgr **civ_mgr_build_mgr_at(const ee_civ_mgr *o) { return (ee_build_mgr **)((uint8_t *)o + of_civ_mgr_build_mgr); }
+internal inline ee_research_mgr *civ_mgr_get_research_mgr(const ee_civ_mgr *o) { return *(ee_research_mgr **)((uint8_t *)o + of_civ_mgr_research_mgr); }
+internal inline void civ_mgr_set_research_mgr(ee_civ_mgr *o, ee_research_mgr *v) { *(ee_research_mgr **)((uint8_t *)o + of_civ_mgr_research_mgr) = v; }
+internal inline ee_research_mgr **civ_mgr_research_mgr_at(const ee_civ_mgr *o) { return (ee_research_mgr **)((uint8_t *)o + of_civ_mgr_research_mgr); }
+internal inline ee_unit_mgr *civ_mgr_get_unit_mgr(const ee_civ_mgr *o) { return *(ee_unit_mgr **)((uint8_t *)o + of_civ_mgr_unit_mgr); }
+internal inline void civ_mgr_set_unit_mgr(ee_civ_mgr *o, ee_unit_mgr *v) { *(ee_unit_mgr **)((uint8_t *)o + of_civ_mgr_unit_mgr) = v; }
+internal inline ee_unit_mgr **civ_mgr_unit_mgr_at(const ee_civ_mgr *o) { return (ee_unit_mgr **)((uint8_t *)o + of_civ_mgr_unit_mgr); }
 // EECPWallManager
-internal inline void *cm_get_wall_mgr(const ee_civ_mgr *o) { return *(void **)((uint8_t *)o + of_cm_wall_mgr); }
-internal inline void cm_set_wall_mgr(ee_civ_mgr *o, void *v) { *(void **)((uint8_t *)o + of_cm_wall_mgr) = v; }
-internal inline void **cm_wall_mgr_at(const ee_civ_mgr *o) { return (void **)((uint8_t *)o + of_cm_wall_mgr); }
+internal inline void *civ_mgr_get_wall_mgr(const ee_civ_mgr *o) { return *(void **)((uint8_t *)o + of_civ_mgr_wall_mgr); }
+internal inline void civ_mgr_set_wall_mgr(ee_civ_mgr *o, void *v) { *(void **)((uint8_t *)o + of_civ_mgr_wall_mgr) = v; }
+internal inline void **civ_mgr_wall_mgr_at(const ee_civ_mgr *o) { return (void **)((uint8_t *)o + of_civ_mgr_wall_mgr); }
 // its player
 // between +0x48 and +0x50, unchanged (0x46D209 reads it: the player)
-internal inline ee_player *cm_get_player(const ee_civ_mgr *o) { return *(ee_player **)((uint8_t *)o + of_cm_player); }
-internal inline void cm_set_player(ee_civ_mgr *o, ee_player *v) { *(ee_player **)((uint8_t *)o + of_cm_player) = v; }
-internal inline ee_player **cm_player_at(const ee_civ_mgr *o) { return (ee_player **)((uint8_t *)o + of_cm_player); }
+internal inline ee_player *civ_mgr_get_player(const ee_civ_mgr *o) { return *(ee_player **)((uint8_t *)o + of_civ_mgr_player); }
+internal inline void civ_mgr_set_player(ee_civ_mgr *o, ee_player *v) { *(ee_player **)((uint8_t *)o + of_civ_mgr_player) = v; }
+internal inline ee_player **civ_mgr_player_at(const ee_civ_mgr *o) { return (ee_player **)((uint8_t *)o + of_civ_mgr_player); }
 // the construction project (NULL: a new one may start)
-internal inline void *cm_get_project(const ee_civ_mgr *o) { return *(void **)((uint8_t *)o + of_cm_project); }
-internal inline void cm_set_project(ee_civ_mgr *o, void *v) { *(void **)((uint8_t *)o + of_cm_project) = v; }
-internal inline void **cm_project_at(const ee_civ_mgr *o) { return (void **)((uint8_t *)o + of_cm_project); }
-internal inline uint32_t cm_get_timers(const ee_civ_mgr *o, int i) { return ((uint32_t *)((uint8_t *)o + of_cm_timers))[i]; }
-internal inline void cm_set_timers(ee_civ_mgr *o, int i, uint32_t v) { ((uint32_t *)((uint8_t *)o + of_cm_timers))[i] = v; }
-internal inline uint32_t *cm_timers_at(const ee_civ_mgr *o) { return (uint32_t *)((uint8_t *)o + of_cm_timers); }
+internal inline void *civ_mgr_get_project(const ee_civ_mgr *o) { return *(void **)((uint8_t *)o + of_civ_mgr_project); }
+internal inline void civ_mgr_set_project(ee_civ_mgr *o, void *v) { *(void **)((uint8_t *)o + of_civ_mgr_project) = v; }
+internal inline void **civ_mgr_project_at(const ee_civ_mgr *o) { return (void **)((uint8_t *)o + of_civ_mgr_project); }
+internal inline uint32_t civ_mgr_get_timers(const ee_civ_mgr *o, int i) { return ((uint32_t *)((uint8_t *)o + of_civ_mgr_timers))[i]; }
+internal inline void civ_mgr_set_timers(ee_civ_mgr *o, int i, uint32_t v) { ((uint32_t *)((uint8_t *)o + of_civ_mgr_timers))[i] = v; }
+internal inline uint32_t *civ_mgr_timers_at(const ee_civ_mgr *o) { return (uint32_t *)((uint8_t *)o + of_civ_mgr_timers); }
 // its file's code (+4 from 0x74)
-internal inline uint8_t *cm_flag_at(const ee_civ_mgr *o) { return (uint8_t *)o + of_cm_flag; }
+internal inline uint8_t *civ_mgr_flag_at(const ee_civ_mgr *o) { return (uint8_t *)o + of_civ_mgr_flag; }
 // its file's code (+4 from 0x74)
-internal inline uint8_t *cm_setup_done_at(const ee_civ_mgr *o) { return (uint8_t *)o + of_cm_setup_done; }
+internal inline uint8_t *civ_mgr_setup_done_at(const ee_civ_mgr *o) { return (uint8_t *)o + of_civ_mgr_setup_done; }
 // its file's code (+4 from 0x74)
-internal inline uint8_t cm_get_request_out(const ee_civ_mgr *o) { return *(uint8_t *)((uint8_t *)o + of_cm_request_out); }
-internal inline void cm_set_request_out(ee_civ_mgr *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_cm_request_out) = v; }
-internal inline uint8_t *cm_request_out_at(const ee_civ_mgr *o) { return (uint8_t *)((uint8_t *)o + of_cm_request_out); }
+internal inline uint8_t civ_mgr_get_request_out(const ee_civ_mgr *o) { return *(uint8_t *)((uint8_t *)o + of_civ_mgr_request_out); }
+internal inline void civ_mgr_set_request_out(ee_civ_mgr *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_civ_mgr_request_out) = v; }
+internal inline uint8_t *civ_mgr_request_out_at(const ee_civ_mgr *o) { return (uint8_t *)((uint8_t *)o + of_civ_mgr_request_out); }
 // its file's code (+4 from 0x74)
-internal inline uint8_t cm_get_unknown_78(const ee_civ_mgr *o) { return *(uint8_t *)((uint8_t *)o + of_cm_unknown_78); }
-internal inline void cm_set_unknown_78(ee_civ_mgr *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_cm_unknown_78) = v; }
-internal inline uint8_t *cm_unknown_78_at(const ee_civ_mgr *o) { return (uint8_t *)((uint8_t *)o + of_cm_unknown_78); }
+internal inline uint8_t civ_mgr_get_unknown_78(const ee_civ_mgr *o) { return *(uint8_t *)((uint8_t *)o + of_civ_mgr_unknown_78); }
+internal inline void civ_mgr_set_unknown_78(ee_civ_mgr *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_civ_mgr_unknown_78) = v; }
+internal inline uint8_t *civ_mgr_unknown_78_at(const ee_civ_mgr *o) { return (uint8_t *)((uint8_t *)o + of_civ_mgr_unknown_78); }
 // its file's code (+4 from 0x74)
-internal inline uint8_t cm_get_att_epoch_techs(const ee_civ_mgr *o) { return *(uint8_t *)((uint8_t *)o + of_cm_att_epoch_techs); }
-internal inline void cm_set_att_epoch_techs(ee_civ_mgr *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_cm_att_epoch_techs) = v; }
-internal inline uint8_t *cm_att_epoch_techs_at(const ee_civ_mgr *o) { return (uint8_t *)((uint8_t *)o + of_cm_att_epoch_techs); }
+internal inline uint8_t civ_mgr_get_att_epoch_techs(const ee_civ_mgr *o) { return *(uint8_t *)((uint8_t *)o + of_civ_mgr_att_epoch_techs); }
+internal inline void civ_mgr_set_att_epoch_techs(ee_civ_mgr *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_civ_mgr_att_epoch_techs) = v; }
+internal inline uint8_t *civ_mgr_att_epoch_techs_at(const ee_civ_mgr *o) { return (uint8_t *)((uint8_t *)o + of_civ_mgr_att_epoch_techs); }
 // its file's code (+4 from 0x74)
-internal inline uint8_t cm_get_att_build(const ee_civ_mgr *o) { return *(uint8_t *)((uint8_t *)o + of_cm_att_build); }
-internal inline void cm_set_att_build(ee_civ_mgr *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_cm_att_build) = v; }
-internal inline uint8_t *cm_att_build_at(const ee_civ_mgr *o) { return (uint8_t *)((uint8_t *)o + of_cm_att_build); }
+internal inline uint8_t civ_mgr_get_att_build(const ee_civ_mgr *o) { return *(uint8_t *)((uint8_t *)o + of_civ_mgr_att_build); }
+internal inline void civ_mgr_set_att_build(ee_civ_mgr *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_civ_mgr_att_build) = v; }
+internal inline uint8_t *civ_mgr_att_build_at(const ee_civ_mgr *o) { return (uint8_t *)((uint8_t *)o + of_civ_mgr_att_build); }
 // its file's code (+4 from 0x74)
-internal inline uint8_t cm_get_att_7c(const ee_civ_mgr *o) { return *(uint8_t *)((uint8_t *)o + of_cm_att_7c); }
-internal inline void cm_set_att_7c(ee_civ_mgr *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_cm_att_7c) = v; }
-internal inline uint8_t *cm_att_7c_at(const ee_civ_mgr *o) { return (uint8_t *)((uint8_t *)o + of_cm_att_7c); }
+internal inline uint8_t civ_mgr_get_att_7c(const ee_civ_mgr *o) { return *(uint8_t *)((uint8_t *)o + of_civ_mgr_att_7c); }
+internal inline void civ_mgr_set_att_7c(ee_civ_mgr *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_civ_mgr_att_7c) = v; }
+internal inline uint8_t *civ_mgr_att_7c_at(const ee_civ_mgr *o) { return (uint8_t *)((uint8_t *)o + of_civ_mgr_att_7c); }
 // SetNextEpochAdvanceTime
-typedef void (__thiscall *cm_set_epoch_time_fn)(ee_civ_mgr *, uint32_t, char);
-internal cm_set_epoch_time_fn fn_cm_set_epoch_time;
-internal inline void cm_set_epoch_time(ee_civ_mgr *cm, uint32_t now, char flag) { fn_cm_set_epoch_time(cm, now, flag); }
+typedef void (__thiscall *civ_mgr_set_epoch_time_fn)(ee_civ_mgr *, uint32_t, char);
+internal civ_mgr_set_epoch_time_fn fn_civ_mgr_set_epoch_time;
+internal inline void civ_mgr_set_epoch_time(ee_civ_mgr *civ_mgr, uint32_t now, char flag) { fn_civ_mgr_set_epoch_time(civ_mgr, now, flag); }
 
 // class ee_plan_node (ee_plan_node)
 // the civilization manager's list nodes
@@ -116,124 +116,124 @@ internal inline int *plan_node_unknown_10_at(const ee_plan_node *o) { return (in
 // the AI's resource manager (EECPResourceManager)
 // the animals to hunt
 // its file's code (the resource manager)
-internal inline void **rm_get_hunt_begin(const ee_resource_mgr *o) { return *(void ***)((uint8_t *)o + of_rm_hunt_begin); }
-internal inline void rm_set_hunt_begin(ee_resource_mgr *o, void **v) { *(void ***)((uint8_t *)o + of_rm_hunt_begin) = v; }
-internal inline void ***rm_hunt_begin_at(const ee_resource_mgr *o) { return (void ***)((uint8_t *)o + of_rm_hunt_begin); }
+internal inline void **resource_mgr_get_hunt_begin(const ee_resource_mgr *o) { return *(void ***)((uint8_t *)o + of_resource_mgr_hunt_begin); }
+internal inline void resource_mgr_set_hunt_begin(ee_resource_mgr *o, void **v) { *(void ***)((uint8_t *)o + of_resource_mgr_hunt_begin) = v; }
+internal inline void ***resource_mgr_hunt_begin_at(const ee_resource_mgr *o) { return (void ***)((uint8_t *)o + of_resource_mgr_hunt_begin); }
 // the fish
 // its file's code (the resource manager)
-internal inline void **rm_get_fish_begin(const ee_resource_mgr *o) { return *(void ***)((uint8_t *)o + of_rm_fish_begin); }
-internal inline void rm_set_fish_begin(ee_resource_mgr *o, void **v) { *(void ***)((uint8_t *)o + of_rm_fish_begin) = v; }
-internal inline void ***rm_fish_begin_at(const ee_resource_mgr *o) { return (void ***)((uint8_t *)o + of_rm_fish_begin); }
+internal inline void **resource_mgr_get_fish_begin(const ee_resource_mgr *o) { return *(void ***)((uint8_t *)o + of_resource_mgr_fish_begin); }
+internal inline void resource_mgr_set_fish_begin(ee_resource_mgr *o, void **v) { *(void ***)((uint8_t *)o + of_resource_mgr_fish_begin) = v; }
+internal inline void ***resource_mgr_fish_begin_at(const ee_resource_mgr *o) { return (void ***)((uint8_t *)o + of_resource_mgr_fish_begin); }
 // its file's code (the resource manager)
-internal inline uint8_t *rm_lists_at(const ee_resource_mgr *o) { return (uint8_t *)o + of_rm_lists; }
+internal inline uint8_t *resource_mgr_lists_at(const ee_resource_mgr *o) { return (uint8_t *)o + of_resource_mgr_lists; }
 // its file's code (the resource manager)
-internal inline ee_civ_mgr *rm_get_owner(const ee_resource_mgr *o) { return *(ee_civ_mgr **)((uint8_t *)o + of_rm_owner); }
-internal inline void rm_set_owner(ee_resource_mgr *o, ee_civ_mgr *v) { *(ee_civ_mgr **)((uint8_t *)o + of_rm_owner) = v; }
-internal inline ee_civ_mgr **rm_owner_at(const ee_resource_mgr *o) { return (ee_civ_mgr **)((uint8_t *)o + of_rm_owner); }
+internal inline ee_civ_mgr *resource_mgr_get_owner(const ee_resource_mgr *o) { return *(ee_civ_mgr **)((uint8_t *)o + of_resource_mgr_owner); }
+internal inline void resource_mgr_set_owner(ee_resource_mgr *o, ee_civ_mgr *v) { *(ee_civ_mgr **)((uint8_t *)o + of_resource_mgr_owner) = v; }
+internal inline ee_civ_mgr **resource_mgr_owner_at(const ee_resource_mgr *o) { return (ee_civ_mgr **)((uint8_t *)o + of_resource_mgr_owner); }
 // its file's code (the resource manager)
 // int[7] still needed
-internal inline int rm_get_demand(const ee_resource_mgr *o, int i) { return ((int *)((uint8_t *)o + of_rm_demand))[i]; }
-internal inline void rm_set_demand(ee_resource_mgr *o, int i, int v) { ((int *)((uint8_t *)o + of_rm_demand))[i] = v; }
-internal inline int *rm_demand_at(const ee_resource_mgr *o) { return (int *)((uint8_t *)o + of_rm_demand); }
+internal inline int resource_mgr_get_demand(const ee_resource_mgr *o, int i) { return ((int *)((uint8_t *)o + of_resource_mgr_demand))[i]; }
+internal inline void resource_mgr_set_demand(ee_resource_mgr *o, int i, int v) { ((int *)((uint8_t *)o + of_resource_mgr_demand))[i] = v; }
+internal inline int *resource_mgr_demand_at(const ee_resource_mgr *o) { return (int *)((uint8_t *)o + of_resource_mgr_demand); }
 // its file's code (the resource manager)
 // uint[7] gatherers wanted
-internal inline uint32_t rm_get_target(const ee_resource_mgr *o, int i) { return ((uint32_t *)((uint8_t *)o + of_rm_target))[i]; }
-internal inline void rm_set_target(ee_resource_mgr *o, int i, uint32_t v) { ((uint32_t *)((uint8_t *)o + of_rm_target))[i] = v; }
-internal inline uint32_t *rm_target_at(const ee_resource_mgr *o) { return (uint32_t *)((uint8_t *)o + of_rm_target); }
+internal inline uint32_t resource_mgr_get_target(const ee_resource_mgr *o, int i) { return ((uint32_t *)((uint8_t *)o + of_resource_mgr_target))[i]; }
+internal inline void resource_mgr_set_target(ee_resource_mgr *o, int i, uint32_t v) { ((uint32_t *)((uint8_t *)o + of_resource_mgr_target))[i] = v; }
+internal inline uint32_t *resource_mgr_target_at(const ee_resource_mgr *o) { return (uint32_t *)((uint8_t *)o + of_resource_mgr_target); }
 // its file's code (the resource manager)
-internal inline uint8_t *rm_timers_at(const ee_resource_mgr *o) { return (uint8_t *)o + of_rm_timers; }
+internal inline uint8_t *resource_mgr_timers_at(const ee_resource_mgr *o) { return (uint8_t *)o + of_resource_mgr_timers; }
 // (the timers reset while 0)
 // its file's code (the resource manager)
-internal inline uint8_t rm_get_initialized(const ee_resource_mgr *o) { return *(uint8_t *)((uint8_t *)o + of_rm_initialized); }
-internal inline void rm_set_initialized(ee_resource_mgr *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_rm_initialized) = v; }
-internal inline uint8_t *rm_initialized_at(const ee_resource_mgr *o) { return (uint8_t *)((uint8_t *)o + of_rm_initialized); }
+internal inline uint8_t resource_mgr_get_initialized(const ee_resource_mgr *o) { return *(uint8_t *)((uint8_t *)o + of_resource_mgr_initialized); }
+internal inline void resource_mgr_set_initialized(ee_resource_mgr *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_resource_mgr_initialized) = v; }
+internal inline uint8_t *resource_mgr_initialized_at(const ee_resource_mgr *o) { return (uint8_t *)((uint8_t *)o + of_resource_mgr_initialized); }
 // the attention's activity 1
 // its file's code (the resource manager)
-internal inline uint8_t rm_get_att_188(const ee_resource_mgr *o) { return *(uint8_t *)((uint8_t *)o + of_rm_att_188); }
-internal inline void rm_set_att_188(ee_resource_mgr *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_rm_att_188) = v; }
-internal inline uint8_t *rm_att_188_at(const ee_resource_mgr *o) { return (uint8_t *)((uint8_t *)o + of_rm_att_188); }
-typedef char (__thiscall *rm_assign_citizens_fn)(ee_resource_mgr *);
-internal rm_assign_citizens_fn fn_rm_assign_citizens;
-internal inline char rm_assign_citizens(ee_resource_mgr *rm) { return fn_rm_assign_citizens(rm); }
-internal inline int patch_rm_assign_citizens(rm_assign_citizens_fn h) { return patch_call(call_rm_assign_citizens, (uintptr_t)fn_rm_assign_citizens, (void *)h); }
-typedef char (__thiscall *rm_compute_targets_fn)(ee_resource_mgr *);
-internal rm_compute_targets_fn fn_rm_compute_targets;
-internal inline char rm_compute_targets(ee_resource_mgr *rm) { return fn_rm_compute_targets(rm); }
-internal inline int patch_rm_compute_targets(rm_compute_targets_fn h) { return patch_call(call_rm_compute_targets, (uintptr_t)fn_rm_compute_targets, (void *)h); }
-typedef void (__thiscall *rm_update_fn)(ee_resource_mgr *, uint32_t);
-internal rm_update_fn fn_rm_update;
-internal inline void rm_update(ee_resource_mgr *rm, uint32_t now) { fn_rm_update(rm, now); }
-internal inline int patch_rm_update(rm_update_fn h) { return patch_call(call_rm_update, (uintptr_t)fn_rm_update, (void *)h); }
+internal inline uint8_t resource_mgr_get_att_188(const ee_resource_mgr *o) { return *(uint8_t *)((uint8_t *)o + of_resource_mgr_att_188); }
+internal inline void resource_mgr_set_att_188(ee_resource_mgr *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_resource_mgr_att_188) = v; }
+internal inline uint8_t *resource_mgr_att_188_at(const ee_resource_mgr *o) { return (uint8_t *)((uint8_t *)o + of_resource_mgr_att_188); }
+typedef char (__thiscall *resource_mgr_assign_citizens_fn)(ee_resource_mgr *);
+internal resource_mgr_assign_citizens_fn fn_resource_mgr_assign_citizens;
+internal inline char resource_mgr_assign_citizens(ee_resource_mgr *resource_mgr) { return fn_resource_mgr_assign_citizens(resource_mgr); }
+internal inline int patch_rm_assign_citizens(resource_mgr_assign_citizens_fn h) { return patch_call(call_rm_assign_citizens, (uintptr_t)fn_resource_mgr_assign_citizens, (void *)h); }
+typedef char (__thiscall *resource_mgr_compute_targets_fn)(ee_resource_mgr *);
+internal resource_mgr_compute_targets_fn fn_resource_mgr_compute_targets;
+internal inline char resource_mgr_compute_targets(ee_resource_mgr *resource_mgr) { return fn_resource_mgr_compute_targets(resource_mgr); }
+internal inline int patch_rm_compute_targets(resource_mgr_compute_targets_fn h) { return patch_call(call_rm_compute_targets, (uintptr_t)fn_resource_mgr_compute_targets, (void *)h); }
+typedef void (__thiscall *resource_mgr_update_fn)(ee_resource_mgr *, uint32_t);
+internal resource_mgr_update_fn fn_resource_mgr_update;
+internal inline void resource_mgr_update(ee_resource_mgr *resource_mgr, uint32_t now) { fn_resource_mgr_update(resource_mgr, now); }
+internal inline int patch_rm_update(resource_mgr_update_fn h) { return patch_call(call_rm_update, (uintptr_t)fn_resource_mgr_update, (void *)h); }
 
 // class EECPResearchManager (ee_research_mgr)
 // the AI's research manager, CM +0x40 (EECPResearchManager)
 // the techs it may research (ids)
 // kept: the object's start, before its first known shift (0xF4 -> 0x104)
-internal inline int *rs_get_pool_begin(const ee_research_mgr *o) { return *(int **)((uint8_t *)o + of_rs_pool_begin); }
-internal inline void rs_set_pool_begin(ee_research_mgr *o, int *v) { *(int **)((uint8_t *)o + of_rs_pool_begin) = v; }
-internal inline int **rs_pool_begin_at(const ee_research_mgr *o) { return (int **)((uint8_t *)o + of_rs_pool_begin); }
+internal inline int *research_mgr_get_pool_begin(const ee_research_mgr *o) { return *(int **)((uint8_t *)o + of_research_mgr_pool_begin); }
+internal inline void research_mgr_set_pool_begin(ee_research_mgr *o, int *v) { *(int **)((uint8_t *)o + of_research_mgr_pool_begin) = v; }
+internal inline int **research_mgr_pool_begin_at(const ee_research_mgr *o) { return (int **)((uint8_t *)o + of_research_mgr_pool_begin); }
 // kept: the object's start, before its first known shift (0xF4 -> 0x104)
-internal inline uint8_t *rs_epoch_at(const ee_research_mgr *o) { return (uint8_t *)o + of_rs_epoch; }
+internal inline uint8_t *research_mgr_epoch_at(const ee_research_mgr *o) { return (uint8_t *)o + of_research_mgr_epoch; }
 // what it researches now
-internal inline int rs_get_current(const ee_research_mgr *o) { return *(int *)((uint8_t *)o + of_rs_current); }
-internal inline void rs_set_current(ee_research_mgr *o, int v) { *(int *)((uint8_t *)o + of_rs_current) = v; }
-internal inline int *rs_current_at(const ee_research_mgr *o) { return (int *)((uint8_t *)o + of_rs_current); }
-internal inline uint8_t *rs_initialized_at(const ee_research_mgr *o) { return (uint8_t *)o + of_rs_initialized; }
+internal inline int research_mgr_get_current(const ee_research_mgr *o) { return *(int *)((uint8_t *)o + of_research_mgr_current); }
+internal inline void research_mgr_set_current(ee_research_mgr *o, int v) { *(int *)((uint8_t *)o + of_research_mgr_current) = v; }
+internal inline int *research_mgr_current_at(const ee_research_mgr *o) { return (int *)((uint8_t *)o + of_research_mgr_current); }
+internal inline uint8_t *research_mgr_initialized_at(const ee_research_mgr *o) { return (uint8_t *)o + of_research_mgr_initialized; }
 // the attention's activity 2 (random research)
-internal inline uint8_t rs_get_att_random(const ee_research_mgr *o) { return *(uint8_t *)((uint8_t *)o + of_rs_att_random); }
-internal inline void rs_set_att_random(ee_research_mgr *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_rs_att_random) = v; }
-internal inline uint8_t *rs_att_random_at(const ee_research_mgr *o) { return (uint8_t *)((uint8_t *)o + of_rs_att_random); }
+internal inline uint8_t research_mgr_get_att_random(const ee_research_mgr *o) { return *(uint8_t *)((uint8_t *)o + of_research_mgr_att_random); }
+internal inline void research_mgr_set_att_random(ee_research_mgr *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_research_mgr_att_random) = v; }
+internal inline uint8_t *research_mgr_att_random_at(const ee_research_mgr *o) { return (uint8_t *)((uint8_t *)o + of_research_mgr_att_random); }
 // thiscall(research manager cm+0x40, count): the AI's request for an epoch's required techs
-typedef void (__thiscall *rs_request_requirements_fn)(ee_research_mgr *, int);
-internal rs_request_requirements_fn fn_rs_request_requirements;
-internal inline void rs_request_requirements(ee_research_mgr *rs, int count) { fn_rs_request_requirements(rs, count); }
-typedef void (__thiscall *rs_schedule_fn)(ee_research_mgr *, int);
-internal rs_schedule_fn fn_rs_schedule;
-internal inline void rs_schedule(ee_research_mgr *rs, int id) { fn_rs_schedule(rs, id); }
+typedef void (__thiscall *research_mgr_request_requirements_fn)(ee_research_mgr *, int);
+internal research_mgr_request_requirements_fn fn_research_mgr_request_requirements;
+internal inline void research_mgr_request_requirements(ee_research_mgr *research_mgr, int count) { fn_research_mgr_request_requirements(research_mgr, count); }
+typedef void (__thiscall *research_mgr_schedule_fn)(ee_research_mgr *, int);
+internal research_mgr_schedule_fn fn_research_mgr_schedule;
+internal inline void research_mgr_schedule(ee_research_mgr *research_mgr, int id) { fn_research_mgr_schedule(research_mgr, id); }
 
 // class ee_unit_mgr (ee_unit_mgr)
 // the AI's unit manager, CM +0x44
 // its file's code (the unit manager)
-internal inline uint8_t *um_requests_at(const ee_unit_mgr *o) { return (uint8_t *)o + of_um_requests; }
+internal inline uint8_t *unit_mgr_requests_at(const ee_unit_mgr *o) { return (uint8_t *)o + of_unit_mgr_requests; }
 // its file's code (+0x14, 31 votes)
-internal inline ee_player *um_get_player(const ee_unit_mgr *o) { return *(ee_player **)((uint8_t *)o + of_um_player); }
-internal inline void um_set_player(ee_unit_mgr *o, ee_player *v) { *(ee_player **)((uint8_t *)o + of_um_player) = v; }
-internal inline ee_player **um_player_at(const ee_unit_mgr *o) { return (ee_player **)((uint8_t *)o + of_um_player); }
+internal inline ee_player *unit_mgr_get_player(const ee_unit_mgr *o) { return *(ee_player **)((uint8_t *)o + of_unit_mgr_player); }
+internal inline void unit_mgr_set_player(ee_unit_mgr *o, ee_player *v) { *(ee_player **)((uint8_t *)o + of_unit_mgr_player) = v; }
+internal inline ee_player **unit_mgr_player_at(const ee_unit_mgr *o) { return (ee_player **)((uint8_t *)o + of_unit_mgr_player); }
 // units in production (0x49014F adds)
 // its file's code (+0x14)
-internal inline int um_get_in_production(const ee_unit_mgr *o) { return *(int *)((uint8_t *)o + of_um_in_production); }
-internal inline void um_set_in_production(ee_unit_mgr *o, int v) { *(int *)((uint8_t *)o + of_um_in_production) = v; }
-internal inline int *um_in_production_at(const ee_unit_mgr *o) { return (int *)((uint8_t *)o + of_um_in_production); }
+internal inline int unit_mgr_get_in_production(const ee_unit_mgr *o) { return *(int *)((uint8_t *)o + of_unit_mgr_in_production); }
+internal inline void unit_mgr_set_in_production(ee_unit_mgr *o, int v) { *(int *)((uint8_t *)o + of_unit_mgr_in_production) = v; }
+internal inline int *unit_mgr_in_production_at(const ee_unit_mgr *o) { return (int *)((uint8_t *)o + of_unit_mgr_in_production); }
 // the attention's activity 3
 // its file's code (+0x14)
-internal inline uint8_t um_get_att_140(const ee_unit_mgr *o) { return *(uint8_t *)((uint8_t *)o + of_um_att_140); }
-internal inline void um_set_att_140(ee_unit_mgr *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_um_att_140) = v; }
-internal inline uint8_t *um_att_140_at(const ee_unit_mgr *o) { return (uint8_t *)((uint8_t *)o + of_um_att_140); }
-typedef uintptr_t (__thiscall *um_train_citizens_fn)(ee_unit_mgr *, uintptr_t);
-internal um_train_citizens_fn fn_um_train_citizens;
-internal inline uintptr_t um_train_citizens(ee_unit_mgr *um, uintptr_t a) { return fn_um_train_citizens(um, a); }
-internal inline int patch_train_citizens(um_train_citizens_fn h) { return patch_call(call_train_citizens, (uintptr_t)fn_um_train_citizens, (void *)h); }
-typedef uintptr_t (__thiscall *um_train_fn)(ee_unit_mgr *, int *, uintptr_t);
-internal um_train_fn fn_um_train;
-internal inline uintptr_t um_train(ee_unit_mgr *um, int *req, uintptr_t b) { return fn_um_train(um, req, b); }
-internal inline int patch_train_units(um_train_fn h, int *of) { return patch_calls(calls_train_units, 5, (uintptr_t)fn_um_train, (void *)h, of); }
+internal inline uint8_t unit_mgr_get_att_140(const ee_unit_mgr *o) { return *(uint8_t *)((uint8_t *)o + of_unit_mgr_att_140); }
+internal inline void unit_mgr_set_att_140(ee_unit_mgr *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_unit_mgr_att_140) = v; }
+internal inline uint8_t *unit_mgr_att_140_at(const ee_unit_mgr *o) { return (uint8_t *)((uint8_t *)o + of_unit_mgr_att_140); }
+typedef uintptr_t (__thiscall *unit_mgr_train_citizens_fn)(ee_unit_mgr *, uintptr_t);
+internal unit_mgr_train_citizens_fn fn_unit_mgr_train_citizens;
+internal inline uintptr_t unit_mgr_train_citizens(ee_unit_mgr *unit_mgr, uintptr_t a) { return fn_unit_mgr_train_citizens(unit_mgr, a); }
+internal inline int patch_train_citizens(unit_mgr_train_citizens_fn h) { return patch_call(call_train_citizens, (uintptr_t)fn_unit_mgr_train_citizens, (void *)h); }
+typedef uintptr_t (__thiscall *unit_mgr_train_fn)(ee_unit_mgr *, int *, uintptr_t);
+internal unit_mgr_train_fn fn_unit_mgr_train;
+internal inline uintptr_t unit_mgr_train(ee_unit_mgr *unit_mgr, int *req, uintptr_t b) { return fn_unit_mgr_train(unit_mgr, req, b); }
+internal inline int patch_train_units(unit_mgr_train_fn h, int *of) { return patch_calls(calls_train_units, 5, (uintptr_t)fn_unit_mgr_train, (void *)h, of); }
 // citizens of both sexes and the epoch's fishing boat type
-typedef int (__thiscall *um_citizens_fn)(ee_unit_mgr *);
-internal um_citizens_fn fn_um_citizens;
-internal inline int um_citizens(ee_unit_mgr *um) { return fn_um_citizens(um); }
+typedef int (__thiscall *unit_mgr_citizens_fn)(ee_unit_mgr *);
+internal unit_mgr_citizens_fn fn_unit_mgr_citizens;
+internal inline int unit_mgr_citizens(ee_unit_mgr *unit_mgr) { return fn_unit_mgr_citizens(unit_mgr); }
 // citizen share x population cap
-typedef int (__thiscall *um_citizens_wanted_fn)(ee_unit_mgr *);
-internal um_citizens_wanted_fn fn_um_citizens_wanted;
-internal inline int um_citizens_wanted(ee_unit_mgr *um) { return fn_um_citizens_wanted(um); }
-internal inline int patch_citizens_wanted(um_citizens_wanted_fn h) { return patch_call(call_citizens_wanted, (uintptr_t)fn_um_citizens_wanted, (void *)h); }
+typedef int (__thiscall *unit_mgr_citizens_wanted_fn)(ee_unit_mgr *);
+internal unit_mgr_citizens_wanted_fn fn_unit_mgr_citizens_wanted;
+internal inline int unit_mgr_citizens_wanted(ee_unit_mgr *unit_mgr) { return fn_unit_mgr_citizens_wanted(unit_mgr); }
+internal inline int patch_citizens_wanted(unit_mgr_citizens_wanted_fn h) { return patch_call(call_citizens_wanted, (uintptr_t)fn_unit_mgr_citizens_wanted, (void *)h); }
 // thiscall(unit manager, type)
-typedef char (__thiscall *um_pending_fn)(ee_unit_mgr *, int);
-internal um_pending_fn fn_um_pending;
-internal inline char um_pending(ee_unit_mgr *um, int type) { return fn_um_pending(um, type); }
+typedef char (__thiscall *unit_mgr_pending_fn)(ee_unit_mgr *, int);
+internal unit_mgr_pending_fn fn_unit_mgr_pending;
+internal inline char unit_mgr_pending(ee_unit_mgr *unit_mgr, int type) { return fn_unit_mgr_pending(unit_mgr, type); }
 // thiscall(unit manager, type): its units and buildings of that type
-typedef uint8_t *(__thiscall *um_type_list_fn)(ee_unit_mgr *, int);
-internal um_type_list_fn fn_um_type_list;
-internal inline uint8_t *um_type_list(ee_unit_mgr *um, int type) { return fn_um_type_list(um, type); }
+typedef uint8_t *(__thiscall *unit_mgr_type_list_fn)(ee_unit_mgr *, int);
+internal unit_mgr_type_list_fn fn_unit_mgr_type_list;
+internal inline uint8_t *unit_mgr_type_list(ee_unit_mgr *unit_mgr, int type) { return fn_unit_mgr_type_list(unit_mgr, type); }
 
 // static class ai_managers
 // ai_managers's data of the game, places in its code and numbers
@@ -300,75 +300,75 @@ internal inline void *unbuilt_farms(void *p1, uintptr_t p2, uintptr_t p3) { retu
 internal int spec_ai_managers_select(int build) {
     switch (build) {
     case 0:   // ee
-        of_bm_queues = 0x4;
-        of_bm_base_x = 0x12C;
-        of_bm_base_y = 0x130;
-        of_bm_owner = 0x134;
-        of_bm_player = 0x138;
-        of_bm_initialized = 0x148;
-        fn_bm_queued = (bm_queued_fn)0x00465640;
-        fn_bm_enemy_near = (bm_enemy_near_fn)0x004660B9;
-        fn_bm_place = (bm_place_fn)0x0046580A;
+        of_build_mgr_queues = 0x4;
+        of_build_mgr_base_x = 0x12C;
+        of_build_mgr_base_y = 0x130;
+        of_build_mgr_owner = 0x134;
+        of_build_mgr_player = 0x138;
+        of_build_mgr_initialized = 0x148;
+        fn_build_mgr_queued = (build_mgr_queued_fn)0x00465640;
+        fn_build_mgr_enemy_near = (build_mgr_enemy_near_fn)0x004660B9;
+        fn_build_mgr_place = (build_mgr_place_fn)0x0046580A;
         call_place = 0x00468629;
-        of_cm_plan = 0x8;
-        of_cm_resource_mgr = 0x38;
-        of_cm_build_mgr = 0x3C;
-        of_cm_research_mgr = 0x40;
-        of_cm_unit_mgr = 0x44;
-        of_cm_wall_mgr = 0x48;
-        of_cm_player = 0x4C;
-        of_cm_project = 0x50;
-        of_cm_timers = 0x58;
-        of_cm_flag = 0x74;
-        of_cm_setup_done = 0x75;
-        of_cm_request_out = 0x76;
-        of_cm_unknown_78 = 0x78;
-        of_cm_att_epoch_techs = 0x7A;
-        of_cm_att_build = 0x7B;
-        of_cm_att_7c = 0x7C;
-        fn_cm_set_epoch_time = (cm_set_epoch_time_fn)0x0046DE8C;
+        of_civ_mgr_plan = 0x8;
+        of_civ_mgr_resource_mgr = 0x38;
+        of_civ_mgr_build_mgr = 0x3C;
+        of_civ_mgr_research_mgr = 0x40;
+        of_civ_mgr_unit_mgr = 0x44;
+        of_civ_mgr_wall_mgr = 0x48;
+        of_civ_mgr_player = 0x4C;
+        of_civ_mgr_project = 0x50;
+        of_civ_mgr_timers = 0x58;
+        of_civ_mgr_flag = 0x74;
+        of_civ_mgr_setup_done = 0x75;
+        of_civ_mgr_request_out = 0x76;
+        of_civ_mgr_unknown_78 = 0x78;
+        of_civ_mgr_att_epoch_techs = 0x7A;
+        of_civ_mgr_att_build = 0x7B;
+        of_civ_mgr_att_7c = 0x7C;
+        fn_civ_mgr_set_epoch_time = (civ_mgr_set_epoch_time_fn)0x0046DE8C;
         of_plan_node_next = 0x0;
         of_plan_node_unknown_c = 0xC;
         of_plan_node_unknown_10 = 0x10;
-        of_rm_hunt_begin = 0x88;
-        of_rm_fish_begin = 0x98;
-        of_rm_lists = 0xA4;
-        of_rm_owner = 0x130;
-        of_rm_demand = 0x134;
-        of_rm_target = 0x150;
-        of_rm_timers = 0x16C;
-        of_rm_initialized = 0x187;
-        of_rm_att_188 = 0x188;
-        fn_rm_assign_citizens = (rm_assign_citizens_fn)0x0048A554;
+        of_resource_mgr_hunt_begin = 0x88;
+        of_resource_mgr_fish_begin = 0x98;
+        of_resource_mgr_lists = 0xA4;
+        of_resource_mgr_owner = 0x130;
+        of_resource_mgr_demand = 0x134;
+        of_resource_mgr_target = 0x150;
+        of_resource_mgr_timers = 0x16C;
+        of_resource_mgr_initialized = 0x187;
+        of_resource_mgr_att_188 = 0x188;
+        fn_resource_mgr_assign_citizens = (resource_mgr_assign_citizens_fn)0x0048A554;
         call_rm_assign_citizens = 0x0048D36A;
-        fn_rm_compute_targets = (rm_compute_targets_fn)0x0048D0A2;
+        fn_resource_mgr_compute_targets = (resource_mgr_compute_targets_fn)0x0048D0A2;
         call_rm_compute_targets = 0x0048D347;
-        fn_rm_update = (rm_update_fn)0x0048D263;
+        fn_resource_mgr_update = (resource_mgr_update_fn)0x0048D263;
         call_rm_update = 0x0046E3C6;
-        of_rs_pool_begin = 0x8;
-        of_rs_epoch = 0x18;
-        of_rs_current = 0x114;
-        of_rs_initialized = 0x118;
-        of_rs_att_random = 0x11A;
-        fn_rs_request_requirements = (rs_request_requirements_fn)0x004860D6;
-        fn_rs_schedule = (rs_schedule_fn)0x00485F57;
-        of_um_requests = 0xC;
-        of_um_player = 0x134;
-        of_um_in_production = 0x13C;
-        of_um_att_140 = 0x140;
-        fn_um_train_citizens = (um_train_citizens_fn)0x0048EE84;
+        of_research_mgr_pool_begin = 0x8;
+        of_research_mgr_epoch = 0x18;
+        of_research_mgr_current = 0x114;
+        of_research_mgr_initialized = 0x118;
+        of_research_mgr_att_random = 0x11A;
+        fn_research_mgr_request_requirements = (research_mgr_request_requirements_fn)0x004860D6;
+        fn_research_mgr_schedule = (research_mgr_schedule_fn)0x00485F57;
+        of_unit_mgr_requests = 0xC;
+        of_unit_mgr_player = 0x134;
+        of_unit_mgr_in_production = 0x13C;
+        of_unit_mgr_att_140 = 0x140;
+        fn_unit_mgr_train_citizens = (unit_mgr_train_citizens_fn)0x0048EE84;
         call_train_citizens = 0x00430740;
-        fn_um_train = (um_train_fn)0x0049014F;
+        fn_unit_mgr_train = (unit_mgr_train_fn)0x0049014F;
         calls_train_units[0] = 0x0046CCE6;
         calls_train_units[1] = 0x00490CAC;
         calls_train_units[2] = 0x00490E12;
         calls_train_units[3] = 0x00490F1F;
         calls_train_units[4] = 0x00490FA9;
-        fn_um_citizens = (um_citizens_fn)0x0048F819;
-        fn_um_citizens_wanted = (um_citizens_wanted_fn)0x0048EDDB;
+        fn_unit_mgr_citizens = (unit_mgr_citizens_fn)0x0048F819;
+        fn_unit_mgr_citizens_wanted = (unit_mgr_citizens_wanted_fn)0x0048EDDB;
         call_citizens_wanted = 0x00490BC2;
-        fn_um_pending = (um_pending_fn)0x0048E9D8;
-        fn_um_type_list = (um_type_list_fn)0x0048F8AF;
+        fn_unit_mgr_pending = (unit_mgr_pending_fn)0x0048E9D8;
+        fn_unit_mgr_type_list = (unit_mgr_type_list_fn)0x0048F8AF;
         data_ai_managers_call_farms = 0x0048AC54;
         data_ai_managers_call_unbuilt_farms = 0x0048B0FD;
         fn_assign_to_site = (assign_to_site_fn)0x0048C81C;
@@ -414,75 +414,75 @@ internal int spec_ai_managers_select(int build) {
         fn_unbuilt_farms = (unbuilt_farms_fn)0x0048BF4F;
         return 0;
     case 1:   // aoc
-        of_bm_queues = 0x4;
-        of_bm_base_x = 0x150;
-        of_bm_base_y = 0x154;
-        of_bm_owner = 0x158;
-        of_bm_player = 0x15C;
-        of_bm_initialized = 0x16C;
-        fn_bm_queued = (bm_queued_fn)0x004672FA;
-        fn_bm_enemy_near = (bm_enemy_near_fn)0x00467E10;
-        fn_bm_place = (bm_place_fn)0x004674C4;
+        of_build_mgr_queues = 0x4;
+        of_build_mgr_base_x = 0x150;
+        of_build_mgr_base_y = 0x154;
+        of_build_mgr_owner = 0x158;
+        of_build_mgr_player = 0x15C;
+        of_build_mgr_initialized = 0x16C;
+        fn_build_mgr_queued = (build_mgr_queued_fn)0x004672FA;
+        fn_build_mgr_enemy_near = (build_mgr_enemy_near_fn)0x00467E10;
+        fn_build_mgr_place = (build_mgr_place_fn)0x004674C4;
         call_place = 0x0046B044;
-        of_cm_plan = 0x8;
-        of_cm_resource_mgr = 0x38;
-        of_cm_build_mgr = 0x3C;
-        of_cm_research_mgr = 0x40;
-        of_cm_unit_mgr = 0x44;
-        of_cm_wall_mgr = 0x48;
-        of_cm_player = 0x4C;
-        of_cm_project = 0x50;
-        of_cm_timers = 0x58;
-        of_cm_flag = 0x78;
-        of_cm_setup_done = 0x79;
-        of_cm_request_out = 0x7A;
-        of_cm_unknown_78 = 0x7C;
-        of_cm_att_epoch_techs = 0x7E;
-        of_cm_att_build = 0x7F;
-        of_cm_att_7c = 0x80;
-        fn_cm_set_epoch_time = (cm_set_epoch_time_fn)0x00470B04;
+        of_civ_mgr_plan = 0x8;
+        of_civ_mgr_resource_mgr = 0x38;
+        of_civ_mgr_build_mgr = 0x3C;
+        of_civ_mgr_research_mgr = 0x40;
+        of_civ_mgr_unit_mgr = 0x44;
+        of_civ_mgr_wall_mgr = 0x48;
+        of_civ_mgr_player = 0x4C;
+        of_civ_mgr_project = 0x50;
+        of_civ_mgr_timers = 0x58;
+        of_civ_mgr_flag = 0x78;
+        of_civ_mgr_setup_done = 0x79;
+        of_civ_mgr_request_out = 0x7A;
+        of_civ_mgr_unknown_78 = 0x7C;
+        of_civ_mgr_att_epoch_techs = 0x7E;
+        of_civ_mgr_att_build = 0x7F;
+        of_civ_mgr_att_7c = 0x80;
+        fn_civ_mgr_set_epoch_time = (civ_mgr_set_epoch_time_fn)0x00470B04;
         of_plan_node_next = 0x0;
         of_plan_node_unknown_c = 0xC;
         of_plan_node_unknown_10 = 0x10;
-        of_rm_hunt_begin = 0x88;
-        of_rm_fish_begin = 0x98;
-        of_rm_lists = 0xA4;
-        of_rm_owner = 0x130;
-        of_rm_demand = 0x134;
-        of_rm_target = 0x150;
-        of_rm_timers = 0x16C;
-        of_rm_initialized = 0x187;
-        of_rm_att_188 = 0x188;
-        fn_rm_assign_citizens = (rm_assign_citizens_fn)0x0048EECF;
+        of_resource_mgr_hunt_begin = 0x88;
+        of_resource_mgr_fish_begin = 0x98;
+        of_resource_mgr_lists = 0xA4;
+        of_resource_mgr_owner = 0x130;
+        of_resource_mgr_demand = 0x134;
+        of_resource_mgr_target = 0x150;
+        of_resource_mgr_timers = 0x16C;
+        of_resource_mgr_initialized = 0x187;
+        of_resource_mgr_att_188 = 0x188;
+        fn_resource_mgr_assign_citizens = (resource_mgr_assign_citizens_fn)0x0048EECF;
         call_rm_assign_citizens = 0x00491E3B;
-        fn_rm_compute_targets = (rm_compute_targets_fn)0x00491B78;
+        fn_resource_mgr_compute_targets = (resource_mgr_compute_targets_fn)0x00491B78;
         call_rm_compute_targets = 0x00491E18;
-        fn_rm_update = (rm_update_fn)0x00491D34;
+        fn_resource_mgr_update = (resource_mgr_update_fn)0x00491D34;
         call_rm_update = 0x00471051;
-        of_rs_pool_begin = 0x8;
-        of_rs_epoch = 0x18;
-        of_rs_current = 0x124;
-        of_rs_initialized = 0x128;
-        of_rs_att_random = 0x12A;
-        fn_rs_request_requirements = (rs_request_requirements_fn)0x0048A91E;
-        fn_rs_schedule = (rs_schedule_fn)0x0048A79F;
-        of_um_requests = 0xC;
-        of_um_player = 0x148;
-        of_um_in_production = 0x150;
-        of_um_att_140 = 0x154;
-        fn_um_train_citizens = (um_train_citizens_fn)0x00493B97;
+        of_research_mgr_pool_begin = 0x8;
+        of_research_mgr_epoch = 0x18;
+        of_research_mgr_current = 0x124;
+        of_research_mgr_initialized = 0x128;
+        of_research_mgr_att_random = 0x12A;
+        fn_research_mgr_request_requirements = (research_mgr_request_requirements_fn)0x0048A91E;
+        fn_research_mgr_schedule = (research_mgr_schedule_fn)0x0048A79F;
+        of_unit_mgr_requests = 0xC;
+        of_unit_mgr_player = 0x148;
+        of_unit_mgr_in_production = 0x150;
+        of_unit_mgr_att_140 = 0x154;
+        fn_unit_mgr_train_citizens = (unit_mgr_train_citizens_fn)0x00493B97;
         call_train_citizens = 0x0042E23C;
-        fn_um_train = (um_train_fn)0x00494F42;
+        fn_unit_mgr_train = (unit_mgr_train_fn)0x00494F42;
         calls_train_units[0] = 0x0046F786;
         calls_train_units[1] = 0x00495AFF;
         calls_train_units[2] = 0x00495C65;
         calls_train_units[3] = 0x00495D72;
         calls_train_units[4] = 0x00495DFC;
-        fn_um_citizens = (um_citizens_fn)0x00494572;
-        fn_um_citizens_wanted = (um_citizens_wanted_fn)0x00493AEE;
+        fn_unit_mgr_citizens = (unit_mgr_citizens_fn)0x00494572;
+        fn_unit_mgr_citizens_wanted = (unit_mgr_citizens_wanted_fn)0x00493AEE;
         call_citizens_wanted = 0x00495A15;
-        fn_um_pending = (um_pending_fn)0x00493696;
-        fn_um_type_list = (um_type_list_fn)0x00494608;
+        fn_unit_mgr_pending = (unit_mgr_pending_fn)0x00493696;
+        fn_unit_mgr_type_list = (unit_mgr_type_list_fn)0x00494608;
         data_ai_managers_call_farms = 0x0048F643;
         data_ai_managers_call_unbuilt_farms = 0x0048FAD4;
         fn_assign_to_site = (assign_to_site_fn)0x004912BE;
@@ -535,32 +535,32 @@ internal const char *const k_spec_ai_managers_missing[ADDR_BUILDS] = { "", "" };
 // the load-time check: what the spec says of the running build's exe (spec_check): the failures
 internal int spec_ai_managers_check(void) {
     int bad = 0;
-    bad += spec_code((uintptr_t)fn_bm_queued, "ee_build_mgr.queued");
-    bad += spec_code((uintptr_t)fn_bm_enemy_near, "ee_build_mgr.enemy_near");
-    bad += spec_code((uintptr_t)fn_bm_place, "ee_build_mgr.place");
-    bad += spec_call(call_place, (uintptr_t)fn_bm_place, "ee_build_mgr.place [call_site place]");
-    bad += spec_code((uintptr_t)fn_cm_set_epoch_time, "EECPCivilizationManager.set_epoch_time");
-    bad += spec_code((uintptr_t)fn_rm_assign_citizens, "EECPResourceManager.assign_citizens");
-    bad += spec_call(call_rm_assign_citizens, (uintptr_t)fn_rm_assign_citizens, "EECPResourceManager.assign_citizens [call_site rm_assign_citizens]");
-    bad += spec_code((uintptr_t)fn_rm_compute_targets, "EECPResourceManager.compute_targets");
-    bad += spec_call(call_rm_compute_targets, (uintptr_t)fn_rm_compute_targets, "EECPResourceManager.compute_targets [call_site rm_compute_targets]");
-    bad += spec_code((uintptr_t)fn_rm_update, "EECPResourceManager.update");
-    bad += spec_call(call_rm_update, (uintptr_t)fn_rm_update, "EECPResourceManager.update [call_site rm_update]");
-    bad += spec_code((uintptr_t)fn_rs_request_requirements, "EECPResearchManager.request_requirements");
-    bad += spec_code((uintptr_t)fn_rs_schedule, "EECPResearchManager.schedule");
-    bad += spec_code((uintptr_t)fn_um_train_citizens, "ee_unit_mgr.train_citizens");
-    bad += spec_call(call_train_citizens, (uintptr_t)fn_um_train_citizens, "ee_unit_mgr.train_citizens [call_site train_citizens]");
-    bad += spec_code((uintptr_t)fn_um_train, "ee_unit_mgr.train");
-    bad += spec_call(calls_train_units[0], (uintptr_t)fn_um_train, "ee_unit_mgr.train [call_site train_units 0]");
-    bad += spec_call(calls_train_units[1], (uintptr_t)fn_um_train, "ee_unit_mgr.train [call_site train_units 1]");
-    bad += spec_call(calls_train_units[2], (uintptr_t)fn_um_train, "ee_unit_mgr.train [call_site train_units 2]");
-    bad += spec_call(calls_train_units[3], (uintptr_t)fn_um_train, "ee_unit_mgr.train [call_site train_units 3]");
-    bad += spec_call(calls_train_units[4], (uintptr_t)fn_um_train, "ee_unit_mgr.train [call_site train_units 4]");
-    bad += spec_code((uintptr_t)fn_um_citizens, "ee_unit_mgr.citizens");
-    bad += spec_code((uintptr_t)fn_um_citizens_wanted, "ee_unit_mgr.citizens_wanted");
-    bad += spec_call(call_citizens_wanted, (uintptr_t)fn_um_citizens_wanted, "ee_unit_mgr.citizens_wanted [call_site citizens_wanted]");
-    bad += spec_code((uintptr_t)fn_um_pending, "ee_unit_mgr.pending");
-    bad += spec_code((uintptr_t)fn_um_type_list, "ee_unit_mgr.type_list");
+    bad += spec_code((uintptr_t)fn_build_mgr_queued, "ee_build_mgr.queued");
+    bad += spec_code((uintptr_t)fn_build_mgr_enemy_near, "ee_build_mgr.enemy_near");
+    bad += spec_code((uintptr_t)fn_build_mgr_place, "ee_build_mgr.place");
+    bad += spec_call(call_place, (uintptr_t)fn_build_mgr_place, "ee_build_mgr.place [call_site place]");
+    bad += spec_code((uintptr_t)fn_civ_mgr_set_epoch_time, "EECPCivilizationManager.set_epoch_time");
+    bad += spec_code((uintptr_t)fn_resource_mgr_assign_citizens, "EECPResourceManager.assign_citizens");
+    bad += spec_call(call_rm_assign_citizens, (uintptr_t)fn_resource_mgr_assign_citizens, "EECPResourceManager.assign_citizens [call_site rm_assign_citizens]");
+    bad += spec_code((uintptr_t)fn_resource_mgr_compute_targets, "EECPResourceManager.compute_targets");
+    bad += spec_call(call_rm_compute_targets, (uintptr_t)fn_resource_mgr_compute_targets, "EECPResourceManager.compute_targets [call_site rm_compute_targets]");
+    bad += spec_code((uintptr_t)fn_resource_mgr_update, "EECPResourceManager.update");
+    bad += spec_call(call_rm_update, (uintptr_t)fn_resource_mgr_update, "EECPResourceManager.update [call_site rm_update]");
+    bad += spec_code((uintptr_t)fn_research_mgr_request_requirements, "EECPResearchManager.request_requirements");
+    bad += spec_code((uintptr_t)fn_research_mgr_schedule, "EECPResearchManager.schedule");
+    bad += spec_code((uintptr_t)fn_unit_mgr_train_citizens, "ee_unit_mgr.train_citizens");
+    bad += spec_call(call_train_citizens, (uintptr_t)fn_unit_mgr_train_citizens, "ee_unit_mgr.train_citizens [call_site train_citizens]");
+    bad += spec_code((uintptr_t)fn_unit_mgr_train, "ee_unit_mgr.train");
+    bad += spec_call(calls_train_units[0], (uintptr_t)fn_unit_mgr_train, "ee_unit_mgr.train [call_site train_units 0]");
+    bad += spec_call(calls_train_units[1], (uintptr_t)fn_unit_mgr_train, "ee_unit_mgr.train [call_site train_units 1]");
+    bad += spec_call(calls_train_units[2], (uintptr_t)fn_unit_mgr_train, "ee_unit_mgr.train [call_site train_units 2]");
+    bad += spec_call(calls_train_units[3], (uintptr_t)fn_unit_mgr_train, "ee_unit_mgr.train [call_site train_units 3]");
+    bad += spec_call(calls_train_units[4], (uintptr_t)fn_unit_mgr_train, "ee_unit_mgr.train [call_site train_units 4]");
+    bad += spec_code((uintptr_t)fn_unit_mgr_citizens, "ee_unit_mgr.citizens");
+    bad += spec_code((uintptr_t)fn_unit_mgr_citizens_wanted, "ee_unit_mgr.citizens_wanted");
+    bad += spec_call(call_citizens_wanted, (uintptr_t)fn_unit_mgr_citizens_wanted, "ee_unit_mgr.citizens_wanted [call_site citizens_wanted]");
+    bad += spec_code((uintptr_t)fn_unit_mgr_pending, "ee_unit_mgr.pending");
+    bad += spec_code((uintptr_t)fn_unit_mgr_type_list, "ee_unit_mgr.type_list");
     bad += spec_code(data_ai_managers_call_farms, "ai_managers.call_farms");
     bad += spec_code(data_ai_managers_call_unbuilt_farms, "ai_managers.call_unbuilt_farms");
     bad += spec_code((uintptr_t)fn_assign_to_site, "ai_managers_functions.assign_to_site");

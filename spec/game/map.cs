@@ -15,7 +15,6 @@ unsafe struct ee_grid
 }
 
 /// a cell of the unit grid
-[c_prefix("cell")]
 unsafe struct ee_grid_cell
 {
     [offset(0x4), found(s)]
@@ -59,7 +58,6 @@ unsafe struct EEMap
 }
 
 /// a unit's visibility record, its +0x14 (a site's: its ownership flag too)
-[c_prefix("siteown")]
 unsafe struct ee_unit_vis
 {
     [offset(0x4), found(s)]
@@ -86,7 +84,7 @@ unsafe struct ee_tile_node
 /// a map tile
 unsafe struct ee_tile
 {
-    /// +4 its terrain kind (type_terrain_ok)
+    /// +4 its terrain kind (unit_type_terrain_ok)
     /// the terrain kind (an index into TD_TERRAIN_OK; 0 land, 1 water - a guess)
     [offset(0x4), found(c)]
     int32 kind;

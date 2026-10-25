@@ -105,9 +105,8 @@ public sealed class c_type : Attribute
     public c_type(string name) { }
 }
 
-// the C functions' prefix where it isn't the C type without ee_ (cm_get_build_mgr on ee_civ_mgr) - the names the
-// C side had before the spec, kept while it moves over (the player, 2026-10-25: the C types renamed to fit later);
-// "" for a static class whose functions keep names of their own (explored_by)
+// a static class's C prefix: "" for the one whose functions keep names of their own (explored_by); a class's struct
+// has none - its prefix is its C type without ee_ (the player, 2026-10-25: one name for type and functions)
 [AttributeUsage(AttributeTargets.Struct | AttributeTargets.Class)]
 public sealed class c_prefix : Attribute
 {

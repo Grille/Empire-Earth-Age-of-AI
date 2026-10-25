@@ -1,5 +1,5 @@
 /// a unit type's data, game.types[type] and a unit's +0x2C (EEUnitClass, EEUC*)
-[c_type("ee_unit_type"), c_prefix("type")]
+[c_type("ee_unit_type")]
 unsafe struct EEUnitClass
 {
     [offset(0x0), found(c)]
@@ -134,7 +134,6 @@ unsafe struct EEUnitClass
 }
 
 /// a unit type's per-player values, a unit's +0x34 (range, attack ...)
-[c_prefix("stat")]
 unsafe struct ee_unit_stats
 {
     /// between fields read through a unit's +0x34, unchanged

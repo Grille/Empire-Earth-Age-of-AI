@@ -21,7 +21,7 @@ internal inline uint16_t *viewrow_count_at(const void *row, unsigned x) {
 // unit enters it - the path search's tile test)
 // the unit grid (map +0x181724, unit_grid()): cells of cs tiles, nx x ny of them; a cell's units begin .. end
 internal inline ee_grid_cell *grid_cell_at(ee_grid_cell *cells, int i) { return (ee_grid_cell *)((uint8_t *)cells + i * 16); }   // cell (gx, gy): gx * ny + gy
-internal inline ee_unit **cell_get_units_end(const ee_grid_cell *cell) { return FIELD(cell, of_cell_units_begin + 0x4, ee_unit **); }
+internal inline ee_unit **grid_cell_get_units_end(const ee_grid_cell *cell) { return FIELD(cell, of_grid_cell_units_begin + 0x4, ee_unit **); }
 // a resource site's ownership record (unit_get_vis(site)): +4 1 while the site is flagged (taken)
 // a unit's visibility: a uint16 per vision slot (player +0x45C, the player's index), its low byte != 0 seen by it
 // THE SIGHT COUNT. That record is the unit's map tile (TILE_SIGHT the same field), the slot its sight count: 0

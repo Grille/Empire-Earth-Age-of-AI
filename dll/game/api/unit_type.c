@@ -8,16 +8,16 @@
 // is stopped 1.7 tiles from the coast)
 // +0x5D6 a byte per terrain kind (tile_get_kind): may the type enter it (0 land, 1 water - a guess; AoC asks a
 // unit's stats instead, its own copy of the path search's tile test)
-internal inline int type_terrain_ok(const ee_unit_type *td, int kind) { return FIELD_AT(td, of_type_terrain_ok)[kind] != 0; }
+internal inline int unit_type_terrain_ok(const ee_unit_type *td, int kind) { return FIELD_AT(td, of_unit_type_terrain_ok)[kind] != 0; }
 
 // A UNIT TYPE'S VALUES FOR ONE PLAYER (a unit's +0x34, type_stats(pl, t)): the type's data with the player's upgrades
 // +0xE0 float[6] the armour against each damage class
-internal inline float stat_get_armor(const ee_unit_stats *st, int c) { return FIELD(st, of_stat_armor + c * 4, float); }
+internal inline float unit_stats_get_armor(const ee_unit_stats *st, int c) { return FIELD(st, of_unit_stats_armor + c * 4, float); }
 
 // FUNCTIONS
 // the damage bonus of an attacker type (data atd) against a target type (data ttd), the players' indices
 internal inline float attack_bonus(ee_unit_type *atd, ee_unit_type *ttd, int api, int tpi) {
-    return fn_attack_bonus_game((void *)data_unit_type_bonus_table, FIELD(atd, of_type_weapon, int), ttd, api, tpi);
+    return fn_attack_bonus_game((void *)data_unit_type_bonus_table, FIELD(atd, of_unit_type_weapon, int), ttd, api, tpi);
 }
 // a projectile class's: the projectile down (1: on the ground or the target), a missile launched, a unit's shot fired
 // a unit type's projectile class (type data +0x3FC) by its vtable: a plain projectile (arrows, shells), a missile
@@ -25,10 +25,10 @@ internal inline int is_projectile_class(const void *pc) { return *(const uintptr
 internal inline int is_missile_class(const void *pc) { return *(const uintptr_t *)pc == data_unit_type_vt_missile; }
 // the unit's type told that the unit got a goal (EEUnitClass's vtable, as the game's own goal assignment does)
 // may the transport (of this type) carry the unit: its family against the unit type's board flags (EEUCTransport only)
-internal inline char type_can_carry(ee_unit_type *td, ee_unit *transport, ee_unit *u) {
+internal inline char unit_type_can_carry(ee_unit_type *td, ee_unit *transport, ee_unit *u) {
     return ((char (__thiscall *)(void *, void *, void *))(*(void ***)td)[value_unit_type_slot_type_can_carry])(td, transport, u);
 }
-internal inline void type_goal_assigned(ee_unit_type *td, ee_unit *u) { ((void (__thiscall *)(void *, void *))(*(void ***)td)[value_unit_type_slot_type_assign])(td, u); }
+internal inline void unit_type_goal_assigned(ee_unit_type *td, ee_unit *u) { ((void (__thiscall *)(void *, void *))(*(void ***)td)[value_unit_type_slot_type_assign])(td, u); }
 
 // HOOKS
 // shots (aim.c): a projectile down, a missile launched, a shot fired

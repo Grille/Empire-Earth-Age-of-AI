@@ -1,5 +1,5 @@
 /// the object of damage_points
-[c_type("void"), c_prefix("dmgmodel")]
+[c_type("void")]
 unsafe struct ee_damage_model
 {
     [offset(0x14C), found(s)]
@@ -7,7 +7,6 @@ unsafe struct ee_damage_model
 }
 
 /// the game data, [game.game_data]
-[c_prefix("gamedata")]
 unsafe struct ee_game_data
 {
     /// the code reading [game.game_data]
@@ -24,7 +23,6 @@ unsafe struct ee_game_data
 }
 
 /// the simulation, [api.world_clock] (EEPhysics)
-[c_prefix("phys")]
 unsafe struct EEPhysics
 {
     /// the game generator

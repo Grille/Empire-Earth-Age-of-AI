@@ -113,8 +113,8 @@ internal void cv_purge(uint32_t now) {   // once a minute: the records seen in t
 
 // 1 a land fighter, 2 a warship / submarine, 0 else (citizens, aircraft, transports, priests, buildings)
 internal int cv_mil(ee_unit_type *td) {
-    int fam = type_get_family(td), t = type_get_id(td);
-    if (!is_army_family(fam) || is_citizen_type(t) || type_get_attack(td) <= 0) return 0;
+    int fam = unit_type_get_family(td), t = unit_type_get_id(td);
+    if (!is_army_family(fam) || is_citizen_type(t) || unit_type_get_attack(td) <= 0) return 0;
     if (fam == 3 || fam == 7 || fam == 17 || fam == 18 || fam == 21 || fam == 22) return 0;
     if (fam == 4 || fam == 10) return 2;
     return 1;
@@ -124,10 +124,10 @@ internal int cv_built(ee_unit *u) { ee_unit *bs = unit_get_physics(u); return bs
 internal int cv_value(ee_player *pl, int type) {   // the base price, F+W+S+G+I (no cheat)
     ee_unit_type *obj = type_data(type);
     ee_tech_tree *tt = pl ? player_get_tech_tree(pl) : NULL;
-    ee_tech *tech = obj && tt ? tech_lookup(tt, type_get_tech(obj)) : NULL;
+    ee_tech *tech = obj && tt ? tech_lookup(tt, unit_type_get_tech(obj)) : NULL;
     ee_tech_data *data = tech ? tech_get_data(tech) : NULL;
     int v = 0;
-    for (int r = 2; data && r < 7; r++) v += techdata_get_cost(data, r);
+    for (int r = 2; data && r < 7; r++) v += tech_data_get_cost(data, r);
     return v;
 }
 internal int cv_hpmax(ee_unit *u) { return st_maxhp(unit_get_type_data(u), unit_get_stats(u)); }
@@ -149,7 +149,7 @@ internal float cv_local(ee_player *pl, ivec2 p, int r, int honest) {
         ee_unit_type *td = it.td;
         ee_player *o = unit_get_owner(u);
         if (!o || player_get_index(o) <= 0 || !cv_alive(u)) continue;
-        int fam = type_get_family(td), d2 = ivec2_dist2(unit_get_tile(u), p);
+        int fam = unit_type_get_family(td), d2 = ivec2_dist2(unit_get_tile(u), p);
         float rg, at;
         if (fam == 2 || fam == 29) {
             if (!defence_stats(u, &rg, &at) || at <= 0 || !cv_built(u) || (float)d2 > (rg + 1.0f) * (rg + 1.0f)) continue;
@@ -165,7 +165,7 @@ internal int cv_enemy_def(ee_player *pl, ivec2 p) {
     for (struct grid_it it = grid_it_box(p.x, p.y, 12, 1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
         ee_unit_type *td = it.td;
-        int fam = type_get_family(td);
+        int fam = unit_type_get_family(td);
         float rg, at;
         if ((fam != 2 && fam != 29) || !cv_alive(u) || !is_enemy(pl, unit_get_owner(u)) || !defence_stats(u, &rg, &at) || at <= 0 || !cv_built(u)) continue;
         if ((float)ivec2_dist2(unit_get_tile(u), p) <= (rg + 1.0f) * (rg + 1.0f)) return 1;
@@ -194,7 +194,7 @@ internal void cv_scan(ee_player *pl, struct cv_pl *c) {
         ee_unit_type *td = it.td;
         ee_player *o = unit_get_owner(u);
         if (!o || player_get_index(o) <= 0 || !cv_alive(u)) continue;
-        int fam = type_get_family(td), t = type_get_id(td);
+        int fam = unit_type_get_family(td), t = unit_type_get_id(td);
         ivec2 p = unit_get_tile(u);
         if (o == pl) {
             if (fam == 2 || fam == 29) {
@@ -269,11 +269,11 @@ internal void cover_death(ee_unit *dead, int k) {
     struct cv_pl *c = &g_cv[idx];
     struct cv_rec *r = cv_find(dead, 0);
     uint32_t now = game_time();
-    int t = type_get_id(td), nb = 0;
+    int t = unit_type_get_id(td), nb = 0;
     ivec2 p = unit_get_tile(dead);
     char line = 'o';
     if (kind == 2) line = 'w';
-    else if (type_get_category(td) == KIND_HERO) line = 'h';
+    else if (unit_type_get_category(td) == KIND_HERO) line = 'h';
     else switch (mt_line(pl, t)) { case MB_INF: line = 'i'; break; case MB_RNG: line = 'r'; break; case MB_CAV: line = 'c'; break; case MB_SIE: line = 's'; break; default: break; }
     for (struct grid_it it = grid_it_box(p.x, p.y, 6, 1); grid_it_next(&it); ) {
         ee_player *o = unit_get_owner(it.u);
@@ -296,7 +296,7 @@ internal void cover_death(ee_unit *dead, int k) {
 // ---- fall_back ----
 // landing.c hook_asg_give_goal: an attack subgroup's order to a unit held here
 internal int cover_refuses(ee_attack_subgroup *sg, ee_unit *u) {
-    ee_player *pl = asg_get_player(sg);
+    ee_player *pl = attack_subgroup_get_player(sg);
     if (!pl) return 0;
     struct cv_pl *c = &g_cv[(unsigned)player_get_index(pl) & 15];
     if (!c->nh || !cv_held(c, u)) return 0;
@@ -357,19 +357,19 @@ internal int cv_group_of(ee_unit *u) {   // the attack group (index into g_cvg) 
 }
 internal void cv_groups(ee_player *pl) {
     memset(g_cvgh, 0, sizeof g_cvgh); g_cvg_n = 0;
-    ee_combat_mgr *cbm = player_get_combat_mgr(pl); ee_attack_cmd *cmd = cbm ? am_get_commander(cbm) : NULL;
+    ee_combat_mgr *cbm = player_get_combat_mgr(pl); ee_attack_cmd *cmd = cbm ? combat_mgr_get_commander(cbm) : NULL;
     if (!cmd) return;
-    uint8_t *dq = ac_groups_at(cmd);
+    uint8_t *dq = attack_cmd_groups_at(cmd);
     unsigned first = FIELD(dq, 0xC, unsigned), cnt = FIELD(dq, 0x10, unsigned), used = 0;
     for (unsigned k = 0; k < cnt && g_cvg_n < CV_GRP; k++) {
         ee_attack_group *g = deque_at(dq, first + k);
         if (!g) continue;
         struct cv_grp *q = &g_cvg[g_cvg_n];
-        memset(q, 0, sizeof *q); q->g = g; q->target = ag_get_target(g);
-        for (ee_attack_subgroup **sp = ag_get_subgroups_begin(g); sp && sp < ag_get_subgroups_end(g); sp++) {
-            ee_asg_unit **b = *sp ? asg_get_units_begin(*sp) : NULL; ee_asg_unit **e = *sp ? asg_get_units_end(*sp) : NULL;
+        memset(q, 0, sizeof *q); q->g = g; q->target = attack_group_get_target(g);
+        for (ee_attack_subgroup **sp = attack_group_get_subgroups_begin(g); sp && sp < attack_group_get_subgroups_end(g); sp++) {
+            ee_asg_unit **b = *sp ? attack_subgroup_get_units_begin(*sp) : NULL; ee_asg_unit **e = *sp ? attack_subgroup_get_units_end(*sp) : NULL;
             for (ee_asg_unit **r = b; b && r < e && used < CV_GH / 2; r++) {
-                ee_unit *u = *r ? asgu_get_unit(*r) : NULL;
+                ee_unit *u = *r ? asg_unit_get_unit(*r) : NULL;
                 if (!u || !cv_alive(u) || cv_mil(unit_get_type_data(u)) != 1) continue;
                 unsigned h = cv_hash(u) & (CV_GH - 1);
                 while (g_cvgh[h].u && g_cvgh[h].u != u) h = (h + 1) & (CV_GH - 1);
@@ -490,7 +490,7 @@ internal void cv_behave(ee_player *pl, unsigned idx, struct cv_pl *c, uint32_t n
         int hp = unit_get_hp(u), mx = cv_hpmax(u);
         unsigned a = area_id(p, 2);
         if (!a) continue;
-        if ((plan & 1) && c->nhs && mx > 0 && hp * 100 < mx * g_fb_hp && cv_value(pl, type_get_id(td)) >= g_fb_value) {
+        if ((plan & 1) && c->nhs && mx > 0 && hp * 100 < mx * g_fb_hp && cv_value(pl, unit_type_get_id(td)) >= g_fb_value) {
             int best = -1, bd = g_fb_dist * g_fb_dist + 1;
             for (int k = 0; k < c->nhs; k++) {
                 int d = ivec2_dist2(c->h[k], p);
@@ -502,7 +502,7 @@ internal void cv_behave(ee_player *pl, unsigned idx, struct cv_pl *c, uint32_t n
                 cv_take(c, u, 1, iv2(hs.x + (l >= 1 ? (int)lroundf(2.0f * dx / l) : 2), hs.y + (l >= 1 ? (int)lroundf(2.0f * dy / l) : 0)), now, NULL, 0);
                 c->heal_sent++;
                 if (g_log && g_autotest) fprintf(g_log, "# cover: P%u at %.1f min: type %d at %d,%d (hp %d/%d) to the Hospital %d,%d\n", idx, now / 60000.0,
-                                                 type_get_id(td), p.x, p.y, hp, mx, hs.x, hs.y);
+                                                 unit_type_get_id(td), p.x, p.y, hp, mx, hs.x, hs.y);
                 continue;
             }
         }
@@ -523,7 +523,7 @@ internal void cv_behave(ee_player *pl, unsigned idx, struct cv_pl *c, uint32_t n
             cv_take(c, u, kind, t, now, j >= 0 ? g_cvg[j].g : NULL, home);
             c->broke++; c->gaveup += kind == 3; c->home += home;
             if (g_log && g_autotest) fprintf(g_log, "# cover: P%u at %.1f min: type %d at %d,%d breaks off (fight %.2f) to %d,%d%s\n", idx, now / 60000.0,
-                                             type_get_id(td), p.x, p.y, e, t.x, t.y,
+                                             unit_type_get_id(td), p.x, p.y, e, t.x, t.y,
                                              kind == 3 ? (home ? " - gives its attack up, home" : " - gives its attack up") : home ? " - home, no cover near" : "");
         }
     }

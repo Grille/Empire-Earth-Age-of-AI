@@ -70,6 +70,8 @@ class Gen:
 
     def prefix(self, t):
         a = t.attr('c_prefix')
+        if a and not t.static:
+            raise Fail('%s:%d: [c_prefix] on a class - its prefix is its C type without ee_' % (t.path, t.line))
         if a:
             return a[1][0]
         if t.static:
@@ -115,6 +117,8 @@ class Gen:
                 self.value(label + S, a, kind, '%s [%s]' % (t.name, name))
         if t.attr('vtable'):
             self.checks.append('spec_vtable(vt_%s, ".?AV%s@@", "%s [vtable]")' % (S, t.name, t.name))
+        if obj:
+            self.inherited(t, P, obj)
         for m in t.members:
             if m.func:
                 self.gen_func(t, m, P, S, obj)
@@ -154,13 +158,26 @@ class Gen:
                        'internal inline void %s(%s) { *(%s)%s = v; }' % (self.name(P, 'set_' + m.name), self.var(m.type, 'v', m.where), p, at),
                        'internal inline %s(void) { return (%s)%s; }' % (decl(p, self.name(P, m.name) + '_at'), p, at)]
 
-    def gen_field(self, t, m, P, obj):
+    def inherited(self, t, P, obj):   # a base's fields under a class of a C type of its own: its accessors, the base's offsets
+        a = t.attr('base')
+        b = self.types.get(a[1][0][1]) if a else None
+        while b:
+            if self.c_type_of(b) != obj:
+                self.lines.append('// %s\'s, the base\'s' % b.name)
+                for m in b.members:
+                    if not m.func:
+                        self.gen_field(b, m, P, obj, 'of_' + self.name(self.prefix(b), m.name))
+            a = b.attr('base')
+            b = self.types.get(a[1][0][1]) if a else None
+
+    def gen_field(self, t, m, P, obj, of=None):   # of: a base's offset (its field under a derived class's name)
         if t.static:
             return self.gen_static(t, m, P)
-        of = 'of_' + self.name(P, m.name)
         self.doc(m)
-        self.lines.append('internal uint32_t %s;' % of)
-        self.value(of, m.attr('offset'), 'off', '%s.%s' % (t.name, m.name))
+        if not of:
+            of = 'of_' + self.name(P, m.name)
+            self.lines.append('internal uint32_t %s;' % of)
+            self.value(of, m.attr('offset'), 'off', '%s.%s' % (t.name, m.name))
         at = '(uint8_t *)o + %s' % of
         if m.type in LAYOUTS:
             self.lines.append('internal inline uint8_t *%s_at(const %s *o) { return %s; }' % (self.name(P, m.name), obj, at))

@@ -13,6 +13,6 @@ internal void __thiscall hook_cp_update(ee_player *pl, uint32_t now) {
     uint8_t saved = *flag;
     g_is_scenario = saved;
     if (g_fix_scenario_ai && !is_vanilla(pl)) *flag = 0;
-    cp_update(pl, now);
+    player_update(pl, now);
     *flag = saved;
 }

@@ -90,8 +90,8 @@ internal void uc_nearest(vec2 p1, vec2 q1, vec2 p2, vec2 q2, vec2 *c1, vec2 *c2)
 internal int uc_kind(ee_unit *c) {
     ee_unit_type *td = unit_get_type_data(c);
     if (!td || !unit_get_valid(c) || unit_get_hp(c) <= 0 || unit_get_holder(c)) return 0;
-    int cat = type_get_category(td);
-    return cat == KIND_RESOURCE || cat == KIND_FISH ? 0 : model_kind(type_get_model(td));
+    int cat = unit_type_get_category(td);
+    return cat == KIND_RESOURCE || cat == KIND_FISH ? 0 : model_kind(unit_type_get_model(td));
 }
 
 // u's work (a kind 6 or 4 goal it is at: gathering, building), else 0 - the flag alone stays set on an idle citizen
@@ -146,7 +146,7 @@ internal float uc_weight_against(int kind, ee_unit *c, float len, vec2 dir) {
 // at once (its own collision step doesn't run while it stands)
 internal int uc_separate(int kind, ee_unit *u, int resting) {
     ee_physics *ph = game_physics();
-    float dt = ph ? phys_get_step_s(ph) * (float)phys_substeps() : 0;
+    float dt = ph ? physics_get_step_s(ph) * (float)phys_substeps() : 0;
     if (dt <= 0) return 0;
     struct uc_hull h = uc_hull_of(u, kind);
     float mu = h.len * h.len;
@@ -194,7 +194,7 @@ internal int uc_separate(int kind, ee_unit *u, int resting) {
         if (nudge) {   // the standing one steps aside by its part, and may part from the others again (its lock undone)
             uc_rest_of(c)->n = 0;
             unit_set_push(c, vec2_add(unit_get_push(c), vec2_scale(d, -over * (1.0f - share) / dt)));
-            uc_push_quiet(type_get_model(unit_get_type_data(c)), c);
+            uc_push_quiet(unit_type_get_model(unit_get_type_data(c)), c);
         }
         g_uc_hits++;
     }
@@ -216,7 +216,7 @@ internal void __thiscall hook_collide(void *model, ee_unit *u) {
         ee_physics *ph = game_physics();
         struct uc_rest *r = NULL;
         if (ph && !uc_work(u) && !unit_get_frozen(u) && unit_get_hp(u) > 0 && !unit_get_holder(u)
-            && ((unsigned)unit_get_serial(u) + phys_get_step(ph)) % UC_REST_EVERY == 0
+            && ((unsigned)unit_get_serial(u) + physics_get_step(ph)) % UC_REST_EVERY == 0
             && (r = uc_rest_of(u))->n < UC_REST_LOCK && uc_separate(kind, u, 1)) {
             vec2 p = unit_get_push(u);
             if (vec2_dot(p, r->last) < 0) r->n++;

@@ -1,5 +1,4 @@
 /// the AI's build manager, CM +0x3C
-[c_prefix("bm")]
 unsafe struct ee_build_mgr
 {
     /// the per-epoch build lists, 0x14 each - bm_request_game 0x46802D / 0x46A9C1
@@ -41,7 +40,7 @@ unsafe struct ee_build_mgr
 }
 
 /// the AI's civilization manager, player +0xB90 (EECPCivilizationManager)
-[c_type("ee_civ_mgr"), c_prefix("cm")]
+[c_type("ee_civ_mgr")]
 unsafe struct EECPCivilizationManager
 {
     /// the build plan's list
@@ -123,7 +122,7 @@ unsafe struct ee_plan_node
 }
 
 /// the AI's resource manager (EECPResourceManager)
-[c_type("ee_resource_mgr"), c_prefix("rm")]
+[c_type("ee_resource_mgr")]
 unsafe struct EECPResourceManager
 {
     /// the animals to hunt
@@ -185,7 +184,7 @@ unsafe struct EECPResourceManager
 }
 
 /// the AI's research manager, CM +0x40 (EECPResearchManager)
-[c_type("ee_research_mgr"), c_prefix("rs")]
+[c_type("ee_research_mgr")]
 unsafe struct EECPResearchManager
 {
     /// the techs it may research (ids)
@@ -217,7 +216,6 @@ unsafe struct EECPResearchManager
 }
 
 /// the AI's unit manager, CM +0x44
-[c_prefix("um")]
 unsafe struct ee_unit_mgr
 {
     /// its file's code (the unit manager)
@@ -239,12 +237,12 @@ unsafe struct ee_unit_mgr
     uint8 att_140;
 
     [address((ee)0x0048EE84, (aoc)0x00493B97)]
-    // a call of um_train_citizens
+    // a call of unit_mgr_train_citizens
     [call_site("train_citizens", (ee)0x00430740, (aoc)0x0042E23C)]
     extern nuint train_citizens(nuint a);
 
     [address((ee)0x0049014F, (aoc)0x00494F42)]
-    // the calls of um_train (econ.c: the game's unit orders)
+    // the calls of unit_mgr_train (econ.c: the game's unit orders)
     [call_site("train_units", (ee)0x0046CCE6, (aoc)0x0046F786)]
     [call_site("train_units", (ee)0x00490CAC, (aoc)0x00495AFF)]
     [call_site("train_units", (ee)0x00490E12, (aoc)0x00495C65)]
@@ -258,7 +256,7 @@ unsafe struct ee_unit_mgr
 
     /// citizen share x population cap
     [address((ee)0x0048EDDB, (aoc)0x00493AEE)]
-    // a call of um_citizens_wanted
+    // a call of unit_mgr_citizens_wanted
     [call_site("citizens_wanted", (ee)0x00490BC2, (aoc)0x00495A15)]
     extern int32 citizens_wanted();
 

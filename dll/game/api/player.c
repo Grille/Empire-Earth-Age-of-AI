@@ -16,8 +16,8 @@ internal inline ee_zone **player_get_zones_end(const ee_player *pl) { return FIE
 // Ignorieren F02 - and +0xEF5 the first update done (0x43F91A), +0xF05 the first attack done, +0xEFA boats instead of fields (a water map with fish)
 internal inline uint8_t player_get_toggle(const ee_player *pl, int i) { return FIELD(pl, of_player_toggles + i, uint8_t); }
 // a player's statistics (player_stats_at): series k {?, begin, end, ..} of 8-byte samples
-internal inline uint8_t *plstats_get_begin(const ee_player_stats *st, int k) { return FIELD(st, of_plstats_lists + k * 0x18, uint8_t *); }
-internal inline uint8_t *plstats_get_end(const ee_player_stats *st, int k) { return FIELD(st, of_plstats_lists + 0x4 + k * 0x18, uint8_t *); }
+internal inline uint8_t *player_stats_get_begin(const ee_player_stats *st, int k) { return FIELD(st, of_player_stats_lists + k * 0x18, uint8_t *); }
+internal inline uint8_t *player_stats_get_end(const ee_player_stats *st, int k) { return FIELD(st, of_player_stats_lists + 0x4 + k * 0x18, uint8_t *); }
 // the object at a player's +0xB98 (not known): its +0x2D the attention's activity 7
 
 // FUNCTIONS
@@ -58,10 +58,10 @@ internal inline char player_is_human(ee_player *pl) { return ((char (__thiscall 
 // COMPUTER PLAYERS (econ.c)
 // the computer player's update (engine/scenario_ai.c: the scenario flag cleared meanwhile)
 typedef void (__thiscall *cp_pay_hook)(ee_player *pl, void *what, int b, int c);
-internal inline int patch_cp_pay(cp_pay_hook h) { return patch_vtable(vt_ee_computer_player, value_player_slot_cp_pay, (uintptr_t)fn_cp_pay, (void *)h); }
+internal inline int patch_cp_pay(cp_pay_hook h) { return patch_vtable(vt_ee_computer_player, value_player_slot_cp_pay, (uintptr_t)fn_player_pay, (void *)h); }
 typedef void (__thiscall *cp_add_resource_hook)(ee_player *pl, int type, int amount);
 internal inline int patch_cp_add_resource(cp_add_resource_hook h) {
-    return patch_vtable(vt_ee_computer_player, value_player_slot_cp_add_resource, (uintptr_t)fn_cp_add_resource, (void *)h);
+    return patch_vtable(vt_ee_computer_player, value_player_slot_cp_add_resource, (uintptr_t)fn_player_add_resource, (void *)h);
 }
 // the maintenance's deletion of units for room (the navy keeps its ships: fleet.c)
 // a kill counted in the statistics (diplo.c - a thunk)

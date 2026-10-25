@@ -40,8 +40,8 @@ internal int food_fierce(int t) { return t == UT(RES_TIGER) || t == UT(RES_WOLF)
 // a free animal to hunt for unit u (NULL: the best for any): within food_hunt_range tiles of a non-granary drop site, food left,
 // not fierce, under 3 hunters, explored, the unit's continent, no enemy near, no known towers on the way
 internal ee_unit *food_animal(ee_player *pl, ee_resource_mgr *rm, ee_unit *u) {
-    ee_civ_mgr *cm = rm_get_owner(rm);
-    void *bm = cm ? cm_get_build_mgr(cm) : NULL;
+    ee_civ_mgr *cm = resource_mgr_get_owner(rm);
+    void *bm = cm ? civ_mgr_get_build_mgr(cm) : NULL;
     if (!bm) return NULL;
     unsigned pi = (unsigned)player_get_index(pl) & 15;
     drops_cached(pl);
@@ -54,14 +54,14 @@ internal ee_unit *food_animal(ee_player *pl, ee_resource_mgr *rm, ee_unit *u) {
         for (struct grid_it it = grid_it_box(d->p.x, d->p.y, g_hunt_range, 1); grid_it_next(&it); ) {
             ee_unit *a = it.u;
             ee_unit_type *td = it.td;
-            if (!td || unit_get_resource(a) != 2 || unit_get_amount(a) <= 0 || type_get_category(td) != 0x11) continue;
-            if (food_fierce(type_get_id(td))) continue;
+            if (!td || unit_get_resource(a) != 2 || unit_get_amount(a) <= 0 || unit_type_get_category(td) != 0x11) continue;
+            if (food_fierce(unit_type_get_id(td))) continue;
             ivec2 pos = unit_get_tile(a);
             int d2 = ivec2_dist2(pos, d->p);
             if (d2 >= bd) continue;
             if (site_gatherers(a) >= 3) continue;
             if (u && (short)map_area(pos, 2) != ur) continue;
-            if (bm_enemy_near(bm, pos.x, pos.y) || site_danger(pl, a, 1)) continue;
+            if (build_mgr_enemy_near(bm, pos.x, pos.y) || site_danger(pl, a, 1)) continue;
             best = a; bd = d2;
         }
     }
@@ -69,10 +69,10 @@ internal ee_unit *food_animal(ee_player *pl, ee_resource_mgr *rm, ee_unit *u) {
 }
 // the free bush nearest to a food drop site (NEAR), within max_d2 of the base; NULL: none
 internal ee_unit *food_bush(ee_player *pl, ee_resource_mgr *rm, ee_unit *u, int max_d2) {
-    ee_civ_mgr *cm = rm_get_owner(rm);
-    void *bm = cm ? cm_get_build_mgr(cm) : NULL;
+    ee_civ_mgr *cm = resource_mgr_get_owner(rm);
+    void *bm = cm ? civ_mgr_get_build_mgr(cm) : NULL;
     if (!bm) return NULL;
-    ivec2 base = bm_get_base(bm);
+    ivec2 base = build_mgr_get_base(bm);
     if (base.x == -10000 || base.y == -10000) return NULL;
     unsigned pi = (unsigned)player_get_index(pl) & 15;
     drops_cached(pl);
@@ -87,8 +87,8 @@ internal ee_unit *food_bush(ee_player *pl, ee_resource_mgr *rm, ee_unit *u, int 
         for (int k = 0; sb && sb + k < se && k < 4096; k++) {
             ee_unit *s = sb[k];
             ee_unit_type *td = s ? unit_get_type_data(s) : NULL;
-            if (!td || unit_get_resource(s) != 2 || type_get_id(td) != UT(RES_FORAGE_BUSH) || unit_get_amount(s) <= 0) continue;
-            if (siteown_get_flag(unit_get_vis(s)) == 1) continue;
+            if (!td || unit_get_resource(s) != 2 || unit_type_get_id(td) != UT(RES_FORAGE_BUSH) || unit_get_amount(s) <= 0) continue;
+            if (unit_vis_get_flag(unit_get_vis(s)) == 1) continue;
             ivec2 pos = unit_get_tile(s);
             if (ivec2_dist2(pos, base) >= max_d2) continue;
             int dd = drop_nearest(pi, pos, 1, NULL);   // to the nearest drop site that takes food
@@ -96,7 +96,7 @@ internal ee_unit *food_bush(ee_player *pl, ee_resource_mgr *rm, ee_unit *u, int 
             if (!explored_by(s, pl)) continue;
             if (site_gatherers(s) >= cap) continue;
             if (u && (short)map_area(pos, 2) != ur) continue;
-            if (bm_enemy_near(bm, pos.x, pos.y) || site_danger_res(pl, s, 1, 2)) continue;
+            if (build_mgr_enemy_near(bm, pos.x, pos.y) || site_danger_res(pl, s, 1, 2)) continue;
             best = s; bd = dd;
         }
     }
@@ -104,7 +104,7 @@ internal ee_unit *food_bush(ee_player *pl, ee_resource_mgr *rm, ee_unit *u, int 
 }
 // hook_find_food (sites.c) with NEAR: the nearest-to-a-drop bush within the pass's reach (near: 2 x +0xE10, else 6 x)
 internal ee_unit *food_near_pick(ee_resource_mgr *rm, int near_base, ee_unit *unit) {
-    ee_player *pl = rm_player(rm);
+    ee_player *pl = resource_mgr_player(rm);
     if (!pl) return NULL;
     unsigned idx = (unsigned)player_get_index(pl) & 15;
     if (!(FOOD_PLAN(idx) & 4)) return NULL;
@@ -115,22 +115,22 @@ internal ee_unit *food_near_pick(ee_resource_mgr *rm, int near_base, ee_unit *un
 }
 // before the assignment (hook_assign_citizens): idle citizens to animals (HUNT, before farms)
 internal void food_hunt(ee_resource_mgr *rm) {
-    ee_player *pl = rm_player(rm);
+    ee_player *pl = resource_mgr_player(rm);
     if (!pl) return;
     unsigned idx = (unsigned)player_get_index(pl) & 15;
     if (!(FOOD_PLAN(idx) & 8) || current_epoch(pl) >= FARM_EPOCH) return;
-    uint32_t *target = rm_target_at(rm);
+    uint32_t *target = resource_mgr_target_at(rm);
     int room = (int)target[2] - rm_count(rm, 2);
-    uint8_t *dq = rm_list_at(rm, 0);   // list 0: idle
+    uint8_t *dq = resource_mgr_list_at(rm, 0);   // list 0: idle
     for (unsigned k = FIELD(dq, 0x10, unsigned), first = FIELD(dq, 0xC, unsigned); k-- > 0 && room > 0; ) {
         ee_unit *u = deque_at(dq, first + k);
         if (!u || unit_get_hp(u) <= 0 || unit_get_frozen(u) || unit_get_ai_held(u) || unit_get_busy(u)) continue;
         ee_unit_type *td = unit_get_type_data(u);
-        if (!td || !is_citizen_type(type_get_id(td)) || unit_get_goal(u)) continue;
+        if (!td || !is_citizen_type(unit_type_get_id(td)) || unit_get_goal(u)) continue;
         ee_unit *a = food_animal(pl, rm, u);
         if (!a) break;
         int before = rm_count(rm, 2);
-        rm_assign(rm, u, a);
+        resource_mgr_assign(rm, u, a);
         if (rm_count(rm, 2) == before) break;
         g_fd[idx].hunt_sent++;
         room--;
@@ -138,11 +138,11 @@ internal void food_hunt(ee_resource_mgr *rm) {
 }
 // after the assignment (hook_assign_citizens, after econ_rebalance): PULL
 internal void food_pull(ee_resource_mgr *rm) {
-    ee_player *pl = rm_player(rm);
+    ee_player *pl = resource_mgr_player(rm);
     if (!pl) return;
     unsigned idx = (unsigned)player_get_index(pl) & 15;
     if (!(FOOD_PLAN(idx) & 2)) return;
-    uint32_t *target = rm_target_at(rm);
+    uint32_t *target = resource_mgr_target_at(rm);
     int pre = current_epoch(pl) < FARM_EPOCH, moves = 0, dry = 0, r6 = player_get_dropoff_distance(pl);
     while (moves < 4 && (int)target[2] - rm_count(rm, 2) >= 2) {
         int d = -1, best = 1;
@@ -157,7 +157,7 @@ internal void food_pull(ee_resource_mgr *rm) {
         if (!site) site = food_bush(pl, rm, u, r6 * r6 * 36);
         if (!site) break;   // no free, safe food site in reach (fields: the fields pass)
         int before = rm_count(rm, 2);
-        rm_assign(rm, u, site);
+        resource_mgr_assign(rm, u, site);
         if (rm_count(rm, 2) == before) { dry |= 1 << d; continue; }
         g_fd[idx].pulled++;
         moves++;
@@ -172,8 +172,8 @@ internal void food_plan_needs(ee_player *pl, ee_resource_mgr *rm, int *need, con
     int more = want - wf;
     if (more > 10) more = 10;
     if (more > 0) need[2] += 50 * more;
-    void *cm = rm_get_owner(rm);
-    ee_build_mgr *bm = cm ? cm_get_build_mgr(cm) : NULL;
+    void *cm = resource_mgr_get_owner(rm);
+    ee_build_mgr *bm = cm ? civ_mgr_get_build_mgr(cm) : NULL;
     int queued = 0, nq = 0;
     for (int e = 0; bm && e <= current_epoch(pl) && e < 14 && nq < 3; e++)
         for (unsigned i = 0; nq < 3; i++) {
@@ -199,23 +199,23 @@ internal void food_camp(ee_player *pl, unsigned idx, uint32_t now) {
     if (g_camp[idx].n >= 2 || (g_camp[idx].t && now - g_camp[idx].t < 120000)) return;
     g_camp[idx].t = now ? now : 1;
     ee_civ_mgr *cm = player_get_civ_mgr(pl);
-    ee_build_mgr *bm = cm ? cm_get_build_mgr(cm) : NULL;
-    void *um = cm ? cm_get_unit_mgr(cm) : NULL;
-    if (!bm || !um || !ut_has(UT(B_SETTLEMENT)) || bm_get_base_x(bm) == -10000 || bq_has(bm, UT(B_SETTLEMENT)) || bq_has(bm, UT(X_SINGLE_PLAYER_SETTLEMENT))) return;
+    ee_build_mgr *bm = cm ? civ_mgr_get_build_mgr(cm) : NULL;
+    void *um = cm ? civ_mgr_get_unit_mgr(cm) : NULL;
+    if (!bm || !um || !ut_has(UT(B_SETTLEMENT)) || build_mgr_get_base_x(bm) == -10000 || bq_has(bm, UT(B_SETTLEMENT)) || bq_has(bm, UT(X_SINGLE_PLAYER_SETTLEMENT))) return;
     uint8_t *q = type_list(um, UT(B_SETTLEMENT));
     for (unsigned k = 0, f = q ? FIELD(q, 0xC, unsigned) : 0, n = q ? FIELD(q, 0x10, unsigned) : 0; k < n; k++) {
         ee_unit *b = deque_at(q, f + k), *st = b ? unit_get_physics(b) : NULL;
         if (b && unit_get_hp(b) > 0 && (!st || !unit_get_finished(st))) return;
     }
     if (!can_build(pl, UT(B_SETTLEMENT))) return;
-    ivec2 base = bm_get_base(bm);
+    ivec2 base = build_mgr_get_base(bm);
     static ivec2 fp[512];   // the food's tiles, ff its amounts
     static int ff[512];
     int n = 0;
     for (struct grid_it it = grid_it_box(base.x, base.y, 30, 1); grid_it_next(&it) && n < 512; ) {   // animals
         ee_unit *a = it.u;
         ee_unit_type *td = it.td;
-        if (!td || unit_get_resource(a) != 2 || unit_get_amount(a) <= 0 || type_get_category(td) != 0x11 || food_fierce(type_get_id(td))) continue;
+        if (!td || unit_get_resource(a) != 2 || unit_get_amount(a) <= 0 || unit_type_get_category(td) != 0x11 || food_fierce(unit_type_get_id(td))) continue;
         fp[n] = unit_get_tile(a); ff[n++] = unit_get_amount(a);
     }
     ee_zone **zb = player_get_zones_begin(pl); ee_zone **ze = player_get_zones_end(pl);   // bushes
@@ -224,7 +224,7 @@ internal void food_camp(ee_player *pl, unsigned idx, uint32_t now) {
         for (int k = 0; sb && sb + k < se && k < 4096 && n < 512; k++) {
             ee_unit *st = sb[k];
             ee_unit_type *td = st ? unit_get_type_data(st) : NULL;
-            if (!td || unit_get_resource(st) != 2 || type_get_id(td) != UT(RES_FORAGE_BUSH) || unit_get_amount(st) <= 0) continue;
+            if (!td || unit_get_resource(st) != 2 || unit_type_get_id(td) != UT(RES_FORAGE_BUSH) || unit_get_amount(st) <= 0) continue;
             ivec2 p = unit_get_tile(st);
             if (ivec2_dist2(p, base) > 900) continue;
             if (!explored_by(st, pl)) continue;
@@ -236,7 +236,7 @@ internal void food_camp(ee_player *pl, unsigned idx, uint32_t now) {
     int best = -1, bf = 1499;
     for (int i = 0; i < n; i++) {
         int dd = drop_nearest(pi, fp[i], 1, NULL);
-        if (dd < 100 || bm_enemy_near(bm, fp[i].x, fp[i].y)) continue;
+        if (dd < 100 || build_mgr_enemy_near(bm, fp[i].x, fp[i].y)) continue;
         int sum = 0;
         for (int j = 0; j < n; j++) if (ivec2_dist2(fp[j], fp[i]) <= 36) sum += ff[j];
         if (sum > bf) { bf = sum; best = i; }
@@ -250,7 +250,7 @@ internal void food_camp(ee_player *pl, unsigned idx, uint32_t now) {
                 int x = fp[best].x + ax, y = fp[best].y + ay;
                 if (!can_place(pl, UT(B_SETTLEMENT), iv2(x, y)) || raiders_near(pl, iv2(x, y), 12)) continue;
                 int entry[3] = { UT(B_SETTLEMENT), x, y };
-                bm_queue_add(bm, e, entry);
+                build_mgr_queue_add(bm, e, entry);
                 g_camp[idx].n++;
                 if (g_log) {
                     EnterCriticalSection(&g_lock);
@@ -294,16 +294,16 @@ internal int food_fields_wait(ee_player *pl, ee_resource_mgr *rm) {
     if (food_bush(pl, rm, NULL, r6 * r6 * 36) || food_animal(pl, rm, NULL)) return 1;
     if (!player_get_boats_for_food(pl)) return 0;
     int fish = 0, boats = 0;
-    void **qb = rm_get_fish_begin(rm), **qe = rm_get_fish_end(rm);
+    void **qb = resource_mgr_get_fish_begin(rm), **qe = resource_mgr_get_fish_end(rm);
     for (void **h = qb; qb && h < qe && h - qb < 4096; h++)
         if (*h && unit_get_amount(*h) > 0) fish += unit_get_amount(*h);
     if (fish < 3000) return 0;
-    uint8_t *list = rm_list_at(rm, 2);
+    uint8_t *list = resource_mgr_list_at(rm, 2);
     for (unsigned k = 0, first = FIELD(list, 0xC, unsigned), n = FIELD(list, 0x10, unsigned); k < n && k < 1024; k++) {
         ee_unit *u = deque_at(list, first + k); ee_unit_type *td = u ? unit_get_type_data(u) : NULL;
-        if (td && unit_get_hp(u) > 0 && type_get_family(td) == 22) boats++;
+        if (td && unit_get_hp(u) > 0 && unit_type_get_family(td) == 22) boats++;
     }
-    int short_ = (int)rm_get_target(rm, 2) - rm_count(rm, 2);
+    int short_ = (int)resource_mgr_get_target(rm, 2) - rm_count(rm, 2);
     return !(boats >= 8 && short_ >= 4);
 }
 internal void food_new_game(void) { memset(g_fd, 0, sizeof g_fd); memset(g_camp, 0, sizeof g_camp); }

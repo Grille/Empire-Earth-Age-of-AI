@@ -155,19 +155,19 @@ internal void cmd_status(char *out) {
         if (!pl) continue;
         void *tt = ((void *)player_get_tech_tree(pl));
         REPLY("P%d @%p epoch=%d difficulty=%d cheat=%d popcap=%d (own %d, game %d) citizen_share=%.2f stock(food,wood,stone,gold,iron)=", i, pl,
-            tt ? tt_get_epoch(tt) : -1, player_get_difficulty(pl), player_get_cheat(pl),
+            tt ? tech_tree_get_epoch(tt) : -1, player_get_difficulty(pl), player_get_cheat(pl),
             unit_limit(pl), player_get_pop_cap(pl), pop_limit_setting(),
             player_get_citizen_share(pl));
         for (int r = 2; r < 7; r++) REPLY("%d%s", (player_stock_at(pl))[r], r < 6 ? "," : "");
         void *cm = player_get_civ_mgr(pl);
-        void *rm = cm ? cm_get_resource_mgr(cm) : NULL;
+        void *rm = cm ? civ_mgr_get_resource_mgr(cm) : NULL;
         if (rm) {
             REPLY(" workers=");
-            for (int r = 2; r < 7; r++) REPLY("%d%s", FIELD(rm_list_at(rm, r), 0x10, int), r < 6 ? "," : "");
+            for (int r = 2; r < 7; r++) REPLY("%d%s", FIELD(resource_mgr_list_at(rm, r), 0x10, int), r < 6 ? "," : "");
             REPLY(" targets=");
-            for (int r = 2; r < 7; r++) REPLY("%u%s", rm_target_at(rm)[r], r < 6 ? "," : "");
+            for (int r = 2; r < 7; r++) REPLY("%u%s", resource_mgr_target_at(rm)[r], r < 6 ? "," : "");
             REPLY(" demand=");
-            for (int r = 2; r < 7; r++) REPLY("%d%s", rm_demand_at(rm)[r], r < 6 ? "," : "");
+            for (int r = 2; r < 7; r++) REPLY("%d%s", resource_mgr_demand_at(rm)[r], r < 6 ? "," : "");
         }
         REPLY("\n");
     }
@@ -225,8 +225,8 @@ internal void cmd_foodcheck(char *out, const char *args) {
     ee_player *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
     void *cm = pl ? player_get_civ_mgr(pl) : NULL;
     if (!cm) { REPLY("error: no AI player %d\n", p); return; }
-    void *bm = cm_get_build_mgr(cm);
-    ivec2 base = bm_get_base(bm);
+    void *bm = civ_mgr_get_build_mgr(cm);
+    ivec2 base = build_mgr_get_base(bm);
     int r = player_get_dropoff_distance(pl);
     short base_region = (short)map_area(base, 2);
     unsigned cap = table_value(0x16);
@@ -239,12 +239,12 @@ internal void cmd_foodcheck(char *out, const char *args) {
         if (!s) continue;
         ivec2 pos = unit_get_tile(s);
         REPLY(" zone %2d active=%d site %d,%d class=%#x region=%d explored=%d gatherers=%u amount=%d state=%d"
-              " zone+14=%d enemy=%d d2=%d\n", t, zone_get_active(zone), pos.x, pos.y, type_get_id(unit_get_type_data(s)),
+              " zone+14=%d enemy=%d d2=%d\n", t, zone_get_active(zone), pos.x, pos.y, unit_type_get_id(unit_get_type_data(s)),
               (short)map_area(pos, 2),
               explored_by(s, pl),
               site_gatherers(s),
-              unit_get_amount(s), siteown_get_flag(unit_get_vis(s)), zone_get_drop(zone),
-              bm_enemy_near(bm, pos.x, pos.y), ivec2_dist2(pos, base));
+              unit_get_amount(s), unit_vis_get_flag(unit_get_vis(s)), zone_get_drop(zone),
+              build_mgr_enemy_near(bm, pos.x, pos.y), ivec2_dist2(pos, base));
     }
 }
 
@@ -252,8 +252,8 @@ internal void cmd_foodcheck(char *out, const char *args) {
 // costs at +0x24.. food,wood,stone,gold,iron) and unit costs (object data 0x9418A0[type], same layout).
 internal void print_costs(char *out, const char *tag, ee_tech_data *data) {
     if (!data) { REPLY("%s: no data\n", tag); return; }
-    REPLY("%s: data=%p cost(f,w,s,g,i)=%d,%d,%d,%d,%d\n", tag, (void *)data, techdata_get_cost(data, 2), techdata_get_cost(data, 3),
-          techdata_get_cost(data, 4), techdata_get_cost(data, 5), techdata_get_cost(data, 6));
+    REPLY("%s: data=%p cost(f,w,s,g,i)=%d,%d,%d,%d,%d\n", tag, (void *)data, tech_data_get_cost(data, 2), tech_data_get_cost(data, 3),
+          tech_data_get_cost(data, 4), tech_data_get_cost(data, 5), tech_data_get_cost(data, 6));
 }
 internal void cmd_costs(char *out, const char *args) {
     int p = 0, n = 0;
@@ -261,12 +261,12 @@ internal void cmd_costs(char *out, const char *args) {
     ee_player *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
     if (!pl) { REPLY("error: no AI player %d\n", p); return; }
     ee_tech_tree *tt = player_get_tech_tree(pl);
-    int ep = tt_get_epoch(tt);
+    int ep = tech_tree_get_epoch(tt);
     for (int e = ep + 1; e <= ep + 2 && e <= 13; e++) {
-        ee_tt_epoch *rec = tt_epoch_rec_at(tt, e);
+        ee_tt_epoch *rec = tech_tree_epoch_rec_at(tt, e);
         char tag[48];
-        wsprintfA(tag, "epoch %d tech (req %d)", e, ttrec_get_needed(rec));
-        print_costs(out, tag, ttrec_get_tech_data(rec));
+        wsprintfA(tag, "epoch %d tech (req %d)", e, tt_epoch_get_needed(rec));
+        print_costs(out, tag, tt_epoch_get_tech_data(rec));
     }
     const char *a = args + n;
     int type, k;
@@ -274,7 +274,7 @@ internal void cmd_costs(char *out, const char *args) {
         char tag[32];
         wsprintfA(tag, "unit %d", type);
         ee_unit_type *obj = type_data(type);
-        ee_tech *tech = obj ? tech_lookup(tt, type_get_tech(obj)) : NULL;
+        ee_tech *tech = obj ? tech_lookup(tt, unit_type_get_tech(obj)) : NULL;
         print_costs(out, tag, tech ? tech_get_data(tech) : NULL);   // costs live in the unit's tech
         a += k;
     }
@@ -288,11 +288,11 @@ internal void cmd_units(char *out, const char *args) {
     int p = atoi(args);
     ee_player *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
     void *cm = pl ? player_get_civ_mgr(pl) : NULL;
-    ee_resource_mgr *rm = cm ? cm_get_resource_mgr(cm) : NULL;
+    ee_resource_mgr *rm = cm ? civ_mgr_get_resource_mgr(cm) : NULL;
     if (!rm) { REPLY("error: no AI player %d\n", p); return; }
     static const char *names[7] = { "list0", "list1", "food", "wood", "stone", "gold", "iron" };
     for (int i = 0; i < 7; i++) {
-        uint8_t *dq = rm_list_at(rm, i);
+        uint8_t *dq = resource_mgr_list_at(rm, i);
         unsigned first = FIELD(dq, 0xC, unsigned), n = FIELD(dq, 0x10, unsigned);
         if (!n) continue;
         REPLY("%s: %u units\n", names[i], n);
@@ -482,7 +482,7 @@ internal long __thiscall hook_sim_wait(void *ev, unsigned long ms) {
     // only while steps are granted: otherwise a real (short) wait, so the client, server and pathfinding threads
     // the simulation waits for get the CPU instead of a spinning loop
     ee_physics *phys = game_physics();
-    if (g_turbo && phys && phys_get_steps_granted(phys)) return 0;
+    if (g_turbo && phys && physics_get_steps_granted(phys)) return 0;
     return ts_wait(ev, g_turbo ? 1 : ms);
 }
 
@@ -525,7 +525,7 @@ internal void __thiscall hook_phys_step(ee_physics *phys) {
 
 internal int sim_drained(void) {
     ee_server *srv = game_server(); ee_physics *phys = game_physics();
-    return srv && phys && server_get_sent(srv) == server_get_done(srv) && phys_get_steps_granted(phys) == 0 &&
+    return srv && phys && server_get_sent(srv) == server_get_done(srv) && physics_get_steps_granted(phys) == 0 &&
            !g_in_step;
 }
 

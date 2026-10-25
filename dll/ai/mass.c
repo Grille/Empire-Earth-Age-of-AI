@@ -75,16 +75,16 @@ internal struct mass {
 internal void mass_new_game(void) { memset(g_mss, 0, sizeof g_mss); }
 
 internal int ms_land_soldier(ee_unit *u, ee_unit_type *td) {
-    int fam = type_get_family(td);
+    int fam = unit_type_get_family(td);
     return unit_get_hp(u) > 0 && unit_get_x(u) >= 0 && is_soldier(td) && fam != 3 && fam != 4 && fam != 7 &&
            fam != 10 && fam != 17 && fam != 18 && fam != 21 && fam != 22;
 }
 internal int ms_base(ee_player *pl, ivec2 *b) {   // an AI's (a human player's +0xB90 is no computer manager: garbage)
     int i = pl ? player_get_index(pl) & 15 : 0;
     if (!pl || !(g_players[i] || is_vanilla_idx(i))) return 0;
-    ee_civ_mgr *cm = player_get_civ_mgr(pl); ee_build_mgr *bm = cm ? cm_get_build_mgr(cm) : NULL;
-    if (!bm || bm_get_base_x(bm) == -10000) return 0;
-    *b = bm_get_base(bm);
+    ee_civ_mgr *cm = player_get_civ_mgr(pl); ee_build_mgr *bm = cm ? civ_mgr_get_build_mgr(cm) : NULL;
+    if (!bm || build_mgr_get_base_x(bm) == -10000) return 0;
+    *b = build_mgr_get_base(bm);
     return 1;
 }
 // own land soldiers (pl's) within r tiles of p, not counting u; enemy soldiers of pl there (en)
@@ -103,20 +103,20 @@ internal int ms_near(ee_player *pl, ee_unit *u, ivec2 p, int r, int *en) {
 internal struct ms_sg { ee_attack_subgroup *sg; int n, na, state, out; ivec2 c; } g_msg[MS_SG];   // c: its members' middle
 internal int ms_subgroups(ee_player *pl, ivec2 b) {
     int ns = 0;
-    ee_combat_mgr *cbm = player_get_combat_mgr(pl); ee_attack_cmd *cmd = cbm ? am_get_commander(cbm) : NULL;
+    ee_combat_mgr *cbm = player_get_combat_mgr(pl); ee_attack_cmd *cmd = cbm ? combat_mgr_get_commander(cbm) : NULL;
     if (!cmd) return 0;
-    uint8_t *dq = ac_groups_at(cmd);
+    uint8_t *dq = attack_cmd_groups_at(cmd);
     unsigned first = FIELD(dq, 0xC, unsigned), cnt = FIELD(dq, 0x10, unsigned);
     for (unsigned k = 0; k < cnt && k < 64; k++) {
         ee_attack_group *g = deque_at(dq, first + k);
-        for (ee_attack_subgroup **sp = g ? ag_get_subgroups_begin(g) : NULL; sp && sp < ag_get_subgroups_end(g) && ns < MS_SG; sp++) {
+        for (ee_attack_subgroup **sp = g ? attack_group_get_subgroups_begin(g) : NULL; sp && sp < attack_group_get_subgroups_end(g) && ns < MS_SG; sp++) {
             ee_attack_subgroup *sg = *sp;
-            if (!sg || !asg_is_land(sg)) continue;
+            if (!sg || !attack_subgroup_is_land(sg)) continue;
             struct ms_sg *s = &g_msg[ns++];
             float x = 0, y = 0, ax = 0, ay = 0;
-            s->sg = sg; s->n = s->na = 0; s->state = asg_get_state(sg);
-            for (ee_asg_unit **r = asg_get_units_begin(sg); r && r < asg_get_units_end(sg); r++) {
-                ee_unit *u = *r ? asgu_get_unit(*r) : NULL;
+            s->sg = sg; s->n = s->na = 0; s->state = attack_subgroup_get_state(sg);
+            for (ee_asg_unit **r = attack_subgroup_get_units_begin(sg); r && r < attack_subgroup_get_units_end(sg); r++) {
+                ee_unit *u = *r ? asg_unit_get_unit(*r) : NULL;
                 if (!u || unit_get_hp(u) <= 0 || unit_get_x(u) < 0) continue;
                 ivec2 p = unit_get_tile(u);
                 x += (float)p.x; y += (float)p.y; s->n++;
@@ -151,15 +151,15 @@ internal void mass_sample(ee_player *pl, struct mass *m, ivec2 b) {
         m->sg++; m->out += s->out; m->asg += (unsigned)s->n;
         ivec2 c = iv2(0, 0);   // stragglers: from the middle of all its members
         int n = 0;
-        for (ee_asg_unit **r = asg_get_units_begin(s->sg); r && r < asg_get_units_end(s->sg); r++) {
-            ee_unit *u = *r ? asgu_get_unit(*r) : NULL;
+        for (ee_asg_unit **r = attack_subgroup_get_units_begin(s->sg); r && r < attack_subgroup_get_units_end(s->sg); r++) {
+            ee_unit *u = *r ? asg_unit_get_unit(*r) : NULL;
             if (u && unit_get_hp(u) > 0 && unit_get_x(u) >= 0) { c = ivec2_add(c, unit_get_tile(u)); n++; }
         }
         if (n < 2) continue;
         c.x /= n; c.y /= n;
         int cl = ms_cls(s->state);
-        for (ee_asg_unit **r = asg_get_units_begin(s->sg); r && r < asg_get_units_end(s->sg); r++) {
-            ee_unit *u = *r ? asgu_get_unit(*r) : NULL;
+        for (ee_asg_unit **r = attack_subgroup_get_units_begin(s->sg); r && r < attack_subgroup_get_units_end(s->sg); r++) {
+            ee_unit *u = *r ? asg_unit_get_unit(*r) : NULL;
             if (!u || unit_get_hp(u) <= 0 || unit_get_x(u) < 0) continue;
             ivec2 p = unit_get_tile(u);
             int st = ivec2_dist2(p, c) > 12 * 12;
@@ -185,7 +185,7 @@ internal void mass_death(ee_unit *dead) {
     ee_unit_type *td = unit_get_type_data(dead);
     ee_player *pl = unit_get_owner(dead);
     ivec2 b;
-    int fam = td ? type_get_family(td) : 3;
+    int fam = td ? unit_type_get_family(td) : 3;
     if (!pl || !td || unit_get_x(dead) < 0 || !is_soldier(td) || fam == 3 || fam == 4 || fam == 7 || fam == 10 ||
         fam == 17 || fam == 18 || fam == 21 || fam == 22 || !ms_base(pl, &b)) return;
     struct mass *m = &g_mss[(unsigned)player_get_index(pl) & 15];
@@ -198,8 +198,8 @@ internal void mass_death(ee_unit *dead) {
     for (int k = 0; k < ns && w == 4; k++) {
         struct ms_sg *s = &g_msg[k];
         if (!s->out) continue;
-        for (ee_asg_unit **r = asg_get_units_begin(s->sg); r && r < asg_get_units_end(s->sg) && w == 4; r++)
-            if (*r && asgu_get_unit(*r) == dead)
+        for (ee_asg_unit **r = attack_subgroup_get_units_begin(s->sg); r && r < attack_subgroup_get_units_end(s->sg) && w == 4; r++)
+            if (*r && asg_unit_get_unit(*r) == dead)
                 w = ivec2_dist2(p, s->c) <= 12 * 12 ? 0 : !away ? 3 : ivec2_dot(ivec2_sub(p, s->c), ivec2_sub(s->c, b)) > 0 ? 1 : 2;
     }
     m->dsg[w]++;
@@ -233,11 +233,11 @@ internal int ms_held(struct mass *m, ee_unit *u, ee_attack_subgroup *sg) {
 }
 // landing.c hook_asg_give_goal: a land subgroup's order to a member held at the rally
 internal int mass_refuses(ee_attack_subgroup *sg, ee_unit *u, ee_goal *goal) {
-    ee_player *pl = asg_get_player(sg);
-    if (!pl || !asg_is_land(sg)) return 0;
+    ee_player *pl = attack_subgroup_get_player(sg);
+    if (!pl || !attack_subgroup_is_land(sg)) return 0;
     struct mass *m = &g_mss[(unsigned)player_get_index(pl) & 15];
     if (g_autotest) {
-        int c = ms_cls(asg_get_state(sg));
+        int c = ms_cls(attack_subgroup_get_state(sg));
         if (goal && goal_is_attack(goal)) m->oat[c]++; else m->omv[c]++;
     }
     if (!m->nh || !ms_held(m, u, sg)) return 0;
@@ -254,8 +254,8 @@ internal void ms_gather(ee_player *pl, unsigned idx, struct mass *m, uint32_t no
         struct ms_sg *s = &g_msg[k];
         if (!s->out || ((ARMY_MASS(idx) & 8) && s->state != 3000 && s->state != 3003)) continue;   // 8: only while it fights
         if (best < 0 || ivec2_dist2(s->c, b) < ivec2_dist2(front, b)) { best = k; front = s->c; }
-        for (ee_asg_unit **r = asg_get_units_begin(s->sg); r && r < asg_get_units_end(s->sg); r++) {
-            ee_unit *u = *r ? asgu_get_unit(*r) : NULL;
+        for (ee_asg_unit **r = attack_subgroup_get_units_begin(s->sg); r && r < attack_subgroup_get_units_end(s->sg); r++) {
+            ee_unit *u = *r ? asg_unit_get_unit(*r) : NULL;
             if (!u || !ms_land_soldier(u, unit_get_type_data(u)) || ivec2_dist2(unit_get_tile(u), b) > 25 * 25 ||
                 landing_has_unit(pl, u)) continue;
             int h = ms_held(m, u, s->sg);
@@ -348,8 +348,8 @@ internal void ms_tether(ee_player *pl, struct mass *m, int plan, ivec2 b) {
         if (!s->out || s->na < 2) continue;
         m->tc[m->ntc].sg = s->sg; m->tc[m->ntc].c = s->c; m->ntc++;
         if (!(plan & 32) || s->state < 3000 || s->state >= 4000) continue;
-        for (ee_asg_unit **r = asg_get_units_begin(s->sg); r && r < asg_get_units_end(s->sg); r++) {
-            ee_unit *u = *r ? asgu_get_unit(*r) : NULL;
+        for (ee_asg_unit **r = attack_subgroup_get_units_begin(s->sg); r && r < attack_subgroup_get_units_end(s->sg); r++) {
+            ee_unit *u = *r ? asg_unit_get_unit(*r) : NULL;
             if (!u || !ms_land_soldier(u, unit_get_type_data(u)) || fl_attacking(u)) continue;
             ivec2 p = unit_get_tile(u);
             if (ivec2_dist2(p, b) <= 25 * 25 || ivec2_dist2(p, s->c) < t * t ||
@@ -360,21 +360,21 @@ internal void ms_tether(ee_player *pl, struct mass *m, int plan, ivec2 b) {
 }
 // attack.c hook_asgu_score: a target too far from the pack of an out subgroup's member
 internal int mass_tether(ee_attack_subgroup *sg, ee_unit *me, ee_unit *enemy) {
-    ee_player *pl = asg_get_player(sg);
+    ee_player *pl = attack_subgroup_get_player(sg);
     if (!pl || !me || !enemy) return 0;
     unsigned idx = (unsigned)player_get_index(pl) & 15;
     struct mass *m = &g_mss[idx];
     int plan = ARMY_MASS(idx);
     if (!m->ntc || !(plan & 16)) return 0;
     ee_unit_type *etd = unit_get_type_data(enemy);   // 128: buildings only - enemy units are fought wherever they are
-    if ((plan & 128) && (!etd || (type_get_family(etd) != 2 && type_get_family(etd) != 29))) return 0;
+    if ((plan & 128) && (!etd || (unit_type_get_family(etd) != 2 && unit_type_get_family(etd) != 29))) return 0;
     int k = 0;
     while (k < m->ntc && m->tc[k].sg != sg) k++;
     if (k == m->ntc) return 0;
     ivec2 e = unit_get_tile(enemy);
     if (ivec2_dist2(e, m->tc[k].c) <= g_mass_tether * g_mass_tether) return 0;
     ee_unit_stats *st = unit_get_stats(me); ee_unit_type *td = unit_get_type_data(me);
-    float r = (st ? stat_get_range(st) : td ? type_get_range(td) : 1.0f) + 2.0f;
+    float r = (st ? unit_stats_get_range(st) : td ? unit_type_get_range(td) : 1.0f) + 2.0f;
     if ((float)ivec2_dist2(e, unit_get_tile(me)) <= r * r) return 0;
     m->tethered++;
     return 1;

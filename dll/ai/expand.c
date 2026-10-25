@@ -81,7 +81,7 @@ internal void ex_scan(ee_player *pl, uint32_t now, int new_log) {
         ee_unit_type *td = it.td;
         ee_player *o = unit_get_owner(u);
         if (!o || unit_get_hp(u) <= 0) continue;
-        int pi = player_get_index(o), fam = type_get_family(td), t = type_get_id(td), x = unit_get_x(u), y = unit_get_y(u);
+        int pi = player_get_index(o), fam = unit_type_get_family(td), t = unit_type_get_id(td), x = unit_get_x(u), y = unit_get_y(u);
         if (pi <= 0 || pi >= 16) continue;
         if (is_transport(t)) { g_exs.tr[pi]++; continue; }
         if (x < 0) { if (is_citizen_type(t)) g_exs.aboard[pi]++; continue; }
@@ -136,9 +136,9 @@ internal void ex_scan(ee_player *pl, uint32_t now, int new_log) {
     }
 }
 internal int ex_home(ee_player *pl) {
-    ee_civ_mgr *cm = player_get_civ_mgr(pl); ee_build_mgr *bm = cm ? cm_get_build_mgr(cm) : NULL;
-    if (!bm || bm_get_base_x(bm) == -10000) return 0;
-    return (int)area_id(bm_get_base(bm), 2);
+    ee_civ_mgr *cm = player_get_civ_mgr(pl); ee_build_mgr *bm = cm ? civ_mgr_get_build_mgr(cm) : NULL;
+    if (!bm || build_mgr_get_base_x(bm) == -10000) return 0;
+    return (int)area_id(build_mgr_get_base(bm), 2);
 }
 // a continent's class for player pl (home: hc)
 internal int ex_class(ee_player *pl, const struct ex_cont *c, unsigned hc) {
@@ -158,8 +158,8 @@ internal void ex_log(ee_player *pl, unsigned idx, uint32_t now) {
     int pi = (int)idx;
     struct { int n, site[7], my[7], oth, drop, bld, cit, sold, tower; } k[EXC_N];
     memset(k, 0, sizeof k);
-    ee_civ_mgr *cm = player_get_civ_mgr(pl); ee_build_mgr *bm = cm ? cm_get_build_mgr(cm) : NULL;
-    int bx = bm_get_base_x(bm), by = bm_get_base_y(bm), near_d = -1, near_m = 0, foe_s = 0, foe_b = 0, km = 0, am = 0;
+    ee_civ_mgr *cm = player_get_civ_mgr(pl); ee_build_mgr *bm = cm ? civ_mgr_get_build_mgr(cm) : NULL;
+    int bx = build_mgr_get_base_x(bm), by = build_mgr_get_base_y(bm), near_d = -1, near_m = 0, foe_s = 0, foe_b = 0, km = 0, am = 0;
     for (int j = 0; j < g_exs.n; j++) { am += g_exs.c[j].mn; km += g_exs.c[j].mexp[pi]; }   // the map's mines and those it has explored
     for (int j = 0; j < g_exs.n; j++) {
         struct ex_cont *c = &g_exs.c[j];
@@ -317,7 +317,7 @@ internal int expand_ship(ee_unit *u) {
     return 0;
 }
 internal int expand_refuses(ee_attack_subgroup *sg, ee_unit *u) {
-    ee_player *pl = asg_get_player(sg);
+    ee_player *pl = attack_subgroup_get_player(sg);
     unsigned pi = pl ? (unsigned)player_get_index(pl) & 15 : 0;
     struct ex_st *x = &g_xs[pi];
     if (!u || (!x->fphase && !x->active)) return 0;
@@ -352,12 +352,12 @@ internal void expand_reserve(ee_player *pl, int reserve[7]) {
     for (int r = 2; r < 7; r++) reserve[r] += unit_cost(pl, UT(B_SETTLEMENT), r) + (tt ? unit_cost(pl, tt, r) : unit_cost(pl, UT(B_GUARD_TOWER_MIDDLE), r));
 }
 internal int expand_leads(ee_attack_subgroup *sg) {   // a subgroup holding the ferry's transport: its update skipped
-    ee_player *pl = asg_get_player(sg);
+    ee_player *pl = attack_subgroup_get_player(sg);
     unsigned pi = pl ? (unsigned)player_get_index(pl) & 15 : 0;
     struct ex_st *x = &g_xs[pi];
     if (!x->fphase || !x->ship.u) return 0;
-    for (ee_asg_unit **r = asg_get_units_begin(sg); r && r < asg_get_units_end(sg); r++)
-        if (*r && asgu_get_unit(*r) == x->ship.u) return 1;
+    for (ee_asg_unit **r = attack_subgroup_get_units_begin(sg); r && r < attack_subgroup_get_units_end(sg); r++)
+        if (*r && asg_unit_get_unit(*r) == x->ship.u) return 1;
     return 0;
 }
 // the unload a ferry may take from the game (its own retry at its own point while it unloads)
@@ -464,7 +464,7 @@ internal void ex_pick_unit(ee_unit *u, void *ctx) {
     if (unit_get_owner(u) != p->pl || unit_get_hp(u) <= 0 || !td || unit_get_x(u) < 0 || unit_get_frozen(u)) return;
     int x = unit_get_x(u), y = unit_get_y(u), d = ivec2_dist2(iv2(x, y), iv2(p->cx, p->cy));
     if (d > 35 * 35 || area_id(iv2(x, y), 2) != p->hc || landing_has_unit(p->pl, u)) return;
-    int t = type_get_id(td);
+    int t = unit_type_get_id(td);
     ee_goal *g0 = unit_get_goal(u);
     if (g0 && strstr(rtti_name(g0), "Load")) return;   // a part of a load goal (perhaps of a transport sunk since): never ordered
     if (is_citizen_type(t)) {
@@ -493,12 +493,12 @@ internal int ex_take(ee_unit **u, int *d, int n) {   // the nearest left (index)
 internal float ex_sea_risk(ee_player *pl, struct ex_st *x, ee_unit_type *trtd, float hp);   // below
 internal void ex_ferry_ship(ee_player *pl, unsigned idx, struct ex_st *x, uint32_t now) {
     void *cm = player_get_civ_mgr(pl);
-    ee_unit_mgr *um = cm ? cm_get_unit_mgr(cm) : NULL;
+    ee_unit_mgr *um = cm ? civ_mgr_get_unit_mgr(cm) : NULL;
     ee_unit *best = NULL;
     int bd = 0x7FFFFFFF, all = 0, nl = 0, nld = 0, no = 0;
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
-        if (unit_get_owner(u) != pl || unit_get_hp(u) <= 0 || !is_transport(type_get_id(it.td)) || unit_get_x(u) < 0) continue;
+        if (unit_get_owner(u) != pl || unit_get_hp(u) <= 0 || !is_transport(unit_type_get_id(it.td)) || unit_get_x(u) < 0) continue;
         all++;
         if (landing_has_unit(pl, u)) { nl++; continue; }
         if (ex_cargo(u) > 0) { nld++; continue; }
@@ -551,7 +551,7 @@ internal void ex_ferry_ship(ee_player *pl, unsigned idx, struct ex_st *x, uint32
     memset(&p, 0, sizeof p);
     p.pl = pl; p.cm = cm; p.x = x; p.hc = area_id(x->home, 2); p.cx = x->home.x; p.cy = x->home.y;
     grid_each(ex_pick_unit, &p);
-    int cap = ld_cap(type_get_id(unit_get_type_data(best))), guard = x->guard_trip ? EX_GUARD(idx) - x->nsold : 0;
+    int cap = ld_cap(unit_type_get_id(unit_get_type_data(best))), guard = x->guard_trip ? EX_GUARD(idx) - x->nsold : 0;
     if (guard < 0) guard = 0;
     int cits = x->ever_ashore ? cap - guard : g_ex_cits;
     if (cits > cap - guard) cits = cap - guard;
@@ -589,8 +589,8 @@ internal float ex_sea_risk(ee_player *pl, struct ex_st *x, ee_unit_type *trtd, f
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
         if (unit_get_owner(u) != pl || unit_get_hp(u) <= 0 || unit_get_x(u) < 0) continue;
-        int fam = type_get_family(it.td), t = type_get_id(it.td);
-        if ((fam == 4 || fam == 10) && !is_transport(t) && !is_fishing_boat(t) && type_get_attack(it.td) > 0) ld_sea_add(&o, &e, u);
+        int fam = unit_type_get_family(it.td), t = unit_type_get_id(it.td);
+        if ((fam == 4 || fam == 10) && !is_transport(t) && !is_fishing_boat(t) && unit_type_get_attack(it.td) > 0) ld_sea_add(&o, &e, u);
     }
     return ld_sea_risk(&e, &o, hp);
 }
@@ -638,7 +638,7 @@ internal void ex_ferry_board(ee_player *pl, unsigned idx, struct ex_st *x, uint3
     for (int k = 0; k < x->npass; k++) {
         ee_unit *u = x->pass[k].u;
         int ab = unit_get_x(u) < 0;
-        aboard += ab; cits += ab && is_citizen_type(type_get_id(unit_get_type_data(u)));
+        aboard += ab; cits += ab && is_citizen_type(unit_type_get_id(unit_get_type_data(u)));
     }
     int sdx = unit_get_x(sh) - x->home_w.x, sdy = unit_get_y(sh) - x->home_w.y, there = sdx * sdx + sdy * sdy <= 49;
     if (!there && !goal_near(sh, (float)x->home_w.x + 0.5f, (float)x->home_w.y + 0.5f, 2.0f) && !x->load_t)
@@ -741,14 +741,14 @@ internal void ex_isle_unit(ee_unit *u, void *ctx) {
     int x = unit_get_x(u), y = unit_get_y(u);
     if (o == e->pl) {
         if (area_id(iv2(x, y), 2) != e->cont) return;
-        int fam = type_get_family(td), t = type_get_id(td);
+        int fam = unit_type_get_family(td), t = unit_type_get_id(td);
         if (fam == 2 || fam == 29) e->nb++;
         else if (is_citizen_type(t)) { if (e->nc < 64) e->c[e->nc++] = u; }
         else if (is_soldier(td) && !is_ship_or_air(td) && !is_transport(t) && e->ns < 32) e->s[e->ns++] = u;
         return;
     }
     if (player_get_index(o) <= 0 || !is_enemy(e->pl, o) || !seen_by(u, e->pl)) return;   // enemies seen near the outpost
-    if (!is_soldier(td) && !is_citizen_type(type_get_id(td)) && !is_siege(type_get_id(td))) return;
+    if (!is_soldier(td) && !is_citizen_type(unit_type_get_id(td)) && !is_siege(unit_type_get_id(td))) return;
     int d = ivec2_dist2(iv2(x, y), iv2(e->fx, e->fy));
     if (d > 14 * 14 || area_id(iv2(x, y), 2) != e->cont) return;
     e->foe++;
@@ -761,7 +761,7 @@ internal int ex_kind_type(ee_player *pl, int kind) {
 }
 internal int ex_spot(ee_player *pl, unsigned idx, struct ex_st *x, int type, ivec2 c, ivec2 *o) {
     ee_unit_type *td = type_data(type);
-    int sz = td ? type_get_size(td) : 1, found = 0;
+    int sz = td ? unit_type_get_size(td) : 1, found = 0;
     float best = 1e9f;
     if (sz < 1) sz = 1;
     for (int d = 1; d <= 12; d++)
@@ -835,9 +835,9 @@ internal void ex_forward(ee_player *pl, unsigned idx, struct ex_st *x, uint32_t 
     if (x->fwd_added) return;
     if (!x->forward) {
         struct intel *in = &g_intel[idx & 15];
-        ee_civ_mgr *cm = player_get_civ_mgr(pl); ee_build_mgr *bm = cm ? cm_get_build_mgr(cm) : NULL;
+        ee_civ_mgr *cm = player_get_civ_mgr(pl); ee_build_mgr *bm = cm ? civ_mgr_get_build_mgr(cm) : NULL;
         if (!bm) return;
-        int bx = bm_get_base_x(bm), by = bm_get_base_y(bm);
+        int bx = build_mgr_get_base_x(bm), by = build_mgr_get_base_y(bm);
         float dh = 1e9f, dp = 1e9f;   // the enemy's known buildings nearest to home / to the outpost
         for (int k = 0; k < in->n; k++) {
             struct intel_rec *e = &in->r[k];
@@ -968,7 +968,7 @@ internal void ex_outpost(ee_player *pl, unsigned idx, struct ex_st *x, uint32_t 
     // builders: 3 on the drop site (all while it is not finished), 2 on another; the rest gather once the drop site stands
     int want[EX_PROJ] = { 0 }, have[EX_PROJ] = { 0 }, nb = 0;
     for (int j = 0; j < x->nproj; j++) if (x->proj[j].state == 1) want[j] = x->proj[j].kind == XK_DROP ? (drop_ok ? 3 : 64) : 2;
-    ee_resource_mgr *rm = cm_get_resource_mgr(player_get_civ_mgr(pl));
+    ee_resource_mgr *rm = civ_mgr_get_resource_mgr(player_get_civ_mgr(pl));
     for (int k = 0; k < e.nc; k++) {
         ee_unit *u = e.c[k];
         ee_goal *g = unit_get_goal(u);
@@ -990,7 +990,7 @@ internal void ex_outpost(ee_player *pl, unsigned idx, struct ex_st *x, uint32_t 
         if (g && (goal_is_location(g) || goal_is_attack(g) || !strcmp(gn, "EEUGBuildRepair@@"))) continue;   // once it stands still
         ee_unit *s = ex_free_mine(pl, x, mid);
         if (!s) continue;
-        rm_assign(rm, u, s);
+        resource_mgr_assign(rm, u, s);
         x->assigned++;
     }
     // the guard: by the drop site, attacking what it sees within 14 tiles
@@ -1011,7 +1011,7 @@ internal int ex_outmatched(ee_player *pl, float *mine, float *theirs) {
     intel_army(pl, &eh, &ea, NULL, &en);
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
-        if (unit_get_owner(u) != pl || unit_get_hp(u) <= 0 || unit_get_x(u) < 0 || !land_soldier(type_get_id(it.td))) continue;
+        if (unit_get_owner(u) != pl || unit_get_hp(u) <= 0 || unit_get_x(u) < 0 || !land_soldier(unit_type_get_id(it.td))) continue;
         oh += (float)unit_get_hp(u); oa += ld_attack(u);
     }
     *mine = ld_strength(oh, oa); *theirs = ld_strength(eh, ea);
@@ -1041,8 +1041,8 @@ internal const char *ex_follow_no(ee_player *pl, unsigned idx, float mine, float
 internal void ex_plan(ee_player *pl, unsigned idx, struct ex_st *x, uint32_t now) {
     static const char *last_why[16];
     const char *why = NULL;
-    ee_civ_mgr *cm = player_get_civ_mgr(pl); ee_build_mgr *bm = cm ? cm_get_build_mgr(cm) : NULL;
-    int bx = bm ? bm_get_base_x(bm) : -10000, by = bm ? bm_get_base_y(bm) : -10000;
+    ee_civ_mgr *cm = player_get_civ_mgr(pl); ee_build_mgr *bm = cm ? civ_mgr_get_build_mgr(cm) : NULL;
+    int bx = bm ? build_mgr_get_base_x(bm) : -10000, by = bm ? build_mgr_get_base_y(bm) : -10000;
     unsigned hc = (unsigned)ex_home(pl);
     if (x->active) {   // more citizens: the drop site stands, no Town Center of its own there, slots left, trips left
         if (!x->drop_ok || x->trips >= g_ex_trips || (x->trip_t && now - x->trip_t < 120000) || (x->foe_t && now - x->foe_t < 60000)) return;   // not into a fight
@@ -1088,7 +1088,7 @@ internal void ex_plan(ee_player *pl, unsigned idx, struct ex_st *x, uint32_t now
     int ocean = 0;
     if (!why) {
         for (struct grid_it it = grid_it_all(1); grid_it_next(&it) && !ocean; )
-            if (unit_get_owner(it.u) == pl && type_get_id(it.td) == UT(B_DOCK) && unit_get_hp(it.u) > 0)
+            if (unit_get_owner(it.u) == pl && unit_type_get_id(it.td) == UT(B_DOCK) && unit_get_hp(it.u) > 0)
                 ocean = (int)ocean_near(unit_get_tile(it.u), 4, NULL);
         if (!ocean) why = "no dock";
     }

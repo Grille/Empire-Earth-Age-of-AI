@@ -6,12 +6,12 @@ internal inline ee_unit_type *type_data(int t) { return t >= 0 && t < G_TYPES_N 
 
 internal uint32_t game_time(void) {
     ee_physics *clock = game_physics();
-    return clock ? phys_get_time(clock) : 0;
+    return clock ? physics_get_time(clock) : 0;
 }
 
-internal ee_player *rm_player(ee_resource_mgr *rm) {
-    ee_civ_mgr *owner = rm_get_owner(rm);
-    return owner ? cm_get_player(owner) : NULL;
+internal ee_player *resource_mgr_player(ee_resource_mgr *rm) {
+    ee_civ_mgr *owner = resource_mgr_get_owner(rm);
+    return owner ? civ_mgr_get_player(owner) : NULL;
 }
 
 // RTTI class name of a polymorphic object (MSVC: vtable[-1] -> complete object locator, +0xC type

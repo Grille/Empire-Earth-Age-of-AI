@@ -63,45 +63,45 @@ internal inline uint8_t *setup_flags_at(const ee_setup *o) { return (uint8_t *)o
 // class ee_setup_slot (ee_setup_slot)
 // the game setup's player slots, 0x38 each
 // the setup code
-internal inline int slot_get_type(const ee_setup_slot *o) { return *(int *)((uint8_t *)o + of_slot_type); }
-internal inline void slot_set_type(ee_setup_slot *o, int v) { *(int *)((uint8_t *)o + of_slot_type) = v; }
-internal inline int *slot_type_at(const ee_setup_slot *o) { return (int *)((uint8_t *)o + of_slot_type); }
+internal inline int setup_slot_get_type(const ee_setup_slot *o) { return *(int *)((uint8_t *)o + of_setup_slot_type); }
+internal inline void setup_slot_set_type(ee_setup_slot *o, int v) { *(int *)((uint8_t *)o + of_setup_slot_type) = v; }
+internal inline int *setup_slot_type_at(const ee_setup_slot *o) { return (int *)((uint8_t *)o + of_setup_slot_type); }
 // as the slot's others (engine-notes.md "Game start")
-internal inline int slot_get_0x4(const ee_setup_slot *o) { return *(int *)((uint8_t *)o + of_slot_0x4); }
-internal inline void slot_set_0x4(ee_setup_slot *o, int v) { *(int *)((uint8_t *)o + of_slot_0x4) = v; }
-internal inline int *slot_0x4_at(const ee_setup_slot *o) { return (int *)((uint8_t *)o + of_slot_0x4); }
+internal inline int setup_slot_get_0x4(const ee_setup_slot *o) { return *(int *)((uint8_t *)o + of_setup_slot_0x4); }
+internal inline void setup_slot_set_0x4(ee_setup_slot *o, int v) { *(int *)((uint8_t *)o + of_setup_slot_0x4) = v; }
+internal inline int *setup_slot_0x4_at(const ee_setup_slot *o) { return (int *)((uint8_t *)o + of_setup_slot_0x4); }
 // the player's name, as the slot's others
-internal inline uint8_t *slot_name_at(const ee_setup_slot *o) { return (uint8_t *)o + of_slot_name; }
+internal inline uint8_t *setup_slot_name_at(const ee_setup_slot *o) { return (uint8_t *)o + of_setup_slot_name; }
 // as the slot's others (engine-notes.md "Game start")
-internal inline int slot_get_0x1c(const ee_setup_slot *o) { return *(int *)((uint8_t *)o + of_slot_0x1c); }
-internal inline void slot_set_0x1c(ee_setup_slot *o, int v) { *(int *)((uint8_t *)o + of_slot_0x1c) = v; }
-internal inline int *slot_0x1c_at(const ee_setup_slot *o) { return (int *)((uint8_t *)o + of_slot_0x1c); }
+internal inline int setup_slot_get_0x1c(const ee_setup_slot *o) { return *(int *)((uint8_t *)o + of_setup_slot_0x1c); }
+internal inline void setup_slot_set_0x1c(ee_setup_slot *o, int v) { *(int *)((uint8_t *)o + of_setup_slot_0x1c) = v; }
+internal inline int *setup_slot_0x1c_at(const ee_setup_slot *o) { return (int *)((uint8_t *)o + of_setup_slot_0x1c); }
 // as the slot's others (engine-notes.md "Game start")
-internal inline int slot_get_index(const ee_setup_slot *o) { return *(int *)((uint8_t *)o + of_slot_index); }
-internal inline void slot_set_index(ee_setup_slot *o, int v) { *(int *)((uint8_t *)o + of_slot_index) = v; }
-internal inline int *slot_index_at(const ee_setup_slot *o) { return (int *)((uint8_t *)o + of_slot_index); }
+internal inline int setup_slot_get_index(const ee_setup_slot *o) { return *(int *)((uint8_t *)o + of_setup_slot_index); }
+internal inline void setup_slot_set_index(ee_setup_slot *o, int v) { *(int *)((uint8_t *)o + of_setup_slot_index) = v; }
+internal inline int *setup_slot_index_at(const ee_setup_slot *o) { return (int *)((uint8_t *)o + of_setup_slot_index); }
 // the setup code
-internal inline int slot_get_color(const ee_setup_slot *o) { return *(int *)((uint8_t *)o + of_slot_color); }
-internal inline void slot_set_color(ee_setup_slot *o, int v) { *(int *)((uint8_t *)o + of_slot_color) = v; }
-internal inline int *slot_color_at(const ee_setup_slot *o) { return (int *)((uint8_t *)o + of_slot_color); }
+internal inline int setup_slot_get_color(const ee_setup_slot *o) { return *(int *)((uint8_t *)o + of_setup_slot_color); }
+internal inline void setup_slot_set_color(ee_setup_slot *o, int v) { *(int *)((uint8_t *)o + of_setup_slot_color) = v; }
+internal inline int *setup_slot_color_at(const ee_setup_slot *o) { return (int *)((uint8_t *)o + of_setup_slot_color); }
 // as the slot's others (engine-notes.md "Game start")
-internal inline int slot_get_team(const ee_setup_slot *o) { return *(int *)((uint8_t *)o + of_slot_team); }
-internal inline void slot_set_team(ee_setup_slot *o, int v) { *(int *)((uint8_t *)o + of_slot_team) = v; }
-internal inline int *slot_team_at(const ee_setup_slot *o) { return (int *)((uint8_t *)o + of_slot_team); }
+internal inline int setup_slot_get_team(const ee_setup_slot *o) { return *(int *)((uint8_t *)o + of_setup_slot_team); }
+internal inline void setup_slot_set_team(ee_setup_slot *o, int v) { *(int *)((uint8_t *)o + of_setup_slot_team) = v; }
+internal inline int *setup_slot_team_at(const ee_setup_slot *o) { return (int *)((uint8_t *)o + of_setup_slot_team); }
 // as the slot's others (engine-notes.md "Game start")
-internal inline int slot_get_citizens(const ee_setup_slot *o) { return *(int *)((uint8_t *)o + of_slot_citizens); }
-internal inline void slot_set_citizens(ee_setup_slot *o, int v) { *(int *)((uint8_t *)o + of_slot_citizens) = v; }
-internal inline int *slot_citizens_at(const ee_setup_slot *o) { return (int *)((uint8_t *)o + of_slot_citizens); }
+internal inline int setup_slot_get_citizens(const ee_setup_slot *o) { return *(int *)((uint8_t *)o + of_setup_slot_citizens); }
+internal inline void setup_slot_set_citizens(ee_setup_slot *o, int v) { *(int *)((uint8_t *)o + of_setup_slot_citizens) = v; }
+internal inline int *setup_slot_citizens_at(const ee_setup_slot *o) { return (int *)((uint8_t *)o + of_setup_slot_citizens); }
 // as the slot's others (engine-notes.md "Game start")
-internal inline int slot_get_0x30(const ee_setup_slot *o) { return *(int *)((uint8_t *)o + of_slot_0x30); }
-internal inline void slot_set_0x30(ee_setup_slot *o, int v) { *(int *)((uint8_t *)o + of_slot_0x30) = v; }
-internal inline int *slot_0x30_at(const ee_setup_slot *o) { return (int *)((uint8_t *)o + of_slot_0x30); }
+internal inline int setup_slot_get_0x30(const ee_setup_slot *o) { return *(int *)((uint8_t *)o + of_setup_slot_0x30); }
+internal inline void setup_slot_set_0x30(ee_setup_slot *o, int v) { *(int *)((uint8_t *)o + of_setup_slot_0x30) = v; }
+internal inline int *setup_slot_0x30_at(const ee_setup_slot *o) { return (int *)((uint8_t *)o + of_setup_slot_0x30); }
 // as the slot's others (engine-notes.md "Game start")
-internal inline uint32_t slot_get_flags(const ee_setup_slot *o) { return *(uint32_t *)((uint8_t *)o + of_slot_flags); }
-internal inline void slot_set_flags(ee_setup_slot *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_slot_flags) = v; }
-internal inline uint32_t *slot_flags_at(const ee_setup_slot *o) { return (uint32_t *)((uint8_t *)o + of_slot_flags); }
+internal inline uint32_t setup_slot_get_flags(const ee_setup_slot *o) { return *(uint32_t *)((uint8_t *)o + of_setup_slot_flags); }
+internal inline void setup_slot_set_flags(ee_setup_slot *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_setup_slot_flags) = v; }
+internal inline uint32_t *setup_slot_flags_at(const ee_setup_slot *o) { return (uint32_t *)((uint8_t *)o + of_setup_slot_flags); }
 // a slot's size, the next slot
-internal inline uint8_t *slot_size_at(const ee_setup_slot *o) { return (uint8_t *)o + of_slot_size; }
+internal inline uint8_t *setup_slot_size_at(const ee_setup_slot *o) { return (uint8_t *)o + of_setup_slot_size; }
 
 // the running build's values (spec_select, with addr_select): how many it hasn't got
 internal int spec_setup_select(int build) {
@@ -120,17 +120,17 @@ internal int spec_setup_select(int build) {
         of_setup_difficulty = 0x3F8;
         of_setup_0x3fc = 0x3FC;
         of_setup_flags = 0x400;
-        of_slot_type = 0x0;
-        of_slot_0x4 = 0x4;
-        of_slot_name = 0x8;
-        of_slot_0x1c = 0x1C;
-        of_slot_index = 0x20;
-        of_slot_color = 0x24;
-        of_slot_team = 0x28;
-        of_slot_citizens = 0x2C;
-        of_slot_0x30 = 0x30;
-        of_slot_flags = 0x34;
-        of_slot_size = 0x38;
+        of_setup_slot_type = 0x0;
+        of_setup_slot_0x4 = 0x4;
+        of_setup_slot_name = 0x8;
+        of_setup_slot_0x1c = 0x1C;
+        of_setup_slot_index = 0x20;
+        of_setup_slot_color = 0x24;
+        of_setup_slot_team = 0x28;
+        of_setup_slot_citizens = 0x2C;
+        of_setup_slot_0x30 = 0x30;
+        of_setup_slot_flags = 0x34;
+        of_setup_slot_size = 0x38;
         return 0;
     case 1:   // aoc
         of_setup_map_name = 0x3A8;
@@ -146,17 +146,17 @@ internal int spec_setup_select(int build) {
         of_setup_difficulty = 0x3F8;
         of_setup_0x3fc = 0x3FC;
         of_setup_flags = 0x400;
-        of_slot_type = 0x0;
-        of_slot_0x4 = 0x4;
-        of_slot_name = 0x8;
-        of_slot_0x1c = 0x1C;
-        of_slot_index = 0x20;
-        of_slot_color = 0x24;
-        of_slot_team = 0x28;
-        of_slot_citizens = 0x2C;
-        of_slot_0x30 = 0x30;
-        of_slot_flags = 0x34;
-        of_slot_size = 0x38;
+        of_setup_slot_type = 0x0;
+        of_setup_slot_0x4 = 0x4;
+        of_setup_slot_name = 0x8;
+        of_setup_slot_0x1c = 0x1C;
+        of_setup_slot_index = 0x20;
+        of_setup_slot_color = 0x24;
+        of_setup_slot_team = 0x28;
+        of_setup_slot_citizens = 0x2C;
+        of_setup_slot_0x30 = 0x30;
+        of_setup_slot_flags = 0x34;
+        of_setup_slot_size = 0x38;
         return 0;
     }
     return 0;

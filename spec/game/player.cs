@@ -184,7 +184,6 @@ unsafe struct EEPlayer
 }
 
 /// the object at a player's +0xB98
-[c_prefix("b98")]
 unsafe struct ee_player_b98
 {
     /// read through a player's +0xB98
@@ -193,7 +192,7 @@ unsafe struct ee_player_b98
 }
 
 /// the computer's player (the AI's): an EEPlayer with the computer's managers - its own functions, the C's cp_
-[@base(typeof(EEPlayer)), c_type("ee_player"), c_prefix("cp"), vtable((ee)0x008264C0, (aoc)0x0083A57C)]
+[@base(typeof(EEPlayer)), c_type("ee_player"), vtable((ee)0x008264C0, (aoc)0x0083A57C)]
 unsafe struct EEComputerPlayer
 {
     /// EEComputerPlayer::AdjustCost (vf27): a price with the cheat
@@ -220,7 +219,7 @@ unsafe struct EEComputerPlayer
 
     /// thiscall(player), called at 0x4311E5, 0x43FA9B, 0x474AF0
     [address((ee)0x0042F7A5, (aoc)0x0042D1C7)]
-    // the callers of cp_update_pop_cap
+    // the callers of player_update_pop_cap
     [call_site("pop_cap", (ee)0x004311E5, (aoc)0x0042ECF6)]
     [call_site("pop_cap", (ee)0x0043FA9B, (aoc)0x0043F2F6)]
     [call_site("pop_cap", (ee)0x00474AF0, (aoc)0x004781C9)]
@@ -232,7 +231,7 @@ unsafe struct EEComputerPlayer
 }
 
 /// a player's statistics, player +0x4A8 (EEPlayerStatistics)
-[c_type("ee_player_stats"), c_prefix("plstats")]
+[c_type("ee_player_stats")]
 unsafe struct EEPlayerStatistics
 {
     [offset(0x1C), found(b)]
@@ -245,11 +244,11 @@ static unsafe class player
     [address((ee)0x00617780, (aoc)0x0062A2DF)]
     static code call_kill_stat;
 
-    /// EEComputerPlayer's vtable: cp_add_resource (econ.c's hook; AoC as before)
+    /// EEComputerPlayer's vtable: player_add_resource (econ.c's hook; AoC as before)
     [value(18)]
     static uint32 slot_cp_add_resource;
 
-    /// EEComputerPlayer's vtable: cp_pay (econ.c's hook; AoC as before)
+    /// EEComputerPlayer's vtable: player_pay (econ.c's hook; AoC as before)
     [value(45)]
     static uint32 slot_cp_pay;
 

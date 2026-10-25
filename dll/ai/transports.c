@@ -164,7 +164,7 @@ struct tw_scan { uint32_t now; };
 internal void tw_unit(ee_unit *u, void *ctx) {
     struct tw_scan *s = ctx;
     ee_unit_type *td = unit_get_type_data(u);
-    if (!td || !is_transport(type_get_id(td)) || unit_get_hp(u) <= 0 || unit_get_x(u) < 0) return;
+    if (!td || !is_transport(unit_type_get_id(td)) || unit_get_hp(u) <= 0 || unit_get_x(u) < 0) return;
     struct tw *t = NULL;
     for (int k = 0; k < g_tw_n && !t; k++) if (g_tw[k].u == u) t = &g_tw[k];
     unsigned st = unit_ai_state_id(u);
@@ -248,19 +248,19 @@ internal unsigned ocean_near(ivec2 p, int r, ivec2 *w);   // landing.c
 enum { TW_SEA, TW_LAND, TW_AIR, TW_FORT };
 internal int tw_kind(ee_unit *u) {   // a transport's: by its class (TW_SEA ...; a fortress too), -1 none
     ee_unit_type *td = u ? unit_get_type_data(u) : NULL;
-    int c = td ? type_get_family(td) : 0;
+    int c = td ? unit_type_get_family(td) : 0;
     return c == CLS_TRANSPORT ? TW_SEA : c == CLS_LAND_TRANSPORT ? TW_LAND : c == CLS_AIR_TRANSPORT ? TW_AIR : c == CLS_FORTRESS ? TW_FORT : -1;
 }
 internal int tw_carrier(ee_player *pl, ee_unit *u) {   // pl's transport on the map
     return tw_kind(u) >= 0 && unit_get_owner(u) == pl && unit_get_hp(u) > 0 && unit_get_x(u) >= 0;
 }
 internal int tw_dist2(ee_unit *a, ee_unit *b) { return ivec2_dist2(unit_get_tile(a), unit_get_tile(b)); }
-internal int tw_size(ee_unit *u) { int s = type_get_transport_size(unit_get_type_data(u)); return s > 0 ? s : 1; }
+internal int tw_size(ee_unit *u) { int s = unit_type_get_transport_size(unit_get_type_data(u)); return s > 0 ? s : 1; }
 // How far two transports' spots stay apart, by their size (the user: ships need half the old 4 tiles, trucks far
 // less): the type's selection circle (TD_MARK_SIZE, tiles: copper transport 1.2, atomic 2.0, Chinook 1.0, Pegasus
 // 1.3, cargo truck 0.7) - the two's mean rounded up, a tile less where there is little room, 1 at least (another
 // tile); spots q and at[j] (sizes sz[j]) apart in x or y by that many.
-internal float tw_space(ee_unit *t) { float r = type_get_mark_size(unit_get_type_data(t)); return r > 0.0f && r < 8.0f ? r : 1.0f; }
+internal float tw_space(ee_unit *t) { float r = unit_type_get_mark_size(unit_get_type_data(t)); return r > 0.0f && r < 8.0f ? r : 1.0f; }
 internal int tw_apart(ivec2 q, float r, const ivec2 *at, const float *sz, int n, int tight) {
     for (int j = 0; j < n; j++) {
         int g = (int)ceilf((r + sz[j]) * 0.5f) - tight;
@@ -289,7 +289,7 @@ internal int tw_beach(ivec2 p, unsigned cont, int kind, unsigned ocean, float r,
 internal int tw_tile_clear(ee_player *pl, ivec2 q) {
     for (struct grid_it it = grid_it_box(q.x, q.y, 2, 1); grid_it_next(&it); ) {
         if (unit_get_x(it.u) != q.x || unit_get_y(it.u) != q.y) continue;
-        if (unit_get_owner(it.u) == pl && (is_soldier(it.td) || is_citizen_type(type_get_id(it.td)))) continue;
+        if (unit_get_owner(it.u) == pl && (is_soldier(it.td) || is_citizen_type(unit_type_get_id(it.td)))) continue;
         return 0;
     }
     return 1;
@@ -385,7 +385,7 @@ internal int tw_load_split(ee_player *pl, ee_unit **tr, int nt, ee_unit **us, in
         while (room > 0) {   // its nearest unit that it can carry and that fits
             int best = -1, bd = 0;
             for (int i = 0; i < nu; i++) {
-                if (owner[i] >= 0 || tw_size(us[i]) > room || !type_can_carry(ttd, t, us[i])) continue;
+                if (owner[i] >= 0 || tw_size(us[i]) > room || !unit_type_can_carry(ttd, t, us[i])) continue;
                 int d = tw_dist2(us[i], t);
                 if (best < 0 || d < bd) { best = i; bd = d; }
             }
@@ -393,7 +393,7 @@ internal int tw_load_split(ee_player *pl, ee_unit **tr, int nt, ee_unit **us, in
             owner[best] = (signed char)k; room -= tw_size(us[best]); m[k]++;
         }
         if (g_log) fprintf(g_log, "# tw: P%d load: transport %06x type %d (%s, size %.2f) at %d,%d - room %d, %d given, %d aboard\n", player_get_index(pl),
-                           tw_id(t), type_get_id(ttd), rtti_name(ttd), (double)tw_space(t), unit_get_x(t), unit_get_y(t), unit_get_room(t), m[k], units_inside(t));
+                           tw_id(t), unit_type_get_id(ttd), rtti_name(ttd), (double)tw_space(t), unit_get_x(t), unit_get_y(t), unit_get_room(t), m[k], units_inside(t));
     }
     // then which transport takes which group (slot s: the units transport s found): the shortest ways, none crossing -
     // a transport may take another's group it has room for and can carry; one with a load under way keeps its own
@@ -409,7 +409,7 @@ internal int tw_load_split(ee_player *pl, ee_unit **tr, int nt, ee_unit **us, in
     for (int k = 0; k < nt; k++)
         for (int s = 0; s < nt; s++) {
             int ok = s == k || (!busy[k] && !busy[s] && tw_alike(tr[k], tr[s]) && size[s] <= room0[k]);
-            for (int i = 0; i < nu && ok && s != k; i++) ok = owner[i] != s || type_can_carry(unit_get_type_data(tr[k]), tr[k], us[i]);
+            for (int i = 0; i < nu && ok && s != k; i++) ok = owner[i] != s || unit_type_can_carry(unit_get_type_data(tr[k]), tr[k], us[i]);
             cost[k][s] = !ok ? TW_NO : m[s] ? tw_way(unit_get_tile(tr[k]), ctr[s]) : 0.0f;   // an empty group: it stays
         }
     float saved = tw_uncross(nt, cost, slot);
@@ -481,8 +481,8 @@ internal void tw_click_mark_off(ee_player *pl, int on, ivec2 at) {
 // is that one or of its type, else the message loads the clicked unit into that one - a transport of another type
 // clicked (a Pegasus beside a Chinook, a ship beside a helicopter) became a transport to be loaded into another, and
 // failed. Here the clicked transport is the one loaded onto, whatever its type.
-internal void __thiscall hook_msg_load(ee_msg *msg) {
-    ee_player *pl = g_tw_split ? game_player(msg_get_from(msg)) : NULL;
+internal void __thiscall hook_msg_load(ee_load_msg *msg) {
+    ee_player *pl = g_tw_split ? game_player(load_msg_get_from(msg)) : NULL;
     ee_unit *clicked = pl ? unit_by_id(load_msg_get_transport(msg)) : NULL;
     if (pl && load_msg_get_unit(msg) != -1) {   // a transport clicked: that one; another unit (into the selected transport): the game's
         ee_unit *u = unit_by_id((unsigned)load_msg_get_unit(msg));
@@ -543,13 +543,13 @@ internal int tw_unload_spread(ee_player *pl, ee_unit **tr, int nt, ivec2 p, ivec
 // spread comes in between, so each circle is at its transport's own tile. The Execute makes a group of each kind of
 // the selection (helicopters, trucks, ships ...: one hand-out each), so the tiles taken are kept for the command.
 // Should no circles' call come, the spread follows the Execute (no circles then).
-internal ee_msg *g_tw_unload_msg;   // the unload command being executed
+internal ee_unload_msg *g_tw_unload_msg;   // the unload command being executed
 internal int g_tw_unload_groups;    // ... its groups spread
 internal ivec2 g_tw_unload_at[64];  // ... the tiles taken
 internal float g_tw_unload_sz[64];  // ... the sizes of their transports
 internal int g_tw_unload_taken;
-internal void tw_unload_group(ee_msg *msg, void *grp) {
-    ee_player *pl = game_player(msg_get_from(msg));
+internal void tw_unload_group(ee_unload_msg *msg, void *grp) {
+    ee_player *pl = game_player(unload_msg_get_from(msg));
     if (!pl || !grp) return;
     ee_unit *tr[16];
     ivec2 p = iv2(unload_msg_get_x(msg), unload_msg_get_y(msg));
@@ -569,12 +569,12 @@ internal void __cdecl hook_unload_marks(void *grp, void *on, int owner, int how,
     if (g_tw_unload_msg) tw_unload_group(g_tw_unload_msg, grp);
     order_marks(grp, on, owner, how, goal);
 }
-internal void __thiscall hook_msg_unload(ee_msg *msg) {
+internal void __thiscall hook_msg_unload(ee_unload_msg *msg) {
     g_tw_unload_msg = msg;
     g_tw_unload_groups = g_tw_unload_taken = 0;
     msg_unload(msg);
     g_tw_unload_msg = NULL;
-    ee_player *pl = g_tw_unload_groups ? NULL : game_player(msg_get_from(msg));
+    ee_player *pl = g_tw_unload_groups ? NULL : game_player(unload_msg_get_from(msg));
     if (pl) tw_unload_group(msg, player_get_selected_group(pl));
 }
 
@@ -622,7 +622,7 @@ internal void cmd_transports(char *out, const char *args) {
         }
         if (!close) continue;
         if (tw_carrier(pl, u)) { if (nt < 16) tr[nt++] = u; continue; }
-        if (!strcmp(what, "load") && (is_soldier(it.td) || is_citizen_type(type_get_id(it.td))) && !unit_get_holder(u) && nu < 1024) us[nu++] = u;
+        if (!strcmp(what, "load") && (is_soldier(it.td) || is_citizen_type(unit_type_get_id(it.td))) && !unit_get_holder(u) && nu < 1024) us[nu++] = u;
     }
     if (!strcmp(what, "id")) return;
     if (order && nt && (nu || strcmp(what, "load"))) {
@@ -643,13 +643,13 @@ internal void cmd_transports(char *out, const char *args) {
         player_select(pl, sel);
         void *grp = player_get_selected_group(pl);
         memset(mem, 0, sizeof mem);
-        ee_msg *msg = (ee_msg *)mem;
         if (!strcmp(what, "load")) {   // as the click makes it: the clicked one, or the selection's first transport and the clicked one as its unit
             int same = !sel1 || sel1 == click || unit_get_type_data(sel1) == unit_get_type_data(click);
+            ee_load_msg *msg = (ee_load_msg *)mem;
             load_msg_make(msg, player_get_msg_id(pl), (unsigned)unit_get_serial(same ? click : sel1), same ? -1 : unit_get_serial(click));
             hook_msg_load(msg);
         }
-        else { unload_msg_make(msg, player_get_msg_id(pl), x, y); hook_msg_unload(msg); }
+        else { ee_unload_msg *msg = (ee_unload_msg *)mem; unload_msg_make(msg, player_get_msg_id(pl), x, y); hook_msg_unload(msg); }
         REPLY("%s by P%d (this PC's P%u): %u selected, %u in the group;", what, p, local_player_index(), n, grp ? group_count(grp) : 0);
         for (int k = 0; k < nt; k++) {
             const char *gn = tw_goal_name(unit_get_goal(tr[k]));

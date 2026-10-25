@@ -3,8 +3,8 @@
 // FIELDS
 // the sound manager (SESoundManager): its channel slots +0x24 (nodes), the paused +0x34 .. +0x38, the categories +0x54
 // .. +0x58, the mixer +0x70, the channel count +0x88
-internal inline uint8_t *sndmgr_get_paused_end(const ee_sound_mgr *sm) { return FIELD(sm, of_sndmgr_paused_begin + 0x4, uint8_t *); }
-internal inline ee_sound_cat **sndmgr_get_cats_end(const ee_sound_mgr *sm) { return FIELD(sm, of_sndmgr_cats_begin + 0x4, ee_sound_cat **); }
+internal inline uint8_t *sound_mgr_get_paused_end(const ee_sound_mgr *sm) { return FIELD(sm, of_sound_mgr_paused_begin + 0x4, uint8_t *); }
+internal inline ee_sound_cat **sound_mgr_get_cats_end(const ee_sound_mgr *sm) { return FIELD(sm, of_sound_mgr_cats_begin + 0x4, ee_sound_cat **); }
 // a category: its share of the channels, its most channels, in use, priority
 // a playing sound (SESMInstanceNode): its id +0xC, channel +0x1C, sample +0x20; a sample (SESample): its channel +0x24
 // the mixer (SEMixer): the plugin's SPIM functions as its fields - the mod reads and replaces some

@@ -114,22 +114,22 @@ internal BOOL install_srand(void);
 
 internal char __thiscall hook_compute_targets(ee_resource_mgr *rm) {
     log_state(rm, "pre_targets", game_time());
-    char changed = rm_compute_targets(rm);
-    if (!is_vanilla(rm_player(rm))) { econ_targets(rm); mine_fill(rm); cz_targets(rm); wf_targets(rm); ap_targets(rm); }   // mines.c: every mine slot; citizens.c
+    char changed = resource_mgr_compute_targets(rm);
+    if (!is_vanilla(resource_mgr_player(rm))) { econ_targets(rm); mine_fill(rm); cz_targets(rm); wf_targets(rm); ap_targets(rm); }   // mines.c: every mine slot; citizens.c
     log_state(rm, "post_targets", game_time());
     return changed;
 }
 
 internal char __thiscall hook_assign_citizens(ee_resource_mgr *rm) {
-    if (is_vanilla(rm_player(rm))) {
-        char r = rm_assign_citizens(rm);
+    if (is_vanilla(resource_mgr_player(rm))) {
+        char r = resource_mgr_assign_citizens(rm);
         log_state(rm, "post_assign", game_time());
         return r;
     }
     econ_fields(rm);   // farm fields (econ.c)
     citizens_safety(rm);   // away from known enemy towers (attack.c)
     food_hunt(rm);   // idle citizens to animals (food.c)
-    char r = rm_assign_citizens(rm);
+    char r = resource_mgr_assign_citizens(rm);
     econ_rebalance(rm);
     food_pull(rm);   // gatherers back to food (food.c)
     log_state(rm, "post_assign", game_time());
@@ -146,7 +146,7 @@ internal void *g_settings_done[16];
 internal void __thiscall hook_rm_update(ee_resource_mgr *rm, uint32_t now) {
     static uint32_t last[16];
     static uint8_t dumped[16];   // bit0: 10 s snapshot taken, bit1: 60 s snapshot taken
-    ee_player *pl = rm_player(rm);
+    ee_player *pl = resource_mgr_player(rm);
     if (pl) {
         unsigned idx = (unsigned)player_get_index(pl) & 15;
         ctl_note_player(pl);
@@ -163,13 +163,13 @@ internal void __thiscall hook_rm_update(ee_resource_mgr *rm, uint32_t now) {
         // them for the scenario bug - wrong; the real cause is the scenario flag, see hook_cp_update.)
         static uint8_t fixed[16];
         if (now >= 5000) fixed[idx] = 0;
-        void *cm = rm_get_owner(rm);
+        void *cm = resource_mgr_get_owner(rm);
         if (now < 2000 && !fixed[idx]) {
             fixed[idx] = 1;
             uint8_t *flags[3] = {
-                cm_setup_done_at(cm),
-                bm_initialized_at(cm_get_build_mgr(cm)),
-                rs_initialized_at(cm_get_research_mgr(cm)),
+                civ_mgr_setup_done_at(cm),
+                build_mgr_initialized_at(civ_mgr_get_build_mgr(cm)),
+                research_mgr_initialized_at(civ_mgr_get_research_mgr(cm)),
             };
             if (g_log) {
                 EnterCriticalSection(&g_lock);
@@ -187,7 +187,7 @@ internal void __thiscall hook_rm_update(ee_resource_mgr *rm, uint32_t now) {
             log_state(rm, "tick", now);
         }
     }
-    rm_update(rm, now);
+    resource_mgr_update(rm, now);
     if (pl && is_vanilla(pl)) vanilla_tick(pl, now);   // the game's own AI: only the mod's log lines (attack.c)
     else if (pl) { intel_tick(pl, now); econ_tick(pl, now); attack_tick(pl, now); landing_tick(pl, now); navy_tick(pl, now);
                 wf_tick(pl, now); army_plan_tick(pl, (unsigned)player_get_index(pl) & 15, now); }
@@ -271,8 +271,8 @@ internal char __thiscall hook_game_start(void *state, ee_setup *setup, void *p2)
             fputc('\n', g_log);
         }
         for (int i = 0; i < 16; i++) {   // the slot's name: a UString (its characters at +4)
-            const char *pn = FIELD(slot_name_at(setup_slot_at(setup, i)), 4, const char *);
-            fprintf(g_log, "# setup slot %d type=%d name=\"%s\"\n", i, slot_get_type(setup_slot_at(setup, i)), pn ? pn : "");
+            const char *pn = FIELD(setup_slot_name_at(setup_slot_at(setup, i)), 4, const char *);
+            fprintf(g_log, "# setup slot %d type=%d name=\"%s\"\n", i, setup_slot_get_type(setup_slot_at(setup, i)), pn ? pn : "");
         }
         fprintf(g_log, "# setup seed(world+0x54)=%u\n", game_world() ? world_get_seed(game_world()) : 0);
         fflush(g_log);

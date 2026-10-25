@@ -7,7 +7,7 @@ internal uint32_t g_trace_until_ms;
 
 internal int tracing(void *rm) {
     if (g_trace_player < 0) return 0;
-    ee_player *pl = rm_player(rm);
+    ee_player *pl = resource_mgr_player(rm);
     if (!pl || (player_get_index(pl) != g_trace_player)) return 0;
     return !g_trace_until_ms || game_time() < g_trace_until_ms;
 }
@@ -29,7 +29,7 @@ internal void trace_emit(const char *line) {
 #define CALLER() ((uintptr_t)__builtin_return_address(0) - 5)
 
 internal void *__thiscall tr_find_food(ee_resource_mgr *rm, uintptr_t a, uintptr_t b, ee_unit *u) {
-    void *r = rm_find_food(rm, a, b, u);
+    void *r = resource_mgr_find_food(rm, a, b, u);
     if (tracing(rm)) {
         char buf[300];
         snprintf(buf, sizeof buf, "@%06x find_food(%u,%u)", (unsigned)CALLER(), (unsigned)(a & 0xFF), (unsigned)(b & 0xFF));
@@ -50,11 +50,11 @@ internal void __thiscall tr_gather(ee_resource_mgr *rm, ee_unit *u, ee_unit *t, 
         trace_obj(buf, sizeof buf, "target", (void *)t);
         trace_emit(buf);
     }
-    rm_assign_as(rm, u, t, c);
+    resource_mgr_assign_as(rm, u, t, c);
 }
 
 internal void *__thiscall tr_find_mine(ee_resource_mgr *rm, int type, ee_unit *u, uintptr_t rev) {
-    void *r = rm_find_mine(rm, (uintptr_t)type, u, rev);
+    void *r = resource_mgr_find_mine(rm, (uintptr_t)type, u, rev);
     if (tracing(rm)) {
         char buf[300];
         snprintf(buf, sizeof buf, "@%06x find_mine(type %u)", (unsigned)CALLER(), (unsigned)type);
@@ -65,7 +65,7 @@ internal void *__thiscall tr_find_mine(ee_resource_mgr *rm, int type, ee_unit *u
 }
 
 internal void *__thiscall tr_find_wood(ee_resource_mgr *rm, uintptr_t f, ee_unit *u) {
-    void *r = rm_find_wood(rm, f, u);
+    void *r = resource_mgr_find_wood(rm, f, u);
     if (tracing(rm)) {
         char buf[300];
         snprintf(buf, sizeof buf, "@%06x find_wood(%u)", (unsigned)CALLER(), (unsigned)f);
@@ -76,7 +76,7 @@ internal void *__thiscall tr_find_wood(ee_resource_mgr *rm, uintptr_t f, ee_unit
 }
 
 internal void *__thiscall tr_hunt(ee_resource_mgr *rm, uintptr_t n, uintptr_t f, uintptr_t out) {
-    void *r = rm_hunt(rm, n, f, out);
+    void *r = resource_mgr_hunt(rm, n, f, out);
     if (tracing(rm)) {
         char buf[200];
         uint8_t *v = (uint8_t *)out;   // std::vector: +4 begin, +8 end
@@ -88,7 +88,7 @@ internal void *__thiscall tr_hunt(ee_resource_mgr *rm, uintptr_t n, uintptr_t f,
 }
 
 internal void *__thiscall tr_farms(ee_resource_mgr *rm, uintptr_t n, uintptr_t out) {
-    void *r = rm_farms(rm, n, out);
+    void *r = resource_mgr_farms(rm, n, out);
     if (tracing(rm)) {
         char buf[200];
         uint8_t *v = (uint8_t *)out;
@@ -105,7 +105,7 @@ internal void *um_player(void *um) {
     for (int i = 0; i < 16; i++) {
         ee_player *pl = g_players[i];
         void *cm = pl ? player_get_civ_mgr(pl) : NULL;
-        if (cm && cm_get_unit_mgr(cm) == um) return pl;
+        if (cm && civ_mgr_get_unit_mgr(cm) == um) return pl;
     }
     return NULL;
 }
@@ -133,7 +133,7 @@ internal uintptr_t __thiscall tr_train_citizens(ee_unit_mgr *um, uintptr_t a) {
     ee_player *pl = um_player(um);
     int before[7];
     if (pl) memcpy(before, player_stock_at(pl), sizeof before);
-    uintptr_t r = um_train_citizens(um, a);
+    uintptr_t r = unit_mgr_train_citizens(um, a);
     if (trace_pl(pl) && memcmp(before, player_stock_at(pl), sizeof before)) {
         char buf[300];
         snprintf(buf, sizeof buf, "@%06x train_citizens arg=%u -> %u", (unsigned)CALLER(), (unsigned)a, (unsigned)r);
@@ -172,14 +172,14 @@ internal unsigned g_sync_left;
 // sends rand() after srand(TMGetTime()) - hook_srand covers that - but the load-game and scenario starts (also a
 // test run's random map, which randmap.c makes from a -loadgame start) build it with TMGetTime() itself (0x522113,
 // 0x5D7A25, 0x5D8871, 0x65C955): there game_seed takes effect only here.
-internal void __thiscall hook_start_exec(ee_msg *msg) {
+internal void __thiscall hook_start_exec(ee_start_msg *msg) {
     if (g_auto.game_seed) start_msg_set_seed(msg, (unsigned)g_auto.game_seed);
     ee_physics *phys = game_physics(); ee_world *world = game_world();
     unsigned map_seed = world ? world_get_seed(world) : 0;
     start_exec(msg);
     EnterCriticalSection(&g_lock);
     if (g_sync) fprintf(g_sync, "start message: seed %u (generator %u, world+0x54 was %u)\n", start_msg_get_seed(msg),
-                        phys ? phys_get_seed(phys) : 0, map_seed);
+                        phys ? physics_get_seed(phys) : 0, map_seed);
     LeaveCriticalSection(&g_lock);
 }
 internal int start_hook(void) {
@@ -194,7 +194,7 @@ internal uint32_t g_sync_dump0, g_sync_dump1;
 internal uint32_t sync_unit_hash(ee_unit *u) {
     ee_player *owner = unit_get_owner(u);
     ee_unit_type *td = unit_get_type_data(u);
-    uint32_t v[5] = { owner ? (uint32_t)(player_get_index(owner) & 15) : 99u, td ? (uint32_t)type_get_id(td) : 0u,
+    uint32_t v[5] = { owner ? (uint32_t)(player_get_index(owner) & 15) : 99u, td ? (uint32_t)unit_type_get_id(td) : 0u,
                       (uint32_t)unit_get_x(u), (uint32_t)unit_get_y(u), (uint32_t)unit_get_hp(u) }, h = 2166136261u;
     for (int i = 0; i < 5; i++) h = (h ^ v[i]) * 16777619u;
     return h;
@@ -208,7 +208,7 @@ internal void sync_unit_dump(ee_unit *u, void *ctx) {
     (void)ctx;
     ee_player *owner = unit_get_owner(u);
     ee_unit_type *td = unit_get_type_data(u);
-    fprintf(g_sync, "  u P%d type %d at %d,%d hp %d\n", owner ? player_get_index(owner) & 15 : -1, td ? type_get_id(td) : -1,
+    fprintf(g_sync, "  u P%d type %d at %d,%d hp %d\n", owner ? player_get_index(owner) & 15 : -1, td ? unit_type_get_id(td) : -1,
             unit_get_x(u), unit_get_y(u), unit_get_hp(u));
 }
 // the messages handed to the lockstep server (EEServer [0x91984C] vtable slot 6: (msg, 0xFF)): "  m <type> <caller>
@@ -245,9 +245,9 @@ internal void sync_step(void *phys) {   // after each step (control.c hook_phys_
     struct sync_units su = { 0, 0 };
     grid_each(sync_unit, &su);
     EnterCriticalSection(&g_lock);
-    fprintf(g_sync, "%u %u %u %u %08x %u %08x\n", phys_get_step(phys), phys_get_time(phys),
-            phys_get_seed(phys), input_msgs_done(), h, su.n, su.h);
-    if (g_sync_dump0 && phys_get_time(phys) >= g_sync_dump0 && phys_get_time(phys) <= g_sync_dump1)
+    fprintf(g_sync, "%u %u %u %u %08x %u %08x\n", physics_get_step(phys), physics_get_time(phys),
+            physics_get_seed(phys), input_msgs_done(), h, su.n, su.h);
+    if (g_sync_dump0 && physics_get_time(phys) >= g_sync_dump0 && physics_get_time(phys) <= g_sync_dump1)
         grid_each(sync_unit_dump, NULL);
     if (!--g_sync_left) { fclose(g_sync); g_sync = NULL; }
     LeaveCriticalSection(&g_lock);

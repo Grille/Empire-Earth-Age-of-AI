@@ -45,9 +45,9 @@ internal int intel_remembers(ee_player *pl, ee_unit *u) {
     return 0;
 }
 internal int intel_kind(ee_unit_type *td) {
-    int fam = type_get_family(td);
+    int fam = unit_type_get_family(td);
     if (fam == 2 || fam == 29) return 0;
-    if (is_soldier(td) || is_siege(type_get_id(td))) return 1;
+    if (is_soldier(td) || is_siege(unit_type_get_id(td))) return 1;
     if (fam == 4) return 2;
     if (fam == 3 || fam == 7 || fam == 17) return 3;
     return 4;
@@ -102,7 +102,7 @@ internal void intel_unit(ee_unit *u, void *ctx) {
     if (s->nlive < 6000) s->live[s->nlive++] = u;
     if (!is_enemy(s->pl, o)) { if (s->ne < 3000) s->eye[s->ne++] = unit_get_tile(u); return; }
     ee_unit_vis *v = unit_get_vis(u);
-    uint16_t *vis = v ? siteown_get_seen(v) : NULL;
+    uint16_t *vis = v ? unit_vis_get_seen(v) : NULL;
     unsigned c = vis ? sight_count(vis[s->pi]) : 0;
     if (!s->fseen[oi] || c < s->floor[oi]) { s->floor[oi] = (uint16_t)c; s->fseen[oi] = 1; }
 }
@@ -143,7 +143,7 @@ internal void intel_tick(ee_player *pl, uint32_t now) {
         ee_unit_type *td = unit_get_type_data(u);
         ee_player *o = unit_get_owner(u);
         if (!is_enemy(pl, o) || intel_kind(td) != 0) continue;
-        int x = unit_get_x(u), y = unit_get_y(u), t = type_get_id(td), oi = player_get_index(o) & 15;
+        int x = unit_get_x(u), y = unit_get_y(u), t = unit_type_get_id(td), oi = player_get_index(o) & 15;
         if (seed && in->n < INTEL_REC) {
             struct intel_rec *e = &in->r[in->n++];
             float r, a = 0;
@@ -165,7 +165,7 @@ internal void intel_tick(ee_player *pl, uint32_t now) {
         ee_player *o = unit_get_owner(u);
         if (!is_enemy(pl, o)) continue;
         ee_unit_vis *v = unit_get_vis(u);
-        uint16_t *vis = v ? siteown_get_seen(v) : NULL;
+        uint16_t *vis = v ? unit_vis_get_seen(v) : NULL;
         int oi = player_get_index(o) & 15;
         if (!vis || sight_count(vis[pi]) <= g_vis_floor[pi][oi]) continue;
         in->seen_now++;
@@ -179,7 +179,7 @@ internal void intel_tick(ee_player *pl, uint32_t now) {
         }
         struct intel_rec *e = &in->r[j];
         ee_unit_type *td = unit_get_type_data(u);
-        e->u = u; e->owner = oi; e->type = type_get_id(td); e->kind = intel_kind(td);
+        e->u = u; e->owner = oi; e->type = unit_type_get_id(td); e->kind = intel_kind(td);
         e->x = unit_get_x(u); e->y = unit_get_y(u); e->hp = unit_get_hp(u);
         float a = 0, r;
         if (e->kind == 0) defence_stats(u, &r, &a);
@@ -280,7 +280,7 @@ internal void vis_owner(ee_unit *u, void *ctx) {   // player objects by index, a
 }
 internal unsigned vis_raw(ee_unit *u, unsigned pi) {
     ee_unit_vis *v = unit_get_vis(u);
-    uint16_t *vis = v ? siteown_get_seen(v) : NULL;
+    uint16_t *vis = v ? unit_vis_get_seen(v) : NULL;
     return vis ? vis[pi] : 0xFFFFu;
 }
 internal void cmd_vis(char *out, const char *args) {
@@ -301,8 +301,8 @@ internal void cmd_vis(char *out, const char *args) {
     for (int k = 0; k < s.nu; k++) {
         ee_unit *u = s.u[k];
         ee_unit_type *td = unit_get_type_data(u);
-        int x = unit_get_x(u), y = unit_get_y(u), fam = type_get_family(td);
-        int kind = fam == 2 || fam == 29 ? 0 : (is_soldier(td) || is_siege(type_get_id(td))) ? 1 : fam == 4 ? 2 : (fam == 3 || fam == 7 || fam == 17) ? 3 : 4;
+        int x = unit_get_x(u), y = unit_get_y(u), fam = unit_type_get_family(td);
+        int kind = fam == 2 || fam == 29 ? 0 : (is_soldier(td) || is_siege(unit_type_get_id(td))) ? 1 : fam == 4 ? 2 : (fam == 3 || fam == 7 || fam == 17) ? 3 : 4;
         float bd = 1e9f;
         for (int e = 0; e < s.ne; e++) {
             float d2 = (float)ivec2_dist2(s.eye[e], iv2(x, y));
@@ -316,7 +316,7 @@ internal void cmd_vis(char *out, const char *args) {
         if (shown < 30 && kind != 0 && (strstr(args, "all") || ((v & 0xFF) != 0) != (d <= 12))) {
             shown++;
             REPLY("  P%d type %d (%s) at %d,%d: value %04X, nearest eye of P%d %.1f tiles\n", player_get_index(unit_get_owner(u)),
-                  type_get_id(td), kinds[kind], x, y, v, p, d);
+                  unit_type_get_id(td), kinds[kind], x, y, v, p, d);
         }
     }
     if (strstr(args, "far")) {   // the land tiles farthest from every unit (P's side and its enemies): where nobody looks
@@ -380,10 +380,10 @@ internal void cmd_vistrack(char *out, const char *args) {
             float d2 = (float)ivec2_dist2(s.eye[e], iv2(ux, uy));
             if (d2 < bd) bd = d2;
         }
-        REPLY("  #%d type %d at %d,%d hp %d: value %04X, nearest eye of P%d or allies %.1f\n", k, type_get_id(unit_get_type_data(u)),
+        REPLY("  #%d type %d at %d,%d hp %d: value %04X, nearest eye of P%d or allies %.1f\n", k, unit_type_get_id(unit_get_type_data(u)),
               ux, uy, unit_get_hp(u), vis_raw(u, (unsigned)p), p, sqrtf(bd));
         ee_unit_vis *v = unit_get_vis(u);
-        uint16_t *vv = v ? siteown_get_seen(v) : NULL;
+        uint16_t *vv = v ? unit_vis_get_seen(v) : NULL;
         if (vv) REPLY("      slots 0-7: %04X %04X %04X %04X %04X %04X %04X %04X\n", vv[0], vv[1], vv[2], vv[3], vv[4], vv[5], vv[6], vv[7]);
     }
 }

@@ -12,7 +12,7 @@ internal int g_tf_on;
 
 internal int __thiscall hook_turn_decide(void *model, ee_unit *u, float rate, float left) {
     ee_physics *ph = game_physics();
-    float dt = ph ? phys_get_step_s(ph) : 0, a = u ? dt * unit_turn_accel(u) : 0;
+    float dt = ph ? physics_get_step_s(ph) : 0, a = u ? dt * unit_turn_accel(u) : 0;
     if (dt <= 0 || a <= 0) return model_turn_decide(model, u, rate, left);
     if ((rate < 0 && left > 0) || (rate > 0 && left < 0)) return 4;
     if (left == 0) return rate == 0 ? 2 : 4;

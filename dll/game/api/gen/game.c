@@ -229,9 +229,9 @@ internal inline ee_unit *unit_by_id_game(void *p1, uint32_t p2) { return fn_unit
 typedef void (__thiscall *vector_free_fn)(void *);
 internal vector_free_fn fn_vector_free;
 internal inline void vector_free(void *v) { fn_vector_free(v); }
-typedef void (__thiscall *start_exec_fn)(ee_msg *);
+typedef void (__thiscall *start_exec_fn)(ee_start_msg *);
 internal start_exec_fn fn_start_exec;
-internal inline void start_exec(ee_msg *msg) { fn_start_exec(msg); }
+internal inline void start_exec(ee_start_msg *msg) { fn_start_exec(msg); }
 
 // the running build's values (spec_select, with addr_select): how many it hasn't got
 internal int spec_game_select(int build) {

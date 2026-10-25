@@ -26,7 +26,7 @@ internal int unit_types_load(void) {
     static unsigned char kind[G_TYPES_N];
     for (int t = 0; t < G_TYPES_N; t++) {
         ee_unit_type *td = type_data(t);
-        const char *s = td ? type_get_name(td) : NULL;
+        const char *s = td ? unit_type_get_name(td) : NULL;
         int o = 0, gap = 0;
         kind[t] = 255;
         if (!s) continue;
@@ -42,7 +42,7 @@ internal int unit_types_load(void) {
                 g_unit_ident[t][0] = 0;
                 break;
             }
-        int f = type_get_category(td);
+        int f = unit_type_get_category(td);
         if (f >= 0 && f < UNIT_KINDS && k_kind_ident[f]) { kind[t] = (unsigned char)f; cnt[f]++; }
         else x_error("type %d (unit.%s): its family %d has no kind - in no kind.<kind>", t, g_unit_ident[t], f);
     }
@@ -65,11 +65,11 @@ internal int unit_types_load(void) {
     }
     for (int t = 0; t < G_TYPES_N; t++) {   // what each type is (unit_ids.h, the roles)
         ee_unit_type *td = type_data(t);
-        if (!td || type_get_id(td) != t) continue;
-        int f = type_get_category(td), c = type_get_family(td);
+        if (!td || unit_type_get_id(td) != t) continue;
+        int f = unit_type_get_category(td), c = unit_type_get_family(td);
         g_ut_role[t] = (unsigned char)((f == KIND_TOWERS ? UTR_TOWER : 0) | (f == KIND_WALLS ? UTR_WALL : 0) |
             (c == CLS_GATE ? UTR_GATE : 0) |
-            (c == CLS_LAND && (f == KIND_SIEGE || f == KIND_MACHINES) && type_get_range(td) >= 3.0f ? UTR_SIEGE : 0) |
+            (c == CLS_LAND && (f == KIND_SIEGE || f == KIND_MACHINES) && unit_type_get_range(td) >= 3.0f ? UTR_SIEGE : 0) |
             (c == CLS_LAND && f == KIND_RAM ? UTR_RAM : 0) | (c == CLS_CITIZEN && f == KIND_CITIZEN ? UTR_CITIZEN : 0) |
             (c == CLS_TRANSPORT ? UTR_TRANSPORT : 0) | (c == CLS_FISHING_BOAT ? UTR_FISHING_BOAT : 0));
     }

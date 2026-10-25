@@ -384,5 +384,5 @@ static unsafe class game_functions
     static extern void vector_free(void* v);
 
     [address((ee)0x004BEE57, (aoc)0x004C7CDC), thiscall]
-    static extern void start_exec(EEMInGameChat* msg);
+    static extern void start_exec(EEMStartLoading* msg);
 }

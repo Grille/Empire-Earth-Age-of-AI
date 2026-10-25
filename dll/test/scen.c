@@ -49,9 +49,9 @@ internal ee_trigger *sm_find_trigger(const char *arg, int *idx) {
     if (!m) return NULL;
     char *end, name[96];
     long i = strtol(arg, &end, 10);
-    if (end != arg && (*end == 0 || *end == ' ')) { *idx = (int)i; return sm_at(scen_triggers_at(m), (int)i); }
-    for (int k = 0; k < sm_count(scen_triggers_at(m)); k++) {
-        ee_trigger *t = sm_at(scen_triggers_at(m), k);
+    if (end != arg && (*end == 0 || *end == ' ')) { *idx = (int)i; return sm_at(scen_mgr_triggers_at(m), (int)i); }
+    for (int k = 0; k < sm_count(scen_mgr_triggers_at(m)); k++) {
+        ee_trigger *t = sm_at(scen_mgr_triggers_at(m), k);
         if (t && !_stricmp(sm_text(trigger_name_at(t), name, sizeof name), arg)) { *idx = k; return t; }
     }
     return NULL;
@@ -59,43 +59,43 @@ internal ee_trigger *sm_find_trigger(const char *arg, int *idx) {
 
 internal void sm_list(char *out, ee_scen_mgr *m, int detail) {
     char name[96];
-    int nt = sm_count(scen_triggers_at(m));
+    int nt = sm_count(scen_mgr_triggers_at(m));
     REPLY("%d triggers, %d conditions, %d effects, %d objects, %d areas; scenario time %.1f s\n", nt,
-          sm_count(scen_conds_at(m)), sm_count(scen_effects_at(m)), sm_count(scen_objects_at(m)), sm_count(scen_areas_at(m)), scen_get_time(m) / 1000.0f);
+          sm_count(scen_mgr_conds_at(m)), sm_count(scen_mgr_effects_at(m)), sm_count(scen_mgr_objects_at(m)), sm_count(scen_mgr_areas_at(m)), scen_mgr_get_time(m) / 1000.0f);
     for (int k = 0; k < nt; k++) {
-        ee_trigger *t = sm_at(scen_triggers_at(m), k);
+        ee_trigger *t = sm_at(scen_mgr_triggers_at(m), k);
         if (!t) continue;
         REPLY("%3d \"%s\" %s%s%s true-for %ds:", k, sm_text(trigger_name_at(t), name, sizeof name), trigger_get_on(t) ? "on" : "off",
               trigger_get_fired(t) ? " fired" : "", trigger_get_loop(t) ? " loop" : "", trigger_get_true_for(t));
         for (int c = 0; c < sm_count(trigger_conds_at(t)); c++) {
-            ee_trig_cond *w = sm_at(trigger_conds_at(t), c); ee_scen_cond *cd = w ? sm_at(scen_conds_at(m), trigger_cond_get_index(w)) : NULL;
+            ee_trig_cond *w = sm_at(trigger_conds_at(t), c); ee_scen_cond *cd = w ? sm_at(scen_mgr_conds_at(m), trig_cond_get_index(w)) : NULL;
             if (!w) continue;
             int ty = cd ? scen_cond_get_type(cd) : -1, op = cd ? scen_cond_get_op(cd) : 0;
-            REPLY(" %sc%d %s", trigger_cond_get_not(w) ? "not " : "", trigger_cond_get_index(w), ty >= 0 && ty < 8 ? k_sm_cond[ty] : "?");
+            REPLY(" %sc%d %s", trig_cond_get_not(w) ? "not " : "", trig_cond_get_index(w), ty >= 0 && ty < 8 ? k_sm_cond[ty] : "?");
             if (ty == 7) REPLY(" \"%s\"", sm_text(scen_cond_text_at(cd), name, sizeof name));
             else if (ty == 2) REPLY("(p%d attr %d %s %d)", scen_cond_get_player(cd), scen_cond_get_attr(cd), op >= 0 && op < 5 ? k_sm_op[op] : "?", scen_cond_get_value(cd));
             else if (ty == 3) REPLY("(p%d tech %d)", scen_cond_get_player(cd), scen_cond_get_tech(cd));
             else if (ty == 4) REPLY("(t%d%s%s)", scen_cond_get_trigger(cd), scen_cond_get_trigger_on(cd) ? " on" : "", scen_cond_get_trigger_fired(cd) ? " fired" : "");
             else if (ty == 1) REPLY("(o%d)", scen_cond_get_object(cd));
             else if (ty == 6 && scen_cond_get_timed(cd)) REPLY("(time %d..%d s)", scen_cond_get_time_from(cd), scen_cond_get_time_to(cd));
-            REPLY("%s", trigger_cond_get_join(w) == 1 ? " and" : trigger_cond_get_join(w) == 2 ? " or" : "");
+            REPLY("%s", trig_cond_get_join(w) == 1 ? " and" : trig_cond_get_join(w) == 2 ? " or" : "");
         }
         REPLY(" ->");
         for (int e = 0; e < sm_count(trigger_effects_at(t)); e++) {
-            ee_trig_effect *w = sm_at(trigger_effects_at(t), e); ee_scen_effect *ef = w ? sm_at(scen_effects_at(m), trigger_effect_get_index(w)) : NULL;
+            ee_trig_effect *w = sm_at(trigger_effects_at(t), e); ee_scen_effect *ef = w ? sm_at(scen_mgr_effects_at(m), trig_effect_get_index(w)) : NULL;
             if (!w) continue;
-            if (trigger_effect_get_kind(w) == 2) { REPLY(" |"); continue; }
+            if (trig_effect_get_kind(w) == 2) { REPLY(" |"); continue; }
             int cat = ef ? scen_effect_get_category(ef) : -1, sub = -1;
             static const char *const *const k_sub_names[7] = { NULL, k_sm_obj, k_sm_player, k_sm_trig, k_sm_media, k_sm_game, k_sm_ai };
             static const int k_sub_n[7] = { 0, 13, 12, 4, 4, 7, 7 };
             if (cat >= 1 && cat <= 6) sub = scen_effect_get_kind(ef, cat);
             if (cat >= 1 && cat <= 6 && sub >= 0 && sub < k_sub_n[cat]) {
-                REPLY(" e%d %s", trigger_effect_get_index(w), k_sub_names[cat][sub]);
+                REPLY(" e%d %s", trig_effect_get_index(w), k_sub_names[cat][sub]);
                 if (cat == 1) REPLY("(o%d)", scen_effect_get_object(ef));
                 else if (cat == 3) REPLY("(t%d)", scen_effect_get_trigger(ef));
             }
-            else REPLY(" e%d(cat %d/%d)", trigger_effect_get_index(w), cat, sub);
-            if (trigger_effect_get_delay(w)) REPLY("+%ds", trigger_effect_get_delay(w));
+            else REPLY(" e%d(cat %d/%d)", trig_effect_get_index(w), cat, sub);
+            if (trig_effect_get_delay(w)) REPLY("+%ds", trig_effect_get_delay(w));
         }
         REPLY("\n");
         if (detail && FIELD(trigger_desc_at(t), 4, void *)) REPLY("     %s\n", sm_text(trigger_desc_at(t), name, sizeof name));
@@ -116,29 +116,29 @@ internal const char *sm_class_kind(enum sm_class c, int *n) {
 // trig objects: each object's filter and what the game's own evaluation picks now (it may lock the object)
 internal void sm_objects(char *out, ee_scen_mgr *m, int from) {
     char name[96];
-    for (int k = from; k < sm_count(scen_objects_at(m)) && k < from + SM_PAGE; k++) {
+    for (int k = from; k < sm_count(scen_mgr_objects_at(m)) && k < from + SM_PAGE; k++) {
         ee_scen_object *o = sm_object(m, k);
         if (!o) continue;
         int cn = 0;
-        const char *ck = sm_class_kind(scen_obj_get_class(o), &cn);
+        const char *ck = sm_class_kind(scen_object_get_class(o), &cn);
         REPLY("o%d \"%s\" players %d class %s%d (%d) type %d count %d..%d area %d(%d) rel o%d kind %d(%d) parent o%d attr %d %d..%d(%d%s) state %d(%d) seen %d(%d) sel(%d)%s%s",
-              k, sm_text(scen_obj_name_at(o), name, sizeof name), scen_obj_get_players(o), ck, cn, scen_obj_get_class(o), scen_obj_get_type(o),
-              scen_obj_get_min(o), scen_obj_get_max(o), scen_obj_get_area(o), scen_obj_get_area_mode(o), scen_obj_get_rel_object(o),
-              scen_obj_get_rel_kind(o), scen_obj_get_rel_mode(o), scen_obj_get_parent(o), scen_obj_get_attr(o), scen_obj_get_attr_min(o),
-              scen_obj_get_attr_max(o), scen_obj_get_attr_mode(o), scen_obj_get_attr_percent(o) ? " %" : "", scen_obj_get_state(o),
-              scen_obj_get_state_mode(o), scen_obj_get_seen_players(o), scen_obj_get_seen_mode(o), scen_obj_get_selected_mode(o),
-              scen_obj_get_locked(o) ? " locked" : "", scen_obj_get_dynamic(o) ? " dynamic" : "");
-        int holds = sm_object_holds(o, 0), n = scen_obj_unit_count(o);
+              k, sm_text(scen_object_name_at(o), name, sizeof name), scen_object_get_players(o), ck, cn, scen_object_get_class(o), scen_object_get_type(o),
+              scen_object_get_min(o), scen_object_get_max(o), scen_object_get_area(o), scen_object_get_area_mode(o), scen_object_get_rel_object(o),
+              scen_object_get_rel_kind(o), scen_object_get_rel_mode(o), scen_object_get_parent(o), scen_object_get_attr(o), scen_object_get_attr_min(o),
+              scen_object_get_attr_max(o), scen_object_get_attr_mode(o), scen_object_get_attr_percent(o) ? " %" : "", scen_object_get_state(o),
+              scen_object_get_state_mode(o), scen_object_get_seen_players(o), scen_object_get_seen_mode(o), scen_object_get_selected_mode(o),
+              scen_object_get_locked(o) ? " locked" : "", scen_object_get_dynamic(o) ? " dynamic" : "");
+        int holds = sm_object_holds(o, 0), n = scen_object_unit_count(o);
         REPLY(" -> %s, %d units", holds ? "holds" : "no", n);
-        for (int i = 0; i < n && i < 6; i++) REPLY(" %d", scen_obj_unit_id(o, i));
-        if (n && scen_obj_get_type(o)) REPLY(" (type %d passes the class test: %d)", scen_obj_get_type(o), sm_class_test(o, scen_obj_get_type(o)));
+        for (int i = 0; i < n && i < 6; i++) REPLY(" %d", scen_object_unit_id(o, i));
+        if (n && scen_object_get_type(o)) REPLY(" (type %d passes the class test: %d)", scen_object_get_type(o), sm_class_test(o, scen_object_get_type(o)));
         REPLY("\n");
     }
 }
 // trig areas: each area, and how many units on the map it contains by the game's own test
 internal void sm_areas(char *out, ee_scen_mgr *m) {
     char name[96];
-    for (int k = 0; k < sm_count(scen_areas_at(m)); k++) {
+    for (int k = 0; k < sm_count(scen_mgr_areas_at(m)); k++) {
         ee_scen_area *a = sm_area(m, k);
         if (!a) continue;
         ivec2 p = scen_area_get_point(a);
@@ -151,7 +151,7 @@ internal void sm_areas(char *out, ee_scen_mgr *m) {
 // trig effects: each effect's category, kind and the values that category reads
 internal void sm_effects(char *out, ee_scen_mgr *m, int from) {
     char name[96];
-    for (int k = from; k < sm_count(scen_effects_at(m)) && k < from + SM_PAGE; k++) {
+    for (int k = from; k < sm_count(scen_mgr_effects_at(m)) && k < from + SM_PAGE; k++) {
         ee_scen_effect *ef = sm_effect(m, k);
         if (!ef) continue;
         int cat = scen_effect_get_category(ef), sub = scen_effect_get_kind(ef, cat);
@@ -181,7 +181,7 @@ internal void sm_effects(char *out, ee_scen_mgr *m, int from) {
 }
 // trig eval: each condition by the game's own evaluation now (objects it tests may lock), with its key values
 internal void sm_eval(char *out, ee_scen_mgr *m) {
-    for (int k = 0; k < sm_count(scen_conds_at(m)); k++) {
+    for (int k = 0; k < sm_count(scen_mgr_conds_at(m)); k++) {
         ee_scen_cond *c = sm_cond(m, k);
         if (!c) continue;
         int ty = scen_cond_get_type(c);
@@ -200,18 +200,18 @@ internal void sm_eval(char *out, ee_scen_mgr *m) {
 internal void sm_check(char *out, ee_scen_mgr *m) {
     int bad = 0;
 #define SM_CHECK(c, ...) do { if (c) { bad++; REPLY(__VA_ARGS__); } } while (0)
-    for (int k = 0; k < sm_count(scen_triggers_at(m)); k++) {
-        SM_CHECK(sm_trigger(m, k) != sm_at(scen_triggers_at(m), k), "trigger %d: the getter's %p, the list's %p\n", k, (void *)sm_trigger(m, k), sm_at(scen_triggers_at(m), k));
+    for (int k = 0; k < sm_count(scen_mgr_triggers_at(m)); k++) {
+        SM_CHECK(sm_trigger(m, k) != sm_at(scen_mgr_triggers_at(m), k), "trigger %d: the getter's %p, the list's %p\n", k, (void *)sm_trigger(m, k), sm_at(scen_mgr_triggers_at(m), k));
     }
-    for (int k = 0; k < sm_count(scen_conds_at(m)); k++) SM_CHECK(sm_cond(m, k) != sm_at(scen_conds_at(m), k), "condition %d\n", k);
-    for (int k = 0; k < sm_count(scen_effects_at(m)); k++) SM_CHECK(sm_effect(m, k) != sm_at(scen_effects_at(m), k), "effect %d\n", k);
-    for (int k = 0; k < sm_count(scen_objects_at(m)); k++) SM_CHECK(sm_object(m, k) != sm_at(scen_objects_at(m), k), "object %d\n", k);
-    for (int k = 0; k < sm_count(scen_areas_at(m)); k++) SM_CHECK(sm_area(m, k) != sm_at(scen_areas_at(m), k), "area %d\n", k);
-    SM_CHECK(sm_trigger(m, sm_count(scen_triggers_at(m))) != NULL, "trigger %d (out of range) not NULL\n", sm_count(scen_triggers_at(m)));
+    for (int k = 0; k < sm_count(scen_mgr_conds_at(m)); k++) SM_CHECK(sm_cond(m, k) != sm_at(scen_mgr_conds_at(m), k), "condition %d\n", k);
+    for (int k = 0; k < sm_count(scen_mgr_effects_at(m)); k++) SM_CHECK(sm_effect(m, k) != sm_at(scen_mgr_effects_at(m), k), "effect %d\n", k);
+    for (int k = 0; k < sm_count(scen_mgr_objects_at(m)); k++) SM_CHECK(sm_object(m, k) != sm_at(scen_mgr_objects_at(m), k), "object %d\n", k);
+    for (int k = 0; k < sm_count(scen_mgr_areas_at(m)); k++) SM_CHECK(sm_area(m, k) != sm_at(scen_mgr_areas_at(m), k), "area %d\n", k);
+    SM_CHECK(sm_trigger(m, sm_count(scen_mgr_triggers_at(m))) != NULL, "trigger %d (out of range) not NULL\n", sm_count(scen_mgr_triggers_at(m)));
 #undef SM_CHECK
     REPLY("%s: %d mismatches; trigger 0's +0x54 %d; step %.0f ms, queued %d bytes, chat \"%s\"\n", bad ? "error" : "ok", bad,
-          sm_count(scen_triggers_at(m)) ? trigger_get_0x54(sm_at(scen_triggers_at(m), 0)) : -1, scen_step(),
-          (int)(FIELD(scen_queue_at(m), 4, uint8_t *) - FIELD(scen_queue_at(m), 0, uint8_t *)), FIELD(scen_chat_at(m), 4, const char *) ? FIELD(scen_chat_at(m), 4, const char *) : "");
+          sm_count(scen_mgr_triggers_at(m)) ? trigger_get_0x54(sm_at(scen_mgr_triggers_at(m), 0)) : -1, scen_step(),
+          (int)(FIELD(scen_mgr_queue_at(m), 4, uint8_t *) - FIELD(scen_mgr_queue_at(m), 0, uint8_t *)), FIELD(scen_mgr_chat_at(m), 4, const char *) ? FIELD(scen_mgr_chat_at(m), 4, const char *) : "");
 }
 
 // trig [list|desc|areas|eval|check] | trig objects|effects [FROM] | trig attr P A | trig on|off|reset T | trig fire T | trig effect N
@@ -224,9 +224,9 @@ internal void cmd_trig(char *out, const char *args) {
     const char *arg = args + n;
     if (!m) { REPLY("error: no scenario manager\n"); return; }
     if (!strcmp(verb, "list") || !strcmp(verb, "desc")) { sm_list(out, m, verb[0] == 'd'); return; }
-    if (!strcmp(verb, "objects")) { REPLY("ok: objects from %d of %d\n", atoi(arg), sm_count(scen_objects_at(m))); sm_objects(out, m, atoi(arg)); return; }
+    if (!strcmp(verb, "objects")) { REPLY("ok: objects from %d of %d\n", atoi(arg), sm_count(scen_mgr_objects_at(m))); sm_objects(out, m, atoi(arg)); return; }
     if (!strcmp(verb, "areas")) { sm_areas(out, m); return; }
-    if (!strcmp(verb, "effects")) { REPLY("ok: effects from %d of %d\n", atoi(arg), sm_count(scen_effects_at(m))); sm_effects(out, m, atoi(arg)); return; }
+    if (!strcmp(verb, "effects")) { REPLY("ok: effects from %d of %d\n", atoi(arg), sm_count(scen_mgr_effects_at(m))); sm_effects(out, m, atoi(arg)); return; }
     if (!strcmp(verb, "eval")) { sm_eval(out, m); return; }
     if (!strcmp(verb, "check")) { sm_check(out, m); return; }
     if (!strcmp(verb, "attr")) {   // a player's attribute as conditions read it (the first condition as `this`: only attribute 0 uses it)
@@ -239,7 +239,7 @@ internal void cmd_trig(char *out, const char *args) {
     }
     if (!strcmp(verb, "effect")) {
         int e = atoi(arg);
-        ee_scen_effect *ef = sm_at(scen_effects_at(m), e);
+        ee_scen_effect *ef = sm_at(scen_mgr_effects_at(m), e);
         if (!ef) { REPLY("error: no effect %d\n", e); return; }
         sm_run_effect(ef, 0);
         REPLY("ok: effect %d (category %d) ran\n", e, scen_effect_get_category(ef));
@@ -254,7 +254,7 @@ internal void cmd_trig(char *out, const char *args) {
         // every effect now, delays and random groups ignored
         int ran = 0;
         for (int e = 0; e < sm_count(trigger_effects_at(t)); e++) {
-            ee_trig_effect *w = sm_at(trigger_effects_at(t), e); ee_scen_effect *ef = w && trigger_effect_get_kind(w) != 2 ? sm_at(scen_effects_at(m), trigger_effect_get_index(w)) : NULL;
+            ee_trig_effect *w = sm_at(trigger_effects_at(t), e); ee_scen_effect *ef = w && trig_effect_get_kind(w) != 2 ? sm_at(scen_mgr_effects_at(m), trig_effect_get_index(w)) : NULL;
             if (ef) { sm_run_effect(ef, 0); ran++; }
         }
         trigger_set_fired(t, 1);

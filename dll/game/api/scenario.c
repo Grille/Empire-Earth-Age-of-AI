@@ -22,11 +22,11 @@ internal inline int scen_effect_get_kind(const ee_scen_effect *ef, int cat) {
 // an object (EESMObject): the units picked (their ids: begin, end), by owner spec, class / type, count, area, a relation
 // to another object, a parent's units, an attribute range, a state, who sees / selects them - each test's mode 0
 // ignore, 1 must, 2 must not. Locked: the set picked for good (a non-dynamic object's first success)
-internal inline int scen_obj_unit_count(const ee_scen_object *o) {
-    const int *b = FIELD(o, of_scen_obj_units, const int *), *e = FIELD(o, of_scen_obj_units + 4, const int *);
+internal inline int scen_object_unit_count(const ee_scen_object *o) {
+    const int *b = FIELD(o, of_scen_object_units, const int *), *e = FIELD(o, of_scen_object_units + 4, const int *);
     return b && e > b ? (int)(e - b) : 0;
 }
-internal inline int scen_obj_unit_id(const ee_scen_object *o, int i) { return FIELD(o, of_scen_obj_units, const int *)[i]; }
+internal inline int scen_object_unit_id(const ee_scen_object *o, int i) { return FIELD(o, of_scen_object_units, const int *)[i]; }
 // an area (EESMArea): its name, its point (-10000: off the map; < 0: a unit's previous place), its rectangle (type
 // 0), its type (0 rectangle, 1 the land or sea of its point, 2 a player's shape round it), the AI area it names
 internal inline ivec2 scen_area_get_point(const ee_scen_area *a) {

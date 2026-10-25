@@ -1,16 +1,23 @@
+/// a message players send each other through the server (EEMessage, the base of every message: EEMPayTribute,
+/// EEMInGameChat, EEMSelectUnits ...)
+[c_type("ee_msg")]
+unsafe struct EEMessage
+{
+    /// the sender's message id (every message's)
+    [offset(0xA), found(b)]
+    int8 from;
+}
+
 /// the in-game chat message (EEMInGameChat)
-[c_type("ee_msg"), c_prefix("chat_msg")]
+[@base(typeof(EEMessage)), c_type("ee_chat_msg")]
 unsafe struct EEMInGameChat
 {
-    [offset(0xA), found(b)]
-    uint8 from;
-
     [offset(0x10), found(c)]
     block text;
 }
 
 /// the select message (EEMSelectUnits)
-[c_type("ee_msg"), c_prefix("select_msg")]
+[@base(typeof(EEMessage)), c_type("ee_select_msg")]
 unsafe struct EEMSelectUnits
 {
     [offset(0x10), found(b)]
@@ -24,7 +31,7 @@ unsafe struct EEMSelectUnits
 }
 
 /// the load-into-a-transport message (EEMLoadTransport)
-[c_type("ee_msg"), c_prefix("load_msg")]
+[@base(typeof(EEMessage)), c_type("ee_load_msg")]
 unsafe struct EEMLoadTransport
 {
     /// its Execute's reads (both builds)
@@ -37,7 +44,7 @@ unsafe struct EEMLoadTransport
 }
 
 /// the move message (EEMPathTo)
-[c_type("ee_msg"), c_prefix("path_msg")]
+[@base(typeof(EEMessage)), c_type("ee_path_msg")]
 unsafe struct EEMPathTo
 {
     /// its Execute's reads (both builds)
@@ -67,7 +74,7 @@ unsafe struct EEMPathTo
 }
 
 /// the game start message (EEMStartLoading)
-[c_type("ee_msg"), c_prefix("start_msg")]
+[@base(typeof(EEMessage)), c_type("ee_start_msg")]
 unsafe struct EEMStartLoading
 {
     [offset(0x14), found(c)]
@@ -75,7 +82,7 @@ unsafe struct EEMStartLoading
 }
 
 /// the tribute message (EEMPayTribute)
-[c_type("ee_msg"), c_prefix("tribute")]
+[@base(typeof(EEMessage)), c_type("ee_tribute_msg")]
 unsafe struct EEMPayTribute
 {
     [offset(0x10), found(c)]
@@ -98,7 +105,7 @@ unsafe struct EEMPayTribute
 }
 
 /// the unload message (EEMUnloadTransport)
-[c_type("ee_msg"), c_prefix("unload_msg")]
+[@base(typeof(EEMessage)), c_type("ee_unload_msg")]
 unsafe struct EEMUnloadTransport
 {
     /// its Execute's reads (both builds)
@@ -196,21 +203,21 @@ static unsafe class messages_functions
 
     /// EEMLoadTransport's Execute
     [address((ee)0x004B9446, (aoc)0x004C1B79), thiscall]
-    static extern void msg_load(EEMInGameChat* msg);
+    static extern void msg_load(EEMLoadTransport* msg);
 
     /// EEMPathTo's Execute
     [address((ee)0x004B9D7B, (aoc)0x004C281C), thiscall]
-    static extern void msg_path(EEMInGameChat* msg);
+    static extern void msg_path(EEMPathTo* msg);
 
     /// EEMUnloadTransport's Execute
     [address((ee)0x004BF756, (aoc)0x004C8615), thiscall]
-    static extern void msg_unload(EEMInGameChat* msg);
+    static extern void msg_unload(EEMUnloadTransport* msg);
 
     [address((ee)0x004BA6BE, (aoc)0x004C315B), thiscall]
-    static extern void msg_pay_tribute(EEMInGameChat* msg);
+    static extern void msg_pay_tribute(EEMPayTribute* msg);
 
     [address((ee)0x004BB906, (aoc)0x004C44BB), thiscall]
-    static extern void msg_resign(EEMInGameChat* msg);
+    static extern void msg_resign(EEMessage* msg);
 
     /// EEMSelectUnits: thiscall(msg, rect, type, 0x4E)
     [address((ee)0x004BD072, (aoc)0x004C5D7F), thiscall]

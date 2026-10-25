@@ -12,7 +12,7 @@ internal int is_transport(int t) { return ut_role(t, UTR_TRANSPORT); }   // a tr
 internal int is_fishing_boat(int t) { return ut_role(t, UTR_FISHING_BOAT); }
 // a soldier: of an army family, no siege weapon, ram or citizen
 internal int is_soldier(ee_unit_type *td) {
-    int fam = type_get_family(td), type = type_get_id(td);
+    int fam = unit_type_get_family(td), type = unit_type_get_id(td);
     if (!is_army_family(fam)) return 0;
     return !is_siege(type) && !is_ram(type) && !is_citizen_type(type);
 }

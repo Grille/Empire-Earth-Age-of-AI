@@ -85,16 +85,16 @@ internal void randmap_rewrite(ee_setup *setup) {
     for (int i = 0; i < 16; i++) {
         ee_setup_slot *slot = setup_slot_at(setup, i);
         int type = i == 0 ? 1 : i <= g_rm.ais ? 0 : 4;
-        slot_set_type(slot, type);
-        slot_set_unknown_4(slot, 3);
-        slot_set_unknown_1c(slot, 0);
-        slot_set_index(slot, i);
-        slot_set_color(slot, i);
+        setup_slot_set_type(slot, type);
+        setup_slot_set_unknown_4(slot, 3);
+        setup_slot_set_unknown_1c(slot, 0);
+        setup_slot_set_index(slot, i);
+        setup_slot_set_color(slot, i);
         // human alone on team 1; AIs free-for-all (team 0) or in pairs (2,2,3,3,...)
-        slot_set_team(slot, type == 4 ? 0 : i == 0 ? 1 : g_rm.pairs ? 2 + (i - 1) / 2 : 0);
-        slot_set_citizens(slot, g_rm.citizens);
-        slot_set_unknown_30(slot, 0);
-        slot_set_flags(slot, i == 0 ? 0x75010001u : 0x77010000u);
+        setup_slot_set_team(slot, type == 4 ? 0 : i == 0 ? 1 : g_rm.pairs ? 2 + (i - 1) / 2 : 0);
+        setup_slot_set_citizens(slot, g_rm.citizens);
+        setup_slot_set_unknown_30(slot, 0);
+        setup_slot_set_flags(slot, i == 0 ? 0x75010001u : 0x77010000u);
     }
     setup_set_speed(setup, 1);
     setup_set_map_scale(setup, g_rm.scale);   // the map size (1 Small: what every test map was before map_scale)
@@ -118,7 +118,7 @@ internal void randmap_rewrite(ee_setup *setup) {
         fprintf(g_log, "# random map: \"%s\" size %d, %d AIs (%s), start epoch %d, seed %d, difficulty %d%s%s, unit limit %d (game default %d, max %d)\n",
                 g_rm.map, g_rm.size, g_rm.ais, g_rm.pairs ? "pairs" : "ffa", g_rm.start_epoch, world ? (int)world_get_seed(world) : -1, g_rm.difficulty,
                 g_rm.scale != 1 ? ", map scale " : "", g_rm.scale != 1 ? k_rm_scale[g_rm.scale] : "", g_rm.unit_limit,
-                lim ? gamedata_get_unit_limit(lim) : -1, lim ? gamedata_get_unit_limit_max(lim) : -1);
+                lim ? game_data_get_unit_limit(lim) : -1, lim ? game_data_get_unit_limit_max(lim) : -1);
         fflush(g_log);
     }
 }
@@ -137,13 +137,13 @@ internal void randmap_ai_toggles(ee_player *pl) {
         player_set_difficulty(pl, g_rm.v_difficulty);
         ee_civ_mgr *cm = player_get_civ_mgr(pl);
         uint32_t now = game_time();
-        if (cm) cm_set_epoch_time(cm, now, 0);   // the epoch attempt, drawn anew
-        if (!player_get_first_attack_done(pl)) cp_schedule_attack(pl, now);   // the first attack
+        if (cm) civ_mgr_set_epoch_time(cm, now, 0);   // the epoch attempt, drawn anew
+        if (!player_get_first_attack_done(pl)) player_schedule_attack(pl, now);   // the first attack
         if (g_log) fprintf(g_log, "# vanilla: P%d difficulty %d - first epoch attempt at %.1f min, first attack at %.1f min\n", idx,
-                           g_rm.v_difficulty, cm ? cm_get_timer(cm, 0) / 60000.0 : -1.0, player_get_next_attack(pl) / 60000.0);
+                           g_rm.v_difficulty, cm ? civ_mgr_get_timer(cm, 0) / 60000.0 : -1.0, player_get_next_attack(pl) / 60000.0);
     }
     if (g_log) {   // the cheat as the game will apply it: AdjustCost (vf27) on a price of 1000
-        int cost = cp_adjust_cost(pl, 1000);
+        int cost = player_adjust_cost(pl, 1000);
         fprintf(g_log, "# cheat: P%d (%s) difficulty %d, cheat %d: a price of 1000 costs %d (pct easy %d, medium %.1f, hard %d)\n", idx,
                 vanilla ? "vanilla" : "mod", player_get_difficulty(pl), player_get_cheat(pl), cost, player_get_cost_easy(pl),
                 player_get_cost_medium(pl), player_get_cost_hard(pl));
@@ -157,7 +157,7 @@ internal void randmap_ai_toggles(ee_player *pl) {
         int span = g_rm.epoch_max - g_rm.epoch_min + 1;
         uint32_t delay = (uint32_t)(g_rm.epoch_min + (idx * 7) % (span > 0 ? span : 1)) * 60000u;
         ee_civ_mgr *cm = player_get_civ_mgr(pl);
-        if (cm) cm_set_timer(cm, 0, game_time() + delay);
+        if (cm) civ_mgr_set_timer(cm, 0, game_time() + delay);
         if (g_log) fprintf(g_log, "# test epoch timer: P%d %d-%d min, first attempt at %.1f min\n", idx,
                            g_rm.epoch_min, g_rm.epoch_max, (game_time() + delay) / 60000.0);
     }

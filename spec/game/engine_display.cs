@@ -1,4 +1,3 @@
-[c_prefix("dstate")]
 unsafe struct ee_draw_state
 {
     [offset(0x1C), found(c)]
@@ -15,7 +14,7 @@ unsafe struct GEFont
     void* bitmap;
 }
 
-[c_type("ee_input_mouse"), c_prefix("imouse")]
+[c_type("ee_input_mouse")]
 unsafe struct ISMouse
 {
     [offset(0x4), found(c)]
@@ -28,7 +27,7 @@ unsafe struct ISMouse
     void** device;
 }
 
-[c_type("ee_rasterizer"), c_prefix("ras")]
+[c_type("ee_rasterizer")]
 unsafe struct DX7Rasterizer
 {
     [offset(0x20), found(c)]
@@ -58,7 +57,6 @@ unsafe struct DX7Screen
     uint8 fullscreen;
 }
 
-[c_prefix("scrstate")]
 unsafe struct ee_screen_state
 {
     [offset(0x2A8), found(c)]
@@ -77,7 +75,7 @@ unsafe struct ee_screen_state
     block stats;
 }
 
-[c_type("ee_surface"), c_prefix("surf")]
+[c_type("ee_surface")]
 unsafe struct DX7Surface
 {
     /// IDirectDrawSurface7 *

@@ -21,7 +21,7 @@ __attribute__((used)) ee_unit *__cdecl asg_queue_unit(ee_unit *u) {
     if (g_log && g_asg_queue_freed++ < 5) {
         ee_unit_type *td = unit_get_type_data(u);
         fprintf(g_log, "# engine fix: a unit (type %d) freed while it waited to join an attack subgroup - not made a member at %.1f min\n",
-                td ? type_get_id(td) : -1, game_time() / 60000.0);
+                td ? unit_type_get_id(td) : -1, game_time() / 60000.0);
     }
     return NULL;
 }

@@ -239,7 +239,7 @@ internal void ws_unit(ee_unit *u, void *ctx) {
     int o = pidx(owner);
     if (o == 0) return;   // nature (wild animals): hostile to everyone, not an attack
     ee_unit_type *td = unit_get_type_data(u);
-    int fam = type_get_family(td), type = type_get_id(td);
+    int fam = unit_type_get_family(td), type = unit_type_get_id(td);
     if ((unsigned)type < G_TYPES_N) g_ws_types[o][type]++;
     if (is_citizen_type(type)) { g_ws.citizens[o]++; return; }
     if (type == UT(B_TOWN_CENTER) || type == UT(B_CAPITOL)) g_ws.centers[o]++;   // where citizens are trained
@@ -266,8 +266,8 @@ internal void world_scan(uint32_t now) {
         g_ws.towers[i] = g_ws.walls[i] = 0;
         g_ws.bx[i] = -10000;
         void *cm = g_players[i] ? player_get_civ_mgr(g_players[i]) : NULL;
-        ee_build_mgr *bm = cm ? cm_get_build_mgr(cm) : NULL;
-        if (bm && bm_get_base_x(bm) != -10000) { g_ws.bx[i] = bm_get_base_x(bm); g_ws.by[i] = bm_get_base_y(bm); }
+        ee_build_mgr *bm = cm ? civ_mgr_get_build_mgr(cm) : NULL;
+        if (bm && build_mgr_get_base_x(bm) != -10000) { g_ws.bx[i] = build_mgr_get_base_x(bm); g_ws.by[i] = build_mgr_get_base_y(bm); }
     }
     memset(g_ws.close_by, 0, sizeof g_ws.close_by);
     grid_each(ws_unit, NULL);
@@ -304,8 +304,8 @@ enum { K_ARMY, K_BUILDINGS, K_CIVIL, K_AIR, K_NAVY, K_N };
 // the class +0x4B4: 6 citizens (and the engineer), 22 fishing boats; 3 aircraft, 7 helicopters and balloons, 17
 // transport helicopters; 4 ships, 10 submarines, 18 transports, 21 carriers; the rest on land - priests, heroes, siege
 internal int kill_kind(ee_unit_type *td) {
-    int c = td ? type_get_family(td) : 5;
-    if (c == 6 || c == 22 || (td && is_citizen_type(type_get_id(td)))) return K_CIVIL;
+    int c = td ? unit_type_get_family(td) : 5;
+    if (c == 6 || c == 22 || (td && is_citizen_type(unit_type_get_id(td)))) return K_CIVIL;
     if (c == 3 || c == 7 || c == 17) return K_AIR;
     if (c == 4 || c == 10 || c == 18 || c == 21) return K_NAVY;
     return K_ARMY;
@@ -442,12 +442,12 @@ __attribute__((used)) void __thiscall hook_kill_stat(uint8_t *stats, int n, int 
         ee_unit_type *td = unit_get_type_data(g_kill_unit);
         int c = n == 2 ? K_BUILDINGS : kill_kind(td);
         g_kills[k][v][c] += (uint32_t)d;
-        if (n == 3 && td && type_get_family(td) == 22) g_nv_boat_kills[k][v] += (uint32_t)d;
-        if (n == 3 && c == K_NAVY && td && (unsigned)type_get_id(td) < G_TYPES_N) {
-            g_nv_lost_type[v & 15][type_get_id(td)] += (uint16_t)d; g_nv_sunk_type[k & 15][type_get_id(td)] += (uint16_t)d;
+        if (n == 3 && td && unit_type_get_family(td) == 22) g_nv_boat_kills[k][v] += (uint32_t)d;
+        if (n == 3 && c == K_NAVY && td && (unsigned)unit_type_get_id(td) < G_TYPES_N) {
+            g_nv_lost_type[v & 15][unit_type_get_id(td)] += (uint16_t)d; g_nv_sunk_type[k & 15][unit_type_get_id(td)] += (uint16_t)d;
         }
         g_kills_min[b][k][v][c] += (uint16_t)d;
-        if (td) kl_add(k, v, type_get_id(td), d);
+        if (td) kl_add(k, v, unit_type_get_id(td), d);
         fleet_kill(k, g_kill_unit, n);
         if (n == 3) fleet_lost(v, g_kill_unit);
         if (n == 3) mass_death(g_kill_unit);
@@ -633,7 +633,7 @@ internal int blocks_on(void) { return g_blocks && g_ai_diplomacy && !TEAMS_LOCKE
 internal void block_line(int to, const char *text) {   // a system line, only on that player's PC
     if (to != (int)local_player_index()) return;
     ee_game_data *opt = game_data();
-    system_line(text, opt ? gamedata_get_line_ms(opt) * 2 : 20000);
+    system_line(text, opt ? game_data_get_line_ms(opt) * 2 : 20000);
     if (g_log) fprintf(g_log, "# system line: %s\n", text);
 }
 
@@ -1237,8 +1237,8 @@ internal void diplo_cancel_attacks(int ai, int j) {
     if (ai > 0 && ai < 16 && j > 0 && j < 16 && mod_ai(ai)) InterlockedOr(&g_cancel_queue[ai], 1 << j);
 }
 internal int attack_groups(ee_player *pl) {   // the attack commander's deque count
-    ee_combat_mgr *cbm = player_get_combat_mgr(pl); ee_attack_cmd *cmd = cbm ? am_get_commander(cbm) : NULL;
-    return cmd ? ac_get_group_count(cmd) : -1;
+    ee_combat_mgr *cbm = player_get_combat_mgr(pl); ee_attack_cmd *cmd = cbm ? combat_mgr_get_commander(cbm) : NULL;
+    return cmd ? attack_cmd_get_group_count(cmd) : -1;
 }
 
 internal void victory_off_pass(void);   // below, with the victory
@@ -1558,11 +1558,11 @@ internal void diplo_tribute(void *to, void *from, const int *amount) {
     tell_event(0, 0, 0, 0);
     if (!stance_of(from, ai) && stance_of(to, j)) g_peace_due[ai][j] = game_time() + 3000;   // ask again now
 }
-internal void __thiscall hook_tribute(ee_msg *msg) {
-    int total = tribute_get_food(msg) + tribute_get_gold(msg) + tribute_get_iron(msg) + tribute_get_stone(msg) + tribute_get_wood(msg);
-    int amount[7] = { 0, 0, tribute_get_food(msg), tribute_get_wood(msg), tribute_get_stone(msg), tribute_get_gold(msg), tribute_get_iron(msg) };
-    void *to = player_at(tribute_get_to(msg));
-    void *from = game_player((int)msg_get_from(msg));
+internal void __thiscall hook_tribute(ee_tribute_msg *msg) {
+    int total = tribute_msg_get_food(msg) + tribute_msg_get_gold(msg) + tribute_msg_get_iron(msg) + tribute_msg_get_stone(msg) + tribute_msg_get_wood(msg);
+    int amount[7] = { 0, 0, tribute_msg_get_food(msg), tribute_msg_get_wood(msg), tribute_msg_get_stone(msg), tribute_msg_get_gold(msg), tribute_msg_get_iron(msg) };
+    void *to = player_at(tribute_msg_get_to(msg));
+    void *from = game_player((int)tribute_msg_get_from(msg));
     msg_pay_tribute(msg);
     if (from && to) hist_tribute(pidx(from), pidx(to), total);
     diplo_tribute(to, from, amount);
@@ -1614,7 +1614,7 @@ internal void victory_hint(ee_player *pl, int ai) {   // every 10 s per AI, afte
     g_victory_told = 1;
     persona_say(pl, L_ALL_SUBMITTED, player_at(me), NULL);   // in character; the how in a system line after it
     ee_game_data *opt = game_data();
-    system_line(sysf("victory_vassals", NULL, NULL, NULL, NULL), opt ? gamedata_get_line_ms(opt) * 3 : 30000);
+    system_line(sysf("victory_vassals", NULL, NULL, NULL, NULL), opt ? game_data_get_line_ms(opt) * 3 : 30000);
     if (g_log) fprintf(g_log, "# victory: P%d at %.1f min: every other player is a vassal of P%d - \"sieg\" ends the game\n",
                        ai, game_time() / 60000.0, me);
 }
@@ -1667,7 +1667,7 @@ internal void victory_off_pass(void) {   // auto_victory=0, every pass between s
     for (int j = 1; j < nplayers(); j++)   // a vassal says it in character, if there is one
         if (g_players[j] && g_lord[j] == me && !is_out(player_at(j))) { persona_say(player_at(j), L_ALL_SUBMITTED, player_at(me), NULL); break; }
     ee_game_data *opt = game_data();
-    system_line(sysf("victory_none", NULL, NULL, NULL, NULL), opt ? gamedata_get_line_ms(opt) * 3 : 30000);
+    system_line(sysf("victory_none", NULL, NULL, NULL, NULL), opt ? game_data_get_line_ms(opt) * 3 : 30000);
     if (g_log) fprintf(g_log, "# victory: P%d at %.1f min: no opponent left - \"sieg\" ends the game\n", me, game_time() / 60000.0);
 }
 // Leaving a won game counts too. The menu's Resign (EEUIEMGOEResign::vf1 0x5D0578, confirmed: 0x5D05CC) sends
@@ -1697,16 +1697,16 @@ internal void __cdecl hook_exit_confirm(void) {
     exit_confirm();
 }
 
-internal void __thiscall hook_ingame_chat(ee_msg *msg) {
+internal void __thiscall hook_ingame_chat(ee_chat_msg *msg) {
     // chat runs on every PC: the claim goes by the sender (+0xA, as hook_resign), so every PC ends the game alike
     // (only the local player's own word claimed before - a multiplayer desync); the refusal line is the sender's only
     int me = (int)local_player_index(), from = 0;
     void *pm = player_at(me);
     const char *text = chat_msg_get_text(msg);
-    int refused = 0, local = pm && player_get_msg_id(pm) == msg_get_from(msg);
+    int refused = 0, local = pm && player_get_msg_id(pm) == chat_msg_get_from(msg);
     for (int i = 1; text && !from && i < nplayers(); i++) {
         void *p = player_at(i);
-        if (p && !g_players[i] && player_get_msg_id(p) == msg_get_from(msg)) from = i;
+        if (p && !g_players[i] && player_get_msg_id(p) == chat_msg_get_from(msg)) from = i;
     }
     if (from && text && victory_word(text))
         refused = !claim_victory(from, "the chat word");
@@ -1725,7 +1725,7 @@ internal void __thiscall hook_ingame_chat(ee_msg *msg) {
     lstrcpynA(line, sysf("victory_not_yet", NULL, NULL, NULL, "names", names, NULL), sizeof line);
 
     ee_game_data *opt = game_data();
-    system_line(line, opt ? gamedata_get_line_ms(opt) * 2 : 20000);
+    system_line(line, opt ? game_data_get_line_ms(opt) * 2 : 20000);
     if (g_log) fprintf(g_log, "# victory: refusal shown: %s\n", line);
 }
 internal void chat_send(const char *text) {   // a chat line from the local player, as the chat box sends it (tests)

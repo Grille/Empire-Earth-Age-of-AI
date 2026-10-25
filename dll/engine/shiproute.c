@@ -47,12 +47,12 @@ internal struct {
 
 internal int sr_is_ship(ee_unit *u) {
     ee_unit_type *td = unit_get_type_data(u);
-    return td && type_terrain_ok(td, 1) && !type_terrain_ok(td, 0);
+    return td && unit_type_terrain_ok(td, 1) && !unit_type_terrain_ok(td, 0);
 }
 
 internal int sr_is_land(ee_unit *u) {
     ee_unit_type *td = unit_get_type_data(u);
-    return td && model_kind(type_get_model(td)) == MODEL_LAND;
+    return td && model_kind(unit_type_get_model(td)) == MODEL_LAND;
 }
 
 // a request this planner answers: a ship's with ship_routes, a land unit's with land_routes
@@ -86,13 +86,13 @@ internal int sr_pass(ee_map *map, ee_unit *u, ee_unit_type *td, int size, int x,
     g_sr.pass[i] = 2;
     if (x + y == map_get_edge_sum(map) || x + y == map_get_edge_sum_2(map) || y - x == map_get_edge_diff(map) || x - y == map_get_edge_diff(map)) return 0;
     ee_tile *tile = map_get_tiles(map)[i];
-    if (!tile || !type_terrain_ok(td, tile_get_kind(tile))) return 0;
+    if (!tile || !unit_type_terrain_ok(td, tile_get_kind(tile))) return 0;
     int sea = tile_get_sea_class(tile), mode = unit_get_sea_mode(u);   // the naval movement's own test (its route search's sea modifier)
     if (g_sr_ship && ((sea < 0 && mode != 0) || (sea > 0 && mode == 3))) return 0;
     for (void *node = tile_get_objects(tile); node; node = tilenode_get_next(node)) {
         ee_unit *o = tilenode_get_object(node);   // units that move are left to the movement (they won't be there)
         ee_unit_stats *st = o && o != u ? unit_get_stats(o) : NULL;
-        if (o && o != u && !(st && stat_get_speed(st) > 0) && !unit_lets_pass(o, u)) return 0;
+        if (o && o != u && !(st && unit_stats_get_speed(st) > 0) && !unit_lets_pass(o, u)) return 0;
     }
     g_sr.pass[i] = 1;
     return 1;
@@ -166,7 +166,7 @@ internal int sr_route(ee_unit *u, int *from, int *to, void *caller, int sectors)
     sr_stamp();
     int sx = from[0], sy = from[1], tx = to[0], ty = to[1];
     g_sr_ship = sr_is_ship(u);
-    g_sr_radius = type_get_collision(td) * 0.5f;
+    g_sr_radius = unit_type_get_collision(td) * 0.5f;
     if (g_sr_radius < 0.35f) g_sr_radius = 0.35f;
     if (g_sr_radius > SR_RADIUS_MAX) g_sr_radius = SR_RADIUS_MAX;
     if (!g_sr_ship) g_sr_radius = 0;   // a land unit: no dearer tiles near what blocks
@@ -358,7 +358,7 @@ internal float g_st_aim_dist, g_st_aim_x, g_st_aim_y;
 internal void st_stamp_step(void) {
     static unsigned last = ~0u;
     ee_physics *ph = game_physics();
-    unsigned step = ph ? phys_get_step(ph) : 0;
+    unsigned step = ph ? physics_get_step(ph) : 0;
     if (step != last || g_sr.gen == 0) { sr_stamp(); last = step; }
 }
 
@@ -513,7 +513,7 @@ internal int __thiscall hook_ship_speed(void *model, ee_unit *u, float dist, flo
     }
     if (!g_st_on || !u || e <= 0.7853982f || (unit_get_waypoints_left(u) < 2 && !st_pass_through(u, onward)) || dist <= 0) return d;
     ee_physics *ph = game_physics();
-    float w = unit_max_turn(u), v = unit_get_speed(u), top = unit_max_speed(u), step = ph ? phys_get_step_s(ph) * unit_accel(u) : 0;
+    float w = unit_max_turn(u), v = unit_get_speed(u), top = unit_max_speed(u), step = ph ? physics_get_step_s(ph) * unit_accel(u) : 0;
     float s = sinf(e), keep = s > 0.001f ? ST_SPARE * w * dist / (2 * s) : top;
     if (keep > top) keep = top;
     // the circle it would sweep must be free (water it may enter, no other ship in it): else a tighter, slower one, at

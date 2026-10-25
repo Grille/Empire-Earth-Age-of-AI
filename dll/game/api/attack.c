@@ -5,19 +5,19 @@
 // THE COMBAT MANAGER (EECPCombatManager, a computer player's +0xB8C) and its attack commander, which keeps the attack
 // groups: a group has its subgroups (one per kind: land, sea, sea transport, air), a subgroup its unit records
 // the attention's activities 6 ([+0x4C] +0x48; the object at +0x4C not known) and 8 (+0x62)
-internal inline uint8_t am_get_att_4c(const ee_combat_mgr *am) {
-    uint8_t *o = FIELD(am, of_am_0x4c, uint8_t *);
+internal inline uint8_t combat_mgr_get_att_4c(const ee_combat_mgr *am) {
+    uint8_t *o = FIELD(am, of_combat_mgr_0x4c, uint8_t *);
     return o ? o[of_combat_mgr_4c_0x48] : 0;
 }
 // +0x4 the groups, a deque of ee_attack_group * (deque_at); +0x14 its count
-internal inline int ac_get_group_count(const ee_attack_cmd *ac) { return FIELD(ac, of_ac_groups + 0x10, int); }
+internal inline int attack_cmd_get_group_count(const ee_attack_cmd *ac) { return FIELD(ac, of_attack_cmd_groups + 0x10, int); }
 
 // AN ATTACK GROUP (EECPAttackGroup)
-internal inline ee_attack_subgroup **ag_get_subgroups_end(const ee_attack_group *g) { return FIELD(g, of_ag_subgroups_begin + 0x4, ee_attack_subgroup **); }
+internal inline ee_attack_subgroup **attack_group_get_subgroups_end(const ee_attack_group *g) { return FIELD(g, of_attack_group_subgroups_begin + 0x4, ee_attack_subgroup **); }
 
-// AN ATTACK SUBGROUP (EECPAttackSubGroup; EECPASGLand, asg_is_land, has the fields from +0x60 on)
-internal inline ee_asg_unit **asg_get_units_end(const ee_attack_subgroup *sg) { return FIELD(sg, of_asg_units_begin + 0x4, ee_asg_unit **); }
-internal inline void asg_set_units_end(ee_attack_subgroup *sg, ee_asg_unit **e) { FIELD(sg, of_asg_units_begin + 0x4, ee_asg_unit **) = e; }
+// AN ATTACK SUBGROUP (EECPAttackSubGroup; EECPASGLand, attack_subgroup_is_land, has the fields from +0x60 on)
+internal inline ee_asg_unit **attack_subgroup_get_units_end(const ee_attack_subgroup *sg) { return FIELD(sg, of_attack_subgroup_units_begin + 0x4, ee_asg_unit **); }
+internal inline void attack_subgroup_set_units_end(ee_attack_subgroup *sg, ee_asg_unit **e) { FIELD(sg, of_attack_subgroup_units_begin + 0x4, ee_asg_unit **) = e; }
 // +0x60 the route, a deque of {x, y, ?} (attack.c route_waypoint); +0x70 its waypoints
 // +0x100 the target: +4 x, +8 y, +0xC the unit's id, +0x10 its kind (1: a unit)
 // its target record: +4 / +8 the place, +0xC the unit's id, +0x10 the kind (1 a unit)
@@ -30,7 +30,7 @@ internal inline void asg_target_set_unit(ee_asg_target *tg, int x, int y, int id
 }
 
 // A SUBGROUP'S UNIT RECORD (EECPAttackSubGroupUnit)
-// what asgu_score scores: +0x4 the enemy
+// what asg_unit_score scores: +0x4 the enemy
 
 // AN ATTACK TASK (EECPAGTask; test/testcmd.c aigroup makes one): +0x20 the player it attacks, +0x28 / +0x2C / +0x30
 // as the scenario effect "Create AI Military Group" sets them (7, 2, 1 - not known)
@@ -48,7 +48,7 @@ internal inline ee_unit *group_get(void *grp, unsigned i) { return ((ee_unit *(_
 // the combat manager (player +0xB8C) answers an attack by target (the game's revenge attack)
 
 // a land attack subgroup (EECPASGLand, by its vtable: the subgroups of the other kinds have none of its fields)
-internal inline int asg_is_land(const ee_attack_subgroup *sg) { return *(const uintptr_t *)sg == data_attack_vt_asg_land; }
+internal inline int attack_subgroup_is_land(const ee_attack_subgroup *sg) { return *(const uintptr_t *)sg == data_attack_vt_asg_land; }
 
 // AN ATTACK GROUP OF THE GAME'S OWN (test/testcmd.c aigroup: as the scenario effect "Create AI Military Group"):
 // a task (0x34) with its location (0x18, the point at +4) and target, a strategy (0x44), the unit ids (a vector<int>
@@ -67,33 +67,33 @@ internal inline int route_cost(ee_route_planner *planner, int *edge, ee_route_no
 // ATTACK GROUPS AND SUBGROUPS (attack.c, forces.c, landing.c)
 typedef void (__thiscall *asg_hook)(ee_attack_subgroup *sg);
 // the subgroups' stats: the land subgroups' own, the others' (data_attack_asg_vtables)
-internal inline int patch_asg_land_stats(asg_hook h) { return patch_vtable(data_attack_vt_asg_land, value_attack_slot_asg_stats, (uintptr_t)fn_asg_land_stats, (void *)h); }
-internal inline int patch_asg_stats(asg_hook h, int *of) { return patch_vtables(PATCH_LIST(data_attack_asg_vtables), value_attack_slot_asg_stats, (uintptr_t)fn_asg_stats, (void *)h, of); }
+internal inline int patch_asg_land_stats(asg_hook h) { return patch_vtable(data_attack_vt_asg_land, value_attack_slot_asg_stats, (uintptr_t)fn_attack_subgroup_land_stats, (void *)h); }
+internal inline int patch_asg_stats(asg_hook h, int *of) { return patch_vtables(PATCH_LIST(data_attack_asg_vtables), value_attack_slot_asg_stats, (uintptr_t)fn_attack_subgroup_stats, (void *)h, of); }
 typedef void (__thiscall *asg_update_hook)(ee_attack_subgroup *sg, int now);
-internal inline int patch_asg_update(asg_update_hook h) { return patch_vtable(data_attack_vt_asg_land, value_attack_slot_asg_update, (uintptr_t)fn_asg_update, (void *)h); }
-internal inline int patch_asg_sea_update(asg_update_hook h) { return patch_vtable(data_attack_vt_asg_sea, value_attack_slot_asg_update, (uintptr_t)fn_asg_sea_update, (void *)h); }
+internal inline int patch_asg_update(asg_update_hook h) { return patch_vtable(data_attack_vt_asg_land, value_attack_slot_asg_update, (uintptr_t)fn_attack_subgroup_update, (void *)h); }
+internal inline int patch_asg_sea_update(asg_update_hook h) { return patch_vtable(data_attack_vt_asg_sea, value_attack_slot_asg_update, (uintptr_t)fn_attack_subgroup_sea_update, (void *)h); }
 internal inline int patch_asg_sea_transport_update(asg_update_hook h) {
-    return patch_vtable(data_attack_vt_asg_sea_transport, value_attack_slot_asg_update, (uintptr_t)fn_asg_sea_transport_update, (void *)h);
+    return patch_vtable(data_attack_vt_asg_sea_transport, value_attack_slot_asg_update, (uintptr_t)fn_attack_subgroup_sea_transport_update, (void *)h);
 }
-internal inline int patch_asg_air_update(asg_update_hook h) { return patch_vtable(data_attack_vt_asg_air, value_attack_slot_asg_update, (uintptr_t)fn_asg_air_update, (void *)h); }
+internal inline int patch_asg_air_update(asg_update_hook h) { return patch_vtable(data_attack_vt_asg_air, value_attack_slot_asg_update, (uintptr_t)fn_attack_subgroup_air_update, (void *)h); }
 // the subgroups' orders to a unit (vf57): sea transport, sea, land through h, air through h_air - of 4
 typedef char (__thiscall *asg_give_goal_hook)(ee_attack_subgroup *sg, ee_unit *u, ee_goal *goal, int a, int prio);
 internal inline int patch_asg_give_goal(asg_give_goal_hook h, asg_give_goal_hook h_air) {
-    return patch_vtable(data_attack_vt_asg_sea_transport, value_attack_slot_asg_give_goal, (uintptr_t)fn_asg_give_goal, (void *)h) +
-           patch_vtable(data_attack_vt_asg_sea, value_attack_slot_asg_give_goal, (uintptr_t)fn_asg_give_goal, (void *)h) +
-           patch_vtable(data_attack_vt_asg_land, value_attack_slot_asg_give_goal, (uintptr_t)fn_asg_give_goal, (void *)h) +
-           patch_vtable(data_attack_vt_asg_air, value_attack_slot_asg_give_goal, (uintptr_t)fn_asg_air_give_goal, (void *)h_air);
+    return patch_vtable(data_attack_vt_asg_sea_transport, value_attack_slot_asg_give_goal, (uintptr_t)fn_attack_subgroup_give_goal, (void *)h) +
+           patch_vtable(data_attack_vt_asg_sea, value_attack_slot_asg_give_goal, (uintptr_t)fn_attack_subgroup_give_goal, (void *)h) +
+           patch_vtable(data_attack_vt_asg_land, value_attack_slot_asg_give_goal, (uintptr_t)fn_attack_subgroup_give_goal, (void *)h) +
+           patch_vtable(data_attack_vt_asg_air, value_attack_slot_asg_give_goal, (uintptr_t)fn_attack_subgroup_air_give_goal, (void *)h_air);
 }
 // a land subgroup's route and its arrival, the route planner's edge cost
 typedef void (__thiscall *asg_route_hook)(ee_attack_subgroup *sg, int *start, int *dest);
 internal inline int patch_asg_route(asg_route_hook h) { return patch_vtable(data_attack_vt_asg_land, value_attack_slot_asg_route, (uintptr_t)fn_asg_route, (void *)h); }
-internal inline int patch_asg_route_done(asg_hook h) { return patch_vtable(data_attack_vt_asg_land, value_attack_slot_asg_route_done, (uintptr_t)fn_asg_route_done, (void *)h); }
+internal inline int patch_asg_route_done(asg_hook h) { return patch_vtable(data_attack_vt_asg_land, value_attack_slot_asg_route_done, (uintptr_t)fn_attack_subgroup_route_done, (void *)h); }
 typedef int (__thiscall *route_cost_hook)(ee_route_planner *planner, int *edge, ee_route_node *node);
 internal inline int patch_route_cost(route_cost_hook h) { return patch_vtable(data_attack_vt_route_planner, value_attack_slot_route_cost, (uintptr_t)fn_route_cost_game, (void *)h); }
 // the land members' score of an enemy (base, hero, priests and prophets: data_attack_asgu_vtables)
 typedef float (__thiscall *asgu_score_hook)(ee_asg_unit *member, ee_asgu_info *info);
 internal inline int patch_asgu_score(asgu_score_hook h, int *of) {
-    return patch_vtables(PATCH_LIST(data_attack_asgu_vtables), value_attack_slot_asgu_score, (uintptr_t)fn_asgu_score, (void *)h, of);
+    return patch_vtables(PATCH_LIST(data_attack_asgu_vtables), value_attack_slot_asgu_score, (uintptr_t)fn_asg_unit_score, (void *)h, of);
 }
 // the attack subgroups' pop of a waiting unit (asg_queue.c: a thunk, it calls game_asg_queue_pop) - the land and the air ones
 internal inline int patch_asg_queue_pop(thunk_fn thunk, int *of) {

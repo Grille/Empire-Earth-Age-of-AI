@@ -39,9 +39,9 @@ internal void early_new_game(void) {
 internal int early_tower_type(ee_player *pl) { return tower_newest(pl); }   // the best tower it can build now (as defence_tick)
 internal int early_base(ee_player *pl, int *bx, int *by) {
     void *cm = player_get_civ_mgr(pl);
-    ee_build_mgr *bm = cm ? cm_get_build_mgr(cm) : NULL;
-    if (!bm || bm_get_base_x(bm) == -10000) return 0;
-    *bx = bm_get_base_x(bm); *by = bm_get_base_y(bm);
+    ee_build_mgr *bm = cm ? civ_mgr_get_build_mgr(cm) : NULL;
+    if (!bm || build_mgr_get_base_x(bm) == -10000) return 0;
+    *bx = build_mgr_get_base_x(bm); *by = build_mgr_get_base_y(bm);
     return 1;
 }
 internal int early_finished(ee_unit *u) { ee_unit *bs = unit_get_physics(u); return bs && unit_get_finished(bs); }
@@ -51,7 +51,7 @@ internal void early_towers_at(ee_player *pl, int x, int y, int r, int *fin, int 
     for (struct grid_it it = grid_it_box(x, y, r, 1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
         ee_unit_type *td = it.td;
-        if (!td || unit_get_owner(u) != pl || unit_get_hp(u) <= 0 || !is_tower_type(type_get_id(td))) continue;
+        if (!td || unit_get_owner(u) != pl || unit_get_hp(u) <= 0 || !is_tower_type(unit_type_get_id(td))) continue;
         if (abs(unit_get_x(u) - x) > r || abs(unit_get_y(u) - y) > r) continue;
         (*all)++;
         *fin += early_finished(u);
@@ -80,7 +80,7 @@ internal void early_slot(ee_player *pl, unsigned idx, int bx, int by, int k, int
         for (struct grid_it it = grid_it_box(bx, by, 15, 1); grid_it_next(&it); ) {
             ee_unit *u = it.u;
             ee_unit_type *td = it.td;
-            if (!td || unit_get_owner(u) != pl || unit_get_hp(u) <= 0 || !is_citizen_type(type_get_id(td))) continue;
+            if (!td || unit_get_owner(u) != pl || unit_get_hp(u) <= 0 || !is_citizen_type(unit_type_get_id(td))) continue;
             sx += (float)(unit_get_x(u) - bx); sy += (float)(unit_get_y(u) - by);
         }
         float px = -dy, py = dx;
@@ -133,9 +133,9 @@ internal void early_towers_tick(ee_player *pl, unsigned idx, uint32_t now) {
     int bx, by;
     if (!early_base(pl, &bx, &by)) return;
     void *cm = player_get_civ_mgr(pl);
-    ee_build_mgr *bm = cm ? cm_get_build_mgr(cm) : NULL;
+    ee_build_mgr *bm = cm ? civ_mgr_get_build_mgr(cm) : NULL;
     int *stock = player_stock_at(pl), type = early_tower_type(pl), e = current_epoch(pl);
-    if (type && !st->range) { ee_unit_type *td = type_data(type); st->range = td ? type_get_range(td) : 0; }
+    if (type && !st->range) { ee_unit_type *td = type_data(type); st->range = td ? unit_type_get_range(td) : 0; }
     int fin, all, x, y;
     early_towers_at(pl, bx, by, EARLY_DIST + 3, &fin, &all);
     if (!bm) return;
@@ -143,7 +143,7 @@ internal void early_towers_tick(ee_player *pl, unsigned idx, uint32_t now) {
     if (bm && type && all < EARLY_CORE && !queued && stock[4] >= unit_cost(pl, type, 4) && e >= 0 && e < 14 &&
         early_core_spot(pl, type, &x, &y)) {
         int entry[3] = { type, x, y };
-        bm_queue_add(bm, e, entry);
+        build_mgr_queue_add(bm, e, entry);
         st->queued++;
         if (g_log) fprintf(g_log, "# early: P%u queues tower %d at %d,%d (stone %d)\n", idx, type, x, y, stock[4]);
     }
@@ -153,7 +153,7 @@ internal void early_towers_tick(ee_player *pl, unsigned idx, uint32_t now) {
     for (struct grid_it it = grid_it_box(bx, by, 20, 1); grid_it_next(&it) && nt < 8; ) {
         ee_unit *u = it.u;
         ee_unit_type *td = it.td;
-        if (!td || unit_get_owner(u) != pl || unit_get_hp(u) <= 0 || !is_tower_type(type_get_id(td)) ||
+        if (!td || unit_get_owner(u) != pl || unit_get_hp(u) <= 0 || !is_tower_type(unit_type_get_id(td)) ||
             early_finished(u)) continue;
         todo[nt++] = u;
     }
@@ -199,7 +199,7 @@ internal void early_bait(ee_player *pl, unsigned idx, uint32_t now) {
     for (struct grid_it it = grid_it_box(bx, by, 32, 1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
         ee_unit_type *td = it.td;
-        if (!td || unit_get_owner(u) != pl || unit_get_hp(u) <= 0 || !is_citizen_type(type_get_id(td)) ||
+        if (!td || unit_get_owner(u) != pl || unit_get_hp(u) <= 0 || !is_citizen_type(unit_type_get_id(td)) ||
             unit_get_frozen(u) || unit_get_x(u) == -10000) continue;
         ivec2 up = unit_get_tile(u);
         int hit = -1;
@@ -235,16 +235,16 @@ internal void early_range(ee_player *pl, unsigned idx, uint32_t now) {
     int e = current_epoch(pl);
     if (!EARLY(idx, early_army) || e < 1 || e > 3 || (st->range_t && now >= st->range_t && now - st->range_t < 60000)) return;
     st->range_t = now ? now : 1;
-    void *cm = player_get_civ_mgr(pl), *um = cm ? cm_get_unit_mgr(cm) : NULL;
-    ee_build_mgr *bm = cm ? cm_get_build_mgr(cm) : NULL;
+    void *cm = player_get_civ_mgr(pl), *um = cm ? civ_mgr_get_unit_mgr(cm) : NULL;
+    ee_build_mgr *bm = cm ? civ_mgr_get_build_mgr(cm) : NULL;
     if (!um || !bm) return;
     uint8_t *q = type_list(um, UT(B_ARCHERY_RANGE));
     for (unsigned k = 0, f = q ? FIELD(q, 0xC, unsigned) : 0, n = q ? FIELD(q, 0x10, unsigned) : 0; k < n; k++) {
         ee_unit *b = deque_at(q, f + k);
         if (b && unit_get_hp(b) > 0) return;
     }
-    if (!ut_has(UT(B_ARCHERY_RANGE)) || bm_queued(bm, UT(B_ARCHERY_RANGE))) return;
-    bm_request(bm, UT(B_ARCHERY_RANGE));
+    if (!ut_has(UT(B_ARCHERY_RANGE)) || build_mgr_queued(bm, UT(B_ARCHERY_RANGE))) return;
+    build_mgr_request(bm, UT(B_ARCHERY_RANGE));
     st->ranges++;
     if (g_log) fprintf(g_log, "# early: P%u at %.1f min: no Archery Range - one requested\n", idx, now / 60000.0);
 }

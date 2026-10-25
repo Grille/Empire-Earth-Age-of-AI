@@ -38,7 +38,7 @@ internal void mt_new_game(void) { memset(g_mt, 0, sizeof g_mt); }
 internal int mt_line(ee_player *pl, int t) {
     ee_unit_type *td = type_data(t);
     if (!td) return MB_UNK;
-    int fam = type_get_family(td);
+    int fam = unit_type_get_family(td);
     if (is_citizen_type(t)) return MB_CIT;
     if (ut_role(t, UTR_TOWER)) return MB_TOWER;
     if (ut_role(t, UTR_WALL)) return MB_WALL;
@@ -52,9 +52,9 @@ internal int mt_line(ee_player *pl, int t) {
     if (is_siege(t) || is_ram(t)) return MB_SIE;
     if (!is_army_family(fam)) return MB_UNK;
     ee_tech_tree *tt = player_get_tech_tree(pl);
-    ee_tech *tech = tt ? tech_lookup(tt, type_get_tech(td)) : NULL;
+    ee_tech *tech = tt ? tech_lookup(tt, unit_type_get_tech(td)) : NULL;
     ee_tech_data *d = tech ? tech_get_data(tech) : NULL;
-    int *b = d ? techdata_get_makers_begin(d) : NULL, *e = d ? techdata_get_makers_end(d) : NULL;
+    int *b = d ? tech_data_get_makers_begin(d) : NULL, *e = d ? tech_data_get_makers_end(d) : NULL;
     for (int *p = b; b && e > b && e - b < 16 && p < e; p++) {
         if (*p == UT(B_BARRACKS)) return MB_INF;
         if (*p == UT(B_ARCHERY_RANGE)) return MB_RNG;
@@ -72,9 +72,9 @@ internal void mt_paid(ee_player *pl, ee_tech *what, const int *before, const int
     ee_tech_data *d = what ? tech_get_data(what) : NULL;
     int b = MB_UNK;
     if (d) {
-        int t = techdata_get_unit_type(d);
+        int t = tech_data_get_unit_type(d);
         if (t >= 0 && type_data(t)) b = mt_line(pl, t);
-        else if (techdata_get_category(d) == 7) b = MB_UP7;
+        else if (tech_data_get_category(d) == 7) b = MB_UP7;
         else {
             b = MB_TECH;
             for (int e = 1; e <= 14; e++) if (d == epoch_tech(pl, e)) { b = MB_EP; break; }
@@ -138,7 +138,7 @@ internal float mt_dps(ee_unit_type *atd, ee_unit_stats *ast, int api, ee_unit_ty
     int s = st_shot_t(atd, ast, api, ttd, tst, tpi);
     return s > 0 ? (float)s / (st_reload_t(atd, ast) + ST_SHOT_OVERHEAD) : 0.0f;
 }
-internal float mt_range_t(ee_unit_type *td, ee_unit_stats *st) { return st ? stat_get_range(st) : type_get_range(td); }
+internal float mt_range_t(ee_unit_type *td, ee_unit_stats *st) { return st ? unit_stats_get_range(st) : unit_type_get_range(td); }
 internal float mt_price(ee_player *pl, unsigned idx, int t, const int *stock, const int *reserve);
 // the values of the trainable land soldiers against the known enemy mix, every 30 s
 internal void mt_values(ee_player *pl, unsigned idx) {
@@ -150,7 +150,7 @@ internal void mt_values(ee_player *pl, unsigned idx) {
     if (!tt) return;
     for (int t = 0; t < 724 && v->n < MT_CAND; t++) {
         if (!land_soldier(t) || soldier_score(t) <= 0) continue;
-        ee_tech *tech = tech_lookup(tt, type_get_tech(type_data(t)));
+        ee_tech *tech = tech_lookup(tt, unit_type_get_tech(type_data(t)));
         int c = 0;
         for (int r = 2; r < 7; r++) c += unit_cost(pl, t, r);
         if (!tech || !tech_get_researched(tech) || c < 20) continue;   // nothing for free: the Court Jester (0), heroes of scenarios
@@ -295,7 +295,7 @@ internal void mt_log(ee_player *pl, unsigned idx, unsigned min) {
     int army[MT_NB] = { 0 }, foe[MT_NB] = { 0 };
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
         if (unit_get_owner(it.u) != pl || unit_get_hp(it.u) <= 0) continue;
-        int t = type_get_id(it.td), b = mt_line(pl, t);
+        int t = unit_type_get_id(it.td), b = mt_line(pl, t);
         if (b >= MB_INF && b <= MB_AIR) army[b]++;
     }
     if (!is_vanilla(pl)) {
@@ -345,7 +345,7 @@ internal void mt_tick(ee_player *pl, uint32_t now) {
                 g_mt_army[idx] = 0;
                 for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
                     if (unit_get_owner(it.u) != pl || unit_get_hp(it.u) <= 0) continue;
-                    int t = type_get_id(it.td);
+                    int t = unit_type_get_id(it.td);
                     if (t >= 0 && t < 768 && land_soldier(t)) { g_mt_own[idx][t]++; g_mt_army[idx]++; }
                 }
             }

@@ -129,25 +129,25 @@ internal int so_in_danger(int x, int y, float margin) {
         if (so_d2(x, y, g_sos.zx[k], g_sos.zy[k]) < (g_sos.zr[k] + margin) * (g_sos.zr[k] + margin)) return 1;
     return 0;
 }
-internal int so_family(ee_unit_type *td) { return td ? type_get_family(td) : -1; }
+internal int so_family(ee_unit_type *td) { return td ? unit_type_get_family(td) : -1; }
 internal int so_warship(ee_unit_type *td) {   // warships and submarines with a weapon (no transports, fishing boats, carriers)
-    int fam = so_family(td), t = td ? type_get_id(td) : 0;
-    return (fam == 4 || fam == 10) && type_get_attack(td) > 0 && !is_transport(t) && !is_fishing_boat(t);
+    int fam = so_family(td), t = td ? unit_type_get_id(td) : 0;
+    return (fam == 4 || fam == 10) && unit_type_get_attack(td) > 0 && !is_transport(t) && !is_fishing_boat(t);
 }
 internal int so_role(ee_unit_type *td) {
-    int k = type_get_weapon(td);
+    int k = unit_type_get_weapon(td);
     return k == 1 ? SR_F : k == 34 ? SR_L : (k == 3 || k == 6) ? SR_A : k == 18 ? SR_S : -1;
 }
 internal float so_dps(ee_unit *u, ee_unit_type *td) {
     ee_unit_stats *st = u ? unit_get_stats(u) : NULL;
-    float a = st ? stat_get_attack(st) : (float)type_get_attack(td);
-    int rl = type_get_reload(td);
+    float a = st ? unit_stats_get_attack(st) : (float)unit_type_get_attack(td);
+    int rl = unit_type_get_reload(td);
     return a > 0 ? a * 1000.0f / (float)((rl > 0 ? rl : 2000) + 2000) : 0.0f;
 }
 internal float so_hpmax(ee_unit *u) {
     ee_unit_stats *st = unit_get_stats(u);
-    int m = st ? stat_get_hp(st) : 0;
-    return (float)(m > 0 ? m : type_get_hp(unit_get_type_data(u)));
+    int m = st ? unit_stats_get_hp(st) : 0;
+    return (float)(m > 0 ? m : unit_type_get_hp(unit_get_type_data(u)));
 }
 // the strength ratio of side a against side b (types, hit points, dps; player indices): sqrt(hpA dA / (hpB dB))
 struct so_side { int n; ee_unit_type *td[SO_MEM + SO_N]; float hp[SO_MEM + SO_N], dps[SO_MEM + SO_N]; int pi; };
@@ -199,7 +199,7 @@ internal int so_home_of(int p, int *x, int *y) {   // a player's Capitol, else T
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
         ee_player *o = unit_get_owner(it.u);
         if (!o || player_get_index(o) != p || unit_get_hp(it.u) <= 0 || so_family(it.td) != 2) continue;
-        int t = type_get_id(it.td), pr = t == UT(B_CAPITOL) ? 3 : t == UT(B_TOWN_CENTER) ? 2 : 1;
+        int t = unit_type_get_id(it.td), pr = t == UT(B_CAPITOL) ? 3 : t == UT(B_TOWN_CENTER) ? 2 : 1;
         if (pr > got) { got = pr; *x = unit_get_x(it.u); *y = unit_get_y(it.u); }
     }
     return got;
@@ -212,16 +212,16 @@ internal void so_types(void) {
     for (int r = 0; r < SR_N; r++) g_so.types[r] = 0;
     for (int t = 1; t < 724; t++) {
         ee_unit_type *td = type_data(t);
-        if (!td || type_get_id(td) != t || !so_warship(td) || t == UT(X09_AGINCOURT_BATTLESHIP) || t == UT(X07_GOLDEN_HIND)) continue;
-        int r = so_role(td), tech = type_get_tech(td);
+        if (!td || unit_type_get_id(td) != t || !so_warship(td) || t == UT(X09_AGINCOURT_BATTLESHIP) || t == UT(X07_GOLDEN_HIND)) continue;
+        int r = so_role(td), tech = unit_type_get_tech(td);
         if (r < 0 || tech < 2000 || tech <= best[r]) continue;
         if (!(p1 && ld_type_avail(p1, t)) && !(ai && ld_type_avail(ai, t))) continue;
         best[r] = tech; g_so.types[r] = t;
     }
     g_so.trtype = 0;
     for (int t = 0, bt = 0; t < G_TYPES_N; t++)   // the newest transport (as ld_transport_type)
-        if (is_transport(t) && ((p1 && ld_type_avail(p1, t)) || (ai && ld_type_avail(ai, t))) && type_get_tech(type_data(t)) > bt) {
-            bt = type_get_tech(type_data(t));
+        if (is_transport(t) && ((p1 && ld_type_avail(p1, t)) || (ai && ld_type_avail(ai, t))) && unit_type_get_tech(type_data(t)) > bt) {
+            bt = unit_type_get_tech(type_data(t));
             g_so.trtype = t;
         }
     static int cnt[G_TYPES_N];
@@ -231,7 +231,7 @@ internal void so_types(void) {
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
         ee_player *o = unit_get_owner(it.u);
         if (!o || player_get_index(o) != g_so.ai || unit_get_hp(it.u) <= 0) continue;
-        int t = type_get_id(it.td), fam = so_family(it.td);
+        int t = unit_type_get_id(it.td), fam = so_family(it.td);
         float r, a;
         if (is_soldier(it.td) && fam != 4 && fam != 10 && fam != 18 && fam != 21 && fam != 22 && fam != 3 && fam != 7 && fam != 17 && t > 0 && t < G_TYPES_N) cnt[t]++;
         else if (defence_stats(it.u, &r, &a) && !UT_IN(t, UT_TOWNS, UT_B_DOCK, UT_B_NAVY_YARD, UT_B_FORTRESS) && r * a > tr) { tr = r * a; tower = t; }
@@ -253,7 +253,7 @@ internal void so_scan(uint32_t now) {
         ee_unit_type *td = it.td;
         ee_player *o = unit_get_owner(u);
         if (!o || unit_get_hp(u) <= 0) continue;
-        int p = player_get_index(o), x = unit_get_x(u), y = unit_get_y(u), fam = so_family(td), t = type_get_id(td);
+        int p = player_get_index(o), x = unit_get_x(u), y = unit_get_y(u), fam = so_family(td), t = unit_type_get_id(td);
         if (x < 0) continue;   // aboard
         if (p == 1) {
             if (g_sos.ne < 1024) { g_sos.ex[g_sos.ne] = x; g_sos.ey[g_sos.ne++] = y; }
@@ -312,7 +312,7 @@ internal void so_scan(uint32_t now) {
         struct so_mem *m = &g_so.m[k];
         float r = 0, a;
         if (kind == 1) defence_stats(e->u, &r, &a);
-        m->id = id; m->type = type_get_id(e->td); m->x = e->x; m->y = e->y; m->kind = kind; m->t = now;
+        m->id = id; m->type = unit_type_get_id(e->td); m->x = e->x; m->y = e->y; m->kind = kind; m->t = now;
         m->hp = (float)unit_get_hp(e->u); m->dps = so_dps(e->u, e->td); m->r = r;
     }
     // fishing grounds: where the AI's boats were seen
@@ -360,7 +360,7 @@ internal void so_ships(void) {
             for (int i = 0; i < g_sos.nu && n < 440; i++) {
                 struct so_eu *e = &g_sos.u[i];
                 if (so_d2(s->x, s->y, e->x, e->y) <= 144.0f && e->cls != SC_CIT && e->cls != SC_OTHER)
-                    n += sprintf(line + n, " T%d/c%d%s@%d,%d", type_get_id(e->td), e->cls, e->seen ? "" : "?", e->x, e->y);
+                    n += sprintf(line + n, " T%d/c%d%s@%d,%d", unit_type_get_id(e->td), e->cls, e->seen ? "" : "?", e->x, e->y);
             }
             so_log("%s\n", line);
         }
@@ -385,7 +385,7 @@ internal void so_ships(void) {
             }
         }
         g_so.s[g_so.ns].u = g_sos.ps[i]; g_so.s[g_so.ns].id = g_sos.psid[i]; g_so.s[g_so.ns].grp = grp; g_so.s[g_so.ns].role = role;
-        g_so.s[g_so.ns].type = type_get_id(unit_get_type_data(g_sos.ps[i])); g_so.s[g_so.ns].x = unit_get_x(g_sos.ps[i]); g_so.s[g_so.ns].y = unit_get_y(g_sos.ps[i]);
+        g_so.s[g_so.ns].type = unit_type_get_id(unit_get_type_data(g_sos.ps[i])); g_so.s[g_so.ns].x = unit_get_x(g_sos.ps[i]); g_so.s[g_so.ns].y = unit_get_y(g_sos.ps[i]);
         g_so.ns++;
     }
 }
@@ -922,13 +922,13 @@ internal void cmd_seaop(char *out, const char *args) {
             int x = unit_get_x(u), y = unit_get_y(u);
             so_cur_target(u, &cur);
             REPLY("  %s T%d at %d,%d hp %d/%.0f %s", g_so.s[k].grp == SO_RAID ? "raid" : g_so.s[k].grp == SO_MAIN ? "main" : "patrol",
-                  type_get_id(unit_get_type_data(u)), x, y, unit_get_hp(u), so_hpmax(u), rtti_name(unit_get_goal(u)));
-            if (cur) REPLY(" -> T%d at %d,%d", type_get_id(unit_get_type_data(cur)), unit_get_x(cur), unit_get_y(cur));
+                  unit_type_get_id(unit_get_type_data(u)), x, y, unit_get_hp(u), so_hpmax(u), rtti_name(unit_get_goal(u)));
+            if (cur) REPLY(" -> T%d at %d,%d", unit_type_get_id(unit_get_type_data(cur)), unit_get_x(cur), unit_get_y(cur));
             REPLY(" | near:");
             for (int i = 0; i < g_sos.nu; i++) {
                 struct so_eu *e = &g_sos.u[i];
                 if (so_d2(x, y, e->x, e->y) <= 100.0f && e->cls != SC_CIT && e->cls != SC_OTHER)
-                    REPLY(" T%d/c%d%s@%d,%d", type_get_id(e->td), e->cls, e->seen ? "" : "?", e->x, e->y);
+                    REPLY(" T%d/c%d%s@%d,%d", unit_type_get_id(e->td), e->cls, e->seen ? "" : "?", e->x, e->y);
             }
             REPLY("%s\n", so_in_danger(x, y, 0.0f) ? " IN DANGER" : "");
         }

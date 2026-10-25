@@ -39,7 +39,7 @@ internal void fm_tick(void) {
             fprintf(g_log, "# fmwatch %u %06x %.3f %.3f %.1f %.3f %u %u %.2f push %.3f %.3f obst %d contacts %d size %.2f %.2f %.2f class %d\n", now, g_fm[i].id & 0xFFFFFF, q.x, q.y,
                     atan2f(fq.x, fq.y) * 57.29578f, unit_get_speed(w), unit_ai_state_id(w), FIELD(w, 0x345, uint8_t), FIELD(w, 0x248, float),
                     FIELD(w, 0x230, float), FIELD(w, 0x234, float), FIELD(w, 0x20C, int) != 0, FIELD(w, 0xC8, int),
-                    FIELD(w, 0x244, float), FIELD(unit_get_type_data(w), 0x474, float), FIELD(unit_get_type_data(w), 0x470, float), type_get_family(unit_get_type_data(w)));
+                    FIELD(w, 0x244, float), FIELD(unit_get_type_data(w), 0x474, float), FIELD(unit_get_type_data(w), 0x470, float), unit_type_get_family(unit_get_type_data(w)));
         }
     if (!g_fm_trace) return;
     ee_unit *u = unit_by_id(g_fm_trace);
@@ -57,7 +57,7 @@ internal void fm_tick(void) {
             vec3 q = unit_get_pos(it.u);
             if (fabsf(q.x - p.x) > 4 || fabsf(q.y - p.y) > 4) continue;
             ee_player *o = unit_get_owner(it.u);
-            fprintf(g_log, "# fmtrace near %.2f,%.2f type %d P%d family %d\n", q.x, q.y, type_get_id(it.td), o ? player_get_index(o) : -1, type_get_family(it.td));
+            fprintf(g_log, "# fmtrace near %.2f,%.2f type %d P%d family %d\n", q.x, q.y, unit_type_get_id(it.td), o ? player_get_index(o) : -1, unit_type_get_family(it.td));
         }
     last_state = st;
 }
@@ -155,8 +155,8 @@ internal void cmd_fmove(char *out, const char *args) {
         uint32_t *sel[3] = { NULL, qids, qids + n };
         player_select(qpl, sel);
         memset(qmem, 0, sizeof qmem);
-        path_msg_make((ee_msg *)qmem, player_get_msg_id(qpl), (float)x + 0.5f, (float)y + 0.5f, 0, 1);
-        msg_path((ee_msg *)qmem);
+        path_msg_make((ee_path_msg *)qmem, player_get_msg_id(qpl), (float)x + 0.5f, (float)y + 0.5f, 0, 1);
+        msg_path((ee_path_msg *)qmem);
         REPLY("fmove: %d units of P%d then to %d,%d (queued)\n", n, p, x, y);
         return;
     }
@@ -170,12 +170,12 @@ internal void cmd_fmove(char *out, const char *args) {
     g_fm_n = first;
     for (struct grid_it it = grid_it_box(x, y, r, 1); g_fm_n < FM_MAX && grid_it_next(&it); ) {
         ee_unit *u = it.u;
-        if (unit_get_owner(u) != pl || unit_get_hp(u) <= 0 || type_get_family(it.td) == 2) continue;
+        if (unit_get_owner(u) != pl || unit_get_hp(u) <= 0 || unit_type_get_family(it.td) == 2) continue;
         if (abs(unit_get_x(u) - x) > r || abs(unit_get_y(u) - y) > r) continue;
         struct fm_unit *f = &g_fm[g_fm_n];
         memset(f, 0, sizeof *f);
         f->id = (unsigned)unit_get_serial(u);
-        f->type = type_get_id(it.td);
+        f->type = unit_type_get_id(it.td);
         f->moved = f->done = -1;
         f->state = unit_ai_state_id(u);
         vec3 q = unit_get_pos(u);
@@ -190,8 +190,8 @@ internal void cmd_fmove(char *out, const char *args) {
     memset(mem, 0, sizeof mem);
     g_fm_tx = (float)tx + 0.5f;
     g_fm_ty = (float)ty + 0.5f;
-    path_msg_make((ee_msg *)mem, player_get_msg_id(pl), g_fm_tx, g_fm_ty, together, 0);
-    msg_path((ee_msg *)mem);
+    path_msg_make((ee_path_msg *)mem, player_get_msg_id(pl), g_fm_tx, g_fm_ty, together, 0);
+    msg_path((ee_path_msg *)mem);
     if (!also) g_fm_t0 = g_fm_last = game_time();
     int *grp = player_get_selected_group(pl);
     REPLY("fmove: %d units of P%d sent to %d,%d%s (%u in the selected group)\n", g_fm_n - first, p, tx, ty, together ? " together" : "", grp ? group_count(grp) : 0);

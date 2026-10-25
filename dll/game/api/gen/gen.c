@@ -2,6 +2,13 @@
 // takes the running build's values (game_build, beside addr_select); spec_log names those it hasn't got.
 
 // the classes types.h hasn't got
+typedef struct ee_start_msg ee_start_msg;
+typedef struct ee_chat_msg ee_chat_msg;
+typedef struct ee_select_msg ee_select_msg;
+typedef struct ee_load_msg ee_load_msg;
+typedef struct ee_path_msg ee_path_msg;
+typedef struct ee_tribute_msg ee_tribute_msg;
+typedef struct ee_unload_msg ee_unload_msg;
 typedef struct ee_ghost_unit ee_ghost_unit;
 
 #include "game/api/gen/ai_managers.c"

@@ -38,9 +38,9 @@ internal void mf_scan(ee_player *pl, unsigned idx, uint32_t now) {
     memset(m->slots, 0, sizeof m->slots); memset(m->home_slots, 0, sizeof m->home_slots); memset(m->g, 0, sizeof m->g);
     m->far_r = 0;
     ee_civ_mgr *cm = player_get_civ_mgr(pl);
-    ee_build_mgr *bm = cm ? cm_get_build_mgr(cm) : NULL;
-    if (!bm || bm_get_base_x(bm) == -10000) return;
-    short hr = (short)map_area(bm_get_base(bm), 2);
+    ee_build_mgr *bm = cm ? civ_mgr_get_build_mgr(cm) : NULL;
+    if (!bm || build_mgr_get_base_x(bm) == -10000) return;
+    short hr = (short)map_area(build_mgr_get_base(bm), 2);
     unsigned cap = table_value(0x16);
     drops_cached(pl);
     static ee_unit *seen[1024];
@@ -66,7 +66,7 @@ internal void mf_scan(ee_player *pl, unsigned idx, uint32_t now) {
             }
             if (!home || dd >= bd || !zone_get_active(zone)) continue;
             if (!explored_by(s, pl)) continue;
-            if (bm_enemy_near(bm, pos.x, pos.y) || site_danger_res(pl, s, 0, r)) continue;
+            if (build_mgr_enemy_near(bm, pos.x, pos.y) || site_danger_res(pl, s, 0, r)) continue;
             bd = dd; m->far_x = pos.x; m->far_y = pos.y; m->far_r = r;
         }
     }
@@ -76,7 +76,7 @@ internal int mf_active(ee_player *pl, uint32_t now) {
 }
 // FILL: after the worker targets (hook_compute_targets, after econ_targets)
 internal void mine_fill(ee_resource_mgr *rm) {
-    ee_player *pl = rm_player(rm);
+    ee_player *pl = resource_mgr_player(rm);
     if (!pl) return;
     unsigned idx = (unsigned)player_get_index(pl) & 15;
     uint32_t now = game_time();
@@ -85,8 +85,8 @@ internal void mine_fill(ee_resource_mgr *rm) {
     memset(m->add, 0, sizeof m->add);
     if (!(MINE_FILL(idx) & 1) || !mf_active(pl, now)) return;
     mf_scan(pl, idx, now);
-    uint32_t *target = rm_target_at(rm);
-    int *stock = player_stock_at(pl), *demand = rm_demand_at(rm), reserve[7];
+    uint32_t *target = resource_mgr_target_at(rm);
+    int *stock = player_stock_at(pl), *demand = resource_mgr_demand_at(rm), reserve[7];
     budget_reserve(pl, reserve);
     int low = player_get_pop_cap(pl) < 120, gap = 0, want[7] = { 0 };
     for (int r = 4; r < 7; r++) {
@@ -135,8 +135,8 @@ internal void mine_drops(ee_player *pl, unsigned idx, uint32_t now) {
     mf_scan(pl, idx, now);
     if (!m->far_r) return;
     ee_civ_mgr *cm = player_get_civ_mgr(pl);
-    ee_build_mgr *bm = cm ? cm_get_build_mgr(cm) : NULL;
-    void *um = cm ? cm_get_unit_mgr(cm) : NULL;
+    ee_build_mgr *bm = cm ? civ_mgr_get_build_mgr(cm) : NULL;
+    void *um = cm ? civ_mgr_get_unit_mgr(cm) : NULL;
     if (!bm || !um || !ut_has(UT(B_SETTLEMENT)) || bq_has(bm, UT(B_SETTLEMENT)) || bq_has(bm, UT(X_SINGLE_PLAYER_SETTLEMENT))) return;
     uint8_t *q = type_list(um, UT(B_SETTLEMENT));   // one being built: wait for it
     for (unsigned k = 0, f = q ? FIELD(q, 0xC, unsigned) : 0, n = q ? FIELD(q, 0x10, unsigned) : 0; k < n; k++) {
@@ -153,7 +153,7 @@ internal void mine_drops(ee_player *pl, unsigned idx, uint32_t now) {
                 int x = m->far_x + ax, y = m->far_y + ay;
                 if (!can_place(pl, UT(B_SETTLEMENT), iv2(x, y)) || raiders_near(pl, iv2(x, y), 12)) continue;
                 int entry[3] = { UT(B_SETTLEMENT), x, y };
-                bm_queue_add(bm, e, entry);
+                build_mgr_queue_add(bm, e, entry);
                 m->drops_queued++;
                 if (g_log) {
                     EnterCriticalSection(&g_lock);

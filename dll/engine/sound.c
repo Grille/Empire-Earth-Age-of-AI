@@ -67,7 +67,7 @@ internal uint32_t __thiscall hook_snd_playref(void *sm, uint32_t id, float vol, 
     snd_count(sm, id, vol, r == 0);
     if (g_sound_log >= 2 && g_log)
         log_locked("# snd: %.3f min playref id %u vol %.3f pan %.2f pitch %.2f queue %d -> node %08x channel %d, caller %06x\n",
-                game_time() / 60000.0, id, vol, pan, pitch, queue & 0xFF, r, r ? sndnode_get_channel((void *)(uintptr_t)r) : -9,
+                game_time() / 60000.0, id, vol, pan, pitch, queue & 0xFF, r, r ? sound_node_get_channel((void *)(uintptr_t)r) : -9,
                 (unsigned)(uintptr_t)__builtin_return_address(0));
     return r;
 }
@@ -105,13 +105,13 @@ internal void sound_tick(uint32_t now) {
         int q = 0;
         for (int i = 0; lle && i < SM_QUERIES; i++) q += (g_sm_query[i] = (sm_query_fn)(void *)GetProcAddress(lle, k_sm_query[i])) != NULL;
         if (q != SM_QUERIES) memset(g_sm_query, 0, sizeof g_sm_query);
-        ee_sound_cat **cv = sndmgr_get_cats_begin(sm), **ce = sndmgr_get_cats_end(sm);
+        ee_sound_cat **cv = sound_mgr_get_cats_begin(sm), **ce = sound_mgr_get_cats_end(sm);
         for (int i = 0; cv && cv + i < ce; i++)   // categories: share, max channels, in use, priority
             if (cv[i]) fprintf(g_log, "# sound: category %d: %.2f of the channels = %d, in use %d, priority %d\n", i,
-                               sndcat_get_share(cv[i]), sndcat_get_max(cv[i]), sndcat_get_used(cv[i]), sndcat_get_priority(cv[i]));
+                               sound_cat_get_share(cv[i]), sound_cat_get_max(cv[i]), sound_cat_get_used(cv[i]), sound_cat_get_priority(cv[i]));
         int b = patch_snd_playref(hook_snd_playref, &g_snd_playref);
         if (!a || !b) fprintf(g_log, "# sound: play hooks %d/2 - FAILED (exe differs)\n", a + b);
-        ee_mixer *mx = sndmgr_get_mixer(sm);
+        ee_mixer *mx = sound_mgr_get_mixer(sm);
         if (mx) {
             g_mix_set = (mix_set_fn)*mixer_fn_at(mx, MIXER_SET_CHANNEL_SAMPLE);
             g_mix_play = (mix_play_fn)*mixer_fn_at(mx, MIXER_PLAY_CHANNEL);
@@ -123,7 +123,7 @@ internal void sound_tick(uint32_t now) {
             HMODULE mss = GetModuleHandleA("mss32.dll");
             if (mss) g_ail_status = (int (__stdcall *)(void *))GetProcAddress(mss, "_AIL_sample_status@4");
         }
-        fprintf(g_log, "# sound: log on, %u channels, why a play was dropped: %s\n", sndmgr_get_channels(sm),
+        fprintf(g_log, "# sound: log on, %u channels, why a play was dropped: %s\n", sound_mgr_get_channels(sm),
                 g_sm_query[0] ? "known" : "not known (the manager's queries not exported)");
         last = now;
         return;
@@ -151,7 +151,7 @@ internal void sound_tick(uint32_t now) {
             now / 60000.0, g_drop_copies, g_drop_cat, cats, g_drop_chan);
     fprintf(g_log, "# sound: %.1f min, %u channels: %u plays, %u dropped (%u at volume 0); mixer refused %u of %u"
                    " (busy %u, sample on another channel %u), start failed %u; most dropped (id:dropped/asked):%s\n",
-            now / 60000.0, sndmgr_get_channels(sm), g_snd_req_total, g_snd_drop_total, g_snd_zero_vol,
+            now / 60000.0, sound_mgr_get_channels(sm), g_snd_req_total, g_snd_drop_total, g_snd_zero_vol,
             set_fail, g_mix_set_total, g_mix_set_fail[5], g_mix_set_fail[13], g_mix_play_fail[0] + g_mix_play_fail[1]
             + g_mix_play_fail[2] + g_mix_play_fail[10], top);
 }
@@ -174,7 +174,7 @@ internal set_max_ch_fn g_set_max_ch;
 internal int g_sound_channels = 32;
 internal int __thiscall hook_set_max_channels(ee_sound_mgr *sm, uint32_t n) {
     static int raised;
-    ee_mixer *mx = sm ? sndmgr_get_mixer(sm) : NULL;
+    ee_mixer *mx = sm ? sound_mgr_get_mixer(sm) : NULL;
     uint8_t *get_max = mx ? (uint8_t *)*mixer_fn_at(mx, MIXER_GET_MAX_CHANNELS) : NULL;   // SPIMGetMaximumChannelCount
     if (!raised && get_max && g_sound_channels >= 8 && g_sound_channels <= 63 && get_max[0] == 0xA1 && get_max[5] == 0xC3) {
         raised = 1;
@@ -221,17 +221,17 @@ internal void cmd_sndstate(char *out, const char *args) {
     int nulls = 0;
     for (uint8_t *h = mv; h && h < me; h += 8) nulls += !*(void **)h;
     REPLY("handles missing %d, ", nulls);
-    REPLY("channels %u, mixer channels %d, paused %d:", sndmgr_get_channels(sm), mv ? (int)((me - mv) / 8) : -1,
-          (int)((sndmgr_get_paused_end(sm) - sndmgr_get_paused_begin(sm)) / 4));
-    ee_sound_node **slots = sndmgr_get_slots(sm);
-    for (uint32_t i = 0; slots && i < sndmgr_get_channels(sm); i++) {
-        ee_sound_node *n = slots[i]; ee_sample *smp = n ? sndnode_get_sample(n) : NULL;
-        if (n) REPLY(" [%u: id %d node ch %d sample ch %d status %d]", i, sndnode_get_id(n), sndnode_get_channel(n),
+    REPLY("channels %u, mixer channels %d, paused %d:", sound_mgr_get_channels(sm), mv ? (int)((me - mv) / 8) : -1,
+          (int)((sound_mgr_get_paused_end(sm) - sound_mgr_get_paused_begin(sm)) / 4));
+    ee_sound_node **slots = sound_mgr_get_slots(sm);
+    for (uint32_t i = 0; slots && i < sound_mgr_get_channels(sm); i++) {
+        ee_sound_node *n = slots[i]; ee_sample *smp = n ? sound_node_get_sample(n) : NULL;
+        if (n) REPLY(" [%u: id %d node ch %d sample ch %d status %d]", i, sound_node_get_id(n), sound_node_get_channel(n),
                      smp ? sample_get_channel(smp) : -9, snd_status((int)i));
     }
-    ee_sound_cat **cv = sndmgr_get_cats_begin(sm), **ce = sndmgr_get_cats_end(sm);
+    ee_sound_cat **cv = sound_mgr_get_cats_begin(sm), **ce = sound_mgr_get_cats_end(sm);
     for (int i = 0; cv && cv + i < ce; i++)
-        if (cv[i] && sndcat_get_used(cv[i])) REPLY(" cat %d %d/%d", i, sndcat_get_used(cv[i]), sndcat_get_max(cv[i]));
+        if (cv[i] && sound_cat_get_used(cv[i])) REPLY(" cat %d %d/%d", i, sound_cat_get_used(cv[i]), sound_cat_get_max(cv[i]));
     REPLY("\n");
 }
 internal void cmd_sndchan(char *out, const char *args) {
@@ -239,5 +239,5 @@ internal void cmd_sndchan(char *out, const char *args) {
     ee_sound_mgr *sm = sound_manager();
     if (!sm || n < 1 || n > 64) { REPLY("error: usage sndchan N (1..64)\n"); return; }
     int r = snd_set_max_channels(sm, n);
-    REPLY("ok: SetMaxChannels(%d) -> %d, now %u channels\n", n, r, sndmgr_get_channels(sm));
+    REPLY("ok: SetMaxChannels(%d) -> %d, now %u channels\n", n, r, sound_mgr_get_channels(sm));
 }

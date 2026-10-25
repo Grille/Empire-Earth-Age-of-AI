@@ -44,7 +44,7 @@ internal int tower_queued(ee_build_mgr *bm) {   // a tower of the line in the bu
 internal int can_place(ee_player *pl, int type, ivec2 p) {
     ee_unit_type *td = type_data(type);
     ee_map *map = game_map();
-    int n = map ? (int)map_get_size(map) : 0, sz = td ? type_get_size(td) : 0;
+    int n = map ? (int)map_get_size(map) : 0, sz = td ? unit_type_get_size(td) : 0;
     if (!td || p.x < 2 || p.y < 2 || p.x >= n - 2 || p.y >= n - 2) return 0;
     if (sz < 1) sz = 1;
     return can_place_area(pl, type, p.x, p.y, sz) != 0;
@@ -55,11 +55,11 @@ internal void def_scan_unit(ee_unit *u, void *ctx) {
     struct def_scan *s = ctx;
     ee_unit_type *td = unit_get_type_data(u);
     ee_player *owner = unit_get_owner(u);
-    int fam = type_get_family(td), x = unit_get_x(u), y = unit_get_y(u);
+    int fam = unit_type_get_family(td), x = unit_get_x(u), y = unit_get_y(u);
     if (fam != 2 && fam != 29) return;
     if (owner == s->pl) {
-        if (is_tower_type(type_get_id(td)) && s->towers < 64) { s->tx[s->towers] = x; s->ty[s->towers++] = y; }
-        else if (is_wall(type_get_id(td)) && s->walls < 256) { s->wx[s->walls] = x; s->wy[s->walls++] = y; }
+        if (is_tower_type(unit_type_get_id(td)) && s->towers < 64) { s->tx[s->towers] = x; s->ty[s->towers++] = y; }
+        else if (is_wall(unit_type_get_id(td)) && s->walls < 256) { s->wx[s->walls] = x; s->wy[s->walls++] = y; }
         return;
     }
     if (!owner || !is_enemy(s->pl, owner) || !seen_by(u, s->pl)) return;
@@ -75,10 +75,10 @@ internal void def_refresh(ee_player *pl, unsigned idx, uint32_t now) {
     if (p->pl != pl) memset(p, 0, sizeof *p);
     p->pl = pl; p->t = now;
     void *cm = player_get_civ_mgr(pl);
-    ee_build_mgr *bm = cm ? cm_get_build_mgr(cm) : NULL;
+    ee_build_mgr *bm = cm ? civ_mgr_get_build_mgr(cm) : NULL;
     p->nf = p->nout = 0;
-    if (!bm || bm_get_base_x(bm) == -10000) return;
-    p->bx = bm_get_base_x(bm); p->by = bm_get_base_y(bm);
+    if (!bm || build_mgr_get_base_x(bm) == -10000) return;
+    p->bx = build_mgr_get_base_x(bm); p->by = build_mgr_get_base_y(bm);
     struct def_scan *s = &g_scan;
     memset(s, 0, sizeof *s);
     s->pl = pl; s->bx = p->bx; s->by = p->by;
@@ -185,8 +185,8 @@ internal void defence_tick(ee_player *pl, unsigned idx, uint32_t now) {
     struct def_plan *p = &g_plan[idx];
     struct def_scan *s = &g_scan;
     if (s->pl != pl) return;
-    void *cm = player_get_civ_mgr(pl), *wm = cm ? cm_get_wall_mgr(cm) : NULL;
-    ee_build_mgr *bm = cm ? cm_get_build_mgr(cm) : NULL;
+    void *cm = player_get_civ_mgr(pl), *wm = cm ? civ_mgr_get_wall_mgr(cm) : NULL;
+    ee_build_mgr *bm = cm ? civ_mgr_get_build_mgr(cm) : NULL;
     if (!wm || !bm) return;
     int *stock = player_stock_at(pl);
     // Towers of our own: the game's plan asks for few (P3: none in the first 15 minutes of a Bronze start, with 685
@@ -199,7 +199,7 @@ internal void defence_tick(ee_player *pl, unsigned idx, uint32_t now) {
         if (!queued && ttype && stock[4] >= unit_cost(pl, ttype, 4) + 100 && e >= 0 && e < 14 &&
             defence_spot(pl, ttype, &x, &y)) {
             int entry[3] = { ttype, x, y };
-            bm_queue_add(bm, e, entry);
+            build_mgr_queue_add(bm, e, entry);
             last_tower[idx] = now ? now : 1;
             if (g_log) fprintf(g_log, "# defence: P%u queues tower %d at %d,%d (stone %d)\n", idx, ttype, x, y, stock[4]);
             ai_say(pl, CHAT_TOWER, "[ai] extra tower (type %d) at %d,%d, stone %d", ttype, x, y, stock[4]);
@@ -281,7 +281,7 @@ internal void cs_unit(ee_unit *u, void *ctx) {
     ee_unit_type *td = unit_get_type_data(u);
     ee_player *owner = unit_get_owner(u);
     if (unit_get_hp(u) <= 0 || !owner) return;
-    int fam = type_get_family(td), type = type_get_id(td), x = unit_get_x(u), y = unit_get_y(u);
+    int fam = unit_type_get_family(td), type = unit_type_get_id(td), x = unit_get_x(u), y = unit_get_y(u);
     if (owner == s->pl) {
         if ((fam == 2 || fam == 29) && s->nb < 256) { s->bx[s->nb] = x; s->by[s->nb++] = y; }
         else if (is_soldier(td) && s->ns < 128) s->sold[s->ns++] = u;
@@ -320,7 +320,7 @@ internal unsigned g_militia_caught[16];
 internal unsigned g_militia_orders[16];
 internal float unit_power(ee_unit *u) {   // hit points x attack (live stats), a rough fighting strength
     ee_unit_stats *st = unit_get_stats(u);
-    float a = st ? stat_get_attack(st) : (float)type_get_attack(unit_get_type_data(u));
+    float a = st ? unit_stats_get_attack(st) : (float)unit_type_get_attack(unit_get_type_data(u));
     return (float)unit_get_hp(u) * (a > 0 ? a : 0);
 }
 internal struct st_side g_mil_own, g_mil_foe;   // fight_estimate (dll/ai/stats.c)
@@ -424,7 +424,7 @@ internal void militia(ee_player *pl, unsigned idx, struct cs_scan *s, uint32_t n
             size_t l = strlen(what);
             if (l < sizeof what - 32)
                 snprintf(what + l, sizeof what - l, " %s P%d type %d at %d,%d", why == 1 ? "builder" : "attacker",
-                         player_get_index(unit_get_owner(e)), type_get_id(unit_get_type_data(e)), x, y);
+                         player_get_index(unit_get_owner(e)), unit_type_get_id(unit_get_type_data(e)), x, y);
         }
     }
     if (!total) return;
@@ -445,7 +445,7 @@ internal void counter_siege(ee_player *pl, unsigned idx, uint32_t now) {
         ee_unit *e = tower ? s.etow[i - s.ne] : s.esiege[i];
         ee_unit_type *etd = unit_get_type_data(e); ee_unit_stats *st = unit_get_stats(e);
         int x = unit_get_x(e), y = unit_get_y(e);
-        float r = tower ? 12.0f : (st ? stat_get_range(st) : type_get_range(etd)) + 4.0f;
+        float r = tower ? 12.0f : (st ? unit_stats_get_range(st) : unit_type_get_range(etd)) + 4.0f;
         int threat = 0;
         for (int b = 0; b < s.nb && !threat; b++)
             threat = (float)ivec2_dist2(iv2(s.bx[b], s.by[b]), iv2(x, y)) <= r * r;
@@ -513,7 +513,7 @@ internal void counter_siege(ee_player *pl, unsigned idx, uint32_t now) {
                    ordered + already, guards);
         if (ordered && g_log)
             fprintf(g_log, "# counter-%s: P%u at %.1f min: enemy type %d at %d,%d (%d guards, %d builders) <- %d soldiers (%d already on it)\n",
-                    tower ? "tower" : "siege", idx, now / 60000.0, type_get_id(etd), x, y, guards, nbl, ordered, already);
+                    tower ? "tower" : "siege", idx, now / 60000.0, unit_type_get_id(etd), x, y, guards, nbl, ordered, already);
     }
 }
 
@@ -541,16 +541,16 @@ internal int home_soldiers(ee_player *pl, int bx, int by) {
 }
 internal int home_soldiers_now(ee_player *pl) {
     void *cm = player_get_civ_mgr(pl);
-    ee_build_mgr *bm = cm ? cm_get_build_mgr(cm) : NULL;
-    return bm && bm_get_base_x(bm) != -10000 ? home_soldiers(pl, bm_get_base_x(bm), bm_get_base_y(bm)) : -1;
+    ee_build_mgr *bm = cm ? civ_mgr_get_build_mgr(cm) : NULL;
+    return bm && build_mgr_get_base_x(bm) != -10000 ? home_soldiers(pl, build_mgr_get_base_x(bm), build_mgr_get_base_y(bm)) : -1;
 }
 internal void home_guard(ee_player *pl, unsigned idx, uint32_t now) {
     static uint32_t last[16];
     if (!g_home_guard || g_def_off[idx] || (now >= last[idx] && now - last[idx] < 10000)) return;
     last[idx] = now;
-    void *cm = player_get_civ_mgr(pl), *um = cm ? cm_get_unit_mgr(cm) : NULL;
-    ee_build_mgr *bm = cm ? cm_get_build_mgr(cm) : NULL;
-    if (!um || !bm || bm_get_base_x(bm) == -10000) return;
+    void *cm = player_get_civ_mgr(pl), *um = cm ? civ_mgr_get_unit_mgr(cm) : NULL;
+    ee_build_mgr *bm = cm ? civ_mgr_get_build_mgr(cm) : NULL;
+    if (!um || !bm || build_mgr_get_base_x(bm) == -10000) return;
     int e = current_epoch(pl), target = 6 + g_home_guard * e;
     // and a share of the military room: population cap (vf31 - follows the human's population unless Ignorieren) x
     // (1 - citizen share +0xBDC)
@@ -564,7 +564,7 @@ internal void home_guard(ee_player *pl, unsigned idx, uint32_t now) {
         target = now >= 120000 ? EARLY(idx, early_soldiers) : 0;
         if (!target) return;
     }
-    int home = home_soldiers(pl, bm_get_base_x(bm), bm_get_base_y(bm));
+    int home = home_soldiers(pl, build_mgr_get_base_x(bm), build_mgr_get_base_y(bm));
     if (home >= target) return;
     int big[7] = { 0, 0, 1 << 20, 1 << 20, 1 << 20, 1 << 20, 1 << 20 }, got = 0;
     int type = substitute_soldier(pl, idx, big, 1, &got);   // the strongest the game can train now
@@ -669,13 +669,13 @@ internal void muster(ee_player *pl, unsigned idx, uint32_t now) {
     if (!g_muster || g_def_off[idx] || (now >= last[idx] && now - last[idx] < 3000)) return;
     last[idx] = now;
     void *cm = player_get_civ_mgr(pl);
-    ee_build_mgr *bm = cm ? cm_get_build_mgr(cm) : NULL;
-    if (!bm || bm_get_base_x(bm) == -10000) { g_mus[idx].on = 0; return; }
+    ee_build_mgr *bm = cm ? civ_mgr_get_build_mgr(cm) : NULL;
+    if (!bm || build_mgr_get_base_x(bm) == -10000) { g_mus[idx].on = 0; return; }
     struct mus_scan *s = &g_ms;
     memset(s, 0, sizeof *s);
     s->pl = pl;
-    s->bx = bm_get_base_x(bm);
-    s->by = bm_get_base_y(bm);
+    s->bx = build_mgr_get_base_x(bm);
+    s->by = build_mgr_get_base_y(bm);
     if (g_fight_est) {
         st_side_clear(&g_ms_own); st_side_clear(&g_ms_foe);
         s->os = &g_ms_own; s->es = &g_ms_foe;
@@ -792,23 +792,23 @@ internal ee_unit *g_asg_units[512];
 internal int g_asg_n;
 internal void asg_units(ee_player *pl) {   // the units of AI pl's attack subgroups (records +0x44)
     g_asg_n = 0;
-    ee_combat_mgr *cbm = player_get_combat_mgr(pl); ee_attack_cmd *cmd = cbm ? am_get_commander(cbm) : NULL;
+    ee_combat_mgr *cbm = player_get_combat_mgr(pl); ee_attack_cmd *cmd = cbm ? combat_mgr_get_commander(cbm) : NULL;
     if (!cmd) return;
-    uint8_t *dq = ac_groups_at(cmd);
+    uint8_t *dq = attack_cmd_groups_at(cmd);
     unsigned first = FIELD(dq, 0xC, unsigned), cnt = FIELD(dq, 0x10, unsigned);
     for (unsigned k = 0; k < cnt && k < 64; k++) {
         ee_attack_group *g = deque_at(dq, first + k);
-        for (ee_attack_subgroup **sp = g ? ag_get_subgroups_begin(g) : NULL; sp && sp < ag_get_subgroups_end(g); sp++) {
-            ee_asg_unit **b = *sp ? asg_get_units_begin(*sp) : NULL; ee_asg_unit **e = *sp ? asg_get_units_end(*sp) : NULL;
+        for (ee_attack_subgroup **sp = g ? attack_group_get_subgroups_begin(g) : NULL; sp && sp < attack_group_get_subgroups_end(g); sp++) {
+            ee_asg_unit **b = *sp ? attack_subgroup_get_units_begin(*sp) : NULL; ee_asg_unit **e = *sp ? attack_subgroup_get_units_end(*sp) : NULL;
             for (ee_asg_unit **r = b; b && r < e && g_asg_n < 512; r++)
-                if (*r && asgu_get_unit(*r)) g_asg_units[g_asg_n++] = asgu_get_unit(*r);
+                if (*r && asg_unit_get_unit(*r)) g_asg_units[g_asg_n++] = asg_unit_get_unit(*r);
         }
     }
 }
 internal int set_behaviour(ee_unit *u, int b) {   // 1 when changed
     void **tab = behaviour_table();
     ee_unit_type *td = unit_get_type_data(u);
-    if (!tab || !tab[b] || !td || !type_get_behaviours(td) || unit_get_behaviour(u) == tab[b]) return 0;
+    if (!tab || !tab[b] || !td || !unit_type_get_behaviours(td) || unit_get_behaviour(u) == tab[b]) return 0;
     unit_set_behaviour(u, tab[b]);
     return 1;
 }
@@ -819,14 +819,14 @@ internal void hold_town(ee_player *pl, unsigned idx, uint32_t now) {
     last[idx] = now;
     if (g_mus[idx].on) return;   // the muster has them
     void *cm = player_get_civ_mgr(pl);
-    ee_build_mgr *bm = cm ? cm_get_build_mgr(cm) : NULL;
+    ee_build_mgr *bm = cm ? civ_mgr_get_build_mgr(cm) : NULL;
     void **tab = behaviour_table();
-    if (!bm || bm_get_base_x(bm) == -10000 || !tab) return;
+    if (!bm || build_mgr_get_base_x(bm) == -10000 || !tab) return;
     struct mus_scan *s = &g_ms;
     memset(s, 0, sizeof *s);
     s->pl = pl;
-    s->bx = bm_get_base_x(bm);
-    s->by = bm_get_base_y(bm);
+    s->bx = build_mgr_get_base_x(bm);
+    s->by = build_mgr_get_base_y(bm);
     grid_each(mus_unit, s);   // enemies within 22, own within 35: count the enemies within 35 here
     if (g_fight_est) { st_side_clear(&g_ms_own); st_side_clear(&g_ms_foe); }
     float epow = 0;
@@ -837,7 +837,7 @@ internal void hold_town(ee_player *pl, unsigned idx, uint32_t now) {
             ee_unit *u = it.u;
             ee_unit_type *td = it.td;
             if (unit_get_hp(u) <= 0) continue;
-            int type = type_get_id(td);
+            int type = unit_type_get_id(td);
             ee_player *o = unit_get_owner(u);
             if (ivec2_dist2(unit_get_tile(u), iv2(s->bx, s->by)) > 35 * 35 || !o || o == pl || player_get_index(o) <= 0 || !is_enemy(pl, o)) continue;
             if ((!is_soldier(td) && !is_siege(type)) || !seen_by(u, pl)) continue;
@@ -940,7 +940,7 @@ internal void basemap_unit(ee_unit *u, void *ctx) {
     if (x < 0 || y < 0 || x >= w || y >= w) return;
     ee_unit_type *td = unit_get_type_data(u);
     ee_player *owner = unit_get_owner(u);
-    int type = type_get_id(td), fam = type_get_family(td);
+    int type = unit_type_get_id(td), fam = unit_type_get_family(td);
     char ch, *cell = &m->g[y * w + x];
     float r, a;
     if (owner != m->pl) {
@@ -964,12 +964,12 @@ internal void cmd_basemap(char *out, const char *args) {
     if (r > 40) r = 40;
     ee_player *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
     void *cm = pl ? player_get_civ_mgr(pl) : NULL;
-    ee_build_mgr *bm = cm ? cm_get_build_mgr(cm) : NULL;
+    ee_build_mgr *bm = cm ? civ_mgr_get_build_mgr(cm) : NULL;
     if (!bm) { REPLY("error: no AI player %d\n", p); return; }
     static char g[81 * 81];
     int w = 2 * r + 1;
     memset(g, '.', (size_t)(w * w));
-    struct basemap m = { pl, bm_get_base_x(bm), bm_get_base_y(bm), r, g };
+    struct basemap m = { pl, build_mgr_get_base_x(bm), build_mgr_get_base_y(bm), r, g };
     ee_zone **zb = player_get_zones_begin(pl); ee_zone **ze = player_get_zones_end(pl);   // mines
     for (int z = 0; zb && zb + z < ze; z++)
         for (int t = 4; zb[z] && t < 7; t++) {
@@ -1023,7 +1023,7 @@ internal uint8_t *rb_find(uint8_t *map, unsigned key) {   // MSVC map: +4 head; 
     return (res == head || key < FIELD(res, 0xC, unsigned)) ? NULL : res;
 }
 __attribute__((used)) int __thiscall hook_damage_points(ee_dmg_model *model, int index, unsigned state) {
-    uint8_t *n = model ? rb_find(dmgmodel_map_at(model), state) : NULL, *sub = n ? FIELD(n, 0x10, uint8_t *) : NULL;
+    uint8_t *n = model ? rb_find(damage_model_map_at(model), state) : NULL, *sub = n ? FIELD(n, 0x10, uint8_t *) : NULL;
     if (n && (!sub || !FIELD(sub, 4, void *))) {
         static int logged;
         ee_unit *u = g_dmg_unit;
@@ -1031,7 +1031,7 @@ __attribute__((used)) int __thiscall hook_damage_points(ee_dmg_model *model, int
         if (g_log && logged < 20) {
             logged++;
             fprintf(g_log, "# engine guard: damage points of a model without them - unit type %d owner P%d at %d,%d, state %u index %d\n",
-                    td ? type_get_id(td) : -1, u && unit_get_owner(u) ? player_get_index(unit_get_owner(u)) : -1,
+                    td ? unit_type_get_id(td) : -1, u && unit_get_owner(u) ? player_get_index(unit_get_owner(u)) : -1,
                     u ? unit_get_x(u) : -1, u ? unit_get_y(u) : -1, state, index);
             fflush(g_log);
         }
@@ -1088,7 +1088,7 @@ internal void aa_scan_unit(ee_unit *u, void *ctx) {   // anti_air: own AA, enemy
     struct aa_scan *a = ctx;
     ee_unit_type *td = unit_get_type_data(u);
     if (unit_get_hp(u) <= 0) return;
-    int fam = type_get_family(td), t = type_get_id(td);
+    int fam = unit_type_get_family(td), t = unit_type_get_id(td);
     ee_player *o = unit_get_owner(u), *pl = a->pl;
     if (o == pl) {
         for (size_t k = 0; k < sizeof k_aa_units / sizeof *k_aa_units; k++) a->have_u += t == g_ut[k_aa_units[k].type];
@@ -1146,8 +1146,8 @@ internal void anti_air(ee_player *pl, unsigned idx, uint32_t now) {
     if (ahead) {
         unsigned pi = (unsigned)player_get_index(pl) & 15;
         void *cm0 = player_get_civ_mgr(pl);
-        ee_build_mgr *bm0 = cm0 ? cm_get_build_mgr(cm0) : NULL;
-        ivec2 base = bm0 ? bm_get_base(bm0) : iv2(0, 0);
+        ee_build_mgr *bm0 = cm0 ? civ_mgr_get_build_mgr(cm0) : NULL;
+        ivec2 base = bm0 ? build_mgr_get_base(bm0) : iv2(0, 0);
         int used[64] = { 0 };
         drops_cached(pl);
         for (int pick = 0; pick < g_aa_ahead_b && pick < g_drops[pi].n; pick++) {
@@ -1169,8 +1169,8 @@ internal void anti_air(ee_player *pl, unsigned idx, uint32_t now) {
         if (want < 2 + want_b) want = 2 + want_b;
     }
     int want_u = want - (have_b < want_b ? have_b : want_b);
-    void *cm = player_get_civ_mgr(pl), *um = cm ? cm_get_unit_mgr(cm) : NULL;
-    ee_build_mgr *bm = cm ? cm_get_build_mgr(cm) : NULL;
+    void *cm = player_get_civ_mgr(pl), *um = cm ? civ_mgr_get_unit_mgr(cm) : NULL;
+    ee_build_mgr *bm = cm ? civ_mgr_get_build_mgr(cm) : NULL;
     // AA units
     if (um && have_u < want_u && (!g_aa_st[idx].train_t || now - g_aa_st[idx].train_t >= 15000)) {
         g_aa_st[idx].train_t = now ? now : 1;
@@ -1207,7 +1207,7 @@ internal void anti_air(ee_player *pl, unsigned idx, uint32_t now) {
                     if ((abs(ax) != r && abs(ay) != r) || !can_place(pl, bt, iv2(d.x + ax, d.y + ay)) ||
                         raiders_near(pl, iv2(d.x + ax, d.y + ay), 8)) continue;
                     int entry[3] = { bt, d.x + ax, d.y + ay };
-                    bm_queue_add(bm, e, entry);
+                    build_mgr_queue_add(bm, e, entry);
                     g_aa_st[idx].build_t = now ? now : 1;
                     g_aa_st[idx].queued++;
                     if (g_log) fprintf(g_log, "# anti-air: P%u at %.1f min queues type %d at %d,%d (enemy aircraft %d near %d,%d, %d seen anywhere; AA buildings %d of %d%s)\n",
@@ -1242,7 +1242,7 @@ internal void upg_scan(ee_unit *u, void *ctx) {
     ee_unit_type *td = unit_get_type_data(u); ee_unit *st = unit_get_physics(u);
     if (!td || !st || !unit_get_finished(st)) return;   // finished only
     if (((int)unit_get_list_node(u)) && ((int)unit_get_chain(st))) return;  // the effect's own condition (0x5BA645)
-    int t = type_get_id(td);
+    int t = unit_type_get_id(td);
     for (int l = 0; l < 3; l++)
         for (int i = 0; i < 7 && UPG(l, i) >= 0; i++)
             if (UPG(l, i) == t && i < g_upg.best[l] && !g_upg.avail[l][i]) {
@@ -1278,7 +1278,7 @@ internal void upgrade_stragglers(void) {   // the safe point (control.c hook_sim
         for (int k = 0; k < g_upg.n; k++) {
             ee_unit_type *ntd = type_data(g_upg.to[k]);
             if (!ntd) continue;
-            int from = type_get_id(unit_get_type_data(g_upg.u[k])), x = unit_get_x(g_upg.u[k]), y = unit_get_y(g_upg.u[k]);
+            int from = unit_type_get_id(unit_get_type_data(g_upg.u[k])), x = unit_get_x(g_upg.u[k]), y = unit_get_y(g_upg.u[k]);
             unit_convert(g_upg.u[k], pi, ntd);
             g_upg_done[p & 15]++;
             if (g_log) fprintf(g_log, "# upgrades: P%d at %.1f min: %d at %d,%d left behind by its upgrade - now %d\n", p,

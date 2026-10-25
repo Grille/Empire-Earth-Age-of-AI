@@ -524,7 +524,7 @@ internal PRINTF_LIKE(2, 3) void x_host_fail(struct xctx *c, const char *fmt, ...
 internal ee_setup *g_x_setup;
 internal int x_slot_index(int number) {   // the setup slot of player number, -1 none
     for (int s = 0, n = 0; g_x_setup && s < 16; s++) {
-        int t = slot_get_type(setup_slot_at(g_x_setup, s));
+        int t = setup_slot_get_type(setup_slot_at(g_x_setup, s));
         if ((t == 0 || t == 1) && ++n == number) return s;
     }
     return -1;
@@ -539,7 +539,7 @@ internal void x_slot(struct xval *v, int number) {
 internal int x_slot_member(struct xctx *c, const struct xval *o, const char *name, struct xval *v) {
     int number = o->obj - 1, s = x_slot_index(number);
     if (s < 0) { x_host_fail(c, "slot %d: only in game.setup (before the game starts)", number); return 1; }
-    int human = slot_get_type(setup_slot_at(g_x_setup, s)) == 1;
+    int human = setup_slot_get_type(setup_slot_at(g_x_setup, s)) == 1;
     if (!strcmp(name, "number")) xnum(v, number);
     else if (!strcmp(name, "human")) xnum(v, human);
     else if (!strcmp(name, "persona")) { if (g_setup_persona[number] >= 0) xstr(v, g_personas[g_setup_persona[number]].file); }
@@ -547,7 +547,7 @@ internal int x_slot_member(struct xctx *c, const struct xval *o, const char *nam
         const struct pcolor *pc = &g_setup_color[number];
         if (pc->idx == -1) { double d[3] = { pc->rgb[0], pc->rgb[1], pc->rgb[2] }; xvec(v, d, 3); }
         else {
-            int k = pc->idx >= 0 ? pc->idx : slot_get_color(setup_slot_at(g_x_setup, s));
+            int k = pc->idx >= 0 ? pc->idx : setup_slot_get_color(setup_slot_at(g_x_setup, s));
             if (k >= 0 && k < 17) xdual(v, k + 1, color_name(k));
         }
     } else return 0;
@@ -610,7 +610,7 @@ internal int x_obj_set(struct xctx *c, const struct xval *o, const char *name, c
     if (o->okind == XK_PLAYER) return x_player_set(c, o, name, v);
     int number = o->obj - 1, s = o->okind == XK_SLOT ? x_slot_index(number) : -1;
     if (s < 0) { x_host_fail(c, "%s.%s = ...: only in game.setup (before the game starts)", o->okind == XK_SLOT ? "slot" : "it", name); return 0; }
-    int human = slot_get_type(setup_slot_at(g_x_setup, s)) == 1;
+    int human = setup_slot_get_type(setup_slot_at(g_x_setup, s)) == 1;
     if (setup_get_mode(g_x_setup) != 0) { x_host_fail(c, "slot %d.%s: personalities and their colours are planned in random-map games only", number, name); return 0; }
     if (!human && is_vanilla_idx(number)) { x_host_fail(c, "slot %d.%s: player %d plays the game's own AI (vanilla) - its name and colour the game's", number, name, number); return 0; }
     if (!strcmp(name, "persona")) {
@@ -632,7 +632,7 @@ internal int x_obj_set(struct xctx *c, const struct xval *o, const char *name, c
             x_host_fail(c, "slot %d.color = %.40s: color.<name>%s", number, xtext_of(v), human ? " (a human's: one of the game's)" : " or rgb(r, g, b)");
             return 0;
         }
-        if (human) slot_set_color(setup_slot_at(g_x_setup, s), k);   // the game gives a human its slot's
+        if (human) setup_slot_set_color(setup_slot_at(g_x_setup, s), k);   // the game gives a human its slot's
         else { g_setup_color[number].idx = k; }
         return 1;
     }

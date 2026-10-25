@@ -4,24 +4,24 @@
 // class EEScenarioManager (ee_scen_mgr)
 // the scenario manager (EEScenarioManager; test/scen.c)
 // its file's code (the scenario manager)
-internal inline uint8_t *scen_chat_at(const ee_scen_mgr *o) { return (uint8_t *)o + of_scen_chat; }
+internal inline uint8_t *scen_mgr_chat_at(const ee_scen_mgr *o) { return (uint8_t *)o + of_scen_mgr_chat; }
 // its file's code (the scenario manager)
-internal inline uint8_t *scen_triggers_at(const ee_scen_mgr *o) { return (uint8_t *)o + of_scen_triggers; }
+internal inline uint8_t *scen_mgr_triggers_at(const ee_scen_mgr *o) { return (uint8_t *)o + of_scen_mgr_triggers; }
 // its file's code (the scenario manager)
-internal inline uint8_t *scen_conds_at(const ee_scen_mgr *o) { return (uint8_t *)o + of_scen_conds; }
+internal inline uint8_t *scen_mgr_conds_at(const ee_scen_mgr *o) { return (uint8_t *)o + of_scen_mgr_conds; }
 // its file's code (the scenario manager)
-internal inline uint8_t *scen_effects_at(const ee_scen_mgr *o) { return (uint8_t *)o + of_scen_effects; }
+internal inline uint8_t *scen_mgr_effects_at(const ee_scen_mgr *o) { return (uint8_t *)o + of_scen_mgr_effects; }
 // its file's code (the scenario manager)
-internal inline uint8_t *scen_objects_at(const ee_scen_mgr *o) { return (uint8_t *)o + of_scen_objects; }
+internal inline uint8_t *scen_mgr_objects_at(const ee_scen_mgr *o) { return (uint8_t *)o + of_scen_mgr_objects; }
 // its file's code (the scenario manager)
-internal inline uint8_t *scen_areas_at(const ee_scen_mgr *o) { return (uint8_t *)o + of_scen_areas; }
+internal inline uint8_t *scen_mgr_areas_at(const ee_scen_mgr *o) { return (uint8_t *)o + of_scen_mgr_areas; }
 // its file's code (the scenario manager)
-internal inline uint8_t *scen_queue_at(const ee_scen_mgr *o) { return (uint8_t *)o + of_scen_queue; }
+internal inline uint8_t *scen_mgr_queue_at(const ee_scen_mgr *o) { return (uint8_t *)o + of_scen_mgr_queue; }
 // ms
 // its file's code (the scenario manager)
-internal inline float scen_get_time(const ee_scen_mgr *o) { return *(float *)((uint8_t *)o + of_scen_time); }
-internal inline void scen_set_time(ee_scen_mgr *o, float v) { *(float *)((uint8_t *)o + of_scen_time) = v; }
-internal inline float *scen_time_at(const ee_scen_mgr *o) { return (float *)((uint8_t *)o + of_scen_time); }
+internal inline float scen_mgr_get_time(const ee_scen_mgr *o) { return *(float *)((uint8_t *)o + of_scen_mgr_time); }
+internal inline void scen_mgr_set_time(ee_scen_mgr *o, float v) { *(float *)((uint8_t *)o + of_scen_mgr_time) = v; }
+internal inline float *scen_mgr_time_at(const ee_scen_mgr *o) { return (float *)((uint8_t *)o + of_scen_mgr_time); }
 
 // class ee_scen_cond (ee_scen_cond)
 // a scenario condition
@@ -380,134 +380,134 @@ internal inline char *scen_effect_cal_use_area_at(const ee_scen_effect *o) { ret
 // class EESMObject (ee_scen_object)
 // a scenario object (EESMObject): units picked by owner, class, area ...
 // its file's code (the scenario manager)
-internal inline uint8_t *scen_obj_name_at(const ee_scen_object *o) { return (uint8_t *)o + of_scen_obj_name; }
+internal inline uint8_t *scen_object_name_at(const ee_scen_object *o) { return (uint8_t *)o + of_scen_object_name; }
 // its file's code (the scenario manager)
-internal inline uint8_t *scen_obj_units_at(const ee_scen_object *o) { return (uint8_t *)o + of_scen_obj_units; }
+internal inline uint8_t *scen_object_units_at(const ee_scen_object *o) { return (uint8_t *)o + of_scen_object_units; }
 // its file's code (the scenario manager)
-internal inline enum sm_player_spec scen_obj_get_players(const ee_scen_object *o) { return *(enum sm_player_spec *)((uint8_t *)o + of_scen_obj_players); }
-internal inline void scen_obj_set_players(ee_scen_object *o, enum sm_player_spec v) { *(enum sm_player_spec *)((uint8_t *)o + of_scen_obj_players) = v; }
-internal inline enum sm_player_spec *scen_obj_players_at(const ee_scen_object *o) { return (enum sm_player_spec *)((uint8_t *)o + of_scen_obj_players); }
+internal inline enum sm_player_spec scen_object_get_players(const ee_scen_object *o) { return *(enum sm_player_spec *)((uint8_t *)o + of_scen_object_players); }
+internal inline void scen_object_set_players(ee_scen_object *o, enum sm_player_spec v) { *(enum sm_player_spec *)((uint8_t *)o + of_scen_object_players) = v; }
+internal inline enum sm_player_spec *scen_object_players_at(const ee_scen_object *o) { return (enum sm_player_spec *)((uint8_t *)o + of_scen_object_players); }
 // 0 any, 1..14 epoch, 15..71 family, 72..112 RPS, 113+ group
 // its file's code (the scenario manager)
-internal inline enum sm_class scen_obj_get_class(const ee_scen_object *o) { return *(enum sm_class *)((uint8_t *)o + of_scen_obj_class); }
-internal inline void scen_obj_set_class(ee_scen_object *o, enum sm_class v) { *(enum sm_class *)((uint8_t *)o + of_scen_obj_class) = v; }
-internal inline enum sm_class *scen_obj_class_at(const ee_scen_object *o) { return (enum sm_class *)((uint8_t *)o + of_scen_obj_class); }
+internal inline enum sm_class scen_object_get_class(const ee_scen_object *o) { return *(enum sm_class *)((uint8_t *)o + of_scen_object_class); }
+internal inline void scen_object_set_class(ee_scen_object *o, enum sm_class v) { *(enum sm_class *)((uint8_t *)o + of_scen_object_class) = v; }
+internal inline enum sm_class *scen_object_class_at(const ee_scen_object *o) { return (enum sm_class *)((uint8_t *)o + of_scen_object_class); }
 // 0: by class
 // its file's code (the scenario manager)
-internal inline int scen_obj_get_type(const ee_scen_object *o) { return *(int *)((uint8_t *)o + of_scen_obj_type); }
-internal inline void scen_obj_set_type(ee_scen_object *o, int v) { *(int *)((uint8_t *)o + of_scen_obj_type) = v; }
-internal inline int *scen_obj_type_at(const ee_scen_object *o) { return (int *)((uint8_t *)o + of_scen_obj_type); }
+internal inline int scen_object_get_type(const ee_scen_object *o) { return *(int *)((uint8_t *)o + of_scen_object_type); }
+internal inline void scen_object_set_type(ee_scen_object *o, int v) { *(int *)((uint8_t *)o + of_scen_object_type) = v; }
+internal inline int *scen_object_type_at(const ee_scen_object *o) { return (int *)((uint8_t *)o + of_scen_object_type); }
 // its file's code (the scenario manager)
-internal inline int scen_obj_get_min(const ee_scen_object *o) { return *(int *)((uint8_t *)o + of_scen_obj_min); }
-internal inline void scen_obj_set_min(ee_scen_object *o, int v) { *(int *)((uint8_t *)o + of_scen_obj_min) = v; }
-internal inline int *scen_obj_min_at(const ee_scen_object *o) { return (int *)((uint8_t *)o + of_scen_obj_min); }
+internal inline int scen_object_get_min(const ee_scen_object *o) { return *(int *)((uint8_t *)o + of_scen_object_min); }
+internal inline void scen_object_set_min(ee_scen_object *o, int v) { *(int *)((uint8_t *)o + of_scen_object_min) = v; }
+internal inline int *scen_object_min_at(const ee_scen_object *o) { return (int *)((uint8_t *)o + of_scen_object_min); }
 // its file's code (the scenario manager)
-internal inline int scen_obj_get_max(const ee_scen_object *o) { return *(int *)((uint8_t *)o + of_scen_obj_max); }
-internal inline void scen_obj_set_max(ee_scen_object *o, int v) { *(int *)((uint8_t *)o + of_scen_obj_max) = v; }
-internal inline int *scen_obj_max_at(const ee_scen_object *o) { return (int *)((uint8_t *)o + of_scen_obj_max); }
+internal inline int scen_object_get_max(const ee_scen_object *o) { return *(int *)((uint8_t *)o + of_scen_object_max); }
+internal inline void scen_object_set_max(ee_scen_object *o, int v) { *(int *)((uint8_t *)o + of_scen_object_max) = v; }
+internal inline int *scen_object_max_at(const ee_scen_object *o) { return (int *)((uint8_t *)o + of_scen_object_max); }
 // its file's code (the scenario manager)
-internal inline int scen_obj_get_area(const ee_scen_object *o) { return *(int *)((uint8_t *)o + of_scen_obj_area); }
-internal inline void scen_obj_set_area(ee_scen_object *o, int v) { *(int *)((uint8_t *)o + of_scen_obj_area) = v; }
-internal inline int *scen_obj_area_at(const ee_scen_object *o) { return (int *)((uint8_t *)o + of_scen_obj_area); }
+internal inline int scen_object_get_area(const ee_scen_object *o) { return *(int *)((uint8_t *)o + of_scen_object_area); }
+internal inline void scen_object_set_area(ee_scen_object *o, int v) { *(int *)((uint8_t *)o + of_scen_object_area) = v; }
+internal inline int *scen_object_area_at(const ee_scen_object *o) { return (int *)((uint8_t *)o + of_scen_object_area); }
 // 0 sight, 1 range, 2 near
 // its file's code (the scenario manager)
-internal inline enum sm_relation scen_obj_get_rel_kind(const ee_scen_object *o) { return *(enum sm_relation *)((uint8_t *)o + of_scen_obj_rel_kind); }
-internal inline void scen_obj_set_rel_kind(ee_scen_object *o, enum sm_relation v) { *(enum sm_relation *)((uint8_t *)o + of_scen_obj_rel_kind) = v; }
-internal inline enum sm_relation *scen_obj_rel_kind_at(const ee_scen_object *o) { return (enum sm_relation *)((uint8_t *)o + of_scen_obj_rel_kind); }
+internal inline enum sm_relation scen_object_get_rel_kind(const ee_scen_object *o) { return *(enum sm_relation *)((uint8_t *)o + of_scen_object_rel_kind); }
+internal inline void scen_object_set_rel_kind(ee_scen_object *o, enum sm_relation v) { *(enum sm_relation *)((uint8_t *)o + of_scen_object_rel_kind) = v; }
+internal inline enum sm_relation *scen_object_rel_kind_at(const ee_scen_object *o) { return (enum sm_relation *)((uint8_t *)o + of_scen_object_rel_kind); }
 // its file's code (the scenario manager)
-internal inline int scen_obj_get_rel_object(const ee_scen_object *o) { return *(int *)((uint8_t *)o + of_scen_obj_rel_object); }
-internal inline void scen_obj_set_rel_object(ee_scen_object *o, int v) { *(int *)((uint8_t *)o + of_scen_obj_rel_object) = v; }
-internal inline int *scen_obj_rel_object_at(const ee_scen_object *o) { return (int *)((uint8_t *)o + of_scen_obj_rel_object); }
+internal inline int scen_object_get_rel_object(const ee_scen_object *o) { return *(int *)((uint8_t *)o + of_scen_object_rel_object); }
+internal inline void scen_object_set_rel_object(ee_scen_object *o, int v) { *(int *)((uint8_t *)o + of_scen_object_rel_object) = v; }
+internal inline int *scen_object_rel_object_at(const ee_scen_object *o) { return (int *)((uint8_t *)o + of_scen_object_rel_object); }
 // its file's code (the scenario manager)
-internal inline int scen_obj_get_parent(const ee_scen_object *o) { return *(int *)((uint8_t *)o + of_scen_obj_parent); }
-internal inline void scen_obj_set_parent(ee_scen_object *o, int v) { *(int *)((uint8_t *)o + of_scen_obj_parent) = v; }
-internal inline int *scen_obj_parent_at(const ee_scen_object *o) { return (int *)((uint8_t *)o + of_scen_obj_parent); }
+internal inline int scen_object_get_parent(const ee_scen_object *o) { return *(int *)((uint8_t *)o + of_scen_object_parent); }
+internal inline void scen_object_set_parent(ee_scen_object *o, int v) { *(int *)((uint8_t *)o + of_scen_object_parent) = v; }
+internal inline int *scen_object_parent_at(const ee_scen_object *o) { return (int *)((uint8_t *)o + of_scen_object_parent); }
 // its file's code (the scenario manager)
-internal inline enum sm_unit_attr scen_obj_get_attr(const ee_scen_object *o) { return *(enum sm_unit_attr *)((uint8_t *)o + of_scen_obj_attr); }
-internal inline void scen_obj_set_attr(ee_scen_object *o, enum sm_unit_attr v) { *(enum sm_unit_attr *)((uint8_t *)o + of_scen_obj_attr) = v; }
-internal inline enum sm_unit_attr *scen_obj_attr_at(const ee_scen_object *o) { return (enum sm_unit_attr *)((uint8_t *)o + of_scen_obj_attr); }
+internal inline enum sm_unit_attr scen_object_get_attr(const ee_scen_object *o) { return *(enum sm_unit_attr *)((uint8_t *)o + of_scen_object_attr); }
+internal inline void scen_object_set_attr(ee_scen_object *o, enum sm_unit_attr v) { *(enum sm_unit_attr *)((uint8_t *)o + of_scen_object_attr) = v; }
+internal inline enum sm_unit_attr *scen_object_attr_at(const ee_scen_object *o) { return (enum sm_unit_attr *)((uint8_t *)o + of_scen_object_attr); }
 // its file's code (the scenario manager)
-internal inline int scen_obj_get_attr_min(const ee_scen_object *o) { return *(int *)((uint8_t *)o + of_scen_obj_attr_min); }
-internal inline void scen_obj_set_attr_min(ee_scen_object *o, int v) { *(int *)((uint8_t *)o + of_scen_obj_attr_min) = v; }
-internal inline int *scen_obj_attr_min_at(const ee_scen_object *o) { return (int *)((uint8_t *)o + of_scen_obj_attr_min); }
+internal inline int scen_object_get_attr_min(const ee_scen_object *o) { return *(int *)((uint8_t *)o + of_scen_object_attr_min); }
+internal inline void scen_object_set_attr_min(ee_scen_object *o, int v) { *(int *)((uint8_t *)o + of_scen_object_attr_min) = v; }
+internal inline int *scen_object_attr_min_at(const ee_scen_object *o) { return (int *)((uint8_t *)o + of_scen_object_attr_min); }
 // its file's code (the scenario manager)
-internal inline int scen_obj_get_attr_max(const ee_scen_object *o) { return *(int *)((uint8_t *)o + of_scen_obj_attr_max); }
-internal inline void scen_obj_set_attr_max(ee_scen_object *o, int v) { *(int *)((uint8_t *)o + of_scen_obj_attr_max) = v; }
-internal inline int *scen_obj_attr_max_at(const ee_scen_object *o) { return (int *)((uint8_t *)o + of_scen_obj_attr_max); }
+internal inline int scen_object_get_attr_max(const ee_scen_object *o) { return *(int *)((uint8_t *)o + of_scen_object_attr_max); }
+internal inline void scen_object_set_attr_max(ee_scen_object *o, int v) { *(int *)((uint8_t *)o + of_scen_object_attr_max) = v; }
+internal inline int *scen_object_attr_max_at(const ee_scen_object *o) { return (int *)((uint8_t *)o + of_scen_object_attr_max); }
 // its file's code (the scenario manager)
-internal inline int scen_obj_get_state(const ee_scen_object *o) { return *(int *)((uint8_t *)o + of_scen_obj_state); }
-internal inline void scen_obj_set_state(ee_scen_object *o, int v) { *(int *)((uint8_t *)o + of_scen_obj_state) = v; }
-internal inline int *scen_obj_state_at(const ee_scen_object *o) { return (int *)((uint8_t *)o + of_scen_obj_state); }
+internal inline int scen_object_get_state(const ee_scen_object *o) { return *(int *)((uint8_t *)o + of_scen_object_state); }
+internal inline void scen_object_set_state(ee_scen_object *o, int v) { *(int *)((uint8_t *)o + of_scen_object_state) = v; }
+internal inline int *scen_object_state_at(const ee_scen_object *o) { return (int *)((uint8_t *)o + of_scen_object_state); }
 // its file's code (the scenario manager)
-internal inline enum sm_player_spec scen_obj_get_seen_players(const ee_scen_object *o) { return *(enum sm_player_spec *)((uint8_t *)o + of_scen_obj_seen_players); }
-internal inline void scen_obj_set_seen_players(ee_scen_object *o, enum sm_player_spec v) { *(enum sm_player_spec *)((uint8_t *)o + of_scen_obj_seen_players) = v; }
-internal inline enum sm_player_spec *scen_obj_seen_players_at(const ee_scen_object *o) { return (enum sm_player_spec *)((uint8_t *)o + of_scen_obj_seen_players); }
+internal inline enum sm_player_spec scen_object_get_seen_players(const ee_scen_object *o) { return *(enum sm_player_spec *)((uint8_t *)o + of_scen_object_seen_players); }
+internal inline void scen_object_set_seen_players(ee_scen_object *o, enum sm_player_spec v) { *(enum sm_player_spec *)((uint8_t *)o + of_scen_object_seen_players) = v; }
+internal inline enum sm_player_spec *scen_object_seen_players_at(const ee_scen_object *o) { return (enum sm_player_spec *)((uint8_t *)o + of_scen_object_seen_players); }
 // its file's code (the scenario manager)
-internal inline enum sm_test_mode scen_obj_get_area_mode(const ee_scen_object *o) { return *(enum sm_test_mode *)((uint8_t *)o + of_scen_obj_area_mode); }
-internal inline void scen_obj_set_area_mode(ee_scen_object *o, enum sm_test_mode v) { *(enum sm_test_mode *)((uint8_t *)o + of_scen_obj_area_mode) = v; }
-internal inline enum sm_test_mode *scen_obj_area_mode_at(const ee_scen_object *o) { return (enum sm_test_mode *)((uint8_t *)o + of_scen_obj_area_mode); }
+internal inline enum sm_test_mode scen_object_get_area_mode(const ee_scen_object *o) { return *(enum sm_test_mode *)((uint8_t *)o + of_scen_object_area_mode); }
+internal inline void scen_object_set_area_mode(ee_scen_object *o, enum sm_test_mode v) { *(enum sm_test_mode *)((uint8_t *)o + of_scen_object_area_mode) = v; }
+internal inline enum sm_test_mode *scen_object_area_mode_at(const ee_scen_object *o) { return (enum sm_test_mode *)((uint8_t *)o + of_scen_object_area_mode); }
 // its file's code (the scenario manager)
-internal inline enum sm_test_mode scen_obj_get_rel_mode(const ee_scen_object *o) { return *(enum sm_test_mode *)((uint8_t *)o + of_scen_obj_rel_mode); }
-internal inline void scen_obj_set_rel_mode(ee_scen_object *o, enum sm_test_mode v) { *(enum sm_test_mode *)((uint8_t *)o + of_scen_obj_rel_mode) = v; }
-internal inline enum sm_test_mode *scen_obj_rel_mode_at(const ee_scen_object *o) { return (enum sm_test_mode *)((uint8_t *)o + of_scen_obj_rel_mode); }
+internal inline enum sm_test_mode scen_object_get_rel_mode(const ee_scen_object *o) { return *(enum sm_test_mode *)((uint8_t *)o + of_scen_object_rel_mode); }
+internal inline void scen_object_set_rel_mode(ee_scen_object *o, enum sm_test_mode v) { *(enum sm_test_mode *)((uint8_t *)o + of_scen_object_rel_mode) = v; }
+internal inline enum sm_test_mode *scen_object_rel_mode_at(const ee_scen_object *o) { return (enum sm_test_mode *)((uint8_t *)o + of_scen_object_rel_mode); }
 // its file's code (the scenario manager)
-internal inline enum sm_test_mode scen_obj_get_attr_mode(const ee_scen_object *o) { return *(enum sm_test_mode *)((uint8_t *)o + of_scen_obj_attr_mode); }
-internal inline void scen_obj_set_attr_mode(ee_scen_object *o, enum sm_test_mode v) { *(enum sm_test_mode *)((uint8_t *)o + of_scen_obj_attr_mode) = v; }
-internal inline enum sm_test_mode *scen_obj_attr_mode_at(const ee_scen_object *o) { return (enum sm_test_mode *)((uint8_t *)o + of_scen_obj_attr_mode); }
+internal inline enum sm_test_mode scen_object_get_attr_mode(const ee_scen_object *o) { return *(enum sm_test_mode *)((uint8_t *)o + of_scen_object_attr_mode); }
+internal inline void scen_object_set_attr_mode(ee_scen_object *o, enum sm_test_mode v) { *(enum sm_test_mode *)((uint8_t *)o + of_scen_object_attr_mode) = v; }
+internal inline enum sm_test_mode *scen_object_attr_mode_at(const ee_scen_object *o) { return (enum sm_test_mode *)((uint8_t *)o + of_scen_object_attr_mode); }
 // its file's code (the scenario manager)
-internal inline enum sm_test_mode scen_obj_get_seen_mode(const ee_scen_object *o) { return *(enum sm_test_mode *)((uint8_t *)o + of_scen_obj_seen_mode); }
-internal inline void scen_obj_set_seen_mode(ee_scen_object *o, enum sm_test_mode v) { *(enum sm_test_mode *)((uint8_t *)o + of_scen_obj_seen_mode) = v; }
-internal inline enum sm_test_mode *scen_obj_seen_mode_at(const ee_scen_object *o) { return (enum sm_test_mode *)((uint8_t *)o + of_scen_obj_seen_mode); }
+internal inline enum sm_test_mode scen_object_get_seen_mode(const ee_scen_object *o) { return *(enum sm_test_mode *)((uint8_t *)o + of_scen_object_seen_mode); }
+internal inline void scen_object_set_seen_mode(ee_scen_object *o, enum sm_test_mode v) { *(enum sm_test_mode *)((uint8_t *)o + of_scen_object_seen_mode) = v; }
+internal inline enum sm_test_mode *scen_object_seen_mode_at(const ee_scen_object *o) { return (enum sm_test_mode *)((uint8_t *)o + of_scen_object_seen_mode); }
 // its file's code (the scenario manager)
-internal inline enum sm_test_mode scen_obj_get_state_mode(const ee_scen_object *o) { return *(enum sm_test_mode *)((uint8_t *)o + of_scen_obj_state_mode); }
-internal inline void scen_obj_set_state_mode(ee_scen_object *o, enum sm_test_mode v) { *(enum sm_test_mode *)((uint8_t *)o + of_scen_obj_state_mode) = v; }
-internal inline enum sm_test_mode *scen_obj_state_mode_at(const ee_scen_object *o) { return (enum sm_test_mode *)((uint8_t *)o + of_scen_obj_state_mode); }
+internal inline enum sm_test_mode scen_object_get_state_mode(const ee_scen_object *o) { return *(enum sm_test_mode *)((uint8_t *)o + of_scen_object_state_mode); }
+internal inline void scen_object_set_state_mode(ee_scen_object *o, enum sm_test_mode v) { *(enum sm_test_mode *)((uint8_t *)o + of_scen_object_state_mode) = v; }
+internal inline enum sm_test_mode *scen_object_state_mode_at(const ee_scen_object *o) { return (enum sm_test_mode *)((uint8_t *)o + of_scen_object_state_mode); }
 // its file's code (the scenario manager)
-internal inline enum sm_test_mode scen_obj_get_selected_mode(const ee_scen_object *o) { return *(enum sm_test_mode *)((uint8_t *)o + of_scen_obj_selected_mode); }
-internal inline void scen_obj_set_selected_mode(ee_scen_object *o, enum sm_test_mode v) { *(enum sm_test_mode *)((uint8_t *)o + of_scen_obj_selected_mode) = v; }
-internal inline enum sm_test_mode *scen_obj_selected_mode_at(const ee_scen_object *o) { return (enum sm_test_mode *)((uint8_t *)o + of_scen_obj_selected_mode); }
+internal inline enum sm_test_mode scen_object_get_selected_mode(const ee_scen_object *o) { return *(enum sm_test_mode *)((uint8_t *)o + of_scen_object_selected_mode); }
+internal inline void scen_object_set_selected_mode(ee_scen_object *o, enum sm_test_mode v) { *(enum sm_test_mode *)((uint8_t *)o + of_scen_object_selected_mode) = v; }
+internal inline enum sm_test_mode *scen_object_selected_mode_at(const ee_scen_object *o) { return (enum sm_test_mode *)((uint8_t *)o + of_scen_object_selected_mode); }
 // its file's code (the scenario manager)
-internal inline char scen_obj_get_locked(const ee_scen_object *o) { return *(char *)((uint8_t *)o + of_scen_obj_locked); }
-internal inline void scen_obj_set_locked(ee_scen_object *o, char v) { *(char *)((uint8_t *)o + of_scen_obj_locked) = v; }
-internal inline char *scen_obj_locked_at(const ee_scen_object *o) { return (char *)((uint8_t *)o + of_scen_obj_locked); }
+internal inline char scen_object_get_locked(const ee_scen_object *o) { return *(char *)((uint8_t *)o + of_scen_object_locked); }
+internal inline void scen_object_set_locked(ee_scen_object *o, char v) { *(char *)((uint8_t *)o + of_scen_object_locked) = v; }
+internal inline char *scen_object_locked_at(const ee_scen_object *o) { return (char *)((uint8_t *)o + of_scen_object_locked); }
 // its file's code (the scenario manager)
-internal inline char scen_obj_get_dynamic(const ee_scen_object *o) { return *(char *)((uint8_t *)o + of_scen_obj_dynamic); }
-internal inline void scen_obj_set_dynamic(ee_scen_object *o, char v) { *(char *)((uint8_t *)o + of_scen_obj_dynamic) = v; }
-internal inline char *scen_obj_dynamic_at(const ee_scen_object *o) { return (char *)((uint8_t *)o + of_scen_obj_dynamic); }
+internal inline char scen_object_get_dynamic(const ee_scen_object *o) { return *(char *)((uint8_t *)o + of_scen_object_dynamic); }
+internal inline void scen_object_set_dynamic(ee_scen_object *o, char v) { *(char *)((uint8_t *)o + of_scen_object_dynamic) = v; }
+internal inline char *scen_object_dynamic_at(const ee_scen_object *o) { return (char *)((uint8_t *)o + of_scen_object_dynamic); }
 // its file's code (the scenario manager)
-internal inline char scen_obj_get_attr_percent(const ee_scen_object *o) { return *(char *)((uint8_t *)o + of_scen_obj_attr_percent); }
-internal inline void scen_obj_set_attr_percent(ee_scen_object *o, char v) { *(char *)((uint8_t *)o + of_scen_obj_attr_percent) = v; }
-internal inline char *scen_obj_attr_percent_at(const ee_scen_object *o) { return (char *)((uint8_t *)o + of_scen_obj_attr_percent); }
+internal inline char scen_object_get_attr_percent(const ee_scen_object *o) { return *(char *)((uint8_t *)o + of_scen_object_attr_percent); }
+internal inline void scen_object_set_attr_percent(ee_scen_object *o, char v) { *(char *)((uint8_t *)o + of_scen_object_attr_percent) = v; }
+internal inline char *scen_object_attr_percent_at(const ee_scen_object *o) { return (char *)((uint8_t *)o + of_scen_object_attr_percent); }
 
 // class ee_trig_cond (ee_trig_cond)
 // a trigger's condition reference
 // its file's code (the scenario manager)
-internal inline int trigger_cond_get_index(const ee_trig_cond *o) { return *(int *)((uint8_t *)o + of_trigger_cond_index); }
-internal inline void trigger_cond_set_index(ee_trig_cond *o, int v) { *(int *)((uint8_t *)o + of_trigger_cond_index) = v; }
-internal inline int *trigger_cond_index_at(const ee_trig_cond *o) { return (int *)((uint8_t *)o + of_trigger_cond_index); }
+internal inline int trig_cond_get_index(const ee_trig_cond *o) { return *(int *)((uint8_t *)o + of_trig_cond_index); }
+internal inline void trig_cond_set_index(ee_trig_cond *o, int v) { *(int *)((uint8_t *)o + of_trig_cond_index) = v; }
+internal inline int *trig_cond_index_at(const ee_trig_cond *o) { return (int *)((uint8_t *)o + of_trig_cond_index); }
 // its file's code (the scenario manager)
-internal inline int trigger_cond_get_join(const ee_trig_cond *o) { return *(int *)((uint8_t *)o + of_trigger_cond_join); }
-internal inline void trigger_cond_set_join(ee_trig_cond *o, int v) { *(int *)((uint8_t *)o + of_trigger_cond_join) = v; }
-internal inline int *trigger_cond_join_at(const ee_trig_cond *o) { return (int *)((uint8_t *)o + of_trigger_cond_join); }
+internal inline int trig_cond_get_join(const ee_trig_cond *o) { return *(int *)((uint8_t *)o + of_trig_cond_join); }
+internal inline void trig_cond_set_join(ee_trig_cond *o, int v) { *(int *)((uint8_t *)o + of_trig_cond_join) = v; }
+internal inline int *trig_cond_join_at(const ee_trig_cond *o) { return (int *)((uint8_t *)o + of_trig_cond_join); }
 // its file's code (the scenario manager)
-internal inline char trigger_cond_get_not(const ee_trig_cond *o) { return *(char *)((uint8_t *)o + of_trigger_cond_not); }
-internal inline void trigger_cond_set_not(ee_trig_cond *o, char v) { *(char *)((uint8_t *)o + of_trigger_cond_not) = v; }
-internal inline char *trigger_cond_not_at(const ee_trig_cond *o) { return (char *)((uint8_t *)o + of_trigger_cond_not); }
+internal inline char trig_cond_get_not(const ee_trig_cond *o) { return *(char *)((uint8_t *)o + of_trig_cond_not); }
+internal inline void trig_cond_set_not(ee_trig_cond *o, char v) { *(char *)((uint8_t *)o + of_trig_cond_not) = v; }
+internal inline char *trig_cond_not_at(const ee_trig_cond *o) { return (char *)((uint8_t *)o + of_trig_cond_not); }
 
 // class ee_trig_effect (ee_trig_effect)
 // a trigger's effect reference
 // its file's code (the scenario manager)
-internal inline int trigger_effect_get_kind(const ee_trig_effect *o) { return *(int *)((uint8_t *)o + of_trigger_effect_kind); }
-internal inline void trigger_effect_set_kind(ee_trig_effect *o, int v) { *(int *)((uint8_t *)o + of_trigger_effect_kind) = v; }
-internal inline int *trigger_effect_kind_at(const ee_trig_effect *o) { return (int *)((uint8_t *)o + of_trigger_effect_kind); }
+internal inline int trig_effect_get_kind(const ee_trig_effect *o) { return *(int *)((uint8_t *)o + of_trig_effect_kind); }
+internal inline void trig_effect_set_kind(ee_trig_effect *o, int v) { *(int *)((uint8_t *)o + of_trig_effect_kind) = v; }
+internal inline int *trig_effect_kind_at(const ee_trig_effect *o) { return (int *)((uint8_t *)o + of_trig_effect_kind); }
 // its file's code (the scenario manager)
-internal inline int trigger_effect_get_delay(const ee_trig_effect *o) { return *(int *)((uint8_t *)o + of_trigger_effect_delay); }
-internal inline void trigger_effect_set_delay(ee_trig_effect *o, int v) { *(int *)((uint8_t *)o + of_trigger_effect_delay) = v; }
-internal inline int *trigger_effect_delay_at(const ee_trig_effect *o) { return (int *)((uint8_t *)o + of_trigger_effect_delay); }
+internal inline int trig_effect_get_delay(const ee_trig_effect *o) { return *(int *)((uint8_t *)o + of_trig_effect_delay); }
+internal inline void trig_effect_set_delay(ee_trig_effect *o, int v) { *(int *)((uint8_t *)o + of_trig_effect_delay) = v; }
+internal inline int *trig_effect_delay_at(const ee_trig_effect *o) { return (int *)((uint8_t *)o + of_trig_effect_delay); }
 // its file's code (the scenario manager)
-internal inline int trigger_effect_get_index(const ee_trig_effect *o) { return *(int *)((uint8_t *)o + of_trigger_effect_index); }
-internal inline void trigger_effect_set_index(ee_trig_effect *o, int v) { *(int *)((uint8_t *)o + of_trigger_effect_index) = v; }
-internal inline int *trigger_effect_index_at(const ee_trig_effect *o) { return (int *)((uint8_t *)o + of_trigger_effect_index); }
+internal inline int trig_effect_get_index(const ee_trig_effect *o) { return *(int *)((uint8_t *)o + of_trig_effect_index); }
+internal inline void trig_effect_set_index(ee_trig_effect *o, int v) { *(int *)((uint8_t *)o + of_trig_effect_index) = v; }
+internal inline int *trig_effect_index_at(const ee_trig_effect *o) { return (int *)((uint8_t *)o + of_trig_effect_index); }
 
 // class EESMTrigger (ee_trigger)
 // a scenario trigger (EESMTrigger)
@@ -621,14 +621,14 @@ internal inline void sm_trigger_update(ee_trigger *t, float now) { fn_sm_trigger
 internal int spec_scenario_select(int build) {
     switch (build) {
     case 0:   // ee
-        of_scen_chat = 0xC0;
-        of_scen_triggers = 0xE8;
-        of_scen_conds = 0xF8;
-        of_scen_effects = 0x108;
-        of_scen_objects = 0x118;
-        of_scen_areas = 0x128;
-        of_scen_queue = 0x168;
-        of_scen_time = 0x210;
+        of_scen_mgr_chat = 0xC0;
+        of_scen_mgr_triggers = 0xE8;
+        of_scen_mgr_conds = 0xF8;
+        of_scen_mgr_effects = 0x108;
+        of_scen_mgr_objects = 0x118;
+        of_scen_mgr_areas = 0x128;
+        of_scen_mgr_queue = 0x168;
+        of_scen_mgr_time = 0x210;
         of_scen_cond_name = 0x4;
         of_scen_cond_text = 0x2C;
         of_scen_cond_type = 0x40;
@@ -714,37 +714,37 @@ internal int spec_scenario_select(int build) {
         of_scen_effect_percent = 0x190;
         of_scen_effect_tech_add = 0x191;
         of_scen_effect_cal_use_area = 0x192;
-        of_scen_obj_name = 0x4;
-        of_scen_obj_units = 0x1C;
-        of_scen_obj_players = 0x28;
-        of_scen_obj_class = 0x2C;
-        of_scen_obj_type = 0x30;
-        of_scen_obj_min = 0x34;
-        of_scen_obj_max = 0x38;
-        of_scen_obj_area = 0x3C;
-        of_scen_obj_rel_kind = 0x40;
-        of_scen_obj_rel_object = 0x44;
-        of_scen_obj_parent = 0x48;
-        of_scen_obj_attr = 0x4C;
-        of_scen_obj_attr_min = 0x50;
-        of_scen_obj_attr_max = 0x54;
-        of_scen_obj_state = 0x5C;
-        of_scen_obj_seen_players = 0x60;
-        of_scen_obj_area_mode = 0x68;
-        of_scen_obj_rel_mode = 0x6C;
-        of_scen_obj_attr_mode = 0x70;
-        of_scen_obj_seen_mode = 0x74;
-        of_scen_obj_state_mode = 0x78;
-        of_scen_obj_selected_mode = 0x7C;
-        of_scen_obj_locked = 0x80;
-        of_scen_obj_dynamic = 0x81;
-        of_scen_obj_attr_percent = 0x82;
-        of_trigger_cond_index = 0x4;
-        of_trigger_cond_join = 0x8;
-        of_trigger_cond_not = 0xC;
-        of_trigger_effect_kind = 0x4;
-        of_trigger_effect_delay = 0x8;
-        of_trigger_effect_index = 0xC;
+        of_scen_object_name = 0x4;
+        of_scen_object_units = 0x1C;
+        of_scen_object_players = 0x28;
+        of_scen_object_class = 0x2C;
+        of_scen_object_type = 0x30;
+        of_scen_object_min = 0x34;
+        of_scen_object_max = 0x38;
+        of_scen_object_area = 0x3C;
+        of_scen_object_rel_kind = 0x40;
+        of_scen_object_rel_object = 0x44;
+        of_scen_object_parent = 0x48;
+        of_scen_object_attr = 0x4C;
+        of_scen_object_attr_min = 0x50;
+        of_scen_object_attr_max = 0x54;
+        of_scen_object_state = 0x5C;
+        of_scen_object_seen_players = 0x60;
+        of_scen_object_area_mode = 0x68;
+        of_scen_object_rel_mode = 0x6C;
+        of_scen_object_attr_mode = 0x70;
+        of_scen_object_seen_mode = 0x74;
+        of_scen_object_state_mode = 0x78;
+        of_scen_object_selected_mode = 0x7C;
+        of_scen_object_locked = 0x80;
+        of_scen_object_dynamic = 0x81;
+        of_scen_object_attr_percent = 0x82;
+        of_trig_cond_index = 0x4;
+        of_trig_cond_join = 0x8;
+        of_trig_cond_not = 0xC;
+        of_trig_effect_kind = 0x4;
+        of_trig_effect_delay = 0x8;
+        of_trig_effect_index = 0xC;
         of_trigger_name = 0x4;
         of_trigger_desc = 0x18;
         of_trigger_conds = 0x30;
@@ -774,14 +774,14 @@ internal int spec_scenario_select(int build) {
         fn_sm_trigger_update = (sm_trigger_update_fn)0x005B93B0;
         return 0;
     case 1:   // aoc
-        of_scen_chat = 0xC0;
-        of_scen_triggers = 0xE8;
-        of_scen_conds = 0xF8;
-        of_scen_effects = 0x108;
-        of_scen_objects = 0x118;
-        of_scen_areas = 0x128;
-        of_scen_queue = 0x168;
-        of_scen_time = 0x210;
+        of_scen_mgr_chat = 0xC0;
+        of_scen_mgr_triggers = 0xE8;
+        of_scen_mgr_conds = 0xF8;
+        of_scen_mgr_effects = 0x108;
+        of_scen_mgr_objects = 0x118;
+        of_scen_mgr_areas = 0x128;
+        of_scen_mgr_queue = 0x168;
+        of_scen_mgr_time = 0x210;
         of_scen_cond_name = 0x4;
         of_scen_cond_text = 0x2C;
         of_scen_cond_type = 0x40;
@@ -867,37 +867,37 @@ internal int spec_scenario_select(int build) {
         of_scen_effect_percent = 0x190;
         of_scen_effect_tech_add = 0x191;
         of_scen_effect_cal_use_area = 0x192;
-        of_scen_obj_name = 0x4;
-        of_scen_obj_units = 0x1C;
-        of_scen_obj_players = 0x28;
-        of_scen_obj_class = 0x2C;
-        of_scen_obj_type = 0x30;
-        of_scen_obj_min = 0x34;
-        of_scen_obj_max = 0x38;
-        of_scen_obj_area = 0x3C;
-        of_scen_obj_rel_kind = 0x40;
-        of_scen_obj_rel_object = 0x44;
-        of_scen_obj_parent = 0x48;
-        of_scen_obj_attr = 0x4C;
-        of_scen_obj_attr_min = 0x50;
-        of_scen_obj_attr_max = 0x54;
-        of_scen_obj_state = 0x5C;
-        of_scen_obj_seen_players = 0x60;
-        of_scen_obj_area_mode = 0x68;
-        of_scen_obj_rel_mode = 0x6C;
-        of_scen_obj_attr_mode = 0x70;
-        of_scen_obj_seen_mode = 0x74;
-        of_scen_obj_state_mode = 0x78;
-        of_scen_obj_selected_mode = 0x7C;
-        of_scen_obj_locked = 0x80;
-        of_scen_obj_dynamic = 0x81;
-        of_scen_obj_attr_percent = 0x82;
-        of_trigger_cond_index = 0x4;
-        of_trigger_cond_join = 0x8;
-        of_trigger_cond_not = 0xC;
-        of_trigger_effect_kind = 0x4;
-        of_trigger_effect_delay = 0x8;
-        of_trigger_effect_index = 0xC;
+        of_scen_object_name = 0x4;
+        of_scen_object_units = 0x1C;
+        of_scen_object_players = 0x28;
+        of_scen_object_class = 0x2C;
+        of_scen_object_type = 0x30;
+        of_scen_object_min = 0x34;
+        of_scen_object_max = 0x38;
+        of_scen_object_area = 0x3C;
+        of_scen_object_rel_kind = 0x40;
+        of_scen_object_rel_object = 0x44;
+        of_scen_object_parent = 0x48;
+        of_scen_object_attr = 0x4C;
+        of_scen_object_attr_min = 0x50;
+        of_scen_object_attr_max = 0x54;
+        of_scen_object_state = 0x5C;
+        of_scen_object_seen_players = 0x60;
+        of_scen_object_area_mode = 0x68;
+        of_scen_object_rel_mode = 0x6C;
+        of_scen_object_attr_mode = 0x70;
+        of_scen_object_seen_mode = 0x74;
+        of_scen_object_state_mode = 0x78;
+        of_scen_object_selected_mode = 0x7C;
+        of_scen_object_locked = 0x80;
+        of_scen_object_dynamic = 0x81;
+        of_scen_object_attr_percent = 0x82;
+        of_trig_cond_index = 0x4;
+        of_trig_cond_join = 0x8;
+        of_trig_cond_not = 0xC;
+        of_trig_effect_kind = 0x4;
+        of_trig_effect_delay = 0x8;
+        of_trig_effect_index = 0xC;
         of_trigger_name = 0x4;
         of_trigger_desc = 0x18;
         of_trigger_conds = 0x30;
