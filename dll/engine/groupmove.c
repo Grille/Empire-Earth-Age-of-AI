@@ -280,7 +280,7 @@ internal void fo_march(ee_active_group *grp) {
 // its outermost units need the time to swing round, at most FF_SETTLE_MAX; with a move queued after it, the heading all
 // along) plus FF_AHEAD along the heading, through the turn (shiproute.c's hook of the land models' slot 7), and its speed
 // (the land models' speed step) is the anchor's plus FF_GAIN for each tile it is behind its point, while behind up to
-// FF_BOOST of its own top speed. Its own route stays: whenever its point is further than FF_FAR, on a tile it may not
+// formation_catchup (125%) of its own top speed. Its own route stays: whenever its point is further than FF_FAR, on a tile it may not
 // enter or not in a clear line, it takes its route for that tick; while it follows, the waypoints it passed (or that
 // are within FF_DROP in a clear line) are dropped so the route is where it stands. Once the anchor is within FF_END of
 // the leader's spot, or the leader is gone or given another order, the march ends: each unit goes on to its own spot.
@@ -295,7 +295,6 @@ internal void fo_march(ee_active_group *grp) {
 #define FF_FAR 24.0f           // tiles
 #define FF_END 3.0f            // tiles
 #define FF_GAIN 0.5f           // tiles/s for each tile behind
-#define FF_BOOST 1.25f         // a follower behind its point: at most this much of its own top speed
 #define FF_AHEAD 1.5f          // tiles: the point steered at lies this far ahead of the follower's own (no circling on it)
 #define FF_LOOK 3.0f           // tiles: the anchor heads for the leader's route this far ahead of it
 #define FF_INNER 1.0f          // tiles: the anchor's tightest arc leaves the innermost unit this far inside it
@@ -505,7 +504,7 @@ internal vec2 ff_pursue(struct ff_group *gr, ee_unit *l) {
 // is queued too (gr->on stays). The anchor - the point the formation hangs on, every unit's point (the leader's too) its
 // offset from it turned with the facing - heads for ff_pursue's point like a ship: its heading turns no faster than an
 // arc of radius reach + FF_INNER (the innermost unit still walks forward through the turn instead of the formation
-// wheeling round a leader on the route), and it slows in the turn so the outermost unit keeps up within FF_BOOST
+// wheeling round a leader on the route), and it slows in the turn so the outermost unit keeps up within formation_catchup
 internal ee_unit *ff_leader(struct ff_group *gr, uint32_t step) {
     ee_unit *l = gr->on ? unit_by_id(gr->leader) : NULL;
     if (gr->step == step) return gr->live ? l : NULL;
@@ -536,7 +535,7 @@ internal ee_unit *ff_leader(struct ff_group *gr, uint32_t step) {
     float wait = 1 - (gr->err - FF_FORM_FREE) / FF_FORM, gap = vec2_len(vec2_sub(v2(p.x, p.y), gr->anchor)), lag = 1 - (gap - FF_GAP) / FF_GAP;
     if (lag < wait) wait = lag;
     wait = wait > 1 ? 1 : wait > FF_CRAWL ? wait : FF_CRAWL;
-    float r = gr->reach + FF_INNER, k = FF_BOOST * 0.85f * r / (r + gr->reach);
+    float r = gr->reach + FF_INNER, k = g_set.formation_catchup * 0.85f * r / (r + gr->reach);
     if (k > 1) k = 1;
     float v = gr->speed * wait * (1 - gr->turning * (1 - k));
     // its heading towards dir, no faster than the arc (the chord for the angle: small steps)
@@ -619,7 +618,7 @@ internal int fo_follow_aim(ee_unit *u, const float *pos, float *aim) {
 
 // the land models' speed step: the leader at the march's speed (the slowest member's top speed), less while the
 // followers are still forming up; a follower that steered this step at its point's speed (the leader's) its way plus
-// FF_GAIN for each tile behind it - while behind up to FF_BOOST of its own top speed (the slowest ones could never catch up at their top speed,
+// FF_GAIN for each tile behind it - while behind up to formation_catchup of its own top speed (the slowest ones could never catch up at their top speed,
 // and the formation as a whole still goes no faster than its slowest unit) - towards it by its own acceleration a tick;
 // the game's own step while it turns more than 45 degrees
 internal float __thiscall hook_ff_speed(void *model, ee_unit *u, float dist, float angle) {
@@ -633,7 +632,7 @@ internal float __thiscall hook_ff_speed(void *model, ee_unit *u, float dist, flo
     float top = unit_max_speed(u), want, cap = top;
     if (e->step != step) return s;
     want = gr->vel * e->with + FF_GAIN * e->along;   // its point's speed (the anchor's) its way, and closing
-    if (e->along > 0) cap = top * FF_BOOST;
+    if (e->along > 0) cap = top * g_set.formation_catchup;
     if (want > cap) want = cap;
     if (want < 0) want = 0;
     ee_physics *ph = game_physics();

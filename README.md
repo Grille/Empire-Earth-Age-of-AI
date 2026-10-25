@@ -351,8 +351,11 @@ Settings in `aimod.ini`:
 - `[general] formation_follow=0` (default, being worked on; 1 on, with `formations`, land units): a group sent
   somewhere marches in its formation behind a leader - the unit in its middle - each unit steering for its place
   beside and behind it, a blocked one taking its own way for a while; near the goal each goes to its own spot.
-  The leader goes at the slowest unit's speed; a unit behind its place may go up to a quarter faster than its own
-  top speed to catch up. So far the front ranks hold together, the ones behind loosely; as fast as without it.
+  The formation goes at the slowest unit's speed, turning like a ship (no unit walks backwards in a turn), facing
+  the way it goes and turning into its final facing at the goal (re-forming there when that is 45 degrees or more
+  off); a shift-queued turn under 45 degrees keeps the formation.
+- `[general] formation_catchup=125%` (with formation_follow): how fast a unit behind its place may go to catch up,
+  in percent of its own top speed (100% never faster than its own).
 - `[general] goal_markers=1` (default; 0 the original): a move order drew its circle at the goal of only the group's
   first 15 units (20 in the other lines and wedges, every few in a circle formation). Now every unit's shows.
 - `[sound] clamp_channels=1` (default): the "Max Number Of Sounds" slider goes to 200%, which asks for 32 sound
