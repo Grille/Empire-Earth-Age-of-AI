@@ -6,6 +6,10 @@
 internal inline uint8_t *player_get_list_begin(const ee_player *o) { return *(uint8_t **)((uint8_t *)o + of_player_list_begin); }
 internal inline void player_set_list_begin(ee_player *o, uint8_t *v) { *(uint8_t **)((uint8_t *)o + of_player_list_begin) = v; }
 internal inline uint8_t **player_list_begin_at(const ee_player *o) { return (uint8_t **)((uint8_t *)o + of_player_list_begin); }
+// the end of list_begin's vector: population 0x556E11 counts (it - list_begin) >> 2
+internal inline uint8_t *player_get_list_end(const ee_player *o) { return *(uint8_t **)((uint8_t *)o + of_player_list_end); }
+internal inline void player_set_list_end(ee_player *o, uint8_t *v) { *(uint8_t **)((uint8_t *)o + of_player_list_end) = v; }
+internal inline uint8_t **player_list_end_at(const ee_player *o) { return (uint8_t **)((uint8_t *)o + of_player_list_end); }
 internal inline uint8_t *player_name_at(const ee_player *o) { return (uint8_t *)o + of_player_name; }
 internal inline uint8_t *player_color_at(const ee_player *o) { return (uint8_t *)o + of_player_color; }
 // the first of its units in its linked list, the next one at a unit's +0xC (set_diplomacy, delete_for_room walk
@@ -123,6 +127,12 @@ internal inline int *player_pop_b10_at(const ee_player *o) { return (int *)((uin
 internal inline int player_get_objects(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_objects); }
 internal inline void player_set_objects(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_objects) = v; }
 internal inline int *player_objects_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_objects); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// counts its finished buildings of tech 0x432's set (0x5BEFCB): 0 or more switches techs 0x41D / 0x404 queueable;
+// 0x5EC2C3 forbids deleting such a building while it is 1, EEMBuildUnit::vf10 0x4B3D85 tests it
+internal inline int player_get_citizen_buildings(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_citizen_buildings); }
+internal inline void player_set_citizen_buildings(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_citizen_buildings) = v; }
+internal inline int *player_citizen_buildings_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_citizen_buildings); }
 internal inline int player_get_pop_b1c(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_pop_b1c); }
 internal inline void player_set_pop_b1c(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_pop_b1c) = v; }
 internal inline int *player_pop_b1c_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_pop_b1c); }
@@ -243,6 +253,15 @@ internal inline uint8_t *player_cheat_at(const ee_player *o) { return (uint8_t *
 internal inline uint8_t player_get_build(const ee_player *o) { return *(uint8_t *)((uint8_t *)o + of_player_build); }
 internal inline void player_set_build(ee_player *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_player_build) = v; }
 internal inline uint8_t *player_build_at(const ee_player *o) { return (uint8_t *)((uint8_t *)o + of_player_build); }
+// the scenario's AI toggle Explore: EECPResourceManager::update 0x48D263 prunes the hunt and fish lists only while
+// it is set
+internal inline uint8_t player_get_explore(const ee_player *o) { return *(uint8_t *)((uint8_t *)o + of_player_explore); }
+internal inline void player_set_explore(ee_player *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_player_explore) = v; }
+internal inline uint8_t *player_explore_at(const ee_player *o) { return (uint8_t *)((uint8_t *)o + of_player_explore); }
+// the scenario's AI toggle Gather: update 0x48D263 runs compute_targets and assign_citizens only while it is set
+internal inline uint8_t player_get_gather(const ee_player *o) { return *(uint8_t *)((uint8_t *)o + of_player_gather); }
+internal inline void player_set_gather(ee_player *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_player_gather) = v; }
+internal inline uint8_t *player_gather_at(const ee_player *o) { return (uint8_t *)((uint8_t *)o + of_player_gather); }
 internal inline uint8_t player_get_ignore(const ee_player *o) { return *(uint8_t *)((uint8_t *)o + of_player_ignore); }
 internal inline void player_set_ignore(ee_player *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_player_ignore) = v; }
 internal inline uint8_t *player_ignore_at(const ee_player *o) { return (uint8_t *)((uint8_t *)o + of_player_ignore); }
@@ -1087,6 +1106,7 @@ internal int spec_player_select(int build) {
     switch (build) {
     case 0:   // ee
         of_player_list_begin = 0x18;
+        of_player_list_end = 0x1C;
         of_player_name = 0x24;
         of_player_color = 0x438;
         of_player_units = 0x450;
@@ -1119,6 +1139,7 @@ internal int spec_player_select(int build) {
         of_player_stock = 0xAF0;
         of_player_pop_b10 = 0xB10;
         of_player_objects = 0xB14;
+        of_player_citizen_buildings = 0xB18;
         of_player_pop_b1c = 0xB1C;
         of_player_pop_b20 = 0xB20;
         of_player_chat_to_player = 0xB2C;
@@ -1151,6 +1172,8 @@ internal int spec_player_select(int build) {
         of_player_boats_for_food = 0xEFA;
         of_player_cheat = 0xEFB;
         of_player_build = 0xEFC;
+        of_player_explore = 0xEFD;
+        of_player_gather = 0xEFF;
         of_player_ignore = 0xF02;
         of_player_first_attack_done = 0xF05;
         fn_player_resign = (player_resign_fn)0x0055BCEA;
@@ -1357,6 +1380,7 @@ internal int spec_player_select(int build) {
         return 2;
     case 1:   // aoc
         of_player_list_begin = 0x18;
+        of_player_list_end = 0x1C;
         of_player_name = 0x24;
         of_player_color = 0x438;
         of_player_units = 0x450;
@@ -1389,6 +1413,7 @@ internal int spec_player_select(int build) {
         of_player_stock = 0xAF4;
         of_player_pop_b10 = 0xB14;
         of_player_objects = 0xB18;
+        of_player_citizen_buildings = 0xB1C;
         of_player_pop_b1c = 0xB20;
         of_player_pop_b20 = 0xB24;
         of_player_chat_to_player = 0xB30;
@@ -1421,6 +1446,8 @@ internal int spec_player_select(int build) {
         of_player_boats_for_food = 0xF4A;
         of_player_cheat = 0xF4B;
         of_player_build = 0xF4C;
+        of_player_explore = 0xF4D;
+        of_player_gather = 0xF4F;
         of_player_ignore = 0xF52;
         of_player_first_attack_done = 0xF55;
         fn_player_resign = (player_resign_fn)0x0056AF5C;

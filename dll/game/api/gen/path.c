@@ -22,15 +22,110 @@ internal inline void group_speeds(ee_group *group) { ((group_speeds_fn)(*(void *
 // a group move's group (EEActiveGroup): one per kind of a move order (EEMPathTo::vf10), a unit's +0x1C8 while it is in
 // one; the formation's slots are laid for it (formation_slots' group)
 // EEGroup's, the base's
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// a map member unit id -> vec3 (head node +0x40, count +0x44, its allocator bytes +0x3C / +0x3D): 0x5DF33D stores
+// where each member is sent, 0x5DF185 / 0x5DF23D test whether a point is taken, vf10 0x5DF0FC erases a leaving
+// member
+internal inline uint8_t *active_group_member_targets_at(const ee_active_group *o) { return (uint8_t *)o + of_active_group_member_targets; }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// built by the constructor 0x5DB37C (allocator byte +0x48), cleared only by the regroup 0x5DD18B and the
+// destructor 0x5DB409; no reader
+internal inline uint8_t *active_group_0x4c_at(const ee_active_group *o) { return (uint8_t *)o + of_active_group_0x4c; }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// the same (allocator byte +0x58): built, cleared and freed only
+internal inline uint8_t *active_group_0x5c_at(const ee_active_group *o) { return (uint8_t *)o + of_active_group_0x5c; }
+// the group's goal, copied to each member: 0x5DD436 sets it, 0x4C00C2 deletes it, the dispatch 0x5DB641 / 0x5DD463
+// calls its slot 10
+internal inline ee_goal *active_group_get_goal(const ee_active_group *o) { return *(ee_goal **)((uint8_t *)o + of_active_group_goal); }
+internal inline void active_group_set_goal(ee_active_group *o, ee_goal *v) { *(ee_goal **)((uint8_t *)o + of_active_group_goal) = v; }
+internal inline ee_goal **active_group_goal_at(const ee_active_group *o) { return (ee_goal **)((uint8_t *)o + of_active_group_goal); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// the group's action as a unit state: 5000 none (the constructor, 0x5DD18B), 8000 move, 2001 attack, 11002
+// explore; the dispatch 0x5DD463 switches on it
+internal inline int active_group_get_action(const ee_active_group *o) { return *(int *)((uint8_t *)o + of_active_group_action); }
+internal inline void active_group_set_action(ee_active_group *o, int v) { *(int *)((uint8_t *)o + of_active_group_action) = v; }
+internal inline int *active_group_action_at(const ee_active_group *o) { return (int *)((uint8_t *)o + of_active_group_action); }
 // the members' top speed, tiles/s - the average, at most the slowest x the settings table's 0x31 (speeds); every
 // member's top speed while together is set (0x46123F through 0x5DD355)
 internal inline float active_group_get_speed(const ee_active_group *o) { return *(float *)((uint8_t *)o + of_active_group_speed); }
 internal inline void active_group_set_speed(ee_active_group *o, float v) { *(float *)((uint8_t *)o + of_active_group_speed) = v; }
 internal inline float *active_group_speed_at(const ee_active_group *o) { return (float *)((uint8_t *)o + of_active_group_speed); }
+// speeds 0x5DCE49: the fastest member's speed
+internal inline float active_group_get_speed_max(const ee_active_group *o) { return *(float *)((uint8_t *)o + of_active_group_speed_max); }
+internal inline void active_group_set_speed_max(ee_active_group *o, float v) { *(float *)((uint8_t *)o + of_active_group_speed_max) = v; }
+internal inline float *active_group_speed_max_at(const ee_active_group *o) { return (float *)((uint8_t *)o + of_active_group_speed_max); }
 // the slowest member's top speed (speeds)
 internal inline float active_group_get_speed_min(const ee_active_group *o) { return *(float *)((uint8_t *)o + of_active_group_speed_min); }
 internal inline void active_group_set_speed_min(ee_active_group *o, float v) { *(float *)((uint8_t *)o + of_active_group_speed_min) = v; }
 internal inline float *active_group_speed_min_at(const ee_active_group *o) { return (float *)((uint8_t *)o + of_active_group_speed_min); }
+// speeds: the members' average acceleration, at most accel_min x speed_cap; 0x5DD373 returns it for a member's
+// acceleration while together is set
+internal inline float active_group_get_accel(const ee_active_group *o) { return *(float *)((uint8_t *)o + of_active_group_accel); }
+internal inline void active_group_set_accel(ee_active_group *o, float v) { *(float *)((uint8_t *)o + of_active_group_accel) = v; }
+internal inline float *active_group_accel_at(const ee_active_group *o) { return (float *)((uint8_t *)o + of_active_group_accel); }
+// speeds: the largest acceleration
+internal inline float active_group_get_accel_max(const ee_active_group *o) { return *(float *)((uint8_t *)o + of_active_group_accel_max); }
+internal inline void active_group_set_accel_max(ee_active_group *o, float v) { *(float *)((uint8_t *)o + of_active_group_accel_max) = v; }
+internal inline float *active_group_accel_max_at(const ee_active_group *o) { return (float *)((uint8_t *)o + of_active_group_accel_max); }
+// speeds: the smallest acceleration
+internal inline float active_group_get_accel_min(const ee_active_group *o) { return *(float *)((uint8_t *)o + of_active_group_accel_min); }
+internal inline void active_group_set_accel_min(ee_active_group *o, float v) { *(float *)((uint8_t *)o + of_active_group_accel_min) = v; }
+internal inline float *active_group_accel_min_at(const ee_active_group *o) { return (float *)((uint8_t *)o + of_active_group_accel_min); }
+// speeds: the average turn rate (stats +0xB4), capped; 0x5DD391 returns it for a member's max turn
+internal inline float active_group_get_turn_rate(const ee_active_group *o) { return *(float *)((uint8_t *)o + of_active_group_turn_rate); }
+internal inline void active_group_set_turn_rate(ee_active_group *o, float v) { *(float *)((uint8_t *)o + of_active_group_turn_rate) = v; }
+internal inline float *active_group_turn_rate_at(const ee_active_group *o) { return (float *)((uint8_t *)o + of_active_group_turn_rate); }
+// speeds: the largest turn rate
+internal inline float active_group_get_turn_rate_max(const ee_active_group *o) { return *(float *)((uint8_t *)o + of_active_group_turn_rate_max); }
+internal inline void active_group_set_turn_rate_max(ee_active_group *o, float v) { *(float *)((uint8_t *)o + of_active_group_turn_rate_max) = v; }
+internal inline float *active_group_turn_rate_max_at(const ee_active_group *o) { return (float *)((uint8_t *)o + of_active_group_turn_rate_max); }
+// speeds: the smallest turn rate
+internal inline float active_group_get_turn_rate_min(const ee_active_group *o) { return *(float *)((uint8_t *)o + of_active_group_turn_rate_min); }
+internal inline void active_group_set_turn_rate_min(ee_active_group *o, float v) { *(float *)((uint8_t *)o + of_active_group_turn_rate_min) = v; }
+internal inline float *active_group_turn_rate_min_at(const ee_active_group *o) { return (float *)((uint8_t *)o + of_active_group_turn_rate_min); }
+// speeds: the average turn acceleration (stats +0xB0), capped; 0x5DD3B2 returns it for a member's
+internal inline float active_group_get_turn_accel(const ee_active_group *o) { return *(float *)((uint8_t *)o + of_active_group_turn_accel); }
+internal inline void active_group_set_turn_accel(ee_active_group *o, float v) { *(float *)((uint8_t *)o + of_active_group_turn_accel) = v; }
+internal inline float *active_group_turn_accel_at(const ee_active_group *o) { return (float *)((uint8_t *)o + of_active_group_turn_accel); }
+// speeds: the largest turn acceleration
+internal inline float active_group_get_turn_accel_max(const ee_active_group *o) { return *(float *)((uint8_t *)o + of_active_group_turn_accel_max); }
+internal inline void active_group_set_turn_accel_max(ee_active_group *o, float v) { *(float *)((uint8_t *)o + of_active_group_turn_accel_max) = v; }
+internal inline float *active_group_turn_accel_max_at(const ee_active_group *o) { return (float *)((uint8_t *)o + of_active_group_turn_accel_max); }
+// speeds: the smallest turn acceleration
+internal inline float active_group_get_turn_accel_min(const ee_active_group *o) { return *(float *)((uint8_t *)o + of_active_group_turn_accel_min); }
+internal inline void active_group_set_turn_accel_min(ee_active_group *o, float v) { *(float *)((uint8_t *)o + of_active_group_turn_accel_min) = v; }
+internal inline float *active_group_turn_accel_min_at(const ee_active_group *o) { return (float *)((uint8_t *)o + of_active_group_turn_accel_min); }
+// speeds: 1 / speed (0 unless above 0); 0x5DD3D3 returns it for stats +0xD0
+internal inline float active_group_get_speed_inv(const ee_active_group *o) { return *(float *)((uint8_t *)o + of_active_group_speed_inv); }
+internal inline void active_group_set_speed_inv(ee_active_group *o, float v) { *(float *)((uint8_t *)o + of_active_group_speed_inv) = v; }
+internal inline float *active_group_speed_inv_at(const ee_active_group *o) { return (float *)((uint8_t *)o + of_active_group_speed_inv); }
+// speeds: 1 / accel; 0x5DD3F4 returns it for stats +0xC4
+internal inline float active_group_get_accel_inv(const ee_active_group *o) { return *(float *)((uint8_t *)o + of_active_group_accel_inv); }
+internal inline void active_group_set_accel_inv(ee_active_group *o, float v) { *(float *)((uint8_t *)o + of_active_group_accel_inv) = v; }
+internal inline float *active_group_accel_inv_at(const ee_active_group *o) { return (float *)((uint8_t *)o + of_active_group_accel_inv); }
+// speeds: 1 / turn_rate
+internal inline float active_group_get_turn_rate_inv(const ee_active_group *o) { return *(float *)((uint8_t *)o + of_active_group_turn_rate_inv); }
+internal inline void active_group_set_turn_rate_inv(ee_active_group *o, float v) { *(float *)((uint8_t *)o + of_active_group_turn_rate_inv) = v; }
+internal inline float *active_group_turn_rate_inv_at(const ee_active_group *o) { return (float *)((uint8_t *)o + of_active_group_turn_rate_inv); }
+// speeds: 1 / turn_accel; 0x5DD415 returns it for stats +0xC8
+internal inline float active_group_get_turn_accel_inv(const ee_active_group *o) { return *(float *)((uint8_t *)o + of_active_group_turn_accel_inv); }
+internal inline void active_group_set_turn_accel_inv(ee_active_group *o, float v) { *(float *)((uint8_t *)o + of_active_group_turn_accel_inv) = v; }
+internal inline float *active_group_turn_accel_inv_at(const ee_active_group *o) { return (float *)((uint8_t *)o + of_active_group_turn_accel_inv); }
+// speeds: the settings table's 0x31 - each average at most it x the matching least
+internal inline float active_group_get_speed_cap(const ee_active_group *o) { return *(float *)((uint8_t *)o + of_active_group_speed_cap); }
+internal inline void active_group_set_speed_cap(ee_active_group *o, float v) { *(float *)((uint8_t *)o + of_active_group_speed_cap) = v; }
+internal inline float *active_group_speed_cap_at(const ee_active_group *o) { return (float *)((uint8_t *)o + of_active_group_speed_cap); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// 0x5DD2AA deletes the goal, puts the group into its player's +0x854 list of groups to drop (0x5596xx releases
+// them), adds one to +4 and sets this; the constructor clears it, no reader
+internal inline uint8_t active_group_get_retired(const ee_active_group *o) { return *(uint8_t *)((uint8_t *)o + of_active_group_retired); }
+internal inline void active_group_set_retired(ee_active_group *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_active_group_retired) = v; }
+internal inline uint8_t *active_group_retired_at(const ee_active_group *o) { return (uint8_t *)((uint8_t *)o + of_active_group_retired); }
+// 0x5DD436's second argument, the order's queued (0x4B0000.c): with it the dispatch (0x5DB641, 0x5DD463) gives a
+// new goal only to members without a goal
+internal inline uint8_t active_group_get_queued(const ee_active_group *o) { return *(uint8_t *)((uint8_t *)o + of_active_group_queued); }
+internal inline void active_group_set_queued(ee_active_group *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_active_group_queued) = v; }
+internal inline uint8_t *active_group_queued_at(const ee_active_group *o) { return (uint8_t *)((uint8_t *)o + of_active_group_queued); }
 // set: the members move with the group's speed, acceleration and turns (+0x70 / +0x7C / +0x88 / +0x94) instead
 // of their own - the group's hand-out 0x5DD436 sets it from the move goal's "together" (EEMPathTo +0x1F)
 internal inline uint8_t active_group_get_together(const ee_active_group *o) { return *(uint8_t *)((uint8_t *)o + of_active_group_together); }
@@ -68,8 +163,30 @@ internal int spec_path_select(int build) {
         call_group_sector_route = 0x005DB5C8;
         slot_group_speeds = 19;
         vt_ee_active_group = 0x0083141C;
+        of_active_group_member_targets = 0x40;
+        of_active_group_0x4c = 0x4C;
+        of_active_group_0x5c = 0x5C;
+        of_active_group_goal = 0x68;
+        of_active_group_action = 0x6C;
         of_active_group_speed = 0x70;
+        of_active_group_speed_max = 0x74;
         of_active_group_speed_min = 0x78;
+        of_active_group_accel = 0x7C;
+        of_active_group_accel_max = 0x80;
+        of_active_group_accel_min = 0x84;
+        of_active_group_turn_rate = 0x88;
+        of_active_group_turn_rate_max = 0x8C;
+        of_active_group_turn_rate_min = 0x90;
+        of_active_group_turn_accel = 0x94;
+        of_active_group_turn_accel_max = 0x98;
+        of_active_group_turn_accel_min = 0x9C;
+        of_active_group_speed_inv = 0xA0;
+        of_active_group_accel_inv = 0xA4;
+        of_active_group_turn_rate_inv = 0xA8;
+        of_active_group_turn_accel_inv = 0xAC;
+        of_active_group_speed_cap = 0xB0;
+        of_active_group_retired = 0xB4;
+        of_active_group_queued = 0xB5;
         of_active_group_together = 0xB6;
         fn_active_group_speeds = (active_group_speeds_fn)0x005DCE49;
         vt_ee_path_manager = 0x00827C44;
@@ -82,8 +199,30 @@ internal int spec_path_select(int build) {
         call_group_sector_route = 0x005EBF0C;
         slot_group_speeds = 19;
         vt_ee_active_group = 0x00846CF8;
+        of_active_group_member_targets = 0x40;
+        of_active_group_0x4c = 0x4C;
+        of_active_group_0x5c = 0x5C;
+        of_active_group_goal = 0x68;
+        of_active_group_action = 0x6C;
         of_active_group_speed = 0x70;
+        of_active_group_speed_max = 0x74;
         of_active_group_speed_min = 0x78;
+        of_active_group_accel = 0x7C;
+        of_active_group_accel_max = 0x80;
+        of_active_group_accel_min = 0x84;
+        of_active_group_turn_rate = 0x88;
+        of_active_group_turn_rate_max = 0x8C;
+        of_active_group_turn_rate_min = 0x90;
+        of_active_group_turn_accel = 0x94;
+        of_active_group_turn_accel_max = 0x98;
+        of_active_group_turn_accel_min = 0x9C;
+        of_active_group_speed_inv = 0xA0;
+        of_active_group_accel_inv = 0xA4;
+        of_active_group_turn_rate_inv = 0xA8;
+        of_active_group_turn_accel_inv = 0xAC;
+        of_active_group_speed_cap = 0xB0;
+        of_active_group_retired = 0xB4;
+        of_active_group_queued = 0xB5;
         of_active_group_together = 0xB6;
         fn_active_group_speeds = (active_group_speeds_fn)0x005ED692;
         vt_ee_path_manager = 0x0083C438;

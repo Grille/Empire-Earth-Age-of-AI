@@ -11,6 +11,8 @@ typedef struct ee_build_goal ee_build_goal;
 typedef struct ee_load_goal ee_load_goal;
 typedef struct ee_location_goal ee_location_goal;
 typedef struct eeug_attack_unit eeug_attack_unit;
+typedef struct eeug_unload_transport eeug_unload_transport;
+typedef struct eeug_explore eeug_explore;
 typedef struct eeug_gather eeug_gather;
 typedef struct ee_continent_mgr ee_continent_mgr;
 typedef struct ee_minimap ee_minimap;
@@ -34,6 +36,7 @@ typedef struct ee_center_camera ee_center_camera;
 typedef struct ee_effect_mgr ee_effect_mgr;
 typedef struct ee_ghost_unit ee_ghost_unit;
 typedef struct ee_to_hit_table ee_to_hit_table;
+typedef struct ee_game_state ee_game_state;
 
 #include "game/api/gen/ai_managers.c"
 #include "game/api/gen/api.c"

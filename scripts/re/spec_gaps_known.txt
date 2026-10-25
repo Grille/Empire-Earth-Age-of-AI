@@ -1,0 +1,99 @@
+# offsets spec_gaps.py leaves out: the decompilation reads them on a class they aren't fields of - a local Ghidra
+# typed as the class, a word inside a container the spec declares, a field of another object. "Class +0xNN  reason",
+# each read in the code (2026-10-25).
+EEMSelectUnits +0x10  the allocator byte of the selection vector (+0x10 block, init's 0x4D4D10(0))
+EEMSelectUnits +0x34  inside packed (init takes its address for sel_pack)
+EEWorld +0x78  players[1], inside players (+0x74)
+EEWorld +0x519  setup's +0x409 byte (game.scenario_flag), inside setup (+0x110)
+EEWorld +0x9A8  gatherer_counts' head, inside it (+0x9A4)
+EEWorld +0x9B8  alliances' end, inside the vector (+0x9B4)
+ee_setup +0x1  a local (peVar13) used as a slot index
+ee_setup +0x38  the same local used as a slot stride
+ee_draw_record +0x44  inside color (+0x40)
+ee_draw_record +0x48  inside color (+0x40)
+ee_draw_record +0x50  inside tint (+0x4C)
+ee_draw_record +0x54  inside tint (+0x4C)
+ee_draw_record +0x68  a vector's allocator byte (constructor 0x4D4D10; seven vectors from +0x58, begins +0x5C ... +0xBC)
+ee_draw_record +0x78  a vector's allocator byte
+ee_draw_record +0x88  a vector's allocator byte
+ee_draw_record +0x98  a vector's allocator byte
+ee_draw_record +0xA8  a vector's allocator byte
+ee_draw_record +0xB8  a vector's allocator byte
+EEScenarioManager +0x0  a local of the effect's run (a vector of tile points) typed as the manager
+EEScenarioManager +0x4  the same local
+EEScenarioManager +0x1C  EESMObject.units' begin, an object typed as the manager in run's dialogue branch
+EEScenarioManager +0x20  EESMObject.units' end, the same
+EEScenarioManager +0xC4  inside chat (+0xC0)
+EEScenarioManager +0xC8  inside chat (+0xC0)
+EEScenarioManager +0xCC  inside chat (+0xC0)
+EEScenarioManager +0xE4  the triggers vector's allocator byte (vector_size 0x4A670A reads begin at +4)
+EEScenarioManager +0x124  the areas vector's allocator byte
+EESMArea +0x2C  x inside point
+EESMArea +0x30  y inside point
+EESMObject +0x1  a local (0x5B32CB's counter)
+EESMObject +0x18  the units vector's allocator byte (0x5B7B02: units = other.units)
+ee_native_chat +0x28  a byte the constructor 0x484E25 sets to 1, no reader
+EEPlayer +0x1  a loop counter typed as a player (0x5B1F5B, 0x60697E)
+EEPlayer +0x20  list_end's capacity word; 0x5B1F5B's read is an EESMObject typed as a player
+EEPlayer +0x34  0x5B6FA0's param_3, no player (it reads name +8 / +0xC as unit pointers)
+EEPlayer +0x38  the same parameter
+EEPlayer +0x3C  the same parameter
+EEPlayer +0x40  the same parameter
+EEPlayer +0x5C  0x5B1F5B's locals reused for units and goals
+EEPlayer +0x60  the same locals
+EEPlayer +0x6C  the same locals (a unit's state +0x6C)
+EEPlayer +0x1F0  the same locals
+EEPlayer +0x144  0x60697E's local is the unit's stats (+0x144 its max hp)
+EEPlayer +0x438  a word of the color block
+EEPlayer +0x43C  a word of the color block
+EEPlayer +0x440  a word of the color block
+EEPlayer +0xB84  EEComputerPlayer.doomed_end through a base pointer (delete_for_room)
+EEPlayer +0xBA8  EEComputerPlayer.favorite_land through a base pointer (0x5AB8BE)
+EEPlayer +0xE1C  EEComputerPlayer.capitol_timer through a base pointer (0x46E2C7)
+EECPAttackSubGroup +0x38  the targets vector's end (+0x34)
+EECPAttackSubGroup +0x60  the route deque's address
+EECPAttackSubGroup +0x6C  the route deque's front index
+EECPResourceManager +0x74  the forests vector's allocator word (find_wood takes the object's address)
+EECPResourceManager +0xA4  the lists block's address (7 deques of 0x14)
+EECPResourceManager +0xB0  list 0's front index, inside lists
+EECPResourceManager +0xB4  list 0's count, inside lists
+EECPResourceManager +0xDC  list 2's count, inside lists
+EECPBuildManager +0x4  the queues block's address (deques of 0x14)
+EECPBuildManager +0x10  queue 0's front index, inside queues
+EECPCivilizationManager +0x74  the flag block's first byte: set when the build plan's walk ends (0x46CD18), update 0x46E2C7 walks again 30 s after clearing it
+EECPCivilizationManager +0x79  a byte of the flag block: set by init 0x46BFFC and 0x46DB0E / 0x4865D3 / 0x486977 / 0x490866, update 0x46E2C7 then calls set_epoch_time(now, 0) and clears it
+ee_unit_mgr +0xC  the requests block's address
+ee_unit_mgr +0x18  deque 0's front index, inside requests
+EECPResearchManager +0x1C  epoch 0's end, inside the epoch block
+ee_tech_data +0x24  the costs block's address (0x491E6D sums 5 words)
+EECPCombatStrategy +0x4  the requests vector's allocator byte (+8)
+EETechTree +0x0  0x4665A0's local reused for an int
+EETechTree +0xC  train_citizens' type_list result (a deque) typed as the tree: its front index
+EETechTree +0x10  the same: its count
+EETechTree +0x5C  inside epoch_recs (epoch + 1's record)
+EETechTreeNode +0x1  a loop counter typed as a node (0x57B30C)
+EEActiveGroup +0x3C  member_targets' allocator byte (+0x40)
+EEActiveGroup +0x3D  member_targets' comparator byte
+EEActiveGroup +0x48  the +0x4C vector's allocator byte
+EEActiveGroup +0x58  the +0x5C vector's allocator byte
+EEUnitGoal +0x1  a loop counter typed as a goal (0x4BF756, 0x5DB641, 0x5FBBA0, 0x6225E7)
+EEUnitGoal +0x2C  subclasses' through a base pointer: EEUGLocation.yaw, EEUGUnloadTransport.first_cargo_tile
+EEUnitGoal +0x30  subclasses': EEUGAttackUnit.target (read under state 2), EEUGLocation.forced
+EEUnitGoal +0x31  EEUGLocation.face
+EEUnitGoal +0x32  EEUGLocation's (assign_goal reads it under state 1)
+EEUnitGoal +0x33  EEUGLocation's
+EEUnitGoal +0x34  EEUGLocation's, EEUGUnloadTransport.unload_tile
+EEUnitGoal +0x40  EEUGExplore.tile_y, EEUGGather.returning
+EEUnitGoal +0x41  EEUGGather.to_spot
+EEComplexUnit +0x1  a loop counter typed as a unit (0x5B1F5B)
+EEComplexUnit +0x28  a goal typed as a unit in 0x624DF8: its dest_z
+EEComplexUnit +0x50  a goal typed as a unit in 0x624DF8: its holder
+EEComplexUnit +0x6C  the inside vector's allocator byte (+0x70)
+EEComplexUnit +0x7C  inside the waypoints deque
+EEComplexUnit +0x88  the waypoints deque's front index
+EEUnit +0x1  loop counters typed as units (0x46F4FF, 0x4B9446, 0x4BE00D)
+EEUnit +0xC  RTSUnit.next, read through EEUnit
+ee_unit_vis +0x8  ee_unit_vis is the unit's tile (ee_tile): its objects' list head
+EEUnitClass +0x4  a pointer walking a vector (0x502622) or a unit fixed up after a load (0x5E6024: RTSUnit.refs) typed as the class
+ee_unit_stats +0x4  a unit fixed up after a load (0x5E6024) typed as stats: RTSUnit.refs
+ee_unit_stats +0x10  the unit's tile (0x502622's local_18 = unit->vis) typed as stats: ee_tile.height

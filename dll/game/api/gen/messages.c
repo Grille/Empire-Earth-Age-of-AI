@@ -4,10 +4,20 @@
 // class EEMessage (ee_msg)
 // a message players send each other through the server (EEMessage, the base of every message: EEMPayTribute,
 // EEMInGameChat, EEMSelectUnits ...)
+// NEMessage's (Low-Level Engine.dll, the base of EEMessage): every constructor sets 1 (the DLL's 0x1000848C, EE's
+// copy 0x404B58), holding it again adds one (NESynchronousServer::SendToAllAndWait, EEServer::vf27 0x4C3839)
+internal inline uint32_t msg_get_ref_count(const ee_msg *o) { return *(uint32_t *)((uint8_t *)o + of_msg_ref_count); }
+internal inline void msg_set_ref_count(ee_msg *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_msg_ref_count) = v; }
+internal inline uint32_t *msg_ref_count_at(const ee_msg *o) { return (uint32_t *)((uint8_t *)o + of_msg_ref_count); }
 // the message's type id (0x4E select, 0x67 load ...)
 internal inline uint8_t msg_get_kind(const ee_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_kind); }
 internal inline void msg_set_kind(ee_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_kind) = v; }
 internal inline uint8_t *msg_kind_at(const ee_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_kind); }
+// NEMessage's: the slot it is for, 0xFF all (the DLL's GetForSpecificSlot / SetForSpecificSlot 0x100084C3 /
+// 0x100084CB; EEServer::vf27 also tests 0xFE); every EE message is built with 0xFF
+internal inline uint8_t msg_get_for_slot(const ee_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_for_slot); }
+internal inline void msg_set_for_slot(ee_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_for_slot) = v; }
+internal inline uint8_t *msg_for_slot_at(const ee_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_for_slot); }
 // the sender's message id (every message's)
 internal inline int8_t msg_get_from(const ee_msg *o) { return *(int8_t *)((uint8_t *)o + of_msg_from); }
 internal inline void msg_set_from(ee_msg *o, int8_t v) { *(int8_t *)((uint8_t *)o + of_msg_from) = v; }
@@ -15,18 +25,64 @@ internal inline int8_t *msg_from_at(const ee_msg *o) { return (int8_t *)((uint8_
 // vf10: the message carried out (EEMPathTo's and EEMLoadTransport's both builds)
 typedef void (__thiscall *msg_execute_fn)(ee_msg *);
 internal inline void msg_execute(ee_msg *msg) { ((msg_execute_fn)(*(void ***)msg)[slot_msg_execute])(msg); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// NEMessage's constructor's fourth byte, the first of the 4-byte wire header (ExportHeader 0x1004D025: +0xB, +8,
+// +9, +0xA); every EE message passes 0 and nothing reads it
+internal inline uint8_t msg_get_header_flags(const ee_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_header_flags); }
+internal inline void msg_set_header_flags(ee_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_header_flags) = v; }
+internal inline uint8_t *msg_header_flags_at(const ee_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_header_flags); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// the first payload byte after the header: every message's export and import move it (EEMCheatCode 0x4B4E9E /
+// 0x4B4F35, EEMSelectUnits 0x4BD386 ...) but no constructor sets it and no execute reads it - an uninitialized
+// byte on the wire
+internal inline uint8_t msg_get_spare(const ee_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_spare); }
+internal inline void msg_set_spare(ee_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_spare) = v; }
+internal inline uint8_t *msg_spare_at(const ee_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_spare); }
+// EEMessage(type, flag)'s flag (0x404B58), not serialized: EEMessage::vf1 0x401A2E (NEMessage's
+// GetIsAvailableToSend) sends it while the local player is in the game or this is set (chat, selections: 1)
+internal inline uint8_t msg_get_sendable_when_out(const ee_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_sendable_when_out); }
+internal inline void msg_set_sendable_when_out(ee_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_sendable_when_out) = v; }
+internal inline uint8_t *msg_sendable_when_out_at(const ee_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_sendable_when_out); }
 
 // class EEMResign (ee_resign_msg)
 // the resignation (EEMResign)
 // EEMessage's, the base's
+// NEMessage's (Low-Level Engine.dll, the base of EEMessage): every constructor sets 1 (the DLL's 0x1000848C, EE's
+// copy 0x404B58), holding it again adds one (NESynchronousServer::SendToAllAndWait, EEServer::vf27 0x4C3839)
+internal inline uint32_t resign_msg_get_ref_count(const ee_resign_msg *o) { return *(uint32_t *)((uint8_t *)o + of_msg_ref_count); }
+internal inline void resign_msg_set_ref_count(ee_resign_msg *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_msg_ref_count) = v; }
+internal inline uint32_t *resign_msg_ref_count_at(const ee_resign_msg *o) { return (uint32_t *)((uint8_t *)o + of_msg_ref_count); }
 // the message's type id (0x4E select, 0x67 load ...)
 internal inline uint8_t resign_msg_get_kind(const ee_resign_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_kind); }
 internal inline void resign_msg_set_kind(ee_resign_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_kind) = v; }
 internal inline uint8_t *resign_msg_kind_at(const ee_resign_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_kind); }
+// NEMessage's: the slot it is for, 0xFF all (the DLL's GetForSpecificSlot / SetForSpecificSlot 0x100084C3 /
+// 0x100084CB; EEServer::vf27 also tests 0xFE); every EE message is built with 0xFF
+internal inline uint8_t resign_msg_get_for_slot(const ee_resign_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_for_slot); }
+internal inline void resign_msg_set_for_slot(ee_resign_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_for_slot) = v; }
+internal inline uint8_t *resign_msg_for_slot_at(const ee_resign_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_for_slot); }
 // the sender's message id (every message's)
 internal inline int8_t resign_msg_get_from(const ee_resign_msg *o) { return *(int8_t *)((uint8_t *)o + of_msg_from); }
 internal inline void resign_msg_set_from(ee_resign_msg *o, int8_t v) { *(int8_t *)((uint8_t *)o + of_msg_from) = v; }
 internal inline int8_t *resign_msg_from_at(const ee_resign_msg *o) { return (int8_t *)((uint8_t *)o + of_msg_from); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// NEMessage's constructor's fourth byte, the first of the 4-byte wire header (ExportHeader 0x1004D025: +0xB, +8,
+// +9, +0xA); every EE message passes 0 and nothing reads it
+internal inline uint8_t resign_msg_get_header_flags(const ee_resign_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_header_flags); }
+internal inline void resign_msg_set_header_flags(ee_resign_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_header_flags) = v; }
+internal inline uint8_t *resign_msg_header_flags_at(const ee_resign_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_header_flags); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// the first payload byte after the header: every message's export and import move it (EEMCheatCode 0x4B4E9E /
+// 0x4B4F35, EEMSelectUnits 0x4BD386 ...) but no constructor sets it and no execute reads it - an uninitialized
+// byte on the wire
+internal inline uint8_t resign_msg_get_spare(const ee_resign_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_spare); }
+internal inline void resign_msg_set_spare(ee_resign_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_spare) = v; }
+internal inline uint8_t *resign_msg_spare_at(const ee_resign_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_spare); }
+// EEMessage(type, flag)'s flag (0x404B58), not serialized: EEMessage::vf1 0x401A2E (NEMessage's
+// GetIsAvailableToSend) sends it while the local player is in the game or this is set (chat, selections: 1)
+internal inline uint8_t resign_msg_get_sendable_when_out(const ee_resign_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_sendable_when_out); }
+internal inline void resign_msg_set_sendable_when_out(ee_resign_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_sendable_when_out) = v; }
+internal inline uint8_t *resign_msg_sendable_when_out_at(const ee_resign_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_sendable_when_out); }
 typedef void (__thiscall *resign_msg_execute_fn)(ee_resign_msg *);
 internal resign_msg_execute_fn fn_resign_msg_execute;
 internal inline void resign_msg_execute(ee_resign_msg *resign_msg) { fn_resign_msg_execute(resign_msg); }
@@ -34,14 +90,42 @@ internal inline void resign_msg_execute(ee_resign_msg *resign_msg) { fn_resign_m
 // class EEMInGameChat (ee_chat_msg)
 // the in-game chat message (EEMInGameChat)
 // EEMessage's, the base's
+// NEMessage's (Low-Level Engine.dll, the base of EEMessage): every constructor sets 1 (the DLL's 0x1000848C, EE's
+// copy 0x404B58), holding it again adds one (NESynchronousServer::SendToAllAndWait, EEServer::vf27 0x4C3839)
+internal inline uint32_t chat_msg_get_ref_count(const ee_chat_msg *o) { return *(uint32_t *)((uint8_t *)o + of_msg_ref_count); }
+internal inline void chat_msg_set_ref_count(ee_chat_msg *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_msg_ref_count) = v; }
+internal inline uint32_t *chat_msg_ref_count_at(const ee_chat_msg *o) { return (uint32_t *)((uint8_t *)o + of_msg_ref_count); }
 // the message's type id (0x4E select, 0x67 load ...)
 internal inline uint8_t chat_msg_get_kind(const ee_chat_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_kind); }
 internal inline void chat_msg_set_kind(ee_chat_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_kind) = v; }
 internal inline uint8_t *chat_msg_kind_at(const ee_chat_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_kind); }
+// NEMessage's: the slot it is for, 0xFF all (the DLL's GetForSpecificSlot / SetForSpecificSlot 0x100084C3 /
+// 0x100084CB; EEServer::vf27 also tests 0xFE); every EE message is built with 0xFF
+internal inline uint8_t chat_msg_get_for_slot(const ee_chat_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_for_slot); }
+internal inline void chat_msg_set_for_slot(ee_chat_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_for_slot) = v; }
+internal inline uint8_t *chat_msg_for_slot_at(const ee_chat_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_for_slot); }
 // the sender's message id (every message's)
 internal inline int8_t chat_msg_get_from(const ee_chat_msg *o) { return *(int8_t *)((uint8_t *)o + of_msg_from); }
 internal inline void chat_msg_set_from(ee_chat_msg *o, int8_t v) { *(int8_t *)((uint8_t *)o + of_msg_from) = v; }
 internal inline int8_t *chat_msg_from_at(const ee_chat_msg *o) { return (int8_t *)((uint8_t *)o + of_msg_from); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// NEMessage's constructor's fourth byte, the first of the 4-byte wire header (ExportHeader 0x1004D025: +0xB, +8,
+// +9, +0xA); every EE message passes 0 and nothing reads it
+internal inline uint8_t chat_msg_get_header_flags(const ee_chat_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_header_flags); }
+internal inline void chat_msg_set_header_flags(ee_chat_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_header_flags) = v; }
+internal inline uint8_t *chat_msg_header_flags_at(const ee_chat_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_header_flags); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// the first payload byte after the header: every message's export and import move it (EEMCheatCode 0x4B4E9E /
+// 0x4B4F35, EEMSelectUnits 0x4BD386 ...) but no constructor sets it and no execute reads it - an uninitialized
+// byte on the wire
+internal inline uint8_t chat_msg_get_spare(const ee_chat_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_spare); }
+internal inline void chat_msg_set_spare(ee_chat_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_spare) = v; }
+internal inline uint8_t *chat_msg_spare_at(const ee_chat_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_spare); }
+// EEMessage(type, flag)'s flag (0x404B58), not serialized: EEMessage::vf1 0x401A2E (NEMessage's
+// GetIsAvailableToSend) sends it while the local player is in the game or this is set (chat, selections: 1)
+internal inline uint8_t chat_msg_get_sendable_when_out(const ee_chat_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_sendable_when_out); }
+internal inline void chat_msg_set_sendable_when_out(ee_chat_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_sendable_when_out) = v; }
+internal inline uint8_t *chat_msg_sendable_when_out_at(const ee_chat_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_sendable_when_out); }
 internal inline uint8_t *chat_msg_text_at(const ee_chat_msg *o) { return (uint8_t *)o + of_chat_msg_text; }
 typedef void (__thiscall *chat_msg_execute_fn)(ee_chat_msg *);
 internal chat_msg_execute_fn fn_chat_msg_execute;
@@ -54,14 +138,42 @@ internal inline void *chat_msg_init(ee_chat_msg *chat_msg, void *wide_text) { re
 // class EEMSelectUnits (ee_select_msg)
 // the select message (EEMSelectUnits)
 // EEMessage's, the base's
+// NEMessage's (Low-Level Engine.dll, the base of EEMessage): every constructor sets 1 (the DLL's 0x1000848C, EE's
+// copy 0x404B58), holding it again adds one (NESynchronousServer::SendToAllAndWait, EEServer::vf27 0x4C3839)
+internal inline uint32_t select_msg_get_ref_count(const ee_select_msg *o) { return *(uint32_t *)((uint8_t *)o + of_msg_ref_count); }
+internal inline void select_msg_set_ref_count(ee_select_msg *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_msg_ref_count) = v; }
+internal inline uint32_t *select_msg_ref_count_at(const ee_select_msg *o) { return (uint32_t *)((uint8_t *)o + of_msg_ref_count); }
 // the message's type id (0x4E select, 0x67 load ...)
 internal inline uint8_t select_msg_get_kind(const ee_select_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_kind); }
 internal inline void select_msg_set_kind(ee_select_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_kind) = v; }
 internal inline uint8_t *select_msg_kind_at(const ee_select_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_kind); }
+// NEMessage's: the slot it is for, 0xFF all (the DLL's GetForSpecificSlot / SetForSpecificSlot 0x100084C3 /
+// 0x100084CB; EEServer::vf27 also tests 0xFE); every EE message is built with 0xFF
+internal inline uint8_t select_msg_get_for_slot(const ee_select_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_for_slot); }
+internal inline void select_msg_set_for_slot(ee_select_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_for_slot) = v; }
+internal inline uint8_t *select_msg_for_slot_at(const ee_select_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_for_slot); }
 // the sender's message id (every message's)
 internal inline int8_t select_msg_get_from(const ee_select_msg *o) { return *(int8_t *)((uint8_t *)o + of_msg_from); }
 internal inline void select_msg_set_from(ee_select_msg *o, int8_t v) { *(int8_t *)((uint8_t *)o + of_msg_from) = v; }
 internal inline int8_t *select_msg_from_at(const ee_select_msg *o) { return (int8_t *)((uint8_t *)o + of_msg_from); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// NEMessage's constructor's fourth byte, the first of the 4-byte wire header (ExportHeader 0x1004D025: +0xB, +8,
+// +9, +0xA); every EE message passes 0 and nothing reads it
+internal inline uint8_t select_msg_get_header_flags(const ee_select_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_header_flags); }
+internal inline void select_msg_set_header_flags(ee_select_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_header_flags) = v; }
+internal inline uint8_t *select_msg_header_flags_at(const ee_select_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_header_flags); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// the first payload byte after the header: every message's export and import move it (EEMCheatCode 0x4B4E9E /
+// 0x4B4F35, EEMSelectUnits 0x4BD386 ...) but no constructor sets it and no execute reads it - an uninitialized
+// byte on the wire
+internal inline uint8_t select_msg_get_spare(const ee_select_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_spare); }
+internal inline void select_msg_set_spare(ee_select_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_spare) = v; }
+internal inline uint8_t *select_msg_spare_at(const ee_select_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_spare); }
+// EEMessage(type, flag)'s flag (0x404B58), not serialized: EEMessage::vf1 0x401A2E (NEMessage's
+// GetIsAvailableToSend) sends it while the local player is in the game or this is set (chat, selections: 1)
+internal inline uint8_t select_msg_get_sendable_when_out(const ee_select_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_sendable_when_out); }
+internal inline void select_msg_set_sendable_when_out(ee_select_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_sendable_when_out) = v; }
+internal inline uint8_t *select_msg_sendable_when_out_at(const ee_select_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_sendable_when_out); }
 internal inline uint8_t *select_msg_selection_at(const ee_select_msg *o) { return (uint8_t *)o + of_select_msg_selection; }
 internal inline uint32_t *select_msg_get_ids_begin(const ee_select_msg *o) { return *(uint32_t **)((uint8_t *)o + of_select_msg_ids_begin); }
 internal inline void select_msg_set_ids_begin(ee_select_msg *o, uint32_t *v) { *(uint32_t **)((uint8_t *)o + of_select_msg_ids_begin) = v; }
@@ -87,14 +199,42 @@ internal inline void select_msg_init(ee_select_msg *select_msg, float *rect, int
 // class EEMLoadTransport (ee_load_msg)
 // the load-into-a-transport message (EEMLoadTransport)
 // EEMessage's, the base's
+// NEMessage's (Low-Level Engine.dll, the base of EEMessage): every constructor sets 1 (the DLL's 0x1000848C, EE's
+// copy 0x404B58), holding it again adds one (NESynchronousServer::SendToAllAndWait, EEServer::vf27 0x4C3839)
+internal inline uint32_t load_msg_get_ref_count(const ee_load_msg *o) { return *(uint32_t *)((uint8_t *)o + of_msg_ref_count); }
+internal inline void load_msg_set_ref_count(ee_load_msg *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_msg_ref_count) = v; }
+internal inline uint32_t *load_msg_ref_count_at(const ee_load_msg *o) { return (uint32_t *)((uint8_t *)o + of_msg_ref_count); }
 // the message's type id (0x4E select, 0x67 load ...)
 internal inline uint8_t load_msg_get_kind(const ee_load_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_kind); }
 internal inline void load_msg_set_kind(ee_load_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_kind) = v; }
 internal inline uint8_t *load_msg_kind_at(const ee_load_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_kind); }
+// NEMessage's: the slot it is for, 0xFF all (the DLL's GetForSpecificSlot / SetForSpecificSlot 0x100084C3 /
+// 0x100084CB; EEServer::vf27 also tests 0xFE); every EE message is built with 0xFF
+internal inline uint8_t load_msg_get_for_slot(const ee_load_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_for_slot); }
+internal inline void load_msg_set_for_slot(ee_load_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_for_slot) = v; }
+internal inline uint8_t *load_msg_for_slot_at(const ee_load_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_for_slot); }
 // the sender's message id (every message's)
 internal inline int8_t load_msg_get_from(const ee_load_msg *o) { return *(int8_t *)((uint8_t *)o + of_msg_from); }
 internal inline void load_msg_set_from(ee_load_msg *o, int8_t v) { *(int8_t *)((uint8_t *)o + of_msg_from) = v; }
 internal inline int8_t *load_msg_from_at(const ee_load_msg *o) { return (int8_t *)((uint8_t *)o + of_msg_from); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// NEMessage's constructor's fourth byte, the first of the 4-byte wire header (ExportHeader 0x1004D025: +0xB, +8,
+// +9, +0xA); every EE message passes 0 and nothing reads it
+internal inline uint8_t load_msg_get_header_flags(const ee_load_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_header_flags); }
+internal inline void load_msg_set_header_flags(ee_load_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_header_flags) = v; }
+internal inline uint8_t *load_msg_header_flags_at(const ee_load_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_header_flags); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// the first payload byte after the header: every message's export and import move it (EEMCheatCode 0x4B4E9E /
+// 0x4B4F35, EEMSelectUnits 0x4BD386 ...) but no constructor sets it and no execute reads it - an uninitialized
+// byte on the wire
+internal inline uint8_t load_msg_get_spare(const ee_load_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_spare); }
+internal inline void load_msg_set_spare(ee_load_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_spare) = v; }
+internal inline uint8_t *load_msg_spare_at(const ee_load_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_spare); }
+// EEMessage(type, flag)'s flag (0x404B58), not serialized: EEMessage::vf1 0x401A2E (NEMessage's
+// GetIsAvailableToSend) sends it while the local player is in the game or this is set (chat, selections: 1)
+internal inline uint8_t load_msg_get_sendable_when_out(const ee_load_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_sendable_when_out); }
+internal inline void load_msg_set_sendable_when_out(ee_load_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_sendable_when_out) = v; }
+internal inline uint8_t *load_msg_sendable_when_out_at(const ee_load_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_sendable_when_out); }
 // its Execute's reads (both builds)
 internal inline uint32_t load_msg_get_transport(const ee_load_msg *o) { return *(uint32_t *)((uint8_t *)o + of_load_msg_transport); }
 internal inline void load_msg_set_transport(ee_load_msg *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_load_msg_transport) = v; }
@@ -111,14 +251,42 @@ internal inline void load_msg_execute(ee_load_msg *load_msg) { fn_load_msg_execu
 // class EEMPathTo (ee_path_msg)
 // the move message (EEMPathTo)
 // EEMessage's, the base's
+// NEMessage's (Low-Level Engine.dll, the base of EEMessage): every constructor sets 1 (the DLL's 0x1000848C, EE's
+// copy 0x404B58), holding it again adds one (NESynchronousServer::SendToAllAndWait, EEServer::vf27 0x4C3839)
+internal inline uint32_t path_msg_get_ref_count(const ee_path_msg *o) { return *(uint32_t *)((uint8_t *)o + of_msg_ref_count); }
+internal inline void path_msg_set_ref_count(ee_path_msg *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_msg_ref_count) = v; }
+internal inline uint32_t *path_msg_ref_count_at(const ee_path_msg *o) { return (uint32_t *)((uint8_t *)o + of_msg_ref_count); }
 // the message's type id (0x4E select, 0x67 load ...)
 internal inline uint8_t path_msg_get_kind(const ee_path_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_kind); }
 internal inline void path_msg_set_kind(ee_path_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_kind) = v; }
 internal inline uint8_t *path_msg_kind_at(const ee_path_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_kind); }
+// NEMessage's: the slot it is for, 0xFF all (the DLL's GetForSpecificSlot / SetForSpecificSlot 0x100084C3 /
+// 0x100084CB; EEServer::vf27 also tests 0xFE); every EE message is built with 0xFF
+internal inline uint8_t path_msg_get_for_slot(const ee_path_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_for_slot); }
+internal inline void path_msg_set_for_slot(ee_path_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_for_slot) = v; }
+internal inline uint8_t *path_msg_for_slot_at(const ee_path_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_for_slot); }
 // the sender's message id (every message's)
 internal inline int8_t path_msg_get_from(const ee_path_msg *o) { return *(int8_t *)((uint8_t *)o + of_msg_from); }
 internal inline void path_msg_set_from(ee_path_msg *o, int8_t v) { *(int8_t *)((uint8_t *)o + of_msg_from) = v; }
 internal inline int8_t *path_msg_from_at(const ee_path_msg *o) { return (int8_t *)((uint8_t *)o + of_msg_from); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// NEMessage's constructor's fourth byte, the first of the 4-byte wire header (ExportHeader 0x1004D025: +0xB, +8,
+// +9, +0xA); every EE message passes 0 and nothing reads it
+internal inline uint8_t path_msg_get_header_flags(const ee_path_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_header_flags); }
+internal inline void path_msg_set_header_flags(ee_path_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_header_flags) = v; }
+internal inline uint8_t *path_msg_header_flags_at(const ee_path_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_header_flags); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// the first payload byte after the header: every message's export and import move it (EEMCheatCode 0x4B4E9E /
+// 0x4B4F35, EEMSelectUnits 0x4BD386 ...) but no constructor sets it and no execute reads it - an uninitialized
+// byte on the wire
+internal inline uint8_t path_msg_get_spare(const ee_path_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_spare); }
+internal inline void path_msg_set_spare(ee_path_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_spare) = v; }
+internal inline uint8_t *path_msg_spare_at(const ee_path_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_spare); }
+// EEMessage(type, flag)'s flag (0x404B58), not serialized: EEMessage::vf1 0x401A2E (NEMessage's
+// GetIsAvailableToSend) sends it while the local player is in the game or this is set (chat, selections: 1)
+internal inline uint8_t path_msg_get_sendable_when_out(const ee_path_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_sendable_when_out); }
+internal inline void path_msg_set_sendable_when_out(ee_path_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_sendable_when_out) = v; }
+internal inline uint8_t *path_msg_sendable_when_out_at(const ee_path_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_sendable_when_out); }
 // the right-button drag's facing (the drag handler after 0x403542: atan2(-dx, dy) of the drag, 0 for a click),
 // the move goal's +0x2C - the group's formation turned to it
 internal inline float path_msg_get_facing(const ee_path_msg *o) { return *(float *)((uint8_t *)o + of_path_msg_facing); }
@@ -159,14 +327,48 @@ internal inline int patch_path_msg_execute(path_msg_execute_fn h) { return patch
 // class EEMStartLoading (ee_start_msg)
 // the game start message (EEMStartLoading)
 // EEMessage's, the base's
+// NEMessage's (Low-Level Engine.dll, the base of EEMessage): every constructor sets 1 (the DLL's 0x1000848C, EE's
+// copy 0x404B58), holding it again adds one (NESynchronousServer::SendToAllAndWait, EEServer::vf27 0x4C3839)
+internal inline uint32_t start_msg_get_ref_count(const ee_start_msg *o) { return *(uint32_t *)((uint8_t *)o + of_msg_ref_count); }
+internal inline void start_msg_set_ref_count(ee_start_msg *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_msg_ref_count) = v; }
+internal inline uint32_t *start_msg_ref_count_at(const ee_start_msg *o) { return (uint32_t *)((uint8_t *)o + of_msg_ref_count); }
 // the message's type id (0x4E select, 0x67 load ...)
 internal inline uint8_t start_msg_get_kind(const ee_start_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_kind); }
 internal inline void start_msg_set_kind(ee_start_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_kind) = v; }
 internal inline uint8_t *start_msg_kind_at(const ee_start_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_kind); }
+// NEMessage's: the slot it is for, 0xFF all (the DLL's GetForSpecificSlot / SetForSpecificSlot 0x100084C3 /
+// 0x100084CB; EEServer::vf27 also tests 0xFE); every EE message is built with 0xFF
+internal inline uint8_t start_msg_get_for_slot(const ee_start_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_for_slot); }
+internal inline void start_msg_set_for_slot(ee_start_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_for_slot) = v; }
+internal inline uint8_t *start_msg_for_slot_at(const ee_start_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_for_slot); }
 // the sender's message id (every message's)
 internal inline int8_t start_msg_get_from(const ee_start_msg *o) { return *(int8_t *)((uint8_t *)o + of_msg_from); }
 internal inline void start_msg_set_from(ee_start_msg *o, int8_t v) { *(int8_t *)((uint8_t *)o + of_msg_from) = v; }
 internal inline int8_t *start_msg_from_at(const ee_start_msg *o) { return (int8_t *)((uint8_t *)o + of_msg_from); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// NEMessage's constructor's fourth byte, the first of the 4-byte wire header (ExportHeader 0x1004D025: +0xB, +8,
+// +9, +0xA); every EE message passes 0 and nothing reads it
+internal inline uint8_t start_msg_get_header_flags(const ee_start_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_header_flags); }
+internal inline void start_msg_set_header_flags(ee_start_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_header_flags) = v; }
+internal inline uint8_t *start_msg_header_flags_at(const ee_start_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_header_flags); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// the first payload byte after the header: every message's export and import move it (EEMCheatCode 0x4B4E9E /
+// 0x4B4F35, EEMSelectUnits 0x4BD386 ...) but no constructor sets it and no execute reads it - an uninitialized
+// byte on the wire
+internal inline uint8_t start_msg_get_spare(const ee_start_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_spare); }
+internal inline void start_msg_set_spare(ee_start_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_spare) = v; }
+internal inline uint8_t *start_msg_spare_at(const ee_start_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_spare); }
+// EEMessage(type, flag)'s flag (0x404B58), not serialized: EEMessage::vf1 0x401A2E (NEMessage's
+// GetIsAvailableToSend) sends it while the local player is in the game or this is set (chat, selections: 1)
+internal inline uint8_t start_msg_get_sendable_when_out(const ee_start_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_sendable_when_out); }
+internal inline void start_msg_set_sendable_when_out(ee_start_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_sendable_when_out) = v; }
+internal inline uint8_t *start_msg_sendable_when_out_at(const ee_start_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_sendable_when_out); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// the sender (0x5C7538's area) counts the start slots of kinds 1 and 2 into it; execute 0x4BEE57 copies it to
+// server +0x2C and sets server +0x2E (multiplayer) when it is above 1; 1 byte on the wire
+internal inline uint8_t start_msg_get_humans(const ee_start_msg *o) { return *(uint8_t *)((uint8_t *)o + of_start_msg_humans); }
+internal inline void start_msg_set_humans(ee_start_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_start_msg_humans) = v; }
+internal inline uint8_t *start_msg_humans_at(const ee_start_msg *o) { return (uint8_t *)((uint8_t *)o + of_start_msg_humans); }
 internal inline uint32_t start_msg_get_seed(const ee_start_msg *o) { return *(uint32_t *)((uint8_t *)o + of_start_msg_seed); }
 internal inline void start_msg_set_seed(ee_start_msg *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_start_msg_seed) = v; }
 internal inline uint32_t *start_msg_seed_at(const ee_start_msg *o) { return (uint32_t *)((uint8_t *)o + of_start_msg_seed); }
@@ -177,14 +379,42 @@ internal inline void start_msg_execute(ee_start_msg *start_msg) { fn_start_msg_e
 // class EEMPayTribute (ee_tribute_msg)
 // the tribute message (EEMPayTribute)
 // EEMessage's, the base's
+// NEMessage's (Low-Level Engine.dll, the base of EEMessage): every constructor sets 1 (the DLL's 0x1000848C, EE's
+// copy 0x404B58), holding it again adds one (NESynchronousServer::SendToAllAndWait, EEServer::vf27 0x4C3839)
+internal inline uint32_t tribute_msg_get_ref_count(const ee_tribute_msg *o) { return *(uint32_t *)((uint8_t *)o + of_msg_ref_count); }
+internal inline void tribute_msg_set_ref_count(ee_tribute_msg *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_msg_ref_count) = v; }
+internal inline uint32_t *tribute_msg_ref_count_at(const ee_tribute_msg *o) { return (uint32_t *)((uint8_t *)o + of_msg_ref_count); }
 // the message's type id (0x4E select, 0x67 load ...)
 internal inline uint8_t tribute_msg_get_kind(const ee_tribute_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_kind); }
 internal inline void tribute_msg_set_kind(ee_tribute_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_kind) = v; }
 internal inline uint8_t *tribute_msg_kind_at(const ee_tribute_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_kind); }
+// NEMessage's: the slot it is for, 0xFF all (the DLL's GetForSpecificSlot / SetForSpecificSlot 0x100084C3 /
+// 0x100084CB; EEServer::vf27 also tests 0xFE); every EE message is built with 0xFF
+internal inline uint8_t tribute_msg_get_for_slot(const ee_tribute_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_for_slot); }
+internal inline void tribute_msg_set_for_slot(ee_tribute_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_for_slot) = v; }
+internal inline uint8_t *tribute_msg_for_slot_at(const ee_tribute_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_for_slot); }
 // the sender's message id (every message's)
 internal inline int8_t tribute_msg_get_from(const ee_tribute_msg *o) { return *(int8_t *)((uint8_t *)o + of_msg_from); }
 internal inline void tribute_msg_set_from(ee_tribute_msg *o, int8_t v) { *(int8_t *)((uint8_t *)o + of_msg_from) = v; }
 internal inline int8_t *tribute_msg_from_at(const ee_tribute_msg *o) { return (int8_t *)((uint8_t *)o + of_msg_from); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// NEMessage's constructor's fourth byte, the first of the 4-byte wire header (ExportHeader 0x1004D025: +0xB, +8,
+// +9, +0xA); every EE message passes 0 and nothing reads it
+internal inline uint8_t tribute_msg_get_header_flags(const ee_tribute_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_header_flags); }
+internal inline void tribute_msg_set_header_flags(ee_tribute_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_header_flags) = v; }
+internal inline uint8_t *tribute_msg_header_flags_at(const ee_tribute_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_header_flags); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// the first payload byte after the header: every message's export and import move it (EEMCheatCode 0x4B4E9E /
+// 0x4B4F35, EEMSelectUnits 0x4BD386 ...) but no constructor sets it and no execute reads it - an uninitialized
+// byte on the wire
+internal inline uint8_t tribute_msg_get_spare(const ee_tribute_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_spare); }
+internal inline void tribute_msg_set_spare(ee_tribute_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_spare) = v; }
+internal inline uint8_t *tribute_msg_spare_at(const ee_tribute_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_spare); }
+// EEMessage(type, flag)'s flag (0x404B58), not serialized: EEMessage::vf1 0x401A2E (NEMessage's
+// GetIsAvailableToSend) sends it while the local player is in the game or this is set (chat, selections: 1)
+internal inline uint8_t tribute_msg_get_sendable_when_out(const ee_tribute_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_sendable_when_out); }
+internal inline void tribute_msg_set_sendable_when_out(ee_tribute_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_sendable_when_out) = v; }
+internal inline uint8_t *tribute_msg_sendable_when_out_at(const ee_tribute_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_sendable_when_out); }
 internal inline int tribute_msg_get_food(const ee_tribute_msg *o) { return *(int *)((uint8_t *)o + of_tribute_msg_food); }
 internal inline void tribute_msg_set_food(ee_tribute_msg *o, int v) { *(int *)((uint8_t *)o + of_tribute_msg_food) = v; }
 internal inline int *tribute_msg_food_at(const ee_tribute_msg *o) { return (int *)((uint8_t *)o + of_tribute_msg_food); }
@@ -210,14 +440,42 @@ internal inline void tribute_msg_execute(ee_tribute_msg *tribute_msg) { fn_tribu
 // class EEMUnloadTransport (ee_unload_msg)
 // the unload message (EEMUnloadTransport)
 // EEMessage's, the base's
+// NEMessage's (Low-Level Engine.dll, the base of EEMessage): every constructor sets 1 (the DLL's 0x1000848C, EE's
+// copy 0x404B58), holding it again adds one (NESynchronousServer::SendToAllAndWait, EEServer::vf27 0x4C3839)
+internal inline uint32_t unload_msg_get_ref_count(const ee_unload_msg *o) { return *(uint32_t *)((uint8_t *)o + of_msg_ref_count); }
+internal inline void unload_msg_set_ref_count(ee_unload_msg *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_msg_ref_count) = v; }
+internal inline uint32_t *unload_msg_ref_count_at(const ee_unload_msg *o) { return (uint32_t *)((uint8_t *)o + of_msg_ref_count); }
 // the message's type id (0x4E select, 0x67 load ...)
 internal inline uint8_t unload_msg_get_kind(const ee_unload_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_kind); }
 internal inline void unload_msg_set_kind(ee_unload_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_kind) = v; }
 internal inline uint8_t *unload_msg_kind_at(const ee_unload_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_kind); }
+// NEMessage's: the slot it is for, 0xFF all (the DLL's GetForSpecificSlot / SetForSpecificSlot 0x100084C3 /
+// 0x100084CB; EEServer::vf27 also tests 0xFE); every EE message is built with 0xFF
+internal inline uint8_t unload_msg_get_for_slot(const ee_unload_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_for_slot); }
+internal inline void unload_msg_set_for_slot(ee_unload_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_for_slot) = v; }
+internal inline uint8_t *unload_msg_for_slot_at(const ee_unload_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_for_slot); }
 // the sender's message id (every message's)
 internal inline int8_t unload_msg_get_from(const ee_unload_msg *o) { return *(int8_t *)((uint8_t *)o + of_msg_from); }
 internal inline void unload_msg_set_from(ee_unload_msg *o, int8_t v) { *(int8_t *)((uint8_t *)o + of_msg_from) = v; }
 internal inline int8_t *unload_msg_from_at(const ee_unload_msg *o) { return (int8_t *)((uint8_t *)o + of_msg_from); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// NEMessage's constructor's fourth byte, the first of the 4-byte wire header (ExportHeader 0x1004D025: +0xB, +8,
+// +9, +0xA); every EE message passes 0 and nothing reads it
+internal inline uint8_t unload_msg_get_header_flags(const ee_unload_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_header_flags); }
+internal inline void unload_msg_set_header_flags(ee_unload_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_header_flags) = v; }
+internal inline uint8_t *unload_msg_header_flags_at(const ee_unload_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_header_flags); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// the first payload byte after the header: every message's export and import move it (EEMCheatCode 0x4B4E9E /
+// 0x4B4F35, EEMSelectUnits 0x4BD386 ...) but no constructor sets it and no execute reads it - an uninitialized
+// byte on the wire
+internal inline uint8_t unload_msg_get_spare(const ee_unload_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_spare); }
+internal inline void unload_msg_set_spare(ee_unload_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_spare) = v; }
+internal inline uint8_t *unload_msg_spare_at(const ee_unload_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_spare); }
+// EEMessage(type, flag)'s flag (0x404B58), not serialized: EEMessage::vf1 0x401A2E (NEMessage's
+// GetIsAvailableToSend) sends it while the local player is in the game or this is set (chat, selections: 1)
+internal inline uint8_t unload_msg_get_sendable_when_out(const ee_unload_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_sendable_when_out); }
+internal inline void unload_msg_set_sendable_when_out(ee_unload_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_sendable_when_out) = v; }
+internal inline uint8_t *unload_msg_sendable_when_out_at(const ee_unload_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_sendable_when_out); }
 // its Execute's reads (both builds)
 internal inline int unload_msg_get_x(const ee_unload_msg *o) { return *(int *)((uint8_t *)o + of_unload_msg_x); }
 internal inline void unload_msg_set_x(ee_unload_msg *o, int v) { *(int *)((uint8_t *)o + of_unload_msg_x) = v; }
@@ -259,34 +517,111 @@ internal inline uint8_t *server_rate_at(const ee_server *o) { return (uint8_t *)
 // class EEMHackANewUnit (ee_new_unit_msg)
 // the new-unit message, the cheat that makes a unit (EEMHackANewUnit)
 // EEMessage's, the base's
+// NEMessage's (Low-Level Engine.dll, the base of EEMessage): every constructor sets 1 (the DLL's 0x1000848C, EE's
+// copy 0x404B58), holding it again adds one (NESynchronousServer::SendToAllAndWait, EEServer::vf27 0x4C3839)
+internal inline uint32_t new_unit_msg_get_ref_count(const ee_new_unit_msg *o) { return *(uint32_t *)((uint8_t *)o + of_msg_ref_count); }
+internal inline void new_unit_msg_set_ref_count(ee_new_unit_msg *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_msg_ref_count) = v; }
+internal inline uint32_t *new_unit_msg_ref_count_at(const ee_new_unit_msg *o) { return (uint32_t *)((uint8_t *)o + of_msg_ref_count); }
 // the message's type id (0x4E select, 0x67 load ...)
 internal inline uint8_t new_unit_msg_get_kind(const ee_new_unit_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_kind); }
 internal inline void new_unit_msg_set_kind(ee_new_unit_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_kind) = v; }
 internal inline uint8_t *new_unit_msg_kind_at(const ee_new_unit_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_kind); }
+// NEMessage's: the slot it is for, 0xFF all (the DLL's GetForSpecificSlot / SetForSpecificSlot 0x100084C3 /
+// 0x100084CB; EEServer::vf27 also tests 0xFE); every EE message is built with 0xFF
+internal inline uint8_t new_unit_msg_get_for_slot(const ee_new_unit_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_for_slot); }
+internal inline void new_unit_msg_set_for_slot(ee_new_unit_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_for_slot) = v; }
+internal inline uint8_t *new_unit_msg_for_slot_at(const ee_new_unit_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_for_slot); }
 // the sender's message id (every message's)
 internal inline int8_t new_unit_msg_get_from(const ee_new_unit_msg *o) { return *(int8_t *)((uint8_t *)o + of_msg_from); }
 internal inline void new_unit_msg_set_from(ee_new_unit_msg *o, int8_t v) { *(int8_t *)((uint8_t *)o + of_msg_from) = v; }
 internal inline int8_t *new_unit_msg_from_at(const ee_new_unit_msg *o) { return (int8_t *)((uint8_t *)o + of_msg_from); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// NEMessage's constructor's fourth byte, the first of the 4-byte wire header (ExportHeader 0x1004D025: +0xB, +8,
+// +9, +0xA); every EE message passes 0 and nothing reads it
+internal inline uint8_t new_unit_msg_get_header_flags(const ee_new_unit_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_header_flags); }
+internal inline void new_unit_msg_set_header_flags(ee_new_unit_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_header_flags) = v; }
+internal inline uint8_t *new_unit_msg_header_flags_at(const ee_new_unit_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_header_flags); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// the first payload byte after the header: every message's export and import move it (EEMCheatCode 0x4B4E9E /
+// 0x4B4F35, EEMSelectUnits 0x4BD386 ...) but no constructor sets it and no execute reads it - an uninitialized
+// byte on the wire
+internal inline uint8_t new_unit_msg_get_spare(const ee_new_unit_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_spare); }
+internal inline void new_unit_msg_set_spare(ee_new_unit_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_spare) = v; }
+internal inline uint8_t *new_unit_msg_spare_at(const ee_new_unit_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_spare); }
+// EEMessage(type, flag)'s flag (0x404B58), not serialized: EEMessage::vf1 0x401A2E (NEMessage's
+// GetIsAvailableToSend) sends it while the local player is in the game or this is set (chat, selections: 1)
+internal inline uint8_t new_unit_msg_get_sendable_when_out(const ee_new_unit_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_sendable_when_out); }
+internal inline void new_unit_msg_set_sendable_when_out(ee_new_unit_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_sendable_when_out) = v; }
+internal inline uint8_t *new_unit_msg_sendable_when_out_at(const ee_new_unit_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_sendable_when_out); }
 // EEMHackANewUnit: thiscall(int *type, float xy[2], char player)
 typedef void (__thiscall *new_unit_msg_init_fn)(ee_new_unit_msg *, int *, float *, char);
 internal new_unit_msg_init_fn fn_new_unit_msg_init;
 internal inline void new_unit_msg_init(ee_new_unit_msg *new_unit_msg, int *type, float *xy, char player) { fn_new_unit_msg_init(new_unit_msg, type, xy, player); }
+// init 0x650B3C stores *type, export 0x4B6F2A moves 4 bytes
+internal inline int new_unit_msg_get_unit_type(const ee_new_unit_msg *o) { return *(int *)((uint8_t *)o + of_new_unit_msg_unit_type); }
+internal inline void new_unit_msg_set_unit_type(ee_new_unit_msg *o, int v) { *(int *)((uint8_t *)o + of_new_unit_msg_unit_type) = v; }
+internal inline int *new_unit_msg_unit_type_at(const ee_new_unit_msg *o) { return (int *)((uint8_t *)o + of_new_unit_msg_unit_type); }
+// init stores xy[0] / xy[1] here, export moves 8 bytes, execute 0x4B7044 reads them as floats
+internal inline float new_unit_msg_get_pos(const ee_new_unit_msg *o, int i) { return ((float *)((uint8_t *)o + of_new_unit_msg_pos))[i]; }
+internal inline void new_unit_msg_set_pos(ee_new_unit_msg *o, int i, float v) { ((float *)((uint8_t *)o + of_new_unit_msg_pos))[i] = v; }
+internal inline float *new_unit_msg_pos_at(const ee_new_unit_msg *o) { return (float *)((uint8_t *)o + of_new_unit_msg_pos); }
+// init's player byte, export / import 0x4B6F2A / 0x4B6FCC move 1 byte
+internal inline uint8_t new_unit_msg_get_player(const ee_new_unit_msg *o) { return *(uint8_t *)((uint8_t *)o + of_new_unit_msg_player); }
+internal inline void new_unit_msg_set_player(ee_new_unit_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_new_unit_msg_player) = v; }
+internal inline uint8_t *new_unit_msg_player_at(const ee_new_unit_msg *o) { return (uint8_t *)((uint8_t *)o + of_new_unit_msg_player); }
 
 // class EEMCheatCode (ee_cheat_msg)
 // a cheat code's message (EEMCheatCode)
 // EEMessage's, the base's
+// NEMessage's (Low-Level Engine.dll, the base of EEMessage): every constructor sets 1 (the DLL's 0x1000848C, EE's
+// copy 0x404B58), holding it again adds one (NESynchronousServer::SendToAllAndWait, EEServer::vf27 0x4C3839)
+internal inline uint32_t cheat_msg_get_ref_count(const ee_cheat_msg *o) { return *(uint32_t *)((uint8_t *)o + of_msg_ref_count); }
+internal inline void cheat_msg_set_ref_count(ee_cheat_msg *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_msg_ref_count) = v; }
+internal inline uint32_t *cheat_msg_ref_count_at(const ee_cheat_msg *o) { return (uint32_t *)((uint8_t *)o + of_msg_ref_count); }
 // the message's type id (0x4E select, 0x67 load ...)
 internal inline uint8_t cheat_msg_get_kind(const ee_cheat_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_kind); }
 internal inline void cheat_msg_set_kind(ee_cheat_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_kind) = v; }
 internal inline uint8_t *cheat_msg_kind_at(const ee_cheat_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_kind); }
+// NEMessage's: the slot it is for, 0xFF all (the DLL's GetForSpecificSlot / SetForSpecificSlot 0x100084C3 /
+// 0x100084CB; EEServer::vf27 also tests 0xFE); every EE message is built with 0xFF
+internal inline uint8_t cheat_msg_get_for_slot(const ee_cheat_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_for_slot); }
+internal inline void cheat_msg_set_for_slot(ee_cheat_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_for_slot) = v; }
+internal inline uint8_t *cheat_msg_for_slot_at(const ee_cheat_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_for_slot); }
 // the sender's message id (every message's)
 internal inline int8_t cheat_msg_get_from(const ee_cheat_msg *o) { return *(int8_t *)((uint8_t *)o + of_msg_from); }
 internal inline void cheat_msg_set_from(ee_cheat_msg *o, int8_t v) { *(int8_t *)((uint8_t *)o + of_msg_from) = v; }
 internal inline int8_t *cheat_msg_from_at(const ee_cheat_msg *o) { return (int8_t *)((uint8_t *)o + of_msg_from); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// NEMessage's constructor's fourth byte, the first of the 4-byte wire header (ExportHeader 0x1004D025: +0xB, +8,
+// +9, +0xA); every EE message passes 0 and nothing reads it
+internal inline uint8_t cheat_msg_get_header_flags(const ee_cheat_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_header_flags); }
+internal inline void cheat_msg_set_header_flags(ee_cheat_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_header_flags) = v; }
+internal inline uint8_t *cheat_msg_header_flags_at(const ee_cheat_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_header_flags); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// the first payload byte after the header: every message's export and import move it (EEMCheatCode 0x4B4E9E /
+// 0x4B4F35, EEMSelectUnits 0x4BD386 ...) but no constructor sets it and no execute reads it - an uninitialized
+// byte on the wire
+internal inline uint8_t cheat_msg_get_spare(const ee_cheat_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_spare); }
+internal inline void cheat_msg_set_spare(ee_cheat_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_spare) = v; }
+internal inline uint8_t *cheat_msg_spare_at(const ee_cheat_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_spare); }
+// EEMessage(type, flag)'s flag (0x404B58), not serialized: EEMessage::vf1 0x401A2E (NEMessage's
+// GetIsAvailableToSend) sends it while the local player is in the game or this is set (chat, selections: 1)
+internal inline uint8_t cheat_msg_get_sendable_when_out(const ee_cheat_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_sendable_when_out); }
+internal inline void cheat_msg_set_sendable_when_out(ee_cheat_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_sendable_when_out) = v; }
+internal inline uint8_t *cheat_msg_sendable_when_out_at(const ee_cheat_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_sendable_when_out); }
 // new 0x18; (code, arg)
 typedef void *(__thiscall *cheat_msg_init_fn)(ee_cheat_msg *, int, int);
 internal cheat_msg_init_fn fn_cheat_msg_init;
 internal inline void *cheat_msg_init(ee_cheat_msg *cheat_msg, int code, int arg) { return fn_cheat_msg_init(cheat_msg, code, arg); }
+// init 0x5C29FB stores the cheat code, export / import 0x4B4E9E / 0x4B4F35 move it, execute 0x4B4E6A passes it to
+// the cheat dispatcher 0x520339
+internal inline int cheat_msg_get_code(const ee_cheat_msg *o) { return *(int *)((uint8_t *)o + of_cheat_msg_code); }
+internal inline void cheat_msg_set_code(ee_cheat_msg *o, int v) { *(int *)((uint8_t *)o + of_cheat_msg_code) = v; }
+internal inline int *cheat_msg_code_at(const ee_cheat_msg *o) { return (int *)((uint8_t *)o + of_cheat_msg_code); }
+// init's second argument, the dispatcher's third (execute 0x4B4E6A)
+internal inline int cheat_msg_get_arg(const ee_cheat_msg *o) { return *(int *)((uint8_t *)o + of_cheat_msg_arg); }
+internal inline void cheat_msg_set_arg(ee_cheat_msg *o, int v) { *(int *)((uint8_t *)o + of_cheat_msg_arg) = v; }
+internal inline int *cheat_msg_arg_at(const ee_cheat_msg *o) { return (int *)((uint8_t *)o + of_cheat_msg_arg); }
 
 // static class messages
 // messages's data of the game, places in its code and numbers
@@ -316,9 +651,14 @@ internal inline int patch_sel_pack(sel_pack_fn h) { return patch_call(call_sel_p
 internal int spec_messages_select(int build) {
     switch (build) {
     case 0:   // ee
+        of_msg_ref_count = 0x4;
         of_msg_kind = 0x8;
+        of_msg_for_slot = 0x9;
         of_msg_from = 0xA;
         slot_msg_execute = 10;
+        of_msg_header_flags = 0xB;
+        of_msg_spare = 0xC;
+        of_msg_sendable_when_out = 0xD;
         fn_resign_msg_execute = (resign_msg_execute_fn)0x004BB906;
         of_chat_msg_text = 0x10;
         fn_chat_msg_execute = (chat_msg_execute_fn)0x004B78C7;
@@ -342,6 +682,7 @@ internal int spec_messages_select(int build) {
         of_path_msg_queued = 0x1E;
         of_path_msg_together = 0x1F;
         fn_path_msg_execute = (path_msg_execute_fn)0x004B9D7B;
+        of_start_msg_humans = 0x10;
         of_start_msg_seed = 0x14;
         fn_start_msg_execute = (start_msg_execute_fn)0x004BEE57;
         of_tribute_msg_food = 0x10;
@@ -362,8 +703,13 @@ internal int spec_messages_select(int build) {
         of_server_rate = 0x1FB;
         vt_eem_hack_a_new_unit = 0x00829338;
         fn_new_unit_msg_init = (new_unit_msg_init_fn)0x00650B3C;
+        of_new_unit_msg_unit_type = 0x10;
+        of_new_unit_msg_pos = 0x14;
+        of_new_unit_msg_player = 0x1C;
         vt_eem_cheat_code = 0x0082907C;
         fn_cheat_msg_init = (cheat_msg_init_fn)0x005C29FB;
+        of_cheat_msg_code = 0x10;
+        of_cheat_msg_arg = 0x14;
         value_messages_size_cheat_msg = 24;
         value_messages_size_msg_chat = 36;
         value_messages_slot_msg_execute = 10;
@@ -378,9 +724,14 @@ internal int spec_messages_select(int build) {
         call_sel_pack = 0x004BD133;
         return 0;
     case 1:   // aoc
+        of_msg_ref_count = 0x4;
         of_msg_kind = 0x8;
+        of_msg_for_slot = 0x9;
         of_msg_from = 0xA;
         slot_msg_execute = 10;
+        of_msg_header_flags = 0xB;
+        of_msg_spare = 0xC;
+        of_msg_sendable_when_out = 0xD;
         fn_resign_msg_execute = (resign_msg_execute_fn)0x004C44BB;
         of_chat_msg_text = 0x10;
         fn_chat_msg_execute = (chat_msg_execute_fn)0x004BFDD2;
@@ -404,6 +755,7 @@ internal int spec_messages_select(int build) {
         of_path_msg_queued = 0x1E;
         of_path_msg_together = 0x1F;
         fn_path_msg_execute = (path_msg_execute_fn)0x004C281C;
+        of_start_msg_humans = 0x10;
         of_start_msg_seed = 0x14;
         fn_start_msg_execute = (start_msg_execute_fn)0x004C7CDC;
         of_tribute_msg_food = 0x10;
@@ -424,8 +776,13 @@ internal int spec_messages_select(int build) {
         of_server_rate = 0x1FB;
         vt_eem_hack_a_new_unit = 0x0083E088;
         fn_new_unit_msg_init = (new_unit_msg_init_fn)0x00662C24;
+        of_new_unit_msg_unit_type = 0x10;
+        of_new_unit_msg_pos = 0x14;
+        of_new_unit_msg_player = 0x1C;
         vt_eem_cheat_code = 0x0083DDE0;
         fn_cheat_msg_init = (cheat_msg_init_fn)0x005D3162;
+        of_cheat_msg_code = 0x10;
+        of_cheat_msg_arg = 0x14;
         value_messages_size_cheat_msg = 24;
         value_messages_size_msg_chat = 36;
         value_messages_slot_msg_execute = 10;

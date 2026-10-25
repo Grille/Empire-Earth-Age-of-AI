@@ -59,6 +59,8 @@ internal inline uint32_t *map_flags_at(const ee_map *o) { return (uint32_t *)((u
 
 // class ee_unit_vis (ee_unit_vis)
 // a unit's visibility record, its +0x14 (a site's: its ownership flag too)
+// - it is the tile the unit stands on (ee_tile: 0x54E275 compares a tile of 0x4039AC with it, 0x502622 reads the
+// tile's height through it); kept apart until the C side's uses move to ee_tile
 internal inline int unit_vis_get_flag(const ee_unit_vis *o) { return *(int *)((uint8_t *)o + of_unit_vis_flag); }
 internal inline void unit_vis_set_flag(ee_unit_vis *o, int v) { *(int *)((uint8_t *)o + of_unit_vis_flag) = v; }
 internal inline int *unit_vis_flag_at(const ee_unit_vis *o) { return (int *)((uint8_t *)o + of_unit_vis_flag); }

@@ -3,17 +3,43 @@
 [c_type("ee_msg")]
 unsafe struct EEMessage
 {
+    /// NEMessage's (Low-Level Engine.dll, the base of EEMessage): every constructor sets 1 (the DLL's 0x1000848C, EE's
+    /// copy 0x404B58), holding it again adds one (NESynchronousServer::SendToAllAndWait, EEServer::vf27 0x4C3839)
+    [offset(0x4), found(c)]
+    uint32 ref_count;
+
     /// the message's type id (0x4E select, 0x67 load ...)
     [offset(0x8), found(c)]
     uint8 kind;
 
+    /// NEMessage's: the slot it is for, 0xFF all (the DLL's GetForSpecificSlot / SetForSpecificSlot 0x100084C3 /
+    /// 0x100084CB; EEServer::vf27 also tests 0xFE); every EE message is built with 0xFF
+    [offset(0x9), found(c)]
+    uint8 for_slot;
+
     /// the sender's message id (every message's)
-    [offset(0xA), found(b)]
+    [offset(0xA), found(c)]
     int8 from;
 
     /// vf10: the message carried out (EEMPathTo's and EEMLoadTransport's both builds)
     [slot(10)]
     extern void execute();
+
+    /// NEMessage's constructor's fourth byte, the first of the 4-byte wire header (ExportHeader 0x1004D025: +0xB, +8,
+    /// +9, +0xA); every EE message passes 0 and nothing reads it
+    [offset(0xB), found(c), guess]
+    uint8 header_flags;
+
+    /// the first payload byte after the header: every message's export and import move it (EEMCheatCode 0x4B4E9E /
+    /// 0x4B4F35, EEMSelectUnits 0x4BD386 ...) but no constructor sets it and no execute reads it - an uninitialized
+    /// byte on the wire
+    [offset(0xC), found(c), guess]
+    uint8 spare;
+
+    /// EEMessage(type, flag)'s flag (0x404B58), not serialized: EEMessage::vf1 0x401A2E (NEMessage's
+    /// GetIsAvailableToSend) sends it while the local player is in the game or this is set (chat, selections: 1)
+    [offset(0xD), found(c)]
+    uint8 sendable_when_out;
 }
 
 /// the resignation (EEMResign)
@@ -131,6 +157,11 @@ unsafe struct EEMPathTo
 [@base(typeof(EEMessage)), c_type("ee_start_msg")]
 unsafe struct EEMStartLoading
 {
+    /// the sender (0x5C7538's area) counts the start slots of kinds 1 and 2 into it; execute 0x4BEE57 copies it to
+    /// server +0x2C and sets server +0x2E (multiplayer) when it is above 1; 1 byte on the wire
+    [offset(0x10), found(c), guess]
+    uint8 humans;
+
     [offset(0x14), found(c)]
     uint32 seed;
 
@@ -216,6 +247,18 @@ unsafe struct EEMHackANewUnit
     /// EEMHackANewUnit: thiscall(int *type, float xy[2], char player)
     [address((ee)0x00650B3C, (aoc)0x00662C24)]
     extern void init(int32* type, float32* xy, char8 player);
+
+    /// init 0x650B3C stores *type, export 0x4B6F2A moves 4 bytes
+    [offset(0x10), found(c)]
+    int32 unit_type;
+
+    /// init stores xy[0] / xy[1] here, export moves 8 bytes, execute 0x4B7044 reads them as floats
+    [offset(0x14), found(c)]
+    fixed float32 pos[2];
+
+    /// init's player byte, export / import 0x4B6F2A / 0x4B6FCC move 1 byte
+    [offset(0x1C), found(c)]
+    uint8 player;
 }
 
 /// a cheat code's message (EEMCheatCode)
@@ -225,6 +268,15 @@ unsafe struct EEMCheatCode
     /// new 0x18; (code, arg)
     [address((ee)0x005C29FB, (aoc)0x005D3162)]
     extern void* init(int32 code, int32 arg);
+
+    /// init 0x5C29FB stores the cheat code, export / import 0x4B4E9E / 0x4B4F35 move it, execute 0x4B4E6A passes it to
+    /// the cheat dispatcher 0x520339
+    [offset(0x10), found(c)]
+    int32 code;
+
+    /// init's second argument, the dispatcher's third (execute 0x4B4E6A)
+    [offset(0x14), found(c)]
+    int32 arg;
 }
 
 /// messages's data of the game, places in its code and numbers

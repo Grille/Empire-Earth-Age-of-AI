@@ -2,6 +2,15 @@
 [c_type("void")]
 unsafe struct ee_draw_record
 {
+    /// its owner's colour (player +0x438 / +0x43C / +0x440, filled at 0x502xxx); init 0x506442 sets 1.0
+    [offset(0x40), found(c)]
+    vec3 color;
+
+    /// a second colour: 0x502xxx sets it by the unit's serial (0.2 steps, serial % 3) or from the unit's own values
+    /// when record +0x146 is set; init 1.0
+    [offset(0x4C), found(c), guess]
+    vec3 tint;
+
     /// the same in AoC: its draw list sites read hooks.draw_old + 0x58 and + 0xFC (0x50B2AD, 0x50EF07)
     [offset(0x58), found(h, "the same in AoC: its draw list sites read hooks.draw_old + 0x58 and + 0xFC (0x50B2AD, 0x50EF07)")]
     block _0x58;

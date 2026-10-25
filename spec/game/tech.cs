@@ -75,6 +75,11 @@ unsafe struct EETechTreeNode
     [offset((ee)0x1E, (aoc)0x22), found(c)]
     uint8 disabled;
 
+    /// ee_scen_effect::run 0x5AD29B sets 1 after 0x558CB6(unit type, 0x7F) for a tech that passes 0x5BF041; the grant
+    /// 0x5BF4C8 and the destructor 0x5BE7B3 undo it (0x55C0A2) and clear it
+    [offset((ee)0x1F, (aoc)0x23), found(c), guess]
+    uint8 type_modified;
+
     [offset(0x24), found(v)]
     uint8* kids_begin;
 
@@ -89,6 +94,10 @@ unsafe struct ee_tech_data
     /// the tech tree code's reads (unchanged)
     [offset(0x10), found(v)]
     int32* makers_begin;
+
+    /// the end of makers_begin's vector: 0x48EB80 and 0x5BE7B3 count (it - makers_begin) >> 2
+    [offset(0x14), found(c)]
+    int32* makers_end;
 
     /// the tech tree code's reads (unchanged)
     [offset(0x24), found(v)]

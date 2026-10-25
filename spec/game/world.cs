@@ -114,6 +114,44 @@ unsafe struct EEPhysics
 [c_type("ee_world"), vtable((ee)0x0082C84C, (aoc)0x00841FEC)]
 unsafe struct EEWorld
 {
+    /// 17 EEPlayer* by index (game.players is this memory): the RTSWorld constructor 0x53B637 zeroes them, set_stance
+    /// 0x52D5D7 and player_out 0x52E2B7 index them
+    [offset(0x74), found(c)]
+    block players;
+
+    /// the map (game.map is this memory): set_stance 0x52D5D7 passes it to set_diplomacy
+    [offset(0xBC), found(c)]
+    EEMap* map;
+
+    /// the players' count (game.players_n is this memory): player 0x52E6EF and unit_by_id 0x53B889 (id >> 24 against
+    /// it) bound by it
+    [offset(0xCC), found(c)]
+    uint32 players_n;
+
+    /// the game's setup, an ee_setup in it (the constructor 0x52CCC9 builds one here and a second at +0x51C):
+    /// game.end_epoch is its +0x3E4, game.scenario_flag its +0x409
+    [offset(0x110), found(c), guess]
+    block setup;
+
+    /// a second ee_setup the constructor 0x52CCC9 builds (its use not read yet)
+    [offset(0x51C), found(c), guess]
+    block setup_2;
+
+    /// a map site -> gatherers (allocator byte, head +4, size +8): site_gatherers 0x52E5F7 finds the site (0x404CA6)
+    /// against its head +0x9A8 and returns the node's +0x10
+    [offset(0x9A4), found(c), guess]
+    block gatherer_counts;
+
+    /// records of 0x18 bytes, each a vector of player indices at +4: the standard victory check 0x531913 ends the game
+    /// when one is left
+    [offset(0x9B4), found(c), guess]
+    vector alliances;
+
+    /// the local player's index (game.local_player is this memory): player_out 0x52E2B7 runs the local defeat 0x5150F2
+    /// when it is the player going out
+    [offset(0xB84), found(c)]
+    int32 local_player;
+
     /// the standard victory (the game settings' +0x408 at the start, the editor's flag): while set, 0x531913 ends the
     /// game once one alliance is left and takes out every player without units (both builds' +0xB96)
     [offset(0xB96), found(c)]
@@ -127,10 +165,6 @@ unsafe struct EEWorld
     [address((ee)0x0052E2B7, (aoc)0x005391F2)]
     extern void player_out(int32 won, int32 index);
 
-    [address((ee)0x0052599B, (aoc)0x005306F2)]
-    [call_site("game_start", (ee)0x004CEC14, (aoc)0x004D4443)]
-    extern char8 start(ee_setup* setup, void* p2);
-
     [address((ee)0x0052D5D7, (aoc)0x005384DD)]
     extern void set_stance(int32 from, int32 to, int32 stance);
 
@@ -141,6 +175,18 @@ unsafe struct EEWorld
 
     [address((ee)0x0052E5F7, (aoc)0x00539532)]
     extern uint32 site_gatherers(EEUnit* site);
+}
+
+/// the game being started (EEGameState, EE 0x917588 - its constructor 0x53B48D, RTTI by its vtable; not the world,
+/// game.game_state): its own copy of the setup at +0x8, the players, the speed and the map seed for the start
+[vtable((ee)0x0082CA14, (aoc)0x00842178)]
+unsafe struct EEGameState
+{
+    /// starts the game the setup describes (the menu's start 0x4CEC14 calls it; the spec had it as EEWorld's until
+    /// 2026-10-25)
+    [address((ee)0x0052599B, (aoc)0x005306F2)]
+    [call_site("game_start", (ee)0x004CEC14, (aoc)0x004D4443)]
+    extern char8 start(ee_setup* setup, void* p2);
 }
 
 /// the game's tables of values, game.table_values (EEWorldTable)

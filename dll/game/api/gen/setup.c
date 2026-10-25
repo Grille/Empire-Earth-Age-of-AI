@@ -3,6 +3,12 @@
 
 // class ee_setup (ee_setup)
 // the game setup
+// the campaign: game_start 0x525BBA builds "Campaigns\" + it; the setup copy 0x524B8F copies it
+internal inline uint8_t *setup_campaign_at(const ee_setup *o) { return (uint8_t *)o + of_setup_campaign; }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// copied with campaign (0x524B8F, game_start's campaign branch 0x525F6D); the second of four strings 0x14 apart
+// (map_name +0x3A8)
+internal inline uint8_t *setup_campaign_scenario_at(const ee_setup *o) { return (uint8_t *)o + of_setup_campaign_scenario; }
 // the setup copy 0x524B8F and game_start
 internal inline uint8_t *setup_map_name_at(const ee_setup *o) { return (uint8_t *)o + of_setup_map_name; }
 // the setup copy 0x524B8F and game_start; the registry's "Game Speed" (Game Options, the options loader
@@ -107,6 +113,8 @@ internal inline uint8_t *setup_slot_size_at(const ee_setup_slot *o) { return (ui
 internal int spec_setup_select(int build) {
     switch (build) {
     case 0:   // ee
+        of_setup_campaign = 0x380;
+        of_setup_campaign_scenario = 0x394;
         of_setup_map_name = 0x3A8;
         of_setup_speed = 0x3D4;
         of_setup_mode = 0x3D8;
@@ -133,6 +141,8 @@ internal int spec_setup_select(int build) {
         of_setup_slot_size = 0x38;
         return 0;
     case 1:   // aoc
+        of_setup_campaign = 0x380;
+        of_setup_campaign_scenario = 0x394;
         of_setup_map_name = 0x3A8;
         of_setup_speed = 0x3D4;
         of_setup_mode = 0x3D8;

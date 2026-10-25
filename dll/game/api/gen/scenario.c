@@ -42,6 +42,13 @@ internal inline uint8_t *scen_mgr_areas_at(const ee_scen_mgr *o) { return (uint8
 internal inline uint8_t *scen_mgr_camera_queue_at(const ee_scen_mgr *o) { return (uint8_t *)o + of_scen_mgr_camera_queue; }
 // its file's code (the scenario manager)
 internal inline uint8_t *scen_mgr_queue_at(const ee_scen_mgr *o) { return (uint8_t *)o + of_scen_mgr_queue; }
+// the scenario's hints text: the effect's run 0x5AE130 / 0x5AE14B clears it or appends the effect's text
+// (text_kind 0)
+internal inline uint8_t *scen_mgr_hints_at(const ee_scen_mgr *o) { return (uint8_t *)o + of_scen_mgr_hints; }
+// the history text, the same for text_kind 2 (0x5AE06B / 0x5AE089)
+internal inline uint8_t *scen_mgr_history_at(const ee_scen_mgr *o) { return (uint8_t *)o + of_scen_mgr_history; }
+// the instructions text, the same for text_kind 1 (0x5AE0CF / 0x5AE0ED)
+internal inline uint8_t *scen_mgr_instructions_at(const ee_scen_mgr *o) { return (uint8_t *)o + of_scen_mgr_instructions; }
 // game.scroll_speed at a cinematic's start (0x5A1CDA), given back at its end through 0x51F2F3 (0x5A18D0)
 internal inline float scen_mgr_get_saved_scroll_speed(const ee_scen_mgr *o) { return *(float *)((uint8_t *)o + of_scen_mgr_saved_scroll_speed); }
 internal inline void scen_mgr_set_saved_scroll_speed(ee_scen_mgr *o, float v) { *(float *)((uint8_t *)o + of_scen_mgr_saved_scroll_speed) = v; }
@@ -84,6 +91,10 @@ internal inline void scen_mgr_queue_effect(ee_scen_mgr *scen_mgr, int effect, in
 // a scenario condition
 // its file's code (the scenario manager)
 internal inline uint8_t *scen_cond_name_at(const ee_scen_cond *o) { return (uint8_t *)o + of_scen_cond_name; }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// the editor's EESETSCondition::vf11 0x56F0D1 puts name (+0x4) and then this into its two edit boxes, as
+// EESETSEffect::vf11 its name and description
+internal inline uint8_t *scen_cond_description_at(const ee_scen_cond *o) { return (uint8_t *)o + of_scen_cond_description; }
 // its file's code (the scenario manager)
 internal inline uint8_t *scen_cond_text_at(const ee_scen_cond *o) { return (uint8_t *)o + of_scen_cond_text; }
 // its file's code (the scenario manager)
@@ -679,6 +690,9 @@ internal int spec_scenario_select(int build) {
         of_scen_mgr_areas = 0x128;
         of_scen_mgr_camera_queue = 0x148;
         of_scen_mgr_queue = 0x168;
+        of_scen_mgr_hints = 0x188;
+        of_scen_mgr_history = 0x19C;
+        of_scen_mgr_instructions = 0x1D8;
         of_scen_mgr_saved_scroll_speed = 0x204;
         of_scen_mgr_time = 0x210;
         fn_scen_mgr_area = (scen_mgr_area_fn)0x0056DFB7;
@@ -689,6 +703,7 @@ internal int spec_scenario_select(int build) {
         fn_scen_mgr_players = (scen_mgr_players_fn)0x005A23F6;
         fn_scen_mgr_queue_effect = (scen_mgr_queue_effect_fn)0x0059FE52;
         of_scen_cond_name = 0x4;
+        of_scen_cond_description = 0x18;
         of_scen_cond_text = 0x2C;
         of_scen_cond_type = 0x40;
         of_scen_cond_op = 0x44;
@@ -841,6 +856,9 @@ internal int spec_scenario_select(int build) {
         of_scen_mgr_areas = 0x128;
         of_scen_mgr_camera_queue = 0x148;
         of_scen_mgr_queue = 0x168;
+        of_scen_mgr_hints = 0x188;
+        of_scen_mgr_history = 0x19C;
+        of_scen_mgr_instructions = 0x1D8;
         of_scen_mgr_saved_scroll_speed = 0x204;
         of_scen_mgr_time = 0x210;
         fn_scen_mgr_area = (scen_mgr_area_fn)0x0057DA08;
@@ -851,6 +869,7 @@ internal int spec_scenario_select(int build) {
         fn_scen_mgr_players = (scen_mgr_players_fn)0x005B260A;
         fn_scen_mgr_queue_effect = (scen_mgr_queue_effect_fn)0x005B005B;
         of_scen_cond_name = 0x4;
+        of_scen_cond_description = 0x18;
         of_scen_cond_text = 0x2C;
         of_scen_cond_type = 0x40;
         of_scen_cond_op = 0x44;

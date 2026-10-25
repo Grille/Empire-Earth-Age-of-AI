@@ -306,6 +306,10 @@ unsafe struct EECPResearchManager
     [offset(0x8), found(h, "kept: the object's start, before its first known shift (0xF4 -> 0x104)")]
     int32* pool_begin;
 
+    /// the end of pool_begin's vector: 0x4858D9 counts (it - pool_begin) >> 2 and walks to it
+    [offset(0xC), found(c)]
+    int32* pool_end;
+
     /// kept: the object's start, before its first known shift (0xF4 -> 0x104)
     [offset(0x18), found(h, "kept: the object's start, before its first known shift (0xF4 -> 0x104)")]
     block epoch;

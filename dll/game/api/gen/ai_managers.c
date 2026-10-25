@@ -262,6 +262,10 @@ internal inline void *resource_mgr_unbuilt_farms(ee_resource_mgr *resource_mgr, 
 internal inline int *research_mgr_get_pool_begin(const ee_research_mgr *o) { return *(int **)((uint8_t *)o + of_research_mgr_pool_begin); }
 internal inline void research_mgr_set_pool_begin(ee_research_mgr *o, int *v) { *(int **)((uint8_t *)o + of_research_mgr_pool_begin) = v; }
 internal inline int **research_mgr_pool_begin_at(const ee_research_mgr *o) { return (int **)((uint8_t *)o + of_research_mgr_pool_begin); }
+// the end of pool_begin's vector: 0x4858D9 counts (it - pool_begin) >> 2 and walks to it
+internal inline int *research_mgr_get_pool_end(const ee_research_mgr *o) { return *(int **)((uint8_t *)o + of_research_mgr_pool_end); }
+internal inline void research_mgr_set_pool_end(ee_research_mgr *o, int *v) { *(int **)((uint8_t *)o + of_research_mgr_pool_end) = v; }
+internal inline int **research_mgr_pool_end_at(const ee_research_mgr *o) { return (int **)((uint8_t *)o + of_research_mgr_pool_end); }
 // kept: the object's start, before its first known shift (0xF4 -> 0x104)
 internal inline uint8_t *research_mgr_epoch_at(const ee_research_mgr *o) { return (uint8_t *)o + of_research_mgr_epoch; }
 // its civilization manager
@@ -484,6 +488,7 @@ internal int spec_ai_managers_select(int build) {
         fn_resource_mgr_farms = (resource_mgr_farms_fn)0x0048BFD0;
         fn_resource_mgr_unbuilt_farms = (resource_mgr_unbuilt_farms_fn)0x0048BF4F;
         of_research_mgr_pool_begin = 0x8;
+        of_research_mgr_pool_end = 0xC;
         of_research_mgr_epoch = 0x18;
         of_research_mgr_owner = 0x104;
         of_research_mgr_player = 0x108;
@@ -618,6 +623,7 @@ internal int spec_ai_managers_select(int build) {
         fn_resource_mgr_farms = (resource_mgr_farms_fn)0x00490A63;
         fn_resource_mgr_unbuilt_farms = (resource_mgr_unbuilt_farms_fn)0x004909D7;
         of_research_mgr_pool_begin = 0x8;
+        of_research_mgr_pool_end = 0xC;
         of_research_mgr_epoch = 0x18;
         of_research_mgr_owner = 0x114;
         of_research_mgr_player = 0x118;

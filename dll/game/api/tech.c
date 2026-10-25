@@ -13,7 +13,6 @@ internal inline uint8_t *tech_get_kids_end(const ee_tech *t) { return FIELD(t, o
 
 // A TECH'S DATA (tech_get_data(t): the same for every player)
 // +0x10 .. +0x14 the unit types that make it (its buildings)
-internal inline int *tech_data_get_makers_end(const ee_tech_data *d) { return FIELD(d, of_tech_data_makers_begin + 0x4, int *); }
 // +0x24 its cost by resource r (2 food .. 6 iron)
 internal inline int tech_data_get_cost(const ee_tech_data *d, int r) { return FIELD(d, of_tech_data_costs + (r - 2) * 4, int); }
 // +0x7D it counts as one of an epoch's new things (EETechTree::vf4)

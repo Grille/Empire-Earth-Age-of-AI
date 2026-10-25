@@ -58,6 +58,8 @@ unsafe struct EEMap
 }
 
 /// a unit's visibility record, its +0x14 (a site's: its ownership flag too)
+/// - it is the tile the unit stands on (ee_tile: 0x54E275 compares a tile of 0x4039AC with it, 0x502622 reads the
+/// tile's height through it); kept apart until the C side's uses move to ee_tile
 unsafe struct ee_unit_vis
 {
     [offset(0x4), found(s)]

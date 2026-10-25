@@ -28,14 +28,110 @@ unsafe struct EEGroup
 [@base(typeof(EEGroup)), c_type("ee_active_group"), vtable((ee)0x0083141C, (aoc)0x00846CF8)]
 unsafe struct EEActiveGroup
 {
+    /// a map member unit id -> vec3 (head node +0x40, count +0x44, its allocator bytes +0x3C / +0x3D): 0x5DF33D stores
+    /// where each member is sent, 0x5DF185 / 0x5DF23D test whether a point is taken, vf10 0x5DF0FC erases a leaving
+    /// member
+    [offset(0x40), found(c), guess]
+    block member_targets;
+
+    /// built by the constructor 0x5DB37C (allocator byte +0x48), cleared only by the regroup 0x5DD18B and the
+    /// destructor 0x5DB409; no reader
+    [offset(0x4C), found(c), guess]
+    vector _0x4c;
+
+    /// the same (allocator byte +0x58): built, cleared and freed only
+    [offset(0x5C), found(c), guess]
+    vector _0x5c;
+
+    /// the group's goal, copied to each member: 0x5DD436 sets it, 0x4C00C2 deletes it, the dispatch 0x5DB641 / 0x5DD463
+    /// calls its slot 10
+    [offset(0x68), found(c)]
+    EEUnitGoal* goal;
+
+    /// the group's action as a unit state: 5000 none (the constructor, 0x5DD18B), 8000 move, 2001 attack, 11002
+    /// explore; the dispatch 0x5DD463 switches on it
+    [offset(0x6C), found(c), guess]
+    int32 action;
+
     /// the members' top speed, tiles/s - the average, at most the slowest x the settings table's 0x31 (speeds); every
     /// member's top speed while together is set (0x46123F through 0x5DD355)
     [offset(0x70), found(c)]
     float32 speed;
 
+    /// speeds 0x5DCE49: the fastest member's speed
+    [offset(0x74), found(c)]
+    float32 speed_max;
+
     /// the slowest member's top speed (speeds)
     [offset(0x78), found(c)]
     float32 speed_min;
+
+    /// speeds: the members' average acceleration, at most accel_min x speed_cap; 0x5DD373 returns it for a member's
+    /// acceleration while together is set
+    [offset(0x7C), found(c)]
+    float32 accel;
+
+    /// speeds: the largest acceleration
+    [offset(0x80), found(c)]
+    float32 accel_max;
+
+    /// speeds: the smallest acceleration
+    [offset(0x84), found(c)]
+    float32 accel_min;
+
+    /// speeds: the average turn rate (stats +0xB4), capped; 0x5DD391 returns it for a member's max turn
+    [offset(0x88), found(c)]
+    float32 turn_rate;
+
+    /// speeds: the largest turn rate
+    [offset(0x8C), found(c)]
+    float32 turn_rate_max;
+
+    /// speeds: the smallest turn rate
+    [offset(0x90), found(c)]
+    float32 turn_rate_min;
+
+    /// speeds: the average turn acceleration (stats +0xB0), capped; 0x5DD3B2 returns it for a member's
+    [offset(0x94), found(c)]
+    float32 turn_accel;
+
+    /// speeds: the largest turn acceleration
+    [offset(0x98), found(c)]
+    float32 turn_accel_max;
+
+    /// speeds: the smallest turn acceleration
+    [offset(0x9C), found(c)]
+    float32 turn_accel_min;
+
+    /// speeds: 1 / speed (0 unless above 0); 0x5DD3D3 returns it for stats +0xD0
+    [offset(0xA0), found(c)]
+    float32 speed_inv;
+
+    /// speeds: 1 / accel; 0x5DD3F4 returns it for stats +0xC4
+    [offset(0xA4), found(c)]
+    float32 accel_inv;
+
+    /// speeds: 1 / turn_rate
+    [offset(0xA8), found(c)]
+    float32 turn_rate_inv;
+
+    /// speeds: 1 / turn_accel; 0x5DD415 returns it for stats +0xC8
+    [offset(0xAC), found(c)]
+    float32 turn_accel_inv;
+
+    /// speeds: the settings table's 0x31 - each average at most it x the matching least
+    [offset(0xB0), found(c)]
+    float32 speed_cap;
+
+    /// 0x5DD2AA deletes the goal, puts the group into its player's +0x854 list of groups to drop (0x5596xx releases
+    /// them), adds one to +4 and sets this; the constructor clears it, no reader
+    [offset(0xB4), found(c), guess]
+    uint8 retired;
+
+    /// 0x5DD436's second argument, the order's queued (0x4B0000.c): with it the dispatch (0x5DB641, 0x5DD463) gives a
+    /// new goal only to members without a goal
+    [offset(0xB5), found(c)]
+    uint8 queued;
 
     /// set: the members move with the group's speed, acceleration and turns (+0x70 / +0x7C / +0x88 / +0x94) instead
     /// of their own - the group's hand-out 0x5DD436 sets it from the move goal's "together" (EEMPathTo +0x1F)

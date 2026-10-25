@@ -22,6 +22,15 @@ unsafe struct RTSUnit
     [offset(0x8), found(c)]
     void* list_node;
 
+    /// the next unit of its owner's list (EEPlayer +0x450): 0x628D0A inserts, 0x628E06 unlinks, 0x628CDD clears;
+    /// population and set_diplomacy walk it
+    [offset(0xC), found(c)]
+    EEUnit* next;
+
+    /// the previous unit of that list (the same three functions)
+    [offset(0x10), found(c)]
+    EEUnit* prev;
+
     /// visibility: +0xC a uint16 per player, seen
     [offset(0x14), found(c)]
     ee_unit_vis* vis;
@@ -166,6 +175,11 @@ unsafe struct EEComplexUnit
     [offset(0x68), found(c)]
     int32 busy;
 
+    /// the units aboard or garrisoned (its allocator byte +0x6C, built by the constructor 0x5E8394):
+    /// EEUnit::count_inside 0x42E347 returns its size, 0x483D97 skips an unload while it is empty
+    [offset(0x70), found(c)]
+    vector inside;
+
     /// the head of its contact list (nodes {unit, prev, next}): 0x5E8B77 adds, 0x5EF0AD removes, 0x5F23E9 clears it
     /// with contacts_count; the constructor 0x5E8394 zeroes both
     [offset(0xC4), found(c)]
@@ -175,6 +189,11 @@ unsafe struct EEComplexUnit
     /// while it is not 0 or a blocked time is left
     [offset(0xC8), found(c)]
     int32 contacts_count;
+
+    /// the scenario's unit attributes unit_variable1..3 (SM_UA 17..19) as ints (allocator byte +0xCC; init 0x5ECD26
+    /// sizes it to 3): 0x5B8823 adds to, takes from or sets begin[attr - 17]
+    [offset(0xD0), found(c)]
+    vector unit_vars;
 
     /// its height: its stats' height x scale (airplanes recompute it each tick; the scenario's attribute 0xD adds to
     /// it)

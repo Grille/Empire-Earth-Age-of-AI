@@ -5,6 +5,10 @@ unsafe struct ee_zone
     [offset(0x8), found(s)]
     void** sites_begin;
 
+    /// the end of sites_begin's vector: site 0x4886F2 counts (it - sites_begin) >> 2
+    [offset(0xC), found(c)]
+    void** sites_end;
+
     /// a drop site serves it
     [offset(0x14), found(s)]
     int32 drop;

@@ -3,6 +3,16 @@
 
 // class ee_draw_record (void)
 // the draw list's records, hooks.draw_old (0x148 each)
+// its owner's colour (player +0x438 / +0x43C / +0x440, filled at 0x502xxx); init 0x506442 sets 1.0
+internal inline vec3 draw_record_get_color(const void *o) { return *(vec3 *)((uint8_t *)o + of_draw_record_color); }
+internal inline void draw_record_set_color(void *o, vec3 v) { *(vec3 *)((uint8_t *)o + of_draw_record_color) = v; }
+internal inline vec3 *draw_record_color_at(const void *o) { return (vec3 *)((uint8_t *)o + of_draw_record_color); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// a second colour: 0x502xxx sets it by the unit's serial (0.2 steps, serial % 3) or from the unit's own values
+// when record +0x146 is set; init 1.0
+internal inline vec3 draw_record_get_tint(const void *o) { return *(vec3 *)((uint8_t *)o + of_draw_record_tint); }
+internal inline void draw_record_set_tint(void *o, vec3 v) { *(vec3 *)((uint8_t *)o + of_draw_record_tint) = v; }
+internal inline vec3 *draw_record_tint_at(const void *o) { return (vec3 *)((uint8_t *)o + of_draw_record_tint); }
 // the same in AoC: its draw list sites read hooks.draw_old + 0x58 and + 0xFC (0x50B2AD, 0x50EF07)
 internal inline uint8_t *draw_record_0x58_at(const void *o) { return (uint8_t *)o + of_draw_record_0x58; }
 // the same in AoC: its draw list sites read hooks.draw_old + 0x58 and + 0xFC (0x50B2AD, 0x50EF07)
@@ -70,6 +80,8 @@ internal inline int patch_other_resolution(set_resolution_fn h, int *of) { retur
 internal int spec_hooks_select(int build) {
     switch (build) {
     case 0:   // ee
+        of_draw_record_color = 0x40;
+        of_draw_record_tint = 0x4C;
         of_draw_record_0x58 = 0x58;
         of_draw_record_0xfc = 0xFC;
         fn_draw_record_init = (draw_record_init_fn)0x00506442;
@@ -140,6 +152,8 @@ internal int spec_hooks_select(int build) {
         data_tcp_protocol_ports[7] = 0x00002F2C;
         return 0;
     case 1:   // aoc
+        of_draw_record_color = 0x40;
+        of_draw_record_tint = 0x4C;
         of_draw_record_0x58 = 0x58;
         of_draw_record_0xfc = 0xFC;
         fn_draw_record_init = (draw_record_init_fn)0x005118E9;

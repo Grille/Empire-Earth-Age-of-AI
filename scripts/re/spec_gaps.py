@@ -1,6 +1,8 @@
 """The fields the game's code reads and the spec doesn't name, by class: the decompilation made after ApplySpec
 (local/games/<build>/decomp/, README "Setup") shows an access to such a field as var->field_0xNN of the spec's
 structure - counted here by the variable's declared type (a parameter, a local, this), with the functions that do it.
+Offsets found to be no field (a local Ghidra typed as the class, a word of a container the spec declares, a
+subclass's field read through a base pointer) are in spec_gaps_known.txt with their reason - left out, counted.
 usage: python scripts/re/spec_gaps.py [ee|aoc] [Class ...]   (no class: a summary of every class)"""
 import collections, os, re, sys
 
@@ -10,7 +12,13 @@ only = set(sys.argv[2:])
 D = os.path.join(ROOT, 'local', 'games', build, 'decomp')
 DECL = re.compile(r'\b([A-Za-z_]\w*)\s*\*\s*(\*?\s*)?([A-Za-z_]\w*)\s*[;,)]')
 ACC = re.compile(r'\b([A-Za-z_]\w*)->field_0x([0-9a-f]+)')
+KNOWN = set()   # (class, offset): "Class +0xNN  reason" per line, # comments
+for line in open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'spec_gaps_known.txt'), encoding='utf-8'):
+    w = line.split('#')[0].split()
+    if len(w) >= 2:
+        KNOWN.add((w[0], int(w[1].lstrip('+'), 16)))
 hits = collections.defaultdict(lambda: collections.defaultdict(list))   # class -> offset -> [(function, line)]
+known = set()
 for f in sorted(os.listdir(D)):
     if not f.endswith('.c'):
         continue
@@ -28,7 +36,9 @@ for f in sorted(os.listdir(D)):
         for line in rest.split('\n'):
             for v, off in ACC.findall(line):
                 t = types.get(v)
-                if t and (not only or t in only):
+                if t and (not only or t in only) and (t, int(off, 16)) in KNOWN:
+                    known.add((t, int(off, 16)))
+                elif t and (not only or t in only):
                     hits[t][int(off, 16)].append((addr + ' ' + name, line.strip()))
 for t in sorted(hits, key=lambda t: -sum(len(set(x[0] for x in v)) for v in hits[t].values())):
     offs = hits[t]
@@ -41,3 +51,5 @@ for t in sorted(hits, key=lambda t: -sum(len(set(x[0] for x in v)) for v in hits
     else:
         print('%-40s %3d offsets  %s' % (t, len(offs), ' '.join('+0x%X(%d)' % (o, len(set(x[0] for x in offs[o])))
                                                               for o in sorted(offs))[:200]))
+print('%d offsets left in %d classes (%d known to be no field: spec_gaps_known.txt)'
+      % (sum(len(v) for v in hits.values()), len(hits), len(known)))

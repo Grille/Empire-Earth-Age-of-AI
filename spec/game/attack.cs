@@ -18,6 +18,10 @@ unsafe struct EECPAttackGroup
 [c_type("ee_combat_mgr")]
 unsafe struct EECPCombatManager
 {
+    /// its player: revenge 0x46FFB7 reads its out, stance and chat, 0x471F29 its active toggle
+    [offset(0x44), found(c)]
+    EEPlayer* player;
+
     [offset(0x48), found(c)]
     ee_attack_cmd* commander;
 
@@ -67,6 +71,11 @@ unsafe struct ee_attack_cmd
 [c_type("ee_attack_subgroup")]
 unsafe struct EECPAttackSubGroup
 {
+    /// pointers to records {+4 an enemy unit, +0x10 the members that can take it on}: vf93 0x45D45C fills the counts,
+    /// vf112 0x45EF78 drops dead, invisible or non-enemy ones, score 0x461854 divides by the count
+    [offset(0x34), found(c), guess]
+    vector targets;
+
     /// its members
     [offset(0x54), found(c)]
     EECPAttackSubGroupUnit** units_begin;
@@ -119,6 +128,11 @@ unsafe struct EECPAttackSubGroup
     /// a byte per terrain kind: may all its members enter it (1, then ANDed by each member's type)
     [offset((ee)0x164, (aoc)0x168), found(c)]
     fixed uint8 terrain_ok[17];
+
+    /// its player again (the constructor 0x459478 stores the same at +0x190): plan_route 0x44BC57 reads its +0x45C and
+    /// +0xB8C, route_done its stance
+    [offset((ee)0x180, (aoc)0x184), found(c)]
+    EEPlayer* owner;
 
     /// the attack group it belongs to
     [offset((ee)0x18C, (aoc)0x190), found(c)]
@@ -290,6 +304,11 @@ unsafe struct EEAIGPGModifierLandAttackSubGroupRoutePlanner
 [c_type("ee_strategy"), vtable((ee)0x0082795C, (aoc)0x0083C0A4)]
 unsafe struct EECPCombatStrategy
 {
+    /// 0x28-byte records (the allocator byte +4; built empty by 0x53C3CF(0)): attack_plan_ok 0x47067A refuses a plan
+    /// while it is empty and there are no unit ids; 0x495569 tests an element's +0x24 == 3
+    [offset(0x8), found(c), guess]
+    vector requests;
+
     /// 0x473CE2 scales a shortfall of its argument (+0x78) by it to share units into count_0..2 (AoC has a fourth
     /// weight after weight_2)
     [offset(0x14), found(c), guess]
@@ -414,6 +433,11 @@ unsafe struct EECPILocation
 
     [address((ee)0x0047C8B7, (aoc)0x00480C42)]
     extern void set(EECPILocation* from);
+
+    /// 0x44E535 (from init) zeroes it, set 0x47C8B7 copies it, save and load (0x47C5F9 / 0x47C680) write it as unit_id;
+    /// no reader of its own
+    [offset(0x14), found(c), guess]
+    uint32 _0x14;
 }
 
 /// attack's data of the game, places in its code and numbers

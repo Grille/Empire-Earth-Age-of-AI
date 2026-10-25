@@ -22,6 +22,11 @@ unsafe struct EEUnitClass
     [offset((ee)0x38C, (aoc)0x7C), found(c)]
     void* fire_gfx;
 
+    /// the effect at the shot's point (z 0) instead of impact_gfx when a missile or projectile ends below 0 over a tile
+    /// below 0 (water?) without attacking a unit (EEUCMissile::vf29 0x605E9B, EEUCProjectile::vf29 0x607B11)
+    [offset((ee)0x394, (aoc)0x84), found(c), guess]
+    void* ground_gfx;
+
     /// the shot's effect: a beam from the attacker to the target, or at the aim point without one
     [offset((ee)0x3C4, (aoc)0xB4), found(c)]
     void* shot_gfx;

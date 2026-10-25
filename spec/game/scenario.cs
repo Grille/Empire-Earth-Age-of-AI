@@ -57,6 +57,19 @@ unsafe struct EEScenarioManager
     [offset(0x168), found(c)]
     vector queue;
 
+    /// the scenario's hints text: the effect's run 0x5AE130 / 0x5AE14B clears it or appends the effect's text
+    /// (text_kind 0)
+    [offset(0x188), found(c)]
+    wstring hints;
+
+    /// the history text, the same for text_kind 2 (0x5AE06B / 0x5AE089)
+    [offset(0x19C), found(c)]
+    wstring history;
+
+    /// the instructions text, the same for text_kind 1 (0x5AE0CF / 0x5AE0ED)
+    [offset(0x1D8), found(c)]
+    wstring instructions;
+
     /// game.scroll_speed at a cinematic's start (0x5A1CDA), given back at its end through 0x51F2F3 (0x5A18D0)
     [offset(0x204), found(c)]
     float32 saved_scroll_speed;
@@ -101,6 +114,11 @@ unsafe struct ee_scen_cond
     /// its file's code (the scenario manager)
     [offset(0x4), found(c)]
     wstring name;
+
+    /// the editor's EESETSCondition::vf11 0x56F0D1 puts name (+0x4) and then this into its two edit boxes, as
+    /// EESETSEffect::vf11 its name and description
+    [offset(0x18), found(c), guess]
+    wstring description;
 
     /// its file's code (the scenario manager)
     [offset(0x2C), found(c)]

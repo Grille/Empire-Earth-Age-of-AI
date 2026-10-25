@@ -7,6 +7,10 @@
 internal inline void **zone_get_sites_begin(const ee_zone *o) { return *(void ***)((uint8_t *)o + of_zone_sites_begin); }
 internal inline void zone_set_sites_begin(ee_zone *o, void **v) { *(void ***)((uint8_t *)o + of_zone_sites_begin) = v; }
 internal inline void ***zone_sites_begin_at(const ee_zone *o) { return (void ***)((uint8_t *)o + of_zone_sites_begin); }
+// the end of sites_begin's vector: site 0x4886F2 counts (it - sites_begin) >> 2
+internal inline void **zone_get_sites_end(const ee_zone *o) { return *(void ***)((uint8_t *)o + of_zone_sites_end); }
+internal inline void zone_set_sites_end(ee_zone *o, void **v) { *(void ***)((uint8_t *)o + of_zone_sites_end) = v; }
+internal inline void ***zone_sites_end_at(const ee_zone *o) { return (void ***)((uint8_t *)o + of_zone_sites_end); }
 // a drop site serves it
 internal inline int zone_get_drop(const ee_zone *o) { return *(int *)((uint8_t *)o + of_zone_drop); }
 internal inline void zone_set_drop(ee_zone *o, int v) { *(int *)((uint8_t *)o + of_zone_drop) = v; }
@@ -27,12 +31,14 @@ internal int spec_zone_select(int build) {
     switch (build) {
     case 0:   // ee
         of_zone_sites_begin = 0x8;
+        of_zone_sites_end = 0xC;
         of_zone_drop = 0x14;
         of_zone_active = 0x18;
         fn_zone_site = (zone_site_fn)0x004886F2;
         return 0;
     case 1:   // aoc
         of_zone_sites_begin = 0x8;
+        of_zone_sites_end = 0xC;
         of_zone_drop = 0x14;
         of_zone_active = 0x18;
         fn_zone_site = (zone_site_fn)0x0048D065;

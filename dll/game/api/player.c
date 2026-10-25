@@ -2,7 +2,6 @@
 
 // FIELDS (engine-notes.md "Players", the AI settings table's fields: ai/settings.c)
 // +0x18 / +0x1C: a list of 4-byte entries - not known; the population check's log counts it
-internal inline uint8_t *player_get_list_end(const ee_player *pl) { return FIELD(pl, of_player_list_begin + 0x4, uint8_t *); }
 internal inline const char *player_get_name(const ee_player *pl) { return wstring_text(player_name_at(pl)); }   // the name's text
 // +0x9E0 whom its chat reaches: 0 everyone, 1 allies, 2 enemies, 3 the players marked at +0xB2C
 internal inline int player_get_stance(const ee_player *pl, int i) { return FIELD(pl, of_player_stance + i * 4, int); } // +0x9E4 [16] towards player i: 0 allied, 1 enemy

@@ -29,8 +29,6 @@ internal inline ivec2 build_mgr_get_base(const ee_build_mgr *bm) { return iv2(bu
 internal inline uint8_t *unit_mgr_request_at(const ee_unit_mgr *um, int i) { return (uint8_t *)FIELD_AT(um, of_unit_mgr_requests + i * 0x14); }
 
 // A RESEARCH MANAGER (EECPResearchManager, CM +0x40)
-internal inline int *research_mgr_get_pool_end(const ee_research_mgr *rs) { return FIELD(rs, of_research_mgr_pool_begin + 0x4, int *); }
-internal inline void research_mgr_set_pool_end(ee_research_mgr *rs, int *e) { FIELD(rs, of_research_mgr_pool_begin + 0x4, int *) = e; }
 // +0x18 14 lists by epoch, 0x10 apart: {begin, end} of tech ids
 internal inline int *research_mgr_get_epoch_begin(const ee_research_mgr *rs, int e) { return FIELD(rs, of_research_mgr_epoch + e * 0x10, int *); }
 internal inline int *research_mgr_get_epoch_end(const ee_research_mgr *rs, int e) { return FIELD(rs, of_research_mgr_epoch + 0x4 + e * 0x10, int *); }

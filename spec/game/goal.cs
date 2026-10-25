@@ -221,6 +221,39 @@ unsafe struct EEUGAttackUnit
     EEUnit* target;
 }
 
+/// the unload-a-transport goal (EEUGUnloadTransport, new 0x40; its constructor 0x615A1F(transport, x, y, flag) -
+/// goal.vt_goal_unload; its out-of-synch dump 0x615AF3 names its fields)
+[@base(typeof(EEUnitGoal)), vtable((ee)0x00831F5C, (aoc)0x008479A0)]
+unsafe struct EEUGUnloadTransport
+{
+    /// its dump's "First Cargo Tile" (0x615AF3); unload_init 0x615A1F zeroes it
+    [offset(0x2C), found(c)]
+    ivec2 first_cargo_tile;
+
+    /// its dump's "Unload Tile": unload_init stores x, y, 0x483D97 tries shore tiles into it, 0x48CE8F copies it into a
+    /// new unload goal
+    [offset(0x34), found(c)]
+    ivec2 unload_tile;
+
+    /// its dump's "Unload Range Squared": unload_init sets the transport type's +0x4AC squared (AoC type +0x1B0)
+    [offset(0x3C), found(c)]
+    float32 unload_range_sq;
+}
+
+/// the explore goal (EEUGExplore; its dump vf5 0x60ECF6)
+[@base(typeof(EEUnitGoal)), vtable((ee)0x00831AE8, (aoc)0x0084750C)]
+unsafe struct EEUGExplore
+{
+    /// its dump's "Tile Location X" (vf5 0x60ECF6): vf31 0x60F318 returns it + 0.5; the dispatch 0x5DD463 sets the
+    /// unit's x
+    [offset(0x3C), found(c)]
+    int32 tile_x;
+
+    /// its dump's "Tile Location Y" (the dispatch 0x5DD463 after a cast to EEUGExplore)
+    [offset(0x40), found(c)]
+    int32 tile_y;
+}
+
 /// the gather goal (EEUGGather)
 [@base(typeof(EEUnitGoal)), vtable((ee)0x00831B80, (aoc)0x008475A8)]
 unsafe struct EEUGGather

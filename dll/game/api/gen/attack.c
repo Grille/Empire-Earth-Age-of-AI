@@ -17,6 +17,10 @@ internal inline ee_player **attack_group_target_at(const ee_attack_group *o) { r
 
 // class EECPCombatManager (ee_combat_mgr)
 // the AI's combat manager, player +0xB8C (EECPCombatManager)
+// its player: revenge 0x46FFB7 reads its out, stance and chat, 0x471F29 its active toggle
+internal inline ee_player *combat_mgr_get_player(const ee_combat_mgr *o) { return *(ee_player **)((uint8_t *)o + of_combat_mgr_player); }
+internal inline void combat_mgr_set_player(ee_combat_mgr *o, ee_player *v) { *(ee_player **)((uint8_t *)o + of_combat_mgr_player) = v; }
+internal inline ee_player **combat_mgr_player_at(const ee_combat_mgr *o) { return (ee_player **)((uint8_t *)o + of_combat_mgr_player); }
 internal inline ee_attack_cmd *combat_mgr_get_commander(const ee_combat_mgr *o) { return *(ee_attack_cmd **)((uint8_t *)o + of_combat_mgr_commander); }
 internal inline void combat_mgr_set_commander(ee_combat_mgr *o, ee_attack_cmd *v) { *(ee_attack_cmd **)((uint8_t *)o + of_combat_mgr_commander) = v; }
 internal inline ee_attack_cmd **combat_mgr_commander_at(const ee_combat_mgr *o) { return (ee_attack_cmd **)((uint8_t *)o + of_combat_mgr_commander); }
@@ -57,6 +61,10 @@ internal inline int patch_unit_to_group(attack_cmd_unit_to_group_fn h) { return 
 
 // class EECPAttackSubGroup (ee_attack_subgroup)
 // an attack subgroup (EECPAttackSubGroup, EECPASG*)
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// pointers to records {+4 an enemy unit, +0x10 the members that can take it on}: vf93 0x45D45C fills the counts,
+// vf112 0x45EF78 drops dead, invisible or non-enemy ones, score 0x461854 divides by the count
+internal inline uint8_t *attack_subgroup_targets_at(const ee_attack_subgroup *o) { return (uint8_t *)o + of_attack_subgroup_targets; }
 // its members
 internal inline ee_asg_unit **attack_subgroup_get_units_begin(const ee_attack_subgroup *o) { return *(ee_asg_unit ***)((uint8_t *)o + of_attack_subgroup_units_begin); }
 internal inline void attack_subgroup_set_units_begin(ee_attack_subgroup *o, ee_asg_unit **v) { *(ee_asg_unit ***)((uint8_t *)o + of_attack_subgroup_units_begin) = v; }
@@ -108,6 +116,11 @@ internal inline int *attack_subgroup_move_player_at(const ee_attack_subgroup *o)
 internal inline uint8_t attack_subgroup_get_terrain_ok(const ee_attack_subgroup *o, int i) { return ((uint8_t *)((uint8_t *)o + of_attack_subgroup_terrain_ok))[i]; }
 internal inline void attack_subgroup_set_terrain_ok(ee_attack_subgroup *o, int i, uint8_t v) { ((uint8_t *)((uint8_t *)o + of_attack_subgroup_terrain_ok))[i] = v; }
 internal inline uint8_t *attack_subgroup_terrain_ok_at(const ee_attack_subgroup *o) { return (uint8_t *)((uint8_t *)o + of_attack_subgroup_terrain_ok); }
+// its player again (the constructor 0x459478 stores the same at +0x190): plan_route 0x44BC57 reads its +0x45C and
+// +0xB8C, route_done its stance
+internal inline ee_player *attack_subgroup_get_owner(const ee_attack_subgroup *o) { return *(ee_player **)((uint8_t *)o + of_attack_subgroup_owner); }
+internal inline void attack_subgroup_set_owner(ee_attack_subgroup *o, ee_player *v) { *(ee_player **)((uint8_t *)o + of_attack_subgroup_owner) = v; }
+internal inline ee_player **attack_subgroup_owner_at(const ee_attack_subgroup *o) { return (ee_player **)((uint8_t *)o + of_attack_subgroup_owner); }
 // the attack group it belongs to
 internal inline ee_attack_group *attack_subgroup_get_group(const ee_attack_subgroup *o) { return *(ee_attack_group **)((uint8_t *)o + of_attack_subgroup_group); }
 internal inline void attack_subgroup_set_group(ee_attack_subgroup *o, ee_attack_group *v) { *(ee_attack_group **)((uint8_t *)o + of_attack_subgroup_group) = v; }
@@ -275,6 +288,10 @@ internal inline uint8_t *route_planner_owner_test_at(const ee_route_planner *o) 
 // class EECPCombatStrategy (ee_strategy)
 // an attack strategy (EECPCombatStrategy)
 // A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// 0x28-byte records (the allocator byte +4; built empty by 0x53C3CF(0)): attack_plan_ok 0x47067A refuses a plan
+// while it is empty and there are no unit ids; 0x495569 tests an element's +0x24 == 3
+internal inline uint8_t *strategy_requests_at(const ee_strategy *o) { return (uint8_t *)o + of_strategy_requests; }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
 // 0x473CE2 scales a shortfall of its argument (+0x78) by it to share units into count_0..2 (AoC has a fourth
 // weight after weight_2)
 internal inline float strategy_get_weight_0(const ee_strategy *o) { return *(float *)((uint8_t *)o + of_strategy_weight_0); }
@@ -404,6 +421,12 @@ internal inline void location_init(ee_location *location) { fn_location_init(loc
 typedef void (__thiscall *location_set_fn)(ee_location *, ee_location *);
 internal location_set_fn fn_location_set;
 internal inline void location_set(ee_location *location, ee_location *from) { fn_location_set(location, from); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// 0x44E535 (from init) zeroes it, set 0x47C8B7 copies it, save and load (0x47C5F9 / 0x47C680) write it as unit_id;
+// no reader of its own
+internal inline uint32_t location_get_0x14(const ee_location *o) { return *(uint32_t *)((uint8_t *)o + of_location_0x14); }
+internal inline void location_set_0x14(ee_location *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_location_0x14) = v; }
+internal inline uint32_t *location_0x14_at(const ee_location *o) { return (uint32_t *)((uint8_t *)o + of_location_0x14); }
 
 // static class attack
 // attack's data of the game, places in its code and numbers
@@ -454,6 +477,7 @@ internal int spec_attack_select(int build) {
         of_attack_group_subgroups_begin = 0x8;
         of_attack_group_target_unit = 0x44;
         of_attack_group_target = 0x48;
+        of_combat_mgr_player = 0x44;
         of_combat_mgr_commander = 0x48;
         of_combat_mgr_0x4c = 0x4C;
         of_combat_mgr_att_62 = 0x62;
@@ -465,6 +489,7 @@ internal int spec_attack_select(int build) {
         fn_attack_cmd_new_group = (attack_cmd_new_group_fn)0x0045106C;
         fn_attack_cmd_unit_to_group = (attack_cmd_unit_to_group_fn)0x00450E07;
         call_unit_to_group = 0x004824BF;
+        of_attack_subgroup_targets = 0x34;
         of_attack_subgroup_units_begin = 0x54;
         of_attack_subgroup_units_end = 0x58;
         of_attack_subgroup_route = 0x60;
@@ -479,6 +504,7 @@ internal int spec_attack_select(int build) {
         of_attack_subgroup_task_valid = 0x12C;
         of_attack_subgroup_move_player = 0x160;
         of_attack_subgroup_terrain_ok = 0x164;
+        of_attack_subgroup_owner = 0x180;
         of_attack_subgroup_group = 0x18C;
         of_attack_subgroup_player = 0x190;
         of_attack_subgroup_route_request = 0x194;
@@ -518,6 +544,7 @@ internal int spec_attack_select(int build) {
         of_route_planner_free_crossing = 0x58;
         of_route_planner_owner_test = 0x59;
         vt_eecp_combat_strategy = 0x0082795C;
+        of_strategy_requests = 0x8;
         of_strategy_weight_0 = 0x14;
         of_strategy_weight_1 = 0x18;
         of_strategy_weight_2 = 0x1C;
@@ -551,6 +578,7 @@ internal int spec_attack_select(int build) {
         of_location_kind = 0x10;
         fn_location_init = (location_init_fn)0x0047C4E8;
         fn_location_set = (location_set_fn)0x0047C8B7;
+        of_location_0x14 = 0x14;
         data_attack_asgu_vtables[0] = 0x00827844;
         data_attack_asgu_vtables[1] = 0x008253C0;
         data_attack_asgu_vtables[2] = 0x00825708;
@@ -590,6 +618,7 @@ internal int spec_attack_select(int build) {
         of_attack_group_subgroups_begin = 0x8;
         of_attack_group_target_unit = 0x44;
         of_attack_group_target = 0x48;
+        of_combat_mgr_player = 0x44;
         of_combat_mgr_commander = 0x48;
         of_combat_mgr_0x4c = 0x4C;
         of_combat_mgr_att_62 = 0x62;
@@ -601,6 +630,7 @@ internal int spec_attack_select(int build) {
         fn_attack_cmd_new_group = (attack_cmd_new_group_fn)0x00451D8E;
         fn_attack_cmd_unit_to_group = (attack_cmd_unit_to_group_fn)0x00451A8A;
         call_unit_to_group = 0x004869F3;
+        of_attack_subgroup_targets = 0x34;
         of_attack_subgroup_units_begin = 0x54;
         of_attack_subgroup_units_end = 0x58;
         of_attack_subgroup_route = 0x60;
@@ -615,6 +645,7 @@ internal int spec_attack_select(int build) {
         of_attack_subgroup_task_valid = 0x12C;
         of_attack_subgroup_move_player = 0x164;
         of_attack_subgroup_terrain_ok = 0x168;
+        of_attack_subgroup_owner = 0x184;
         of_attack_subgroup_group = 0x190;
         of_attack_subgroup_player = 0x194;
         of_attack_subgroup_route_request = 0x198;
@@ -654,6 +685,7 @@ internal int spec_attack_select(int build) {
         of_route_planner_free_crossing = 0x58;
         of_route_planner_owner_test = 0x59;
         vt_eecp_combat_strategy = 0x0083C0A4;
+        of_strategy_requests = 0x8;
         of_strategy_weight_0 = 0x14;
         of_strategy_weight_1 = 0x18;
         of_strategy_weight_2 = 0x1C;
@@ -687,6 +719,7 @@ internal int spec_attack_select(int build) {
         of_location_kind = 0x10;
         fn_location_init = (location_init_fn)0x00480873;
         fn_location_set = (location_set_fn)0x00480C42;
+        of_location_0x14 = 0x14;
         data_attack_asgu_vtables[0] = 0x0083BF4C;
         data_attack_asgu_vtables[1] = 0x0083936C;
         data_attack_asgu_vtables[2] = 0x008396BC;

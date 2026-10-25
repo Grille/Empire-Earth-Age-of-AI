@@ -1,6 +1,15 @@
 /// the game setup
 unsafe struct ee_setup
 {
+    /// the campaign: game_start 0x525BBA builds "Campaigns\" + it; the setup copy 0x524B8F copies it
+    [offset(0x380), found(c)]
+    wstring campaign;
+
+    /// copied with campaign (0x524B8F, game_start's campaign branch 0x525F6D); the second of four strings 0x14 apart
+    /// (map_name +0x3A8)
+    [offset(0x394), found(c), guess]
+    wstring campaign_scenario;
+
     /// the setup copy 0x524B8F and game_start
     [offset(0x3A8), found(c)]
     ustring map_name;

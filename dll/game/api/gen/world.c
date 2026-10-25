@@ -113,6 +113,38 @@ internal inline void physics_step(ee_physics *physics) { fn_physics_step(physics
 
 // class EEWorld (ee_world)
 // the world, game.world - a static object: its players at +0x74 (game.players), its map at +0xBC (EEWorld)
+// 17 EEPlayer* by index (game.players is this memory): the RTSWorld constructor 0x53B637 zeroes them, set_stance
+// 0x52D5D7 and player_out 0x52E2B7 index them
+internal inline uint8_t *world_players_at(const ee_world *o) { return (uint8_t *)o + of_world_players; }
+// the map (game.map is this memory): set_stance 0x52D5D7 passes it to set_diplomacy
+internal inline ee_map *world_get_map(const ee_world *o) { return *(ee_map **)((uint8_t *)o + of_world_map); }
+internal inline void world_set_map(ee_world *o, ee_map *v) { *(ee_map **)((uint8_t *)o + of_world_map) = v; }
+internal inline ee_map **world_map_at(const ee_world *o) { return (ee_map **)((uint8_t *)o + of_world_map); }
+// the players' count (game.players_n is this memory): player 0x52E6EF and unit_by_id 0x53B889 (id >> 24 against
+// it) bound by it
+internal inline uint32_t world_get_players_n(const ee_world *o) { return *(uint32_t *)((uint8_t *)o + of_world_players_n); }
+internal inline void world_set_players_n(ee_world *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_world_players_n) = v; }
+internal inline uint32_t *world_players_n_at(const ee_world *o) { return (uint32_t *)((uint8_t *)o + of_world_players_n); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// the game's setup, an ee_setup in it (the constructor 0x52CCC9 builds one here and a second at +0x51C):
+// game.end_epoch is its +0x3E4, game.scenario_flag its +0x409
+internal inline uint8_t *world_setup_at(const ee_world *o) { return (uint8_t *)o + of_world_setup; }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// a second ee_setup the constructor 0x52CCC9 builds (its use not read yet)
+internal inline uint8_t *world_setup_2_at(const ee_world *o) { return (uint8_t *)o + of_world_setup_2; }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// a map site -> gatherers (allocator byte, head +4, size +8): site_gatherers 0x52E5F7 finds the site (0x404CA6)
+// against its head +0x9A8 and returns the node's +0x10
+internal inline uint8_t *world_gatherer_counts_at(const ee_world *o) { return (uint8_t *)o + of_world_gatherer_counts; }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// records of 0x18 bytes, each a vector of player indices at +4: the standard victory check 0x531913 ends the game
+// when one is left
+internal inline uint8_t *world_alliances_at(const ee_world *o) { return (uint8_t *)o + of_world_alliances; }
+// the local player's index (game.local_player is this memory): player_out 0x52E2B7 runs the local defeat 0x5150F2
+// when it is the player going out
+internal inline int world_get_local_player(const ee_world *o) { return *(int *)((uint8_t *)o + of_world_local_player); }
+internal inline void world_set_local_player(ee_world *o, int v) { *(int *)((uint8_t *)o + of_world_local_player) = v; }
+internal inline int *world_local_player_at(const ee_world *o) { return (int *)((uint8_t *)o + of_world_local_player); }
 // the standard victory (the game settings' +0x408 at the start, the editor's flag): while set, 0x531913 ends the
 // game once one alliance is left and takes out every player without units (both builds' +0xB96)
 internal inline uint8_t world_get_standard_victory(const ee_world *o) { return *(uint8_t *)((uint8_t *)o + of_world_standard_victory); }
@@ -126,10 +158,6 @@ internal inline void *world_player(ee_world *world, int index) { return fn_world
 typedef void (__thiscall *world_player_out_fn)(ee_world *, int, int);
 internal world_player_out_fn fn_world_player_out;
 internal inline void world_player_out(ee_world *world, int won, int index) { fn_world_player_out(world, won, index); }
-typedef char (__thiscall *world_start_fn)(ee_world *, ee_setup *, void *);
-internal world_start_fn fn_world_start;
-internal inline char world_start(ee_world *world, ee_setup *setup, void *p2) { return fn_world_start(world, setup, p2); }
-internal inline int patch_game_start(world_start_fn h) { return patch_call(call_game_start, (uintptr_t)fn_world_start, (void *)h); }
 typedef void (__thiscall *world_set_stance_fn)(ee_world *, int, int, int);
 internal world_set_stance_fn fn_world_set_stance;
 internal inline void world_set_stance(ee_world *world, int from, int to, int stance) { fn_world_set_stance(world, from, to, stance); }
@@ -141,6 +169,16 @@ internal inline ee_unit *world_unit_by_id(ee_world *world, uint32_t id) { return
 typedef uint32_t (__thiscall *world_site_gatherers_fn)(ee_world *, ee_unit *);
 internal world_site_gatherers_fn fn_world_site_gatherers;
 internal inline uint32_t world_site_gatherers(ee_world *world, ee_unit *site) { return fn_world_site_gatherers(world, site); }
+
+// class EEGameState (ee_game_state)
+// the game being started (EEGameState, EE 0x917588 - its constructor 0x53B48D, RTTI by its vtable; not the world,
+// game.game_state): its own copy of the setup at +0x8, the players, the speed and the map seed for the start
+// starts the game the setup describes (the menu's start 0x4CEC14 calls it; the spec had it as EEWorld's until
+// 2026-10-25)
+typedef char (__thiscall *game_state_start_fn)(ee_game_state *, ee_setup *, void *);
+internal game_state_start_fn fn_game_state_start;
+internal inline char game_state_start(ee_game_state *game_state, ee_setup *setup, void *p2) { return fn_game_state_start(game_state, setup, p2); }
+internal inline int patch_game_start(game_state_start_fn h) { return patch_call(call_game_start, (uintptr_t)fn_game_state_start, (void *)h); }
 
 // class EEWorldTable (ee_world_table)
 // the game's tables of values, game.table_values (EEWorldTable)
@@ -177,14 +215,23 @@ internal int spec_world_select(int build) {
         of_physics_time = 0xD0;
         fn_physics_step = (physics_step_fn)0x00546C63;
         vt_ee_world = 0x0082C84C;
+        of_world_players = 0x74;
+        of_world_map = 0xBC;
+        of_world_players_n = 0xCC;
+        of_world_setup = 0x110;
+        of_world_setup_2 = 0x51C;
+        of_world_gatherer_counts = 0x9A4;
+        of_world_alliances = 0x9B4;
+        of_world_local_player = 0xB84;
         of_world_standard_victory = 0xB96;
         fn_world_player = (world_player_fn)0x0052E6EF;
         fn_world_player_out = (world_player_out_fn)0x0052E2B7;
-        fn_world_start = (world_start_fn)0x0052599B;
-        call_game_start = 0x004CEC14;
         fn_world_set_stance = (world_set_stance_fn)0x0052D5D7;
         fn_world_unit_by_id = (world_unit_by_id_fn)0x0053B889;
         fn_world_site_gatherers = (world_site_gatherers_fn)0x0052E5F7;
+        vt_ee_game_state = 0x0082CA14;
+        fn_game_state_start = (game_state_start_fn)0x0052599B;
+        call_game_start = 0x004CEC14;
         vt_ee_world_table = 0x0082AB14;
         fn_world_table_value = (world_table_value_fn)0x0048E817;
         return 0;
@@ -214,14 +261,23 @@ internal int spec_world_select(int build) {
         of_physics_time = 0xD0;
         fn_physics_step = (physics_step_fn)0x00553082;
         vt_ee_world = 0x00841FEC;
+        of_world_players = 0x74;
+        of_world_map = 0xBC;
+        of_world_players_n = 0xCC;
+        of_world_setup = 0x110;
+        of_world_setup_2 = 0x51C;
+        of_world_gatherer_counts = 0x9A4;
+        of_world_alliances = 0x9B4;
+        of_world_local_player = 0xB84;
         of_world_standard_victory = 0xB96;
         fn_world_player = (world_player_fn)0x00539670;
         fn_world_player_out = (world_player_out_fn)0x005391F2;
-        fn_world_start = (world_start_fn)0x005306F2;
-        call_game_start = 0x004D4443;
         fn_world_set_stance = (world_set_stance_fn)0x005384DD;
         fn_world_unit_by_id = (world_unit_by_id_fn)0x0054804F;
         fn_world_site_gatherers = (world_site_gatherers_fn)0x00539532;
+        vt_ee_game_state = 0x00842178;
+        fn_game_state_start = (game_state_start_fn)0x005306F2;
+        call_game_start = 0x004D4443;
         vt_ee_world_table = 0x0083F810;
         fn_world_table_value = (world_table_value_fn)0x004CD4B3;
         return 0;
@@ -238,11 +294,12 @@ internal int spec_world_check(void) {
     bad += spec_vtable(vt_ee_world, ".?AVEEWorld@@", "EEWorld [vtable]");
     bad += spec_code((uintptr_t)fn_world_player, "EEWorld.player");
     bad += spec_code((uintptr_t)fn_world_player_out, "EEWorld.player_out");
-    bad += spec_code((uintptr_t)fn_world_start, "EEWorld.start");
-    bad += spec_call(call_game_start, (uintptr_t)fn_world_start, "EEWorld.start [call_site game_start]");
     bad += spec_code((uintptr_t)fn_world_set_stance, "EEWorld.set_stance");
     bad += spec_code((uintptr_t)fn_world_unit_by_id, "EEWorld.unit_by_id");
     bad += spec_code((uintptr_t)fn_world_site_gatherers, "EEWorld.site_gatherers");
+    bad += spec_vtable(vt_ee_game_state, ".?AVEEGameState@@", "EEGameState [vtable]");
+    bad += spec_code((uintptr_t)fn_game_state_start, "EEGameState.start");
+    bad += spec_call(call_game_start, (uintptr_t)fn_game_state_start, "EEGameState.start [call_site game_start]");
     bad += spec_vtable(vt_ee_world_table, ".?AVEEWorldTable@@", "EEWorldTable [vtable]");
     bad += spec_code((uintptr_t)fn_world_table_value, "EEWorldTable.value");
     return bad;

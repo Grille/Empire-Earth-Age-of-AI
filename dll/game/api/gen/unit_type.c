@@ -24,6 +24,12 @@ internal inline void **unit_type_impact_gfx_at(const ee_unit_type *o) { return (
 internal inline void *unit_type_get_fire_gfx(const ee_unit_type *o) { return *(void **)((uint8_t *)o + of_unit_type_fire_gfx); }
 internal inline void unit_type_set_fire_gfx(ee_unit_type *o, void *v) { *(void **)((uint8_t *)o + of_unit_type_fire_gfx) = v; }
 internal inline void **unit_type_fire_gfx_at(const ee_unit_type *o) { return (void **)((uint8_t *)o + of_unit_type_fire_gfx); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// the effect at the shot's point (z 0) instead of impact_gfx when a missile or projectile ends below 0 over a tile
+// below 0 (water?) without attacking a unit (EEUCMissile::vf29 0x605E9B, EEUCProjectile::vf29 0x607B11)
+internal inline void *unit_type_get_ground_gfx(const ee_unit_type *o) { return *(void **)((uint8_t *)o + of_unit_type_ground_gfx); }
+internal inline void unit_type_set_ground_gfx(ee_unit_type *o, void *v) { *(void **)((uint8_t *)o + of_unit_type_ground_gfx) = v; }
+internal inline void **unit_type_ground_gfx_at(const ee_unit_type *o) { return (void **)((uint8_t *)o + of_unit_type_ground_gfx); }
 // the shot's effect: a beam from the attacker to the target, or at the aim point without one
 internal inline void *unit_type_get_shot_gfx(const ee_unit_type *o) { return *(void **)((uint8_t *)o + of_unit_type_shot_gfx); }
 internal inline void unit_type_set_shot_gfx(ee_unit_type *o, void *v) { *(void **)((uint8_t *)o + of_unit_type_shot_gfx) = v; }
@@ -383,6 +389,7 @@ internal int spec_unit_type_select(int build) {
         of_unit_type_refuel_at = 0x28;
         of_unit_type_impact_gfx = 0x378;
         of_unit_type_fire_gfx = 0x38C;
+        of_unit_type_ground_gfx = 0x394;
         of_unit_type_shot_gfx = 0x3C4;
         of_unit_type_projectile = 0x3FC;
         of_unit_type_model = 0x40C;
@@ -471,6 +478,7 @@ internal int spec_unit_type_select(int build) {
         of_unit_type_refuel_at = 0x28;
         of_unit_type_impact_gfx = 0x68;
         of_unit_type_fire_gfx = 0x7C;
+        of_unit_type_ground_gfx = 0x84;
         of_unit_type_shot_gfx = 0xB4;
         of_unit_type_projectile = 0xF8;
         of_unit_type_model = 0x110;

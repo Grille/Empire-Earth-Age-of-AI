@@ -355,6 +355,129 @@ internal inline ee_unit *eeug_attack_unit_get_target(const eeug_attack_unit *o) 
 internal inline void eeug_attack_unit_set_target(eeug_attack_unit *o, ee_unit *v) { *(ee_unit **)((uint8_t *)o + of_eeug_attack_unit_target) = v; }
 internal inline ee_unit **eeug_attack_unit_target_at(const eeug_attack_unit *o) { return (ee_unit **)((uint8_t *)o + of_eeug_attack_unit_target); }
 
+// class EEUGUnloadTransport (eeug_unload_transport)
+// the unload-a-transport goal (EEUGUnloadTransport, new 0x40; its constructor 0x615A1F(transport, x, y, flag) -
+// goal.vt_goal_unload; its out-of-synch dump 0x615AF3 names its fields)
+// EEUnitGoal's, the base's
+// (aim.c: 2 while it attacks)
+internal inline uint8_t eeug_unload_transport_get_state(const eeug_unload_transport *o) { return *(uint8_t *)((uint8_t *)o + of_goal_state); }
+internal inline void eeug_unload_transport_set_state(eeug_unload_transport *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_goal_state) = v; }
+internal inline uint8_t *eeug_unload_transport_state_at(const eeug_unload_transport *o) { return (uint8_t *)((uint8_t *)o + of_goal_state); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// 0 from the base constructor 0x6283AB: +1 per path request for the goal (EEUnitClass::vf52 0x6222A8), +8 per
+// detour waypoint pair (vf53 0x6225E7)
+internal inline int eeug_unload_transport_get_path_tries(const eeug_unload_transport *o) { return *(int *)((uint8_t *)o + of_goal_path_tries); }
+internal inline void eeug_unload_transport_set_path_tries(eeug_unload_transport *o, int v) { *(int *)((uint8_t *)o + of_goal_path_tries) = v; }
+internal inline int *eeug_unload_transport_path_tries_at(const eeug_unload_transport *o) { return (int *)((uint8_t *)o + of_goal_path_tries); }
+// 1 for a goal from an order (commands, the AI), 0 for the unit's own (its target search); the guard return skips
+// an ordered one
+internal inline uint8_t eeug_unload_transport_get_ordered(const eeug_unload_transport *o) { return *(uint8_t *)((uint8_t *)o + of_goal_ordered); }
+internal inline void eeug_unload_transport_set_ordered(eeug_unload_transport *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_goal_ordered) = v; }
+internal inline uint8_t *eeug_unload_transport_ordered_at(const eeug_unload_transport *o) { return (uint8_t *)((uint8_t *)o + of_goal_ordered); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// 0 from the base constructor; the group dispatch 0x5DB641 (and 0x5E94C1, 0x5EF6A7) sets 1 on each member's goal:
+// vf52 asks EEPathManager::request for a sector route only without it
+internal inline uint8_t eeug_unload_transport_get_no_sectors(const eeug_unload_transport *o) { return *(uint8_t *)((uint8_t *)o + of_goal_no_sectors); }
+internal inline void eeug_unload_transport_set_no_sectors(eeug_unload_transport *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_goal_no_sectors) = v; }
+internal inline uint8_t *eeug_unload_transport_no_sectors_at(const eeug_unload_transport *o) { return (uint8_t *)((uint8_t *)o + of_goal_no_sectors); }
+internal inline float eeug_unload_transport_get_dest_x(const eeug_unload_transport *o) { return *(float *)((uint8_t *)o + of_goal_dest_x); }
+internal inline void eeug_unload_transport_set_dest_x(eeug_unload_transport *o, float v) { *(float *)((uint8_t *)o + of_goal_dest_x) = v; }
+internal inline float *eeug_unload_transport_dest_x_at(const eeug_unload_transport *o) { return (float *)((uint8_t *)o + of_goal_dest_x); }
+// the destination's y
+internal inline float eeug_unload_transport_get_dest_y(const eeug_unload_transport *o) { return *(float *)((uint8_t *)o + of_goal_dest_y); }
+internal inline void eeug_unload_transport_set_dest_y(eeug_unload_transport *o, float v) { *(float *)((uint8_t *)o + of_goal_dest_y) = v; }
+internal inline float *eeug_unload_transport_dest_y_at(const eeug_unload_transport *o) { return (float *)((uint8_t *)o + of_goal_dest_y); }
+// the destination's z
+internal inline float eeug_unload_transport_get_dest_z(const eeug_unload_transport *o) { return *(float *)((uint8_t *)o + of_goal_dest_z); }
+internal inline void eeug_unload_transport_set_dest_z(eeug_unload_transport *o, float v) { *(float *)((uint8_t *)o + of_goal_dest_z) = v; }
+internal inline float *eeug_unload_transport_dest_z_at(const eeug_unload_transport *o) { return (float *)((uint8_t *)o + of_goal_dest_z); }
+// a kind 6 goal's target
+// a kind 6 goal's target - the contact test (EEPhysicsModel::vf14, AoC vf15) lets two units at work on kind 6 meet
+// only when it is the same
+internal inline void *eeug_unload_transport_get_0x38(const eeug_unload_transport *o) { return *(void **)((uint8_t *)o + of_goal_0x38); }
+internal inline void eeug_unload_transport_set_0x38(eeug_unload_transport *o, void *v) { *(void **)((uint8_t *)o + of_goal_0x38) = v; }
+internal inline void **eeug_unload_transport_0x38_at(const eeug_unload_transport *o) { return (void **)((uint8_t *)o + of_goal_0x38); }
+// a kind 4 goal's target
+// a kind 4 goal's target - the same for kind 4
+internal inline void *eeug_unload_transport_get_0x3c(const eeug_unload_transport *o) { return *(void **)((uint8_t *)o + of_goal_0x3c); }
+internal inline void eeug_unload_transport_set_0x3c(eeug_unload_transport *o, void *v) { *(void **)((uint8_t *)o + of_goal_0x3c) = v; }
+internal inline void **eeug_unload_transport_0x3c_at(const eeug_unload_transport *o) { return (void **)((uint8_t *)o + of_goal_0x3c); }
+internal inline ee_unit *eeug_unload_transport_get_holder(const eeug_unload_transport *o) { return *(ee_unit **)((uint8_t *)o + of_goal_holder); }
+internal inline void eeug_unload_transport_set_holder(eeug_unload_transport *o, ee_unit *v) { *(ee_unit **)((uint8_t *)o + of_goal_holder) = v; }
+internal inline ee_unit **eeug_unload_transport_holder_at(const eeug_unload_transport *o) { return (ee_unit **)((uint8_t *)o + of_goal_holder); }
+// its dump's "First Cargo Tile" (0x615AF3); unload_init 0x615A1F zeroes it
+internal inline ivec2 eeug_unload_transport_get_first_cargo_tile(const eeug_unload_transport *o) { return *(ivec2 *)((uint8_t *)o + of_eeug_unload_transport_first_cargo_tile); }
+internal inline void eeug_unload_transport_set_first_cargo_tile(eeug_unload_transport *o, ivec2 v) { *(ivec2 *)((uint8_t *)o + of_eeug_unload_transport_first_cargo_tile) = v; }
+internal inline ivec2 *eeug_unload_transport_first_cargo_tile_at(const eeug_unload_transport *o) { return (ivec2 *)((uint8_t *)o + of_eeug_unload_transport_first_cargo_tile); }
+// its dump's "Unload Tile": unload_init stores x, y, 0x483D97 tries shore tiles into it, 0x48CE8F copies it into a
+// new unload goal
+internal inline ivec2 eeug_unload_transport_get_unload_tile(const eeug_unload_transport *o) { return *(ivec2 *)((uint8_t *)o + of_eeug_unload_transport_unload_tile); }
+internal inline void eeug_unload_transport_set_unload_tile(eeug_unload_transport *o, ivec2 v) { *(ivec2 *)((uint8_t *)o + of_eeug_unload_transport_unload_tile) = v; }
+internal inline ivec2 *eeug_unload_transport_unload_tile_at(const eeug_unload_transport *o) { return (ivec2 *)((uint8_t *)o + of_eeug_unload_transport_unload_tile); }
+// its dump's "Unload Range Squared": unload_init sets the transport type's +0x4AC squared (AoC type +0x1B0)
+internal inline float eeug_unload_transport_get_unload_range_sq(const eeug_unload_transport *o) { return *(float *)((uint8_t *)o + of_eeug_unload_transport_unload_range_sq); }
+internal inline void eeug_unload_transport_set_unload_range_sq(eeug_unload_transport *o, float v) { *(float *)((uint8_t *)o + of_eeug_unload_transport_unload_range_sq) = v; }
+internal inline float *eeug_unload_transport_unload_range_sq_at(const eeug_unload_transport *o) { return (float *)((uint8_t *)o + of_eeug_unload_transport_unload_range_sq); }
+
+// class EEUGExplore (eeug_explore)
+// the explore goal (EEUGExplore; its dump vf5 0x60ECF6)
+// EEUnitGoal's, the base's
+// (aim.c: 2 while it attacks)
+internal inline uint8_t eeug_explore_get_state(const eeug_explore *o) { return *(uint8_t *)((uint8_t *)o + of_goal_state); }
+internal inline void eeug_explore_set_state(eeug_explore *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_goal_state) = v; }
+internal inline uint8_t *eeug_explore_state_at(const eeug_explore *o) { return (uint8_t *)((uint8_t *)o + of_goal_state); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// 0 from the base constructor 0x6283AB: +1 per path request for the goal (EEUnitClass::vf52 0x6222A8), +8 per
+// detour waypoint pair (vf53 0x6225E7)
+internal inline int eeug_explore_get_path_tries(const eeug_explore *o) { return *(int *)((uint8_t *)o + of_goal_path_tries); }
+internal inline void eeug_explore_set_path_tries(eeug_explore *o, int v) { *(int *)((uint8_t *)o + of_goal_path_tries) = v; }
+internal inline int *eeug_explore_path_tries_at(const eeug_explore *o) { return (int *)((uint8_t *)o + of_goal_path_tries); }
+// 1 for a goal from an order (commands, the AI), 0 for the unit's own (its target search); the guard return skips
+// an ordered one
+internal inline uint8_t eeug_explore_get_ordered(const eeug_explore *o) { return *(uint8_t *)((uint8_t *)o + of_goal_ordered); }
+internal inline void eeug_explore_set_ordered(eeug_explore *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_goal_ordered) = v; }
+internal inline uint8_t *eeug_explore_ordered_at(const eeug_explore *o) { return (uint8_t *)((uint8_t *)o + of_goal_ordered); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// 0 from the base constructor; the group dispatch 0x5DB641 (and 0x5E94C1, 0x5EF6A7) sets 1 on each member's goal:
+// vf52 asks EEPathManager::request for a sector route only without it
+internal inline uint8_t eeug_explore_get_no_sectors(const eeug_explore *o) { return *(uint8_t *)((uint8_t *)o + of_goal_no_sectors); }
+internal inline void eeug_explore_set_no_sectors(eeug_explore *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_goal_no_sectors) = v; }
+internal inline uint8_t *eeug_explore_no_sectors_at(const eeug_explore *o) { return (uint8_t *)((uint8_t *)o + of_goal_no_sectors); }
+internal inline float eeug_explore_get_dest_x(const eeug_explore *o) { return *(float *)((uint8_t *)o + of_goal_dest_x); }
+internal inline void eeug_explore_set_dest_x(eeug_explore *o, float v) { *(float *)((uint8_t *)o + of_goal_dest_x) = v; }
+internal inline float *eeug_explore_dest_x_at(const eeug_explore *o) { return (float *)((uint8_t *)o + of_goal_dest_x); }
+// the destination's y
+internal inline float eeug_explore_get_dest_y(const eeug_explore *o) { return *(float *)((uint8_t *)o + of_goal_dest_y); }
+internal inline void eeug_explore_set_dest_y(eeug_explore *o, float v) { *(float *)((uint8_t *)o + of_goal_dest_y) = v; }
+internal inline float *eeug_explore_dest_y_at(const eeug_explore *o) { return (float *)((uint8_t *)o + of_goal_dest_y); }
+// the destination's z
+internal inline float eeug_explore_get_dest_z(const eeug_explore *o) { return *(float *)((uint8_t *)o + of_goal_dest_z); }
+internal inline void eeug_explore_set_dest_z(eeug_explore *o, float v) { *(float *)((uint8_t *)o + of_goal_dest_z) = v; }
+internal inline float *eeug_explore_dest_z_at(const eeug_explore *o) { return (float *)((uint8_t *)o + of_goal_dest_z); }
+// a kind 6 goal's target
+// a kind 6 goal's target - the contact test (EEPhysicsModel::vf14, AoC vf15) lets two units at work on kind 6 meet
+// only when it is the same
+internal inline void *eeug_explore_get_0x38(const eeug_explore *o) { return *(void **)((uint8_t *)o + of_goal_0x38); }
+internal inline void eeug_explore_set_0x38(eeug_explore *o, void *v) { *(void **)((uint8_t *)o + of_goal_0x38) = v; }
+internal inline void **eeug_explore_0x38_at(const eeug_explore *o) { return (void **)((uint8_t *)o + of_goal_0x38); }
+// a kind 4 goal's target
+// a kind 4 goal's target - the same for kind 4
+internal inline void *eeug_explore_get_0x3c(const eeug_explore *o) { return *(void **)((uint8_t *)o + of_goal_0x3c); }
+internal inline void eeug_explore_set_0x3c(eeug_explore *o, void *v) { *(void **)((uint8_t *)o + of_goal_0x3c) = v; }
+internal inline void **eeug_explore_0x3c_at(const eeug_explore *o) { return (void **)((uint8_t *)o + of_goal_0x3c); }
+internal inline ee_unit *eeug_explore_get_holder(const eeug_explore *o) { return *(ee_unit **)((uint8_t *)o + of_goal_holder); }
+internal inline void eeug_explore_set_holder(eeug_explore *o, ee_unit *v) { *(ee_unit **)((uint8_t *)o + of_goal_holder) = v; }
+internal inline ee_unit **eeug_explore_holder_at(const eeug_explore *o) { return (ee_unit **)((uint8_t *)o + of_goal_holder); }
+// its dump's "Tile Location X" (vf5 0x60ECF6): vf31 0x60F318 returns it + 0.5; the dispatch 0x5DD463 sets the
+// unit's x
+internal inline int eeug_explore_get_tile_x(const eeug_explore *o) { return *(int *)((uint8_t *)o + of_eeug_explore_tile_x); }
+internal inline void eeug_explore_set_tile_x(eeug_explore *o, int v) { *(int *)((uint8_t *)o + of_eeug_explore_tile_x) = v; }
+internal inline int *eeug_explore_tile_x_at(const eeug_explore *o) { return (int *)((uint8_t *)o + of_eeug_explore_tile_x); }
+// its dump's "Tile Location Y" (the dispatch 0x5DD463 after a cast to EEUGExplore)
+internal inline int eeug_explore_get_tile_y(const eeug_explore *o) { return *(int *)((uint8_t *)o + of_eeug_explore_tile_y); }
+internal inline void eeug_explore_set_tile_y(eeug_explore *o, int v) { *(int *)((uint8_t *)o + of_eeug_explore_tile_y) = v; }
+internal inline int *eeug_explore_tile_y_at(const eeug_explore *o) { return (int *)((uint8_t *)o + of_eeug_explore_tile_y); }
+
 // class EEUGGather (eeug_gather)
 // the gather goal (EEUGGather)
 // EEUnitGoal's, the base's
@@ -479,6 +602,13 @@ internal int spec_goal_select(int build) {
         data_goal_vt_goal_unload = 0x00831F5C;
         vt_eeug_attack_unit = 0x00831968;
         of_eeug_attack_unit_target = 0x30;
+        vt_eeug_unload_transport = 0x00831F5C;
+        of_eeug_unload_transport_first_cargo_tile = 0x2C;
+        of_eeug_unload_transport_unload_tile = 0x34;
+        of_eeug_unload_transport_unload_range_sq = 0x3C;
+        vt_eeug_explore = 0x00831AE8;
+        of_eeug_explore_tile_x = 0x3C;
+        of_eeug_explore_tile_y = 0x40;
         vt_eeug_gather = 0x00831B80;
         of_eeug_gather_returning = 0x40;
         of_eeug_gather_to_spot = 0x41;
@@ -542,6 +672,13 @@ internal int spec_goal_select(int build) {
         data_goal_vt_goal_unload = 0x008479A0;
         vt_eeug_attack_unit = 0x00847380;
         of_eeug_attack_unit_target = 0x30;
+        vt_eeug_unload_transport = 0x008479A0;
+        of_eeug_unload_transport_first_cargo_tile = 0x2C;
+        of_eeug_unload_transport_unload_tile = 0x34;
+        of_eeug_unload_transport_unload_range_sq = 0x3C;
+        vt_eeug_explore = 0x0084750C;
+        of_eeug_explore_tile_x = 0x3C;
+        of_eeug_explore_tile_y = 0x40;
         vt_eeug_gather = 0x008475A8;
         of_eeug_gather_returning = 0x40;
         of_eeug_gather_to_spot = 0x41;
@@ -582,6 +719,8 @@ internal int spec_goal_check(void) {
     bad += spec_data(data_goal_vt_goal_location, "goal.vt_goal_location");
     bad += spec_data(data_goal_vt_goal_unload, "goal.vt_goal_unload");
     bad += spec_vtable(vt_eeug_attack_unit, ".?AVEEUGAttackUnit@@", "EEUGAttackUnit [vtable]");
+    bad += spec_vtable(vt_eeug_unload_transport, ".?AVEEUGUnloadTransport@@", "EEUGUnloadTransport [vtable]");
+    bad += spec_vtable(vt_eeug_explore, ".?AVEEUGExplore@@", "EEUGExplore [vtable]");
     bad += spec_vtable(vt_eeug_gather, ".?AVEEUGGather@@", "EEUGGather [vtable]");
     return bad;
 }

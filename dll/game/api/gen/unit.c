@@ -12,6 +12,15 @@ internal inline int *unit_refs_at(const ee_unit *o) { return (int *)((uint8_t *)
 internal inline void *unit_get_list_node(const ee_unit *o) { return *(void **)((uint8_t *)o + of_unit_list_node); }
 internal inline void unit_set_list_node(ee_unit *o, void *v) { *(void **)((uint8_t *)o + of_unit_list_node) = v; }
 internal inline void **unit_list_node_at(const ee_unit *o) { return (void **)((uint8_t *)o + of_unit_list_node); }
+// the next unit of its owner's list (EEPlayer +0x450): 0x628D0A inserts, 0x628E06 unlinks, 0x628CDD clears;
+// population and set_diplomacy walk it
+internal inline ee_unit *unit_get_next(const ee_unit *o) { return *(ee_unit **)((uint8_t *)o + of_unit_next); }
+internal inline void unit_set_next(ee_unit *o, ee_unit *v) { *(ee_unit **)((uint8_t *)o + of_unit_next) = v; }
+internal inline ee_unit **unit_next_at(const ee_unit *o) { return (ee_unit **)((uint8_t *)o + of_unit_next); }
+// the previous unit of that list (the same three functions)
+internal inline ee_unit *unit_get_prev(const ee_unit *o) { return *(ee_unit **)((uint8_t *)o + of_unit_prev); }
+internal inline void unit_set_prev(ee_unit *o, ee_unit *v) { *(ee_unit **)((uint8_t *)o + of_unit_prev) = v; }
+internal inline ee_unit **unit_prev_at(const ee_unit *o) { return (ee_unit **)((uint8_t *)o + of_unit_prev); }
 // visibility: +0xC a uint16 per player, seen
 internal inline ee_unit_vis *unit_get_vis(const ee_unit *o) { return *(ee_unit_vis **)((uint8_t *)o + of_unit_vis); }
 internal inline void unit_set_vis(ee_unit *o, ee_unit_vis *v) { *(ee_unit_vis **)((uint8_t *)o + of_unit_vis) = v; }
@@ -143,6 +152,9 @@ internal inline int *unit_id_at(const ee_unit *o) { return (int *)((uint8_t *)o 
 internal inline int unit_get_busy(const ee_unit *o) { return *(int *)((uint8_t *)o + of_unit_busy); }
 internal inline void unit_set_busy(ee_unit *o, int v) { *(int *)((uint8_t *)o + of_unit_busy) = v; }
 internal inline int *unit_busy_at(const ee_unit *o) { return (int *)((uint8_t *)o + of_unit_busy); }
+// the units aboard or garrisoned (its allocator byte +0x6C, built by the constructor 0x5E8394):
+// EEUnit::count_inside 0x42E347 returns its size, 0x483D97 skips an unload while it is empty
+internal inline uint8_t *unit_inside_at(const ee_unit *o) { return (uint8_t *)o + of_unit_inside; }
 // the head of its contact list (nodes {unit, prev, next}): 0x5E8B77 adds, 0x5EF0AD removes, 0x5F23E9 clears it
 // with contacts_count; the constructor 0x5E8394 zeroes both
 internal inline void *unit_get_contacts(const ee_unit *o) { return *(void **)((uint8_t *)o + of_unit_contacts); }
@@ -153,6 +165,9 @@ internal inline void **unit_contacts_at(const ee_unit *o) { return (void **)((ui
 internal inline int unit_get_contacts_count(const ee_unit *o) { return *(int *)((uint8_t *)o + of_unit_contacts_count); }
 internal inline void unit_set_contacts_count(ee_unit *o, int v) { *(int *)((uint8_t *)o + of_unit_contacts_count) = v; }
 internal inline int *unit_contacts_count_at(const ee_unit *o) { return (int *)((uint8_t *)o + of_unit_contacts_count); }
+// the scenario's unit attributes unit_variable1..3 (SM_UA 17..19) as ints (allocator byte +0xCC; init 0x5ECD26
+// sizes it to 3): 0x5B8823 adds to, takes from or sets begin[attr - 17]
+internal inline uint8_t *unit_unit_vars_at(const ee_unit *o) { return (uint8_t *)o + of_unit_unit_vars; }
 // its height: its stats' height x scale (airplanes recompute it each tick; the scenario's attribute 0xD adds to
 // it)
 internal inline float unit_get_height(const ee_unit *o) { return *(float *)((uint8_t *)o + of_unit_height); }
@@ -615,6 +630,8 @@ internal int spec_unit_select(int build) {
         size_rts_unit = 0x2C;
         of_unit_refs = 0x4;
         of_unit_list_node = 0x8;
+        of_unit_next = 0xC;
+        of_unit_prev = 0x10;
         of_unit_vis = 0x14;
         of_unit_x = 0x1C;
         of_unit_y = 0x20;
@@ -650,8 +667,10 @@ internal int spec_unit_select(int build) {
         of_unit_queue_begin = 0x4C;
         of_unit_id = 0x60;
         of_unit_busy = 0x68;
+        of_unit_inside = 0x70;
         of_unit_contacts = 0xC4;
         of_unit_contacts_count = 0xC8;
+        of_unit_unit_vars = 0xD0;
         of_unit_height = 0x174;
         of_unit_anim_frame = 0x178;
         of_unit_turn_rate = 0x17C;
@@ -764,6 +783,8 @@ internal int spec_unit_select(int build) {
         size_rts_unit = 0x2C;
         of_unit_refs = 0x4;
         of_unit_list_node = 0x8;
+        of_unit_next = 0xC;
+        of_unit_prev = 0x10;
         of_unit_vis = 0x14;
         of_unit_x = 0x1C;
         of_unit_y = 0x20;
@@ -799,8 +820,10 @@ internal int spec_unit_select(int build) {
         of_unit_queue_begin = 0x4C;
         of_unit_id = 0x60;
         of_unit_busy = 0x68;
+        of_unit_inside = 0x70;
         of_unit_contacts = 0xC4;
         of_unit_contacts_count = 0xC8;
+        of_unit_unit_vars = 0xD0;
         of_unit_height = 0x174;
         of_unit_anim_frame = 0x178;
         of_unit_turn_rate = 0x17C;

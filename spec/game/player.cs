@@ -4,6 +4,10 @@ unsafe struct EEPlayer
     [offset(0x18), found(c)]
     uint8* list_begin;
 
+    /// the end of list_begin's vector: population 0x556E11 counts (it - list_begin) >> 2
+    [offset(0x1C), found(c)]
+    uint8* list_end;
+
     [offset(0x24), found(c)]
     wstring name;
 
@@ -130,6 +134,11 @@ unsafe struct EEPlayer
     [offset((ee)0xB14, (aoc)0xB18), found(c)]
     int32 objects;
 
+    /// counts its finished buildings of tech 0x432's set (0x5BEFCB): 0 or more switches techs 0x41D / 0x404 queueable;
+    /// 0x5EC2C3 forbids deleting such a building while it is 1, EEMBuildUnit::vf10 0x4B3D85 tests it
+    [offset((ee)0xB18, (aoc)0xB1C), found(c), guess]
+    int32 citizen_buildings;
+
     [offset((ee)0xB1C, (aoc)0xB20), found(c)]
     int32 pop_b1c;
 
@@ -252,6 +261,15 @@ unsafe struct EEPlayer
 
     [offset((ee)0xEFC, (aoc)0xF4C), found(b)]
     uint8 build;
+
+    /// the scenario's AI toggle Explore: EECPResourceManager::update 0x48D263 prunes the hunt and fish lists only while
+    /// it is set
+    [offset((ee)0xEFD, (aoc)0xF4D), found(c)]
+    uint8 explore;
+
+    /// the scenario's AI toggle Gather: update 0x48D263 runs compute_targets and assign_citizens only while it is set
+    [offset((ee)0xEFF, (aoc)0xF4F), found(c)]
+    uint8 gather;
 
     [offset((ee)0xF02, (aoc)0xF52), found(c)]
     uint8 ignore;

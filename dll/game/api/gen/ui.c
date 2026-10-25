@@ -4,11 +4,19 @@
 // class EEUserInterface (ee_ui)
 // the user interface, [game.ui] (its RTTI's; the spec called it EEWorld until 2026-10-25 - the world is game.world):
 // the action queue, the chat lines, its thread
+// the queued UI actions: queue_action 0x66192F pushes onto it (0x402314) under actions_lock; the constructor
+// builds three deques (+0x4, +0x18, +0x2C), the destructor 0x65F156 drains each under its lock
+internal inline uint8_t *ui_actions_at(const ee_ui *o) { return (uint8_t *)o + of_ui_actions; }
 // its thread (TSThread::Post)
 // +0x1C and +0x5C the same in AoC
 internal inline void *ui_get_thread(const ee_ui *o) { return *(void **)((uint8_t *)o + of_ui_thread); }
 internal inline void ui_set_thread(ee_ui *o, void *v) { *(void **)((uint8_t *)o + of_ui_thread) = v; }
 internal inline void **ui_thread_at(const ee_ui *o) { return (void **)((uint8_t *)o + of_ui_thread); }
+// its critical section (TSScheduler::CreateCriticalSection in the constructor; +0x48 and +0x4C the other deques'),
+// entered by queue_action 0x66192F
+internal inline void *ui_get_actions_lock(const ee_ui *o) { return *(void **)((uint8_t *)o + of_ui_actions_lock); }
+internal inline void ui_set_actions_lock(ee_ui *o, void *v) { *(void **)((uint8_t *)o + of_ui_actions_lock) = v; }
+internal inline void **ui_actions_lock_at(const ee_ui *o) { return (void **)((uint8_t *)o + of_ui_actions_lock); }
 // the map's seed
 internal inline uint32_t ui_get_seed(const ee_ui *o) { return *(uint32_t *)((uint8_t *)o + of_ui_seed); }
 internal inline void ui_set_seed(ee_ui *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_seed) = v; }
@@ -137,6 +145,17 @@ internal inline void mouse_clamp(ee_mouse *mouse) { fn_mouse_clamp(mouse); }
 
 // class ee_native_chat (ee_native_chat)
 // the object of native_chat_say
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// the head of its map line -> the time a line stays muted (the map at +0x4, the constructor 0x484E25): say
+// 0x484EB3 finds the line's base string id (0x4850B2) against it and skips it while now <= the node's +0x14;
+// 0x484FD8 inserts now + 5000
+internal inline void *native_chat_get_said_until_head(const ee_native_chat *o) { return *(void **)((uint8_t *)o + of_native_chat_said_until_head); }
+internal inline void native_chat_set_said_until_head(ee_native_chat *o, void *v) { *(void **)((uint8_t *)o + of_native_chat_said_until_head) = v; }
+internal inline void **native_chat_said_until_head_at(const ee_native_chat *o) { return (void **)((uint8_t *)o + of_native_chat_said_until_head); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// uint32 per line group 0..5 (the constructor sizes it to 8 of -1, 0x4D0945): the variant (0..9) said last, so say
+// picks another
+internal inline uint8_t *native_chat_last_variant_at(const ee_native_chat *o) { return (uint8_t *)o + of_native_chat_last_variant; }
 internal inline ee_player *native_chat_get_player(const ee_native_chat *o) { return *(ee_player **)((uint8_t *)o + of_native_chat_player); }
 internal inline void native_chat_set_player(ee_native_chat *o, ee_player *v) { *(ee_player **)((uint8_t *)o + of_native_chat_player) = v; }
 internal inline ee_player **native_chat_player_at(const ee_native_chat *o) { return (ee_player **)((uint8_t *)o + of_native_chat_player); }
@@ -144,6 +163,11 @@ typedef char (__thiscall *native_chat_say_fn)(ee_native_chat *, int, int);
 internal native_chat_say_fn fn_native_chat_say;
 internal inline char native_chat_say(ee_native_chat *native_chat, int base, int ms) { return fn_native_chat_say(native_chat, base, ms); }
 internal inline int patch_native_chat(native_chat_say_fn h, int *of) { return patch_calls(calls_native_chat, 5, (uintptr_t)fn_native_chat_say, (void *)h, of); }
+// its player's update_slot (the constructor copies player +0xCA0): say adds it to the time before % 10 to pick a
+// variant
+internal inline int native_chat_get_update_slot(const ee_native_chat *o) { return *(int *)((uint8_t *)o + of_native_chat_update_slot); }
+internal inline void native_chat_set_update_slot(ee_native_chat *o, int v) { *(int *)((uint8_t *)o + of_native_chat_update_slot) = v; }
+internal inline int *native_chat_update_slot_at(const ee_native_chat *o) { return (int *)((uint8_t *)o + of_native_chat_update_slot); }
 
 // class EEAScroll (ee_scroll)
 // the scroll action (EEAScroll)
@@ -262,7 +286,9 @@ internal int spec_ui_select(int build) {
     switch (build) {
     case 0:   // ee
         vt_ee_user_interface = 0x008359A4;
+        of_ui_actions = 0x4;
         of_ui_thread = 0x40;
+        of_ui_actions_lock = 0x44;
         of_ui_seed = 0x54;
         fn_ui_queue_action = (ui_queue_action_fn)0x0066192F;
         fn_ui_screenshot = (ui_screenshot_fn)0x00661B04;
@@ -297,6 +323,8 @@ internal int spec_ui_select(int build) {
         calls_mouse_update[2] = 0x005111CF;
         calls_mouse_update[3] = 0x006618B8;
         fn_mouse_clamp = (mouse_clamp_fn)0x00510DAD;
+        of_native_chat_said_until_head = 0x8;
+        of_native_chat_last_variant = 0x14;
         of_native_chat_player = 0x20;
         fn_native_chat_say = (native_chat_say_fn)0x00484EB3;
         calls_native_chat[0] = 0x00470040;
@@ -304,6 +332,7 @@ internal int spec_ui_select(int build) {
         calls_native_chat[2] = 0x0047166E;
         calls_native_chat[3] = 0x0047280E;
         calls_native_chat[4] = 0x00472B9D;
+        of_native_chat_update_slot = 0x24;
         of_scroll_ticks = 0x40;
         of_scroll_keys = 0x44;
         fn_scroll_execute = (scroll_execute_fn)0x004050FC;
@@ -355,7 +384,9 @@ internal int spec_ui_select(int build) {
         return 0;
     case 1:   // aoc
         vt_ee_user_interface = 0x0084BA40;
+        of_ui_actions = 0x4;
         of_ui_thread = 0x40;
+        of_ui_actions_lock = 0x44;
         of_ui_seed = 0x54;
         fn_ui_queue_action = (ui_queue_action_fn)0x00678F79;
         fn_ui_screenshot = (ui_screenshot_fn)0x00679139;
@@ -390,6 +421,8 @@ internal int spec_ui_select(int build) {
         calls_mouse_update[2] = 0x0051B73E;
         calls_mouse_update[3] = 0x00678F02;
         fn_mouse_clamp = (mouse_clamp_fn)0x0051B31C;
+        of_native_chat_said_until_head = 0x8;
+        of_native_chat_last_variant = 0x14;
         of_native_chat_player = 0x20;
         fn_native_chat_say = (native_chat_say_fn)0x0048966C;
         calls_native_chat[0] = 0x00472F4C;
@@ -397,6 +430,7 @@ internal int spec_ui_select(int build) {
         calls_native_chat[2] = 0x00474705;
         calls_native_chat[3] = 0x004758D5;
         calls_native_chat[4] = 0x00475C65;
+        of_native_chat_update_slot = 0x24;
         of_scroll_ticks = 0x40;
         of_scroll_keys = 0x44;
         fn_scroll_execute = (scroll_execute_fn)0x0040478E;

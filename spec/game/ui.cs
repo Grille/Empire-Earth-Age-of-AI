@@ -3,10 +3,20 @@
 [c_type("ee_ui"), vtable((ee)0x008359A4, (aoc)0x0084BA40)]
 unsafe struct EEUserInterface
 {
+    /// the queued UI actions: queue_action 0x66192F pushes onto it (0x402314) under actions_lock; the constructor
+    /// builds three deques (+0x4, +0x18, +0x2C), the destructor 0x65F156 drains each under its lock
+    [offset(0x4), found(c)]
+    deque actions;
+
     /// its thread (TSThread::Post)
     /// +0x1C and +0x5C the same in AoC
     [offset(0x40), found(b)]
     void* thread;
+
+    /// its critical section (TSScheduler::CreateCriticalSection in the constructor; +0x48 and +0x4C the other deques'),
+    /// entered by queue_action 0x66192F
+    [offset(0x44), found(c)]
+    void* actions_lock;
 
     /// the map's seed
     [offset(0x54), found(b)]
@@ -144,6 +154,17 @@ unsafe struct RTSMouse
 /// the object of native_chat_say
 unsafe struct ee_native_chat
 {
+    /// the head of its map line -> the time a line stays muted (the map at +0x4, the constructor 0x484E25): say
+    /// 0x484EB3 finds the line's base string id (0x4850B2) against it and skips it while now <= the node's +0x14;
+    /// 0x484FD8 inserts now + 5000
+    [offset(0x8), found(c), guess]
+    void* said_until_head;
+
+    /// uint32 per line group 0..5 (the constructor sizes it to 8 of -1, 0x4D0945): the variant (0..9) said last, so say
+    /// picks another
+    [offset(0x14), found(c), guess]
+    vector last_variant;
+
     [offset(0x20), found(s)]
     EEPlayer* player;
 
@@ -155,6 +176,11 @@ unsafe struct ee_native_chat
     [call_site("native_chat", (ee)0x0047280E, (aoc)0x004758D5)]
     [call_site("native_chat", (ee)0x00472B9D, (aoc)0x00475C65)]
     extern char8 say(int32 @base, int32 ms);
+
+    /// its player's update_slot (the constructor copies player +0xCA0): say adds it to the time before % 10 to pick a
+    /// variant
+    [offset(0x24), found(c)]
+    int32 update_slot;
 }
 
 /// the scroll action (EEAScroll)

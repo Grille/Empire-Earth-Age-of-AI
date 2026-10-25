@@ -74,6 +74,12 @@ internal inline uint8_t *tech_queueable_at(const ee_tech *o) { return (uint8_t *
 internal inline uint8_t tech_get_disabled(const ee_tech *o) { return *(uint8_t *)((uint8_t *)o + of_tech_disabled); }
 internal inline void tech_set_disabled(ee_tech *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_tech_disabled) = v; }
 internal inline uint8_t *tech_disabled_at(const ee_tech *o) { return (uint8_t *)((uint8_t *)o + of_tech_disabled); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// ee_scen_effect::run 0x5AD29B sets 1 after 0x558CB6(unit type, 0x7F) for a tech that passes 0x5BF041; the grant
+// 0x5BF4C8 and the destructor 0x5BE7B3 undo it (0x55C0A2) and clear it
+internal inline uint8_t tech_get_type_modified(const ee_tech *o) { return *(uint8_t *)((uint8_t *)o + of_tech_type_modified); }
+internal inline void tech_set_type_modified(ee_tech *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_tech_type_modified) = v; }
+internal inline uint8_t *tech_type_modified_at(const ee_tech *o) { return (uint8_t *)((uint8_t *)o + of_tech_type_modified); }
 internal inline uint8_t *tech_get_kids_begin(const ee_tech *o) { return *(uint8_t **)((uint8_t *)o + of_tech_kids_begin); }
 internal inline void tech_set_kids_begin(ee_tech *o, uint8_t *v) { *(uint8_t **)((uint8_t *)o + of_tech_kids_begin) = v; }
 internal inline uint8_t **tech_kids_begin_at(const ee_tech *o) { return (uint8_t **)((uint8_t *)o + of_tech_kids_begin); }
@@ -88,6 +94,10 @@ internal inline int tech_grant(ee_tech *tech) { return fn_tech_grant(tech); }
 internal inline int *tech_data_get_makers_begin(const ee_tech_data *o) { return *(int **)((uint8_t *)o + of_tech_data_makers_begin); }
 internal inline void tech_data_set_makers_begin(ee_tech_data *o, int *v) { *(int **)((uint8_t *)o + of_tech_data_makers_begin) = v; }
 internal inline int **tech_data_makers_begin_at(const ee_tech_data *o) { return (int **)((uint8_t *)o + of_tech_data_makers_begin); }
+// the end of makers_begin's vector: 0x48EB80 and 0x5BE7B3 count (it - makers_begin) >> 2
+internal inline int *tech_data_get_makers_end(const ee_tech_data *o) { return *(int **)((uint8_t *)o + of_tech_data_makers_end); }
+internal inline void tech_data_set_makers_end(ee_tech_data *o, int *v) { *(int **)((uint8_t *)o + of_tech_data_makers_end) = v; }
+internal inline int **tech_data_makers_end_at(const ee_tech_data *o) { return (int **)((uint8_t *)o + of_tech_data_makers_end); }
 // the tech tree code's reads (unchanged)
 internal inline uint8_t *tech_data_costs_at(const ee_tech_data *o) { return (uint8_t *)o + of_tech_data_costs; }
 // dbtechtree's "Calamity" (record +0xCC, both loaders): the status button (0x6573D3 / 0x657893) and the tooltip
@@ -225,9 +235,11 @@ internal int spec_tech_select(int build) {
         of_tech_last_epoch = 0x18;
         of_tech_queueable = 0x1D;
         of_tech_disabled = 0x1E;
+        of_tech_type_modified = 0x1F;
         of_tech_kids_begin = 0x24;
         fn_tech_grant = (tech_grant_fn)0x005BF335;
         of_tech_data_makers_begin = 0x10;
+        of_tech_data_makers_end = 0x14;
         of_tech_data_costs = 0x24;
         of_tech_data_calamity = 0x44;
         of_tech_data_category = 0x48;
@@ -273,9 +285,11 @@ internal int spec_tech_select(int build) {
         of_tech_last_epoch = 0x18;
         of_tech_queueable = 0x21;
         of_tech_disabled = 0x22;
+        of_tech_type_modified = 0x23;
         of_tech_kids_begin = 0x24;
         fn_tech_grant = (tech_grant_fn)0x005CFA53;
         of_tech_data_makers_begin = 0x10;
+        of_tech_data_makers_end = 0x14;
         of_tech_data_costs = 0x24;
         of_tech_data_calamity = 0x44;
         of_tech_data_category = 0x48;
