@@ -84,6 +84,23 @@ internal vec2 fo_dir(float a) {
     return v2(c * fo_sin_q(PI / 2 - a), s * fo_sin_q(a));
 }
 
+// the direction share s (0..1) of the turn from a to b, the shorter way round (exactly opposite: counter-clockwise),
+// by halving the turn (to 1/1024)
+internal vec2 fo_half(vec2 u, vec2 v) {
+    vec2 m = vec2_add(u, v);
+    float l = vec2_len(m);
+    return l > 1e-4f ? vec2_scale(m, 1.0f / l) : v2(-u.y, u.x);
+}
+internal vec2 fo_turn(vec2 a, vec2 b, float s) {
+    float lo = 0, hi = 1;
+    for (int i = 0; i < 10; i++) {
+        vec2 m = fo_half(a, b);
+        float mid = (lo + hi) / 2;
+        if (s < mid) { b = m; hi = mid; } else { a = m; lo = mid; }
+    }
+    return fo_half(a, b);
+}
+
 // a direction's angle as a number in [0, 4) that orders like the angle (counter-clockwise from +x)
 internal float fo_pseudo_angle(vec2 d) {
     float s = fabsf(d.x) + fabsf(d.y);
@@ -238,9 +255,10 @@ internal void fo_march(ee_active_group *grp) {
 // FOLLOWING (`formation_follow`, with formations; step 2 of moving in formation): a group laid out here marches in its
 // formation behind a leader - the unit whose spot is nearest the formation's middle - instead of each unit running its
 // own route to its spot. The leader keeps its route and goes at the slowest member's top speed; every other
-// land unit steers each tick at its point (its spot's offset from the leader's: the formation keeps its final
-// orientation all the way and arrives the right way round - sent behind itself and facing back, it walks there and
-// turns at the end) plus FF_AHEAD along the way, through the turn (shiproute.c's hook of the land models' slot 7), and
+// land unit steers each tick at its point (its spot's offset from the leader's, turned with the formation's facing: the
+// way it goes while far - its front rank leads - and over the last FF_SETTLE seconds turned to the final facing, longer
+// when its outermost units need the time to swing round, at most FF_SETTLE_MAX; with a move queued after it, the way
+// all along) plus FF_AHEAD along the way, through the turn (shiproute.c's hook of the land models' slot 7), and
 // its speed (the land models' speed step) is the leader's plus FF_GAIN for each tile it is behind its point along the
 // way (towards the leader's spot, smoothed), while behind up to FF_BOOST of its own top speed. Its own route stays: whenever its point is further than FF_FAR, on a
 // tile it may not enter or not in a clear line, it takes its route for that tick; while it follows, the waypoints it
@@ -264,9 +282,12 @@ internal void fo_march(ee_active_group *grp) {
 #define FF_CRAWL 0.15f         // the leader's least share of the march's speed while they form up
 #define FF_DROP 2.0f           // tiles
 #define FF_LINK 4.0f           // tiles: units this close where they set out (chained) march as one block
-// fwd: the formation's facing, way: where it goes, goal: the leader's goal of this move (NULL: not known - its group
+#define FF_SETTLE 5.0f         // s: the formation turns from the way to its final facing this long before the leader arrives,
+#define FF_SETTLE_MAX 15.0f    // up to this long when its outermost units need it to swing round at its speed
+// fwd: the formation's final facing, way: where it goes, face: its facing now, reach: its outermost unit's distance from
+// the leader, goal: the leader's goal of this move (NULL: not known - its group
 // tells), live: on its way this step (else queued behind the leader's current order)
-struct ff_group { uint32_t leader; ee_group *grp; ee_goal *goal; vec2 fwd, way, end; float speed, err, err_sum; int err_n; uint32_t step; int on, live; };
+struct ff_group { uint32_t leader; ee_group *grp; ee_goal *goal; vec2 fwd, way, face, end; float speed, reach, err, err_sum; int err_n; uint32_t step; int on, live; };
 internal struct ff_group g_ff[FF_GROUPS];
 internal unsigned g_ff_next;
 internal int g_ff_first, g_ff_count;   // the marches started by the move being dispatched, for their leaders' goals
@@ -307,8 +328,9 @@ internal void ff_start_block(void *group, const int *idx, int k, vec2 fwd, vec2 
     gr->fwd = fwd;
     vec2 to = vec2_sub(g_fo[lead].at, g_fo[lead].from);
     float tl = vec2_len(to);
-    gr->way = tl > 0.01f ? vec2_scale(to, 1.0f / tl) : fwd;
+    gr->way = gr->face = tl > 0.01f ? vec2_scale(to, 1.0f / tl) : fwd;
     gr->end = g_fo[lead].at;
+    gr->reach = 0;
     gr->speed = slow;
     gr->step = ~0u;
     gr->on = 1;
@@ -319,6 +341,7 @@ internal void ff_start_block(void *group, const int *idx, int k, vec2 fwd, vec2 
         int i = idx[j];
         struct ff_unit *e = ff_find((uint32_t)unit_get_serial(g_fo[i].u), 1);
         vec2 d = vec2_sub(g_fo[i].at, g_fo[lead].at), off = v2(vec2_dot(d, right), vec2_dot(d, fwd));
+        if (vec2_len(d) > gr->reach) gr->reach = vec2_len(d);
         if (queued && e->g >= 0 && e->g != gi && g_ff[e->g].on) { e->next = gi + 1; e->next_off = off; continue; }
         e->g = gi;
         e->next = 0;
@@ -394,6 +417,12 @@ internal ee_unit *ff_leader(struct ff_group *gr, uint32_t step) {
     vec2 h = tl > 0.01f ? vec2_add(vec2_scale(gr->way, 1 - FF_TURN), vec2_scale(to, FF_TURN / tl)) : gr->way;
     float hl = vec2_len(h);
     if (hl > 0.01f) gr->way = vec2_scale(h, 1.0f / hl);
+    // the facing: the way, turned to the final facing over the last span - its share of the turn the time left on it
+    // (the turn's arc for the outermost unit: at most the chord x pi / 2)
+    float spd = gr->speed > 0.05f ? gr->speed : 0.05f, left = tl / spd;
+    float span = gr->reach * vec2_len(vec2_sub(gr->fwd, gr->way)) * 1.5708f / spd;
+    span = span < FF_SETTLE ? FF_SETTLE : span > FF_SETTLE_MAX ? FF_SETTLE_MAX : span;
+    gr->face = left >= span || unit_orders(l) > 1 ? gr->way : fo_turn(gr->way, gr->fwd, 1 - left / span);
     return l;
 }
 
@@ -423,8 +452,8 @@ internal int fo_follow_aim(ee_unit *u, const float *pos, float *aim) {
     struct ff_group *gr = ff_march(e, u, step, &l);
     if (!gr || e->id == gr->leader) return 0;
     vec3 lp = unit_get_pos(l);
-    vec2 right = v2(gr->fwd.y, -gr->fwd.x);
-    vec2 pt = vec2_add(v2(lp.x, lp.y), vec2_add(vec2_scale(right, e->off.x), vec2_scale(gr->fwd, e->off.y)));
+    vec2 right = v2(gr->face.y, -gr->face.x);
+    vec2 pt = vec2_add(v2(lp.x, lp.y), vec2_add(vec2_scale(right, e->off.x), vec2_scale(gr->face, e->off.y)));
     vec2 d = vec2_sub(pt, v2(pos[0], pos[1]));
     gr->err_sum += vec2_len(d);
     gr->err_n++;
