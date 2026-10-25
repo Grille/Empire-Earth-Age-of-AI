@@ -39,9 +39,11 @@ and the runners, eectl, the MCP server), `results/` (log readers, scorers), `re/
 - `spec/` is the source of truth about the game (2026-10-25, being built up): its classes, fields, functions, call
   sites and data, build by build, as C# declarations that compile (`dotnet build` in spec/; `scripts/build/spec_check.py`,
   run by the build, holds the rules the compiler leaves open and checks each `was(...)` against today's rows). It
-  describes the game only - the C comes from a generator (planned: plain C in `dll/game/api/gen/`, no table macros) and
-  the hand-written code on top; the format: spec/attributes.cs's header. Until an object is moved, its rows below stay
-  what the code uses; a moved object's values are changed in the spec, not in raw/.
+  describes the game only - the C comes from `scripts/build/gen_api.py` (run by the build: plain C in `dll/game/api/gen/`,
+  no table macros, never edited by hand; what each generated name is: its header) and the hand-written code on top;
+  the format: spec/attributes.cs's header. Moved so far (gen_api.py's MOVED): unit.cs - its rows are gone from raw/,
+  its values are changed in the spec. A move: the rows' `was(...)` equal (spec_check), the generated names in place of
+  the hand-written wrappers, the rows and the `was` out, then the same game played with the DLL before and after.
 - What the mod knows of the game's code and objects lives in `dll/game/api/`. The raw rows, api/'s own, in `raw/`: `functions.h`
   (the functions the mod calls), `hooks.h` (what it patches to hook), `data.h` (the game's data), made a table by
   `tables.c` (with `fields.h`'s; the builds: `game/api/builds.h`) - `api.c` the module's one entry - by name with one value per exe build: `GA(G_WORLD_CLOCK)`,

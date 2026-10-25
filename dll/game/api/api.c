@@ -5,8 +5,11 @@
 // hooks.c the patches of the game's code that are about no object. types.h names the objects' types (one place: they
 // point at each other). raw/ is the module's inside: the addresses and offsets per exe build (functions.h,
 // hooks.h, data.h, fields.h, editor_layout.h) and tables.c, which makes them tables, GA, GF, GL and the fields' names -
-// nothing raw/ defines is used outside game/api/, and game/api/ uses only base/ (scripts/build/layers.py). exe.c finds the
-// running build (game_build, build_is) and takes its column; api_log tells the start's log what is missing.
+// nothing raw/ defines is used outside game/api/, and game/api/ uses only base/ (scripts/build/layers.py). gen/ is the
+// spec's C (spec/game/, made by scripts/build/gen_api.py, never edited): the objects moved there from raw/ have their
+// fields, functions and hooks in plain declarations - unit_get_speed, unit_max_speed, patch_aim - and their values set
+// per build by spec_select. exe.c finds the running build (game_build, build_is) and takes its column; api_log tells the
+// start's log what is missing.
 //
 // FIELDS: kind_get_x(obj) reads a field, kind_set_x(obj, v) writes one (only those the mod writes), kind_x_at(obj) its
 // address - the offsets per build from raw/fields.h, rows named for what they are (the 2017 update's offset beside
@@ -30,6 +33,7 @@
 #include "game/api/raw/editor_layout.h"   // the scenario editor's layout sites (generated, the 2017 update)
 #include "game/api/layout.h"       // FIELD: a read at a field's offset or a plain number
 #include "game/api/patching.c"     // the installers' helpers: patch_calls, PATCH_LIST, site_index
+#include "game/api/gen/gen.c"      // the spec's C (spec/game/, scripts/build/gen_api.py): what is moved there of raw/
 #include "game/api/game.c"         // the game's globals, memory, strings, actions, simulation, run
 #include "game/api/unit.c"
 #include "game/api/unit_type.c"

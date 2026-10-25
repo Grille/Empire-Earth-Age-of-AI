@@ -16,7 +16,6 @@
     D(CALL_GROUP_STAT, 0x00450546, 0x0045122B) \
     D(CALL_ASG_QUEUE_POP, 0x0045BDA2, 0x0045D974)                            /* the other subgroups' vf85 (0x45BD56): the waiting units' pop */ \
     D(CALL_PLACE, 0x00468629, 0x0046B044) \
-    D(CALL_REPAIR_GOAL, 0x0046DA88, 0x004706DF) \
     D(CALL_RM_UPDATE, 0x0046E3C6, 0x00471051)                                 /* call EECPResourceManager::Update(now)              (0x48D263) */ \
     D(CALL_POP_CAP_3, 0x00474AF0, 0x004781C9) \
     D(CALL_NV_MAINT_DELETE, 0x00477B17, 0x0047B635) \
@@ -28,7 +27,6 @@
     D(CALL_HUNT_2, 0x0048AFC4, 0x0048F9B3) \
     D(CALL_UNBUILT_FARMS, 0x0048B0FD, 0x0048FAD4) \
     D(CALL_UNLOAD_RM, 0x0048CC5D, 0x00491733)                                 /* an unload call (the resource manager's ferry) */ \
-    D(CALL_UNLOAD_RETRY_GIVE, 0x0048D03C, 0x00491B12) \
     D(CALL_COMPUTE_TARGETS, 0x0048D347, 0x00491E18)                           /* call EECPResourceManager::ComputeGathererTargets (0x48D0A2) */ \
     D(CALL_ASSIGN_CITIZENS, 0x0048D36A, 0x00491E3B)                           /* call EECPResourceManager::AssignCitizens        (0x48A554) */ \
     D(CALL_FISH_TYPE_1, 0x0048F823, 0x0049457C)                               /* the calls of FN_FISH_TYPE */ \
@@ -54,7 +52,6 @@
     F(FN_SPEED_DECIDE, int, __thiscall, (void *, void *, float, float), 0x00548645, 0x00554CB2) /* EEPhysicsModel::vf9 thiscall(model, unit, distance to the waypoint, angle off the bow): 2 hold, 3 faster, 4 slower - more than 45 degrees off, slower */ \
     F(FN_TURN_DECIDE, int, __thiscall, (void *, void *, float, float), 0x0054880E, 0x00554F56) /* EEPhysicsModel slot 11 (AoC 12: its vtables have a slot more before; AoC rewrote it - the signs, a step ahead -, so not patched there) thiscall(model, unit, turn rate now (unit +0x17C, radians/s), angle left to turn): 3 turn faster towards it, 4 slower - from a stopping angle of the type's +0xC8 x the settings' +0x88 */ \
     F(FN_PM_COLLIDE, void, __thiscall, (void *, void *), 0x0054CABF, 0x0055BE0E) /* the ships' (and helicopters') slot 18 (AoC 19): a thunk to EEPhysicsModel::vf18 0x549E61 (AoC vf19 0x556710) thiscall(model, unit), the collision step - while the unit moves (+0x2D8, AoC +0x2DC) and has contacts (+0xC8) or a blocked time (+0x248): the contacts tested (slot 14, AoC 15: the speed cut, the push +0x230/+0x234) and the push applied (SLOT_PM_PUSH) - docs/engine-notes.md "Collision" */ \
-    D(CALL_MISSILE_AIM, 0x0054E850, 0x0055B1C3) \
     D(SITE_SIM_RECEIVE, 0x00553348, 0x00561459) \
     D(SITE_SIM_WAIT, 0x005533C5, 0x005614D6) \
     D(CALL_EPOCH_CATCH_UP, 0x0055A5B5, 0x00569633)                            /* its one call: EEPlayer::vf41, a human reached an epoch */ \
@@ -72,7 +69,6 @@
     F(FN_GOAL_MOVE_AT, void *, __thiscall, (void *, float *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t), 0x00614D47, 0x00627742) \
     D(CALL_KILL_STAT, 0x00617780, 0x0062A2DF) \
     D(CALL_ATTACK_ALERT, 0x006177CF, 0x0062A366) \
-    D(CALL_AIM, 0x0061E1D7, 0x006313D6) \
     D(CALL_NODE_DEL_2, 0x00628B7F, 0x0063D930) \
     D(CALL_NODE_DEL_1, 0x00628BE7, 0x0063D998) \
     D(CALL_RANGE_SORT, 0x0063052E, 0x0064631B) \
@@ -106,7 +102,6 @@
     D(VT_PM_HOVER, 0x0082CE8C, 0x008426B8)                                    /* EEPMHovercraft */ \
     D(VT_PM_LAND, 0x0082CFB0, 0x008427E8)                                     /* EEPMLand, the land units' movement */ \
     D(VTS_TECH_RESEARCHED, 0x00830874, 0x00846168)                            /* EETechTreeNode::vf6's vtable slot */ \
-    D(VT_COMPLEX_UNIT, 0x00831494, 0x00846DDC) \
     D(VT_MISSILE, 0x00832E90, 0x00848CF8) \
     D(VT_PROJECTILE, 0x00833060, 0x00848ED0)                                  /* EEUCProjectile */ \
     D(DRAW_OLD, 0x008D2D30, 0x008E94D0) \
@@ -124,7 +119,6 @@
     D(SLOT_ROUTE_COST, 1, 1)            /* VT_ROUTE_PLANNER: FN_ROUTE_COST */ \
     D(SLOT_ASGU_SCORE, 2, 2)            /* ASGU_VTABLES */ \
     D(SLOT_MSG_EXECUTE, 10, 10)         /* VT_PAY_TRIBUTE, VT_INGAME_CHAT, VT_RESIGN, VT_MSG_LOAD, VT_MSG_UNLOAD: the message's Execute */ \
-    D(SLOT_UNIT_RELEASE, 13, 13)        /* VT_COMPLEX_UNIT */ \
     D(SLOT_ASG_STATS, 20, 20)           /* the attack subgroups: FN_ASG_STATS, VT_ASG_LAND's FN_ASG_LAND_STATS */ \
     D(SLOT_CP_ADD_RESOURCE, 18, 18)     /* VT_COMPUTER_PLAYER: FN_CP_ADD_RESOURCE (econ.c's hook; AoC as before) */ \
     D(SLOT_CP_PAY, 45, 45)              /* VT_COMPUTER_PLAYER: FN_CP_PAY (econ.c's hook; AoC as before) */ \

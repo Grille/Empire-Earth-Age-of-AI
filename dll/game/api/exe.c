@@ -12,6 +12,9 @@ internal int build_is(const char *name) { return g_exe_build >= 0 && !lstrcmpA(k
 // program loading the folder's DLLs) or a known build that isn't ready (the player's game runs without the mod); -1:
 // the game, another build (*hash its hash). A test run (run_test.ps1: EEAIMOD_UNREADY=1) plays a build that isn't
 // ready too - how it gets ready.
+internal int g_spec_missing;   // the spec's values the running build hasn't got (spec_log)
+internal int spec_select(int build);   // gen/gen.c: the spec's values of the build
+internal void spec_log(FILE *log);
 internal int game_build(uint32_t *hash) {
     char path[MAX_PATH], unready[4];
     GetModuleFileNameA(NULL, path, MAX_PATH);
@@ -23,6 +26,7 @@ internal int game_build(uint32_t *hash) {
             g_exe_build = i;
             g_addr_missing = addr_select();
             g_of_missing = fields_select();
+            g_spec_missing = spec_select(i);
             return 1;
         }
     return name && !lstrcmpiA(name + 1, "Empire Earth.exe") ? -1 : 0;   // a renamed copy of a known build counts above
@@ -33,6 +37,7 @@ internal void api_log(FILE *log) {
     if (!k_exe_builds[g_exe_build].ready) fprintf(log, "# build: %s - not ready, a test run's\n", k_exe_builds[g_exe_build].name);
     addr_log(log);
     fields_log(log);
+    spec_log(log);
 }
 // Another build: nothing installed - the player is told once a start (a test run, which has nobody to click: only
 // the log), and the game runs as it is

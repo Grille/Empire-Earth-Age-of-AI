@@ -921,7 +921,7 @@ internal void citizens_safety(ee_resource_mgr *rm) {   // before the citizen ass
 // army (P3: 17 in 15 minutes, sent back by citizens_safety only once it was on its way). Its order (EEUGBuildRepair,
 // 0x60BAD0) is refused at the handing-over (0x5F05BD at 0x46DA88) while enemy soldiers stand within 8 tiles (or their range + 3) of the
 // building (as citizens_safety): the goal deleted (its vf0, which lets go of the building), the citizen keeps its work.
-internal void __thiscall hook_repair_goal(ee_unit *u, ee_goal *goal, int append, int prio) {
+internal void __thiscall hook_repair_goal(ee_unit *u, ee_goal *goal, int8_t append, int prio) {
     ee_player *pl = u ? unit_get_owner(u) : NULL;
     ee_unit *b = goal && goal_is_build(goal) ? goal_get_building(goal) : NULL;
     if (g_avoid_citizens && pl && b && !is_vanilla(pl) && raiders_near(pl, unit_get_tile(b), 8)) {
@@ -1457,7 +1457,7 @@ internal void __thiscall hook_unit_release(ee_unit *u) {
         }
         return;
     }
-    unit_release(u);
+    ee_complex_unit_release(u);   // the class's own (the slot holds this hook)
 }
 
 // RANGE SORT: 0x630466 (under EEUnitClass vf48 0x620122, a unit's look at the enemies around it) sorts the enemies in

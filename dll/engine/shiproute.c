@@ -251,7 +251,7 @@ internal int sr_route(ee_unit *u, int *from, int *to, void *caller, int sectors)
         vec3 t = goal_target(goal_obj, u);
         if ((int)floorf(t.x) == tx && (int)floorf(t.y) == ty) { pts[np - 1][0] = t.x; pts[np - 1][1] = t.y; }
     }
-    for (int k = 0; k < np; k++) unit_add_waypoint(u, pts[k]);
+    for (int k = 0; k < np; k++) unit_add_waypoint(u, pts[k], 1);   // 1: a point on the map's edge lines kept
     g_sr_routed++;
     if (g_log && g_sr_log) {
         fprintf(g_log, "# shiproute: %06x %d,%d -> %d,%d (from %p, sectors %d): %d tiles (%d searched), %d legs, %d points:", unit_get_serial(u) & 0xFFFFFF, sx, sy,

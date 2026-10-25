@@ -1,6 +1,6 @@
 // THE MOVEMENT MODELS (EEPhysicsModel and its kinds: EEPMNaval, EEPMLand ...; one per kind of unit, shared): hooks.
 // Each tick a model steers its unit towards the front waypoint (vtable +0x1C, the turn) and sets its speed (+0x20,
-// EEPhysicsModel::vf8) from a decision (+0x24, FN_SPEED_DECIDE): 2 hold, 3 faster (up to FN_UNIT_MAX_SPEED; on the
+// EEPhysicsModel::vf8) from a decision (+0x24, FN_SPEED_DECIDE): 2 hold, 3 faster (up to unit_max_speed; on the
 // last waypoint no faster than the distance), 4 slower (by the acceleration a tick, 0 below 0.005), else stop. The
 // decision: more than 45 degrees off the bow (+-pi/4: 0x82C5C0, 0x82B668), slower - the unit crawls at its least
 // speed while it turns, then speeds up; within, faster; slower too when the way left is no longer than it needs to

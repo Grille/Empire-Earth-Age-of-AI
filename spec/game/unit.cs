@@ -21,7 +21,7 @@ unsafe struct RTSUnit
 
     /// the object freed: the release 0x4FCAD3 calls it when the last reference goes (RTSUnit::vf13 0x628D98 jumps
     /// to the imported release, IAT_RELEASE)
-    [slot(13), was("SLOT_UNIT_RELEASE")]
+    [slot(13)]
     extern void release();
 }
 
@@ -34,11 +34,11 @@ unsafe struct EEUnit
 
     /// may unit enter the tile this object stands on (the path search's tile test 0x41D36A asks every object there):
     /// EEUnit's by its type data (a flag +0x600, its family, +0x568 - AoC moved them all) and its hit points
-    [slot(18), address((ee)0x006167C7, (aoc)0x006292C9), was("SLOT_UNIT_LETS_PASS")]
+    [slot(18), address((ee)0x006167C7, (aoc)0x006292C9)]
     extern int8 lets_pass(EEComplexUnit* unit);
     /// an attack's hit points (EEUnit::vf28 0x6172BC, the call 0x61E0B2), the attacker's player index, one 1; AoC put
     /// a stub (ret 4) at 28
-    [slot((ee)28, (aoc)29), was("SLOT_UNIT_DAMAGE")]
+    [slot((ee)28, (aoc)29)]
     extern void damage(EEComplexUnit* attacker, int32 dmg, int32 player, int32 one);
 
     /// freed: its slot 12 (+0x30), its references 0, then deleted
@@ -84,25 +84,25 @@ unsafe struct EEComplexUnit
     // FUNCTIONS (thiscall on the unit)
 
     /// its top speed (tiles/s; its group's with the group speed on) - every movement model asks it
-    [address((ee)0x0046123F, (aoc)0x0045E407), was("FN_UNIT_MAX_SPEED")]
+    [address((ee)0x0046123F, (aoc)0x0045E407)]
     extern float32 max_speed();
     /// its current waypoint (the list's front) into pt[3]: 0, else it has none (7)
-    [address((ee)0x005EC69D, (aoc)0x005FA229), was("FN_UNIT_WAYPOINT")]
+    [address((ee)0x005EC69D, (aoc)0x005FA229)]
     extern int32 waypoint(float32* pt);
     /// one more waypoint at the end of its list; keep_edge 1 keeps a point on the map's edge lines
-    [address((ee)0x005E8BAC, (aoc)0x005F625B), was("FN_ADD_WAYPOINT")]
+    [address((ee)0x005E8BAC, (aoc)0x005F625B)]
     extern void add_waypoint(float32* pt, int32 keep_edge);
     /// the goal into one of its goal slots
-    [address((ee)0x004412D4, (aoc)0x0043D416), was("FN_GIVE_GOAL")]
+    [address((ee)0x004412D4, (aoc)0x0043D416)]
     [call_site("unload_retry_give", (ee)0x0048D03C, (aoc)0x00491B12)]   // the resource manager's unload retry
     extern void give_goal(EEUnitGoal* goal, int32 slot);
     /// the goal as its order (append: after the ones it has)
-    [address((ee)0x005F05BD, (aoc)0x005FE863), was("FN_SET_GOAL")]
+    [address((ee)0x005F05BD, (aoc)0x005FE863)]
     [call_site("repair_goal", (ee)0x0046DA88, (aoc)0x004706DF)]         // the game's repair orders, handed over
     extern void set_goal(EEUnitGoal* goal, int8 append, int32 prio);
 
     /// freed: its slot 12 (+0x30), its references 0, then back to the game's pool (0x5F20FB / AoC 0x60096B)
-    [address((ee)0x005ED71E, (aoc)0x005FB7FB), overrides(typeof(RTSUnit)), was("FN_UNIT_RELEASE")]
+    [address((ee)0x005ED71E, (aoc)0x005FB7FB), overrides(typeof(RTSUnit))]
     [vtable_site("unit_release")]
     extern void release();
 }
@@ -131,7 +131,7 @@ unsafe struct EEGhostUnit
 static unsafe class unit
 {
     /// the aim of u's shot at target (0x633413: the shooter its first argument)
-    [address((ee)0x00633413, (aoc)0x0064939D), cdecl, was("FN_AIM")]
+    [address((ee)0x00633413, (aoc)0x0064939D), cdecl]
     [call_site("aim", (ee)0x0061E1D7, (aoc)0x006313D6)]                 // a unit's shot
     [call_site("missile_aim", (ee)0x0054E850, (aoc)0x0055B1C3)]         // a missile's
     static extern void aim(EEComplexUnit* u, EEUnit** target, float32* aim, void* zero);

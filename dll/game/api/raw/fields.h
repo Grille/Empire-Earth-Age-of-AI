@@ -575,7 +575,6 @@
     O(UNIT_REFS, 0x4, 0x4) /* c */ \
     O(UNIT_LIST_NODE, 0x8, 0x8) /* c */ \
     O(UNIT_VIS, 0x14, 0x14) /* c */ \
-    O(UNIT_OWNER, 0x18, 0x18) /* c */ \
     O(UNIT_X, 0x1C, 0x1C) /* c */ \
     O(UNIT_Y, 0x20, 0x20) /* c */ \
     O(UNIT_SERIAL, 0x24, 0x24) /* c */ \
@@ -590,22 +589,16 @@
     O(UNIT_QUEUE, 0x4C, 0x4C) /* c */ \
     O(UNIT_ID, 0x60, 0x60) /* c */ \
     O(UNIT_BUSY, 0x68, 0x68) /* c */ \
-    O(UNIT_MATRIX, 0x130, 0x130) /* b: the unit's matrix (GETransformation), its +0x4 .. +0x2C between fields of the same shift */ \
     O(UNIT_ATTACKER_TYPE, 0x1C0, 0x1C0) /* c */ \
     O(UNIT_CHAIN, 0x1CC, 0x1CC) /* c */ \
     O(UNIT_HOLDER, 0x1D8, 0x1D8) /* c */ \
     O(UNIT_AI_STATE, 0x1E8, 0x1E8) /* c */ \
     O(UNITLIST_UNITS, 0x4, 0x4) /* c: FN_GROUP_SECTOR_ROUTE's reads (both builds): a vector of ee_unit * (begin, end +4) */ \
     O(UNIT_SEA_MODE, 0x2E0, 0x2E4) /* c: EEPMNaval::vf21's step test (0x550300 / AoC 0x55xxxx's read of +0x2E4) against TILE_SEA_CLASS */ \
-    O(UNIT_WAYPOINTS, 0x7C, 0x7C) /* c: FN_UNIT_WAYPOINT's reads (both builds): the waypoint deque (+4 block map, +8 its size, +0xC the front's index, +0x10 the count; 0xCC 20-byte points a block) */ \
-    O(UNIT_WAYPOINTS_LEFT, 0x8C, 0x8C) /* c: port_fields EEUnit (1 vote); the waypoint deque's (+0x7C) size */ \
     O(UNIT_GOAL, 0x1EC, 0x1EC) /* c */ \
     O(UNIT_GOAL_OBJECT, 0x1F0, 0x1F0) /* c */ \
     O(UNIT_BEHAVIOUR, 0x208, 0x208) /* c */ \
-    O(UNIT_SPEED_MIN, 0x21C, 0x21C) /* c */ \
     O(UNIT_PUSH, 0x230, 0x230) /* c: the push velocity {x, y} (tiles/s; the collision test adds, SLOT_PM_PUSH moves the unit by it x a step x G_PHYS_SUBSTEPS and zeroes it) - FN_PM_COLLIDE in both builds */ \
-    O(UNIT_SPEED, 0x238, 0x238) /* c */ \
-    O(UNIT_SIZE, 0x244, 0x244) /* c: the type's size (+0x474) x the unit's scale, in tiles - a diameter to the circle test (EEPhysicsModel::vf15), the line's length to the ships' (EEPMNaval::vf16) - FN_PM_COLLIDE in both builds */ \
     O(UNIT_PRODUCING, 0x25C, 0x260) /* c */ \
     O(UNIT_MOVE_MODE, 0x264, 0x268) /* c: the movement mode (0x549F82 picks the model's step by it; 2 no collisions) - the push (SLOT_PM_PUSH) sets an idle unit's pushed walk (+0x260 13) only while it is neither 0 nor 5, in both builds */ \
     O(UNIT_MOVING, 0x2D8, 0x2DC) /* c: set while it moves (FN_PM_COLLIDE's first test in both builds) */ \

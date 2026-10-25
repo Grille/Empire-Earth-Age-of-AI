@@ -502,7 +502,7 @@ internal void cmd_hurt(char *out, const char *args) {
         if (!dup) hit[n++] = u;
     }
     for (int k = 0; k < n; k++)   // collected first: a dying object may leave its cell
-        unit_damage(hit[k], hit[k], dmg, p);
+        unit_damage(hit[k], hit[k], dmg, p, 1);
     REPLY("ok: %d objects hit for %d\n", n, dmg);
 }
 

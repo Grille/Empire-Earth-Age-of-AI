@@ -34,7 +34,6 @@
     /* EEComputerPlayer::vf45(cost object, ?, ?): pays a unit/building/tech */ \
     F(FN_CP_PAY, void, __thiscall, (void *, void *, int, int), 0x0043F53D, 0x0043ED98) \
     F(FN_CP_UPDATE, void, __thiscall, (ee_player *, uint32_t), 0x0043F91A, 0x0043F175) \
-    F(FN_GIVE_GOAL, void, __thiscall, (void *, void *, int), 0x004412D4, 0x0043D416) /* thiscall(unit, goal, slot) */ \
     F(FN_TASK_CTOR, void, __thiscall, (void *), 0x00441FB3, 0x0044162F)       /* an attack task */ \
     F(FN_TASK_SET_TARGET, void, __thiscall, (void *, void *), 0x00442246, 0x00441912) \
     F(FN_TASK_DTOR, void, __thiscall, (void *), 0x00442283, 0x004417F5) \
@@ -53,7 +52,6 @@
     F(FN_ATTACK_GROUP_NEW, uint8_t *, __thiscall, (void *, void *, void *, void *), 0x0045106C, 0x00451D8E) \
     F(FN_ASG_STATS, void, __thiscall, (void *), 0x0045AD2F, 0x0045C925) \
     F(FN_ASG_GIVE_GOAL, char, __thiscall, (void *, void *, void *, int, int), 0x0045CBEA, 0x0045E7F9) \
-    F(FN_UNIT_MAX_SPEED, float, __thiscall, (void *), 0x0046123F, 0x0045E407) /* thiscall(unit): its top speed (tiles/s; its group's with the group speed on) - every movement model asks it */ \
     F(FN_ASGU_SCORE, float, __thiscall, (ee_asg_unit *, ee_asgu_info *), 0x00461854, 0x00463494) /* float thiscall(info *) */ \
     F(FN_BM_QUEUED, char, __thiscall, (void *, int), 0x00465640, 0x004672FA)  /* thiscall(build manager, type): queued */ \
     F(FN_PLACE, char, __thiscall, (void *, int, int, int), 0x0046580A, 0x004674C4) \
@@ -180,13 +178,9 @@
     F(FN_CHAT_MSG_CTOR, void *, __thiscall, (void *, void *), 0x005C2A2F, 0x005D3196) /* new 0x24; (UWideString *) */ \
     F(FN_RESIGN_SEND, void, __cdecl, (void), 0x005D05CC, 0x005E0E7F) \
     F(FN_EXIT_CONFIRM, void, __cdecl, (void), 0x005D0B4F, 0x005E145B) \
-    F(FN_ADD_WAYPOINT, void, __thiscall, (void *, float *, int), 0x005E8BAC, 0x005F625B) /* thiscall(unit, float pt[3], 1): one more waypoint at the end of the unit's list (+0x7C); 1 keeps a point on the map's edge lines */ \
-    F(FN_UNIT_WAYPOINT, int, __thiscall, (void *, float *), 0x005EC69D, 0x005FA229) /* thiscall(unit, float out[3]): its current waypoint (the deque's front); 0, or 7 with none */ \
-    F(FN_UNIT_RELEASE, void, __thiscall, (void *), 0x005ED71E, 0x005FB7FB) \
     F(FN_POP_WAYPOINT, int, __thiscall, (void *), 0x005EDCF4, 0x005FBDD1) /* thiscall(unit): drops its current waypoint (the deque's front; GetNextMoveWaypoint); 0, or 7 with none */ \
     /* thiscall(unit, 0x1F51) - as the assignment does after the order */ \
     F(FN_UNIT_SET_STATE, void, __thiscall, (void *, int), 0x005EFCF0, 0x005FDFA5) \
-    F(FN_SET_GOAL, void, __thiscall, (void *, void *, char, int), 0x005F05BD, 0x005FE863) /* thiscall(unit, goal, 0, 0) */ \
     F(FN_UNIT_GOAL_QUEUE, void *, __thiscall, (void *, int), 0x005F3473, 0x005FA1CD) /* thiscall(unit, slot): the slot's goal queue (unit +0x94 a vector of 0x28-byte slots; +4 a deque of goal pointers: +4 block map, +8 its size, +0xC the front's index, +0x10 the count; 0x400 a block) - slot 0 the orders, the front the current, shift appends */ \
     /* EEUCMissile vf42, thiscall(class, missile, aim) - ret 8, the aim unused */ \
     F(FN_MISSILE_LAUNCH, int, __thiscall, (void *, void *, float *), 0x00606109, 0x0061799B) \
@@ -216,7 +210,6 @@
     F(FN_PLACE_BUILDING, void *, __cdecl, (void *, int, int, int), 0x0062EF8A, 0x00644C83) \
     /* cdecl(unit, player index, new type data) */ \
     F(FN_UNIT_CONVERT, int, __cdecl, (void *, int, uint32_t), 0x0062F192, 0x00644E95) \
-    F(FN_AIM, void, __cdecl, (ee_unit *, ee_unit **, float *, void *), 0x00633413, 0x0064939D) \
     F(FN_RANGE_SORT, void, __cdecl, (void **, void **, void *), 0x0063A355, 0x006509AF) \
     /* EEMHackANewUnit: thiscall(int *type, float xy[2], char player) */ \
     F(FN_NEW_UNIT_MSG_CTOR, void, __thiscall, (void *, int *, float *, char), 0x00650B3C, 0x00662C24) \
@@ -261,9 +254,7 @@
     D(SLOT_TECH_AVAILABLE, 1, 1)        /* EETechTreeNode: char thiscall(tech) */ \
     D(SLOT_GOAL_PART, 4, 4)             /* EEUGLoadTransport: a unit's part of the load goal */ \
     D(SLOT_GOAL_TARGET, 2, 2)           /* EEUGoal: thiscall(goal, unit, float out[3]) - where the goal sends the unit (PrepareToMove 0x6222A8) */ \
-    D(SLOT_UNIT_LETS_PASS, 18, 18)      /* EEUnit: char thiscall(object, unit) - may unit enter the object's tile (the path search's tile test 0x41D36A) */ \
     D(SLOT_GOAL_DROP, 19, 19)           /* EEUGLoadContainer: thiscall(goal, unit) - the unit out of its holder's load goal's pending passengers (0x613992; AoC 0x626229, the same code) */ \
-    D(SLOT_UNIT_DAMAGE, 28, 29)         /* EEUnit: thiscall(unit, attacker, damage, its player index, 1) - an attack's hit points (0x61E0B2); AoC put a stub (ret 4) at 28 */ \
     D(SLOT_TYPE_ASSIGN, 29, 29)         /* EEUnitClass: thiscall(type data, unit), as the game's goal assignment */ \
     D(SLOT_PLAYER_HUMAN, 29, 29)        /* EEPlayer: char thiscall(player) - human (EEHumanPlayer's returns 1; FN_HUMAN_EPOCH's test) */ \
     D(SLOT_UNIT_LIMIT, 31, 31)          /* EEPlayer: int thiscall(player, 0), the unit limit (FN_GAME_LIMIT) */ \
