@@ -492,7 +492,7 @@ internal uint32_t call_sel_pack;
 
 // movement.cs
 internal uint32_t vt_ee_physics_model;
-internal uint32_t value_movement_slot_pm_collide;
+internal uint32_t slot_physics_model_collide;
 internal uint32_t value_movement_slot_pm_push;
 internal uint32_t value_movement_slot_pm_speed_decide;
 internal uint32_t value_movement_slot_pm_speed_step;
@@ -1227,6 +1227,10 @@ internal uint32_t of_unit_type_melee;
 internal uint32_t of_unit_type_is_guard_tower;
 internal uint32_t of_unit_type_behaviours;
 internal uint32_t calls_fire[4];
+internal uint32_t slot_unit_type_launch;
+internal uint32_t vt_eeuc_missile;
+internal uint32_t vt_eeuc_projectile;
+internal uint32_t slot_unit_type_down;
 internal uint32_t of_unit_stats_type_data;
 internal uint32_t of_unit_stats_gfx;
 internal uint32_t of_unit_stats_height;
@@ -1244,12 +1248,8 @@ internal uint32_t of_unit_stats_reload;
 internal uint32_t of_unit_stats_hp;
 internal uint32_t vt_ee_to_hit_table;
 internal uint32_t data_unit_type_bonus_table;
-internal uint32_t value_unit_type_slot_missile_launch;
-internal uint32_t value_unit_type_slot_proj_down;
 internal uint32_t value_unit_type_slot_type_assign;
 internal uint32_t value_unit_type_slot_type_can_carry;
-internal uint32_t data_unit_type_vt_missile;
-internal uint32_t data_unit_type_vt_projectile;
 
 // world.cs
 internal uint32_t of_damage_model_map;

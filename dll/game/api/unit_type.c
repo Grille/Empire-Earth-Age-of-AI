@@ -21,18 +21,11 @@ internal inline float attack_bonus(ee_unit_type *atd, ee_unit_type *ttd, int api
 }
 // a projectile class's: the projectile down (1: on the ground or the target), a missile launched, a unit's shot fired
 // a unit type's projectile class (type data +0x3FC) by its vtable: a plain projectile (arrows, shells), a missile
-internal inline int is_projectile_class(const void *pc) { return *(const uintptr_t *)pc == data_unit_type_vt_projectile; }
-internal inline int is_missile_class(const void *pc) { return *(const uintptr_t *)pc == data_unit_type_vt_missile; }
+internal inline int is_projectile_class(const void *pc) { return *(const uintptr_t *)pc == vt_eeuc_projectile; }
+internal inline int is_missile_class(const void *pc) { return *(const uintptr_t *)pc == vt_eeuc_missile; }
 // the unit's type told that the unit got a goal (EEUnitClass's vtable, as the game's own goal assignment does)
 // may the transport (of this type) carry the unit: its family against the unit type's board flags (EEUCTransport only)
 internal inline char unit_type_can_carry(ee_unit_type *td, ee_unit *transport, ee_unit *u) {
     return ((char (__thiscall *)(void *, void *, void *))(*(void ***)td)[value_unit_type_slot_type_can_carry])(td, transport, u);
 }
 internal inline void unit_type_goal_assigned(ee_unit_type *td, ee_unit *u) { ((void (__thiscall *)(void *, void *))(*(void ***)td)[value_unit_type_slot_type_assign])(td, u); }
-
-// HOOKS
-// shots (aim.c): a projectile down, a missile launched, a shot fired
-typedef char (__thiscall *proj_down_hook)(void *cls, ee_unit *projectile);
-internal inline int patch_proj_down(proj_down_hook h) { return patch_vtable(data_unit_type_vt_projectile, value_unit_type_slot_proj_down, (uintptr_t)fn_proj_down, (void *)h); }
-typedef int (__thiscall *missile_launch_hook)(uint8_t *cls, ee_unit *m, float *aim);
-internal inline int patch_missile_launch(missile_launch_hook h) { return patch_vtable(data_unit_type_vt_missile, value_unit_type_slot_missile_launch, (uintptr_t)fn_missile_launch, (void *)h); }

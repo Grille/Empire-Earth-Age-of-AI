@@ -181,10 +181,10 @@ internal void __cdecl hook_aim(ee_unit *u, ee_unit **target, float *aim, void *z
 // Tests: real hits. EEUCProjectile vf55 (0x6078F9, thiscall(class, projectile)) returns 1 when the projectile is down:
 // on the target's footprint (a hit) or not (it hits the ground there).
 internal unsigned g_down, g_hits;
-internal char __thiscall hook_proj_down(void *cls, ee_unit *pr) {
+internal char __thiscall hook_proj_down(ee_unit_type *cls, ee_unit *pr) {
     ee_goal *goal = unit_get_goal_object(pr);
     ee_unit *t = goal && goal_get_state(goal) == 2 ? goal_get_target(goal) : NULL;
-    char r = proj_down(cls, pr);
+    char r = eeuc_projectile_down(cls, pr);
     if (r && t && g_measure) {
         g_down++;
         unsigned x = ((unsigned)unit_get_x(pr)), y = ((unsigned)unit_get_y(pr)), tx = ((unsigned)unit_get_x(t)),
@@ -324,8 +324,8 @@ internal int incoming(ee_unit *t) {
 }
 internal int doomed(ee_unit *t) { return unit_get_hp(t) > 0 && incoming(t) >= unit_get_hp(t); }
 
-internal int __thiscall hook_missile_launch(uint8_t *cls, ee_unit *m, float *aim) {   // ret 8: (missile, aim)
-    int r = missile_launch(cls, m, aim);
+internal int __thiscall hook_missile_launch(ee_unit_type *cls, ee_unit *m, float *aim) {   // ret 8: (missile, aim)
+    int r = eeuc_missile_launch(cls, m, aim);
     ee_goal *goal = unit_get_goal(m);
     ee_unit *t = goal && goal_get_state(goal) == 2 ? goal_get_target(goal) : NULL;
     g_launched++;

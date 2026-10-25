@@ -147,8 +147,8 @@ public sealed class overrides : Attribute
     public overrides(Type cls) { }
 }
 
-// the slot of an [overrides] function in its class's vtable, by a name of its own: the place a hook goes (the patch
-// checks the slot holds the function's address)
+// the slot of an [overrides] function (or of a [slot] with [address], the class's own) in its class's vtable, by a
+// name of its own: the place a hook goes (the patch checks the slot holds the function's address)
 [AttributeUsage(AttributeTargets.Method)]
 public sealed class vtable_site : Attribute
 {

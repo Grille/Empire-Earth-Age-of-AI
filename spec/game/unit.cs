@@ -171,7 +171,7 @@ unsafe struct EEComplexUnit
     [offset(0xC4), found(c)]
     void* contacts;
 
-    /// the count of contacts (0x5F240E adds one): model_collide (EEPhysicsModel::vf18 0x549E61, AoC vf19) runs only
+    /// the count of contacts (0x5F240E adds one): EEPhysicsModel.collide (vf18 0x549E61, AoC vf19) runs only
     /// while it is not 0 or a blocked time is left
     [offset(0xC8), found(c)]
     int32 contacts_count;
@@ -186,7 +186,7 @@ unsafe struct EEComplexUnit
     int32 anim_frame;
 
     /// radians/s, signed
-    /// the turn rate now (radians/s, signed) - model_collide in both builds, model_turn_decide's caller
+    /// the turn rate now (radians/s, signed) - EEPhysicsModel.collide in both builds, model_turn_decide's caller
     [offset(0x17C), found(c)]
     float32 turn_rate;
 
@@ -281,7 +281,7 @@ unsafe struct EEComplexUnit
 
     /// the push velocity (tiles/s)
     /// the push velocity {x, y} (tiles/s; the collision test adds, movement.slot_pm_push moves the unit by it x a step x
-    /// game.phys_substeps and zeroes it) - model_collide in both builds
+    /// game.phys_substeps and zeroes it) - EEPhysicsModel.collide in both builds
     [offset(0x230), found(c)]
     vec2 push;
 
@@ -378,7 +378,7 @@ unsafe struct EEComplexUnit
     int32 power;
 
     /// set while it moves
-    /// set while it moves (model_collide's first test in both builds)
+    /// set while it moves (EEPhysicsModel.collide's first test in both builds)
     [offset((ee)0x2D8, (aoc)0x2DC), found(c)]
     int32 moving;
 
@@ -525,7 +525,7 @@ unsafe struct EEComplexUnit
     float32 scale;
 
     /// the type's size (+0x474) x the unit's scale, in tiles - a diameter to the circle test (EEPhysicsModel::vf15), the
-    /// line's length to the ships' (EEPMNaval::vf16) - model_collide in both builds
+    /// line's length to the ships' (EEPMNaval::vf16) - EEPhysicsModel.collide in both builds
     [offset(0x244), found(c)]
     float32 size;
 

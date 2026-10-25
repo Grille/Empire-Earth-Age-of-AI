@@ -25,11 +25,18 @@ internal inline int physics_model_turn_decide(ee_physics_model *physics_model, e
 typedef void (__thiscall *physics_model_turn_towards_fn)(ee_physics_model *, ee_unit *, float *, float *, float *, float *, float *, char);
 internal physics_model_turn_towards_fn fn_physics_model_turn_towards;
 internal inline void physics_model_turn_towards(ee_physics_model *physics_model, ee_unit *u, float *pos, float *target, float *left, float *rate, float *heading, char facing) { fn_physics_model_turn_towards(physics_model, u, pos, target, left, rate, heading, facing); }
+// vf18 (AoC 19): the collision step, thiscall(model, unit) - after each movement mode's step (0x549F82 +0x48),
+// while the unit moves (+0x2D8, AoC +0x2DC) and has contacts (+0xC8) or a blocked time (+0x248): the contacts
+// tested (slot 14, AoC 15: the speed cut, the push +0x230/+0x234) and the push applied (movement.slot_pm_push) -
+// docs/engine-notes.md "Collision"
+typedef void (__thiscall *physics_model_collide_fn)(ee_physics_model *, ee_unit *);
+internal inline void physics_model_collide(ee_physics_model *physics_model, ee_unit *u) { ((physics_model_collide_fn)(*(void ***)physics_model)[slot_physics_model_collide])(physics_model, u); }
+internal physics_model_collide_fn fn_ee_physics_model_collide;
+internal inline void ee_physics_model_collide(ee_physics_model *physics_model, ee_unit *u) { fn_ee_physics_model_collide(physics_model, u); }
 
 // static class movement
 // movement's data of the game, places in its code and numbers
-// EEPhysicsModel: model_collide (after each movement mode's step, 0x549F82 +0x48)
-// EEPhysicsModel: the push applied (model_collide's +0xC; EEPMNaval::vf3 0x54F05E, AoC 0x55B9D1)
+// EEPhysicsModel: the push applied (EEPhysicsModel.collide's +0xC; EEPMNaval::vf3 0x54F05E, AoC 0x55B9D1)
 // EEPhysicsModel: model_speed_decide (AoC: its vf8 0x554BDE calls +0x28)
 // EEPhysicsModel: model_speed_step (the tick's +0x20)
 // EEPhysicsModel: model_turn_decide (called from the turn step 0x548266 / AoC 0x554738: +0x2C / +0x30)
@@ -43,15 +50,13 @@ internal inline uint8_t *movement_vt_pm_naval_at(void) { return (uint8_t *)(uint
 // EEPMSubmergedNaval, the submarines' movement
 internal inline uint8_t *movement_vt_pm_submerged_at(void) { return (uint8_t *)(uintptr_t)data_movement_vt_pm_submerged; }
 
-// static class movement_functions
-// the game's functions movement.c wraps, by the names the C side gives them
-// the ships' (and helicopters') slot 18 (AoC 19): a thunk to EEPhysicsModel::vf18 0x549E61 (AoC vf19 0x556710)
-// thiscall(model, unit), the collision step - while the unit moves (+0x2D8, AoC +0x2DC) and has contacts (+0xC8)
-// or a blocked time (+0x248): the contacts tested (slot 14, AoC 15: the speed cut, the push +0x230/+0x234) and
-// the push applied (movement.slot_pm_push) - docs/engine-notes.md "Collision"
-typedef void (__thiscall *model_collide_fn)(void *, ee_unit *);
-internal model_collide_fn fn_model_collide;
-internal inline void model_collide(void *model, ee_unit *u) { fn_model_collide(model, u); }
+// class EEPMLand (ee_physics_model)
+// the land units' movement (EEPMLand)
+// its collision step: a thunk to EEPhysicsModel's (collide) - the same function in the vtables of EEPMNaval,
+// EEPMSubmergedNaval, EEPMHovercraft and EEPMHelicopter (movement.vt_pm_*; AoC also EEPMSpaceship), which the
+// mod's collision hooks replace (game/api/movement.c)
+internal physics_model_collide_fn fn_eepm_land_collide;
+internal inline void eepm_land_collide(ee_physics_model *physics_model, ee_unit *u) { fn_eepm_land_collide(physics_model, u); }
 
 // the running build's values (spec_select, with addr_select): how many it hasn't got
 internal int spec_movement_select(int build) {
@@ -62,7 +67,8 @@ internal int spec_movement_select(int build) {
         fn_physics_model_speed_step = (physics_model_speed_step_fn)0x0054858E;
         fn_physics_model_turn_decide = (physics_model_turn_decide_fn)0x0054880E;
         fn_physics_model_turn_towards = (physics_model_turn_towards_fn)0x005484D9;
-        value_movement_slot_pm_collide = 18;
+        slot_physics_model_collide = 18;
+        fn_ee_physics_model_collide = (physics_model_collide_fn)0x00549E61;
         value_movement_slot_pm_push = 3;
         value_movement_slot_pm_speed_decide = 9;
         value_movement_slot_pm_speed_step = 8;
@@ -72,7 +78,7 @@ internal int spec_movement_select(int build) {
         data_movement_vt_pm_land = 0x0082CFB0;
         data_movement_vt_pm_naval = 0x0082CE30;
         data_movement_vt_pm_submerged = 0x0082CDD4;
-        fn_model_collide = (model_collide_fn)0x0054CABF;
+        fn_eepm_land_collide = (physics_model_collide_fn)0x0054CABF;
         return 0;
     case 1:   // aoc
         vt_ee_physics_model = 0x00842848;
@@ -80,7 +86,8 @@ internal int spec_movement_select(int build) {
         fn_physics_model_speed_step = (physics_model_speed_step_fn)0x00554BDE;
         fn_physics_model_turn_decide = (physics_model_turn_decide_fn)0x00554F56;
         fn_physics_model_turn_towards = (physics_model_turn_towards_fn)0x00554A25;
-        value_movement_slot_pm_collide = 19;
+        slot_physics_model_collide = 19;
+        fn_ee_physics_model_collide = (physics_model_collide_fn)0x00556710;
         value_movement_slot_pm_push = 3;
         value_movement_slot_pm_speed_decide = 10;
         value_movement_slot_pm_speed_step = 9;
@@ -90,7 +97,7 @@ internal int spec_movement_select(int build) {
         data_movement_vt_pm_land = 0x008427E8;
         data_movement_vt_pm_naval = 0x00842658;
         data_movement_vt_pm_submerged = 0x008425F8;
-        fn_model_collide = (model_collide_fn)0x0055BE0E;
+        fn_eepm_land_collide = (physics_model_collide_fn)0x0055BE0E;
         return 0;
     }
     return 0;
@@ -105,10 +112,12 @@ internal int spec_movement_check(void) {
     bad += spec_code((uintptr_t)fn_physics_model_speed_step, "EEPhysicsModel.speed_step");
     bad += spec_code((uintptr_t)fn_physics_model_turn_decide, "EEPhysicsModel.turn_decide");
     bad += spec_code((uintptr_t)fn_physics_model_turn_towards, "EEPhysicsModel.turn_towards");
+    bad += spec_code((uintptr_t)fn_ee_physics_model_collide, "EEPhysicsModel.collide");
+    bad += spec_slot(vt_ee_physics_model, slot_physics_model_collide, (uintptr_t)fn_ee_physics_model_collide, "EEPhysicsModel.collide [slot]");
     bad += spec_data(data_movement_vt_pm_hover, "movement.vt_pm_hover");
     bad += spec_data(data_movement_vt_pm_land, "movement.vt_pm_land");
     bad += spec_data(data_movement_vt_pm_naval, "movement.vt_pm_naval");
     bad += spec_data(data_movement_vt_pm_submerged, "movement.vt_pm_submerged");
-    bad += spec_code((uintptr_t)fn_model_collide, "movement_functions.model_collide");
+    bad += spec_code((uintptr_t)fn_eepm_land_collide, "EEPMLand.collide");
     return bad;
 }

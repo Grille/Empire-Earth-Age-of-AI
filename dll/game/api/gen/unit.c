@@ -148,7 +148,7 @@ internal inline int *unit_busy_at(const ee_unit *o) { return (int *)((uint8_t *)
 internal inline void *unit_get_contacts(const ee_unit *o) { return *(void **)((uint8_t *)o + of_unit_contacts); }
 internal inline void unit_set_contacts(ee_unit *o, void *v) { *(void **)((uint8_t *)o + of_unit_contacts) = v; }
 internal inline void **unit_contacts_at(const ee_unit *o) { return (void **)((uint8_t *)o + of_unit_contacts); }
-// the count of contacts (0x5F240E adds one): model_collide (EEPhysicsModel::vf18 0x549E61, AoC vf19) runs only
+// the count of contacts (0x5F240E adds one): EEPhysicsModel.collide (vf18 0x549E61, AoC vf19) runs only
 // while it is not 0 or a blocked time is left
 internal inline int unit_get_contacts_count(const ee_unit *o) { return *(int *)((uint8_t *)o + of_unit_contacts_count); }
 internal inline void unit_set_contacts_count(ee_unit *o, int v) { *(int *)((uint8_t *)o + of_unit_contacts_count) = v; }
@@ -163,7 +163,7 @@ internal inline int unit_get_anim_frame(const ee_unit *o) { return *(int *)((uin
 internal inline void unit_set_anim_frame(ee_unit *o, int v) { *(int *)((uint8_t *)o + of_unit_anim_frame) = v; }
 internal inline int *unit_anim_frame_at(const ee_unit *o) { return (int *)((uint8_t *)o + of_unit_anim_frame); }
 // radians/s, signed
-// the turn rate now (radians/s, signed) - model_collide in both builds, model_turn_decide's caller
+// the turn rate now (radians/s, signed) - EEPhysicsModel.collide in both builds, model_turn_decide's caller
 internal inline float unit_get_turn_rate(const ee_unit *o) { return *(float *)((uint8_t *)o + of_unit_turn_rate); }
 internal inline void unit_set_turn_rate(ee_unit *o, float v) { *(float *)((uint8_t *)o + of_unit_turn_rate) = v; }
 internal inline float *unit_turn_rate_at(const ee_unit *o) { return (float *)((uint8_t *)o + of_unit_turn_rate); }
@@ -260,7 +260,7 @@ internal inline void unit_set_heal_search_s(ee_unit *o, float v) { *(float *)((u
 internal inline float *unit_heal_search_s_at(const ee_unit *o) { return (float *)((uint8_t *)o + of_unit_heal_search_s); }
 // the push velocity (tiles/s)
 // the push velocity {x, y} (tiles/s; the collision test adds, movement.slot_pm_push moves the unit by it x a step x
-// game.phys_substeps and zeroes it) - model_collide in both builds
+// game.phys_substeps and zeroes it) - EEPhysicsModel.collide in both builds
 internal inline vec2 unit_get_push(const ee_unit *o) { return *(vec2 *)((uint8_t *)o + of_unit_push); }
 internal inline void unit_set_push(ee_unit *o, vec2 v) { *(vec2 *)((uint8_t *)o + of_unit_push) = v; }
 internal inline vec2 *unit_push_at(const ee_unit *o) { return (vec2 *)((uint8_t *)o + of_unit_push); }
@@ -361,7 +361,7 @@ internal inline int unit_get_power(const ee_unit *o) { return *(int *)((uint8_t 
 internal inline void unit_set_power(ee_unit *o, int v) { *(int *)((uint8_t *)o + of_unit_power) = v; }
 internal inline int *unit_power_at(const ee_unit *o) { return (int *)((uint8_t *)o + of_unit_power); }
 // set while it moves
-// set while it moves (model_collide's first test in both builds)
+// set while it moves (EEPhysicsModel.collide's first test in both builds)
 internal inline int unit_get_moving(const ee_unit *o) { return *(int *)((uint8_t *)o + of_unit_moving); }
 internal inline void unit_set_moving(ee_unit *o, int v) { *(int *)((uint8_t *)o + of_unit_moving) = v; }
 internal inline int *unit_moving_at(const ee_unit *o) { return (int *)((uint8_t *)o + of_unit_moving); }
@@ -514,7 +514,7 @@ internal inline float unit_get_scale(const ee_unit *o) { return *(float *)((uint
 internal inline void unit_set_scale(ee_unit *o, float v) { *(float *)((uint8_t *)o + of_unit_scale) = v; }
 internal inline float *unit_scale_at(const ee_unit *o) { return (float *)((uint8_t *)o + of_unit_scale); }
 // the type's size (+0x474) x the unit's scale, in tiles - a diameter to the circle test (EEPhysicsModel::vf15), the
-// line's length to the ships' (EEPMNaval::vf16) - model_collide in both builds
+// line's length to the ships' (EEPMNaval::vf16) - EEPhysicsModel.collide in both builds
 internal inline float unit_get_size(const ee_unit *o) { return *(float *)((uint8_t *)o + of_unit_size); }
 internal inline void unit_set_size(ee_unit *o, float v) { *(float *)((uint8_t *)o + of_unit_size) = v; }
 internal inline float *unit_size_at(const ee_unit *o) { return (float *)((uint8_t *)o + of_unit_size); }

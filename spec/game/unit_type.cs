@@ -263,6 +263,32 @@ unsafe struct EEUnitClass
     [call_site("fire", (ee)0x0060ABB0, (aoc)0x0061D174)]
     [call_site("fire", (ee)0x0060B33C, (aoc)0x0061D997)]
     extern void fire(EEUnit* u);
+
+    /// vf42 (AoC 43): a missile launched, thiscall(class, missile, aim) - ret 8; the base's returns 0 (0x475908, a
+    /// stub the linker shares), EEUCMissile's (and EEUCTorpedo's) launches
+    [slot((ee)42, (aoc)43)]
+    extern int32 launch(EEUnit* m, float32* aim);
+}
+
+/// a missile's type data (EEUCMissile; EEUCTorpedo derives from it and keeps its launch)
+[@base(typeof(EEUnitClass)), c_type("ee_unit_type"), vtable((ee)0x00832E90, (aoc)0x00848CF8)]
+unsafe struct EEUCMissile
+{
+    /// its launch (the aim unused)
+    [address((ee)0x00606109, (aoc)0x0061799B), overrides(typeof(EEUnitClass))]
+    [vtable_site("missile_launch")]
+    extern int32 launch(EEUnit* m, float32* aim);
+}
+
+/// a projectile's type data (EEUCProjectile; EEUCBomb derives from it and keeps its down)
+[@base(typeof(EEUnitClass)), c_type("ee_unit_type"), vtable((ee)0x00833060, (aoc)0x00848ED0)]
+unsafe struct EEUCProjectile
+{
+    /// vf55 (AoC 56), a slot of its own (EEUnitClass has 55): the projectile has come down - thiscall(class,
+    /// projectile)
+    [slot((ee)55, (aoc)56), address((ee)0x006078F9, (aoc)0x00619143)]
+    [vtable_site("proj_down")]
+    extern char8 down(EEUnit* projectile);
 }
 
 /// a unit type's per-player values, a unit's +0x34 (range, attack ...)
@@ -396,14 +422,6 @@ static unsafe class unit_type
     [address((ee)0x00917DE0, (aoc)0x009318E8)]
     static EEToHitTable bonus_table;
 
-    /// unit_type.vt_missile
-    [value((ee)42, (aoc)43)]
-    static uint32 slot_missile_launch;
-
-    /// unit_type.vt_projectile
-    [value((ee)55, (aoc)56)]
-    static uint32 slot_proj_down;
-
     /// EEUnitClass: thiscall(type data, unit), as the game's goal assignment
     [value(29)]
     static uint32 slot_type_assign;
@@ -412,23 +430,4 @@ static unsafe class unit_type
     /// (0x609095; AoC put a stub at 60)
     [value((ee)60, (aoc)61)]
     static uint32 slot_type_can_carry;
-
-    [address((ee)0x00832E90, (aoc)0x00848CF8)]
-    static vftable vt_missile;
-
-    /// EEUCProjectile
-    [address((ee)0x00833060, (aoc)0x00848ED0)]
-    static vftable vt_projectile;
-}
-
-/// the game's functions unit_type.c wraps, by the names the C side gives them
-[c_prefix("")]
-static unsafe class unit_type_functions
-{
-    /// EEUCMissile vf42, thiscall(class, missile, aim) - ret 8, the aim unused
-    [address((ee)0x00606109, (aoc)0x0061799B), thiscall]
-    static extern int32 missile_launch(void* cls, EEUnit* m, float32* aim);
-
-    [address((ee)0x006078F9, (aoc)0x00619143), thiscall]
-    static extern char8 proj_down(void* cls, void* projectile);
 }

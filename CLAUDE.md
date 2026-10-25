@@ -58,8 +58,8 @@ and the runners, eectl, the MCP server), `results/` (log readers, scorers), `re/
   wrong types are the spec's to fix). Still places (`code`, a hand-written installer): a call hooked by an asm thunk
   (no C type), an installer over two functions or by build. A function of the game on an object is a method of its class in the
   spec (`extern void update(uint32 now)` in EECPResourceManager: C resource_mgr_update); still in `<file>_functions` with
-  [thiscall]: those whose class isn't known yet (their object a void*; 12 since 2026-10-25, the runtime library's vector
-  ops among them). An object's class: its vtable's RTTI - in a running game (`peek` its first dword, then vtable-4 ->
+  [thiscall]: those whose class isn't known yet (their object a void*; 9 since 2026-10-25, the runtime library's vector
+  ops among them). A virtual function's class: the vtables that hold it, their RTTI and bases. An object's class: its vtable's RTTI - in a running game (`peek` its first dword, then vtable-4 ->
   locator +0xC -> type descriptor +8: `.?AVName@@`), a constructor's by the vtable it writes, scripts/re/vtables.py a
   class's in both exes; a class's [vtable] is checked by that name at load. The game's enums are the spec's too (`[c_prefix("SM_CAT")] enum sm_category : int32 { @object = 1, ... }`: gen/enums.c's
   SM_CAT_OBJECT ..., as the spec's integer type: enum sm_category : int32_t; the scenario editor's lists, the unit type's class_id: CLS_NAVAL ... - its family the field family, the data's Family ID). A name or type read from what the code does with a field, not confirmed, is `[guess]` with its evidence in the /// comment (the build insists; gen/ and Ghidra say "A GUESS"; `scripts/re/spec_guesses.py` lists them with the mod's uses - confirm one before the mod relies on it). Ghidra knows the spec too: scripts/re/spec_ghidra.py + ApplySpec.java (README "Setup") name

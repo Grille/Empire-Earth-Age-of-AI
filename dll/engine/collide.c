@@ -205,14 +205,14 @@ internal int uc_separate(int kind, ee_unit *u, int resting) {
 
 internal void __thiscall hook_collide(void *model, ee_unit *u) {
     int kind = model_kind(model);
-    if (!u || !g_uc_on[kind]) { model_collide(model, u); return; }
+    if (!u || !g_uc_on[kind]) { eepm_land_collide(model, u); return; }
     if (!unit_get_moving(u) || (unit_get_speed(u) == 0 && unit_get_turn_rate(u) == 0)) {
         // at rest: the game's step (its blocked time, the idle states), then, every UC_REST_EVERY steps, off the other
         // units at rest it overlaps - else units that stop on one spot (a rally point, a crowd) stay one blob; a unit
         // at work keeps its place. A push the game's contact test gave it (its circle test pushes the partner too) is
         // dropped: the units around a pair that couldn't part shuffled for ever
         unit_set_push(u, v2(0, 0));
-        model_collide(model, u);
+        eepm_land_collide(model, u);
         ee_physics *ph = game_physics();
         struct uc_rest *r = NULL;
         if (ph && !uc_work(u) && !unit_get_frozen(u) && unit_get_hp(u) > 0 && !unit_get_holder(u)

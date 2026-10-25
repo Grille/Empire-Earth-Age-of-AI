@@ -23,16 +23,19 @@ unsafe struct EEPhysicsModel
     /// front waypoint); ret 0x1C
     [address((ee)0x005484D9, (aoc)0x00554A25)]
     extern void turn_towards(EEUnit* u, float32* pos, float32* target, float32* left, float32* rate, float32* heading, char8 facing);
+
+    /// vf18 (AoC 19): the collision step, thiscall(model, unit) - after each movement mode's step (0x549F82 +0x48),
+    /// while the unit moves (+0x2D8, AoC +0x2DC) and has contacts (+0xC8) or a blocked time (+0x248): the contacts
+    /// tested (slot 14, AoC 15: the speed cut, the push +0x230/+0x234) and the push applied (movement.slot_pm_push) -
+    /// docs/engine-notes.md "Collision"
+    [slot((ee)18, (aoc)19), address((ee)0x00549E61, (aoc)0x00556710)]
+    extern void collide(EEUnit* u);
 }
 
 /// movement's data of the game, places in its code and numbers
 static unsafe class movement
 {
-    /// EEPhysicsModel: model_collide (after each movement mode's step, 0x549F82 +0x48)
-    [value((ee)18, (aoc)19)]
-    static uint32 slot_pm_collide;
-
-    /// EEPhysicsModel: the push applied (model_collide's +0xC; EEPMNaval::vf3 0x54F05E, AoC 0x55B9D1)
+    /// EEPhysicsModel: the push applied (EEPhysicsModel.collide's +0xC; EEPMNaval::vf3 0x54F05E, AoC 0x55B9D1)
     [value(3)]
     static uint32 slot_pm_push;
 
@@ -69,15 +72,13 @@ static unsafe class movement
     static vftable vt_pm_submerged;
 }
 
-/// the game's functions movement.c wraps, by the names the C side gives them
-[c_prefix("")]
-static unsafe class movement_functions
+/// the land units' movement (EEPMLand)
+[@base(typeof(EEPhysicsModel)), c_type("ee_physics_model")]
+unsafe struct EEPMLand
 {
-    /// the ships' (and helicopters') slot 18 (AoC 19): a thunk to EEPhysicsModel::vf18 0x549E61 (AoC vf19 0x556710)
-    /// thiscall(model, unit), the collision step - while the unit moves (+0x2D8, AoC +0x2DC) and has contacts (+0xC8)
-    /// or a blocked time (+0x248): the contacts tested (slot 14, AoC 15: the speed cut, the push +0x230/+0x234) and
-    /// the push applied (movement.slot_pm_push) - docs/engine-notes.md "Collision"
-    [address((ee)0x0054CABF, (aoc)0x0055BE0E), thiscall]
-    static extern void model_collide(void* model, EEUnit* u);
-
+    /// its collision step: a thunk to EEPhysicsModel's (collide) - the same function in the vtables of EEPMNaval,
+    /// EEPMSubmergedNaval, EEPMHovercraft and EEPMHelicopter (movement.vt_pm_*; AoC also EEPMSpaceship), which the
+    /// mod's collision hooks replace (game/api/movement.c)
+    [address((ee)0x0054CABF, (aoc)0x0055BE0E), overrides(typeof(EEPhysicsModel))]
+    extern void collide(EEUnit* u);
 }

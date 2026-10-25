@@ -46,7 +46,7 @@ internal inline int patch_land_speed_step(speed_step_hook h) {   // the land uni
 }
 // the collision step (slot 18, after each step of the movement: docs/engine-notes.md "Collision") of the ships',
 // the submarines', the land units' and the hovercraft's models (all hold the same thunk; the submarines' slot 14 tests
-// the tiles for other submarines) - the hook calls model_collide for what it leaves to the game, model_push to move
+// the tiles for other submarines) - the hook calls eepm_land_collide for what it leaves to the game, model_push to move
 // the unit by its push velocity (the model's own: the terrain and buildings tested, the larger axis no faster than
 // the top speed, under 0.02 tiles/s nothing; the push zeroed)
 typedef void (__thiscall *collide_hook)(void *model, ee_unit *u);
@@ -58,8 +58,8 @@ internal inline int model_kind(const void *model) {
     return vt == data_movement_vt_pm_naval ? MODEL_SHIPS : vt == data_movement_vt_pm_submerged ? MODEL_SUBS : vt == data_movement_vt_pm_land || vt == data_movement_vt_pm_hover ? MODEL_LAND : 0;
 }
 internal inline int patch_collide(int kind, collide_hook h) {   // a kind's models
-    if (kind == MODEL_SHIPS) return patch_vtable(data_movement_vt_pm_naval, value_movement_slot_pm_collide, (uintptr_t)fn_model_collide, (void *)h);
-    if (kind == MODEL_SUBS) return patch_vtable(data_movement_vt_pm_submerged, value_movement_slot_pm_collide, (uintptr_t)fn_model_collide, (void *)h);
-    return patch_vtable(data_movement_vt_pm_land, value_movement_slot_pm_collide, (uintptr_t)fn_model_collide, (void *)h)
-         + patch_vtable(data_movement_vt_pm_hover, value_movement_slot_pm_collide, (uintptr_t)fn_model_collide, (void *)h);
+    if (kind == MODEL_SHIPS) return patch_vtable(data_movement_vt_pm_naval, (int)slot_physics_model_collide, (uintptr_t)fn_eepm_land_collide, (void *)h);
+    if (kind == MODEL_SUBS) return patch_vtable(data_movement_vt_pm_submerged, (int)slot_physics_model_collide, (uintptr_t)fn_eepm_land_collide, (void *)h);
+    return patch_vtable(data_movement_vt_pm_land, (int)slot_physics_model_collide, (uintptr_t)fn_eepm_land_collide, (void *)h)
+         + patch_vtable(data_movement_vt_pm_hover, (int)slot_physics_model_collide, (uintptr_t)fn_eepm_land_collide, (void *)h);
 }

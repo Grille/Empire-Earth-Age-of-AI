@@ -265,6 +265,27 @@ typedef void (__thiscall *unit_type_fire_fn)(ee_unit_type *, ee_unit *);
 internal unit_type_fire_fn fn_unit_type_fire;
 internal inline void unit_type_fire(ee_unit_type *unit_type, ee_unit *u) { fn_unit_type_fire(unit_type, u); }
 internal inline int patch_fire(unit_type_fire_fn h, int *of) { return patch_calls(calls_fire, 4, (uintptr_t)fn_unit_type_fire, (void *)h, of); }
+// vf42 (AoC 43): a missile launched, thiscall(class, missile, aim) - ret 8; the base's returns 0 (0x475908, a
+// stub the linker shares), EEUCMissile's (and EEUCTorpedo's) launches
+typedef int (__thiscall *unit_type_launch_fn)(ee_unit_type *, ee_unit *, float *);
+internal inline int unit_type_launch(ee_unit_type *unit_type, ee_unit *m, float *aim) { return ((unit_type_launch_fn)(*(void ***)unit_type)[slot_unit_type_launch])(unit_type, m, aim); }
+
+// class EEUCMissile (ee_unit_type)
+// a missile's type data (EEUCMissile; EEUCTorpedo derives from it and keeps its launch)
+// its launch (the aim unused)
+internal unit_type_launch_fn fn_eeuc_missile_launch;
+internal inline int eeuc_missile_launch(ee_unit_type *unit_type, ee_unit *m, float *aim) { return fn_eeuc_missile_launch(unit_type, m, aim); }
+internal inline int patch_missile_launch(unit_type_launch_fn h) { return patch_vtable(vt_eeuc_missile, (int)slot_unit_type_launch, (uintptr_t)fn_eeuc_missile_launch, (void *)h); }
+
+// class EEUCProjectile (ee_unit_type)
+// a projectile's type data (EEUCProjectile; EEUCBomb derives from it and keeps its down)
+// vf55 (AoC 56), a slot of its own (EEUnitClass has 55): the projectile has come down - thiscall(class,
+// projectile)
+typedef char (__thiscall *unit_type_down_fn)(ee_unit_type *, ee_unit *);
+internal inline char unit_type_down(ee_unit_type *unit_type, ee_unit *projectile) { return ((unit_type_down_fn)(*(void ***)unit_type)[slot_unit_type_down])(unit_type, projectile); }
+internal unit_type_down_fn fn_eeuc_projectile_down;
+internal inline char eeuc_projectile_down(ee_unit_type *unit_type, ee_unit *projectile) { return fn_eeuc_projectile_down(unit_type, projectile); }
+internal inline int patch_proj_down(unit_type_down_fn h) { return patch_vtable(vt_eeuc_projectile, (int)slot_unit_type_down, (uintptr_t)fn_eeuc_projectile_down, (void *)h); }
 
 // class ee_unit_stats (ee_unit_stats)
 // a unit type's per-player values, a unit's +0x34 (range, attack ...)
@@ -350,24 +371,9 @@ internal inline float to_hit_table_attack_bonus(ee_to_hit_table *to_hit_table, i
 // unit_type's data of the game, places in its code and numbers
 // attack_bonus_game's object
 internal inline ee_to_hit_table *unit_type_bonus_table_at(void) { return (ee_to_hit_table *)(uint8_t *)(uintptr_t)data_unit_type_bonus_table; }
-// unit_type.vt_missile
-// unit_type.vt_projectile
 // EEUnitClass: thiscall(type data, unit), as the game's goal assignment
 // EEUCTransport: char thiscall(type data, transport, unit) - its family against the unit type's board flags
 // (0x609095; AoC put a stub at 60)
-internal inline uint8_t *unit_type_vt_missile_at(void) { return (uint8_t *)(uintptr_t)data_unit_type_vt_missile; }
-// EEUCProjectile
-internal inline uint8_t *unit_type_vt_projectile_at(void) { return (uint8_t *)(uintptr_t)data_unit_type_vt_projectile; }
-
-// static class unit_type_functions
-// the game's functions unit_type.c wraps, by the names the C side gives them
-// EEUCMissile vf42, thiscall(class, missile, aim) - ret 8, the aim unused
-typedef int (__thiscall *missile_launch_fn)(void *, ee_unit *, float *);
-internal missile_launch_fn fn_missile_launch;
-internal inline int missile_launch(void *cls, ee_unit *m, float *aim) { return fn_missile_launch(cls, m, aim); }
-typedef char (__thiscall *proj_down_fn)(void *, void *);
-internal proj_down_fn fn_proj_down;
-internal inline char proj_down(void *cls, void *projectile) { return fn_proj_down(cls, projectile); }
 
 // the running build's values (spec_select, with addr_select): how many it hasn't got
 internal int spec_unit_type_select(int build) {
@@ -433,6 +439,12 @@ internal int spec_unit_type_select(int build) {
         calls_fire[1] = 0x00607D79;
         calls_fire[2] = 0x0060ABB0;
         calls_fire[3] = 0x0060B33C;
+        slot_unit_type_launch = 42;
+        vt_eeuc_missile = 0x00832E90;
+        fn_eeuc_missile_launch = (unit_type_launch_fn)0x00606109;
+        vt_eeuc_projectile = 0x00833060;
+        slot_unit_type_down = 55;
+        fn_eeuc_projectile_down = (unit_type_down_fn)0x006078F9;
         of_unit_stats_type_data = 0x60;
         of_unit_stats_gfx = 0x68;
         of_unit_stats_height = 0x98;
@@ -451,14 +463,8 @@ internal int spec_unit_type_select(int build) {
         vt_ee_to_hit_table = 0x0082C920;
         fn_to_hit_table_attack_bonus = (to_hit_table_attack_bonus_fn)0x004D5F2C;
         data_unit_type_bonus_table = 0x00917DE0;
-        value_unit_type_slot_missile_launch = 42;
-        value_unit_type_slot_proj_down = 55;
         value_unit_type_slot_type_assign = 29;
         value_unit_type_slot_type_can_carry = 60;
-        data_unit_type_vt_missile = 0x00832E90;
-        data_unit_type_vt_projectile = 0x00833060;
-        fn_missile_launch = (missile_launch_fn)0x00606109;
-        fn_proj_down = (proj_down_fn)0x006078F9;
         return 0;
     case 1:   // aoc
         of_unit_type_vtable = 0x0;
@@ -521,6 +527,12 @@ internal int spec_unit_type_select(int build) {
         calls_fire[1] = 0x00619604;
         calls_fire[2] = 0x0061D174;
         calls_fire[3] = 0x0061D997;
+        slot_unit_type_launch = 43;
+        vt_eeuc_missile = 0x00848CF8;
+        fn_eeuc_missile_launch = (unit_type_launch_fn)0x0061799B;
+        vt_eeuc_projectile = 0x00848ED0;
+        slot_unit_type_down = 56;
+        fn_eeuc_projectile_down = (unit_type_down_fn)0x00619143;
         of_unit_stats_type_data = 0x60;
         of_unit_stats_gfx = 0x68;
         of_unit_stats_height = 0x98;
@@ -539,14 +551,8 @@ internal int spec_unit_type_select(int build) {
         vt_ee_to_hit_table = 0x008420C0;
         fn_to_hit_table_attack_bonus = (to_hit_table_attack_bonus_fn)0x004DBE44;
         data_unit_type_bonus_table = 0x009318E8;
-        value_unit_type_slot_missile_launch = 43;
-        value_unit_type_slot_proj_down = 56;
         value_unit_type_slot_type_assign = 29;
         value_unit_type_slot_type_can_carry = 61;
-        data_unit_type_vt_missile = 0x00848CF8;
-        data_unit_type_vt_projectile = 0x00848ED0;
-        fn_missile_launch = (missile_launch_fn)0x0061799B;
-        fn_proj_down = (proj_down_fn)0x00619143;
         return 0;
     }
     return 0;
@@ -561,12 +567,14 @@ internal int spec_unit_type_check(void) {
     bad += spec_call(calls_fire[1], (uintptr_t)fn_unit_type_fire, "EEUnitClass.fire [call_site fire 1]");
     bad += spec_call(calls_fire[2], (uintptr_t)fn_unit_type_fire, "EEUnitClass.fire [call_site fire 2]");
     bad += spec_call(calls_fire[3], (uintptr_t)fn_unit_type_fire, "EEUnitClass.fire [call_site fire 3]");
+    bad += spec_vtable(vt_eeuc_missile, ".?AVEEUCMissile@@", "EEUCMissile [vtable]");
+    bad += spec_code((uintptr_t)fn_eeuc_missile_launch, "EEUCMissile.launch");
+    bad += spec_slot(vt_eeuc_missile, slot_unit_type_launch, (uintptr_t)fn_eeuc_missile_launch, "EEUCMissile.launch [slot]");
+    bad += spec_vtable(vt_eeuc_projectile, ".?AVEEUCProjectile@@", "EEUCProjectile [vtable]");
+    bad += spec_code((uintptr_t)fn_eeuc_projectile_down, "EEUCProjectile.down");
+    bad += spec_slot(vt_eeuc_projectile, slot_unit_type_down, (uintptr_t)fn_eeuc_projectile_down, "EEUCProjectile.down [slot]");
     bad += spec_vtable(vt_ee_to_hit_table, ".?AVEEToHitTable@@", "EEToHitTable [vtable]");
     bad += spec_code((uintptr_t)fn_to_hit_table_attack_bonus, "EEToHitTable.attack_bonus");
     bad += spec_data(data_unit_type_bonus_table, "unit_type.bonus_table");
-    bad += spec_data(data_unit_type_vt_missile, "unit_type.vt_missile");
-    bad += spec_data(data_unit_type_vt_projectile, "unit_type.vt_projectile");
-    bad += spec_code((uintptr_t)fn_missile_launch, "unit_type_functions.missile_launch");
-    bad += spec_code((uintptr_t)fn_proj_down, "unit_type_functions.proj_down");
     return bad;
 }
