@@ -1392,11 +1392,65 @@ internal void cmd_profile(const char *args, char *out) {
     for (int i = 0; i < nt; i++) CloseHandle(th[i].h);
 }
 
+// mapshot <name> [size]: the whole map as the game's Ctrl/Shift+F9 draw it (size 1024, 2048 or 4096 pixels square,
+// default 1024), the game paused meanwhile -> aimod_dumps/<name>.bmp. The game writes the next free EE###.bmp (.jpg
+// with "Take JPG Screenshots") in the game folder: it creates the name empty (FSFileSpec::Create, the next free
+// number), renders, then GESurface::Save fills it. The first such file written after the request, once it has
+// content and the graphics thread has let go of it, is moved there - a player's own F9 at the same moment could be
+// taken instead. The picture is twice as wide as high (the map's diamond: 1024 -> 1024 x 512).
+internal void cmd_mapshot(const char *args, char *out) {
+    char name[64] = "map";
+    int size = 1024;
+    sscanf(args, "%63s %d", name, &size);
+    if (size != 1024 && size != 2048 && size != 4096) { REPLY("error: size 1024, 2048 or 4096\n"); return; }
+    ee_world *w = game_world();
+    if (!w || !game_map() || !game_physics()) { REPLY("error: no game running\n"); return; }
+    CreateDirectoryA("aimod_dumps", NULL);
+    char dir[MAX_PATH], dst[MAX_PATH];
+    DWORD dn = GetFullPathNameA("aimod_dumps", sizeof dir, dir, NULL);
+    if (!dn || dn >= sizeof dir || snprintf(dst, sizeof dst, "%s\\%s.bmp", dir, name) >= (int)sizeof dst) {
+        REPLY("error: the picture's path is too long\n");
+        return;
+    }
+    FILETIME t0;
+    GetSystemTimeAsFileTime(&t0);
+    ULARGE_INTEGER since = { .LowPart = t0.dwLowDateTime, .HighPart = t0.dwHighDateTime };
+    since.QuadPart -= 20000000;   // 2 s: the file system's write times are coarse
+    world_screenshot(w, size, 0);
+    for (int i = 0; i < 1200; i++) {   // 60 s: a 4096 map renders in tiles, the BMP is 48 MB
+        Sleep(50);
+        WIN32_FIND_DATAA f;
+        HANDLE h = FindFirstFileA("EE???.*", &f);
+        if (h == INVALID_HANDLE_VALUE) continue;
+        char got[MAX_PATH] = "";
+        do {
+            ULARGE_INTEGER t = { .LowPart = f.ftLastWriteTime.dwLowDateTime, .HighPart = f.ftLastWriteTime.dwHighDateTime };
+            const char *ext = f.cFileName + 5;
+            if (strlen(f.cFileName) == 9 && t.QuadPart >= since.QuadPart && (f.nFileSizeLow || f.nFileSizeHigh) && (!_stricmp(ext, ".bmp") || !_stricmp(ext, ".jpg"))) lstrcpynA(got, f.cFileName, sizeof got);
+        } while (!got[0] && FindNextFileA(h, &f));
+        FindClose(h);
+        if (!got[0]) continue;
+        // still being written while the game holds it open
+        HANDLE x = CreateFileA(got, GENERIC_READ, 0, NULL, OPEN_EXISTING, 0, NULL);
+        if (x == INVALID_HANDLE_VALUE) continue;
+        CloseHandle(x);
+        if (_stricmp(got + 5, ".jpg") == 0) memcpy(dst + strlen(dst) - 4, ".jpg", 4);
+        if (!MoveFileExA(got, dst, MOVEFILE_REPLACE_EXISTING | MOVEFILE_COPY_ALLOWED)) {
+            REPLY("error: %s written, not moved (%lu)\n", got, GetLastError());
+            return;
+        }
+        REPLY("ok: %s (size %d, %.1f s)\n", dst, size, (i + 1) * 0.05);
+        return;
+    }
+    REPLY("error: no EE###.bmp within 60 s\n");
+}
+
 // headless test commands (pipe thread, also in the menus and the editor):
 //   vmouse <x> <y>               game cursor to x, y (game coordinates; "vmouse off" = back to the real mouse)
 //   vclick <x> <y> [right|mid]   move there and click
 //   shot <name>                  next presented frame -> aimod_dumps/<name>.bmp
 internal void cmd_headless(const char *verb, const char *args, char *out) {
+    if (!strcmp(verb, "mapshot")) { cmd_mapshot(args, out); return; }
     if (!strcmp(verb, "shot")) {
         char name[64] = "shot";
         sscanf(args, "%63s", name);

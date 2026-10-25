@@ -222,6 +222,10 @@
     F(FN_NEW_UNIT_MSG_CTOR, void, __thiscall, (void *, int *, float *, char), 0x00650B3C, 0x00662C24) \
     F(FN_SET_RESOLUTION, void, __stdcall, (int, int, int, int), 0x0065F314, 0x006768FE) \
     F(FN_QUEUE_ACTION, void, __thiscall, (void *, void *), 0x0066192F, 0x00678F79) \
+    /* thiscall([G_WORLD], size, run on, 0): the screenshot keys' request (F9's handler 0x6632E9) - size -1 the screen,
+       else the whole map as explored, size x size/2 pixels (the keys: 1024, 4096), with run on 0 the game paused meanwhile; posted to
+       the UI thread (0x41B), the graphics thread writes EE###.bmp (.jpg with "Take JPG Screenshots") */ \
+    F(FN_SCREENSHOT, void, __thiscall, (void *, int, int, int), 0x00661B04, 0x00679139) \
     /* thiscall(ui [G_UI], colour, name, line, ms, 0): a chat or system line */ \
     F(FN_UI_LINE, void, __thiscall, (void *, void *, void *, void *, int, int), 0x00661E91, 0x006794C6) \
     F(FN_NEW, void *, __cdecl, (size_t), 0x00683718, 0x0069D178)              /* the game's operator new */ \
