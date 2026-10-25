@@ -64,7 +64,9 @@ and the runners, eectl, the MCP server), `results/` (log readers, scorers), `re/
   test runs play it, `EE_GAME_DIR=<its folder>`, docs/testing.md); a new value needs both. The port scripts read the
   spec (`scripts/re/port_addrs.py`: every address's AoC value found again and compared with the spec's - same,
   DIFFERS, NEW; `port_check.py` a class's fields by its code; `port_fields.py`, `port_dll.py`): a value they find goes
-  into the spec by hand, one found by hand also into port_addrs.py's EXE_HAND. Code that differs by more
+  into the spec by hand, one found by hand also into port_addrs.py's EXE_HAND. AoC's function
+  list for the pairing is local/games/aoc/decomp/'s from before its Ghidra project split 2787 functions (the newer list
+  pairs 10 addresses fewer; decomp.named/ has the decompilation with the spec's names). Code that differs by more
   than an address: `build_is("aoc")` (AoC rewrote a few functions - docs/engine-notes.md).
 - `dll/game/api/`: a file per object of the game (`unit.c`, `player.c`, `attack.c`, `tech.c` ...): the hand-written
   code over the generated - accessors that read more than one field (`unit_get_pos(u)`), wrappers that do more than

@@ -115,7 +115,9 @@ EXE_HAND = {
     0x0054880E: (0x00554F56, 'model_turn_decide, slot 11 (AoC 12): its rewrite - the same code (0x554E98) is AoC\'s slot 11, '
                  'the base\'s slot 10, which the base fills with this function too'),
     0x005DC902: (0x005ED231, 'call_slot_goal: the group dispatch\'s call of goal_move_at (AoC 9 calls of it there, the base 8)'),
-    0x006167C7: (0x006292C9, 'EEUnit.lets_pass: slot 18 of EEUnit\'s vtable (AoC 0x847A20), unpaired by its code'),
+    0x005D05CC: (0x005E0E7F, 'game_functions.resign_send: a function of its own in the 2017 list (ApplySpec made it), inside '
+                 'another in AoC\'s (local/games/aoc/decomp/: the list from before its project split 2787 functions)'),
+    0x006167C7: (0x006292C9,'EEUnit.lets_pass: slot 18 of EEUnit\'s vtable (AoC 0x847A20), unpaired by its code'),
 }
 
 def texts(e, f): return [t for _, _, t, _ in e.insns(f)]
