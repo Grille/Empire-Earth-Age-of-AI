@@ -2,7 +2,7 @@
 // fields, functions, hooks.
 
 // FIELDS
-// THE CAMERA ([G_CAMERA], game_camera()) AND THE SCROLL ACTION (EEAScroll)
+// THE CAMERA ([data_game_camera], game_camera()) AND THE SCROLL ACTION (EEAScroll)
 internal inline float *camera_look_at(const ee_camera *cam) { return (float *)FIELD_AT(cam, of_camera_x); }   // +0x78 x, y, z
 internal inline float camera_get_y(const ee_camera *cam) { return FIELD(cam, of_camera_x + 0x4, float); }
 // +0x44 .. +0x47 the keys held: left, right, down, up
@@ -47,25 +47,25 @@ internal inline void uiform_add_hotkey(void *form, unsigned long key, void *ev) 
 // the UI manager's current form, an edit box's text, the settings saved to the registry (as the options screens do)
 internal inline ee_ui_form *ui_current_form(void *uim) { return ((ee_ui_form *(__thiscall *)(void *))*(void **)data_ui_iat_uim_form)(uim); }
 internal inline const char *edit_text(void *edit) { return ((const char *(__thiscall *)(void *, unsigned long))*(void **)data_ui_iat_edit_get_text)(edit, 0); }
-// A COMMAND'S CIRCLES (transports.c): the graphical effects' kinds by their ids (FN_GFX_KIND's records; the same in
+// A COMMAND'S CIRCLES (transports.c): the graphical effects' kinds by their ids (gfx_kind_game's records; the same in
 // both builds) - what the code that draws them shows them for
 enum gfx_kind {
-    GFX_ORDER_ON = 0xB8,       // the circle at a unit's goal, drawn with the unit (FN_ORDER_MARKS, per unit); its colour the unit's order's - yellow an unload, else purple (seen with a load)
-    GFX_ORDER_ATTACK = 0xB9,   // the attack-ground command's (FN_ORDER_MARKS)
-    GFX_ORDER_AT = 0xBA,       // the yellow circle at a goal (FN_ORDER_MARKS: one for the group); with a unit it is drawn on the unit (seen), its size scaled by the unit's - without, the record's size ends it before it is grown (seen): gfx_mark sizes it
+    GFX_ORDER_ON = 0xB8,       // the circle at a unit's goal, drawn with the unit (order_marks, per unit); its colour the unit's order's - yellow an unload, else purple (seen with a load)
+    GFX_ORDER_ATTACK = 0xB9,   // the attack-ground command's (order_marks)
+    GFX_ORDER_AT = 0xBA,       // the yellow circle at a goal (order_marks: one for the group); with a unit it is drawn on the unit (seen), its size scaled by the unit's - without, the record's size ends it before it is grown (seen): gfx_mark sizes it
     GFX_CLICK = 0xD1,          // the click confirmation on the ground (the mouse click, 0x404A26; 0x663138)
     GFX_CLICK_ON = 0xD3,       // the click confirmation on the unit clicked
     GFX_GOAL_0 = 0x60, GFX_GOAL_1 = 0x62, GFX_GOAL_2 = 0xD2,   // the selected units' goal markers (the graphical goal
     GFX_GOAL_3 = 0xD4, GFX_GOAL_4 = 0xD5, GFX_GOAL_5 = 0xD6,   // manager 0x4FCDF9, its six kinds 0..5: 0x4FCB50)
 };
-enum { ORDER_MARKS_GOALS = 0xBB };   // FN_ORDER_MARKS' how: a GFX_ORDER_ON at each unit's goal (the group's unload's)
+enum { ORDER_MARKS_GOALS = 0xBB };   // order_marks' how: a GFX_ORDER_ON at each unit's goal (the group's unload's)
 // graphical effects by handle - added (the original of the click's hook), gone already (they fade) or taken away (as
 // the game's area effects end theirs); a command's circles as the game draws them (every PC, seen by owner - a player
 // index): of kind k at a tile's centre on the ground, or at each of a group's units' goals
 internal inline int gfx_alive(int handle) { return fn_gfx_get(*(void **)data_ui_gfx_effects, handle) != NULL; }
 internal inline void gfx_remove(int handle) { if (gfx_alive(handle)) fn_gfx_remove_game(*(void **)data_ui_gfx_effects, handle); }
 // - sized as for a unit of type size_of (NULL: the record's own size): drawn without the unit (with one it is drawn on
-// the unit, coloured by its order), then the size the effect's set-up (vf12, run once in FN_GFX_ADD) gives a unit's
+// the unit, coloured by its order), then the size the effect's set-up (vf12, run once in gfx_add) gives a unit's
 internal inline void gfx_mark(enum gfx_kind k, const ee_unit_type *size_of, int x, int y, int owner) {
     void *fx = *(void **)data_ui_gfx_effects, *rec = fn_gfx_kind_game((unsigned)k);
     ee_map *map = game_map();

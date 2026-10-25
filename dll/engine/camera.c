@@ -2,11 +2,11 @@
 // aimod.ini [camera] scroll = game | ee | aoc (game, the default: the running build's own - EE's in Empire Earth,
 // AoC's in AoC).
 //
-// Scrolling (mouse at the screen edge / keys) is the action EEAScroll (VT_SCROLL, slot 1 Execute FN_SCROLL_EXECUTE),
-// queued by a timer (its ctor: `push 0x19` - 25 ms - at SITE_SCROLL_TIMER; AoC's `push 0xA`, 10 ms). The fields are
+// Scrolling (mouse at the screen edge / keys) is the action EEAScroll (data_ui_vt_scroll, slot 1 Execute scroll_execute),
+// queued by a timer (its ctor: `push 0x19` - 25 ms - at data_ui_site_scroll_timer; AoC's `push 0xA`, 10 ms). The fields are
 // the same in both: +0x40 elapsed timer ticks, +0x44 left, +0x45 right, +0x46 down, +0x47 up. EE moves the camera at a
 // constant speed:
-//   step = (speed G_SCROLL_SPEED + 0.5) * (scroll setting G_SCROLL_SETTING + 0.5) * ticks * 0.25
+//   step = (speed data_game_scroll_speed + 0.5) * (scroll setting data_game_scroll_setting + 0.5) * ticks * 0.25
 // AoC (EE-AOC.exe 0x40478E) keeps a velocity per axis (globals 0x8E5BE4 x, 0x8E5BE0 y) that starts at 10% and ramps
 // up to full speed (+1% of the maximum per elapsed tick; with its +0x48 byte clear - the ctor sets it - at once);
 // reversing an axis starts slow again and the velocity is reset when scrolling stops. The top speed is the same as
@@ -28,7 +28,7 @@ internal volatile LONG g_scroll_calls;   // scroll steps run (for camtrace)
 // so itself - the arrow key down, or the cursor at that edge of the game's foreground window (windowed and
 // borderless; native fullscreen's DirectInput mouse isn't the OS cursor) - up to CAM_HOLD_MS. Same speeds as
 // before: EE (speed + 0.5) * (setting + 0.5) * 0.01 tiles per ms; AoC ramps its velocity from 10% to that by 1%
-// of the top speed per 10 ms. The game's camera move (FN_CAMERA_MOVE) sets the scene's camera node, which is what
+// of the top speed per 10 ms. The game's camera move (camera_move_game) sets the scene's camera node, which is what
 // the render thread draws from - between its frames it has the node to itself.
 #define CAM_FRESH_MS 40    // the game's last step this recent: its directions stand
 #define CAM_HOLD_MS 500    // a late step's directions kept this long while the input agrees

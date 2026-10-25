@@ -12,7 +12,7 @@
 [size(0x2C), c_type("ee_unit")]   // EEUnit's own fields from +0x2C (its constructor 0x616BDD clears +0x2C .. +0x44)
 unsafe struct RTSUnit
 {
-    // FIELDS (raw/fields.h)
+    // FIELDS
 
     /// references (release 0x4FCAD3)
     [offset(0x4), found(c)]
@@ -52,7 +52,7 @@ unsafe struct RTSUnit
     // VIRTUAL FUNCTIONS
 
     /// the object freed: the release 0x4FCAD3 calls it when the last reference goes (RTSUnit::vf13 0x628D98 jumps
-    /// to the imported release, IAT_RELEASE)
+    /// to the imported release, game.iat_release)
     [slot(13)]
     extern void release();
 }
@@ -62,7 +62,7 @@ unsafe struct RTSUnit
 [vtable((ee)0x00831FD8, (aoc)0x00847A20)]
 unsafe struct EEUnit
 {
-    // FIELDS (raw/fields.h)
+    // FIELDS
 
     /// its type's data (TD)
     [offset(0x2C), found(c)]
@@ -109,7 +109,7 @@ unsafe struct EEUnit
 [vtable((ee)0x00831494, (aoc)0x00846DDC)]
 unsafe struct EEComplexUnit
 {
-    // FIELDS (raw/fields.h)
+    // FIELDS
 
     /// a building's queue
     [offset(0x4C), found(c)]
@@ -123,7 +123,7 @@ unsafe struct EEComplexUnit
     int32 busy;
 
     /// radians/s, signed
-    /// the turn rate now (radians/s, signed) - FN_PM_COLLIDE in both builds, FN_TURN_DECIDE's caller
+    /// the turn rate now (radians/s, signed) - model_collide in both builds, model_turn_decide's caller
     [offset(0x17C), found(c)]
     float32 turn_rate;
 
@@ -155,8 +155,8 @@ unsafe struct EEComplexUnit
     void* behaviour;
 
     /// the push velocity (tiles/s)
-    /// the push velocity {x, y} (tiles/s; the collision test adds, SLOT_PM_PUSH moves the unit by it x a step x
-    /// G_PHYS_SUBSTEPS and zeroes it) - FN_PM_COLLIDE in both builds
+    /// the push velocity {x, y} (tiles/s; the collision test adds, movement.slot_pm_push moves the unit by it x a step x
+    /// game.phys_substeps and zeroes it) - model_collide in both builds
     [offset(0x230), found(c)]
     vec2 push;
 
@@ -165,7 +165,7 @@ unsafe struct EEComplexUnit
     int32 producing;
 
     /// the movement mode
-    /// the movement mode (0x549F82 picks the model's step by it; 2 no collisions) - the push (SLOT_PM_PUSH) sets an
+    /// the movement mode (0x549F82 picks the model's step by it; 2 no collisions) - the push (movement.slot_pm_push) sets an
     /// idle unit's pushed walk (+0x260 13) only while it is neither 0 nor 5, in both builds
     [offset((ee)0x264, (aoc)0x268), found(c)]
     int32 move_mode;
@@ -184,7 +184,7 @@ unsafe struct EEComplexUnit
     int32 room;
 
     /// set while it moves
-    /// set while it moves (FN_PM_COLLIDE's first test in both builds)
+    /// set while it moves (model_collide's first test in both builds)
     [offset((ee)0x2D8, (aoc)0x2DC), found(c)]
     int32 moving;
 
@@ -228,7 +228,7 @@ unsafe struct EEComplexUnit
     [offset(0x238), found(c)]
     float32 speed;
     /// the type's size (+0x474) x the unit's scale, in tiles - a diameter to the circle test (EEPhysicsModel::vf15), the
-    /// line's length to the ships' (EEPMNaval::vf16) - FN_PM_COLLIDE in both builds
+    /// line's length to the ships' (EEPMNaval::vf16) - model_collide in both builds
     [offset(0x244), found(c)]
     float32 size;
 
@@ -277,7 +277,7 @@ unsafe struct EEGhostUnit
     /// the player it is for (its +0x45C, the index, read by the destructor)
     [offset(0x294), found(c)]
     EEPlayer* player;
-    /// its type's data (G_TYPES[type id])
+    /// its type's data (game.types[type id])
     [offset(0x298), found(c)]
     EEUnitClass* type_data;
     /// set: the destructor doesn't tell 0x4CEEF4

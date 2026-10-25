@@ -1,4 +1,4 @@
-// A TECH TREE NODE'S CHILDREN - the techs an epoch's node grants (FN_EPOCH_UPGRADES walks them). Each child is a tech
+// A TECH TREE NODE'S CHILDREN - the techs an epoch's node grants (data_tech_fn_epoch_upgrades walks them). Each child is a tech
 // node of its own (vtable, +4 researched, +8 its data). The 2017 update keeps them in the node: a vector of 0x20-byte
 // child nodes at +0x24 .. +0x28. Art of Conquest keeps pointers to them in a map, its head at +0x28 (the runtime
 // library's tree: node +0 left, +4 parent, +8 right, the child +0x10, +0x15 the head's mark).

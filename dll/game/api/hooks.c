@@ -70,14 +70,14 @@ internal inline int patch_font_movzx(HMODULE lle) {
     return ok;
 }
 // THE DRAW LIST (drawlist.c): the objects on screen each frame - a fixed array of DRAW_OLD_N records of DRAW_REC bytes at
-// DRAW_OLD (EEROUnits::vf0 collects them, the render thread draws them) - moved to limit records: the operands (all
+// data_hooks_draw_old (EEROUnits::vf0 collects them, the render thread draws them) - moved to limit records: the operands (all
 // in the render code, found by a disassembly scan: two 512 limits, the array's references) checked first, all or
 // nothing. 1: moved (*recs the new records, each built with the game's constructor), 0: the exe differs (*ok of *n
 // operands as expected), -1: no memory.
 #define DRAW_REC 0x148
 #define DRAW_OLD_N 0x200
 internal inline int patch_draw_list(int limit, uint8_t **recs, int *ok_out, int *n_out) {
-    const uint32_t *at = data_hooks_draw_sites;   // in this order (raw/hooks.h)
+    const uint32_t *at = data_hooks_draw_sites;   // in this order (spec/game/hooks.cs)
     const struct { uint32_t at, want; int kind; } k[] = {
         { at[0], 0x200, 0 },                     // cmp [0x912538], 0x200 (0x5008B8: room for one more)
         { at[1], 0x200, 0 },                     // push 0x200 (0x5035AD: its sub-objects)
@@ -107,14 +107,14 @@ internal inline int patch_draw_list(int limit, uint8_t **recs, int *ok_out, int 
     *recs = r;
     return 1;
 }
-// the small objects' list the same way (0x600 records of 0x3C at DRAW_SMALL_OLD; the static constructor 0x506333 only
+// the small objects' list the same way (0x600 records of 0x3C at data_hooks_draw_small_old; the static constructor 0x506333 only
 // zeroes their first 3 dwords, +0xC a handle the frame's start releases (0x500CE6) - a zeroed allocation is the same)
 #define DRAW_SMALL_REC 0x3C
 #define DRAW_SMALL_OLD_N 0x600
 internal inline int patch_draw_small(int limit, uint8_t **recs, int *ok_out, int *n_out) {
-    const uint32_t *at = data_hooks_draw_small_sites;   // in this order (raw/hooks.h)
+    const uint32_t *at = data_hooks_draw_small_sites;   // in this order (spec/game/hooks.cs)
     const struct { uint32_t at, want; int kind; } k[] = {
-        { at[0], DRAW_SMALL_OLD_N, 0 },          // cmp [G_DRAW_SMALL_N], 0x600 (0x5008B8: room for one more)
+        { at[0], DRAW_SMALL_OLD_N, 0 },          // cmp [data_game_draw_small_n], 0x600 (0x5008B8: room for one more)
         { at[1], DRAW_SMALL_OLD_N, 0 },          // push 0x600 (0x502224: its sub-objects)
         { at[2], data_hooks_draw_small_old, 1 },        // push records (0x500CE6: frame start)
         { at[3], data_hooks_draw_small_old + 0x24, 1 }, // add eax, records +0x24 (collection)

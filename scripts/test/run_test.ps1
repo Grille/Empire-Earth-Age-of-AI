@@ -28,8 +28,8 @@ if (-not $g -and (Test-Path "$repo\local\game_dir.txt")) { $g = (Get-Content "$r
 if (-not $g) { $g = Split-Path $repo -Parent }
 if (-not $Exe) { $Exe = if (Test-Path (Join-Path $g "EE-AOC.exe") -PathType Leaf) { "EE-AOC.exe" } else { "Empire Earth.exe" } }
 if (-not (Test-Path (Join-Path $g $Exe))) { "no $Exe in $g - name the game folder in EE_GAME_DIR or $repo\local\game_dir.txt"; exit 1 }
-# the build's own: its registry key, and the three patches of a suspended start - the loading splash's jne (raw/hooks.h
-# CODE_SPLASH_START_JNE), the single-instance check's je after its CreateMutexA (both builds' 0x535CA7 / 0x540D73) and
+# the build's own: its registry key, and the three patches of a suspended start - the loading splash's jne (spec/game/hooks.cs
+# code_splash_start_jne), the single-instance check's je after its CreateMutexA (both builds' 0x535CA7 / 0x540D73) and
 # the mutex's name (in .data, read only by that CreateMutexA: 0x538840 / 0x54398E)
 $aoc = $Exe -eq "EE-AOC.exe"
 $build = if ($aoc) { @{ Key = 'HKCU:\Software\Mad Doc Software\EE-AOC'; Splash = 0x53F2FE; Multi = 0x540DA6;

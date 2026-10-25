@@ -11,7 +11,7 @@
 // other moves too (it does its own part in its own step), all of it against one standing - but a standing one of the
 // same owner steps aside by its part. A unit heading into another veers off to the right. As in the game's test a
 // unit at work (gathering, building: UNIT_AT_WORK on a kind 6 or 4 goal) is passed, but by one at the same work. The
-// push goes through the game's own (SLOT_PM_PUSH: terrain and buildings tested, no faster than the top speed); the
+// push goes through the game's own (value_movement_slot_pm_push: terrain and buildings tested, no faster than the top speed); the
 // speed is left alone, so a unit pressing on another slides along it. A unit at rest (not at work) moves its share off
 // other units at rest every UC_REST_EVERY steps - else a crowd that stopped on one spot stays one blob - in movement
 // mode 0 for the push, so it doesn't play its walk; overlaps under UC_REST_SLOP are left, so the crowd settles. Only + - * / and sqrtf: the same on every PC.

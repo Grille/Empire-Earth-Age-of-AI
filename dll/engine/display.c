@@ -685,7 +685,7 @@ internal int install_windowed_present(void) {
 }
 
 // Windowed input. Fullscreen-era behaviour that breaks a window:
-// - the mouse is a DirectInput device in exclusive mode (ISMouse::Resume, Low-Level Engine.dll RVA_LLE_MOUSE_COOP
+// - the mouse is a DirectInput device in exclusive mode (ISMouse::Resume, Low-Level Engine.dll value_hooks_rva_lle_mouse_coop
 //   SetCooperativeLevel(hwnd, 5 = EXCLUSIVE|FOREGROUND)): Windows hides its cursor and gets no mouse messages,
 //   so the title bar can't be clicked. Windowed we take it non-exclusive (6), like the keyboard already is.
 // - the game cursor (RTSMouse [0x9197A8], +4/+8 position floats, x range +0x18..+0x1C, y +0x20..+0x14) moves

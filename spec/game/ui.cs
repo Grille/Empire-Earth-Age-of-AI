@@ -1,4 +1,4 @@
-/// the camera, G_CAMERA (EECameraControl)
+/// the camera, game.camera (EECameraControl)
 [c_type("ee_camera")]
 unsafe struct EECameraControl
 {
@@ -9,18 +9,18 @@ unsafe struct EECameraControl
     float32 zoom;
 }
 
-/// a graphical effect (a command's circle), [G_GFX_EFFECTS] by its handle (FN_GFX_GET)
+/// a graphical effect (a command's circle), [ui.gfx_effects] by its handle (gfx_get)
 unsafe struct ee_gfx
 {
-    /// 0x663138's writes (both builds; FN_ORDER_MARKS' the same): the player index that sees it
+    /// 0x663138's writes (both builds; order_marks' the same): the player index that sees it
     [offset(0x20), found(c)]
     int32 owner;
 
-    /// 0x663138's writes (both builds; FN_ORDER_MARKS' the same), 1
+    /// 0x663138's writes (both builds; order_marks' the same), 1
     [offset(0x2D), found(c)]
     uint8 shown;
 
-    /// 0x663138's writes (both builds; FN_ORDER_MARKS' the same), 0
+    /// 0x663138's writes (both builds; order_marks' the same), 0
     [offset(0x2E), found(c)]
     uint8 _0x2e;
 
@@ -33,7 +33,7 @@ unsafe struct ee_gfx
     float32 size_2;
 }
 
-/// the game cursor, [G_MOUSE] (RTSMouse) - not the DirectInput device (E_MOUSE)
+/// the game cursor, [game.mouse] (RTSMouse) - not the DirectInput device (E_MOUSE)
 [c_type("ee_mouse")]
 unsafe struct RTSMouse
 {
@@ -63,7 +63,7 @@ unsafe struct RTSMouse
     uint8 frozen;
 }
 
-/// the object of FN_NATIVE_CHAT
+/// the object of native_chat
 [c_prefix("nativechat")]
 unsafe struct ee_native_chat
 {
@@ -100,17 +100,17 @@ unsafe struct ee_ui_screen
     uint8** controls;
 }
 
-/// ui's data of the game, places in its code and numbers (raw/'s address rows)
+/// ui's data of the game, places in its code and numbers
 static unsafe class ui
 {
-    /// EEAMouseClick::vf3's FN_GFX_ADD: the command's circle
+    /// EEAMouseClick::vf3's gfx_add: the command's circle
     [address((ee)0x00404A26, (aoc)0x0040416B)]
     static code call_click_mark;
 
     [address((ee)0x005262E4, (aoc)0x00531057)]
     static code call_player_color;
 
-    /// the group's unload order (0x5DB641): FN_ORDER_MARKS
+    /// the group's unload order (0x5DB641): order_marks
     [address((ee)0x005DCDBD, (aoc)0x005ED592)]
     static code call_unload_marks;
 
@@ -153,7 +153,7 @@ static unsafe class ui
     [address((ee)0x004050C2, (aoc)0x00404734)]
     static code site_scroll_timer;
 
-    /// FN_CAMACT_CTOR
+    /// camera_action_init
     [value(28)]
     static uint32 size_camera_action;
 
@@ -161,11 +161,11 @@ static unsafe class ui
     [value(16)]
     static uint32 size_key_scroll;
 
-    /// VT_SCROLL: Execute
+    /// ui.vt_scroll: Execute
     [value(1)]
     static uint32 slot_scroll_execute;
 
-    /// SP_VTABLES: a button's handler
+    /// ui.sp_vtables: a button's handler
     [value(1)]
     static uint32 slot_sp_button;
 
@@ -187,7 +187,7 @@ static unsafe class ui
     [address((ee)0x00835790, (aoc)0x0084B864)]
     static code sp_vtables;
 
-    /// EEUIEKeyboardScroll (0x10 bytes: vtable, refcount, 0, direction); Execute 0x5C9070 moves G_CAMERA
+    /// EEUIEKeyboardScroll (0x10 bytes: vtable, refcount, 0, direction); Execute 0x5C9070 moves game.camera
     [address((ee)0x008348FC, (aoc)0x0084A998)]
     static block vt_key_scroll;
 
@@ -207,22 +207,22 @@ static unsafe class ui_functions
     [address((ee)0x00401F3E, (aoc)0x00401EE0), thiscall]
     static extern void camera_action_set(void* act, int32 x, int32 y);
 
-    /// thiscall on G_CAMERA (float dx, float dy)
+    /// thiscall on game.camera (float dx, float dy)
     [address((ee)0x0051E2E6, (aoc)0x00528EA5), thiscall]
     static extern void camera_move_game(void* p1, float32 p2, float32 p3);
 
-    /// thiscall([G_CHEAT_PARSER], UWideString *, int *code, int *arg)
+    /// thiscall([game.cheat_parser], UWideString *, int *code, int *arg)
     [address((ee)0x00520A17, (aoc)0x0052B5D6), thiscall]
     static extern void cheat_parse(void* parser, void* wtext, int32* code, int32* arg);
 
     [address((ee)0x00526B85, (aoc)0x005318BD), cdecl]
     static extern void* game_color_rgb(uint32 idx);
 
-    /// thiscall([G_GFX_EFFECTS], unit or 0, float pos[3], kind, int *handle, 0): a graphical effect added (0: done)
+    /// thiscall([ui.gfx_effects], unit or 0, float pos[3], kind, int *handle, 0): a graphical effect added (0: done)
     [address((ee)0x004FB6D4, (aoc)0x00506038), thiscall]
     static extern int32 gfx_add(void* fx, void* on, float32* pos, void* kind, int32* handle, int32 arg);
 
-    /// thiscall([G_GFX_EFFECTS], handle): NULL gone
+    /// thiscall([ui.gfx_effects], handle): NULL gone
     [address((ee)0x004FBE3E, (aoc)0x00506852), thiscall]
     static extern ee_gfx* gfx_get(void* p1, int32 p2);
 
@@ -230,7 +230,7 @@ static unsafe class ui_functions
     [address((ee)0x00404C83, (aoc)0x0040432F), cdecl]
     static extern void* gfx_kind_game(uint32 p1);
 
-    /// thiscall([G_GFX_EFFECTS], handle)
+    /// thiscall([ui.gfx_effects], handle)
     [address((ee)0x004FBEB2, (aoc)0x005068C6), thiscall]
     static extern int32 gfx_remove_game(void* p1, int32 p2);
 

@@ -1,7 +1,7 @@
 // UNIT GRID: the map's unit grid (map_get_grid(map): +4 cells, 16 bytes each {?, first, last, end} - a vector
 // of unit pointers; +8 cell size in tiles, +0x10 columns, +0x14 rows; cell (gx, gy) at gx * rows + gy). A big building
 // stands in every cell it covers; a unit's own cell is the one of its position (+0x1C / +0x20 tiles).
-// Included by eeaimod.c after control.c (G_MAP, map_get_grid).
+// Included by eeaimod.c after control.c (data_game_map, map_get_grid).
 
 // Iterator over the cells covering tiles x-r..x+r, y-r..y+r (or the whole grid): the units with a type, cell by cell
 // (columns outer, rows inner), each cell's vector as it stands (its end read at every step). once = 1: each unit once -

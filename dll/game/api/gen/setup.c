@@ -3,61 +3,61 @@
 
 // class ee_setup (ee_setup)
 // the game setup
-// the setup copy 0x524B8F and FN_GAME_START
+// the setup copy 0x524B8F and game_start
 internal inline uint8_t *setup_map_name_at(const ee_setup *o) { return (uint8_t *)o + of_setup_map_name; }
-// the setup copy 0x524B8F and FN_GAME_START; the registry's "Game Speed" (Game Options, the options loader
+// the setup copy 0x524B8F and game_start; the registry's "Game Speed" (Game Options, the options loader
 // 0x52A19A at +4)
 internal inline int setup_get_speed(const ee_setup *o) { return *(int *)((uint8_t *)o + of_setup_speed); }
 internal inline void setup_set_speed(ee_setup *o, int v) { *(int *)((uint8_t *)o + of_setup_speed) = v; }
 internal inline int *setup_speed_at(const ee_setup *o) { return (int *)((uint8_t *)o + of_setup_speed); }
 // 0 random map, 1 scenario, 2 saved game, 3 editor test, 4 campaign
-// the setup copy 0x524B8F and FN_GAME_START
+// the setup copy 0x524B8F and game_start
 internal inline int setup_get_mode(const ee_setup *o) { return *(int *)((uint8_t *)o + of_setup_mode); }
 internal inline void setup_set_mode(ee_setup *o, int v) { *(int *)((uint8_t *)o + of_setup_mode) = v; }
 internal inline int *setup_mode_at(const ee_setup *o) { return (int *)((uint8_t *)o + of_setup_mode); }
 // 1 Small ..
-// the setup copy 0x524B8F and FN_GAME_START; the registry's "Map Size" (Game Options, the options loader 0x52A19A
+// the setup copy 0x524B8F and game_start; the registry's "Map Size" (Game Options, the options loader 0x52A19A
 // at +4)
 internal inline int setup_get_map_scale(const ee_setup *o) { return *(int *)((uint8_t *)o + of_setup_map_scale); }
 internal inline void setup_set_map_scale(ee_setup *o, int v) { *(int *)((uint8_t *)o + of_setup_map_scale) = v; }
 internal inline int *setup_map_scale_at(const ee_setup *o) { return (int *)((uint8_t *)o + of_setup_map_scale); }
-// the setup copy 0x524B8F and FN_GAME_START
+// the setup copy 0x524B8F and game_start
 internal inline int setup_get_start_epoch(const ee_setup *o) { return *(int *)((uint8_t *)o + of_setup_start_epoch); }
 internal inline void setup_set_start_epoch(ee_setup *o, int v) { *(int *)((uint8_t *)o + of_setup_start_epoch) = v; }
 internal inline int *setup_start_epoch_at(const ee_setup *o) { return (int *)((uint8_t *)o + of_setup_start_epoch); }
-// the setup copy 0x524B8F and FN_GAME_START
+// the setup copy 0x524B8F and game_start
 internal inline int setup_get_end_epoch(const ee_setup *o) { return *(int *)((uint8_t *)o + of_setup_end_epoch); }
 internal inline void setup_set_end_epoch(ee_setup *o, int v) { *(int *)((uint8_t *)o + of_setup_end_epoch) = v; }
 internal inline int *setup_end_epoch_at(const ee_setup *o) { return (int *)((uint8_t *)o + of_setup_end_epoch); }
 // the game variant (0x8CF52C's list)
-// the setup copy 0x524B8F and FN_GAME_START; the registry's "Game Variant" (Game Options, the options loader
+// the setup copy 0x524B8F and game_start; the registry's "Game Variant" (Game Options, the options loader
 // 0x52A19A at +4)
 internal inline int setup_get_variant(const ee_setup *o) { return *(int *)((uint8_t *)o + of_setup_variant); }
 internal inline void setup_set_variant(ee_setup *o, int v) { *(int *)((uint8_t *)o + of_setup_variant) = v; }
 internal inline int *setup_variant_at(const ee_setup *o) { return (int *)((uint8_t *)o + of_setup_variant); }
-// the setup copy 0x524B8F and FN_GAME_START; the registry's "Starting Resources" (Game Options, the options loader
+// the setup copy 0x524B8F and game_start; the registry's "Starting Resources" (Game Options, the options loader
 // 0x52A19A at +4)
 internal inline int setup_get_resources(const ee_setup *o) { return *(int *)((uint8_t *)o + of_setup_resources); }
 internal inline void setup_set_resources(ee_setup *o, int v) { *(int *)((uint8_t *)o + of_setup_resources) = v; }
 internal inline int *setup_resources_at(const ee_setup *o) { return (int *)((uint8_t *)o + of_setup_resources); }
-// the setup copy 0x524B8F and FN_GAME_START
+// the setup copy 0x524B8F and game_start
 internal inline int setup_get_unit_limit(const ee_setup *o) { return *(int *)((uint8_t *)o + of_setup_unit_limit); }
 internal inline void setup_set_unit_limit(ee_setup *o, int v) { *(int *)((uint8_t *)o + of_setup_unit_limit) = v; }
 internal inline int *setup_unit_limit_at(const ee_setup *o) { return (int *)((uint8_t *)o + of_setup_unit_limit); }
-// the setup copy 0x524B8F and FN_GAME_START; the registry's "Wonders For Victory" (Game Options, the options
+// the setup copy 0x524B8F and game_start; the registry's "Wonders For Victory" (Game Options, the options
 // loader 0x52A19A at +4)
 internal inline int setup_get_wonders(const ee_setup *o) { return *(int *)((uint8_t *)o + of_setup_wonders); }
 internal inline void setup_set_wonders(ee_setup *o, int v) { *(int *)((uint8_t *)o + of_setup_wonders) = v; }
 internal inline int *setup_wonders_at(const ee_setup *o) { return (int *)((uint8_t *)o + of_setup_wonders); }
-// the setup copy 0x524B8F and FN_GAME_START
+// the setup copy 0x524B8F and game_start
 internal inline int setup_get_difficulty(const ee_setup *o) { return *(int *)((uint8_t *)o + of_setup_difficulty); }
 internal inline void setup_set_difficulty(ee_setup *o, int v) { *(int *)((uint8_t *)o + of_setup_difficulty) = v; }
 internal inline int *setup_difficulty_at(const ee_setup *o) { return (int *)((uint8_t *)o + of_setup_difficulty); }
-// the setup copy 0x524B8F and FN_GAME_START
+// the setup copy 0x524B8F and game_start
 internal inline int setup_get_0x3fc(const ee_setup *o) { return *(int *)((uint8_t *)o + of_setup_0x3fc); }
 internal inline void setup_set_0x3fc(ee_setup *o, int v) { *(int *)((uint8_t *)o + of_setup_0x3fc) = v; }
 internal inline int *setup_0x3fc_at(const ee_setup *o) { return (int *)((uint8_t *)o + of_setup_0x3fc); }
-// the setup copy 0x524B8F and FN_GAME_START
+// the setup copy 0x524B8F and game_start
 internal inline uint8_t *setup_flags_at(const ee_setup *o) { return (uint8_t *)o + of_setup_flags; }
 
 // class ee_setup_slot (ee_setup_slot)

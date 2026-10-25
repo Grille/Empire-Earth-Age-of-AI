@@ -957,7 +957,7 @@ internal void cmd_seaop(char *out, const char *args) {
     for (int k = 0; k < 3; k++) g_so.wave_min[k] = waves[g_so.level][k];
     if (!so_home_of(1, &g_so.hx, &g_so.hy) || !so_home_of(ai, &g_so.ex, &g_so.ey)) { REPLY("error: P1 or P%d has no buildings\n", ai); return; }
     g_so.hcont = cont_at(iv2(g_so.hx, g_so.hy)); g_so.econt = cont_at(iv2(g_so.ex, g_so.ey));
-    // war, both ways (FN_SET_DIPLOMACY: 1 = enemy)
+    // war, both ways (set_diplomacy_game: 1 = enemy)
     if (player_get_stance(pls[1], ai) != 1) set_diplomacy(pls[1], pls[ai], 1, 0);
     if (player_get_stance(pls[ai], 1) != 1) set_diplomacy(pls[ai], pls[1], 1, 0);
     // P1's docks: land of its island at the sea (open water within 4), toward the AI first, the second 10+ tiles away

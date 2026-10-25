@@ -1,4 +1,4 @@
-/// patching's data of the game, places in its code and numbers (raw/'s address rows)
+/// patching's data of the game, places in its code and numbers
 static unsafe class patching
 {
     /// an unload call (the resource manager's ferry)

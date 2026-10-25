@@ -92,7 +92,7 @@ internal inline void asgu_set_subgroup(ee_asg_unit *o, ee_attack_subgroup *v) { 
 internal inline ee_attack_subgroup **asgu_subgroup_at(const ee_asg_unit *o) { return (ee_attack_subgroup **)((uint8_t *)o + of_asgu_subgroup); }
 
 // class ee_asgu_info (ee_asgu_info)
-// what FN_ASGU_SCORE scores
+// what asgu_score scores
 internal inline ee_unit *score_info_get_enemy(const ee_asgu_info *o) { return *(ee_unit **)((uint8_t *)o + of_score_info_enemy); }
 internal inline void score_info_set_enemy(ee_asgu_info *o, ee_unit *v) { *(ee_unit **)((uint8_t *)o + of_score_info_enemy) = v; }
 internal inline ee_unit **score_info_enemy_at(const ee_asgu_info *o) { return (ee_unit **)((uint8_t *)o + of_score_info_enemy); }
@@ -137,9 +137,9 @@ internal inline void task_set_0x30(ee_task *o, uint8_t v) { *(uint8_t *)((uint8_
 internal inline uint8_t *task_0x30_at(const ee_task *o) { return (uint8_t *)((uint8_t *)o + of_task_0x30); }
 
 // static class attack
-// attack's data of the game, places in its code and numbers (raw/'s address rows)
+// attack's data of the game, places in its code and numbers
 // the attack subgroups' vtables
-// the calls of FN_NATIVE_CHAT (the AI's own lines)
+// the calls of native_chat (the AI's own lines)
 // EECPASGAir vf85: the waiting units' pop (asg_queue.c)
 internal inline uint8_t *attack_call_asg_air_queue_pop_at(void) { return (uint8_t *)(uintptr_t)data_attack_call_asg_air_queue_pop; }
 // the other subgroups' vf85 (0x45BD56): the waiting units' pop
@@ -149,15 +149,15 @@ internal inline uint8_t *attack_call_range_sort_at(void) { return (uint8_t *)(ui
 internal inline uint8_t *attack_call_unit_to_group_at(void) { return (uint8_t *)(uintptr_t)data_attack_call_unit_to_group; }
 // thiscall(queue): releases the front unit, removes it
 internal inline uint8_t *attack_fn_asg_queue_pop_at(void) { return (uint8_t *)(uintptr_t)data_attack_fn_asg_queue_pop; }
-// ASGU_VTABLES
+// attack.asgu_vtables
 // the attack subgroups
-// VT_ASG_LAND
-// VT_ASG_LAND
-// the attack subgroups: FN_ASG_STATS, VT_ASG_LAND's FN_ASG_LAND_STATS
+// attack.vt_asg_land
+// attack.vt_asg_land
+// the attack subgroups: asg_stats, attack.vt_asg_land's asg_land_stats
 // the attack subgroups: update(now)
 // the selected group (player +0x9BC): unsigned thiscall(group) (EEGroup, both builds)
 // the selected group: ee_unit *thiscall(group, i) (EEGroup, both builds: 16 slots, its vector +0x24)
-// VT_ROUTE_PLANNER: FN_ROUTE_COST
+// attack.vt_route_planner: route_cost_game
 internal inline uint8_t *attack_vt_asg_air_at(void) { return (uint8_t *)(uintptr_t)data_attack_vt_asg_air; }
 // EECPASGLand
 internal inline uint8_t *attack_vt_asg_land_at(void) { return (uint8_t *)(uintptr_t)data_attack_vt_asg_land; }

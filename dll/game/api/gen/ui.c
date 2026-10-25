@@ -2,7 +2,7 @@
 // sh dll/build.sh. What each name is: gen_api.py's header; the classes, fields and functions: the spec.
 
 // class EECameraControl (ee_camera)
-// the camera, G_CAMERA (EECameraControl)
+// the camera, game.camera (EECameraControl)
 internal inline float camera_get_x(const ee_camera *o) { return *(float *)((uint8_t *)o + of_camera_x); }
 internal inline void camera_set_x(ee_camera *o, float v) { *(float *)((uint8_t *)o + of_camera_x) = v; }
 internal inline float *camera_x_at(const ee_camera *o) { return (float *)((uint8_t *)o + of_camera_x); }
@@ -11,16 +11,16 @@ internal inline void camera_set_zoom(ee_camera *o, float v) { *(float *)((uint8_
 internal inline float *camera_zoom_at(const ee_camera *o) { return (float *)((uint8_t *)o + of_camera_zoom); }
 
 // class ee_gfx (ee_gfx)
-// a graphical effect (a command's circle), [G_GFX_EFFECTS] by its handle (FN_GFX_GET)
-// 0x663138's writes (both builds; FN_ORDER_MARKS' the same): the player index that sees it
+// a graphical effect (a command's circle), [ui.gfx_effects] by its handle (gfx_get)
+// 0x663138's writes (both builds; order_marks' the same): the player index that sees it
 internal inline int gfx_get_owner(const ee_gfx *o) { return *(int *)((uint8_t *)o + of_gfx_owner); }
 internal inline void gfx_set_owner(ee_gfx *o, int v) { *(int *)((uint8_t *)o + of_gfx_owner) = v; }
 internal inline int *gfx_owner_at(const ee_gfx *o) { return (int *)((uint8_t *)o + of_gfx_owner); }
-// 0x663138's writes (both builds; FN_ORDER_MARKS' the same), 1
+// 0x663138's writes (both builds; order_marks' the same), 1
 internal inline uint8_t gfx_get_shown(const ee_gfx *o) { return *(uint8_t *)((uint8_t *)o + of_gfx_shown); }
 internal inline void gfx_set_shown(ee_gfx *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_gfx_shown) = v; }
 internal inline uint8_t *gfx_shown_at(const ee_gfx *o) { return (uint8_t *)((uint8_t *)o + of_gfx_shown); }
-// 0x663138's writes (both builds; FN_ORDER_MARKS' the same), 0
+// 0x663138's writes (both builds; order_marks' the same), 0
 internal inline uint8_t gfx_get_0x2e(const ee_gfx *o) { return *(uint8_t *)((uint8_t *)o + of_gfx_0x2e); }
 internal inline void gfx_set_0x2e(ee_gfx *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_gfx_0x2e) = v; }
 internal inline uint8_t *gfx_0x2e_at(const ee_gfx *o) { return (uint8_t *)((uint8_t *)o + of_gfx_0x2e); }
@@ -34,7 +34,7 @@ internal inline void gfx_set_size_2(ee_gfx *o, float v) { *(float *)((uint8_t *)
 internal inline float *gfx_size_2_at(const ee_gfx *o) { return (float *)((uint8_t *)o + of_gfx_size_2); }
 
 // class RTSMouse (ee_mouse)
-// the game cursor, [G_MOUSE] (RTSMouse) - not the DirectInput device (E_MOUSE)
+// the game cursor, [game.mouse] (RTSMouse) - not the DirectInput device (E_MOUSE)
 internal inline float mouse_get_x(const ee_mouse *o) { return *(float *)((uint8_t *)o + of_mouse_x); }
 internal inline void mouse_set_x(ee_mouse *o, float v) { *(float *)((uint8_t *)o + of_mouse_x) = v; }
 internal inline float *mouse_x_at(const ee_mouse *o) { return (float *)((uint8_t *)o + of_mouse_x); }
@@ -62,7 +62,7 @@ internal inline void mouse_set_frozen(ee_mouse *o, uint8_t v) { *(uint8_t *)((ui
 internal inline uint8_t *mouse_frozen_at(const ee_mouse *o) { return (uint8_t *)((uint8_t *)o + of_mouse_frozen); }
 
 // class ee_native_chat (ee_native_chat)
-// the object of FN_NATIVE_CHAT
+// the object of native_chat
 internal inline ee_player *nativechat_get_player(const ee_native_chat *o) { return *(ee_player **)((uint8_t *)o + of_nativechat_player); }
 internal inline void nativechat_set_player(ee_native_chat *o, ee_player *v) { *(ee_player **)((uint8_t *)o + of_nativechat_player) = v; }
 internal inline ee_player **nativechat_player_at(const ee_native_chat *o) { return (ee_player **)((uint8_t *)o + of_nativechat_player); }
@@ -89,11 +89,11 @@ internal inline void uiscreen_set_controls(ee_ui_screen *o, uint8_t **v) { *(uin
 internal inline uint8_t ***uiscreen_controls_at(const ee_ui_screen *o) { return (uint8_t ***)((uint8_t *)o + of_uiscreen_controls); }
 
 // static class ui
-// ui's data of the game, places in its code and numbers (raw/'s address rows)
-// EEAMouseClick::vf3's FN_GFX_ADD: the command's circle
+// ui's data of the game, places in its code and numbers
+// EEAMouseClick::vf3's gfx_add: the command's circle
 internal inline uint8_t *ui_call_click_mark_at(void) { return (uint8_t *)(uintptr_t)data_ui_call_click_mark; }
 internal inline uint8_t *ui_call_player_color_at(void) { return (uint8_t *)(uintptr_t)data_ui_call_player_color; }
-// the group's unload order (0x5DB641): FN_ORDER_MARKS
+// the group's unload order (0x5DB641): order_marks
 internal inline uint8_t *ui_call_unload_marks_at(void) { return (uint8_t *)(uintptr_t)data_ui_call_unload_marks; }
 // the graphical effects (a command's circles): handle -> effect
 internal inline uint8_t *ui_gfx_effects_at(void) { return (uint8_t *)(uintptr_t)data_ui_gfx_effects; }
@@ -109,13 +109,13 @@ internal inline uint8_t *ui_iat_uim_form_at(void) { return (uint8_t *)(uintptr_t
 internal inline uint8_t *ui_site_editor_form_at(void) { return (uint8_t *)(uintptr_t)data_ui_site_editor_form; }
 // operand of push 0x19 (timer period in ms)
 internal inline uint8_t *ui_site_scroll_timer_at(void) { return (uint8_t *)(uintptr_t)data_ui_site_scroll_timer; }
-// FN_CAMACT_CTOR
+// camera_action_init
 // EEUIEKeyboardScroll: vtable, refcount, 0, direction
-// VT_SCROLL: Execute
-// SP_VTABLES: a button's handler
+// ui.vt_scroll: Execute
+// ui.sp_vtables: a button's handler
 // the draw list's operands to move (drawlist.c, in its table's order)
 // their slot 1
-// EEUIEKeyboardScroll (0x10 bytes: vtable, refcount, 0, direction); Execute 0x5C9070 moves G_CAMERA
+// EEUIEKeyboardScroll (0x10 bytes: vtable, refcount, 0, direction); Execute 0x5C9070 moves game.camera
 internal inline uint8_t *ui_vt_key_scroll_at(void) { return (uint8_t *)(uintptr_t)data_ui_vt_key_scroll; }
 internal inline uint8_t *ui_vt_scroll_at(void) { return (uint8_t *)(uintptr_t)data_ui_vt_scroll; }
 
@@ -129,22 +129,22 @@ internal inline void *camera_action_init(void *mem) { return fn_camera_action_in
 typedef void (__thiscall *camera_action_set_fn)(void *, int, int);
 internal camera_action_set_fn fn_camera_action_set;
 internal inline void camera_action_set(void *act, int x, int y) { fn_camera_action_set(act, x, y); }
-// thiscall on G_CAMERA (float dx, float dy)
+// thiscall on game.camera (float dx, float dy)
 typedef void (__thiscall *camera_move_game_fn)(void *, float, float);
 internal camera_move_game_fn fn_camera_move_game;
 internal inline void camera_move_game(void *p1, float p2, float p3) { fn_camera_move_game(p1, p2, p3); }
-// thiscall([G_CHEAT_PARSER], UWideString *, int *code, int *arg)
+// thiscall([game.cheat_parser], UWideString *, int *code, int *arg)
 typedef void (__thiscall *cheat_parse_fn)(void *, void *, int *, int *);
 internal cheat_parse_fn fn_cheat_parse;
 internal inline void cheat_parse(void *parser, void *wtext, int *code, int *arg) { fn_cheat_parse(parser, wtext, code, arg); }
 typedef void *(__cdecl *game_color_rgb_fn)(uint32_t);
 internal game_color_rgb_fn fn_game_color_rgb;
 internal inline void *game_color_rgb(uint32_t idx) { return fn_game_color_rgb(idx); }
-// thiscall([G_GFX_EFFECTS], unit or 0, float pos[3], kind, int *handle, 0): a graphical effect added (0: done)
+// thiscall([ui.gfx_effects], unit or 0, float pos[3], kind, int *handle, 0): a graphical effect added (0: done)
 typedef int (__thiscall *gfx_add_fn)(void *, void *, float *, void *, int *, int);
 internal gfx_add_fn fn_gfx_add;
 internal inline int gfx_add(void *fx, void *on, float *pos, void *kind, int *handle, int arg) { return fn_gfx_add(fx, on, pos, kind, handle, arg); }
-// thiscall([G_GFX_EFFECTS], handle): NULL gone
+// thiscall([ui.gfx_effects], handle): NULL gone
 typedef ee_gfx *(__thiscall *gfx_get_fn)(void *, int);
 internal gfx_get_fn fn_gfx_get;
 internal inline ee_gfx *gfx_get(void *p1, int p2) { return fn_gfx_get(p1, p2); }
@@ -152,7 +152,7 @@ internal inline ee_gfx *gfx_get(void *p1, int p2) { return fn_gfx_get(p1, p2); }
 typedef void *(__cdecl *gfx_kind_game_fn)(uint32_t);
 internal gfx_kind_game_fn fn_gfx_kind_game;
 internal inline void *gfx_kind_game(uint32_t p1) { return fn_gfx_kind_game(p1); }
-// thiscall([G_GFX_EFFECTS], handle)
+// thiscall([ui.gfx_effects], handle)
 typedef int (__thiscall *gfx_remove_game_fn)(void *, int);
 internal gfx_remove_game_fn fn_gfx_remove_game;
 internal inline int gfx_remove_game(void *p1, int p2) { return fn_gfx_remove_game(p1, p2); }

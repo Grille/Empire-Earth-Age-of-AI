@@ -47,7 +47,7 @@ internal inline void path_msg_make(ee_msg *msg, int from, float x, float y, int 
 internal inline void server_send_all(ee_server *net, void *msg) {
     ((void (__thiscall *)(void *, void *, int))(*(void ***)net)[value_messages_slot_server_send])(net, msg, 0xFF);
 }
-// a cheat message built in mem (game_new(GA(SIZE_CHEAT_MSG)))
+// a cheat message built in mem (game_new(value_messages_size_cheat_msg))
 internal inline void *msg_chat_alloc(void) { return game_new(value_messages_size_msg_chat); }
 internal inline void *msg_cheat_alloc(void) { return game_new(value_messages_size_cheat_msg); }
 // the selection: its unit ids packed into a message (the original of select.c's hook), a double-click's message built,

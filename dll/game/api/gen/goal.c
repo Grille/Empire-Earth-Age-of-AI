@@ -26,21 +26,21 @@ internal inline void goal_set_holder(ee_goal *o, ee_unit *v) { *(ee_unit **)((ui
 internal inline ee_unit **goal_holder_at(const ee_goal *o) { return (ee_unit **)((uint8_t *)o + of_goal_holder); }
 
 // static class goal
-// goal's data of the game, places in its code and numbers (raw/'s address rows)
+// goal's data of the game, places in its code and numbers
 internal inline uint8_t *goal_at_goal_set_read_at(void) { return (uint8_t *)(uintptr_t)data_goal_at_goal_set_read; }
 internal inline uint8_t *goal_call_goalset_again_at(void) { return (uint8_t *)(uintptr_t)data_goal_call_goalset_again; }
 internal inline uint8_t *goal_call_goalset_ask_at(void) { return (uint8_t *)(uintptr_t)data_goal_call_goalset_ask; }
-// in 0x5ED24B: FN_GOAL_FBA_CHECK on a dynamic_cast, unchecked
+// in 0x5ED24B: goal_fits on a dynamic_cast, unchecked
 internal inline uint8_t *goal_call_goal_fba_check_at(void) { return (uint8_t *)(uintptr_t)data_goal_call_goal_fba_check; }
-// the group's dispatch (0x5DB641): each unit's location goal at its slot, FN_GOAL_MOVE_AT
+// the group's dispatch (0x5DB641): each unit's location goal at its slot, goal_move_at_game
 internal inline uint8_t *goal_call_slot_goal_at(void) { return (uint8_t *)(uintptr_t)data_goal_call_slot_goal; }
 // EEUGAttack(unit, target, 1); AoC + a byte: attack.c
 internal inline uint8_t *goal_fn_goal_attack_ctor_at(void) { return (uint8_t *)(uintptr_t)data_goal_fn_goal_attack_ctor; }
-// FN_GOAL_ATTACK_CTOR
-// FN_BUILD_GOAL
-// FN_GOAL_LOAD_CTOR
-// FN_GOAL_MOVE_CTOR
-// FN_GOAL_UNLOAD_CTOR
+// goal.fn_goal_attack_ctor
+// goal_build_init
+// goal_load_ctor
+// goal_move_ctor
+// goal_unload_init
 // EEUGLoadContainer: thiscall(goal, unit) - the unit out of its holder's load goal's pending passengers
 // (0x613992; AoC 0x626229, the same code)
 // EEUGLoadTransport: a unit's part of the load goal

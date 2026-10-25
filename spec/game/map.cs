@@ -22,7 +22,7 @@ unsafe struct ee_grid_cell
     EEUnit** units_begin;
 }
 
-/// the map, [G_MAP] (EEMap)
+/// the map, [game.map] (EEMap)
 unsafe struct EEMap
 {
     /// port_fields EEMap (x6): a row of VIEWROW per y, 0xC each
@@ -65,7 +65,7 @@ unsafe struct ee_unit_vis
     [offset(0x4), found(s)]
     int32 flag;
 
-    /// FN_EXPLORED 0x404A8A, AoC's 0x4042E2
+    /// explored_game 0x404A8A, AoC's 0x4042E2
     [offset(0xC), found(c)]
     uint16* seen;
 }
@@ -96,7 +96,7 @@ unsafe struct ee_tile
     void* objects;
 
     /// [player index]
-    /// its sight count per player slot, a uint16 each (FN_TILE_SIGHT_ADD 0x519F4F, AoC 0x5247ED: the same code; =
+    /// its sight count per player slot, a uint16 each (map.fn_tile_sight_add 0x519F4F, AoC 0x5247ED: the same code; =
     /// SITEOWN_SEEN, a unit's +0x14 is its tile)
     [offset(0xC), found(c)]
     uint16* sight;
@@ -126,7 +126,7 @@ unsafe struct ee_view_row
     uint8* data;
 }
 
-/// map's data of the game, places in its code and numbers (raw/'s address rows)
+/// map's data of the game, places in its code and numbers
 static unsafe class map
 {
     /// thiscall(tile, player), ret 4: a unit more sees it
@@ -146,7 +146,7 @@ static unsafe class map
 [c_prefix("")]
 static unsafe class map_functions
 {
-    /// the area object at a tile (thiscall on the map areas G_MAP_AREAS)
+    /// the area object at a tile (thiscall on the map areas map.map_areas)
     [address((ee)0x00425F16, (aoc)0x00422AD9), thiscall]
     static extern uint8* area_at_game(void* p1, int32* p2);
 

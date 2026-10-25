@@ -1,6 +1,6 @@
 // A UNIT (ee_unit: EEUnit, EEComplexUnit - a unit, building, resource site or projectile on the map): its fields, the
 // game's functions on it, its hooks. What spec/game/unit.cs describes is gen/unit.c's (unit_get_owner, unit_get_speed,
-// unit_max_speed, unit_set_goal, patch_aim ...); here the rows not moved yet and the code of our own on top.
+// unit_max_speed, unit_assign_goal, patch_aim ...); here the code of our own on top.
 
 // FIELDS
 internal inline ivec2 unit_get_tile(const ee_unit *u) { return iv2(unit_get_x(u), unit_get_y(u)); }

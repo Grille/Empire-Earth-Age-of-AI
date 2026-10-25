@@ -2,7 +2,7 @@
 // sh dll/build.sh. What each name is: gen_api.py's header; the classes, fields and functions: the spec.
 
 // static class game
-// game's data of the game, places in its code and numbers (raw/'s address rows)
+// game's data of the game, places in its code and numbers
 internal inline uint8_t *game_call_damage_points_at(void) { return (uint8_t *)(uintptr_t)data_game_call_damage_points; }
 // the unit behaviours (stances)
 internal inline uint8_t *game_behaviour_table_at(void) { return (uint8_t *)(uintptr_t)data_game_behaviour_table; }
@@ -58,7 +58,7 @@ internal inline uint8_t *game_mouse_at(void) { return (uint8_t *)(uintptr_t)data
 // byte, toggled by EEAUserPauseGame::Execute (0x4064F1)
 internal inline uint8_t *game_paused_at(void) { return (uint8_t *)(uintptr_t)data_game_paused; }
 // int: ceil([0x918DEC] / [0x8ABC80]), at least 1 (0x547AAD) - the push moves a unit by push x step x it
-// (SLOT_PM_PUSH)
+// (movement.slot_pm_push)
 internal inline uint8_t *game_phys_substeps_at(void) { return (uint8_t *)(uintptr_t)data_game_phys_substeps; }
 internal inline uint8_t *game_players_at(void) { return (uint8_t *)(uintptr_t)data_game_players; }
 // the number of players
@@ -89,7 +89,7 @@ internal inline uint8_t *game_settings_at(void) { return (uint8_t *)(uintptr_t)d
 internal inline uint8_t *game_sm_mgr_at(void) { return (uint8_t *)(uintptr_t)data_game_sm_mgr; }
 internal inline uint8_t *game_sound_manager_at(void) { return (uint8_t *)(uintptr_t)data_game_sound_manager; }
 internal inline uint8_t *game_sound_percent_at(void) { return (uint8_t *)(uintptr_t)data_game_sound_percent; }
-// FN_TABLE_VALUE's table (0x16: the population limit)
+// table_value_game's table (0x16: the population limit)
 internal inline uint8_t *game_table_values_at(void) { return (uint8_t *)(uintptr_t)data_game_table_values; }
 internal inline uint8_t *game_teams_locked_at(void) { return (uint8_t *)(uintptr_t)data_game_teams_locked; }
 internal inline uint8_t *game_types_at(void) { return (uint8_t *)(uintptr_t)data_game_types; }
@@ -127,9 +127,9 @@ internal inline uint8_t *game_iat_wstring_reserve_at(void) { return (uint8_t *)(
 internal inline uint8_t *game_imp_is_keyboard_at(void) { return (uint8_t *)(uintptr_t)data_game_imp_is_keyboard; }
 // import: &ISMouse* in Low-Level Engine.dll
 internal inline uint8_t *game_imp_is_mouse_at(void) { return (uint8_t *)(uintptr_t)data_game_imp_is_mouse; }
-// FN_NEW_UNIT_MSG_CTOR
+// new_unit_msg_init
 // EEAUserPauseGame: vtable, refcount, byte
-// FN_SAVE_ACTION_CTOR
+// save_action_init
 // EEPhysics vtable slot 8: one simulation step
 internal inline uint8_t *game_vtbl_phys_step_at(void) { return (uint8_t *)(uintptr_t)data_game_vtbl_phys_step; }
 // EEAUserPauseGame vtable (0xC bytes: vtable, refcount, byte)
@@ -150,18 +150,18 @@ internal inline void *editor_form(void *form, void *owner) { return fn_editor_fo
 typedef void (__cdecl *exit_confirm_fn)(void);
 internal exit_confirm_fn fn_exit_confirm;
 internal inline void exit_confirm(void) { fn_exit_confirm(); }
-// thiscall(G_GAME_STATE, index)
+// thiscall(game.game_state, index)
 typedef void *(__thiscall *game_player_game_fn)(void *, int);
 internal game_player_game_fn fn_game_player_game;
 internal inline void *game_player_game(void *p1, int p2) { return fn_game_player_game(p1, p2); }
-// thiscall(G_GAME_STATE, char won, index)
+// thiscall(game.game_state, char won, index)
 typedef void (__thiscall *game_player_out_game_fn)(void *, int, int);
 internal game_player_out_game_fn fn_game_player_out_game;
 internal inline void game_player_out_game(void *p1, int p2, int p3) { fn_game_player_out_game(p1, p2, p3); }
 typedef char (__thiscall *game_start_fn)(void *, ee_setup *, void *);
 internal game_start_fn fn_game_start;
 internal inline char game_start(void *state, ee_setup *setup, void *p2) { return fn_game_start(state, setup, p2); }
-// the highest epoch of the players SLOT_PLAYER_HUMAN says are human, 0 without
+// the highest epoch of the players player.slot_player_human says are human, 0 without
 typedef int (__cdecl *highest_human_epoch_fn)(void);
 internal highest_human_epoch_fn fn_highest_human_epoch;
 internal inline int highest_human_epoch(void) { return fn_highest_human_epoch(); }
@@ -211,7 +211,7 @@ internal inline int shore_to_unload(void *mgr, ee_unit *transport) { return fn_s
 typedef uint32_t (__thiscall *table_value_game_fn)(void *, int);
 internal table_value_game_fn fn_table_value_game;
 internal inline uint32_t table_value_game(void *p1, int p2) { return fn_table_value_game(p1, p2); }
-// thiscall(G_GAME_STATE, id): a unit's handle by its id (the player in bits 24..31), its +0x30 the unit; NULL
+// thiscall(game.game_state, id): a unit's handle by its id (the player in bits 24..31), its +0x30 the unit; NULL
 // unknown
 typedef ee_unit *(__thiscall *unit_by_id_game_fn)(void *, uint32_t);
 internal unit_by_id_game_fn fn_unit_by_id_game;

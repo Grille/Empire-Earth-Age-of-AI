@@ -60,7 +60,7 @@ unsafe struct SESoundManager
     uint32 channels;
 }
 
-/// engine_sound's data of the game, places in its code and numbers (raw/'s address rows)
+/// engine_sound's data of the game, places in its code and numbers
 static unsafe class engine_sound
 {
     /// SESoundManager::Play(id, vol, pan, pitch, bool queue, char *) -> id or -1

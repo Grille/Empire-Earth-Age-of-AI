@@ -23,7 +23,7 @@ internal ee_player *player_at(int i) {
     return i > 0 && (unsigned)i < n && i < 16 ? game_players()[i] : NULL;
 }
 internal int nplayers(void) { unsigned n = game_player_count(); return n > 16 ? 16 : (int)n; }
-// the players the game counts as human (SLOT_PLAYER_HUMAN), as FN_HUMAN_EPOCH walks them: from index 1
+// the players the game counts as human (value_player_slot_player_human), as highest_human_epoch walks them: from index 1
 internal int human_count(void) {
     int n = 0;
     for (int i = 1; i < nplayers(); i++) {

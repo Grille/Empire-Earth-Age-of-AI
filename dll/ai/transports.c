@@ -539,7 +539,7 @@ internal int tw_unload_spread(ee_player *pl, ee_unit **tr, int nt, ivec2 p, ivec
     return spread;
 }
 // The unload command: the Execute gives the selected group its unload goal at the clicked tile, the group hands it to
-// its transports (0x5DB641) and draws a yellow circle at each one's goal (FN_ORDER_MARKS, CALL_UNLOAD_MARKS) - the
+// its transports (0x5DB641) and draws a yellow circle at each one's goal (order_marks, data_ui_call_unload_marks) - the
 // spread comes in between, so each circle is at its transport's own tile. The Execute makes a group of each kind of
 // the selection (helicopters, trucks, ships ...: one hand-out each), so the tiles taken are kept for the command.
 // Should no circles' call come, the spread follows the Execute (no circles then).

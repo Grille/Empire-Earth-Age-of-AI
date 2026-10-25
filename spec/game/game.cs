@@ -1,4 +1,4 @@
-/// game's data of the game, places in its code and numbers (raw/'s address rows)
+/// game's data of the game, places in its code and numbers
 static unsafe class game
 {
     [address((ee)0x004F80A4, (aoc)0x0050232D)]
@@ -120,7 +120,7 @@ static unsafe class game
     static block paused;
 
     /// int: ceil([0x918DEC] / [0x8ABC80]), at least 1 (0x547AAD) - the push moves a unit by push x step x it
-    /// (SLOT_PM_PUSH)
+    /// (movement.slot_pm_push)
     [address((ee)0x008ABC84, (aoc)0x008C237C)]
     static block phys_substeps;
 
@@ -185,7 +185,7 @@ static unsafe class game
     [address((ee)0x009193B8, (aoc)0x00930838)]
     static block sound_percent;
 
-    /// FN_TABLE_VALUE's table (0x16: the population limit)
+    /// table_value_game's table (0x16: the population limit)
     [address((ee)0x00917BB0, (aoc)0x0092FCA0)]
     static block table_values;
 
@@ -267,7 +267,7 @@ static unsafe class game
     [address((ee)0x008235CC, (aoc)0x00837570)]
     static code imp_is_mouse;
 
-    /// FN_NEW_UNIT_MSG_CTOR
+    /// new_unit_msg_init
     [value(32)]
     static uint32 size_new_unit_msg;
 
@@ -275,7 +275,7 @@ static unsafe class game
     [value(12)]
     static uint32 size_pause_action;
 
-    /// FN_SAVE_ACTION_CTOR
+    /// save_action_init
     [value(48)]
     static uint32 size_save_action;
 
@@ -305,18 +305,18 @@ static unsafe class game_functions
     [address((ee)0x005D0B4F, (aoc)0x005E145B), cdecl]
     static extern void exit_confirm();
 
-    /// thiscall(G_GAME_STATE, index)
+    /// thiscall(game.game_state, index)
     [address((ee)0x0052E6EF, (aoc)0x00539670), thiscall]
     static extern void* game_player_game(void* p1, int32 p2);
 
-    /// thiscall(G_GAME_STATE, char won, index)
+    /// thiscall(game.game_state, char won, index)
     [address((ee)0x0052E2B7, (aoc)0x005391F2), thiscall]
     static extern void game_player_out_game(void* p1, int32 p2, int32 p3);
 
     [address((ee)0x0052599B, (aoc)0x005306F2), thiscall]
     static extern char8 game_start(void* state, ee_setup* setup, void* p2);
 
-    /// the highest epoch of the players SLOT_PLAYER_HUMAN says are human, 0 without
+    /// the highest epoch of the players player.slot_player_human says are human, 0 without
     [address((ee)0x0046D436, (aoc)0x0047005A), cdecl]
     static extern int32 highest_human_epoch();
 
@@ -366,7 +366,7 @@ static unsafe class game_functions
     [address((ee)0x0048E817, (aoc)0x004CD4B3), thiscall]
     static extern uint32 table_value_game(void* p1, int32 p2);
 
-    /// thiscall(G_GAME_STATE, id): a unit's handle by its id (the player in bits 24..31), its +0x30 the unit; NULL
+    /// thiscall(game.game_state, id): a unit's handle by its id (the player in bits 24..31), its +0x30 the unit; NULL
     /// unknown
     [address((ee)0x0053B889, (aoc)0x0054804F), thiscall]
     static extern EEUnit* unit_by_id_game(void* p1, uint32 p2);

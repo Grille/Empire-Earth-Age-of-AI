@@ -2,13 +2,13 @@
 // sh dll/build.sh. What each name is: gen_api.py's header; the classes, fields and functions: the spec.
 
 // static class movement
-// movement's data of the game, places in its code and numbers (raw/'s address rows)
-// EEPhysicsModel: FN_PM_COLLIDE (after each movement mode's step, 0x549F82 +0x48)
-// EEPhysicsModel: the push applied (FN_PM_COLLIDE's +0xC; EEPMNaval::vf3 0x54F05E, AoC 0x55B9D1)
-// EEPhysicsModel: FN_SPEED_DECIDE (AoC: its vf8 0x554BDE calls +0x28)
-// EEPhysicsModel: FN_SPEED_STEP (the tick's +0x20)
-// EEPhysicsModel: FN_TURN_DECIDE (called from the turn step 0x548266 / AoC 0x554738: +0x2C / +0x30)
-// EEPhysicsModel: FN_TURN_TOWARDS (the tick's +0x1C)
+// movement's data of the game, places in its code and numbers
+// EEPhysicsModel: model_collide (after each movement mode's step, 0x549F82 +0x48)
+// EEPhysicsModel: the push applied (model_collide's +0xC; EEPMNaval::vf3 0x54F05E, AoC 0x55B9D1)
+// EEPhysicsModel: model_speed_decide (AoC: its vf8 0x554BDE calls +0x28)
+// EEPhysicsModel: model_speed_step (the tick's +0x20)
+// EEPhysicsModel: model_turn_decide (called from the turn step 0x548266 / AoC 0x554738: +0x2C / +0x30)
+// EEPhysicsModel: turn_towards (the tick's +0x1C)
 // EEPMHovercraft
 internal inline uint8_t *movement_vt_pm_hover_at(void) { return (uint8_t *)(uintptr_t)data_movement_vt_pm_hover; }
 // EEPMLand, the land units' movement
@@ -23,7 +23,7 @@ internal inline uint8_t *movement_vt_pm_submerged_at(void) { return (uint8_t *)(
 // the ships' (and helicopters') slot 18 (AoC 19): a thunk to EEPhysicsModel::vf18 0x549E61 (AoC vf19 0x556710)
 // thiscall(model, unit), the collision step - while the unit moves (+0x2D8, AoC +0x2DC) and has contacts (+0xC8)
 // or a blocked time (+0x248): the contacts tested (slot 14, AoC 15: the speed cut, the push +0x230/+0x234) and
-// the push applied (SLOT_PM_PUSH) - docs/engine-notes.md "Collision"
+// the push applied (movement.slot_pm_push) - docs/engine-notes.md "Collision"
 typedef void (__thiscall *model_collide_fn)(void *, ee_unit *);
 internal model_collide_fn fn_model_collide;
 internal inline void model_collide(void *model, ee_unit *u) { fn_model_collide(model, u); }
@@ -33,7 +33,7 @@ typedef int (__thiscall *model_speed_decide_fn)(void *, ee_unit *, float, float)
 internal model_speed_decide_fn fn_model_speed_decide;
 internal inline int model_speed_decide(void *model, ee_unit *u, float dist, float angle) { return fn_model_speed_decide(model, u, dist, angle); }
 // EEPhysicsModel::vf8 thiscall(model, unit, distance to the waypoint, angle off the bow): the new speed from
-// FN_SPEED_DECIDE (given the same) - on the last waypoint faster no further than the distance
+// model_speed_decide (given the same) - on the last waypoint faster no further than the distance
 typedef float (__thiscall *model_speed_step_fn)(void *, ee_unit *, float, float);
 internal model_speed_step_fn fn_model_speed_step;
 internal inline float model_speed_step(void *model, ee_unit *u, float dist, float angle) { return fn_model_speed_step(model, u, dist, angle); }

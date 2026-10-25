@@ -108,7 +108,7 @@ unsafe struct EECPAttackSubGroupUnit
     EECPAttackSubGroup* subgroup;
 }
 
-/// what FN_ASGU_SCORE scores
+/// what asgu_score scores
 [c_prefix("score_info")]
 unsafe struct ee_asgu_info
 {
@@ -162,7 +162,7 @@ unsafe struct EECPAGTask
     uint8 _0x30;
 }
 
-/// attack's data of the game, places in its code and numbers (raw/'s address rows)
+/// attack's data of the game, places in its code and numbers
 static unsafe class attack
 {
     /// the attack subgroups' vtables
@@ -174,7 +174,7 @@ static unsafe class attack
     [address((ee)0x00825540, (aoc)0x008394F0)]
     static code asgu_vtables;
 
-    /// the calls of FN_NATIVE_CHAT (the AI's own lines)
+    /// the calls of native_chat (the AI's own lines)
     [address((ee)0x00827620, (aoc)0x0083BD20)]
     [address((ee)0x00826610, (aoc)0x0083A6D8)]
     [address((ee)0x00826818, (aoc)0x0083A8E0)]
@@ -204,7 +204,7 @@ static unsafe class attack
     [address((ee)0x00482028, (aoc)0x0048655C)]
     static code fn_asg_queue_pop;
 
-    /// ASGU_VTABLES
+    /// attack.asgu_vtables
     [value(2)]
     static uint32 slot_asgu_score;
 
@@ -212,15 +212,15 @@ static unsafe class attack
     [value(57)]
     static uint32 slot_asg_give_goal;
 
-    /// VT_ASG_LAND
+    /// attack.vt_asg_land
     [value(94)]
     static uint32 slot_asg_route;
 
-    /// VT_ASG_LAND
+    /// attack.vt_asg_land
     [value(97)]
     static uint32 slot_asg_route_done;
 
-    /// the attack subgroups: FN_ASG_STATS, VT_ASG_LAND's FN_ASG_LAND_STATS
+    /// the attack subgroups: asg_stats, attack.vt_asg_land's asg_land_stats
     [value(20)]
     static uint32 slot_asg_stats;
 
@@ -236,7 +236,7 @@ static unsafe class attack
     [value(5)]
     static uint32 slot_group_get;
 
-    /// VT_ROUTE_PLANNER: FN_ROUTE_COST
+    /// attack.vt_route_planner: route_cost_game
     [value(1)]
     static uint32 slot_route_cost;
 

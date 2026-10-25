@@ -41,7 +41,7 @@ internal inline vec3 goal_target(ee_goal *goal, ee_unit *u) {
     ((void (__thiscall *)(ee_goal *, ee_unit *, float *))(*(void ***)goal)[value_goal_slot_goal_target])(goal, u, p);
     return v3(p[0], p[1], p[2]);
 }
-// the goals the mod makes: built in game_new(GA(SIZE_GOAL_..)) memory, then given with unit_set_goal
+// the goals the mod makes: built in game_new(value_goal_size_goal_..) memory, then given with unit_assign_goal
 // build or repair: pl's builder at building
 // attack target (Art of Conquest's constructor takes a byte more: 0)
 internal inline ee_goal *goal_attack_init(void *mem, ee_unit *u, ee_unit *target) {

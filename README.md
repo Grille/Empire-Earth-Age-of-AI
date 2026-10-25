@@ -437,10 +437,10 @@ dll/              the mod (C), one translation unit: eeaimod.c includes every pa
                     the report of a mistake in the mod's files, math.c (the same bits on every PC), aimod.ini
                     (ini.c), watchpoints, headless_win.c test windows without focus or taskbar button (also in dinput.dll)
   game/             what the mod knows of the game: api/ the game's own code and objects, one module (api.c) - exe.c
-                    the exe build, its addresses per build (raw/: builds.h, functions.h, hooks.h, data.h, tables.c,
-                    editor_layout.h generated), its objects typed (types.h), a file per object (unit.c, player.c,
+                    the exe build, its addresses per build (gen/: the spec's C, generated; builds.h;
+                    raw/editor_layout.h generated), its objects typed (types.h), a file per object (unit.c, player.c,
                     attack.c ...: its fields by name, the game's functions on it, its hooks; per build:
-                    raw/fields.h), game.c the globals, hooks.c the code patches; world.c
+                    spec/game/), game.c the globals, hooks.c the code patches; world.c
                     type data, game time, RTTI names, players.c the players (and the vanilla
                     ones, the colours), random.c the decisions' generator (alike on every PC), the unit types
                     (unit_ids.h, unitnames.c, unit_names.h generated) and roles.c what a type is,
@@ -472,7 +472,7 @@ tests/            what the tests run: scenarios/ the setup scripts (docs/scripts
                   scenario (attacks, sieges, raids), probes/ the one-off setups of single measurements, config/
                   autotest.ini and the test configs, text_engine_cases.txt the text engine comparison's cases
 scripts/          game_dir.py / .sh: where the game is (every script's)
-  build/          the build's checks and generators (layers.py, style.py, addr_sort.py, persist_layout.py,
+  build/          the build's checks and generators (layers.py, style.py, spec_check.py, gen_api.py, persist_layout.py,
                   gen_cmd_verbs.py, gen_*.py for the docs and the grammar), code_same.py, install.sh
   test/           run_test.ps1 and the runners on top of it (suite.sh, scen.sh, h2h.sh, vanilla.sh, jobs.sh),
                   reserve.sh, eectl.py the control client, ee_mcp.py the MCP server, work_prune.ps1

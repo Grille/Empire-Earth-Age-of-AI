@@ -620,7 +620,7 @@ unsafe struct EESMTrigger
     char8 cinematic;
 }
 
-/// scenario's data of the game, places in its code and numbers (raw/'s address rows)
+/// scenario's data of the game, places in its code and numbers
 static unsafe class scenario
 {
     /// float 500: the scenario manager checks its triggers every this many ms of game time

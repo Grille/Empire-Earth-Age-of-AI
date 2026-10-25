@@ -2,13 +2,13 @@
 // sh dll/build.sh. What each name is: gen_api.py's header; the classes, fields and functions: the spec.
 
 // class ee_unit_list (void)
-// a cluster of a group's units (FN_GROUP_SECTOR_ROUTE's units)
-// FN_GROUP_SECTOR_ROUTE's reads (both builds): a vector of ee_unit * (begin, end +4)
+// a cluster of a group's units (group_sector_route's units)
+// group_sector_route's reads (both builds): a vector of ee_unit * (begin, end +4)
 internal inline uint8_t *unit_list_units_at(const void *o) { return (uint8_t *)o + of_unit_list_units; }
 
 // static class path
-// path's data of the game, places in its code and numbers (raw/'s address rows)
-// EEActiveGroup::vf16's call of FN_GROUP_SECTOR_ROUTE, for each cluster of the group
+// path's data of the game, places in its code and numbers
+// EEActiveGroup::vf16's call of group_sector_route, for each cluster of the group
 internal inline uint8_t *path_call_group_sector_route_at(void) { return (uint8_t *)(uintptr_t)data_path_call_group_sector_route; }
 
 // static class path_functions

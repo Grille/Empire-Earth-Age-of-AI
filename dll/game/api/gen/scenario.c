@@ -552,7 +552,7 @@ internal inline void trigger_set_cinematic(ee_trigger *o, char v) { *(char *)((u
 internal inline char *trigger_cinematic_at(const ee_trigger *o) { return (char *)((uint8_t *)o + of_trigger_cinematic); }
 
 // static class scenario
-// scenario's data of the game, places in its code and numbers (raw/'s address rows)
+// scenario's data of the game, places in its code and numbers
 // float 500: the scenario manager checks its triggers every this many ms of game time
 internal inline uint8_t *scenario_sm_step_at(void) { return (uint8_t *)(uintptr_t)data_scenario_sm_step; }
 

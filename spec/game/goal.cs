@@ -24,7 +24,7 @@ unsafe struct EEUnitGoal
     EEUnit* holder;
 }
 
-/// goal's data of the game, places in its code and numbers (raw/'s address rows)
+/// goal's data of the game, places in its code and numbers
 static unsafe class goal
 {
     [address((ee)0x005F0634, (aoc)0x005FE8DA)]
@@ -36,11 +36,11 @@ static unsafe class goal
     [address((ee)0x005F0FFA, (aoc)0x005FF364)]
     static code call_goalset_ask;
 
-    /// in 0x5ED24B: FN_GOAL_FBA_CHECK on a dynamic_cast, unchecked
+    /// in 0x5ED24B: goal_fits on a dynamic_cast, unchecked
     [address((ee)0x005ED9BF, (aoc)0x005FBA9C)]
     static code call_goal_fba_check;
 
-    /// the group's dispatch (0x5DB641): each unit's location goal at its slot, FN_GOAL_MOVE_AT
+    /// the group's dispatch (0x5DB641): each unit's location goal at its slot, goal_move_at_game
     [address((ee)0x005DC902, (aoc)0x005ED231)]
     static code call_slot_goal;
 
@@ -48,23 +48,23 @@ static unsafe class goal
     [address((ee)0x0060AD45, (aoc)0x0061D337)]
     static code fn_goal_attack_ctor;
 
-    /// FN_GOAL_ATTACK_CTOR
+    /// goal.fn_goal_attack_ctor
     [value((ee)64, (aoc)68)]
     static uint32 size_goal_attack;
 
-    /// FN_BUILD_GOAL
+    /// goal_build_init
     [value(92)]
     static uint32 size_goal_build;
 
-    /// FN_GOAL_LOAD_CTOR
+    /// goal_load_ctor
     [value(0x68)]
     static uint32 size_goal_load;
 
-    /// FN_GOAL_MOVE_CTOR
+    /// goal_move_ctor
     [value(56)]
     static uint32 size_goal_move;
 
-    /// FN_GOAL_UNLOAD_CTOR
+    /// goal_unload_init
     [value(64)]
     static uint32 size_goal_unload;
 

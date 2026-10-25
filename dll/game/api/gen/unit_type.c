@@ -2,7 +2,7 @@
 // sh dll/build.sh. What each name is: gen_api.py's header; the classes, fields and functions: the spec.
 
 // class EEUnitClass (ee_unit_type)
-// a unit type's data, G_TYPES[type] and a unit's +0x2C (EEUnitClass, EEUC*)
+// a unit type's data, game.types[type] and a unit's +0x2C (EEUnitClass, EEUC*)
 internal inline uint8_t *type_get_vtable(const ee_unit_type *o) { return *(uint8_t **)((uint8_t *)o + of_type_vtable); }
 internal inline void type_set_vtable(ee_unit_type *o, uint8_t *v) { *(uint8_t **)((uint8_t *)o + of_type_vtable) = v; }
 internal inline uint8_t **type_vtable_at(const ee_unit_type *o) { return (uint8_t **)((uint8_t *)o + of_type_vtable); }
@@ -15,7 +15,7 @@ internal inline ee_unit_type *type_get_projectile(const ee_unit_type *o) { retur
 internal inline void type_set_projectile(ee_unit_type *o, ee_unit_type *v) { *(ee_unit_type **)((uint8_t *)o + of_type_projectile) = v; }
 internal inline ee_unit_type **type_projectile_at(const ee_unit_type *o) { return (ee_unit_type **)((uint8_t *)o + of_type_projectile); }
 // its movement model (movement.c model_kind)
-// its movement model (EEPhysicsModel: VT_PM_LAND, VT_PM_NAVAL ...), shared by the type's units - EEUCNaval::vf45
+// its movement model (EEPhysicsModel: movement.vt_pm_land, movement.vt_pm_naval ...), shared by the type's units - EEUCNaval::vf45
 // 0x60686F calls the movement step on it
 internal inline void *type_get_model(const ee_unit_type *o) { return *(void **)((uint8_t *)o + of_type_model); }
 internal inline void type_set_model(ee_unit_type *o, void *v) { *(void **)((uint8_t *)o + of_type_model) = v; }
@@ -180,12 +180,12 @@ internal inline void stat_set_hp(ee_unit_stats *o, int v) { *(int *)((uint8_t *)
 internal inline int *stat_hp_at(const ee_unit_stats *o) { return (int *)((uint8_t *)o + of_stat_hp); }
 
 // static class unit_type
-// unit_type's data of the game, places in its code and numbers (raw/'s address rows)
-// the minimap's operands of G_FLOAT_1_800
-// FN_ATTACK_BONUS's object
+// unit_type's data of the game, places in its code and numbers
+// the minimap's operands of hooks.float_1_800
+// attack_bonus_game's object
 internal inline uint8_t *unit_type_bonus_table_at(void) { return (uint8_t *)(uintptr_t)data_unit_type_bonus_table; }
-// VT_MISSILE
-// VT_PROJECTILE
+// unit_type.vt_missile
+// unit_type.vt_projectile
 // EEUnitClass: thiscall(type data, unit), as the game's goal assignment
 // EEUCTransport: char thiscall(type data, transport, unit) - its family against the unit type's board flags
 // (0x609095; AoC put a stub at 60)
@@ -195,7 +195,7 @@ internal inline uint8_t *unit_type_vt_projectile_at(void) { return (uint8_t *)(u
 
 // static class unit_type_functions
 // the game's functions unit_type.c wraps, by the names the C side gives them
-// thiscall(G_BONUS_TABLE, weapon kind, target type data, attacker, target player)
+// thiscall(unit_type.bonus_table, weapon kind, target type data, attacker, target player)
 typedef float (__thiscall *attack_bonus_game_fn)(void *, int, void *, int, int);
 internal attack_bonus_game_fn fn_attack_bonus_game;
 internal inline float attack_bonus_game(void *p1, int p2, void *p3, int p4, int p5) { return fn_attack_bonus_game(p1, p2, p3, p4, p5); }

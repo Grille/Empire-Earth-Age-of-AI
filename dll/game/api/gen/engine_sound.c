@@ -52,7 +52,7 @@ internal inline void sndmgr_set_channels(ee_sound_mgr *o, uint32_t v) { *(uint32
 internal inline uint32_t *sndmgr_channels_at(const ee_sound_mgr *o) { return (uint32_t *)((uint8_t *)o + of_sndmgr_channels); }
 
 // static class engine_sound
-// engine_sound's data of the game, places in its code and numbers (raw/'s address rows)
+// engine_sound's data of the game, places in its code and numbers
 // SESoundManager::Play(id, vol, pan, pitch, bool queue, char *) -> id or -1
 internal inline uint8_t *engine_sound_iat_snd_play_at(void) { return (uint8_t *)(uintptr_t)data_engine_sound_iat_snd_play; }
 // SESoundManager::PlayAndReturnReferencedNode(same) -> node or NULL

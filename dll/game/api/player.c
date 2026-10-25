@@ -42,10 +42,10 @@ internal inline void set_diplomacy(ee_player *a, ee_player *b, int stance, int f
 }
 // the player's attacks on target called off (the units back to the pool)
 // units of the player deleted to make room for req (the original of fleet.c's hook)
-// the game's unit limit for the player (EEPlayer::vf31(0) through the player's own vtable, as FN_GAME_LIMIT; it pops
+// the game's unit limit for the player (EEPlayer::vf31(0) through the player's own vtable, as game_limit; it pops
 // its argument)
 internal inline int unit_limit(ee_player *pl) { return ((int (__thiscall *)(void *, int))(*(void ***)pl)[value_player_slot_unit_limit])(pl, 0); }
-// does the game count the player as human (EEHumanPlayer's answers 1; FN_HUMAN_EPOCH's test)
+// does the game count the player as human (EEHumanPlayer's answers 1; highest_human_epoch's test)
 internal inline char player_is_human(ee_player *pl) { return ((char (__thiscall *)(void *))(*(void ***)pl)[value_player_slot_player_human])(pl); }
 
 // COMPUTER PLAYERS (the originals of econ.c's hooks)

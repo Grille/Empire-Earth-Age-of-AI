@@ -19,7 +19,7 @@ internal inline int techdata_get_cost(const ee_tech_data *d, int r) { return FIE
 // +0x7D it counts as one of an epoch's new things (EETechTree::vf4)
 // +0x81 Art of Conquest: granted by its epoch's line upgrades (only_new)
 
-// AN EFFECT LIST (G_EPOCH_TECHS[i], a tech's techdata_get_effects): +0x4 the effect ids, +0x8 their count
+// AN EFFECT LIST (data_game_epoch_techs[i], a tech's techdata_get_effects): +0x4 the effect ids, +0x8 their count
 
 // a tech effect (tech_effect(id)): +0x20 its kind (2 an attribute, 0x13 a line upgrade), +0x14 the unit type it is on
 // (-1 all; a line upgrade's old type), +0x18 a line upgrade's new type, +0x2C the attribute
@@ -43,6 +43,6 @@ typedef void (__thiscall *epoch_upgrades_aoc_hook)(ee_tech *node, int cat, int o
 internal inline int patch_epoch_upgrades(epoch_upgrades_hook h, epoch_upgrades_aoc_hook h_aoc) {
     return patch_call(data_tech_call_epoch_upgrades, data_tech_fn_epoch_upgrades, build_is("aoc") ? (void *)h_aoc : (void *)h);
 }
-// a tech researched for nothing (EETechTreeNode::vf6, its vtable slot VTS_TECH_RESEARCHED)
+// a tech researched for nothing (EETechTreeNode::vf6, its vtable slot data_tech_vts_tech_researched)
 typedef int (__thiscall *tech_grant_hook)(ee_tech *t);
 internal inline int patch_tech_grant(tech_grant_hook h) { return patch_vtable(data_tech_vts_tech_researched, 0, (uintptr_t)fn_tech_grant, (void *)h); }

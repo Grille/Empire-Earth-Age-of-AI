@@ -164,20 +164,13 @@ public sealed class expect : Attribute
     public expect(string member) { }
 }
 
-// HOW IT WAS FOUND (a field's: fields.h's letters) - c its class's code, b between two fields of the same shift, v the
+// HOW IT WAS FOUND (a field's) - c its class's code, b between two fields of the same shift, v the
 // code's reads agree with a neighbour's shift, s kept: no read says otherwise, h by hand (its reason)
 [AttributeUsage(AttributeTargets.Field | AttributeTargets.Method)]
 public sealed class found : Attribute
 {
     public found(how how) { }
     public found(how how, string why) { }
-}
-
-// the name today's tables give it, while it differs from the generated one (the move's check pairs them; gone after)
-[AttributeUsage(AttributeTargets.All)]
-public sealed class was : Attribute
-{
-    public was(string name) { }
 }
 
 

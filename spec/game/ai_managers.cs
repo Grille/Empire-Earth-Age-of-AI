@@ -2,7 +2,7 @@
 [c_prefix("bm")]
 unsafe struct ee_build_mgr
 {
-    /// the per-epoch build lists, 0x14 each - FN_BM_REQUEST 0x46802D / 0x46A9C1
+    /// the per-epoch build lists, 0x14 each - bm_request_game 0x46802D / 0x46A9C1
     [offset(0x4), found(c)]
     block queues;
 
@@ -201,14 +201,14 @@ unsafe struct ee_unit_mgr
     uint8 att_140;
 }
 
-/// ai_managers's data of the game, places in its code and numbers (raw/'s address rows)
+/// ai_managers's data of the game, places in its code and numbers
 static unsafe class ai_managers
 {
     /// call EECPResourceManager::AssignCitizens (0x48A554)
     [address((ee)0x0048D36A, (aoc)0x00491E3B)]
     static code call_assign_citizens;
 
-    /// a call of FN_UM_CITIZENS_WANTED
+    /// a call of um_citizens_wanted
     [address((ee)0x00490BC2, (aoc)0x00495A15)]
     static code call_citizens_wanted;
 
@@ -216,18 +216,18 @@ static unsafe class ai_managers
     [address((ee)0x0048D347, (aoc)0x00491E18)]
     static code call_compute_targets;
 
-    /// the call of FN_FARMS
+    /// the call of farms_game
     [address((ee)0x0048AC54, (aoc)0x0048F643)]
     static code call_farms;
 
-    /// the calls of FN_FISH_TYPE
+    /// the calls of fish_type
     [address((ee)0x0048F823, (aoc)0x0049457C)]
     static code call_fish_type_1;
 
     [address((ee)0x0048FB16, (aoc)0x0049488C)]
     static code call_fish_type_2;
 
-    /// the calls of FN_HUNT
+    /// the calls of hunt_game
     [address((ee)0x0048ACE4, (aoc)0x0048F6D2)]
     static code call_hunt_1;
 
@@ -241,14 +241,14 @@ static unsafe class ai_managers
     [address((ee)0x0046E3C6, (aoc)0x00471051)]
     static code call_rm_update;
 
-    /// a call of FN_TRAIN_CITIZENS
+    /// a call of um_train_citizens
     [address((ee)0x00430740, (aoc)0x0042E23C)]
     static code call_train_citizens;
 
     [address((ee)0x0048B0FD, (aoc)0x0048FAD4)]
     static code call_unbuilt_farms;
 
-    /// the calls of FN_FIND_WOOD
+    /// the calls of find_wood_game
     [address((ee)0x0048AB8D, (aoc)0x0048F57C)]
     [address((ee)0x0048AC2B, (aoc)0x0048F61A)]
     [address((ee)0x0048AE14, (aoc)0x0048F803)]
@@ -271,7 +271,7 @@ static unsafe class ai_managers
     [address((ee)0x0048B261, (aoc)0x0048FC37)]
     static code gather_sites;
 
-    /// the calls of FN_FIND_FOOD
+    /// the calls of find_food_game
     [address((ee)0x0048A247, (aoc)0x0048EBC2)]
     [address((ee)0x0048A25F, (aoc)0x0048EBDA)]
     [address((ee)0x0048A277, (aoc)0x0048EBF2)]
@@ -280,7 +280,7 @@ static unsafe class ai_managers
     [address((ee)0x0048AA2B, (aoc)0x0048F3A4)]
     static code mine_sites;
 
-    /// the calls of FN_FIND_MINE
+    /// the calls of find_mine_game
     [address((ee)0x0046CCE6, (aoc)0x0046F786)]
     [address((ee)0x00490CAC, (aoc)0x00495AFF)]
     [address((ee)0x00490E12, (aoc)0x00495C65)]
@@ -288,7 +288,7 @@ static unsafe class ai_managers
     [address((ee)0x00490FA9, (aoc)0x00495DFC)]
     static code train_sites;
 
-    /// the calls of FN_GOAL_UNLOAD_CTOR (landing.c; the last, 0x615AE6, the unload goal's copy)
+    /// the calls of goal_unload_init (landing.c; the last, 0x615AE6, the unload goal's copy)
     [address((ee)0x0048A28E, (aoc)0x0048EC09)]
     [address((ee)0x0048AAF6, (aoc)0x0048F4E1)]
     static code wood_sites;

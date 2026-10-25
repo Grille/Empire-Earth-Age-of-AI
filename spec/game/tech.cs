@@ -1,4 +1,4 @@
-/// G_EFFECTS' records
+/// game.effects' records
 unsafe struct ee_effect
 {
     /// the tech tree code's reads (unchanged)
@@ -18,7 +18,7 @@ unsafe struct ee_effect
     int32 attr;
 }
 
-/// G_EPOCH_TECHS' records
+/// game.epoch_techs' records
 [c_prefix("effects")]
 unsafe struct ee_epoch_techs
 {
@@ -31,7 +31,7 @@ unsafe struct ee_epoch_techs
     uint32 count;
 }
 
-/// a tech, FN_TECH_LOOKUP
+/// a tech, tech_lookup
 [c_type("ee_tech")]
 unsafe struct EETechTreeNode
 {
@@ -135,10 +135,10 @@ unsafe struct ee_tt_epoch
     int32 done;
 }
 
-/// tech's data of the game, places in its code and numbers (raw/'s address rows)
+/// tech's data of the game, places in its code and numbers
 static unsafe class tech
 {
-    /// the call of FN_EPOCH_UPGRADES
+    /// the call of tech.fn_epoch_upgrades
     [address((ee)0x0043D365, (aoc)0x0043C9FC)]
     static code call_epoch_upgrades;
 

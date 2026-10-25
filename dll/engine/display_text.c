@@ -9,7 +9,7 @@
 // gives only a few fonts one. That path draws into the current render target whatever the surface argument is, so
 // a bitmap font of ours is set on the font only while text goes to the back buffer (screen 0 +0x2B0) and taken off
 // again after the call. It reads characters as signed bytes (�/�/� negative, no glyph): both Draw functions'
-// movsx (RVA_LLE_FONT_MOVSX_1, _2) become movzx.
+// movsx (value_hooks_rva_lle_font_movsx_1, _2) become movzx.
 internal int g_text_bitmap = 1;
 internal struct { void *font, *bmp, *hfont; } g_fbm[64];
 // A font the game destroys (dialogs and screens make theirs anew each time) leaves its entry behind: the next font

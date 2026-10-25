@@ -1,17 +1,17 @@
-/// the draw list's records, DRAW_OLD (0x148 each)
+/// the draw list's records, hooks.draw_old (0x148 each)
 [c_type("void")]
 unsafe struct ee_draw_record
 {
-    /// the same in AoC: its draw list sites read DRAW_OLD + 0x58 and + 0xFC (0x50B2AD, 0x50EF07)
-    [offset(0x58), found(h, "the same in AoC: its draw list sites read DRAW_OLD + 0x58 and + 0xFC (0x50B2AD, 0x50EF07)")]
+    /// the same in AoC: its draw list sites read hooks.draw_old + 0x58 and + 0xFC (0x50B2AD, 0x50EF07)
+    [offset(0x58), found(h, "the same in AoC: its draw list sites read hooks.draw_old + 0x58 and + 0xFC (0x50B2AD, 0x50EF07)")]
     block _0x58;
 
-    /// the same in AoC: its draw list sites read DRAW_OLD + 0x58 and + 0xFC (0x50B2AD, 0x50EF07)
-    [offset(0xFC), found(h, "the same in AoC: its draw list sites read DRAW_OLD + 0x58 and + 0xFC (0x50B2AD, 0x50EF07)")]
+    /// the same in AoC: its draw list sites read hooks.draw_old + 0x58 and + 0xFC (0x50B2AD, 0x50EF07)
+    [offset(0xFC), found(h, "the same in AoC: its draw list sites read hooks.draw_old + 0x58 and + 0xFC (0x50B2AD, 0x50EF07)")]
     block _0xfc;
 }
 
-/// hooks's data of the game, places in its code and numbers (raw/'s address rows)
+/// hooks's data of the game, places in its code and numbers
 static unsafe class hooks
 {
     [address((ee)0x006177CF, (aoc)0x0062A366)]
@@ -28,7 +28,7 @@ static unsafe class hooks
     [address((ee)0x00535EF2, (aoc)0x005410C8)]
     static code call_parse_cmdline;
 
-    /// the idle transports' call of FN_SHORE_TO_UNLOAD
+    /// the idle transports' call of shore_to_unload
     [address((ee)0x00483E24, (aoc)0x00488490)]
     static code call_shore_to_unload;
 
@@ -89,25 +89,25 @@ static unsafe class hooks
     [address((ee)0x00824644, (aoc)0x00838638)]
     static block iat_srand;
 
-    /// the calls of FN_FIRE (aim.c)
+    /// the calls of unit_fire (aim.c)
     [address((ee)0x00538909, (aoc)0x00543A57)]
     [address((ee)0x0053892A, (aoc)0x00543A78)]
     [address((ee)0x00538945, (aoc)0x00543A93)]
     static code intro_calls;
 
-    /// the minimap's operands of G_FLOAT_1_600
+    /// the minimap's operands of hooks.float_1_600
     [address((ee)0x0065E01D, (aoc)0x00675618)]
     [address((ee)0x0065E8A3, (aoc)0x00675E95)]
     [address((ee)0x0065EB3E, (aoc)0x00676130)]
     static code minimap_fx_ops;
 
-    /// the other calls of FN_SET_RESOLUTION (display.c)
+    /// the other calls of set_resolution (display.c)
     [address((ee)0x0065E032, (aoc)0x0067562D)]
     [address((ee)0x0065E8CE, (aoc)0x00675EC0)]
     [address((ee)0x0065EB68, (aoc)0x0067615A)]
     static code minimap_fy_ops;
 
-    /// the calls of FN_MOUSE_UPDATE
+    /// the calls of mouse_update
     [address((ee)0x0065F30A, (aoc)0x006768F4)]
     [address((ee)0x0065F61B, (aoc)0x00676C0A)]
     [address((ee)0x0065F945, (aoc)0x00676F39)]
@@ -140,7 +140,7 @@ static unsafe class hooks
     [value((ee)0x55DF5, (aoc)0x49DDA)]
     static uint32 rva_lle_send_wait;
 
-    /// the calls of FN_ASSIGN_TO_SITE (trace.c)
+    /// the calls of assign_to_site (trace.c)
     [address((ee)0x000017E2, (aoc)0x00001684)]
     [address((ee)0x0000196F, (aoc)0x0000185C)]
     [address((ee)0x000019EB, (aoc)0x000018D8)]

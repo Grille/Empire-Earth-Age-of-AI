@@ -1433,7 +1433,7 @@ __attribute__((naked, used)) void unit_node_free_thunk(void) {   // at the call 
         "call _unit_node_free\n\t"
         "addl $8, %esp\n\t"
         "popal\n\t"
-        "movl _g_op_delete, %eax\n\t"  // FN_OP_DELETE (eax is free: the delete's result is not used)
+        "movl _g_op_delete, %eax\n\t"  // data_unit_fn_op_delete (eax is free: the delete's result is not used)
         "jmp *%eax\n\t");
 }
 

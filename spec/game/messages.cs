@@ -110,7 +110,7 @@ unsafe struct EEMUnloadTransport
     int32 y;
 }
 
-/// the lockstep server or client, [G_SERVER] (EEServer, EEClient)
+/// the lockstep server or client, [game.server] (EEServer, EEClient)
 unsafe struct EEServer
 {
     /// / +0x190 sent / done
@@ -138,25 +138,25 @@ unsafe struct EEServer
     uint8 rate;
 }
 
-/// messages's data of the game, places in its code and numbers (raw/'s address rows)
+/// messages's data of the game, places in its code and numbers
 static unsafe class messages
 {
     [address((ee)0x004BD133, (aoc)0x004C5E40)]
     static code call_sel_pack;
 
-    /// FN_CHEAT_MSG_CTOR
+    /// msg_cheat_init
     [value(24)]
     static uint32 size_cheat_msg;
 
-    /// FN_CHAT_MSG_CTOR
+    /// msg_chat_init
     [value(36)]
     static uint32 size_msg_chat;
 
-    /// VT_PAY_TRIBUTE, VT_INGAME_CHAT, VT_RESIGN, VT_MSG_LOAD, VT_MSG_UNLOAD: the message's Execute
+    /// messages.vt_pay_tribute, messages.vt_ingame_chat, messages.vt_resign, messages.vt_msg_load, messages.vt_msg_unload: the message's Execute
     [value(10)]
     static uint32 slot_msg_execute;
 
-    /// [G_SERVER] (EEServer, EEClient): thiscall(net, message, 0xFF)
+    /// [game.server] (EEServer, EEClient): thiscall(net, message, 0xFF)
     [value(6)]
     static uint32 slot_server_send;
 

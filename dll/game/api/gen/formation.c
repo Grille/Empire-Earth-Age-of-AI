@@ -14,7 +14,7 @@ internal inline void formation_set_kind(void *o, int v) { *(int *)((uint8_t *)o 
 internal inline int *formation_kind_at(const void *o) { return (int *)((uint8_t *)o + of_formation_kind); }
 
 // class ee_formation_slot (void)
-// a formation's slot (FN_FORMATION_SLOTS)
+// a formation's slot (formation_slots)
 // a formation slot's point {x, y, z} (EEFLine::vf2 in both builds)
 internal inline vec3 formation_slot_get_pos(const void *o) { return *(vec3 *)((uint8_t *)o + of_formation_slot_pos); }
 internal inline void formation_slot_set_pos(void *o, vec3 v) { *(vec3 *)((uint8_t *)o + of_formation_slot_pos) = v; }
@@ -29,15 +29,15 @@ internal inline void formation_slot_set_facing(void *o, uint32_t v) { *(uint32_t
 internal inline uint32_t *formation_slot_facing_at(const void *o) { return (uint32_t *)((uint8_t *)o + of_formation_slot_facing); }
 
 // static class formation
-// formation's data of the game, places in its code and numbers (raw/'s address rows)
-// FN_FORMATION_SLOTS: a slot {x, y, z, unit, facing} (both builds' EEFLine::vf2 steps 0x14)
-// the formations' vtables: FN_FORMATION_SLOTS
+// formation's data of the game, places in its code and numbers
+// formation_slots: a slot {x, y, z, unit, facing} (both builds' EEFLine::vf2 steps 0x14)
+// the formations' vtables: formation_slots
 
 // static class formation_functions
 // the game's functions formation.c wraps, by the names the C side gives them
 // EEFormation::vf1 thiscall(formation, group, vector *slots), slot 1 of every formation's vtable (EEFLine,
 // EEFShortLine, EEFWedge, EEFCircle ... 12): the group's units into a list, then the kind's vf2 (EEFLine
-// 0x4D79D9) fills the slots - SIZE_FORMATION_SLOT each {x, y, z, unit, facing} - from FORMATION_CENTER (the
+// 0x4D79D9) fills the slots - formation.size_formation_slot each {x, y, z, unit, facing} - from FORMATION_CENTER (the
 // clicked point, set by the group's dispatch 0x5DB641 just before, 0x5DBC89), every row and column spaced by the
 // group's largest type +0x470; a line's front row on the centre, the rows behind it. The dispatch then pairs
 // units and slots (nearest, or by their order along the move) and gives each unit an EEUGLocation at its slot

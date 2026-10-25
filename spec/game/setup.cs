@@ -1,63 +1,63 @@
 /// the game setup
 unsafe struct ee_setup
 {
-    /// the setup copy 0x524B8F and FN_GAME_START
+    /// the setup copy 0x524B8F and game_start
     [offset(0x3A8), found(c)]
     block map_name;
 
-    /// the setup copy 0x524B8F and FN_GAME_START; the registry's "Game Speed" (Game Options, the options loader
+    /// the setup copy 0x524B8F and game_start; the registry's "Game Speed" (Game Options, the options loader
     /// 0x52A19A at +4)
     [offset(0x3D4), found(c)]
     int32 speed;
 
     /// 0 random map, 1 scenario, 2 saved game, 3 editor test, 4 campaign
-    /// the setup copy 0x524B8F and FN_GAME_START
+    /// the setup copy 0x524B8F and game_start
     [offset(0x3D8), found(c)]
     int32 mode;
 
     /// 1 Small ..
-    /// the setup copy 0x524B8F and FN_GAME_START; the registry's "Map Size" (Game Options, the options loader 0x52A19A
+    /// the setup copy 0x524B8F and game_start; the registry's "Map Size" (Game Options, the options loader 0x52A19A
     /// at +4)
     [offset(0x3DC), found(c)]
     int32 map_scale;
 
-    /// the setup copy 0x524B8F and FN_GAME_START
+    /// the setup copy 0x524B8F and game_start
     [offset(0x3E0), found(c)]
     int32 start_epoch;
 
-    /// the setup copy 0x524B8F and FN_GAME_START
+    /// the setup copy 0x524B8F and game_start
     [offset(0x3E4), found(c)]
     int32 end_epoch;
 
     /// the game variant (0x8CF52C's list)
-    /// the setup copy 0x524B8F and FN_GAME_START; the registry's "Game Variant" (Game Options, the options loader
+    /// the setup copy 0x524B8F and game_start; the registry's "Game Variant" (Game Options, the options loader
     /// 0x52A19A at +4)
     [offset(0x3E8), found(c)]
     int32 variant;
 
-    /// the setup copy 0x524B8F and FN_GAME_START; the registry's "Starting Resources" (Game Options, the options loader
+    /// the setup copy 0x524B8F and game_start; the registry's "Starting Resources" (Game Options, the options loader
     /// 0x52A19A at +4)
     [offset(0x3EC), found(c)]
     int32 resources;
 
-    /// the setup copy 0x524B8F and FN_GAME_START
+    /// the setup copy 0x524B8F and game_start
     [offset(0x3F0), found(c)]
     int32 unit_limit;
 
-    /// the setup copy 0x524B8F and FN_GAME_START; the registry's "Wonders For Victory" (Game Options, the options
+    /// the setup copy 0x524B8F and game_start; the registry's "Wonders For Victory" (Game Options, the options
     /// loader 0x52A19A at +4)
     [offset(0x3F4), found(c)]
     int32 wonders;
 
-    /// the setup copy 0x524B8F and FN_GAME_START
+    /// the setup copy 0x524B8F and game_start
     [offset(0x3F8), found(c)]
     int32 difficulty;
 
-    /// the setup copy 0x524B8F and FN_GAME_START
+    /// the setup copy 0x524B8F and game_start
     [offset(0x3FC), found(c)]
     int32 _0x3fc;
 
-    /// the setup copy 0x524B8F and FN_GAME_START
+    /// the setup copy 0x524B8F and game_start
     [offset(0x400), found(c)]
     block flags;
 }

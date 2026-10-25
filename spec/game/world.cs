@@ -1,4 +1,4 @@
-/// the object of FN_DAMAGE_POINTS
+/// the object of damage_points
 [c_type("void"), c_prefix("dmgmodel")]
 unsafe struct ee_damage_model
 {
@@ -6,24 +6,24 @@ unsafe struct ee_damage_model
     block map;
 }
 
-/// the game data, [G_GAME_DATA]
+/// the game data, [game.game_data]
 [c_prefix("gamedata")]
 unsafe struct ee_game_data
 {
-    /// the code reading [G_GAME_DATA]
+    /// the code reading [game.game_data]
     [offset(0x2CC), found(c)]
     int32 line_ms;
 
-    /// the code reading [G_GAME_DATA] (the setup copy 0x524B8F)
+    /// the code reading [game.game_data] (the setup copy 0x524B8F)
     [offset(0x2E8), found(c)]
     int32 unit_limit;
 
-    /// the code reading [G_GAME_DATA] (the setup copy 0x524B8F)
+    /// the code reading [game.game_data] (the setup copy 0x524B8F)
     [offset(0x2EC), found(c)]
     int32 unit_limit_max;
 }
 
-/// the simulation, [G_WORLD_CLOCK] (EEPhysics)
+/// the simulation, [api.world_clock] (EEPhysics)
 [c_prefix("phys")]
 unsafe struct EEPhysics
 {
@@ -48,7 +48,7 @@ unsafe struct EEPhysics
     uint32 time;
 }
 
-/// the world, [G_WORLD] (EEWorld)
+/// the world, [game.world] (EEWorld)
 unsafe struct EEWorld
 {
     /// its thread (TSThread::Post)

@@ -173,20 +173,20 @@ internal inline uint8_t *b98_att_at(const ee_player_b98 *o) { return (uint8_t *)
 internal inline uint8_t *plstats_lists_at(const ee_player_stats *o) { return (uint8_t *)o + of_plstats_lists; }
 
 // static class player
-// player's data of the game, places in its code and numbers (raw/'s address rows)
+// player's data of the game, places in its code and numbers
 internal inline uint8_t *player_call_cp_update_at(void) { return (uint8_t *)(uintptr_t)data_player_call_cp_update; }
 // its one call: EEPlayer::vf41, a human reached an epoch
 internal inline uint8_t *player_call_epoch_catch_up_at(void) { return (uint8_t *)(uintptr_t)data_player_call_epoch_catch_up; }
 internal inline uint8_t *player_call_kill_stat_at(void) { return (uint8_t *)(uintptr_t)data_player_call_kill_stat; }
 internal inline uint8_t *player_call_nv_maint_delete_at(void) { return (uint8_t *)(uintptr_t)data_player_call_nv_maint_delete; }
-// the callers of FN_POP_CAP
+// the callers of cp_update_pop_cap
 internal inline uint8_t *player_call_pop_cap_1_at(void) { return (uint8_t *)(uintptr_t)data_player_call_pop_cap_1; }
 internal inline uint8_t *player_call_pop_cap_2_at(void) { return (uint8_t *)(uintptr_t)data_player_call_pop_cap_2; }
 internal inline uint8_t *player_call_pop_cap_3_at(void) { return (uint8_t *)(uintptr_t)data_player_call_pop_cap_3; }
-// VT_COMPUTER_PLAYER: FN_CP_ADD_RESOURCE (econ.c's hook; AoC as before)
-// VT_COMPUTER_PLAYER: FN_CP_PAY (econ.c's hook; AoC as before)
-// EEPlayer: char thiscall(player) - human (EEHumanPlayer's returns 1; FN_HUMAN_EPOCH's test)
-// EEPlayer: int thiscall(player, 0), the unit limit (FN_GAME_LIMIT)
+// player.vt_computer_player: cp_add_resource (econ.c's hook; AoC as before)
+// player.vt_computer_player: cp_pay (econ.c's hook; AoC as before)
+// EEPlayer: char thiscall(player) - human (EEHumanPlayer's returns 1; highest_human_epoch's test)
+// EEPlayer: int thiscall(player, 0), the unit limit (game_limit)
 internal inline uint8_t *player_vt_computer_player_at(void) { return (uint8_t *)(uintptr_t)data_player_vt_computer_player; }
 
 // static class player_functions

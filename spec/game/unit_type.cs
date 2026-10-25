@@ -1,4 +1,4 @@
-/// a unit type's data, G_TYPES[type] and a unit's +0x2C (EEUnitClass, EEUC*)
+/// a unit type's data, game.types[type] and a unit's +0x2C (EEUnitClass, EEUC*)
 [c_type("ee_unit_type"), c_prefix("type")]
 unsafe struct EEUnitClass
 {
@@ -14,7 +14,7 @@ unsafe struct EEUnitClass
     EEUnitClass* projectile;
 
     /// its movement model (movement.c model_kind)
-    /// its movement model (EEPhysicsModel: VT_PM_LAND, VT_PM_NAVAL ...), shared by the type's units - EEUCNaval::vf45
+    /// its movement model (EEPhysicsModel: movement.vt_pm_land, movement.vt_pm_naval ...), shared by the type's units - EEUCNaval::vf45
     /// 0x60686F calls the movement step on it
     [offset((ee)0x40C, (aoc)0x110), found(c)]
     void* model;
@@ -184,25 +184,25 @@ unsafe struct ee_unit_stats
     int32 hp;
 }
 
-/// unit_type's data of the game, places in its code and numbers (raw/'s address rows)
+/// unit_type's data of the game, places in its code and numbers
 static unsafe class unit_type
 {
-    /// the minimap's operands of G_FLOAT_1_800
+    /// the minimap's operands of hooks.float_1_800
     [address((ee)0x00606067, (aoc)0x00617838)]
     [address((ee)0x00607D79, (aoc)0x00619604)]
     [address((ee)0x0060ABB0, (aoc)0x0061D174)]
     [address((ee)0x0060B33C, (aoc)0x0061D997)]
     static code fire_calls;
 
-    /// FN_ATTACK_BONUS's object
+    /// attack_bonus_game's object
     [address((ee)0x00917DE0, (aoc)0x009318E8)]
     static block bonus_table;
 
-    /// VT_MISSILE
+    /// unit_type.vt_missile
     [value((ee)42, (aoc)43)]
     static uint32 slot_missile_launch;
 
-    /// VT_PROJECTILE
+    /// unit_type.vt_projectile
     [value((ee)55, (aoc)56)]
     static uint32 slot_proj_down;
 
@@ -227,7 +227,7 @@ static unsafe class unit_type
 [c_prefix("")]
 static unsafe class unit_type_functions
 {
-    /// thiscall(G_BONUS_TABLE, weapon kind, target type data, attacker, target player)
+    /// thiscall(unit_type.bonus_table, weapon kind, target type data, attacker, target player)
     [address((ee)0x004D5F2C, (aoc)0x004DBE44), thiscall]
     static extern float32 attack_bonus_game(void* p1, int32 p2, void* p3, int32 p4, int32 p5);
 

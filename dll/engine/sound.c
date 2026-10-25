@@ -17,7 +17,7 @@ internal mix_set_fn g_mix_set;
 internal mix_play_fn g_mix_play;
 typedef int (__cdecl *mix_vol_fn)(void *, float);
 internal mix_vol_fn g_mix_vol;
-internal uintptr_t g_mss_mixer;                   // Miles Sound System Mixer.dll base: its channels at RVA_MIX_CHANNELS
+internal uintptr_t g_mss_mixer;                   // Miles Sound System Mixer.dll base: its channels at value_engine_sound_rva_mix_channels
 internal int (__stdcall *g_ail_status)(void *);   // AIL_sample_status: 4 = playing
 internal int snd_status(int ch) {
     uint8_t *ve = NULL, *v = g_mss_mixer ? mix_channels(g_mss_mixer, &ve) : NULL;

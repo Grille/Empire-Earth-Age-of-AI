@@ -2,7 +2,7 @@
 // sh dll/build.sh. What each name is: gen_api.py's header; the classes, fields and functions: the spec.
 
 // class ee_effect (ee_effect)
-// G_EFFECTS' records
+// game.effects' records
 // the tech tree code's reads (unchanged)
 internal inline int effect_get_type(const ee_effect *o) { return *(int *)((uint8_t *)o + of_effect_type); }
 internal inline void effect_set_type(ee_effect *o, int v) { *(int *)((uint8_t *)o + of_effect_type) = v; }
@@ -21,7 +21,7 @@ internal inline void effect_set_attr(ee_effect *o, int v) { *(int *)((uint8_t *)
 internal inline int *effect_attr_at(const ee_effect *o) { return (int *)((uint8_t *)o + of_effect_attr); }
 
 // class ee_epoch_techs (ee_epoch_techs)
-// G_EPOCH_TECHS' records
+// game.epoch_techs' records
 // the tech tree code's reads (unchanged)
 internal inline uint32_t *effects_get_ids(const ee_epoch_techs *o) { return *(uint32_t **)((uint8_t *)o + of_effects_ids); }
 internal inline void effects_set_ids(ee_epoch_techs *o, uint32_t *v) { *(uint32_t **)((uint8_t *)o + of_effects_ids) = v; }
@@ -32,7 +32,7 @@ internal inline void effects_set_count(ee_epoch_techs *o, uint32_t v) { *(uint32
 internal inline uint32_t *effects_count_at(const ee_epoch_techs *o) { return (uint32_t *)((uint8_t *)o + of_effects_count); }
 
 // class EETechTreeNode (ee_tech)
-// a tech, FN_TECH_LOOKUP
+// a tech, tech_lookup
 // (vf6 sets it)
 // researched - EETechTreeNode::vf6 sets it (0x5BF335 / 0x5CFA53)
 internal inline uint8_t tech_get_researched(const ee_tech *o) { return *(uint8_t *)((uint8_t *)o + of_tech_researched); }
@@ -124,8 +124,8 @@ internal inline void ttrec_set_done(ee_tt_epoch *o, int v) { *(int *)((uint8_t *
 internal inline int *ttrec_done_at(const ee_tt_epoch *o) { return (int *)((uint8_t *)o + of_ttrec_done); }
 
 // static class tech
-// tech's data of the game, places in its code and numbers (raw/'s address rows)
-// the call of FN_EPOCH_UPGRADES
+// tech's data of the game, places in its code and numbers
+// the call of tech.fn_epoch_upgrades
 internal inline uint8_t *tech_call_epoch_upgrades_at(void) { return (uint8_t *)(uintptr_t)data_tech_call_epoch_upgrades; }
 // thiscall(node, category), AoC's (+ only new): econ.c
 internal inline uint8_t *tech_fn_epoch_upgrades_at(void) { return (uint8_t *)(uintptr_t)data_tech_fn_epoch_upgrades; }

@@ -2,8 +2,8 @@
 // sh dll/build.sh. What each name is: gen_api.py's header; the classes, fields and functions: the spec.
 
 // static class scenario_lists
-// scenario_lists's data of the game, places in its code and numbers (raw/'s address rows)
-// SM_CLASS_TEST: a scenario object's class from here is a family (AoC: 15 epochs before)
+// scenario_lists's data of the game, places in its code and numbers
+// sm_class_test_game: a scenario object's class from here is a family (AoC: 15 epochs before)
 // from here a unit group
 // from here an RPS class
 

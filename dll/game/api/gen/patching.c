@@ -2,7 +2,7 @@
 // sh dll/build.sh. What each name is: gen_api.py's header; the classes, fields and functions: the spec.
 
 // static class patching
-// patching's data of the game, places in its code and numbers (raw/'s address rows)
+// patching's data of the game, places in its code and numbers
 // an unload call (the resource manager's ferry)
 internal inline uint8_t *patching_call_unload_rm_at(void) { return (uint8_t *)(uintptr_t)data_patching_call_unload_rm; }
 internal inline uint8_t *patching_ret_asg_land_handoff_give_at(void) { return (uint8_t *)(uintptr_t)data_patching_ret_asg_land_handoff_give; }

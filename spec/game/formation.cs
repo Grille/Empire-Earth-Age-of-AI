@@ -12,7 +12,7 @@ unsafe struct EEFormation
     int32 kind;
 }
 
-/// a formation's slot (FN_FORMATION_SLOTS)
+/// a formation's slot (formation_slots)
 [c_type("void")]
 unsafe struct ee_formation_slot
 {
@@ -29,14 +29,14 @@ unsafe struct ee_formation_slot
     uint32 facing;
 }
 
-/// formation's data of the game, places in its code and numbers (raw/'s address rows)
+/// formation's data of the game, places in its code and numbers
 static unsafe class formation
 {
-    /// FN_FORMATION_SLOTS: a slot {x, y, z, unit, facing} (both builds' EEFLine::vf2 steps 0x14)
+    /// formation_slots: a slot {x, y, z, unit, facing} (both builds' EEFLine::vf2 steps 0x14)
     [value(20)]
     static uint32 size_formation_slot;
 
-    /// the formations' vtables: FN_FORMATION_SLOTS
+    /// the formations' vtables: formation_slots
     [value(1)]
     static uint32 slot_formation_slots;
 }
@@ -47,7 +47,7 @@ static unsafe class formation_functions
 {
     /// EEFormation::vf1 thiscall(formation, group, vector *slots), slot 1 of every formation's vtable (EEFLine,
     /// EEFShortLine, EEFWedge, EEFCircle ... 12): the group's units into a list, then the kind's vf2 (EEFLine
-    /// 0x4D79D9) fills the slots - SIZE_FORMATION_SLOT each {x, y, z, unit, facing} - from FORMATION_CENTER (the
+    /// 0x4D79D9) fills the slots - formation.size_formation_slot each {x, y, z, unit, facing} - from FORMATION_CENTER (the
     /// clicked point, set by the group's dispatch 0x5DB641 just before, 0x5DBC89), every row and column spaced by the
     /// group's largest type +0x470; a line's front row on the centre, the rows behind it. The dispatch then pairs
     /// units and slots (nearest, or by their order along the move) and gives each unit an EEUGLocation at its slot

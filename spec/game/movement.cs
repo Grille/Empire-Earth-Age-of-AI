@@ -1,27 +1,27 @@
-/// movement's data of the game, places in its code and numbers (raw/'s address rows)
+/// movement's data of the game, places in its code and numbers
 static unsafe class movement
 {
-    /// EEPhysicsModel: FN_PM_COLLIDE (after each movement mode's step, 0x549F82 +0x48)
+    /// EEPhysicsModel: model_collide (after each movement mode's step, 0x549F82 +0x48)
     [value((ee)18, (aoc)19)]
     static uint32 slot_pm_collide;
 
-    /// EEPhysicsModel: the push applied (FN_PM_COLLIDE's +0xC; EEPMNaval::vf3 0x54F05E, AoC 0x55B9D1)
+    /// EEPhysicsModel: the push applied (model_collide's +0xC; EEPMNaval::vf3 0x54F05E, AoC 0x55B9D1)
     [value(3)]
     static uint32 slot_pm_push;
 
-    /// EEPhysicsModel: FN_SPEED_DECIDE (AoC: its vf8 0x554BDE calls +0x28)
+    /// EEPhysicsModel: model_speed_decide (AoC: its vf8 0x554BDE calls +0x28)
     [value((ee)9, (aoc)10)]
     static uint32 slot_pm_speed_decide;
 
-    /// EEPhysicsModel: FN_SPEED_STEP (the tick's +0x20)
+    /// EEPhysicsModel: model_speed_step (the tick's +0x20)
     [value((ee)8, (aoc)9)]
     static uint32 slot_pm_speed_step;
 
-    /// EEPhysicsModel: FN_TURN_DECIDE (called from the turn step 0x548266 / AoC 0x554738: +0x2C / +0x30)
+    /// EEPhysicsModel: model_turn_decide (called from the turn step 0x548266 / AoC 0x554738: +0x2C / +0x30)
     [value((ee)11, (aoc)12)]
     static uint32 slot_pm_turn_decide;
 
-    /// EEPhysicsModel: FN_TURN_TOWARDS (the tick's +0x1C)
+    /// EEPhysicsModel: turn_towards (the tick's +0x1C)
     [value(7)]
     static uint32 slot_pm_turn_towards;
 
@@ -49,7 +49,7 @@ static unsafe class movement_functions
     /// the ships' (and helicopters') slot 18 (AoC 19): a thunk to EEPhysicsModel::vf18 0x549E61 (AoC vf19 0x556710)
     /// thiscall(model, unit), the collision step - while the unit moves (+0x2D8, AoC +0x2DC) and has contacts (+0xC8)
     /// or a blocked time (+0x248): the contacts tested (slot 14, AoC 15: the speed cut, the push +0x230/+0x234) and
-    /// the push applied (SLOT_PM_PUSH) - docs/engine-notes.md "Collision"
+    /// the push applied (movement.slot_pm_push) - docs/engine-notes.md "Collision"
     [address((ee)0x0054CABF, (aoc)0x0055BE0E), thiscall]
     static extern void model_collide(void* model, EEUnit* u);
 
@@ -59,7 +59,7 @@ static unsafe class movement_functions
     static extern int32 model_speed_decide(void* model, EEUnit* u, float32 dist, float32 angle);
 
     /// EEPhysicsModel::vf8 thiscall(model, unit, distance to the waypoint, angle off the bow): the new speed from
-    /// FN_SPEED_DECIDE (given the same) - on the last waypoint faster no further than the distance
+    /// model_speed_decide (given the same) - on the last waypoint faster no further than the distance
     [address((ee)0x0054858E, (aoc)0x00554BDE), thiscall]
     static extern float32 model_speed_step(void* model, EEUnit* u, float32 dist, float32 angle);
 

@@ -5,7 +5,7 @@
 // FIELDS (scenario_manager(); test/scen.c, engine-notes.md
 // "Scenario triggers"): the lists are vectors (begin, end) - the address of each list's begin
 // the last chat line received (UWideString; the 500 ms check empties it - one line a check), the queued effects (a
-// vector of {effect id, time ms, cinematic} 12 bytes each: an effect's delay, SM_QUEUE_EFFECT)
+// vector of {effect id, time ms, cinematic} 12 bytes each: an effect's delay, sm_queue_effect)
 internal inline float scen_step(void) { return *(const float *)data_scenario_sm_step; }                       // 500 ms
 // a trigger (EESMTrigger): its name and description (UWideString), the lists of its condition and effect references
 // a trigger's condition reference: the condition's index, the join to the next (0 end, 1 and, 2 or), not

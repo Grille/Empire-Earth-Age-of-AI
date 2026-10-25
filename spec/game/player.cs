@@ -192,7 +192,7 @@ unsafe struct EEPlayerStatistics
     block lists;
 }
 
-/// player's data of the game, places in its code and numbers (raw/'s address rows)
+/// player's data of the game, places in its code and numbers
 static unsafe class player
 {
     [address((ee)0x0042F3CD, (aoc)0x0042CDD1)]
@@ -208,7 +208,7 @@ static unsafe class player
     [address((ee)0x00477B17, (aoc)0x0047B635)]
     static code call_nv_maint_delete;
 
-    /// the callers of FN_POP_CAP
+    /// the callers of cp_update_pop_cap
     [address((ee)0x004311E5, (aoc)0x0042ECF6)]
     static code call_pop_cap_1;
 
@@ -218,19 +218,19 @@ static unsafe class player
     [address((ee)0x00474AF0, (aoc)0x004781C9)]
     static code call_pop_cap_3;
 
-    /// VT_COMPUTER_PLAYER: FN_CP_ADD_RESOURCE (econ.c's hook; AoC as before)
+    /// player.vt_computer_player: cp_add_resource (econ.c's hook; AoC as before)
     [value(18)]
     static uint32 slot_cp_add_resource;
 
-    /// VT_COMPUTER_PLAYER: FN_CP_PAY (econ.c's hook; AoC as before)
+    /// player.vt_computer_player: cp_pay (econ.c's hook; AoC as before)
     [value(45)]
     static uint32 slot_cp_pay;
 
-    /// EEPlayer: char thiscall(player) - human (EEHumanPlayer's returns 1; FN_HUMAN_EPOCH's test)
+    /// EEPlayer: char thiscall(player) - human (EEHumanPlayer's returns 1; highest_human_epoch's test)
     [value(29)]
     static uint32 slot_player_human;
 
-    /// EEPlayer: int thiscall(player, 0), the unit limit (FN_GAME_LIMIT)
+    /// EEPlayer: int thiscall(player, 0), the unit limit (game_limit)
     [value(31)]
     static uint32 slot_unit_limit;
 

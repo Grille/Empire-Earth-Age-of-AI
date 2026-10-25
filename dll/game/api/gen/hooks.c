@@ -2,21 +2,21 @@
 // sh dll/build.sh. What each name is: gen_api.py's header; the classes, fields and functions: the spec.
 
 // class ee_draw_record (void)
-// the draw list's records, DRAW_OLD (0x148 each)
-// the same in AoC: its draw list sites read DRAW_OLD + 0x58 and + 0xFC (0x50B2AD, 0x50EF07)
+// the draw list's records, hooks.draw_old (0x148 each)
+// the same in AoC: its draw list sites read hooks.draw_old + 0x58 and + 0xFC (0x50B2AD, 0x50EF07)
 internal inline uint8_t *draw_record_0x58_at(const void *o) { return (uint8_t *)o + of_draw_record_0x58; }
-// the same in AoC: its draw list sites read DRAW_OLD + 0x58 and + 0xFC (0x50B2AD, 0x50EF07)
+// the same in AoC: its draw list sites read hooks.draw_old + 0x58 and + 0xFC (0x50B2AD, 0x50EF07)
 internal inline uint8_t *draw_record_0xfc_at(const void *o) { return (uint8_t *)o + of_draw_record_0xfc; }
 
 // static class hooks
-// hooks's data of the game, places in its code and numbers (raw/'s address rows)
+// hooks's data of the game, places in its code and numbers
 internal inline uint8_t *hooks_call_attack_alert_at(void) { return (uint8_t *)(uintptr_t)data_hooks_call_attack_alert; }
 internal inline uint8_t *hooks_call_game_start_at(void) { return (uint8_t *)(uintptr_t)data_hooks_call_game_start; }
 // call LoadSavedGameFromCmdline(UString *) 0x521F94
 internal inline uint8_t *hooks_call_load_saved_at(void) { return (uint8_t *)(uintptr_t)data_hooks_call_load_saved; }
 // call ParseCommandLine(const char *) 0x522A36
 internal inline uint8_t *hooks_call_parse_cmdline_at(void) { return (uint8_t *)(uintptr_t)data_hooks_call_parse_cmdline; }
-// the idle transports' call of FN_SHORE_TO_UNLOAD
+// the idle transports' call of shore_to_unload
 internal inline uint8_t *hooks_call_shore_to_unload_at(void) { return (uint8_t *)(uintptr_t)data_hooks_call_shore_to_unload; }
 // the loading splash's start (jne)
 internal inline uint8_t *hooks_code_splash_start_jne_at(void) { return (uint8_t *)(uintptr_t)data_hooks_code_splash_start_jne; }
@@ -35,16 +35,16 @@ internal inline uint8_t *hooks_float_1_600_at(void) { return (uint8_t *)(uintptr
 // the float 1/800 (the minimap's x scale operand)
 internal inline uint8_t *hooks_float_1_800_at(void) { return (uint8_t *)(uintptr_t)data_hooks_float_1_800; }
 internal inline uint8_t *hooks_iat_srand_at(void) { return (uint8_t *)(uintptr_t)data_hooks_iat_srand; }
-// the calls of FN_FIRE (aim.c)
-// the minimap's operands of G_FLOAT_1_600
-// the other calls of FN_SET_RESOLUTION (display.c)
-// the calls of FN_MOUSE_UPDATE
+// the calls of unit_fire (aim.c)
+// the minimap's operands of hooks.float_1_600
+// the other calls of set_resolution (display.c)
+// the calls of mouse_update
 // GEFontBitmap::Draw (both overloads): movsx of a character
 // its import slot
 // ISInitialize's, setting up the device
 // Low-Level Engine, ISMouse::Resume: the 5 of push 5 (DISCL_ flags)
 // NESynchronousServer::Send: call [WaitForMultipleObjects] (turbo)
-// the calls of FN_ASSIGN_TO_SITE (trace.c)
+// the calls of assign_to_site (trace.c)
 // je over the CloseWindow call on WM_ACTIVATEAPP(0)
 internal inline uint8_t *hooks_site_close_window_je_at(void) { return (uint8_t *)(uintptr_t)data_hooks_site_close_window_je; }
 internal inline uint8_t *hooks_site_editor_menu_at(void) { return (uint8_t *)(uintptr_t)data_hooks_site_editor_menu; }

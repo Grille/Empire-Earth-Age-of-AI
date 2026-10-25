@@ -1,16 +1,16 @@
-/// a cluster of a group's units (FN_GROUP_SECTOR_ROUTE's units)
+/// a cluster of a group's units (group_sector_route's units)
 [c_type("void")]
 unsafe struct ee_unit_list
 {
-    /// FN_GROUP_SECTOR_ROUTE's reads (both builds): a vector of ee_unit * (begin, end +4)
+    /// group_sector_route's reads (both builds): a vector of ee_unit * (begin, end +4)
     [offset(0x4), found(c)]
     block units;
 }
 
-/// path's data of the game, places in its code and numbers (raw/'s address rows)
+/// path's data of the game, places in its code and numbers
 static unsafe class path
 {
-    /// EEActiveGroup::vf16's call of FN_GROUP_SECTOR_ROUTE, for each cluster of the group
+    /// EEActiveGroup::vf16's call of group_sector_route, for each cluster of the group
     [address((ee)0x005DB5C8, (aoc)0x005EBF0C)]
     static code call_group_sector_route;
 }

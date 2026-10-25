@@ -1,5 +1,5 @@
-// THE EXE BUILDS THE MOD KNOWS (exe.c tells which one runs): their columns in raw/tables.c's tables, in this order,
-// and how a file is known as one (exe_build_hash). Art of Conquest's column: scripts/re/port_addrs.py. Not ready: the
+// THE EXE BUILDS THE MOD KNOWS (exe.c tells which one runs): the spec's values per build ((ee), (aoc): spec/environment.cs), in this order,
+// and how a file is known as one (exe_build_hash). Art of Conquest's values: scripts/re/port_addrs.py. Not ready: the
 // player's game runs without the mod, a test run plays it (game_build). The module's one file outside it may use
 // (layers.py): the settings program tells the exe next to it by this too (tool/aimod_config.c, its Game page).
 #define ADDR_BUILDS 2

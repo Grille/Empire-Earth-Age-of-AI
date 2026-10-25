@@ -22,7 +22,7 @@ public static class values
 public enum ee : uint { }
 public enum aoc : uint { }
 
-// how a field's value was found ([found]; fields.h's letters)
+// how a field's value was found ([found])
 public enum how
 {
     /// read in its class's own code - the strongest

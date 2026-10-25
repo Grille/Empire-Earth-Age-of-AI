@@ -3,7 +3,7 @@
 
 // class ee_build_mgr (ee_build_mgr)
 // the AI's build manager, CM +0x3C
-// the per-epoch build lists, 0x14 each - FN_BM_REQUEST 0x46802D / 0x46A9C1
+// the per-epoch build lists, 0x14 each - bm_request_game 0x46802D / 0x46A9C1
 internal inline uint8_t *bm_queues_at(const ee_build_mgr *o) { return (uint8_t *)o + of_bm_queues; }
 // its base (-10000: none yet)
 // its file's code (+0x24, 5 votes)
@@ -176,32 +176,32 @@ internal inline void um_set_att_140(ee_unit_mgr *o, uint8_t v) { *(uint8_t *)((u
 internal inline uint8_t *um_att_140_at(const ee_unit_mgr *o) { return (uint8_t *)((uint8_t *)o + of_um_att_140); }
 
 // static class ai_managers
-// ai_managers's data of the game, places in its code and numbers (raw/'s address rows)
+// ai_managers's data of the game, places in its code and numbers
 // call EECPResourceManager::AssignCitizens (0x48A554)
 internal inline uint8_t *ai_managers_call_assign_citizens_at(void) { return (uint8_t *)(uintptr_t)data_ai_managers_call_assign_citizens; }
-// a call of FN_UM_CITIZENS_WANTED
+// a call of um_citizens_wanted
 internal inline uint8_t *ai_managers_call_citizens_wanted_at(void) { return (uint8_t *)(uintptr_t)data_ai_managers_call_citizens_wanted; }
 // call EECPResourceManager::ComputeGathererTargets (0x48D0A2)
 internal inline uint8_t *ai_managers_call_compute_targets_at(void) { return (uint8_t *)(uintptr_t)data_ai_managers_call_compute_targets; }
-// the call of FN_FARMS
+// the call of farms_game
 internal inline uint8_t *ai_managers_call_farms_at(void) { return (uint8_t *)(uintptr_t)data_ai_managers_call_farms; }
-// the calls of FN_FISH_TYPE
+// the calls of fish_type
 internal inline uint8_t *ai_managers_call_fish_type_1_at(void) { return (uint8_t *)(uintptr_t)data_ai_managers_call_fish_type_1; }
 internal inline uint8_t *ai_managers_call_fish_type_2_at(void) { return (uint8_t *)(uintptr_t)data_ai_managers_call_fish_type_2; }
-// the calls of FN_HUNT
+// the calls of hunt_game
 internal inline uint8_t *ai_managers_call_hunt_1_at(void) { return (uint8_t *)(uintptr_t)data_ai_managers_call_hunt_1; }
 internal inline uint8_t *ai_managers_call_hunt_2_at(void) { return (uint8_t *)(uintptr_t)data_ai_managers_call_hunt_2; }
 internal inline uint8_t *ai_managers_call_place_at(void) { return (uint8_t *)(uintptr_t)data_ai_managers_call_place; }
 // call EECPResourceManager::Update(now) (0x48D263)
 internal inline uint8_t *ai_managers_call_rm_update_at(void) { return (uint8_t *)(uintptr_t)data_ai_managers_call_rm_update; }
-// a call of FN_TRAIN_CITIZENS
+// a call of um_train_citizens
 internal inline uint8_t *ai_managers_call_train_citizens_at(void) { return (uint8_t *)(uintptr_t)data_ai_managers_call_train_citizens; }
 internal inline uint8_t *ai_managers_call_unbuilt_farms_at(void) { return (uint8_t *)(uintptr_t)data_ai_managers_call_unbuilt_farms; }
-// the calls of FN_FIND_WOOD
+// the calls of find_wood_game
 // call AddMovie(path) in PlayIntro 0x538867
-// the calls of FN_FIND_FOOD
-// the calls of FN_FIND_MINE
-// the calls of FN_GOAL_UNLOAD_CTOR (landing.c; the last, 0x615AE6, the unload goal's copy)
+// the calls of find_food_game
+// the calls of find_mine_game
+// the calls of goal_unload_init (landing.c; the last, 0x615AE6, the unload goal's copy)
 
 // static class ai_managers_functions
 // the game's functions ai_managers.c wraps, by the names the C side gives them

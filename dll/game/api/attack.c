@@ -30,7 +30,7 @@ internal inline void asg_target_set_unit(ee_asg_target *tg, int x, int y, int id
 }
 
 // A SUBGROUP'S UNIT RECORD (EECPAttackSubGroupUnit)
-// what FN_ASGU_SCORE scores: +0x4 the enemy
+// what asgu_score scores: +0x4 the enemy
 
 // AN ATTACK TASK (EECPAGTask; test/testcmd.c aigroup makes one): +0x20 the player it attacks, +0x28 / +0x2C / +0x30
 // as the scenario effect "Create AI Military Group" sets them (7, 2, 1 - not known)
@@ -72,7 +72,7 @@ internal inline int patch_group_stat(group_stat_hook h) { return patch_call(data
 typedef void (__cdecl *range_sort_hook)(void **b, void **e, ee_unit *unit);
 internal inline int patch_range_sort(range_sort_hook h) { return patch_call(data_attack_call_range_sort, (uintptr_t)fn_range_sort, (void *)h); }
 typedef void (__thiscall *asg_hook)(ee_attack_subgroup *sg);
-// the subgroups' stats: the land subgroups' own, the others' (ASG_VTABLES)
+// the subgroups' stats: the land subgroups' own, the others' (data_attack_asg_vtables)
 internal inline int patch_asg_land_stats(asg_hook h) { return patch_vtable(data_attack_vt_asg_land, value_attack_slot_asg_stats, (uintptr_t)fn_asg_land_stats, (void *)h); }
 internal inline int patch_asg_stats(asg_hook h, int *of) { return patch_vtables(PATCH_LIST(data_attack_asg_vtables), value_attack_slot_asg_stats, (uintptr_t)fn_asg_stats, (void *)h, of); }
 typedef void (__thiscall *asg_update_hook)(ee_attack_subgroup *sg, int now);
@@ -96,7 +96,7 @@ internal inline int patch_asg_route(asg_route_hook h) { return patch_vtable(data
 internal inline int patch_asg_route_done(asg_hook h) { return patch_vtable(data_attack_vt_asg_land, value_attack_slot_asg_route_done, (uintptr_t)fn_asg_route_done, (void *)h); }
 typedef int (__thiscall *route_cost_hook)(ee_route_planner *planner, int *edge, ee_route_node *node);
 internal inline int patch_route_cost(route_cost_hook h) { return patch_vtable(data_attack_vt_route_planner, value_attack_slot_route_cost, (uintptr_t)fn_route_cost_game, (void *)h); }
-// the land members' score of an enemy (base, hero, priests and prophets: ASGU_VTABLES)
+// the land members' score of an enemy (base, hero, priests and prophets: data_attack_asgu_vtables)
 typedef float (__thiscall *asgu_score_hook)(ee_asg_unit *member, ee_asgu_info *info);
 internal inline int patch_asgu_score(asgu_score_hook h, int *of) {
     return patch_vtables(PATCH_LIST(data_attack_asgu_vtables), value_attack_slot_asgu_score, (uintptr_t)fn_asgu_score, (void *)h, of);

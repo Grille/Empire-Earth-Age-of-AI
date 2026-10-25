@@ -1,15 +1,15 @@
 // THE GAME: its global state and what reads it (game_map(), game_players(), game_mouse() - the objects then have their
 // files), settings and tables, its memory, strings, actions, the simulation and the game's run.
 
-// THE SIMULATION ([G_WORLD_CLOCK], game_physics(): EEPhysics), THE WORLD ([G_WORLD])
+// THE SIMULATION ([data_api_world_clock], game_physics(): EEPhysics), THE WORLD ([data_game_world])
 // the screenshot keys' request, posted to the UI thread: size -1 the screen, else the whole map size x size/2, the game
 // paused while it renders (run_on 0); the file is EE###.bmp in the game folder
 internal inline void world_screenshot(ee_world *w, int size, int run_on) { fn_screenshot_game(w, size, run_on, 0); }
 
-// THE GAME DATA ([G_GAME_DATA], game_data()): a chat line's time on screen (ms), the unit limits (default, most)
-// a damage model's map by state (FN_DAMAGE_POINTS' object)
+// THE GAME DATA ([data_game_game_data], game_data()): a chat line's time on screen (ms), the unit limits (default, most)
+// a damage model's map by state (damage_points' object)
 
-// THE GAME'S DATA (raw/data.h's G_ rows): its globals read through these, typed - NULL / 0 before they exist
+// THE GAME'S DATA (spec/game/game.cs's): its globals read through these, typed - NULL / 0 before they exist
 internal inline ee_map *game_map(void) { return *(ee_map **)data_game_map; }                   // +0x1816FC its size in tiles
 internal inline ee_physics *game_physics(void) { return *(ee_physics **)data_api_world_clock; }       // EEPhysics: +0xD0 the game time
 internal inline int phys_substeps(void) { return *(int *)data_game_phys_substeps; }                    // the push's factor on a step (at least 1)
@@ -111,7 +111,7 @@ internal inline int resource_string(void *res, int id, void *s) { return ((int (
 internal inline void *pause_action_alloc(void) { return game_new(value_game_size_pause_action); }
 internal inline void *save_action_alloc(void) { return game_new(value_game_size_save_action); }
 internal inline void *new_unit_msg_alloc(void) { return game_new(value_game_size_new_unit_msg); }
-// an action into the world's queue (QueueAction on [G_WORLD]), an action's reference given back
+// an action into the world's queue (QueueAction on [data_game_world]), an action's reference given back
 internal inline void world_queue_action(void *act) { fn_queue_action_game(*(void **)data_game_world, act); }
 internal inline void action_release(void *act) { (*(void (__thiscall **)(void *))data_game_iat_release)(act); }
 // the pause button's action (EEAUserPauseGame: vtable, refcount 1, a byte - it toggles the pause)

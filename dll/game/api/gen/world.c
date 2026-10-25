@@ -2,26 +2,26 @@
 // sh dll/build.sh. What each name is: gen_api.py's header; the classes, fields and functions: the spec.
 
 // class ee_damage_model (void)
-// the object of FN_DAMAGE_POINTS
+// the object of damage_points
 internal inline uint8_t *dmgmodel_map_at(const void *o) { return (uint8_t *)o + of_dmgmodel_map; }
 
 // class ee_game_data (ee_game_data)
-// the game data, [G_GAME_DATA]
-// the code reading [G_GAME_DATA]
+// the game data, [game.game_data]
+// the code reading [game.game_data]
 internal inline int gamedata_get_line_ms(const ee_game_data *o) { return *(int *)((uint8_t *)o + of_gamedata_line_ms); }
 internal inline void gamedata_set_line_ms(ee_game_data *o, int v) { *(int *)((uint8_t *)o + of_gamedata_line_ms) = v; }
 internal inline int *gamedata_line_ms_at(const ee_game_data *o) { return (int *)((uint8_t *)o + of_gamedata_line_ms); }
-// the code reading [G_GAME_DATA] (the setup copy 0x524B8F)
+// the code reading [game.game_data] (the setup copy 0x524B8F)
 internal inline int gamedata_get_unit_limit(const ee_game_data *o) { return *(int *)((uint8_t *)o + of_gamedata_unit_limit); }
 internal inline void gamedata_set_unit_limit(ee_game_data *o, int v) { *(int *)((uint8_t *)o + of_gamedata_unit_limit) = v; }
 internal inline int *gamedata_unit_limit_at(const ee_game_data *o) { return (int *)((uint8_t *)o + of_gamedata_unit_limit); }
-// the code reading [G_GAME_DATA] (the setup copy 0x524B8F)
+// the code reading [game.game_data] (the setup copy 0x524B8F)
 internal inline int gamedata_get_unit_limit_max(const ee_game_data *o) { return *(int *)((uint8_t *)o + of_gamedata_unit_limit_max); }
 internal inline void gamedata_set_unit_limit_max(ee_game_data *o, int v) { *(int *)((uint8_t *)o + of_gamedata_unit_limit_max) = v; }
 internal inline int *gamedata_unit_limit_max_at(const ee_game_data *o) { return (int *)((uint8_t *)o + of_gamedata_unit_limit_max); }
 
 // class EEPhysics (ee_physics)
-// the simulation, [G_WORLD_CLOCK] (EEPhysics)
+// the simulation, [api.world_clock] (EEPhysics)
 // the game generator
 internal inline uint32_t phys_get_seed(const ee_physics *o) { return *(uint32_t *)((uint8_t *)o + of_phys_seed); }
 internal inline void phys_set_seed(ee_physics *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_phys_seed) = v; }
@@ -44,7 +44,7 @@ internal inline void phys_set_time(ee_physics *o, uint32_t v) { *(uint32_t *)((u
 internal inline uint32_t *phys_time_at(const ee_physics *o) { return (uint32_t *)((uint8_t *)o + of_phys_time); }
 
 // class EEWorld (ee_world)
-// the world, [G_WORLD] (EEWorld)
+// the world, [game.world] (EEWorld)
 // its thread (TSThread::Post)
 // EEWorld's +0x1C and +0x5C the same in AoC
 internal inline void *world_get_thread(const ee_world *o) { return *(void **)((uint8_t *)o + of_world_thread); }

@@ -162,7 +162,7 @@ internal ee_unit *select_mine_near_drop(ee_resource_mgr *rm, int type, ee_unit *
 }
 
 // OVERSEAS MINES ([all] overseas_mines, default on - Art of Conquest's fix): on a water map the citizen assignment
-// (0x48A554) asks at its last call (MINE_SITES[5]) for any mine, no unit given, whenever a mine type is still short or
+// (0x48A554) asks at its last call (data_ai_managers_mine_sites[5]) for any mine, no unit given, whenever a mine type is still short or
 // the overseas timer (0x43123A) is due - with nobody short too - and puts every idle citizen of the home island on the
 // transport manager's crossing to it (0x48A382). Any free mine does, the home island's too (60-75% of the searches;
 // with mine_choice the nearest to a drop site): the boat mostly never comes, and the citizens taken off that pass miss

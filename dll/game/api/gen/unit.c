@@ -40,7 +40,7 @@ internal inline ee_player *unit_get_owner(const ee_unit *o) { return *(ee_player
 internal inline void unit_set_owner(ee_unit *o, ee_player *v) { *(ee_player **)((uint8_t *)o + of_unit_owner) = v; }
 internal inline ee_player **unit_owner_at(const ee_unit *o) { return (ee_player **)((uint8_t *)o + of_unit_owner); }
 // the object freed: the release 0x4FCAD3 calls it when the last reference goes (RTSUnit::vf13 0x628D98 jumps
-// to the imported release, IAT_RELEASE)
+// to the imported release, game.iat_release)
 typedef void (__thiscall *unit_release_fn)(ee_unit *);
 internal inline void unit_release(ee_unit *u) { ((unit_release_fn)(*(void ***)u)[slot_unit_release])(u); }
 
@@ -98,7 +98,7 @@ internal inline int unit_get_busy(const ee_unit *o) { return *(int *)((uint8_t *
 internal inline void unit_set_busy(ee_unit *o, int v) { *(int *)((uint8_t *)o + of_unit_busy) = v; }
 internal inline int *unit_busy_at(const ee_unit *o) { return (int *)((uint8_t *)o + of_unit_busy); }
 // radians/s, signed
-// the turn rate now (radians/s, signed) - FN_PM_COLLIDE in both builds, FN_TURN_DECIDE's caller
+// the turn rate now (radians/s, signed) - model_collide in both builds, model_turn_decide's caller
 internal inline float unit_get_turn_rate(const ee_unit *o) { return *(float *)((uint8_t *)o + of_unit_turn_rate); }
 internal inline void unit_set_turn_rate(ee_unit *o, float v) { *(float *)((uint8_t *)o + of_unit_turn_rate) = v; }
 internal inline float *unit_turn_rate_at(const ee_unit *o) { return (float *)((uint8_t *)o + of_unit_turn_rate); }
@@ -130,8 +130,8 @@ internal inline void *unit_get_behaviour(const ee_unit *o) { return *(void **)((
 internal inline void unit_set_behaviour(ee_unit *o, void *v) { *(void **)((uint8_t *)o + of_unit_behaviour) = v; }
 internal inline void **unit_behaviour_at(const ee_unit *o) { return (void **)((uint8_t *)o + of_unit_behaviour); }
 // the push velocity (tiles/s)
-// the push velocity {x, y} (tiles/s; the collision test adds, SLOT_PM_PUSH moves the unit by it x a step x
-// G_PHYS_SUBSTEPS and zeroes it) - FN_PM_COLLIDE in both builds
+// the push velocity {x, y} (tiles/s; the collision test adds, movement.slot_pm_push moves the unit by it x a step x
+// game.phys_substeps and zeroes it) - model_collide in both builds
 internal inline vec2 unit_get_push(const ee_unit *o) { return *(vec2 *)((uint8_t *)o + of_unit_push); }
 internal inline void unit_set_push(ee_unit *o, vec2 v) { *(vec2 *)((uint8_t *)o + of_unit_push) = v; }
 internal inline vec2 *unit_push_at(const ee_unit *o) { return (vec2 *)((uint8_t *)o + of_unit_push); }
@@ -140,7 +140,7 @@ internal inline int unit_get_producing(const ee_unit *o) { return *(int *)((uint
 internal inline void unit_set_producing(ee_unit *o, int v) { *(int *)((uint8_t *)o + of_unit_producing) = v; }
 internal inline int *unit_producing_at(const ee_unit *o) { return (int *)((uint8_t *)o + of_unit_producing); }
 // the movement mode
-// the movement mode (0x549F82 picks the model's step by it; 2 no collisions) - the push (SLOT_PM_PUSH) sets an
+// the movement mode (0x549F82 picks the model's step by it; 2 no collisions) - the push (movement.slot_pm_push) sets an
 // idle unit's pushed walk (+0x260 13) only while it is neither 0 nor 5, in both builds
 internal inline int unit_get_move_mode(const ee_unit *o) { return *(int *)((uint8_t *)o + of_unit_move_mode); }
 internal inline void unit_set_move_mode(ee_unit *o, int v) { *(int *)((uint8_t *)o + of_unit_move_mode) = v; }
@@ -159,7 +159,7 @@ internal inline int unit_get_room(const ee_unit *o) { return *(int *)((uint8_t *
 internal inline void unit_set_room(ee_unit *o, int v) { *(int *)((uint8_t *)o + of_unit_room) = v; }
 internal inline int *unit_room_at(const ee_unit *o) { return (int *)((uint8_t *)o + of_unit_room); }
 // set while it moves
-// set while it moves (FN_PM_COLLIDE's first test in both builds)
+// set while it moves (model_collide's first test in both builds)
 internal inline int unit_get_moving(const ee_unit *o) { return *(int *)((uint8_t *)o + of_unit_moving); }
 internal inline void unit_set_moving(ee_unit *o, int v) { *(int *)((uint8_t *)o + of_unit_moving) = v; }
 internal inline int *unit_moving_at(const ee_unit *o) { return (int *)((uint8_t *)o + of_unit_moving); }
@@ -204,7 +204,7 @@ internal inline float unit_get_speed(const ee_unit *o) { return *(float *)((uint
 internal inline void unit_set_speed(ee_unit *o, float v) { *(float *)((uint8_t *)o + of_unit_speed) = v; }
 internal inline float *unit_speed_at(const ee_unit *o) { return (float *)((uint8_t *)o + of_unit_speed); }
 // the type's size (+0x474) x the unit's scale, in tiles - a diameter to the circle test (EEPhysicsModel::vf15), the
-// line's length to the ships' (EEPMNaval::vf16) - FN_PM_COLLIDE in both builds
+// line's length to the ships' (EEPMNaval::vf16) - model_collide in both builds
 internal inline float unit_get_size(const ee_unit *o) { return *(float *)((uint8_t *)o + of_unit_size); }
 internal inline void unit_set_size(ee_unit *o, float v) { *(float *)((uint8_t *)o + of_unit_size) = v; }
 internal inline float *unit_size_at(const ee_unit *o) { return (float *)((uint8_t *)o + of_unit_size); }
@@ -249,7 +249,7 @@ internal inline int patch_unit_release(unit_release_fn h) { return patch_vtable(
 internal inline ee_player *ghost_unit_get_player(const ee_ghost_unit *o) { return *(ee_player **)((uint8_t *)o + of_ghost_unit_player); }
 internal inline void ghost_unit_set_player(ee_ghost_unit *o, ee_player *v) { *(ee_player **)((uint8_t *)o + of_ghost_unit_player) = v; }
 internal inline ee_player **ghost_unit_player_at(const ee_ghost_unit *o) { return (ee_player **)((uint8_t *)o + of_ghost_unit_player); }
-// its type's data (G_TYPES[type id])
+// its type's data (game.types[type id])
 internal inline ee_unit_type *ghost_unit_get_type_data(const ee_ghost_unit *o) { return *(ee_unit_type **)((uint8_t *)o + of_ghost_unit_type_data); }
 internal inline void ghost_unit_set_type_data(ee_ghost_unit *o, ee_unit_type *v) { *(ee_unit_type **)((uint8_t *)o + of_ghost_unit_type_data) = v; }
 internal inline ee_unit_type **ghost_unit_type_data_at(const ee_ghost_unit *o) { return (ee_unit_type **)((uint8_t *)o + of_ghost_unit_type_data); }

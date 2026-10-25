@@ -2,7 +2,7 @@
 // sh dll/build.sh. What each name is: gen_api.py's header; the classes, fields and functions: the spec.
 
 // static class api
-// api's data of the game, places in its code and numbers (raw/'s address rows)
+// api's data of the game, places in its code and numbers
 // ptr to EEPhysics; +0xD0 = game time in ms
 internal inline uint8_t *api_world_clock_at(void) { return (uint8_t *)(uintptr_t)data_api_world_clock; }
 

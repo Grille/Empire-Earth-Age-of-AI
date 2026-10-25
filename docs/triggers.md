@@ -3,7 +3,7 @@
 How the game runs the scenario editor's triggers, read statically from the exe (2026-10-17); the runtime parts the
 `trig` test command uses are checked in play (reloadtime.scn). "Guess" marks what is not proven.
 Test command: `trig` (dll/test/scen.c, docs/testing.md). In the mod: dll/game/api/scenario.c - the lists by id, the
-fields of triggers, conditions, effects, objects and areas (raw/fields.h, both builds), the game's own evaluation
+fields of triggers, conditions, effects, objects and areas (spec/game/scenario.cs, both builds), the game's own evaluation
 (conditions, objects, areas, player attributes and specs), a trigger's update, an effect queued or run; the editor's
 lists as enums (`enum sm_*`, named as the editor shows them: categories and each one's actions, condition types,
 compares, player specs and attributes, unit and class attributes, tasks, stances, calamities, AI toggles, object tests).
@@ -16,7 +16,7 @@ calamity, whose ids are dbcalamity.dat's records (the powers after the prophets'
 same categories and actions (the run-effect switches have the same cases), the same unit, class and object attributes
 (0..19, 20..41, 0..74), stances, AI toggles, condition types and player attributes 0..30. It differs in: the class filter
 (0x5C6051) - 15 epochs, so families from 16 (2017: 15), RPS classes from 76 (72), unit groups from 117 (113), number rows
-SM_CLASS_FAMILY / SM_CLASS_RPS / SM_CLASS_GROUP (`sm_class_family(f)` ...); player attributes - statistics only 31..60,
+value_scenario_lists_sm_class_family / value_scenario_lists_sm_class_rps / value_scenario_lists_sm_class_group (`sm_class_family(f)` ...); player attributes - statistics only 31..60,
 then 61 its mining restriction (string 29681, player +0xAE4, read by 0x5BAF78 and set by 0x5BCB1F); 36 calamities
 (Flaming Arrows .. Special Location after the 23). The Set AI Variable function was rewritten (not paired).
 

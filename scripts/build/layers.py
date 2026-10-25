@@ -51,10 +51,10 @@ EXCEPTIONS = [
     ('voice/llm.c', 'test/control.c', 'queue_pause_toggle', 'the game paused while the language model answers'),
 ]
 
-# game/api/raw/ IS THE MODULE'S INSIDE: the addresses and offsets per build and their tables (GA, GF, GL, k_addr ...).
-# Nothing it defines is used outside game/api/ - the rest of the code calls the object files' accessors, typed
-# wrappers and installers (unit.c, player.c ...: the field names are raw/'s too), exe.c's build_is and layout.h's
-# FIELD; anything else fails the build.
+# game/api/'s VALUES ARE THE MODULE'S INSIDE: the spec's generated variables (gen/: of_, fn_, data_, value_ ... - the
+# addresses and offsets per build) and raw/ (the scenario editor's layout). Nothing of them is used outside game/api/ -
+# the rest of the code calls the accessors, typed wrappers and installers (gen/'s and the object files': unit.c,
+# player.c ...), exe.c's build_is and layout.h's FIELD; anything else fails the build.
 
 IDENT = re.compile(r'[A-Za-z_]\w*')
 # a declaration's attributes, written out or by base/'s macro (internal PRINTF_LIKE(1, 2) void f(...)): not its name
@@ -107,7 +107,7 @@ def definitions(code):
     for ln in lines:
         pre = pre or bool(re.match(r'\s*#', ln))
         # an X-macro's expansion on a line of its own (ADDRS(ADDR_TYPE_F, ADDR_TYPE_D), no ;) would run into the next
-        # statement and hide its name (raw/tables.c's k_addr): apart too
+        # statement and hide its name: apart too
         body.append('' if pre or re.match(r'\s*[A-Z][A-Z0-9_]*\s*\([^;{}]*\)\s*$', ln) else ln)
         pre = pre and ln.rstrip().endswith('\\')
     body = '\n'.join(body)
@@ -189,9 +189,6 @@ def analyse():
     owner = collections.defaultdict(set)
     for f in files:
         for n in definitions(code[f]): owner[n].add(f)
-    # a field's name (UNIT_0x13C) is a variable raw/tables.c makes of its row in raw/fields.h: the row's
-    for n in re.findall(r'^\s*O\((\w+),', code.get('game/api/raw/fields.h', ''), re.M): owner[n].add('game/api/raw/fields.h')
-    # the X-macro names of game/api/raw/tables.c and unit_ids.h: A_x, x_fn, UT_x are made there
     edges = collections.defaultdict(lambda: collections.defaultdict(set))   # user -> used file -> names
     for f in files:
         for n in uses(code[f]):
@@ -263,8 +260,8 @@ def main():
             if d.startswith('game/api/raw/'):
                 bad.append('%s uses %s of %s - game/api/raw/ only inside game/api/: an accessor, wrapper or installer in '
                            'the object\'s file of game/api/' % (u, ', '.join(sorted(ns)), d))
-            # the spec's C: its values (of_unit_hp, fn_unit_max_speed, slot_, call_, vt_, size_) are game/api/'s as raw/'s
-            # were - outside it the accessors, wrappers and installers (unit_get_hp, unit_max_speed, patch_aim)
+            # the spec's C: its values (of_unit_hp, fn_unit_max_speed, slot_, call_, vt_, size_) are game/api/'s -
+            # outside it the accessors, wrappers and installers (unit_get_hp, unit_max_speed, patch_aim)
             raw_names = sorted(n for n in ns if n in gen_values)
             if d.startswith('game/api/gen/') and raw_names:
                 bad.append('%s uses %s of %s - the spec\'s values only inside game/api/: an accessor, wrapper or installer'

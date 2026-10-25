@@ -96,7 +96,7 @@ internal inline void unload_msg_set_y(ee_msg *o, int v) { *(int *)((uint8_t *)o 
 internal inline int *unload_msg_y_at(const ee_msg *o) { return (int *)((uint8_t *)o + of_unload_msg_y); }
 
 // class EEServer (ee_server)
-// the lockstep server or client, [G_SERVER] (EEServer, EEClient)
+// the lockstep server or client, [game.server] (EEServer, EEClient)
 // / +0x190 sent / done
 internal inline uint32_t server_get_sent(const ee_server *o) { return *(uint32_t *)((uint8_t *)o + of_server_sent); }
 internal inline void server_set_sent(ee_server *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_server_sent) = v; }
@@ -121,12 +121,12 @@ internal inline void server_set_rate(ee_server *o, uint8_t v) { *(uint8_t *)((ui
 internal inline uint8_t *server_rate_at(const ee_server *o) { return (uint8_t *)((uint8_t *)o + of_server_rate); }
 
 // static class messages
-// messages's data of the game, places in its code and numbers (raw/'s address rows)
+// messages's data of the game, places in its code and numbers
 internal inline uint8_t *messages_call_sel_pack_at(void) { return (uint8_t *)(uintptr_t)data_messages_call_sel_pack; }
-// FN_CHEAT_MSG_CTOR
-// FN_CHAT_MSG_CTOR
-// VT_PAY_TRIBUTE, VT_INGAME_CHAT, VT_RESIGN, VT_MSG_LOAD, VT_MSG_UNLOAD: the message's Execute
-// [G_SERVER] (EEServer, EEClient): thiscall(net, message, 0xFF)
+// msg_cheat_init
+// msg_chat_init
+// messages.vt_pay_tribute, messages.vt_ingame_chat, messages.vt_resign, messages.vt_msg_load, messages.vt_msg_unload: the message's Execute
+// [game.server] (EEServer, EEClient): thiscall(net, message, 0xFF)
 internal inline uint8_t *messages_start_vtbl_exec_at(void) { return (uint8_t *)(uintptr_t)data_messages_start_vtbl_exec; }
 internal inline uint8_t *messages_vt_ingame_chat_at(void) { return (uint8_t *)(uintptr_t)data_messages_vt_ingame_chat; }
 // EEMLoadTransport

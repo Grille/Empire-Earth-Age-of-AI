@@ -1,6 +1,6 @@
 // THE MOVEMENT MODELS (EEPhysicsModel and its kinds: EEPMNaval, EEPMLand ...; one per kind of unit, shared): hooks.
 // Each tick a model steers its unit towards the front waypoint (vtable +0x1C, the turn) and sets its speed (+0x20,
-// EEPhysicsModel::vf8) from a decision (+0x24, FN_SPEED_DECIDE): 2 hold, 3 faster (up to unit_max_speed; on the
+// EEPhysicsModel::vf8) from a decision (+0x24, model_speed_decide): 2 hold, 3 faster (up to unit_max_speed; on the
 // last waypoint no faster than the distance), 4 slower (by the acceleration a tick, 0 below 0.005), else stop. The
 // decision: more than 45 degrees off the bow (+-pi/4: 0x82C5C0, 0x82B668), slower - the unit crawls at its least
 // speed while it turns, then speeds up; within, faster; slower too when the way left is no longer than it needs to
@@ -15,10 +15,10 @@ internal inline int patch_ship_speed_decide(speed_decide_hook h) {
          + patch_vtable(data_movement_vt_pm_submerged, value_movement_slot_pm_speed_decide, (uintptr_t)fn_model_speed_decide, (void *)h);
 }
 // the turn decision (the turn step 0x548266 asks it each tick with the unit's turn rate now, +0x17C, and the angle
-// left, both signed): 3 turn faster towards it (up to FN_UNIT_MAX_TURN), 4 slower (by the turn acceleration a tick, 0
+// left, both signed): 3 turn faster towards it (up to unit_max_turn), 4 slower (by the turn acceleration a tick, 0
 // at the end), 2 hold. The 2017 update's takes both as sizes and doesn't look a step ahead, so a unit swings past the
 // heading and back; AoC's (slot 12) has both - not patched there (0). Patched in every model whose turn is the shared
-// FN_TURN_TOWARDS (slot 7: ships, submarines and 7 others - land units turn at a fixed rate in their own tick, without
+// turn_towards (slot 7: ships, submarines and 7 others - land units turn at a fixed rate in their own tick, without
 // it), slot 11 - not where some models hold it in slot 10 too (another axis's turn, 0x5480A2, which AoC kept): their count
 typedef int (__thiscall *turn_decide_hook)(void *model, ee_unit *u, float rate, float left);
 internal inline int patch_turn_decide(turn_decide_hook h) { return build_is("aoc") ? 0 : patch_vtables_with((uintptr_t)fn_turn_towards, value_movement_slot_pm_turn_towards, value_movement_slot_pm_turn_decide, (uintptr_t)fn_model_turn_decide, (void *)h); }
@@ -36,7 +36,7 @@ internal inline int patch_land_turn_towards(turn_towards_hook h) {   // the land
     return patch_vtable(data_movement_vt_pm_land, value_movement_slot_pm_turn_towards, (uintptr_t)fn_turn_towards, (void *)h)
          + patch_vtable(data_movement_vt_pm_hover, value_movement_slot_pm_turn_towards, (uintptr_t)fn_turn_towards, (void *)h);
 }
-// the tick's speed step (slot 8: FN_SPEED_DECIDE asked with the same distance and angle; on the last waypoint it
+// the tick's speed step (slot 8: model_speed_decide asked with the same distance and angle; on the last waypoint it
 // speeds up no further than the distance, and the decision brakes when the way left is within the stopping distance)
 typedef float (__thiscall *speed_step_hook)(void *model, ee_unit *u, float dist, float angle);
 internal inline int patch_ship_speed_step(speed_step_hook h) {

@@ -5,7 +5,7 @@
 // stay with their feature.
 
 // ---- from econ.c ----
-// explored <player>: how many of the map's objects the player has explored (the game's own test, FN_EXPLORED) - the
+// explored <player>: how many of the map's objects the player has explored (the game's own test, explored_game) - the
 // setup's reveal map (randmap.c reveal_map) explores them all at the start, its fog stays
 internal void cmd_explored(char *out, const char *args) {
     int p = atoi(args), n = 0, seen = 0;
@@ -15,8 +15,8 @@ internal void cmd_explored(char *out, const char *args) {
     REPLY("P%d explored %d of %d map objects (explore all %d)\n", p, seen, n, player_get_explore_all(pl));
 }
 
-// epochup P: player P - any, the tests' idle human too - gets its next epoch at once, unpaid (FN_EPOCH_NEXT: the tech
-// tree's epoch, its event and what becomes available; the epoch tech itself stays unresearched - FN_TECH_GRANT refuses
+// epochup P: player P - any, the tests' idle human too - gets its next epoch at once, unpaid (epoch_next: the tech
+// tree's epoch, its event and what becomes available; the epoch tech itself stays unresearched - tech_grant refuses
 // epoch techs, category 3). For epoch_pacing=follow's test: the human ahead at a set minute.
 internal void cmd_epochup(char *out, const char *args) {
     int p = atoi(args);

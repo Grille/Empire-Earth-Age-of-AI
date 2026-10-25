@@ -1,6 +1,6 @@
 // OBJECT TYPE IDENTIFIERS (docs/units.md): every unit and building type has its internal name from the game data,
 // the same in every language; lowercase with '_' for the rest it is the identifier - b_guard_tower_bronze for 462. Read
-// from the data the game has loaded (its type table G_TYPES: the name behind +0x1C, the family at +0x4C4), so a data
+// from the data the game has loaded (its type table data_game_types: the name behind +0x1C, the family at +0x4C4), so a data
 // mod's own types and families count too - once the game has loaded it (before its menu; the text files are read
 // earlier: unit.<identifier> names in them are checked then - unit_name_later). The kinds are the engine's families,
 // by name (unit_names.h k_kind_ident, from the game data's converter log); each kind's types are listed here once.

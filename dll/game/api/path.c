@@ -1,5 +1,5 @@
 // THE PATH MANAGER (0x917D00, ticked every simulation step): the units' route requests - functions, hooks.
-// A request (FN_PATH_REQUEST) runs a tile A* (8 directions) at once or in slices of about 32 nodes a step, long ones
+// A request (path_request_game) runs a tile A* (8 directions) at once or in slices of about 32 nodes a step, long ones
 // through the map's sector graph as a chain of auto-waypoint goals (a new request whenever few waypoints are left);
 // the result is written to the unit's waypoints (unit_add_waypoint). docs/engine-notes.md "Routes".
 

@@ -23,7 +23,7 @@ internal inline void cell_set_units_begin(ee_grid_cell *o, ee_unit **v) { *(ee_u
 internal inline ee_unit ***cell_units_begin_at(const ee_grid_cell *o) { return (ee_unit ***)((uint8_t *)o + of_cell_units_begin); }
 
 // class EEMap (ee_map)
-// the map, [G_MAP] (EEMap)
+// the map, [game.map] (EEMap)
 // port_fields EEMap (x6): a row of VIEWROW per y, 0xC each
 internal inline void *map_get_view_rows(const ee_map *o) { return *(void **)((uint8_t *)o + of_map_view_rows); }
 internal inline void map_set_view_rows(ee_map *o, void *v) { *(void **)((uint8_t *)o + of_map_view_rows) = v; }
@@ -62,7 +62,7 @@ internal inline uint32_t *map_flags_at(const ee_map *o) { return (uint32_t *)((u
 internal inline int siteown_get_flag(const ee_unit_vis *o) { return *(int *)((uint8_t *)o + of_siteown_flag); }
 internal inline void siteown_set_flag(ee_unit_vis *o, int v) { *(int *)((uint8_t *)o + of_siteown_flag) = v; }
 internal inline int *siteown_flag_at(const ee_unit_vis *o) { return (int *)((uint8_t *)o + of_siteown_flag); }
-// FN_EXPLORED 0x404A8A, AoC's 0x4042E2
+// explored_game 0x404A8A, AoC's 0x4042E2
 internal inline uint16_t *siteown_get_seen(const ee_unit_vis *o) { return *(uint16_t **)((uint8_t *)o + of_siteown_seen); }
 internal inline void siteown_set_seen(ee_unit_vis *o, uint16_t *v) { *(uint16_t **)((uint8_t *)o + of_siteown_seen) = v; }
 internal inline uint16_t **siteown_seen_at(const ee_unit_vis *o) { return (uint16_t **)((uint8_t *)o + of_siteown_seen); }
@@ -90,7 +90,7 @@ internal inline void *tile_get_objects(const ee_tile *o) { return *(void **)((ui
 internal inline void tile_set_objects(ee_tile *o, void *v) { *(void **)((uint8_t *)o + of_tile_objects) = v; }
 internal inline void **tile_objects_at(const ee_tile *o) { return (void **)((uint8_t *)o + of_tile_objects); }
 // [player index]
-// its sight count per player slot, a uint16 each (FN_TILE_SIGHT_ADD 0x519F4F, AoC 0x5247ED: the same code; =
+// its sight count per player slot, a uint16 each (map.fn_tile_sight_add 0x519F4F, AoC 0x5247ED: the same code; =
 // SITEOWN_SEEN, a unit's +0x14 is its tile)
 internal inline uint16_t *tile_get_sight(const ee_tile *o) { return *(uint16_t **)((uint8_t *)o + of_tile_sight); }
 internal inline void tile_set_sight(ee_tile *o, uint16_t *v) { *(uint16_t **)((uint8_t *)o + of_tile_sight) = v; }
@@ -119,7 +119,7 @@ internal inline void view_row_set_data(void *o, uint8_t *v) { *(uint8_t **)((uin
 internal inline uint8_t **view_row_data_at(const void *o) { return (uint8_t **)((uint8_t *)o + of_view_row_data); }
 
 // static class map
-// map's data of the game, places in its code and numbers (raw/'s address rows)
+// map's data of the game, places in its code and numbers
 // thiscall(tile, player), ret 4: a unit more sees it
 internal inline uint8_t *map_fn_tile_sight_add_at(void) { return (uint8_t *)(uintptr_t)data_map_fn_tile_sight_add; }
 // thiscall(tile, player), ret 4: a unit less sees it
@@ -129,7 +129,7 @@ internal inline uint8_t *map_map_areas_at(void) { return (uint8_t *)(uintptr_t)d
 
 // static class map_functions
 // the game's functions map.c wraps, by the names the C side gives them
-// the area object at a tile (thiscall on the map areas G_MAP_AREAS)
+// the area object at a tile (thiscall on the map areas map.map_areas)
 typedef uint8_t *(__thiscall *area_at_game_fn)(void *, int *);
 internal area_at_game_fn fn_area_at_game;
 internal inline uint8_t *area_at_game(void *p1, int *p2) { return fn_area_at_game(p1, p2); }

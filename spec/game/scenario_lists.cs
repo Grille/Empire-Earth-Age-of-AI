@@ -1,7 +1,7 @@
-/// scenario_lists's data of the game, places in its code and numbers (raw/'s address rows)
+/// scenario_lists's data of the game, places in its code and numbers
 static unsafe class scenario_lists
 {
-    /// SM_CLASS_TEST: a scenario object's class from here is a family (AoC: 15 epochs before)
+    /// sm_class_test_game: a scenario object's class from here is a family (AoC: 15 epochs before)
     [value((ee)15, (aoc)16)]
     static uint32 sm_class_family;
 

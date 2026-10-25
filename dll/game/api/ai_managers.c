@@ -113,7 +113,7 @@ internal inline int patch_farms(farms_hook h, farms_hook unbuilt, int *of) {   /
     if (of) *of += unbuilt ? 2 : 1;
     return patch_call(data_ai_managers_call_farms, (uintptr_t)fn_farms_game, (void *)h) + (unbuilt ? patch_call(data_ai_managers_call_unbuilt_farms, (uintptr_t)fn_unbuilt_farms, (void *)unbuilt) : 0);
 }
-// a citizen sent to work at a site (the calls of the assignment: GATHER_SITES), the citizens trained (trace.c)
+// a citizen sent to work at a site (the calls of the assignment: data_ai_managers_gather_sites), the citizens trained (trace.c)
 typedef void (__thiscall *gather_hook)(ee_resource_mgr *rm, ee_unit *u, ee_unit *site, int c);
 internal inline int patch_gather(gather_hook h, int *of) { return patch_calls(PATCH_LIST(data_ai_managers_gather_sites), (uintptr_t)fn_assign_to_site, (void *)h, of); }
 typedef uintptr_t (__thiscall *train_citizens_hook)(ee_unit_mgr *um, uintptr_t a);

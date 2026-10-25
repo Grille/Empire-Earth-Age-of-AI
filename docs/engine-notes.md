@@ -218,7 +218,7 @@ vf26 members and route released, vf12, the group's reference) frees nothing twic
   came within one step: the queue doesn't stop ships.
 - **The pieces:** a long order becomes a chain of auto-waypoint goals (EEUGLocation, +0x32 set) at the centres of the
   map's sectors (7-21 tiles by map size), made by 0x4A26E3 after a sector search. For a group's move the search is
-  EEActiveGroup::vf16's (0x5DB4B8): for each cluster of its units FN_GROUP_SECTOR_ROUTE 0x5F670A (call 0x5DB5C8) -
+  EEActiveGroup::vf16's (0x5DB4B8): for each cluster of its units group_sector_route 0x5F670A (call 0x5DB5C8) -
   not the request's own sector flag. The next leg is asked for when [0x917DC8] waypoints are left (8-18 by map size;
   10 on a small map; ShouldMoveToNextAutoWaypoint 0x5F0844). Each leg is its own 8-direction A*, so the legs alternate
   (tests/probes/ship_long.eeai: 45, 0, 45, 0 ... degrees, 12-21% longer than straight).
@@ -343,7 +343,7 @@ vf26 members and route released, vf12, the group's reference) frees nothing twic
   sent 20 tiles stood half beyond 27 tiles of the click, all within 40, the last in after 108 s. `formations`
   (dll/engine/groupmove.c, default off) lays every formation out again by the units' sizes; the pairing stays the
   game's (that block also prepares the group's route - skipping it, at the je on +0xB6 before it, sent units on
-  detours) and each unit's goal is set to its own spot at the goal loop's call (CALL_SLOT_GOAL, FN_GOAL_MOVE_AT 0x614D47).
+  detours) and each unit's goal is set to its own spot at the goal loop's call (data_goal_call_slot_goal, goal_move_at_game 0x614D47).
 
 ## Orders, game end, splash
 
@@ -685,7 +685,7 @@ conditions, 162 states with their ids) were dumped by a helper, not kept in the 
   transport 2-4 tiles off the beach then waits there, the units can't reach it and drop out (seen: 0 of 10 aboard).
   The unload command EEMUnloadTransport (0x828AC4, Execute 0x4BF756; +0x14/+0x18 the tile) gives the selected group one
   unload goal at that tile. The mod's transport_split / transport_unload_spread (dll/ai/transports.c) hook both
-  Executes. The unit id (+0x24, player in bits 24..31) finds the unit back through 0x53B889 on G_GAME_STATE (its
+  Executes. The unit id (+0x24, player in bits 24..31) finds the unit back through 0x53B889 on data_game_game_state (its
   handle's +0x30). The sender byte (+0xA) is the player's +0x464, not its index.
 - A command's markers are graphical effects (ids: game/api/ui.c's enum gfx_kind; 0x404C83 maps an id to its record):
   - The click confirmation: the mouse click (EEAMouseClick::vf3, 0x403CF1) draws it itself on the clicking PC, before
@@ -837,13 +837,13 @@ conditions, 162 states with their ids) were dumped by a helper, not kept in the 
   count). Every reference to the unit records (disassembly scan of .text): 0x5007B1/0x5007CA (game-start init loop,
   start and end), 0x503C68, 0x503ECF, 0x503FCB (+0xFC), 0x5043B4, 0x50DC59. Measured (360 longbows fighting): up to 445
   objects; 600: the original list stays at 512 (full), `[display] draw_limit` 4096: up to 727.
-- The collection goes tile by tile (the map's tiles, MAP +0x1816D4) and asks each tile first: 0x404A8A (FN_EXPLORED)
+- The collection goes tile by tile (the map's tiles, MAP +0x1816D4) and asks each tile first: 0x404A8A (explored_game)
   false - left out with everything on it; 0x44E46E false (explored, not in sight) - only the remembered objects. Both
   read the tile's sight count for the viewed player (+0xC: a uint16 per player slot, player +0x45C, two to a dword):
   0 unexplored, 1 explored, 2 + n while n of the player's units see it - but only its low byte. The count changes in
   three RTSTile methods only (a scan of every function for writes through the slot's shift): 0x519F4F +1 (a low byte
   of 0 -> set to 2, else +1 on the whole 16 bits), 0x519E26 -1 (while the low byte > 1), 0x51979C set (0 / 1 / 2:
-  the fog's reset 0x517E3A, the explore-all paths); its 19 readers all take the low byte (FN_EXPLORED, 0x44E46E,
+  the fog's reset 0x517E3A, the explore-all paths); its 19 readers all take the low byte (explored_game, 0x44E46E,
   0x40F478, the fog's, the minimap's, the viewed player's copy 0x55BC4E into MAP +0x17B598), one its size: the
   minimap's rebuild 0x5150F2 -> 0x514A8A adds count - 1 to its pixel's own count (+0x1015C, 64 x 64 shorts, kept
   +1 / -1 by 0x51426E / 0x5141E9 after that). So at 256 units a tile read unexplored (not drawn), at 257 explored
@@ -1034,7 +1034,7 @@ Each row is checked another way (the same instruction, the callers agreeing, the
   - AssignCitizens 0x48EECF: the overseas mine ferry (0x48F3F5-0x48F458) fixed - only citizens land-connected to home
     and not to the mine go on the boat list; the 2017 update's takes every home citizen, also to a mine they could
     walk to (and runs with no deficit once the overseas timer is due) - backported as `overseas_mines` (on: a find_mine filter
-    at MINE_SITES[5], only mines in another region than the base; measured in dll/ai/sites.c). The searches test connectivity through AoC's own
+    at data_ai_managers_mine_sites[5], only mines in another region than the base; measured in dll/ai/sites.c). The searches test connectivity through AoC's own
     area graph (0x422872) instead of region(pos, 2); the leftover pass, boats, fish and the ferry unchanged.
   - The citizen orders 0x493B97 (spreading a producer type's queue over its producers): unchanged. The unit orders
     0x494F42: a carrier's fighters are queued only at carriers with room (+0x2A8, the 2017 update's +0x2A4).
@@ -1055,7 +1055,7 @@ Each row is checked another way (the same instruction, the callers agreeing, the
 
 ### The objects' fields (scripts/re/port_fields.py, 2026-10-21)
 
-The mod reads ~3600 fields: 442 (kind, offset) pairs in dll/game/api/raw/fields.h, with AoC's column. Found per class: in its
+The mod reads ~3600 fields: 442 (kind, offset) pairs, then in dll/game/api/raw/fields.h, now spec/game/'s classes, with AoC's values. Found per class: in its
 methods (vtable slots and what they call with `this` in ecx) aligned with every number masked, [this + X] in the base
 reads [this + Y] in AoC (the AI's save/load serializer, EEComputerPlayer::vf6, names most player fields); then the
 offsets of all paired code (any object) for structures without methods, accepted only where they agree with a
@@ -1097,7 +1097,7 @@ games crashed at once, then after 4 minutes; what AoC had changed beyond address
   values "Installed From Volume" / "Directory" - read through Low-Level Engine's registry imports, so through the
   settings dinput.dll's file; a test slot's copy gets them from the registry.
 - Its single-instance check's je is at 0x540DA6 (the base's 0x535CDA); TCP Protocol.dll's port immediates moved
-  (RVA_TCP_PORTS); Low-Level Engine's NESynchronousServer::Send wait (turbo) is RVA_LLE_SEND_WAIT.
+  (data_hooks_rva_tcp_ports); Low-Level Engine's NESynchronousServer::Send wait (turbo) is value_hooks_rva_lle_send_wait.
 Then: 20- and 30-minute games on Continental and Small Islands, two at once, ran to their end - the AIs grew 44-52
 citizens by minute 20-30 and trained armies, about as in the 2017 update's game from the same command.
 
@@ -1124,8 +1124,8 @@ local/games/ee/decomp/dll/, local/games/aoc/decomp/dll/), then like the exes. Fo
   manager's queries it called by address are exports, now taken by name. The mixer's functions moved 3 bytes, its
   data (channels +0x52AC, maximum +0x5320) not.
 - What the mod had filed as the input device's (E_MOUSE +4/+8/+0xA4) is partly the exe's game cursor (RTSMouse,
-  [G_MOUSE]: position floats +4/+8, frozen +0xA4) - the kind MOUSE now; the same in AoC (FN_MOUSE_CLAMP and
-  FN_MOUSE_UPDATE have the same code).
+  [data_game_mouse]: position floats +4/+8, frozen +0xA4) - the kind MOUSE now; the same in AoC (mouse_clamp and
+  mouse_update have the same code).
 
 ### What AoC changed in the code (scripts/re/diff_exes.py)
 

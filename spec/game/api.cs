@@ -1,4 +1,4 @@
-/// api's data of the game, places in its code and numbers (raw/'s address rows)
+/// api's data of the game, places in its code and numbers
 static unsafe class api
 {
     /// ptr to EEPhysics; +0xD0 = game time in ms

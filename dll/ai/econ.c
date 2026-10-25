@@ -515,7 +515,7 @@ internal int follow_held(ee_player *pl) {
     if (cfg_of(pl)->pacing != PACE_FOLLOW || !tt || !human_count()) return 0;
     return highest_human_epoch() <= tt_get_epoch(tt);
 }
-// The game's catch-up (FN_EPOCH_CATCH_UP, settings.c): a human reaching an epoch redraws the attempt of every computer
+// The game's catch-up (cp_epoch_catch_up, settings.c): a human reaching an epoch redraws the attempt of every computer
 // player behind it to a few minutes from now. epoch_pacing=timer goes without it - the timer alone counts.
 internal void __thiscall hook_epoch_catch_up(ee_player *pl, ee_player *human) {
     if (!is_vanilla(pl) && cfg_of(pl)->pacing == PACE_TIMER) {

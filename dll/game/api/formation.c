@@ -1,12 +1,12 @@
 // A GROUP'S FORMATION (EEFormation and its kinds: EEFLine, EEFShortLine, EEFWedge, EEFCircle ...; a group's +0x34):
 // where a group move puts each unit. The group's dispatch (0x5DB641) sets the formation's centre to the clicked point
-// and asks it for the slots (FN_FORMATION_SLOTS), then pairs units and slots and gives each unit a location goal at
+// and asks it for the slots (formation_slots), then pairs units and slots and gives each unit a location goal at
 // its slot. docs/engine-notes.md "Group moves".
 
 // +0x58 its kind: FORMATION_SHORT_LINE ... (the game's factory numbers them so)
 enum { FORMATION_SHORT_LINE, FORMATION_LONG_LINE, FORMATION_LOOSE_LINE, FORMATION_STAGGERED_LINE, FORMATION_DEEP_WEDGE,
        FORMATION_SHALLOW_WEDGE, FORMATION_INWARD_CIRCLE, FORMATION_OUTWARD_CIRCLE };
-// a formation's slots: the vector FN_FORMATION_SLOTS fills (begin +4, end +8 - the runtime library's), SIZE_FORMATION_SLOT each
+// a formation's slots: the vector formation_slots fills (begin +4, end +8 - the runtime library's), value_formation_size_formation_slot each
 internal inline int formation_slot_count(const void *v) {
     uint8_t *b = FIELD(v, 4, uint8_t *), *e = FIELD(v, 8, uint8_t *);
     return b && e > b ? (int)((e - b) / value_formation_size_formation_slot) : 0;
