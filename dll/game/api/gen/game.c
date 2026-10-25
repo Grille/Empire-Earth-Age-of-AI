@@ -145,9 +145,6 @@ internal inline uint8_t *game_vt_pause_action_at(void) { return (uint8_t *)(uint
 
 // static class game_functions
 // the game's functions game.c wraps, by the names the C side gives them
-typedef int (__thiscall *damage_points_fn)(void *, int, uint32_t);
-internal damage_points_fn fn_damage_points;
-internal inline int damage_points(void *model, int index, uint32_t state) { return fn_damage_points(model, index, state); }
 typedef void (__cdecl *exit_confirm_fn)(void);
 internal exit_confirm_fn fn_exit_confirm;
 internal inline void exit_confirm(void) { fn_exit_confirm(); }
@@ -173,7 +170,8 @@ internal inline void resign_send(void) { fn_resign_send(); }
 typedef int (__cdecl *save_game_fn)(void *, int, int, struct ustring);
 internal save_game_fn fn_save_game;
 internal inline int save_game(void *file, int a, int b, struct ustring folder) { return fn_save_game(file, a, b, folder); }
-// every setting into the registry
+// every setting into the registry: game.settings, a URegistry (an engine DLL's class, RTTI in a running game -
+// the function the exe's own, not one of the class's)
 typedef void (__thiscall *settings_save_game_fn)(void *);
 internal settings_save_game_fn fn_settings_save_game;
 internal inline void settings_save_game(void *p1) { fn_settings_save_game(p1); }
@@ -262,7 +260,6 @@ internal int spec_game_select(int build) {
         value_game_size_save_action = 48;
         data_game_vtbl_phys_step = 0x0082CB7C;
         data_game_vt_pause_action = 0x00830E94;
-        fn_damage_points = (damage_points_fn)0x004D291F;
         fn_exit_confirm = (exit_confirm_fn)0x005D0B4F;
         fn_highest_human_epoch = (highest_human_epoch_fn)0x0046D436;
         fn_load_saved = (load_saved_fn)0x00521F94;
@@ -352,7 +349,6 @@ internal int spec_game_select(int build) {
         value_game_size_save_action = 48;
         data_game_vtbl_phys_step = 0x00842324;
         data_game_vt_pause_action = 0x00846790;
-        fn_damage_points = (damage_points_fn)0x004D84EC;
         fn_exit_confirm = (exit_confirm_fn)0x005E145B;
         fn_highest_human_epoch = (highest_human_epoch_fn)0x0047005A;
         fn_load_saved = (load_saved_fn)0x0052CB90;
@@ -446,7 +442,6 @@ internal int spec_game_check(void) {
     bad += spec_data(data_game_imp_is_mouse, "game.imp_is_mouse");
     bad += spec_data(data_game_vtbl_phys_step, "game.vtbl_phys_step");
     bad += spec_data(data_game_vt_pause_action, "game.vt_pause_action");
-    bad += spec_code((uintptr_t)fn_damage_points, "game_functions.damage_points");
     bad += spec_code((uintptr_t)fn_exit_confirm, "game_functions.exit_confirm");
     bad += spec_code((uintptr_t)fn_highest_human_epoch, "game_functions.highest_human_epoch");
     bad += spec_code((uintptr_t)fn_load_saved, "game_functions.load_saved");

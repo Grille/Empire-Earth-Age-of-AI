@@ -370,7 +370,6 @@ internal uint32_t of_eeug_attack_unit_target;
 internal uint32_t vt_eeug_gather;
 internal uint32_t of_eeug_gather_returning;
 internal uint32_t of_eeug_gather_to_spot;
-internal uint32_t calls_goalset_ask[2];
 
 // hooks.cs
 internal uint32_t of_draw_record_0x58;
@@ -1169,6 +1168,7 @@ internal uint32_t data_unit_fn_op_delete;
 internal uint32_t call_aim;
 internal uint32_t call_missile_aim;
 internal uint32_t of_ai_state_id;
+internal uint32_t calls_goalset_ask[2];
 
 // unit_type.cs
 internal uint32_t of_unit_type_vtable;
@@ -1252,7 +1252,7 @@ internal uint32_t value_unit_type_slot_type_assign;
 internal uint32_t value_unit_type_slot_type_can_carry;
 
 // world.cs
-internal uint32_t of_damage_model_map;
+internal uint32_t of_dmg_model_map;
 internal uint32_t of_game_data_line_ms;
 internal uint32_t of_game_data_unit_limit;
 internal uint32_t of_game_data_unit_limit_max;

@@ -8,7 +8,7 @@ typedef struct ee_unit ee_unit;                 // UNIT: a unit, building or res
 typedef struct ee_unit_type ee_unit_type;       // TD: a unit type's data (EEUnitClass)
 typedef struct ee_unit_stats ee_unit_stats;     // USTAT: a unit type's values for one player, a unit's +0x34
 typedef struct ee_goal ee_goal;                 // GOAL: a unit's goal (EEUnitGoal)
-typedef struct ee_ai_state ee_ai_state;         // AISTATE: a unit's script state, its +0x1E8
+typedef struct ee_ai_state ee_ai_state;         // AISTATE: a unit's script state (EEUnitAction), its +0x1E8
 typedef struct ee_civ_mgr ee_civ_mgr;           // CM: the AI's civilization manager, player +0xB90
 typedef struct ee_resource_mgr ee_resource_mgr; // RM: the AI's resource manager, CM +0x38
 typedef struct ee_build_mgr ee_build_mgr;       // BM: the AI's build manager, CM +0x3C
@@ -42,7 +42,7 @@ typedef struct ee_epoch_techs ee_epoch_techs;   // EPOCHTECHS: an epoch's techs,
 typedef struct ee_effect ee_effect;             // EFFECT: a tech effect, data_game_effects
 typedef struct ee_player_stats ee_player_stats; // PLSTATS: a player's statistics, player +0x4A8
 typedef struct ee_player_b98 ee_player_b98;     // PLB98: the object at a player's +0xB98
-typedef struct ee_dmg_model ee_dmg_model;       // DMGMODEL: the object of damage_points
+typedef struct ee_dmg_model ee_dmg_model;       // DMGMODEL: a unit's graphics (EEGraphicObject), the object of damage_points
 typedef struct ee_physics ee_physics;           // PHYS: the simulation, [data_api_world_clock] (EEPhysics)
 typedef struct ee_ui ee_ui;                     // UI: the user interface, [data_game_ui] (EEUserInterface)
 typedef struct ee_server ee_server;             // SERVER: the lockstep server or client, [data_game_server]

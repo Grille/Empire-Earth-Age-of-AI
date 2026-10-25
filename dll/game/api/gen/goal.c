@@ -417,13 +417,6 @@ internal inline uint8_t eeug_gather_get_to_spot(const eeug_gather *o) { return *
 internal inline void eeug_gather_set_to_spot(eeug_gather *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_eeug_gather_to_spot) = v; }
 internal inline uint8_t *eeug_gather_to_spot_at(const eeug_gather *o) { return (uint8_t *)((uint8_t *)o + of_eeug_gather_to_spot); }
 
-// static class goal_functions
-// the game's functions goal.c wraps, by the names the C side gives them
-typedef int (__thiscall *goalset_ask_fn)(void *, ee_unit *, int *);
-internal goalset_ask_fn fn_goalset_ask;
-internal inline int goalset_ask(void *set, ee_unit *u, int *out) { return fn_goalset_ask(set, u, out); }
-internal inline int patch_goalset_ask(goalset_ask_fn h, int *of) { return patch_calls(calls_goalset_ask, 2, (uintptr_t)fn_goalset_ask, (void *)h, of); }
-
 // the running build's values (spec_select, with addr_select): how many it hasn't got
 internal int spec_goal_select(int build) {
     switch (build) {
@@ -489,9 +482,6 @@ internal int spec_goal_select(int build) {
         vt_eeug_gather = 0x00831B80;
         of_eeug_gather_returning = 0x40;
         of_eeug_gather_to_spot = 0x41;
-        fn_goalset_ask = (goalset_ask_fn)0x00619FF5;
-        calls_goalset_ask[0] = 0x005F0FFA;
-        calls_goalset_ask[1] = 0x005F1029;
         return 0;
     case 1:   // aoc
         of_goal_state = 0x5;
@@ -555,9 +545,6 @@ internal int spec_goal_select(int build) {
         vt_eeug_gather = 0x008475A8;
         of_eeug_gather_returning = 0x40;
         of_eeug_gather_to_spot = 0x41;
-        fn_goalset_ask = (goalset_ask_fn)0x0062CD8B;
-        calls_goalset_ask[0] = 0x005FF364;
-        calls_goalset_ask[1] = 0x005FF393;
         return 0;
     }
     return 0;
@@ -596,8 +583,5 @@ internal int spec_goal_check(void) {
     bad += spec_data(data_goal_vt_goal_unload, "goal.vt_goal_unload");
     bad += spec_vtable(vt_eeug_attack_unit, ".?AVEEUGAttackUnit@@", "EEUGAttackUnit [vtable]");
     bad += spec_vtable(vt_eeug_gather, ".?AVEEUGGather@@", "EEUGGather [vtable]");
-    bad += spec_code((uintptr_t)fn_goalset_ask, "goal_functions.goalset_ask");
-    bad += spec_call(calls_goalset_ask[0], (uintptr_t)fn_goalset_ask, "goal_functions.goalset_ask [call_site goalset_ask 0]");
-    bad += spec_call(calls_goalset_ask[1], (uintptr_t)fn_goalset_ask, "goal_functions.goalset_ask [call_site goalset_ask 1]");
     return bad;
 }

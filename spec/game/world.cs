@@ -1,9 +1,15 @@
-/// the object of damage_points
-[c_type("void")]
-unsafe struct ee_damage_model
+/// a unit's graphics (EEGraphicObject, its stats' gfx and its vf21's; RTTI in a running game, every unit's)
+[c_type("ee_dmg_model")]
+unsafe struct EEGraphicObject
 {
+    /// its damage points by state (a map; the end node +0x150)
     [offset(0x14C), found(s)]
     block map;
+
+    /// the damage points of a state - the impact effects place theirs by it (EEE2DImpact::vf21 0x4DA7B2,
+    /// EEE2DLightGlow::vf12 0x4DB2DF; game.call_damage_points hooked by the mod's guard)
+    [address((ee)0x004D291F, (aoc)0x004D84EC)]
+    extern int32 damage_points(int32 index, uint32 state);
 }
 
 /// the game data, [game.game_data]

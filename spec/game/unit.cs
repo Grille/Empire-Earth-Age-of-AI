@@ -243,7 +243,7 @@ unsafe struct EEComplexUnit
 
     /// its script state (AISTATE)
     [offset(0x1E8), found(c)]
-    ee_ai_state* ai_state;
+    EEUnitAction* ai_state;
 
     /// its goal (GOAL)
     [offset(0x1EC), found(c)]
@@ -601,12 +601,21 @@ static unsafe class unit
     static extern void aim(EEComplexUnit* u, EEUnit** target, float32* aim, void* zero);
 }
 
-/// a unit's script state, its +0x1E8 (a state of its .tai, engine-notes.md "Unit AI scripts")
-unsafe struct ee_ai_state
+/// a unit's script state, its +0x1E8 (EEUnitAction: a state of its .tai, engine-notes.md "Unit AI scripts"; its RTTI
+/// in a running game, every unit's)
+[c_type("ee_ai_state")]
+unsafe struct EEUnitAction
 {
     /// the state's id, read by every condition through a unit's +0x1E8
     [offset(0x24), found(c)]
     uint32 id;
+
+    /// its goal handlers asked in turn (the vector +0x8 / +0xC, 0x618CCB each) until one gives the unit a goal: the
+    /// unit's step asks while it isn't idle or its idle_ask_until is past (0x5F0F7E)
+    [address((ee)0x00619FF5, (aoc)0x0062CD8B)]
+    [call_site("goalset_ask", (ee)0x005F0FFA, (aoc)0x005FF364)]
+    [call_site("goalset_ask", (ee)0x005F1029, (aoc)0x005FF393)]
+    extern int32 ask(EEUnit* u, int32* @out);
 }
 
 /// the game's functions unit.c wraps, by the names the C side gives them

@@ -188,13 +188,13 @@ internal void __thiscall hook_asg_sea_transport_update(ee_attack_subgroup *sg, i
 // (0x5F104E), and the unit type's vf29 right after read [0 + 5] (0x5FC4ED). That answer, at both asks (0x5F0FFA too),
 // gives the default set and 0.
 internal unsigned g_goalset_null;
-internal int __thiscall hook_goalset_ask(void *set, ee_unit *unit, int *out) {
+internal int __thiscall hook_goalset_ask(ee_ai_state *set, ee_unit *unit, int *out) {
     if (!set) {
         if (g_log && g_goalset_null++ < 10) fprintf(g_log, "# engine guard: a unit's goal set gone after its goal was dropped - the default set\n");
         unit_set_state(unit, 5000);
         return 0;
     }
-    int r = goalset_ask(set, unit, out);
+    int r = ai_state_ask(set, unit, out);
     if (r == 1 && out && !*out) {
         if (g_log && g_goalset_null++ < 10) fprintf(g_log, "# engine guard: a unit's goal set ended without a next one - the default set\n");
         unit_set_state(unit, 5000);

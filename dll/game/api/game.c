@@ -4,7 +4,7 @@
 // THE SIMULATION ([data_api_world_clock], game_physics(): EEPhysics), THE WORLD ([data_game_ui])
 
 // THE GAME DATA ([data_game_game_data], game_data()): a chat line's time on screen (ms), the unit limits (default, most)
-// a damage model's map by state (damage_points' object)
+// the damage points of a unit's graphics by state (EEGraphicObject, dmg_model_damage_points' object)
 
 // THE GAME'S DATA (spec/game/game.cs's): its globals read through these, typed - NULL / 0 before they exist
 internal inline ee_map *game_map(void) { return *(ee_map **)data_game_map; }                   // +0x1816FC its size in tiles
@@ -154,4 +154,4 @@ typedef void (__thiscall *phys_step_hook)(ee_physics *phys);
 internal inline int patch_phys_step(phys_step_hook h) { return patch_code32(data_game_vtbl_phys_step, (uintptr_t)fn_physics_step, (uint32_t)(uintptr_t)h); }
 internal inline int phys_step_hooked_by(phys_step_hook h) { return *(uint32_t *)data_game_vtbl_phys_step == (uint32_t)(uintptr_t)h; }
 // a model's damage points (the guard: defence.c - a thunk)
-internal inline int patch_damage_points(thunk_fn thunk) { return patch_call(data_game_call_damage_points, (uintptr_t)fn_damage_points, (void *)thunk); }
+internal inline int patch_damage_points(thunk_fn thunk) { return patch_call(data_game_call_damage_points, (uintptr_t)fn_dmg_model_damage_points, (void *)thunk); }

@@ -1023,7 +1023,7 @@ internal uint8_t *rb_find(uint8_t *map, unsigned key) {   // MSVC map: +4 head; 
     return (res == head || key < FIELD(res, 0xC, unsigned)) ? NULL : res;
 }
 __attribute__((used)) int __thiscall hook_damage_points(ee_dmg_model *model, int index, unsigned state) {
-    uint8_t *n = model ? rb_find(damage_model_map_at(model), state) : NULL, *sub = n ? FIELD(n, 0x10, uint8_t *) : NULL;
+    uint8_t *n = model ? rb_find(dmg_model_map_at(model), state) : NULL, *sub = n ? FIELD(n, 0x10, uint8_t *) : NULL;
     if (n && (!sub || !FIELD(sub, 4, void *))) {
         static int logged;
         ee_unit *u = g_dmg_unit;
@@ -1037,7 +1037,7 @@ __attribute__((used)) int __thiscall hook_damage_points(ee_dmg_model *model, int
         }
         return 0;
     }
-    return damage_points(model, index, state);
+    return dmg_model_damage_points(model, index, state);
 }
 __attribute__((naked, used)) void damage_points_thunk(void) {
     __asm__("movl %esi, _g_dmg_unit\n\t"

@@ -292,9 +292,6 @@ static unsafe class game
 [c_prefix("")]
 static unsafe class game_functions
 {
-    [address((ee)0x004D291F, (aoc)0x004D84EC), thiscall]
-    static extern int32 damage_points(void* model, int32 index, uint32 state);
-
     [address((ee)0x005D0B4F, (aoc)0x005E145B), cdecl]
     static extern void exit_confirm();
 
@@ -322,7 +319,8 @@ static unsafe class game_functions
     [address((ee)0x00540ACA, (aoc)0x0054D066), cdecl]
     static extern int32 save_game(void* file, int32 a, int32 b, ustring folder);
 
-    /// every setting into the registry
+    /// every setting into the registry: game.settings, a URegistry (an engine DLL's class, RTTI in a running game -
+    /// the function the exe's own, not one of the class's)
     [address((ee)0x0052AA81, (aoc)0x00535943), thiscall]
     static extern void settings_save_game(void* p1);
 

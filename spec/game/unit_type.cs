@@ -298,10 +298,10 @@ unsafe struct ee_unit_stats
     [offset(0x60), found(b)]
     EEUnitClass* type_data;
 
-    /// EEUnitClass::vf29 0x61AD41 reads its +0x318 + animation x 4 (AoC +0x328), a duration per animation (anim_ms's
-    /// random start): the unit's graphics data
-    [offset(0x68), found(c), guess]
-    void* gfx;
+    /// the unit's graphics (EEGraphicObject: RTTI in a running game, every unit's): EEUnitClass::vf29 0x61AD41 reads
+    /// its +0x318 + animation x 4 (AoC +0x328), a duration per animation (anim_ms's random start)
+    [offset(0x68), found(c)]
+    EEGraphicObject* gfx;
 
     /// read through a unit's +0x34
     [offset(0x98), found(c)]

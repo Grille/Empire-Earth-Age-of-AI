@@ -293,12 +293,11 @@ internal inline int patch_proj_down(unit_type_down_fn h) { return patch_vtable(v
 internal inline ee_unit_type *unit_stats_get_type_data(const ee_unit_stats *o) { return *(ee_unit_type **)((uint8_t *)o + of_unit_stats_type_data); }
 internal inline void unit_stats_set_type_data(ee_unit_stats *o, ee_unit_type *v) { *(ee_unit_type **)((uint8_t *)o + of_unit_stats_type_data) = v; }
 internal inline ee_unit_type **unit_stats_type_data_at(const ee_unit_stats *o) { return (ee_unit_type **)((uint8_t *)o + of_unit_stats_type_data); }
-// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
-// EEUnitClass::vf29 0x61AD41 reads its +0x318 + animation x 4 (AoC +0x328), a duration per animation (anim_ms's
-// random start): the unit's graphics data
-internal inline void *unit_stats_get_gfx(const ee_unit_stats *o) { return *(void **)((uint8_t *)o + of_unit_stats_gfx); }
-internal inline void unit_stats_set_gfx(ee_unit_stats *o, void *v) { *(void **)((uint8_t *)o + of_unit_stats_gfx) = v; }
-internal inline void **unit_stats_gfx_at(const ee_unit_stats *o) { return (void **)((uint8_t *)o + of_unit_stats_gfx); }
+// the unit's graphics (EEGraphicObject: RTTI in a running game, every unit's): EEUnitClass::vf29 0x61AD41 reads
+// its +0x318 + animation x 4 (AoC +0x328), a duration per animation (anim_ms's random start)
+internal inline ee_dmg_model *unit_stats_get_gfx(const ee_unit_stats *o) { return *(ee_dmg_model **)((uint8_t *)o + of_unit_stats_gfx); }
+internal inline void unit_stats_set_gfx(ee_unit_stats *o, ee_dmg_model *v) { *(ee_dmg_model **)((uint8_t *)o + of_unit_stats_gfx) = v; }
+internal inline ee_dmg_model **unit_stats_gfx_at(const ee_unit_stats *o) { return (ee_dmg_model **)((uint8_t *)o + of_unit_stats_gfx); }
 // read through a unit's +0x34
 internal inline float unit_stats_get_height(const ee_unit_stats *o) { return *(float *)((uint8_t *)o + of_unit_stats_height); }
 internal inline void unit_stats_set_height(ee_unit_stats *o, float v) { *(float *)((uint8_t *)o + of_unit_stats_height) = v; }

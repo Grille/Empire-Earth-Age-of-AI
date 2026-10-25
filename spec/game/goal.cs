@@ -235,14 +235,3 @@ unsafe struct EEUGGather
     [offset(0x41), found(c), guess]
     uint8 to_spot;
 }
-
-/// the game's functions goal.c wraps, by the names the C side gives them
-[c_prefix("")]
-static unsafe class goal_functions
-{
-    [address((ee)0x00619FF5, (aoc)0x0062CD8B), thiscall]
-    [call_site("goalset_ask", (ee)0x005F0FFA, (aoc)0x005FF364)]
-    [call_site("goalset_ask", (ee)0x005F1029, (aoc)0x005FF393)]
-    static extern int32 goalset_ask(void* set, EEUnit* u, int32* @out);
-
-}

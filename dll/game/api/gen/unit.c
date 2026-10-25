@@ -580,12 +580,19 @@ internal inline void unit_aim(ee_unit *u, ee_unit **target, float *aim, void *ze
 internal inline int patch_aim(unit_aim_fn h) { return patch_call(call_aim, (uintptr_t)fn_unit_aim, (void *)h); }
 internal inline int patch_missile_aim(unit_aim_fn h) { return patch_call(call_missile_aim, (uintptr_t)fn_unit_aim, (void *)h); }
 
-// class ee_ai_state (ee_ai_state)
-// a unit's script state, its +0x1E8 (a state of its .tai, engine-notes.md "Unit AI scripts")
+// class EEUnitAction (ee_ai_state)
+// a unit's script state, its +0x1E8 (EEUnitAction: a state of its .tai, engine-notes.md "Unit AI scripts"; its RTTI
+// in a running game, every unit's)
 // the state's id, read by every condition through a unit's +0x1E8
 internal inline uint32_t ai_state_get_id(const ee_ai_state *o) { return *(uint32_t *)((uint8_t *)o + of_ai_state_id); }
 internal inline void ai_state_set_id(ee_ai_state *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ai_state_id) = v; }
 internal inline uint32_t *ai_state_id_at(const ee_ai_state *o) { return (uint32_t *)((uint8_t *)o + of_ai_state_id); }
+// its goal handlers asked in turn (the vector +0x8 / +0xC, 0x618CCB each) until one gives the unit a goal: the
+// unit's step asks while it isn't idle or its idle_ask_until is past (0x5F0F7E)
+typedef int (__thiscall *ai_state_ask_fn)(ee_ai_state *, ee_unit *, int *);
+internal ai_state_ask_fn fn_ai_state_ask;
+internal inline int ai_state_ask(ee_ai_state *ai_state, ee_unit *u, int *out) { return fn_ai_state_ask(ai_state, u, out); }
+internal inline int patch_goalset_ask(ai_state_ask_fn h, int *of) { return patch_calls(calls_goalset_ask, 2, (uintptr_t)fn_ai_state_ask, (void *)h, of); }
 
 // static class unit_functions
 // the game's functions unit.c wraps, by the names the C side gives them
@@ -746,6 +753,9 @@ internal int spec_unit_select(int build) {
         call_aim = 0x0061E1D7;
         call_missile_aim = 0x0054E850;
         of_ai_state_id = 0x24;
+        fn_ai_state_ask = (ai_state_ask_fn)0x00619FF5;
+        calls_goalset_ask[0] = 0x005F0FFA;
+        calls_goalset_ask[1] = 0x005F1029;
         fn_ballistic_game = (ballistic_game_fn)0x0062CBB3;
         fn_unit_convert = (unit_convert_fn)0x0062F192;
         fn_unit_distance = (unit_distance_fn)0x0062D5A4;
@@ -892,6 +902,9 @@ internal int spec_unit_select(int build) {
         call_aim = 0x006313D6;
         call_missile_aim = 0x0055B1C3;
         of_ai_state_id = 0x24;
+        fn_ai_state_ask = (ai_state_ask_fn)0x0062CD8B;
+        calls_goalset_ask[0] = 0x005FF364;
+        calls_goalset_ask[1] = 0x005FF393;
         fn_ballistic_game = (ballistic_game_fn)0x00641A6A;
         fn_unit_convert = (unit_convert_fn)0x00644E95;
         fn_unit_distance = (unit_distance_fn)0x00642489;
@@ -936,6 +949,9 @@ internal int spec_unit_check(void) {
     bad += spec_code((uintptr_t)fn_unit_aim, "unit.aim");
     bad += spec_call(call_aim, (uintptr_t)fn_unit_aim, "unit.aim [call_site aim]");
     bad += spec_call(call_missile_aim, (uintptr_t)fn_unit_aim, "unit.aim [call_site missile_aim]");
+    bad += spec_code((uintptr_t)fn_ai_state_ask, "EEUnitAction.ask");
+    bad += spec_call(calls_goalset_ask[0], (uintptr_t)fn_ai_state_ask, "EEUnitAction.ask [call_site goalset_ask 0]");
+    bad += spec_call(calls_goalset_ask[1], (uintptr_t)fn_ai_state_ask, "EEUnitAction.ask [call_site goalset_ask 1]");
     bad += spec_code((uintptr_t)fn_ballistic_game, "unit_functions.ballistic_game");
     bad += spec_code((uintptr_t)fn_unit_convert, "unit_functions.unit_convert");
     bad += spec_code((uintptr_t)fn_unit_distance, "unit_functions.unit_distance");
