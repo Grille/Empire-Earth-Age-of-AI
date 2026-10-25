@@ -21,9 +21,9 @@
 #define UC_SIDESTEP 0.5f   // heading into another: the push turned this much (x how straight) to the side, starboard unless the other lies clearly to port
 #define UC_REST_SLOP 0.05f // tiles: at rest a lighter overlap is left - the positions settle instead of trading shoves
 #define UC_REST_EVERY 4   // a unit at rest looks for overlaps every this many steps (its share of each, the other does its own)
-#define UC_REACH 2       // tiles looked beyond the unit's half length for the other's (the largest ship, a carrier, 3.2 long)
 
 internal int g_uc_on[4];                  // by model_kind
+internal float g_uc_biggest[4];           // the largest size met of the kind: how far to look for an overlap
 internal unsigned g_uc_rest;                 // pushes of units at rest off each other
 #define UC_REST_LOCK 3          // pushes at rest back against the one before, since it last moved on its own: then it
                                 // stays put - units pressed between others and something the push can't move shuffled
@@ -122,14 +122,15 @@ internal int uc_separate(int kind, ee_unit *u, int resting) {
     float mu = h.len * h.len;
     vec2 corr = v2(0, 0);
     vec3 p = unit_get_pos(u);
-    int reach = (int)(h.len * 0.5f) + UC_REACH + 1;
+    if (h.len > g_uc_biggest[kind]) g_uc_biggest[kind] = h.len;
+    int reach = (int)((h.len + g_uc_biggest[kind]) * 0.5f) + 1;   // the farthest centre an overlap can have
     for (struct grid_it it = grid_it_box(unit_get_x(u), unit_get_y(u), reach, 1); grid_it_next(&it); ) {
         ee_unit *c = it.u;
-        if (c == u || uc_kind(c) != kind) continue;
-        vec3 q = unit_get_pos(c);
+        if (c == u) continue;
+        vec3 q = unit_get_pos(c);   // the near test first: most units in the box are far, and uc_kind costs
         float cl = unit_get_size(c), lim = (h.len + cl) * 0.5f;
         if (fabsf(q.x - p.x) > lim || fabsf(q.y - p.y) > lim) continue;
-        if (uc_passes(u, c)) continue;
+        if (uc_kind(c) != kind || uc_passes(u, c)) continue;
         struct uc_hull o = uc_hull_of(c, kind);
         vec2 n1, n2;
         uc_nearest(h.a, h.b, o.a, o.b, &n1, &n2);
@@ -199,7 +200,7 @@ internal void __thiscall hook_collide(void *model, ee_unit *u) {
     model_push(model, u);
 }
 
-internal void collide_new_game(void) { g_uc_steps = g_uc_hits = g_uc_rest = 0; g_uc_deepest = 0; memset(g_uc_mem, 0, sizeof g_uc_mem); }
+internal void collide_new_game(void) { g_uc_steps = g_uc_hits = g_uc_rest = 0; g_uc_deepest = 0; memset(g_uc_biggest, 0, sizeof g_uc_biggest); memset(g_uc_mem, 0, sizeof g_uc_mem); }
 
 internal void collide_install(void) {
     g_uc_on[MODEL_SHIPS] = g_uc_on[MODEL_SUBS] = g_set.ship_collide;
