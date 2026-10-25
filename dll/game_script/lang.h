@@ -56,6 +56,7 @@ internal const struct xmember k_xmembers[] = {
     { "lose", XM_DO, "a script's: p.lose() - the player is defeated, as a scenario's Defeat", X_ANY, 0, 0, 0, 0 },
     { "war", XM_DO, "a script's: A.war(B) - A treats B as an enemy (one way, as the game's stances: B's towards A stays; an AI may change its mind later)", X_ANY, 1, 1, 0, 0 },
     { "ally", XM_DO, "a script's: A.ally(B) - A treats B as an ally (one way)", X_ANY, 1, 1, 0, 0 },
+    { "spawn", XM_DO, "a script's: p.spawn(unit.inf10_doughboy, vec(40, 40), 10) - new units of one type at a place (2 tiles apart, in a square), returned at once: the script goes on, and holds only when it first uses one of them or asks the map (p.units(), game.unit(id)) - till the game has made them (a unit that doesn't come in 5 s is gone)", X_LIST_OF + XK_UNIT, 2, 3, 0, 0 },
 };
 #define N_XMEMBERS (int)(sizeof k_xmembers / sizeof *k_xmembers)
 internal const struct xmember k_xglobals[] = {
@@ -130,6 +131,7 @@ internal const struct x_kmember k_xk_player[] = {
     { "lose", 0, 0, X_ANY, 0 },
     { "war", 1, 1, X_ANY, 0 },
     { "ally", 1, 1, X_ANY, 0 },
+    { "spawn", 2, 3, X_LIST_OF + XK_UNIT, 0 },
 };
 internal const struct x_kmember k_xk_game[] = {
     { "time", -1, -1, XT_FLOAT, 0 },

@@ -2127,7 +2127,11 @@ internal int xvec_eq(const struct xval *a, const struct xval *b) {   // two vect
 }
 internal int xcmp(const struct xval *a, const struct xval *b) {   // <0, 0, >0: players the same one or not, numbers, else texts
     double x, y;
-    if (a->obj && b->obj) return a->okind != b->okind ? a->okind - b->okind : a->obj - b->obj;
+    if (a->obj && b->obj) {
+        if (a->okind != b->okind) return a->okind - b->okind;
+        int ka = g_x_host.obj_key(a), kb = g_x_host.obj_key(b);
+        return ka < kb ? -1 : ka > kb;
+    }
     if (a->kind == XV_VEC || b->kind == XV_VEC) return a->kind == b->kind && xvec_eq(a, b) ? 0 : 2;   // equal or not
     if (a->kind == XV_REC || b->kind == XV_REC) return 2;   // (contains: a record is equal to nothing)
     if (xmismatch(a, b)) return 2;   // unequal

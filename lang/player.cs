@@ -116,4 +116,8 @@ public class player
     [effect] public extern void war(player b);
     /// a script's: A.ally(B) - A treats B as an ally (one way)
     [effect] public extern void ally(player b);
+    /// a script's: p.spawn(unit.inf10_doughboy, vec(40, 40), 10) - new units of one type at a place (2 tiles apart, in
+    /// a square), returned at once: the script goes on, and holds only when it first uses one of them or asks the map
+    /// (p.units(), game.unit(id)) - till the game has made them (a unit that doesn't come in 5 s is gone)
+    [effect, script] public extern unit[] spawn(unit_type type, vec2 at, int count = 1);
 }

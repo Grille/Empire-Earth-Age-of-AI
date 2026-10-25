@@ -249,13 +249,6 @@ internal void cmd_train(char *out, const char *args) {
     REPLY("P%d: %u of %d x type %d ordered\n", p, got, count, type);
 }
 
-// a unit's place within the map's diamond (the square's corners outside it are no map: the game never puts a unit
-// there, and the minimap indexes its 64 x 64 tables with such a place unchecked - spawned units in a corner wrote
-// over its dot lists and the game crashed a minute later, 0x516079 / 0x516235)
-internal int spawn_on_map(ee_map *map, const float *xy) {
-    int x = (int)xy[0], y = (int)xy[1];
-    return x + y > map_get_edge_sum(map) && x + y < map_get_edge_sum_2(map) && abs(x - y) < map_get_edge_diff(map);
-}
 
 internal void cmd_spawn(char *out, const char *args) {
     int p, type, x, y, n = 1, off = 0;

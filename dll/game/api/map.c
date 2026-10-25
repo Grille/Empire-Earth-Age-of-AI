@@ -63,3 +63,10 @@ internal inline int patch_minimap_tile(minimap_tile_hook h) { return patch_all_c
 // the view table's refill from the tiles' counts (player_view_sight_copy: a load, the viewed player changed) - their low byte
 typedef void (__thiscall *view_sight_copy_hook)(ee_player *pl);
 internal inline int patch_view_sight_copy(view_sight_copy_hook h) { return patch_all_calls((uintptr_t)fn_player_view_sight_copy, (void *)h); }
+// a unit's place within the map's diamond (the square's corners outside it are no map: the game never puts a unit
+// there, and the minimap indexes its 64 x 64 tables with such a place unchecked - spawned units in a corner wrote
+// over its dot lists and the game crashed a minute later, 0x516079 / 0x516235)
+internal int spawn_on_map(ee_map *map, const float *xy) {
+    int x = (int)xy[0], y = (int)xy[1];
+    return x + y > map_get_edge_sum(map) && x + y < map_get_edge_sum_2(map) && abs(x - y) < map_get_edge_diff(map);
+}

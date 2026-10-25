@@ -45,9 +45,12 @@ struct x_host {
     // the names the code guarantees for a key - " lord " where it is only said to a vassal (lord a player there, not
     // a player?), or NULL
     const char *(*has)(const char *file, const char *sec, const char *key);
+    // an object's identity for == (a unit on its way: the unit it became, once there - the script holds for it)
+    int (*obj_key)(const struct xval *v);
 };
 internal int xh_value(struct xctx *c, const char *name, struct xval *v) { (void)c; (void)name; (void)v; return 0; }
 internal int xh_name(const char *name) { (void)name; return 0; }
+internal int xh_obj_key(const struct xval *v) { return v->obj; }
 internal int xh_method(struct xctx *c, const char *name, const struct xval *a, int na, struct xval *v) {
     (void)c; (void)name; (void)a; (void)na; (void)v; return 0;
 }
@@ -65,4 +68,4 @@ internal int xh_set(struct xctx *c, const struct xval *o, const char *name, cons
 }
 internal struct x_host g_x_host = { xh_value, xh_name, xh_name, xh_method, xh_object, xh_constant, xh_rnd, xh_rnd, xh_scan,
                                   xh_placeholders, xh_name, xh_name, xh_kind, xh_name, xh_name, xh_member, xh_set, xh_name,
-                                  xh_name, xh_placeholders };
+                                  xh_name, xh_placeholders, xh_obj_key };

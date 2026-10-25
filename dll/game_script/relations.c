@@ -446,11 +446,13 @@ internal int x_did(struct xctx *c, const char *what) {   // 1: only told (or not
     if (!c->script) { x_host_fail(c, "%s: a script's - a text changes nothing", what); return 1; }
     return g_x_hooks.did && g_x_hooks.did(what);
 }
+internal void x_units_spawn(struct xctx *c, int pl, const struct xval *a, int na, struct xval *v);   // units.c
 internal void x_player_do(struct xctx *c, int i, const char *name, const struct xval *a, int na, struct xval *v) {
     void *p = player_at(i);
     char t[80];
     xnothing(v);
     if (!p || is_out(p)) { x_host_fail(c, "player %d.%s(): not in the game", i, name); return; }
+    if (!strcmp(name, "spawn")) { x_units_spawn(c, i, a, na, v); return; }   // (units.c)
     if (!na) {   // win, lose
         wsprintfA(t, "player %d.%s()", i, name);
         if (!x_did(c, t)) g_x_outcome[i] = name[0] == 'w' ? 1 : 2;

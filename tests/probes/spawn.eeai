@@ -1,0 +1,18 @@
+// p.spawn (lang/player.cs, game_script/units.c SPAWNING): Continental (seed 101) - two groups of P2 sent one after the
+// other without a wait between them (the time the same), held for at the first use of one (the time a step on), then
+// the second group there already (no second hold), a handle equal to the unit found by its id, and p.units seeing them.
+wait_until(0.05min)
+let p = player(2)
+let t0 = time
+let a = p.spawn(unit.inf10_doughboy, vec(40, 40), 4)
+let b = p.spawn(unit.cav09_dragoon_gun, vec(50, 40), 3)
+let t1 = time
+ping("sent at {t0} s, back at {t1} s - {len(a)} and {len(b)} handles: {a[1]}, {b[1]}")
+let hp = a[1].hp
+let t2 = time
+ping("a[1] first used: held till {t2} s - hp {hp} of {a[1].max_hp}, at {a[1].pos}")
+let at = b[3].pos
+let t3 = time
+ping("b[3] then: at {at}, alive {b[3].alive}, at {t3} s (no second hold)")
+let again = game.unit(a[2].id)
+ping("by id: the same {again == a[2]}, a doughboy {a[2].type == unit.inf10_doughboy}, P2 doughboys {len(p.units(unit.inf10_doughboy))}")
