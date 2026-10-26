@@ -356,7 +356,9 @@ Settings in `aimod.ini`:
   counted, so a fleet of large ships stays one); near the goal each goes to its own spot.
   The formation goes at the slowest unit's speed, turning like a ship (no unit walks backwards in a turn), facing
   the way it goes and turning into its final facing at the goal (re-forming there when that is 45 degrees or more
-  off); a shift-queued turn under 45 degrees keeps the formation.
+  off); a shift-queued turn under 45 degrees keeps the formation. A fleet turns together: its formation swings to the
+  new course at once and every ship turns on its own circle to its new place, instead of the whole fleet wheeling
+  round in one wide arc.
 - `[general] formation_catchup=200%` (with formation_follow): how fast a unit behind its place may go to keep it, in
   percent of its own top speed (100% never faster than its own) - near its place only (all of it within its size,
   none from four times that) or within 5 seconds of last being in it (a re-form or a new order on the march: no more

@@ -237,8 +237,7 @@ internal unsigned g_fo_refaced;         // queued moves turned to the way from t
 internal int g_fo_queued;               // the move being carried out is queued after the units' others (shift)
 internal vec2 g_fo_march[FO_MAX];       // the march's own layout (formation_follow: the way it goes off the final facing)
 internal int g_fo_has_march;
-internal int g_fo_naval;                // the layout's units are ships (formation_follow: they sail off along their heading,
-internal vec2 g_fo_heading;             // g_fo_heading, when they all face within FF_ARC of it - else 0, they turn first)
+internal int g_fo_naval;                // the layout's units are ships (formation_follow: they turn together)
 internal unsigned g_fo_queued_n;        // group moves laid out from the units' last queued points
 
 // the move (EEMPathTo's Execute, the formation's slots laid out within it): whether it is queued - then the formation is
@@ -392,22 +391,6 @@ internal struct ff_unit *ff_find(uint32_t id, int make) {
     return e;
 }
 
-// every tile within r of c one u may enter (the ships' arc: its water free; the units in it move)
-internal unsigned g_ff_turned;   // fleets that turned to their course first: no room for the arc
-internal int ff_water_free(ee_unit *u, vec2 c, float r) {
-    ee_map *map = game_map();
-    ee_unit_type *td = unit_get_type_data(u);
-    int size = map ? (int)map_get_size(map) : 0;
-    if (!td || size <= 0 || !sr_alloc((uint32_t)(size * size))) return 0;
-    sr_stamp();
-    for (int y = (int)floorf(c.y - r); y <= (int)floorf(c.y + r); y++)
-        for (int x = (int)floorf(c.x - r); x <= (int)floorf(c.x + r); x++) {
-            float dx = (float)x + 0.5f - c.x, dy = (float)y + 0.5f - c.y;
-            if (dx * dx + dy * dy <= r * r && !sr_pass(map, u, td, size, x, y)) return 0;
-        }
-    return 1;
-}
-
 // one block's march (idx[0..k) of g_fo, their spots .at around the point c) at the formation's speed, facing fwd;
 // queued: it sets out once its leader takes up this move, the units' marches till then go on; from (>= 0): the march it
 // goes on from in the same formation (its leader, its facing to turn from)
@@ -438,7 +421,6 @@ internal void ff_start_block(void *group, const int *idx, int k, vec2 c, vec2 fw
     float tl = vec2_len(to);
     gr->way = gr->face = tl > 0.01f ? vec2_scale(to, 1.0f / tl) : fwd;
     gr->naval = g_fo_naval;
-    if (g_fo_naval == 2) gr->way = gr->face = g_fo_heading;   // ships facing one way: off along it, the course in an arc
     gr->end = g_fo[lead].at;
     vec2 lc = vec2_sub(gr->end, c);
     gr->lead_off = v2(vec2_dot(lc, right), vec2_dot(lc, fwd));
@@ -492,20 +474,6 @@ internal void ff_start_block(void *group, const int *idx, int k, vec2 c, vec2 fw
         ff_grace_from(e);
         e->yaw = g_fo[i].facing;
         e->tries = 0;
-    }
-    // ships off along their heading take the course in an arc of their turning circle (the innermost's at its top speed,
-    // the outermost reach further out): only where that water is free - else they turn to it first (a fleet at the map's
-    // edge, facing it, looped out over it)
-    vec2 course = vec2_sub(gr->end, g_fo[lead].from);
-    float cl = vec2_len(course);
-    if (gr->naval && g_fo_naval == 2 && cl > 0.01f && vec2_dot(g_fo_heading, vec2_scale(course, 1.0f / cl)) <= FF_ARC) {
-        vec2 h = g_fo_heading;
-        float r = gr->turn_r + gr->reach, side = h.x * course.y - h.y * course.x >= 0 ? 1.0f : -1.0f;
-        if (r < gr->reach + FF_INNER) r = gr->reach + FF_INNER;
-        if (!ff_water_free(g_fo[lead].u, vec2_add(g_fo[lead].from, vec2_scale(v2(-h.y, h.x), side * r)), r + gr->reach)) {
-            gr->way = gr->face = vec2_scale(course, 1.0f / cl);
-            g_ff_turned++;
-        }
     }
     // a queued re-form (45 degrees or more) after a march its units are on: that one runs through its leader's spot as an
     // arc's does and this one takes its anchor over - the units re-form round it on the move, the pace slowing it while they
@@ -689,7 +657,7 @@ internal ee_unit *ff_leader(struct ff_group *gr, uint32_t step) {
         struct ff_group *pv = gr->prev >= 0 ? &g_ff[gr->prev] : NULL;
         gr->started = 1;
         gr->t0 = step;
-        if (pv && pv->started && pv->through) { gr->anchor = ff_anchor_now(pv, &w, &f, &vn); gr->way = w; if (gr->arc) gr->face = f; else gr->pivot = !gr->naval; }
+        if (pv && pv->started && pv->through) { gr->anchor = ff_anchor_now(pv, &w, &f, &vn); gr->way = w; if (gr->arc) gr->face = f; else gr->pivot = 1; }
         else gr->anchor = v2(p.x, p.y);
     } else {   // where the last step sent it
         gr->anchor = ff_anchor_now(gr, &w, &f, &vn);
@@ -704,12 +672,12 @@ internal ee_unit *ff_leader(struct ff_group *gr, uint32_t step) {
     float base = gr->pace >= 0 && FF_PACE * gr->pace < gr->speed ? FF_PACE * gr->pace : gr->speed;
     // re-forming on the move (pivot) it turns onto the new leg at FF_INNER, not at the formation's reach: the units take new
     // places anyway, and the wide swing at a sharp corner put their points on ground they couldn't reach
-    float r = gr->pivot ? FF_INNER : gr->reach + FF_INNER;
-    // ships: no tighter than the innermost of them turns at its top speed - a ship turns in an arc (on the spot only
-    // slowly: the game brakes one more than 45 degrees off its point to a crawl, and its every speed-up after threw out a
-    // bow wave)
-    if (gr->naval && r < gr->turn_r + gr->reach) r = gr->turn_r + gr->reach;
-    float k = gr->pivot ? 1 : g_set.formation_catchup * 0.85f * r / (r + gr->reach);
+    // ships turn together: the anchor turns as one ship does (its least agile member's circle at its top speed) and the
+    // formation's facing with it, every ship on its own circle to its new place, the pace slowing the fleet while they get
+    // there - the whole fleet wheeling round its innermost ship's circle swung far out (the player: too large turns are
+    // impractical in the game)
+    float r = gr->naval ? (gr->turn_r > FF_INNER ? gr->turn_r : FF_INNER) : gr->pivot ? FF_INNER : gr->reach + FF_INNER;
+    float k = gr->pivot || gr->naval ? 1 : g_set.formation_catchup * 0.85f * r / (r + gr->reach);
     if (k > 1) k = 1;
     float v = base * (1 - gr->turning * (1 - k));
     // a fleet's speed changes no faster than its slowest-accelerating ship can: the pace rocked it - the ships fell behind,
@@ -740,7 +708,7 @@ internal ee_unit *ff_leader(struct ff_group *gr, uint32_t step) {
     vec2 want = left >= span || gr->through || gr->reform ? gr->way : fo_turn(gr->way, gr->fwd, 1 - left / span);
     float swing = FF_SWING * spd / (gr->reach > 1 ? gr->reach : 1) * dt;
     ch = vec2_len(vec2_sub(want, gr->face));
-    gr->face = ch <= swing ? want : fo_turn(gr->face, want, swing / ch);
+    gr->face = ch <= swing || gr->naval ? want : fo_turn(gr->face, want, swing / ch);
     gr->way_from = way0;
     gr->face_from = face0;
     gr->way_rot = ff_rot_between(way0, gr->way);
@@ -1084,31 +1052,14 @@ internal void __thiscall hook_formation_slots(void *f, void *group, void *slots)
     vec2 go = vec2_sub(c, mean);
     float gl = vec2_len(go);
     g_fo_has_march = 0;
-    // ships facing one way (all within FF_ARC of their mean heading) sail off along it in that order, the course taken
-    // in an arc: their march laid out along their heading
-    vec2 hs = v2(0, 0);
     g_fo_naval = 1;
     for (int i = 0; i < n; i++) {
         ee_unit_type *td = unit_get_type_data(g_fo[i].u);
         int mk = td ? model_kind(unit_type_get_model(td)) : 0;
         if (mk != MODEL_SHIPS && mk != MODEL_SUBS) g_fo_naval = 0;
-        vec3 hv = unit_get_facing(g_fo[i].u);
-        float fl = sqrtf(hv.x * hv.x + hv.y * hv.y);
-        if (fl > 0.0001f) hs = vec2_add(hs, v2(hv.x / fl, hv.y / fl));
     }
-    float hl = vec2_len(hs);
-    if (g_fo_naval && hl > 0.0001f) {
-        g_fo_heading = vec2_scale(hs, 1.0f / hl);
-        int one = 1;
-        for (int i = 0; i < n && one; i++) {
-            vec3 hv = unit_get_facing(g_fo[i].u);
-            float fl = sqrtf(hv.x * hv.x + hv.y * hv.y);
-            one = fl > 0.0001f && vec2_dot(v2(hv.x / fl, hv.y / fl), g_fo_heading) > FF_ARC;
-        }
-        if (one) g_fo_naval = 2;
-    }
-    if (g_ff_on && !circle && gl > 0.5f && (g_fo_naval == 2 || vec2_dot(vec2_scale(go, 1.0f / gl), fwd) < FF_ARC)) {
-        vec2 wf = g_fo_naval == 2 ? g_fo_heading : vec2_scale(go, 1.0f / gl), wr = v2(wf.y, -wf.x);
+    if (g_ff_on && !circle && gl > 0.5f && vec2_dot(vec2_scale(go, 1.0f / gl), fwd) < FF_ARC) {
+        vec2 wf = vec2_scale(go, 1.0f / gl), wr = v2(wf.y, -wf.x);
         for (int i = 0; i < n; i++) {
             vec2 d = vec2_sub(g_fo[i].p, mean);
             g_fo[i].along = vec2_dot(d, wf);
