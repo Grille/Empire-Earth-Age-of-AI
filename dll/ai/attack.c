@@ -409,7 +409,9 @@ internal int g_leash = 1;               // aimod.ini [all] attack_leash
 internal struct { unsigned skipped, logged; } g_leash_stats[16];
 
 internal int g_siege = 1;               // aimod.ini [all] attack_siege (siege controller below; also rams here)
-internal unsigned g_ram_waits, g_air_skips;
+internal unsigned g_ram_waits, g_air_skips, g_lost_skips;   // g_lost_skips: enemies in a lost fight not chosen (danger_routes)
+internal int g_danger_routes;           // [all] danger_routes (game/danger.c)
+internal int g_avoid_lost;              // [all] avoid_lost_fights: its DANGER_LOST layer (cover.c cv_zones)
 internal int g_ignore_air = 1;          // aimod.ini [all] attack_ignore_air
 
 // Enemy soldiers (no citizens, no siege) of player pl's enemies within r tiles of (x, y)?
@@ -467,6 +469,20 @@ internal float __thiscall hook_asgu_score(ee_asg_unit *self, ee_asgu_info *info)
         abs(unit_get_x(enemy) - bx) <= 1 && abs(unit_get_y(enemy) - by) <= 1)
         return unit_get_x(enemy) == bx && unit_get_y(enemy) == by ? 1000.0f : 500.0f;
     if (s != 0.0f && mass_tether(sg, me, enemy)) return 0.0f;   // mass.c army_mass 16: not far from the pack
+    // danger_routes: no enemy in a lost fight (game/danger.c DANGER_LOST, cover.c cv_zones) beyond its own range + 2 -
+    // the members ran at a standing army one by one and died (the player's save "standing army"); in reach it fights
+    ee_map *map = game_map();
+    const uint8_t *lz = g_danger_routes && s != 0.0f && me && map ?
+                        danger_map((unsigned)player_get_index(attack_subgroup_get_player(sg)), DANGER_LOST, (int)map_get_size(map)) : NULL;
+    if (lz) {
+        int size = (int)map_get_size(map), ex = unit_get_x(enemy), ey = unit_get_y(enemy);
+        ee_unit_stats *st = unit_get_stats(me);
+        float r = (st ? unit_stats_get_range(st) : unit_type_get_range(mtd)) + 2.0f;
+        if (ex >= 0 && ey >= 0 && ex < size && ey < size && lz[ey * size + ex] && (float)ivec2_dist2(unit_get_tile(enemy), unit_get_tile(me)) > r * r) {
+            g_lost_skips++;
+            return 0.0f;
+        }
+    }
     if (!g_leash || s == 0.0f) return s;
     ee_player *pl = attack_subgroup_get_player(sg);
     if (!pl) return s;
@@ -764,18 +780,17 @@ internal int site_danger(ee_player *pl, ee_unit *site, int food) { return site_d
 // soldier or warship it sees at its reach as raiders_near counts it (its range + RAID_MARGIN, up to RAID_FAR), each
 // spot where its citizens were hurt in the last 2 minutes within 6. Its units that can't fight are routed round them
 // (engine/shiproute.c).
-internal int g_danger_routes;
 internal unsigned g_dr_refreshed;   // tests: maps made
 internal void danger_refresh(ee_player *pl, uint32_t now) {
     ee_map *map = game_map();
     if (!g_danger_routes || !pl || !map) return;
     unsigned pi = (unsigned)player_get_index(pl) & 15;
     threat_refresh(pl, now);
-    if (!danger_begin(pi, (int)map_get_size(map), now)) return;
+    if (!danger_begin(pi, DANGER_THREATS, (int)map_get_size(map), now)) return;
     g_dr_refreshed++;
     for (int k = 0; k < g_threat[pi].n; k++) {
         struct defence *d = &g_threat[pi].d[k];
-        danger_disc(pi, (float)d->x + 0.5f, (float)d->y + 0.5f, d->range + 2.0f);
+        danger_disc(pi, DANGER_THREATS, (float)d->x + 0.5f, (float)d->y + 0.5f, d->range + 2.0f);
     }
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
@@ -790,19 +805,18 @@ internal void danger_refresh(ee_player *pl, uint32_t now) {
         float reach = rng > 0.0f && rng < 30.0f ? rng + RAID_MARGIN : RAID_MARGIN;
         if (reach > RAID_FAR) reach = RAID_FAR;
         vec3 q = unit_get_pos(u);
-        danger_disc(pi, q.x, q.y, reach);
+        danger_disc(pi, DANGER_THREATS, q.x, q.y, reach);
     }
     for (int k = 0; k < HURT_N; k++) {
         typeof(&g_hurt[0].h[0]) r = &g_hurt[pi].h[k];
-        if (r->t && now >= r->t && now - r->t <= 120000) danger_disc(pi, (float)r->x + 0.5f, (float)r->y + 0.5f, 6.0f);
+        if (r->t && now >= r->t && now - r->t <= 120000) danger_disc(pi, DANGER_THREATS, (float)r->x + 0.5f, (float)r->y + 0.5f, 6.0f);
     }
     static uint32_t logged[16];
     if (g_log && (!logged[pi] || now / 300000 != logged[pi] / 300000)) {   // the first, then every 5 minutes
         logged[pi] = now;
-        int size = g_danger[pi].size, tiles = 0;
-        for (int i = 0; i < size * size; i++) tiles += g_danger[pi].lv[i] != 0;
-        fprintf(g_log, "# danger: P%u at %.1f min: %d tiles in enemy reach (%d defences known); all players: %u routes by a danger map, %u danger tiles on them\n",
-                pi, now / 60000.0, tiles, g_threat[pi].n, g_dr_routes, g_dr_tiles);
+        fprintf(g_log, "# danger: P%u at %.1f min: %d tiles in enemy reach (%d defences known), %d where its fight is lost; all players: %u routes by a danger map, "
+                "%u danger tiles on them, %u soldiers' routes round lost fights, %u marches stopped at their edge, %u enemies in them not chosen as targets\n", pi, now / 60000.0, danger_count(pi, DANGER_THREATS),
+                g_threat[pi].n, danger_count(pi, DANGER_LOST), g_dr_routes, g_dr_tiles, g_dr_lost_routes, g_dr_legs_held, g_lost_skips);
     }
 }
 internal ee_goal *goal_move(float x, float y);
@@ -1560,6 +1574,7 @@ internal void attack_install(void) {
     g_avoid_citizens = g_set_ai[1].avoid_towers_citizens;
     g_cit_threats = g_set_ai[1].citizen_threats;
     g_danger_routes = g_set_ai[1].danger_routes;
+    g_avoid_lost = g_set_ai[1].avoid_lost_fights;
     g_bunkers = g_set_ai[1].bunkers;
     g_bk_res = g_set_ai[1].bunker_reserve;
     BOOL repair = patch_repair_goal(hook_repair_goal);

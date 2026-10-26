@@ -339,15 +339,19 @@ internal int sr_search(ee_unit *u, int *from, int *to, void *caller, int sectors
 }
 
 // danger_routes: an AI player's unit that can't fight (a citizen, or a type without an attack) routed by its owner's
-// danger map
+// danger map; its soldier on the way somewhere (a move goal) by the map's lost fights
 internal int sr_route(ee_unit *u, int *from, int *to, void *caller, int sectors) {
     ee_player *pl = unit_get_owner(u);
     ee_unit_type *td = unit_get_type_data(u);
     ee_map *map = game_map();
     int pi = pl ? player_get_index(pl) : 0;
     g_sr_danger = NULL;
-    if (map && td && pi > 0 && !player_is_human(pl) && (is_citizen_type(unit_type_get_id(td)) || unit_type_get_attack(td) <= 0))
-        g_sr_danger = danger_map((unsigned)pi, (int)map_get_size(map));
+    if (map && td && pi > 0 && !player_is_human(pl)) {
+        int size = (int)map_get_size(map);
+        ee_goal *g = unit_get_goal_object(u);
+        if (is_citizen_type(unit_type_get_id(td)) || unit_type_get_attack(td) <= 0) g_sr_danger = danger_map((unsigned)pi, DANGER_THREATS, size);
+        else if (g && goal_is_location(g) && (g_sr_danger = danger_map((unsigned)pi, DANGER_LOST, size)) != NULL) g_dr_lost_routes++;
+    }
     int done = sr_search(u, from, to, caller, sectors);
     g_sr_danger = NULL;
     return done;

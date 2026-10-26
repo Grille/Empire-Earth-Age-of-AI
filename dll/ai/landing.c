@@ -159,6 +159,7 @@ internal int mass_refuses(ee_attack_subgroup *sg, ee_unit *u, ee_goal *goal);   
 internal int expand_ship(ee_unit *u);                 // expand.c: the transport of an outpost's ferry (its player), 0: none
 internal int expand_refuses(ee_attack_subgroup *sg, ee_unit *u); // expand.c: the ferry's transport and passengers, an outpost's guard
 internal int cover_refuses(ee_attack_subgroup *sg, ee_unit *u);  // cover.c: a unit falling back to cover or at the Hospital
+internal void cover_hold_leg(ee_attack_subgroup *sg, ee_unit *u, ee_goal *goal);   // cover.c: a march into a lost fight stops at its edge
 internal int expand_leads(ee_attack_subgroup *sg);               // expand.c: a subgroup holding the ferry's transport
 internal int expand_unload_ok(ee_unit *u, int gx, int gy);   // expand.c: the game's unload retry at the ferry's own point
 internal int expand_has(ee_player *pl, ee_unit *u);        // expand.c: a passenger of the ferry (the landing leaves it)
@@ -242,6 +243,7 @@ internal char __thiscall hook_asg_give_goal(ee_attack_subgroup *sg, ee_unit *u, 
         ld_fu_given(goal, 0);
         return 0;
     }
+    if (!is_vanilla(attack_subgroup_get_player(sg))) cover_hold_leg(sg, u, goal);   // a march into a lost fight stops at its edge (cover.c)
     char r = attack_subgroup_give_goal(sg, u, goal, a, prio);
     ld_fu_given(goal, r != 0);
     return r;

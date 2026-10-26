@@ -44,6 +44,7 @@
 internal int g_fall_back = 7, g_v_fall_back = -1;
 internal int g_fb_ratio = 50, g_fb_hp = 40, g_fb_value = 100, g_fb_dist = 60, g_fb_breaks = 2, g_fb_end = 50;
 #define FALL_BACK(idx) PV(idx, g_v_fall_back, g_fall_back)
+internal int g_v_avoid_lost = -1;   // head-to-head: [autotest] v_avoid_lost_fights for the variant players
 #define CV_N 8192
 #define CV_TOMB ((ee_unit *)1)
 #define CV_HOLD 128
@@ -59,7 +60,7 @@ internal uint32_t g_cvr_purge;
 struct cv_hold { ee_unit *u; ee_attack_group *g; int id, kind, home; ivec2 t; uint32_t since, at; };   // t: its cover
 struct cv_brk { ee_unit *u; ee_attack_group *g; int id, n; uint32_t t; };   // END: how often a unit broke off from its attack group
 internal struct cv_pl {
-    uint32_t ts, tb, tscan; unsigned min; int started;
+    uint32_t ts, tb, tscan, tz; unsigned min; int started;
     unsigned samples, mil, dmg, dmgq;
     float heal_h, heal_d, heal_o;
     int nhs, ndk, ncv, base;
@@ -160,6 +161,97 @@ internal float cv_local(ee_player *pl, ivec2 p, int r, int honest) {
     }
     return st_ratio(&g_cvs_own, &g_cvs_foe);
 }
+// LOST FIGHTS ([all] avoid_lost_fights, with danger_routes; game/danger.c's DANGER_LOST - the player: an AI fed its soldiers in packs of 2-4 into
+// his standing army of artillery and ranged units, 150 lost and none killed in 11 minutes on his save "standing army",
+// on their way to its attack subgroups' marching points): every 4 s each 8-tile cell with enemy fighters pl sees is
+// judged - the enemy within CV_ZONE_FOE of its middle (seen; their defences too) against pl's own and allied fighters
+// out to the zone's edge + 4, so those waiting at the edge count - and where pl's side is below 1 (not winning: the
+// estimate is optimistic for units spread out), the tiles within CV_ZONE_FOE + the enemy's longest reach there (at
+// most 15) are a lost fight. Units gathered at the edge open it once they would win: they go in together.
+// Measured (docs/testing.md avoid_lost_fights): on the player's save 22% fewer units lost to his army, head-to-head
+// razed +7.0 (se 3.0) and kills +17.9 a game.
+#define CV_ZONE_FOE 10
+#define CV_ZONE_REACH 15
+internal float cv_zone(ee_player *pl, ivec2 p, float *radius) {
+    st_side_clear(&g_cvs_own); st_side_clear(&g_cvs_foe);
+    float reach = 0;
+    for (struct grid_it it = grid_it_box(p.x, p.y, CV_ZONE_FOE + 14, 1); grid_it_next(&it); ) {   // the enemy (defences: their reach)
+        ee_unit *u = it.u;
+        ee_player *o = unit_get_owner(u);
+        if (!o || player_get_index(o) <= 0 || !cv_alive(u) || !is_enemy(pl, o) || !seen_by(u, pl)) continue;
+        int fam = unit_type_get_class_id(it.td), d2 = ivec2_dist2(unit_get_tile(u), p);
+        float rg = 0, at;
+        if (fam == CLS_BUILDING || fam == CLS_FORTRESS) {
+            if (!defence_stats(u, &rg, &at) || at <= 0 || !cv_built(u) || (float)d2 > (rg + 1.0f) * (rg + 1.0f)) continue;
+        } else {
+            if (!cv_mil(it.td) || d2 > CV_ZONE_FOE * CV_ZONE_FOE) continue;
+            ee_unit_stats *st = unit_get_stats(u);
+            rg = st ? unit_stats_get_range(st) : unit_type_get_range(it.td);
+        }
+        if (rg > reach && rg < 30) reach = rg;
+        st_side_add(&g_cvs_foe, u);
+    }
+    if (reach > CV_ZONE_REACH) reach = CV_ZONE_REACH;
+    *radius = CV_ZONE_FOE + reach;
+    int ro = (int)*radius + 4;
+    for (struct grid_it it = grid_it_box(p.x, p.y, ro, 1); grid_it_next(&it); ) {   // own and allied, to the edge + 4
+        ee_unit *u = it.u;
+        ee_player *o = unit_get_owner(u);
+        if (!o || player_get_index(o) <= 0 || !cv_alive(u) || is_enemy(pl, o)) continue;
+        int fam = unit_type_get_class_id(it.td), d2 = ivec2_dist2(unit_get_tile(u), p);
+        float rg, at;
+        if (fam == CLS_BUILDING || fam == CLS_FORTRESS) {
+            if (!defence_stats(u, &rg, &at) || at <= 0 || !cv_built(u) || (float)d2 > (rg + 1.0f) * (rg + 1.0f)) continue;
+        } else if (!cv_mil(it.td) || d2 > ro * ro) continue;
+        st_side_add(&g_cvs_own, u);
+    }
+    return st_ratio(&g_cvs_own, &g_cvs_foe);
+}
+internal void cv_zones(ee_player *pl, unsigned idx, uint32_t now) {
+    ee_map *map = game_map();
+    if (!map || !danger_begin(idx, DANGER_LOST, (int)map_get_size(map), now)) return;
+    for (int cx = 0; cx < CV_CELLS; cx++)
+        for (int cy = 0; cy < CV_CELLS; cy++) {
+            if (!g_cv_seen[cx][cy]) continue;
+            float r;
+            ivec2 p = iv2(cx * CV_CELL + CV_CELL / 2, cy * CV_CELL + CV_CELL / 2);
+            if (cv_zone(pl, p, &r) < 1.0f) danger_disc(idx, DANGER_LOST, (float)p.x, (float)p.y, r);
+        }
+}
+
+// landing.c hook_asg_give_goal: an attack subgroup's march to a point in a lost fight ends at the last point outside on
+// the straight way there (1 tile short); a unit inside it already walks out instead, away from that point (the first
+// point outside within 30 tiles, else as it was). The unit's route goes round the lost fights
+internal void cover_hold_leg(ee_attack_subgroup *sg, ee_unit *u, ee_goal *goal) {
+    ee_player *pl = attack_subgroup_get_player(sg);
+    ee_map *map = game_map();
+    if (!g_danger_routes || !goal || !goal_is_location(goal) || !pl || !map || !u) return;
+    int size = (int)map_get_size(map);
+    const uint8_t *lz = danger_map((unsigned)player_get_index(pl), DANGER_LOST, size);
+    if (!lz) return;
+    float tx = goal_get_dest_x(goal), ty = goal_get_dest_y(goal);
+    vec3 q = unit_get_pos(u);
+#define CV_LOST(x, y) ((int)(x) >= 0 && (int)(y) >= 0 && (int)(x) < size && (int)(y) < size && lz[(int)(y) * size + (int)(x)])
+    if (!CV_LOST(tx, ty)) return;
+    float dx = tx - q.x, dy = ty - q.y, l = sqrtf(dx * dx + dy * dy), out = -1;
+    if (l < 1) return;
+    if (CV_LOST(q.x, q.y)) {   // inside already: out, away from the point
+        for (float s = 0.5f; s <= 30; s += 0.5f)
+            if (!CV_LOST(q.x - dx / l * s, q.y - dy / l * s)) { out = -(s + 1); break; }
+    } else {
+        for (float s = 0; s <= l; s += 0.5f) {
+            if (CV_LOST(q.x + dx / l * s, q.y + dy / l * s)) break;
+            out = s;
+        }
+        if (out >= 0) out = out > 1 ? out - 1 : 0;
+    }
+#undef CV_LOST
+    if (out == -1) return;
+    goal_set_dest_x(goal, q.x + dx / l * out);
+    goal_set_dest_y(goal, q.y + dy / l * out);
+    g_dr_legs_held++;
+}
+
 // an enemy defence covers p (its range + 1; all, not only the known ones)
 internal int cv_enemy_def(ee_player *pl, ivec2 p) {
     for (struct grid_it it = grid_it_box(p.x, p.y, 12, 1); grid_it_next(&it); ) {
@@ -537,8 +629,10 @@ internal void cover_tick(ee_player *pl, uint32_t now) {
     if (now < c->ts || now < c->tb) { memset(c, 0, sizeof *c); }
     int plan = is_vanilla(pl) ? 0 : FALL_BACK(idx) & 11, meas = g_autotest && g_log;
     int act = plan && (!c->tb || now - c->tb >= 2000), smp = meas && (!c->ts || now - c->ts >= 5000);
-    if (!act && !smp) return;
+    int zones = g_danger_routes && PV(idx, g_v_avoid_lost, g_avoid_lost) && !is_vanilla(pl) && (!c->tz || now - c->tz >= 4000);
+    if (!act && !smp && !zones) return;
     cv_scan(pl, c);
+    if (zones) { c->tz = now ? now : 1; cv_zones(pl, idx, now); }
     if (act) { c->tb = now ? now : 1; cv_behave(pl, idx, c, now, plan); }
     if (!smp) return;
     c->ts = now ? now : 1;
@@ -566,6 +660,7 @@ internal void cover_install(const char *autotest_ini) {
     g_fb_breaks = g_set_ai[1].fall_back_breaks;
     g_fb_end = g_set_ai[1].fall_back_end;
     if (autotest_ini) g_v_fall_back = ini_int("autotest", "v_fall_back", -1, autotest_ini);
+    if (autotest_ini) g_v_avoid_lost = ini_int("autotest", "v_avoid_lost_fights", -1, autotest_ini);
     if (g_log) fprintf(g_log, "# fall back: %d (variant %d), ratio %d%%, hp %d%%, value %d, dist %d, breaks %d, end %d%%\n", g_fall_back, g_v_fall_back,
                        g_fb_ratio, g_fb_hp, g_fb_value, g_fb_dist, g_fb_breaks, g_fb_end);
 }
