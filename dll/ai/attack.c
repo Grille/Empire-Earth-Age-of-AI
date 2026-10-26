@@ -759,6 +759,52 @@ internal int site_danger_res(ee_player *pl, ee_unit *site, int food, int res) { 
     return route_danger(pl, d.x, d.y, x, y);
 }
 internal int site_danger(ee_player *pl, ee_unit *site, int food) { return site_danger_res(pl, site, food, food ? 2 : -1); }
+// DANGER MAP ([all] danger_routes; game/danger.c): this AI's map of enemy reach, every 4 s (citizens_safety's tick) -
+// what the checks above look at, as tiles: each enemy defence it has seen (g_threat) at its range + 2, each enemy
+// soldier or warship it sees at its reach as raiders_near counts it (its range + RAID_MARGIN, up to RAID_FAR), each
+// spot where its citizens were hurt in the last 2 minutes within 6. Its units that can't fight are routed round them
+// (engine/shiproute.c).
+internal int g_danger_routes;
+internal unsigned g_dr_refreshed;   // tests: maps made
+internal void danger_refresh(ee_player *pl, uint32_t now) {
+    ee_map *map = game_map();
+    if (!g_danger_routes || !pl || !map) return;
+    unsigned pi = (unsigned)player_get_index(pl) & 15;
+    threat_refresh(pl, now);
+    if (!danger_begin(pi, (int)map_get_size(map), now)) return;
+    g_dr_refreshed++;
+    for (int k = 0; k < g_threat[pi].n; k++) {
+        struct defence *d = &g_threat[pi].d[k];
+        danger_disc(pi, (float)d->x + 0.5f, (float)d->y + 0.5f, d->range + 2.0f);
+    }
+    for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
+        ee_unit *u = it.u;
+        ee_unit_type *td = it.td;
+        if (!td || unit_get_hp(u) <= 0) continue;
+        int fam = unit_type_get_class_id(td);
+        if ((fam != CLS_LAND && fam != CLS_NAVAL && fam != CLS_SUBMERGED_NAVAL) || is_citizen_type(unit_type_get_id(td)) || unit_type_get_attack(td) <= 0) continue;
+        ee_player *o = unit_get_owner(u);
+        if (!o || player_get_index(o) <= 0 || !is_enemy(pl, o) || !seen_by(u, pl)) continue;
+        ee_unit_stats *st = unit_get_stats(u);
+        float rng = st ? unit_stats_get_range(st) : unit_type_get_range(td);
+        float reach = rng > 0.0f && rng < 30.0f ? rng + RAID_MARGIN : RAID_MARGIN;
+        if (reach > RAID_FAR) reach = RAID_FAR;
+        vec3 q = unit_get_pos(u);
+        danger_disc(pi, q.x, q.y, reach);
+    }
+    for (int k = 0; k < HURT_N; k++) {
+        typeof(&g_hurt[0].h[0]) r = &g_hurt[pi].h[k];
+        if (r->t && now >= r->t && now - r->t <= 120000) danger_disc(pi, (float)r->x + 0.5f, (float)r->y + 0.5f, 6.0f);
+    }
+    static uint32_t logged[16];
+    if (g_log && (!logged[pi] || now / 300000 != logged[pi] / 300000)) {   // the first, then every 5 minutes
+        logged[pi] = now;
+        int size = g_danger[pi].size, tiles = 0;
+        for (int i = 0; i < size * size; i++) tiles += g_danger[pi].lv[i] != 0;
+        fprintf(g_log, "# danger: P%u at %.1f min: %d tiles in enemy reach (%d defences known); all players: %u routes by a danger map, %u danger tiles on them\n",
+                pi, now / 60000.0, tiles, g_threat[pi].n, g_dr_routes, g_dr_tiles);
+    }
+}
 internal ee_goal *goal_move(float x, float y);
 internal int unit_goal(ee_unit *u, ee_goal *goal, int append, unsigned state);
 internal int muster_rally(unsigned idx, float *x, float *y);   // defence.c: the rally point while the base is overrun
@@ -780,12 +826,14 @@ internal void bk_reserve_tick(ee_player *pl, unsigned pi, uint32_t now);
 internal int g_bk_res;
 internal void citizens_safety(ee_resource_mgr *rm) {   // before the citizen assignment
     ee_player *pl = resource_mgr_player(rm);
-    if (!g_avoid_citizens || !pl) return;
+    if (!pl) return;
     unsigned idx = (unsigned)player_get_index(pl) & 15;
     static uint32_t next[16], logged[16];
     uint32_t now = game_time();
     if (now < next[idx] && next[idx] - now <= 4000) return;
     next[idx] = now + 4000;
+    danger_refresh(pl, now);
+    if (!g_avoid_citizens) return;
     threat_refresh(pl, now);
     int sent = 0, fled = 0, aside = 0, stray = 0, kinds[4][2] = { { 0 } };   // site types sent back from (log)
     int doing[7][4] = { { 0 } };   // per list: gathering, building, walking, nothing (the minute's log)
@@ -1511,6 +1559,7 @@ internal void attack_install(void) {
     g_avoid_towers = g_set_ai[1].avoid_towers;
     g_avoid_citizens = g_set_ai[1].avoid_towers_citizens;
     g_cit_threats = g_set_ai[1].citizen_threats;
+    g_danger_routes = g_set_ai[1].danger_routes;
     g_bunkers = g_set_ai[1].bunkers;
     g_bk_res = g_set_ai[1].bunker_reserve;
     BOOL repair = patch_repair_goal(hook_repair_goal);

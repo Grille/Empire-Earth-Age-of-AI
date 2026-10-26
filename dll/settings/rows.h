@@ -140,6 +140,7 @@
     D(NUM,   early_army_workers,           60, 0, 0) \
     D(FLAG,  early_soldiers,               0, 0, 0) \
     D(FLAG,  citizen_threats,              1, 0, 0) \
+    D(FLAG,  danger_routes,                1, 0, 0) \
     D(FLAG,  bunkers,                      1, 0, 0) \
     D(NUM,   bunker_reserve,               65535, 0, 0) \
     D(FLAG,  attack_siege,                 1, 0, 0) \

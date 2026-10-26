@@ -49,6 +49,7 @@ internal void shipturns_new_game(void);   // engine/shiproute.c
 internal void collide_new_game(void);      // engine/collide.c
 internal void groupmove_new_game(void);    // engine/groupmove.c
 internal void build_retry_new_game(void);  // engine/buildretry.c
+internal void danger_new_game(void);       // game/danger.c
 internal void persist_load(const char *name);
 internal void econ_targets(ee_resource_mgr *rm);
 internal void econ_rebalance(ee_resource_mgr *rm);
@@ -308,6 +309,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
     collide_new_game();
     groupmove_new_game();
     build_retry_new_game();
+    danger_new_game();
     landing_new_game();
     navy_new_game();
     bunker_new_game();
@@ -335,6 +337,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
 #include "game/roles.c"
 #include "test/control.c"
 #include "game/grid.c"
+#include "game/danger.c"     // each player's map of enemy reach (danger_routes): the AI fills it, the route search reads it
 #include "base/watch.c"
 #include "test/trace.c"
 #include "ai/settings.c"

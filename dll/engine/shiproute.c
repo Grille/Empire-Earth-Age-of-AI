@@ -21,11 +21,16 @@
 // tile's centre beside it, the leg past its corner by SR_MARGIN -, so each corner of a land unit's route is moved away
 // from what blocks around it, towards where the room grows, up to LR_WIDEN and only while the room still grows (in a
 // gap it stops in the middle: a choke point is still taken) and both legs to it stay clear; then the points along the
-// legs as before.
+// legs as before. `danger_routes` ([all]; the player: AI citizens walk into enemy reach - a danger map per player
+// instead of each manager's checks, and fishing boats and transports have the same problem): an AI's unit that can't
+// fight (a citizen, or no attack: fishing boats, transports) pays SR_COST_DANGER more for each threat on a tile of
+// its owner's danger map (game/danger.c), so it goes round where it can and through only where it must; the route is
+// pulled straight only where the line meets no more danger than its two ends.
 
 #define SR_COST_STRAIGHT 10
 #define SR_COST_DIAGONAL 14
 #define SR_COST_SHORE 6                 // for each tile of the hull radius a tile lies too near to land
+#define SR_COST_DANGER 40               // for each threat on a tile of the owner's danger map (danger_routes)
 #define SR_RADIUS_MAX 3                 // tiles: the hull radius looked at, at most
 #define SR_MARGIN 0.3f                  // the clear line's half-width in tiles
 #define SR_RETARGET 6                   // tiles: a target it can't enter moves to the nearest one it can this near
@@ -43,6 +48,7 @@ internal unsigned g_lr_routes;           // land searches made, and their time (
 internal double g_lr_ms, g_lr_ms_max;
 internal float g_sr_radius;             // this search's ship: its hull radius in tiles
 internal unsigned g_sr_routed, g_sr_passed;   // routes given, requests left to the game
+internal const uint8_t *g_sr_danger;    // this search's danger map (danger_routes), NULL: none
 internal struct {
     uint32_t n;                         // tiles (the map's size squared) the arrays hold
     uint32_t gen;                       // this search's stamp: an entry of another is unset
@@ -109,11 +115,17 @@ internal int sr_pass(ee_map *map, ee_unit *u, ee_unit_type *td, int size, int x,
 }
 
 // is the straight line between two points clear, margin to each side
+internal int sr_danger_at(int size, float x, float y) {
+    int tx = (int)floorf(x), ty = (int)floorf(y);
+    return g_sr_danger && tx >= 0 && ty >= 0 && tx < size && ty < size ? g_sr_danger[ty * size + tx] : 0;
+}
 internal int sr_clear_by(ee_map *map, ee_unit *u, ee_unit_type *td, int size, float ax, float ay, float bx, float by, float margin) {
     float dx = bx - ax, dy = by - ay, len = sqrtf(dx * dx + dy * dy);
     int steps = (int)(len / 0.2f) + 1;
+    int da = sr_danger_at(size, ax, ay), db = sr_danger_at(size, bx, by), lim = da > db ? da : db;   // a search's danger map: no more than at the ends
     for (int k = 0; k <= steps; k++) {
         float px = ax + dx * (float)k / (float)steps, py = ay + dy * (float)k / (float)steps;
+        if (g_sr_danger && sr_danger_at(size, px, py) > lim) return 0;
         for (int c = 0; c < 4; c++) {
             float qx = px + (c & 1 ? margin : -margin), qy = py + (c & 2 ? margin : -margin);
             if (!sr_pass(map, u, td, size, (int)floorf(qx), (int)floorf(qy))) return 0;
@@ -208,7 +220,7 @@ internal uint32_t sr_heap_pop(void) {
 }
 
 // u's route from tile from to tile to as its waypoints; 0: left to the game
-internal int sr_route(ee_unit *u, int *from, int *to, void *caller, int sectors) {
+internal int sr_search(ee_unit *u, int *from, int *to, void *caller, int sectors) {
     ee_map *map = game_map();
     ee_unit_type *td = unit_get_type_data(u);
     int size = map ? (int)map_get_size(map) : 0;
@@ -262,7 +274,7 @@ internal int sr_route(ee_unit *u, int *from, int *to, void *caller, int sectors)
             uint32_t j = (uint32_t)(ny * size + nx);
             if (g_sr.closed[j] == g_sr.gen) continue;
             int shore = (int)(sr_crowded(map, u, td, size, nx, ny) * SR_COST_SHORE + 0.5f);
-            int g = g_sr.g[i] + (d >= 4 ? SR_COST_DIAGONAL : SR_COST_STRAIGHT) + shore;
+            int g = g_sr.g[i] + (d >= 4 ? SR_COST_DIAGONAL : SR_COST_STRAIGHT) + shore + (g_sr_danger ? g_sr_danger[j] * SR_COST_DANGER : 0);
             if (g_sr.seen[j] == g_sr.gen && g >= g_sr.g[j]) continue;
             g_sr.seen[j] = g_sr.gen;
             g_sr.g[j] = g;
@@ -313,6 +325,10 @@ internal int sr_route(ee_unit *u, int *from, int *to, void *caller, int sectors)
     }
     for (int k = 0; k < np; k++) unit_add_waypoint(u, pts[k], 1);   // 1: a point on the map's edge lines kept
     g_sr_routed++;
+    if (g_sr_danger) {
+        g_dr_routes++;
+        for (int k = 0; k < n; k++) g_dr_tiles += g_sr_danger[path[k]] != 0;
+    }
     if (g_log && g_sr_log) {
         fprintf(g_log, "# shiproute: %06x %d,%d -> %d,%d (from %p, sectors %d): %d tiles (%d searched), %d legs, %d points:", unit_get_serial(u) & 0xFFFFFF, sx, sy,
                 tx, ty, caller, sectors & 0xFF, n, expanded, corners, np);
@@ -320,6 +336,21 @@ internal int sr_route(ee_unit *u, int *from, int *to, void *caller, int sectors)
         fprintf(g_log, "\n");
     }
     return 1;
+}
+
+// danger_routes: an AI player's unit that can't fight (a citizen, or a type without an attack) routed by its owner's
+// danger map
+internal int sr_route(ee_unit *u, int *from, int *to, void *caller, int sectors) {
+    ee_player *pl = unit_get_owner(u);
+    ee_unit_type *td = unit_get_type_data(u);
+    ee_map *map = game_map();
+    int pi = pl ? player_get_index(pl) : 0;
+    g_sr_danger = NULL;
+    if (map && td && pi > 0 && !player_is_human(pl) && (is_citizen_type(unit_type_get_id(td)) || unit_type_get_attack(td) <= 0))
+        g_sr_danger = danger_map((unsigned)pi, (int)map_get_size(map));
+    int done = sr_search(u, from, to, caller, sectors);
+    g_sr_danger = NULL;
+    return done;
 }
 
 internal void __thiscall hook_path_request(void *mgr, ee_unit *u, int *from, int *to, int sync, int limit, int sectors, void *ctx) {
