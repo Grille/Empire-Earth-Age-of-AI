@@ -1346,6 +1346,50 @@ internal void rs_act(ee_player *pl, unsigned idx, uint32_t now) {
     ee_goal *cur = unit_get_goal(sh);
     if (!cur || !goal_is_unload(cur)) unit_goal(sh, ld_unload(sh, r->drop), 0, 0x1F40);
 }
+// CITIZENS THAT CAN STILL WORK (diplo.c's surrender; the player: on an island map a few citizens with no way to do
+// anything would have to be hunted down island by island - not the way a game should end): a citizen counts when it
+// stands on land with a drop site of its AI (drops_cached), is aboard or inside something, or - stranded elsewhere -
+// the AI could build a drop site there (the wood for a Settlement) or fetch it home (one of its transports on that sea,
+// and a drop site of its with a shore on that sea: rescue_citizens). Its stranded ones into *stranded. Cached 5 s.
+internal int citizens_useful(ee_player *pl, unsigned idx, int *stranded) {
+    static struct { uint32_t t; int n, s; } cache[16];
+    uint32_t now = game_time();
+    idx &= 15;
+    if (cache[idx].t && now >= cache[idx].t && now - cache[idx].t < 5000) { if (stranded) *stranded = cache[idx].s; return cache[idx].n; }
+    drops_cached(pl);
+    int n = 0, s = 0, wood = player_get_stock(pl, 3), settle = unit_cost(pl, UT(B_SETTLEMENT), 3);
+    static struct { unsigned cont; int ok; } seen[32];
+    int ns = 0;
+    for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
+        ee_unit *u = it.u;
+        if (unit_get_owner(u) != pl || unit_get_hp(u) <= 0 || !is_citizen_type(unit_type_get_id(it.td))) continue;
+        if (unit_get_x(u) < 0) { n++; continue; }   // aboard, inside
+        ivec2 p = unit_get_tile(u);
+        unsigned c = area_id(p, 2);
+        int k = 0;
+        while (k < ns && seen[k].cont != c) k++;
+        if (k == ns) {   // this land, once a look
+            int ok = !c || rs_drop_land(idx, c) || (settle > 0 && wood >= settle);
+            ivec2 w;
+            int oc = ok ? 0 : (int)ocean_near(p, 4, &w);
+            for (int i = 0; oc && !ok && i < g_drops[idx].n; i++) {   // a drop site with a shore on that sea
+                ivec2 t;
+                unsigned dc = area_id(g_drops[idx].d[i].p, 2);
+                if (!dc || dc == c || !ex_shore(dc, oc, g_drops[idx].d[i].p, 20, &t, NULL)) continue;
+                for (struct grid_it jt = grid_it_all(1); grid_it_next(&jt) && !ok; )   // and a transport of its there
+                    ok = unit_get_owner(jt.u) == pl && unit_get_hp(jt.u) > 0 && unit_get_x(jt.u) >= 0 && is_transport(unit_type_get_id(jt.td)) &&
+                         (int)ocean_near(unit_get_tile(jt.u), 2, NULL) == oc;
+                break;
+            }
+            if (ns < 32) { seen[ns].cont = c; seen[ns].ok = ok; ns++; }
+            else { n += ok; s += !ok; continue; }
+        }
+        if (seen[k].ok) n++; else s++;
+    }
+    cache[idx].t = now ? now : 1; cache[idx].n = n; cache[idx].s = s;
+    if (stranded) *stranded = s;
+    return n;
+}
 internal void expand_new_game(void) {
     memset(&g_exs, 0, sizeof g_exs);
     memset(g_rs, 0, sizeof g_rs);

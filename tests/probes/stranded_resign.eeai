@@ -1,0 +1,18 @@
+// the surrender with stranded citizens (diplo.c check_surrender, expand.c citizens_useful): Small Islands - at 2 minutes
+// 3 citizens of P3 are put on P2's island, then every other unit of P3 goes and its wood (no drop site of P3's there, no
+// transport, no wood for a Settlement). They can do nothing: P3 should resign within about a minute ("# surrender: P3
+// ... no citizens that can work ... (3 stranded)"); before, the 3 kept it in the game for good. With its wood left
+// (the line p.wood = 0 taken out) it could build a drop site there: no surrender.
+wait_until(2min)
+let p = player(3)
+let at = player(2).units()[1].pos
+let men = p.spawn(unit.citizen, vec(at.x + 6, at.y + 6), 3)
+for u in p.units() {
+    if u.id != men[1].id and u.id != men[2].id and u.id != men[3].id {
+        u.remove()
+    }
+}
+p.wood = 0
+ping("P3: {len(p.units())} units left, 3 citizens put by a unit of P2 at {at}")
+wait(150s)
+ping("P3 still in the game at {time} s: {len(p.units())} units")

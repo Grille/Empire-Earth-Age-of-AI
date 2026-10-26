@@ -1122,7 +1122,10 @@ internal void ai_offer_rules(int from, int to) {
     else offer_refused(from, to);
 }
 
-// surrender (every 10 s, after the scan): queued here, carried out at the next safe point (diplo_safe_point)
+// surrender (every 10 s, after the scan): queued here, carried out at the next safe point (diplo_safe_point). Its
+// citizens are those that can still work (expand.c citizens_useful): stranded ones without a drop site, a Settlement's
+// wood or a transport to fetch them don't keep a beaten AI in the game for the player to hunt down island by island.
+internal int citizens_useful(ee_player *pl, unsigned idx, int *stranded);   // expand.c
 internal int g_surrender = 1;
 internal uint32_t g_no_citizens_since[16];
 internal volatile LONG g_resign_queue;   // bit per player
@@ -1135,7 +1138,7 @@ internal int citizen_trainable(ee_player *pl, int ai) {   // a Town Center/Capit
     }
     return 1;
 }
-internal int beyond_saving(ee_player *pl, int ai) { return g_ws.citizens[ai] <= 0 && !citizen_trainable(pl, ai); }
+internal int beyond_saving(ee_player *pl, int ai) { return citizens_useful(pl, (unsigned)ai, NULL) <= 0 && !citizen_trainable(pl, ai); }
 internal int victor_of(ee_player *pl, int ai) {   // whoever destroyed the most of it lately, else its strongest enemy
     int best = 0;
     uint32_t most = 0;
@@ -1212,14 +1215,15 @@ internal void prop_do(int ai, int h, int kind, int third, uint32_t now) {
 
 internal void check_surrender(ee_player *pl, int ai, uint32_t now) {
     if (!g_surrender || scenario_game() || (g_resign_queue & (1 << ai))) return;
-    if (g_ws.citizens[ai] > 0) { g_no_citizens_since[ai] = 0; return; }
+    int stranded = 0;
+    if (g_ws.citizens[ai] > 0 && citizens_useful(pl, (unsigned)ai, &stranded) > 0) { g_no_citizens_since[ai] = 0; return; }
     if (!g_no_citizens_since[ai]) { g_no_citizens_since[ai] = now ? now : 1; return; }
     int can_train = citizen_trainable(pl, ai);
     if (now - g_no_citizens_since[ai] < (can_train ? 180000u : 60000u)) return;
     int lead = strongest_enemy(pl, ai);
     if (lead ? power_of(ai) * 2.0f >= power_of(lead) : can_train) return;   // its army can still win / at peace: rebuilds
-    if (g_log) fprintf(g_log, "# surrender: P%d at %.1f min: no citizens for %.1f min, %s, power %.0f vs P%d %.0f\n", ai,
-                       now / 60000.0, (now - g_no_citizens_since[ai]) / 60000.0,
+    if (g_log) fprintf(g_log, "# surrender: P%d at %.1f min: no citizens that can work for %.1f min (%d stranded), %s, power %.0f vs P%d %.0f\n", ai,
+                       now / 60000.0, (now - g_no_citizens_since[ai]) / 60000.0, stranded,
                        can_train ? "could still train" : g_ws.centers[ai] ? "can't pay a citizen" : "no Town Center",
                        g_ws.power[ai], lead, lead ? g_ws.power[lead] : 0.0f);
     surrender_now(pl, ai);
