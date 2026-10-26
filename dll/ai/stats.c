@@ -56,24 +56,12 @@ internal float st_reload_t(ee_unit_type *atd, ee_unit_stats *ast) {   // seconds
     if (ms <= 0 && atd) ms = unit_type_get_reload(atd);
     return ms > 0 ? ms / 1000.0f : 1.0f;
 }
-internal float st_reload(ee_unit *a) {   // the unit's own (scenario triggers change it), else its class's
-    int own = unit_get_reload(a);
-    return own > 0 ? own / 1000.0f : st_reload_t(unit_get_type_data(a), unit_get_stats(a));
-}
 // in a fight a shot takes longer than the reload: picking the next target, turning, stepping into range - duels of
 // 2026-10-17 (scripts/zz_duel.sh): machine gunners (reload 1 s) fired every 3.3-5.1 s, Mk V tanks (4 s) every
 // 4.6-7.1 s; about 2 s on every shot
 #define ST_SHOT_OVERHEAD 2.0f
-internal float st_dps(ee_unit *a, ee_unit *t) { return st_shot(a, t) / (st_reload(a) + ST_SHOT_OVERHEAD); }
 internal float st_range(ee_unit *u) { ee_unit_stats *st = unit_get_stats(u); return st ? unit_stats_get_range(st) : unit_type_get_range(unit_get_type_data(u)); }
 internal float st_speed(ee_unit *u) { ee_unit_stats *st = unit_get_stats(u); return st ? unit_stats_get_speed(st) : 0.0f; }   // tiles/s, 0 = cannot move
-// RANGE (the user: "it can even overpower all the other stats since a unit can be eliminated from range before ever
-// getting a chance to fire back"): a unit that cannot move never hits one that outranges it; a unit that is
-// outranged walks the difference under fire first (st_close)
-internal int st_reaches(ee_unit *a, ee_unit *t) { return st_speed(a) > 0 || st_range(a) + 0.5f >= st_range(t); }
-internal float st_minrange(ee_unit *u) { return unit_type_get_min_range(unit_get_type_data(u)); }
-// once a mobile target has closed to its own range, an attacker whose minimum range is longer cannot hit it (artillery)
-internal int st_inside_min(ee_unit *a, ee_unit *t) { return st_speed(t) > 0 && st_minrange(a) > 0 && st_minrange(a) >= st_range(t); }
 internal int st_maxhp(ee_unit_type *td, ee_unit_stats *st) { return st && unit_stats_get_hp(st) > 0 ? unit_stats_get_hp(st) : unit_type_get_hp(td); }
 
 // --- a fight between two sides ------------------------------------------------------------------------------------
@@ -88,7 +76,9 @@ internal int st_maxhp(ee_unit_type *td, ee_unit_stats *st) { return st && unit_s
 // (3 artillery against 8 machine gunners: about the target and two more; 200 v 200 with all neighbours counted, 20
 // artillery made 60% of an army's estimate and the army lost)
 #define ST_AREA_MAX 2.0f
-struct st_group { ee_unit *rep; int type, owner, count; float hp, nbr[ST_RADII], part; };   // part: its share of the last st_side_dps
+// a group: its type, its owner's stats of it and the owner's index; rep a live unit of it (its own reload), NULL for
+// a group of remembered units only (st_side_add_rec); part: its share of the last st_side_dps
+struct st_group { ee_unit *rep; ee_unit_type *td; ee_unit_stats *st; int type, owner, count; float hp, nbr[ST_RADII], part; };
 struct st_side {
     int ng, n;
     float hp;
@@ -100,24 +90,52 @@ struct st_side {
     int nr; float radius[ST_RADII];     // radii whose neighbour counts are known
 };
 internal void st_side_clear(struct st_side *s) { free(s->cnt); memset(s, 0, sizeof *s); }
-internal int st_side_add(struct st_side *s, ee_unit *u) {   // 0 when full
-    ee_unit_type *td = unit_get_type_data(u);
-    int type = unit_type_get_id(td), owner = st_pidx(u), k = 0;
+// one unit of type td, owner index owner (stats st), with hp at x, y; u the unit when it is live and seen (else NULL)
+internal int st_side_put(struct st_side *s, ee_unit *u, ee_unit_type *td, ee_unit_stats *st, int owner, int hp, int x, int y) {   // 0 when full
+    int type = unit_type_get_id(td), k = 0;
     while (k < s->ng && (s->g[k].type != type || s->g[k].owner != owner)) k++;
     if (k == s->ng) {
         if (k == ST_GROUPS || s->n == ST_UNITS) return 0;
-        s->g[k].rep = u; s->g[k].type = type; s->g[k].owner = owner;
+        s->g[k].rep = u; s->g[k].td = td; s->g[k].st = st; s->g[k].type = type; s->g[k].owner = owner;
         s->ng++;
     }
     if (s->n == ST_UNITS) return 0;
+    if (!s->g[k].rep && u) s->g[k].rep = u;
     s->g[k].count++;
-    s->g[k].hp += unit_get_hp(u);
-    s->hp += unit_get_hp(u);
-    s->ux[s->n] = (int16_t)unit_get_x(u); s->uy[s->n] = (int16_t)unit_get_y(u); s->ug[s->n] = (uint8_t)k;
+    s->g[k].hp += (float)hp;
+    s->hp += (float)hp;
+    s->ux[s->n] = (int16_t)x; s->uy[s->n] = (int16_t)y; s->ug[s->n] = (uint8_t)k;
     s->n++;
     s->nr = 0;
     return 1;
 }
+internal int st_side_add(struct st_side *s, ee_unit *u) {
+    return st_side_put(s, u, unit_get_type_data(u), unit_get_stats(u), st_pidx(u), unit_get_hp(u), unit_get_x(u), unit_get_y(u));
+}
+// a unit remembered (intel.c): its type and owner, hit points and the tile where it was seen
+internal int st_side_add_rec(struct st_side *s, int type, int owner, int hp, int x, int y) {
+    ee_unit_type *td = type_data(type);
+    void *pl = st_player(owner);
+    return td && pl ? st_side_put(s, NULL, td, st_rec(pl, type), owner, hp, x, y) : 0;
+}
+// a group's range, speed (tiles/s, 0 = cannot move), minimum range, seconds between shots (a live unit's own - scenario
+// triggers change it -, else its class's) and damage per second at another group
+internal float stg_range(struct st_group *g) { return g->st ? unit_stats_get_range(g->st) : unit_type_get_range(g->td); }
+internal float stg_speed(struct st_group *g) { return g->st ? unit_stats_get_speed(g->st) : 0.0f; }
+internal float stg_minrange(struct st_group *g) { return unit_type_get_min_range(g->td); }
+internal float stg_reload(struct st_group *g) {
+    int own = g->rep ? unit_get_reload(g->rep) : 0;
+    return own > 0 ? own / 1000.0f : st_reload_t(g->td, g->st);
+}
+internal float stg_dps(struct st_group *a, struct st_group *t) {
+    return st_shot_t(a->td, a->st, a->owner, t->td, t->st, t->owner) / (stg_reload(a) + ST_SHOT_OVERHEAD);
+}
+// RANGE (the user: "it can even overpower all the other stats since a unit can be eliminated from range before ever
+// getting a chance to fire back"): a unit that cannot move never hits one that outranges it; a unit that is
+// outranged walks the difference under fire first (st_close)
+internal int stg_reaches(struct st_group *a, struct st_group *t) { return stg_speed(a) > 0 || stg_range(a) + 0.5f >= stg_range(t); }
+// once a mobile target has closed to its own range, an attacker whose minimum range is longer cannot hit it (artillery)
+internal int stg_inside_min(struct st_group *a, struct st_group *t) { return stg_speed(t) > 0 && stg_minrange(a) > 0 && stg_minrange(a) >= stg_range(t); }
 // average units of the side within radius r of a unit of group k (itself not counted)
 internal float st_neighbours(struct st_side *s, int k, float r) {
     int ri = 0;
@@ -155,12 +173,11 @@ internal float st_neighbours(struct st_side *s, int k, float r) {
 internal float st_side_dps(struct st_side *a, struct st_side *b, int contact) {
     float s = 0;
     for (int i = 0; i < a->ng; i++) {
-        ee_unit *u = a->g[i].rep;
-        ee_unit_stats *ast = unit_get_stats(u);
-        float area = ast ? unit_stats_get_area(ast) : 0, num = 0, den = 0;
+        struct st_group *u = &a->g[i];
+        float area = u->st ? unit_stats_get_area(u->st) : 0, num = 0, den = 0;
         for (int j = 0; j < b->ng; j++) {
-            ee_unit *t = b->g[j].rep;
-            float d = st_reaches(u, t) && !(contact && st_inside_min(u, t)) ? st_dps(u, t) : 0;
+            struct st_group *t = &b->g[j];
+            float d = stg_reaches(u, t) && !(contact && stg_inside_min(u, t)) ? stg_dps(u, t) : 0;
             if (d <= 0) continue;
             if (area > 0) { float nb = st_neighbours(b, j, area); d *= 1.0f + (nb < ST_AREA_MAX ? nb : ST_AREA_MAX); }
             num += b->g[j].count * d; den += b->g[j].count;
@@ -174,11 +191,11 @@ internal float st_side_dps(struct st_side *a, struct st_side *b, int contact) {
 // speed (weighted by what it deals)
 internal float st_close(struct st_side *a, struct st_side *b) {
     float rb = 0, t = 0, w = 0;
-    for (int j = 0; j < b->ng; j++) if (st_range(b->g[j].rep) > rb) rb = st_range(b->g[j].rep);
+    for (int j = 0; j < b->ng; j++) if (stg_range(&b->g[j]) > rb) rb = stg_range(&b->g[j]);
     for (int i = 0; i < a->ng; i++) {
-        ee_unit *u = a->g[i].rep;
-        float d = 0, v = st_speed(u), gap = rb - st_range(u);
-        for (int j = 0; j < b->ng && d <= 0; j++) d = st_dps(u, b->g[j].rep);
+        struct st_group *u = &a->g[i];
+        float d = 0, v = stg_speed(u), gap = rb - stg_range(u);
+        for (int j = 0; j < b->ng && d <= 0; j++) d = stg_dps(u, &b->g[j]);
         if (d <= 0 || v <= 0) continue;
         t += a->g[i].count * d * (gap > 0 ? gap / v : 0); w += a->g[i].count * d;
     }

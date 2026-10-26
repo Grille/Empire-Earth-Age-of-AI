@@ -142,6 +142,7 @@
     D(FLAG,  citizen_threats,              1, 0, 0) \
     D(FLAG,  danger_routes,                1, 0, 0) \
     D(FLAG,  avoid_lost_fights,            1, 0, 0) \
+    D(FLAG,  fight_memory,                 1, 0, 0) \
     D(FLAG,  bunkers,                      1, 0, 0) \
     D(NUM,   bunker_reserve,               65535, 0, 0) \
     D(FLAG,  attack_siege,                 1, 0, 0) \
@@ -185,6 +186,8 @@
     D(PCT,   army_mass_ratio,              130, 1000, 0) \
     D(NUM,   army_mass_wait,               10, 0, 0) \
     D(NUM,   army_mass_tether,             12, 0, 0) \
+    D(FLAG,  army_stage,                   1, 0, 0) \
+    D(PCT,   army_stage_go,                130, 1000, 0) \
     D(NUM,   fall_back,                    7, 0, 0) \
     D(PCT,   fall_back_ratio,              50, 1000, 0) \
     D(PCT,   fall_back_hp,                 40, 100, 0) \

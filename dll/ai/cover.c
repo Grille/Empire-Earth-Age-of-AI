@@ -140,9 +140,53 @@ internal int cv_foe_near(ivec2 p, int seen) {
             if (a >= 0 && b >= 0 && a < CV_CELLS && b < CV_CELLS && (seen ? g_cv_seen[a][b] : g_cv_foe[a][b])) return 1;
     return 0;
 }
+// THE ENEMY pl REMEMBERS near p (honest_vision; intel.c): its soldiers and siege seen within the last 3 minutes and
+// not at the last look, at the tile where they were seen, within r tiles of p - or, with reach, whose range + 3 covers
+// p (20 tiles at most). A player knows the army he saw a minute ago is still there; before 2026-10-26 the fight
+// estimates counted only the enemies in sight at that moment: on the player's save "standing army" the AI went at his
+// army judged 4:1 for it with 1 of the 81 enemies within 20 tiles in sight (64 remembered), saw the artillery once in
+// it and broke off from inside its reach. Their longest range into *rg (may be NULL).
+// [ai_base] fight_memory (default 1 since 2026-10-26; [autotest] v_fight_memory for the variant players). Measured
+// (docs/testing.md fight_memory): on the player's save P6's and P7's units lost to his army 133 -> 79 a run (6 runs
+// each); head-to-head (24 games) no cost - losses -6.0 (se 7.0), workers +7.3 (5.9), the rest within 1.
+#define CV_MEMORY 180000
+internal int g_fight_mem = 1, g_v_fight_mem = -1;
+#define FIGHT_MEM(idx) PV(idx, g_v_fight_mem, g_fight_mem)
+internal void cv_foe_mem(ee_player *pl, struct st_side *foe, ivec2 p, int r, int reach, float *rg) {
+    unsigned idx = (unsigned)player_get_index(pl) & 15;
+    struct intel *in = &g_intel[idx];
+    if (!g_honest_vision || !FIGHT_MEM(idx)) return;
+    for (int k = 0; k < in->n; k++) {
+        struct intel_rec *e = &in->r[k];
+        if (e->kind != 1 || e->x < 0 || e->t == in->last || in->now - e->t > CV_MEMORY || e->owner <= 0) continue;
+        void *o = st_player(e->owner);
+        ee_unit_type *td = type_data(e->type);
+        if (!o || !td || !is_enemy(pl, o) || !cv_mil(td)) continue;
+        ee_unit_stats *st = st_rec(o, e->type);
+        float range = st ? unit_stats_get_range(st) : unit_type_get_range(td), rr = (float)r;
+        if (range >= 30) range = 0;
+        if (reach && range + 3.0f > rr) rr = range + 3.0f > 20.0f ? 20.0f : range + 3.0f;
+        if ((float)ivec2_dist2(iv2(e->x, e->y), p) > rr * rr) continue;
+        if (st_side_add_rec(foe, e->type, e->owner, e->hp, e->x, e->y) && rg && range > *rg) *rg = range;
+    }
+}
+// the cells with enemy soldiers pl remembers (as cv_foe_mem) into g_cv_seen - judged as those seen
+internal void cv_mark_mem(ee_player *pl) {
+    unsigned idx = (unsigned)player_get_index(pl) & 15;
+    struct intel *in = &g_intel[idx];
+    if (!g_honest_vision || !FIGHT_MEM(idx)) return;
+    for (int k = 0; k < in->n; k++) {
+        struct intel_rec *e = &in->r[k];
+        if (e->kind != 1 || e->x < 0 || e->t == in->last || in->now - e->t > CV_MEMORY || e->owner <= 0) continue;
+        void *o = st_player(e->owner);
+        int cx = e->x / CV_CELL, cy = e->y / CV_CELL;
+        if (o && is_enemy(pl, o) && cx < CV_CELLS && cy < CV_CELLS) g_cv_seen[cx][cy] = 1;
+    }
+}
+
 // THE LOCAL FIGHT at p for pl: own and allied fighters within r against the enemy's within r, defences on both
 // sides whose reach (+1) covers the spot; honest: only the enemies pl sees. st_ratio: above 1 own stronger (the square
-// root of the time ratio), 1e6 nothing to fight
+// root of the time ratio), 1e6 nothing to fight. Honest: the enemies it remembers there too (cv_foe_mem)
 internal float cv_local(ee_player *pl, ivec2 p, int r, int honest) {
     st_side_clear(&g_cvs_own); st_side_clear(&g_cvs_foe);
     for (struct grid_it it = grid_it_box(p.x, p.y, r + 10, 1); grid_it_next(&it); ) {
@@ -159,6 +203,7 @@ internal float cv_local(ee_player *pl, ivec2 p, int r, int honest) {
         if (foe && honest && !seen_by(u, pl)) continue;
         st_side_add(foe ? &g_cvs_foe : &g_cvs_own, u);
     }
+    if (honest) cv_foe_mem(pl, &g_cvs_foe, p, r, 0, NULL);
     return st_ratio(&g_cvs_own, &g_cvs_foe);
 }
 // LOST FIGHTS ([ai_base] avoid_lost_fights, with danger_routes; game/danger.c's DANGER_LOST - the player: an AI fed its soldiers in packs of 2-4 into
@@ -191,6 +236,7 @@ internal float cv_zone(ee_player *pl, ivec2 p, float *radius) {
         if (rg > reach && rg < 30) reach = rg;
         st_side_add(&g_cvs_foe, u);
     }
+    cv_foe_mem(pl, &g_cvs_foe, p, CV_ZONE_FOE, 0, &reach);
     if (reach > CV_ZONE_REACH) reach = CV_ZONE_REACH;
     *radius = CV_ZONE_FOE + reach;
     int ro = (int)*radius + 4;
@@ -252,6 +298,14 @@ internal void cover_hold_leg(ee_attack_subgroup *sg, ee_unit *u, ee_goal *goal) 
     g_dr_legs_held++;
 }
 
+// player pi's danger layer k at p (0: none, or the layer not fresh)
+internal int cv_danger(unsigned pi, int k, ivec2 p) {
+    ee_map *map = game_map();
+    int size = map ? (int)map_get_size(map) : 0;
+    const uint8_t *lv = size ? danger_map(pi, k, size) : NULL;
+    return lv && p.x >= 0 && p.y >= 0 && p.x < size && p.y < size ? lv[p.y * size + p.x] : 0;
+}
+
 // an enemy defence covers p (its range + 1; all, not only the known ones)
 internal int cv_enemy_def(ee_player *pl, ivec2 p) {
     for (struct grid_it it = grid_it_box(p.x, p.y, 12, 1); grid_it_next(&it); ) {
@@ -306,6 +360,7 @@ internal void cv_scan(ee_player *pl, struct cv_pl *c) {
         g_cv_foe[cx][cy] = 1;
         if (seen_by(u, pl)) g_cv_seen[cx][cy] = 1;
     }
+    cv_mark_mem(pl);
 }
 
 // the measurement's sample (every 5 s, autotest)
@@ -659,6 +714,8 @@ internal void cover_install(const char *autotest_ini) {
     g_fb_dist = g_set_ai[1].fall_back_dist;
     g_fb_breaks = g_set_ai[1].fall_back_breaks;
     g_fb_end = g_set_ai[1].fall_back_end;
+    g_fight_mem = g_set_ai[1].fight_memory;
+    if (autotest_ini) g_v_fight_mem = ini_int("autotest", "v_fight_memory", -1, autotest_ini);
     if (autotest_ini) g_v_fall_back = ini_int("autotest", "v_fall_back", -1, autotest_ini);
     if (autotest_ini) g_v_avoid_lost = ini_int("autotest", "v_avoid_lost_fights", -1, autotest_ini);
     if (g_log) fprintf(g_log, "# fall back: %d (variant %d), ratio %d%%, hp %d%%, value %d, dist %d, breaks %d, end %d%%\n", g_fall_back, g_v_fall_back,

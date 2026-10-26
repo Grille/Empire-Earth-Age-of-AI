@@ -433,6 +433,7 @@ internal int guarded(ee_player *pl, int x, int y, int r) {
 }
 
 internal int mass_tether(ee_attack_subgroup *sg, ee_unit *me, ee_unit *enemy);   // mass.c
+internal int stage_skip(ee_attack_subgroup *sg, ee_unit *me, ee_unit *enemy);    // stage.c
 typedef float (__thiscall *AsguScoreFn)(void *self, uint8_t *info);
 internal float __thiscall hook_asgu_score(ee_asg_unit *self, ee_asgu_info *info) {
     float s = asg_unit_score(self, info);
@@ -469,6 +470,7 @@ internal float __thiscall hook_asgu_score(ee_asg_unit *self, ee_asgu_info *info)
         abs(unit_get_x(enemy) - bx) <= 1 && abs(unit_get_y(enemy) - by) <= 1)
         return unit_get_x(enemy) == bx && unit_get_y(enemy) == by ? 1000.0f : 500.0f;
     if (s != 0.0f && mass_tether(sg, me, enemy)) return 0.0f;   // mass.c army_mass 16: not far from the pack
+    if (s != 0.0f && stage_skip(sg, me, enemy)) return 0.0f;    // stage.c: the army waits at its staging point
     // danger_routes: no enemy in a lost fight (game/danger.c DANGER_LOST, cover.c cv_zones) beyond its own range + 2 -
     // the members ran at a standing army one by one and died (the player's save "standing army"); in reach it fights
     ee_map *map = game_map();
