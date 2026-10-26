@@ -76,6 +76,8 @@ internal void x_member(void *px, const struct xmember *m, struct xval *v) {
     else if (!strcmp(n, "strength")) r = (double)(long)g_ws.power[x];
     else if (!strcmp(n, "rank")) { r = 1; for (int j = 1; j < nplayers(); j++) r += j != x && x_alive(j) && g_ws.power[j] > g_ws.power[x]; }
     else if (!strcmp(n, "alive")) r = !is_out(px);
+    else if (!strcmp(n, "unit_limit")) r = game_unit_limit(px);
+    else if (!strcmp(n, "map_revealed")) r = player_get_explore_all(px) != 0;
     else if (!strcmp(n, "human")) r = (unsigned)x == local_player_index();
     else if (!strcmp(n, "vassals")) for (int j = 1; j < nplayers(); j++) r += j != x && x_alive(j) && g_lord[j] == x;
     else if (!strcmp(n, "allies") || !strcmp(n, "enemies"))
@@ -454,6 +456,15 @@ internal void x_player_do(struct xctx *c, int i, const char *name, const struct 
     xnothing(v);
     if (!p || is_out(p)) { x_host_fail(c, "player %d.%s(): not in the game", i, name); return; }
     if (!strcmp(name, "spawn")) { x_units_spawn(c, i, a, na, v); return; }   // (units.c)
+    if (!strcmp(name, "flare")) {   // as the scenario's Minimap-Flare: on the map's tiles only (its call has the tile)
+        ee_map *map = game_map();
+        int at[2] = { a[0].kind == XV_VEC ? (int)a[0].vc[0] : -1, a[0].kind == XV_VEC ? (int)a[0].vc[1] : -1 };
+        float xy[2] = { (float)at[0] + 0.5f, (float)at[1] + 0.5f };
+        if (a[0].kind != XV_VEC || a[0].vn != 2 || !map || !spawn_on_map(map, xy)) { x_host_fail(c, "player %d.flare(%.40s): a place on the map - vec(x, y) in tiles", i, xtext_of(&a[0])); return; }
+        snprintf(t, sizeof t, "player %d.flare(vec(%d, %d))", i, at[0], at[1]);
+        if (!x_did(c, t)) flare_add(player_flares_at(p), at, 3, p, -1, 1);
+        return;
+    }
     if (!na) {   // win, lose
         wsprintfA(t, "player %d.%s()", i, name);
         if (!x_did(c, t)) g_x_outcome[i] = name[0] == 'w' ? 1 : 2;
@@ -477,18 +488,32 @@ internal void x_effects_flush(void) {
         game_player_out(w == 1, i);  // the map revealed, the game's end checked
     }
 }
+// p.map_revealed = true: its fog off or on, as the scenario's Visibility-On / Off (the minimap of this PC rebuilt when
+// it is this PC's player); p.unit_limit = n: its own share of the limit (+0xB1C, as the scenario's Pop Cap) set to
+// what gives n
 internal int x_player_set(struct xctx *c, const struct xval *o, const char *name, const struct xval *v) {
-    int i = o->obj - 1, r = x_stock_index(name);
+    int i = o->obj - 1, r = x_stock_index(name), reveal = !strcmp(name, "map_revealed"), limit = !strcmp(name, "unit_limit");
     void *p = player_at(i);
     char t[80];
-    if (r < 0) return 0;
+    if (r < 0 && !reveal && !limit) return 0;
     if (!p || is_out(p)) { x_host_fail(c, "player %d.%s = ...: not in the game", i, name); return 0; }
+    if (reveal) {
+        if (!v->has_n || v->ln || v->kind || (v->n != 0 && v->n != 1)) { x_host_fail(c, "player %d.map_revealed = %.40s: true or false", i, xtext_of(v)); return 0; }
+        wsprintfA(t, "player %d.map_revealed = %s", i, v->n ? "true" : "false");
+        if (x_did(c, t)) return c->script;
+        player_set_explore_all(p, (uint8_t)(v->n != 0));
+        ee_minimap *mm = *(ee_minimap **)game_minimap_at();
+        if (mm && (unsigned)i == local_player_index()) minimap_rebuild(mm);
+        return c->script;
+    }
     if (!v->has_n || v->ln || v->kind || !(v->n >= 0 && v->n <= 1e9) || v->n != (double)(long)v->n) {
-        x_host_fail(c, "player %d.%s = %.40s: a stock is a whole number, 0 or more - round(...)", i, name, xtext_of(v));
+        x_host_fail(c, "player %d.%s = %.40s: %s is a whole number, 0 or more - round(...)", i, name, xtext_of(v), limit ? "a limit" : "a stock");
         return 0;
     }
     wsprintfA(t, "player %d.%s = %ld", i, name, (long)v->n);
-    if (!x_did(c, t)) player_stock_at(p)[r] = (int)v->n;
+    if (x_did(c, t)) return c->script;
+    if (limit) player_set_pop_b1c(p, player_get_pop_b1c(p) + (int)v->n - game_unit_limit(p));
+    else player_stock_at(p)[r] = (int)v->n;
     return c->script;
 }
 

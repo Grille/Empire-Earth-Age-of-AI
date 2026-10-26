@@ -62,6 +62,11 @@ unsafe struct EEPlayer
     [offset(0x8EC), found(c), guess]
     vector wonder_bonuses;
 
+    /// its minimap flares, an object in it (the scenario's Minimap-Flare calls flare_add on its address; a list of
+    /// them at +0x10 .. +0x14, the newest +0x1C)
+    [offset((ee)0x928, (aoc)0x918), found(c)]
+    block flares;
+
     /// itself as a computer player (the computer player's constructor's dynamic cast), NULL for a human
     [offset((ee)0x9B4, (aoc)0x9A4), found(c)]
     EEComputerPlayer* computer;
@@ -1127,6 +1132,11 @@ static unsafe class player_functions
     /// thiscall(player +0x874, type): the per-player stats record
     [address((ee)0x00492969, (aoc)0x0051E2A5), thiscall]
     static extern uint8** type_stats_game(void* p1, int32 p2);
+
+    /// thiscall(the player's flares, int tile[2], 3, player, -1, 1): a flare on its minimap at the tile, as the
+    /// scenario's Minimap-Flare - on this PC only, no message (0x55EDD2 with no unit's place, -10000)
+    [address((ee)0x0055EDA6, (aoc)0x0056E702), thiscall]
+    static extern void flare_add(void* flares, int32* tile, int32 kind, EEPlayer* pl, int32 p5, int32 p6);
 
     [address((ee)0x004A670A, (aoc)0x0047C428), thiscall]
     static extern uint32 vector_size(void* p1);

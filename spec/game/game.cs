@@ -111,6 +111,10 @@ static unsafe class game
     [address((ee)0x009183BC, (aoc)0x00930DFC)]
     static block map;
 
+    /// EEMiniMap*: the minimap of this PC's player (rebuilt when its fog changes: the scenario's Visibility-On / Off)
+    [address((ee)0x009428A8, (aoc)0x00964888)]
+    static block minimap;
+
     /// RTSMouse
     [address((ee)0x009197A8, (aoc)0x00931924)]
     static block mouse;

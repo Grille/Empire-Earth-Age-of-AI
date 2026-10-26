@@ -166,6 +166,11 @@ unsafe struct EEMiniMap
     /// thiscall(minimap, tile, x, y), ret 0xC: the tile's sight count into the minimap's (its rebuild 0x5150F2)
     [address((ee)0x00514A8A, (aoc)0x0051F0DB)]
     extern void tile(ee_tile* tile, int32 x, int32 y);
+
+    /// thiscall(minimap): every tile again from the viewed player's sight (the viewed player changed, a new game, the
+    /// scenario's Visibility-On / Off for this PC's player)
+    [address((ee)0x005150F2, (aoc)0x0051F743)]
+    extern void rebuild();
 }
 
 /// map's data of the game, places in its code and numbers

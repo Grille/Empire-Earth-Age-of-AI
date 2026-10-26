@@ -38,6 +38,8 @@ internal const struct xmember k_xmembers[] = {
     { "gold", XM_PLAYER, "", XT_INT, -1, -1, 1, 0 },
     { "iron", XM_PLAYER, "", XT_INT, -1, -1, 1, 0 },
     { "stock", XM_PLAYER, "the five resources together - to scale amounts: them.tribute(me) > me.stock / 2", XT_INT, -1, -1, 0, 0 },
+    { "unit_limit", XM_PLAYER, "its unit limit: the game's setting and its own share (a scenario's Pop Cap changes that) - a script sets it: p.unit_limit = 300", XT_INT, -1, -1, 1, 0 },
+    { "map_revealed", XM_PLAYER, "1 while it sees the whole map, no fog (a scenario's Visibility-On) - a script sets it: p.map_revealed = true", XT_BOOL, -1, -1, 1, 0 },
     { "opinion", XM_REL, "-100..100: what A thinks of B - in a text in words: hostile, unfriendly, indifferent, friendly, trusting (round(opinion): the number). An AI's opinion; a human's of an AI is a guess from what the AI did to them (war, a betrayal, peace, tribute, a refusal, their losses), nothing of another human", XT_FLOAT, 1, 1, 0, 0 },
     { "at_war", XM_REL, "1 when A and B are enemies, both of them", XT_BOOL, 1, 1, 0, 0 },
     { "allied", XM_REL, "1 when A and B are allied, both of them", XT_BOOL, 1, 1, 0, 0 },
@@ -56,6 +58,7 @@ internal const struct xmember k_xmembers[] = {
     { "lose", XM_DO, "a script's: p.lose() - the player is defeated, as a scenario's Defeat", X_ANY, 0, 0, 0, 0 },
     { "war", XM_DO, "a script's: A.war(B) - A treats B as an enemy (one way, as the game's stances: B's towards A stays; an AI may change its mind later)", X_ANY, 1, 1, 0, 0 },
     { "ally", XM_DO, "a script's: A.ally(B) - A treats B as an ally (one way)", X_ANY, 1, 1, 0, 0 },
+    { "flare", XM_DO, "a script's: p.flare(vec(40, 40)) - a flare on its minimap at a place (as a scenario's Minimap-Flare), seen where p plays", X_ANY, 1, 1, 0, 0 },
     { "spawn", XM_DO, "a script's: p.spawn(unit.inf10_doughboy, vec(40, 40), 10) - new units of one type at a place (2 tiles apart, in a square), as a scenario's Create makes them, at the game's next step: returned at once, the script goes on and holds only when it first uses one of them or asks the map (p.units(), game.unit(id)); a trigger's are there at once", X_LIST_OF + XK_UNIT, 2, 3, 0, 0 },
 };
 #define N_XMEMBERS (int)(sizeof k_xmembers / sizeof *k_xmembers)
@@ -113,6 +116,8 @@ internal const struct x_kmember k_xk_player[] = {
     { "gold", -1, -1, XT_INT, 1 },
     { "iron", -1, -1, XT_INT, 1 },
     { "stock", -1, -1, XT_INT, 0 },
+    { "unit_limit", -1, -1, XT_INT, 1 },
+    { "map_revealed", -1, -1, XT_BOOL, 1 },
     { "opinion", 1, 1, XT_FLOAT, 0 },
     { "at_war", 1, 1, XT_BOOL, 0 },
     { "allied", 1, 1, XT_BOOL, 0 },
@@ -131,6 +136,7 @@ internal const struct x_kmember k_xk_player[] = {
     { "lose", 0, 0, X_ANY, 0 },
     { "war", 1, 1, X_ANY, 0 },
     { "ally", 1, 1, X_ANY, 0 },
+    { "flare", 1, 1, X_ANY, 0 },
     { "spawn", 2, 3, X_LIST_OF + XK_UNIT, 0 },
 };
 internal const struct x_kmember k_xk_game[] = {

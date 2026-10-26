@@ -71,6 +71,11 @@ public class player
     [set] public int iron;
     /// the five resources together - to scale amounts: them.tribute(me) > me.stock / 2
     public int stock;
+    /// its unit limit: the game's setting and its own share (a scenario's Pop Cap changes that) - a script sets it:
+    /// p.unit_limit = 300
+    [set] public int unit_limit;
+    /// 1 while it sees the whole map, no fog (a scenario's Visibility-On) - a script sets it: p.map_revealed = true
+    [set] public bool map_revealed;
     /// -100..100: what A thinks of B - in a text in words: hostile, unfriendly, indifferent, friendly, trusting
     /// (round(opinion): the number). An AI's opinion; a human's of an AI is a guess from what the AI did to them
     /// (war, a betrayal, peace, tribute, a refusal, their losses), nothing of another human
@@ -116,6 +121,9 @@ public class player
     [effect] public extern void war(player b);
     /// a script's: A.ally(B) - A treats B as an ally (one way)
     [effect] public extern void ally(player b);
+    /// a script's: p.flare(vec(40, 40)) - a flare on its minimap at a place (as a scenario's Minimap-Flare), seen where
+    /// p plays
+    [effect, script] public extern void flare(vec2 at);
     /// a script's: p.spawn(unit.inf10_doughboy, vec(40, 40), 10) - new units of one type at a place (2 tiles apart, in
     /// a square), as a scenario's Create makes them, at the game's next step: returned at once, the script goes on and
     /// holds only when it first uses one of them or asks the map (p.units(), game.unit(id)); a trigger's are there at

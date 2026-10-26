@@ -155,6 +155,7 @@ A player does things - a script's, a text changes nothing:
 |---|---|
 | `p.gold = 500`, `p.food += 100` | its stock (`food`, `wood`, `stone`, `gold`, `iron`): a whole number, 0 or more (`round(p.wood * 1.5)`) - written directly, as a scenario's Set-Attribute does |
 | `p.war(q)`, `p.ally(q)` | p treats q as an enemy / an ally - one way, as the game's stances are (q's towards p stays: `q.war(p)` too for a war of both); an AI may change its mind later |
+| `p.unit_limit = 300`, `p.map_revealed = true`, `p.flare(vec(40, 40))` | its unit limit (the game's setting and its own share, as a scenario's Pop Cap sets it), the whole map seen without fog (Visibility-On / Off), a flare on its minimap (Minimap-Flare, on the map's tiles) - at once, read back the same: `p.unit_limit` is the game's own limit for p. tests/probes/player_effects.eeai |
 | `p.win()`, `p.lose()` | as a scenario's Victory / Defeat, at the end of the game's step: a win is the game's end, the others lose |
 
 Each is logged (`# setup: player 2.gold = 500`); in a dry run it is only written to `<out>`, as a command is. A

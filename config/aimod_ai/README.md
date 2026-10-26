@@ -409,6 +409,8 @@ Shortcuts: my own `epoch`, traits, `allies` and `enemies` without `me.` (`aggres
 | `X.aggression`, `X.loyalty`, `X.pride`, `X.greed`, `X.forgiveness`, `X.caution`, `X.talk` | its traits, a share: 0% .. 100% (50% without a personality) - aggression &gt; 60%, {pride:%} in a text |
 | `X.food`, `X.wood`, `X.stone`, `X.gold`, `X.iron` | its stock - another's too (the AI's spies): them.gold; a script sets it: p.gold = 500, p.food += 100 |
 | `X.stock` | the five resources together - to scale amounts: them.tribute(me) &gt; me.stock / 2 |
+| `X.unit_limit` | its unit limit: the game's setting and its own share (a scenario's Pop Cap changes that) - a script sets it: p.unit_limit = 300 |
+| `X.map_revealed` | 1 while it sees the whole map, no fog (a scenario's Visibility-On) - a script sets it: p.map_revealed = true |
 | `X.lord` | its lord, the player it capitulated to - a player: them.lord.name, lord == them; nothing when it has none |
 | `X.count(filter)` | its units and buildings of a filter: unit.&lt;identifier&gt; (one type), kind.&lt;kind&gt; (the game's family, every epoch's: kind.towers, kind.citizen), or a list of them - any of them: them.count(kind.towers), me.count([kind.tank, kind.tank_strong]) (docs/units.md: the identifiers and kinds) |
 

@@ -53,6 +53,9 @@ internal inline uint8_t *player_type_stats_at(const ee_player *o) { return (uint
 // int32 kinds: 0x5564FB adds a finished building's type +0x5B4 (dbobjects' "Wonder bonus") here; set_diplomacy
 // looks for kind 5 and refreshes the shared sight (0x559472 / 0x5545E3), 0x52D4xx for kind 4
 internal inline uint8_t *player_wonder_bonuses_at(const ee_player *o) { return (uint8_t *)o + of_player_wonder_bonuses; }
+// its minimap flares, an object in it (the scenario's Minimap-Flare calls flare_add on its address; a list of
+// them at +0x10 .. +0x14, the newest +0x1C)
+internal inline uint8_t *player_flares_at(const ee_player *o) { return (uint8_t *)o + of_player_flares; }
 // itself as a computer player (the computer player's constructor's dynamic cast), NULL for a human
 internal inline ee_player *player_get_computer(const ee_player *o) { return *(ee_player **)((uint8_t *)o + of_player_computer); }
 internal inline void player_set_computer(ee_player *o, ee_player *v) { *(ee_player **)((uint8_t *)o + of_player_computer) = v; }
@@ -1107,6 +1110,11 @@ internal inline ee_unit *place_foundation(ee_player *pl, int type, int x, int y)
 typedef uint8_t **(__thiscall *type_stats_game_fn)(void *, int);
 internal type_stats_game_fn fn_type_stats_game;
 internal inline uint8_t **type_stats_game(void *p1, int p2) { return fn_type_stats_game(p1, p2); }
+// thiscall(the player's flares, int tile[2], 3, player, -1, 1): a flare on its minimap at the tile, as the
+// scenario's Minimap-Flare - on this PC only, no message (0x55EDD2 with no unit's place, -10000)
+typedef void (__thiscall *flare_add_fn)(void *, int *, int, ee_player *, int, int);
+internal flare_add_fn fn_flare_add;
+internal inline void flare_add(void *flares, int *tile, int kind, ee_player *pl, int p5, int p6) { fn_flare_add(flares, tile, kind, pl, p5, p6); }
 typedef uint32_t (__thiscall *vector_size_fn)(void *);
 internal vector_size_fn fn_vector_size;
 internal inline uint32_t vector_size(void *p1) { return fn_vector_size(p1); }
@@ -1131,6 +1139,7 @@ internal int spec_player_select(int build) {
         of_player_civ_name_en = 0x7B0;
         of_player_type_stats = 0x874;
         of_player_wonder_bonuses = 0x8EC;
+        of_player_flares = 0x928;
         of_player_computer = 0x9B4;
         of_player_selected_group = 0x9BC;
         of_player_ui_group = 0x9C0;
@@ -1388,6 +1397,7 @@ internal int spec_player_select(int build) {
         fn_can_place_game = (can_place_game_fn)0x0062E940;
         fn_place_foundation = (place_foundation_fn)0x0062EF8A;
         fn_type_stats_game = (type_stats_game_fn)0x00492969;
+        fn_flare_add = (flare_add_fn)0x0055EDA6;
         fn_vector_size = (vector_size_fn)0x004A670A;
         return 2;
     case 1:   // aoc
@@ -1407,6 +1417,7 @@ internal int spec_player_select(int build) {
         of_player_civ_name_en = 0x7B0;
         of_player_type_stats = 0x884;
         of_player_wonder_bonuses = 0x8EC;
+        of_player_flares = 0x918;
         of_player_computer = 0x9A4;
         of_player_selected_group = 0x9AC;
         of_player_ui_group = 0x9B0;
@@ -1664,6 +1675,7 @@ internal int spec_player_select(int build) {
         fn_can_place_game = (can_place_game_fn)0x00643CE6;
         fn_place_foundation = (place_foundation_fn)0x00644C83;
         fn_type_stats_game = (type_stats_game_fn)0x0051E2A5;
+        fn_flare_add = (flare_add_fn)0x0056E702;
         fn_vector_size = (vector_size_fn)0x0047C428;
         return 0;
     }
@@ -1703,6 +1715,7 @@ internal int spec_player_check(void) {
     bad += spec_code((uintptr_t)fn_can_place_game, "player_functions.can_place_game");
     bad += spec_code((uintptr_t)fn_place_foundation, "player_functions.place_foundation");
     bad += spec_code((uintptr_t)fn_type_stats_game, "player_functions.type_stats_game");
+    bad += spec_code((uintptr_t)fn_flare_add, "player_functions.flare_add");
     bad += spec_code((uintptr_t)fn_vector_size, "player_functions.vector_size");
     return bad;
 }

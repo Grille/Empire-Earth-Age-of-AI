@@ -155,6 +155,11 @@ internal inline void minimap_sight_add(ee_minimap *minimap, int x, int y) { fn_m
 typedef void (__thiscall *minimap_tile_fn)(ee_minimap *, ee_tile *, int, int);
 internal minimap_tile_fn fn_minimap_tile;
 internal inline void minimap_tile(ee_minimap *minimap, ee_tile *tile, int x, int y) { fn_minimap_tile(minimap, tile, x, y); }
+// thiscall(minimap): every tile again from the viewed player's sight (the viewed player changed, a new game, the
+// scenario's Visibility-On / Off for this PC's player)
+typedef void (__thiscall *minimap_rebuild_fn)(ee_minimap *);
+internal minimap_rebuild_fn fn_minimap_rebuild;
+internal inline void minimap_rebuild(ee_minimap *minimap) { fn_minimap_rebuild(minimap); }
 
 // static class map
 // map's data of the game, places in its code and numbers
@@ -207,6 +212,7 @@ internal int spec_map_select(int build) {
         vt_ee_mini_map = 0x0082C5A8;
         fn_minimap_sight_add = (minimap_sight_add_fn)0x0051426E;
         fn_minimap_tile = (minimap_tile_fn)0x00514A8A;
+        fn_minimap_rebuild = (minimap_rebuild_fn)0x005150F2;
         data_map_fn_tile_sight_add = 0x00519F4F;
         data_map_fn_tile_sight_sub = 0x00519E26;
         data_map_map_areas = 0x00917BC8;
@@ -247,6 +253,7 @@ internal int spec_map_select(int build) {
         vt_ee_mini_map = 0x00841D44;
         fn_minimap_sight_add = (minimap_sight_add_fn)0x0051E8BF;
         fn_minimap_tile = (minimap_tile_fn)0x0051F0DB;
+        fn_minimap_rebuild = (minimap_rebuild_fn)0x0051F743;
         data_map_fn_tile_sight_add = 0x005247ED;
         data_map_fn_tile_sight_sub = 0x005246C4;
         data_map_map_areas = 0x00930BF0;
@@ -268,6 +275,7 @@ internal int spec_map_check(void) {
     bad += spec_vtable(vt_ee_mini_map, ".?AVEEMiniMap@@", "EEMiniMap [vtable]");
     bad += spec_code((uintptr_t)fn_minimap_sight_add, "EEMiniMap.sight_add");
     bad += spec_code((uintptr_t)fn_minimap_tile, "EEMiniMap.tile");
+    bad += spec_code((uintptr_t)fn_minimap_rebuild, "EEMiniMap.rebuild");
     bad += spec_code(data_map_fn_tile_sight_add, "map.fn_tile_sight_add");
     bad += spec_code(data_map_fn_tile_sight_sub, "map.fn_tile_sight_sub");
     bad += spec_data(data_map_map_areas, "map.map_areas");

@@ -55,6 +55,8 @@ internal inline uint8_t *game_input_msgs_done_at(void) { return (uint8_t *)(uint
 internal inline uint8_t *game_local_player_at(void) { return (uint8_t *)(uintptr_t)data_game_local_player; }
 // ptr; +0x1816FC = map size in tiles
 internal inline uint8_t *game_map_at(void) { return (uint8_t *)(uintptr_t)data_game_map; }
+// EEMiniMap*: the minimap of this PC's player (rebuilt when its fog changes: the scenario's Visibility-On / Off)
+internal inline uint8_t *game_minimap_at(void) { return (uint8_t *)(uintptr_t)data_game_minimap; }
 // RTSMouse
 internal inline uint8_t *game_mouse_at(void) { return (uint8_t *)(uintptr_t)data_game_mouse; }
 // byte, toggled by EEAUserPauseGame::Execute (0x4064F1)
@@ -214,6 +216,7 @@ internal int spec_game_select(int build) {
         data_game_input_msgs_done = 0x00919B68;
         data_game_local_player = 0x00918E84;
         data_game_map = 0x009183BC;
+        data_game_minimap = 0x009428A8;
         data_game_mouse = 0x009197A8;
         data_game_paused = 0x00918EA2;
         data_game_phys_substeps = 0x008ABC84;
@@ -303,6 +306,7 @@ internal int spec_game_select(int build) {
         data_game_input_msgs_done = 0x00931CF0;
         data_game_local_player = 0x009318C4;
         data_game_map = 0x00930DFC;
+        data_game_minimap = 0x00964888;
         data_game_mouse = 0x00931924;
         data_game_paused = 0x009318E2;
         data_game_phys_substeps = 0x008C237C;
@@ -399,6 +403,7 @@ internal int spec_game_check(void) {
     bad += spec_data(data_game_input_msgs_done, "game.input_msgs_done");
     bad += spec_data(data_game_local_player, "game.local_player");
     bad += spec_data(data_game_map, "game.map");
+    bad += spec_data(data_game_minimap, "game.minimap");
     bad += spec_data(data_game_mouse, "game.mouse");
     bad += spec_data(data_game_paused, "game.paused");
     bad += spec_data(data_game_phys_substeps, "game.phys_substeps");
