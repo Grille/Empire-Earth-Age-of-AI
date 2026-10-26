@@ -124,7 +124,9 @@ internal void setting_default(const struct setting_row *r, void *at) {
 }
 
 // text v as row r's value into at (f, s, k: the file, section and key it was read from, for a mistake's message);
-// 0: a mistake (told: ini_error), at keeps the default
+// 0: a mistake - what can't be used at all (no number, no whole number, a FLAG not 0 or 1, no CHOICE's name, a text
+// too long; told: ini_error), at keeps the default. A row's range is a sanity bound: a value outside it is a warning
+// (ini_warn) and kept - silly, but it runs (the player: let people be dumb if they want, just tell them)
 internal int setting_value(const struct setting_row *r, const char *f, const char *s, const char *k, const char *v, void *at) {
     char why[96];
     setting_default(r, at);
@@ -162,8 +164,8 @@ internal int setting_value(const struct setting_row *r, const char *f, const cha
     if (r->kind != SETK_NUM && (n < lo || n > hi)) {
         if (flag) lstrcpyA(why, "0 or 1 expected");
         else snprintf(why, sizeof why, "%d to %d expected", lo, hi);
-        ini_error(f, s, k, v, why);
-        return 0;
+        if (flag) { ini_error(f, s, k, v, why); return 0; }
+        ini_warn(f, s, k, v, why);
     }
     *(int *)at = n;
     return 1;

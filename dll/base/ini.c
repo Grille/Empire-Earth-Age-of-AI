@@ -3,8 +3,9 @@
 // names, no chance() or rnd(): a setting is a fixed value (tests repeat, every PC of a multiplayer game reads the same).
 // A share is written as one, 35% or 0.35, whatever the code keeps: ini_share_of gives it as it is, ini_pct_of as whole
 // percents (navy_share=25% -> 25) - so a bare navy_share=25 is 2500%, out of its range. A mistake (no number, a whole
-// number expected, out of range) is logged with file, section and key, and the key keeps its default - never read
-// half (GetPrivateProfileInt took the digits in front: 25% as 25, 0.35 as 0). Missing or empty: the default. An
+// number expected) is logged with file, section and key, and the key keeps its default - never read half
+// (GetPrivateProfileInt took the digits in front: 25% as 25, 0.35 as 0); a value out of its range (a sanity bound) is
+// logged as a warning and used as it is. Missing or empty: the default. An
 // inline comment (; to the line's end) is cut off. Included by eeaimod.c before everything that reads a setting.
 internal int (*g_ini_eval)(const char *src, double *out, const char **why);   // the text language's x_const_eval (eeaimod.c install)
 
@@ -20,12 +21,20 @@ internal void ini_tell(const char *line) {
     if (g_log) { fprintf(g_log, "# ini: %s\n", line); fflush(g_log); }
     else if (g_ini_npending < 8) lstrcpynA(g_ini_pending[g_ini_npending++], line, sizeof g_ini_pending[0]);
 }
-internal char *g_ini_why;   // set (MAX_PATH): a mistake's reason goes here instead of the log (the settings program)
+internal char *g_ini_why;   // set (MAX_PATH): a mistake's or a warning's reason goes here instead of the log (the settings program)
+internal int g_ini_told;   // with g_ini_why: the worst told since the program zeroed it - 1 a warning, 2 a mistake
 internal void ini_error(const char *file, const char *sec, const char *key, const char *val, const char *why) {
-    if (g_ini_why) { lstrcpynA(g_ini_why, why, MAX_PATH); return; }
+    if (g_ini_why) { lstrcpynA(g_ini_why, why, MAX_PATH); g_ini_told = 2; return; }
     const char *name = strrchr(file, '\\');
     char line[200];
     snprintf(line, sizeof line, "%s [%s] %s=%.40s: %s - the default instead", name ? name + 1 : file, sec, key, val, why);
+    ini_tell(line);
+}
+internal void ini_warn(const char *file, const char *sec, const char *key, const char *val, const char *why) {   // used anyway
+    if (g_ini_why) { if (g_ini_told < 2) { lstrcpynA(g_ini_why, why, MAX_PATH); g_ini_told = 1; } return; }
+    const char *name = strrchr(file, '\\');
+    char line[200];
+    snprintf(line, sizeof line, "%s [%s] %s=%.40s: %s - used anyway", name ? name + 1 : file, sec, key, val, why);
     ini_tell(line);
 }
 internal void ini_unknown(const char *file, const char *sec, const char *key) {   // a key that is no setting (NULL: a section that is none)
@@ -70,27 +79,25 @@ internal int ini_int(const char *sec, const char *key, int def, const char *file
     if (!ini_raw(sec, key, file, v, sizeof v) || !ini_eval(file, sec, key, v, &x) || !ini_whole(file, sec, key, v, x, &r)) return def;
     return r;
 }
-// a share kept as whole percents (navy_share=25% -> 25), 0% .. max_pct%
+// a share kept as whole percents (navy_share=25% -> 25), 0% .. max_pct% (outside it a warning, kept)
 internal int ini_pct_of(const char *file, const char *sec, const char *key, const char *v, int def, int max_pct) {
     double x;
     if (!ini_eval(file, sec, key, v, &x)) return def;
     if (!(x >= 0 && x * 100 <= max_pct + 1e-9)) {
         char why[96];
         snprintf(why, sizeof why, "a share 0%% to %d%% expected (with the %%: 25%%)", max_pct);
-        ini_error(file, sec, key, v, why);
-        return def;
+        ini_warn(file, sec, key, v, why);
     }
-    return (int)(x * 100 + 0.5);
+    return (int)floor(x * 100 + 0.5);
 }
-// a share kept as it is (home_guard_share=35% -> 0.35), lo .. hi
+// a share kept as it is (home_guard_share=35% -> 0.35), lo .. hi (outside it a warning, kept)
 internal double ini_share_of(const char *file, const char *sec, const char *key, const char *v, double def, double lo, double hi) {
     double x;
     if (!ini_eval(file, sec, key, v, &x)) return def;
     if (!(x >= lo && x <= hi)) {
         char why[96];
         snprintf(why, sizeof why, "a share %g%% to %g%% expected", lo * 100, hi * 100);
-        ini_error(file, sec, key, v, why);
-        return def;
+        ini_warn(file, sec, key, v, why);
     }
     return x;
 }

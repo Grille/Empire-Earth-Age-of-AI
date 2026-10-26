@@ -78,6 +78,7 @@ internal HWND g_wnd, g_filter, g_list, g_help, g_name, g_file_label, g_save, g_c
 internal HFONT g_font, g_bold, g_mono;   // g_mono: the help, aligned in the ini for a fixed-width font
 internal int g_sel = -1, g_filling;   // g_sel: the selected setting's entry; g_filling: the controls set by the program
 internal float g_dpi = 1;
+internal RECT g_legend;   // where the colours' legend is painted (layout)
 
 internal int dpi_px(int n) { return (int)(n * g_dpi + 0.5f); }   // n pixels at 96 dpi on this screen
 internal const struct setting_row *row_of(const struct entry *e) { return &k_settings[e->row]; }
@@ -135,19 +136,26 @@ internal void default_text(const struct setting_row *r, char *out, int cap) {
     }
 }
 
-// text checked as row r's value: 0 a mistake (why), else what it comes to (shown: 35%, on, rush)
+// text checked as row r's value: 0 a mistake (why: the game uses the default), CHECK_WARN outside the row's range (why:
+// the game uses it anyway), else CHECK_OK; but for a mistake what it comes to (shown: 35%, on, rush)
+enum { CHECK_MISTAKE, CHECK_OK, CHECK_WARN };
 internal int check(const struct setting_row *r, const char *sec, const char *key, const char *text, char *why, char *shown, int cap) {
     static uint8_t val[TEXT_CAP];
     why[0] = shown[0] = 0;
     g_ini_why = why;
+    g_ini_told = 0;
     setting_value(r, g_ini_path, sec, key, text, val);
     g_ini_why = NULL;
-    if (why[0]) return 0;
+    if (g_ini_told == 2) return CHECK_MISTAKE;
     if (r->kind == SETK_FLAG || r->kind == SETK_CHILD) lstrcpynA(shown, *(int *)val ? "on" : "off", cap);
     else if (r->kind == SETK_STR_P) lstrcpynA(shown, (char *)val, cap);
     else setting_text(r, val, shown, cap);
-    return 1;
+    return g_ini_told == 1 ? CHECK_WARN : CHECK_OK;
 }
+
+// what the entry's own text comes to: CHECK_OK (none too), CHECK_WARN or CHECK_MISTAKE; an AI row: the worst of it and
+// its difficulties'
+internal int entry_level(const struct entry *e);
 
 // the easy AI's own default of the entry's row (an entry of the easy page), NULL none
 internal const char *easy_default(const struct entry *e) {
@@ -163,7 +171,9 @@ internal void shown_value(const struct entry *e, char *out, int cap, int *grey) 
     key_of(e, key, sizeof key);
     *grey = !e->text[0];
     if (e->text[0]) {
-        if (!check(row_of(e), sec_of(e), key, e->text, why, out, cap)) snprintf(out, cap, "%s  (a mistake)", e->text);
+        int c = check(row_of(e), sec_of(e), key, e->text, why, out, cap);
+        if (c == CHECK_MISTAKE) snprintf(out, cap, "%s  (a mistake: the default instead)", e->text);
+        else if (c == CHECK_WARN && strlen(out) + 28 < (size_t)cap) lstrcatA(out, "  (outside its usual range)");
         return;
     }
     if (on_diff_page(e)) {
@@ -508,6 +518,19 @@ internal void make_groups(void) {   // the rows in their order: each in the last
 internal const struct entry *diff_entry(const struct entry *e, int d) {   // an AI row's difficulty d (easy, hard), NULL none
     return row_of(e)->ai && page_kind(e->page) == SECK_ALL && g_diff_of[e->row][d] >= 0 ? &g_e[g_diff_of[e->row][d]] : NULL;
 }
+internal int entry_level(const struct entry *e) {
+    char why[MAX_PATH], shown[TEXT_CAP], key[64];
+    int worst = CHECK_OK;
+    for (int d = -1; d < 3; d++) {
+        const struct entry *x = d < 0 ? e : diff_entry(e, d);
+        if (!x || !x->text[0]) continue;
+        key_of(x, key, sizeof key);
+        int c = check(row_of(x), sec_of(x), key, x->text, why, shown, sizeof shown);
+        if (c == CHECK_MISTAKE) return CHECK_MISTAKE;
+        if (c == CHECK_WARN) worst = CHECK_WARN;
+    }
+    return worst;
+}
 internal int diff_set(const struct entry *e) {   // an AI row whose easy or hard has a value of its own in the file
     for (int d = 0; d < 3; d++) if (diff_entry(e, d) && diff_entry(e, d)->text[0]) return 1;
     return 0;
@@ -670,7 +693,7 @@ internal int parent_item(int item) {
 #define EDITORS 3
 enum { ED_CHECK, ED_COMBO, ED_EDIT, ED_BUTTON, ED_PARTS = 10 };
 #define ID_ED 200   // set k's part: ID_ED + k * ED_PARTS + part
-struct editor { HWND label, check, combo, edit, button, status; int entry; };
+struct editor { HWND label, check, combo, edit, button, status; int entry, level; };   // level: its check (the status's colour)
 internal struct editor g_ed[EDITORS];
 internal int g_ned;
 
@@ -678,6 +701,7 @@ internal void show_status(int k) {
     const struct entry *e = &g_e[g_ed[k].entry];
     char why[MAX_PATH], shown[TEXT_CAP], msg[MAX_PATH + 64], key[64], word[32];
     key_of(e, key, sizeof key);
+    g_ed[k].level = CHECK_OK;
     if (!e->text[0] && is_child(e)) {
         int on = child_follows(e, word, sizeof word);
         snprintf(msg, sizeof msg, "Not in the file: follows %s=%s - %s.", k_settings[row_of(e)->a].key, word, on ? "on" : "off");
@@ -686,9 +710,15 @@ internal void show_status(int k) {
         shown_value(e, shown, sizeof shown, &grey);
         snprintf(msg, sizeof msg, "Not set: %s - %s.", easy_default(e) && !g_e[g_all_of[e->row]].text[0] ? "the easy AI's own default" : "as [ai_base]", shown);
     } else if (!e->text[0]) lstrcpyA(msg, "Not in the file: the default counts.");
-    else if (check(row_of(e), sec_of(e), key, e->text, why, shown, sizeof shown)) snprintf(msg, sizeof msg, "= %s", shown);
-    else snprintf(msg, sizeof msg, "Mistake: %s - the game would use the default.", why);
+    else {
+        int c = check(row_of(e), sec_of(e), key, e->text, why, shown, sizeof shown);
+        g_ed[k].level = c;
+        if (c == CHECK_OK) snprintf(msg, sizeof msg, "= %s", shown);
+        else if (c == CHECK_WARN) snprintf(msg, sizeof msg, "= %s - warning: %s; the game uses it anyway.", shown, why);
+        else snprintf(msg, sizeof msg, "Mistake: %s - the game uses the default instead.", why);
+    }
     SetWindowTextA(g_ed[k].status, msg);
+    InvalidateRect(g_ed[k].status, NULL, TRUE);
 }
 
 // editor k for its entry: a checkbox (on / off), a list (a choice; for a difficulty on / off too, with "as [ai_base]" first;
@@ -709,7 +739,10 @@ internal void show_editor(int k) {
     SetWindowTextA(ed->button, on_diff_page(e) ? "As [ai_base]" : is_child(e) ? "Follow" : "Default");
     char def[TEXT_CAP];
     default_text(r, def, sizeof def);
-    const char *v = e->text[0] ? e->text : def;
+    char bad[MAX_PATH], shown[TEXT_CAP], key[64];
+    key_of(e, key, sizeof key);
+    // a checkbox or a list shows what the game plays: for a mistake the default (the text field keeps the text, to mend)
+    const char *v = e->text[0] && check(r, sec_of(e), key, e->text, bad, shown, sizeof shown) != CHECK_MISTAKE ? e->text : def;
     if (box) {
         double x;
         const char *why;
@@ -833,6 +866,7 @@ internal void layout(void) {
     int unk = g_nunk ? dpi_px(40) : 0, bottom = dpi_px(32) + unk, help_h = dpi_px(110);
     int editor = dpi_px(22) + help_h + dpi_px(6) + (g_ned ? g_ned : 1) * line;
     MoveWindow(g_filter, x, m, dpi_px(300), dpi_px(24), FALSE);
+    SetRect(&g_legend, x + dpi_px(320), m, w - m, m + dpi_px(24));   // beside the search
     int list_h = h - m - dpi_px(32) - editor - bottom - m;
     MoveWindow(g_list, x, m + dpi_px(32), rw, list_h, FALSE);
     int y = m + dpi_px(32) + list_h + m;
@@ -946,25 +980,80 @@ internal void show_mode(void) {
     repaint();
 }
 
+// THE COLOURS: the value cell tinted by its check - a warning (outside its usual range, the game uses it) yellow, a
+// mistake (the game uses the default) red; the legend under the list says what each is
+#define TINT_WARN RGB(255, 240, 180)
+#define TINT_MISTAKE RGB(255, 205, 205)
+#define TEXT_WARN RGB(150, 100, 0)
+#define TEXT_MISTAKE RGB(190, 0, 0)
+
 // a custom-drawn cell: changed bold (an AI row: easy or hard set too), not in the file grey (a section or group line
-// bold); the default never
+// bold); the default never; the value tinted by its check
 internal LRESULT draw_cell(NMLVCUSTOMDRAW *cd) {
     LPARAM p = cd->nmcd.lItemlParam;
     int bold = 0, grey = 0;
+    COLORREF bk = GetSysColor(COLOR_WINDOW);
     if (node_kind(p) != NODE_ENTRY) bold = 1;
     else if (cd->iSubItem < COLS - 1) {
         const struct entry *e = &g_e[p];
         bold = is_changed(e) || diff_set(e);
         grey = !e->text[0] && !diff_set(e);
+        int level = cd->iSubItem == 1 ? entry_level(e) : CHECK_OK;
+        if (level == CHECK_WARN) bk = TINT_WARN;
+        else if (level == CHECK_MISTAKE) bk = TINT_MISTAKE;
     }
     SelectObject(cd->nmcd.hdc, bold ? g_bold : g_font);
     cd->clrText = GetSysColor(grey ? COLOR_GRAYTEXT : COLOR_WINDOWTEXT);
+    cd->clrTextBk = bk;
     return CDRF_NEWFONT;
+}
+
+// the legend beside the search (g_legend): a swatch and a word for each look of a value
+internal void paint_legend(HDC dc) {
+    static const struct { const char *text; int kind; } k[] = {
+        { "Bold: changed", 1 }, { "Grey: not in your file, the default", 2 }, { "outside its usual range - used anyway", 3 },
+        { "a mistake - the default instead", 4 },
+    };
+    HFONT old = (HFONT)SelectObject(dc, g_font);
+    SetBkMode(dc, TRANSPARENT);
+    int x = g_legend.left, y = g_legend.top, h = g_legend.bottom - g_legend.top;
+    for (size_t i = 0; i < sizeof k / sizeof *k; i++) {
+        SIZE sz;
+        if (k[i].kind >= 3) {   // a tinted swatch
+            RECT sw = { x, y + h / 2 - dpi_px(6), x + dpi_px(22), y + h / 2 + dpi_px(6) };
+            HBRUSH b = CreateSolidBrush(k[i].kind == 3 ? TINT_WARN : TINT_MISTAKE);
+            FillRect(dc, &sw, b);
+            DeleteObject(b);
+            x += dpi_px(28);
+        }
+        SelectObject(dc, k[i].kind == 1 ? g_bold : g_font);
+        SetTextColor(dc, GetSysColor(k[i].kind == 2 ? COLOR_GRAYTEXT : COLOR_WINDOWTEXT));
+        const char *t = k[i].text;
+        GetTextExtentPoint32A(dc, t, (int)strlen(t), &sz);
+        TextOutA(dc, x, y + (h - sz.cy) / 2, t, (int)strlen(t));
+        x += sz.cx + dpi_px(24);
+    }
+    SelectObject(dc, old);
 }
 
 internal LRESULT CALLBACK wnd_proc(HWND w, UINT msg, WPARAM wp, LPARAM lp) {
     switch (msg) {
     case WM_SIZE: if (g_list) layout(); return 0;
+    case WM_PAINT: {
+        PAINTSTRUCT ps;
+        HDC dc = BeginPaint(w, &ps);
+        if (!g_game_mode) paint_legend(dc);
+        EndPaint(w, &ps);
+        return 0;
+    }
+    case WM_CTLCOLORSTATIC:   // an editor's status in its check's colour
+        for (int k = 0; k < EDITORS; k++) {
+            if ((HWND)lp != g_ed[k].status || g_ed[k].level == CHECK_OK) continue;
+            SetTextColor((HDC)wp, g_ed[k].level == CHECK_WARN ? TEXT_WARN : TEXT_MISTAKE);
+            SetBkColor((HDC)wp, GetSysColor(COLOR_BTNFACE));
+            return (LRESULT)GetSysColorBrush(COLOR_BTNFACE);
+        }
+        break;
     case WM_GETMINMAXINFO: ((MINMAXINFO *)lp)->ptMinTrackSize.x = dpi_px(900); ((MINMAXINFO *)lp)->ptMinTrackSize.y = dpi_px(600); return 0;
     case WM_COMMAND: {
         int id = LOWORD(wp), code = HIWORD(wp);

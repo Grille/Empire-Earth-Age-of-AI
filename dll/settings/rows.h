@@ -16,6 +16,11 @@
 //           it follows the master - default: the child's own default, enabled: 1, disabled: 0; set, its own value
 //           wins (improved_unit_movement over ship_routes, land_collide ...). The code reads the child as a FLAG.
 //
+// A range (INT, PCT, SHARE) is a sanity bound, not a limit the code relies on: a value outside it is a warning in the log
+// ("- used anyway") and the value kept (formation_wait=0% is silly but runs). A mistake is only what can't be used at
+// all - no number, no whole number, a FLAG not 0 or 1, no CHOICE's name, a text too long: "- the default instead". A
+// range the code would break beyond is no range: the code clamps (draw_limit, the sound channels do).
+//
 // X: a row of [general] (or of the test ini's [autotest], which exists only there) - g_set.key. S: a row of another
 // section, whose keys repeat across sections (enabled, smooth, log) - g_set.section_key. D: a row of [ai_base], one value
 // per AI difficulty - g_set_ai[d].key (0 easy, 1 medium, 2 hard), each from [ai_easy] / [ai_hard], else [ai_base] (medium plays
