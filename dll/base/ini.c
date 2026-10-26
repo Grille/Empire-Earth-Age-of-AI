@@ -28,10 +28,11 @@ internal void ini_error(const char *file, const char *sec, const char *key, cons
     snprintf(line, sizeof line, "%s [%s] %s=%.40s: %s - the default instead", name ? name + 1 : file, sec, key, val, why);
     ini_tell(line);
 }
-internal void ini_unknown(const char *file, const char *sec, const char *key) {   // a key that is no setting
+internal void ini_unknown(const char *file, const char *sec, const char *key) {   // a key that is no setting (NULL: a section that is none)
     const char *name = strrchr(file, '\\');
     char line[200];
-    snprintf(line, sizeof line, "%s [%s] %.60s: no such setting (a misspelt key?) - ignored", name ? name + 1 : file, sec, key);
+    if (!key) snprintf(line, sizeof line, "%s [%.60s]: no such section (a misspelt or an old one?) - ignored", name ? name + 1 : file, sec);
+    else snprintf(line, sizeof line, "%s [%s] %.60s: no such setting (a misspelt key?) - ignored", name ? name + 1 : file, sec, key);
     ini_tell(line);
 }
 internal void ini_flush(void) {   // the log just opened

@@ -1,10 +1,10 @@
 """The settings' rows (dll/settings/rows.h) against the shipped config/aimod.ini, run by dll/build.sh: every row of
 aimod.ini's sections is in the file - set (key=value, then with the row's default: the built-in default is what the
 shipped file says) or shown commented out (;key=example) - every key set in a section is a row, a key of [easy] /
-[medium] / [hard] a row of [all] (D), and the shipped [easy] sets what SETTINGS_EASY says. The sections
+[hard] a row of [all] (D), and the shipped [easy] sets what SETTINGS_EASY says. The sections
 (SETTING_SECTIONS): every row's section is one, every section of the file is one and every one of them is in the file
 (but the test ini's, kind TEST: its rows aren't looked for), each named once, each order its own, the DIFF ones
-easy, medium and hard. A CHILD's master is a CHOICE default|enabled|disabled (default "default") before it in its
+easy and hard. A CHILD's master is a CHOICE default|enabled|disabled (default "default") before it in its
 section, and the child is only commented out in the file (set, it would never follow). Exit 1 with the differences."""
 import os
 import re
@@ -15,7 +15,7 @@ ROW = re.compile(r'\b(?:[XS]\((\w+),\s*(\w+),|D\((\w+),)\s*(\w+),\s*("[^"]*"|-?\
 MASTER = '"default|enabled|disabled"'
 SECTION = re.compile(r'\bT\((\w+),\s*(-?\d+),\s*(\w+),\s*"[^"]*"\)')
 EASY = re.compile(r'\bE\((\w+),\s*"([^"]*)"\)')
-DIFF = ('easy', 'medium', 'hard')
+DIFF = ('easy', 'hard')   # the medium AI plays [all]: no section of its own
 
 
 def rows():

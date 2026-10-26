@@ -1,5 +1,5 @@
 // User settings per AI difficulty (aimod.ini next to the DLL), applied to the game's player fields. The values come
-// from the rows (dll/settings/: g_set_ai[d], each key from the difficulty's own section - [easy], [medium], [hard] -,
+// from the rows (dll/settings/: g_set_ai[d], each key from the difficulty's own section - [easy], [hard]; medium none -,
 // then [all], then the built-in default, the test ini's [autotest] over all of them); the built-in defaults are the
 // shipped config/aimod.ini's values - the AI at its strongest without cheating, [easy] eased off (SETTINGS_EASY).
 // Included by eeaimod.c before sites.c/econ.c.

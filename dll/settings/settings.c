@@ -24,7 +24,7 @@ struct settings { SETTINGS(SET_FIELD_X, SET_FIELD_S, SET_NONE) };
 struct settings_ai { SETTINGS(SET_NONE, SET_NONE, SET_FIELD_D) };
 internal struct settings g_set;
 internal struct settings_ai g_set_ai[3];   // 0 easy, 1 medium, 2 hard
-internal const char *const k_set_diff[3] = { "easy", "medium", "hard" };
+internal const char *const k_set_diff[3] = { "easy", "medium", "hard" };   // [easy], [hard]; medium has no section: [all]
 
 #define SET_ID_X(kind, sec, key, def, a, b) SETTING_##key,
 #define SET_ID_S(kind, sec, key, def, a, b) SETTING_##sec##_##key,
@@ -93,7 +93,7 @@ internal void setting_choice_name(const char *choices, int i, char *out, int cap
 }
 
 // row r's text: the test ini's [autotest] name, else key in r's section of aimod.ini - a row of [all] for difficulty
-// d: [easy] / [medium] / [hard], then [all], then (easy) the built-in easy text; a row of section autotest: the test
+// d: [easy] / [hard] (the medium AI plays [all] itself), then [all], then (easy) the built-in easy text; a row of section autotest: the test
 // ini only. *file, *sec, *at where; 0: not set, the default
 internal int setting_raw(const struct setting_row *r, int d, const char *key, const char *name, const char *ini, const char *test_ini,
                          char *out, int cap, const char **file, const char **sec, const char **at, uint8_t *from) {
@@ -101,7 +101,7 @@ internal int setting_raw(const struct setting_row *r, int d, const char *key, co
     if (test_ini && ini_raw("autotest", name, test_ini, out, cap)) { *file = test_ini; *sec = "autotest"; *at = name; *from = 2; return 1; }
     *file = ini;
     *from = 1;
-    if (r->ai && ini_raw(*sec = k_set_diff[d], key, ini, out, cap)) return 1;
+    if (r->ai && d != 1 && ini_raw(*sec = k_set_diff[d], key, ini, out, cap)) return 1;
     if (lstrcmpA(r->sec, "autotest") && ini_raw(*sec = r->sec, key, ini, out, cap)) return 1;
     *from = 0;
     for (size_t i = 0; r->ai && d == 0 && i < sizeof k_settings_easy / sizeof *k_settings_easy; i++) {
@@ -179,9 +179,9 @@ internal int setting_read(const struct setting_row *r, int d, const char *key, c
     return 1;
 }
 
-// key k of section sec is a row's (a row of [all] in [easy] / [medium] / [hard] too)
+// key k of section sec is a row's (a row of [all] in [easy] / [hard] too)
 internal int setting_known(const char *sec, const char *k) {
-    int diff = !lstrcmpiA(sec, "easy") || !lstrcmpiA(sec, "medium") || !lstrcmpiA(sec, "hard");
+    int diff = !lstrcmpiA(sec, "easy") || !lstrcmpiA(sec, "hard");
     for (int i = 0; i < SETTING_N; i++) {
         const struct setting_row *r = &k_settings[i];
         if (lstrcmpiA(r->sec, sec) && !(diff && r->ai)) continue;
@@ -194,6 +194,13 @@ internal int setting_known(const char *sec, const char *k) {
         long p = !_strnicmp(k, r->key, len) && k[len] >= '0' && k[len] <= '9' ? strtol(k + len, &end, 10) : -1;
         if (p >= 0 && p < 16 && !*end) return 1;
     }
+    return 0;
+}
+
+// sec is a section of aimod.ini (not the test ini's own)
+internal int setting_section_known(const char *sec) {
+    for (int s = 0; s < SETTING_SECTION_N; s++)
+        if (k_setting_sections[s].kind != SECK_TEST && !lstrcmpiA(k_setting_sections[s].sec, sec)) return 1;
     return 0;
 }
 
@@ -242,6 +249,10 @@ internal void settings_read(const char *ini, const char *test_ini) {
     }
     for (int s = 0; s < SETTING_SECTION_N; s++)
         if (k_setting_sections[s].kind != SECK_TEST) settings_unknown(ini, k_setting_sections[s].sec);
+    static char names[4096];   // and the sections that are none (an old [medium]: the medium AI plays [all])
+    DWORD n = GetPrivateProfileSectionNamesA(names, sizeof names, ini);
+    for (const char *sec = names; sec < names + n && *sec; sec += strlen(sec) + 1)
+        if (!setting_section_known(sec)) ini_unknown(ini, sec, NULL);
 }
 
 // row r's value at at as text (out, cap)

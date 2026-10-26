@@ -18,8 +18,8 @@
 //
 // X: a row of [general] (or of the test ini's [autotest], which exists only there) - g_set.key. S: a row of another
 // section, whose keys repeat across sections (enabled, smooth, log) - g_set.section_key. D: a row of [all], one value
-// per AI difficulty - g_set_ai[d].key (0 easy, 1 medium, 2 hard), each from [easy] / [medium] / [hard], else [all];
-// a part that doesn't tell the difficulties apart reads [1], the medium one. The test ini's [autotest] overrides any
+// per AI difficulty - g_set_ai[d].key (0 easy, 1 medium, 2 hard), each from [easy] / [hard], else [all] (medium plays
+// [all] itself); a part that doesn't tell the difficulties apart reads [1], the medium one. The test ini's [autotest] overrides any
 // row by that same name (lead_targets=0, display_present=gdi, llm_enabled=1, avoid_towers=0 - every difficulty).
 #define SETTINGS(X, S, D) \
     X(FLAG,   general,  enabled,                  1,  0, 0) \
@@ -261,7 +261,8 @@
 //
 //   PLAIN   a section of its own rows
 //   ALL     [all]: the rows of D, for every AI difficulty
-//   DIFF    a difficulty's own section ([easy] / [medium] / [hard]: settings.c k_set_diff), the rows of [all] again
+//   DIFF    a difficulty's own section ([easy] / [hard]: settings.c k_set_diff), the rows of [all] again - the
+//           medium AI has none: [all] is its, the base the others differ from
 //   TEST    the test ini's own: not in aimod.ini, no page
 #define SETTING_SECTIONS(T) \
     T(general,   10, PLAIN, "General") \
@@ -272,7 +273,6 @@
     T(llm,       60, PLAIN, "Language model") \
     T(all,       70, ALL,   "AI") \
     T(easy,      80, DIFF,  "Easy") \
-    T(medium,    90, DIFF,  "Medium") \
     T(hard,     100, DIFF,  "Hard") \
     T(autotest,   0, TEST,  "Tests")
 

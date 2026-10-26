@@ -1,6 +1,6 @@
 // AIMOD_CONFIG.EXE: the mod's settings (aimod.ini) in a window - for players who'd rather not edit the file. One tree:
 // the sections (rows.h SETTING_SECTIONS: General, Display ... the AI), their groups (SETTING_GROUPS), the settings
-// (value, default; an AI setting every difficulty's and easy's, medium's, hard's own in columns), a master's children
+// (value, default; an AI setting [all]'s, the medium AI's, and where easy or hard plays another), a master's children
 // under it; for the one selected its help - the comment above its key in the shipped config/aimod.ini, built in
 // (aimod_config.rc), so it is the text of this version - and an editor: on / off, a choice, or a text field. A value
 // is checked as it is typed, by the DLL's own code (settings/settings.c setting_value, the language's x_const_eval:
@@ -217,6 +217,7 @@ internal void update_title(void) { SetWindowTextA(g_wnd, unsaved() ? TITLE " *" 
 // THE FILE
 internal void read_file(void) {
     g_ne = 0;
+    memset(g_diff_of, 0xFF, sizeof g_diff_of);   // -1: no section (medium plays [all])
     for (int p = 0; p < g_npages; p++)
         for (int i = 0; i < SETTING_N; i++) {
             const struct setting_row *r = &k_settings[i];
@@ -250,6 +251,16 @@ internal void read_file(void) {
             g_nunk++;
         }
     }
+    static char names[4096];   // and the sections that are none (an old [medium]: the medium AI plays [all]), whole
+    DWORD n = GetPrivateProfileSectionNamesA(names, sizeof names, g_ini_path);
+    for (const char *sec = names; sec < names + n && *sec && g_nunk < 64; sec += strlen(sec) + 1) {
+        if (setting_section_known(sec)) continue;
+        lstrcpynA(g_unk[g_nunk].sec, sec, sizeof g_unk[0].sec);
+        g_unk[g_nunk].key[0] = 0;
+        size_t o = strlen(g_unknown);
+        snprintf(g_unknown + o, sizeof g_unknown - o, "%s[%s] (the whole section)", g_nunk ? ", " : "", sec);
+        g_nunk++;
+    }
 }
 
 internal int save_file(void) {
@@ -262,7 +273,7 @@ internal int save_file(void) {
         if (!WritePrivateProfileStringA(sec_of(e), key, e->text[0] ? e->text : NULL, g_ini_path)) bad++;
     }
     for (int i = 0; g_remove_unknown && i < g_nunk; i++)
-        if (!WritePrivateProfileStringA(g_unk[i].sec, g_unk[i].key, NULL, g_ini_path)) bad++;
+        if (!WritePrivateProfileStringA(g_unk[i].sec, g_unk[i].key[0] ? g_unk[i].key : NULL, NULL, g_ini_path)) bad++;   // a section: all of it
     WritePrivateProfileStringA(NULL, NULL, NULL, g_ini_path);   // flushed
     if (bad) {
         char msg[MAX_PATH + 96];
@@ -467,13 +478,12 @@ internal void game_restore(void) {
     game_show();
 }
 
-// THE TREE: the sections (by their order; the difficulties' own are no sections here but columns of the AI's), in
+// THE TREE: the sections (by their order; the difficulties' own are no sections here but part of the AI's value), in
 // them the groups (rows.h SETTING_GROUPS), in those the settings, under a master its children - each a line of the
 // list, a node that opens with its triangle. A line's lParam: an entry (>= 0), a section's page (-1 - page) or a group
 // (-1000 - group).
 enum { NODE_SECTION, NODE_GROUP, NODE_ENTRY };
-#define COL_DIFF 2   // the columns: setting, value (an AI row: every difficulty's), easy, medium, hard, default
-#define COLS 6
+#define COLS 3   // the columns: setting, value (an AI row: [all]'s, then where easy or hard plays another), default
 internal int g_group_of[SETTING_N];   // a row's group, -1 none
 internal int g_sec_open[SETTING_SECTION_N + 1], g_grp_open[SETTING_GROUP_N + 1];
 internal struct { int kind, id, level; } g_vis[2048];   // the lines shown, as in the list
@@ -495,8 +505,12 @@ internal void make_groups(void) {   // the rows in their order: each in the last
     }
 }
 
-internal const struct entry *diff_entry(const struct entry *e, int d) {   // an AI row's difficulty d, NULL none
-    return row_of(e)->ai && page_kind(e->page) == SECK_ALL ? &g_e[g_diff_of[e->row][d]] : NULL;
+internal const struct entry *diff_entry(const struct entry *e, int d) {   // an AI row's difficulty d (easy, hard), NULL none
+    return row_of(e)->ai && page_kind(e->page) == SECK_ALL && g_diff_of[e->row][d] >= 0 ? &g_e[g_diff_of[e->row][d]] : NULL;
+}
+internal int diff_set(const struct entry *e) {   // an AI row whose easy or hard has a value of its own in the file
+    for (int d = 0; d < 3; d++) if (diff_entry(e, d) && diff_entry(e, d)->text[0]) return 1;
+    return 0;
 }
 
 internal void fill_item(int item, LPARAM p) {
@@ -515,14 +529,21 @@ internal void fill_item(int item, LPARAM p) {
         default_text(row_of(e), d, sizeof d);
         if (!check(row_of(e), sec_of(e), key, d, why, def, sizeof def)) lstrcpyA(def, "(the game's own)");
     }
-    ListView_SetItemText(g_list, item, 1, v);
+    char base[TEXT_CAP];   // the difficulties that play another value than [all]: 40% (easy: 30%, hard: 55%)
+    lstrcpyA(base, v);
+    size_t o = strlen(v);
+    int n = 0;
     for (int d = 0; d < 3; d++) {
         const struct entry *de = diff_entry(e, d);
-        if (!de) break;
         char dv[TEXT_CAP];
+        if (!de) continue;
         shown_value(de, dv, sizeof dv, &grey);
-        ListView_SetItemText(g_list, item, COL_DIFF + d, dv);
+        if (!strcmp(dv, base) || o + 8 >= sizeof v) continue;
+        o += (size_t)snprintf(v + o, sizeof v - o, "%s%s: %s", n++ ? ", " : " (", k_set_diff[d], dv);
+        if (o >= sizeof v) o = sizeof v - 1;
     }
+    if (n && o + 1 < sizeof v) lstrcpyA(v + o, ")");
+    ListView_SetItemText(g_list, item, 1, v);
     ListView_SetItemText(g_list, item, COLS - 1, def);
 }
 
@@ -643,9 +664,10 @@ internal int parent_item(int item) {
     return -1;
 }
 
-// THE EDITORS: one for a plain setting; for an AI setting four - every difficulty's ([all]) and easy's, medium's,
-// hard's own - each a checkbox, a list or a text field, a button (Default / As [all] / Follow) and what it comes to
-#define EDITORS 4
+// THE EDITORS: one for a plain setting; for an AI setting three - every difficulty's ([all], the medium AI's) and
+// easy's, hard's own - each a checkbox, a list or a text field, a button (Default / As [all] / Follow) and what it
+// comes to
+#define EDITORS 3
 enum { ED_CHECK, ED_COMBO, ED_EDIT, ED_BUTTON, ED_PARTS = 10 };
 #define ID_ED 200   // set k's part: ID_ED + k * ED_PARTS + part
 struct editor { HWND label, check, combo, edit, button, status; int entry; };
@@ -842,9 +864,8 @@ internal void layout(void) {
     MoveWindow(g_game_restore, x + dpi_px(150), m + gh + dpi_px(8), dpi_px(200), dpi_px(28), FALSE);
     int cw = rw - dpi_px(24) - dpi_px(280);   // the setting's column, then the values' share the rest
     ListView_SetColumnWidth(g_list, 0, dpi_px(280));
-    ListView_SetColumnWidth(g_list, 1, cw * 22 / 100);
-    for (int d = 0; d < 3; d++) ListView_SetColumnWidth(g_list, COL_DIFF + d, cw * 18 / 100);
-    ListView_SetColumnWidth(g_list, COLS - 1, cw * 24 / 100);
+    ListView_SetColumnWidth(g_list, 1, cw * 65 / 100);
+    ListView_SetColumnWidth(g_list, COLS - 1, cw * 35 / 100);
     repaint();
 }
 
@@ -862,7 +883,7 @@ internal void create_controls(void) {
                              LVS_SINGLESEL | LVS_SHOWSELALWAYS, 0, 0, 10, 10, g_wnd, (HMENU)ID_LIST, GetModuleHandleA(NULL), NULL);
     SendMessageA(g_list, WM_SETFONT, (WPARAM)g_font, TRUE);
     ListView_SetExtendedListViewStyle(g_list, LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER);
-    const char *cols[COLS] = { "Setting", "Value (AI: all)", "Easy", "Medium", "Hard", "Default" };
+    const char *cols[COLS] = { "Setting", "Value", "Default" };
     for (int i = 0; i < COLS; i++) {
         LVCOLUMNA c = { 0 };
         c.mask = LVCF_TEXT | LVCF_WIDTH;
@@ -925,23 +946,16 @@ internal void show_mode(void) {
     repaint();
 }
 
-// a custom-drawn cell: changed bold, not in the file grey (a section or group line bold); an AI row's difficulty
-// columns by their own entries
+// a custom-drawn cell: changed bold (an AI row: easy or hard set too), not in the file grey (a section or group line
+// bold); the default never
 internal LRESULT draw_cell(NMLVCUSTOMDRAW *cd) {
     LPARAM p = cd->nmcd.lItemlParam;
     int bold = 0, grey = 0;
     if (node_kind(p) != NODE_ENTRY) bold = 1;
-    else {
+    else if (cd->iSubItem < COLS - 1) {
         const struct entry *e = &g_e[p];
-        int sub = cd->iSubItem, any = 0;
-        for (int d = 0; d < 3; d++) if (diff_entry(e, d) && diff_entry(e, d)->text[0]) any = 1;
-        if (sub == 0) { bold = is_changed(e) || any; grey = !e->text[0] && !any; }
-        else if (sub == 1) { bold = is_changed(e); grey = !e->text[0]; }
-        else if (sub >= COL_DIFF && sub < COL_DIFF + 3) {
-            const struct entry *de = diff_entry(e, sub - COL_DIFF);
-            bold = de && de->text[0];
-            grey = !bold;
-        }
+        bold = is_changed(e) || diff_set(e);
+        grey = !e->text[0] && !diff_set(e);
     }
     SelectObject(cd->nmcd.hdc, bold ? g_bold : g_font);
     cd->clrText = GetSysColor(grey ? COLOR_GRAYTEXT : COLOR_WINDOWTEXT);
