@@ -334,7 +334,7 @@ internal void fo_march(ee_active_group *grp) {
 // the point the formation hangs on (ff_leader), way its heading, vel its speed, turning its share of the tightest turn
 // last step, started: set out (prev: the march it went on from, else -1), t0 the step then, linger the step it arrived
 // (0: not yet, or not arrived - given another order)
-struct ff_group { uint32_t leader; ee_group *grp; ee_goal *goal; vec2 fwd, way, face, end, lead_off, onward, anchor, way_rot, face_rot; float speed, reach, turn_r, acc, pace, pace_next, vel, turning, dt; uint32_t step, t0, linger, at_ms; int on, live, through, passed, started, prev, reform, arc, pivot, naval; };   // arc: it goes on from prev in the same formation (else it re-forms on the move: pivot - its anchor turns onto the new leg sharply); naval: ships
+struct ff_group { uint32_t leader; ee_group *grp; ee_goal *goal; vec2 fwd, way, face, end, lead_off, onward, anchor, way_from, face_from, way_rot, face_rot; float speed, reach, turn_r, acc, pace, pace_next, vel, vel_from, turning, dt; uint32_t step, t0, linger, at_ms; int on, live, through, passed, started, prev, reform, arc, pivot, naval; };   // arc: it goes on from prev in the same formation (else it re-forms on the move: pivot - its anchor turns onto the new leg sharply); naval: ships
 internal struct ff_group g_ff[FF_GROUPS];
 internal unsigned g_ff_next;
 internal int g_ff_first, g_ff_count;   // the marches started by the move being dispatched, for their leaders' goals
@@ -446,7 +446,7 @@ internal void ff_start_block(void *group, const int *idx, int k, vec2 c, vec2 fw
     gr->arc = from >= 0;
     gr->reform = from < 0 && g_fo_has_march;
     gr->prev = from;
-    gr->vel = gr->turning = gr->dt = 0;
+    gr->vel = gr->vel_from = gr->turning = gr->dt = 0;
     gr->way_rot = gr->face_rot = v2(1, 0);
     gr->onward = v2(0, 0);
     if (from >= 0) {
@@ -639,6 +639,25 @@ internal vec2 ff_rot_part(vec2 r, float s) {
 }
 internal vec2 ff_rot(vec2 v, vec2 r) { return v2(v.x * r.x - v.y * r.y, v.x * r.y + v.y * r.x); }
 
+// the anchor now, its heading, facing and speed (*way, *face, *vel): the formation is decided at a step of the physics
+// (15 at a time, about 2.5 s of game time; a unit ticks every few hundred ms) and goes there over the next one - its
+// heading and facing turned from where they were to the step's, its speed from what it was to the step's, the anchor
+// carried on along them; after that span (up to 5 s) on at the step's. Each step takes the anchor from here, so it never
+// jumps. Moved at the step itself, the points leapt ahead and turned in a jump, and the formation's speed changed at
+// once: a ship sped up within a tick and threw out a bow wave every 2.5 s (the player: far too dense; the steps clearly
+// visible, the rotation not interpolated)
+internal vec2 ff_anchor_now(const struct ff_group *gr, vec2 *way, vec2 *face, float *vel) {
+    uint32_t ms = game_time() - gr->at_ms;
+    float t = ms > 5000 ? 5.0f : (float)ms / 1000.0f;
+    if (gr->dt <= 0) { *way = gr->way; *face = gr->face; *vel = gr->vel; return vec2_add(gr->anchor, vec2_scale(gr->way, gr->vel * t)); }
+    float s = t < gr->dt ? t / gr->dt : 1, t1 = t < gr->dt ? t : gr->dt;
+    *way = ff_rot(gr->way_from, ff_rot_part(gr->way_rot, s));
+    *face = ff_rot(gr->face_from, ff_rot_part(gr->face_rot, s));
+    *vel = gr->vel_from + (gr->vel - gr->vel_from) * s;
+    vec2 mid = ff_rot(gr->way_from, ff_rot_part(gr->way_rot, s * 0.5f)), a = vec2_add(gr->anchor, vec2_scale(mid, (gr->vel_from + *vel) * 0.5f * t1));
+    return t > gr->dt ? vec2_add(a, vec2_scale(gr->way, gr->vel * (t - gr->dt))) : a;
+}
+
 // once a step: is the march on its way (its leader there, on this move, not done), the anchor moved on; NULL while it
 // is queued too (gr->on stays). The anchor - the point the formation hangs on, every unit's point (the leader's too) its
 // offset from it turned with the facing - heads for ff_pursue's point like a ship: its heading turns no faster than an
@@ -664,12 +683,18 @@ internal ee_unit *ff_leader(struct ff_group *gr, uint32_t step) {
     gr->pace_next = -1;
     ee_physics *ph = game_physics();
     float dt = (ph ? physics_get_step_s(ph) : 0.05f) * (float)steps;
+    float vn = 0;   // its speed now
+    vec2 w, f;
     if (!gr->started) {   // the anchor sets out from the leader - or where the march before left it, turning on from there
         struct ff_group *pv = gr->prev >= 0 ? &g_ff[gr->prev] : NULL;
         gr->started = 1;
         gr->t0 = step;
-        if (pv && pv->started && pv->through) { gr->anchor = pv->anchor; gr->way = pv->way; if (gr->arc) gr->face = pv->face; else gr->pivot = !gr->naval; }
+        if (pv && pv->started && pv->through) { gr->anchor = ff_anchor_now(pv, &w, &f, &vn); gr->way = w; if (gr->arc) gr->face = f; else gr->pivot = !gr->naval; }
         else gr->anchor = v2(p.x, p.y);
+    } else {   // where the last step sent it
+        gr->anchor = ff_anchor_now(gr, &w, &f, &vn);
+        gr->way = w;
+        gr->face = f;
     }
     vec2 to = vec2_sub(ff_pursue(gr, l), gr->anchor);
     float tl = vec2_len(to);
@@ -691,19 +716,20 @@ internal ee_unit *ff_leader(struct ff_group *gr, uint32_t step) {
     // the fleet slowed, they closed in, it sped up, they fell behind again (a ship's speed a sawtooth, a bow wave at every
     // speed-up)
     float dv = gr->acc * dt;
-    if (gr->naval && gr->acc < 1e8f) v = v > gr->vel + dv ? gr->vel + dv : v < gr->vel - dv ? gr->vel - dv : v;
+    if (gr->naval && gr->acc < 1e8f) v = v > vn + dv ? vn + dv : v < vn - dv ? vn - dv : v;
     // its heading towards dir, no faster than the arc (the chord for the angle: small steps)
     float most = v * dt / r, ch = vec2_len(vec2_sub(dir, gr->way));
     gr->turning = ch > most ? 1 : most > 0 ? ch / most : 0;
     vec2 way0 = gr->way, face0 = gr->face;
     gr->way = ch <= most ? dir : fo_turn(gr->way, dir, most / ch);
     if (ch <= most) gr->pivot = 0;   // on the new leg: its turns at its reach again
-    gr->anchor = vec2_add(gr->anchor, vec2_scale(gr->way, v * dt));
     gr->at_ms = game_time();
+    gr->vel_from = vn;
     gr->vel = v;
-    // the anchor at the leader's spot: the march done, each unit on to its own; going on to a queued march, the anchor
-    // goes on and the leader's leg ends there (its arrival starts the next order, which takes the anchor over)
-    float de = vec2_len(vec2_sub(gr->end, gr->anchor));
+    // the anchor at the leader's spot (where this step takes it): the march done, each unit on to its own; going on to a
+    // queued march, the anchor goes on and the leader's leg ends there (its arrival starts the next order, which takes the
+    // anchor over)
+    float de = vec2_len(vec2_sub(gr->end, vec2_add(gr->anchor, vec2_scale(fo_half(way0, gr->way), (vn + v) * 0.5f * dt))));
     if (de < FF_END && !gr->through) { gr->on = gr->live = 0; gr->linger = step ? step : 1; return NULL; }
     if (de < FF_END && gr->through && !gr->passed) { gr->passed = 1; ff_finish_leg(l); }
     // the facing: the heading, turned to the final facing over the last span - its share of the turn the time left on it
@@ -715,6 +741,8 @@ internal ee_unit *ff_leader(struct ff_group *gr, uint32_t step) {
     float swing = FF_SWING * spd / (gr->reach > 1 ? gr->reach : 1) * dt;
     ch = vec2_len(vec2_sub(want, gr->face));
     gr->face = ch <= swing ? want : fo_turn(gr->face, want, swing / ch);
+    gr->way_from = way0;
+    gr->face_from = face0;
     gr->way_rot = ff_rot_between(way0, gr->way);
     gr->face_rot = ff_rot_between(face0, gr->face);
     gr->dt = dt;
@@ -722,21 +750,6 @@ internal ee_unit *ff_leader(struct ff_group *gr, uint32_t step) {
 }
 
 internal uint32_t ff_step(void) { ee_physics *ph = game_physics(); return ph ? physics_get_steps(ph) : 0; }
-
-// the anchor now: carried on along its way at its speed since it last moved (up to 5 s) - it moves at a step of the
-// physics (15 at a time, about 2.5 s of game time; a ship ticks every 0.5 s): the points leapt ahead each step, a ship
-// sped up, closed in and slowed, its speed a sawtooth and a bow wave thrown out at every speed-up (the player: far too
-// dense). Its heading and facing turn on as they turned in the last step, for at most that step's time (they turned in a
-// jump each step: a ship's point swung sideways and the ship with it, every 2.5 s - the player: the rotation isn't
-// interpolated); *way and *face those now
-internal vec2 ff_anchor_now(const struct ff_group *gr, vec2 *way, vec2 *face) {
-    uint32_t ms = game_time() - gr->at_ms;
-    float t = ms > 5000 ? 5.0f : (float)ms / 1000.0f, s = gr->dt > 0 ? t / gr->dt : 0;
-    if (s > 1) s = 1;
-    *way = ff_rot(gr->way, ff_rot_part(gr->way_rot, s));
-    *face = ff_rot(gr->face, ff_rot_part(gr->face_rot, s));
-    return vec2_add(gr->anchor, vec2_scale(*way, gr->vel * t));
-}
 
 // seconds since step (the formation's steps)
 internal float ff_since(uint32_t step) {
@@ -882,7 +895,9 @@ internal int fo_follow_aim(ee_unit *u, const float *pos, float *aim) {
     ee_unit *l;
     struct ff_group *gr = ff_march(e, u, step, &l);
     if (!gr) return 0;
-    vec2 way, face, anchor = ff_anchor_now(gr, &way, &face), right = v2(face.y, -face.x);
+    vec2 way, face;
+    float vel;
+    vec2 anchor = ff_anchor_now(gr, &way, &face, &vel), right = v2(face.y, -face.x);
     vec2 pt = vec2_add(anchor, vec2_add(vec2_scale(right, e->off.x), vec2_scale(face, e->off.y)));
     ee_map *map = game_map();
     ee_unit_type *td = unit_get_type_data(u);
@@ -924,7 +939,7 @@ internal int fo_follow_aim(ee_unit *u, const float *pos, float *aim) {
     // its point's speed its way: the anchor's, and in a turn its offset swung round with the facing (the outer ones of a
     // wheeling fleet go faster, the inner slower - else the outer ones fell behind in every arc)
     float spin = gr->dt > 0 ? gr->face_rot.y / gr->dt : 0;
-    vec2 r = vec2_sub(pt, anchor), vp = vec2_add(vec2_scale(way, gr->vel), vec2_scale(v2(-r.y, r.x), spin));
+    vec2 r = vec2_sub(pt, anchor), vp = vec2_add(vec2_scale(way, vel), vec2_scale(v2(-r.y, r.x), spin));
     e->with = vec2_dot(vp, a);
     float now = unit_max_speed(u) * (1 + (g_set.formation_catchup - 1) * ff_share(e, u, step));   // its speed now: the formation's pace
     if (gr->pace_next < 0 || now < gr->pace_next) gr->pace_next = now;
@@ -959,6 +974,28 @@ internal float ff_speed(ee_unit *u, float s, float angle) {
     float v = unit_get_speed(u), acc = ph ? physics_get_step_s(ph) * unit_accel(u) : 0.01f;
     return v < want ? (v + acc < want ? v + acc : want) : (v - acc > want ? v - acc : want);
 }
+// a ship's turn at its point (shiproute.c, after the game's turn towards it: *left the angle off its bow then): at a
+// rate of the angle left over FF_TURN_T, within its top turn rate and changed by its turn acceleration a tick - the
+// game's turn sped up, braked and landed on the point each time: chasing one that moves, it turned a step every third
+// tick and stood between (the player: jerky small rotations every 0.5 s instead of turning continuously); in a steady
+// arc the rate holds now
+#define FF_TURN_T 1.0f   // s
+internal void ff_turn(ee_unit *u, const float *left, float *rate, float *heading) {
+    ee_physics *ph = game_physics();
+    float dt = ph ? physics_get_step_s(ph) : 0;
+    vec3 f = unit_get_facing(u);
+    if (dt <= 0 || (f.x == 0 && f.y == 0)) return;
+    const float PI = 3.14159265f;
+    float h0 = fo_atan2(-f.x, f.y), w = unit_max_turn(u), acc = unit_turn_accel(u) * dt, r0 = unit_get_turn_rate(u);
+    float want = *left / FF_TURN_T;
+    want = want > w ? w : want < -w ? -w : want;
+    float r = want > r0 + acc ? r0 + acc : want < r0 - acc ? r0 - acc : want;
+    if ((r > 0 && *left > 0 && r * dt > *left) || (r < 0 && *left < 0 && r * dt < *left)) r = *left / dt;   // not past it
+    float h = h0 + r * dt;
+    *rate = r;
+    *heading = h > PI ? h - 2 * PI : h < -PI ? h + 2 * PI : h;
+}
+
 internal float __thiscall hook_ff_speed(void *model, ee_unit *u, float dist, float angle) { return ff_speed(u, physics_model_speed_step(model, u, dist, angle), angle); }
 
 internal void groupmove_new_game(void) {

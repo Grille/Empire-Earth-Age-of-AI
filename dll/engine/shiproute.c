@@ -510,10 +510,12 @@ internal int st_aim_point(ee_unit *u, float px, float py, float reach, const flo
 
 internal int fo_follow_aim(ee_unit *u, const float *pos, float *aim);   // groupmove.c: formation_follow's point
 internal float ff_speed(ee_unit *u, float s, float angle);              // ... and its speed
+internal void ff_turn(ee_unit *u, const float *left, float *rate, float *heading);   // ... and a ship's turn
 internal void __thiscall hook_ship_turn_towards(void *model, ee_unit *u, float *pos, float *target, float *left, float *rate, float *heading, char facing) {
     float aim[3], *to = target;
     if (!facing && fo_follow_aim(u, pos, aim)) {   // a unit of a formation's march (land units and ships)
         physics_model_turn_towards(model, u, pos, aim, left, rate, heading, facing);
+        if (model_kind(model) != MODEL_LAND) ff_turn(u, left, rate, heading);   // a ship turns steadily (land units at a fixed rate in their own tick)
         return;
     }
     if (u == g_st_aim_unit) g_st_aim_unit = NULL;
