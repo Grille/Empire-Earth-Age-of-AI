@@ -667,6 +667,7 @@ internal vec2 ff_anchor_now(const struct ff_group *gr, vec2 *way, vec2 *face, fl
 // at a gap crawled through: its units couldn't all fit, the formation waited for them
 #define FF_NARROW_LOOK 6.0f    // tiles beyond its front
 #define FF_NARROW_AT 0.4f
+#define FF_WIDEN_AT 0.7f
 internal unsigned g_ff_narrowed;   // steps a formation went narrowed
 internal vec2 ff_off(const struct ff_group *gr, const struct ff_unit *e) {
     if (!gr->cols || gr->n <= 0) return e->off;
@@ -703,12 +704,16 @@ internal void ff_narrow(struct ff_group *gr, ee_unit *l) {
         float r = ff_room(map, l, td, size, vec2_add(gr->anchor, vec2_scale(gr->way, t)), across, lim);
         if (r > 0 && r < room) room = r;   // 0: the line itself on something (a bend) - not a measure of the gap
     }
-    // narrowed below FF_NARROW_AT of its width, narrower still where the room shrinks, as laid out again once all of it
-    // is there - each change fills the rows anew (it went 4, 5, 4 abreast from step to step: every unit to a new place)
-    int narrow = room < gr->fw && (gr->cols || room < gr->fw * FF_NARROW_AT), cols = narrow ? (int)(room / gr->sp) : 0;
+    // narrowed below FF_NARROW_AT of its width, narrower still where the room shrinks, as laid out again once FF_WIDEN_AT
+    // of it is there along all of it (the whole width: a few trees about kept a formation narrowed for good) - each change
+    // fills the rows anew (it went 4, 5, 4 abreast from step to step: every unit to a new place)
+    int narrow = room < gr->fw * (gr->cols ? FF_WIDEN_AT : FF_NARROW_AT), cols = narrow ? (int)(room / gr->sp) : 0;
     if (narrow && cols < 1) cols = 1;
     if (cols >= full) cols = 0;
     if (cols && gr->cols && cols > gr->cols) cols = gr->cols;
+    if (cols != gr->cols && g_log)   // for the player's games: when and where a formation narrowed or spread out again
+        fprintf(g_log, "# formation: %d units at %.1f,%.1f %s %d abreast (room %.1f of its %.1f tiles)\n", gr->n, gr->anchor.x, gr->anchor.y,
+                cols ? "narrowed to" : "as laid out again, about", cols ? cols : (int)(gr->fw / gr->sp), room, gr->fw);
     gr->cols = cols;
     if (cols) g_ff_narrowed++;
 }
