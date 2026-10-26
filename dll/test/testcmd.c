@@ -816,9 +816,12 @@ internal void cmd_uinfo(char *out, const char *args) {
         if (abs(ux - x) > r || abs(uy - y) > r || strlen(out) > 15000) continue;
         ee_player *owner = unit_get_owner(u);
         vec3 pos = unit_get_pos(u), fwd = unit_get_facing(u);
-        REPLY("%p type %d P%d hp %d pos %.3f,%.3f,%.2f spd %.3f/%.3f fwd %.2f,%.2f,%.2f goal %s\n",
+        // + its state (the .tai's: 5000 Idle, 10003 Advance ...), orders queued, waypoints left, march (ff_watch_state:
+        // -1 none) - what has a unit standing about in the player's game
+        REPLY("%p type %d P%d hp %d pos %.3f,%.3f,%.2f spd %.3f/%.3f fwd %.2f,%.2f,%.2f goal %s state %u orders %d wps %d ff %d\n",
               u, unit_type_get_id(td), owner ? player_get_index(owner) : -1, unit_get_hp(u), pos.x, pos.y, pos.z,
-              unit_get_speed(u), unit_get_speed_min(u), fwd.x, fwd.y, fwd.z, rtti_name(unit_get_goal(u)));
+              unit_get_speed(u), unit_get_speed_min(u), fwd.x, fwd.y, fwd.z, rtti_name(unit_get_goal(u)),
+              unit_ai_state_id(u), unit_orders(u), unit_get_waypoints_left(u), ff_watch_state(u));
     }
 }
 
