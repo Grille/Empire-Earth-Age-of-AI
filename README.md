@@ -372,7 +372,9 @@ Settings in `aimod.ini`:
 - `[general] formation_catchup=200%` (with formation_follow): how fast a unit behind its place may go to keep it, in
   percent of its own top speed (100% never faster than its own) - near its place only (all of it within its size,
   none from four times that) or within 5 seconds of last being in it (a re-form or a new order on the march: no more
-  than the boost it had then; none from rest - a group standing about takes its time to assemble).
+  than the boost it had then; none from rest - a group standing about takes its time to assemble). A ship above its
+  top speed so throws out its ripples no faster than at its top speed (the game's rate runs out at 108% of it: a
+  ripple every frame, a solid white plume behind the stern).
 - `[general] formation_wait=80%` (with formation_follow): the formation goes at most this share of each unit's speed
   now - slowed to 80% of a unit's top speed while it has fallen behind (it catches up at the other 20%), at its
   slowest unit's top speed when all near their places have 125% or more. Lower waits more for the stragglers

@@ -1232,6 +1232,7 @@ internal uint32_t of_unit_speed_min;
 internal uint32_t of_unit_speed;
 internal uint32_t of_unit_scale;
 internal uint32_t of_unit_size;
+internal uint32_t call_ripple_speed;
 internal uint32_t call_unload_retry_give;
 internal uint32_t call_repair_goal;
 internal uint32_t vt_ee_ghost_unit;

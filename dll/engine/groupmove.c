@@ -1327,6 +1327,15 @@ internal void *__thiscall hook_slot_goal(ee_goal *g, float *pt, uint32_t a, uint
     return goal_move_at(g, pt, a, b, c, facing, e, f);
 }
 
+// the ripple timer's 1 / top speed (unit_inv_speed at the timer's call): its product with the unit's speed held at 1.
+// A ship sends a ripple every max - (max - min) x speed / top ms (a frigate 4000 - 3700 x ...): above its top speed -
+// the catch-up of formation_follow, up to formation_catchup - the time runs out at 108% and below 0 above, a ripple
+// every frame, the stern a solid white plume (the player: the water effect); now as at its top speed. Only the picture
+internal float __thiscall hook_ripple_speed(ee_unit *u) {
+    float inv = unit_inv_speed(u), v = unit_get_speed(u);
+    return v * inv > 1 ? 1 / v : inv;
+}
+
 internal void groupmove_install(void) {
     g_fo_on = g_set.formations;
     int n = g_fo_on ? patch_formation_slots(hook_formation_slots) : 0, goals = n ? patch_slot_goal(hook_slot_goal) : 0;
@@ -1334,6 +1343,7 @@ internal void groupmove_install(void) {
     int queued = goals ? patch_path_msg_execute(hook_path_execute) : 0;
     int march = goals && g_set.formation_march ? patch_group_speeds(hook_group_speeds) : 0;
     g_ff_on = goals && g_set.formation_follow ? patch_land_speed_step(hook_ff_speed) == 2 : 0;   // the turn: shiproute.c's hook
-    if (g_log) fprintf(g_log, "# groupmove: formations=%d (%d formation vtables, goals hooked %d), goal markers for every unit: %d, queued moves laid out from the last order: %d, march at the slowest speed: %d, follow a leader: %d\n",
-                       g_fo_on, n, goals, markers, queued, march, g_ff_on);
+    int ripples = g_ff_on ? patch_ripple_speed(hook_ripple_speed) : 0;
+    if (g_log) fprintf(g_log, "# groupmove: formations=%d (%d formation vtables, goals hooked %d), goal markers for every unit: %d, queued moves laid out from the last order: %d, march at the slowest speed: %d, follow a leader: %d (ripples at most at the top speed's rate: %d)\n",
+                       g_fo_on, n, goals, markers, queued, march, g_ff_on, ripples);
 }

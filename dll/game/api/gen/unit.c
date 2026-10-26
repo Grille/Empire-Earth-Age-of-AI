@@ -546,6 +546,11 @@ internal inline int8_t ee_complex_unit_lets_pass(ee_unit *o, ee_unit *unit) { re
 typedef float (__thiscall *unit_max_speed_fn)(ee_unit *);
 internal unit_max_speed_fn fn_unit_max_speed;
 internal inline float unit_max_speed(ee_unit *unit) { return fn_unit_max_speed(unit); }
+// 1 / its top speed (its stats' +0xD0; its group's +0xA0 with the group speed on)
+typedef float (__thiscall *unit_inv_speed_fn)(ee_unit *);
+internal unit_inv_speed_fn fn_unit_inv_speed;
+internal inline float unit_inv_speed(ee_unit *unit) { return fn_unit_inv_speed(unit); }
+internal inline int patch_ripple_speed(unit_inv_speed_fn h) { return patch_call(call_ripple_speed, (uintptr_t)fn_unit_inv_speed, (void *)h); }
 // its current waypoint (the list's front) into pt[3]: 0, else it has none (7)
 typedef int (__thiscall *unit_waypoint_fn)(ee_unit *, float *);
 internal unit_waypoint_fn fn_unit_waypoint;
@@ -793,6 +798,8 @@ internal int spec_unit_select(int build) {
         of_unit_size = 0x244;
         fn_ee_complex_unit_lets_pass = (unit_lets_pass_fn)0x005EC317;
         fn_unit_max_speed = (unit_max_speed_fn)0x0046123F;
+        fn_unit_inv_speed = (unit_inv_speed_fn)0x00626391;
+        call_ripple_speed = 0x00624D84;
         fn_unit_waypoint = (unit_waypoint_fn)0x005EC69D;
         fn_unit_add_waypoint = (unit_add_waypoint_fn)0x005E8BAC;
         fn_unit_give_goal = (unit_give_goal_fn)0x004412D4;
@@ -953,6 +960,8 @@ internal int spec_unit_select(int build) {
         of_unit_size = 0x244;
         fn_ee_complex_unit_lets_pass = (unit_lets_pass_fn)0x005F9E81;
         fn_unit_max_speed = (unit_max_speed_fn)0x0045E407;
+        fn_unit_inv_speed = (unit_inv_speed_fn)0x006394B0;
+        call_ripple_speed = 0x0063943C;
         fn_unit_waypoint = (unit_waypoint_fn)0x005FA229;
         fn_unit_add_waypoint = (unit_add_waypoint_fn)0x005F625B;
         fn_unit_give_goal = (unit_give_goal_fn)0x0043D416;
@@ -1010,6 +1019,8 @@ internal int spec_unit_check(void) {
     bad += spec_code((uintptr_t)fn_ee_complex_unit_lets_pass, "EEComplexUnit.lets_pass");
     bad += spec_slot(vt_ee_complex_unit, slot_unit_lets_pass, (uintptr_t)fn_ee_complex_unit_lets_pass, "EEComplexUnit.lets_pass [slot]");
     bad += spec_code((uintptr_t)fn_unit_max_speed, "EEComplexUnit.max_speed");
+    bad += spec_code((uintptr_t)fn_unit_inv_speed, "EEComplexUnit.inv_speed");
+    bad += spec_call(call_ripple_speed, (uintptr_t)fn_unit_inv_speed, "EEComplexUnit.inv_speed [call_site ripple_speed]");
     bad += spec_code((uintptr_t)fn_unit_waypoint, "EEComplexUnit.waypoint");
     bad += spec_code((uintptr_t)fn_unit_add_waypoint, "EEComplexUnit.add_waypoint");
     bad += spec_code((uintptr_t)fn_unit_give_goal, "EEComplexUnit.give_goal");

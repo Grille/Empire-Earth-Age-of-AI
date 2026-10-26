@@ -565,6 +565,13 @@ unsafe struct EEComplexUnit
     /// its top speed (tiles/s; its group's with the group speed on) - every movement model asks it
     [address((ee)0x0046123F, (aoc)0x0045E407)]
     extern float32 max_speed();
+    /// 1 / its top speed (its stats' +0xD0; its group's +0xA0 with the group speed on)
+    [address((ee)0x00626391, (aoc)0x006394B0)]
+    // the ripple timer (0x624D47, a unit's step on screen): a ripple at each of its model's ripple points every
+    // max - (max - min) x speed x this ms (the type's ripple graphic +0x390: +0x6C min, +0x70 max) - none left at
+    // 108% of a frigate's top speed (300 / 4000 ms), one every frame above
+    [call_site("ripple_speed", (ee)0x00624D84, (aoc)0x0063943C)]
+    extern float32 inv_speed();
     /// its current waypoint (the list's front) into pt[3]: 0, else it has none (7)
     [address((ee)0x005EC69D, (aoc)0x005FA229)]
     extern int32 waypoint(float32* pt);
