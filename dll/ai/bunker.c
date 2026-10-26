@@ -30,8 +30,25 @@ internal int bk_load(ee_unit *f, ee_unit **units, int n) {
     for (int j = 0; j < n; j++) unit_goal(units[j], goal_load_part(g), 0, 0x1F40);
     return 1;
 }
-internal int bk_unload(ee_unit *f, int x, int y) {
-    ee_goal *g = goal_unload(f, x, y, 1);
+// the holder lets everyone out: 1 if ordered. The game takes an unload to a spot it can't put them on and does nothing:
+// on the player's save "standing army" P7's fortress at 116,334 was told 1394 times in 15 minutes to let its 17 out at
+// the tile 3 south and held them all (halberdiers, ballistas - its army and its room); 3 north (its Town Center) and
+// 3 north-east the same, 3 east they came out at once. A spot that works isn't told by the tiles' buildings (a guess
+// from them ruled out east too), so: 3 tiles out on a side on land, and a holder holding as many at its next unload
+// as at this one tries the next side
+internal struct { ee_unit *f; int side, held; } g_bk_out[32];
+internal unsigned g_bk_out_next;
+internal int bk_unload(ee_unit *f) {
+    static const int dir[8][2] = { { 0, 3 }, { 3, 0 }, { 0, -3 }, { -3, 0 }, { 3, 3 }, { -3, 3 }, { 3, -3 }, { -3, -3 } };
+    int fx = unit_get_x(f), fy = unit_get_y(f), held = bk_held(f), k = 0;
+    while (k < 32 && g_bk_out[k].f != f) k++;
+    if (k == 32) { k = (int)(g_bk_out_next++ & 31); g_bk_out[k].f = f; g_bk_out[k].side = 0; g_bk_out[k].held = -1; }
+    else if (g_bk_out[k].held == held) g_bk_out[k].side = (g_bk_out[k].side + 1) & 7;   // nothing came out the last time
+    g_bk_out[k].held = held;
+    int s = g_bk_out[k].side;
+    for (int t = 0; t < 8 && !area_id(iv2(fx + dir[s][0], fy + dir[s][1]), 2); t++) s = (s + 1) & 7;
+    g_bk_out[k].side = s;
+    ee_goal *g = goal_unload(f, fx + dir[s][0], fy + dir[s][1], 1);
     return g ? unit_goal(f, g, 0, 0x1F40) : 0;
 }
 
@@ -61,7 +78,7 @@ internal void cmd_bunker(char *out, const char *args) {
             if (n > b.nc - used) n = b.nc - used;
             if (n > 0 && bk_load(f, b.c + used, n)) { REPLY(", loads %d", n); used += n; }
         } else if (!strcmp(verb, "unload") && held > 0) {
-            if (bk_unload(f, fx, fy + 3)) REPLY(", unloads");
+            if (bk_unload(f)) REPLY(", unloads");
         }
         REPLY("]");
     }
@@ -169,7 +186,7 @@ internal void bk_flush(ee_player *pl, unsigned pi, uint32_t now) {   // the queu
         if (bk_hurt_recent(pi, fx, fy, 10, 45000) || raiders_near(pl, iv2(fx, fy), 10)) { g_bk[pi].quiet_t[k] = 0; continue; }
         if (!g_bk[pi].quiet_t[k]) { g_bk[pi].quiet_t[k] = now ? now : 1; continue; }
         if (now - g_bk[pi].quiet_t[k] < 8000) continue;   // two quiet looks
-        if (bk_unload(f, fx, fy + 3)) {
+        if (bk_unload(f)) {
             g_bk[pi].out += (unsigned)held;
             g_bk[pi].shelter[k] = 0;
             if (g_log) fprintf(g_log, "# bunker: P%u at %.1f min: the fortress at %d,%d lets %d out (quiet)\n", pi, now / 60000.0, fx, fy, held);
@@ -340,7 +357,7 @@ internal void bk_reserve_tick(ee_player *pl, unsigned pi, uint32_t now) {
         }
         if (best < 0) return;
         ee_unit *fo = g_bk[pi].f[best];
-        if (!bk_unload(fo, unit_get_x(fo), unit_get_y(fo) + 3)) return;
+        if (!bk_unload(fo)) return;
         g_bk_res_out[pi] += (unsigned)held;
         if (g_log) fprintf(g_log, "# reserve: P%u at %.1f min: room %d%s - the fortress at %d,%d lets %d out (%u in, %u out so far)\n", pi, now / 60000.0,
                            room, threat >= 0 ? ", enemies near" : "", unit_get_x(fo), unit_get_y(fo), held, g_bk_res_in[pi], g_bk_res_out[pi]);
@@ -352,5 +369,6 @@ internal void bunker_new_game(void) {
     memset(g_bk, 0, sizeof g_bk);
     memset(g_bk_res_in, 0, sizeof g_bk_res_in);
     memset(g_bk_res_out, 0, sizeof g_bk_res_out);
+    memset(g_bk_out, 0, sizeof g_bk_out);
     memset(g_bk_res_load_t, 0, sizeof g_bk_res_load_t);
 }
