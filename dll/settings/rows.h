@@ -35,19 +35,19 @@
     X(FLAG,   general,  transport_unload_spread,  1,  0, 0) \
     X(FLAG,   general,  build_retry,              1,  0, 0) \
     X(CHOICE, general,  improved_unit_movement,   "default", "default|enabled|disabled", 0) \
-    X(CHILD,  general,  ship_routes,              0,  improved_unit_movement, 0) \
-    X(CHILD,  general,  land_routes,              0,  improved_unit_movement, 0) \
-    X(CHILD,  general,  land_widen,               0,  improved_unit_movement, 0) \
-    X(CHILD,  general,  ship_turns,               0,  improved_unit_movement, 0) \
-    X(CHILD,  general,  land_turns,               0,  improved_unit_movement, 0) \
+    X(CHILD,  general,  ship_routes,              1,  improved_unit_movement, 0) \
+    X(CHILD,  general,  land_routes,              1,  improved_unit_movement, 0) \
+    X(CHILD,  general,  land_widen,               1,  improved_unit_movement, 0) \
+    X(CHILD,  general,  ship_turns,               1,  improved_unit_movement, 0) \
+    X(CHILD,  general,  land_turns,               1,  improved_unit_movement, 0) \
     X(CHILD,  general,  turn_fix,                 1,  improved_unit_movement, 0) \
     X(CHILD,  general,  ship_collide,             1,  improved_unit_movement, 0) \
-    X(CHILD,  general,  land_collide,             0,  improved_unit_movement, 0) \
-    X(CHILD,  general,  formations,               0,  improved_unit_movement, 0) \
-    X(CHILD,  general,  formation_march,          0,  improved_unit_movement, 0) \
-    X(CHILD,  general,  formation_follow,         0,  improved_unit_movement, 0) \
-    X(SHARE,  general,  formation_catchup,        200, 100, 300) \
-    X(SHARE,  general,  formation_wait,           80, 25, 100) \
+    X(CHILD,  general,  land_collide,             1,  improved_unit_movement, 0) \
+    X(CHILD,  general,  formations,               1,  improved_unit_movement, 0) \
+    X(CHILD,  general,  formation_march,          1,  improved_unit_movement, 0) \
+    X(CHILD,  general,  formation_follow,         1,  improved_unit_movement, 0) \
+    X(SHARE,  general,  formation_catchup,        125, 100, 300) \
+    X(SHARE,  general,  formation_wait,           100, 25, 100) \
     X(SHARE,  general,  formation_collision,      75, 25, 100) \
     X(FLAG,   general,  sight_counts,             1,  0, 0) \
     X(INT,    general,  chat,                     0,  0, 2) \

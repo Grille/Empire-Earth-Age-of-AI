@@ -285,26 +285,27 @@ Settings in `aimod.ini`:
   citizen that ends its walk off the site's edge, or finds no way round the others, stand idle there, so of five
   often only one or two began. Such a citizen of a human player is now sent again (up to three times, the game's
   own placing call: it picks the tile nearest to where it stands then). 0 = the original.
-- `[general] improved_unit_movement=default`: the seven movement settings below (ship_routes, land_routes,
-  ship_turns, land_turns, turn_fix, ship_collide, land_collide) as one. `default` gives each its own default (on
-  what is measured and helps), `enabled` all of them on, `disabled` all off - the game's own movement. Each one set
-  on its own wins over it; the shipped file shows them commented out, so they follow it.
-- `[general] ship_routes=0` (default off while it is measured): the game plans a ship's route in pieces of 8-18
+- `[general] improved_unit_movement=default`: the movement settings below (ship_routes, land_routes, land_widen,
+  ship_turns, land_turns, turn_fix, ship_collide, land_collide, formations, formation_march, formation_follow) as
+  one. `default` gives each its own default (all on since 2026-10-26: the player's play), `enabled` all of them on,
+  `disabled` all off - the game's own movement. Each one set on its own wins over it (formation_follow=0: everything
+  but the marching formations); the shipped file shows them commented out, so they follow it.
+- `[general] ship_routes=1` (default): the game plans a ship's route in pieces of 8-18
   tiles, each in the 8 tile directions only, so a route at any angle between them zigzags and a slow-turning ship
   keeps swinging its bow. With 1 a ship's route is planned whole at once, in straight lines wherever the water between
   two points is clear, around the shallows a big ship can't enter, and keeping to the middle of channels; a fleet
   doesn't get the game's chain of in-between stops through the map's sectors. The player's and the AI's ships alike
   (the 2017 update; not yet in Art of Conquest). In multiplayer every PC needs the same setting.
-- `[general] land_routes=0` (default off while it is measured): the same for land units and hovercraft - a route
+- `[general] land_routes=1` (default): the same for land units and hovercraft - a route
   planned whole, straight wherever the ground between two points is clear, around buildings, walls and forests by
   the game's own tile test, instead of pieces in the 8 tile directions. A search takes well under a millisecond.
   The 2017 update; in multiplayer every PC needs the same setting.
-- `[general] land_widen=0` (default off while it is measured; with land_routes): a route pulled straight hugs
+- `[general] land_widen=1` (default; with land_routes): a route pulled straight hugs
   everything it rounds, so units scrape each building corner, tree and cliff on the way. With 1 each corner of a
   land route is moved away from what it rounds, up to 1.5 tiles, till the unit has its own radius and half a tile
   of room - only where there is room (through a gap it keeps to the middle, so choke points are still taken) and
   the legs to it stay clear.
-- `[general] ship_turns=0` (default off while it is measured): told to go somewhere more than 45 degrees off its
+- `[general] ship_turns=1` (default): told to go somewhere more than 45 degrees off its
   bow - a new order while it sails, or a sharp corner - a ship braked to a crawl, turned almost on the spot and
   sped up again (a U-turn took 6 s nearly standing). With 1 it turns in an arc: at full speed towards a far point,
   slower and tighter towards a near one, and only where the circle it sweeps is free of land, shallows and other
@@ -319,7 +320,7 @@ Settings in `aimod.ini`:
   the heading, as in Art of Conquest. Tanks and hovercraft too (infantry and riders turn without momentum). A
   helicopter told four ways under way reversed its heading 19 times, now 7. In multiplayer every PC needs the same
   setting.
-- `[general] land_turns=0` (default off while it is measured): land units and hovercraft steered at each tile centre
+- `[general] land_turns=1` (default): land units and hovercraft steered at each tile centre
   of their route, so the heading jumped at every waypoint and a tank swung back and forth. With 1 they steer at a point
   sliding along the route, as ship_turns does for ships, and walk on through shift-queued points. A tank told four
   ways under way, with land_routes and turn_fix: 11 heading reversals and 837 degrees turned -> 5 and 680. In
@@ -333,14 +334,14 @@ Settings in `aimod.ini`:
   nudged aside instead of blocking. Submarines get the same among themselves (they pass under ships, as in the game). In a 16-ship fleet move through a channel the last
   ship arrived 50-70 s sooner and the ships stood about 70% less time short of their goal. The player's and the AI's
   ships alike; in multiplayer every PC needs the same setting.
-- `[general] land_collide=0` (default off while it is measured): the same for land units and hovercraft - circles as
+- `[general] land_collide=1` (default): the same for land units and hovercraft - circles as
   big as the game's size for them (a citizen 0.3 tiles, infantry 0.5, a tank 1), pushed apart gently instead of
   slowed and jumped back, a unit walking into another veers off and slides past, and a standing unit of the same
   player steps aside. Units at work (gathering, building) are walked through as in the game, so citizens at a mine
   don't wall it off. Units at rest drift apart too, so a crowd that stopped on one spot (after a melee fight, say)
   doesn't stay one blob. Tanks through a block of standing infantry: about a quarter of the overlap, the deepest 0.79 ->
   0.24 tiles. In multiplayer every PC needs the same setting.
-- `[general] formations=0` (default, being worked on; 1 on): a group sent somewhere took up the formation's grid - only 5
+- `[general] formations=1` (default; 0 the game's grid): a group sent somewhere took up the formation's grid - only 5
   columns, every row and column as wide as the group's largest unit, units and places paired by distance alone - so a
   big army, worst with small and large units mixed, spread into a column dozens of tiles deep: 174 soldiers, riders and
   tanks sent 20 tiles stood half of them more than 27 tiles from the click. With it every formation (lines, wedges,
@@ -350,10 +351,10 @@ Settings in `aimod.ini`:
   settings). The ranks front to back: who fights up close (melee, tanks, the fighting heroes), the ranged soldiers and
   the healing heroes, siege and rams, then who doesn't fight (citizens, priests, medics) - in a circle formation they
   are in the middle. Off while it is tried in games. (It replaces `group_block`, a big group gathered as one block.)
-- `[general] formation_march=0` (default, being tried; 1 on, with `formations`): a group sent somewhere marches at its
+- `[general] formation_march=1` (default, with `formations`): a group sent somewhere marches at its
   slowest unit's speed, so riders and tanks stay with the infantry: a mixed army sent 40 tiles strung out to 14 tiles
   front to back, now about 10 - but they reach the goal all at once and the last is in about 15 s later.
-- `[general] formation_follow=0` (default, being worked on; 1 on, with `formations`; land units, or ships): a group sent
+- `[general] formation_follow=1` (default, with `formations`; land units, or ships; 0 each on its own route): a group sent
   somewhere marches in its formation behind a leader - the unit in its middle - each unit steering for its place
   beside and behind it, a blocked one following the formation's middle line (the leader's route, through a gap the
   formation is too wide for), only then its own way, planned anew from where it stands; where the way is much narrower than
@@ -369,13 +370,13 @@ Settings in `aimod.ini`:
   new course at once and every ship turns on its own circle to its new place, instead of the whole fleet wheeling
   round in one wide arc; a ship ahead of its place slows for it instead of turning back, one beside it merges at a
   shallow angle.
-- `[general] formation_catchup=200%` (with formation_follow): how fast a unit behind its place may go to keep it, in
+- `[general] formation_catchup=125%` (with formation_follow): how fast a unit behind its place may go to keep it, in
   percent of its own top speed (100% never faster than its own) - near its place only (all of it within its size,
   none from four times that) or within 5 seconds of last being in it (a re-form or a new order on the march: no more
   than the boost it had then; none from rest - a group standing about takes its time to assemble). A ship above its
   top speed so throws out its ripples no faster than at its top speed (the game's rate runs out at 108% of it: a
   ripple every frame, a solid white plume behind the stern).
-- `[general] formation_wait=80%` (with formation_follow): the formation goes at most this share of each unit's speed
+- `[general] formation_wait=100%` (with formation_follow): the formation goes at most this share of each unit's speed
   now - slowed to 80% of a unit's top speed while it has fallen behind (it catches up at the other 20%), at its
   slowest unit's top speed when all near their places have 125% or more. Lower waits more for the stragglers
   (tighter, slower); 100% never slows below a straggler's speed, so it doesn't gain on the formation.
