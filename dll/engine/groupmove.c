@@ -350,6 +350,7 @@ internal struct ff_pend g_ff_p[FF_PEND];
 internal unsigned g_ff_p_next;
 internal int g_ff_on;
 internal unsigned g_ff_flows;   // queued re-forms that took the march before's anchor over
+internal unsigned g_ff_centre;  // follower ticks steered along the formation's line, their points out of reach
 internal unsigned g_ff_marches, g_ff_split, g_ff_arcs, g_ff_finished, g_ff_steered, g_ff_own[4];   // marches started, moves split into blocks; follower ticks steered, left to the own route (by e->own)
 
 internal uint32_t ff_step(void);
@@ -883,17 +884,36 @@ internal int fo_follow_aim(ee_unit *u, const float *pos, float *aim) {
     // the point steered at: on ground it may enter, in a clear line - a ship's, two turning radii ahead, nearer its point
     // till it is (in a channel it lay on the shore: 2598 ticks of 16 ships on their own routes, two ships the whole
     // second leg - the player: some ships decide they aren't part of the group)
+    // A ship ahead of its point steers on from abreast of itself (it slows for its point instead of turning back to it:
+    // one with its point behind it went round in a full circle), one beside it at least twice that far ahead (it merges
+    // at a shallow angle: it turned 90 degrees to its point and back - the player: some turn the wrong way at the start,
+    // some do a full 360 with the target in front of them, or 90 and back)
+    vec2 base = pt, rel = vec2_sub(v2(pos[0], pos[1]), pt);
+    if (gr->naval) {
+        float lon = vec2_dot(rel, way), lat = fabsf(vec2_dot(rel, v2(way.y, -way.x)));
+        if (lon > 0) base = vec2_add(pt, vec2_scale(way, lon));
+        if (ahead < 2 * lat) ahead = 2 * lat < FF_FAR ? 2 * lat : FF_FAR;
+    }
     int ok = 0, why = 1;
-    vec2 at = vec2_add(pt, vec2_scale(way, ahead));
+    vec2 at = vec2_add(base, vec2_scale(way, ahead));
     if (vec2_len(d) <= FF_FAR && td && size > 0 && sr_alloc((uint32_t)(size * size))) {
         st_stamp_step();
         for (float ah = ahead; !ok; ah *= 0.5f) {
             if (ah < FF_AHEAD) ah = FF_AHEAD;
-            vec2 c = vec2_add(pt, vec2_scale(way, ah));
+            vec2 c = vec2_add(base, vec2_scale(way, ah));
             why = !sr_pass(map, u, td, size, (int)floorf(c.x), (int)floorf(c.y)) ? 2 : !sr_clear(map, u, td, size, pos[0], pos[1], c.x, c.y) ? 3 : 0;
             if (!why || ah == ahead) at = c;
             ok = !why;
             if (ah <= FF_AHEAD) break;
+        }
+        // neither: the formation's line ahead of the anchor - it runs along the leader's route, through the gap the
+        // formation is too wide for; its own route was planned from where it stood at the order, and the formation had
+        // carried it off that since (a land unit at a choke point turned round and went the long way)
+        vec2 c = vec2_add(anchor, vec2_scale(way, FF_AHEAD));
+        if (!ok && sr_pass(map, u, td, size, (int)floorf(c.x), (int)floorf(c.y)) && sr_clear(map, u, td, size, pos[0], pos[1], c.x, c.y)) {
+            at = c;
+            ok = 1;
+            g_ff_centre++;
         }
     }
     // behind and ahead by the way it steers (at its point): a follower with its point on the far side, against the way

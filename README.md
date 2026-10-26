@@ -350,7 +350,8 @@ Settings in `aimod.ini`:
   front to back, now about 10 - but they reach the goal all at once and the last is in about 15 s later.
 - `[general] formation_follow=0` (default, being worked on; 1 on, with `formations`; land units, or ships): a group sent
   somewhere marches in its formation behind a leader - the unit in its middle - each unit steering for its place
-  beside and behind it, a blocked one taking its own way for a while; a place on ground the unit can't enter (a
+  beside and behind it, a blocked one following the formation's middle line (the leader's route, through a gap the
+  formation is too wide for), only then its own way; a place on ground the unit can't enter (a
   formation wider than the channel it passes) is drawn in towards the formation's middle, so it narrows there instead
   of losing its outer units; units march as one formation when the gaps between them are under 4 tiles (their sizes
   counted, so a fleet of large ships stays one); near the goal each goes to its own spot.
@@ -358,7 +359,8 @@ Settings in `aimod.ini`:
   the way it goes and turning into its final facing at the goal (re-forming there when that is 45 degrees or more
   off); a shift-queued turn under 45 degrees keeps the formation. A fleet turns together: its formation swings to the
   new course at once and every ship turns on its own circle to its new place, instead of the whole fleet wheeling
-  round in one wide arc.
+  round in one wide arc; a ship ahead of its place slows for it instead of turning back, one beside it merges at a
+  shallow angle.
 - `[general] formation_catchup=200%` (with formation_follow): how fast a unit behind its place may go to keep it, in
   percent of its own top speed (100% never faster than its own) - near its place only (all of it within its size,
   none from four times that) or within 5 seconds of last being in it (a re-form or a new order on the march: no more
