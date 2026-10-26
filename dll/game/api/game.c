@@ -75,8 +75,11 @@ internal inline unsigned table_value(int key) { return fn_world_table_value((voi
 // the player object of a player index (the game state's, humans too)
 internal inline ee_player *game_player(int index) { return fn_world_player((void *)data_game_game_state, index); }
 // the unit of an id (a message's: the player in bits 24..31) - its handle's +0x30, as EEMLoadTransport finds its
-// transport; NULL unknown
+// transport; NULL unknown - or its player gone: the game's lookup goes through the player object (0x53B889: players
+// +0x74 [id >> 24], then its unit table), which the end of a game had already freed while the count still stood (a
+// formation's linger asked at the safe point and the game crashed reading a NULL player's table)
 internal inline ee_unit *unit_by_id(unsigned id) {
+    if (id >> 24 >= game_player_count() || !game_players()[id >> 24]) return NULL;
     ee_unit *h = fn_world_unit_by_id((void *)data_game_game_state, id);
     return h ? FIELD(h, of_unit_physics, ee_unit *) : NULL;
 }
