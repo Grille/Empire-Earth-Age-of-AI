@@ -52,6 +52,9 @@ internal inline ee_goal *goal_load_init(void *mem, ee_unit *holder, void *vec) {
 // the holder's units out at x, y
 // a move to xy (float[2])
 internal inline ee_goal *goal_move_init(void *mem, float *xy) { return (ee_goal *)fn_location_goal_init(mem, xy, 1, 1, 0, 0.0f, 0, 0); }
+// an attack-move to xy: not forced (the scenario's Attack-Move task, 0x614CE6 with task == 0 as forced) - the unit takes
+// on enemies it spots on the way
+internal inline ee_goal *goal_attack_move_init(void *mem, float *xy) { return (ee_goal *)fn_location_goal_init(mem, xy, 1, 0, 0, 0.0f, 0, 0); }
 // a goal's kind, by its vtable: an attack (EEUGAttackUnit, its target +0x30), a move (EEUGLocation), build or repair
 // (EEUGBuildRepair, the building +0x3C), a load (EEUGLoadTransport, the holder +0x50), an unload (EEUGUnloadTransport)
 internal inline int goal_is_attack(const ee_goal *g) { return *(const uintptr_t *)g == data_goal_vt_goal_attack; }

@@ -431,13 +431,16 @@ internal void cmd_build(char *out, const char *args) {
     ee_unit *bld = NULL;
     ee_unit *civ[32];
     int nc = 0;
-    for (struct grid_it it = grid_it_box(x, y, r + 4, 1); grid_it_next(&it); ) {   // wide enough for the building too
+    for (struct grid_it it = grid_it_box(bx, by, 4, 1); grid_it_next(&it); ) {   // the building (a foundation: 0 hit points), within a tile
+        int ux = unit_get_x(it.u), uy = unit_get_y(it.u), cls = unit_type_get_class_id(it.td);
+        if (unit_get_owner(it.u) == pl && abs(ux - bx) <= 1 && abs(uy - by) <= 1 && (cls == CLS_BUILDING || cls == CLS_FORTRESS)) bld = it.u;
+    }
+    for (struct grid_it it = grid_it_box(x, y, r + 1, 1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
         ee_unit_type *td = it.td;
         if (unit_get_owner(u) != pl || unit_get_hp(u) <= 0) continue;
         int t = unit_type_get_id(td), ux = unit_get_x(u), uy = unit_get_y(u);
-        if (ux == bx && uy == by && (unit_type_get_class_id(td) == CLS_BUILDING || unit_type_get_class_id(td) == CLS_FORTRESS)) bld = u;
-        else if (is_citizen_type(t) && abs(ux - x) <= r && abs(uy - y) <= r && nc < 32) {
+        if (is_citizen_type(t) && abs(ux - x) <= r && abs(uy - y) <= r && nc < 32) {
             int dup = 0;
             for (int k = 0; k < nc; k++) dup |= civ[k] == u;
             if (!dup) civ[nc++] = u;
@@ -822,7 +825,9 @@ internal void cmd_uinfo(char *out, const char *args) {
 // move P x y r tx ty: units of player P within r tiles of x, y walk to tx, ty keeping their spread (tests)
 internal void cmd_move(char *out, const char *args) {
     int p, x, y, r, tx, ty, n = 0;
-    if (sscanf(args, "%d %d %d %d %d %d", &p, &x, &y, &r, &tx, &ty) < 6) { REPLY("error: usage: move P x y r tx ty\n"); return; }
+    char kind[8] = "";   // "attack": an attack-move
+    if (sscanf(args, "%d %d %d %d %d %d %7s", &p, &x, &y, &r, &tx, &ty, kind) < 6) { REPLY("error: usage: move P x y r tx ty [attack]\n"); return; }
+    int attack = !strcmp(kind, "attack");
     if (!game_map()) { REPLY("error: no map\n"); return; }
     ee_unit *found[200];
     int nf = 0;
@@ -836,7 +841,9 @@ internal void cmd_move(char *out, const char *args) {
     }
     for (int i = 0; i < nf; i++) {
         vec3 q = unit_get_pos(found[i]);
-        n += unit_goal(found[i], goal_move((float)tx + q.x - (float)x, (float)ty + q.y - (float)y), 0, 0x1F40);
+        float xy[2] = { (float)tx + q.x - (float)x, (float)ty + q.y - (float)y };
+        void *mem = attack ? goal_move_alloc() : NULL;
+        n += unit_goal(found[i], attack ? (mem ? goal_attack_move_init(mem, xy) : NULL) : goal_move(xy[0], xy[1]), 0, 0x1F40);
     }
-    REPLY("ok: %d of %d units of P%d moving\n", n, nf, p);
+    REPLY("ok: %d of %d units of P%d %s\n", n, nf, p, attack ? "attack-moving" : "moving");
 }

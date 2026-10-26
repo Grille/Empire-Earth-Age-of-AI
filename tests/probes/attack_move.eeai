@@ -1,0 +1,22 @@
+// attack-move past enemies (the player: units on an attack-move sometimes just walk by enemies): Continental (seed 101,
+// start_epoch 12), 10 doughboys of P2 at 35,44 attack-moved 45 tiles east to 80,44 past two groups of P3 citizens 5 tiles
+// off their way (55,49 and 66,39 - citizens don't fight back or start a fight). An attack-move takes on what it spots
+// (the movement script looks for enemies at each waypoint it arrives at: LookForEnemies after GetNextMoveWaypoint);
+// the pings say how many of those citizens are left. Two AIs (the human is allied with every AI in a test run).
+wait_until(0.1min)
+let p3 = player(3)
+spawn(2, unit.inf10_doughboy, 35, 44, 10)
+let a = p3.spawn(unit.citizen, vec(55, 49), 4)
+let b = p3.spawn(unit.citizen, vec(66, 39), 4)
+wait_until(0.3min)
+cmd("move 2 35 44 6 80 44 attack")
+wait_until(1.3min)
+let left = 0
+for u in a { if u.alive { left += 1 } }
+for u in b { if u.alive { left += 1 } }
+ping("1 min on: the citizens left {left} of 8")
+wait_until(2.3min)
+left = 0
+for u in a { if u.alive { left += 1 } }
+for u in b { if u.alive { left += 1 } }
+ping("2 min on: the citizens left {left} of 8")
