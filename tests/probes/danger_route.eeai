@@ -1,6 +1,6 @@
 // a route round enemy reach (danger_routes): Continental (seed 101, start_epoch 3), P2's base ~80,52. Two P3 towers at
-// 70,50 and 70,54 (P2 sees them: its scout beside), then a P2 citizen and a P2 fishing boat... a citizen at 78,40 sent
-// to 62,62 - the straight way passes the towers. With ship_route_log=1 the `# shiproute:` line gives its route's
+// 70,50 and 70,54 (P2 sees them: its spearman beside), then a P2 citizen at 78,40 sent to 62,62 - the straight way
+// passes between the towers. With ship_route_log=1 the `# shiproute:` line gives its route's
 // points; with danger_routes=1 they keep out of the towers' range + 2, `# danger:` the map's tiles. Two AIs.
 wait_until(0.1min)
 spawn(3, unit.b_guard_tower_bronze, 70, 50)
