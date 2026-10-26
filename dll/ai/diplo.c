@@ -7,7 +7,7 @@
 // Stance changes: 0x52D5D7 thiscall(game state 0x918300, from, to, stance) - the call the stance message makes,
 // with the team bookkeeping (0x530F24 / 0x52D27F). Locked teams: [0x918E9F] (the diplomacy screen then sends none).
 //
-// ANSWER WAR ([all] answer_war, default 1): whoever turns hostile towards an AI that is still allied with him gets
+// ANSWER WAR ([ai_base] answer_war, default 1): whoever turns hostile towards an AI that is still allied with him gets
 // war back 3-6 s later: the game's stance line ("<AI> wechselt diplomatische Haltung zu Feindselig"), the
 // personality's line (war_declared, or betrayed after 2+ minutes of alliance), then the revenge reaction 0x46FFB7
 // thiscall(combat manager player +0xB8C, declaring player): attack on his most attractive object (0x470FF5 ->
@@ -27,7 +27,7 @@
 //   in mod/computer.eeai); the pride/20 minutes are the rule's.
 // Power = sum of soldier hit points + 30 per building (scan every 10 s).
 //
-// AI INITIATIVE ([all] ai_diplomacy, default 1; not in scenarios/campaigns, not with locked teams), per AI every
+// AI INITIATIVE ([ai_base] ai_diplomacy, default 1; not in scenarios/campaigns, not with locked teams), per AI every
 // 60 s from minute 10:
 //   alliance: at war with a leader (power > 1.5 x own; decide seek_ally) - offer an alliance to another enemy of
 //     the leader it is at war with, the one it likes best (opinion; decide ally_score) if above -20: an AI decides like a peace offer (+15 common enemy); a human gets the offer as a
@@ -55,7 +55,7 @@
 // base, when it starts), building lost, new age, an enemy a whole age ahead, winning / losing (power x2 / x0.5 against the
 // strongest enemy), desperate (buildings under 40% of their peak), a player defeated (+0x467), tribute thanks.
 //
-// SURRENDER ([all] surrender, default 1; not in scenarios/campaigns): an AI without citizens can't rebuild - instead
+// SURRENDER ([ai_base] surrender, default 1; not in scenarios/campaigns): an AI without citizens can't rebuild - instead
 // of leaving its last buildings for the player to hunt down, it resigns: no citizens for 60 s and no way to train one
 // (no Town Center/Capitol, or not enough to pay a citizen), or no citizens for 3 minutes at all - unless its army
 // still has half the power of its strongest enemy (at peace with everyone: only when it can't train a citizen). It
@@ -71,7 +71,7 @@
 #define GAME_STATE    (game_state())
 #define TEAMS_LOCKED  (*teams_locked_var())
 internal int g_answer_war = 1, g_ai_diplomacy = 1;
-internal int g_offer_min = 2;   // [all] offer_minutes: how long an offer stands (alliance, peace, capitulation, block peace)
+internal int g_offer_min = 2;   // [ai_base] offer_minutes: how long an offer stands (alliance, peace, capitulation, block peace)
 internal int g_diplo_seen[16];
 internal int g_diplo_prev[16][16];        // [ai][j]: player j's stance towards the AI at the last look
 internal uint32_t g_diplo_due[16][16];    // [ai][j]: answer war at this time (0 = nothing pending)
@@ -488,7 +488,7 @@ internal float peace_score(ee_player *pl, int ai, int j, uint32_t now) {
     return (float)persona_decide(pl, D_PEACE_SCORE, player_at(j), lead ? player_at(lead) : NULL);
 }
 
-// STANCE LINES ([all] stance_lines): every AI stance change used to show the game's line "<AI> wechselt
+// STANCE LINES ([ai_base] stance_lines): every AI stance change used to show the game's line "<AI> wechselt
 // diplomatische Haltung zu Feindselig" - also between AIs, and without saying towards whom. 1 (default): only the
 // changes towards you, naming the AI (on your PC); 2: the game's line for all, as before; 0: none (the
 // personality lines still speak).
@@ -585,7 +585,7 @@ internal void peace_offer(ee_player *pl, int ai, int j, uint32_t now) {
     g_peace_due[ai][j] = now + 120000;
 }
 
-// ALLIANCE BLOCKS ([all] alliance_blocks, default 1; with ai_diplomacy, not in scenarios or with locked teams).
+// ALLIANCE BLOCKS ([ai_base] alliance_blocks, default 1; with ai_diplomacy, not in scenarios or with locked teams).
 // Stances are pairwise, so two AIs can both be allied with the player and at war with each other - and nothing in
 // the game can make them stop. A block = the players linked by alliances (allied both ways, through any chain).
 // Every 2 s of game time:

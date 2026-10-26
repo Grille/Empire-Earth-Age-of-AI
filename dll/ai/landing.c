@@ -1,4 +1,4 @@
-// LANDING ([all] landing, default 1 - the playtester: "landings must work, islands are quite popular"): a landing behind the enemy's lines. Included by eeaimod.c after
+// LANDING ([ai_base] landing, default 1 - the playtester: "landings must work, islands are quite popular"): a landing behind the enemy's lines. Included by eeaimod.c after
 // forces.c (uses its area ids, home_threat, enemy_objective).
 //
 // The user (reference save): "my back is basically completely undefended - landing with ~3 full transports and a few
@@ -31,10 +31,10 @@
 //   no defence. Citizens along build a forward base (ld_bridgehead: towers, barracks, town center, hospital, factory -
 //   by the size; soldiers trained there join, ld_capture). Waves: the transports bring the soldiers
 //   at home over while it holds (ld_wave, landing_waves 3). A quarter left: released to the game.
-internal int g_land_bombard = 0;   // [all] landing_bombard (below: BOMBARD)
-internal int g_landing = 1, g_land_ships = 8;   // aimod.ini [all] landing, landing_transports (the most; the size follows the beach)
-internal int g_land_waves = 3;   // [all] landing_waves: how often the transports bring more soldiers over (0-10)
-internal int g_land_cits = 10;   // [all] landing_citizens: the most citizens along to build the forward base (0-10)
+internal int g_land_bombard = 0;   // [ai_base] landing_bombard (below: BOMBARD)
+internal int g_landing = 1, g_land_ships = 8;   // aimod.ini [ai_base] landing, landing_transports (the most; the size follows the beach)
+internal int g_land_waves = 3;   // [ai_base] landing_waves: how often the transports bring more soldiers over (0-10)
+internal int g_land_cits = 10;   // [ai_base] landing_citizens: the most citizens along to build the forward base (0-10)
 internal int g_land_trace = 0;   // test: landing_trace=1 - each transport every tick while soldiers are aboard
 internal int g_land_knows = 0;   // test: landing_knows_map=1 - every building of the target counts, seen or not
 internal int g_land_flag = 0;   // the unload goal's last argument: the AI's code passes 1, the player's command 0 (test: landing_flag)
@@ -1148,7 +1148,7 @@ internal void ld_wave(ee_player *pl, unsigned pi, struct landing *l, uint8_t *dq
 
 internal ee_unit *ld_raid_target(ee_player *pl, ee_player *target, ivec2 p, int r);   // below
 internal ee_unit *ld_objective(ee_player *pl, unsigned pi, ee_player *target, unsigned cont, ivec2 p);
-// BOMBARD ([all] landing_bombard, default 0; the playtester: "the main island will have huge concentrated forces,
+// BOMBARD ([ai_base] landing_bombard, default 0; the playtester: "the main island will have huge concentrated forces,
 // especially if the AI never dares to leave - bomb the way free with huge warship fleets, then land a large force with
 // a forward base, keep the ships near for support"): a beach too strong for the army it can send (power < 1.2 x the
 // beach's need) is shelled first. The fleet: half the beach's need in warship strength (warships outrange most of

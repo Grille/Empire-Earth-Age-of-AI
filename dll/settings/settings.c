@@ -1,6 +1,6 @@
-// THE SETTINGS, READ IN ONE PLACE: the rows (rows.h) become struct settings g_set and, for [all], struct settings_ai
+// THE SETTINGS, READ IN ONE PLACE: the rows (rows.h) become struct settings g_set and, for [ai_base], struct settings_ai
 // g_set_ai[3] (a value per AI difficulty), filled by settings_read when the DLL loads - each row's text from the test
-// ini's [autotest] (a test run), else from its section of aimod.ini (a row of [all]: the difficulty's own section
+// ini's [autotest] (a test run), else from its section of aimod.ini (a row of [ai_base]: the difficulty's own section
 // first), else its default - and checked by its kind; a mistake is logged (ini.c: file, section, key) and the row
 // keeps its default. The parts read g_set / g_set_ai instead of the file: one reading of each key, one rule for the
 // test ini's overrides, and the keys of every section of aimod.ini (rows.h SETTING_SECTIONS) known, so a key that is
@@ -24,7 +24,8 @@ struct settings { SETTINGS(SET_FIELD_X, SET_FIELD_S, SET_NONE) };
 struct settings_ai { SETTINGS(SET_NONE, SET_NONE, SET_FIELD_D) };
 internal struct settings g_set;
 internal struct settings_ai g_set_ai[3];   // 0 easy, 1 medium, 2 hard
-internal const char *const k_set_diff[3] = { "easy", "medium", "hard" };   // [easy], [hard]; medium has no section: [all]
+internal const char *const k_set_diff[3] = { "easy", "medium", "hard" };   // the difficulties' names
+internal const char *const k_set_diff_sec[3] = { "ai_easy", NULL, "ai_hard" };   // their sections (medium: [ai_base])
 
 #define SET_ID_X(kind, sec, key, def, a, b) SETTING_##key,
 #define SET_ID_S(kind, sec, key, def, a, b) SETTING_##sec##_##key,
@@ -33,7 +34,7 @@ enum { SETTINGS(SET_ID_X, SET_ID_S, SET_ID_D) SETTING_N };
 
 enum { SETK_FLAG, SETK_INT, SETK_NUM, SETK_PCT, SETK_SHARE, SETK_CHOICE, SETK_STR, SETK_STR_P, SETK_CHILD };
 // name: the field's, and the key that overrides it in the test ini; choices: a CHOICE's names, '|' between them;
-// ai: a row of [all] (its field in struct settings_ai, a value per difficulty); a: a CHILD's master (its row's id)
+// ai: a row of [ai_base] (its field in struct settings_ai, a value per difficulty); a: a CHILD's master (its row's id)
 struct setting_row { const char *sec, *key, *name; int kind, ai; size_t off; int def; const char *def_s, *choices; int a, b; };
 #define SET_ROW_FLAG(sec, key, name, st, ai, def, a, b) { #sec, #key, #name, SETK_FLAG, ai, offsetof(st, name), def, NULL, NULL, a, b },
 #define SET_ROW_INT(sec, key, name, st, ai, def, a, b) { #sec, #key, #name, SETK_INT, ai, offsetof(st, name), def, NULL, NULL, a, b },
@@ -46,7 +47,7 @@ struct setting_row { const char *sec, *key, *name; int kind, ai; size_t off; int
 #define SET_ROW_CHILD(sec, key, name, st, ai, def, a, b) { #sec, #key, #name, SETK_CHILD, ai, offsetof(st, name), def, NULL, NULL, SETTING_##a, b },
 #define SET_ROW_X(kind, sec, key, def, a, b) SET_ROW_##kind(sec, key, key, struct settings, 0, def, a, b)
 #define SET_ROW_S(kind, sec, key, def, a, b) SET_ROW_##kind(sec, key, sec##_##key, struct settings, 0, def, a, b)
-#define SET_ROW_D(kind, key, def, a, b) SET_ROW_##kind(all, key, key, struct settings_ai, 1, def, a, b)
+#define SET_ROW_D(kind, key, def, a, b) SET_ROW_##kind(ai_base, key, key, struct settings_ai, 1, def, a, b)
 internal const struct setting_row k_settings[SETTING_N] = { SETTINGS(SET_ROW_X, SET_ROW_S, SET_ROW_D) };
 
 #define SET_UNDER(key, master) { SETTING_##key, SETTING_##master },
@@ -66,10 +67,10 @@ struct setting_section { const char *sec; int order, kind; const char *title; };
 internal const struct setting_section k_setting_sections[] = { SETTING_SECTIONS(SET_SECTION) };
 #define SETTING_SECTION_N ((int)(sizeof k_setting_sections / sizeof *k_setting_sections))
 
-// where each row's value came from: 0 its default, 1 aimod.ini, 2 the test ini ([autotest]); a row of [all]: the
+// where each row's value came from: 0 its default, 1 aimod.ini, 2 the test ini ([autotest]); a row of [ai_base]: the
 // furthest of its difficulties
 internal uint8_t g_set_from[SETTING_N];
-internal const char *settings_section(int id) {   // the section a row's value was read from (not for a row of [all])
+internal const char *settings_section(int id) {   // the section a row's value was read from (not for a row of [ai_base])
     return g_set_from[id] == 2 ? "autotest" : k_settings[id].sec;
 }
 
@@ -92,8 +93,8 @@ internal void setting_choice_name(const char *choices, int i, char *out, int cap
     lstrcpynA(out, c ? c : "", n + 1 < cap ? n + 1 : cap);
 }
 
-// row r's text: the test ini's [autotest] name, else key in r's section of aimod.ini - a row of [all] for difficulty
-// d: [easy] / [hard] (the medium AI plays [all] itself), then [all], then (easy) the built-in easy text; a row of section autotest: the test
+// row r's text: the test ini's [autotest] name, else key in r's section of aimod.ini - a row of [ai_base] for difficulty
+// d: [ai_easy] / [ai_hard] (the medium AI plays [ai_base] itself), then [ai_base], then (easy) the built-in easy text; a row of section autotest: the test
 // ini only. *file, *sec, *at where; 0: not set, the default
 internal int setting_raw(const struct setting_row *r, int d, const char *key, const char *name, const char *ini, const char *test_ini,
                          char *out, int cap, const char **file, const char **sec, const char **at, uint8_t *from) {
@@ -101,14 +102,14 @@ internal int setting_raw(const struct setting_row *r, int d, const char *key, co
     if (test_ini && ini_raw("autotest", name, test_ini, out, cap)) { *file = test_ini; *sec = "autotest"; *at = name; *from = 2; return 1; }
     *file = ini;
     *from = 1;
-    if (r->ai && d != 1 && ini_raw(*sec = k_set_diff[d], key, ini, out, cap)) return 1;
+    if (r->ai && d != 1 && ini_raw(*sec = k_set_diff_sec[d], key, ini, out, cap)) return 1;
     if (lstrcmpA(r->sec, "autotest") && ini_raw(*sec = r->sec, key, ini, out, cap)) return 1;
     *from = 0;
     for (size_t i = 0; r->ai && d == 0 && i < sizeof k_settings_easy / sizeof *k_settings_easy; i++) {
         if (lstrcmpA(k_settings_easy[i].key, key)) continue;
         lstrcpynA(out, k_settings_easy[i].text, cap);
         *file = "(built-in)";
-        *sec = "easy";
+        *sec = "ai_easy";
         return 1;
     }
     return 0;
@@ -179,9 +180,9 @@ internal int setting_read(const struct setting_row *r, int d, const char *key, c
     return 1;
 }
 
-// key k of section sec is a row's (a row of [all] in [easy] / [hard] too)
+// key k of section sec is a row's (a row of [ai_base] in [ai_easy] / [ai_hard] too)
 internal int setting_known(const char *sec, const char *k) {
-    int diff = !lstrcmpiA(sec, "easy") || !lstrcmpiA(sec, "hard");
+    int diff = !lstrcmpiA(sec, k_set_diff_sec[0]) || !lstrcmpiA(sec, k_set_diff_sec[2]);
     for (int i = 0; i < SETTING_N; i++) {
         const struct setting_row *r = &k_settings[i];
         if (lstrcmpiA(r->sec, sec) && !(diff && r->ai)) continue;
@@ -249,7 +250,7 @@ internal void settings_read(const char *ini, const char *test_ini) {
     }
     for (int s = 0; s < SETTING_SECTION_N; s++)
         if (k_setting_sections[s].kind != SECK_TEST) settings_unknown(ini, k_setting_sections[s].sec);
-    static char names[4096];   // and the sections that are none (an old [medium]: the medium AI plays [all])
+    static char names[4096];   // and the sections that are none (an old [medium]: the medium AI plays [ai_base])
     DWORD n = GetPrivateProfileSectionNamesA(names, sizeof names, ini);
     for (const char *sec = names; sec < names + n && *sec; sec += strlen(sec) + 1)
         if (!setting_section_known(sec)) ini_unknown(ini, sec, NULL);
@@ -268,8 +269,8 @@ internal void setting_text(const struct setting_row *r, const uint8_t *at, char 
     }
 }
 
-// the values in force, a line per section, the test ini's own marked * (the log opens after settings_read); [all] as
-// the medium AI has it, [easy] and [hard] where theirs differ
+// the values in force, a line per section, the test ini's own marked * (the log opens after settings_read); [ai_base] as
+// the medium AI has it, [ai_easy] and [ai_hard] where theirs differ
 internal void settings_log(FILE *f) {
     const char *sec = NULL;
     char v[MAX_PATH + 8];
@@ -291,7 +292,7 @@ internal void settings_log(FILE *f) {
     }
     if (sec) fputc('\n', f);
     for (int d = 0; d < 3; d += 2) {
-        fprintf(f, "# settings [%s] (where not as medium):", k_set_diff[d]);
+        fprintf(f, "# settings [%s] (where not as the base):", k_set_diff_sec[d]);
         for (int i = 0; i < SETTING_N; i++) {
             const struct setting_row *r = &k_settings[i];
             if (!r->ai) continue;

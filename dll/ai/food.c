@@ -1,4 +1,4 @@
-// WILD FOOD ([all] food_plan, bits; [autotest] v_food_plan for the variant players). Included by eeaimod.c after early.c.
+// WILD FOOD ([ai_base] food_plan, bits; [autotest] v_food_plan for the variant players). Included by eeaimod.c after early.c.
 // The playtester: "hunting is an important starting step. Animals reproduce - a sustainable source if not overhunted,
 // though usually collecting them as quickly as possible is better. Ditch hunting for farming as soon as possible, but
 // even in late-epoch starts farms are a huge investment that can wait a bit while other sources (herds, forage,
@@ -30,7 +30,7 @@
 // HUNT alone cost workers (-3 / -4 at 30 min): 23 of 28 citizens chased 15 animals (2300 food) across the map, and the
 // food gathered by minute 20 rose 5% with twice the food gatherers - the walk decides wild food's rate. NEAR and CAMP
 // (below) gave more workers but no better fights. Off.
-internal int g_food_plan = 3, g_v_food_plan = -1, g_hunt_range = 15;   // [all] food_hunt_range: tiles from a drop site
+internal int g_food_plan = 3, g_v_food_plan = -1, g_hunt_range = 15;   // [ai_base] food_hunt_range: tiles from a drop site
 #define FOOD_PLAN(idx) PV(idx, g_v_food_plan, g_food_plan)
 internal struct { unsigned pulled, hunt_sent, near_pick; } g_fd[16];
 

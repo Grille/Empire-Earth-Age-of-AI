@@ -17,7 +17,7 @@ The playtester's own way, implemented first: "I don't train military in the firs
 citizens, but I go heavy on bowmen/rock slingers from the second epoch on. My first-age tactic is getting towers up
 and baiting enemy troops under the towers with my citizens."
 
-## The features (dll/ai/early.c, econ.c, defence.c; `[all]` keys)
+## The features (dll/ai/early.c, econ.c, defence.c; `[ai_base]` keys)
 
 | Key | What it does |
 |---|---|
@@ -121,7 +121,7 @@ without a drop site; `scripts/results/eco_food.py`), base AI at hard, 60 min, ga
   for the citizens the Town Center trains, and the game's wood demand (refused requests, 4500 in epoch 0) took half
   the workers.
 
-`food_plan` ([all], bits; `v_food_plan` for head-to-head): 1 PLAN - before farms the plan counts the citizens' food
+`food_plan` ([ai_base], bits; `v_food_plan` for head-to-head): 1 PLAN - before farms the plan counts the citizens' food
 (50 a citizen for the next 10 while short) and the wood only of real buildings; 2 PULL - every 10 s up to 4 gatherers
 back to food from the list farthest above its target; 4 NEAR - forage at the bush nearest a drop site; 8 HUNT - idle
 citizens hunt every animal within `food_hunt_range` (15) tiles of a drop site (newborns too), 3 to an animal; 16 WILD -
@@ -149,7 +149,7 @@ map_size 1, 4 AIs, 60 min, 24 games, `v_food_plan=3`): B - A alive +0.06 (0.03),
 (2.1), kills -0.4 (4.1), losses +7.0 (7.2) - no regression.
 
 **Mines.** Small Islands e5: the home island's mines have 30 slots near the Town Center; the mod's AI worked 12-17,
-the base AI 15 at minute 20 and then built Settlements (76 slots by the end). `mine_fill` ([all], bits, `v_mine_fill`):
+the base AI 15 at minute 20 and then built Settlements (76 slots by the end). `mine_fill` ([ai_base], bits, `v_mine_fill`):
 1 FILL - from the Copper Age the metals' targets are at least their slots near drop sites (the home continent's only
 under a population cap of 120), unless 1500+ already lie in stock; workers from piled-up wood, spare food and idle
 citizens; 2 DROP - a Settlement at the home continent's unworked mine nearest to a drop site; 4 FIRST - the slots
@@ -187,7 +187,7 @@ reason (mod; minutes 10-30 / 30-60):
 So the game's 45% share stopped the citizens at ~75 while 40-60 mine slots near the drop sites had 12-24 miners, and
 food ran short on the islands. Houses play no part: the cap is the game's (+0xCCC), not built.
 
-`citizen_plan` ([all], bits, `v_citizen_plan`): 1 GOAL - from the Copper Age the citizens wanted are the goal when more:
+`citizen_plan` ([ai_base], bits, `v_citizen_plan`): 1 GOAL - from the Copper Age the citizens wanted are the goal when more:
 every mine slot within 12 tiles of a drop site (home and wherever the AI holds one), the food and wood gatherers, the
 idle and 4 builders, within the cap less `citizen_army_share` (40%) for the army (the home mines always fit, at most
 80% of the cap); the metals' targets go up to those slots from food beyond its floor (FEED, fields + 2) and wood
@@ -247,7 +247,7 @@ researches more than the base AI (Continental 31 techs to 13) but pays its line 
 about 3700 an hour), which the base AI gets free. Towers it has more (4-10 to 3-8); stone is spent (150-390 at 60 min).
 So the economy's size and mix, not the budget, buildings or room, caps the army.
 
-`army_plan` ([all], bits, `v_army_plan`; from the Copper Age, only with an enemy on the AI's own continent): 1 FLOAT - the
+`army_plan` ([ai_base], bits, `v_army_plan`; from the Copper Age, only with an enemy on the AI's own continent): 1 FLOAT - the
 stock above every reserve that stayed for 2 minutes (less `army_float_keep` 300 food/wood, `army_float_keep_mineral` 100)
 tops up the military account; 2 FILL - every 10 s, while the account and stock pay one, up to 5 soldiers into the room
 the citizens' goal leaves (the game's own requested type when it can train it, else the strongest); 4 BUILD - one more
@@ -297,7 +297,7 @@ the base; lowpop 84%. So half the mod's soldiers die alone, nearly all of them o
 attack subgroups of ~10 walk their own legs, a quarter of their members string out, and the attack commander hands
 every newly trained soldier to a subgroup that is out - it walks there alone (the trickle).
 
-`army_mass` ([all], bits, `v_army_mass`; only with an enemy on the AI's own continent, navy_land - island games are
+`army_mass` ([ai_base], bits, `v_army_mass`; only with an enemy on the AI's own continent, navy_land - island games are
 the same as without, 8 checked): 1 GATHER - a member of a land attack subgroup that is out (past forming, its members'
 middle 30+ tiles from the base) standing at home (a replacement) is held: the subgroup's orders to it are refused (vf57,
 as for the fleet and the landing) and it walks to the rally point (by the own tower nearest the point 6 tiles out
@@ -436,7 +436,7 @@ player's miners there:
 
 So on these maps only Small Islands has a free island, and it is the base AI's from minute 23-31.
 
-`expand_islands` ([all], bits, `v_expand_islands` for head-to-head; header of dll/ai/expand.c): 1 SETTLE - from the Copper
+`expand_islands` ([ai_base], bits, `v_expand_islands` for head-to-head; header of dll/ai/expand.c): 1 SETTLE - from the Copper
 Age, minute 8 (`expand_minute`), once the home island's mine slots are half worked (or from minute 15), with 25+ workers
 and a land army not weaker than the enemy army it knows: the island with the most mines it has explored, no ally's
 building, no enemy town (Town Center, Capitol), no known enemy defence, at most 3 known enemy buildings and no more
@@ -656,7 +656,7 @@ Archers, Cuirassiers), and the budget saves 90 s for them (substitute_wait) whil
 idle citizens and the wood are a symptom: on island maps the army is bounded by the metal the home island gives;
 more needs the other islands (expand.c, transports).
 
-**`workforce_plan`** ([all], bits; `v_workforce_plan`; **default 0**):
+**`workforce_plan`** ([ai_base], bits; `v_workforce_plan`; **default 0**):
 - 1 CAP: from the Copper Age, the citizens wanted (the game's share and citizen_plan's goal alike) are capped at what
   the economy uses: the mines' slots near drop sites (or the miners, if more), the food gatherers (at least the
   fields + 2 and FEED's), the woodcutters the wood actually spent needs (5-minute spending at the measured rate per
@@ -730,7 +730,7 @@ saving holds little, the metal is simply not there. On the land maps the metal i
 Also seen: in one Small Islands Large game a medieval tower was laid and given up 127 times in 13 minutes (each time 175
 stone paid and refunded - `# place: ... 463 130/3/1`), not followed further.
 
-`metal_plan` ([all], bits, `v_metal_plan`; only from a population cap of `metal_cap` (250); **default 0**):
+`metal_plan` ([ai_base], bits, `v_metal_plan`; only from a population cap of `metal_cap` (250); **default 0**):
 - 1 VALUE: a land soldier the game asks for is trained as the one that does most per gold + iron against the enemy army
   it knows (intel.c: soldiers seen within 10 minutes; none known: its own types as the mix) when that is 25% better:
   the enemies one kills in its life (stats.c damage - the game's class table and hit factors, armour, upgrades - against
@@ -865,7 +865,7 @@ Hospitals (the mod's healed 100-400 hit points a game there), the Docks repaired
 ships on the big island maps. 13-20 expensive units (value 100+, siege, heroes, cavalry, warships) a game died alone
 (mostly warships); the base AI loses 2-6x more under the mod's towers than the mod under its.
 
-**fall_back** ([all], bits, `v_fall_back`; per unit, an attack is never called back; mod AIs only):
+**fall_back** ([ai_base], bits, `v_fall_back`; per unit, an attack is never called back; mod AIs only):
 - 1 HEAL: a land unit worth `fall_back_value` (100) or more below `fall_back_hp` (40%) walks to the nearest own Hospital
   on its land within `fall_back_dist` (60) tiles (no enemy seen near it), 2 tiles from its centre, stays until 90% (4
   minutes at most) - its attack subgroup's orders refused meanwhile (landing.c hook_asg_give_goal, as for the fleet)

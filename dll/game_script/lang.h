@@ -75,7 +75,7 @@ internal const struct xmember k_xglobals[] = {
     { "population_limit", XM_PLAYER, "the game's unit limit per player (its setting)", XT_INT, -1, -1, 0, 0 },
     { "max_population", XM_PLAYER, "the largest population of a player still in - kills > max_population / 2: many for this stage of the game", XT_INT, -1, -1, 0, 0 },
     { "language", XM_PLAYER, "the game's language: de, en, fr, ...", XT_TEXT, -1, -1, 0, 0 },
-    { "offer_minutes", XM_PLAYER, "how long an offer stands, in minutes ([all] offer_minutes in aimod.ini)", XT_FLOAT, -1, -1, 0, 0 },
+    { "offer_minutes", XM_PLAYER, "how long an offer stands, in minutes ([ai_base] offer_minutes in aimod.ini)", XT_FLOAT, -1, -1, 0, 0 },
     { "llm_equal", XM_PLAYER, "1 when the language model is told nothing of who plays the computer ([llm] equal)", XT_BOOL, -1, -1, 0, 0 },
     { "llm_constrained", XM_PLAYER, "1 when the language model decides within the rules' limits ([llm] constrained)", XT_BOOL, -1, -1, 0, 0 },
 };

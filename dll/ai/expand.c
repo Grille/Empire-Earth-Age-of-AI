@@ -203,7 +203,7 @@ internal void ex_log(ee_player *pl, unsigned idx, uint32_t now) {
 }
 
 
-// ---- THE OUTPOST ([all] expand_islands, bits, default 0; [autotest] v_expand_islands for the variant players) ----
+// ---- THE OUTPOST ([ai_base] expand_islands, bits, default 0; [autotest] v_expand_islands for the variant players) ----
 // Measured first (# isl, base AI at hard, 60 min, 20 seeds x both seats; docs/economy.md "Other islands"): on the
 // test maps only Small Islands has a free island (7 mines, 42 slots, more than the home's 30); the base AI settles it in
 // 97-100% of the games (minute 31 without the cheat, 23 with it), the mod's AI never on its own.

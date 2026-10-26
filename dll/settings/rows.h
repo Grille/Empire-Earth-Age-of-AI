@@ -17,9 +17,9 @@
 //           wins (improved_unit_movement over ship_routes, land_collide ...). The code reads the child as a FLAG.
 //
 // X: a row of [general] (or of the test ini's [autotest], which exists only there) - g_set.key. S: a row of another
-// section, whose keys repeat across sections (enabled, smooth, log) - g_set.section_key. D: a row of [all], one value
-// per AI difficulty - g_set_ai[d].key (0 easy, 1 medium, 2 hard), each from [easy] / [hard], else [all] (medium plays
-// [all] itself); a part that doesn't tell the difficulties apart reads [1], the medium one. The test ini's [autotest] overrides any
+// section, whose keys repeat across sections (enabled, smooth, log) - g_set.section_key. D: a row of [ai_base], one value
+// per AI difficulty - g_set_ai[d].key (0 easy, 1 medium, 2 hard), each from [ai_easy] / [ai_hard], else [ai_base] (medium plays
+// [ai_base] itself); a part that doesn't tell the difficulties apart reads [1], the medium one. The test ini's [autotest] overrides any
 // row by that same name (lead_targets=0, display_present=gdi, llm_enabled=1, avoid_towers=0 - every difficulty).
 #define SETTINGS(X, S, D) \
     X(FLAG,   general,  enabled,                  1,  0, 0) \
@@ -260,9 +260,9 @@
 // [autotest] has knobs of its own besides the rows.
 //
 //   PLAIN   a section of its own rows
-//   ALL     [all]: the rows of D, for every AI difficulty
-//   DIFF    a difficulty's own section ([easy] / [hard]: settings.c k_set_diff), the rows of [all] again - the
-//           medium AI has none: [all] is its, the base the others differ from
+//   ALL     [ai_base]: the rows of D, for every AI difficulty
+//   DIFF    a difficulty's own section ([ai_easy] / [ai_hard]: settings.c k_set_diff), the rows of [ai_base] again - the
+//           medium AI has none: [ai_base] is its, the base the others differ from
 //   TEST    the test ini's own: not in aimod.ini, no page
 #define SETTING_SECTIONS(T) \
     T(general,   10, PLAIN, "General") \
@@ -271,9 +271,9 @@
     T(editor,    40, PLAIN, "Scenario editor") \
     T(sound,     50, PLAIN, "Sound") \
     T(llm,       60, PLAIN, "Language model") \
-    T(all,       70, ALL,   "AI") \
-    T(easy,      80, DIFF,  "Easy") \
-    T(hard,     100, DIFF,  "Hard") \
+    T(ai_base,   70, ALL,   "AI") \
+    T(ai_easy,   80, DIFF,  "Easy") \
+    T(ai_hard,  100, DIFF,  "Hard") \
     T(autotest,   0, TEST,  "Tests")
 
 // THE GROUPS: aimod_config.exe's topics within a section, one row each - the field of its first row and its title. A
@@ -308,8 +308,8 @@
     G(landing,                "Landings and transports") \
     G(min_workforce,          "Advanced tuning")
 
-// What the easy AI gets where neither [easy] nor [all] says otherwise (instead of the row's default): it eases off -
-// keeps to the human's epoch and population. The shipped [easy] says the same (settings_check.py).
+// What the easy AI gets where neither [ai_easy] nor [ai_base] says otherwise (instead of the row's default): it eases off -
+// keeps to the human's epoch and population. The shipped [ai_easy] says the same (settings_check.py).
 #define SETTINGS_EASY(E) \
     E(epoch_pacing,     "classic") \
     E(pop_follow_human, "1")

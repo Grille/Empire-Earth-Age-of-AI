@@ -21,7 +21,7 @@
 // tile's centre beside it, the leg past its corner by SR_MARGIN -, so each corner of a land unit's route is moved away
 // from what blocks around it, towards where the room grows, up to LR_WIDEN and only while the room still grows (in a
 // gap it stops in the middle: a choke point is still taken) and both legs to it stay clear; then the points along the
-// legs as before. `danger_routes` ([all]; the player: AI citizens walk into enemy reach - a danger map per player
+// legs as before. `danger_routes` ([ai_base]; the player: AI citizens walk into enemy reach - a danger map per player
 // instead of each manager's checks, and fishing boats and transports have the same problem): an AI's unit that can't
 // fight (a citizen, or no attack: fishing boats, transports) pays SR_COST_DANGER more for each threat on a tile of
 // its owner's danger map (game/danger.c), so it goes round where it can and through only where it must; the route is

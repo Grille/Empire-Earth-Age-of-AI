@@ -87,7 +87,7 @@ internal void mt_paid(ee_player *pl, ee_tech *what, const int *before, const int
 // econ.c train_budget: the budget saves for a refused unit
 internal void mt_saving(unsigned idx) { struct mt_st *m = &g_mt[idx & 15]; m->save_refused++; m->save_last = game_time(); if (!m->save_last) m->save_last = 1; }
 
-// ---- metal_plan ([all], bits; [autotest] v_metal_plan for the variant players) ----
+// ---- metal_plan ([ai_base], bits; [autotest] v_metal_plan for the variant players) ----
 // 1 VALUE: a land soldier the game (or army_plan's FILL) asks for is trained as the one that does most against the
 //   enemy army it knows per gold + iron, when that one is 25% better than the asked: the value of a type c is the enemy
 //   soldiers one c kills in its life against the enemy's mix (intel.c: its soldiers seen within 10 minutes, by type
@@ -120,7 +120,7 @@ internal void mt_saving(unsigned idx) { struct mt_st *m = &g_mt[idx & 15]; m->sa
 // Large without the cheat, fewer kills everywhere. Default 0.
 internal int g_metal_plan = 0, g_v_metal_plan = -1, g_mt_fleet_pct = 250, g_mt_fleet_min = 20;
 #define METAL_PLAN(idx) PV(idx, g_v_metal_plan, g_metal_plan)
-internal int g_mt_cap = 250;   // [all] metal_cap: the bits act from this population cap on (the metal limits the army there)
+internal int g_mt_cap = 250;   // [ai_base] metal_cap: the bits act from this population cap on (the metal limits the army there)
 internal int mt_plan(ee_player *pl, unsigned idx) {
     if (!METAL_PLAN(idx) || !pl) return 0;
     return unit_limit(pl) >= g_mt_cap ? METAL_PLAN(idx) : 0;

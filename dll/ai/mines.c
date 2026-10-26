@@ -1,4 +1,4 @@
-// FILL THE MINES ([all] mine_fill, bits; [autotest] v_mine_fill for the variant players). Included by eeaimod.c after
+// FILL THE MINES ([ai_base] mine_fill, bits; [autotest] v_mine_fill for the variant players). Included by eeaimod.c after
 // food.c. The playtester: "every mine it can get hold of should be filled; the only exception is low population limits
 // where room is needed for the army - but even then filling the home island's mines is always in budget."
 // Measured against the base AI (docs/economy.md "Mines"): on Small Islands e5 the home island's mines have 30 worker

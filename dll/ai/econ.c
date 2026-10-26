@@ -29,19 +29,19 @@ internal unsigned g_var_mask;
 internal int g_v_late = -1, g_v_hoard_mineral = -1, g_v_sub_wait = -1;
 #define PV(idx, v, g) ((g_var_mask >> ((idx) & 15) & 1) && (v) >= 0 ? (v) : (g))
 internal struct { uint32_t last_t; int init; float mil[7]; int income[7], mil_spent[7], cit_blocked, mil_limited; } g_bud[16];
-// EARLY GAME (dll/ai/early.c, docs/economy.md - the playtester's opening): [all] early_towers, tower_bait, early_militia,
+// EARLY GAME (dll/ai/early.c, docs/economy.md - the playtester's opening): [ai_base] early_towers, tower_bait, early_militia,
 // early_army, early_soldiers; copper_plan=2. Head-to-head: v_early_towers ... v_copper_plan for the variant players.
 internal int g_early_towers = 1, g_tower_bait = 1, g_early_militia = 1, g_early_army = 0, g_early_soldiers = 0;
 internal int g_v_early_towers = -1, g_v_tower_bait = -1, g_v_early_militia = -1, g_v_early_army = -1, g_v_early_soldiers = -1;
 internal int g_v_copper = -1;
-internal float g_early_food_share = 0.10f;   // [all] early_army_food_share: of the food income for the army before farms
-internal int g_min_workforce = 40;          // [all] min_workforce (COPPER PLAN below)
-internal int g_food_floor = 18;             // [all] food_floor: copper_plan=2, food workers wanted before farms (half the workers up to this)
-internal int g_cit_queue = 0;                // [all] citizen_queue: copper_plan=2, citizens paid ahead while saving (0 = any)
-internal float g_epoch_share = 0.40f;        // [all] epoch_share: copper_plan=2, of the income into the epoch account
+internal float g_early_food_share = 0.10f;   // [ai_base] early_army_food_share: of the food income for the army before farms
+internal int g_min_workforce = 40;          // [ai_base] min_workforce (COPPER PLAN below)
+internal int g_food_floor = 18;             // [ai_base] food_floor: copper_plan=2, food workers wanted before farms (half the workers up to this)
+internal int g_cit_queue = 0;                // [ai_base] citizen_queue: copper_plan=2, citizens paid ahead while saving (0 = any)
+internal float g_epoch_share = 0.40f;        // [ai_base] epoch_share: copper_plan=2, of the income into the epoch account
 internal float g_epoch_acc[16][7];           // copper_plan=2: the next epoch's money, out of the citizens' reach
 internal int g_epoch_acc_ep[16];             // the epoch it was saved in (+1; 0 = none yet)
-internal int g_early_workers = 60;           // [all] early_army_workers: below, the army still spares food (substitution)
+internal int g_early_workers = 60;           // [ai_base] early_army_workers: below, the army still spares food (substitution)
 #define EARLY(idx, which) PV(idx, g_v_##which, g_##which)
 internal int copper_mode(ee_player *pl);          // below: copper_plan (per difficulty) or the variant's v_copper_plan
 internal void early_tick(ee_player *pl, unsigned idx, uint32_t now);   // early.c
@@ -62,8 +62,8 @@ internal unsigned g_early_mil_refused[16];   // defence.c militia_answer: citize
 internal struct { uint32_t t; int last[7]; float rate[7], per_worker[7]; } g_rate[16];
 internal const float k_default_pw[7] = { 0, 0, 10, 10, 5, 8, 6 };
 internal void rates_update(ee_player *pl, unsigned idx, uint32_t now);
-internal int g_reserve_plan = 1;   // aimod.ini [all] reserve_plan (see spend_reserve)
-internal int g_mineral_margin = 300;   // aimod.ini [all] mineral_worker_margin (econ_targets; -1 = off)
+internal int g_reserve_plan = 1;   // aimod.ini [ai_base] reserve_plan (see spend_reserve)
+internal int g_mineral_margin = 300;   // aimod.ini [ai_base] mineral_worker_margin (econ_targets; -1 = off)
 
 // Spending by caller (diagnostic): what EEComputerPlayer::vf45 (pay) took, summed per player, resource and return
 // address, with the income so far; logged as "# spend:" every 5 minutes.
@@ -95,7 +95,7 @@ internal void spend_log(unsigned idx, uint32_t now) {
 // can't be placed goes back into its queue. The random-map build list starts with a "Single Player Settlement"
 // (type 395) that can never be placed, alone in the epoch-0 queue: it failed ~1000 times a game and took every round,
 // so nothing from the later queues was ever built - no Granary, Archery Range, Stable, Siege Factory, University...
-// build_fix (aimod.ini [all], default on): 395 is placed as a normal Settlement (43, a drop site), and an entry that
+// build_fix (aimod.ini [ai_base], default on): 395 is placed as a normal Settlement (43, a drop site), and an entry that
 // fails 3 times in a row is dropped (reported as placed; the planner 0x465A8E re-queues missing buildings every
 // 2 minutes). Attempts and failures per player and type are logged as "# place:" every 5 minutes.
 // RETRY (with build_fix): a dropped entry was gone for good - the planner never queued it again. Both AIs failed
@@ -185,7 +185,7 @@ internal void place_log(unsigned idx, uint32_t now) {
     LeaveCriticalSection(&g_lock);
 }
 
-// GATHERING RESEARCH (aimod.ini [all] gather_research, default on): the research manager (cm+0x40) researches what is
+// GATHERING RESEARCH (aimod.ini [ai_base] gather_research, default on): the research manager (cm+0x40) researches what is
 // scheduled in its per-epoch lists (+0x18 + e*0x10); new techs come from a pool (+8) through a random planner
 // (0x4858D9) that prefers gathering upgrades - but only while its flag +0x11A is set, and the AI's "attention" pass
 // (0x42F912) switches on just player+0xE20 + 1 activities per period, research rarely among them. In the Bronze
@@ -233,7 +233,7 @@ internal void gather_research(ee_player *pl, unsigned idx, uint32_t now) {
     }
 }
 
-// PAID UPGRADES (aimod.ini [all] paid_upgrades, default on). When a computer player reaches an epoch,
+// PAID UPGRADES (aimod.ini [ai_base] paid_upgrades, default on). When a computer player reaches an epoch,
 // EEComputerPlayer::vf41 (0x43DCBF -> 0x43D330) calls 0x5BDDBD(7) on the epoch's tech node: every child tech of
 // category 7 (data +0x48) is researched on the spot through EETechTreeNode::vf6 (0x5BF335) - no cost, no building,
 // no time. Those are the unit and building line upgrades (effect kind 0x13: Copper Age e.g. 3080 = 40 food, 40 iron:
@@ -453,7 +453,7 @@ internal void __thiscall hook_add_resource(ee_player *pl, int type, int amount) 
 }
 
 // POPULATION LIMIT (aimod.ini pop_follow_human per difficulty, default 0 = the game limit; the shipped aimod.ini: 1
-// for [easy] - the playtester: the defaults should show the AI at its strongest without cheating). Every minute 0x42F7A5 sets the AI's
+// for [ai_easy] - the playtester: the defaults should show the AI at its strongest without cheating). Every minute 0x42F7A5 sets the AI's
 // cap (player +0xCCC, read through EEComputerPlayer vf31) to (2.4 x the largest human population + 0.6 x the game
 // limit) / 3 (dbcpbehavior records 92/93), times the difficulty's factor (record 98: 70 / 90 / 140%) - so the AI grows
 // with the human and doesn't flood him with units; Ignorieren (+0xF02) or game setting 0x9187FC = 4 give it the game
@@ -555,7 +555,7 @@ internal int current_epoch(ee_player *pl) {
 // Settlement, Granary) or a tech. AttemptEpochAdvance (0x46C966) asks for the missing ones (0x4860D6 thiscall(cm+0x40,
 // count): buildings through the build manager 0x46802D, units through the unit manager 0x48FB70, techs 0x485F57) -
 // only at the attempt, once the AI can already pay, and only while the attention pass has switched on cm+0x7A.
-// Two fixes (aimod.ini [all] early_requirements, default on):
+// Two fixes (aimod.ini [ai_base] early_requirements, default on):
 // - our budget refused those units (the military account is nearly empty before farms): a requested unit type
 //   that would count for the next epoch is paid from the stock above the reserve like a priority request
 //   (requirement_unit, in hook_train_units). In the suites an AI that could pay waited 4 minutes on average for
@@ -804,7 +804,7 @@ internal int wild_food(ee_player *pl) {
 // books), so workers piled onto food while stone/gold starved and the epoch requirement techs never got
 // paid. Redistribute the same number of workers by actual shortfall: food only up to the epoch reserve,
 // others by demand beyond stock, stone/gold/iron at least what the Copper Age still costs.
-// LATE WOOD ([all] late_targets, bits, default 3): from the Copper Age on the game's targets stand - except wood. Its
+// LATE WOOD ([ai_base] late_targets, bits, default 3): from the Copper Age on the game's targets stand - except wood. Its
 // food demand never falls below ~75000 (every game, from minute 0), so food takes the lion's share and wood got 1-3
 // workers: 92 wood, no barracks, tank factory, airport or anti-air rebuilt, only wolves from the Town Center; and the
 // rebalance (below) moved surplus workers only to mines - 38 of Livia's on gold with a target of 0, 5587 gold.
@@ -1027,7 +1027,7 @@ internal void econ_targets(ee_resource_mgr *rm) {
 // the resource with the largest surplus to a stone/gold/iron mine that is short, with the game's own site search
 // (0x48C204: free slot, explored, no enemy near, the citizen's continent) and assignment (0x48C81C: new gather
 // target, moves the citizen between the resource lists). Hysteresis: the targets jump with demand every 5 s.
-internal int g_rebalance = 1;   // aimod.ini [all] rebalance_workers
+internal int g_rebalance = 1;   // aimod.ini [ai_base] rebalance_workers
 internal unsigned g_moved[16][7];
 internal int rm_count(ee_resource_mgr *rm, int t) { return FIELD(resource_mgr_list_at(rm, t), 0x10, int); }
 internal ee_unit *movable_gatherer(ee_resource_mgr *rm, int t) {
@@ -1042,7 +1042,7 @@ internal ee_unit *movable_gatherer(ee_resource_mgr *rm, int t) {
     }
     return NULL;
 }
-// FARM FIELDS (build_fields, aimod.ini [all], default on). A granary comes with 8 fields (type 0x2A) as foundations
+// FARM FIELDS (build_fields, aimod.ini [ai_base], default on). A granary comes with 8 fields (type 0x2A) as foundations
 // ([field+0x30]+0x340 = finished). The game's citizen assignment (0x48A554) sends citizens to finished fields
 // (0x48BFD0) and builders to unfinished ones (0x48BF4F, orders at 0x48B118) only for a food shortfall left after
 // wild food, with citizens left over - and builders only while player +0xEFA is 0: on a map with water and 10+ fish
@@ -1151,7 +1151,7 @@ internal void fields_rebuild(ee_player *pl, unsigned idx, void *um, uint8_t *dq,
     }
     if (queued && g_log) fprintf(g_log, "# fields: P%u at %.1f min: %d lost fields laid out again\n", idx, now / 60000.0, queued);
 }
-// MORE GRANARIES (more_granaries, aimod.ini [all], default on): a granary feeds 8 fields, and the AI builds one -
+// MORE GRANARIES (more_granaries, aimod.ini [ai_base], default on): a granary feeds 8 fields, and the AI builds one -
 // its build list places it once; the building plan's farm entry (0x46CD18: fields wanted > fields -> a granary) is
 // not in the random-map plans. Food targets of 50-100 workers then had 17-23 on food (8 farming, the rest hunting
 // far away) and the citizens the assignment couldn't place went to gold (34 on gold, target 4; 4000+ gold unused,
@@ -1428,7 +1428,7 @@ internal void budget_reserve(ee_player *pl, int reserve[7]) {
     }
 }
 
-// RESERVE PLAN (aimod.ini [all] reserve_plan, default on) - what spending sees instead of budget_reserve: like a
+// RESERVE PLAN (aimod.ini [ai_base] reserve_plan, default on) - what spending sees instead of budget_reserve: like a
 // player waiting for the slowest resource of the next epoch, the AI holds back only what it can't gather again in
 // time - from the Copper Age on, when farms make food renewable. Requirement N: the next epoch's cost within 10
 // minutes of the planned attempt (cm+0x58; nothing before). Horizon H = the time until the attempt or until the
@@ -1510,7 +1510,7 @@ internal int unit_cost(ee_player *pl, int type, int r) {
     return (int)c;
 }
 
-// UNIT SUBSTITUTION (aimod.ini [all] unit_substitution, default on): the AI's unit choice ignores what it can pay
+// UNIT SUBSTITUTION (aimod.ini [ai_base] unit_substitution, default on): the AI's unit choice ignores what it can pay
 // for and what it can still train - in the Copper Age P3 asked for the Golden Hind (a hero ship, 300 wood), Sampson
 // (a hero, 65 gold), Incan Warriors and Simple Bowmen (gold), Clubmen and Rock Throwers (upgraded away) - hundreds
 // of failed requests every 5 minutes, 10-12 soldiers at minute 45 with 2900 food and 400-600 iron in the military
@@ -1520,7 +1520,7 @@ internal int unit_cost(ee_player *pl, int type, int r) {
 // player, refreshed every 30 s. Counted in the 5-minute army line ("substituted"). Never one without an attack: the
 // Domestic Wolf (615, a leftover of the game's data: attack 0, food only) was the last candidate and so the one
 // left whenever iron ran short - in the World War I age an army of 45 wolves that did no damage.
-// SAVING FIRST ([all] substitute_wait, seconds, default 90; 0 = at once): a unit the game can train but the budget
+// SAVING FIRST ([ai_base] substitute_wait, seconds, default 90; 0 = at once): a unit the game can train but the budget
 // can't pay yet is saved for - substituting at once spent what was being saved on something weaker, and the better
 // unit never came. Only once the AI has saved for that long without training a requested soldier (no iron coming
 // in at all), or with enemy soldiers in its base (it needs soldiers now), does it train the substitute. A unit the
@@ -1619,7 +1619,7 @@ internal int landing_room_reserve(ee_player *pl);   // landing.c: population roo
 // of the buildings 0x624DF8 the same); the mod's own orders (AA units, siege, home guard, transports) didn't. At the cap
 // they were queued and paid for and could never come out: lowpop (cap 30) - P3's "in production" ran to 56 after it
 // got resources, 63 units of AA tanks (146) and siege (105) ordered with no room. Now cut to the room (none: refused).
-// [all] train_room: a mask of players (default all; tests: 8 = P3 only). lowpop, 20 seeds, P3 without vs with (P2
+// [ai_base] train_room: a mask of players (default all; tests: 8 = P3 only). lowpop, 20 seeds, P3 without vs with (P2
 // without): P3 kills 23.4 vs 28.2, losses 32.2 vs 28.9 (P2's losses 22.3 vs 28.6). The AI's cap follows the human's
 // population: at the cap is common in normal games too.
 internal int g_train_room = 0xFFFF;
@@ -1872,7 +1872,7 @@ __attribute__((noinline)) internal uintptr_t __thiscall hook_train_units(ee_unit
 internal void econ_install(const char *autotest_ini) {
     settings_load();
     sites_install();
-    // finer tuning, same for all difficulties ([all] section; autotest may override)
+    // finer tuning, same for all difficulties ([ai_base] section; autotest may override)
     g_citizen_slack = g_set_ai[1].idle_citizen_slack;
     g_hoard_cap = g_set_ai[1].hoard_cap;
     g_hoard_cap_mineral = g_set_ai[1].hoard_cap_mineral;

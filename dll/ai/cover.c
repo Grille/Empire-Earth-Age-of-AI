@@ -23,7 +23,7 @@
 // the samples of the military units, the damaged (below half), damaged in a quiet moment; the hit points regained by
 // the Hospitals, the Docks, elsewhere; Hospitals and Docks standing; what fall_back did.
 //
-// fall_back ([all], bits; [autotest] v_fall_back for the variant players; per unit, never an attack called back):
+// fall_back ([ai_base], bits; [autotest] v_fall_back for the variant players; per unit, never an attack called back):
 // 1 HEAL: a land unit worth fall_back_value (100) or more below fall_back_hp (40%) of its hit points walks to the
 //   nearest own Hospital on its land within fall_back_dist (60) tiles (none seen near it) and stays until 90% (4
 //   minutes at most) - its attack subgroup's orders refused meanwhile (landing.c hook_asg_give_goal) - then rejoins.
@@ -161,7 +161,7 @@ internal float cv_local(ee_player *pl, ivec2 p, int r, int honest) {
     }
     return st_ratio(&g_cvs_own, &g_cvs_foe);
 }
-// LOST FIGHTS ([all] avoid_lost_fights, with danger_routes; game/danger.c's DANGER_LOST - the player: an AI fed its soldiers in packs of 2-4 into
+// LOST FIGHTS ([ai_base] avoid_lost_fights, with danger_routes; game/danger.c's DANGER_LOST - the player: an AI fed its soldiers in packs of 2-4 into
 // his standing army of artillery and ranged units, 150 lost and none killed in 11 minutes on his save "standing army",
 // on their way to its attack subgroups' marching points): every 4 s each 8-tile cell with enemy fighters pl sees is
 // judged - the enemy within CV_ZONE_FOE of its middle (seen; their defences too) against pl's own and allied fighters

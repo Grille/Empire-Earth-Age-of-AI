@@ -91,7 +91,7 @@ internal void am_reserve(ee_player *pl, unsigned idx, int reserve[7]) {
     bunker_reserve(pl, reserve);
     navy_hold(pl, idx, reserve);
 }
-// ---- army_plan ([all], bits; [autotest] v_army_plan for the variant players; docs/economy.md "Economy into army") ----
+// ---- army_plan ([ai_base], bits; [autotest] v_army_plan for the variant players; docs/economy.md "Economy into army") ----
 // From the Copper Age (farms: food no longer runs out), what the economy brings in and nobody spends becomes army:
 // 1 FLOAT: every 10 s the stock above everything held back (am_reserve: the epoch, fields, landing, fortress, navy) is
 //   watched for 2 minutes; what never dropped below that (money lying unused - the citizens, buildings and techs had

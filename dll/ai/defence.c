@@ -1,6 +1,6 @@
 // Defences: how the AI fortifies its base. Included by eeaimod.c after attack.c (uses its defence_stats, is_wall).
 
-// DEFENCE LAYOUT (aimod.ini [all] defence_layout, default on). The game's AI decides when and how many towers to
+// DEFENCE LAYOUT (aimod.ini [ai_base] defence_layout, default on). The game's AI decides when and how many towers to
 // build (its building plan, cm 0x46CD18) and puts each where its spot finder (0x466ED4) finds room along paths from
 // the base - observed: 4 bronze towers scattered one by one on the side away from the enemy, none at the mines. A
 // player masses towers where the attacks come from and guards his outlying mines. Here the AI's own tower requests
@@ -17,8 +17,8 @@
 // citizens get the same build-wall order a player gives). The ends stay open - own units walk round, attackers on
 // foot must break through or walk the length of it under tower fire.
 internal int g_def = 1, g_def_dist = 10, g_def_walls = 1, g_def_more = 1;
-internal int g_aa = 1, g_aa_ahead = 1, g_aa_ahead_b = 3;   // [all] anti_air, aa_ahead, aa_ahead_buildings (below)
-internal int g_hold = 0;   // [all] hold_town (below)
+internal int g_aa = 1, g_aa_ahead = 1, g_aa_ahead_b = 3;   // [ai_base] anti_air, aa_ahead, aa_ahead_buildings (below)
+internal int g_hold = 0;   // [ai_base] hold_town (below)
 internal uint8_t g_def_off[16];   // per player, pipe "defence P 0|1" (A/B scenarios)
 internal unsigned g_def_towers[16], g_def_walls_built[16];
 struct front { int fx, fy, enemy; float dx, dy; int wall_tries; uint32_t wall_t; };
@@ -256,7 +256,7 @@ internal void defence_tick(ee_player *pl, unsigned idx, uint32_t now) {
 // can see within 12 tiles of its buildings or citizens get the same answer as siege: the nearest soldiers (or, short
 // of soldiers, its citizens) attack the builders - the enemy citizens whose EEUGBuildRepair holds it - spread over
 // them, and the foundation only when nobody builds it. Finished towers are the siege weapons' job (attack.c siege_tick).
-// COUNTER-SIEGE (aimod.ini [all] counter_siege, default on): catapults outrange towers (bronze: 7 against 5) and the
+// COUNTER-SIEGE (aimod.ini [ai_base] counter_siege, default on): catapults outrange towers (bronze: 7 against 5) and the
 // AI just watched its towers being shelled. A player sends a few soldiers out at them. Every 2 s per AI: enemy siege
 // weapons (and rams) it can see within their range + 4 tiles of one of its buildings are threats; its soldiers within
 // 20 tiles of one - idle, marching, or fighting something more than 4 tiles away - attack it (up to 5 each, nearest
@@ -296,7 +296,7 @@ internal void cs_unit(ee_unit *u, void *ctx) {
         else if (is_soldier(td) && s->nx < 256) { s->ex[s->nx] = x; s->ey[s->nx++] = y; }
     }
 }
-// CITIZEN MILITIA (aimod.ini [all] citizen_militia, default on). A player answers citizens that walk up to his mine or
+// CITIZEN MILITIA (aimod.ini [ai_base] citizen_militia, default on). A player answers citizens that walk up to his mine or
 // berries and start a tower there with his own citizens, and in the early ages his citizens beat off a small rush.
 // The AI's citizens never fought. Every 2 s (with the counter-siege scan):
 // - enemy citizens building a defence (EEUGBuildRepair, target +0x3C unfinished, a ground attack) within 12 tiles of
@@ -306,7 +306,7 @@ internal void cs_unit(ee_unit *u, void *ctx) {
 // are attacked by the AI's citizens within 10 tiles, at most 3 per enemy and against at most 6 - only when those
 // citizens' strength (hit points x attack) is 3 times that of the enemies within 6 tiles: Bronze Age soldiers (119 hp)
 // killed 10 citizens of a count-based militia while losing 49 hit points. Gathering or idle citizens only; afterwards the assignment puts them back to work.
-// [all] militia_estimate (default 0): 1 = the citizens decide with the stats estimate (dll/ai/stats.c) instead, in every
+// [ai_base] militia_estimate (default 0): 1 = the citizens decide with the stats estimate (dll/ai/stats.c) instead, in every
 // epoch (the playtester: "a hard limit isn't right... tower builders without guards should always be engaged; troops
 // in later ages should be avoided, but many units are faster than citizens - caught alone and running, they get
 // chased down"): enemies without soldiers among them (builders, a foundation) when the citizens win (ratio >= 1);
@@ -315,7 +315,7 @@ internal void cs_unit(ee_unit *u, void *ctx) {
 // 0.33 had 3 citizens attack a Mk V tank 42 times - 0.2 of their damage gets through, a third of a tank is no use). A fallback ("when the
 // citizens have a chance and no military is near to do the job"): not when own soldiers within 12 tiles win on their own.
 internal int g_militia = 1, g_militia_est = 0;
-internal float g_militia_share = 1.0f;   // [all] militia_caught_share: the share of the attackers caught citizens must still destroy
+internal float g_militia_share = 1.0f;   // [ai_base] militia_caught_share: the share of the attackers caught citizens must still destroy
 internal unsigned g_militia_caught[16];
 internal unsigned g_militia_orders[16];
 internal float unit_power(ee_unit *u) {   // hit points x attack (live stats), a rough fighting strength
@@ -349,7 +349,7 @@ internal int militia_answer(struct cs_scan *s, ee_unit *t, int *nfree) {   // ci
             if (est) st_side_add(&g_mil_own, s->civ[c]);
             if (st_speed(s->civ[c]) > cspeed) cspeed = st_speed(s->civ[c]);
         }
-    // EARLY MILITIA ([all] early_militia; dll/ai/early.c): against soldiers the citizens fight only next to their own
+    // EARLY MILITIA ([ai_base] early_militia; dll/ai/early.c): against soldiers the citizens fight only next to their own
     // soldiers or under their own towers, and only where the estimate has them win without a loss - in the first
     // epoch 1-6 Clubmen and Rock Throwers killed 39-48 citizens a game at the town, militia ordered 40-63 times a
     // game. Otherwise the citizens fall back under a tower (tower_bait) and the tower does the fighting.
@@ -517,7 +517,7 @@ internal void counter_siege(ee_player *pl, unsigned idx, uint32_t now) {
     }
 }
 
-// HOME GUARD (aimod.ini [all] home_guard = soldiers per epoch, default 4; 0 = off): the unit manager (0x490AD6)
+// HOME GUARD (aimod.ini [ai_base] home_guard = soldiers per epoch, default 4; 0 = off): the unit manager (0x490AD6)
 // only trains what is ordered into its request queues - mostly the next attack's group, ordered shortly before the
 // attack. Between attacks nothing is trained: at minute 45 a Bronze Age AI had 10 soldiers, 25 requests in 5
 // minutes and 1555 food + 1554 wood in its military account; a raid met 2-5 defenders. A player keeps a force at
@@ -555,7 +555,7 @@ internal void home_guard(ee_player *pl, unsigned idx, uint32_t now) {
     // and a share of the military room: population cap (vf31 - follows the human's population unless Ignorieren) x
     // (1 - citizen share +0xBDC)
     int cap = unit_limit(pl);
-    float share = cfg_of(pl)->home_guard_share;   // the difficulty's (its section, else [all]) or the personality's
+    float share = cfg_of(pl)->home_guard_share;   // the difficulty's (its section, else [ai_base]) or the personality's
     int room = (int)((float)cap * (1.0f - player_get_citizen_share(pl)) * share);
     if (room > target) target = room;
     // early_army (econ.c train_budget): no soldiers in the first epoch - towers and citizens; early_soldiers=N (the
@@ -580,7 +580,7 @@ internal void home_guard(ee_player *pl, unsigned idx, uint32_t now) {
                             idx, now / 60000.0, home, target, n, type);
 }
 
-// MUSTER ([all] muster, default 1; with fight_estimate the sides are compared with dll/ai/stats.c's estimate): an enemy army in the base got the AI's defenders one by one - every soldier the
+// MUSTER ([ai_base] muster, default 1; with fight_estimate the sides are compared with dll/ai/stats.c's estimate): an enemy army in the base got the AI's defenders one by one - every soldier the
 // home guard trained walked into it alone, and the next one, and the next. A player would pull back what is left,
 // gather, and strike once there is a force that can win. Every 3 s per AI: enemy soldiers within 22 tiles of the
 // base (strength = hit points x attack) against its own soldiers within 35 and its towers within 22. Only when the
@@ -768,7 +768,7 @@ internal void muster(ee_player *pl, unsigned idx, uint32_t now) {
     g_mus[idx].orders += ordered;
 }
 
-// HOLD THE TOWN ([all] hold_town, default 0). Soldiers carry a behaviour (unit +0x208: an EEUnitBehavior of the
+// HOLD THE TOWN ([ai_base] hold_town, default 0). Soldiers carry a behaviour (unit +0x208: an EEUnitBehavior of the
 // table at [0x8D2044] - 0 Scout, 1 Stand Ground, 2 Guard, 3 Harass, 4 Cautious, 5 Aggressive; set by the player's
 // command EEMSetUnitBehavior 0x4BFF1A for units whose type data +0x621 allows it). Every soldier is Aggressive: it
 // chases what it sees. A player's army camped outside an AI's town (artillery, outranging the towers, with its
@@ -1066,14 +1066,14 @@ internal void defence_install(void) {
     if (g_log) fprintf(g_log, "# defence: layout=%d distance=%d walls=%d own towers=%d counter-siege=%d home guard=%d/epoch, %.2f of the military room, fight_estimate=%d hold_town=%d\n", g_def, g_def_dist, g_def_walls, g_def_more, g_csiege, g_home_guard, g_home_share, g_fight_est, g_hold);
 }
 
-// ANTI-AIR ([all] anti_air, default 1). The game's unit choice hardly asks for anti-air: the user's planes overran
+// ANTI-AIR ([ai_base] anti_air, default 1). The game's unit choice hardly asks for anti-air: the user's planes overran
 // both AIs' towns, one asked for an AA tank once in 5 minutes among hundreds of orders, built 2 88mm guns and lost its
 // few AA tanks for good. Every 5 s: enemy aircraft it can see within 25 tiles of its drop sites (the most seen in the
 // last 5 minutes counts). While there were any: it wants 2 + half their number in anti-air (at most 16), a quarter of
 // that (1..4) as AA buildings next to the drop site nearest to where the aircraft were - the rest AA units, the
 // newest of its epoch, up to 3 at a time every 15 s; one building at a time in the build queue, a minute apart.
 // Orders as the siege's (priority: the stock above the epoch reserve, not the army's account); losses are replaced.
-// AHEAD ([all] aa_ahead, default 1; the playtester: "they only build as reaction? then it's already too late, getting
+// AHEAD ([ai_base] aa_ahead, default 1; the playtester: "they only build as reaction? then it's already too late, getting
 // them up while the town is actively bombed is nearly impossible"): from World War I, once an enemy is there too, AA
 // stands before any aircraft come - an AA building at each of the first aa_ahead_buildings (3) drop sites nearest the
 // base point that has none within 7 tiles, and 2 AA units; enemy aircraft seen anywhere count (half of them, they fly

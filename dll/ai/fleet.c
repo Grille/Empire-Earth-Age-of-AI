@@ -1,4 +1,4 @@
-// FLEET ([all] navy_fleet, default 2 (stage 4: navy_fleet=2, with massing: navy_fleet_mass); [autotest] v_navy_fleet for the variant players; docs/navy.md stage 3): the mod
+// FLEET ([ai_base] navy_fleet, default 2 (stage 4: navy_fleet=2, with massing: navy_fleet_mass); [autotest] v_navy_fleet for the variant players; docs/navy.md stage 3): the mod
 // leads an AI's warships on a water map (navy_detect: enemies across the water) instead of the game's sea groups.
 // Included by eeaimod.c after navy.c (navy_kind, nv_f, g_nv_map), landing.c (g_ld, ld_hits, ld_open_water, unit
 // goals), intel.c (g_intel).
@@ -664,7 +664,7 @@ internal void fl_haven(struct fleet *m) {
     if (bd < 0) m->hv = m->g;
 }
 
-// MASSING (stage 4, [all] navy_fleet_mass, default 1; docs/navy.md stage 5). The playtester: "massing a fleet under the
+// MASSING (stage 4, [ai_base] navy_fleet_mass, default 1; docs/navy.md stage 5). The playtester: "massing a fleet under the
 // protection of towers and land units is an important step". Against the sea opponent the stage-4 ships came one at
 // a time into a sea the enemy held (0.3-0.8 afloat on average, 8-20 sunk a game, most at the guard point). While the
 // fleet is weaker than the enemy fleet known (ratio < 1.0) or below its critical mass (a quarter of the fleet's target,

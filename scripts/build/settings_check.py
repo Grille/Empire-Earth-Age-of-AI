@@ -1,7 +1,7 @@
 """The settings' rows (dll/settings/rows.h) against the shipped config/aimod.ini, run by dll/build.sh: every row of
 aimod.ini's sections is in the file - set (key=value, then with the row's default: the built-in default is what the
-shipped file says) or shown commented out (;key=example) - every key set in a section is a row, a key of [easy] /
-[hard] a row of [all] (D), and the shipped [easy] sets what SETTINGS_EASY says. The sections
+shipped file says) or shown commented out (;key=example) - every key set in a section is a row, a key of [ai_easy] /
+[ai_hard] a row of [ai_base] (D), and the shipped [ai_easy] sets what SETTINGS_EASY says. The sections
 (SETTING_SECTIONS): every row's section is one, every section of the file is one and every one of them is in the file
 (but the test ini's, kind TEST: its rows aren't looked for), each named once, each order its own, the DIFF ones
 easy and hard. A CHILD's master is a CHOICE default|enabled|disabled (default "default") before it in its
@@ -15,7 +15,7 @@ ROW = re.compile(r'\b(?:[XS]\((\w+),\s*(\w+),|D\((\w+),)\s*(\w+),\s*("[^"]*"|-?\
 MASTER = '"default|enabled|disabled"'
 SECTION = re.compile(r'\bT\((\w+),\s*(-?\d+),\s*(\w+),\s*"[^"]*"\)')
 EASY = re.compile(r'\bE\((\w+),\s*"([^"]*)"\)')
-DIFF = ('easy', 'hard')   # the medium AI plays [all]: no section of its own
+DIFF = ('ai_easy', 'ai_hard')   # the medium AI plays [ai_base]: no section of its own
 
 
 def rows():
@@ -23,7 +23,7 @@ def rows():
     sections = [(sec, int(order), kind) for sec, order, kind in SECTION.findall(src)]
     table = []
     for m in ROW.finditer(src):
-        kind, sec = (m.group(1), m.group(2)) if m.group(1) else (m.group(3), 'all')
+        kind, sec = (m.group(1), m.group(2)) if m.group(1) else (m.group(3), 'ai_base')
         table.append((kind, sec, m.group(4), m.group(5), m.group(6)))
     return table, sections, dict(EASY.findall(src))
 
@@ -101,12 +101,12 @@ def main():
                 bad.append('[%s] %s=%s in config/aimod.ini, the row\'s default %s' % (sec, name, value, default))
     for sec in whole:
         for name in keys.get(sec, {}):
-            rows_of = known.get('all' if sec in DIFF else sec, [])
+            rows_of = known.get('ai_base' if sec in DIFF else sec, [])
             if not any(k == name or (kind == 'STR_P' and re.fullmatch(re.escape(k) + r'\d+', name)) for kind, k in rows_of):
                 bad.append('[%s] %s: in config/aimod.ini, but no row in dll/settings/rows.h' % (sec, name))
-    shipped_easy = {k: v for k, v in keys.get('easy', {}).items() if v is not None}
+    shipped_easy = {k: v for k, v in keys.get('ai_easy', {}).items() if v is not None}
     if shipped_easy != easy:
-        bad.append('[easy] in config/aimod.ini sets %s, SETTINGS_EASY says %s' % (shipped_easy, easy))
+        bad.append('[ai_easy] in config/aimod.ini sets %s, SETTINGS_EASY says %s' % (shipped_easy, easy))
     for b in bad: print('settings: ' + b)
     return 1 if bad else 0
 

@@ -137,7 +137,7 @@ internal void cz_tick(ee_player *pl, uint32_t now) {
     cz_sample(pl, idx);
 }
 
-// ---- citizen_plan ([all], bits; [autotest] v_citizen_plan for the variant players; docs/economy.md) ----
+// ---- citizen_plan ([ai_base], bits; [autotest] v_citizen_plan for the variant players; docs/economy.md) ----
 // Measured first (# cit, the base AI at hard, 60 min, 3 maps x cheat x 20 seeds x both seats): from minute 30 the
 // producers stood idle 77-85% of the time, mostly because the game's citizens wanted (+0xBDC x cap: 75 of a cap of
 // 166) were there ("target", 42-58% of their time; the base AI's own share is the same, but with the cheat it has
@@ -163,7 +163,7 @@ internal void cz_tick(ee_player *pl, uint32_t now) {
 // -8 on Continental without the cheat, kills - losses within the noise but Large Islands with the cheat -16 (7). 7 (+ DROP) 6-9 more on Continental's mines but 13 soldiers fewer; FIRST
 // changed nothing. Head-to-head: workers +24, razed +6; lowpop (cap 30) workers +10, kills - losses +23. Default 3.
 internal int g_cit_plan = 3, g_v_cit_plan = -1, g_cit_train_ms = 28000;
-internal float g_cit_army = 0.40f;   // [all] citizen_army_share
+internal float g_cit_army = 0.40f;   // [ai_base] citizen_army_share
 #define CIT_PLAN(idx) PV(idx, g_v_cit_plan, g_cit_plan)
 internal int expand_cit_need(ee_player *pl, unsigned idx);   // expand.c: the citizens an outpost still needs (EXTRA)
 internal int wf_cap_wanted(unsigned idx, int n);         // below: workforce_plan CAP
@@ -276,7 +276,7 @@ internal int cz_visible_food(ee_player *pl, unsigned idx, const int *stock, int 
     if (g_rate[idx].rate[2] < 2.0f * spend) return visible;
     return stock[2] > visible ? stock[2] : visible;
 }
-// ---- workforce_plan ([all], bits; [autotest] v_workforce_plan for the variant players; docs/economy.md "Workforce
+// ---- workforce_plan ([ai_base], bits; [autotest] v_workforce_plan for the variant players; docs/economy.md "Workforce
 // into army") ----
 // The playtester: citizens are needed to fill every mine, a lack of them should not be the limit - nor should an
 // oversized, wood-heavy workforce starve the army; workers on wood beyond what is spent are waste.

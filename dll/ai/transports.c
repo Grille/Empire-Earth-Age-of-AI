@@ -8,7 +8,7 @@
 // standing Idle without any goal, or gone off on an attack, kept a transport waiting until it sank.
 // Every transport on the map once a second - the game's own crossings, the landing's and the outpost ferries' alike: a
 // stall is the same state on the same tile for 20 s while it has a goal or passengers aboard.
-// transport_watchdog=1 ([all], default 0 until measured; [autotest] v_transport_watchdog for the variant players): a transport waiting 30 s in WaitForPassengers lets go of the
+// transport_watchdog=1 ([ai_base], default 0 until measured; [autotest] v_transport_watchdog for the variant players): a transport waiting 30 s in WaitForPassengers lets go of the
 // pending passengers that aren't coming - dead, inside something else, without a goal, with another order, or idle
 // with their board goal - through the goal's own vf19 (the game's step for a passenger with another order); one in
 // Idle 20 s with its unload goal and passengers aboard is set to PrepareToMove (what every order does), 3 times a stall.
@@ -20,7 +20,7 @@
 // ..." for each step. <id>: the unit object's address (the same within a game).
 
 internal int g_tw_log = 0;   // [autotest] transport_log
-internal int g_tw_dog = 0;   // [all] transport_watchdog
+internal int g_tw_dog = 0;   // [ai_base] transport_watchdog
 internal int g_v_tw_dog = -1;   // head-to-head (autotest): [autotest] v_transport_watchdog for the variant_players (econ.c PV)
 
 #define TW_N 128

@@ -411,7 +411,7 @@ internal void config_missing(const char *ini) {
 
 // Autotest: [autotest] config = the aimod.ini to play with, ai_dir = the personality folder (aimod_ai), each absolute
 // or relative to the game folder; unset = the files next to the game as in normal play. Every reader of the settings
-// goes through g_aimod_ini / g_ai_dir, so the whole file ([general], [all], the difficulties, [display], [llm] ...)
+// goes through g_aimod_ini / g_ai_dir, so the whole file ([general], [ai_base], the difficulties, [display], [llm] ...)
 // comes from the chosen one. The personality folder otherwise: aimod.ini [general] ai_dir (the same path rules), so a
 // developer's game reads the repository's files (ai_dir = _aimod\config\aimod_ai) instead of a copy. A folder that
 // isn't there: the one next to the game, told in the log (g_ai_dir_why). config_paths picks the file, config_ai_dir

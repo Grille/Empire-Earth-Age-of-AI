@@ -192,8 +192,8 @@ siege, home guard.
 
 1. Copy `eeaimod.dll` into the Empire Earth folder (next to `Empire Earth.exe`).
 2. Copy [`config/aimod.ini`](config/aimod.ini) into the same folder and adjust it. Every option is
-   explained in the file. `[all]` is every AI difficulty's (the medium AI plays it as it is); `[easy]` and
-   `[hard]` override it for those two.
+   explained in the file. `[ai_base]` is every AI difficulty's (the medium AI plays it as it is); `[ai_easy]` and
+   `[ai_hard]` override it for those two.
 3. Optional: copy the folder [`config/aimod_ai`](config/aimod_ai) into the same folder for the AI
    personalities. Add or edit `.eeai` files there to make your own; they are read when Empire Earth starts.
 4. Start the game normally. Changes to `aimod.ini` take effect when a game starts or a save is loaded.

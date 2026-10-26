@@ -1,4 +1,4 @@
-// DANGER MAP (`danger_routes`, [all], default 1): per player two layers of tiles. DANGER_THREATS: the tiles within
+// DANGER MAP (`danger_routes`, [ai_base], default 1): per player two layers of tiles. DANGER_THREATS: the tiles within
 // reach of the enemies it knows of - each tile how many threats cover it (0..DANGER_MAX). The AI fills its own
 // (ai/attack.c danger_refresh: the enemy defences it has seen, enemy soldiers and ships it sees at their reach, where
 // its citizens were hurt lately), only what it knows; the route search (engine/shiproute.c) makes those tiles dearer

@@ -13,7 +13,7 @@
 // (`strag`: 12+ tiles from their subgroup's middle); this minute's land soldiers killed (`died`) - alone, away, both,
 // outnumbered (`outn`: enemy soldiers within 8 tiles at least twice the own + 1) - and what army_mass did.
 //
-// army_mass ([all], bits; [autotest] v_army_mass for the variant players; land or mixed maps only - navy_land):
+// army_mass ([ai_base], bits; [autotest] v_army_mass for the variant players; land or mixed maps only - navy_land):
 // 1 GATHER: a member of a land attack subgroup that is out (state past forming, its members' middle 30+ tiles from
 //   the base) but stands at home (within 25 tiles: a replacement the attack commander gave it) is held - the
 //   subgroup's orders to it refused (landing.c hook_asg_give_goal, vf57; the land hand-off keeps its goal) - and walks

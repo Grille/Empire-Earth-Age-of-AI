@@ -4,7 +4,7 @@
 //   # navy: (autotest only, every 2 game minutes per AI) docks, fishing boats, warships by type, submarines, carriers,
 //     transports, the warships in its own waters / an enemy's waters, the enemy's warships in its waters, the ships
 //     it lost and sank (diplo.c kill counts), the food its boats took from the fish, its income and stock.
-//   navy types A B [all] / navy table (test commands): the ship types' data and the game's hit factor table.
+//   navy types A B [ai_base] / navy table (test commands): the ship types' data and the game's hit factor table.
 // Included by eeaimod.c after diplo.c (g_kills, player_at), landing.c (is_transport, is_fishing_boat), econ.c (g_bud).
 
 // The type families (+0x4B4, diplo.c kill_kind): 4 ships, 10 submarines, 18 transports, 21 carriers, 22 fishing boats.
@@ -250,7 +250,7 @@ internal void navy_detect(ee_player *pl, unsigned idx, uint32_t now) {
                        100.0f * m->water, hc, w ? (int)(map_get_flags(w) & 1) : -1, (int)player_get_boats_for_food(pl));
 }
 
-// NAVY ACCOUNT ([all] navy, navy_share; docs/navy.md stage 1). Every ship order went through the military budget,
+// NAVY ACCOUNT ([ai_base] navy, navy_share; docs/navy.md stage 1). Every ship order went through the military budget,
 // fishing boats included, and the army took the account: 1000-1700 failed ship requests per AI and hour on island
 // maps, 2-4 warships at most. On a water map (navy_detect) navy_share % x the strength of every wood, gold and iron
 // income (EEComputerPlayer::AddResource, econ.c hook_add_resource) goes into a navy account (at most NV_ACC_CAP of
@@ -389,7 +389,7 @@ internal void navy_nodes(ee_player *pl, unsigned idx, uint32_t now) {
         }
     }
 }
-// THE MINES ON A WATER MAP ([all] navy_mines; [autotest] v_navy_mines for the variant players; docs/navy.md stage 5).
+// THE MINES ON A WATER MAP ([ai_base] navy_mines; [autotest] v_navy_mines for the variant players; docs/navy.md stage 5).
 // From the Copper Age on the game's worker targets follow its demand, and its food demand never falls (econ.c LATE
 // WOOD): on islands the metals had 2-5 gatherers at the 12 slots of the home island's iron mines by minute 20
 // (navy_nodes: 6 a mine, 2 gold and 2 iron mines on a Small Islands home), while the navy's orders were refused for
@@ -788,7 +788,7 @@ internal void navy_docks(ee_player *pl, unsigned idx, uint32_t now) {
     if (g_log) fprintf(g_log, "# navy: P%u at %.1f min: docks %d of %d - one more requested\n", idx, now / 60000.0, w->docks, want);
 }
 
-// FISHING BOAT ([all] fishing_boat, default 1; docs/navy.md stage 0): the game's pick 0x46D209 (thiscall on the
+// FISHING BOAT ([ai_base] fishing_boat, default 1; docs/navy.md stage 0): the game's pick 0x46D209 (thiscall on the
 // economy object, +0x4C = the player) goes by the epoch index alone: below 3 the Stone boat 108, below 9 the Bronze
 // boat 109, below 14 the Modern boat 211 - an epoch-11 unit (tech 11090). The Imperial boat 365 (tech 8090) and the
 // Digital boat 332 (13098) are never asked for, and from the epoch index 9 on it asks for one it can't train: no
@@ -853,7 +853,7 @@ internal void navy_tick(ee_player *pl, uint32_t now) {
     if (now >= 120000 && now / 120000 != g_nv_log_t / 120000) { g_nv_log_t = now; navy_log_all(now); }
 }
 
-// navy types A B [all]: per type A..B (naval families only, or every type with all) - family, the hit table's target
+// navy types A B [ai_base]: per type A..B (naval families only, or every type with all) - family, the hit table's target
 // category +0x4C4, weapon kind +0x4C8, damage class +0x4C0, base hit points +0x55C, attack +0x510, range +0x420,
 // min range +0x41C, area +0x424, reload +0x50C ms, tech +0x4E0; for naval types also the cost (P2's prices) and P2's
 // stats record (0x492969: hp +0x144, attack +0xD8, range +0x9C, speed +0xAC, armour +0xE0 per class 0..5)
@@ -910,5 +910,5 @@ internal void cmd_navy(char *out, const char *args) {
         REPLY("\n");
         return;
     }
-    REPLY("error: navy types A B [all] | navy table\n");
+    REPLY("error: navy types A B [ai_base] | navy table\n");
 }

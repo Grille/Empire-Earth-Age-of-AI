@@ -1,12 +1,12 @@
 // AIMOD_CONFIG.EXE: the mod's settings (aimod.ini) in a window - for players who'd rather not edit the file. One tree:
 // the sections (rows.h SETTING_SECTIONS: General, Display ... the AI), their groups (SETTING_GROUPS), the settings
-// (value, default; an AI setting [all]'s, the medium AI's, and where easy or hard plays another), a master's children
+// (value, default; an AI setting [ai_base]'s, the medium AI's, and where easy or hard plays another), a master's children
 // under it; for the one selected its help - the comment above its key in the shipped config/aimod.ini, built in
 // (aimod_config.rc), so it is the text of this version - and an editor: on / off, a choice, or a text field. A value
 // is checked as it is typed, by the DLL's own code (settings/settings.c setting_value, the language's x_const_eval:
 // 35%, 2 * 60, min(...)), and its mistake told as the game would log it. Saving writes only the keys changed, each
 // through WritePrivateProfileString, so the file's comments and order stay; an empty value removes the key (the
-// default, or for a difficulty [all]'s value). Keys in the file that are no setting of this version are listed
+// default, or for a difficulty [ai_base]'s value). Keys in the file that are no setting of this version are listed
 // and can be removed. Its own translation unit (dll/build.sh), from base/, script/ and settings/ only (layers.py).
 #include <windows.h>
 #include <commctrl.h>
@@ -33,7 +33,7 @@ enum { ID_FILTER = 100, ID_LIST, ID_HELP, ID_NAME, ID_FILE, ID_SAVE, ID_CLOSE, I
        ID_GAME_APPLY, ID_GAME_RESTORE };
 
 // THE PAGES: a section each (rows.h SETTING_SECTIONS by their order, the test ini's left out) - the tree's sections and
-// the AI's difficulty columns; diff >= 0: a difficulty's own section, its rows those of [all]
+// the AI's difficulty columns; diff >= 0: a difficulty's own section, its rows those of [ai_base]
 struct page { const char *title, *sec; int section, diff; };   // section: of k_setting_sections, -1 none
 internal struct page g_page_of[SETTING_SECTION_N];
 internal int g_npages;
@@ -53,7 +53,7 @@ internal void make_pages(void) {
         pg->sec = t->sec;
         pg->section = s;
         pg->diff = -1;
-        for (int d = 0; d < 3 && t->kind == SECK_DIFF; d++) if (!lstrcmpA(k_set_diff[d], t->sec)) pg->diff = d;
+        for (int d = 0; d < 3 && t->kind == SECK_DIFF; d++) if (k_set_diff_sec[d] && !lstrcmpA(k_set_diff_sec[d], t->sec)) pg->diff = d;
     }
 }
 #define TEXT_CAP (MAX_PATH + 8)
@@ -64,8 +64,8 @@ internal void make_pages(void) {
 struct entry { int page, row, slot, has, had; char text[TEXT_CAP], was[TEXT_CAP]; };
 internal struct entry g_e[1024];
 internal int g_ne;
-internal int g_all_of[SETTING_N];   // a row's entry on the [all] page (what a difficulty's page falls back to)
-internal int g_diff_of[SETTING_N][3];   // a row of [all]: its entries on the difficulties' pages
+internal int g_all_of[SETTING_N];   // a row's entry on the [ai_base] page (what a difficulty's page falls back to)
+internal int g_diff_of[SETTING_N][3];   // a row of [ai_base]: its entries on the difficulties' pages
 
 internal char g_ini_path[MAX_PATH];
 internal char *g_shipped;   // the shipped config/aimod.ini (the resource), 0-ended
@@ -100,7 +100,7 @@ internal int is_master(int row) {
     for (int i = 0; i < SETTING_N; i++) if (under_of(i) == row) return 1;
     return 0;
 }
-// an entry without a value of its own takes another's: [all]'s on a difficulty's page, a child its master's
+// an entry without a value of its own takes another's: [ai_base]'s on a difficulty's page, a child its master's
 internal int inherits(const struct entry *e) { return on_diff_page(e) || is_child(e); }
 
 // the child's master on its page: 0 default, 1 enabled, 2 disabled (its text, else its default); *name: the word
@@ -157,7 +157,7 @@ internal const char *easy_default(const struct entry *e) {
     return NULL;
 }
 
-// what the entry comes to as shown in the list (*grey: not in the file - the default, [all]'s or easy's own)
+// what the entry comes to as shown in the list (*grey: not in the file - the default, [ai_base]'s or easy's own)
 internal void shown_value(const struct entry *e, char *out, int cap, int *grey) {
     char why[MAX_PATH], key[64];
     key_of(e, key, sizeof key);
@@ -171,7 +171,7 @@ internal void shown_value(const struct entry *e, char *out, int cap, int *grey) 
         char v[TEXT_CAP];
         int g;
         const char *easy = easy_default(e);
-        if (!a->text[0] && easy) {   // neither [easy] nor [all]: the easy AI's own (SETTINGS_EASY)
+        if (!a->text[0] && easy) {   // neither [ai_easy] nor [ai_base]: the easy AI's own (SETTINGS_EASY)
             check(row_of(e), sec_of(e), key, easy, why, v, sizeof v);
             lstrcpynA(out, v, cap);
             return;
@@ -217,7 +217,7 @@ internal void update_title(void) { SetWindowTextA(g_wnd, unsaved() ? TITLE " *" 
 // THE FILE
 internal void read_file(void) {
     g_ne = 0;
-    memset(g_diff_of, 0xFF, sizeof g_diff_of);   // -1: no section (medium plays [all])
+    memset(g_diff_of, 0xFF, sizeof g_diff_of);   // -1: no section (medium plays [ai_base])
     for (int p = 0; p < g_npages; p++)
         for (int i = 0; i < SETTING_N; i++) {
             const struct setting_row *r = &k_settings[i];
@@ -251,7 +251,7 @@ internal void read_file(void) {
             g_nunk++;
         }
     }
-    static char names[4096];   // and the sections that are none (an old [medium]: the medium AI plays [all]), whole
+    static char names[4096];   // and the sections that are none (an old [medium]: the medium AI plays [ai_base]), whole
     DWORD n = GetPrivateProfileSectionNamesA(names, sizeof names, g_ini_path);
     for (const char *sec = names; sec < names + n && *sec && g_nunk < 64; sec += strlen(sec) + 1) {
         if (setting_section_known(sec)) continue;
@@ -483,7 +483,7 @@ internal void game_restore(void) {
 // list, a node that opens with its triangle. A line's lParam: an entry (>= 0), a section's page (-1 - page) or a group
 // (-1000 - group).
 enum { NODE_SECTION, NODE_GROUP, NODE_ENTRY };
-#define COLS 3   // the columns: setting, value (an AI row: [all]'s, then where easy or hard plays another), default
+#define COLS 3   // the columns: setting, value (an AI row: [ai_base]'s, then where easy or hard plays another), default
 internal int g_group_of[SETTING_N];   // a row's group, -1 none
 internal int g_sec_open[SETTING_SECTION_N + 1], g_grp_open[SETTING_GROUP_N + 1];
 internal struct { int kind, id, level; } g_vis[2048];   // the lines shown, as in the list
@@ -529,7 +529,7 @@ internal void fill_item(int item, LPARAM p) {
         default_text(row_of(e), d, sizeof d);
         if (!check(row_of(e), sec_of(e), key, d, why, def, sizeof def)) lstrcpyA(def, "(the game's own)");
     }
-    char base[TEXT_CAP];   // the difficulties that play another value than [all]: 40% (easy: 30%, hard: 55%)
+    char base[TEXT_CAP];   // the difficulties that play another value than [ai_base]: 40% (easy: 30%, hard: 55%)
     lstrcpyA(base, v);
     size_t o = strlen(v);
     int n = 0;
@@ -547,7 +547,7 @@ internal void fill_item(int item, LPARAM p) {
     ListView_SetItemText(g_list, item, COLS - 1, def);
 }
 
-internal void refill_items(void) {   // every line's values again (a value shows in others: [all] in its difficulties, a master in its children)
+internal void refill_items(void) {   // every line's values again (a value shows in others: [ai_base] in its difficulties, a master in its children)
     int n = (int)SendMessageA(g_list, LVM_GETITEMCOUNT, 0, 0);
     for (int i = 0; i < n; i++) {
         LVITEMA it = { 0 };
@@ -664,8 +664,8 @@ internal int parent_item(int item) {
     return -1;
 }
 
-// THE EDITORS: one for a plain setting; for an AI setting three - every difficulty's ([all], the medium AI's) and
-// easy's, hard's own - each a checkbox, a list or a text field, a button (Default / As [all] / Follow) and what it
+// THE EDITORS: one for a plain setting; for an AI setting three - every difficulty's ([ai_base], the medium AI's) and
+// easy's, hard's own - each a checkbox, a list or a text field, a button (Default / As [ai_base] / Follow) and what it
 // comes to
 #define EDITORS 3
 enum { ED_CHECK, ED_COMBO, ED_EDIT, ED_BUTTON, ED_PARTS = 10 };
@@ -684,14 +684,14 @@ internal void show_status(int k) {
     } else if (!e->text[0] && on_diff_page(e)) {
         int grey;
         shown_value(e, shown, sizeof shown, &grey);
-        snprintf(msg, sizeof msg, "Not set: %s - %s.", easy_default(e) && !g_e[g_all_of[e->row]].text[0] ? "the easy AI's own default" : "as [all]", shown);
+        snprintf(msg, sizeof msg, "Not set: %s - %s.", easy_default(e) && !g_e[g_all_of[e->row]].text[0] ? "the easy AI's own default" : "as [ai_base]", shown);
     } else if (!e->text[0]) lstrcpyA(msg, "Not in the file: the default counts.");
     else if (check(row_of(e), sec_of(e), key, e->text, why, shown, sizeof shown)) snprintf(msg, sizeof msg, "= %s", shown);
     else snprintf(msg, sizeof msg, "Mistake: %s - the game would use the default.", why);
     SetWindowTextA(g_ed[k].status, msg);
 }
 
-// editor k for its entry: a checkbox (on / off), a list (a choice; for a difficulty on / off too, with "as [all]" first;
+// editor k for its entry: a checkbox (on / off), a list (a choice; for a difficulty on / off too, with "as [ai_base]" first;
 // a child: follow its master, off, on), or a text field
 internal void show_editor(int k) {
     struct editor *ed = &g_ed[k];
@@ -706,7 +706,7 @@ internal void show_editor(int k) {
     ShowWindow(ed->button, SW_SHOW);
     ShowWindow(ed->status, SW_SHOW);
     SetWindowTextA(ed->label, on_diff_page(e) ? g_page_of[e->page].title : r->ai ? "All" : "Value");
-    SetWindowTextA(ed->button, on_diff_page(e) ? "As [all]" : is_child(e) ? "Follow" : "Default");
+    SetWindowTextA(ed->button, on_diff_page(e) ? "As [ai_base]" : is_child(e) ? "Follow" : "Default");
     char def[TEXT_CAP];
     default_text(r, def, sizeof def);
     const char *v = e->text[0] ? e->text : def;
@@ -719,7 +719,7 @@ internal void show_editor(int k) {
         int base = inherits(e);
         char follow[96];
         snprintf(follow, sizeof follow, "follow %s", is_child(e) ? k_settings[r->a].key : "");
-        if (base) SendMessageA(ed->combo, CB_ADDSTRING, 0, (LPARAM)(on_diff_page(e) ? "as [all]" : follow));
+        if (base) SendMessageA(ed->combo, CB_ADDSTRING, 0, (LPARAM)(on_diff_page(e) ? "as [ai_base]" : follow));
         int sel = base && !e->text[0] ? 0 : -1;
         if (flag) {
             SendMessageA(ed->combo, CB_ADDSTRING, 0, (LPARAM)"off (0)");
@@ -795,7 +795,7 @@ internal void editor_changed(int k, int part) {
     } else if (part == ED_EDIT) GetWindowTextA(ed->edit, e->text, sizeof e->text);
     e->has = e->text[0] != 0;
     refill_items();
-    for (int j = 0; j < g_ned; j++) show_status(j);   // [all]'s value shows in the difficulties' "as [all]"
+    for (int j = 0; j < g_ned; j++) show_status(j);   // [ai_base]'s value shows in the difficulties' "as [ai_base]"
     update_title();
 }
 

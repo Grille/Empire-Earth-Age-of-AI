@@ -11,7 +11,7 @@ internal int (*g_ini_eval)(const char *src, double *out, const char **why);   //
 internal char g_ini_pending[8][200];   // mistakes found before the log is open (load_autotest): written when it opens
 internal int g_ini_npending;
 internal void ini_tell(const char *line) {
-    static uint32_t told[32];   // once: a key of [all] or [autotest] is read for each difficulty
+    static uint32_t told[32];   // once: a key of [ai_base] or [autotest] is read for each difficulty
     uint32_t h = 2166136261u;
     for (const char *t = line; *t; t++) h = (h ^ (uint8_t)*t) * 16777619u;
     h |= 1;

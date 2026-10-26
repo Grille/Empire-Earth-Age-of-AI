@@ -6,7 +6,7 @@
 // from the second epoch on. My first-age tactic is getting towers up and baiting enemy troops under the towers with my
 // citizens - it needs active management."
 //
-// TOWERS FIRST ([all] early_towers): in the first two epochs the town's first EARLY_CORE towers stand by the Town
+// TOWERS FIRST ([ai_base] early_towers): in the first two epochs the town's first EARLY_CORE towers stand by the Town
 // Center (the base the AI plans around), EARLY_DIST tiles out - one towards the front (the defence layout's direction:
 // the nearest enemy seen, else the map centre), one on the side where the citizens work - so the town and the berries
 // beside it are covered (the defence layout put the game's first requests 10 tiles out, at the front). The game's own
@@ -14,7 +14,7 @@
 // allows. Every 10 s each unfinished tower within 20 tiles of the base gets 2 builders (bk_builders: the nearest
 // gatherers) unless enemy soldiers stand within 8 tiles. Before farms the worker plan asks for the missing towers'
 // stone (econ_targets).
-// THE BAIT ([all] tower_bait): up to the Bronze Age, every 2 s - a citizen with an enemy soldier within 5 tiles (or one
+// THE BAIT ([ai_base] tower_bait): up to the Bronze Age, every 2 s - a citizen with an enemy soldier within 5 tiles (or one
 // attacking it) and outside its own towers' reach walks to the nearest finished tower (or other own building that
 // shoots: its range, defence_stats) within 25 tiles, to the spot 1.5 tiles behind it from the enemy: the raiders that
 // follow come under the tower. Once it is there the order ends and the assignment sends it back to work (the searches

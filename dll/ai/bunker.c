@@ -68,7 +68,7 @@ internal void cmd_bunker(char *out, const char *args) {
     REPLY("\n");
 }
 
-// SHELTER ([all] bunkers, default 1): citizens under fire - one of them hurt within 6 tiles in the last 30 s, or enemy
+// SHELTER ([ai_base] bunkers, default 1): citizens under fire - one of them hurt within 6 tiles in the last 30 s, or enemy
 // soldiers within 8 tiles (raiders_near) - go into a fortress of theirs with room within 15 tiles instead of back to
 // their drop site (citizens_safety), and come out to work again once nothing has hurt anyone within 10 tiles of the
 // fortress for 45 s and no enemy soldiers stand near it. A fortress is built beside the drop site nearest the base
@@ -81,8 +81,8 @@ internal void cmd_bunker(char *out, const char *args) {
 // 20 seeds - workers 57.4 vs 66.2, buildings lost 2.4 vs 1.4, games down to 4-28 workers 4 vs 2 (10-seed batches
 // gave 72.6, 61.7 and 52.2 against 53.1: noise); shelling and raid_ww1 (the fortress up only after minute 20 there:
 // a WW1 start leaves little wood) about even.
-internal int g_bunkers = 1;   // [all] bunkers
-internal int g_bk_res = 0xFFFF;   // [all] bunker_reserve (below)
+internal int g_bunkers = 1;   // [ai_base] bunkers
+internal int g_bk_res = 0xFFFF;   // [ai_base] bunker_reserve (below)
 internal int bk_room(ee_player *pl);
 internal struct { int nf, nall; ee_unit *f[8], *all[8]; int nq[8]; ee_unit *q[8][40]; uint32_t build_t, quiet_t[8]; unsigned in, out; int need_wood; uint32_t shelter[8]; int walk[8]; } g_bk[16];   // shelter: when citizens were sent in (the quiet release); walk: units on their way in
 internal int bk_hurt_recent(unsigned pi, int x, int y, int r, uint32_t ms) {
@@ -273,7 +273,7 @@ internal void bunker_reserve(ee_player *pl, int *reserve) {
     if (g_bunkers && pl) reserve[3] += g_bk[(unsigned)player_get_index(pl) & 15].need_wood;
 }
 
-// RESERVE ([all] bunker_reserve, a mask of players, default all; the playtester: "another use is to amass units at
+// RESERVE ([ai_base] bunker_reserve, a mask of players, default all; the playtester: "another use is to amass units at
 // lower population limits, so losses can immediately be drawn from them"): units in a fortress don't count toward
 // the population (0x556E11 adds them only when asked: (x, 1); the training's room uses (1, 0)). Every 10 s: with the
 // map full (population at the cap - 1), up to 10 free land soldiers at home (in no group: 0x4707D8 on the combat

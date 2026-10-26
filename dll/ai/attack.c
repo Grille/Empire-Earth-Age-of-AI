@@ -23,14 +23,14 @@ internal struct {
     uint32_t refreshed;
 } g_threat[16];
 
-internal int g_avoid_towers = 1;        // aimod.ini [all] avoid_towers
+internal int g_avoid_towers = 1;        // aimod.ini [ai_base] avoid_towers
 internal int g_avoid_weight = 2000;     // route cost per tower covering a step (a step costs 10-14)
 internal int g_avoid_margin = 6;        // tiles added to the tower's range
 
 
 // What player pl knows of unit u. The count (u +0x14 -> +0xC, per player slot) is how many of pl's (and its allies')
 // units see u now - plus a floor every unit of the human carries in the AIs' slots, everywhere and always (the AIs
-// see all of the human's units; docs/engine-notes.md). [all] honest_vision (intel.c): seen = above that floor, or a
+// see all of the human's units; docs/engine-notes.md). [ai_base] honest_vision (intel.c): seen = above that floor, or a
 // building pl has seen before (still where it was - a human remembers it on the map), the default; 0: the count as
 // the game keeps it - all-knowing about the human.
 internal int g_honest_vision = 1;
@@ -128,7 +128,7 @@ internal int __thiscall hook_route_cost(ee_route_planner *self, int *edge, ee_ro
 // it that no known defence covers (the economy behind the towers, the undefended flank) - the closest to
 // the group, not too far from the original goal. The subgroup's target (+0x100: +4/+8 tile, +0xC unit id
 // = unit+0x60, +0x10 kind 1 = unit, +0x14 player) is switched to that building, so it attacks it on arrival.
-internal int g_weak_spots = 1;          // aimod.ini [all] attack_weak_spots
+internal int g_weak_spots = 1;          // aimod.ini [ai_base] attack_weak_spots
 internal int g_weak_radius = 60;        // tiles around the original goal searched for a weak spot
 
 
@@ -177,7 +177,7 @@ internal ee_unit *find_weak_spot(ee_player *pl, unsigned pi, const int *start, c
 // crosses a known enemy wall, the subgroup first attacks a wall segment outside known tower range, the one with
 // the shortest detour along that wall (find_breach); the scorer makes that segment the units' target (walls score
 // below zero otherwise). Walls are tough: without siege the breach takes long or fails.
-internal int g_breach = 1;              // aimod.ini [all] attack_breach
+internal int g_breach = 1;              // aimod.ini [ai_base] attack_breach
 // The owner is kept with the entry: a subgroup the game deleted (its attack over) is never read again.
 internal struct { ee_attack_subgroup *sg; ee_player *pl; int x, y; } g_breaches[64];   // subgroup (of player pl) -> wall tile it is to breach
 
@@ -273,7 +273,7 @@ internal ee_unit *find_breach(ee_player *pl, unsigned pi, const int *start, cons
 
 internal void diplo_cancel_attacks(int ai, int j);   // diplo.c
 typedef void (__thiscall *AsgRouteFn)(void *self, int *start, int *dest);
-// CITIZEN ATTACKS ([all] citizen_attacks, default 0): an AI that trains no soldiers (short of wood: 1237 requests in
+// CITIZEN ATTACKS ([ai_base] citizen_attacks, default 0): an AI that trains no soldiers (short of wood: 1237 requests in
 // 5 minutes, none trained) still launched its attacks on time - and the groups took citizens: 34 of them walked
 // into the player's army at the target, the soldiers stayed home. A subgroup's members are records at +0x54..+0x58
 // (record +0x44 = unit); at least half of them citizens: that AI's attacks on that target are called off at the next
@@ -405,14 +405,14 @@ internal void __thiscall hook_asg_route(ee_attack_subgroup *self, int *start, in
 // route. So for a land subgroup, an enemy inside known tower range scores 0 - not a target - unless the
 // subgroup's own goal (asg+0x100 +4/+8) lies in tower range too; then the attack is meant to go in anyway.
 // Unit record: +0x44 unit, +0x48 current target, +0x4C subgroup. Scorer argument: +4 the enemy unit.
-internal int g_leash = 1;               // aimod.ini [all] attack_leash
+internal int g_leash = 1;               // aimod.ini [ai_base] attack_leash
 internal struct { unsigned skipped, logged; } g_leash_stats[16];
 
-internal int g_siege = 1;               // aimod.ini [all] attack_siege (siege controller below; also rams here)
+internal int g_siege = 1;               // aimod.ini [ai_base] attack_siege (siege controller below; also rams here)
 internal unsigned g_ram_waits, g_air_skips, g_lost_skips;   // g_lost_skips: enemies in a lost fight not chosen (danger_routes)
-internal int g_danger_routes;           // [all] danger_routes (game/danger.c)
-internal int g_avoid_lost;              // [all] avoid_lost_fights: its DANGER_LOST layer (cover.c cv_zones)
-internal int g_ignore_air = 1;          // aimod.ini [all] attack_ignore_air
+internal int g_danger_routes;           // [ai_base] danger_routes (game/danger.c)
+internal int g_avoid_lost;              // [ai_base] avoid_lost_fights: its DANGER_LOST layer (cover.c cv_zones)
+internal int g_ignore_air = 1;          // aimod.ini [ai_base] attack_ignore_air
 
 // Enemy soldiers (no citizens, no siege) of player pl's enemies within r tiles of (x, y)?
 internal int guarded(ee_player *pl, int x, int y, int r) {
@@ -622,7 +622,7 @@ internal ee_goal *goal_move(float x, float y) {
     return mem ? goal_move_init(mem, xy) : NULL;
 }
 
-// CITIZENS AND TOWERS (aimod.ini [all] avoid_towers_citizens, default 1). The game's site searches check for enemies
+// CITIZENS AND TOWERS (aimod.ini [ai_base] avoid_towers_citizens, default 1). The game's site searches check for enemies
 // only at the site itself (0x4660B9), and once a citizen gathers somewhere it walks the same way until it dies - past
 // enemy towers too. With slow projectiles leading their targets (aim.c) every such trip is a loss. Danger = the site
 // lies within a known enemy defence's range + 2 tiles, or the straight way from the nearest drop site to it crosses
@@ -668,7 +668,7 @@ internal int route_danger(ee_player *pl, int fx, int fy, int tx, int ty) {
 #define RAID_MARGIN 3
 #define RAID_MAX    15
 #define RAID_FAR    27   // citizen_threats: artillery (12-14), mortars (10-11), ships (24) at their own reach
-internal int g_cit_threats = 1;   // [all] citizen_threats (below, DAMAGE MEMORY)
+internal int g_cit_threats = 1;   // [ai_base] citizen_threats (below, DAMAGE MEMORY)
 internal int raiders_near(ee_player *pl, ivec2 p, int r0) {
     int rmax = g_cit_threats ? RAID_FAR : RAID_MAX;
     int r = r0 > rmax ? r0 : rmax;   // the search box; each unit then by its own reach
@@ -718,7 +718,7 @@ internal void flee_point(ee_player *pl, int x, int y, float rx, float ry, float 
         best = d; *fx = px; *fy = py;
     }
 }
-// DAMAGE MEMORY ([all] citizen_threats, default 1; the playtester: "they should just stay away from the frontline, a
+// DAMAGE MEMORY ([ai_base] citizen_threats, default 1; the playtester: "they should just stay away from the frontline, a
 // single artillery in range can kill multiple citizens in a single shot; gold and iron might be worth some risk, but
 // wood can be gathered elsewhere, and farms rebuilt at a safer spot - in the WW1 save lots of citizens gather wood right
 // under my artillery and my planes"). raiders_near saw land units and ships within 15 tiles only, and nothing it
@@ -775,7 +775,7 @@ internal int site_danger_res(ee_player *pl, ee_unit *site, int food, int res) { 
     return route_danger(pl, d.x, d.y, x, y);
 }
 internal int site_danger(ee_player *pl, ee_unit *site, int food) { return site_danger_res(pl, site, food, food ? 2 : -1); }
-// DANGER MAP ([all] danger_routes; game/danger.c): this AI's map of enemy reach, every 4 s (citizens_safety's tick) -
+// DANGER MAP ([ai_base] danger_routes; game/danger.c): this AI's map of enemy reach, every 4 s (citizens_safety's tick) -
 // what the checks above look at, as tiles: each enemy defence it has seen (g_threat) at its range + 2, each enemy
 // soldier or warship it sees at its reach as raiders_near counts it (its range + RAID_MARGIN, up to RAID_FAR), each
 // spot where its citizens were hurt in the last 2 minutes within 6. Its units that can't fight are routed round them

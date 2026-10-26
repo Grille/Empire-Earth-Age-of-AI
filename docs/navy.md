@@ -20,7 +20,7 @@ The playtester's notes on this plan:
   (long range, high attack, x1 against them), so the whole fleet must keep away from coastal siege and towers.
 
 Tools:
-- `navy types A B [all]` / `navy table` (pipe or setup). `tests/probes/navy_types.eeai` dumps every type and the hit
+- `navy types A B [ai_base]` / `navy table` (pipe or setup). `tests/probes/navy_types.eeai` dumps every type and the hit
   table into the log.
 - `scripts/results/navy.py types <log>` builds the role table below.
 - `# navy:` log lines (autotest, every 2 minutes per AI) and `scripts/results/navy.py <logs>` for the baseline.
@@ -240,7 +240,7 @@ What the baseline shows:
 
 ### Stage 0 - the e9-e10 food hole (economy, before any navy) - DONE
 
-- **Fishing boat** ([all] `fishing_boat`, default 1; dll/ai/navy.c `hook_fish_type`). Both callers of the game's pick
+- **Fishing boat** ([ai_base] `fishing_boat`, default 1; dll/ai/navy.c `hook_fish_type`). Both callers of the game's pick
   0x46D209 (0x48F819 counts the boats, 0x48FB05 orders one) get the newest fishing boat (class 22, highest tech)
   the player has available by its tech record's test (landing.c `ld_type_avail`), every epoch: 108 (tech 2000),
   109 (4005), 365 (8090), 211 (11090), 332 (13098). None available: the game's pick. `# fishing:` log line when
@@ -275,7 +275,7 @@ unprotected in e9 too (9-10 per AI) - the playtester's point: farms first, the b
 
 ### Stage 1 - water-map detection and the navy account - DONE
 
-Built (dll/ai/navy.c, econ.c; `[all] navy=1`, `navy_share=25%`):
+Built (dll/ai/navy.c, econ.c; `[ai_base] navy=1`, `navy_share=25%`):
 
 - **Water map** (`navy_detect`, once per AI 10 s in): the home continent (area_id kind 2 at the build manager's
   base point) and every enemy's buildings - across the water when none stands on that continent. Strength = the
@@ -437,7 +437,7 @@ Retested with stage 3 (below, `fm`): with the fleet led, the mix adds nothing ei
 
 ### Stage 3 - the mod leads the fleet - BUILT, OFF (`navy_fleet=0`)
 
-Built (dll/ai/fleet.c; `[all] navy_fleet`, `[autotest] v_navy_fleet`; test keys `navy_fleet_boats`, `navy_fleet_coast`,
+Built (dll/ai/fleet.c; `[ai_base] navy_fleet`, `[autotest] v_navy_fleet`; test keys `navy_fleet_boats`, `navy_fleet_coast`,
 `navy_fleet_raid`):
 
 - **Who:** every warship and submarine of an AI on a water map (navy_detect: enemies across the water) that is not a
@@ -614,7 +614,7 @@ shell citizens to disturb the economy, hunt enemy warships to prevent the enemy 
 transports ... Any unit that just sits there is a huge opportunity cost"; "the fleet can't be scared off by a few subs -
 that's what the frigates are for".
 
-Built (dll/ai/navy.c, dll/ai/fleet.c, econ.c, diplo.c; `[all] navy_fleet=2`, `[autotest] v_navy_fleet=2`; keys
+Built (dll/ai/navy.c, dll/ai/fleet.c, econ.c, diplo.c; `[ai_base] navy_fleet=2`, `[autotest] v_navy_fleet=2`; keys
 `navy_fleet_pop` 15, `navy_share_max` 50):
 
 - **Size.** The target is `navy_fleet_pop` % of the AI's population cap x the map strength: 26 warships at the tests'
