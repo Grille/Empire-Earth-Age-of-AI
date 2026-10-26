@@ -1,0 +1,18 @@
+// formation_follow through a gap: army_march.eeai's army (Continental seed 101, start_epoch 12; 40 doughboys, 20
+// dragoons, 10 Mark V) sent 40 tiles east to 76,50 through a 3-tile gap (y 45-47) in a wall at x=56 from y 30 to 62 -
+// the long way round its ends (y < 30 or > 62) about 20 tiles more. `fmove watch` logs every unit: how many went
+// round instead of through (the player: ten took the long way when they only needed to wait a bit).
+wait_until(0.1min)
+spawnline(1, unit.b_wall_bronze, 56, 30, 56, 44)
+spawnline(1, unit.b_wall_bronze, 56, 48, 56, 62)
+spawn(1, unit.inf10_doughboy, 35, 44, 40)
+spawn(1, unit.cav09_dragoon_gun, 37, 42, 20)
+spawn(1, unit.tank10_mk_v, 37, 46, 10)
+wait_until(0.4min)
+cmd("fmove go 1 36 44 8 76 50")
+cmd("fmove watch 1")
+every(2s, 0.4min, 3.9min, (run) => {
+    cmd("fmove stat")
+})
+wait_until(3.95min)
+cmd("fmove sum")

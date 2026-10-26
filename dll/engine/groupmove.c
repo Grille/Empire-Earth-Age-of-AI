@@ -339,7 +339,7 @@ internal unsigned g_ff_next;
 internal int g_ff_first, g_ff_count;   // the marches started by the move being dispatched, for their leaders' goals
 // step: the last it followed; pend (1-based, into g_ff_p): the first of the queued moves' marches it joins, each when it
 // sets out; home its spot at the goal
-struct ff_unit { uint32_t id; int g, pend; vec2 off, home; uint32_t step; float along, with, off_by, share, grace_cap; uint32_t in_at, share_at, yaw; int tries, own; };   // own: why it took its own route last (1 its point too far, 2 the point steered at on a tile it may not enter, 3 not in a clear line); in_at: the step it was last in its place (or its march began); share its catch-up share at share_at, grace_cap the most of it the grace gives; yaw its facing there (the slot's float, 0: none), tries its walks back
+struct ff_unit { uint32_t id; int g, pend; vec2 off, home; uint32_t step; float along, with, off_by, share, grace_cap, lag_ref; uint32_t in_at, share_at, yaw, lag_at; int tries, own, out; };   // out: dropped out of its march (lag_at, lag_ref: since when it lags, how far off then); own: why it took its own route last (1 its point too far, 2 the point steered at on a tile it may not enter, 3 not in a clear line); in_at: the step it was last in its place (or its march began); share its catch-up share at share_at, grace_cap the most of it the grace gives; yaw its facing there (the slot's float, 0: none), tries its walks back
 internal struct ff_unit g_ff_u[FF_UNITS];
 // a queued move's march a unit joins once it sets out (its offset, its spot and facing at the goal, its goal in that move),
 // after (1-based) the one queued behind it - a unit had one, so a third waypoint's took the second's place and from the
@@ -351,6 +351,7 @@ internal unsigned g_ff_p_next;
 internal int g_ff_on;
 internal unsigned g_ff_flows;   // queued re-forms that took the march before's anchor over
 internal unsigned g_ff_centre;  // follower ticks steered along the formation's line, their points out of reach
+internal unsigned g_ff_out;     // units dropped out of their marches (held up, they would hold the formation back)
 internal unsigned g_ff_marches, g_ff_split, g_ff_arcs, g_ff_finished, g_ff_steered, g_ff_own[4];   // marches started, moves split into blocks; follower ticks steered, left to the own route (by e->own)
 
 internal uint32_t ff_step(void);
@@ -469,6 +470,8 @@ internal void ff_start_block(void *group, const int *idx, int k, vec2 c, vec2 fw
         }
         e->g = gi;
         e->pend = 0;
+        e->out = 0;
+        e->lag_at = 0;
         e->off = off;
         e->home = g_fo[i].at;
         e->step = ~0u;
@@ -658,7 +661,11 @@ internal ee_unit *ff_leader(struct ff_group *gr, uint32_t step) {
         struct ff_group *pv = gr->prev >= 0 ? &g_ff[gr->prev] : NULL;
         gr->started = 1;
         gr->t0 = step;
-        if (pv && pv->started && pv->through) { gr->anchor = ff_anchor_now(pv, &w, &f, &vn); gr->way = w; if (gr->arc) gr->face = f; else gr->pivot = 1; }
+        if (pv && pv->started && pv->through) {
+            gr->anchor = ff_anchor_now(pv, &w, &f, &vn);
+            gr->way = w;
+            if (gr->arc) gr->face = f; else gr->pivot = 1;
+        }
         else gr->anchor = v2(p.x, p.y);
     } else {   // where the last step sent it
         gr->anchor = ff_anchor_now(gr, &w, &f, &vn);
@@ -754,14 +761,14 @@ internal int ff_spot(ee_unit *u, vec2 *spot) {
 
 // u's march as `fmove watch` logs it: -1 none, 0 its march done, 1 on but not on its way (queued), 2 on its way and u
 // steered at its point the last step, 3 .. 5 on its way and u on its own route (3 the point steered at on a tile it may
-// not enter, 4 not in a clear line, 5 its point too far); + 10 x its queued marches
+// not enter, 4 not in a clear line, 5 its point too far, 6 dropped out); + 10 x its queued marches
 internal int ff_watch_state(ee_unit *u) {
     struct ff_unit *e = g_ff_on ? ff_find((uint32_t)unit_get_serial(u), 0) : NULL;
     if (!e) return -1;
     int q = 0;
     for (struct ff_pend *p = ff_pend_of(e, e->pend); p && q < 9; p = ff_pend_of(e, p->after)) q++;
     struct ff_group *gr = e->g >= 0 ? &g_ff[e->g] : NULL;
-    int s = !gr ? -1 : !gr->on ? 0 : !gr->live ? 1 : e->step + 1 >= ff_step() ? 2 : e->own == 1 ? 5 : e->own == 2 ? 3 : 4;
+    int s = !gr ? -1 : !gr->on ? 0 : !gr->live ? 1 : e->out ? 6 : e->step + 1 >= ff_step() ? 2 : e->own == 1 ? 5 : e->own == 2 ? 3 : 4;
     return s + 10 * q;
 }
 
@@ -825,7 +832,7 @@ internal struct ff_group *ff_march(struct ff_unit *e, ee_unit *u, uint32_t step,
         struct ff_group *n = &g_ff[p->g];
         if (ff_leader(n, step)) {   // its leg before ended where it stands, if it hasn't reached it
             if (p->goal && unit_orders(u) >= 2 && unit_order_at(u, 0) != p->goal && unit_order_at(u, 1) == p->goal) ff_finish_leg(u);
-            e->g = p->g; e->off = p->off; e->home = p->home; e->yaw = p->yaw; e->tries = 0; e->step = ~0u; e->pend = p->after; ff_grace_from(e);
+            e->g = p->g; e->off = p->off; e->home = p->home; e->yaw = p->yaw; e->tries = 0; e->step = ~0u; e->pend = p->after; e->out = 0; e->lag_at = 0; ff_grace_from(e);
         }
         else if (!n->on) e->pend = p->after;   // given up: on to the one behind it
     }
@@ -855,6 +862,26 @@ internal float ff_share(struct ff_unit *e, ee_unit *u, uint32_t step) {
     return e->share;
 }
 
+// u drops out of its march: on its own route from here - a new one from where it stands to the end of its waypoints
+// (the mod's route search, with ship_routes / land_routes; else, or none found, the one it has)
+#define FF_OUT_S 8.0f          // s
+#define FF_OUT_CLOSE 0.1f      // x its top speed: closing in slower than this it is held up (behind a point going at 80%
+                               // of its speed it closes at 20%)
+internal void ff_drop_out(struct ff_unit *e, ee_unit *u) {
+    e->out = 1;
+    g_ff_out++;
+    int n = unit_get_waypoints_left(u);
+    static float keep[64][3];
+    if (!sr_wants(u) || n <= 0 || n > 64) return;
+    for (int i = 0; i < n; i++) if (unit_waypoint_at(u, i, keep[i])) return;
+    while (unit_get_waypoints_left(u) > 0 && !unit_pop_waypoint(u)) {}
+    int k = n - unit_get_waypoints_left(u);   // popped
+    vec3 p = unit_get_pos(u);
+    int from[2] = { (int)floorf(p.x), (int)floorf(p.y) }, to[2] = { (int)floorf(keep[n - 1][0]), (int)floorf(keep[n - 1][1]) };
+    if (unit_get_waypoints_left(u) == 0 && sr_route(u, from, to, NULL, 0)) return;
+    for (int i = n - k; i < n; i++) unit_add_waypoint(u, keep[i], 1);   // none: back as they were
+}
+
 // the land turn (shiproute.c's hook): u's point to steer at this tick, 1 - else 0, its own route
 internal int fo_follow_aim(ee_unit *u, const float *pos, float *aim) {
     if (!g_ff_on || !u) return 0;
@@ -863,7 +890,7 @@ internal int fo_follow_aim(ee_unit *u, const float *pos, float *aim) {
     uint32_t step = ff_step();
     ee_unit *l;
     struct ff_group *gr = ff_march(e, u, step, &l);
-    if (!gr) return 0;
+    if (!gr || e->out) return 0;
     vec2 way, face;
     float vel;
     vec2 anchor = ff_anchor_now(gr, &way, &face, &vel), right = v2(face.y, -face.x);
@@ -929,6 +956,20 @@ internal int fo_follow_aim(ee_unit *u, const float *pos, float *aim) {
     float spin = gr->dt > 0 ? gr->face_rot.y / gr->dt : 0;
     vec2 r = vec2_sub(pt, anchor), vp = vec2_add(vec2_scale(way, vel), vec2_scale(v2(-r.y, r.x), spin));
     e->with = vec2_dot(vp, a);
+    // held up - its point out of reach, or no catch-up share left - and closing in on it at less than FF_OUT_CLOSE of its
+    // top speed for FF_OUT_S: it drops out of the march (the formation no longer slows for it) and takes a route of its
+    // own from where it stands (the player: a unit can't hold the formation back - it drops out and follows the path
+    // alone, from its position to its next waypoint; ten held up at a gap had gone the long way, by the route planned at
+    // the order)
+    float sz = unit_get_size(u), place = sz < FO_MIN_SIZE ? FO_MIN_SIZE : sz;
+    if (!ok || e->off_by > FF_FALLEN * place) {
+        if (!e->lag_at) { e->lag_at = step ? step : 1; e->lag_ref = e->off_by; }
+        else if (ff_since(e->lag_at) >= FF_OUT_S) {
+            if (e->lag_ref - e->off_by < FF_OUT_CLOSE * unit_max_speed(u) * FF_OUT_S) { ff_drop_out(e, u); return 0; }
+            e->lag_at = step ? step : 1;
+            e->lag_ref = e->off_by;
+        }
+    } else e->lag_at = 0;
     float now = unit_max_speed(u) * (1 + (g_set.formation_catchup - 1) * ff_share(e, u, step));   // its speed now: the formation's pace
     if (gr->pace_next < 0 || now < gr->pace_next) gr->pace_next = now;
     if (!ok) { g_ff_own[e->own = why]++; return 0; }

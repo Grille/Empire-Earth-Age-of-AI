@@ -351,7 +351,8 @@ Settings in `aimod.ini`:
 - `[general] formation_follow=0` (default, being worked on; 1 on, with `formations`; land units, or ships): a group sent
   somewhere marches in its formation behind a leader - the unit in its middle - each unit steering for its place
   beside and behind it, a blocked one following the formation's middle line (the leader's route, through a gap the
-  formation is too wide for), only then its own way; a place on ground the unit can't enter (a
+  formation is too wide for), only then its own way; a unit held up so long it would hold the formation back drops
+  out and goes on alone, on a new route from where it stands; a place on ground the unit can't enter (a
   formation wider than the channel it passes) is drawn in towards the formation's middle, so it narrows there instead
   of losing its outer units; units march as one formation when the gaps between them are under 4 tiles (their sizes
   counted, so a fleet of large ships stays one); near the goal each goes to its own spot.
