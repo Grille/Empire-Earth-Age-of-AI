@@ -206,6 +206,7 @@
     D(NUM,   expand_minute,                8, 0, 0) \
     D(NUM,   expand_trips,                 4, 0, 0) \
     D(NUM,   expand_max,                   3, 0, 0) \
+    D(FLAG,  rescue_citizens,              1, 0, 0) \
     D(FLAG,  gather_research,              1, 0, 0) \
     D(FLAG,  defence_layout,               1, 0, 0) \
     D(FLAG,  defence_towers,               1, 0, 0) \

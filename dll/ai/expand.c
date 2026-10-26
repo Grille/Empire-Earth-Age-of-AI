@@ -292,6 +292,15 @@ internal struct ex_st {
     unsigned scouted, scouts, scout_bad;  // the island the ferry's transport has looked at (phase 4)
     uint32_t scout_at;                    // the scouting transport at the island's shore since
 } g_xs[16];
+// STRANDED CITIZENS (below, rescue_citizens): the transport that fetches them and its passengers - kept from the
+// landing, the subgroups and the transport manager as the ferry's (expand_ship, expand_refuses, expand_leads, expand_has)
+internal struct rs_st {
+    int phase;                            // 0 none, 1 the transport to them, 2 boarding, 3 home
+    struct ex_unit ship, pass[16]; int npass;
+    unsigned cont; int ocean; ivec2 pick, pick_w, drop;   // their land, the sea, their shore and its water, the unload tile at home
+    uint32_t since, load_t, reissue, look_t, seen_t; unsigned seen_cont;
+    unsigned trips, brought, failed;
+} g_rs[16];
 
 internal int ex_alive(struct ex_unit *e, ee_player *pl) {
     ee_unit *u = e->u;
@@ -313,13 +322,18 @@ internal int ex_cargo(ee_unit *sh) { return unit_count_inside(sh); }
 // the ferry's transport and passengers, and soldiers on an outpost's island (landing.c's order hooks)
 internal int expand_ship(ee_unit *u) {
     if (!u) return 0;
-    for (int p = 1; p < 16; p++) if (g_xs[p].fphase && g_xs[p].ship.u == u) return p;
+    for (int p = 1; p < 16; p++) if ((g_xs[p].fphase && g_xs[p].ship.u == u) || (g_rs[p].phase && g_rs[p].ship.u == u)) return p;
     return 0;
 }
 internal int expand_refuses(ee_attack_subgroup *sg, ee_unit *u) {
     ee_player *pl = attack_subgroup_get_player(sg);
     unsigned pi = pl ? (unsigned)player_get_index(pl) & 15 : 0;
     struct ex_st *x = &g_xs[pi];
+    struct rs_st *r = &g_rs[pi];
+    if (u && r->phase) {   // the rescue's transport and passengers
+        if (r->ship.u == u) return 1;
+        for (int k = 0; k < r->npass; k++) if (r->pass[k].u == u) return 1;
+    }
     if (!u || (!x->fphase && !x->active)) return 0;
     if (x->fphase) {
         if (x->ship.u == u) return 1;
@@ -333,7 +347,9 @@ internal int expand_refuses(ee_attack_subgroup *sg, ee_unit *u) {
 }
 internal int expand_has(ee_player *pl, ee_unit *u) {
     struct ex_st *x = &g_xs[(unsigned)player_get_index(pl) & 15];
+    struct rs_st *r = &g_rs[(unsigned)player_get_index(pl) & 15];
     for (int k = 0; x->fphase && k < x->npass; k++) if (x->pass[k].u == u) return 1;
+    for (int k = 0; r->phase && k < r->npass; k++) if (r->pass[k].u == u) return 1;
     return 0;
 }
 // the drop site and a tower an outpost waits for (planned and short of them, or ashore with them not laid yet): held
@@ -355,14 +371,16 @@ internal int expand_leads(ee_attack_subgroup *sg) {   // a subgroup holding the 
     ee_player *pl = attack_subgroup_get_player(sg);
     unsigned pi = pl ? (unsigned)player_get_index(pl) & 15 : 0;
     struct ex_st *x = &g_xs[pi];
-    if (!x->fphase || !x->ship.u) return 0;
+    ee_unit *a = x->fphase ? x->ship.u : NULL, *b = g_rs[pi].phase ? g_rs[pi].ship.u : NULL;   // the ferry's, the rescue's
+    if (!a && !b) return 0;
     for (ee_asg_unit **r = attack_subgroup_get_units_begin(sg); r && r < attack_subgroup_get_units_end(sg); r++)
-        if (*r && asg_unit_get_unit(*r) == x->ship.u) return 1;
+        if (*r && (asg_unit_get_unit(*r) == a || asg_unit_get_unit(*r) == b)) return 1;
     return 0;
 }
 // the unload a ferry may take from the game (its own retry at its own point while it unloads)
 internal int expand_unload_ok(ee_unit *u, int gx, int gy) {
     int p = expand_ship(u);
+    if (p && g_rs[p].phase && g_rs[p].ship.u == u) return abs(gx - g_rs[p].drop.x) <= 4 && abs(gy - g_rs[p].drop.y) <= 4;   // the rescue's
     return p && g_xs[p].fphase == 3 && abs(gx - g_xs[p].unload.x) <= 4 && abs(gy - g_xs[p].unload.y) <= 4;
 }
 
@@ -1175,8 +1193,162 @@ internal int expand_cit_need(ee_player *pl, unsigned idx) {
     int n = g_ex_cits - x->ncit;
     return n > 0 ? n : 0;
 }
+// STRANDED CITIZENS ([ai_base] rescue_citizens, default 1). On the player's save "standing army" P7's last 13 citizens
+// stood idle all game on an islet of a few tiles by its dock (land area 463; its drop sites and 16 unworked fields all on
+// area 2): a transport had put them off there. The game assigns a citizen only to a site on its own land (0x48C81C
+// returns at once otherwise), so the fields' "2 farmers sent" came to nothing, and without food the AI trained no more
+// citizens - an economy at a standstill with 31k stone and 25k iron. Every 5 s: idle citizens (no goal) on land without
+// a drop site of their AI (Town Center, Capitol, Settlement), not a landing's or the ferry's, 30 s in a row - the land
+// with the most of them: an idle empty transport of the AI on the sea there (not a landing's or the ferry's) sails to
+// their shore, loads up to its capacity, and unloads them at the shore with room nearest a drop site on that sea; once
+// home the game gives them work. 4 minutes without one aboard, or 6 at sea, it gives up (unloaded where it is).
+// "# rescue:" lines.
+internal int g_rescue = 1;
+internal PRINTF_LIKE(3, 4) void rs_say(unsigned idx, uint32_t now, const char *fmt, ...) {
+    if (!g_log) return;
+    char buf[300];
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(buf, sizeof buf, fmt, ap);
+    va_end(ap);
+    EnterCriticalSection(&g_lock);
+    fprintf(g_log, "# rescue: P%u at %.1f min: %s\n", idx, now / 60000.0, buf);
+    LeaveCriticalSection(&g_lock);
+}
+internal void rs_end(ee_player *pl, unsigned idx, struct rs_st *r, uint32_t now, const char *why) {
+    if (r->phase >= 2 && ex_alive(&r->ship, pl) && ex_cargo(r->ship.u) > 0) {   // someone aboard: off at the nearest land with room
+        ivec2 at = unit_get_tile(r->ship.u), t;
+        if (ex_shore(area_id(r->drop, 2), r->ocean, at, 40, &t, NULL) || ex_shore(r->cont, r->ocean, at, 40, &t, NULL))
+            unit_goal(r->ship.u, ld_unload(r->ship.u, t), 0, 0x1F40);
+    }
+    if (why) rs_say(idx, now, "%s", why);
+    r->phase = 0; r->npass = 0; r->ship.u = NULL; r->seen_t = 0; r->seen_cont = 0;
+}
+// a land with a drop site of pl's on it (drops_cached; granaries count too: food is taken there)
+internal int rs_drop_land(unsigned pi, unsigned cont) {
+    for (int i = 0; i < g_drops[pi].n; i++) if (area_id(g_drops[pi].d[i].p, 2) == cont) return 1;
+    return 0;
+}
+// the look: the land with the most stranded idle citizens - and, 30 s in a row, the transport and the passengers
+internal void rs_look(ee_player *pl, unsigned idx, struct rs_st *r, uint32_t now) {
+    static struct { unsigned cont; int n; ivec2 p; } lands[16];
+    int nl = 0;
+    drops_cached(pl);
+    if (!g_drops[idx].n) return;
+    for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
+        ee_unit *u = it.u;
+        if (unit_get_owner(u) != pl || unit_get_hp(u) <= 0 || unit_get_x(u) < 0 || !is_citizen_type(unit_type_get_id(it.td)) || unit_get_goal(u) ||
+            landing_has_unit(pl, u) || expand_has(pl, u)) continue;
+        ivec2 p = unit_get_tile(u);
+        unsigned c = area_id(p, 2);
+        if (!c || rs_drop_land(idx, c) || (g_xs[idx].active && c == g_xs[idx].cont)) continue;   // home, or the outpost's island
+        int k = 0;
+        while (k < nl && lands[k].cont != c) k++;
+        if (k == nl) { if (nl == 16) continue; lands[nl].cont = c; lands[nl].n = 0; lands[nl].p = p; nl++; }
+        lands[k].n++;
+    }
+    int b = -1;
+    for (int k = 0; k < nl; k++) if (b < 0 || lands[k].n > lands[b].n) b = k;
+    if (b < 0) { r->seen_t = 0; r->seen_cont = 0; return; }
+    if (r->seen_cont != lands[b].cont) { r->seen_cont = lands[b].cont; r->seen_t = now ? now : 1; return; }
+    if (now - r->seen_t < 30000) return;
+    ivec2 w;
+    int oc = (int)ocean_near(lands[b].p, 4, &w);
+    if (!oc) { if (now - r->seen_t < 31000 + 5000) rs_say(idx, now, "%d idle citizens on land %u without a drop site - no sea within 4 tiles", lands[b].n, lands[b].cont); return; }
+    // home: the shore with room nearest a drop site on that sea, the nearest such to them
+    ivec2 drop = iv2(-1, -1);
+    int dd = 0x7FFFFFFF;
+    for (int i = 0; i < g_drops[idx].n; i++) {
+        ivec2 t;
+        unsigned dc = area_id(g_drops[idx].d[i].p, 2);
+        if (!dc || dc == lands[b].cont || !ex_shore(dc, oc, g_drops[idx].d[i].p, 20, &t, NULL)) continue;
+        int d = ivec2_dist2(t, lands[b].p);
+        if (d < dd) { dd = d; drop = t; }
+    }
+    if (drop.x < 0) { if (now - r->seen_t < 36000) rs_say(idx, now, "%d idle citizens on land %u - no drop site of its on sea %d", lands[b].n, lands[b].cont, oc); return; }
+    ee_unit *sh = NULL;
+    int sd = 0x7FFFFFFF, trs = 0;
+    for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
+        ee_unit *u = it.u;
+        if (unit_get_owner(u) != pl || unit_get_hp(u) <= 0 || unit_get_x(u) < 0 || !is_transport(unit_type_get_id(it.td))) continue;
+        trs++;
+        if (ex_cargo(u) > 0 || landing_has_unit(pl, u) || expand_ship(u) || (int)ocean_near(unit_get_tile(u), 2, NULL) != oc) continue;
+        int d = ivec2_dist2(unit_get_tile(u), w);
+        if (d < sd) { sd = d; sh = u; }
+    }
+    if (!sh) { if (now - r->seen_t < 36000) rs_say(idx, now, "%d idle citizens on land %u - no free transport on sea %d (%d transports)", lands[b].n, lands[b].cont, oc, trs); return; }
+    int cap = ld_cap(unit_type_get_id(unit_get_type_data(sh)));
+    r->npass = 0;
+    for (struct grid_it it = grid_it_all(1); grid_it_next(&it) && r->npass < cap && r->npass < 16; ) {
+        ee_unit *u = it.u;
+        if (unit_get_owner(u) != pl || unit_get_hp(u) <= 0 || unit_get_x(u) < 0 || !is_citizen_type(unit_type_get_id(it.td)) || unit_get_goal(u) ||
+            landing_has_unit(pl, u) || expand_has(pl, u) || area_id(unit_get_tile(u), 2) != lands[b].cont) continue;
+        r->pass[r->npass].u = u; r->pass[r->npass++].id = unit_get_id(u);
+    }
+    r->ship.u = sh; r->ship.id = unit_get_id(sh);
+    r->cont = lands[b].cont; r->ocean = oc; r->pick = lands[b].p; r->pick_w = w; r->drop = drop;
+    r->phase = 1; r->since = now ? now : 1; r->load_t = 0; r->reissue = 0; r->trips++;
+    unit_goal(sh, goal_move((float)w.x + 0.5f, (float)w.y + 0.5f), 0, 0x1F40);
+    rs_say(idx, now, "%d idle citizens on land %u (by %d,%d) without a drop site - the transport at %d,%d fetches %d, home at %d,%d", lands[b].n,
+           lands[b].cont, lands[b].p.x, lands[b].p.y, unit_get_x(sh), unit_get_y(sh), r->npass, drop.x, drop.y);
+}
+internal void rs_act(ee_player *pl, unsigned idx, uint32_t now) {
+    struct rs_st *r = &g_rs[idx];
+    if (!r->phase) {
+        if (r->look_t && now >= r->look_t && now - r->look_t < 5000) return;
+        r->look_t = now ? now : 1;
+        rs_look(pl, idx, r, now);
+        return;
+    }
+    if (!ex_alive(&r->ship, pl)) { rs_end(pl, idx, r, now, "the transport is gone"); r->failed++; return; }
+    ee_unit *sh = r->ship.u;
+    int n = 0, aboard = 0;
+    for (int k = 0; k < r->npass; k++) if (ex_alive(&r->pass[k], pl)) r->pass[n++] = r->pass[k];
+    r->npass = n;
+    for (int k = 0; k < r->npass; k++) aboard += unit_get_x(r->pass[k].u) < 0;
+    if (r->phase == 1 || r->phase == 2) {
+        if (!r->npass) { rs_end(pl, idx, r, now, "no one left to fetch"); return; }
+        if (now - r->since >= 240000 && !aboard) { rs_end(pl, idx, r, now, "boarding failed in 4 minutes"); r->failed++; return; }
+        int there = ivec2_dist2(unit_get_tile(sh), r->pick_w) <= 49;
+        if (r->phase == 1) {
+            if (!there && now - r->since < 120000) {
+                if (!goal_near(sh, (float)r->pick_w.x + 0.5f, (float)r->pick_w.y + 0.5f, 2.0f))
+                    unit_goal(sh, goal_move((float)r->pick_w.x + 0.5f, (float)r->pick_w.y + 0.5f), 0, 0x1F40);
+                return;
+            }
+            r->phase = 2; r->load_t = now ? now : 1;
+        }
+        if (aboard == r->npass || (aboard && now - r->load_t >= 90000)) {
+            unit_goal(sh, ld_unload(sh, r->drop), 0, 0x1F40);
+            r->phase = 3; r->since = now ? now : 1;
+            rs_say(idx, now, "%d aboard - home to %d,%d", aboard, r->drop.x, r->drop.y);
+            return;
+        }
+        if (r->reissue && now - r->reissue < 20000) return;   // the load goal (again every 20 s for those not aboard)
+        r->reissue = now ? now : 1;
+        ee_unit *list[16];
+        int m = 0;
+        for (int k = 0; k < r->npass; k++) if (unit_get_x(r->pass[k].u) >= 0) list[m++] = r->pass[k].u;
+        if (!m) return;
+        ee_goal *g = goal_load(sh, list, m);
+        if (!g || unit_get_goal(sh) != g) return;   // as the ferry: a load goal the transport didn't keep is deleted - no parts from it
+        for (int k = 0; k < m; k++) unit_goal(list[k], goal_load_part(g), 0, 0x1F40);
+        return;
+    }
+    // phase 3: home
+    if (ex_cargo(sh) <= 0) {
+        r->brought += (unsigned)r->npass;
+        rs_say(idx, now, "%d citizens home at %d,%d", r->npass, r->drop.x, r->drop.y);
+        r->phase = 0; r->npass = 0; r->ship.u = NULL; r->seen_t = 0; r->seen_cont = 0;
+        return;
+    }
+    if (now - r->since >= 360000) { rs_end(pl, idx, r, now, "not home in 6 minutes - unloaded where it is"); r->failed++; return; }
+    ee_goal *cur = unit_get_goal(sh);
+    if (!cur || !goal_is_unload(cur)) unit_goal(sh, ld_unload(sh, r->drop), 0, 0x1F40);
+}
 internal void expand_new_game(void) {
     memset(&g_exs, 0, sizeof g_exs);
+    memset(g_rs, 0, sizeof g_rs);
     memset(g_ex_log_t, 0, sizeof g_ex_log_t);
     memset(g_xs, 0, sizeof g_xs);
     g_ex_map_logged = 0;
@@ -1193,9 +1365,11 @@ internal void expand_tick(ee_player *pl, uint32_t now) {
         ex_log(pl, idx, now);
     }
     if (!is_vanilla(pl) && (g_expand || g_v_expand > 0)) expand_act(pl, idx, now);
+    if (!is_vanilla(pl) && g_rescue) rs_act(pl, idx, now);
 }
 internal void expand_install(const char *autotest_ini) {
     g_expand = g_set_ai[1].expand_islands;
+    g_rescue = g_set_ai[1].rescue_citizens;
     if (autotest_ini) g_v_expand = ini_int("autotest", "v_expand_islands", -1, autotest_ini);
     g_ex_cits = g_set_ai[1].expand_citizens;
     g_ex_guard = g_set_ai[1].expand_guard;
