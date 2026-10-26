@@ -49,6 +49,10 @@ internal inline void **goal_0x3c_at(const ee_goal *o) { return (void **)((uint8_
 internal inline ee_unit *goal_get_holder(const ee_goal *o) { return *(ee_unit **)((uint8_t *)o + of_goal_holder); }
 internal inline void goal_set_holder(ee_goal *o, ee_unit *v) { *(ee_unit **)((uint8_t *)o + of_goal_holder) = v; }
 internal inline ee_unit **goal_holder_at(const ee_goal *o) { return (ee_unit **)((uint8_t *)o + of_goal_holder); }
+// vf25: a condition of the unit's script (the .tai's names: RepairSiteInRange 0xFAE ...) as the goal's kind
+// answers it, the base's (0x6283xx) for the rest; thiscall(goal, unit, condition id)
+typedef char (__thiscall *goal_condition_fn)(ee_goal *, ee_unit *, uint32_t);
+internal inline char goal_condition(ee_goal *goal, ee_unit *u, uint32_t cond) { return ((goal_condition_fn)(*(void ***)goal)[slot_goal_condition])(goal, u, cond); }
 // thiscall(goal 0xFBA object, unit) (0x5ED24B)
 typedef char (__thiscall *goal_fits_fn)(ee_goal *, void *);
 internal goal_fits_fn fn_goal_fits;
@@ -144,6 +148,19 @@ internal inline int *build_goal_type_id_at(const ee_build_goal *o) { return (int
 typedef ee_goal *(__thiscall *build_goal_init_fn)(ee_build_goal *, ee_player *, ee_unit *, int);
 internal build_goal_init_fn fn_build_goal_init;
 internal inline ee_goal *build_goal_init(ee_build_goal *build_goal, ee_player *pl, ee_unit *building, int flag) { return fn_build_goal_init(build_goal, pl, building, flag); }
+// the citizen script's BuildSiteValid (condition 0xFB7): 1 while no unit on the building's ground is in the way
+// (unit.site_blocker 2 for none) and no other started building stands there - false turns a human player's build
+// order into a move there (citizen.tai's CheckOwner -> ConvertToLocationGoal), a computer's waits
+typedef char (__thiscall *build_goal_site_valid_fn)(ee_build_goal *);
+internal build_goal_site_valid_fn fn_build_goal_site_valid;
+internal inline char build_goal_site_valid(ee_build_goal *build_goal) { return fn_build_goal_site_valid(build_goal); }
+// its script conditions: RepairSiteInRange (0xFAE, 0x60BC54) only on a tile of the building's ring (its type's
+// vf 0x44 lists them), BuildSiteValid (0xFB7, site_valid), BuildSiteClear (0xFB5) ... - citizen.tai's
+// CheckRepairSiteAccessibility goes idle on a false RepairSiteInRange at the walk's end, no second try
+typedef char (__thiscall *build_goal_condition_fn)(ee_build_goal *, ee_unit *, uint32_t);
+internal build_goal_condition_fn fn_build_goal_condition;
+internal inline char build_goal_condition(ee_build_goal *build_goal, ee_unit *u, uint32_t cond) { return fn_build_goal_condition(build_goal, u, cond); }
+internal inline int patch_build_condition(build_goal_condition_fn h) { return patch_vtable(vt_eeug_build_repair, (int)slot_goal_condition, (uintptr_t)fn_build_goal_condition, (void *)h); }
 
 // class EEUGLoadTransport (ee_load_goal)
 // the load-into-a-transport goal (EEUGLoadTransport)
@@ -554,6 +571,7 @@ internal int spec_goal_select(int build) {
         of_goal_0x38 = 0x38;
         of_goal_0x3c = 0x3C;
         of_goal_holder = 0x50;
+        slot_goal_condition = 25;
         fn_goal_fits = (goal_fits_fn)0x0060FE7E;
         call_goal_fits = 0x005ED9BF;
         fn_goal_move_at_game = (goal_move_at_game_fn)0x00614D47;
@@ -575,6 +593,8 @@ internal int spec_goal_select(int build) {
         of_build_goal_tech_id = 0x48;
         of_build_goal_type_id = 0x4C;
         fn_build_goal_init = (build_goal_init_fn)0x0060BAD0;
+        fn_build_goal_site_valid = (build_goal_site_valid_fn)0x0060D12A;
+        fn_build_goal_condition = (build_goal_condition_fn)0x0060D4FD;
         vt_eeug_load_transport = 0x00831DC0;
         fn_load_goal_init = (load_goal_init_fn)0x0061487F;
         vt_eeug_location = 0x00831E64;
@@ -624,6 +644,7 @@ internal int spec_goal_select(int build) {
         of_goal_0x38 = 0x38;
         of_goal_0x3c = 0x3C;
         of_goal_holder = 0x50;
+        slot_goal_condition = 25;
         fn_goal_fits = (goal_fits_fn)0x006226CF;
         call_goal_fits = 0x005FBA9C;
         fn_goal_move_at_game = (goal_move_at_game_fn)0x00627742;
@@ -645,6 +666,8 @@ internal int spec_goal_select(int build) {
         of_build_goal_tech_id = 0x48;
         of_build_goal_type_id = 0x4C;
         fn_build_goal_init = (build_goal_init_fn)0x0061E164;
+        fn_build_goal_site_valid = (build_goal_site_valid_fn)0x0061F85E;
+        fn_build_goal_condition = (build_goal_condition_fn)0x0061FC4B;
         vt_eeug_load_transport = 0x008477F8;
         fn_load_goal_init = (load_goal_init_fn)0x00627286;
         vt_eeug_location = 0x008478A0;
@@ -707,6 +730,9 @@ internal int spec_goal_check(void) {
     bad += spec_code((uintptr_t)fn_goal_add_passenger, "EEUnitGoal.add_passenger");
     bad += spec_vtable(vt_eeug_build_repair, ".?AVEEUGBuildRepair@@", "EEUGBuildRepair [vtable]");
     bad += spec_code((uintptr_t)fn_build_goal_init, "EEUGBuildRepair.init");
+    bad += spec_code((uintptr_t)fn_build_goal_site_valid, "EEUGBuildRepair.site_valid");
+    bad += spec_code((uintptr_t)fn_build_goal_condition, "EEUGBuildRepair.condition");
+    bad += spec_slot(vt_eeug_build_repair, slot_goal_condition, (uintptr_t)fn_build_goal_condition, "EEUGBuildRepair.condition [slot]");
     bad += spec_vtable(vt_eeug_load_transport, ".?AVEEUGLoadTransport@@", "EEUGLoadTransport [vtable]");
     bad += spec_code((uintptr_t)fn_load_goal_init, "EEUGLoadTransport.init");
     bad += spec_vtable(vt_eeug_location, ".?AVEEUGLocation@@", "EEUGLocation [vtable]");

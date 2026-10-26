@@ -1,6 +1,6 @@
 // citizens sent to build a foundation some way off (the player: the citizens walk to the foundation and need another
 // order instead of beginning to build): Continental (seed 101, start_epoch 12), P1's foundations of a barracks at 50,44
-// and a house at 50,52, three citizens each from 12 tiles west given the build order the moment it is placed (as the player's placing does). The pings say the buildings' hit
+// and a house at 50,56, three citizens each from 12 tiles west given the build order the moment it is placed (as the player's placing does). The pings say the buildings' hit
 // points - a foundation's grow while it is built.
 wait_until(0.1min)
 let p1 = player(1)
@@ -9,8 +9,8 @@ let c2 = p1.spawn(unit.citizen, vec(38, 52), 3)
 wait_until(0.2min)
 cmd("found 1 34 50 44")
 cmd("build 1 50 44 38 44 3")
-cmd("found 1 37 50 52")
-cmd("build 1 50 52 38 52 3")
+cmd("found 1 37 50 56")
+cmd("build 1 50 56 38 52 3")
 every(10s, 0.3min, 2.2min, (run) => {
     let bs = p1.units(unit.b_barracks)
     let hs = p1.units(unit.b_house)

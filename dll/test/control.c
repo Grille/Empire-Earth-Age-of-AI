@@ -47,6 +47,7 @@ internal void cmd_watchtech(char *out, const char *args);
 internal void cmd_watchtype(char *out, const char *args);
 internal void cmd_techs(char *out, const char *args);
 internal void cmd_build(char *out, const char *args);
+internal void cmd_sitecheck(char *out, const char *args);
 internal void cmd_found(char *out, const char *args);
 internal void cmd_plan(char *out, const char *args);
 internal void cmd_hurt(char *out, const char *args);
@@ -379,6 +380,7 @@ internal void execute(const char *cmd, char *out) {
     else if (!strcmp(verb, "watchtype")) cmd_watchtype(out, args);
     else if (!strcmp(verb, "techs")) cmd_techs(out, args);
     else if (!strcmp(verb, "build")) cmd_build(out, args);
+    else if (!strcmp(verb, "sitecheck")) cmd_sitecheck(out, args);
     else if (!strcmp(verb, "found")) cmd_found(out, args);
     else if (!strcmp(verb, "plan")) cmd_plan(out, args);
     else if (!strcmp(verb, "hurt")) cmd_hurt(out, args);
@@ -454,11 +456,13 @@ internal void llm_tick(void);           // llm.c: the language model's answers
 internal void script_triggers(uint32_t now);   // scripts.c: the setup scripts' triggers
 internal void fm_tick(void);            // fleetmove.c: `fmove trace`
 internal void ff_linger_tick(void);     // groupmove.c: units of an arrived formation back to their spots
+internal void build_retry_tick(void);   // buildretry.c: citizens that stopped a tile off a building site sent again
 internal long __thiscall hook_sim_receive(void *thread, void *a, void *b, void *c) {
     diplo_safe_point();
     upgrade_stragglers();
     aim_tick();
     ff_linger_tick();
+    build_retry_tick();
     fm_tick();
     sound_tick(game_time());
     llm_tick();

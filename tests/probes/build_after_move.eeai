@@ -1,0 +1,34 @@
+// citizens moved as a group, then told to build (the player: five citizens given a move order and then a build order
+// all walk to the foundation, but only one or two begin to build): Continental (seed 101, start_epoch 12), three groups
+// of five P1 citizens sent by the right-click's message (fmove: the group move, formations and all) 8 tiles east, then a
+// foundation placed for each the way the player's placing does (build ... place: the building first in each citizen's
+// build list, no goal): group A at 15 s (arrived, within the formation's linger), B at 30 s, C while still walking
+// (3 s). The pings say the buildings' hit points and how many citizens build; uinfo at the end each one's state.
+wait_until(0.1min)
+let p1 = player(1)
+let a = p1.spawn(unit.citizen, vec(36, 40), 5)
+let b = p1.spawn(unit.citizen, vec(36, 50), 5)
+let c = p1.spawn(unit.citizen, vec(36, 60), 5)
+wait_until(0.2min)
+cmd("fmove go 1 36 40 4 44 40")
+cmd("fmove also 1 36 50 4 44 50")
+cmd("fmove also 1 36 60 4 44 60")
+wait_until(0.25min)
+cmd("found 1 34 50 58")
+cmd("build 1 50 58 40 60 6 place")
+wait_until(0.45min)
+cmd("found 1 34 50 40")
+cmd("build 1 50 40 44 40 4 place")
+wait_until(0.7min)
+cmd("found 1 34 50 47")
+cmd("build 1 50 47 44 50 4 place")
+for t in [0.75min, 0.95min, 1.2min] { wait_until(t)
+    cmd("uinfo 51 41 4")
+    cmd("uinfo 51 48 4")
+    cmd("uinfo 51 59 4") }
+every(10s, 0.5min, 2.0min, (run) => {
+    let hs = p1.units(unit.b_barracks)
+    let s = ""
+    for u in hs { s = "{s} {u.hp}" }
+    ping("barracks hp:{s}")
+})

@@ -48,6 +48,7 @@ internal void llm_new_game(void);
 internal void shipturns_new_game(void);   // engine/shiproute.c
 internal void collide_new_game(void);      // engine/collide.c
 internal void groupmove_new_game(void);    // engine/groupmove.c
+internal void build_retry_new_game(void);  // engine/buildretry.c
 internal void persist_load(const char *name);
 internal void econ_targets(ee_resource_mgr *rm);
 internal void econ_rebalance(ee_resource_mgr *rm);
@@ -306,6 +307,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
     shipturns_new_game();
     collide_new_game();
     groupmove_new_game();
+    build_retry_new_game();
     landing_new_game();
     navy_new_game();
     bunker_new_game();
@@ -379,6 +381,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
 #include "engine/turns.c"
 #include "engine/collide.c"
 #include "engine/groupmove.c"
+#include "engine/buildretry.c"
 #include "engine/drawlist.c"
 #include "engine/sight.c"
 #include "engine/asg_queue.c"
@@ -585,6 +588,7 @@ internal void install(HMODULE self) {
     turns_install();   // before ship_turns: it finds the models by their slot 7, which ship_turns replaces
     collide_install();
     groupmove_install();
+    build_retry_install();
     shiproute_install(g_autotest ? g_ini : NULL);
     drawlist_install();
     sight_install();

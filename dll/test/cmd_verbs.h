@@ -6,8 +6,8 @@ internal const char *const k_cmd_verbs[] = {
     "ddinfo", "ddpoke", "defence", "diplo", "drawcount", "drops", "epochup", "explored", "firerate", "fmove",
     "foodcheck", "found", "give", "gridcheck", "hurt", "intel", "landing", "llm", "minecheck", "move", "navy",
     "nullmember", "objs", "pause", "persona", "ping", "plan", "quit", "resume", "rlist", "save", "say", "script",
-    "scrolltest", "seaop", "seltest", "sightcount", "sites", "sndchan", "sndstate", "spawn", "spawnline", "speed",
-    "stats", "status", "targets", "tech", "techs", "terrain", "textlog", "texts", "textstate", "threat", "tinfo",
-    "topbar", "train", "transports", "trig", "turbo", "uinfo", "units", "vis", "vistrack", "watch", "watchtech",
-    "watchtype", "wave", "wmclose",
+    "scrolltest", "seaop", "seltest", "sightcount", "sitecheck", "sites", "sndchan", "sndstate", "spawn",
+    "spawnline", "speed", "stats", "status", "targets", "tech", "techs", "terrain", "textlog", "texts", "textstate",
+    "threat", "tinfo", "topbar", "train", "transports", "trig", "turbo", "uinfo", "units", "vis", "vistrack",
+    "watch", "watchtech", "watchtype", "wave", "wmclose",
 };

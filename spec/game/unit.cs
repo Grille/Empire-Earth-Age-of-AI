@@ -584,6 +584,11 @@ unsafe struct EEComplexUnit
     [address((ee)0x005F05BD, (aoc)0x005FE863)]
     [call_site("repair_goal", (ee)0x0046DA88, (aoc)0x004706DF)]         // the game's repair orders, handed over
     extern void assign_goal(EEUnitGoal* goal, int8 append, int32 prio);
+    /// the building to build next, alone: its goals dropped, idle (5000), the building first in its build list (+0x60's
+    /// deque) - the player's placing (EEMBuildUnit::vf10 0x4B3D85) for each selected citizen, 0x5E8B19 with shift
+    /// (appended); the citizen's script takes it up from there, no goal is given
+    [address((ee)0x005E8A3B, (aoc)0x005F60EA)]
+    extern void build_next(EEUnit* building);
 
     /// freed: its slot 12 (+0x30), its references 0, then back to the game's pool (0x5F20FB / AoC 0x60096B)
     [address((ee)0x005ED71E, (aoc)0x005FB7FB), overrides(typeof(RTSUnit))]
@@ -628,6 +633,12 @@ static unsafe class unit
     [call_site("aim", (ee)0x0061E1D7, (aoc)0x006313D6)]                 // a unit's shot
     [call_site("missile_aim", (ee)0x0054E850, (aoc)0x0055B1C3)]         // a missile's
     static extern void aim(EEComplexUnit* u, EEUnit** target, float32* aim, void* zero);
+
+    /// whether u on the ground of a building of type for pl is in the way: 0 not (some types and kinds), 1 it can
+    /// step aside (pl's or an ally's, a mover: its stats' speed above 0), 2 it is in the way - the build site's test
+    /// (EEUGBuildRepair.site_valid: any 2 makes the site invalid)
+    [address((ee)0x0062E5D2, (aoc)0x00643978), cdecl]
+    static extern char8 site_blocker(EEUnit* u, EEPlayer* pl, int32 type, char8 p4);
 }
 
 /// a unit's script state, its +0x1E8 (EEUnitAction: a state of its .tai, engine-notes.md "Unit AI scripts"; its RTTI

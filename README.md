@@ -280,6 +280,11 @@ Settings in `aimod.ini`:
   Loading and unloading both first work out all the spots (the groups of units, the landing tiles), then match the
   transports to them so that the ways together are the shortest - so their ways don't cross.
   Both run inside the game's simulation like the original commands: in multiplayer every PC needs the same settings.
+- `[general] build_retry=1` (default): citizens told to build together all walk to the free tile next to the site
+  nearest them - after a move order, standing close, the same one - and push each other off it; the game makes a
+  citizen that ends its walk off the site's edge, or finds no way round the others, stand idle there, so of five
+  often only one or two began. Such a citizen of a human player is now sent again (up to three times, the game's
+  own placing call: it picks the tile nearest to where it stands then). 0 = the original.
 - `[general] improved_unit_movement=default`: the seven movement settings below (ship_routes, land_routes,
   ship_turns, land_turns, turn_fix, ship_collide, land_collide) as one. `default` gives each its own default (on
   what is measured and helps), `enabled` all of them on, `disabled` all off - the game's own movement. Each one set

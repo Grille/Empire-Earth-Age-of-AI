@@ -570,6 +570,12 @@ typedef void (__thiscall *unit_assign_goal_fn)(ee_unit *, ee_goal *, int8_t, int
 internal unit_assign_goal_fn fn_unit_assign_goal;
 internal inline void unit_assign_goal(ee_unit *unit, ee_goal *goal, int8_t append, int prio) { fn_unit_assign_goal(unit, goal, append, prio); }
 internal inline int patch_repair_goal(unit_assign_goal_fn h) { return patch_call(call_repair_goal, (uintptr_t)fn_unit_assign_goal, (void *)h); }
+// the building to build next, alone: its goals dropped, idle (5000), the building first in its build list (+0x60's
+// deque) - the player's placing (EEMBuildUnit::vf10 0x4B3D85) for each selected citizen, 0x5E8B19 with shift
+// (appended); the citizen's script takes it up from there, no goal is given
+typedef void (__thiscall *unit_build_next_fn)(ee_unit *, ee_unit *);
+internal unit_build_next_fn fn_unit_build_next;
+internal inline void unit_build_next(ee_unit *unit, ee_unit *building) { fn_unit_build_next(unit, building); }
 // freed: its slot 12 (+0x30), its references 0, then back to the game's pool (0x5F20FB / AoC 0x60096B)
 internal unit_release_fn fn_ee_complex_unit_release;
 internal inline void ee_complex_unit_release(ee_unit *unit) { fn_ee_complex_unit_release(unit); }
@@ -605,6 +611,12 @@ internal unit_aim_fn fn_unit_aim;
 internal inline void unit_aim(ee_unit *u, ee_unit **target, float *aim, void *zero) { fn_unit_aim(u, target, aim, zero); }
 internal inline int patch_aim(unit_aim_fn h) { return patch_call(call_aim, (uintptr_t)fn_unit_aim, (void *)h); }
 internal inline int patch_missile_aim(unit_aim_fn h) { return patch_call(call_missile_aim, (uintptr_t)fn_unit_aim, (void *)h); }
+// whether u on the ground of a building of type for pl is in the way: 0 not (some types and kinds), 1 it can
+// step aside (pl's or an ally's, a mover: its stats' speed above 0), 2 it is in the way - the build site's test
+// (EEUGBuildRepair.site_valid: any 2 makes the site invalid)
+typedef char (__cdecl *unit_site_blocker_fn)(ee_unit *, ee_player *, int, char);
+internal unit_site_blocker_fn fn_unit_site_blocker;
+internal inline char unit_site_blocker(ee_unit *u, ee_player *pl, int type, char p4) { return fn_unit_site_blocker(u, pl, type, p4); }
 
 // class EEUnitAction (ee_ai_state)
 // a unit's script state, its +0x1E8 (EEUnitAction: a state of its .tai, engine-notes.md "Unit AI scripts"; its RTTI
@@ -788,6 +800,7 @@ internal int spec_unit_select(int build) {
         fn_unit_set_built = (unit_set_built_fn)0x005EFF65;
         fn_unit_assign_goal = (unit_assign_goal_fn)0x005F05BD;
         call_repair_goal = 0x0046DA88;
+        fn_unit_build_next = (unit_build_next_fn)0x005E8A3B;
         fn_ee_complex_unit_release = (unit_release_fn)0x005ED71E;
         vt_ee_ghost_unit = 0x00831588;
         size_ee_ghost_unit = 0x334;
@@ -800,6 +813,7 @@ internal int spec_unit_select(int build) {
         fn_unit_aim = (unit_aim_fn)0x00633413;
         call_aim = 0x0061E1D7;
         call_missile_aim = 0x0054E850;
+        fn_unit_site_blocker = (unit_site_blocker_fn)0x0062E5D2;
         of_ai_state_handlers = 0x8;
         of_ai_state_id = 0x24;
         fn_ai_state_ask = (ai_state_ask_fn)0x00619FF5;
@@ -946,6 +960,7 @@ internal int spec_unit_select(int build) {
         fn_unit_set_built = (unit_set_built_fn)0x005FE230;
         fn_unit_assign_goal = (unit_assign_goal_fn)0x005FE863;
         call_repair_goal = 0x004706DF;
+        fn_unit_build_next = (unit_build_next_fn)0x005F60EA;
         fn_ee_complex_unit_release = (unit_release_fn)0x005FB7FB;
         vt_ee_ghost_unit = 0x00846EF4;
         size_ee_ghost_unit = 0x334;
@@ -958,6 +973,7 @@ internal int spec_unit_select(int build) {
         fn_unit_aim = (unit_aim_fn)0x0064939D;
         call_aim = 0x006313D6;
         call_missile_aim = 0x0055B1C3;
+        fn_unit_site_blocker = (unit_site_blocker_fn)0x00643978;
         of_ai_state_handlers = 0x8;
         of_ai_state_id = 0x24;
         fn_ai_state_ask = (ai_state_ask_fn)0x0062CD8B;
@@ -1001,6 +1017,7 @@ internal int spec_unit_check(void) {
     bad += spec_code((uintptr_t)fn_unit_set_built, "EEComplexUnit.set_built");
     bad += spec_code((uintptr_t)fn_unit_assign_goal, "EEComplexUnit.assign_goal");
     bad += spec_call(call_repair_goal, (uintptr_t)fn_unit_assign_goal, "EEComplexUnit.assign_goal [call_site repair_goal]");
+    bad += spec_code((uintptr_t)fn_unit_build_next, "EEComplexUnit.build_next");
     bad += spec_code((uintptr_t)fn_ee_complex_unit_release, "EEComplexUnit.release");
     bad += spec_slot(vt_ee_complex_unit, slot_unit_release, (uintptr_t)fn_ee_complex_unit_release, "EEComplexUnit.release [slot]");
     bad += spec_vtable(vt_ee_ghost_unit, ".?AVEEGhostUnit@@", "EEGhostUnit [vtable]");
@@ -1010,6 +1027,7 @@ internal int spec_unit_check(void) {
     bad += spec_code((uintptr_t)fn_unit_aim, "unit.aim");
     bad += spec_call(call_aim, (uintptr_t)fn_unit_aim, "unit.aim [call_site aim]");
     bad += spec_call(call_missile_aim, (uintptr_t)fn_unit_aim, "unit.aim [call_site missile_aim]");
+    bad += spec_code((uintptr_t)fn_unit_site_blocker, "unit.site_blocker");
     bad += spec_code((uintptr_t)fn_ai_state_ask, "EEUnitAction.ask");
     bad += spec_call(calls_goalset_ask[0], (uintptr_t)fn_ai_state_ask, "EEUnitAction.ask [call_site goalset_ask 0]");
     bad += spec_call(calls_goalset_ask[1], (uintptr_t)fn_ai_state_ask, "EEUnitAction.ask [call_site goalset_ask 1]");

@@ -415,15 +415,18 @@ internal void cmd_found(char *out, const char *args) {
     if (sscanf(args, "%d %d %d %d", &p, &t, &x, &y) < 4) { REPLY("error: usage: found P T x y\n"); return; }
     ee_player *pl = player_at(p);   // diplo.c: any player, human or AI
     if (!pl || t < 0 || t >= 724 || !type_data(t)) { REPLY("error: no player %d or type %d\n", p, t); return; }
+    int ok = can_place(pl, t, iv2(x, y));   // the placement test the player's click passes first (defence.c) - placed anyway
     void *u = place_foundation(pl, t, x, y);
-    REPLY("ok: type %d for P%d at %d,%d: %p\n", t, p, x, y, u);
+    REPLY("ok: type %d for P%d at %d,%d: %p%s\n", t, p, x, y, u, ok ? "" : " (a spot the player couldn't place it on)");
 }
 
-// build P bx by x y r: player P's citizens within r tiles of x, y build (or repair) P's building at bx, by - the
+// build P bx by x y r [place]: player P's citizens within r tiles of x, y build (or repair) P's building at bx, by - the
 // game's order (EEUGBuildRepair: new 0x5C, 0x60BAD0(goal, player, building, 1)). Tests: enemy builders at a tower.
+// place: as the player's placing does instead (unit_build_next: no goal, the building first in the citizen's build list)
 internal void cmd_build(char *out, const char *args) {
     int p, bx, by, x, y, r, n = 0;
-    if (sscanf(args, "%d %d %d %d %d %d", &p, &bx, &by, &x, &y, &r) < 6) { REPLY("error: usage: build P bx by x y r\n"); return; }
+    char kind[8] = "";
+    if (sscanf(args, "%d %d %d %d %d %d %7s", &p, &bx, &by, &x, &y, &r, kind) < 6) { REPLY("error: usage: build P bx by x y r [place]\n"); return; }
     ee_player *pl = player_at(p);
     ee_map *map = game_map();
     ee_grid *grid = map ? map_get_grid(map) : NULL;
@@ -448,11 +451,44 @@ internal void cmd_build(char *out, const char *args) {
     }
     if (!bld) { REPLY("error: no building of P%d at %d,%d\n", p, bx, by); return; }
     for (int k = 0; k < nc; k++) {
+        if (!strcmp(kind, "place")) { unit_build_next(civ[k], bld); n++; continue; }
         void *mem = goal_build_alloc();
         ee_goal *g = mem ? build_goal_init(mem, pl, bld, 1) : NULL;
         n += unit_goal(civ[k], g, 0, 0x1F51);
     }
     REPLY("ok: %d citizens of P%d build at %d,%d\n", n, p, bx, by);
+}
+
+// sitecheck bx by: the build site of the building at bx, by as the citizen script sees it (the player: citizens walk to a
+// foundation and stand there) - each unit on or by its ground with the game's say whether it is in the way
+// (unit_site_blocker: 2 is), and each citizen with a build order for it its BuildSiteValid (build_goal_site_valid; false
+// turns a human player's order into a move there)
+internal void cmd_sitecheck(char *out, const char *args) {
+    int bx, by;
+    if (sscanf(args, "%d %d", &bx, &by) < 2) { REPLY("error: usage: sitecheck bx by\n"); return; }
+    ee_map *map = game_map();
+    ee_grid *grid = map ? map_get_grid(map) : NULL;
+    if (!grid) { REPLY("error: no map\n"); return; }
+    ee_unit *bld = NULL;
+    for (struct grid_it it = grid_it_box(bx, by, 4, 1); grid_it_next(&it); ) {
+        int cls = unit_type_get_class_id(it.td);
+        if (abs(unit_get_x(it.u) - bx) <= 1 && abs(unit_get_y(it.u) - by) <= 1 && (cls == CLS_BUILDING || cls == CLS_FORTRESS)) bld = it.u;
+    }
+    if (!bld) { REPLY("error: no building at %d,%d\n", bx, by); return; }
+    ee_player *pl = unit_get_owner(bld);
+    int type = unit_type_get_id(unit_get_type_data(bld)), sz = unit_type_get_size(unit_get_type_data(bld));
+    REPLY("site %p type %d hp %d size %d (build_retry: %u citizens sent again, %u given up)\n", bld, type, unit_get_hp(bld), sz, g_br_retried, g_br_gave_up);
+    for (struct grid_it it = grid_it_box(bx, by, sz + 3, 1); grid_it_next(&it); ) {
+        if (it.u == bld) continue;
+        vec3 q = unit_get_pos(it.u);
+        ee_goal *g = unit_get_goal(it.u);
+        int mine = g && goal_is_build(g) && goal_get_building(g) == bld;
+        ee_player *owner = unit_get_owner(it.u);
+        REPLY("  %p type %d P%d at %.2f,%.2f blocker %d", it.u, unit_type_get_id(it.td), owner ? player_get_index(owner) : -1, q.x, q.y,
+              unit_site_blocker(it.u, pl, type, 0));
+        if (mine) REPLY(" build order, site valid %d", build_goal_site_valid((ee_build_goal *)g));
+        REPLY(" state %u\n", unit_ai_state_id(it.u));
+    }
 }
 
 // watchtype P T [off]: hardware write-watch on the first unit of type T of player P, at offset off (default 0x2C,

@@ -46,6 +46,11 @@ unsafe struct EEUnitGoal
     [offset(0x50), found(c)]
     EEUnit* holder;
 
+    /// vf25: a condition of the unit's script (the .tai's names: RepairSiteInRange 0xFAE ...) as the goal's kind
+    /// answers it, the base's (0x6283xx) for the rest; thiscall(goal, unit, condition id)
+    [slot(25)]
+    extern char8 condition(EEUnit* u, uint32 cond);
+
     /// thiscall(goal 0xFBA object, unit) (0x5ED24B)
     [address((ee)0x0060FE7E, (aoc)0x006226CF)]
     // in 0x5ED24B: goal_fits on a dynamic_cast, unchecked
@@ -105,6 +110,19 @@ unsafe struct EEUGBuildRepair
     /// EEUGBuildRepair constructor: thiscall(goal, player, building, 1)
     [address((ee)0x0060BAD0, (aoc)0x0061E164)]
     extern EEUnitGoal* init(EEPlayer* pl, EEUnit* building, int32 flag);
+
+    /// the citizen script's BuildSiteValid (condition 0xFB7): 1 while no unit on the building's ground is in the way
+    /// (unit.site_blocker 2 for none) and no other started building stands there - false turns a human player's build
+    /// order into a move there (citizen.tai's CheckOwner -> ConvertToLocationGoal), a computer's waits
+    [address((ee)0x0060D12A, (aoc)0x0061F85E)]
+    extern char8 site_valid();
+
+    /// its script conditions: RepairSiteInRange (0xFAE, 0x60BC54) only on a tile of the building's ring (its type's
+    /// vf 0x44 lists them), BuildSiteValid (0xFB7, site_valid), BuildSiteClear (0xFB5) ... - citizen.tai's
+    /// CheckRepairSiteAccessibility goes idle on a false RepairSiteInRange at the walk's end, no second try
+    [address((ee)0x0060D4FD, (aoc)0x0061FC4B), overrides(typeof(EEUnitGoal))]
+    [vtable_site("build_condition")]
+    extern char8 condition(EEUnit* u, uint32 cond);
 }
 
 /// the load-into-a-transport goal (EEUGLoadTransport)
