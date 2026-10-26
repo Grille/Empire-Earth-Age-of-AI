@@ -53,6 +53,10 @@ internal const struct setting_row k_settings[SETTING_N] = { SETTINGS(SET_ROW_X, 
 internal const struct { int row, master; } k_settings_under[] = { SETTING_UNDER(SET_UNDER) };
 #define SETTING_UNDER_N ((int)(sizeof k_settings_under / sizeof *k_settings_under))
 
+#define SET_GROUP(first, title) { SETTING_##first, title },
+internal const struct { int first; const char *title; } k_setting_groups[] = { SETTING_GROUPS(SET_GROUP) };
+#define SETTING_GROUP_N ((int)(sizeof k_setting_groups / sizeof *k_setting_groups))
+
 #define SET_EASY(key, text) { #key, text },
 internal const struct { const char *key, *text; } k_settings_easy[] = { SETTINGS_EASY(SET_EASY) };
 

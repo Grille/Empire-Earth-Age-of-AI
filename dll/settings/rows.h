@@ -24,11 +24,11 @@
 #define SETTINGS(X, S, D) \
     X(FLAG,   general,  enabled,                  1,  0, 0) \
     X(FLAG,   general,  scenario_ai,              1,  0, 0) \
-    X(FLAG,   general,  lead_targets,             1,  0, 0) \
     X(FLAG,   general,  auto_victory,             1,  0, 0) \
+    X(FLAG,   general,  skip_intro,               0,  0, 0) \
+    X(FLAG,   general,  lead_targets,             1,  0, 0) \
     X(FLAG,   general,  lead_missiles,            0,  0, 0) \
     X(FLAG,   general,  spread_missiles,          1,  0, 0) \
-    X(FLAG,   general,  skip_intro,               0,  0, 0) \
     X(FLAG,   general,  big_selection,            1,  0, 0) \
     X(FLAG,   general,  goal_markers,             1,  0, 0) \
     X(FLAG,   general,  transport_split,          1,  0, 0) \
@@ -253,9 +253,10 @@
     X(FLAG,  autotest, landing_trace,                0, 0, 0) \
     X(NUM,   autotest, transport_log,                0, 0, 0)
 
-// THE SECTIONS: every section a row names, one row each - its name, its place (aimod_config.exe's pages sort by it),
-// its kind and its title (the page's). Every key of a section of aimod.ini is a row: one that isn't is told in the log
-// (a misspelt key otherwise silently kept its default) - the test ini's [autotest] has knobs of its own besides the rows.
+// THE SECTIONS: every section a row names, one row each - its name, its place (aimod_config.exe's sections sort by
+// it), its kind and its title (the section's there; a difficulty's: its column's). Every key of a section of aimod.ini
+// is a row: one that isn't is told in the log (a misspelt key otherwise silently kept its default) - the test ini's
+// [autotest] has knobs of its own besides the rows.
 //
 //   PLAIN   a section of its own rows
 //   ALL     [all]: the rows of D, for every AI difficulty
@@ -268,11 +269,43 @@
     T(editor,    40, PLAIN, "Scenario editor") \
     T(sound,     50, PLAIN, "Sound") \
     T(llm,       60, PLAIN, "Language model") \
-    T(all,       70, ALL,   "AI: every difficulty") \
-    T(easy,      80, DIFF,  "AI: easy only") \
-    T(medium,    90, DIFF,  "AI: medium only") \
-    T(hard,     100, DIFF,  "AI: hard only") \
+    T(all,       70, ALL,   "AI") \
+    T(easy,      80, DIFF,  "Easy") \
+    T(medium,    90, DIFF,  "Medium") \
+    T(hard,     100, DIFF,  "Hard") \
     T(autotest,   0, TEST,  "Tests")
+
+// THE GROUPS: aimod_config.exe's topics within a section, one row each - the field of its first row and its title. A
+// group holds its first row and those after it in its section up to the next group's, so a new row joins the group
+// of the row before it (rows before a section's first group stand in the section itself).
+#define SETTING_GROUPS(G) \
+    G(enabled,                "The mod") \
+    G(lead_targets,           "Combat") \
+    G(big_selection,          "Selection and orders") \
+    G(improved_unit_movement, "Movement") \
+    G(sight_counts,           "Engine limits") \
+    G(chat,                   "AI chat and personalities") \
+    G(control_pipe,           "Tools and debugging") \
+    G(cost_percent,           "Economy and epochs") \
+    G(first_attack_min,       "Attacks") \
+    G(avoid_towers,           "Attack routing") \
+    G(honest_vision,          "What the AI sees") \
+    G(avoid_towers_citizens,  "Citizens under attack") \
+    G(early_towers,           "The early game") \
+    G(citizen_threats,        "Safety and fortresses") \
+    G(attack_siege,           "Siege and tower routing") \
+    G(build_fix,              "Building") \
+    G(navy,                   "Navy") \
+    G(navy_mines,             "Workers and resources") \
+    G(citizen_plan,           "Economy plans") \
+    G(army_mass,              "The army") \
+    G(expand_islands,         "Other islands") \
+    G(gather_research,        "Research and defence") \
+    G(unit_substitution,      "Training") \
+    G(home_guard,             "Home guard") \
+    G(answer_war,             "Diplomacy") \
+    G(landing,                "Landings and transports") \
+    G(min_workforce,          "Advanced tuning")
 
 // What the easy AI gets where neither [easy] nor [all] says otherwise (instead of the row's default): it eases off -
 // keeps to the human's epoch and population. The shipped [easy] says the same (settings_check.py).

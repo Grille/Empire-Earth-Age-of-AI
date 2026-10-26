@@ -1,11 +1,12 @@
-// AIMOD_CONFIG.EXE: the mod's settings (aimod.ini) in a window - for players who'd rather not edit the file. A page per
-// section (rows.h SETTING_SECTIONS: General, Display ... the AI's [all] and its three difficulties), the page's
-// settings in a list (value, default), and for the one selected its help - the comment above its key in the shipped config/aimod.ini, built in
+// AIMOD_CONFIG.EXE: the mod's settings (aimod.ini) in a window - for players who'd rather not edit the file. One tree:
+// the sections (rows.h SETTING_SECTIONS: General, Display ... the AI), their groups (SETTING_GROUPS), the settings
+// (value, default; an AI setting every difficulty's and easy's, medium's, hard's own in columns), a master's children
+// under it; for the one selected its help - the comment above its key in the shipped config/aimod.ini, built in
 // (aimod_config.rc), so it is the text of this version - and an editor: on / off, a choice, or a text field. A value
 // is checked as it is typed, by the DLL's own code (settings/settings.c setting_value, the language's x_const_eval:
 // 35%, 2 * 60, min(...)), and its mistake told as the game would log it. Saving writes only the keys changed, each
 // through WritePrivateProfileString, so the file's comments and order stay; an empty value removes the key (the
-// default, or on a difficulty's page [all]'s value). Keys in the file that are no setting of this version are listed
+// default, or for a difficulty [all]'s value). Keys in the file that are no setting of this version are listed
 // and can be removed. Its own translation unit (dll/build.sh), from base/, script/ and settings/ only (layers.py).
 #include <windows.h>
 #include <commctrl.h>
@@ -28,14 +29,13 @@
 #include "game/api/builds.h"   // the exe builds the mod knows, and how a file is known as one
 
 #define TITLE "Empire Earth: Age of AI - settings"
-enum { ID_PAGES = 100, ID_FILTER, ID_LIST, ID_HELP, ID_NAME, ID_CHECK, ID_COMBO, ID_EDIT, ID_DEFAULT, ID_STATUS, ID_FILE,
-       ID_SAVE, ID_CLOSE, ID_UNKNOWN, ID_REMOVE, ID_GAME_TEXT, ID_GAME_APPLY, ID_GAME_RESTORE };
+enum { ID_FILTER = 100, ID_LIST, ID_HELP, ID_NAME, ID_FILE, ID_SAVE, ID_CLOSE, ID_UNKNOWN, ID_REMOVE, ID_GAME, ID_GAME_TEXT,
+       ID_GAME_APPLY, ID_GAME_RESTORE };
 
-// THE PAGES: a section each (rows.h SETTING_SECTIONS by their order, the test ini's left out), then GAME_PAGE: the exe
-// (no settings: its 4 GB flag); diff >= 0: a difficulty's own section, its rows those of [all]
-#define GAME_PAGE -2
+// THE PAGES: a section each (rows.h SETTING_SECTIONS by their order, the test ini's left out) - the tree's sections and
+// the AI's difficulty columns; diff >= 0: a difficulty's own section, its rows those of [all]
 struct page { const char *title, *sec; int section, diff; };   // section: of k_setting_sections, -1 none
-internal struct page g_page_of[SETTING_SECTION_N + 1];
+internal struct page g_page_of[SETTING_SECTION_N];
 internal int g_npages;
 
 internal void make_pages(void) {
@@ -55,7 +55,6 @@ internal void make_pages(void) {
         pg->diff = -1;
         for (int d = 0; d < 3 && t->kind == SECK_DIFF; d++) if (!lstrcmpA(k_set_diff[d], t->sec)) pg->diff = d;
     }
-    g_page_of[g_npages++] = (struct page){ "Game (exe)", "", -1, GAME_PAGE };
 }
 #define TEXT_CAP (MAX_PATH + 8)
 #define PLAYER_SLOTS 8   // personality_P1 .. P8: the game's players (P0 is nature)
@@ -66,6 +65,7 @@ struct entry { int page, row, slot, has, had; char text[TEXT_CAP], was[TEXT_CAP]
 internal struct entry g_e[1024];
 internal int g_ne;
 internal int g_all_of[SETTING_N];   // a row's entry on the [all] page (what a difficulty's page falls back to)
+internal int g_diff_of[SETTING_N][3];   // a row of [all]: its entries on the difficulties' pages
 
 internal char g_ini_path[MAX_PATH];
 internal char *g_shipped;   // the shipped config/aimod.ini (the resource), 0-ended
@@ -73,15 +73,15 @@ internal char g_unknown[4096];   // "[sec] key" of the keys that are no setting,
 internal struct { char sec[16], key[64]; } g_unk[64];
 internal int g_nunk, g_remove_unknown;
 
-internal HWND g_wnd, g_pages, g_filter, g_list, g_help, g_name, g_check, g_combo, g_edit, g_default, g_status, g_file_label,
-              g_save, g_close, g_unk_label, g_remove, g_game_text, g_game_apply, g_game_restore;
+internal HWND g_wnd, g_filter, g_list, g_help, g_name, g_file_label, g_save, g_close, g_unk_label, g_remove, g_game,
+              g_game_text, g_game_apply, g_game_restore;
 internal HFONT g_font, g_bold, g_mono;   // g_mono: the help, aligned in the ini for a fixed-width font
-internal int g_page, g_sel = -1, g_filling;   // g_filling: the controls set by the program, not the player
+internal int g_sel = -1, g_filling;   // g_sel: the selected setting's entry; g_filling: the controls set by the program
 internal float g_dpi = 1;
 
 internal int dpi_px(int n) { return (int)(n * g_dpi + 0.5f); }   // n pixels at 96 dpi on this screen
 internal const struct setting_row *row_of(const struct entry *e) { return &k_settings[e->row]; }
-internal int page_kind(int p) {   // SECK_*, -1 the game page
+internal int page_kind(int p) {   // SECK_*
     return g_page_of[p].section < 0 ? -1 : k_setting_sections[g_page_of[p].section].kind;
 }
 internal const char *sec_of(const struct entry *e) { return g_page_of[e->page].sec; }
@@ -157,7 +157,7 @@ internal const char *easy_default(const struct entry *e) {
     return NULL;
 }
 
-// what the entry comes to as shown in the list (*grey: not in the file - the default, or [all]'s)
+// what the entry comes to as shown in the list (*grey: not in the file - the default, [all]'s or easy's own)
 internal void shown_value(const struct entry *e, char *out, int cap, int *grey) {
     char why[MAX_PATH], key[64];
     key_of(e, key, sizeof key);
@@ -173,11 +173,11 @@ internal void shown_value(const struct entry *e, char *out, int cap, int *grey) 
         const char *easy = easy_default(e);
         if (!a->text[0] && easy) {   // neither [easy] nor [all]: the easy AI's own (SETTINGS_EASY)
             check(row_of(e), sec_of(e), key, easy, why, v, sizeof v);
-            snprintf(out, cap, "easy's default: %s", v);
+            lstrcpynA(out, v, cap);
             return;
         }
         shown_value(a, v, sizeof v, &g);
-        snprintf(out, cap, "as [all]: %s", v);
+        lstrcpynA(out, v, cap);
         return;
     }
     if (is_child(e)) {
@@ -230,6 +230,7 @@ internal void read_file(void) {
                 if (!e->has) e->text[0] = 0;
                 lstrcpyA(e->was, e->text);
                 if (page_kind(p) == SECK_ALL) g_all_of[i] = g_ne - 1;
+                if (page_kind(p) == SECK_DIFF) g_diff_of[i][g_page_of[p].diff] = g_ne - 1;
             }
         }
     g_nunk = 0;
@@ -466,200 +467,326 @@ internal void game_restore(void) {
     game_show();
 }
 
-// THE WINDOW
-internal void fill_item(int item, const struct entry *e) {
-    char key[64], v[TEXT_CAP], def[TEXT_CAP], why[MAX_PATH];
+// THE TREE: the sections (by their order; the difficulties' own are no sections here but columns of the AI's), in
+// them the groups (rows.h SETTING_GROUPS), in those the settings, under a master its children - each a line of the
+// list, a node that opens with its triangle. A line's lParam: an entry (>= 0), a section's page (-1 - page) or a group
+// (-1000 - group).
+enum { NODE_SECTION, NODE_GROUP, NODE_ENTRY };
+#define COL_DIFF 2   // the columns: setting, value (an AI row: every difficulty's), easy, medium, hard, default
+#define COLS 6
+internal int g_group_of[SETTING_N];   // a row's group, -1 none
+internal int g_sec_open[SETTING_SECTION_N + 1], g_grp_open[SETTING_GROUP_N + 1];
+internal struct { int kind, id, level; } g_vis[2048];   // the lines shown, as in the list
+internal int g_nvis, g_node = -1, g_game_mode;   // g_node: the selected line's lParam
+
+internal LPARAM node_param(int kind, int id) { return kind == NODE_ENTRY ? id : kind == NODE_SECTION ? -1 - id : -1000 - id; }
+internal int node_kind(LPARAM p) { return p >= 0 ? NODE_ENTRY : p > -1000 ? NODE_SECTION : NODE_GROUP; }
+internal int node_id(LPARAM p) { return p >= 0 ? (int)p : p > -1000 ? (int)(-1 - p) : (int)(-1000 - p); }
+internal int is_section_page(int p) { return g_page_of[p].section >= 0 && page_kind(p) != SECK_DIFF; }
+
+internal void make_groups(void) {   // the rows in their order: each in the last group begun in its section
+    int cur[SETTING_SECTION_N];
+    for (int s = 0; s < SETTING_SECTION_N; s++) cur[s] = -1;
+    for (int i = 0; i < SETTING_N; i++) {
+        int s = 0;
+        while (s < SETTING_SECTION_N - 1 && lstrcmpA(k_setting_sections[s].sec, k_settings[i].sec)) s++;
+        for (int g = 0; g < SETTING_GROUP_N; g++) if (k_setting_groups[g].first == i) cur[s] = g;
+        g_group_of[i] = cur[s];
+    }
+}
+
+internal const struct entry *diff_entry(const struct entry *e, int d) {   // an AI row's difficulty d, NULL none
+    return row_of(e)->ai && page_kind(e->page) == SECK_ALL ? &g_e[g_diff_of[e->row][d]] : NULL;
+}
+
+internal void fill_item(int item, LPARAM p) {
+    char v[TEXT_CAP] = "", def[TEXT_CAP] = "", why[MAX_PATH], key[64];
+    for (int c = 1; c < COLS; c++) ListView_SetItemText(g_list, item, c, "");
+    if (node_kind(p) != NODE_ENTRY) return;
+    const struct entry *e = &g_e[p];
     int grey;
     key_of(e, key, sizeof key);
     shown_value(e, v, sizeof v, &grey);
-    if (on_diff_page(e)) lstrcpyA(def, "[all]");
-    else if (is_child(e)) {   // what it comes to under its master as set now
+    if (is_child(e)) {   // what it comes to under its master as set now
         char word[32];
         lstrcpyA(def, child_follows(e, word, sizeof word) ? "on" : "off");
-    }
-    else {
+    } else {
         char d[TEXT_CAP];
         default_text(row_of(e), d, sizeof d);
         if (!check(row_of(e), sec_of(e), key, d, why, def, sizeof def)) lstrcpyA(def, "(the game's own)");
     }
     ListView_SetItemText(g_list, item, 1, v);
-    ListView_SetItemText(g_list, item, 2, def);
+    for (int d = 0; d < 3; d++) {
+        const struct entry *de = diff_entry(e, d);
+        if (!de) break;
+        char dv[TEXT_CAP];
+        shown_value(de, dv, sizeof dv, &grey);
+        ListView_SetItemText(g_list, item, COL_DIFF + d, dv);
+    }
+    ListView_SetItemText(g_list, item, COLS - 1, def);
+}
+
+internal void refill_items(void) {   // every line's values again (a value shows in others: [all] in its difficulties, a master in its children)
+    int n = (int)SendMessageA(g_list, LVM_GETITEMCOUNT, 0, 0);
+    for (int i = 0; i < n; i++) {
+        LVITEMA it = { 0 };
+        it.mask = LVIF_PARAM;
+        it.iItem = i;
+        SendMessageA(g_list, LVM_GETITEMA, 0, (LPARAM)&it);
+        fill_item(i, it.lParam);
+    }
+    InvalidateRect(g_list, NULL, FALSE);
 }
 
 internal int matches(const struct entry *e, const char *filter) {
     if (!filter[0]) return 1;
     char key[64], help[4096], low[4096];
     key_of(e, key, sizeof key);
-    help_of(on_diff_page(e) ? "all" : sec_of(e), row_of(e)->key, row_of(e)->kind == SETK_STR_P, help, sizeof help);
+    help_of(sec_of(e), row_of(e)->key, row_of(e)->kind == SETK_STR_P, help, sizeof help);
     snprintf(low, sizeof low, "%s %s", key, help);
     CharLowerA(low);
     return strstr(low, filter) != NULL;
 }
 
-internal void show_editor(void);
-internal void place_default(void);
+internal int item_of(LPARAM p) {
+    LVFINDINFOA f = { 0 };
+    f.flags = LVFI_PARAM;
+    f.lParam = p;
+    return (int)SendMessageA(g_list, LVM_FINDITEMA, (WPARAM)-1, (LPARAM)&f);
+}
+
+internal void show_editors(void);
+internal void layout(void);
 internal void repaint(void);
-internal int item_of(int entry);
-// the page's entries in the list (those the search finds; a child while its master is open, or found by the search),
-// keep: the entry selected afterwards (-1 the first)
-internal void fill_list(int keep) {
+
+internal void add_line(int kind, int id, int level) {
+    if (g_nvis < (int)(sizeof g_vis / sizeof *g_vis)) { g_vis[g_nvis].kind = kind; g_vis[g_nvis].id = id; g_vis[g_nvis].level = level; g_nvis++; }
+}
+
+// the lines: a closed node's lines left out; with a search, every setting it finds and the nodes above them (open)
+internal void fill_list(LPARAM keep) {
     char filter[64];
+    static uint8_t found[1024];
     GetWindowTextA(g_filter, filter, sizeof filter);
     CharLowerA(filter);
+    for (int i = 0; i < g_ne; i++) found[i] = is_section_page(g_e[i].page) && matches(&g_e[i], filter);
+    g_nvis = 0;
+    for (int p = 0; p < g_npages; p++) {
+        if (!is_section_page(p)) continue;
+        int any = 0;
+        for (int i = 0; i < g_ne; i++) if (g_e[i].page == p && found[i]) any = 1;
+        if (!any) continue;
+        add_line(NODE_SECTION, p, 0);
+        if (!filter[0] && !g_sec_open[p]) continue;
+        int group = -1;
+        for (int i = 0; i < g_ne; i++) {
+            if (g_e[i].page != p || !found[i]) continue;
+            int gr = g_group_of[g_e[i].row];
+            if (gr != group) { group = gr; if (gr >= 0) add_line(NODE_GROUP, gr, 1); }
+            if (gr >= 0 && !filter[0] && !g_grp_open[gr]) continue;
+            int master = under_of(g_e[i].row), shown = 0;   // shown: its master is a line too (a search may leave it out)
+            if (master >= 0 && !filter[0] && !g_open[master]) continue;
+            for (int j = 0; master >= 0 && j < g_ne; j++) if (g_e[j].page == p && g_e[j].row == master) shown = found[j];
+            add_line(NODE_ENTRY, i, (gr >= 0) + 1 + shown);
+        }
+    }
     SendMessageA(g_list, WM_SETREDRAW, FALSE, 0);
     ListView_DeleteAllItems(g_list);
-    int n = 0;
-    for (int i = 0; i < g_ne; i++) {
-        if (g_e[i].page != g_page || !matches(&g_e[i], filter)) continue;
-        int master = under_of(g_e[i].row);
-        if (master >= 0 && !filter[0] && !g_open[master]) continue;
-        char key[64];
-        wchar_t text[80];
-        key_of(&g_e[i], key, sizeof key);
-        int o = 0;
-        if (is_master(g_e[i].row)) { text[o++] = g_open[g_e[i].row] ? 0x25BE : 0x25B8; text[o++] = ' '; }   // a triangle down / right
-        else if (master >= 0) for (int k = 0; k < 6; k++) text[o++] = ' ';
-        MultiByteToWideChar(CP_ACP, 0, key, -1, text + o, 80 - o);
+    for (int n = 0; n < g_nvis; n++) {
+        wchar_t text[128];
+        char name[96];
+        int o = 0, kind = g_vis[n].kind, id = g_vis[n].id, open = -1;   // open: a node's state, -1 none
+        for (int k = 0; k < g_vis[n].level * 4; k++) text[o++] = ' ';
+        if (kind == NODE_SECTION) { lstrcpynA(name, g_page_of[id].title, sizeof name); open = g_sec_open[id] || filter[0]; }
+        else if (kind == NODE_GROUP) { lstrcpynA(name, k_setting_groups[id].title, sizeof name); open = g_grp_open[id] || filter[0]; }
+        else {
+            key_of(&g_e[id], name, sizeof name);
+            if (is_master(g_e[id].row)) open = g_open[g_e[id].row] || filter[0];
+        }
+        if (open >= 0) { text[o++] = open ? 0x25BE : 0x25B8; text[o++] = ' '; }   // a triangle down / right
+        else if (kind == NODE_ENTRY) { text[o++] = ' '; text[o++] = ' '; text[o++] = ' '; }
+        MultiByteToWideChar(CP_ACP, 0, name, -1, text + o, 128 - o);
         LVITEMW it = { 0 };
         it.mask = LVIF_TEXT | LVIF_PARAM;
         it.iItem = n;
         it.pszText = text;
-        it.lParam = i;
+        it.lParam = node_param(kind, id);
         SendMessageW(g_list, LVM_INSERTITEMW, 0, (LPARAM)&it);
-        fill_item(n++, &g_e[i]);
+        fill_item(n, it.lParam);
     }
     SendMessageA(g_list, WM_SETREDRAW, TRUE, 0);
-    g_sel = -1;
-    int item = keep >= 0 ? item_of(keep) : -1;
+    int item = item_of(keep);
     if (item < 0) item = 0;
-    if (n) {
+    g_node = g_nvis ? (int)node_param(g_vis[item].kind, g_vis[item].id) : 0;
+    g_sel = -1;
+    if (g_nvis) {
         ListView_SetItemState(g_list, item, LVIS_SELECTED | LVIS_FOCUSED, LVIS_SELECTED | LVIS_FOCUSED);
         ListView_EnsureVisible(g_list, item, FALSE);
-    } else show_editor();
+    } else show_editors();
 }
 
-// a master's children shown or hidden
-internal void toggle(int entry) {
-    if (entry < 0 || !is_master(g_e[entry].row)) return;
-    g_open[g_e[entry].row] ^= 1;
-    fill_list(entry);
+// a node opened or closed (a section, a group, a master)
+internal int is_node(LPARAM p) { return node_kind(p) != NODE_ENTRY || is_master(g_e[p].row); }
+internal int *open_of(LPARAM p) {
+    return node_kind(p) == NODE_SECTION ? &g_sec_open[node_id(p)] : node_kind(p) == NODE_GROUP ? &g_grp_open[node_id(p)] : &g_open[g_e[p].row];
+}
+internal void toggle(LPARAM p) {
+    if (!is_node(p)) return;
+    *open_of(p) ^= 1;
+    fill_list(p);
 }
 
-internal int item_of(int entry) {
-    LVFINDINFOA f = { 0 };
-    f.flags = LVFI_PARAM;
-    f.lParam = entry;
-    return (int)SendMessageA(g_list, LVM_FINDITEMA, (WPARAM)-1, (LPARAM)&f);
+// the line above p that holds it (the left arrow key), -1 none
+internal int parent_item(int item) {
+    if (item < 0 || item >= g_nvis) return -1;
+    for (int i = item - 1; i >= 0; i--) if (g_vis[i].level < g_vis[item].level) return i;
+    return -1;
 }
 
-internal void show_status(const struct entry *e) {
+// THE EDITORS: one for a plain setting; for an AI setting four - every difficulty's ([all]) and easy's, medium's,
+// hard's own - each a checkbox, a list or a text field, a button (Default / As [all] / Follow) and what it comes to
+#define EDITORS 4
+enum { ED_CHECK, ED_COMBO, ED_EDIT, ED_BUTTON, ED_PARTS = 10 };
+#define ID_ED 200   // set k's part: ID_ED + k * ED_PARTS + part
+struct editor { HWND label, check, combo, edit, button, status; int entry; };
+internal struct editor g_ed[EDITORS];
+internal int g_ned;
+
+internal void show_status(int k) {
+    const struct entry *e = &g_e[g_ed[k].entry];
     char why[MAX_PATH], shown[TEXT_CAP], msg[MAX_PATH + 64], key[64], word[32];
     key_of(e, key, sizeof key);
     if (!e->text[0] && is_child(e)) {
         int on = child_follows(e, word, sizeof word);
         snprintf(msg, sizeof msg, "Not in the file: follows %s=%s - %s.", k_settings[row_of(e)->a].key, word, on ? "on" : "off");
-    } else if (!e->text[0]) lstrcpyA(msg, on_diff_page(e) ? "Not set here: [all]'s value counts." : "Not in the file: the default counts.");
+    } else if (!e->text[0] && on_diff_page(e)) {
+        int grey;
+        shown_value(e, shown, sizeof shown, &grey);
+        snprintf(msg, sizeof msg, "Not set: %s - %s.", easy_default(e) && !g_e[g_all_of[e->row]].text[0] ? "the easy AI's own default" : "as [all]", shown);
+    } else if (!e->text[0]) lstrcpyA(msg, "Not in the file: the default counts.");
     else if (check(row_of(e), sec_of(e), key, e->text, why, shown, sizeof shown)) snprintf(msg, sizeof msg, "= %s", shown);
     else snprintf(msg, sizeof msg, "Mistake: %s - the game would use the default.", why);
-    SetWindowTextA(g_status, msg);
+    SetWindowTextA(g_ed[k].status, msg);
 }
 
-// the editor for the selected entry: a checkbox (on / off), a list (a choice; on a difficulty's page on / off too, with
-// "as [all]" first; a child: follow its master, off, on), or a text field
-internal void show_editor(void) {
-    g_filling = 1;
-    int has = g_sel >= 0;
-    struct entry *e = has ? &g_e[g_sel] : NULL;
-    const struct setting_row *r = has ? row_of(e) : NULL;
-    int flag = has && (r->kind == SETK_FLAG || r->kind == SETK_CHILD);
-    int box = flag && !inherits(e), list = has && (r->kind == SETK_CHOICE || (flag && inherits(e)));
-    ShowWindow(g_check, box ? SW_SHOW : SW_HIDE);
-    ShowWindow(g_combo, list ? SW_SHOW : SW_HIDE);
-    ShowWindow(g_edit, has && !box && !list ? SW_SHOW : SW_HIDE);
-    EnableWindow(g_default, has);
-    if (!has) {
-        SetWindowTextA(g_name, "");
-        SetWindowTextA(g_help, "");
-        SetWindowTextA(g_status, "");
-        repaint();
-        g_filling = 0;
-        return;
-    }
-    char key[64], help[4096], title[128];
-    key_of(e, key, sizeof key);
-    snprintf(title, sizeof title, "[%s] %s", sec_of(e), key);
-    SetWindowTextA(g_name, title);
-    help_of(on_diff_page(e) ? "all" : sec_of(e), r->key, r->kind == SETK_STR_P, help, sizeof help);
-    SetWindowTextA(g_help, help);
-    SetWindowTextA(g_default, on_diff_page(e) ? "As [all]" : is_child(e) ? "Follow" : "Default");
+// editor k for its entry: a checkbox (on / off), a list (a choice; for a difficulty on / off too, with "as [all]" first;
+// a child: follow its master, off, on), or a text field
+internal void show_editor(int k) {
+    struct editor *ed = &g_ed[k];
+    struct entry *e = &g_e[ed->entry];
+    const struct setting_row *r = row_of(e);
+    int flag = r->kind == SETK_FLAG || r->kind == SETK_CHILD;
+    int box = flag && !inherits(e), list = r->kind == SETK_CHOICE || (flag && inherits(e));
+    ShowWindow(ed->label, SW_SHOW);
+    ShowWindow(ed->check, box ? SW_SHOW : SW_HIDE);
+    ShowWindow(ed->combo, list ? SW_SHOW : SW_HIDE);
+    ShowWindow(ed->edit, !box && !list ? SW_SHOW : SW_HIDE);
+    ShowWindow(ed->button, SW_SHOW);
+    ShowWindow(ed->status, SW_SHOW);
+    SetWindowTextA(ed->label, on_diff_page(e) ? g_page_of[e->page].title : r->ai ? "All" : "Value");
+    SetWindowTextA(ed->button, on_diff_page(e) ? "As [all]" : is_child(e) ? "Follow" : "Default");
     char def[TEXT_CAP];
     default_text(r, def, sizeof def);
     const char *v = e->text[0] ? e->text : def;
     if (box) {
         double x;
         const char *why;
-        SendMessageA(g_check, BM_SETCHECK, x_const_eval(v, &x, &why) && x != 0 ? BST_CHECKED : BST_UNCHECKED, 0);
+        SendMessageA(ed->check, BM_SETCHECK, x_const_eval(v, &x, &why) && x != 0 ? BST_CHECKED : BST_UNCHECKED, 0);
     } else if (list) {
-        SendMessageA(g_combo, CB_RESETCONTENT, 0, 0);
+        SendMessageA(ed->combo, CB_RESETCONTENT, 0, 0);
         int base = inherits(e);
         char follow[96];
         snprintf(follow, sizeof follow, "follow %s", is_child(e) ? k_settings[r->a].key : "");
-        if (base) SendMessageA(g_combo, CB_ADDSTRING, 0, (LPARAM)(on_diff_page(e) ? "as [all]" : follow));
+        if (base) SendMessageA(ed->combo, CB_ADDSTRING, 0, (LPARAM)(on_diff_page(e) ? "as [all]" : follow));
         int sel = base && !e->text[0] ? 0 : -1;
         if (flag) {
-            SendMessageA(g_combo, CB_ADDSTRING, 0, (LPARAM)"off (0)");
-            SendMessageA(g_combo, CB_ADDSTRING, 0, (LPARAM)"on (1)");
+            SendMessageA(ed->combo, CB_ADDSTRING, 0, (LPARAM)"off (0)");
+            SendMessageA(ed->combo, CB_ADDSTRING, 0, (LPARAM)"on (1)");
             if (sel < 0) { double x; const char *why; sel = base + (x_const_eval(v, &x, &why) && x != 0); }
         } else {
             char name[64];
             for (int i = 0; ; i++) {
                 setting_choice_name(r->choices, i, name, sizeof name);
                 if (!name[0]) break;
-                SendMessageA(g_combo, CB_ADDSTRING, 0, (LPARAM)name);
+                SendMessageA(ed->combo, CB_ADDSTRING, 0, (LPARAM)name);
                 if (sel < 0 && !lstrcmpiA(name, v)) sel = base + i;
             }
         }
-        SendMessageA(g_combo, CB_SETCURSEL, sel < 0 ? 0 : sel, 0);
-    } else SetWindowTextA(g_edit, e->text);
-    show_status(e);
-    place_default();
-    repaint();
+        SendMessageA(ed->combo, CB_SETCURSEL, sel < 0 ? 0 : sel, 0);
+    } else SetWindowTextA(ed->edit, e->text);
+    show_status(k);
+}
+
+internal void hide_editor(int k) {
+    HWND c[6] = { g_ed[k].label, g_ed[k].check, g_ed[k].combo, g_ed[k].edit, g_ed[k].button, g_ed[k].status };
+    for (int i = 0; i < 6; i++) ShowWindow(c[i], SW_HIDE);
+}
+
+// the selected line's name, help and editors (a section or a group: what it holds)
+internal void show_editors(void) {
+    g_filling = 1;
+    int old = g_ned;
+    g_ned = 0;
+    char title[160], help[4096];
+    title[0] = help[0] = 0;
+    if (g_nvis && node_kind(g_node) != NODE_ENTRY) {
+        int kind = node_kind(g_node), id = node_id(g_node), n = 0;
+        size_t o = 0;
+        for (int i = 0; i < g_ne; i++) {
+            if (kind == NODE_SECTION ? g_e[i].page != id : (!is_section_page(g_e[i].page) || g_group_of[g_e[i].row] != id)) continue;
+            char key[64];
+            key_of(&g_e[i], key, sizeof key);
+            if (o + strlen(key) + 4 < sizeof help) o += (size_t)snprintf(help + o, sizeof help - o, "%s%s", n ? ", " : "", key);
+            n++;
+        }
+        snprintf(title, sizeof title, "%s - %d settings (the triangle, a double click or the right arrow key opens it)",
+                 kind == NODE_SECTION ? g_page_of[id].title : k_setting_groups[id].title, n);
+    } else if (g_sel >= 0) {
+        struct entry *e = &g_e[g_sel];
+        char key[64];
+        key_of(e, key, sizeof key);
+        snprintf(title, sizeof title, "[%s] %s", sec_of(e), key);
+        help_of(sec_of(e), row_of(e)->key, row_of(e)->kind == SETK_STR_P, help, sizeof help);
+        g_ed[g_ned++].entry = g_sel;
+        for (int d = 0; d < 3; d++) if (diff_entry(e, d)) g_ed[g_ned++].entry = g_diff_of[e->row][d];
+    }
+    SetWindowTextA(g_name, title);
+    SetWindowTextA(g_help, help);
+    for (int k = 0; k < EDITORS; k++) if (k < g_ned) show_editor(k); else hide_editor(k);
+    if (g_ned != old) layout();
+    else repaint();
     g_filling = 0;
 }
 
-// the player changed the editor: the entry's text from it
-internal void editor_changed(int id) {
-    if (g_filling || g_sel < 0) return;
-    struct entry *e = &g_e[g_sel];
+// the player changed editor k (part: ED_*): its entry's text from it
+internal void editor_changed(int k, int part) {
+    if (g_filling || k >= g_ned) return;
+    struct editor *ed = &g_ed[k];
+    struct entry *e = &g_e[ed->entry];
     const struct setting_row *r = row_of(e);
-    if (id == ID_CHECK) lstrcpyA(e->text, SendMessageA(g_check, BM_GETCHECK, 0, 0) == BST_CHECKED ? "1" : "0");
-    else if (id == ID_COMBO) {
-        int i = (int)SendMessageA(g_combo, CB_GETCURSEL, 0, 0) - inherits(e);
+    if (part == ED_CHECK) lstrcpyA(e->text, SendMessageA(ed->check, BM_GETCHECK, 0, 0) == BST_CHECKED ? "1" : "0");
+    else if (part == ED_COMBO) {
+        int i = (int)SendMessageA(ed->combo, CB_GETCURSEL, 0, 0) - inherits(e);
         if (i < 0) e->text[0] = 0;
         else if (r->kind == SETK_FLAG || r->kind == SETK_CHILD) lstrcpyA(e->text, i ? "1" : "0");
         else setting_choice_name(r->choices, i, e->text, sizeof e->text);
-    } else GetWindowTextA(g_edit, e->text, sizeof e->text);
+    } else if (part == ED_EDIT) GetWindowTextA(ed->edit, e->text, sizeof e->text);
     e->has = e->text[0] != 0;
-    int item = item_of(g_sel);
-    if (item >= 0) { fill_item(item, e); ListView_RedrawItems(g_list, item, item); }
-    if (!lstrcmpA(sec_of(e), "all"))   // the difficulties' pages show it where they fall back to it
-        for (int i = 0; i < g_ne; i++) if (g_e[i].row == e->row && on_diff_page(&g_e[i]) && item_of(i) >= 0) fill_item(item_of(i), &g_e[i]);
-    if (is_master(e->row))   // its children show what they follow
-        for (int i = 0; i < g_ne; i++)
-            if (g_e[i].page == e->page && is_child(&g_e[i]) && row_of(&g_e[i])->a == e->row && item_of(i) >= 0) fill_item(item_of(i), &g_e[i]);
-    show_status(e);
+    refill_items();
+    for (int j = 0; j < g_ned; j++) show_status(j);   // [all]'s value shows in the difficulties' "as [all]"
     update_title();
 }
 
-internal void set_default(void) {
-    if (g_sel < 0) return;
-    struct entry *e = &g_e[g_sel];
+internal void set_default(int k) {
+    if (k >= g_ned) return;
+    struct entry *e = &g_e[g_ed[k].entry];
     if (inherits(e) || !e->had) e->text[0] = 0;
     else default_text(row_of(e), e->text, sizeof e->text);   // a key the file has keeps its line, with the default
     e->has = e->text[0] != 0;
-    show_editor();
-    editor_changed(-1);
-    show_editor();
+    g_filling = 1;
+    show_editor(k);
+    g_filling = 0;
+    editor_changed(k, -1);
 }
 
 internal void show_unknown(void) {
@@ -677,48 +804,47 @@ internal void show_unknown(void) {
 // field) nothing else would paint it - the old picture stayed
 internal void repaint(void) { RedrawWindow(g_wnd, NULL, NULL, RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN); }
 
-// the Default button right of the editor shown
-internal void place_default(void) {
-    RECT r;
-    HWND c = IsWindowVisible(g_check) ? g_check : IsWindowVisible(g_combo) ? g_combo : g_edit;
-    GetWindowRect(c, &r);
-    MapWindowPoints(NULL, g_wnd, (POINT *)&r, 2);
-    MoveWindow(g_default, r.right + dpi_px(10), r.top - dpi_px(1), dpi_px(90), dpi_px(26), FALSE);
-}
-
 internal void layout(void) {
     RECT rc;
     GetClientRect(g_wnd, &rc);
-    int w = rc.right, h = rc.bottom, m = dpi_px(8), left = dpi_px(170), x = m + left + m, rw = w - x - m;
-    int unk = g_nunk ? dpi_px(40) : 0, bottom = dpi_px(32) + unk, editor = dpi_px(200);
-    MoveWindow(g_pages, m, m, left, h - 2 * m - bottom, FALSE);
-    MoveWindow(g_filter, x, m, dpi_px(260), dpi_px(24), FALSE);
+    int w = rc.right, h = rc.bottom, m = dpi_px(8), x = m, rw = w - 2 * m, line = dpi_px(30);
+    int unk = g_nunk ? dpi_px(40) : 0, bottom = dpi_px(32) + unk, help_h = dpi_px(110);
+    int editor = dpi_px(22) + help_h + dpi_px(6) + (g_ned ? g_ned : 1) * line;
+    MoveWindow(g_filter, x, m, dpi_px(300), dpi_px(24), FALSE);
     int list_h = h - m - dpi_px(32) - editor - bottom - m;
     MoveWindow(g_list, x, m + dpi_px(32), rw, list_h, FALSE);
     int y = m + dpi_px(32) + list_h + m;
     MoveWindow(g_name, x, y, rw, dpi_px(20), FALSE);
-    MoveWindow(g_help, x, y + dpi_px(22), rw, editor - dpi_px(22) - dpi_px(64), FALSE);
-    int ey = y + editor - dpi_px(56);
-    MoveWindow(g_check, x, ey, dpi_px(60), dpi_px(24), FALSE);
-    MoveWindow(g_combo, x, ey, dpi_px(260), dpi_px(300), FALSE);
-    MoveWindow(g_edit, x, ey, dpi_px(360), dpi_px(24), FALSE);
-    place_default();
-    MoveWindow(g_status, x, ey + dpi_px(30), rw, dpi_px(20), FALSE);
+    MoveWindow(g_help, x, y + dpi_px(22), rw, help_h, FALSE);
+    for (int k = 0; k < EDITORS; k++) {   // a line each: its label, its control, the button, what it comes to
+        struct editor *ed = &g_ed[k];
+        int ey = y + dpi_px(22) + help_h + dpi_px(6) + k * line, ex = x + dpi_px(70);
+        MoveWindow(ed->label, x, ey + dpi_px(4), dpi_px(66), dpi_px(20), FALSE);
+        MoveWindow(ed->check, ex, ey, dpi_px(60), dpi_px(24), FALSE);
+        MoveWindow(ed->combo, ex, ey, dpi_px(260), dpi_px(300), FALSE);
+        MoveWindow(ed->edit, ex, ey, dpi_px(260), dpi_px(24), FALSE);
+        int bx = ex + (IsWindowVisible(ed->check) ? dpi_px(60) : dpi_px(260)) + dpi_px(10);
+        MoveWindow(ed->button, bx, ey - dpi_px(1), dpi_px(90), dpi_px(26), FALSE);
+        MoveWindow(ed->status, bx + dpi_px(100), ey + dpi_px(4), w - m - bx - dpi_px(100), dpi_px(20), FALSE);
+    }
     int by = h - dpi_px(32) - m / 2;
     if (unk) {
         MoveWindow(g_unk_label, m, by - unk, w - 3 * m - dpi_px(110), unk - dpi_px(4), FALSE);
         MoveWindow(g_remove, w - m - dpi_px(110), by - unk, dpi_px(110), dpi_px(26), FALSE);
     }
-    MoveWindow(g_file_label, m, by + dpi_px(5), w - 3 * m - dpi_px(200), dpi_px(20), FALSE);
+    MoveWindow(g_game, m, by, dpi_px(150), dpi_px(28), FALSE);
+    MoveWindow(g_file_label, m + dpi_px(160), by + dpi_px(5), w - 4 * m - dpi_px(360), dpi_px(20), FALSE);
     MoveWindow(g_save, w - m - dpi_px(196), by, dpi_px(94), dpi_px(28), FALSE);
     MoveWindow(g_close, w - m - dpi_px(96), by, dpi_px(94), dpi_px(28), FALSE);
     int gh = h - 2 * m - bottom - dpi_px(40);   // the game page: its text, the buttons under it
     MoveWindow(g_game_text, x, m, rw, gh, FALSE);
     MoveWindow(g_game_apply, x, m + gh + dpi_px(8), dpi_px(140), dpi_px(28), FALSE);
     MoveWindow(g_game_restore, x + dpi_px(150), m + gh + dpi_px(8), dpi_px(200), dpi_px(28), FALSE);
-    ListView_SetColumnWidth(g_list, 0, dpi_px(240));
-    ListView_SetColumnWidth(g_list, 1, (rw - dpi_px(260)) * 6 / 10);
-    ListView_SetColumnWidth(g_list, 2, (rw - dpi_px(260)) * 4 / 10);
+    int cw = rw - dpi_px(24) - dpi_px(280);   // the setting's column, then the values' share the rest
+    ListView_SetColumnWidth(g_list, 0, dpi_px(280));
+    ListView_SetColumnWidth(g_list, 1, cw * 22 / 100);
+    for (int d = 0; d < 3; d++) ListView_SetColumnWidth(g_list, COL_DIFF + d, cw * 18 / 100);
+    ListView_SetColumnWidth(g_list, COLS - 1, cw * 24 / 100);
     repaint();
 }
 
@@ -730,31 +856,36 @@ internal HWND make_child(const char *cls, const char *text, DWORD style, int id)
 }
 
 internal void create_controls(void) {
-    g_pages = make_child(WC_LISTBOXA, "", LBS_NOTIFY | WS_VSCROLL | WS_TABSTOP, ID_PAGES);
-    for (int p = 0; p < g_npages; p++) SendMessageA(g_pages, LB_ADDSTRING, 0, (LPARAM)g_page_of[p].title);
     g_filter = make_child(WC_EDITA, "", ES_AUTOHSCROLL | WS_TABSTOP, ID_FILTER);
-    SendMessageW(g_filter, EM_SETCUEBANNER, TRUE, (LPARAM)L"Search this page");
+    SendMessageW(g_filter, EM_SETCUEBANNER, TRUE, (LPARAM)L"Search every setting");
     g_list = CreateWindowExA(WS_EX_CLIENTEDGE, WC_LISTVIEWA, "", WS_CHILD | WS_VISIBLE | WS_TABSTOP | LVS_REPORT |
                              LVS_SINGLESEL | LVS_SHOWSELALWAYS, 0, 0, 10, 10, g_wnd, (HMENU)ID_LIST, GetModuleHandleA(NULL), NULL);
     SendMessageA(g_list, WM_SETFONT, (WPARAM)g_font, TRUE);
     ListView_SetExtendedListViewStyle(g_list, LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER);
-    const char *cols[3] = { "Setting", "Value", "Default" };
-    for (int i = 0; i < 3; i++) {
+    const char *cols[COLS] = { "Setting", "Value (AI: all)", "Easy", "Medium", "Hard", "Default" };
+    for (int i = 0; i < COLS; i++) {
         LVCOLUMNA c = { 0 };
         c.mask = LVCF_TEXT | LVCF_WIDTH;
         c.pszText = (char *)cols[i];
-        c.cx = dpi_px(150);
+        c.cx = dpi_px(120);
         SendMessageA(g_list, LVM_INSERTCOLUMNA, i, (LPARAM)&c);
     }
     g_name = make_child(WC_STATICA, "", SS_LEFT | SS_NOPREFIX, ID_NAME);
     SendMessageA(g_name, WM_SETFONT, (WPARAM)g_bold, TRUE);
     g_help = make_child(WC_EDITA, "", ES_MULTILINE | ES_READONLY | WS_VSCROLL | ES_AUTOVSCROLL, ID_HELP);
     SendMessageA(g_help, WM_SETFONT, (WPARAM)g_mono, TRUE);
-    g_check = make_child(WC_BUTTONA, "on", BS_AUTOCHECKBOX | WS_TABSTOP, ID_CHECK);
-    g_combo = make_child(WC_COMBOBOXA, "", CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP, ID_COMBO);
-    g_edit = make_child(WC_EDITA, "", ES_AUTOHSCROLL | WS_TABSTOP, ID_EDIT);
-    g_default = make_child(WC_BUTTONA, "Default", BS_PUSHBUTTON | WS_TABSTOP, ID_DEFAULT);
-    g_status = make_child(WC_STATICA, "", SS_LEFT | SS_NOPREFIX, ID_STATUS);
+    for (int k = 0; k < EDITORS; k++) {
+        struct editor *ed = &g_ed[k];
+        int id = ID_ED + k * ED_PARTS;
+        ed->label = make_child(WC_STATICA, "", SS_LEFT | SS_NOPREFIX, 0);
+        ed->check = make_child(WC_BUTTONA, "on", BS_AUTOCHECKBOX | WS_TABSTOP, id + ED_CHECK);
+        ed->combo = make_child(WC_COMBOBOXA, "", CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP, id + ED_COMBO);
+        ed->edit = make_child(WC_EDITA, "", ES_AUTOHSCROLL | WS_TABSTOP, id + ED_EDIT);
+        ed->button = make_child(WC_BUTTONA, "Default", BS_PUSHBUTTON | WS_TABSTOP, id + ED_BUTTON);
+        ed->status = make_child(WC_STATICA, "", SS_LEFT | SS_NOPREFIX | SS_ENDELLIPSIS, 0);
+        hide_editor(k);
+    }
+    g_game = make_child(WC_BUTTONA, "Game exe...", BS_PUSHBUTTON | WS_TABSTOP, ID_GAME);
     g_file_label = make_child(WC_STATICA, "", SS_LEFT | SS_NOPREFIX | SS_PATHELLIPSIS, ID_FILE);
     g_save = make_child(WC_BUTTONA, "Save", BS_DEFPUSHBUTTON | WS_TABSTOP, ID_SAVE);
     g_close = make_child(WC_BUTTONA, "Close", BS_PUSHBUTTON | WS_TABSTOP, ID_CLOSE);
@@ -770,7 +901,6 @@ internal void create_controls(void) {
     char f[MAX_PATH + 16];
     snprintf(f, sizeof f, "File: %s", g_ini_path);
     SetWindowTextA(g_file_label, f);
-    SendMessageA(g_pages, LB_SETCURSEL, 0, 0);
 }
 
 // 1: may close (saved, discarded or nothing to save)
@@ -780,38 +910,62 @@ internal int ask_close(void) {
     return a == IDNO || (a == IDYES && save_file());
 }
 
-// the page g_page shown: its settings, or the game page
-internal void show_page(void) {
-    int game = g_page_of[g_page].diff == GAME_PAGE;
-    HWND list_side[] = { g_filter, g_list, g_name, g_help, g_default, g_status, g_check, g_combo, g_edit };
-    for (size_t i = 0; i < sizeof list_side / sizeof *list_side; i++) if (game) ShowWindow(list_side[i], SW_HIDE);
-    if (!game) for (int i = 0; i < 6; i++) ShowWindow(list_side[i], SW_SHOW);
+// the settings, or the game page in their place (the Game exe button)
+internal void show_mode(void) {
+    int game = g_game_mode;
+    HWND side[] = { g_filter, g_list, g_name, g_help };
+    for (size_t i = 0; i < sizeof side / sizeof *side; i++) ShowWindow(side[i], game ? SW_HIDE : SW_SHOW);
+    for (int k = 0; k < EDITORS; k++) if (game || k >= g_ned) hide_editor(k);
     ShowWindow(g_game_text, game ? SW_SHOW : SW_HIDE);
     ShowWindow(g_game_apply, game ? SW_SHOW : SW_HIDE);
     ShowWindow(g_game_restore, game ? SW_SHOW : SW_HIDE);
+    SetWindowTextA(g_game, game ? "Back to the settings" : "Game exe...");
     if (game) game_show();
-    else fill_list(-1);
+    else fill_list(g_node);
     repaint();
+}
+
+// a custom-drawn cell: changed bold, not in the file grey (a section or group line bold); an AI row's difficulty
+// columns by their own entries
+internal LRESULT draw_cell(NMLVCUSTOMDRAW *cd) {
+    LPARAM p = cd->nmcd.lItemlParam;
+    int bold = 0, grey = 0;
+    if (node_kind(p) != NODE_ENTRY) bold = 1;
+    else {
+        const struct entry *e = &g_e[p];
+        int sub = cd->iSubItem, any = 0;
+        for (int d = 0; d < 3; d++) if (diff_entry(e, d) && diff_entry(e, d)->text[0]) any = 1;
+        if (sub == 0) { bold = is_changed(e) || any; grey = !e->text[0] && !any; }
+        else if (sub == 1) { bold = is_changed(e); grey = !e->text[0]; }
+        else if (sub >= COL_DIFF && sub < COL_DIFF + 3) {
+            const struct entry *de = diff_entry(e, sub - COL_DIFF);
+            bold = de && de->text[0];
+            grey = !bold;
+        }
+    }
+    SelectObject(cd->nmcd.hdc, bold ? g_bold : g_font);
+    cd->clrText = GetSysColor(grey ? COLOR_GRAYTEXT : COLOR_WINDOWTEXT);
+    return CDRF_NEWFONT;
 }
 
 internal LRESULT CALLBACK wnd_proc(HWND w, UINT msg, WPARAM wp, LPARAM lp) {
     switch (msg) {
     case WM_SIZE: if (g_list) layout(); return 0;
-    case WM_GETMINMAXINFO: ((MINMAXINFO *)lp)->ptMinTrackSize.x = dpi_px(820); ((MINMAXINFO *)lp)->ptMinTrackSize.y = dpi_px(560); return 0;
+    case WM_GETMINMAXINFO: ((MINMAXINFO *)lp)->ptMinTrackSize.x = dpi_px(900); ((MINMAXINFO *)lp)->ptMinTrackSize.y = dpi_px(600); return 0;
     case WM_COMMAND: {
         int id = LOWORD(wp), code = HIWORD(wp);
-        if (id == ID_PAGES && code == LBN_SELCHANGE) {
-            g_page = (int)SendMessageA(g_pages, LB_GETCURSEL, 0, 0);
-            show_page();
-        } else if (id == ID_FILTER && code == EN_CHANGE) fill_list(-1);
-        else if ((id == ID_CHECK && code == BN_CLICKED) || (id == ID_COMBO && code == CBN_SELCHANGE) || (id == ID_EDIT && code == EN_CHANGE))
-            editor_changed(id);
-        else if (id == ID_DEFAULT) set_default();
+        if (id >= ID_ED && id < ID_ED + EDITORS * ED_PARTS) {
+            int k = (id - ID_ED) / ED_PARTS, part = (id - ID_ED) % ED_PARTS;
+            if ((part == ED_CHECK && code == BN_CLICKED) || (part == ED_COMBO && code == CBN_SELCHANGE) || (part == ED_EDIT && code == EN_CHANGE))
+                editor_changed(k, part);
+            else if (part == ED_BUTTON && code == BN_CLICKED) set_default(k);
+        } else if (id == ID_FILTER && code == EN_CHANGE) fill_list(g_node);
+        else if (id == ID_GAME) { g_game_mode ^= 1; show_mode(); }
         else if (id == ID_GAME_APPLY) game_apply();
         else if (id == ID_GAME_RESTORE) game_restore();
         else if (id == ID_REMOVE) { g_remove_unknown = 1; show_unknown(); update_title(); }
         else if (id == ID_SAVE) {
-            if (save_file()) { read_file(); show_page(); show_unknown(); layout(); update_title(); }
+            if (save_file()) { read_file(); show_unknown(); show_mode(); layout(); update_title(); }
         } else if (id == ID_CLOSE || id == IDCANCEL) SendMessageA(w, WM_CLOSE, 0, 0);
         return 0;
     }
@@ -820,33 +974,40 @@ internal LRESULT CALLBACK wnd_proc(HWND w, UINT msg, WPARAM wp, LPARAM lp) {
         if (n->idFrom != ID_LIST) break;
         if (n->code == LVN_ITEMCHANGED) {
             NMLISTVIEW *v = (NMLISTVIEW *)lp;
-            if ((v->uChanged & LVIF_STATE) && (v->uNewState & LVIS_SELECTED)) { g_sel = (int)v->lParam; show_editor(); }
+            if ((v->uChanged & LVIF_STATE) && (v->uNewState & LVIS_SELECTED)) {
+                g_node = (int)v->lParam;
+                g_sel = node_kind(v->lParam) == NODE_ENTRY ? (int)v->lParam : -1;
+                show_editors();
+            }
             return 0;
         }
-        // a master opened or closed: a click on its triangle, a double click on it, the right / left arrow key (on a
-        // child the left key goes to its master)
+        // a node opened or closed: a click on its triangle, a double click on it, the right / left arrow key (on a
+        // line that is no open node the left key goes to the line that holds it)
         if (n->code == NM_CLICK || n->code == NM_DBLCLK) {
             NMITEMACTIVATE *a = (NMITEMACTIVATE *)lp;
-            if (a->iItem >= 0 && g_sel >= 0 && (n->code == NM_DBLCLK || a->ptAction.x < dpi_px(22))) toggle(g_sel);
+            if (a->iItem >= 0 && a->iItem < g_nvis) {
+                int tri = dpi_px(6) + g_vis[a->iItem].level * dpi_px(14) + dpi_px(16);   // about where the triangle ends
+                if (n->code == NM_DBLCLK || a->ptAction.x < tri) toggle(g_node);
+            }
             return 0;
         }
-        if (n->code == LVN_KEYDOWN && g_sel >= 0) {
+        if (n->code == LVN_KEYDOWN && g_nvis) {
             WORD k = ((NMLVKEYDOWN *)lp)->wVKey;
-            const struct entry *e = &g_e[g_sel];
-            if (is_master(e->row) && ((k == VK_RIGHT && !g_open[e->row]) || (k == VK_LEFT && g_open[e->row]))) toggle(g_sel);
-            else if (k == VK_LEFT && is_child(e))
-                for (int i = 0; i < g_ne; i++) if (g_e[i].page == e->page && g_e[i].row == row_of(e)->a) toggle(i);
+            int item = (int)SendMessageA(g_list, LVM_GETNEXTITEM, (WPARAM)-1, LVNI_SELECTED);
+            if (k == VK_RIGHT && is_node(g_node) && !*open_of(g_node)) toggle(g_node);
+            else if (k == VK_LEFT && is_node(g_node) && *open_of(g_node)) toggle(g_node);
+            else if (k == VK_LEFT && parent_item(item) >= 0) {
+                int up = parent_item(item);
+                ListView_SetItemState(g_list, up, LVIS_SELECTED | LVIS_FOCUSED, LVIS_SELECTED | LVIS_FOCUSED);
+                ListView_EnsureVisible(g_list, up, FALSE);
+            }
             return 0;
         }
-        if (n->code == NM_CUSTOMDRAW) {   // changed: bold; not in the file: grey
+        if (n->code == NM_CUSTOMDRAW) {
             NMLVCUSTOMDRAW *cd = (NMLVCUSTOMDRAW *)lp;
             if (cd->nmcd.dwDrawStage == CDDS_PREPAINT) return CDRF_NOTIFYITEMDRAW;
-            if (cd->nmcd.dwDrawStage == CDDS_ITEMPREPAINT) {
-                const struct entry *e = &g_e[cd->nmcd.lItemlParam];
-                if (is_changed(e)) SelectObject(cd->nmcd.hdc, g_bold);
-                if (!e->text[0]) cd->clrText = GetSysColor(COLOR_GRAYTEXT);
-                return CDRF_NEWFONT;
-            }
+            if (cd->nmcd.dwDrawStage == CDDS_ITEMPREPAINT) return CDRF_NOTIFYSUBITEMDRAW;
+            if (cd->nmcd.dwDrawStage == (CDDS_ITEMPREPAINT | CDDS_SUBITEM)) return draw_cell(cd);
         }
         break;
     }
@@ -909,6 +1070,7 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmd, int show) {
     g_bold = CreateFontIndirectA(&ncm.lfMessageFont);
     g_mono = CreateFontA(ncm.lfMessageFont.lfHeight, 0, 0, 0, FW_NORMAL, 0, 0, 0, DEFAULT_CHARSET, 0, 0, CLEARTYPE_QUALITY, FIXED_PITCH, "Consolas");
     make_pages();
+    make_groups();
     read_file();
 
     WNDCLASSA wc = { 0 };
@@ -921,13 +1083,13 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmd, int show) {
     wc.lpszClassName = "AimodConfig";
     RegisterClassA(&wc);
     g_wnd = CreateWindowExA(0, wc.lpszClassName, TITLE, WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN, CW_USEDEFAULT, CW_USEDEFAULT,
-                            dpi_px(1040), dpi_px(720), NULL, NULL, inst, NULL);
+                            dpi_px(1180), dpi_px(760), NULL, NULL, inst, NULL);
     create_controls();
     show_unknown();
     layout();
     fill_list(-1);
     ShowWindow(g_wnd, show);
-    SetFocus(g_pages);
+    SetFocus(g_list);
     MSG m;
     while (GetMessageA(&m, NULL, 0, 0) > 0) {
         if (IsDialogMessageA(g_wnd, &m)) continue;

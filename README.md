@@ -196,11 +196,12 @@ siege, home guard.
    personalities. Add or edit `.eeai` files there to make your own; they are read when Empire Earth starts.
 4. Start the game normally. Changes to `aimod.ini` take effect when a game starts or a save is loaded.
    Instead of editing the file you can copy `aimod_config.exe` into the same folder and start it: every
-   setting by section (General, Display, ... the AI for every difficulty and each one alone) with its
-   explanation, its value and its default; a value is checked as you type, as the game reads it, and Save
-   writes only what you changed, keeping the file's comments. It also lists keys in your file that this
+   setting in one tree - the sections (General, Display, ... the AI), their topics (Movement, Navy, ...), a
+   master setting with the ones it switches - with its explanation, its value and its default, the AI's for
+   every difficulty and easy's, medium's and hard's own side by side; a search finds any of them; a value is
+   checked as you type, as the game reads it, and Save writes only what you changed, keeping the file's comments. It also lists keys in your file that this
    version no longer knows (old experiments, typing mistakes) and can remove them. Without an `aimod.ini` it
-   offers to make one with the default settings. Its Game page shows which exe is next to it and can give the
+   offers to make one with the default settings. Its Game exe button shows which exe is next to it and can give the
    game 4 GB of memory instead of 2 (the Large Address Aware flag - big armies and maps need it; one bit in the
    exe's header, the game closed, the exe kept as `Empire Earth.exe.original` and put back by Restore).
 5. Optional: copy `dinput.dll` into the same folder too. The game then keeps its own settings (graphics,
@@ -516,8 +517,8 @@ dll/              the mod (C), one translation unit: eeaimod.c includes every pa
   test/             control.c the control pipe, testcmd.c / testopp.c test commands and the sea opponent, randmap.c
                     test-game setup, autotest.c, scripts.c the setup scripts (cmd_verbs.h, generated: the commands
                     they call), trace.c call tracing, ecolog.c the economy log
-  settings/         rows.h every aimod.ini key as a row (kind, section, default, limits) and every section (order, kind,
-                    title: aimod_config.exe's pages), settings.c reads them once into
+  settings/         rows.h every aimod.ini key as a row (kind, section, default, limits), every section (order, kind,
+                    title) and the topics in them (aimod_config.exe's tree), settings.c reads them once into
                     g_set / g_set_ai (a value per AI difficulty) - the parts read those, never the file
   tool/             aimod_config.c: aimod_config.exe, the settings in a window (from base/, script/ and settings/ only:
                     the DLL's own rows and checks; the shipped aimod.ini built in as the help)
