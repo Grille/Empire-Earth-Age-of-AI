@@ -322,6 +322,28 @@
     E(epoch_pacing,     "classic") \
     E(pop_follow_human, "1")
 
+// Rows that set one of the game's own values (a player's field, a limit of its engine) and do little else - the
+// mod's tuning of the original rather than a feature of its own (aimod_config.exe shows their keys blue): the field's
+// name, what it sets, the game's own value, and the value at or below which the game keeps its own (the code leaves
+// the field alone: 0, or -1 for a chance - as kept, a share in percent; ai/settings.c settings_apply writes the AI's,
+// drawlist.c and sound.c the limits). A row whose value only switches a toggle among the mod's own logic
+// (epoch_pacing) is none.
+#define SETTING_GAME(V) \
+    V(display_draw_limit,   "the objects the game draws per frame", "512", 0) \
+    V(sound_channels,       "the sound mixer's channels at 100%", "16", 0) \
+    V(cost_percent,         "the price the AI pays, in percent of the real one (with the game's Cheat toggle)", "100%", 0) \
+    V(epoch_min,            "the AI's epoch timer, minutes at least (the game scales it a little by difficulty)", "50", 0) \
+    V(epoch_max,            "the AI's epoch timer, minutes at most", "70", 0) \
+    V(first_attack_min,     "minutes until the AI's first attack, at least", "20", 0) \
+    V(first_attack_max,     "minutes until the AI's first attack, at most", "40", 0) \
+    V(attack_interval_min,  "minutes between the AI's attack waves, at least (scaled by difficulty)", "14", 0) \
+    V(attack_interval_max,  "minutes between the AI's attack waves, at most", "17", 0) \
+    V(attack_group_percent, "the size of the AI's attack groups", "easy 80%, medium 110%, hard computed", 0) \
+    V(attack_on_contact,    "the chance of an extra attack on contact with an enemy", "71%", -1) \
+    V(attack_for_resources, "the chance of an extra attack to take an enemy's resources", "20%", -1) \
+    V(attack_revenge,       "the chance of an extra attack out of revenge", "10%", -1) \
+    V(citizen_share,        "the AI's share of the population cap for citizens", "45%", 0)
+
 // Rows aimod_config.exe shows under a master, folded with its children, though they don't follow it: settings of what
 // the master's children switch on (the formation's catch-up and collision under improved_unit_movement).
 #define SETTING_UNDER(U) \

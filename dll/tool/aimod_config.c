@@ -531,6 +531,26 @@ internal int entry_level(const struct entry *e) {
     }
     return worst;
 }
+internal int game_of(int row) {   // its k_settings_game (rows.h SETTING_GAME: sets one of the game's own values), -1 none
+    for (int i = 0; i < SETTING_GAME_N; i++) if (k_settings_game[i].row == row) return i;
+    return -1;
+}
+// the value the entry comes to (its text, else the default; a share in percent) leaves the game's own (rows.h
+// SETTING_GAME's keep)
+internal int game_keeps(const struct entry *e, int game) {
+    static uint8_t val[TEXT_CAP];
+    char why[MAX_PATH], key[64];
+    const struct setting_row *r = row_of(e);
+    setting_default(r, val);
+    if (e->text[0]) {   // a mistake leaves the default in val
+        key_of(e, key, sizeof key);
+        g_ini_why = why;
+        setting_value(r, g_ini_path, sec_of(e), key, e->text, val);
+        g_ini_why = NULL;
+    }
+    double x = r->kind == SETK_SHARE ? *(float *)val * 100.0 : (double)*(int *)val;
+    return x <= k_settings_game[game].keep;
+}
 internal int diff_set(const struct entry *e) {   // an AI row whose easy or hard has a value of its own in the file
     for (int d = 0; d < 3; d++) if (diff_entry(e, d) && diff_entry(e, d)->text[0]) return 1;
     return 0;
@@ -554,6 +574,17 @@ internal void fill_item(int item, LPARAM p) {
     }
     char base[TEXT_CAP];   // the difficulties that play another value than [ai_base]: 40% (easy: 30%, hard: 55%)
     lstrcpyA(base, v);
+    int game = game_of(e->row);
+    if (game >= 0) {   // and the game's own; a value that leaves the field alone is the game's
+        const struct entry dflt = { .page = e->page, .row = e->row, .slot = e->slot };
+        if (game_keeps(&dflt, game)) snprintf(def, sizeof def, "the game's (%s)", k_settings_game[game].game);
+        else if (strlen(def) + strlen(k_settings_game[game].game) + 12 < sizeof def) {
+            lstrcatA(def, "  (game: ");
+            lstrcatA(def, k_settings_game[game].game);
+            lstrcatA(def, ")");
+        }
+        if (game_keeps(e, game) && (!e->text[0] || entry_level(e) != CHECK_MISTAKE)) snprintf(v, sizeof v, "the game's (%s)", k_settings_game[game].game);
+    }
     size_t o = strlen(v);
     int n = 0;
     for (int d = 0; d < 3; d++) {
@@ -800,7 +831,10 @@ internal void show_editors(void) {
         struct entry *e = &g_e[g_sel];
         char key[64];
         key_of(e, key, sizeof key);
-        snprintf(title, sizeof title, "[%s] %s", sec_of(e), key);
+        int game = game_of(e->row);
+        if (game >= 0) snprintf(title, sizeof title, "[%s] %s - the game's own value: %s (the game's: %s)", sec_of(e), key,
+                                k_settings_game[game].what, k_settings_game[game].game);
+        else snprintf(title, sizeof title, "[%s] %s", sec_of(e), key);
         help_of(sec_of(e), row_of(e)->key, row_of(e)->kind == SETK_STR_P, help, sizeof help);
         g_ed[g_ned++].entry = g_sel;
         for (int d = 0; d < 3; d++) if (diff_entry(e, d)) g_ed[g_ned++].entry = g_diff_of[e->row][d];
@@ -866,10 +900,10 @@ internal void layout(void) {
     int unk = g_nunk ? dpi_px(40) : 0, bottom = dpi_px(32) + unk, help_h = dpi_px(110);
     int editor = dpi_px(22) + help_h + dpi_px(6) + (g_ned ? g_ned : 1) * line;
     MoveWindow(g_filter, x, m, dpi_px(300), dpi_px(24), FALSE);
-    SetRect(&g_legend, x + dpi_px(320), m, w - m, m + dpi_px(24));   // beside the search
-    int list_h = h - m - dpi_px(32) - editor - bottom - m;
+    int legend = dpi_px(22), list_h = h - m - dpi_px(32) - legend - editor - bottom - m;
     MoveWindow(g_list, x, m + dpi_px(32), rw, list_h, FALSE);
-    int y = m + dpi_px(32) + list_h + m;
+    SetRect(&g_legend, x, m + dpi_px(32) + list_h + dpi_px(2), w - m, m + dpi_px(32) + list_h + legend);   // under the list
+    int y = m + dpi_px(32) + list_h + legend + m;
     MoveWindow(g_name, x, y, rw, dpi_px(20), FALSE);
     MoveWindow(g_help, x, y + dpi_px(22), rw, help_h, FALSE);
     for (int k = 0; k < EDITORS; k++) {   // a line each: its label, its control, the button, what it comes to
@@ -986,40 +1020,43 @@ internal void show_mode(void) {
 #define TINT_MISTAKE RGB(255, 205, 205)
 #define TEXT_WARN RGB(150, 100, 0)
 #define TEXT_MISTAKE RGB(190, 0, 0)
+#define TEXT_GAME RGB(0, 70, 190)   // a key that sets one of the game's own values
+#define TEXT_GAME_GREY RGB(120, 150, 205)   // ... not in the file
 
 // a custom-drawn cell: changed bold (an AI row: easy or hard set too), not in the file grey (a section or group line
 // bold); the default never; the value tinted by its check
 internal LRESULT draw_cell(NMLVCUSTOMDRAW *cd) {
     LPARAM p = cd->nmcd.lItemlParam;
-    int bold = 0, grey = 0;
+    int bold = 0, grey = 0, game = 0;
     COLORREF bk = GetSysColor(COLOR_WINDOW);
     if (node_kind(p) != NODE_ENTRY) bold = 1;
     else if (cd->iSubItem < COLS - 1) {
         const struct entry *e = &g_e[p];
         bold = is_changed(e) || diff_set(e);
         grey = !e->text[0] && !diff_set(e);
+        game = cd->iSubItem == 0 && game_of(e->row) >= 0;
         int level = cd->iSubItem == 1 ? entry_level(e) : CHECK_OK;
         if (level == CHECK_WARN) bk = TINT_WARN;
         else if (level == CHECK_MISTAKE) bk = TINT_MISTAKE;
     }
     SelectObject(cd->nmcd.hdc, bold ? g_bold : g_font);
-    cd->clrText = GetSysColor(grey ? COLOR_GRAYTEXT : COLOR_WINDOWTEXT);
+    cd->clrText = game ? (grey ? TEXT_GAME_GREY : TEXT_GAME) : GetSysColor(grey ? COLOR_GRAYTEXT : COLOR_WINDOWTEXT);
     cd->clrTextBk = bk;
     return CDRF_NEWFONT;
 }
 
-// the legend beside the search (g_legend): a swatch and a word for each look of a value
+// the legend under the list (g_legend): a swatch and a word for each look of a value
 internal void paint_legend(HDC dc) {
     static const struct { const char *text; int kind; } k[] = {
-        { "Bold: changed", 1 }, { "Grey: not in your file, the default", 2 }, { "outside its usual range - used anyway", 3 },
-        { "a mistake - the default instead", 4 },
+        { "Bold: changed", 1 }, { "Grey: not in your file, the default", 2 }, { "Blue: the game's own value", 5 },
+        { "outside its usual range - used anyway", 3 }, { "a mistake - the default instead", 4 },
     };
     HFONT old = (HFONT)SelectObject(dc, g_font);
     SetBkMode(dc, TRANSPARENT);
     int x = g_legend.left, y = g_legend.top, h = g_legend.bottom - g_legend.top;
     for (size_t i = 0; i < sizeof k / sizeof *k; i++) {
         SIZE sz;
-        if (k[i].kind >= 3) {   // a tinted swatch
+        if (k[i].kind == 3 || k[i].kind == 4) {   // a tinted swatch
             RECT sw = { x, y + h / 2 - dpi_px(6), x + dpi_px(22), y + h / 2 + dpi_px(6) };
             HBRUSH b = CreateSolidBrush(k[i].kind == 3 ? TINT_WARN : TINT_MISTAKE);
             FillRect(dc, &sw, b);
@@ -1027,7 +1064,7 @@ internal void paint_legend(HDC dc) {
             x += dpi_px(28);
         }
         SelectObject(dc, k[i].kind == 1 ? g_bold : g_font);
-        SetTextColor(dc, GetSysColor(k[i].kind == 2 ? COLOR_GRAYTEXT : COLOR_WINDOWTEXT));
+        SetTextColor(dc, k[i].kind == 5 ? TEXT_GAME : GetSysColor(k[i].kind == 2 ? COLOR_GRAYTEXT : COLOR_WINDOWTEXT));
         const char *t = k[i].text;
         GetTextExtentPoint32A(dc, t, (int)strlen(t), &sz);
         TextOutA(dc, x, y + (h - sz.cy) / 2, t, (int)strlen(t));
