@@ -91,7 +91,9 @@ and the runners, eectl, the MCP server), `results/` (log readers, scorers), `re/
   `SETTING_SECTIONS` there too (its order and title make aimod_config.exe's section; its topics there:
   `SETTING_GROUPS`, each from its first row on). A CHILD row is a flag under a
   master CHOICE `default|enabled|disabled` (improved_unit_movement over the seven movement keys): not set, it follows
-  the master; the shipped file has it commented out.
+  the master; the shipped file has it commented out. A row's range is a sanity bound: outside it a warning, the value
+  used (the code clamps what it can't take); only what can't be used at all is a mistake, the default instead. A row
+  that only sets one of the game's own values goes into `SETTING_GAME` too (aimod_config.exe shows its key blue).
 - The game reads the personality files from `config/aimod_ai/` (`ai_dir` in the user's aimod.ini): a change to
   their format needs the matching installed DLL.
 
