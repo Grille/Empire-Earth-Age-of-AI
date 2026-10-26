@@ -23,6 +23,7 @@ patches such as *Empire Earth Tweaks* or *dreXmod*, which patch different places
 | [docs/ai-analysis.md](docs/ai-analysis.md) | How the original AI works, where it fails, what the mod changes, and all test results |
 | [docs/engine-notes.md](docs/engine-notes.md) | Verified addresses and data layouts of the engine |
 | [docs/testing.md](docs/testing.md) | Autotest mode, test scenarios, log format, control pipe commands |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | What the project takes, how to report, the rules a change has to follow |
 | [config/aimod.ini](config/aimod.ini) | Every setting, explained |
 | [config/aimod_ai/README.md](config/aimod_ai/README.md) | The personalities and texts: format, expressions, values, situations |
 | [config/aimod_ai/_template.eeai](config/aimod_ai/_template.eeai) | An empty personality with every key explained, to copy |
