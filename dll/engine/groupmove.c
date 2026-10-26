@@ -299,9 +299,6 @@ internal void fo_march(ee_active_group *grp) {
 #define FF_AHEAD 1.5f          // tiles: the point steered at lies this far ahead of the follower's own (no circling on it)
 #define FF_LOOK 3.0f           // tiles: the anchor heads for the leader's route this far ahead of it
 #define FF_INNER 1.0f          // tiles: the anchor's tightest arc leaves the innermost unit this far inside it
-#define FF_PACE 0.8f           // the formation goes at most this share of each member's speed now (its top speed and its
-                               // catch-up share): one fallen behind at its own top speed holds it to 80% of that, and all
-                               // with 125% or more (catch-up near their places) let it go at the march's speed
 #define FF_DROP 2.0f           // tiles
 #define FF_FALLEN 4.0f         // x its size: a follower this far from its point and further has no catch-up speed
 #define FF_KEEP 10             // steps: a unit steered at its point this recently keeps the formation's speed - a ship
@@ -763,9 +760,11 @@ internal ee_unit *ff_leader(struct ff_group *gr, uint32_t step) {
     vec2 to = vec2_sub(ff_pursue(gr, l), gr->anchor);
     float tl = vec2_len(to);
     vec2 dir = tl > 0.01f ? vec2_scale(to, 1.0f / tl) : gr->way;
-    // its speed: the march's, no more than FF_PACE of its slowest member's speed now (a unit fallen behind has only its
-    // top speed: the formation slows for it), less in a turn
-    float base = gr->pace >= 0 && FF_PACE * gr->pace < gr->speed ? FF_PACE * gr->pace : gr->speed;
+    // its speed: the march's, no more than formation_wait (80%) of its slowest member's speed now (its top speed and its
+    // catch-up share: a unit fallen behind has only its top speed, the formation slows for it to 80% of that; all with
+    // 125% or more, near their places, let it go at the march's speed), less in a turn
+    float wait = g_set.formation_wait;
+    float base = gr->pace >= 0 && wait * gr->pace < gr->speed ? wait * gr->pace : gr->speed;
     // re-forming on the move (pivot) it turns onto the new leg at FF_INNER, not at the formation's reach: the units take new
     // places anyway, and the wide swing at a sharp corner put their points on ground they couldn't reach
     // ships turn together: the anchor turns as one ship does (its least agile member's circle at its top speed) and the
@@ -1103,7 +1102,7 @@ internal int fo_follow_aim(ee_unit *u, const float *pos, float *aim) {
 }
 
 // the land models' speed step: the leader at the march's speed (the slowest member's top speed), less while a member
-// lags (FF_PACE); a follower that steered this step at its point's speed (the leader's) its way plus
+// lags (formation_wait); a follower that steered this step at its point's speed (the leader's) its way plus
 // FF_GAIN for each tile behind it - while behind up to formation_catchup of its own top speed (the slowest ones could never catch up at their top speed,
 // and the formation as a whole still goes no faster than its slowest unit) - towards it by its own acceleration a tick;
 // the game's own step while it turns more than 45 degrees

@@ -372,9 +372,11 @@ Settings in `aimod.ini`:
 - `[general] formation_catchup=200%` (with formation_follow): how fast a unit behind its place may go to keep it, in
   percent of its own top speed (100% never faster than its own) - near its place only (all of it within its size,
   none from four times that) or within 5 seconds of last being in it (a re-form or a new order on the march: no more
-  than the boost it had then; none from rest - a group standing about takes its time to assemble). The formation
-  goes at most 80% of each unit's speed so: at its slowest unit's top speed when all have 125% or more, slowed to
-  80% of a unit's top speed while it has fallen behind.
+  than the boost it had then; none from rest - a group standing about takes its time to assemble).
+- `[general] formation_wait=80%` (with formation_follow): the formation goes at most this share of each unit's speed
+  now - slowed to 80% of a unit's top speed while it has fallen behind (it catches up at the other 20%), at its
+  slowest unit's top speed when all near their places have 125% or more. Lower waits more for the stragglers
+  (tighter, slower); 100% never slows below a straggler's speed, so it doesn't gain on the formation.
 - `[general] formation_collision=75%` (with formation_follow and land_collide): units marching in the same
   formation push each other off at this share of their size - they slip past each other to their places, which
   stay as far apart (100% as any two units). It fades in over the march's first 2 seconds, stays while the
