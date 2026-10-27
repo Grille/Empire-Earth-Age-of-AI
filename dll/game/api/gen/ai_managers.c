@@ -375,6 +375,11 @@ internal inline char unit_mgr_in_production_of(ee_unit_mgr *unit_mgr, int type) 
 typedef void (__thiscall *wall_mgr_build_wall_fn)(ee_wall_mgr *, int *, int *, int, char);
 internal wall_mgr_build_wall_fn fn_wall_mgr_build_wall;
 internal inline void wall_mgr_build_wall(ee_wall_mgr *wall_mgr, int *from, int *to, int type, char flag) { fn_wall_mgr_build_wall(wall_mgr, from, to, type, flag); }
+// its update (every civilization manager update): the ring of walls around the base, one segment at a time
+typedef void (__thiscall *wall_mgr_update_fn)(ee_wall_mgr *, uint32_t);
+internal wall_mgr_update_fn fn_wall_mgr_update;
+internal inline void wall_mgr_update(ee_wall_mgr *wall_mgr, uint32_t now) { fn_wall_mgr_update(wall_mgr, now); }
+internal inline int patch_wall_update(wall_mgr_update_fn h) { return patch_call(call_wall_update, (uintptr_t)fn_wall_mgr_update, (void *)h); }
 
 // static class ai_managers
 // ai_managers's data of the game, places in its code and numbers
@@ -523,6 +528,8 @@ internal int spec_ai_managers_select(int build) {
         fn_unit_mgr_in_production_of = (unit_mgr_in_production_of_fn)0x0048EA2E;
         vt_eecp_wall_manager = 0x00827AE4;
         fn_wall_mgr_build_wall = (wall_mgr_build_wall_fn)0x00497C3F;
+        fn_wall_mgr_update = (wall_mgr_update_fn)0x00499E20;
+        call_wall_update = 0x0046E3E1;
         data_ai_managers_call_farms = 0x0048AC54;
         data_ai_managers_call_unbuilt_farms = 0x0048B0FD;
         fn_bq_add = (bq_add_fn)0x00468C37;
@@ -658,6 +665,8 @@ internal int spec_ai_managers_select(int build) {
         fn_unit_mgr_in_production_of = (unit_mgr_in_production_of_fn)0x004936EC;
         vt_eecp_wall_manager = 0x0083C2C8;
         fn_wall_mgr_build_wall = (wall_mgr_build_wall_fn)0x0049D05F;
+        fn_wall_mgr_update = (wall_mgr_update_fn)0x0049F244;
+        call_wall_update = 0x0047106C;
         data_ai_managers_call_farms = 0x0048F643;
         data_ai_managers_call_unbuilt_farms = 0x0048FAD4;
         fn_bq_add = (bq_add_fn)0x0046B798;
@@ -738,6 +747,8 @@ internal int spec_ai_managers_check(void) {
     bad += spec_code((uintptr_t)fn_unit_mgr_in_production_of, "ee_unit_mgr.in_production_of");
     bad += spec_vtable(vt_eecp_wall_manager, ".?AVEECPWallManager@@", "EECPWallManager [vtable]");
     bad += spec_code((uintptr_t)fn_wall_mgr_build_wall, "EECPWallManager.build_wall");
+    bad += spec_code((uintptr_t)fn_wall_mgr_update, "EECPWallManager.update");
+    bad += spec_call(call_wall_update, (uintptr_t)fn_wall_mgr_update, "EECPWallManager.update [call_site wall_update]");
     bad += spec_code(data_ai_managers_call_farms, "ai_managers.call_farms");
     bad += spec_code(data_ai_managers_call_unbuilt_farms, "ai_managers.call_unbuilt_farms");
     bad += spec_code((uintptr_t)fn_bq_add, "ai_managers_functions.bq_add");

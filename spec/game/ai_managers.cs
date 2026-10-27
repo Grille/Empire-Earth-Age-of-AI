@@ -431,6 +431,12 @@ unsafe struct EECPWallManager
     /// thiscall(wall manager, int from[2], int to[2], type, char)
     [address((ee)0x00497C3F, (aoc)0x0049D05F)]
     extern void build_wall(int32* from, int32* to, int32 type, char8 flag);
+
+    /// its update (every civilization manager update): the ring of walls around the base, one segment at a time
+    [address((ee)0x00499E20, (aoc)0x0049F244)]
+    // call EECPWallManager::Update(now) (0x499E20) in the civilization manager's update
+    [call_site("wall_update", (ee)0x0046E3E1, (aoc)0x0047106C)]
+    extern void update(uint32 now);
 }
 
 /// ai_managers's data of the game, places in its code and numbers

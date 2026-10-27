@@ -210,7 +210,8 @@
     D(FLAG,  gather_research,              1, 0, 0) \
     D(FLAG,  defence_layout,               1, 0, 0) \
     D(FLAG,  defence_towers,               1, 0, 0) \
-    D(FLAG,  defence_walls,                1, 0, 0) \
+    D(FLAG,  defence_walls,                0, 0, 0) \
+    D(FLAG,  game_walls,                   0, 0, 0) \
     D(NUM,   defence_distance,             10, 0, 0) \
     D(FLAG,  counter_siege,                1, 0, 0) \
     D(FLAG,  anti_air,                     1, 0, 0) \

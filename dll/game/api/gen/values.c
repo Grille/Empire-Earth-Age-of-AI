@@ -79,6 +79,7 @@ internal uint32_t call_train_citizens;
 internal uint32_t calls_train_units[5];
 internal uint32_t call_citizens_wanted;
 internal uint32_t vt_eecp_wall_manager;
+internal uint32_t call_wall_update;
 internal uint32_t data_ai_managers_call_farms;
 internal uint32_t data_ai_managers_call_unbuilt_farms;
 

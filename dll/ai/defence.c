@@ -1044,7 +1044,23 @@ __attribute__((naked, used)) void damage_points_thunk(void) {
             "jmp _hook_damage_points");
 }
 
+// THE GAME'S WALLS ([ai_base] game_walls, default 0 since 2026-10-27; the player: the AI's own wall building is between
+// useless and annoying, a little ugly too - and much of the deadly build orders, citizens sent one by one to wall
+// segments at the front): the wall manager's update (EECPWallManager 0x499E20, called by the civilization manager's
+// update at 0x46E3E1 - its ring around the base, one segment at a time, a stray piece with a gate in practice) is
+// skipped for the mod's AIs. The walls defence_walls builds go through the wall manager's build_wall, not its update.
+internal int g_game_walls = 0;
+internal void __thiscall hook_wall_update(ee_wall_mgr *wm, uint32_t now) {
+    for (int i = 1; !g_game_walls && i < 16 && (unsigned)i < game_player_count(); i++) {
+        ee_player *pl = game_players()[i];
+        ee_civ_mgr *cm = pl && g_players[i] && !is_vanilla(pl) ? player_get_civ_mgr(pl) : NULL;
+        if (cm && civ_mgr_get_wall_mgr(cm) == wm) return;
+    }
+    wall_mgr_update(wm, now);
+}
 internal void defence_install(void) {
+    g_game_walls = g_set_ai[1].game_walls;
+    if (!patch_wall_update(hook_wall_update) && g_log) fprintf(g_log, "# defence: the wall manager's update not hooked - the game's walls stay\n");
     g_def = g_set_ai[1].defence_layout;
     g_def_dist = g_set_ai[1].defence_distance;
     g_def_walls = g_set_ai[1].defence_walls;
