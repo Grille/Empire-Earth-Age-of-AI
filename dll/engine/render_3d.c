@@ -254,8 +254,20 @@ internal void rd3_color(float *f, D3DCOLOR c) {
 internal void rd3_value(float *f, const D3DCOLORVALUE *c) { f[0] = c->r; f[1] = c->g; f[2] = c->b; f[3] = c->a; }
 internal float rd3_float(DWORD v) { float f; memcpy(&f, &v, 4); return f; }
 
-// the device's states into the shaders' constants and the pipeline; 0: nothing to draw into
-internal int rd3_prepare(rd_device *d) {
+// A picture on the screen (the interface's backgrounds: no depth test, every texture coordinate within 0..1) is
+// sampled with CLAMP whatever the game asks: a background is tiles of 256x256 textures stretched to the screen, and with
+// WRAP the bilinear filter takes its edge's half texel from the tile's opposite side - lines between the tiles (under
+// DDrawCompat too). Inside the tile both are the same; the terrain (depth tested) tiles its textures and keeps WRAP.
+internal int rd3_flat_picture(rd_device *d, rd_vb *vb, DWORD start, DWORD n) {
+    if (d->rs[D3DRENDERSTATE_ZENABLE] || !d->tex[0] || n > 64) return 0;
+    for (DWORD i = start; i < start + n; i++) {
+        const float *uv = (const float *)(vb->mem + (size_t)i * vb->stride + 28);   // FVF 0x152's texture coordinates
+        if (uv[0] < -0.001f || uv[0] > 1.001f || uv[1] < -0.001f || uv[1] > 1.001f) return 0;
+    }
+    return 1;
+}
+// the device's states into the shaders' constants and the pipeline; 0: nothing to draw into. clamp: CLAMP addressing
+internal int rd3_prepare(rd_device *d, int clamp) {
     rd_surface *t = d->target;
     if (!t || !t->rtv || !rd3_init()) return 0;
     ID3D11DeviceContext *x = g_d3d.ctx;
@@ -296,7 +308,8 @@ internal int rd3_prepare(rd_device *d) {
     ID3D11ShaderResourceView *srv = tex ? rd_gpu_texture(tex, ckey) : NULL;
     if (full || srv != g_rd3.srv) { ID3D11DeviceContext_PSSetShaderResources(x, 0, 1, &srv); g_rd3.srv = srv; }
     int bias = (int)(rd3_float(ts[D3DTSS_MIPMAPLODBIAS]) * 16.0f);
-    uint32_t sk = (ts[D3DTSS_ADDRESSU] & 7) | (ts[D3DTSS_ADDRESSV] & 7) << 3 | (ts[D3DTSS_MAGFILTER] & 3) << 6 |
+    uint32_t au = clamp ? D3DTADDRESS_CLAMP : ts[D3DTSS_ADDRESSU], av = clamp ? D3DTADDRESS_CLAMP : ts[D3DTSS_ADDRESSV];
+    uint32_t sk = (au & 7) | (av & 7) << 3 | (ts[D3DTSS_MAGFILTER] & 3) << 6 |
                   (ts[D3DTSS_MINFILTER] & 3) << 8 | (ts[D3DTSS_MIPFILTER] & 3) << 10 | (uint32_t)(bias & 255) << 12;
     o = rd3_cache(g_rd3.samps, &g_rd3.n_samp, 32, sk, rd3_mk_samp);
     if (full || o != g_rd3.samp) { ID3D11DeviceContext_PSSetSamplers(x, 0, 1, (ID3D11SamplerState **)&o); g_rd3.samp = o; }
@@ -576,6 +589,7 @@ internal HRESULT __stdcall rd_dev_get_texture(rd_device *d, DWORD stage, rd_surf
 }
 internal HRESULT __stdcall rd_dev_set_tss(rd_device *d, DWORD stage, D3DTEXTURESTAGESTATETYPE t, DWORD v) {
     if (stage < 2 && (unsigned)t < RD_TSS) d->tss[stage][t] = v;
+    if (stage < 2 && t == D3DTSS_ADDRESS) d->tss[stage][D3DTSS_ADDRESSU] = d->tss[stage][D3DTSS_ADDRESSV] = v;   // the game's: both at once
     return D3D_OK;
 }
 internal HRESULT __stdcall rd_dev_get_tss(rd_device *d, DWORD stage, D3DTEXTURESTAGESTATETYPE t, DWORD *v) {
@@ -588,7 +602,7 @@ internal HRESULT __stdcall rd_dev_draw_vb(rd_device *d, D3DPRIMITIVETYPE type, r
     InterlockedIncrement(&g_rd_draws);
     if (!n || start + n > vb->n || !rd3_drawable(vb, type)) return D3D_OK;
     RD_LOCK();
-    if (rd3_prepare(d)) {
+    if (rd3_prepare(d, rd3_flat_picture(d, vb, start, n))) {
         long at = rd3_upload(g_rd3.vb, RD3_VB_BYTES, &g_rd3.vb_pos, vb->mem + (size_t)start * vb->stride, n * vb->stride, vb->stride);
         if (at >= 0) {
             ID3D11DeviceContext_IASetPrimitiveTopology(g_d3d.ctx, rd3_topology(type));
@@ -605,7 +619,7 @@ internal HRESULT __stdcall rd_dev_draw_indexed_vb(rd_device *d, D3DPRIMITIVETYPE
     InterlockedIncrement(&g_rd_draws);
     if (!nv || !ni || !idx || start + nv > vb->n || !rd3_drawable(vb, type)) return D3D_OK;
     RD_LOCK();
-    if (rd3_prepare(d)) {
+    if (rd3_prepare(d, rd3_flat_picture(d, vb, start, nv))) {
         long at = rd3_upload(g_rd3.vb, RD3_VB_BYTES, &g_rd3.vb_pos, vb->mem + (size_t)start * vb->stride, nv * vb->stride, vb->stride);
         long ia = at >= 0 ? rd3_upload(g_rd3.ib, RD3_IB_BYTES, &g_rd3.ib_pos, idx, ni * 2, 2) : -1;
         if (ia >= 0) {
