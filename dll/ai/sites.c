@@ -7,7 +7,7 @@
 // a mine overseas (overseas_mines). (safe_sites - the nearest site to the base within site_max_distance, the
 // leftover pass only to mines short of workers - removed: docs/experiments.md.) Included by eeaimod.c before econ.c.
 
-internal int g_site_max_dist = 20;   // tiles from the base, aimod.ini [ai_base] site_max_distance (econ.c: the wild food counted)
+internal int g_site_max_dist = 20;   // tiles from the base, ageofai.ini [ai_base] site_max_distance (econ.c: the wild food counted)
 
 internal int site_danger(ee_player *pl, ee_unit *site, int food);   // attack.c: known enemy towers on the way
 internal int site_danger_res(ee_player *pl, ee_unit *site, int food, int res);   // attack.c: res 2 food .. 6 iron
@@ -51,7 +51,7 @@ internal int drop_dist(const struct drop *d, int nd, ivec2 p, int food) {   // w
     return best;
 }
 
-// MINE CHOICE (aimod.ini [ai_base] mine_choice, default on): the original mine search takes the first acceptable mine in
+// MINE CHOICE (ageofai.ini [ai_base] mine_choice, default on): the original mine search takes the first acceptable mine in
 // reverse zone order - with mines next to its town centers free, P2 sent 20 citizens to iron 35 tiles from any drop
 // site (3-5 iron per worker-minute against 10-12 for wood next door). Mines are practically endless (300000), so the
 // walk decides the income: take the free mine nearest to one of the AI's drop sites (Town Center, Capitol,

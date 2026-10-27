@@ -16,7 +16,7 @@
 # Multiplayer (dll/test/netgame.c, scripts/test/mp.sh): -IniExtra mp=host or mp=join (with mp_host=<the host's
 # slot>, mp_seat=<n>) starts the game at the main menu instead of the save; there the DLL hosts or joins, and the
 # host's DLL presses Start once mp_humans (2) humans are in its lobby.
-# -Dll <path> (env DLL): this run plays with that eeaimod.dll build instead of the installed one - copied to
+# -Dll <path> (env DLL): this run plays with that ageofai.dll build instead of the installed one - copied to
 # local\work\eeaimod_slot<n>.dll (the source can be rebuilt meanwhile), named in EEAIMOD_DLL; the installed DLL loads it.
 # Art of Conquest: EE_GAME_DIR=<its folder> (EE-AOC.exe is found there; -Exe names another). The mod plays there in
 # test runs only until that build is ready (EEAIMOD_UNREADY, game/api/exe.c); the game needs a save of its own to start
@@ -86,7 +86,7 @@ for (;;) {
     if (-not $told) { "waiting: slots $slotFrom..$slotTo are all taken"; $told = $true }
     Start-Sleep -Seconds 2
 }
-$sdir = if ($Slot) { "$repo\local\work\slot$Slot" } else { "$g\aimod" }   # this run's test ini, log and dumps
+$sdir = if ($Slot) { "$repo\local\work\slot$Slot" } else { "$g\ageofai" }   # this run's test ini, log and dumps
 if ($Scenario) {
     # beside other slots the file may be open in another game: copy it only when it differs
     $src = "$g\Data\Scenarios\$Scenario.scn"; $dst = "$g\Data\Saved Games\$Scenario.ees"
@@ -112,11 +112,11 @@ function Restore-Sound {
 }
 
 if ($Save -match '[-/]') { "save name must not contain - or /"; exit 1 }
-# The settings the DLL plays with: -Config (or env CONFIG) = an aimod.ini, -AiDir (or env AI_DIR) = the personality
-# folder; relative paths from the repository. Default: the shipped config\aimod.ini and config\personalities - what players get,
-# never the player's own aimod.ini in the game folder's aimod\ (its experiments would bias every A/B);
-# CONFIG=<game>\aimod\aimod.ini tests it.
-if (-not $Config) { $Config = "config\aimod.ini" }
+# The settings the DLL plays with: -Config (or env CONFIG) = an ageofai.ini, -AiDir (or env AI_DIR) = the personality
+# folder; relative paths from the repository. Default: the shipped config\ageofai.ini and config\personalities - what players get,
+# never the player's own ageofai.ini in the game folder's ageofai\ (its experiments would bias every A/B);
+# CONFIG=<game>\ageofai\ageofai.ini tests it.
+if (-not $Config) { $Config = "config\ageofai.ini" }
 if (-not $AiDir) { $AiDir = "config\personalities" }
 if (-not [System.IO.Path]::IsPathRooted($Config)) { $Config = Join-Path $repo $Config }
 if (-not [System.IO.Path]::IsPathRooted($AiDir)) { $AiDir = Join-Path $repo $AiDir }
@@ -188,8 +188,8 @@ if ($proxy -and $Mute) {
 if ($Dll) {
     if (-not [System.IO.Path]::IsPathRooted($Dll)) { $Dll = Join-Path $repo $Dll }
     $why = if (-not (Test-Path $Dll)) { "-Dll not found: $Dll" }
-           elseif (-not (Select-String -Path "$g\eeaimod.dll" -Pattern 'EEAIMOD_DLL' -SimpleMatch -Quiet)) {
-               "the installed eeaimod.dll predates -Dll (install a current build once: sh dll/build.sh install)" }
+           elseif (-not (Select-String -Path "$g\ageofai.dll" -Pattern 'EEAIMOD_DLL' -SimpleMatch -Quiet)) {
+               "the installed ageofai.dll predates -Dll (install a current build once: sh dll/build.sh install)" }
     if ($why) { $why; exit 1 }
     $env:EEAIMOD_DLL = "$repo\local\work\eeaimod_slot$Slot.dll"
     try { Copy-Item $Dll $env:EEAIMOD_DLL -Force -ErrorAction Stop }
@@ -228,21 +228,21 @@ elseif ($mp) { "mp must be host or join"; exit 1 }
 $extra += "config=$Config", "ai_dir=$AiDir"
 $keys = $extra | ForEach-Object { ($_ -split '=', 2)[0].Trim() }
 $lines = Get-Content "$repo\tests\config\autotest.ini" | Where-Object { $keys -notcontains (($_ -split '=', 2)[0].Trim()) }
-Set-Content "$sdir\aimod_autotest.ini" (@($lines) + $extra)
+Set-Content "$sdir\ageofai_autotest.ini" (@($lines) + $extra)
 # the game started from here sees the slot (and a slot-0 run none, whatever this shell has set)
 if ($Slot) { $env:EEAIMOD_SLOT = "$Slot"; $env:EEAIMOD_SLOT_DIR = $sdir }
 else { Remove-Item Env:EEAIMOD_SLOT, Env:EEAIMOD_SLOT_DIR -ErrorAction SilentlyContinue }
 $env:EEAIMOD_REPO = $repo   # the repository (texts corpus: its tests\text_engine_cases.txt)
 $env:EEAIMOD_UNREADY = "1"   # a known build that isn't ready yet plays here (game/api/exe.c) - never in normal play
 # headless: the mod's dinput.dll keeps every window of the game from taking the focus or a taskbar button, from the
-# process start on (dll/base/headless_win.c; eeaimod.dll alone only from its load on)
+# process start on (dll/base/headless_win.c; ageofai.dll alone only from its load on)
 if ($extra -contains "headless=1") { $env:EEAIMOD_HEADLESS = "1" } else { Remove-Item Env:EEAIMOD_HEADLESS -ErrorAction SilentlyContinue }
 try {
     # an existing log in the game folder is from normal play (tests archive theirs below): keep it, never delete it;
     # in a slot's folder: a crashed run's
-    if (Test-Path "$sdir\aimod_econ.csv") {
+    if (Test-Path "$sdir\ageofai_log.csv") {
         $kept = "$repo\local\work\$(if ($Slot) { 'slot' + $Slot + '_left_' } else { 'play_' })$(Get-Date -Format yyyyMMdd_HHmmss).csv"
-        Move-Item "$sdir\aimod_econ.csv" $kept -Force
+        Move-Item "$sdir\ageofai_log.csv" $kept -Force
         "kept the previous log: $kept"
     }
     Wait-Reservation
@@ -330,8 +330,8 @@ public static class SuspendedStart {
     while (-not $p.HasExited) {
         Start-Sleep -Milliseconds 250
         $waited = ((Get-Date) - $t0).TotalSeconds
-        if (Test-Path "$sdir\aimod_econ.csv") {
-            if (Select-String -Path "$sdir\aimod_econ.csv" -Pattern '^# autotest:' -Quiet) { $ok = $true; break }
+        if (Test-Path "$sdir\ageofai_log.csv") {
+            if (Select-String -Path "$sdir\ageofai_log.csv" -Pattern '^# autotest:' -Quiet) { $ok = $true; break }
             if (-not $logAt) { $logAt = $waited }
             if ($waited - $logAt -gt 5) { $why = "the DLL logs, but not in autotest mode (test ini missing?)"; break }
         } elseif ($waited -gt 60) { $why = "the DLL did not log within 60 s"; break }
@@ -342,19 +342,19 @@ public static class SuspendedStart {
     $secs = [int]((Get-Date) - $t0).TotalSeconds
 } finally {
     # the slot is this run's until it ends: its test ini can go (the game read it at its start)
-    Remove-Item "$sdir\aimod_autotest.ini" -Confirm:$false -ErrorAction SilentlyContinue
+    Remove-Item "$sdir\ageofai_autotest.ini" -Confirm:$false -ErrorAction SilentlyContinue
     if (-not (Other-Runners)) { Restore-Sound }   # the last slot running restores the player's sound
 }
 # the game's DDrawCompat log (DDrawCompat-<exe>[n].log in the game folder, its name in the DLL's log: test/autotest.c)
 # into the slot's folder - the game folder keeps the player's. -LiteralPath: the brackets of [n] are no wildcard
-if ($Slot -and (Test-Path "$sdir\aimod_econ.csv")) {
-    $dc = Select-String -Path "$sdir\aimod_econ.csv" -Pattern '^# slot: ddrawcompat log (.+)$' | Select-Object -First 1
+if ($Slot -and (Test-Path "$sdir\ageofai_log.csv")) {
+    $dc = Select-String -Path "$sdir\ageofai_log.csv" -Pattern '^# slot: ddrawcompat log (.+)$' | Select-Object -First 1
     if ($dc) { Move-Item -LiteralPath $dc.Matches[0].Groups[1].Value "$sdir\ddrawcompat.log" -Force -ErrorAction SilentlyContinue }
 }
 $stamp = Get-Date -Format "yyyyMMdd_HHmmss"
 $dest = "$repo\local\work\autotest_${stamp}$(if ($Slot) { "_s$Slot" })${Tag}.csv"
-if (Test-Path "$sdir\aimod_econ.csv") {
-    Move-Item "$sdir\aimod_econ.csv" $dest
+if (Test-Path "$sdir\ageofai_log.csv") {
+    Move-Item "$sdir\ageofai_log.csv" $dest
     # gzipped: ~7 times smaller (scripts/results/logs.py reads both; zgrep, zcat). Should it fail, the plain log stays
     $in = $out = $z = $null
     try {

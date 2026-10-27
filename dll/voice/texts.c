@@ -1,4 +1,4 @@
-// TEXTS: the mod's own words, from <game>\aimod\personalities\mod\: system.eeai - the system lines the player reads, system = {
+// TEXTS: the mod's own words, from <game>\ageofai\personalities\mod\: system.eeai - the system lines the player reads, system = {
 // ... }; prompt.eeai - the language model's instructions, prompt = { ... }, the last layer of every personality
 // (persona.c FILES): a personality's own prompt = { ... } and its other layers' come first (tpl_find). English (the
 // model is told which language to answer in). The files are part of the mod like the DLL: every key the code asks for
@@ -36,7 +36,7 @@ internal int text_index(const struct text_key *t, int n, const char *key) {
     return -1;
 }
 internal void texts_dir(char *dir) {
-    wsprintfA(dir, "%smod\\", g_ai_dir);   // <game>\aimod\personalities\mod\, [general] ai_dir or [autotest] ai_dir
+    wsprintfA(dir, "%smod\\", g_ai_dir);   // <game>\ageofai\personalities\mod\, [general] ai_dir or [autotest] ai_dir
 }
 internal int g_texts_sys_n, g_texts_var_n;   // keys read (log)
 // mod/system.eeai: system = { strings }, names (vars) - the format: expr.c THE TEXT FILES
@@ -226,7 +226,7 @@ internal const char *tnum(char *buf, int n) { wsprintfA(buf, "%d", n); return bu
 
 // TEXTS CORPUS (texts corpus): every expression of the text files worked out, for comparing two builds of the
 // engine (docs/testing.md "Text engine comparison") - the personalities' lines, vars, decide, colours and style,
-// the system lines and prompt pieces filled, aimod.ini's numbers; each for every AI speaking to every other player,
+// the system lines and prompt pieces filled, ageofai.ini's numbers; each for every AI speaking to every other player,
 // the generators set to fixed values before each one and put back after (the game goes on as if nothing happened).
 // One line each: what was worked out, whether it worked, its value (text, number, weight, items) and the generators'
 // state after it (the draws it made).
@@ -408,7 +408,7 @@ internal void texts_corpus(char *out, const char *path) {
         }
         if (cf) fclose(cf);
     }
-    {   // aimod.ini's numbers: every key's value as the ini reader works it out
+    {   // ageofai.ini's numbers: every key's value as the ini reader works it out
         FILE *ini = fopen(g_aimod_ini, "rb");
         char ln[512], sec[64] = "";
         while (ini && fgets(ln, sizeof ln, ini)) {
@@ -426,7 +426,7 @@ internal void texts_corpus(char *out, const char *path) {
             corpus_begin();
             int ok = x_const_eval(v, &x, &why);
             g_x_capture = NULL;
-            fprintf(g_corpus, "aimod.ini [%s] %s = %s | ok %d %.9g %s", sec, s, v, ok, ok ? x : 0, ok ? "" : why);
+            fprintf(g_corpus, "ageofai.ini [%s] %s = %s | ok %d %.9g %s", sec, s, v, ok, ok ? x : 0, ok ? "" : why);
             corpus_end();
         }
         if (ini) fclose(ini);
@@ -440,7 +440,7 @@ internal void texts_corpus(char *out, const char *path) {
 // (R: the third player - {enemy})
 internal void cmd_texts(char *out, const char *args) {
     char path[MAX_PATH];
-    if (!strncmp(args, "corpus", 6)) {   // texts corpus [file]: default aimod_dumps\texts_corpus.txt
+    if (!strncmp(args, "corpus", 6)) {   // texts corpus [file]: default ageofai_dumps\texts_corpus.txt
         const char *f = args + 6;
         while (*f == ' ') f++;
         if (*f) lstrcpynA(path, f, sizeof path);

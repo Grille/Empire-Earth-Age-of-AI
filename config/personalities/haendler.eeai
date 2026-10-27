@@ -12,13 +12,13 @@ personality = {
     forgiveness = 70%,
     caution = 60%,
     talk = 70%,
-    // for the AI voice ([llm] in aimod.ini): who this is, in a few words
+    // for the AI voice ([llm] in ageofai.ini): who this is, in a few words
     character = "A merchant prince who sees everything as a deal: friendly, chatty, always counting, talks of profit, prices and interest.",
 }
 
 style = {
-    // EXPERIMENTAL - only with ai_style=1 in aimod.ini (default off: every AI plays the same, tested way).
-    // The same keys as in aimod.ini; they replace the difficulty's values for this AI. Game defaults for
+    // EXPERIMENTAL - only with ai_style=1 in ageofai.ini (default off: every AI plays the same, tested way).
+    // The same keys as in ageofai.ini; they replace the difficulty's values for this AI. Game defaults for
     // comparison (medium difficulty): first attack 20-40 min, then every 20-25 min; instant attacks on
     // contact 0%, for resources 0%, as revenge 10%; home_guard_share 35%, military_income_share 40%.
     first_attack_min = 30,

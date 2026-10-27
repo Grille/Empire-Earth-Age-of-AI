@@ -3,7 +3,7 @@
 This folder holds the words of eeaimod's computer players: their personalities, the system lines the mod shows
 you, and what it tells a language model when the AI voice is on. Every file is plain text (UTF-8) with the
 extension `.eeai`; this README is not read by the game. The files are read once, when Empire Earth starts - restart
-the game after editing. The folder goes into the mod's folder `aimod` next to Empire Earth.exe (`aimod\personalities`, beside aimod.ini); `ai_dir=` in aimod.ini's `[general]` reads them from
+the game after editing. The folder goes into the mod's folder `ageofai` next to Empire Earth.exe (`ageofai\personalities`, beside ageofai.ini); `ai_dir=` in ageofai.ini's `[general]` reads them from
 somewhere else instead (for example where you edit it: `ai_dir=_aimod\config\personalities`, relative to the game folder
 or absolute).
 
@@ -12,7 +12,7 @@ or absolute).
 | `eroberer.eeai`, `haendler.eeai`, ... | One personality each (`register_personality()`): a name, colours, character traits and the lines it says |
 | `_template.eeai` | An empty personality with every key, to copy |
 | `mod/computer.eeai` | No personality but the base of every one: neutral lines for what must not go unsaid (war, peace, offers, capitulation, victory), the `decide` rules, `this_war`, `many_dead`, `big_tribute`. AIs without a personality speak with it |
-| `mod/prompt.eeai` | What the mod tells the language model (`[llm]` in aimod.ini): who the AI is, the game as it stands, the situations, the tools - for every personality that doesn't say it its own way |
+| `mod/prompt.eeai` | What the mod tells the language model (`[llm]` in ageofai.ini): who the AI is, the game as it stands, the situations, the tools - for every personality that doesn't say it its own way |
 | `mod/system.eeai` | The system lines the mod shows you (white, from nobody in particular) |
 
 A file of this folder is a personality only when it declares `register_personality()`; any other is a library that
@@ -28,8 +28,8 @@ own - the computer players play on. A folder without any personality is fine: ev
 Copy `_template.eeai` to a new name in this folder, for example `seefahrer.eeai`, take the `#` from its
 `#register_personality()` and fill it in. Every AI of a game
 gets a personality at random, each one once before any repeats; on random maps its favoured colour comes first. To
-give a player a particular one, set `personality_P2=seefahrer` (the file name without `.eeai`) in aimod.ini.
-`ai_talk=0` in aimod.ini silences all lines, `ai_names=0` keeps the game's own player and civilization names.
+give a player a particular one, set `personality_P2=seefahrer` (the file name without `.eeai`) in ageofai.ini.
+`ai_talk=0` in ageofai.ini silences all lines, `ai_names=0` keeps the game's own player and civilization names.
 
 ```
 register_personality()
@@ -115,7 +115,7 @@ Only inside `( )`: in a list, `["Hello" "Hi"]` stays a mistake (a missing comma)
 built in its string, never with `+` (which adds numbers): `"Gold: {me.gold}"`, `"{greeting}{farewell}"`.
 
 **A mistake** - a missing quote or bracket, an expression that doesn't parse (also in a string's `{placeholder}`), an
-unknown key, situation or record, a line outside `lines = { }` - is written to the log (`aimod_econ.csv` in the folder `aimod`, lines starting with
+unknown key, situation or record, a line outside `lines = { }` - is written to the log (`ageofai_log.csv` in the folder `ageofai`, lines starting with
 `# texts:`) with the file and line, and only that key is skipped. The files are checked when the game starts, every
 line, not only those that happen to be said. A bad file never stops the game.
 
@@ -125,7 +125,7 @@ compared, a division by 0, a player who isn't there used without a check (`lord.
 is guessed then. The mistake is logged, and what it is in is left out: an item of a list (`[foo > 3 ? "Ha!",
 "Hello."]` says "Hello."), else the whole line, which then falls back like a line with nothing to say. A broken `{placeholder}` in a system text or prompt writes nothing.
 
-**Writing texts?** Set `strict_parsing=1` in aimod.ini (`[general]`): every mistake then comes up at once - those in
+**Writing texts?** Set `strict_parsing=1` in ageofai.ini (`[general]`): every mistake then comes up at once - those in
 the files when the game starts, in a message box; those that only show while playing (`"a" * 2`, a player used who
 isn't there) as a line in the game.
 
@@ -156,7 +156,7 @@ How a line is chosen:
    A personality must have a line for what must not go unsaid (war, peace, offers, capitulation, victory, defeat),
    its own or an included file's - else it is a mistake, told when the files are read.
 4. Only those it is meant for hear it: everyone, the AI's allies, or the player it is said to (`{them}`).
-5. With the AI voice on (`[llm]` in aimod.ini) a language model says the line in the AI's own words, from its
+5. With the AI voice on (`[llm]` in ageofai.ini) a language model says the line in the AI's own words, from its
    `character`, its traits and the game as it stands; the chosen line is its example.
 
 **A line about an event doesn't count that event yet**: in `betrayed`, `them.betrayals(me) > 0` means they betrayed
@@ -449,7 +449,7 @@ Shortcuts: my own `epoch`, traits, `allies` and `enemies` without `me.` (`aggres
 | `population_limit` | the game's unit limit per player (its setting) |
 | `max_population` | the largest population of a player still in - kills &gt; max_population / 2: many for this stage of the game |
 | `language` | the game's language: de, en, fr, ... |
-| `offer_minutes` | how long an offer stands, in minutes ([ai_base] offer_minutes in aimod.ini) |
+| `offer_minutes` | how long an offer stands, in minutes ([ai_base] offer_minutes in ageofai.ini) |
 | `llm_equal` | 1 when the language model is told nothing of who plays the computer ([llm] equal) |
 | `llm_constrained` | 1 when the language model decides within the rules' limits ([llm] constrained) |
 <!-- /values -->
@@ -583,10 +583,10 @@ value: `{epoch}` is always the speaker's epoch, wherever it stands.
 | `talk` | how often it says the lines that are not always said |
 | `character` | For the AI voice: who this is, in a few words - the model plays it |
 
-`style = { ... }` is **experimental** and only read with `ai_style=1` in aimod.ini (off by default: every AI plays the same,
-tested way). Its keys are aimod.ini settings that replace the difficulty's values for this AI. Each value is an
+`style = { ... }` is **experimental** and only read with `ai_style=1` in ageofai.ini (off by default: every AI plays the same,
+tested way). Its keys are ageofai.ini settings that replace the difficulty's values for this AI. Each value is an
 expression worked out once when the game starts, like `color` (constants, `chance()`, `rnd()`, `language`, names):
-shares and chances with `%` - `home_guard_share = 35%`, `attack_on_contact = 20%`, `attack_group_percent = 150%` (aimod.ini
+shares and chances with `%` - `home_guard_share = 35%`, `attack_on_contact = 20%`, `attack_group_percent = 150%` (ageofai.ini
 writes these as whole percents: 35 is 0.35 there, 20, 150) - minutes and epochs as numbers: `first_attack_min = 15`,
 `first_attack_max = chance(50%) ? 20 : 30`. A value out of its range (`attack_on_contact = 20` would be 2000%) is a
 mistake: that key keeps the difficulty's value.

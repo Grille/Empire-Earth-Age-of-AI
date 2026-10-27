@@ -1,6 +1,6 @@
 # The experiments that are off: why they failed, what was missing
 
-A review of every AI-behaviour switch that is off in `config/aimod.ini` (2026-10-21, after `fall_back=7`, 7b39bcc).
+A review of every AI-behaviour switch that is off in `config/ageofai.ini` (2026-10-21, after `fall_back=7`, 7b39bcc).
 Sources: the commits that added and measured each one, docs/economy.md, docs/navy.md, docs/testing.md,
 docs/ai-analysis.md and the code in dll/ai/. Nothing was re-run for this review: every number is a number already in
 the docs, and the "why" is the mechanism the logs showed. Where they don't show it, it says so.
@@ -24,7 +24,7 @@ have since changed. Before reading an old "off" as "doesn't work", check which o
 |---|---|---|
 | **fall_back 7**: before it, 24-40% of the value the AI lost died in fights that were already lost, and on the island maps warships sank faster than they were replaced (two thirds of the value lost was warships). With it, value lost in lost fights fell by 15-65% on every map, warships +3 to +9.5 on the large island maps, kl +12 to +56 | 7b39bcc | all of them - most of all those that added soldiers or ships (army_plan, workforce_plan 4, metal_plan 8, navy_mix, early_army) |
 | Every test map was Small (`map_size` wrote the wrong field); "Large Islands e5" and the head-to-heads with `map_size=1` were Small maps | e03574a | food_plan, mine_fill, citizen_plan, army_plan, army_mass, expand_islands 1, navy_mix, early_army |
-| Tests read the user's own aimod.ini (with `hold_town=1`, `attack_retreat=1`) instead of the shipped one | 9941f9b | fight_estimate, militia_estimate, landing_bombard (first version), hold_town / attack_retreat baselines |
+| Tests read the user's own ageofai.ini (with `hold_town=1`, `attack_retreat=1`) instead of the shipped one | 9941f9b | fight_estimate, militia_estimate, landing_bombard (first version), hold_town / attack_retreat baselines |
 | No base-AI benchmark yet: AI-vs-AI at medium, scenarios with 4-10 seeds | f0a079a | hold_town, attack_retreat, assault, fight_estimate, militia_estimate, navy_mix, landing_bombard |
 | On the large island maps gold and iron limit the army (the land maps have 900-1000 lying in stock) | 9b25420, 30b67e5 | workforce_plan, army_plan, metal_plan, expand_islands |
 | The base AI settles the free islands first (minute 30-40, 22-29 with the cheat) | d474fc1 | expand_islands |

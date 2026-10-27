@@ -59,7 +59,7 @@ fields). It holds timers (epoch, first attack, attack interval), shares (citizen
 - **Waves are started by a timer:** first attack 20–40 min, then every 14–17 min.
 - **Instant extra attacks** come on contact with an enemy (71%), to take resources (20%) and as revenge (10%).
   That makes many small waves.
-- Measured in a medium random-map game (2026-10-11, player fields +0xD28.., before any aimod.ini setting): first
+- Measured in a medium random-map game (2026-10-11, player fields +0xD28.., before any ageofai.ini setting): first
   attack 20–40 min, then every 20–25 min, instant attacks on contact 0%, for resources 0%, revenge 10%. The
   figures above come from another row of the AI settings table; the values depend on the difficulty.
 - **Routes ignore defences in practice:**
@@ -79,7 +79,7 @@ they behave normally. The mod clears the flag only while an AI updates.
 
 ## What the mod does about it
 
-| Problem | Fix (module, `aimod.ini` key) |
+| Problem | Fix (module, `ageofai.ini` key) |
 |---|---|
 | cheating prices | `cost_percent` per difficulty |
 | scenario AI asleep | clear the scenario flag during AI updates (`scenario_ai`) |

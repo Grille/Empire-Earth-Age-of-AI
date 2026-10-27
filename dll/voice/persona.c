@@ -1,4 +1,4 @@
-// AI PERSONALITIES: every AI player gets a personality from <game>\aimod\personalities\*.eeai - a name, traits (0-100) that
+// AI PERSONALITIES: every AI player gets a personality from <game>\ageofai\personalities\*.eeai - a name, traits (0-100) that
 // steer its diplomacy, and the lines it says in situations of the game. Included by eeaimod.c after defence.c,
 // before diplo.c (which makes the decisions and raises most of the situations).
 //
@@ -20,7 +20,7 @@
 //   decide = {                         its decisions as expressions (persona_decide; mod/computer.eeai's the base)
 //       peace_score = opinion + ...    a number; a key it has none of: its includes', else the built-in rule
 //   }
-//   style = {                          EXPERIMENTAL, only with [general] ai_style=1 (default 0): aimod.ini keys
+//   style = {                          EXPERIMENTAL, only with [general] ai_style=1 (default 0): ageofai.ini keys
 //       first_attack_min = 15          (settings.c k_style_keys) on top of the difficulty's settings for this AI
 //   }
 //   prompt = {                         what its language model is told (texts.c; mod/prompt.eeai has every key)
@@ -31,9 +31,9 @@
 // situation without a line (or one that is nothing now) falls back (line_fallback, the layers: mod/computer.eeai) or stays silent
 // (the game's own lines for wonders, flares and war remain where the personality has none).
 //
-// Assignment at the AI's first update: aimod.ini [general] personality_P<n>=<file name without .ini>, otherwise
+// Assignment at the AI's first update: ageofai.ini [general] personality_P<n>=<file name without .ini>, otherwise
 // random, every personality once before any repeats (autotest: from the map seed, so runs repeat).
-// aimod.ini [general] ai_talk = 1 (default) lines on, 0 off; ai_names = 1 (default) the personalities' names.
+// ageofai.ini [general] ai_talk = 1 (default) lines on, 0 off; ai_names = 1 (default) the personalities' names.
 //
 // Strings: UWideString takes only char * (the game's ANSI code page), so UTF-8 files are converted on load.
 // Randomness: an own generator - the game's rand() is part of the simulation and must not be touched.
@@ -81,7 +81,7 @@ struct persona {
     char character[300];   // character=: a few words about it for the language model (llm.c)
     int trait[T_N];
     char *color;   // color=: the favoured player colours, an expression - a list in order of preference (persona_colors)
-    char *style_key[16], *style_val[16];   // style: aimod.ini settings for this personality (ai_style=1) - expressions
+    char *style_key[16], *style_val[16];   // style: ageofai.ini settings for this personality (ai_style=1) - expressions
     int nstyle;
     char *line[L_N];   // a situation's line: an expression (expr.c) - a string, a list of them, conditions
     struct xvars vars;   // its names outside the records (vars), its includes' after them
@@ -140,7 +140,7 @@ internal const float *color_rgb(int c) {
     return b && c >= 0 && c < e - b && b[c] ? (const float *)(b[c] + 4) : NULL;
 }
 
-// The game's language, for the built-in German system lines (texts.c) and the colours' names: aimod.ini [general]
+// The game's language, for the built-in German system lines (texts.c) and the colours' names: ageofai.ini [general]
 // language (a code such as de, or a name such as german), else from the game's text - the first age's name (string
 // 30145 in Language.dll; its resources are all marked 0x409 whatever the language, so the language id says nothing).
 internal char g_lang[16];
@@ -478,7 +478,7 @@ internal void x_fn_scan_folder(const char *dir) {
 internal void x_fn_scan_dir(void) {
     char dir[MAX_PATH];
     g_xfn_n = g_xvn_n = 0;
-    x_fn_scan_folder(g_ai_dir);   // <game>\aimod\personalities\, [general] ai_dir or [autotest] ai_dir
+    x_fn_scan_folder(g_ai_dir);   // <game>\ageofai\personalities\, [general] ai_dir or [autotest] ai_dir
     snprintf(dir, sizeof dir, "%smod\\", g_ai_dir);
     x_fn_scan_folder(dir);
 }
@@ -848,7 +848,7 @@ internal int persona_has_name(const struct persona *p, const char *name) {
     return f.hit;
 }
 
-// once per AI (its first update): pick and apply the personality - pinned by aimod.ini, planned at the game start
+// once per AI (its first update): pick and apply the personality - pinned by ageofai.ini, planned at the game start
 // (found by the player's colour, +0x438 = the colour table's rgb), the one with the player's name (a loaded game),
 // or a random one
 internal void persona_apply(ee_player *pl, unsigned idx, int pick);
@@ -907,7 +907,7 @@ internal void persona_apply(ee_player *pl, unsigned idx, int pick) {
                 x_error("%s: style %s = %.60s: %s - the difficulty's value instead", p->file, p->style_key[k], p->style_val[k], why);
                 continue;
             }
-            size_t n = strlen(used);   // as set, in aimod.ini's units (a chance 40 for 40%)
+            size_t n = strlen(used);   // as set, in ageofai.ini's units (a chance 40 for 40%)
             void *at = (uint8_t *)&c + k_style_keys[sk].off;
             if (k_style_keys[sk].kind == SK_SHARE) snprintf(used + n, sizeof used - n, " %s=%.2f", p->style_key[k], *(float *)at);
             else snprintf(used + n, sizeof used - n, " %s=%d", p->style_key[k], *(int *)at);
@@ -1092,24 +1092,24 @@ internal void cmd_persona(char *out, const char *args) {
 internal DWORD WINAPI texts_missing_box(LPVOID arg) {
     (void)arg;
     char text[600];
-    wsprintfA(text, "eeaimod's text files are missing: %smod\\ needs computer.eeai, prompt.eeai, units.eeai and system.eeai.\n\n"
+    wsprintfA(text, "Age of AI's text files are missing: %smod\\ needs computer.eeai, prompt.eeai, units.eeai and system.eeai.\n\n"
               "The computer players play on, but without personalities, AI voice and diplomacy. Copy the mod's personality "
-              "folder (config\\personalities) into the folder aimod next to Empire Earth.exe again (or set ai_dir in aimod.ini).", g_ai_dir);
-    MessageBoxA(NULL, text, "eeaimod", MB_OK | MB_ICONWARNING | MB_TOPMOST | MB_SETFOREGROUND);
+              "folder (config\\personalities) into the folder ageofai next to Empire Earth.exe again (or set ai_dir in ageofai.ini).", g_ai_dir);
+    MessageBoxA(NULL, text, "Empire Earth: Age of AI", MB_OK | MB_ICONWARNING | MB_TOPMOST | MB_SETFOREGROUND);
     return 0;
 }
 // strict parsing: the mistakes in the files, at startup
 internal DWORD WINAPI x_errors_box(LPVOID arg) {
     (void)arg;
     char text[2400];
-    int o = wsprintfA(text, "%d mistake%s in the personality files (strict_parsing=1 in aimod.ini) - the keys are skipped:\n\n",
+    int o = wsprintfA(text, "%d mistake%s in the personality files (strict_parsing=1 in ageofai.ini) - the keys are skipped:\n\n",
                       g_x_total, g_x_total == 1 ? "" : "s");
     EnterCriticalSection(&g_x_lock);
     for (int i = 0; i < g_x_queued && o < (int)sizeof text - 260; i++) o += wsprintfA(text + o, "%s\n", g_x_queue[i]);
-    if (g_x_dropped) wsprintfA(text + o, "... and %d more (aimod_econ.csv, # texts:)\n", g_x_dropped);
+    if (g_x_dropped) wsprintfA(text + o, "... and %d more (ageofai_log.csv, # texts:)\n", g_x_dropped);
     g_x_queued = g_x_dropped = 0;   // said: not again in the game
     LeaveCriticalSection(&g_x_lock);
-    MessageBoxA(NULL, text, "eeaimod", MB_OK | MB_ICONWARNING | MB_TOPMOST | MB_SETFOREGROUND);
+    MessageBoxA(NULL, text, "Empire Earth: Age of AI", MB_OK | MB_ICONWARNING | MB_TOPMOST | MB_SETFOREGROUND);
     return 0;
 }
 // strict parsing: the mistakes found while the game runs, as system lines (from the AIs' updates: the game's thread)
@@ -1118,10 +1118,10 @@ internal void x_errors_show(void) {
     char line[300];
     EnterCriticalSection(&g_x_lock);
     for (int i = 0; i < g_x_queued; i++) {
-        snprintf(line, sizeof line, "eeaimod texts: %s", g_x_queue[i]);
+        snprintf(line, sizeof line, "Age of AI texts: %s", g_x_queue[i]);
         system_line(line, 30000);
     }
-    if (g_x_dropped) { snprintf(line, sizeof line, "eeaimod texts: ... and %d more (aimod_econ.csv, # texts:)", g_x_dropped); system_line(line, 30000); }
+    if (g_x_dropped) { snprintf(line, sizeof line, "Age of AI texts: ... and %d more (ageofai_log.csv, # texts:)", g_x_dropped); system_line(line, 30000); }
     if (g_log) fprintf(g_log, "# texts: strict parsing: %d mistake(s) shown in the game\n", g_x_queued + g_x_dropped);
     g_x_queued = g_x_dropped = 0;
     LeaveCriticalSection(&g_x_lock);

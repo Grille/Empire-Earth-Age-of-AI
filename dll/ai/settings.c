@@ -1,7 +1,7 @@
-// User settings per AI difficulty (aimod.ini next to the DLL), applied to the game's player fields. The values come
+// User settings per AI difficulty (ageofai.ini next to the DLL), applied to the game's player fields. The values come
 // from the rows (dll/settings/: g_set_ai[d], each key from the difficulty's own section - [ai_easy], [ai_hard]; medium none -,
 // then [ai_base], then the built-in default, the test ini's [autotest] over all of them); the built-in defaults are the
-// shipped config/aimod.ini's values - the AI at its strongest without cheating, [ai_easy] eased off (SETTINGS_EASY).
+// shipped config/ageofai.ini's values - the AI at its strongest without cheating, [ai_easy] eased off (SETTINGS_EASY).
 // Included by eeaimod.c before sites.c/econ.c.
 //
 // Difficulty = player+0xBA4 (0 easy, 1 medium, 2 hard).
@@ -54,12 +54,12 @@ internal const struct ai_cfg *cfg_of(ee_player *pl) {
     return &g_cfg[d < 0 ? 0 : d > 2 ? 2 : d];
 }
 
-// The settings a personality's style may change - the same keys as in aimod.ini. Not the structural ones
+// The settings a personality's style may change - the same keys as in ageofai.ini. Not the structural ones
 // (copper_plan, budget, epoch_pacing) nor the ones that would cheat or bind to the human
 // (cost_percent).
 // In a personality the values are expressions (persona.c, worked out at the game start), numbers in the language's
 // standard: a share or a chance is 0% to 100% (home_guard_share = 35%, attack_on_contact = 20%), a group's size a share
-// of the normal one (attack_group_percent = 150%) - aimod.ini's whole percents (20, 150) are those times 100; minutes
+// of the normal one (attack_group_percent = 150%) - ageofai.ini's whole percents (20, 150) are those times 100; minutes
 // and epochs are plain numbers. A value outside its range is a mistake (attack_on_contact = 20 would be 2000%).
 enum { SK_NUM, SK_SHARE, SK_CHANCE, SK_SIZE };
 internal const struct { const char *key; size_t off; char kind; } k_style_keys[] = {

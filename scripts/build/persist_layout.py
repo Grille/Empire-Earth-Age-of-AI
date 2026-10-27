@@ -1,4 +1,4 @@
-# Layout hashes of the blocks dll/persist.c saves into .aimod files -> dll/persist_layout.h (run by dll/build.sh).
+# Layout hashes of the blocks dll/persist.c saves into .ageofai files -> dll/persist_layout.h (run by dll/build.sh).
 # A block is one global variable (persist.c k_blocks); its layout is the text of its definition plus the definitions
 # of the structs it names (recursively), comments and spacing left out, hashed (FNV-1a). A struct changed to the same
 # size (fields reordered, int <-> float) changes the hash: a save's block of the old layout is then not loaded.

@@ -32,7 +32,7 @@
 //   by the size; soldiers trained there join, ld_capture). Waves: the transports bring the soldiers
 //   at home over while it holds (ld_wave, landing_waves 3). A quarter left: released to the game.
 internal int g_land_bombard = 0;   // [ai_base] landing_bombard (below: BOMBARD)
-internal int g_landing = 1, g_land_ships = 8;   // aimod.ini [ai_base] landing, landing_transports (the most; the size follows the beach)
+internal int g_landing = 1, g_land_ships = 8;   // ageofai.ini [ai_base] landing, landing_transports (the most; the size follows the beach)
 internal int g_land_waves = 3;   // [ai_base] landing_waves: how often the transports bring more soldiers over (0-10)
 internal int g_land_cits = 10;   // [ai_base] landing_citizens: the most citizens along to build the forward base (0-10)
 internal int g_land_trace = 0;   // test: landing_trace=1 - each transport every tick while soldiers are aboard

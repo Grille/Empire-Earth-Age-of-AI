@@ -1,4 +1,4 @@
-# Summarize an aimod_econ.csv: per player, one line per interval with stock, workers per resource, targets, epoch.
+# Summarize an ageofai_log.csv: per player, one line per interval with stock, workers per resource, targets, epoch.
 # usage: python summarize.py <csv> [interval_minutes=2]
 import csv, sys
 from logs import open_log, log_paths

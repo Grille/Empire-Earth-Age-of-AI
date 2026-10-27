@@ -7,7 +7,7 @@ hooks them as `__thiscall` too (clang allows it on a C function).
 ## Loading, threads, globals
 
 - `Low-Level Engine.dll` `LoadLibrary()`s every `*.dll` in the game folder (random-map plugin scan), which is
-  how `eeaimod.dll` gets in. It pins itself, because the engine may `FreeLibrary()` non-plugins.
+  how `ageofai.dll` gets in. It pins itself, because the engine may `FreeLibrary()` non-plugins.
 - The simulation and AI run on the `RTSPhysics::Main` thread (0x5532FB), not the window thread. The control
   pipe executes commands from the hook on `call [0x8236B0]` (TSThread::Receive) at 0x553348.
 
@@ -484,7 +484,7 @@ docs/testing.md "Multiplayer test games") does by hand, 2026-10-27:
   error dialog 0x65C6A9); 4 call sites (save dialog EEASaveGame::vf1 0x405000 with file +0xC / folder +0x1C,
   autosave, quicksave, the network save message). The folder is "data\Saved Games\", relative to the game folder.
 - The game saves its AI managers itself (EECP*Manager persist functions: build, civilization, research, resource,
-  unit, wall). dll/persist.c keeps the mod's own state in <save>.aimod next to it (only used while the .ees still
+  unit, wall). dll/persist.c keeps the mod's own state in <save>.ageofai next to it (only used while the .ees still
   has the size and write time recorded in it; format 2: each block with a layout hash of its definition,
   scripts/build/persist_layout.py -> dll/persist_layout.h at every build - a block of another layout is skipped, a
   format-1 file ignored).
@@ -968,7 +968,7 @@ conditions, 162 states with their ids) were dumped by a helper, not kept in the 
 - The mixer plugin's startup (Miles Sound System Mixer.dll +0x1238 .. +0x1266: AIL_set_redist_directory, AIL_startup,
   AIL_set_preference) opens the driver with `AIL_open_digital_driver(22050, 16, 2, 1)` (the push of 22050 at +0x1261,
   the same in AoC's build of the plugin) and keeps the handle at +0x5318. The engine loads the plugin after
-  eeaimod.dll (the folder's DLLs by name) and loads it twice; `[sound] sample_rate` (engine/sound.c) changes the push
+  ageofai.dll (the folder's DLLs by name) and loads it twice; `[sound] sample_rate` (engine/sound.c) changes the push
   at each load (LdrRegisterDllNotification: before its DllMain), before the startup runs.
 
 ## Misc
@@ -1091,7 +1091,7 @@ are the slots. Checked: 15-minute test games, GOG and NeoEE side by side (Contin
 598 checks hold on both, every hook the same, the economy at 15 minutes within a few citizens (NeoEE's dbworld.dat
 differs). AoC's NeoEE exe is a row too, not ready as AoC itself. Test runs there: EE_GAME_DIR=<NeoEE's game folder>
 (its single-instance check is NeoEE's own nop, run_test.ps1 warns that it found no je to nop), the mod's
-eeaimod.dll / dinput.dll in that folder, and newgame.ees in its Saved Games.
+ageofai.dll / dinput.dll in that folder, and newgame.ees in its Saved Games.
 
 **An exe of no known file (since 2026-10-27):** NeoEE showed that the 1.04 code is one compile in every wrapper - the
 retail CD's copy protection, TryMedia's, the 2017 update's with none - so the retail game's no-CD exes (each crack a
@@ -1386,7 +1386,7 @@ these notes give the layout, what is known of the fields and how it was checked.
   the trigger renamed and off, the camera moved and P1's stance to P2 set to enemy loaded with exactly that (`trig
   list`, `camera`, `diplo`).
 - Pipe pitfall (2026-10-23, fixed): `camera` sent while a game was still loading crashed the game in the mod (its
-  readout took the map size from [map]+0x1816FC with no map yet, eeaimod.dll +0xAB04E; the load then returned to the
+  readout took the map size from [map]+0x1816FC with no map yet, ageofai.dll +0xAB04E; the load then returned to the
   main menu). It answers `error: no map` now, in the menus too.
 - Art of Conquest's files (2026-10-23): AoC writes 0.250; its loaders test every minor from 0xE8 to 0xFA, so it went
   through 0.232 .. 0.250 (its campaign scenarios are 0.248, 0.249 and 0.250, its tutorials still 0.231). Only lumps
@@ -1487,7 +1487,7 @@ these notes give the layout, what is known of the fields and how it was checked.
   [0x9193FC] x [0x9193F8].
 - The scenario editor is fixed at 800x600 in both entries: main menu 0x6601D9 (call 0x6601F1) and return
   from test play 0x65FD21 (call 0x65FD6D). AoC uses 1024x768 in both. The mod redirects both calls
-  (aimod.ini [editor] resolution).
+  (ageofai.ini [editor] resolution).
 - Camera scrolling: see dll/engine/camera.c (EEAScroll, AoC smooth scrolling).
   The scroll action runs on the game thread, the frames are presented on another thread; with a 1 ms
   timer the game thread makes exactly one scroll step per frame (camtrace).

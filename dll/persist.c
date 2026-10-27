@@ -8,16 +8,16 @@
 //
 // Every save goes through 0x540ACA cdecl(UString *file, int, int, UString folder by value) -> 0 on success
 // (save dialog EEASaveGame::vf1, autosave, quicksave, the network save message: 4 call sites, all redirected). After a
-// successful save <game>\<folder><file without .ees>.aimod is written: a header with the .ees file's size and write
+// successful save <game>\<folder><file without .ees>.ageofai is written: a header with the .ees file's size and write
 // time, then named blocks {tag, size, layout, bytes}. On a saved-game start (game start hook, mode 2) the matching
-// .aimod is read after the new-game resets: only if size and write time still match the .ees (a save made later
+// .ageofai is read after the new-game resets: only if size and write time still match the .ees (a save made later
 // without the mod leaves a stale file behind), and only blocks whose tag, size and layout match (a newer DLL with
 // other layouts just starts fresh for those). All times inside are game times, which the save restores.
 // Layout: the size alone let a struct changed to the same size through (fields reordered, int <-> float) - its
 // bytes became other values. Each block carries a hash of its variable's definition, the structs it names and the
 // macros of its sizes (scripts/build/persist_layout.py -> persist_layout.h, run by build.sh). Files of format 1 (no
 // layout word: the saves made before it) are read as they always were, blocks matched by tag and size only.
-internal int g_persist = 1;   // aimod.ini [general] save_state
+internal int g_persist = 1;   // ageofai.ini [general] save_state
 internal const struct { const char *tag; void *p; size_t n; } k_blocks[] = {
 #define B(x) { #x, &x, sizeof x }
     B(g_diplo_seen), B(g_diplo_prev), B(g_diplo_due), B(g_war_since), B(g_ally_since), B(g_peace_due),
@@ -52,7 +52,7 @@ internal int ees_stamp(const char *ees, uint64_t *size, FILETIME *t) {
     *t = a.ftLastWriteTime;
     return 1;
 }
-// <game dir>\<folder><file> with .ees, and the same with .aimod
+// <game dir>\<folder><file> with .ees, and the same with .ageofai
 internal void persist_paths(const char *folder, const char *file, char *ees, char *side) {
     char dir[MAX_PATH];
     lstrcpynA(dir, g_game_dir, MAX_PATH);   // not the config's folder: under autotest that can be _aimod\config
@@ -61,7 +61,7 @@ internal void persist_paths(const char *folder, const char *file, char *ees, cha
     int has_ext = n > 4 && !lstrcmpiA(file + n - 4, ".ees");
     if (!has_ext) lstrcatA(ees, ".ees");
     lstrcpyA(side, ees);
-    lstrcpyA(side + strlen(side) - 4, ".aimod");
+    lstrcpyA(side + strlen(side) - 4, ".ageofai");
 }
 
 internal void persist_write(const char *folder, const char *file) {
@@ -104,16 +104,16 @@ internal void persist_write(const char *folder, const char *file) {
     if (!slash) return;
     int dl = (int)(slash - side) + 1;   // (wsprintf has no %.*s)
     lstrcpynA(pat, side, dl + 1);
-    lstrcatA(pat, "*.aimod");
+    lstrcatA(pat, "*.ageofai");
     WIN32_FIND_DATAA fd;
     HANDLE fh = FindFirstFileA(pat, &fd);
     for (int more = fh != INVALID_HANDLE_VALUE; more; more = FindNextFileA(fh, &fd)) {
         char other[MAX_PATH * 2];
         lstrcpynA(other, side, dl + 1);
         lstrcatA(other, fd.cFileName);
-        lstrcpyA(other + strlen(other) - 6, ".ees");
+        lstrcpyA(other + strlen(other) - 8, ".ees");
         if (GetFileAttributesA(other) == INVALID_FILE_ATTRIBUTES) {
-            lstrcpyA(other + strlen(other) - 4, ".aimod");
+            lstrcpyA(other + strlen(other) - 4, ".ageofai");
             if (DeleteFileA(other) && g_log) fprintf(g_log, "# persist: removed %s (its save is gone)\n", fd.cFileName);
         }
     }

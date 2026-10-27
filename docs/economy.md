@@ -80,7 +80,7 @@ re-measurement above.
 
 ## Status (2026-10-19)
 
-- **A** (towers, bait, careful militia) is **on by default** (code and config/aimod.ini). Against the base AI on
+- **A** (towers, bait, careful militia) is **on by default** (code and config/ageofai.ini). Against the base AI on
   Continental it clearly wins: with the cheat the base AI's wins drop from 12 to 4 of 40, kills - losses goes +32, and
   8 fewer citizens die; without the cheat the base AI never wins (6 -> 0) and 14 fewer citizens die. On the islands
   (epoch 5 starts) the games are identical. Head-to-head against the control AI (build e120a6c,

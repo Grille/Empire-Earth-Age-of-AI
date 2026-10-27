@@ -28,7 +28,7 @@ public static class names
     public static int max_population;
     /// the game's language: de, en, fr, ...
     public static text language;
-    /// how long an offer stands, in minutes ([ai_base] offer_minutes in aimod.ini)
+    /// how long an offer stands, in minutes ([ai_base] offer_minutes in ageofai.ini)
     public static float offer_minutes;
     /// 1 when the language model is told nothing of who plays the computer ([llm] equal)
     public static bool llm_equal;

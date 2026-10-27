@@ -5,7 +5,7 @@
 #     EEAIMOD_KEEP_DAYS, default 7) deleted, then the oldest until they hold less than -GB together (env
 #     EEAIMOD_KEEP_GB, default 10; gzipped, a day of parallel A/Bs is ~4.4 GB) - an A/B is scored right after its
 #     runs, a week is history enough; a log to keep for longer goes into local\work\keep\
-#   a slot's dumps (local\work\slot<n>\aimod_dumps\*, the tests' only - the player's game folder keeps its own): older
+#   a slot's dumps (local\work\slot<n>\ageofai_dumps\*, the tests' only - the player's game folder keeps its own): older
 #     than -Days
 # Never touched: local\work\keep\, play_*.csv (the player's own games' logs), everything else in local\work\.
 param([double]$Days = $(if ($env:EEAIMOD_KEEP_DAYS) { [double]$env:EEAIMOD_KEEP_DAYS } else { 7 }),
@@ -30,8 +30,8 @@ foreach ($f in $left) {   # oldest first
     $gone += $f; $sum -= $f.Length
 }
 foreach ($d in Get-ChildItem $work -Directory -Filter 'slot*') {
-    if (Test-Path "$($d.FullName)\aimod_dumps") {
-        $gone += @(Get-ChildItem "$($d.FullName)\aimod_dumps" -File | Where-Object { $_.LastWriteTime -lt $before })
+    if (Test-Path "$($d.FullName)\ageofai_dumps") {
+        $gone += @(Get-ChildItem "$($d.FullName)\ageofai_dumps" -File | Where-Object { $_.LastWriteTime -lt $before })
     }
 }
 $size = ($gone | Measure-Object Length -Sum).Sum

@@ -1,4 +1,4 @@
-// eeaimod.dll - Empire Earth AI mod.
+// ageofai.dll - Empire Earth AI mod.
 // Loaded automatically: Low-Level Engine.dll LoadLibrary()s every *.dll in the game folder.
 //
 // This file: the whole DLL put together - every part is a .c file of its folder (base/ the DLL's own helpers, game/
@@ -114,7 +114,7 @@ internal void navy_install(const char *autotest_ini);
 internal PRINTF_LIKE(1, 2) void log_line(const char *fmt, ...);
 internal BOOL install_srand(void);
 #include "base/ini.c"
-#include "settings/settings.c"   // the settings: aimod.ini's keys as rows, read once into g_set
+#include "settings/settings.c"   // the settings: ageofai.ini's keys as rows, read once into g_set
 #include "engine/scenario_ai.c"
 #include "game/world.c"
 #include "ai/econ_rows.c"
@@ -219,8 +219,8 @@ internal void __thiscall hook_rm_update(ee_resource_mgr *rm, uint32_t now) {
 // Scenarios\), setup+0x3A8 = UString file name (char* at +0x3AC). With scenario_mode=1 a -loadgame start
 // is switched to the scenario path, loading Scenarios\<name>.scn - the path where editor scenarios break.
 
-// aimod_econ.csv in normal play: over 20 MB at the start of a session or a game (a long game writes ~10 MB), it
-// becomes aimod_econ.old.csv (the older one deleted) and a new log starts - it was appended to forever. Autotest
+// ageofai_log.csv in normal play: over 20 MB at the start of a session or a game (a long game writes ~10 MB), it
+// becomes ageofai_log.old.csv (the older one deleted) and a new log starts - it was appended to forever. Autotest
 // keeps the whole log (the tests and scripts parse it). At a game start the log is open and other threads write to
 // it (the render and window threads, the pipe, the crash handler - not all under g_lock): it is copied and cut to 0
 // in place, the FILE stays the same (closed and reopened, a writer without the lock wrote into a freed FILE). The
@@ -337,7 +337,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
     mt_new_game();
     defence_new_game();
     sites_new_game();
-    if (mode == 2) persist_load(name);   // a saved game: the mod's state from its .aimod file
+    if (mode == 2) persist_load(name);   // a saved game: the mod's state from its .ageofai file
     char r = game_state_start(state, setup, p2);
     log_line("# game start returned %d\n", r);
     return r;
@@ -407,27 +407,27 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
 #include "test/ecolog.c"
 
 
-// No aimod\aimod.ini in the game folder: tell the player and stop, instead of running on built-in defaults nobody
+// No ageofai\ageofai.ini in the game folder: tell the player and stop, instead of running on built-in defaults nobody
 // tested as a whole (the defaults in the code are only for keys missing from an existing, older file).
 // Runs inside DllMain: the engine loads its DLLs at runtime (user32 is up), and TerminateProcess skips the
 // other DLLs' detach handlers, which would run under the loader lock.
 internal void config_missing(const char *ini) {
     char msg[MAX_PATH + 512];
-    wsprintfA(msg, "The Empire Earth AI mod (eeaimod.dll) needs its settings file:\n\n%s\n\n"
-                   "Copy aimod.ini from the mod's config folder into the folder aimod next to Empire Earth.exe, or "
-                   "delete eeaimod.dll to play without the mod.\n\nEmpire Earth will close now.", ini);
+    wsprintfA(msg, "Empire Earth: Age of AI (ageofai.dll) needs its settings file:\n\n%s\n\n"
+                   "Copy ageofai.ini from the mod's config folder into the folder ageofai next to Empire Earth.exe, or "
+                   "delete ageofai.dll to play without the mod.\n\nEmpire Earth will close now.", ini);
     if (!g_autotest)   // a headless test has nobody to click the box: it quits at once (run_test.ps1 checks first)
-        MessageBoxA(NULL, msg, "Empire Earth AI mod: aimod.ini missing", MB_OK | MB_ICONERROR | MB_TOPMOST | MB_SETFOREGROUND);
+        MessageBoxA(NULL, msg, "Empire Earth: Age of AI - ageofai.ini missing", MB_OK | MB_ICONERROR | MB_TOPMOST | MB_SETFOREGROUND);
     TerminateProcess(GetCurrentProcess(), 1);
 }
 
-// Autotest: [autotest] config = the aimod.ini to play with, ai_dir = the personality folder, each absolute or
-// relative to the game folder; unset = aimod.ini in <game>\aimod\ and <game>\aimod\personalities\ as in
+// Autotest: [autotest] config = the ageofai.ini to play with, ai_dir = the personality folder, each absolute or
+// relative to the game folder; unset = ageofai.ini in <game>\ageofai\ and <game>\ageofai\personalities\ as in
 // normal play. Every reader of the settings
 // goes through g_aimod_ini / g_ai_dir, so the whole file ([general], [ai_base], the difficulties, [display], [llm] ...)
-// comes from the chosen one. The personality folder otherwise: aimod.ini [general] ai_dir (the same path rules), so a
+// comes from the chosen one. The personality folder otherwise: ageofai.ini [general] ai_dir (the same path rules), so a
 // developer's game reads the repository's files (ai_dir = _aimod\config\personalities) instead of a copy. A folder that
-// isn't there: <game>\aimod\personalities\, told in the log (g_ai_dir_why). config_paths picks the file, config_ai_dir
+// isn't there: <game>\ageofai\personalities\, told in the log (g_ai_dir_why). config_paths picks the file, config_ai_dir
 // the folder once the settings are read.
 internal char g_ai_dir_why[MAX_PATH + 64];
 internal void game_path(const char *v, char *out, int cap) {   // absolute, or relative to the game folder; '/' as '\'
@@ -499,23 +499,23 @@ internal void install(HMODULE self) {
     if (slash) {
         slash[1] = 0;
         lstrcpyA(g_game_dir, path);
-        wsprintfA(g_ai_dir, "%saimod\\personalities\\", path);
+        wsprintfA(g_ai_dir, "%sageofai\\personalities\\", path);
         lstrcpyA(dir, path);
-        slot_dir(dir);   // the test ini, the log and the dumps: <game>\aimod\, a test slot's own folder
-        wsprintfA(g_dump_dir, "%saimod_dumps", dir);
-        wsprintfA(path, "%saimod_autotest.ini", dir);
+        slot_dir(dir);   // the test ini, the log and the dumps: <game>\ageofai\, a test slot's own folder
+        wsprintfA(g_dump_dir, "%sageofai_dumps", dir);
+        wsprintfA(path, "%sageofai_autotest.ini", dir);
         load_autotest(path);
         lstrcpyA(g_ini, path);
-        wsprintfA(g_aimod_ini, "%saimod\\aimod.ini", g_game_dir);
+        wsprintfA(g_aimod_ini, "%sageofai\\ageofai.ini", g_game_dir);
         config_paths();
         // required: missing -> error and quit; [general] enabled=0 -> no hooks
         if (GetFileAttributesA(g_aimod_ini) == INVALID_FILE_ATTRIBUTES) config_missing(g_aimod_ini);
         settings_read(g_aimod_ini, g_autotest ? g_ini : NULL);
         config_ai_dir();
-        wsprintfA(g_log_path, "%saimod_econ.csv", dir);
+        wsprintfA(g_log_path, "%sageofai_log.csv", dir);
         if (!g_set.enabled) {
             FILE *f = fopen(g_log_path, "a");
-            if (f) { fputs("# eeaimod: switched off in aimod.ini (enabled=0) - nothing installed\n", f); fclose(f); }
+            if (f) { fputs("# eeaimod: switched off in ageofai.ini (enabled=0) - nothing installed\n", f); fclose(f); }
             return;
         }
         g_fix_scenario_ai = g_set.scenario_ai;
@@ -572,7 +572,7 @@ internal void install(HMODULE self) {
         }
         fflush(g_log);
     }
-    // normal play: aimod.ini [general] skip_intro = 1 skips the intro movies (autotest has its own key)
+    // normal play: ageofai.ini [general] skip_intro = 1 skips the intro movies (autotest has its own key)
     if (!g_autotest && g_set.skip_intro) {
         BOOL ok = skip_intro_movies();
         if (g_log) fprintf(g_log, "# skip_intro: %s\n", ok ? "ok" : "FAILED");
@@ -623,7 +623,7 @@ internal void install(HMODULE self) {
 
 
 // A test run's own DLL (run_test.ps1 -Dll; docs/testing.md): EEAIMOD_DLL names a copy outside the game folder (the
-// engine loads every DLL in there, so it can't sit beside this one). The game folder's eeaimod.dll then loads that
+// engine loads every DLL in there, so it can't sit beside this one). The game folder's ageofai.dll then loads that
 // file and installs nothing itself; the copy pins itself in install() and takes the game folder from the exe. A copy
 // that doesn't load: nothing installed, one log line (the runner stops a game that doesn't report autotest mode) -
 // never this DLL in its place, which would test the wrong build. Normal play never sets the variable.
@@ -642,7 +642,7 @@ internal int run_other_dll(HINSTANCE self) {
     char *slash = strrchr(dir, '\\');
     if (slash) slash[1] = 0; else dir[0] = 0;
     slot_dir(dir);
-    wsprintfA(path, "%saimod_econ.csv", dir);
+    wsprintfA(path, "%sageofai_log.csv", dir);
     FILE *f = fopen(path, "a");
     if (f) { fprintf(f, "# eeaimod: EEAIMOD_DLL %s didn't load (error %lu) - nothing installed\n", full, err); fclose(f); }
     return 1;

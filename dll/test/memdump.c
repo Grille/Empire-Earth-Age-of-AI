@@ -1,5 +1,5 @@
 // ---- memory snapshots: raw dumps of a player's AI objects, for diffing working vs broken games ----
-// Autotest, or aimod.ini [general] memory_dumps=1: 2 files per AI and game, never deleted (17,000 files / 0.4 GB
+// Autotest, or ageofai.ini [general] memory_dumps=1: 2 files per AI and game, never deleted (17,000 files / 0.4 GB
 // in normal play before) - off for players.
 internal int g_mem_dumps;
 internal DWORD g_session;

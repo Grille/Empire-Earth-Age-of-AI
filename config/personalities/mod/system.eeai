@@ -50,8 +50,8 @@ system = {
     // in braces: {names}
     victory_not_yet = "No victory yet - not submitted: {names}.",
     // your chat line gets no answer
-    chat_unread = "The computer players don't read the chat (AI voice off: [llm] enabled=1 in aimod.ini).",
-    chat_unanswered = "The computer players don't answer the chat ([llm] chat=1 in aimod.ini).",
+    chat_unread = "The computer players don't read the chat (AI voice off: [llm] enabled=1 in ageofai.ini).",
+    chat_unanswered = "The computer players don't answer the chat ([llm] chat=1 in ageofai.ini).",
     // in braces: {me}
     chat_filtered = "No answer: {me} doesn't get your message (chat filter).",
     chat_nobody = "No answer: your chat filter reaches no computer player.",

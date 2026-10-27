@@ -25,7 +25,7 @@ enum chat_kind { CHAT_SAY, CHAT_EPOCH, CHAT_ATTACK, CHAT_ROUTE, CHAT_TOWER, CHAT
 internal int g_say_tribute[7];   // {tribute}, {tribute_total}: amounts by resource (stock index 2..6), set by the caller (diplo.c)
 internal int g_texts_missing;   // the mod's files aren't there (mod/system.eeai, prompt.eeai, computer.eeai, units.eeai): it says nothing
 
-internal PRINTF_LIKE(3, 4) int ai_say(ee_player *pl, enum chat_kind kind, const char *fmt, ...);   // a debug chat line (aimod.ini chat)
+internal PRINTF_LIKE(3, 4) int ai_say(ee_player *pl, enum chat_kind kind, const char *fmt, ...);   // a debug chat line (ageofai.ini chat)
 internal int chat_level(void);
 internal void chat_tick(ee_player *pl, unsigned idx, uint32_t now);
 internal void chat_stance_line(ee_player *pl, int stance);   // the game's own line on a change of stance

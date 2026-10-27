@@ -101,7 +101,7 @@ internal void write_code32(uint32_t *p, uint32_t v) {
 
 // A MODULE'S LOAD: fn(base) for the module of that file name once it is in - at once if it is already, else when the
 // loader maps it (ntdll's LdrRegisterDllNotification: before its DllMain, before anyone calls it). The engine loads the
-// game folder's DLLs one by one in the order of their names, so those after eeaimod.dll (Miles Sound System Mixer.dll)
+// game folder's DLLs one by one in the order of their names, so those after ageofai.dll (Miles Sound System Mixer.dll)
 // aren't there yet when the mod installs. At most 4 watched; 0: it can't watch (no such loader function).
 typedef void (*module_load_fn)(uintptr_t base);
 internal struct { const char *name; module_load_fn fn; } g_mod_watch[4];

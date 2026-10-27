@@ -1,4 +1,4 @@
-// THE INI FILES' NUMBERS (aimod.ini, aimod_autotest.ini): every number setting is read here, as a constant expression
+// THE INI FILES' NUMBERS (ageofai.ini, ageofai_autotest.ini): every number setting is read here, as a constant expression
 // of the text language (expr.c x_const_eval) - numbers, % (35% is 0.35), + - * / ( ), min, max, abs, round, floor; no
 // names, no chance() or rnd(): a setting is a fixed value (tests repeat, every PC of a multiplayer game reads the same).
 // A share is written as one, 35% or 0.35, whatever the code keeps: ini_share_of gives it as it is, ini_pct_of as whole

@@ -1,5 +1,5 @@
-"""The settings' rows (dll/settings/rows.h) against the shipped config/aimod.ini, run by dll/build.sh: every row of
-aimod.ini's sections is in the file - set (key=value, then with the row's default: the built-in default is what the
+"""The settings' rows (dll/settings/rows.h) against the shipped config/ageofai.ini, run by dll/build.sh: every row of
+ageofai.ini's sections is in the file - set (key=value, then with the row's default: the built-in default is what the
 shipped file says) or shown commented out (;key=example) - every key set in a section is a row, a key of [ai_easy] /
 [ai_hard] a row of [ai_base] (D), and the shipped [ai_easy] sets what SETTINGS_EASY says. The sections
 (SETTING_SECTIONS): every row's section is one, every section of the file is one and every one of them is in the file
@@ -31,7 +31,7 @@ def rows():
 def ini():
     """{section: {key: (value or None when commented out)}} - a commented-out key is a line ;key=... (no space)"""
     out, sec = {}, None
-    for line in open(os.path.join(ROOT, 'config', 'aimod.ini'), encoding='utf-8', errors='replace'):
+    for line in open(os.path.join(ROOT, 'config', 'ageofai.ini'), encoding='utf-8', errors='replace'):
         line = line.strip()
         m = re.match(r'\[(\w+)\]$', line)
         if m:
@@ -75,9 +75,9 @@ def main():
     for sec in sorted({row[1] for row in table} - set(secs)):
         bad.append('[%s]: a row\'s section, but not in SETTING_SECTIONS' % sec)
     for sec in keys:
-        if sec not in secs or sec in test: bad.append('[%s] in config/aimod.ini, but no section of SETTING_SECTIONS' % sec)
+        if sec not in secs or sec in test: bad.append('[%s] in config/ageofai.ini, but no section of SETTING_SECTIONS' % sec)
     for sec in whole:
-        if sec not in keys: bad.append('[%s]: in SETTING_SECTIONS, but not in config/aimod.ini' % sec)
+        if sec not in keys: bad.append('[%s]: in SETTING_SECTIONS, but not in config/ageofai.ini' % sec)
     for i, (kind, sec, key, default, lo) in enumerate(table):   # a CHILD's master: a CHOICE before it, in its section
         if kind != 'CHILD': continue
         master = [r for r in table[:i] if r[2] == lo and r[1] == sec]
@@ -85,7 +85,7 @@ def main():
             bad.append('[%s] %s: its master %s is no CHOICE row before it in its section, %s, default "default"'
                        % (sec, key, lo, MASTER))
         if keys.get(sec, {}).get(key) is not None:
-            bad.append('[%s] %s: set in config/aimod.ini - a child follows its master only commented out (;%s=...)'
+            bad.append('[%s] %s: set in config/ageofai.ini - a child follows its master only commented out (;%s=...)'
                        % (sec, key, key))
     known = {}
     for kind, sec, key, default, _ in table:
@@ -94,19 +94,19 @@ def main():
         have = keys.get(sec, {})
         names = [k for k in have if k == key or (kind == 'STR_P' and re.fullmatch(re.escape(key) + r'\d+', k))]
         if not names:
-            bad.append('[%s] %s: a row, but not in config/aimod.ini (set to its default, or ;%s=example)' % (sec, key, key))
+            bad.append('[%s] %s: a row, but not in config/ageofai.ini (set to its default, or ;%s=example)' % (sec, key, key))
         for name in names:
             value = have[name]
             if value is not None and not same(kind, value, default):
-                bad.append('[%s] %s=%s in config/aimod.ini, the row\'s default %s' % (sec, name, value, default))
+                bad.append('[%s] %s=%s in config/ageofai.ini, the row\'s default %s' % (sec, name, value, default))
     for sec in whole:
         for name in keys.get(sec, {}):
             rows_of = known.get('ai_base' if sec in DIFF else sec, [])
             if not any(k == name or (kind == 'STR_P' and re.fullmatch(re.escape(k) + r'\d+', name)) for kind, k in rows_of):
-                bad.append('[%s] %s: in config/aimod.ini, but no row in dll/settings/rows.h' % (sec, name))
+                bad.append('[%s] %s: in config/ageofai.ini, but no row in dll/settings/rows.h' % (sec, name))
     shipped_easy = {k: v for k, v in keys.get('ai_easy', {}).items() if v is not None}
     if shipped_easy != easy:
-        bad.append('[ai_easy] in config/aimod.ini sets %s, SETTINGS_EASY says %s' % (shipped_easy, easy))
+        bad.append('[ai_easy] in config/ageofai.ini sets %s, SETTINGS_EASY says %s' % (shipped_easy, easy))
     for b in bad: print('settings: ' + b)
     return 1 if bad else 0
 

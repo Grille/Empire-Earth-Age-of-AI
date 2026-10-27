@@ -12,13 +12,13 @@
 // UWideString (Low-Level Engine.dll, used through EE.exe's import table): ctor [0x8231A4], operator=(const char *)
 //   [0x823224], dtor [0x823AEC]; the message keeps 0x14 bytes per string.
 //
-// aimod.ini [general] chat = 0 off (default), 1 debug lines, 2 also the 5-minute status line; console: chat [level],
+// ageofai.ini [general] chat = 0 off (default), 1 debug lines, 2 also the 5-minute status line; console: chat [level],
 // say P text. Every line also goes to the log (# chat:). Per player at most one line per 4 s and per kind one per
 // kind's cooldown, the rest is dropped (not queued: a late line would be wrong).
 
 internal const uint32_t k_chat_cooldown[CHAT_KINDS] = { 0, 0, 30000, 60000, 60000, 60000, 60000, 30000, 60000, 0 };
 internal int g_chat;
-internal int chat_level(void) { return g_chat; }   // aimod.ini [general] chat: 0 off, 1 debug lines, 2 the status too
+internal int chat_level(void) { return g_chat; }   // ageofai.ini [general] chat: 0 off, 1 debug lines, 2 the status too
 internal int g_chat_ms = 15000;
 internal uint32_t g_chat_last[16], g_chat_kind_last[16][CHAT_KINDS];
 internal unsigned g_chat_lines[16], g_chat_dropped[16];

@@ -1,8 +1,8 @@
-// AIMOD_CONFIG.EXE: the mod's settings (aimod.ini) in a window - for players who'd rather not edit the file. One tree:
+// AIMOD_CONFIG.EXE: the mod's settings (ageofai.ini) in a window - for players who'd rather not edit the file. One tree:
 // the sections (rows.h SETTING_SECTIONS: General, Display ... the AI), their groups (SETTING_GROUPS), the settings
 // (value, default; an AI setting [ai_base]'s, the medium AI's, and where easy or hard plays another), a master's children
-// under it; for the one selected its help - the comment above its key in the shipped config/aimod.ini, built in
-// (aimod_config.rc), so it is the text of this version - and an editor: on / off, a choice, or a text field. A value
+// under it; for the one selected its help - the comment above its key in the shipped config/ageofai.ini, built in
+// (ageofai_config.rc), so it is the text of this version - and an editor: on / off, a choice, or a text field. A value
 // is checked as it is typed, by the DLL's own code (settings/settings.c setting_value, the language's x_const_eval:
 // 35%, 2 * 60, min(...)), and its mistake told as the game would log it. Saving writes only the keys changed, each
 // through WritePrivateProfileString, so the file's comments and order stay; an empty value removes the key (the
@@ -68,7 +68,7 @@ internal int g_all_of[SETTING_N];   // a row's entry on the [ai_base] page (what
 internal int g_diff_of[SETTING_N][3];   // a row of [ai_base]: its entries on the difficulties' pages
 
 internal char g_ini_path[MAX_PATH];
-internal char *g_shipped;   // the shipped config/aimod.ini (the resource), 0-ended
+internal char *g_shipped;   // the shipped config/ageofai.ini (the resource), 0-ended
 internal char g_unknown[4096];   // "[sec] key" of the keys that are no setting, ", " between them
 internal struct { char sec[16], key[64]; } g_unk[64];
 internal int g_nunk, g_remove_unknown;
@@ -353,7 +353,7 @@ internal void help_of(const char *sec, const char *key, int slots, char *out, in
     }
     if (o >= (size_t)cap) o = cap - 1;   // cut short (snprintf counts what didn't fit)
     out[o] = 0;
-    if (!out[0]) lstrcpynA(out, "(no description in config/aimod.ini)", cap);
+    if (!out[0]) lstrcpynA(out, "(no description in config/ageofai.ini)", cap);
 }
 
 // THE GAME PAGE: the exe next to the program (Empire Earth.exe, else The Art of Conquest's EE-AOC.exe) - which build
@@ -369,7 +369,7 @@ internal const char *g_exe_name;
 internal void exe_find(void) {
     static const char *const names[2] = { "Empire Earth.exe", "EE-AOC.exe" };
     char dir[MAX_PATH];
-    GetModuleFileNameA(NULL, dir, sizeof dir);   // the game folder (aimod.ini is in its aimod\)
+    GetModuleFileNameA(NULL, dir, sizeof dir);   // the game folder (ageofai.ini is in its ageofai\)
     char *s = strrchr(dir, '\\');
     if (s) s[1] = 0; else dir[0] = 0;
     g_exe_name = NULL;
@@ -411,7 +411,7 @@ internal void game_show(void) {
     exe_find();
     if (!g_exe_name) {
         snprintf(t, sizeof t, "No Empire Earth.exe (or EE-AOC.exe) next to this program (%s).\r\n\r\n"
-                 "aimod_config.exe belongs in the game folder, next to the game.", g_ini_path);
+                 "ageofai_config.exe belongs in the game folder, next to the game.", g_ini_path);
         SetWindowTextA(g_game_text, t);
         EnableWindow(g_game_apply, FALSE);
         EnableWindow(g_game_restore, FALSE);
@@ -1064,7 +1064,7 @@ internal void create_controls(void) {
 // 1: may close (saved, discarded or nothing to save)
 internal int ask_close(void) {
     if (!unsaved()) return 1;
-    int a = MessageBoxA(g_wnd, "Save the changes to aimod.ini?", TITLE, MB_YESNOCANCEL | MB_ICONQUESTION);
+    int a = MessageBoxA(g_wnd, "Save the changes to ageofai.ini?", TITLE, MB_YESNOCANCEL | MB_ICONQUESTION);
     return a == IDNO || (a == IDYES && save_file());
 }
 
@@ -1137,7 +1137,7 @@ internal const struct { int look; const char *sample, *text; } k_help[] = {
                                "plays the default instead, and its log says so." },
     { HL_HEAD, NULL, "Changing a setting" },
     { HL_TEXT, NULL, "Select a setting: on the right its editor - on / off, a list or a text field - and under it its "
-                     "help, the comment over its key in the mod's aimod.ini. An AI setting has a line each for All, Easy and Hard: an "
+                     "help, the comment over its key in the mod's ageofai.ini. An AI setting has a line each for All, Easy and Hard: an "
                      "empty Easy or Hard plays the All value (the medium AI always does)." },
     { HL_TEXT, NULL, "A text field takes arithmetic, as the file does: 35%, 2 * 60, min(10, 4 * 3). It is checked as "
                      "you type." },
@@ -1147,7 +1147,7 @@ internal const struct { int look; const char *sample, *text; } k_help[] = {
                      "its own way." },
     { HL_HEAD, NULL, "Saving" },
     { HL_TEXT, NULL, "Save writes only the keys you changed - your file's comments and order stay. The game reads "
-                     "aimod.ini when it starts: a change counts from its next start." },
+                     "ageofai.ini when it starts: a change counts from its next start." },
     { HL_TEXT, NULL, "Keys in your file this version doesn't know (no longer used, or misspelt) are listed at the "
                      "bottom, with a button that removes them." },
     { HL_TEXT, NULL, "Game exe... shows the game's exe: the 4 GB patch, and the way back to the original." },
@@ -1348,7 +1348,7 @@ internal LRESULT CALLBACK wnd_proc(HWND w, UINT msg, WPARAM wp, LPARAM lp) {
     return DefWindowProcA(w, msg, wp, lp);
 }
 
-// the shipped aimod.ini (resource 101), 0-ended
+// the shipped ageofai.ini (resource 101), 0-ended
 internal char *shipped_text(void) {
     HRSRC r = FindResourceA(NULL, MAKEINTRESOURCEA(101), MAKEINTRESOURCEA(10));   // RT_RCDATA
     HGLOBAL g = r ? LoadResource(NULL, r) : NULL;
@@ -1364,7 +1364,7 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmd, int show) {
     (void)prev;
     g_ini_eval = x_const_eval;
     g_shipped = shipped_text();
-    // the file: the one named on the command line, else aimod\aimod.ini in this program's folder (the game folder)
+    // the file: the one named on the command line, else ageofai\ageofai.ini in this program's folder (the game folder)
     if (cmd && cmd[0]) {
         lstrcpynA(g_ini_path, cmd[0] == '"' ? cmd + 1 : cmd, sizeof g_ini_path);
         char *q = strchr(g_ini_path, '"');
@@ -1372,12 +1372,12 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmd, int show) {
     } else {
         GetModuleFileNameA(NULL, g_ini_path, sizeof g_ini_path);
         char *s = strrchr(g_ini_path, '\\');
-        lstrcpyA(s ? s + 1 : g_ini_path, "aimod\\aimod.ini");
+        lstrcpyA(s ? s + 1 : g_ini_path, "ageofai\\ageofai.ini");
     }
     if (GetFileAttributesA(g_ini_path) == INVALID_FILE_ATTRIBUTES) {
         char msg[MAX_PATH + 160], dir[MAX_PATH];
-        snprintf(msg, sizeof msg, "%s\nisn't there. Make it with the mod's default settings?\n\n(aimod_config.exe belongs next to "
-                 "Empire Earth.exe; the mod reads aimod.ini from the folder aimod there.)", g_ini_path);
+        snprintf(msg, sizeof msg, "%s\nisn't there. Make it with the mod's default settings?\n\n(ageofai_config.exe belongs next to "
+                 "Empire Earth.exe; the mod reads ageofai.ini from the folder ageofai there.)", g_ini_path);
         if (!g_shipped || MessageBoxA(NULL, msg, TITLE, MB_YESNO | MB_ICONQUESTION) != IDYES) return 1;
         lstrcpynA(dir, g_ini_path, sizeof dir);   // its folder made first
         char *s = strrchr(dir, '\\');

@@ -1,4 +1,4 @@
-// ---- autotest mode (aimod_autotest.ini next to the DLL) ----
+// ---- autotest mode (ageofai_autotest.ini next to the DLL) ----
 // The game itself accepts:  "Empire Earth.exe" -loadgame "name.ees"   (file in Data\Saved Games\,
 // name must not contain '-' or '/'). This mode adds: skip intro movies, quit after N game minutes.
 internal struct { int skip_intro, scenario_mode, turbo, game_seed; double quit_minutes; float speed; } g_auto;

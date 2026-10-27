@@ -4,7 +4,8 @@
 
 The name says it twice: the computer players are the heart of the mod, and the mod itself exists because of AI.
 The game's code was reverse-engineered and the mod written largely with AI coding tools, and the project says so
-openly. Short: **EE: Age of AI**; the files keep their technical names (`eeaimod.dll`, the `.eeai` texts).
+openly. Short: **EE: Age of AI**; the mod's files are named after it (`ageofai.dll`, `ageofai.ini`, the folder `ageofai`),
+its text and script files are `.eeai`.
 
 A runtime mod for **Empire Earth 1.04 with the Difficulty Setting & Multiplayer Lobby add-on** (the
 last official base-game exe; Art of Conquest is being ported). It fixes and tunes the game from inside: a DLL in the
@@ -37,7 +38,7 @@ patches), which patch different places.
 | [docs/engine-notes.md](docs/engine-notes.md) | Verified addresses and data layouts of the engine |
 | [docs/testing.md](docs/testing.md) | Autotest mode, test scenarios, log format, control pipe commands |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | What the project takes, how to report, the rules a change has to follow |
-| [config/aimod.ini](config/aimod.ini) | Every setting, explained |
+| [config/ageofai.ini](config/ageofai.ini) | Every setting, explained |
 | [config/personalities/README.md](config/personalities/README.md) | The personalities and texts: format, expressions, values, situations |
 | [config/personalities/_template.eeai](config/personalities/_template.eeai) | An empty personality with every key explained, to copy |
 | [config/personalities/mod/](config/personalities/mod/) | The mod's own texts: `computer.eeai` (every personality's base), `prompt.eeai` (what the mod tells the language model - the AI voice), `system.eeai` (the system lines the mod shows), `units.eeai` (the groups the texts count with: units, army, buildings ...) |
@@ -46,7 +47,7 @@ patches), which patch different places.
 
 The original AI cheats: by default it pays about 1% of the real prices. With cheating switched off, it
 can't run its economy, gets stuck in the early epochs, only trains soldiers for its next attack and leaves its
-base undefended. This mod changes that. Every feature has its own setting in `aimod.ini`; the AI never gets
+base undefended. This mod changes that. Every feature has its own setting in `ageofai.ini`; the AI never gets
 information a human couldn't have (it only uses enemy buildings it has seen).
 
 **Where it is meant to play well.** A population of 200-400 per player is the target the AI is tuned and tested for
@@ -138,7 +139,7 @@ peace or alliances. With the mod:
 - **Ending the game yourself** (`auto_victory=0`): the game no longer ends on its own when one alliance is left;
   once nobody stands against you, a hint says so, and `sieg`/`victory`, Resign or Exit ends it as a victory.
 - **Saved games:** the AIs remember across save and load - grudges, alliances, capitulations, pending offers
-  (a small `.aimod` file next to each save; `save_state`).
+  (a small `.ageofai` file next to each save; `save_state`).
 - **Surrender:** an AI that has lost all its citizens and can't train new ones resigns (with a last line),
   instead of leaving its last buildings for you to hunt down (`surrender`, not in scenarios). It gives up to
   whoever destroyed the most of it lately, and doesn't capitulate or take sides in a war once it is beyond saving.
@@ -168,7 +169,7 @@ peace or alliances. With the mod:
   strong each side is, how long the war has lasted, whether you betrayed it before, what you paid it, its epoch.
   Everything - the format, the expressions, every value, every situation - is in
   [`config/personalities/README.md`](config/personalities/README.md), which goes into the folder with the files. A mistake is
-  logged with the file and line and only that key is skipped; `strict_parsing=1` in aimod.ini shows every mistake
+  logged with the file and line and only that key is skipped; `strict_parsing=1` in ageofai.ini shows every mistake
   at once (for whoever writes texts).
 - **Editing them in VS Code:** [`extensions/eeaimod-texts`](extensions/eeaimod-texts) highlights the `.eeai`
   files - records, keys, strings, placeholders, expressions; an unknown key, situation or epoch name shows as an
@@ -215,39 +216,39 @@ siege, home guard.
 
 ## Installing (players)
 
-The mod keeps the game folder tidy: next to `Empire Earth.exe` go only `eeaimod.dll`, the optional
-`dinput.dll` and `aimod_config.exe` (Windows and the game load DLLs from there only); everything else of the mod
-is in one folder `aimod` beside them - its settings, the personalities, the game's settings file, the log.
+The mod keeps the game folder tidy: next to `Empire Earth.exe` go only `ageofai.dll`, the optional
+`dinput.dll` and `ageofai_config.exe` (Windows and the game load DLLs from there only); everything else of the mod
+is in one folder `ageofai` beside them - its settings, the personalities, the game's settings file, the log.
 
-1. Copy `eeaimod.dll` into the Empire Earth folder (next to `Empire Earth.exe`), and make a folder `aimod` there.
-2. Copy [`config/aimod.ini`](config/aimod.ini) into `aimod` and adjust it. Every option is explained in the
+1. Copy `ageofai.dll` into the Empire Earth folder (next to `Empire Earth.exe`), and make a folder `ageofai` there.
+2. Copy [`config/ageofai.ini`](config/ageofai.ini) into `ageofai` and adjust it. Every option is explained in the
    file. `[ai_base]` is every AI difficulty's (the medium AI plays it as it is); `[ai_easy]` and `[ai_hard]`
    override it for those two.
-3. Optional: copy the folder [`config/personalities`](config/personalities) into `aimod` too, for the AI personalities.
+3. Optional: copy the folder [`config/personalities`](config/personalities) into `ageofai` too, for the AI personalities.
    Add or edit `.eeai` files there to make your own; they are read when Empire Earth starts.
-4. Start the game normally. Changes to `aimod.ini` take effect when a game starts or a save is loaded.
-   Instead of editing the file you can copy `aimod_config.exe` next to `Empire Earth.exe` and start it: every
+4. Start the game normally. Changes to `ageofai.ini` take effect when a game starts or a save is loaded.
+   Instead of editing the file you can copy `ageofai_config.exe` next to `Empire Earth.exe` and start it: every
    setting in one tree - the sections (General, Display, ... the AI), their topics (Movement, Navy, ...), a
    master setting with the ones it switches - with its explanation, its value and its default, an AI setting's
    easy and hard values where they differ; a search finds any of them; a value is checked as you type, as the
    game reads it, and Save writes only what you changed, keeping the file's comments. It also lists keys in your
    file that this version no longer knows (old experiments, typing mistakes) and can remove them. Without an
-   `aimod\aimod.ini` it offers to make one with the default settings. Its Game exe button shows which exe is next
+   `ageofai\ageofai.ini` it offers to make one with the default settings. Its Game exe button shows which exe is next
    to it and can give the game 4 GB of memory instead of 2 (the Large Address Aware flag - big armies and maps
    need it; one bit in the exe's header, the game closed, the exe kept as `Empire Earth.exe.original` and put
    back by Restore). Help (F1) explains its colours and the rest.
 5. Optional: copy `dinput.dll` next to `Empire Earth.exe` too. The game then keeps its own settings (graphics,
-   sound, scroll speed, the last game's options - what the options screen sets) in `aimod\eesettings.ini`
+   sound, scroll speed, the last game's options - what the options screen sets) in `ageofai\eesettings.ini`
    instead of the Windows registry, so they travel with the folder; the first start copies the registry's values
    into it. It is a stand-in Windows loads at the start: the game's one DirectInput call goes on to the system's
    `dinput.dll`. If another program in the folder already has a `dinput.dll`, keep that one - everything works
    without ours, the settings then simply stay in the registry. Delete it to go back to the registry (the file is
    then ignored).
 
-`aimod\aimod.ini` is required: without it Empire Earth shows an error and closes. To play the original game,
-set `enabled=0` at the top of `aimod.ini` (the mod then installs nothing), or delete `eeaimod.dll` to
-uninstall. A setting missing from an older `aimod.ini` takes its built-in default. The DLL writes a log to
-`aimod\aimod_econ.csv`.
+`ageofai\ageofai.ini` is required: without it Empire Earth shows an error and closes. To play the original game,
+set `enabled=0` at the top of `ageofai.ini` (the mod then installs nothing), or delete `ageofai.dll` to
+uninstall. A setting missing from an older `ageofai.ini` takes its built-in default. The DLL writes a log to
+`ageofai\ageofai_log.csv`.
 
 ### NeoEE
 
@@ -255,7 +256,7 @@ The same steps, in NeoEE's game folder (`%LOCALAPPDATA%\Programs\Neo Empire Eart
 installer). The mod knows NeoEE's `Empire Earth.exe`: the start's log says `# build: NeoEE (ee's code)`. What
 differs from the GOG version:
 
-- NeoEE's exe has no 4 GB flag; `aimod_config.exe` sets it as on the GOG exe (checked: the game starts and plays).
+- NeoEE's exe has no 4 GB flag; `ageofai_config.exe` sets it as on the GOG exe (checked: the game starts and plays).
 - NeoEE ships dreXmod 3.4, dgVoodoo as `ddraw.dll` and an English `Language.dll`. dreXmod's FixTnLVertexBuffer does
   what `[display] vertex_sysmem` does (the mod finds it done and leaves it). dreXmod's camera and menu resolution
   and the mod's `[camera]` and `[display]` settings haven't been tried together by hand yet.
@@ -267,7 +268,7 @@ differs from the GOG version:
 
 ## Display and interface
 
-Settings in `aimod.ini`:
+Settings in `ageofai.ini`:
 
 - `[display] mode=windowed`: native windowed mode. The engine still contains SSSI's own windowed path; the
   mod switches it on and fixes what broke on current Windows (presentation, crashes, terrain, editor).
@@ -299,7 +300,7 @@ Settings in `aimod.ini`:
 - `[general] spread_missiles=1` (default): AA towers and other missile launchers stop wasting missiles on an
   aircraft the missiles already on their way will destroy; they take another target in range or hold the shot.
   `lead_missiles=1` (off by default) makes homing missiles intercept instead of chase.
-- Multiplayer (not tested yet): every player needs the same `eeaimod.dll`, the same `aimod.ini` and the same
+- Multiplayer (not tested yet): every player needs the same `ageofai.dll`, the same `ageofai.ini` and the same
   personalities. The game is lockstep - every PC simulates everything - so different settings make
   the games drift apart. The mod's decisions use only the game's own state, math and random numbers for this.
   Nothing checks yet that every PC has the same; until the mod does (the host's settings for every PC), don't use
@@ -489,7 +490,7 @@ cd eeaimod
 # elsewhere: name the game folder (or set EE_GAME_DIR) - the tests and the install use it
 echo "X:/Games/Empire Earth Gold/Empire Earth" > local/game_dir.txt
 # unpack llvm-mingw to local/tools/llvm-mingw (or set CC=/path/to/i686-w64-mingw32-clang)
-sh dll/build.sh            # -> dll/eeaimod.dll
+sh dll/build.sh            # -> dll/ageofai.dll
 sh scripts/build/install.sh      # the committed build into the game folder (reserves it: waits until no game runs)
 ```
 
@@ -559,7 +560,7 @@ local/venv/Scripts/python scripts/test/eectl.py status | army 2 | diplo | person
 dll/              the mod (C), one translation unit: eeaimod.c includes every part - the game start, the AI's update
                   hooks that call the parts, install, DllMain; persist.c the mod's state in saved games
   base/             the DLL's own helpers: log, patching, the pipe commands' REPLY, paths and the test slot, mistakes.c
-                    the report of a mistake in the mod's files, math.c (the same bits on every PC), aimod.ini
+                    the report of a mistake in the mod's files, math.c (the same bits on every PC), ageofai.ini
                     (ini.c), watchpoints, headless_win.c test windows without focus or taskbar button (also in dinput.dll)
   game/             what the mod knows of the game: api/ the game's own code and objects, one module (api.c) - exe.c
                     the exe build, its addresses per build (gen/: the spec's C, generated; builds.h;
@@ -575,7 +576,7 @@ dll/              the mod (C), one translation unit: eeaimod.c includes every pa
                     playername.c the menu name fix, scenario_ai.c the scenario AI fix
   ai/               the computer players: econ.c budget, epoch plan, build queue, workers, research; sites.c gathering
                     sites; attack.c attack routing, siege, unit choice; stats.c fight estimates; defence.c towers, walls, home guard; diplo.c
-                    diplomacy; landing.c landings; navy.c / fleet.c the navy; settings.c aimod.ini's AI settings ...
+                    diplomacy; landing.c landings; navy.c / fleet.c the navy; settings.c ageofai.ini's AI settings ...
   script/           expr.c the text language (parsed once into a tree; statements, functions) - it knows no game:
                     what it asks the program it runs in is script/host.h (eeaimod.c x_host_install sets the game's)
   game_script/      the game in the language: constants.c (epoch., resource., color., kind., unit.), relations.c
@@ -586,13 +587,13 @@ dll/              the mod (C), one translation unit: eeaimod.c includes every pa
   test/             control.c the control pipe, testcmd.c / testopp.c test commands and the sea opponent, randmap.c
                     test-game setup, autotest.c, scripts.c the setup scripts (cmd_verbs.h, generated: the commands
                     they call), trace.c call tracing, ecolog.c the economy log
-  settings/         rows.h every aimod.ini key as a row (kind, section, default, limits), every section (order, kind,
-                    title) and the topics in them (aimod_config.exe's tree), settings.c reads them once into
+  settings/         rows.h every ageofai.ini key as a row (kind, section, default, limits), every section (order, kind,
+                    title) and the topics in them (ageofai_config.exe's tree), settings.c reads them once into
                     g_set / g_set_ai (a value per AI difficulty) - the parts read those, never the file
-  tool/             aimod_config.c: aimod_config.exe, the settings in a window (from base/, script/ and settings/ only:
-                    the DLL's own rows and checks; the shipped aimod.ini built in as the help)
+  tool/             ageofai_config.c: ageofai_config.exe, the settings in a window (from base/, script/ and settings/ only:
+                    the DLL's own rows and checks; the shipped ageofai.ini built in as the help)
   dinput/           eesettings.c: dinput.dll, the game's settings in eesettings.ini instead of the registry
-config/           aimod.ini and the personalities, shipped to players
+config/           ageofai.ini and the personalities, shipped to players
 tests/            what the tests run: scenarios/ the setup scripts (docs/scripts.md) that turn a save into a test
                   scenario (attacks, sieges, raids), probes/ the one-off setups of single measurements, config/
                   autotest.ini and the test configs, text_engine_cases.txt the text engine comparison's cases
@@ -605,7 +606,7 @@ scripts/          game_dir.py / .sh: where the game is (every script's)
   re/             reverse engineering: the exe and dump helpers, port_*.py for Art of Conquest, gen_units.py +
                   dat_read.py (docs/units.md and dll/game/unit_names.h from the game data: the community DB editor's
                   field layouts and English strings, downloaded into local/games/ee/dats/), make_cpbehavior.py (a
-                  tuned dbcpbehavior.dat; superseded by aimod.ini), ghidra/ the headless scripts that name and
+                  tuned dbcpbehavior.dat; superseded by ageofai.ini), ghidra/ the headless scripts that name and
                   decompile the exe (ExportDecomp) and put the spec into a project (ApplySpec, from spec_ghidra.py's file)
 extensions/       eeaimod-texts: the VS Code extension for the .eeai files
 local/            git-ignored: this machine's tools, test output and what is derived from the games (Setup)

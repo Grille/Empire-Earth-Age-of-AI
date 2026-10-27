@@ -1,6 +1,6 @@
 // Defences: how the AI fortifies its base. Included by eeaimod.c after attack.c (uses its defence_stats, is_wall).
 
-// DEFENCE LAYOUT (aimod.ini [ai_base] defence_layout, default on). The game's AI decides when and how many towers to
+// DEFENCE LAYOUT (ageofai.ini [ai_base] defence_layout, default on). The game's AI decides when and how many towers to
 // build (its building plan, cm 0x46CD18) and puts each where its spot finder (0x466ED4) finds room along paths from
 // the base - observed: 4 bronze towers scattered one by one on the side away from the enemy, none at the mines. A
 // player masses towers where the attacks come from and guards his outlying mines. Here the AI's own tower requests
@@ -310,7 +310,7 @@ internal void defence_tick(ee_player *pl, unsigned idx, uint32_t now) {
 // can see within 12 tiles of its buildings or citizens get the same answer as siege: the nearest soldiers (or, short
 // of soldiers, its citizens) attack the builders - the enemy citizens whose EEUGBuildRepair holds it - spread over
 // them, and the foundation only when nobody builds it. Finished towers are the siege weapons' job (attack.c siege_tick).
-// COUNTER-SIEGE (aimod.ini [ai_base] counter_siege, default on): catapults outrange towers (bronze: 7 against 5) and the
+// COUNTER-SIEGE (ageofai.ini [ai_base] counter_siege, default on): catapults outrange towers (bronze: 7 against 5) and the
 // AI just watched its towers being shelled. A player sends a few soldiers out at them. Every 2 s per AI: enemy siege
 // weapons (and rams) it can see within their range + 4 tiles of one of its buildings are threats; its soldiers within
 // 20 tiles of one - idle, marching, or fighting something more than 4 tiles away - attack it (up to 5 each, nearest
@@ -350,7 +350,7 @@ internal void cs_unit(ee_unit *u, void *ctx) {
         else if (is_soldier(td) && s->nx < 256) { s->ex[s->nx] = x; s->ey[s->nx++] = y; }
     }
 }
-// CITIZEN MILITIA (aimod.ini [ai_base] citizen_militia, default on). A player answers citizens that walk up to his mine or
+// CITIZEN MILITIA (ageofai.ini [ai_base] citizen_militia, default on). A player answers citizens that walk up to his mine or
 // berries and start a tower there with his own citizens, and in the early ages his citizens beat off a small rush.
 // The AI's citizens never fought. Every 2 s (with the counter-siege scan):
 // - enemy citizens building a defence (EEUGBuildRepair, target +0x3C unfinished, a ground attack) within 12 tiles of
@@ -571,7 +571,7 @@ internal void counter_siege(ee_player *pl, unsigned idx, uint32_t now) {
     }
 }
 
-// HOME GUARD (aimod.ini [ai_base] home_guard = soldiers per epoch, default 4; 0 = off): the unit manager (0x490AD6)
+// HOME GUARD (ageofai.ini [ai_base] home_guard = soldiers per epoch, default 4; 0 = off): the unit manager (0x490AD6)
 // only trains what is ordered into its request queues - mostly the next attack's group, ordered shortly before the
 // attack. Between attacks nothing is trained: at minute 45 a Bronze Age AI had 10 soldiers, 25 requests in 5
 // minutes and 1555 food + 1554 wood in its military account; a raid met 2-5 defenders. A player keeps a force at

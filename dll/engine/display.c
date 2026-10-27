@@ -1,5 +1,5 @@
 // Display: resolution of the scenario editor.
-// aimod.ini [editor] resolution = ee | aoc | game | <width>x<height>   (default ee: nothing is changed)
+// ageofai.ini [editor] resolution = ee | aoc | game | <width>x<height>   (default ee: nothing is changed)
 //   ee   = 800 x 600 (original Empire Earth)
 //   aoc  = 1024 x 768 (what The Art of Conquest uses)
 //   game = the resolution chosen for games in the settings
@@ -74,11 +74,11 @@ internal void *__thiscall hook_editor_form(ee_editor_form *form, void *owner) {
 // fullscreen flag), presents by blitting into the client area instead of flipping (ShowScene), and
 // minimizes/restores with ShowWindow. The byte is already 1 when the DLLs load and nothing writes it later, so
 // clearing it here switches every reader (including dreXmod's hook on the loading screen at 0x534433).
-// aimod.ini [display] windowed = 0 | 1
+// ageofai.ini [display] windowed = 0 | 1
 internal uint8_t g_fullscreen = 1;
 internal int g_present_every;   // autotest present_every (diagnostics)
 internal volatile DWORD g_render_thread;   // thread that calls ShowScene (profile render)
-internal int g_diag;   // diagnostic sampling (aimod.ini [display] diag=1 or autotest diag_hooks=1)
+internal int g_diag;   // diagnostic sampling (ageofai.ini [display] diag=1 or autotest diag_hooks=1)
 
 // Windowed present: ShowScene (DX7Rasterizer vtable slot 66, in DX7HRDisplay.dll and DX7HRTnLDisplay.dll)
 // blits the back buffer to the primary surface at the window's screen position. On current Windows the primary a
@@ -100,7 +100,7 @@ internal struct { const char *dll; uintptr_t lo, hi; ShowSceneFn show; SetModeFn
 #define DISPLAY_DLL(obj) (*(uintptr_t *)(obj) >= g_show[0].lo && *(uintptr_t *)(obj) < g_show[0].hi ? 0 : 1)
 internal volatile LONG g_present_frames, g_present_fail;
 
-// Borderless fullscreen and DPI. aimod.ini [display] windowed = borderless: a frameless window over the whole
+// Borderless fullscreen and DPI. ageofai.ini [display] windowed = borderless: a frameless window over the whole
 // monitor; Alt+Enter switches between that and a normal window. The game keeps rendering at its resolution
 // and the image is scaled into the window (aspect kept, black bars). dpi_aware = 1 (default): the window is
 // created DPI-aware (CreateWindowExA in the display DLLs, per-thread context), so Windows doesn't stretch it
@@ -706,7 +706,7 @@ internal int install_windowed_present(void) {
 //   window is in the background) and minimizes the window (CloseWindow, 0x662670) when the app loses focus.
 // - non-exclusive, the device sees every click while the window is in front, also on the title bar or other
 //   windows: the mouse is unacquired while the cursor is outside the client area (and no button is held).
-// aimod.ini [display] lock_mouse = 1 keeps the cursor inside the window while the game is in front; auto (default)
+// ageofai.ini [display] lock_mouse = 1 keeps the cursor inside the window while the game is in front; auto (default)
 // only in borderless (a full-screen picture: edge scrolling must not slide onto another monitor), not in a window
 // (Alt+Enter switches both). Native fullscreen needs nothing: the exclusive DirectInput mouse never leaves.
 typedef void (__thiscall *ThisFn)(void *);
@@ -1156,7 +1156,7 @@ internal void display_install(const char *autotest_ini) {
     if (!lstrcmpiA(mode, "aoc")) { g_editor_w = 1024; g_editor_h = 768; }
     else if (!lstrcmpiA(mode, "game")) g_editor_game = 1;
     else if (sscanf(mode, "%dx%d", &g_editor_w, &g_editor_h) != 2 || g_editor_w < 800 || g_editor_h < 600) {
-        if (g_log) fprintf(g_log, "# editor: bad resolution '%s' in aimod.ini, left at 800x600\n", mode);
+        if (g_log) fprintf(g_log, "# editor: bad resolution '%s' in ageofai.ini, left at 800x600\n", mode);
         return;
     }
     g_editor_layout = 1;
@@ -1478,7 +1478,7 @@ internal void mapshot_take(int size, ULARGE_INTEGER since, char *dst, char *out)
 
 // mapshot <name> [size] [all]: the whole map as the game's Ctrl/Shift+F9 draw it (size 1024, 2048 or 4096, default
 // 1024; twice as wide as high, the map's diamond: 1024 -> 1024 x 512), the game paused meanwhile ->
-// aimod_dumps/<name>.bmp. As far as the local player has explored; "all" sets its explore all (PL_EXPLORE_ALL, what
+// ageofai_dumps/<name>.bmp. As far as the local player has explored; "all" sets its explore all (PL_EXPLORE_ALL, what
 // a revealed map sets) for the shot and puts it back once the file is there - the game may run a few steps with it
 // meanwhile (harmless alone; in a network game the other PCs don't have it set).
 internal void cmd_mapshot(const char *args, char *out) {
@@ -1518,7 +1518,7 @@ internal void cmd_mapshot(const char *args, char *out) {
 // headless test commands (pipe thread, also in the menus and the editor):
 //   vmouse <x> <y>               game cursor to x, y (game coordinates; "vmouse off" = back to the real mouse)
 //   vclick <x> <y> [right|mid]   move there and click
-//   shot <name>                  next presented frame -> aimod_dumps/<name>.bmp
+//   shot <name>                  next presented frame -> ageofai_dumps/<name>.bmp
 internal void cmd_headless(const char *verb, const char *args, char *out) {
     if (!strcmp(verb, "mapshot")) { cmd_mapshot(args, out); return; }
     if (!strcmp(verb, "shot")) {
@@ -1691,7 +1691,7 @@ internal void cmd_ddpoke(char *out, const char *args) {
             uint32_t *sc = scale_frame(&d, w, h);
             BITMAPINFOHEADER sb = { sizeof sb, w, -h, 1, 32, BI_RGB, 0, 0, 0, 0, 0 };
             if (sc) SetDIBitsToDevice(mdc, 0, 0, (DWORD)w, (DWORD)h, 0, 0, 0, (UINT)h, sc, (BITMAPINFO *)&sb, DIB_RGB_COLORS);
-            if (sc && i == 4) {   // the scaled frame for a look: aimod_dumps/bench_scaled.bmp
+            if (sc && i == 4) {   // the scaled frame for a look: ageofai_dumps/bench_scaled.bmp
                 DDSURFACEDESC2 sd = d;
                 sd.dwWidth = (DWORD)w; sd.dwHeight = (DWORD)h; sd.lPitch = w * 4; sd.lpSurface = sc;
                 CreateDirectoryA(g_dump_dir, NULL);
@@ -1855,7 +1855,7 @@ internal void cmd_ddinfo(char *out, const char *args) {
         if (fn) fn(ras, args[5] != '0', (unsigned)idx);
         REPLY("no-texture mode %s\n", fn ? (args[5] != '0' ? "on" : "off") : "not found");
     }
-    if (!strncmp(args, "dump", 4)) {   // surfaces to aimod_dumps/dd_<name>.bmp
+    if (!strncmp(args, "dump", 4)) {   // surfaces to ageofai_dumps/dd_<name>.bmp
         ee_surface *ges[2] = { front, back };
         const char *names[2] = { "front", "back" };
         for (int i = 0; i < 2; i++) {

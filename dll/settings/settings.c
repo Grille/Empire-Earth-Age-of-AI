@@ -1,9 +1,9 @@
 // THE SETTINGS, READ IN ONE PLACE: the rows (rows.h) become struct settings g_set and, for [ai_base], struct settings_ai
 // g_set_ai[3] (a value per AI difficulty), filled by settings_read when the DLL loads - each row's text from the test
-// ini's [autotest] (a test run), else from its section of aimod.ini (a row of [ai_base]: the difficulty's own section
+// ini's [autotest] (a test run), else from its section of ageofai.ini (a row of [ai_base]: the difficulty's own section
 // first), else its default - and checked by its kind; a mistake is logged (ini.c: file, section, key) and the row
 // keeps its default. The parts read g_set / g_set_ai instead of the file: one reading of each key, one rule for the
-// test ini's overrides, and the keys of every section of aimod.ini (rows.h SETTING_SECTIONS) known, so a key that is
+// test ini's overrides, and the keys of every section of ageofai.ini (rows.h SETTING_SECTIONS) known, so a key that is
 // none of them is told. Included by eeaimod.c after base/ini.c, before every part that reads a setting.
 #include "settings/rows.h"
 
@@ -71,7 +71,7 @@ struct setting_section { const char *sec; int order, kind; const char *title; };
 internal const struct setting_section k_setting_sections[] = { SETTING_SECTIONS(SET_SECTION) };
 #define SETTING_SECTION_N ((int)(sizeof k_setting_sections / sizeof *k_setting_sections))
 
-// where each row's value came from: 0 its default, 1 aimod.ini, 2 the test ini ([autotest]); a row of [ai_base]: the
+// where each row's value came from: 0 its default, 1 ageofai.ini, 2 the test ini ([autotest]); a row of [ai_base]: the
 // furthest of its difficulties
 internal uint8_t g_set_from[SETTING_N];
 internal const char *settings_section(int id) {   // the section a row's value was read from (not for a row of [ai_base])
@@ -97,7 +97,7 @@ internal void setting_choice_name(const char *choices, int i, char *out, int cap
     lstrcpynA(out, c ? c : "", n + 1 < cap ? n + 1 : cap);
 }
 
-// row r's text: the test ini's [autotest] name, else key in r's section of aimod.ini - a row of [ai_base] for difficulty
+// row r's text: the test ini's [autotest] name, else key in r's section of ageofai.ini - a row of [ai_base] for difficulty
 // d: [ai_easy] / [ai_hard] (the medium AI plays [ai_base] itself), then [ai_base], then (easy) the built-in easy text; a row of section autotest: the test
 // ini only. *file, *sec, *at where; 0: not set, the default
 internal int setting_raw(const struct setting_row *r, int d, const char *key, const char *name, const char *ini, const char *test_ini,
@@ -204,7 +204,7 @@ internal int setting_known(const char *sec, const char *k) {
     return 0;
 }
 
-// sec is a section of aimod.ini (not the test ini's own)
+// sec is a section of ageofai.ini (not the test ini's own)
 internal int setting_section_known(const char *sec) {
     for (int s = 0; s < SETTING_SECTION_N; s++)
         if (k_setting_sections[s].kind != SECK_TEST && !lstrcmpiA(k_setting_sections[s].sec, sec)) return 1;

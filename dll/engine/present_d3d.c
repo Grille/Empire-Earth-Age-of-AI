@@ -1,4 +1,4 @@
-// Windowed present through Direct3D 11 (aimod.ini [display] present = d3d, the default; gdi = the CPU path).
+// Windowed present through Direct3D 11 (ageofai.ini [display] present = d3d, the default; gdi = the CPU path).
 // The game's finished frame (the locked back buffer of its DirectDraw device) is uploaded to a texture and drawn
 // into the window by a flip-model swap chain: scaling and filtering on the GPU, no GDI composition (which held
 // a visible 2560x1440 window at 60 fps on a 120 Hz screen). Bars around the image are cleared black.

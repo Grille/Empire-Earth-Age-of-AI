@@ -3,7 +3,7 @@
 # usage: sh scripts/test/editor_headless.sh [editor_resolution]      e.g. game | aoc | 1920x1080
 # Then drive it with: eectl.py vmouse/vclick/wclick/shot (see docs/testing.md). Quit with: eectl.py quit
 cd "$(dirname "$0")/../.." || exit 1
-REPO="$(pwd)"; . scripts/game_dir.sh   # GAME: its log is in the game folder's aimod\ (slot 0)
+REPO="$(pwd)"; . scripts/game_dir.sh   # GAME: its log is in the game folder's ageofai\ (slot 0)
 res=${1:-game}
 py=local/venv/Scripts/python
 if tasklist | grep -qi "empire earth"; then echo "a game is running - close it first"; exit 1; fi
@@ -12,7 +12,7 @@ if tasklist | grep -qi "empire earth"; then echo "a game is running - close it f
 # main menu: wait until the control pipe answers and a frame can be taken
 for i in $(seq 1 60); do sleep 2; $py scripts/test/eectl.py shot menu >/dev/null 2>&1 && break; done
 sleep 3
-log="$GAME/aimod/aimod_econ.csv"
+log="$GAME/ageofai/ageofai_log.csv"
 if [ "$res" = "ee" ]; then   # original editor: the mod hooks nothing, so no log line - click once, check by shot
     $py scripts/test/eectl.py vmouse 500 460 >/dev/null; sleep 1
     $py scripts/test/eectl.py vclick 512 472 >/dev/null; sleep 4

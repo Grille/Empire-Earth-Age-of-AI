@@ -1,5 +1,5 @@
 // Camera scrolling: Empire Earth's constant speed or Art of Conquest's acceleration, in either build.
-// aimod.ini [camera] scroll = game | ee | aoc (game, the default: the running build's own - EE's in Empire Earth,
+// ageofai.ini [camera] scroll = game | ee | aoc (game, the default: the running build's own - EE's in Empire Earth,
 // AoC's in AoC).
 //
 // Scrolling (mouse at the screen edge / keys) is the action EEAScroll (data_ui_vt_scroll, slot 1 Execute scroll_execute),

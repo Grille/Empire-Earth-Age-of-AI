@@ -999,7 +999,7 @@ internal void diplo_situations(ee_player *pl, int ai, uint32_t now) {
         if (ahead && !g_sit.was_ahead[ai]) persona_say(pl, L_ENEMY_AHEAD, player_at(lead), NULL);
         g_sit.was_ahead[ai] = ahead;
     }
-    // the first look after the game start or a load only notes who is out: a save without its .aimod (g_sit not
+    // the first look after the game start or a load only notes who is out: a save without its .ageofai (g_sit not
     // restored) had every AI announce the old defeats
     int quiet = !(g_sit_looked >> ai & 1);
     g_sit_looked |= 1 << ai;

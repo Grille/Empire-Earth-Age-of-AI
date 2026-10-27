@@ -4,8 +4,9 @@ Thank you for wanting to help. This file says what the project is for, what it t
 to be merged. Read it once before you start; the details it points to are in the other docs.
 
 The mod's public name is **Empire Earth: Age of AI** (short: EE: Age of AI). Use it in what players read - the
-README, release notes, the mod's messages - and keep the technical names (`eeaimod.dll`, `.eeai`, `aimod.ini`) in
-the code and the files.
+README, release notes, the mod's messages. The files players get are named after it (`ageofai.dll`, `ageofai.ini`,
+`ageofai_config.exe`, the folder `ageofai`), the text and script files are `.eeai`. Inside the code the older
+`eeaimod` stays (`dll/eeaimod.c`, the control pipe, the test runner's names): players never see it.
 
 The mod is made largely with AI coding tools, and the project says so openly. Contributions made with AI help are
 welcome on the same terms as any other: you answer for what you send - you have read it, built it and tested it.
@@ -21,7 +22,7 @@ welcome on the same terms as any other: you answer for what you send - you have 
 - **Display and interface**: windowed and borderless mode, the editor's resolution, camera, sound.
 - **Movement and pathing**: routes, turning, collision, formations - the player's units and the AI's alike.
 - **The tooling**: the spec of the game, the reverse-engineering scripts, the tests, the `.eeai` language and its VS
-  Code extension, `aimod_config.exe`.
+  Code extension, `ageofai_config.exe`.
 - **Personalities and texts** (`config/personalities/`): new characters, better lines.
 - **NeoEE**, the community's online version, as much as the GOG and Steam versions: its `Empire Earth.exe` is the
   2017 update's code in another layout, and every change has to work on both (README "NeoEE").
@@ -54,12 +55,12 @@ Not sure whether something fits? Open an issue and ask before you write the code
 ## Ways to help
 
 - **Play and report.** The most useful thing anyone can do. A good report says which version you play (GOG,
-  Steam, NeoEE ...) and which exe the mod found (the `# build:` line near the top of `aimod_econ.csv` in the game
-  folder's `aimod`), the other mods in the folder (NeoEE ships dreXmod and dgVoodoo), your `aimod.ini` (or what you changed in it), the map and the
+  Steam, NeoEE ...) and which exe the mod found (the `# build:` line near the top of `ageofai_log.csv` in the game
+  folder's `ageofai`), the other mods in the folder (NeoEE ships dreXmod and dgVoodoo), your `ageofai.ini` (or what you changed in it), the map and the
   difficulty, what the AI did and what you expected it to do, and - when you can - a saved game from shortly before.
   For a crash, also the log and the last thing you did.
 - **Write a personality.** Copy `config/personalities/_template.eeai`, which explains every key; the format is in
-  [config/personalities/README.md](config/personalities/README.md). `strict_parsing=1` in `aimod.ini` shows all mistakes at
+  [config/personalities/README.md](config/personalities/README.md). `strict_parsing=1` in `ageofai.ini` shows all mistakes at
   once.
 - **Reverse engineering.** A function, field or number of the game found and checked goes into `spec/` (below).
   Say how you know it: what the code does with it, what you measured in a running game.
@@ -81,7 +82,7 @@ Not sure whether something fits? Open an issue and ask before you write the code
 
 ## How the code is built
 
-The mod is C, built 32-bit by llvm-mingw into `dll/eeaimod.dll` (plus `dinput.dll` and `aimod_config.exe`):
+The mod is C, built 32-bit by llvm-mingw into `dll/ageofai.dll` (plus `dinput.dll` and `ageofai_config.exe`):
 
 ```sh
 sh dll/build.sh
@@ -94,7 +95,7 @@ sh dll/build.sh
 | `scripts/build/layers.py` | which part of `dll/` may use which (below); `--why <folder>` lists the uses |
 | `scripts/build/style.py` | the C style rules the compiler doesn't check (below) |
 | `scripts/build/spec_check.py` | the rules of `spec/` the C# compiler leaves open |
-| `scripts/build/settings_check.py` | `dll/settings/rows.h` and `config/aimod.ini` say the same |
+| `scripts/build/settings_check.py` | `dll/settings/rows.h` and `config/ageofai.ini` say the same |
 
 **One translation unit**: `dll/eeaimod.c` includes every other `.c` file. A new file is included there, in the place
 where what it uses is already defined.
@@ -139,10 +140,10 @@ turns them into C in `dll/game/api/gen/`; the format is in `spec/attributes.cs`'
 
 ## Settings
 
-Every behaviour the mod adds has a setting in `aimod.ini`, so a player can turn it off and a test can compare it.
+Every behaviour the mod adds has a setting in `ageofai.ini`, so a player can turn it off and a test can compare it.
 
 - A setting is a row in `dll/settings/rows.h` (kind, section, key, default, limits) and its key, with that default
-  and an explanation, in `config/aimod.ini`. The code reads `g_set.key` (or `g_set_ai[difficulty].key` for the AI's
+  and an explanation, in `config/ageofai.ini`. The code reads `g_set.key` (or `g_set_ai[difficulty].key` for the AI's
   per-difficulty settings), never the file.
 - **New behaviour of the AI is off by default until a test shows it helps** (below). The shipped defaults are the AI
   at its strongest without cheating; only the easy difficulty eases off.
@@ -165,7 +166,7 @@ This also makes tests repeatable: with a fixed seed a scenario plays the same ga
 ## Testing
 
 What a change needs depends on what it touches. The tools are in [docs/testing.md](docs/testing.md); tests always
-run headless and with the shipped `config/aimod.ini`, never your own.
+run headless and with the shipped `config/ageofai.ini`, never your own.
 
 | Change | Show |
 |---|---|
@@ -176,7 +177,7 @@ run headless and with the shipped `config/aimod.ini`, never your own.
 | The text engine, or which line is chosen | `texts corpus` before and after in the same game - identical unless meant to differ |
 | The spec | the start log's spec line, in both builds if you can |
 | Code that reads or patches the exe itself (imports, sections, scans) | a test game on GOG and on NeoEE side by side (`EE_GAME_DIR=<NeoEE's game folder>`): the `# build:` and `# spec:` lines, the same hooks |
-| A setting | `settings_check.py` (the build) and `aimod_config.exe` shows it |
+| A setting | `settings_check.py` (the build) and `ageofai_config.exe` shows it |
 
 Some generated files have to be made again when their sources change (the table "Generators" in
 [CLAUDE.md](CLAUDE.md)): the build does most of them, the docs' tables and the VS Code grammar have their own

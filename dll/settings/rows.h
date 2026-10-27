@@ -1,7 +1,7 @@
-// THE SETTINGS: the keys of aimod.ini (and the test ini's own), one row each - its kind, section, key, default and
+// THE SETTINGS: the keys of ageofai.ini (and the test ini's own), one row each - its kind, section, key, default and
 // the kind's limits - in the shipped file's order. settings.c makes the rows g_set (g_set.lead_targets: the value in
-// force), read once when the DLL loads; what a setting means is told in config/aimod.ini above its key (the file is the
-// documentation, the rows are what the code knows). A new setting is a row here and its key in config/aimod.ini with
+// force), read once when the DLL loads; what a setting means is told in config/ageofai.ini above its key (the file is the
+// documentation, the rows are what the code knows). A new setting is a row here and its key in config/ageofai.ini with
 // the row's default (scripts/build/settings_check.py, run by the build, holds the two together).
 //
 //   FLAG    0 or 1
@@ -277,8 +277,8 @@
     X(FLAG,  autotest, landing_trace,                0, 0, 0) \
     X(NUM,   autotest, transport_log,                0, 0, 0)
 
-// THE SECTIONS: every section a row names, one row each - its name, its place (aimod_config.exe's sections sort by
-// it), its kind and its title (the section's there; a difficulty's: its column's). Every key of a section of aimod.ini
+// THE SECTIONS: every section a row names, one row each - its name, its place (ageofai_config.exe's sections sort by
+// it), its kind and its title (the section's there; a difficulty's: its column's). Every key of a section of ageofai.ini
 // is a row: one that isn't is told in the log (a misspelt key otherwise silently kept its default) - the test ini's
 // [autotest] has knobs of its own besides the rows.
 //
@@ -286,7 +286,7 @@
 //   ALL     [ai_base]: the rows of D, for every AI difficulty
 //   DIFF    a difficulty's own section ([ai_easy] / [ai_hard]: settings.c k_set_diff), the rows of [ai_base] again - the
 //           medium AI has none: [ai_base] is its, the base the others differ from
-//   TEST    the test ini's own: not in aimod.ini, no page
+//   TEST    the test ini's own: not in ageofai.ini, no page
 #define SETTING_SECTIONS(T) \
     T(general,   10, PLAIN, "General") \
     T(camera,    20, PLAIN, "Camera") \
@@ -299,7 +299,7 @@
     T(ai_hard,  100, DIFF,  "Hard") \
     T(autotest,   0, TEST,  "Tests")
 
-// THE GROUPS: aimod_config.exe's topics within a section, one row each - the field of its first row and its title. A
+// THE GROUPS: ageofai_config.exe's topics within a section, one row each - the field of its first row and its title. A
 // group holds its first row and those after it in its section up to the next group's, so a new row joins the group
 // of the row before it (rows before a section's first group stand in the section itself).
 #define SETTING_GROUPS(G) \
@@ -338,7 +338,7 @@
     E(pop_follow_human, "1")
 
 // Rows that set one of the game's own values (a player's field, a limit of its engine) and do little else - the
-// mod's tuning of the original rather than a feature of its own (aimod_config.exe shows their keys blue): the field's
+// mod's tuning of the original rather than a feature of its own (ageofai_config.exe shows their keys blue): the field's
 // name, what it sets, the game's own value, and the value at or below which the game keeps its own (the code leaves
 // the field alone: 0, or -1 for a chance - as kept, a share in percent; ai/settings.c settings_apply writes the AI's,
 // drawlist.c and sound.c the limits). A row whose value only switches a toggle among the mod's own logic
@@ -361,7 +361,7 @@
     V(attack_revenge,       "the chance of an extra attack out of revenge", "10%", -1) \
     V(citizen_share,        "the AI's share of the population cap for citizens", "45%", 0)
 
-// Rows aimod_config.exe shows under a master, folded with its children, though they don't follow it: settings of what
+// Rows ageofai_config.exe shows under a master, folded with its children, though they don't follow it: settings of what
 // the master's children switch on (the formation's catch-up and collision under improved_unit_movement).
 #define SETTING_UNDER(U) \
     U(formation_catchup,   improved_unit_movement) \

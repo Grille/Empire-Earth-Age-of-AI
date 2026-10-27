@@ -21,7 +21,7 @@ MAP=${MAP:-random_map=Continental,map_size=0,ai_count=2,seed=101}
 base="$MAP,quit_minutes=$MIN,game_seed=${GAME_SEED:-777},sync_trace=$STEPS,sync_dump=${DUMP:-1-1000},mp_humans=$HUMANS"
 [ -n "$KEYS" ] && base="$base,$KEYS"
 run() { powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test/run_test.ps1 -TimeoutSec $((MIN * 12 + 240)) "$@" | tail -1; }
-log=local/work/slot$H/aimod_econ.csv
+log=local/work/slot$H/ageofai_log.csv
 mark=local/work/mp_${STAMP}.start; : > "$mark"   # the host's log of this run: newer than this
 # a PC's result line (run_test's last); one that didn't end with exit code 0 also its game's exception line, from the
 # log run_test has packed by then - a crash says where without a rerun

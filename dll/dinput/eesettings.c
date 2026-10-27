@@ -1,15 +1,15 @@
 // EMPIRE EARTH'S SETTINGS IN A FILE (optional, built as dinput.dll): the game keeps its settings in the registry,
 // HKCU\Software\SSSI\Empire Earth (60 values, subkey "Game Options"; Art of Conquest the same under
 // HKCU\Software\Mad Doc Software\EE-AOC), and reads them all before the engine loads
-// eeaimod.dll (docs/engine-notes.md, Exe builds - Settings). This DLL is loaded by Windows at the start instead: the
+// ageofai.dll (docs/engine-notes.md, Exe builds - Settings). This DLL is loaded by Windows at the start instead: the
 // engine (Low-Level Engine.dll) imports DINPUT.dll, which isn't one of the system's KnownDLLs, so a dinput.dll in the
 // game folder comes first. It passes the engine's one DirectInput call through to the system's dinput.dll and points
 // the engine's registry calls (its 7 ADVAPI32 imports) for the game's own keys to eesettings.ini in the mod's folder
-// (<game>\aimod\, with aimod.ini):
+// (<game>\ageofai\, with ageofai.ini):
 // the settings travel with the folder, every copy of the game has its own (test slots: EEAIMOD_SETTINGS=<file>).
 // Optional in every way: without this DLL - or with another program's dinput.dll in its place - the game uses the
 // registry as before, and so does it when the file can't be read or written. The first start without the file copies
-// the registry's values into it. EEAIMOD_SETTINGS_FILE tells eeaimod.dll (its log) which one is in use.
+// the registry's values into it. EEAIMOD_SETTINGS_FILE tells ageofai.dll (its log) which one is in use.
 #include <windows.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -130,7 +130,7 @@ static int file_save(void) {   // 1: written (or nothing to write)
     wsprintfA(tmp, "%s.new", g_file);
     FILE *f = fopen(tmp, "wb");
     if (!f) return 0;
-    fputs("; Empire Earth's settings - kept here by dinput.dll of Empire Earth: Age of AI (eeaimod) instead of the registry.\r\n"
+    fputs("; Empire Earth's settings - kept here by dinput.dll of Empire Earth: Age of AI instead of the registry.\r\n"
           "; The game writes this file when it closes. Without that dinput.dll the game uses the registry again.\r\n"
           "; A plain number is a number, \"text\" in quotes a text.\r\n", f);
     for (int i = 0; i < NKEYS; i++) {
@@ -401,8 +401,8 @@ static void start(HINSTANCE self) {
     if (!n || n >= sizeof g_file) {
         GetModuleFileNameA(self, g_file, sizeof g_file);
         char *s = strrchr(g_file, '\\');
-        if (s) {   // <game>\aimod\eesettings.ini, the folder made if it isn't there yet
-            lstrcpyA(s + 1, "aimod");
+        if (s) {   // <game>\ageofai\eesettings.ini, the folder made if it isn't there yet
+            lstrcpyA(s + 1, "ageofai");
             CreateDirectoryA(g_file, NULL);
             lstrcatA(g_file, "\\eesettings.ini");
         }

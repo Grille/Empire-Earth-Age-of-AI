@@ -1,4 +1,4 @@
-// mod/prompt.eeai - what eeaimod tells the language model ([llm] in aimod.ini): who the AI is, the game as
+// mod/prompt.eeai - what eeaimod tells the language model ([llm] in ageofai.ini): who the AI is, the game as
 // it stands, the situations, the tools. English: the model is told which language to answer in. Every key
 // must be here (the mod has no texts of its own); a personality's own prompt = { ... } comes first (this file
 // is the last layer of every personality). In braces: expressions - {me} the AI, {them} the one it talks to,

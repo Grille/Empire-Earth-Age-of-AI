@@ -1,0 +1,5 @@
+// ageofai_config.exe's resources: the manifest (common controls 6 - the current look -, system DPI aware: sharp at
+// Windows' display scaling) and the shipped config/ageofai.ini, whose comments are the settings' help and which makes a
+// missing ageofai.ini (ageofai_config.c shipped_text). Paths relative to dll/, where build.sh runs.
+1 24 "tool/ageofai_config.manifest"
+101 RCDATA "../config/ageofai.ini"

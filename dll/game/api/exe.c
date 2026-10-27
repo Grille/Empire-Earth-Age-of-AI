@@ -200,7 +200,7 @@ internal void build_unknown(uint32_t hash) {
     char *slash = strrchr(dir, '\\');
     if (slash) slash[1] = 0; else dir[0] = 0;
     slot_dir(dir);
-    wsprintfA(path, "%saimod_econ.csv", dir);
+    wsprintfA(path, "%sageofai_log.csv", dir);
     FILE *f = fopen(path, "a");
     if (f) {
         fprintf(f, "# eeaimod: Empire Earth.exe is another build (code %08X) - nothing installed:", hash);
@@ -209,13 +209,13 @@ internal void build_unknown(uint32_t hash) {
         fprintf(f, " -%s\n", g_spec_bad_names);   // (the closest column's)
         fclose(f);
     }
-    wsprintfA(path, "%saimod_autotest.ini", dir);
+    wsprintfA(path, "%sageofai_autotest.ini", dir);
     if (GetFileAttributesA(path) != INVALID_FILE_ATTRIBUTES) return;
     char msg[700];
-    wsprintfA(msg, "The Empire Earth AI mod (eeaimod.dll) doesn't know this version of Empire Earth.exe (code %08X): "
+    wsprintfA(msg, "Empire Earth: Age of AI (ageofai.dll) doesn't know this version of Empire Earth.exe (code %08X): "
                    "its code isn't the one the mod is made for, so the mod stays switched off - the game starts without it.\n\n"
                    "The mod works with Empire Earth 1.04: the GOG and Steam versions, the Vanilla setup from empireearth.eu, "
                    "NeoEE, and other copies of 1.04 with the same code (the retail game's without its copy protection). "
-                   "Versions before 1.04 have their code in other places.\n\nDelete eeaimod.dll to stop this message.", hash);
-    MessageBoxA(NULL, msg, "Empire Earth AI mod: unknown game version", MB_OK | MB_ICONWARNING | MB_TOPMOST | MB_SETFOREGROUND);
+                   "Versions before 1.04 have their code in other places.\n\nDelete ageofai.dll to stop this message.", hash);
+    MessageBoxA(NULL, msg, "Empire Earth: Age of AI - unknown game version", MB_OK | MB_ICONWARNING | MB_TOPMOST | MB_SETFOREGROUND);
 }

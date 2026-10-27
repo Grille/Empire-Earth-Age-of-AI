@@ -61,7 +61,7 @@ internal int textlog_new(uint32_t h) {   // 1 the first time (and still lines to
 }
 internal int g_fbm_n, g_fbm_logged;
 internal volatile int g_fbm_making;
-internal int g_atlas_dump;   // autotest atlas_dump=1: each new bitmap font's last atlas -> aimod_dumps/atlas<n>.bmp
+internal int g_atlas_dump;   // autotest atlas_dump=1: each new bitmap font's last atlas -> ageofai_dumps/atlas<n>.bmp
 internal void atlas_dump(int n);   // inside our GEFontBitmap constructor call (the atlas is drawn)
 internal void *(__thiscall *g_fbm_ctor)(void *, void *, void *, unsigned);
 internal void *text_bitmap_for(void *ras, void *text, void *surf) {

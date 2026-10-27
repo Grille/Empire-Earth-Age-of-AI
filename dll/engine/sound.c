@@ -156,7 +156,7 @@ internal void sound_tick(uint32_t now) {
             + g_mix_play_fail[2] + g_mix_play_fail[10], top);
 }
 
-// CHANNEL FIX (aimod.ini [sound] clamp_channels, default on). The options slider "Max Number Of Sounds" goes to 200%:
+// CHANNEL FIX (ageofai.ini [sound] clamp_channels, default on). The options slider "Max Number Of Sounds" goes to 200%:
 // channels = round(percent x the mixer's maximum), so 200% asks for 32 while the Miles mixer creates at most its
 // maximum (16 on Windows since Vista, see above). The manager then plays on channels 16..31 that don't exist: the
 // mixer refuses the sample (error 10), nothing sounds, and the node stays "playing" there - a looping sound (unit
@@ -165,7 +165,7 @@ internal void sound_tick(uint32_t now) {
 // SetMaxChannels (exe IAT 0x823AD4) is held to the mixer's maximum: 200% = 100% = 16 channels.
 internal int g_clamp_channels = 1;
 internal set_max_ch_fn g_set_max_ch;
-// MORE CHANNELS (aimod.ini [sound] channels, default 32; 0 = the mixer's own maximum). The mixer's maximum is 16
+// MORE CHANNELS (ageofai.ini [sound] channels, default 32; 0 = the mixer's own maximum). The mixer's maximum is 16
 // only because Windows reports no hardware voices; Miles mixes in software and is opened for 64 samples
 // (DIG_MIXER_CHANNELS), one of which the plugin keeps. The maximum (the global SPIMGetMaximumChannelCount reads,
 // `mov eax, [addr]; ret`) is raised to `channels` (8..63) before the game's first SetMaxChannels, and the count the
@@ -217,7 +217,7 @@ internal void sound_install(void) {
     if (g_log) fprintf(g_log, "# sound: clamp_channels=%d channels=%d (hook %s)\n", g_clamp_channels, g_sound_channels, ok ? "ok" : "FAILED");
     if (g_set.sound_sample_rate && g_set.sound_sample_rate != 22050 && !on_module_load("Miles Sound System Mixer.dll", mix_rate_loaded))
         if (g_log) fprintf(g_log, "# sound: sample_rate - module loads not watchable, the mixer stays at 22050 Hz\n");
-    // aimod.ini [sound] log = 1 (counts once a minute) | 2 (every play) - diagnostics in normal play too
+    // ageofai.ini [sound] log = 1 (counts once a minute) | 2 (every play) - diagnostics in normal play too
     g_sound_log = g_set.sound_log;
 }
 

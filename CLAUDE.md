@@ -1,6 +1,6 @@
 # eeaimod - working notes for Claude sessions
 
-An AI and tuning mod for Empire Earth 1.04 (32-bit, German retail + DSML), injected as `eeaimod.dll`. The game
+An AI and tuning mod for Empire Earth 1.04 (32-bit, German retail + DSML), injected as `ageofai.dll`. The game
 folder: env `EE_GAME_DIR`, else `local/game_dir.txt` in the repo (git-ignored), else the repo's parent (`<game>\_aimod`,
 the setup here) - scripts find it through `scripts/game_dir.sh` / `game_dir.py` / run_test.ps1; paths in the repo
 (`setup=tests/scenarios/x.eeai`, `CONFIG=...`) are relative to the repo. What the mod does: README.md; how it is tested:
@@ -15,7 +15,7 @@ and the runners, eectl, the MCP server), `results/` (log readers, scorers), `re/
 
 ## Build and install
 
-- `sh dll/build.sh` builds `dll/eeaimod.dll`, `dll/dinput.dll` and `dll/aimod_config.exe` (llvm-mingw in `local/tools/`, 32-bit; it also
+- `sh dll/build.sh` builds `dll/ageofai.dll`, `dll/dinput.dll` and `dll/ageofai_config.exe` (llvm-mingw in `local/tools/`, 32-bit; it also
   regenerates `dll/persist_layout.h` and `dll/test/cmd_verbs.h`). One translation unit: `dll/eeaimod.c` includes the rest.
   A build must be free of warnings. It also writes `.editor/compile_commands.json` (git-ignored, read by VS Code's
   C/C++ through `.vscode/c_cpp_properties.json`): each part with the text eeaimod.c has before it, so the editor
@@ -23,8 +23,8 @@ and the runners, eectl, the MCP server), `results/` (log readers, scorers), `re/
 - `dll/` has a folder per part, and which part may use which is a rule the build checks (`scripts/build/layers.py`):
   base (nothing) <- game/api (the game's code and objects, one module: nothing of its gen/ values or editor_layout.h outside it) <- game <- engine, ai (and voice/say.h: what the AI says goes through it); script (base only: the
   language knows no game - script/host.h asks the program); voice (base, game, ai, script); game_script (the game in
-  the language: all of those); settings (base only: aimod.ini's keys as rows, read once into `g_set` - used by
-  engine, ai, voice, game_script, test and the wiring); tool (base, settings, script: aimod_config.exe, a program of
+  the language: all of those); settings (base only: ageofai.ini's keys as rows, read once into `g_set` - used by
+  engine, ai, voice, game_script, test and the wiring); tool (base, settings, script: ageofai_config.exe, a program of
   its own - a name there must not be one of the DLL's too: layers.py reads the tree as one namespace);
   test and the wiring (`eeaimod.c`, `persist.c`) everything. A new crossing fails the build - put the code where it
   belongs (a shared helper down into base/ or game/) instead of adding an exception. `--why <folder>` lists the uses.
@@ -82,23 +82,26 @@ and the runners, eectl, the MCP server), `results/` (log readers, scorers), `re/
   are memory it never sets, and an AoC game parts ways now and then with any DLL: seed 9 on Small Islands, about one
   run in 15 when many run at once, at 36 s - a control pair of one DLL first).
 - The engine loads every DLL in the game folder: never leave copies of DLLs there (a stray dinput copy crashed it).
-- The game folder holds only eeaimod.dll, dinput.dll and aimod_config.exe (the player 2026-10-27: keep the root
-  clean); everything else of the mod is in `<game>\aimod\` - aimod.ini, eesettings.ini, personalities\ (when no
+- The game folder holds only ageofai.dll, dinput.dll and ageofai_config.exe (the player 2026-10-27: keep the root
+  clean); everything else of the mod is in `<game>\ageofai\` - ageofai.ini, eesettings.ini, personalities\ (when no
   ai_dir), the log, the dumps, slot 0's test ini (base/paths.c slot_dir; a test slot has its own folder instead). A
-  new file the mod writes goes there too. install.sh moves a folder set up before (scripts/build/mod_dir.sh).
-- A setting of aimod.ini is a row in `dll/settings/rows.h` (kind, section, key, default, limits) and its key in
-  `config/aimod.ini` with that default; the code reads `g_set.key` ([general]), `g_set.section_key` (the other
+  new file the mod writes goes there too. install.sh moves a folder set up before (scripts/build/mod_dir.sh) - also
+  the names before Empire Earth: Age of AI (2026-10-27: aimod\, aimod.ini, aimod_econ.csv, *.aimod beside the saves),
+  and removes an old eeaimod.dll / aimod_config.exe (both DLLs would load). Players see ageofai; eeaimod stays inside
+  the code (eeaimod.c, the pipe, the runner's names, EEAIMOD_* variables).
+- A setting of ageofai.ini is a row in `dll/settings/rows.h` (kind, section, key, default, limits) and its key in
+  `config/ageofai.ini` with that default; the code reads `g_set.key` ([general]), `g_set.section_key` (the other
   sections: `g_set.display_present`) or `g_set_ai[d].key` ([ai_base], a value per difficulty from [ai_easy] / [ai_hard], else
   [ai_base] - medium plays [ai_base], it has no section; code that doesn't tell difficulties apart reads [1]), and the test ini's [autotest] overrides a
   row by that same name (`scripts/build/settings_check.py`, run by the build, holds rows and file together). Nothing
-  reads aimod.ini itself any more; a test-only knob is a row of section autotest. A new section is a row of
-  `SETTING_SECTIONS` there too (its order and title make aimod_config.exe's section; its topics there:
+  reads ageofai.ini itself any more; a test-only knob is a row of section autotest. A new section is a row of
+  `SETTING_SECTIONS` there too (its order and title make ageofai_config.exe's section; its topics there:
   `SETTING_GROUPS`, each from its first row on). A CHILD row is a flag under a
   master CHOICE `default|enabled|disabled` (improved_unit_movement over the seven movement keys): not set, it follows
   the master; the shipped file has it commented out. A row's range is a sanity bound: outside it a warning, the value
   used (the code clamps what it can't take); only what can't be used at all is a mistake, the default instead. A row
-  that only sets one of the game's own values goes into `SETTING_GAME` too (aimod_config.exe shows its key blue).
-- The game reads the personality files from `config/personalities/` (`ai_dir` in the user's aimod.ini): a change to
+  that only sets one of the game's own values goes into `SETTING_GAME` too (ageofai_config.exe shows its key blue).
+- The game reads the personality files from `config/personalities/` (`ai_dir` in the user's ageofai.ini): a change to
   their format needs the matching installed DLL.
 
 ## Testing
@@ -106,7 +109,7 @@ and the runners, eectl, the MCP server), `results/` (log readers, scorers), `re/
 - `scripts/test/run_test.ps1` (and scen.sh, suite.sh, h2h.sh ... on top of it): always `headless=1`, always in a slot of
   its own (`-Slot n` / `SLOT=n`, `JOBS=n` for the scripts) - slots 1..30 run beside the player's game and each
   other; slot 0 shares the game folder and refuses while the player's game runs. `DLL=<path>` plays your own build
-  without installing it. Tests use the shipped `config/aimod.ini` and `config/personalities/`, never the user's own.
+  without installing it. Tests use the shipped `config/ageofai.ini` and `config/personalities/`, never the user's own.
 - Setup scripts (`tests/scenarios/*.eeai`, `tests/probes/*.eeai`): docs/scripts.md. The control pipe: `scripts/test/eectl.py`.
 - A run's log is `local/work/autotest_*.csv.gz` (gzipped: `zgrep`, `zcat`; a script reads it through `scripts/results/logs.py`);
   logs older than 7 days, or over 10 GB, are deleted (`scripts/test/work_prune.ps1`) - one to keep goes into `local/work/keep/`.

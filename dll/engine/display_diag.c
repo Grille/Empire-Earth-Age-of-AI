@@ -2,7 +2,7 @@
 // diag_hooks: terrain, surface copies and creation, render targets, clears, fog), the frame costs and the session
 // counts of the minute line. Included by display.c (at this place in it - it uses what display.c defines above).
 
-// FRAME WATCH (aimod.ini [display] frame_watch = frames per second; default 0 = off - a profiler suspending the
+// FRAME WATCH (ageofai.ini [display] frame_watch = frames per second; default 0 = off - a profiler suspending the
 // render thread, for diagnosing, not for every player). Low frame rates late in
 // long games (25 fps, 64% of the render thread in GDI, 2026-10-12) don't show in the test games, so the game watches
 // itself: while a game runs (the game clock moves), every minute a "# frames:" line with the average and the worst

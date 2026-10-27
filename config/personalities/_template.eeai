@@ -48,8 +48,8 @@ personality = {
 }
 
 style = {
-    // EXPERIMENTAL - only with ai_style=1 in aimod.ini (default off: every AI plays the same, tested way). The same
-    // keys as in aimod.ini; they replace the difficulty's values for this AI. Uncomment what it should change. Each
+    // EXPERIMENTAL - only with ai_style=1 in ageofai.ini (default off: every AI plays the same, tested way). The same
+    // keys as in ageofai.ini; they replace the difficulty's values for this AI. Uncomment what it should change. Each
     // an expression worked out at the game start (like color =): shares and chances with % (home_guard_share = 35%,
     // attack_on_contact = 20%, attack_group_percent = 150%), minutes as numbers - chance(50%) ? 15 : 25 works too.
     //military_start_share = ,
@@ -156,7 +156,7 @@ lines = {
     ask_lord = [],
 }
 
-// what the language model is told for this AI (aimod.ini [llm]), instead of mod/prompt.eeai's text - every key and
+// what the language model is told for this AI (ageofai.ini [llm]), instead of mod/prompt.eeai's text - every key and
 // its placeholders are there. For example:
 //prompt = {
 //    nature = "You speak in short, proud sentences.",

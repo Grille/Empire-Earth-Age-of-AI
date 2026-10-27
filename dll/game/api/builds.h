@@ -1,7 +1,7 @@
 // THE EXE BUILDS THE MOD KNOWS (exe.c tells which one runs): the spec's values per build ((ee), (aoc): spec/environment.cs), in this order,
 // and how a file is known as one (exe_hash). Art of Conquest's values: scripts/re/port_addrs.py. Not ready: the
 // player's game runs without the mod, a test run plays it (game_build). The module's one file outside it may use
-// (layers.py): the settings program tells the exe next to it by this too (tool/aimod_config.c, its Game page).
+// (layers.py): the settings program tells the exe next to it by this too (tool/ageofai_config.c, its Game page).
 // An exe of another build's code with its import table elsewhere (NeoEE's: the same compile in the copy protection's
 // layout) plays that build's column: its import slots are found by name ([import_slot], exe.c's spec_import). A file
 // of no row here plays a ready column whose checks all hold in it (exe.c's build_try: the retail 1.04's cracks).

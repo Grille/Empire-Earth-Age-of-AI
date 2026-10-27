@@ -5,7 +5,7 @@
 # own game has ended - a game started without -loadgame (every test run starts with it) - before install.sh reserves
 # the game folder: install.sh alone holds the reservation while it waits, and no test of any session could start for
 # as long as the player plays. One install at a time: a commit while one runs marks it pending, and the running one
-# installs again afterwards (HEAD then, whatever came meanwhile). aimod_config.exe open is waited for the same way (a
+# installs again afterwards (HEAD then, whatever came meanwhile). ageofai_config.exe open is waited for the same way (a
 # running program can't be replaced: it was skipped, and the settings program stayed old). Log: local/work/install.log;
 # the hook says at once in the commit's output when the game or the settings program is running and the install waits.
 # usage: sh scripts/build/install_latest.sh       (normally the hook's)
@@ -20,13 +20,13 @@ if ! mkdir "$L" 2>/dev/null; then   # one runs: it picks the pending one up - un
 fi
 echo $$ > "$L/pid"
 players() {   # the player's games (Empire Earth / Art of Conquest started without -loadgame) and the settings program open
-    powershell -NoProfile -Command "@(Get-CimInstance Win32_Process | Where-Object { ((\$_.Name -eq 'Empire Earth.exe' -or \$_.Name -eq 'EE-AOC.exe') -and \$_.CommandLine -notmatch '-loadgame') -or \$_.Name -eq 'aimod_config.exe' }).Count" 2>/dev/null | tr -d '\r'
+    powershell -NoProfile -Command "@(Get-CimInstance Win32_Process | Where-Object { ((\$_.Name -eq 'Empire Earth.exe' -or \$_.Name -eq 'EE-AOC.exe') -and \$_.CommandLine -notmatch '-loadgame') -or \$_.Name -eq 'ageofai_config.exe' }).Count" 2>/dev/null | tr -d '\r'
 }
 while [ -f local/work/install.pending ]; do
     rm -f local/work/install.pending
     told=
     while [ "$(players)" != 0 ]; do
-        [ -z "$told" ] && { echo "$(date '+%F %T') $(git rev-parse --short HEAD): waiting for the player's game (or aimod_config.exe) to end" >> local/work/install.log; told=1; }
+        [ -z "$told" ] && { echo "$(date '+%F %T') $(git rev-parse --short HEAD): waiting for the player's game (or ageofai_config.exe) to end" >> local/work/install.log; told=1; }
         sleep 20
     done
     echo "$(date '+%F %T') installing $(git rev-parse --short HEAD)" >> local/work/install.log

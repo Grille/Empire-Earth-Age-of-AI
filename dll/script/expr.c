@@ -1,4 +1,4 @@
-// THE TEXT FILES (<game>\aimod\personalities\*.eeai: the personalities; mod\*.eeai: computer, prompt, system) and the EXPRESSIONS in them.
+// THE TEXT FILES (<game>\ageofai\personalities\*.eeai: the personalities; mod\*.eeai: computer, prompt, system) and the EXPRESSIONS in them.
 // A file: "name = value" lines - a name the file's lines use (or, for a few names, what the file is about), records
 // "lines = { key = value, ... }" (a comma after each entry; the keys the code reads - another record is the file's
 // own name, its entries name.key), include("pack_base.eeai"),

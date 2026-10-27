@@ -19,7 +19,7 @@ DLL = os.path.join(ROOT, 'dll')
 # and test/ may use everything; nothing may use test/ or the wiring.
 MAY_USE = {
     'base':   [],                                          # the DLL's own helpers: no game, no part
-    'settings': ['base'],                                  # aimod.ini's keys as rows, read into g_set: knows no game
+    'settings': ['base'],                                  # ageofai.ini's keys as rows, read into g_set: knows no game
     'game/api': ['base'],                                  # the game's code and objects, one module (api.c)
     'game':   ['base', 'game/api'],                        # what the mod knows of the game beyond its code
     'engine': ['base', 'settings', 'game/api', 'game'],                # fixes and features of the game
@@ -27,7 +27,7 @@ MAY_USE = {
     'script': ['base'],                                    # the language: knows no game (script/host.h asks it)
     'game_script': ['base', 'settings', 'game/api', 'game', 'ai', 'script', 'voice'],   # the game in the language: constants, values, relations
     'voice':  ['base', 'settings', 'game/api', 'game', 'ai', 'script'],   # what the AI says: reads the AI, speaks the language
-    'tool':   ['base', 'settings', 'script', 'game/api/builds.h'],   # aimod_config.exe, a program of its own: no game, only which exe it is
+    'tool':   ['base', 'settings', 'script', 'game/api/builds.h'],   # ageofai_config.exe, a program of its own: no game, only which exe it is
     'test':   ['base', 'settings', 'game/api', 'game', 'engine', 'ai', 'script', 'game_script', 'voice', 'dll'],
     'dll':    ['base', 'settings', 'game/api', 'game', 'engine', 'ai', 'script', 'game_script', 'voice', 'test'],
 }
