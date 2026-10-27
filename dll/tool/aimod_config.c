@@ -638,8 +638,9 @@ internal void add_line(int kind, int id, int level) {
     if (g_nvis < (int)(sizeof g_vis / sizeof *g_vis)) { g_vis[g_nvis].kind = kind; g_vis[g_nvis].id = id; g_vis[g_nvis].level = level; g_nvis++; }
 }
 
-// the lines: a closed node's lines left out; with a search, every setting it finds and the nodes above them (open)
-internal void fill_list(LPARAM keep) {
+// the lines: a closed node's lines left out; with a search, every setting it finds and the nodes above them (open).
+// keep: the line selected again; stay: the list scrolled as it was (a node opened or closed), else from its start
+internal void fill_list(LPARAM keep, int stay) {
     char filter[64];
     static uint8_t found[1024];
     GetWindowTextA(g_filter, filter, sizeof filter);
@@ -665,6 +666,7 @@ internal void fill_list(LPARAM keep) {
             add_line(NODE_ENTRY, i, (gr >= 0) + 1 + shown);
         }
     }
+    int top = stay ? ListView_GetTopIndex(g_list) : 0;
     SendMessageA(g_list, WM_SETREDRAW, FALSE, 0);
     ListView_DeleteAllItems(g_list);
     for (int n = 0; n < g_nvis; n++) {
@@ -690,6 +692,11 @@ internal void fill_list(LPARAM keep) {
         fill_item(n, it.lParam);
     }
     SendMessageA(g_list, WM_SETREDRAW, TRUE, 0);
+    if (top > 0 && g_nvis) {   // the scroll is in pixels in a report view: a line's height each
+        RECT line;
+        ListView_GetItemRect(g_list, 0, &line, LVIR_BOUNDS);
+        ListView_Scroll(g_list, 0, top * (line.bottom - line.top));
+    }
     int item = item_of(keep);
     if (item < 0) item = 0;
     g_node = g_nvis ? (int)node_param(g_vis[item].kind, g_vis[item].id) : 0;
@@ -708,7 +715,7 @@ internal int *open_of(LPARAM p) {
 internal void toggle(LPARAM p) {
     if (!is_node(p)) return;
     *open_of(p) ^= 1;
-    fill_list(p);
+    fill_list(p, 1);
 }
 
 // the line above p that holds it (the left arrow key), -1 none
@@ -1012,7 +1019,7 @@ internal void show_mode(void) {
     ShowWindow(g_game_restore, game ? SW_SHOW : SW_HIDE);
     SetWindowTextA(g_game, game ? "Back to the settings" : "Game exe...");
     if (game) game_show();
-    else fill_list(g_node);
+    else fill_list(g_node, 1);
     repaint();
 }
 
@@ -1200,7 +1207,7 @@ internal LRESULT CALLBACK wnd_proc(HWND w, UINT msg, WPARAM wp, LPARAM lp) {
             if ((part == ED_CHECK && code == BN_CLICKED) || (part == ED_COMBO && code == CBN_SELCHANGE) || (part == ED_EDIT && code == EN_CHANGE))
                 editor_changed(k, part);
             else if (part == ED_BUTTON && code == BN_CLICKED) set_default(k);
-        } else if (id == ID_FILTER && code == EN_CHANGE) fill_list(g_node);
+        } else if (id == ID_FILTER && code == EN_CHANGE) fill_list(g_node, 0);
         else if (id == ID_GAME) { g_game_mode ^= 1; show_mode(); }
         else if (id == ID_HELP_OPEN) help_open();
         else if (id == ID_GAME_APPLY) game_apply();
@@ -1329,7 +1336,7 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmd, int show) {
     create_controls();
     show_unknown();
     layout();
-    fill_list(-1);
+    fill_list(-1, 0);
     ShowWindow(g_wnd, show);
     SetFocus(g_list);
     MSG m;
