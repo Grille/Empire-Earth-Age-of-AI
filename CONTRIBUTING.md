@@ -19,22 +19,27 @@ welcome on the same terms as any other: you answer for what you send - you have 
 - **The tooling**: the spec of the game, the reverse-engineering scripts, the tests, the `.eeai` language and its VS
   Code extension, `aimod_config.exe`.
 - **Personalities and texts** (`config/personalities/`): new characters, better lines.
-- **The Art of Conquest port** (in progress, see the spec's two builds).
+- **NeoEE**, the community's online version, as much as the GOG and Steam versions: its `Empire Earth.exe` is the
+  2017 update's code in another layout, and every change has to work on both (README "NeoEE").
+- **The Art of Conquest port** (in progress, see the spec's two builds; NeoEE's AoC goes with it).
 
 **Out of scope**
 
 - **Other exes**: old CD versions, no-CD exes. The mod supports the 1.04 exe of the 2017 update (GOG, Steam
-  Gold Edition, empireearth.eu's Vanilla setup, NeoEE's) and is being ported to Art of Conquest; a third build is a large job
-  and needs talking about first.
+  Gold Edition, empireearth.eu's Vanilla setup) and NeoEE's, and is being ported to Art of Conquest; another build
+  with code of its own is a large job and needs talking about first.
 - **An AI that cheats or sees what a human can't**: no free resources, no map knowledge it hasn't explored, no
   enemy units it doesn't see. An easier AI for the easy difficulty is fine; a stronger one through cheating is not.
 - **Changes to the game's files**: the mod patches the running exe and leaves the game's files alone.
 - **The game's files or anything taken from them in the repository**: no exe, DLL, `.dat`, decompiled code, extracted
   strings or tables. They live in `local/` (git-ignored) on your machine. Facts about the game - addresses, offsets,
   field layouts, numbers - go into `spec/` and `docs/`.
-- **Multiplayer features**, for now: multiplayer is untested and nothing yet makes sure all PCs run the same
-  settings. Changes to the simulation must keep multiplayer possible (see Determinism), but new multiplayer
-  features wait until the settings are synced.
+- **Online games before the settings sync**: multiplayer is being built (two-PC test games stay in sync,
+  `scripts/test/mp.sh`; the mod has a network message of its own), but nothing yet makes sure every PC runs the
+  same DLL and settings. Until it does, the mod is not for online games, NeoEE's servers included. Changes to the
+  simulation must keep multiplayer possible (see Determinism).
+- **NeoEE's ranked games**: its rank system and cheat detector expect the original game. Whether the mod may ever
+  play there is for NeoEE's people to decide - don't try it, and don't send code that hides the mod from them.
 - **Languages other than English**, until the release: the texts and the docs are English for now, a file per
   language comes then.
 
@@ -42,8 +47,9 @@ Not sure whether something fits? Open an issue and ask before you write the code
 
 ## Ways to help
 
-- **Play and report.** The most useful thing anyone can do. A good report says which exe the mod found (the first
-  lines of `aimod_econ.csv` in the game folder's `aimod`), your `aimod.ini` (or what you changed in it), the map and the
+- **Play and report.** The most useful thing anyone can do. A good report says which version you play (GOG,
+  Steam, NeoEE ...) and which exe the mod found (the `# build:` line near the top of `aimod_econ.csv` in the game
+  folder's `aimod`), the other mods in the folder (NeoEE ships dreXmod and dgVoodoo), your `aimod.ini` (or what you changed in it), the map and the
   difficulty, what the AI did and what you expected it to do, and - when you can - a saved game from shortly before.
   For a crash, also the log and the last thing you did.
 - **Write a personality.** Copy `config/personalities/_template.eeai`, which explains every key; the format is in
@@ -112,7 +118,12 @@ turns them into C in `dll/game/api/gen/`; the format is in `spec/attributes.cs`'
   `game/api/`.
 - **Never edit `dll/game/api/gen/` by hand**: change the spec and rebuild.
 - **A new value needs both builds** (the 2017 update and Art of Conquest). If you can only find one, say so in the
-  pull request; `scripts/re/port_addrs.py` helps find the other.
+  pull request; `scripts/re/port_addrs.py` helps find the other. NeoEE needs no column of its own: it plays the
+  2017 update's.
+- **NeoEE's exe has the same code in another layout**: its import table is elsewhere, its game code is in a section
+  called `.data`, and it has two `.text` sections. So an import-table slot is an `[import_slot("dll", "name")]`, found
+  by name at load (`spec_check.py` insists), and code that scans the exe goes by the image's ranges
+  (`base/patch.c`), never by a section's name.
 - **What you inferred but haven't confirmed is `[guess]`**, with the evidence in its `///` comment. The mod should
   not rely on a guess; `scripts/re/spec_guesses.py` lists them.
 - **At every start the spec is checked against the running exe.** After a spec change, read the start of the log:
@@ -155,9 +166,10 @@ run headless and with the shipped `config/aimod.ini`, never your own.
 | A move of code that should change nothing (files, functions between files) | `scripts/build/code_same.py HEAD` says "0 differ" |
 | `dll/game/api/` | the same machine code (`code_same.py`), or - where that can't be - the same game: the same `game_seed`, the logs compared |
 | A bug fix | a test or probe that showed the bug, before and after |
-| New or changed AI behaviour | an A/B over many seeds and maps (`scripts/test/suite.sh`, `h2h.sh`), the numbers in the pull request; one game says nothing |
+| New or changed AI behaviour | an A/B over many seeds and maps (`scripts/test/suite.sh`, `h2h.sh`), the numbers in the pull request; one game says nothing. Measured on the original game's data (NeoEE's changes a few rules, a population limit of 4000 among them) |
 | The text engine, or which line is chosen | `texts corpus` before and after in the same game - identical unless meant to differ |
 | The spec | the start log's spec line, in both builds if you can |
+| Code that reads or patches the exe itself (imports, sections, scans) | a test game on GOG and on NeoEE side by side (`EE_GAME_DIR=<NeoEE's game folder>`): the `# build:` and `# spec:` lines, the same hooks |
 | A setting | `settings_check.py` (the build) and `aimod_config.exe` shows it |
 
 Some generated files have to be made again when their sources change (the table "Generators" in
