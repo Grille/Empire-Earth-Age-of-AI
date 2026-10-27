@@ -11,11 +11,12 @@ control pipe, automated tests and the engine notes.
 
 The mod needs the 1.04 exe of the 2017 update: the **GOG** version, the **Steam Gold Edition**
 (`steamapps\common\Empire Earth Gold Edition\Empire Earth` - the same code, only a signature and a DPI manifest are
-added), the **Vanilla** setup from empireearth.eu or **NeoEE** (its 2026 installer: the same code in another layout).
-Old CD versions and no-CD exes have their code in other
+added), the **Vanilla** setup from empireearth.eu or **NeoEE** (the community's online version: the same code,
+its imports elsewhere - see [NeoEE](#neoee) below). Old CD versions and no-CD exes have their code in other
 places: the mod recognizes the exe when the game starts and stays switched off with another one, with a message
 (docs/engine-notes.md, Exe builds). Art of Conquest (`EE-AOC.exe`) isn't supported yet. The mod coexists with community DLL
-patches such as *Empire Earth Tweaks* or *dreXmod*, which patch different places.
+patches such as *Empire Earth Tweaks* or *dreXmod* (3.4 too: none of its 116 patches touches a place the mod
+patches), which patch different places.
 
 **Documentation**
 
@@ -236,6 +237,21 @@ set `enabled=0` at the top of `aimod.ini` (the mod then installs nothing), or de
 uninstall. A setting missing from an older `aimod.ini` takes its built-in default. The DLL writes a log to
 `aimod\aimod_econ.csv`.
 
+### NeoEE
+
+The same steps, in NeoEE's game folder (`%LOCALAPPDATA%\Programs\Neo Empire Earth\Empire Earth` for its current
+installer). The mod knows NeoEE's `Empire Earth.exe`: the start's log says `# build: NeoEE (ee's code)`. What
+differs from the GOG version:
+
+- NeoEE's exe has no 4 GB flag; `aimod_config.exe` sets it as on the GOG exe (checked: the game starts and plays).
+- NeoEE ships dreXmod 3.4, dgVoodoo as `ddraw.dll` and an English `Language.dll`. dreXmod's FixTnLVertexBuffer does
+  what `[display] vertex_sysmem` does (the mod finds it done and leaves it). dreXmod's camera and menu resolution
+  and the mod's `[camera]` and `[display]` settings haven't been tried together by hand yet.
+- NeoEE's data changes a few rules (its `Data\db` files: a population limit of 4000, more starting-resource levels
+  and game variants). The AI adapts to the data, but it was measured on the original rules.
+- NeoEE's Art of Conquest (`EE-AOC.exe`) is recognized too and, like Art of Conquest itself, not supported yet.
+- Not on NeoEE's online servers: see Multiplayer below.
+
 ## Display and interface
 
 Settings in `aimod.ini`:
@@ -273,6 +289,9 @@ Settings in `aimod.ini`:
 - Multiplayer (not tested yet): every player needs the same `eeaimod.dll`, the same `aimod.ini` and the same
   `aimod_ai` personalities. The game is lockstep - every PC simulates everything - so different settings make
   the games drift apart. The mod's decisions use only the game's own state, math and random numbers for this.
+  Nothing checks yet that every PC has the same; until the mod does (the host's settings for every PC), don't use
+  it in online games - and not in NeoEE's ranked games at all: its rank system and cheat detector expect the
+  original game, and how they treat the mod is a question for NeoEE's people, not something to try.
 - `[general] skip_intro=1`: skip the intro movies.
 - `[display] draw_limit=4096` (default): the game drew at most 512 units, buildings and missiles per frame - arrows
   in flight or stuck in the ground included (a 360-archer fight reached 445) - so in big fights, and the more so at
@@ -437,6 +456,8 @@ Settings in `aimod.ini`:
 - **Tested in automated AI games and test scenarios, needs playtesting against a human:** build queue,
   mines, gathering upgrades, defences, home guard and army size, attack routing, siege, diplomacy and
   personalities. The numbers are in [docs/ai-analysis.md](docs/ai-analysis.md#test-results-so-far).
+- **NeoEE:** recognized and tested in automated games (the same checks and hooks as on the GOG exe, 15-minute
+  games side by side); not played by hand yet.
 - **Experimental, off by default:** personality play styles (`ai_style`).
 - **Planned:** an Art of Conquest port (the AI classes are the same, the addresses differ).
 
