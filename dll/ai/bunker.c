@@ -378,6 +378,12 @@ internal void bk_reserve_tick(ee_player *pl, unsigned pi, uint32_t now) {
 // fortresses one more is built (up to 8). Out again, a fortress a time: once one of those four falls under half of
 // shelve_stock, or the citizens out are under 3/4 of what is kept out (losses). The shelter and the reserve keep off
 // the shelf's fortresses; enemies near one keep them in.
+// Two faults the player's game "standing army" showed (2026-10-27, P6 at minute 650: 935 citizens sent in, 16 finished
+// fields without a farmer): the citizens out were counted from the resource lists, which keep the shelved ones too
+// (idle, at -10000) - the count never fell, so shelving went on while any fortress had room; and with food just over
+// shelve_stock its farmers went in first among the nearest (54 farmers to 32 in two minutes), the fields stood empty,
+// food fell under half and the fortress let them out again. Only citizens on the map count now, and no gatherer of a
+// resource under twice shelve_stock goes in.
 internal int g_shelve = 1, g_v_shelve = -1, g_shelve_stock = 5000;
 #define SHELVE(idx) PV(idx, g_v_shelve, g_shelve)
 internal int shelf_rich(const int *st, int k) { return st[2] >= k && st[3] >= k && st[5] >= k && st[6] >= k; }
@@ -399,7 +405,13 @@ internal int shelf_citizens_out(ee_player *pl) {
     ee_civ_mgr *cm = player_get_civ_mgr(pl);
     ee_resource_mgr *rm = cm ? civ_mgr_get_resource_mgr(cm) : NULL;
     int n = 0;
-    for (int r = 0; rm && r < 7; r++) n += deque_count(resource_mgr_list_at(rm, r));
+    for (int r = 0; rm && r < 7; r++) {
+        uint8_t *list = resource_mgr_list_at(rm, r);
+        for (unsigned k = 0, first = deque_front(list), cnt = deque_count(list); k < cnt; k++) {
+            ee_unit *u = deque_at(list, first + k);
+            n += u && unit_get_hp(u) > 0 && unit_get_x(u) != -10000;   // not in a fortress
+        }
+    }
     return n;
 }
 internal void shelf_tick(ee_player *pl, unsigned pi, uint32_t now) {
@@ -453,7 +465,7 @@ internal void shelf_tick(ee_player *pl, unsigned pi, uint32_t now) {
             ee_unit *bu = NULL;
             int bd = 60 * 60;
             for (int r = 2; r < 7; r++) {
-                if ((pass == 0) != (r == rich)) continue;
+                if ((pass == 0) != (r == rich) || st[r] < 2 * g_shelve_stock) continue;   // never the scarce resource's
                 uint8_t *list = resource_mgr_list_at(rm, r);
                 for (unsigned k = 0, first = deque_front(list), cnt = deque_count(list); k < cnt; k++) {
                     ee_unit *u = deque_at(list, first + k);
