@@ -163,7 +163,7 @@
     D(FLAG,  build_fix,                    1, 0, 0) \
     D(FLAG,  build_fields,                 1, 0, 0) \
     D(FLAG,  paid_upgrades,                1, 0, 0) \
-    D(FLAG,  upgrade_reserve,              0, 0, 0) \
+    D(FLAG,  upgrade_reserve,              1, 0, 0) \
     D(FLAG,  more_granaries,               1, 0, 0) \
     D(FLAG,  fishing_boat,                 1, 0, 0) \
     D(FLAG,  navy,                         1, 0, 0) \

@@ -297,8 +297,8 @@ internal void epoch_upgrades(ee_tech *node, int cat, int only_new) {
 // every schedule adds the price to the resource manager's demand, which nothing takes back on a refusal - a broke AI
 // (that game's P3: 12 upgrades, 1788 schedules in 75 minutes) would have its workers pulled to gold and iron. The
 // log names each upgrade once a game.
-// UPGRADE RESERVE ([ai_base] upgrade_reserve, default off until measured; [autotest] v_upgrade_reserve for the
-// variant players): in that save P6's gold stood at 8-64 for 20 minutes - its army spends every coin as it comes in,
+// UPGRADE RESERVE ([ai_base] upgrade_reserve, default on - the player 2026-10-27: unit upgrades are worth far more
+// than a few more units, not measured; [autotest] v_upgrade_reserve for the variant players): in that save P6's gold stood at 8-64 for 20 minutes - its army spends every coin as it comes in,
 // and nearly every line upgrade costs gold or iron, so the retry found it spent each time. The price of up to 4
 // pending line upgrades (oldest first) of lines it fields (ap_upg_line) is held back from the soldiers (train_budget,
 // am_reserve) - not the ones a building has queued: those are paid.
@@ -307,7 +307,7 @@ internal int ap_upg_line(ee_player *pl, unsigned idx, ee_tech_data *d, int *used
 internal int ap_rs_has(ee_research_mgr *rs, int id);
 internal unsigned g_upg_retry[16], g_upg_stuck[16];
 internal uint8_t g_upg_told[16][15000 / 8 + 1];
-internal int g_upg_reserve = 0, g_v_upg_reserve = -1;
+internal int g_upg_reserve = 1, g_v_upg_reserve = -1;
 internal int g_upg_hold[16][7];   // the reserve, set every 30 s
 internal void upgrade_reserve(ee_player *pl, int reserve[7]) {
     unsigned idx = (unsigned)player_get_index(pl) & 15;
