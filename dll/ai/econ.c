@@ -284,6 +284,87 @@ internal void epoch_upgrades(ee_tech *node, int cat, int only_new) {
     if (g_log && n) fprintf(g_log, "# upgrades: P%d at %.1f min: %d epoch upgrades scheduled for research (not free):%s\n",
                             pi, game_time() / 60000.0, n, ids);
 }
+// LOST UPGRADES (paid_upgrades): the research manager works off its epoch lists one tech per tick (0x486A74 ->
+// 0x4865D3) and erases an entry as soon as it has handed it to a building (0x5E8908) - whether the building took it
+// or not; nothing asks again. The player's save "standing army" (2026-10-27): P6's line upgrades of its last three
+// epochs, 18 of 36, were gone from the lists unresearched 40 minutes on, 14 barracks idle - its type 388, 152, 30, 153
+// and 91 soldiers never upgraded. Two kinds: queueable (tech +0x1D) back at 1 - a building's queue was emptied
+// (0x5E94C1, from EEComplexUnit::vf24: the building left the map; refunded) -, and queueable 0 with no building
+// holding it - lost on a way not found yet; the flag stays 0, so 0x5E8908 would refuse it for good. Every 30 s each
+// available, unresearched line upgrade in no list and no building's queue is scheduled again (the stuck flag set back
+// to 1 first, as 0x5E94C1 does); army_plan UPGRADE's waiting ones (a line not in use) wait on, and so do the next
+// epochs' (available before their epoch), and so does one its stock doesn't pay: the building would refuse it, and
+// every schedule adds the price to the resource manager's demand, which nothing takes back on a refusal - a broke AI
+// (that game's P3: 12 upgrades, 1788 schedules in 75 minutes) would have its workers pulled to gold and iron. The
+// log names each upgrade once a game.
+// UPGRADE RESERVE ([ai_base] upgrade_reserve, default off until measured; [autotest] v_upgrade_reserve for the
+// variant players): in that save P6's gold stood at 8-64 for 20 minutes - its army spends every coin as it comes in,
+// and nearly every line upgrade costs gold or iron, so the retry found it spent each time. The price of up to 4
+// pending line upgrades (oldest first) of lines it fields (ap_upg_line) is held back from the soldiers (train_budget,
+// am_reserve) - not the ones a building has queued: those are paid.
+internal int ap_upgrade_waits(ee_player *pl, ee_tech_data *d);   // army.c
+internal int ap_upg_line(ee_player *pl, unsigned idx, ee_tech_data *d, int *used);
+internal int ap_rs_has(ee_research_mgr *rs, int id);
+internal unsigned g_upg_retry[16], g_upg_stuck[16];
+internal uint8_t g_upg_told[16][15000 / 8 + 1];
+internal int g_upg_reserve = 0, g_v_upg_reserve = -1;
+internal int g_upg_hold[16][7];   // the reserve, set every 30 s
+internal void upgrade_reserve(ee_player *pl, int reserve[7]) {
+    unsigned idx = (unsigned)player_get_index(pl) & 15;
+    if (!PV(idx, g_v_upg_reserve, g_upg_reserve) || !g_paid_upgrades) return;
+    for (int r = 2; r < 7; r++) reserve[r] += g_upg_hold[idx][r];
+}
+internal void upgrades_retry(ee_player *pl, unsigned idx, uint32_t now) {
+    static uint32_t last[16];
+    static uint8_t held[15000 / 8 + 1];
+    if (now < last[idx]) { last[idx] = 0; g_upg_retry[idx] = g_upg_stuck[idx] = 0; memset(g_upg_told[idx], 0, sizeof g_upg_told[idx]); }   // a new game
+    if (!g_paid_upgrades || is_vanilla(pl) || (last[idx] && now - last[idx] < 30000)) return;
+    last[idx] = now ? now : 1;
+    void *cm = player_get_civ_mgr(pl);
+    ee_research_mgr *rs = cm ? civ_mgr_get_research_mgr(cm) : NULL;
+    ee_tech_tree *tt = player_get_tech_tree(pl);
+    if (!rs || !tt) return;
+    memset(held, 0, sizeof held);
+    for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {   // what pl's buildings make now and have queued
+        ee_unit *b = it.u;
+        if (unit_get_owner(b) != pl || unit_get_hp(b) <= 0) continue;
+        int *qb = unit_get_queue_begin(b), *qe = unit_get_queue_end(b), nq = qb && qe > qb && qe - qb < 4096 ? (int)(qe - qb) : 0;
+        for (int j = -1; j < nq; j++) {
+            int id = j < 0 ? unit_get_producing(b) : qb[j];
+            if (id >= 0 && id < 15000) held[id >> 3] |= (uint8_t)(1 << (id & 7));
+        }
+    }
+    char ids[256] = "";
+    int n = 0, nh = 0, ep = tech_tree_get_epoch(tt), *stock = player_stock_at(pl);
+    memset(g_upg_hold[idx], 0, sizeof g_upg_hold[idx]);
+    for (int id = 1000; id < 15000; id++) {
+        ee_tech *t = tech_tree_lookup(tt, id);
+        ee_tech_data *d = t ? tech_get_data(t) : NULL;
+        if (!d || tech_data_get_category(d) != 7 || tech_get_researched(t) || !tech_get_available(t) || tech_get_epoch(t) > ep) continue;
+        if (build_is("aoc") && !tech_data_get_aoc_new(d)) continue;   // AoC's computer player is granted only these
+        if (held[id >> 3] >> (id & 7) & 1 || ap_upgrade_waits(pl, d)) continue;
+        int used;
+        if (nh < 4 && ap_upg_line(pl, idx, d, &used) && used) {
+            for (int r = 2; r < 7; r++) g_upg_hold[idx][r] += tech_data_get_cost(d, r);
+            nh++;
+        }
+        if (ap_rs_has(rs, id)) continue;
+        int pay = 1;   // else the building refuses it again, and each schedule adds its price to the demand (0x48B9E9)
+        for (int r = 2; r < 7; r++) if (stock[r] < tech_data_get_cost(d, r)) pay = 0;
+        if (!pay) continue;
+        int stuck = !tech_get_queueable(t);
+        if (stuck) { tech_set_queueable(t, 1); g_upg_stuck[idx]++; }
+        research_mgr_schedule(rs, id);
+        g_upg_retry[idx]++;
+        if (g_upg_told[idx][id >> 3] >> (id & 7) & 1) continue;
+        g_upg_told[idx][id >> 3] |= (uint8_t)(1 << (id & 7));
+        size_t l = strlen(ids);
+        if (l < sizeof ids - 10) snprintf(ids + l, sizeof ids - l, " %d%s", id, stuck ? "s" : "");
+        n++;
+    }
+    if (g_log && n) fprintf(g_log, "# upgrades: P%u at %.1f min: %d line upgrades lost on the way, scheduled again (s: was"
+                            " marked queued):%s - %u times in all, %u marked\n", idx, now / 60000.0, n, ids, g_upg_retry[idx], g_upg_stuck[idx]);
+}
 
 // Attention (diagnostic): 0x42F912 switches on only player+0xE20 + 1 of these activities per period (strategy
 // +0xA28 orders them): 0 cm+0x7A, 1 rm+0x188, 2 rs+0x11A (random research), 3 um+0x140, 4 cm+0x7B, 5 cm+0x7C,
@@ -708,6 +789,7 @@ internal void econ_tick(ee_player *pl, uint32_t now) {
     prod_sync(pl, ai, now);
     catch_up_ais(pl, ai, now);
     gather_research(pl, ai, now);
+    upgrades_retry(pl, ai, now);
     attention_note(pl, ai, now);
     defence_tick(pl, ai, now);
     counter_siege(pl, ai, now);
@@ -1744,6 +1826,7 @@ internal void train_budget(ee_player *pl, unsigned idx, const struct ai_cfg *cfg
     landing_reserve(pl, reserve);   // transports a landing waits for
     expand_reserve(pl, reserve);    // an outpost's drop site and tower (expand.c)
     bunker_reserve(pl, reserve);    // a fortress's wood (bunker.c)
+    if (military) upgrade_reserve(pl, reserve);   // pending line upgrades (upgrade_reserve)
     if (!ship && !req_unit && !g_priority_mil && !g_landing_order) navy_hold(pl, idx, reserve);   // the navy account: only warships spend it (navy.c)
     if (!g_bud[idx].init) {
         memset(&g_bud[idx], 0, sizeof g_bud[idx]);
@@ -2046,6 +2129,8 @@ internal void econ_install(const char *autotest_ini) {
     if (autotest_ini) g_v_catch_ais = ini_int("autotest", "v_catch_up_ais", -1, autotest_ini);
     g_build_fields = g_set_ai[1].build_fields;
     g_paid_upgrades = g_set_ai[1].paid_upgrades;
+    g_upg_reserve = g_set_ai[1].upgrade_reserve;
+    if (autotest_ini) g_v_upg_reserve = ini_int("autotest", "v_upgrade_reserve", -1, autotest_ini);
     if (autotest_ini) g_tech_log = ini_int("autotest", "tech_log", 0, autotest_ini);
     if (g_tech_log && build_is("aoc")) {   // AoC's vf6 takes an argument: the hook is the 2017 update's only yet
         if (g_log) fprintf(g_log, "# tech_log: free research not logged in this build\n");

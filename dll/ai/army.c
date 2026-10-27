@@ -89,6 +89,7 @@ internal void am_reserve(ee_player *pl, unsigned idx, int reserve[7]) {
     reserve[3] += field_wood(idx);
     landing_reserve(pl, reserve);
     bunker_reserve(pl, reserve);
+    upgrade_reserve(pl, reserve);
     navy_hold(pl, idx, reserve);
 }
 // ---- army_plan ([ai_base], bits; [autotest] v_army_plan for the variant players; docs/economy.md "Economy into army") ----
@@ -359,6 +360,11 @@ internal int ap_upgrade_later(ee_player *pl, ee_tech_data *d) {
     if (!(ARMY_PLAN(idx) & 16) || !ap_upg_line(pl, idx, d, &used)) return 0;
     if (used && g_apu[idx].n < 48) g_apu[idx].id[g_apu[idx].n++] = tech_data_get_id(d);   // scheduled now (econ.c)
     return !used;
+}
+internal int ap_upgrade_waits(ee_player *pl, ee_tech_data *d) {   // econ.c upgrades_retry: UPGRADE holds it back
+    unsigned idx = (unsigned)player_get_index(pl) & 15;
+    int used;
+    return (ARMY_PLAN(idx) & 16) && ap_upg_line(pl, idx, d, &used) && !used;
 }
 internal int ap_rs_has(ee_research_mgr *rs, int id) {   // in one of the research manager's epoch lists (rs +0x18 + e*0x10)
     for (int e = 0; e < 14; e++) {
