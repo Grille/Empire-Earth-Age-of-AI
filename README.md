@@ -1,4 +1,10 @@
-# Empire Earth tuning mod
+# Empire Earth: Age of AI
+
+*An unofficial fan mod. Not affiliated with or endorsed by the rights holders of Empire Earth.*
+
+The name says it twice: the computer players are the heart of the mod, and the mod itself exists because of AI.
+The game's code was reverse-engineered and the mod written largely with AI coding tools, and the project says so
+openly. Short: **EE: Age of AI**; the files keep their technical names (`eeaimod.dll`, the `.eeai` texts).
 
 A runtime mod for **Empire Earth 1.04 with the Difficulty Setting & Multiplayer Lobby add-on** (the
 last official base-game exe; Art of Conquest is being ported). It fixes and tunes the game from inside: a DLL in the
@@ -615,6 +621,8 @@ This mod is free software under the [GNU General Public License v3.0](LICENSE): 
 it, and anything you distribute that is built from it must be published under the same license, with its
 source code.
 
+Empire Earth: Age of AI is an unofficial fan project, not affiliated with or endorsed by the rights holders of
+Empire Earth; the name Empire Earth is theirs and is used only to say which game the mod is for.
 Empire Earth and its files belong to their rights holders and are not part of this repository; files derived
 from them (decompilation, extracted strings and tables) are kept out of git (see `.gitignore`). Addresses,
 offsets and similar facts about the game, including those cross-checked with the community's GPL-3.0 projects

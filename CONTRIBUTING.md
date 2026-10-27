@@ -3,6 +3,10 @@
 Thank you for wanting to help. This file says what the project is for, what it takes, and how a change has to look
 to be merged. Read it once before you start; the details it points to are in the other docs.
 
+The mod's public name is **Empire Earth: Age of AI** (short: EE: Age of AI). Use it in what players read - the
+README, release notes, the mod's messages - and keep the technical names (`eeaimod.dll`, `.eeai`, `aimod.ini`) in
+the code and the files.
+
 The mod is made largely with AI coding tools, and the project says so openly. Contributions made with AI help are
 welcome on the same terms as any other: you answer for what you send - you have read it, built it and tested it.
 

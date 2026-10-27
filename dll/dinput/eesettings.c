@@ -130,7 +130,7 @@ static int file_save(void) {   // 1: written (or nothing to write)
     wsprintfA(tmp, "%s.new", g_file);
     FILE *f = fopen(tmp, "wb");
     if (!f) return 0;
-    fputs("; Empire Earth's settings - kept here by dinput.dll of the AI mod (eeaimod) instead of the registry.\r\n"
+    fputs("; Empire Earth's settings - kept here by dinput.dll of Empire Earth: Age of AI (eeaimod) instead of the registry.\r\n"
           "; The game writes this file when it closes. Without that dinput.dll the game uses the registry again.\r\n"
           "; A plain number is a number, \"text\" in quotes a text.\r\n", f);
     for (int i = 0; i < NKEYS; i++) {
