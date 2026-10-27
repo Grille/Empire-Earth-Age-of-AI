@@ -75,7 +75,7 @@ internal int g_nunk, g_remove_unknown;
 
 internal HWND g_wnd, g_filter, g_list, g_help, g_name, g_file_label, g_save, g_close, g_unk_label, g_remove, g_game,
               g_game_text, g_game_apply, g_game_restore;
-internal HFONT g_font, g_bold, g_mono;   // g_mono: the help, aligned in the ini for a fixed-width font
+internal HFONT g_font, g_bold, g_mono;   // g_mono: the game page's report, aligned for a fixed-width font
 internal int g_sel = -1, g_filling;   // g_sel: the selected setting's entry; g_filling: the controls set by the program
 internal float g_dpi = 1;
 internal HWND g_help_open, g_help_wnd;   // the Help button, the help's window while it is open
@@ -330,17 +330,28 @@ internal void help_of(const char *sec, const char *key, int slots, char *out, in
         const char *l = lines[top - 1];
         if (l[0] != ';' || l[1] == '-' || l[1] == '=' || key_line(l)) break;   // a banner, a key, not a comment
     }
+    // the lines joined into paragraphs that wrap to the panel's width (the file wraps them for its own); a line of its
+    // own for a row of a choice's table ("   classic     = the original game ..." - its deeper lines joined to it)
+    // and for the first line after a table
     size_t o = 0;
-    for (int i = top; i < first && o + 4 < (size_t)cap; i++) {
+    int in_table = 0;
+    for (int i = top; i < first && o < (size_t)cap - 1; i++) {
         const char *l = lines[i] + 1;
-        if (*l == ' ') l++;
-        size_t len = strcspn(l, "\r\n");
-        if (len > (size_t)cap - o - 3) len = (size_t)cap - o - 3;
-        memcpy(out + o, l, len);
-        o += len;
-        out[o++] = '\r';
-        out[o++] = '\n';
+        int indent = 0;
+        while (l[indent] == ' ') indent++;
+        const char *t = l + indent;
+        int len = (int)strcspn(t, "\r\n"), name = 0;
+        if (!len) continue;
+        while (name < len && t[name] != ' ') name++;
+        int eq = name;
+        while (eq < len && t[eq] == ' ') eq++;
+        int row = indent >= 2 && eq < len && t[eq] == '=';
+        if (o) o += snprintf(out + o, cap - o, row || (in_table && indent < 2) ? "\r\n" : " ");
+        if (row) o += snprintf(out + o, cap - o, "- %.*s %.*s", name, t, len - eq, t + eq);
+        else o += snprintf(out + o, cap - o, "%.*s", len, t);
+        in_table = indent >= 2;
     }
+    if (o >= (size_t)cap) o = cap - 1;   // cut short (snprintf counts what didn't fit)
     out[o] = 0;
     if (!out[0]) lstrcpynA(out, "(no description in config/aimod.ini)", cap);
 }
@@ -903,26 +914,30 @@ internal void repaint(void) { RedrawWindow(g_wnd, NULL, NULL, RDW_INVALIDATE | R
 internal void layout(void) {
     RECT rc;
     GetClientRect(g_wnd, &rc);
-    int w = rc.right, h = rc.bottom, m = dpi_px(8), x = m, rw = w - 2 * m, line = dpi_px(30);
-    int unk = g_nunk ? dpi_px(40) : 0, bottom = dpi_px(32) + unk, help_h = dpi_px(110);
-    int editor = dpi_px(22) + help_h + dpi_px(6) + (g_ned ? g_ned : 1) * line;
-    MoveWindow(g_filter, x, m, dpi_px(300), dpi_px(24), FALSE);
-    int list_h = h - m - dpi_px(32) - editor - bottom - m;
-    MoveWindow(g_list, x, m + dpi_px(32), rw, list_h, FALSE);
-    int y = m + dpi_px(32) + list_h + m;
-    MoveWindow(g_name, x, y, rw, dpi_px(20), FALSE);
-    MoveWindow(g_help, x, y + dpi_px(22), rw, help_h, FALSE);
-    for (int k = 0; k < EDITORS; k++) {   // a line each: its label, its control, the button, what it comes to
+    int w = rc.right, h = rc.bottom, m = dpi_px(8), x = m, rw = w - 2 * m;
+    int unk = g_nunk ? dpi_px(40) : 0, bottom = dpi_px(32) + unk;
+    // the list on the left under the search, the selected line's panel on the right - its name, its editors, and its
+    // help in the height left over
+    int pw = rw * 40 / 100 > dpi_px(420) ? rw * 40 / 100 : dpi_px(420), lw = rw - pw - m, px = x + lw + m;
+    int list_h = h - m - dpi_px(32) - bottom - m, list_end = m + dpi_px(32) + list_h;
+    MoveWindow(g_filter, x, m, lw < dpi_px(300) ? lw : dpi_px(300), dpi_px(24), FALSE);
+    MoveWindow(g_list, x, m + dpi_px(32), lw, list_h, FALSE);
+    MoveWindow(g_name, px, m, pw, dpi_px(36), FALSE);   // two lines: the name line of a game value is long
+    int per = dpi_px(66), y = m + dpi_px(42);   // an editor: its line, then what it comes to (up to two lines) under it
+    for (int k = 0; k < EDITORS; k++) {   // its label, its control, the button; under them its status
         struct editor *ed = &g_ed[k];
-        int ey = y + dpi_px(22) + help_h + dpi_px(6) + k * line, ex = x + dpi_px(70);
-        MoveWindow(ed->label, x, ey + dpi_px(4), dpi_px(66), dpi_px(20), FALSE);
+        int ey = y + k * per, ex = px + dpi_px(56), cw = pw - dpi_px(56) - dpi_px(100);
+        if (cw > dpi_px(260)) cw = dpi_px(260);
+        MoveWindow(ed->label, px, ey + dpi_px(4), dpi_px(52), dpi_px(20), FALSE);
         MoveWindow(ed->check, ex, ey, dpi_px(60), dpi_px(24), FALSE);
-        MoveWindow(ed->combo, ex, ey, dpi_px(260), dpi_px(300), FALSE);
-        MoveWindow(ed->edit, ex, ey, dpi_px(260), dpi_px(24), FALSE);
-        int bx = ex + (IsWindowVisible(ed->check) ? dpi_px(60) : dpi_px(260)) + dpi_px(10);
+        MoveWindow(ed->combo, ex, ey, cw, dpi_px(300), FALSE);
+        MoveWindow(ed->edit, ex, ey, cw, dpi_px(24), FALSE);
+        int bx = ex + (IsWindowVisible(ed->check) ? dpi_px(60) : cw) + dpi_px(10);
         MoveWindow(ed->button, bx, ey - dpi_px(1), dpi_px(90), dpi_px(26), FALSE);
-        MoveWindow(ed->status, bx + dpi_px(100), ey + dpi_px(4), w - m - bx - dpi_px(100), dpi_px(20), FALSE);
+        MoveWindow(ed->status, ex, ey + dpi_px(29), pw - dpi_px(56), dpi_px(34), FALSE);
     }
+    int hy = y + g_ned * per + (g_ned ? dpi_px(4) : 0);
+    MoveWindow(g_help, px, hy, pw, list_end - hy, FALSE);
     int by = h - dpi_px(32) - m / 2;
     if (unk) {
         MoveWindow(g_unk_label, m, by - unk, w - 3 * m - dpi_px(110), unk - dpi_px(4), FALSE);
@@ -938,8 +953,8 @@ internal void layout(void) {
     MoveWindow(g_game_text, x, m, rw, gh, FALSE);
     MoveWindow(g_game_apply, x, m + gh + dpi_px(8), dpi_px(140), dpi_px(28), FALSE);
     MoveWindow(g_game_restore, x + dpi_px(150), m + gh + dpi_px(8), dpi_px(200), dpi_px(28), FALSE);
-    int cw = rw - dpi_px(24) - dpi_px(280);   // the setting's column, then the values' share the rest
-    ListView_SetColumnWidth(g_list, 0, dpi_px(280));
+    int sw = lw * 40 / 100 < dpi_px(280) ? lw * 40 / 100 : dpi_px(280), cw = lw - dpi_px(24) - sw;   // the setting's
+    ListView_SetColumnWidth(g_list, 0, sw);   // column, then the values' share the rest
     ListView_SetColumnWidth(g_list, 1, cw * 65 / 100);
     ListView_SetColumnWidth(g_list, COLS - 1, cw * 35 / 100);
     repaint();
@@ -970,7 +985,7 @@ internal void create_controls(void) {
     g_name = make_child(WC_STATICA, "", SS_LEFT | SS_NOPREFIX, ID_NAME);
     SendMessageA(g_name, WM_SETFONT, (WPARAM)g_bold, TRUE);
     g_help = make_child(WC_EDITA, "", ES_MULTILINE | ES_READONLY | WS_VSCROLL | ES_AUTOVSCROLL, ID_HELP);
-    SendMessageA(g_help, WM_SETFONT, (WPARAM)g_mono, TRUE);
+    SendMessageA(g_help, WM_SETFONT, (WPARAM)g_font, TRUE);
     for (int k = 0; k < EDITORS; k++) {
         struct editor *ed = &g_ed[k];
         int id = ID_ED + k * ED_PARTS;
@@ -979,7 +994,7 @@ internal void create_controls(void) {
         ed->combo = make_child(WC_COMBOBOXA, "", CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP, id + ED_COMBO);
         ed->edit = make_child(WC_EDITA, "", ES_AUTOHSCROLL | WS_TABSTOP, id + ED_EDIT);
         ed->button = make_child(WC_BUTTONA, "Default", BS_PUSHBUTTON | WS_TABSTOP, id + ED_BUTTON);
-        ed->status = make_child(WC_STATICA, "", SS_LEFT | SS_NOPREFIX | SS_ENDELLIPSIS, 0);
+        ed->status = make_child(WC_STATICA, "", SS_LEFT | SS_NOPREFIX, 0);   // wraps: two lines under the editor
         hide_editor(k);
     }
     g_game = make_child(WC_BUTTONA, "Game exe...", BS_PUSHBUTTON | WS_TABSTOP, ID_GAME);
@@ -1069,15 +1084,15 @@ internal const struct { int look; const char *sample, *text; } k_help[] = {
     { HL_HEAD, NULL, "The looks of a value" },
     { HL_BOLD, "changed", "Not the default: your file sets a value of its own, or easy or hard plays another." },
     { HL_GREY, "not in your file", "Your file doesn't have the key: the game plays the default." },
-    { HL_GAME, "attack_on_contact", "The key only sets one of the game's own values. The Default column and the line "
-                                    "over the help name the game's own (game: 71%); pale while not in your file." },
+    { HL_GAME, "attack_on_contact", "The key only sets one of the game's own values. The Default column and the name "
+                                    "over the editor name the game's own (game: 71%); pale while not in your file." },
     { HL_WARN, "outside its range", "Outside its usual range: the game uses it anyway. Allowed, but likely not what "
                                     "you meant - the line under the editor says what it comes to." },
     { HL_MISTAKE, "a mistake", "A value that can't be used (no number, a name the list doesn't have ...): the game "
                                "plays the default instead, and its log says so." },
     { HL_HEAD, NULL, "Changing a setting" },
-    { HL_TEXT, NULL, "Select a setting: its help, the comment over its key in the mod's aimod.ini, and under it an editor "
-                     "- on / off, a list or a text field. An AI setting has a line each for All, Easy and Hard: an "
+    { HL_TEXT, NULL, "Select a setting: on the right its editor - on / off, a list or a text field - and under it its "
+                     "help, the comment over its key in the mod's aimod.ini. An AI setting has a line each for All, Easy and Hard: an "
                      "empty Easy or Hard plays the All value (the medium AI always does)." },
     { HL_TEXT, NULL, "A text field takes arithmetic, as the file does: 35%, 2 * 60, min(10, 4 * 3). It is checked as "
                      "you type." },
