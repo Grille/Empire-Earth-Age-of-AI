@@ -698,7 +698,9 @@ static unsafe class unit_functions
     [address((ee)0x0062CBB3, (aoc)0x00641A6A), cdecl]
     static extern char8 ballistic_game(EEUnit* p1, ee_unit_stats* p2, float32* p3, float32* p4, float32* p5);
 
-    /// cdecl(unit, player index, new type data)
+    /// cdecl(unit, player index, new type data): the unit made anew as that type (0x62F2E5) with its share of hit
+    /// points, the old one deleted - a line upgrade's (0x5BA59D), a wall piece's turn into a gate; no owner's change
+    /// (unit_give)
     [address((ee)0x0062F192, (aoc)0x00644E95), cdecl]
     static extern int32 unit_convert(EEUnit* u, int32 pi, EEUnitClass* new_td);
 

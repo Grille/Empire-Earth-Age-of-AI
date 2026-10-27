@@ -662,7 +662,9 @@ internal inline int patch_target_ok(target_ok_fn h, int *of) { return patch_call
 typedef char (__cdecl *ballistic_game_fn)(ee_unit *, ee_unit_stats *, float *, float *, float *);
 internal ballistic_game_fn fn_ballistic_game;
 internal inline char ballistic_game(ee_unit *p1, ee_unit_stats *p2, float *p3, float *p4, float *p5) { return fn_ballistic_game(p1, p2, p3, p4, p5); }
-// cdecl(unit, player index, new type data)
+// cdecl(unit, player index, new type data): the unit made anew as that type (0x62F2E5) with its share of hit
+// points, the old one deleted - a line upgrade's (0x5BA59D), a wall piece's turn into a gate; no owner's change
+// (unit_give)
 typedef int (__cdecl *unit_convert_fn)(ee_unit *, int, ee_unit_type *);
 internal unit_convert_fn fn_unit_convert;
 internal inline int unit_convert(ee_unit *u, int pi, ee_unit_type *new_td) { return fn_unit_convert(u, pi, new_td); }

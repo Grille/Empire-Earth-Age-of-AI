@@ -1,11 +1,21 @@
 // A player resigns in the middle of a game with its army and town standing (resign_spoils, ai/spoils.c): at minute 25
 // P3 loses (the game's own resign, as the scenario's Defeat). Its land fighters should roam in bands, fighting units
 // and leaving buildings alone ("# spoils: roaming"), and 30 s later its buildings go to those who did 20% or more of
-// the damage it took in its last 10 minutes ("# spoils: P3's buildings change hands").
+// the damage it took in its last 10 minutes ("# spoils: P3's buildings change hands") - gates and airports with all
+// their pieces (start_epoch=11 for airports): nothing of them left with P3 at the end.
 
-wait_until(25min)
+let gates = [unit.b_gate_copper, unit.b_gate_bronze, unit.b_gate_middle, unit.b_gate_imperial, unit.b_gate_ww1, unit.b_gate_digital]
+let air = [unit.b_airport, unit.b_airport_runway]
 let p = player(3)
-ping("P3 resigns at {time} s: {p.soldiers} soldiers, {p.buildings} buildings")
+wait_until(24min)
+if int(p.epoch) >= 9 {   // an airport of P3's to be handed over (its runways come with it)
+    let at = p.units([unit.b_town_center, unit.b_capitol])[1].pos
+    p.spawn(unit.b_airport, vec(at.x + 8, at.y + 8))
+}
+wait_until(25min)
+ping("P3 resigns at {time} s: {p.soldiers} soldiers, {p.buildings} buildings, {p.count(gates)} gate pieces, {p.count(air)} airport pieces")
 p.lose()
 wait(40s)
-ping("P3 at {time} s: {len(p.units())} units and buildings left")
+ping("P3 at {time} s: {len(p.units())} units and buildings left - {p.count(gates)} gate pieces, {p.count(air)} airport pieces")
+let others = player(2).count(gates) + player(4).count(gates) + player(5).count(gates)
+ping("gate pieces of P2, P4, P5: {others}; airport pieces {player(2).count(air) + player(4).count(air) + player(5).count(air)}")

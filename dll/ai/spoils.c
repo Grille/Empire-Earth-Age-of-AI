@@ -13,8 +13,9 @@
 // - SP_HAND_MS later its buildings change hands (the units have left them by then): the damage it took in the last 10
 //   minutes (player +0xA70, the game's own sum per attacker; the mod keeps a snapshot a minute) tells the conquerors -
 //   every player still in the game with at least SP_SHARE % of it. Each gets its share of the buildings' value (their
-//   cost), the buildings nearest its own first; walls go to the conqueror nearest them; gates and airports stay (a
-//   chain of pieces: below). No conqueror (nobody did SP_SHARE %): the buildings stay as they are.
+//   cost), the buildings nearest its own first; walls go to the conqueror nearest them. The change is the game's own
+//   (unit_give 0x638670: the scenario effect Owner's, a priest's conversion's), a gate or an airport by the one piece
+//   whose handover brings its other pieces along (below). No conqueror (nobody did SP_SHARE %): the buildings stay as they are.
 // Players out before the game was loaded are left to the target rule and the roaming alone (the same on every PC).
 // Measured on the save: P4's 118 soldiers roamed out in bands and were gone in 11 minutes; tests/scenarios/resign.eeai
 // (P3 out at minute 25, Continental, 4 AIs from epoch 5): seed 7 P2 56% / P4 43% of the damage - 13 buildings each,
@@ -67,9 +68,12 @@ internal void sp_scan_unit(ee_unit *u, void *ctx) {
     ee_player *o = unit_get_owner(u);
     if (!td || !o || unit_get_hp(u) <= 0 || unit_get_x(u) < 0 || !sp_building(unit_type_get_class_id(td))) return;
     int oi = player_get_index(o) & 15;
-    // a chain (gate pieces, an airport and its runways: unit +0x1CC / +0x1D0) stays: unit_convert makes the piece anew
-    // and the others' links to it dangle - a gate's open test read its chained piece's +0x1D0 through NULL 15 s later
-    if (oi == s->pi) { if (s->n < 2048 && !unit_get_chain(u) && !unit_get_chained(u)) s->b[s->n++] = u; }
+    // a chain of pieces (a gate's five, an airport and its runways: physics +0x1CC the next) is given by its last piece
+    // alone: unit_give calls the type's handover (vf8) only for it, and that remakes and links the others (EEUCGate
+    // vf8 0x601FC5) - each piece given apart was remade unlinked (a gate's open test read NULL+0x1D0 15 s later); the
+    // line upgrade (0x5BA59D) skips the same pieces
+    ee_unit *ph = unit_get_physics(u);
+    if (oi == s->pi) { if (s->n < 2048 && !(ph && unit_get_chain(ph))) s->b[s->n++] = u; }
     else if (oi <= 16 && s->na[oi] < 256) s->a[oi][s->na[oi]++] = unit_get_tile(u);   // the others' buildings: where each one is
 }
 internal long sp_dist(struct sp_scan *s, int q, ivec2 p) {   // to conqueror q's nearest building
@@ -127,7 +131,7 @@ internal void sp_hand_over(int pi) {
                 if (got[q[i]] + val[k] / 2 <= quota[q[i]] && d < bd) { bd = d; to = q[i]; }
             }
         }
-        if (unit_convert(u, to, unit_get_type_data(u))) { got[to] += val[k]; if (val[k]) given[to]++; else walls[to]++; }
+        if (unit_give(u, to, 0)) { got[to] += val[k]; if (val[k]) given[to]++; else walls[to]++; }   // the scenario effect Owner's change
         else failed++;
     }
     if (g_log) {
