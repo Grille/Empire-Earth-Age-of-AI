@@ -3,7 +3,12 @@
 
 // class EEMessage (ee_msg)
 // a message players send each other through the server (EEMessage, the base of every message: EEMPayTribute,
-// EEMInGameChat, EEMSelectUnits ...)
+// EEMInGameChat, EEMSelectUnits ...). Sent (EEServer slot 6) it is exported - the 4-byte header, then its payload -
+// and on every PC, the sender's too, made again from those bytes: NEMessage::ConvertMemoryToMessage (Low-Level
+// Engine.dll) calls the factory its kind has in NEMessage::sConstructors (messages.iat_constructors; the game's
+// message_build for kinds 0x41 .. 0xFD), which makes the object and imports the bytes; executed at the step it is
+// scheduled for. A kind of the mod's own: a factory in a free kind's place (messages.kind_free_first ..
+// kind_free_last) and a vtable of its own (game/api/messages.c).
 // NEMessage's (Low-Level Engine.dll, the base of EEMessage): every constructor sets 1 (the DLL's 0x1000848C, EE's
 // copy 0x404B58), holding it again adds one (NESynchronousServer::SendToAllAndWait, EEServer::vf27 0x4C3839)
 internal inline uint32_t msg_get_ref_count(const ee_msg *o) { return *(uint32_t *)((uint8_t *)o + of_msg_ref_count); }
@@ -18,13 +23,58 @@ internal inline uint8_t *msg_kind_at(const ee_msg *o) { return (uint8_t *)((uint
 internal inline uint8_t msg_get_for_slot(const ee_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_for_slot); }
 internal inline void msg_set_for_slot(ee_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_for_slot) = v; }
 internal inline uint8_t *msg_for_slot_at(const ee_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_for_slot); }
-// the sender's message id (every message's)
+// NEMessage's originating slot (GetOriginatingSlot / SetOriginatingSlot): the sender's - every constructor sets
+// 0xFF, the network the sending PC's slot (a message can't name another sender: the chat shows the player of it)
 internal inline int8_t msg_get_from(const ee_msg *o) { return *(int8_t *)((uint8_t *)o + of_msg_from); }
 internal inline void msg_set_from(ee_msg *o, int8_t v) { *(int8_t *)((uint8_t *)o + of_msg_from) = v; }
 internal inline int8_t *msg_from_at(const ee_msg *o) { return (int8_t *)((uint8_t *)o + of_msg_from); }
+// vf0: the scalar deleting destructor - thiscall(msg, flags 1: freed); EEMessage's (0x4C04FA) for every message
+// that owns nothing, the chat's its own (its text)
+typedef void *(__thiscall *msg_destroy_fn)(ee_msg *, uint8_t);
+internal inline void *msg_destroy(ee_msg *msg, uint8_t flags) { return ((msg_destroy_fn)(*(void ***)msg)[slot_msg_destroy])(msg, flags); }
+// vf1 (NEMessage's GetIsAvailableToSend; EEMessage's 0x401A2E): sent while the local player is in the game, or
+// when sendable_when_out
+typedef char (__thiscall *msg_available_to_send_fn)(ee_msg *);
+internal inline char msg_available_to_send(ee_msg *msg) { return ((msg_available_to_send_fn)(*(void ***)msg)[slot_msg_available_to_send])(msg); }
+// vf2: NEMessage's GetCanSendWhilePaused (32 of the game's messages say 1: 0x4B129C)
+typedef char (__thiscall *msg_can_send_while_paused_fn)(ee_msg *);
+internal inline char msg_can_send_while_paused(ee_msg *msg) { return ((msg_can_send_while_paused_fn)(*(void ***)msg)[slot_msg_can_send_while_paused])(msg); }
+// vf3: NEMessage's GetCountsTowardsPlayerInputThrottle
+typedef char (__thiscall *msg_counts_toward_throttle_fn)(ee_msg *);
+internal inline char msg_counts_toward_throttle(ee_msg *msg) { return ((msg_counts_toward_throttle_fn)(*(void ***)msg)[slot_msg_counts_toward_throttle])(msg); }
+// vf4 / vf5: NEMessage's Get / SetSendToAllAndWaitMessageID
+typedef char (__thiscall *msg_get_wait_id_fn)(ee_msg *, uint32_t *);
+internal inline char msg_get_wait_id(ee_msg *msg, uint32_t *id) { return ((msg_get_wait_id_fn)(*(void ***)msg)[slot_msg_get_wait_id])(msg, id); }
+typedef void (__thiscall *msg_set_wait_id_fn)(ee_msg *, uint32_t);
+internal inline void msg_set_wait_id(ee_msg *msg, uint32_t id) { ((msg_set_wait_id_fn)(*(void ***)msg)[slot_msg_set_wait_id])(msg, id); }
+// vf6: its export - thiscall(msg, uint8** buf, int32* size): a new buffer of size() bytes (the game's operator
+// new 0x683640), the header (messages.iat_export_header: 4 bytes), its payload (EEMCheatCode's 0x4B4E9E)
+typedef void (__thiscall *msg_export_fn)(ee_msg *, uint8_t **, int *);
+internal inline void msg_export(ee_msg *msg, uint8_t **buf, int *size) { ((msg_export_fn)(*(void ***)msg)[slot_msg_export])(msg, buf, size); }
+// vf7: its exported size, the header's 4 bytes and its payload's (EEMCheatCode: 0xD)
+typedef int (__thiscall *msg_size_fn)(ee_msg *);
+internal inline int msg_size(ee_msg *msg) { return ((msg_size_fn)(*(void ***)msg)[slot_msg_size])(msg); }
+// vf8: its import - thiscall(msg, uint8* mem): the header (messages.iat_import_header) and its payload from the
+// bytes (EEMCheatCode's 0x4B4F35)
+typedef void (__thiscall *msg_import_fn)(ee_msg *, uint8_t *);
+internal inline void msg_import(ee_msg *msg, uint8_t *mem) { ((msg_import_fn)(*(void ***)msg)[slot_msg_import])(msg, mem); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// vf9: 1 when other is the same request - only EEMLoadOrSaveGame's says so (0x4B8754: kind 0x9A, the same id at
+// +0x10), every other message's 0 (0x4B6F21)
+typedef char (__thiscall *msg_same_as_fn)(ee_msg *, ee_msg *);
+internal inline char msg_same_as(ee_msg *msg, ee_msg *other) { return ((msg_same_as_fn)(*(void ***)msg)[slot_msg_same_as])(msg, other); }
 // vf10: the message carried out (EEMPathTo's and EEMLoadTransport's both builds)
 typedef void (__thiscall *msg_execute_fn)(ee_msg *);
 internal inline void msg_execute(ee_msg *msg) { ((msg_execute_fn)(*(void ***)msg)[slot_msg_execute])(msg); }
+// vf11: its name for the debug output ("Cheat Code": EEMCheatCode's 0x4B4F2F)
+typedef char *(__thiscall *msg_name_fn)(ee_msg *);
+internal inline char *msg_name(ee_msg *msg) { return ((msg_name_fn)(*(void ***)msg)[slot_msg_name])(msg); }
+// EEMessage(kind, sendable_when_out): ref_count 1, for_slot and from 0xFF, header_flags 0, EEMessage's vtable -
+// every message's constructor and the factory call it first (message_build 0x4B1B31: (0xFF, 0), then the class's
+// vtable and its import)
+typedef void (__thiscall *msg_construct_fn)(ee_msg *, uint8_t, char);
+internal msg_construct_fn fn_msg_construct;
+internal inline void msg_construct(ee_msg *msg, uint8_t kind, char when_out) { fn_msg_construct(msg, kind, when_out); }
 // A GUESS (the spec's [guess]): its name and type, from what the code does with it -
 // NEMessage's constructor's fourth byte, the first of the 4-byte wire header (ExportHeader 0x1004D025: +0xB, +8,
 // +9, +0xA); every EE message passes 0 and nothing reads it
@@ -61,7 +111,8 @@ internal inline uint8_t *resign_msg_kind_at(const ee_resign_msg *o) { return (ui
 internal inline uint8_t resign_msg_get_for_slot(const ee_resign_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_for_slot); }
 internal inline void resign_msg_set_for_slot(ee_resign_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_for_slot) = v; }
 internal inline uint8_t *resign_msg_for_slot_at(const ee_resign_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_for_slot); }
-// the sender's message id (every message's)
+// NEMessage's originating slot (GetOriginatingSlot / SetOriginatingSlot): the sender's - every constructor sets
+// 0xFF, the network the sending PC's slot (a message can't name another sender: the chat shows the player of it)
 internal inline int8_t resign_msg_get_from(const ee_resign_msg *o) { return *(int8_t *)((uint8_t *)o + of_msg_from); }
 internal inline void resign_msg_set_from(ee_resign_msg *o, int8_t v) { *(int8_t *)((uint8_t *)o + of_msg_from) = v; }
 internal inline int8_t *resign_msg_from_at(const ee_resign_msg *o) { return (int8_t *)((uint8_t *)o + of_msg_from); }
@@ -104,7 +155,8 @@ internal inline uint8_t *chat_msg_kind_at(const ee_chat_msg *o) { return (uint8_
 internal inline uint8_t chat_msg_get_for_slot(const ee_chat_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_for_slot); }
 internal inline void chat_msg_set_for_slot(ee_chat_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_for_slot) = v; }
 internal inline uint8_t *chat_msg_for_slot_at(const ee_chat_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_for_slot); }
-// the sender's message id (every message's)
+// NEMessage's originating slot (GetOriginatingSlot / SetOriginatingSlot): the sender's - every constructor sets
+// 0xFF, the network the sending PC's slot (a message can't name another sender: the chat shows the player of it)
 internal inline int8_t chat_msg_get_from(const ee_chat_msg *o) { return *(int8_t *)((uint8_t *)o + of_msg_from); }
 internal inline void chat_msg_set_from(ee_chat_msg *o, int8_t v) { *(int8_t *)((uint8_t *)o + of_msg_from) = v; }
 internal inline int8_t *chat_msg_from_at(const ee_chat_msg *o) { return (int8_t *)((uint8_t *)o + of_msg_from); }
@@ -152,7 +204,8 @@ internal inline uint8_t *select_msg_kind_at(const ee_select_msg *o) { return (ui
 internal inline uint8_t select_msg_get_for_slot(const ee_select_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_for_slot); }
 internal inline void select_msg_set_for_slot(ee_select_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_for_slot) = v; }
 internal inline uint8_t *select_msg_for_slot_at(const ee_select_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_for_slot); }
-// the sender's message id (every message's)
+// NEMessage's originating slot (GetOriginatingSlot / SetOriginatingSlot): the sender's - every constructor sets
+// 0xFF, the network the sending PC's slot (a message can't name another sender: the chat shows the player of it)
 internal inline int8_t select_msg_get_from(const ee_select_msg *o) { return *(int8_t *)((uint8_t *)o + of_msg_from); }
 internal inline void select_msg_set_from(ee_select_msg *o, int8_t v) { *(int8_t *)((uint8_t *)o + of_msg_from) = v; }
 internal inline int8_t *select_msg_from_at(const ee_select_msg *o) { return (int8_t *)((uint8_t *)o + of_msg_from); }
@@ -213,7 +266,8 @@ internal inline uint8_t *load_msg_kind_at(const ee_load_msg *o) { return (uint8_
 internal inline uint8_t load_msg_get_for_slot(const ee_load_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_for_slot); }
 internal inline void load_msg_set_for_slot(ee_load_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_for_slot) = v; }
 internal inline uint8_t *load_msg_for_slot_at(const ee_load_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_for_slot); }
-// the sender's message id (every message's)
+// NEMessage's originating slot (GetOriginatingSlot / SetOriginatingSlot): the sender's - every constructor sets
+// 0xFF, the network the sending PC's slot (a message can't name another sender: the chat shows the player of it)
 internal inline int8_t load_msg_get_from(const ee_load_msg *o) { return *(int8_t *)((uint8_t *)o + of_msg_from); }
 internal inline void load_msg_set_from(ee_load_msg *o, int8_t v) { *(int8_t *)((uint8_t *)o + of_msg_from) = v; }
 internal inline int8_t *load_msg_from_at(const ee_load_msg *o) { return (int8_t *)((uint8_t *)o + of_msg_from); }
@@ -265,7 +319,8 @@ internal inline uint8_t *path_msg_kind_at(const ee_path_msg *o) { return (uint8_
 internal inline uint8_t path_msg_get_for_slot(const ee_path_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_for_slot); }
 internal inline void path_msg_set_for_slot(ee_path_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_for_slot) = v; }
 internal inline uint8_t *path_msg_for_slot_at(const ee_path_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_for_slot); }
-// the sender's message id (every message's)
+// NEMessage's originating slot (GetOriginatingSlot / SetOriginatingSlot): the sender's - every constructor sets
+// 0xFF, the network the sending PC's slot (a message can't name another sender: the chat shows the player of it)
 internal inline int8_t path_msg_get_from(const ee_path_msg *o) { return *(int8_t *)((uint8_t *)o + of_msg_from); }
 internal inline void path_msg_set_from(ee_path_msg *o, int8_t v) { *(int8_t *)((uint8_t *)o + of_msg_from) = v; }
 internal inline int8_t *path_msg_from_at(const ee_path_msg *o) { return (int8_t *)((uint8_t *)o + of_msg_from); }
@@ -341,7 +396,8 @@ internal inline uint8_t *start_msg_kind_at(const ee_start_msg *o) { return (uint
 internal inline uint8_t start_msg_get_for_slot(const ee_start_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_for_slot); }
 internal inline void start_msg_set_for_slot(ee_start_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_for_slot) = v; }
 internal inline uint8_t *start_msg_for_slot_at(const ee_start_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_for_slot); }
-// the sender's message id (every message's)
+// NEMessage's originating slot (GetOriginatingSlot / SetOriginatingSlot): the sender's - every constructor sets
+// 0xFF, the network the sending PC's slot (a message can't name another sender: the chat shows the player of it)
 internal inline int8_t start_msg_get_from(const ee_start_msg *o) { return *(int8_t *)((uint8_t *)o + of_msg_from); }
 internal inline void start_msg_set_from(ee_start_msg *o, int8_t v) { *(int8_t *)((uint8_t *)o + of_msg_from) = v; }
 internal inline int8_t *start_msg_from_at(const ee_start_msg *o) { return (int8_t *)((uint8_t *)o + of_msg_from); }
@@ -393,7 +449,8 @@ internal inline uint8_t *tribute_msg_kind_at(const ee_tribute_msg *o) { return (
 internal inline uint8_t tribute_msg_get_for_slot(const ee_tribute_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_for_slot); }
 internal inline void tribute_msg_set_for_slot(ee_tribute_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_for_slot) = v; }
 internal inline uint8_t *tribute_msg_for_slot_at(const ee_tribute_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_for_slot); }
-// the sender's message id (every message's)
+// NEMessage's originating slot (GetOriginatingSlot / SetOriginatingSlot): the sender's - every constructor sets
+// 0xFF, the network the sending PC's slot (a message can't name another sender: the chat shows the player of it)
 internal inline int8_t tribute_msg_get_from(const ee_tribute_msg *o) { return *(int8_t *)((uint8_t *)o + of_msg_from); }
 internal inline void tribute_msg_set_from(ee_tribute_msg *o, int8_t v) { *(int8_t *)((uint8_t *)o + of_msg_from) = v; }
 internal inline int8_t *tribute_msg_from_at(const ee_tribute_msg *o) { return (int8_t *)((uint8_t *)o + of_msg_from); }
@@ -454,7 +511,8 @@ internal inline uint8_t *unload_msg_kind_at(const ee_unload_msg *o) { return (ui
 internal inline uint8_t unload_msg_get_for_slot(const ee_unload_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_for_slot); }
 internal inline void unload_msg_set_for_slot(ee_unload_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_for_slot) = v; }
 internal inline uint8_t *unload_msg_for_slot_at(const ee_unload_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_for_slot); }
-// the sender's message id (every message's)
+// NEMessage's originating slot (GetOriginatingSlot / SetOriginatingSlot): the sender's - every constructor sets
+// 0xFF, the network the sending PC's slot (a message can't name another sender: the chat shows the player of it)
 internal inline int8_t unload_msg_get_from(const ee_unload_msg *o) { return *(int8_t *)((uint8_t *)o + of_msg_from); }
 internal inline void unload_msg_set_from(ee_unload_msg *o, int8_t v) { *(int8_t *)((uint8_t *)o + of_msg_from) = v; }
 internal inline int8_t *unload_msg_from_at(const ee_unload_msg *o) { return (int8_t *)((uint8_t *)o + of_msg_from); }
@@ -531,7 +589,8 @@ internal inline uint8_t *new_unit_msg_kind_at(const ee_new_unit_msg *o) { return
 internal inline uint8_t new_unit_msg_get_for_slot(const ee_new_unit_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_for_slot); }
 internal inline void new_unit_msg_set_for_slot(ee_new_unit_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_for_slot) = v; }
 internal inline uint8_t *new_unit_msg_for_slot_at(const ee_new_unit_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_for_slot); }
-// the sender's message id (every message's)
+// NEMessage's originating slot (GetOriginatingSlot / SetOriginatingSlot): the sender's - every constructor sets
+// 0xFF, the network the sending PC's slot (a message can't name another sender: the chat shows the player of it)
 internal inline int8_t new_unit_msg_get_from(const ee_new_unit_msg *o) { return *(int8_t *)((uint8_t *)o + of_msg_from); }
 internal inline void new_unit_msg_set_from(ee_new_unit_msg *o, int8_t v) { *(int8_t *)((uint8_t *)o + of_msg_from) = v; }
 internal inline int8_t *new_unit_msg_from_at(const ee_new_unit_msg *o) { return (int8_t *)((uint8_t *)o + of_msg_from); }
@@ -587,7 +646,8 @@ internal inline uint8_t *cheat_msg_kind_at(const ee_cheat_msg *o) { return (uint
 internal inline uint8_t cheat_msg_get_for_slot(const ee_cheat_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_for_slot); }
 internal inline void cheat_msg_set_for_slot(ee_cheat_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_for_slot) = v; }
 internal inline uint8_t *cheat_msg_for_slot_at(const ee_cheat_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_for_slot); }
-// the sender's message id (every message's)
+// NEMessage's originating slot (GetOriginatingSlot / SetOriginatingSlot): the sender's - every constructor sets
+// 0xFF, the network the sending PC's slot (a message can't name another sender: the chat shows the player of it)
 internal inline int8_t cheat_msg_get_from(const ee_cheat_msg *o) { return *(int8_t *)((uint8_t *)o + of_msg_from); }
 internal inline void cheat_msg_set_from(ee_cheat_msg *o, int8_t v) { *(int8_t *)((uint8_t *)o + of_msg_from) = v; }
 internal inline int8_t *cheat_msg_from_at(const ee_cheat_msg *o) { return (int8_t *)((uint8_t *)o + of_msg_from); }
@@ -639,9 +699,28 @@ internal inline uint8_t *messages_vt_msg_load_at(void) { return (uint8_t *)(uint
 internal inline uint8_t *messages_vt_msg_unload_at(void) { return (uint8_t *)(uintptr_t)data_messages_vt_msg_unload; }
 internal inline uint8_t *messages_vt_pay_tribute_at(void) { return (uint8_t *)(uintptr_t)data_messages_vt_pay_tribute; }
 internal inline uint8_t *messages_vt_resign_at(void) { return (uint8_t *)(uintptr_t)data_messages_vt_resign; }
+// NEMessage::sConstructors's import slot (Low-Level Engine.dll): it holds the table's address - 256 factories,
+// NEMessage *(*)(uint8 *mem) by kind (the header's second byte); the DLL's own kinds below 0x41, the game's
+// message_build from 0x41 to 0xFD (messages_register)
+internal inline uint8_t *messages_iat_constructors_at(void) { return (uint8_t *)(uintptr_t)data_messages_iat_constructors; }
+// NEMessage::ExportHeader - thiscall(msg, uint8* buf): the 4-byte header (+0xB, kind, for_slot, from); its size
+internal inline uint8_t *messages_iat_export_header_at(void) { return (uint8_t *)(uintptr_t)data_messages_iat_export_header; }
+// NEMessage::ImportHeader - thiscall(msg, uint8* mem): the header back; its size
+internal inline uint8_t *messages_iat_import_header_at(void) { return (uint8_t *)(uintptr_t)data_messages_iat_import_header; }
+// the kinds no message of the game's has: its factory makes kinds 0x41 .. 0xAA (AoC .. 0xAE: message_build's
+// cases) and says "Undefined message type" for the rest up to 0xFD
 
 // static class messages_functions
 // the game's functions messages.c wraps, by the names the C side gives them
+// cdecl(uint8* mem): the game's factory - a new message of the kind mem[1] (its class's size, EEMessage.construct
+// (0xFF, 0), its vtable, its import of mem); NULL and an assertion for a kind it has none of
+typedef ee_msg *(__cdecl *message_build_fn)(uint8_t *);
+internal message_build_fn fn_message_build;
+internal inline ee_msg *message_build(uint8_t *mem) { return fn_message_build(mem); }
+// cdecl(): message_build into sConstructors for kinds 0x41 .. 0xFD, once at the start (0x530xxx's set-up)
+typedef void (__cdecl *messages_register_fn)(void);
+internal messages_register_fn fn_messages_register;
+internal inline void messages_register(void) { fn_messages_register(); }
 typedef uint32_t (__cdecl *sel_pack_fn)(uint8_t *, uint32_t, uint8_t *);
 internal sel_pack_fn fn_sel_pack;
 internal inline uint32_t sel_pack(uint8_t *list, uint32_t player_byte, uint8_t *out) { return fn_sel_pack(list, player_byte, out); }
@@ -651,11 +730,24 @@ internal inline int patch_sel_pack(sel_pack_fn h) { return patch_call(call_sel_p
 internal int spec_messages_select(int build) {
     switch (build) {
     case 0:   // ee
+        vt_ee_message = 0x00824B0C;
         of_msg_ref_count = 0x4;
         of_msg_kind = 0x8;
         of_msg_for_slot = 0x9;
         of_msg_from = 0xA;
+        slot_msg_destroy = 0;
+        slot_msg_available_to_send = 1;
+        slot_msg_can_send_while_paused = 2;
+        slot_msg_counts_toward_throttle = 3;
+        slot_msg_get_wait_id = 4;
+        slot_msg_set_wait_id = 5;
+        slot_msg_export = 6;
+        slot_msg_size = 7;
+        slot_msg_import = 8;
+        slot_msg_same_as = 9;
         slot_msg_execute = 10;
+        slot_msg_name = 11;
+        fn_msg_construct = (msg_construct_fn)0x00404B58;
         of_msg_header_flags = 0xB;
         of_msg_spare = 0xC;
         of_msg_sendable_when_out = 0xD;
@@ -720,15 +812,35 @@ internal int spec_messages_select(int build) {
         data_messages_vt_msg_unload = 0x00828AC4;
         data_messages_vt_pay_tribute = 0x008289C0;
         data_messages_vt_resign = 0x00828820;
+        data_messages_iat_constructors = 0x0082357C;
+        data_messages_iat_export_header = 0x00823580;
+        data_messages_iat_import_header = 0x00823584;
+        value_messages_kind_free_first = 175;
+        value_messages_kind_free_last = 253;
+        fn_message_build = (message_build_fn)0x004B1B31;
+        fn_messages_register = (messages_register_fn)0x004B18A8;
         fn_sel_pack = (sel_pack_fn)0x004BD15A;
         call_sel_pack = 0x004BD133;
         return 0;
     case 1:   // aoc
+        vt_ee_message = 0x00838AE8;
         of_msg_ref_count = 0x4;
         of_msg_kind = 0x8;
         of_msg_for_slot = 0x9;
         of_msg_from = 0xA;
+        slot_msg_destroy = 0;
+        slot_msg_available_to_send = 1;
+        slot_msg_can_send_while_paused = 2;
+        slot_msg_counts_toward_throttle = 3;
+        slot_msg_get_wait_id = 4;
+        slot_msg_set_wait_id = 5;
+        slot_msg_export = 6;
+        slot_msg_size = 7;
+        slot_msg_import = 8;
+        slot_msg_same_as = 9;
         slot_msg_execute = 10;
+        slot_msg_name = 11;
+        fn_msg_construct = (msg_construct_fn)0x004032A6;
         of_msg_header_flags = 0xB;
         of_msg_spare = 0xC;
         of_msg_sendable_when_out = 0xD;
@@ -793,6 +905,13 @@ internal int spec_messages_select(int build) {
         data_messages_vt_msg_unload = 0x0083D78C;
         data_messages_vt_pay_tribute = 0x0083D688;
         data_messages_vt_resign = 0x0083D4E8;
+        data_messages_iat_constructors = 0x00837520;
+        data_messages_iat_export_header = 0x00837524;
+        data_messages_iat_import_header = 0x00837528;
+        value_messages_kind_free_first = 175;
+        value_messages_kind_free_last = 253;
+        fn_message_build = (message_build_fn)0x004B8F8E;
+        fn_messages_register = (messages_register_fn)0x004B8CDA;
         fn_sel_pack = (sel_pack_fn)0x004C5E67;
         call_sel_pack = 0x004C5E40;
         return 0;
@@ -804,6 +923,8 @@ internal const char *const k_spec_messages_missing[ADDR_BUILDS] = { "", "" };
 // the load-time check: what the spec says of the running build's exe (spec_check): the failures
 internal int spec_messages_check(void) {
     int bad = 0;
+    bad += spec_vtable(vt_ee_message, ".?AVEEMessage@@", "EEMessage [vtable]");
+    bad += spec_code((uintptr_t)fn_msg_construct, "EEMessage.construct");
     bad += spec_code((uintptr_t)fn_resign_msg_execute, "EEMResign.execute");
     bad += spec_code((uintptr_t)fn_chat_msg_execute, "EEMInGameChat.execute");
     bad += spec_code((uintptr_t)fn_chat_msg_init, "EEMInGameChat.init");
@@ -825,6 +946,11 @@ internal int spec_messages_check(void) {
     bad += spec_data(data_messages_vt_msg_unload, "messages.vt_msg_unload");
     bad += spec_data(data_messages_vt_pay_tribute, "messages.vt_pay_tribute");
     bad += spec_data(data_messages_vt_resign, "messages.vt_resign");
+    bad += spec_data(data_messages_iat_constructors, "messages.iat_constructors");
+    bad += spec_data(data_messages_iat_export_header, "messages.iat_export_header");
+    bad += spec_data(data_messages_iat_import_header, "messages.iat_import_header");
+    bad += spec_code((uintptr_t)fn_message_build, "messages_functions.message_build");
+    bad += spec_code((uintptr_t)fn_messages_register, "messages_functions.messages_register");
     bad += spec_code((uintptr_t)fn_sel_pack, "messages_functions.sel_pack");
     bad += spec_call(call_sel_pack, (uintptr_t)fn_sel_pack, "messages_functions.sel_pack [call_site sel_pack]");
     return bad;

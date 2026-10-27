@@ -1,6 +1,11 @@
 /// a message players send each other through the server (EEMessage, the base of every message: EEMPayTribute,
-/// EEMInGameChat, EEMSelectUnits ...)
-[c_type("ee_msg")]
+/// EEMInGameChat, EEMSelectUnits ...). Sent (EEServer slot 6) it is exported - the 4-byte header, then its payload -
+/// and on every PC, the sender's too, made again from those bytes: NEMessage::ConvertMemoryToMessage (Low-Level
+/// Engine.dll) calls the factory its kind has in NEMessage::sConstructors (messages.iat_constructors; the game's
+/// message_build for kinds 0x41 .. 0xFD), which makes the object and imports the bytes; executed at the step it is
+/// scheduled for. A kind of the mod's own: a factory in a free kind's place (messages.kind_free_first ..
+/// kind_free_last) and a vtable of its own (game/api/messages.c).
+[c_type("ee_msg"), vtable((ee)0x00824B0C, (aoc)0x00838AE8)]
 unsafe struct EEMessage
 {
     /// NEMessage's (Low-Level Engine.dll, the base of EEMessage): every constructor sets 1 (the DLL's 0x1000848C, EE's
@@ -17,13 +22,68 @@ unsafe struct EEMessage
     [offset(0x9), found(c)]
     uint8 for_slot;
 
-    /// the sender's message id (every message's)
+    /// NEMessage's originating slot (GetOriginatingSlot / SetOriginatingSlot): the sender's - every constructor sets
+    /// 0xFF, the network the sending PC's slot (a message can't name another sender: the chat shows the player of it)
     [offset(0xA), found(c)]
     int8 from;
+
+    /// vf0: the scalar deleting destructor - thiscall(msg, flags 1: freed); EEMessage's (0x4C04FA) for every message
+    /// that owns nothing, the chat's its own (its text)
+    [slot(0)]
+    extern void* destroy(uint8 flags);
+
+    /// vf1 (NEMessage's GetIsAvailableToSend; EEMessage's 0x401A2E): sent while the local player is in the game, or
+    /// when sendable_when_out
+    [slot(1)]
+    extern char8 available_to_send();
+
+    /// vf2: NEMessage's GetCanSendWhilePaused (32 of the game's messages say 1: 0x4B129C)
+    [slot(2)]
+    extern char8 can_send_while_paused();
+
+    /// vf3: NEMessage's GetCountsTowardsPlayerInputThrottle
+    [slot(3)]
+    extern char8 counts_toward_throttle();
+
+    /// vf4 / vf5: NEMessage's Get / SetSendToAllAndWaitMessageID
+    [slot(4)]
+    extern char8 get_wait_id(uint32* id);
+
+    [slot(5)]
+    extern void set_wait_id(uint32 id);
+
+    /// vf6: its export - thiscall(msg, uint8** buf, int32* size): a new buffer of size() bytes (the game's operator
+    /// new 0x683640), the header (messages.iat_export_header: 4 bytes), its payload (EEMCheatCode's 0x4B4E9E)
+    [slot(6)]
+    extern void export(uint8** buf, int32* size);
+
+    /// vf7: its exported size, the header's 4 bytes and its payload's (EEMCheatCode: 0xD)
+    [slot(7)]
+    extern int32 size();
+
+    /// vf8: its import - thiscall(msg, uint8* mem): the header (messages.iat_import_header) and its payload from the
+    /// bytes (EEMCheatCode's 0x4B4F35)
+    [slot(8)]
+    extern void import(uint8* mem);
+
+    /// vf9: 1 when other is the same request - only EEMLoadOrSaveGame's says so (0x4B8754: kind 0x9A, the same id at
+    /// +0x10), every other message's 0 (0x4B6F21)
+    [slot(9), guess]
+    extern char8 same_as(EEMessage* other);
 
     /// vf10: the message carried out (EEMPathTo's and EEMLoadTransport's both builds)
     [slot(10)]
     extern void execute();
+
+    /// vf11: its name for the debug output ("Cheat Code": EEMCheatCode's 0x4B4F2F)
+    [slot(11)]
+    extern char8* name();
+
+    /// EEMessage(kind, sendable_when_out): ref_count 1, for_slot and from 0xFF, header_flags 0, EEMessage's vtable -
+    /// every message's constructor and the factory call it first (message_build 0x4B1B31: (0xFF, 0), then the class's
+    /// vtable and its import)
+    [address((ee)0x00404B58, (aoc)0x004032A6)]
+    extern void construct(uint8 kind, char8 when_out);
 
     /// NEMessage's constructor's fourth byte, the first of the 4-byte wire header (ExportHeader 0x1004D025: +0xB, +8,
     /// +9, +0xA); every EE message passes 0 and nothing reads it
@@ -317,12 +377,43 @@ static unsafe class messages
 
     [address((ee)0x00828820, (aoc)0x0083D4E8)]
     static vftable vt_resign;
+
+    /// NEMessage::sConstructors's import slot (Low-Level Engine.dll): it holds the table's address - 256 factories,
+    /// NEMessage *(*)(uint8 *mem) by kind (the header's second byte); the DLL's own kinds below 0x41, the game's
+    /// message_build from 0x41 to 0xFD (messages_register)
+    [address((ee)0x0082357C, (aoc)0x00837520)]
+    static block iat_constructors;
+
+    /// NEMessage::ExportHeader - thiscall(msg, uint8* buf): the 4-byte header (+0xB, kind, for_slot, from); its size
+    [address((ee)0x00823580, (aoc)0x00837524)]
+    static block iat_export_header;
+
+    /// NEMessage::ImportHeader - thiscall(msg, uint8* mem): the header back; its size
+    [address((ee)0x00823584, (aoc)0x00837528)]
+    static block iat_import_header;
+
+    /// the kinds no message of the game's has: its factory makes kinds 0x41 .. 0xAA (AoC .. 0xAE: message_build's
+    /// cases) and says "Undefined message type" for the rest up to 0xFD
+    [value(0xAF)]
+    static uint32 kind_free_first;
+
+    [value(0xFD)]
+    static uint32 kind_free_last;
 }
 
 /// the game's functions messages.c wraps, by the names the C side gives them
 [c_prefix("")]
 static unsafe class messages_functions
 {
+    /// cdecl(uint8* mem): the game's factory - a new message of the kind mem[1] (its class's size, EEMessage.construct
+    /// (0xFF, 0), its vtable, its import of mem); NULL and an assertion for a kind it has none of
+    [address((ee)0x004B1B31, (aoc)0x004B8F8E), cdecl]
+    static extern EEMessage* message_build(uint8* mem);
+
+    /// cdecl(): message_build into sConstructors for kinds 0x41 .. 0xFD, once at the start (0x530xxx's set-up)
+    [address((ee)0x004B18A8, (aoc)0x004B8CDA), cdecl]
+    static extern void messages_register();
+
     [address((ee)0x004BD15A, (aoc)0x004C5E67), cdecl]
     [call_site("sel_pack", (ee)0x004BD133, (aoc)0x004C5E40)]
     static extern uint32 sel_pack(uint8* list, uint32 player_byte, uint8* @out);

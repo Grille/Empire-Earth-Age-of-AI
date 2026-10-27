@@ -250,6 +250,32 @@ internal void cmd_train(char *out, const char *args) {
 }
 
 
+// modmsg [bytes]: a message of the mod's own sent to every PC (game/api/messages.c mod_msg_send; default 16 bytes, at
+// most MOD_MSG_MAX): its bytes a count, the game time it was sent and a pattern - each PC logs it when it is carried
+// out (# modmsg: the sender's slot, the size, the pattern whole or not, the steps between) - tests: does it arrive,
+// whole, on every PC, how late
+internal void modmsg_test_seen(int from, const uint8_t *data, int n) {
+    uint32_t seq = 0, sent = 0;
+    int whole = n >= 8;
+    if (whole) { memcpy(&seq, data, 4); memcpy(&sent, data + 4, 4); }
+    for (int i = 8; whole && i < n; i++) whole = data[i] == (uint8_t)(seq * 31 + (unsigned)i);
+    if (g_log) fprintf(g_log, "# modmsg: #%u from slot %d, %d bytes %s, sent at %u ms, carried out at %u ms (local player %u)\n",
+                       seq, from, n, whole ? "whole" : "NOT WHOLE", sent, game_time(), local_player_index());
+}
+internal void cmd_modmsg(char *out, const char *args) {
+    static uint32_t seq;
+    uint8_t b[MOD_MSG_MAX];
+    int n = 16;
+    if (args && *args) n = atoi(args);
+    if (n < 8 || n > MOD_MSG_MAX) { REPLY("error: modmsg [bytes]: 8 to %d\n", MOD_MSG_MAX); return; }
+    uint32_t now = game_time();
+    seq++;
+    memcpy(b, &seq, 4);
+    memcpy(b + 4, &now, 4);
+    for (int i = 8; i < n; i++) b[i] = (uint8_t)(seq * 31 + (unsigned)i);
+    if (!mod_msg_send(MOD_MSG_TEST, b, n)) { REPLY("error: not sent (no game, or the message not registered)\n"); return; }
+    REPLY("sent #%u, %d bytes at %u ms\n", seq, n, now);
+}
 internal void cmd_spawn(char *out, const char *args) {
     int p, type, x, y, n = 1, off = 0;
     if (sscanf(args, "%d %d %d %d %d", &p, &type, &x, &y, &n) < 4 || p < 0 || p > 15 || type < 0 || type >= 0x300 || n < 1 || n > 100) {

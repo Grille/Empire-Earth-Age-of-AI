@@ -1,0 +1,12 @@
+// the mod's own message (game/api/messages.c, test/testcmd.c modmsg): sent through the lockstep server and carried
+// out on this PC - single player: the server's way back to the sender. Sizes 16, 100, 480 (the most), then 20 at once
+// (# modmsg in the log: each carried out once, whole, a step or so after it was sent).
+wait_until(0.1min)
+modmsg(16)
+modmsg(100)
+modmsg(480)
+wait(2s)
+for i in 1..20 {
+    modmsg(64)
+}
+wait(3s)

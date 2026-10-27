@@ -390,6 +390,30 @@ vf26 members and route released, vf12, the group's reference) frees nothing twic
   to 44 before the first tick; in long test games (turbo, 8 at a time) it went to 124 at a moment of its own in each
   run - a different simulation from there (dll/test/autotest.c holds it at 44 in test runs).
 
+## Network messages
+
+What one PC decides (a player's command, a chat line) goes to every PC as a message (spec/game/messages.cs EEMessage);
+what every PC computes alike (the AI, the scenario's triggers, the mod's scripts) needs none. 2026-10-27:
+- Sent through the lockstep server (EEServer slot 6, (msg, 0xFF)), a message is exported - vf7 its size, vf6 a buffer
+  of it (the game's operator new): the 4-byte header (NEMessage::ExportHeader: +0xB, kind, for_slot, originating slot)
+  and its payload - and made again from the bytes on every PC, the sender's too: NEMessage::ConvertMemoryToMessage
+  (Low-Level Engine.dll) calls the factory of the kind (the header's second byte) in NEMessage::sConstructors, 256
+  of them; the game puts its own (0x4B1B31, a switch over its classes) into kinds 0x41 .. 0xFD at the start
+  (0x4B18A8); the DLL's own kinds are below 0x41. Then executed (vf10) at the step it is scheduled for.
+- Kinds the game has none of: 0xAB .. 0xFD (AoC's go to 0xAE) - its factory asserts "Undefined message type" for them.
+  The mod's own message (dll/game/api/messages.c, kind 0xAF) puts a factory of its own there and a vtable of its own
+  (the chat's slots, EEMessage's destructor, its own export, size, import, execute, name). Its vtable slots: 0 the
+  scalar deleting destructor, 1 GetIsAvailableToSend, 2 GetCanSendWhilePaused, 3 GetCountsTowardsPlayerInputThrottle,
+  4 / 5 Get / SetSendToAllAndWaitMessageID, 6 export, 7 size, 8 import, 9 the same request as another (only the
+  load-or-save message's says so), 10 execute, 11 a name for the debug output.
+- The sender: every constructor sets the originating slot (+0xA) to 0xFF, the network the sending PC's - a message
+  can't name another sender (the chat shows the player of it). In single player it arrives as 0xFE.
+- About 512 bytes a turn from one PC (single player, turbo, `modmsg` - the header's 4 bytes counted): 16 + 100 bytes in
+  one turn, 480 alone in the next, 64-byte ones 7 a turn; the rest waits for later turns, in order, none lost. Not the
+  input throttle (vf3 0 changes nothing). A turn was ~2.56 s of game time apart in turbo.
+- The game's own recipients: none in the message - the chat's execute reads its sender's chat mode (player +0x9E0:
+  all, allies, enemies, chosen at +0xB2C) on each PC.
+
 ## Text on surfaces
 
 - DX7Surface (display DLLs, 0x60 bytes): +0x48 IDirectDrawSurface7, +0x54 text HDC, +0x5D text locked. TextLock

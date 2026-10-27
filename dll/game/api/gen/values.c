@@ -460,11 +460,23 @@ internal uint32_t data_map_fn_tile_sight_sub;
 internal uint32_t data_map_map_areas;
 
 // messages.cs
+internal uint32_t vt_ee_message;
 internal uint32_t of_msg_ref_count;
 internal uint32_t of_msg_kind;
 internal uint32_t of_msg_for_slot;
 internal uint32_t of_msg_from;
+internal uint32_t slot_msg_destroy;
+internal uint32_t slot_msg_available_to_send;
+internal uint32_t slot_msg_can_send_while_paused;
+internal uint32_t slot_msg_counts_toward_throttle;
+internal uint32_t slot_msg_get_wait_id;
+internal uint32_t slot_msg_set_wait_id;
+internal uint32_t slot_msg_export;
+internal uint32_t slot_msg_size;
+internal uint32_t slot_msg_import;
+internal uint32_t slot_msg_same_as;
 internal uint32_t slot_msg_execute;
+internal uint32_t slot_msg_name;
 internal uint32_t of_msg_header_flags;
 internal uint32_t of_msg_spare;
 internal uint32_t of_msg_sendable_when_out;
@@ -518,6 +530,11 @@ internal uint32_t data_messages_vt_msg_load;
 internal uint32_t data_messages_vt_msg_unload;
 internal uint32_t data_messages_vt_pay_tribute;
 internal uint32_t data_messages_vt_resign;
+internal uint32_t data_messages_iat_constructors;
+internal uint32_t data_messages_iat_export_header;
+internal uint32_t data_messages_iat_import_header;
+internal uint32_t value_messages_kind_free_first;
+internal uint32_t value_messages_kind_free_last;
 internal uint32_t call_sel_pack;
 
 // movement.cs

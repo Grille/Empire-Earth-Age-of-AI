@@ -40,6 +40,7 @@ internal void autotest_first_tick(ee_player *pl);
 internal void settings_apply(ee_player *pl);
 internal void econ_tick(ee_player *pl, uint32_t now);
 internal void persona_new_game(ee_setup *setup);
+internal void modmsg_test_seen(int from, const uint8_t *data, int n);   // testcmd.c: `modmsg`'s messages arriving
 internal void scripts_new_game(ee_setup *setup);   // test/scripts.c
 internal void persona_assign(ee_player *pl);
 internal void diplo_new_game(void);
@@ -299,6 +300,8 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
     memset(g_settings_done, 0, sizeof g_settings_done);
     scripts_new_game(setup);   // a test's scripts: their game.setup blocks choose for the planning below
     persona_new_game(setup);   // personalities and their colours, before the game creates the players
+    mod_msg_register();        // the mod's own message (game/api/messages.c), on every PC before a message can come
+    mod_msg_on(MOD_MSG_TEST, modmsg_test_seen);
     diplo_new_game();
     chat_new_game();
     llm_new_game();

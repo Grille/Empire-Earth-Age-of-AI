@@ -70,6 +70,7 @@ internal void cmd_stats(char *out, const char *args);
 internal void cmd_diplo(char *out, const char *args);
 internal void cmd_persona(char *out, const char *args);
 internal void cmd_spawn(char *out, const char *args);
+internal void cmd_modmsg(char *out, const char *args);   // testcmd.c: the mod's own message
 internal void cmd_spawnline(char *out, const char *args);
 internal void cmd_script(char *out, const char *args);   // scripts.c: script dryrun <file> <out>
 internal volatile int g_turbo;           // autotest turbo: the simulation loop skips its timer wait
@@ -402,6 +403,7 @@ internal void execute(const char *cmd, char *out) {
     else if (!strcmp(verb, "diplo")) cmd_diplo(out, args);
     else if (!strcmp(verb, "persona")) cmd_persona(out, args);
     else if (!strcmp(verb, "spawn")) cmd_spawn(out, args);
+    else if (!strcmp(verb, "modmsg")) cmd_modmsg(out, args);
     else if (!strcmp(verb, "spawnline")) cmd_spawnline(out, args);
     else if (!strcmp(verb, "script")) cmd_script(out, args);
     else if (!strcmp(verb, "save")) cmd_save(out, args);
