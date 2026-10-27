@@ -567,11 +567,19 @@ internal int diff_set(const struct entry *e) {   // an AI row whose easy or hard
     return 0;
 }
 
+// an entry's looks in the list (draw_cell), worked out with its line's text: a paint - each line's cells again on
+// every resize and scroll - only reads them
+internal struct { uint8_t bold, grey, game, level; } g_look[sizeof g_e / sizeof *g_e];
+
 internal void fill_item(int item, LPARAM p) {
     char v[TEXT_CAP] = "", def[TEXT_CAP] = "", why[MAX_PATH], key[64];
     for (int c = 1; c < COLS; c++) ListView_SetItemText(g_list, item, c, "");
     if (node_kind(p) != NODE_ENTRY) return;
     const struct entry *e = &g_e[p];
+    g_look[p].bold = is_changed(e) || diff_set(e);
+    g_look[p].grey = !e->text[0] && !diff_set(e);
+    g_look[p].game = game_of(e->row) >= 0;
+    g_look[p].level = (uint8_t)entry_level(e);
     int grey;
     key_of(e, key, sizeof key);
     shown_value(e, v, sizeof v, &grey);
@@ -911,52 +919,80 @@ internal void show_unknown(void) {
 // field) nothing else would paint it - the old picture stayed
 internal void repaint(void) { RedrawWindow(g_wnd, NULL, NULL, RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN); }
 
+// THE SPLIT between the list and the panel: the gap between them, dragged with the mouse (the panel's share of the
+// width; not kept when the program closes)
+internal float g_split = 0.40f;
+internal int g_split_x, g_split_y0, g_split_y1, g_dragging;   // the gap's left edge, its top and bottom (layout)
+internal int on_split(int x, int y) { return !g_game_mode && x >= g_split_x && x < g_split_x + dpi_px(8) && y >= g_split_y0 && y < g_split_y1; }
+
+// a control to its place in the window - with the others, at once (layout: g_defer), and only when it moves: every
+// control moved is laid out and painted again, which made a resize lag
+internal HDWP g_defer;
+internal void put_control(HWND c, int x, int y, int w, int h) {
+    RECT r;
+    GetWindowRect(c, &r);
+    MapWindowPoints(NULL, g_wnd, (POINT *)&r, 2);
+    if (r.left == x && r.top == y && r.right - r.left == w && r.bottom - r.top == h) return;
+    g_defer = DeferWindowPos(g_defer, c, NULL, x, y, w, h, SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOREDRAW);
+}
+
 internal void layout(void) {
     RECT rc;
     GetClientRect(g_wnd, &rc);
     int w = rc.right, h = rc.bottom, m = dpi_px(8), x = m, rw = w - 2 * m;
     int unk = g_nunk ? dpi_px(40) : 0, bottom = dpi_px(32) + unk;
     // the list on the left under the search, the selected line's panel on the right - its name, its editors, and its
-    // help in the height left over
-    int pw = rw * 40 / 100 > dpi_px(420) ? rw * 40 / 100 : dpi_px(420), lw = rw - pw - m, px = x + lw + m;
+    // help in the height left over; between them the split (g_split: the panel's share, dragged), each side kept wide
+    // enough for its columns or its editors
+    int pw = (int)(rw * g_split), lo = dpi_px(380), hi = rw - m - dpi_px(360);
+    if (pw > hi) pw = hi;
+    if (pw < lo) pw = lo;
+    int lw = rw - pw - m, px = x + lw + m;
+    g_split_x = x + lw;
     int list_h = h - m - dpi_px(32) - bottom - m, list_end = m + dpi_px(32) + list_h;
-    MoveWindow(g_filter, x, m, lw < dpi_px(300) ? lw : dpi_px(300), dpi_px(24), FALSE);
-    MoveWindow(g_list, x, m + dpi_px(32), lw, list_h, FALSE);
-    MoveWindow(g_name, px, m, pw, dpi_px(36), FALSE);   // two lines: the name line of a game value is long
+    g_split_y0 = m;
+    g_split_y1 = list_end;
+    SendMessageA(g_list, WM_SETREDRAW, FALSE, 0);   // the list moved and its columns set, then painted once
+    g_defer = BeginDeferWindowPos(32);
+    put_control(g_filter, x, m, lw < dpi_px(300) ? lw : dpi_px(300), dpi_px(24));
+    put_control(g_list, x, m + dpi_px(32), lw, list_h);
+    put_control(g_name, px, m, pw, dpi_px(36));   // two lines: the name line of a game value is long
     int per = dpi_px(66), y = m + dpi_px(42);   // an editor: its line, then what it comes to (up to two lines) under it
     for (int k = 0; k < EDITORS; k++) {   // its label, its control, the button; under them its status
         struct editor *ed = &g_ed[k];
         int ey = y + k * per, ex = px + dpi_px(56), cw = pw - dpi_px(56) - dpi_px(100);
         if (cw > dpi_px(260)) cw = dpi_px(260);
-        MoveWindow(ed->label, px, ey + dpi_px(4), dpi_px(52), dpi_px(20), FALSE);
-        MoveWindow(ed->check, ex, ey, dpi_px(60), dpi_px(24), FALSE);
-        MoveWindow(ed->combo, ex, ey, cw, dpi_px(300), FALSE);
-        MoveWindow(ed->edit, ex, ey, cw, dpi_px(24), FALSE);
+        put_control(ed->label, px, ey + dpi_px(4), dpi_px(52), dpi_px(20));
+        put_control(ed->check, ex, ey, dpi_px(60), dpi_px(24));
+        put_control(ed->combo, ex, ey, cw, dpi_px(300));
+        put_control(ed->edit, ex, ey, cw, dpi_px(24));
         int bx = ex + (IsWindowVisible(ed->check) ? dpi_px(60) : cw) + dpi_px(10);
-        MoveWindow(ed->button, bx, ey - dpi_px(1), dpi_px(90), dpi_px(26), FALSE);
-        MoveWindow(ed->status, ex, ey + dpi_px(29), pw - dpi_px(56), dpi_px(34), FALSE);
+        put_control(ed->button, bx, ey - dpi_px(1), dpi_px(90), dpi_px(26));
+        put_control(ed->status, ex, ey + dpi_px(29), pw - dpi_px(56), dpi_px(34));
     }
     int hy = y + g_ned * per + (g_ned ? dpi_px(4) : 0);
-    MoveWindow(g_help, px, hy, pw, list_end - hy, FALSE);
+    put_control(g_help, px, hy, pw, list_end - hy);
     int by = h - dpi_px(32) - m / 2;
     if (unk) {
-        MoveWindow(g_unk_label, m, by - unk, w - 3 * m - dpi_px(110), unk - dpi_px(4), FALSE);
-        MoveWindow(g_remove, w - m - dpi_px(110), by - unk, dpi_px(110), dpi_px(26), FALSE);
+        put_control(g_unk_label, m, by - unk, w - 3 * m - dpi_px(110), unk - dpi_px(4));
+        put_control(g_remove, w - m - dpi_px(110), by - unk, dpi_px(110), dpi_px(26));
     }
-    MoveWindow(g_game, m, by, dpi_px(150), dpi_px(28), FALSE);
-    MoveWindow(g_help_open, m + dpi_px(156), by, dpi_px(94), dpi_px(28), FALSE);
+    put_control(g_game, m, by, dpi_px(150), dpi_px(28));
+    put_control(g_help_open, m + dpi_px(156), by, dpi_px(94), dpi_px(28));
     int fx = m + dpi_px(260);
-    MoveWindow(g_file_label, fx, by + dpi_px(5), w - m - dpi_px(206) - fx, dpi_px(20), FALSE);
-    MoveWindow(g_save, w - m - dpi_px(196), by, dpi_px(94), dpi_px(28), FALSE);
-    MoveWindow(g_close, w - m - dpi_px(96), by, dpi_px(94), dpi_px(28), FALSE);
+    put_control(g_file_label, fx, by + dpi_px(5), w - m - dpi_px(206) - fx, dpi_px(20));
+    put_control(g_save, w - m - dpi_px(196), by, dpi_px(94), dpi_px(28));
+    put_control(g_close, w - m - dpi_px(96), by, dpi_px(94), dpi_px(28));
     int gh = h - 2 * m - bottom - dpi_px(40);   // the game page: its text, the buttons under it
-    MoveWindow(g_game_text, x, m, rw, gh, FALSE);
-    MoveWindow(g_game_apply, x, m + gh + dpi_px(8), dpi_px(140), dpi_px(28), FALSE);
-    MoveWindow(g_game_restore, x + dpi_px(150), m + gh + dpi_px(8), dpi_px(200), dpi_px(28), FALSE);
+    put_control(g_game_text, x, m, rw, gh);
+    put_control(g_game_apply, x, m + gh + dpi_px(8), dpi_px(140), dpi_px(28));
+    put_control(g_game_restore, x + dpi_px(150), m + gh + dpi_px(8), dpi_px(200), dpi_px(28));
+    EndDeferWindowPos(g_defer);
     int sw = lw * 40 / 100 < dpi_px(280) ? lw * 40 / 100 : dpi_px(280), cw = lw - dpi_px(24) - sw;   // the setting's
-    ListView_SetColumnWidth(g_list, 0, sw);   // column, then the values' share the rest
-    ListView_SetColumnWidth(g_list, 1, cw * 65 / 100);
-    ListView_SetColumnWidth(g_list, COLS - 1, cw * 35 / 100);
+    int cols[COLS] = { sw, cw * 65 / 100, cw * 35 / 100 };   // column, then the values' share the rest
+    for (int c = 0; c < COLS; c++)   // only a width that changes: each change has the list lay itself out again
+        if (ListView_GetColumnWidth(g_list, c) != cols[c]) ListView_SetColumnWidth(g_list, c, cols[c]);
+    SendMessageA(g_list, WM_SETREDRAW, TRUE, 0);
     repaint();
 }
 
@@ -1055,11 +1091,10 @@ internal LRESULT draw_cell(NMLVCUSTOMDRAW *cd) {
     COLORREF bk = GetSysColor(COLOR_WINDOW);
     if (node_kind(p) != NODE_ENTRY) bold = 1;
     else if (cd->iSubItem < COLS - 1) {
-        const struct entry *e = &g_e[p];
-        bold = is_changed(e) || diff_set(e);
-        grey = !e->text[0] && !diff_set(e);
-        game = cd->iSubItem == 0 && game_of(e->row) >= 0;
-        int level = cd->iSubItem == 1 ? entry_level(e) : CHECK_OK;
+        bold = g_look[p].bold;   // worked out by fill_item
+        grey = g_look[p].grey;
+        game = cd->iSubItem == 0 && g_look[p].game;
+        int level = cd->iSubItem == 1 ? g_look[p].level : CHECK_OK;
         if (level == CHECK_WARN) bk = TINT_WARN;
         else if (level == CHECK_MISTAKE) bk = TINT_MISTAKE;
     }
@@ -1079,6 +1114,7 @@ internal const struct { int look; const char *sample, *text; } k_help[] = {
                      "line - click it, double-click the line, or press the right and left arrow keys (left on a closed "
                      "line goes up to the line that holds it)." },
     { HL_TEXT, NULL, "The search looks through every key and its help text, and opens every line with a match." },
+    { HL_TEXT, NULL, "Drag the gap between the list and the panel on its right to share the width between them." },
     { HL_TEXT, NULL, "Value is what the game plays, Default the mod's own. An AI setting shows its base value, and in "
                      "brackets only where easy or hard plays another: off (hard: on)." },
     { HL_HEAD, NULL, "The looks of a value" },
@@ -1214,6 +1250,28 @@ internal LRESULT CALLBACK wnd_proc(HWND w, UINT msg, WPARAM wp, LPARAM lp) {
             return (LRESULT)GetSysColorBrush(COLOR_BTNFACE);
         }
         break;
+    case WM_SETCURSOR: {   // the split's arrows over the gap
+        POINT pt;
+        GetCursorPos(&pt);
+        ScreenToClient(w, &pt);
+        if ((HWND)wp == w && LOWORD(lp) == HTCLIENT && on_split(pt.x, pt.y)) { SetCursor(LoadCursor(NULL, IDC_SIZEWE)); return TRUE; }
+        break;
+    }
+    case WM_LBUTTONDOWN:
+        if (on_split((short)LOWORD(lp), (short)HIWORD(lp))) { g_dragging = 1; SetCapture(w); }
+        return 0;
+    case WM_MOUSEMOVE:
+        if (g_dragging) {   // the panel from the mouse to the window's right margin
+            RECT rc;
+            GetClientRect(w, &rc);
+            int rw = rc.right - dpi_px(16), pw = rc.right - dpi_px(8) - (short)LOWORD(lp) - dpi_px(4);
+            if (rw > 0) g_split = (float)pw / rw;
+            layout();
+            UpdateWindow(w);
+        }
+        return 0;
+    case WM_LBUTTONUP: if (g_dragging) ReleaseCapture(); return 0;
+    case WM_CAPTURECHANGED: g_dragging = 0; return 0;
     case WM_GETMINMAXINFO: ((MINMAXINFO *)lp)->ptMinTrackSize.x = dpi_px(900); ((MINMAXINFO *)lp)->ptMinTrackSize.y = dpi_px(600); return 0;
     case WM_COMMAND: {
         int id = LOWORD(wp), code = HIWORD(wp);
