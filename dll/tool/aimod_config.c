@@ -7,7 +7,7 @@
 // 35%, 2 * 60, min(...)), and its mistake told as the game would log it. Saving writes only the keys changed, each
 // through WritePrivateProfileString, so the file's comments and order stay; an empty value removes the key (the
 // default, or for a difficulty [ai_base]'s value). Keys in the file that are no setting of this version are listed
-// and can be removed. Its own translation unit (dll/build.sh), from base/, script/ and settings/ only (layers.py).
+// and can be removed. The Help button (F1) opens a window on the colours and the use. Its own translation unit (dll/build.sh), from base/, script/ and settings/ only (layers.py).
 #include <windows.h>
 #include <commctrl.h>
 #include <stdio.h>
@@ -30,7 +30,7 @@
 
 #define TITLE "Empire Earth: Age of AI - settings"
 enum { ID_FILTER = 100, ID_LIST, ID_HELP, ID_NAME, ID_FILE, ID_SAVE, ID_CLOSE, ID_UNKNOWN, ID_REMOVE, ID_GAME, ID_GAME_TEXT,
-       ID_GAME_APPLY, ID_GAME_RESTORE };
+       ID_GAME_APPLY, ID_GAME_RESTORE, ID_HELP_OPEN };
 
 // THE PAGES: a section each (rows.h SETTING_SECTIONS by their order, the test ini's left out) - the tree's sections and
 // the AI's difficulty columns; diff >= 0: a difficulty's own section, its rows those of [ai_base]
@@ -78,7 +78,7 @@ internal HWND g_wnd, g_filter, g_list, g_help, g_name, g_file_label, g_save, g_c
 internal HFONT g_font, g_bold, g_mono;   // g_mono: the help, aligned in the ini for a fixed-width font
 internal int g_sel = -1, g_filling;   // g_sel: the selected setting's entry; g_filling: the controls set by the program
 internal float g_dpi = 1;
-internal RECT g_legend;   // where the colours' legend is painted (layout)
+internal HWND g_help_open, g_help_wnd;   // the Help button, the help's window while it is open
 
 internal int dpi_px(int n) { return (int)(n * g_dpi + 0.5f); }   // n pixels at 96 dpi on this screen
 internal const struct setting_row *row_of(const struct entry *e) { return &k_settings[e->row]; }
@@ -900,10 +900,9 @@ internal void layout(void) {
     int unk = g_nunk ? dpi_px(40) : 0, bottom = dpi_px(32) + unk, help_h = dpi_px(110);
     int editor = dpi_px(22) + help_h + dpi_px(6) + (g_ned ? g_ned : 1) * line;
     MoveWindow(g_filter, x, m, dpi_px(300), dpi_px(24), FALSE);
-    int legend = dpi_px(22), list_h = h - m - dpi_px(32) - legend - editor - bottom - m;
+    int list_h = h - m - dpi_px(32) - editor - bottom - m;
     MoveWindow(g_list, x, m + dpi_px(32), rw, list_h, FALSE);
-    SetRect(&g_legend, x, m + dpi_px(32) + list_h + dpi_px(2), w - m, m + dpi_px(32) + list_h + legend);   // under the list
-    int y = m + dpi_px(32) + list_h + legend + m;
+    int y = m + dpi_px(32) + list_h + m;
     MoveWindow(g_name, x, y, rw, dpi_px(20), FALSE);
     MoveWindow(g_help, x, y + dpi_px(22), rw, help_h, FALSE);
     for (int k = 0; k < EDITORS; k++) {   // a line each: its label, its control, the button, what it comes to
@@ -923,7 +922,9 @@ internal void layout(void) {
         MoveWindow(g_remove, w - m - dpi_px(110), by - unk, dpi_px(110), dpi_px(26), FALSE);
     }
     MoveWindow(g_game, m, by, dpi_px(150), dpi_px(28), FALSE);
-    MoveWindow(g_file_label, m + dpi_px(160), by + dpi_px(5), w - 4 * m - dpi_px(360), dpi_px(20), FALSE);
+    MoveWindow(g_help_open, m + dpi_px(156), by, dpi_px(94), dpi_px(28), FALSE);
+    int fx = m + dpi_px(260);
+    MoveWindow(g_file_label, fx, by + dpi_px(5), w - m - dpi_px(206) - fx, dpi_px(20), FALSE);
     MoveWindow(g_save, w - m - dpi_px(196), by, dpi_px(94), dpi_px(28), FALSE);
     MoveWindow(g_close, w - m - dpi_px(96), by, dpi_px(94), dpi_px(28), FALSE);
     int gh = h - 2 * m - bottom - dpi_px(40);   // the game page: its text, the buttons under it
@@ -975,6 +976,7 @@ internal void create_controls(void) {
         hide_editor(k);
     }
     g_game = make_child(WC_BUTTONA, "Game exe...", BS_PUSHBUTTON | WS_TABSTOP, ID_GAME);
+    g_help_open = make_child(WC_BUTTONA, "Help (F1)", BS_PUSHBUTTON | WS_TABSTOP, ID_HELP_OPEN);
     g_file_label = make_child(WC_STATICA, "", SS_LEFT | SS_NOPREFIX | SS_PATHELLIPSIS, ID_FILE);
     g_save = make_child(WC_BUTTONA, "Save", BS_DEFPUSHBUTTON | WS_TABSTOP, ID_SAVE);
     g_close = make_child(WC_BUTTONA, "Close", BS_PUSHBUTTON | WS_TABSTOP, ID_CLOSE);
@@ -1015,7 +1017,7 @@ internal void show_mode(void) {
 }
 
 // THE COLOURS: the value cell tinted by its check - a warning (outside its usual range, the game uses it) yellow, a
-// mistake (the game uses the default) red; the legend under the list says what each is
+// mistake (the game uses the default) red; the help (help_open) says what each is
 #define TINT_WARN RGB(255, 240, 180)
 #define TINT_MISTAKE RGB(255, 205, 205)
 #define TEXT_WARN RGB(150, 100, 0)
@@ -1045,44 +1047,143 @@ internal LRESULT draw_cell(NMLVCUSTOMDRAW *cd) {
     return CDRF_NEWFONT;
 }
 
-// the legend under the list (g_legend): a swatch and a word for each look of a value
-internal void paint_legend(HDC dc) {
-    static const struct { const char *text; int kind; } k[] = {
-        { "Bold: changed", 1 }, { "Grey: not in your file, the default", 2 }, { "Blue: the game's own value", 5 },
-        { "outside its usual range - used anyway", 3 }, { "a mistake - the default instead", 4 },
-    };
-    HFONT old = (HFONT)SelectObject(dc, g_font);
+// THE HELP (the Help button, F1): what a line's looks mean and how the program is used, in a window of its own over
+// the main one - which waits meanwhile (disabled), as under a message box. A line: a heading, a paragraph, or a sample
+// in one of the looks with what it means beside it.
+enum { HL_HEAD, HL_TEXT, HL_BOLD, HL_GREY, HL_GAME, HL_WARN, HL_MISTAKE };
+internal const struct { int look; const char *sample, *text; } k_help[] = {
+    { HL_HEAD, NULL, "The list" },
+    { HL_TEXT, NULL, "Every setting in one tree: the sections, their topics, the settings. A triangle opens or closes a "
+                     "line - click it, double-click the line, or press the right and left arrow keys (left on a closed "
+                     "line goes up to the line that holds it)." },
+    { HL_TEXT, NULL, "The search looks through every key and its help text, and opens every line with a match." },
+    { HL_TEXT, NULL, "Value is what the game plays, Default the mod's own. An AI setting shows its base value, and in "
+                     "brackets only where easy or hard plays another: off (hard: on)." },
+    { HL_HEAD, NULL, "The looks of a value" },
+    { HL_BOLD, "changed", "Not the default: your file sets a value of its own, or easy or hard plays another." },
+    { HL_GREY, "not in your file", "Your file doesn't have the key: the game plays the default." },
+    { HL_GAME, "attack_on_contact", "The key only sets one of the game's own values. The Default column and the line "
+                                    "over the help name the game's own (game: 71%); pale while not in your file." },
+    { HL_WARN, "outside its range", "Outside its usual range: the game uses it anyway. Allowed, but likely not what "
+                                    "you meant - the line under the editor says what it comes to." },
+    { HL_MISTAKE, "a mistake", "A value that can't be used (no number, a name the list doesn't have ...): the game "
+                               "plays the default instead, and its log says so." },
+    { HL_HEAD, NULL, "Changing a setting" },
+    { HL_TEXT, NULL, "Select a setting: its help, the comment over its key in the mod's aimod.ini, and under it an editor "
+                     "- on / off, a list or a text field. An AI setting has a line each for All, Easy and Hard: an "
+                     "empty Easy or Hard plays the All value (the medium AI always does)." },
+    { HL_TEXT, NULL, "A text field takes arithmetic, as the file does: 35%, 2 * 60, min(10, 4 * 3). It is checked as "
+                     "you type." },
+    { HL_TEXT, NULL, "Default puts the mod's default back - on an Easy or Hard line, the All value." },
+    { HL_TEXT, NULL, "A master setting opens to its children (Movement: improved_unit_movement). default plays each "
+                     "child's own default, enabled turns them all on, disabled all off; a child set in your file goes "
+                     "its own way." },
+    { HL_HEAD, NULL, "Saving" },
+    { HL_TEXT, NULL, "Save writes only the keys you changed - your file's comments and order stay. The game reads "
+                     "aimod.ini when it starts: a change counts from its next start." },
+    { HL_TEXT, NULL, "Keys in your file this version doesn't know (no longer used, or misspelt) are listed at the "
+                     "bottom, with a button that removes them." },
+    { HL_TEXT, NULL, "Game exe... shows the game's exe: the 4 GB patch, and the way back to the original." },
+};
+
+// the help's lines drawn on dc, or only measured (draw 0), w wide: the height they take
+internal int help_lines(HDC dc, int w, int draw) {
+    int m = dpi_px(16), col = dpi_px(150), y = m;
     SetBkMode(dc, TRANSPARENT);
-    int x = g_legend.left, y = g_legend.top, h = g_legend.bottom - g_legend.top;
-    for (size_t i = 0; i < sizeof k / sizeof *k; i++) {
-        SIZE sz;
-        if (k[i].kind == 3 || k[i].kind == 4) {   // a tinted swatch
-            RECT sw = { x, y + h / 2 - dpi_px(6), x + dpi_px(22), y + h / 2 + dpi_px(6) };
-            HBRUSH b = CreateSolidBrush(k[i].kind == 3 ? TINT_WARN : TINT_MISTAKE);
-            FillRect(dc, &sw, b);
-            DeleteObject(b);
-            x += dpi_px(28);
+    for (size_t i = 0; i < sizeof k_help / sizeof *k_help; i++) {
+        int look = k_help[i].look, x = m, sh = 0;
+        if (look == HL_HEAD && i) y += dpi_px(10);
+        if (look >= HL_BOLD) {   // the sample in its look, a tinted cell for a warning and a mistake as in the list
+            RECT s = { m, y, m + col - dpi_px(10), y + dpi_px(20) };
+            sh = dpi_px(20);
+            if (draw && (look == HL_WARN || look == HL_MISTAKE)) {
+                HBRUSH b = CreateSolidBrush(look == HL_WARN ? TINT_WARN : TINT_MISTAKE);
+                FillRect(dc, &s, b);
+                DeleteObject(b);
+            }
+            s.left += dpi_px(4);
+            SelectObject(dc, look == HL_BOLD ? g_bold : g_font);
+            SetTextColor(dc, look == HL_GAME ? TEXT_GAME : GetSysColor(look == HL_GREY ? COLOR_GRAYTEXT : COLOR_WINDOWTEXT));
+            if (draw) DrawTextA(dc, k_help[i].sample, -1, &s, DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX | DT_END_ELLIPSIS);
+            x = m + col;
         }
-        SelectObject(dc, k[i].kind == 1 ? g_bold : g_font);
-        SetTextColor(dc, k[i].kind == 5 ? TEXT_GAME : GetSysColor(k[i].kind == 2 ? COLOR_GRAYTEXT : COLOR_WINDOWTEXT));
-        const char *t = k[i].text;
-        GetTextExtentPoint32A(dc, t, (int)strlen(t), &sz);
-        TextOutA(dc, x, y + (h - sz.cy) / 2, t, (int)strlen(t));
-        x += sz.cx + dpi_px(24);
+        SelectObject(dc, look == HL_HEAD ? g_bold : g_font);
+        SetTextColor(dc, GetSysColor(COLOR_WINDOWTEXT));
+        RECT r = { x, y + (sh ? dpi_px(2) : 0), w - m, y };
+        DrawTextA(dc, k_help[i].text, -1, &r, DT_WORDBREAK | DT_NOPREFIX | DT_CALCRECT);
+        int th = r.bottom - r.top + (sh ? dpi_px(2) : 0);
+        r.right = w - m;
+        if (draw) DrawTextA(dc, k_help[i].text, -1, &r, DT_WORDBREAK | DT_NOPREFIX);
+        y += (th > sh ? th : sh) + dpi_px(6);
     }
+    return y + m - dpi_px(6);
+}
+
+internal void help_close(void) {
+    if (!g_help_wnd) return;
+    EnableWindow(g_wnd, TRUE);   // before the help goes, so the main window is the one activated
+    DestroyWindow(g_help_wnd);
+}
+
+internal LRESULT CALLBACK help_proc(HWND w, UINT msg, WPARAM wp, LPARAM lp) {
+    switch (msg) {
+    case WM_PAINT: {
+        PAINTSTRUCT ps;
+        RECT rc;
+        HDC dc = BeginPaint(w, &ps);
+        GetClientRect(w, &rc);
+        HFONT old = (HFONT)SelectObject(dc, g_font);
+        help_lines(dc, rc.right, 1);
+        SelectObject(dc, old);
+        EndPaint(w, &ps);
+        return 0;
+    }
+    case WM_COMMAND: if (LOWORD(wp) == IDOK || LOWORD(wp) == IDCANCEL) help_close(); return 0;
+    case WM_CLOSE: help_close(); return 0;
+    case WM_DESTROY: g_help_wnd = NULL; return 0;
+    }
+    return DefWindowProcA(w, msg, wp, lp);
+}
+
+internal void help_open(void) {
+    if (g_help_wnd) { SetForegroundWindow(g_help_wnd); return; }
+    static int registered;
+    if (!registered) {
+        WNDCLASSA wc = { 0 };
+        wc.lpfnWndProc = help_proc;
+        wc.hInstance = GetModuleHandleA(NULL);
+        wc.hCursor = LoadCursor(NULL, IDC_ARROW);
+        wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
+        wc.lpszClassName = "AimodConfigHelp";
+        RegisterClassA(&wc);
+        registered = 1;
+    }
+    int w = dpi_px(640), bh = dpi_px(28), m = dpi_px(16);
+    HDC dc = GetDC(NULL);
+    HFONT old = (HFONT)SelectObject(dc, g_font);
+    int h = help_lines(dc, w, 0) + bh + m;
     SelectObject(dc, old);
+    ReleaseDC(NULL, dc);
+    DWORD style = WS_POPUP | WS_CAPTION | WS_SYSMENU;
+    RECT r = { 0, 0, w, h }, main;
+    AdjustWindowRect(&r, style, FALSE);
+    GetWindowRect(g_wnd, &main);   // centred over the main window
+    int ww = r.right - r.left, wh = r.bottom - r.top;
+    g_help_wnd = CreateWindowExA(WS_EX_DLGMODALFRAME, "AimodConfigHelp", "Help - " TITLE, style,
+                                 (main.left + main.right - ww) / 2, (main.top + main.bottom - wh) / 2, ww, wh, g_wnd,
+                                 NULL, GetModuleHandleA(NULL), NULL);
+    HWND ok = CreateWindowExA(0, WC_BUTTONA, "Close", WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_DEFPUSHBUTTON,
+                              w - m - dpi_px(94), h - m - bh, dpi_px(94), bh, g_help_wnd, (HMENU)IDOK,
+                              GetModuleHandleA(NULL), NULL);
+    SendMessageA(ok, WM_SETFONT, (WPARAM)g_font, TRUE);
+    EnableWindow(g_wnd, FALSE);
+    ShowWindow(g_help_wnd, SW_SHOW);
+    SetFocus(ok);
 }
 
 internal LRESULT CALLBACK wnd_proc(HWND w, UINT msg, WPARAM wp, LPARAM lp) {
     switch (msg) {
     case WM_SIZE: if (g_list) layout(); return 0;
-    case WM_PAINT: {
-        PAINTSTRUCT ps;
-        HDC dc = BeginPaint(w, &ps);
-        if (!g_game_mode) paint_legend(dc);
-        EndPaint(w, &ps);
-        return 0;
-    }
     case WM_CTLCOLORSTATIC:   // an editor's status in its check's colour
         for (int k = 0; k < EDITORS; k++) {
             if ((HWND)lp != g_ed[k].status || g_ed[k].level == CHECK_OK) continue;
@@ -1101,6 +1202,7 @@ internal LRESULT CALLBACK wnd_proc(HWND w, UINT msg, WPARAM wp, LPARAM lp) {
             else if (part == ED_BUTTON && code == BN_CLICKED) set_default(k);
         } else if (id == ID_FILTER && code == EN_CHANGE) fill_list(g_node);
         else if (id == ID_GAME) { g_game_mode ^= 1; show_mode(); }
+        else if (id == ID_HELP_OPEN) help_open();
         else if (id == ID_GAME_APPLY) game_apply();
         else if (id == ID_GAME_RESTORE) game_restore();
         else if (id == ID_REMOVE) { g_remove_unknown = 1; show_unknown(); update_title(); }
@@ -1232,6 +1334,8 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmd, int show) {
     SetFocus(g_list);
     MSG m;
     while (GetMessageA(&m, NULL, 0, 0) > 0) {
+        if (m.message == WM_KEYDOWN && m.wParam == VK_F1 && !g_help_wnd) { help_open(); continue; }   // wherever the focus is
+        if (g_help_wnd && IsDialogMessageA(g_help_wnd, &m)) continue;   // Esc and Enter close it
         if (IsDialogMessageA(g_wnd, &m)) continue;
         TranslateMessage(&m);
         DispatchMessageA(&m);
