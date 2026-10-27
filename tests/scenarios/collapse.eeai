@@ -1,0 +1,13 @@
+// An economy wiped out late (the player's save "standing army": P7 with 2-3 citizens and 17 food, its fields empty,
+// the food it was given spent on soldiers): at minute 25 every AI keeps 4 of its citizens and loses its food and
+// wood; its army, buildings and the rest of its stock stay. recover_economy: does it build its economy back up?
+
+wait_until(25min)
+for p in [2, 3, 4, 5] {
+    let c = player(p).units(kind.citizen)
+    for i in 5..len(c) {
+        c[i].remove()
+    }
+    player(p).food = 0
+    player(p).wood = 0
+}

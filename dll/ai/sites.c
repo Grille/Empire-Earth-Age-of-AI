@@ -58,6 +58,47 @@ internal int drop_dist(const struct drop *d, int nd, ivec2 p, int food) {   // w
 // Settlement) instead, with the original's checks (active zone, explored, gatherer cap, no enemy near, the unit's
 // continent) and no known enemy on the straight way from that drop site. Nothing found -> the original search.
 internal int g_mine_choice = 1;
+// MINE CROWDS ([ai_base] mine_crowds, default on; the player 2026-10-27 on the save "standing army": very many
+// villagers overassigned to mines): the game counts a mine's gatherers (0x52E772, from the unit's +0x1F8 the site it
+// works, set when it starts) only while they work - at most the cap (6); the citizens walking there or waiting beside
+// it for a place are not counted, so every search (the game's and select_mine_near_drop) saw the mine free and sent
+// more: P6 at minute 595 had 86 citizens on one gold mine, 33 and 30 on two others, while dozens of its mines had
+// nobody. Here a mine counts as full when its gatherer count or the AI's own citizens aiming at it (their gather goal's
+// site, counted every 2 s, a pick added at once) reach the cap, and every 10 s the citizens beyond the cap at a mine
+// (the farthest from it first, 20 at most) go to the nearest free mine of the same kind.
+internal int g_mine_crowds = 1;
+internal struct aim_st { uint32_t t; int n; ee_unit *s[512]; uint16_t c[512]; } g_aim[16];
+internal void aim_count(ee_player *pl, unsigned pi) {
+    struct aim_st *a = &g_aim[pi & 15];
+    uint32_t now = game_time();
+    if (a->t && now >= a->t && now - a->t < 2000) return;
+    a->t = now ? now : 1;
+    a->n = 0;
+    for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
+        ee_unit *u = it.u;
+        if (unit_get_owner(u) != pl || unit_get_hp(u) <= 0 || !is_citizen_type(unit_type_get_id(it.td))) continue;
+        ee_goal *g = unit_get_goal(u);
+        ee_unit *s = g && !strcmp(rtti_name(g), "EEUGGather@@") ? goal_get_site(g) : NULL;
+        int r = s ? unit_get_resource(s) : 0;
+        if (r < 4 || r > 6) continue;
+        int k;
+        for (k = 0; k < a->n && a->s[k] != s; k++) ;
+        if (k == a->n) { if (a->n == 512) continue; a->s[k] = s; a->c[k] = 0; a->n++; }
+        a->c[k]++;
+    }
+}
+internal unsigned aim_of(unsigned pi, ee_unit *s) {
+    struct aim_st *a = &g_aim[pi & 15];
+    for (int k = 0; k < a->n; k++) if (a->s[k] == s) return a->c[k];
+    return 0;
+}
+internal void aim_add(unsigned pi, ee_unit *s) {
+    struct aim_st *a = &g_aim[pi & 15];
+    int k;
+    for (k = 0; k < a->n && a->s[k] != s; k++) ;
+    if (k == a->n) { if (a->n == 512) return; a->s[k] = s; a->c[k] = 0; a->n++; }
+    a->c[k]++;
+}
 internal struct { ee_player *pl; uint32_t t; int n; struct drop d[64]; } g_drops[16];
 internal void drops_cached(ee_player *pl) {
     unsigned pi = (unsigned)player_get_index(pl) & 15;
@@ -135,6 +176,7 @@ internal ee_unit *select_mine_near_drop(ee_resource_mgr *rm, int type, ee_unit *
     if (!pl || !bm) return NULL;
     unsigned pi = (unsigned)player_get_index(pl) & 15;
     drops_cached(pl);
+    if (g_mine_crowds) aim_count(pl, pi);
     const struct drop *d = g_drops[pi].d;
     unsigned cap = table_value(0x16);
     short ref_region = unit ? (short)map_area(unit_get_tile(unit), 2) : 0;
@@ -151,6 +193,7 @@ internal ee_unit *select_mine_near_drop(ee_resource_mgr *rm, int type, ee_unit *
         if (k < 0 || dd >= best_d) continue;
         if (!explored_by(s, pl)) continue;
         if (site_gatherers(s) >= cap) continue;
+        if (g_mine_crowds && aim_of(pi, s) >= cap) continue;   // the citizens on their way or waiting there count
         if (unit && (short)map_area(pos, 2) != ref_region) continue;
         if (not_region >= 0 && (short)map_area(pos, 2) == not_region) continue;
         if (build_mgr_enemy_near(bm, pos.x, pos.y)) continue;
@@ -158,7 +201,61 @@ internal ee_unit *select_mine_near_drop(ee_resource_mgr *rm, int type, ee_unit *
         best = s;
         best_d = dd;
     }
+    if (best && g_mine_crowds) aim_add(pi, best);
     return best;
+}
+// MINE CROWDS: the citizens beyond the cap at a mine to the nearest free one of the same kind (every 10 s)
+internal unsigned g_crowd_moved[16];
+internal void mine_crowds(ee_resource_mgr *rm) {
+    ee_player *pl = resource_mgr_player(rm);
+    if (!pl || is_vanilla(pl)) return;
+    unsigned pi = (unsigned)player_get_index(pl) & 15;
+    static uint32_t last[16], logged[16];
+    uint32_t now = game_time();
+    if (g_autotest && g_log && (!logged[pi] || now < logged[pi] || now - logged[pi] >= 60000)) {   // the crowds once a minute (also with it off)
+        logged[pi] = now ? now : 1;
+        g_aim[pi].t = 0;
+        aim_count(pl, pi);
+        unsigned cap = table_value(0x16);
+        int over = 0, sites = 0, most = 0;
+        for (int k = 0; k < g_aim[pi].n; k++)
+            if (g_aim[pi].c[k] > cap) { over += (int)(g_aim[pi].c[k] - cap); sites++; if ((int)g_aim[pi].c[k] > most) most = g_aim[pi].c[k]; }
+        fprintf(g_log, "# mine crowds: P%u at %.1f min: %d citizens beyond the cap at %d mines (at most %d at one)\n", pi, now / 60000.0, over, sites, most);
+    }
+    if (!g_mine_crowds || !g_mine_choice) return;
+    if (last[pi] && now >= last[pi] && now - last[pi] < 10000) return;
+    last[pi] = now ? now : 1;
+    g_aim[pi].t = 0;
+    aim_count(pl, pi);
+    unsigned cap = table_value(0x16);
+    int moved = 0;
+    for (int k = 0; k < g_aim[pi].n && moved < 20; k++) {
+        if (g_aim[pi].c[k] <= cap) continue;
+        ee_unit *s = g_aim[pi].s[k];
+        int type = unit_get_resource(s), over = (int)g_aim[pi].c[k] - (int)cap;
+        ivec2 sp = unit_get_tile(s);
+        static struct { ee_unit *u; int d; } v[256];
+        int nv = 0;
+        for (struct grid_it it = grid_it_all(1); grid_it_next(&it) && nv < 256; ) {
+            ee_unit *u = it.u;
+            if (unit_get_owner(u) != pl || unit_get_hp(u) <= 0 || !is_citizen_type(unit_type_get_id(it.td))) continue;
+            ee_goal *g = unit_get_goal(u);
+            if (!g || strcmp(rtti_name(g), "EEUGGather@@") || goal_get_site(g) != s) continue;
+            v[nv].u = u; v[nv].d = ivec2_dist2(unit_get_tile(u), sp); nv++;
+        }
+        while (over > 0 && nv > 0 && moved < 20) {   // the farthest from the mine first: those walking, then those waiting
+            int bj = 0;
+            for (int j = 1; j < nv; j++) if (v[j].d > v[bj].d) bj = j;
+            ee_unit *u = v[bj].u;
+            v[bj] = v[--nv];
+            ee_unit *to = select_mine_near_drop(rm, type, u, -1);
+            if (!to || to == s) break;   // no free mine of the kind: they wait
+            resource_mgr_assign(rm, u, to);
+            over--; moved++;
+        }
+    }
+    g_crowd_moved[pi] += (unsigned)moved;
+    if (moved && g_log) fprintf(g_log, "# mine crowds: P%u at %.1f min: %d citizens beyond the cap moved to free mines (%u in all)\n", pi, now / 60000.0, moved, g_crowd_moved[pi]);
 }
 
 // OVERSEAS MINES ([ai_base] overseas_mines, default on - Art of Conquest's fix): on a water map the citizen assignment
@@ -198,7 +295,16 @@ internal ee_unit *__thiscall hook_find_mine(ee_resource_mgr *rm, int type, ee_un
 internal void *find_mine_pick(ee_resource_mgr *rm, int type, ee_unit *unit, uintptr_t rev) {
     if (is_vanilla(resource_mgr_player(rm))) return resource_mgr_find_mine(rm, (uintptr_t)type, unit, rev);   // the game's search
     ee_unit *r = g_mine_choice && type >= 4 && type < 7 ? select_mine_near_drop(rm, type, unit, -1) : NULL;
-    return r ? r : refuse_danger(rm, resource_mgr_find_mine(rm, (uintptr_t)type, unit, rev), type == 2, type);
+    if (r) return r;
+    r = refuse_danger(rm, resource_mgr_find_mine(rm, (uintptr_t)type, unit, rev), type == 2, type);
+    if (r && g_mine_crowds && type >= 4 && type < 7) {   // the game's search knows only the working gatherers: a full mine refused
+        ee_player *pl = resource_mgr_player(rm);
+        unsigned pi = (unsigned)player_get_index(pl) & 15;
+        aim_count(pl, pi);
+        if (aim_of(pi, r) >= table_value(0x16)) return NULL;
+        aim_add(pi, r);
+    }
+    return r;
 }
 
 internal ee_unit *__thiscall hook_find_food(ee_resource_mgr *rm, uintptr_t need_drop, uintptr_t near_base, ee_unit *unit) {
@@ -243,6 +349,7 @@ internal ee_unit *__thiscall hook_find_wood(ee_resource_mgr *rm, uintptr_t flag,
 internal void sites_install(void) {
     g_site_max_dist = g_set_ai[1].site_max_distance;
     g_mine_choice = g_set_ai[1].mine_choice;
+    g_mine_crowds = g_set_ai[1].mine_crowds;
     g_overseas_mines = g_set_ai[1].overseas_mines;
     int ok = 0, total = 0;
     // always: the searches refuse sites behind known enemy towers (avoid_towers_citizens, attack.c)

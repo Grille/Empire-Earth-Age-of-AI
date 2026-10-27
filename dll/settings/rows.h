@@ -173,6 +173,7 @@
     D(FLAG,  navy_fleet_mass,              1, 0, 0) \
     D(FLAG,  navy_mines,                   1, 0, 0) \
     D(FLAG,  mine_choice,                  1, 0, 0) \
+    D(FLAG,  mine_crowds,                  1, 0, 0) \
     D(FLAG,  overseas_mines,               1, 0, 0) \
     D(FLAG,  rebalance_workers,            1, 0, 0) \
     D(NUM,   food_plan,                    3, 0, 0) \
@@ -255,6 +256,7 @@
     D(FLAG,  transport_watchdog,           0, 0, 0) \
     D(FLAG,  fight_estimate,               0, 0, 0) \
     D(NUM,   min_workforce,                40, 0, 0) \
+    D(FLAG,  recover_economy,              1, 0, 0) \
     D(FLAG,  early_requirements,           1, 0, 0) \
     D(FLAG,  reserve_plan,                 1, 0, 0) \
     D(NUM,   mineral_worker_margin,        300, 0, 0) \

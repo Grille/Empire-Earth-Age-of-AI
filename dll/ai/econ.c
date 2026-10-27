@@ -902,6 +902,30 @@ internal unsigned g_pull_seen[16][7];
 internal unsigned mil_short(unsigned idx, int r);   // below: the army's orders refused for resource r (counter)
 internal void budget_reserve(ee_player *pl, int reserve[7]);
 internal void navy_mines(ee_player *pl, unsigned idx, ee_resource_mgr *rm, uint32_t *target, const int *stock, const int *reserve, const int *demand);
+// RECOVERY ([ai_base] recover_economy, default on; the player 2026-10-27 on the save "standing army": P7 with 2-3
+// citizens, 17 food and 16 finished fields without a farmer, its Town Centers idle for food; the food the player gave
+// it went to soldiers it can't use, no citizen came of it): after the Copper Age the economy had no floor - the
+// game's targets put 2 of 11 workers on food (the field pass sends farmers only up to that target), the army account
+// kept its share of every income and the soldiers spent it. While its workforce is under min_workforce (40) after the
+// Copper Age: two thirds of its workers on food, its citizens may spend the whole stock (the reserve and the army's
+// account too), and no soldiers are trained unless enemy soldiers are in its base - once it had min_workforce + 5
+// (a start in a late epoch with 5 citizens is no collapse) or from minute 30. "# recovery:" when it starts and ends.
+internal int g_recover = 1, g_v_recover = -1;
+internal uint8_t g_recovering[16], g_had_economy[16];
+internal int base_threatened(unsigned idx);   // diplo.c
+internal int recovering(ee_player *pl) {
+    unsigned idx = pl ? (unsigned)player_get_index(pl) & 15 : 0;
+    if (!PV(idx, g_v_recover, g_recover) || !pl || is_vanilla(pl) || current_epoch(pl) < FARM_EPOCH) return 0;
+    int wf = workforce(pl), on = g_recovering[idx] ? wf < g_min_workforce + 5 : wf < g_min_workforce;   // 5 of slack: no flicker
+    if (wf >= g_min_workforce + 5) g_had_economy[idx] = 1;
+    if (!g_had_economy[idx] && game_time() < 1800000) on = 0;   // a start in a late epoch is no collapse: a lost economy, or from minute 30
+    if (on != g_recovering[idx]) {
+        g_recovering[idx] = (uint8_t)on;
+        if (g_log) fprintf(g_log, "# recovery: P%u at %.1f min: %s (workforce %d, min_workforce %d)\n", idx, game_time() / 60000.0,
+                           on ? "the economy first" : "over", wf, g_min_workforce);
+    }
+    return on;
+}
 internal void econ_targets(ee_resource_mgr *rm) {
     ee_player *pl = resource_mgr_player(rm);
     if (!pl || !copper_mode(pl)) return;
@@ -916,6 +940,17 @@ internal void econ_targets(ee_resource_mgr *rm) {
     int total = 0, need[7] = { 0 }, sum = 0;
     for (int r = 2; r < 7; r++) total += (int)target[r];
     unsigned idx = (unsigned)player_get_index(pl) & 15;
+    if (late && recovering(pl)) {   // RECOVERY: two thirds on food, the fields filled
+        int want = total * 2 / 3;
+        while ((int)target[2] < want) {
+            int from = -1;
+            for (int r = 3; r < 7; r++) if ((int)target[r] > 1 && (from < 0 || target[r] > target[from])) from = r;
+            if (from < 0) break;
+            target[from]--;
+            target[2]++;
+        }
+        return;
+    }
     if (late) {
         if (total < 6) return;
         // the game's wood demand, or the wood of the next 3 queued buildings up to its epoch if more: a building it
@@ -1380,6 +1415,7 @@ internal void econ_fields(ee_resource_mgr *rm) {   // before the citizen assignm
 }
 internal void econ_rebalance(ee_resource_mgr *rm) {
     ee_player *pl = resource_mgr_player(rm);
+    mine_crowds(rm);   // sites.c: the citizens beyond a mine's cap to free mines
     if (!g_rebalance || !pl) return;
     unsigned idx = (unsigned)player_get_index(pl) & 15;
     uint32_t *target = resource_mgr_target_at(rm);
@@ -1738,6 +1774,7 @@ internal void train_budget(ee_player *pl, unsigned idx, const struct ai_cfg *cfg
     int early = EARLY(idx, early_army) && ep < FARM_EPOCH;
     int no_army = early && military && !ship && !req_unit && !g_priority_mil && ep == 0 &&
                   !(EARLY(idx, early_soldiers) && g_hg_call);
+    int recover = recovering(pl);
     for (int r = 2; r < 7; r++) {
         int visible = req_unit || (ship && navy_earmarked(idx)) ? stock[r] : stock[r] - reserve[r];   // a requirement unit: the epoch waits for it
         // citizens before farms: they pay only food, and only what the food budget (stock + reachable wild
@@ -1769,6 +1806,8 @@ internal void train_budget(ee_player *pl, unsigned idx, const struct ai_cfg *cfg
             if (visible > allowed) visible = allowed;
         }
         if (g_expand_order) visible = stock[r];
+        if (recover && cit) visible = stock[r];   // RECOVERY: the whole stock for citizens
+        if (recover && military && !req_unit && !g_priority_mil && !base_threatened(idx)) visible = 0;   // and no soldiers
         if (no_army) visible = 0;
         if (no_work) visible = 0;
         if (visible < 0) visible = 0;
@@ -1989,6 +2028,8 @@ internal void econ_install(const char *autotest_ini) {
     g_hoard_cap = g_set_ai[1].hoard_cap;
     g_hoard_cap_mineral = g_set_ai[1].hoard_cap_mineral;
     g_min_workforce = g_set_ai[1].min_workforce;
+    g_recover = g_set_ai[1].recover_economy;
+    if (autotest_ini) g_v_recover = ini_int("autotest", "v_recover_economy", -1, autotest_ini);
     g_wild_share = g_set_ai[1].wild_food_share;
     g_reserve_window_ms = g_set_ai[1].reserve_window_min * 60000;
     g_rebalance = g_set_ai[1].rebalance_workers;
@@ -2065,6 +2106,8 @@ internal void econ_new_game(void) {
     memset(g_bud, 0, sizeof g_bud);
     memset(g_catch_seen, -1, sizeof g_catch_seen);
     memset(g_catch_n, 0, sizeof g_catch_n);
+    memset(g_recovering, 0, sizeof g_recovering);
+    memset(g_had_economy, 0, sizeof g_had_economy);
     memset(g_epoch_acc, 0, sizeof g_epoch_acc);
     memset(g_epoch_acc_ep, 0, sizeof g_epoch_acc_ep);
     memset(g_rate, 0, sizeof g_rate);
