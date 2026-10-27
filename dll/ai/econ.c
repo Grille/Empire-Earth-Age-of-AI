@@ -1824,6 +1824,41 @@ internal void train_budget(ee_player *pl, unsigned idx, const struct ai_cfg *cfg
     }
     g_sub_spare_food = g_sub_thrift = 0;
 }
+// QUEUE DEPTH ([ai_base] train_queue; the player 2026-10-27: 80 queued is resources committed for 40 minutes - a long
+// queue is a convenience for a human, for the AI it only ties up what it has): the game hands a request round-robin
+// to every finished producer of the type (0x49014F) and queues all of it, however deep the queues already are -
+// richcap's AIs queued about 115 units into a few buildings after the first gift, P6 on the player's save 80
+// Cuirassiers into each of its 12 stables. A request is cut to what keeps each finished producer of the type at
+// train_queue units (the one in the making and its queue); none: refused, the request stays the game's and comes again. Head-to-head 3 against none (mirrored, 12 games a
+// cell, 50 min, Continental map_size 1, 4 AIs from epoch 5), without - with: richcap (unit_limit 1500) alive -0.27
+// (se 0.05), soldiers -29.7 (7.8), razed -27.4 (4.6), workers -57.9 (9.6), losses -138 (22: more of its army
+// fights), production buildings added (army_plan BUILD) 988 against 1873 - the account no longer sunk in queues;
+// plain epoch 5: soldiers -3.3 (5.7), workers -10.6 (14.1), the same way within noise. On (3).
+internal int g_train_queue = 3, g_v_train_queue = -1;
+#define TRAIN_QUEUE(idx) PV(idx, g_v_train_queue, g_train_queue)
+internal unsigned g_queue_cut[16];   // units cut off requests by it
+// the units pl's finished producers of type take before each holds depth; -1: none known (the game decides)
+internal int queue_room(ee_player *pl, void *um, int type, int depth) {
+    ee_unit_type *td = type_data(type);
+    ee_tech_tree *tt = player_get_tech_tree(pl);
+    ee_tech *t = td && tt ? tech_tree_lookup(tt, unit_type_get_tech(td)) : NULL;
+    ee_tech_data *d = t ? tech_get_data(t) : NULL;
+    int *mb = d ? tech_data_get_makers_begin(d) : NULL, *me = d ? tech_data_get_makers_end(d) : NULL, room = 0, any = 0;
+    for (int *p = mb; mb && me > mb && me - mb < 16 && p < me; p++) {
+        if (p > mb && p[-1] == *p) continue;
+        uint8_t *q = type_list(um, *p);
+        for (unsigned j = 0, f = q ? deque_front(q) : 0, c = q ? deque_count(q) : 0; j < c && j < 256; j++) {
+            ee_unit *b = deque_at(q, f + j);
+            ee_unit *bs = b ? unit_get_physics(b) : NULL;
+            if (!b || unit_get_hp(b) <= 0 || !bs || !unit_get_finished(bs)) continue;
+            int cur = unit_get_producing(b), *qb = unit_get_queue_begin(b), *qe = unit_get_queue_end(b);
+            int n = (cur > 13 && cur != 100000) + (qb && qe > qb ? (int)(qe - qb) : 0);
+            any = 1;
+            if (n < depth) room += depth - n;
+        }
+    }
+    return any ? room : -1;
+}
 // the request as the budget allows it (blocked: none) through the game's own training, cut to the room under the
 // population cap for the mod's own orders; ra = the call site (a game's or the mod's); the game's result
 internal uintptr_t train_call(void *um, ee_player *pl, unsigned idx, int *req, uintptr_t b, int blocked, int afford, int sub_type,
@@ -1849,6 +1884,13 @@ internal uintptr_t train_call(void *um, ee_player *pl, unsigned idx, int *req, u
         if (hold > 0 && room0 - hold < (req[1] > 0 ? req[1] : 1)) {   // the fleet's room: other soldiers only beyond it
             if (room0 - hold <= 0) { *(unsigned *)b = 0; req[1] = saved_count; req[0] = saved_type; g_am_noroom = 1; return 0; }
             req[1] = room0 - hold;
+        }
+        int depth = pl && !is_citizen_type(req[0]) ? TRAIN_QUEUE(idx) : 0;
+        int qroom = depth > 0 ? queue_room(pl, um, req[0], depth) : -1;
+        if (qroom >= 0 && qroom < (req[1] > 0 ? req[1] : 1)) {   // the queues are deep enough
+            g_queue_cut[idx] += (unsigned)((req[1] > 0 ? req[1] : 1) - qroom);
+            if (qroom <= 0) { *(unsigned *)b = 0; req[1] = saved_count; req[0] = saved_type; return 0; }
+            req[1] = qroom;
         }
         res = unit_mgr_train(um, req, b);
         if (room0 <= 0 && !*(unsigned *)b) g_am_noroom = 1;   // the game's own call at the cap
@@ -1957,6 +1999,8 @@ internal void econ_install(const char *autotest_ini) {
     g_build_fix = g_set_ai[1].build_fix;
     g_train_room = g_set_ai[1].train_room;
     g_prod_sync = g_set_ai[1].production_sync;
+    g_train_queue = g_set_ai[1].train_queue;
+    if (autotest_ini) g_v_train_queue = ini_int("autotest", "v_train_queue", -1, autotest_ini);
     g_catch_ais = g_set_ai[1].catch_up_ais;
     if (autotest_ini) g_v_catch_ais = ini_int("autotest", "v_catch_up_ais", -1, autotest_ini);
     g_build_fields = g_set_ai[1].build_fields;
@@ -2046,4 +2090,5 @@ internal void econ_new_game(void) {
     memset(g_save_since, 0, sizeof g_save_since);
     memset(g_cand, 0, sizeof g_cand);
     memset(g_noroom, 0, sizeof g_noroom);
+    memset(g_queue_cut, 0, sizeof g_queue_cut);
 }

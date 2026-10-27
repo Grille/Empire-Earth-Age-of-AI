@@ -229,6 +229,7 @@
     D(NUM,   train_room,                   65535, 0, 0) \
     D(FLAG,  production_sync,              0, 0, 0) \
     D(FLAG,  catch_up_ais,                 1, 0, 0) \
+    D(NUM,   train_queue,                  3, 0, 100) \
     D(NUM,   late_targets,                 7, 0, 0) \
     D(NUM,   idle_citizen_slack,           9999, 0, 0) \
     D(NUM,   home_guard,                   4, 0, 0) \
