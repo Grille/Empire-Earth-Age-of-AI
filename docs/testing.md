@@ -145,6 +145,33 @@ REPEAT=5 QUIET=1 sh scripts/test/suite.sh 75 "a:" "b:key=1"       # 5 runs per m
 EPOCHS="" sh scripts/test/suite.sh 50 "base:" "plan:copper_plan=1"     # EPOCHS="" = the game's real epoch timer
 ```
 
+### Re-measured at 300 per player (2026-10-27)
+
+The tests ran at a cap of 105 per AI until 2026-10-27; the player's range is 200-400 per player (README). The main
+switches again at the new default (`local/scratch/sweep300.sh`: mirrored h2h, 24 games a row, B = the switch off,
+Continental map_size 1, 4 AIs; late = from epoch 5, 50 min; Stone = from epoch 0, 60 min; rich = richcap with
+unit_limit 1500). B - A per game, se in brackets - negative soldiers / kills / razed / workers: the switch helps:
+
+| switch off | alive | soldiers | kills | losses | razed | workers |
+|---|---|---|---|---|---|---|
+| late army_plan=0 | +0.08 (0.09) | -6.6 (5.5) | +3.2 (13.0) | -10.2 (7.4) | +0.5 (3.1) | +1.8 (11.9) |
+| late army_plan=39 (KIND off) | -0.04 (0.08) | -3.6 (4.0) | -2.7 (9.8) | +4.9 (7.5) | -1.8 (2.8) | +0.1 (10.3) |
+| late fall_back=0 | -0.04 (0.07) | -4.3 (5.8) | -15.6 (10.0) | +3.3 (7.3) | -1.8 (3.1) | -2.8 (13.6) |
+| late avoid_lost_fights=0 | 0.00 (0.10) | -0.7 (5.2) | -3.9 (9.8) | +3.1 (8.3) | -0.5 (2.6) | +19.1 (12.2) |
+| late fight_memory=0 | -0.12 (0.08) | -7.6 (4.8) | -5.9 (8.8) | +7.6 (7.4) | -3.2 (3.2) | -18.6 (10.2) |
+| late army_stage=0 | -0.08 (0.08) | -1.7 (4.5) | +0.2 (8.7) | -4.9 (7.5) | -1.3 (2.9) | -14.3 (9.7) |
+| late threat_memory=0 | +0.02 (0.12) | +3.2 (6.3) | +5.6 (11.0) | -0.4 (7.9) | +0.7 (3.6) | +14.0 (15.4) |
+| Stone fall_back=0 | -0.10 (0.07) | -6.2 (3.5) | -21.7 (4.5) | +11.1 (5.1) | -5.5 (3.3) | -6.7 (12.5) |
+| rich shelve_citizens=0 | 0.00 (0.05) | +0.8 (5.5) | +3.5 (23.2) | +3.7 (13.2) | -0.6 (3.8) | -1.9 (7.6) |
+| rich army_plan=39 (KIND off) | -0.12 (0.05) | -12.5 (4.7) | -29.9 (18.6) | -40.0 (10.7) | -9.2 (5.4) | -14.9 (8.0) |
+
+Stone army_plan=0 and =39 played the same games as A (all 0.00): from the Stone Age the AIs reach epoch 2-3 in 60
+minutes, army_plan works from epoch 5 (LATE). No default changed: fall_back clearly helps (Stone kills +21.7, se 4.5),
+KIND with resources piled up (soldiers +12.5, razed +9.2), fight_memory and army_stage lean to helping (soldiers,
+workers); army_plan, avoid_lost_fights, threat_memory and the shelf within noise here - avoid_lost_fights' gain at cap
+105 (razed +7.0, se 3.0) didn't show at 300, threat_memory's and avoid_lost_fights' gains were measured on the
+player's save (citizens killed, units lost to his army), which these games don't have.
+
 ## Log (`aimod_econ.csv`)
 
 - CSV rows: per AI every 10 s, with stock, resource demand, worker targets and counts, manager timers and epoch.
