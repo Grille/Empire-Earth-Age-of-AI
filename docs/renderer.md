@@ -1,0 +1,84 @@
+# The mod's own renderer: the DirectX 7 the game uses
+
+The plan (the player, 2026-10-27): the mod implements the DirectDraw 7 / Direct3D 7 calls the game makes itself, on
+Direct3D 11, instead of a wrapper's whole DirectX 7 (DDrawCompat: screenshots, recording and the game's warning dialogs
+fail - its own presentation window covers the game's; GOG's wrapper, dgVoodoo: half the frame rate, intro videos fail,
+the ground decals z-fight). Owning the renderer is also where the frame time can be won: the game's cost is per call in
+the DirectX 7 runtime and the driver (docs/testing.md, the 2026-10-11 profile).
+
+## What the game calls
+
+Measured by the probe (autotest `dx_probe=1`, dll/test/dxprobe.c) on 2026-10-27 with GOG's wrapper: a 10 and a
+20-minute game (Continental 101), the intro videos and main menu, the scenario editor. The two display DLLs
+(DX7HRDisplay.dll, DX7HRTnLDisplay.dll) are the only importers of ddraw.dll (`DirectDrawCreateEx`,
+`DirectDrawEnumerateA/ExA`); everything else is a method of an object made from that. Per frame in the game: ~276
+draws, 12.5k vertices, 13.5k indices, 409 SetRenderState, 207 SetTextureStageState, 165 SetTransform, 157
+SetMaterial, 73 SetLight, 276 vertex buffer locks, 4 Blt. The menus are 2D (Blt and locks of CPU surfaces, a 3D frame
+now and then), the editor the game's 3D at ~440 fps on an empty map.
+
+**DirectDraw7**: QueryInterface (IID_IDirect3D7 only), CreateSurface, EnumDisplayModes, GetCaps, GetDisplayMode,
+SetCooperativeLevel (NORMAL, NORMAL|MULTITHREADED), GetAvailableVidMem, AddRef / Release.
+Surfaces it makes (DDSD flags caps caps2):
+
+| kind | caps | use |
+|---|---|---|
+| primary | PRIMARYSURFACE 3DDEVICE VIDEOMEMORY (flags CAPS only) | the screen |
+| render target | OFFSCREENPLAIN 3DDEVICE VIDEOMEMORY, 32 bit | the back buffer; locked by the mod (WAIT READONLY, every frame with a wrapper other than DDrawCompat: the D3D11 present reads it back) |
+| z-buffer | ZBUFFER VIDEOMEMORY, 32 bit depth | attached to the render target (AddAttachedSurface) |
+| CPU surfaces | OFFSCREENPLAIN SYSTEMMEMORY, 565 / XRGB8888 | the UI's software composition, Bink's frames (640x480): Lock, Blt to the back buffer |
+| sprites | OFFSCREENPLAIN VIDEOMEMORY + CKSRCBLT, colour key 0xFF..0xFF | UI pieces blitted with KEYSRC |
+| textures | TEXTURE, managed, static or dynamic hint | 2x2 .. 256x256 |
+| mipmapped textures | TEXTURE MIPMAP COMPLEX, managed static, MIPMAPCOUNT | 8x8 .. 256x256, the full chain (GetAttachedSurface MIPMAP to walk it, Lock per level) |
+
+Pixel formats: ARGB8888 (385 in a game), XRGB8888 (81), RGB565 (11), ARGB4444 (9), the depth format.
+
+**Surface7**: Blt (DONOTWAIT with source and both rects; DONOTWAIT KEYSRC; COLORFILL), GetAttachedSurface (MIPMAP,
+ZBUFFER), Lock (none / WAIT / WAIT READONLY), Unlock, SetColorKey (SRCBLT), AddAttachedSurface, GetPixelFormat
+(binkw32), GetSurfaceDesc / GetCaps (the mod), AddRef / Release.
+
+**Direct3D7**: EnumDevices, CreateDevice (HAL, T&L HAL), CreateVertexBuffer (WRITEONLY SYSTEMMEMORY, FVF 0x152, 4096
+vertices - three of them).
+
+**Device7**: GetCaps, EnumTextureFormats, BeginScene / EndScene, SetRenderTarget, Clear (ZBUFFER; TARGET once),
+SetTransform (WORLD, VIEW, PROJECTION), SetViewport, SetMaterial, SetLight (one, DIRECTIONAL), LightEnable,
+SetRenderState, DrawPrimitiveVB (triangle lists, line lists), DrawIndexedPrimitiveVB (triangle lists), SetTexture
+(stage 0; stage 1 always NULL), SetTextureStageState.
+
+**VertexBuffer7**: Lock (WRITEONLY with NOOVERWRITE, or DISCARDCONTENTS), Unlock. One vertex format for everything:
+FVF 0x152 = position, normal, diffuse colour, one texture coordinate pair (36 bytes).
+
+**Render states** (all values seen): ZENABLE 0/1, ZWRITEENABLE 0/1, ZFUNC LESS / LESSEQUAL (NEVER at the start),
+ALPHATESTENABLE 0/1, ALPHAFUNC GREATER, ALPHAREF 0 / 127 / 229, ALPHABLENDENABLE 0/1 with SRCBLEND/DESTBLEND
+ONE/ZERO or SRCALPHA/INVSRCALPHA, CULLMODE NONE / CW / CCW, FOGENABLE 0/1, FOGVERTEXMODE LINEAR, FOGCOLOR,
+FOGSTART / FOGEND, LIGHTING 0/1, AMBIENT (a handful of colours), COLORVERTEX 0/1, DIFFUSE- and
+AMBIENTMATERIALSOURCE material / colour 1 (specular and emissive: material), NORMALIZENORMALS 1, LOCALVIEWER 0,
+SPECULARENABLE 0, CLIPPING 0/1 (toggled ~285 times a frame - a hint for the runtime, nothing to draw), FILLMODE
+solid, SHADEMODE gouraud, DITHERENABLE, COLORKEYENABLE, ANTIALIAS 0, EXTENTS 0. No z-bias, no stencil, no
+specular, no table fog.
+
+**Texture stage 0** (stage 1: COLOROP / ALPHAOP DISABLE): COLOROP and ALPHAOP DISABLE, MODULATE, SELECTARG1 (the
+editor), arguments TEXTURE / DIFFUSE; ADDRESS WRAP / CLAMP; MAG and MINFILTER POINT / LINEAR; MIPFILTER NONE / POINT /
+LINEAR; MIPMAPLODBIAS 0 / -0.75 / -1; TEXCOORDINDEX 0.
+
+So the 3D is one vertex shader (world-view-projection, one directional light with ambient and the material sources,
+linear vertex fog) and one pixel shader (stage 0's three operations, alpha test, fog), with the depth / blend /
+raster states as a few cached D3D11 state objects.
+
+## How the mod would do it
+
+- The display DLLs' `DirectDrawCreateEx` import returns the mod's objects (C structs with COM vtables) implementing
+  the methods above; any other method logs once and returns DDERR_UNSUPPORTED, so a call the probe never saw shows up
+  at once. Both display DLLs make the same calls.
+- Direct3D 11 on the game window (the device and flip-model swap chain of present_d3d.c): the render target and depth
+  buffer are D3D11 textures; textures upload at Unlock (mip levels each); CPU surfaces stay in memory and upload when
+  blitted to the GPU; the back buffer reads back only when something locks it (the mod's own shot reads the D3D11
+  texture instead).
+- The game's vertex buffers become windows into one large per-frame upload buffer; states are compared before they are
+  set, so the ~600 state calls per frame cost nothing unless a value changes.
+- Screenshots and recording see a normal DXGI window; the warning dialogs paint (nothing covers the window).
+- A setting (`[display] renderer`), default off until it plays the same picture: with game_seed the same game frame by
+  frame, the mod's `shot` from DDrawCompat and from the own renderer compared automatically.
+
+Steps: the objects and the 2D path (menus, Bink, the UI's blits, present); the 3D (states, shaders, lights, fog,
+mipmaps); the picture compared and fixed (half-pixel offset, fog formula, texture formats, the decals' depth); then
+the frame time.
