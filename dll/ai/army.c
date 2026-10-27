@@ -175,6 +175,7 @@ internal int ap_type(ee_player *pl, unsigned idx, ee_unit_mgr *um, const int *vi
     int got = 0;
     return substitute_soldier(pl, idx, vis, 1, &got);
 }
+internal int towns_production(ee_player *pl, unsigned idx, int type);   // towns.c
 // the production building of a unit type (its tech's building list, data +0x10..+0x14) among the land kinds
 internal int ap_producer(ee_player *pl, int type) {
     ee_unit_type *td = type_data(type);
@@ -262,10 +263,11 @@ internal void army_plan_tick(ee_player *pl, unsigned idx, uint32_t now) {
             if (bt && kh > 0 && busy * 10 >= kh * 7 && acc >= 600 && nb < lim &&
                 !build_mgr_queued(bm, bt) &&
                 can_build(pl, bt)) {
-                build_mgr_request_one(bm, bt);
+                int fwd = towns_production(pl, idx, bt);   // towns.c FORWARD: in the town nearest the enemy
+                if (!fwd) build_mgr_request_one(bm, bt);
                 a->bld++;
-                if (g_log) fprintf(g_log, "# army: P%u at %.1f min: production busy %u/%u, %d buildings, account %.0f - one more %d (for type %d)\n",
-                                   idx, now / 60000.0, busy, kh, nb, acc, bt, a->last_type);
+                if (g_log) fprintf(g_log, "# army: P%u at %.1f min: production busy %u/%u, %d buildings, account %.0f - one more %d (for type %d)%s\n",
+                                   idx, now / 60000.0, busy, kh, nb, acc, bt, a->last_type, fwd ? " in a town" : "");
             }
             memset(a->busy, 0, sizeof a->busy); memset(a->have, 0, sizeof a->have);
         }
