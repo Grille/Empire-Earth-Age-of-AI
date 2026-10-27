@@ -17,17 +17,17 @@
 // citizens get the same build-wall order a player gives). The ends stay open - own units walk round, attackers on
 // foot must break through or walk the length of it under tower fire. Straight (2026-10-27, the player: the walls are
 // useful but should be straightened out and use gates): across the front at the nearest of the 8 directions - along
-// the tiles or exactly diagonal; at any other angle the pieces stood as a staircase. No gate yet: every way tried left
-// it unbuilt at 1 hit point - laid into a gap of the wall or before it (its builders crashed the game until
-// engine/buildretry.c's check), by the wall manager's drag (a gate per tile), onto the finished wall by the game's
-// placing (0x62EF8A; two builders sent, nothing built - its site check waits while other buildings stand on its
-// ground); the build queue never places one on wall pieces.
+// the tiles or exactly diagonal; at any other angle the pieces stood as a staircase. A gate in its middle once the 5
+// pieces there are finished, so its own units pass through: as the player lays one - the gate button over a run of
+// finished pieces, no builders, there at once - by the same call (build_gate, 0x6022E3: the pieces turned into the
+// gate's type; the wall manager's own gates go that way too, 0x498017). A gate laid as a building never got built (into
+// a gap, before the wall, by the wall manager's drag, or onto the finished wall: it stayed at 1 hit point).
 internal int g_def = 1, g_def_dist = 10, g_def_walls = 1, g_def_more = 1;
 internal int g_aa = 1, g_aa_ahead = 1, g_aa_ahead_b = 3;   // [ai_base] anti_air, aa_ahead, aa_ahead_buildings (below)
 internal int g_hold = 0;   // [ai_base] hold_town (below)
 internal uint8_t g_def_off[16];   // per player, pipe "defence P 0|1" (A/B scenarios)
 internal unsigned g_def_towers[16], g_def_walls_built[16];
-struct front { int fx, fy, enemy; float dx, dy; int wall_tries; uint32_t wall_t; };
+struct front { int fx, fy, enemy; float dx, dy; int wall_tries; uint32_t wall_t; int gx, gy, gdir, gtries; };   // its wall's gate: middle, direction (0 no wall), tries
 internal struct def_plan {
     ee_player *pl; uint32_t t; int bx, by, nf, nout;
     struct front f[2];
@@ -56,12 +56,13 @@ internal int can_place(ee_player *pl, int type, ivec2 p) {
     return can_place_area(pl, type, p.x, p.y, sz) != 0;
 }
 
-struct def_scan { ee_player *pl; int bx, by; int d2[16], x[16], y[16]; int towers, tx[64], ty[64]; int walls, wx[256], wy[256]; };
+struct def_scan { ee_player *pl; int bx, by; int d2[16], x[16], y[16]; int towers, tx[64], ty[64]; int walls, wx[256], wy[256]; };   // walls: gate pieces too
 internal void def_scan_unit(ee_unit *u, void *ctx) {
     struct def_scan *s = ctx;
     ee_unit_type *td = unit_get_type_data(u);
     ee_player *owner = unit_get_owner(u);
     int fam = unit_type_get_class_id(td), x = unit_get_x(u), y = unit_get_y(u);
+    if (fam == CLS_GATE && owner == s->pl && s->walls < 256) { s->wx[s->walls] = x; s->wy[s->walls++] = y; return; }
     if (fam != CLS_BUILDING && fam != CLS_FORTRESS) return;
     if (owner == s->pl) {
         if (is_tower_type(unit_type_get_id(td)) && s->towers < 64) { s->tx[s->towers] = x; s->ty[s->towers++] = y; }
@@ -110,9 +111,12 @@ internal void def_refresh(ee_player *pl, unsigned idx, uint32_t now) {
         f->fx = p->bx + (int)lroundf(f->dx * (float)g_def_dist);
         f->fy = p->by + (int)lroundf(f->dy * (float)g_def_dist);
         // keep the wall state while the front stays where it was
-        f->wall_tries = 0; f->wall_t = 0;
+        f->wall_tries = 0; f->wall_t = 0; f->gdir = 0; f->gtries = 0;
         for (int j = 0; j < 2; j++)
-            if (abs(old[j].fx - f->fx) <= 2 && abs(old[j].fy - f->fy) <= 2) { f->wall_tries = old[j].wall_tries; f->wall_t = old[j].wall_t; }
+            if (abs(old[j].fx - f->fx) <= 2 && abs(old[j].fy - f->fy) <= 2) {
+                f->wall_tries = old[j].wall_tries; f->wall_t = old[j].wall_t;
+                f->gx = old[j].gx; f->gy = old[j].gy; f->gdir = old[j].gdir; f->gtries = old[j].gtries;
+            }
         p->nf++;
     }
     static struct drop d[64];
@@ -182,6 +186,31 @@ internal int on_segment(int x, int y, const int *a, const int *b) {
     return 0;
 }
 
+// build_gate's five tiles at (x, y) along dir: each with exactly one object of the type flag it takes (+0x612), that
+// one a finished wall piece of pl's - build_gate checks nothing, and reads past its list on fewer than five
+internal int gate_fits(ee_player *pl, int x, int y, int dir) {
+    static const int step[5][2] = { { 0, 0 }, { 1, 0 }, { 0, 1 }, { -1, 1 }, { 1, 1 } };
+    ee_map *map = game_map();
+    int n = map ? (int)map_get_size(map) : 0;
+    if (dir < 1 || dir > 4) return 0;
+    for (int i = -2; i <= 2; i++) {
+        int tx = x + step[dir][0] * i, ty = y + step[dir][1] * i, cnt = 0, ok = 0;
+        if (tx < 0 || ty < 0 || tx >= n || ty >= n) return 0;
+        ee_tile *tile = map_get_tiles(map)[ty * n + tx];
+        for (void *node = tile ? tile_get_objects(tile) : NULL; node; node = tilenode_get_next(node)) {
+            ee_unit *o = tilenode_get_object(node);
+            ee_unit_type *td = o ? unit_get_type_data(o) : NULL;
+            if (!td || !unit_type_get_is_tower(td)) continue;
+            ee_unit *bs = unit_get_physics(o);
+            int t = unit_type_get_id(td);
+            cnt++;
+            ok = unit_get_owner(o) == pl && ut_role(t, UTR_WALL) && !ut_role(t, UTR_GATE) && unit_get_hp(o) > 0 && bs && unit_get_finished(bs);
+        }
+        if (cnt != 1 || !ok) return 0;
+    }
+    return 1;
+}
+
 // Walls: per AI every 20 s (econ_tick). Best wall type the player can build now (0x555710: available, affordable).
 internal void defence_tick(ee_player *pl, unsigned idx, uint32_t now) {
     static uint32_t last[16];
@@ -210,6 +239,21 @@ internal void defence_tick(ee_player *pl, unsigned idx, uint32_t now) {
             if (g_log) fprintf(g_log, "# defence: P%u queues tower %d at %d,%d (stone %d)\n", idx, ttype, x, y, stock[4]);
             ai_say(pl, CHAT_TOWER, "[ai] extra tower (type %d) at %d,%d, stone %d", ttype, x, y, stock[4]);
         }
+    }
+    for (int k = 0; k < p->nf; k++) {   // the gate, once the wall's middle stands finished: the newest it can build
+        struct front *f = &p->f[k];
+        if (!f->gdir || f->gtries >= 20 || !gate_fits(pl, f->gx, f->gy, f->gdir)) continue;
+        static const enum ut_name gline[] = { UT_GATE_LINE };   // oldest first
+        int gtype = 0;
+        for (int i = 5; i >= 0 && !gtype; i--)
+            if (ut_has(g_ut[gline[i]]) && can_build(pl, g_ut[gline[i]])) gtype = g_ut[gline[i]];
+        f->gtries++;
+        if (!gtype) continue;
+        int tile[2] = { f->gx, f->gy };
+        build_gate(tile, player_get_index(pl), unit_type_get_tech(type_data(gtype)), f->gdir);
+        f->gdir = 0;
+        if (g_log) fprintf(g_log, "# defence: P%u gate %d in its wall at %d,%d\n", idx, gtype, tile[0], tile[1]);
+        return;   // one order per tick
     }
     for (int k = 0; k < p->nf; k++) {
         struct front *f = &p->f[k];
@@ -246,12 +290,13 @@ internal void defence_tick(ee_player *pl, unsigned idx, uint32_t now) {
             land = qx >= 3 && qy >= 3 && qx < mn - 3 && qy < mn - 3 && area_id(iv2(qx, qy), 2) && !area_id(iv2(qx, qy), 1);
         }
         if (!land) { f->wall_tries++; f->wall_t = now ? now : 1; continue; }
-        int have = 0;   // wall pieces standing on the arc (then a new order only repairs)
+        int have = 0;   // wall and gate pieces standing on the arc (then a new order only repairs)
         for (int w = 0; w < s->walls; w++) have += on_segment(s->wx[w], s->wy[w], a, b);
         if (have >= 8) continue;
         build_wall(wm, a, b, wtype);
         f->wall_tries++;
         f->wall_t = now ? now : 1;
+        f->gx = cx; f->gy = cy; f->gdir = !sy ? 1 : !sx ? 2 : sx == sy ? 4 : 3; f->gtries = 0;
         g_def_walls_built[idx]++;
         if (g_log) fprintf(g_log, "# defence: P%u wall %d from %d,%d to %d,%d in front of %d towers (front %d,%d)\n",
                            idx, wtype, a[0], a[1], b[0], b[1], ntow, f->fx, f->fy);

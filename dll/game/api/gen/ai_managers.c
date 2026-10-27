@@ -393,6 +393,14 @@ internal inline uint8_t *ai_managers_call_unbuilt_farms_at(void) { return (uint8
 typedef void (__thiscall *bq_add_fn)(void *, int *);
 internal bq_add_fn fn_bq_add;
 internal inline void bq_add(void *p1, int *p2) { fn_bq_add(p1, p2); }
+// cdecl(tile, player index, tech, direction): a gate laid over five finished wall pieces at once, as the player's
+// gate button and the wall manager (0x498017) lay one - EEMBuildGate::vf10 calls it. The pieces on the five tiles
+// centred on tile along direction 1 (x), 2 (y), 3 (x+2,y-2 .. x-2,y+2) or 4 (x-2,y-2 .. x+2,y+2) - every object
+// there with the type flag at 0x612 - turn into the gate's type (unit_convert), with the lowest piece's share of
+// hit points; nothing is paid. It checks nothing: fewer than five pieces there and it reads past its list.
+typedef void (__cdecl *build_gate_fn)(int *, int, int, int);
+internal build_gate_fn fn_build_gate;
+internal inline void build_gate(int *tile, int pi, int tech, int dir) { fn_build_gate(tile, pi, tech, dir); }
 
 // the running build's values (spec_select, with addr_select): how many it hasn't got
 internal int spec_ai_managers_select(int build) {
@@ -533,6 +541,7 @@ internal int spec_ai_managers_select(int build) {
         data_ai_managers_call_farms = 0x0048AC54;
         data_ai_managers_call_unbuilt_farms = 0x0048B0FD;
         fn_bq_add = (bq_add_fn)0x00468C37;
+        fn_build_gate = (build_gate_fn)0x006022E3;
         return 0;
     case 1:   // aoc
         vt_eecp_build_manager = 0x0083C050;
@@ -670,6 +679,7 @@ internal int spec_ai_managers_select(int build) {
         data_ai_managers_call_farms = 0x0048F643;
         data_ai_managers_call_unbuilt_farms = 0x0048FAD4;
         fn_bq_add = (bq_add_fn)0x0046B798;
+        fn_build_gate = (build_gate_fn)0x0061080D;
         return 0;
     }
     return 0;
@@ -752,5 +762,6 @@ internal int spec_ai_managers_check(void) {
     bad += spec_code(data_ai_managers_call_farms, "ai_managers.call_farms");
     bad += spec_code(data_ai_managers_call_unbuilt_farms, "ai_managers.call_unbuilt_farms");
     bad += spec_code((uintptr_t)fn_bq_add, "ai_managers_functions.bq_add");
+    bad += spec_code((uintptr_t)fn_build_gate, "ai_managers_functions.build_gate");
     return bad;
 }

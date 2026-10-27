@@ -103,6 +103,7 @@ class Exe:
 
 # found by hand (EE-AOC.exe): the base's address -> the other's, and why
 EXE_HAND = {
+    0x006022E3: (0x0061080D, 'build_gate: the call in EEMBuildGate::vf10 (vtable slot 10, both exes)'),
     0x0048BBA8: (0x00490602, 'find_food_game: AssignCitizens (0x48EECF) calls it six times where the base calls 0x48BBA8'),
     0x004050C2: (0x00404734, 'the scroll timer period: push 0xA in the EEAScroll ctor (0x404733; the base: push 0x19)'),
     0x00617780: (0x0062A2DF, 'the kill statistic: the call of player_stats_add just before the attack alert, as in the base'),

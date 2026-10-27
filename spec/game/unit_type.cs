@@ -240,7 +240,9 @@ unsafe struct EEUnitClass
     uint8 world_ownable;
 
     /// set after the load (0x62188D) as membership of unit group 9 (0x4A7618(type, 9)); with is_guard_tower in freeze
-    /// (0x5AF0BB), death and state (0x63862x, 0x60D36C), the attack scoring and the boarding
+    /// (0x5AF0BB), death and state (0x63862x, 0x60D36C), the attack scoring and the boarding. Set on wall pieces too:
+    /// build_gate (0x6022E3) converts the objects with it on its tiles, the wall manager (0x498017) lays a gate where
+    /// a finished object has it and not +0x61E, and the mod's gate_fits found the walls' pieces by it (2026-10-27)
     [offset((ee)0x612, (aoc)0x310), found(c), guess]
     uint8 is_tower;
 

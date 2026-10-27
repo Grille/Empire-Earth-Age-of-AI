@@ -244,7 +244,9 @@ internal inline void unit_type_set_world_ownable(ee_unit_type *o, uint8_t v) { *
 internal inline uint8_t *unit_type_world_ownable_at(const ee_unit_type *o) { return (uint8_t *)((uint8_t *)o + of_unit_type_world_ownable); }
 // A GUESS (the spec's [guess]): its name and type, from what the code does with it -
 // set after the load (0x62188D) as membership of unit group 9 (0x4A7618(type, 9)); with is_guard_tower in freeze
-// (0x5AF0BB), death and state (0x63862x, 0x60D36C), the attack scoring and the boarding
+// (0x5AF0BB), death and state (0x63862x, 0x60D36C), the attack scoring and the boarding. Set on wall pieces too:
+// build_gate (0x6022E3) converts the objects with it on its tiles, the wall manager (0x498017) lays a gate where
+// a finished object has it and not +0x61E, and the mod's gate_fits found the walls' pieces by it (2026-10-27)
 internal inline uint8_t unit_type_get_is_tower(const ee_unit_type *o) { return *(uint8_t *)((uint8_t *)o + of_unit_type_is_tower); }
 internal inline void unit_type_set_is_tower(ee_unit_type *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_unit_type_is_tower) = v; }
 internal inline uint8_t *unit_type_is_tower_at(const ee_unit_type *o) { return (uint8_t *)((uint8_t *)o + of_unit_type_is_tower); }

@@ -459,4 +459,12 @@ static unsafe class ai_managers_functions
     [address((ee)0x00468C37, (aoc)0x0046B798), thiscall]
     static extern void bq_add(void* p1, int32* p2);
 
+    /// cdecl(tile, player index, tech, direction): a gate laid over five finished wall pieces at once, as the player's
+    /// gate button and the wall manager (0x498017) lay one - EEMBuildGate::vf10 calls it. The pieces on the five tiles
+    /// centred on tile along direction 1 (x), 2 (y), 3 (x+2,y-2 .. x-2,y+2) or 4 (x-2,y-2 .. x+2,y+2) - every object
+    /// there with the type flag at 0x612 - turn into the gate's type (unit_convert), with the lowest piece's share of
+    /// hit points; nothing is paid. It checks nothing: fewer than five pieces there and it reads past its list.
+    [address((ee)0x006022E3, (aoc)0x0061080D), cdecl]
+    static extern void build_gate(int32* tile, int32 pi, int32 tech, int32 dir);
+
 }
