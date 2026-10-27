@@ -170,6 +170,55 @@ internal void cv_foe_mem(ee_player *pl, struct st_side *foe, ivec2 p, int r, int
         if (st_side_add_rec(foe, e->type, e->owner, e->hp, e->x, e->y) && rg && range > *rg) *rg = range;
     }
 }
+// [ai_base] threat_memory (default 1 since 2026-10-27, docs/testing.md; [autotest] v_threat_memory for the variant players; with
+// honest_vision): the citizens' safety asks for the enemy soldiers it remembers too - attack.c raiders_known (the
+// builders' and gatherers' sites, the builders' orders, the way) and the danger map's threats (danger_refresh: the
+// citizens' routes). On the player's save
+// "standing army" P7's citizens, fetched home, were sent to build 26 tiles out and killed by Marines 8-9 tiles off that
+// the safety, asking only for the enemies in sight at that moment, never counted. A remembered soldier counts at the
+// tile where it was seen, for TM_MEMORY (a minute) - until an eye of the AI looks there and it is gone (intel.c moves
+// it to nowhere). On the save the citizens killed 883 -> 593 (6 runs); head-to-head mirrored neutral (48 games).
+#define TM_MEMORY 60000   // a remembered soldier counts for the citizens a minute
+internal int g_threat_mem = 1, g_v_threat_mem = -1;
+#define THREAT_MEM(idx) PV(idx, g_v_threat_mem, g_threat_mem)
+// a remembered enemy soldier whose range + RAID_MARGIN (at least r0, at most rmax) covers p
+internal int cv_mem_raider(ee_player *pl, ivec2 p, int r0, int rmax) {
+    unsigned idx = (unsigned)player_get_index(pl) & 15;
+    struct intel *in = &g_intel[idx];
+    if (!g_honest_vision || !THREAT_MEM(idx)) return 0;
+    for (int k = 0; k < in->n; k++) {
+        struct intel_rec *e = &in->r[k];
+        if (e->kind != 1 || e->x < 0 || e->t == in->last || in->now - e->t > TM_MEMORY || e->owner <= 0) continue;
+        if (abs(e->x - p.x) > rmax || abs(e->y - p.y) > rmax) continue;
+        void *o = st_player(e->owner);
+        ee_unit_type *td = type_data(e->type);
+        if (!o || !td || !is_enemy(pl, o) || unit_type_get_attack(td) <= 0) continue;
+        ee_unit_stats *st = st_rec(o, e->type);
+        float rng = st ? unit_stats_get_range(st) : unit_type_get_range(td);
+        int reach = rng > 0.0f && rng < 30.0f ? (int)(rng + 0.5f) + RAID_MARGIN : 0;
+        if (reach > rmax) reach = rmax;
+        if (reach < r0) reach = r0;
+        if (abs(e->x - p.x) <= reach && abs(e->y - p.y) <= reach) return 1;
+    }
+    return 0;
+}
+// the remembered enemy soldiers into the danger map's threats (attack.c danger_refresh), at their reach as the seen ones
+internal void cv_mem_threats(ee_player *pl, unsigned pi) {
+    struct intel *in = &g_intel[pi & 15];
+    if (!g_honest_vision || !THREAT_MEM(pi)) return;
+    for (int k = 0; k < in->n; k++) {
+        struct intel_rec *e = &in->r[k];
+        if (e->kind != 1 || e->x < 0 || e->t == in->last || in->now - e->t > TM_MEMORY || e->owner <= 0) continue;
+        void *o = st_player(e->owner);
+        ee_unit_type *td = type_data(e->type);
+        if (!o || !td || !is_enemy(pl, o) || unit_type_get_attack(td) <= 0) continue;
+        ee_unit_stats *st = st_rec(o, e->type);
+        float rng = st ? unit_stats_get_range(st) : unit_type_get_range(td);
+        float reach = rng > 0.0f && rng < 30.0f ? rng + RAID_MARGIN : RAID_MARGIN;
+        if (reach > RAID_FAR) reach = RAID_FAR;
+        danger_disc(pi, DANGER_THREATS, (float)e->x + 0.5f, (float)e->y + 0.5f, reach);
+    }
+}
 // the cells with enemy soldiers pl remembers (as cv_foe_mem) into g_cv_seen - judged as those seen
 internal void cv_mark_mem(ee_player *pl) {
     unsigned idx = (unsigned)player_get_index(pl) & 15;
@@ -715,6 +764,8 @@ internal void cover_install(const char *autotest_ini) {
     g_fb_breaks = g_set_ai[1].fall_back_breaks;
     g_fb_end = g_set_ai[1].fall_back_end;
     g_fight_mem = g_set_ai[1].fight_memory;
+    g_threat_mem = g_set_ai[1].threat_memory;
+    if (autotest_ini) g_v_threat_mem = ini_int("autotest", "v_threat_memory", -1, autotest_ini);
     if (autotest_ini) g_v_fight_mem = ini_int("autotest", "v_fight_memory", -1, autotest_ini);
     if (autotest_ini) g_v_fall_back = ini_int("autotest", "v_fall_back", -1, autotest_ini);
     if (autotest_ini) g_v_avoid_lost = ini_int("autotest", "v_avoid_lost_fights", -1, autotest_ini);

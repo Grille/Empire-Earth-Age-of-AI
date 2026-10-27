@@ -671,6 +671,8 @@ internal int route_danger(ee_player *pl, int fx, int fy, int tx, int ty) {
 #define RAID_MAX    15
 #define RAID_FAR    27   // citizen_threats: artillery (12-14), mortars (10-11), ships (24) at their own reach
 internal int g_cit_threats = 1;   // [ai_base] citizen_threats (below, DAMAGE MEMORY)
+internal int cv_mem_raider(ee_player *pl, ivec2 p, int r0, int rmax);   // cover.c threat_memory: a remembered one
+internal void cv_mem_threats(ee_player *pl, unsigned pi);
 internal int raiders_near(ee_player *pl, ivec2 p, int r0) {
     int rmax = g_cit_threats ? RAID_FAR : RAID_MAX;
     int r = r0 > rmax ? r0 : rmax;   // the search box; each unit then by its own reach
@@ -694,12 +696,18 @@ internal int raiders_near(ee_player *pl, ivec2 p, int r0) {
     }
     return 0;
 }
+// raiders_near or one it remembers there (threat_memory) - only where a citizen is sent: the builders' and gatherers'
+// sites, the builders' orders, the way (its first runs had it in every use - shelters, the sites of towers and drop
+// sites, the defence - and read worse head-to-head, unmirrored: docs/testing.md threat_memory)
+internal int raiders_known(ee_player *pl, ivec2 p, int r0) {
+    return raiders_near(pl, p, r0) || cv_mem_raider(pl, p, r0, g_cit_threats ? RAID_FAR : RAID_MAX);
+}
 // enemy soldiers on the way from x0,y0 to x1,y1 (every 4 tiles from the 5th, within 4) or within 6 of the end
 internal int path_raided(ee_player *pl, int x0, int y0, int x1, int y1) {
     float dx = (float)(x1 - x0), dy = (float)(y1 - y0), l = sqrtf(dx * dx + dy * dy);
     for (float t = 5; t < l; t += 4)
-        if (raiders_near(pl, iv2(x0 + (int)(dx / l * t), y0 + (int)(dy / l * t)), 4)) return 1;
-    return raiders_near(pl, iv2(x1, y1), 6);
+        if (raiders_known(pl, iv2(x0 + (int)(dx / l * t), y0 + (int)(dy / l * t)), 4)) return 1;
+    return raiders_known(pl, iv2(x1, y1), 6);
 }
 // where a citizen at x,y flees while the base is overrun: the rally point if the way is clear, else 12 tiles in the
 // clear direction (of 8) nearest the rally point; none clear: the rally point after all
@@ -809,6 +817,7 @@ internal void danger_refresh(ee_player *pl, uint32_t now) {
         vec3 q = unit_get_pos(u);
         danger_disc(pi, DANGER_THREATS, q.x, q.y, reach);
     }
+    cv_mem_threats(pl, pi);   // threat_memory: those it remembers
     for (int k = 0; k < HURT_N; k++) {
         typeof(&g_hurt[0].h[0]) r = &g_hurt[pi].h[k];
         if (r->t && now >= r->t && now - r->t <= 120000) danger_disc(pi, DANGER_THREATS, (float)r->x + 0.5f, (float)r->y + 0.5f, 6.0f);
@@ -914,7 +923,7 @@ internal void citizens_safety(ee_resource_mgr *rm) {   // before the citizen ass
             ee_unit *site = build ? goal_get_building(goal) : goal_get_site(goal);
             ivec2 d;
             if (!site || !nearest_drop(pl, unit_get_tile(u), r == 2, &d)) continue;
-            int raided = raiders_near(pl, unit_get_tile(site), build ? 8 : 6);
+            int raided = raiders_known(pl, unit_get_tile(site), build ? 8 : 6);
             // builders near known towers only: only of fields (walls and towers at the front: the wall manager sends
             // them again and again)
             if (build && !raided && unit_type_get_id(unit_get_type_data(site)) != UT(B_FARM)) continue;
@@ -988,7 +997,7 @@ internal void citizens_safety(ee_resource_mgr *rm) {   // before the citizen ass
 internal void __thiscall hook_repair_goal(ee_unit *u, ee_goal *goal, int8_t append, int prio) {
     ee_player *pl = u ? unit_get_owner(u) : NULL;
     ee_unit *b = goal && goal_is_build(goal) ? goal_get_building(goal) : NULL;
-    if (g_avoid_citizens && pl && b && !is_vanilla(pl) && raiders_near(pl, unit_get_tile(b), 8)) {
+    if (g_avoid_citizens && pl && b && !is_vanilla(pl) && raiders_known(pl, unit_get_tile(b), 8)) {
         g_repair_refused[(unsigned)player_get_index(pl) & 15]++;
         ((void (__thiscall *)(void *, int))(*(void ***)goal)[0])(goal, 1);
         return;

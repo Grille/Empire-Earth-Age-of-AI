@@ -148,6 +148,7 @@
     D(FLAG,  danger_routes,                1, 0, 0) \
     D(FLAG,  avoid_lost_fights,            1, 0, 0) \
     D(FLAG,  fight_memory,                 1, 0, 0) \
+    D(FLAG,  threat_memory,                1, 0, 0) \
     D(FLAG,  bunkers,                      1, 0, 0) \
     D(NUM,   bunker_reserve,               65535, 0, 0) \
     D(FLAG,  attack_siege,                 1, 0, 0) \
