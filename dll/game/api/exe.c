@@ -1,11 +1,15 @@
 // THE EXE BUILD. Every address in the mod is the 1.04 exe of the "Difficulty Setting & Multiplayer Lobby" update
 // (timestamp 0x594D0000): GOG, Steam (+ a signature and a DPI manifest) and the empireearth.eu "Vanilla" setup have the
 // same code - only the resources and the signature differ. Another build would half work or crash (patch_call and
-// patch_code32 check their bytes, much else doesn't, and the game's data is read at fixed addresses): the old retail
-// 1.04 with its copy protection, its no-CD cracks. NeoEE's exe is the same code with its imports elsewhere: it plays
-// the 2017 update's column, its import slots found by name (builds.h, spec_import; docs/engine-notes.md "Exe
-// builds"). Known by a hash (FNV-1a) of every section but .rsrc, read from the file: in memory another DLL may have
-// patched the code already, and run_test.ps1 patches it before the game runs.
+// patch_code32 check their bytes, much else doesn't, and the game's data is read at fixed addresses). NeoEE's exe is
+// the same code with its imports elsewhere: it plays the 2017 update's column, its import slots found by name
+// (builds.h, spec_import; docs/engine-notes.md "Exe builds"). Known by a hash (FNV-1a) of every section but .rsrc,
+// read from the file: in memory another DLL may have patched the code already, and run_test.ps1 patches it before the
+// game runs. An exe of no known hash plays a column whose checks all hold in it (build_try): the old retail 1.04 is
+// the same compile in its copy protection, a no-CD crack of it that compile with the protection taken off and the
+// import table rebuilt in an order of its own - each crack a file of its own, too many for the table. Not the code
+// byte for byte, but 147 of the checks are pairs the code must hold in itself (a call of the function at the spec's
+// address, a vtable's RTTI name and its slots), spread over the parts the mod uses: another compile fails hundreds.
 // (the builds, their hashes and the hash: builds.h)
 // the running build by its name ("ee", "aoc"): for code that differs by more than an address (AoC's rewrites)
 internal int build_is(const char *name) { return g_exe_build >= 0 && !lstrcmpA(k_build_names[g_exe_build], name); }
@@ -120,34 +124,65 @@ internal int spec_import(uint32_t *slot, const char *dll, const char *name, cons
     return 0;
 }
 
+// the spec's column col against the running exe: its values selected, its import slots looked up in the file, every
+// check made (the counts start over: a column tried before leaves nothing)
+internal void build_try(int col, const uint8_t *file) {
+    g_spec_checked = g_spec_bad = g_spec_moved = 0;
+    g_spec_bad_names[0] = 0;
+    g_spec_missing = spec_select(col);
+    g_exe_file = file;
+    spec_imports();   // (before the checks: the slots their exe has)
+    g_exe_file = NULL;
+    spec_check();   // (its failures: g_spec_bad, api_log tells them)
+}
+internal uint32_t g_exe_hash;
+internal int g_try_bad[ADDR_BUILDS], g_try_checked[ADDR_BUILDS];   // an exe of no known hash: each column's failures (build_unknown)
 internal int game_build(uint32_t *hash) {
     char path[MAX_PATH], unready[4];
     GetModuleFileNameA(NULL, path, MAX_PATH);
     const char *name = strrchr(path, '\\');
     uint8_t *file = exe_file_read(path, &g_exe_file_size);
-    *hash = exe_hash(file, g_exe_file_size);
+    *hash = g_exe_hash = exe_hash(file, g_exe_file_size);
     int test = GetEnvironmentVariableA("EEAIMOD_UNREADY", unready, sizeof unready) == 1 && unready[0] == '1';
     for (int i = 0; i < EXE_BUILDS; i++)
-        if (*hash == k_exe_builds[i].hash && (k_exe_builds[i].ready || test)) {
+        if (*hash == k_exe_builds[i].hash) {
+            if (!k_exe_builds[i].ready && !test) { free(file); return 0; }
             g_exe_kind = i;
             g_exe_build = k_exe_builds[i].col;
             image_ranges();   // the exe's code and data sections (base/patch.c checks a patch against them)
-            g_spec_missing = spec_select(g_exe_build);
-            g_exe_file = file;
-            spec_imports();   // (before the checks: the slots their exe has)
-            g_exe_file = NULL;
+            build_try(g_exe_build, file);
             free(file);
-            spec_check();   // (its failures: g_spec_bad, api_log tells them)
             return 1;
         }
+    // no known file: the first column whose every check holds, of those ready (a row of it is) - a test run tries all
+    if (file && *hash) {
+        char closest[sizeof g_spec_bad_names] = "";   // the failures of the column nearest to holding (build_unknown)
+        int best = -1;
+        image_ranges();
+        for (int c = 0; c < ADDR_BUILDS; c++) {
+            int ready = test;
+            for (int i = 0; i < EXE_BUILDS; i++) ready |= k_exe_builds[i].col == c && k_exe_builds[i].ready;
+            if (!ready) continue;
+            g_exe_build = c;
+            build_try(c, file);
+            g_try_bad[c] = g_spec_bad;
+            g_try_checked[c] = g_spec_checked;
+            if (!g_spec_bad && g_spec_checked) { free(file); return 1; }
+            if (best < 0 || g_spec_bad < g_try_bad[best]) { best = c; lstrcpyA(closest, g_spec_bad_names); }
+        }
+        lstrcpyA(g_spec_bad_names, closest);
+        g_exe_build = -1;
+    }
     free(file);
-    return name && !lstrcmpiA(name + 1, "Empire Earth.exe") ? -1 : 0;   // a renamed copy of a known build counts above
+    // a renamed copy of a known build counts above; a test run's exe is the game whatever its name
+    return name && (!lstrcmpiA(name + 1, "Empire Earth.exe") || test) ? -1 : 0;
 }
 // the start's log: the build when it isn't ready, the addresses and fields it hasn't got (what uses them doesn't work)
 internal void api_log(FILE *log) {
     if (!log) return;
-    if (!k_exe_builds[g_exe_kind].ready) fprintf(log, "# build: %s - not ready, a test run's\n", k_exe_builds[g_exe_kind].what);
-    if (k_exe_builds[g_exe_kind].col != g_exe_kind) fprintf(log, "# build: %s (%s's code)\n", k_exe_builds[g_exe_kind].what, k_build_names[g_exe_build]);
+    if (g_exe_kind < 0) fprintf(log, "# build: an exe of no known file (code %08X) - %s's code by the checks below\n", g_exe_hash, k_build_names[g_exe_build]);
+    else if (!k_exe_builds[g_exe_kind].ready) fprintf(log, "# build: %s - not ready, a test run's\n", k_exe_builds[g_exe_kind].what);
+    if (g_exe_kind >= 0 && k_exe_builds[g_exe_kind].col != g_exe_kind) fprintf(log, "# build: %s (%s's code)\n", k_exe_builds[g_exe_kind].what, k_build_names[g_exe_build]);
     if (g_spec_moved) fprintf(log, "# spec: %d import slots elsewhere than the spec's, found by name\n", g_spec_moved);
     spec_log(log);
     if (g_spec_bad) fprintf(log, "# spec: %d of %d checks against the exe fail:%s\n", g_spec_bad, g_spec_checked, g_spec_bad_names);
@@ -167,14 +202,20 @@ internal void build_unknown(uint32_t hash) {
     slot_dir(dir);
     wsprintfA(path, "%saimod_econ.csv", dir);
     FILE *f = fopen(path, "a");
-    if (f) { fprintf(f, "# eeaimod: Empire Earth.exe is another build (code %08X) - nothing installed\n", hash); fclose(f); }
+    if (f) {
+        fprintf(f, "# eeaimod: Empire Earth.exe is another build (code %08X) - nothing installed:", hash);
+        for (int c = 0, n = 0; c < ADDR_BUILDS; c++)
+            if (g_try_checked[c]) fprintf(f, "%s %d of %d checks of %s's code fail", n++ ? "," : "", g_try_bad[c], g_try_checked[c], k_build_names[c]);
+        fprintf(f, " -%s\n", g_spec_bad_names);   // (the closest column's)
+        fclose(f);
+    }
     wsprintfA(path, "%saimod_autotest.ini", dir);
     if (GetFileAttributesA(path) != INVALID_FILE_ATTRIBUTES) return;
     char msg[700];
-    wsprintfA(msg, "The Empire Earth AI mod (eeaimod.dll) doesn't know this version of Empire Earth.exe (code %08X), "
-                   "so it stays switched off - the game starts without it.\n\n"
-                   "The mod works with Empire Earth 1.04 with the 2017 update (\"Difficulty Setting & Multiplayer Lobby\"): "
-                   "the GOG and Steam versions, the Vanilla setup from empireearth.eu and NeoEE. Old CD versions and no-CD "
-                   "exes have their code in other places.\n\nDelete eeaimod.dll to stop this message.", hash);
+    wsprintfA(msg, "The Empire Earth AI mod (eeaimod.dll) doesn't know this version of Empire Earth.exe (code %08X): "
+                   "its code isn't the one the mod is made for, so the mod stays switched off - the game starts without it.\n\n"
+                   "The mod works with Empire Earth 1.04: the GOG and Steam versions, the Vanilla setup from empireearth.eu, "
+                   "NeoEE, and other copies of 1.04 with the same code (the retail game's without its copy protection). "
+                   "Versions before 1.04 have their code in other places.\n\nDelete eeaimod.dll to stop this message.", hash);
     MessageBoxA(NULL, msg, "Empire Earth AI mod: unknown game version", MB_OK | MB_ICONWARNING | MB_TOPMOST | MB_SETFOREGROUND);
 }

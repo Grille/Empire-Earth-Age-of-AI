@@ -427,7 +427,7 @@ internal void game_show(void) {
                         : k_exe_builds[g_exe_build].what;
     char ver[160];
     if (build) lstrcpynA(ver, build, sizeof ver);
-    else snprintf(ver, sizeof ver, "not one the mod knows (code hash %08X): the mod stays off, and this page leaves it alone", (unsigned)hash);
+    else snprintf(ver, sizeof ver, "a file the mod doesn't know (code hash %08X): it plays when its code is 1.04's (the log's # spec: line); this page leaves it alone", (unsigned)hash);
     snprintf(t, sizeof t,
              "%s\r\n%s\r\n\r\n"
              "Version:  %s\r\n\r\n"

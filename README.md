@@ -12,9 +12,12 @@ control pipe, automated tests and the engine notes.
 The mod needs the 1.04 exe of the 2017 update: the **GOG** version, the **Steam Gold Edition**
 (`steamapps\common\Empire Earth Gold Edition\Empire Earth` - the same code, only a signature and a DPI manifest are
 added), the **Vanilla** setup from empireearth.eu or **NeoEE** (the community's online version: the same code,
-its imports elsewhere - see [NeoEE](#neoee) below). Old CD versions and no-CD exes have their code in other
-places: the mod recognizes the exe when the game starts and stays switched off with another one, with a message
-(docs/engine-notes.md, Exe builds). Art of Conquest (`EE-AOC.exe`, GOG and Steam) is being ported: the mod knows
+its imports elsewhere - see [NeoEE](#neoee) below). Another copy of 1.04 - the retail CD game's exe without its
+copy protection (a no-CD exe), say - plays too when its code is the same: an exe the mod doesn't know by its file
+is checked against the 598 places the mod knows when the game starts, and the mod switches on only when every one
+holds (the log's `# build:` and `# spec:` lines). With the copy protection still on (SafeDisc, which Windows 10 and
+11 no longer run anyway) and with versions before 1.04 the code is elsewhere: the mod stays switched off, with a
+message (docs/engine-notes.md, Exe builds). Art of Conquest (`EE-AOC.exe`, GOG and Steam) is being ported: the mod knows
 its exe and all its addresses and the test games play it, but in a normal start it stays switched off until it has
 been played enough (see Status). The mod coexists with community DLL
 patches such as *Empire Earth Tweaks* or *dreXmod* (3.4 too: none of its 116 patches touches a place the mod

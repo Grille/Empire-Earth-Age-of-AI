@@ -1027,7 +1027,7 @@ conditions, 162 states with their ids) were dumped by a helper, not kept in the 
 
 The mod's addresses are those of the 1.04 exe with the 2017 "Difficulty Setting & Multiplayer Lobby" update (build
 timestamp 0x594D0000). game/api/exe.c `game_build` checks the exe file before installing anything: an FNV-1a hash over every
-section but `.rsrc` (`k_exe_builds`, game/api/builds.h); another build gets no hooks and one message (`build_unknown`). All addresses are
+section but `.rsrc` (`k_exe_builds`, game/api/builds.h); another file plays a column whose checks all hold in it, else gets no hooks and one message (`build_unknown`; below, "An exe of no known file"). All addresses are
 in `spec/game/` (gen/ their C), each with a value per known build (the hash's index picks the column): supporting
 another build means its hash and its column there - the generated editor layout (`editor_layout.h`) and the two
 Low-Level Engine.dll operands of display.c are that build's own as well. Compared on
@@ -1092,6 +1092,23 @@ are the slots. Checked: 15-minute test games, GOG and NeoEE side by side (Contin
 differs). AoC's NeoEE exe is a row too, not ready as AoC itself. Test runs there: EE_GAME_DIR=<NeoEE's game folder>
 (its single-instance check is NeoEE's own nop, run_test.ps1 warns that it found no je to nop), the mod's
 eeaimod.dll / dinput.dll in that folder, and newgame.ees in its Saved Games.
+
+**An exe of no known file (since 2026-10-27):** NeoEE showed that the 1.04 code is one compile in every wrapper - the
+retail CD's copy protection, TryMedia's, the 2017 update's with none - so the retail game's no-CD exes (each crack a
+file of its own: the protection taken off, the import table rebuilt in its own order, the CD check patched its own
+way) should be that code too. exe.c's game_build plays an exe of no row in builds.h in the first ready column whose
+checks all hold (build_try: its import slots by name, then the 598), else nothing and the message. The checks are no
+byte compare, but 147 of them are pairs the code must hold in itself - 97 calls of a function at the spec's address,
+39 vtables by their RTTI names, 11 vtable slots - spread over every part the mod patches, and patch_call /
+patch_code32 check their own bytes; another compile fails hundreds (the code range by the wrong section failed 378).
+A crack's patch at a place the mod uses fails its check by name. The start's log: `# build: an exe of no known file
+(code X) - ee's code by the checks below`; one that fails logs each column's count and the closest one's names.
+SafeDisc still on can't pass (its stubs instead of the imports; Windows 10 and 11 don't load its driver). Checked:
+the GOG and NeoEE exes with one byte of padding changed (0x683630) play, all 598 hold (NeoEE's 30 slots by name); the
+GOG exe with one call site pointed 5 bytes on (0x468629) stays off: `1 of 598 checks of ee's code fail, 147 of 598
+of aoc's` (a test run tries every column). Seen meanwhile: a GOG test game without the mod in a slot (its exe
+refused) crashes the GOG test games starting beside it (0x53538C / 0x53573F, from 0x538B46 at the start), with the
+installed DLL as well - only a test runner's problem.
 
 **Single instance:** `0x53883F` creates the mutex "StainlessSteelStudiosPresentsEmpireEarth" (handle to 0x919860) and
 returns false when it already exists; its caller quits with the `je` at 0x535CDA (`0F 84 BE 02 00 00`; NeoEE nops these

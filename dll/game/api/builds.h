@@ -3,7 +3,8 @@
 // player's game runs without the mod, a test run plays it (game_build). The module's one file outside it may use
 // (layers.py): the settings program tells the exe next to it by this too (tool/aimod_config.c, its Game page).
 // An exe of another build's code with its import table elsewhere (NeoEE's: the same compile in the copy protection's
-// layout) plays that build's column: its import slots are found by name ([import_slot], exe.c's spec_import).
+// layout) plays that build's column: its import slots are found by name ([import_slot], exe.c's spec_import). A file
+// of no row here plays a ready column whose checks all hold in it (exe.c's build_try: the retail 1.04's cracks).
 #define ADDR_BUILDS 2   // the spec's columns
 internal const char *const k_build_names[ADDR_BUILDS] = { "ee", "aoc" };
 #define EXE_BUILDS 4
