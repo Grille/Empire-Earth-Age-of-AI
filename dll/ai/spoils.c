@@ -197,13 +197,18 @@ internal void sp_roam_unit(ee_unit *u, void *ctx) {
         s->e[s->ne] = unit_get_tile(u); s->eo[s->ne++] = o;
     }
 }
+internal int sp_on_map(ivec2 p) {   // 2 tiles in from every edge
+    ee_map *map = game_map();
+    int size = map ? (int)map_get_size(map) : 0;
+    return p.x >= 2 && p.y >= 2 && p.x < size - 2 && p.y < size - 2;
+}
 internal void sp_roam(uint32_t now) {
     static struct sp_roam s;
     memset(&s, 0, sizeof s);
     grid_each(sp_roam_unit, &s);
     static uint8_t used[1024];
     memset(used, 0, sizeof used);
-    unsigned bands = 0, sent = 0, hunting = 0;
+    unsigned bands = 0, sent = 0, hunting = 0, nowhere = 0;
     for (int i = 0; i < s.nr; i++) {
         if (used[i]) continue;
         ee_unit *lead = s.r[i];
@@ -224,19 +229,24 @@ internal void sp_roam(uint32_t now) {
         if (idle * 2 < nb) continue;   // fighting
         ivec2 c = iv2((int)(cx / nb), (int)(cy / nb)), to = c;
         short area = (short)map_area(c, 2);
+        // a tile off the map has area 0, and so has land without a continent id (the player's camp on the reference
+        // save): a band there took a point past the map's far edge for its own land - the player's game crashed at
+        // 594.7 min with a unit moved off the map during its order (Empire Earth.exe+228d6f), resigned players' bands
+        // roaming. No goal then but on the map and in a known area.
+        if (!area) { nowhere++; continue; }
         long bd = (long)SP_HUNT * SP_HUNT + 1;
         int found = 0;
         for (int k = 0; k < s.ne; k++) {   // the nearest unit of anyone on its land
             if (s.eo[k] == o) continue;
             long d = ivec2_dist2(s.e[k], c);
-            if (d < bd && (short)map_area(s.e[k], 2) == area) { bd = d; to = s.e[k]; found = 1; }
+            if (d < bd && sp_on_map(s.e[k]) && (short)map_area(s.e[k], 2) == area) { bd = d; to = s.e[k]; found = 1; }
         }
         if (!found) {   // a point SP_WANDER off on its land - the same on every PC (no random numbers)
             uint32_t h = (uint32_t)unit_get_serial(lead) * 2654435761u ^ (now / SP_ROAM_MS) * 40503u;
             for (int t = 0; t < 8; t++, h = h * 1103515245u + 12345u) {
                 int a = (int)(h >> 8) % 360;
                 ivec2 p = iv2(c.x + (int)(SP_WANDER * cosf(a * 0.0174533f)), c.y + (int)(SP_WANDER * sinf(a * 0.0174533f)));
-                if (p.x > 0 && p.y > 0 && (short)map_area(p, 2) == area) { to = p; break; }
+                if (sp_on_map(p) && (short)map_area(p, 2) == area) { to = p; break; }
             }
         }
         if (to.x == c.x && to.y == c.y) continue;
@@ -251,7 +261,8 @@ internal void sp_roam(uint32_t now) {
     static uint32_t logged;
     if (g_log && s.nr && now - logged >= 60000) {
         logged = now;
-        fprintf(g_log, "# spoils: roaming at %.1f min: %d roamers in %u bands, %u sent on (%u bands to units)\n", now / 60000.0, s.nr, bands, sent, hunting);
+        fprintf(g_log, "# spoils: roaming at %.1f min: %d roamers in %u bands, %u sent on (%u bands to units, %u in no known area left)\n",
+                now / 60000.0, s.nr, bands, sent, hunting, nowhere);
     }
 }
 
