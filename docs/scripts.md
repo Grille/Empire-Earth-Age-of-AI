@@ -1,7 +1,7 @@
 # Scripts (test scenarios)
 
 A test run's `setup=<file>` (autotest, `run_test.ps1 -IniExtra "setup=tests/scenarios/bombing.eeai"` - relative to the repository) is a script in
-the text language of the personalities ([config/aimod_ai/README.md](../config/aimod_ai/README.md)): the same
+the text language of the personalities ([config/personalities/README.md](../config/personalities/README.md)): the same
 expressions, plus statements, variables, functions and the pipe's commands. It runs from 2 s game time, top to
 bottom; waiting (`wait`, `wait_until`, `every`) lets the game go on until that game time. The runner: `dll/test/scripts.c`.
 
@@ -260,7 +260,7 @@ script's names (they don't exist yet) - only its own `let`s, and the players to 
 |---|---|
 | `game.slots`, `game.slot(2)` | the players to be by number (the human and computer slots in order) - only here; `game.players` after |
 | `s.number`, `s.human` | the player it becomes; 1: a human's |
-| `s.persona = persona.fuchs` | a computer's personality: `persona.<its file>` (aimod_ai\fuchs.eeai) - an unknown one a mistake when the file is read |
+| `s.persona = persona.fuchs` | a computer's personality: `persona.<its file>` (personalities\fuchs.eeai) - an unknown one a mistake when the file is read |
 | `s.color = color.red`, `= rgb(40, 200, 120)` | its colour: one of the game's, or (a computer's) its own |
 
 ```

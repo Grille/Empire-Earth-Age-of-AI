@@ -1,10 +1,10 @@
-# The personality files (aimod_ai)
+# The personality files
 
 This folder holds the words of eeaimod's computer players: their personalities, the system lines the mod shows
 you, and what it tells a language model when the AI voice is on. Every file is plain text (UTF-8) with the
 extension `.eeai`; this README is not read by the game. The files are read once, when Empire Earth starts - restart
-the game after editing. They go into the mod's folder `aimod` next to Empire Earth.exe (with aimod.ini); `ai_dir=` in aimod.ini's `[general]` reads them from
-somewhere else instead (for example where you edit it: `ai_dir=_aimod\config\aimod_ai`, relative to the game folder
+the game after editing. The folder goes into the mod's folder `aimod` next to Empire Earth.exe (`aimod\personalities`, beside aimod.ini); `ai_dir=` in aimod.ini's `[general]` reads them from
+somewhere else instead (for example where you edit it: `ai_dir=_aimod\config\personalities`, relative to the game folder
 or absolute).
 
 | File | What it is |

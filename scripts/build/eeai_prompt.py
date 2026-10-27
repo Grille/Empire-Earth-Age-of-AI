@@ -1,4 +1,4 @@
-"""The texts of config/aimod_ai/mod/prompt.eeai's prompt = { ... } record, by key - for the generators that describe
+"""The texts of config/personalities/mod/prompt.eeai's prompt = { ... } record, by key - for the generators that describe
 the situations (gen_persona.py, gen_eeai_readme.py): the file is the only place the texts are."""
 import os
 
@@ -15,7 +15,7 @@ def _string(t, i):   # the string starting at t[i] == '"': its text and the inde
         out.append(c); i += 1
 
 def prompt_texts(root):
-    t = open(os.path.join(root, 'config', 'aimod_ai', 'mod', 'prompt.eeai'), encoding='utf-8').read().replace('\r\n', '\n')
+    t = open(os.path.join(root, 'config', 'personalities', 'mod', 'prompt.eeai'), encoding='utf-8').read().replace('\r\n', '\n')
     i = t.index('\nprompt = {\n') + len('\nprompt = {\n')
     texts = {}
     while not t.startswith('}', i):

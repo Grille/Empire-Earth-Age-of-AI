@@ -113,11 +113,11 @@ function Restore-Sound {
 
 if ($Save -match '[-/]') { "save name must not contain - or /"; exit 1 }
 # The settings the DLL plays with: -Config (or env CONFIG) = an aimod.ini, -AiDir (or env AI_DIR) = the personality
-# folder; relative paths from the repository. Default: the shipped config\aimod.ini and config\aimod_ai - what players get,
+# folder; relative paths from the repository. Default: the shipped config\aimod.ini and config\personalities - what players get,
 # never the player's own aimod.ini in the game folder's aimod\ (its experiments would bias every A/B);
 # CONFIG=<game>\aimod\aimod.ini tests it.
 if (-not $Config) { $Config = "config\aimod.ini" }
-if (-not $AiDir) { $AiDir = "config\aimod_ai" }
+if (-not $AiDir) { $AiDir = "config\personalities" }
 if (-not [System.IO.Path]::IsPathRooted($Config)) { $Config = Join-Path $repo $Config }
 if (-not [System.IO.Path]::IsPathRooted($AiDir)) { $AiDir = Join-Path $repo $AiDir }
 if (-not (Test-Path $Config -PathType Leaf)) { "config not found: $Config"; exit 1 }

@@ -18,7 +18,7 @@ welcome on the same terms as any other: you answer for what you send - you have 
 - **Movement and pathing**: routes, turning, collision, formations - the player's units and the AI's alike.
 - **The tooling**: the spec of the game, the reverse-engineering scripts, the tests, the `.eeai` language and its VS
   Code extension, `aimod_config.exe`.
-- **Personalities and texts** (`config/aimod_ai/`): new characters, better lines.
+- **Personalities and texts** (`config/personalities/`): new characters, better lines.
 - **The Art of Conquest port** (in progress, see the spec's two builds).
 
 **Out of scope**
@@ -46,8 +46,8 @@ Not sure whether something fits? Open an issue and ask before you write the code
   lines of `aimod_econ.csv` in the game folder's `aimod`), your `aimod.ini` (or what you changed in it), the map and the
   difficulty, what the AI did and what you expected it to do, and - when you can - a saved game from shortly before.
   For a crash, also the log and the last thing you did.
-- **Write a personality.** Copy `config/aimod_ai/_template.eeai`, which explains every key; the format is in
-  [config/aimod_ai/README.md](config/aimod_ai/README.md). `strict_parsing=1` in `aimod.ini` shows all mistakes at
+- **Write a personality.** Copy `config/personalities/_template.eeai`, which explains every key; the format is in
+  [config/personalities/README.md](config/personalities/README.md). `strict_parsing=1` in `aimod.ini` shows all mistakes at
   once.
 - **Reverse engineering.** A function, field or number of the game found and checked goes into `spec/` (below).
   Say how you know it: what the code does with it, what you measured in a running game.

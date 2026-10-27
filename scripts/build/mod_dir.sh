@@ -2,8 +2,8 @@
 # The mod's files in the game folder's aimod\ (2026-10-27: the game folder itself keeps only eeaimod.dll, dinput.dll
 # and aimod_config.exe): a game folder set up before has them beside the game - moved in once, by every install
 # (install.sh, dll/build.sh install) before the new DLL can look for them. A file already in aimod\ is left alone, and
-# so is it beside the game. The old personality folder aimod_ai stays where it is: a developer's game reads the
-# repository's (ai_dir), a copy of them would be out of date.
+# so is it beside the game. The old personality folder aimod_ai isn't moved into aimod\personalities: a developer's
+# game reads the repository's (ai_dir), a copy of them would be out of date.
 # usage: . scripts/build/mod_dir.sh; mod_dir_move <game folder>
 mod_dir_move() {
     [ -n "$1" ] || return 1

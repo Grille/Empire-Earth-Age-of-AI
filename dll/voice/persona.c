@@ -1,4 +1,4 @@
-// AI PERSONALITIES: every AI player gets a personality from <game>\aimod\*.eeai - a name, traits (0-100) that
+// AI PERSONALITIES: every AI player gets a personality from <game>\aimod\personalities\*.eeai - a name, traits (0-100) that
 // steer its diplomacy, and the lines it says in situations of the game. Included by eeaimod.c after defence.c,
 // before diplo.c (which makes the decisions and raises most of the situations).
 //
@@ -478,7 +478,7 @@ internal void x_fn_scan_folder(const char *dir) {
 internal void x_fn_scan_dir(void) {
     char dir[MAX_PATH];
     g_xfn_n = g_xvn_n = 0;
-    x_fn_scan_folder(g_ai_dir);   // <game>\aimod\, [general] ai_dir or [autotest] ai_dir
+    x_fn_scan_folder(g_ai_dir);   // <game>\aimod\personalities\, [general] ai_dir or [autotest] ai_dir
     snprintf(dir, sizeof dir, "%smod\\", g_ai_dir);
     x_fn_scan_folder(dir);
 }
@@ -1094,7 +1094,7 @@ internal DWORD WINAPI texts_missing_box(LPVOID arg) {
     char text[600];
     wsprintfA(text, "eeaimod's text files are missing: %smod\\ needs computer.eeai, prompt.eeai, units.eeai and system.eeai.\n\n"
               "The computer players play on, but without personalities, AI voice and diplomacy. Copy the mod's personality "
-              "files (config\\aimod_ai) into the folder aimod next to Empire Earth.exe again (or set ai_dir in aimod.ini).", g_ai_dir);
+              "folder (config\\personalities) into the folder aimod next to Empire Earth.exe again (or set ai_dir in aimod.ini).", g_ai_dir);
     MessageBoxA(NULL, text, "eeaimod", MB_OK | MB_ICONWARNING | MB_TOPMOST | MB_SETFOREGROUND);
     return 0;
 }

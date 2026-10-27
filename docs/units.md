@@ -7,7 +7,7 @@ every game language: lowercase, every run of other characters one `_` (`b  Guard
 epoch infantry, archers, cavalry, `gun` siege and guns, `x` special variants, `amb` animals, `res` resources.
 
 Kind is the game's family of the type (its armour and bonus class) - in the texts `kind.<kind>`: `me.count(kind.towers)`
-counts every tower whatever its epoch, `unit.<identifier>` only that type (config/aimod_ai/README.md). The mod reads
+counts every tower whatever its epoch, `unit.<identifier>` only that type (config/personalities/README.md). The mod reads
 the types, their names and families from the data the game has loaded, so a data mod's types count too; this list
 is the retail game's (some of its types the game doesn't load: the `x ... ME` variants, a few mines and trees).
 The AI code names the types it needs by identifier as well (dll/game/unit_ids.h: `UT(B_FARM)`), looked up when the game

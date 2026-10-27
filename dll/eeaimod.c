@@ -421,11 +421,12 @@ internal void config_missing(const char *ini) {
 }
 
 // Autotest: [autotest] config = the aimod.ini to play with, ai_dir = the personality folder, each absolute or
-// relative to the game folder; unset = the files in <game>\aimod\ as in normal play. Every reader of the settings
+// relative to the game folder; unset = aimod.ini in <game>\aimod\ and <game>\aimod\personalities\ as in
+// normal play. Every reader of the settings
 // goes through g_aimod_ini / g_ai_dir, so the whole file ([general], [ai_base], the difficulties, [display], [llm] ...)
 // comes from the chosen one. The personality folder otherwise: aimod.ini [general] ai_dir (the same path rules), so a
-// developer's game reads the repository's files (ai_dir = _aimod\config\aimod_ai) instead of a copy. A folder that
-// isn't there: <game>\aimod\, told in the log (g_ai_dir_why). config_paths picks the file, config_ai_dir
+// developer's game reads the repository's files (ai_dir = _aimod\config\personalities) instead of a copy. A folder that
+// isn't there: <game>\aimod\personalities\, told in the log (g_ai_dir_why). config_paths picks the file, config_ai_dir
 // the folder once the settings are read.
 internal char g_ai_dir_why[MAX_PATH + 64];
 internal void game_path(const char *v, char *out, int cap) {   // absolute, or relative to the game folder; '/' as '\'
@@ -497,7 +498,7 @@ internal void install(HMODULE self) {
     if (slash) {
         slash[1] = 0;
         lstrcpyA(g_game_dir, path);
-        wsprintfA(g_ai_dir, "%saimod\\", path);
+        wsprintfA(g_ai_dir, "%saimod\\personalities\\", path);
         lstrcpyA(dir, path);
         slot_dir(dir);   // the test ini, the log and the dumps: <game>\aimod\, a test slot's own folder
         wsprintfA(g_dump_dir, "%saimod_dumps", dir);

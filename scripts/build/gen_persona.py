@@ -1,4 +1,4 @@
-"""Writes config/aimod_ai/_template.eeai - an empty personality with every key explained - from the DLL's sources:
+"""Writes config/personalities/_template.eeai - an empty personality with every key explained - from the DLL's sources:
 the situations (persona.c k_lines: who hears them, how often, their fallbacks), their descriptions (mod/prompt.eeai
 sit_<key>). Run it after changing one of them:
 local/venv/Scripts/python.exe scripts/build/gen_persona.py"""
@@ -109,6 +109,6 @@ w('#prompt = {')
 w('#    nature = "You speak in short, proud sentences.",')
 w('#}')
 out = [convert_line(o.encode('utf-8'))[0].decode('utf-8') for o in out]   # the comments: # written above, // in the file
-path = os.path.join(root, 'config', 'aimod_ai', '_template.eeai')
+path = os.path.join(root, 'config', 'personalities', '_template.eeai')
 open(path, 'w', encoding='utf-8', newline='\n').write('\n'.join(out) + '\n')
 print(path, len(lines), 'situations')

@@ -1,4 +1,4 @@
-"""Writes extensions/eeaimod-texts/syntaxes/eeai.tmLanguage.json - the highlighting of the aimod_ai\\*.eeai files
+"""Writes extensions/eeaimod-texts/syntaxes/eeai.tmLanguage.json - the highlighting of the personalities\\*.eeai files
 (personalities, mod/computer.eeai, mod/prompt.eeai, mod/system.eeai; the format: dll/script/expr.c THE TEXT FILES) and of the setup scripts
 (tests/scenarios/*.eeai, tests/probes/*.eeai: docs/scripts.md - statements, functions, the commands) - with the names the DLL knows,
 read from its sources: the game's values (lang/player.cs, names.cs, game.cs), the epochs and functions (expr.c), the situations,

@@ -1,10 +1,10 @@
 // WHERE THINGS ARE: the game folder, the settings files, the personalities, the dumps - and a test slot's own folder.
 internal char g_ini[MAX_PATH], g_aimod_ini[MAX_PATH];   // aimod_autotest.ini, aimod.ini (paths set in DllMain)
-// <game>\ and the personalities' folder, <game>\aimod\ (with the backslash). Under autotest the config and the
+// <game>\ and the personalities' folder, <game>\aimod\personalities\ (with the backslash). Under autotest the config and the
 // personality folder come from aimod_autotest.ini [autotest] config / ai_dir (run_test.ps1: the repository's config\ by
 // default), so tests measure the shipped files, not the player's own aimod\aimod.ini; normal play: aimod.ini in
 // <game>\aimod\, the personalities from its [general] ai_dir (a developer's game reading the repository's files) or
-// that same folder.
+// its folder personalities.
 internal char g_game_dir[MAX_PATH], g_ai_dir[MAX_PATH];
 internal int g_slot;   // a test slot (TEST SLOTS, at slot_dir), 0: none
 internal char g_dump_dir[MAX_PATH];   // also the folder of the control pipe's shot / ddinfo dump pictures

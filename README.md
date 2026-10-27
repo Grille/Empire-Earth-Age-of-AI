@@ -29,9 +29,9 @@ patches), which patch different places.
 | [docs/testing.md](docs/testing.md) | Autotest mode, test scenarios, log format, control pipe commands |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | What the project takes, how to report, the rules a change has to follow |
 | [config/aimod.ini](config/aimod.ini) | Every setting, explained |
-| [config/aimod_ai/README.md](config/aimod_ai/README.md) | The personalities and texts: format, expressions, values, situations |
-| [config/aimod_ai/_template.eeai](config/aimod_ai/_template.eeai) | An empty personality with every key explained, to copy |
-| [config/aimod_ai/mod/](config/aimod_ai/mod/) | The mod's own texts: `computer.eeai` (every personality's base), `prompt.eeai` (what the mod tells the language model - the AI voice), `system.eeai` (the system lines the mod shows), `units.eeai` (the groups the texts count with: units, army, buildings ...) |
+| [config/personalities/README.md](config/personalities/README.md) | The personalities and texts: format, expressions, values, situations |
+| [config/personalities/_template.eeai](config/personalities/_template.eeai) | An empty personality with every key explained, to copy |
+| [config/personalities/mod/](config/personalities/mod/) | The mod's own texts: `computer.eeai` (every personality's base), `prompt.eeai` (what the mod tells the language model - the AI voice), `system.eeai` (the system lines the mod shows), `units.eeai` (the groups the texts count with: units, army, buildings ...) |
 
 ## Computer player
 
@@ -132,7 +132,7 @@ peace or alliances. With the mod:
 - **Surrender:** an AI that has lost all its citizens and can't train new ones resigns (with a last line),
   instead of leaving its last buildings for you to hunt down (`surrender`, not in scenarios). It gives up to
   whoever destroyed the most of it lately, and doesn't capitulate or take sides in a war once it is beyond saving.
-- **Personalities** (optional folder [`config/aimod_ai`](config/aimod_ai)): every AI gets a name, a favoured
+- **Personalities** (optional folder [`config/personalities`](config/personalities)): every AI gets a name, a favoured
   colour on random maps, character traits (aggression, loyalty, pride, greed, forgiveness, caution, talk) and
   its own lines for situations of the game: greetings, attacks, being attacked, new ages, winning and losing,
   diplomacy. Six personalities are included, in English (other languages: at the release, a file each). A saved
@@ -157,7 +157,7 @@ peace or alliances. With the mod:
   (`allied ? "Welcome back."`), fallbacks (`a ?? b`) - over the game as it stands: what the AI thinks of you, how
   strong each side is, how long the war has lasted, whether you betrayed it before, what you paid it, its epoch.
   Everything - the format, the expressions, every value, every situation - is in
-  [`config/aimod_ai/README.md`](config/aimod_ai/README.md), which goes into the folder with the files. A mistake is
+  [`config/personalities/README.md`](config/personalities/README.md), which goes into the folder with the files. A mistake is
   logged with the file and line and only that key is skipped; `strict_parsing=1` in aimod.ini shows every mistake
   at once (for whoever writes texts).
 - **Editing them in VS Code:** [`extensions/eeaimod-texts`](extensions/eeaimod-texts) highlights the `.eeai`
@@ -213,7 +213,7 @@ is in one folder `aimod` beside them - its settings, the personalities, the game
 2. Copy [`config/aimod.ini`](config/aimod.ini) into `aimod` and adjust it. Every option is explained in the
    file. `[ai_base]` is every AI difficulty's (the medium AI plays it as it is); `[ai_easy]` and `[ai_hard]`
    override it for those two.
-3. Optional: copy what is in [`config/aimod_ai`](config/aimod_ai) into `aimod` too, for the AI personalities.
+3. Optional: copy the folder [`config/personalities`](config/personalities) into `aimod` too, for the AI personalities.
    Add or edit `.eeai` files there to make your own; they are read when Empire Earth starts.
 4. Start the game normally. Changes to `aimod.ini` take effect when a game starts or a save is loaded.
    Instead of editing the file you can copy `aimod_config.exe` next to `Empire Earth.exe` and start it: every
@@ -290,7 +290,7 @@ Settings in `aimod.ini`:
   aircraft the missiles already on their way will destroy; they take another target in range or hold the shot.
   `lead_missiles=1` (off by default) makes homing missiles intercept instead of chase.
 - Multiplayer (not tested yet): every player needs the same `eeaimod.dll`, the same `aimod.ini` and the same
-  `aimod_ai` personalities. The game is lockstep - every PC simulates everything - so different settings make
+  personalities. The game is lockstep - every PC simulates everything - so different settings make
   the games drift apart. The mod's decisions use only the game's own state, math and random numbers for this.
   Nothing checks yet that every PC has the same; until the mod does (the host's settings for every PC), don't use
   it in online games - and not in NeoEE's ranked games at all: its rank system and cheat detector expect the
@@ -582,7 +582,7 @@ dll/              the mod (C), one translation unit: eeaimod.c includes every pa
   tool/             aimod_config.c: aimod_config.exe, the settings in a window (from base/, script/ and settings/ only:
                     the DLL's own rows and checks; the shipped aimod.ini built in as the help)
   dinput/           eesettings.c: dinput.dll, the game's settings in eesettings.ini instead of the registry
-config/           aimod.ini and the aimod_ai personalities, shipped to players
+config/           aimod.ini and the personalities, shipped to players
 tests/            what the tests run: scenarios/ the setup scripts (docs/scripts.md) that turn a save into a test
                   scenario (attacks, sieges, raids), probes/ the one-off setups of single measurements, config/
                   autotest.ini and the test configs, text_engine_cases.txt the text engine comparison's cases
