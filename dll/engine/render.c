@@ -827,8 +827,21 @@ internal void rd_trace_install(void) {
         }
     FlushInstructionCache(GetCurrentProcess(), code, 8192);
 }
+// [display] renderer: auto 0 (own without a ddraw.dll in the game folder - the system's crashes in the T&L display DLL
+// at its start), wrapper 1, own 2 (rows.h)
+internal int render_wanted(void) {
+    if (g_set.display_renderer != 0) return g_set.display_renderer == 2;
+    char path[MAX_PATH];
+    DWORD n = GetModuleFileNameA(NULL, path, MAX_PATH);
+    char *slash = n && n < MAX_PATH ? strrchr(path, '\\') : NULL;
+    if (!slash || (size_t)(slash - path) + sizeof "\\ddraw.dll" > MAX_PATH) return 0;
+    lstrcpyA(slash, "\\ddraw.dll");
+    int wrapper = GetFileAttributesA(path) != INVALID_FILE_ATTRIBUTES;
+    if (g_log) fprintf(g_log, "# render: renderer auto - %s\n", wrapper ? "the game folder's ddraw.dll" : "no ddraw.dll in the game folder: the own renderer");
+    return !wrapper;
+}
 internal void render_install(const char *autotest_ini) {
-    if (g_set.display_renderer != 1) return;
+    if (!render_wanted()) return;
     if (g_fullscreen) {
         if (g_log) fprintf(g_log, "# render: own renderer needs [display] mode windowed or borderless - the game's ddraw.dll\n");
         return;

@@ -106,3 +106,8 @@ count from its start vertex); half a pixel shift for Direct3D 7's pixel centres;
 through a quad. Only FVF 0x152 and list / strip types are drawn (anything else logs once). Checked: the main menu
 and a Continental game draw in full (terrain, water, trees, units, shadows, the interface). Not compared with
 DDrawCompat's picture yet (step 4); the editor's stop not looked at again.
+
+The setting's default is `auto` (2026-10-27, the player): the own renderer when the game folder has no ddraw.dll -
+Windows' own DirectDraw crashes the game windowed (DX7HRTnLDisplay.dll+c7d8) - else the wrapper there; `wrapper` and
+`own` choose either outright. With `own` a ddraw.dll in the folder is still loaded (the engine loads every DLL there,
+the display DLLs import it) but never called; DDrawCompat hooks parts of Windows at its load, so keep it out then.

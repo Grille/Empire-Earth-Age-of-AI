@@ -74,7 +74,7 @@
     S(INT,    display,  draw_limit,               4096, 0, 1000000) \
     S(FLAG,   display,  smooth,                   0,  0, 0) \
     S(CHOICE, display,  present,                  "auto", "auto|d3d|gdi|primary", 0) \
-    S(CHOICE, display,  renderer,                 "wrapper", "wrapper|own", 0) \
+    S(CHOICE, display,  renderer,                 "auto", "auto|wrapper|own", 0) \
     S(FLAG,   display,  vsync,                    0,  0, 0) \
     S(INT,    display,  frame_watch,              0,  0, 1000) \
     S(FLAG,   display,  text_dc,                  1,  0, 0) \
