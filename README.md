@@ -1,7 +1,7 @@
 # Empire Earth tuning mod
 
 A runtime mod for **Empire Earth 1.04 with the Difficulty Setting & Multiplayer Lobby add-on** (the
-last official base-game exe; not Art of Conquest). It fixes and tunes the game from inside: a DLL in the
+last official base-game exe; Art of Conquest is being ported). It fixes and tunes the game from inside: a DLL in the
 game folder patches the running exe, and the game's files stay unchanged. The engine loads every DLL
 in its folder, so dropping the file there is enough.
 
@@ -14,7 +14,9 @@ The mod needs the 1.04 exe of the 2017 update: the **GOG** version, the **Steam 
 added), the **Vanilla** setup from empireearth.eu or **NeoEE** (the community's online version: the same code,
 its imports elsewhere - see [NeoEE](#neoee) below). Old CD versions and no-CD exes have their code in other
 places: the mod recognizes the exe when the game starts and stays switched off with another one, with a message
-(docs/engine-notes.md, Exe builds). Art of Conquest (`EE-AOC.exe`) isn't supported yet. The mod coexists with community DLL
+(docs/engine-notes.md, Exe builds). Art of Conquest (`EE-AOC.exe`, GOG and Steam) is being ported: the mod knows
+its exe and all its addresses and the test games play it, but in a normal start it stays switched off until it has
+been played enough (see Status). The mod coexists with community DLL
 patches such as *Empire Earth Tweaks* or *dreXmod* (3.4 too: none of its 116 patches touches a place the mod
 patches), which patch different places.
 
@@ -249,7 +251,8 @@ differs from the GOG version:
   and the mod's `[camera]` and `[display]` settings haven't been tried together by hand yet.
 - NeoEE's data changes a few rules (its `Data\db` files: a population limit of 4000, more starting-resource levels
   and game variants). The AI adapts to the data, but it was measured on the original rules.
-- NeoEE's Art of Conquest (`EE-AOC.exe`) is recognized too and, like Art of Conquest itself, not supported yet.
+- NeoEE's Art of Conquest (`EE-AOC.exe`) is recognized too and goes with the Art of Conquest port: off in a
+  normal start for now.
 - Not on NeoEE's online servers: see Multiplayer below.
 
 ## Display and interface
@@ -459,7 +462,10 @@ Settings in `aimod.ini`:
 - **NeoEE:** recognized and tested in automated games (the same checks and hooks as on the GOG exe, 15-minute
   games side by side); not played by hand yet.
 - **Experimental, off by default:** personality play styles (`ai_style`).
-- **Planned:** an Art of Conquest port (the AI classes are the same, the addresses differ).
+- **Art of Conquest, in progress:** every address the mod uses is known for it too (its load checks hold), and
+  automated test games of 20-30 minutes play there; AoC rewrote some functions the mod relies on, and some
+  of its fields are carried over from the base game rather than confirmed in AoC's code. Before the mod switches on
+  in a normal AoC start: longer test games and measurements there, and those rewritten functions checked in play.
 
 ## Building
 
