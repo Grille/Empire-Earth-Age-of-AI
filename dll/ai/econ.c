@@ -108,6 +108,7 @@ internal int can_place(ee_player *pl, int type, ivec2 p);   // defence.c: the ga
 internal void defence_tick(ee_player *pl, unsigned idx, uint32_t now);
 internal void anti_air(ee_player *pl, unsigned idx, uint32_t now);   // defence.c
 internal void bunker_reserve(ee_player *pl, int *reserve);   // bunker.c
+internal void prod_sync(ee_player *pl, unsigned idx, uint32_t now);   // below
 internal void hold_town(ee_player *pl, unsigned idx, uint32_t now);   // defence.c
 internal void counter_siege(ee_player *pl, unsigned idx, uint32_t now);
 internal void home_guard(ee_player *pl, unsigned idx, uint32_t now);
@@ -677,6 +678,7 @@ internal void econ_tick(ee_player *pl, uint32_t now) {
     gather_log(pl, ai, now);
     place_log(ai, now);
     retry_dropped(pl, ai, now);
+    prod_sync(pl, ai, now);
     gather_research(pl, ai, now);
     attention_note(pl, ai, now);
     defence_tick(pl, ai, now);
@@ -1626,6 +1628,46 @@ internal int g_train_room = 0xFFFF;
 internal int g_am_noroom;   // army.c: the last request was cut to no room
 internal void am_train_note(ee_player *pl, unsigned idx, const int *req, int blocked, int sub_type, unsigned n, const int *stock, const int *vis);
 internal unsigned g_noroom[16][6];   // units ordered with no room (cap - in production - population <= 0), by call site
+// the units pl's buildings really have queued: what each makes now and its queue, the techs that make a unit (the
+// unit manager's in_production should be this - 0x490866 takes them off it as a building dies)
+internal int units_queued(ee_player *pl) {
+    ee_tech_tree *tt = player_get_tech_tree(pl);
+    int n = 0;
+    if (!tt) return 0;
+    for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
+        ee_unit *b = it.u;
+        if (unit_get_owner(b) != pl || unit_get_hp(b) <= 0) continue;   // every unit has the fields (0x490866 reads them)
+        int *qb = unit_get_queue_begin(b), *qe = unit_get_queue_end(b), nq = qb && qe > qb ? (int)(qe - qb) : 0;
+        for (int j = -1; j < nq; j++) {
+            int id = j < 0 ? unit_get_producing(b) : qb[j];   // the one in the making, then the queue
+            ee_tech *t = id > 13 && id != 100000 ? tech_tree_lookup(tt, id) : NULL;
+            ee_tech_data *d = t ? tech_get_data(t) : NULL;
+            n += d && tech_data_get_is_object(d);
+        }
+    }
+    return n;
+}
+// IN PRODUCTION ([ai_base] production_sync): a loaded game starts its AIs' units in production (unit manager +0x13C,
+// what the room for training leaves out: cap - population - in production) at nearly 0 - the save doesn't keep it -
+// while the buildings' queues are full, so the AI orders on as if it had room: the player's save "standing army",
+// P6 at 9 in production with 491 units queued, by minute 592 12 stables with about 80 Imperial Cuirassiers each - paid
+// for, and more than its cap of 1156 lets out. Every 10 s it is set to the units the buildings have queued
+// (units_queued) when the two differ.
+internal int g_prod_sync = 0;
+internal unsigned g_prod_synced[16];
+internal void prod_sync(ee_player *pl, unsigned idx, uint32_t now) {
+    static uint32_t last[16];
+    if (!g_prod_sync || (last[idx] && now >= last[idx] && now - last[idx] < 10000)) return;
+    last[idx] = now ? now : 1;
+    ee_civ_mgr *cm = player_get_civ_mgr(pl);
+    ee_unit_mgr *um = cm ? civ_mgr_get_unit_mgr(cm) : NULL;
+    if (!um) return;
+    int was = unit_mgr_get_in_production(um), q = units_queued(pl);
+    if (q == was) return;
+    unit_mgr_set_in_production(um, q);
+    if (g_log && (abs(q - was) > 5 || !g_prod_synced[idx])) fprintf(g_log, "# production: P%u at %.1f min: in production %d, queued %d - set\n", idx, now / 60000.0, was, q);
+    g_prod_synced[idx]++;
+}
 // the budget's part of a training request: what the AI may spend on it (visibles), how many it pays for (afford,
 // blocked when none), a substitute soldier (sub_type) - reserve gets the stock held back
 internal void train_budget(ee_player *pl, unsigned idx, const struct ai_cfg *cfg, const int *req, int military, int req_unit, int ship,
@@ -1886,6 +1928,7 @@ internal void econ_install(const char *autotest_ini) {
     g_early_requirements = g_set_ai[1].early_requirements;
     g_build_fix = g_set_ai[1].build_fix;
     g_train_room = g_set_ai[1].train_room;
+    g_prod_sync = g_set_ai[1].production_sync;
     g_build_fields = g_set_ai[1].build_fields;
     g_paid_upgrades = g_set_ai[1].paid_upgrades;
     if (autotest_ini) g_tech_log = ini_int("autotest", "tech_log", 0, autotest_ini);

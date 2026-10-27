@@ -151,6 +151,8 @@
     D(FLAG,  threat_memory,                1, 0, 0) \
     D(FLAG,  bunkers,                      1, 0, 0) \
     D(NUM,   bunker_reserve,               65535, 0, 0) \
+    D(FLAG,  shelve_citizens,              1, 0, 0) \
+    D(NUM,   shelve_stock,                 5000, 500, 1000000) \
     D(FLAG,  attack_siege,                 1, 0, 0) \
     D(NUM,   avoid_towers_weight,          2000, 0, 0) \
     D(NUM,   avoid_towers_margin,          6, 0, 0) \
@@ -177,7 +179,7 @@
     D(SHARE, citizen_army_share,           40, 0, 90) \
     D(NUM,   workforce_plan,               0, 0, 0) \
     D(NUM,   workforce_army_cap,           250, 0, 0) \
-    D(NUM,   army_plan,                    39, 0, 0) \
+    D(NUM,   army_plan,                    103, 0, 0) \
     D(NUM,   army_plan_epoch,              5, 0, 0) \
     D(NUM,   army_float_keep,              300, 0, 0) \
     D(NUM,   army_float_keep_mineral,      100, 0, 0) \
@@ -222,6 +224,7 @@
     D(FLAG,  unit_substitution,            1, 0, 0) \
     D(NUM,   substitute_wait,              90, 0, 0) \
     D(NUM,   train_room,                   65535, 0, 0) \
+    D(FLAG,  production_sync,              0, 0, 0) \
     D(NUM,   late_targets,                 7, 0, 0) \
     D(NUM,   idle_citizen_slack,           9999, 0, 0) \
     D(NUM,   home_guard,                   4, 0, 0) \

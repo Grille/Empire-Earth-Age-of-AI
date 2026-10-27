@@ -1,0 +1,19 @@
+// Continental, 4 AIs from the Middle Ages, a population limit the AIs reach (base ini unit_limit=750: a cap of about
+// 220 each) and resources piled up as in a long game: 20000 of each for every AI at minutes 1, 15 and 30. The citizen
+// shelf (shelve_citizens) and army_plan KIND (64): what does an AI make of the bank at its cap?
+
+wait_until(1min)
+give(2, 20000, resource.all)
+give(3, 20000, resource.all)
+give(4, 20000, resource.all)
+give(5, 20000, resource.all)
+wait_until(15min)
+give(2, 20000, resource.all)
+give(3, 20000, resource.all)
+give(4, 20000, resource.all)
+give(5, 20000, resource.all)
+wait_until(30min)
+give(2, 20000, resource.all)
+give(3, 20000, resource.all)
+give(4, 20000, resource.all)
+give(5, 20000, resource.all)

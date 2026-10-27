@@ -105,6 +105,14 @@ internal void am_reserve(ee_player *pl, unsigned idx, int reserve[7]) {
 // 4 BUILD: every 30 s: the land production buildings (Barracks, Archery Range, Stable, Tank / Cyber Factory) trained
 //   in 70%+ of the samples since the last look and the account holds 600+ -> one more of the kind that trains the
 //   soldier FILL picks, up to 2 + workers / 15 of them (the build manager's own queue and placement, 0x46802D).
+// 64 KIND: BUILD's busy share is that kind's alone, and while food, wood, gold and iron each lie at shelve_stock the
+//   limit is 2 + cap / 30 at least (the shelf takes workers out). The player's save "standing army": P6 with 100000+
+//   of every resource ordered Imperial Cuirassiers only - its 12 stables flat out with 80 queued each, its barracks and
+//   ranges idle, 18% busy in all - and never got another stable. Head-to-head (mirrored, 12 games a cell, 50 min,
+//   Continental map_size 1, 4 AIs from epoch 5): tests/scenarios/richcap.eeai (unit_limit 750, 20000 of each at
+//   minutes 1, 15 and 30) with - without soldiers +16.0 (se 6.5), razed +16.0 (8.0), workers +25.9 (8.5), kills +36
+//   (27), losses +68 (21); the plain late start all within noise (soldiers -1.9 (4.2), razed -1.9 (1.7)). Default
+//   103 (39 + KIND) since 2026-10-27.
 // 8 MIX, 16 UPGRADE: below. Only with an enemy on the AI's own continent (navy_detect: land or mixed maps).
 // 32 LATE: FLOAT, FILL and BUILD only from army_plan_epoch (5, the Middle Ages). Why (docs/economy.md "Mines and army on
 //   the small maps"): in a game from the Stone Age both sides hold their towns with towers and the Copper and Bronze Age
@@ -129,7 +137,7 @@ internal void am_reserve(ee_player *pl, unsigned idx, int reserve[7]) {
 // With fall_back (2026-10-22, docs/experiments.md): Continental Large 80 games a cell kills - losses -8.0 (8.2) / +8.1
 // (7.2) but the mod's wins 35 -> 61 of 80 without the cheat, the base AI's 66 -> 60 with it; Continental e9 +3.6 (3.0) /
 // +6.2 (4.1), wins 55 -> 65, base AI 55 -> 43; head-to-head Continental Large +46.0 (17.5). Default 39 (7 + LATE).
-internal int g_army_plan = 39, g_v_army_plan = -1;
+internal int g_army_plan = 103, g_v_army_plan = -1;
 internal int g_army_keep[7] = { 0, 0, 300, 300, 100, 100, 100 };
 internal int g_army_epoch = 5;   // LATE: army_plan_epoch
 #define ARMY_PLAN(idx) PV(idx, g_v_army_plan, g_army_plan)
@@ -137,7 +145,7 @@ internal const enum ut_name k_ap_land[] = { UT_B_BARRACKS, UT_B_ARCHERY_RANGE, U
 internal struct ap_st {
     uint32_t t, tb, look;
     int fl[12][7], nf, kf;          // the last 12 samples of stock - reserve
-    unsigned busy, have;            // land production samples since the last BUILD look
+    unsigned busy[5], have[5];      // land production samples since the last BUILD look, per kind (k_ap_land)
     unsigned added[7], fill, bld, mixed;   // since the last # mil line
     int last_type;
 } g_ap[16];
@@ -232,28 +240,34 @@ internal void army_plan_tick(ee_player *pl, unsigned idx, uint32_t now) {
         }
     }
     if (plan & 4) {   // BUILD: the samples come with the 10-s tick, a look every 30 s
-        int nb = 0;
-        for (size_t k = 0; k < sizeof k_ap_land / sizeof *k_ap_land; k++) {
+        int nb = 0, kb = -1;
+        for (int k = 0; k < 5; k++) {
             int h, b;
             am_bld(um, g_ut[k_ap_land[k]], &h, &b);
-            a->have += (unsigned)h; a->busy += (unsigned)b; nb += h;
+            a->have[k] += (unsigned)h; a->busy[k] += (unsigned)b; nb += h;
         }
+        unsigned have = 0, busy = 0, kh = 0;
+        int bt = a->last_type ? ap_producer(pl, a->last_type) : 0;
+        for (int k = 0; k < 5; k++) if (bt && g_ut[k_ap_land[k]] == bt) kb = k;
+        for (int k = 0; k < 5; k++) { have += a->have[k]; busy += a->busy[k]; }
+        kh = have;
+        if (plan & 64) { busy = kb >= 0 ? a->busy[kb] : 0; kh = kb >= 0 ? a->have[kb] : 0; }   // KIND: that kind's share
         if (now < a->look) a->look = 0;
-        if (now - a->look >= 30000 && a->have >= 3) {
+        if (now - a->look >= 30000 && have >= 3) {
             a->look = now ? now : 1;
             float acc = 0;
             for (int r = 2; r < 7; r++) acc += g_bud[idx].mil[r] > 0 ? g_bud[idx].mil[r] : 0;
-            int bt = a->last_type ? ap_producer(pl, a->last_type) : 0;
             int lim = 2 + workforce(pl) / 15;
-            if (bt && a->busy * 10 >= a->have * 7 && acc >= 600 && nb < lim &&
+            if ((plan & 64) && shelf_rich(player_stock_at(pl), g_shelve_stock) && lim < 2 + unit_limit(pl) / 30) lim = 2 + unit_limit(pl) / 30;
+            if (bt && kh > 0 && busy * 10 >= kh * 7 && acc >= 600 && nb < lim &&
                 !build_mgr_queued(bm, bt) &&
                 can_build(pl, bt)) {
                 build_mgr_request_one(bm, bt);
                 a->bld++;
                 if (g_log) fprintf(g_log, "# army: P%u at %.1f min: production busy %u/%u, %d buildings, account %.0f - one more %d (for type %d)\n",
-                                   idx, now / 60000.0, a->busy, a->have, nb, acc, bt, a->last_type);
+                                   idx, now / 60000.0, busy, kh, nb, acc, bt, a->last_type);
             }
-            a->busy = a->have = 0;
+            memset(a->busy, 0, sizeof a->busy); memset(a->have, 0, sizeof a->have);
         }
     }
 }

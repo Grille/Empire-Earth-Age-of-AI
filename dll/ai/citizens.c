@@ -265,6 +265,7 @@ internal int __thiscall hook_cit_wanted(ee_unit_mgr *um) {
     unsigned idx = (unsigned)player_get_index(pl) & 15;
     int fresh = game_time() >= g_czp[idx].t && game_time() - g_czp[idx].t <= 15000;
     int r = (CIT_PLAN(idx) & 1) && fresh && g_czp[idx].goal > n ? g_czp[idx].goal : n;
+    r = shelf_wanted(pl, r, unit_mgr_citizens(um));   // bunker.c: none while citizens go onto the shelf or wait there
     return wf_cap_wanted(idx, r);   // workforce_plan CAP: no more than the economy uses
 }
 // FIRST (train_budget, a citizen's food): the stock without the epoch reserve while the income pays both
@@ -435,6 +436,8 @@ internal void cz_install(const char *autotest_ini) {
     g_wf_plan = g_set_ai[1].workforce_plan;
     g_wf_army_cap = g_set_ai[1].workforce_army_cap;
     if (autotest_ini) g_v_wf_plan = ini_int("autotest", "v_workforce_plan", -1, autotest_ini);
+    g_shelve = g_set_ai[1].shelve_citizens; g_shelve_stock = g_set_ai[1].shelve_stock;   // bunker.c's shelf
+    if (autotest_ini) g_v_shelve = ini_int("autotest", "v_shelve_citizens", -1, autotest_ini);
     if (g_log) fprintf(g_log, "# workforce plan: %d (variant %d), army from a cap of %d\n", g_wf_plan, g_v_wf_plan, g_wf_army_cap);
     BOOL ok = patch_citizens_wanted(hook_cit_wanted);
     if (g_log) fprintf(g_log, "# citizens: citizen_plan %d (variant %d), army share %.0f%%, hook %s\n", g_cit_plan, g_v_cit_plan,

@@ -848,6 +848,7 @@ internal int bk_shelter(ee_player *pl, ee_unit *u);
 internal void bk_flush(ee_player *pl, unsigned pi, uint32_t now);
 internal void bk_build(ee_player *pl, unsigned pi, uint32_t now);
 internal void bk_reserve_tick(ee_player *pl, unsigned pi, uint32_t now);
+internal void shelf_tick(ee_player *pl, unsigned pi, uint32_t now);   // bunker.c
 internal int g_bk_res;
 internal void citizens_safety(ee_resource_mgr *rm) {   // before the citizen assignment
     ee_player *pl = resource_mgr_player(rm);
@@ -940,7 +941,7 @@ internal void citizens_safety(ee_resource_mgr *rm) {   // before the citizen ass
     }
     g_cit_stats[idx].sent += sent + fled;
     if (g_bunkers) bk_flush(pl, idx, now);
-    if (g_bunkers || g_bk_res) { bk_build(pl, idx, now); bk_reserve_tick(pl, idx, now); }
+    if (g_bunkers || g_bk_res) { bk_build(pl, idx, now); bk_reserve_tick(pl, idx, now); shelf_tick(pl, idx, now); }
     (void)sheltered;
     static uint32_t doing_t[16];
     if (g_log && (now < doing_t[idx] || now - doing_t[idx] >= 60000)) {   // what the citizens do, per resource list
@@ -967,11 +968,11 @@ internal void citizens_safety(ee_resource_mgr *rm) {   // before the citizen ass
         {   // the population as the buildings' start check sees it (0x624DF8: cap vf31 < population (1, 0) + the unit -> wait)
             ee_civ_mgr *cmp = player_get_civ_mgr(pl); void *ump = cmp ? civ_mgr_get_unit_mgr(cmp) : NULL;
             uint8_t *v0 = player_get_list_begin(pl), *v1 = player_get_list_end(pl);
-            fprintf(g_log, "# popcheck: P%u at %.1f min: cap %d, population %d (with production %d, list +0x18 %d), +0xB10 %d, +0xB1C %d +0xB20 %d, limit %d, AI's in production %d; ordered with no room by call site 46cce6/490cac/490e12/490f1f/490fa9/mod: %u/%u/%u/%u/%u/%u\n",
+            fprintf(g_log, "# popcheck: P%u at %.1f min: cap %d, population %d (with production %d, list +0x18 %d), +0xB10 %d, +0xB1C %d +0xB20 %d, limit %d, AI's in production %d (queued %d); ordered with no room by call site 46cce6/490cac/490e12/490f1f/490fa9/mod: %u/%u/%u/%u/%u/%u\n",
                     idx, now / 60000.0, unit_limit(pl),
                     player_population(pl, 0, 0), player_population(pl, 1, 0),
                     v0 && v1 ? (int)((v1 - v0) / 4) : -1, player_get_pop_b10(pl), player_get_pop_b1c(pl), player_get_pop_b20(pl), pop_limit_setting(),
-                    ump ? unit_mgr_get_in_production(ump) : -1, g_noroom[idx][0], g_noroom[idx][1], g_noroom[idx][2], g_noroom[idx][3], g_noroom[idx][4], g_noroom[idx][5]);
+                    ump ? unit_mgr_get_in_production(ump) : -1, units_queued(pl), g_noroom[idx][0], g_noroom[idx][1], g_noroom[idx][2], g_noroom[idx][3], g_noroom[idx][4], g_noroom[idx][5]);
         }
         fprintf(g_log, "# doing: P%u at %.1f min (list: gather/build/walk/nothing):%s; all citizens: gather %d build %d walk %d attack %d other %d (%s) none %d\n",
                 idx, now / 60000.0, b, all[0], all[1], all[2], all[3], all[4], other, all[5]);
