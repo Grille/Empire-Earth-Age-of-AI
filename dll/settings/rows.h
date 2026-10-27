@@ -73,8 +73,6 @@
     S(CHOICE, display,  lock_mouse,               "auto", "0|1|auto", 0) \
     S(INT,    display,  draw_limit,               4096, 0, 1000000) \
     S(FLAG,   display,  smooth,                   0,  0, 0) \
-    S(CHOICE, display,  present,                  "auto", "auto|d3d|gdi|primary", 0) \
-    S(CHOICE, display,  renderer,                 "auto", "auto|wrapper|own", 0) \
     S(FLAG,   display,  vsync,                    0,  0, 0) \
     S(INT,    display,  frame_watch,              0,  0, 1000) \
     S(FLAG,   display,  text_dc,                  1,  0, 0) \
@@ -82,6 +80,8 @@
     S(FLAG,   display,  diag,                     0,  0, 0) \
     S(FLAG,   display,  dpi_aware,                1,  0, 0) \
     S(CHOICE, display,  frame_wait,               "auto", "game|yield|auto", 0) \
+    S(CHOICE, display,  renderer,                 "auto", "auto|wrapper|own", 0) \
+    S(CHOICE, display,  present,                  "auto", "auto|d3d|gdi|primary", 0) \
     S(FLAG,   display,  vertex_sysmem,            1,  0, 0) \
     S(STR,    editor,   resolution,               "ee", 16, 0) \
     S(INT,    sound,    log,                      0,  0, 2) \
@@ -314,6 +314,8 @@
     G(big_selection,          "Selection and orders") \
     G(improved_unit_movement, "Movement") \
     G(sight_counts,           "Engine limits") \
+    G(display_renderer,       "Renderer") \
+    G(display_present,        "Wrapper (only with renderer = wrapper)") \
     G(chat,                   "AI chat and personalities") \
     G(control_pipe,           "Tools and debugging") \
     G(cost_percent,           "Economy and epochs") \
