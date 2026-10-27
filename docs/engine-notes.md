@@ -992,6 +992,7 @@ Low-Level Engine.dll operands of display.c are that build's own as well. Compare
 | empireearth.eu "Vanilla" setup v1.7.2 (`EE_Setup.exe`, SHA1 134dcacf...) | 4FB6A479 | identical; only `.rsrc` and a signature differ |
 | Steam Gold Edition | not checked here | README: the same code + a signature and a DPI manifest |
 | NeoEE (`NeoEE_Setup.exe` v1.7.2, game 2.0.0.5) | 3F62B3FB | the same compile (timestamp 0x3D8F43F9, 2002-09-23) with a packer, see below |
+| NeoEE, installed 2026-10-27 (`%LOCALAPPDATA%\Programs\Neo Empire Earth`) | 62BC693E | the same again, two code patches more (below); its AoC `EE-AOC.exe` A4FF1307 |
 
 The "2017" exe is evidently the 2002 retail 1.04 code with the copy protection stripped and the import table rebuilt.
 NeoEE's exe keeps the protection's layout: section names shuffled, the code at the same RVA and size as ours, an
@@ -1004,6 +1005,27 @@ NeoEE's `Low-Level Engine.dll` changes two network timeouts (0x10052D5B 10000 ->
 Our (GOG) `Low-Level Engine.dll` differs from the community's in 4 spots, 0x1005E81D-0x1005E8DA: two divisions nopped,
 `xor eax,eax` for `inc al`, `jmp` for `je` - apparently a fix for a division by zero (the community's is original
 there); the mod's own engine patches are elsewhere.
+
+The installed NeoEE (2026-10-27, compared file against file with the GOG install, nothing run): the exe is the
+TryMedia ActiveMARK wrapper with its debugger checks cracked (strings in its second `.rdata`), the game code again
+the GOG code but for 32320 import operands and 41 places (the 39 above, 0x7A3A1A / 0x7A3A67 a jump into a stub, 0x7A5ABC
+1999 -> 2999). What they are: the lobby's game options allow a population of 4000 instead of 1200 (0x67B002, the
+defaults at 0x6793C3 / 0x943700), WON's registry key under HKCU instead of HKLM (0x69F6E1), the registry root
+`Software\Neo\Empire Earth` (`.data` strings; dinput.dll's eesettings already knows it). Every one of the mod's spec
+addresses is at least 40 bytes from them, none is in a section the wrapper fills, `.data` and the vtables are the
+same; the mod's 29 import-table slots all map by name onto NeoEE's (each of their code references pairs with one
+NeoEE slot) - a column of its own would be the `ee` column with those 29 values. Art of Conquest the same: 42 places,
+the same patches at AoC's addresses, its 30 slots all found by name. Not large-address-aware (the GOG exe here is,
+by 4gb_patch). `Low-Level Engine.dll` as above (none of the mod's 6 RVAs among its changes); `TCP Protocol.dll` has 7
+patched places and a `.neoee` section (hole punching), one at the UDP port's `push 0x8236` (0x100019E7) - the test
+slots' port patch (slot_ports) would not find all its places. data.ssa's db/ and civilizations/ are vanilla
+(decompressed, byte for byte); four loose files in Data/db override them: dbworld.dat (the population limit 1200 ->
+4000 and three small values), dbgamevariant.dat, dbstartingresources.dat (more variants and start levels),
+dbuicontrols.dat. Beside the exe: dreXmod 3.4 (3.7 MB, much more than the 2021 build here: HUD, lobby, CheatDetector,
+TnL vertex buffer, pause rules, autosave on a crash), neoee.dll (loaded by the `.neoee` stub: punch_hole, get_peer),
+EEDiscord.dll, DX7HRGame.dll (a resolution limit remover), dgVoodoo 2.82's DDraw.dll / D3DImm.dll. Which code
+dreXmod 3.4 patches can't be read from the file (no address of the mod's hooks in it as a plain dword, nor its known
+0x534433): only a running game shows it.
 
 **Single instance:** `0x53883F` creates the mutex "StainlessSteelStudiosPresentsEmpireEarth" (handle to 0x919860) and
 returns false when it already exists; its caller quits with the `je` at 0x535CDA (`0F 84 BE 02 00 00`; NeoEE nops these
