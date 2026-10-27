@@ -308,7 +308,8 @@ internal struct {
     ID3D11PixelShader *ps;
     ID3D11Buffer *cb;
     ID3D11BlendState *opaque;
-    ID3D11DepthStencilState *no_depth;
+    ID3D11BlendState *no_colour;            // a depth rect writes depth only
+    ID3D11DepthStencilState *no_depth, *depth_set;
     ID3D11RasterizerState *raster;
 } g_rd2;
 internal const char k_rd2_shader[] =
@@ -316,7 +317,7 @@ internal const char k_rd2_shader[] =
     "Texture2D t : register(t0); SamplerState s : register(s0);\n"
     "struct V { float4 p : SV_Position; float2 uv : TEXCOORD0; };\n"
     "V vs(uint id : SV_VertexID) { V o; float2 k = float2(id & 1, id >> 1);"
-    " o.p = float4(lerp(dst.xy, dst.zw, k), 0, 1); o.uv = lerp(uv.xy, uv.zw, k); return o; }\n"
+    " o.p = float4(lerp(dst.xy, dst.zw, k), mode.z, 1); o.uv = lerp(uv.xy, uv.zw, k); return o; }\n"
     "float4 ps(V i) : SV_Target { if (mode.x > 0.5) return col;"   // fill
     " float4 c = t.Sample(s, i.uv); if (mode.y > 0.5 && c.a < 0.5) discard; return float4(c.rgb, 1); }\n";
 internal int rd2_init(void) {
@@ -333,8 +334,12 @@ internal int rd2_init(void) {
     D3D11_BLEND_DESC bl = { 0 };
     bl.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
     if (SUCCEEDED(hr)) hr = ID3D11Device_CreateBlendState(g_d3d.dev, &bl, &g_rd2.opaque);
+    bl.RenderTarget[0].RenderTargetWriteMask = 0;
+    if (SUCCEEDED(hr)) hr = ID3D11Device_CreateBlendState(g_d3d.dev, &bl, &g_rd2.no_colour);
     D3D11_DEPTH_STENCIL_DESC ds = { 0 };
     if (SUCCEEDED(hr)) hr = ID3D11Device_CreateDepthStencilState(g_d3d.dev, &ds, &g_rd2.no_depth);
+    ds.DepthEnable = TRUE; ds.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL; ds.DepthFunc = D3D11_COMPARISON_ALWAYS;
+    if (SUCCEEDED(hr)) hr = ID3D11Device_CreateDepthStencilState(g_d3d.dev, &ds, &g_rd2.depth_set);
     D3D11_RASTERIZER_DESC rs = { 0 };
     rs.FillMode = D3D11_FILL_SOLID; rs.CullMode = D3D11_CULL_NONE; rs.ScissorEnable = TRUE;
     if (SUCCEEDED(hr)) hr = ID3D11Device_CreateRasterizerState(g_d3d.dev, &rs, &g_rd2.raster);
@@ -343,12 +348,14 @@ internal int rd2_init(void) {
     return 1;
 }
 internal void rd3_dirty(void);   // render_3d.c: the 2D draw changed the pipeline's state
+typedef struct { float dst[4], uv[4], col[4], mode[4]; } rd2_consts;   // mode: fill, keyed, depth
+internal void rd2_draw(rd_surface *dst, const rd2_consts *c, ID3D11ShaderResourceView *src, int depth);
 // src (NULL: fill with col) rect sr into dst's rect dr
 internal void rd2_rect(rd_surface *dst, const RECT *dr, ID3D11ShaderResourceView *src, int sw, int sh, const RECT *sr,
                        const float col[4], int keyed) {
     if (!dst->rtv || !rd2_init()) return;
     float W = (float)dst->desc.dwWidth, H = (float)dst->desc.dwHeight;
-    struct { float dst[4], uv[4], col[4], mode[4]; } c = {
+    rd2_consts c = {
         { dr->left / W * 2 - 1, 1 - dr->top / H * 2, dr->right / W * 2 - 1, 1 - dr->bottom / H * 2 },
         { 0, 0, 1, 1 }, { 0, 0, 0, 1 }, { src ? 0.0f : 1.0f, keyed ? 1.0f : 0.0f, 0, 0 } };
     if (src && sr) {
@@ -356,13 +363,25 @@ internal void rd2_rect(rd_surface *dst, const RECT *dr, ID3D11ShaderResourceView
         c.uv[2] = (float)sr->right / (float)sw; c.uv[3] = (float)sr->bottom / (float)sh;
     }
     if (col) memcpy(c.col, col, sizeof c.col);
+    rd2_draw(dst, &c, src, 0);
+}
+// z into the rect r of dst's depth buffer (Clear with rects)
+internal void rd2_depth_rect(rd_surface *dst, const RECT *r, float z) {
+    if (!dst->rtv || !dst->zbuf || !dst->zbuf->dsv || !rd2_init()) return;
+    float W = (float)dst->desc.dwWidth, H = (float)dst->desc.dwHeight;
+    rd2_consts c = { { r->left / W * 2 - 1, 1 - r->top / H * 2, r->right / W * 2 - 1, 1 - r->bottom / H * 2 },
+                     { 0, 0, 1, 1 }, { 0, 0, 0, 1 }, { 1, 0, z, 0 } };
+    rd2_draw(dst, &c, NULL, 1);
+}
+internal void rd2_draw(rd_surface *dst, const rd2_consts *c, ID3D11ShaderResourceView *src, int depth) {
+    float W = (float)dst->desc.dwWidth, H = (float)dst->desc.dwHeight;
     ID3D11DeviceContext *x = g_d3d.ctx;
-    ID3D11DeviceContext_UpdateSubresource(x, (ID3D11Resource *)g_rd2.cb, 0, NULL, &c, 0, 0);
+    ID3D11DeviceContext_UpdateSubresource(x, (ID3D11Resource *)g_rd2.cb, 0, NULL, c, 0, 0);
     D3D11_VIEWPORT vp = { 0, 0, W, H, 0, 1 };
     D3D11_RECT sc = { 0, 0, (LONG)W, (LONG)H };
-    ID3D11DeviceContext_OMSetRenderTargets(x, 1, &dst->rtv, NULL);
-    ID3D11DeviceContext_OMSetBlendState(x, g_rd2.opaque, NULL, 0xFFFFFFFF);
-    ID3D11DeviceContext_OMSetDepthStencilState(x, g_rd2.no_depth, 0);
+    ID3D11DeviceContext_OMSetRenderTargets(x, 1, &dst->rtv, depth ? dst->zbuf->dsv : NULL);
+    ID3D11DeviceContext_OMSetBlendState(x, depth ? g_rd2.no_colour : g_rd2.opaque, NULL, 0xFFFFFFFF);
+    ID3D11DeviceContext_OMSetDepthStencilState(x, depth ? g_rd2.depth_set : g_rd2.no_depth, 0);
     ID3D11DeviceContext_RSSetState(x, g_rd2.raster);
     ID3D11DeviceContext_RSSetViewports(x, 1, &vp);
     ID3D11DeviceContext_RSSetScissorRects(x, 1, &sc);

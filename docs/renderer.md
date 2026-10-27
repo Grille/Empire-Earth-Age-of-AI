@@ -95,3 +95,14 @@ menu's background is black, the device keeps every state and counts the draws). 
 from the menu stopped the game (all threads waiting) once - with the 3D. The display DLL lists 800x600x16 among the
 modes it needs: every mode is enumerated in 32 and 16 bits. Autotest `render_trace=N` logs the first N calls
 (`# render call`, caller, thread); the pipe's `profile stacks` lists every thread's code addresses.
+
+2026-10-27, step 3 (render_3d.c): the 3D draws. The menus' pictures and buttons are 3D too (textured quads; only
+the cursor is a Blt). One vertex shader (world-view-projection, directional lights with ambient and the material
+sources, linear / exp / exp2 vertex fog by view depth or range) and one pixel shader (stage 0's operations with
+their arguments, alpha test, the colour key, fog); depth, blend, raster states and samplers made once per
+combination and set only when they change, the constants uploaded only when changed; each draw's vertices and
+indices copied into one upload buffer (4 MB / 1 MB, no-overwrite, discarded when full; an indexed draw's indices
+count from its start vertex); half a pixel shift for Direct3D 7's pixel centres; Clear with rects writes depth
+through a quad. Only FVF 0x152 and list / strip types are drawn (anything else logs once). Checked: the main menu
+and a Continental game draw in full (terrain, water, trees, units, shadows, the interface). Not compared with
+DDrawCompat's picture yet (step 4); the editor's stop not looked at again.
