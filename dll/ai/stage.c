@@ -45,7 +45,8 @@ internal struct stage {
     unsigned held, passed, pushes, sent, skips;             // since the last line
 } g_stg[16];
 internal struct st_side g_sgs_own, g_sgs_foe;
-internal void stage_new_game(void) { memset(g_stg, 0, sizeof g_stg); }
+internal void wave_focus_new_game(void);
+internal void stage_new_game(void) { memset(g_stg, 0, sizeof g_stg); wave_focus_new_game(); }
 
 internal int stage_danger(unsigned idx, ivec2 p) { return cv_danger(idx, DANGER_THREATS, p) || cv_danger(idx, DANGER_LOST, p); }
 internal int stage_on(ee_player *pl, unsigned idx) { return g_danger_routes && pl && !is_vanilla(pl) && ARMY_STAGE(idx) && navy_land(idx); }
@@ -236,9 +237,87 @@ internal int stage_army(unsigned idx, ivec2 *at, ivec2 *front) {
     *at = st->s; *front = st->front;
     return st->at;
 }
+
+// ONE TARGET A WAVE ([ai_base] wave_focus; [autotest] v_wave_focus; the player 2026-10-27 on the save "standing
+// army": the AI looks very disorganized, every unit ordered around individually - attack groups are meant to make it
+// better): an attack on a player (mission 1) has no target at its group, so the game splits the wave into land
+// subgroups of about 10 and each walks legs of its own - home, coast points, the player's outlying buildings - and
+// waits at each (docs/engine-notes.md). P6's wave of 250 on P4 at minute 652 was 34 subgroups with 34 goals from
+// 25,218 to 415,200, 95% of them points with no enemy within 8 tiles, and the staging point (above) gathered only the
+// marches that led into known danger. Now the wave has one goal: a building of the player it attacks (walls aside)
+// that the AI has seen - the nearest to the subgroup asking first, after it falls the nearest to the last one, so the
+// wave works through the town - and every route a land subgroup of the wave plans goes there (on the same land; not
+// the routes home, mission 8). With none known the game's own legs stay (the search). The weak spot and the breach
+// (attack.c hook_asg_route) still apply after it; a weak spot found for the wave's goal becomes the wave's. A wave's
+// record lapses 3 minutes after its last route. "# wave focus:" once a game minute.
+internal int g_wave_focus = 0, g_v_wave_focus = -1;
+#define WAVE_FOCUS(idx) PV(idx, g_v_wave_focus, g_wave_focus)
+#define WV_N 24
+internal struct wv { ee_attack_group *g; ivec2 at; int id; uint32_t t; } g_wv[16][WV_N];
+internal struct { unsigned calls, set, moved, kept, none; uint32_t logged; } g_wvs[16];
+internal int wv_standing(ee_player *pl, ivec2 at, int id) {   // the wave's goal: the enemy building of that id on its tile
+    for (struct grid_it it = grid_it_box(at.x, at.y, 1, 1); grid_it_next(&it); )
+        if (it.td && unit_get_id(it.u) == id && unit_get_hp(it.u) > 0 && is_enemy(pl, unit_get_owner(it.u))) return 1;
+    return 0;
+}
+struct wv_pick { ee_player *pl, *target; ivec2 from; short area; ee_unit *best; long bd; };
+internal void wv_pick_unit(ee_unit *u, void *ctx) {
+    struct wv_pick *s = ctx;
+    ee_unit_type *td = unit_get_type_data(u);
+    if (!td || unit_get_owner(u) != s->target || unit_get_hp(u) <= 0 || unit_get_x(u) < 0) return;
+    int fam = unit_type_get_class_id(td);
+    if ((fam != CLS_BUILDING && fam != CLS_FORTRESS) || is_wall(unit_type_get_id(td)) || !explored_by(u, s->pl)) return;
+    if ((short)map_area(unit_get_tile(u), 2) != s->area) return;
+    long d = ivec2_dist2(unit_get_tile(u), s->from);
+    if (!s->best || d < s->bd) { s->best = u; s->bd = d; }
+}
+// attack.c hook_asg_route, before the weak spot: a land subgroup's route to dest - the wave's record (NULL: none)
+internal struct wv *wave_focus(ee_player *pl, unsigned pi, ee_attack_subgroup *sg, int *start, int *dest) {
+    if (!WAVE_FOCUS(pi) || !attack_subgroup_is_land(sg) || attack_subgroup_get_mission(sg) == 8) return NULL;
+    ee_attack_group *g = attack_subgroup_get_group(sg);
+    ee_player *target = attack_subgroup_get_target(sg);
+    if (!g || !target || !is_enemy(pl, target)) return NULL;
+    g_wvs[pi].calls++;
+    uint32_t now = game_time();
+    struct wv *w = NULL, *old = &g_wv[pi][0];
+    for (int k = 0; k < WV_N && !w; k++) {
+        struct wv *e = &g_wv[pi][k];
+        if (e->g && now - e->t > 180000) e->g = NULL;   // lapsed (a group freed, its address used again)
+        if (e->g == g) w = e;
+        else if (!e->g || (old->g && e->t < old->t)) old = e;
+    }
+    short area = (short)map_area(iv2(dest[0], dest[1]), 2);
+    if (!w || !wv_standing(pl, w->at, w->id) || (short)map_area(w->at, 2) != area) {   // a new goal
+        struct wv_pick s = { pl, target, w ? w->at : iv2(start[0], start[1]), area, NULL, 0 };
+        grid_each(wv_pick_unit, &s);
+        if (!s.best) { g_wvs[pi].none++; return NULL; }
+        if (!w) w = old;
+        w->g = g; w->at = unit_get_tile(s.best); w->id = unit_get_id(s.best);
+        g_wvs[pi].set++;
+        if (g_log && now - g_wvs[pi].logged >= 60000) {
+            g_wvs[pi].logged = now;
+            fprintf(g_log, "# wave focus: P%u at %.1f min: group %p on P%d goes to type %d at %d,%d | land routes %u: moved %u, already "
+                    "there %u, none known %u; goals %u\n", pi, now / 60000.0, (void *)g, player_get_index(target),
+                    unit_type_get_id(unit_get_type_data(s.best)), w->at.x, w->at.y, g_wvs[pi].calls, g_wvs[pi].moved, g_wvs[pi].kept,
+                    g_wvs[pi].none, g_wvs[pi].set);
+        }
+    }
+    w->t = now;
+    if (w->at.x == dest[0] && w->at.y == dest[1]) { g_wvs[pi].kept++; return w; }
+    dest[0] = w->at.x; dest[1] = w->at.y;
+    location_set_unit(attack_subgroup_target_rec_at(sg), dest[0], dest[1], w->id);
+    g_wvs[pi].moved++;
+    return w;
+}
+internal void wave_focus_weak(struct wv *w, ivec2 at, int id) { w->at = at; w->id = id; }
+internal void wave_focus_new_game(void) { memset(g_wv, 0, sizeof g_wv); memset(g_wvs, 0, sizeof g_wvs); }
+
 internal void stage_install(const char *autotest_ini) {
     g_army_stage = g_set_ai[1].army_stage;
     g_stage_go = g_set_ai[1].army_stage_go;
+    g_wave_focus = g_set_ai[1].wave_focus;
     if (autotest_ini) g_v_army_stage = ini_int("autotest", "v_army_stage", -1, autotest_ini);
-    if (g_log) fprintf(g_log, "# army stage: %d (variant %d), go at %d%%\n", g_army_stage, g_v_army_stage, g_stage_go);
+    if (autotest_ini) g_v_wave_focus = ini_int("autotest", "v_wave_focus", -1, autotest_ini);
+    if (g_log) fprintf(g_log, "# army stage: %d (variant %d), go at %d%%; wave focus %d (variant %d)\n", g_army_stage, g_v_army_stage,
+                       g_stage_go, g_wave_focus, g_v_wave_focus);
 }

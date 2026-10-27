@@ -319,6 +319,9 @@ internal void citizen_attack_scan(ee_player *pl, uint32_t now) {
         }
     }
 }
+struct wv;
+internal struct wv *wave_focus(ee_player *pl, unsigned pi, ee_attack_subgroup *sg, int *start, int *dest);   // stage.c
+internal void wave_focus_weak(struct wv *w, ivec2 at, int id);
 internal void __thiscall hook_asg_route(ee_attack_subgroup *self, int *start, int *dest) {
     ee_player *pl = attack_subgroup_get_player(self);
     if (is_vanilla(pl)) pl = NULL;   // the game's own route: no weak spot, breach, call-off, nor its log
@@ -332,6 +335,7 @@ internal void __thiscall hook_asg_route(ee_attack_subgroup *self, int *start, in
                                player_get_index(pl), player_get_index(target), cit, n);
         }
     }
+    struct wv *wave = pl && start && dest ? wave_focus(pl, (unsigned)player_get_index(pl) & 15, self, start, dest) : NULL;
     if (pl && start && dest && g_weak_spots) {
         unsigned pi = (unsigned)player_get_index(pl) & 15;
         float t = threat_at(pi, iv2(dest[0], dest[1]));
@@ -345,6 +349,7 @@ internal void __thiscall hook_asg_route(ee_attack_subgroup *self, int *start, in
                         unit_get_x(u), unit_get_y(u));
             dest[0] = unit_get_x(u); dest[1] = unit_get_y(u);
             location_set_unit(tg, dest[0], dest[1], unit_get_id(u));
+            if (wave) wave_focus_weak(wave, iv2(dest[0], dest[1]), unit_get_id(u));   // the wave's goal now
         }
     }
     if (pl && start && dest && g_breach) {
