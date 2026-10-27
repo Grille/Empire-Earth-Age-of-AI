@@ -1,0 +1,11 @@
+// The own renderer against a wrapper (scripts/test/render_compare.sh): the game pauses at these times, the runner moves
+// the camera and shoots, then resumes - both games shot at the same simulation step.
+
+wait_until(1min)
+pause()
+wait_until(4min)
+pause()
+wait_until(8min)
+pause()
+wait_until(12min)
+pause()

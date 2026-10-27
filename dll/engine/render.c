@@ -840,8 +840,20 @@ internal int render_wanted(void) {
     if (g_log) fprintf(g_log, "# render: renderer auto - %s\n", wrapper ? "the game folder's ddraw.dll" : "no ddraw.dll in the game folder: the own renderer");
     return !wrapper;
 }
+// autotest wrapper_dll=<path>: a ddraw.dll from outside the game folder (DDrawCompat for the picture compare - the
+// player's folder holds none). Loaded before the display DLLs, their imports of ddraw.dll bind to it: a module of that
+// name is loaded already and ddraw.dll is no KnownDLL. The renderer is the wrapper then.
+internal int render_wrapper_dll(const char *autotest_ini) {
+    char path[MAX_PATH];
+    if (!autotest_ini || !ini_raw("autotest", "wrapper_dll", autotest_ini, path, sizeof path)) return 0;
+    char full[MAX_PATH];
+    if (!GetFullPathNameA(path, sizeof full, full, NULL)) lstrcpynA(full, path, sizeof full);
+    HMODULE m = LoadLibraryA(full);
+    if (g_log) fprintf(g_log, "# render: wrapper_dll %s: %s\n", full, m ? "loaded - the display DLLs draw through it" : "not loaded");
+    return m != NULL;
+}
 internal void render_install(const char *autotest_ini) {
-    if (!render_wanted()) return;
+    if (render_wrapper_dll(autotest_ini) || !render_wanted()) return;
     if (g_fullscreen) {
         if (g_log) fprintf(g_log, "# render: own renderer needs [display] mode windowed or borderless - the game's ddraw.dll\n");
         return;

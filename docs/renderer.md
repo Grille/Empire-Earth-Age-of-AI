@@ -107,6 +107,15 @@ through a quad. Only FVF 0x152 and list / strip types are drawn (anything else l
 and a Continental game draw in full (terrain, water, trees, units, shadows, the interface). Not compared with
 DDrawCompat's picture yet (step 4); the editor's stop not looked at again.
 
+2026-10-27, step 4, the picture against DDrawCompat's (docs/testing.md `wrapper_dll`, scripts/test/render_compare.*):
+the same game, 20 shots each. Two differences found and fixed: the half-pixel shift went the wrong way (everything one
+pixel up-left - the interface matched to 0.7 of 255 once shifted back); the fog factor was clamped per vertex - the
+driver interpolates it unclamped and clamps per pixel (the game's fog runs over a narrow depth band, 50 to 58, so
+triangles cross its ends: the horizon band's fog was 19% off). After them the mean difference is 5.4-9.2 against
+6.3-10.9 between two DDrawCompat runs of the same game (water, swaying trees and the ground's light patches move in
+real time, paused too): within the noise. Interface, buildings, units and the decals on the ground (selection circles)
+match exactly. Tried and dropped: colour interpolated without perspective (worse).
+
 The setting's default is `auto` (2026-10-27, the player): the own renderer when the game folder has no ddraw.dll -
 Windows' own DirectDraw crashes the game windowed (DX7HRTnLDisplay.dll+c7d8) - else the wrapper there; `wrapper` and
 `own` choose either outright. With `own` a ddraw.dll in the folder is still loaded (the engine loads every DLL there,

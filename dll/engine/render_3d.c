@@ -107,7 +107,7 @@ internal const char k_rd3_shader[] =
     " float3 q = mul(p, wv).xyz; float z = vp.z > 0.5 ? length(q) : q.z, f = 1;"
     " if (fog.x == 3) f = (fog.z - z) / (fog.z - fog.y); else if (fog.x == 1) f = exp(-fog.w * z);"
     " else if (fog.x == 2) f = exp(-(fog.w * z) * (fog.w * z));"
-    " o.f = saturate(f); return o; }\n"
+    " o.f = f; return o; }\n"   // clamped per pixel, as the driver under a wrapper does (the picture compare)
     // D3DTA_: 0 diffuse, 1 current (the diffuse at stage 0), 2 texture, 3 texture factor; D3DTOP_ 1..8
     "float4 arg(int a, float4 x, float4 d) { a = a & 15; return a == 2 ? x : a == 3 ? tf : d; }\n"
     "float4 top(int o, float4 a, float4 b) { return o == 2 ? a : o == 3 ? b : o == 4 ? a * b : o == 5 ? saturate(a * b * 2)"
@@ -119,7 +119,7 @@ internal const char k_rd3_shader[] =
     " int A = (int)round(c.a * 255), R = (int)misc.x, f = aop.w;"
     " if (f && !(f == 8 || (f == 2 && A < R) || (f == 3 && A == R) || (f == 4 && A <= R) || (f == 5 && A > R)"
     "  || (f == 6 && A != R) || (f == 7 && A >= R))) discard;"
-    " if (misc.y > 0.5) c.rgb = lerp(fogc.rgb, c.rgb, i.f);"
+    " if (misc.y > 0.5) c.rgb = lerp(fogc.rgb, c.rgb, saturate(i.f));"
     " return c; }\n";
 
 #define RD3_VB_BYTES (4u << 20)
@@ -344,9 +344,10 @@ internal int rd3_prepare(rd_device *d) {
         if (vc.fog[0] == 3 && vc.fog[2] == vc.fog[1]) vc.fog[2] += 1e-6f;
         if (vc.fog[0] == 0) fog = 0;
     }
-    // Direct3D 7 samples pixel centres at whole coordinates, Direct3D 11 at .5: half a pixel left and up
-    vc.vp[0] = d->viewport.dwWidth ? -1.0f / (float)d->viewport.dwWidth : 0;
-    vc.vp[1] = d->viewport.dwHeight ? 1.0f / (float)d->viewport.dwHeight : 0;
+    // Direct3D 7's pixel centres are at whole coordinates, Direct3D 11's at .5: a vertex at x lands on pixel x's centre
+    // shifted half a pixel right and down (in clip space: + x, - y; the picture compare found 1 pixel up-left without)
+    vc.vp[0] = d->viewport.dwWidth ? 1.0f / (float)d->viewport.dwWidth : 0;
+    vc.vp[1] = d->viewport.dwHeight ? -1.0f / (float)d->viewport.dwHeight : 0;
     vc.vp[2] = rs[D3DRENDERSTATE_RANGEFOGENABLE] ? 1.0f : 0.0f;
     if (full || memcmp(&vc, &g_rd3.vc, sizeof vc)) {
         ID3D11DeviceContext_UpdateSubresource(x, (ID3D11Resource *)g_rd3.vcb, 0, NULL, &vc, 0, 0);
