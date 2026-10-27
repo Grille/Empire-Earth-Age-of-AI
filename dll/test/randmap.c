@@ -34,7 +34,8 @@ internal struct {
     int difficulty;            // the setup's (every AI), 0..2
     int v_difficulty, v_cheat; // the vanilla players' own (-1: as the others)
     int reveal;                // the setup's reveal map (+0x403: every player starts with the map explored; fog stays)
-} g_rm = { "", 0, 1, 3, 0, 0, 0, 5, 500, -1, -1, 0, 0, 1, -1, -1, 1 };
+    int humans;                // the idle humans, players 1 .. humans (a multiplayer test's every PC's, alike on each)
+} g_rm = { "", 0, 1, 3, 0, 0, 0, 5, 500, -1, -1, 0, 0, 1, -1, -1, 1, 1 };
 internal const char *const k_rm_scale[6] = { "tiny", "small", "medium", "large", "huge", "gigantic" };
 
 internal int difficulty_key(const char *ini, const char *key, int def) {   // easy|medium|hard or 0..2
@@ -67,7 +68,7 @@ internal void randmap_load(const char *ini) {
     GetPrivateProfileStringA("autotest", "teams", "ffa", t, sizeof t, ini);
     g_rm.pairs = !lstrcmpiA(t, "pairs");
     g_rm.citizens = ini_int("autotest", "citizens", 5, ini);
-    int humans = g_net.mode ? g_net.humans : 1;
+    int humans = g_rm.humans = g_net.mode ? g_net.humans : 1;
     g_rm.unit_limit = ini_int("autotest", "unit_limit", ini_int("autotest", "pop_per_player", 300, ini) * (g_rm.ais + humans), ini);   // shared by all
     g_rm.ai_cheat = ini_int("autotest", "ai_cheat", -1, ini);
     g_rm.ai_ignore = ini_int("autotest", "ai_ignore", -1, ini);
@@ -173,14 +174,17 @@ internal void randmap_ai_toggles(ee_player *pl) {
                            g_rm.epoch_min, g_rm.epoch_max, (game_time() + delay) / 60000.0);
     }
     if (!g_rm.map[0]) return;
-    ee_player *human = game_players()[(int)local_player_index()];
-    if (!human || human == pl) return;
-    // The idle human slot: civilization counts as chosen (else the civ-selection timer opens a dialog that
-    // freezes the game), and allied with every AI so the AIs fight each other and the game can't end in
-    // the human's defeat.
-    player_set_civ_chosen(human, 1);
-    player_set_explore_all(human, 1);   // the watching human sees the whole map (the AIs know every map object anyway)
-    set_diplomacy(human, pl, 0, 0);
-    set_diplomacy(pl, human, 0, 0);
-    if (g_log) fprintf(g_log, "# random map: P%d allied with human P%d\n", player_get_index(pl), player_get_index(human));
+    // The idle human slots, players 1 .. g_rm.humans (a multiplayer test's every PC's - never "the local player": it
+    // differs per PC, and AIs allied with another human on each PC parted the game once they defeated the other):
+    // civilization counts as chosen (else the civ-selection timer opens a dialog that freezes the game), and allied
+    // with every AI so the AIs fight each other and the game can't end in a human's defeat.
+    for (int h = 1; h <= g_rm.humans && h < (int)game_player_count(); h++) {
+        ee_player *human = game_players()[h];
+        if (!human || human == pl) continue;
+        player_set_civ_chosen(human, 1);
+        player_set_explore_all(human, 1);   // the watching human sees the whole map (the AIs know every map object anyway)
+        set_diplomacy(human, pl, 0, 0);
+        set_diplomacy(pl, human, 0, 0);
+        if (g_log) fprintf(g_log, "# random map: P%d allied with human P%d\n", player_get_index(pl), player_get_index(human));
+    }
 }

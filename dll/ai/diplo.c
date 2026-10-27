@@ -608,7 +608,7 @@ internal uint32_t g_block_last;
 internal int block_member(int i) {
     void *p = player_at(i);
     if (!p || is_out(p)) return 0;
-    return !(g_rm.map[0] && !g_block_observer && i == (int)local_player_index());
+    return !(g_rm.map[0] && !g_block_observer && i >= 1 && i <= g_rm.humans);   // alike on every PC (not the local one)
 }
 internal int allied_with(int a, int b) {   // allied both ways (stance 0 each way)
     void *pa = player_at(a), *pb = player_at(b);

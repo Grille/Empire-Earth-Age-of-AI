@@ -162,8 +162,9 @@ internal void trace_start(const char *ini) {
 // LLE's exports), the user-input messages processed so far (0x919B68), a hash of the stock of players 1.. (player 0's
 // first fields are not set), the units on the grid and a hash of them (owner, type, tile, hit points). Before a
 // step's line, each message the step handed to the lockstep server: "  m type <n> from <return address> S" (S: the
-// simulation thread). sync_dump=<from ms>-<to ms>: every unit of each step in that window ("  u ..."). Two runs of
-// one game_seed diffed show the first step they part - and whether the generator, an input or the units went first.
+// simulation thread). sync_dump=<from ms>-<to ms>: every player's stock ("  p ...") and every unit ("  u ...") of
+// each step in that window. Two runs of one game_seed diffed show the first step they part - and whether the
+// generator, an input or the units went first.
 internal FILE *g_sync;
 internal unsigned g_sync_left;
 
@@ -248,8 +249,16 @@ internal void sync_step(void *phys) {   // after each step (control.c hook_phys_
     fprintf(g_sync, "%u %u %u %u %08x %u %08x\n", physics_get_steps(phys), physics_get_time(phys),
             physics_get_seed(phys), input_msgs_done(), h, su.n, su.h);
     fflush(g_sync);   // whole to the last step when the game quits (two PCs' traces are diffed to the shorter one)
-    if (g_sync_dump0 && physics_get_time(phys) >= g_sync_dump0 && physics_get_time(phys) <= g_sync_dump1)
+    if (g_sync_dump0 && physics_get_time(phys) >= g_sync_dump0 && physics_get_time(phys) <= g_sync_dump1) {
+        for (unsigned i = 1; i < n && i < 16; i++) {   // the stock the hash is of, player by player
+            ee_player *pl = game_players()[i];
+            if (!pl) continue;
+            fprintf(g_sync, "  p P%u", i);
+            for (int k = 0; k < 7; k++) fprintf(g_sync, " %08x", ((uint32_t *)player_stock_at(pl))[k]);
+            fprintf(g_sync, "\n");
+        }
         grid_each(sync_unit_dump, NULL);
+    }
     if (!--g_sync_left) { fclose(g_sync); g_sync = NULL; }
     LeaveCriticalSection(&g_lock);
 }
