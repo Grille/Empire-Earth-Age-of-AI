@@ -526,6 +526,33 @@ internal void __thiscall hook_epoch_catch_up(ee_player *pl, ee_player *human) {
     }
     player_epoch_catch_up(pl, human);
 }
+// CATCH-UP AFTER AIS ([ai_base] catch_up_ais; the player 2026-10-27: an AI behind another AI never caught up - the
+// game calls its catch-up only when a human reaches an epoch, EEPlayer::vf41): every 2 s per AI, another computer
+// player that reached a new epoch this AI is behind in gets it the same catch-up (the attempt a few minutes from now:
+// 0x431533 takes any player as the one ahead), through hook_epoch_catch_up - none with timer, as for a human.
+internal int g_catch_ais = 1, g_v_catch_ais = -1;
+#define CATCH_AIS(idx) PV(idx, g_v_catch_ais, g_catch_ais)
+internal int8_t g_catch_seen[16][16];   // per AI the other players' epochs it has seen (-1 not yet)
+internal unsigned g_catch_n[16];
+internal void catch_up_ais(ee_player *pl, unsigned idx, uint32_t now) {
+    static uint32_t last[16];
+    if (!CATCH_AIS(idx) || (last[idx] && now >= last[idx] && now - last[idx] < 2000)) return;
+    last[idx] = now ? now : 1;
+    ee_tech_tree *tt = player_get_tech_tree(pl);
+    if (!tt) return;
+    for (int i = 1; i < nplayers() && i < 16; i++) {
+        ee_player *q = player_at(i);
+        ee_tech_tree *qt = q && q != pl ? player_get_tech_tree(q) : NULL;
+        if (!qt) continue;
+        int e = tech_tree_get_epoch(qt), seen = g_catch_seen[idx][i];
+        g_catch_seen[idx][i] = (int8_t)e;
+        if (seen < 0 || e <= seen || player_is_human(q) || tech_tree_get_epoch(tt) >= e) continue;   // humans: the game's own call
+        g_catch_n[idx]++;
+        if (g_log) fprintf(g_log, "# epoch plan: P%u at %.1f min: P%d reached epoch %d, this AI at %d - catch-up\n", idx, now / 60000.0, i, e,
+                           tech_tree_get_epoch(tt));
+        hook_epoch_catch_up(pl, q);
+    }
+}
 
 internal int workforce(ee_player *pl) {
     void *cm = player_get_civ_mgr(pl);
@@ -679,6 +706,7 @@ internal void econ_tick(ee_player *pl, uint32_t now) {
     place_log(ai, now);
     retry_dropped(pl, ai, now);
     prod_sync(pl, ai, now);
+    catch_up_ais(pl, ai, now);
     gather_research(pl, ai, now);
     attention_note(pl, ai, now);
     defence_tick(pl, ai, now);
@@ -1929,6 +1957,8 @@ internal void econ_install(const char *autotest_ini) {
     g_build_fix = g_set_ai[1].build_fix;
     g_train_room = g_set_ai[1].train_room;
     g_prod_sync = g_set_ai[1].production_sync;
+    g_catch_ais = g_set_ai[1].catch_up_ais;
+    if (autotest_ini) g_v_catch_ais = ini_int("autotest", "v_catch_up_ais", -1, autotest_ini);
     g_build_fields = g_set_ai[1].build_fields;
     g_paid_upgrades = g_set_ai[1].paid_upgrades;
     if (autotest_ini) g_tech_log = ini_int("autotest", "tech_log", 0, autotest_ini);
@@ -1989,6 +2019,8 @@ internal void econ_install(const char *autotest_ini) {
 // at every game start, the income baselines of rates_update and gather_log came out negative
 internal void econ_new_game(void) {
     memset(g_bud, 0, sizeof g_bud);
+    memset(g_catch_seen, -1, sizeof g_catch_seen);
+    memset(g_catch_n, 0, sizeof g_catch_n);
     memset(g_epoch_acc, 0, sizeof g_epoch_acc);
     memset(g_epoch_acc_ep, 0, sizeof g_epoch_acc_ep);
     memset(g_rate, 0, sizeof g_rate);
