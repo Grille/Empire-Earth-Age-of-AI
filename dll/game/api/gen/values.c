@@ -630,6 +630,7 @@ internal uint32_t of_player_stance;
 internal uint32_t of_player_strategy;
 internal uint32_t of_player_result;
 internal uint32_t of_player_variables;
+internal uint32_t of_player_damage_by;
 internal uint32_t of_player_attacks_running;
 internal uint32_t of_player_tribute_sent;
 internal uint32_t of_player_tribute_received;
@@ -1285,6 +1286,8 @@ internal uint32_t call_missile_aim;
 internal uint32_t of_ai_state_handlers;
 internal uint32_t of_ai_state_id;
 internal uint32_t calls_goalset_ask[2];
+internal uint32_t of_target_search_player;
+internal uint32_t calls_target_ok[4];
 
 // unit_type.cs
 internal uint32_t of_unit_type_vtable;

@@ -670,10 +670,31 @@ unsafe struct EEUnitAction
     extern int32 ask(EEUnit* u, int32* @out);
 }
 
+/// the auto-target search's state: 0x62E99D's local, filled by 0x62EA64 (AoC's the same), that target_ok and the
+/// scorer 0x6399CA run on
+[c_type("ee_target_search")]
+unsafe struct EETargetSearch
+{
+    /// the player of the unit searching: target_ok skips its own and those it isn't at war with
+    [offset(0x20), found(c)]
+    EEPlayer* player;
+}
+
 /// the game's functions unit.c wraps, by the names the C side gives them
 [c_prefix("")]
 static unsafe class unit_functions
 {
+    /// the auto-target search's test of a candidate (thiscall on the searcher 0x62EA64 fills: +0x1C the unit
+    /// searching, +0x20 its player): not its own player's, an enemy by the stance (player +0x9E4), alive (+0x3C), not
+    /// +0x33B - then 0x6399CA scores it; the searches 0x63969A (2 calls) and 0x639D7D (2) of 0x62E99D, which a unit's
+    /// idle scan 0x61AC11 runs
+    [address((ee)0x00639993, (aoc)0x0064FFCA), thiscall]
+    [call_site("target_ok", (ee)0x00639918, (aoc)0x0064FF4F)]
+    [call_site("target_ok", (ee)0x00639F4A, (aoc)0x006505A4)]
+    [call_site("target_ok", (ee)0x0063A072, (aoc)0x006506CC)]
+    [call_site("target_ok", (ee)0x0063A145, (aoc)0x0065079F)]
+    static extern char8 target_ok(EETargetSearch* searcher, EEUnit* u);
+
     [address((ee)0x0062CBB3, (aoc)0x00641A6A), cdecl]
     static extern char8 ballistic_game(EEUnit* p1, ee_unit_stats* p2, float32* p3, float32* p4, float32* p5);
 

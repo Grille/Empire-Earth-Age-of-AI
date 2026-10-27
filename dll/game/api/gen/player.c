@@ -106,6 +106,11 @@ internal inline int *player_result_at(const ee_player *o) { return (int *)((uint
 internal inline int player_get_variables(const ee_player *o, int i) { return ((int *)((uint8_t *)o + of_player_variables))[i]; }
 internal inline void player_set_variables(ee_player *o, int i, int v) { ((int *)((uint8_t *)o + of_player_variables))[i] = v; }
 internal inline int *player_variables_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_variables); }
+// the damage it took from each player over the game, by player index (0 the world): vf33 0x557147 adds every hit's;
+// the player's reset 0x557182.. clears all 17
+internal inline int player_get_damage_by(const ee_player *o, int i) { return ((int *)((uint8_t *)o + of_player_damage_by))[i]; }
+internal inline void player_set_damage_by(ee_player *o, int i, int v) { ((int *)((uint8_t *)o + of_player_damage_by))[i] = v; }
+internal inline int *player_damage_by_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_damage_by); }
 // its units' running attack goals: the first sets strategy 2, the last one ending strategy 1 (the attack goal's
 // constructor and destructor)
 internal inline int player_get_attacks_running(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_attacks_running); }
@@ -1152,6 +1157,7 @@ internal int spec_player_select(int build) {
         of_player_strategy = 0xA28;
         of_player_result = 0xA30;
         of_player_variables = 0xA44;
+        of_player_damage_by = 0xA70;
         of_player_attacks_running = 0xAB4;
         of_player_tribute_sent = 0xAB8;
         of_player_tribute_received = 0xACC;
@@ -1430,6 +1436,7 @@ internal int spec_player_select(int build) {
         of_player_strategy = 0xA20;
         of_player_result = 0xA28;
         of_player_variables = 0xA3C;
+        of_player_damage_by = 0xA68;
         of_player_attacks_running = 0xAAC;
         of_player_tribute_sent = 0xAB0;
         of_player_tribute_received = 0xAC4;

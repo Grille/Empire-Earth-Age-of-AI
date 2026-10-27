@@ -36,6 +36,7 @@ typedef struct ee_join_action ee_join_action;
 typedef struct ee_center_camera ee_center_camera;
 typedef struct ee_effect_mgr ee_effect_mgr;
 typedef struct ee_ghost_unit ee_ghost_unit;
+typedef struct ee_target_search ee_target_search;
 typedef struct ee_to_hit_table ee_to_hit_table;
 typedef struct ee_game_state ee_game_state;
 

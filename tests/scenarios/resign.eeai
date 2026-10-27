@@ -1,0 +1,11 @@
+// A player resigns in the middle of a game with its army and town standing (resign_spoils, ai/spoils.c): at minute 25
+// P3 loses (the game's own resign, as the scenario's Defeat). Its land fighters should roam in bands, fighting units
+// and leaving buildings alone ("# spoils: roaming"), and 30 s later its buildings go to those who did 20% or more of
+// the damage it took in its last 10 minutes ("# spoils: P3's buildings change hands").
+
+wait_until(25min)
+let p = player(3)
+ping("P3 resigns at {time} s: {p.soldiers} soldiers, {p.buildings} buildings")
+p.lose()
+wait(40s)
+ping("P3 at {time} s: {len(p.units())} units and buildings left")

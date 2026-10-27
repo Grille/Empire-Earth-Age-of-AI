@@ -85,6 +85,8 @@ internal void cover_install(const char *autotest_ini);
 internal void stage_tick(ee_player *pl, uint32_t now);   // stage.c: the army's staging point
 internal void stage_new_game(void);
 internal void stage_install(const char *autotest_ini);
+internal void spoils_new_game(void);   // spoils.c: a resigned player's buildings and units
+internal void spoils_install(void);
 internal void expand_tick(ee_player *pl, uint32_t now);   // expand.c: other islands
 internal void expand_new_game(void);
 internal void expand_install(const char *autotest_ini);
@@ -331,6 +333,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
     mass_new_game();
     cover_new_game();
     stage_new_game();
+    spoils_new_game();
     expand_new_game();
     tw_new_game();
     ap_new_game();
@@ -384,6 +387,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
 #include "ai/metal.c"
 #include "ai/cover.c"
 #include "ai/stage.c"
+#include "ai/spoils.c"
 #include "persist.c"
 #include "engine/aim.c"
 #include "engine/camera.c"
@@ -587,6 +591,7 @@ internal void install(HMODULE self) {
     mass_install(g_autotest ? g_ini : NULL);
     cover_install(g_autotest ? g_ini : NULL);
     stage_install(g_autotest ? g_ini : NULL);
+    spoils_install();
     expand_install(g_autotest ? g_ini : NULL);
     tw_install(g_autotest ? g_ini : NULL);
     attack_install();

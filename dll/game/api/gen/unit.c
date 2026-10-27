@@ -641,8 +641,24 @@ internal ai_state_ask_fn fn_ai_state_ask;
 internal inline int ai_state_ask(ee_ai_state *ai_state, ee_unit *u, int *out) { return fn_ai_state_ask(ai_state, u, out); }
 internal inline int patch_goalset_ask(ai_state_ask_fn h, int *of) { return patch_calls(calls_goalset_ask, 2, (uintptr_t)fn_ai_state_ask, (void *)h, of); }
 
+// class EETargetSearch (ee_target_search)
+// the auto-target search's state: 0x62E99D's local, filled by 0x62EA64 (AoC's the same), that target_ok and the
+// scorer 0x6399CA run on
+// the player of the unit searching: target_ok skips its own and those it isn't at war with
+internal inline ee_player *target_search_get_player(const ee_target_search *o) { return *(ee_player **)((uint8_t *)o + of_target_search_player); }
+internal inline void target_search_set_player(ee_target_search *o, ee_player *v) { *(ee_player **)((uint8_t *)o + of_target_search_player) = v; }
+internal inline ee_player **target_search_player_at(const ee_target_search *o) { return (ee_player **)((uint8_t *)o + of_target_search_player); }
+
 // static class unit_functions
 // the game's functions unit.c wraps, by the names the C side gives them
+// the auto-target search's test of a candidate (thiscall on the searcher 0x62EA64 fills: +0x1C the unit
+// searching, +0x20 its player): not its own player's, an enemy by the stance (player +0x9E4), alive (+0x3C), not
+// +0x33B - then 0x6399CA scores it; the searches 0x63969A (2 calls) and 0x639D7D (2) of 0x62E99D, which a unit's
+// idle scan 0x61AC11 runs
+typedef char (__thiscall *target_ok_fn)(ee_target_search *, ee_unit *);
+internal target_ok_fn fn_target_ok;
+internal inline char target_ok(ee_target_search *searcher, ee_unit *u) { return fn_target_ok(searcher, u); }
+internal inline int patch_target_ok(target_ok_fn h, int *of) { return patch_calls(calls_target_ok, 4, (uintptr_t)fn_target_ok, (void *)h, of); }
 typedef char (__cdecl *ballistic_game_fn)(ee_unit *, ee_unit_stats *, float *, float *, float *);
 internal ballistic_game_fn fn_ballistic_game;
 internal inline char ballistic_game(ee_unit *p1, ee_unit_stats *p2, float *p3, float *p4, float *p5) { return fn_ballistic_game(p1, p2, p3, p4, p5); }
@@ -826,6 +842,12 @@ internal int spec_unit_select(int build) {
         fn_ai_state_ask = (ai_state_ask_fn)0x00619FF5;
         calls_goalset_ask[0] = 0x005F0FFA;
         calls_goalset_ask[1] = 0x005F1029;
+        of_target_search_player = 0x20;
+        fn_target_ok = (target_ok_fn)0x00639993;
+        calls_target_ok[0] = 0x00639918;
+        calls_target_ok[1] = 0x00639F4A;
+        calls_target_ok[2] = 0x0063A072;
+        calls_target_ok[3] = 0x0063A145;
         fn_ballistic_game = (ballistic_game_fn)0x0062CBB3;
         fn_unit_convert = (unit_convert_fn)0x0062F192;
         fn_unit_distance = (unit_distance_fn)0x0062D5A4;
@@ -988,6 +1010,12 @@ internal int spec_unit_select(int build) {
         fn_ai_state_ask = (ai_state_ask_fn)0x0062CD8B;
         calls_goalset_ask[0] = 0x005FF364;
         calls_goalset_ask[1] = 0x005FF393;
+        of_target_search_player = 0x20;
+        fn_target_ok = (target_ok_fn)0x0064FFCA;
+        calls_target_ok[0] = 0x0064FF4F;
+        calls_target_ok[1] = 0x006505A4;
+        calls_target_ok[2] = 0x006506CC;
+        calls_target_ok[3] = 0x0065079F;
         fn_ballistic_game = (ballistic_game_fn)0x00641A6A;
         fn_unit_convert = (unit_convert_fn)0x00644E95;
         fn_unit_distance = (unit_distance_fn)0x00642489;
@@ -1042,6 +1070,11 @@ internal int spec_unit_check(void) {
     bad += spec_code((uintptr_t)fn_ai_state_ask, "EEUnitAction.ask");
     bad += spec_call(calls_goalset_ask[0], (uintptr_t)fn_ai_state_ask, "EEUnitAction.ask [call_site goalset_ask 0]");
     bad += spec_call(calls_goalset_ask[1], (uintptr_t)fn_ai_state_ask, "EEUnitAction.ask [call_site goalset_ask 1]");
+    bad += spec_code((uintptr_t)fn_target_ok, "unit_functions.target_ok");
+    bad += spec_call(calls_target_ok[0], (uintptr_t)fn_target_ok, "unit_functions.target_ok [call_site target_ok 0]");
+    bad += spec_call(calls_target_ok[1], (uintptr_t)fn_target_ok, "unit_functions.target_ok [call_site target_ok 1]");
+    bad += spec_call(calls_target_ok[2], (uintptr_t)fn_target_ok, "unit_functions.target_ok [call_site target_ok 2]");
+    bad += spec_call(calls_target_ok[3], (uintptr_t)fn_target_ok, "unit_functions.target_ok [call_site target_ok 3]");
     bad += spec_code((uintptr_t)fn_ballistic_game, "unit_functions.ballistic_game");
     bad += spec_code((uintptr_t)fn_unit_convert, "unit_functions.unit_convert");
     bad += spec_code((uintptr_t)fn_unit_distance, "unit_functions.unit_distance");

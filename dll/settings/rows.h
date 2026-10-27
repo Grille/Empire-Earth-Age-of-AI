@@ -249,6 +249,7 @@
     D(NUM,   offer_minutes,                2, 0, 0) \
     D(NUM,   alliance_blocks,              1, 0, 0) \
     D(FLAG,  surrender,                    1, 0, 0) \
+    D(FLAG,  resign_spoils,                1, 0, 0) \
     D(FLAG,  landing,                      1, 0, 0) \
     D(NUM,   landing_transports,           8, 0, 0) \
     D(NUM,   landing_citizens,             10, 0, 0) \

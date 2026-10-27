@@ -115,6 +115,11 @@ unsafe struct EEPlayer
     [offset((ee)0xA44, (aoc)0xA3C), found(c)]
     fixed int32 variables[10];
 
+    /// the damage it took from each player over the game, by player index (0 the world): vf33 0x557147 adds every hit's;
+    /// the player's reset 0x557182.. clears all 17
+    [offset((ee)0xA70, (aoc)0xA68), found(c)]
+    fixed int32 damage_by[17];
+
     /// its units' running attack goals: the first sets strategy 2, the last one ending strategy 1 (the attack goal's
     /// constructor and destructor)
     [offset((ee)0xAB4, (aoc)0xAAC), found(c)]
