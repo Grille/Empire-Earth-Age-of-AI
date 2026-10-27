@@ -82,3 +82,16 @@ raster states as a few cached D3D11 state objects.
 Steps: the objects and the 2D path (menus, Bink, the UI's blits, present); the 3D (states, shaders, lights, fog,
 mipmaps); the picture compared and fixed (half-pixel offset, fog formula, texture formats, the decals' depth); then
 the frame time.
+
+## Status
+
+2026-10-27, steps 1 and 2 (`[display] renderer = own`, default `wrapper`; dll/engine/render.c, render_3d.c): the
+display DLLs' DirectDraw imports go to the mod's objects (every method the probe measured; any other logs
+`# render: X.Y not implemented` once and returns E_NOTIMPL), surfaces in memory and on Direct3D 11, Blt / BltFast
+(fills, copies, stretched, colour key), locks of the render target read back only the locked rect, the frame goes
+into the window through present_d3d.c's swap chain without a read-back. Checked in headless slot runs: the intro
+videos (Bink) and the main menu draw (shots), no call outside the measured list; the 3D is not drawn yet (the
+menu's background is black, the device keeps every state and counts the draws). Open: opening the scenario editor
+from the menu stopped the game (all threads waiting) once - with the 3D. The display DLL lists 800x600x16 among the
+modes it needs: every mode is enumerated in 32 and 16 bits. Autotest `render_trace=N` logs the first N calls
+(`# render call`, caller, thread); the pipe's `profile stacks` lists every thread's code addresses.

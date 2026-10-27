@@ -10,6 +10,8 @@
 // games use [0x9193FC] x [0x9193F8].
 
 #include <ddraw.h>
+#include <d3d.h>   // Direct3D 7: the own renderer (render.c). Its D3DCOLORVALUE has no guard; DXGI's (present_d3d.c) has:
+#define D3DCOLORVALUE_DEFINED
 
 
 internal int g_editor_w, g_editor_h, g_editor_game;   // 0 = leave
@@ -384,6 +386,9 @@ internal int present_primary(ee_rasterizer *ras, unsigned screen, ee_screen *scr
     return 1;
 }
 
+internal int g_rd_on;   // [display] renderer = own (render.c): its render target goes into the window as it is
+internal CRITICAL_SECTION g_rd_cs;   // render.c: around everything of the own renderer
+internal int render_present(IDirectDrawSurface7 *back, HWND hwnd);
 internal int present_to_window(ee_rasterizer *ras, unsigned screen) {
     ee_screen_state *st = rasterizer_get_screen_state(ras, screen);
     ee_screen *scr = screen_state_get_screen(st); ee_surface *back = screen_state_get_back(st); ee_window *win = screen_state_get_window(st);
@@ -391,6 +396,7 @@ internal int present_to_window(ee_rasterizer *ras, unsigned screen) {
     IDirectDrawSurface7 *s = surface_get_dds(back);
     HWND hwnd = window_get_hwnd(win);
     if (!s || !hwnd) return 0;
+    if (g_rd_on) return render_present(s, hwnd);
     // the z-buffer of a new windowed back buffer starts out unusable for the terrain (it fails the depth test while
     // models draw); one Lock/Unlock syncs it and it stays fine - found by elimination (ddpoke z)
     static IDirectDrawSurface7 *z_synced_for;
@@ -713,7 +719,9 @@ internal int show_hooks(int i, HMODULE m) {
     }
     return n;
 }
+internal void render_display_loaded(HMODULE m, const char *name);
 internal void show_loaded(int i, uintptr_t base) {
+    render_display_loaded((HMODULE)base, g_show[i].dll);
     int n = show_hooks(i, (HMODULE)base);
     int dpi = g_show_dpi ? patch_iat((HMODULE)base, "USER32.dll", "CreateWindowExA", (void *)hook_create_window) : 0;
     g_show_hooks += n;
@@ -1131,6 +1139,7 @@ internal int install_windowed_input(void) {
 }
 
 internal void player_name_install(void);
+internal void render_install(const char *autotest_ini);
 internal void display_install(const char *autotest_ini) {
     player_name_install();   // (defined at the end of this file)
     frame_install();
@@ -1165,6 +1174,7 @@ internal void display_install(const char *autotest_ini) {
         g_present_mode = g_set.display_present;   // auto 0, d3d 1, gdi 2, primary 3 (rows.h)
         g_present_d3d = g_present_mode <= 1;
         g_vsync = g_set.display_vsync;
+        render_install(autotest_ini);   // the own renderer before the display DLLs' hooks: their DirectDraw imports at their load
         int hooks = install_windowed_present(g_set_thread_dpi || g_headless);
         int dpi = g_show_dpi_hooks;
         int input = install_windowed_input();
@@ -1403,10 +1413,51 @@ internal void cmd_profile_render(int dur, char *out) {
     }
 }
 
+// profile stacks: every thread once - where it is and the words on its stack that point into code outside Windows'
+// own modules (the likely return addresses), for a game that hangs with all its threads waiting
+internal void cmd_profile_stacks(char *out) {
+    HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
+    THREADENTRY32 te = { .dwSize = sizeof te };
+    DWORD pid = GetCurrentProcessId(), self = GetCurrentThreadId();
+    if (g_rd_on) REPLY("render lock: owner thread %lu, depth %ld\n", (unsigned long)(uintptr_t)g_rd_cs.OwningThread, (long)g_rd_cs.RecursionCount);
+    REPLY("render thread %lu\n", (unsigned long)g_render_thread);
+    static uintptr_t words[2048];
+    char at[160];
+    if (snap != INVALID_HANDLE_VALUE && Thread32First(snap, &te))
+        do {
+            if (te.th32OwnerProcessID != pid || te.th32ThreadID == self) continue;
+            HANDLE h = OpenThread(THREAD_SUSPEND_RESUME | THREAD_GET_CONTEXT, FALSE, te.th32ThreadID);
+            if (!h) continue;
+            CONTEXT c = { .ContextFlags = CONTEXT_CONTROL };
+            SIZE_T got = 0;
+            if (SuspendThread(h) != (DWORD)-1) {
+                if (GetThreadContext(h, &c)) ReadProcessMemory(GetCurrentProcess(), (void *)c.Esp, words, sizeof words, &got);
+                ResumeThread(h);
+            }
+            CloseHandle(h);
+            crash_addr(at, sizeof at, c.Eip);
+            REPLY("thread %lu at %s:", (unsigned long)te.th32ThreadID, at);
+            for (size_t k = 0, shown = 0; k < got / sizeof *words && shown < 12; k++) {
+                HMODULE m;
+                MEMORY_BASIC_INFORMATION mbi;
+                if (words[k] < 0x10000 || !VirtualQuery((void *)words[k], &mbi, sizeof mbi) ||
+                    !(mbi.Protect & (PAGE_EXECUTE_READ | PAGE_EXECUTE_READWRITE | PAGE_EXECUTE_WRITECOPY | PAGE_EXECUTE)) ||
+                    !GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                                        (LPCSTR)words[k], &m) || is_system_module(m)) continue;
+                crash_addr(at, sizeof at, words[k]);
+                REPLY(" %s", at);
+                shown++;
+            }
+            REPLY("\n");
+        } while (Thread32Next(snap, &te));
+    if (snap != INVALID_HANDLE_VALUE) CloseHandle(snap);
+}
+
 internal void cmd_profile(const char *args, char *out) {
     int dur = atoi(args);
     if (dur <= 0) dur = 2000;
     if (strstr(args, "render")) { cmd_profile_render(dur, out); return; }
+    if (strstr(args, "stacks")) { cmd_profile_stacks(out); return; }
     enum { MAXT = 64, HB = 8192 };
     struct { DWORD id; HANDLE h; int samples, busy; } th[MAXT];
     int nt = 0;
@@ -1944,3 +1995,5 @@ internal void cmd_textlog(char *out, const char *args) {
     InterlockedExchange(&g_textlog, n > 0 ? n : 100);
     REPLY("logging the next %ld text draws (fonts cached %d, dropped %d)\n", g_textlog, g_fbm_n, g_fbm_dropped);
 }
+
+#include "render.c"   // the own renderer ([display] renderer = own): present_to_window and show_loaded call it
