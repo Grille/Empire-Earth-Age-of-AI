@@ -202,6 +202,12 @@ static unsafe class game
     [address((ee)0x009197A0, (aoc)0x0093191C)]
     static block ui_manager;
 
+    /// UIManager::GetFormByID's import slot - thiscall([game.ui_manager], uint32 id): the screen of that id (0x1A the
+    /// game setup screen, the lobby; 0xC the main menu)
+    [import_slot("Low-Level Engine.dll", "?GetFormByID@UIManager@@QBEPAVUIForm@@K@Z")]
+    [address((ee)0x00823B4C, (aoc)0x00837AE0)]
+    static block iat_form_by_id;
+
     /// the user interface: the action queue's owner, the chat lines'
     [address((ee)0x0091977C, (aoc)0x009318F8)]
     static EEUserInterface* ui;
@@ -259,6 +265,11 @@ static unsafe class game
     [address((ee)0x008231A4, (aoc)0x008371A0)]
     static block iat_wstring_ctor;
 
+    /// UWideString::operator=(const UWideString &) (the slots' names: they share their text)
+    [import_slot("Low-Level Engine.dll", "??4UWideString@@QAEAAV0@ABV0@@Z")]
+    [address((ee)0x008231D0, (aoc)0x008371CC)]
+    static block iat_wstring_copy;
+
     /// UWideString::UWideString(const char *)
     [import_slot("Low-Level Engine.dll", "??0UWideString@@QAE@PBD@Z")]
     [address((ee)0x008232C4, (aoc)0x008372C0)]
@@ -299,6 +310,10 @@ static unsafe class game
     /// save_action_init
     [value(48)]
     static uint32 size_save_action;
+
+    /// join_action_init
+    [value(0x38)]
+    static uint32 size_join_action;
 
     /// EEPhysics vtable slot 8: one simulation step
     [address((ee)0x0082CB7C, (aoc)0x00842324)]
@@ -344,6 +359,11 @@ static unsafe class game_functions
     /// the function the exe's own, not one of the class's)
     [address((ee)0x0052AA81, (aoc)0x00535943), thiscall]
     static extern void settings_save_game(void* p1);
+
+    /// the game's error box, an EEUIFError (0x1BC bytes) made and shown - thiscall(the caller's ecx, a UWideString*:
+    /// its text, a, b, on_ok: called on its button, c); 87 calls. A headless test logs each: it waits for a click
+    [address((ee)0x0065C6A9, (aoc)0x00674DB5), thiscall]
+    static extern void error_box(void* parent, void* text, int32 a, int32 b, void* on_ok, int32 c);
 
     /// a vector's dtor (the game's delete)
     [address((ee)0x0061ABEC, (aoc)0x006002C7), thiscall]

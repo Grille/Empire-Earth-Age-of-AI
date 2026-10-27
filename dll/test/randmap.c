@@ -67,7 +67,8 @@ internal void randmap_load(const char *ini) {
     GetPrivateProfileStringA("autotest", "teams", "ffa", t, sizeof t, ini);
     g_rm.pairs = !lstrcmpiA(t, "pairs");
     g_rm.citizens = ini_int("autotest", "citizens", 5, ini);
-    g_rm.unit_limit = ini_int("autotest", "unit_limit", ini_int("autotest", "pop_per_player", 300, ini) * (g_rm.ais + 1), ini);   // shared by all
+    int humans = g_net.mode ? g_net.humans : 1;
+    g_rm.unit_limit = ini_int("autotest", "unit_limit", ini_int("autotest", "pop_per_player", 300, ini) * (g_rm.ais + humans), ini);   // shared by all
     g_rm.ai_cheat = ini_int("autotest", "ai_cheat", -1, ini);
     g_rm.ai_ignore = ini_int("autotest", "ai_ignore", -1, ini);
     g_rm.epoch_min = ini_int("autotest", "epoch_min", 0, ini);
@@ -80,23 +81,31 @@ internal void randmap_load(const char *ini) {
     g_rm.v_cheat = ini_int("autotest", "vanilla_cheat", -1, ini);
 }
 
-// Called from hook_game_start before the original runs.
+// Called from hook_game_start before the original runs. A multiplayer test (netgame.c): on every PC alike, whatever
+// its copy of the lobby's setup holds - the humans in the first mp_humans slots, the AIs after them - but for which
+// one is this PC's (its seat: the host 0, a joiner mp_seat).
 internal void randmap_rewrite(ee_setup *setup) {
     ustring_set(setup_map_name_at(setup), g_rm.map);
     setup_set_mode(setup, 0);
+    int ais = 0;
     for (int i = 0; i < 16; i++) {
         ee_setup_slot *slot = setup_slot_at(setup, i);
-        int type = i == 0 ? 1 : i <= g_rm.ais ? 0 : 4;
+        int human = i < (g_net.mode ? g_net.humans : 1);
+        int ai = human ? -1 : ais < g_rm.ais ? ais++ : -1;   // the AI's number, from 0
+        int type = human ? 1 : ai >= 0 ? 0 : 4;
         setup_slot_set_type(slot, type);
         setup_slot_set_unknown_4(slot, 3);
         setup_slot_set_unknown_1c(slot, 0);
+        // +0x34 (the flags' low byte): this PC's player - the game start keeps it (+0x4E0) and the PC tells the server
+        // in its start-loading answer, which binds every player to its PC; in a multiplayer test this PC's seat's only
+        int local = human && i == (g_net.mode ? g_net.seat : 0);
+        setup_slot_set_flags(slot, human ? 0x75010000u | (unsigned)local : 0x77010000u);
         setup_slot_set_index(slot, i);
         setup_slot_set_color(slot, i);
-        // human alone on team 1; AIs free-for-all (team 0) or in pairs (2,2,3,3,...)
-        setup_slot_set_team(slot, type == 4 ? 0 : i == 0 ? 1 : g_rm.pairs ? 2 + (i - 1) / 2 : 0);
+        // the humans on team 1; AIs free-for-all (team 0) or in pairs (2,2,3,3,...)
+        setup_slot_set_team(slot, type == 4 ? 0 : human ? 1 : g_rm.pairs ? 2 + ai / 2 : 0);
         setup_slot_set_citizens(slot, g_rm.citizens);
         setup_slot_set_unknown_30(slot, 0);
-        setup_slot_set_flags(slot, i == 0 ? 0x75010001u : 0x77010000u);
     }
     setup_set_speed(setup, 1);
     setup_set_map_scale(setup, g_rm.scale);   // the map size (1 Small: what every test map was before map_scale)

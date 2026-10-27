@@ -58,6 +58,14 @@ internal inline ee_window *game_window(void) { return *(ee_window **)data_game_g
 internal inline ee_rasterizer *rasterizer(void) { return *(ee_rasterizer **)data_game_rasterizer; }
 internal inline int screen_index(void) { return *(int *)data_game_screen; }
 internal inline void *ui_manager(void) { return *(void **)data_game_ui_manager; }
+// the UI's screen of that id (UIManager::GetFormByID: 0x1A the game setup screen, the multiplayer lobby)
+internal inline void *ui_form(uint32_t id) {
+    void *m = ui_manager();
+    return m ? ((void *(__thiscall *)(void *, uint32_t))*(void **)data_game_iat_form_by_id)(m, id) : NULL;
+}
+// this PC hosts the game ([game.server] an EEServer - a single-player game's too) or joined it (an EEClient)
+internal inline int net_hosting(void) { ee_server *s = game_server(); return s && *(uintptr_t *)s == data_messages_vt_server; }
+internal inline int net_joined(void) { ee_server *s = game_server(); return s && *(uintptr_t *)s == data_messages_vt_client; }
 internal inline ee_mouse *game_mouse(void) { return *(ee_mouse **)data_game_mouse; }
 internal inline int game_res_w(void) { return *(int *)data_game_game_res_w; }
 internal inline int game_res_h(void) { return *(int *)data_game_game_res_h; }
@@ -97,6 +105,7 @@ internal inline void wstring_init(void *s) { ((void (__thiscall *)(void *))*(voi
 internal inline void wstring_init_text(void *s, const char *text) { ((void (__thiscall *)(void *, const char *))*(void **)data_game_iat_wstring_ctor_c)(s, text); }
 // a UWideString's or UString's text (8-bit characters, at +4), NULL: none
 internal inline const char *wstring_text(const void *s) { return FIELD(s, 4, const char *); }
+internal inline void *wstring_copy(void *s, const void *from) { return ((void *(__thiscall *)(void *, const void *))*(void **)data_game_iat_wstring_copy)(s, from); }
 internal inline void *wstring_set(void *s, const char *text) { return ((void *(__thiscall *)(void *, const char *))*(void **)data_game_iat_wstring_assign)(s, text); }
 internal inline void wstring_reserve(void *s, unsigned long n) { ((void (__thiscall *)(void *, unsigned long))*(void **)data_game_iat_wstring_reserve)(s, n); }
 #define wstring_format(s, ...) ((int (__cdecl *)(void *, const char *, ...))*(void **)data_game_iat_wstring_format)((s), __VA_ARGS__)
@@ -111,6 +120,19 @@ internal inline int resource_string(void *res, int id, void *s) { return ((int (
 // made with its _init
 internal inline void *pause_action_alloc(void) { return game_new(value_game_size_pause_action); }
 internal inline void *save_action_alloc(void) { return game_new(value_game_size_save_action); }
+// the multiplayer menu's host or join action (mode 0 host the game named game, 2 join the address in game) for the
+// player of that name - the names copied; NULL: out of memory
+internal inline ee_join_action *join_action_new(int mode, const char *player, const char *game) {
+    ee_join_action *act = game_new(value_game_size_join_action);
+    if (!act) return NULL;
+    __attribute__((aligned(8))) uint8_t p[32], g[32];   // as the game's code gives them (voice/chat.c)
+    wstring_init_text(p, player);
+    wstring_init_text(g, game);
+    join_action_init(act, mode, (struct wstring *)p, (struct wstring *)g);
+    wstring_free(p);
+    wstring_free(g);
+    return act;
+}
 internal inline void *new_unit_msg_alloc(void) { return game_new(value_game_size_new_unit_msg); }
 // an action's reference given back (after ui_queue_action(game_get_ui(), act) - the UI's queue keeps its own)
 internal inline void action_release(void *act) { (*(void (__thiscall **)(void *))data_game_iat_release)(act); }
@@ -121,6 +143,9 @@ internal inline uint8_t *pause_action_init(uint8_t *mem) {
     mem[8] = 0;
     return mem;
 }
+// the pause action's vtable (its 3 slots: destructor, Execute, one more; [-1] its RTTI locator) - an action of the
+// mod's own is one with another Execute (test/netgame.c)
+internal inline void **pause_action_vtable(void) { return (void **)(uintptr_t)data_game_vt_pause_action; }
 // the save action: path a UString, the folder by value (the constructor destroys its copy)
 // a new unit of type for player at xy (EEMHackANewUnit, a network message)
 

@@ -22,6 +22,12 @@ unsafe struct EEUserInterface
     [offset(0x54), found(b)]
     uint32 seed;
 
+    /// this PC's bar on the multiplayer loading screen (form 0x17): the lobby slot flagged local (+0x34's low byte),
+    /// set when the screen opens (EEUIESSEOpen::vf1 0x5D12AC; kept if no slot is) - the loading percentage this PC
+    /// sends names it (EEMLoadPercent +0x14, 0x6620A1), every PC's screen indexes its bars with it (0x661793)
+    [offset(0x58), found(c)]
+    int32 loading_bar;
+
     [address((ee)0x0066192F, (aoc)0x00678F79)]
     extern void queue_action(void* action);
 
@@ -228,6 +234,24 @@ unsafe struct EEASaveGame
 {
     [address((ee)0x00404FA1, (aoc)0x00404613)]
     extern void* init(ustring* path, int32 flag, ustring dir);
+}
+
+/// the multiplayer menu's host or join action (EEAJoinOrHostAGame, 0x38 bytes): its Execute (slot 1, 0x402BB8) checks
+/// the player's name (+0x10) and the game's (+0x24: no control characters, ' " \ @, no space first, last or twice -
+/// else an error box), makes [game.server] - host (mode 0): an EEServer that publishes the game; join by address
+/// (mode 2): an EEClient that connects to the address in +0x24 - and opens the game setup screen (0x1A). The
+/// command line's -hostgame / -joinbyip queue one too (parse_cmdline 0x5227E4 / 0x52290D), but then replace the
+/// server they made with another client: the game hangs in the menus
+[c_type("ee_join_action"), vtable((ee)0x00824C34, (aoc)0x00838C08)]
+unsafe struct EEAJoinOrHostAGame
+{
+    /// EEAJoinOrHostAGame(mode, player name, game name or address) - both UWideStrings, copied
+    [address((ee)0x00402B1E, (aoc)0x00402086)]
+    extern void init(int32 mode, wstring* player, wstring* game);
+
+    /// 0 host, 1 join a detected game, 2 / 3 join by address, 4 host (another kind of server)
+    [offset(0xC), found(c)]
+    int32 mode;
 }
 
 /// the centre-the-camera action (EEACenterCamera)

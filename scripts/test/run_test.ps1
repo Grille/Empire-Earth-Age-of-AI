@@ -13,6 +13,9 @@
 # \\.\pipe\eeaimod<n>, the DLL moves its network ports by 2n, and the game's single-instance check is patched at the
 # start (docs/testing.md, Parallel runs). Slot 0 (default) is the game folder as before. -Slots a-b (env SLOTS): the
 # first free slot of that range (scripts/test/jobs.sh: 1-30), waiting while all are taken.
+# Multiplayer (dll/test/netgame.c, scripts/test/mp.sh): -IniExtra mp=host or mp=join (with mp_host=<the host's
+# slot>, mp_seat=<n>) starts the game at the main menu instead of the save; there the DLL hosts or joins, and the
+# host's DLL presses Start once mp_humans (2) humans are in its lobby.
 # -Dll <path> (env DLL): this run plays with that eeaimod.dll build instead of the installed one - copied to
 # local\work\eeaimod_slot<n>.dll (the source can be rebuilt meanwhile), named in EEAIMOD_DLL; the installed DLL loads it.
 # Art of Conquest: EE_GAME_DIR=<its folder> (EE-AOC.exe is found there; -Exe names another). The mod plays there in
@@ -217,6 +220,11 @@ for ($i = 0; $i -lt $extra.Count; $i++) {
     $extra[$i] = "setup=" + ($files -join ';')
 }
 if ($Scenario) { $extra += "scenario_mode=1" }
+# the game's command line: the save, or (multiplayer) none - the main menu, where the DLL hosts or joins
+$gameArgs = "-loadgame `"$Save`""
+$mp = @($extra | Where-Object { $_ -match '^\s*mp\s*=' } | ForEach-Object { ($_ -split '=', 2)[1].Trim() }) | Select-Object -First 1
+if ($mp -eq "host" -or $mp -eq "join") { $gameArgs = "" }
+elseif ($mp) { "mp must be host or join"; exit 1 }
 $extra += "config=$Config", "ai_dir=$AiDir"
 $keys = $extra | ForEach-Object { ($_ -split '=', 2)[0].Trim() }
 $lines = Get-Content "$repo\tests\config\autotest.ini" | Where-Object { $keys -notcontains (($_ -split '=', 2)[0].Trim()) }
@@ -298,7 +306,7 @@ public static class SuspendedStart {
         # the engine loads our DLL, centred on screen, and takes the focus (its jne -> jmp, see display.c)
         $headless = $extra -contains "headless=1"; $multi = [bool]($Slot -or $others)
         $splashOk = $false; $multiOk = $false; $mutexOk = $false; $gamePid = 0
-        $given = [SuspendedStart]::Start("$g\$Exe", "-loadgame `"$Save`"", $g, $headless, $build.Splash, $multi,
+        $given = [SuspendedStart]::Start("$g\$Exe", $gameArgs, $g, $headless, $build.Splash, $multi,
                                          $build.Multi, $build.MultiBytes, $build.Mutex, $build.MutexName, $slotHeld,
                                          [ref]$splashOk, [ref]$multiOk, [ref]$mutexOk, [ref]$gamePid)
         $p = Get-Process -Id $gamePid
@@ -308,7 +316,7 @@ public static class SuspendedStart {
         if ($multi -and -not $mutexOk) { "warning: mutex not renamed (unexpected bytes at $('{0:X}' -f $build.Mutex)) - the player's game won't start while this one runs" }
     } else {
         $psi = New-Object System.Diagnostics.ProcessStartInfo
-        $psi.FileName = "$g\$Exe";$psi.Arguments = "-loadgame `"$Save`""
+        $psi.FileName = "$g\$Exe";$psi.Arguments = $gameArgs
         $psi.WorkingDirectory = $g; $psi.UseShellExecute = $false
         $p = [System.Diagnostics.Process]::Start($psi)
         $given = [SuspendedStart]::Mark($p.Handle, $p.Id, $slotHeld)   # it runs already: a runner's child meanwhile

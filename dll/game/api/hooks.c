@@ -5,6 +5,8 @@
 // the game saved (every call of it: 4)
 typedef int (__cdecl *save_game_hook)(void *file, int a, int b, struct ustring folder);
 internal inline int patch_save_game(save_game_hook h) { return patch_all_calls((uintptr_t)fn_save_game, (void *)h); }
+// the game's error box (every call of it: 87) - its text a UWideString (wstring_text)
+internal inline int patch_error_box(error_box_fn h) { return patch_all_calls((uintptr_t)fn_error_box, (void *)h); }
 
 // THE ENGINE'S FIXES (engine/): hooks, and the game's own code changed in place (operands, jumps, single bytes) - each
 // checked against what it expects there first
@@ -166,14 +168,18 @@ internal inline int patch_skip_intro(void) {
     FlushInstructionCache(GetCurrentProcess(), NULL, 0);
     return TRUE;
 }
-// the network ports (UDP 33334, TCP 33335: TCP Protocol.dll's immediates, the module m) moved by add - how many of 8
-internal inline int patch_tcp_ports(HMODULE m, int add) {
-    const uint32_t *imm = data_tcp_protocol_ports;
+// the network ports (UDP 33334, TCP 33335: TCP Protocol.dll's immediates, the module m) moved: those it listens on
+// and broadcasts to by add, those it connects to by add_connect (a joining test slot: the host slot's) - how many of 8
+internal inline int patch_tcp_ports(HMODULE m, int add, int add_connect) {
     int n = 0;
-    for (size_t i = 0; m && i < sizeof data_tcp_protocol_ports / sizeof *imm; i++) {
-        uintptr_t at = (uintptr_t)m + imm[i];
-        uint32_t old = *(uint32_t *)at;
-        if (old == 33334 || old == 33335) n += patch_code32(at, old, old + (uint32_t)add);
+    for (int k = 0; k < 2; k++) {
+        const uint32_t *imm = k ? data_tcp_protocol_connect_ports : data_tcp_protocol_ports;
+        size_t count = k ? sizeof data_tcp_protocol_connect_ports / sizeof *imm : sizeof data_tcp_protocol_ports / sizeof *imm;
+        for (size_t i = 0; m && i < count; i++) {
+            uintptr_t at = (uintptr_t)m + imm[i];
+            uint32_t old = *(uint32_t *)at;
+            if (old == 33334 || old == 33335) n += patch_code32(at, old, old + (uint32_t)(k ? add_connect : add));
+        }
     }
     return n;
 }

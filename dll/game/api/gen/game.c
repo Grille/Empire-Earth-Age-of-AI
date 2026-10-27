@@ -98,6 +98,9 @@ internal inline ee_world_table *game_table_values_at(void) { return (ee_world_ta
 internal inline uint8_t *game_teams_locked_at(void) { return (uint8_t *)(uintptr_t)data_game_teams_locked; }
 internal inline uint8_t *game_types_at(void) { return (uint8_t *)(uintptr_t)data_game_types; }
 internal inline uint8_t *game_ui_manager_at(void) { return (uint8_t *)(uintptr_t)data_game_ui_manager; }
+// UIManager::GetFormByID's import slot - thiscall([game.ui_manager], uint32 id): the screen of that id (0x1A the
+// game setup screen, the lobby; 0xC the main menu)
+internal inline uint8_t *game_iat_form_by_id_at(void) { return (uint8_t *)(uintptr_t)data_game_iat_form_by_id; }
 // the user interface: the action queue's owner, the chat lines'
 internal inline ee_ui *game_get_ui(void) { return *(ee_ui **)(uint8_t *)(uintptr_t)data_game_ui; }
 internal inline void game_set_ui(ee_ui *v) { *(ee_ui **)(uint8_t *)(uintptr_t)data_game_ui = v; }
@@ -122,6 +125,8 @@ internal inline uint8_t *game_iat_ustring_dtor_at(void) { return (uint8_t *)(uin
 internal inline uint8_t *game_iat_wstring_assign_at(void) { return (uint8_t *)(uintptr_t)data_game_iat_wstring_assign; }
 // UWideString::UWideString()
 internal inline uint8_t *game_iat_wstring_ctor_at(void) { return (uint8_t *)(uintptr_t)data_game_iat_wstring_ctor; }
+// UWideString::operator=(const UWideString &) (the slots' names: they share their text)
+internal inline uint8_t *game_iat_wstring_copy_at(void) { return (uint8_t *)(uintptr_t)data_game_iat_wstring_copy; }
 // UWideString::UWideString(const char *)
 internal inline uint8_t *game_iat_wstring_ctor_c_at(void) { return (uint8_t *)(uintptr_t)data_game_iat_wstring_ctor_c; }
 // UWideString::~UWideString()
@@ -140,6 +145,7 @@ internal inline ee_input_mouse ***game_imp_is_mouse_at(void) { return (ee_input_
 // new_unit_msg_init
 // EEAUserPauseGame: vtable, refcount, byte
 // save_action_init
+// join_action_init
 // EEPhysics vtable slot 8: one simulation step
 internal inline uint8_t *game_vtbl_phys_step_at(void) { return (uint8_t *)(uintptr_t)data_game_vtbl_phys_step; }
 // EEAUserPauseGame vtable (0xC bytes: vtable, refcount, byte)
@@ -177,6 +183,11 @@ internal inline int save_game(void *file, int a, int b, struct ustring folder) {
 typedef void (__thiscall *settings_save_game_fn)(void *);
 internal settings_save_game_fn fn_settings_save_game;
 internal inline void settings_save_game(void *p1) { fn_settings_save_game(p1); }
+// the game's error box, an EEUIFError (0x1BC bytes) made and shown - thiscall(the caller's ecx, a UWideString*:
+// its text, a, b, on_ok: called on its button, c); 87 calls. A headless test logs each: it waits for a click
+typedef void (__thiscall *error_box_fn)(void *, void *, int, int, void *, int);
+internal error_box_fn fn_error_box;
+internal inline void error_box(void *parent, void *text, int a, int b, void *on_ok, int c) { fn_error_box(parent, text, a, b, on_ok, c); }
 // a vector's dtor (the game's delete)
 typedef void (__thiscall *vector_free_fn)(void *);
 internal vector_free_fn fn_vector_free;
@@ -240,6 +251,7 @@ internal int spec_game_select(int build) {
         data_game_teams_locked = 0x00918E9F;
         data_game_types = 0x009418A0;
         data_game_ui_manager = 0x009197A0;
+        data_game_iat_form_by_id = 0x00823B4C;
         data_game_ui = 0x0091977C;
         data_game_iat_cos = 0x00823304;
         data_game_iat_rand = 0x00824648;
@@ -252,6 +264,7 @@ internal int spec_game_select(int build) {
         data_game_iat_ustring_dtor = 0x008245BC;
         data_game_iat_wstring_assign = 0x00823224;
         data_game_iat_wstring_ctor = 0x008231A4;
+        data_game_iat_wstring_copy = 0x008231D0;
         data_game_iat_wstring_ctor_c = 0x008232C4;
         data_game_iat_wstring_dtor = 0x00823AEC;
         data_game_iat_wstring_format = 0x008232C8;
@@ -261,6 +274,7 @@ internal int spec_game_select(int build) {
         value_game_size_new_unit_msg = 32;
         value_game_size_pause_action = 12;
         value_game_size_save_action = 48;
+        value_game_size_join_action = 56;
         data_game_vtbl_phys_step = 0x0082CB7C;
         data_game_vt_pause_action = 0x00830E94;
         fn_exit_confirm = (exit_confirm_fn)0x005D0B4F;
@@ -273,6 +287,7 @@ internal int spec_game_select(int build) {
         fn_resign_send = (resign_send_fn)0x005D05CC;
         fn_save_game = (save_game_fn)0x00540ACA;
         fn_settings_save_game = (settings_save_game_fn)0x0052AA81;
+        fn_error_box = (error_box_fn)0x0065C6A9;
         fn_vector_free = (vector_free_fn)0x0061ABEC;
         return 0;
     case 1:   // aoc
@@ -330,6 +345,7 @@ internal int spec_game_select(int build) {
         data_game_teams_locked = 0x009318DF;
         data_game_types = 0x009636AC;
         data_game_ui_manager = 0x0093191C;
+        data_game_iat_form_by_id = 0x00837AE0;
         data_game_ui = 0x009318F8;
         data_game_iat_cos = 0x00837340;
         data_game_iat_rand = 0x0083863C;
@@ -342,6 +358,7 @@ internal int spec_game_select(int build) {
         data_game_iat_ustring_dtor = 0x008385B0;
         data_game_iat_wstring_assign = 0x00837220;
         data_game_iat_wstring_ctor = 0x008371A0;
+        data_game_iat_wstring_copy = 0x008371CC;
         data_game_iat_wstring_ctor_c = 0x008372C0;
         data_game_iat_wstring_dtor = 0x00837194;
         data_game_iat_wstring_format = 0x008372C4;
@@ -351,6 +368,7 @@ internal int spec_game_select(int build) {
         value_game_size_new_unit_msg = 32;
         value_game_size_pause_action = 12;
         value_game_size_save_action = 48;
+        value_game_size_join_action = 56;
         data_game_vtbl_phys_step = 0x00842324;
         data_game_vt_pause_action = 0x00846790;
         fn_exit_confirm = (exit_confirm_fn)0x005E145B;
@@ -363,6 +381,7 @@ internal int spec_game_select(int build) {
         fn_resign_send = (resign_send_fn)0x005E0E7F;
         fn_save_game = (save_game_fn)0x0054D066;
         fn_settings_save_game = (settings_save_game_fn)0x00535943;
+        fn_error_box = (error_box_fn)0x00674DB5;
         fn_vector_free = (vector_free_fn)0x006002C7;
         return 0;
     }
@@ -427,6 +446,7 @@ internal int spec_game_check(void) {
     bad += spec_data(data_game_teams_locked, "game.teams_locked");
     bad += spec_data(data_game_types, "game.types");
     bad += spec_data(data_game_ui_manager, "game.ui_manager");
+    bad += spec_data(data_game_iat_form_by_id, "game.iat_form_by_id");
     bad += spec_data(data_game_ui, "game.ui");
     bad += spec_data(data_game_iat_cos, "game.iat_cos");
     bad += spec_data(data_game_iat_rand, "game.iat_rand");
@@ -439,6 +459,7 @@ internal int spec_game_check(void) {
     bad += spec_data(data_game_iat_ustring_dtor, "game.iat_ustring_dtor");
     bad += spec_data(data_game_iat_wstring_assign, "game.iat_wstring_assign");
     bad += spec_data(data_game_iat_wstring_ctor, "game.iat_wstring_ctor");
+    bad += spec_data(data_game_iat_wstring_copy, "game.iat_wstring_copy");
     bad += spec_data(data_game_iat_wstring_ctor_c, "game.iat_wstring_ctor_c");
     bad += spec_data(data_game_iat_wstring_dtor, "game.iat_wstring_dtor");
     bad += spec_data(data_game_iat_wstring_format, "game.iat_wstring_format");
@@ -457,6 +478,7 @@ internal int spec_game_check(void) {
     bad += spec_code((uintptr_t)fn_resign_send, "game_functions.resign_send");
     bad += spec_code((uintptr_t)fn_save_game, "game_functions.save_game");
     bad += spec_code((uintptr_t)fn_settings_save_game, "game_functions.settings_save_game");
+    bad += spec_code((uintptr_t)fn_error_box, "game_functions.error_box");
     bad += spec_code((uintptr_t)fn_vector_free, "game_functions.vector_free");
     return bad;
 }

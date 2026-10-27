@@ -66,6 +66,25 @@ internal inline int *setup_0x3fc_at(const ee_setup *o) { return (int *)((uint8_t
 // the setup copy 0x524B8F and game_start
 internal inline uint8_t *setup_flags_at(const ee_setup *o) { return (uint8_t *)o + of_setup_flags; }
 
+// static class setup
+// the setup the menus edit
+// the setup the menus and the multiplayer lobby edit (16 slots, then the settings: ee_setup's layout) - each PC
+// of a multiplayer game holds one, kept alike by the lobby's messages; the Start button checks it
+// (setup_functions.lobby_start) and every PC's game starts from its own when the start message comes
+internal inline ee_setup *setup_lobby_at(void) { return (ee_setup *)(uint8_t *)(uintptr_t)data_setup_lobby; }
+// the setup a lobby starts from: the host / join action (EEAJoinOrHostAGame) copies it into lobby (0x524B8F) before
+// it connects
+internal inline ee_setup *setup_lobby_source_at(void) { return (ee_setup *)(uint8_t *)(uintptr_t)data_setup_lobby_source; }
+
+// static class setup_functions
+// EEUIELEStart::vf1, the game setup screen's Start button - stdcall(UIForm* form, p2; ecx unused): checks the
+// setup (two players at least, each human once - else a message box), closes the game to new players, sends the
+// start message (kind 0x5D: rand() after srand(TMGetTime()), the humans' count) to every PC and saves the
+// settings; form: the screen (game.iat_form_by_id 0x1A), its element 10 switched off
+typedef int (__stdcall *lobby_start_fn)(void *, int);
+internal lobby_start_fn fn_lobby_start;
+internal inline int lobby_start(void *form, int p2) { return fn_lobby_start(form, p2); }
+
 // class ee_setup_slot (ee_setup_slot)
 // the game setup's player slots, 0x38 each
 // the setup code
@@ -128,6 +147,9 @@ internal int spec_setup_select(int build) {
         of_setup_difficulty = 0x3F8;
         of_setup_0x3fc = 0x3FC;
         of_setup_flags = 0x400;
+        data_setup_lobby = 0x0091881C;
+        data_setup_lobby_source = 0x00918EAC;
+        fn_lobby_start = (lobby_start_fn)0x005C9B91;
         of_setup_slot_type = 0x0;
         of_setup_slot_0x4 = 0x4;
         of_setup_slot_name = 0x8;
@@ -156,6 +178,9 @@ internal int spec_setup_select(int build) {
         of_setup_difficulty = 0x3F8;
         of_setup_0x3fc = 0x3FC;
         of_setup_flags = 0x400;
+        data_setup_lobby = 0x0093125C;
+        data_setup_lobby_source = 0x0093030C;
+        fn_lobby_start = (lobby_start_fn)0x005DA6B3;
         of_setup_slot_type = 0x0;
         of_setup_slot_0x4 = 0x4;
         of_setup_slot_name = 0x8;
@@ -176,5 +201,8 @@ internal const char *const k_spec_setup_missing[ADDR_BUILDS] = { "", "" };
 // the load-time check: what the spec says of the running build's exe (spec_check): the failures
 internal int spec_setup_check(void) {
     int bad = 0;
+    bad += spec_data(data_setup_lobby, "setup.lobby");
+    bad += spec_data(data_setup_lobby_source, "setup.lobby_source");
+    bad += spec_code((uintptr_t)fn_lobby_start, "setup_functions.lobby_start");
     return bad;
 }

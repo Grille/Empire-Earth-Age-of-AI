@@ -71,6 +71,32 @@ unsafe struct ee_setup
     block flags;
 }
 
+/// the setup the menus edit
+static unsafe class setup
+{
+    /// the setup the menus and the multiplayer lobby edit (16 slots, then the settings: ee_setup's layout) - each PC
+    /// of a multiplayer game holds one, kept alike by the lobby's messages; the Start button checks it
+    /// (setup_functions.lobby_start) and every PC's game starts from its own when the start message comes
+    [address((ee)0x0091881C, (aoc)0x0093125C)]
+    static ee_setup lobby;
+
+    /// the setup a lobby starts from: the host / join action (EEAJoinOrHostAGame) copies it into lobby (0x524B8F) before
+    /// it connects
+    [address((ee)0x00918EAC, (aoc)0x0093030C)]
+    static ee_setup lobby_source;
+}
+
+[c_prefix("")]
+static unsafe class setup_functions
+{
+    /// EEUIELEStart::vf1, the game setup screen's Start button - stdcall(UIForm* form, p2; ecx unused): checks the
+    /// setup (two players at least, each human once - else a message box), closes the game to new players, sends the
+    /// start message (kind 0x5D: rand() after srand(TMGetTime()), the humans' count) to every PC and saves the
+    /// settings; form: the screen (game.iat_form_by_id 0x1A), its element 10 switched off
+    [address((ee)0x005C9B91, (aoc)0x005DA6B3), stdcall]
+    static extern int32 lobby_start(void* form, int32 p2);
+}
+
 /// the game setup's player slots, 0x38 each
 unsafe struct ee_setup_slot
 {

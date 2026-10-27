@@ -21,6 +21,12 @@ internal inline void **ui_actions_lock_at(const ee_ui *o) { return (void **)((ui
 internal inline uint32_t ui_get_seed(const ee_ui *o) { return *(uint32_t *)((uint8_t *)o + of_ui_seed); }
 internal inline void ui_set_seed(ee_ui *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_seed) = v; }
 internal inline uint32_t *ui_seed_at(const ee_ui *o) { return (uint32_t *)((uint8_t *)o + of_ui_seed); }
+// this PC's bar on the multiplayer loading screen (form 0x17): the lobby slot flagged local (+0x34's low byte),
+// set when the screen opens (EEUIESSEOpen::vf1 0x5D12AC; kept if no slot is) - the loading percentage this PC
+// sends names it (EEMLoadPercent +0x14, 0x6620A1), every PC's screen indexes its bars with it (0x661793)
+internal inline int ui_get_loading_bar(const ee_ui *o) { return *(int *)((uint8_t *)o + of_ui_loading_bar); }
+internal inline void ui_set_loading_bar(ee_ui *o, int v) { *(int *)((uint8_t *)o + of_ui_loading_bar) = v; }
+internal inline int *ui_loading_bar_at(const ee_ui *o) { return (int *)((uint8_t *)o + of_ui_loading_bar); }
 typedef void (__thiscall *ui_queue_action_fn)(ee_ui *, void *);
 internal ui_queue_action_fn fn_ui_queue_action;
 internal inline void ui_queue_action(ee_ui *ui, void *action) { fn_ui_queue_action(ui, action); }
@@ -206,6 +212,22 @@ typedef void *(__thiscall *save_action_init_fn)(ee_save_action *, struct ustring
 internal save_action_init_fn fn_save_action_init;
 internal inline void *save_action_init(ee_save_action *save_action, struct ustring *path, int flag, struct ustring dir) { return fn_save_action_init(save_action, path, flag, dir); }
 
+// class EEAJoinOrHostAGame (ee_join_action)
+// the multiplayer menu's host or join action (EEAJoinOrHostAGame, 0x38 bytes): its Execute (slot 1, 0x402BB8) checks
+// the player's name (+0x10) and the game's (+0x24: no control characters, ' " \ @, no space first, last or twice -
+// else an error box), makes [game.server] - host (mode 0): an EEServer that publishes the game; join by address
+// (mode 2): an EEClient that connects to the address in +0x24 - and opens the game setup screen (0x1A). The
+// command line's -hostgame / -joinbyip queue one too (parse_cmdline 0x5227E4 / 0x52290D), but then replace the
+// server they made with another client: the game hangs in the menus
+// EEAJoinOrHostAGame(mode, player name, game name or address) - both UWideStrings, copied
+typedef void (__thiscall *join_action_init_fn)(ee_join_action *, int, struct wstring *, struct wstring *);
+internal join_action_init_fn fn_join_action_init;
+internal inline void join_action_init(ee_join_action *join_action, int mode, struct wstring *player, struct wstring *game) { fn_join_action_init(join_action, mode, player, game); }
+// 0 host, 1 join a detected game, 2 / 3 join by address, 4 host (another kind of server)
+internal inline int join_action_get_mode(const ee_join_action *o) { return *(int *)((uint8_t *)o + of_join_action_mode); }
+internal inline void join_action_set_mode(ee_join_action *o, int v) { *(int *)((uint8_t *)o + of_join_action_mode) = v; }
+internal inline int *join_action_mode_at(const ee_join_action *o) { return (int *)((uint8_t *)o + of_join_action_mode); }
+
 // class EEACenterCamera (ee_center_camera)
 // the centre-the-camera action (EEACenterCamera)
 // EEACenterCamera ctor (0x1C bytes)
@@ -290,6 +312,7 @@ internal int spec_ui_select(int build) {
         of_ui_thread = 0x40;
         of_ui_actions_lock = 0x44;
         of_ui_seed = 0x54;
+        of_ui_loading_bar = 0x58;
         fn_ui_queue_action = (ui_queue_action_fn)0x0066192F;
         fn_ui_screenshot = (ui_screenshot_fn)0x00661B04;
         fn_ui_line = (ui_line_fn)0x00661E91;
@@ -343,6 +366,9 @@ internal int spec_ui_select(int build) {
         call_editor_form = 0x0065BA13;
         vt_eea_save_game = 0x00825084;
         fn_save_action_init = (save_action_init_fn)0x00404FA1;
+        vt_eea_join_or_host_a_game = 0x00824C34;
+        fn_join_action_init = (join_action_init_fn)0x00402B1E;
+        of_join_action_mode = 0xC;
         vt_eea_center_camera = 0x0082D2F0;
         fn_center_camera_init = (center_camera_init_fn)0x00560179;
         fn_center_camera_set = (center_camera_set_fn)0x00401F3E;
@@ -388,6 +414,7 @@ internal int spec_ui_select(int build) {
         of_ui_thread = 0x40;
         of_ui_actions_lock = 0x44;
         of_ui_seed = 0x54;
+        of_ui_loading_bar = 0x58;
         fn_ui_queue_action = (ui_queue_action_fn)0x00678F79;
         fn_ui_screenshot = (ui_screenshot_fn)0x00679139;
         fn_ui_line = (ui_line_fn)0x006794C6;
@@ -441,6 +468,9 @@ internal int spec_ui_select(int build) {
         call_editor_form = 0x00673E9B;
         vt_eea_save_game = 0x00839060;
         fn_save_action_init = (save_action_init_fn)0x00404613;
+        vt_eea_join_or_host_a_game = 0x00838C08;
+        fn_join_action_init = (join_action_init_fn)0x00402086;
+        of_join_action_mode = 0xC;
         vt_eea_center_camera = 0x00842BA0;
         fn_center_camera_init = (center_camera_init_fn)0x0056FAD4;
         fn_center_camera_set = (center_camera_set_fn)0x00401EE0;
@@ -511,6 +541,8 @@ internal int spec_ui_check(void) {
     bad += spec_call(call_editor_form, (uintptr_t)fn_editor_form_init, "EEUIFScenarioEditor.init [call_site editor_form]");
     bad += spec_vtable(vt_eea_save_game, ".?AVEEASaveGame@@", "EEASaveGame [vtable]");
     bad += spec_code((uintptr_t)fn_save_action_init, "EEASaveGame.init");
+    bad += spec_vtable(vt_eea_join_or_host_a_game, ".?AVEEAJoinOrHostAGame@@", "EEAJoinOrHostAGame [vtable]");
+    bad += spec_code((uintptr_t)fn_join_action_init, "EEAJoinOrHostAGame.init");
     bad += spec_vtable(vt_eea_center_camera, ".?AVEEACenterCamera@@", "EEACenterCamera [vtable]");
     bad += spec_code((uintptr_t)fn_center_camera_init, "EEACenterCamera.init");
     bad += spec_code((uintptr_t)fn_center_camera_set, "EEACenterCamera.set");

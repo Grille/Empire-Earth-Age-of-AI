@@ -414,6 +414,31 @@ what every PC computes alike (the AI, the scenario's triggers, the mod's scripts
 - The game's own recipients: none in the message - the chat's execute reads its sender's chat mode (player +0x9E0:
   all, allies, enemies, chosen at +0xB2C) on each PC.
 
+## Multiplayer lobby
+
+How a game gets from the menu to a started multiplayer game - what the multiplayer test (dll/test/netgame.c,
+docs/testing.md "Multiplayer test games") does by hand, 2026-10-27:
+- Host and join are one UI action, EEAJoinOrHostAGame (spec/game/ui.cs; 0x38 bytes, mode +0xC: 0 host, 2 join by
+  IP; the player's and the game's name or address). Its Execute checks the names, makes an EEServer (host) or an
+  EEClient (join), copies the setup at 0x918EAC into the lobby's (0x91881C), sets 0x918C24 (a multiplayer setup),
+  opens the game setup screen (form 0x1A) and sends the server a connection request (kind 0x22). The command line's
+  `-hostgame "player" "game"` / `-joinbyip "player" "ip"` queue the same action, but the start then replaces the server
+  it made with another client: the game hangs in the menus (both builds).
+- The server's connection handler (0x4C26FF, through EEServer vf23 for its own PC, vf27 for the network's) seats a
+  player who connects (the host first, from slot 0; a joiner from slot 1): with 0x918C24 set only in a human slot
+  (type 1/2) of that player's name - the online lobby names them in advance - else, in a random-map setup, the first
+  open slot (type 3); otherwise it refuses (reply code 3). A saved game's setup (game type 2: the test saves leave it
+  there) seats only its players, by name. Seated, the slot's record goes to every PC as EEMPlayerInformation (kind
+  0x5B) for the slot named in the record's +0x20 - a slot named in advance needs its own number there, or the record
+  lands in another slot (0 by default: over the host's). The seats: EEServer +0x21C (a map seat -> network slot,
+  0x4C37C4).
+- Start (EEUIELEStart::vf1 0x5C9B91, stdcall(form, 0)) refuses fewer than two players, humans of one colour (+0x24,
+  text 0x2720) and a human not ready (+0x35, the lobby's Ready box: text 0x2739); at the end it switches the Start
+  button off (the form's element table +0xF8, element 10, its vtable slot 26). Then the start message (kind 0x5D:
+  seed, the humans) reaches every PC, and each starts from its own copy of the lobby's setup - its own player is the
+  slot flagged local (+0x34's low byte); on every PC the host's messages arrive from 0xFE.
+- The game's error boxes (0x65C6A9, 87 calls) wait for a click: a headless test logs them (`# error box`).
+
 ## Text on surfaces
 
 - DX7Surface (display DLLs, 0x60 bytes): +0x48 IDirectDrawSurface7, +0x54 text HDC, +0x5D text locked. TextLock

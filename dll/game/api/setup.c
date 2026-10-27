@@ -10,4 +10,5 @@ internal inline void setup_set_flag(ee_setup *setup, int i, uint8_t v) { FIELD(s
 // +0x2C citizens, +0x34 flags; +0x4 (3), +0x1C, +0x30 (0) not known
 internal inline void setup_slot_set_unknown_4(ee_setup_slot *slot, int v) { FIELD(slot, of_setup_slot_0x4, int) = v; }
 internal inline void setup_slot_set_unknown_1c(ee_setup_slot *slot, int v) { FIELD(slot, of_setup_slot_0x1c, int) = v; }
+internal inline int setup_slot_get_unknown_1c(const ee_setup_slot *slot) { return FIELD(slot, of_setup_slot_0x1c, int); }   // a lobby's human: the network's slot
 internal inline void setup_slot_set_unknown_30(ee_setup_slot *slot, int v) { FIELD(slot, of_setup_slot_0x30, int) = v; }

@@ -247,6 +247,7 @@ internal void sync_step(void *phys) {   // after each step (control.c hook_phys_
     EnterCriticalSection(&g_lock);
     fprintf(g_sync, "%u %u %u %u %08x %u %08x\n", physics_get_steps(phys), physics_get_time(phys),
             physics_get_seed(phys), input_msgs_done(), h, su.n, su.h);
+    fflush(g_sync);   // whole to the last step when the game quits (two PCs' traces are diffed to the shorter one)
     if (g_sync_dump0 && physics_get_time(phys) >= g_sync_dump0 && physics_get_time(phys) <= g_sync_dump1)
         grid_each(sync_unit_dump, NULL);
     if (!--g_sync_left) { fclose(g_sync); g_sync = NULL; }

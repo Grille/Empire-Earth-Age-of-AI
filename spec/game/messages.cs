@@ -298,6 +298,15 @@ unsafe struct EEServer
     /// NESynchronousServer::TuneForSlowCPU (port_dll.py)
     [offset(0x1FB), found(c)]
     uint8 rate;
+
+    /// the players of a running game (NESynchronousServer::GetNumberOfPlayers; 0 in the lobby)
+    [offset(0x1FD), found(c)]
+    uint8 players;
+
+    /// EEServer's players seated in the lobby, the host's own too: the count of its map from a player's index to its
+    /// network slot (+0x214, the end node +0x218 - 0x4C37C4 looks one up; the connection handler 0x4C26FF adds them)
+    [offset(0x21C), found(b)]
+    uint32 seated;
 }
 
 /// the new-unit message, the cheat that makes a unit (EEMHackANewUnit)
@@ -342,6 +351,13 @@ unsafe struct EEMCheatCode
 /// messages's data of the game, places in its code and numbers
 static unsafe class messages
 {
+    /// [game.server]'s class: EEServer on the PC that hosts (a single-player game's too), EEClient on one that joined
+    [address((ee)0x00829718, (aoc)0x0083E384)]
+    static vftable vt_server;
+
+    [address((ee)0x008283C4, (aoc)0x0083D054)]
+    static vftable vt_client;
+
     /// msg_cheat_init
     [value(24)]
     static uint32 size_cheat_msg;

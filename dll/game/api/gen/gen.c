@@ -32,6 +32,7 @@ typedef struct ee_active_group ee_active_group;
 typedef struct ee_path_mgr ee_path_mgr;
 typedef struct ee_editor_form ee_editor_form;
 typedef struct ee_save_action ee_save_action;
+typedef struct ee_join_action ee_join_action;
 typedef struct ee_center_camera ee_center_camera;
 typedef struct ee_effect_mgr ee_effect_mgr;
 typedef struct ee_ghost_unit ee_ghost_unit;
@@ -103,6 +104,7 @@ internal int spec_imports(void) {
     bad += spec_import(&data_engine_sound_iat_snd_play, "Low-Level Engine.dll", "?Play@SESoundManager@@QAEKKMMM_NPAD@Z", "engine_sound.iat_snd_play");
     bad += spec_import(&data_engine_sound_iat_snd_playref, "Low-Level Engine.dll", "?PlayAndReturnReferencedNode@SESoundManager@@QAEPAVSESMInstanceNode@@KMMM_NPAD@Z", "engine_sound.iat_snd_playref");
     bad += spec_import(&data_engine_sound_iat_snd_setmaxch, "Low-Level Engine.dll", "?SetMaxChannels@SESoundManager@@QAEJK@Z", "engine_sound.iat_snd_setmaxch");
+    bad += spec_import(&data_game_iat_form_by_id, "Low-Level Engine.dll", "?GetFormByID@UIManager@@QBEPAVUIForm@@K@Z", "game.iat_form_by_id");
     bad += spec_import(&data_game_iat_cos, "Low-Level Engine.dll", "?UMCos@@YAMM@Z", "game.iat_cos");
     bad += spec_import(&data_game_iat_rand, "msvcrt.dll", "rand", "game.iat_rand");
     bad += spec_import(&data_game_iat_release, "Low-Level Engine.dll", "?Dereference@UReferenceCounter@@QAEXXZ", "game.iat_release");
@@ -114,6 +116,7 @@ internal int spec_imports(void) {
     bad += spec_import(&data_game_iat_ustring_dtor, "Low-Level Engine.dll", "??1UString@@UAE@XZ", "game.iat_ustring_dtor");
     bad += spec_import(&data_game_iat_wstring_assign, "Low-Level Engine.dll", "??4UWideString@@QAEAAV0@PBD@Z", "game.iat_wstring_assign");
     bad += spec_import(&data_game_iat_wstring_ctor, "Low-Level Engine.dll", "??0UWideString@@QAE@XZ", "game.iat_wstring_ctor");
+    bad += spec_import(&data_game_iat_wstring_copy, "Low-Level Engine.dll", "??4UWideString@@QAEAAV0@ABV0@@Z", "game.iat_wstring_copy");
     bad += spec_import(&data_game_iat_wstring_ctor_c, "Low-Level Engine.dll", "??0UWideString@@QAE@PBD@Z", "game.iat_wstring_ctor_c");
     bad += spec_import(&data_game_iat_wstring_dtor, "Low-Level Engine.dll", "??1UWideString@@UAE@XZ", "game.iat_wstring_dtor");
     bad += spec_import(&data_game_iat_wstring_format, "Low-Level Engine.dll", "?sprintf@@YAJAAVUWideString@@PBDZZ", "game.iat_wstring_format");

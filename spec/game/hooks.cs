@@ -178,10 +178,15 @@ static unsafe class hooks_functions
 [dll("TCP Protocol.dll")]
 static unsafe class tcp_protocol
 {
-    /// the network ports' immediates (UDP 33334, TCP 33335), moved for a test slot
+    /// the ports a joining game connects to - NPIMConnectForXfer's 33335, NPIMConnect's 33334 (a detected game's
+    /// address, a name or an IP): a test slot that joins another slot's game moves them by that slot's offset
     [address((ee)0x000017E2, (aoc)0x00001684)]
     [address((ee)0x0000196F, (aoc)0x0000185C)]
     [address((ee)0x000019EB, (aoc)0x000018D8)]
+    static code connect_ports;
+
+    /// the network ports' immediates a game listens on and broadcasts to (UDP 33334, TCP 33335: NPIMPublish's ...),
+    /// moved for a test slot
     [address((ee)0x00001EB8, (aoc)0x00001DA5)]
     [address((ee)0x00001FBD, (aoc)0x00001EAA)]
     [address((ee)0x00002148, (aoc)0x00002035)]

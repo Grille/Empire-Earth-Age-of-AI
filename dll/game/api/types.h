@@ -80,8 +80,9 @@ typedef struct ee_sound_node ee_sound_node;     // E_SNDNODE: a playing sound (S
 typedef struct ee_sample ee_sample;             // E_SAMPLE: a sample (SESample)
 typedef struct ee_mixer ee_mixer;               // E_MIXER: the mixer plugin's functions (SEMixer)
 
-// the game's UString (passed by value to some of its functions)
+// the game's UString (passed by value to some of its functions), its UWideString (8-bit characters too)
 struct ustring { uint8_t raw[16]; };
+struct wstring { uint8_t raw[16]; };
 
 // Objects with no fields read yet (the wall manager, the UI manager, a behaviour ...) are void *; uint8_t * is a byte
 // (a flag's address) or a runtime-library vector's elements stepped by their size.

@@ -286,7 +286,9 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
         fflush(g_log);
         LeaveCriticalSection(&g_lock);
     }
-    if (g_autotest && g_rm.map[0] && mode == 2) randmap_rewrite(setup);
+    // a test's random map: from the -loadgame start's setup, or (multiplayer, test/netgame.c) the lobby's
+    if (g_autotest && g_rm.map[0] && (mode == 2 || g_net.mode)) randmap_rewrite(setup);
+    if (g_autotest) mp_game_start();
     if (g_autotest && g_auto.scenario_mode && mode == 2 && name) {
         size_t n = strlen(name);
         if (n > 4 && !lstrcmpiA(name + n - 4, ".ees")) memcpy(name + n - 4, ".scn", 4);   // same length, in place
@@ -613,7 +615,7 @@ internal void install(HMODULE self) {
         if (g_log) fprintf(g_log, "# autotest: game_seed=%d (srand hook %s, start message hook %s)\n", g_auto.game_seed,
                            ok ? "ok" : "FAILED", start ? "ok" : "FAILED");
     }
-    if (g_autotest) { watch_start(g_ini); trace_start(g_ini); sync_trace_start(g_ini); }
+    if (g_autotest) { watch_start(g_ini); trace_start(g_ini); sync_trace_start(g_ini); mp_start(); }
     AddVectoredExceptionHandler(1, crash_handler);   // logs the first exceptions (module+offset, backtrace) - also in normal play
 }
 

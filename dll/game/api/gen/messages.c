@@ -571,6 +571,15 @@ internal inline uint32_t *server_rate_min_at(const ee_server *o) { return (uint3
 internal inline uint8_t server_get_rate(const ee_server *o) { return *(uint8_t *)((uint8_t *)o + of_server_rate); }
 internal inline void server_set_rate(ee_server *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_server_rate) = v; }
 internal inline uint8_t *server_rate_at(const ee_server *o) { return (uint8_t *)((uint8_t *)o + of_server_rate); }
+// the players of a running game (NESynchronousServer::GetNumberOfPlayers; 0 in the lobby)
+internal inline uint8_t server_get_players(const ee_server *o) { return *(uint8_t *)((uint8_t *)o + of_server_players); }
+internal inline void server_set_players(ee_server *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_server_players) = v; }
+internal inline uint8_t *server_players_at(const ee_server *o) { return (uint8_t *)((uint8_t *)o + of_server_players); }
+// EEServer's players seated in the lobby, the host's own too: the count of its map from a player's index to its
+// network slot (+0x214, the end node +0x218 - 0x4C37C4 looks one up; the connection handler 0x4C26FF adds them)
+internal inline uint32_t server_get_seated(const ee_server *o) { return *(uint32_t *)((uint8_t *)o + of_server_seated); }
+internal inline void server_set_seated(ee_server *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_server_seated) = v; }
+internal inline uint32_t *server_seated_at(const ee_server *o) { return (uint32_t *)((uint8_t *)o + of_server_seated); }
 
 // class EEMHackANewUnit (ee_new_unit_msg)
 // the new-unit message, the cheat that makes a unit (EEMHackANewUnit)
@@ -685,6 +694,9 @@ internal inline int *cheat_msg_arg_at(const ee_cheat_msg *o) { return (int *)((u
 
 // static class messages
 // messages's data of the game, places in its code and numbers
+// [game.server]'s class: EEServer on the PC that hosts (a single-player game's too), EEClient on one that joined
+internal inline uint8_t *messages_vt_server_at(void) { return (uint8_t *)(uintptr_t)data_messages_vt_server; }
+internal inline uint8_t *messages_vt_client_at(void) { return (uint8_t *)(uintptr_t)data_messages_vt_client; }
 // msg_cheat_init
 // msg_chat_init
 // messages.vt_pay_tribute, messages.vt_ingame_chat, messages.vt_resign, messages.vt_msg_load, messages.vt_msg_unload: the message's Execute
@@ -793,6 +805,8 @@ internal int spec_messages_select(int build) {
         of_server_rate_max = 0x1B4;
         of_server_rate_min = 0x1B8;
         of_server_rate = 0x1FB;
+        of_server_players = 0x1FD;
+        of_server_seated = 0x21C;
         vt_eem_hack_a_new_unit = 0x00829338;
         fn_new_unit_msg_init = (new_unit_msg_init_fn)0x00650B3C;
         of_new_unit_msg_unit_type = 0x10;
@@ -802,6 +816,8 @@ internal int spec_messages_select(int build) {
         fn_cheat_msg_init = (cheat_msg_init_fn)0x005C29FB;
         of_cheat_msg_code = 0x10;
         of_cheat_msg_arg = 0x14;
+        data_messages_vt_server = 0x00829718;
+        data_messages_vt_client = 0x008283C4;
         value_messages_size_cheat_msg = 24;
         value_messages_size_msg_chat = 36;
         value_messages_slot_msg_execute = 10;
@@ -886,6 +902,8 @@ internal int spec_messages_select(int build) {
         of_server_rate_max = 0x1B4;
         of_server_rate_min = 0x1B8;
         of_server_rate = 0x1FB;
+        of_server_players = 0x1FD;
+        of_server_seated = 0x21C;
         vt_eem_hack_a_new_unit = 0x0083E088;
         fn_new_unit_msg_init = (new_unit_msg_init_fn)0x00662C24;
         of_new_unit_msg_unit_type = 0x10;
@@ -895,6 +913,8 @@ internal int spec_messages_select(int build) {
         fn_cheat_msg_init = (cheat_msg_init_fn)0x005D3162;
         of_cheat_msg_code = 0x10;
         of_cheat_msg_arg = 0x14;
+        data_messages_vt_server = 0x0083E384;
+        data_messages_vt_client = 0x0083D054;
         value_messages_size_cheat_msg = 24;
         value_messages_size_msg_chat = 36;
         value_messages_slot_msg_execute = 10;
@@ -940,6 +960,8 @@ internal int spec_messages_check(void) {
     bad += spec_code((uintptr_t)fn_new_unit_msg_init, "EEMHackANewUnit.init");
     bad += spec_vtable(vt_eem_cheat_code, ".?AVEEMCheatCode@@", "EEMCheatCode [vtable]");
     bad += spec_code((uintptr_t)fn_cheat_msg_init, "EEMCheatCode.init");
+    bad += spec_data(data_messages_vt_server, "messages.vt_server");
+    bad += spec_data(data_messages_vt_client, "messages.vt_client");
     bad += spec_data(data_messages_start_vtbl_exec, "messages.start_vtbl_exec");
     bad += spec_data(data_messages_vt_ingame_chat, "messages.vt_ingame_chat");
     bad += spec_data(data_messages_vt_msg_load, "messages.vt_msg_load");

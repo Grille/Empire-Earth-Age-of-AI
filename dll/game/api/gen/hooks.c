@@ -74,7 +74,10 @@ internal inline int patch_other_resolution(set_resolution_fn h, int *of) { retur
 
 // static class tcp_protocol
 // TCP Protocol.dll's code (each build ships its own): its places relative to the DLL's base
-// the network ports' immediates (UDP 33334, TCP 33335), moved for a test slot
+// the ports a joining game connects to - NPIMConnectForXfer's 33335, NPIMConnect's 33334 (a detected game's
+// address, a name or an IP): a test slot that joins another slot's game moves them by that slot's offset
+// the network ports' immediates a game listens on and broadcasts to (UDP 33334, TCP 33335: NPIMPublish's ...),
+// moved for a test slot
 
 // the running build's values (spec_select, with addr_select): how many it hasn't got
 internal int spec_hooks_select(int build) {
@@ -142,14 +145,14 @@ internal int spec_hooks_select(int build) {
         calls_other_resolution[4] = 0x00660CD3;
         calls_other_resolution[5] = 0x00661329;
         calls_other_resolution[6] = 0x00661363;
-        data_tcp_protocol_ports[0] = 0x000017E2;
-        data_tcp_protocol_ports[1] = 0x0000196F;
-        data_tcp_protocol_ports[2] = 0x000019EB;
-        data_tcp_protocol_ports[3] = 0x00001EB8;
-        data_tcp_protocol_ports[4] = 0x00001FBD;
-        data_tcp_protocol_ports[5] = 0x00002148;
-        data_tcp_protocol_ports[6] = 0x0000279C;
-        data_tcp_protocol_ports[7] = 0x00002F2C;
+        data_tcp_protocol_connect_ports[0] = 0x000017E2;
+        data_tcp_protocol_connect_ports[1] = 0x0000196F;
+        data_tcp_protocol_connect_ports[2] = 0x000019EB;
+        data_tcp_protocol_ports[0] = 0x00001EB8;
+        data_tcp_protocol_ports[1] = 0x00001FBD;
+        data_tcp_protocol_ports[2] = 0x00002148;
+        data_tcp_protocol_ports[3] = 0x0000279C;
+        data_tcp_protocol_ports[4] = 0x00002F2C;
         return 0;
     case 1:   // aoc
         of_draw_record_color = 0x40;
@@ -214,14 +217,14 @@ internal int spec_hooks_select(int build) {
         calls_other_resolution[4] = 0x0067831D;
         calls_other_resolution[5] = 0x00678973;
         calls_other_resolution[6] = 0x006789AD;
-        data_tcp_protocol_ports[0] = 0x00001684;
-        data_tcp_protocol_ports[1] = 0x0000185C;
-        data_tcp_protocol_ports[2] = 0x000018D8;
-        data_tcp_protocol_ports[3] = 0x00001DA5;
-        data_tcp_protocol_ports[4] = 0x00001EAA;
-        data_tcp_protocol_ports[5] = 0x00002035;
-        data_tcp_protocol_ports[6] = 0x00002689;
-        data_tcp_protocol_ports[7] = 0x00002E1C;
+        data_tcp_protocol_connect_ports[0] = 0x00001684;
+        data_tcp_protocol_connect_ports[1] = 0x0000185C;
+        data_tcp_protocol_connect_ports[2] = 0x000018D8;
+        data_tcp_protocol_ports[0] = 0x00001DA5;
+        data_tcp_protocol_ports[1] = 0x00001EAA;
+        data_tcp_protocol_ports[2] = 0x00002035;
+        data_tcp_protocol_ports[3] = 0x00002689;
+        data_tcp_protocol_ports[4] = 0x00002E1C;
         return 0;
     }
     return 0;

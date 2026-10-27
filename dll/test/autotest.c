@@ -3,6 +3,7 @@
 // name must not contain '-' or '/'). This mode adds: skip intro movies, quit after N game minutes.
 internal struct { int skip_intro, scenario_mode, turbo, game_seed; double quit_minutes; float speed; } g_auto;
 
+#include "test/netgame.c"
 #include "test/randmap.c"
 
 // A slot's DDrawCompat log: DDrawCompat (as ddraw.dll) writes DDrawCompat-<exe>[n].log beside the exe, n the first one
@@ -40,6 +41,7 @@ internal void load_autotest(const char *ini) {
     g_auto.turbo = ini_int("autotest", "turbo", 0, ini);
     g_auto.game_seed = ini_int("autotest", "game_seed", 0, ini);
     GetPrivateProfileStringA("autotest", "setup", "", g_setup_path, sizeof g_setup_path, ini);
+    mp_load(ini);   // before randmap_load: the unit limit counts the humans
     randmap_load(ini);
     g_auto.speed = (float)ini_num("autotest", "speed", 0, ini);
 }
@@ -59,7 +61,8 @@ internal BOOL skip_intro_movies(void) { return patch_skip_intro(); }
 // 33334 and TCP 33335 (push/mov immediates in TCP Protocol.dll). A second game can't, NEProtocol::Publish fails and
 // NESynchronousServer::ProcessLocalUserInput later reads its missing record object (+0x16C): a crash. Slot n: +2n.
 // At the command line, not in DllMain: the engine loads the module later (LoadLibrary under the loader lock is none of
-// ours); loaded here it stays, and the engine's own LoadLibrary gets this copy.
+// ours); loaded here it stays, and the engine's own LoadLibrary gets this copy. A slot that joins another's game
+// (netgame.c) connects to that slot's ports.
 internal void slot_ports(void) {
     static int done;
     if (!g_slot || done) return;
@@ -68,9 +71,10 @@ internal void slot_ports(void) {
     wsprintfA(p, "%sTCP Protocol.dll", g_game_dir);
     HMODULE m = GetModuleHandleA("TCP Protocol.dll");
     if (!m) m = LoadLibraryA(p);
-    int n = patch_tcp_ports(m, 2 * g_slot);
-    char t[80];
-    wsprintfA(t, "%d/%d (%d of 8 patched)", 33334 + 2 * g_slot, 33335 + 2 * g_slot, n);
+    int n = patch_tcp_ports(m, 2 * g_slot, 2 * mp_connect_slot());
+    char t[120];
+    wsprintfA(t, "%d/%d, connecting to %d/%d (%d of 8 patched)", 33334 + 2 * g_slot, 33335 + 2 * g_slot,
+              33334 + 2 * mp_connect_slot(), 33335 + 2 * mp_connect_slot(), n);
     log_line("# slot: network ports %s\n", t);
 }
 internal char __cdecl hook_parse_cmdline(const char *cmd) {
@@ -99,12 +103,13 @@ internal void run_setup(uint32_t now);
 // from 170 to 60 ms - and two runs of the same game_seed parted there. Test runs hold the pace every game has from its
 // first steps on (44 a second: 15 steps a 350 ms tick; the range is 15-125) - a constant, the same on every machine (the
 // constructor's 120 is tuned down to 44 before the first tick: held at 120 the runs parted at once). A player's game
-// keeps the tuning.
+// keeps the tuning. The host's alone: a PC that joined has a client there (EEClient, no such fields), and the
+// host's server sets the pace for every PC.
 #define TEST_STEPS_A_SECOND 44
 internal void pin_server_pace(void) {
     ee_server *srv = game_server();
     const unsigned rate = TEST_STEPS_A_SECOND;
-    if (!srv || (server_get_rate_max(srv) == rate && server_get_rate_min(srv) == rate)) return;
+    if (!net_hosting() || (server_get_rate_max(srv) == rate && server_get_rate_min(srv) == rate)) return;
     if (g_log) fprintf(g_log, "# autotest: server pace held at %u steps a second (its range was %u-%u, now %u)\n", rate,
                        server_get_rate_min(srv), server_get_rate_max(srv), server_get_rate(srv));
     server_set_rate_max(srv, rate);
