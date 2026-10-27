@@ -23,8 +23,8 @@ welcome on the same terms as any other: you answer for what you send - you have 
 
 **Out of scope**
 
-- **Other exes**: old CD versions, no-CD exes, NeoEE. The mod supports the 1.04 exe of the 2017 update (GOG, Steam
-  Gold Edition, empireearth.eu's Vanilla setup) and is being ported to Art of Conquest; a third build is a large job
+- **Other exes**: old CD versions, no-CD exes. The mod supports the 1.04 exe of the 2017 update (GOG, Steam
+  Gold Edition, empireearth.eu's Vanilla setup, NeoEE's) and is being ported to Art of Conquest; a third build is a large job
   and needs talking about first.
 - **An AI that cheats or sees what a human can't**: no free resources, no map knowledge it hasn't explored, no
   enemy units it doesn't see. An easier AI for the easy difficulty is fine; a stronger one through cheating is not.

@@ -1,16 +1,18 @@
 // PATCHING the game's code: a call, a 32-bit operand, an import slot - each only while it holds what it is expected to
 
-// the exe's code section (.text) and its whole image, from its PE header (the same test for every build): "the game's
-// code" - by its name: the 2017 update flags every section as data (AoC's .text says code)
+// the exe's code section and its whole image, from its PE header (the same test for every build): "the game's code" -
+// the section that holds BaseOfCode: the 2017 update flags every section as data (AoC's .text says code), and NeoEE's
+// copy protection layout shuffles the names (its game code is a section named .data)
 internal uintptr_t g_code_lo, g_code_hi, g_image_lo, g_image_hi;
 internal void image_ranges(void) {
     uint8_t *b = (uint8_t *)GetModuleHandleA(NULL);
     IMAGE_NT_HEADERS32 *nt = (IMAGE_NT_HEADERS32 *)(b + *(uint32_t *)(b + 0x3C));
     g_image_lo = (uintptr_t)b;
     g_image_hi = g_image_lo + nt->OptionalHeader.SizeOfImage;
+    uint32_t code = nt->OptionalHeader.BaseOfCode;
     IMAGE_SECTION_HEADER *s = IMAGE_FIRST_SECTION(nt);
     for (int i = 0; i < nt->FileHeader.NumberOfSections; i++, s++)
-        if (!memcmp(s->Name, ".text", 6)) {
+        if (code >= s->VirtualAddress && code - s->VirtualAddress < s->Misc.VirtualSize) {
             g_code_lo = (uintptr_t)b + s->VirtualAddress;
             g_code_hi = g_code_lo + s->Misc.VirtualSize;
             break;

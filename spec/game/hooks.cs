@@ -85,6 +85,7 @@ static unsafe class hooks
     [address((ee)0x008358A8, (aoc)0x0084B940)]
     static block float_1_800;
 
+    [import_slot("msvcrt.dll", "srand")]
     [address((ee)0x00824644, (aoc)0x00838638)]
     static block iat_srand;
 

@@ -1023,9 +1023,28 @@ slots' port patch (slot_ports) would not find all its places. data.ssa's db/ and
 4000 and three small values), dbgamevariant.dat, dbstartingresources.dat (more variants and start levels),
 dbuicontrols.dat. Beside the exe: dreXmod 3.4 (3.7 MB, much more than the 2021 build here: HUD, lobby, CheatDetector,
 TnL vertex buffer, pause rules, autosave on a crash), neoee.dll (loaded by the `.neoee` stub: punch_hole, get_peer),
-EEDiscord.dll, DX7HRGame.dll (a resolution limit remover), dgVoodoo 2.82's DDraw.dll / D3DImm.dll. Which code
-dreXmod 3.4 patches can't be read from the file (no address of the mod's hooks in it as a plain dword, nor its known
-0x534433): only a running game shows it.
+EEDiscord.dll, DX7HRGame.dll (a resolution limit remover), dgVoodoo 2.82's DDraw.dll / D3DImm.dll.
+
+At the main menu (memory against the file, 2026-10-27): the wrapper runs in the one process (no child) and leaves the
+code as the file has it; dreXmod 3.4 patches 116 places, nearly all a 5-byte jmp at a function's start (into
+dreXmod.dll), a few operands (the menu's resolution pushes 0x300 / 0x400 -> the game's, 0x65F2F9 / 0x65F304 /
+0x65FAC9, beside the mod's other_resolution call sites; a byte 08 -> 0A in the lobby's code). None shares a byte
+with a place the mod patches; one is a function the mod calls (player_out 0x52E2B7, dreXmod's jmp at its start:
+the call goes through dreXmod as the game's own do). `Low-Level Engine.dll` in memory: 3 changes, none of the mod's.
+dreXmod's FixTnLVertexBuffer does what [display] vertex_sysmem does (the caps operand is no longer the original
+when the mod looks: "NOT patched", the buffer in system memory all the same).
+
+**The mod on NeoEE (since 2026-10-27):** the `ee` column (builds.h: an exe row names its column), its import slots
+found by name in the exe file ([import_slot] - the file: NeoEE's name thunks are the slots themselves, so in memory
+they hold the functions); the start's log says `# build: NeoEE (ee's code)` and `# spec: 30 import slots elsewhere
+than the spec's`. Two things that took the section's name had to go by BaseOfCode: the copy protection's layout
+calls the game's code `.data` and has two `.text` sections (the game's data and its own stub) - image_ranges and
+patching.c's scans; and display.c's patch_iat on the exe finds a slot by the function it holds where the name thunks
+are the slots. Checked: 15-minute test games, GOG and NeoEE side by side (Continental seed 101, game_seed 1) - all
+598 checks hold on both, every hook the same, the economy at 15 minutes within a few citizens (NeoEE's dbworld.dat
+differs). AoC's NeoEE exe is a row too, not ready as AoC itself. Test runs there: EE_GAME_DIR=<NeoEE's game folder>
+(its single-instance check is NeoEE's own nop, run_test.ps1 warns that it found no je to nop), the mod's
+eeaimod.dll / dinput.dll in that folder, and newgame.ees in its Saved Games.
 
 **Single instance:** `0x53883F` creates the mutex "StainlessSteelStudiosPresentsEmpireEarth" (handle to 0x919860) and
 returns false when it already exists; its caller quits with the `je` at 0x535CDA (`0F 84 BE 02 00 00`; NeoEE nops these

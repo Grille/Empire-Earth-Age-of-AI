@@ -63,13 +63,16 @@ unsafe struct SESoundManager
 static unsafe class engine_sound
 {
     /// SESoundManager::Play(id, vol, pan, pitch, bool queue, char *) -> id or -1
+    [import_slot("Low-Level Engine.dll", "?Play@SESoundManager@@QAEKKMMM_NPAD@Z")]
     [address((ee)0x008232D0, (aoc)0x008372CC)]
     static block iat_snd_play;
 
     /// SESoundManager::PlayAndReturnReferencedNode(same) -> node or NULL
+    [import_slot("Low-Level Engine.dll", "?PlayAndReturnReferencedNode@SESoundManager@@QAEPAVSESMInstanceNode@@KMMM_NPAD@Z")]
     [address((ee)0x008233EC, (aoc)0x00837380)]
     static block iat_snd_playref;
 
+    [import_slot("Low-Level Engine.dll", "?SetMaxChannels@SESoundManager@@QAEJK@Z")]
     [address((ee)0x00823AD4, (aoc)0x00837AC4)]
     static block iat_snd_setmaxch;
 

@@ -96,5 +96,38 @@ internal void spec_log(FILE *log) {
     if (*k_spec_zone_missing[g_exe_build]) fprintf(log, " %s", k_spec_zone_missing[g_exe_build]);
     fputc(10, log);
 }
+// the import slots ([import_slot]) found by name in the exe file (exe.c's spec_import): after spec_select,
+// before spec_check; the failures
+internal int spec_imports(void) {
+    int bad = 0;
+    bad += spec_import(&data_engine_sound_iat_snd_play, "Low-Level Engine.dll", "?Play@SESoundManager@@QAEKKMMM_NPAD@Z", "engine_sound.iat_snd_play");
+    bad += spec_import(&data_engine_sound_iat_snd_playref, "Low-Level Engine.dll", "?PlayAndReturnReferencedNode@SESoundManager@@QAEPAVSESMInstanceNode@@KMMM_NPAD@Z", "engine_sound.iat_snd_playref");
+    bad += spec_import(&data_engine_sound_iat_snd_setmaxch, "Low-Level Engine.dll", "?SetMaxChannels@SESoundManager@@QAEJK@Z", "engine_sound.iat_snd_setmaxch");
+    bad += spec_import(&data_game_iat_cos, "Low-Level Engine.dll", "?UMCos@@YAMM@Z", "game.iat_cos");
+    bad += spec_import(&data_game_iat_rand, "msvcrt.dll", "rand", "game.iat_rand");
+    bad += spec_import(&data_game_iat_release, "Low-Level Engine.dll", "?Dereference@UReferenceCounter@@QAEXXZ", "game.iat_release");
+    bad += spec_import(&data_game_iat_resource_string, "Low-Level Engine.dll", "?GetString@UResourceFile@@QAEJJAAVUWideString@@@Z", "game.iat_resource_string");
+    bad += spec_import(&data_game_iat_ts_receive, "Low-Level Engine.dll", "?Receive@TSThread@@QAEJAAKAAPAX1@Z", "game.iat_ts_receive");
+    bad += spec_import(&data_game_iat_ts_wait, "Low-Level Engine.dll", "?Wait@TSEvent@@QAEJK@Z", "game.iat_ts_wait");
+    bad += spec_import(&data_game_iat_ustring_assign, "Low-Level Engine.dll", "??4UString@@QAEAAV0@PBD@Z", "game.iat_ustring_assign");
+    bad += spec_import(&data_game_iat_ustring_ctor, "Low-Level Engine.dll", "??0UString@@QAE@XZ", "game.iat_ustring_ctor");
+    bad += spec_import(&data_game_iat_ustring_dtor, "Low-Level Engine.dll", "??1UString@@UAE@XZ", "game.iat_ustring_dtor");
+    bad += spec_import(&data_game_iat_wstring_assign, "Low-Level Engine.dll", "??4UWideString@@QAEAAV0@PBD@Z", "game.iat_wstring_assign");
+    bad += spec_import(&data_game_iat_wstring_ctor, "Low-Level Engine.dll", "??0UWideString@@QAE@XZ", "game.iat_wstring_ctor");
+    bad += spec_import(&data_game_iat_wstring_ctor_c, "Low-Level Engine.dll", "??0UWideString@@QAE@PBD@Z", "game.iat_wstring_ctor_c");
+    bad += spec_import(&data_game_iat_wstring_dtor, "Low-Level Engine.dll", "??1UWideString@@UAE@XZ", "game.iat_wstring_dtor");
+    bad += spec_import(&data_game_iat_wstring_format, "Low-Level Engine.dll", "?sprintf@@YAJAAVUWideString@@PBDZZ", "game.iat_wstring_format");
+    bad += spec_import(&data_game_iat_wstring_reserve, "Low-Level Engine.dll", "??0UWideString@@QAE@K@Z", "game.iat_wstring_reserve");
+    bad += spec_import(&data_game_imp_is_keyboard, "Low-Level Engine.dll", "?gISKeyboard@@3PAVISKeyboard@@A", "game.imp_is_keyboard");
+    bad += spec_import(&data_game_imp_is_mouse, "Low-Level Engine.dll", "?gISMouse@@3PAVISMouse@@A", "game.imp_is_mouse");
+    bad += spec_import(&data_hooks_iat_srand, "msvcrt.dll", "srand", "hooks.iat_srand");
+    bad += spec_import(&data_messages_iat_constructors, "Low-Level Engine.dll", "?sConstructors@NEMessage@@2PAP6APAV1@PAE@ZA", "messages.iat_constructors");
+    bad += spec_import(&data_messages_iat_export_header, "Low-Level Engine.dll", "?ExportHeader@NEMessage@@QAEKPAE@Z", "messages.iat_export_header");
+    bad += spec_import(&data_messages_iat_import_header, "Low-Level Engine.dll", "?ImportHeader@NEMessage@@QAEKPAE@Z", "messages.iat_import_header");
+    bad += spec_import(&data_ui_iat_edit_get_text, "Low-Level Engine.dll", "?GetText@UIEditBox@@QBEPBDK@Z", "ui.iat_edit_get_text");
+    bad += spec_import(&data_ui_iat_uiform_add_hotkey, "Low-Level Engine.dll", "?AddHotKey@UIForm@@QAEXKKKKPAVUIEvent@@000K_N@Z", "ui.iat_uiform_add_hotkey");
+    bad += spec_import(&data_ui_iat_uim_form, "Low-Level Engine.dll", "?GetCurrentForm@UIManager@@QBEPAVUIForm@@XZ", "ui.iat_uim_form");
+    return bad;
+}
 // g_spec_bad: exe.c's (game_build runs it before any patch, its helpers note the failures)
 internal int spec_check(void) { return spec_ai_managers_check() + spec_api_check() + spec_attack_check() + spec_engine_display_check() + spec_engine_sound_check() + spec_formation_check() + spec_game_check() + spec_goal_check() + spec_hooks_check() + spec_map_check() + spec_messages_check() + spec_movement_check() + spec_patching_check() + spec_path_check() + spec_player_check() + spec_scenario_check() + spec_scenario_lists_check() + spec_setup_check() + spec_stubs_check() + spec_tech_check() + spec_ui_check() + spec_unit_check() + spec_unit_type_check() + spec_world_check() + spec_zone_check(); }

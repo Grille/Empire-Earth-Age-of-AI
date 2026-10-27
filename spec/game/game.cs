@@ -207,67 +207,84 @@ static unsafe class game
     static EEUserInterface* ui;
 
     /// cos (the game's)
+    [import_slot("Low-Level Engine.dll", "?UMCos@@YAMM@Z")]
     [address((ee)0x00823304, (aoc)0x00837340)]
     static block iat_cos;
 
     /// the game's rand
+    [import_slot("msvcrt.dll", "rand")]
     [address((ee)0x00824648, (aoc)0x0083863C)]
     static block iat_rand;
 
     /// imported refcount release, thiscall on the action
+    [import_slot("Low-Level Engine.dll", "?Dereference@UReferenceCounter@@QAEXXZ")]
     [address((ee)0x008231AC, (aoc)0x008371A8)]
     static block iat_release;
 
     /// the game's string resource (a language entry)
+    [import_slot("Low-Level Engine.dll", "?GetString@UResourceFile@@QAEJJAAVUWideString@@@Z")]
     [address((ee)0x0082319C, (aoc)0x00837198)]
     static block iat_resource_string;
 
+    [import_slot("Low-Level Engine.dll", "?Receive@TSThread@@QAEJAAKAAPAX1@Z")]
     [address((ee)0x008236B0, (aoc)0x0083765C)]
     static block iat_ts_receive;
 
+    [import_slot("Low-Level Engine.dll", "?Wait@TSEvent@@QAEJK@Z")]
     [address((ee)0x00823688, (aoc)0x00837634)]
     static block iat_ts_wait;
 
     /// UString::operator=(const char *)
+    [import_slot("Low-Level Engine.dll", "??4UString@@QAEAAV0@PBD@Z")]
     [address((ee)0x00823228, (aoc)0x00837224)]
     static block iat_ustring_assign;
 
     /// UString::UString()
+    [import_slot("Low-Level Engine.dll", "??0UString@@QAE@XZ")]
     [address((ee)0x008231E4, (aoc)0x008371E0)]
     static block iat_ustring_ctor;
 
     /// UString::~UString()
+    [import_slot("Low-Level Engine.dll", "??1UString@@UAE@XZ")]
     [address((ee)0x008245BC, (aoc)0x008385B0)]
     static block iat_ustring_dtor;
 
     /// UWideString::operator=(const char *)
+    [import_slot("Low-Level Engine.dll", "??4UWideString@@QAEAAV0@PBD@Z")]
     [address((ee)0x00823224, (aoc)0x00837220)]
     static block iat_wstring_assign;
 
     /// UWideString::UWideString()
+    [import_slot("Low-Level Engine.dll", "??0UWideString@@QAE@XZ")]
     [address((ee)0x008231A4, (aoc)0x008371A0)]
     static block iat_wstring_ctor;
 
     /// UWideString::UWideString(const char *)
+    [import_slot("Low-Level Engine.dll", "??0UWideString@@QAE@PBD@Z")]
     [address((ee)0x008232C4, (aoc)0x008372C0)]
     static block iat_wstring_ctor_c;
 
     /// UWideString::~UWideString()
+    [import_slot("Low-Level Engine.dll", "??1UWideString@@UAE@XZ")]
     [address((ee)0x00823AEC, (aoc)0x00837194)]
     static block iat_wstring_dtor;
 
     /// UWideString::Format(const char *, ...)
+    [import_slot("Low-Level Engine.dll", "?sprintf@@YAJAAVUWideString@@PBDZZ")]
     [address((ee)0x008232C8, (aoc)0x008372C4)]
     static block iat_wstring_format;
 
+    [import_slot("Low-Level Engine.dll", "??0UWideString@@QAE@K@Z")]
     [address((ee)0x008235D0, (aoc)0x00837574)]
     static block iat_wstring_reserve;
 
     /// import: &ISKeyboard* in Low-Level Engine.dll
+    [import_slot("Low-Level Engine.dll", "?gISKeyboard@@3PAVISKeyboard@@A")]
     [address((ee)0x00823AF8, (aoc)0x00837AE8)]
     static uint8** imp_is_keyboard;
 
     /// import: &ISMouse* in Low-Level Engine.dll
+    [import_slot("Low-Level Engine.dll", "?gISMouse@@3PAVISMouse@@A")]
     [address((ee)0x008235CC, (aoc)0x00837570)]
     static ISMouse** imp_is_mouse;
 

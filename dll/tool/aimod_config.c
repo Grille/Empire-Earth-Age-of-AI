@@ -393,8 +393,16 @@ internal int exe_laa(const char *path) {
     return (((IMAGE_NT_HEADERS32 *)(b + o))->FileHeader.Characteristics & IMAGE_FILE_LARGE_ADDRESS_AWARE) != 0;
 }
 
+internal uint32_t exe_build_hash(const char *path) {   // builds.h's hash of the file, 0: not a readable PE file
+    uint32_t size = 0;
+    uint8_t *b = exe_file_read(path, &size);
+    uint32_t h = exe_hash(b, size);
+    free(b);
+    return h;
+}
+
 internal int exe_build_of(uint32_t hash) {   // its index in k_exe_builds, -1 none
-    for (int i = 0; i < ADDR_BUILDS; i++) if (k_exe_builds[i].hash == hash) return i;
+    for (int i = 0; i < EXE_BUILDS; i++) if (k_exe_builds[i].hash == hash) return i;
     return -1;
 }
 
@@ -412,10 +420,11 @@ internal void game_show(void) {
     uint32_t hash = exe_build_hash(g_exe);
     g_exe_build = exe_build_of(hash);
     int laa = exe_laa(g_exe), backup = GetFileAttributesA(g_exe_backup) != INVALID_FILE_ATTRIBUTES;
-    const char *build = g_exe_build < 0 ? NULL : !lstrcmpA(k_exe_builds[g_exe_build].name, "ee")
+    const char *build = g_exe_build < 0 ? NULL : g_exe_build == 0
                         ? "the 2017 update (1.04: GOG, Steam, empireearth.eu) - the one the mod is made for"
-                        : !lstrcmpA(k_exe_builds[g_exe_build].name, "aoc") ? "The Art of Conquest - the mod plays it in test runs only, so far"
-                        : k_exe_builds[g_exe_build].name;
+                        : g_exe_build == 2 ? "NeoEE's - the 2017 update's code in another layout; the mod plays it"
+                        : k_exe_builds[g_exe_build].col == 1 ? "The Art of Conquest - the mod plays it in test runs only, so far"
+                        : k_exe_builds[g_exe_build].what;
     char ver[160];
     if (build) lstrcpynA(ver, build, sizeof ver);
     else snprintf(ver, sizeof ver, "not one the mod knows (code hash %08X): the mod stays off, and this page leaves it alone", (unsigned)hash);

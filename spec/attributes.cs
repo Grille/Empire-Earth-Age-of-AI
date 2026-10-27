@@ -61,6 +61,16 @@ public sealed class import : Attribute
     public import(ee ee, aoc aoc) { }
 }
 
+// a static class's data that is one of the exe's import slots (an iat_ / imp_ member, its [address] the slot): the
+// DLL and the name it imports. The load finds the slot by them in the exe file's import table and uses that one - an
+// exe with its import table elsewhere (NeoEE's) is the same build otherwise; the log counts the slots found elsewhere
+// than [address] says, a name not found is a failure of the load-time check
+[AttributeUsage(AttributeTargets.Field)]
+public sealed class import_slot : Attribute
+{
+    public import_slot(string dll, string name) { }
+}
+
 // a number of the game's that is no address: a virtual function's slot index, an object's size, a place relative to
 // an engine DLL's base (each build ships its own DLLs: the mod adds the DLL's base)
 [AttributeUsage(AttributeTargets.Field)]

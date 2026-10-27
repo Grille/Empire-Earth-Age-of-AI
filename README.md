@@ -11,7 +11,8 @@ control pipe, automated tests and the engine notes.
 
 The mod needs the 1.04 exe of the 2017 update: the **GOG** version, the **Steam Gold Edition**
 (`steamapps\common\Empire Earth Gold Edition\Empire Earth` - the same code, only a signature and a DPI manifest are
-added) or the **Vanilla** setup from empireearth.eu. Old CD versions, no-CD exes and NeoEE have their code in other
+added), the **Vanilla** setup from empireearth.eu or **NeoEE** (its 2026 installer: the same code in another layout).
+Old CD versions and no-CD exes have their code in other
 places: the mod recognizes the exe when the game starts and stays switched off with another one, with a message
 (docs/engine-notes.md, Exe builds). Art of Conquest (`EE-AOC.exe`) isn't supported yet. The mod coexists with community DLL
 patches such as *Empire Earth Tweaks* or *dreXmod*, which patch different places.

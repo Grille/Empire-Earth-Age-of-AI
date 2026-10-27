@@ -279,14 +279,17 @@ static unsafe class ui
     static EEEffectManager* gfx_effects;
 
     /// UIEditBox::GetText
+    [import_slot("Low-Level Engine.dll", "?GetText@UIEditBox@@QBEPBDK@Z")]
     [address((ee)0x00823328, (aoc)0x00837EE0)]
     static block iat_edit_get_text;
 
     /// UIForm::AddHotKey(key, 3 masks, 4 events, K, bool)
+    [import_slot("Low-Level Engine.dll", "?AddHotKey@UIForm@@QAEXKKKKPAVUIEvent@@000K_N@Z")]
     [address((ee)0x00824048, (aoc)0x00837BE0)]
     static block iat_uiform_add_hotkey;
 
     /// the UI manager's current form
+    [import_slot("Low-Level Engine.dll", "?GetCurrentForm@UIManager@@QBEPAVUIForm@@XZ")]
     [address((ee)0x00823D60, (aoc)0x00837B44)]
     static block iat_uim_form;
 

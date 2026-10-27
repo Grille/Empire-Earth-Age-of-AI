@@ -3,7 +3,8 @@ the C# itself): a class's struct holds only what acts on its object - a static m
 object an argument) belongs in a static class (the file's own: unit.cs's unit); a member's types are the spec's own
 names (int32, float32 ... - environment.cs's aliases), never C#'s (int, char: 16 bits, byte ...), so a type never means
 one thing in the spec and another in C; every member says where it is ([offset] a struct's field, [address], [slot] or
-[import] a function, [address] or [value] a static class's data); a [guess] says its evidence in its doc comment.
+[import] a function, [address] or [value] a static class's data); an import slot (a static iat_ / imp_ member) says
+its import ([import_slot]); a [guess] says its evidence in its doc comment.
 The spec's own files (spec/attributes.cs, environment.cs),
 which define all this, aren't checked. Exit 1 with what is wrong, by file and line."""
 import os
@@ -49,6 +50,10 @@ def check(path):
             need = WHERE_FUNC if func else WHERE_FIELD[in_static]
             if not any(a in need for a in attrs):
                 errors.append('%s: says nowhere where it is (%s)' % (where, ' / '.join('[%s]' % a for a in need)))
+            member = re.search(r'(\w+)\s*(?:\(.*\))?\s*;$', decl)
+            if in_static and not func and member and re.match(r'(iat|imp)_', member.group(1)) and 'import_slot' not in attrs:
+                errors.append('%s: an import slot without [import_slot] - its DLL and name (an exe with its import '
+                              'table elsewhere finds it by them)' % where)
             if 'guess' in attrs and not doc:
                 errors.append('%s: a [guess] without its evidence (a /// comment: what the code does with it)' % where)
             attrs, doc = [], False

@@ -142,17 +142,27 @@ internal HWND WINAPI hook_create_window(DWORD ex, LPCSTR cls, LPCSTR name, DWORD
     return r;
 }
 
+// a module's import slot of dll's fn -> hook. By the name thunks; a table without its own (NeoEE's exe: the name
+// thunks are the slots, overwritten with the functions at the start) by the function the slot holds
 internal int patch_iat(HMODULE m, const char *dll, const char *fn, void *hook) {
     uint8_t *b = (uint8_t *)m;
     IMAGE_NT_HEADERS *nt = (IMAGE_NT_HEADERS *)(b + ((IMAGE_DOS_HEADER *)b)->e_lfanew);
     IMAGE_DATA_DIRECTORY dd = nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT];
     if (!dd.VirtualAddress) return 0;
     for (IMAGE_IMPORT_DESCRIPTOR *d = (IMAGE_IMPORT_DESCRIPTOR *)(b + dd.VirtualAddress); d->Name; d++) {
-        if (lstrcmpiA((char *)(b + d->Name), dll) || !d->OriginalFirstThunk) continue;
-        IMAGE_THUNK_DATA *names = (IMAGE_THUNK_DATA *)(b + d->OriginalFirstThunk), *iat = (IMAGE_THUNK_DATA *)(b + d->FirstThunk);
+        if (lstrcmpiA((char *)(b + d->Name), dll)) continue;
+        int own = d->OriginalFirstThunk && d->OriginalFirstThunk != d->FirstThunk;
+        HMODULE from = own ? NULL : GetModuleHandleA(dll);
+        uintptr_t want = from ? (uintptr_t)GetProcAddress(from, fn) : 0;
+        if (!own && !want) continue;
+        IMAGE_THUNK_DATA *names = (IMAGE_THUNK_DATA *)(b + (own ? d->OriginalFirstThunk : d->FirstThunk)), *iat = (IMAGE_THUNK_DATA *)(b + d->FirstThunk);
         for (; names->u1.AddressOfData; names++, iat++) {
-            if (IMAGE_SNAP_BY_ORDINAL(names->u1.Ordinal)) continue;
-            if (strcmp((char *)((IMAGE_IMPORT_BY_NAME *)(b + names->u1.AddressOfData))->Name, fn)) continue;
+            if (!own) {
+                if (iat->u1.Function != want) continue;
+            } else {
+                if (IMAGE_SNAP_BY_ORDINAL(names->u1.Ordinal)) continue;
+                if (strcmp((char *)((IMAGE_IMPORT_BY_NAME *)(b + names->u1.AddressOfData))->Name, fn)) continue;
+            }
             DWORD old;
             if (!VirtualProtect(&iat->u1.Function, sizeof iat->u1.Function, PAGE_READWRITE, &old)) return 0;
             iat->u1.Function = (uintptr_t)hook;

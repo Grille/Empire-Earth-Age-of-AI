@@ -381,14 +381,17 @@ static unsafe class messages
     /// NEMessage::sConstructors's import slot (Low-Level Engine.dll): it holds the table's address - 256 factories,
     /// NEMessage *(*)(uint8 *mem) by kind (the header's second byte); the DLL's own kinds below 0x41, the game's
     /// message_build from 0x41 to 0xFD (messages_register)
+    [import_slot("Low-Level Engine.dll", "?sConstructors@NEMessage@@2PAP6APAV1@PAE@ZA")]
     [address((ee)0x0082357C, (aoc)0x00837520)]
     static block iat_constructors;
 
     /// NEMessage::ExportHeader - thiscall(msg, uint8* buf): the 4-byte header (+0xB, kind, for_slot, from); its size
+    [import_slot("Low-Level Engine.dll", "?ExportHeader@NEMessage@@QAEKPAE@Z")]
     [address((ee)0x00823580, (aoc)0x00837524)]
     static block iat_export_header;
 
     /// NEMessage::ImportHeader - thiscall(msg, uint8* mem): the header back; its size
+    [import_slot("Low-Level Engine.dll", "?ImportHeader@NEMessage@@QAEKPAE@Z")]
     [address((ee)0x00823584, (aoc)0x00837528)]
     static block iat_import_header;
 

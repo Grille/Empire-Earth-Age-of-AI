@@ -17,36 +17,28 @@ internal inline int patch_vtables(const uint32_t *vts, size_t n, int slot, uintp
 }
 #define PATCH_LIST(a) (a), sizeof (a) / sizeof *(a)   // a list of places of the spec (data_hooks_train_sites): it and its count
 
-// every call of fn in the exe's code (E8 rel32 to it in .text): for a function called from many places
+// every call of fn in the exe's code (E8 rel32 to it in the code section, base/patch.c's): for a function called from
+// many places
 internal inline int patch_all_calls(uintptr_t fn, void *hook) {
-    uint8_t *base = (uint8_t *)GetModuleHandleA(NULL);
-    IMAGE_NT_HEADERS *nt = (IMAGE_NT_HEADERS *)(base + ((IMAGE_DOS_HEADER *)base)->e_lfanew);
-    IMAGE_SECTION_HEADER *sec = IMAGE_FIRST_SECTION(nt);
     int sites = 0;
-    for (int s = 0; s < nt->FileHeader.NumberOfSections; s++, sec++) {
-        if (memcmp(sec->Name, ".text", 6)) continue;   // flagged as data like every section of this exe
-        uint8_t *p = base + sec->VirtualAddress, *e = p + sec->Misc.VirtualSize - 5;
-        for (; p < e; p++)
-            if (*p == 0xE8 && (uintptr_t)p + 5 + *(int32_t *)(p + 1) == fn)
-                sites += patch_call((uintptr_t)p, fn, hook);
-    }
+    for (uint8_t *p = (uint8_t *)g_code_lo, *e = (uint8_t *)g_code_hi - 5; p < e; p++)
+        if (*p == 0xE8 && (uintptr_t)p + 5 + *(int32_t *)(p + 1) == fn)
+            sites += patch_call((uintptr_t)p, fn, hook);
     return sites;
 }
 
-// every vtable whose slot `slot` holds fn and whose slot `key_slot` holds key (a 4-aligned word outside .text, a code
-// address on both sides of it - the other entries of its vtable): for a virtual function many classes share, in the
-// classes that call it from key; their count
+// every vtable whose slot `slot` holds fn and whose slot `key_slot` holds key (a 4-aligned word outside the code
+// section, a code address on both sides of it - the other entries of its vtable): for a virtual function many classes
+// share, in the classes that call it from key; their count
 internal inline int patch_vtables_with(uintptr_t key, int key_slot, int slot, uintptr_t fn, void *hook) {
     uint8_t *base = (uint8_t *)GetModuleHandleA(NULL);
     IMAGE_NT_HEADERS *nt = (IMAGE_NT_HEADERS *)(base + ((IMAGE_DOS_HEADER *)base)->e_lfanew);
-    IMAGE_SECTION_HEADER *sec = IMAGE_FIRST_SECTION(nt), *text = NULL;
-    for (int s = 0; s < nt->FileHeader.NumberOfSections; s++)
-        if (!memcmp(sec[s].Name, ".text", 6)) text = &sec[s];
-    if (!text) return 0;
-    uintptr_t lo = (uintptr_t)base + text->VirtualAddress, hi = lo + text->Misc.VirtualSize;
+    IMAGE_SECTION_HEADER *sec = IMAGE_FIRST_SECTION(nt);
+    uintptr_t lo = g_code_lo, hi = g_code_hi;
+    if (!lo) return 0;
     int n = 0, d = slot - key_slot;
     for (int s = 0; s < nt->FileHeader.NumberOfSections; s++) {
-        if (&sec[s] == text) continue;
+        if ((uintptr_t)base + sec[s].VirtualAddress == lo) continue;
         uint32_t *p = (uint32_t *)(base + sec[s].VirtualAddress), *e = p + sec[s].Misc.VirtualSize / 4;
         for (uint32_t *q = p + 1; q + 1 < e; q++) {
             if (*q != key || q[-1] < lo || q[-1] >= hi || q[1] < lo || q[1] >= hi || q + d < p || q + d >= e || q[d] != fn) continue;
