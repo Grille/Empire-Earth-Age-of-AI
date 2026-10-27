@@ -564,12 +564,19 @@ internal int __thiscall hook_set_mode(void *scr, unsigned mode) {
     return 0;
 }
 
-// GetCurrentMode / GetCurrentModeIndex: the index the constructor takes from the mode enumeration can be out of
-// range windowed (the game reads the current mode before its first SetMode - crash at 0x535958); clamp it.
-// Modes: vector of 0x14-byte GEVideoMode at +0x10 (begin) / +0x14 (end).
+// GetCurrentMode / GetCurrentModeIndex / GetDesktopRectangle: the index the constructor takes from the mode
+// enumeration can be out of range windowed (the game reads the current mode before its first SetMode - crash at
+// 0x535958); clamp it. GetDesktopRectangle reads the field itself when the desktop's own rectangle isn't to be had
+// (DX7HRTnLDisplay.dll+cc74): the index there was the heap's garbage, a stale pointer into the DLL (2026-10-27, half
+// the test starts for a quarter of an hour after the display hooks moved to the DLLs' load - the heap laid out
+// otherwise). Modes: vector of 0x14-byte GEVideoMode at +0x10 (begin) / +0x14 (end).
 internal unsigned screen_mode_index(ee_screen *scr) {
+    static int told;
     unsigned n = (unsigned)(screen_get_modes_end(scr) - screen_get_modes_begin(scr)) / 0x14;
-    if (!screen_get_fullscreen(scr) && screen_get_mode(scr) >= n) screen_set_mode(scr, 0);
+    if (!screen_get_fullscreen(scr) && screen_get_mode(scr) >= n) {
+        if (!told++) log_locked("# display: the screen's mode index %08X out of range (%u modes) - 0\n", screen_get_mode(scr), n);
+        screen_set_mode(scr, 0);
+    }
     return screen_get_mode(scr);
 }
 internal void *__thiscall hook_get_current_mode(ee_screen *scr) {
@@ -577,6 +584,12 @@ internal void *__thiscall hook_get_current_mode(ee_screen *scr) {
 }
 internal unsigned __thiscall hook_get_current_mode_index(ee_screen *scr) {
     return screen_mode_index(scr);
+}
+typedef void *(__thiscall *DesktopRectFn)(ee_screen *scr);
+internal DesktopRectFn g_desktop_rect[2];
+internal void *__thiscall hook_desktop_rect(ee_screen *scr) {
+    screen_mode_index(scr);
+    return g_desktop_rect[DISPLAY_DLL(scr)](scr);
 }
 
 internal int replace_rdata_ptr(HMODULE m, void *fn, void *hook) {
@@ -625,6 +638,8 @@ internal int show_hooks(int i, HMODULE m) {
         void *gcmi = (void *)GetProcAddress(m, "?GetCurrentModeIndex@DX7Screen@@UBEKXZ");
         if (gcm) n += replace_rdata_ptr(m, gcm, (void *)hook_get_current_mode);
         if (gcmi) n += replace_rdata_ptr(m, gcmi, (void *)hook_get_current_mode_index);
+        void *gdr = (void *)GetProcAddress(m, "?GetDesktopRectangle@DX7Screen@@UAEABVGERectangle@@XZ");
+        if (gdr) { g_desktop_rect[i] = (DesktopRectFn)gdr; n += replace_rdata_ptr(m, gdr, (void *)hook_desktop_rect); }
         // diagnostics (ddinfo counters; autotest diag_skip leaves terrain/water/fog out): only with [display] diag=1
         // or autotest diag_hooks / diag_skip - for players they were per-draw hooks with nothing to show
         int diag = g_diag || g_diag_skip;
