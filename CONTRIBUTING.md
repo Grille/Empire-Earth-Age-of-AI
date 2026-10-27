@@ -43,7 +43,7 @@ Not sure whether something fits? Open an issue and ask before you write the code
 ## Ways to help
 
 - **Play and report.** The most useful thing anyone can do. A good report says which exe the mod found (the first
-  lines of `aimod_econ.csv` in the game folder), your `aimod.ini` (or what you changed in it), the map and the
+  lines of `aimod_econ.csv` in the game folder's `aimod`), your `aimod.ini` (or what you changed in it), the map and the
   difficulty, what the AI did and what you expected it to do, and - when you can - a saved game from shortly before.
   For a crash, also the log and the last thing you did.
 - **Write a personality.** Copy `config/aimod_ai/_template.eeai`, which explains every key; the format is in

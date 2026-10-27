@@ -369,7 +369,7 @@ internal const char *g_exe_name;
 internal void exe_find(void) {
     static const char *const names[2] = { "Empire Earth.exe", "EE-AOC.exe" };
     char dir[MAX_PATH];
-    lstrcpynA(dir, g_ini_path, sizeof dir);
+    GetModuleFileNameA(NULL, dir, sizeof dir);   // the game folder (aimod.ini is in its aimod\)
     char *s = strrchr(dir, '\\');
     if (s) s[1] = 0; else dir[0] = 0;
     g_exe_name = NULL;
@@ -411,7 +411,7 @@ internal void game_show(void) {
     exe_find();
     if (!g_exe_name) {
         snprintf(t, sizeof t, "No Empire Earth.exe (or EE-AOC.exe) next to this program (%s).\r\n\r\n"
-                 "aimod_config.exe belongs in the game folder, next to the game and aimod.ini.", g_ini_path);
+                 "aimod_config.exe belongs in the game folder, next to the game.", g_ini_path);
         SetWindowTextA(g_game_text, t);
         EnableWindow(g_game_apply, FALSE);
         EnableWindow(g_game_restore, FALSE);
@@ -1364,7 +1364,7 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmd, int show) {
     (void)prev;
     g_ini_eval = x_const_eval;
     g_shipped = shipped_text();
-    // the file: the one named on the command line, else aimod.ini next to this program (the game folder)
+    // the file: the one named on the command line, else aimod\aimod.ini in this program's folder (the game folder)
     if (cmd && cmd[0]) {
         lstrcpynA(g_ini_path, cmd[0] == '"' ? cmd + 1 : cmd, sizeof g_ini_path);
         char *q = strchr(g_ini_path, '"');
@@ -1372,13 +1372,16 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmd, int show) {
     } else {
         GetModuleFileNameA(NULL, g_ini_path, sizeof g_ini_path);
         char *s = strrchr(g_ini_path, '\\');
-        lstrcpyA(s ? s + 1 : g_ini_path, "aimod.ini");
+        lstrcpyA(s ? s + 1 : g_ini_path, "aimod\\aimod.ini");
     }
     if (GetFileAttributesA(g_ini_path) == INVALID_FILE_ATTRIBUTES) {
-        char msg[MAX_PATH + 160];
+        char msg[MAX_PATH + 160], dir[MAX_PATH];
         snprintf(msg, sizeof msg, "%s\nisn't there. Make it with the mod's default settings?\n\n(aimod_config.exe belongs next to "
-                 "Empire Earth.exe, where the mod reads aimod.ini.)", g_ini_path);
+                 "Empire Earth.exe; the mod reads aimod.ini from the folder aimod there.)", g_ini_path);
         if (!g_shipped || MessageBoxA(NULL, msg, TITLE, MB_YESNO | MB_ICONQUESTION) != IDYES) return 1;
+        lstrcpynA(dir, g_ini_path, sizeof dir);   // its folder made first
+        char *s = strrchr(dir, '\\');
+        if (s) { *s = 0; CreateDirectoryA(dir, NULL); }
         FILE *f = fopen(g_ini_path, "wb");
         if (!f || fwrite(g_shipped, 1, strlen(g_shipped), f) != strlen(g_shipped)) {
             if (f) fclose(f);

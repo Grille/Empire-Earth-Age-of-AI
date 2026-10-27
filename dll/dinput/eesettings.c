@@ -4,7 +4,8 @@
 // eeaimod.dll (docs/engine-notes.md, Exe builds - Settings). This DLL is loaded by Windows at the start instead: the
 // engine (Low-Level Engine.dll) imports DINPUT.dll, which isn't one of the system's KnownDLLs, so a dinput.dll in the
 // game folder comes first. It passes the engine's one DirectInput call through to the system's dinput.dll and points
-// the engine's registry calls (its 7 ADVAPI32 imports) for the game's own keys to eesettings.ini next to the game:
+// the engine's registry calls (its 7 ADVAPI32 imports) for the game's own keys to eesettings.ini in the mod's folder
+// (<game>\aimod\, with aimod.ini):
 // the settings travel with the folder, every copy of the game has its own (test slots: EEAIMOD_SETTINGS=<file>).
 // Optional in every way: without this DLL - or with another program's dinput.dll in its place - the game uses the
 // registry as before, and so does it when the file can't be read or written. The first start without the file copies
@@ -400,7 +401,11 @@ static void start(HINSTANCE self) {
     if (!n || n >= sizeof g_file) {
         GetModuleFileNameA(self, g_file, sizeof g_file);
         char *s = strrchr(g_file, '\\');
-        if (s) lstrcpyA(s + 1, "eesettings.ini");
+        if (s) {   // <game>\aimod\eesettings.ini, the folder made if it isn't there yet
+            lstrcpyA(s + 1, "aimod");
+            CreateDirectoryA(g_file, NULL);
+            lstrcatA(g_file, "\\eesettings.ini");
+        }
     }
     if (!lle) lstrcpyA(why, "registry (the engine isn't loaded - not Empire Earth?)");
     else if (!file_load()) {   // the first start: the registry's values into the file

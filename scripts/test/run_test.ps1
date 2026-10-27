@@ -86,7 +86,7 @@ for (;;) {
     if (-not $told) { "waiting: slots $slotFrom..$slotTo are all taken"; $told = $true }
     Start-Sleep -Seconds 2
 }
-$sdir = if ($Slot) { "$repo\local\work\slot$Slot" } else { $g }   # this run's test ini, log and dumps
+$sdir = if ($Slot) { "$repo\local\work\slot$Slot" } else { "$g\aimod" }   # this run's test ini, log and dumps
 if ($Scenario) {
     # beside other slots the file may be open in another game: copy it only when it differs
     $src = "$g\Data\Scenarios\$Scenario.scn"; $dst = "$g\Data\Saved Games\$Scenario.ees"
@@ -114,8 +114,8 @@ function Restore-Sound {
 if ($Save -match '[-/]') { "save name must not contain - or /"; exit 1 }
 # The settings the DLL plays with: -Config (or env CONFIG) = an aimod.ini, -AiDir (or env AI_DIR) = the personality
 # folder; relative paths from the repository. Default: the shipped config\aimod.ini and config\aimod_ai - what players get,
-# never the player's own aimod.ini in the game folder (its experiments would bias every A/B); CONFIG=<game>\aimod.ini
-# tests it.
+# never the player's own aimod.ini in the game folder's aimod\ (its experiments would bias every A/B);
+# CONFIG=<game>\aimod\aimod.ini tests it.
 if (-not $Config) { $Config = "config\aimod.ini" }
 if (-not $AiDir) { $AiDir = "config\aimod_ai" }
 if (-not [System.IO.Path]::IsPathRooted($Config)) { $Config = Join-Path $repo $Config }

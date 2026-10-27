@@ -13,6 +13,8 @@ REV=$(cd "$A" && git rev-parse --short HEAD)
 (cd "$A" && git archive "$REV" | tar -x -C "$B") || exit 1
 (cd "$B/dll" && PY="$A/local/venv/Scripts/python.exe" CC="$A/local/tools/llvm-mingw/bin/i686-w64-mingw32-clang" sh build.sh > build.txt 2>&1) || { cat "$B/dll/build.txt"; exit 1; }
 reserve_begin "install $REV"
+. "$(dirname "$0")/mod_dir.sh"
+mod_dir_move "$G" || exit 1   # aimod.ini, eesettings.ini, the log and the dumps into <game>\aimod\, once
 cp "$B/dll/eeaimod.dll" "$G/eeaimod.dll" || exit 1
 # another program's dinput.dll is never replaced (then the game's settings stay in the registry)
 if [ ! -f "$G/dinput.dll" ] || grep -q EEAimodSettings "$G/dinput.dll"; then cp "$B/dll/dinput.dll" "$G/dinput.dll" || exit 1; fi

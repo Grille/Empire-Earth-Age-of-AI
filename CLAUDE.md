@@ -82,6 +82,10 @@ and the runners, eectl, the MCP server), `results/` (log readers, scorers), `re/
   are memory it never sets, and an AoC game parts ways now and then with any DLL: seed 9 on Small Islands, about one
   run in 15 when many run at once, at 36 s - a control pair of one DLL first).
 - The engine loads every DLL in the game folder: never leave copies of DLLs there (a stray dinput copy crashed it).
+- The game folder holds only eeaimod.dll, dinput.dll and aimod_config.exe (the player 2026-10-27: keep the root
+  clean); everything else of the mod is in `<game>\aimod\` - aimod.ini, eesettings.ini, the personalities (when no
+  ai_dir), the log, the dumps, slot 0's test ini (base/paths.c slot_dir; a test slot has its own folder instead). A
+  new file the mod writes goes there too. install.sh moves a folder set up before (scripts/build/mod_dir.sh).
 - A setting of aimod.ini is a row in `dll/settings/rows.h` (kind, section, key, default, limits) and its key in
   `config/aimod.ini` with that default; the code reads `g_set.key` ([general]), `g_set.section_key` (the other
   sections: `g_set.display_present`) or `g_set_ai[d].key` ([ai_base], a value per difficulty from [ai_easy] / [ai_hard], else

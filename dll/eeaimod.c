@@ -406,26 +406,26 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
 #include "test/ecolog.c"
 
 
-// No aimod.ini next to the DLL: tell the player and stop, instead of running on built-in defaults nobody
+// No aimod\aimod.ini in the game folder: tell the player and stop, instead of running on built-in defaults nobody
 // tested as a whole (the defaults in the code are only for keys missing from an existing, older file).
 // Runs inside DllMain: the engine loads its DLLs at runtime (user32 is up), and TerminateProcess skips the
 // other DLLs' detach handlers, which would run under the loader lock.
 internal void config_missing(const char *ini) {
     char msg[MAX_PATH + 512];
     wsprintfA(msg, "The Empire Earth AI mod (eeaimod.dll) needs its settings file:\n\n%s\n\n"
-                   "Copy aimod.ini from the mod's config folder next to Empire Earth.exe, or delete eeaimod.dll "
-                   "to play without the mod.\n\nEmpire Earth will close now.", ini);
+                   "Copy aimod.ini from the mod's config folder into the folder aimod next to Empire Earth.exe, or "
+                   "delete eeaimod.dll to play without the mod.\n\nEmpire Earth will close now.", ini);
     if (!g_autotest)   // a headless test has nobody to click the box: it quits at once (run_test.ps1 checks first)
         MessageBoxA(NULL, msg, "Empire Earth AI mod: aimod.ini missing", MB_OK | MB_ICONERROR | MB_TOPMOST | MB_SETFOREGROUND);
     TerminateProcess(GetCurrentProcess(), 1);
 }
 
-// Autotest: [autotest] config = the aimod.ini to play with, ai_dir = the personality folder (aimod_ai), each absolute
-// or relative to the game folder; unset = the files next to the game as in normal play. Every reader of the settings
+// Autotest: [autotest] config = the aimod.ini to play with, ai_dir = the personality folder, each absolute or
+// relative to the game folder; unset = the files in <game>\aimod\ as in normal play. Every reader of the settings
 // goes through g_aimod_ini / g_ai_dir, so the whole file ([general], [ai_base], the difficulties, [display], [llm] ...)
 // comes from the chosen one. The personality folder otherwise: aimod.ini [general] ai_dir (the same path rules), so a
 // developer's game reads the repository's files (ai_dir = _aimod\config\aimod_ai) instead of a copy. A folder that
-// isn't there: the one next to the game, told in the log (g_ai_dir_why). config_paths picks the file, config_ai_dir
+// isn't there: <game>\aimod\, told in the log (g_ai_dir_why). config_paths picks the file, config_ai_dir
 // the folder once the settings are read.
 internal char g_ai_dir_why[MAX_PATH + 64];
 internal void game_path(const char *v, char *out, int cap) {   // absolute, or relative to the game folder; '/' as '\'
@@ -497,14 +497,14 @@ internal void install(HMODULE self) {
     if (slash) {
         slash[1] = 0;
         lstrcpyA(g_game_dir, path);
-        wsprintfA(g_ai_dir, "%saimod_ai\\", path);
+        wsprintfA(g_ai_dir, "%saimod\\", path);
         lstrcpyA(dir, path);
-        slot_dir(dir);   // the test ini, the log and the dumps: the game folder, a test slot's own folder
+        slot_dir(dir);   // the test ini, the log and the dumps: <game>\aimod\, a test slot's own folder
         wsprintfA(g_dump_dir, "%saimod_dumps", dir);
         wsprintfA(path, "%saimod_autotest.ini", dir);
         load_autotest(path);
         lstrcpyA(g_ini, path);
-        wsprintfA(g_aimod_ini, "%saimod.ini", g_game_dir);
+        wsprintfA(g_aimod_ini, "%saimod\\aimod.ini", g_game_dir);
         config_paths();
         // required: missing -> error and quit; [general] enabled=0 -> no hooks
         if (GetFileAttributesA(g_aimod_ini) == INVALID_FILE_ATTRIBUTES) config_missing(g_aimod_ini);

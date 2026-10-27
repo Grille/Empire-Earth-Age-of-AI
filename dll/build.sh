@@ -36,6 +36,8 @@ WINDRES=${WINDRES:-${CC%clang}windres}
 rm -f aimod_config_res.o
 if [ "$1" = install ]; then   # the working tree's build (scripts/build/install.sh: the committed one) into the game folder
     REPO="$(cd .. && pwd)"; . ../scripts/game_dir.sh   # GAME
+    . ../scripts/build/mod_dir.sh
+    mod_dir_move "$GAME"   # the mod's files into <game>\aimod\, once
     cp eeaimod.dll "$GAME/eeaimod.dll" && echo "installed to $GAME/eeaimod.dll"
     cp aimod_config.exe "$GAME/aimod_config.exe" && echo "installed to $GAME/aimod_config.exe" || echo "aimod_config.exe is open - not replaced"
     # another program's dinput.dll is never replaced (then the settings simply stay in the registry)

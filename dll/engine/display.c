@@ -1496,9 +1496,9 @@ internal void cmd_mapshot(const char *args, char *out) {
     if (size != 1024 && size != 2048 && size != 4096) { REPLY("error: size 1024, 2048 or 4096 (and/or all)\n"); return; }
     ee_ui *w = game_get_ui();
     if (!w || !game_map() || !game_physics()) { REPLY("error: no game running\n"); return; }
-    CreateDirectoryA("aimod_dumps", NULL);
+    CreateDirectoryA(g_dump_dir, NULL);
     char dir[MAX_PATH], dst[MAX_PATH];
-    DWORD dn = GetFullPathNameA("aimod_dumps", sizeof dir, dir, NULL);
+    DWORD dn = GetFullPathNameA(g_dump_dir, sizeof dir, dir, NULL);
     if (!dn || dn >= sizeof dir || snprintf(dst, sizeof dst, "%s\\%s.bmp", dir, name) >= (int)sizeof dst) {
         REPLY("error: the picture's path is too long\n");
         return;
@@ -1524,9 +1524,9 @@ internal void cmd_headless(const char *verb, const char *args, char *out) {
     if (!strcmp(verb, "shot")) {
         char name[64] = "shot";
         sscanf(args, "%63s", name);
-        CreateDirectoryA("aimod_dumps", NULL);
+        CreateDirectoryA(g_dump_dir, NULL);
         char dir[MAX_PATH];
-        DWORD dn = GetFullPathNameA("aimod_dumps", sizeof dir, dir, NULL);
+        DWORD dn = GetFullPathNameA(g_dump_dir, sizeof dir, dir, NULL);
         if (!dn || dn >= sizeof dir || snprintf(g_shot_path, sizeof g_shot_path, "%s\\%s.bmp", dir, name) >= (int)sizeof g_shot_path) {
             REPLY("error: the picture's path is too long\n");   // (a deep game folder)
             return;
@@ -1694,8 +1694,10 @@ internal void cmd_ddpoke(char *out, const char *args) {
             if (sc && i == 4) {   // the scaled frame for a look: aimod_dumps/bench_scaled.bmp
                 DDSURFACEDESC2 sd = d;
                 sd.dwWidth = (DWORD)w; sd.dwHeight = (DWORD)h; sd.lPitch = w * 4; sd.lpSurface = sc;
-                CreateDirectoryA("aimod_dumps", NULL);
-                write_desc_bmp(&sd, "aimod_dumps\\bench_scaled.bmp");
+                CreateDirectoryA(g_dump_dir, NULL);
+                char bench[MAX_PATH + 24];
+                snprintf(bench, sizeof bench, "%s\\bench_scaled.bmp", g_dump_dir);
+                write_desc_bmp(&sd, bench);
             }
             ReleaseSRWLockExclusive(&g_scale_lock);
         }

@@ -1,4 +1,4 @@
-// k_tpl: the language model's instructions - the keys (texts.c THE KEYS; their texts: aimod_ai\mod\prompt.eeai,
+// k_tpl: the language model's instructions - the keys (texts.c THE KEYS; their texts: mod\prompt.eeai,
 // a personality's prompt = { ... } first).
 internal const struct text_key k_tpl[] = {
     { "intro", "" }, { "nature", "" }, { "voice", "examples" }, { "rules", "language_name" }, { "rules_words", "" },

@@ -1,4 +1,4 @@
-// TEXTS: the mod's own words, from <game>\aimod_ai\mod\: system.eeai - the system lines the player reads, system = {
+// TEXTS: the mod's own words, from <game>\aimod\mod\: system.eeai - the system lines the player reads, system = {
 // ... }; prompt.eeai - the language model's instructions, prompt = { ... }, the last layer of every personality
 // (persona.c FILES): a personality's own prompt = { ... } and its other layers' come first (tpl_find). English (the
 // model is told which language to answer in). The files are part of the mod like the DLL: every key the code asks for
@@ -36,7 +36,7 @@ internal int text_index(const struct text_key *t, int n, const char *key) {
     return -1;
 }
 internal void texts_dir(char *dir) {
-    wsprintfA(dir, "%smod\\", g_ai_dir);   // <game>\aimod_ai\mod\, [general] ai_dir or [autotest] ai_dir
+    wsprintfA(dir, "%smod\\", g_ai_dir);   // <game>\aimod\mod\, [general] ai_dir or [autotest] ai_dir
 }
 internal int g_texts_sys_n, g_texts_var_n;   // keys read (log)
 // mod/system.eeai: system = { strings }, names (vars) - the format: expr.c THE TEXT FILES

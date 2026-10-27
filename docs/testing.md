@@ -4,7 +4,7 @@ The tooling runs AI-vs-AI games unattended and lets you inspect the running game
 
 ## Autotest mode
 
-The DLL looks for `aimod_autotest.ini` in the game folder. `scripts/test/run_test.ps1` copies
+The DLL looks for `aimod_autotest.ini` in the game folder's `aimod\` (a test slot: its own folder). `scripts/test/run_test.ps1` copies
 [`tests/config/autotest.ini`](../tests/config/autotest.ini) there for the duration of a run only, so normal play is never affected.
 The `[autotest]` keys:
 

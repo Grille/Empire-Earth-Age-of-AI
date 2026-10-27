@@ -10,7 +10,7 @@ internal const char *const k_resource_const[5] = { "food", "wood", "stone", "gol
 // game's types are there: filters must be quick, AI code)
 internal const char *persona_file_of(const char *file);   // voice/persona.c
 internal int ee_constant(const char *name, struct xval *v) {
-    if (!_strnicmp(name, "persona.", 8)) {   // persona.fuchs: a personality by its file (aimod_ai\fuchs.eeai) - its name
+    if (!_strnicmp(name, "persona.", 8)) {   // persona.fuchs: a personality by its file (fuchs.eeai in the personality folder) - its name
         const char *f = persona_file_of(name + 8);
         if (!f) return 0;
         xstr(v, f);

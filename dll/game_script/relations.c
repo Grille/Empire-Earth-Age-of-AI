@@ -531,7 +531,7 @@ internal int x_obj_set(struct xctx *c, const struct xval *o, const char *name, c
     if (!strcmp(name, "persona")) {
         int i = v->has_s && !v->has_n ? persona_find(v->s) : -1;
         if (human) { x_host_fail(c, "slot %d.persona: a human's - a personality is a computer's", number); return 0; }
-        if (i < 0) { x_host_fail(c, "slot %d.persona = %.40s: no personality - persona.<its file> (aimod_ai)", number, xtext_of(v)); return 0; }
+        if (i < 0) { x_host_fail(c, "slot %d.persona = %.40s: no personality - persona.<its file> (the personality folder)", number, xtext_of(v)); return 0; }
         g_setup_persona[number] = i;
         return 1;
     }

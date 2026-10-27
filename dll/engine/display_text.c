@@ -443,8 +443,8 @@ internal void atlas_dump(int n) {   // tests: the 256x256 DIB holds the last atl
         dd.ddpfPixelFormat.dwRBitMask = g_tdc[i].masks[0];
         dd.ddpfPixelFormat.dwGBitMask = g_tdc[i].masks[1];
         dd.ddpfPixelFormat.dwBBitMask = g_tdc[i].masks[2];
-        char path[MAX_PATH];
-        wsprintfA(path, "aimod_dumps\\atlas%d.bmp", n);
+        char path[MAX_PATH + 24];
+        snprintf(path, sizeof path, "%s\\atlas%d.bmp", g_dump_dir, n);
         write_desc_bmp(&dd, path);
         if (g_log) fprintf(g_log, "# text bitmap: %s, %d bit, masks %04lx %04lx %04lx\n", path, g_tdc[i].bpp,
                            g_tdc[i].masks[0], g_tdc[i].masks[1], g_tdc[i].masks[2]);

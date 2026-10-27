@@ -202,34 +202,39 @@ siege, home guard.
 
 ## Installing (players)
 
-1. Copy `eeaimod.dll` into the Empire Earth folder (next to `Empire Earth.exe`).
-2. Copy [`config/aimod.ini`](config/aimod.ini) into the same folder and adjust it. Every option is
-   explained in the file. `[ai_base]` is every AI difficulty's (the medium AI plays it as it is); `[ai_easy]` and
-   `[ai_hard]` override it for those two.
-3. Optional: copy the folder [`config/aimod_ai`](config/aimod_ai) into the same folder for the AI
-   personalities. Add or edit `.eeai` files there to make your own; they are read when Empire Earth starts.
-4. Start the game normally. Changes to `aimod.ini` take effect when a game starts or a save is loaded.
-   Instead of editing the file you can copy `aimod_config.exe` into the same folder and start it: every
-   setting in one tree - the sections (General, Display, ... the AI), their topics (Movement, Navy, ...), a
-   master setting with the ones it switches - with its explanation, its value and its default, the AI's for
-   every difficulty and easy's, medium's and hard's own side by side; a search finds any of them; a value is
-   checked as you type, as the game reads it, and Save writes only what you changed, keeping the file's comments. It also lists keys in your file that this
-   version no longer knows (old experiments, typing mistakes) and can remove them. Without an `aimod.ini` it
-   offers to make one with the default settings. Its Game exe button shows which exe is next to it and can give the
-   game 4 GB of memory instead of 2 (the Large Address Aware flag - big armies and maps need it; one bit in the
-   exe's header, the game closed, the exe kept as `Empire Earth.exe.original` and put back by Restore).
-5. Optional: copy `dinput.dll` into the same folder too. The game then keeps its own settings (graphics,
-   sound, scroll speed, the last game's options - what the options screen sets) in `eesettings.ini` in the
-   game folder instead of the Windows registry, so they travel with the folder; the first start copies the
-   registry's values into it. It is a stand-in Windows loads at the start: the game's one DirectInput call
-   goes on to the system's `dinput.dll`. If another program in the folder already has a `dinput.dll`, keep
-   that one - everything works without ours, the settings then simply stay in the registry. Delete it to go
-   back to the registry (the file is then ignored).
+The mod keeps the game folder tidy: next to `Empire Earth.exe` go only `eeaimod.dll`, the optional
+`dinput.dll` and `aimod_config.exe` (Windows and the game load DLLs from there only); everything else of the mod
+is in one folder `aimod` beside them - its settings, the personalities, the game's settings file, the log.
 
-`aimod.ini` is required: without it Empire Earth shows an error and closes. To play the original game,
+1. Copy `eeaimod.dll` into the Empire Earth folder (next to `Empire Earth.exe`), and make a folder `aimod` there.
+2. Copy [`config/aimod.ini`](config/aimod.ini) into `aimod` and adjust it. Every option is explained in the
+   file. `[ai_base]` is every AI difficulty's (the medium AI plays it as it is); `[ai_easy]` and `[ai_hard]`
+   override it for those two.
+3. Optional: copy what is in [`config/aimod_ai`](config/aimod_ai) into `aimod` too, for the AI personalities.
+   Add or edit `.eeai` files there to make your own; they are read when Empire Earth starts.
+4. Start the game normally. Changes to `aimod.ini` take effect when a game starts or a save is loaded.
+   Instead of editing the file you can copy `aimod_config.exe` next to `Empire Earth.exe` and start it: every
+   setting in one tree - the sections (General, Display, ... the AI), their topics (Movement, Navy, ...), a
+   master setting with the ones it switches - with its explanation, its value and its default, an AI setting's
+   easy and hard values where they differ; a search finds any of them; a value is checked as you type, as the
+   game reads it, and Save writes only what you changed, keeping the file's comments. It also lists keys in your
+   file that this version no longer knows (old experiments, typing mistakes) and can remove them. Without an
+   `aimod\aimod.ini` it offers to make one with the default settings. Its Game exe button shows which exe is next
+   to it and can give the game 4 GB of memory instead of 2 (the Large Address Aware flag - big armies and maps
+   need it; one bit in the exe's header, the game closed, the exe kept as `Empire Earth.exe.original` and put
+   back by Restore). Help (F1) explains its colours and the rest.
+5. Optional: copy `dinput.dll` next to `Empire Earth.exe` too. The game then keeps its own settings (graphics,
+   sound, scroll speed, the last game's options - what the options screen sets) in `aimod\eesettings.ini`
+   instead of the Windows registry, so they travel with the folder; the first start copies the registry's values
+   into it. It is a stand-in Windows loads at the start: the game's one DirectInput call goes on to the system's
+   `dinput.dll`. If another program in the folder already has a `dinput.dll`, keep that one - everything works
+   without ours, the settings then simply stay in the registry. Delete it to go back to the registry (the file is
+   then ignored).
+
+`aimod\aimod.ini` is required: without it Empire Earth shows an error and closes. To play the original game,
 set `enabled=0` at the top of `aimod.ini` (the mod then installs nothing), or delete `eeaimod.dll` to
 uninstall. A setting missing from an older `aimod.ini` takes its built-in default. The DLL writes a log to
-`aimod_econ.csv` in the game folder.
+`aimod\aimod_econ.csv`.
 
 ## Display and interface
 

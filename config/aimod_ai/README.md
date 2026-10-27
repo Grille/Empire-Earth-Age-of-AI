@@ -1,9 +1,9 @@
-# The aimod_ai folder
+# The personality files (aimod_ai)
 
 This folder holds the words of eeaimod's computer players: their personalities, the system lines the mod shows
 you, and what it tells a language model when the AI voice is on. Every file is plain text (UTF-8) with the
 extension `.eeai`; this README is not read by the game. The files are read once, when Empire Earth starts - restart
-the game after editing. The folder sits next to Empire Earth.exe; `ai_dir=` in aimod.ini's `[general]` reads it from
+the game after editing. They go into the mod's folder `aimod` next to Empire Earth.exe (with aimod.ini); `ai_dir=` in aimod.ini's `[general]` reads them from
 somewhere else instead (for example where you edit it: `ai_dir=_aimod\config\aimod_ai`, relative to the game folder
 or absolute).
 
@@ -115,7 +115,7 @@ Only inside `( )`: in a list, `["Hello" "Hi"]` stays a mistake (a missing comma)
 built in its string, never with `+` (which adds numbers): `"Gold: {me.gold}"`, `"{greeting}{farewell}"`.
 
 **A mistake** - a missing quote or bracket, an expression that doesn't parse (also in a string's `{placeholder}`), an
-unknown key, situation or record, a line outside `lines = { }` - is written to the log (`aimod_econ.csv` next to the game, lines starting with
+unknown key, situation or record, a line outside `lines = { }` - is written to the log (`aimod_econ.csv` in the folder `aimod`, lines starting with
 `# texts:`) with the file and line, and only that key is skipped. The files are checked when the game starts, every
 line, not only those that happen to be said. A bad file never stops the game.
 

@@ -1,4 +1,4 @@
-// AI PERSONALITIES: every AI player gets a personality from <game>\aimod_ai\*.eeai - a name, traits (0-100) that
+// AI PERSONALITIES: every AI player gets a personality from <game>\aimod\*.eeai - a name, traits (0-100) that
 // steer its diplomacy, and the lines it says in situations of the game. Included by eeaimod.c after defence.c,
 // before diplo.c (which makes the decisions and raises most of the situations).
 //
@@ -200,13 +200,13 @@ internal void lang_detect(void) {
 // string or a list of them, conditions }, prompt = { the language model's texts (texts.c) } - and its names outside
 // them (vars). A file that declares register_personality() is a personality (an AI may get it); any other is a
 // library, read when a file includes it (_template.eeai, the one to copy, too).
-// INCLUDES: include("pack_base.eeai", ...) - a plain file name of this folder, so a pack of files dropped into aimod_ai
+// INCLUDES: include("pack_base.eeai", ...) - a plain file name of this folder, so a pack of files dropped into the folder
 // brings its own without touching anyone else's - or one of the mod's own, "mod/computer.eeai", "mod/prompt.eeai", "mod/units.eeai". The
 // files a file includes are its LAYERS, in order, each one's own includes right after it (4 deep, no circles): their
 // names, decide keys, personality and style keys count where the file has none of its own; their lines and prompt
 // texts come after the file's - a situation's line from the first layer whose chain (the situation, then its
 // fallbacks: line_fallback) has something to say now, worked out with that layer's names first (line_source).
-// THE MOD'S OWN (aimod_ai\mod\): computer.eeai and prompt.eeai are the last layers of every personality, unnamed -
+// THE MOD'S OWN (mod\ in the folder): computer.eeai and prompt.eeai are the last layers of every personality, unnamed -
 // unless it names them itself (or a layer does), which puts them where it names them; prompt.eeai is computer.eeai's
 // last layer too; units.eeai (the groups the texts count with: units, army, buildings ...) a layer of both.
 // computer.eeai: the neutral lines for what must not go unsaid (war, peace, offers, capitulation,
@@ -372,7 +372,7 @@ internal struct persona *lib_get(const char *dir, const char *file, const char *
     struct persona *p = !lstrcmpiA(file, "mod/computer.eeai") ? &g_computer : !lstrcmpiA(file, "mod/prompt.eeai") ? &g_prompt :
                         malloc(sizeof *p);
     if (!persona_parse(dir, file, p)) {
-        x_error("%s: include \"%s\": no such file in aimod_ai", by, file);
+        x_error("%s: include \"%s\": no such file in the personality folder", by, file);
         if (p != &g_computer && p != &g_prompt) free(p);
         return NULL;
     }
@@ -478,7 +478,7 @@ internal void x_fn_scan_folder(const char *dir) {
 internal void x_fn_scan_dir(void) {
     char dir[MAX_PATH];
     g_xfn_n = g_xvn_n = 0;
-    x_fn_scan_folder(g_ai_dir);   // <game>\aimod_ai\, [general] ai_dir or [autotest] ai_dir
+    x_fn_scan_folder(g_ai_dir);   // <game>\aimod\, [general] ai_dir or [autotest] ai_dir
     snprintf(dir, sizeof dir, "%smod\\", g_ai_dir);
     x_fn_scan_folder(dir);
 }
@@ -1093,8 +1093,8 @@ internal DWORD WINAPI texts_missing_box(LPVOID arg) {
     (void)arg;
     char text[600];
     wsprintfA(text, "eeaimod's text files are missing: %smod\\ needs computer.eeai, prompt.eeai, units.eeai and system.eeai.\n\n"
-              "The computer players play on, but without personalities, AI voice and diplomacy. Copy the mod's aimod_ai "
-              "folder next to Empire Earth.exe again (or set ai_dir in aimod.ini).", g_ai_dir);
+              "The computer players play on, but without personalities, AI voice and diplomacy. Copy the mod's personality "
+              "files (config\\aimod_ai) into the folder aimod next to Empire Earth.exe again (or set ai_dir in aimod.ini).", g_ai_dir);
     MessageBoxA(NULL, text, "eeaimod", MB_OK | MB_ICONWARNING | MB_TOPMOST | MB_SETFOREGROUND);
     return 0;
 }
@@ -1102,7 +1102,7 @@ internal DWORD WINAPI texts_missing_box(LPVOID arg) {
 internal DWORD WINAPI x_errors_box(LPVOID arg) {
     (void)arg;
     char text[2400];
-    int o = wsprintfA(text, "%d mistake%s in the aimod_ai files (strict_parsing=1 in aimod.ini) - the keys are skipped:\n\n",
+    int o = wsprintfA(text, "%d mistake%s in the personality files (strict_parsing=1 in aimod.ini) - the keys are skipped:\n\n",
                       g_x_total, g_x_total == 1 ? "" : "s");
     EnterCriticalSection(&g_x_lock);
     for (int i = 0; i < g_x_queued && o < (int)sizeof text - 260; i++) o += wsprintfA(text + o, "%s\n", g_x_queue[i]);
