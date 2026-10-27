@@ -596,6 +596,22 @@ unsafe struct EEComplexUnit
     /// (appended); the citizen's script takes it up from there, no goal is given
     [address((ee)0x005E8A3B, (aoc)0x005F60EA)]
     extern void build_next(EEUnit* building);
+    /// its tile (+0x1C / +0x20) changes to x, y: its map cell looked up (map +0x1816D4 by y * size + x; none past the
+    /// map's square), and with link set and x changed its place in the world's x-sorted unit list again (EEWorld.resort,
+    /// whose walk runs off the list's end for an x past the map - the player's crash at 594.7 min, Empire
+    /// Earth.exe+228D6F under a holder's unload 0x5F04AD); (-10000, -10000) takes it off the map (garrisoned, loaded)
+    [address((ee)0x00616F9D, (aoc)0x00629AC3)]
+    [call_site("set_tile", (ee)0x005974DF, (aoc)0x005A76B3)]
+    [call_site("set_tile", (ee)0x0059763E, (aoc)0x005A7814)]
+    [call_site("set_tile", (ee)0x00597727, (aoc)0x005A78FE)]
+    [call_site("set_tile", (ee)0x005ED341, (aoc)0x005FB285)]
+    [call_site("set_tile", (ee)0x005F02B2, (aoc)none)]
+    [call_site("set_tile", (ee)0x005F03AB, (aoc)none)]
+    [call_site("set_tile", (ee)0x005F04AD, (aoc)none)]
+    [call_site("set_tile", (ee)0x00616B81, (aoc)0x006296AA)]
+    [call_site("set_tile", (ee)0x0061F0BA, (aoc)0x00632D94)]
+    [call_site("set_tile", (ee)0x0063861E, (aoc)0x0064E5EA)]
+    extern void set_tile(uint32 x, uint32 y, char8 link);
 
     /// freed: its slot 12 (+0x30), its references 0, then back to the game's pool (0x5F20FB / AoC 0x60096B)
     [address((ee)0x005ED71E, (aoc)0x005FB7FB), overrides(typeof(RTSUnit))]

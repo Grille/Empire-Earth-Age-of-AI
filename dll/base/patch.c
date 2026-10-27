@@ -59,6 +59,7 @@ internal int mem_readable(const void *p, size_t n) {
 // Redirect an E8 rel32 call, verifying it currently targets `expected`.
 internal BOOL patch_call(uintptr_t site, uintptr_t expected, void *hook) {
     uint8_t *p = (uint8_t *)site;
+    if (!site) return FALSE;   // a build without that call (the spec's none: 0)
     if (p[0] != 0xE8 || site + 5 + *(int32_t *)(p + 1) != expected) return FALSE;
     DWORD old;
     if (!VirtualProtect(p, 5, PAGE_EXECUTE_READWRITE, &old)) return FALSE;

@@ -180,6 +180,15 @@ unsafe struct EEWorld
 
     [address((ee)0x0052E5F7, (aoc)0x00539532)]
     extern uint32 site_gatherers(EEUnit* site);
+
+    /// vf5: a unit's place in the world's x-sorted unit list after a move - thiscall(world, its handle: +0x30 the
+    /// unit); out of the list (0x60xxxx unlink), the list walked from its old neighbours by the unit's tile x, linked in
+    /// again (0x628D34). A tile x past every unit's ends the walk with no node and the link reads NULL+8 (the
+    /// player's crash at 594.7 min, Empire Earth.exe+228D6F under a holder's unload; asg_queue.c: the same address
+    /// when a unit given back twice broke the list)
+    [slot(5), address((ee)0x005310B3, (aoc)0x0053C105)]
+    [vtable_site("world_resort")]
+    extern void resort(EEUnit* handle);
 }
 
 /// the game being started (EEGameState, EE 0x917588 - its constructor 0x53B48D, RTTI by its vtable; not the world,

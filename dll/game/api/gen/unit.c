@@ -581,6 +581,14 @@ internal inline int patch_repair_goal(unit_assign_goal_fn h) { return patch_call
 typedef void (__thiscall *unit_build_next_fn)(ee_unit *, ee_unit *);
 internal unit_build_next_fn fn_unit_build_next;
 internal inline void unit_build_next(ee_unit *unit, ee_unit *building) { fn_unit_build_next(unit, building); }
+// its tile (+0x1C / +0x20) changes to x, y: its map cell looked up (map +0x1816D4 by y * size + x; none past the
+// map's square), and with link set and x changed its place in the world's x-sorted unit list again (EEWorld.resort,
+// whose walk runs off the list's end for an x past the map - the player's crash at 594.7 min, Empire
+// Earth.exe+228D6F under a holder's unload 0x5F04AD); (-10000, -10000) takes it off the map (garrisoned, loaded)
+typedef void (__thiscall *unit_set_tile_fn)(ee_unit *, uint32_t, uint32_t, char);
+internal unit_set_tile_fn fn_unit_set_tile;
+internal inline void unit_set_tile(ee_unit *unit, uint32_t x, uint32_t y, char link) { fn_unit_set_tile(unit, x, y, link); }
+internal inline int patch_set_tile(unit_set_tile_fn h, int *of) { return patch_calls(calls_set_tile, 10, (uintptr_t)fn_unit_set_tile, (void *)h, of); }
 // freed: its slot 12 (+0x30), its references 0, then back to the game's pool (0x5F20FB / AoC 0x60096B)
 internal unit_release_fn fn_ee_complex_unit_release;
 internal inline void ee_complex_unit_release(ee_unit *unit) { fn_ee_complex_unit_release(unit); }
@@ -826,6 +834,17 @@ internal int spec_unit_select(int build) {
         fn_unit_assign_goal = (unit_assign_goal_fn)0x005F05BD;
         call_repair_goal = 0x0046DA88;
         fn_unit_build_next = (unit_build_next_fn)0x005E8A3B;
+        fn_unit_set_tile = (unit_set_tile_fn)0x00616F9D;
+        calls_set_tile[0] = 0x005974DF;
+        calls_set_tile[1] = 0x0059763E;
+        calls_set_tile[2] = 0x00597727;
+        calls_set_tile[3] = 0x005ED341;
+        calls_set_tile[4] = 0x005F02B2;
+        calls_set_tile[5] = 0x005F03AB;
+        calls_set_tile[6] = 0x005F04AD;
+        calls_set_tile[7] = 0x00616B81;
+        calls_set_tile[8] = 0x0061F0BA;
+        calls_set_tile[9] = 0x0063861E;
         fn_ee_complex_unit_release = (unit_release_fn)0x005ED71E;
         vt_ee_ghost_unit = 0x00831588;
         size_ee_ghost_unit = 0x334;
@@ -994,6 +1013,17 @@ internal int spec_unit_select(int build) {
         fn_unit_assign_goal = (unit_assign_goal_fn)0x005FE863;
         call_repair_goal = 0x004706DF;
         fn_unit_build_next = (unit_build_next_fn)0x005F60EA;
+        fn_unit_set_tile = (unit_set_tile_fn)0x00629AC3;
+        calls_set_tile[0] = 0x005A76B3;
+        calls_set_tile[1] = 0x005A7814;
+        calls_set_tile[2] = 0x005A78FE;
+        calls_set_tile[3] = 0x005FB285;
+        calls_set_tile[4] = 0;
+        calls_set_tile[5] = 0;
+        calls_set_tile[6] = 0;
+        calls_set_tile[7] = 0x006296AA;
+        calls_set_tile[8] = 0x00632D94;
+        calls_set_tile[9] = 0x0064E5EA;
         fn_ee_complex_unit_release = (unit_release_fn)0x005FB7FB;
         vt_ee_ghost_unit = 0x00846EF4;
         size_ee_ghost_unit = 0x334;
@@ -1023,12 +1053,12 @@ internal int spec_unit_select(int build) {
         fn_unit_distance = (unit_distance_fn)0x00642489;
         fn_unit_give = (unit_give_fn)0x0064E7DA;
         fn_unit_attr_set = (unit_attr_set_fn)0x005C8F28;
-        return 0;
+        return 3;
     }
     return 0;
 }
 // the names a build hasn't got, by build
-internal const char *const k_spec_unit_missing[ADDR_BUILDS] = { "", "" };
+internal const char *const k_spec_unit_missing[ADDR_BUILDS] = { "", "EEComplexUnit.set_tile [call_site set_tile 4] EEComplexUnit.set_tile [call_site set_tile 5] EEComplexUnit.set_tile [call_site set_tile 6]" };
 // the load-time check: what the spec says of the running build's exe (spec_check): the failures
 internal int spec_unit_check(void) {
     int bad = 0;
@@ -1059,6 +1089,17 @@ internal int spec_unit_check(void) {
     bad += spec_code((uintptr_t)fn_unit_assign_goal, "EEComplexUnit.assign_goal");
     bad += spec_call(call_repair_goal, (uintptr_t)fn_unit_assign_goal, "EEComplexUnit.assign_goal [call_site repair_goal]");
     bad += spec_code((uintptr_t)fn_unit_build_next, "EEComplexUnit.build_next");
+    bad += spec_code((uintptr_t)fn_unit_set_tile, "EEComplexUnit.set_tile");
+    bad += spec_call(calls_set_tile[0], (uintptr_t)fn_unit_set_tile, "EEComplexUnit.set_tile [call_site set_tile 0]");
+    bad += spec_call(calls_set_tile[1], (uintptr_t)fn_unit_set_tile, "EEComplexUnit.set_tile [call_site set_tile 1]");
+    bad += spec_call(calls_set_tile[2], (uintptr_t)fn_unit_set_tile, "EEComplexUnit.set_tile [call_site set_tile 2]");
+    bad += spec_call(calls_set_tile[3], (uintptr_t)fn_unit_set_tile, "EEComplexUnit.set_tile [call_site set_tile 3]");
+    bad += spec_call(calls_set_tile[4], (uintptr_t)fn_unit_set_tile, "EEComplexUnit.set_tile [call_site set_tile 4]");
+    bad += spec_call(calls_set_tile[5], (uintptr_t)fn_unit_set_tile, "EEComplexUnit.set_tile [call_site set_tile 5]");
+    bad += spec_call(calls_set_tile[6], (uintptr_t)fn_unit_set_tile, "EEComplexUnit.set_tile [call_site set_tile 6]");
+    bad += spec_call(calls_set_tile[7], (uintptr_t)fn_unit_set_tile, "EEComplexUnit.set_tile [call_site set_tile 7]");
+    bad += spec_call(calls_set_tile[8], (uintptr_t)fn_unit_set_tile, "EEComplexUnit.set_tile [call_site set_tile 8]");
+    bad += spec_call(calls_set_tile[9], (uintptr_t)fn_unit_set_tile, "EEComplexUnit.set_tile [call_site set_tile 9]");
     bad += spec_code((uintptr_t)fn_ee_complex_unit_release, "EEComplexUnit.release");
     bad += spec_slot(vt_ee_complex_unit, slot_unit_release, (uintptr_t)fn_ee_complex_unit_release, "EEComplexUnit.release [slot]");
     bad += spec_vtable(vt_ee_ghost_unit, ".?AVEEGhostUnit@@", "EEGhostUnit [vtable]");

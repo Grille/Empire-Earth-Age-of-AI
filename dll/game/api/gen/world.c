@@ -175,6 +175,16 @@ internal inline ee_unit *world_unit_by_id(ee_world *world, uint32_t id) { return
 typedef uint32_t (__thiscall *world_site_gatherers_fn)(ee_world *, ee_unit *);
 internal world_site_gatherers_fn fn_world_site_gatherers;
 internal inline uint32_t world_site_gatherers(ee_world *world, ee_unit *site) { return fn_world_site_gatherers(world, site); }
+// vf5: a unit's place in the world's x-sorted unit list after a move - thiscall(world, its handle: +0x30 the
+// unit); out of the list (0x60xxxx unlink), the list walked from its old neighbours by the unit's tile x, linked in
+// again (0x628D34). A tile x past every unit's ends the walk with no node and the link reads NULL+8 (the
+// player's crash at 594.7 min, Empire Earth.exe+228D6F under a holder's unload; asg_queue.c: the same address
+// when a unit given back twice broke the list)
+typedef void (__thiscall *world_resort_fn)(ee_world *, ee_unit *);
+internal inline void world_resort(ee_world *world, ee_unit *handle) { ((world_resort_fn)(*(void ***)world)[slot_world_resort])(world, handle); }
+internal world_resort_fn fn_ee_world_resort;
+internal inline void ee_world_resort(ee_world *world, ee_unit *handle) { fn_ee_world_resort(world, handle); }
+internal inline int patch_world_resort(world_resort_fn h) { return patch_vtable(vt_ee_world, (int)slot_world_resort, (uintptr_t)fn_ee_world_resort, (void *)h); }
 
 // class EEGameState (ee_game_state)
 // the game being started (EEGameState, EE 0x917588 - its constructor 0x53B48D, RTTI by its vtable; not the world,
@@ -236,6 +246,8 @@ internal int spec_world_select(int build) {
         fn_world_set_stance = (world_set_stance_fn)0x0052D5D7;
         fn_world_unit_by_id = (world_unit_by_id_fn)0x0053B889;
         fn_world_site_gatherers = (world_site_gatherers_fn)0x0052E5F7;
+        slot_world_resort = 5;
+        fn_ee_world_resort = (world_resort_fn)0x005310B3;
         vt_ee_game_state = 0x0082CA14;
         fn_game_state_start = (game_state_start_fn)0x0052599B;
         call_game_start = 0x004CEC14;
@@ -283,6 +295,8 @@ internal int spec_world_select(int build) {
         fn_world_set_stance = (world_set_stance_fn)0x005384DD;
         fn_world_unit_by_id = (world_unit_by_id_fn)0x0054804F;
         fn_world_site_gatherers = (world_site_gatherers_fn)0x00539532;
+        slot_world_resort = 5;
+        fn_ee_world_resort = (world_resort_fn)0x0053C105;
         vt_ee_game_state = 0x00842178;
         fn_game_state_start = (game_state_start_fn)0x005306F2;
         call_game_start = 0x004D4443;
@@ -306,6 +320,8 @@ internal int spec_world_check(void) {
     bad += spec_code((uintptr_t)fn_world_set_stance, "EEWorld.set_stance");
     bad += spec_code((uintptr_t)fn_world_unit_by_id, "EEWorld.unit_by_id");
     bad += spec_code((uintptr_t)fn_world_site_gatherers, "EEWorld.site_gatherers");
+    bad += spec_code((uintptr_t)fn_ee_world_resort, "EEWorld.resort");
+    bad += spec_slot(vt_ee_world, slot_world_resort, (uintptr_t)fn_ee_world_resort, "EEWorld.resort [slot]");
     bad += spec_vtable(vt_ee_game_state, ".?AVEEGameState@@", "EEGameState [vtable]");
     bad += spec_code((uintptr_t)fn_game_state_start, "EEGameState.start");
     bad += spec_call(call_game_start, (uintptr_t)fn_game_state_start, "EEGameState.start [call_site game_start]");

@@ -144,6 +144,8 @@ second time - the guard above misses that (its count is 1, not 0). Fixed in dll/
 the pool after the pop is not made a member. The call-off itself (0x454B90 per subgroup: vf71 send home, 0x455C90,
 vf26 members and route released, vf12, the group's reference) frees nothing twice on its own.
 
+A unit's tile changes through 0x616F9D (thiscall(unit, x, y, link), 10 calls; spec EEComplexUnit.set_tile): its map cell by y * size + x (map +0x1816D4; none past the square, no crash there), then - link set, x changed - EEWorld vf5 0x5310B3 places it again in the world's x-sorted unit list, walking from its old neighbours by its tile x; an x past every unit's ends the walk with no node and the link 0x628D34 reads NULL+8 at 0x628D6F (the address of the double-freed unit above, by another way). The player's game, 594.7 min: a holder letting its units out (EEUCTransport vf64 0x60A2ED -> 0x5EEAE8 -> the placing 0x5F043B -> 0x616F9D); not reproduced in three replays. dll/engine/offmap.c: a tile off the map (not (-10000, -10000), the game's own for a unit taken off it) is the nearest on it, the unit's position too, logged with the caller (tests/probes/offmap.eeai, the pipe's `offmap x y`).
+
 ### Ranged attacks and projectiles (dll/engine/aim.c)
 
 - Firing: 0x61E11C (attacker class, thiscall(unit)). Aim point from 0x633413 (cdecl: attacker, &target out,

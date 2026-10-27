@@ -1,0 +1,10 @@
+// A unit put on a tile off the map (engine/offmap.c): the player's game crashed at 0x628D6F when a unit got a tile
+// past the map's edge (its place in the x-sorted unit list walked off the list's end). At 1 minute a unit of P2's is
+// sent 3 tiles past the east edge through the guard: "# engine fix: ... put off the map" logged, the unit on the edge
+// tile, the game playing on to quit_minutes.
+
+wait_until(1min)
+let at = player(2).units(kind.citizen)[1].pos
+ping("{offmap(int(at.x), int(at.y))}")
+wait(30s)
+ping("still running at {time} s")

@@ -864,6 +864,26 @@ internal void cmd_calloff(char *out, const char *args) {
     REPLY("P%d calls off its attack on P%d at the next safe point\n", p, t);
 }
 
+// ---- from offmap.c ----
+// offmap x y (test): the unit nearest x, y (within 5 tiles) to a tile 3 past the map's east edge, through the guard
+// (engine/offmap.c hook_set_tile) - without it the game would crash at 0x628D6F; it should stand on the edge
+internal void __thiscall hook_set_tile(ee_unit *u, uint32_t x, uint32_t y, char link);
+internal void cmd_offmap(char *out, const char *args) {
+    int x = 0, y = 0;
+    ee_map *map = game_map();
+    if (sscanf(args, "%d %d", &x, &y) != 2 || !map) { REPLY("error: offmap x y\n"); return; }
+    ee_unit *best = NULL;
+    long bd = 26;
+    for (struct grid_it it = grid_it_box(x, y, 5, 1); grid_it_next(&it); ) {
+        long d = ivec2_dist2(unit_get_tile(it.u), iv2(x, y));
+        if (it.td && unit_get_hp(it.u) > 0 && unit_type_get_class_id(it.td) == CLS_LAND && d < bd) { bd = d; best = it.u; }
+    }
+    if (!best) { REPLY("error: no land unit within 5 tiles of %d,%d\n", x, y); return; }
+    int size = (int)map_get_size(map);
+    hook_set_tile(best, (uint32_t)(size + 3), (uint32_t)unit_get_y(best), 1);
+    REPLY("the unit at %d,%d sent to %d,%d: now at %d,%d (map %d)\n", x, y, size + 3, unit_get_y(best), unit_get_x(best), unit_get_y(best), size);
+}
+
 // ---- from aim.c ----
 // uinfo x y [r]: units within r tiles: position, speed, facing, hit points, goal
 internal void cmd_uinfo(char *out, const char *args) {
