@@ -355,8 +355,10 @@ internal int expand_has(ee_player *pl, ee_unit *u) {
 // the drop site and a tower an outpost waits for (planned and short of them, or ashore with them not laid yet): held
 // back from every unit order (econ.c train_budget, as a landing's transports) - the AI spends its stock as it comes,
 // and outposts were held up 5-10 minutes with "can't pay"
+internal void towns_reserve(ee_player *pl, int reserve[7]);   // towns.c: a town's drop site
 internal void expand_reserve(ee_player *pl, int reserve[7]) {
     unsigned idx = (unsigned)player_get_index(pl) & 15;
+    towns_reserve(pl, reserve);
     struct ex_st *x = &g_xs[idx];
     if (!EXPAND(idx) || g_landing_order) return;   // its own transport (and a landing's) spend it
     if (x->fphase == 1) {   // the transport it waits for (as landing_reserve)
@@ -1390,7 +1392,11 @@ internal int citizens_useful(ee_player *pl, unsigned idx, int *stranded) {
     if (stranded) *stranded = s;
     return n;
 }
+internal void towns_act(ee_player *pl, unsigned idx, uint32_t now);   // towns.c
+internal void towns_new_game(void);
+internal void towns_install(const char *autotest_ini);
 internal void expand_new_game(void) {
+    towns_new_game();
     memset(&g_exs, 0, sizeof g_exs);
     memset(g_rs, 0, sizeof g_rs);
     memset(g_ex_log_t, 0, sizeof g_ex_log_t);
@@ -1410,10 +1416,12 @@ internal void expand_tick(ee_player *pl, uint32_t now) {
     }
     if (!is_vanilla(pl) && (g_expand || g_v_expand > 0)) expand_act(pl, idx, now);
     if (!is_vanilla(pl) && g_rescue) rs_act(pl, idx, now);
+    if (!is_vanilla(pl)) towns_act(pl, idx, now);
 }
 internal void expand_install(const char *autotest_ini) {
     g_expand = g_set_ai[1].expand_islands;
     g_rescue = g_set_ai[1].rescue_citizens;
+    towns_install(autotest_ini);
     if (autotest_ini) g_v_expand = ini_int("autotest", "v_expand_islands", -1, autotest_ini);
     g_ex_cits = g_set_ai[1].expand_citizens;
     g_ex_guard = g_set_ai[1].expand_guard;

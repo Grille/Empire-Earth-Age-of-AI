@@ -213,6 +213,10 @@
     D(NUM,   expand_trips,                 4, 0, 0) \
     D(NUM,   expand_max,                   3, 0, 0) \
     D(FLAG,  rescue_citizens,              1, 0, 0) \
+    D(NUM,   towns,                        0, 0, 3) \
+    D(NUM,   towns_max,                    3, 0, 6) \
+    D(NUM,   towns_citizens,               6, 1, 12) \
+    D(NUM,   towers_per_town,              2, 0, 7) \
     D(FLAG,  gather_research,              1, 0, 0) \
     D(FLAG,  defence_layout,               1, 0, 0) \
     D(FLAG,  defence_towers,               1, 0, 0) \

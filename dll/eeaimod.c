@@ -379,6 +379,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
 #include "ai/fleet.c"
 #include "ai/mass.c"
 #include "ai/expand.c"
+#include "ai/towns.c"
 #include "ai/transports.c"
 #include "ai/metal.c"
 #include "ai/cover.c"
