@@ -36,6 +36,11 @@ can't run its economy, gets stuck in the early epochs, only trains soldiers for 
 base undefended. This mod changes that. Every feature has its own setting in `aimod.ini`; the AI never gets
 information a human couldn't have (it only uses enemy buildings it has seen).
 
+**Where it is meant to play well.** A population of 200-400 per player is the target the AI is tuned and tested for
+(the tests run at 300 per player); up to 1000 per player is expected to work well too. Below 100 per player it plays,
+but isn't tuned for it - some features (the citizen shelf, the fortress reserve) then rarely or never act. The
+total of the game's own population setting is misleading here: the per-player number is what counts.
+
 **Economy**
 
 | Feature | What it does |

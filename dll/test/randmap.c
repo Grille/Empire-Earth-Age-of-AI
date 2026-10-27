@@ -12,7 +12,9 @@
 //   Map seed: world (0x91977C) +0x54.
 // Ini keys: random_map=<script name>, map_scale (tiny|small|medium|large|huge|gigantic or 0..5, default small - the
 //   real map size), map_size (the old key: the +0x3E8 index, kept so old test commands play the same maps), ai_count (1..7), start_epoch, seed, teams=ffa|pairs,
-//   citizens, unit_limit (500), reveal_map (0/1, default 1: the setup's reveal map), difficulty (easy|medium|hard or 0..2: the setup's +0x3F8 and 0x918C14, every AI's +0xBA4 - the
+//   citizens, unit_limit (shared by all players, the idle human too; default pop_per_player (300) x the players - the
+//   player 2026-10-27: 200-400 a player is what to expect, some go to 1000, under 100 is rare; until then 500, a cap of
+//   105 an AI with 4 of them), reveal_map (0/1, default 1: the setup's reveal map), difficulty (easy|medium|hard or 0..2: the setup's +0x3F8 and 0x918C14, every AI's +0xBA4 - the
 //   menu's AI difficulty; default medium). AI toggles at their first update: ai_cheat (0/1), ai_ignore (Ignorieren 0/1).
 // VANILLA PLAYERS (game/players.c is_vanilla): vanilla_players=<digits>, and for them only vanilla_difficulty (as difficulty)
 //   and vanilla_cheat (0/1, on top of ai_cheat). The game's cheat (EEComputerPlayer vf27 0x430FBD, AdjustCost): with
@@ -65,7 +67,7 @@ internal void randmap_load(const char *ini) {
     GetPrivateProfileStringA("autotest", "teams", "ffa", t, sizeof t, ini);
     g_rm.pairs = !lstrcmpiA(t, "pairs");
     g_rm.citizens = ini_int("autotest", "citizens", 5, ini);
-    g_rm.unit_limit = ini_int("autotest", "unit_limit", 500, ini);   // the game's, shared by all players
+    g_rm.unit_limit = ini_int("autotest", "unit_limit", ini_int("autotest", "pop_per_player", 300, ini) * (g_rm.ais + 1), ini);   // shared by all
     g_rm.ai_cheat = ini_int("autotest", "ai_cheat", -1, ini);
     g_rm.ai_ignore = ini_int("autotest", "ai_ignore", -1, ini);
     g_rm.epoch_min = ini_int("autotest", "epoch_min", 0, ini);
