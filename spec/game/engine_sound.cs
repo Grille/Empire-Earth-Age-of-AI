@@ -83,4 +83,9 @@ static unsafe class engine_sound
     /// int: the most channels it gives
     [value(0x5320)]
     static uint32 rva_mix_max_channels;
+
+    /// the output rate its startup opens the driver with: AIL_open_digital_driver(22050, 16 bits, 2 channels, 1)'s
+    /// push imm32 (6A 01 6A 02 6A 10 68 22 56 00 00 at 0x125B - both builds' mixers)
+    [value(0x1262)]
+    static uint32 rva_mix_rate;
 }

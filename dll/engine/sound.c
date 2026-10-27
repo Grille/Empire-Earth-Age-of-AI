@@ -200,11 +200,23 @@ internal int __thiscall hook_set_max_channels(ee_sound_mgr *sm, uint32_t n) {
     return g_set_max_ch(sm, n);
 }
 
+// [sound] sample_rate: the mixer plugin opens Miles' driver at 22050 Hz; another rate goes into its startup's code when
+// the plugin loads (after this DLL: the engine loads the folder's DLLs by name), before the sound starts
+internal void mix_rate_loaded(uintptr_t base) {
+    uint32_t hz = (uint32_t)g_set.sound_sample_rate;
+    hz = hz < 8000 ? 8000 : hz > 48000 ? 48000 : hz;
+    int ok = mix_set_rate(base, hz);
+    uint32_t now = mix_rate(base);
+    log_locked("# sound: mixed at %u Hz%s\n", now, ok || now == hz ? "" : " - NOT changed (set by another mod, or the mixer's code differs)");
+}
+
 internal void sound_install(void) {
     g_clamp_channels = g_set.sound_clamp_channels;
     g_sound_channels = g_set.sound_channels;
     int ok = patch_snd_set_max_channels(hook_set_max_channels, &g_set_max_ch);
     if (g_log) fprintf(g_log, "# sound: clamp_channels=%d channels=%d (hook %s)\n", g_clamp_channels, g_sound_channels, ok ? "ok" : "FAILED");
+    if (g_set.sound_sample_rate && g_set.sound_sample_rate != 22050 && !on_module_load("Miles Sound System Mixer.dll", mix_rate_loaded))
+        if (g_log) fprintf(g_log, "# sound: sample_rate - module loads not watchable, the mixer stays at 22050 Hz\n");
     // aimod.ini [sound] log = 1 (counts once a minute) | 2 (every play) - diagnostics in normal play too
     g_sound_log = g_set.sound_log;
 }

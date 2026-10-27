@@ -1038,6 +1038,45 @@ internal void __thiscall hook_mouse_update(ee_mouse *m) {
 }
 
 
+// The graphics thread (0x50FE16, RTSGraphics') takes a message, draws a frame unless paused or inactive, and sleeps 1 ms
+// (at Windows' default timer resolution about 15 ms); the simulation runs on a thread of its own. [display]
+// frame_wait: game 0 = that Sleep(1); yield 1 = Sleep(0) after every pass (DDrawCompat's issue 251, what tweaks.dll
+// did: a core busy even while nothing is drawn); auto 2 = Sleep(0) until 100 ms without a frame, then the game's
+// Sleep(1) (alt-tabbed, minimized; the thread's hold, message 0x402 - +0x56 - until 0x403) - a frame told by the loop's
+// call of mouse_update, on the drawing path only (in a window that call goes on to the input hook). Headless at 7.5x
+// (Continental, 25 game minutes): game 0.58 cores ~290 fps, yield and auto ~1 core 500-740 fps (other games beside
+// them: matched runs yield 502 / 541, auto 557), the simulation's pace the same; auto slept 1 ms in no pass of a
+// running game.
+internal int g_frame_wait;
+internal volatile DWORD g_fwait_frame;   // the last frame's GetTickCount
+internal int g_frame_mouse;                    // the drawing call hooked: 1 on to the game's, 2 on to the input hook
+internal void __thiscall hook_frame_mouse(ee_mouse *m) {
+    g_fwait_frame = GetTickCount();
+    if (g_frame_mouse == 2) hook_mouse_update(m);
+    else mouse_update(m);
+}
+internal void __stdcall hook_frame_sleep(DWORD ms) {
+    Sleep(g_frame_wait == 1 || GetTickCount() - g_fwait_frame < 100 ? 0 : ms);
+}
+// [display] vertex_sysmem: DX7HRTnLDisplay.dll's vertex buffer in system memory (DDrawCompat's issue 251: with
+// hardware T&L every lock of the video memory one waits for the graphics card - 105 vs 315 fps natively, 18 vs 170
+// with DDrawCompat on a big map). The engine loads the display DLLs before this one; when not yet, at their load.
+internal void tnl_loaded(uintptr_t base) {
+    int ok = tnl_vb_sysmem(base);
+    log_locked("# display: T&L vertex buffer in system memory: %s\n",
+               ok == 2 ? "already set (another mod)" : ok ? "ok" : "NOT patched (the DLL's code differs)");
+}
+internal void frame_install(void) {
+    g_frame_wait = g_set.display_frame_wait;
+    const char *names[] = { "game", "yield", "auto" };
+    g_frame_mouse = g_frame_wait == 2 && patch_frame_mouse(hook_frame_mouse);
+    int hook = g_frame_wait == 1 || g_frame_mouse ? patch_frame_sleep(hook_frame_sleep) : 0;
+    if (g_log) fprintf(g_log, "# display: frame_wait %s%s\n", names[g_frame_wait],
+                       !g_frame_wait ? "" : hook ? " (hooks ok)" : " - hook FAILED (exe differs), the game's pause");
+    if (g_set.display_vertex_sysmem && !on_module_load("DX7HRTnLDisplay.dll", tnl_loaded) && g_log)
+        fprintf(g_log, "# display: vertex_sysmem - module loads not watchable, left in video memory\n");
+}
+
 internal int install_windowed_input(void) {
     int n = 0;
     HMODULE lle = GetModuleHandleA("Low-Level Engine.dll");
@@ -1046,6 +1085,7 @@ internal int install_windowed_input(void) {
         g_recompute_buttons = (ThisFn)(void *)GetProcAddress(lle, "?RecomputeCurrentButtonState@ISMouse@@AAEXXZ");
     }
     n += patch_mouse_update(hook_mouse_update, NULL);
+    if (g_frame_mouse) { g_frame_mouse = 2; n++; }   // the drawing call: frame_wait's first
     n += patch_no_minimize();
     return n;
 }
@@ -1053,6 +1093,7 @@ internal int install_windowed_input(void) {
 internal void player_name_install(void);
 internal void display_install(const char *autotest_ini) {
     player_name_install();   // (defined at the end of this file)
+    frame_install();
     int dmode = g_set.display_mode;   // [display] mode: native 0, windowed 1, borderless 2 (rows.h)
     if (autotest_ini) g_headless = ini_int("autotest", "headless", 0, autotest_ini);
     if (g_headless) { dmode = 1; headless_windows(); }   // a normal (off-screen) window, never activated

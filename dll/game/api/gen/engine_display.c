@@ -95,6 +95,19 @@ internal inline int window_get_height(const ee_window *o) { return *(int *)((uin
 internal inline void window_set_height(ee_window *o, int v) { *(int *)((uint8_t *)o + of_window_height) = v; }
 internal inline int *window_height_at(const ee_window *o) { return (int *)((uint8_t *)o + of_window_height); }
 
+// static class engine_display
+// engine_display's data of the game, places in its code and numbers
+// the graphics thread's Sleep(1) after every pass of its loop (the thread function RTSGraphics starts, 0x50FE16:
+// a message, then a frame unless paused, then this): call [Sleep]
+internal inline uint8_t *engine_display_call_frame_sleep_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_call_frame_sleep; }
+// its call of ISMouse::update (one of that function's call sites): on the path that draws a frame only
+internal inline uint8_t *engine_display_call_frame_mouse_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_call_frame_mouse; }
+// the exe's import slot of Sleep
+internal inline uint8_t *engine_display_iat_sleep_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_iat_sleep; }
+// DX7HRTnLDisplay.dll: the caps of the vertex buffer each rasterizer state creates (D3DVERTEXBUFFERDESC.dwCaps, a
+// mov [ebp-0xC], imm32: D3DVBCAPS_WRITEONLY - video memory; its other buffer and DX7HRDisplay.dll's add
+// D3DVBCAPS_SYSTEMMEMORY)
+
 // the running build's values (spec_select, with addr_select): how many it hasn't got
 internal int spec_engine_display_select(int build) {
     switch (build) {
@@ -127,6 +140,10 @@ internal int spec_engine_display_select(int build) {
         of_window_8 = 0x8;
         of_window_width = 0xC;
         of_window_height = 0x10;
+        data_engine_display_call_frame_sleep = 0x0050FEE8;
+        data_engine_display_call_frame_mouse = 0x0050FEC8;
+        data_engine_display_iat_sleep = 0x0082318C;
+        value_engine_display_rva_tnl_vb_caps = 62581;
         return 0;
     case 1:   // aoc
         of_draw_state_device = 0x1C;
@@ -157,6 +174,10 @@ internal int spec_engine_display_select(int build) {
         of_window_8 = 0x8;
         of_window_width = 0xC;
         of_window_height = 0x10;
+        data_engine_display_call_frame_sleep = 0x0051A4A7;
+        data_engine_display_call_frame_mouse = 0x0051A487;
+        data_engine_display_iat_sleep = 0x00837174;
+        value_engine_display_rva_tnl_vb_caps = 66510;
         return 0;
     }
     return 0;
@@ -166,5 +187,8 @@ internal const char *const k_spec_engine_display_missing[ADDR_BUILDS] = { "", ""
 // the load-time check: what the spec says of the running build's exe (spec_check): the failures
 internal int spec_engine_display_check(void) {
     int bad = 0;
+    bad += spec_code(data_engine_display_call_frame_sleep, "engine_display.call_frame_sleep");
+    bad += spec_code(data_engine_display_call_frame_mouse, "engine_display.call_frame_mouse");
+    bad += spec_data(data_engine_display_iat_sleep, "engine_display.iat_sleep");
     return bad;
 }

@@ -25,6 +25,10 @@ internal inline uint8_t *mix_channels(uintptr_t base, uint8_t **end) {
     return v;
 }
 internal inline int mix_max_channels(uintptr_t base) { return *(int *)(base + value_engine_sound_rva_mix_max_channels); }
+// the rate the mixer's startup opens the driver with (the plugin at base, before its startup runs: sound.c at its load),
+// only while it is still the game's 22050; the rate it opens with
+internal inline int mix_set_rate(uintptr_t base, uint32_t hz) { return patch_code32(base + value_engine_sound_rva_mix_rate, 22050, hz); }
+internal inline uint32_t mix_rate(uintptr_t base) { return *(uint32_t *)(base + value_engine_sound_rva_mix_rate); }
 
 // HOOKS
 // the sound manager (sound.c, through the exe's imports of Low-Level Engine: the slots checked against the exports)

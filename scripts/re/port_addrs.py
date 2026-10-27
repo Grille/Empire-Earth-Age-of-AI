@@ -110,6 +110,7 @@ EXE_HAND = {
     0x006177CF: (0x0062A366, 'the only call of data_hooks_fn_attack_alert'),
     0x00607D79: (0x00619604, 'the second of the calls of unit_fire, after the projectile code (proj_down 0x619143)'),
     0x0050FEC8: (0x0051A487, 'the call of mouse_update the others leave'),
+    0x0050FEE8: (0x0051A4A7, "the graphics thread's call [Sleep] after its push 1, 0x20 after that call of mouse_update in both"),
     0x004B139C: (0x004B87C7, "order_marks' jne before cmp [unit + 0x298], 0xF (AoC's +0x29C): the same code at order_marks + 0xFA"),
     0x004B1681: (0x004B8AB3, "order_marks' cmp [ebp-0x18], 0xA after its gfx_get, the only one there"),
     0x005007B2: (0x0050B2AD, 'mov esi, data_hooks_draw_old + 0x58 (the draw records\' init loop)'),

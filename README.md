@@ -272,6 +272,15 @@ Settings in `aimod.ini`:
 - `[display] draw_limit=4096` (default): the game drew at most 512 units, buildings and missiles per frame - arrows
   in flight or stuck in the ground included (a 360-archer fight reached 445) - so in big fights, and the more so at
   high resolutions, the farthest objects blinked in and out. `0` keeps the 512.
+- `[display] frame_wait=auto` (default): the game's drawing thread slept at least a millisecond after every frame
+  (about 15 ms on many PCs), which capped the frame rate. Now it only gives up its turn while the game draws (in a
+  test about 290 -> 500-700 fps), and pauses as before once nothing has been drawn for 0.1 s (alt-tabbed,
+  minimized), so it doesn't keep a CPU core busy then. `yield` gives up its turn always (tweaks.dll's
+  SetSleepToZero), `game` is the original. Only the picture: the game itself runs on another thread.
+- `[display] vertex_sysmem=1` (default): with hardware T&L the renderer kept its 3D models' vertex buffer in video
+  memory, and every update of it made the graphics card finish its work first. The renderer without T&L already
+  keeps it in system memory, and with T&L it's now the same (measured by DDrawCompat's author on a big map: 18 ->
+  170 fps with DDrawCompat, 105 -> 315 without). dreXmod 3.4 does the same; `0` keeps video memory.
 - `[general] sight_counts=1` (default): every map tile counts how many of a player's units see it, but the game read
   only one byte of that count - a tile seen by more than 254 units took itself for unexplored, and in a big army
   random tiles with everything on them (units, trees) blinked out, then went to fog while units still stood there.
@@ -411,6 +420,10 @@ Settings in `aimod.ini`:
 - `[sound] channels=32` (default): the mixer's 16 channels are only a fallback because Windows no longer reports
   hardware voices; Miles mixes in software and allows 63. The mod raises the maximum to this value, so the slider
   gives 8 (0%) to 32 (100% and up) channels: fewer sounds cut in big battles. `0` keeps the 16.
+- `[sound] sample_rate=44100` (default): the game mixed its sound at 22050 Hz; now at this rate (up to 48000).
+  `0` keeps the 22050.
+- These three replace tweaks.dll's SetSleepToZero, VertexBufferSystemMem and AudioSampleRate. With tweaks.dll in
+  the game folder, switch those off in its tweaks.config. Its map-size patches are separate and stay with it.
 
 ## Status
 

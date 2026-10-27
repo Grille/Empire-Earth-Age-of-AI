@@ -218,6 +218,10 @@ internal uint32_t of_window_4;
 internal uint32_t of_window_8;
 internal uint32_t of_window_width;
 internal uint32_t of_window_height;
+internal uint32_t data_engine_display_call_frame_sleep;
+internal uint32_t data_engine_display_call_frame_mouse;
+internal uint32_t data_engine_display_iat_sleep;
+internal uint32_t value_engine_display_rva_tnl_vb_caps;
 
 // engine_sound.cs
 internal uint32_t of_se_mixer_spim;
@@ -239,6 +243,7 @@ internal uint32_t data_engine_sound_iat_snd_playref;
 internal uint32_t data_engine_sound_iat_snd_setmaxch;
 internal uint32_t value_engine_sound_rva_mix_channels;
 internal uint32_t value_engine_sound_rva_mix_max_channels;
+internal uint32_t value_engine_sound_rva_mix_rate;
 
 // formation.cs
 internal uint32_t of_formation_center;

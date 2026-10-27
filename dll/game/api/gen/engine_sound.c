@@ -60,6 +60,8 @@ internal inline uint8_t *engine_sound_iat_snd_playref_at(void) { return (uint8_t
 internal inline uint8_t *engine_sound_iat_snd_setmaxch_at(void) { return (uint8_t *)(uintptr_t)data_engine_sound_iat_snd_setmaxch; }
 // Miles Sound System Mixer.dll: its channels, a vector of 8 bytes each
 // int: the most channels it gives
+// the output rate its startup opens the driver with: AIL_open_digital_driver(22050, 16 bits, 2 channels, 1)'s
+// push imm32 (6A 01 6A 02 6A 10 68 22 56 00 00 at 0x125B - both builds' mixers)
 
 // the running build's values (spec_select, with addr_select): how many it hasn't got
 internal int spec_engine_sound_select(int build) {
@@ -84,6 +86,7 @@ internal int spec_engine_sound_select(int build) {
         data_engine_sound_iat_snd_setmaxch = 0x00823AD4;
         value_engine_sound_rva_mix_channels = 21164;
         value_engine_sound_rva_mix_max_channels = 21280;
+        value_engine_sound_rva_mix_rate = 4706;
         return 0;
     case 1:   // aoc
         of_se_mixer_spim = 0xB0;
@@ -105,6 +108,7 @@ internal int spec_engine_sound_select(int build) {
         data_engine_sound_iat_snd_setmaxch = 0x00837AC4;
         value_engine_sound_rva_mix_channels = 21164;
         value_engine_sound_rva_mix_max_channels = 21280;
+        value_engine_sound_rva_mix_rate = 4706;
         return 0;
     }
     return 0;

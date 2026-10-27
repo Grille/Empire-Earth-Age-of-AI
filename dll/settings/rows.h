@@ -80,10 +80,13 @@
     S(FLAG,   display,  text_bitmap,              1,  0, 0) \
     S(FLAG,   display,  diag,                     0,  0, 0) \
     S(FLAG,   display,  dpi_aware,                1,  0, 0) \
+    S(CHOICE, display,  frame_wait,               "auto", "game|yield|auto", 0) \
+    S(FLAG,   display,  vertex_sysmem,            1,  0, 0) \
     S(STR,    editor,   resolution,               "ee", 16, 0) \
     S(INT,    sound,    log,                      0,  0, 2) \
     S(FLAG,   sound,    clamp_channels,           1,  0, 0) \
     S(INT,    sound,    channels,                 32, 0, 1000) \
+    S(INT,    sound,    sample_rate,              44100, 0, 48000) \
     S(FLAG,   llm,      enabled,                  0,  0, 0) \
     S(STR,    llm,      url,                      "http://localhost:1234/v1/chat/completions", 256, 0) \
     S(STR,    llm,      model,                    "", 96, 0) \
@@ -338,6 +341,8 @@
 #define SETTING_GAME(V) \
     V(display_draw_limit,   "the objects the game draws per frame", "512", 0) \
     V(sound_channels,       "the sound mixer's channels at 100%", "16", 0) \
+    V(sound_sample_rate,    "the sound's output rate (Hz)", "22050", 0) \
+    V(display_vertex_sysmem, "the T&L renderer's vertex buffer in system memory", "0 (video memory)", 0) \
     V(cost_percent,         "the price the AI pays, in percent of the real one (with the game's Cheat toggle)", "100%", 0) \
     V(epoch_min,            "the AI's epoch timer, minutes at least (the game scales it a little by difficulty)", "50", 0) \
     V(epoch_max,            "the AI's epoch timer, minutes at most", "70", 0) \

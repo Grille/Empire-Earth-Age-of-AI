@@ -26,3 +26,19 @@ internal inline HWND window_get_hwnd(const ee_window *w) { return FIELD(w, of_wi
 // the DirectInput mouse (ISMouse): +0x4 suspended (window inactive), +0x18 the buttons' bytes, +0x44 the device
 // a text (GEText): its string +0x34, font +0x44; a font (GEFont): its HFONT +0x18, the bitmap font +0x24
 internal inline HFONT font_get_hfont(const ee_font *f) { return FIELD(f, of_font_hfont, HFONT); }
+
+// HOOKS
+// the graphics thread's Sleep(1) after every pass of its loop (display.c frame_wait): that call -> hook, Sleep's own type
+typedef void (__stdcall *frame_sleep_fn)(DWORD ms);
+internal inline int patch_frame_sleep(frame_sleep_fn h) {
+    return patch_import_call(data_engine_display_call_frame_sleep, data_engine_display_iat_sleep, (void *)h);
+}
+// its call of mouse_update on the path that draws a frame (one of mouse_update's sites) -> hook
+internal inline int patch_frame_mouse(mouse_update_fn h) { return patch_call(data_engine_display_call_frame_mouse, (uintptr_t)fn_mouse_update, (void *)h); }
+// DX7HRTnLDisplay.dll at base: the vertex buffer its rasterizer states create in system memory (D3DVBCAPS_SYSTEMMEMORY
+// 0x800 added to D3DVBCAPS_WRITEONLY 0x10000, as its other buffer has it), only while the code still asks for video memory:
+// 1, 2 when it has the flag already (dreXmod 3.4's FixTnLVertexBuffer does the same in memory), 0 other code
+internal inline int tnl_vb_sysmem(uintptr_t base) {
+    uintptr_t at = base + value_engine_display_rva_tnl_vb_caps;
+    return *(uint32_t *)at == 0x10800 ? 2 : patch_code32(at, 0x10000, 0x10800);
+}

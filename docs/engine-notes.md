@@ -919,6 +919,23 @@ conditions, 162 states with their ids) were dumped by a helper, not kept in the 
   0x5008B8 (`cmp [0x91253C], 0x600`), the collection (records +0, +0x24), the sub-objects' call 0x502224 (push 0x600)
   and the frame's start and end (0x500CE6: each record's +0xC handle released); the static constructor zeroes each
   record's first 3 dwords. `draw_limit` moves it to three times the main list's size (patch_draw_small).
+- The graphics thread: RTSGraphics starts it (TSScheduler::CreateThread, thread function 0x50FE16; AoC's Sleep call 0x51A4A7).
+  Its loop: TSThread::Receive; unless 0x67E7CC says no or the object's +0x56 / +0x59 are set, ISMouse::RefreshXY,
+  mouse_update (0x50FEC8, the only one of its four calls on this path), its vtable slot 4 (1, 1) - a frame; then
+  `push 1; call [Sleep]` (0x50FEE6) after every pass, drawn or not. At Windows' default timer resolution Sleep(1) is
+  ~15 ms; DDrawCompat's issue 251 (narzoul: "wastes 1-2 milliseconds from the next frame time") made it Sleep(0)
+  (tweaks.dll's SetSleepToZero). The simulation is RTSPhysics' thread: the frame rate doesn't pace it. `[display]
+  frame_wait` (engine/display.c): auto yields until 100 ms after the last pass through that mouse_update call. The
+  thread's messages (RTSGraphics::vf2 0x50FF22): 0x401 sets +0x59 (the end), 0x402 holds the drawing (+0x57 = 0,
+  +0x56 = 1), 0x403 goes on (+0x58 = 0, +0x56 = 0). Headless, 7.5x, Continental, 25 game minutes: Sleep(1) ~290 fps
+  at 0.58 cores, Sleep(0) 500-740 fps at ~1 core (the spread: other test games beside it), the same real time; auto
+  ~525 passes a second, none of them a Sleep(1), while the game ran.
+- The display DLLs' vertex buffers (D3DVERTEXBUFFERDESC on the stack, then IDirect3D7::CreateVertexBuffer, vtable +0x14):
+  DX7HRDisplay.dll one (0xA22A: caps 0x10800 = write-only + system memory, FVF 0x152, 2442 vertices), DX7HRTnLDisplay.dll
+  two - 0xA2BF the same, 0xF46B per rasterizer state with caps 0x10000 (video memory). Each lock of the video memory one
+  waits for the graphics card (issue 251: T&L 105 -> 315 fps natively, 18 -> 170 with DDrawCompat, on a big map);
+  `[display] vertex_sysmem` adds the system memory flag (0xF475, AoC 0x103CE). AoC's three have 2400 vertices (0x960),
+  the 2017 update's 2442 - a model part over the count crashes (issue 251), more makes no frames.
 
 ## Sound
 
@@ -948,6 +965,11 @@ conditions, 162 states with their ids) were dumped by a helper, not kept in the 
   before the game's first SetMaxChannels and recomputes the count from 0x9193B8 (slider, 1.0 = 100%). 63 Miles
   handles allocate fine (DIG_MIXER_CHANNELS 64, one kept by the plugin). aitest.ees 25 -> 33 min at 100%: 16 channels
   lost 3 audible sounds for want of a channel, 32 none; ~955 more were dropped for busy copies either way.
+- The mixer plugin's startup (Miles Sound System Mixer.dll +0x1238 .. +0x1266: AIL_set_redist_directory, AIL_startup,
+  AIL_set_preference) opens the driver with `AIL_open_digital_driver(22050, 16, 2, 1)` (the push of 22050 at +0x1261,
+  the same in AoC's build of the plugin) and keeps the handle at +0x5318. The engine loads the plugin after
+  eeaimod.dll (the folder's DLLs by name) and loads it twice; `[sound] sample_rate` (engine/sound.c) changes the push
+  at each load (LdrRegisterDllNotification: before its DllMain), before the startup runs.
 
 ## Misc
 

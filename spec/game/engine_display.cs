@@ -117,3 +117,27 @@ unsafe struct GEWindow
     [offset(0x10), found(c)]
     int32 height;
 }
+
+/// engine_display's data of the game, places in its code and numbers
+static unsafe class engine_display
+{
+    /// the graphics thread's Sleep(1) after every pass of its loop (the thread function RTSGraphics starts, 0x50FE16:
+    /// a message, then a frame unless paused, then this): call [Sleep]
+    [address((ee)0x0050FEE8, (aoc)0x0051A4A7)]
+    static code call_frame_sleep;
+
+    /// its call of ISMouse::update (one of that function's call sites): on the path that draws a frame only
+    [address((ee)0x0050FEC8, (aoc)0x0051A487)]
+    static code call_frame_mouse;
+
+    /// the exe's import slot of Sleep
+    [import_slot("kernel32.dll", "Sleep")]
+    [address((ee)0x0082318C, (aoc)0x00837174)]
+    static block iat_sleep;
+
+    /// DX7HRTnLDisplay.dll: the caps of the vertex buffer each rasterizer state creates (D3DVERTEXBUFFERDESC.dwCaps, a
+    /// mov [ebp-0xC], imm32: D3DVBCAPS_WRITEONLY - video memory; its other buffer and DX7HRDisplay.dll's add
+    /// D3DVBCAPS_SYSTEMMEMORY)
+    [value((ee)0xF475, (aoc)0x103CE)]
+    static uint32 rva_tnl_vb_caps;
+}
