@@ -19,13 +19,20 @@
 //   A building destroyed is laid again (3 times); the town lost (no building of it left) - again after 8 minutes, the
 //   spot's third loss: never again.
 // 2 SETTLEMENT: the drop site a Settlement, never a Town Center.
-// 8 FORWARD BASE (the player's tactical operations center): its army 1.5 x the enemy's it knows and 1.5 x the cost of
-//   a Town Center, four towers and two production buildings in stock: a town on the line from its base to the
-//   nearest enemy building it knows on the home continent, 35 tiles short of it and 32+ from its base and its drop
-//   sites - a Town Center, four towers (two towards the enemy, two on the flanks), two production buildings of the
-//   kind army_plan last picked (else Barracks), and once the two front towers stand an 11-tile wall 3 tiles in front
-//   of them, straight at the nearest of the 8 directions, its ends open (defence.c's front wall: the wall manager's
-//   0x497C3F, 3 tries 3 minutes apart, not into enemy fire or an enemy army). One at a time.
+// 8 FORWARD BASE (the player: "not just when the AI is ahead - a great way to push in a stalemate, a fortified position
+//   from which to attack and retreat under cover, able to heal and train quick reinforcements; the point is to be
+//   quick about it, the citizens travel with the army and drop the base under its cover within a few minutes"): where
+//   the army is - its staging point with 8+ of its soldiers (stage.c: just out of the enemy's reach on the way to the
+//   front), else its biggest group out in the field (8+ land soldiers in an 8-tile cell 32+ tiles from its base),
+//   pulled back towards its base to the first tile out of the enemy's reach it knows (stage.c stage_danger) - 32+
+//   tiles from its base and its drop sites and other forward bases, its army at least 0.8 x the
+//   enemy's it knows, a tower it can pay now (the AIs' stock is spent as it comes: 100-250 wood and stone at a time
+//   against 250 and 450 for two towers and a Hospital; the budget's reserve holds training back for 3 minutes): towns_citizens + 2 of its nearest free citizens walk there and
+//   build, 4 on each building - two towers towards the front, a Hospital (healing), a production building of the kind
+//   army_plan last picked (else Barracks), two towers on the flanks, and once the two front towers stand an 11-tile
+//   wall 3 tiles in front of them, straight at the nearest of the 8 directions, its ends open (defence.c's front wall:
+//   the wall manager's 0x497C3F, 3 tries 3 minutes apart, not into an enemy army). No drop site: its citizens go back
+//   to the game's economy once it stands. One going up at a time, at most 2; outside towns_max.
 // 4 FORWARD (the player: settlements with 5 barracks and other production as they expanded, so parallel training was
 //   always close to where it was needed): army_plan BUILD's next production building (army.c) goes up in the
 //   standing town nearest to an enemy building it knows, when that town is 15+ tiles nearer to it than its base - by
@@ -47,6 +54,11 @@
 // workers +3.0 (3.8); large 3 AIs soldiers +3.2 (6.2), losses +9.5 (13.6), workers +8.6 (11.3) - no longer a loss, no
 // gain either; 38 resource towns in the 48 games (about one per AI from minute 30), no forward base: in mirrored AI
 // games neither side is 1.5 x the other. Off.
+// The forward base at the army (8; 12 with FORWARD), from epoch 5, 60 min, off - on: huge 2 AIs 8 soldiers +5.0 (5.6),
+// workers +19.2 (11.5); 12 soldiers +5.0 (7.8), workers +22.8 (12.1); large 3 AIs 8 soldiers -0.1 (5.7), kills -11.7
+// (8.1); 12 soldiers +3.8 (7.3), kills -8.9 (8.7) - within noise, workers lean lower (its 8 citizens walk far). Its
+// two towers stood 3-5 minutes after the decision, the rest followed as the money came (the AIs hold 100-250 wood
+// and stone at a time); later bases followed the army up to 166 tiles out. Off.
 #define TN_MAX 6
 #define TN_PROJ 12
 enum { TK_DROP, TK_TOWER, TK_PROD, TK_N };
@@ -66,6 +78,7 @@ internal struct tn_st {
     struct tn_town town[TN_MAX]; int n;
     struct { ivec2 c; int losses; uint32_t again; } bad[16]; int nbad;
     unsigned plans, founded, held, lost, laid, built, rebuilt, orders, assigned, sent, unpaid, prods, walls;
+    uint32_t fsave;   // saving for a forward base since (0: not)
     const char *why;
 } g_tn[16];
 internal int g_towns = 0, g_v_towns = -1, g_tn_max = 3, g_tn_cits = 6, g_tn_towers = 2;
@@ -192,6 +205,38 @@ internal int tn_has_cit(unsigned idx, ee_unit *u) {
     return 0;
 }
 internal void tn_take_cits(ee_player *pl, unsigned idx, struct tn_town *t, int n, unsigned hc);
+internal int stage_army(unsigned idx, ivec2 *at, ivec2 *front);   // stage.c: its soldiers at the staging point
+internal int stage_danger(unsigned idx, ivec2 p);                  // stage.c: in the enemy's reach or a lost fight
+// its biggest group of land soldiers out in the field (an 8-tile cell 32+ tiles from its base), pulled back towards
+// its base out of the enemy's reach: the spot, the group's middle as the front; the group's size (0: none)
+internal int tn_army_spot(ee_player *pl, unsigned idx, ivec2 base, unsigned hc, ivec2 *o, ivec2 *front) {
+    static struct { ivec2 c; int n, sx, sy; } cell[64];
+    int nc = 0;
+    for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
+        ee_unit *u = it.u;
+        if (unit_get_owner(u) != pl || unit_get_hp(u) <= 0 || unit_get_x(u) < 0 || !land_soldier(unit_type_get_id(it.td))) continue;
+        ivec2 p = unit_get_tile(u);
+        if (ivec2_dist2(p, base) < 32 * 32 || area_id(p, 2) != hc) continue;
+        ivec2 c = iv2(p.x / 8, p.y / 8);
+        int k;
+        for (k = 0; k < nc && (cell[k].c.x != c.x || cell[k].c.y != c.y); k++) ;
+        if (k == nc) { if (nc == 64) continue; cell[nc].c = c; cell[nc].n = cell[nc].sx = cell[nc].sy = 0; nc++; }
+        cell[k].n++; cell[k].sx += p.x; cell[k].sy += p.y;
+    }
+    int best = -1;
+    for (int k = 0; k < nc; k++) if (best < 0 || cell[k].n > cell[best].n) best = k;
+    if (best < 0 || cell[best].n < 8) return 0;
+    ivec2 m = iv2(cell[best].sx / cell[best].n, cell[best].sy / cell[best].n);
+    *front = m;
+    float dx = (float)(base.x - m.x), dy = (float)(base.y - m.y), len = sqrtf(dx * dx + dy * dy);
+    for (float d = 0; d <= len - 32.0f; d += 1.0f) {   // back towards home to the first tile out of the enemy's reach
+        ivec2 q = iv2(m.x + (int)lroundf(dx * d / len), m.y + (int)lroundf(dy * d / len));
+        if (area_id(q, 2) != hc || area_id(q, 1) || stage_danger(idx, q)) continue;
+        *o = q;
+        return cell[best].n;
+    }
+    return 0;
+}
 // a forward base's production: the building of the soldier army_plan last picked (army.c), else Barracks
 internal int tn_prod_type(ee_player *pl, unsigned idx) {
     int bt = g_ap[idx & 15].last_type ? ap_producer(pl, g_ap[idx & 15].last_type) : 0;
@@ -218,32 +263,6 @@ internal int tn_free_slots(ee_player *pl, unsigned hc, struct tn_world *w) {
         }
     }
     return free;
-}
-// the forward base's spot: on the line from its base to the nearest enemy building it knows on the home continent,
-// 35 tiles short of it, 32+ from its base and drop sites, no enemy defence on it
-internal int tn_forward_site(unsigned idx, ivec2 base, unsigned hc, struct tn_world *w, ivec2 *o) {
-    int bd = 0x7FFFFFFF;
-    ivec2 e = base;
-    for (int k = 0; k < w->nf; k++) {
-        if (area_id(w->foe[k], 2) != hc) continue;
-        int d = ivec2_dist2(base, w->foe[k]);
-        if (d < bd) { bd = d; e = w->foe[k]; }
-    }
-    if (bd == 0x7FFFFFFF) return 0;
-    float D = sqrtf((float)bd), at = D - 35.0f;
-    if (at < 32.0f) return 0;   // the enemy within 67 tiles: its base is the front
-    float ux = (float)(e.x - base.x) / D, uy = (float)(e.y - base.y) / D;
-    for (int off = 0; off <= 8; off++)   // along the line, a little nearer home and to the sides
-        for (int side = -off; side <= off; side += off ? 2 * off : 1) {
-            float along = at - (float)off * 2.0f;
-            ivec2 p = iv2(base.x + (int)lroundf(ux * along - uy * (float)side * 3.0f), base.y + (int)lroundf(uy * along + ux * (float)side * 3.0f));
-            if (area_id(p, 2) != hc || area_id(p, 1) || threat_at(idx, p) > 0 || ivec2_dist2(p, base) < 32 * 32) continue;
-            int ok = 1;
-            for (int k = 0; k < w->no && ok; k++) if (ivec2_dist2(p, w->own[k]) < 32 * 32) ok = 0;
-            for (int k = 0; k < w->nf && ok; k++) if (ivec2_dist2(p, w->foe[k]) < 22 * 22) ok = 0;
-            if (ok) { *o = p; return 1; }
-        }
-    return 0;
 }
 // a forward base's wall: once its two front towers stand, 11 tiles straight across the enemy's side, 3 tiles in front
 // of them (defence.c's front wall)
@@ -287,6 +306,7 @@ internal void tn_wall(ee_player *pl, unsigned idx, struct tn_town *t, uint32_t n
     g_tn[idx].walls++;
     tn_say(idx, now, "wall %d from %d,%d to %d,%d in front of the forward base at %d,%d", wtype, a[0], a[1], b[0], b[1], t->c.x, t->c.y);
 }
+internal ivec2 forward_front;   // tn_plan: the front the forward base faces
 internal void tn_found(ee_player *pl, unsigned idx, struct tn_st *s, ivec2 c, int nmines, struct tn_world *w, unsigned hc, uint32_t now, int forward) {
     struct tn_town *t = NULL;
     for (int k = 0; k < TN_MAX && !t; k++) if (!s->town[k].state) t = &s->town[k];
@@ -296,11 +316,18 @@ internal void tn_found(ee_player *pl, unsigned idx, struct tn_st *s, ivec2 c, in
     t->toward = c;   // the side to face: the nearest enemy building it knows, else none (round it)
     int bd = 0x7FFFFFFF;
     for (int k = 0; k < w->nf; k++) { int d = ivec2_dist2(c, w->foe[k]); if (d < bd) { bd = d; t->toward = w->foe[k]; } }
-    t->proj[t->nproj++].kind = TK_DROP;
-    for (int k = 0; k < (forward && g_tn_towers < 4 ? 4 : g_tn_towers) && t->nproj < TN_PROJ; k++) t->proj[t->nproj++].kind = TK_TOWER;
     t->forward = forward;
-    for (int k = 0; forward && k < 2 && t->nproj < TN_PROJ; k++) { t->proj[t->nproj].kind = TK_PROD; t->proj[t->nproj].want = tn_prod_type(pl, idx); t->nproj++; }
-    tn_take_cits(pl, idx, t, g_tn_cits, hc);
+    if (forward) {   // towers first (the cover), the Hospital, production, the flanks
+        t->toward = forward_front;
+        t->proj[t->nproj++].kind = TK_TOWER; t->proj[t->nproj++].kind = TK_TOWER;
+        if (ut_has(UT(B_HOSPITAL))) { t->proj[t->nproj].kind = TK_PROD; t->proj[t->nproj].want = UT(B_HOSPITAL); t->nproj++; }
+        t->proj[t->nproj].kind = TK_PROD; t->proj[t->nproj].want = tn_prod_type(pl, idx); t->nproj++;
+        t->proj[t->nproj++].kind = TK_TOWER; t->proj[t->nproj++].kind = TK_TOWER;
+    } else {
+        t->proj[t->nproj++].kind = TK_DROP;
+        for (int k = 0; k < g_tn_towers && t->nproj < TN_PROJ; k++) t->proj[t->nproj++].kind = TK_TOWER;
+    }
+    tn_take_cits(pl, idx, t, forward ? g_tn_cits + 2 : g_tn_cits, hc);
     s->founded++;
     tn_say(idx, now, "a %s at %d,%d (%d mines within 10 tiles, %d tiles from its base), %d citizens go", forward ? "forward base" : "resource town", c.x, c.y, nmines,
            (int)sqrtf((float)ivec2_dist2(c, build_mgr_get_base(civ_mgr_get_build_mgr(player_get_civ_mgr(pl))))), t->ncit);
@@ -353,6 +380,7 @@ internal void tn_run(ee_player *pl, unsigned idx, struct tn_st *s, struct tn_tow
         if (p->state == 3) dropped++;
         if (p->kind == TK_DROP && p->state == 2) drop_ok = 1;
     }
+    if (t->forward) drop_ok = 1;   // none: its buildings go up at once
     for (int j = 0; j < t->ncit; j++)   // its citizens alive
         if (!t->cit[j] || unit_get_hp(t->cit[j]) <= 0 || unit_get_id(t->cit[j]) != t->cid[j]) {
             t->cit[j] = t->cit[t->ncit - 1]; t->cid[j] = t->cid[t->ncit - 1]; t->sent_mine[j] = t->sent_mine[t->ncit - 1]; t->ncit--; j--;
@@ -369,6 +397,7 @@ internal void tn_run(ee_player *pl, unsigned idx, struct tn_st *s, struct tn_tow
         return;
     }
     tn_wall(pl, idx, t, now);
+    if (t->state == 1 && t->forward && standing + dropped == t->nproj) t->ncit = 0;   // its citizens back to the game
     if (t->state == 1 && drop_ok && standing + dropped == t->nproj) { t->state = 2; s->held++; tn_say(idx, now, "the town at %d,%d stands (%d buildings)", t->c.x, t->c.y, standing); }
     // the next building (every 8 s), the drop site alone first; one it can't pay waits (the drop site always)
     if (t->ncit && (!t->plan_t || now - t->plan_t >= 8000)) {
@@ -382,9 +411,13 @@ internal void tn_run(ee_player *pl, unsigned idx, struct tn_st *s, struct tn_tow
             int ty = tn_kind_type(pl, p->kind, p->want);
             ivec2 at = iv2(0, 0), c = t->c;
             if (!ty) { if (p->kind != TK_DROP && ++p->waits > 30) { p->state = 3; tn_say(idx, now, "no %s it can pay for 4 minutes - dropped", k_tk[p->kind]); } break; }
-            if (p->kind == TK_PROD && t->proj[0].state) c = t->proj[0].p;
+            if (p->kind == TK_PROD && !t->forward && t->proj[0].state) c = t->proj[0].p;
+            if (p->kind == TK_PROD && t->forward) {   // behind the towers
+                float ax = (float)(t->toward.x - t->c.x), ay = (float)(t->toward.y - t->c.y), l = sqrtf(ax * ax + ay * ay);
+                if (l > 1) c = iv2(t->c.x - (int)lroundf(4 * ax / l), t->c.y - (int)lroundf(4 * ay / l));
+            }
             if (p->kind == TK_TOWER) {   // 5 tiles from the drop site, towards the enemy it knows (else round it)
-                ivec2 d0 = t->proj[0].state ? t->proj[0].p : t->c;
+                ivec2 d0 = !t->forward && t->proj[0].state ? t->proj[0].p : t->c;
                 float ax = (float)(t->toward.x - d0.x), ay = (float)(t->toward.y - d0.y), l = sqrtf(ax * ax + ay * ay);
                 float ang = l > 1 ? atan2f(ay, ax) : 0;
                 int nth = 0;
@@ -404,7 +437,7 @@ internal void tn_run(ee_player *pl, unsigned idx, struct tn_st *s, struct tn_tow
     }
     // builders: all on the drop site until it stands, then 3 on each other going up; the rest gather by the town
     int want[TN_PROJ] = { 0 }, have[TN_PROJ] = { 0 };
-    for (int j = 0; j < t->nproj; j++) if (t->proj[j].state == 1) want[j] = t->proj[j].kind == TK_DROP ? (drop_ok ? 3 : 64) : 3;
+    for (int j = 0; j < t->nproj; j++) if (t->proj[j].state == 1) want[j] = t->proj[j].kind == TK_DROP ? (drop_ok ? 3 : 64) : t->forward ? 4 : 3;
     ee_resource_mgr *rm = civ_mgr_get_resource_mgr(player_get_civ_mgr(pl));
     for (int k = 0; k < t->ncit; k++) {
         ee_unit *u = t->cit[k];
@@ -421,6 +454,13 @@ internal void tn_run(ee_player *pl, unsigned idx, struct tn_st *s, struct tn_tow
             void *bg = goal_build_alloc();
             if (bg) bg = build_goal_init(bg, pl, t->proj[j].b, 0);
             if (bg && unit_goal(u, bg, 0, 0x1F51)) { have[j]++; s->orders++; }
+            continue;
+        }
+        if (t->forward) {   // to the base while nothing is laid; once it stands the game's again
+            if (t->state == 1 && !any && ivec2_dist2(unit_get_tile(u), t->c) > 64 && !goal_near(u, (float)t->c.x + 0.5f, (float)t->c.y + 0.5f, 4.0f)) {
+                s->orders += unit_goal(u, goal_move((float)t->c.x + 0.5f, (float)t->c.y + 0.5f), 0, 0x1F40);
+                s->sent++;
+            }
             continue;
         }
         if (!drop_ok || !rm) {   // no drop site yet and nothing to build: to the town
@@ -454,15 +494,26 @@ internal void tn_run(ee_player *pl, unsigned idx, struct tn_st *s, struct tn_tow
         if (best) { resource_mgr_assign(rm, u, best); s->assigned++; t->sent_mine[k] = 1; }
     }
 }
+// what a forward base needs in stock to start: two towers and the Hospital
+internal void tn_forward_need(ee_player *pl, int need[7]) {
+    int tt = ld_kind_type(pl, LDB_TOWER);
+    for (int r = 2; r < 7; r++)
+        need[r] = 2 * (tt ? unit_cost(pl, tt, r) : unit_cost(pl, UT(B_GUARD_TOWER_MIDDLE), r)) + (ut_has(UT(B_HOSPITAL)) ? unit_cost(pl, UT(B_HOSPITAL), r) : 0);
+}
 // the resources a town's drop site waits for (expand.c expand_reserve, the budget's reserve): a Town Center's for 90 s,
 // then a Settlement's, until it is laid (3 minutes at most)
 internal void towns_reserve(ee_player *pl, int reserve[7]) {
     unsigned idx = (unsigned)player_get_index(pl) & 15;
     if (!TOWNS(idx)) return;
     uint32_t now = game_time();
+    if (g_tn[idx].fsave && now - g_tn[idx].fsave < 180000) {   // a forward base saved for
+        int need[7] = { 0 };
+        tn_forward_need(pl, need);
+        for (int r = 2; r < 7; r++) reserve[r] += need[r];
+    }
     for (int k = 0; k < TN_MAX; k++) {
         struct tn_town *t = &g_tn[idx].town[k];
-        if (t->state != 1 || t->proj[0].state || t->proj[0].tries || now - t->t > 180000) continue;   // its first drop site
+        if (t->state != 1 || t->forward || t->proj[0].state || t->proj[0].tries || now - t->t > 180000) continue;   // its first drop site
         int ty = now - t->t < 90000 && ut_has(UT(B_TOWN_CENTER)) && !(TOWNS(idx) & 2) ? UT(B_TOWN_CENTER) : UT(B_SETTLEMENT);
         for (int r = 2; r < 7; r++) reserve[r] += unit_cost(pl, ty, r);
     }
@@ -512,35 +563,52 @@ internal int towns_production(ee_player *pl, unsigned idx, int type) {
     return 1;
 }
 internal void tn_plan(ee_player *pl, unsigned idx, struct tn_st *s, unsigned hc, ivec2 base, uint32_t now) {
-    float mine, theirs;
-    int n = 0, going = 0;
-    for (int k = 0; k < TN_MAX; k++) { n += s->town[k].state != 0; going += s->town[k].state == 1; }
+    float mine = 0, theirs = 0;
+    int n = 0, going = 0, nf = 0, fgoing = 0;
+    for (int k = 0; k < TN_MAX; k++) {
+        struct tn_town *t = &s->town[k];
+        if (t->forward) { nf += t->state != 0; fgoing += t->state == 1; }
+        else { n += t->state != 0; going += t->state == 1; }
+    }
     const char *why = NULL;
-    if (going) why = "a town going up";
-    else if (n >= g_tn_max) why = "holds towns_max towns";
-    else if (current_epoch(pl) < FARM_EPOCH) why = "before the Copper Age";
+    if (current_epoch(pl) < FARM_EPOCH) why = "before the Copper Age";
     else if (workforce(pl) < 20) why = "fewer than 20 workers";
     else if (base_threatened(idx)) why = "enemy soldiers in its base";
-    else if (ex_outmatched(pl, &mine, &theirs)) why = "its army outmatched";
     if (!why) {
         static struct tn_world w;
         tn_world(pl, idx, &w);
-        ivec2 c;
+        ivec2 c, front;
         int nm = 0, done = 0;
-        if (TOWNS(idx) & 8) {   // a forward base: the army and the stock to hold it
-            int have_fwd = 0, rich = 1, *st = player_stock_at(pl), pt = tn_prod_type(pl, idx), tt = ld_kind_type(pl, LDB_TOWER);
-            for (int k = 0; k < TN_MAX; k++) have_fwd |= s->town[k].state && s->town[k].forward;
-            for (int r = 2; r < 7 && st; r++) {
-                int need = unit_cost(pl, UT(B_TOWN_CENTER), r) + 4 * (tt ? unit_cost(pl, tt, r) : unit_cost(pl, UT(B_GUARD_TOWER_MIDDLE), r)) + 2 * unit_cost(pl, pt, r);
-                if ((float)st[r] < 1.5f * (float)need) rich = 0;
+        ex_outmatched(pl, &mine, &theirs);
+        if (TOWNS(idx) & 8) {   // a forward base where the army gathers, under its cover
+            int rich = 1, *st = player_stock_at(pl);
+            rich = ld_kind_type(pl, LDB_TOWER) != 0;   // a tower it can pay now: the rest as the money comes (the game spends it as it comes)
+            int army = stage_army(idx, &c, &front), clear = 1;
+            if (army < 8) army = tn_army_spot(pl, idx, base, hc, &c, &front);
+            if (army) {
+                if (ivec2_dist2(c, base) < 32 * 32) clear = 0;
+                for (int k = 0; k < w.no && clear; k++) if (ivec2_dist2(c, w.own[k]) < 32 * 32) clear = 0;
+                for (int k = 0; k < TN_MAX && clear; k++) if (s->town[k].state && s->town[k].forward && ivec2_dist2(c, s->town[k].c) < 32 * 32) clear = 0;
             }
-            if (have_fwd) why = "holds a forward base";
-            else if (mine < 1.5f * theirs) why = "its army not 1.5 x the enemy's";
-            else if (!st || !rich) why = "not the stock to hold a forward base";
-            else if (!tn_forward_site(idx, base, hc, &w, &c)) why = "no forward spot";
-            else { s->plans++; tn_found(pl, idx, s, c, 0, &w, hc, now, 1); done = 1; }
+            if (fgoing) why = "a forward base going up";
+            else if (nf >= 2) why = "holds 2 forward bases";
+            else if (army < 8) why = "no group of 8 soldiers out in the field";
+            else if (!clear) why = "its army within 32 tiles of its base or a town";
+            else if (mine < 0.8f * theirs) why = "its army under 0.8 x the enemy's";
+            else if (!st || !rich) {
+                why = "saving for a forward base";
+                if (!s->fsave || now - s->fsave > 240000) s->fsave = now ? now : 1;   // 3 minutes of saving, then a minute's pause
+            }
+            else { forward_front = front; s->plans++; s->fsave = 0; tn_found(pl, idx, s, c, 0, &w, hc, now, 1); done = 1; why = NULL; }
+            if (why && strcmp(why, "saving for a forward base")) s->fsave = 0;
         }
         if (!done && (TOWNS(idx) & 1)) {
+            why = NULL;
+            if (going) why = "a town going up";
+            else if (n >= g_tn_max) why = "holds towns_max towns";
+            else if (mine < theirs) why = "its army outmatched";
+        }
+        if (!done && (TOWNS(idx) & 1) && !why) {
             int fs = tn_free_slots(pl, hc, &w);
             if (fs >= 4) { if (!why) why = "free places at its mines"; }
             else if (!tn_site(pl, idx, base, hc, &w, &c, &nm)) {

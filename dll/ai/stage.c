@@ -41,6 +41,7 @@ internal struct stage {
     ivec2 push; uint32_t push_t;                            // the push: its destination, since (0 none)
     ee_attack_subgroup *jsg; ivec2 jc; uint32_t jt; int jgo; // the last judgement of a march: its subgroup, its destination's cell, when, go
     float ratio;
+    int at;                                                 // its soldiers at the stage (the last tick)
     unsigned held, passed, pushes, sent, skips;             // since the last line
 } g_stg[16];
 internal struct st_side g_sgs_own, g_sgs_foe;
@@ -210,6 +211,7 @@ internal void stage_tick(ee_player *pl, uint32_t now) {
                 ee_unit *u = *r ? asg_unit_get_unit(*r) : NULL;
                 at += u && ms_land_soldier(u, unit_get_type_data(u)) && ivec2_dist2(unit_get_tile(u), st->s) <= SG_R * SG_R;
             }
+        st->at = at;
         if (at && !stage_pushing(st, now) && (!st->tj || now - st->tj >= 4000)) {   // the front itself, for those waiting without orders
             st->tj = now ? now : 1;
             st->ratio = stage_judge_front(pl, st);
@@ -226,6 +228,13 @@ internal void stage_tick(ee_player *pl, uint32_t now) {
     LeaveCriticalSection(&g_lock);
     st->held = st->passed = st->pushes = st->sent = st->skips = 0;
     st->min = now / 60000;
+}
+// towns.c FORWARD BASE: the soldiers at the staging point, the point and its front (0: no stage)
+internal int stage_army(unsigned idx, ivec2 *at, ivec2 *front) {
+    struct stage *st = &g_stg[idx & 15];
+    if (!st->on) return 0;
+    *at = st->s; *front = st->front;
+    return st->at;
 }
 internal void stage_install(const char *autotest_ini) {
     g_army_stage = g_set_ai[1].army_stage;
