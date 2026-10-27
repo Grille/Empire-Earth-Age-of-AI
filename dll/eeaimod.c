@@ -405,6 +405,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
 #include "test/testopp.c"
 #include "test/fleetmove.c"
 #include "test/ecolog.c"
+#include "test/dxprobe.c"
 
 
 // No ageofai\ageofai.ini in the game folder: tell the player and stop, instead of running on built-in defaults nobody
@@ -617,7 +618,7 @@ internal void install(HMODULE self) {
         if (g_log) fprintf(g_log, "# autotest: game_seed=%d (srand hook %s, start message hook %s)\n", g_auto.game_seed,
                            ok ? "ok" : "FAILED", start ? "ok" : "FAILED");
     }
-    if (g_autotest) { watch_start(g_ini); trace_start(g_ini); sync_trace_start(g_ini); mp_start(); }
+    if (g_autotest) { watch_start(g_ini); trace_start(g_ini); sync_trace_start(g_ini); mp_start(); dx_probe_start(g_ini); }
     AddVectoredExceptionHandler(1, crash_handler);   // logs the first exceptions (module+offset, backtrace) - also in normal play
 }
 
