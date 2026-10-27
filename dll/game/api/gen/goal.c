@@ -53,6 +53,10 @@ internal inline ee_unit **goal_holder_at(const ee_goal *o) { return (ee_unit **)
 // answers it, the base's (0x6283xx) for the rest; thiscall(goal, unit, condition id)
 typedef char (__thiscall *goal_condition_fn)(ee_goal *, ee_unit *, uint32_t);
 internal inline char goal_condition(ee_goal *goal, ee_unit *u, uint32_t cond) { return ((goal_condition_fn)(*(void ***)goal)[slot_goal_condition])(goal, u, cond); }
+// vf27: a building the goal works on is replaced by another (wall pieces joining up): thiscall(goal, old unit, the
+// new one's reference, 0 - the caller's; it returns with ret 0xC)
+typedef void (__thiscall *goal_replaced_fn)(ee_goal *, ee_unit *, void *, int);
+internal inline void goal_replaced(ee_goal *goal, ee_unit *old, void *repl, int arg) { ((goal_replaced_fn)(*(void ***)goal)[slot_goal_replaced])(goal, old, repl, arg); }
 // thiscall(goal 0xFBA object, unit) (0x5ED24B)
 typedef char (__thiscall *goal_fits_fn)(ee_goal *, void *);
 internal goal_fits_fn fn_goal_fits;
@@ -161,6 +165,12 @@ typedef char (__thiscall *build_goal_condition_fn)(ee_build_goal *, ee_unit *, u
 internal build_goal_condition_fn fn_build_goal_condition;
 internal inline char build_goal_condition(ee_build_goal *build_goal, ee_unit *u, uint32_t cond) { return fn_build_goal_condition(build_goal, u, cond); }
 internal inline int patch_build_condition(build_goal_condition_fn h) { return patch_vtable(vt_eeug_build_repair, (int)slot_goal_condition, (uintptr_t)fn_build_goal_condition, (void *)h); }
+// its replacement: the new reference counted and kept - read without a check. A citizen's work on a building of
+// the walls family (0x60C0F5) asks for the piece replacing it (0x6311A8) and passes what it gets: none for a gate
+typedef void (__thiscall *build_goal_replaced_fn)(ee_build_goal *, ee_unit *, void *, int);
+internal build_goal_replaced_fn fn_build_goal_replaced;
+internal inline void build_goal_replaced(ee_build_goal *build_goal, ee_unit *old, void *repl, int arg) { fn_build_goal_replaced(build_goal, old, repl, arg); }
+internal inline int patch_build_replaced(build_goal_replaced_fn h) { return patch_vtable(vt_eeug_build_repair, (int)slot_goal_replaced, (uintptr_t)fn_build_goal_replaced, (void *)h); }
 
 // class EEUGLoadTransport (ee_load_goal)
 // the load-into-a-transport goal (EEUGLoadTransport)
@@ -572,6 +582,7 @@ internal int spec_goal_select(int build) {
         of_goal_0x3c = 0x3C;
         of_goal_holder = 0x50;
         slot_goal_condition = 25;
+        slot_goal_replaced = 27;
         fn_goal_fits = (goal_fits_fn)0x0060FE7E;
         call_goal_fits = 0x005ED9BF;
         fn_goal_move_at_game = (goal_move_at_game_fn)0x00614D47;
@@ -595,6 +606,7 @@ internal int spec_goal_select(int build) {
         fn_build_goal_init = (build_goal_init_fn)0x0060BAD0;
         fn_build_goal_site_valid = (build_goal_site_valid_fn)0x0060D12A;
         fn_build_goal_condition = (build_goal_condition_fn)0x0060D4FD;
+        fn_build_goal_replaced = (build_goal_replaced_fn)0x0060D759;
         vt_eeug_load_transport = 0x00831DC0;
         fn_load_goal_init = (load_goal_init_fn)0x0061487F;
         vt_eeug_location = 0x00831E64;
@@ -645,6 +657,7 @@ internal int spec_goal_select(int build) {
         of_goal_0x3c = 0x3C;
         of_goal_holder = 0x50;
         slot_goal_condition = 25;
+        slot_goal_replaced = 27;
         fn_goal_fits = (goal_fits_fn)0x006226CF;
         call_goal_fits = 0x005FBA9C;
         fn_goal_move_at_game = (goal_move_at_game_fn)0x00627742;
@@ -668,6 +681,7 @@ internal int spec_goal_select(int build) {
         fn_build_goal_init = (build_goal_init_fn)0x0061E164;
         fn_build_goal_site_valid = (build_goal_site_valid_fn)0x0061F85E;
         fn_build_goal_condition = (build_goal_condition_fn)0x0061FC4B;
+        fn_build_goal_replaced = (build_goal_replaced_fn)0x0061FEB2;
         vt_eeug_load_transport = 0x008477F8;
         fn_load_goal_init = (load_goal_init_fn)0x00627286;
         vt_eeug_location = 0x008478A0;
@@ -733,6 +747,8 @@ internal int spec_goal_check(void) {
     bad += spec_code((uintptr_t)fn_build_goal_site_valid, "EEUGBuildRepair.site_valid");
     bad += spec_code((uintptr_t)fn_build_goal_condition, "EEUGBuildRepair.condition");
     bad += spec_slot(vt_eeug_build_repair, slot_goal_condition, (uintptr_t)fn_build_goal_condition, "EEUGBuildRepair.condition [slot]");
+    bad += spec_code((uintptr_t)fn_build_goal_replaced, "EEUGBuildRepair.replaced");
+    bad += spec_slot(vt_eeug_build_repair, slot_goal_replaced, (uintptr_t)fn_build_goal_replaced, "EEUGBuildRepair.replaced [slot]");
     bad += spec_vtable(vt_eeug_load_transport, ".?AVEEUGLoadTransport@@", "EEUGLoadTransport [vtable]");
     bad += spec_code((uintptr_t)fn_load_goal_init, "EEUGLoadTransport.init");
     bad += spec_vtable(vt_eeug_location, ".?AVEEUGLocation@@", "EEUGLocation [vtable]");

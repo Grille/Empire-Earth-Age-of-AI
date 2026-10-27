@@ -73,8 +73,20 @@ internal void build_retry_tick(void) {
 
 internal void build_retry_new_game(void) { g_br_n = 0; g_br_retried = g_br_gave_up = 0; }
 
+// A GATE'S BUILDERS (always): a citizen's work on a building of the walls family (0x60C0F5) asks for the piece that
+// replaces it as the pieces join up (0x6311A8) and hands it to the build goal's replacement (EEUGBuildRepair vf27,
+// 0x60D759), which reads it without a check - for a gate there is none: the game crashed the moment citizens worked on a
+// gate (read at 0x18, 0x60D77B; the mod's straight walls lay one in their middle - the game's own AI never sends its
+// citizens to one). No replacement: nothing replaced, the goal keeps its building.
+internal unsigned g_gate_nulls;
+internal void __thiscall hook_build_replaced(ee_build_goal *g, ee_unit *old, void *repl, int32_t arg) {
+    if (!repl) { g_gate_nulls++; return; }
+    build_goal_replaced(g, old, repl, arg);
+}
+
 internal void build_retry_install(void) {
     g_br_on = g_set.build_retry;
     int ok = g_br_on ? patch_build_condition(hook_build_condition) : 0;
     if (g_log) fprintf(g_log, "# build_retry: %d (%s)\n", g_br_on, !g_br_on ? "-" : ok ? "hooked" : "FAILED");
+    if (!patch_build_replaced(hook_build_replaced) && g_log) fprintf(g_log, "# build: the build goal's replacement not hooked - gates crash their builders\n");
 }

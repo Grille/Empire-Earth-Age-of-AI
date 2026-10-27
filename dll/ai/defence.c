@@ -13,9 +13,15 @@
 // Each slot is checked with the game's own placement test (0x62E940, every tile of the footprint) within 2 tiles.
 // WALLS (defence_walls, default on): the game's wall manager (cm+0x48) works on a ring around the base one segment at
 // a time and in practice leaves one stray piece with a gate. Walls belong in front of towers: once 2 towers stand at a
-// front, an 11-tile wall arc goes up 3 tiles in front of them (the wall manager's own 0x497C3F(from, to, type): the
+// front, an 11-tile wall goes up 3 tiles in front of them (the wall manager's own 0x497C3F(from, to, type): the
 // citizens get the same build-wall order a player gives). The ends stay open - own units walk round, attackers on
-// foot must break through or walk the length of it under tower fire.
+// foot must break through or walk the length of it under tower fire. Straight (2026-10-27, the player: the walls are
+// useful but should be straightened out and use gates): across the front at the nearest of the 8 directions - along
+// the tiles or exactly diagonal; at any other angle the pieces stood as a staircase. No gate yet: every way tried left
+// it unbuilt at 1 hit point - laid into a gap of the wall or before it (its builders crashed the game until
+// engine/buildretry.c's check), by the wall manager's drag (a gate per tile), onto the finished wall by the game's
+// placing (0x62EF8A; two builders sent, nothing built - its site check waits while other buildings stand on its
+// ground); the build queue never places one on wall pieces.
 internal int g_def = 1, g_def_dist = 10, g_def_walls = 1, g_def_more = 1;
 internal int g_aa = 1, g_aa_ahead = 1, g_aa_ahead_b = 3;   // [ai_base] anti_air, aa_ahead, aa_ahead_buildings (below)
 internal int g_hold = 0;   // [ai_base] hold_town (below)
@@ -221,8 +227,11 @@ internal void defence_tick(ee_player *pl, unsigned idx, uint32_t now) {
         for (int r = 2; r < 7; r++) if (stock[r] < 11 * unit_cost(pl, wtype, r)) ok = 0;
         if (!ok) continue;
         int cx = f->fx + (int)lroundf(f->dx * 3.0f), cy = f->fy + (int)lroundf(f->dy * 3.0f);
-        int a[2] = { cx + (int)lroundf(-f->dy * 5.0f), cy + (int)lroundf(f->dx * 5.0f) };
-        int b[2] = { cx - (int)lroundf(-f->dy * 5.0f), cy - (int)lroundf(f->dx * 5.0f) };
+        float px = -f->dy, py = f->dx, ax = fabsf(px), ay = fabsf(py);   // across the front, snapped to 8 directions
+        int sx = ax > 2.414f * ay ? (px > 0 ? 1 : -1) : ay > 2.414f * ax ? 0 : (px > 0 ? 1 : -1);
+        int sy = ay > 2.414f * ax ? (py > 0 ? 1 : -1) : ax > 2.414f * ay ? 0 : (py > 0 ? 1 : -1);
+        int h = sx && sy ? 4 : 5;   // 11 tiles along, 8 diagonal steps (11.3)
+        int a[2] = { cx + sx * h, cy + sy * h }, b[2] = { cx - sx * h, cy - sy * h };
         threat_refresh(pl, now);
         if (route_covered(pl, p->bx, p->by, a[0], a[1]) || route_covered(pl, p->bx, p->by, b[0], b[1]) ||
             route_covered(pl, p->bx, p->by, cx, cy)) continue;   // the builders would walk into enemy fire

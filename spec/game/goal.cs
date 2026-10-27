@@ -51,6 +51,11 @@ unsafe struct EEUnitGoal
     [slot(25)]
     extern char8 condition(EEUnit* u, uint32 cond);
 
+    /// vf27: a building the goal works on is replaced by another (wall pieces joining up): thiscall(goal, old unit, the
+    /// new one's reference, 0 - the caller's; it returns with ret 0xC)
+    [slot(27)]
+    extern void replaced(EEUnit* old, void* repl, int32 arg);
+
     /// thiscall(goal 0xFBA object, unit) (0x5ED24B)
     [address((ee)0x0060FE7E, (aoc)0x006226CF)]
     // in 0x5ED24B: goal_fits on a dynamic_cast, unchecked
@@ -123,6 +128,12 @@ unsafe struct EEUGBuildRepair
     [address((ee)0x0060D4FD, (aoc)0x0061FC4B), overrides(typeof(EEUnitGoal))]
     [vtable_site("build_condition")]
     extern char8 condition(EEUnit* u, uint32 cond);
+
+    /// its replacement: the new reference counted and kept - read without a check. A citizen's work on a building of
+    /// the walls family (0x60C0F5) asks for the piece replacing it (0x6311A8) and passes what it gets: none for a gate
+    [address((ee)0x0060D759, (aoc)0x0061FEB2), overrides(typeof(EEUnitGoal))]
+    [vtable_site("build_replaced")]
+    extern void replaced(EEUnit* old, void* repl, int32 arg);
 }
 
 /// the load-into-a-transport goal (EEUGLoadTransport)

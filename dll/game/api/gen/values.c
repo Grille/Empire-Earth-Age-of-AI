@@ -342,6 +342,7 @@ internal uint32_t of_goal_0x38;
 internal uint32_t of_goal_0x3c;
 internal uint32_t of_goal_holder;
 internal uint32_t slot_goal_condition;
+internal uint32_t slot_goal_replaced;
 internal uint32_t call_goal_fits;
 internal uint32_t call_slot_goal;
 internal uint32_t calls_unload_ctor[8];
