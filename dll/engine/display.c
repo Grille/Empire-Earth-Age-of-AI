@@ -603,13 +603,18 @@ internal int replace_rdata_ptr(HMODULE m, void *fn, void *hook) {
 internal void *const k_fc_hooks[FC_N] = { (void *)hook_fc_text, (void *)hook_fc_text_rect, (void *)hook_fc_lock,
                                         (void *)hook_fc_text_lock, (void *)hook_fc_text_unlock };
 
-internal int install_windowed_present(void) {
+// The display DLLs' hooks, each at its load (patch.c on_module_load): the engine loads the game folder's DLLs in the
+// order of their names, and since the mod is ageofai.dll (2026-10-27) DX7HRDisplay.dll and DX7HRTnLDisplay.dll come
+// after it - looked up once at the install they weren't there: no present hooks, the window uninitialised, a crash
+// in Low-Level Engine.dll at the start. The import patch needs the module's imports bound by then: patch_iat only
+// replaces the real address (0 if not), and the log line says so.
+internal int g_show_hooks, g_show_dpi_hooks, g_show_dpi, g_show_logged;
+internal int show_hooks(int i, HMODULE m) {
     int n = 0;
-    for (int i = 0; i < 2; i++) {
-        HMODULE m = GetModuleHandleA(g_show[i].dll);
+    {
         void *show = m ? (void *)GetProcAddress(m, "?ShowScene@DX7Rasterizer@@UAEJK@Z") : NULL;
         void *set_mode = m ? (void *)GetProcAddress(m, "?SetMode@DX7Screen@@UAEJK@Z") : NULL;
-        if (!show || !set_mode) continue;
+        if (!show || !set_mode) return 0;
         IMAGE_NT_HEADERS *nt = (IMAGE_NT_HEADERS *)((uint8_t *)m + ((IMAGE_DOS_HEADER *)m)->e_lfanew);
         g_show[i].lo = (uintptr_t)m;
         g_show[i].hi = (uintptr_t)m + nt->OptionalHeader.SizeOfImage;
@@ -692,6 +697,26 @@ internal int install_windowed_present(void) {
         }
     }
     return n;
+}
+internal void show_loaded(int i, uintptr_t base) {
+    int n = show_hooks(i, (HMODULE)base);
+    int dpi = g_show_dpi ? patch_iat((HMODULE)base, "USER32.dll", "CreateWindowExA", (void *)hook_create_window) : 0;
+    g_show_hooks += n;
+    g_show_dpi_hooks += dpi;
+    if (g_show_logged)   // loaded after the install's line
+        log_locked("# display: %s loaded after the mod - present hooks %d, dpi hook %d%s\n", g_show[i].dll, n, dpi,
+                   g_show_dpi && !dpi ? " (NOT bound yet)" : "");
+}
+internal void show_loaded0(uintptr_t base) { show_loaded(0, base); }
+internal void show_loaded1(uintptr_t base) { show_loaded(1, base); }
+// dpi: CreateWindowExA in their imports hooked too. Returns the hooks of those already loaded.
+internal int install_windowed_present(int dpi) {
+    g_show_dpi = dpi;
+    module_load_fn fn[2] = { show_loaded0, show_loaded1 };
+    for (int i = 0; i < 2; i++)
+        if (!on_module_load(g_show[i].dll, fn[i]) && g_log)
+            fprintf(g_log, "# display: %s - module loads not watchable, no hooks unless already loaded\n", g_show[i].dll);
+    return g_show_hooks;
 }
 
 // Windowed input. Fullscreen-era behaviour that breaks a window:
@@ -1114,24 +1139,20 @@ internal void display_install(const char *autotest_ini) {
         }
         g_frame_watch = g_set.display_frame_watch;
         g_fw_test = g_set_from[SETTING_display_frame_watch] == 2 ? g_frame_watch : 0;   // the test ini's own
-        int hooks = install_windowed_present();
-        g_lock_mouse = g_set.display_lock_mouse;   // 0, 1, auto 2 (rows.h)
-        int input = install_windowed_input();
-        g_smooth = g_set.display_smooth;
-        g_present_mode = g_set.display_present;   // auto 0, d3d 1, gdi 2, primary 3 (rows.h)
-        g_present_d3d = g_present_mode <= 1;
-        g_vsync = g_set.display_vsync;
-        int dpi = 0;
         if (g_set.display_dpi_aware) {
             HMODULE u = GetModuleHandleA("user32.dll");
             g_set_thread_dpi = (SetThreadDpiFn)(void *)GetProcAddress(u, "SetThreadDpiAwarenessContext");
             g_get_window_dpi = (GetWindowDpiFn)(void *)GetProcAddress(u, "GetWindowDpiAwarenessContext");
             if (!g_set_thread_dpi || !g_get_window_dpi) g_set_thread_dpi = NULL, g_get_window_dpi = NULL;
         }
-        for (int i = 0; i < 2 && (g_set_thread_dpi || g_headless); i++) {
-            HMODULE m = GetModuleHandleA(g_show[i].dll);
-            if (m) dpi += patch_iat(m, "USER32.dll", "CreateWindowExA", (void *)hook_create_window);
-        }
+        g_lock_mouse = g_set.display_lock_mouse;   // 0, 1, auto 2 (rows.h)
+        g_smooth = g_set.display_smooth;
+        g_present_mode = g_set.display_present;   // auto 0, d3d 1, gdi 2, primary 3 (rows.h)
+        g_present_d3d = g_present_mode <= 1;
+        g_vsync = g_set.display_vsync;
+        int hooks = install_windowed_present(g_set_thread_dpi || g_headless);
+        int dpi = g_show_dpi_hooks;
+        int input = install_windowed_input();
         HMODULE lle = GetModuleHandleA("Low-Level Engine.dll");
         int fit = lle ? patch_iat(lle, "USER32.dll", "SetWindowPos", (void *)hook_set_window_pos) : 0;
         // loading splash (thread 0x5344FB, a popup centred on screen): started (0x5343F8, jne at 0x534400) while the
@@ -1141,11 +1162,14 @@ internal void display_install(const char *autotest_ini) {
         // then the stop must be skipped as well (it waits for the splash thread without a time limit).
         int nosplash = 0, splash = patch_splash_stop(&nosplash);
         if (g_log && g_headless) fprintf(g_log, "# display: headless (off-screen window, virtual mouse, %s)\n", nosplash ? "no splash" : "splash NOT prevented - started before the DLL loads");
-        if (g_log) fprintf(g_log, "# display: windowed %s (%s), present hooks %d, input patches %d/7, dpi hooks %d/2, window fit %s, splash stop %s\n",
+        if (g_log) fprintf(g_log, "# display: windowed %s (%s), present hooks %d, input patches %d/7, dpi hooks %d/2, window fit %s, splash stop %s%s\n",
                            was == 1 ? "on" : "NOT set (unexpected fullscreen flag)", g_borderless ? "borderless" : "window",
-                           hooks, input, dpi, fit ? "ok" : "FAILED", splash ? "ok" : "FAILED");
+                           hooks, input, dpi, fit ? "ok" : "FAILED", splash ? "ok" : "FAILED",
+                           hooks ? "" : " (the display DLLs not loaded yet: at their load)");
+        g_show_logged = 1;
     } else if (g_diag) {
-        int hooks = install_windowed_present();   // all pass through in fullscreen; for the ddinfo counters
+        int hooks = install_windowed_present(0);   // all pass through in fullscreen; for the ddinfo counters
+        g_show_logged = 1;
         if (g_log) fprintf(g_log, "# display: fullscreen, diagnostic hooks %d\n", hooks);
     }
 

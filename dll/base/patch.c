@@ -102,9 +102,9 @@ internal void write_code32(uint32_t *p, uint32_t v) {
 // A MODULE'S LOAD: fn(base) for the module of that file name once it is in - at once if it is already, else when the
 // loader maps it (ntdll's LdrRegisterDllNotification: before its DllMain, before anyone calls it). The engine loads the
 // game folder's DLLs one by one in the order of their names, so those after ageofai.dll (Miles Sound System Mixer.dll)
-// aren't there yet when the mod installs. At most 4 watched; 0: it can't watch (no such loader function).
+// aren't there yet when the mod installs. At most 8 watched; 0: it can't watch (no such loader function).
 typedef void (*module_load_fn)(uintptr_t base);
-internal struct { const char *name; module_load_fn fn; } g_mod_watch[4];
+internal struct { const char *name; module_load_fn fn; } g_mod_watch[8];
 internal int g_mod_watches;
 typedef struct { USHORT len, cap; PWSTR buf; } ldr_ustr;
 typedef struct { ULONG flags; const ldr_ustr *full, *base_name; void *base; ULONG size; } ldr_dll_data;
@@ -128,7 +128,7 @@ internal int on_module_load(const char *name, module_load_fn fn) {
     static void *cookie;
     HMODULE m = GetModuleHandleA(name);
     if (m) { fn((uintptr_t)m); return 1; }
-    if (g_mod_watches == 4) return 0;
+    if (g_mod_watches == 8) return 0;
     if (!cookie) {
         typedef LONG (NTAPI *reg_fn)(ULONG, void *, void *, void **);
         reg_fn reg = (reg_fn)(void *)GetProcAddress(GetModuleHandleA("ntdll.dll"), "LdrRegisterDllNotification");
