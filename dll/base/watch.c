@@ -145,7 +145,28 @@ internal void crash_addr(char *buf, size_t cap, uintptr_t a) {
                            (LPCSTR)a, &hm) && GetModuleFileNameA(hm, g_crash_path, sizeof g_crash_path)) {
         const char *b = strrchr(g_crash_path, 0x5C);
         snprintf(buf, cap, "%08lx(%s+%lx)", (unsigned long)a, b ? b + 1 : g_crash_path, (unsigned long)(a - (uintptr_t)hm));
-    } else snprintf(buf, cap, "%08lx", (unsigned long)a);
+        return;
+    }
+    // no module there now: one unloaded before? ntdll keeps the last unloads (base, size, name - its entries from +0x14
+    // a WCHAR[32]); a game that started up crashed now and then in a window procedure at ...f9c7 of a freed module,
+    // every time at another base (GOG's DirectX wrapper as _ddraw.dll in the game folder: the engine loads every DLL
+    // there and unloads it again). Every unload at that place: a base used again (Mss32.dll's after _ddraw.dll's) would
+    // otherwise hide the one whose code it was
+    typedef void (WINAPI *unload_trace_fn)(ULONG **size, ULONG **count, void **trace);
+    unload_trace_fn trace_ex = (unload_trace_fn)(void *)GetProcAddress(GetModuleHandleA("ntdll.dll"), "RtlGetUnloadEventTraceEx");
+    ULONG *size = NULL, *count = NULL;
+    uint8_t **trace = NULL;
+    if (trace_ex) trace_ex(&size, &count, (void **)&trace);
+    int n = snprintf(buf, cap, "%08lx", (unsigned long)a), first = 1;
+    if (size && count && trace && *trace && *size >= 0x54 && *count <= 1024)
+        for (ULONG i = 0; i < *count && n < (int)cap - 60; i++) {
+            const uint8_t *e = *trace + i * *size;
+            uintptr_t base = *(const uintptr_t *)e;
+            if (!base || a < base || a >= base + *(const SIZE_T *)(e + 4)) continue;
+            n += snprintf(buf + n, cap - n, "%s%.32ls+%lx", first ? "(unloaded " : " or ", (const wchar_t *)(e + 0x14), (unsigned long)(a - base));
+            first = 0;
+        }
+    if (!first) snprintf(buf + n, cap - n, ")");
 }
 
 internal char *crash_hex(char *p, uint32_t v) {   // 8 hex digits, no library call (stack overflow path)

@@ -241,7 +241,9 @@ internal void sync_step(void *phys) {   // after each step (control.c hook_phys_
     for (unsigned i = 1; i < n && i < 16; i++) {
         ee_player *pl = game_players()[i];
         if (!pl) continue;
-        for (int k = 0; k < 7 * 4; k++) h = (h ^ ((uint8_t *)player_stock_at(pl))[k]) * 16777619u;
+        // the resources only, [2] food .. [6] iron: [0] and [1] are none, memory a joiner's copy of the host's player
+        // can hold garbage in for its first steps (two first-step "desyncs" were that alone)
+        for (int k = 2 * 4; k < 7 * 4; k++) h = (h ^ ((uint8_t *)player_stock_at(pl))[k]) * 16777619u;
     }
     struct sync_units su = { 0, 0 };
     grid_each(sync_unit, &su);
