@@ -230,9 +230,9 @@ internal void sp_roam(uint32_t now) {
         ivec2 c = iv2((int)(cx / nb), (int)(cy / nb)), to = c;
         short area = (short)map_area(c, 2);
         // a tile off the map has area 0, and so has land without a continent id (the player's camp on the reference
-        // save): a band there took a point past the map's far edge for its own land - the player's game crashed at
-        // 594.7 min with a unit moved off the map during its order (Empire Earth.exe+228d6f), resigned players' bands
-        // roaming. No goal then but on the map and in a known area.
+        // save): a band there would take a point past the map's far edge for its own land (found looking at the
+        // player's crash at 594.7 min, a unit put off the map - that one came from a holder's unload, not from here).
+        // Goals only on the map and in a known area.
         if (!area) { nowhere++; continue; }
         long bd = (long)SP_HUNT * SP_HUNT + 1;
         int found = 0;
