@@ -15,6 +15,11 @@
 //   CHILD   0 or 1 under a master, the row lo (a CHOICE default|enabled|disabled before it, in its section): not set,
 //           it follows the master - default: the child's own default, enabled: 1, disabled: 0; set, its own value
 //           wins (improved_unit_movement over ship_routes, land_collide ...). The code reads the child as a FLAG.
+//   FLAGS   named fields in one key, lo their list (OVERLAY_FIELDS below): field_bool(name) on or off,
+//           field_enum(name, "a/b/c") one of its names, kept as its index (a 0); the code reads
+//           g_set.section_key.name. In the file words apart by commas or spaces: a bool by its name (on) or
+//           name=0 / name=1, an enum name=b, all: every bool on, none or empty: every field its first; the
+//           default the same way. Not a row of [ai_base].
 //
 // A range (INT, PCT, SHARE) is a sanity bound, not a limit the code relies on: a value outside it is a warning in the log
 // ("- used anyway") and the value kept (formation_wait=0% is silly but runs). A mistake is only what can't be used at
@@ -26,6 +31,11 @@
 // per AI difficulty - g_set_ai[d].key (0 easy, 1 medium, 2 hard), each from [ai_easy] / [ai_hard], else [ai_base] (medium plays
 // [ai_base] itself); a part that doesn't tell the difficulties apart reads [1], the medium one. The test ini's [autotest] overrides any
 // row by that same name (lead_targets=0, display_present=gdi, llm_enabled=1, avoid_towers=0 - every difficulty).
+
+// FLAGS rows' fields: [display] overlay - the debug overlay's layers by the names their producers give them
+// (base/overlay.c; attack.c: routes, danger)
+#define OVERLAY_FIELDS(field_bool, field_enum) field_bool(routes) field_bool(danger)
+
 #define SETTINGS(X, S, D) \
     X(FLAG,   general,  enabled,                  1,  0, 0) \
     X(FLAG,   general,  scenario_ai,              1,  0, 0) \
@@ -81,7 +91,7 @@
     S(FLAG,   display,  dpi_aware,                1,  0, 0) \
     S(CHOICE, display,  frame_wait,               "auto", "game|yield|auto", 0) \
     S(CHOICE, display,  renderer,                 "auto", "auto|wrapper|own", 0) \
-    S(STR,    display,  overlay,                  "", 128, 0) \
+    S(FLAGS,  display,  overlay,                  "", OVERLAY_FIELDS, 0) \
     S(CHOICE, display,  present,                  "auto", "auto|d3d|gdi|primary", 0) \
     S(FLAG,   display,  vertex_sysmem,            1,  0, 0) \
     S(STR,    editor,   resolution,               "ee", 16, 0) \

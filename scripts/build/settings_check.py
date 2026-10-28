@@ -5,7 +5,9 @@ shipped file says) or shown commented out (;key=example) - every key set in a se
 (SETTING_SECTIONS): every row's section is one, every section of the file is one and every one of them is in the file
 (but the test ini's, kind TEST: its rows aren't looked for), each named once, each order its own, the DIFF ones
 easy and hard. A CHILD's master is a CHOICE default|enabled|disabled (default "default") before it in its
-section, and the child is only commented out in the file (set, it would never follow). Exit 1 with the differences."""
+section, and the child is only commented out in the file (set, it would never follow). A FLAGS row's fields are a
+macro of rows.h (#define NAME(field_bool, field_enum) ...), its fields named once, and it is no row of [ai_base].
+Exit 1 with the differences."""
 import os
 import re
 import sys
@@ -87,6 +89,17 @@ def main():
         if keys.get(sec, {}).get(key) is not None:
             bad.append('[%s] %s: set in config/ageofai.ini - a child follows its master only commented out (;%s=...)'
                        % (sec, key, key))
+    src = open(os.path.join(ROOT, 'dll', 'settings', 'rows.h'), encoding='utf-8').read()
+    for kind, sec, key, default, lo in table:   # a FLAGS row: its fields' macro, each field once, not [ai_base]
+        if kind != 'FLAGS': continue
+        if sec == 'ai_base': bad.append('[%s] %s: a FLAGS row of [ai_base] - not supported' % (sec, key))
+        m = re.search(r'#define\s+' + re.escape(lo) + r'\(field_bool,\s*field_enum\)\s*(.*)', src)
+        if not m:
+            bad.append('[%s] %s: its fields %s are no #define %s(field_bool, field_enum) in rows.h' % (sec, key, lo, lo))
+            continue
+        names = re.findall(r'field_(?:bool|enum)\((\w+)', m.group(1))
+        for name in sorted({n for n in names if names.count(n) > 1}):
+            bad.append('[%s] %s: its field %s named twice in %s' % (sec, key, name, lo))
     known = {}
     for kind, sec, key, default, _ in table:
         if sec in test: continue

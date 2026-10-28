@@ -16,6 +16,9 @@
 #define SET_FIELD_STR(name, a) char name[a];
 #define SET_FIELD_STR_P(name, a) char name[16][a];
 #define SET_FIELD_CHILD(name, a) int name;
+#define SETF_INT_B(f) int f;
+#define SETF_INT_E(f, names) int f;
+#define SET_FIELD_FLAGS(name, a) struct { a(SETF_INT_B, SETF_INT_E) } name;   // a FLAGS row: an int per field
 #define SET_FIELD_X(kind, sec, key, def, a, b) SET_FIELD_##kind(key, a)
 #define SET_FIELD_S(kind, sec, key, def, a, b) SET_FIELD_##kind(sec##_##key, a)
 #define SET_NONE(...)
@@ -32,9 +35,10 @@ internal const char *const k_set_diff_sec[3] = { "ai_easy", NULL, "ai_hard" };  
 #define SET_ID_D(kind, key, def, a, b) SETTING_##key,
 enum { SETTINGS(SET_ID_X, SET_ID_S, SET_ID_D) SETTING_N };
 
-enum { SETK_FLAG, SETK_INT, SETK_NUM, SETK_PCT, SETK_SHARE, SETK_CHOICE, SETK_STR, SETK_STR_P, SETK_CHILD };
-// name: the field's, and the key that overrides it in the test ini; choices: a CHOICE's names, '|' between them;
-// ai: a row of [ai_base] (its field in struct settings_ai, a value per difficulty); a: a CHILD's master (its row's id)
+enum { SETK_FLAG, SETK_INT, SETK_NUM, SETK_PCT, SETK_SHARE, SETK_CHOICE, SETK_STR, SETK_STR_P, SETK_CHILD, SETK_FLAGS };
+// name: the field's, and the key that overrides it in the test ini; choices: a CHOICE's names, '|' between them - a
+// FLAGS row's fields, each name or name=a/b/c and a '|' after it; ai: a row of [ai_base] (its field in struct
+// settings_ai, a value per difficulty); a: a CHILD's master (its row's id), a FLAGS row's count of fields
 struct setting_row { const char *sec, *key, *name; int kind, ai; size_t off; int def; const char *def_s, *choices; int a, b; };
 #define SET_ROW_FLAG(sec, key, name, st, ai, def, a, b) { #sec, #key, #name, SETK_FLAG, ai, offsetof(st, name), def, NULL, NULL, a, b },
 #define SET_ROW_INT(sec, key, name, st, ai, def, a, b) { #sec, #key, #name, SETK_INT, ai, offsetof(st, name), def, NULL, NULL, a, b },
@@ -45,6 +49,12 @@ struct setting_row { const char *sec, *key, *name; int kind, ai; size_t off; int
 #define SET_ROW_STR(sec, key, name, st, ai, def, a, b) { #sec, #key, #name, SETK_STR, ai, offsetof(st, name), 0, def, NULL, a, b },
 #define SET_ROW_STR_P(sec, key, name, st, ai, def, a, b) { #sec, #key, #name, SETK_STR_P, ai, offsetof(st, name), 0, def, NULL, a, b },
 #define SET_ROW_CHILD(sec, key, name, st, ai, def, a, b) { #sec, #key, #name, SETK_CHILD, ai, offsetof(st, name), def, NULL, NULL, SETTING_##a, b },
+#define SETF_STR_B(f) #f "|"
+#define SETF_STR_E(f, names) #f "=" names "|"
+#define SETF_ONE_B(f) + 1
+#define SETF_ONE_E(f, names) + 1
+#define SET_ROW_FLAGS(sec, key, name, st, ai, def, a, b) { #sec, #key, #name, SETK_FLAGS, ai, offsetof(st, name), 0, def, \
+    a(SETF_STR_B, SETF_STR_E), 0 a(SETF_ONE_B, SETF_ONE_E), b },
 #define SET_ROW_X(kind, sec, key, def, a, b) SET_ROW_##kind(sec, key, key, struct settings, 0, def, a, b)
 #define SET_ROW_S(kind, sec, key, def, a, b) SET_ROW_##kind(sec, key, sec##_##key, struct settings, 0, def, a, b)
 #define SET_ROW_D(kind, key, def, a, b) SET_ROW_##kind(ai_base, key, key, struct settings_ai, 1, def, a, b)
@@ -119,9 +129,85 @@ internal int setting_raw(const struct setting_row *r, int d, const char *key, co
     return 0;
 }
 
+// A FLAGS row's field k (its fields r->choices: name or name=a/b/c, '|' after each): its name into name, its values
+// (a/b/c) into *vals with their length *nv - 0 for a bool; 0: no field k
+internal int setting_field(const struct setting_row *r, int k, char *name, int cap, const char **vals, int *nv) {
+    const char *c = r->choices;
+    for (; k > 0 && c && *c; k--) { c = strchr(c, '|'); if (c) c++; }
+    if (!c || !*c) return 0;
+    const char *e = strchr(c, '|'), *eq = memchr(c, '=', e ? (size_t)(e - c) : strlen(c));
+    int n = (int)((eq ? eq : e ? e : c + strlen(c)) - c);
+    lstrcpynA(name, c, n + 1 < cap ? n + 1 : cap);
+    *vals = eq ? eq + 1 : NULL;
+    *nv = eq ? (int)((e ? e : eq + strlen(eq)) - eq - 1) : 0;
+    return 1;
+}
+// the index of v among an enum field's values (a/b/c, nv long), -1 none
+internal int setting_field_value(const char *vals, int nv, const char *v, size_t len) {
+    int i = 0;
+    for (const char *c = vals, *end = vals + nv; c < end; i++) {
+        const char *e = memchr(c, '/', (size_t)(end - c));
+        size_t n = e ? (size_t)(e - c) : (size_t)(end - c);
+        if (n == len && !_strnicmp(c, v, n)) return i;
+        if (!e) break;
+        c = e + 1;
+    }
+    return -1;
+}
+// text v as a FLAGS row's fields into at (an int each, every one 0 first): its words apart by commas or spaces
+// (routes danger, routes, danger), name=value without spaces; NULL, else what is wrong
+internal const char *setting_flags(const struct setting_row *r, const char *v, int *at, char *why, int cap) {
+    char name[32];
+    const char *vals;
+    int nv;
+    for (int k = 0; k < r->a; k++) at[k] = 0;
+    for (const char *p = v; *p; ) {
+        while (*p == ',' || *p == ' ' || *p == '\t') p++;
+        const char *e = p;
+        while (*e && *e != ',' && *e != ' ' && *e != '\t') e++;
+        const char *end = e;
+        if (end == p) continue;
+        const char *eq = memchr(p, '=', (size_t)(end - p));
+        size_t n = (size_t)((eq ? eq : end) - p);
+        const char *val = eq ? eq + 1 : NULL;
+        size_t vl = val ? (size_t)(end - val) : 0;
+        if (!val && ((n == 3 && !_strnicmp(p, "all", 3)) || (n == 4 && !_strnicmp(p, "none", 4)))) {   // every bool on / off
+            for (int k = 0; setting_field(r, k, name, sizeof name, &vals, &nv); k++) if (!vals) at[k] = n == 3;
+            p = e;
+            continue;
+        }
+        int k = 0;
+        while (setting_field(r, k, name, sizeof name, &vals, &nv) && !(strlen(name) == n && !_strnicmp(name, p, n))) k++;
+        if (k >= r->a) {
+            size_t o = (size_t)snprintf(why, (size_t)cap, "%.*s: no field - all, none or", (int)n, p);
+            for (int j = 0; setting_field(r, j, name, sizeof name, &vals, &nv) && o + 1 < (size_t)cap; j++)
+                o += (size_t)snprintf(why + o, (size_t)cap - o, " %s", name);
+            return why;
+        }
+        if (!vals) {   // a bool: its name, or name=0 / name=1
+            if (val && !(vl == 1 && (*val == '0' || *val == '1'))) {
+                snprintf(why, (size_t)cap, "%s: 0 or 1 expected", name);
+                return why;
+            }
+            at[k] = !val || *val == '1';
+        } else {   // an enum: name=one of its values
+            int i = val ? setting_field_value(vals, nv, val, vl) : -1;
+            if (i < 0) {
+                snprintf(why, (size_t)cap, "%s=%.*s expected", name, nv, vals);
+                return why;
+            }
+            at[k] = i;
+        }
+        p = e;
+    }
+    return NULL;
+}
+
 // row r's default into at
 internal void setting_default(const struct setting_row *r, void *at) {
+    char why[96];
     if (r->kind == SETK_STR || r->kind == SETK_STR_P) lstrcpynA((char *)at, r->def_s, r->a);
+    else if (r->kind == SETK_FLAGS) setting_flags(r, r->def_s, (int *)at, why, sizeof why);
     else if (r->kind == SETK_CHOICE) *(int *)at = setting_choice(r->choices, r->def_s);
     else if (r->kind == SETK_SHARE) *(float *)at = (float)(r->def / 100.0);
     else *(int *)at = r->def;
@@ -141,6 +227,14 @@ internal int setting_value(const struct setting_row *r, const char *f, const cha
             return 0;
         }
         lstrcpyA((char *)at, v);
+        return 1;
+    }
+    if (r->kind == SETK_FLAGS) {
+        if (setting_flags(r, v, (int *)at, why, sizeof why)) {
+            ini_error(f, s, k, v, why);
+            setting_default(r, at);
+            return 0;
+        }
         return 1;
     }
     if (r->kind == SETK_CHOICE) {
@@ -268,6 +362,24 @@ internal void setting_text(const struct setting_row *r, const uint8_t *at, char 
     case SETK_PCT: snprintf(out, cap, "%d%%", *(const int *)at); break;
     case SETK_SHARE: snprintf(out, cap, "%.4g%%", *(const float *)at * 100.0); break;
     case SETK_CHOICE: setting_choice_name(r->choices, *(const int *)at, out, cap); break;
+    case SETK_FLAGS: {   // the fields not at their first: name (a bool), name=b (an enum), ", " between them
+        char name[32], val[32];
+        const char *vals;
+        int nv, o = 0;
+        out[0] = 0;
+        for (int k = 0; setting_field(r, k, name, sizeof name, &vals, &nv) && o + 1 < cap; k++) {
+            int x = ((const int *)at)[k];
+            if (!x) continue;
+            if (!vals) { o += snprintf(out + o, (size_t)(cap - o), "%s%s", o ? ", " : "", name); continue; }
+            const char *c = vals, *end = vals + nv;
+            for (int i = 0; i < x && c && c < end; i++) { c = memchr(c, '/', (size_t)(end - c)); if (c) c++; }
+            const char *e = c ? memchr(c, '/', (size_t)(end - c)) : NULL;
+            int n = !c ? 0 : (int)((e ? e : end) - c);
+            lstrcpynA(val, c ? c : "", n + 1 < (int)sizeof val ? n + 1 : (int)sizeof val);
+            o += snprintf(out + o, (size_t)(cap - o), "%s%s=%s", o ? ", " : "", name, val);
+        }
+        break;
+    }
     case SETK_STR:   // a key for a server stays out of the log
         lstrcpynA(out, !lstrcmpA(r->key, "api_key") && *at ? "(set)" : (const char *)at, cap);
         break;
