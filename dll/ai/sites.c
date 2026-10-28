@@ -168,6 +168,14 @@ internal void cmd_minecheck(char *out, const char *args) {
               k >= 0 ? d[k].p.y : 0, k >= 0 ? sqrtf((float)dd) : 0.0f, why);
     }
 }
+// LOCAL MINES ([ai_base] local_mines; the player 2026-10-28: "my citizens very rarely get far from their birthplace,
+// citizen travel between settlements is zero"): the mine nearest to any drop site is often another town's - the
+// rebalance, the crowds and the game's assignment sent citizens 200 tiles across the map and back (the player's
+// autosave at minute 750: 656 citizens on gather trips of 60+ tiles in 4 minutes, 74% of the citizens' route search
+// work, some sent on again before they got there). With a citizen given, a mine whose drop site lies within
+// LOCAL_MINE_TILES of it - its own town - goes first; another town's only when its own has no free one.
+#define LOCAL_MINE_TILES 40
+internal int g_local_mines;
 // not_region: a continent (region class 2) whose mines don't count, -1 none (overseas_mines)
 internal ee_unit *select_mine_near_drop(ee_resource_mgr *rm, int type, ee_unit *unit, int not_region) {
     ee_player *pl = resource_mgr_player(rm);
@@ -181,7 +189,9 @@ internal ee_unit *select_mine_near_drop(ee_resource_mgr *rm, int type, ee_unit *
     unsigned cap = table_value(0x16);
     short ref_region = unit ? (short)map_area(unit_get_tile(unit), 2) : 0;
     ee_unit *best = NULL;
-    int best_d = 0x7FFFFFFF;
+    int best_d = 0x7FFFFFFF, best_local = 0;
+    int local = g_local_mines && unit && !is_vanilla(pl);
+    ivec2 at = unit ? unit_get_tile(unit) : (ivec2){ 0, 0 };
     ee_zone **zb = player_get_zones_begin(pl); ee_zone **ze = player_get_zones_end(pl);
     for (int z = 0; zb && zb + z < ze; z++) {
         ee_zone *zone = zb[z];
@@ -190,7 +200,9 @@ internal ee_unit *select_mine_near_drop(ee_resource_mgr *rm, int type, ee_unit *
         if (!s || unit_get_amount(s) <= 0 || unit_vis_get_flag(unit_get_vis(s)) == 1) continue;
         ivec2 pos = unit_get_tile(s);
         int k = -1, dd = drop_nearest(pi, pos, 0, &k);   // nearest drop site for all resources (squared distance)
-        if (k < 0 || dd >= best_d) continue;
+        if (k < 0) continue;
+        int is_local = local && ivec2_dist2(d[k].p, at) <= LOCAL_MINE_TILES * LOCAL_MINE_TILES;
+        if (is_local < best_local || (is_local == best_local && dd >= best_d)) continue;   // its own town's first
         if (!explored_by(s, pl)) continue;
         if (site_gatherers(s) >= cap) continue;
         if (g_mine_crowds && aim_of(pi, s) >= cap) continue;   // the citizens on their way or waiting there count
@@ -200,8 +212,14 @@ internal ee_unit *select_mine_near_drop(ee_resource_mgr *rm, int type, ee_unit *
         if (!route_safe(bm, d[k].p, pos) || site_danger_res(pl, s, 0, type)) continue;
         best = s;
         best_d = dd;
+        best_local = is_local;
     }
     if (best && g_mine_crowds) aim_add(pi, best);
+    if (g_set.order_log && g_log && best) {   // tests: each pick - from where, local or not, how far
+        ivec2 bp = unit_get_tile(best);
+        log_locked("# mine pick: P%u res %d %s %d,%d -> %d,%d%s, caller %06x\n", pi, type, unit ? "citizen at" : "no citizen,", at.x, at.y,
+                   bp.x, bp.y, best_local ? " (its town's)" : "", (unsigned)(CALLER() & 0xFFFFFF));
+    }
     return best;
 }
 // MINE CROWDS: the citizens beyond the cap at a mine to the nearest free one of the same kind (every 10 s)
@@ -275,6 +293,7 @@ internal unsigned g_oversea[16][4];   // per player: searches, home mines found,
 internal void *find_mine_pick(ee_resource_mgr *rm, int type, ee_unit *unit, uintptr_t rev);
 internal ee_unit *__thiscall hook_find_mine(ee_resource_mgr *rm, int type, ee_unit *unit, uintptr_t rev) {
     uintptr_t caller = CALLER();
+    if (g_set.order_log && g_log) { char at[96]; crash_addr(at, sizeof at, caller); log_locked("# mine ask: res %d from %s%s\n", type, at, unit ? "" : ", no citizen"); }
     ee_unit *r = find_mine_pick(rm, type, unit, rev);
     ee_player *pl = resource_mgr_player(rm);
     ee_civ_mgr *cm = resource_mgr_get_owner(rm); ee_build_mgr *bm = cm ? civ_mgr_get_build_mgr(cm) : NULL;
@@ -350,6 +369,7 @@ internal void sites_install(void) {
     g_site_max_dist = g_set_ai[1].site_max_distance;
     g_mine_choice = g_set_ai[1].mine_choice;
     g_mine_crowds = g_set_ai[1].mine_crowds;
+    g_local_mines = g_set_ai[1].local_mines;
     g_overseas_mines = g_set_ai[1].overseas_mines;
     int ok = 0, total = 0;
     // always: the searches refuse sites behind known enemy towers (avoid_towers_citizens, attack.c)

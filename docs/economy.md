@@ -1063,3 +1063,29 @@ enemy on the home continent; identical games). **Default 39** (7 + LATE), agains
 
 Head-to-head Continental Large (4 AIs, 40 games, 75 min): kills - losses +46.0 (17.5), soldiers +38.1 (7.2).
 Continental Large without the cheat: kills - losses lower while it wins more - more games decided before the end (kills -32, losses -24).
+
+## TODO: citizens stay in their town (2026-10-28, measured, not built)
+
+The player: "my citizens very rarely get far from their birthplace, the only exception is expansion groups for new
+settlements; citizen travel between settlements is zero". The AI's citizens walk across the map instead, and those
+walks are most of the route search cost behind the late game's camera stutter.
+
+Measured on the player's autosave (minute 750, 3 AIs, 4 minutes, `ship_route_log=1`, `order_log=1`):
+- Citizens: 59% of all route search tiles; trips of 60+ tiles 90% of theirs. 74% of the citizens' search work is gather
+  goals on 60+ tile trips - 656 citizens in 4 minutes, some sent on to another town before they got there.
+- The long gather trips go to mines: gold 402, iron 286, stone 141 (wood 42, food 90).
+- Of 448 mine picks for a citizen, 357 went to another town's mine 60+ tiles away: the citizen's own town had no
+  free mine. Senders about half each: mine_crowds (sites.c: the citizens beyond a mine's 6 places to the nearest free
+  mine of the kind, anywhere) and the assignment / rebalance (econ.c econ_rebalance, the game's AssignCitizens).
+- Root: the worker targets for gold, iron and stone count all towns together; a town's mines full, the extra miners
+  spill over to whichever town still has a free one.
+- `local_mines` ([ai_base], off; sites.c select_mine_near_drop: a mine of the citizen's own town - drop site within
+  40 tiles - first) measured no change (1209 vs 1207 long gather trips): there is rarely a local one to prefer.
+
+The plan (the player agreed, for later):
+1. No far mines: a citizen is never sent to a mine whose drop site is more than ~60 tiles from it - mine_crowds too.
+2. Spare citizens work locally: their town's mines full, they take local work (wood, food, another local mine).
+3. Train where the work is: a town with free mine places gets its miners by training citizens there (docs: towns
+   expansion, "training at the nearest producers").
+1+2 are small; 3 is the real work - without it the AI may mine less gold and iron than it wants. Measure the economy
+head to head (MIRROR=1, many seeds) after 1+2, then build 3.
