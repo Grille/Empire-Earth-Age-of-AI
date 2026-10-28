@@ -176,6 +176,15 @@ internal void cmd_status(char *out) {
     }
 }
 
+// overlay [layers | off]: the debug overlay's layers shown (base/overlay.c; the own renderer draws them) - a comma
+// list, all, or off; without one the layers known and which are on
+internal void cmd_overlay(char *out, const char *args) {
+    while (*args == ' ') args++;
+    if (*args) overlay_show(strcmp(args, "off") ? args : "");
+    REPLY("overlay:%s", g_ov.n_layers ? "" : " no layer has drawn yet");
+    for (int i = 0; i < g_ov.n_layers; i++) REPLY(" %s=%d", g_ov.names[i], overlay_on(i));
+    REPLY(" (asked: %s; the own renderer draws them)\n", g_ov.want[0] ? g_ov.want : "none");
+}
 internal void cmd_camera(char *out, const char *args) {
     float *cam = camera_look_at(game_camera());   // current look-at; +0x40 = previous (interpolated per frame)
     int x, y;
@@ -336,6 +345,7 @@ internal void execute(const char *cmd, char *out) {
     if (!strcmp(verb, "ping")) REPLY("pong\n");
     else if (!strcmp(verb, "status")) cmd_status(out);
     else if (!strcmp(verb, "camera")) cmd_camera(out, args);
+    else if (!strcmp(verb, "overlay")) cmd_overlay(out, args);
     else if (!strcmp(verb, "sites")) cmd_sites(out, args);
     else if (!strcmp(verb, "minecheck")) cmd_minecheck(out, args);
     else if (!strcmp(verb, "texts")) cmd_texts(out, args);

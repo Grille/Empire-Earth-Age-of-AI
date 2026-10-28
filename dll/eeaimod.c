@@ -25,6 +25,7 @@ struct ustring;
 #include "base/mistakes.c"
 #include "base/math.c"
 #include "base/vec.h"             // vec2, vec3, ivec2: positions and tiles as one value
+#include "base/overlay.c"         // the debug overlay's shapes: the AI's plans on the map (the own renderer draws them)
 #include "game/api/api.c"         // the game's code and objects: typed functions, data accessors, hooks (game/api/)
 #include "game/players.c"
 #include "game/tech.c"      // a tech node's children (kept differently by build)

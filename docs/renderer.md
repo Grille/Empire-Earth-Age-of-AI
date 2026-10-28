@@ -116,6 +116,23 @@ triangles cross its ends: the horizon band's fog was 19% off). After them the me
 real time, paused too): within the noise. Interface, buildings, units and the decals on the ground (selection circles)
 match exactly. Tried and dropped: colour interpolated without perspective (worse).
 
+## The debug overlay
+
+2026-10-28 (the player: what the renderer could do - the AI's plans on the map). `[display] overlay = routes,danger`
+(or `all`; the pipe: `overlay <layers | off>`) draws the AI's own data into the map's view: base/overlay.c keeps the
+shapes (lines, circles, runs of tiles, in tiles; per layer and key, replaced when their producer draws again or
+dropped after a time to live in game time) - the AI may use base/ only, not engine/ -, engine/render_overlay.c draws
+them once a frame where the game turns from the map to the interface (its first draw without the depth test after a
+draw with the map's camera, else at EndScene): with that camera (the world matrix places objects in tiles, one view
+and projection serve the whole map), lines and circles as ribbons on the ground (tile heights bilinear, 0.06 above),
+depth tested and not written (hills, buildings and trees hide them), blended, under the interface. Layers: `routes`
+(attack.c route_overlay: each attack subgroup's route in its player's colour, red rings at waypoints in reach of known
+defences, a ring at the goal; 3 game minutes) and `danger` (attack.c danger_overlay: each AI's danger map, a faint fill
+where enemies reach, stronger where its fight is lost, the zones' edges strong - a fill alone tinted half the map;
+every 5 game seconds). A layer off costs its producer one test. A new layer: `overlay_layer("name")` once,
+`overlay_on(layer)` before the work, `overlay_begin(layer, key, now, ttl)` ... `overlay_line / overlay_circle /
+overlay_tiles` ... `overlay_end()`.
+
 The setting's default is `auto` (2026-10-27, the player): the own renderer when the game folder has no ddraw.dll -
 Windows' own DirectDraw crashes the game windowed (DX7HRTnLDisplay.dll+c7d8) - else the wrapper there; `wrapper` and
 `own` choose either outright. With `own` a ddraw.dll in the folder is still loaded (the engine loads every DLL there,

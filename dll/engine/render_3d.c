@@ -142,6 +142,10 @@ internal struct {
     D3D11_VIEWPORT vport;
     rd3_cached blends[32], depths[32], rasters[8], samps[32];
     int n_blend, n_depth, n_raster, n_samp;
+    // the map's camera this frame (render_overlay.c draws with it): view x projection, the viewport; the overlay drawn
+    float scene_vp[16];
+    D3D11_VIEWPORT scene_port;
+    int scene_seen, overlay_done;
 } g_rd3;
 
 internal void rd3_dirty(void) { g_rd3.bound = 0; }   // the 2D draw or the present set states of their own
@@ -322,6 +326,12 @@ internal int rd3_prepare(rd_device *d, int clamp) {
     rd3_mul(vc.wvp, wv, &d->proj._11);
     memcpy(vc.wv, wv, sizeof wv);
     memcpy(vc.world, &d->world._11, sizeof vc.world);
+    if (rs[D3DRENDERSTATE_ZENABLE] && (d->view._41 != 0 || d->view._42 != 0 || d->view._43 != 0)) {
+        // the map's camera (a view away from the origin - the interface's 3D pieces have none): the overlay's
+        rd3_mul(g_rd3.scene_vp, &d->view._11, &d->proj._11);
+        g_rd3.scene_port = vp;
+        g_rd3.scene_seen = 1;
+    }
     int lights = 0;
     if (rs[D3DRENDERSTATE_LIGHTING]) {
         for (int i = 0; i < 8; i++) {
@@ -418,6 +428,8 @@ internal int rd3_drawable(rd_vb *vb, D3DPRIMITIVETYPE type) {
     return 1;
 }
 
+#include "render_overlay.c"   // the debug overlay: the AI's plans on the map
+
 internal HRESULT __stdcall rd_dev_qi(rd_device *d, const GUID *iid, void **out) { (void)d; (void)iid; *out = NULL; return E_NOINTERFACE; }
 internal ULONG __stdcall rd_dev_addref(rd_device *d) { return (ULONG)InterlockedIncrement(&d->refs); }
 internal ULONG __stdcall rd_dev_release(rd_device *d) {
@@ -495,7 +507,14 @@ internal void rd_frame_tick(void) {
     log_locked("# render: frames %ld, draws %ld\n", (long)g_rd_frames, (long)g_rd_draws);
 }
 internal HRESULT __stdcall rd_dev_begin(rd_device *d) { d->in_scene = 1; return D3D_OK; }
-internal HRESULT __stdcall rd_dev_end(rd_device *d) { d->in_scene = 0; rd_frame_tick(); return D3D_OK; }
+internal HRESULT __stdcall rd_dev_end(rd_device *d) {
+    d->in_scene = 0;
+    RD_LOCK();
+    rd3_overlay_frame_end(d);
+    RD_UNLOCK();
+    rd_frame_tick();
+    return D3D_OK;
+}
 internal HRESULT __stdcall rd_dev_set_target(rd_device *d, rd_surface *t, DWORD flags) {
     (void)flags;
     if (!rd_is_surface(t) || t->kind != RK_TARGET) return DDERR_INVALIDPARAMS;
@@ -602,6 +621,7 @@ internal HRESULT __stdcall rd_dev_draw_vb(rd_device *d, D3DPRIMITIVETYPE type, r
     InterlockedIncrement(&g_rd_draws);
     if (!n || start + n > vb->n || !rd3_drawable(vb, type)) return D3D_OK;
     RD_LOCK();
+    rd3_overlay_before(d);
     if (rd3_prepare(d, rd3_flat_picture(d, vb, start, n))) {
         long at = rd3_upload(g_rd3.vb, RD3_VB_BYTES, &g_rd3.vb_pos, vb->mem + (size_t)start * vb->stride, n * vb->stride, vb->stride);
         if (at >= 0) {
@@ -619,6 +639,7 @@ internal HRESULT __stdcall rd_dev_draw_indexed_vb(rd_device *d, D3DPRIMITIVETYPE
     InterlockedIncrement(&g_rd_draws);
     if (!nv || !ni || !idx || start + nv > vb->n || !rd3_drawable(vb, type)) return D3D_OK;
     RD_LOCK();
+    rd3_overlay_before(d);
     if (rd3_prepare(d, rd3_flat_picture(d, vb, start, nv))) {
         long at = rd3_upload(g_rd3.vb, RD3_VB_BYTES, &g_rd3.vb_pos, vb->mem + (size_t)start * vb->stride, nv * vb->stride, vb->stride);
         long ia = at >= 0 ? rd3_upload(g_rd3.ib, RD3_IB_BYTES, &g_rd3.ib_pos, idx, ni * 2, 2) : -1;

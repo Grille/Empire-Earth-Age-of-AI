@@ -520,6 +520,61 @@ internal int *route_waypoint(ee_attack_subgroup *asg, unsigned i) {
     return map[blk] ? (int *)(map[blk] + (idx % 0x155) * 12) : NULL;
 }
 
+// overlay layer "routes" ([display] overlay): a subgroup's route as its player's line from waypoint to waypoint, a
+// red ring at each one in reach of known defences, a ring at the goal; kept 3 game minutes or until its next route
+internal void route_overlay(ee_attack_subgroup *sg) {
+    static int layer = -2;
+    if (layer == -2) layer = overlay_layer("routes");
+    ee_player *pl = attack_subgroup_get_player(sg);
+    if (!overlay_on(layer) || !pl) return;
+    unsigned pi = (unsigned)player_get_index(pl) & 15, n = attack_subgroup_get_waypoints(sg);
+    uint32_t col = overlay_player_argb((int)pi, 200);
+    overlay_begin(layer, (uintptr_t)sg, game_time(), 180000);
+    vec2 prev = v2(0, 0);
+    for (unsigned i = 0; i < n && i < 400; i++) {
+        int *w = route_waypoint(sg, i);
+        if (!w) break;
+        vec2 p = v2((float)w[0] + 0.5f, (float)w[1] + 0.5f);
+        if (i) overlay_line(prev, p, col, 0.25f);
+        if (threat_at(pi, iv2(w[0], w[1])) > 0) overlay_circle(p, 0.8f, 0xC0FF2020, 0.2f);
+        if (i + 1 == n) overlay_circle(p, 1.5f, col, 0.3f);
+        prev = p;
+    }
+    overlay_end();
+}
+
+// overlay layer "danger": a player's danger map - in its colour, a faint fill where enemies reach (DANGER_THREATS), a
+// little more where its fight is lost (DANGER_LOST), each zone's edge strong (a fill alone tinted half the map); runs
+// of tiles along a row, again every 5 game seconds
+internal int danger_class(const uint8_t *th, const uint8_t *lost, int size, int x, int y) {
+    if (x < 0 || y < 0 || x >= size || y >= size) return 0;
+    return (lost && lost[y * size + x]) ? 2 : (th && th[y * size + x]) ? 1 : 0;
+}
+internal void danger_overlay(unsigned pi, uint32_t now) {
+    static int layer = -2;
+    static uint32_t drawn[16];
+    if (layer == -2) layer = overlay_layer("danger");
+    ee_map *map = game_map();
+    if (!overlay_on(layer) || !map || pi >= 16 || (drawn[pi] && now - drawn[pi] < 5000)) return;
+    drawn[pi] = now;
+    int size = (int)map_get_size(map);
+    const uint8_t *th = danger_map(pi, DANGER_THREATS, size), *lost = danger_map(pi, DANGER_LOST, size);
+    overlay_begin(layer, pi, now, 30000);
+    for (int y = 0; y < size; y++)
+        for (int x = 0; x < size; ) {
+            int k = danger_class(th, lost, size, x, y), e = x + 1;
+            if (!k) { x++; continue; }
+            while (e < size && danger_class(th, lost, size, e, y) == k) e++;
+            overlay_tiles(iv2(x, y), e - x, overlay_player_argb((int)pi, k == 2 ? 40 : 18));
+            for (int t = x; t < e; t++)   // the edge: a neighbour of a lower class
+                if (danger_class(th, lost, size, t - 1, y) < k || danger_class(th, lost, size, t + 1, y) < k ||
+                    danger_class(th, lost, size, t, y - 1) < k || danger_class(th, lost, size, t, y + 1) < k)
+                    overlay_tiles(iv2(t, y), 1, overlay_player_argb((int)pi, k == 2 ? 150 : 90));
+            x = e;
+        }
+    overlay_end();
+}
+
 typedef void (__thiscall *AsgFn)(void *self);
 internal void __thiscall hook_asg_route_done(ee_attack_subgroup *self) {
     ee_player *pl = attack_subgroup_get_player(self);
@@ -536,6 +591,7 @@ internal void __thiscall hook_asg_route_done(ee_attack_subgroup *self) {
         fprintf(g_log, "# route done: P%u %u waypoints, %u in reach of known defences:%s\n", pi, n, hot, buf);
         fflush(g_log);
     }
+    route_overlay(self);
     attack_subgroup_route_done(self);
 }
 
@@ -834,6 +890,7 @@ internal void danger_refresh(ee_player *pl, uint32_t now) {
                 "%u danger tiles on them, %u soldiers' routes round lost fights, %u marches stopped at their edge, %u enemies in them not chosen as targets\n", pi, now / 60000.0, danger_count(pi, DANGER_THREATS),
                 g_threat[pi].n, danger_count(pi, DANGER_LOST), g_dr_routes, g_dr_tiles, g_dr_lost_routes, g_dr_legs_held, g_lost_skips);
     }
+    danger_overlay(pi, now);
 }
 internal ee_goal *goal_move(float x, float y);
 internal int unit_goal(ee_unit *u, ee_goal *goal, int append, unsigned state);

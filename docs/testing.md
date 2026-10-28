@@ -275,6 +275,7 @@ task: a poll left running after its caller gave up keeps sending commands to wha
 |---|---|
 | `status` | game time, speed, per AI: epoch, stock, workers, targets, demand |
 | `camera [x y]` | read or center the camera (tiles) |
+| `overlay [layers \| off]` | the debug overlay's layers drawn on the map (own renderer; `routes`, `danger`, `all` - docs/renderer.md); without one the layers known and which are on. The camera moves while paused: a setup script's `pause()` at a time, then `camera` and `shot` |
 | `speed [s]`, `pause`, `resume`, `quit` | |
 | `peek <hex> [len]`, `poke <hex> <bytes>` | read/write memory (safe: bad addresses return an error) |
 | `sites P`, `foodcheck P`, `units P` | resource sites, food search, citizens by job for AI player P |

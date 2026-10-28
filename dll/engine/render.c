@@ -877,6 +877,7 @@ internal void render_install(const char *autotest_ini) {
     if (autotest_ini && (g_rd_trace = ini_int("autotest", "render_trace", 0, autotest_ini)) > 0) rd_trace_install();
     g_rd_dd.vt = g_rd_vt[RDI_DD];
     g_rd_on = 1;
+    overlay_show(g_set.display_overlay);   // [display] overlay: the layers of the AI's plans drawn on the map
     if (g_log) fprintf(g_log, "# render: own renderer on (Direct3D 11) - the display DLLs' DirectDraw at their load%s\n",
                        g_rd_trace > 0 ? ", calls traced" : "");
 }

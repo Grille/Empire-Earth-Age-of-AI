@@ -81,6 +81,7 @@
     S(FLAG,   display,  dpi_aware,                1,  0, 0) \
     S(CHOICE, display,  frame_wait,               "auto", "game|yield|auto", 0) \
     S(CHOICE, display,  renderer,                 "auto", "auto|wrapper|own", 0) \
+    S(STR,    display,  overlay,                  "", 128, 0) \
     S(CHOICE, display,  present,                  "auto", "auto|d3d|gdi|primary", 0) \
     S(FLAG,   display,  vertex_sysmem,            1,  0, 0) \
     S(STR,    editor,   resolution,               "ee", 16, 0) \
