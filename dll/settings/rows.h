@@ -250,6 +250,7 @@
     D(FLAG,  game_walls,                   0, 0, 0) \
     D(NUM,   defence_distance,             10, 0, 0) \
     D(FLAG,  counter_siege,                1, 0, 0) \
+    D(FLAG,  counter_fire,                 1, 0, 0) \
     D(FLAG,  anti_air,                     1, 0, 0) \
     D(FLAG,  aa_ahead,                     1, 0, 0) \
     D(NUM,   aa_ahead_buildings,           3, 0, 0) \

@@ -485,8 +485,10 @@ internal void militia(ee_player *pl, unsigned idx, struct cs_scan *s, uint32_t n
     g_militia_orders[idx] += (unsigned)total;
     if (g_log) fprintf(g_log, "# militia: P%u at %.1f min: %d citizens against %d enemies:%s (caught so far %u)\n", idx, now / 60000.0, total, targets, what, g_militia_caught[idx]);
 }
+internal void counter_fire(ee_player *pl, unsigned idx, uint32_t now);   // counterfire.c: shooters out of reach
 internal void counter_siege(ee_player *pl, unsigned idx, uint32_t now) {
     static uint32_t last[16];
+    counter_fire(pl, idx, now);
     if (!g_csiege || g_def_off[idx] || (now >= last[idx] && now - last[idx] < 2000)) return;
     last[idx] = now;
     static struct cs_scan s;

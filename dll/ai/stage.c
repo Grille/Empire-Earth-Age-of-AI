@@ -66,6 +66,7 @@ internal int stc_cmp(const void *a, const void *b) {
 // cover.c, mass.c, attack.c hook_asgu_score: u goes in with the push - nothing holds it back
 internal int stage_committed(ee_player *pl, ee_unit *u) {
     unsigned idx = pl ? (unsigned)player_get_index(pl) & 15 : 0;
+    if (counter_fire_unit(pl, u)) return 1;   // counterfire.c: sent at shooters out of reach
     if (!pl || !u || !g_stc[idx].n) return 0;
     uint32_t now = game_time();
     if (now >= g_stc[idx].until || g_stc[idx].until - now > SG_COMMIT) { g_stc[idx].n = 0; return 0; }   // over (or a new game)

@@ -111,6 +111,7 @@ internal void landing_new_game(void);
 internal void navy_new_game(void);
 internal void bunker_new_game(void);
 internal void defence_new_game(void);
+internal void counter_fire_new_game(void);   // ai/counterfire.c
 internal void sites_new_game(void);
 internal void intel_install(void);
 internal void landing_install(void);
@@ -342,6 +343,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
     ap_new_game();
     mt_new_game();
     defence_new_game();
+    counter_fire_new_game();
     sites_new_game();
     if (mode == 2) persist_load(name);   // a saved game: the mod's state from its .ageofai file
     char r = game_state_start(state, setup, p2);
@@ -364,6 +366,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
 #include "ai/attack.c"
 #include "ai/stats.c"
 #include "ai/defence.c"
+#include "ai/counterfire.c"
 #include "ai/forces.c"
 #include "ai/landing.c"
 #include "ai/bunker.c"
@@ -604,6 +607,7 @@ internal void install(HMODULE self) {
     navy_install(g_autotest ? g_ini : NULL);
     intel_install();
     defence_install();
+    counter_fire_install();
     chat_install();
     persona_install(g_autotest ? g_ini : NULL);
     diplo_install(g_autotest ? g_ini : NULL);
