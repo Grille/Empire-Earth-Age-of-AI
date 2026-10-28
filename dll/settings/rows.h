@@ -202,6 +202,7 @@
     D(NUM,   workforce_plan,               0, 0, 0) \
     D(NUM,   workforce_army_cap,           250, 0, 0) \
     D(NUM,   army_plan,                    103, 0, 0) \
+    D(FLAG,  outdated_attack,              1, 0, 0) \
     D(NUM,   army_plan_epoch,              5, 0, 0) \
     D(NUM,   army_float_keep,              300, 0, 0) \
     D(NUM,   army_float_keep_mineral,      100, 0, 0) \

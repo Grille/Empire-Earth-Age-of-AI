@@ -679,6 +679,45 @@ internal ee_goal *goal_unload(ee_unit *holder, int x, int y, int flag) {
     return mem ? goal_unload_init(mem, holder, x, y, flag) : NULL;
 }
 
+// A GROUP OF THE GAME'S OWN with a target, as the scenario effect "Create AI Military Group" makes one (0x5AB8BE,
+// docs/triggers.md) - an EECPAttackGroup whose subgroups march, fight and fall back as the AI's own attacks do (those on
+// a player, mission 1, have no target and walk legs). Mission 7 (attack the goal unit); units by serial, ones the combat
+// manager calls free (0x4707D8: in no group). Task (0x34, ctor 0x441FB3): +4 location (0x47C8B7 = location 0x18, ctor
+// 0x47C4E8, point at +4), target unit via 0x442246, +0x20 target player, +0x28 mission, +0x2C 2, +0x30 1. Strategy
+// (0x44, ctor 0x473BC4, reset 0x473CA7): +0x3C 4 attack / 5 defend. Then cm 0x47067A(task, strategy, vector<int> ids)
+// - *ok - and [cm+0x48] 0x45106C(same). The pipe's aigroup, army.c's outdated units.
+internal ee_attack_group *ag_launch(ee_player *pl, const int *serials, int n, ee_unit *target, int *ok, int *nsg) {
+    ee_combat_mgr *cm = player_get_combat_mgr(pl);
+    ee_attack_cmd *cmd = cm ? combat_mgr_get_commander(cm) : NULL;
+    *ok = 0; *nsg = 0;
+    if (!cmd || n <= 0 || !target) return NULL;
+    ee_player *tpl = unit_get_owner(target);
+    __attribute__((aligned(8))) uint8_t task_mem[0x40], loc_mem[0x20], strat_mem[0x50];
+    ee_task *task = (ee_task *)task_mem; ee_strategy *strat = (ee_strategy *)strat_mem; ee_location *loc = (ee_location *)loc_mem;
+    task_init(task);
+    location_init(loc);
+    strategy_init(strat);
+    task_set_target(task, target);
+    int pt[2] = { unit_get_x(target), unit_get_y(target) };
+    point_set(loc_mem + 4, pt);
+    location_set(task_location_at(task), loc);
+    task_set_target_player(task, game_players()[player_get_index(tpl) & 15]);
+    task_set_unknown_28(task, 7); task_set_unknown_2c(task, 2); task_set_unknown_30(task, 1);
+    strategy_reset(strat);
+    strategy_set_unknown_3c(strat, 4); strategy_set_unknown_40(strat, 0);
+    // vector<int> {allocator, first, last, end} with the game's heap (its dtor 0x61ABEC frees with the game's delete)
+    __attribute__((aligned(8))) uint8_t vec[16] = { 0 };
+    int *ids = game_new((unsigned)n * 4);
+    memcpy(ids, serials, (size_t)n * 4);
+    FIELD(vec, 4, int *) = ids; FIELD(vec, 8, int *) = ids + n; FIELD(vec, 0xC, int *) = ids + n;
+    *ok = combat_mgr_attack_plan_ok(cm, task, strat, vec) != 0;
+    ee_attack_group *g = *ok ? attack_cmd_new_group(cmd, task, strat, vec) : NULL;
+    vector_free(vec);
+    task_free(task);
+    strategy_free(strat);
+    *nsg = g && attack_group_get_subgroups_begin(g) ? (int)(attack_group_get_subgroups_end(g) - attack_group_get_subgroups_begin(g)) : 0;
+    return g;
+}
 internal ee_goal *goal_move(float x, float y) {
     float xy[2] = { x, y };
     void *mem = goal_move_alloc();

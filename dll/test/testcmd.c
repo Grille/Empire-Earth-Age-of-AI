@@ -782,13 +782,9 @@ internal void cmd_continent(char *out, const char *args) {
 }
 
 // ---- from forces.c ----
-// aigroup P [x y] (test): AI P forms an attack group as the scenario effect "Create AI Military Group" does (0x5AB8BE,
-// docs/triggers.md) - a group of the game's own (EECPAttackGroup) with a target, where the AI's own attacks on a player
-// (mission 1) have none and walk legs. Target: the enemy building nearest x,y (default: the centre of P's soldiers),
-// mission 7 (attack the goal unit); units: P's land soldiers the combat manager calls free (0x4707D8: in no group).
-// Task (0x34, ctor 0x441FB3): +4 location (0x47C8B7 = location 0x18, ctor 0x47C4E8, point at +4), target unit via
-// 0x442246, +0x20 target player, +0x28 mission, +0x2C 2, +0x30 1. Strategy (0x44, ctor 0x473BC4, reset 0x473CA7):
-// +0x3C 4 attack / 5 defend. Then cm 0x47067A(task, strategy, vector<int> ids) and [cm+0x48] 0x45106C(same).
+// aigroup P [x y] (test): AI P forms an attack group as the scenario effect "Create AI Military Group" does (attack.c
+// ag_launch). Target: the enemy building nearest x,y (default: the centre of P's soldiers); units: P's land soldiers
+// the combat manager calls free (0x4707D8: in no group).
 struct ag_scan { ee_player *pl; ee_combat_mgr *cm; int n, ids[256]; long sx, sy; int x, y, nodef; ee_unit *best; long bd; };
 internal void ag_unit(ee_unit *u, void *ctx) {
     struct ag_scan *s = ctx;
@@ -824,34 +820,12 @@ internal void cmd_aigroup(char *out, const char *args) {
     grid_each(ag_unit, &s);
     if (!s.best) { REPLY("error: no enemy building\n"); return; }
     ee_unit *t = s.best;
-        ee_player *tpl = unit_get_owner(t);
-    __attribute__((aligned(8))) uint8_t task_mem[0x40], loc_mem[0x20], strat_mem[0x50];
-    ee_task *task = (ee_task *)task_mem; ee_strategy *strat = (ee_strategy *)strat_mem; ee_location *loc = (ee_location *)loc_mem;
-    task_init(task);
-    location_init(loc);
-    strategy_init(strat);
-    task_set_target(task, t);
-    int pt[2] = { unit_get_x(t), unit_get_y(t) };
-    point_set(loc_mem + 4, pt);
-    location_set(task_location_at(task), loc);
-    task_set_target_player(task, game_players()[player_get_index(tpl) & 15]);
-    task_set_unknown_28(task, 7); task_set_unknown_2c(task, 2); task_set_unknown_30(task, 1);
-    strategy_reset(strat);
-    strategy_set_unknown_3c(strat, 4); strategy_set_unknown_40(strat, 0);
-    // vector<int> {allocator, first, last, end} with the game's heap (its dtor 0x61ABEC frees with the game's delete)
-    __attribute__((aligned(8))) uint8_t vec[16] = { 0 };
-    int *ids = game_new((unsigned)s.n * 4);
-    memcpy(ids, s.ids, (size_t)s.n * 4);
-    FIELD(vec, 4, int *) = ids; FIELD(vec, 8, int *) = ids + s.n; FIELD(vec, 0xC, int *) = ids + s.n;
-    char ok = combat_mgr_attack_plan_ok(cm, task, strat, vec);
-    ee_attack_group *g = ok ? attack_cmd_new_group(cmd, task, strat, vec) : NULL;
-    vector_free(vec);
-    task_free(task);
-    strategy_free(strat);
-    int nsg = g && attack_group_get_subgroups_begin(g) ? (int)(attack_group_get_subgroups_end(g) - attack_group_get_subgroups_begin(g)) : 0;
+    ee_player *tpl = unit_get_owner(t);
+    int ok = 0, nsg = 0;
+    ee_attack_group *g = ag_launch(pl, s.ids, s.n, t, &ok, &nsg);
     REPLY("P%d: %d free land soldiers (centre %ld,%ld) -> target type %d of P%d at %d,%d: %s, group %p with %d subgroups\n",
-          p, s.n, s.sx / s.n, s.sy / s.n, unit_type_get_id(unit_get_type_data(t)), player_get_index(tpl), pt[0], pt[1],
-          ok ? "accepted" : "refused (0x47067A)", g, nsg);
+          p, s.n, s.sx / s.n, s.sy / s.n, unit_type_get_id(unit_get_type_data(t)), player_get_index(tpl), unit_get_x(t), unit_get_y(t),
+          ok ? "accepted" : "refused (0x47067A)", (void *)g, nsg);
 }
 
 // ---- from intel.c ----

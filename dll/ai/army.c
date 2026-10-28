@@ -188,7 +188,97 @@ internal int ap_producer(ee_player *pl, int type) {
         for (size_t k = 0; k < sizeof k_ap_land / sizeof *k_ap_land; k++) if (*p == g_ut[k_ap_land[k]]) return *p;
     return 0;
 }
+// OUTDATED UNITS ATTACK ([ai_base] outdated_attack, default on - the player 2026-10-28, not measured: a large part of
+// P6's population cap filled with units no upgrade reaches any more; better they do some damage before they are
+// completely outclassed). A unit type's tech has a last epoch (tech +0x18; the game offers it up to there - Imperial
+// Cuirassier 312: epoch 8 only); a line upgrade turns the units of a line into the new type, so units of a type whose
+// last epoch is behind the AI's are ones nothing upgrades again - on the player's save P6 in epoch 11 had 98 Imperial
+// Cuirassiers, Partisans, Knights, Pilums, Vikings. Every 5 minutes, at least 8 such land units (class Land: soldiers
+// and siege; not heroes, priests, citizens) in none of its attack subgroups (ou_members) and free for the combat
+// manager form an attack group of the game's own
+// (attack.c ag_launch) against the enemy building nearest their middle - a tower or fortress only when no other is
+// left -, so they march, fight and fall back (cover.c fall_back) as the AI's own attacks do. "# outdated:" lines.
+internal int g_outdated_attack = 1;
+internal ee_attack_group *ag_launch(ee_player *pl, const int *serials, int n, ee_unit *target, int *ok, int *nsg);   // attack.c
+internal int defence_stats(ee_unit *u, float *range, float *attack);   // attack.c
+// the units in pl's attack subgroups (attack commander player +0xB8C +0x48: its groups a deque, a group's subgroups
+// +8..+0xC, a subgroup's members' records) - the combat manager's free test (0x4707D8) doesn't see them: right after
+// the sortie its units were all "free" again, and every 5 minutes a new group took them from the last one
+internal int ou_members(ee_player *pl, ee_unit **out, int max) {
+    ee_combat_mgr *cbm = player_get_combat_mgr(pl); ee_attack_cmd *cmd = cbm ? combat_mgr_get_commander(cbm) : NULL;
+    if (!cmd) return 0;
+    uint8_t *dq = attack_cmd_groups_at(cmd);
+    int n = 0;
+    for (unsigned k = 0, first = deque_front(dq), cnt = deque_count(dq); k < cnt && k < 64; k++) {
+        ee_attack_group *g = deque_at(dq, first + k);
+        for (ee_attack_subgroup **sp = g ? attack_group_get_subgroups_begin(g) : NULL; sp && sp < attack_group_get_subgroups_end(g); sp++)
+            for (ee_asg_unit **r = *sp ? attack_subgroup_get_units_begin(*sp) : NULL; r && r < attack_subgroup_get_units_end(*sp) && n < max; r++)
+                if (*r && asg_unit_get_unit(*r)) out[n++] = asg_unit_get_unit(*r);
+    }
+    return n;
+}
+internal int ou_outdated(ee_player *pl, ee_tech_tree *tt, ee_unit_type *td, int epoch) {
+    if (unit_type_get_class_id(td) != CLS_LAND || is_citizen_type(unit_type_get_id(td))) return 0;
+    ee_tech *t = tech_tree_lookup(tt, unit_type_get_tech(td));
+    (void)pl;
+    return t && tech_get_last_epoch(t) < epoch;
+}
+internal void outdated_attack(ee_player *pl, unsigned idx, uint32_t now) {
+    static uint32_t last[16];
+    if (!g_outdated_attack || is_vanilla(pl)) return;
+    if (now < last[idx]) last[idx] = 0;   // a new game
+    if (last[idx] && now - last[idx] < 300000) return;
+    ee_combat_mgr *cm = player_get_combat_mgr(pl);
+    ee_tech_tree *tt = player_get_tech_tree(pl);
+    int epoch = current_epoch(pl);
+    if (!cm || !tt || epoch < 0) return;
+    last[idx] = now ? now : 1;
+    static int ids[256];
+    static ee_unit *mem[4096];
+    int nm = ou_members(pl, mem, 4096);
+    int n = 0, busy = 0, types[8] = { 0 }, tn[8] = { 0 }, nt = 0;
+    long sx = 0, sy = 0;
+    for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
+        ee_unit *u = it.u;
+        if (unit_get_owner(u) != pl || unit_get_hp(u) <= 0 || unit_get_x(u) < 0 || !ou_outdated(pl, tt, it.td, epoch)) continue;
+        int k0 = 0;
+        while (k0 < nm && mem[k0] != u) k0++;
+        if (k0 < nm || !combat_mgr_unit_free(cm, unit_get_physics(u))) { busy++; continue; }
+        if (n == 256) continue;
+        ids[n++] = unit_get_serial(u); sx += unit_get_x(u); sy += unit_get_y(u);
+        int ty = unit_type_get_id(it.td), k = 0;
+        while (k < nt && types[k] != ty) k++;
+        if (k == nt && nt < 8) types[nt++] = ty;
+        if (k < 8) tn[k]++;
+    }
+    if (n < 8) return;
+    ivec2 mid = iv2((int)(sx / n), (int)(sy / n));
+    ee_unit *best = NULL, *best_def = NULL;
+    long bd = 0, bdd = 0;
+    for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
+        ee_unit *u = it.u;
+        ee_player *o = unit_get_owner(u);
+        int fam = unit_type_get_class_id(it.td);
+        if (unit_get_hp(u) <= 0 || !is_enemy(pl, o) || is_out(o) || (fam != CLS_BUILDING && fam != CLS_FORTRESS) || is_wall(unit_type_get_id(it.td)))
+            continue;
+        float r, a;
+        long d = ivec2_dist2(unit_get_tile(u), mid);
+        if (fam == CLS_FORTRESS || defence_stats(u, &r, &a)) { if (!best_def || d < bdd) { best_def = u; bdd = d; } }
+        else if (!best || d < bd) { best = u; bd = d; }
+    }
+    if (!best) best = best_def;
+    if (!best) return;
+    int ok = 0, nsg = 0;
+    ee_attack_group *g = ag_launch(pl, ids, n, best, &ok, &nsg);
+    if (!g_log) return;
+    char tl[120] = "";
+    for (int k = 0; k < nt; k++) { size_t l = strlen(tl); snprintf(tl + l, sizeof tl - l, " %dx%d", tn[k], types[k]); }
+    fprintf(g_log, "# outdated: P%u at %.1f min (epoch %d): %d outdated land units (%s; %d more in groups) at %d,%d -> type %d of P%d at %d,%d: %s, %d subgroups\n",
+            idx, now / 60000.0, epoch, n, tl + (tl[0] == ' '), busy, mid.x, mid.y, unit_type_get_id(unit_get_type_data(best)),
+            player_get_index(unit_get_owner(best)), unit_get_x(best), unit_get_y(best), g ? "attacking" : ok ? "no group made" : "refused", nsg);
+}
 internal void army_plan_tick(ee_player *pl, unsigned idx, uint32_t now) {
+    outdated_attack(pl, idx, now);
     int wfa = wf_army(pl, idx), plan = ARMY_PLAN(idx) | wfa;   // citizens.c workforce_plan ARMY: FILL + BUILD at a high cap
     struct ap_st *a = &g_ap[idx];
     if (now < a->t) memset(a, 0, sizeof *a);
@@ -393,6 +483,7 @@ internal void ap_upgrades(ee_player *pl, unsigned idx) {
 }
 internal void ap_install(const char *autotest_ini) {
     g_army_plan = g_set_ai[1].army_plan;
+    g_outdated_attack = g_set_ai[1].outdated_attack;
     g_army_keep[2] = g_army_keep[3] = g_set_ai[1].army_float_keep;
     g_army_keep[4] = g_army_keep[5] = g_army_keep[6] = g_set_ai[1].army_float_keep_mineral;
     g_army_mix_food = g_set_ai[1].army_mix_food;
