@@ -58,6 +58,7 @@
     X(CHILD,  general,  ship_routes,              1,  improved_unit_movement, 0) \
     X(CHILD,  general,  land_routes,              1,  improved_unit_movement, 0) \
     X(CHILD,  general,  land_widen,               1,  improved_unit_movement, 0) \
+    X(CHILD,  general,  share_routes,             1,  improved_unit_movement, 0) \
     X(CHILD,  general,  ship_turns,               1,  improved_unit_movement, 0) \
     X(CHILD,  general,  land_turns,               1,  improved_unit_movement, 0) \
     X(CHILD,  general,  turn_fix,                 1,  improved_unit_movement, 0) \
