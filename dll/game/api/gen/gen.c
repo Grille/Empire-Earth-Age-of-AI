@@ -30,6 +30,7 @@ typedef struct ee_physics_model ee_physics_model;
 typedef struct ee_group ee_group;
 typedef struct ee_active_group ee_active_group;
 typedef struct ee_path_mgr ee_path_mgr;
+typedef struct ee_key_scroll ee_key_scroll;
 typedef struct ee_editor_form ee_editor_form;
 typedef struct ee_save_action ee_save_action;
 typedef struct ee_join_action ee_join_action;

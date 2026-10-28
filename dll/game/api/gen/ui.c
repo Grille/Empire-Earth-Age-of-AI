@@ -186,6 +186,21 @@ typedef void (__thiscall *scroll_execute_fn)(ee_scroll *);
 internal scroll_execute_fn fn_scroll_execute;
 internal inline void scroll_execute(ee_scroll *scroll) { fn_scroll_execute(scroll); }
 
+// class EEUIEKeyboardScroll (ee_key_scroll)
+// an arrow key's scrolling (EEUIEKeyboardScroll, 0x10 bytes: vtable, refcount, 0, direction): a hotkey's event of the
+// game's form (0x64D0AB), run by the form's input poll on the game thread while the key is down
+// 0 up, 1 down, 2 left, 3 right
+internal inline int key_scroll_get_direction(const ee_key_scroll *o) { return *(int *)((uint8_t *)o + of_key_scroll_direction); }
+internal inline void key_scroll_set_direction(ee_key_scroll *o, int v) { *(int *)((uint8_t *)o + of_key_scroll_direction) = v; }
+internal inline int *key_scroll_direction_at(const ee_key_scroll *o) { return (int *)((uint8_t *)o + of_key_scroll_direction); }
+// moves game.camera by (scroll_speed + 0.5) * (scroll_setting + 0.5) * 0.05 in its direction (camera_move:
+// up is +dy, left -dx)
+typedef uint32_t (__thiscall *key_scroll_execute_fn)(ee_key_scroll *);
+internal inline uint32_t key_scroll_execute(ee_key_scroll *key_scroll) { return ((key_scroll_execute_fn)(*(void ***)key_scroll)[slot_key_scroll_execute])(key_scroll); }
+internal key_scroll_execute_fn fn_eeuie_keyboard_scroll_execute;
+internal inline uint32_t eeuie_keyboard_scroll_execute(ee_key_scroll *key_scroll) { return fn_eeuie_keyboard_scroll_execute(key_scroll); }
+internal inline int patch_key_scroll_execute(key_scroll_execute_fn h) { return patch_vtable(vt_eeuie_keyboard_scroll, (int)slot_key_scroll_execute, (uintptr_t)fn_eeuie_keyboard_scroll_execute, (void *)h); }
+
 // class ee_ui_form (ee_ui_form)
 // the UI manager's current form
 // votes 6/7
@@ -282,8 +297,6 @@ internal inline uint8_t *ui_site_scroll_timer_at(void) { return (uint8_t *)(uint
 // ui.sp_vtables: a button's handler
 // their slot 1
 // the single player screens' vtables (playername.c)
-// EEUIEKeyboardScroll (0x10 bytes: vtable, refcount, 0, direction); Execute 0x5C9070 moves game.camera
-internal inline uint8_t *ui_vt_key_scroll_at(void) { return (uint8_t *)(uintptr_t)data_ui_vt_key_scroll; }
 internal inline uint8_t *ui_vt_scroll_at(void) { return (uint8_t *)(uintptr_t)data_ui_vt_scroll; }
 
 // static class ui_functions
@@ -359,6 +372,10 @@ internal int spec_ui_select(int build) {
         of_scroll_ticks = 0x40;
         of_scroll_keys = 0x44;
         fn_scroll_execute = (scroll_execute_fn)0x004050FC;
+        vt_eeuie_keyboard_scroll = 0x008348FC;
+        of_key_scroll_direction = 0xC;
+        slot_key_scroll_execute = 1;
+        fn_eeuie_keyboard_scroll_execute = (key_scroll_execute_fn)0x005C9070;
         of_ui_form_top_bar = 0x5D8;
         of_ui_screen_controls = 0xF8;
         vt_eeuif_scenario_editor = 0x0082F7B4;
@@ -400,7 +417,6 @@ internal int spec_ui_select(int build) {
         data_ui_sp_vtables[3] = 0x00835560;
         data_ui_sp_vtables[4] = 0x0083577C;
         data_ui_sp_vtables[5] = 0x00835790;
-        data_ui_vt_key_scroll = 0x008348FC;
         data_ui_vt_scroll = 0x00825098;
         fn_game_color_rgb = (game_color_rgb_fn)0x00526B85;
         call_player_color = 0x005262E4;
@@ -461,6 +477,10 @@ internal int spec_ui_select(int build) {
         of_scroll_ticks = 0x40;
         of_scroll_keys = 0x44;
         fn_scroll_execute = (scroll_execute_fn)0x0040478E;
+        vt_eeuie_keyboard_scroll = 0x0084A998;
+        of_key_scroll_direction = 0xC;
+        slot_key_scroll_execute = 1;
+        fn_eeuie_keyboard_scroll_execute = (key_scroll_execute_fn)0x005D9B6F;
         of_ui_form_top_bar = 0x5E8;
         of_ui_screen_controls = 0xF8;
         vt_eeuif_scenario_editor = 0x00845084;
@@ -502,7 +522,6 @@ internal int spec_ui_select(int build) {
         data_ui_sp_vtables[3] = 0x0084B65C;
         data_ui_sp_vtables[4] = 0x0084B850;
         data_ui_sp_vtables[5] = 0x0084B864;
-        data_ui_vt_key_scroll = 0x0084A998;
         data_ui_vt_scroll = 0x0083907C;
         fn_game_color_rgb = (game_color_rgb_fn)0x005318BD;
         call_player_color = 0x00531057;
@@ -536,6 +555,9 @@ internal int spec_ui_check(void) {
     bad += spec_call(calls_native_chat[3], (uintptr_t)fn_native_chat_say, "ee_native_chat.say [call_site native_chat 3]");
     bad += spec_call(calls_native_chat[4], (uintptr_t)fn_native_chat_say, "ee_native_chat.say [call_site native_chat 4]");
     bad += spec_code((uintptr_t)fn_scroll_execute, "EEAScroll.execute");
+    bad += spec_vtable(vt_eeuie_keyboard_scroll, ".?AVEEUIEKeyboardScroll@@", "EEUIEKeyboardScroll [vtable]");
+    bad += spec_code((uintptr_t)fn_eeuie_keyboard_scroll_execute, "EEUIEKeyboardScroll.execute");
+    bad += spec_slot(vt_eeuie_keyboard_scroll, slot_key_scroll_execute, (uintptr_t)fn_eeuie_keyboard_scroll_execute, "EEUIEKeyboardScroll.execute [slot]");
     bad += spec_vtable(vt_eeuif_scenario_editor, ".?AVEEUIFScenarioEditor@@", "EEUIFScenarioEditor [vtable]");
     bad += spec_code((uintptr_t)fn_editor_form_init, "EEUIFScenarioEditor.init");
     bad += spec_call(call_editor_form, (uintptr_t)fn_editor_form_init, "EEUIFScenarioEditor.init [call_site editor_form]");
@@ -570,7 +592,6 @@ internal int spec_ui_check(void) {
     bad += spec_data(data_ui_sp_vtables[3], "ui.sp_vtables 3");
     bad += spec_data(data_ui_sp_vtables[4], "ui.sp_vtables 4");
     bad += spec_data(data_ui_sp_vtables[5], "ui.sp_vtables 5");
-    bad += spec_data(data_ui_vt_key_scroll, "ui.vt_key_scroll");
     bad += spec_data(data_ui_vt_scroll, "ui.vt_scroll");
     bad += spec_code((uintptr_t)fn_game_color_rgb, "ui_functions.game_color_rgb");
     bad += spec_call(call_player_color, (uintptr_t)fn_game_color_rgb, "ui_functions.game_color_rgb [call_site player_color]");

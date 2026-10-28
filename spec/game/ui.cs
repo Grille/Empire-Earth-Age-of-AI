@@ -204,6 +204,22 @@ unsafe struct EEAScroll
     extern void execute();
 }
 
+/// an arrow key's scrolling (EEUIEKeyboardScroll, 0x10 bytes: vtable, refcount, 0, direction): a hotkey's event of the
+/// game's form (0x64D0AB), run by the form's input poll on the game thread while the key is down
+[c_type("ee_key_scroll"), vtable((ee)0x008348FC, (aoc)0x0084A998)]
+unsafe struct EEUIEKeyboardScroll
+{
+    /// 0 up, 1 down, 2 left, 3 right
+    [offset(0xC), found(c)]
+    int32 direction;
+
+    /// moves game.camera by (scroll_speed + 0.5) * (scroll_setting + 0.5) * 0.05 in its direction (camera_move:
+    /// up is +dy, left -dx)
+    [slot(1), address((ee)0x005C9070, (aoc)0x005D9B6F)]
+    [vtable_site("key_scroll_execute")]
+    extern uint32 execute();
+}
+
 /// the UI manager's current form
 unsafe struct ee_ui_form
 {
@@ -354,10 +370,6 @@ static unsafe class ui
     [address((ee)0x0083577C, (aoc)0x0084B850)]
     [address((ee)0x00835790, (aoc)0x0084B864)]
     static vftable sp_vtables;
-
-    /// EEUIEKeyboardScroll (0x10 bytes: vtable, refcount, 0, direction); Execute 0x5C9070 moves game.camera
-    [address((ee)0x008348FC, (aoc)0x0084A998)]
-    static vftable vt_key_scroll;
 
     [address((ee)0x00825098, (aoc)0x0083907C)]
     static vftable vt_scroll;

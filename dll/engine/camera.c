@@ -83,6 +83,41 @@ internal void __thiscall hook_scroll_execute(ee_scroll *self) {
     scroll_move((float)scroll_get_ticks(self) * 10.0f, k);   // the timer's ticks (10 ms AoC)
 }
 
+// The arrow keys aren't EEAScroll's: each is a hotkey of the game's form whose event (EEUIEKeyboardScroll) the form's
+// input poll runs on the game thread while the key is down, and every run moved the camera by a fixed 0.05 x (speed +
+// 0.5) x (setting + 0.5). An idle game thread polls about every 10 ms (camtrace, paused, 2026-10-28: 0.8 runs per
+// 8.3 ms frame); a busy one late in a big game every 30 ms or more - the camera stood, then jumped, while the frames
+// went on at 120 fps. Smoothed like the edge: the event only tells which arrows are held, the render thread moves
+// the camera at the idle poll's speed - 0.05 per 10 ms, half the edge's EE speed - by each frame's time.
+internal volatile LONG g_arrow_keys;     // bit = the event's direction: 0 up, 1 down, 2 left, 3 right
+internal volatile DWORD g_arrow_at[4];   // GetTickCount of each direction's last event
+
+internal uint32_t __thiscall hook_key_scroll_execute(ee_key_scroll *self) {
+    int d = key_scroll_get_direction(self);
+    if (!g_cam_smooth || d < 0 || d > 3) return eeuie_keyboard_scroll_execute(self);
+    g_arrow_at[d] = GetTickCount();
+    InterlockedOr(&g_arrow_keys, 1 << d);
+    return 0;
+}
+
+internal void arrow_frame(float ms) {
+    static const int vk[4] = { VK_UP, VK_DOWN, VK_LEFT, VK_RIGHT };
+    int k = (int)g_arrow_keys, held = 0;
+    if (!k) return;
+    DWORD now = GetTickCount();
+    for (int d = 0; d < 4; d++) {
+        if (!(k >> d & 1)) continue;
+        DWORD age = now - g_arrow_at[d];
+        // the form's poll is late or the key was let go: the key's own state decides, up to CAM_HOLD_MS
+        if (age <= CAM_FRESH_MS || (age <= CAM_HOLD_MS && GetAsyncKeyState(vk[d]) < 0)) held |= 1 << d;
+        else InterlockedAnd(&g_arrow_keys, ~(1 << d));
+    }
+    if (!held) return;
+    float step = (scroll_speed() + 0.5f) * (scroll_setting() + 0.5f) * 0.005f * ms;   // 0.05 per 10 ms
+    float dx = (held & 8 ? step : 0) - (held & 4 ? step : 0), dy = (held & 1 ? step : 0) - (held & 2 ? step : 0);
+    if (dx != 0 || dy != 0) camera_pan(dx, dy);
+}
+
 // the directions of k the player still holds by the input itself: an arrow key, the cursor at a window edge
 internal int scroll_input_agrees(int k) {
     int held = (GetAsyncKeyState(VK_LEFT) < 0) | (GetAsyncKeyState(VK_RIGHT) < 0) << 1
@@ -105,6 +140,7 @@ internal void camera_frame(void) {   // the render thread, every presented frame
     QueryPerformanceCounter(&now);
     double ms = g_cam_frame.QuadPart ? (double)(now.QuadPart - g_cam_frame.QuadPart) * 1000.0 / (double)g_cam_freq.QuadPart : 0;
     g_cam_frame = now;
+    if (game_camera()) arrow_frame(ms > 100.0 ? 100.0f : (float)ms);
     int k = (int)g_cam_keys;
     if (!k || !game_camera()) return;
     DWORD age = GetTickCount() - g_cam_keys_at;
@@ -123,8 +159,9 @@ internal void camera_install(void) {
     if (g_scroll_native && !g_cam_smooth) return;   // the build's own way without smoothing: the game untouched
     int ok = patch_scroll_execute(hook_scroll_execute);
     ok += patch_scroll_timer(build_aoc ? 0x0A : 0x19, g_cam_smooth ? 0x01 : 0x0A);   // push 25 (AoC 10) -> 10 ms ticks like AoC, 1 ms fine
-    if (g_log) fprintf(g_log, "# camera: scroll=%s (%s), fine steps %d, patches %d/2\n", g_scroll_aoc ? "aoc" : "ee",
-                       g_scroll_native ? "the game's own" : "the other build's", g_cam_smooth, ok);
+    if (g_cam_smooth) ok += patch_key_scroll_execute(hook_key_scroll_execute);
+    if (g_log) fprintf(g_log, "# camera: scroll=%s (%s), fine steps %d, patches %d/%d\n", g_scroll_aoc ? "aoc" : "ee",
+                       g_scroll_native ? "the game's own" : "the other build's", g_cam_smooth, ok, g_cam_smooth ? 3 : 2);
 }
 
 // camtrace N (tests): for the next N presented frames the time since the previous frame, the camera's movement

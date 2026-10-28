@@ -32,7 +32,7 @@ internal inline void scroll_action_init(ee_scroll *obj) { *(uint32_t *)obj = dat
 internal inline void *key_scroll_new(int dir) {
     uint32_t *ev = game_new(value_ui_size_key_scroll);
     if (!ev) return NULL;
-    ev[0] = data_ui_vt_key_scroll;
+    ev[0] = vt_eeuie_keyboard_scroll;
     ev[1] = 1;
     ev[2] = 0;
     ev[3] = (uint32_t)dir;
