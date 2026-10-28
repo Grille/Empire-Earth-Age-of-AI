@@ -234,7 +234,7 @@ internal int ms_held(struct mass *m, ee_unit *u, ee_attack_subgroup *sg) {
 // landing.c hook_asg_give_goal: a land subgroup's order to a member held at the rally
 internal int mass_refuses(ee_attack_subgroup *sg, ee_unit *u, ee_goal *goal) {
     ee_player *pl = attack_subgroup_get_player(sg);
-    if (!pl || !attack_subgroup_is_land(sg) || ou_sortie(pl, u)) return 0;   // army.c: outdated units are not held
+    if (!pl || !attack_subgroup_is_land(sg) || ou_sortie(pl, u) || stage_committed(pl, u)) return 0;   // army.c: outdated units are not held, stage.c: a push
     struct mass *m = &g_mss[(unsigned)player_get_index(pl) & 15];
     if (g_autotest) {
         int c = ms_cls(attack_subgroup_get_state(sg));

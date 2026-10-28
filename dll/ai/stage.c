@@ -46,7 +46,33 @@ internal struct stage {
 } g_stg[16];
 internal struct st_side g_sgs_own, g_sgs_foe;
 internal void wave_focus_new_game(void);
-internal void stage_new_game(void) { memset(g_stg, 0, sizeof g_stg); wave_focus_new_game(); }
+// THE ATTACK COMMITS ([ai_base] attack_commit, default 0 - not measured; [autotest] v_attack_commit; the player
+// 2026-10-28 watching P6's tanks at their town: "an attack has to actually commit, the units come closer one by one,
+// looking very hesitant - with all these tanks P6 could overrun the spot easily if it could control its units"). Three
+// things made it so: the push was a forced move (goal_move: the members drove to the front without firing on the way),
+// a subgroup that judged itself winning passed the stage alone (10-60 marches a minute on the player's save), and once
+// in, every member was its own - falling back (cover.c), held at a rally (mass.c), no target beyond its range in a lost
+// fight. With it: no march into danger passes the stage by itself - the whole wave gathers there and goes with the
+// push, the push is an attack-move, and its members are committed for SG_COMMIT: none of those hold them back.
+#define SG_COMMIT 150000
+#define SG_NCOMMIT 1024
+internal int g_attack_commit = 0, g_v_attack_commit = -1;
+#define ATTACK_COMMIT(idx) PV(idx, g_v_attack_commit, g_attack_commit)
+internal struct { ee_unit *u[SG_NCOMMIT]; int id[SG_NCOMMIT]; int n; uint32_t until; } g_stc[16];   // sorted by address
+internal int stc_cmp(const void *a, const void *b) {
+    uintptr_t x = (uintptr_t)*(ee_unit *const *)a, y = (uintptr_t)*(ee_unit *const *)b;
+    return x < y ? -1 : x > y;
+}
+// cover.c, mass.c, attack.c hook_asgu_score: u goes in with the push - nothing holds it back
+internal int stage_committed(ee_player *pl, ee_unit *u) {
+    unsigned idx = pl ? (unsigned)player_get_index(pl) & 15 : 0;
+    if (!pl || !u || !g_stc[idx].n) return 0;
+    uint32_t now = game_time();
+    if (now >= g_stc[idx].until || g_stc[idx].until - now > SG_COMMIT) { g_stc[idx].n = 0; return 0; }   // over (or a new game)
+    ee_unit **f = bsearch(&u, g_stc[idx].u, (size_t)g_stc[idx].n, sizeof *g_stc[idx].u, stc_cmp);
+    return f && g_stc[idx].id[f - g_stc[idx].u] == unit_get_id(u);
+}
+internal void stage_new_game(void) { memset(g_stg, 0, sizeof g_stg); memset(g_stc, 0, sizeof g_stc); wave_focus_new_game(); }
 
 internal int stage_danger(unsigned idx, ivec2 p) { return cv_danger(idx, DANGER_THREATS, p) || cv_danger(idx, DANGER_LOST, p); }
 internal int stage_on(ee_player *pl, unsigned idx) { return g_danger_routes && pl && !is_vanilla(pl) && ARMY_STAGE(idx) && navy_land(idx); }
@@ -141,15 +167,26 @@ internal void stage_push(ee_player *pl, unsigned idx, struct stage *st, uint32_t
     ivec2 b, d = st->front;
     st->push = d; st->push_t = now ? now : 1; st->pushes++;
     if (!ms_base(pl, &b)) return;
-    int ns = ms_subgroups(pl, b), n = 0;
+    int ns = ms_subgroups(pl, b), n = 0, commit = ATTACK_COMMIT(idx);
+    static struct { ee_unit *u; int id; } c[SG_NCOMMIT];
+    int nc = 0;
     for (int k = 0; k < ns; k++)
         for (ee_asg_unit **r = attack_subgroup_get_units_begin(g_msg[k].sg); r && r < attack_subgroup_get_units_end(g_msg[k].sg); r++) {
             ee_unit *u = *r ? asg_unit_get_unit(*r) : NULL;
-            if (!u || !ms_land_soldier(u, unit_get_type_data(u)) || ivec2_dist2(unit_get_tile(u), st->s) > SG_R * SG_R ||
-                cv_held(&g_cv[idx], u) || ms_held(&g_mss[idx], u, NULL)) continue;
-            st->sent += unit_goal(u, goal_move((float)d.x + 0.5f + (float)(n % 3) - 1.0f, (float)d.y + 0.5f + (float)(n / 3 % 3) - 1.0f), 0, 0x1F40) != 0;
+            if (!u || !ms_land_soldier(u, unit_get_type_data(u)) || ivec2_dist2(unit_get_tile(u), st->s) > SG_R * SG_R) continue;
+            if (!commit && (cv_held(&g_cv[idx], u) || ms_held(&g_mss[idx], u, NULL))) continue;   // committed: the healing and the rally too
+            float xy[2] = { (float)d.x + 0.5f + (float)(n % 3) - 1.0f, (float)d.y + 0.5f + (float)(n / 3 % 3) - 1.0f };
+            void *mem = commit ? goal_move_alloc() : NULL;
+            ee_goal *g = commit ? (mem ? goal_attack_move_init(mem, xy) : NULL) : goal_move(xy[0], xy[1]);
+            st->sent += g && unit_goal(u, g, 0, 0x1F40) != 0;
+            if (commit && nc < SG_NCOMMIT) { c[nc].u = u; c[nc].id = unit_get_id(u); nc++; }
             n++;
         }
+    if (commit && nc) {   // the committed: these, sorted by address for stage_committed's search
+        qsort(c, (size_t)nc, sizeof *c, stc_cmp);
+        for (int k = 0; k < nc; k++) { g_stc[idx].u[k] = c[k].u; g_stc[idx].id[k] = c[k].id; }
+        g_stc[idx].n = nc; g_stc[idx].until = now + SG_COMMIT;
+    }
     if (g_log && g_autotest) fprintf(g_log, "# stage: P%u at %.1f min: the army goes from %d,%d to %d,%d (%.2f) - %d members\n", idx, now / 60000.0,
                                      st->s.x, st->s.y, d.x, d.y, st->ratio, n);
 }
@@ -168,7 +205,7 @@ internal int stage_leg(ee_attack_subgroup *sg, ee_unit *u, ee_goal *goal) {
         float r = stage_judge_leg(pl, sg, d);
         st->jsg = sg; st->jc = iv2(d.x / 8, d.y / 8); st->jt = now ? now : 1; st->jgo = r * 100.0f >= (float)g_stage_go;
     }
-    if (st->jgo) { st->passed++; return 1; }
+    if (st->jgo && !ATTACK_COMMIT(idx)) { st->passed++; return 1; }   // committing: the wave goes together, with the push
     stage_note(st, d, now);
     if (!st->on || now - st->ts >= 10000 || stage_danger(idx, st->s)) stage_place(pl, idx, st, now);
     if (!st->on) return 0;
@@ -316,8 +353,10 @@ internal void stage_install(const char *autotest_ini) {
     g_army_stage = g_set_ai[1].army_stage;
     g_stage_go = g_set_ai[1].army_stage_go;
     g_wave_focus = g_set_ai[1].wave_focus;
+    g_attack_commit = g_set_ai[1].attack_commit;
     if (autotest_ini) g_v_army_stage = ini_int("autotest", "v_army_stage", -1, autotest_ini);
     if (autotest_ini) g_v_wave_focus = ini_int("autotest", "v_wave_focus", -1, autotest_ini);
-    if (g_log) fprintf(g_log, "# army stage: %d (variant %d), go at %d%%; wave focus %d (variant %d)\n", g_army_stage, g_v_army_stage,
-                       g_stage_go, g_wave_focus, g_v_wave_focus);
+    if (autotest_ini) g_v_attack_commit = ini_int("autotest", "v_attack_commit", -1, autotest_ini);
+    if (g_log) fprintf(g_log, "# army stage: %d (variant %d), go at %d%%, commit %d (variant %d); wave focus %d (variant %d)\n", g_army_stage, g_v_army_stage,
+                       g_stage_go, g_attack_commit, g_v_attack_commit, g_wave_focus, g_v_wave_focus);
 }

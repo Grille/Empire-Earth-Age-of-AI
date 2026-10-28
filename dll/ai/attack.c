@@ -418,6 +418,7 @@ internal unsigned g_ram_waits, g_air_skips, g_lost_skips;   // g_lost_skips: ene
 internal int g_danger_routes;           // [ai_base] danger_routes (game/danger.c)
 internal int g_avoid_lost;              // [ai_base] avoid_lost_fights: its DANGER_LOST layer (cover.c cv_zones)
 internal int g_ignore_air = 1;          // ageofai.ini [ai_base] attack_ignore_air
+internal int g_attack_retarget = 0;     // ageofai.ini [ai_base] attack_retarget (wave_retarget below; the siege leaves a beaten player alone)
 
 // Enemy soldiers (no citizens, no siege) of player pl's enemies within r tiles of (x, y)?
 internal int guarded(ee_player *pl, int x, int y, int r) {
@@ -439,6 +440,7 @@ internal int guarded(ee_player *pl, int x, int y, int r) {
 
 internal int mass_tether(ee_attack_subgroup *sg, ee_unit *me, ee_unit *enemy);   // mass.c
 internal int stage_skip(ee_attack_subgroup *sg, ee_unit *me, ee_unit *enemy);    // stage.c
+internal int stage_committed(ee_player *pl, ee_unit *u);                       // stage.c: in a push, nothing holds it back
 typedef float (__thiscall *AsguScoreFn)(void *self, uint8_t *info);
 internal float __thiscall hook_asgu_score(ee_asg_unit *self, ee_asgu_info *info) {
     float s = asg_unit_score(self, info);
@@ -474,12 +476,13 @@ internal float __thiscall hook_asgu_score(ee_asg_unit *self, ee_asgu_info *info)
     if (etd && is_wall(unit_type_get_id(etd)) && breach_of(sg, &bx, &by) &&
         abs(unit_get_x(enemy) - bx) <= 1 && abs(unit_get_y(enemy) - by) <= 1)
         return unit_get_x(enemy) == bx && unit_get_y(enemy) == by ? 1000.0f : 500.0f;
-    if (s != 0.0f && mass_tether(sg, me, enemy)) return 0.0f;   // mass.c army_mass 16: not far from the pack
-    if (s != 0.0f && stage_skip(sg, me, enemy)) return 0.0f;    // stage.c: the army waits at its staging point
+    int committed = s != 0.0f && me && stage_committed(attack_subgroup_get_player(sg), me);   // stage.c attack_commit
+    if (s != 0.0f && !committed && mass_tether(sg, me, enemy)) return 0.0f;   // mass.c army_mass 16: not far from the pack
+    if (s != 0.0f && !committed && stage_skip(sg, me, enemy)) return 0.0f;    // stage.c: the army waits at its staging point
     // danger_routes: no enemy in a lost fight (game/danger.c DANGER_LOST, cover.c cv_zones) beyond its own range + 2 -
     // the members ran at a standing army one by one and died (the player's save "standing army"); in reach it fights
     ee_map *map = game_map();
-    const uint8_t *lz = g_danger_routes && s != 0.0f && me && map ?
+    const uint8_t *lz = g_danger_routes && s != 0.0f && me && map && !committed ?
                         danger_map((unsigned)player_get_index(attack_subgroup_get_player(sg)), DANGER_LOST, (int)map_get_size(map)) : NULL;
     if (lz) {
         int size = (int)map_get_size(map), ex = unit_get_x(enemy), ey = unit_get_y(enemy);
@@ -490,7 +493,7 @@ internal float __thiscall hook_asgu_score(ee_asg_unit *self, ee_asgu_info *info)
             return 0.0f;
         }
     }
-    if (!g_leash || s == 0.0f) return s;
+    if (!g_leash || s == 0.0f || committed) return s;
     ee_player *pl = attack_subgroup_get_player(sg);
     if (!pl) return s;
     unsigned pi = (unsigned)player_get_index(pl) & 15;
@@ -1268,6 +1271,7 @@ internal void siege_tick(ee_player *pl, uint32_t now) {
         for (int k = 0; k < g_threat[pi].n; k++) {
             struct defence *d = &g_threat[pi].d[k];
             if (d->range + 0.5f >= srange) continue;
+            if (g_attack_retarget && is_out(game_players()[d->owner & 15])) continue;   // a beaten player's towers (wave_retarget)
             float dd = vec2_dist2(v2((float)d->x, (float)d->y), v2(sx, sy));
             if (dd < best) { best = dd; t = unit_at(d->x, d->y, d->type); }
         }
@@ -1456,7 +1460,6 @@ internal void cmd_asgtrace(char *out, const char *args) {
 // (before 45), but it lost 214 units (before 149) for 141 kills (125) and 15 buildings (17) - so off. With wave_focus
 // too: 253 buildings, 4151 kills (wave_focus alone razed P4's leftover buildings: 298). The wave still reaches the
 // stage a subgroup at a time (10-60 marches a minute pass it), so the pushes stay small.
-internal int g_attack_retarget = 0;
 struct rt_pick { ee_player *pl; ivec2 at; ee_unit *best; long bd; };
 internal void rt_pick_unit(ee_unit *u, void *ctx) {
     struct rt_pick *s = ctx;
