@@ -74,6 +74,11 @@ internal volatile LONG g_rd_draws, g_rd_frames;
 internal DWORD g_rd_minute_tick;
 internal LONGLONG g_rd_draw_qpc, g_rd_draw_qpc_told;   // time inside the draw calls (the game's thread), for the minute's line
 internal LONGLONG rd_qpc(void) { LARGE_INTEGER t; QueryPerformanceCounter(&t); return t.QuadPart; }
+internal LONGLONG rd_qpc_ms(int ms) {
+    static LONGLONG per_ms;
+    if (!per_ms) { LARGE_INTEGER f; QueryPerformanceFrequency(&f); per_ms = f.QuadPart / 1000; }
+    return per_ms * ms;
+}
 
 // ---- the 3D pipeline ----
 // the vertex shader's constants (D3D7's row vectors: v * world * view * projection, row_major in HLSL); the world
@@ -604,20 +609,50 @@ internal rd_rwl_fn g_rwl_read, g_rwl_write, g_rwl_wunlock;
 internal DWORD g_rd_thread;
 internal void *g_rwl_world;   // the lock the render thread waited on
 internal LONGLONG g_rwl_wait_qpc, g_rwl_held_qpc, g_rwl_write_at;
+// The minute's averages hide what a player sees: a frame that waits 30-80 ms a few times a second while the average
+// stays at 120 fps (camtrace in the player's game, 2026-10-28) - the camera stands, then jumps. So also the long ones:
+// the frames whose wait was RWL_LONG_MS or more, and the write holds that long by where the game took the lock (the
+// return address of its call through the import slot; the writers are serialized by the lock itself).
+#define RWL_LONG_MS 8
+enum { RWL_SITES = 16 };
+internal struct { uintptr_t ret; LONG n; LONGLONG sum, max; } g_rwl_long[RWL_SITES];
+internal uintptr_t g_rwl_write_ret;
+internal LONG g_rwl_waits_long;
+internal LONGLONG g_rwl_wait_max;
 internal void __thiscall rd_hook_read_lock(void *lock) {
     if (GetCurrentThreadId() != g_rd_thread) { g_rwl_read(lock); return; }
     LONGLONG t0 = rd_qpc();
     g_rwl_read(lock);
     LONGLONG w = rd_qpc() - t0;
     g_rwl_wait_qpc += w;
+    if (w >= rd_qpc_ms(RWL_LONG_MS)) g_rwl_waits_long++;
+    if (w > g_rwl_wait_max) g_rwl_wait_max = w;
     if (w > 0 && !g_rwl_world) g_rwl_world = lock;
 }
 internal void __thiscall rd_hook_write_lock(void *lock) {
     g_rwl_write(lock);
-    if (lock == g_rwl_world) g_rwl_write_at = rd_qpc();
+    if (lock == g_rwl_world) {
+        g_rwl_write_at = rd_qpc();
+        g_rwl_write_ret = (uintptr_t)__builtin_return_address(0);
+        g_sim_thread = GetCurrentThreadId();
+    }
 }
 internal void __thiscall rd_hook_write_unlock(void *lock) {
-    if (lock == g_rwl_world && g_rwl_write_at) { g_rwl_held_qpc += rd_qpc() - g_rwl_write_at; g_rwl_write_at = 0; }
+    if (lock == g_rwl_world && g_rwl_write_at) {
+        LONGLONG h = rd_qpc() - g_rwl_write_at;
+        g_rwl_held_qpc += h;
+        g_rwl_write_at = 0;
+        if (h >= rd_qpc_ms(RWL_LONG_MS)) {
+            int i = 0;
+            while (i < RWL_SITES && g_rwl_long[i].ret && g_rwl_long[i].ret != g_rwl_write_ret) i++;
+            if (i < RWL_SITES) {
+                g_rwl_long[i].ret = g_rwl_write_ret;
+                g_rwl_long[i].n++;
+                g_rwl_long[i].sum += h;
+                if (h > g_rwl_long[i].max) g_rwl_long[i].max = h;
+            }
+        }
+    }
     g_rwl_wunlock(lock);
 }
 internal int rd_world_lock_install(void) {
@@ -669,6 +704,25 @@ internal void rd_frame_tick(void) {
     for (int i = 0; i < RO_N; i++) { ro[i] = (double)(g_ro_qpc[i] - ro0[i]) * k; ro0[i] = g_ro_qpc[i]; }
     log_locked("# render: the game's drawing a frame (ms, the renderer's draws inside): terrain %.2f, shadows %.2f, units %.2f,"
                " water %.2f, interface %.2f\n", ro[RO_TERRAIN], ro[RO_SHADOWS], ro[RO_UNITS], ro[RO_WATER], ro[RO_UI]);
+    // the long waits and holds of the minute, the sites by their time held long
+    double ms = 1000.0 / (double)f.QuadPart;
+    char sites[512];
+    int len = 0;
+    for (int shown = 0; shown < 5; shown++) {
+        int best = -1;
+        for (int i = 0; i < RWL_SITES; i++)
+            if (g_rwl_long[i].n && (best < 0 || g_rwl_long[i].sum > g_rwl_long[best].sum)) best = i;
+        if (best < 0) break;
+        len += snprintf(sites + len, sizeof sites - (size_t)len, "%s%08x %ldx %.0f ms (longest %.0f)", shown ? ", " : "",
+                        (unsigned)g_rwl_long[best].ret, (long)g_rwl_long[best].n, (double)g_rwl_long[best].sum * ms,
+                        (double)g_rwl_long[best].max * ms);
+        g_rwl_long[best].n = 0;
+    }
+    log_locked("# render: frames waiting %d ms or more for the lock %ld (longest %.0f ms); its holds that long by where the"
+               " game took it: %s\n", RWL_LONG_MS, (long)g_rwl_waits_long, (double)g_rwl_wait_max * ms, len ? sites : "none");
+    memset(g_rwl_long, 0, sizeof g_rwl_long);
+    g_rwl_waits_long = 0;
+    g_rwl_wait_max = 0;
     g_rd_minute_tick = tick0 = now;
     frames0 = g_rd_frames; draws0 = g_rd_draws; batches0 = g_rb.batches;
     g_rd_draw_qpc_told = g_rd_draw_qpc; present0 = g_d3d_present_qpc; wait0 = g_rwl_wait_qpc; held0 = g_rwl_held_qpc;

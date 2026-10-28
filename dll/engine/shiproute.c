@@ -36,6 +36,8 @@
 #define SR_RETARGET 6                   // tiles: a target it can't enter moves to the nearest one it can this near
 #define SR_STEP 2.0f                    // a waypoint at least every this many tiles along a straight leg
 #define SR_MAX_POINTS 512
+#define SR_SEARCH_PER_D2 64             // tiles a search may expand per tile of the trip's length squared
+#define SR_SEARCH_MIN 4096              // and at least this many
 #define LR_WIDEN 1.5f                   // tiles: a land route's corner moved at most this far (land_widen)
 #define LR_LOOK 3                       // tiles around a corner looked at for what blocks
 #define LR_GAP 0.6f                     // tiles: the room wanted at a corner beyond the unit's own radius
@@ -48,6 +50,7 @@ internal unsigned g_lr_routes;           // land searches made, and their time (
 internal double g_lr_ms, g_lr_ms_max;
 internal float g_sr_radius;             // this search's ship: its hull radius in tiles
 internal unsigned g_sr_routed, g_sr_passed;   // routes given, requests left to the game
+internal unsigned g_sr_tiles;           // tiles the searches expanded, all
 internal const uint8_t *g_sr_danger;    // this search's danger map (danger_routes), NULL: none
 internal struct {
     uint32_t n;                         // tiles (the map's size squared) the arrays hold
@@ -258,12 +261,23 @@ internal int sr_search(ee_unit *u, int *from, int *to, void *caller, int sectors
     g_sr.parent[start] = -1;
     g_sr.f[start] = 0;
     sr_heap_push(start);
+    // A target it can't reach is known only once the search has filled all it can reach: in a long game a few
+    // tiles' trip to a spot inside a closed area searched 58000 tiles, about 100 ms in one simulation step - which
+    // holds the world's lock, so the picture stood that long several times a second (the player's game at minute
+    // 750, 2026-10-28). So the search is bounded by the trip: SR_SEARCH_PER_D2 tiles per tile of its length squared,
+    // at least SR_SEARCH_MIN; beyond that it is left to the game's request, as when nothing is found. In that game's
+    // 19317 searches it stopped 58, none of them one that found a route.
+    int dx0 = abs(tx - sx), dy0 = abs(ty - sy), trip = dx0 > dy0 ? dx0 : dy0;
+    long long cap = (long long)SR_SEARCH_PER_D2 * trip * trip;
+    if (cap < SR_SEARCH_MIN) cap = SR_SEARCH_MIN;
+    if (cap > 4LL * size * size) cap = 4LL * size * size;
     int expanded = 0, found = 0;
-    while (g_sr.heap_n && expanded < 4 * size * size) {
+    while (g_sr.heap_n && expanded < cap) {
         uint32_t i = sr_heap_pop();
         if (g_sr.closed[i] == g_sr.gen) continue;
         g_sr.closed[i] = g_sr.gen;
         expanded++;
+        g_sr_tiles++;
         if (i == goal) { found = 1; break; }
         int x = (int)i % size, y = (int)i / size;
         for (int d = 0; d < 8; d++) {
@@ -285,7 +299,8 @@ internal int sr_search(ee_unit *u, int *from, int *to, void *caller, int sectors
         }
     }
     if (!found) {
-        if (g_log && g_sr_log) fprintf(g_log, "# shiproute: %06x %d,%d -> %d,%d: no route (%d tiles searched) - the game's\n", unit_get_serial(u) & 0xFFFFFF, sx, sy, tx, ty, expanded);
+        if (g_log && g_sr_log) fprintf(g_log, "# shiproute: %06x %d,%d -> %d,%d: no route (%d tiles searched%s) - the game's\n", unit_get_serial(u) & 0xFFFFFF, sx, sy, tx, ty, expanded,
+                                       expanded >= cap ? ", the trip's bound" : "");
         return 0;
     }
     // the tiles from the goal back, then pulled straight from the start: from each kept tile on to the furthest one
@@ -357,19 +372,32 @@ internal int sr_route(ee_unit *u, int *from, int *to, void *caller, int sectors)
     return done;
 }
 
+// the searches of the simulation step running (control.c's step hook reads and clears them: a slow step's line)
+internal struct { unsigned n, tiles, longest_tiles; double ms, longest_ms; int lx0, ly0, lx1, ly1, lfound; } g_sr_step;
+
 internal void __thiscall hook_path_request(void *mgr, ee_unit *u, int *from, int *to, int sync, int limit, int sectors, void *ctx) {
     if (sr_wants(u) && from && to) {
         int land = !sr_is_ship(u);
         LARGE_INTEGER t0, t1, f;
-        if (land) QueryPerformanceCounter(&t0);
+        QueryPerformanceCounter(&t0);
+        unsigned tiles0 = g_sr_tiles;
         int done = sr_route(u, from, to, __builtin_return_address(0), sectors);
+        QueryPerformanceCounter(&t1);
+        QueryPerformanceFrequency(&f);
+        double ms = (double)(t1.QuadPart - t0.QuadPart) * 1000.0 / (double)f.QuadPart;
         if (land) {
-            QueryPerformanceCounter(&t1);
-            QueryPerformanceFrequency(&f);
-            double ms = (double)(t1.QuadPart - t0.QuadPart) * 1000.0 / (double)f.QuadPart;
             g_lr_routes++;
             g_lr_ms += ms;
             if (ms > g_lr_ms_max) g_lr_ms_max = ms;
+        }
+        g_sr_step.n++;
+        g_sr_step.ms += ms;
+        g_sr_step.tiles += g_sr_tiles - tiles0;
+        if (ms > g_sr_step.longest_ms) {
+            g_sr_step.longest_ms = ms;
+            g_sr_step.longest_tiles = g_sr_tiles - tiles0;
+            g_sr_step.lx0 = from[0]; g_sr_step.ly0 = from[1]; g_sr_step.lx1 = to[0]; g_sr_step.ly1 = to[1];
+            g_sr_step.lfound = done;
         }
         if (done) return;
         g_sr_passed++;
@@ -634,6 +662,17 @@ internal int __thiscall hook_ship_speed(void *model, ee_unit *u, float dist, flo
     int arc = v < keep ? 3 : v > keep + step ? 4 : 2;
     if (arc != 4 && d == 4) g_st_kept++;
     return arc;
+}
+
+// a test run's simulation step of SR_SLOW_STEP_MS or more, logged with the route searches in it: a step holds the
+// world's lock for its whole time, and the picture waits (render_3d.c's minute line counts those waits)
+#define SR_SLOW_STEP_MS 40
+internal void sr_step_timed(double ms) {
+    if (ms >= SR_SLOW_STEP_MS && g_log)
+        log_locked("# slow step: %.0f ms; route searches %u, %.1f ms, %u tiles; the longest %.1f ms, %u tiles, %d,%d -> %d,%d%s\n",
+                   ms, g_sr_step.n, g_sr_step.ms, g_sr_step.tiles, g_sr_step.longest_ms, g_sr_step.longest_tiles, g_sr_step.lx0,
+                   g_sr_step.ly0, g_sr_step.lx1, g_sr_step.ly1, g_sr_step.n ? g_sr_step.lfound ? " (routed)" : " (the game's)" : "");
+    memset(&g_sr_step, 0, sizeof g_sr_step);
 }
 
 internal void shiproute_install(const char *autotest_ini) {

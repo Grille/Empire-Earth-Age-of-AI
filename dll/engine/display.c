@@ -80,6 +80,7 @@ internal void *__thiscall hook_editor_form(ee_editor_form *form, void *owner) {
 internal uint8_t g_fullscreen = 1;
 internal int g_present_every;   // autotest present_every (diagnostics)
 internal volatile DWORD g_render_thread;   // thread that calls ShowScene (profile render)
+internal volatile DWORD g_sim_thread;      // thread that last took the world's write lock (profile sim; own renderer)
 internal int g_diag;   // diagnostic sampling (ageofai.ini [display] diag=1 or autotest diag_hooks=1)
 
 // Windowed present: ShowScene (DX7Rasterizer vtable slot 66, in DX7HRDisplay.dll and DX7HRTnLDisplay.dll)
@@ -1418,15 +1419,16 @@ internal int is_system_module(HMODULE m) {
     return 0;
 }
 
-internal void cmd_profile_render(int dur, char *out) {
-    DWORD tid = g_render_thread;
+internal void cmd_profile_render(int dur, char *out, int sim) {
+    DWORD tid = sim ? g_sim_thread : g_render_thread;
     HANDLE h = tid ? OpenThread(THREAD_SUSPEND_RESUME | THREAD_GET_CONTEXT, FALSE, tid) : NULL;
-    if (!h) { REPLY("error: render thread unknown (windowed mode only)\n"); return; }
+    if (!h) { REPLY(sim ? "error: simulation thread unknown (own renderer only)\n" : "error: render thread unknown (windowed mode only)\n"); return; }
     enum { HB = 4096 };
-    static struct { uintptr_t a; int n; } callers[HB], gdi_callers[HB], gdi_game[HB];
+    static struct { uintptr_t a; int n; } callers[HB], gdi_callers[HB], gdi_game[HB], own[2][HB];
     struct { HMODULE m; int n; } tops[24];
-    int nt = 0, samples = 0, gdi_samples = 0;
+    int nt = 0, samples = 0, gdi_samples = 0, own_samples = 0;
     memset(callers, 0, sizeof callers);
+    memset(own, 0, sizeof own);
     memset(gdi_callers, 0, sizeof gdi_callers);
     memset(gdi_game, 0, sizeof gdi_game);
     DWORD end = GetTickCount() + (DWORD)dur;
@@ -1455,6 +1457,20 @@ internal void cmd_profile_render(int dur, char *out) {
                 unsigned k = (unsigned)(a >> 4) * 2654435761u % HB;
                 for (int p = 0; p < HB; p++, k = (k + 1) % HB)
                     if (!callers[k].a || callers[k].a == a) { callers[k].a = a; callers[k].n++; break; }
+                // the mod's own code: where in it (the top frame, else the innermost return address into it) and
+                // the outermost return address into it - the game's call that entered the mod
+                uintptr_t own_in = is_own_code(c.Eip) ? c.Eip : 0, own_out = own_in;
+                for (size_t i = 0; i < got / sizeof *stack; i++)
+                    if (is_own_code(stack[i]) && is_return_address(stack[i])) { if (!own_in) own_in = stack[i]; own_out = stack[i]; }
+                if (own_in) {
+                    own_samples++;
+                    uintptr_t keys[2] = { own_in & ~(uintptr_t)15, own_out };
+                    for (int t = 0; t < 2; t++) {
+                        unsigned q = (unsigned)(keys[t] >> 2) * 2654435761u % HB;
+                        for (int p = 0; p < HB; p++, q = (q + 1) % HB)
+                            if (!own[t][q].a || own[t][q].a == keys[t]) { own[t][q].a = keys[t]; own[t][q].n++; break; }
+                    }
+                }
                 if (m && (m == GetModuleHandleA("gdi32full.dll") || m == GetModuleHandleA("gdi32.dll") || m == GetModuleHandleA("win32u.dll"))) {
                     gdi_samples++;   // who called into GDI: the first return address outside Windows' own DLLs
                     uintptr_t g = 0;
@@ -1480,7 +1496,8 @@ internal void cmd_profile_render(int dur, char *out) {
     }
     timeEndPeriod(1);
     CloseHandle(h);
-    REPLY("render thread %lu: %d samples over %d ms\n  where the time is (top frame):\n", tid, samples, dur);
+    REPLY("%s thread %lu: %d samples over %d ms\n  where the time is (top frame):\n", sim ? "simulation" : "render", tid, samples,
+          dur);
     for (int j = 0; j < nt; j++) {
         char path[MAX_PATH] = "?";
         if (tops[j].m) GetModuleFileNameA(tops[j].m, path, sizeof path);
@@ -1496,6 +1513,22 @@ internal void cmd_profile_render(int dur, char *out) {
         if (callers[best].a) crash_addr(at, sizeof at, callers[best].a); else lstrcpyA(at, "(no game code on the stack)");
         REPLY("    %5.1f%%  %s\n", samples ? callers[best].n * 100.0 / samples : 0.0, at);
         callers[best].n = -callers[best].n;
+    }
+    if (own_samples) {
+        static const char *const title[2] = { "where in it (16-byte buckets)", "entered from (the outermost return address into it)" };
+        REPLY("  in the mod's code %d samples (%d%%):\n", own_samples, samples ? own_samples * 100 / samples : 0);
+        for (int t = 0; t < 2; t++) {
+            REPLY("   %s:\n", title[t]);
+            for (int r = 0; r < 15; r++) {
+                int best = -1;
+                for (int k = 0; k < HB; k++) if (own[t][k].n > 0 && (best < 0 || own[t][k].n > own[t][best].n)) best = k;
+                if (best < 0) break;
+                char at[160];
+                crash_addr(at, sizeof at, own[t][best].a);
+                REPLY("    %5.1f%%  %s\n", own[t][best].n * 100.0 / samples, at);
+                own[t][best].n = -own[t][best].n;
+            }
+        }
     }
     if (!gdi_samples) return;
     REPLY("  in GDI %d samples (%d%%), called from (exact return addresses):\n", gdi_samples, samples ? gdi_samples * 100 / samples : 0);
@@ -1563,7 +1596,8 @@ internal void cmd_profile_stacks(char *out) {
 internal void cmd_profile(const char *args, char *out) {
     int dur = atoi(args);
     if (dur <= 0) dur = 2000;
-    if (strstr(args, "render")) { cmd_profile_render(dur, out); return; }
+    if (strstr(args, "render")) { cmd_profile_render(dur, out, 0); return; }
+    if (strstr(args, "sim")) { cmd_profile_render(dur, out, 1); return; }
     if (strstr(args, "stacks")) { cmd_profile_stacks(out); return; }
     enum { MAXT = 64, HB = 8192 };
     struct { DWORD id; HANDLE h; int samples, busy; } th[MAXT];

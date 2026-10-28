@@ -9,7 +9,7 @@
 // second and the process's GDI / USER object counts (a leak would grow them); when 10 seconds in a row stay under
 // the threshold, the render-thread profile (profile 3000 render) runs on its own thread and goes into the log -
 // at most 5 a session, 5 minutes apart.
-internal void cmd_profile_render(int dur, char *out);
+internal void cmd_profile_render(int dur, char *out, int sim);
 internal void frame_costs_log(unsigned frames);
 internal int is_return_address(uintptr_t a);
 internal int g_frame_watch;
@@ -31,7 +31,7 @@ internal DWORD WINAPI frame_profile_thread(LPVOID unused) {
     for (;;) {
         WaitForSingleObject(g_fw_event, INFINITE);
         out[0] = 0;
-        cmd_profile_render(3000, out);
+        cmd_profile_render(3000, out, 0);
         if (!g_log) continue;
         EnterCriticalSection(&g_lock);
         fprintf(g_log, "# frame watch: under %d fps for 10 s at %.1f min (last second %.0f fps), render thread profile:\n",

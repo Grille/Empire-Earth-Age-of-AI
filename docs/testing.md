@@ -404,7 +404,11 @@ task: a poll left running after its caller gave up keeps sending commands to wha
 - `profile [ms]`: sampling profiler over all game threads (busy threads, modules, hot addresses);
   `profile <ms> render`: only the render thread, waits included, with the game function each sample is in or
   called from (only real return addresses: the bytes before them are a CALL), and for the time in GDI which
-  non-Windows code called it.
+  non-Windows code called it. `profile <ms> sim`: the same for the simulation thread (the one taking the world's
+  write lock; own renderer), with the mod's code in it - where, and from which call of the game's it was entered.
+- A test run logs each simulation step of 40 ms or more (`# slow step:`) with the route searches in it; the own
+  renderer's minute line `# render: frames waiting 8 ms or more for the lock` counts the frames that waited on a step
+  and names where the game took the lock for the long holds.
 - `topbar [0|1|2]`: what the game's top bar shows - the age, the game clock, or "FPS: n".
 
 Findings 2026-10-12 (user report: 25 fps in a long game, window mode): in the user's game the render thread was

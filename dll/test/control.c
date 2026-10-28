@@ -541,11 +541,17 @@ internal void hook_server_send(void) {   // the server's send slot (with trace.c
     g_srv_send_next = patch_server_send(srv, hook_srv_send);
 }
 internal void (*g_step_after)(void *phys);   // trace.c: the sync trace's line after each step
+internal void sr_step_timed(double ms);    // shiproute.c: each step's time (a slow one's line, its searches)
 internal void __thiscall hook_phys_step(ee_physics *phys) {
     if (!g_srv_send_next) hook_server_send();
+    LARGE_INTEGER t0, t1, f;
+    QueryPerformanceCounter(&t0);
     InterlockedExchange(&g_in_step, 1);
     physics_step(phys);
     InterlockedExchange(&g_in_step, 0);
+    QueryPerformanceCounter(&t1);
+    QueryPerformanceFrequency(&f);
+    sr_step_timed((double)(t1.QuadPart - t0.QuadPart) * 1000.0 / (double)f.QuadPart);
     if (g_step_after) g_step_after(phys);
 }
 
