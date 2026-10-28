@@ -19,6 +19,7 @@
 #define UF_REACH 4
 #define UF_STATE_WAIT_RELOAD 2021   // WaitForReload
 #define UF_STATE_FACE 2012          // FaceEnemyUnit
+#define UF_STATE_IDLE 5000
 
 internal int g_uf_on;
 internal unsigned g_uf_looked, g_uf_switched;   // `units_first` lines: building attackers looked at, targets changed
@@ -95,9 +96,78 @@ internal void units_first_tick(void) {
     }
 }
 
-internal void units_first_new_game(void) { g_uf_looked = g_uf_switched = 0; }
+// ANSWERING FIRE (`answer_fire`): an idle soldier shot by an enemy beyond its reply range goes for it. The
+// script enters UnderAttack (generic attack.tai) only from Idle and retaliates only when the attacker is within its
+// retaliation range (IsAttackerInRetaliationRange) - else ReacquireGoal, back to Idle: a unit shot from further off
+// stands and dies. Seen in the player's game (2026-10-28, setup3): P6's Leopard tanks (range 6) waiting at their wave's
+// leg point south of the player's fort, shot to wrecks one by one by heavy mortars and snipers out of their reach. So
+// every UF_EVERY ms at the safe point: a fighting unit (not a citizen, priest or transport) Idle without a goal that an
+// enemy's attack goal aims at - alive on the map within AF_REACH tiles, seen by its player, one its weapon can hurt and
+// on its own land or water area - gets an attack goal on that enemy (the unit's own attacker field +0x1DC doesn't
+// last: UnderAttack's conditions clear it, 0x5F1214, in the step it turns the attack down) - its own (ordered 0, as
+// the scan's: units_first and the next scan may change it), so an order never waits behind it. 1: every player's units
+// alike, 2: the computer players' only. Measured on a copy of that save (674-700 min, exact runs): P6 killed 60 and lost
+// 107 off; 1: 28 / 98 (339 sent), 2: 30 / 96 (233 sent) - the tanks that charge the mortars die all the same and no
+// longer kill what came near them. Off. (attack_commit there: 216 / 135.)
+#define AF_REACH 24
+
+internal int g_af_on;
+internal unsigned g_af_looked, g_af_sent;   // `answer_fire` lines: idle units under fire, sent at their attacker
+
+internal int af_fighter(ee_unit_type *td) {
+    switch (unit_type_get_class_id(td)) {
+    case CLS_LAND: case CLS_LAND_MILITARY_HERO: case CLS_NAVAL: case CLS_SUBMERGED_NAVAL: case CLS_HELICOPTER: return unit_type_get_attack(td) > 0;
+    default: return 0;
+    }
+}
+// u and its attacker e on one connected area (land units on land, ships on water; helicopters fly)
+internal int af_reachable(ee_unit *u, ee_unit_type *td, ee_unit *e) {
+    int cls = unit_type_get_class_id(td), kind = cls == CLS_LAND || cls == CLS_LAND_MILITARY_HERO ? 2 : cls == CLS_HELICOPTER ? 0 : 1;
+    if (!kind) return 1;
+    unsigned short a = map_area(unit_get_tile(u), kind);
+    return a && a == map_area(unit_get_tile(e), kind);
+}
+
+internal void answer_fire_tick(void) {
+    static uint32_t last;
+    uint32_t now = game_time();
+    if (!g_af_on || !game_map()) return;
+    if (now < last) last = 0;   // a new game
+    if (last && now - last < UF_EVERY) return;
+    last = now ? now : 1;
+    for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
+        ee_unit *e = it.u;
+        ee_goal *eg = unit_get_goal(e);
+        ee_unit *u = eg && goal_is_attack(eg) ? goal_get_target(eg) : NULL;
+        ee_unit_type *td = u ? unit_get_type_data(u) : NULL;
+        if (!td || unit_ai_state_id(u) != UF_STATE_IDLE || unit_get_goal(u) || unit_get_hp(u) <= 0 || !af_fighter(td) || !it.td) continue;
+        ee_player *pl = unit_get_owner(u), *o = unit_get_owner(e);
+        if (!pl || unit_get_hp(e) <= 0 || unit_get_x(e) < 0 || !is_enemy(pl, o) || (g_af_on == 2 && player_is_human(pl))) continue;
+        g_af_looked++;
+        unsigned pi = (unsigned)player_get_index(pl);
+        if (ivec2_dist2(unit_get_tile(e), unit_get_tile(u)) > AF_REACH * AF_REACH || !uf_seen(e, pi)
+            || attack_bonus(td, it.td, (int)pi, player_get_index(o)) <= 0.0f || !af_reachable(u, td, e)) continue;
+        void *mem = goal_attack_alloc();
+        ee_goal *g = mem ? goal_attack_init(mem, u, e) : NULL;
+        if (!g) continue;
+        goal_set_ordered(g, 0);
+        unit_assign_goal(u, g, 0, 0);
+        unit_set_state(u, 0x1F40);   // PrepareToMove, as every order
+        unit_type_goal_assigned(td, u);
+        g_af_sent++;
+    }
+    static uint32_t logged;
+    if (g_log && (now < logged || now - logged >= 60000)) {
+        logged = now;
+        fprintf(g_log, "# answer_fire: at %.1f min: %u idle units under fire, %u sent at their attacker\n", now / 60000.0,
+                g_af_looked, g_af_sent);
+    }
+}
+
+internal void units_first_new_game(void) { g_uf_looked = g_uf_switched = g_af_looked = g_af_sent = 0; }
 
 internal void units_first_install(void) {
     g_uf_on = g_set.units_first;
-    if (g_log) fprintf(g_log, "# units_first: %d\n", g_uf_on);
+    g_af_on = g_set.answer_fire;
+    if (g_log) fprintf(g_log, "# units_first: %d, answer_fire %d\n", g_uf_on, g_af_on);
 }
