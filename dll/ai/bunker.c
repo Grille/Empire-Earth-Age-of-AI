@@ -308,8 +308,19 @@ internal void bunker_reserve(ee_player *pl, int *reserve) {
 // once (the AI's own groups take free soldiers back), and its units-in-production count, not the cap, held training
 // back - the mod's own orders queued with no room (fixed: train_room, econ.c). With that, 20 seeds, P3 off vs on (both
 // with train_room): P3 kills 22.7 vs 28.8, losses 27.2 vs 23.2, P2's losses 21.7 vs 27.4. On.
+// The combat manager's free test doesn't see attack-group membership (army.c ou_members): on the player's game
+// (2026-10-28, minute 642) P6 ordered 10 soldiers in every 10 s for over 10 minutes, both fortresses stayed at 28 of
+// 40 ("1015 in, 338 out") - nearly all of its soldiers were in attack subgroups (423 of 426 on a copy of that save), so
+// most likely their subgroups took them back on the way. Members of the attack subgroups are left out (not measured).
 internal unsigned g_bk_res_in[16], g_bk_res_out[16];
 internal uint32_t g_bk_res_load_t[16];
+internal int ou_members(ee_player *pl, ee_unit **out, int max);   // army.c
+internal int bk_ptr_cmp(const void *a, const void *b) {   // the members sorted by address, for bsearch
+    uintptr_t x = (uintptr_t)*(ee_unit *const *)a, y = (uintptr_t)*(ee_unit *const *)b;
+    return x < y ? -1 : x > y;
+}
+internal ee_unit *g_bk_mem[4096];
+internal int g_bk_nmem;
 internal int bk_room(ee_player *pl) {   // cap - population on the map (the fortresses' units left out)
     int cap = unit_limit(pl);
     return cap - player_population(pl, 0, 0);
@@ -320,6 +331,7 @@ internal void bk_free_unit(ee_unit *u, void *ctx) {
     ee_unit_type *td = unit_get_type_data(u);
     if (unit_get_owner(u) != f->pl || unit_get_hp(u) <= 0 || !td || f->n >= 64) return;
     if (ivec2_dist2(unit_get_tile(u), f->b) > 25 * 25 || !is_soldier(td) || is_ship_or_air(td)) return;
+    if (bsearch(&u, g_bk_mem, (size_t)g_bk_nmem, sizeof *g_bk_mem, bk_ptr_cmp)) return;
     if (combat_mgr_unit_free(f->cm, unit_get_physics(u))) f->u[f->n++] = u;
 }
 internal void bk_reserve_tick(ee_player *pl, unsigned pi, uint32_t now) {
@@ -337,6 +349,8 @@ internal void bk_reserve_tick(ee_player *pl, unsigned pi, uint32_t now) {
         ee_build_mgr *bm = cm2 ? civ_mgr_get_build_mgr(cm2) : NULL;
         struct bk_free f = { pl, player_get_combat_mgr(pl), bm ? build_mgr_get_base(bm) : iv2(0, 0), 0, { 0 } };
         if (!f.cm || !bm) return;
+        g_bk_nmem = ou_members(pl, g_bk_mem, 4096);
+        qsort(g_bk_mem, (size_t)g_bk_nmem, sizeof *g_bk_mem, bk_ptr_cmp);
         grid_each(bk_free_unit, &f);
         int best = -1, space = 0;
         for (int k = 0; k < g_bk[pi].nf; k++) {

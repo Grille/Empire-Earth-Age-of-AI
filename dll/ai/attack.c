@@ -1445,8 +1445,69 @@ internal void cmd_asgtrace(char *out, const char *args) {
     REPLY("attack subgroup trace: mask %x\n", g_trace_mask);
 }
 
+// A NEW TARGET FOR A WAVE ON A PLAYER WHO IS OUT ([ai_base] attack_retarget): a group's target player (+0x48, its
+// subgroups' +0x11C) is chosen once at the launch and never again - on the player's game (2026-10-28, minute 642) P6's
+// main wave, 400 soldiers in some 40 subgroups of 10, still attacked P4, out by then: with no building of P4 left its
+// subgroups walked the game's legs for a player (home, coast points, a wait of 1-3 minutes at each), the ones past the
+// player's town held at the staging point a few at a time, and the wave never pushed. Every 10 s a group whose target
+// is out or no enemy any more gets the living enemy with the known building (walls aside) nearest the group's middle;
+// the subgroups plan their next legs for it. "# retarget:" lines. Measured on a copy of that save (638-670 min; runs
+// from a save are exact): P6's routes went to P1 (468, before 6; to P4 0, before 463), its pushes sent 103 soldiers
+// (before 45), but it lost 214 units (before 149) for 141 kills (125) and 15 buildings (17) - so off. With wave_focus
+// too: 253 buildings, 4151 kills (wave_focus alone razed P4's leftover buildings: 298). The wave still reaches the
+// stage a subgroup at a time (10-60 marches a minute pass it), so the pushes stay small.
+internal int g_attack_retarget = 0;
+struct rt_pick { ee_player *pl; ivec2 at; ee_unit *best; long bd; };
+internal void rt_pick_unit(ee_unit *u, void *ctx) {
+    struct rt_pick *s = ctx;
+    ee_unit_type *td = unit_get_type_data(u);
+    ee_player *o = unit_get_owner(u);
+    if (!td || !o || player_get_index(o) <= 0 || unit_get_hp(u) <= 0 || unit_get_x(u) < 0 || !is_enemy(s->pl, o) || is_out(o)) return;
+    int fam = unit_type_get_class_id(td);
+    if ((fam != CLS_BUILDING && fam != CLS_FORTRESS) || is_wall(unit_type_get_id(td)) || !explored_by(u, s->pl)) return;
+    long d = ivec2_dist2(unit_get_tile(u), s->at);
+    if (!s->best || d < s->bd) { s->best = u; s->bd = d; }
+}
+internal void wave_retarget(ee_player *pl, uint32_t now) {
+    static uint32_t last[16];
+    unsigned idx = (unsigned)player_get_index(pl) & 15;
+    if (!g_attack_retarget) return;
+    if (now < last[idx]) last[idx] = 0;   // a new game
+    if (last[idx] && now - last[idx] < 10000) return;
+    last[idx] = now ? now : 1;
+    ee_combat_mgr *cbm = player_get_combat_mgr(pl); ee_attack_cmd *cmd = cbm ? combat_mgr_get_commander(cbm) : NULL;
+    if (!cmd) return;
+    uint8_t *dq = attack_cmd_groups_at(cmd);
+    for (unsigned k = 0, first = deque_front(dq), cnt = deque_count(dq); k < cnt && k < 64; k++) {
+        ee_attack_group *g = deque_at(dq, first + k);
+        ee_player *old = g ? attack_group_get_target(g) : NULL;
+        if (!old || (!is_out(old) && is_enemy(pl, old))) continue;
+        long sx = 0, sy = 0;
+        int n = 0, nsg = 0;
+        for (ee_attack_subgroup **sp = attack_group_get_subgroups_begin(g); sp && sp < attack_group_get_subgroups_end(g); sp++)
+            for (ee_asg_unit **r = *sp ? attack_subgroup_get_units_begin(*sp) : NULL; r && r < attack_subgroup_get_units_end(*sp); r++) {
+                ee_unit *u = *r ? asg_unit_get_unit(*r) : NULL;
+                if (!u || unit_get_hp(u) <= 0 || unit_get_x(u) < 0) continue;
+                sx += unit_get_x(u); sy += unit_get_y(u); n++;
+            }
+        if (!n) continue;
+        struct rt_pick s = { pl, iv2((int)(sx / n), (int)(sy / n)), NULL, 0 };
+        grid_each(rt_pick_unit, &s);
+        if (!s.best) continue;
+        ee_player *nt = game_players()[player_get_index(unit_get_owner(s.best)) & 15];
+        attack_group_set_target(g, nt);
+        for (ee_attack_subgroup **sp = attack_group_get_subgroups_begin(g); sp && sp < attack_group_get_subgroups_end(g); sp++)
+            if (*sp && attack_subgroup_get_target(*sp) == old) { attack_subgroup_set_target(*sp, nt); nsg++; }
+        if (g_log) fprintf(g_log, "# retarget: P%u at %.1f min: group %p on P%d (%s) -> P%d, its type %d at %d,%d nearest to the group's middle %d,%d - %d "
+                           "members, %d subgroups\n", idx, now / 60000.0, (void *)g, player_get_index(old), is_out(old) ? "out" : "no enemy",
+                           player_get_index(nt), unit_type_get_id(unit_get_type_data(s.best)), unit_get_x(s.best), unit_get_y(s.best),
+                           s.at.x, s.at.y, n, nsg);
+    }
+}
+
 internal void attack_log(ee_player *pl, uint32_t now);
 internal void attack_tick(ee_player *pl, uint32_t now) {
+    wave_retarget(pl, now);
     asg_trace_tick(pl, now);
     charge_tick(now);
     threat_refresh(pl, now);   // also with avoid_towers=0: the route log compares both
@@ -1701,6 +1762,7 @@ internal void attack_install(void) {
     g_breach = g_set_ai[1].attack_breach;
     g_siege = g_set_ai[1].attack_siege;
     g_ignore_air = g_set_ai[1].attack_ignore_air;
+    g_attack_retarget = g_set_ai[1].attack_retarget;
     int a = patch_route_cost(hook_route_cost);
     int b = patch_asg_route(hook_asg_route);
     int c = patch_asg_route_done(hook_asg_route_done);
@@ -1733,7 +1795,7 @@ internal void cmd_attacks(char *out, const char *args) {
     uint8_t *dq = attack_cmd_groups_at(cmd);
     unsigned first = deque_front(dq), cnt = deque_count(dq);
     REPLY("P%d: %u attack groups, next attack at %.1f min\n", p, cnt, player_get_next_attack(pl) / 60000.0);
-    for (unsigned k = 0; k < cnt && k < 16; k++) {
+    for (unsigned k = 0; k < cnt && k < 64; k++) {
         ee_attack_group *g = deque_at(dq, first + k);
         ee_player *target = g ? attack_group_get_target(g) : NULL;
         if (!g) continue;

@@ -151,6 +151,7 @@
     D(FLAG,  attack_leash,                 1, 0, 0) \
     D(FLAG,  attack_breach,                1, 0, 0) \
     D(FLAG,  attack_ignore_air,            1, 0, 0) \
+    D(FLAG,  attack_retarget,              0, 0, 0) \
     D(FLAG,  honest_vision,                1, 0, 0) \
     D(FLAG,  avoid_towers_citizens,        1, 0, 0) \
     D(FLAG,  citizen_militia,              1, 0, 0) \
