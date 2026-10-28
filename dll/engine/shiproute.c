@@ -41,7 +41,12 @@
 #define SR_SHARED 32                    // routes kept for others to join (share_routes)
 #define SR_SHARED_MS 1000               // game ms a kept route stays valid
 #define SR_JOIN_MAX 4096                // tiles a search for a kept route may expand
-#define SR_JOIN_NEAR 24                 // tiles from its start a kept route must pass to be joined
+#define SR_STEP_TILES 20000             // tiles the searches of one simulation step may expand before pieces (route_budget)
+#define SR_PIECE_TILES 1024             // a piece's search, at most
+#define SR_PIECE_TRIP 16                // tiles: a trip this long or longer may get a piece
+#define SR_PIECE_PRIORITY 3             // budgets a step may spend on the units already holding a piece
+#define SR_PIECE_SLOTS 4096
+#define SR_JOIN_NEAR 24                // tiles from its start a kept route must pass to be joined
 #define SR_JOIN_SLACK 8                 // tiles' cost it looks on for a better join once it reached the route
 #define LR_WIDEN 1.5f                   // tiles: a land route's corner moved at most this far (land_widen)
 #define LR_LOOK 3                       // tiles around a corner looked at for what blocks
@@ -93,7 +98,10 @@ typedef struct {
 } sr_shared;
 internal sr_shared g_sr_kept[SR_SHARED];
 internal int g_sr_kept_next;
-internal int g_sr_share;
+internal int g_sr_share, g_sr_budget;
+internal uint32_t g_sr_budget_step;     // the simulation step the budget counts
+internal unsigned g_sr_budget_used, g_sr_pieces;   // its tiles so far; first pieces given
+internal uint32_t g_sr_piece_holder[SR_PIECE_SLOTS];   // units holding a piece, by serial (a slot each; a clash only loses priority)
 internal unsigned g_sr_joined, g_sr_join_missed;   // requests answered from a kept route, kept routes too far
 
 internal int sr_is_ship(ee_unit *u) {
@@ -369,8 +377,10 @@ internal int sr_join(ee_map *map, ee_unit *u, ee_unit_type *td, int size, sr_sha
     return n;
 }
 
-// the A* from tile sx,sy to tx,ty: its tiles, goal back to start, into path; 0: none found
-internal int sr_find(ee_map *map, ee_unit *u, ee_unit_type *td, int size, int sx, int sy, int tx, int ty, uint32_t *path, int path_max, int *expanded) {
+// the A* from tile sx,sy to tx,ty: its tiles, goal back to start, into path; 0: none found. partial: a first piece
+// only, at most that many tiles searched, up to the tile nearest the target (*whole 0 then)
+internal int sr_find(ee_map *map, ee_unit *u, ee_unit_type *td, int size, int sx, int sy, int tx, int ty, uint32_t *path, int path_max, int *expanded,
+                     int partial, int *whole) {
     uint32_t start = (uint32_t)(sy * size + sx), goal = (uint32_t)(ty * size + tx);
     g_sr.heap_n = 0;
     g_sr.seen[start] = g_sr.gen;
@@ -388,7 +398,10 @@ internal int sr_find(ee_map *map, ee_unit *u, ee_unit_type *td, int size, int sx
     long long cap = (long long)SR_SEARCH_PER_D2 * trip * trip;
     if (cap < SR_SEARCH_MIN) cap = SR_SEARCH_MIN;
     if (cap > 4LL * size * size) cap = 4LL * size * size;
-    int found = 0;
+    if (partial && cap > partial) cap = partial;
+    int found = 0, near_h = -1;
+    uint32_t nearest = start;
+    *whole = 1;
     while (g_sr.heap_n && *expanded < cap) {
         uint32_t i = sr_heap_pop();
         if (g_sr.closed[i] == g_sr.gen) continue;
@@ -397,6 +410,10 @@ internal int sr_find(ee_map *map, ee_unit *u, ee_unit_type *td, int size, int sx
         g_sr_tiles++;
         if (i == goal) { found = 1; break; }
         int x = (int)i % size, y = (int)i / size;
+        if (partial) {   // the piece's end: the tile searched nearest the target
+            int hx = abs(tx - x), hy = abs(ty - y), h = hx > hy ? hx : hy;
+            if (near_h < 0 || h < near_h) { near_h = h; nearest = i; }
+        }
         for (int d = 0; d < 8; d++) {
             uint32_t j;
             int step = sr_step_cost(map, u, td, size, x, y, d, &j);
@@ -410,6 +427,11 @@ internal int sr_find(ee_map *map, ee_unit *u, ee_unit_type *td, int size, int sx
             g_sr.f[j] = (float)g + (float)(SR_COST_STRAIGHT * (hx > hy ? hx - hy : hy - hx) + SR_COST_DIAGONAL * (hx < hy ? hx : hy));
             sr_heap_push(j);
         }
+    }
+    if (!found && partial && *expanded >= cap && nearest != start) {
+        found = 1;
+        goal = nearest;
+        *whole = 0;
     }
     if (!found) {
         if (g_log && g_sr_log) fprintf(g_log, "# shiproute: %06x %d,%d -> %d,%d: no route (%d tiles searched%s) - the game's\n", unit_get_serial(u) & 0xFFFFFF, sx, sy, tx, ty, *expanded,
@@ -455,7 +477,22 @@ internal int sr_search(ee_unit *u, int *from, int *to, void *caller, int sectors
     }
     uint32_t start = (uint32_t)(sy * size + sx), goal = (uint32_t)(ty * size + tx);
     static uint32_t path[65536];
-    int n = 0, expanded = 0, joined = 0;
+    int n = 0, expanded = 0, joined = 0, whole = 1;
+    // The step's budget (route_budget): the tiles the searches of this simulation step expanded - counted, not
+    // timed, so every PC of a multiplayer game decides alike. Past it a long trip gets a first piece only (the
+    // nearest the target SR_PIECE_TILES of search reach); when the unit has walked it, the game asks again
+    // (PrepareToMove: not there yet) and a later step gives the rest.
+    ee_physics *ph = game_physics();
+    uint32_t step = ph ? physics_get_steps(ph) : 0;
+    if (step != g_sr_budget_step) { g_sr_budget_step = step; g_sr_budget_used = 0; }
+    // A unit with a piece asks again a few tiles on, and in a big order's steps the budget is spent again: it walked on
+    // piece by piece (six in a row), each a search of its own. So one that holds a piece goes before the new ones:
+    // its whole route unless the step has spent SR_PIECE_PRIORITY budgets.
+    int dxt = abs(tx - sx), dyt = abs(ty - sy);
+    uint32_t serial = unit_get_serial(u), slot = serial % SR_PIECE_SLOTS;
+    int holds = g_sr_piece_holder[slot] == serial;
+    unsigned allowed = holds ? SR_PIECE_PRIORITY * SR_STEP_TILES : SR_STEP_TILES;
+    int piece = g_sr_budget && g_sr_budget_used >= allowed && (dxt > dyt ? dxt : dyt) >= SR_PIECE_TRIP ? SR_PIECE_TILES : 0;
     sr_shared *kept = g_sr_share ? sr_kept_for(map, u, td, start, goal) : NULL;
     if (kept) {
         n = sr_join(map, u, td, size, kept, start, path, 65536, &expanded);
@@ -463,10 +500,13 @@ internal int sr_search(ee_unit *u, int *from, int *to, void *caller, int sectors
         else { g_sr_join_missed++; sr_stamp(); }   // a search of its own, its stamps fresh
     }
     if (!joined) {
-        n = sr_find(map, u, td, size, sx, sy, tx, ty, path, 65536, &expanded);
-        if (!n) return 0;
-        if (g_sr_share) sr_keep(map, u, td, goal, path, n);
+        n = sr_find(map, u, td, size, sx, sy, tx, ty, path, 65536, &expanded, piece, &whole);
+        if (!n) { g_sr_budget_used += (unsigned)expanded; return 0; }
+        if (!whole) { g_sr_pieces++; g_sr_piece_holder[slot] = serial; }
+        else if (g_sr_share) sr_keep(map, u, td, goal, path, n);
     }
+    if (whole && holds) g_sr_piece_holder[slot] = 0;
+    g_sr_budget_used += (unsigned)expanded;
     // pulled straight from the start: from each kept tile on to the furthest one still in a clear line
     static float pts[SR_MAX_POINTS][3], cn[SR_MAX_POINTS][2];
     int np = 0, nc = 0, at = n - 1;
@@ -496,7 +536,7 @@ internal int sr_search(ee_unit *u, int *from, int *to, void *caller, int sectors
     ee_goal *goal_obj = unit_get_goal_object(u);
     if (goal_obj) {
         vec3 t = goal_target(goal_obj, u);
-        if ((int)floorf(t.x) == tx && (int)floorf(t.y) == ty) { pts[np - 1][0] = t.x; pts[np - 1][1] = t.y; }
+        if (whole && (int)floorf(t.x) == tx && (int)floorf(t.y) == ty) { pts[np - 1][0] = t.x; pts[np - 1][1] = t.y; }
     }
     for (int k = 0; k < np; k++) unit_add_waypoint(u, pts[k], 1);   // 1: a point on the map's edge lines kept
     g_sr_routed++;
@@ -506,7 +546,7 @@ internal int sr_search(ee_unit *u, int *from, int *to, void *caller, int sectors
     }
     if (g_log && g_sr_log) {
         fprintf(g_log, "# shiproute: %06x %d,%d -> %d,%d (from %p, sectors %d): %d tiles (%d searched%s), %d legs, %d points:", unit_get_serial(u) & 0xFFFFFF, sx, sy,
-                tx, ty, caller, sectors & 0xFF, n, expanded, joined ? ", joined a kept route" : "", corners, np);
+                tx, ty, caller, sectors & 0xFF, n, expanded, joined ? ", joined a kept route" : !whole ? ", a first piece" : "", corners, np);
         for (int k = 0; k < np && k < 40; k++) fprintf(g_log, " %.1f,%.1f", pts[k][0], pts[k][1]);
         fprintf(g_log, "\n");
     }
@@ -848,7 +888,8 @@ internal void shiproute_install(const char *autotest_ini) {
     g_lr_on = g_set.land_routes;
     g_lr_widen = g_lr_on && g_set.land_widen;
     g_sr_share = (g_sr_on || g_lr_on) && g_set.share_routes;
+    g_sr_budget = (g_sr_on || g_lr_on) && g_set.route_budget;
     int ok = g_sr_on || g_lr_on ? patch_path_request(hook_path_request) && patch_group_sector_route(hook_group_sector_route) : 0;
-    if (g_log) fprintf(g_log, "# shiproute: ship_routes=%d land_routes=%d (corners widened: %d, shared: %d) (hook %s)%s\n", g_sr_on, g_lr_on, g_lr_widen, g_sr_share, !g_sr_on && !g_lr_on ? "-" : ok ? "ok" : build_is("aoc") ? "not in AoC" : "FAILED",
+    if (g_log) fprintf(g_log, "# shiproute: ship_routes=%d land_routes=%d (corners widened: %d, shared: %d, step budget: %d) (hook %s)%s\n", g_sr_on, g_lr_on, g_lr_widen, g_sr_share, g_sr_budget, !g_sr_on && !g_lr_on ? "-" : ok ? "ok" : build_is("aoc") ? "not in AoC" : "FAILED",
                        g_sr_log ? ", routes logged" : "");
 }

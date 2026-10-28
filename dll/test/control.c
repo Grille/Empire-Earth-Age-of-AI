@@ -542,16 +542,90 @@ internal void hook_server_send(void) {   // the server's send slot (with trace.c
 }
 internal void (*g_step_after)(void *phys);   // trace.c: the sync trace's line after each step
 internal void sr_step_timed(double ms);    // shiproute.c: each step's time (a slow one's line, its searches)
+internal int is_game_code(uintptr_t a);    // display.c
+internal int is_own_code(uintptr_t a);
+internal int is_return_address(uintptr_t a);
+internal void crash_addr(char *buf, size_t cap, uintptr_t a);   // base/watch.c
+
+// A slow step's samples (test runs): a step that runs past STEP_WATCH_MS is sampled every few ms by step_watch's
+// thread till it ends - where it is (the top frame) and the innermost return address into the game's code and into
+// the mod's - and the step's end logs them (# slow step samples). One step in minutes ran 180 ms beside its 25 ms of
+// route searches (the player's autosave, 2026-10-28): a sampling profiler over seconds can't catch that one.
+#define STEP_WATCH_MS 60
+enum { STEP_SAMPLES = 64 };
+internal volatile LONGLONG g_step_t0;
+internal volatile DWORD g_step_thread;
+internal volatile LONG g_step_n;
+internal struct { uintptr_t eip, game, own; } g_step_smp[STEP_SAMPLES];
+internal DWORD WINAPI step_watch(void *arg) {
+    (void)arg;
+    LARGE_INTEGER f;
+    QueryPerformanceFrequency(&f);
+    HANDLE h = NULL;
+    DWORD h_id = 0;
+    static uintptr_t stack[2048];
+    for (;;) {
+        Sleep(4);
+        LARGE_INTEGER now;
+        QueryPerformanceCounter(&now);
+        LONGLONG t0 = g_step_t0;
+        if (!g_in_step || !t0 || (now.QuadPart - t0) * 1000 < (LONGLONG)STEP_WATCH_MS * f.QuadPart || g_step_n >= STEP_SAMPLES) continue;
+        if (h_id != g_step_thread) {
+            if (h) CloseHandle(h);
+            h_id = g_step_thread;
+            h = OpenThread(THREAD_SUSPEND_RESUME | THREAD_GET_CONTEXT, FALSE, h_id);
+        }
+        if (!h || SuspendThread(h) == (DWORD)-1) continue;
+        CONTEXT c = { .ContextFlags = CONTEXT_CONTROL };
+        SIZE_T got = 0;
+        BOOL ok = GetThreadContext(h, &c);
+        if (ok && !ReadProcessMemory(GetCurrentProcess(), (void *)(uintptr_t)c.Esp, stack, sizeof stack, &got))
+            ReadProcessMemory(GetCurrentProcess(), (void *)(uintptr_t)c.Esp, stack, 2048, &got);
+        ResumeThread(h);
+        if (!ok || !g_in_step) continue;
+        uintptr_t game = 0, own = 0;
+        for (size_t i = 0; i < got / sizeof *stack && (!game || !own); i++) {
+            if (!is_return_address(stack[i])) continue;
+            if (!game && is_game_code(stack[i])) game = stack[i];
+            if (!own && is_own_code(stack[i])) own = stack[i];
+        }
+        LONG k = g_step_n;
+        g_step_smp[k].eip = c.Eip; g_step_smp[k].game = game; g_step_smp[k].own = own;
+        g_step_n = k + 1;
+    }
+    return 0;
+}
+internal void step_samples_log(void) {
+    int n = (int)g_step_n;
+    if (!n || !g_log) { g_step_n = 0; return; }
+    char line[4096];
+    int len = snprintf(line, sizeof line, "# slow step samples (%d, every ~5 ms past %d ms; top / game / mod):", n, STEP_WATCH_MS);
+    for (int k = 0; k < n && len < (int)sizeof line - 200; k++) {
+        char a[64], b[64], c[64];
+        crash_addr(a, sizeof a, g_step_smp[k].eip);
+        if (g_step_smp[k].game) crash_addr(b, sizeof b, g_step_smp[k].game); else lstrcpyA(b, "-");
+        if (g_step_smp[k].own) crash_addr(c, sizeof c, g_step_smp[k].own); else lstrcpyA(c, "-");
+        len += snprintf(line + len, sizeof line - (size_t)len, " [%s / %s / %s]", a, b, c);
+    }
+    log_locked("%s\n", line);
+    g_step_n = 0;
+}
+
 internal void __thiscall hook_phys_step(ee_physics *phys) {
     if (!g_srv_send_next) hook_server_send();
+    static int watching;
+    if (!watching) { watching = 1; CloseHandle(CreateThread(NULL, 0, step_watch, NULL, 0, NULL)); }
     LARGE_INTEGER t0, t1, f;
     QueryPerformanceCounter(&t0);
+    g_step_thread = GetCurrentThreadId();
+    g_step_t0 = t0.QuadPart;
     InterlockedExchange(&g_in_step, 1);
     physics_step(phys);
     InterlockedExchange(&g_in_step, 0);
     QueryPerformanceCounter(&t1);
     QueryPerformanceFrequency(&f);
     sr_step_timed((double)(t1.QuadPart - t0.QuadPart) * 1000.0 / (double)f.QuadPart);
+    step_samples_log();
     if (g_step_after) g_step_after(phys);
 }
 
