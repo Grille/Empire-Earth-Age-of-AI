@@ -1,0 +1,29 @@
+// Units passing through an ally's standing crowd (the player 2026-10-28: allies' units got stuck on each other) -
+// crowd_pass.eeai with the crowd another player's: Continental (seed 101, start_epoch 12), P1 and P2 allied both ways,
+// 40 doughboys of P2 (an AI: they stand where they were made, 40,40) - then 6 Mark V tanks of P1 from 32,44 through
+// them to 50,36, then 8 dragoons of P1 from 50,36 back through to 32,44. The movers sampled every 0.1 min (`fmove
+// stat`: done, distance to the goal), the sums after each pass; the crowd's spread before and after (`fmove stat`).
+wait_until(0.05min)
+player(1).ally(player(2))
+player(2).ally(player(1))
+wait_until(0.1min)
+spawn(2, unit.inf10_doughboy, 40, 40, 40)
+wait_until(0.9min)
+spawn(1, unit.tank10_mk_v, 32, 44, 6)
+wait_until(1.0min)
+cmd("fmove go 1 32 44 4 50 36")
+for t in [1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7] {
+    wait_until(t * 1min)
+    cmd("fmove stat")
+}
+cmd("fmove sum")
+wait_until(1.8min)
+spawn(1, unit.cav09_dragoon_gun, 52, 34, 8)
+wait_until(1.9min)
+cmd("fmove go 1 52 34 3 32 44")
+for t in [2.0, 2.1, 2.2, 2.3, 2.4, 2.5, 2.6] {
+    wait_until(t * 1min)
+    cmd("fmove stat")
+}
+cmd("fmove sum")
+cmd("units 2")

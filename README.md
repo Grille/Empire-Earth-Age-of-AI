@@ -446,11 +446,12 @@ Settings in `ageofai.ini`:
   now - slowed to 80% of a unit's top speed while it has fallen behind (it catches up at the other 20%), at its
   slowest unit's top speed when all near their places have 125% or more. Lower waits more for the stragglers
   (tighter, slower); 100% never slows below a straggler's speed, so it doesn't gain on the formation.
-- `[general] formation_collision=75%` (with formation_follow and land_collide): units marching in the same
-  formation push each other off at this share of their size - they slip past each other to their places, which
-  stay as far apart (100% as any two units). It fades in over the march's first 2 seconds, stays while the
-  formation marches and for 10 seconds after it arrived, then fades out over 2 seconds; in those 10 seconds a unit
-  standing in it that is pushed off its spot turns, walks back to it and turns to the formation's facing.
+- `[general] friendly_collision=75%` (with land_collide / ship_collide): two units of one player or of allies push
+  each other off at this share of their size - they slip past each other instead of getting stuck, and a
+  formation's places stay as far apart (100% as any two units). Every friendly pair, moving or standing, so nothing
+  switches and shoves them apart; a standing ally steps aside for a moving unit as one's own does. For 10 seconds
+  after a formation arrived a unit standing in it that is pushed off its spot turns, walks back to it and turns to
+  the formation's facing.
 - `[general] goal_markers=1` (default; 0 the original): a move order drew its circle at the goal of only the group's
   first 15 units (20 in the other lines and wedges, every few in a circle formation). Now every unit's shows.
 - `[sound] clamp_channels=1` (default): the "Max Number Of Sounds" slider goes to 200%, which asks for 32 sound

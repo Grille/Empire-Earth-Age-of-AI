@@ -314,9 +314,8 @@ internal void fo_march(ee_active_group *grp) {
 #define FF_SWING 1.0f          // its facing turns at most this much x its speed / its reach a second (its outermost units
                                // swing round at about its speed)
 #define FF_ARC 0.7071f         // a queued move turning less than this (cos 45 degrees) goes on in the same formation
-#define FF_EASE 2.0f           // s: formation_collision fades in over this long from the march's start (and out after the
-#define FF_LINGER 10.0f        // linger): the formation lingers this long after it arrived, all of it still in effect, and
-                               // an idle unit pushed off its spot meanwhile walks back to it (ff_linger_tick) -
+#define FF_LINGER 10.0f        // s: the formation lingers this long after it arrived, and an idle unit pushed off its
+                               // spot meanwhile walks back to it (ff_linger_tick) -
 #define FF_HOME_SLOP 0.5f      // x its size (at least FF_HOME_MIN): further off than this,
 #define FF_HOME_MIN 0.25f      // tiles
 #define FF_HOME_FAR 3.0f       // tiles: and no further (one further off didn't stray by a push: it never got there, blocked)
@@ -819,23 +818,6 @@ internal uint32_t ff_step(void) { ee_physics *ph = game_physics(); return ph ? p
 internal float ff_since(uint32_t step) {
     ee_physics *ph = game_physics();
     return (float)(ff_step() - step) * (ph ? physics_get_step_s(ph) : 0.05f);
-}
-
-// collide.c: the share of their radii at which a and b collide - formation_collision for two units of one formation,
-// bound to the formation: faded in over FF_EASE from its march's start, all of it while it marches and FF_LINGER after
-// it arrived, then faded out over FF_EASE (a switch on arrival shoved the units that had slipped into each other apart
-// at once, off their spots); 1 for any other pair
-internal float ff_collision(ee_unit *a, ee_unit *b) {
-    if (!g_ff_on || g_set.formation_collision >= 1) return 1;
-    struct ff_unit *ea = ff_find((uint32_t)unit_get_serial(a), 0), *eb = ea && ea->g >= 0 ? ff_find((uint32_t)unit_get_serial(b), 0) : NULL;
-    if (!eb || eb->g != ea->g) return 1;
-    struct ff_group *gr = &g_ff[ea->g];
-    float t;
-    if (gr->on && gr->live && gr->started) t = ff_since(gr->t0) / FF_EASE;
-    else if (!gr->on && gr->linger) t = (FF_LINGER + FF_EASE - ff_since(gr->linger)) / FF_EASE;
-    else return 1;
-    t = t < 0 ? 0 : t > 1 ? 1 : t;
-    return 1 - (1 - g_set.formation_collision) * t;
 }
 
 // u's spot at its formation move's goal (test/fleetmove.c), 1 - else 0

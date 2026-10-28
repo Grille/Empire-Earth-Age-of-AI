@@ -8,8 +8,8 @@
 // each unit near (the unit grid, not the contact list) of the same kind of movement (model_kind: ships, submarines -
 // the game lets them meet only submarines, so they pass under ships -, land units with hovercraft) whose hull overlaps
 // is pushed off along the line between their nearest points: UC_RELAX of the overlap a step, shared by size when the
-// other moves too (it does its own part in its own step), all of it against one standing - but a standing one of the
-// same owner steps aside by its part. A unit heading into another veers off to the right. As in the game's test a
+// other moves too (it does its own part in its own step), all of it against one standing - but a standing friendly one
+// (same owner or allied) steps aside by its part; friendly hulls count at friendly_collision of their size. A unit heading into another veers off to the right. As in the game's test a
 // unit at work (gathering, building: UNIT_AT_WORK on a kind 6 or 4 goal) is passed, but by one at the same work. The
 // push goes through the game's own (value_movement_slot_pm_push: terrain and buildings tested, no faster than the top speed); the
 // speed is left alone, so a unit pressing on another slides along it. A unit at rest (not at work) moves its share off
@@ -41,7 +41,12 @@ internal struct uc_rest *uc_rest_of(ee_unit *u) {
     if (g_uc_mem[i].id != id) { g_uc_mem[i].id = id; g_uc_mem[i].n = 0; g_uc_mem[i].last = v2(0, 0); }
     return &g_uc_mem[i];
 }
-internal float ff_collision(ee_unit *a, ee_unit *b);   // engine/groupmove.c
+// a and b friendly: one owner, or two players allied both ways (not nature's: its animals stay strangers)
+internal int uc_friendly(ee_unit *a, ee_unit *b) {
+    ee_player *pa = unit_get_owner(a), *pb = unit_get_owner(b);
+    if (pa == pb) return 1;
+    return pa && pb && player_get_not_gaia(pa) && player_get_not_gaia(pb) && !is_enemy(pa, pb) && !is_enemy(pb, pa);
+}
 internal unsigned g_uc_steps, g_uc_hits;   // collision steps taken over, overlaps pushed off
 internal float g_uc_deepest;               // the deepest overlap met (tiles)
 
@@ -167,9 +172,11 @@ internal int uc_separate(int kind, ee_unit *u, int resting) {
         uc_nearest(h.a, h.b, o.a, o.b, &n1, &n2);
         vec2 d = vec2_sub(n1, n2);
         float d2 = vec2_len2(d), rr = h.r + o.r;
-        // two units marching in the same formation (formation_follow) collide at formation_collision of their radii -
-        // their places stay as far apart: they slip past each other to them
-        if (d2 < rr * rr) rr *= ff_collision(u, c);
+        // two friendly units (own or allied) collide at friendly_collision of their radii: they slip past each other
+        // (the player: allies' units got stuck on each other; it was for one formation's units alone before), a
+        // formation's places stay as far apart. Every pair, moving or not, so nothing switches and shoves them apart
+        int friendly = uc_friendly(u, c);
+        if (friendly && d2 < rr * rr) rr *= g_set.friendly_collision;
         if (d2 >= rr * rr) continue;
         float dist = sqrtf(d2);
         if (dist > 0.0001f) d = vec2_scale(d, 1.0f / dist);
@@ -186,7 +193,7 @@ internal int uc_separate(int kind, ee_unit *u, int resting) {
             d = vec2_add(d, vec2_scale(right, side * k * UC_SIDESTEP));
             d = vec2_scale(d, 1.0f / vec2_len(d));
         }
-        int moves = uc_moves(c), nudge = !resting && !moves && unit_get_owner(c) == unit_get_owner(u) && !unit_get_frozen(c);
+        int moves = uc_moves(c), nudge = !resting && !moves && friendly && !unit_get_frozen(c);   // an ally's too (the player)
         float over = rr - dist, oc = nudge && kind == MODEL_LAND ? uc_weight_against(kind, c, o.len, v2(-d.x, -d.y)) : o.len * o.len;
         float share = oc / (mu + oc);
         if (resting && moves) continue;   // a moving one does it in its own step

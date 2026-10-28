@@ -68,7 +68,7 @@
     X(CHILD,  general,  formation_follow,         1,  improved_unit_movement, 0) \
     X(SHARE,  general,  formation_catchup,        125, 100, 300) \
     X(SHARE,  general,  formation_wait,           100, 25, 100) \
-    X(SHARE,  general,  formation_collision,      75, 25, 100) \
+    X(SHARE,  general,  friendly_collision,       75, 25, 100) \
     X(FLAG,   general,  sight_counts,             1,  0, 0) \
     X(INT,    general,  chat,                     0,  0, 2) \
     X(INT,    general,  chat_seconds,             15, 0, 3600) \
@@ -393,7 +393,7 @@
     V(citizen_share,        "the AI's share of the population cap for citizens", "45%", 0)
 
 // Rows ageofai_config.exe shows under a master, folded with its children, though they don't follow it: settings of what
-// the master's children switch on (the formation's catch-up and collision under improved_unit_movement).
+// the master's children switch on (the formation's catch-up, friendly units' collision under improved_unit_movement).
 #define SETTING_UNDER(U) \
     U(formation_catchup,   improved_unit_movement) \
-    U(formation_collision, improved_unit_movement)
+    U(friendly_collision,  improved_unit_movement)
