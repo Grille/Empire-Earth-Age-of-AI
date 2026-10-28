@@ -129,7 +129,8 @@ depth tested and not written (hills, buildings and trees hide them), blended, un
 (attack.c route_overlay: each attack subgroup's route in its player's colour, red rings at waypoints in reach of known
 defences, a ring at the goal; 3 game minutes) and `danger` (attack.c danger_overlay: each AI's danger map, a faint fill
 where enemies reach, stronger where its fight is lost, the zones' edges strong - a fill alone tinted half the map;
-every 5 game seconds). A layer off costs its producer one test. A new layer: `overlay_layer("name")` once,
+every 5 game seconds). A layer off costs its producer one test. A new layer: its name a `field_bool(name)` in rows.h's
+`OVERLAY_FIELDS` (the setting is a FLAGS row since caa7ea7: a name not there is a mistake in the ini), `overlay_layer("name")` once,
 `overlay_on(layer)` before the work, `overlay_begin(layer, key, now, ttl)` ... `overlay_line / overlay_circle /
 overlay_tiles` ... `overlay_end()`.
 
