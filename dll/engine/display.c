@@ -858,65 +858,6 @@ internal RECT window_rect_for(HWND h) {
     return normal_window_rect(h, w, hh);
 }
 
-// THE START, windowed and borderless (the player: the window showed white for a second, then went behind the
-// other programs - dug out of the taskbar): the display DLLs create ~15 16x16 "TestWindowClass" probe windows after
-// ageofai.dll loads, each activated with a taskbar button for a moment (base/headless_win.c measured it), the game
-// window among them. A thread CBT hook on the engine's thread (it loads the DLLs and makes the windows) as the
-// headless one: the probes never activate, show no taskbar button and stay off-screen; the game window (the first
-// other top-level one) gets a black background instead of white and, borderless, its final style and the monitor
-// at its creation instead of at the first frame; the first frame brings it to the front once (window_hook).
-internal HHOOK g_play_cbt;
-internal int g_play_probes;
-internal HWND g_play_game;
-internal int play_probe(HWND h) {
-    char cls[32];
-    return GetClassNameA(h, cls, sizeof cls) && !strcmp(cls, "TestWindowClass");
-}
-internal LRESULT CALLBACK play_cbt(int code, WPARAM w, LPARAM l) {
-    if (code == HCBT_CREATEWND) {
-        HWND h = (HWND)w;
-        CREATESTRUCTA *cs = ((CBT_CREATEWNDA *)l)->lpcs;
-        if (!cs->hwndParent && !(cs->style & WS_CHILD)) {
-            if (play_probe(h)) {
-                LONG ex = (GetWindowLongA(h, GWL_EXSTYLE) | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW) & ~WS_EX_APPWINDOW;
-                SetWindowLongA(h, GWL_EXSTYLE, ex);
-                cs->dwExStyle = ex;
-                cs->x = GetSystemMetrics(SM_XVIRTUALSCREEN) - 8000;
-                cs->y = 0;
-                g_play_probes++;
-            } else if (!g_play_game) {
-                g_play_game = h;
-                SetClassLongA(h, GCL_HBRBACKGROUND, (LONG)(uintptr_t)GetStockObject(BLACK_BRUSH));
-                if (g_borderless) {
-                    LONG st = (cs->style & ~WS_OVERLAPPEDWINDOW) | WS_POPUP;
-                    SetWindowLongA(h, GWL_STYLE, st);
-                    cs->style = st;
-                    MONITORINFO mi = { .cbSize = sizeof mi };
-                    POINT at = { cs->x == (int)CW_USEDEFAULT ? 0 : cs->x, cs->y == (int)CW_USEDEFAULT ? 0 : cs->y };
-                    GetMonitorInfoA(MonitorFromPoint(at, MONITOR_DEFAULTTOPRIMARY), &mi);
-                    cs->x = mi.rcMonitor.left; cs->y = mi.rcMonitor.top;
-                    cs->cx = mi.rcMonitor.right - mi.rcMonitor.left; cs->cy = mi.rcMonitor.bottom - mi.rcMonitor.top;
-                }
-            }
-        }
-    } else if (code == HCBT_ACTIVATE && play_probe((HWND)w)) return 1;   // a probe: refused
-    return CallNextHookEx(g_play_cbt, code, w, l);
-}
-internal void play_windows(void) {
-    if (!g_play_cbt) g_play_cbt = SetWindowsHookExA(WH_CBT, play_cbt, NULL, GetCurrentThreadId());
-}
-// the first frame: the game window to the front, once (the probes before ageofai.dll loaded may have taken it away)
-internal void play_front(HWND h) {
-    if (g_headless || GetForegroundWindow() == h) return;
-    DWORD fg = GetWindowThreadProcessId(GetForegroundWindow(), NULL), me = GetCurrentThreadId();
-    int attached = fg && fg != me && AttachThreadInput(me, fg, TRUE);   // a foreground window's thread may hand it over
-    SetForegroundWindow(h);
-    BringWindowToTop(h);
-    if (attached) AttachThreadInput(me, fg, FALSE);
-    if (g_log) log_locked("# display: the window to the front at its first frame (%s; probe windows calmed %d, the game window %s)\n",
-                          GetForegroundWindow() == h ? "done" : "Windows refused", g_play_probes, g_play_game == h ? "seen at its creation" : "made before the hook");
-}
-
 internal void apply_window_mode(HWND h) {
     if (IsIconic(h)) ShowWindow(h, SW_RESTORE);
     if (IsZoomed(h)) ShowWindow(h, SW_RESTORE);
@@ -1036,7 +977,6 @@ internal void window_hook(HWND hwnd) {   // subclass once per window (present an
         SetWindowLongA(hwnd, GWL_WNDPROC, (LONG)(uintptr_t)window_proc);
         g_subclassed = hwnd;
         if (g_borderless) PostMessageA(hwnd, WM_AIMOD_MODE, 0, 0);   // initial style/size, on the window's thread
-        play_front(hwnd);
         // (modern_frame: no effect - DDrawCompat covers the whole window, frame included, with its presentation window)
     }
     busy = 0;
@@ -1243,7 +1183,6 @@ internal void display_install(const char *autotest_ini) {
     if (g_headless) { dmode = 1; headless_windows(); }   // a normal (off-screen) window, never activated
     g_borderless = dmode == 2;
     int windowed = dmode != 0;
-    if (windowed && !g_headless) play_windows();   // the start without flicker: probe windows calmed, the game window black
     if (autotest_ini) g_present_every = ini_int("autotest", "present_every", 0, autotest_ini);
     if (autotest_ini) g_diag_skip = ini_int("autotest", "diag_skip", 0, autotest_ini);
     g_diag = (autotest_ini && ini_int("autotest", "diag_hooks", 0, autotest_ini)) || g_set.display_diag;
