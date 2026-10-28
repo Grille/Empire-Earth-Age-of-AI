@@ -70,6 +70,8 @@ typedef struct {
 } rd_device;
 internal volatile LONG g_rd_draws, g_rd_frames;
 internal DWORD g_rd_minute_tick;
+internal LONGLONG g_rd_draw_qpc, g_rd_draw_qpc_told;   // time inside the draw calls (the game's thread), for the minute's line
+internal LONGLONG rd_qpc(void) { LARGE_INTEGER t; QueryPerformanceCounter(&t); return t.QuadPart; }
 
 // ---- the 3D pipeline ----
 // the vertex shader's constants (D3D7's row vectors: v * world * view * projection, row_major in HLSL)
@@ -503,8 +505,17 @@ internal void rd_frame_tick(void) {
     InterlockedIncrement(&g_rd_frames);
     DWORD now = GetTickCount();
     if (now - g_rd_minute_tick < 60000) return;
+    static LONG frames0, draws0;
+    static LONGLONG present0;
+    LARGE_INTEGER f;
+    QueryPerformanceFrequency(&f);
+    LONG fr = g_rd_frames - frames0, dr = g_rd_draws - draws0;
+    double k = fr > 0 ? 1000.0 / (double)f.QuadPart / fr : 0;
+    log_locked("# render: frames %ld, draws %ld (the last minute a frame: %ld draws, %.2f ms in them, %.2f ms in Present; %ld frames)\n",
+               (long)g_rd_frames, (long)g_rd_draws, fr > 0 ? (long)(dr / fr) : 0L, (double)(g_rd_draw_qpc - g_rd_draw_qpc_told) * k,
+               (double)(g_d3d_present_qpc - present0) * k, (long)fr);
     g_rd_minute_tick = now;
-    log_locked("# render: frames %ld, draws %ld\n", (long)g_rd_frames, (long)g_rd_draws);
+    frames0 = g_rd_frames; draws0 = g_rd_draws; g_rd_draw_qpc_told = g_rd_draw_qpc; present0 = g_d3d_present_qpc;
 }
 internal HRESULT __stdcall rd_dev_begin(rd_device *d) { d->in_scene = 1; return D3D_OK; }
 internal HRESULT __stdcall rd_dev_end(rd_device *d) {
@@ -620,6 +631,7 @@ internal HRESULT __stdcall rd_dev_draw_vb(rd_device *d, D3DPRIMITIVETYPE type, r
     (void)flags;
     InterlockedIncrement(&g_rd_draws);
     if (!n || start + n > vb->n || !rd3_drawable(vb, type)) return D3D_OK;
+    LONGLONG t0 = rd_qpc();
     RD_LOCK();
     rd3_overlay_before(d);
     if (rd3_prepare(d, rd3_flat_picture(d, vb, start, n))) {
@@ -629,6 +641,7 @@ internal HRESULT __stdcall rd_dev_draw_vb(rd_device *d, D3DPRIMITIVETYPE type, r
             ID3D11DeviceContext_Draw(g_d3d.ctx, n, (UINT)at / vb->stride);
         }
     }
+    g_rd_draw_qpc += rd_qpc() - t0;
     RD_UNLOCK();
     return D3D_OK;
 }
@@ -638,6 +651,7 @@ internal HRESULT __stdcall rd_dev_draw_indexed_vb(rd_device *d, D3DPRIMITIVETYPE
     (void)flags;
     InterlockedIncrement(&g_rd_draws);
     if (!nv || !ni || !idx || start + nv > vb->n || !rd3_drawable(vb, type)) return D3D_OK;
+    LONGLONG t0 = rd_qpc();
     RD_LOCK();
     rd3_overlay_before(d);
     if (rd3_prepare(d, rd3_flat_picture(d, vb, start, nv))) {
@@ -648,6 +662,7 @@ internal HRESULT __stdcall rd_dev_draw_indexed_vb(rd_device *d, D3DPRIMITIVETYPE
             ID3D11DeviceContext_DrawIndexed(g_d3d.ctx, ni, (UINT)ia / 2, (INT)((UINT)at / vb->stride));
         }
     }
+    g_rd_draw_qpc += rd_qpc() - t0;
     RD_UNLOCK();
     return D3D_OK;
 }
