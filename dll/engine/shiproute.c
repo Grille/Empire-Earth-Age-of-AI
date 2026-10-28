@@ -99,6 +99,7 @@ typedef struct {
 internal sr_shared g_sr_kept[SR_SHARED];
 internal int g_sr_kept_next;
 internal int g_sr_share, g_sr_budget;
+internal float g_sr_weight = 1.0f;     // the A*'s estimate times this (tests: route_weight)
 internal uint32_t g_sr_budget_step;     // the simulation step the budget counts
 internal unsigned g_sr_budget_used, g_sr_pieces;   // its tiles so far; first pieces given
 internal uint32_t g_sr_piece_holder[SR_PIECE_SLOTS];   // units holding a piece, by serial (a slot each; a clash only loses priority)
@@ -366,7 +367,7 @@ internal int sr_join(ee_map *map, ee_unit *u, ee_unit_type *td, int size, sr_sha
             g_sr.g[j] = g;
             g_sr.parent[j] = (int32_t)i;
             int nx = (int)j % size, ny = (int)j / size, hx = abs(tx - nx), hy = abs(ty - ny);
-            g_sr.f[j] = (float)g + (float)(SR_COST_STRAIGHT * (hx > hy ? hx - hy : hy - hx) + SR_COST_DIAGONAL * (hx < hy ? hx : hy));
+            g_sr.f[j] = (float)g + g_sr_weight * (float)(SR_COST_STRAIGHT * (hx > hy ? hx - hy : hy - hx) + SR_COST_DIAGONAL * (hx < hy ? hx : hy));
             sr_heap_push(j);
         }
     }
@@ -424,7 +425,7 @@ internal int sr_find(ee_map *map, ee_unit *u, ee_unit_type *td, int size, int sx
             g_sr.g[j] = g;
             g_sr.parent[j] = (int32_t)i;
             int nx = (int)j % size, ny = (int)j / size, hx = abs(tx - nx), hy = abs(ty - ny);
-            g_sr.f[j] = (float)g + (float)(SR_COST_STRAIGHT * (hx > hy ? hx - hy : hy - hx) + SR_COST_DIAGONAL * (hx < hy ? hx : hy));
+            g_sr.f[j] = (float)g + g_sr_weight * (float)(SR_COST_STRAIGHT * (hx > hy ? hx - hy : hy - hx) + SR_COST_DIAGONAL * (hx < hy ? hx : hy));
             sr_heap_push(j);
         }
     }
@@ -889,6 +890,7 @@ internal void shiproute_install(const char *autotest_ini) {
     g_lr_widen = g_lr_on && g_set.land_widen;
     g_sr_share = (g_sr_on || g_lr_on) && g_set.share_routes;
     g_sr_budget = (g_sr_on || g_lr_on) && g_set.route_budget;
+    g_sr_weight = (float)g_set.route_weight / 100.0f;
     int ok = g_sr_on || g_lr_on ? patch_path_request(hook_path_request) && patch_group_sector_route(hook_group_sector_route) : 0;
     if (g_log) fprintf(g_log, "# shiproute: ship_routes=%d land_routes=%d (corners widened: %d, shared: %d, step budget: %d) (hook %s)%s\n", g_sr_on, g_lr_on, g_lr_widen, g_sr_share, g_sr_budget, !g_sr_on && !g_lr_on ? "-" : ok ? "ok" : build_is("aoc") ? "not in AoC" : "FAILED",
                        g_sr_log ? ", routes logged" : "");

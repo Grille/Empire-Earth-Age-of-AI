@@ -298,6 +298,7 @@
     X(FLAG,   autotest, aim_hits,                 1,  0, 0) \
     X(INT,    autotest, aim_log,                  0,  0, 1000000) \
     X(FLAG,   autotest, order_log,                0,  0, 0) \
+    X(INT,    autotest, route_weight,             100, 100, 300) \
     X(INT,    autotest, formation_kind,           -1, -1, 7) \
     X(NUM,   autotest, citizen_train_ms,             28000, 0, 0) \
     X(NUM,   autotest, citizen_queue,                0, 0, 0) \
