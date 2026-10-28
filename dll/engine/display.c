@@ -890,14 +890,15 @@ internal LRESULT CALLBACK play_cbt(int code, WPARAM w, LPARAM l) {
                 g_play_game = h;
                 if (g_set.display_start.black) SetClassLongA(h, GCL_HBRBACKGROUND, (LONG)(uintptr_t)GetStockObject(BLACK_BRUSH));
                 if (g_borderless && g_set.display_start.popup) {
-                    LONG st = (cs->style & ~WS_OVERLAPPEDWINDOW) | WS_POPUP;
-                    SetWindowLongA(h, GWL_STYLE, st);
-                    cs->style = st;
+                    // its client on the whole monitor from the start, frame and caption beyond its edges: the style
+                    // stays the game's until the first frame (WS_POPUP at creation left the window without a picture)
                     MONITORINFO mi = { .cbSize = sizeof mi };
                     POINT at = { cs->x == (int)CW_USEDEFAULT ? 0 : cs->x, cs->y == (int)CW_USEDEFAULT ? 0 : cs->y };
                     GetMonitorInfoA(MonitorFromPoint(at, MONITOR_DEFAULTTOPRIMARY), &mi);
-                    cs->x = mi.rcMonitor.left; cs->y = mi.rcMonitor.top;
-                    cs->cx = mi.rcMonitor.right - mi.rcMonitor.left; cs->cy = mi.rcMonitor.bottom - mi.rcMonitor.top;
+                    RECT r = mi.rcMonitor;
+                    AdjustWindowRectEx(&r, (DWORD)cs->style, cs->hMenu != NULL, (DWORD)cs->dwExStyle);
+                    cs->x = r.left; cs->y = r.top;
+                    cs->cx = r.right - r.left; cs->cy = r.bottom - r.top;
                 }
             }
         }
