@@ -197,13 +197,32 @@ internal int ap_producer(ee_player *pl, int type) {
 // and siege; not heroes, priests, citizens) in none of its attack subgroups (ou_members) and free for the combat
 // manager form an attack group of the game's own
 // (attack.c ag_launch) against the enemy building nearest their middle - a tower or fortress only when no other is
-// left -, so they march, fight and fall back (cover.c fall_back) as the AI's own attacks do. "# outdated:" lines.
+// left. They fight to the end (the player: they only lose worth from here on - this is a way to be rid of them while
+// doing damage): no staging point (stage.c), no falling back or healing (cover.c), no rally (mass.c) - ou_sortie /
+// ou_sortie_sg. "# outdated:" lines.
 internal int g_outdated_attack = 1;
 internal ee_attack_group *ag_launch(ee_player *pl, const int *serials, int n, ee_unit *target, int *ok, int *nsg);   // attack.c
 internal int defence_stats(ee_unit *u, float *range, float *attack);   // attack.c
 // the units in pl's attack subgroups (attack commander player +0xB8C +0x48: its groups a deque, a group's subgroups
 // +8..+0xC, a subgroup's members' records) - the combat manager's free test (0x4707D8) doesn't see them: right after
 // the sortie its units were all "free" again, and every 5 minutes a new group took them from the last one
+// the units sent (by pointer and id: a dead one's memory is used again), per AI
+internal struct { ee_unit *u; int id; } g_ou_sent[16][256];
+internal int g_ou_nsent[16];
+internal int ou_sortie(ee_player *pl, ee_unit *u) {
+    unsigned idx = pl ? (unsigned)player_get_index(pl) & 15 : 0;
+    if (!pl || !u || !g_ou_nsent[idx]) return 0;
+    for (int k = 0; k < g_ou_nsent[idx]; k++) if (g_ou_sent[idx][k].u == u) return g_ou_sent[idx][k].id == unit_get_id(u);
+    return 0;
+}
+// a subgroup of a sortie: one of its members sent
+internal int ou_sortie_sg(ee_attack_subgroup *sg) {
+    ee_player *pl = sg ? attack_subgroup_get_player(sg) : NULL;
+    if (!pl || !g_ou_nsent[(unsigned)player_get_index(pl) & 15]) return 0;
+    for (ee_asg_unit **r = attack_subgroup_get_units_begin(sg); r && r < attack_subgroup_get_units_end(sg); r++)
+        if (*r && ou_sortie(pl, asg_unit_get_unit(*r))) return 1;
+    return 0;
+}
 internal int ou_members(ee_player *pl, ee_unit **out, int max) {
     ee_combat_mgr *cbm = player_get_combat_mgr(pl); ee_attack_cmd *cmd = cbm ? combat_mgr_get_commander(cbm) : NULL;
     if (!cmd) return 0;
@@ -226,7 +245,7 @@ internal int ou_outdated(ee_player *pl, ee_tech_tree *tt, ee_unit_type *td, int 
 internal void outdated_attack(ee_player *pl, unsigned idx, uint32_t now) {
     static uint32_t last[16];
     if (!g_outdated_attack || is_vanilla(pl)) return;
-    if (now < last[idx]) last[idx] = 0;   // a new game
+    if (now < last[idx]) { last[idx] = 0; g_ou_nsent[idx] = 0; }   // a new game
     if (last[idx] && now - last[idx] < 300000) return;
     ee_combat_mgr *cm = player_get_combat_mgr(pl);
     ee_tech_tree *tt = player_get_tech_tree(pl);
@@ -234,6 +253,7 @@ internal void outdated_attack(ee_player *pl, unsigned idx, uint32_t now) {
     if (!cm || !tt || epoch < 0) return;
     last[idx] = now ? now : 1;
     static int ids[256];
+    static ee_unit *sent[256];
     static ee_unit *mem[4096];
     int nm = ou_members(pl, mem, 4096);
     int n = 0, busy = 0, types[8] = { 0 }, tn[8] = { 0 }, nt = 0;
@@ -245,7 +265,7 @@ internal void outdated_attack(ee_player *pl, unsigned idx, uint32_t now) {
         while (k0 < nm && mem[k0] != u) k0++;
         if (k0 < nm || !combat_mgr_unit_free(cm, unit_get_physics(u))) { busy++; continue; }
         if (n == 256) continue;
-        ids[n++] = unit_get_serial(u); sx += unit_get_x(u); sy += unit_get_y(u);
+        sent[n] = u; ids[n++] = unit_get_serial(u); sx += unit_get_x(u); sy += unit_get_y(u);
         int ty = unit_type_get_id(it.td), k = 0;
         while (k < nt && types[k] != ty) k++;
         if (k == nt && nt < 8) types[nt++] = ty;
@@ -270,6 +290,15 @@ internal void outdated_attack(ee_player *pl, unsigned idx, uint32_t now) {
     if (!best) return;
     int ok = 0, nsg = 0;
     ee_attack_group *g = ag_launch(pl, ids, n, best, &ok, &nsg);
+    if (g) {   // the sent: the living ones of earlier sorties, then these
+        int m = 0;
+        for (int k = 0; k < g_ou_nsent[idx]; k++) {
+            ee_unit *v = g_ou_sent[idx][k].u;
+            if (unit_get_id(v) == g_ou_sent[idx][k].id && unit_get_owner(v) == pl && unit_get_hp(v) > 0) g_ou_sent[idx][m++] = g_ou_sent[idx][k];
+        }
+        for (int k = 0; k < n && m < 256; k++) { g_ou_sent[idx][m].u = sent[k]; g_ou_sent[idx][m].id = unit_get_id(sent[k]); m++; }
+        g_ou_nsent[idx] = m;
+    }
     if (!g_log) return;
     char tl[120] = "";
     for (int k = 0; k < nt; k++) { size_t l = strlen(tl); snprintf(tl + l, sizeof tl - l, " %dx%d", tn[k], types[k]); }

@@ -158,7 +158,7 @@ internal void stage_push(ee_player *pl, unsigned idx, struct stage *st, uint32_t
 internal int stage_leg(ee_attack_subgroup *sg, ee_unit *u, ee_goal *goal) {
     ee_player *pl = attack_subgroup_get_player(sg);
     unsigned idx = pl ? (unsigned)player_get_index(pl) & 15 : 0;
-    if (!u || !goal || !goal_is_location(goal) || !attack_subgroup_is_land(sg) || !stage_on(pl, idx)) return 0;
+    if (!u || !goal || !goal_is_location(goal) || !attack_subgroup_is_land(sg) || !stage_on(pl, idx) || ou_sortie_sg(sg)) return 0;   // army.c: outdated units go straight in
     struct stage *st = &g_stg[idx];
     uint32_t now = game_time();
     ivec2 d = iv2((int)goal_get_dest_x(goal), (int)goal_get_dest_y(goal)), p = unit_get_tile(u);

@@ -320,7 +320,7 @@ internal void cv_zones(ee_player *pl, unsigned idx, uint32_t now) {
 internal void cover_hold_leg(ee_attack_subgroup *sg, ee_unit *u, ee_goal *goal) {
     ee_player *pl = attack_subgroup_get_player(sg);
     ee_map *map = game_map();
-    if (!g_danger_routes || !goal || !goal_is_location(goal) || !pl || !map || !u) return;
+    if (!g_danger_routes || !goal || !goal_is_location(goal) || !pl || !map || !u || ou_sortie(pl, u)) return;   // army.c: outdated units go on
     int size = (int)map_get_size(map);
     const uint8_t *lz = danger_map((unsigned)player_get_index(pl), DANGER_LOST, size);
     if (!lz) return;
@@ -681,7 +681,7 @@ internal void cv_behave(ee_player *pl, unsigned idx, struct cv_pl *c, uint32_t n
     for (int i = 0; i < g_cv_nu; i++) {
         ee_unit *u = g_cv_units[i];
         ee_unit_type *td = unit_get_type_data(u);
-        if (cv_mil(td) != 1 || cv_held(c, u) || landing_has_unit(pl, u)) continue;
+        if (cv_mil(td) != 1 || cv_held(c, u) || landing_has_unit(pl, u) || ou_sortie(pl, u)) continue;   // outdated units fight to the end (army.c)
         ivec2 p = unit_get_tile(u);
         int hp = unit_get_hp(u), mx = cv_hpmax(u);
         unsigned a = area_id(p, 2);
