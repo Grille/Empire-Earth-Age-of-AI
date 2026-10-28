@@ -711,6 +711,19 @@ static unsafe class unit_functions
     [call_site("target_ok", (ee)0x0063A145, (aoc)0x0065079F)]
     static extern char8 target_ok(EETargetSearch* searcher, EEUnit* u);
 
+    /// the auto-target search a unit's idle scan runs (0x61AC11, the scripts' CanISeeEnemy): the best enemy around u
+    /// by the scorer 0x6399CA (its weights per weapon kind at 0x8CFA28: a preferred class at once, then attacking u, in
+    /// range, slower, shorter range, the to-hit bonus, nearer) within its sight, NULL none - the target an attack
+    /// goal's constructor takes
+    [address((ee)0x0062EBD2, (aoc)0x00643F78), cdecl]
+    static extern EEUnit* find_target(EEUnit* u);
+
+    /// cdecl(unit, its attack goal, the new target): the goal's target changed in place (its vf27 +0x6C, the old one's
+    /// reference released) and the unit sent to CheckRange (2013) as after a new order - the goals under it (an
+    /// attack-move) stay
+    [address((ee)0x0062CD12, (aoc)0x00641BC9), cdecl]
+    static extern void attack_retarget(EEUnit* u, EEUnitGoal* goal, EEUnit* target);
+
     [address((ee)0x0062CBB3, (aoc)0x00641A6A), cdecl]
     static extern char8 ballistic_game(EEUnit* p1, ee_unit_stats* p2, float32* p3, float32* p4, float32* p5);
 

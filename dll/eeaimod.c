@@ -51,6 +51,7 @@ internal void shipturns_new_game(void);   // engine/shiproute.c
 internal void collide_new_game(void);      // engine/collide.c
 internal void groupmove_new_game(void);    // engine/groupmove.c
 internal void build_retry_new_game(void);  // engine/buildretry.c
+internal void units_first_new_game(void);  // engine/unitsfirst.c
 internal void danger_new_game(void);       // game/danger.c
 internal void persist_load(const char *name);
 internal void econ_targets(ee_resource_mgr *rm);
@@ -321,6 +322,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
     collide_new_game();
     groupmove_new_game();
     build_retry_new_game();
+    units_first_new_game();
     danger_new_game();
     landing_new_game();
     navy_new_game();
@@ -402,6 +404,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
 #include "engine/collide.c"
 #include "engine/groupmove.c"
 #include "engine/buildretry.c"
+#include "engine/unitsfirst.c"
 #include "engine/drawlist.c"
 #include "engine/sight.c"
 #include "engine/asg_queue.c"
@@ -614,6 +617,7 @@ internal void install(HMODULE self) {
     collide_install();
     groupmove_install();
     build_retry_install();
+    units_first_install();
     shiproute_install(g_autotest ? g_ini : NULL);
     drawlist_install();
     sight_install();

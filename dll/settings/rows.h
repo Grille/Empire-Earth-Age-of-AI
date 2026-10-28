@@ -52,6 +52,7 @@
     X(FLAG,   general,  transport_split,          1,  0, 0) \
     X(FLAG,   general,  transport_unload_spread,  1,  0, 0) \
     X(FLAG,   general,  build_retry,              1,  0, 0) \
+    X(FLAG,   general,  units_first,              0,  0, 0) \
     X(CHOICE, general,  improved_unit_movement,   "default", "default|enabled|disabled", 0) \
     X(CHILD,  general,  ship_routes,              1,  improved_unit_movement, 0) \
     X(CHILD,  general,  land_routes,              1,  improved_unit_movement, 0) \

@@ -667,6 +667,19 @@ typedef char (__thiscall *target_ok_fn)(ee_target_search *, ee_unit *);
 internal target_ok_fn fn_target_ok;
 internal inline char target_ok(ee_target_search *searcher, ee_unit *u) { return fn_target_ok(searcher, u); }
 internal inline int patch_target_ok(target_ok_fn h, int *of) { return patch_calls(calls_target_ok, 4, (uintptr_t)fn_target_ok, (void *)h, of); }
+// the auto-target search a unit's idle scan runs (0x61AC11, the scripts' CanISeeEnemy): the best enemy around u
+// by the scorer 0x6399CA (its weights per weapon kind at 0x8CFA28: a preferred class at once, then attacking u, in
+// range, slower, shorter range, the to-hit bonus, nearer) within its sight, NULL none - the target an attack
+// goal's constructor takes
+typedef ee_unit *(__cdecl *find_target_fn)(ee_unit *);
+internal find_target_fn fn_find_target;
+internal inline ee_unit *find_target(ee_unit *u) { return fn_find_target(u); }
+// cdecl(unit, its attack goal, the new target): the goal's target changed in place (its vf27 +0x6C, the old one's
+// reference released) and the unit sent to CheckRange (2013) as after a new order - the goals under it (an
+// attack-move) stay
+typedef void (__cdecl *attack_retarget_fn)(ee_unit *, ee_goal *, ee_unit *);
+internal attack_retarget_fn fn_attack_retarget;
+internal inline void attack_retarget(ee_unit *u, ee_goal *goal, ee_unit *target) { fn_attack_retarget(u, goal, target); }
 typedef char (__cdecl *ballistic_game_fn)(ee_unit *, ee_unit_stats *, float *, float *, float *);
 internal ballistic_game_fn fn_ballistic_game;
 internal inline char ballistic_game(ee_unit *p1, ee_unit_stats *p2, float *p3, float *p4, float *p5) { return fn_ballistic_game(p1, p2, p3, p4, p5); }
@@ -869,6 +882,8 @@ internal int spec_unit_select(int build) {
         calls_target_ok[1] = 0x00639F4A;
         calls_target_ok[2] = 0x0063A072;
         calls_target_ok[3] = 0x0063A145;
+        fn_find_target = (find_target_fn)0x0062EBD2;
+        fn_attack_retarget = (attack_retarget_fn)0x0062CD12;
         fn_ballistic_game = (ballistic_game_fn)0x0062CBB3;
         fn_unit_convert = (unit_convert_fn)0x0062F192;
         fn_unit_distance = (unit_distance_fn)0x0062D5A4;
@@ -1048,6 +1063,8 @@ internal int spec_unit_select(int build) {
         calls_target_ok[1] = 0x006505A4;
         calls_target_ok[2] = 0x006506CC;
         calls_target_ok[3] = 0x0065079F;
+        fn_find_target = (find_target_fn)0x00643F78;
+        fn_attack_retarget = (attack_retarget_fn)0x00641BC9;
         fn_ballistic_game = (ballistic_game_fn)0x00641A6A;
         fn_unit_convert = (unit_convert_fn)0x00644E95;
         fn_unit_distance = (unit_distance_fn)0x00642489;
@@ -1118,6 +1135,8 @@ internal int spec_unit_check(void) {
     bad += spec_call(calls_target_ok[1], (uintptr_t)fn_target_ok, "unit_functions.target_ok [call_site target_ok 1]");
     bad += spec_call(calls_target_ok[2], (uintptr_t)fn_target_ok, "unit_functions.target_ok [call_site target_ok 2]");
     bad += spec_call(calls_target_ok[3], (uintptr_t)fn_target_ok, "unit_functions.target_ok [call_site target_ok 3]");
+    bad += spec_code((uintptr_t)fn_find_target, "unit_functions.find_target");
+    bad += spec_code((uintptr_t)fn_attack_retarget, "unit_functions.attack_retarget");
     bad += spec_code((uintptr_t)fn_ballistic_game, "unit_functions.ballistic_game");
     bad += spec_code((uintptr_t)fn_unit_convert, "unit_functions.unit_convert");
     bad += spec_code((uintptr_t)fn_unit_distance, "unit_functions.unit_distance");
