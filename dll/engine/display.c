@@ -822,14 +822,40 @@ internal RECT normal_window_rect(HWND h, int cw, int ch) {
     return (RECT){ x, y, x + w, y + hh };
 }
 
+// The window keeps its size (the player: in a window it jumped between the loading screens' and menus' 1024x768 and
+// the game's resolution): its client starts at the game resolution of the game's settings (Game Window Width / Height
+// - the in-game one, not the menus'), fitted to the screen; the game's later resizes (hook_set_window_pos) leave it,
+// the game learns its new resolution all the same and picture and mouse are scaled into the client (view_rect); the
+// player's own resizing (frame, maximize) is kept, coming back from borderless returns to it. Headless test windows
+// keep the game's sizes (shots at its resolution).
+internal int g_win_cw, g_win_ch;   // the client kept (0: not yet)
+internal void game_resolution(int *w, int *h) {   // the settings' (eesettings.ini, else the registry), else the window's
+    char file[MAX_PATH];
+    *w = *h = 0;
+    if (GetEnvironmentVariableA("EEAIMOD_SETTINGS_FILE", file, sizeof file)) {
+        *w = (int)GetPrivateProfileIntA("HKCU\\Software\\SSSI\\Empire Earth", "Game Window Width", 0, file);
+        *h = (int)GetPrivateProfileIntA("HKCU\\Software\\SSSI\\Empire Earth", "Game Window Height", 0, file);
+    } else {
+        DWORD v, n = sizeof v;
+        if (!RegGetValueA(HKEY_CURRENT_USER, "Software\\SSSI\\Empire Earth", "Game Window Width", RRF_RT_REG_DWORD, NULL, &v, &n)) *w = (int)v;
+        n = sizeof v;
+        if (!RegGetValueA(HKEY_CURRENT_USER, "Software\\SSSI\\Empire Earth", "Game Window Height", RRF_RT_REG_DWORD, NULL, &v, &n)) *h = (int)v;
+    }
+    if (*w < 320 || *h < 240) {
+        ee_window *win = game_window();
+        *w = win ? window_get_width(win) : 1024;
+        *h = win ? window_get_height(win) : 768;
+    }
+}
 internal RECT window_rect_for(HWND h) {
     if (g_borderless) {
         MONITORINFO mi = { .cbSize = sizeof mi };
         GetMonitorInfoA(MonitorFromWindow(h, MONITOR_DEFAULTTONEAREST), &mi);
         return mi.rcMonitor;
     }
-    ee_window *win = game_window();
-    return normal_window_rect(h, win ? window_get_width(win) : 1024, win ? window_get_height(win) : 768);
+    int w = g_win_cw, hh = g_win_ch;
+    if (!w || !hh) game_resolution(&w, &hh);
+    return normal_window_rect(h, w, hh);
 }
 
 internal void apply_window_mode(HWND h) {
@@ -895,6 +921,13 @@ internal LRESULT CALLBACK window_proc(HWND h, UINT msg, WPARAM w, LPARAM l) {
     case WM_ACTIVATEAPP:
         if (!w) ClipCursor(NULL);
         break;
+    case WM_SIZE:   // the window's own size from now on (window_rect_for): its first and the player's own
+        if (w == SIZE_RESTORED && !g_borderless && !g_headless && LOWORD(l) >= 160 && HIWORD(l) >= 120 &&
+            !(GetWindowLongA(h, GWL_STYLE) & WS_POPUP)) {
+            g_win_cw = LOWORD(l);
+            g_win_ch = HIWORD(l);
+        }
+        break;
     }
     return CallWindowProcA(g_game_wndproc, h, msg, w, l);
 }
@@ -955,8 +988,10 @@ internal void window_hook(HWND hwnd) {   // subclass once per window (present an
 internal BOOL WINAPI hook_set_window_pos(HWND h, HWND after, int x, int y, int cx, int cy, UINT flags) {
     if ((flags & SWP_NOSIZE) || (GetWindowLongA(h, GWL_STYLE) & WS_POPUP) || IsIconic(h) || IsZoomed(h))
         return SetWindowPos(h, after, x, y, cx, cy, flags);
+    if (!g_headless && g_win_cw) return SetWindowPos(h, after, x, y, cx, cy, flags | SWP_NOSIZE | SWP_NOMOVE);   // kept
     RECT f96 = frame_for_dpi(96);   // the game's AdjustWindowRect ran on an unaware thread: 96 DPI frame
     int cw = cx - (f96.right - f96.left), ch = cy - (f96.bottom - f96.top);
+    if (!g_headless) game_resolution(&cw, &ch);   // the first size: the game's resolution, not the menus'
     void *prev = dpi_enter(h);
     RECT r = normal_window_rect(h, cw, ch);
     if (g_headless) flags |= SWP_NOMOVE | SWP_NOACTIVATE | SWP_NOZORDER;   // fitted size, but stays off-screen
