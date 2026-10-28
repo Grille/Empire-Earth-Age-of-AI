@@ -126,6 +126,21 @@ internal void mine_fill(ee_resource_mgr *rm) {
         target[r] += (uint32_t)g; m->add[r] += g; taken -= g;
     }
 }
+// pl's build manager when a Settlement can be queued now: none queued (queued: those count too), none going up, it
+// can build and pay for one; *stuck (may be NULL) the one going up that stops it
+internal ee_build_mgr *settle_free(ee_player *pl, int queued, ee_unit **stuck) {
+    ee_civ_mgr *cm = player_get_civ_mgr(pl);
+    ee_build_mgr *bm = cm ? civ_mgr_get_build_mgr(cm) : NULL;
+    void *um = cm ? civ_mgr_get_unit_mgr(cm) : NULL;
+    if (!bm || !um || !ut_has(UT(B_SETTLEMENT)) || (queued && (bq_has(bm, UT(B_SETTLEMENT)) || bq_has(bm, UT(X_SINGLE_PLAYER_SETTLEMENT))))) return NULL;
+    uint8_t *q = type_list(um, UT(B_SETTLEMENT));   // one being built: wait for it
+    for (unsigned k = 0, f = q ? deque_front(q) : 0, n = q ? deque_count(q) : 0; k < n; k++) {
+        ee_unit *b = deque_at(q, f + k), *st = b ? unit_get_physics(b) : NULL;
+        if (b && unit_get_hp(b) > 0 && (!st || !unit_get_finished(st))) { if (stuck) *stuck = b; return NULL; }
+    }
+    return can_build(pl, UT(B_SETTLEMENT)) ? bm : NULL;   // can't build or pay now: NULL
+}
+
 // DROP: every 2 minutes (econ_tick)
 internal void mine_drops(ee_player *pl, unsigned idx, uint32_t now) {
     struct mf_st *m = &g_mf[idx];
@@ -134,16 +149,8 @@ internal void mine_drops(ee_player *pl, unsigned idx, uint32_t now) {
     m->drop_t = now ? now : 1;
     mf_scan(pl, idx, now);
     if (!m->far_r) return;
-    ee_civ_mgr *cm = player_get_civ_mgr(pl);
-    ee_build_mgr *bm = cm ? civ_mgr_get_build_mgr(cm) : NULL;
-    void *um = cm ? civ_mgr_get_unit_mgr(cm) : NULL;
-    if (!bm || !um || !ut_has(UT(B_SETTLEMENT)) || bq_has(bm, UT(B_SETTLEMENT)) || bq_has(bm, UT(X_SINGLE_PLAYER_SETTLEMENT))) return;
-    uint8_t *q = type_list(um, UT(B_SETTLEMENT));   // one being built: wait for it
-    for (unsigned k = 0, f = q ? deque_front(q) : 0, n = q ? deque_count(q) : 0; k < n; k++) {
-        ee_unit *b = deque_at(q, f + k), *st = b ? unit_get_physics(b) : NULL;
-        if (b && unit_get_hp(b) > 0 && (!st || !unit_get_finished(st))) return;
-    }
-    if (!can_build(pl, UT(B_SETTLEMENT))) return;   // can't build or pay now
+    ee_build_mgr *bm = settle_free(pl, 1, NULL);
+    if (!bm) return;
     int e = current_epoch(pl);
     if (e < 0 || e >= 14) return;
     for (int r = 3; r <= 6; r++)
@@ -164,6 +171,95 @@ internal void mine_drops(ee_player *pl, unsigned idx, uint32_t now) {
                 return;
             }
 }
+
+// WOOD DROP ([ai_base] wood_drop, default on - the player's call, not measured): nothing in the game or the mod put a
+// drop site by the forest its woodcutters work. The player's game (2026-10-28, minute 700): P7's 135 woodcutters cut a
+// forest 54 tiles from its nearest drop site, 1.1 wood per worker-minute against 5-9 for the other resources. Every
+// minute, while no Settlement is going up and the AI can pay for one: the woodcutters whose tree lies 15+ tiles from a
+// drop site, the tree with most of them within 8 tiles; 8 or more there - a Settlement laid at the placeable spot
+// nearest the middle of their trees (2-12 tiles, the forest's edge), no enemy building or soldiers near. Such a forest
+// found and the Settlement not paid: its cost held back from training for 2 minutes (wood_reserve) - P7's wood was
+// spent as it came (65 in stock at minute 700). On a copy of that game P7 laid one at 701.4: the woodcutters' walk
+// 53 -> 6-9 tiles, 0.3-2 -> 4-9 wood per worker-minute.
+internal int g_wood_drop = 1;
+internal uint32_t g_wd_want[16];   // a forest waits for its Settlement: since
+internal void wood_reserve(ee_player *pl, int reserve[7]) {
+    unsigned idx = (unsigned)player_get_index(pl) & 15;
+    uint32_t now = game_time();
+    if (!g_wd_want[idx] || now < g_wd_want[idx] || now - g_wd_want[idx] > 120000) return;
+    for (int r = 2; r < 7; r++) reserve[r] += unit_cost(pl, UT(B_SETTLEMENT), r);
+}
+internal void wood_drops(ee_player *pl, unsigned idx, uint32_t now) {
+    static uint32_t last[16];
+    if (!g_wood_drop || (last[idx] && now >= last[idx] && now - last[idx] < 60000)) return;
+    last[idx] = now ? now : 1;
+    ee_civ_mgr *cm = player_get_civ_mgr(pl);
+    ee_resource_mgr *rm = cm ? civ_mgr_get_resource_mgr(cm) : NULL;
+    if (!rm) return;
+    drops_cached(pl);
+    if (!g_drops[idx].n) return;
+    static ivec2 fs[1024];
+    int nf = 0;
+    uint8_t *dq = resource_mgr_list_at(rm, 3);
+    for (unsigned k = 0, f = deque_front(dq), n = deque_count(dq); k < n && nf < 1024; k++) {
+        ee_unit *u = deque_at(dq, f + k); ee_goal *goal = u ? unit_get_goal(u) : NULL;
+        ee_unit *site = goal && !strcmp(rtti_name(goal), "EEUGGather@@") ? goal_get_site(goal) : NULL;
+        if (!site) continue;
+        ivec2 p = unit_get_tile(site);
+        if (drop_nearest(idx, p, 0, NULL) >= 15 * 15) fs[nf++] = p;
+    }
+    int best = -1, bn = 0;
+    for (int i = 0; i < nf; i++) {
+        int c = 0;
+        for (int j = 0; j < nf; j++) c += ivec2_dist2(fs[i], fs[j]) <= 8 * 8;
+        if (c > bn) { bn = c; best = i; }
+    }
+    g_wd_want[idx] = 0;
+    if (bn < 8) return;
+    int sx = 0, sy = 0;
+    for (int j = 0; j < nf; j++) if (ivec2_dist2(fs[best], fs[j]) <= 8 * 8) { sx += fs[j].x; sy += fs[j].y; }
+    ivec2 mid = iv2(sx / bn, sy / bn);
+    ee_civ_mgr *cm2 = player_get_civ_mgr(pl);
+    ee_build_mgr *any = cm2 ? civ_mgr_get_build_mgr(cm2) : NULL;
+    int e = current_epoch(pl);
+    if (!any || e < 0 || e >= 14) return;
+    static uint32_t told[16];   // why not: every 5 minutes
+    const char *why = NULL;
+    ee_build_mgr *bm = NULL;
+    ee_unit *stuck = NULL;
+    if (build_mgr_enemy_near(any, mid.x, mid.y)) why = "an enemy near";
+    else if (!(bm = settle_free(pl, 0, &stuck))) {   // the queue's own Settlements don't count: P7's held the pile's 60 entries
+        why = stuck ? "a Settlement going up" : "can't build one";
+        if (ut_has(UT(B_SETTLEMENT)) && !can_build(pl, UT(B_SETTLEMENT))) { g_wd_want[idx] = now ? now : 1; why = "can't pay - held back"; }   // the wood held back from now on
+    }
+    if (why && g_log && (!told[idx] || now < told[idx] || now - told[idx] >= 300000)) {
+        told[idx] = now ? now : 1;
+        EnterCriticalSection(&g_lock);
+        fprintf(g_log, "# wood: P%u at %.1f min: %d woodcutters 15+ tiles from a drop site, %d of them at the trees by %d,%d - waits: %s\n",
+                idx, now / 60000.0, nf, bn, mid.x, mid.y, why);
+        if (stuck) fprintf(g_log, "# wood: P%u: the Settlement going up at %d,%d (hp %d)\n", idx, unit_get_x(stuck), unit_get_y(stuck), unit_get_hp(stuck));
+        LeaveCriticalSection(&g_lock);
+    }
+    if (why) return;
+    for (int r = 2; r <= 12; r++)
+        for (int ax = -r; ax <= r; ax++)
+            for (int ay = -r; ay <= r; ay++) {
+                if (abs(ax) != r && abs(ay) != r) continue;
+                ivec2 p = iv2(mid.x + ax, mid.y + ay);
+                if (!can_place(pl, UT(B_SETTLEMENT), p) || raiders_near(pl, p, 12)) continue;
+                // laid at once by the build manager's placement (a builder, the foundation): an entry on its queue
+                // vanished within seconds for P6 (epoch 11) without ever reaching the placement
+                char ok = hook_place(bm, UT(B_SETTLEMENT), p.x, p.y);
+                if (g_log) {
+                    EnterCriticalSection(&g_lock);
+                    fprintf(g_log, "# wood: P%u at %.1f min: %d woodcutters 15+ tiles from a drop site, %d of them at the trees by %d,%d (the "
+                            "nearest drop site %d tiles) - a Settlement %s at %d,%d\n", idx, now / 60000.0, nf, bn, mid.x, mid.y,
+                            (int)sqrtf((float)drop_nearest(idx, mid, 0, NULL)), ok ? "laid" : "not placed", p.x, p.y);
+                    LeaveCriticalSection(&g_lock);
+                }
+                return;
+            }
+}
 internal void mines_log(ee_player *pl, unsigned idx, uint32_t now) {
     static uint32_t last[16];
     if (!g_log || !g_autotest || (!g_mine_fill && g_v_mine_fill < 0)) return;
@@ -179,5 +275,6 @@ internal void mines_log(ee_player *pl, unsigned idx, uint32_t now) {
 }
 internal void mines_install(const char *autotest_ini) {
     g_mine_fill = g_set_ai[1].mine_fill;
+    g_wood_drop = g_set_ai[1].wood_drop;
     if (autotest_ini) g_v_mine_fill = ini_int("autotest", "v_mine_fill", -1, autotest_ini);
 }

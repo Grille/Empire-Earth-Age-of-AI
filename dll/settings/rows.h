@@ -200,6 +200,7 @@
     D(NUM,   food_plan,                    3, 0, 0) \
     D(NUM,   food_hunt_range,              15, 0, 0) \
     D(NUM,   mine_fill,                    0, 0, 0) \
+    D(FLAG,  wood_drop,                    1, 0, 0) \
     D(NUM,   citizen_plan,                 3, 0, 0) \
     D(SHARE, citizen_army_share,           40, 0, 90) \
     D(NUM,   workforce_plan,               0, 0, 0) \

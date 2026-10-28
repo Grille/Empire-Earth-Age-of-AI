@@ -50,6 +50,7 @@ internal void food_plan_needs(ee_player *pl, ee_resource_mgr *rm, int *need, con
 internal void food_log(ee_player *pl, unsigned idx, uint32_t now);
 internal int food_fields_wait(ee_player *pl, ee_resource_mgr *rm);
 internal void mine_drops(ee_player *pl, unsigned idx, uint32_t now);   // mines.c
+internal void wood_drops(ee_player *pl, unsigned idx, uint32_t now);   // mines.c
 internal void mines_log(ee_player *pl, unsigned idx, uint32_t now);
 internal int g_mine_fill, g_v_mine_fill;
 internal int g_cit_plan, g_v_cit_plan;   // citizens.c: citizen_plan
@@ -152,6 +153,25 @@ internal char __thiscall hook_place(ee_build_mgr *bm, int type, int x, int y) {
     // (not a wall: its pieces' spots are its line): the player's save "standing crash" (2026-10-28) - P7's Settlement
     // foundations at 337,227 blocked each other, each round removed one and laid it again on the same tile, 249 stood
     // there unbuilt, and every builder sent there walked to the base (the round's last order, citizens_home).
+    // A drop site is wanted where it was queued, never at the game's search's spot: the 250 foundations citizens_home
+    // removed from that pile came back as re-queued entries (the planner), and each one placed by the search stood
+    // somewhere near the base - 80 Settlements in 100 minutes, 8 of them within 10 tiles of each other, P7's wood
+    // spent on them while its woodcutters walked 54 tiles. With one of its drop sites (standing or going up) within 10
+    // tiles of the spot the entry is done; else the free spot nearest to it within 6 tiles, none: done too.
+    if ((x || y) && UT_IN(place_as, UT_TOWNS, UT_X_SINGLE_PLAYER_SETTLEMENT) && !can_place(owner, place_as, iv2(x, y))) {
+        unsigned pi = (unsigned)player_get_index(owner) & 15;
+        int nx = 0, ny = 0;
+        drops_cached(owner);
+        if (drop_nearest(pi, iv2(x, y), 0, NULL) > 10 * 10)
+            for (int r = 1; r <= 6 && !nx && !ny; r++)
+                for (int ax = -r; ax <= r && !nx && !ny; ax++)
+                    for (int ay = -r; ay <= r; ay++)
+                        if ((abs(ax) == r || abs(ay) == r) && can_place(owner, place_as, iv2(x + ax, y + ay))) { nx = x + ax; ny = y + ay; break; }
+        if (g_log) fprintf(g_log, "# place: P%u at %.1f min: drop site %d at %d,%d no longer fits - %s %d,%d\n", pi, game_time() / 60000.0,
+                           place_as, x, y, nx || ny ? "laid at" : "given up, a drop site near or no room by", nx || ny ? nx : x, nx || ny ? ny : y);
+        if (!nx && !ny) return 1;   // reported as placed: the entry leaves the queue
+        x = nx; y = ny;
+    }
     if ((x || y) && !is_wall(place_as) && !can_place(owner, place_as, iv2(x, y))) {
         if (g_log) fprintf(g_log, "# place: P%d at %.1f min: %s %d at %d,%d no longer fits - another spot\n",
                            player_get_index(owner) & 15, game_time() / 60000.0, is_tower_type(type) ? "tower" : "building", place_as, x, y);
@@ -963,6 +983,7 @@ internal void econ_tick(ee_player *pl, uint32_t now) {
     early_tick(pl, ai, now);   // early.c: towers, the bait, the first army
     food_log(pl, ai, now);   // food.c
     mine_drops(pl, ai, now);   // mines.c
+    wood_drops(pl, ai, now);
     mines_log(pl, ai, now);
     early_requirements(pl, ai, now, copper_mode(pl) && ep < FARM_EPOCH);
     ee_civ_mgr *cm = player_get_civ_mgr(pl);
@@ -1898,6 +1919,7 @@ internal int g_landing_order;   // set by the landing around its transport order
 internal int g_expand_order;    // expand.c EARLY: the outpost's transport before every reserve (250 wood; the reserves held it 6 minutes)
 internal void landing_reserve(ee_player *pl, int reserve[7]);   // landing.c
 internal void expand_reserve(ee_player *pl, int reserve[7]);    // expand.c
+internal void wood_reserve(ee_player *pl, int reserve[7]);      // mines.c
 internal int landing_room_reserve(ee_player *pl);   // landing.c: population room held for a bombardment's fleet
 // ROOM: the game's own callers ask the unit manager for room first (cap - in production - population, the start check
 // of the buildings 0x624DF8 the same); the mod's own orders (AA units, siege, home guard, transports) didn't. At the cap
@@ -1962,6 +1984,7 @@ internal void train_budget(ee_player *pl, unsigned idx, const struct ai_cfg *cfg
     landing_reserve(pl, reserve);   // transports a landing waits for
     expand_reserve(pl, reserve);    // an outpost's drop site and tower (expand.c)
     bunker_reserve(pl, reserve);    // a fortress's wood (bunker.c)
+    wood_reserve(pl, reserve);      // a far forest's Settlement (mines.c)
     if (military) upgrade_reserve(pl, reserve);   // pending line upgrades (upgrade_reserve)
     if (!ship && !req_unit && !g_priority_mil && !g_landing_order) navy_hold(pl, idx, reserve);   // the navy account: only warships spend it (navy.c)
     if (!g_bud[idx].init) {
