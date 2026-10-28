@@ -46,7 +46,7 @@ internal struct stage {
 } g_stg[16];
 internal struct st_side g_sgs_own, g_sgs_foe;
 internal void wave_focus_new_game(void);
-// THE ATTACK COMMITS ([ai_base] attack_commit, default 0 - not measured; [autotest] v_attack_commit; the player
+// THE ATTACK COMMITS ([ai_base] attack_commit, default on - measured below; [autotest] v_attack_commit; the player
 // 2026-10-28 watching P6's tanks at their town: "an attack has to actually commit, the units come closer one by one,
 // looking very hesitant - with all these tanks P6 could overrun the spot easily if it could control its units"). Three
 // things made it so: the push was a forced move (goal_move: the members drove to the front without firing on the way),
@@ -54,9 +54,12 @@ internal void wave_focus_new_game(void);
 // in, every member was its own - falling back (cover.c), held at a rally (mass.c), no target beyond its range in a lost
 // fight. With it: no march into danger passes the stage by itself - the whole wave gathers there and goes with the
 // push, the push is an attack-move, and its members are committed for SG_COMMIT: none of those hold them back.
+// Measured on copies of the player's saves (exact runs), P6 killed / lost: stage_fill 638-672 min 177 / 209 -> 224 /
+// 133 (with counter_fire 300 / 176 -> 328 / 141), setup3 674-700 min 60 / 107 -> 216 / 135 (with counter_fire
+// 292 / 83 -> 292 / 76). On (the player 2026-10-28, playing it in that game: "much better").
 #define SG_COMMIT 150000
 #define SG_NCOMMIT 1024
-internal int g_attack_commit = 0, g_v_attack_commit = -1;
+internal int g_attack_commit = 1, g_v_attack_commit = -1;
 #define ATTACK_COMMIT(idx) PV(idx, g_v_attack_commit, g_attack_commit)
 internal struct { ee_unit *u[SG_NCOMMIT]; int id[SG_NCOMMIT]; int n; uint32_t until; } g_stc[16];   // sorted by address
 internal int stc_cmp(const void *a, const void *b) {

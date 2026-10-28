@@ -223,7 +223,7 @@
     D(NUM,   army_mass_tether,             12, 0, 0) \
     D(FLAG,  army_stage,                   1, 0, 0) \
     D(PCT,   army_stage_go,                130, 1000, 0) \
-    D(FLAG,  attack_commit,                0, 0, 0) \
+    D(FLAG,  attack_commit,                1, 0, 0) \
     D(FLAG,  wave_focus,                   0, 0, 0) \
     D(NUM,   fall_back,                    7, 0, 0) \
     D(PCT,   fall_back_ratio,              50, 1000, 0) \
