@@ -595,22 +595,64 @@ internal HRESULT __stdcall rd_dev_enum_tex(rd_device *d, HRESULT (CALLBACK *cb)(
     }
     return D3D_OK;
 }
+// THE WORLD'S LOCK (Low-Level Engine's TSReadWriteLock, wrapped through the exe's import slots): the picture reads the
+// game's objects under a read lock, the simulation thread writes them under the write lock for its steps (and the AI's
+// work in them) - while it holds it, the frame waits. Measured for the minute's line: the render thread's (the one
+// ending the scenes) time in ReadLock, and how long the lock it waited on was held for writing.
+typedef void (__thiscall *rd_rwl_fn)(void *lock);
+internal rd_rwl_fn g_rwl_read, g_rwl_write, g_rwl_wunlock;
+internal DWORD g_rd_thread;
+internal void *g_rwl_world;   // the lock the render thread waited on
+internal LONGLONG g_rwl_wait_qpc, g_rwl_held_qpc, g_rwl_write_at;
+internal void __thiscall rd_hook_read_lock(void *lock) {
+    if (GetCurrentThreadId() != g_rd_thread) { g_rwl_read(lock); return; }
+    LONGLONG t0 = rd_qpc();
+    g_rwl_read(lock);
+    LONGLONG w = rd_qpc() - t0;
+    g_rwl_wait_qpc += w;
+    if (w > 0 && !g_rwl_world) g_rwl_world = lock;
+}
+internal void __thiscall rd_hook_write_lock(void *lock) {
+    g_rwl_write(lock);
+    if (lock == g_rwl_world) g_rwl_write_at = rd_qpc();
+}
+internal void __thiscall rd_hook_write_unlock(void *lock) {
+    if (lock == g_rwl_world && g_rwl_write_at) { g_rwl_held_qpc += rd_qpc() - g_rwl_write_at; g_rwl_write_at = 0; }
+    g_rwl_wunlock(lock);
+}
+internal int rd_world_lock_install(void) {
+    HMODULE lle = GetModuleHandleA("Low-Level Engine.dll"), exe = GetModuleHandleA(NULL);
+    if (!lle) return 0;
+    g_rwl_read = (rd_rwl_fn)(void *)GetProcAddress(lle, "?ReadLock@TSReadWriteLock@@QAEXXZ");
+    g_rwl_write = (rd_rwl_fn)(void *)GetProcAddress(lle, "?WriteLock@TSReadWriteLock@@QAEXXZ");
+    g_rwl_wunlock = (rd_rwl_fn)(void *)GetProcAddress(lle, "?WriteUnlock@TSReadWriteLock@@QAEXXZ");
+    if (!g_rwl_read || !g_rwl_write || !g_rwl_wunlock) return 0;
+    return patch_iat(exe, "Low-Level Engine.dll", "?ReadLock@TSReadWriteLock@@QAEXXZ", (void *)rd_hook_read_lock) +
+           patch_iat(exe, "Low-Level Engine.dll", "?WriteLock@TSReadWriteLock@@QAEXXZ", (void *)rd_hook_write_lock) +
+           patch_iat(exe, "Low-Level Engine.dll", "?WriteUnlock@TSReadWriteLock@@QAEXXZ", (void *)rd_hook_write_unlock);
+}
+
 internal void rd_frame_tick(void) {
+    g_rd_thread = GetCurrentThreadId();
     InterlockedIncrement(&g_rd_frames);
     DWORD now = GetTickCount();
     if (now - g_rd_minute_tick < 60000) return;
     static LONG frames0, draws0, batches0;
-    static LONGLONG present0;
+    static LONGLONG present0, wait0, held0;
+    static DWORD tick0;
     LARGE_INTEGER f;
     QueryPerformanceFrequency(&f);
     LONG fr = g_rd_frames - frames0, dr = g_rd_draws - draws0, ba = g_rb.batches - batches0;
-    double k = fr > 0 ? 1000.0 / (double)f.QuadPart / fr : 0;
-    log_locked("# render: frames %ld, draws %ld (the last minute a frame: %ld draws in %ld batches, %.2f ms in them, %.2f ms in Present;"
-               " %ld frames)\n", (long)g_rd_frames, (long)g_rd_draws, fr > 0 ? (long)(dr / fr) : 0L, fr > 0 ? (long)(ba / fr) : 0L,
-               (double)(g_rd_draw_qpc - g_rd_draw_qpc_told) * k, (double)(g_d3d_present_qpc - present0) * k, (long)fr);
-    g_rd_minute_tick = now;
+    double k = fr > 0 ? 1000.0 / (double)f.QuadPart / fr : 0, secs = tick0 ? (double)(now - tick0) / 1000.0 : 0;
+    log_locked("# render: frames %ld, draws %ld (the last minute a frame: %ld draws in %ld batches, %.2f ms in them, %.2f ms in Present,"
+               " %.2f ms waiting for the simulation's lock; it held it %.0f ms a second; %ld frames)\n", (long)g_rd_frames,
+               (long)g_rd_draws, fr > 0 ? (long)(dr / fr) : 0L, fr > 0 ? (long)(ba / fr) : 0L,
+               (double)(g_rd_draw_qpc - g_rd_draw_qpc_told) * k, (double)(g_d3d_present_qpc - present0) * k,
+               (double)(g_rwl_wait_qpc - wait0) * k,
+               secs > 0 ? (double)(g_rwl_held_qpc - held0) * 1000.0 / (double)f.QuadPart / secs : 0, (long)fr);
+    g_rd_minute_tick = tick0 = now;
     frames0 = g_rd_frames; draws0 = g_rd_draws; batches0 = g_rb.batches;
-    g_rd_draw_qpc_told = g_rd_draw_qpc; present0 = g_d3d_present_qpc;
+    g_rd_draw_qpc_told = g_rd_draw_qpc; present0 = g_d3d_present_qpc; wait0 = g_rwl_wait_qpc; held0 = g_rwl_held_qpc;
 }
 internal HRESULT __stdcall rd_dev_begin(rd_device *d) { d->in_scene = 1; return D3D_OK; }
 internal HRESULT __stdcall rd_dev_end(rd_device *d) {

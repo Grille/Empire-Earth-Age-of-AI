@@ -887,6 +887,7 @@ internal void render_install(const char *autotest_ini) {
     char layers[128];   // [display] overlay: the layers of the AI's plans drawn on the map (a FLAGS row, as its text)
     setting_text(&k_settings[SETTING_display_overlay], (const uint8_t *)&g_set.display_overlay, layers, sizeof layers);
     overlay_show(layers);
-    if (g_log) fprintf(g_log, "# render: own renderer on (Direct3D 11) - the display DLLs' DirectDraw at their load%s\n",
-                       g_rd_trace > 0 ? ", calls traced" : "");
+    int locks = rd_world_lock_install();   // the minute line's wait for the simulation
+    if (g_log) fprintf(g_log, "# render: own renderer on (Direct3D 11) - the display DLLs' DirectDraw at their load%s; world lock hooks %d/3\n",
+                       g_rd_trace > 0 ? ", calls traced" : "", locks);
 }
