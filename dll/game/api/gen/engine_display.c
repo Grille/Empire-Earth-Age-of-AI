@@ -22,12 +22,191 @@ internal inline void input_mouse_set_device(ee_input_mouse *o, void **v) { *(voi
 internal inline void ***input_mouse_device_at(const ee_input_mouse *o) { return (void ***)((uint8_t *)o + of_input_mouse_device); }
 
 // class DX7Rasterizer (ee_rasterizer)
+// DX7HRTnLDisplay.dll's (DX7HRDisplay.dll's without T&L) implementation of Low-Level Engine's GERasterizer: everything
+// the game draws goes through it (game.rasterizer). Its 82 virtual functions are exported by name in both builds, in
+// the same slots (scripts/re/dll_vtable.py) - those of a frame below, the exported name in each one's comment
 internal inline ee_screen_state **rasterizer_get_screen_states(const ee_rasterizer *o) { return *(ee_screen_state ***)((uint8_t *)o + of_rasterizer_screen_states); }
 internal inline void rasterizer_set_screen_states(ee_rasterizer *o, ee_screen_state **v) { *(ee_screen_state ***)((uint8_t *)o + of_rasterizer_screen_states) = v; }
 internal inline ee_screen_state ***rasterizer_screen_states_at(const ee_rasterizer *o) { return (ee_screen_state ***)((uint8_t *)o + of_rasterizer_screen_states); }
 internal inline ee_draw_state **rasterizer_get_dstates(const ee_rasterizer *o) { return *(ee_draw_state ***)((uint8_t *)o + of_rasterizer_dstates); }
 internal inline void rasterizer_set_dstates(ee_rasterizer *o, ee_draw_state **v) { *(ee_draw_state ***)((uint8_t *)o + of_rasterizer_dstates) = v; }
 internal inline ee_draw_state ***rasterizer_dstates_at(const ee_rasterizer *o) { return (ee_draw_state ***)((uint8_t *)o + of_rasterizer_dstates); }
+// BeginScene(GESurface *, K): the frame's start, into the screen's back surface (RTSGraphics.frame); 0 = drawn
+typedef int (__thiscall *rasterizer_begin_scene_fn)(ee_rasterizer *, ee_surface *, uint32_t);
+internal inline int rasterizer_begin_scene(ee_rasterizer *rasterizer, ee_surface *target, uint32_t screen) { return ((rasterizer_begin_scene_fn)(*(void ***)rasterizer)[slot_rasterizer_begin_scene])(rasterizer, target, screen); }
+// Clear(GEColor const &, GERectangle const &, K)
+typedef int (__thiscall *rasterizer_clear_fn)(ee_rasterizer *, void *, void *, uint32_t);
+internal inline int rasterizer_clear(ee_rasterizer *rasterizer, void *color, void *rect, uint32_t screen) { return ((rasterizer_clear_fn)(*(void ***)rasterizer)[slot_rasterizer_clear])(rasterizer, color, rect, screen); }
+// ClearZBuffer(M, GERectangle const &, K): the depth buffer in rect to depth (the render objects' clear slot)
+typedef int (__thiscall *rasterizer_clear_z_fn)(ee_rasterizer *, float, void *, uint32_t);
+internal inline int rasterizer_clear_z(ee_rasterizer *rasterizer, float depth, void *rect, uint32_t screen) { return ((rasterizer_clear_z_fn)(*(void ***)rasterizer)[slot_rasterizer_clear_z])(rasterizer, depth, rect, screen); }
+// Draw(GEPolygonArray &, K, GEVertexArray &, K, GETexture *, K, bool): one array of polygons, the units' and the
+// effects' (DrawModelHierarchy's for each of a model's parts)
+typedef int (__thiscall *rasterizer_draw_polygons_fn)(ee_rasterizer *, void *, uint32_t, void *, uint32_t, void *, uint32_t, int8_t);
+internal inline int rasterizer_draw_polygons(ee_rasterizer *rasterizer, void *polygons, uint32_t p2, void *vertices, uint32_t p4, void *texture, uint32_t screen, int8_t p7) { return ((rasterizer_draw_polygons_fn)(*(void ***)rasterizer)[slot_rasterizer_draw_polygons])(rasterizer, polygons, p2, vertices, p4, texture, screen, p7); }
+// Draw(GETerrainMesh &, K, bool): the map's ground
+typedef int (__thiscall *rasterizer_draw_terrain_fn)(ee_rasterizer *, void *, uint32_t, int8_t);
+internal inline int rasterizer_draw_terrain(ee_rasterizer *rasterizer, void *mesh, uint32_t screen, int8_t p3) { return ((rasterizer_draw_terrain_fn)(*(void ***)rasterizer)[slot_rasterizer_draw_terrain])(rasterizer, mesh, screen, p3); }
+// Draw(GEModel *, K, M, bool): a model with its children (DrawModelHierarchy)
+typedef int (__thiscall *rasterizer_draw_model_fn)(ee_rasterizer *, void *, uint32_t, float, int8_t);
+internal inline int rasterizer_draw_model(ee_rasterizer *rasterizer, void *model, uint32_t screen, float p3, int8_t p4) { return ((rasterizer_draw_model_fn)(*(void ***)rasterizer)[slot_rasterizer_draw_model])(rasterizer, model, screen, p3, p4); }
+// DrawSky(GEModel *, K, M, bool)
+typedef int (__thiscall *rasterizer_draw_sky_fn)(ee_rasterizer *, void *, uint32_t, float, int8_t);
+internal inline int rasterizer_draw_sky(ee_rasterizer *rasterizer, void *model, uint32_t screen, float p3, int8_t p4) { return ((rasterizer_draw_sky_fn)(*(void ***)rasterizer)[slot_rasterizer_draw_sky])(rasterizer, model, screen, p3, p4); }
+// DrawWater(GETerrainMesh &, K, bool)
+typedef int (__thiscall *rasterizer_draw_water_fn)(ee_rasterizer *, void *, uint32_t, int8_t);
+internal inline int rasterizer_draw_water(ee_rasterizer *rasterizer, void *mesh, uint32_t screen, int8_t p3) { return ((rasterizer_draw_water_fn)(*(void ***)rasterizer)[slot_rasterizer_draw_water])(rasterizer, mesh, screen, p3); }
+// EndScene(K)
+typedef int (__thiscall *rasterizer_end_scene_fn)(ee_rasterizer *, uint32_t);
+internal inline int rasterizer_end_scene(ee_rasterizer *rasterizer, uint32_t screen) { return ((rasterizer_end_scene_fn)(*(void ***)rasterizer)[slot_rasterizer_end_scene])(rasterizer, screen); }
+// SetAlphaTestingRefValue(M, K): RTSGraphics.draw_objects sets 0 before the render objects draw
+typedef void (__thiscall *rasterizer_set_alpha_ref_fn)(ee_rasterizer *, float, uint32_t);
+internal inline void rasterizer_set_alpha_ref(ee_rasterizer *rasterizer, float value, uint32_t screen) { ((rasterizer_set_alpha_ref_fn)(*(void ***)rasterizer)[slot_rasterizer_set_alpha_ref])(rasterizer, value, screen); }
+// SetViewport(GEViewport const &, K): the camera the next draws use
+typedef void (__thiscall *rasterizer_set_viewport_fn)(ee_rasterizer *, void *, uint32_t);
+internal inline void rasterizer_set_viewport(ee_rasterizer *rasterizer, void *viewport, uint32_t screen) { ((rasterizer_set_viewport_fn)(*(void ***)rasterizer)[slot_rasterizer_set_viewport])(rasterizer, viewport, screen); }
+// ShowScene(K): the back surface onto the screen (the mod's windowed present hooks its exported function)
+typedef int (__thiscall *rasterizer_show_scene_fn)(ee_rasterizer *, uint32_t);
+internal inline int rasterizer_show_scene(ee_rasterizer *rasterizer, uint32_t screen) { return ((rasterizer_show_scene_fn)(*(void ***)rasterizer)[slot_rasterizer_show_scene])(rasterizer, screen); }
+// DrawModelHierarchy(GEModel *, K, M, bool), protected: a model's parts, each through draw_polygons
+typedef int (__thiscall *rasterizer_draw_model_hierarchy_fn)(ee_rasterizer *, void *, uint32_t, float, int8_t);
+internal inline int rasterizer_draw_model_hierarchy(ee_rasterizer *rasterizer, void *model, uint32_t screen, float p3, int8_t p4) { return ((rasterizer_draw_model_hierarchy_fn)(*(void ***)rasterizer)[slot_rasterizer_draw_model_hierarchy])(rasterizer, model, screen, p3, p4); }
+
+// class RTSGraphics (ee_graphics)
+// the graphics thread's object: it draws a screen's frames through the rasterizer, each by its render objects. Its
+// thread (0x50FE16) takes a message (message), then - unless frames are held (+0x56) or it is ending (+0x59) - the
+// mouse's update (engine_display.call_frame_mouse) and frame(1, 1), then Sleep(1) (engine_display.call_frame_sleep)
+// the rasterizer it draws with
+internal inline ee_rasterizer *graphics_get_rasterizer(const ee_graphics *o) { return *(ee_rasterizer **)((uint8_t *)o + of_graphics_rasterizer); }
+internal inline void graphics_set_rasterizer(ee_graphics *o, ee_rasterizer *v) { *(ee_rasterizer **)((uint8_t *)o + of_graphics_rasterizer) = v; }
+internal inline ee_rasterizer **graphics_rasterizer_at(const ee_graphics *o) { return (ee_rasterizer **)((uint8_t *)o + of_graphics_rasterizer); }
+// its screen's index, passed to every rasterizer call
+internal inline uint32_t graphics_get_screen(const ee_graphics *o) { return *(uint32_t *)((uint8_t *)o + of_graphics_screen); }
+internal inline void graphics_set_screen(ee_graphics *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_graphics_screen) = v; }
+internal inline uint32_t *graphics_screen_at(const ee_graphics *o) { return (uint32_t *)((uint8_t *)o + of_graphics_screen); }
+// its render objects (a vector from +0x14), drawn in its order (message 0x404 adds one: engine_display's
+// render objects, created by the game's start 0x5377B4 ..., added by 0x504DAF)
+internal inline ee_render_object **graphics_get_objects_begin(const ee_graphics *o) { return *(ee_render_object ***)((uint8_t *)o + of_graphics_objects_begin); }
+internal inline void graphics_set_objects_begin(ee_graphics *o, ee_render_object **v) { *(ee_render_object ***)((uint8_t *)o + of_graphics_objects_begin) = v; }
+internal inline ee_render_object ***graphics_objects_begin_at(const ee_graphics *o) { return (ee_render_object ***)((uint8_t *)o + of_graphics_objects_begin); }
+// the end of its render objects
+internal inline ee_render_object **graphics_get_objects_end(const ee_graphics *o) { return *(ee_render_object ***)((uint8_t *)o + of_graphics_objects_end); }
+internal inline void graphics_set_objects_end(ee_graphics *o, ee_render_object **v) { *(ee_render_object ***)((uint8_t *)o + of_graphics_objects_end) = v; }
+internal inline ee_render_object ***graphics_objects_end_at(const ee_graphics *o) { return (ee_render_object ***)((uint8_t *)o + of_graphics_objects_end); }
+// the screen's back surface (its screen state's +0x2B0): begin_scene's target
+internal inline ee_surface *graphics_get_back(const ee_graphics *o) { return *(ee_surface **)((uint8_t *)o + of_graphics_back); }
+internal inline void graphics_set_back(ee_graphics *o, ee_surface *v) { *(ee_surface **)((uint8_t *)o + of_graphics_back) = v; }
+internal inline ee_surface **graphics_back_at(const ee_graphics *o) { return (ee_surface **)((uint8_t *)o + of_graphics_back); }
+// a movie playing (GEMovie *, message 0x40C): frame shows it instead of drawing
+internal inline void *graphics_get_movie(const ee_graphics *o) { return *(void **)((uint8_t *)o + of_graphics_movie); }
+internal inline void graphics_set_movie(ee_graphics *o, void *v) { *(void **)((uint8_t *)o + of_graphics_movie) = v; }
+internal inline void **graphics_movie_at(const ee_graphics *o) { return (void **)((uint8_t *)o + of_graphics_movie); }
+// frames held (message 0x402 sets, 0x403 clears; the thread loop draws none meanwhile)
+internal inline uint8_t graphics_get_held(const ee_graphics *o) { return *(uint8_t *)((uint8_t *)o + of_graphics_held); }
+internal inline void graphics_set_held(ee_graphics *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_graphics_held) = v; }
+internal inline uint8_t *graphics_held_at(const ee_graphics *o) { return (uint8_t *)((uint8_t *)o + of_graphics_held); }
+// the thread ends (message 0x401)
+internal inline uint8_t graphics_get_ending(const ee_graphics *o) { return *(uint8_t *)((uint8_t *)o + of_graphics_ending); }
+internal inline void graphics_set_ending(ee_graphics *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_graphics_ending) = v; }
+internal inline uint8_t *graphics_ending_at(const ee_graphics *o) { return (uint8_t *)((uint8_t *)o + of_graphics_ending); }
+// a message from TSThread::Receive: 0x401 end, 0x402 / 0x403 hold / release the frames, 0x404 add a render object
+// (p), 0x407 another rasterizer (p) and screen (b), 0x40C play a movie, 0x40D stop it ...
+typedef void (__thiscall *graphics_message_fn)(ee_graphics *, uint32_t, void *, uint32_t);
+internal inline void graphics_message(ee_graphics *graphics, uint32_t msg, void *p, uint32_t b) { ((graphics_message_fn)(*(void ***)graphics)[slot_graphics_message])(graphics, msg, p, b); }
+internal graphics_message_fn fn_rts_graphics_message;
+internal inline void rts_graphics_message(ee_graphics *graphics, uint32_t msg, void *p, uint32_t b) { fn_rts_graphics_message(graphics, msg, p, b); }
+// every render object's update (slot 0), before the frame
+typedef void (__thiscall *graphics_update_objects_fn)(ee_graphics *);
+internal inline void graphics_update_objects(ee_graphics *graphics) { ((graphics_update_objects_fn)(*(void ***)graphics)[slot_graphics_update_objects])(graphics); }
+internal graphics_update_objects_fn fn_rts_graphics_update_objects;
+internal inline void rts_graphics_update_objects(ee_graphics *graphics) { fn_rts_graphics_update_objects(graphics); }
+// a frame: update_objects, clear_objects, the rasterizer's begin_scene; drawn (0): draw_objects, end_scene,
+// finish_objects; then with extras 0x510C6E, 0x51078A, 0x510BC2 and 0x5108EE (not looked at), with show the
+// rasterizer's show_scene. A movie playing is drawn instead. The thread loop calls it with (1, 1)
+typedef void (__thiscall *graphics_frame_fn)(ee_graphics *, int8_t, int8_t);
+internal inline void graphics_frame(ee_graphics *graphics, int8_t extras, int8_t show) { ((graphics_frame_fn)(*(void ***)graphics)[slot_graphics_frame])(graphics, extras, show); }
+internal graphics_frame_fn fn_rts_graphics_frame;
+internal inline void rts_graphics_frame(ee_graphics *graphics, int8_t extras, int8_t show) { fn_rts_graphics_frame(graphics, extras, show); }
+// every render object's clear (slot 1)
+typedef void (__thiscall *graphics_clear_objects_fn)(ee_graphics *);
+internal inline void graphics_clear_objects(ee_graphics *graphics) { ((graphics_clear_objects_fn)(*(void ***)graphics)[slot_graphics_clear_objects])(graphics); }
+internal graphics_clear_objects_fn fn_rts_graphics_clear_objects;
+internal inline void rts_graphics_clear_objects(ee_graphics *graphics) { fn_rts_graphics_clear_objects(graphics); }
+// the rasterizer's alpha test reference to 0, then every render object's draw (slot 2) - inside the scene
+typedef void (__thiscall *graphics_draw_objects_fn)(ee_graphics *);
+internal inline void graphics_draw_objects(ee_graphics *graphics) { ((graphics_draw_objects_fn)(*(void ***)graphics)[slot_graphics_draw_objects])(graphics); }
+internal graphics_draw_objects_fn fn_rts_graphics_draw_objects;
+internal inline void rts_graphics_draw_objects(ee_graphics *graphics) { fn_rts_graphics_draw_objects(graphics); }
+// every render object's finish (slot 3), after end_scene
+typedef void (__thiscall *graphics_finish_objects_fn)(ee_graphics *);
+internal inline void graphics_finish_objects(ee_graphics *graphics) { ((graphics_finish_objects_fn)(*(void ***)graphics)[slot_graphics_finish_objects])(graphics); }
+internal graphics_finish_objects_fn fn_rts_graphics_finish_objects;
+internal inline void rts_graphics_finish_objects(ee_graphics *graphics) { fn_rts_graphics_finish_objects(graphics); }
+
+// class RTSRenderObject (ee_render_object)
+// a part of the picture RTSGraphics draws each frame, in four steps: update before the scene, clear (the depth
+// buffer where it needs), draw inside the scene, finish after it. Its own slots are pure (0x683712); a step a class
+// has nothing for is the empty function 0x5248D4
+// before the frame (RTSGraphics.update_objects)
+typedef void (__thiscall *render_object_update_fn)(ee_render_object *);
+internal inline void render_object_update(ee_render_object *render_object) { ((render_object_update_fn)(*(void ***)render_object)[slot_render_object_update])(render_object); }
+// before the scene: depth buffer clears (RTSGraphics.clear_objects)
+typedef void (__thiscall *render_object_clear_fn)(ee_render_object *);
+internal inline void render_object_clear(ee_render_object *render_object) { ((render_object_clear_fn)(*(void ***)render_object)[slot_render_object_clear])(render_object); }
+// its part of the picture, inside the scene (RTSGraphics.draw_objects)
+typedef void (__thiscall *render_object_draw_fn)(ee_render_object *);
+internal inline void render_object_draw(ee_render_object *render_object) { ((render_object_draw_fn)(*(void ***)render_object)[slot_render_object_draw])(render_object); }
+// after the scene (RTSGraphics.finish_objects)
+typedef void (__thiscall *render_object_finish_fn)(ee_render_object *);
+internal inline void render_object_finish(ee_render_object *render_object) { ((render_object_finish_fn)(*(void ***)render_object)[slot_render_object_finish])(render_object); }
+
+// class EEROTerrain (ee_ro_terrain)
+// the map's ground (engine_display.ro_terrain): update 0x506FB9, draw
+// RTSRenderObject's, the base's
+// the ground's draw (the rasterizer's draw_terrain, the grid, the highlight)
+typedef void (__thiscall *ro_terrain_draw_fn)(ee_ro_terrain *);
+internal ro_terrain_draw_fn fn_ro_terrain_draw;
+internal inline void ro_terrain_draw(ee_ro_terrain *ro_terrain) { fn_ro_terrain_draw(ro_terrain); }
+internal inline int patch_ro_terrain_draw(ro_terrain_draw_fn h) { return patch_vtable(vt_eero_terrain, (int)slot_render_object_draw, (uintptr_t)fn_ro_terrain_draw, (void *)h); }
+
+// class EEROGroundShadows (ee_ro_shadows)
+// the units' shadows on the ground (engine_display.ro_shadows)
+// RTSRenderObject's, the base's
+typedef void (__thiscall *ro_shadows_draw_fn)(ee_ro_shadows *);
+internal ro_shadows_draw_fn fn_ro_shadows_draw;
+internal inline void ro_shadows_draw(ee_ro_shadows *ro_shadows) { fn_ro_shadows_draw(ro_shadows); }
+internal inline int patch_ro_shadows_draw(ro_shadows_draw_fn h) { return patch_vtable(vt_eero_ground_shadows, (int)slot_render_object_draw, (uintptr_t)fn_ro_shadows_draw, (void *)h); }
+
+// class EEROUnits (ee_ro_units)
+// the units, buildings, trees and their effects (engine_display.ro_units): draw walks the objects in sight, finish
+// (0x50DC3A) the draw list's records (hooks.draw_old - the mod's larger list)
+// RTSRenderObject's, the base's
+typedef void (__thiscall *ro_units_draw_fn)(ee_ro_units *);
+internal ro_units_draw_fn fn_ro_units_draw;
+internal inline void ro_units_draw(ee_ro_units *ro_units) { fn_ro_units_draw(ro_units); }
+internal inline int patch_ro_units_draw(ro_units_draw_fn h) { return patch_vtable(vt_eero_units, (int)slot_render_object_draw, (uintptr_t)fn_ro_units_draw, (void *)h); }
+
+// class EEROWater (ee_ro_water)
+// the water (engine_display.ro_water): the rasterizer's draw_water
+// RTSRenderObject's, the base's
+typedef void (__thiscall *ro_water_draw_fn)(ee_ro_water *);
+internal ro_water_draw_fn fn_ro_water_draw;
+internal inline void ro_water_draw(ee_ro_water *ro_water) { fn_ro_water_draw(ro_water); }
+internal inline int patch_ro_water_draw(ro_water_draw_fn h) { return patch_vtable(vt_eero_water, (int)slot_render_object_draw, (uintptr_t)fn_ro_water_draw, (void *)h); }
+
+// class EEROUserInterface (ee_ro_ui)
+// the interface (engine_display.ro_ui, made by 0x50DE78 with the UI manager): update 0x50DEBA, clear 0x50DF0D (the
+// depth under the panels), finish 0x50E1A4
+// RTSRenderObject's, the base's
+typedef void (__thiscall *ro_ui_draw_fn)(ee_ro_ui *);
+internal ro_ui_draw_fn fn_ro_ui_draw;
+internal inline void ro_ui_draw(ee_ro_ui *ro_ui) { fn_ro_ui_draw(ro_ui); }
+internal inline int patch_ro_ui_draw(ro_ui_draw_fn h) { return patch_vtable(vt_eero_user_interface, (int)slot_render_object_draw, (uintptr_t)fn_ro_ui_draw, (void *)h); }
+
+// class EEROEffects (ee_ro_effects)
+// effects (engine_display.ro_effects): update 0x5067CF and clear 0x5067D4 (the whole view's depth to 1) only - no
+// draw of its own
+// RTSRenderObject's, the base's
 
 // class DX7Screen (ee_screen)
 internal inline uint8_t *screen_get_modes_begin(const ee_screen *o) { return *(uint8_t **)((uint8_t *)o + of_screen_modes_begin); }
@@ -107,6 +286,14 @@ internal inline uint8_t *engine_display_iat_sleep_at(void) { return (uint8_t *)(
 // DX7HRTnLDisplay.dll: the caps of the vertex buffer each rasterizer state creates (D3DVERTEXBUFFERDESC.dwCaps, a
 // mov [ebp-0xC], imm32: D3DVBCAPS_WRITEONLY - video memory; its other buffer and DX7HRDisplay.dll's add
 // D3DVBCAPS_SYSTEMMEMORY)
+// the render objects RTSGraphics draws (pointers; the game's start makes them, 0x504DAF adds them in this
+// order: effects, terrain, shadows, units, water, interface)
+internal inline uint8_t *engine_display_ro_effects_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_ro_effects; }
+internal inline uint8_t *engine_display_ro_terrain_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_ro_terrain; }
+internal inline uint8_t *engine_display_ro_shadows_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_ro_shadows; }
+internal inline uint8_t *engine_display_ro_units_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_ro_units; }
+internal inline uint8_t *engine_display_ro_water_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_ro_water; }
+internal inline uint8_t *engine_display_ro_ui_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_ro_ui; }
 
 // the running build's values (spec_select, with addr_select): how many it hasn't got
 internal int spec_engine_display_select(int build) {
@@ -120,6 +307,62 @@ internal int spec_engine_display_select(int build) {
         of_input_mouse_device = 0x44;
         of_rasterizer_screen_states = 0x20;
         of_rasterizer_dstates = 0x6C;
+        slot_rasterizer_begin_scene = 4;
+        slot_rasterizer_clear = 6;
+        slot_rasterizer_clear_z = 7;
+        slot_rasterizer_draw_polygons = 13;
+        slot_rasterizer_draw_terrain = 14;
+        slot_rasterizer_draw_model = 19;
+        slot_rasterizer_draw_sky = 24;
+        slot_rasterizer_draw_water = 27;
+        slot_rasterizer_end_scene = 28;
+        slot_rasterizer_set_alpha_ref = 39;
+        slot_rasterizer_set_viewport = 62;
+        slot_rasterizer_show_scene = 66;
+        slot_rasterizer_draw_model_hierarchy = 75;
+        vt_rts_graphics = 0x0082C4BC;
+        of_graphics_rasterizer = 0x8;
+        of_graphics_screen = 0xC;
+        of_graphics_objects_begin = 0x18;
+        of_graphics_objects_end = 0x1C;
+        of_graphics_back = 0x34;
+        of_graphics_movie = 0x44;
+        of_graphics_held = 0x56;
+        of_graphics_ending = 0x59;
+        slot_graphics_message = 2;
+        fn_rts_graphics_message = (graphics_message_fn)0x0050FF22;
+        slot_graphics_update_objects = 3;
+        fn_rts_graphics_update_objects = (graphics_update_objects_fn)0x0050FDF0;
+        slot_graphics_frame = 4;
+        fn_rts_graphics_frame = (graphics_frame_fn)0x0051015D;
+        slot_graphics_clear_objects = 5;
+        fn_rts_graphics_clear_objects = (graphics_clear_objects_fn)0x0051033C;
+        slot_graphics_draw_objects = 6;
+        fn_rts_graphics_draw_objects = (graphics_draw_objects_fn)0x00510363;
+        slot_graphics_finish_objects = 7;
+        fn_rts_graphics_finish_objects = (graphics_finish_objects_fn)0x0051039E;
+        vt_rts_render_object = 0x0082C334;
+        size_rts_render_object = 0x4;
+        slot_render_object_update = 0;
+        slot_render_object_clear = 1;
+        slot_render_object_draw = 2;
+        slot_render_object_finish = 3;
+        vt_eero_terrain = 0x0082C3C4;
+        size_eero_terrain = 0x8;
+        fn_ro_terrain_draw = (ro_terrain_draw_fn)0x00508390;
+        vt_eero_ground_shadows = 0x0082C398;
+        size_eero_ground_shadows = 0x4;
+        fn_ro_shadows_draw = (ro_shadows_draw_fn)0x00506AD8;
+        vt_eero_units = 0x0082C42C;
+        size_eero_units = 0x4;
+        fn_ro_units_draw = (ro_units_draw_fn)0x0050D90E;
+        vt_eero_water = 0x0082C480;
+        size_eero_water = 0x4;
+        fn_ro_water_draw = (ro_water_draw_fn)0x0050E1F4;
+        vt_eero_user_interface = 0x0082C45C;
+        fn_ro_ui_draw = (ro_ui_draw_fn)0x0050E012;
+        vt_eero_effects = 0x0082C378;
+        size_eero_effects = 0x4;
         of_screen_modes_begin = 0x10;
         of_screen_ddraw = 0x30;
         of_screen_mode = 0x38;
@@ -144,6 +387,12 @@ internal int spec_engine_display_select(int build) {
         data_engine_display_call_frame_mouse = 0x0050FEC8;
         data_engine_display_iat_sleep = 0x0082318C;
         value_engine_display_rva_tnl_vb_caps = 62581;
+        data_engine_display_ro_effects = 0x00943318;
+        data_engine_display_ro_terrain = 0x00943314;
+        data_engine_display_ro_shadows = 0x00943310;
+        data_engine_display_ro_units = 0x0094330C;
+        data_engine_display_ro_water = 0x00943308;
+        data_engine_display_ro_ui = 0x00943304;
         return 0;
     case 1:   // aoc
         of_draw_state_device = 0x1C;
@@ -154,6 +403,62 @@ internal int spec_engine_display_select(int build) {
         of_input_mouse_device = 0x44;
         of_rasterizer_screen_states = 0x20;
         of_rasterizer_dstates = 0x6C;
+        slot_rasterizer_begin_scene = 4;
+        slot_rasterizer_clear = 6;
+        slot_rasterizer_clear_z = 7;
+        slot_rasterizer_draw_polygons = 13;
+        slot_rasterizer_draw_terrain = 14;
+        slot_rasterizer_draw_model = 19;
+        slot_rasterizer_draw_sky = 24;
+        slot_rasterizer_draw_water = 27;
+        slot_rasterizer_end_scene = 28;
+        slot_rasterizer_set_alpha_ref = 39;
+        slot_rasterizer_set_viewport = 62;
+        slot_rasterizer_show_scene = 66;
+        slot_rasterizer_draw_model_hierarchy = 75;
+        vt_rts_graphics = 0x00841C50;
+        of_graphics_rasterizer = 0x8;
+        of_graphics_screen = 0xC;
+        of_graphics_objects_begin = 0x18;
+        of_graphics_objects_end = 0x1C;
+        of_graphics_back = 0x34;
+        of_graphics_movie = 0x44;
+        of_graphics_held = 0x56;
+        of_graphics_ending = 0x59;
+        slot_graphics_message = 2;
+        fn_rts_graphics_message = (graphics_message_fn)0x0051A4E1;
+        slot_graphics_update_objects = 3;
+        fn_rts_graphics_update_objects = (graphics_update_objects_fn)0x0051A3AF;
+        slot_graphics_frame = 4;
+        fn_rts_graphics_frame = (graphics_frame_fn)0x0051A71C;
+        slot_graphics_clear_objects = 5;
+        fn_rts_graphics_clear_objects = (graphics_clear_objects_fn)0x0051A8FB;
+        slot_graphics_draw_objects = 6;
+        fn_rts_graphics_draw_objects = (graphics_draw_objects_fn)0x0051A922;
+        slot_graphics_finish_objects = 7;
+        fn_rts_graphics_finish_objects = (graphics_finish_objects_fn)0x0051A95D;
+        vt_rts_render_object = 0x00841390;
+        size_rts_render_object = 0x4;
+        slot_render_object_update = 0;
+        slot_render_object_clear = 1;
+        slot_render_object_draw = 2;
+        slot_render_object_finish = 3;
+        vt_eero_terrain = 0x00841B7C;
+        size_eero_terrain = 0x8;
+        fn_ro_terrain_draw = (ro_terrain_draw_fn)0x005131A4;
+        vt_eero_ground_shadows = 0x008413F0;
+        size_eero_ground_shadows = 0x4;
+        fn_ro_shadows_draw = (ro_shadows_draw_fn)0x0051207F;
+        vt_eero_units = 0x00841BBC;
+        size_eero_units = 0x4;
+        fn_ro_units_draw = (ro_units_draw_fn)0x00518203;
+        vt_eero_water = 0x00841C10;
+        size_eero_water = 0x4;
+        fn_ro_water_draw = (ro_water_draw_fn)0x00518AE9;
+        vt_eero_user_interface = 0x00841BEC;
+        fn_ro_ui_draw = (ro_ui_draw_fn)0x00518907;
+        vt_eero_effects = 0x008413D0;
+        size_eero_effects = 0x4;
         of_screen_modes_begin = 0x10;
         of_screen_ddraw = 0x30;
         of_screen_mode = 0x38;
@@ -178,6 +483,12 @@ internal int spec_engine_display_select(int build) {
         data_engine_display_call_frame_mouse = 0x0051A487;
         data_engine_display_iat_sleep = 0x00837174;
         value_engine_display_rva_tnl_vb_caps = 66510;
+        data_engine_display_ro_effects = 0x00965360;
+        data_engine_display_ro_terrain = 0x0096535C;
+        data_engine_display_ro_shadows = 0x00965358;
+        data_engine_display_ro_units = 0x00965354;
+        data_engine_display_ro_water = 0x00965350;
+        data_engine_display_ro_ui = 0x0096534C;
         return 0;
     }
     return 0;
@@ -187,8 +498,44 @@ internal const char *const k_spec_engine_display_missing[ADDR_BUILDS] = { "", ""
 // the load-time check: what the spec says of the running build's exe (spec_check): the failures
 internal int spec_engine_display_check(void) {
     int bad = 0;
+    bad += spec_vtable(vt_rts_graphics, ".?AVRTSGraphics@@", "RTSGraphics [vtable]");
+    bad += spec_code((uintptr_t)fn_rts_graphics_message, "RTSGraphics.message");
+    bad += spec_slot(vt_rts_graphics, slot_graphics_message, (uintptr_t)fn_rts_graphics_message, "RTSGraphics.message [slot]");
+    bad += spec_code((uintptr_t)fn_rts_graphics_update_objects, "RTSGraphics.update_objects");
+    bad += spec_slot(vt_rts_graphics, slot_graphics_update_objects, (uintptr_t)fn_rts_graphics_update_objects, "RTSGraphics.update_objects [slot]");
+    bad += spec_code((uintptr_t)fn_rts_graphics_frame, "RTSGraphics.frame");
+    bad += spec_slot(vt_rts_graphics, slot_graphics_frame, (uintptr_t)fn_rts_graphics_frame, "RTSGraphics.frame [slot]");
+    bad += spec_code((uintptr_t)fn_rts_graphics_clear_objects, "RTSGraphics.clear_objects");
+    bad += spec_slot(vt_rts_graphics, slot_graphics_clear_objects, (uintptr_t)fn_rts_graphics_clear_objects, "RTSGraphics.clear_objects [slot]");
+    bad += spec_code((uintptr_t)fn_rts_graphics_draw_objects, "RTSGraphics.draw_objects");
+    bad += spec_slot(vt_rts_graphics, slot_graphics_draw_objects, (uintptr_t)fn_rts_graphics_draw_objects, "RTSGraphics.draw_objects [slot]");
+    bad += spec_code((uintptr_t)fn_rts_graphics_finish_objects, "RTSGraphics.finish_objects");
+    bad += spec_slot(vt_rts_graphics, slot_graphics_finish_objects, (uintptr_t)fn_rts_graphics_finish_objects, "RTSGraphics.finish_objects [slot]");
+    bad += spec_vtable(vt_rts_render_object, ".?AVRTSRenderObject@@", "RTSRenderObject [vtable]");
+    bad += spec_vtable(vt_eero_terrain, ".?AVEEROTerrain@@", "EEROTerrain [vtable]");
+    bad += spec_code((uintptr_t)fn_ro_terrain_draw, "EEROTerrain.draw");
+    bad += spec_slot(vt_eero_terrain, slot_render_object_draw, (uintptr_t)fn_ro_terrain_draw, "EEROTerrain.draw [slot]");
+    bad += spec_vtable(vt_eero_ground_shadows, ".?AVEEROGroundShadows@@", "EEROGroundShadows [vtable]");
+    bad += spec_code((uintptr_t)fn_ro_shadows_draw, "EEROGroundShadows.draw");
+    bad += spec_slot(vt_eero_ground_shadows, slot_render_object_draw, (uintptr_t)fn_ro_shadows_draw, "EEROGroundShadows.draw [slot]");
+    bad += spec_vtable(vt_eero_units, ".?AVEEROUnits@@", "EEROUnits [vtable]");
+    bad += spec_code((uintptr_t)fn_ro_units_draw, "EEROUnits.draw");
+    bad += spec_slot(vt_eero_units, slot_render_object_draw, (uintptr_t)fn_ro_units_draw, "EEROUnits.draw [slot]");
+    bad += spec_vtable(vt_eero_water, ".?AVEEROWater@@", "EEROWater [vtable]");
+    bad += spec_code((uintptr_t)fn_ro_water_draw, "EEROWater.draw");
+    bad += spec_slot(vt_eero_water, slot_render_object_draw, (uintptr_t)fn_ro_water_draw, "EEROWater.draw [slot]");
+    bad += spec_vtable(vt_eero_user_interface, ".?AVEEROUserInterface@@", "EEROUserInterface [vtable]");
+    bad += spec_code((uintptr_t)fn_ro_ui_draw, "EEROUserInterface.draw");
+    bad += spec_slot(vt_eero_user_interface, slot_render_object_draw, (uintptr_t)fn_ro_ui_draw, "EEROUserInterface.draw [slot]");
+    bad += spec_vtable(vt_eero_effects, ".?AVEEROEffects@@", "EEROEffects [vtable]");
     bad += spec_code(data_engine_display_call_frame_sleep, "engine_display.call_frame_sleep");
     bad += spec_code(data_engine_display_call_frame_mouse, "engine_display.call_frame_mouse");
     bad += spec_data(data_engine_display_iat_sleep, "engine_display.iat_sleep");
+    bad += spec_data(data_engine_display_ro_effects, "engine_display.ro_effects");
+    bad += spec_data(data_engine_display_ro_terrain, "engine_display.ro_terrain");
+    bad += spec_data(data_engine_display_ro_shadows, "engine_display.ro_shadows");
+    bad += spec_data(data_engine_display_ro_units, "engine_display.ro_units");
+    bad += spec_data(data_engine_display_ro_water, "engine_display.ro_water");
+    bad += spec_data(data_engine_display_ro_ui, "engine_display.ro_ui");
     return bad;
 }

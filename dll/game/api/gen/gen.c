@@ -4,6 +4,14 @@
 // the classes types.h hasn't got
 typedef struct ee_wall_mgr ee_wall_mgr;
 typedef struct ee_location ee_location;
+typedef struct ee_graphics ee_graphics;
+typedef struct ee_render_object ee_render_object;
+typedef struct ee_ro_terrain ee_ro_terrain;
+typedef struct ee_ro_shadows ee_ro_shadows;
+typedef struct ee_ro_units ee_ro_units;
+typedef struct ee_ro_water ee_ro_water;
+typedef struct ee_ro_ui ee_ro_ui;
+typedef struct ee_ro_effects ee_ro_effects;
 typedef struct ee_cheat_codes ee_cheat_codes;
 typedef struct ee_world ee_world;
 typedef struct ee_world_table ee_world_table;

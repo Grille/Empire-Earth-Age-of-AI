@@ -632,6 +632,20 @@ internal int rd_world_lock_install(void) {
            patch_iat(exe, "Low-Level Engine.dll", "?WriteUnlock@TSReadWriteLock@@QAEXXZ", (void *)rd_hook_write_unlock);
 }
 
+// THE GAME'S DRAWING, BY ITS PARTS: RTSGraphics draws a frame through its render objects (spec engine_display.cs) -
+// each one's draw timed for the minute's line, the game's own work in it and the renderer's under it together
+enum { RO_TERRAIN, RO_SHADOWS, RO_UNITS, RO_WATER, RO_UI, RO_N };
+internal LONGLONG g_ro_qpc[RO_N];
+internal void __thiscall rd_hook_ro_terrain(ee_ro_terrain *o) { LONGLONG t = rd_qpc(); ro_terrain_draw(o); g_ro_qpc[RO_TERRAIN] += rd_qpc() - t; }
+internal void __thiscall rd_hook_ro_shadows(ee_ro_shadows *o) { LONGLONG t = rd_qpc(); ro_shadows_draw(o); g_ro_qpc[RO_SHADOWS] += rd_qpc() - t; }
+internal void __thiscall rd_hook_ro_units(ee_ro_units *o) { LONGLONG t = rd_qpc(); ro_units_draw(o); g_ro_qpc[RO_UNITS] += rd_qpc() - t; }
+internal void __thiscall rd_hook_ro_water(ee_ro_water *o) { LONGLONG t = rd_qpc(); ro_water_draw(o); g_ro_qpc[RO_WATER] += rd_qpc() - t; }
+internal void __thiscall rd_hook_ro_ui(ee_ro_ui *o) { LONGLONG t = rd_qpc(); ro_ui_draw(o); g_ro_qpc[RO_UI] += rd_qpc() - t; }
+internal int rd_render_objects_install(void) {
+    return patch_ro_terrain_draw(rd_hook_ro_terrain) + patch_ro_shadows_draw(rd_hook_ro_shadows) +
+           patch_ro_units_draw(rd_hook_ro_units) + patch_ro_water_draw(rd_hook_ro_water) + patch_ro_ui_draw(rd_hook_ro_ui);
+}
+
 internal void rd_frame_tick(void) {
     g_rd_thread = GetCurrentThreadId();
     InterlockedIncrement(&g_rd_frames);
@@ -650,6 +664,11 @@ internal void rd_frame_tick(void) {
                (double)(g_rd_draw_qpc - g_rd_draw_qpc_told) * k, (double)(g_d3d_present_qpc - present0) * k,
                (double)(g_rwl_wait_qpc - wait0) * k,
                secs > 0 ? (double)(g_rwl_held_qpc - held0) * 1000.0 / (double)f.QuadPart / secs : 0, (long)fr);
+    static LONGLONG ro0[RO_N];
+    double ro[RO_N];
+    for (int i = 0; i < RO_N; i++) { ro[i] = (double)(g_ro_qpc[i] - ro0[i]) * k; ro0[i] = g_ro_qpc[i]; }
+    log_locked("# render: the game's drawing a frame (ms, the renderer's draws inside): terrain %.2f, shadows %.2f, units %.2f,"
+               " water %.2f, interface %.2f\n", ro[RO_TERRAIN], ro[RO_SHADOWS], ro[RO_UNITS], ro[RO_WATER], ro[RO_UI]);
     g_rd_minute_tick = tick0 = now;
     frames0 = g_rd_frames; draws0 = g_rd_draws; batches0 = g_rb.batches;
     g_rd_draw_qpc_told = g_rd_draw_qpc; present0 = g_d3d_present_qpc; wait0 = g_rwl_wait_qpc; held0 = g_rwl_held_qpc;
