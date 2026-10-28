@@ -148,10 +148,13 @@ internal char __thiscall hook_place(ee_build_mgr *bm, int type, int x, int y) {
     // the meantime blocks it - the build manager's round (0x465C9F) finds the builder waiting at a foundation with
     // another unit in its footprint (0x60CDCF), deletes the foundation, refunds it and queues it again at the same
     // spot (0x468BA7): in a Small Islands Large game 127 times in 13 minutes, 175 stone each. Such a spot is given up:
-    // the defence plan's next slot (defence_spot, below), else the game's own search.
-    if ((x || y) && is_tower_type(type) && !can_place(owner, place_as, iv2(x, y))) {
-        if (g_log) fprintf(g_log, "# place: P%d at %.1f min: tower %d at %d,%d no longer fits - another spot\n",
-                           player_get_index(owner) & 15, game_time() / 60000.0, place_as, x, y);
+    // the defence plan's next slot (defence_spot, below), else the game's own search. Every other building the same
+    // (not a wall: its pieces' spots are its line): the player's save "standing crash" (2026-10-28) - P7's Settlement
+    // foundations at 337,227 blocked each other, each round removed one and laid it again on the same tile, 249 stood
+    // there unbuilt, and every builder sent there walked to the base (the round's last order, citizens_home).
+    if ((x || y) && !is_wall(place_as) && !can_place(owner, place_as, iv2(x, y))) {
+        if (g_log) fprintf(g_log, "# place: P%d at %.1f min: %s %d at %d,%d no longer fits - another spot\n",
+                           player_get_index(owner) & 15, game_time() / 60000.0, is_tower_type(type) ? "tower" : "building", place_as, x, y);
         x = y = 0;
     }
     if (!x && !y) defence_spot(((void *)build_mgr_get_player(bm)), type, &x, &y);   // towers: where the defence plan wants them
@@ -314,51 +317,138 @@ internal void upgrade_reserve(ee_player *pl, int reserve[7]) {
     if (!PV(idx, g_v_upg_reserve, g_upg_reserve) || !g_paid_upgrades) return;
     for (int r = 2; r < 7; r++) reserve[r] += g_upg_hold[idx][r];
 }
-// BASE AT HOME ([ai_base] base_fix, default on). The build manager's base point (+0x12C) is where the AI's idle
-// citizens are sent, the home its overseas mine search (sites.c hook_find_mine) compares continents with, the ring
-// of walls' centre. EEComputerPlayer::vf7 (0x43D868 -> 0x46D745 -> 0x46831B) sets it to -10000 - on a load too - and
+// IDLE CITIZENS HOME ([ai_base] citizens_home, default on). The game keeps one point per AI, the build manager's base
+// (+0x12C), for its idle citizens, its overseas mine search (sites.c hook_find_mine: the home continent) and the
+// ring of walls. EEComputerPlayer::vf7 (0x43D868 -> 0x46D745 -> 0x46831B) sets it to -10000 - on a load too - and
 // the unit manager's add (0x4905DF) takes the tile of the first unit of a type new to its lists while it is -10000,
 // if that type's data vf21 is 0: a land unit or a ship (EEUCLand, EEUCNavalTransport), never a building (EEUCBuilding
 // returns 1). At a game's start that is a citizen by the Town Center; after a load whichever such unit comes first -
 // the player's save "standing crash" (2026-10-28): P7's base was a transport's tile in the sea at 257,223, in the
-// player's land, 150 tiles from its towns. Its citizens walked from home across the continent to that shore, and with
-// the base on no land every mine counted as overseas - each idle citizen of home put on a crossing to one. Every 10 s:
-// a base at sea or with none of the AI's finished towns (Town Center, Capitol, Settlement) within 20 tiles moves to the
-// town with the most of its finished buildings within 20 tiles - finished: P7 had 249 Settlement foundations stacked
-// on one tile. "# base:" lines (the base's every move: econ_tick).
-internal int g_base_fix = 1;
-internal int base_built(ee_unit *u) { ee_unit *bs = unit_get_physics(u); return bs && unit_get_finished(bs); }
-internal void base_fix(ee_player *pl, unsigned idx, uint32_t now) {
+// player's land, 150 tiles from its towns; its citizens walked from home across the continent to that shore (their
+// move's goal the base's tile exactly), and with the base on no land every mine counted as overseas. Who sent them:
+// the build manager's round for a builder blocked at its foundation (0x465C9F - another unit in the footprint,
+// 0x60CDCF) removes the foundation (vf24 (0, 0, 0)), refunds it, queues it again at the same spot and gives the
+// builder a move to the base (0x614C86) - P7's builders at its pile of Settlement foundations (hook_place). The
+// player: one idle point for all of an AI's citizens is no way to keep them - an idle one goes to the nearest safe
+// town. Every 3 s (a builder sent to the base turns early), the mod's AIs: (1) a base at sea or with none of the AI's
+// finished towns (Town Center, Capitol, Settlement) within 20 tiles moves to the town with the most finished
+// buildings within 20 tiles (finished: P7 had 249 Settlement foundations stacked on one tile) - for the mine search
+// and the walls; (2) a citizen with no goal more than 15 tiles from its nearest finished town, or walking to within
+// 3 tiles of the base while a town of its is 10 tiles nearer, is sent to the nearest finished town on its land with
+// no enemy soldiers it sees within 12 tiles (none safe: it stays) - not one a landing, an outpost's ferry or a new
+// town (towns.c) holds; (3) of the AI's unfinished buildings of one type on one tile all but one are removed (vf24
+// (0, 0, 0), as the round above). "# base:", "# home:" lines.
+internal int g_citizens_home = 1;
+internal int landing_has_unit(ee_player *pl, ee_unit *u);   // landing.c
+internal int expand_has(ee_player *pl, ee_unit *u);         // expand.c
+internal int tn_has_cit(unsigned idx, ee_unit *u);          // towns.c
+internal int unit_goal(ee_unit *u, ee_goal *goal, int append, unsigned state);   // attack.c
+internal ee_goal *goal_move(float x, float y);
+internal int raiders_near(ee_player *pl, ivec2 p, int r);   // attack.c: enemy soldiers it can see
+internal int home_built(ee_unit *u) { ee_unit *bs = unit_get_physics(u); return bs && unit_get_finished(bs); }
+internal void citizens_home(ee_player *pl, unsigned idx, uint32_t now) {
     static uint32_t last[16];
-    if (!g_base_fix || is_vanilla(pl) || (now >= last[idx] && now - last[idx] < 10000)) return;
+    if (!g_citizens_home || is_vanilla(pl) || (now >= last[idx] && now - last[idx] < 3000)) return;
     last[idx] = now;
     void *cm = player_get_civ_mgr(pl);
     ee_build_mgr *bm = cm ? civ_mgr_get_build_mgr(cm) : NULL;
     if (!bm) return;
     ivec2 base = build_mgr_get_base(bm), town[64];
     if (base.x == -10000) return;   // none yet: the game sets it
-    int nt = 0, home = 0, count[64] = { 0 }, best = -1;
+    int nt = 0, home = 0, count[64] = { 0 }, best = -1, safe[64];
+    unsigned land[64];
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
-        if (nt == 64 || unit_get_owner(u) != pl || unit_get_hp(u) <= 0 || !UT_IN(unit_type_get_id(it.td), UT_TOWNS) || !base_built(u)) continue;
+        if (nt == 64 || unit_get_owner(u) != pl || unit_get_hp(u) <= 0 || !UT_IN(unit_type_get_id(it.td), UT_TOWNS) || !home_built(u)) continue;
         town[nt] = unit_get_tile(u);
         if (ivec2_dist2(town[nt], base) <= 20 * 20) home = 1;
         nt++;
     }
+    if (!nt) return;   // no town left
+    // (1) the base
     int sea = base.x < 0 || base.y < 0 || (map_area(base, 2) == 0 && map_area(base, 1) != 0);
-    if ((home && !sea) || !nt) return;   // at home, or no town left
+    if (!home || sea) {
+        for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
+            ee_unit *u = it.u;
+            if (unit_get_owner(u) != pl || unit_get_hp(u) <= 0 || unit_type_get_class_id(it.td) != CLS_BUILDING ||
+                is_wall(unit_type_get_id(it.td)) || !home_built(u)) continue;
+            ivec2 p = unit_get_tile(u);
+            for (int i = 0; i < nt; i++) if (ivec2_dist2(town[i], p) <= 20 * 20) count[i]++;
+        }
+        for (int i = 0; i < nt; i++) if (best < 0 || count[i] > count[best]) best = i;
+        build_mgr_set_base_x(bm, town[best].x);
+        build_mgr_set_base_y(bm, town[best].y);
+        if (g_log) fprintf(g_log, "# base: P%u at %.1f min: base %d,%d %s - moved to the town at %d,%d (%d finished buildings within 20 tiles)\n",
+                           idx, now / 60000.0, base.x, base.y, sea ? "at sea" : "with no town within 20 tiles", town[best].x, town[best].y, count[best]);
+    }
+    // (2) the citizens
+    for (int i = 0; i < nt; i++) { land[i] = map_area(town[i], 2); safe[i] = -1; }
+    static ee_unit *was_idle[16][64];   // idle away at the last pass: idle twice in a row is sent (between two jobs is not)
+    static int nwas[16];
+    ee_unit *now_idle[64];
+    int idle = 0, to_base = 0, stay = 0, nnow = 0;
+    ivec2 ex_from = iv2(0, 0), ex_to = iv2(0, 0);
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
-        if (unit_get_owner(u) != pl || unit_get_hp(u) <= 0 || unit_type_get_class_id(it.td) != CLS_BUILDING ||
-            is_wall(unit_type_get_id(it.td)) || !base_built(u)) continue;
-        ivec2 p = unit_get_tile(u);
-        for (int i = 0; i < nt; i++) if (ivec2_dist2(town[i], p) <= 20 * 20) count[i]++;
+        if (unit_get_owner(u) != pl || unit_get_hp(u) <= 0 || unit_get_x(u) < 0 || !is_citizen_type(unit_type_get_id(it.td))) continue;
+        ee_goal *g = unit_get_goal(u);
+        ivec2 p = unit_get_tile(u), dest = p;
+        int why = 0, nd = 0x7FFFFFFF;
+        if (!g) why = 1;
+        else if (goal_is_location(g)) {
+            dest = iv2((int)location_goal_get_dest_x((ee_location_goal *)g), (int)location_goal_get_dest_y((ee_location_goal *)g));
+            if (ivec2_dist2(dest, base) <= 3 * 3) why = 2;
+        }
+        if (!why) continue;
+        for (int i = 0; i < nt; i++) { int d = ivec2_dist2(town[i], dest); if (d < nd) nd = d; }
+        if ((why == 1 && nd <= 15 * 15) || landing_has_unit(pl, u) || expand_has(pl, u) || tn_has_cit(idx, u)) continue;
+        if (why == 1) {
+            int k = 0;
+            if (nnow < 64) now_idle[nnow++] = u;
+            while (k < nwas[idx] && was_idle[idx][k] != u) k++;
+            if (k == nwas[idx]) continue;
+        }
+        unsigned c = map_area(p, 2);
+        int t = -1, td = 0x7FFFFFFF;
+        for (int i = 0; i < nt; i++) {
+            if (land[i] != c) continue;
+            if (safe[i] < 0) safe[i] = !raiders_near(pl, town[i], 12);
+            int d = ivec2_dist2(town[i], p);
+            if (safe[i] && d < td) { td = d; t = i; }
+        }
+        if (t < 0) { stay++; continue; }
+        if (why == 2 && sqrtf((float)td) + 10.0f > sqrtf((float)ivec2_dist2(p, base))) continue;   // the base's town is as near
+        // beside the town on the citizen's side: the building's own tile is taken
+        float dx = (float)(p.x - town[t].x), dy = (float)(p.y - town[t].y), l = sqrtf(dx * dx + dy * dy);
+        float x = (float)town[t].x + 0.5f + (l > 0 ? dx / l * 4.0f : 4.0f), y = (float)town[t].y + 0.5f + (l > 0 ? dy / l * 4.0f : 0.0f);
+        if (!unit_goal(u, goal_move(x, y), 0, 0x1F40)) continue;
+        if (why == 1) idle++; else to_base++;
+        ex_from = p; ex_to = town[t];
     }
-    for (int i = 0; i < nt; i++) if (best < 0 || count[i] > count[best]) best = i;
-    build_mgr_set_base_x(bm, town[best].x);
-    build_mgr_set_base_y(bm, town[best].y);
-    if (g_log) fprintf(g_log, "# base: P%u at %.1f min: base %d,%d %s - moved to the town at %d,%d (%d finished buildings within 20 tiles)\n",
-                       idx, now / 60000.0, base.x, base.y, sea ? "at sea" : "with no town within 20 tiles", town[best].x, town[best].y, count[best]);
+    memcpy(was_idle[idx], now_idle, (size_t)nnow * sizeof *now_idle);
+    nwas[idx] = nnow;
+    int removed = 0;
+    {
+        static struct { ivec2 p; int type; } seen[256];
+        static ee_unit *extra[512];
+        int ns = 0, ne = 0;
+        for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {   // collected first: removing one changes the grid
+            ee_unit *u = it.u;
+            if (unit_get_owner(u) != pl || unit_get_hp(u) <= 0 || unit_get_x(u) < 0 || unit_type_get_class_id(it.td) != CLS_BUILDING ||
+                is_wall(unit_type_get_id(it.td)) || home_built(u)) continue;
+            ivec2 p = unit_get_tile(u);
+            int type = unit_type_get_id(it.td), k = 0;
+            while (k < ns && (seen[k].type != type || seen[k].p.x != p.x || seen[k].p.y != p.y)) k++;
+            if (k < ns) { if (ne < 512) extra[ne++] = u; continue; }
+            if (ns < 256) { seen[ns].p = p; seen[ns].type = type; ns++; }
+        }
+        for (int k = 0; k < ne; k++) { unit_destroy(extra[k], 0, 0, 0); removed++; }
+        if (removed && g_log) fprintf(g_log, "# home: P%u at %.1f min: %d unfinished buildings stacked on another of their type removed\n", idx, now / 60000.0, removed);
+    }
+    if (g_log && (idle || to_base))
+        fprintf(g_log, "# home: P%u at %.1f min: %d idle citizens away from its towns and %d on their way to the base %d,%d sent to their nearest "
+                "safe town (one from %d,%d to the town at %d,%d)%s\n", idx, now / 60000.0, idle, to_base, base.x, base.y, ex_from.x, ex_from.y,
+                ex_to.x, ex_to.y, stay ? " - some have none safe on their land" : "");
 }
 internal void upgrades_retry(ee_player *pl, unsigned idx, uint32_t now) {
     static uint32_t last[16];
@@ -836,7 +926,7 @@ internal void econ_tick(ee_player *pl, uint32_t now) {
     catch_up_ais(pl, ai, now);
     gather_research(pl, ai, now);
     upgrades_retry(pl, ai, now);
-    base_fix(pl, ai, now);
+    citizens_home(pl, ai, now);
     attention_note(pl, ai, now);
     defence_tick(pl, ai, now);
     counter_siege(pl, ai, now);
@@ -1310,7 +1400,6 @@ internal int field_worked(ee_resource_mgr *rm, ee_unit *f) {   // a citizen of t
 internal struct { int16_t x, y; uint32_t queued; } g_field_at[16][32];
 internal int g_field_n[16];
 internal int can_place(ee_player *pl, int type, ivec2 p);   // defence.c
-internal int raiders_near(ee_player *pl, ivec2 p, int r);     // attack.c: enemy soldiers it can see
 internal void fields_rebuild(ee_player *pl, unsigned idx, void *um, uint8_t *dq, uint32_t now) {
     if (now < 60000) g_field_n[idx] = 0;   // new game
     unsigned first = dq ? deque_front(dq) : 0, cnt = dq ? deque_count(dq) : 0;
@@ -2177,7 +2266,7 @@ internal void econ_install(const char *autotest_ini) {
     g_build_fields = g_set_ai[1].build_fields;
     g_paid_upgrades = g_set_ai[1].paid_upgrades;
     g_upg_reserve = g_set_ai[1].upgrade_reserve;
-    g_base_fix = g_set_ai[1].base_fix;
+    g_citizens_home = g_set_ai[1].citizens_home;
     if (autotest_ini) g_v_upg_reserve = ini_int("autotest", "v_upgrade_reserve", -1, autotest_ini);
     if (autotest_ini) g_tech_log = ini_int("autotest", "tech_log", 0, autotest_ini);
     if (g_tech_log && build_is("aoc")) {   // AoC's vf6 takes an argument: the hook is the 2017 update's only yet
