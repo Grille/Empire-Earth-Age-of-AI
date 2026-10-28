@@ -248,6 +248,14 @@ internal char __thiscall hook_asg_give_goal(ee_attack_subgroup *sg, ee_unit *u, 
         cover_hold_leg(sg, u, goal);                                              // else one into a lost fight stops at its edge (cover.c)
     char r = attack_subgroup_give_goal(sg, u, goal, a, prio);
     ld_fu_given(goal, r != 0);
+    if (g_set.order_log && r && g_log) {   // tests (order_log): each order given - how much of it is a group's march
+        vec3 p = unit_get_pos(u), t = goal_target(goal, u);
+        float dx = t.x - p.x, dy = t.y - p.y;
+        ee_player *pl = attack_subgroup_get_player(sg);
+        log_locked("# order: P%d %p %06x %s %d,%d -> %d,%d %.0f\n", pl ? player_get_index(pl) : -1, (void *)sg,
+                   unit_get_serial(u) & 0xFFFFFF, goal_is_location(goal) ? "move" : goal_is_attack(goal) ? "attack" : "other",
+                   (int)p.x, (int)p.y, (int)t.x, (int)t.y, sqrtf(dx * dx + dy * dy));
+    }
     return r;
 }
 internal char __thiscall hook_asg_air_give_goal(ee_attack_subgroup *sg, ee_unit *u, ee_goal *goal, int a, int prio) {

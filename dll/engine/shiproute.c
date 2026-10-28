@@ -545,8 +545,8 @@ internal int sr_search(ee_unit *u, int *from, int *to, void *caller, int sectors
         for (int k = 0; k < n; k++) g_dr_tiles += g_sr_danger[path[k]] != 0;
     }
     if (g_log && g_sr_log) {
-        fprintf(g_log, "# shiproute: %06x %d,%d -> %d,%d (from %p, sectors %d): %d tiles (%d searched%s), %d legs, %d points:", unit_get_serial(u) & 0xFFFFFF, sx, sy,
-                tx, ty, caller, sectors & 0xFF, n, expanded, joined ? ", joined a kept route" : !whole ? ", a first piece" : "", corners, np);
+        fprintf(g_log, "# shiproute: %06x %d,%d -> %d,%d (from %p, sectors %d, P%d type %d): %d tiles (%d searched%s), %d legs, %d points:", unit_get_serial(u) & 0xFFFFFF, sx, sy,
+                tx, ty, caller, sectors & 0xFF, unit_get_owner(u) ? player_get_index(unit_get_owner(u)) : -1, unit_type_get_id(td), n, expanded, joined ? ", joined a kept route" : !whole ? ", a first piece" : "", corners, np);
         for (int k = 0; k < np && k < 40; k++) fprintf(g_log, " %.1f,%.1f", pts[k][0], pts[k][1]);
         fprintf(g_log, "\n");
     }
