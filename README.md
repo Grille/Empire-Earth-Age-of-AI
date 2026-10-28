@@ -3,9 +3,7 @@
 *An unofficial fan mod. Not affiliated with or endorsed by the rights holders of Empire Earth.*
 
 The name says it twice: the computer players are the heart of the mod, and the mod itself exists because of AI.
-The game's code was reverse-engineered and the mod written largely with AI coding tools, and the project says so
-openly. Short: **EE: Age of AI**; the mod's files are named after it (`ageofai.dll`, `ageofai.ini`, the folder `ageofai`),
-its text and script files are `.eeai`.
+The game's code was reverse-engineered and the mod written largely with AI coding tools. Short: **EE: Age of AI**;
 
 A runtime mod for **Empire Earth 1.04 with the Difficulty Setting & Multiplayer Lobby add-on** (the
 last official base-game exe; Art of Conquest is being ported). It fixes and tunes the game from inside: a DLL in the
