@@ -314,6 +314,52 @@ internal void upgrade_reserve(ee_player *pl, int reserve[7]) {
     if (!PV(idx, g_v_upg_reserve, g_upg_reserve) || !g_paid_upgrades) return;
     for (int r = 2; r < 7; r++) reserve[r] += g_upg_hold[idx][r];
 }
+// BASE AT HOME ([ai_base] base_fix, default on). The build manager's base point (+0x12C) is where the AI's idle
+// citizens are sent, the home its overseas mine search (sites.c hook_find_mine) compares continents with, the ring
+// of walls' centre. EEComputerPlayer::vf7 (0x43D868 -> 0x46D745 -> 0x46831B) sets it to -10000 - on a load too - and
+// the unit manager's add (0x4905DF) takes the tile of the first unit of a type new to its lists while it is -10000,
+// if that type's data vf21 is 0: a land unit or a ship (EEUCLand, EEUCNavalTransport), never a building (EEUCBuilding
+// returns 1). At a game's start that is a citizen by the Town Center; after a load whichever such unit comes first -
+// the player's save "standing crash" (2026-10-28): P7's base was a transport's tile in the sea at 257,223, in the
+// player's land, 150 tiles from its towns. Its citizens walked from home across the continent to that shore, and with
+// the base on no land every mine counted as overseas - each idle citizen of home put on a crossing to one. Every 10 s:
+// a base at sea or with none of the AI's finished towns (Town Center, Capitol, Settlement) within 20 tiles moves to the
+// town with the most of its finished buildings within 20 tiles - finished: P7 had 249 Settlement foundations stacked
+// on one tile. "# base:" lines (the base's every move: econ_tick).
+internal int g_base_fix = 1;
+internal int base_built(ee_unit *u) { ee_unit *bs = unit_get_physics(u); return bs && unit_get_finished(bs); }
+internal void base_fix(ee_player *pl, unsigned idx, uint32_t now) {
+    static uint32_t last[16];
+    if (!g_base_fix || is_vanilla(pl) || (now >= last[idx] && now - last[idx] < 10000)) return;
+    last[idx] = now;
+    void *cm = player_get_civ_mgr(pl);
+    ee_build_mgr *bm = cm ? civ_mgr_get_build_mgr(cm) : NULL;
+    if (!bm) return;
+    ivec2 base = build_mgr_get_base(bm), town[64];
+    if (base.x == -10000) return;   // none yet: the game sets it
+    int nt = 0, home = 0, count[64] = { 0 }, best = -1;
+    for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
+        ee_unit *u = it.u;
+        if (nt == 64 || unit_get_owner(u) != pl || unit_get_hp(u) <= 0 || !UT_IN(unit_type_get_id(it.td), UT_TOWNS) || !base_built(u)) continue;
+        town[nt] = unit_get_tile(u);
+        if (ivec2_dist2(town[nt], base) <= 20 * 20) home = 1;
+        nt++;
+    }
+    int sea = base.x < 0 || base.y < 0 || (map_area(base, 2) == 0 && map_area(base, 1) != 0);
+    if ((home && !sea) || !nt) return;   // at home, or no town left
+    for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
+        ee_unit *u = it.u;
+        if (unit_get_owner(u) != pl || unit_get_hp(u) <= 0 || unit_type_get_class_id(it.td) != CLS_BUILDING ||
+            is_wall(unit_type_get_id(it.td)) || !base_built(u)) continue;
+        ivec2 p = unit_get_tile(u);
+        for (int i = 0; i < nt; i++) if (ivec2_dist2(town[i], p) <= 20 * 20) count[i]++;
+    }
+    for (int i = 0; i < nt; i++) if (best < 0 || count[i] > count[best]) best = i;
+    build_mgr_set_base_x(bm, town[best].x);
+    build_mgr_set_base_y(bm, town[best].y);
+    if (g_log) fprintf(g_log, "# base: P%u at %.1f min: base %d,%d %s - moved to the town at %d,%d (%d finished buildings within 20 tiles)\n",
+                       idx, now / 60000.0, base.x, base.y, sea ? "at sea" : "with no town within 20 tiles", town[best].x, town[best].y, count[best]);
+}
 internal void upgrades_retry(ee_player *pl, unsigned idx, uint32_t now) {
     static uint32_t last[16];
     static uint8_t held[15000 / 8 + 1];
@@ -790,6 +836,7 @@ internal void econ_tick(ee_player *pl, uint32_t now) {
     catch_up_ais(pl, ai, now);
     gather_research(pl, ai, now);
     upgrades_retry(pl, ai, now);
+    base_fix(pl, ai, now);
     attention_note(pl, ai, now);
     defence_tick(pl, ai, now);
     counter_siege(pl, ai, now);
@@ -2130,6 +2177,7 @@ internal void econ_install(const char *autotest_ini) {
     g_build_fields = g_set_ai[1].build_fields;
     g_paid_upgrades = g_set_ai[1].paid_upgrades;
     g_upg_reserve = g_set_ai[1].upgrade_reserve;
+    g_base_fix = g_set_ai[1].base_fix;
     if (autotest_ini) g_v_upg_reserve = ini_int("autotest", "v_upgrade_reserve", -1, autotest_ini);
     if (autotest_ini) g_tech_log = ini_int("autotest", "tech_log", 0, autotest_ini);
     if (g_tech_log && build_is("aoc")) {   // AoC's vf6 takes an argument: the hook is the 2017 update's only yet

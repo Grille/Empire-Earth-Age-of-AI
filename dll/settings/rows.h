@@ -162,6 +162,7 @@
     D(NUM,   avoid_towers_margin,          6, 0, 0) \
     D(NUM,   attack_weak_spot_radius,      60, 0, 0) \
     D(FLAG,  build_fix,                    1, 0, 0) \
+    D(FLAG,  base_fix,                     1, 0, 0) \
     D(FLAG,  build_fields,                 1, 0, 0) \
     D(FLAG,  paid_upgrades,                1, 0, 0) \
     D(FLAG,  upgrade_reserve,              1, 0, 0) \
