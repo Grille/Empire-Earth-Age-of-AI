@@ -116,6 +116,18 @@ triangles cross its ends: the horizon band's fog was 19% off). After them the me
 real time, paused too): within the noise. Interface, buildings, units and the decals on the ground (selection circles)
 match exactly. Tried and dropped: colour interpolated without perspective (worse).
 
+2026-10-28, batching (the player: 100 fps in a busy base). The game draws an object at a time: 5000 draws a frame in a
+late base, 1100-2600 elsewhere. The minute's log line measures it: `# render: frames, draws (the last minute a frame:
+draws in batches, ms in them, ms in Present)`. On a copy of the player's autosave (headless, paused at the same step,
+the same view, 2580 draws a frame): 0.53 us a draw before, 0.43 after - 1.37 ms a frame to 1.10. Two changes: draws in
+a row whose states match go to the GPU as one (2580 draws in 440 batches; the world matrix is the vertex's own, an index
+into a ring of matrices read by the vertex shader; strips become lists; anything else that uses the context sends the
+batch first - rd3_flush); and the state step is skipped when nothing but the world matrix changed (the setters note a
+change only when the value differs - the game sets most states over and over to what they are). Fewer GPU calls alone
+gained nothing: the cost was the mod's own per-draw work. The rest of a 10 ms frame is the game's own. Tried and
+dropped: the matrices in a constant buffer discarded per batch (the frame rate fell to a third - the driver stalls).
+Picture: the same as before (mean difference 0.05-0.46 at the same moment; trees and light patches move in real time).
+
 ## The debug overlay
 
 2026-10-28 (the player: what the renderer could do - the AI's plans on the map). `[display] overlay = routes,danger`

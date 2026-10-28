@@ -67,16 +67,19 @@ typedef struct {
     DWORD tss[2][RD_TSS];
     rd_surface *tex[2];
     int in_scene;
+    int changed;   // states other than the world matrix set to other values since rd3_prepare last ran (RD_CH_)
 } rd_device;
+enum { RD_CH_VC = 1, RD_CH_RS = 2, RD_CH_TEX = 4, RD_CH_TARGET = 8 };   // transforms, viewport, lights, material: the vertex constants
 internal volatile LONG g_rd_draws, g_rd_frames;
 internal DWORD g_rd_minute_tick;
 internal LONGLONG g_rd_draw_qpc, g_rd_draw_qpc_told;   // time inside the draw calls (the game's thread), for the minute's line
 internal LONGLONG rd_qpc(void) { LARGE_INTEGER t; QueryPerformanceCounter(&t); return t.QuadPart; }
 
 // ---- the 3D pipeline ----
-// the vertex shader's constants (D3D7's row vectors: v * world * view * projection, row_major in HLSL)
+// the vertex shader's constants (D3D7's row vectors: v * world * view * projection, row_major in HLSL); the world
+// matrix is the vertex's own (its index into the batch's table, cbuffer w), so draws that differ only in it batch
 typedef struct {
-    float wvp[16], wv[16], world[16];
+    float vpm[16], view[16];   // view x projection, view
     float ldir[8][4], ldiff[8][4], lamb[8][4];
     float mdiff[4], mamb[4], memi[4], gamb[4];
     int32_t lit[4];   // lighting, lights, normalize normals
@@ -91,14 +94,17 @@ typedef struct {
     float misc[4];   // alpha reference, fog on, colour key
 } rd3_pcb;
 internal const char k_rd3_shader[] =
-    "cbuffer v : register(b0) { row_major float4x4 wvp; row_major float4x4 wv; row_major float4x4 world;"
+    "cbuffer v : register(b0) { row_major float4x4 vpm; row_major float4x4 view;"
     " float4 ldir[8]; float4 ldiff[8]; float4 lamb[8]; float4 mdiff, mamb, memi, gamb; int4 lit; int4 src; float4 fog;"
     " float4 vp; };\n"
     "cbuffer p : register(b1) { int4 op; int4 aop; float4 fogc; float4 tf; float4 misc; };\n"
+    "Buffer<float4> wt : register(t1);\n"   // the world matrices, 4 rows each (RD3_WB_BYTES)
     "Texture2D t : register(t0); SamplerState s : register(s0);\n"
-    "struct I { float3 p : POSITION; float3 n : NORMAL; float4 c : COLOR; float2 t : TEXCOORD; };\n"
+    "struct I { float3 p : POSITION; float3 n : NORMAL; float4 c : COLOR; float2 t : TEXCOORD; uint w : WORLD; };\n"
     "struct O { float4 p : SV_Position; float4 c : COLOR; float2 t : TEXCOORD0; float f : FOG; };\n"
-    "O vs(I i) { O o; float4 p = float4(i.p, 1); o.p = mul(p, wvp); o.p.xy += vp.xy * o.p.w;"
+    "O vs(I i) { O o; uint r = i.w * 4; float4x4 world = float4x4(wt.Load(r), wt.Load(r + 1), wt.Load(r + 2), wt.Load(r + 3));"
+    " float4 p = mul(float4(i.p, 1), world); o.p = mul(p, vpm);"
+    " o.p.xy += vp.xy * o.p.w;"
     " float4 vc = i.c.zyxw, c = vc;"   // D3DCOLOR's bytes are B G R A
     " if (lit.x) { float4 d = src.x ? vc : mdiff, a = src.y ? vc : mamb, e = src.z ? vc : memi;"
     "  float3 n = mul(i.n, (float3x3)world); if (lit.z) n = normalize(n);"
@@ -106,7 +112,7 @@ internal const char k_rd3_shader[] =
     "  for (int k = 0; k < lit.y; k++) { am += lamb[k].rgb; df += ldiff[k].rgb * max(0, dot(n, -ldir[k].xyz)); }"
     "  c = float4(saturate(e.rgb + a.rgb * am + d.rgb * df), d.a); }"
     " o.c = c; o.t = i.t;"
-    " float3 q = mul(p, wv).xyz; float z = vp.z > 0.5 ? length(q) : q.z, f = 1;"
+    " float3 q = mul(p, view).xyz; float z = vp.z > 0.5 ? length(q) : q.z, f = 1;"
     " if (fog.x == 3) f = (fog.z - z) / (fog.z - fog.y); else if (fog.x == 1) f = exp(-fog.w * z);"
     " else if (fog.x == 2) f = exp(-(fog.w * z) * (fog.w * z));"
     " o.f = f; return o; }\n"   // clamped per pixel, as the driver under a wrapper does (the picture compare)
@@ -126,14 +132,34 @@ internal const char k_rd3_shader[] =
 
 #define RD3_VB_BYTES (4u << 20)
 #define RD3_IB_BYTES (1u << 20)
+#define RD3_WB_BYTES (1u << 20)   // the batches' world matrices, appended like the vertices (no discard a batch)
+// THE BATCH: the game draws an object at a time (5000 draws a frame in a busy base, each a few dozen triangles), and
+// a draw call costs its time on the game's thread whatever its size. Draws in a row whose states match - the same
+// texture, blend, material ... - differing only in their world matrix are collected and drawn as one: their vertices
+// (with their matrix's index in the batch's table) and indices into the upload buffers, then one DrawIndexed. Strips
+// become lists (one batch takes many). Whatever else uses the context sends the batch first (rd3_flush): a state that
+// changes (rd3_prepare), a texture's upload, the 2D path, clear, read back, present, the overlay, a texture freed.
+#define RB_VERTS 32768
+#define RB_INDICES (RB_VERTS * 3)
+#define RB_WORLDS 256
+typedef struct { uint8_t fvf[36]; uint32_t w; } rb_vertex;   // FVF 0x152 and the world's index
+internal struct {
+    rb_vertex *v;
+    uint32_t *i;
+    float (*w)[16];
+    int nv, ni, nw;
+    D3D11_PRIMITIVE_TOPOLOGY topo;
+    LONG batches;   // draw calls made (the minute's line)
+} g_rb;
 typedef struct { uint32_t key; void *obj; } rd3_cached;
 internal struct {
     int ready, bound;
     ID3D11VertexShader *vs;
     ID3D11PixelShader *ps;
     ID3D11InputLayout *inputs;
-    ID3D11Buffer *vcb, *pcb, *vb, *ib;
-    UINT vb_pos, ib_pos;
+    ID3D11Buffer *vcb, *pcb, *wb, *vb, *ib;
+    ID3D11ShaderResourceView *wsrv;
+    UINT vb_pos, ib_pos, wb_pos;
     rd3_vcb vc;
     rd3_pcb pc;
     // what is bound (rebound in full after the 2D path or the present - rd3_dirty)
@@ -148,6 +174,8 @@ internal struct {
     float scene_vp[16];
     D3D11_VIEWPORT scene_port;
     int scene_seen, overlay_done;
+    rd_device *prep_dev;   // whose states are bound (rd3_prepare), with which clamp
+    int prep_clamp;
 } g_rd3;
 
 internal void rd3_dirty(void) { g_rd3.bound = 0; }   // the 2D draw or the present set states of their own
@@ -162,8 +190,9 @@ internal int rd3_init(void) {
         { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
         { "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 },
         { "COLOR", 0, DXGI_FORMAT_R8G8B8A8_UNORM, 0, 24, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-        { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 28, D3D11_INPUT_PER_VERTEX_DATA, 0 } };
-    if (SUCCEEDED(hr)) hr = ID3D11Device_CreateInputLayout(g_d3d.dev, el, 4, ID3D10Blob_GetBufferPointer(code), ID3D10Blob_GetBufferSize(code), &g_rd3.inputs);
+        { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 28, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+        { "WORLD", 0, DXGI_FORMAT_R32_UINT, 0, 36, D3D11_INPUT_PER_VERTEX_DATA, 0 } };   // rb_vertex
+    if (SUCCEEDED(hr)) hr = ID3D11Device_CreateInputLayout(g_d3d.dev, el, 5, ID3D10Blob_GetBufferPointer(code), ID3D10Blob_GetBufferSize(code), &g_rd3.inputs);
     D3D_RELEASE(code);
     code = SUCCEEDED(hr) ? d3d_compile(k_rd3_shader, sizeof k_rd3_shader - 1, "ps", "ps_4_0") : NULL;
     hr = code ? ID3D11Device_CreatePixelShader(g_d3d.dev, ID3D10Blob_GetBufferPointer(code), ID3D10Blob_GetBufferSize(code), NULL, &g_rd3.ps) : E_FAIL;
@@ -176,9 +205,19 @@ internal int rd3_init(void) {
     if (SUCCEEDED(hr)) hr = ID3D11Device_CreateBuffer(g_d3d.dev, &ud, NULL, &g_rd3.vb);
     ud.ByteWidth = RD3_IB_BYTES; ud.BindFlags = D3D11_BIND_INDEX_BUFFER;
     if (SUCCEEDED(hr)) hr = ID3D11Device_CreateBuffer(g_d3d.dev, &ud, NULL, &g_rd3.ib);
+    ud.ByteWidth = RD3_WB_BYTES; ud.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+    if (SUCCEEDED(hr)) hr = ID3D11Device_CreateBuffer(g_d3d.dev, &ud, NULL, &g_rd3.wb);
+    D3D11_SHADER_RESOURCE_VIEW_DESC sd = { .Format = DXGI_FORMAT_R32G32B32A32_FLOAT, .ViewDimension = D3D11_SRV_DIMENSION_BUFFER };
+    sd.Buffer.NumElements = RD3_WB_BYTES / 16;
+    if (SUCCEEDED(hr)) hr = ID3D11Device_CreateShaderResourceView(g_d3d.dev, (ID3D11Resource *)g_rd3.wb, &sd, &g_rd3.wsrv);
     if (FAILED(hr)) return rd_fail("the 3D pipeline", hr), 0;
+    g_rb.v = malloc(RB_VERTS * sizeof *g_rb.v);
+    g_rb.i = malloc(RB_INDICES * sizeof *g_rb.i);
+    g_rb.w = malloc(RB_WORLDS * sizeof *g_rb.w);
+    if (!g_rb.v || !g_rb.i || !g_rb.w) return rd_fail("the 3D pipeline's batch", E_OUTOFMEMORY), 0;
     g_rd3.vb_pos = RD3_VB_BYTES;   // the first write discards
     g_rd3.ib_pos = RD3_IB_BYTES;
+    g_rd3.wb_pos = RD3_WB_BYTES;
     g_rd3.ready = 1;
     return 1;
 }
@@ -276,108 +315,116 @@ internal int rd3_flat_picture(rd_device *d, rd_vb *vb, DWORD start, DWORD n) {
 internal int rd3_prepare(rd_device *d, int clamp) {
     rd_surface *t = d->target;
     if (!t || !t->rtv || !rd3_init()) return 0;
+    // nothing but the world matrix changed since the last draw (the game sets it for each object, most other states
+    // over and over to the values they have): the states bound are this draw's - the work below cost more than the draw
+    rd_surface *tx = d->tex[0] ? (d->tex[0]->top ? d->tex[0]->top : d->tex[0]) : NULL;
+    if (!d->changed && g_rd3.bound && g_rd3.prep_dev == d && g_rd3.prep_clamp == clamp && g_rd3.rtv == t->rtv
+        && g_rd3.dsv == (t->zbuf ? t->zbuf->dsv : NULL) && !(tx && tx->kind != RK_TARGET && tx->dirty))
+        return 1;
     ID3D11DeviceContext *x = g_d3d.ctx;
     const DWORD *rs = d->rs;
-    int full = !g_rd3.bound;
+    int full = !g_rd3.bound;   // (whoever unbound flushed before)
     if (full) {
         ID3D11DeviceContext_IASetInputLayout(x, g_rd3.inputs);
         ID3D11DeviceContext_VSSetShader(x, g_rd3.vs, NULL, 0);
         ID3D11DeviceContext_PSSetShader(x, g_rd3.ps, NULL, 0);
         ID3D11DeviceContext_VSSetConstantBuffers(x, 0, 1, &g_rd3.vcb);
+        ID3D11DeviceContext_VSSetShaderResources(x, 1, 1, &g_rd3.wsrv);
         ID3D11DeviceContext_PSSetConstantBuffers(x, 1, 1, &g_rd3.pcb);
-        UINT stride = 36, off = 0;
+        UINT stride = sizeof(rb_vertex), off = 0;
         ID3D11DeviceContext_IASetVertexBuffers(x, 0, 1, &g_rd3.vb, &stride, &off);
-        ID3D11DeviceContext_IASetIndexBuffer(x, g_rd3.ib, DXGI_FORMAT_R16_UINT, 0);
+        ID3D11DeviceContext_IASetIndexBuffer(x, g_rd3.ib, DXGI_FORMAT_R32_UINT, 0);
         g_rd3.bound = 1;
     }
+    // each state: the batch so far drawn with the old one before it changes
     ID3D11DepthStencilView *dsv = t->zbuf ? t->zbuf->dsv : NULL;
     if (full || g_rd3.rtv != t->rtv || g_rd3.dsv != dsv) {
+        rd3_flush();
         ID3D11DeviceContext_OMSetRenderTargets(x, 1, &t->rtv, dsv);
         g_rd3.rtv = t->rtv; g_rd3.dsv = dsv;
     }
     D3D11_VIEWPORT vp = { (float)d->viewport.dwX, (float)d->viewport.dwY, (float)d->viewport.dwWidth,
                           (float)d->viewport.dwHeight, d->viewport.dvMinZ, d->viewport.dvMaxZ };
-    if (full || memcmp(&vp, &g_rd3.vport, sizeof vp)) { ID3D11DeviceContext_RSSetViewports(x, 1, &vp); g_rd3.vport = vp; }
+    if (full || memcmp(&vp, &g_rd3.vport, sizeof vp)) { rd3_flush(); ID3D11DeviceContext_RSSetViewports(x, 1, &vp); g_rd3.vport = vp; }
     uint32_t bk = rs[D3DRENDERSTATE_ALPHABLENDENABLE] ? 1 | (rs[D3DRENDERSTATE_SRCBLEND] & 15) << 1 | (rs[D3DRENDERSTATE_DESTBLEND] & 15) << 5 : 0;
     void *o = rd3_cache(g_rd3.blends, &g_rd3.n_blend, 32, bk, rd3_mk_blend);
-    if (full || o != g_rd3.blend) { ID3D11DeviceContext_OMSetBlendState(x, o, NULL, 0xFFFFFFFF); g_rd3.blend = o; }
+    if (full || o != g_rd3.blend) { rd3_flush(); ID3D11DeviceContext_OMSetBlendState(x, o, NULL, 0xFFFFFFFF); g_rd3.blend = o; }
     uint32_t dk = (rs[D3DRENDERSTATE_ZENABLE] ? 1 : 0) | (rs[D3DRENDERSTATE_ZWRITEENABLE] ? 2 : 0) | (rs[D3DRENDERSTATE_ZFUNC] & 15) << 2;
     o = rd3_cache(g_rd3.depths, &g_rd3.n_depth, 32, dk, rd3_mk_depth);
-    if (full || o != g_rd3.depth) { ID3D11DeviceContext_OMSetDepthStencilState(x, o, 0); g_rd3.depth = o; }
+    if (full || o != g_rd3.depth) { rd3_flush(); ID3D11DeviceContext_OMSetDepthStencilState(x, o, 0); g_rd3.depth = o; }
     o = rd3_cache(g_rd3.rasters, &g_rd3.n_raster, 8, rs[D3DRENDERSTATE_CULLMODE] & 3, rd3_mk_raster);
-    if (full || o != g_rd3.raster) { ID3D11DeviceContext_RSSetState(x, o); g_rd3.raster = o; }
+    if (full || o != g_rd3.raster) { rd3_flush(); ID3D11DeviceContext_RSSetState(x, o); g_rd3.raster = o; }
 
     // texture stage 0 (stage 1 is always off in the game)
     const DWORD *ts = d->tss[0];
     rd_surface *tex = d->tex[0];
     int ckey = rs[D3DRENDERSTATE_COLORKEYENABLE] && tex && (tex->top ? tex->top : tex)->has_key;
     ID3D11ShaderResourceView *srv = tex ? rd_gpu_texture(tex, ckey) : NULL;
-    if (full || srv != g_rd3.srv) { ID3D11DeviceContext_PSSetShaderResources(x, 0, 1, &srv); g_rd3.srv = srv; }
+    if (full || srv != g_rd3.srv) { rd3_flush(); ID3D11DeviceContext_PSSetShaderResources(x, 0, 1, &srv); g_rd3.srv = srv; }
     int bias = (int)(rd3_float(ts[D3DTSS_MIPMAPLODBIAS]) * 16.0f);
     uint32_t au = clamp ? D3DTADDRESS_CLAMP : ts[D3DTSS_ADDRESSU], av = clamp ? D3DTADDRESS_CLAMP : ts[D3DTSS_ADDRESSV];
     uint32_t sk = (au & 7) | (av & 7) << 3 | (ts[D3DTSS_MAGFILTER] & 3) << 6 |
                   (ts[D3DTSS_MINFILTER] & 3) << 8 | (ts[D3DTSS_MIPFILTER] & 3) << 10 | (uint32_t)(bias & 255) << 12;
     o = rd3_cache(g_rd3.samps, &g_rd3.n_samp, 32, sk, rd3_mk_samp);
-    if (full || o != g_rd3.samp) { ID3D11DeviceContext_PSSetSamplers(x, 0, 1, (ID3D11SamplerState **)&o); g_rd3.samp = o; }
+    if (full || o != g_rd3.samp) { rd3_flush(); ID3D11DeviceContext_PSSetSamplers(x, 0, 1, (ID3D11SamplerState **)&o); g_rd3.samp = o; }
 
-    // the vertex shader's constants
-    rd3_vcb vc;
-    memset(&vc, 0, sizeof vc);
-    float wv[16];
-    rd3_mul(wv, &d->world._11, &d->view._11);
-    rd3_mul(vc.wvp, wv, &d->proj._11);
-    memcpy(vc.wv, wv, sizeof wv);
-    memcpy(vc.world, &d->world._11, sizeof vc.world);
-    if (rs[D3DRENDERSTATE_ZENABLE] && (d->view._41 != 0 || d->view._42 != 0 || d->view._43 != 0)) {
-        // the map's camera (a view away from the origin - the interface's 3D pieces have none): the overlay's
-        rd3_mul(g_rd3.scene_vp, &d->view._11, &d->proj._11);
-        g_rd3.scene_port = vp;
-        g_rd3.scene_seen = 1;
-    }
-    int lights = 0;
-    if (rs[D3DRENDERSTATE_LIGHTING]) {
-        for (int i = 0; i < 8; i++) {
-            const D3DLIGHT7 *l = &d->light[i];
-            if (!d->light_on[i] || l->dltType != D3DLIGHT_DIRECTIONAL) continue;   // the game's: one directional
-            float len = sqrtf(l->dvDirection.x * l->dvDirection.x + l->dvDirection.y * l->dvDirection.y + l->dvDirection.z * l->dvDirection.z);
-            if (len <= 0) continue;
-            vc.ldir[lights][0] = l->dvDirection.x / len; vc.ldir[lights][1] = l->dvDirection.y / len;
-            vc.ldir[lights][2] = l->dvDirection.z / len;
-            rd3_value(vc.ldiff[lights], &l->dcvDiffuse);
-            rd3_value(vc.lamb[lights], &l->dcvAmbient);
-            lights++;
+    // the vertex shader's constants - not when only a texture or its stage changed (most often, between two batches)
+    if (full || g_rd3.prep_dev != d || (d->changed & (RD_CH_VC | RD_CH_RS))) {
+        rd3_vcb vc;
+        memset(&vc, 0, sizeof vc);
+        rd3_mul(vc.vpm, &d->view._11, &d->proj._11);
+        memcpy(vc.view, &d->view._11, sizeof vc.view);
+        if (rs[D3DRENDERSTATE_ZENABLE] && (d->view._41 != 0 || d->view._42 != 0 || d->view._43 != 0)) {
+            // the map's camera (a view away from the origin - the interface's 3D pieces have none): the overlay's
+            memcpy(g_rd3.scene_vp, vc.vpm, sizeof vc.vpm);
+            g_rd3.scene_port = vp;
+            g_rd3.scene_seen = 1;
         }
-        rd3_value(vc.mdiff, &d->material.diffuse);
-        rd3_value(vc.mamb, &d->material.ambient);
-        rd3_value(vc.memi, &d->material.emissive);
-        rd3_color(vc.gamb, rs[D3DRENDERSTATE_AMBIENT]);
-        int cv = rs[D3DRENDERSTATE_COLORVERTEX] != 0;   // the vertex has a diffuse colour (COLOR1), no specular (COLOR2)
-        vc.src[0] = cv && rs[D3DRENDERSTATE_DIFFUSEMATERIALSOURCE] == D3DMCS_COLOR1;
-        vc.src[1] = cv && rs[D3DRENDERSTATE_AMBIENTMATERIALSOURCE] == D3DMCS_COLOR1;
-        vc.src[2] = cv && rs[D3DRENDERSTATE_EMISSIVEMATERIALSOURCE] == D3DMCS_COLOR1;
+        int lights = 0;
+        if (rs[D3DRENDERSTATE_LIGHTING]) {
+            for (int i = 0; i < 8; i++) {
+                const D3DLIGHT7 *l = &d->light[i];
+                if (!d->light_on[i] || l->dltType != D3DLIGHT_DIRECTIONAL) continue;   // the game's: one directional
+                float len = sqrtf(l->dvDirection.x * l->dvDirection.x + l->dvDirection.y * l->dvDirection.y + l->dvDirection.z * l->dvDirection.z);
+                if (len <= 0) continue;
+                vc.ldir[lights][0] = l->dvDirection.x / len; vc.ldir[lights][1] = l->dvDirection.y / len;
+                vc.ldir[lights][2] = l->dvDirection.z / len;
+                rd3_value(vc.ldiff[lights], &l->dcvDiffuse);
+                rd3_value(vc.lamb[lights], &l->dcvAmbient);
+                lights++;
+            }
+            rd3_value(vc.mdiff, &d->material.diffuse);
+            rd3_value(vc.mamb, &d->material.ambient);
+            rd3_value(vc.memi, &d->material.emissive);
+            rd3_color(vc.gamb, rs[D3DRENDERSTATE_AMBIENT]);
+            int cv = rs[D3DRENDERSTATE_COLORVERTEX] != 0;   // the vertex has a diffuse colour (COLOR1), no specular (COLOR2)
+            vc.src[0] = cv && rs[D3DRENDERSTATE_DIFFUSEMATERIALSOURCE] == D3DMCS_COLOR1;
+            vc.src[1] = cv && rs[D3DRENDERSTATE_AMBIENTMATERIALSOURCE] == D3DMCS_COLOR1;
+            vc.src[2] = cv && rs[D3DRENDERSTATE_EMISSIVEMATERIALSOURCE] == D3DMCS_COLOR1;
+        }
+        vc.lit[0] = rs[D3DRENDERSTATE_LIGHTING] != 0;
+        vc.lit[1] = lights;
+        vc.lit[2] = rs[D3DRENDERSTATE_NORMALIZENORMALS] != 0;
+        if (rs[D3DRENDERSTATE_FOGENABLE]) {   // vertex fog (the game's); a table fog mode computed per vertex the same way
+            DWORD m = rs[D3DRENDERSTATE_FOGTABLEMODE] != D3DFOG_NONE ? rs[D3DRENDERSTATE_FOGTABLEMODE] : rs[D3DRENDERSTATE_FOGVERTEXMODE];
+            vc.fog[0] = (float)(m == D3DFOG_LINEAR ? 3 : m == D3DFOG_EXP2 ? 2 : m == D3DFOG_EXP ? 1 : 0);
+            vc.fog[1] = rd3_float(rs[D3DRENDERSTATE_FOGSTART]);
+            vc.fog[2] = rd3_float(rs[D3DRENDERSTATE_FOGEND]);
+            vc.fog[3] = rd3_float(rs[D3DRENDERSTATE_FOGDENSITY]);
+            if (vc.fog[0] == 3 && vc.fog[2] == vc.fog[1]) vc.fog[2] += 1e-6f;
+        }
+        // Direct3D 7's pixel centres are at whole coordinates, Direct3D 11's at .5: a vertex at x lands on pixel x's centre
+        // shifted half a pixel right and down (in clip space: + x, - y; the picture compare found 1 pixel up-left without)
+        vc.vp[0] = d->viewport.dwWidth ? 1.0f / (float)d->viewport.dwWidth : 0;
+        vc.vp[1] = d->viewport.dwHeight ? -1.0f / (float)d->viewport.dwHeight : 0;
+        vc.vp[2] = rs[D3DRENDERSTATE_RANGEFOGENABLE] ? 1.0f : 0.0f;
+        if (full || memcmp(&vc, &g_rd3.vc, sizeof vc)) {
+            rd3_flush();
+            ID3D11DeviceContext_UpdateSubresource(x, (ID3D11Resource *)g_rd3.vcb, 0, NULL, &vc, 0, 0);
+            g_rd3.vc = vc;
+        }
     }
-    vc.lit[0] = rs[D3DRENDERSTATE_LIGHTING] != 0;
-    vc.lit[1] = lights;
-    vc.lit[2] = rs[D3DRENDERSTATE_NORMALIZENORMALS] != 0;
-    int fog = rs[D3DRENDERSTATE_FOGENABLE] != 0;
-    if (fog) {   // vertex fog (the game's); a table fog mode computed per vertex the same way
-        DWORD m = rs[D3DRENDERSTATE_FOGTABLEMODE] != D3DFOG_NONE ? rs[D3DRENDERSTATE_FOGTABLEMODE] : rs[D3DRENDERSTATE_FOGVERTEXMODE];
-        vc.fog[0] = (float)(m == D3DFOG_LINEAR ? 3 : m == D3DFOG_EXP2 ? 2 : m == D3DFOG_EXP ? 1 : 0);
-        vc.fog[1] = rd3_float(rs[D3DRENDERSTATE_FOGSTART]);
-        vc.fog[2] = rd3_float(rs[D3DRENDERSTATE_FOGEND]);
-        vc.fog[3] = rd3_float(rs[D3DRENDERSTATE_FOGDENSITY]);
-        if (vc.fog[0] == 3 && vc.fog[2] == vc.fog[1]) vc.fog[2] += 1e-6f;
-        if (vc.fog[0] == 0) fog = 0;
-    }
-    // Direct3D 7's pixel centres are at whole coordinates, Direct3D 11's at .5: a vertex at x lands on pixel x's centre
-    // shifted half a pixel right and down (in clip space: + x, - y; the picture compare found 1 pixel up-left without)
-    vc.vp[0] = d->viewport.dwWidth ? 1.0f / (float)d->viewport.dwWidth : 0;
-    vc.vp[1] = d->viewport.dwHeight ? -1.0f / (float)d->viewport.dwHeight : 0;
-    vc.vp[2] = rs[D3DRENDERSTATE_RANGEFOGENABLE] ? 1.0f : 0.0f;
-    if (full || memcmp(&vc, &g_rd3.vc, sizeof vc)) {
-        ID3D11DeviceContext_UpdateSubresource(x, (ID3D11Resource *)g_rd3.vcb, 0, NULL, &vc, 0, 0);
-        g_rd3.vc = vc;
-    }
+    int fog = g_rd3.vc.fog[0] != 0;   // (0 while fog is off)
 
     // the pixel shader's
     rd3_pcb pc;
@@ -392,9 +439,12 @@ internal int rd3_prepare(rd_device *d, int clamp) {
     pc.misc[1] = fog ? 1.0f : 0.0f;
     pc.misc[2] = ckey ? 1.0f : 0.0f;
     if (full || memcmp(&pc, &g_rd3.pc, sizeof pc)) {
+        rd3_flush();
         ID3D11DeviceContext_UpdateSubresource(x, (ID3D11Resource *)g_rd3.pcb, 0, NULL, &pc, 0, 0);
         g_rd3.pc = pc;
     }
+    d->changed = 0;
+    g_rd3.prep_dev = d; g_rd3.prep_clamp = clamp;
     return 1;
 }
 
@@ -428,6 +478,50 @@ internal int rd3_drawable(rd_vb *vb, D3DPRIMITIVETYPE type) {
         return 0;
     }
     return 1;
+}
+
+// the batch into the upload buffers and drawn with the states bound
+internal void rd3_flush(void) {
+    if (!g_rb.ni) return;
+    ID3D11DeviceContext *x = g_d3d.ctx;
+    long wa = rd3_upload(g_rd3.wb, RD3_WB_BYTES, &g_rd3.wb_pos, g_rb.w, (UINT)g_rb.nw * sizeof *g_rb.w, sizeof *g_rb.w);
+    if (wa > 0) for (int k = 0; k < g_rb.nv; k++) g_rb.v[k].w += (uint32_t)wa / sizeof *g_rb.w;   // the batch's matrices' place
+    long at = wa >= 0 ? rd3_upload(g_rd3.vb, RD3_VB_BYTES, &g_rd3.vb_pos, g_rb.v, (UINT)g_rb.nv * sizeof *g_rb.v, sizeof *g_rb.v) : -1;
+    long ia = at >= 0 ? rd3_upload(g_rd3.ib, RD3_IB_BYTES, &g_rd3.ib_pos, g_rb.i, (UINT)g_rb.ni * 4, 4) : -1;
+    if (ia >= 0) {
+        ID3D11DeviceContext_IASetPrimitiveTopology(x, g_rb.topo);
+        ID3D11DeviceContext_DrawIndexed(x, (UINT)g_rb.ni, (UINT)ia / 4, (INT)((UINT)at / sizeof *g_rb.v));
+        g_rb.batches++;
+    }
+    g_rb.nv = g_rb.ni = g_rb.nw = 0;
+}
+// a draw into the batch (rd3_prepare bound its states): nv vertices from start, ni indices (NULL: 0..nv-1) of type
+internal void rd3_append(rd_device *d, D3DPRIMITIVETYPE type, rd_vb *vb, DWORD start, DWORD nv, const WORD *idx, DWORD ni) {
+    int line = type == D3DPT_LINELIST || type == D3DPT_LINESTRIP, strip = type == D3DPT_TRIANGLESTRIP || type == D3DPT_LINESTRIP;
+    D3D11_PRIMITIVE_TOPOLOGY topo = line ? D3D11_PRIMITIVE_TOPOLOGY_LINELIST : type == D3DPT_POINTLIST
+                                  ? D3D11_PRIMITIVE_TOPOLOGY_POINTLIST : D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+    DWORD n = idx ? ni : nv;   // the primitives' vertices as given
+    DWORD out = !strip ? n : line ? (n >= 2 ? (n - 1) * 2 : 0) : (n >= 3 ? (n - 2) * 3 : 0);
+    if (!out || nv > RB_VERTS || out > RB_INDICES) return;
+    if (g_rb.ni && (g_rb.topo != topo || g_rb.nv + (int)nv > RB_VERTS || g_rb.ni + (int)out > RB_INDICES || g_rb.nw >= RB_WORLDS))
+        rd3_flush();
+    if (!g_rb.nw || memcmp(g_rb.w[g_rb.nw - 1], &d->world._11, 64)) memcpy(g_rb.w[g_rb.nw++], &d->world._11, 64);
+    g_rb.topo = topo;
+    uint32_t w = (uint32_t)g_rb.nw - 1, base = (uint32_t)g_rb.nv;
+    for (DWORD k = 0; k < nv; k++) {
+        rb_vertex *v = &g_rb.v[g_rb.nv++];
+        memcpy(v->fvf, vb->mem + (size_t)(start + k) * vb->stride, sizeof v->fvf);
+        v->w = w;
+    }
+    uint32_t *o = g_rb.i + g_rb.ni;
+    #define RB_AT(k) (base + (idx ? idx[k] : (k)))
+    if (!strip) for (DWORD k = 0; k < n; k++) *o++ = RB_AT(k);
+    else if (line) for (DWORD k = 0; k + 1 < n; k++) { *o++ = RB_AT(k); *o++ = RB_AT(k + 1); }
+    else for (DWORD k = 0; k + 2 < n; k++) {   // every second triangle of a strip turns the other way
+        *o++ = RB_AT(k + (k & 1)); *o++ = RB_AT(k + 1 - (k & 1)); *o++ = RB_AT(k + 2);
+    }
+    #undef RB_AT
+    g_rb.ni += (int)out;
 }
 
 #include "render_overlay.c"   // the debug overlay: the AI's plans on the map
@@ -505,22 +599,24 @@ internal void rd_frame_tick(void) {
     InterlockedIncrement(&g_rd_frames);
     DWORD now = GetTickCount();
     if (now - g_rd_minute_tick < 60000) return;
-    static LONG frames0, draws0;
+    static LONG frames0, draws0, batches0;
     static LONGLONG present0;
     LARGE_INTEGER f;
     QueryPerformanceFrequency(&f);
-    LONG fr = g_rd_frames - frames0, dr = g_rd_draws - draws0;
+    LONG fr = g_rd_frames - frames0, dr = g_rd_draws - draws0, ba = g_rb.batches - batches0;
     double k = fr > 0 ? 1000.0 / (double)f.QuadPart / fr : 0;
-    log_locked("# render: frames %ld, draws %ld (the last minute a frame: %ld draws, %.2f ms in them, %.2f ms in Present; %ld frames)\n",
-               (long)g_rd_frames, (long)g_rd_draws, fr > 0 ? (long)(dr / fr) : 0L, (double)(g_rd_draw_qpc - g_rd_draw_qpc_told) * k,
-               (double)(g_d3d_present_qpc - present0) * k, (long)fr);
+    log_locked("# render: frames %ld, draws %ld (the last minute a frame: %ld draws in %ld batches, %.2f ms in them, %.2f ms in Present;"
+               " %ld frames)\n", (long)g_rd_frames, (long)g_rd_draws, fr > 0 ? (long)(dr / fr) : 0L, fr > 0 ? (long)(ba / fr) : 0L,
+               (double)(g_rd_draw_qpc - g_rd_draw_qpc_told) * k, (double)(g_d3d_present_qpc - present0) * k, (long)fr);
     g_rd_minute_tick = now;
-    frames0 = g_rd_frames; draws0 = g_rd_draws; g_rd_draw_qpc_told = g_rd_draw_qpc; present0 = g_d3d_present_qpc;
+    frames0 = g_rd_frames; draws0 = g_rd_draws; batches0 = g_rb.batches;
+    g_rd_draw_qpc_told = g_rd_draw_qpc; present0 = g_d3d_present_qpc;
 }
 internal HRESULT __stdcall rd_dev_begin(rd_device *d) { d->in_scene = 1; return D3D_OK; }
 internal HRESULT __stdcall rd_dev_end(rd_device *d) {
     d->in_scene = 0;
     RD_LOCK();
+    rd3_flush();
     rd3_overlay_frame_end(d);
     RD_UNLOCK();
     rd_frame_tick();
@@ -531,6 +627,7 @@ internal HRESULT __stdcall rd_dev_set_target(rd_device *d, rd_surface *t, DWORD 
     if (!rd_is_surface(t) || t->kind != RK_TARGET) return DDERR_INVALIDPARAMS;
     rd_sf_addref(t);
     if (d->target) rd_sf_release(d->target);
+    if (d->target != t) d->changed |= RD_CH_TARGET;
     d->target = t;
     return D3D_OK;
 }
@@ -545,6 +642,7 @@ internal HRESULT __stdcall rd_dev_clear(rd_device *d, DWORD n, D3DRECT *rects, D
     rd_surface *t = d->target;
     if (!t) return D3D_OK;
     RD_LOCK();
+    rd3_flush();
     for (DWORD i = 0; i < (n ? n : 1); i++) {
         RECT r = { 0, 0, (LONG)t->desc.dwWidth, (LONG)t->desc.dwHeight };
         if (n && rects) { r.left = rects[i].x1; r.top = rects[i].y1; r.right = rects[i].x2; r.bottom = rects[i].y2; }
@@ -568,7 +666,9 @@ internal D3DMATRIX *rd_transform(rd_device *d, D3DTRANSFORMSTATETYPE t) {
 }
 internal HRESULT __stdcall rd_dev_set_transform(rd_device *d, D3DTRANSFORMSTATETYPE t, D3DMATRIX *m) {
     D3DMATRIX *x = rd_transform(d, t);
-    if (x) *x = *m;
+    if (!x) return D3D_OK;
+    if (x != &d->world && memcmp(x, m, sizeof *m)) d->changed |= RD_CH_VC;   // the world is the vertices' own (the batch)
+    *x = *m;
     return D3D_OK;
 }
 internal HRESULT __stdcall rd_dev_get_transform(rd_device *d, D3DTRANSFORMSTATETYPE t, D3DMATRIX *m) {
@@ -576,12 +676,21 @@ internal HRESULT __stdcall rd_dev_get_transform(rd_device *d, D3DTRANSFORMSTATET
     if (x) *m = *x;
     return D3D_OK;
 }
-internal HRESULT __stdcall rd_dev_set_viewport(rd_device *d, D3DVIEWPORT7 *v) { d->viewport = *v; return D3D_OK; }
+internal HRESULT __stdcall rd_dev_set_viewport(rd_device *d, D3DVIEWPORT7 *v) {
+    if (memcmp(&d->viewport, v, sizeof *v) != 0) d->changed |= RD_CH_VC;
+    d->viewport = *v;
+    return D3D_OK;
+}
 internal HRESULT __stdcall rd_dev_get_viewport(rd_device *d, D3DVIEWPORT7 *v) { *v = d->viewport; return D3D_OK; }
-internal HRESULT __stdcall rd_dev_set_material(rd_device *d, D3DMATERIAL7 *m) { d->material = *m; return D3D_OK; }
+internal HRESULT __stdcall rd_dev_set_material(rd_device *d, D3DMATERIAL7 *m) {
+    if (memcmp(&d->material, m, sizeof *m) != 0) d->changed |= RD_CH_VC;
+    d->material = *m;
+    return D3D_OK;
+}
 internal HRESULT __stdcall rd_dev_get_material(rd_device *d, D3DMATERIAL7 *m) { *m = d->material; return D3D_OK; }
 internal HRESULT __stdcall rd_dev_set_light(rd_device *d, DWORD i, D3DLIGHT7 *l) {
     if (i >= 8) return DDERR_INVALIDPARAMS;
+    if (memcmp(&d->light[i], l, sizeof *l) != 0) d->changed |= RD_CH_VC;
     d->light[i] = *l;
     return D3D_OK;
 }
@@ -592,6 +701,7 @@ internal HRESULT __stdcall rd_dev_get_light(rd_device *d, DWORD i, D3DLIGHT7 *l)
 }
 internal HRESULT __stdcall rd_dev_light_enable(rd_device *d, DWORD i, BOOL on) {
     if (i >= 8) return DDERR_INVALIDPARAMS;
+    if (d->light_on[i] != (on != 0)) d->changed |= RD_CH_VC;
     d->light_on[i] = on != 0;
     return D3D_OK;
 }
@@ -601,7 +711,7 @@ internal HRESULT __stdcall rd_dev_get_light_enable(rd_device *d, DWORD i, BOOL *
     return D3D_OK;
 }
 internal HRESULT __stdcall rd_dev_set_rs(rd_device *d, D3DRENDERSTATETYPE s, DWORD v) {
-    if ((unsigned)s < RD_RS) d->rs[s] = v;
+    if ((unsigned)s < RD_RS && d->rs[s] != v) { d->rs[s] = v; d->changed |= RD_CH_RS; }
     return D3D_OK;
 }
 internal HRESULT __stdcall rd_dev_get_rs(rd_device *d, D3DRENDERSTATETYPE s, DWORD *v) {
@@ -609,7 +719,8 @@ internal HRESULT __stdcall rd_dev_get_rs(rd_device *d, D3DRENDERSTATETYPE s, DWO
     return D3D_OK;
 }
 internal HRESULT __stdcall rd_dev_set_texture(rd_device *d, DWORD stage, rd_surface *t) {
-    if (stage < 2) d->tex[stage] = rd_is_surface(t) ? t : NULL;
+    rd_surface *s = rd_is_surface(t) ? t : NULL;
+    if (stage < 2 && d->tex[stage] != s) { d->tex[stage] = s; d->changed |= RD_CH_TEX; }
     return D3D_OK;
 }
 internal HRESULT __stdcall rd_dev_get_texture(rd_device *d, DWORD stage, rd_surface **t) {
@@ -618,8 +729,14 @@ internal HRESULT __stdcall rd_dev_get_texture(rd_device *d, DWORD stage, rd_surf
     return D3D_OK;
 }
 internal HRESULT __stdcall rd_dev_set_tss(rd_device *d, DWORD stage, D3DTEXTURESTAGESTATETYPE t, DWORD v) {
-    if (stage < 2 && (unsigned)t < RD_TSS) d->tss[stage][t] = v;
-    if (stage < 2 && t == D3DTSS_ADDRESS) d->tss[stage][D3DTSS_ADDRESSU] = d->tss[stage][D3DTSS_ADDRESSV] = v;   // the game's: both at once
+    if (stage >= 2 || (unsigned)t >= RD_TSS) return D3D_OK;
+    DWORD *ts = d->tss[stage];
+    if (t == D3DTSS_ADDRESS) {   // the game's: both at once
+        if (ts[D3DTSS_ADDRESSU] != v || ts[D3DTSS_ADDRESSV] != v) d->changed |= RD_CH_TEX;
+        ts[D3DTSS_ADDRESSU] = ts[D3DTSS_ADDRESSV] = v;
+    }
+    if (ts[t] != v) d->changed |= RD_CH_TEX;
+    ts[t] = v;
     return D3D_OK;
 }
 internal HRESULT __stdcall rd_dev_get_tss(rd_device *d, DWORD stage, D3DTEXTURESTAGESTATETYPE t, DWORD *v) {
@@ -634,13 +751,7 @@ internal HRESULT __stdcall rd_dev_draw_vb(rd_device *d, D3DPRIMITIVETYPE type, r
     LONGLONG t0 = rd_qpc();
     RD_LOCK();
     rd3_overlay_before(d);
-    if (rd3_prepare(d, rd3_flat_picture(d, vb, start, n))) {
-        long at = rd3_upload(g_rd3.vb, RD3_VB_BYTES, &g_rd3.vb_pos, vb->mem + (size_t)start * vb->stride, n * vb->stride, vb->stride);
-        if (at >= 0) {
-            ID3D11DeviceContext_IASetPrimitiveTopology(g_d3d.ctx, rd3_topology(type));
-            ID3D11DeviceContext_Draw(g_d3d.ctx, n, (UINT)at / vb->stride);
-        }
-    }
+    if (rd3_prepare(d, rd3_flat_picture(d, vb, start, n))) rd3_append(d, type, vb, start, n, NULL, 0);
     g_rd_draw_qpc += rd_qpc() - t0;
     RD_UNLOCK();
     return D3D_OK;
@@ -654,14 +765,7 @@ internal HRESULT __stdcall rd_dev_draw_indexed_vb(rd_device *d, D3DPRIMITIVETYPE
     LONGLONG t0 = rd_qpc();
     RD_LOCK();
     rd3_overlay_before(d);
-    if (rd3_prepare(d, rd3_flat_picture(d, vb, start, nv))) {
-        long at = rd3_upload(g_rd3.vb, RD3_VB_BYTES, &g_rd3.vb_pos, vb->mem + (size_t)start * vb->stride, nv * vb->stride, vb->stride);
-        long ia = at >= 0 ? rd3_upload(g_rd3.ib, RD3_IB_BYTES, &g_rd3.ib_pos, idx, ni * 2, 2) : -1;
-        if (ia >= 0) {
-            ID3D11DeviceContext_IASetPrimitiveTopology(g_d3d.ctx, rd3_topology(type));
-            ID3D11DeviceContext_DrawIndexed(g_d3d.ctx, ni, (UINT)ia / 2, (INT)((UINT)at / vb->stride));
-        }
-    }
+    if (rd3_prepare(d, rd3_flat_picture(d, vb, start, nv))) rd3_append(d, type, vb, start, nv, idx, ni);
     g_rd_draw_qpc += rd_qpc() - t0;
     RD_UNLOCK();
     return D3D_OK;
@@ -672,6 +776,7 @@ internal HRESULT __stdcall rd_dev_get_direct3d(rd_device *d, void **out);
 internal void rd_device_defaults(rd_device *d) {
     static const D3DMATRIX id = { ._11 = 1, ._22 = 1, ._33 = 1, ._44 = 1 };
     d->world = d->view = d->proj = id;
+    d->changed = RD_CH_VC | RD_CH_RS | RD_CH_TEX | RD_CH_TARGET;
     d->rs[D3DRENDERSTATE_ZENABLE] = 1; d->rs[D3DRENDERSTATE_ZWRITEENABLE] = 1; d->rs[D3DRENDERSTATE_ZFUNC] = D3DCMP_LESSEQUAL;
     d->rs[D3DRENDERSTATE_SRCBLEND] = D3DBLEND_ONE; d->rs[D3DRENDERSTATE_DESTBLEND] = D3DBLEND_ZERO;
     d->rs[D3DRENDERSTATE_CULLMODE] = D3DCULL_CCW; d->rs[D3DRENDERSTATE_ALPHAFUNC] = D3DCMP_ALWAYS;

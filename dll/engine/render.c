@@ -190,7 +190,9 @@ struct rd_surface {
 internal int rd_is_surface(const void *p) { return p && *(void *const *)p == (void *)g_rd_vt[RDI_SURF]; }
 
 internal ULONG __stdcall rd_sf_release(rd_surface *s);
+internal void rd3_flush(void);   // render_3d.c: the 3D draws collected so far, drawn before anything else uses the context
 internal void rd_surface_free(rd_surface *s) {
+    rd3_flush();   // the batch may draw with its texture
     D3D_RELEASE(s->srv); D3D_RELEASE(s->rtv); D3D_RELEASE(s->dsv); D3D_RELEASE(s->tex);
     free(s->mem);
     if (s->zbuf) rd_sf_release(s->zbuf);
@@ -246,6 +248,7 @@ internal ID3D11ShaderResourceView *rd_gpu_texture(rd_surface *s, int keyed) {
         if (SUCCEEDED(hr)) hr = ID3D11Device_CreateShaderResourceView(g_d3d.dev, (ID3D11Resource *)t->tex, NULL, &t->srv);
         if (FAILED(hr)) { rd_fail("texture", hr); return NULL; }
     }
+    rd3_flush();   // the batch may draw with its pixels as they were
     static uint32_t *row;
     static size_t row_cap;
     for (rd_surface *l = t; l; l = l->next) {
@@ -265,6 +268,7 @@ internal ID3D11ShaderResourceView *rd_gpu_texture(rd_surface *s, int keyed) {
 
 // the render target's pixels in r into its memory (a staging copy of that rect)
 internal int rd_read_target(rd_surface *s, const RECT *r) {
+    rd3_flush();
     uint8_t *m = rd_mem(s);
     if (!m || !s->tex) return 0;
     D3D11_TEXTURE2D_DESC td = { 0 };
@@ -291,6 +295,7 @@ internal int rd_read_target(rd_surface *s, const RECT *r) {
 internal void rd_write_target(rd_surface *s, const RECT *r) {
     int w = r->right - r->left, h = r->bottom - r->top;
     if (w <= 0 || h <= 0 || !s->tex || !s->mem) return;
+    rd3_flush();
     uint32_t *buf = malloc((size_t)w * h * 4);
     if (!buf) return;
     int bpp = rf_bytes(s->fmt);
@@ -376,6 +381,7 @@ internal void rd2_depth_rect(rd_surface *dst, const RECT *r, float z) {
 internal void rd2_draw(rd_surface *dst, const rd2_consts *c, ID3D11ShaderResourceView *src, int depth) {
     float W = (float)dst->desc.dwWidth, H = (float)dst->desc.dwHeight;
     ID3D11DeviceContext *x = g_d3d.ctx;
+    rd3_flush();
     ID3D11DeviceContext_UpdateSubresource(x, (ID3D11Resource *)g_rd2.cb, 0, NULL, c, 0, 0);
     D3D11_VIEWPORT vp = { 0, 0, W, H, 0, 1 };
     D3D11_RECT sc = { 0, 0, (LONG)W, (LONG)H };
@@ -764,6 +770,7 @@ internal int render_present(IDirectDrawSurface7 *back, HWND hwnd) {
     rd_surface *s = (rd_surface *)back;
     if (!rd_is_surface(s) || !s->srv) return 0;
     RD_LOCK();
+    rd3_flush();
     if (g_shot_req) {
         RECT all = { 0, 0, (LONG)s->desc.dwWidth, (LONG)s->desc.dwHeight };
         if (rd_read_target(s, &all)) {

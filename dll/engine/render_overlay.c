@@ -120,6 +120,7 @@ internal void rd3_overlay(rd_device *d) {
         }
     }
     if (!g_ro.n) return;
+    rd3_flush();
     ID3D11DeviceContext *x = g_d3d.ctx;
     D3D11_MAPPED_SUBRESOURCE ms;
     if (FAILED(ID3D11DeviceContext_Map(x, (ID3D11Resource *)g_ro.vb, 0, D3D11_MAP_WRITE_DISCARD, 0, &ms))) return;
