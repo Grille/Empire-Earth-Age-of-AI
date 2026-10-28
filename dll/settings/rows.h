@@ -35,6 +35,9 @@
 // FLAGS rows' fields: [display] overlay - the debug overlay's layers by the names their producers give them
 // (base/overlay.c; attack.c: routes, danger)
 #define OVERLAY_FIELDS(field_bool, field_enum) field_bool(routes) field_bool(danger)
+// [display] start - the parts of the quiet windowed start, each on its own until the player's starts show which work
+// (engine/display.c play_cbt, play_front)
+#define START_FIELDS(field_bool, field_enum) field_bool(probes) field_bool(black) field_bool(popup) field_bool(front)
 
 #define SETTINGS(X, S, D) \
     X(FLAG,   general,  enabled,                  1,  0, 0) \
@@ -89,6 +92,7 @@
     S(FLAG,   display,  text_bitmap,              1,  0, 0) \
     S(FLAG,   display,  diag,                     0,  0, 0) \
     S(FLAG,   display,  dpi_aware,                1,  0, 0) \
+    S(FLAGS,  display,  start,                    "", START_FIELDS, 0) \
     S(CHOICE, display,  frame_wait,               "auto", "game|yield|auto", 0) \
     S(CHOICE, display,  renderer,                 "auto", "auto|wrapper|own", 0) \
     S(FLAGS,  display,  overlay,                  "", OVERLAY_FIELDS, 0) \
