@@ -214,10 +214,11 @@ unsafe struct EEUIEKeyboardScroll
     int32 direction;
 
     /// moves game.camera by (scroll_speed + 0.5) * (scroll_setting + 0.5) * 0.05 in its direction (camera_move:
-    /// up is +dy, left -dx)
+    /// up is +dy, left -dx). UIEvent's Execute takes two dwords (ret 8 in both builds) this one never reads - a hook
+    /// without them crashed the game on the first arrow key (2026-10-28)
     [slot(1), address((ee)0x005C9070, (aoc)0x005D9B6F)]
     [vtable_site("key_scroll_execute")]
-    extern uint32 execute();
+    extern uint32 execute(uint32 a, uint32 b);
 }
 
 /// the UI manager's current form

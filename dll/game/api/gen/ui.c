@@ -194,11 +194,12 @@ internal inline int key_scroll_get_direction(const ee_key_scroll *o) { return *(
 internal inline void key_scroll_set_direction(ee_key_scroll *o, int v) { *(int *)((uint8_t *)o + of_key_scroll_direction) = v; }
 internal inline int *key_scroll_direction_at(const ee_key_scroll *o) { return (int *)((uint8_t *)o + of_key_scroll_direction); }
 // moves game.camera by (scroll_speed + 0.5) * (scroll_setting + 0.5) * 0.05 in its direction (camera_move:
-// up is +dy, left -dx)
-typedef uint32_t (__thiscall *key_scroll_execute_fn)(ee_key_scroll *);
-internal inline uint32_t key_scroll_execute(ee_key_scroll *key_scroll) { return ((key_scroll_execute_fn)(*(void ***)key_scroll)[slot_key_scroll_execute])(key_scroll); }
+// up is +dy, left -dx). UIEvent's Execute takes two dwords (ret 8 in both builds) this one never reads - a hook
+// without them crashed the game on the first arrow key (2026-10-28)
+typedef uint32_t (__thiscall *key_scroll_execute_fn)(ee_key_scroll *, uint32_t, uint32_t);
+internal inline uint32_t key_scroll_execute(ee_key_scroll *key_scroll, uint32_t a, uint32_t b) { return ((key_scroll_execute_fn)(*(void ***)key_scroll)[slot_key_scroll_execute])(key_scroll, a, b); }
 internal key_scroll_execute_fn fn_eeuie_keyboard_scroll_execute;
-internal inline uint32_t eeuie_keyboard_scroll_execute(ee_key_scroll *key_scroll) { return fn_eeuie_keyboard_scroll_execute(key_scroll); }
+internal inline uint32_t eeuie_keyboard_scroll_execute(ee_key_scroll *key_scroll, uint32_t a, uint32_t b) { return fn_eeuie_keyboard_scroll_execute(key_scroll, a, b); }
 internal inline int patch_key_scroll_execute(key_scroll_execute_fn h) { return patch_vtable(vt_eeuie_keyboard_scroll, (int)slot_key_scroll_execute, (uintptr_t)fn_eeuie_keyboard_scroll_execute, (void *)h); }
 
 // class ee_ui_form (ee_ui_form)

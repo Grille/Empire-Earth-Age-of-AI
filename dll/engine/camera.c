@@ -92,9 +92,9 @@ internal void __thiscall hook_scroll_execute(ee_scroll *self) {
 internal volatile LONG g_arrow_keys;     // bit = the event's direction: 0 up, 1 down, 2 left, 3 right
 internal volatile DWORD g_arrow_at[4];   // GetTickCount of each direction's last event
 
-internal uint32_t __thiscall hook_key_scroll_execute(ee_key_scroll *self) {
+internal uint32_t __thiscall hook_key_scroll_execute(ee_key_scroll *self, uint32_t a, uint32_t b) {
     int d = key_scroll_get_direction(self);
-    if (!g_cam_smooth || d < 0 || d > 3) return eeuie_keyboard_scroll_execute(self);
+    if (!g_cam_smooth || d < 0 || d > 3) return eeuie_keyboard_scroll_execute(self, a, b);
     g_arrow_at[d] = GetTickCount();
     InterlockedOr(&g_arrow_keys, 1 << d);
     return 0;
