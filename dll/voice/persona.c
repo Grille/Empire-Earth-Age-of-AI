@@ -340,10 +340,46 @@ internal void persona_key(void *arg, const char *sec, const char *key, struct tv
         xvars_set(&p->vars, k, v->src);
     } else tl_error(l, "a record in a record the code reads (personality, style, decide, lines, prompt take values only)");
 }
-// read file (in the folder dir) into p - its own keys only (persona_layers adds its includes'); 0: no such file
-internal int persona_parse(const char *dir, const char *file, struct persona *p) {
+// THE FOLDER'S LINKS (base/paths.c FOLDER LINKS): the personality folder and its mod\ each the folder its folder.link
+// names, if it has one - resolved once a load (personas_load forgets them: the files may have changed since), a
+// mistake told once. Every file of the folder is opened through ai_folder / ai_file.
+#define AI_FOLDERS 4
+internal struct { char sub[16], dir[MAX_PATH]; int ok; } g_ai_folders[AI_FOLDERS];
+internal int g_ai_nfolders;
+internal char g_ai_link_why[MAX_PATH + 160];   // the first link mistake (texts_missing_box says it)
+// sub ("" or "mod\\") of the personality folder -> out (MAX_PATH), through the links; 0: a mistake (told), out the
+// folder as named
+internal int ai_folder(const char *sub, char *out) {
+    for (int i = 0; i < g_ai_nfolders; i++)
+        if (!lstrcmpiA(g_ai_folders[i].sub, sub)) { lstrcpyA(out, g_ai_folders[i].dir); return g_ai_folders[i].ok; }
+    char why[MAX_PATH + 160] = "", named[MAX_PATH];
+    snprintf(named, sizeof named, "%s%s", g_ai_dir, sub);
+    int ok = link_folder(g_ai_dir, sub, out, why, sizeof why);
+    if (!ok) {
+        x_error("%s", why);
+        if (!g_ai_link_why[0]) lstrcpyA(g_ai_link_why, why);
+        lstrcpyA(out, named);
+    } else if (lstrcmpiA(out, named) && g_log) fprintf(g_log, "# texts: %s is %s (%s)\n", named, out, LINK_FILE);
+    if (g_ai_nfolders < AI_FOLDERS && strlen(sub) < sizeof g_ai_folders[0].sub) {
+        lstrcpyA(g_ai_folders[g_ai_nfolders].sub, sub);
+        lstrcpyA(g_ai_folders[g_ai_nfolders].dir, out);
+        g_ai_folders[g_ai_nfolders++].ok = ok;
+    }
+    return ok;
+}
+// a file of the personality folder by its name there ("pack_base.eeai", "mod/computer.eeai") -> its path (MAX_PATH)
+internal void ai_file(const char *file, char *path) {
+    char sub[MAX_PATH] = "";
+    const char *slash = strrchr(file, '/'), *bs = strrchr(file, '\\');
+    if (bs > slash) slash = bs;
+    if (slash && slash - file < (int)sizeof sub - 1) { memcpy(sub, file, (size_t)(slash - file)); lstrcpyA(sub + (slash - file), "\\"); }
+    ai_folder(sub, path);
+    snprintf(path + strlen(path), MAX_PATH - strlen(path), "%s", slash ? slash + 1 : file);
+}
+// read file (in the personality folder) into p - its own keys only (persona_layers adds its includes'); 0: no such file
+internal int persona_parse(const char *file, struct persona *p) {
     char path[MAX_PATH];
-    snprintf(path, sizeof path, "%s%s", dir, file);
+    ai_file(file, path);
     char *text = read_text_acp(path);
     if (!text) return 0;
     memset(p, 0, sizeof *p);
@@ -359,9 +395,9 @@ internal int persona_parse(const char *dir, const char *file, struct persona *p)
 #define MAX_LIBS 16
 internal struct persona *g_libs[MAX_LIBS];
 internal int g_nlibs;
-internal void persona_layers(struct persona *p, const char *dir, int depth);
+internal void persona_layers(struct persona *p, int depth);
 internal void prompt_check(const struct persona *p);   // texts.c
-internal struct persona *lib_get(const char *dir, const char *file, const char *by, int depth) {
+internal struct persona *lib_get(const char *file, const char *by, int depth) {
     for (int i = 0; i < g_nlibs; i++)
         if (!lstrcmpiA(g_libs[i]->file, file) || (!_strnicmp(g_libs[i]->file, file, strlen(g_libs[i]->file)) && !lstrcmpiA(file + strlen(g_libs[i]->file), ".eeai"))) {
             if (g_libs[i]->resolving) { x_error("%s: include \"%s\": a circle", by, file); return NULL; }
@@ -371,7 +407,7 @@ internal struct persona *lib_get(const char *dir, const char *file, const char *
     if (g_nlibs == MAX_LIBS) { x_error("%s: include \"%s\": more than %d included files", by, file, MAX_LIBS); return NULL; }
     struct persona *p = !lstrcmpiA(file, "mod/computer.eeai") ? &g_computer : !lstrcmpiA(file, "mod/prompt.eeai") ? &g_prompt :
                         malloc(sizeof *p);
-    if (!persona_parse(dir, file, p)) {
+    if (!persona_parse(file, p)) {
         x_error("%s: include \"%s\": no such file in the personality folder", by, file);
         if (p != &g_computer && p != &g_prompt) free(p);
         return NULL;
@@ -379,14 +415,14 @@ internal struct persona *lib_get(const char *dir, const char *file, const char *
     if (p == &g_computer) { g_has_computer = 1; include_unnamed(p, "mod/prompt.eeai"); }
     if (p == &g_prompt) prompt_check(p);
     g_libs[g_nlibs++] = p;
-    persona_layers(p, dir, depth);
+    persona_layers(p, depth);
     return p;
 }
 // p's layers - its includes, each one's own right after it - and what it takes from them where it has none of its own
-internal void persona_layers(struct persona *p, const char *dir, int depth) {
+internal void persona_layers(struct persona *p, int depth) {
     p->resolving = 1;
     for (int i = 0; i < p->inc.n; i++) {
-        struct persona *lib = lib_get(dir, p->inc.name[i], p->file, depth + 1);
+        struct persona *lib = lib_get(p->inc.name[i], p->file, depth + 1);
         if (!lib) continue;
         for (int j = -1; j < lib->nlayer; j++) {
             struct persona *add = j < 0 ? lib : lib->layer[j];
@@ -432,28 +468,30 @@ internal void personas_load(void) {
     g_xfn_scanned = 0;   // the files may have changed since: scanned again when a function is first met
     g_nlibs = 0;
     g_has_computer = 0;
-    lstrcpyA(dir, g_ai_dir);
+    g_ai_nfolders = 0;
+    g_ai_link_why[0] = 0;
     // the mod's own files first (prompt.eeai is computer.eeai's layer too, units.eeai both's): without them it says
     // nothing (texts.c)
-    if (!lib_get(dir, "mod/units.eeai", "eeaimod", 0) || !lib_get(dir, "mod/prompt.eeai", "eeaimod", 0) ||
-        !lib_get(dir, "mod/computer.eeai", "eeaimod", 0)) {
+    if (!lib_get("mod/units.eeai", "eeaimod", 0) || !lib_get("mod/prompt.eeai", "eeaimod", 0) ||
+        !lib_get("mod/computer.eeai", "eeaimod", 0)) {
         g_texts_missing = 1;
         g_has_computer = 0;
         return;
     }
     persona_must_check(&g_computer);   // the AIs without a personality speak with it
+    ai_folder("", dir);
     snprintf(pat, sizeof pat, "%s*.eeai", dir);
     WIN32_FIND_DATAA fd;
     HANDLE h = FindFirstFileA(pat, &fd);
     if (h == INVALID_HANDLE_VALUE) return;
     static struct persona p;
     do {
-        if (g_personas_only_computer || g_npersonas >= MAX_PERSONAS || !persona_parse(dir, fd.cFileName, &p)) continue;
+        if (g_personas_only_computer || g_npersonas >= MAX_PERSONAS || !persona_parse(fd.cFileName, &p)) continue;
         if (!p.registered) continue;   // a library (its mistakes are told when it is read)
         include_unnamed(&p, "mod/computer.eeai");
         include_unnamed(&p, "mod/prompt.eeai");
         g_personas[g_npersonas] = p;
-        persona_layers(&g_personas[g_npersonas], dir, 0);
+        persona_layers(&g_personas[g_npersonas], 0);
         persona_must_check(&g_personas[g_npersonas]);
         g_npersonas++;
     } while (FindNextFileA(h, &fd));
@@ -478,8 +516,9 @@ internal void x_fn_scan_folder(const char *dir) {
 internal void x_fn_scan_dir(void) {
     char dir[MAX_PATH];
     g_xfn_n = g_xvn_n = 0;
-    x_fn_scan_folder(g_ai_dir);   // <game>\ageofai\personalities\, [general] ai_dir or [autotest] ai_dir
-    snprintf(dir, sizeof dir, "%smod\\", g_ai_dir);
+    ai_folder("", dir);   // <game>\ageofai\personalities\, [general] ai_dir or [autotest] ai_dir - through its links
+    x_fn_scan_folder(dir);
+    ai_folder("mod\\", dir);
     x_fn_scan_folder(dir);
 }
 
@@ -1091,10 +1130,11 @@ internal void cmd_persona(char *out, const char *args) {
 // the mod's files aren't there (g_texts_missing): told once, at startup - not only in the log nobody reads
 internal DWORD WINAPI texts_missing_box(LPVOID arg) {
     (void)arg;
-    char text[600];
+    char text[1100];
     wsprintfA(text, "Age of AI's text files are missing: %smod\\ needs computer.eeai, prompt.eeai, units.eeai and system.eeai.\n\n"
               "The computer players play on, but without personalities, AI voice and diplomacy. Copy the mod's personality "
-              "folder (config\\personalities) into the folder ageofai next to Empire Earth.exe again (or set ai_dir in ageofai.ini).", g_ai_dir);
+              "folder (config\\personalities) into the folder ageofai next to Empire Earth.exe again (or set ai_dir in ageofai.ini).%s%s",
+              g_ai_dir, g_ai_link_why[0] ? "\n\nA folder link is wrong: " : "", g_ai_link_why);
     MessageBoxA(NULL, text, "Empire Earth: Age of AI", MB_OK | MB_ICONWARNING | MB_TOPMOST | MB_SETFOREGROUND);
     return 0;
 }

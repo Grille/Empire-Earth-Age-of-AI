@@ -36,7 +36,7 @@ internal int text_index(const struct text_key *t, int n, const char *key) {
     return -1;
 }
 internal void texts_dir(char *dir) {
-    wsprintfA(dir, "%smod\\", g_ai_dir);   // <game>\ageofai\personalities\mod\, [general] ai_dir or [autotest] ai_dir
+    ai_folder("mod\\", dir);   // <game>\ageofai\personalities\mod\, [general] ai_dir or [autotest] ai_dir - through its links
 }
 internal int g_texts_sys_n, g_texts_var_n;   // keys read (log)
 // mod/system.eeai: system = { strings }, names (vars) - the format: expr.c THE TEXT FILES

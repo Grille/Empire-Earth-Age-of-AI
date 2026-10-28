@@ -7,6 +7,14 @@ the game after editing. The folder goes into the mod's folder `ageofai` next to 
 somewhere else instead (for example where you edit it: `ai_dir=_aimod\config\personalities`, relative to the game folder
 or absolute).
 
+**Sharing a folder: `folder.link`.** A folder that holds a file `folder.link` (and nothing else) is the folder named
+on that file's first line - absolute, or relative to the folder the link is in. Its subfolders are the target's, and
+a subfolder may be a link of its own. So Art of Conquest can read Empire Earth's personalities
+(`ageofai\personalities\folder.link` with `..\..\..\Empire Earth\ageofai\personalities`), a game the repository's
+(`X:\...\_aimod\config\personalities`), or a mod of its own share only `mod\` (`mod\folder.link`). A link that is
+wrong - a file beside it, a target that is no folder, more than 8 links in a row (a circle) - is a mistake the game
+tells at its start; the log names every linked folder (`# texts: ... is ... (folder.link)`).
+
 | File | What it is |
 |---|---|
 | `eroberer.eeai`, `haendler.eeai`, ... | One personality each (`register_personality()`): a name, colours, character traits and the lines it says |
