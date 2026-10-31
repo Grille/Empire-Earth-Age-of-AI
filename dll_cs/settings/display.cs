@@ -1,17 +1,17 @@
 // [display]: the window, the renderer and the picture (engine/display.c, render*.c)
 [section(30, "Display")]
-public sealed class display {
-    public enum mode_choice { native, windowed, borderless }
-    public enum lock_mouse_choice { [name("0")] off, [name("1")] on, auto }
-    public enum frame_wait_choice { game, yield, auto }
-    public enum renderer_choice { auto, wrapper, own }
-    public enum present_choice { auto, d3d, gdi, primary }
+class display {
+    enum mode_choice { native, windowed, borderless }
+    enum lock_mouse_choice { [name("0")] off, [name("1")] on, auto }
+    enum frame_wait_choice { game, yield, auto }
+    enum renderer_choice { auto, wrapper, own }
+    enum present_choice { auto, d3d, gdi, primary }
     /// [display] overlay - the debug overlay's layers by the names their producers give them
     /// (base/overlay.c; attack.c: routes, danger)
-    public struct overlay_fields { bool routes, danger; }
+    struct overlay_fields { bool routes, danger; }
     /// [display] start - the parts of the quiet windowed start, each on its own until the player's starts show which work
     /// (engine/display.c play_cbt, play_front)
-    public struct start_fields { bool probes, black, popup, front; }
+    struct start_fields { bool probes, black, popup, front; }
 
     /// Display mode:
     ///   native     = fullscreen (original)

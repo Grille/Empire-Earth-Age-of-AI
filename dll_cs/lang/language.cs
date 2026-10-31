@@ -19,18 +19,18 @@
 
 using System;
 
-public struct text { }
-public struct epoch { }
-public struct color { }
-public struct unit_type { }
-public struct vec2 { }
-public struct vec3 { }
-public struct vec4 { }
-public struct trigger { }
-public struct function { }
-public struct @record { }   // (@: C#'s own word)
-public struct filter { }
-public struct any { }
+struct text { }
+struct epoch { }
+struct color { }
+struct unit_type { }
+struct vec2 { }
+struct vec3 { }
+struct vec4 { }
+struct trigger { }
+struct function { }
+struct @record { }   // (@: C#'s own word)
+struct filter { }
+struct any { }
 
 // a relation of player A with player B: A.opinion(B) - its first parameter the other player; without A. in a text
 // mine (opinion(enemy) is me.opinion(enemy))

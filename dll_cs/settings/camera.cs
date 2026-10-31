@@ -1,7 +1,7 @@
 // [camera]: how the view moves (engine/camera.c)
 [section(20, "Camera")]
-public sealed class camera {
-    public enum scroll_choice { game, ee, aoc }
+class camera {
+    enum scroll_choice { game, ee, aoc }
 
     /// Camera scrolling (mouse at the screen edge / scroll keys):
     ///   game = the game's own: Empire Earth's constant speed, The Art of Conquest's acceleration

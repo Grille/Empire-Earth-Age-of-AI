@@ -1,6 +1,6 @@
 // [sound]: the sound mixer (engine/sound.c)
 [section(50, "Sound")]
-public sealed class sound {
+class sound {
     /// Sound diagnostics into ageofai_log.csv: 1 = counts of dropped sounds once a game minute, 2 = every sound played. 0 = off
     [range(0, 2)] int log = 0;
     /// The "Max Number Of Sounds" slider goes to 200% = 32 channels, the sound mixer has 16 on current Windows: sounds on the

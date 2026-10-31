@@ -52,6 +52,6 @@ using System;
 [AttributeUsage(AttributeTargets.Field)] public sealed class under : Attribute { public under(string master) { } }
 [AttributeUsage(AttributeTargets.Field)] public sealed class easy : Attribute { public easy(string value) { } }
 
-public static class limits {
+static class limits {
     public const int MAX_PATH = 260;   // windows.h's: a path's buffer
 }

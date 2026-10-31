@@ -79,7 +79,7 @@ def read_file(path):
             continue
         where = '%s:%d' % (rel, n)
         if depth == 1 and cur:
-            m = re.match(r'^public\s+enum\s+(\w+)\s*\{(.*)\}$', code)
+            m = re.match(r'^enum\s+(\w+)\s*\{(.*)\}$', code)
             if m:
                 names = {}   # the C# member -> its name in the file, in order
                 for one in spec_read.split_top(m.group(2)):
@@ -89,7 +89,7 @@ def read_file(path):
                 cur.enums[m.group(1)] = names
                 doc = []
                 continue
-            m = re.match(r'^public\s+struct\s+(\w+)\s*\{(.*)\}$', code)
+            m = re.match(r'^struct\s+(\w+)\s*\{(.*)\}$', code)
             if m:
                 fields = []
                 for decl in m.group(2).split(';'):
@@ -112,7 +112,7 @@ def read_file(path):
                 secs.append(cur)
             attr_text, doc = '', []
         elif depth == 1 and cur and code.endswith(';'):
-            m = re.match(r'^(?:public\s+)?(\w+)\s+@?(\w+)\s*(?:=\s*(.+))?;$', code)
+            m = re.match(r'^(\w+)\s+@?(\w+)\s*(?:=\s*(.+))?;$', code)
             if not m:
                 raise SystemExit('%s: a key is "type name = default;": %s' % (where, code))
             cur.keys.append(Key(m.group(2), m.group(1), m.group(3), spec_read.attrs_of(attr_text), doc, where))

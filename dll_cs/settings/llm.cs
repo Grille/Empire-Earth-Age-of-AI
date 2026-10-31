@@ -1,8 +1,8 @@
 // [llm]: the AI voice - a language model speaks (and may decide) for the computer players (voice/llm*.c)
 [section(60, "Language model")]
-public sealed class llm {
-    public enum memory_mode_choice { pair, player }
-    public enum fallback_choice { rules, pause }
+class llm {
+    enum memory_mode_choice { pair, player }
+    enum fallback_choice { rules, pause }
 
     /// AI voice (optional): a language model on this PC speaks for the computer players - LM Studio, Ollama, llama.cpp or
     /// any server with the OpenAI chat API. Words only: what the AIs decide stays with the mod's rules. Start the server
