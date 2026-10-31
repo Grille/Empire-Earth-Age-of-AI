@@ -12,7 +12,7 @@ class display
     enum renderer_choice { auto, wrapper, own }
     /// [display] overlay - the debug overlay's layers by the names their producers give them
     /// (base/overlay.c; attack.c: routes, danger)
-    struct overlay_fields { bool routes, danger; }
+    struct overlay_fields { bool routes, danger, fronts; }
     enum present_choice { auto, d3d, gdi, primary }
 
     /// Display mode:

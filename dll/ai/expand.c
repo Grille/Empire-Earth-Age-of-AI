@@ -1395,8 +1395,11 @@ internal int citizens_useful(ee_player *pl, unsigned idx, int *stranded) {
 internal void towns_act(ee_player *pl, unsigned idx, uint32_t now);   // towns.c
 internal void towns_new_game(void);
 internal void towns_install(const char *autotest_ini);
+internal void fronts_tick(ee_player *pl, unsigned idx, uint32_t now);   // fronts.c
+internal void fronts_new_game(void);
 internal void expand_new_game(void) {
     towns_new_game();
+    fronts_new_game();
     memset(&g_exs, 0, sizeof g_exs);
     memset(g_rs, 0, sizeof g_rs);
     memset(g_ex_log_t, 0, sizeof g_ex_log_t);
@@ -1417,6 +1420,7 @@ internal void expand_tick(ee_player *pl, uint32_t now) {
     if (!is_vanilla(pl) && (g_expand || g_v_expand > 0)) expand_act(pl, idx, now);
     if (!is_vanilla(pl) && g_rescue) rs_act(pl, idx, now);
     if (!is_vanilla(pl)) towns_act(pl, idx, now);
+    if (!is_vanilla(pl)) fronts_tick(pl, idx, now);
 }
 internal void expand_install(const char *autotest_ini) {
     g_expand = g_set_ai[1].expand_islands;

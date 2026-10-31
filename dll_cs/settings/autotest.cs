@@ -5,6 +5,8 @@ class autotest
     bool aim_hits = true;
     [range(0, 1000000)] int aim_log = 0;
     bool order_log = false;
+    /// the AI's fronts (ai/fronts.c: territory, border, each front's width, threat, value, share) every 5 minutes
+    bool fronts_log = false;
     [range(100, 300)] int route_weight = 100;
     [range(-1, 7)] int formation_kind = -1;
     [num] int citizen_train_ms = 28000;
