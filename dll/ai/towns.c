@@ -62,14 +62,16 @@
 // 16 SPREAD (the player 2026-10-31: "if the AI can't expand everything else becomes moot"; two AIs on a huge map
 //   should share half of it each by the end): 1v1 on huge Continental with 1, 120 min, each AI held under one town
 //   (0.8) - every free mine group lay beyond 90 tiles of the base (24 of 40) or by a drop site, and a town waited for
-//   the home mines to fill (the commonest "no new town"). With 16 (on top of 1) a town goes up whenever a free mine
-//   group lies 32-60 tiles from its NEAREST town (not from the base) - the AI spreads ring by ring. No count limit
+//   the home mines to fill (the commonest "no new town"). With 16 (on top of 1) a town goes up without waiting, at
+//   the explored resources (mines, wood, food: tn_site_spread) nearest to any of its towns - 32 tiles out at least,
+//   however far (the player: "custom scenarios are a thing - a 512 x 512 desert with one oasis in the middle"): the
+//   AI spreads ring by ring; one town going up per TN_SPREAD_BUILDING workers at a time. No count limit
 //   (the player: "if the map allows 100 towns because it's ridiculously large and the AI has the pop to support it,
 //   that's ok"; towns_max doesn't apply): a new town needs TN_SPREAD_WORKERS workers for every town it would then
 //   hold. The safety checks (army outmatched, enemies in its base, one at a time) stay.
 #define TN_MAX 128   // a table size, not a limit
 #define TN_SPREAD_WORKERS 15
-#define TN_SPREAD_FAR 60
+#define TN_SPREAD_BUILDING 50
 #define TN_PROJ 12
 enum { TK_DROP, TK_TOWER, TK_PROD, TK_N };
 internal const char *const k_tk[TK_N] = { "drop site", "tower", "production building" };
@@ -112,19 +114,19 @@ internal int tn_alive(struct tn_proj *p) {
 internal int tn_is_drop(int t) { return UT_IN(t, UT_TOWNS, UT_X_SINGLE_PLAYER_SETTLEMENT); }
 
 // the drop sites of every player and the enemy buildings pl knows (intel.c's memory), once per plan
-struct tn_world { ivec2 drop[256]; int nd; ivec2 own[128]; int no; ivec2 foe[512]; int nf; };   // drop: other players', own: its own and its towns
+struct tn_world { ivec2 drop[1024]; int nd; ivec2 own[512]; int no; ivec2 foe[1024]; int nf; };   // drop: other players', own: its own and its towns
 internal void tn_world(ee_player *pl, unsigned idx, struct tn_world *w) {
     w->nd = w->nf = w->no = 0;
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
         if (unit_get_hp(u) <= 0 || unit_get_x(u) < 0 || !tn_is_drop(unit_type_get_id(it.td))) continue;
-        if (unit_get_owner(u) == pl) { if (w->no < 128) w->own[w->no++] = unit_get_tile(u); }
-        else if (w->nd < 256) w->drop[w->nd++] = unit_get_tile(u);
+        if (unit_get_owner(u) == pl) { if (w->no < 512) w->own[w->no++] = unit_get_tile(u); }
+        else if (w->nd < 1024) w->drop[w->nd++] = unit_get_tile(u);
     }
     for (int k = 0; k < TN_MAX; k++)   // its own towns going up count as its drop sites
-        if (g_tn[idx].town[k].state && w->no < 128) w->own[w->no++] = g_tn[idx].town[k].c;
+        if (g_tn[idx].town[k].state && w->no < 512) w->own[w->no++] = g_tn[idx].town[k].c;
     struct intel *in = &g_intel[idx];
-    for (int k = 0; k < in->n && w->nf < 512; k++) {
+    for (int k = 0; k < in->n && w->nf < 1024; k++) {
         struct intel_rec *r = &in->r[k];
         ee_player *o = r->owner > 0 && r->owner < 16 ? player_at(r->owner) : NULL;
         if (r->kind == 0 && o && is_enemy(pl, o)) w->foe[w->nf++] = iv2(r->x, r->y);
@@ -152,16 +154,10 @@ internal int tn_site(ee_player *pl, unsigned idx, ivec2 base, unsigned hc, struc
         }
     }
     float best = 0;
-    int found = 0, spread = TOWNS(idx) & 16;
+    int found = 0;
     for (int i = 0; i < nm; i++) {
         ivec2 p = m[i].p;
         int db = (int)sqrtf((float)ivec2_dist2(p, base));
-        if (spread) {   // from its nearest town: the next ring out
-            int dn = db * db;
-            for (int k = 0; k < w->no; k++) if (ivec2_dist2(p, w->own[k]) < dn) dn = ivec2_dist2(p, w->own[k]);
-            db = (int)sqrtf((float)dn);
-            if (db > TN_SPREAD_FAR) { g_tn_why[2]++; continue; }
-        }
         if (db < 32 || db > 90) { g_tn_why[2]++; continue; }
         int ok = 1;
         for (int k = 0; k < w->nd && ok; k++) if (ivec2_dist2(p, w->drop[k]) < 18 * 18) ok = 0;
@@ -176,6 +172,69 @@ internal int tn_site(ee_player *pl, unsigned idx, ivec2 base, unsigned hc, struc
         for (int j = 0; j < nm; j++) if (ivec2_dist2(p, m[j].p) <= 10 * 10) { n++; sx += m[j].p.x; sy += m[j].p.y; }
         float sc = (float)n * 30.0f / (30.0f + (float)db);
         if (sc > best) { best = sc; *o = iv2(sx / n, sy / n); *o_n = n; found = 1; }
+    }
+    return found;
+}
+// SPREAD's site: the map in cells of TN_CELL tiles, each cell's explored resources on the home continent summed (a
+// mine 3, a berry bush 2, a tree 1 - a forest counted to TN_CELL_WOOD trees a cell, so a mine group outweighs a wood),
+// from the unit grid (the zones' site lists hold the mines only: 44 on a huge Continental; animals walk off); a spot
+// is worth its cell and the 8 round it (a mine group spans cells); of the spots worth TN_CELL_MIN (a mine; a grove) the
+// one nearest to any of its towns, however far (a desert with one oasis: the oasis), with the same checks as tn_site.
+// No limit on zones or sites: a custom map can be any size.
+#define TN_CELL 8
+#define TN_CELL_WOOD 12
+#define TN_CELL_MIN 3
+#define TN_CELLS (128 * 128)   // a 1024-tile map; a bigger one folds its far cells onto the edge
+internal struct tn_cell { int sc, n, sx, sy; uint16_t wood, mines; } g_tn_cells[TN_CELLS];
+internal int tn_site_spread(ee_player *pl, unsigned idx, ivec2 base, unsigned hc, struct tn_world *w, ivec2 *o, int *o_n) {
+    ee_map *map = game_map();
+    int side = map ? ((int)map_get_size(map) + TN_CELL - 1) / TN_CELL : 0;
+    if (side <= 0) return 0;
+    if (side > 128) side = 128;
+    memset(g_tn_cells, 0, sizeof g_tn_cells);
+    memset(g_tn_why, 0, sizeof g_tn_why);
+    for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
+        ee_unit *s = it.u;
+        int r = unit_get_resource(s);
+        if (r < 2 || r > 6 || unit_get_amount(s) <= 0 || unit_get_hp(s) <= 0) continue;
+        if (r == 2 && unit_type_get_id(it.td) != UT(RES_FORAGE_BUSH)) continue;   // berries; animals walk off, fish swim
+        ivec2 sp = unit_get_tile(s);
+        if (sp.x < 0 || sp.y < 0 || area_id(sp, 2) != hc) continue;
+        g_tn_why[0]++;
+        if (intel_looked_ago(pl, sp.x, sp.y) == 0xFFFFFFFFu) { g_tn_why[1]++; continue; }   // explored only
+        int cx = sp.x / TN_CELL, cy = sp.y / TN_CELL;
+        struct tn_cell *c = &g_tn_cells[(cy < side ? cy : side - 1) * side + (cx < side ? cx : side - 1)];
+        if (r == 3 && c->wood >= TN_CELL_WOOD) continue;
+        c->sc += r >= 4 ? 3 : r == 2 ? 2 : 1;
+        c->wood += r == 3; c->mines += r >= 4;
+        c->n++; c->sx += sp.x; c->sy += sp.y;
+    }
+    int best = 0x7FFFFFFF, found = 0;
+    for (int i = 0; i < side * side; i++) {
+        struct tn_cell *c = &g_tn_cells[i];
+        if (!c->n) continue;
+        int sc = 0, mines = 0, gx = i % side, gy = i / side;
+        for (int dy = -1; dy <= 1; dy++)
+            for (int dx = -1; dx <= 1; dx++)
+                if (gx + dx >= 0 && gx + dx < side && gy + dy >= 0 && gy + dy < side) {
+                    struct tn_cell *e = &g_tn_cells[(gy + dy) * side + gx + dx];
+                    sc += e->sc; mines += e->mines;
+                }
+        if (sc < TN_CELL_MIN) continue;
+        ivec2 p = iv2(c->sx / c->n, c->sy / c->n);
+        int dn = ivec2_dist2(p, base);
+        for (int k = 0; k < w->no; k++) if (ivec2_dist2(p, w->own[k]) < dn) dn = ivec2_dist2(p, w->own[k]);
+        if (dn < 32 * 32) { g_tn_why[2]++; continue; }
+        int ok = 1;
+        for (int k = 0; k < w->nd && ok; k++) if (ivec2_dist2(p, w->drop[k]) < 18 * 18) ok = 0;
+        if (!ok) { g_tn_why[3]++; continue; }
+        for (int k = 0; k < w->nf && ok; k++) if (ivec2_dist2(p, w->foe[k]) < 22 * 22) ok = 0;
+        if (!ok) { g_tn_why[4]++; continue; }
+        for (int k = 0; k < g_tn[idx].nbad && ok; k++)
+            if (ivec2_dist2(p, g_tn[idx].bad[k].c) < 12 * 12 && (g_tn[idx].bad[k].losses >= 3 || game_time() < g_tn[idx].bad[k].again)) ok = 0;
+        if (!ok || threat_at(idx, p) > 0) { g_tn_why[5]++; continue; }
+        int key = (int)sqrtf((float)dn) * 4 - (sc < 24 ? sc : 24);   // the nearest; a richer one within a few tiles
+        if (key < best) { best = key; *o = p; *o_n = mines; found = 1; }
     }
     return found;
 }
@@ -620,7 +679,7 @@ internal void tn_plan(ee_player *pl, unsigned idx, struct tn_st *s, unsigned hc,
         }
         if (!done && (TOWNS(idx) & 1)) {
             why = NULL;
-            if (going) why = "a town going up";
+            if (going >= ((TOWNS(idx) & 16) && workforce(pl) >= 2 * TN_SPREAD_BUILDING ? workforce(pl) / TN_SPREAD_BUILDING : 1)) why = "a town going up";
             else if (!(TOWNS(idx) & 16) && n >= g_tn_max) why = "holds towns_max towns";
             else if ((TOWNS(idx) & 16) && workforce(pl) < TN_SPREAD_WORKERS * (n + 2)) why = "too few workers for another town";   // its base and the new one count
             else if (mine < theirs) why = "its army outmatched";
@@ -628,7 +687,7 @@ internal void tn_plan(ee_player *pl, unsigned idx, struct tn_st *s, unsigned hc,
         if (!done && (TOWNS(idx) & 1) && !why) {
             int fs = tn_free_slots(pl, hc, &w);
             if (fs >= 4 && !(TOWNS(idx) & 16)) { if (!why) why = "free places at its mines"; }   // SPREAD: not waiting for them
-            else if (!tn_site(pl, idx, base, hc, &w, &c, &nm)) {
+            else if (!((TOWNS(idx) & 16) ? tn_site_spread : tn_site)(pl, idx, base, hc, &w, &c, &nm)) {
                 why = "no free mines";
                 if (g_autotest) tn_say(idx, now, "mines: %d on the home continent, %d unexplored, %d too near or far, %d by a drop site, %d by an enemy building, %d lost there or defended",
                                        g_tn_why[0], g_tn_why[1], g_tn_why[2], g_tn_why[3], g_tn_why[4], g_tn_why[5]);
