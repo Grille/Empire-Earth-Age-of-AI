@@ -1,4 +1,4 @@
-"""ageofai.ini's keys (settings/*.cs) read into Python: each section (a class with [section]) with its keys in order -
+"""ageofai.ini's keys (dll_cs/settings/*.cs) read into Python: each section (a class with [section]) with its keys in order -
 kind, default, limits, attributes and the /// lines verbatim (the file's comment above the key) - and the section's
 enums (a CHOICE's names) and structs (a FLAGS row's fields). For gen_settings.py. The format is settings/settings.cs's
 header; line by line as written: attributes in [...] before a declaration on one line, its /// lines before it, an
@@ -9,7 +9,7 @@ import re
 import spec_read
 
 ROOT = spec_read.ROOT
-SETTINGS = os.path.join(ROOT, 'settings')
+SETTINGS = os.path.join(ROOT, 'dll_cs', 'settings')
 
 
 class Section:
@@ -121,7 +121,7 @@ def read_file(path):
     return secs
 
 
-def read_all():   # [Section] of every file in settings/, by place
+def read_all():   # [Section] of every file in dll_cs/settings/, by place
     out = []
     for f in sorted(os.listdir(SETTINGS)):
         if f.endswith('.cs'):

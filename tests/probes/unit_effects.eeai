@@ -1,4 +1,4 @@
-// a script's effects on units (lang/unit.cs, game_script/units.c SCRIPTS' EFFECTS ON UNITS): Continental (seed 101) -
+// a script's effects on units (dll_cs/lang/unit.cs, game_script/units.c SCRIPTS' EFFECTS ON UNITS): Continental (seed 101) -
 // hit points, ammunition and power set (the next step: read back after the hold), a unit given to another player (it
 // follows: another id, the new owner), one killed and one removed (alive false, the count down by two), and a
 // trigger's kill done at once.

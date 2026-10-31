@@ -1,4 +1,4 @@
-// a script's effects on players (lang/player.cs, game_script/relations.c): Continental (seed 101) - the unit limit set
+// a script's effects on players (dll_cs/lang/player.cs, game_script/relations.c): Continental (seed 101) - the unit limit set
 // (read back: the game's own limit for the player), the map revealed and fogged again (read back), a minimap flare
 // (on the map's tiles only: one off the map is a mistake, told; the script goes on in a trigger's way - tested last).
 wait_until(0.05min)

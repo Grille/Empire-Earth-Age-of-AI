@@ -1,7 +1,7 @@
 """Writes extensions/eeaimod-texts/syntaxes/eeai.tmLanguage.json - the highlighting of the personalities\\*.eeai files
 (personalities, mod/computer.eeai, mod/prompt.eeai, mod/system.eeai; the format: dll/script/expr.c THE TEXT FILES) and of the setup scripts
 (tests/scenarios/*.eeai, tests/probes/*.eeai: docs/scripts.md - statements, functions, the commands) - with the names the DLL knows,
-read from its sources: the game's values (lang/player.cs, names.cs, game.cs), the epochs and functions (expr.c), the situations,
+read from its sources: the game's values (dll_cs/lang/player.cs, names.cs, game.cs), the epochs and functions (expr.c), the situations,
 traits and decisions (persona.c), the system and prompt keys (texts.c, texts_prompt.h), the style keys (settings.c). A key the DLL
 doesn't know in its record shows as an error. Run it after changing one of them, then scripts/build/pack_vscode.py:
 local/venv/Scripts/python.exe scripts/build/gen_vscode_grammar.py"""
@@ -18,7 +18,7 @@ def src(name):
 expr, persona, texts, tpl, settings = (src(n) for n in ('expr.c', 'persona.c', 'texts.c', 'texts_prompt.h', 'settings.c'))
 expr += src('constants.c')   # the game's constants (epoch., resource. ...) in the texts
 persona += src('players.c')   # the player colours (game/players.c)
-lang = lang_read.read_all()   # the players' values and relations, the texts' own names, the game's members (lang/)
+lang = lang_read.read_all()   # the players' values and relations, the texts' own names, the game's members (dll_cs/lang/)
 members = [(m.name, lang_read.xm_kind(m)) for m in lang['player'].members]
 globals_ = [m.name for m in lang['names'].members]
 member_names = [n for n, k in members if k not in ('XM_REL', 'XM_FILTER', 'XM_DO')]

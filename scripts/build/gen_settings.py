@@ -1,5 +1,5 @@
-"""ageofai.ini's keys (settings/*.cs, settings_read.py) -> dll/settings/rows.h's tables and the shipped
-config/ageofai.ini's sections. The trial (2026-10-31): settings/ holds only some sections, so nothing in the tree is
+"""ageofai.ini's keys (dll_cs/settings/*.cs, settings_read.py) -> dll/settings/rows.h's tables and the shipped
+config/ageofai.ini's sections. The trial (2026-10-31): dll_cs/settings/ holds only some sections, so nothing in the tree is
 written yet - the output goes to local/work/settings_gen/, and --compare holds it against HEAD's rows.h (row by row,
 spaces aside) and HEAD's config/ageofai.ini (the sections' text, byte by byte).
 usage: gen_settings.py [--compare]"""
@@ -130,12 +130,12 @@ def compare(secs, rows, fields, groups, game, under):
         mine[(m.group(3) if m.group(1) != 'D' else 'ai_base', m.group(4) if m.group(1) != 'D' else m.group(3))] = norm(r)
     for key in [k for k in have if k[0] in names]:
         if key not in mine:
-            print('rows.h: %s.%s not in settings/' % key); bad += 1
+            print('rows.h: %s.%s not in dll_cs/settings/' % key); bad += 1
         elif mine[key] != have[key]:
             print('rows.h: %s.%s differs:\n  HEAD %s\n  spec %s' % (key + (have[key], mine[key]))); bad += 1
     for key in mine:
         if key not in have:
-            print('rows.h: %s.%s only in settings/' % key); bad += 1
+            print('rows.h: %s.%s only in dll_cs/settings/' % key); bad += 1
     flat = {norm(x) for x in rows_h.splitlines()}
     for what, lines in (('fields', [f for f in fields if f.startswith('#define')]), ('groups', groups), ('game', game), ('under', under)):
         for x in lines:

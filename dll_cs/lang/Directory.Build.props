@@ -2,7 +2,7 @@
      the obj folder has to be known before the SDK is. -->
 <Project>
   <PropertyGroup>
-    <BaseIntermediateOutputPath>$(MSBuildThisFileDirectory)../local/work/lang/obj/</BaseIntermediateOutputPath>
-    <BaseOutputPath>$(MSBuildThisFileDirectory)../local/work/lang/bin/</BaseOutputPath>
+    <BaseIntermediateOutputPath>$(MSBuildThisFileDirectory)../../local/work/lang/obj/</BaseIntermediateOutputPath>
+    <BaseOutputPath>$(MSBuildThisFileDirectory)../../local/work/lang/bin/</BaseOutputPath>
   </PropertyGroup>
 </Project>

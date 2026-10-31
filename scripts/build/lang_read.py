@@ -1,6 +1,6 @@
-"""The language's objects (lang/*.cs) read into Python: each class (a kind of object, names.cs's names) with its
+"""The language's objects (dll_cs/lang/*.cs) read into Python: each class (a kind of object, names.cs's names) with its
 members - a field or a method, its type, parameters (a default: optional), attributes and doc. For gen_lang.py (the C
-tables), gen_eeai_readme.py and gen_vscode_grammar.py. The format is lang/language.cs's header; line by line as written:
+tables), gen_eeai_readme.py and gen_vscode_grammar.py. The format is dll_cs/lang/language.cs's header; line by line as written:
 attributes in [...] before a declaration on one line, its /// lines before it."""
 import os
 import re
@@ -8,7 +8,7 @@ import re
 import spec_read
 
 ROOT = spec_read.ROOT
-LANG = os.path.join(ROOT, 'lang')
+LANG = os.path.join(ROOT, 'dll_cs', 'lang')
 
 
 class Kind:
@@ -88,7 +88,7 @@ def read_file(path):
     return kinds
 
 
-def read_all():   # {class name: Kind} of every file in lang/
+def read_all():   # {class name: Kind} of every file in dll_cs/lang/
     out = {}
     for f in sorted(os.listdir(LANG)):
         if f.endswith('.cs'):

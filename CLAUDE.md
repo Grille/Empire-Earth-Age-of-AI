@@ -7,7 +7,9 @@ the setup here) - scripts find it through `scripts/game_dir.sh` / `game_dir.py` 
 docs/testing.md.
 Several sessions may work in this tree at the same time - see Git below.
 
-The tree (2026-10-25): `dll/` the mod, `spec/` the game as the mod knows it (below), `lang/` the .eeai language's objects (below), `config/` what ships, `tests/` what the tests run (`scenarios/`, `probes/`,
+The tree (2026-10-25): `dll/` the mod, `spec/` the game as the mod knows it (below), `dll_cs/` the C# the build makes some of dll/'s C from
+(beside it on purpose, the player 2026-10-31) - `lang/` the .eeai language's objects (below), `settings/` ageofai.ini's
+keys (a trial: gen_settings.py --compare, nothing generated into the tree yet), `config/` what ships, `tests/` what the tests run (`scenarios/`, `probes/`,
 `config/` with autotest.ini), `scripts/` by job - `build/` (the build's checks, generators, install), `test/` (run_test
 and the runners, eectl, the MCP server), `results/` (log readers, scorers), `re/` (reverse engineering, the AoC port) -,
 `extensions/` the VS Code extension, `docs/`. Everything git-ignored is in `local/`: `work/` (logs, slots, builds),
@@ -122,7 +124,7 @@ and the runners, eectl, the MCP server), `results/` (log readers, scorers), `re/
 | Change | Run |
 |---|---|
 | a pipe command, a saved variable | `sh dll/build.sh` (does both) |
-| a member of the language's objects (lang/*.cs: player, game, slot, a text's names) | `sh dll/build.sh` (gen_lang.py: dll/game_script/lang.h), then `scripts/build/gen_eeai_readme.py` and the grammar (next row) |
+| a member of the language's objects (dll_cs/lang/*.cs: player, game, slot, a text's names) | `sh dll/build.sh` (gen_lang.py: dll/game_script/lang.h), then `scripts/build/gen_eeai_readme.py` and the grammar (next row) |
 | names the text files know (values, situations, keys) | `scripts/build/gen_vscode_grammar.py`, then `scripts/build/pack_vscode.py` |
 | situations, the format help | `scripts/build/gen_persona.py` (`_template.eeai`), `scripts/build/gen_eeai_readme.py` (personalities README tables) |
 | the game data's unit types | `scripts/re/gen_units.py` (docs/units.md) |
@@ -135,7 +137,7 @@ One language for personalities, system texts, prompts and test scripts (dll/scri
 config/personalities/README.md). Strict and explicit: a mistake is told with file and line, nothing is guessed, no
 compatibility shims before the release. English only until the release. Its own language, not C# (the player
 2026-10-25: C#'s quirks would put modders off) - but its objects (player, game, slot, a text's names: members, types,
-arguments, docs) are declared once in `lang/` as C# (lang/language.cs: the format; `dotnet build` there checks them),
+arguments, docs) are declared once in `dll_cs/lang/` as C# (dll_cs/lang/language.cs: the format; `dotnet build` there checks them),
 and the C tables, the README's tables and the editor's names are made of them (gen_lang.py, lang_read.py).
 
 ## Decisions that aren't visible in the code

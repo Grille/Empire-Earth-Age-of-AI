@@ -1,4 +1,4 @@
-// units as values (lang/unit.cs, game_script/units.c): Continental (seed 101) - 4 doughboys for P2 at 40,40, listed
+// units as values (dll_cs/lang/unit.cs, game_script/units.c): Continental (seed 101) - 4 doughboys for P2 at 40,40, listed
 // by p.units(filter), read (id, owner, pos, hp, type), found again by id, hurt, destroyed: alive false, game.unit
 // null, the list without them (the hit takes all four). The pings say each step.
 wait_until(0.05min)

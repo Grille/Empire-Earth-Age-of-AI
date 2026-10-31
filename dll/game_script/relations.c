@@ -11,7 +11,7 @@
 // with oneself, a war that isn't, a player who isn't there).
 // A script's player also does things (XM_DO): p.win(), p.war(q) - and its stock may be set: p.gold = 500 (SCRIPTS' EFFECTS
 // below); a text changes nothing.
-// The members, the text's own names and the kinds' tables are declared in lang/ (player.cs, names.cs, game.cs,
+// The members, the text's own names and the kinds' tables are declared in dll_cs/lang/ (player.cs, names.cs, game.cs,
 // slot.cs - C#, the language's objects): names, types, arguments, docs - scripts/build/gen_lang.py makes lang.h of
 // them, gen_eeai_readme.py the README's tables. What each one is worked out as is here.
 // THE KINDS OF OBJECTS (script/host.h): a player, the game, a slot, a unit (game_script/units.c)
@@ -301,7 +301,7 @@ internal int x_method(struct xctx *c, const char *name, const struct xval *a, in
     const char *rel = dot ? dot + 1 : name;
     const struct xmember *m = x_find_member(rel, (int)strlen(rel));
     if (m && m->kind == XM_FILTER && strcmp(rel, "units")) return na == 1 && x_count(c, name, dot, a, v);   // (units: a script's)
-    // (B) or, counting events, (B, minutes) - kills also with a filter last: (B, kind.tank), (B, 10, kind.tank) - lang/player.cs
+    // (B) or, counting events, (B, minutes) - kills also with a filter last: (B, kind.tank), (B, 10, kind.tank) - dll_cs/lang/player.cs
     if (!m || m->kind != XM_REL || na < m->amin || na > m->amax) return 0;
     int ok = 1;
     char who[24] = "me";
@@ -356,7 +356,7 @@ internal int x_method_of(struct xctx *c, void *pa, const char *who, const char *
     return 1;
 }
 
-// THE TYPES (script/host.h) of a player's members, of the text's own names (lang/: the tables') and of the constants
+// THE TYPES (script/host.h) of a player's members, of the text's own names (dll_cs/lang/: the tables') and of the constants
 internal int x_member_type(const char *n) {   // X_ANY: none, or an effect (win, war: no value)
     const struct xmember *m = x_find_member(n, (int)strlen(n));
     return m ? m->type : X_ANY;
@@ -376,7 +376,7 @@ internal int x_stock_index(const char *name) {   // food .. iron: the stock's in
 }
 
 // THE KINDS (script/host.h: the check reads them, x_kmember): a player, the game, a slot - their members lang.h's
-// k_xk_player / game / slot (lang/: a value, a player, a method with its arguments; the type of what each gives)
+// k_xk_player / game / slot (dll_cs/lang/: a value, a player, a method with its arguments; the type of what each gives)
 internal struct x_kind g_xkinds[4] = {
     { "player", XK_NUMBERED(XK_PLAYER), k_xk_player, (int)(sizeof k_xk_player / sizeof *k_xk_player) },
     { "game", XK_NUMBERED(XK_GAME), k_xk_game, (int)(sizeof k_xk_game / sizeof *k_xk_game) },

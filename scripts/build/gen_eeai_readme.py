@@ -1,5 +1,5 @@
 """Fills the generated tables of config/personalities/README.md from the DLL's sources - the situations (persona.c k_lines,
-line_fallback; their descriptions: mod/prompt.eeai sit_<key>), the game's values (lang/player.cs, names.cs), the epochs (expr.c
+line_fallback; their descriptions: mod/prompt.eeai sit_<key>), the game's values (dll_cs/lang/player.cs, names.cs), the epochs (expr.c
 k_epoch_const), the style keys (settings.c k_style_keys) - between its <!-- name: ... --> and <!-- /name --> markers.
 Run it after changing one of them: local/venv/Scripts/python.exe scripts/build/gen_eeai_readme.py"""
 import glob
@@ -18,7 +18,7 @@ def cell(t):
     return t.replace('|', '\\|').replace('<', '&lt;').replace('>', '&gt;')
 
 pers, expr, settings = (src(n) for n in ('persona.c', 'expr.c', 'settings.c'))
-lang = lang_read.read_all()   # the players' values and relations, the texts' own names (lang/)
+lang = lang_read.read_all()   # the players' values and relations, the texts' own names (dll_cs/lang/)
 expr += src('constants.c')   # the game's constants (epoch., resource. ...) in the texts
 prompt = prompt_texts(root)
 

@@ -1,4 +1,4 @@
-// UNITS IN THE LANGUAGE (lang/unit.cs: the kind's members; relations.c x_obj_member_of hands them here): a unit as a
+// UNITS IN THE LANGUAGE (dll_cs/lang/unit.cs: the kind's members; relations.c x_obj_member_of hands them here): a unit as a
 // value is its id (xval obj: the id + 1, okind XK_UNIT) - a handle, not a pointer: it stays a value when the unit is
 // destroyed, and the unit is looked up again (unit_by_id) whenever it is read, so a script keeps no pointer into the
 // game across a wait. Alive: on the map with hit points left; a gone unit's members are a mistake but for id and alive.
@@ -120,7 +120,7 @@ internal ee_unit *x_unit_of(const struct xval *o, const char **why) {
            st == XS_DRY ? "a dry run makes no units - a spawned one can't be read" : "the unit is gone (destroyed) - check u.alive first";
     return u;
 }
-// u.<member> (a member lang/unit.cs declares - expr.c checked the name)
+// u.<member> (a member dll_cs/lang/unit.cs declares - expr.c checked the name)
 internal int x_unit_member_of(struct xctx *c, const struct xval *o, const char *name, struct xval *v) {
     const char *why;
     ee_unit *u = x_unit_of(o, &why);
@@ -153,7 +153,7 @@ internal int x_unit_effect_ok(struct xctx *c, const struct xval *o, const char *
     x_host_fail(c, "%s: %s", what, st == XS_NEVER ? "the spawned unit was never made" : "the unit is gone (destroyed) - check u.alive first");
     return 0;
 }
-// u.kill(), u.remove() (lang/unit.cs's effects): 1 one of them (done, told, or a mistake told)
+// u.kill(), u.remove() (dll_cs/lang/unit.cs's effects): 1 one of them (done, told, or a mistake told)
 internal int x_unit_do(struct xctx *c, const struct xval *o, const char *name, struct xval *v) {
     char t[80], u[40];
     if (strcmp(name, "kill") && strcmp(name, "remove")) return 0;
@@ -162,7 +162,7 @@ internal int x_unit_do(struct xctx *c, const struct xval *o, const char *name, s
     if (x_unit_effect_ok(c, o, t) && !x_did(c, t)) x_job(name[0] == 'k' ? XJ_KILL : XJ_REMOVE, o->obj, 0);
     return 1;
 }
-// u.owner = p, u.hp = n, u.ammo = n, u.power = n (lang/unit.cs's [set] members): 1 done (or told), 0 a mistake (told)
+// u.owner = p, u.hp = n, u.ammo = n, u.power = n (dll_cs/lang/unit.cs's [set] members): 1 done (or told), 0 a mistake (told)
 internal int x_unit_set(struct xctx *c, const struct xval *o, const char *name, const struct xval *v) {
     char t[100], u[40];
     int op = !strcmp(name, "owner") ? XJ_OWNER : !strcmp(name, "hp") ? XJ_HP : !strcmp(name, "ammo") ? XJ_AMMO : !strcmp(name, "power") ? XJ_POWER : -1, n;

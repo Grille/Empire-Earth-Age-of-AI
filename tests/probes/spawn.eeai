@@ -1,4 +1,4 @@
-// p.spawn (lang/player.cs, game_script/units.c SPAWNING): Continental (seed 101) - two groups of P2 asked for one after
+// p.spawn (dll_cs/lang/player.cs, game_script/units.c SPAWNING): Continental (seed 101) - two groups of P2 asked for one after
 // the other without a wait between them (the time the same), held for at the first use of one (till the next step),
 // then the second group there already (no second hold), a handle equal to the unit found by its id, p.units seeing
 // them; a trigger's spawn there at once, and a fighter with its flight time and ammo.
