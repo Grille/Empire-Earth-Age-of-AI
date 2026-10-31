@@ -173,8 +173,12 @@ internal void cmd_minecheck(char *out, const char *args) {
 // rebalance, the crowds and the game's assignment sent citizens 200 tiles across the map and back (the player's
 // autosave at minute 750: 656 citizens on gather trips of 60+ tiles in 4 minutes, 74% of the citizens' route search
 // work, some sent on again before they got there). With a citizen given, a mine whose drop site lies within
-// LOCAL_MINE_TILES of it - its own town - goes first; another town's only when its own has no free one.
+// LOCAL_MINE_TILES of it - its own town - goes first. Preferring it changed nothing (1209 vs 1207 long trips): of 448
+// picks 357 found its own town's mines full. So another town's mine - its drop site beyond LOCAL_MINE_FAR - is
+// refused outright, the game's search's too: the citizen gets local work from the assignment's other passes, and the
+// crowds' extras wait at their own town's mine (docs/economy.md "citizens stay in their town").
 #define LOCAL_MINE_TILES 40
+#define LOCAL_MINE_FAR 60
 internal int g_local_mines;
 // not_region: a continent (region class 2) whose mines don't count, -1 none (overseas_mines)
 internal ee_unit *select_mine_near_drop(ee_resource_mgr *rm, int type, ee_unit *unit, int not_region) {
@@ -201,6 +205,7 @@ internal ee_unit *select_mine_near_drop(ee_resource_mgr *rm, int type, ee_unit *
         ivec2 pos = unit_get_tile(s);
         int k = -1, dd = drop_nearest(pi, pos, 0, &k);   // nearest drop site for all resources (squared distance)
         if (k < 0) continue;
+        if (local && ivec2_dist2(d[k].p, at) > LOCAL_MINE_FAR * LOCAL_MINE_FAR) continue;   // another town's
         int is_local = local && ivec2_dist2(d[k].p, at) <= LOCAL_MINE_TILES * LOCAL_MINE_TILES;
         if (is_local < best_local || (is_local == best_local && dd >= best_d)) continue;   // its own town's first
         if (!explored_by(s, pl)) continue;
@@ -316,6 +321,14 @@ internal void *find_mine_pick(ee_resource_mgr *rm, int type, ee_unit *unit, uint
     ee_unit *r = g_mine_choice && type >= 4 && type < 7 ? select_mine_near_drop(rm, type, unit, -1) : NULL;
     if (r) return r;
     r = refuse_danger(rm, resource_mgr_find_mine(rm, (uintptr_t)type, unit, rev), type == 2, type);
+    if (r && g_local_mines && unit && type >= 4 && type < 7) {   // local_mines: the game's pick another town's - refused
+        ee_player *pl = resource_mgr_player(rm);
+        unsigned pi = (unsigned)player_get_index(pl) & 15;
+        drops_cached(pl);
+        int k = -1;
+        if (drop_nearest(pi, unit_get_tile(r), 0, &k) == 0x7FFFFFFF ||
+            ivec2_dist2(g_drops[pi].d[k].p, unit_get_tile(unit)) > LOCAL_MINE_FAR * LOCAL_MINE_FAR) return NULL;
+    }
     if (r && g_mine_crowds && type >= 4 && type < 7) {   // the game's search knows only the working gatherers: a full mine refused
         ee_player *pl = resource_mgr_player(rm);
         unsigned pi = (unsigned)player_get_index(pl) & 15;
