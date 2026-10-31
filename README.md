@@ -589,7 +589,7 @@ dll/              the mod (C), one translation unit: eeaimod.c includes every pa
   test/             control.c the control pipe, testcmd.c / testopp.c test commands and the sea opponent, randmap.c
                     test-game setup, autotest.c, scripts.c the setup scripts (cmd_verbs.h, generated: the commands
                     they call), trace.c call tracing, ecolog.c the economy log
-  settings/         rows.h every ageofai.ini key as a row (kind, section, default, limits), every section (order, kind,
+  settings/         rows.h (generated from dll_cs/settings/*.cs) every ageofai.ini key as a row (kind, section, default, limits), every section (order, kind,
                     title) and the topics in them (ageofai_config.exe's tree), settings.c reads them once into
                     g_set / g_set_ai (a value per AI difficulty) - the parts read those, never the file
   tool/             ageofai_config.c: ageofai_config.exe, the settings in a window (from base/, script/ and settings/ only:

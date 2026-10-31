@@ -1,0 +1,9 @@
+// [ai_hard]: the hard AI's own values over [ai_base] (none shipped: only examples)
+///
+[section(100, "Hard"), diff]
+class ai_hard
+{
+    /// e.g. a harder opponent that pays less and keeps a bigger army:
+    /// cost_percent=75%
+    /// military_income_share=55%
+}

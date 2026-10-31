@@ -1,17 +1,19 @@
 // [display]: the window, the renderer and the picture (engine/display.c, render*.c)
+///
 [section(30, "Display")]
-class display {
+class display
+{
     enum mode_choice { native, windowed, borderless }
     enum lock_mouse_choice { [name("0")] off, [name("1")] on, auto }
-    enum frame_wait_choice { game, yield, auto }
-    enum renderer_choice { auto, wrapper, own }
-    enum present_choice { auto, d3d, gdi, primary }
-    /// [display] overlay - the debug overlay's layers by the names their producers give them
-    /// (base/overlay.c; attack.c: routes, danger)
-    struct overlay_fields { bool routes, danger; }
     /// [display] start - the parts of the quiet windowed start, each on its own until the player's starts show which work
     /// (engine/display.c play_cbt, play_front)
     struct start_fields { bool probes, black, popup, front; }
+    enum frame_wait_choice { game, yield, auto }
+    enum renderer_choice { auto, wrapper, own }
+    /// [display] overlay - the debug overlay's layers by the names their producers give them
+    /// (base/overlay.c; attack.c: routes, danger)
+    struct overlay_fields { bool routes, danger; }
+    enum present_choice { auto, d3d, gdi, primary }
 
     /// Display mode:
     ///   native     = fullscreen (original)
@@ -62,22 +64,24 @@ class display {
     /// auto = yield while the game draws, its pause once it has drawn nothing for 0.1 s. Only the picture: the game
     /// itself runs on another thread
     frame_wait_choice frame_wait = frame_wait_choice.auto;
-
+    ///
+    /// --- Renderer ---
     /// Windowed/borderless only: own = the mod's own renderer on Direct3D 11 (screenshots, recording and the game's
     /// warning dialogs work; its picture matches DDrawCompat's - docs/renderer.md), wrapper = the game draws through the
     /// ddraw.dll in its folder (DDrawCompat, dgVoodoo ...), auto = own when the game folder has no ddraw.dll (Windows' own
     /// DirectDraw can't run the game windowed), else wrapper. With own, keep wrapper DLLs out of the game folder.
-    [group("Renderer", heading: true)] renderer_choice renderer = renderer_choice.auto;
+    [group("Renderer")] renderer_choice renderer = renderer_choice.auto;
     /// The own renderer only: the AI's plans drawn on the map, a comma list of layers - routes = each attack group's
     /// route (its player's colour; red rings: waypoints in reach of known defences, a ring at the goal), danger = each
     /// AI's danger map (its colour: faint where enemies reach, stronger where it would lose the fight, the edges marked)
     /// - or all. Empty = none. The control pipe switches them while playing: overlay routes (overlay off: none)
     overlay_fields overlay;
-
+    ///
+    /// --- Wrapper (only with renderer = wrapper) ---
     /// Windowed/borderless only: how the picture reaches the window. auto = the best for the installed ddraw.dll
     /// (DDrawCompat: through its primary surface; dgVoodoo or others: Direct3D 11), d3d = Direct3D 11,
     /// primary = the game's primary surface, gdi = the CPU path (use it if the window stays black or flickers)
-    [group("Wrapper (only with renderer = wrapper)", heading: true)] present_choice present = present_choice.auto;
+    [group("Wrapper (only with renderer = wrapper)")] present_choice present = present_choice.auto;
     /// Hardware T&L only: the 3D models' vertex buffer in system memory, as the renderer without T&L has it. In video
     /// memory every update makes the graphics card finish its work first (with DDrawCompat 18 instead of 170 fps on a
     /// big map, natively 105 instead of 315). 0 = the game's video memory

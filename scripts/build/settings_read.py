@@ -1,8 +1,8 @@
-"""ageofai.ini's keys (dll_cs/settings/*.cs) read into Python: each section (a class with [section]) with its keys in order -
-kind, default, limits, attributes and the /// lines verbatim (the file's comment above the key) - and the section's
-enums (a CHOICE's names) and structs (a FLAGS row's fields). For gen_settings.py. The format is settings/settings.cs's
-header; line by line as written: attributes in [...] before a declaration on one line, its /// lines before it, an
-enum or a struct on one line."""
+"""ageofai.ini's keys (dll_cs/settings/*.cs) read into Python: each section (a class with [section]) with its keys in
+order - type, default, attributes and the /// lines verbatim (the file's lines above it) - the section's enums (a
+CHOICE's names) and structs (a FLAGS row's fields), and its text before its header and after its last key. For
+gen_settings.py. The format is dll_cs/settings/settings.cs's header; line by line as written: attributes in [...]
+before a declaration on one line, its /// lines before it, an enum or a struct on one line."""
 import os
 import re
 
@@ -13,9 +13,12 @@ SETTINGS = os.path.join(ROOT, 'dll_cs', 'settings')
 
 
 class Section:
-    def __init__(self, name, attrs, path):
-        self.name, self.attrs, self.path = name, dict((a[0], a[1]) for a in attrs), path
-        self.keys, self.enums, self.structs = [], {}, {}
+    def __init__(self, name, attrs, before, path):
+        self.name, self.attrs, self.before, self.path = name, dict((a[0], a[1]) for a in attrs), before, path
+        self.keys, self.enums, self.structs, self.trailer = [], {}, {}, []
+
+    def has(self, attr):
+        return attr in self.attrs
 
     @property
     def place(self):
@@ -24,6 +27,10 @@ class Section:
     @property
     def title(self):
         return self.attrs['section'][1]
+
+    @property
+    def kind(self):   # rows.h's SETTING_SECTIONS kind
+        return 'ALL' if self.has('all') else 'DIFF' if self.has('diff') else 'TEST' if self.has('test') else 'PLAIN'
 
 
 class Key:
@@ -36,8 +43,8 @@ class Key:
 
 
 def arg_text(a):   # an attribute's argument as written: a string's text, a number, a name (nameof(x) -> x)
-    if isinstance(a, str):
-        return a
+    if isinstance(a, str):   # its escapes undone: "_aimod\\config" -> _aimod\config
+        return re.sub(r'\\(.)', r'\1', a)
     if a[0] == 'num':
         return str(a[1])
     return a[1].split('.')[-1]   # nameof(x): x; limits.MAX_PATH: MAX_PATH
@@ -99,6 +106,10 @@ def read_file(path):
                 cur.structs[m.group(1)] = (fields, doc)
                 doc = []
                 continue
+            if code == '}':   # the class ends: the /// lines left are the text after its last key
+                cur.trailer, doc = doc, []
+                depth -= 1
+                continue
         while code.startswith('['):
             m = re.match(r'^\[(?:[^\[\]"]|"[^"]*")*\]\s*', code)
             attr_text += ' ' + m.group(0)
@@ -108,7 +119,7 @@ def read_file(path):
         if depth == 0:
             m = re.search(r'\bclass\s+@?(\w+)', code)
             if m and 'Attribute' not in code and 'section' in attr_text:
-                cur = Section(m.group(1), spec_read.attrs_of(attr_text), path)
+                cur = Section(m.group(1), spec_read.attrs_of(attr_text), doc, path)
                 secs.append(cur)
             attr_text, doc = '', []
         elif depth == 1 and cur and code.endswith(';'):
@@ -121,9 +132,9 @@ def read_file(path):
     return secs
 
 
-def read_all():   # [Section] of every file in dll_cs/settings/, by place
+def read_all():   # [Section] of every file in dll_cs/settings/, in the file's order (by place; the test ini's last)
     out = []
     for f in sorted(os.listdir(SETTINGS)):
         if f.endswith('.cs'):
             out += read_file(os.path.join(SETTINGS, f))
-    return sorted(out, key=lambda s: s.place)
+    return sorted(out, key=lambda s: (s.kind == 'TEST', s.place))

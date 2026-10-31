@@ -1,13 +1,17 @@
 // THE SETTINGS: the keys of ageofai.ini as C# declarations - a class per section (general.cs, display.cs ...), a field
 // per key in the shipped file's order, its /// lines the comment above it in the file (the documentation the player
 // reads, and ageofai_config.exe's help). Declared once here, read by scripts/build/settings_read.py: gen_settings.py
-// makes dll/settings/rows.h's tables and the shipped config/ageofai.ini of it. What a setting does stays the code's
-// (it reads g_set.key, g_set.section_key, g_set_ai[d].key - dll/settings/rows.h's header); a declaration is its name,
-// kind, default, limits and doc. C# is only how they are written down: names and types checked (settings.csproj;
-// dotnet build there). Nothing of it runs.
+// (run by dll/build.sh) makes dll/settings/rows.h and the shipped config/ageofai.ini of it - both generated, never
+// edited (one changed by hand stops the build: its change belongs here). What a setting does stays the code's (it
+// reads g_set.key, g_set.section_key, g_set_ai[d].key - rows.h's header); a declaration is its name, kind, default,
+// limits and doc. C# is only how they are written down: names and types checked (settings.csproj; dotnet build
+// there). Nothing of it runs. A new setting: a field here, with its lines for the file, then the build.
 //
 // A SECTION is a class with [section(place, "title")] - place: ageofai_config.exe's order, title: its page; [all] the
-// AI's rows ([ai_base]: a value per difficulty), [test] the test ini's own. Its fields in the file's order.
+// AI's rows ([ai_base]: a value per difficulty), [diff] a difficulty's own section ([ai_easy], [ai_hard]: its fields
+// are [ai_base] keys with the difficulty's value, written bool, int or "text" - [ai_easy]'s are also what the easy AI
+// gets where the player's file says nothing), [test] the test ini's own (not in ageofai.ini). Its fields in the
+// file's order.
 //
 // A KEY is a field; its type and attributes are its kind (rows.h's header tells each):
 //   bool k = true;                               FLAG     (in the file 1 / 0)
@@ -23,20 +27,22 @@
 //   k_fields k;                                  FLAGS    a struct of the section: bool fields and enum fields; its
 //                                                         default all at their first
 //
-// THE FILE: a key's /// lines are the lines above it, each "; " and the line - several keys under one comment: the
-// comment on the first, none on the others. [commented] the key written with a ';' before it (a value to try, not in
-// force: ;diag=0), [commented("x")] with x instead of the default (;ai_dir=_aimod\config\personalities). [group("t")]
-// starts ageofai_config.exe's topic t at this key; [group("t", heading: true)] also writes "; --- t ---" after a blank
-// line above it in the file.
+// THE FILE, line for line: a key's /// lines are the file's lines above it - "/// text" the line "; text", an empty
+// "///" a blank line (headings like "; --- Attacks ---" are lines as any other); several keys under one comment: the
+// lines on the first, none on the others. The /// lines before a class are the file's lines before its [section]
+// header (the banners), those after its last key the lines after it. [commented] the key written with a ';' before
+// it (a value to try, not in force: ;diag=0), [commented("x")] with x instead of the default
+// (;ai_dir=_aimod\config\personalities), [commented("x", "key_P2")] as another key (one slot of a per-player key).
 //
-// MORE ABOUT A KEY: [game("what", "original", keep)] it sets one of the game's own values (rows.h SETTING_GAME: the
-// tool shows its key blue); [under(nameof(master))] the tool folds it under a master it doesn't follow; [easy("v")]
-// the easy AI's value where neither [ai_easy] nor [ai_base] says one.
+// MORE ABOUT A KEY: [group("t")] starts ageofai_config.exe's topic t at this key (rows.h SETTING_GROUPS);
+// [game("what", "original", keep)] it sets one of the game's own values (SETTING_GAME: the tool shows its key blue);
+// [under(nameof(master))] the tool folds it under a master it doesn't follow (SETTING_UNDER).
 
 using System;
 
 [AttributeUsage(AttributeTargets.Class)] public sealed class section : Attribute { public section(int place, string title) { } }
 [AttributeUsage(AttributeTargets.Class)] public sealed class all : Attribute { }
+[AttributeUsage(AttributeTargets.Class)] public sealed class diff : Attribute { }
 [AttributeUsage(AttributeTargets.Class)] public sealed class test : Attribute { }
 [AttributeUsage(AttributeTargets.Field)] public sealed class range : Attribute { public range(int lo, int hi) { } }
 [AttributeUsage(AttributeTargets.Field)] public sealed class num : Attribute { }
@@ -46,11 +52,10 @@ using System;
 [AttributeUsage(AttributeTargets.Field)] public sealed class per_player : Attribute { }
 [AttributeUsage(AttributeTargets.Field)] public sealed class child : Attribute { public child(string master) { } }
 [AttributeUsage(AttributeTargets.Field)] public sealed class name : Attribute { public name(string text) { } }
-[AttributeUsage(AttributeTargets.Field)] public sealed class commented : Attribute { public commented(string value = "") { } }
-[AttributeUsage(AttributeTargets.Field)] public sealed class group : Attribute { public group(string title, bool heading = false) { } }
+[AttributeUsage(AttributeTargets.Field)] public sealed class commented : Attribute { public commented(string value = "", string key = "") { } }
+[AttributeUsage(AttributeTargets.Field)] public sealed class group : Attribute { public group(string title) { } }
 [AttributeUsage(AttributeTargets.Field)] public sealed class game : Attribute { public game(string what, string original, int keep) { } }
 [AttributeUsage(AttributeTargets.Field)] public sealed class under : Attribute { public under(string master) { } }
-[AttributeUsage(AttributeTargets.Field)] public sealed class easy : Attribute { public easy(string value) { } }
 
 static class limits {
     public const int MAX_PATH = 260;   // windows.h's: a path's buffer

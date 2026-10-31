@@ -1,6 +1,8 @@
 // [llm]: the AI voice - a language model speaks (and may decide) for the computer players (voice/llm*.c)
+///
 [section(60, "Language model")]
-class llm {
+class llm
+{
     enum memory_mode_choice { pair, player }
     enum fallback_choice { rules, pause }
 

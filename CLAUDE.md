@@ -9,7 +9,7 @@ Several sessions may work in this tree at the same time - see Git below.
 
 The tree (2026-10-25): `dll/` the mod, `spec/` the game as the mod knows it (below), `dll_cs/` the C# the build makes some of dll/'s C from
 (beside it on purpose, the player 2026-10-31) - `lang/` the .eeai language's objects (below), `settings/` ageofai.ini's
-keys (a trial: gen_settings.py --compare, nothing generated into the tree yet), `config/` what ships, `tests/` what the tests run (`scenarios/`, `probes/`,
+keys (below), `config/` what ships, `tests/` what the tests run (`scenarios/`, `probes/`,
 `config/` with autotest.ini), `scripts/` by job - `build/` (the build's checks, generators, install), `test/` (run_test
 and the runners, eectl, the MCP server), `results/` (log readers, scorers), `re/` (reverse engineering, the AoC port) -,
 `extensions/` the VS Code extension, `docs/`. Everything git-ignored is in `local/`: `work/` (logs, slots, builds),
@@ -91,18 +91,21 @@ and the runners, eectl, the MCP server), `results/` (log readers, scorers), `re/
   the names before Empire Earth: Age of AI (2026-10-27: aimod\, aimod.ini, aimod_econ.csv, *.aimod beside the saves),
   and removes an old eeaimod.dll / aimod_config.exe (both DLLs would load). Players see ageofai; eeaimod stays inside
   the code (eeaimod.c, the pipe, the runner's names, EEAIMOD_* variables).
-- A setting of ageofai.ini is a row in `dll/settings/rows.h` (kind, section, key, default, limits) and its key in
-  `config/ageofai.ini` with that default; the code reads `g_set.key` ([general]), `g_set.section_key` (the other
+- A setting of ageofai.ini is a field in `dll_cs/settings/<section>.cs` (2026-10-31): its type and attributes the
+  kind, default and limits, its /// lines the file's lines above it (dll_cs/settings/settings.cs: the format).
+  `scripts/build/gen_settings.py`, run by the build, makes `dll/settings/rows.h` (the rows: kind, section, key, default,
+  limits) and the shipped `config/ageofai.ini` whole of them - both generated, never edited: one changed by hand
+  stops the build (its change belongs into dll_cs/settings/). The code reads `g_set.key` ([general]), `g_set.section_key` (the other
   sections: `g_set.display_present`) or `g_set_ai[d].key` ([ai_base], a value per difficulty from [ai_easy] / [ai_hard], else
   [ai_base] - medium plays [ai_base], it has no section; code that doesn't tell difficulties apart reads [1]), and the test ini's [autotest] overrides a
   row by that same name (`scripts/build/settings_check.py`, run by the build, holds rows and file together). Nothing
-  reads ageofai.ini itself any more; a test-only knob is a row of section autotest. A new section is a row of
-  `SETTING_SECTIONS` there too (its order and title make ageofai_config.exe's section; its topics there:
-  `SETTING_GROUPS`, each from its first row on). A CHILD row is a flag under a
+  reads ageofai.ini itself any more; a test-only knob is a field of autotest.cs. A new section is a class with
+  [section(place, "title")] (its order and title make ageofai_config.exe's section; its topics there: [group("t")],
+  each from its key on). A CHILD row is a flag under a
   master CHOICE `default|enabled|disabled` (improved_unit_movement over the seven movement keys): not set, it follows
   the master; the shipped file has it commented out. A row's range is a sanity bound: outside it a warning, the value
-  used (the code clamps what it can't take); only what can't be used at all is a mistake, the default instead. A row
-  that only sets one of the game's own values goes into `SETTING_GAME` too (ageofai_config.exe shows its key blue).
+  used (the code clamps what it can't take); only what can't be used at all is a mistake, the default instead. A key
+  that only sets one of the game's own values has [game(...)] (rows.h SETTING_GAME: ageofai_config.exe shows its key blue).
 - The game reads the personality files from `config/personalities/` (`ai_dir` in the user's ageofai.ini): a change to
   their format needs the matching installed DLL.
 
@@ -124,6 +127,7 @@ and the runners, eectl, the MCP server), `results/` (log readers, scorers), `re/
 | Change | Run |
 |---|---|
 | a pipe command, a saved variable | `sh dll/build.sh` (does both) |
+| a setting (dll_cs/settings/*.cs) | `sh dll/build.sh` (gen_settings.py: dll/settings/rows.h and config/ageofai.ini) |
 | a member of the language's objects (dll_cs/lang/*.cs: player, game, slot, a text's names) | `sh dll/build.sh` (gen_lang.py: dll/game_script/lang.h), then `scripts/build/gen_eeai_readme.py` and the grammar (next row) |
 | names the text files know (values, situations, keys) | `scripts/build/gen_vscode_grammar.py`, then `scripts/build/pack_vscode.py` |
 | situations, the format help | `scripts/build/gen_persona.py` (`_template.eeai`), `scripts/build/gen_eeai_readme.py` (personalities README tables) |

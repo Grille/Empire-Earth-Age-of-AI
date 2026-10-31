@@ -95,6 +95,7 @@ sh dll/build.sh
 | `scripts/build/layers.py` | which part of `dll/` may use which (below); `--why <folder>` lists the uses |
 | `scripts/build/style.py` | the C style rules the compiler doesn't check (below) |
 | `scripts/build/spec_check.py` | the rules of `spec/` the C# compiler leaves open |
+| `scripts/build/gen_settings.py` | makes `dll/settings/rows.h` and `config/ageofai.ini` of `dll_cs/settings/*.cs`; stops when one of them was edited by hand |
 | `scripts/build/settings_check.py` | `dll/settings/rows.h` and `config/ageofai.ini` say the same |
 
 **One translation unit**: `dll/eeaimod.c` includes every other `.c` file. A new file is included there, in the place
@@ -142,8 +143,9 @@ turns them into C in `dll/game/api/gen/`; the format is in `spec/attributes.cs`'
 
 Every behaviour the mod adds has a setting in `ageofai.ini`, so a player can turn it off and a test can compare it.
 
-- A setting is a row in `dll/settings/rows.h` (kind, section, key, default, limits) and its key, with that default
-  and an explanation, in `config/ageofai.ini`. The code reads `g_set.key` (or `g_set_ai[difficulty].key` for the AI's
+- A setting is a field in `dll_cs/settings/<section>.cs`: its kind, default and limits, and above it the explanation
+  the shipped `config/ageofai.ini` gets (the format: `dll_cs/settings/settings.cs`). The build makes
+  `dll/settings/rows.h` and `config/ageofai.ini` of them - never edit those two. The code reads `g_set.key` (or `g_set_ai[difficulty].key` for the AI's
   per-difficulty settings), never the file.
 - **New behaviour of the AI is off by default until a test shows it helps** (below). The shipped defaults are the AI
   at its strongest without cheating; only the easy difficulty eases off.

@@ -1,6 +1,8 @@
 // [camera]: how the view moves (engine/camera.c)
+///
 [section(20, "Camera")]
-class camera {
+class camera
+{
     enum scroll_choice { game, ee, aoc }
 
     /// Camera scrolling (mouse at the screen edge / scroll keys):

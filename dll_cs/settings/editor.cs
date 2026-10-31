@@ -1,6 +1,8 @@
 // [editor]: the scenario editor (engine/editor*.c)
+///
 [section(40, "Scenario editor")]
-class editor {
+class editor
+{
     /// Resolution of the scenario editor:
     ///   ee   = 800x600 (original Empire Earth)
     ///   aoc  = 1024x768 with the editor layout of The Art of Conquest
