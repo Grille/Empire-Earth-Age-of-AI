@@ -245,7 +245,10 @@ internal void fronts_look(ee_player *pl, unsigned idx, uint32_t now) {
 // fights, +2 under towers. So now they go in groups of FA_GROUP or more, all to one station, and none while the
 // station lies where the AI's fight is lost (game/danger.c DANGER_LOST, within FA_SAFE tiles of it).
 // Measured again (the same test, ~230 soldiers sent a game): soldiers +0.3 (se 6.0), kills +6.1 (13.8), losses -12.5
-// (20.5), razed +0.6 (0.5); its dead -8 away, -8 outnumbered, -10 in lost fights - within the noise: off.
+// (20.5), razed +0.6 (0.5); its dead -8 away, -8 outnumbered, -10 in lost fights - within the noise. 48 more (seeds
+// 13-36): soldiers +3.2 (5.3), kills +3.4 (13.0), losses -2.9 (11.3), razed -0.8 (0.6); Mediterranean huge (24 games, ~200
+// sent): soldiers -0.8 (3.9), kills -1.9 (15.4), losses -3.1 (15.4), razed -0.4 (0.6). No gain shown: off. Where the
+// soldiers wait between attacks matters little while the game sends nearly all of them on attacks at once.
 #define FA_SECOND 0.5f
 #define FA_BEHIND 4
 #define FA_NEAR 10
