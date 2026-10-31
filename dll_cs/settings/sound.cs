@@ -35,7 +35,7 @@ class sound
     bool sound_clamp_channels = true;
     /// Sound channels at 100% (8..63; the slider gives 8 at 0%). The mixer's 16 are only a fallback - Windows no longer
     /// reports hardware voices; Miles mixes in software. 0 = keep the 16
-    [range(0, 1000), game("the sound mixer's channels at 100%", "16", 0)]
+    [range(0, 63), game("the sound mixer's channels at 100%", "16", 0)]
     int sound_channels = 32;
     /// The rate the sound is mixed at, in Hz (Miles Sound System). The game's sounds are recorded at 22050 at most, so a
     /// higher rate mostly mixes them cleaner:
