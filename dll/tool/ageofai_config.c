@@ -282,10 +282,11 @@ internal int save_file(void) {
     int bad = 0;
     for (int i = 0; i < g_ne; i++) {
         struct entry *e = &g_e[i];
-        if (e->has == e->had && !strcmp(e->text, e->was)) continue;
+        int plain = e->text[0] && !on_diff_page(e) && !is_changed(e);   // the default written: left out, so that a new default counts
+        if (!plain && e->has == e->had && !strcmp(e->text, e->was)) continue;
         char key[64];
         key_of(e, key, sizeof key);
-        if (!WritePrivateProfileStringA(sec_of(e), key, e->text[0] ? e->text : NULL, g_ini_path)) bad++;
+        if (!WritePrivateProfileStringA(sec_of(e), key, e->text[0] && !plain ? e->text : NULL, g_ini_path)) bad++;
     }
     for (int i = 0; g_remove_unknown && i < g_nunk; i++)
         if (!WritePrivateProfileStringA(g_unk[i].sec, g_unk[i].key[0] ? g_unk[i].key : NULL, NULL, g_ini_path)) bad++;   // a section: all of it
@@ -596,8 +597,8 @@ internal void fill_item(int item, LPARAM p) {
     if (node_kind(p) != NODE_ENTRY) return;
     const struct entry *e = &g_e[p];
     g_look[p].bold = is_changed(e) || diff_set(e);
-    g_look[p].grey = !e->text[0] && !diff_set(e);
-    g_look[p].game = game_of(e->row) >= 0;
+    g_look[p].grey = !g_look[p].bold;   // whether the file has the key is the file's business: the value is the default
+    g_look[p].game = game_of(e->row) >= 0 && game_keeps(e, game_of(e->row)) && entry_level(e) != CHECK_MISTAKE;
     g_look[p].level = (uint8_t)entry_level(e);
     int grey;
     key_of(e, key, sizeof key);
@@ -1101,11 +1102,11 @@ internal void show_mode(void) {
 #define TINT_MISTAKE RGB(255, 205, 205)
 #define TEXT_WARN RGB(150, 100, 0)
 #define TEXT_MISTAKE RGB(190, 0, 0)
-#define TEXT_GAME RGB(0, 70, 190)   // a key that sets one of the game's own values
-#define TEXT_GAME_GREY RGB(120, 150, 205)   // ... not in the file
+#define TEXT_GAME RGB(0, 70, 190)   // a value that is the game's own (a key that sets one of the game's values)
+#define TEXT_GAME_GREY RGB(120, 150, 205)   // ... and the default
 
-// a custom-drawn cell: changed bold (an AI row: easy or hard set too), not in the file grey (a section or group line
-// bold); the default never; the value tinted by its check
+// a custom-drawn cell: changed bold (an AI row: easy or hard set too; a section or group line bold), the value grey
+// while it is the default, blue while it is the game's own; the key never grey; the value tinted by its check
 internal LRESULT draw_cell(NMLVCUSTOMDRAW *cd) {
     LPARAM p = cd->nmcd.lItemlParam;
     int bold = 0, grey = 0, game = 0;
@@ -1113,8 +1114,8 @@ internal LRESULT draw_cell(NMLVCUSTOMDRAW *cd) {
     if (node_kind(p) != NODE_ENTRY) bold = 1;
     else if (cd->iSubItem < COLS - 1) {
         bold = g_look[p].bold;   // worked out by fill_item
-        grey = g_look[p].grey;
-        game = cd->iSubItem == 0 && g_look[p].game;
+        grey = cd->iSubItem == 1 && g_look[p].grey;
+        game = cd->iSubItem == 1 && g_look[p].game;
         int level = cd->iSubItem == 1 ? g_look[p].level : CHECK_OK;
         if (level == CHECK_WARN) bk = TINT_WARN;
         else if (level == CHECK_MISTAKE) bk = TINT_MISTAKE;
@@ -1140,9 +1141,9 @@ internal const struct { int look; const char *sample, *text; } k_help[] = {
                      "brackets only where easy or hard plays another: off (hard: on)." },
     { HL_HEAD, NULL, "The looks of a value" },
     { HL_BOLD, "changed", "Not the default: your file sets a value of its own, or easy or hard plays another." },
-    { HL_GREY, "not in your file", "Your file doesn't have the key: the game plays the default." },
-    { HL_GAME, "attack_on_contact", "The key only sets one of the game's own values. The Default column and the name "
-                                    "over the editor name the game's own (game: 71%); pale while not in your file." },
+    { HL_GREY, "the default", "The value is the mod's default (whether your file has the key or not)." },
+    { HL_GAME, "the game's (71%)", "The value is the game's own: the key only sets one of the game's values, and this "
+                                   "one leaves it as the unmodded game has it; pale while it is the default too." },
     { HL_WARN, "outside its range", "Outside its usual range: the game uses it anyway. Allowed, but likely not what "
                                     "you meant - the line under the editor says what it comes to." },
     { HL_MISTAKE, "a mistake", "A value that can't be used (no number, a name the list doesn't have ...): the game "
@@ -1158,7 +1159,8 @@ internal const struct { int look; const char *sample, *text; } k_help[] = {
                      "child's own default, enabled turns them all on, disabled all off; a child set in your file goes "
                      "its own way." },
     { HL_HEAD, NULL, "Saving" },
-    { HL_TEXT, NULL, "Save writes only the keys you changed - your file's comments and order stay. The game reads "
+    { HL_TEXT, NULL, "Save writes only the keys you changed - your file's comments and order stay; a key set to its "
+                     "default is taken out, so that it follows the mod's default when an update changes it. The game reads "
                      "ageofai.ini when it starts: a change counts from its next start." },
     { HL_TEXT, NULL, "Keys in your file this version doesn't know (no longer used, or misspelt) are listed at the "
                      "bottom, with a button that removes them." },
