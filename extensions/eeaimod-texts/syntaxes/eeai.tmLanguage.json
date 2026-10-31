@@ -541,7 +541,7 @@
         },
         {
           "name": "support.constant.unit-kind.eeaimod",
-          "match": "\\bkind\\.(?:no_family|resource|tank|building|anti_tank|aircraft|priest|submarine|hero|ship|spear_thrower|machines|human_musket|human_sword|mounted_archer|lancer|helicopter|animal|fish|curiassier|bomber|battleship|mines|human|aircraft_carrier_fighter|mech_minotaur|mech_medium|mech_zeus|mech_cyclops|human_archer|ram|siege|land_aa|mech_apollo|tank_strong|ambient|citizen|towers|human_machine_gun|medieval_field_weapon|human_spear|mounted_spear|atomic_bomber|mech_underwater|walls|viking|aa_building|ship_galley|war_elephant|elephant_archer|aircraft_carrier|elite_guard|artillery|cavalry_archer|placeholder)\\b(?!\\.)"
+          "match": "\\bkind\\.(?:no_family|resource|tank|building|anti_tank|aircraft|priest|submarine|hero|ship|spear_thrower|machines|human_musket|human_sword|mounted_archer|lancer|helicopter|animal|fish|curiassier|bomber|battleship|mines|human|aircraft_carrier_fighter|mech_minotaur|mech_medium|mech_zeus|mech_cyclops|human_archer|ram|siege|land_aa|mech_apollo|tank_strong|ambient|citizen|towers|human_machine_gun|medieval_field_weapon|human_spear|mounted_spear|atomic_bomber|mech_underwater|walls|viking|aa_building|ship_galley|war_elephant|elephant_archer|aircraft_carrier|placeholder|elite_guard|artillery|cavalry_archer|icbm|spaceship|space_fighter|space_corvette|tower_space_turret)\\b(?!\\.)"
         },
         {
           "name": "invalid.illegal.unknown-unit-kind.eeaimod",
@@ -561,7 +561,7 @@
         },
         {
           "name": "support.function.command.eeaimod",
-          "match": "\\b(?:nullmember|scrolltest|sightcount|transports|attacknow|continent|drawcount|foodcheck|gridcheck|minecheck|spawnline|textstate|watchtech|watchtype|asgtrace|camtrace|canbuild|explored|firerate|sndstate|vistrack|aigroup|attacks|basemap|calloff|defence|epochup|landing|persona|seltest|sndchan|targets|terrain|textlog|wmclose|bqueue|bunker|camera|charge|chatme|ddinfo|ddpoke|resume|script|status|threat|topbar|board|build|costs|count|diplo|drops|fmove|found|intel|pause|rlist|seaop|sites|spawn|speed|stats|techs|texts|tinfo|train|turbo|uinfo|units|watch|army|chat|give|hurt|move|navy|objs|ping|plan|quit|save|tech|trig|wave|aim|llm|say|vis)\\b(?=\\s*\\()"
+          "match": "\\b(?:nullmember|scrolltest|sightcount|transports|attacknow|continent|drawcount|foodcheck|gridcheck|minecheck|sitecheck|spawnline|textstate|watchtech|watchtype|asgtrace|camtrace|canbuild|explored|firerate|sndstate|vistrack|aigroup|attacks|basemap|calloff|defence|epochup|landing|overlay|persona|seltest|sndchan|targets|terrain|textlog|wmclose|bqueue|bunker|camera|charge|chatme|ddinfo|ddpoke|modmsg|offmap|resume|script|status|threat|topbar|board|build|costs|count|diplo|drops|fmove|found|intel|pause|rlist|seaop|sites|spawn|speed|stats|techs|texts|tinfo|train|turbo|uinfo|units|watch|army|chat|give|hurt|move|navy|objs|ping|plan|quit|save|tech|trig|wave|aim|llm|say|vis)\\b(?=\\s*\\()"
         },
         {
           "name": "constant.language.script.eeaimod",
@@ -736,7 +736,7 @@
         },
         {
           "name": "support.constant.unit-kind.eeaimod",
-          "match": "\\bkind\\.(?:no_family|resource|tank|building|anti_tank|aircraft|priest|submarine|hero|ship|spear_thrower|machines|human_musket|human_sword|mounted_archer|lancer|helicopter|animal|fish|curiassier|bomber|battleship|mines|human|aircraft_carrier_fighter|mech_minotaur|mech_medium|mech_zeus|mech_cyclops|human_archer|ram|siege|land_aa|mech_apollo|tank_strong|ambient|citizen|towers|human_machine_gun|medieval_field_weapon|human_spear|mounted_spear|atomic_bomber|mech_underwater|walls|viking|aa_building|ship_galley|war_elephant|elephant_archer|aircraft_carrier|elite_guard|artillery|cavalry_archer|placeholder)\\b(?!\\.)"
+          "match": "\\bkind\\.(?:no_family|resource|tank|building|anti_tank|aircraft|priest|submarine|hero|ship|spear_thrower|machines|human_musket|human_sword|mounted_archer|lancer|helicopter|animal|fish|curiassier|bomber|battleship|mines|human|aircraft_carrier_fighter|mech_minotaur|mech_medium|mech_zeus|mech_cyclops|human_archer|ram|siege|land_aa|mech_apollo|tank_strong|ambient|citizen|towers|human_machine_gun|medieval_field_weapon|human_spear|mounted_spear|atomic_bomber|mech_underwater|walls|viking|aa_building|ship_galley|war_elephant|elephant_archer|aircraft_carrier|placeholder|elite_guard|artillery|cavalry_archer|icbm|spaceship|space_fighter|space_corvette|tower_space_turret)\\b(?!\\.)"
         },
         {
           "name": "invalid.illegal.unknown-unit-kind.eeaimod",
@@ -756,7 +756,7 @@
         },
         {
           "name": "support.function.command.eeaimod",
-          "match": "\\b(?:nullmember|scrolltest|sightcount|transports|attacknow|continent|drawcount|foodcheck|gridcheck|minecheck|spawnline|textstate|watchtech|watchtype|asgtrace|camtrace|canbuild|explored|firerate|sndstate|vistrack|aigroup|attacks|basemap|calloff|defence|epochup|landing|persona|seltest|sndchan|targets|terrain|textlog|wmclose|bqueue|bunker|camera|charge|chatme|ddinfo|ddpoke|resume|script|status|threat|topbar|board|build|costs|count|diplo|drops|fmove|found|intel|pause|rlist|seaop|sites|spawn|speed|stats|techs|texts|tinfo|train|turbo|uinfo|units|watch|army|chat|give|hurt|move|navy|objs|ping|plan|quit|save|tech|trig|wave|aim|llm|say|vis)\\b(?=\\s*\\()"
+          "match": "\\b(?:nullmember|scrolltest|sightcount|transports|attacknow|continent|drawcount|foodcheck|gridcheck|minecheck|sitecheck|spawnline|textstate|watchtech|watchtype|asgtrace|camtrace|canbuild|explored|firerate|sndstate|vistrack|aigroup|attacks|basemap|calloff|defence|epochup|landing|overlay|persona|seltest|sndchan|targets|terrain|textlog|wmclose|bqueue|bunker|camera|charge|chatme|ddinfo|ddpoke|modmsg|offmap|resume|script|status|threat|topbar|board|build|costs|count|diplo|drops|fmove|found|intel|pause|rlist|seaop|sites|spawn|speed|stats|techs|texts|tinfo|train|turbo|uinfo|units|watch|army|chat|give|hurt|move|navy|objs|ping|plan|quit|save|tech|trig|wave|aim|llm|say|vis)\\b(?=\\s*\\()"
         },
         {
           "name": "constant.language.script.eeaimod",

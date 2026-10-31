@@ -11,6 +11,7 @@ The English names: the community DB editor's language.txt (dat_read.fetch: scrip
 import collections
 import os
 import re
+import struct
 
 import dat_read
 
@@ -22,13 +23,26 @@ EPOCHS = ['Prehistoric', 'Stone Age', 'Copper Age', 'Bronze Age', 'Dark Age', 'M
 BUILDINGS = ('Building', 'Towers', 'Walls', 'AA Building')
 
 
-def families(db):   # {family id: name} from the data converter's log (Family[3] = Building)
-    out = {}
-    for ln in open(os.path.join(db, 'converteroutput.log'), encoding='latin-1'):
-        m = re.match(r'Family\[(\d+)\] = (.*)', ln.strip())
-        if m:
-            out[int(m.group(1))] = m.group(2).strip()
-    return out
+def families(db):   # {family id: name} from dbfamily.dat: a count, then records of 380 bytes - the name at +0, the id
+    # at +104 (the id the objects' Family ID and the game's type +0x4C4 hold; the converter's log numbers 51..54 otherwise)
+    d = open(os.path.join(db, 'dbfamily.dat'), 'rb').read()
+    n = struct.unpack_from('<I', d)[0]
+    if 4 + n * 380 != len(d):
+        raise SystemExit('%s: not %d records of 380 bytes' % (db, n))
+    return {struct.unpack_from('<i', d, 4 + i * 380 + 104)[0]: d[4 + i * 380:4 + i * 380 + 100].split(b'\0')[0].decode('latin-1')
+            for i in range(n)}
+
+
+def all_families(db):   # the retail game's and Art of Conquest's (local/games/aoc/data/db, scripts/re/extract_all.py
+    # 'db\'): one list of kinds for both builds - AoC adds 55..59 (the ICBM, space ships, its space turret)
+    fam = families(db)
+    aoc = os.path.join(ROOT, 'local', 'games', 'aoc', 'data', 'db')
+    if not os.path.exists(os.path.join(aoc, 'dbfamily.dat')):
+        raise SystemExit('no %s: extract it from AoC\'s data.ssa (scripts/re/extract_all.py <ssa> local/games/aoc/data db\\)' % aoc)
+    for i, name in families(aoc).items():
+        if fam.setdefault(i, name) != name:
+            raise SystemExit('family %d: %s here, %s in AoC' % (i, fam[i], name))
+    return fam
 
 
 def ident(name):
@@ -49,7 +63,7 @@ def main():
     techs = dat_read.read(os.path.join(db, 'dbtechtree.dat'), 'dbtechtree', adjust=1,
                           extra_count_field='Num of tech builders')
     lang = dat_read.language(os.path.join(ROOT, 'local', 'games', 'ee', 'dats', 'language.txt'))
-    fam = families(db)
+    fam = all_families(db)
     kinds = {i: ident(n) for i, n in fam.items()}   # kind.<identifier> in the texts
     if len(set(kinds.values())) != len(kinds):
         raise SystemExit('kind identifiers used twice: %s' % kinds)

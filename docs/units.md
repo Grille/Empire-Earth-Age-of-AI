@@ -70,10 +70,15 @@ too (the pipe's `canbuild P`). Buildings come first in each epoch.
 | `war_elephant` | War Elephant | 1 |
 | `elephant_archer` | Elephant Archer | 1 |
 | `aircraft_carrier` | Aircraft Carrier | 2 |
-| `elite_guard` | Elite Guard | 0 |
-| `artillery` | Artillery | 1 |
-| `cavalry_archer` | Cavalry Archer | 3 |
-| `placeholder` | Placeholder | 2 |
+| `placeholder` | Placeholder | 0 |
+| `elite_guard` | Elite Guard | 1 |
+| `artillery` | Artillery | 3 |
+| `cavalry_archer` | Cavalry Archer | 2 |
+| `icbm` | ICBM | 0 |
+| `spaceship` | Spaceship | 0 |
+| `space_fighter` | Space Fighter | 0 |
+| `space_corvette` | Space Corvette | 0 |
+| `tower_space_turret` | Tower - Space Turret | 0 |
 
 The stats are the base values from the data, before upgrades and civilization bonuses: hit points, attack,
 range and line of sight in tiles, speed, population, cost food/wood/stone/gold/iron and build time in seconds.
@@ -208,7 +213,7 @@ Epochs are numbered as in the mod's logs (0 = Prehistoric); "epochs" is from whe
 | 462 | `b_guard_tower_bronze` | Tower - Bronze | `towers` | 3-14 | 1750 | 75 | 5 | 6 |  |  | 0/0/175/0/0 | 150 |
 | 63 | `b_siege_factory` | Siege Factory | `building` | 3-14 | 1250 | 0 |  | 3 |  |  | 0/275/0/0/0 | 55 |
 | 468 | `b_wall_bronze` | Wall - Bronze | `walls` | 3-14 | 7750 | 0 |  | 1 |  |  | 0/0/10/0/0 | 15 |
-| 12 | `arch04_chariot_archer` | Chariot Archer | `placeholder` | 3-6 | 180 | 17 | 4 | 5 | 0.8 | 2 | 0/60/0/45/0 | 38 |
+| 12 | `arch04_chariot_archer` | Chariot Archer | `cavalry_archer` | 3-6 | 180 | 17 | 4 | 5 | 0.8 | 2 | 0/60/0/45/0 | 38 |
 | 277 | `arch04_elephant_archer` | Elephant Archer | `elephant_archer` | 3-4 | 600 | 25 | 4 | 5 | 0.5 | 2 | 120/0/0/80/0 | 40 |
 | 137 | `cav04_bronze_spear_cavalry` | Bronze Cavalry | `mounted_spear` | 3-6 | 290 | 23 | 0.6 | 4 | 0.8 | 2 | 60/0/0/60/0 | 43 |
 | 13 | `cav04_war_elephant` | War Elephant | `war_elephant` | 3-4 | 600 | 23 | 0.6 | 4 | 0.5 | 2 | 120/0/0/80/0 | 48 |
@@ -265,7 +270,7 @@ Epochs are numbered as in the mod's logs (0 = Prehistoric); "epochs" is from whe
 | 444 | `b_gate_middle` | Gate - Medieval | `walls` | 5-14 | 20000 | 0 |  | 2 |  |  | 0/0/0/0/0 | 10 |
 | 463 | `b_guard_tower_middle` | Tower - Medieval | `towers` | 5-14 | 3125 | 140 | 5 | 6 |  |  | 0/0/175/0/0 | 150 |
 | 469 | `b_wall_middle` | Wall - Medieval | `walls` | 5-14 | 10000 | 0 |  | 1 |  |  | 0/0/10/0/0 | 15 |
-| 11 | `arch06_cavalry_archer` | Cavalry Archer | `placeholder` | 5-6 | 275 | 23 | 5 | 6 | 0.8 | 2 | 0/60/0/45/0 | 38 |
+| 11 | `arch06_cavalry_archer` | Cavalry Archer | `cavalry_archer` | 5-6 | 275 | 23 | 5 | 6 | 0.8 | 2 | 0/60/0/45/0 | 38 |
 | 17 | `arch06_long_bow` | Long Bow | `human_archer` | 5-6 | 190 | 17 | 6 | 7 | 0.55 | 1 | 0/40/0/30/0 | 38 |
 | 139 | `cav06_knight` | Knight | `mounted_spear` | 5-6 | 400 | 38 | 0.8 | 4 | 0.8 | 2 | 60/0/0/60/0 | 43 |
 | 105 | `gun_siege06_trebuchet` | Trebuchet | `siege` | 5-6 | 215 | 150 | 8 | 10 | 0.5 | 2 | 0/150/0/150/0 | 55 |
@@ -314,14 +319,14 @@ Epochs are numbered as in the mod's logs (0 = Prehistoric); "epochs" is from whe
 | 628 | `x_lighthouse` | Lighthouse | `building` | 7-14 | 3500 | 0 |  | 5 |  |  | 0/0/500/500/500 | 900 |
 | 627 | `x_radar_wonder` | Espionage Headquarters | `building` | 7-14 | 3500 | 0 |  | 5 |  |  | 0/500/500/0/500 | 480 |
 | 665 | `field_medic_imperial` | Medic - Imperial | `human` | 7-14 | 360 | 0 |  | 3 | 0.6 | 1 | 75/0/0/50/0 | 30 |
-| 187 | `gun_artillery08_bombard` | Bombard | `cavalry_archer` | 7-14 | 175 | 140 | 10 | 5 | 0.5 | 2 | 0/200/0/0/200 | 60 |
+| 187 | `gun_artillery08_bombard` | Bombard | `artillery` | 7-14 | 175 | 140 | 10 | 5 | 0.5 | 2 | 0/200/0/0/200 | 60 |
 | 192 | `h1_8_elizabeth_i_heal` | Elizabeth I | `hero` | 7-14 | 2610 | 25 | 0.6 | 7 | 0.8 | 1 | 430/0/0/360/0 | 160 |
 | 191 | `h2_8_oliver_cromwell_morale` | Oliver Cromwell | `hero` | 7-14 | 3750 | 110 | 0.6 | 6 | 0.8 | 1 | 530/0/0/0/450 | 160 |
 | 368 | `inf08_halberdier` | Halberdier | `human_spear` | 7-8 | 350 | 40 | 0.5 | 4 | 0.6 | 1 | 30/0/0/0/30 | 25 |
 | 676 | `inf08_hand_cannoneer` | Hand Cannoneer | `human` | 7-14 | 350 | 65 | 8 | 8 | 0.6 | 1 | 50/0/0/40/0 | 40 |
 | 29 | `inf08_musketeer` | Musketeer | `human_musket` | 7-14 | 325 | 44 | 5 | 6 | 0.6 | 1 | 40/0/0/0/40 | 40 |
 | 673 | `inf08_sharpshooter` | Sharpshooter | `human` | 7-11 | 315 | 50 | 8 | 9 | 0.45 | 1 | 150/0/0/150/0 | 100 |
-| 512 | `inf09_elite_guard` | Elite Guard | `artillery` | 7-8 | 350 | 35 | 5 | 6 | 0.6 | 1 | 85/0/0/0/80 | 55 |
+| 512 | `inf09_elite_guard` | Elite Guard | `elite_guard` | 7-8 | 350 | 35 | 5 | 6 | 0.6 | 1 | 85/0/0/0/80 | 55 |
 | 365 | `s08_fishing_boat_imperial` | Fishing Boat - Imperial | `ship` | 7-14 | 420 | 1 | 0.5 | 4 | 0.75 | 1 | 0/50/0/0/0 | 30 |
 | 44 | `s08_gunboat_cruiser` | Cruiser - Gunboat | `ship` | 7-14 | 1400 | 30 | 7 | 8 | 0.7 | 1 | 0/150/0/150/0 | 72 |
 | 117 | `s08_imperial_battleship` | Battleship - Imperial | `battleship` | 7-14 | 3060 | 175 | 8 | 9 | 0.55 | 1 | 0/250/0/250/0 | 100 |
@@ -368,7 +373,7 @@ Epochs are numbered as in the mod's logs (0 = Prehistoric); "epochs" is from whe
 | 72 | `a_fighter10_sopwith_camel_f_1` | Sopwith Fighter | `aircraft` | 9-14 | 425 | 17 | 6 | 7 | 1 | 1 | 0/0/0/100/100 | 50 |
 | 71 | `a_strafe_fighter10_fokker_dr_1` | Fokker Fighter/Bomber | `aircraft` | 9-14 | 350 | 18 | 6 | 7 | 1 | 1 | 0/0/0/100/100 | 50 |
 | 407 | `field_medic_11` | Medic - Atomic | `human` | 9-14 | 425 | 0 |  | 3 | 0.6 | 1 | 75/0/0/50/0 | 30 |
-| 143 | `gun_artillery10_artillery` | Artillery | `cavalry_archer` | 9-14 | 225 | 175 | 12 | 5 | 0.5 | 2 | 0/200/0/0/200 | 60 |
+| 143 | `gun_artillery10_artillery` | Artillery | `artillery` | 9-14 | 225 | 175 | 12 | 5 | 0.5 | 2 | 0/200/0/0/200 | 60 |
 | 91 | `gun_at10_57mm_at_gun` | 57mm AT Gun | `anti_tank` | 9-14 | 440 | 35 | 6 | 7 | 0.6 | 1 | 0/70/0/55/0 | 40 |
 | 602 | `gun_siege10_howitzer_cannon` | Howitzer Cannon | `siege` | 9-14 | 500 | 250 | 9 | 10 | 0.5 | 2 | 0/170/0/0/170 | 55 |
 | 201 | `h1_10_deverran_heal` | DeVerran | `hero` | 9-14 | 3330 | 43 | 8 | 9 | 0.7 | 1 | 480/0/0/400/0 | 180 |
@@ -475,7 +480,7 @@ Epochs are numbered as in the mod's logs (0 = Prehistoric); "epochs" is from whe
 | 3 | `a_helicopterxprt13_pegasus` | Pegasus Transport | `helicopter` | 12-14 | 660 | 0 |  | 5 | 1 | 1 | 0/0/0/75/75 | 65 |
 | 88 | `a_strafe_fighter13_talon` | Talon Fighter/Bomber | `aircraft` | 12-14 | 740 | 227 | 6 | 7 | 1.15 | 1 | 0/0/0/100/100 | 50 |
 | 668 | `field_medic_13` | Medic - Digital | `human` | 12-14 | 500 | 0 |  | 3 | 0.6 | 1 | 75/0/0/50/0 | 30 |
-| 101 | `gun_artillery13_colossus` | Colossus Artillery | `cavalry_archer` | 12-14 | 300 | 200 | 14 | 5 | 0.5 | 2 | 0/200/0/0/200 | 60 |
+| 101 | `gun_artillery13_colossus` | Colossus Artillery | `artillery` | 12-14 | 300 | 200 | 14 | 5 | 0.5 | 2 | 0/200/0/0/200 | 60 |
 | 248 | `gun_at13_thor_at_gun` | Thor AT Gun | `anti_tank` | 12-14 | 550 | 52 | 6 | 7 | 0.8 | 1 | 0/70/0/55/0 | 40 |
 | 603 | `gun_siege13_paladin_cannon` | Paladin Cannon | `siege` | 12-14 | 800 | 425 | 10 | 11 | 0.5 | 2 | 0/170/0/0/170 | 55 |
 | 218 | `h1_13_alexi_septimus_heal` | Alexi Septimus | `hero` | 12-14 | 4725 | 70 | 8 | 9 | 0.8 | 1 | 540/0/0/450/0 | 180 |
