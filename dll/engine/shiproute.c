@@ -508,7 +508,7 @@ internal int sr_search(ee_unit *u, int *from, int *to, void *caller, int sectors
     if (!joined) {
         // route_corridor: a land trip searched along the reach map's coarse route only; no land route at all -> left to
         // the game at once; the corridor failing (a building, a wall in the way) -> searched again without it
-        int corr = g_lr_corridor && !g_sr_ship && (dxt > dyt ? dxt : dyt) >= SR_CORRIDOR_TRIP ? rm_corridor(sx, sy, tx, ty, td) : -1;
+        int corr = g_lr_corridor && !g_sr_ship && (dxt > dyt ? dxt : dyt) >= SR_CORRIDOR_TRIP ? rm_corridor(sx, sy, tx, ty, td, unit_get_owner(u) ? player_get_index(unit_get_owner(u)) : -1) : -1;
         if (corr == 0) { g_lr_corr[1]++; if (g_log && g_sr_log) fprintf(g_log, "# shiproute: %06x %d,%d -> %d,%d: no land route (reach map) - the game's\n", serial & 0xFFFFFF, sx, sy, tx, ty); return 0; }
         if (g_lr_corridor && !g_sr_ship && corr < 0 && (dxt > dyt ? dxt : dyt) >= SR_CORRIDOR_TRIP) g_lr_corr[2 - corr]++;
         g_sr_corr = corr == 1;

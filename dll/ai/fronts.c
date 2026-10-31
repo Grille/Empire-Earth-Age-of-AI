@@ -29,7 +29,8 @@ struct front_st { ivec2 c; int width, threat, value; float weight, share; };
 internal struct fronts_st { uint32_t t, log_t; int n; struct front_st f[FR_MAX]; int border, terr; } g_fronts[16];
 internal uint8_t g_fr_land[FR_SIDE * FR_SIDE], g_fr_own[FR_SIDE * FR_SIDE], g_fr_foe[FR_SIDE * FR_SIDE];   // per look (sim thread)
 internal short g_fr_q[FR_SIDE * FR_SIDE * 2];
-internal unsigned g_fr_area[FR_SIDE * FR_SIDE];
+internal unsigned g_fr_area[FR_SIDE * FR_SIDE];   // per cell: its walking region for this player + 1 (0 none)
+internal int g_fr_node[FR_SIDE * FR_SIDE];        // per cell: the reach map node of its first walkable tile
 internal int g_fr_lab[FR_SIDE * FR_SIDE];
 internal ee_map *g_fr_land_map;   // the map g_fr_land was made for
 internal int g_fr_land_size;
@@ -74,9 +75,11 @@ internal void fronts_look(ee_player *pl, unsigned idx, uint32_t now) {
                 for (int x = x0; x < x0 + FR_CELL; x++)
                     if (fr_tile_land(map, size, x, y)) { if (!land++) first = iv2(x, y); }
             g_fr_land[i] = land >= FR_CELL;
-            g_fr_area[i] = g_fr_land[i] ? (unsigned)(rm_region(first.x, first.y) + 1) : 0;   // its walking region (reachmap), 0 none
+            g_fr_node[i] = g_fr_land[i] ? rm_node(first.x, first.y) : -1;
         }
     }
+    int pidx = player_get_index(pl);
+    for (int i = 0; i < n; i++) g_fr_area[i] = (unsigned)(rm_node_region_of(pidx, g_fr_node[i]) + 1);   // its walking region for this player (gates open to it), 0 none
     memset(g_fr_own, 0, (size_t)n); memset(g_fr_foe, 0, (size_t)n);
     #define FR_IDX(p) ((((p).y / FR_CELL) < side ? (p).y / FR_CELL : side - 1) * side + (((p).x / FR_CELL) < side ? (p).x / FR_CELL : side - 1))
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {   // its buildings
@@ -94,7 +97,7 @@ internal void fronts_look(ee_player *pl, unsigned idx, uint32_t now) {
         if (r->kind != 0 || !o || !is_enemy(pl, o) || r->x < 0 || r->y < 0) continue;
         int i = FR_IDX(iv2(r->x, r->y));
         if (g_fr_land[i]) g_fr_foe[i] = 1;
-        unsigned a = (unsigned)(rm_region(r->x, r->y) + 1);
+        unsigned a = (unsigned)(rm_region_of(pidx, r->x, r->y) + 1);
         int seen = 0;
         for (int j = 0; j < nfa; j++) seen |= foe_area[j] == a;
         if (!seen && a && nfa < 64) foe_area[nfa++] = a;
