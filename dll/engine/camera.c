@@ -18,7 +18,7 @@ internal float g_vel_x, g_vel_y;
 internal DWORD g_scroll_last;
 internal volatile LONG g_scroll_calls;   // scroll steps run (for camtrace)
 
-// Fine scrolling ([camera] smooth, default 1, both builds): the scroll steps come from a timer (10 ms AoC, 25 ms EE) on the
+// Fine scrolling ([camera] smooth_scroll, default 1, both builds): the scroll steps come from a timer (10 ms AoC, 25 ms EE) on the
 // game's thread, and each moved the camera by a fixed distance, while the frames are drawn on another thread every
 // 4-13 ms: per frame 0 or 1 steps of the same size whatever the frame time - visible jitter; and a busy game thread
 // (heavy simulation steps late in a big game) held the camera until it got round to the next step. Now the render
@@ -153,9 +153,9 @@ internal void camera_frame(void) {   // the render thread, every presented frame
 internal void camera_install(void) {
     int build_aoc = build_is("aoc");
     enum { SCROLL_GAME, SCROLL_EE, SCROLL_AOC };   // [camera] scroll's names (rows.h)
-    g_scroll_aoc = g_set.camera_scroll == SCROLL_GAME ? build_aoc : g_set.camera_scroll == SCROLL_AOC;
+    g_scroll_aoc = g_set.scroll == SCROLL_GAME ? build_aoc : g_set.scroll == SCROLL_AOC;
     g_scroll_native = g_scroll_aoc == build_aoc;
-    g_cam_smooth = g_set.camera_smooth;
+    g_cam_smooth = g_set.smooth_scroll;
     if (g_scroll_native && !g_cam_smooth) return;   // the build's own way without smoothing: the game untouched
     int ok = patch_scroll_execute(hook_scroll_execute);
     ok += patch_scroll_timer(build_aoc ? 0x0A : 0x19, g_cam_smooth ? 0x01 : 0x0A);   // push 25 (AoC 10) -> 10 ms ticks like AoC, 1 ms fine

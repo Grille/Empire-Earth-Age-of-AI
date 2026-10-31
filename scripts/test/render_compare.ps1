@@ -16,7 +16,7 @@ Copy-Item $Wrapper "local\work\rc_wrapper\ddraw.dll" -Force
 $wpath = Join-Path $repo "local\work\rc_wrapper\ddraw.dll"
 $ini = "$Map,teams=ffa,start_epoch=$Epoch,ai_cheat=0,headless=1,game_seed=$GameSeed,quit_minutes=13,setup=tests/probes/render_compare.eeai"
 if ($Keys) { $ini = "$ini,$Keys" }
-$runs = @(@($Slot, "wrapper", "display_renderer=wrapper,wrapper_dll=$wpath"), @(($Slot + 1), "own", "display_renderer=own"))
+$runs = @(@($Slot, "wrapper", "renderer=wrapper,wrapper_dll=$wpath"), @(($Slot + 1), "own", "renderer=own"))
 if ($OwnOnly) { $runs = @(,$runs[1]) }
 foreach ($r in $runs) {
     $pargs = @("-NoProfile", "-File", "`"$repo\scripts\test\run_test.ps1`"", "-Slot", $r[0],

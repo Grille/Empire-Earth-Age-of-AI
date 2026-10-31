@@ -458,8 +458,8 @@ Shortcuts: my own `epoch`, traits, `allies` and `enemies` without `me.` (`aggres
 | `max_population` | the largest population of a player still in - kills &gt; max_population / 2: many for this stage of the game |
 | `language` | the game's language: de, en, fr, ... |
 | `offer_minutes` | how long an offer stands, in minutes ([ai_base] offer_minutes in ageofai.ini) |
-| `llm_equal` | 1 when the language model is told nothing of who plays the computer ([llm] equal) |
-| `llm_constrained` | 1 when the language model decides within the rules' limits ([llm] constrained) |
+| `llm_equal` | 1 when the language model is told nothing of who plays the computer ([llm] llm_equal) |
+| `llm_constrained` | 1 when the language model decides within the rules' limits ([llm] llm_constrained) |
 <!-- /values -->
 
 ### Epochs

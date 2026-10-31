@@ -20,20 +20,18 @@
 #define SETF_INT_E(f, names) int f;
 #define SET_FIELD_FLAGS(name, a) struct { a(SETF_INT_B, SETF_INT_E) } name;   // a FLAGS row: an int per field
 #define SET_FIELD_X(kind, sec, key, def, a, b) SET_FIELD_##kind(key, a)
-#define SET_FIELD_S(kind, sec, key, def, a, b) SET_FIELD_##kind(sec##_##key, a)
 #define SET_NONE(...)
 #define SET_FIELD_D(kind, key, def, a, b) SET_FIELD_##kind(key, a)
-struct settings { SETTINGS(SET_FIELD_X, SET_FIELD_S, SET_NONE) };
-struct settings_ai { SETTINGS(SET_NONE, SET_NONE, SET_FIELD_D) };
+struct settings { SETTINGS(SET_FIELD_X, SET_NONE) };
+struct settings_ai { SETTINGS(SET_NONE, SET_FIELD_D) };
 internal struct settings g_set;
 internal struct settings_ai g_set_ai[3];   // 0 easy, 1 medium, 2 hard
 internal const char *const k_set_diff[3] = { "easy", "medium", "hard" };   // the difficulties' names
 internal const char *const k_set_diff_sec[3] = { "ai_easy", NULL, "ai_hard" };   // their sections (medium: [ai_base])
 
 #define SET_ID_X(kind, sec, key, def, a, b) SETTING_##key,
-#define SET_ID_S(kind, sec, key, def, a, b) SETTING_##sec##_##key,
 #define SET_ID_D(kind, key, def, a, b) SETTING_##key,
-enum { SETTINGS(SET_ID_X, SET_ID_S, SET_ID_D) SETTING_N };
+enum { SETTINGS(SET_ID_X, SET_ID_D) SETTING_N };
 
 enum { SETK_FLAG, SETK_INT, SETK_NUM, SETK_PCT, SETK_SHARE, SETK_CHOICE, SETK_STR, SETK_STR_P, SETK_CHILD, SETK_FLAGS };
 // name: the field's, and the key that overrides it in the test ini; choices: a CHOICE's names, '|' between them - a
@@ -56,9 +54,8 @@ struct setting_row { const char *sec, *key, *name; int kind, ai; size_t off; int
 #define SET_ROW_FLAGS(sec, key, name, st, ai, def, a, b) { #sec, #key, #name, SETK_FLAGS, ai, offsetof(st, name), 0, def, \
     a(SETF_STR_B, SETF_STR_E), 0 a(SETF_ONE_B, SETF_ONE_E), b },
 #define SET_ROW_X(kind, sec, key, def, a, b) SET_ROW_##kind(sec, key, key, struct settings, 0, def, a, b)
-#define SET_ROW_S(kind, sec, key, def, a, b) SET_ROW_##kind(sec, key, sec##_##key, struct settings, 0, def, a, b)
 #define SET_ROW_D(kind, key, def, a, b) SET_ROW_##kind(ai_base, key, key, struct settings_ai, 1, def, a, b)
-internal const struct setting_row k_settings[SETTING_N] = { SETTINGS(SET_ROW_X, SET_ROW_S, SET_ROW_D) };
+internal const struct setting_row k_settings[SETTING_N] = { SETTINGS(SET_ROW_X, SET_ROW_D) };
 
 #define SET_UNDER(key, master) { SETTING_##key, SETTING_##master },
 internal const struct { int row, master; } k_settings_under[] = { SETTING_UNDER(SET_UNDER) };

@@ -37,7 +37,7 @@ system = {
     // in braces: {me} {tribute} {offer_minutes}
     capitulation = ("{me} surrenders and offers {tribute}: set {me} to allied within {offer_minutes} minutes to "
         "accept."),
-    // the language model's peace offer ([llm] decide)
+    // the language model's peace offer ([llm] llm_decide)
     // in braces: {me} {offer_minutes}
     peace_offer = "{me} offers peace: set {me} to allied within {offer_minutes} minutes to accept.",
     // in braces: {me} {tribute}
@@ -50,8 +50,8 @@ system = {
     // in braces: {names}
     victory_not_yet = "No victory yet - not submitted: {names}.",
     // your chat line gets no answer
-    chat_unread = "The computer players don't read the chat (AI voice off: [llm] enabled=1 in ageofai.ini).",
-    chat_unanswered = "The computer players don't answer the chat ([llm] chat=1 in ageofai.ini).",
+    chat_unread = "The computer players don't read the chat (AI voice off: [llm] llm_enabled=1 in ageofai.ini).",
+    chat_unanswered = "The computer players don't answer the chat ([llm] llm_chat=1 in ageofai.ini).",
     // in braces: {me}
     chat_filtered = "No answer: {me} doesn't get your message (chat filter).",
     chat_nobody = "No answer: your chat filter reaches no computer player.",
@@ -66,13 +66,13 @@ system = {
     // in braces: {error}
     llm_failed = ("AI voice: no usable answer this time ({error}) - just this once the computer player says its "
         "fixed line or goes by the rules."),
-    // [llm] fallback=pause: the game waits for the model
+    // [llm] llm_fallback=pause: the game waits for the model
     llm_wait = ("AI voice: the language model is taking long - the game is paused until it answers (resume it to "
         "play on)."),
     // in braces: {url}
     llm_wait_down = ("AI voice: {url} can't be reached - the game is paused, trying again every 5 seconds (resume it "
         "to play on)."),
-    // an AI's message to another AI ([llm] ai_talk_show)
+    // an AI's message to another AI ([llm] llm_ai_talk_show)
     // in braces: {them} {text}
     talk_to = "to {them}: {text}",
     // resources in a tribute ({tribute})

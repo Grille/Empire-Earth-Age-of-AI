@@ -24,7 +24,7 @@ internal int __thiscall hook_turn_decide(void *model, ee_unit *u, float rate, fl
 }
 
 internal void turns_install(void) {
-    g_tf_on = g_set.patches_turn_fix;
+    g_tf_on = g_set.turn_fix;
     int n = g_tf_on ? patch_turn_decide(hook_turn_decide) : 0;
     if (g_log) fprintf(g_log, "# turnfix: turn_fix=%d (%s)\n", g_tf_on, !g_tf_on ? "-" : build_is("aoc") ? "AoC's own" : n ? "hooked" : "FAILED");
     if (g_log && g_tf_on && n) fprintf(g_log, "# turnfix: %d vtable slots\n", n);

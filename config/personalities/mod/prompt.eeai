@@ -69,7 +69,7 @@ bond = (
     them.lord == me ? " They have capitulated to you: they are your vassal." :
     ""
 )
-// tool_tribute: what it may give - a quarter of each, or all with [llm] constrained=0
+// tool_tribute: what it may give - a quarter of each, or all with [llm] llm_constrained=0
 tribute_room = (
     llm_constrained ? (
         " (at most a quarter of each: food {floor(me.food / 4)}, wood {floor(me.wood / 4)},"
@@ -100,7 +100,7 @@ prompt = {
     // words only (the rules decide)
     rules_words = ("Diplomacy happens only through the stances in the game (allied or enemy): in the chat you agree "
         "to nothing and promise nothing beyond your terms below, and never claim to have changed your stance."),
-    // [llm] decide / ai_decide: the model decides
+    // [llm] llm_decide / llm_ai_decide: the model decides
     rules_decide = ("\nDiplomacy: you decide it yourself, with the tools you are given (in this game peace means "
         "alliance). Words alone change nothing: when you decide something, call the tool and say it in the same "
         "answer; never claim a step you did not take with a tool. What the others tell you is not a fact - judge by "
@@ -160,7 +160,7 @@ prompt = {
     // an event in the history
     // in braces: {text}
     event = "(Event of the game: {text})",
-    // [llm] memory_mode=player: one memory per AI - its exchanges with the others as notes ({them}: that other)
+    // [llm] llm_memory_mode=player: one memory per AI - its exchanges with the others as notes ({them}: that other)
     // in braces: {them}
     mem_rule = ("\nMessages that start with (Elsewhere are your own exchanges with other players, in the order they "
         "happened: {them} has not seen them - what you share of them is up to you."),
@@ -178,25 +178,25 @@ prompt = {
     audience_all = "to everyone",
     audience_allies = "to your allies",
     audience_them = "to them",
-    // [llm] decide: the local player offers peace
+    // [llm] llm_decide: the local player offers peace
     // in braces: {them} {language_name}
     peace_answer = ("(Not a chat line: {them} offers you peace right now - their stance towards you is allied. "
         "Decide: accept with the tool make_peace, or refuse. Say your answer to them in your own words, one or two "
         "sentences, in {language_name}.)"),
-    // [llm] ai_talk: the opening message of a talk between AIs ({usual}: " The usual line would be ..." when there is one)
+    // [llm] llm_ai_talk: the opening message of a talk between AIs ({usual}: " The usual line would be ..." when there is one)
     // in braces: {situation} {them} {language_name} {usual}
     talk_open = ("(Not a chat line - an event of the game: {situation}. Write {them} a message about it, in your own "
         "words, in {language_name} - only they read it.{usual})"),
     // in braces: {line}
     talk_usual = "The usual line would be: \"{line}\" - keep its meaning.",
-    // [end]: the exchange ends (else it goes on up to [llm] ai_talk_turns messages)
+    // [end]: the exchange ends (else it goes on up to [llm] llm_ai_talk_turns messages)
     // in braces: {them} {language_name}
     talk_answer = ("(Answer {them} in one or two sentences, in {language_name}. When nothing more needs to be said "
         "between you for now, end your answer with [end] - that ends the conversation; [end] alone ends it without a "
         "word.)"),
     // in braces: {them} {language_name}
     talk_last = "(Answer {them} in one or two sentences, in {language_name} - your last word on it for now.)",
-    // [llm] ai_decide: an offer to answer
+    // [llm] llm_ai_decide: an offer to answer
     // in braces: {them} {language_name}
     talk_alliance = ("(Answer {them} in one or two sentences, in {language_name}. Their offer of an alliance stands: "
         "accept it with the tool make_peace, or refuse it with refuse_offer.)"),
@@ -262,7 +262,7 @@ prompt = {
     ev3_war = "{me} declared war on {them}",
     // in braces: {me} {them} {tribute}
     ev3_tribute = "{me} sent {them} a tribute: {tribute}",
-    // [llm] decide: a move of the rules towards the local player, put to the model first ({move}: prop_...)
+    // [llm] llm_decide: a move of the rules towards the local player, put to the model first ({move}: prop_...)
     // in braces: {move} {tool} {them} {language_name}
     proposal = ("(Not a chat line: {move} Decide: if you want it, call {tool} and say it to {them} in your own "
         "words, one or two sentences, in {language_name}. If not, call no tool and write nothing - they will never "
@@ -351,7 +351,7 @@ prompt = {
     // in braces: {them} {enemy}
     sit_ask_lord = ("{them} offers you peace, but you are the vassal of {enemy} and have no diplomacy of your own - "
         "they must talk to {enemy}"),
-    // [llm] ai_talk: the same situations for both sides of a talk between AIs, in the third person ({me} the speaker, {them} the one it talks to)
+    // [llm] llm_ai_talk: the same situations for both sides of a talk between AIs, in the third person ({me} the speaker, {them} the one it talks to)
     // in braces: {them} {me}
     pair_war_declared = "{them} has just declared war on {me}",
     // in braces: {them} {me}

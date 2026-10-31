@@ -1,4 +1,4 @@
-// DISPLAY DIAGNOSTICS: the frame watch ([display] frame_watch), the diagnostic hooks ([display] diag / autotest
+// DISPLAY DIAGNOSTICS: the frame watch ([display] frame_watch), the diagnostic hooks ([display] display_diag / autotest
 // diag_hooks: terrain, surface copies and creation, render targets, clears, fog), the frame costs and the session
 // counts of the minute line. Included by display.c (at this place in it - it uses what display.c defines above).
 

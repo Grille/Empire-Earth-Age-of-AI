@@ -179,7 +179,7 @@ peace or alliances. With the mod:
 - **Play style** (experimental, `ai_style=1`, off by default): a personality can also change how its AI plays
   (attack timing, army share, home guard). Off, every AI plays the same, tested way.
 
-- **AI voice** (optional, `[llm] enabled=1`): a language model on your PC (LM Studio, Ollama, llama.cpp - any
+- **AI voice** (optional, `[llm] llm_enabled=1`): a language model on your PC (LM Studio, Ollama, llama.cpp - any
   server with the OpenAI chat API) speaks for the AIs. Their lines come in their own words, knowing the game's
   state (who is at war with whom, who is stronger, what they think of you, how many soldiers, citizens and buildings each of you has destroyed of the other's - in the whole game and in the last 20 minutes), and they answer when you write to them
   in the chat - the game's chat filter decides who gets your line (everyone, allies, enemies or the players you
@@ -271,7 +271,7 @@ differs from the GOG version:
 
 Settings in `ageofai.ini`:
 
-- `[display] mode=windowed`: native windowed mode. The engine still contains SSSI's own windowed path; the
+- `[display] display_mode=windowed`: native windowed mode. The engine still contains SSSI's own windowed path; the
   mod switches it on and fixes what broke on current Windows (presentation, crashes, terrain, editor).
   The window has the game resolution from the game settings (scaled down if it doesn't fit the screen).
   A DirectDraw wrapper (`ddraw.dll`) is still needed for the game to start on current Windows; which one is up
@@ -286,10 +286,10 @@ Settings in `ageofai.ini`:
   The mouse follows the Windows cursor (your pointer speed), the window can be moved and switched like
   any other. `lock_mouse` keeps the cursor inside while the game is in front: `auto` (default) only in
   borderless, so edge scrolling doesn't slide onto a second monitor, while a window stays free; `1` always, `0` never.
-- `[display] mode=borderless`: a frameless window over the whole monitor, the game image scaled to it
+- `[display] display_mode=borderless`: a frameless window over the whole monitor, the game image scaled to it
   (aspect kept). Alt+Enter switches between window and borderless. The window is DPI-aware (`dpi_aware`),
   so Windows display scaling doesn't blur it; `smooth=1` filters the scaled image.
-- `[editor] resolution=aoc`: scenario editor at 1024x768 with The Art of Conquest's layout; `game` or any
+- `[editor] editor_resolution=aoc`: scenario editor at 1024x768 with The Art of Conquest's layout; `game` or any
   `WIDTHxHEIGHT` extends that layout to the resolution (map view fills the screen, panels at the bottom,
   minimap and file buttons at the bottom right).
 - `[camera] scroll`: `game` (default) the build's own camera scrolling, `aoc` The Art of Conquest's acceleration
@@ -452,15 +452,15 @@ Settings in `ageofai.ini`:
   the formation's facing.
 - `[general] goal_markers=1` (default; 0 the original): a move order drew its circle at the goal of only the group's
   first 15 units (20 in the other lines and wedges, every few in a circle formation). Now every unit's shows.
-- `[sound] clamp_channels=1` (default): the "Max Number Of Sounds" slider goes to 200%, which asks for 32 sound
+- `[sound] sound_clamp_channels=1` (default): the "Max Number Of Sounds" slider goes to 200%, which asks for 32 sound
   channels, but the sound mixer has only 16 on current Windows. Sounds put on the 16 missing channels were silent,
   and a looping one (unit movement such as the U-boats', ambience) stayed stuck there and never played again -
   especially after changing the slider in a running game. The channels are now held to what the mixer has, so
   anything from 100% up gives the same working channels.
-- `[sound] channels=32` (default): the mixer's 16 channels are only a fallback because Windows no longer reports
+- `[sound] sound_channels=32` (default): the mixer's 16 channels are only a fallback because Windows no longer reports
   hardware voices; Miles mixes in software and allows 63. The mod raises the maximum to this value, so the slider
   gives 8 (0%) to 32 (100% and up) channels: fewer sounds cut in big battles. `0` keeps the 16.
-- `[sound] sample_rate=44100` (default): the game mixed its sound at 22050 Hz; now at this rate (up to 48000).
+- `[sound] sound_sample_rate=44100` (default): the game mixed its sound at 22050 Hz; now at this rate (up to 48000).
   `0` keeps the 22050.
 - These three replace tweaks.dll's SetSleepToZero, VertexBufferSystemMem and AudioSampleRate. With tweaks.dll in
   the game folder, switch those off in its tweaks.config. Its map-size patches are separate and stay with it.

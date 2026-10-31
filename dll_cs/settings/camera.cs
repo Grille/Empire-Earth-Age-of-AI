@@ -14,5 +14,5 @@ class camera
     /// every few ms - some frames without a step, all steps the same size: jitter - and a busy game held the camera.
     /// 1 = the camera moves with every drawn frame by the time the frame took (same speed), also while the game is
     /// busy, 0 = the game's steps
-    bool smooth = true;
+    bool smooth_scroll = true;
 }

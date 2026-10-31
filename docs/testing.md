@@ -24,11 +24,11 @@ The `[autotest]` keys:
 | `mp=host\|join`, `mp_humans=2`, `mp_host=<slot>`, `mp_seat=<n>`, `mp_wait=2000` | a multiplayer test game (dll/test/netgame.c): the game starts at the main menu, and after `mp_wait` ms the DLL hosts (`Host`) or joins the host slot's game (`Join<seat>`, over the network to 127.0.0.1); the host presses Start once `mp_humans` humans are seated. `scripts/test/mp.sh` runs one (see "Multiplayer test games") |
 | `setup=<file>[;<file>...]` | a script ([scripts.md](scripts.md)) run from 2 s game time, path relative to the game folder - the pipe's commands as functions (`spawn(3, unit.b_guard_tower_bronze, 51, 44)`), waiting with `wait_until(19.5min)`, `wait(10s)`, `every(...)` - e.g. what turns a map into a test scenario (see Scenarios). Several (`;`) run side by side. Every command is logged `# setup: <command> -> <reply>` (replies of more than one line as `#   ` lines) |
 | `scenario_mode=1` | starts `Data\Scenarios\<save>.scn` through the real scenario path (set by `-Scenario`) |
-| any `ageofai.ini` key | overrides that setting for all difficulties, e.g. `avoid_towers=0`; a key of `[patches]`, `[camera]`, `[display]`, `[editor]`, `[sound]` or `[llm]` with its section in front (`display_present=gdi`, `llm_enabled=1`, `editor_resolution=game` - the field's name in dll/settings/rows.h; `[general]` and `[ai_base]` keys as they are), and a misspelt key of those sections is logged (`# ini: ... no such setting`) - read like ageofai.ini (dll/base/ini.c): a share with its `%` (`navy_share=30%`, `home_guard_share=50%`; a bare `navy_share=30` is 3000%: logged as `# ini:` and the default used), small expressions (`epoch_min=2*25`) - no commas in a value here (-IniExtra splits on them) |
+| any `ageofai.ini` key | overrides that setting for all difficulties, e.g. `avoid_towers=0` - any section's by its name alone (`present=gdi`, `llm_enabled=1`, `editor_resolution=game`: a key's name is its own across the file), and a misspelt key of those sections is logged (`# ini: ... no such setting`) - read like ageofai.ini (dll/base/ini.c): a share with its `%` (`navy_share=30%`, `home_guard_share=50%`; a bare `navy_share=30` is 3000%: logged as `# ini:` and the default used), small expressions (`epoch_min=2*25`) - no commas in a value here (-IniExtra splits on them) |
 | `watch=<hex>`, `watch_len` | hardware write-watchpoint, logs every writer of an address |
 | `tech_log=1` | logs every AI's newly researched techs once a second (`# techlog:`) and every free research completion with its call stack (`# techgrant:`, hook on EETechTreeNode::vf6) |
 | `sndstate`, `sndchan N` (pipe/setup) | the sound manager's channels with their sound ids and Miles status, the mixer's channels, categories in use, the paused queue / SetMaxChannels(N) as the options screen does |
-| `sound_channels=N`, `sound_clamp_channels=0/1` | ageofai.ini `[sound] channels` / `clamp_channels` for the run |
+| `sound_channels=N`, `sound_clamp_channels=0/1` | ageofai.ini `[sound] sound_channels` / `sound_clamp_channels` for the run |
 | `seltest T [x0 y0 x1 y1]` (pipe/setup) | builds the double-click selection message for unit type T (screen rectangle 0x8D2778 or the given one) and carries it out: units found, packed, unpacked, selected |
 | `texts` (pipe/setup) | the text files read (`personalities\mod\system.eeai`, `mod\prompt.eeai`: how many of the keys the code asks for each has, their names) - the texts are only there (a key added to dll/voice/texts.c k_sys or dll/voice/texts_prompt.h k_tpl needs its text in the file) |
 | `strict_parsing=1` | every mistake in the texts also queued and shown: in a test no message box (the files' mistakes come as system lines at the first AI update), the log says `# texts: strict parsing: N mistake(s) shown in the game`. Test of 2026-10-14 on `llmtest.eeai` with the mock: no mistake in the built-in texts (no placeholder left unfilled) |
@@ -49,8 +49,8 @@ The `[autotest]` keys:
 | `textstate N` (pipe) | device state around the mod's texture text: 0 as the scene left it, 1 fog off + normal alpha blending (default), 2 also texture stage 0 = texture x diffuse. With `textlog` the states at each draw are logged (`# textlog state:`). Repro: the player's 70-minute save, save screen opened 4 times: state 0 blank labels in 2 of 4, state 1 in none |
 | `wtype TEXT` (pipe) | the characters as WM_CHAR to the game window (edit boxes, e.g. the single-player name field) |
 | `drawcount` (pipe) | objects collected for the last frame: units/buildings/missiles of the draw limit, small objects of 1536 |
-| `display_draw_limit=N` | ageofai.ini `[display] draw_limit` for the run |
-| `sound_log=1` / `2` | (also ageofai.ini `[sound] log=`, for normal play) 2 adds every play (id, volume, pan, the node's channel, the caller) and the mixer's channel/start/volume calls. 1: once a game minute (`# sound:`): sounds the game asked for, the ones the sound manager dropped and why (all copies of that sound busy / category full / no free channel), the Miles mixer's refusals, the most dropped sound ids. Calls at volume 0 (out of earshot) are counted apart: the manager skips them on purpose |
+| `draw_limit=N` | ageofai.ini `[display] draw_limit` for the run |
+| `sound_log=1` / `2` | (also ageofai.ini `[sound] sound_log=`, for normal play) 2 adds every play (id, volume, pan, the node's channel, the caller) and the mixer's channel/start/volume calls. 1: once a game minute (`# sound:`): sounds the game asked for, the ones the sound manager dropped and why (all copies of that sound busy / category full / no free channel), the Miles mixer's refusals, the most dropped sound ids. Calls at volume 0 (out of earshot) are counted apart: the manager skips them on purpose |
 | games without AI | `setup`, `quit_minutes` and speed run from the simulation loop when no AI resource manager ticks (e.g. `-Scenario` with only the human player) |
 | `trace_player`, `trace_until_min` | logs the economy calls of one AI |
 
@@ -418,8 +418,8 @@ vary 7-33 ms between and within runs in the same save - the slow state is not re
 - Autotest `present_every=N` presents only every Nth frame (to separate present cost from game cost).
 - `camtrace N`: the next N presented frames - frame time, camera movement, scroll steps in between (`# camtrace:`
   lines). Edge scrolling headless: `vmouse 2559 700`. 2026-10-12, AoC scrolling: 0 or 1 steps per frame of 0.285
-  tiles each (every fifth frame none); with `[camera] smooth` one step per frame, 0.0285 tiles per ms of frame time.
-- Frame watch (`[display] frame_watch`, default 0 = off since 2026-10-17, e.g. 35 fps; autotest `display_frame_watch=N` also runs it headless): in the
+  tiles each (every fifth frame none); with `[camera] smooth_scroll` one step per frame, 0.0285 tiles per ms of frame time.
+- Frame watch (`[display] frame_watch`, default 0 = off since 2026-10-17, e.g. 35 fps; autotest `frame_watch=N` also runs it headless): in the
   player's own games, every minute `# frames: at <min>: <fps>, worst second, seconds under the threshold; GDI
   objects, USER objects`, and after 10 s under the threshold the render-thread profile (`# |` lines, at most 5 a
   session, 5 min apart). The profile now also lists the game code that led into GDI and reads 8 KB of stack.
@@ -1097,7 +1097,7 @@ Editor icons at 2560x1440: y 1420, x 14 map, 60 elevation, 103 terrain, 147 unit
 
 `run_test.ps1 -Exe <name>` starts a renamed copy of the exe (the DLL accepts any copy of the 1.04 exe).
 Autotest keys for the display work: `mode` (native|windowed|borderless, or the older `windowed`), `diag_hooks=1` (counters in `ddinfo`, also fullscreen),
-`diag_skip` (1 terrain, 2 water, 3 fog off). In normal play `[display] diag=1` enables the counters.
+`diag_skip` (1 terrain, 2 water, 3 fog off). In normal play `[display] display_diag=1` enables the counters.
 
 Screenshots of DirectDraw output: PrintWindow (`screenshot.ps1`) returns black. Put the game window on top
 (SetWindowPos HWND_TOPMOST without activating) and use a screen capture; find the window by title

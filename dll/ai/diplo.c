@@ -518,7 +518,7 @@ internal void make_peace(int ai, int j, uint32_t now) {
 internal void declare_war(int ai, int j, uint32_t now) {
     ee_player *pl = player_at(ai);
     if (!pl || stance_of(pl, j)) return;
-    if (g_lord[ai] == j) {   // a vassal rebels (only the language model, [llm] constrained=0): free
+    if (g_lord[ai] == j) {   // a vassal rebels (only the language model, [llm] llm_constrained=0): free
         g_lord[ai] = 0;
         if (g_log) fprintf(g_log, "# diplomacy: P%d at %.1f min: rebels against its lord P%d - no longer a vassal\n", ai, now / 60000.0, j);
     }
@@ -540,7 +540,7 @@ internal int is_vassal(int ai) {
 }
 internal int block_veto(int ai, int j, uint32_t now, int *own);   // alliance blocks (below)
 internal void block_refuse(ee_player *pl, int j, int who, int own);
-// THE RULES' MOVES TOWARDS THE LOCAL PLAYER, put to the language model first ([llm] decide=1): an alliance offer, a
+// THE RULES' MOVES TOWARDS THE LOCAL PLAYER, put to the language model first ([llm] llm_decide=1): an alliance offer, a
 // betrayal, a capitulation, a rebellion. llm_propose (llm.c) asks it - 1: it decides (asked, still asking, or it
 // declined that move lately), 0: the rules go ahead. Its yes carries the move out with its words (prop_do), its no
 // leaves it undone - the player never learns of it; no answer: the rules go ahead after all.
@@ -1094,7 +1094,7 @@ internal void capitulate(ee_player *pl, int ai, int a, uint32_t now) {
     tribute_text(g_promise[ai], what, sizeof what);
     block_line(a, sysf("capitulation", pl, player_at(a), NULL, "tribute", what, NULL));
 }
-// AN AI'S OFFER TO AN AI, ANSWERED BY THE MODEL ([llm] ai_decide): it stands like an offer to a human (g_offer_t,
+// AN AI'S OFFER TO AN AI, ANSWERED BY THE MODEL ([llm] llm_ai_decide): it stands like an offer to a human (g_offer_t,
 // 2 minutes; the answer is the other's stance turning allied - diplo_tick does the rest). Refused: it runs out now.
 internal void offer_refused(int from, int to) {
     uint32_t now = game_time();

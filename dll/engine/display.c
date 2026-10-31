@@ -1,5 +1,5 @@
 // Display: resolution of the scenario editor.
-// ageofai.ini [editor] resolution = ee | aoc | game | <width>x<height>   (default ee: nothing is changed)
+// ageofai.ini [editor] editor_resolution = ee | aoc | game | <width>x<height>   (default ee: nothing is changed)
 //   ee   = 800 x 600 (original Empire Earth)
 //   aoc  = 1024 x 768 (what The Art of Conquest uses)
 //   game = the resolution chosen for games in the settings
@@ -81,7 +81,7 @@ internal uint8_t g_fullscreen = 1;
 internal int g_present_every;   // autotest present_every (diagnostics)
 internal volatile DWORD g_render_thread;   // thread that calls ShowScene (profile render)
 internal volatile DWORD g_sim_thread;      // thread that last took the world's write lock (profile sim; own renderer)
-internal int g_diag;   // diagnostic sampling (ageofai.ini [display] diag=1 or autotest diag_hooks=1)
+internal int g_diag;   // diagnostic sampling (ageofai.ini [display] display_diag=1 or autotest diag_hooks=1)
 
 // Windowed present: ShowScene (DX7Rasterizer vtable slot 66, in DX7HRDisplay.dll and DX7HRTnLDisplay.dll)
 // blits the back buffer to the primary surface at the window's screen position. On current Windows the primary a
@@ -116,7 +116,7 @@ internal volatile LONG g_shot_req, g_shot_done;
 internal char g_shot_path[MAX_PATH];
 internal int write_desc_bmp(const DDSURFACEDESC2 *d, const char *path);
 internal int g_borderless;   // current mode: 1 borderless, 0 normal window
-internal int g_smooth;       // [display] smooth = 1: filtered scaling (HALFTONE) instead of nearest pixel
+internal int g_smooth;       // [display] smooth_scaling = 1: filtered scaling (HALFTONE) instead of nearest pixel
 internal int g_dpi_windows;
 internal void window_hook(HWND hwnd);
 typedef void *(WINAPI *SetThreadDpiFn)(void *);
@@ -647,7 +647,7 @@ internal int show_hooks(int i, HMODULE m) {
         if (gcmi) n += replace_rdata_ptr(m, gcmi, (void *)hook_get_current_mode_index);
         void *gdr = (void *)GetProcAddress(m, "?GetDesktopRectangle@DX7Screen@@UAEABVGERectangle@@XZ");
         if (gdr) { g_desktop_rect[i] = (DesktopRectFn)gdr; n += replace_rdata_ptr(m, gdr, (void *)hook_desktop_rect); }
-        // diagnostics (ddinfo counters; autotest diag_skip leaves terrain/water/fog out): only with [display] diag=1
+        // diagnostics (ddinfo counters; autotest diag_skip leaves terrain/water/fog out): only with [display] display_diag=1
         // or autotest diag_hooks / diag_skip - for players they were per-draw hooks with nothing to show
         int diag = g_diag || g_diag_skip;
         void *dt = diag ? (void *)GetProcAddress(m, "?Draw@DX7Rasterizer@@UAEJAAVGETerrainMesh@@K_N@Z") : NULL;
@@ -866,7 +866,7 @@ internal RECT window_rect_for(HWND h) {
 // headless one: the probes never activate, show no taskbar button and stay off-screen; the game window (the first
 // other top-level one) gets a black background instead of white and, borderless, its final style and the monitor
 // at its creation instead of at the first frame; the first frame brings it to the front once (window_hook). Each part
-// on its own ([display] start = probes, black, popup, front; none by default): all four together left the player's
+// on its own ([display] display_start = probes, black, popup, front; none by default): all four together left the player's
 // borderless window without a picture (a still of the moment it appeared) - the starts tell which part.
 internal HHOOK g_play_cbt;
 internal int g_play_probes;
@@ -1221,13 +1221,13 @@ internal void tnl_loaded(uintptr_t base) {
                ok == 2 ? "already set (another mod)" : ok ? "ok" : "NOT patched (the DLL's code differs)");
 }
 internal void frame_install(void) {
-    g_frame_wait = g_set.display_frame_wait;
+    g_frame_wait = g_set.frame_wait;
     const char *names[] = { "game", "yield", "auto" };
     g_frame_mouse = g_frame_wait == 2 && patch_frame_mouse(hook_frame_mouse);
     int hook = g_frame_wait == 1 || g_frame_mouse ? patch_frame_sleep(hook_frame_sleep) : 0;
     if (g_log) fprintf(g_log, "# display: frame_wait %s%s\n", names[g_frame_wait],
                        !g_frame_wait ? "" : hook ? " (hooks ok)" : " - hook FAILED (exe differs), the game's pause");
-    if (g_set.display_vertex_sysmem && !on_module_load("DX7HRTnLDisplay.dll", tnl_loaded) && g_log)
+    if (g_set.vertex_sysmem && !on_module_load("DX7HRTnLDisplay.dll", tnl_loaded) && g_log)
         fprintf(g_log, "# display: vertex_sysmem - module loads not watchable, left in video memory\n");
 }
 
@@ -1249,39 +1249,39 @@ internal void render_install(const char *autotest_ini);
 internal void display_install(const char *autotest_ini) {
     player_name_install();   // (defined at the end of this file)
     frame_install();
-    int dmode = g_set.display_mode;   // [display] mode: native 0, windowed 1, borderless 2 (rows.h)
+    int dmode = g_set.display_mode;   // [display] display_mode: native 0, windowed 1, borderless 2 (rows.h)
     if (autotest_ini) g_headless = ini_int("autotest", "headless", 0, autotest_ini);
     if (g_headless) { dmode = 1; headless_windows(); }   // a normal (off-screen) window, never activated
     g_borderless = dmode == 2;
     int windowed = dmode != 0;
     int parts = g_set.display_start.probes || g_set.display_start.black || g_set.display_start.popup || g_set.display_start.front;
-    if (windowed && !g_headless && parts) play_windows();   // the start without flicker, by its parts ([display] start)
+    if (windowed && !g_headless && parts) play_windows();   // the start without flicker, by its parts ([display] display_start)
     if (autotest_ini) g_present_every = ini_int("autotest", "present_every", 0, autotest_ini);
     if (autotest_ini) g_diag_skip = ini_int("autotest", "diag_skip", 0, autotest_ini);
     g_diag = (autotest_ini && ini_int("autotest", "diag_hooks", 0, autotest_ini)) || g_set.display_diag;
     if (windowed) {
         uint8_t was = *fullscreen_var();
         if (was == 1) *fullscreen_var() = g_fullscreen = 0;
-        g_text_dc = g_set.display_text_dc;
-        g_text_bitmap = g_set.display_text_bitmap;
+        g_text_dc = g_set.text_dc;
+        g_text_bitmap = g_set.text_bitmap;
         if (autotest_ini) g_atlas_dump = ini_int("autotest", "atlas_dump", 0, autotest_ini);
         if (g_text_bitmap) {
             g_text_bitmap = text_bitmap_install();
             if (g_log) fprintf(g_log, "# text bitmap: %s\n", g_text_bitmap ? "on (umlaut patch 2/2)" : "engine functions not found - off");
         }
-        g_frame_watch = g_set.display_frame_watch;
-        g_fw_test = g_set_from[SETTING_display_frame_watch] == 2 ? g_frame_watch : 0;   // the test ini's own
-        if (g_set.display_dpi_aware) {
+        g_frame_watch = g_set.frame_watch;
+        g_fw_test = g_set_from[SETTING_frame_watch] == 2 ? g_frame_watch : 0;   // the test ini's own
+        if (g_set.dpi_aware) {
             HMODULE u = GetModuleHandleA("user32.dll");
             g_set_thread_dpi = (SetThreadDpiFn)(void *)GetProcAddress(u, "SetThreadDpiAwarenessContext");
             g_get_window_dpi = (GetWindowDpiFn)(void *)GetProcAddress(u, "GetWindowDpiAwarenessContext");
             if (!g_set_thread_dpi || !g_get_window_dpi) g_set_thread_dpi = NULL, g_get_window_dpi = NULL;
         }
-        g_lock_mouse = g_set.display_lock_mouse;   // 0, 1, auto 2 (rows.h)
-        g_smooth = g_set.display_smooth;
-        g_present_mode = g_set.display_present;   // auto 0, d3d 1, gdi 2, primary 3 (rows.h)
+        g_lock_mouse = g_set.lock_mouse;   // 0, 1, auto 2 (rows.h)
+        g_smooth = g_set.smooth_scaling;
+        g_present_mode = g_set.present;   // auto 0, d3d 1, gdi 2, primary 3 (rows.h)
         g_present_d3d = g_present_mode <= 1;
-        g_vsync = g_set.display_vsync;
+        g_vsync = g_set.vsync;
         render_install(autotest_ini);   // the own renderer before the display DLLs' hooks: their DirectDraw imports at their load
         int hooks = install_windowed_present(g_set_thread_dpi || g_headless);
         int dpi = g_show_dpi_hooks;

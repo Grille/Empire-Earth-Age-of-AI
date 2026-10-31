@@ -5,9 +5,9 @@ class display
 {
     enum mode_choice { native, windowed, borderless }
     enum lock_mouse_choice { [name("0")] off, [name("1")] on, auto }
-    /// [display] start - the parts of the quiet windowed start, each on its own until the player's starts show which work
+    /// [display] display_start - the parts of the quiet windowed start, each on its own until the player's starts show which work
     /// (engine/display.c play_cbt, play_front)
-    struct start_fields { bool probes, black, popup, front; }
+    struct display_start_fields { bool probes, black, popup, front; }
     enum frame_wait_choice { game, yield, auto }
     enum renderer_choice { auto, wrapper, own }
     /// [display] overlay - the debug overlay's layers by the names their producers give them
@@ -22,7 +22,7 @@ class display
     ///                image is scaled to the screen (aspect ratio kept, black bars if it differs). For the
     ///                sharpest picture choose your monitor's resolution in the game settings.
     /// In windowed and borderless mode Alt+Enter switches between the two.
-    mode_choice mode = mode_choice.native;
+    mode_choice display_mode = mode_choice.native;
     /// Windowed/borderless only: keep the mouse inside the window while the game is in front (edge scrolling
     /// without overshooting onto another monitor; leave with Alt+Tab). auto = only in borderless, free in a window
     /// (follows Alt+Enter); 1 = always; 0 = never. (Native fullscreen keeps the mouse anyway.)
@@ -31,7 +31,7 @@ class display
     /// 512; in big fights and at high resolutions the farthest objects blinked out. 0 = the original 512
     [range(0, 1000000), game("the objects the game draws per frame", "512", 0)] int draw_limit = 4096;
     /// Windowed/borderless only: smooth (bilinear) scaling when the image is scaled; 0 = sharp pixels
-    bool smooth = false;
+    bool smooth_scaling = false;
     /// Windowed/borderless only: 1 = wait for the screen refresh (no tearing, fps capped at the refresh rate),
     /// 0 = as fast as possible
     bool vsync = false;
@@ -49,7 +49,7 @@ class display
     bool text_bitmap = true;
     /// Diagnostics for display problems (a diagnostic, not for playing): surface copies and creations, render targets,
     /// clears, fog, samples of the picture - counted and logged in ageofai_log.csv. 0 = off (default)
-    [commented] bool diag = false;
+    [commented] bool display_diag = false;
     /// Windowed/borderless only: 1 = the window uses real screen pixels at Windows display scaling of 125/150 %
     /// (no blur from Windows stretching it), 0 = Windows enlarges it like other old programs
     bool dpi_aware = true;
@@ -57,7 +57,7 @@ class display
     /// behind other programs). probes = the display DLLs' ~15 test windows take no focus and no taskbar button; black =
     /// the window black instead of white until its first picture; popup = borderless: the screen's size from its creation; front = the
     /// window to the front at its first picture. Words apart by commas, all = every part. Empty = none (default)
-    start_fields start;
+    display_start_fields display_start;
     /// The drawing thread's pause after every frame: the game sleeps 1 ms or more (on most PCs about 15 ms without
     /// another program raising the timer resolution), which caps the frame rate. game = that pause; yield = only give
     /// up the thread's turn (more frames, but a CPU core stays busy even while nothing is drawn: paused, minimized);

@@ -961,16 +961,16 @@ conditions, 162 states with their ids) were dumped by a helper, not kept in the 
   (channel out of range), nothing plays, and the node stays there (IsChannelBusyPlaying is never 6 for it, so
   DumpNonPlayingChannels never frees it): a looping sound keeps its copy for good. SetMaxChannels in a running game
   pauses every looping sound, and the paused queue resumes from the highest channel down - straight onto the dead
-  ones (seen: ambience id 56 on channel 31 after 8 -> 32). `[sound] clamp_channels` holds SetMaxChannels to
+  ones (seen: ambience id 56 on channel 31 after 8 -> 32). `[sound] sound_clamp_channels` holds SetMaxChannels to
   GetMaximumChannelCount (IAT 0x823AD4).
-- `[sound] channels` writes the mixer maximum (the global behind SPIMGetMaximumChannelCount `mov eax, [addr]; ret`)
+- `[sound] sound_channels` writes the mixer maximum (the global behind SPIMGetMaximumChannelCount `mov eax, [addr]; ret`)
   before the game's first SetMaxChannels and recomputes the count from 0x9193B8 (slider, 1.0 = 100%). 63 Miles
   handles allocate fine (DIG_MIXER_CHANNELS 64, one kept by the plugin). aitest.ees 25 -> 33 min at 100%: 16 channels
   lost 3 audible sounds for want of a channel, 32 none; ~955 more were dropped for busy copies either way.
 - The mixer plugin's startup (Miles Sound System Mixer.dll +0x1238 .. +0x1266: AIL_set_redist_directory, AIL_startup,
   AIL_set_preference) opens the driver with `AIL_open_digital_driver(22050, 16, 2, 1)` (the push of 22050 at +0x1261,
   the same in AoC's build of the plugin) and keeps the handle at +0x5318. The engine loads the plugin after
-  ageofai.dll (the folder's DLLs by name) and loads it twice; `[sound] sample_rate` (engine/sound.c) changes the push
+  ageofai.dll (the folder's DLLs by name) and loads it twice; `[sound] sound_sample_rate` (engine/sound.c) changes the push
   at each load (LdrRegisterDllNotification: before its DllMain), before the startup runs.
 
 ## Misc
@@ -1489,7 +1489,7 @@ these notes give the layout, what is known of the fields and how it was checked.
   [0x9193FC] x [0x9193F8].
 - The scenario editor is fixed at 800x600 in both entries: main menu 0x6601D9 (call 0x6601F1) and return
   from test play 0x65FD21 (call 0x65FD6D). AoC uses 1024x768 in both. The mod redirects both calls
-  (ageofai.ini [editor] resolution).
+  (ageofai.ini [editor] editor_resolution).
 - Camera scrolling: see dll/engine/camera.c (EEAScroll, AoC smooth scrolling).
   The scroll action runs on the game thread, the frames are presented on another thread; with a 1 ms
   timer the game thread makes exactly one scroll step per frame (camtrace).

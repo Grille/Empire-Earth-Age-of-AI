@@ -1,21 +1,21 @@
-// LLM VOICE ([llm] enabled, default 0): a language model on this PC - LM Studio, Ollama, llama.cpp or any server with
+// LLM VOICE ([llm] llm_enabled, default 0): a language model on this PC - LM Studio, Ollama, llama.cpp or any server with
 // the OpenAI chat API (POST .../v1/chat/completions) - speaks for the AI players. Words only: every decision stays
-// with the mod's rules (diplo.c) - unless [llm] decide=1 (DECIDE, below). Included by eeaimod.c after diplo.c.
-//  - lines ([llm] lines=1): a personality line the local player hears (persona_say) is said in the AI's own words:
+// with the mod's rules (diplo.c) - unless [llm] llm_decide=1 (DECIDE, below). Included by eeaimod.c after diplo.c.
+//  - lines ([llm] llm_lines=1): a personality line the local player hears (persona_say) is said in the AI's own words:
 //    the same situation, with its character, the game's state (stances, strength, opinion) and its recent exchange
 //    with the player. Every number of the fixed line (tribute) and the name of a third player in it must be in the
 //    answer, else the fixed line is shown.
-//  - chat ([llm] chat=1): a chat line of the local player gets an answer in character from one AI among those the
+//  - chat ([llm] llm_chat=1): a chat line of the local player gets an answer in character from one AI among those the
 //    game's chat filter sends it to (everyone / allies / enemies / chosen players): the one it names first (a word of
 //    its name, also its start or with one letter wrong), else the last one he heard within 5 minutes, else the only
 //    one that gets it. The AI can agree to nothing in the chat: it is told what it would do if he offered peace now, so its words
 //    match the rules.
 // A worker thread posts the requests (WinHTTP), one at a time; answers are shown at the next simulation step
-// (llm_tick, control.c), each AI's in the order it said them (at most 3 waiting per AI, else the fixed line). A line waits at most [llm] timeout seconds (queue + answer), else the fixed line shows;
+// (llm_tick, control.c), each AI's in the order it said them (at most 3 waiting per AI, else the fixed line). A line waits at most [llm] llm_timeout seconds (queue + answer), else the fixed line shows;
 // while the server can't be reached (for 60 s after a failed connection) fixed lines show at once and the chat gets
 // no answer - a system line says so once per game. Only on the local PC: in multiplayer each PC asks its own model
 // (or none). personality character= in a personality file: a few words about it for the model.
-// DECIDE ([llm] decide=1, default 0; single player, not in scenarios, not with fixed teams): the model makes the AI's
+// DECIDE ([llm] llm_decide=1, default 0; single player, not in scenarios, not with fixed teams): the model makes the AI's
 // diplomatic decisions towards the local player itself, through tool calls (OpenAI "tools") - the rules only say
 // what is possible and give their verdict as advice:
 //  - his peace offer (he sets allied while the AI is at war with him): the model accepts (make_peace) or refuses, in
@@ -27,17 +27,17 @@
 // its pride's time after his declaration, a block veto. No answer in time: the rules decide the peace offer.
 // Its tool calls and his tributes and declarations go into the exchange as events, so its words and deeds agree.
 // Every other decision (answering war, capitulation, alliance offers, betrayal) stays with the rules.
-// AI TALK ([llm] ai_talk=1, default 0; single player): the AIs talk with each other too - words only, their decisions
+// AI TALK ([llm] llm_ai_talk=1, default 0; single player): the AIs talk with each other too - words only, their decisions
 // stay with the rules. A line one AI says to another (persona_say: a declaration of war, an alliance offer, thanks for
 // a tribute, a capitulation - lines the local player never hears) opens an exchange: that message in the speaker's
-// own words, the other's answer, the speaker's reply ([llm] ai_talk_turns messages, default 4, no upper limit) - or
+// own words, the other's answer, the speaker's reply ([llm] llm_ai_talk_turns messages, default 4, no upper limit) - or
 // fewer: a message ending in [end] (talk_answer tells the model) ends the exchange. Each pair of AIs keeps its
-// own memory of what they told each other (the last [llm] memory messages, 8) - what one says to another, the local player doesn't
+// own memory of what they told each other (the last [llm] llm_memory messages, 8) - what one says to another, the local player doesn't
 // know, and the AI may tell him something else. One exchange at a time, a new one at most every ai_talk_gap seconds
 // (an opener waiting longer than 90 s is dropped, a newer one of the same pair replaces it); the local player's
 // requests go to the model first. ai_talk_show=1: he reads along ("to <name>: ..." in the speaker's colour), 0: only
 // the log.
-// AI DECIDE ([llm] ai_decide=1, default 0; single player, not in scenarios, not with fixed teams): the model makes
+// AI DECIDE ([llm] llm_ai_decide=1, default 0; single player, not in scenarios, not with fixed teams): the model makes
 // the AIs' decisions towards each other too. An AI's alliance offer or capitulation to another AI (the rules decided
 // those at once) stands like one to a human (2 minutes) and opens an exchange: the offer in the offerer's words,
 // the other's answer with the tool make_peace to accept (the rules check what is possible: an ally's veto, a
@@ -46,7 +46,7 @@
 // lord), send a tribute (at most a quarter of each resource, once in 3 minutes) - whoever acts gets an answer. No
 // answer from the model: the rules decide the offer. Answering war, betrayal and taking sides in a block split stay
 // with the rules.
-// EQUAL ([llm] equal=1, default 0): the prompts don't say who is human - the local player is "another leader in this
+// EQUAL ([llm] llm_equal=1, default 0): the prompts don't say who is human - the local player is "another leader in this
 // game" like every AI, and no AI is told it is played by the computer. (What the rules do differently for a human -
 // his offers come as lines - the model doesn't see.)
 #include <winhttp.h>
@@ -73,8 +73,8 @@ internal int g_llm_told, g_llm_told_fail;         // told this game: that it can
 internal int g_llm_off_told;                      // single player, AI voice off: told once per game that nobody reads
 internal unsigned g_llm_seq;
 internal unsigned g_llm_n_ok, g_llm_n_fail, g_llm_n_fixed, g_llm_n_late;
-internal int g_llm_decide;                        // [llm] decide
-// [llm] fallback=pause (single player): a model that can't be reached or doesn't answer in time gets no fixed line
+internal int g_llm_decide;                        // [llm] llm_decide
+// [llm] llm_fallback=pause (single player): a model that can't be reached or doesn't answer in time gets no fixed line
 // or rules decision in its place - the game pauses (llm_wait_tick) while the worker tries again every 5 s, and runs
 // on when it answers. The player may resume it: then it plays on while the answers still come (no pause again until
 // they have). fallback=rules (default): the fixed lines and the rules.
@@ -82,7 +82,7 @@ internal int g_llm_wait;
 internal volatile LONG g_llm_unreach;             // fallback=pause: the worker can't reach the server (trying again)
 internal int g_llm_paused;                        // 1 the game paused for the model, 2 the player resumed it meanwhile
 internal DWORD g_llm_paused_t;
-// [llm] constrained=0: the model's steps are limited only by the game - peace whenever at war (no pride, no ally's
+// [llm] llm_constrained=0: the model's steps are limited only by the game - peace whenever at war (no pride, no ally's
 // veto), war on any ally at once (its lord too: a vassal rebels), a vassal's own diplomacy, tributes of everything it
 // has whenever it likes. Silly things may happen. 1 (default): the rules' limits (tool_peace_ok ...)
 internal int g_llm_constrained = 1;
@@ -126,7 +126,7 @@ internal int g_llm_ai_talk, g_llm_talk_show = 1, g_llm_talk_gap = 60, g_llm_talk
 
 internal uint32_t g_pair_last[16][16];   // [lo][hi]: the pair's last request (game time) - events then open no other talk
 internal unsigned g_talk_n_acts;
-// THE MEMORIES ([llm] memory, default 8; 0 none, no upper limit): the AI's exchange with the local player and each
+// THE MEMORIES ([llm] llm_memory, default 8; 0 none, no upper limit): the AI's exchange with the local player and each
 // pair's talks, the last <memory> entries in order - chat, lines and events together, as they happened. Grown as they
 // fill (a long memory costs only where it is used); kept in the saved game's state file (llm_mem_save / persist.c).
 #define MEM_LEN (LLM_MAXLEN + 32)
@@ -153,7 +153,7 @@ internal void mem_add(struct mem *m, int kind, const char *text) {
     m->kind[m->n] = (uint8_t)kind;
     lstrcpynA(m->text[m->n++], text, MEM_LEN);
 }
-// [llm] memory_mode=player: one memory per AI instead - all its exchanges, with the local player and with every AI, and
+// [llm] llm_memory_mode=player: one memory per AI instead - all its exchanges, with the local player and with every AI, and
 // its events, in the order they happened; kind = role << 4 | the other player (0 they wrote, 1 it said, 2 an event
 // between them, 3 the event that opened an AI talk, in the third person). The pair memories stay empty then.
 internal int g_llm_mem_player;
@@ -592,7 +592,7 @@ again:
         int no = !j->reply[0] && !j->act && j->decide == 3 && !len;
         if (!j->reply[0] && !j->act && !no) {
             int rea = rc && *rc == '"' && rc[1] != '"';   // it did think
-            snprintf(g_llm_last_err, sizeof g_llm_last_err, rea ? "the model only thought, no answer%s - [llm] think=0, or "
+            snprintf(g_llm_last_err, sizeof g_llm_last_err, rea ? "the model only thought, no answer%s - [llm] llm_think=0, or "
                      "more max_tokens" : "an empty answer%s", len ? " (max_tokens reached)" : "");
             InterlockedCompareExchange(&g_llm_fail_note, 2, 0);
         }

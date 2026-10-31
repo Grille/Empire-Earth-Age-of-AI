@@ -837,7 +837,7 @@ internal void rd_trace_install(void) {
 // [display] renderer: auto 0 (own without a ddraw.dll in the game folder - the system's crashes in the T&L display DLL
 // at its start), wrapper 1, own 2 (rows.h)
 internal int render_wanted(void) {
-    if (g_set.display_renderer != 0) return g_set.display_renderer == 2;
+    if (g_set.renderer != 0) return g_set.renderer == 2;
     char path[MAX_PATH];
     DWORD n = GetModuleFileNameA(NULL, path, MAX_PATH);
     char *slash = n && n < MAX_PATH ? strrchr(path, '\\') : NULL;
@@ -862,7 +862,7 @@ internal int render_wrapper_dll(const char *autotest_ini) {
 internal void render_install(const char *autotest_ini) {
     if (render_wrapper_dll(autotest_ini) || !render_wanted()) return;
     if (g_fullscreen) {
-        if (g_log) fprintf(g_log, "# render: own renderer needs [display] mode windowed or borderless - the game's ddraw.dll\n");
+        if (g_log) fprintf(g_log, "# render: own renderer needs [display] display_mode windowed or borderless - the game's ddraw.dll\n");
         return;
     }
     InitializeCriticalSection(&g_rd_cs);
@@ -885,7 +885,7 @@ internal void render_install(const char *autotest_ini) {
     g_rd_dd.vt = g_rd_vt[RDI_DD];
     g_rd_on = 1;
     char layers[128];   // [display] overlay: the layers of the AI's plans drawn on the map (a FLAGS row, as its text)
-    setting_text(&k_settings[SETTING_display_overlay], (const uint8_t *)&g_set.display_overlay, layers, sizeof layers);
+    setting_text(&k_settings[SETTING_overlay], (const uint8_t *)&g_set.overlay, layers, sizeof layers);
     overlay_show(layers);
     int locks = rd_world_lock_install(), parts = rd_render_objects_install();   // the minute line's wait and parts
     if (g_log) fprintf(g_log, "# render: own renderer on (Direct3D 11) - the display DLLs' DirectDraw at their load%s; world lock hooks %d/3,"

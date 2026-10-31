@@ -95,8 +95,8 @@ and the runners, eectl, the MCP server), `results/` (log readers, scorers), `re/
   kind, default and limits, its /// lines the file's lines above it (dll_cs/settings/settings.cs: the format).
   `scripts/build/gen_settings.py`, run by the build, makes `dll/settings/rows.h` (the rows: kind, section, key, default,
   limits) and the shipped `config/ageofai.ini` whole of them - both generated, never edited: one changed by hand
-  stops the build (its change belongs into dll_cs/settings/). The code reads `g_set.key` ([general]), `g_set.section_key` (the other
-  sections: `g_set.display_present`) or `g_set_ai[d].key` ([ai_base], a value per difficulty from [ai_easy] / [ai_hard], else
+  stops the build (its change belongs into dll_cs/settings/). A key's name is its own across the file (the build stops at a second one): a section is only its place in the
+  file and its page in ageofai_config.exe, a key moved keeps its name. The code reads `g_set.key` or `g_set_ai[d].key` ([ai_base], a value per difficulty from [ai_easy] / [ai_hard], else
   [ai_base] - medium plays [ai_base], it has no section; code that doesn't tell difficulties apart reads [1]), and the test ini's [autotest] overrides a
   row by that same name (`scripts/build/settings_check.py`, run by the build, holds rows and file together). Nothing
   reads ageofai.ini itself any more; a test-only knob is a field of autotest.cs. A new section is a class with

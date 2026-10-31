@@ -61,7 +61,7 @@ def diff_value(base, k):   # a difficulty's own value of an [ai_base] key, as th
     return v
 
 
-def row_of(sec, k):   # X(FLAG, general, enabled, 1, 0, 0) - X / S / D by the section
+def row_of(sec, k):   # X(FLAG, general, enabled, 1, 0, 0) - D for a row of [ai_base], else X
     kind = settings_read.kind_of(sec, k)
     a = k.attrs
     d, _ = default_of(sec, k)
@@ -80,13 +80,12 @@ def row_of(sec, k):   # X(FLAG, general, enabled, 1, 0, 0) - X / S / D by the se
     }[kind]
     if sec.kind == 'ALL':
         return 'D(%s %s %s, %s, %s)' % ((kind + ',').ljust(6), (k.name + ',').ljust(30), d, lo_hi[0], lo_hi[1])
-    macro = 'X' if sec.name in ('general', 'autotest') else 'S'
-    return '%s(%s %s %s %s, %s, %s)' % (macro, (kind + ',').ljust(7), (sec.name + ',').ljust(9), (k.name + ',').ljust(25),
-                                      d, lo_hi[0], lo_hi[1])
+    return 'X(%s %s %s %s, %s, %s)' % ((kind + ',').ljust(7), (sec.name + ',').ljust(9), (k.name + ',').ljust(25),
+                                     d, lo_hi[0], lo_hi[1])
 
 
-def field_name(sec, k):   # g_set's: general's (and [ai_base]'s, [autotest]'s) by the key, the others section_key
-    return k.name if sec.name in ('general', 'ai_base', 'autotest') else '%s_%s' % (sec.name, k.name)
+def field_name(sec, k):   # g_set's (and g_set_ai's): the key - one name across the file, whatever its section
+    return k.name
 
 
 def comment(lines):
@@ -100,7 +99,12 @@ def table(name, args, lines):
 def rows_h(secs):   # the file below its header
     fields, rows, groups, game, under, easy = [], [], [], [], [], []
     arg = settings_read.arg_text
+    seen = {}
     for sec in secs:
+        for k in sec.keys if sec.kind != 'DIFF' else []:
+            if k.name in seen:
+                raise SystemExit("%s: key %s is [%s]'s already (%s) - a key's name is its own across the file" % (k.where, k.name, seen[k.name][0], seen[k.name][1]))
+            seen[k.name] = (sec.name, k.where)
         for sname, (flds, doc) in sec.structs.items():
             parts = []
             for t, f in flds:
@@ -124,7 +128,7 @@ def rows_h(secs):   # the file below its header
     sections = ['T(%s %s %s %s)' % ((s.name + ',').ljust(10), ('%d,' % s.place).rjust(4), (s.kind + ',').ljust(6), c_str(s.title))
                 for s in secs]
     out = comment(TEXT['top']) + ['', "// FLAGS rows' fields:"] + fields + ['']
-    out += table('SETTINGS', 'X, S, D', rows)
+    out += table('SETTINGS', 'X, D', rows)
     out += table('SETTING_SECTIONS', 'T', sections)
     out += table('SETTING_GROUPS', 'G', groups)
     out += table('SETTINGS_EASY', 'E', easy)

@@ -17,7 +17,7 @@
 // THE KINDS OF OBJECTS (script/host.h): a player, the game, a slot, a unit (game_script/units.c)
 enum { XK_PLAYER = 1, XK_GAME, XK_SLOT, XK_UNIT };
 #include "game_script/lang.h"
-internal int g_llm_equal, g_llm_constrained;   // llm.c: [llm] equal, constrained
+internal int g_llm_equal, g_llm_constrained;   // llm.c: [llm] llm_equal, constrained
 internal void *x_player_named(const char *n) {
     for (int j = 1; n && *n && j < nplayers(); j++) if (player_at(j) && !strcmp(player_name(player_at(j)), n)) return player_at(j);
     return NULL;
