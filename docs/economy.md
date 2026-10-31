@@ -1089,3 +1089,9 @@ The plan (the player agreed, for later):
    expansion, "training at the nearest producers").
 1+2 are small; 3 is the real work - without it the AI may mine less gold and iron than it wants. Measure the economy
 head to head (MIRROR=1, many seeds) after 1+2, then build 3.
+
+2026-10-31: step 1 built into local_mines (off): far mines refused, the game's search's too. Long gather trips
+1334 -> 773, citizens' search tiles -26%, slow steps 60 -> 45 - but idle citizens up (P7 101 -> 140, P3 34 -> 65): the
+assignment fills each resource's shortfall only, so a refused citizen stands while the target is short. Step 2 can't
+be left to the game: it needs per-town targets (a town's shortfall from its own citizens), i.e. step 3. Remaining
+long trips: mines 499 (paths not covered yet - find them with order_log's mine ask/pick lines), food 144, wood 130.
