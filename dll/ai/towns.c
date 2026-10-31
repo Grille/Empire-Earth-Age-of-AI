@@ -72,9 +72,9 @@
 #define TN_MAX 128   // a table size, not a limit
 #define TN_SPREAD_WORKERS 15
 #define TN_SPREAD_BUILDING 50
-#define TN_PROJ 12
-enum { TK_DROP, TK_TOWER, TK_PROD, TK_N };
-internal const char *const k_tk[TK_N] = { "drop site", "tower", "production building" };
+#define TN_PROJ 16
+enum { TK_DROP, TK_TOWER, TK_PROD, TK_HOUSE, TK_N };
+internal const char *const k_tk[TK_N] = { "drop site", "tower", "production building", "house" };
 struct tn_proj { ee_unit *b; int id, kind, type, want, state, tries, waits; ivec2 p; };   // want: a production building's type   // state 0 to come, 1 going up, 2 standing, 3 dropped
 struct tn_town {
     ivec2 c, toward;                 // the mine group's middle; the side to face (the enemy it knows)
@@ -193,6 +193,7 @@ internal int tn_site(ee_player *pl, unsigned idx, ivec2 base, unsigned hc, struc
 #define TN_COMPACT 45
 #define TN_FRONT_STEP 20
 #define TN_FAR_WALL 60
+#define TN_HOUSES 5   // the Town Center's full defence bonus
 #define TN_CELLS (128 * 128)   // a 1024-tile map; a bigger one folds its far cells onto the edge
 internal struct tn_cell { int sc, n, sx, sy; uint16_t wood, mines; } g_tn_cells[TN_CELLS];
 internal int tn_site_spread(ee_player *pl, unsigned idx, ivec2 base, unsigned hc, struct tn_world *w, ivec2 *o, int *o_n) {
@@ -286,6 +287,7 @@ internal int tn_spot(ee_player *pl, unsigned idx, struct tn_town *t, int type, i
 internal int tn_kind_type(ee_player *pl, int kind, int want) {
     if (kind == TK_PROD) return ld_can_build(pl, want) ? want : 0;
     if (kind == TK_TOWER) return ld_kind_type(pl, LDB_TOWER);
+    if (kind == TK_HOUSE) return ut_has(UT(B_HOUSE)) && ld_can_build(pl, UT(B_HOUSE)) ? UT(B_HOUSE) : 0;
     if (!(TOWNS((unsigned)player_get_index(pl) & 15) & 2) && ld_can_build(pl, UT(B_TOWN_CENTER))) return UT(B_TOWN_CENTER);
     return ld_can_build(pl, UT(B_SETTLEMENT)) ? UT(B_SETTLEMENT) : 0;
 }
@@ -430,7 +432,12 @@ internal void tn_found(ee_player *pl, unsigned idx, struct tn_st *s, ivec2 c, in
         t->proj[t->nproj++].kind = TK_TOWER; t->proj[t->nproj++].kind = TK_TOWER;
     } else {
         t->proj[t->nproj++].kind = TK_DROP;
-        for (int k = 0; k < g_tn_towers && t->nproj < TN_PROJ; k++) t->proj[t->nproj++].kind = TK_TOWER;
+        // SPREAD (the player: "I usually build ~2 towers per resource patch; houses in a Town Center's area raise its
+        // defence, up to 5 for the full bonus"): 2 towers and 1 more for every 4 mines of its group, and 5 houses
+        int towers = (TOWNS(idx) & 16) ? 2 + nmines / 4 : g_tn_towers;
+        if (towers < g_tn_towers) towers = g_tn_towers;
+        for (int k = 0; k < towers && t->nproj < TN_PROJ - 5; k++) t->proj[t->nproj++].kind = TK_TOWER;
+        for (int k = 0; (TOWNS(idx) & 16) && k < TN_HOUSES && t->nproj < TN_PROJ; k++) t->proj[t->nproj++].kind = TK_HOUSE;
     }
     tn_take_cits(pl, idx, t, forward ? g_tn_cits + 2 : g_tn_cits, hc);
     s->founded++;
