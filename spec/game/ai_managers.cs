@@ -130,13 +130,16 @@ unsafe struct EECPCivilizationManager
 /// the civilization manager's list nodes
 unsafe struct ee_plan_node
 {
-    [offset(0x0), found(s)]
+    /// port_check: 50 reads of +0x0 in the paired civilization manager code, AoC the same
+    [offset(0x0), found(c)]
     ee_plan_node* next;
 
-    [offset(0xC), found(s)]
+    /// port_check: 40 reads in the paired civilization manager code, AoC the same
+    [offset(0xC), found(c)]
     int32 unknown_c;
 
-    [offset(0x10), found(s)]
+    /// port_check: 24 reads in the paired civilization manager code, AoC the same
+    [offset(0x10), found(c)]
     int32 unknown_10;
 }
 

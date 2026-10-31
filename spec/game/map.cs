@@ -1,23 +1,28 @@
 /// the map's unit grid, MAP +0x181724
 unsafe struct ee_grid
 {
-    [offset(0x4), found(s)]
+    /// port_check: 353 reads in the paired grid code, AoC the same
+    [offset(0x4), found(c)]
     ee_grid_cell* cells;
 
-    [offset(0x8), found(s)]
+    /// port_check: 286 reads in the paired grid code, AoC the same
+    [offset(0x8), found(c)]
     int32 cell_size;
 
-    [offset(0x10), found(s)]
+    /// port_check: 277 reads in the paired grid code, AoC the same
+    [offset(0x10), found(c)]
     int32 nx;
 
-    [offset(0x14), found(s)]
+    /// port_check: 187 reads in the paired grid code, AoC the same
+    [offset(0x14), found(c)]
     int32 ny;
 }
 
 /// a cell of the unit grid
 unsafe struct ee_grid_cell
 {
-    [offset(0x4), found(s)]
+    /// port_check: 353 reads in the paired grid code, AoC the same
+    [offset(0x4), found(c)]
     EEUnit** units_begin;
 }
 
@@ -67,7 +72,8 @@ unsafe struct EEMap
 /// tile's height through it); kept apart until the C side's uses move to ee_tile
 unsafe struct ee_unit_vis
 {
-    [offset(0x4), found(s)]
+    /// port_check: 152 reads in the paired zone code, AoC the same
+    [offset(0x4), found(c)]
     int32 flag;
 
     /// explored_game 0x404A8A, AoC's 0x4042E2

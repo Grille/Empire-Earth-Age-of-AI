@@ -91,17 +91,17 @@ internal inline int lobby_start(void *form, int p2) { return fn_lobby_start(form
 internal inline int setup_slot_get_type(const ee_setup_slot *o) { return *(int *)((uint8_t *)o + of_setup_slot_type); }
 internal inline void setup_slot_set_type(ee_setup_slot *o, int v) { *(int *)((uint8_t *)o + of_setup_slot_type) = v; }
 internal inline int *setup_slot_type_at(const ee_setup_slot *o) { return (int *)((uint8_t *)o + of_setup_slot_type); }
-// as the slot's others (engine-notes.md "Game start")
+// engine-notes.md "Game start"; port_check: 162 reads in the paired setup code, AoC the same
 internal inline int setup_slot_get_0x4(const ee_setup_slot *o) { return *(int *)((uint8_t *)o + of_setup_slot_0x4); }
 internal inline void setup_slot_set_0x4(ee_setup_slot *o, int v) { *(int *)((uint8_t *)o + of_setup_slot_0x4) = v; }
 internal inline int *setup_slot_0x4_at(const ee_setup_slot *o) { return (int *)((uint8_t *)o + of_setup_slot_0x4); }
-// the player's name, as the slot's others
+// the player's name; port_check: 159 reads in the paired setup code, AoC the same
 internal inline uint8_t *setup_slot_name_at(const ee_setup_slot *o) { return (uint8_t *)o + of_setup_slot_name; }
-// as the slot's others (engine-notes.md "Game start")
+// engine-notes.md "Game start"; port_check: 22 reads in the paired setup code, AoC the same
 internal inline int setup_slot_get_0x1c(const ee_setup_slot *o) { return *(int *)((uint8_t *)o + of_setup_slot_0x1c); }
 internal inline void setup_slot_set_0x1c(ee_setup_slot *o, int v) { *(int *)((uint8_t *)o + of_setup_slot_0x1c) = v; }
 internal inline int *setup_slot_0x1c_at(const ee_setup_slot *o) { return (int *)((uint8_t *)o + of_setup_slot_0x1c); }
-// as the slot's others (engine-notes.md "Game start")
+// engine-notes.md "Game start"; port_check: 19 reads in the paired setup code, AoC the same
 internal inline int setup_slot_get_index(const ee_setup_slot *o) { return *(int *)((uint8_t *)o + of_setup_slot_index); }
 internal inline void setup_slot_set_index(ee_setup_slot *o, int v) { *(int *)((uint8_t *)o + of_setup_slot_index) = v; }
 internal inline int *setup_slot_index_at(const ee_setup_slot *o) { return (int *)((uint8_t *)o + of_setup_slot_index); }
@@ -109,23 +109,24 @@ internal inline int *setup_slot_index_at(const ee_setup_slot *o) { return (int *
 internal inline int setup_slot_get_color(const ee_setup_slot *o) { return *(int *)((uint8_t *)o + of_setup_slot_color); }
 internal inline void setup_slot_set_color(ee_setup_slot *o, int v) { *(int *)((uint8_t *)o + of_setup_slot_color) = v; }
 internal inline int *setup_slot_color_at(const ee_setup_slot *o) { return (int *)((uint8_t *)o + of_setup_slot_color); }
-// as the slot's others (engine-notes.md "Game start")
+// engine-notes.md "Game start"; port_check: 15 reads in the paired setup code, AoC the same
 internal inline int setup_slot_get_team(const ee_setup_slot *o) { return *(int *)((uint8_t *)o + of_setup_slot_team); }
 internal inline void setup_slot_set_team(ee_setup_slot *o, int v) { *(int *)((uint8_t *)o + of_setup_slot_team) = v; }
 internal inline int *setup_slot_team_at(const ee_setup_slot *o) { return (int *)((uint8_t *)o + of_setup_slot_team); }
-// as the slot's others (engine-notes.md "Game start")
+// engine-notes.md "Game start"; port_check: 10 reads in the paired setup code, AoC the same
 internal inline int setup_slot_get_citizens(const ee_setup_slot *o) { return *(int *)((uint8_t *)o + of_setup_slot_citizens); }
 internal inline void setup_slot_set_citizens(ee_setup_slot *o, int v) { *(int *)((uint8_t *)o + of_setup_slot_citizens) = v; }
 internal inline int *setup_slot_citizens_at(const ee_setup_slot *o) { return (int *)((uint8_t *)o + of_setup_slot_citizens); }
-// as the slot's others (engine-notes.md "Game start")
+// engine-notes.md "Game start"; port_check: 14 reads in the paired setup code, AoC the same
 internal inline int setup_slot_get_0x30(const ee_setup_slot *o) { return *(int *)((uint8_t *)o + of_setup_slot_0x30); }
 internal inline void setup_slot_set_0x30(ee_setup_slot *o, int v) { *(int *)((uint8_t *)o + of_setup_slot_0x30) = v; }
 internal inline int *setup_slot_0x30_at(const ee_setup_slot *o) { return (int *)((uint8_t *)o + of_setup_slot_0x30); }
-// as the slot's others (engine-notes.md "Game start")
+// engine-notes.md "Game start"; port_check: 32 reads in the paired setup code, AoC the same
 internal inline uint32_t setup_slot_get_flags(const ee_setup_slot *o) { return *(uint32_t *)((uint8_t *)o + of_setup_slot_flags); }
 internal inline void setup_slot_set_flags(ee_setup_slot *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_setup_slot_flags) = v; }
 internal inline uint32_t *setup_slot_flags_at(const ee_setup_slot *o) { return (uint32_t *)((uint8_t *)o + of_setup_slot_flags); }
 // a slot's size, the next slot
+// port_check: 40 reads in the paired setup code, AoC the same
 internal inline uint8_t *setup_slot_size_at(const ee_setup_slot *o) { return (uint8_t *)o + of_setup_slot_size; }
 
 // the running build's values (spec_select, with addr_select): how many it hasn't got

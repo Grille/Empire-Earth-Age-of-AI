@@ -4,6 +4,7 @@
 // class EEGraphicObject (ee_dmg_model)
 // a unit's graphics (EEGraphicObject, its stats' gfx and its vf21's; RTTI in a running game, every unit's)
 // its damage points by state (a map; the end node +0x150)
+// damage_points 0x4D291F / AoC 0x4D84EC: the map's end node +0x150 compared in both
 internal inline uint8_t *dmg_model_map_at(const ee_dmg_model *o) { return (uint8_t *)o + of_dmg_model_map; }
 // the damage points of a state - the impact effects place theirs by it (EEE2DImpact::vf21 0x4DA7B2,
 // EEE2DLightGlow::vf12 0x4DB2DF; game.call_damage_points hooked by the mod's guard)

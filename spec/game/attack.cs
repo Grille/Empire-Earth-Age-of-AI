@@ -47,7 +47,8 @@ unsafe struct EECPCombatManager
 [c_type("void")]
 unsafe struct ee_combat_mgr_4c
 {
-    [offset(0x48), found(s)]
+    /// port_check: 68 reads in the paired AI code, AoC the same
+    [offset(0x48), found(c)]
     block _0x48;
 }
 
@@ -55,7 +56,8 @@ unsafe struct ee_combat_mgr_4c
 unsafe struct ee_attack_cmd
 {
     /// the groups' deque (its count +0x10)
-    [offset(0x4), found(s)]
+    /// port_check: 600 reads in the paired AI code, AoC the same
+    [offset(0x4), found(c)]
     deque groups;
 
     /// thiscall(attack manager, task, strategy, unit ids) -> the attack group
@@ -237,17 +239,20 @@ unsafe struct EECPAttackSubGroupUnit
 /// what asg_unit_score scores
 unsafe struct ee_asgu_info
 {
-    [offset(0x4), found(s)]
+    /// port_check: 386 reads in the paired attack group code, AoC the same
+    [offset(0x4), found(c)]
     EEUnit* enemy;
 }
 
 /// a route planner's node
 unsafe struct ee_route_node
 {
-    [offset(0x3C), found(s)]
+    /// port_check: 114 reads in the paired route planner code, AoC the same
+    [offset(0x3C), found(c)]
     int32 x;
 
-    [offset(0x40), found(s)]
+    /// port_check: 70 reads in the paired route planner code, AoC the same
+    [offset(0x40), found(c)]
     int32 y;
 }
 

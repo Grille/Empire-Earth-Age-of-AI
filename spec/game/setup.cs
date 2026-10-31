@@ -104,43 +104,44 @@ unsafe struct ee_setup_slot
     [offset(0x0), found(c)]
     int32 type;
 
-    /// as the slot's others (engine-notes.md "Game start")
-    [offset(0x4), found(s)]
+    /// engine-notes.md "Game start"; port_check: 162 reads in the paired setup code, AoC the same
+    [offset(0x4), found(c)]
     int32 _0x4;
 
-    /// the player's name, as the slot's others
-    [offset(0x8), found(s)]
+    /// the player's name; port_check: 159 reads in the paired setup code, AoC the same
+    [offset(0x8), found(c)]
     ustring name;
 
-    /// as the slot's others (engine-notes.md "Game start")
-    [offset(0x1C), found(s)]
+    /// engine-notes.md "Game start"; port_check: 22 reads in the paired setup code, AoC the same
+    [offset(0x1C), found(c)]
     int32 _0x1c;
 
-    /// as the slot's others (engine-notes.md "Game start")
-    [offset(0x20), found(s)]
+    /// engine-notes.md "Game start"; port_check: 19 reads in the paired setup code, AoC the same
+    [offset(0x20), found(c)]
     int32 index;
 
     /// the setup code
     [offset(0x24), found(c)]
     int32 color;
 
-    /// as the slot's others (engine-notes.md "Game start")
-    [offset(0x28), found(s)]
+    /// engine-notes.md "Game start"; port_check: 15 reads in the paired setup code, AoC the same
+    [offset(0x28), found(c)]
     int32 team;
 
-    /// as the slot's others (engine-notes.md "Game start")
-    [offset(0x2C), found(s)]
+    /// engine-notes.md "Game start"; port_check: 10 reads in the paired setup code, AoC the same
+    [offset(0x2C), found(c)]
     int32 citizens;
 
-    /// as the slot's others (engine-notes.md "Game start")
-    [offset(0x30), found(s)]
+    /// engine-notes.md "Game start"; port_check: 14 reads in the paired setup code, AoC the same
+    [offset(0x30), found(c)]
     int32 _0x30;
 
-    /// as the slot's others (engine-notes.md "Game start")
-    [offset(0x34), found(s)]
+    /// engine-notes.md "Game start"; port_check: 32 reads in the paired setup code, AoC the same
+    [offset(0x34), found(c)]
     uint32 flags;
 
     /// a slot's size, the next slot
-    [offset(0x38), found(s)]
+    /// port_check: 40 reads in the paired setup code, AoC the same
+    [offset(0x38), found(c)]
     block size;
 }

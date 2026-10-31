@@ -626,6 +626,7 @@ internal inline uint8_t *trigger_name_at(const ee_trigger *o) { return (uint8_t 
 // its file's code (the scenario manager)
 internal inline uint8_t *trigger_desc_at(const ee_trigger *o) { return (uint8_t *)o + of_trigger_desc; }
 // a trigger's condition references, as its +0x40
+// port_check: 55 reads in the paired scenario manager code, AoC the same
 internal inline uint8_t *trigger_conds_at(const ee_trigger *o) { return (uint8_t *)o + of_trigger_conds; }
 // its file's code (the scenario manager)
 internal inline uint8_t *trigger_effects_at(const ee_trigger *o) { return (uint8_t *)o + of_trigger_effects; }

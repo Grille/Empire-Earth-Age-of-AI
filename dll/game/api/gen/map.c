@@ -3,21 +3,26 @@
 
 // class ee_grid (ee_grid)
 // the map's unit grid, MAP +0x181724
+// port_check: 353 reads in the paired grid code, AoC the same
 internal inline ee_grid_cell *grid_get_cells(const ee_grid *o) { return *(ee_grid_cell **)((uint8_t *)o + of_grid_cells); }
 internal inline void grid_set_cells(ee_grid *o, ee_grid_cell *v) { *(ee_grid_cell **)((uint8_t *)o + of_grid_cells) = v; }
 internal inline ee_grid_cell **grid_cells_at(const ee_grid *o) { return (ee_grid_cell **)((uint8_t *)o + of_grid_cells); }
+// port_check: 286 reads in the paired grid code, AoC the same
 internal inline int grid_get_cell_size(const ee_grid *o) { return *(int *)((uint8_t *)o + of_grid_cell_size); }
 internal inline void grid_set_cell_size(ee_grid *o, int v) { *(int *)((uint8_t *)o + of_grid_cell_size) = v; }
 internal inline int *grid_cell_size_at(const ee_grid *o) { return (int *)((uint8_t *)o + of_grid_cell_size); }
+// port_check: 277 reads in the paired grid code, AoC the same
 internal inline int grid_get_nx(const ee_grid *o) { return *(int *)((uint8_t *)o + of_grid_nx); }
 internal inline void grid_set_nx(ee_grid *o, int v) { *(int *)((uint8_t *)o + of_grid_nx) = v; }
 internal inline int *grid_nx_at(const ee_grid *o) { return (int *)((uint8_t *)o + of_grid_nx); }
+// port_check: 187 reads in the paired grid code, AoC the same
 internal inline int grid_get_ny(const ee_grid *o) { return *(int *)((uint8_t *)o + of_grid_ny); }
 internal inline void grid_set_ny(ee_grid *o, int v) { *(int *)((uint8_t *)o + of_grid_ny) = v; }
 internal inline int *grid_ny_at(const ee_grid *o) { return (int *)((uint8_t *)o + of_grid_ny); }
 
 // class ee_grid_cell (ee_grid_cell)
 // a cell of the unit grid
+// port_check: 353 reads in the paired grid code, AoC the same
 internal inline ee_unit **grid_cell_get_units_begin(const ee_grid_cell *o) { return *(ee_unit ***)((uint8_t *)o + of_grid_cell_units_begin); }
 internal inline void grid_cell_set_units_begin(ee_grid_cell *o, ee_unit **v) { *(ee_unit ***)((uint8_t *)o + of_grid_cell_units_begin) = v; }
 internal inline ee_unit ***grid_cell_units_begin_at(const ee_grid_cell *o) { return (ee_unit ***)((uint8_t *)o + of_grid_cell_units_begin); }
@@ -65,6 +70,7 @@ internal inline void map_place(ee_map *map, ee_unit *u) { ((map_place_fn)(*(void
 // a unit's visibility record, its +0x14 (a site's: its ownership flag too)
 // - it is the tile the unit stands on (ee_tile: 0x54E275 compares a tile of 0x4039AC with it, 0x502622 reads the
 // tile's height through it); kept apart until the C side's uses move to ee_tile
+// port_check: 152 reads in the paired zone code, AoC the same
 internal inline int unit_vis_get_flag(const ee_unit_vis *o) { return *(int *)((uint8_t *)o + of_unit_vis_flag); }
 internal inline void unit_vis_set_flag(ee_unit_vis *o, int v) { *(int *)((uint8_t *)o + of_unit_vis_flag) = v; }
 internal inline int *unit_vis_flag_at(const ee_unit_vis *o) { return (int *)((uint8_t *)o + of_unit_vis_flag); }

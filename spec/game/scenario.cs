@@ -690,7 +690,8 @@ unsafe struct EESMTrigger
     wstring desc;
 
     /// a trigger's condition references, as its +0x40
-    [offset(0x30), found(s)]
+    /// port_check: 55 reads in the paired scenario manager code, AoC the same
+    [offset(0x30), found(c)]
     vector conds;
 
     /// its file's code (the scenario manager)

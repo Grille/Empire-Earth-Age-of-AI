@@ -163,7 +163,8 @@ unsafe struct EETechTree
     int32 player_index;
 
     /// the epoch records, 0x54 apart (AoC: one more, its 0x4E4 one record on)
-    [offset(0x8), found(s)]
+    /// port_check: 247 reads in the paired tech tree code, AoC the same
+    [offset(0x8), found(c)]
     block epoch_recs;
 
     /// int32 tech ids: 0x5BB8C5 sets each one available and calls its vf 0x18; tree setup 0x5BC173 runs it when its

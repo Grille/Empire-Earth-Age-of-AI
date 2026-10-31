@@ -3,7 +3,8 @@
 unsafe struct EEGraphicObject
 {
     /// its damage points by state (a map; the end node +0x150)
-    [offset(0x14C), found(s)]
+    /// damage_points 0x4D291F / AoC 0x4D84EC: the map's end node +0x150 compared in both
+    [offset(0x14C), found(c)]
     block map;
 
     /// the damage points of a state - the impact effects place theirs by it (EEE2DImpact::vf21 0x4DA7B2,

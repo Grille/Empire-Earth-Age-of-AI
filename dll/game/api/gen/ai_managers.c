@@ -122,12 +122,15 @@ internal inline int patch_fish_type(civ_mgr_fish_type_fn h, int *of) { return pa
 
 // class ee_plan_node (ee_plan_node)
 // the civilization manager's list nodes
+// port_check: 50 reads of +0x0 in the paired civilization manager code, AoC the same
 internal inline ee_plan_node *plan_node_get_next(const ee_plan_node *o) { return *(ee_plan_node **)((uint8_t *)o + of_plan_node_next); }
 internal inline void plan_node_set_next(ee_plan_node *o, ee_plan_node *v) { *(ee_plan_node **)((uint8_t *)o + of_plan_node_next) = v; }
 internal inline ee_plan_node **plan_node_next_at(const ee_plan_node *o) { return (ee_plan_node **)((uint8_t *)o + of_plan_node_next); }
+// port_check: 40 reads in the paired civilization manager code, AoC the same
 internal inline int plan_node_get_unknown_c(const ee_plan_node *o) { return *(int *)((uint8_t *)o + of_plan_node_unknown_c); }
 internal inline void plan_node_set_unknown_c(ee_plan_node *o, int v) { *(int *)((uint8_t *)o + of_plan_node_unknown_c) = v; }
 internal inline int *plan_node_unknown_c_at(const ee_plan_node *o) { return (int *)((uint8_t *)o + of_plan_node_unknown_c); }
+// port_check: 24 reads in the paired civilization manager code, AoC the same
 internal inline int plan_node_get_unknown_10(const ee_plan_node *o) { return *(int *)((uint8_t *)o + of_plan_node_unknown_10); }
 internal inline void plan_node_set_unknown_10(ee_plan_node *o, int v) { *(int *)((uint8_t *)o + of_plan_node_unknown_10) = v; }
 internal inline int *plan_node_unknown_10_at(const ee_plan_node *o) { return (int *)((uint8_t *)o + of_plan_node_unknown_10); }

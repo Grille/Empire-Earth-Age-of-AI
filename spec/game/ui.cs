@@ -56,7 +56,8 @@ unsafe struct EECameraControl
     [offset(0x6C), found(c), guess]
     vec3 eye;
 
-    [offset(0x78), found(s)]
+    /// port_check: 19 reads in the paired camera code, AoC the same
+    [offset(0x78), found(c)]
     float32 x;
 
     /// the look-at point's y (x +0x78)
@@ -68,7 +69,8 @@ unsafe struct EECameraControl
     [offset(0xD8), found(c), guess]
     float32 blend;
 
-    [offset(0xE0), found(s)]
+    /// port_check: 10 reads in the paired camera code, AoC the same
+    [offset(0xE0), found(c)]
     float32 zoom;
 
     /// thiscall on game.camera (float dx, float dy)
@@ -110,20 +112,20 @@ unsafe struct RTSMouse
     [offset(0x8), found(c)]
     float32 y;
 
-    /// as the 2017 update (were rows of RM, which this is not: not checked in AoC)
-    [offset(0x14), found(s)]
+    /// clamp 0x510DAD / AoC 0x51B31C: y kept below +0x14 in both
+    [offset(0x14), found(c)]
     float32 y_max;
 
-    /// as the 2017 update (were rows of RM, which this is not: not checked in AoC)
-    [offset(0x18), found(s)]
+    /// clamp 0x510DAD / AoC 0x51B31C: x kept from +0x18 in both
+    [offset(0x18), found(c)]
     float32 x_min;
 
-    /// as the 2017 update (were rows of RM, which this is not: not checked in AoC)
-    [offset(0x1C), found(s)]
+    /// clamp 0x510DAD / AoC 0x51B31C: x kept below +0x1C in both
+    [offset(0x1C), found(c)]
     float32 x_max;
 
-    /// as the 2017 update (were rows of RM, which this is not: not checked in AoC)
-    [offset(0x20), found(s)]
+    /// clamp 0x510DAD / AoC 0x51B31C: y kept from +0x20 in both
+    [offset(0x20), found(c)]
     float32 y_min;
 
     /// the cursor's speed factor
@@ -171,7 +173,8 @@ unsafe struct ee_native_chat
     [offset(0x14), found(c), guess]
     vector last_variant;
 
-    [offset(0x20), found(s)]
+    /// say 0x484EB3 / AoC 0x48966C: [+0x20] + 0x438 and + 0x24, the same in both
+    [offset(0x20), found(c)]
     EEPlayer* player;
 
     [address((ee)0x00484EB3, (aoc)0x0048966C)]

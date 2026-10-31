@@ -44,11 +44,13 @@ internal inline char combat_mgr_unit_free(ee_combat_mgr *combat_mgr, void *unit_
 
 // class ee_combat_mgr_4c (void)
 // the object at the combat manager's +0x4C
+// port_check: 68 reads in the paired AI code, AoC the same
 internal inline uint8_t *combat_mgr_4c_0x48_at(const void *o) { return (uint8_t *)o + of_combat_mgr_4c_0x48; }
 
 // class ee_attack_cmd (ee_attack_cmd)
 // the combat manager's commands, AM +0x48
 // the groups' deque (its count +0x10)
+// port_check: 600 reads in the paired AI code, AoC the same
 internal inline uint8_t *attack_cmd_groups_at(const ee_attack_cmd *o) { return (uint8_t *)o + of_attack_cmd_groups; }
 // thiscall(attack manager, task, strategy, unit ids) -> the attack group
 typedef ee_attack_group *(__thiscall *attack_cmd_new_group_fn)(ee_attack_cmd *, void *, void *, void *);
@@ -222,15 +224,18 @@ internal inline float asg_unit_score(ee_asg_unit *asg_unit, ee_asgu_info *info) 
 
 // class ee_asgu_info (ee_asgu_info)
 // what asg_unit_score scores
+// port_check: 386 reads in the paired attack group code, AoC the same
 internal inline ee_unit *asgu_info_get_enemy(const ee_asgu_info *o) { return *(ee_unit **)((uint8_t *)o + of_asgu_info_enemy); }
 internal inline void asgu_info_set_enemy(ee_asgu_info *o, ee_unit *v) { *(ee_unit **)((uint8_t *)o + of_asgu_info_enemy) = v; }
 internal inline ee_unit **asgu_info_enemy_at(const ee_asgu_info *o) { return (ee_unit **)((uint8_t *)o + of_asgu_info_enemy); }
 
 // class ee_route_node (ee_route_node)
 // a route planner's node
+// port_check: 114 reads in the paired route planner code, AoC the same
 internal inline int route_node_get_x(const ee_route_node *o) { return *(int *)((uint8_t *)o + of_route_node_x); }
 internal inline void route_node_set_x(ee_route_node *o, int v) { *(int *)((uint8_t *)o + of_route_node_x) = v; }
 internal inline int *route_node_x_at(const ee_route_node *o) { return (int *)((uint8_t *)o + of_route_node_x); }
+// port_check: 70 reads in the paired route planner code, AoC the same
 internal inline int route_node_get_y(const ee_route_node *o) { return *(int *)((uint8_t *)o + of_route_node_y); }
 internal inline void route_node_set_y(ee_route_node *o, int v) { *(int *)((uint8_t *)o + of_route_node_y) = v; }
 internal inline int *route_node_y_at(const ee_route_node *o) { return (int *)((uint8_t *)o + of_route_node_y); }

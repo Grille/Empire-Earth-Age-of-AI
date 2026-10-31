@@ -159,6 +159,7 @@ internal inline int tech_tree_get_player_index(const ee_tech_tree *o) { return *
 internal inline void tech_tree_set_player_index(ee_tech_tree *o, int v) { *(int *)((uint8_t *)o + of_tech_tree_player_index) = v; }
 internal inline int *tech_tree_player_index_at(const ee_tech_tree *o) { return (int *)((uint8_t *)o + of_tech_tree_player_index); }
 // the epoch records, 0x54 apart (AoC: one more, its 0x4E4 one record on)
+// port_check: 247 reads in the paired tech tree code, AoC the same
 internal inline uint8_t *tech_tree_epoch_recs_at(const ee_tech_tree *o) { return (uint8_t *)o + of_tech_tree_epoch_recs; }
 // A GUESS (the spec's [guess]): its name and type, from what the code does with it -
 // int32 tech ids: 0x5BB8C5 sets each one available and calls its vf 0x18; tree setup 0x5BC173 runs it when its

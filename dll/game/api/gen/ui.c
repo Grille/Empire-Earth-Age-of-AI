@@ -54,6 +54,7 @@ internal inline float *camera_last_y_at(const ee_camera *o) { return (float *)((
 internal inline vec3 camera_get_eye(const ee_camera *o) { return *(vec3 *)((uint8_t *)o + of_camera_eye); }
 internal inline void camera_set_eye(ee_camera *o, vec3 v) { *(vec3 *)((uint8_t *)o + of_camera_eye) = v; }
 internal inline vec3 *camera_eye_at(const ee_camera *o) { return (vec3 *)((uint8_t *)o + of_camera_eye); }
+// port_check: 19 reads in the paired camera code, AoC the same
 internal inline float camera_get_x(const ee_camera *o) { return *(float *)((uint8_t *)o + of_camera_x); }
 internal inline void camera_set_x(ee_camera *o, float v) { *(float *)((uint8_t *)o + of_camera_x) = v; }
 internal inline float *camera_x_at(const ee_camera *o) { return (float *)((uint8_t *)o + of_camera_x); }
@@ -67,6 +68,7 @@ internal inline float *camera_y_at(const ee_camera *o) { return (float *)((uint8
 internal inline float camera_get_blend(const ee_camera *o) { return *(float *)((uint8_t *)o + of_camera_blend); }
 internal inline void camera_set_blend(ee_camera *o, float v) { *(float *)((uint8_t *)o + of_camera_blend) = v; }
 internal inline float *camera_blend_at(const ee_camera *o) { return (float *)((uint8_t *)o + of_camera_blend); }
+// port_check: 10 reads in the paired camera code, AoC the same
 internal inline float camera_get_zoom(const ee_camera *o) { return *(float *)((uint8_t *)o + of_camera_zoom); }
 internal inline void camera_set_zoom(ee_camera *o, float v) { *(float *)((uint8_t *)o + of_camera_zoom) = v; }
 internal inline float *camera_zoom_at(const ee_camera *o) { return (float *)((uint8_t *)o + of_camera_zoom); }
@@ -106,19 +108,19 @@ internal inline float *mouse_x_at(const ee_mouse *o) { return (float *)((uint8_t
 internal inline float mouse_get_y(const ee_mouse *o) { return *(float *)((uint8_t *)o + of_mouse_y); }
 internal inline void mouse_set_y(ee_mouse *o, float v) { *(float *)((uint8_t *)o + of_mouse_y) = v; }
 internal inline float *mouse_y_at(const ee_mouse *o) { return (float *)((uint8_t *)o + of_mouse_y); }
-// as the 2017 update (were rows of RM, which this is not: not checked in AoC)
+// clamp 0x510DAD / AoC 0x51B31C: y kept below +0x14 in both
 internal inline float mouse_get_y_max(const ee_mouse *o) { return *(float *)((uint8_t *)o + of_mouse_y_max); }
 internal inline void mouse_set_y_max(ee_mouse *o, float v) { *(float *)((uint8_t *)o + of_mouse_y_max) = v; }
 internal inline float *mouse_y_max_at(const ee_mouse *o) { return (float *)((uint8_t *)o + of_mouse_y_max); }
-// as the 2017 update (were rows of RM, which this is not: not checked in AoC)
+// clamp 0x510DAD / AoC 0x51B31C: x kept from +0x18 in both
 internal inline float mouse_get_x_min(const ee_mouse *o) { return *(float *)((uint8_t *)o + of_mouse_x_min); }
 internal inline void mouse_set_x_min(ee_mouse *o, float v) { *(float *)((uint8_t *)o + of_mouse_x_min) = v; }
 internal inline float *mouse_x_min_at(const ee_mouse *o) { return (float *)((uint8_t *)o + of_mouse_x_min); }
-// as the 2017 update (were rows of RM, which this is not: not checked in AoC)
+// clamp 0x510DAD / AoC 0x51B31C: x kept below +0x1C in both
 internal inline float mouse_get_x_max(const ee_mouse *o) { return *(float *)((uint8_t *)o + of_mouse_x_max); }
 internal inline void mouse_set_x_max(ee_mouse *o, float v) { *(float *)((uint8_t *)o + of_mouse_x_max) = v; }
 internal inline float *mouse_x_max_at(const ee_mouse *o) { return (float *)((uint8_t *)o + of_mouse_x_max); }
-// as the 2017 update (were rows of RM, which this is not: not checked in AoC)
+// clamp 0x510DAD / AoC 0x51B31C: y kept from +0x20 in both
 internal inline float mouse_get_y_min(const ee_mouse *o) { return *(float *)((uint8_t *)o + of_mouse_y_min); }
 internal inline void mouse_set_y_min(ee_mouse *o, float v) { *(float *)((uint8_t *)o + of_mouse_y_min) = v; }
 internal inline float *mouse_y_min_at(const ee_mouse *o) { return (float *)((uint8_t *)o + of_mouse_y_min); }
@@ -162,6 +164,7 @@ internal inline void **native_chat_said_until_head_at(const ee_native_chat *o) {
 // uint32 per line group 0..5 (the constructor sizes it to 8 of -1, 0x4D0945): the variant (0..9) said last, so say
 // picks another
 internal inline uint8_t *native_chat_last_variant_at(const ee_native_chat *o) { return (uint8_t *)o + of_native_chat_last_variant; }
+// say 0x484EB3 / AoC 0x48966C: [+0x20] + 0x438 and + 0x24, the same in both
 internal inline ee_player *native_chat_get_player(const ee_native_chat *o) { return *(ee_player **)((uint8_t *)o + of_native_chat_player); }
 internal inline void native_chat_set_player(ee_native_chat *o, ee_player *v) { *(ee_player **)((uint8_t *)o + of_native_chat_player) = v; }
 internal inline ee_player **native_chat_player_at(const ee_native_chat *o) { return (ee_player **)((uint8_t *)o + of_native_chat_player); }
