@@ -185,6 +185,14 @@ internal int tn_site(ee_player *pl, unsigned idx, ivec2 base, unsigned hc, struc
 #define TN_CELL 8
 #define TN_CELL_WOOD 12
 #define TN_CELL_MIN 3
+// The player 2026-10-31: "I avoid many small spots that need defending and push a clear frontline I can defend";
+// scale it with the economy; towns far off get towers and walls. A spot within TN_COMPACT of a town first (else the
+// nearest anywhere); never more than TN_FRONT_STEP nearer to the enemy than its town nearest to it (the line moves
+// up as a whole, the back fills first); a town only with a surplus (tn_surplus); 60+ tiles from the base a wall in
+// front of its towers (tn_wall).
+#define TN_COMPACT 45
+#define TN_FRONT_STEP 20
+#define TN_FAR_WALL 60
 #define TN_CELLS (128 * 128)   // a 1024-tile map; a bigger one folds its far cells onto the edge
 internal struct tn_cell { int sc, n, sx, sy; uint16_t wood, mines; } g_tn_cells[TN_CELLS];
 internal int tn_site_spread(ee_player *pl, unsigned idx, ivec2 base, unsigned hc, struct tn_world *w, ivec2 *o, int *o_n) {
@@ -210,7 +218,18 @@ internal int tn_site_spread(ee_player *pl, unsigned idx, ivec2 base, unsigned hc
         c->wood += r == 3; c->mines += r >= 4;
         c->n++; c->sx += sp.x; c->sy += sp.y;
     }
-    int best = 0x7FFFFFFF, found = 0;
+    // the front: its town nearest to an enemy building it knows - a new town at most TN_FRONT_STEP nearer than that
+    int front = -1;
+    if (w->nf)
+        for (int k = -1; k < w->no; k++) {
+            ivec2 q = k < 0 ? base : w->own[k];
+            int d = 0x7FFFFFFF;
+            for (int f = 0; f < w->nf; f++) if (ivec2_dist2(q, w->foe[f]) < d) d = ivec2_dist2(q, w->foe[f]);
+            d = (int)sqrtf((float)d);
+            if (front < 0 || d < front) front = d;
+        }
+    int best = 0x7FFFFFFF, bestc = 0x7FFFFFFF, found = 0, foundc = 0, nc = 0;
+    ivec2 pc = base;
     for (int i = 0; i < side * side; i++) {
         struct tn_cell *c = &g_tn_cells[i];
         if (!c->n) continue;
@@ -237,9 +256,12 @@ internal int tn_site_spread(ee_player *pl, unsigned idx, ivec2 base, unsigned hc
         int df = 0x7FFFFFFF;   // the nearest enemy building it knows: the back country first
         for (int k = 0; k < w->nf; k++) if (ivec2_dist2(p, w->foe[k]) < df) df = ivec2_dist2(p, w->foe[k]);
         df = df == 0x7FFFFFFF ? 0 : (int)sqrtf((float)df);
+        if (front >= 0 && df < front - TN_FRONT_STEP) { g_tn_why[4]++; continue; }   // ahead of its line
         int key = (int)sqrtf((float)dn) * 4 - (sc < 24 ? sc : 24) - (df < 160 ? df : 160);   // the nearest; richer, or farther from the enemy, within a few tiles
+        if (dn <= TN_COMPACT * TN_COMPACT && key < bestc) { bestc = key; pc = p; nc = mines; foundc = 1; }
         if (key < best) { best = key; *o = p; *o_n = mines; found = 1; }
     }
+    if (foundc) { *o = pc; *o_n = nc; }   // within reach of a town first; else the nearest anywhere (an oasis)
     return found;
 }
 // a spot for type near c on the home continent, clear of the town's other buildings, the fewest defences on it
@@ -345,8 +367,12 @@ internal int tn_free_slots(ee_player *pl, unsigned hc, struct tn_world *w) {
 }
 // a forward base's wall: once its two front towers stand, 11 tiles straight across the enemy's side, 3 tiles in front
 // of them (defence.c's front wall)
+internal int tn_far(ee_player *pl, unsigned idx, struct tn_town *t) {   // SPREAD: a resource town 60+ tiles from the base
+    ee_civ_mgr *cm = player_get_civ_mgr(pl); ee_build_mgr *bm = cm ? civ_mgr_get_build_mgr(cm) : NULL;
+    return (TOWNS(idx) & 16) && bm && build_mgr_get_base_x(bm) != -10000 && ivec2_dist2(t->c, build_mgr_get_base(bm)) >= TN_FAR_WALL * TN_FAR_WALL;
+}
 internal void tn_wall(ee_player *pl, unsigned idx, struct tn_town *t, uint32_t now) {
-    if (!t->forward || t->wall_tries >= 3 || (t->wall_t && now - t->wall_t < 180000)) return;
+    if (!(t->forward || tn_far(pl, idx, t)) || t->wall_tries >= 3 || (t->wall_t && now - t->wall_t < 180000)) return;
     int front = 0;
     ivec2 a0 = t->c, a1 = t->c;
     for (int j = 0, n = 0; j < t->nproj; j++)
@@ -645,7 +671,7 @@ internal int towns_production(ee_player *pl, unsigned idx, int type) {
 // those there were 1.3 x the enemy - 1v1 huge Continental, 24 games: 3275 orders, B - A losses +175 (se 36), kills -167
 // (51): they walked in a few at a time and died one by one (muster's lesson at home). A town's defence needs the army
 // to gather first.
-// SPREAD's scout: no site left and land of the home continent it has never seen - a free soldier walks to the unseen
+// SPREAD's scout (towns bit 32, with 16): no site left and land of the home continent it has never seen - a free soldier walks to the unseen
 // cell nearest to its towns (a player sends a scout; the AI knew only what passed by: 15-30% of its continent's
 // resources unseen at minute 120). One at a time, a new one after 90 s.
 internal void tn_scout(ee_player *pl, unsigned idx, struct tn_st *s, ivec2 base, unsigned hc, struct tn_world *w, uint32_t now) {
@@ -673,6 +699,15 @@ internal void tn_scout(ee_player *pl, unsigned idx, struct tn_st *s, ivec2 base,
     if (!sc || !unit_goal(sc, goal_move((float)to.x + 0.5f, (float)to.y + 0.5f), 0, 0x1F40)) return;
     s->scout = sc; s->scout_id = unit_get_id(sc); s->scout_t = now ? now : 1; s->scouts++;
     tn_say(idx, now, "scout to %d,%d (unseen land, %d tiles from its nearest town)", to.x, to.y, (int)sqrtf((float)best));
+}
+internal int idle_citizens(ee_player *pl);   // econ.c: unassigned ones plus those beyond their resource's target
+// SPREAD's pace: citizens to spare (a town's towns_citizens idle or beyond their resource's target) and twice a Town
+// Center's price in stock
+internal int tn_surplus(ee_player *pl) {
+    if (idle_citizens(pl) < g_tn_cits) return 0;
+    int *stock = player_stock_at(pl), tc = UT(B_TOWN_CENTER);
+    for (int r = 2; r < 7 && stock; r++) if (stock[r] < 2 * unit_cost(pl, tc, r)) return 0;
+    return stock != NULL;
 }
 internal void tn_plan(ee_player *pl, unsigned idx, struct tn_st *s, unsigned hc, ivec2 base, uint32_t now) {
     float mine = 0, theirs = 0;
@@ -719,6 +754,7 @@ internal void tn_plan(ee_player *pl, unsigned idx, struct tn_st *s, unsigned hc,
             if (going >= ((TOWNS(idx) & 16) && workforce(pl) >= 2 * TN_SPREAD_BUILDING ? workforce(pl) / TN_SPREAD_BUILDING : 1)) why = "a town going up";
             else if (!(TOWNS(idx) & 16) && n >= g_tn_max) why = "holds towns_max towns";
             else if ((TOWNS(idx) & 16) && workforce(pl) < TN_SPREAD_WORKERS * (n + 2)) why = "too few workers for another town";   // its base and the new one count
+            else if ((TOWNS(idx) & 16) && !tn_surplus(pl)) why = "no surplus for a town";
             else if (mine < theirs) why = "its army outmatched";
         }
         if (!done && (TOWNS(idx) & 1) && !why) {
@@ -726,7 +762,7 @@ internal void tn_plan(ee_player *pl, unsigned idx, struct tn_st *s, unsigned hc,
             if (fs >= 4 && !(TOWNS(idx) & 16)) { if (!why) why = "free places at its mines"; }   // SPREAD: not waiting for them
             else if (!((TOWNS(idx) & 16) ? tn_site_spread : tn_site)(pl, idx, base, hc, &w, &c, &nm)) {
                 why = "no free mines";
-                if (TOWNS(idx) & 16) tn_scout(pl, idx, s, base, hc, &w, now);
+                if ((TOWNS(idx) & 48) == 48) tn_scout(pl, idx, s, base, hc, &w, now);
                 if (g_autotest) tn_say(idx, now, "mines: %d on the home continent, %d unexplored, %d too near or far, %d by a drop site, %d by an enemy building, %d lost there or defended",
                                        g_tn_why[0], g_tn_why[1], g_tn_why[2], g_tn_why[3], g_tn_why[4], g_tn_why[5]);
             }

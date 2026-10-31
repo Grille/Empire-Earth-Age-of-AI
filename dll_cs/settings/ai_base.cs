@@ -405,10 +405,12 @@ class ai_base
     /// Town Center. 4 = army_plan's next production building goes up in the town nearest the enemy when it is 15+ tiles
     /// nearer than the base. 16 (with 1) = spread: a resource town whenever a free mine group lies 32-60 tiles from its
     /// nearest town, without waiting for the home mines to fill - the AI grows outward town by town, as many as it has
-    /// the people for (15 workers a town; towns_max doesn't apply).
+    /// the people for (15 workers a town; towns_max doesn't apply), one town going up per 50 workers, and only with a surplus (6
+    /// spare citizens, twice a Town Center's price in stock); the next town within 45 tiles of one where it can, never
+    /// more than 20 tiles ahead of its front town; a wall at towns 60+ tiles out. 32 (with 16) = a scout to unseen land.
     /// 0 = off (default): without a purpose the towns cost soldiers (-20 from the Middle Ages); with
     /// one (9) even over 90 minutes on big maps, within noise (docs/testing.md)
-    [num, range(0, 31)] int towns = 0;
+    [num, range(0, 63)] int towns = 0;
     [num, range(0, 6), commented] int towns_max = 3;
     [num, range(1, 12), commented] int towns_citizens = 6;
     [num, range(0, 7), commented] int towers_per_town = 2;
