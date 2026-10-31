@@ -36,7 +36,7 @@ internal void __thiscall hook_attack_unit_tick(ee_attack_goal *goal, ee_unit *u)
 }
 
 internal void reload_install(void) {
-    g_rl_mode = g_set.aoc_reload;
+    g_rl_mode = g_set.patches_aoc_reload;
     if (!build_is("aoc")) return;
     int of = 0, ok = g_rl_mode == RL_FULL ? patch_reload_wait(hook_reload_wait, &of) : g_rl_mode == RL_SWING ? patch_attack_unit_tick(hook_attack_unit_tick) : 0;
     if (g_log) fprintf(g_log, "# engine fix: aoc_reload=%s (%s)\n", g_rl_mode == RL_FULL ? "full" : g_rl_mode == RL_SWING ? "swing" : "game",

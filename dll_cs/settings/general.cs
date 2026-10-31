@@ -1,4 +1,4 @@
-// [general]: the mod as a whole, the engine fixes and limits, the AI chat and personalities, tools
+// [general]: the mod as a whole, the AI chat and personalities, tools
 /// ============================================================================================
 ///  Empire Earth AI mod (ageofai.dll) - settings
 ///  Changes take effect when a game starts (or a saved game is loaded); enabled= when Empire Earth starts.
@@ -10,7 +10,6 @@
 class general
 {
     enum improved_unit_movement_choice { @default, enabled, disabled }
-    enum reload_choice { game, full, swing }
 
     /// 1 = the mod is active. 0 = the mod does nothing at all: the original game (no AI changes, no scenario fix,
     /// no display options, no personalities)
@@ -95,9 +94,6 @@ class general
     /// Land turns: land units (and hovercraft) steer at a point sliding along their route instead of at each tile's
     /// centre - the heading no longer jumps at every waypoint - and walk on through shift-queued points. 0 = the original
     [child(nameof(improved_unit_movement)), commented("0")] bool land_turns = true;
-    /// Turn fix: Art of Conquest's fix brought back - units that turn with momentum (ships, helicopters ...) stop on their
-    /// heading instead of swinging past it and back. 0 = the original
-    [child(nameof(improved_unit_movement)), commented("0")] bool turn_fix = true;
     /// Ship collision: ships (and submarines among themselves) are kept apart by their hulls (a capsule along the ship,
     /// its length the game's size) and slide past each other - the overlap undone gently over a few steps, the smaller
     /// ship giving way more, a standing ship of the same player nudged aside - instead of the game's thin-line test, which
@@ -135,17 +131,6 @@ class general
     /// at this share of their size, so they slip past each other instead of getting stuck (a formation's places stay as
     /// far apart); a standing ally steps aside for a moving unit like one's own. 100% = as any two units
     [share(25, 100), under(nameof(improved_unit_movement))] int friendly_collision = 75;
-    /// Sight counts: a map tile counts the units that see it in one byte, so with more than 254 units seeing it the
-    /// count wrapped - the tile took itself for unexplored, and it and everything on it (units, trees) blinked out in
-    /// big armies. 1 = the whole count kept (up to 65000); 0 = the original
-    [group("Engine limits")] bool sight_counts = true;
-    /// Reload in The Art of Conquest: AoC waits a random share (0..100%) of a unit's reload between blows, and a wait
-    /// shorter than the attack animation restarts the swing before the blow lands - citizens stood beside an animal
-    /// for the whole game (AoC's own AI and the player's alike):
-    ///   game  = AoC's as it is
-    ///   full  = Empire Earth's: the whole reload every time
-    ///   swing = AoC's random wait, but a swing under way is never restarted before its blow
-    reload_choice aoc_reload = reload_choice.swing;
     /// AI chat lines (shown in the game's chat as the AI player): 0 = off (original), 1 = debug: the AI says what it
     /// decides (attacks, new epoch, extra towers, walls, siege, counter-siege, home guard), 2 = also a status line every
     /// 5 minutes. Rate-limited per player. chat_seconds = how long a line stays on screen

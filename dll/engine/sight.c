@@ -55,7 +55,7 @@ internal void __thiscall hook_view_sight_copy(ee_player *pl) {
 }
 
 internal void sight_install(void) {
-    g_sight_on = g_set.sight_counts;
+    g_sight_on = g_set.patches_sight_counts;
     if (!g_sight_on) {
         if (g_log) fprintf(g_log, "# sight counts: the original (a low byte)\n");
         return;

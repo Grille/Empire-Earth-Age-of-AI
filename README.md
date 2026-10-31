@@ -320,7 +320,7 @@ Settings in `ageofai.ini`:
   memory, and every update of it made the graphics card finish its work first. The renderer without T&L already
   keeps it in system memory, and with T&L it's now the same (measured by DDrawCompat's author on a big map: 18 ->
   170 fps with DDrawCompat, 105 -> 315 without). dreXmod 3.4 does the same; `0` keeps video memory.
-- `[general] sight_counts=1` (default): every map tile counts how many of a player's units see it, but the game read
+- `[patches] sight_counts=1` (default): every map tile counts how many of a player's units see it, but the game read
   only one byte of that count - a tile seen by more than 254 units took itself for unexplored, and in a big army
   random tiles with everything on them (units, trees) blinked out, then went to fog while units still stood there.
   Now the whole count is kept (up to 65000). `0` = the original.
@@ -350,7 +350,7 @@ Settings in `ageofai.ini`:
   often only one or two began. Such a citizen of a human player is now sent again (up to three times, the game's
   own placing call: it picks the tile nearest to where it stands then). 0 = the original.
 - `[general] improved_unit_movement=default`: the movement settings below (ship_routes, land_routes, land_widen,
-  ship_turns, land_turns, turn_fix, ship_collide, land_collide, formations, formation_march, formation_follow) as
+  ship_turns, land_turns, ship_collide, land_collide, formations, formation_march, formation_follow) as
   one. `default` gives each its own default (all on since 2026-10-26: the player's play), `enabled` all of them on,
   `disabled` all off - the game's own movement. Each one set on its own wins over it (formation_follow=0: everything
   but the marching formations); the shipped file shows them commented out, so they follow it.
@@ -378,7 +378,7 @@ Settings in `ageofai.ini`:
   a waypoint inside its turning circle, overshot and circled it - and rounds corners in arcs. Through a shift-queued point
   it sails on in an arc instead of braking for it, where the way on to the next point is clear. In multiplayer every
   PC needs the same setting.
-- `[general] turn_fix=1` (default; 0 the original): Art of Conquest's fix of the turn, brought back. Ships,
+- `[patches] turn_fix=1` (default; 0 the original): Art of Conquest's fix of the turn, brought back. Ships,
   submarines, helicopters and the other units that turn with momentum braked their turn a step late and swung past
   the heading, then back (a unit turning the wrong way was even let turn on). With 1 they brake in time and stop on
   the heading, as in Art of Conquest. Tanks and hovercraft too (infantry and riders turn without momentum). A

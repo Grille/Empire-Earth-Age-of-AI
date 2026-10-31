@@ -900,7 +900,7 @@ conditions, 162 states with their ids) were dumped by a helper, not kept in the 
   +1 / -1 by 0x51426E / 0x5141E9 after that). So at 256 units a tile read unexplored (not drawn), at 257 explored
   only (no units drawn), and the next add restarted the count at 2 - below the units still seeing it, so it reached
   1 (fog) while they stood there. The player's 5600 archers: along a row 3, 43, 67, 102, 127, 151, 167 rising
-  with the crowd, on another 224, 250, 16, 24 - wrapped. `[general] sight_counts` (dll/engine/sight.c) replaces the add and remove and gives the minimap's
+  with the crowd, on another 224, 250, 16, 24 - wrapped. `[patches] sight_counts` (dll/engine/sight.c) replaces the add and remove and gives the minimap's
   rebuild the rest. AoC: the same code (port_addrs 100%).
 - The minimap (RTSMiniMap, global 0x9428A8, 0x12188 bytes) keeps per cell of a 64 x 64 grid two dot lists (+0x15C:
   {first, count}, 16-byte nodes, next +0xC; +0x815C: 24-byte nodes, next +0x14) and a uint16 sight count (+0x1015C);
