@@ -97,7 +97,7 @@ def table(name, args, lines):
 
 
 def rows_h(secs):   # the file below its header
-    fields, rows, groups, game, under, also, easy = [], [], [], [], [], [], []
+    fields, rows, groups, game, under, also, titles, easy = [], [], [], [], [], [], [], []
     arg = settings_read.arg_text
     seen = {}
     for sec in secs:
@@ -123,6 +123,8 @@ def rows_h(secs):   # the file below its header
             if 'game' in k.attrs:
                 g = k.attrs['game']
                 game.append('V(%s %s, %s, %s)' % ((fn + ',').ljust(21), c_str(arg(g[0])), c_str(arg(g[1])), arg(g[2])))
+            if 'title' in k.attrs:
+                titles.append('K(%s %s)' % ((k.name + ',').ljust(20), c_str(arg(k.attrs['title'][0]))))
             if 'also' in k.attrs:
                 to = settings_read.arg_text(k.attrs['also'][0]).strip('"')
                 if to not in [s.name for s in secs] or to == sec.name:
@@ -140,6 +142,7 @@ def rows_h(secs):   # the file below its header
     out += table('SETTING_GAME', 'V', game)
     out += table('SETTING_UNDER', 'U', under)
     out += table('SETTING_ALSO', 'A', also)
+    out += table('SETTING_TITLES', 'K', titles)
     return '\n'.join(out).rstrip('\n') + '\n'
 
 

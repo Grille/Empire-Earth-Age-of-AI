@@ -127,6 +127,17 @@ internal void key_of(const struct entry *e, char *out, int cap) {
     else lstrcpynA(out, row_of(e)->key, cap);
 }
 
+// what the list calls an entry: its row's title (SETTING_TITLES; a slot's number after it), else its key
+internal void label_of(const struct entry *e, char *out, int cap) {
+    for (int i = 0; i < SETTING_TITLE_N; i++)
+        if (k_settings_titles[i].row == e->row) {
+            if (e->slot >= 0) snprintf(out, cap, "%s %d", k_settings_titles[i].title, e->slot);
+            else lstrcpynA(out, k_settings_titles[i].title, cap);
+            return;
+        }
+    key_of(e, out, cap);
+}
+
 // the row's default as the file would write it
 internal void default_text(const struct setting_row *r, char *out, int cap) {
     switch (r->kind) {
@@ -648,10 +659,11 @@ internal void refill_items(void) {   // every line's values again (a value shows
 
 internal int matches(const struct entry *e, const char *filter) {
     if (!filter[0]) return 1;
-    char key[64], help[4096], low[4096];
+    char key[64], label[96], help[4096], low[4096];
     key_of(e, key, sizeof key);
+    label_of(e, label, sizeof label);
     help_of(sec_of(e), row_of(e)->key, row_of(e)->kind == SETK_STR_P, help, sizeof help);
-    snprintf(low, sizeof low, "%s %s", key, help);
+    snprintf(low, sizeof low, "%s %s %s", key, label, help);
     CharLowerA(low);
     return strstr(low, filter) != NULL;
 }
@@ -712,7 +724,7 @@ internal void fill_list(LPARAM keep, int stay) {
         if (kind == NODE_SECTION) { lstrcpynA(name, g_page_of[id].title, sizeof name); open = g_sec_open[id] || filter[0]; }
         else if (kind == NODE_GROUP) { lstrcpynA(name, k_setting_groups[id].title, sizeof name); open = g_grp_open[id] || filter[0]; }
         else {
-            key_of(&g_e[id], name, sizeof name);
+            label_of(&g_e[id], name, sizeof name);
             if (is_master(g_e[id].row)) open = g_open[g_e[id].row] || filter[0];
         }
         if (open >= 0) { text[o++] = open ? 0x25BE : 0x25B8; text[o++] = ' '; }   // a triangle down / right
@@ -855,7 +867,7 @@ internal void show_editors(void) {
     g_filling = 1;
     int old = g_ned;
     g_ned = 0;
-    char title[160], help[4096];
+    char title[512], help[4096];
     title[0] = help[0] = 0;
     if (g_nvis && node_kind(g_node) != NODE_ENTRY) {
         int kind = node_kind(g_node), id = node_id(g_node), n = 0;
@@ -871,12 +883,15 @@ internal void show_editors(void) {
                  kind == NODE_SECTION ? g_page_of[id].title : k_setting_groups[id].title, n);
     } else if (g_sel >= 0) {
         struct entry *e = &g_e[g_sel];
-        char key[64];
+        char key[64], label[96], head[200];
         key_of(e, key, sizeof key);
+        label_of(e, label, sizeof label);
+        if (lstrcmpA(label, key)) snprintf(head, sizeof head, "%s - [%s] %s", label, sec_of(e), key);   // the key: what the file has
+        else snprintf(head, sizeof head, "[%s] %s", sec_of(e), key);
         int game = game_of(e->row);
-        if (game >= 0) snprintf(title, sizeof title, "[%s] %s - the game's own value: %s (the game's: %s)", sec_of(e), key,
+        if (game >= 0) snprintf(title, sizeof title, "%s - the game's own value: %s (the game's: %s)", head,
                                 k_settings_game[game].what, k_settings_game[game].game);
-        else snprintf(title, sizeof title, "[%s] %s", sec_of(e), key);
+        else lstrcpynA(title, head, sizeof title);
         help_of(sec_of(e), row_of(e)->key, row_of(e)->kind == SETK_STR_P, help, sizeof help);
         g_ed[g_ned++].entry = g_sel;
         for (int d = 0; d < 3; d++) if (diff_entry(e, d)) g_ed[g_ned++].entry = g_diff_of[e->row][d];
