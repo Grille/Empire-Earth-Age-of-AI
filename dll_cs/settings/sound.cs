@@ -1,4 +1,6 @@
 // [sound]: the sound mixer (engine/sound.c)
+namespace ageofai.settings;
+
 ///
 [section(50)]
 class sound

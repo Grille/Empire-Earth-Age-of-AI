@@ -1,8 +1,0 @@
-<!-- settings.csproj's build output (bin, obj) under local/work/settings: nothing of it in the tree. Read before the
-     project, as the obj folder has to be known before the SDK is. -->
-<Project>
-  <PropertyGroup>
-    <BaseIntermediateOutputPath>$(MSBuildThisFileDirectory)../../local/work/settings/obj/</BaseIntermediateOutputPath>
-    <BaseOutputPath>$(MSBuildThisFileDirectory)../../local/work/settings/bin/</BaseOutputPath>
-  </PropertyGroup>
-</Project>

@@ -5,13 +5,13 @@
 // gen_eeai_readme.py the README's tables, gen_vscode_grammar.py the editor's names. What a member does stays the
 // hand-written code's (game_script/relations.c x_member, x_relation ...): a declaration is its name, type, arguments
 // and doc. The language is its own (docs/scripts.md) - C# is only how its objects are written down: valid C# so that
-// an editor reads them, names and types checked (lang.csproj; dotnet build there). Nothing of it runs.
+// an editor reads them, names and types checked (dll_cs/dll_cs.csproj; dotnet build in dll_cs/). Nothing of it runs.
 //
 // A MEMBER is a field (p.towers: a value) or a method (p.opinion(q)): its parameters are the arguments, one with a
 // default may be left out (them.tribute(me) or them.tribute(me, 15)). Its /// lines are its doc (the README's text: a
 // member without one shares the one before - the traits, the stocks). The order is the README's.
 //
-// TYPES: the language's, by its names - int, float (a number with decimals; the game's double), bool, text, vec2 ..
+// TYPES (dll_cs/language.cs, shared with the settings): the language's, by its names - int, float (a number with decimals; the game's double), bool, text, vec2 ..
 // vec4, epoch, color, unit_type, trigger, function, record; a kind of object (player, game, slot); T? one or none
 // (null: lord without one), T[] a list of them; void: a method that gives nothing (an effect). filter: what count and
 // kills take (unit.<identifier>, kind.<kind> or a list of them); any: a value the check doesn't type (a colour or an
@@ -19,18 +19,8 @@
 
 using System;
 
-struct text { }
-struct epoch { }
-struct color { }
-struct unit_type { }
-struct vec2 { }
-struct vec3 { }
-struct vec4 { }
-struct trigger { }
-struct function { }
-struct @record { }   // (@: C#'s own word)
-struct filter { }
-struct any { }
+namespace ageofai.lang;
+
 
 // a relation of player A with player B: A.opinion(B) - its first parameter the other player; without A. in a text
 // mine (opinion(enemy) is me.opinion(enemy))

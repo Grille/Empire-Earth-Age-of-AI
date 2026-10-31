@@ -1,4 +1,6 @@
 // [camera]: how the view moves (engine/camera.c)
+namespace ageofai.settings;
+
 ///
 [section(20)]
 class camera

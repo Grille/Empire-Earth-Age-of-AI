@@ -1,6 +1,7 @@
 // A PLAYER: me, them, player(3), game.players[3] - its values, its relations with another player (A.opinion(B)), a
 // script's effects on it. Its text is its name; it equals only itself (lord == them). Nothing where a value doesn't
 // apply (a relation with oneself, a war that isn't): a T? - checked before it is used (docs/scripts.md "Types").
+namespace ageofai.lang;
 
 [numbered]
 class player

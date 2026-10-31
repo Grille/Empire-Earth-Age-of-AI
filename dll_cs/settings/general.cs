@@ -1,4 +1,6 @@
 // [general]: the mod as a whole, the AI chat and personalities, tools
+namespace ageofai.settings;
+
 /// ============================================================================================
 ///  Empire Earth AI mod (ageofai.dll) - settings
 ///  Changes take effect when a game starts (or a saved game is loaded); enabled= when Empire Earth starts.

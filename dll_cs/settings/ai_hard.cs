@@ -1,4 +1,6 @@
 // [ai_hard]: the hard AI's own values over [ai_base] (none shipped: only examples)
+namespace ageofai.settings;
+
 ///
 [section(100), title("Hard"), diff]
 class ai_hard

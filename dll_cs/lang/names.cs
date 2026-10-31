@@ -1,6 +1,7 @@
 // THE NAMES A TEXT HAS of its own (a personality's line, a system text, a prompt): the players of the line - me (the
 // AI that speaks), them (the one it speaks to or about; in a system line the reader), enemy (a third), lord (mine) -,
 // the speaker's relations with them, and the game's values. A script has game and player(n) instead (game.cs).
+namespace ageofai.lang;
 
 static class names
 {

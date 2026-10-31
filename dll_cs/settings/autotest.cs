@@ -1,4 +1,6 @@
 // [autotest]: the test ini's own knobs (ageofai_autotest.ini, run_test.ps1): not in ageofai.ini
+namespace ageofai.settings;
+
 [section(0), title("Tests"), test]
 class autotest
 {

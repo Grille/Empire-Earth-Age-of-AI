@@ -4,8 +4,8 @@
 // (run by dll/build.sh) makes dll/settings/rows.h and the shipped config/ageofai.ini of it - both generated, never
 // edited (one changed by hand stops the build: its change belongs here). What a setting does stays the code's (it
 // reads g_set.key, g_set.section_key, g_set_ai[d].key - rows.h's header); a declaration is its name, kind, default,
-// limits and doc. C# is only how they are written down: names and types checked (settings.csproj; dotnet build
-// there). Nothing of it runs. A new setting: a field here, with its lines for the file, then the build.
+// limits and doc. C# is only how they are written down: names and types checked (dll_cs/dll_cs.csproj; dotnet build
+// in dll_cs/; the types and the attributes shared with the language: dll_cs/language.cs). Nothing of it runs. A new setting: a field here, with its lines for the file, then the build.
 //
 // A SECTION is a class with [section(place)] - place: ageofai_config.exe's order, its page's title the class's name
 // (camera: Camera) or [title("t")]; [all] the
@@ -46,11 +46,12 @@
 
 using System;
 
+namespace ageofai.settings;
+
 [AttributeUsage(AttributeTargets.Class)] public sealed class section : Attribute { public section(int place) { } }
 [AttributeUsage(AttributeTargets.Class)] public sealed class all : Attribute { }
 [AttributeUsage(AttributeTargets.Class)] public sealed class diff : Attribute { }
 [AttributeUsage(AttributeTargets.Class)] public sealed class test : Attribute { }
-[AttributeUsage(AttributeTargets.Field)] public sealed class range : Attribute { public range(int lo, int hi) { } }
 [AttributeUsage(AttributeTargets.Field)] public sealed class num : Attribute { }
 [AttributeUsage(AttributeTargets.Field)] public sealed class pct : Attribute { public pct(int hi) { } }
 [AttributeUsage(AttributeTargets.Field)] public sealed class share : Attribute { public share(int lo, int hi) { } }
@@ -59,7 +60,6 @@ using System;
 [AttributeUsage(AttributeTargets.Field)] public sealed class child : Attribute { public child(string master) { } }
 [AttributeUsage(AttributeTargets.Field)] public sealed class name : Attribute { public name(string text) { } }
 [AttributeUsage(AttributeTargets.Field)] public sealed class commented : Attribute { public commented(string value = "", string key = "") { } }
-[AttributeUsage(AttributeTargets.Class | AttributeTargets.Field)] public sealed class title : Attribute { public title(string text) { } }
 [AttributeUsage(AttributeTargets.Field)] public sealed class game : Attribute { public game(string what, string original, int keep) { } }
 [AttributeUsage(AttributeTargets.Field)] public sealed class under : Attribute { public under(string master) { } }
 [AttributeUsage(AttributeTargets.Field)] public sealed class also : Attribute { public also(string section) { } }

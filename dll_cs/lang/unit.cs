@@ -1,6 +1,7 @@
 // A UNIT: one on the map - a soldier, a citizen, a ship, a building - held by its id: the value stays when the unit is
 // destroyed (alive false then, any other member a mistake: check u.alive). p.units(...), game.unit(id). Its text is
 // its type's identifier; it equals only itself (the same id).
+namespace ageofai.lang;
 
 class unit
 {

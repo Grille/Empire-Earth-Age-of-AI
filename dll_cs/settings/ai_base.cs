@@ -1,4 +1,6 @@
 // [ai_base]: the computer players, a value per difficulty (g_set_ai[d]): the medium AI plays it as it is
+namespace ageofai.settings;
+
 ///
 /// --------------------------------------------------------------------------------------------
 ///  AI behaviour. Everything in [ai_base] applies to every difficulty (the medium AI plays it as it is).

@@ -1,4 +1,5 @@
 // THE GAME: a script's game - its time, the players, timers, the setup before the game starts and the players to be.
+namespace ageofai.lang;
 
 class game
 {

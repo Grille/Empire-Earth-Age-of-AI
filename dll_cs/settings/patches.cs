@@ -3,6 +3,8 @@
 // plays the game as it was meant to, so each is on by default even where a test shows no gain, and each can be set
 // back to the original. The mod's own changes of how the game plays (movement, combat, the AI) are in [general] and
 // the AI's sections.
+namespace ageofai.settings;
+
 ///
 [section(15), title("Game fixes")]
 class patches

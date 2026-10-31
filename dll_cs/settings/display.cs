@@ -1,4 +1,6 @@
 // [display]: the window, the renderer and the picture (engine/display.c, render*.c)
+namespace ageofai.settings;
+
 ///
 [section(30)]
 class display

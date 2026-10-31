@@ -1,5 +1,7 @@
 // [ai_easy]: the easy AI's own values over [ai_base] - its fields are SETTINGS_EASY too: what the easy AI gets where
 // the player's [ai_easy] and [ai_base] say nothing
+namespace ageofai.settings;
+
 ///
 ///
 [section(80), title("Easy"), diff]

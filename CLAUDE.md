@@ -141,7 +141,7 @@ One language for personalities, system texts, prompts and test scripts (dll/scri
 config/personalities/README.md). Strict and explicit: a mistake is told with file and line, nothing is guessed, no
 compatibility shims before the release. English only until the release. Its own language, not C# (the player
 2026-10-25: C#'s quirks would put modders off) - but its objects (player, game, slot, a text's names: members, types,
-arguments, docs) are declared once in `dll_cs/lang/` as C# (dll_cs/lang/language.cs: the format; `dotnet build` there checks them),
+arguments, docs) are declared once in `dll_cs/lang/` as C# (dll_cs/lang/language.cs: the format; `dotnet build` in dll_cs/ checks them and the settings, one project: dll_cs/language.cs the types and attributes both share - an ini value is the language's too),
 and the C tables, the README's tables and the editor's names are made of them (gen_lang.py, lang_read.py).
 
 ## Decisions that aren't visible in the code

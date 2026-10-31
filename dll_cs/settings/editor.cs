@@ -1,4 +1,6 @@
 // [editor]: the scenario editor (engine/editor*.c)
+namespace ageofai.settings;
+
 ///
 [section(40), title("Scenario editor")]
 class editor

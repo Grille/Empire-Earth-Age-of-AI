@@ -1,4 +1,5 @@
 // A SLOT: a player to be, in a script's game.setup(() => ...) - game.slots[2], game.slot(2).
+namespace ageofai.lang;
 
 [numbered]
 class slot

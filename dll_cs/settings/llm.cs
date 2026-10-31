@@ -1,4 +1,6 @@
 // [llm]: the AI voice - a language model speaks (and may decide) for the computer players (voice/llm*.c)
+namespace ageofai.settings;
+
 ///
 [section(60), title("Language model")]
 class llm

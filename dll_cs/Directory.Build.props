@@ -1,0 +1,8 @@
+<!-- dll_cs.csproj's build output (bin, obj) under local/work/dll_cs: nothing of it in the tree. Read before the project,
+     as the obj folder has to be known before the SDK is. -->
+<Project>
+  <PropertyGroup>
+    <BaseIntermediateOutputPath>$(MSBuildThisFileDirectory)../local/work/dll_cs/obj/</BaseIntermediateOutputPath>
+    <BaseOutputPath>$(MSBuildThisFileDirectory)../local/work/dll_cs/bin/</BaseOutputPath>
+  </PropertyGroup>
+</Project>
