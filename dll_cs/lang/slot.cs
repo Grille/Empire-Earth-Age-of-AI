@@ -9,7 +9,9 @@ class slot
     /// a human's (else a computer's)
     bool human;
     /// its personality (a computer's): persona.fuchs - its file
-    [set] text? persona;
+    [set]
+    text? persona;
     /// its colour: color.red, or (a computer's) rgb(40, 200, 120)
-    [set] any color;
+    [set]
+    any color;
 }

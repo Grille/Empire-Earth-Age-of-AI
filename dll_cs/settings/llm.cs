@@ -13,9 +13,11 @@ class llm
     /// with a model loaded, then set enabled=1. Without an answer the AIs say their fixed lines.
     bool llm_enabled = false;
     /// LM Studio: http://localhost:1234/v1/chat/completions   Ollama: http://localhost:11434/v1/chat/completions
-    [length(256)] string llm_url = "http://localhost:1234/v1/chat/completions";
+    [length(256)]
+    string llm_url = "http://localhost:1234/v1/chat/completions";
     /// the model's name as the server lists it (LM Studio: empty = the loaded one; Ollama needs it, e.g. gemma3:12b)
-    [length(96)] string llm_model = "";
+    [length(96)]
+    string llm_model = "";
     /// the personalities' lines said in the AI's own words (1), and answers when you write to an AI in the chat (1) - name
     /// it ("Temur, ...") or answer the last one that spoke to you
     bool llm_lines = true;
@@ -36,8 +38,10 @@ class llm
     /// 0: only in the log
     bool llm_ai_talk = false;
     bool llm_ai_talk_show = true;
-    [range(0, 1000000)] int llm_ai_talk_gap = 60;
-    [range(0, 1000000)] int llm_ai_talk_turns = 4;
+    [range(0, 1000000)]
+    int llm_ai_talk_gap = 60;
+    [range(0, 1000000)]
+    int llm_ai_talk_turns = 4;
     /// The model decides between the AIs too (1; single player, not with fixed teams): an alliance offer or a capitulation
     /// from one AI to another is answered by the other's model, and in their talks an AI may offer peace, declare war on an
     /// ally (5+ minutes) or send a tribute. The rules say what is possible and decide when the model doesn't answer
@@ -51,7 +55,8 @@ class llm
     /// what each AI remembers of its talk with you, and each pair of AIs of theirs: the last <memory> chat lines, answers
     /// and events, in order (8; 0 = nothing; more = longer requests - small models get slower and lose track). Kept in
     /// saved games
-    [range(0, 100000)] int llm_memory = 8;
+    [range(0, 100000)]
+    int llm_memory = 8;
     /// pair = a memory for the talk with you and one for each pair of AIs (each knows only what was said there);
     /// player = one memory per AI: all it said and heard - with you and with every AI - and its events, in order (it
     /// knows what it told the others and may keep it or share it; longer requests - set memory higher, e.g. 64)
@@ -59,22 +64,27 @@ class llm
     /// the model isn't told who is human: you are "another leader in this game" like every AI (1), or the human player (0)
     bool llm_equal = false;
     /// seconds a line may wait for the model (2..120), else the fixed line
-    [range(0, 1000000)] int llm_timeout = 20;
+    [range(0, 1000000)]
+    int llm_timeout = 20;
     /// When the model can't be reached or hasn't answered within timeout: rules = the computer players say their fixed
     /// lines and the rules decide; pause = the game pauses until it answers (tried again every 5 s; resume the game
     /// yourself to play on - the answers still come). Single player only
     fallback_choice llm_fallback = fallback_choice.rules;
     /// answer length (tokens, 16..8000; 300 is plenty for one or two sentences - more only with think=1) and temperature
     /// (80% = 0.8, up to 200%)
-    [range(0, 1000000)] int llm_max_tokens = 300;
-    [pct(200)] int llm_temperature = 80;
+    [range(0, 1000000)]
+    int llm_max_tokens = 300;
+    [pct(200)]
+    int llm_temperature = 80;
     /// Reasoning models think before they answer: 0 = asked not to ("reasoning_effort":"none" - answers in seconds; a server
     /// that doesn't know the field gets requests without it), 1 = let them think (much slower; needs more llm_max_tokens)
     bool llm_think = false;
     /// extra JSON fields for the request (e.g. "top_p":0.9)
-    [length(256)] string llm_extra = "";
+    [length(256)]
+    string llm_extra = "";
     /// for a server that wants a key (a local one doesn't)
-    [length(128)] string llm_api_key = "";
+    [length(128)]
+    string llm_api_key = "";
     /// prompts and answers into ageofai_log.csv (# llm:)
     bool llm_log = true;
 }

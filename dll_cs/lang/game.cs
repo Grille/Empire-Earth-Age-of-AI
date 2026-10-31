@@ -10,15 +10,20 @@ class game
     /// every player, in or out: game.players[3] is player 3
     player[] players;
     /// game.player(3)
-    [method] extern player player(int number);
+    [method]
+    extern player player(int number);
     /// game.timer(20s, () => ...): every 20 s from now on (expr.c TIMER)
-    [method] extern trigger timer(float every, function run);
+    [method]
+    extern trigger timer(float every, function run);
     /// game.setup(() => ...): before the game starts (relations.c SETUP)
-    [method] extern void setup(function run);
+    [method]
+    extern void setup(function run);
     /// the unit of an id (u.id) while it is on the map - null once it is gone
-    [method] extern unit? unit(int id);
+    [method]
+    extern unit? unit(int id);
     /// the players to be, by number: game.slots[2]
     slot[] slots;
     /// game.slot(2)
-    [method] extern slot slot(int number);
+    [method]
+    extern slot slot(int number);
 }

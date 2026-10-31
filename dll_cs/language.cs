@@ -25,7 +25,9 @@ struct any { }
 
 // a name to show for a section, a group or a key (ageofai_config.exe; a section's or group's title else comes from its
 // name - settings/settings.cs)
-[AttributeUsage(AttributeTargets.Class | AttributeTargets.Field)] public sealed class title : Attribute { public title(string text) { } }
+[AttributeUsage(AttributeTargets.Class | AttributeTargets.Field)]
+public sealed class title : Attribute { public title(string text) { } }
 
 // a sanity bound lo .. hi of a whole number (a setting's: outside it a warning, the value used)
-[AttributeUsage(AttributeTargets.Field)] public sealed class range : Attribute { public range(int lo, int hi) { } }
+[AttributeUsage(AttributeTargets.Field)]
+public sealed class range : Attribute { public range(int lo, int hi) { } }

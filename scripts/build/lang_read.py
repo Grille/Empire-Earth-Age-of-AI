@@ -1,7 +1,7 @@
 """The language's objects (dll_cs/lang/*.cs) read into Python: each class (a kind of object, names.cs's names) with its
 members - a field or a method, its type, parameters (a default: optional), attributes and doc. For gen_lang.py (the C
 tables), gen_eeai_readme.py and gen_vscode_grammar.py. The format is dll_cs/lang/language.cs's header; line by line as written:
-attributes in [...] before a declaration on one line, its /// lines before it."""
+attributes in [...] on their own line above a declaration (as spec/), its /// lines above them."""
 import os
 import re
 

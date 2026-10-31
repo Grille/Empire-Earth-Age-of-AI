@@ -2,7 +2,7 @@
 order - type, default, attributes and the /// lines verbatim (the file's lines above it) - the section's enums (a
 CHOICE's names) and structs (a FLAGS row's fields), and its text before its header and after its last key. For
 gen_settings.py. The format is dll_cs/settings/settings.cs's header; line by line as written: attributes in [...]
-before a declaration on one line, its /// lines before it, an enum or a struct on one line."""
+on their own line above a declaration (as spec/), its /// lines above them, an enum or a struct on one line."""
 import os
 import re
 

@@ -31,7 +31,8 @@ class display
     lock_mouse_choice lock_mouse = lock_mouse_choice.auto;
     /// Objects drawn per frame (units, buildings, missiles - also arrows stuck in the ground). The game drew at most
     /// 512; in big fights and at high resolutions the farthest objects blinked out. 0 = the original 512
-    [range(0, 1000000), game("the objects the game draws per frame", "512", 0), also("patches")] int draw_limit = 4096;
+    [range(0, 1000000), game("the objects the game draws per frame", "512", 0), also("patches")]
+    int draw_limit = 4096;
     /// Windowed/borderless only: smooth (bilinear) scaling when the image is scaled; 0 = sharp pixels
     bool smooth_scaling = false;
     /// Windowed/borderless only: 1 = wait for the screen refresh (no tearing, fps capped at the refresh rate),
@@ -40,7 +41,8 @@ class display
     /// Frame watch (window modes): a line with the frame rate every minute of a game in ageofai_log.csv, and when it
     /// stays under this many frames per second for 10 s, a profile of where the time goes (at most 5 a session).
     /// A diagnostic (it times every frame and the profile pauses the drawing thread): 0 = off (default), e.g. 35
-    [range(0, 1000)] int frame_watch = 0;
+    [range(0, 1000)]
+    int frame_watch = 0;
     /// Own text DC: the game's GDI text goes into a memory DC of the mod instead of a DC of the DirectDraw surface.
     /// With DDrawCompat the surface DC makes Windows keep a font cache entry for every text output (13-22 MB a minute,
     /// 111 fps at the start of a game, 13 fps after 100 minutes). 0 = the game's own way
@@ -51,7 +53,8 @@ class display
     bool text_bitmap = true;
     /// Diagnostics for display problems (a diagnostic, not for playing): surface copies and creations, render targets,
     /// clears, fog, samples of the picture - counted and logged in ageofai_log.csv. 0 = off (default)
-    [commented] bool display_diag = false;
+    [commented]
+    bool display_diag = false;
     /// Windowed/borderless only: 1 = the window uses real screen pixels at Windows display scaling of 125/150 %
     /// (no blur from Windows stretching it), 0 = Windows enlarges it like other old programs
     bool dpi_aware = true;
@@ -83,7 +86,8 @@ class display
         overlay_fields overlay;
     }
 
-    [title("Wrapper (only with renderer = wrapper)")] class Wrapper
+    [title("Wrapper (only with renderer = wrapper)")]
+    class Wrapper
     {
         ///
         /// --- Wrapper (only with renderer = wrapper) ---
@@ -94,6 +98,7 @@ class display
         /// Hardware T&L only: the 3D models' vertex buffer in system memory, as the renderer without T&L has it. In video
         /// memory every update makes the graphics card finish its work first (with DDrawCompat 18 instead of 170 fps on a
         /// big map, natively 105 instead of 315). 0 = the game's video memory
-        [game("the T&L renderer's vertex buffer in system memory", "0 (video memory)", 0), also("patches")] bool vertex_sysmem = true;
+        [game("the T&L renderer's vertex buffer in system memory", "0 (video memory)", 0), also("patches")]
+        bool vertex_sysmem = true;
     }
 }

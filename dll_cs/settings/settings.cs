@@ -48,22 +48,38 @@ using System;
 
 namespace ageofai.settings;
 
-[AttributeUsage(AttributeTargets.Class)] public sealed class section : Attribute { public section(int place) { } }
-[AttributeUsage(AttributeTargets.Class)] public sealed class all : Attribute { }
-[AttributeUsage(AttributeTargets.Class)] public sealed class diff : Attribute { }
-[AttributeUsage(AttributeTargets.Class)] public sealed class test : Attribute { }
-[AttributeUsage(AttributeTargets.Field)] public sealed class num : Attribute { }
-[AttributeUsage(AttributeTargets.Field)] public sealed class pct : Attribute { public pct(int hi) { } }
-[AttributeUsage(AttributeTargets.Field)] public sealed class share : Attribute { public share(int lo, int hi) { } }
-[AttributeUsage(AttributeTargets.Field)] public sealed class length : Attribute { public length(int n) { } }
-[AttributeUsage(AttributeTargets.Field)] public sealed class per_player : Attribute { }
-[AttributeUsage(AttributeTargets.Field)] public sealed class child : Attribute { public child(string master) { } }
-[AttributeUsage(AttributeTargets.Field)] public sealed class name : Attribute { public name(string text) { } }
-[AttributeUsage(AttributeTargets.Field)] public sealed class commented : Attribute { public commented(string value = "", string key = "") { } }
-[AttributeUsage(AttributeTargets.Field)] public sealed class game : Attribute { public game(string what, string original, int keep) { } }
-[AttributeUsage(AttributeTargets.Field)] public sealed class under : Attribute { public under(string master) { } }
-[AttributeUsage(AttributeTargets.Field)] public sealed class also : Attribute { public also(string section) { } }
-[AttributeUsage(AttributeTargets.Field)] public sealed class on : Attribute { public on(string fields) { } }
+[AttributeUsage(AttributeTargets.Class)]
+public sealed class section : Attribute { public section(int place) { } }
+[AttributeUsage(AttributeTargets.Class)]
+public sealed class all : Attribute { }
+[AttributeUsage(AttributeTargets.Class)]
+public sealed class diff : Attribute { }
+[AttributeUsage(AttributeTargets.Class)]
+public sealed class test : Attribute { }
+[AttributeUsage(AttributeTargets.Field)]
+public sealed class num : Attribute { }
+[AttributeUsage(AttributeTargets.Field)]
+public sealed class pct : Attribute { public pct(int hi) { } }
+[AttributeUsage(AttributeTargets.Field)]
+public sealed class share : Attribute { public share(int lo, int hi) { } }
+[AttributeUsage(AttributeTargets.Field)]
+public sealed class length : Attribute { public length(int n) { } }
+[AttributeUsage(AttributeTargets.Field)]
+public sealed class per_player : Attribute { }
+[AttributeUsage(AttributeTargets.Field)]
+public sealed class child : Attribute { public child(string master) { } }
+[AttributeUsage(AttributeTargets.Field)]
+public sealed class name : Attribute { public name(string text) { } }
+[AttributeUsage(AttributeTargets.Field)]
+public sealed class commented : Attribute { public commented(string value = "", string key = "") { } }
+[AttributeUsage(AttributeTargets.Field)]
+public sealed class game : Attribute { public game(string what, string original, int keep) { } }
+[AttributeUsage(AttributeTargets.Field)]
+public sealed class under : Attribute { public under(string master) { } }
+[AttributeUsage(AttributeTargets.Field)]
+public sealed class also : Attribute { public also(string section) { } }
+[AttributeUsage(AttributeTargets.Field)]
+public sealed class on : Attribute { public on(string fields) { } }
 
 static class limits {
     public const int MAX_PATH = 260;   // windows.h's: a path's buffer

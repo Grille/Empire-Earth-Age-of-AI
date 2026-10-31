@@ -14,11 +14,14 @@ static class names
     /// my lord (me.lord), the player I capitulated to - in every line; nothing when I have none
     static player? lord;
     /// me.opinion(them): what I think of them
-    [with_them] static float opinion;
+    [with_them]
+    static float opinion;
     /// me.at_war(them)
-    [with_them] static bool at_war;
+    [with_them]
+    static bool at_war;
     /// me.allied(them)
-    [with_them] static bool allied;
+    [with_them]
+    static bool allied;
     /// the game time in minutes
     static int minutes;
     /// the players still in, me among them
