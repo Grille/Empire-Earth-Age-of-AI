@@ -59,7 +59,17 @@
 // (8.1); 12 soldiers +3.8 (7.3), kills -8.9 (8.7) - within noise, workers lean lower (its 8 citizens walk far). Its
 // two towers stood 3-5 minutes after the decision, the rest followed as the money came (the AIs hold 100-250 wood
 // and stone at a time); later bases followed the army up to 166 tiles out. Off.
-#define TN_MAX 6
+// 16 SPREAD (the player 2026-10-31: "if the AI can't expand everything else becomes moot"; two AIs on a huge map
+//   should share half of it each by the end): 1v1 on huge Continental with 1, 120 min, each AI held under one town
+//   (0.8) - every free mine group lay beyond 90 tiles of the base (24 of 40) or by a drop site, and a town waited for
+//   the home mines to fill (the commonest "no new town"). With 16 (on top of 1) a town goes up whenever a free mine
+//   group lies 32-60 tiles from its NEAREST town (not from the base) - the AI spreads ring by ring. No count limit
+//   (the player: "if the map allows 100 towns because it's ridiculously large and the AI has the pop to support it,
+//   that's ok"; towns_max doesn't apply): a new town needs TN_SPREAD_WORKERS workers for every town it would then
+//   hold. The safety checks (army outmatched, enemies in its base, one at a time) stay.
+#define TN_MAX 128   // a table size, not a limit
+#define TN_SPREAD_WORKERS 15
+#define TN_SPREAD_FAR 60
 #define TN_PROJ 12
 enum { TK_DROP, TK_TOWER, TK_PROD, TK_N };
 internal const char *const k_tk[TK_N] = { "drop site", "tower", "production building" };
@@ -142,10 +152,16 @@ internal int tn_site(ee_player *pl, unsigned idx, ivec2 base, unsigned hc, struc
         }
     }
     float best = 0;
-    int found = 0;
+    int found = 0, spread = TOWNS(idx) & 16;
     for (int i = 0; i < nm; i++) {
         ivec2 p = m[i].p;
         int db = (int)sqrtf((float)ivec2_dist2(p, base));
+        if (spread) {   // from its nearest town: the next ring out
+            int dn = db * db;
+            for (int k = 0; k < w->no; k++) if (ivec2_dist2(p, w->own[k]) < dn) dn = ivec2_dist2(p, w->own[k]);
+            db = (int)sqrtf((float)dn);
+            if (db > TN_SPREAD_FAR) { g_tn_why[2]++; continue; }
+        }
         if (db < 32 || db > 90) { g_tn_why[2]++; continue; }
         int ok = 1;
         for (int k = 0; k < w->nd && ok; k++) if (ivec2_dist2(p, w->drop[k]) < 18 * 18) ok = 0;
@@ -605,12 +621,13 @@ internal void tn_plan(ee_player *pl, unsigned idx, struct tn_st *s, unsigned hc,
         if (!done && (TOWNS(idx) & 1)) {
             why = NULL;
             if (going) why = "a town going up";
-            else if (n >= g_tn_max) why = "holds towns_max towns";
+            else if (!(TOWNS(idx) & 16) && n >= g_tn_max) why = "holds towns_max towns";
+            else if ((TOWNS(idx) & 16) && workforce(pl) < TN_SPREAD_WORKERS * (n + 2)) why = "too few workers for another town";   // its base and the new one count
             else if (mine < theirs) why = "its army outmatched";
         }
         if (!done && (TOWNS(idx) & 1) && !why) {
             int fs = tn_free_slots(pl, hc, &w);
-            if (fs >= 4) { if (!why) why = "free places at its mines"; }
+            if (fs >= 4 && !(TOWNS(idx) & 16)) { if (!why) why = "free places at its mines"; }   // SPREAD: not waiting for them
             else if (!tn_site(pl, idx, base, hc, &w, &c, &nm)) {
                 why = "no free mines";
                 if (g_autotest) tn_say(idx, now, "mines: %d on the home continent, %d unexplored, %d too near or far, %d by a drop site, %d by an enemy building, %d lost there or defended",

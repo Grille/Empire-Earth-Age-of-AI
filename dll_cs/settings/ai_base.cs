@@ -403,9 +403,12 @@ class ai_base
     /// enemy's reach), 32+ tiles out, in a stalemate too (its army 0.8 x the enemy's): 8 citizens walk there and put up two
     /// towers, a Hospital, a production building, two more towers and a wall in front, the towers first; then they go back. Not before the Copper Age, not with enemies in its base, one at a time, at most towns_max. 2 = a Settlement, never a
     /// Town Center. 4 = army_plan's next production building goes up in the town nearest the enemy when it is 15+ tiles
-    /// nearer than the base. 0 = off (default): without a purpose the towns cost soldiers (-20 from the Middle Ages); with
+    /// nearer than the base. 16 (with 1) = spread: a resource town whenever a free mine group lies 32-60 tiles from its
+    /// nearest town, without waiting for the home mines to fill - the AI grows outward town by town, as many as it has
+    /// the people for (15 workers a town; towns_max doesn't apply).
+    /// 0 = off (default): without a purpose the towns cost soldiers (-20 from the Middle Ages); with
     /// one (9) even over 90 minutes on big maps, within noise (docs/testing.md)
-    [num, range(0, 15)] int towns = 0;
+    [num, range(0, 31)] int towns = 0;
     [num, range(0, 6), commented] int towns_max = 3;
     [num, range(1, 12), commented] int towns_citizens = 6;
     [num, range(0, 7), commented] int towers_per_town = 2;
