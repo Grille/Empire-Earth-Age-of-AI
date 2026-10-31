@@ -24,7 +24,7 @@ internal int route_safe(void *bm, ivec2 base, ivec2 to) {
 
 // Drop sites of a player from the unit grid: Town Center, Capitol, Settlement (also the single player one) take
 // everything, Granary (also the improved one) only food. Up to `max` entries.
-struct drop { ivec2 p; int food; };   // a drop site: its tile, a granary (food only)
+struct drop { ivec2 p; int food; ee_unit *u; };   // a drop site: its tile, a granary (food only), the building
 internal int drop_sites(ee_player *pl, struct drop *out, int max) {
     ee_map *map = game_map();
     ee_grid *grid = map ? map_get_grid(map) : NULL;
@@ -36,7 +36,7 @@ internal int drop_sites(ee_player *pl, struct drop *out, int max) {
         if (!td || unit_get_owner(u) != pl || n >= max) continue;
         int t = unit_type_get_id(td), food = t == UT(B_GRANARY) || t == UT(B_GRANARY_IMPROVED);
         if (!food && !UT_IN(t, UT_TOWNS, UT_X_SINGLE_PLAYER_SETTLEMENT)) continue;
-        out[n].p = unit_get_tile(u); out[n].food = food;
+        out[n].p = unit_get_tile(u); out[n].food = food; out[n].u = u;
         n++;
     }
     return n;
@@ -182,6 +182,7 @@ internal void cmd_minecheck(char *out, const char *args) {
 internal int g_local_mines;
 internal int g_town_work, g_v_town_work = -1, g_town_hooked;   // TOWN WORK below: local only too; v_: h2h variant B
 internal unsigned g_var_mask;   // econ.c: the players of variant B
+internal ivec2 *g_town_home;   // TOWN WORK: a mine search measuring from a citizen's home, not where it stands
 internal int town_on(unsigned pi) { return (g_var_mask >> (pi & 15) & 1) && g_v_town_work >= 0 ? g_v_town_work : g_town_work; }
 // not_region: a continent (region class 2) whose mines don't count, -1 none (overseas_mines)
 internal ee_unit *select_mine_near_drop(ee_resource_mgr *rm, int type, ee_unit *unit, int not_region) {
@@ -198,7 +199,7 @@ internal ee_unit *select_mine_near_drop(ee_resource_mgr *rm, int type, ee_unit *
     ee_unit *best = NULL;
     int best_d = 0x7FFFFFFF, best_local = 0;
     int local = (g_local_mines || town_on(pi)) && unit && !is_vanilla(pl);
-    ivec2 at = unit ? unit_get_tile(unit) : (ivec2){ 0, 0 };
+    ivec2 at = g_town_home ? *g_town_home : unit ? unit_get_tile(unit) : (ivec2){ 0, 0 };
     ee_zone **zb = player_get_zones_begin(pl); ee_zone **ze = player_get_zones_end(pl);
     for (int z = 0; zb && zb + z < ze; z++) {
         ee_zone *zone = zb[z];
@@ -385,33 +386,73 @@ internal ee_unit *__thiscall hook_find_wood(ee_resource_mgr *rm, uintptr_t flag,
 // (0x48A554) fills each resource's empire-wide shortfall with whichever citizen and site it finds - citizens walked
 // 200 tiles to another town's mine and back. Refusing those sites alone (local_mines) left the citizens idle: the
 // assignment only fills shortfalls, asks again and gets refused again. Here the mod decides the site at every one
-// of the assignment's sends (calls_gather): a site whose nearest drop site lies beyond TOWN_FAR of the citizen is
-// swapped for local work - the same resource, else the shortest one, else wood, else food; another town's only when
-// its own has no work at all. After the assignment the idle citizens get local work the same way (town_idle), and
-// every mine search is local only (select_mine_near_drop, find_mine_pick).
+// of the assignment's sends (calls_gather): a site whose nearest drop site lies beyond TOWN_FAR of the citizen's
+// home is swapped for work there - the same resource, else the shortest one, else wood, else food; another town's
+// only when its home has no work at all. After the assignment the idle citizens get local work the same way
+// (town_idle), and every mine search is local only (select_mine_near_drop, find_mine_pick).
+// HOMES (the player: "if I need new citizens in a town fast I train from several neighbouring town centers - a
+// longer way once, but faster than waiting on the town's own"): the citizens' order (train_citizens 0x48EE84) shares
+// its citizens out evenly over all town centers, wherever the work is. Here each one goes to the town whose mines
+// have the most free places (TOWN_MINE_TILES round its drop site, the citizens promised to it counted) - queued at
+// the town center that gets it there first: its queue (TOWN_QUEUE_TILES of walking each) plus the walk. The center
+// keeps the town as the home of its next citizen out; the first job given to a citizen within TOWN_BORN_TILES of
+// it takes that home (no hook sees a unit trained). A citizen without a home is at home where it stands.
 #define TOWN_FAR LOCAL_MINE_FAR
+#define TOWN_MINE_TILES 16
+#define TOWN_QUEUE_TILES 25
+#define TOWN_BORN_TILES 8
 internal int rm_count(ee_resource_mgr *rm, int t);   // econ.c: citizens on resource t
 internal int citizen_free(ee_unit *u, int idle);     // econ.c
 internal resource_mgr_assign_to_site_fn g_gather_next;   // NULL the original, else trace.c's logging hook before it
-internal struct { unsigned swapped, away, idle; uint32_t logged; } g_town[16];
-// site's nearest drop site (food: granaries too) within TOWN_FAR of the citizen
-internal int town_local(unsigned pi, ee_unit *u, ee_unit *site, int food) {
+internal struct { unsigned swapped, away, idle, sent, homed; uint32_t logged; } g_town[16];
+// homes: per player an open table by unit (its id against a reused address), the home's tile
+#define HOMES 2048
+internal struct town_home { ee_unit *u; int id; ivec2 at; } g_town_homes[16][HOMES];
+// promised homes: per player and town center, the homes of its next citizens out (oldest first)
+#define PROMISE_TC 32
+#define PROMISE_N 16
+internal struct promise { ee_unit *tc; int n; ivec2 at[PROMISE_N]; } g_tc_promise[16][PROMISE_TC];
+internal struct town_home *home_slot(unsigned pi, ee_unit *u) {
+    unsigned h = ((uintptr_t)u >> 4) * 2654435761u % HOMES;
+    for (int k = 0; k < 16; k++, h = (h + 1) % HOMES)
+        if (g_town_homes[pi][h].u == u || !g_town_homes[pi][h].u) return &g_town_homes[pi][h];
+    return &g_town_homes[pi][((uintptr_t)u >> 4) * 2654435761u % HOMES];   // full run: the first slot taken over
+}
+// u's home: its own, or a promise of a town center beside it (taken now), else where it stands
+internal ivec2 home_of(unsigned pi, ee_unit *u) {
+    struct town_home *h = home_slot(pi, u);
+    if (h->u == u && h->id == unit_get_id(u)) return h->at;
+    ivec2 at = unit_get_tile(u);
+    for (int i = 0; i < PROMISE_TC; i++) {
+        struct promise *p = &g_tc_promise[pi][i];
+        if (!p->tc || !p->n || ivec2_dist2(unit_get_tile(p->tc), at) > TOWN_BORN_TILES * TOWN_BORN_TILES) continue;
+        h->u = u; h->id = unit_get_id(u); h->at = p->at[0];
+        memmove(p->at, p->at + 1, (size_t)--p->n * sizeof *p->at);
+        g_town[pi].homed++;
+        return h->at;
+    }
+    return at;
+}
+// site's nearest drop site (food: granaries too) within TOWN_FAR of the home
+internal int town_local(unsigned pi, ivec2 home, ee_unit *site, int food) {
     int k = -1;
     if (drop_nearest(pi, unit_get_tile(site), food, &k) == 0x7FFFFFFF || k < 0) return 0;
-    return ivec2_dist2(g_drops[pi].d[k].p, unit_get_tile(u)) <= TOWN_FAR * TOWN_FAR;
+    return ivec2_dist2(g_drops[pi].d[k].p, home) <= TOWN_FAR * TOWN_FAR;
 }
-// a local site of resource r (2 food .. 6 iron) for citizen u, NULL none
-internal ee_unit *town_site(ee_resource_mgr *rm, int r, ee_unit *u) {
+// a site of resource r (2 food .. 6 iron) for citizen u at its home, NULL none
+internal ee_unit *town_site(ee_resource_mgr *rm, int r, ee_unit *u, ivec2 home) {
     ee_player *pl = resource_mgr_player(rm);
     unsigned pi = (unsigned)player_get_index(pl) & 15;
     drops_cached(pl);
-    ee_unit *s = r >= 4 ? select_mine_near_drop(rm, r, u, -1)   // local only with town_work
+    g_town_home = &home;   // the mine search measures from the home
+    ee_unit *s = r >= 4 ? select_mine_near_drop(rm, r, u, -1)
                : r == 3 ? hook_find_wood(rm, 1, u) : hook_find_food(rm, 1, 1, u);
-    return s && town_local(pi, u, s, r == 2) ? s : NULL;
+    g_town_home = NULL;
+    return s && town_local(pi, home, s, r == 2) ? s : NULL;
 }
-// local work for u: resource first (-1 none), then the resources by shortfall, then wood, then food
-internal ee_unit *town_work_for(ee_resource_mgr *rm, ee_unit *u, int first) {
-    ee_unit *s = first >= 2 && first < 7 ? town_site(rm, first, u) : NULL;
+// work at its home for u: resource first (-1 none), then the resources by shortfall, then wood, then food
+internal ee_unit *town_work_for(ee_resource_mgr *rm, ee_unit *u, ivec2 home, int first) {
+    ee_unit *s = first >= 2 && first < 7 ? town_site(rm, first, u, home) : NULL;
     if (s) return s;
     uint32_t *target = resource_mgr_target_at(rm);
     int tried = first >= 2 && first < 7 ? 1 << first : 0;
@@ -423,10 +464,10 @@ internal ee_unit *town_work_for(ee_resource_mgr *rm, ee_unit *u, int first) {
         }
         if (r < 0) break;
         tried |= 1 << r;
-        if ((s = town_site(rm, r, u))) return s;
+        if ((s = town_site(rm, r, u, home))) return s;
     }
-    if (!(tried & 8) && (s = town_site(rm, 3, u))) return s;
-    if (!(tried & 4) && (s = town_site(rm, 2, u))) return s;
+    if (!(tried & 8) && (s = town_site(rm, 3, u, home))) return s;
+    if (!(tried & 4) && (s = town_site(rm, 2, u, home))) return s;
     return NULL;
 }
 internal void __thiscall hook_town_gather(ee_resource_mgr *rm, ee_unit *u, ee_unit *site, int c) {
@@ -435,27 +476,29 @@ internal void __thiscall hook_town_gather(ee_resource_mgr *rm, ee_unit *u, ee_un
     if (pl && town_on(pi) && !is_vanilla(pl) && u && site && is_citizen_type(unit_type_get_id(unit_get_type_data(u)))) {
         int r = unit_get_resource(site);
         drops_cached(pl);
-        if (!town_local(pi, u, site, r == 2)) {
-            ee_unit *s = town_work_for(rm, u, r);
+        ivec2 home = home_of(pi, u);
+        if (!town_local(pi, home, site, r == 2)) {
+            ee_unit *s = town_work_for(rm, u, home, r);
             if (s) { site = s; g_town[pi].swapped++; }
-            else g_town[pi].away++;   // its town has no work: it goes
+            else g_town[pi].away++;   // its home has no work: it goes
         }
     }
     if (g_gather_next) g_gather_next(rm, u, site, c); else resource_mgr_assign_as(rm, u, site, c);
 }
-// after the assignment: the idle citizens to local work (40 at most a pass)
+// after the assignment: the idle citizens to work at their homes (40 at most a pass)
 internal void town_idle(ee_resource_mgr *rm) {
     ee_player *pl = resource_mgr_player(rm);
     if (!pl || is_vanilla(pl)) return;
     unsigned pi = (unsigned)player_get_index(pl) & 15;
     if (!town_on(pi)) return;
     int given = 0;
+    drops_cached(pl);
     for (int r = 0; r < 7 && given < 40; r++) {
         uint8_t *list = resource_mgr_list_at(rm, r);
         for (unsigned k = 0, first = deque_front(list), cnt = deque_count(list); k < cnt && given < 40; k++) {
             ee_unit *u = deque_at(list, first + k);
             if (!citizen_free(u, 1)) continue;
-            ee_unit *s = town_work_for(rm, u, -1);
+            ee_unit *s = town_work_for(rm, u, home_of(pi, u), -1);
             if (!s) continue;
             resource_mgr_assign(rm, u, s);
             given++;
@@ -465,9 +508,68 @@ internal void town_idle(ee_resource_mgr *rm) {
     uint32_t now = game_time();
     if (g_log && (!g_town[pi].logged || now < g_town[pi].logged || now - g_town[pi].logged >= 60000)) {
         g_town[pi].logged = now ? now : 1;
-        fprintf(g_log, "# town work: P%u at %.1f min: %u far sites swapped for local work, %u sent far (no local work), %u idle citizens given local work\n",
-                pi, now / 60000.0, g_town[pi].swapped, g_town[pi].away, g_town[pi].idle);
+        fprintf(g_log, "# town work: P%u at %.1f min: %u far sites swapped for work at home, %u sent far (no work at home), %u idle "
+                "citizens given work, %u citizens trained for a town with free mines, %u took that home\n",
+                pi, now / 60000.0, g_town[pi].swapped, g_town[pi].away, g_town[pi].idle, g_town[pi].sent, g_town[pi].homed);
     }
+}
+// the town (index into g_drops) whose mines have the most free places beyond the citizens promised to it, -1 none
+internal int town_needing(ee_player *pl, unsigned pi) {
+    unsigned cap = table_value(0x16);
+    int free_at[64] = { 0 };
+    if (g_mine_crowds) aim_count(pl, pi);
+    ee_zone **zb = player_get_zones_begin(pl); ee_zone **ze = player_get_zones_end(pl);
+    for (int z = 0; zb && zb + z < ze; z++) {
+        ee_zone *zone = zb[z];
+        if (!zone || !zone_get_active(zone)) continue;
+        for (int r = 4; r < 7; r++) {
+            ee_unit *s = zone_site(zone, r);
+            if (!s || unit_get_amount(s) <= 0 || !explored_by(s, pl)) continue;
+            int k = -1;
+            if (drop_nearest(pi, unit_get_tile(s), 0, &k) > TOWN_MINE_TILES * TOWN_MINE_TILES || k < 0 || k >= 64) continue;
+            unsigned n = site_gatherers(s), a = g_mine_crowds ? aim_of(pi, s) : 0;
+            if (a > n) n = a;
+            if (n < cap) free_at[k] += (int)(cap - n);
+        }
+    }
+    for (int i = 0; i < PROMISE_TC; i++)   // the citizens already on their way
+        for (int j = 0; j < g_tc_promise[pi][i].n; j++)
+            for (int k = 0; k < g_drops[pi].n && k < 64; k++)
+                if (ivec2_eq(g_drops[pi].d[k].p, g_tc_promise[pi][i].at[j])) free_at[k]--;
+    int best = -1, most = 0;
+    for (int k = 0; k < g_drops[pi].n && k < 64; k++)
+        if (free_at[k] > most) { most = free_at[k]; best = k; }
+    return best;
+}
+// the citizens' order: each citizen queued for the town needing it most, at the town center that gets it there first
+internal void __thiscall hook_train_citizen_at(ee_unit *tc, int tech, char now) {
+    ee_player *pl = tc ? unit_get_owner(tc) : NULL;
+    unsigned pi = pl ? (unsigned)player_get_index(pl) & 15 : 0;
+    if (!pl || is_vanilla(pl) || !town_on(pi)) { unit_enqueue(tc, tech, now); return; }
+    drops_cached(pl);
+    int k = town_needing(pl, pi);
+    if (k < 0) { unit_enqueue(tc, tech, now); return; }   // no town short of miners: the game's even share
+    ivec2 to = g_drops[pi].d[k].p;
+    int tct = unit_type_get_id(unit_get_type_data(tc));
+    ee_unit *best = tc;
+    int best_cost = 0x7FFFFFFF;
+    for (int i = 0; i < g_drops[pi].n; i++) {   // the town centers that train what tc trains
+        ee_unit *c = g_drops[pi].d[i].u;
+        if (!c || g_drops[pi].d[i].food || unit_get_hp(c) <= 0 || unit_type_get_id(unit_get_type_data(c)) != tct) continue;
+        int *qb = unit_get_queue_begin(c), *qe = unit_get_queue_end(c);
+        int queued = qb && qe > qb ? (int)(qe - qb) : 0;
+        int cost = queued * TOWN_QUEUE_TILES + (int)sqrtf((float)ivec2_dist2(g_drops[pi].d[i].p, to));
+        if (cost < best_cost) { best_cost = cost; best = c; }
+    }
+    unit_enqueue(best, tech, now);
+    struct promise *p = NULL;
+    for (int i = 0; i < PROMISE_TC && !p; i++) if (g_tc_promise[pi][i].tc == best) p = &g_tc_promise[pi][i];
+    for (int i = 0; i < PROMISE_TC && !p; i++) if (!g_tc_promise[pi][i].tc || !g_tc_promise[pi][i].n) p = &g_tc_promise[pi][i];
+    if (!p) return;
+    if (p->tc != best) { p->tc = best; p->n = 0; }
+    if (p->n == PROMISE_N) memmove(p->at, p->at + 1, (size_t)--p->n * sizeof *p->at);   // the oldest dropped
+    p->at[p->n++] = to;
+    g_town[pi].sent++;
 }
 
 internal void sites_install(void) {
@@ -482,7 +584,7 @@ internal void sites_install(void) {
     // always: the searches refuse sites behind known enemy towers (avoid_towers_citizens, attack.c)
     ok += patch_find_mine(hook_find_mine, &total) + patch_find_food(hook_find_food, &total) + patch_find_wood(hook_find_wood, &total) +
           patch_farms(hook_farms, hook_unbuilt_farms, &total) + patch_hunt(hook_hunt, &total);
-    if (g_town_work || g_v_town_work > 0) { ok += patch_gather(hook_town_gather, &total); g_town_hooked = 1; }
+    if (g_town_work || g_v_town_work > 0) { ok += patch_gather(hook_town_gather, &total) + patch_train_citizen_at(hook_train_citizen_at, &total); g_town_hooked = 1; }
     if (g_log) fprintf(g_log, "# site hooks: %d/%d, max distance %d; mine_choice=%d, overseas_mines=%d\n", ok, total, g_site_max_dist, g_mine_choice, g_overseas_mines);
 }
 
@@ -491,4 +593,7 @@ internal void sites_new_game(void) {
     memset(g_drops, 0, sizeof g_drops);
     memset(g_site_refused, 0, sizeof g_site_refused);
     memset(g_oversea, 0, sizeof g_oversea);
+    memset(g_town, 0, sizeof g_town);
+    memset(g_town_homes, 0, sizeof g_town_homes);
+    memset(g_tc_promise, 0, sizeof g_tc_promise);
 }

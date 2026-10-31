@@ -596,6 +596,14 @@ unsafe struct EEComplexUnit
     /// (appended); the citizen's script takes it up from there, no goal is given
     [address((ee)0x005E8A3B, (aoc)0x005F60EA)]
     extern void build_next(EEUnit* building);
+    /// a building queues the tech (a unit's tech id): the tech tree's checks (the player's vf 0x80, the node queueable),
+    /// a citizen only under the population limit (player +0xAE8), at the queue's end (now 0) or through the user-input
+    /// message (now 1). The citizens' order (train_citizens 0x48EE84) calls it once per citizen with the producer it
+    /// shares the order out to - evenly over all of them, wherever the work is (sites.c TOWN WORK)
+    [address((ee)0x005E8908, (aoc)0x005F5F97)]
+    [call_site("train_citizen_at", (ee)0x0048F043, (aoc)0x00493D5F)]
+    [call_site("train_citizen_at", (ee)0x0048F07E, (aoc)0x00493D9A)]
+    extern void enqueue(int32 tech, char8 now);
     /// its tile (+0x1C / +0x20) changes to x, y: its map cell looked up (map +0x1816D4 by y * size + x; none past the
     /// map's square), and with link set and x changed its place in the world's x-sorted unit list again (EEWorld.resort,
     /// whose walk runs off the list's end for an x past the map - the player's crash at 594.7 min, Empire

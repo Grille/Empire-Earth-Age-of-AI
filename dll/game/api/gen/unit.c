@@ -581,6 +581,14 @@ internal inline int patch_repair_goal(unit_assign_goal_fn h) { return patch_call
 typedef void (__thiscall *unit_build_next_fn)(ee_unit *, ee_unit *);
 internal unit_build_next_fn fn_unit_build_next;
 internal inline void unit_build_next(ee_unit *unit, ee_unit *building) { fn_unit_build_next(unit, building); }
+// a building queues the tech (a unit's tech id): the tech tree's checks (the player's vf 0x80, the node queueable),
+// a citizen only under the population limit (player +0xAE8), at the queue's end (now 0) or through the user-input
+// message (now 1). The citizens' order (train_citizens 0x48EE84) calls it once per citizen with the producer it
+// shares the order out to - evenly over all of them, wherever the work is (sites.c TOWN WORK)
+typedef void (__thiscall *unit_enqueue_fn)(ee_unit *, int, char);
+internal unit_enqueue_fn fn_unit_enqueue;
+internal inline void unit_enqueue(ee_unit *unit, int tech, char now) { fn_unit_enqueue(unit, tech, now); }
+internal inline int patch_train_citizen_at(unit_enqueue_fn h, int *of) { return patch_calls(calls_train_citizen_at, 2, (uintptr_t)fn_unit_enqueue, (void *)h, of); }
 // its tile (+0x1C / +0x20) changes to x, y: its map cell looked up (map +0x1816D4 by y * size + x; none past the
 // map's square), and with link set and x changed its place in the world's x-sorted unit list again (EEWorld.resort,
 // whose walk runs off the list's end for an x past the map - the player's crash at 594.7 min, Empire
@@ -850,6 +858,9 @@ internal int spec_unit_select(int build) {
         fn_unit_assign_goal = (unit_assign_goal_fn)0x005F05BD;
         call_repair_goal = 0x0046DA88;
         fn_unit_build_next = (unit_build_next_fn)0x005E8A3B;
+        fn_unit_enqueue = (unit_enqueue_fn)0x005E8908;
+        calls_train_citizen_at[0] = 0x0048F043;
+        calls_train_citizen_at[1] = 0x0048F07E;
         fn_unit_set_tile = (unit_set_tile_fn)0x00616F9D;
         calls_set_tile[0] = 0x005974DF;
         calls_set_tile[1] = 0x0059763E;
@@ -1032,6 +1043,9 @@ internal int spec_unit_select(int build) {
         fn_unit_assign_goal = (unit_assign_goal_fn)0x005FE863;
         call_repair_goal = 0x004706DF;
         fn_unit_build_next = (unit_build_next_fn)0x005F60EA;
+        fn_unit_enqueue = (unit_enqueue_fn)0x005F5F97;
+        calls_train_citizen_at[0] = 0x00493D5F;
+        calls_train_citizen_at[1] = 0x00493D9A;
         fn_unit_set_tile = (unit_set_tile_fn)0x00629AC3;
         calls_set_tile[0] = 0x005A76B3;
         calls_set_tile[1] = 0x005A7814;
@@ -1111,6 +1125,9 @@ internal int spec_unit_check(void) {
     bad += spec_code((uintptr_t)fn_unit_assign_goal, "EEComplexUnit.assign_goal");
     bad += spec_call(call_repair_goal, (uintptr_t)fn_unit_assign_goal, "EEComplexUnit.assign_goal [call_site repair_goal]");
     bad += spec_code((uintptr_t)fn_unit_build_next, "EEComplexUnit.build_next");
+    bad += spec_code((uintptr_t)fn_unit_enqueue, "EEComplexUnit.enqueue");
+    bad += spec_call(calls_train_citizen_at[0], (uintptr_t)fn_unit_enqueue, "EEComplexUnit.enqueue [call_site train_citizen_at 0]");
+    bad += spec_call(calls_train_citizen_at[1], (uintptr_t)fn_unit_enqueue, "EEComplexUnit.enqueue [call_site train_citizen_at 1]");
     bad += spec_code((uintptr_t)fn_unit_set_tile, "EEComplexUnit.set_tile");
     bad += spec_call(calls_set_tile[0], (uintptr_t)fn_unit_set_tile, "EEComplexUnit.set_tile [call_site set_tile 0]");
     bad += spec_call(calls_set_tile[1], (uintptr_t)fn_unit_set_tile, "EEComplexUnit.set_tile [call_site set_tile 1]");
