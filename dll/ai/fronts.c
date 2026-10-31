@@ -12,7 +12,8 @@
 //   the enemy's - the same round the enemy buildings it knows (intel, honest);
 //   border - a cell of its territory beside a land cell that isn't, on land where an enemy building it knows stands
 //            (the enemy can walk there: area class 2), or beside the enemy's territory;
-//   fronts - border cells within 2 cells of each other, joined; each one's width (cells), middle, threat (the enemy
+//   fronts - border cells within 2 cells of each other, joined, a long one split in sections of FR_SECTION cells
+//            (fronts_look); each one's width (cells), middle, threat (the enemy
 //            buildings and soldiers it knows within FR_REACH tiles beyond, by strength), value (its own buildings
 //            within FR_REACH tiles behind) and weight = width x (1 + threat) x (1 + value) / 4, its share of the
 //            weights its share of the army to be.
@@ -23,6 +24,7 @@
 #define FR_TERR 3                // territory: 3 cells (24 tiles) round its buildings
 #define FR_REACH 48
 #define FR_MAX 32
+#define FR_SECTION 12            // a front at most ~12 cells (96 tiles) of border; a longer border is split
 struct front_st { ivec2 c; int width, threat, value; float weight, share; };
 internal struct fronts_st { uint32_t t, log_t; int n; struct front_st f[FR_MAX]; int border, terr; } g_fronts[16];
 internal uint8_t g_fr_land[FR_SIDE * FR_SIDE], g_fr_own[FR_SIDE * FR_SIDE], g_fr_foe[FR_SIDE * FR_SIDE];   // per look (sim thread)
@@ -145,11 +147,42 @@ internal void fronts_look(ee_player *pl, unsigned idx, uint32_t now) {
                     g_fr_q[t++] = (short)nx; g_fr_q[t++] = (short)ny;
                 }
         }
-        if (nf >= FR_MAX) continue;   // the rest folded into nothing: logged as border cells only
-        struct front_st *fr = &f[nf++];
-        memset(fr, 0, sizeof *fr);
-        fr->width = cnt;
-        fr->c = iv2(sx * FR_CELL / cnt + FR_CELL / 2, sy * FR_CELL / cnt + FR_CELL / 2);
+        (void)sx; (void)sy;
+        // a long border in sections of about FR_SECTION cells (an open border on flatland: several fronts, the weight
+        // where the enemy stands): seeds spread along it - the cell farthest from the seeds so far - each cell to its
+        // nearest seed, the seeds moved to their sections' middles once
+        int k = (cnt + FR_SECTION - 1) / FR_SECTION;
+        if (k > FR_MAX - nf) k = FR_MAX - nf;
+        if (k <= 0) continue;   // more fronts than kept: logged as border cells only
+        static ivec2 seed[FR_MAX];
+        static int sec_n[FR_MAX], sec_x[FR_MAX], sec_y[FR_MAX];
+        seed[0] = iv2(g_fr_q[0], g_fr_q[1]);
+        for (int j = 1; j < k; j++) {
+            int most = -1, bi = 0;
+            for (int q = 0; q < t; q += 2) {
+                int d = 0x7FFFFFFF;
+                for (int m = 0; m < j; m++) { int e = ivec2_dist2(iv2(g_fr_q[q], g_fr_q[q + 1]), seed[m]); if (e < d) d = e; }
+                if (d > most) { most = d; bi = q; }
+            }
+            seed[j] = iv2(g_fr_q[bi], g_fr_q[bi + 1]);
+        }
+        for (int pass = 0; pass < 2; pass++) {
+            memset(sec_n, 0, sizeof sec_n); memset(sec_x, 0, sizeof sec_x); memset(sec_y, 0, sizeof sec_y);
+            for (int q = 0; q < t; q += 2) {
+                ivec2 c = iv2(g_fr_q[q], g_fr_q[q + 1]);
+                int bm = 0, bd = 0x7FFFFFFF;
+                for (int m = 0; m < k; m++) { int e = ivec2_dist2(c, seed[m]); if (e < bd) { bd = e; bm = m; } }
+                sec_n[bm]++; sec_x[bm] += c.x; sec_y[bm] += c.y;
+            }
+            for (int m = 0; m < k; m++) if (sec_n[m]) seed[m] = iv2(sec_x[m] / sec_n[m], sec_y[m] / sec_n[m]);
+        }
+        for (int m = 0; m < k; m++) {
+            if (!sec_n[m]) continue;
+            struct front_st *fr = &f[nf++];
+            memset(fr, 0, sizeof *fr);
+            fr->width = sec_n[m];
+            fr->c = iv2(sec_x[m] * FR_CELL / sec_n[m] + FR_CELL / 2, sec_y[m] * FR_CELL / sec_n[m] + FR_CELL / 2);
+        }
     }
     // threat beyond and value behind each front
     for (int k = 0; k < in->n; k++) {
