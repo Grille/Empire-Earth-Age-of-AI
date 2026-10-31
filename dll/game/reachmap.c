@@ -43,16 +43,7 @@ internal struct {
 } g_reach;
 #define RM_NO_GATE 0xFFFF
 internal const int8_t k_rm_dx[8] = { 1, 1, 0, -1, -1, -1, 0, 1 }, k_rm_dy[8] = { 0, 1, 1, 1, 0, -1, -1, -1 };
-// a gate (CLS_GATE) open to player p's units: the game's own test (the unit's lets_pass, EEComplexUnit::lets_pass
-// 0x5EC317 - shut while its chain is frozen or being joined; outside its gate state open to everyone; else open to its
-// owner and the players its owner is allied with, unless locked; AoC's one test more) asked for one of p's units - it
-// reads only the asker's owner and type. Not one of the type that passes enemy gates (0xD1). No unit: shut.
-internal int rm_gate_open(ee_unit *g, int p) {
-    ee_player *pl = player_at(p);
-    ee_unit *w = pl ? player_get_units(pl) : NULL;
-    for (int n = 0; w && n < 64 && (!unit_get_type_data(w) || unit_type_get_id(unit_get_type_data(w)) == 0xD1); n++) w = unit_get_next(w);
-    return w && unit_get_type_data(w) && unit_type_get_id(unit_get_type_data(w)) != 0xD1 && unit_lets_pass(g, w);
-}
+internal int rm_gate_open(ee_unit *g, int p) { return gate_opens_for(g, player_at(p)); }   // game/api/unit.c
 internal ee_unit *rm_gate_on(ee_tile *tile) {   // the gate standing on a tile, NULL none
     for (void *node = tile ? tile_get_objects(tile) : NULL; node; node = tilenode_get_next(node)) {
         ee_unit *o = tilenode_get_object(node);
