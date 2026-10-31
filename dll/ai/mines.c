@@ -274,7 +274,7 @@ internal void mines_log(ee_player *pl, unsigned idx, uint32_t now) {
     LeaveCriticalSection(&g_lock);
 }
 internal void mines_install(const char *autotest_ini) {
-    g_mine_fill = g_set_ai[1].mine_fill;
+    g_mine_fill = SETTING_BITS(g_set_ai[1].mine_fill);
     g_wood_drop = g_set_ai[1].wood_drop;
     if (autotest_ini) g_v_mine_fill = ini_int("autotest", "v_mine_fill", -1, autotest_ini);
 }

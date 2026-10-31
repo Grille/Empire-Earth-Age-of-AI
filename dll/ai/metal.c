@@ -362,7 +362,7 @@ internal void mt_tick(ee_player *pl, uint32_t now) {
     mt_log(pl, idx, m->min * 5);
 }
 internal void mt_install(const char *autotest_ini) {
-    g_metal_plan = g_set_ai[1].metal_plan;
+    g_metal_plan = SETTING_BITS(g_set_ai[1].metal_plan);
     g_mt_fleet_pct = g_set_ai[1].metal_fleet_pct;
     g_mt_fleet_min = g_set_ai[1].metal_fleet_min;
     g_mt_cap = g_set_ai[1].metal_cap;

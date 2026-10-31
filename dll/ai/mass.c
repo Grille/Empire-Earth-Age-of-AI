@@ -424,7 +424,10 @@ internal void mass_tick(ee_player *pl, uint32_t now) {
     m->min = now / 60000;
 }
 internal void mass_install(const char *autotest_ini) {
-    g_army_mass = g_set_ai[1].army_mass;
+    {   // its parts' bits: 1, 2, 8, 16, 32, 64, 128 (4 none)
+        int b = SETTING_BITS(g_set_ai[1].army_mass);
+        g_army_mass = (b & 3) | (b & ~3) << 1;
+    }
     g_mass_group = g_set_ai[1].army_mass_group;
     g_mass_hold = g_set_ai[1].army_mass_hold;
     g_mass_ratio = setting_pct(g_set_ai[1].army_mass_ratio);

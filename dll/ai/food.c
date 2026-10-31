@@ -275,7 +275,7 @@ internal void food_log(ee_player *pl, unsigned idx, uint32_t now) {
     LeaveCriticalSection(&g_lock);
 }
 internal void food_install(const char *autotest_ini) {
-    g_food_plan = g_set_ai[1].food_plan;
+    g_food_plan = SETTING_BITS(g_set_ai[1].food_plan);
     g_hunt_range = g_set_ai[1].food_hunt_range;
     if (autotest_ini) g_v_food_plan = ini_int("autotest", "v_food_plan", -1, autotest_ini);
 }

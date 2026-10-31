@@ -397,7 +397,7 @@ without the cheat by 7 - but every way of holding it back (GATHER, TETHER on uni
 cheating base AI (-14 to -24): against twice the army the chasers' kills count, and the pack that waits trades
 less. TETHER on buildings only (144) is neutral everywhere (80 games a cell within 1.5 standard errors, the
 head-to-head losses +6 (4)). JOIN made GATHER's released groups keep the pressure (no-cheat wins 20 -> 19 instead of
-14) but not its cost against the cheat. Nothing gains clearly without a loss elsewhere: all **off** (`army_mass=0`).
+14) but not its cost against the cheat. Nothing gains clearly without a loss elsewhere: all **off** (`army_mass=none`).
 What the numbers point to instead: the deaths are in the pack's fights, so the lever is which fights the pack takes
 and when it breaks one off (the fight estimate, the retreat's thresholds against what the pack really faces), not
 how it walks.
@@ -457,7 +457,7 @@ next part called it (`_purecall`, 2 of 80 games; guards are land soldiers now, a
 while it is the transport's goal); with honest_vision an unscouted enemy home island looked free (Tournament Islands
 kills - losses -10, now no island with an enemy town).
 
-**Paired** against the same build without (`expand_islands=0`; it plays the same games as the measurement build, 78
+**Paired** against the same build without (`expand_islands=none`; it plays the same games as the measurement build, 78
 of 80 on Small Islands; Continental e0 the same games as main, 40 of 40). d = with - without, standard error; og =
 miners on other islands, mg = all miners, metal = the mod's stone + gold + iron income in 60 min:
 
@@ -476,7 +476,7 @@ it rarely got going (0.3 trips a game: the army outmatched, the sea held, the ba
 the base AI's waves took what went (0.25 outposts lost a game). Head-to-head against the control AI (Small Islands
 e5, map_size 0, 4 AIs, 60 min, 24 games, `v_expand_islands=1`): B - A per game alive +0.00, soldiers +1.3 (1.4), kills
 +2.2 (2.9), losses -5.3 (4.7), razed -0.2 (0.2), workers -1.0 (0.7) (59 plans, 10 trips ashore, 2 outposts lost).
-Nothing clearly better: **off** (`expand_islands=0`).
+Nothing clearly better: **off** (`expand_islands=none`).
 
 What it would take: the free island must be taken before the base AI's (minute 15-20, i.e. a transport ready before
 the plan), the citizens it ships must be additional (more citizens trained for the island's slots, not taken from
@@ -566,7 +566,7 @@ left is lost), 64 FORWARD (an outpost nearer the enemy's known buildings than ho
 towers while `sea_held`: no enemy warship seen in its waters for 5 minutes, its warships at least the enemy's known;
 home's towers, guard and militia untouched; only the outpost's own guard is held there, the rest is the game's army).
 
-**Measured** (paired with `lgA` = the same build, `expand_islands=0`; 40 games a cell; d = with - without, standard
+**Measured** (paired with `lgA` = the same build, `expand_islands=none`; 40 games a cell; d = with - without, standard
 error; og = miners on other islands, mg = all miners, foe = the most enemy soldiers seen on the home island at a
 5-minute sample; the B logs were rerun with the worktree's personality files after a format change on main):
 
@@ -602,7 +602,7 @@ test found its outpost 8-82 tiles from the enemy's buildings), and `sea_held` pa
 the enemy's had rarely been seen. 
 Head-to-head against the control AI (Small Islands Large, 4 AIs, unit limit 2500, 75 minutes, 24 games, `v_expand_islands`, B - A per game): 57 soldiers +9.4 (5.4), kills +5.8 (14.7), losses -9.1 (9.9), razed -3.5 (2.6), workers +1.6 (6.5); 121 soldiers +1.8 (7.9), kills +0.3 (14.8), losses -2.1 (11.7), razed -3.0 (2.9), workers +5.9 (9.6) - nothing beyond the noise, the razed count leaning against it.
 
-No clear gain without losses elsewhere: **off** (`expand_islands=0`). The build with it off against main's build without
+No clear gain without losses elsewhere: **off** (`expand_islands=none`). The build with it off against main's build without
 these bits: Continental e0 39 of 40 games the same, Small Islands Large 1 of 4 seeds checked identical, and a rerun of
 one that parted (minute 70) identical to main's - with 8 games at a time, 3 of 4 Small Islands Large games parted after
 minute 56-70 also between two runs of the same DLL (the heavy load, not the code; a run with 2 at a time was exact).
@@ -790,7 +790,7 @@ sneaks past to the home economy; the outposts must hold.
 `expand_islands` 128 FOLLOW (header of dll/ai/expand.c): a new outpost and every further trip only while the AI holds
 the sea (`sea_held`) and its land army is at least 1.5 x the enemy army it knows; a guard of at least 4; a ring of four
 towers instead of two; the idle citizens board first. Measured as 185 (1 + 8 EARLY + 16 EXTRA + 32 MORE + 128), 249
-(+ 64 FORWARD), the old 57 for reference, 185 with `workforce_plan=1` (CAP), and 185 with `metal_plan=24` (FLEET 150%,
+(+ 64 FORWARD), the old 57 for reference, 185 with `workforce_plan=what_is_used` (CAP), and 185 with `metal_plan=fleet_by_enemy|calm_navy_cap` (FLEET 150%,
 12 + CALM). Paired with `mtB0` (d = with - without, standard error; og = miners on other islands, `scripts/results/islands.py`;
 foe = the most enemy soldiers seen on the home island at a 5-minute sample):
 
@@ -822,7 +822,7 @@ same islands with a 2-3x army and takes them; with the cheat the AI rarely gets 
 The combination with FLEET gives the most metal (+2000-3000 gold + iron by minute 60 without the cheat) and soldiers,
 but the fights stay within the noise. Head-to-head against the control AI (Small Islands Large, 4 AIs, unit limit
 2500, 75 minutes, 24 games, `v_expand_islands=185`): B - A kills - losses -5.3 (23.2), soldiers at 75 +5.8 (5.8), razed
--0.9 (2.1), stone income +316 (147). No variant is a clear gain without a loss elsewhere: **off** (`expand_islands=0`).
+-0.9 (2.1), stone income +316 (147). No variant is a clear gain without a loss elsewhere: **off** (`expand_islands=none`).
 What it would take: an outpost on an island the base AI does not contest, or an army there that beats its landing - the
 land army's size on islands is the metal again (the warships take two thirds of it, "Gold and iron").
 
@@ -911,7 +911,7 @@ Head-to-head against the control AI (`v_fall_back=7`, B - A per game, se; `cover
 unit limit 2500, 75 min, 24 games) kills - losses +28.2 (18.4), kills +20.5 (10.9), soldiers +24.1 (6.7) (h2h.py),
 warships +8.1 (2.1), sunk +12.3 (4.3), ships lost -5.6 (2.5), value lost -2302 (1020); Continental (map_size 1, 4 AIs,
 60 min, 24 games) +11.5 (6.7), kills +8.3 (3.5), alive +0.06 (0.03); lowpop (Continental e9, unit limit 60, 20 games)
-+21.1 (6.9), kills +10.7 (4.4), losses -10.4 (3.1). **On by default (`fall_back=7`).** The build with it off plays the
++21.1 (6.9), kills +10.7 (4.4), losses -10.4 (3.1). **On by default (`fall_back=hospital|tower_cover|fleet_cover`).** The build with it off plays the
 games of the build before (Continental e0 and Small Islands Large, 25 min: every # mil / # battle / # eco line the same).
 Left: Hospitals - the AIs have 0-1 on Continental (HEAL rarely acts there); a unit that breaks off away from cover on
 an enemy island fights on; the estimate counts a static tower out of reach of anything that outranges it (ships
@@ -965,7 +965,7 @@ cover.py -h2h / h2h.py): v_fall_back=15 - Small Islands Large (4 AIs, e5) kills 
 lowpop (e9, unit limit 60) -6.5 (6.2). v_army_mass=4 (attack_retreat for B alone): -0.0 (12.8), -1.6 (4.7), +0.1
 (5.4), -0.5 (6.1).
 
-**END stays off** (`fall_back=7`): no clear gain - a few cells better (Small Islands e5 and Tournament Islands Huge
+**END stays off** (`fall_back=hospital|tower_cover|fleet_cover`): no clear gain - a few cells better (Small Islands e5 and Tournament Islands Huge
 without the cheat), as many worse (Small Islands e5 with the cheat, Large Islands Huge, the head-to-heads); breaks 3
 alike. **attack_retreat on top of fall_back adds nothing**: within the noise everywhere but Continental e0 with the
 cheat (-8.7 (3.6)), 0-0.65 call-offs a game. **The call-off itself is still not safe**: of ~2900 games, all 5 crashes
@@ -976,8 +976,8 @@ attack_retreat ones.
 
 ## Mines and army on the small maps (2026-10-22, dll/ai/mines.c, army.c)
 
-The re-measure with fall_back (docs/experiments.md "Re-measured with fall_back on") found `mine_fill=7` and
-`army_plan=7` strong on the large maps and a little worse on some small ones. The user's question: not a map-size gate -
+The re-measure with fall_back (docs/experiments.md "Re-measured with fall_back on") found `mine_fill=fill_slots|mine_settlement|mines_first` and
+`army_plan=top_up|room_soldiers|more_buildings` strong on the large maps and a little worse on some small ones. The user's question: not a map-size gate -
 why? From the paired logs of that run (shipped build against the key, same seeds and seats, 40-80 games a cell; `# eco`,
 `# mil`, `# metal`, `# cit`, `# death`, `# cvd`) and runs made for it. Numbers: shipped value, then d (se) with the key.
 

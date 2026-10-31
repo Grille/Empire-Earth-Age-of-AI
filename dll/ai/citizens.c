@@ -428,12 +428,12 @@ internal void wf_log(ee_player *pl, unsigned idx, unsigned min) {
 }
 
 internal void cz_install(const char *autotest_ini) {
-    g_cit_plan = g_set_ai[1].citizen_plan;
+    g_cit_plan = SETTING_BITS(g_set_ai[1].citizen_plan);
     g_cit_army = g_set_ai[1].citizen_army_share;
     g_cit_train_ms = g_set.citizen_train_ms;
     if (g_cit_train_ms < 5000) g_cit_train_ms = 5000;
     if (autotest_ini) g_v_cit_plan = ini_int("autotest", "v_citizen_plan", -1, autotest_ini);
-    g_wf_plan = g_set_ai[1].workforce_plan;
+    g_wf_plan = SETTING_BITS(g_set_ai[1].workforce_plan);
     g_wf_army_cap = g_set_ai[1].workforce_army_cap;
     if (autotest_ini) g_v_wf_plan = ini_int("autotest", "v_workforce_plan", -1, autotest_ini);
     g_shelve = g_set_ai[1].shelve_citizens; g_shelve_stock = g_set_ai[1].shelve_stock;   // bunker.c's shelf

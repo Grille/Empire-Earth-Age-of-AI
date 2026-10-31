@@ -756,7 +756,7 @@ internal void cover_tick(ee_player *pl, uint32_t now) {
     c->min = now / 60000;
 }
 internal void cover_install(const char *autotest_ini) {
-    g_fall_back = g_set_ai[1].fall_back;
+    g_fall_back = SETTING_BITS(g_set_ai[1].fall_back);
     g_fb_ratio = setting_pct(g_set_ai[1].fall_back_ratio);
     g_fb_hp = setting_pct(g_set_ai[1].fall_back_hp);
     g_fb_value = g_set_ai[1].fall_back_value;

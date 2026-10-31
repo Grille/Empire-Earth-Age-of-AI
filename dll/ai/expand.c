@@ -1423,7 +1423,7 @@ internal void expand_tick(ee_player *pl, uint32_t now) {
     if (!is_vanilla(pl)) fronts_tick(pl, idx, now);
 }
 internal void expand_install(const char *autotest_ini) {
-    g_expand = g_set_ai[1].expand_islands;
+    g_expand = SETTING_BITS(g_set_ai[1].expand_islands);
     g_rescue = g_set_ai[1].rescue_citizens;
     towns_install(autotest_ini);
     if (autotest_ini) g_v_expand = ini_int("autotest", "v_expand_islands", -1, autotest_ini);

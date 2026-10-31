@@ -511,7 +511,7 @@ internal void ap_upgrades(ee_player *pl, unsigned idx) {
     }
 }
 internal void ap_install(const char *autotest_ini) {
-    g_army_plan = g_set_ai[1].army_plan;
+    g_army_plan = SETTING_BITS(g_set_ai[1].army_plan);
     g_outdated_attack = g_set_ai[1].outdated_attack;
     g_army_keep[2] = g_army_keep[3] = g_set_ai[1].army_float_keep;
     g_army_keep[4] = g_army_keep[5] = g_army_keep[6] = g_set_ai[1].army_float_keep_mineral;

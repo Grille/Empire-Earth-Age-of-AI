@@ -87,6 +87,14 @@ internal const struct setting_section k_setting_sections[] = { SETTING_SECTIONS(
 // where each row's value came from: 0 its default, 1 ageofai.ini, 2 the test ini ([autotest]); a row of [ai_base]: the
 // furthest of its difficulties
 internal uint8_t g_set_from[SETTING_N];
+// a FLAGS row as the bit mask a part keeps: its i-th field (the declaration's order) bit i
+internal int setting_bits(const int *f, int n) {
+    int b = 0;
+    for (int i = 0; i < n; i++) if (f[i]) b |= 1 << i;
+    return b;
+}
+#define SETTING_BITS(row) setting_bits((const int *)&(row), (int)(sizeof(row) / sizeof(int)))
+
 // a share setting (a float: 35% is 0.35) as the whole percents a part keeps (35), rounded, -1% too
 internal int setting_pct(float share) {
     float x = share * 100.0f;

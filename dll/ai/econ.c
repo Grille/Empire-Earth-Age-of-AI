@@ -2275,7 +2275,7 @@ internal void econ_install(const char *autotest_ini) {
     g_wild_share = g_set_ai[1].wild_food_share;
     g_reserve_window_ms = g_set_ai[1].reserve_window_min * 60000;
     g_rebalance = g_set_ai[1].rebalance_workers;
-    g_late_targets = g_set_ai[1].late_targets;
+    g_late_targets = SETTING_BITS(g_set_ai[1].late_targets);
     g_reserve_plan = g_set_ai[1].reserve_plan;
     g_mineral_margin = g_set_ai[1].mineral_worker_margin;
     g_early_requirements = g_set_ai[1].early_requirements;
