@@ -101,6 +101,11 @@ class general
         /// sent far gets the first part of its route at once and the rest a moment later, so a big army's order doesn't
         /// hold up the picture. 0 = every route planned whole at once
         [child(nameof(improved_unit_movement)), commented("0")] bool route_budget = true;
+        /// Route corridor (with land routes): a long land trip's route is searched only along a coarse route through the
+        /// map's walkable cells (planned in a fraction of the time), and a spot no land unit can walk to is known at once
+        /// instead of after searching everything reachable. A corridor a building blocks is searched again without it.
+        /// 1 = on, being measured
+        bool route_corridor = false;
         /// Ship turns: a ship whose next waypoint lies more than 45 degrees off its bow (a new order while under way, a corner)
         /// turns in an arc at the speed the turn allows, where the circle is free, instead of slowing to a crawl and turning
         /// almost on the spot, steers at a point sliding along its route and sails through shift-queued points. 0 = the original

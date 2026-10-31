@@ -62,6 +62,9 @@ internal float g_sr_radius;             // this search's ship: its hull radius i
 internal unsigned g_sr_routed, g_sr_passed;   // routes given, requests left to the game
 internal unsigned g_sr_tiles;           // tiles the searches expanded, all
 internal const uint8_t *g_sr_danger;    // this search's danger map (danger_routes), NULL: none
+internal int g_lr_corridor, g_sr_corr;   // route_corridor; this search keeps to the corridor (game/reachmap.c)
+internal unsigned g_lr_corr[6];         // land searches: in a corridor, no land route (cut short), searched again without it, can't tell: the type, the start, the goal
+#define SR_CORRIDOR_TRIP 16             // tiles: a shorter trip searches as before
 internal struct {
     uint32_t n;                         // tiles (the map's size squared) the arrays hold
     uint32_t gen;                       // this search's stamp: an entry of another is unset
@@ -361,6 +364,7 @@ internal int sr_join(ee_map *map, ee_unit *u, ee_unit_type *td, int size, sr_sha
             uint32_t j;
             int step = sr_step_cost(map, u, td, size, x, y, d, &j);
             if (step < 0 || g_sr.closed[j] == g_sr.gen) continue;
+            if (g_sr_corr && !rm_in_corridor((int)j % size, (int)j / size)) continue;   // route_corridor: off the coarse route
             int g = g_sr.g[i] + step;
             if (g_sr.seen[j] == g_sr.gen && g >= g_sr.g[j]) continue;
             g_sr.seen[j] = g_sr.gen;
@@ -419,6 +423,7 @@ internal int sr_find(ee_map *map, ee_unit *u, ee_unit_type *td, int size, int sx
             uint32_t j;
             int step = sr_step_cost(map, u, td, size, x, y, d, &j);
             if (step < 0 || g_sr.closed[j] == g_sr.gen) continue;
+            if (g_sr_corr && !rm_in_corridor((int)j % size, (int)j / size)) continue;   // route_corridor: off the coarse route
             int g = g_sr.g[i] + step;
             if (g_sr.seen[j] == g_sr.gen && g >= g_sr.g[j]) continue;
             g_sr.seen[j] = g_sr.gen;
@@ -501,7 +506,21 @@ internal int sr_search(ee_unit *u, int *from, int *to, void *caller, int sectors
         else { g_sr_join_missed++; sr_stamp(); }   // a search of its own, its stamps fresh
     }
     if (!joined) {
+        // route_corridor: a land trip searched along the reach map's coarse route only; no land route at all -> left to
+        // the game at once; the corridor failing (a building, a wall in the way) -> searched again without it
+        int corr = g_lr_corridor && !g_sr_ship && (dxt > dyt ? dxt : dyt) >= SR_CORRIDOR_TRIP ? rm_corridor(sx, sy, tx, ty, td) : -1;
+        if (corr == 0) { g_lr_corr[1]++; if (g_log && g_sr_log) fprintf(g_log, "# shiproute: %06x %d,%d -> %d,%d: no land route (reach map) - the game's\n", serial & 0xFFFFFF, sx, sy, tx, ty); return 0; }
+        if (g_lr_corridor && !g_sr_ship && corr < 0 && (dxt > dyt ? dxt : dyt) >= SR_CORRIDOR_TRIP) g_lr_corr[2 - corr]++;
+        g_sr_corr = corr == 1;
+        if (g_sr_corr) g_lr_corr[0]++;
         n = sr_find(map, u, td, size, sx, sy, tx, ty, path, 65536, &expanded, piece, &whole);
+        if (!n && g_sr_corr) {
+            g_lr_corr[2]++;
+            g_sr_corr = 0;
+            sr_stamp();
+            n = sr_find(map, u, td, size, sx, sy, tx, ty, path, 65536, &expanded, piece, &whole);
+        }
+        g_sr_corr = 0;
         if (!n) { g_sr_budget_used += (unsigned)expanded; return 0; }
         if (!whole) { g_sr_pieces++; g_sr_piece_holder[slot] = serial; }
         else if (g_sr_share) sr_keep(map, u, td, goal, path, n);
@@ -583,6 +602,13 @@ internal struct { unsigned n, tiles, longest_tiles; double ms, longest_ms; int l
 
 // 1: the mod routed it, the game's request not to be called
 internal int sr_request(ee_unit *u, int *from, int *to, void *caller, int sectors) {
+    static uint32_t corr_logged;
+    uint32_t now = game_time();
+    if (g_lr_corridor && g_log && (now < corr_logged || now - corr_logged >= 60000)) {   // route_corridor's count, once a game minute
+        corr_logged = now;
+        fprintf(g_log, "# route corridor: %u searches in a corridor (%u searched again without it), %u with no land route, couldn't tell: %u the type, %u the start, %u the goal\n",
+                g_lr_corr[0], g_lr_corr[2], g_lr_corr[1], g_lr_corr[3], g_lr_corr[4], g_lr_corr[5]);
+    }
     if (sr_wants(u) && from && to) {
         int land = !sr_is_ship(u);
         LARGE_INTEGER t0, t1, f;
@@ -903,7 +929,8 @@ internal void shiproute_install(const char *autotest_ini) {
     g_sr_share = (g_sr_on || g_lr_on) && g_set.share_routes;
     g_sr_budget = (g_sr_on || g_lr_on) && g_set.route_budget;
     g_sr_weight = (float)g_set.route_weight / 100.0f;
+    g_lr_corridor = g_lr_on && g_set.route_corridor;
     int ok = g_sr_on || g_lr_on ? patch_path_request(hook_path_request, hook_path_request_aoc) && patch_group_sector_route(hook_group_sector_route) : 0;
-    if (g_log) fprintf(g_log, "# shiproute: ship_routes=%d land_routes=%d (corners widened: %d, shared: %d, step budget: %d) (hook %s)%s\n", g_sr_on, g_lr_on, g_lr_widen, g_sr_share, g_sr_budget, !g_sr_on && !g_lr_on ? "-" : ok ? "ok" : "FAILED",
+    if (g_log) fprintf(g_log, "# shiproute: ship_routes=%d land_routes=%d (corners widened: %d, shared: %d, step budget: %d, corridor: %d) (hook %s)%s\n", g_sr_on, g_lr_on, g_lr_widen, g_sr_share, g_sr_budget, g_lr_corridor, !g_sr_on && !g_lr_on ? "-" : ok ? "ok" : "FAILED",
                        g_sr_log ? ", routes logged" : "");
 }

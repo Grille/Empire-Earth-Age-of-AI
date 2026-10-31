@@ -33,6 +33,7 @@ internal unsigned g_fr_area[FR_SIDE * FR_SIDE];
 internal int g_fr_lab[FR_SIDE * FR_SIDE];
 internal ee_map *g_fr_land_map;   // the map g_fr_land was made for
 internal int g_fr_land_size;
+internal uint32_t g_fr_land_built;   // the reach map's build g_fr_land was made from
 internal int fr_tile_land(ee_map *map, int size, int x, int y) { (void)map; (void)size; return rm_node(x, y) >= 0; }   // game/reachmap.c
 internal int fr_building(ee_unit_type *td) {
     int fam = unit_type_get_class_id(td);   // the class (attack.c), not the family field
@@ -50,7 +51,7 @@ internal void fr_spread(uint8_t *m, int side) {
                 int nx = x + dx, ny = y + dy;
                 if (nx < 0 || ny < 0 || nx >= side || ny >= side) continue;
                 int j = ny * side + nx;
-                if (m[j] || !g_fr_land[j] || g_fr_area[j] != g_fr_area[y * side + x] || t + 2 > (int)(sizeof g_fr_q / sizeof *g_fr_q)) continue;   // along land a unit walks
+                if (m[j] || !g_fr_land[j] || (g_fr_area[y * side + x] && g_fr_area[j] != g_fr_area[y * side + x]) || t + 2 > (int)(sizeof g_fr_q / sizeof *g_fr_q)) continue;   // along land a unit walks
                 m[j] = (uint8_t)(d + 1);
                 g_fr_q[t++] = (short)nx; g_fr_q[t++] = (short)ny;
             }
@@ -63,8 +64,9 @@ internal void fronts_look(ee_player *pl, unsigned idx, uint32_t now) {
     if (side > FR_SIDE) side = FR_SIDE;
     struct fronts_st *s = &g_fronts[idx];
     int n = side * side;
-    if (g_fr_land_map != map || g_fr_land_size != size) {   // the cells' land, once a map (a new game clears it)
-        g_fr_land_map = map; g_fr_land_size = size;
+    rm_ready();
+    if (g_fr_land_map != map || g_fr_land_size != size || g_fr_land_built != g_reach.built) {   // the cells' land, with each build of the reach map
+        g_fr_land_map = map; g_fr_land_size = size; g_fr_land_built = g_reach.built;
         for (int i = 0; i < n; i++) {
             int x0 = (i % side) * FR_CELL, y0 = (i / side) * FR_CELL, land = 0;
             ivec2 first = iv2(-1, -1);
@@ -81,7 +83,7 @@ internal void fronts_look(ee_player *pl, unsigned idx, uint32_t now) {
         ee_unit *u = it.u;
         if (unit_get_owner(u) != pl || unit_get_hp(u) <= 0 || unit_get_x(u) < 0 || !fr_building(it.td)) continue;
         int i = FR_IDX(unit_get_tile(u));
-        if (g_fr_land[i]) g_fr_own[i] = 1;
+        g_fr_own[i] = 1;   // a cell of buildings may have no walkable tiles left: a seed all the same
     }
     static unsigned foe_area[64];
     int nfa = 0;
