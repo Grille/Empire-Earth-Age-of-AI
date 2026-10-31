@@ -72,7 +72,7 @@
 #define TN_MAX 128   // a table size, not a limit
 #define TN_SPREAD_WORKERS 15
 #define TN_SPREAD_BUILDING 50
-#define TN_PROJ 16
+#define TN_PROJ 24
 enum { TK_DROP, TK_TOWER, TK_PROD, TK_HOUSE, TK_N };
 internal const char *const k_tk[TK_N] = { "drop site", "tower", "production building", "house" };
 struct tn_proj { ee_unit *b; int id, kind, type, want, state, tries, waits; ivec2 p; };   // want: a production building's type   // state 0 to come, 1 going up, 2 standing, 3 dropped
@@ -89,7 +89,8 @@ internal struct tn_st {
     uint32_t t, plan_t, log_t;
     struct tn_town town[TN_MAX]; int n;
     struct { ivec2 c; int losses; uint32_t again; } bad[16]; int nbad;
-    unsigned plans, founded, held, lost, laid, built, rebuilt, orders, assigned, sent, unpaid, prods, walls, guards, scouts, scouts_back;
+    unsigned plans, founded, held, lost, laid, built, rebuilt, orders, assigned, sent, unpaid, prods, walls, guards, scouts, scouts_back, grown;
+    uint32_t grow_t;   // SPREAD's last growth look
     ee_unit *scout; int scout_id; uint32_t scout_t;   // SPREAD's scout
     uint32_t fsave;   // saving for a forward base since (0: not)
     const char *why;
@@ -743,6 +744,60 @@ internal void tn_scout_watch(ee_player *pl, unsigned idx, struct tn_st *s, ivec2
     s->scout = NULL;   // its job ends; a new one after the pause
     s->scouts_back++;
 }
+// SPREAD's growth (towns bit 64, with 16; the player 2026-10-31: "if the AI has spare wood and stone it should consider expanding its existing
+// infrastructure" - towns got only what they were founded with): every 30 s, with wood and stone beyond what the
+// budget holds back (spend_reserve) by TN_GROW_WOOD / TN_GROW_STONE, one more project at the standing town with the
+// fewest buildings that has nothing going up: towers up to TN_GROW_TOWERS, then a Hospital, a Temple, a University,
+// then production (army_plan's last pick, else Barracks) up to TN_GROW_PROD. Its builders: 3 of the town's citizens
+// (the nearest free ones when it has fewer). Measured (1v1 huge Continental, 120 min, 24 games, towns=1 against 17 with
+// it): 12 projects an AI (167 towers, 117 production and civil in all), B - A losses +52.6 (se 25.9), kills -55.6
+// (30.8), workers -8.5 (6.3) - worse than 17 without it (losses -11.3, even). Off: its own bit.
+#define TN_GROW_WOOD 400
+#define TN_GROW_STONE 200
+#define TN_GROW_TOWERS 6
+#define TN_GROW_PROD 3
+internal void tn_grow(ee_player *pl, unsigned idx, struct tn_st *s, unsigned hc, uint32_t now) {
+    if (s->grow_t && now >= s->grow_t && now - s->grow_t < 30000) return;
+    s->grow_t = now ? now : 1;
+    int res[7], *stock = player_stock_at(pl);
+    if (!stock) return;
+    spend_reserve(pl, idx, res, NULL);
+    if (stock[3] - res[3] < TN_GROW_WOOD || stock[4] - res[4] < TN_GROW_STONE) return;
+    struct tn_town *best = NULL;
+    int fewest = 0x7FFFFFFF;
+    for (int k = 0; k < TN_MAX; k++) {
+        struct tn_town *t = &s->town[k];
+        if (t->state != 2 || t->forward || t->nproj >= TN_PROJ) continue;
+        int busy = 0, n = 0;
+        for (int j = 0; j < t->nproj; j++) { busy |= t->proj[j].state < 2; n += t->proj[j].state == 2; }
+        if (!busy && n < fewest) { fewest = n; best = t; }
+    }
+    if (!best) return;
+    int towers = 0, prods = 0, has[3] = { 0 };
+    static const enum ut_name civil[3] = { UT_B_HOSPITAL, UT_B_TEMPLE, UT_B_UNIVERSITY };
+    for (int j = 0; j < best->nproj; j++) {
+        struct tn_proj *p = &best->proj[j];
+        if (p->state == 3) continue;
+        towers += p->kind == TK_TOWER;
+        if (p->kind != TK_PROD) continue;
+        int civ = 0;
+        for (int c = 0; c < 3; c++) if (p->want == g_ut[civil[c]]) { has[c] = 1; civ = 1; }
+        prods += !civ;
+    }
+    int kind = -1, want = 0;
+    if (towers < TN_GROW_TOWERS) kind = TK_TOWER;
+    for (int c = 0; c < 3 && kind < 0; c++)
+        if (!has[c] && ut_has(g_ut[civil[c]]) && ld_can_build(pl, g_ut[civil[c]])) { kind = TK_PROD; want = g_ut[civil[c]]; }
+    if (kind < 0 && prods < TN_GROW_PROD) { kind = TK_PROD; want = tn_prod_type(pl, idx); }
+    if (kind < 0) return;
+    struct tn_proj *p = &best->proj[best->nproj++];
+    memset(p, 0, sizeof *p);
+    p->kind = kind; p->want = want;
+    if (best->ncit < 3) tn_take_cits(pl, idx, best, 3, hc);
+    s->grown++;
+    tn_say(idx, now, "grows the town at %d,%d: a %s%s%d (wood %d, stone %d beyond the reserve)", best->c.x, best->c.y, k_tk[kind],
+           want ? " of type " : "", want, stock[3] - res[3], stock[4] - res[4]);
+}
 internal int idle_citizens(ee_player *pl);   // econ.c: unassigned ones plus those beyond their resource's target
 // SPREAD's pace: citizens to spare (a town's towns_citizens idle or beyond their resource's target) and twice a Town
 // Center's price in stock
@@ -828,13 +883,14 @@ internal void towns_act(ee_player *pl, unsigned idx, uint32_t now) {
     if (!hc) return;
     for (int k = 0; k < TN_MAX; k++) if (s->town[k].state) tn_run(pl, idx, s, &s->town[k], hc, now);
     if (s->scout) tn_scout_watch(pl, idx, s, base);
+    if ((TOWNS(idx) & 80) == 80) tn_grow(pl, idx, s, hc, now);
     if (!s->plan_t || now - s->plan_t >= 30000) { s->plan_t = now ? now : 1; tn_plan(pl, idx, s, hc, base, now); }
     if (g_autotest && g_log && (!s->log_t || now / 300000 != s->log_t / 300000) && s->plans) {
         s->log_t = now ? now : 1;
         int n = 0, held = 0;
         for (int k = 0; k < TN_MAX; k++) { n += s->town[k].state != 0; held += s->town[k].state == 2; }
-        tn_say(idx, now, "status - %d towns (%d standing) | planned %u founded %u stood %u lost %u unpaid %u | laid %u built %u laid again %u orders %u assigned %u sent %u | production %u walls %u | guards sent %u scouts %u (%u turned back)",
-               n, held, s->plans, s->founded, s->held, s->lost, s->unpaid, s->laid, s->built, s->rebuilt, s->orders, s->assigned, s->sent, s->prods, s->walls, s->guards, s->scouts, s->scouts_back);
+        tn_say(idx, now, "status - %d towns (%d standing) | planned %u founded %u stood %u lost %u unpaid %u | laid %u built %u laid again %u orders %u assigned %u sent %u | production %u walls %u | guards sent %u scouts %u (%u turned back) | grown %u",
+               n, held, s->plans, s->founded, s->held, s->lost, s->unpaid, s->laid, s->built, s->rebuilt, s->orders, s->assigned, s->sent, s->prods, s->walls, s->guards, s->scouts, s->scouts_back, s->grown);
     }
 }
 internal void towns_new_game(void) { memset(g_tn, 0, sizeof g_tn); }

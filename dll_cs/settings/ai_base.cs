@@ -403,14 +403,14 @@ class ai_base
     /// enemy's reach), 32+ tiles out, in a stalemate too (its army 0.8 x the enemy's): 8 citizens walk there and put up two
     /// towers, a Hospital, a production building, two more towers and a wall in front, the towers first; then they go back. Not before the Copper Age, not with enemies in its base, one at a time, at most towns_max. 2 = a Settlement, never a
     /// Town Center. 4 = army_plan's next production building goes up in the town nearest the enemy when it is 15+ tiles
-    /// nearer than the base. 16 (with 1) = spread: a resource town whenever a free mine group lies 32-60 tiles from its
-    /// nearest town, without waiting for the home mines to fill - the AI grows outward town by town, as many as it has
-    /// the people for (15 workers a town; towns_max doesn't apply), one town going up per 50 workers, and only with a surplus (6
-    /// spare citizens, twice a Town Center's price in stock); the next town within 45 tiles of one where it can, never
-    /// more than 20 tiles ahead of its front town; a wall at towns 60+ tiles out. 32 (with 16) = a scout to unseen land.
-    /// 0 = off (default): without a purpose the towns cost soldiers (-20 from the Middle Ages); with
-    /// one (9) even over 90 minutes on big maps, within noise (docs/testing.md)
-    [num, range(0, 63)] int towns = 0;
+    /// nearer than the base. 16 (with 1) = spread: a town at the explored resources nearest to its towns, however far,
+    /// without waiting for the home mines to fill - as many as it has the people for (15 workers a town; towns_max
+    /// doesn't apply), one going up per 50 workers, only with a surplus (6 spare citizens, twice a Town Center's price
+    /// in stock); within 45 tiles of a town where it can, never more than 20 tiles ahead of its front town; 2 towers
+    /// and 1 per 4 mines, 5 houses, a wall 60+ tiles out. 32 (with 16) = a scout to unseen land. 64 (with 16) = with wood
+    /// and stone to spare its towns grow (towers, Hospital, Temple, University, production) - measured worse, off. 0 = off. Default 17 (the player
+    /// 2026-10-31: the AI must expand; 1v1 huge Continental 120 min, 24 games: 5 towns founded, even with off).
+    [num, range(0, 127)] int towns = 17;
     [num, range(0, 6), commented] int towns_max = 3;
     [num, range(1, 12), commented] int towns_citizens = 6;
     [num, range(0, 7), commented] int towers_per_town = 2;

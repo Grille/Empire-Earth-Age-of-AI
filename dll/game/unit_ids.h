@@ -13,7 +13,7 @@
     X(B_BARRACKS, "b_barracks") X(B_ARCHERY_RANGE, "b_archery_range") X(B_STABLE, "b_stable") \
     X(B_SIEGE_FACTORY, "b_siege_factory") X(B_DOCK, "b_dock") X(B_NAVY_YARD, "b_navy_yard") X(B_AIRPORT, "b_airport") \
     X(B_TANK_FACTORY, "b_tank_factory") X(B_CYBER_FACTORY, "b_cyber_factory") X(B_FORTRESS, "b_fortress") \
-    X(B_HOSPITAL, "b_hospital") \
+    X(B_HOSPITAL, "b_hospital") X(B_TEMPLE, "b_temple") X(B_UNIVERSITY, "b_university") \
     X(B_GUARD_TOWER_PALEO, "b_guard_tower_paleo") X(B_GUARD_TOWER_COPPER, "b_guard_tower_copper") \
     X(B_GUARD_TOWER_BRONZE, "b_guard_tower_bronze") X(B_GUARD_TOWER_MIDDLE, "b_guard_tower_middle") \
     X(B_GUARD_TOWER_IMPERIAL, "b_guard_tower_imperial") X(B_GUARD_TOWER_WW1, "b_guard_tower_ww1") \
