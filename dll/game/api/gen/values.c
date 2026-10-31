@@ -435,7 +435,8 @@ internal uint32_t data_goal_vt_goal_load;
 internal uint32_t data_goal_vt_goal_location;
 internal uint32_t data_goal_vt_goal_unload;
 internal uint32_t vt_eeug_attack_unit;
-internal uint32_t of_eeug_attack_unit_target;
+internal uint32_t of_attack_goal_target;
+internal uint32_t slot_attack_goal_tick;
 internal uint32_t vt_eeug_unload_transport;
 internal uint32_t of_eeug_unload_transport_first_cargo_tile;
 internal uint32_t of_eeug_unload_transport_unload_tile_x;
@@ -1328,6 +1329,7 @@ internal uint32_t call_unload_retry_give;
 internal uint32_t call_repair_goal;
 internal uint32_t calls_train_citizen_at[2];
 internal uint32_t calls_set_tile[11];
+internal uint32_t calls_reload_wait[4];
 internal uint32_t vt_ee_ghost_unit;
 internal uint32_t size_ee_ghost_unit;
 internal uint32_t of_ghost_unit_player;
@@ -1432,6 +1434,8 @@ internal uint32_t value_unit_type_slot_type_can_carry;
 
 // world.cs
 internal uint32_t of_dmg_model_map;
+internal uint32_t of_dmg_model_anim_first;
+internal uint32_t of_dmg_model_anim_strike;
 internal uint32_t of_game_data_line_ms;
 internal uint32_t of_game_data_unit_limit;
 internal uint32_t of_game_data_unit_limit_max;

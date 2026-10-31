@@ -625,6 +625,17 @@ unsafe struct EEComplexUnit
     [call_site("set_tile", (ee)0x0063861E, (aoc)0x0064E5EA)]
     extern void set_tile(uint32 x, uint32 y, char8 link);
 
+    /// AoC's only: its reload until the next blow, reload x a random factor between the game data's +0x984 and
+    /// +0x988 (0.0 and 1.0: anything from none to the whole reload; read once into 0x963160 / 0x96315C) - the 2017
+    /// update sets the reload itself. The attack ticks' (EEUGAttackGround 0x61D186, EEUGAttackUnit 0x61D9A9) and the
+    /// fire's (0x631395, 0x6313C7)
+    [address((ee)none, (aoc)0x005FEA22)]
+    [call_site("reload_wait", (ee)none, (aoc)0x0061D186)]
+    [call_site("reload_wait", (ee)none, (aoc)0x0061D9A9)]
+    [call_site("reload_wait", (ee)none, (aoc)0x00631395)]
+    [call_site("reload_wait", (ee)none, (aoc)0x006313C7)]
+    extern void reload_wait(int32 reload);
+
     /// freed: its slot 12 (+0x30), its references 0, then back to the game's pool (0x5F20FB / AoC 0x60096B)
     [address((ee)0x005ED71E, (aoc)0x005FB7FB), overrides(typeof(RTSUnit))]
     [vtable_site("unit_release")]
@@ -674,6 +685,11 @@ static unsafe class unit
     /// (EEUGBuildRepair.site_valid: any 2 makes the site invalid)
     [address((ee)0x0062E5D2, (aoc)0x00643978), cdecl]
     static extern char8 site_blocker(EEUnit* u, EEPlayer* pl, int32 type, char8 p4);
+
+    /// AoC's only: the animation u attacks with - 0, 8 (the stats' +0x164 and u +0x34E) or 0xB (some types with u
+    /// +0x355); the 2017 update picks 0 or 8 in the attack's tick itself
+    [address((ee)none, (aoc)0x0063C9D9), cdecl]
+    static extern int32 attack_anim(EEUnit* u);
 }
 
 /// a unit's script state, its +0x1E8 (EEUnitAction: a state of its .tai, engine-notes.md "Unit AI scripts"; its RTTI

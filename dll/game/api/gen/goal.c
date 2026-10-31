@@ -326,61 +326,69 @@ internal inline uint8_t *goal_vt_goal_location_at(void) { return (uint8_t *)(uin
 // EEUGUnloadTransport (new 0x40, ctor 0x615A1F(transport, x, y, flag))
 internal inline uint8_t *goal_vt_goal_unload_at(void) { return (uint8_t *)(uintptr_t)data_goal_vt_goal_unload; }
 
-// class EEUGAttackUnit (eeug_attack_unit)
+// class EEUGAttackUnit (ee_attack_goal)
 // the attack-a-unit goal (EEUGAttackUnit, 0x40 bytes; its constructor 0x60AD45 sets the attacker +0x2C, the target
 // +0x30 and the target's tile +0x34 / +0x38)
 // EEUnitGoal's, the base's
 // (aim.c: 2 while it attacks)
-internal inline uint8_t eeug_attack_unit_get_state(const eeug_attack_unit *o) { return *(uint8_t *)((uint8_t *)o + of_goal_state); }
-internal inline void eeug_attack_unit_set_state(eeug_attack_unit *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_goal_state) = v; }
-internal inline uint8_t *eeug_attack_unit_state_at(const eeug_attack_unit *o) { return (uint8_t *)((uint8_t *)o + of_goal_state); }
+internal inline uint8_t attack_goal_get_state(const ee_attack_goal *o) { return *(uint8_t *)((uint8_t *)o + of_goal_state); }
+internal inline void attack_goal_set_state(ee_attack_goal *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_goal_state) = v; }
+internal inline uint8_t *attack_goal_state_at(const ee_attack_goal *o) { return (uint8_t *)((uint8_t *)o + of_goal_state); }
 // A GUESS (the spec's [guess]): its name and type, from what the code does with it -
 // 0 from the base constructor 0x6283AB: +1 per path request for the goal (EEUnitClass::vf52 0x6222A8), +8 per
 // detour waypoint pair (vf53 0x6225E7)
-internal inline int eeug_attack_unit_get_path_tries(const eeug_attack_unit *o) { return *(int *)((uint8_t *)o + of_goal_path_tries); }
-internal inline void eeug_attack_unit_set_path_tries(eeug_attack_unit *o, int v) { *(int *)((uint8_t *)o + of_goal_path_tries) = v; }
-internal inline int *eeug_attack_unit_path_tries_at(const eeug_attack_unit *o) { return (int *)((uint8_t *)o + of_goal_path_tries); }
+internal inline int attack_goal_get_path_tries(const ee_attack_goal *o) { return *(int *)((uint8_t *)o + of_goal_path_tries); }
+internal inline void attack_goal_set_path_tries(ee_attack_goal *o, int v) { *(int *)((uint8_t *)o + of_goal_path_tries) = v; }
+internal inline int *attack_goal_path_tries_at(const ee_attack_goal *o) { return (int *)((uint8_t *)o + of_goal_path_tries); }
 // 1 for a goal from an order (commands, the AI), 0 for the unit's own (its target search); the guard return skips
 // an ordered one
-internal inline uint8_t eeug_attack_unit_get_ordered(const eeug_attack_unit *o) { return *(uint8_t *)((uint8_t *)o + of_goal_ordered); }
-internal inline void eeug_attack_unit_set_ordered(eeug_attack_unit *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_goal_ordered) = v; }
-internal inline uint8_t *eeug_attack_unit_ordered_at(const eeug_attack_unit *o) { return (uint8_t *)((uint8_t *)o + of_goal_ordered); }
+internal inline uint8_t attack_goal_get_ordered(const ee_attack_goal *o) { return *(uint8_t *)((uint8_t *)o + of_goal_ordered); }
+internal inline void attack_goal_set_ordered(ee_attack_goal *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_goal_ordered) = v; }
+internal inline uint8_t *attack_goal_ordered_at(const ee_attack_goal *o) { return (uint8_t *)((uint8_t *)o + of_goal_ordered); }
 // A GUESS (the spec's [guess]): its name and type, from what the code does with it -
 // 0 from the base constructor; the group dispatch 0x5DB641 (and 0x5E94C1, 0x5EF6A7) sets 1 on each member's goal:
 // vf52 asks EEPathManager::request for a sector route only without it
-internal inline uint8_t eeug_attack_unit_get_no_sectors(const eeug_attack_unit *o) { return *(uint8_t *)((uint8_t *)o + of_goal_no_sectors); }
-internal inline void eeug_attack_unit_set_no_sectors(eeug_attack_unit *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_goal_no_sectors) = v; }
-internal inline uint8_t *eeug_attack_unit_no_sectors_at(const eeug_attack_unit *o) { return (uint8_t *)((uint8_t *)o + of_goal_no_sectors); }
-internal inline float eeug_attack_unit_get_dest_x(const eeug_attack_unit *o) { return *(float *)((uint8_t *)o + of_goal_dest_x); }
-internal inline void eeug_attack_unit_set_dest_x(eeug_attack_unit *o, float v) { *(float *)((uint8_t *)o + of_goal_dest_x) = v; }
-internal inline float *eeug_attack_unit_dest_x_at(const eeug_attack_unit *o) { return (float *)((uint8_t *)o + of_goal_dest_x); }
+internal inline uint8_t attack_goal_get_no_sectors(const ee_attack_goal *o) { return *(uint8_t *)((uint8_t *)o + of_goal_no_sectors); }
+internal inline void attack_goal_set_no_sectors(ee_attack_goal *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_goal_no_sectors) = v; }
+internal inline uint8_t *attack_goal_no_sectors_at(const ee_attack_goal *o) { return (uint8_t *)((uint8_t *)o + of_goal_no_sectors); }
+internal inline float attack_goal_get_dest_x(const ee_attack_goal *o) { return *(float *)((uint8_t *)o + of_goal_dest_x); }
+internal inline void attack_goal_set_dest_x(ee_attack_goal *o, float v) { *(float *)((uint8_t *)o + of_goal_dest_x) = v; }
+internal inline float *attack_goal_dest_x_at(const ee_attack_goal *o) { return (float *)((uint8_t *)o + of_goal_dest_x); }
 // the destination's y
-internal inline float eeug_attack_unit_get_dest_y(const eeug_attack_unit *o) { return *(float *)((uint8_t *)o + of_goal_dest_y); }
-internal inline void eeug_attack_unit_set_dest_y(eeug_attack_unit *o, float v) { *(float *)((uint8_t *)o + of_goal_dest_y) = v; }
-internal inline float *eeug_attack_unit_dest_y_at(const eeug_attack_unit *o) { return (float *)((uint8_t *)o + of_goal_dest_y); }
+internal inline float attack_goal_get_dest_y(const ee_attack_goal *o) { return *(float *)((uint8_t *)o + of_goal_dest_y); }
+internal inline void attack_goal_set_dest_y(ee_attack_goal *o, float v) { *(float *)((uint8_t *)o + of_goal_dest_y) = v; }
+internal inline float *attack_goal_dest_y_at(const ee_attack_goal *o) { return (float *)((uint8_t *)o + of_goal_dest_y); }
 // the destination's z
-internal inline float eeug_attack_unit_get_dest_z(const eeug_attack_unit *o) { return *(float *)((uint8_t *)o + of_goal_dest_z); }
-internal inline void eeug_attack_unit_set_dest_z(eeug_attack_unit *o, float v) { *(float *)((uint8_t *)o + of_goal_dest_z) = v; }
-internal inline float *eeug_attack_unit_dest_z_at(const eeug_attack_unit *o) { return (float *)((uint8_t *)o + of_goal_dest_z); }
+internal inline float attack_goal_get_dest_z(const ee_attack_goal *o) { return *(float *)((uint8_t *)o + of_goal_dest_z); }
+internal inline void attack_goal_set_dest_z(ee_attack_goal *o, float v) { *(float *)((uint8_t *)o + of_goal_dest_z) = v; }
+internal inline float *attack_goal_dest_z_at(const ee_attack_goal *o) { return (float *)((uint8_t *)o + of_goal_dest_z); }
 // a kind 6 goal's target
 // a kind 6 goal's target - the contact test (EEPhysicsModel::vf14, AoC vf15) lets two units at work on kind 6 meet
 // only when it is the same
-internal inline void *eeug_attack_unit_get_0x38(const eeug_attack_unit *o) { return *(void **)((uint8_t *)o + of_goal_0x38); }
-internal inline void eeug_attack_unit_set_0x38(eeug_attack_unit *o, void *v) { *(void **)((uint8_t *)o + of_goal_0x38) = v; }
-internal inline void **eeug_attack_unit_0x38_at(const eeug_attack_unit *o) { return (void **)((uint8_t *)o + of_goal_0x38); }
+internal inline void *attack_goal_get_0x38(const ee_attack_goal *o) { return *(void **)((uint8_t *)o + of_goal_0x38); }
+internal inline void attack_goal_set_0x38(ee_attack_goal *o, void *v) { *(void **)((uint8_t *)o + of_goal_0x38) = v; }
+internal inline void **attack_goal_0x38_at(const ee_attack_goal *o) { return (void **)((uint8_t *)o + of_goal_0x38); }
 // a kind 4 goal's target
 // a kind 4 goal's target - the same for kind 4
-internal inline void *eeug_attack_unit_get_0x3c(const eeug_attack_unit *o) { return *(void **)((uint8_t *)o + of_goal_0x3c); }
-internal inline void eeug_attack_unit_set_0x3c(eeug_attack_unit *o, void *v) { *(void **)((uint8_t *)o + of_goal_0x3c) = v; }
-internal inline void **eeug_attack_unit_0x3c_at(const eeug_attack_unit *o) { return (void **)((uint8_t *)o + of_goal_0x3c); }
-internal inline ee_unit *eeug_attack_unit_get_holder(const eeug_attack_unit *o) { return *(ee_unit **)((uint8_t *)o + of_goal_holder); }
-internal inline void eeug_attack_unit_set_holder(eeug_attack_unit *o, ee_unit *v) { *(ee_unit **)((uint8_t *)o + of_goal_holder) = v; }
-internal inline ee_unit **eeug_attack_unit_holder_at(const eeug_attack_unit *o) { return (ee_unit **)((uint8_t *)o + of_goal_holder); }
+internal inline void *attack_goal_get_0x3c(const ee_attack_goal *o) { return *(void **)((uint8_t *)o + of_goal_0x3c); }
+internal inline void attack_goal_set_0x3c(ee_attack_goal *o, void *v) { *(void **)((uint8_t *)o + of_goal_0x3c) = v; }
+internal inline void **attack_goal_0x3c_at(const ee_attack_goal *o) { return (void **)((uint8_t *)o + of_goal_0x3c); }
+internal inline ee_unit *attack_goal_get_holder(const ee_attack_goal *o) { return *(ee_unit **)((uint8_t *)o + of_goal_holder); }
+internal inline void attack_goal_set_holder(ee_attack_goal *o, ee_unit *v) { *(ee_unit **)((uint8_t *)o + of_goal_holder) = v; }
+internal inline ee_unit **attack_goal_holder_at(const ee_attack_goal *o) { return (ee_unit **)((uint8_t *)o + of_goal_holder); }
 // the unit it attacks, referenced (the constructor 0x60AD45); its readers take the target's hp, type and stats
 // (0x5F1214, EEUCMissile / EEUCProjectile::vf39, 0x61B677)
-internal inline ee_unit *eeug_attack_unit_get_target(const eeug_attack_unit *o) { return *(ee_unit **)((uint8_t *)o + of_eeug_attack_unit_target); }
-internal inline void eeug_attack_unit_set_target(eeug_attack_unit *o, ee_unit *v) { *(ee_unit **)((uint8_t *)o + of_eeug_attack_unit_target) = v; }
-internal inline ee_unit **eeug_attack_unit_target_at(const eeug_attack_unit *o) { return (ee_unit **)((uint8_t *)o + of_eeug_attack_unit_target); }
+internal inline ee_unit *attack_goal_get_target(const ee_attack_goal *o) { return *(ee_unit **)((uint8_t *)o + of_attack_goal_target); }
+internal inline void attack_goal_set_target(ee_attack_goal *o, ee_unit *v) { *(ee_unit **)((uint8_t *)o + of_attack_goal_target) = v; }
+internal inline ee_unit **attack_goal_target_at(const ee_attack_goal *o) { return (ee_unit **)((uint8_t *)o + of_attack_goal_target); }
+// vf16: the attacker's tick in its attack states - AttackEnemyUnit (2001): its attack animation set (restarted
+// at the first frame), the blow if the frame is the strike frame, else its reload to wait (AoC: reload_wait);
+// FaceEnemyUnit (2012): turned towards the target (the walk animation 0xD while not facing it)
+typedef void (__thiscall *attack_goal_tick_fn)(ee_attack_goal *, ee_unit *);
+internal inline void attack_goal_tick(ee_attack_goal *attack_goal, ee_unit *u) { ((attack_goal_tick_fn)(*(void ***)attack_goal)[slot_attack_goal_tick])(attack_goal, u); }
+internal attack_goal_tick_fn fn_eeug_attack_unit_tick;
+internal inline void eeug_attack_unit_tick(ee_attack_goal *attack_goal, ee_unit *u) { fn_eeug_attack_unit_tick(attack_goal, u); }
+internal inline int patch_attack_unit_tick(attack_goal_tick_fn h) { return patch_vtable(vt_eeug_attack_unit, (int)slot_attack_goal_tick, (uintptr_t)fn_eeug_attack_unit_tick, (void *)h); }
 
 // class EEUGUnloadTransport (eeug_unload_transport)
 // the unload-a-transport goal (EEUGUnloadTransport, new 0x40; its constructor 0x615A1F(transport, x, y, flag) -
@@ -633,7 +641,9 @@ internal int spec_goal_select(int build) {
         data_goal_vt_goal_location = 0x00831E64;
         data_goal_vt_goal_unload = 0x00831F5C;
         vt_eeug_attack_unit = 0x00831968;
-        of_eeug_attack_unit_target = 0x30;
+        of_attack_goal_target = 0x30;
+        slot_attack_goal_tick = 16;
+        fn_eeug_attack_unit_tick = (attack_goal_tick_fn)0x0060B26F;
         vt_eeug_unload_transport = 0x00831F5C;
         of_eeug_unload_transport_first_cargo_tile = 0x2C;
         of_eeug_unload_transport_unload_tile_x = 0x34;
@@ -708,7 +718,9 @@ internal int spec_goal_select(int build) {
         data_goal_vt_goal_location = 0x008478A0;
         data_goal_vt_goal_unload = 0x008479A0;
         vt_eeug_attack_unit = 0x00847380;
-        of_eeug_attack_unit_target = 0x30;
+        of_attack_goal_target = 0x30;
+        slot_attack_goal_tick = 16;
+        fn_eeug_attack_unit_tick = (attack_goal_tick_fn)0x0061D8DC;
         vt_eeug_unload_transport = 0x008479A0;
         of_eeug_unload_transport_first_cargo_tile = 0x2C;
         of_eeug_unload_transport_unload_tile_x = 0x34;
@@ -761,6 +773,8 @@ internal int spec_goal_check(void) {
     bad += spec_data(data_goal_vt_goal_location, "goal.vt_goal_location");
     bad += spec_data(data_goal_vt_goal_unload, "goal.vt_goal_unload");
     bad += spec_vtable(vt_eeug_attack_unit, ".?AVEEUGAttackUnit@@", "EEUGAttackUnit [vtable]");
+    bad += spec_code((uintptr_t)fn_eeug_attack_unit_tick, "EEUGAttackUnit.tick");
+    bad += spec_slot(vt_eeug_attack_unit, slot_attack_goal_tick, (uintptr_t)fn_eeug_attack_unit_tick, "EEUGAttackUnit.tick [slot]");
     bad += spec_vtable(vt_eeug_unload_transport, ".?AVEEUGUnloadTransport@@", "EEUGUnloadTransport [vtable]");
     bad += spec_vtable(vt_eeug_explore, ".?AVEEUGExplore@@", "EEUGExplore [vtable]");
     bad += spec_vtable(vt_eeug_gather, ".?AVEEUGGather@@", "EEUGGather [vtable]");

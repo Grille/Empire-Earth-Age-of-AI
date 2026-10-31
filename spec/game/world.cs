@@ -7,6 +7,15 @@ unsafe struct EEGraphicObject
     [offset(0x14C), found(c)]
     block map;
 
+    /// per animation (int32 each): its first frame - the animation setter (0x5EFD6D, AoC 0x5FE02A) starts there
+    [offset((ee)0x350, (aoc)0x360), found(c)]
+    block anim_first;
+
+    /// per animation (int32 each): the frame its blow lands (a citizen's attack: 8 of 0..15) - the attack's tick
+    /// (EEUGAttackUnit.tick) strikes when the frame is it, else waits its reload with the animation restarted
+    [offset((ee)0x3F8, (aoc)0x408), found(c)]
+    block anim_strike;
+
     /// the damage points of a state - the impact effects place theirs by it (EEE2DImpact::vf21 0x4DA7B2,
     /// EEE2DLightGlow::vf12 0x4DB2DF; game.call_damage_points hooked by the mod's guard)
     [address((ee)0x004D291F, (aoc)0x004D84EC)]

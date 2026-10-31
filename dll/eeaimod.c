@@ -414,6 +414,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
 #include "engine/sight.c"
 #include "engine/asg_queue.c"
 #include "engine/offmap.c"
+#include "engine/reload.c"
 #include "voice/llm.c"
 #include "test/testcmd.c"
 #include "test/testopp.c"
@@ -629,6 +630,7 @@ internal void install(HMODULE self) {
     sight_install();
     asg_queue_install();
     offmap_install();
+    reload_install();
     llm_install();
     ctl_start(g_autotest || g_set.control_pipe);
     if (g_autotest && g_auto.game_seed) {

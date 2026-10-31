@@ -241,13 +241,20 @@ static unsafe class goal
 
 /// the attack-a-unit goal (EEUGAttackUnit, 0x40 bytes; its constructor 0x60AD45 sets the attacker +0x2C, the target
 /// +0x30 and the target's tile +0x34 / +0x38)
-[@base(typeof(EEUnitGoal)), vtable((ee)0x00831968, (aoc)0x00847380)]
+[@base(typeof(EEUnitGoal)), c_type("ee_attack_goal"), vtable((ee)0x00831968, (aoc)0x00847380)]
 unsafe struct EEUGAttackUnit
 {
     /// the unit it attacks, referenced (the constructor 0x60AD45); its readers take the target's hp, type and stats
     /// (0x5F1214, EEUCMissile / EEUCProjectile::vf39, 0x61B677)
     [offset(0x30), found(c)]
     EEUnit* target;
+
+    /// vf16: the attacker's tick in its attack states - AttackEnemyUnit (2001): its attack animation set (restarted
+    /// at the first frame), the blow if the frame is the strike frame, else its reload to wait (AoC: reload_wait);
+    /// FaceEnemyUnit (2012): turned towards the target (the walk animation 0xD while not facing it)
+    [slot(16), address((ee)0x0060B26F, (aoc)0x0061D8DC)]
+    [vtable_site("attack_unit_tick")]
+    extern void tick(EEUnit* u);
 }
 
 /// the unload-a-transport goal (EEUGUnloadTransport, new 0x40; its constructor 0x615A1F(transport, x, y, flag) -

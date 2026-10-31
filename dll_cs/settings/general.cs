@@ -10,6 +10,7 @@
 class general
 {
     enum improved_unit_movement_choice { @default, enabled, disabled }
+    enum reload_choice { game, full, swing }
 
     /// 1 = the mod is active. 0 = the mod does nothing at all: the original game (no AI changes, no scenario fix,
     /// no display options, no personalities)
@@ -138,6 +139,13 @@ class general
     /// count wrapped - the tile took itself for unexplored, and it and everything on it (units, trees) blinked out in
     /// big armies. 1 = the whole count kept (up to 65000); 0 = the original
     [group("Engine limits")] bool sight_counts = true;
+    /// Reload in The Art of Conquest: AoC waits a random share (0..100%) of a unit's reload between blows, and a wait
+    /// shorter than the attack animation restarts the swing before the blow lands - citizens stood beside an animal
+    /// for the whole game (AoC's own AI and the player's alike):
+    ///   game  = AoC's as it is
+    ///   full  = Empire Earth's: the whole reload every time
+    ///   swing = AoC's random wait, but a swing under way is never restarted before its blow
+    reload_choice aoc_reload = reload_choice.swing;
     /// AI chat lines (shown in the game's chat as the AI player): 0 = off (original), 1 = debug: the AI says what it
     /// decides (attacks, new epoch, extra towers, walls, siege, counter-siege, home guard), 2 = also a status line every
     /// 5 minutes. Rate-limited per player. chat_seconds = how long a line stays on screen

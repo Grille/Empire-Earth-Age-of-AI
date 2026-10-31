@@ -600,6 +600,14 @@ typedef void (__thiscall *unit_set_tile_fn)(ee_unit *, uint32_t, uint32_t, char)
 internal unit_set_tile_fn fn_unit_set_tile;
 internal inline void unit_set_tile(ee_unit *unit, uint32_t x, uint32_t y, char link) { fn_unit_set_tile(unit, x, y, link); }
 internal inline int patch_set_tile(unit_set_tile_fn h, int *of) { return patch_calls(calls_set_tile, 11, (uintptr_t)fn_unit_set_tile, (void *)h, of); }
+// AoC's only: its reload until the next blow, reload x a random factor between the game data's +0x984 and
+// +0x988 (0.0 and 1.0: anything from none to the whole reload; read once into 0x963160 / 0x96315C) - the 2017
+// update sets the reload itself. The attack ticks' (EEUGAttackGround 0x61D186, EEUGAttackUnit 0x61D9A9) and the
+// fire's (0x631395, 0x6313C7)
+typedef void (__thiscall *unit_reload_wait_fn)(ee_unit *, int);
+internal unit_reload_wait_fn fn_unit_reload_wait;
+internal inline void unit_reload_wait(ee_unit *unit, int reload) { fn_unit_reload_wait(unit, reload); }
+internal inline int patch_reload_wait(unit_reload_wait_fn h, int *of) { return patch_calls(calls_reload_wait, 4, (uintptr_t)fn_unit_reload_wait, (void *)h, of); }
 // freed: its slot 12 (+0x30), its references 0, then back to the game's pool (0x5F20FB / AoC 0x60096B)
 internal unit_release_fn fn_ee_complex_unit_release;
 internal inline void ee_complex_unit_release(ee_unit *unit) { fn_ee_complex_unit_release(unit); }
@@ -641,6 +649,11 @@ internal inline int patch_missile_aim(unit_aim_fn h) { return patch_call(call_mi
 typedef char (__cdecl *unit_site_blocker_fn)(ee_unit *, ee_player *, int, char);
 internal unit_site_blocker_fn fn_unit_site_blocker;
 internal inline char unit_site_blocker(ee_unit *u, ee_player *pl, int type, char p4) { return fn_unit_site_blocker(u, pl, type, p4); }
+// AoC's only: the animation u attacks with - 0, 8 (the stats' +0x164 and u +0x34E) or 0xB (some types with u
+// +0x355); the 2017 update picks 0 or 8 in the attack's tick itself
+typedef int (__cdecl *unit_attack_anim_fn)(ee_unit *);
+internal unit_attack_anim_fn fn_unit_attack_anim;
+internal inline int unit_attack_anim(ee_unit *u) { return fn_unit_attack_anim(u); }
 
 // class EEUnitAction (ee_ai_state)
 // a unit's script state, its +0x1E8 (EEUnitAction: a state of its .tai, engine-notes.md "Unit AI scripts"; its RTTI
@@ -873,6 +886,11 @@ internal int spec_unit_select(int build) {
         calls_set_tile[8] = 0x00616B81;
         calls_set_tile[9] = 0x0061F0BA;
         calls_set_tile[10] = 0x0063861E;
+        fn_unit_reload_wait = (unit_reload_wait_fn)0;
+        calls_reload_wait[0] = 0;
+        calls_reload_wait[1] = 0;
+        calls_reload_wait[2] = 0;
+        calls_reload_wait[3] = 0;
         fn_ee_complex_unit_release = (unit_release_fn)0x005ED71E;
         vt_ee_ghost_unit = 0x00831588;
         size_ee_ghost_unit = 0x334;
@@ -886,6 +904,7 @@ internal int spec_unit_select(int build) {
         call_aim = 0x0061E1D7;
         call_missile_aim = 0x0054E850;
         fn_unit_site_blocker = (unit_site_blocker_fn)0x0062E5D2;
+        fn_unit_attack_anim = (unit_attack_anim_fn)0;
         of_ai_state_handlers = 0x8;
         of_ai_state_id = 0x24;
         fn_ai_state_ask = (ai_state_ask_fn)0x00619FF5;
@@ -904,7 +923,7 @@ internal int spec_unit_select(int build) {
         fn_unit_distance = (unit_distance_fn)0x0062D5A4;
         fn_unit_give = (unit_give_fn)0x00638670;
         fn_unit_attr_set = (unit_attr_set_fn)0x005B8823;
-        return 1;
+        return 7;
     case 1:   // aoc
         size_rts_unit = 0x2C;
         of_unit_refs = 0x4;
@@ -1058,6 +1077,11 @@ internal int spec_unit_select(int build) {
         calls_set_tile[8] = 0x006296AA;
         calls_set_tile[9] = 0x00632D94;
         calls_set_tile[10] = 0x0064E5EA;
+        fn_unit_reload_wait = (unit_reload_wait_fn)0x005FEA22;
+        calls_reload_wait[0] = 0x0061D186;
+        calls_reload_wait[1] = 0x0061D9A9;
+        calls_reload_wait[2] = 0x00631395;
+        calls_reload_wait[3] = 0x006313C7;
         fn_ee_complex_unit_release = (unit_release_fn)0x005FB7FB;
         vt_ee_ghost_unit = 0x00846EF4;
         size_ee_ghost_unit = 0x334;
@@ -1071,6 +1095,7 @@ internal int spec_unit_select(int build) {
         call_aim = 0x006313D6;
         call_missile_aim = 0x0055B1C3;
         fn_unit_site_blocker = (unit_site_blocker_fn)0x00643978;
+        fn_unit_attack_anim = (unit_attack_anim_fn)0x0063C9D9;
         of_ai_state_handlers = 0x8;
         of_ai_state_id = 0x24;
         fn_ai_state_ask = (ai_state_ask_fn)0x0062CD8B;
@@ -1094,7 +1119,7 @@ internal int spec_unit_select(int build) {
     return 0;
 }
 // the names a build hasn't got, by build
-internal const char *const k_spec_unit_missing[ADDR_BUILDS] = { "EEComplexUnit.set_tile [call_site set_tile 7]", "EEComplexUnit.set_tile [call_site set_tile 5] EEComplexUnit.set_tile [call_site set_tile 6]" };
+internal const char *const k_spec_unit_missing[ADDR_BUILDS] = { "EEComplexUnit.set_tile [call_site set_tile 7] EEComplexUnit.reload_wait EEComplexUnit.reload_wait [call_site reload_wait 0] EEComplexUnit.reload_wait [call_site reload_wait 1] EEComplexUnit.reload_wait [call_site reload_wait 2] EEComplexUnit.reload_wait [call_site reload_wait 3] unit.attack_anim", "EEComplexUnit.set_tile [call_site set_tile 5] EEComplexUnit.set_tile [call_site set_tile 6]" };
 // the load-time check: what the spec says of the running build's exe (spec_check): the failures
 internal int spec_unit_check(void) {
     int bad = 0;
@@ -1140,6 +1165,11 @@ internal int spec_unit_check(void) {
     bad += spec_call(calls_set_tile[8], (uintptr_t)fn_unit_set_tile, "EEComplexUnit.set_tile [call_site set_tile 8]");
     bad += spec_call(calls_set_tile[9], (uintptr_t)fn_unit_set_tile, "EEComplexUnit.set_tile [call_site set_tile 9]");
     bad += spec_call(calls_set_tile[10], (uintptr_t)fn_unit_set_tile, "EEComplexUnit.set_tile [call_site set_tile 10]");
+    bad += spec_code((uintptr_t)fn_unit_reload_wait, "EEComplexUnit.reload_wait");
+    bad += spec_call(calls_reload_wait[0], (uintptr_t)fn_unit_reload_wait, "EEComplexUnit.reload_wait [call_site reload_wait 0]");
+    bad += spec_call(calls_reload_wait[1], (uintptr_t)fn_unit_reload_wait, "EEComplexUnit.reload_wait [call_site reload_wait 1]");
+    bad += spec_call(calls_reload_wait[2], (uintptr_t)fn_unit_reload_wait, "EEComplexUnit.reload_wait [call_site reload_wait 2]");
+    bad += spec_call(calls_reload_wait[3], (uintptr_t)fn_unit_reload_wait, "EEComplexUnit.reload_wait [call_site reload_wait 3]");
     bad += spec_code((uintptr_t)fn_ee_complex_unit_release, "EEComplexUnit.release");
     bad += spec_slot(vt_ee_complex_unit, slot_unit_release, (uintptr_t)fn_ee_complex_unit_release, "EEComplexUnit.release [slot]");
     bad += spec_vtable(vt_ee_ghost_unit, ".?AVEEGhostUnit@@", "EEGhostUnit [vtable]");
@@ -1150,6 +1180,7 @@ internal int spec_unit_check(void) {
     bad += spec_call(call_aim, (uintptr_t)fn_unit_aim, "unit.aim [call_site aim]");
     bad += spec_call(call_missile_aim, (uintptr_t)fn_unit_aim, "unit.aim [call_site missile_aim]");
     bad += spec_code((uintptr_t)fn_unit_site_blocker, "unit.site_blocker");
+    bad += spec_code((uintptr_t)fn_unit_attack_anim, "unit.attack_anim");
     bad += spec_code((uintptr_t)fn_ai_state_ask, "EEUnitAction.ask");
     bad += spec_call(calls_goalset_ask[0], (uintptr_t)fn_ai_state_ask, "EEUnitAction.ask [call_site goalset_ask 0]");
     bad += spec_call(calls_goalset_ask[1], (uintptr_t)fn_ai_state_ask, "EEUnitAction.ask [call_site goalset_ask 1]");

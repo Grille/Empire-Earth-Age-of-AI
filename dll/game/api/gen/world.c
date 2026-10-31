@@ -6,6 +6,11 @@
 // its damage points by state (a map; the end node +0x150)
 // damage_points 0x4D291F / AoC 0x4D84EC: the map's end node +0x150 compared in both
 internal inline uint8_t *dmg_model_map_at(const ee_dmg_model *o) { return (uint8_t *)o + of_dmg_model_map; }
+// per animation (int32 each): its first frame - the animation setter (0x5EFD6D, AoC 0x5FE02A) starts there
+internal inline uint8_t *dmg_model_anim_first_at(const ee_dmg_model *o) { return (uint8_t *)o + of_dmg_model_anim_first; }
+// per animation (int32 each): the frame its blow lands (a citizen's attack: 8 of 0..15) - the attack's tick
+// (EEUGAttackUnit.tick) strikes when the frame is it, else waits its reload with the animation restarted
+internal inline uint8_t *dmg_model_anim_strike_at(const ee_dmg_model *o) { return (uint8_t *)o + of_dmg_model_anim_strike; }
 // the damage points of a state - the impact effects place theirs by it (EEE2DImpact::vf21 0x4DA7B2,
 // EEE2DLightGlow::vf12 0x4DB2DF; game.call_damage_points hooked by the mod's guard)
 typedef int (__thiscall *dmg_model_damage_points_fn)(ee_dmg_model *, int, uint32_t);
@@ -208,6 +213,8 @@ internal int spec_world_select(int build) {
     switch (build) {
     case 0:   // ee
         of_dmg_model_map = 0x14C;
+        of_dmg_model_anim_first = 0x350;
+        of_dmg_model_anim_strike = 0x3F8;
         fn_dmg_model_damage_points = (dmg_model_damage_points_fn)0x004D291F;
         of_game_data_line_ms = 0x2CC;
         of_game_data_unit_limit = 0x2E8;
@@ -257,6 +264,8 @@ internal int spec_world_select(int build) {
         return 0;
     case 1:   // aoc
         of_dmg_model_map = 0x14C;
+        of_dmg_model_anim_first = 0x360;
+        of_dmg_model_anim_strike = 0x408;
         fn_dmg_model_damage_points = (dmg_model_damage_points_fn)0x004D84EC;
         of_game_data_line_ms = 0x2CC;
         of_game_data_unit_limit = 0x2E8;
