@@ -651,6 +651,10 @@ class ai_base
         /// one gathering point outside every danger on the way from there to the base; the army waits there and goes in
         /// together once its fighters there beat the enemy at the destination by army_stage_go. 0 = off
         bool army_stage = true;
+        /// The front army: between attacks the idle soldiers stand at the AI's heaviest front (and a second one weighing at
+        /// least half of it), at its tower nearest the front, instead of idling at home; the attacks take them from there.
+        /// 1 = on, being measured
+        bool front_army = false;
         [range(0, 10), commented]
         share army_stage_go = 1.3;
         /// The attack commits (with army_stage): no squad goes past the staging point alone - the whole wave gathers there and

@@ -1396,6 +1396,7 @@ internal void towns_act(ee_player *pl, unsigned idx, uint32_t now);   // towns.c
 internal void towns_new_game(void);
 internal void towns_install(const char *autotest_ini);
 internal void fronts_tick(ee_player *pl, unsigned idx, uint32_t now);   // fronts.c
+internal void fronts_install(const char *autotest_ini);                 // fronts.c
 internal void fronts_new_game(void);
 internal void expand_new_game(void) {
     towns_new_game();
@@ -1426,6 +1427,7 @@ internal void expand_install(const char *autotest_ini) {
     g_expand = SETTING_BITS(g_set_ai[1].expand_islands);
     g_rescue = g_set_ai[1].rescue_citizens;
     towns_install(autotest_ini);
+    fronts_install(autotest_ini);
     if (autotest_ini) g_v_expand = ini_int("autotest", "v_expand_islands", -1, autotest_ini);
     g_ex_cits = g_set_ai[1].expand_citizens;
     g_ex_guard = g_set_ai[1].expand_guard;

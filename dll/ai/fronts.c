@@ -231,11 +231,139 @@ internal void fronts_look(ee_player *pl, unsigned idx, uint32_t now) {
     }
     #undef FR_IDX
 }
+// THE FRONT ARMY ([ai_base] front_army; [autotest] v_front_army for the variant players): the AI's soldiers stand at its
+// front between attacks instead of idling at home (the player: 1 or 2 standing front armies that hold the front, push
+// in and fall back into fortified positions). Every 10 s: its armies - the heaviest front, and a second one weighing at
+// least FA_SECOND of the heaviest; each army's station its own tower nearest the front's middle (within FR_REACH; none:
+// its building nearest), FA_BEHIND tiles back towards its base - the fortified position the army holds and falls back
+// to (fall_back's cover is there). Its idle land soldiers that are no attack subgroup's member and stand more than
+// FA_NEAR tiles from every station walk to the station whose army is the furthest under its share of the weights; a
+// unit sent at most once in FA_AGAIN. The pushes stay the game's: its attacks take their soldiers from the stations.
+// Measured 2026-10-31 (head-to-head, Continental huge 1v1 late, 60 min, 24 mirrored games; ~260 soldiers sent a game):
+// B - A soldiers -13.0 (se 5.9), kills -1.7 (14.2), losses +11.5 (16.3), razed +0.5 (0.5) - fewer soldiers: off.
+#define FA_SECOND 0.5f
+#define FA_BEHIND 4
+#define FA_NEAR 10
+#define FA_AGAIN 60000
+#define FA_ARMIES 2
+internal int g_front_army = 0, g_v_front_army = -1;
+#define FRONT_ARMY(idx) PV(idx, g_v_front_army, g_front_army)
+internal struct fa_st {
+    int n; ivec2 at[FA_ARMIES]; float share[FA_ARMIES]; int have[FA_ARMIES];
+    unsigned sent, idle, members;          // the log's: soldiers sent, idle ones seen, attack members left alone
+    uint32_t log_t;
+    struct { int serial; uint32_t t; } sent_at[512];
+} g_fa[16];
+internal ee_unit *g_fa_member[1024];   // this pass's attack subgroup members (fa_member)
+internal int g_fa_nmember;
+internal unsigned g_fa_forming;   // the log's: forming subgroups seen
+internal int fa_member(ee_unit *u) { for (int i = 0; i < g_fa_nmember; i++) if (g_fa_member[i] == u) return 1; return 0; }
+internal void fa_members(ee_player *pl) {
+    g_fa_nmember = 0;
+    ee_combat_mgr *cbm = player_get_combat_mgr(pl); ee_attack_cmd *cmd = cbm ? combat_mgr_get_commander(cbm) : NULL;
+    if (!cmd) return;
+    uint8_t *dq = attack_cmd_groups_at(cmd);
+    unsigned first = deque_front(dq), cnt = deque_count(dq);
+    for (unsigned k = 0; k < cnt && k < 64; k++) {
+        ee_attack_group *g = deque_at(dq, first + k);
+        for (ee_attack_subgroup **sp = g ? attack_group_get_subgroups_begin(g) : NULL; sp && sp < attack_group_get_subgroups_end(g); sp++) {
+            if (*sp && ms_cls(attack_subgroup_get_state(*sp)) == 0) { g_fa_forming++; continue; }   // forming: its idle members wait at the front
+            for (ee_asg_unit **r = *sp ? attack_subgroup_get_units_begin(*sp) : NULL; r && r < attack_subgroup_get_units_end(*sp); r++) {
+                ee_unit *u = *r ? asg_unit_get_unit(*r) : NULL;
+                if (u && g_fa_nmember < (int)(sizeof g_fa_member / sizeof *g_fa_member)) g_fa_member[g_fa_nmember++] = u;
+            }
+        }
+    }
+}
+internal void front_army(ee_player *pl, unsigned idx, uint32_t now) {
+    struct fronts_st *s = &g_fronts[idx];
+    struct fa_st *a = &g_fa[idx];
+    ivec2 base;
+    a->n = 0;
+    if (!s->n || !ms_base(pl, &base)) return;
+    int pick[FA_ARMIES], np = 0;   // the heaviest front, a second one heavy enough
+    for (int k = 0; k < FA_ARMIES; k++) {
+        int best = -1;
+        for (int j = 0; j < s->n; j++) {
+            int used = 0;
+            for (int q = 0; q < np; q++) used |= pick[q] == j;
+            if (!used && (best < 0 || s->f[j].weight > s->f[best].weight)) best = j;
+        }
+        if (best < 0 || (np && s->f[best].weight < FA_SECOND * s->f[pick[0]].weight)) break;
+        pick[np++] = best;
+    }
+    for (int k = 0; k < np; k++) {   // each army's station: its tower nearest the front (else its building nearest), a bit back
+        struct front_st *f = &s->f[pick[k]];
+        ee_unit *tower = NULL, *bld = NULL;
+        int td2 = FR_REACH * FR_REACH + 1, bd2 = FR_REACH * FR_REACH + 1;
+        for (struct grid_it it = grid_it_box(f->c.x, f->c.y, FR_REACH, 1); grid_it_next(&it); ) {
+            ee_unit *u = it.u;
+            if (unit_get_owner(u) != pl || unit_get_hp(u) <= 0 || unit_get_x(u) < 0 || !fr_building(it.td)) continue;
+            int d2 = ivec2_dist2(unit_get_tile(u), f->c);
+            if (is_tower_type(unit_type_get_id(it.td)) && d2 < td2) { td2 = d2; tower = u; }
+            if (d2 < bd2) { bd2 = d2; bld = u; }
+        }
+        ee_unit *anchor = tower ? tower : bld;
+        if (!anchor) continue;
+        ivec2 t = unit_get_tile(anchor);
+        float ex = (float)(base.x - t.x), ey = (float)(base.y - t.y), el = sqrtf(ex * ex + ey * ey);
+        ivec2 at = el >= 1 ? iv2(t.x + (int)((float)FA_BEHIND * ex / el), t.y + (int)((float)FA_BEHIND * ey / el)) : t;
+        int same = -1;
+        for (int q = 0; q < a->n && same < 0; q++) if (ivec2_dist2(a->at[q], at) <= 4 * FA_NEAR * FA_NEAR) same = q;
+        if (same >= 0) { a->share[same] += f->weight; continue; }   // one front for two sections that close
+        a->at[a->n] = at; a->share[a->n] = f->weight; a->have[a->n] = 0; a->n++;
+    }
+    if (!a->n) return;
+    float wsum = 0;
+    for (int k = 0; k < a->n; k++) wsum += a->share[k];
+    for (int k = 0; k < a->n; k++) a->share[k] = wsum > 0 ? a->share[k] / wsum : 1.0f / (float)a->n;
+    fa_members(pl);
+    static ee_unit *free_u[1024];
+    int nfree = 0, total = 0;
+    for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
+        ee_unit *u = it.u;
+        if (unit_get_owner(u) != pl || !ms_land_soldier(u, it.td)) continue;
+        if (fa_member(u)) { a->members++; continue; }
+        if (unit_ai_state_id(u) != 5000) continue;   // idle only: what has an order keeps it
+        a->idle++;
+        int at = -1;
+        for (int k = 0; k < a->n && at < 0; k++) if (ivec2_dist2(unit_get_tile(u), a->at[k]) <= FA_NEAR * FA_NEAR) at = k;
+        total++;
+        if (at >= 0) { a->have[at]++; continue; }
+        if (nfree < (int)(sizeof free_u / sizeof *free_u)) free_u[nfree++] = u;
+    }
+    for (int i = 0; i < nfree; i++) {
+        ee_unit *u = free_u[i];
+        int serial = unit_get_serial(u), slot = (int)((unsigned)serial % 512u);
+        if (a->sent_at[slot].serial == serial && now >= a->sent_at[slot].t && now - a->sent_at[slot].t < FA_AGAIN) continue;
+        int k = 0;
+        float most = -1e9f;
+        for (int q = 0; q < a->n; q++) { float under = a->share[q] * (float)total - (float)a->have[q]; if (under > most) { most = under; k = q; } }
+        float jx = (float)((serial * 7) % 5) - 2.0f, jy = (float)((serial * 13) % 5) - 2.0f;   // spread over a few tiles
+        if (!unit_goal(u, goal_move((float)a->at[k].x + 0.5f + jx, (float)a->at[k].y + 0.5f + jy), 0, 0x1F40)) continue;
+        a->sent_at[slot].serial = serial; a->sent_at[slot].t = now ? now : 1;
+        a->have[k]++; a->sent++;
+    }
+    if (g_log && g_autotest && (!a->log_t || now < a->log_t || now - a->log_t >= 60000)) {
+        a->log_t = now ? now : 1;
+        EnterCriticalSection(&g_lock);
+        fprintf(g_log, "# front army: P%u at %.1f min: %d armies", idx, now / 60000.0, a->n);
+        for (int k = 0; k < a->n; k++) fprintf(g_log, " | at %d,%d share %.0f%% has %d", a->at[k].x, a->at[k].y, 100 * a->share[k], a->have[k]);
+        fprintf(g_log, " | sent %u, idle seen %u, attack members %u, forming subgroups %u\n", a->sent, a->idle, a->members, g_fa_forming);
+        LeaveCriticalSection(&g_lock);
+    }
+}
 internal void fronts_tick(ee_player *pl, unsigned idx, uint32_t now) {
     struct fronts_st *s = &g_fronts[idx];
-    if (now < s->t) memset(s, 0, sizeof *s);   // a new game
+    if (now < s->t) { memset(s, 0, sizeof *s); memset(&g_fa[idx], 0, sizeof g_fa[idx]); }   // a new game
     if (s->t && now - s->t < 10000) return;
     s->t = now ? now : 1;
     fronts_look(pl, idx, now);
+    if (FRONT_ARMY(idx)) front_army(pl, idx, now);
 }
-internal void fronts_new_game(void) { rm_new_game(); memset(g_fronts, 0, sizeof g_fronts); memset(g_fr_land, 0, sizeof g_fr_land); g_fr_land_map = NULL; }
+internal void fronts_install(const char *autotest_ini) {
+    g_front_army = g_set_ai[1].front_army;
+    if (autotest_ini) g_v_front_army = ini_int("autotest", "v_front_army", -1, autotest_ini);
+    if (g_log) fprintf(g_log, "# front army: %d (variant %d)\n", g_front_army, g_v_front_army);
+}
+internal void fronts_new_game(void) { rm_new_game(); memset(g_fronts, 0, sizeof g_fronts); memset(g_fa, 0, sizeof g_fa); memset(g_fr_land, 0, sizeof g_fr_land); g_fr_land_map = NULL; }
