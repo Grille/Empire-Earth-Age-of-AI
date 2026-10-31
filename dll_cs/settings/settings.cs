@@ -22,7 +22,7 @@
 // A KEY is a field; its type and attributes are its kind (rows.h's header tells each):
 //   bool k = true;                               FLAG     (in the file 1 / 0)
 //   [range(lo, hi)] int k = 4096;                INT      a whole number lo .. hi
-//   [num] int k = 7;                             NUM      any whole number ([range] too: its bounds)
+//   int k = 7;                                   NUM      any whole number (a level, a bit mask, a count)
 //   [pct(hi)] int k = 80;                        PCT      whole percents up to hi% (temperature=80%)
 //   [share(lo, hi)] int k = 35;                  SHARE    a share kept as a float, in the file in percent
 //   kind k = kind.auto;                          CHOICE   an enum of the section: its members the names, in order
@@ -56,8 +56,6 @@ public sealed class all : Attribute { }
 public sealed class diff : Attribute { }
 [AttributeUsage(AttributeTargets.Class)]
 public sealed class test : Attribute { }
-[AttributeUsage(AttributeTargets.Field)]
-public sealed class num : Attribute { }
 [AttributeUsage(AttributeTargets.Field)]
 public sealed class pct : Attribute { public pct(int hi) { } }
 [AttributeUsage(AttributeTargets.Field)]

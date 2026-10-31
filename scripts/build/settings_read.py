@@ -69,12 +69,11 @@ def kind_of(sec, k):   # rows.h's kind of a key
     if k.type == 'string':
         return 'STR_P' if k.has('per_player') else 'STR'
     if k.type == 'int':
-        for a in ('pct', 'share', 'num'):
+        for a in ('pct', 'share'):
             if k.has(a):
                 return a.upper()
-        if k.has('range'):
-            return 'INT'
-    raise SystemExit('%s: %s %s: no kind (an int needs [range], [num], [pct] or [share] - settings.cs)' % (k.where, k.type, k.name))
+        return 'INT' if k.has('range') else 'NUM'
+    raise SystemExit('%s: %s %s: no kind (settings.cs)' % (k.where, k.type, k.name))
 
 
 def read_file(path):
