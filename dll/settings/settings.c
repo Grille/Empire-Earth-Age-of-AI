@@ -60,6 +60,10 @@ internal const struct setting_row k_settings[SETTING_N] = { SETTINGS(SET_ROW_X, 
 #define SET_UNDER(key, master) { SETTING_##key, SETTING_##master },
 internal const struct { int row, master; } k_settings_under[] = { SETTING_UNDER(SET_UNDER) };
 
+#define SET_ALSO(key, sec) { SETTING_##key, #sec },
+internal const struct { int row; const char *sec; } k_settings_also[] = { SETTING_ALSO(SET_ALSO) };
+#define SETTING_ALSO_N ((int)(sizeof k_settings_also / sizeof *k_settings_also))
+
 #define SET_GAME(field, what, game, keep) { SETTING_##field, what, game, keep },
 internal const struct { int row; const char *what, *game; int keep; } k_settings_game[] = { SETTING_GAME(SET_GAME) };
 #define SETTING_GAME_N ((int)(sizeof k_settings_game / sizeof *k_settings_game))

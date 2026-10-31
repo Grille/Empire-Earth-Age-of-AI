@@ -29,7 +29,7 @@ class display
     lock_mouse_choice lock_mouse = lock_mouse_choice.auto;
     /// Objects drawn per frame (units, buildings, missiles - also arrows stuck in the ground). The game drew at most
     /// 512; in big fights and at high resolutions the farthest objects blinked out. 0 = the original 512
-    [range(0, 1000000), game("the objects the game draws per frame", "512", 0)] int draw_limit = 4096;
+    [range(0, 1000000), game("the objects the game draws per frame", "512", 0), also("patches")] int draw_limit = 4096;
     /// Windowed/borderless only: smooth (bilinear) scaling when the image is scaled; 0 = sharp pixels
     bool smooth_scaling = false;
     /// Windowed/borderless only: 1 = wait for the screen refresh (no tearing, fps capped at the refresh rate),
@@ -86,5 +86,5 @@ class display
     /// Hardware T&L only: the 3D models' vertex buffer in system memory, as the renderer without T&L has it. In video
     /// memory every update makes the graphics card finish its work first (with DDrawCompat 18 instead of 170 fps on a
     /// big map, natively 105 instead of 315). 0 = the game's video memory
-    [game("the T&L renderer's vertex buffer in system memory", "0 (video memory)", 0)] bool vertex_sysmem = true;
+    [game("the T&L renderer's vertex buffer in system memory", "0 (video memory)", 0), also("patches")] bool vertex_sysmem = true;
 }

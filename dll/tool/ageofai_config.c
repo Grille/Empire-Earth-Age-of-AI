@@ -524,6 +524,11 @@ internal int node_kind(LPARAM p) { return p >= 0 ? NODE_ENTRY : p > -1000 ? NODE
 internal int node_id(LPARAM p) { return p >= 0 ? (int)p : p > -1000 ? (int)(-1 - p) : (int)(-1000 - p); }
 internal int is_section_page(int p) { return g_page_of[p].section >= 0 && page_kind(p) != SECK_DIFF; }
 
+internal int also_on(int row, int p) {   // row is listed on page p too (SETTING_ALSO)
+    for (int i = 0; i < SETTING_ALSO_N; i++) if (k_settings_also[i].row == row && !lstrcmpA(k_settings_also[i].sec, g_page_of[p].sec)) return 1;
+    return 0;
+}
+
 internal void make_groups(void) {   // the rows in their order: each in the last group begun in its section
     int cur[SETTING_SECTION_N];
     for (int s = 0; s < SETTING_SECTION_N; s++) cur[s] = -1;
@@ -678,7 +683,7 @@ internal void fill_list(LPARAM keep, int stay) {
     for (int p = 0; p < g_npages; p++) {
         if (!is_section_page(p)) continue;
         int any = 0;
-        for (int i = 0; i < g_ne; i++) if (g_e[i].page == p && found[i]) any = 1;
+        for (int i = 0; i < g_ne; i++) if (found[i] && (g_e[i].page == p || also_on(g_e[i].row, p))) any = 1;
         if (!any) continue;
         add_line(NODE_SECTION, p, 0);
         if (!filter[0] && !g_sec_open[p]) continue;
@@ -693,6 +698,8 @@ internal void fill_list(LPARAM keep, int stay) {
             for (int j = 0; master >= 0 && j < g_ne; j++) if (g_e[j].page == p && g_e[j].row == master) shown = found[j];
             add_line(NODE_ENTRY, i, (gr >= 0) + 1 + shown);
         }
+        for (int i = 0; i < g_ne; i++)   // the rows SETTING_ALSO shows here too: the entry of their own page, after this page's
+            if (found[i] && g_e[i].page != p && also_on(g_e[i].row, p)) add_line(NODE_ENTRY, i, 1);
     }
     int top = stay ? ListView_GetTopIndex(g_list) : 0;
     SendMessageA(g_list, WM_SETREDRAW, FALSE, 0);

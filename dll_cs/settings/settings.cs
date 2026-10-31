@@ -36,7 +36,8 @@
 //
 // MORE ABOUT A KEY: [group("t")] starts ageofai_config.exe's topic t at this key (rows.h SETTING_GROUPS);
 // [game("what", "original", keep)] it sets one of the game's own values (SETTING_GAME: the tool shows its key blue);
-// [under(nameof(master))] the tool folds it under a master it doesn't follow (SETTING_UNDER).
+// [under(nameof(master))] the tool folds it under a master it doesn't follow (SETTING_UNDER); [also("section")] the tool
+// lists it on that section's page too (SETTING_ALSO) - the key itself stays in its own section, once in the file.
 
 using System;
 
@@ -56,6 +57,7 @@ using System;
 [AttributeUsage(AttributeTargets.Field)] public sealed class group : Attribute { public group(string title) { } }
 [AttributeUsage(AttributeTargets.Field)] public sealed class game : Attribute { public game(string what, string original, int keep) { } }
 [AttributeUsage(AttributeTargets.Field)] public sealed class under : Attribute { public under(string master) { } }
+[AttributeUsage(AttributeTargets.Field)] public sealed class also : Attribute { public also(string section) { } }
 [AttributeUsage(AttributeTargets.Field)] public sealed class on : Attribute { public on(string fields) { } }
 
 static class limits {

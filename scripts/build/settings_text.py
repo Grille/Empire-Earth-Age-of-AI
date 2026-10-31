@@ -37,6 +37,10 @@ TEXT = {
         "Rows ageofai_config.exe shows under a master, folded with its children, though they don't follow it: settings of what",
         "the master's children switch on (the formation's catch-up, friendly units' collision under improved_unit_movement).",
     ],
+    'SETTING_ALSO': [
+        "Rows ageofai_config.exe shows on another section's page too: the same key - one value, one line in the file, in",
+        "its own section - listed where a player would also look for it (a display limit among the game fixes).",
+    ],
     'top': [
         "THE SETTINGS: the keys of ageofai.ini (and the test ini's own), one row each - its kind, section, key, default and",
         "the kind's limits - in the shipped file's order. settings.c makes the rows g_set (g_set.lead_targets: the value in",
