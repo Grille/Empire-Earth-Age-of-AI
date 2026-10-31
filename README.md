@@ -119,7 +119,7 @@ peace or alliances. With the mod:
   stays at war until you set it to allied (2 minutes), and only then turns allied itself.
 - **Stance lines** (`stance_lines`): only the AIs' stance changes towards you are shown, naming the AI ("Khan
   Temur is now your enemy"). The game's line for every change - also between AIs, without saying towards whom - is
-  `stance_lines=2`; `0` shows none (the personalities still speak).
+  `stance_lines=all`; `none` shows none (the personalities still speak).
 - **Alliance blocks:** everyone linked by alliances is one block, with peace inside it: two AIs allied with you
   (or with the same AI) don't fight each other. An AI at war with you that joins your block offers you peace.
   Whoever turns on a member breaks the block, and every other AI picks a side (`alliance_blocks`). Joining
@@ -212,7 +212,7 @@ peace or alliances. With the mod:
   - **Nobody is special** (`equal=1`): the model isn't told who is human - you are another leader like the AIs, and
     no AI is told it is played by the computer.
 
-The AIs can also explain themselves in the chat (`chat=1`, a debug aid): attacks, new ages, towers, walls,
+The AIs can also explain themselves in the chat (`chat=debug`, a debug aid): attacks, new ages, towers, walls,
 siege, home guard.
 
 ## Installing (players)

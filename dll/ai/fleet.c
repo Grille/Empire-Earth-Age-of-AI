@@ -1,4 +1,4 @@
-// FLEET ([ai_base] navy_fleet, default 2 (stage 4: navy_fleet=2, with massing: navy_fleet_mass); [autotest] v_navy_fleet for the variant players; docs/navy.md stage 3): the mod
+// FLEET ([ai_base] navy_fleet, default 2 (stage 4: navy_fleet=big, with massing: navy_fleet_mass); [autotest] v_navy_fleet for the variant players; docs/navy.md stage 3): the mod
 // leads an AI's warships on a water map (navy_detect: enemies across the water) instead of the game's sea groups.
 // Included by eeaimod.c after navy.c (navy_kind, nv_f, g_nv_map), landing.c (g_ld, ld_hits, ld_open_water, unit
 // goals), intel.c (g_intel).
@@ -75,7 +75,7 @@ internal int fleet_on(unsigned idx) {
     idx &= 15;
     return PV(idx, g_v_navy_fleet, g_navy_fleet) && g_nv_map[idx].done && g_nv_map[idx].strength > 0;
 }
-// stage 4 (navy_fleet=2): the size target and the mod's own warship orders (navy.c), task forces (below)
+// stage 4 (navy_fleet=big): the size target and the mod's own warship orders (navy.c), task forces (below)
 internal int fleet_builds(unsigned idx) { return fleet_on(idx) && PV(idx & 15, g_v_navy_fleet, g_navy_fleet) >= 2; }
 internal int fleet_sheltering(unsigned idx) { return g_fl[idx & 15].shelter; }
 internal int g_fl_mass = 1;   // navy_fleet_mass: stage 4 masses at the rally while weaker (fl_rally, below)
@@ -533,7 +533,7 @@ internal uint32_t fl_lost(unsigned idx, int sunk) {   // warships and submarines
     }
     return n;
 }
-// TASK FORCES (stage 4, navy_fleet=2; docs/navy.md): the playtester - a fleet of 20+ warships split into smaller
+// TASK FORCES (stage 4, navy_fleet=big; docs/navy.md): the playtester - a fleet of 20+ warships split into smaller
 // forces with jobs, none sitting idle ("any unit that just sits there is a huge opportunity cost"): a home guard for
 // the fishing grounds and docks, hunters that strike the enemy's warships before they mass, raiders against its fishing
 // boats and the citizens and docks on its coast (the economy), a patrol on the sea lanes against transports and

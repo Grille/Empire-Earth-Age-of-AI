@@ -12,6 +12,9 @@ class ai_base
 {
     struct towns_fields { bool resource_towns, settlement, forward_production, forward_base, spread, scout, grow; }
     enum epoch_pacing_choice { classic, timer, rush, follow, independent }
+    enum copper_plan_choice { game, on, next_epoch }
+    enum navy_fleet_choice { game, own, big }
+    enum stance_lines_choice { none, yours, all }
 
     class EconomyAndEpochs
     {
@@ -27,10 +30,13 @@ class ai_base
         ///
         /// Early-game economy plan (before farms, which arrive in the Copper Age):
         /// the AI builds up its economy, counts the food it can find, saves for the next epochs,
-        /// keeps only a token army and advances as soon as it can pay. 1 = on, 0 = original behaviour
-        /// 2 = experimental (docs/economy.md): only the next epoch is saved for, and above min_workforce the citizens keep
-        /// training - epoch_share of the income goes into an epoch account instead; food_floor food workers before farms
-        int copper_plan = 1;
+        /// keeps only a token army and advances as soon as it can pay:
+        ///   game       = the original behaviour
+        ///   on         = the plan
+        ///   next_epoch = experimental (docs/economy.md): only the next epoch is saved for, and above min_workforce the
+        ///                citizens keep training - epoch_share of the income goes into an epoch account instead; food_floor
+        ///                food workers before farms
+        copper_plan_choice copper_plan = copper_plan_choice.on;
         [range(0, 1), commented]
         share epoch_share = 0.4;
         [commented]
@@ -283,19 +289,19 @@ class ai_base
         /// fishing boats and transports and shells its coast when clearly stronger (retreating at half strength), clears the
         /// sea route of a landing and stays off its beach, and never sails into the reach of known enemy towers, cannons and
         /// artillery. Damaged ships go back to the dock; fishing boats flee to the dock from enemy warships it can't beat.
-        /// 0 = the game's own sea groups. 1 = the fleet as described (test stage). 2 = a big fleet (default): the AI trains
+        /// game = the game's own sea groups. own = the fleet as described (test stage). big = a big fleet (default): the AI trains
         /// warships itself up to navy_fleet_pop of its population limit (the navy's share of the income rising toward
         /// navy_share_max while short), masses them under its towers while weaker than the enemy fleet (navy_fleet_mass),
         /// strikes as one force once stronger, and splits the fleet when clearly stronger into a home guard, hunters, raiders
         /// (fishing boats, coastal citizens and docks), a patrol on the sea lanes and a landing escort
-        int navy_fleet = 2;
-        /// (navy_fleet=2) the fleet's size as a share of the population limit (15%: 26 warships at a limit of 176)
+        navy_fleet_choice navy_fleet = navy_fleet_choice.big;
+        /// (navy_fleet=big) the fleet's size as a share of the population limit (15%: 26 warships at a limit of 176)
         [range(0, 1)]
         share navy_fleet_pop = 0.15;
-        /// (navy_fleet=2) the navy's share of the income while the fleet is below that size
+        /// (navy_fleet=big) the navy's share of the income while the fleet is below that size
         [range(0, 1)]
         share navy_share_max = 0.5;
-        /// (navy_fleet=2) mass before striking: while weaker than the enemy fleet known or below a quarter of its size the
+        /// (navy_fleet=big) mass before striking: while weaker than the enemy fleet known or below a quarter of its size the
         /// ships wait at a rally inside the reach of its towers (a tower is built by the dock if none covers the sea), fight
         /// there with the towers and strike as one force at 1.25 times the enemy's strength. 0 = stage 4 (shelter only)
         bool navy_fleet_mass = true;
@@ -636,9 +642,11 @@ class ai_base
         /// Answer war: whoever declares war on an AI that is allied with them gets war back a few seconds later, with the
         /// stance line (stance_lines), a revenge attack and a taunt (the original AI has no diplomacy and stays allied). 1 = on
         bool answer_war = true;
-        /// Stance lines: 1 = only an AI's stance changes towards you, naming it ("<AI> is now your enemy / ally");
-        /// 2 = the game's line for every AI stance change, also between AIs (it doesn't say towards whom); 0 = none
-        int stance_lines = 1;
+        /// Stance lines:
+        ///   none  = none
+        ///   yours = only an AI's stance changes towards you, naming it ("<AI> is now your enemy / ally")
+        ///   all   = the game's line for every AI stance change, also between AIs (it doesn't say towards whom)
+        stance_lines_choice stance_lines = stance_lines_choice.yours;
         /// AI diplomacy: AIs judge peace offers (opinion, power, grudge, tribute - per personality), offer alliances against
         /// a much stronger enemy and may betray a weak ally (disloyal personalities). Not in scenarios or with locked teams.
         /// An alliance offered to you is only a message: the AI stays at war until you set it to allied (offer_minutes).

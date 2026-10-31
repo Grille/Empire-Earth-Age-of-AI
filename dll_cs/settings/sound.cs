@@ -5,9 +5,11 @@ namespace ageofai.settings;
 [section(50)]
 class sound
 {
-    /// Sound diagnostics into ageofai_log.csv: 1 = counts of dropped sounds once a game minute, 2 = every sound played. 0 = off
-    [range(0, 2)]
-    int sound_log = 0;
+    enum sound_log_choice { off, drops, all }
+
+    /// Sound diagnostics into ageofai_log.csv: off, drops = counts of dropped sounds once a game minute, all = also every
+    /// sound played
+    sound_log_choice sound_log = sound_log_choice.off;
     /// The "Max Number Of Sounds" slider goes to 200% = 32 channels, the sound mixer has 16 on current Windows: sounds on the
     /// missing channels stay silent (looping ones for good). 1 = hold the channels to what the mixer has (from 100% up: 16)
     bool sound_clamp_channels = true;

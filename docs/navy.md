@@ -6,8 +6,8 @@ cannot expand or counter-attack. "Each ship has specific roles and counters." Th
 stage 1 (the navy's money, docks and room) are done. Stage 2 (the fleet mix) is built but off by default: it brought
 no head-to-head gain. Stage 3 (the mod leads the fleet) is built and off by default too: it wins the sea (about 2
 warships a game net in head-to-head) but brings no gain on land yet. Stage 4 (a big fleet in task forces,
-`navy_fleet=2`) beat the control AI (+18 kills - losses a game, more fish, fewer boats lost) but not the human-like sea
-opponent. Stage 5 (mass under the towers before striking, the mines worked for the navy) makes `navy_fleet=2` the
+`navy_fleet=big`) beat the control AI (+18 kills - losses a game, more fish, fewer boats lost) but not the human-like sea
+opponent. Stage 5 (mass under the towers before striking, the mines worked for the navy) makes `navy_fleet=big` the
 default: +24 kills - losses against the control AI, and the sea exchange against the sea opponent positive on every
 map.
 
@@ -353,11 +353,11 @@ figure).
 **Default on**: it helps the AI that has it against one that hasn't (a human without a fleet), and on land maps
 nothing changes. Against each other two navy AIs only trade ships until stages 2-3 give the fleet a job.
 
-### Stage 2 - composition by roles - BUILT, runs with the fleet (`navy_fleet=2`)
+### Stage 2 - composition by roles - BUILT, runs with the fleet (`navy_fleet=big`)
 
 Built (dll/ai/navy.c `navy_pick`, the hook in econ.c `hook_train_units`; it acts for every AI whose fleet builds -
 stage 4, fleet.c `fleet_builds`. Its own switch `navy_mix` / `v_navy_mix`, below, is gone: off it changed nothing
-under `navy_fleet=2`, docs/experiments.md):
+under `navy_fleet=big`, docs/experiments.md):
 
 - **Where:** a warship or submarine order the navy account pays (`navy_pays`) from one of the game's own training
   sites. The mod's own orders and a landing's orders are not touched. Carriers stay the game's choice. `req` points
@@ -435,7 +435,7 @@ errors, both versions). The sea exchange is even. The likely reasons:
 
 Retested with stage 3 (below, `fm`): with the fleet led, the mix adds nothing either.
 
-### Stage 3 - the mod leads the fleet - BUILT, OFF (`navy_fleet=0`)
+### Stage 3 - the mod leads the fleet - BUILT, OFF (`navy_fleet=game`)
 
 Built (dll/ai/fleet.c; `[ai_base] navy_fleet`, `[autotest] v_navy_fleet`; test keys `navy_fleet_boats`, `navy_fleet_coast`,
 `navy_fleet_raid`):
@@ -565,7 +565,7 @@ two landings with transports, honest sight (9 tiles around its own units). How t
 "Sea opponent". Score: `python scripts/results/seacontrol.py -ctl f0 <logs>`.
 
 **Baseline** (HEAD 5868f55, medium opponent, 1 AI, seed 101 map, 60 min, game seeds 1-10 per cell; n0 = navy=0, f0 =
-shipped (navy account, the game's sea groups), f1 = navy_fleet=1; per game, std. error in brackets):
+shipped (navy account, the game's sea groups), f1 = navy_fleet=own; per game, std. error in brackets):
 
 | f0 (shipped) | Small e5 | Large e5 | Small e9 | Large e9 |
 |---|---|---|---|---|
@@ -606,7 +606,7 @@ What a human-level AI navy would have to show here: more warships afloat when th
 ships all game and is refused - section 3), fishing boats kept (fish food), transports through, and a sea exchange
 above 0 against the main fleet.
 
-### Stage 4 - a big fleet in task forces - BUILT, ON WITH STAGE 5 (`navy_fleet=2`)
+### Stage 4 - a big fleet in task forces - BUILT, ON WITH STAGE 5 (`navy_fleet=big`)
 
 The playtester (2026-10-19): "at least 20 ships on a low population game, way more with higher limits, split into
 smaller fleets and task forces for proper map control"; "the fleet needs to go out and do things: hunt fishing boats and
@@ -614,7 +614,7 @@ shell citizens to disturb the economy, hunt enemy warships to prevent the enemy 
 transports ... Any unit that just sits there is a huge opportunity cost"; "the fleet can't be scared off by a few subs -
 that's what the frigates are for".
 
-Built (dll/ai/navy.c, dll/ai/fleet.c, econ.c, diplo.c; `[ai_base] navy_fleet=2`, `[autotest] v_navy_fleet=2`; keys
+Built (dll/ai/navy.c, dll/ai/fleet.c, econ.c, diplo.c; `[ai_base] navy_fleet=big`, `[autotest] v_navy_fleet=2`; keys
 `navy_fleet_pop` 15, `navy_share_max` 50):
 
 - **Size.** The target is `navy_fleet_pop` % of the AI's population cap x the map strength: 26 warships at the tests'
@@ -710,7 +710,7 @@ medium the sea exchange is worse though the land exchange is better. What is mis
 - the gold/iron economy for 20+ warships (the metals' workers follow the army's refusals, not the navy's target);
 - Large Islands e9 against the control: -10 (8).
 
-### Stage 5 - mass before striking; the mines - BUILT, ON (`navy_fleet=2`, `navy_fleet_mass=1`, `navy_mines=1`)
+### Stage 5 - mass before striking; the mines - BUILT, ON (`navy_fleet=big`, `navy_fleet_mass=1`, `navy_mines=1`)
 
 The playtester: "massing a fleet under the protection of towers and land units is an important step"; the AI should
 "exploit all resource nodes it has on its island quite quickly, and after that try to expand to other islands". Against
@@ -750,7 +750,7 @@ econ_targets calls navy_mines):
   falls under its reserve + 100. Taken from wood first (half its target kept), then food (60% kept). Early on food
   and wood keep their priority by the donors' rule.
 
-**Against the sea opponent** (1 AI, 60 min, paired by seed with `navy_fleet=0,navy_mines=0`; medium 10 seeds, weak and
+**Against the sea opponent** (1 AI, 60 min, paired by seed with `navy_fleet=game,navy_mines=0`; medium 10 seeds, weak and
 strong 6 (Small e9 weak and Large e5 strong 14); seacontrol.py; std. error in brackets):
 
 | stage 5 (fm) | Small e5 | Small e9 | Large e5 | Large e9 |
@@ -770,7 +770,7 @@ strong 6 (Small e9 weak and Large e5 strong 14); seacontrol.py; std. error in br
 - The opponent's fleet breaks itself on the rally: it comes for the AI's ships and meets towers and fleet together
   (its own rule keeps its targets out of the towers' reach + 4, but a fight that started outside drifts in). The
   sea exchange turned positive on every map at medium (stage 4: -3 to -12).
-- Mines alone (`fi`: navy_fleet=0, navy_mines=1) changed nothing against it (sea exchange -0.8..+2.2, kills -
+- Mines alone (`fi`: navy_fleet=game, navy_mines=1) changed nothing against it (sea exchange -0.8..+2.2, kills -
   losses +1..+6): the food stock stays near 0 under the raids, so the pull stays 0 (773 of 838 looks).
 
 **Head-to-head against the control AI** (one AI `v_navy_fleet=2`, control `v_navy_fleet=0`, both with the navy account
@@ -787,12 +787,12 @@ and the mines; seed 101 maps, 60 min, seeds 1-32; fleet_ab.py; 123 games, 5 lost
 
 Large Islands e9, -10 (8) in stage 4, is now +25 (8).
 
-**Mines, head-to-head** (navy_fleet=0 as before; one AI `v_navy_mines=1`, both else `navy_mines=0`; 128 games): kills -
+**Mines, head-to-head** (navy_fleet=game as before; one AI `v_navy_mines=1`, both else `navy_mines=0`; 128 games): kills -
 losses +1.1 (1.7), gold +200 and iron +150 in the hour (+3-4%), everything else within noise. On by default: the
 navy's supply path and the playtester's "work every node", at no cost seen.
 
-**Default on**: `navy_fleet=2` beats the control AI (+24 kills - losses a game, every map positive) and does better than
-`navy_fleet=0` against the sea opponent at every level on kills - losses (all 12 cells positive) and on the sea
+**Default on**: `navy_fleet=big` beats the control AI (+24 kills - losses a game, every map positive) and does better than
+`navy_fleet=game` against the sea opponent at every level on kills - losses (all 12 cells positive) and on the sea
 exchange in 10 of 12 (weak Small e9 -3.9 (4.1), weak Large e5 -0.3 (7.6): within noise). Caveat: strong Large e5
 AI defeated in half of 13 games against 0.3 of 14 (+0.2, std. error 0.2). Continental: detection "land", the games identical with and
 without (2 seeds, 25 min). About 1000 runs, no crash.

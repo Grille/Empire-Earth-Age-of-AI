@@ -11,7 +11,7 @@ The benchmark (docs/testing.md "Against the base-game AI"): the base game's AI a
   9-10 citizens gathered food (the base AI: 18-29);
 - the military account held 500-780 food that was never spent, because the citizens emptied the stock first.
 
-With `copper_plan=0` alone, Continental with the cheat went from 0 won / 12 lost to 6 won / 4 lost.
+With `copper_plan=game` alone, Continental with the cheat went from 0 won / 12 lost to 6 won / 4 lost.
 
 The playtester's own way, implemented first: "I don't train military in the first epoch and rely on towers and
 citizens, but I go heavy on bowmen/rock slingers from the second epoch on. My first-age tactic is getting towers up
@@ -26,7 +26,7 @@ and baiting enemy troops under the towers with my citizens."
 | `early_militia` (A) | Citizens fight soldiers only when own soldiers are within 12 tiles or an own tower reaches the spot, and only when the estimate (dll/ai/stats.c) says they win before losing one citizen. |
 | `early_army` (B) | No army in epoch 0. Before farms the military account belongs to the army: it pays out whatever the epoch reserve is, and citizens never spend its food. The army gets 10% of food income (`early_army_food_share`, at most 300 held). From epoch 1, while the economy grows (before farms, or under `early_army_workers`=60 workers), a soldier with a food price is replaced by the best food-free one the account can pay for (score x2 for a ranged unit, x0.25 for one that costs food: Slinger, Simple Bowman, Javelin, Composite Bow, Long Bow ...). In epochs 1-3 an Archery Range is requested when there is none. |
 | `early_soldiers=N` (alternative to A) | With `early_army`: the home guard keeps N soldiers in epoch 0, from minute 2. |
-| `copper_plan=2` (C) | Only the next epoch's cost is held, not the cost of both epochs. Below `min_workforce` the citizens get the whole stock, as before. Above it they are no longer stopped: `epoch_share` (40%) of the income goes into an epoch account until it holds the cost, and the citizens spend the rest. When the map's wild food can no longer pay for the epoch, the epoch gets the food first. Before farms food gets at least half the workers, up to `food_floor` (18). |
+| `copper_plan=next_epoch` (C) | Only the next epoch's cost is held, not the cost of both epochs. Below `min_workforce` the citizens get the whole stock, as before. Above it they are no longer stopped: `epoch_share` (40%) of the income goes into an epoch account until it holds the cost, and the citizens spend the rest. When the map's wild food can no longer pay for the epoch, the epoch gets the food first. Before farms food gets at least half the workers, up to `food_floor` (18). |
 
 Head-to-head keys: `v_early_towers`, `v_tower_bait`, `v_early_militia`, `v_early_army`, `v_early_soldiers`, `v_copper_plan`.
 Log: `# early:` once a minute (autotest).
@@ -42,7 +42,7 @@ soon as it can pay. Its brake did the harm, in three ways:
 - From 40 workers the citizens stopped completely.
 - The worker plan sent food workers only by the food missing from that reserve.
 
-`early_army` handles the first point: the account is the army's own money. `copper_plan=2` handles the other two.
+`early_army` handles the first point: the account is the army's own money. `copper_plan=next_epoch` handles the other two.
 The first try (40% of the income into the epoch account from minute 0) kept the Stone Age from coming at all: in one
 start every berry bush and animal was gone at minute 12, which left 26 citizens and 252 food in the account for 45
 minutes. Hence the wild-food fallback, and the account only from `min_workforce` on.
@@ -72,7 +72,7 @@ re-measurement above.
 | yes | A+B | 0/1/19 | 66 | 39/46/55 | 14.9 | +39.3 (17.7) | -11.6 (4.4) |
 | yes | A+B+C (epoch_share 40%) | 0/2/18 | 32 | 44/50/46 | 20.6 | +5.3 (16.8) | -5.9 (7.3) |
 | yes | A+B+C (epoch_share 60%) | 0/3/17 | 50 | 42/47/43 | 17.8 | +23.1 (13.1) | -8.7 (5.9) |
-| yes | A+B, copper_plan=0 | 0/0/20 | 25 | 36/47/55 | 10.7 | -1.6 (11.6) | -15.8 (4.7) |
+| yes | A+B, copper_plan=game | 0/0/20 | 25 | 36/47/55 | 10.7 | -1.6 (11.6) | -15.8 (4.7) |
 | yes | alternative: 4 soldiers in epoch 0 + B + C | 0/9/11 | 16 | 29/34/27 | 29.7 | -10.7 (7.2) | +3.2 (5.4) |
 | no | A+B | 3/0/17 | 69 | 40/49/68 | 3.5 | +12.4 (10.0) | -11.3 (5.0) |
 | no | A+B+C (60%) | 6/0/14 | 80 | 46/61/70 | 4.0 | +22.6 (8.8) | -10.8 (5.4) |
@@ -93,9 +93,9 @@ re-measurement above.
   also acts on the islands (substitution while under 60 workers). The islands with the cheat (A+B against shipped,
   40 games each) came out neutral: Small Islands e5 kills - losses -3.2 (4.8), citizens killed +1.4 (4.2); Large
   Islands e5 +1.1 (7.5), -2.1 (4.6). Off.
-- **C** (`copper_plan=2`) brings more workers at 20/30 minutes (+5 to +13). With the cheat it costs at 60 minutes
+- **C** (`copper_plan=next_epoch`) brings more workers at 20/30 minutes (+5 to +13). With the cheat it costs at 60 minutes
   (fewer workers, kills - losses), because the slower Stone Age delays the army. With epoch_share 60% and no cheat it
-  does best (6/0/14, kills - losses +23). Mixed result. Off: `copper_plan=1` stays, its brake now partly offset by B.
+  does best (6/0/14, kills - losses +23). Mixed result. Off: `copper_plan=on` stays, its brake now partly offset by B.
 - **The alternative** (4 soldiers by minute 8 instead of A) is the worst variant. With the cheat the base AI wins 9
   of 20 and 30 citizens die. The playtester's tower-and-bait opening is the better one for this AI.
 

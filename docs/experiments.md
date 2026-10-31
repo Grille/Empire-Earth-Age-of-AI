@@ -38,11 +38,11 @@ have since changed. Before reading an old "off" as "doesn't work", check which o
 | `army_plan` 1+2+4 | turn unspent stock into soldiers, more production buildings | cont soldiers +4.5 / +5.3 at 60; h2h losses +14.4 (5.8) | the extra soldiers came as a trickle and were fed in one by one; only measured on Small maps | **ON** as 39 (2026-10-22: + LATE, from the Middle Ages - below) |
 | `workforce_plan` 4 ARMY | army_plan's FILL + BUILD on every map at cap 250+ | coL/liH/tiH no cheat soldiers +10 to +19, kl within the noise | as army_plan; on the island maps the metal is the limit | **RETEST** with army_plan on coL (2nd) |
 | `army_mass` 1 GATHER, 65, 144 | reinforcements gather and join in groups; the pack stays together | GATHER no cheat kl +11.0 (3.4); cheat kills -17.0 (8.1) | hit with less at once; against twice the army the pack that waits trades less | **RETEST** with fall_back on cont + coL (3rd) |
-| `navy_mix` | warships by role (frigates, battleships, galleys/subs) and against the enemy fleet seen | h2h kl -8.6 (2.3) / -7.5 (2.9) | the fleets were 1-1.5 ships: no mix could form; battleships sent by the game's sea groups against coasts | **RETEST** with navy_fleet=2 + fall_back (4th) - re-measured: a no-op under navy_fleet 2, the switch **REMOVED** (483141a; the code in git at 2bf0da2) (the mix stays with the fleet) |
+| `navy_mix` | warships by role (frigates, battleships, galleys/subs) and against the enemy fleet seen | h2h kl -8.6 (2.3) / -7.5 (2.9) | the fleets were 1-1.5 ships: no mix could form; battleships sent by the game's sea groups against coasts | **RETEST** with navy_fleet=big + fall_back (4th) - re-measured: a no-op under navy_fleet 2, the switch **REMOVED** (483141a; the code in git at 2bf0da2) (the mix stays with the fleet) |
 | `early_army`, `early_soldiers=0` | ranged, food-free soldiers from epoch 1 (B) | A+B cheat kl +39 (17.7); no cheat wins 3 of 20 vs 8 | measured before food_plan=3 and fall_back; not clearly better than A | **RETEST** on cont (5th) |
 | `militia_estimate` | citizens fight by the fight estimate in every age, as a fallback | 10 seeds, within the noise | too few games, too weak a raid, the user's ini | **RETEST** (low) |
 | `landing_bombard` | shell a strong beach before landing | ashore 2.30 vs 2.15, ships lost 40.7 vs 37.1, noise | tiny fleet economy, ships died at the beach | **RETEST** (low) |
-| `copper_plan=2` | only the next epoch saved for, citizens keep training | no cheat, 60%: kl +22.6 (8.8); cheat 40%: +5.3 (16.8), fewer workers at 60 | slower Stone Age delays the army; measured before food_plan=3 | **RETEST** (low) |
+| `copper_plan=next_epoch` | only the next epoch saved for, citizens keep training | no cheat, 60%: kl +22.6 (8.8); cheat 40%: +5.3 (16.8), fewer workers at 60 | slower Stone Age delays the army; measured before food_plan=3 | **RETEST** (low) |
 | `expand_islands` 185 / 249 | outposts on other islands for metal | og30 +2 to +4, foe on home island -2 to -5; by 60 min gone; kl both ways | the base AI settles the same islands with 2-3x the army and takes them; `sea_held` passes when the enemy fleet was simply never seen | **FIX FIRST** |
 | `fight_estimate` | defence decisions by the real fight estimate | overrun alive 4 vs 3 of 10, kills 49 vs 31; muster fires 15/17 vs 7/6 | the estimate is an open-field fight; at home the defender has towers, buildings, reinforcements | **FIX FIRST** |
 | `workforce_plan` 1 CAP, 2 WOOD | citizens only as many as the economy uses; surplus woodcutters to the mines | CAP -30 to -43 citizens, soldiers unchanged; 3 siL cheat kl -11 (4) | room and food were not what limited the army; the mines' slots were full - nowhere to put the woodcutters | **FIX FIRST** (needs outposts' slots) |
@@ -219,12 +219,12 @@ food the citizens need - clearly worse.
 
 **Verdict:** early_army **RETEST** (5th, cont both cheats with A + food_plan 3 + fall_back). early_soldiers **REMOVE**.
 
-### copper_plan=2 (other off-by-default)
+### copper_plan=next_epoch (other off-by-default)
 
 Only the next epoch's cost held; citizens keep training above min_workforce. Cheat: workers +5 to +13 at 20-30 min but
 fewer at 60 and kl +5.3 (16.8) (40%) / +23.1 (13.1) (60%); no cheat with 60%: 6/0/14, kl +22.6 (8.8). The slower Stone
 Age delays the army. food_plan PLAN has since fixed part of the same problem (food workers for the citizens trained).
-**RETEST** (low): `copper_plan=2,epoch_share=60%` on cont both cheats, 40 games.
+**RETEST** (low): `copper_plan=next_epoch,epoch_share=60%` on cont both cheats, 40 games.
 
 ### militia_estimate (dll/ai/defence.c; 3f6261d)
 
@@ -373,7 +373,7 @@ variant; the base line is `fb7base|` (empty keys = shipped). New names each run.
 | 3 | `fbms1|army_mass=1`, `fbms65|army_mass=65`, `fbms144|army_mass=144` | `cont coL` | `scripts/results/mass.py`, `cover.py` | cheat kills (was -17); whether GATHER and fall_back hold the same units at cross purposes (`# cover` held / refused) |
 | 4 | `fbnm|navy_mix=1` (removed since) | `siL tiH liH si5` | `scripts/results/navy_ab.py -mix`, `cover.py` | warships by role, sunk - lost, kl; then the `seaop` scenario |
 | 5 | `fbea|early_army=1` | `cont` | `scripts/results/eco_food.py` / economy log | citizens killed, workers 20/30/60, wins without the cheat (was 3 vs 8) |
-| 6 | `fbme|militia_estimate=1`, `fbcp2|copper_plan=2,epoch_share=60%` | `cont coL` / `cont` | `cover.py`, economy log | citizens killed, kl |
+| 6 | `fbme|militia_estimate=1`, `fbcp2|copper_plan=next_epoch,epoch_share=60%` | `cont coL` / `cont` | `cover.py`, economy log | citizens killed, kl |
 | 7 | after 1 and the sea_held fix: `fbx185|expand_islands=185,metal_plan=24,workforce_plan=3` | `siL tiH liH si5` | `scripts/results/islands.py`, `metal.py` | og60 (outposts still standing at 60), G+I, kl |
 | 8 | after 4: `fblb|landing_bombard=1` | `siL tiH liH` | `scripts/results/landings.py` | ashore, razed, ships lost |
 
@@ -408,7 +408,7 @@ or one side without workers at the end), shipped -> with the key; then the metri
 | `assault` | ALL -20.5 (4.0); cont c0 -29.1 (5.9), c1 -39.6 (8.6), coL c0 -52.8 (14.5), co9 c0 -13.8 (7.3); the mod's wins cont 19 -> 0, coL 17 -> 0, co9 24 -> 3 of 40; one crash (co9, 0x307066C9, a freed object) |
 | `assault` + `assault_outmatched` | ALL -26.6 (5.8); cont -31.7 (6.9) / -39.0 (9.0), coL c0 -46.0 (15.9); wins cont 19 -> 0, coL 17 -> 0 |
 | `attack_retreat` | acts 0.2-0.7 times a game on land, never on the island maps (0.0-0.1); where it acts most, cont c1: -10.2 (3.7) (2be0b09 found -8.7 (3.6) on the same cell); ALL -0.7 (0.7) over 12 cells; no cell gains |
-| `navy_mix` | never acts: with `navy_fleet=2` navy.c `navy_pick` already runs the mix for every AI whose fleet builds (`fleet_builds`), so the key changes nothing - 400 games, d 0.0 on 8 cells, +0.1 to +1.9 on 2; head-to-head Small Islands Large (v_navy_mix) -44.1 (12.8) where the fleet was not yet on |
+| `navy_mix` | never acts: with `navy_fleet=big` navy.c `navy_pick` already runs the mix for every AI whose fleet builds (`fleet_builds`), so the key changes nothing - 400 games, d 0.0 on 8 cells, +0.1 to +1.9 on 2; head-to-head Small Islands Large (v_navy_mix) -44.1 (12.8) where the fleet was not yet on |
 
 **Failure on wins, kills - losses mixed** - the user decides:
 
@@ -464,7 +464,7 @@ maps" below.
 
 Unmeasured: `assault` / `hold_town` / `attack_retreat` / `safe_sites` / `idle_citizen_slack` have no `v_` key, so no
 head-to-head; `metal_plan` 4 alone (it only acts with 1); the FIX FIRST keys and the low-priority retests
-(`militia_estimate`, `copper_plan=2`, `landing_bombard`, `expand_islands`) were not run; 2v2 maps (siL2) not run.
+(`militia_estimate`, `copper_plan=next_epoch`, `landing_bombard`, `expand_islands`) were not run; 2v2 maps (siL2) not run.
 Logs: local/work/autotest_*_vanrm00[1-7]_ab-<name>-c<cheat>-<map>-r<seed>v<seat>.csv (names `rb`, `rbchk`, `rm*`, `rt*`),
 head-to-heads local/work/autotest_*_h2h20261022_1[23]*_h<name>_late-r*.csv.
 

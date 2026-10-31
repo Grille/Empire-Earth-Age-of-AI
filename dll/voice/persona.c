@@ -43,7 +43,7 @@ internal const char *const k_trait_keys[T_N] = { "aggression", "loyalty", "pride
 // situations: key, chance in % at talk=50 (100 = always, scaled by talk otherwise), cooldown s per AI, audience:
 // who is meant to hear it - everyone, the AI's allies (plans, worries, calls for help) or only {them}, the player
 // it is said to (taunts, diplomacy). The local player sees a line only when they are in its audience - an enemy AI
-// doesn't tell them that it attacks someone else. With [general] chat=1+ (debug) every line shows, marked.
+// doesn't tell them that it attacks someone else. With [general] chat=debug or status (debug) every line shows, marked.
 enum audience { A_ALL, A_ALLIES, A_NAME };
 internal const struct { const char *key; int chance, cooldown; enum audience aud; } k_lines[L_N] = {
     { "greeting", 60, 0, A_ALL },             { "war_declared", 100, 20, A_NAME },     { "betrayed", 100, 20, A_NAME },

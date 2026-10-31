@@ -50,7 +50,7 @@ The `[autotest]` keys:
 | `wtype TEXT` (pipe) | the characters as WM_CHAR to the game window (edit boxes, e.g. the single-player name field) |
 | `drawcount` (pipe) | objects collected for the last frame: units/buildings/missiles of the draw limit, small objects of 1536 |
 | `draw_limit=N` | ageofai.ini `[display] draw_limit` for the run |
-| `sound_log=1` / `2` | (also ageofai.ini `[sound] sound_log=`, for normal play) 2 adds every play (id, volume, pan, the node's channel, the caller) and the mixer's channel/start/volume calls. 1: once a game minute (`# sound:`): sounds the game asked for, the ones the sound manager dropped and why (all copies of that sound busy / category full / no free channel), the Miles mixer's refusals, the most dropped sound ids. Calls at volume 0 (out of earshot) are counted apart: the manager skips them on purpose |
+| `sound_log=drops` / `2` | (also ageofai.ini `[sound] sound_log=`, for normal play) 2 adds every play (id, volume, pan, the node's channel, the caller) and the mixer's channel/start/volume calls. 1: once a game minute (`# sound:`): sounds the game asked for, the ones the sound manager dropped and why (all copies of that sound busy / category full / no free channel), the Miles mixer's refusals, the most dropped sound ids. Calls at volume 0 (out of earshot) are counted apart: the manager skips them on purpose |
 | games without AI | `setup`, `quit_minutes` and speed run from the simulation loop when no AI resource manager ticks (e.g. `-Scenario` with only the human player) |
 | `trace_player`, `trace_until_min` | logs the economy calls of one AI |
 
@@ -173,7 +173,7 @@ per AI):
 ```sh
 sh scripts/test/suite.sh <minutes> "name:key=value,key=value" ...    # names without underscores
 REPEAT=5 QUIET=1 sh scripts/test/suite.sh 75 "a:" "b:key=1"       # 5 runs per map (game_seed 1..5), averages only
-EPOCHS="" sh scripts/test/suite.sh 50 "base:" "plan:copper_plan=1"     # EPOCHS="" = the game's real epoch timer
+EPOCHS="" sh scripts/test/suite.sh 50 "base:" "plan:copper_plan=on"     # EPOCHS="" = the game's real epoch timer
 ```
 
 ### Re-measured at 300 per player (2026-10-27)
@@ -226,7 +226,7 @@ player's save (citizens killed, units lost to his army), which these games don't
   docks (built, asked), fishing boats, the room held; `# navy: ... docks N of M - one more requested`.
 - Head-to-head on the navy: `[autotest] v_navy=1` with `variant_players=<p>` and `navy=0`: only those players have
   the navy account (econ.c PV). The fleet mix comes with the fleet (`v_navy_fleet`; its own `navy_mix` / `v_navy_mix` removed).
-- `# navy: P<n> mix at N min:` (every 5 minutes while the fleet builds, `navy_fleet=2`, water maps): the wanted shares by role (F frigates,
+- `# navy: P<n> mix at N min:` (every 5 minutes while the fleet builds, `navy_fleet=big`, water maps): the wanted shares by role (F frigates,
   L battleships, A galleys/catapult ships, S attack subs, AA cruisers), own fleet by role, the type per role, the
   enemy seen (by role, aircraft, carriers, coastal units that hit battleships x3+), what the game asked for and what
   was trained, and the changed / skipped / no building / next role payable counts. The 2-minute `# navy:` line has
@@ -572,7 +572,7 @@ and for the second version `h2h.sh` seeds 1-30). Scored per game: the mix AI min
 - The control games: `"v_navy_fleet=0"`, the same seeds.
 - Maps: Small/Large Islands e5/e9 (`"random_map=<map>,map_size=0,ai_count=2,seed=101,start_epoch=<e>"`), 60 min.
 - Seeds 1-32 (`SEED0=16` for the second half), `JOBS=8`, the run's own DLL (`DLL=`).
-- Both AIs with the fleet: `scen.sh ... "<name>:navy_fleet=1"`, seeds 1-16.
+- Both AIs with the fleet: `scen.sh ... "<name>:navy_fleet=own"`, seeds 1-16.
 
 **Scoring:** `python scripts/results/fleet_ab.py [-strip n] -ctl <ctl> -h2h <variants> -both <variants> <logs>`.
 - Run names are `<variant><map>`, e.g. `flSe5` (h2h.sh `NAME`, scen.sh variant names); `-strip 1` drops a one-letter run prefix, so rounds with other seeds pool.
@@ -601,14 +601,14 @@ and for the second version `h2h.sh` seeds 1-30). Scored per game: the mix AI min
 
 ### Fleet in task forces (navy stage 4)
 
-2026-10-19, `navy_fleet=2` (dll/ai/fleet.c, navy.c); on by default since stage 5 (below). Details and tables: docs/navy.md stage 4.
+2026-10-19, `navy_fleet=big` (dll/ai/fleet.c, navy.c); on by default since stage 5 (below). Details and tables: docs/navy.md stage 4.
 
 **Setup:**
 - Head-to-head: `h2h.sh` with `"v_navy_fleet=2"`, the control `"v_navy_fleet=0"`, the same seeds; Small/Large Islands
   e5/e9, seed 101 map, 60 min, seeds 1-32, `JOBS=6 SLOT0=20` (scripts/test/jobs.sh: `SLOT0=k` plays in slots k+1..k+JOBS, so
   two sessions don't share slots), the run's own DLL. Score: `fleet_ab.py -strip 1 -ctl ctl -h2h tf <logs>`.
-- Sea opponent: `scen.sh 60 seaop "random_map=<map>,map_size=0,ai_count=1,seed=101,start_epoch=<e>" "fzSe5:navy_fleet=0"
-  "fhSe5:navy_fleet=2"` (and `seaop_level=1|3`), score `seacontrol.py -ctl fz`.
+- Sea opponent: `scen.sh 60 seaop "random_map=<map>,map_size=0,ai_count=1,seed=101,start_epoch=<e>" "fzSe5:navy_fleet=game"
+  "fhSe5:navy_fleet=big"` (and `seaop_level=1|3`), score `seacontrol.py -ctl fz`.
 - Keys: `navy_fleet_pop` (15: the target, % of the population cap x the map strength), `navy_share_max` (50).
 
 **Log:** `# navy: P<n> tf <force> at N min: ...` per task force; the fleet line's `target built refused | haven ... |
@@ -678,7 +678,7 @@ on the islands the land war after the crossings.
 ### The early game against the base AI (docs/economy.md)
 
 2026-10-19: towers first, the bait, the careful militia (`early_towers`, `tower_bait`, `early_militia`: A), the early
-army (`early_army`: B), `copper_plan=2` (C), the alternative `early_soldiers=4`. Each one is an `[ai_base]` key. They
+army (`early_army`: B), `copper_plan=next_epoch` (C), the alternative `early_soldiers=4`. Each one is an `[ai_base]` key. They
 were run through the scratchpad runner (scripts/test/vanilla.sh per variant x cheat x map, tags `ab-<variant>-c<cheat>-<map>`)
 and scored with `scripts/results/eco_ablate.py -base <base variant>`. `# early:` once a minute (autotest): towers by the Town
 Center finished/all, all towers, builders sent, bait orders, militia refused, soldiers, the army's and the epoch's
@@ -893,12 +893,12 @@ in those ~2900 games came right after an attack call-off (the cause, fixed: "Con
 
 ### Mass before striking, the mines (navy stage 5)
 
-2026-10-19, `navy_fleet=2` with `navy_fleet_mass=1` and `navy_mines=1` (dll/ai/fleet.c fl_rally, navy.c navy_nodes /
+2026-10-19, `navy_fleet=big` with `navy_fleet_mass=1` and `navy_mines=1` (dll/ai/fleet.c fl_rally, navy.c navy_nodes /
 navy_mines), on by default. Details and tables: docs/navy.md stage 5.
 
 **Setup:**
 - Sea opponent: `scen.sh 60 seaop "random_map=<map>,map_size=0,ai_count=1,seed=101,start_epoch=<e>[,seaop_level=1|3]"
-  "fz<map>:navy_fleet=0,navy_mines=0" "fm<map>:navy_fleet=2" "fi<map>:navy_fleet=0"`, `JOBS=6 SLOT0=20`, the run's own
+  "fz<map>:navy_fleet=game,navy_mines=0" "fm<map>:navy_fleet=big" "fi<map>:navy_fleet=game"`, `JOBS=6 SLOT0=20`, the run's own
   DLL; score `seacontrol.py -ctl fz`.
 - Head-to-head: `h2h.sh` with `"v_navy_fleet=2"` against `"v_navy_fleet=0"` (NAME `ntf<map>` / `nctl<map>`), seeds 1-32;
   `fleet_ab.py -strip 1 -ctl ctl -h2h tf`. The mines: base `navy_mines=0`, `"v_navy_mines=1"` against `"v_navy_mines=0"`.
@@ -918,7 +918,7 @@ mines pull n (wanted G I)` every 5 minutes with the navy budget line.
   -0.3 (7.6). Strong Large e5: defeated 0.5 of the games against 0.3.
 - Head-to-head, 123 games: kills - losses +23.7 (3.7) (stage 4: +18.3), every map positive (Large e9 +24.7, was -10);
   losses -22; warships afloat +6.3, most +14; sea exchange +0.15 (0.75); fish food +1139; boats lost -4.3.
-- Mines (128 games, navy_fleet=0): kills - losses +1.1 (1.7), gold +200 / iron +150 an hour; against the sea opponent
+- Mines (128 games, navy_fleet=game): kills - losses +1.1 (1.7), gold +200 / iron +150 an hour; against the sea opponent
   the pull stays 0 (no spare food).
 - Continental: the same game with and without (2 seeds). About 1000 runs, no crash.
 
@@ -961,7 +961,7 @@ each ship lost with what was near):
 **Run:**
 ```sh
 JOBS=6 REPEAT=10 sh scripts/test/scen.sh 60 seaop "random_map=Small Islands,map_size=0,ai_count=1,seed=101,start_epoch=5" \
-    "n0:navy=0" "f0:" "f1:navy_fleet=1"
+    "n0:navy=0" "f0:" "f1:navy_fleet=own"
 python scripts/results/seacontrol.py [-v] [-ctl f0] "local/work/autotest_*_suite<stamp>_*_seaop-r*.csv"
 ```
 Name the variants `<variant><map>` (e.g. `f0Se5`) to pool maps per variant as fleet_ab.py does; `-ctl` pairs each run
@@ -981,7 +981,7 @@ docs/navy.md "Against a human-like navy"): 163 runs (120 + 39 levels + 4 reruns)
 The opponent holds the AI's waters (AI home waters held 12-22% of the time on Small Islands), the AI's fish food drops
 to 160-780 an hour (AI against AI: 2000-4500), the AI keeps 0.2-1.0 warships afloat against 16; navy=0 against navy=1
 (the AI that builds a navy sinks 1-6 more of the opponent's ships and loses 3-9 more) separates in the warship counts;
-navy_fleet=1 changes nothing beyond noise but Small e9 (sea exchange -8.1, std. error 2.1). The levels scale: weak
+navy_fleet=own changes nothing beyond noise but Small e9 (sea exchange -8.1, std. error 2.1). The levels scale: weak
 lets the AI fish (850-2650) and win 3 of 19 games, strong defeats it in 10 of 20.
 
 ### Farm fields

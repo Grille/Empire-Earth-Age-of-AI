@@ -12,6 +12,8 @@ namespace ageofai.settings;
 class general
 {
     enum improved_unit_movement_choice { @default, enabled, disabled }
+    enum answer_fire_choice { game, all, computers }
+    enum chat_choice { off, debug, status }
 
     class TheMod
     {
@@ -72,10 +74,11 @@ class general
         /// ordered attack is never changed. 0 = the original
         bool units_first = false;
         /// An idle soldier shot by an enemy beyond its reply range (a mortar, a sniper, a tower further off than it shoots) goes
-        /// for it when it can see it, hurt it and walk there, within 24 tiles (the original stands and is shot). 1 = every
-        /// player's units, 2 = the computer players' only, 0 = the original
-        [range(0, 2)]
-        int answer_fire = 0;
+        /// for it when it can see it, hurt it and walk there, within 24 tiles (the original stands and is shot):
+        ///   game      = the original
+        ///   all       = every player's units
+        ///   computers = the computer players' only
+        answer_fire_choice answer_fire = answer_fire_choice.game;
     }
 
     class Movement
@@ -172,11 +175,12 @@ class general
 
     class AIChatAndPersonalities
     {
-        /// AI chat lines (shown in the game's chat as the AI player): 0 = off (original), 1 = debug: the AI says what it
-        /// decides (attacks, new epoch, extra towers, walls, siege, counter-siege, home guard), 2 = also a status line every
-        /// 5 minutes. Rate-limited per player. chat_seconds = how long a line stays on screen
-        [range(0, 2)]
-        int chat = 0;
+        /// AI chat lines (shown in the game's chat as the AI player), rate-limited per player:
+        ///   off    = none (original)
+        ///   debug  = the AI says what it decides (attacks, new epoch, extra towers, walls, siege, counter-siege, home guard)
+        ///   status = also a status line every 5 minutes
+        /// chat_seconds = how long a line stays on screen
+        chat_choice chat = chat_choice.off;
         [range(0, 3600)]
         int chat_seconds = 15;
         /// AI personalities: copy the mod's folder personalities into this folder (ageofai). Every AI gets one of the personalities in

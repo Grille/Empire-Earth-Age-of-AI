@@ -20,7 +20,7 @@
 // follow come under the tower. Once it is there the order ends and the assignment sends it back to work (the searches
 // refuse raided sites - sites.c - so work elsewhere until the raiders are gone). Citizens the militia sent at the enemy
 // are left alone.
-// The first army (early_army, early_soldiers), the militia (early_militia) and the economy (copper_plan=2): econ.c
+// The first army (early_army, early_soldiers), the militia (early_militia) and the economy (copper_plan=next_epoch): econ.c
 // train_budget / substitute_soldier / econ_targets, defence.c home_guard / militia_answer.
 #define EARLY_CORE 2
 #define EARLY_DIST 4

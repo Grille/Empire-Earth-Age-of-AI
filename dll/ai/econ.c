@@ -30,16 +30,16 @@ internal int g_v_late = -1, g_v_hoard_mineral = -1, g_v_sub_wait = -1;
 #define PV(idx, v, g) ((g_var_mask >> ((idx) & 15) & 1) && (v) >= 0 ? (v) : (g))
 internal struct { uint32_t last_t; int init; float mil[7]; int income[7], mil_spent[7], cit_blocked, mil_limited; } g_bud[16];
 // EARLY GAME (dll/ai/early.c, docs/economy.md - the playtester's opening): [ai_base] early_towers, tower_bait, early_militia,
-// early_army, early_soldiers; copper_plan=2. Head-to-head: v_early_towers ... v_copper_plan for the variant players.
+// early_army, early_soldiers; copper_plan=next_epoch. Head-to-head: v_early_towers ... v_copper_plan for the variant players.
 internal int g_early_towers = 1, g_tower_bait = 1, g_early_militia = 1, g_early_army = 0, g_early_soldiers = 0;
 internal int g_v_early_towers = -1, g_v_tower_bait = -1, g_v_early_militia = -1, g_v_early_army = -1, g_v_early_soldiers = -1;
 internal int g_v_copper = -1;
 internal float g_early_food_share = 0.10f;   // [ai_base] early_army_food_share: of the food income for the army before farms
 internal int g_min_workforce = 40;          // [ai_base] min_workforce (COPPER PLAN below)
-internal int g_food_floor = 18;             // [ai_base] food_floor: copper_plan=2, food workers wanted before farms (half the workers up to this)
-internal int g_cit_queue = 0;                // [ai_base] citizen_queue: copper_plan=2, citizens paid ahead while saving (0 = any)
-internal float g_epoch_share = 0.40f;        // [ai_base] epoch_share: copper_plan=2, of the income into the epoch account
-internal float g_epoch_acc[16][7];           // copper_plan=2: the next epoch's money, out of the citizens' reach
+internal int g_food_floor = 18;             // [ai_base] food_floor: copper_plan=next_epoch, food workers wanted before farms (half the workers up to this)
+internal int g_cit_queue = 0;                // [ai_base] citizen_queue: copper_plan=next_epoch, citizens paid ahead while saving (0 = any)
+internal float g_epoch_share = 0.40f;        // [ai_base] epoch_share: copper_plan=next_epoch, of the income into the epoch account
+internal float g_epoch_acc[16][7];           // copper_plan=next_epoch: the next epoch's money, out of the citizens' reach
 internal int g_epoch_acc_ep[16];             // the epoch it was saved in (+1; 0 = none yet)
 internal int g_early_workers = 60;           // [ai_base] early_army_workers: below, the army still spares food (substitution)
 #define EARLY(idx, which) PV(idx, g_v_##which, g_##which)
@@ -679,7 +679,7 @@ internal void __thiscall hook_add_resource(ee_player *pl, int type, int amount) 
             else if (type == 2) sh = g_bud[idx].mil[2] >= 300 ? 0 : g_early_food_share;
         }
         g_bud[idx].mil[type] += amount * sh;
-        // copper_plan=2: epoch_share of the income goes into the epoch account until it holds the next epoch's cost
+        // copper_plan=next_epoch: epoch_share of the income goes into the epoch account until it holds the next epoch's cost
         // (the citizens train with the rest and never wait for the epoch; the plan's attempt comes once it is paid)
         if (copper_mode(pl) == 2 && ep < FARM_EPOCH && workforce(pl) >= g_min_workforce) {   // the economy first, as before
             if (g_epoch_acc_ep[idx] != ep + 1) { memset(g_epoch_acc[idx], 0, sizeof g_epoch_acc[idx]); g_epoch_acc_ep[idx] = ep + 1; }
@@ -732,7 +732,7 @@ internal void *um_owner(void *um) {
 // remaining cost of getting there (Stone 850 food; Copper 750 food, 400 gold, 400 iron) against military
 // spending, and advances as soon as it can pay for the next epoch instead of waiting for its 50-70 minute
 // timer. From the Copper Age on the normal timer and the faded-in reserve apply.
-// copper_plan=2 (docs/economy.md): the plan without its brake. Against the base game's AI the plan was the most harmful
+// copper_plan=next_epoch (docs/economy.md): the plan without its brake. Against the base game's AI the plan was the most harmful
 // feature of the mod (eco_ablate: off alone, cheating hard Continental 0/12 -> 6 won / 4 lost): the 1600 food of both
 // epochs held from minute 0 stopped the citizens at min_workforce (40) and left the army nothing at all (0 soldiers
 // until minute 22, 9-10 on food against the base AI's 18-29). Now only the next epoch's cost is held, the citizens
@@ -1719,7 +1719,7 @@ internal void budget_reserve(ee_player *pl, int reserve[7]) {
     if (next > 13 || next > end_epoch()) return;   // end epoch of this game
     ee_tech_data *data = tt_epoch_get_tech_data(tech_tree_epoch_rec_at(tt, next));
     if (!data) return;
-    if (copper_mode(pl) && next <= FARM_EPOCH) {   // copper_plan=2: only the next epoch's
+    if (copper_mode(pl) && next <= FARM_EPOCH) {   // copper_plan=next_epoch: only the next epoch's
         for (int r = 2; r < 7; r++)
             for (int e = next; e <= (copper_mode(pl) == 2 ? next : FARM_EPOCH); e++) reserve[r] += epoch_cost(pl, e, r);
         return;
@@ -2064,7 +2064,7 @@ internal void train_budget(ee_player *pl, unsigned idx, const struct ai_cfg *cfg
         int c = unit_cost(pl, req[0], r);
         if (c > 0 && visibles[r] / c < *afford) *afford = visibles[r] / c;
     }
-    // copper_plan=2: while the epoch's cost is still being saved, only citizen_queue citizens paid ahead (the game asks
+    // copper_plan=next_epoch: while the epoch's cost is still being saved, only citizen_queue citizens paid ahead (the game asks
     // for 10 at a time and pays them all at once) - what the Town Center can't train yet stays in the stock
     if (cit && cmode == 2 && g_cit_queue > 0 && ep < FARM_EPOCH && stock[2] < reserve[2]) {
         void *cm = player_get_civ_mgr(pl), *um = cm ? civ_mgr_get_unit_mgr(cm) : NULL;

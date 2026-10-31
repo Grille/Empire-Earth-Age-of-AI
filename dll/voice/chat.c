@@ -103,7 +103,7 @@ internal int ai_say(ee_player *pl, enum chat_kind kind, const char *fmt, ...) {
     return 1;
 }
 
-// every AI update (econ_tick): epoch changes, the 5-minute status line (chat=2)
+// every AI update (econ_tick): epoch changes, the 5-minute status line (chat=status)
 internal int home_soldiers_now(ee_player *pl);
 internal int current_epoch(ee_player *pl);
 internal int g_chat_epoch[16] = { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 };

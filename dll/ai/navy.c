@@ -46,8 +46,8 @@ internal void fleet_install(const char *autotest_ini);
 internal void fleet_tick(ee_player *pl, uint32_t now);
 internal int nv_role(ee_unit_type *td);
 internal int fleet_sheltering(unsigned idx);   // fleet.c: the fleet shelters from a much stronger enemy fleet (no build-up then)
-internal int fleet_builds(unsigned idx);   // fleet.c: stage 4 (navy_fleet=2) for this AI - the fleet's size target below
-// THE FLEET'S SIZE (stage 4, navy_fleet=2; docs/navy.md): the playtester expects 20+ warships at a low population
+internal int fleet_builds(unsigned idx);   // fleet.c: stage 4 (navy_fleet=big) for this AI - the fleet's size target below
+// THE FLEET'S SIZE (stage 4, navy_fleet=big; docs/navy.md): the playtester expects 20+ warships at a low population
 // limit and more with higher ones - navy_fleet_pop % (15) of the AI's population cap x the map strength (cap 176 in
 // the 2-AI island tests: 26; cap 135: 20). Below it the account's share grows toward navy_share_max (50) with what is
 // missing, the room held for the fleet and the docks wanted follow it, and fleet.c trains the missing warships itself.
@@ -508,7 +508,7 @@ internal int navy_room_reserve(ee_player *pl) {
     return (int)o->held_room;
 }
 
-// FLEET MIX (docs/navy.md stage 2; with the fleet's stage 4, navy_fleet=2, fleet.c fleet_builds). The game's warship
+// FLEET MIX (docs/navy.md stage 2; with the fleet's stage 4, navy_fleet=big, fleet.c fleet_builds). The game's warship
 // choice is its RPS vote or a random trainable candidate: frigates, galleys and battleships as they come, nothing
 // against the fleet it meets. Where the navy account pays (navy_pays), a warship or submarine the game asks for at one
 // of its own training sites (econ.c hook_train_units; not the mod's orders, not a landing's) is trained as the type the

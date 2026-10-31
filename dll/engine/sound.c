@@ -1,4 +1,4 @@
-// Sound diagnostics (autotest sound_log=1). The game's sound manager (gSoundManager 0x919848, Low-Level Engine.dll
+// Sound diagnostics (autotest sound_log=drops). The game's sound manager (gSoundManager 0x919848, Low-Level Engine.dll
 // SESoundManager) plays through the Miles mixer plugin (Miles Sound System Mixer.dll); "Max Number Of Sounds
 // (percent)" sets the channel count to percent x the mixer's maximum (min 8, exe 0x5c0000 area / 0x530000 area via
 // SetMaxChannels). The mixer's maximum is DirectSound's free hardware buffers if 1..64, else 16 - on Windows since
