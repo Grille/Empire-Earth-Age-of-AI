@@ -15,6 +15,19 @@ class sound
         all,
     }
 
+    enum sound_sample_rate_choice
+    {
+        /// the game's own
+        [name("22050")]
+        hz_22050,
+        /// CD quality
+        [name("44100")]
+        hz_44100,
+        /// what most sound cards run at - nothing for Windows to convert
+        [name("48000")]
+        hz_48000,
+    }
+
     /// Sound diagnostics into ageofai_log.csv:
     sound_log_choice sound_log = sound_log_choice.off;
     /// The "Max Number Of Sounds" slider goes to 200% = 32 channels, the sound mixer has 16 on current Windows: sounds on the
@@ -24,8 +37,8 @@ class sound
     /// reports hardware voices; Miles mixes in software. 0 = keep the 16
     [range(0, 1000), game("the sound mixer's channels at 100%", "16", 0)]
     int sound_channels = 32;
-    /// The rate the sound is mixed at, in Hz (Miles Sound System): the game opens it at 22050. 44100 or 48000 = clearer
-    /// high tones; the game's sounds are recorded at 22050 at most, so mostly cleaner mixing. 0 = the game's 22050
-    [range(0, 48000), game("the sound's output rate (Hz)", "22050", 0)]
-    int sound_sample_rate = 44100;
+    /// The rate the sound is mixed at, in Hz (Miles Sound System). The game's sounds are recorded at 22050 at most, so a
+    /// higher rate mostly mixes them cleaner:
+    [game("the sound's output rate (Hz)", "22050", 0)]
+    sound_sample_rate_choice sound_sample_rate = sound_sample_rate_choice.hz_44100;
 }
