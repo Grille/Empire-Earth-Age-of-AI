@@ -357,6 +357,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
 #include "game/roles.c"
 #include "test/control.c"
 #include "game/grid.c"
+#include "game/reachmap.c"   // the terrain as a coarse graph: who can walk from where to where (fronts)
 #include "game/danger.c"     // each player's map of enemy reach (danger_routes): the AI fills it, the route search reads it
 #include "base/watch.c"
 #include "test/trace.c"

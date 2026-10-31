@@ -10,8 +10,8 @@
 // sea and land; the terrain doesn't change, so the cells are looked at once a game):
 //   its territory - land cells within FR_TERR cells of its buildings, along land (not over water);
 //   the enemy's - the same round the enemy buildings it knows (intel, honest);
-//   border - a cell of its territory beside a land cell that isn't, on land where an enemy building it knows stands
-//            (the enemy can walk there: area class 2), or beside the enemy's territory;
+//   border - a cell of its territory beside a land cell that isn't, in the walking region (game/reachmap.c) of an
+//            enemy building it knows (the enemy can walk there), or beside the enemy's territory;
 //   fronts - border cells within 2 cells of each other, joined, a long one split in sections of FR_SECTION cells
 //            (fronts_look); each one's width (cells), middle, threat (the enemy
 //            buildings and soldiers it knows within FR_REACH tiles beyond, by strength), value (its own buildings
@@ -33,14 +33,7 @@ internal unsigned g_fr_area[FR_SIDE * FR_SIDE];
 internal int g_fr_lab[FR_SIDE * FR_SIDE];
 internal ee_map *g_fr_land_map;   // the map g_fr_land was made for
 internal int g_fr_land_size;
-internal int fr_tile_land(ee_map *map, int size, int x, int y) {
-    if (x < 0 || y < 0 || x >= size || y >= size) return 0;
-    if (x + y <= map_get_edge_sum(map) || x + y >= map_get_edge_sum_2(map) || y - x >= map_get_edge_diff(map) || x - y >= map_get_edge_diff(map)) return 0;
-    ee_tile *tile = map_get_tiles(map)[y * size + x];
-    static ee_unit_type *walker;   // a citizen: may it stand there (its type's terrain table, as the route planner asks)
-    if (!walker) walker = type_data(UT(CITIZEN));
-    return tile && walker && unit_type_terrain_ok(walker, tile_get_kind(tile));
-}
+internal int fr_tile_land(ee_map *map, int size, int x, int y) { (void)map; (void)size; return rm_node(x, y) >= 0; }   // game/reachmap.c
 internal int fr_building(ee_unit_type *td) {
     int fam = unit_type_get_class_id(td);   // the class (attack.c), not the family field
     return fam == CLS_BUILDING || fam == CLS_FORTRESS || is_tower_type(unit_type_get_id(td));
@@ -57,7 +50,7 @@ internal void fr_spread(uint8_t *m, int side) {
                 int nx = x + dx, ny = y + dy;
                 if (nx < 0 || ny < 0 || nx >= side || ny >= side) continue;
                 int j = ny * side + nx;
-                if (m[j] || !g_fr_land[j] || t + 2 > (int)(sizeof g_fr_q / sizeof *g_fr_q)) continue;
+                if (m[j] || !g_fr_land[j] || g_fr_area[j] != g_fr_area[y * side + x] || t + 2 > (int)(sizeof g_fr_q / sizeof *g_fr_q)) continue;   // along land a unit walks
                 m[j] = (uint8_t)(d + 1);
                 g_fr_q[t++] = (short)nx; g_fr_q[t++] = (short)ny;
             }
@@ -79,7 +72,7 @@ internal void fronts_look(ee_player *pl, unsigned idx, uint32_t now) {
                 for (int x = x0; x < x0 + FR_CELL; x++)
                     if (fr_tile_land(map, size, x, y)) { if (!land++) first = iv2(x, y); }
             g_fr_land[i] = land >= FR_CELL;
-            g_fr_area[i] = g_fr_land[i] ? area_id(first, 2) : 0;
+            g_fr_area[i] = g_fr_land[i] ? (unsigned)(rm_region(first.x, first.y) + 1) : 0;   // its walking region (reachmap), 0 none
         }
     }
     memset(g_fr_own, 0, (size_t)n); memset(g_fr_foe, 0, (size_t)n);
@@ -99,7 +92,7 @@ internal void fronts_look(ee_player *pl, unsigned idx, uint32_t now) {
         if (r->kind != 0 || !o || !is_enemy(pl, o) || r->x < 0 || r->y < 0) continue;
         int i = FR_IDX(iv2(r->x, r->y));
         if (g_fr_land[i]) g_fr_foe[i] = 1;
-        unsigned a = area_id(iv2(r->x, r->y), 2);
+        unsigned a = (unsigned)(rm_region(r->x, r->y) + 1);
         int seen = 0;
         for (int j = 0; j < nfa; j++) seen |= foe_area[j] == a;
         if (!seen && a && nfa < 64) foe_area[nfa++] = a;
@@ -240,4 +233,4 @@ internal void fronts_tick(ee_player *pl, unsigned idx, uint32_t now) {
     s->t = now ? now : 1;
     fronts_look(pl, idx, now);
 }
-internal void fronts_new_game(void) { memset(g_fronts, 0, sizeof g_fronts); memset(g_fr_land, 0, sizeof g_fr_land); g_fr_land_map = NULL; }
+internal void fronts_new_game(void) { rm_new_game(); memset(g_fronts, 0, sizeof g_fronts); memset(g_fr_land, 0, sizeof g_fr_land); g_fr_land_map = NULL; }
