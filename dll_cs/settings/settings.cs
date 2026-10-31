@@ -19,6 +19,13 @@
 // [title("t")]. Its keys in it; keys before the first group belong to none. Enums and structs stay in the section.
 // A key's name stays the key alone - a group or section is only where it is shown.
 //
+// A MASTER is a group with [master]: one key of its own (the class's name: ImprovedUnitMovement improved_unit_movement,
+// its /// lines the class's) over every key in it, which are bool or factor only:
+//   default  = each its shipped default (a key set in the file is told and not used)
+//   custom   = each as the file sets it, else its default
+//   enabled  = every bool on, every factor its default
+//   disabled = every bool off, every factor 1 (the game's own)
+//
 // A KEY is a field; its type and attributes are its kind (rows.h's header tells each):
 //   bool k = true;                               FLAG     (in the file 1 / 0)
 //   [range(lo, hi)] int k = 4096;                INT      a whole number lo .. hi
@@ -28,7 +35,7 @@
 //                                                         ([name("0")] a member whose name C# can't take)
 //   [length(n)] string k = "";                   STR      a text shorter than n
 //   [per_player, length(n)] string k_P = "";     STR_P    a text per player slot (k_P0 .. k_P15)
-//   [child(nameof(master))] bool k = true;       CHILD    follows the master CHOICE when not set
+//   [range(1, 3)] factor k = 1.25;               FACTOR   a multiplier, 1 the game's own (dll_cs/language.cs), in percent
 //   k_fields k;                                  FLAGS    a struct of the section: bool fields and enum fields; its
 //                                                         default all at their first ([on("a, b")]: those on)
 //
@@ -50,7 +57,7 @@
 // Every member of such a block has its text; one written on one line ({ a, b }) has none - its key tells them.
 //
 // MORE ABOUT A KEY: [game("what", "original", keep)] it sets one of the game's own values (SETTING_GAME: the tool shows its key blue);
-// [under(nameof(master))] the tool folds it under a master it doesn't follow (SETTING_UNDER); [also("section")] the tool
+// [also("section")] the tool
 // lists it on that section's page too (SETTING_ALSO) - the key itself stays in its own section, once in the file.
 
 using System;
@@ -70,15 +77,13 @@ public sealed class length : Attribute { public length(int n) { } }
 [AttributeUsage(AttributeTargets.Field)]
 public sealed class per_player : Attribute { }
 [AttributeUsage(AttributeTargets.Field)]
-public sealed class child : Attribute { public child(string master) { } }
-[AttributeUsage(AttributeTargets.Field)]
 public sealed class name : Attribute { public name(string text) { } }
 [AttributeUsage(AttributeTargets.Field)]
 public sealed class commented : Attribute { public commented(string value = "", string key = "") { } }
 [AttributeUsage(AttributeTargets.Field)]
 public sealed class game : Attribute { public game(string what, string original, int keep) { } }
-[AttributeUsage(AttributeTargets.Field)]
-public sealed class under : Attribute { public under(string master) { } }
+[AttributeUsage(AttributeTargets.Class)]
+public sealed class master : Attribute { }
 [AttributeUsage(AttributeTargets.Field)]
 public sealed class also : Attribute { public also(string section) { } }
 [AttributeUsage(AttributeTargets.Field)]

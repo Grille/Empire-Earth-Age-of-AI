@@ -88,38 +88,42 @@ internal int page_kind(int p) {   // SECK_*
 internal const char *sec_of(const struct entry *e) { return g_page_of[e->page].sec; }
 internal int on_diff_page(const struct entry *e) { return g_page_of[e->page].diff >= 0; }
 
-// MASTERS AND CHILDREN: a CHILD row follows its master (row a) where the file doesn't set it; the master's entry shows
-// its children under it when opened (g_open), and the rows SETTING_UNDER puts there (they keep their own values)
+// MASTERS AND MEMBERS: a [master] group's keys (SETTING_MEMBERS) come to what their master's word says (settings.c
+// setting_member) - the file's value only with custom; the master's entry shows them under it when opened (g_open)
 internal int g_open[SETTING_N];
-internal int is_child(const struct entry *e) { return row_of(e)->kind == SETK_CHILD; }
-internal int under_of(int row) {   // the master a row is shown under: a CHILD's, SETTING_UNDER's, else -1
-    if (k_settings[row].kind == SETK_CHILD) return k_settings[row].a;
-    for (int i = 0; i < SETTING_UNDER_N; i++) if (k_settings_under[i].row == row) return k_settings_under[i].master;
-    return -1;
-}
+internal int under_of(int row) { return setting_master_of(&k_settings[row]); }   // the master a row is shown under, -1 none
+internal int is_member(const struct entry *e) { return under_of(e->row) >= 0; }
 internal int is_master(int row) {
     for (int i = 0; i < SETTING_N; i++) if (under_of(i) == row) return 1;
     return 0;
 }
-// an entry without a value of its own takes another's: [ai_base]'s on a difficulty's page, a child its master's
-internal int inherits(const struct entry *e) { return on_diff_page(e) || is_child(e); }
+// an entry without a value of its own takes another's: [ai_base]'s on a difficulty's page
+internal int inherits(const struct entry *e) { return on_diff_page(e); }
 
-// the child's master on its page: 0 default, 1 enabled, 2 disabled (its text, else its default); *name: the word
+// the member's master on its page: 0 default, 1 custom, 2 enabled, 3 disabled (its text, else its default); *name: the word
 internal int master_word(const struct entry *e, char *name, int cap) {
-    const struct setting_row *m = &k_settings[row_of(e)->a];
+    int mr = under_of(e->row);
+    const struct setting_row *m = &k_settings[mr];
     const char *text = m->def_s;
     for (int i = 0; i < g_ne; i++)
-        if (g_e[i].page == e->page && g_e[i].row == row_of(e)->a && g_e[i].text[0]) text = g_e[i].text;
+        if (g_e[i].page == e->page && g_e[i].row == mr && g_e[i].text[0]) text = g_e[i].text;
     int w = setting_choice(m->choices, text);
     if (w < 0) w = 0;   // a mistake: the DLL keeps the master's default
     setting_choice_name(m->choices, w, name, cap);
     return w;
 }
 
-// what the child comes to while it follows its master (as settings.c setting_follow): 1 on, 0 off; *word the master's
-internal int child_follows(const struct entry *e, char *word, int cap) {
-    int w = master_word(e, word, cap);
-    return w == 0 ? row_of(e)->def : w == 1;
+// what a member comes to while its master isn't custom (as settings.c setting_member), as the list shows it; *word the
+// master's; 0: the master is custom (the member's own value counts)
+internal void setting_text(const struct setting_row *r, const uint8_t *at, char *out, int cap);
+internal int member_overruled(const struct entry *e, char *out, int cap, char *word, int wcap) {
+    int w = master_word(e, word, wcap);
+    if (w == 1) return 0;
+    const struct setting_row *r = row_of(e);
+    float f = w == 3 ? 1.0f : (float)(r->def / 100.0);
+    if (r->kind == SETK_FACTOR) setting_text(r, (const uint8_t *)&f, out, cap);
+    else lstrcpynA(out, (w == 0 ? r->def : w == 2) ? "on" : "off", cap);
+    return 1;
 }
 
 internal void key_of(const struct entry *e, char *out, int cap) {
@@ -158,7 +162,7 @@ internal int check(const struct setting_row *r, const char *sec, const char *key
     setting_value(r, g_ini_path, sec, key, text, val);
     g_ini_why = NULL;
     if (g_ini_told == 2) return CHECK_MISTAKE;
-    if (r->kind == SETK_FLAG || r->kind == SETK_CHILD) lstrcpynA(shown, *(int *)val ? "on" : "off", cap);
+    if (r->kind == SETK_FLAG) lstrcpynA(shown, *(int *)val ? "on" : "off", cap);
     else if (r->kind == SETK_STR_P) lstrcpynA(shown, (char *)val, cap);
     else setting_text(r, val, shown, cap);
     return g_ini_told == 1 ? CHECK_WARN : CHECK_OK;
@@ -178,9 +182,10 @@ internal const char *easy_default(const struct entry *e) {
 
 // what the entry comes to as shown in the list (*grey: not in the file - the default, [ai_base]'s or easy's own)
 internal void shown_value(const struct entry *e, char *out, int cap, int *grey) {
-    char why[MAX_PATH], key[64];
+    char why[MAX_PATH], key[64], word[32];
     key_of(e, key, sizeof key);
     *grey = !e->text[0];
+    if (is_member(e) && member_overruled(e, out, cap, word, sizeof word)) { *grey = 1; return; }   // the status says why
     if (e->text[0]) {
         int c = check(row_of(e), sec_of(e), key, e->text, why, out, cap);
         if (c == CHECK_MISTAKE) snprintf(out, cap, "%s  (a mistake: the default instead)", e->text);
@@ -201,28 +206,17 @@ internal void shown_value(const struct entry *e, char *out, int cap, int *grey) 
         lstrcpynA(out, v, cap);
         return;
     }
-    if (is_child(e)) {
-        char word[32];
-        lstrcpynA(out, child_follows(e, word, sizeof word) ? "on" : "off", cap);   // grey: it follows (the status says whom)
-        return;
-    }
     char def[TEXT_CAP];
     default_text(row_of(e), def, sizeof def);
     if (!check(row_of(e), sec_of(e), key, def, why, out, cap)) lstrcpynA(out, "(the game's own)", cap);   // a default that leaves it: -1
 }
 
-// changed from the default: shown bold (a difficulty's page: any value of its own; a child: other than what it would
-// follow under its master as it is set now)
+// changed from the default: shown bold (a difficulty's page: any value of its own)
 internal int is_changed(const struct entry *e) {
     if (!e->text[0]) return 0;
     if (on_diff_page(e)) return 1;
     char def[TEXT_CAP], a[TEXT_CAP], b[TEXT_CAP], why[MAX_PATH], key[64];
     key_of(e, key, sizeof key);
-    if (is_child(e)) {
-        char word[32];
-        if (!check(row_of(e), sec_of(e), key, e->text, why, a, sizeof a)) return 1;
-        return strcmp(a, child_follows(e, word, sizeof word) ? "on" : "off") != 0;
-    }
     default_text(row_of(e), def, sizeof def);
     if (!check(row_of(e), sec_of(e), key, e->text, why, a, sizeof a)) return 1;
     check(row_of(e), sec_of(e), key, def, why, b, sizeof b);
@@ -608,10 +602,7 @@ internal void fill_item(int item, LPARAM p) {
     int grey;
     key_of(e, key, sizeof key);
     shown_value(e, v, sizeof v, &grey);
-    if (is_child(e)) {   // what it comes to under its master as set now
-        char word[32];
-        lstrcpyA(def, child_follows(e, word, sizeof word) ? "on" : "off");
-    } else {
+    {
         char d[TEXT_CAP];
         default_text(row_of(e), d, sizeof d);
         if (!check(row_of(e), sec_of(e), key, d, why, def, sizeof def)) lstrcpyA(def, "(the game's own)");
@@ -787,9 +778,9 @@ internal void show_status(int k) {
     char why[MAX_PATH], shown[TEXT_CAP], msg[MAX_PATH + 64], key[64], word[32];
     key_of(e, key, sizeof key);
     g_ed[k].level = CHECK_OK;
-    if (!e->text[0] && is_child(e)) {
-        int on = child_follows(e, word, sizeof word);
-        snprintf(msg, sizeof msg, "Not in the file: follows %s=%s - %s.", k_settings[row_of(e)->a].key, word, on ? "on" : "off");
+    if (is_member(e) && member_overruled(e, shown, sizeof shown, word, sizeof word)) {
+        snprintf(msg, sizeof msg, "%s=%s: %s%s.", k_settings[under_of(e->row)].key, word, shown,
+                 e->text[0] ? " - the value here counts only with custom" : "");
     } else if (!e->text[0] && on_diff_page(e)) {
         int grey;
         shown_value(e, shown, sizeof shown, &grey);
@@ -812,7 +803,7 @@ internal void show_editor(int k) {
     struct editor *ed = &g_ed[k];
     struct entry *e = &g_e[ed->entry];
     const struct setting_row *r = row_of(e);
-    int flag = r->kind == SETK_FLAG || r->kind == SETK_CHILD;
+    int flag = r->kind == SETK_FLAG;
     int box = flag && !inherits(e), list = r->kind == SETK_CHOICE || (flag && inherits(e));
     ShowWindow(ed->label, SW_SHOW);
     ShowWindow(ed->check, box ? SW_SHOW : SW_HIDE);
@@ -821,7 +812,7 @@ internal void show_editor(int k) {
     ShowWindow(ed->button, SW_SHOW);
     ShowWindow(ed->status, SW_SHOW);
     SetWindowTextA(ed->label, on_diff_page(e) ? g_page_of[e->page].title : r->ai ? "All" : "Value");
-    SetWindowTextA(ed->button, on_diff_page(e) ? "As [ai_base]" : is_child(e) ? "Follow" : "Default");
+    SetWindowTextA(ed->button, on_diff_page(e) ? "As [ai_base]" : "Default");
     char def[TEXT_CAP];
     default_text(r, def, sizeof def);
     char bad[MAX_PATH], shown[TEXT_CAP], key[64];
@@ -836,9 +827,7 @@ internal void show_editor(int k) {
     } else if (list) {
         SendMessageA(ed->combo, CB_RESETCONTENT, 0, 0);
         int base = inherits(e);
-        char follow[96];
-        snprintf(follow, sizeof follow, "follow %s", is_child(e) ? k_settings[r->a].key : "");
-        if (base) SendMessageA(ed->combo, CB_ADDSTRING, 0, (LPARAM)(on_diff_page(e) ? "as [ai_base]" : follow));
+        if (base) SendMessageA(ed->combo, CB_ADDSTRING, 0, (LPARAM)"as [ai_base]");
         int sel = base && !e->text[0] ? 0 : -1;
         if (flag) {
             SendMessageA(ed->combo, CB_ADDSTRING, 0, (LPARAM)"off (0)");
@@ -915,7 +904,7 @@ internal void editor_changed(int k, int part) {
     else if (part == ED_COMBO) {
         int i = (int)SendMessageA(ed->combo, CB_GETCURSEL, 0, 0) - inherits(e);
         if (i < 0) e->text[0] = 0;
-        else if (r->kind == SETK_FLAG || r->kind == SETK_CHILD) lstrcpyA(e->text, i ? "1" : "0");
+        else if (r->kind == SETK_FLAG) lstrcpyA(e->text, i ? "1" : "0");
         else setting_choice_name(r->choices, i, e->text, sizeof e->text);
     } else if (part == ED_EDIT) GetWindowTextA(ed->edit, e->text, sizeof e->text);
     e->has = e->text[0] != 0;

@@ -33,9 +33,10 @@ TEXT = {
         "drawlist.c and sound.c the limits). A row whose value only switches a toggle among the mod's own logic",
         '(epoch_pacing) is none.',
     ],
-    'SETTING_UNDER': [
-        "Rows ageofai_config.exe shows under a master, folded with its children, though they don't follow it: settings of what",
-        "the master's children switch on (the formation's catch-up, friendly units' collision under improved_unit_movement).",
+    'SETTING_MEMBERS': [
+        "A [master] group's keys (bool or factor) and its master's key (a CHOICE default|custom|enabled|disabled): settings.c",
+        "settings_masters sets each from the master's word - default its default, custom the file's else its default, enabled",
+        "on / a factor its default, disabled off / a factor 1; ageofai_config.exe folds them under the master.",
     ],
     'SETTING_ALSO': [
         "Rows ageofai_config.exe shows on another section's page too: the same key - one value, one line in the file, in",
@@ -60,7 +61,8 @@ TEXT = {
         '  CHOICE  one of the names in lo ("auto|d3d|gdi"), kept as its index (auto 0, d3d 1 ...); the default by name',
         "  STR     a text, shorter than lo characters (the buffer's size)",
         '  STR_P   a text per player slot: the keys key0 .. key15 (personality_P2)',
-        '  CHILD   0 or 1 under a master, the row lo (a CHOICE default|enabled|disabled before it, in its section): not set,',
+        '  FACTOR  a multiplier, a float (friendly_collision=75% -> 0.75), lo% .. hi%; its 1 the game\'s own (a master\'s',
+        '          disabled sets it so)',
         "          it follows the master - default: the child's own default, enabled: 1, disabled: 0; set, its own value",
         '          wins (improved_unit_movement over ship_routes, land_collide ...). The code reads the child as a FLAG.',
         '  FLAGS   named fields in one key, lo their list (OVERLAY_FIELDS below): field_bool(name) on or off,',

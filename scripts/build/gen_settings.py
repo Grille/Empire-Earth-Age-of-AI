@@ -31,7 +31,7 @@ def cs_str(d):   # a C# string literal's text (the same escapes as C's)
 def default_of(sec, k):   # the default as the code's row has it and as the file writes it: (row text, file text)
     kind = settings_read.kind_of(sec, k)
     d = k.default
-    if kind in ('FLAG', 'CHILD'):
+    if kind == 'FLAG':
         v = '1' if d == 'true' else '0'
         return v, v
     if kind == 'CHOICE':
@@ -43,7 +43,7 @@ def default_of(sec, k):   # the default as the code's row has it and as the file
     if kind in ('STR', 'STR_P'):
         s = cs_str(d)
         return c_str(s), s
-    if kind == 'SHARE':
+    if kind in ('SHARE', 'FACTOR'):
         v = settings_read.percent(d, k.where)
         return v, v + '%'
     v = d or '0'
@@ -57,7 +57,7 @@ def diff_value(base, k):   # a difficulty's own value of an [ai_base] key, as th
     kind = settings_read.kind_of(base, row)
     if k.type == 'bool':
         return '1' if k.default == 'true' else '0'
-    if k.type == 'share' or kind == 'SHARE':
+    if k.type in ('share', 'factor') or kind in ('SHARE', 'FACTOR'):
         return settings_read.percent(k.default, k.where) + '%'
     if k.type == 'int':
         return k.default
@@ -80,7 +80,7 @@ def row_of(sec, k):   # X(FLAG, general, enabled, 1, 0, 0) - D for a row of [ai_
         'CHOICE': (c_str('|'.join(sec.enums.get(k.type, {}).values())), '0'),
         'STR': (arg(a['length'][0]) if 'length' in a else '0', '0'),
         'STR_P': (arg(a['length'][0]) if 'length' in a else '0', '0'),
-        'CHILD': (arg(a['child'][0]) if 'child' in a else '', '0'),
+        'FACTOR': tuple(settings_read.percent(arg(x), k.where) for x in a.get('range', [])) or ('-1000000', '1000000'),
         'FLAGS': ('%s_FIELDS' % k.name.upper(), '0'),
     }[kind]
     if sec.kind == 'ALL':
@@ -102,7 +102,7 @@ def table(name, args, lines):
 
 
 def rows_h(secs):   # the file below its header
-    fields, rows, groups, game, under, also, titles, easy = [], [], [], [], [], [], [], []
+    fields, rows, groups, game, members, also, titles, easy = [], [], [], [], [], [], [], []
     arg = settings_read.arg_text
     seen = {}
     for sec in secs:
@@ -135,8 +135,8 @@ def rows_h(secs):   # the file below its header
                 if to not in [s.name for s in secs] or to == sec.name:
                     raise SystemExit('%s: [also("%s")]: no other section of that name' % (k.where, to))
                 also.append('A(%s %s)' % ((k.name + ',').ljust(20), to))
-            if 'under' in k.attrs:
-                under.append('U(%s %s)' % ((k.name + ',').ljust(20), settings_read.arg_text(k.attrs['under'][0])))
+            if k.master:
+                members.append('M(%s %s)' % ((k.name + ',').ljust(20), k.master))
     sections = ['T(%s %s %s %s)' % ((s.name + ',').ljust(10), ('%d,' % s.place).rjust(4), (s.kind + ',').ljust(6), c_str(s.title))
                 for s in secs]
     out = comment(TEXT['top']) + ['', "// FLAGS rows' fields:"] + fields + ['']
@@ -145,7 +145,7 @@ def rows_h(secs):   # the file below its header
     out += table('SETTING_GROUPS', 'G', groups)
     out += table('SETTINGS_EASY', 'E', easy)
     out += table('SETTING_GAME', 'V', game)
-    out += table('SETTING_UNDER', 'U', under)
+    out += table('SETTING_MEMBERS', 'M', members)
     out += table('SETTING_ALSO', 'A', also)
     out += table('SETTING_TITLES', 'K', titles)
     return '\n'.join(out).rstrip('\n') + '\n'
@@ -185,6 +185,8 @@ def ini(secs):
                 continue
             _, v = default_of(sec, k)
             c = k.attrs.get('commented')
+            if c is None and k.master:   # a master's key: commented out (only custom reads it), its default to try
+                c = []
             if c is None:
                 out.append('%s=%s' % (k.name, v))
             else:   # [commented], [commented("x")], [commented("x", "key_P2")]

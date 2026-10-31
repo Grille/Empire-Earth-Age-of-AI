@@ -37,6 +37,13 @@ struct share
     public static implicit operator share(double value) => default;
 }
 
+// a factor: a multiplier whose 1 (100%) is the game's own - in a file written in percent like a share
+// (friendly_collision=75%); a [master] group's disabled sets it to 1
+struct factor
+{
+    public static implicit operator factor(double value) => default;
+}
+
 // a name to show for a section, a group or a key (ageofai_config.exe; a section's or group's title else comes from its
 // name - settings/settings.cs)
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Field)]

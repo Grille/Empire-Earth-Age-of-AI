@@ -4,8 +4,7 @@ shipped file says) or shown commented out (;key=example) - every key set in a se
 [ai_hard] a row of [ai_base] (D), and the shipped [ai_easy] sets what SETTINGS_EASY says. The sections
 (SETTING_SECTIONS): every row's section is one, every section of the file is one and every one of them is in the file
 (but the test ini's, kind TEST: its rows aren't looked for), each named once, each order its own, the DIFF ones
-easy and hard. A CHILD's master is a CHOICE default|enabled|disabled (default "default") before it in its
-section, and the child is only commented out in the file (set, it would never follow). A FLAGS row's fields are a
+easy and hard. A FLAGS row's fields are a
 macro of rows.h (#define NAME(field_bool, field_enum) ...), its fields named once, and it is no row of [ai_base].
 Exit 1 with the differences."""
 import os
@@ -14,7 +13,6 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 ROW = re.compile(r'\b(?:[XS]\((\w+),\s*(\w+),|D\((\w+),)\s*(\w+),\s*("[^"]*"|-?\w+),\s*("[^"]*"|-?\w+),')
-MASTER = '"default|enabled|disabled"'
 SECTION = re.compile(r'\bT\((\w+),\s*(-?\d+),\s*(\w+),\s*"[^"]*"\)')
 EASY = re.compile(r'\bE\((\w+),\s*"([^"]*)"\)')
 DIFF = ('ai_easy', 'ai_hard')   # the medium AI plays [ai_base]: no section of its own
@@ -49,11 +47,11 @@ def ini():
 def same(kind, value, default):
     """the file's value is the row's default (a share either way: 35% or 0.35)"""
     want = default.strip('"')
-    if kind == 'SHARE':
+    if kind in ('SHARE', 'FACTOR'):
         try: x = float(value[:-1]) / 100 if value.endswith('%') else float(value)
         except ValueError: return False
         return abs(x - int(want) / 100) < 1e-9
-    if kind in ('FLAG', 'CHILD', 'INT', 'NUM'):
+    if kind in ('FLAG', 'INT', 'NUM'):
         try: return int(value, 0) == int(want, 0)
         except ValueError: return False
     return value == want
@@ -79,15 +77,6 @@ def main():
         if sec not in secs or sec in test: bad.append('[%s] in config/ageofai.ini, but no section of SETTING_SECTIONS' % sec)
     for sec in whole:
         if sec not in keys: bad.append('[%s]: in SETTING_SECTIONS, but not in config/ageofai.ini' % sec)
-    for i, (kind, sec, key, default, lo) in enumerate(table):   # a CHILD's master: a CHOICE before it, in its section
-        if kind != 'CHILD': continue
-        master = [r for r in table[:i] if r[2] == lo and r[1] == sec]
-        if not master or master[0][0] != 'CHOICE' or master[0][4] != MASTER or master[0][3] != '"default"':
-            bad.append('[%s] %s: its master %s is no CHOICE row before it in its section, %s, default "default"'
-                       % (sec, key, lo, MASTER))
-        if keys.get(sec, {}).get(key) is not None:
-            bad.append('[%s] %s: set in config/ageofai.ini - a child follows its master only commented out (;%s=...)'
-                       % (sec, key, key))
     src = open(os.path.join(ROOT, 'dll', 'settings', 'rows.h'), encoding='utf-8').read()
     for kind, sec, key, default, lo in table:   # a FLAGS row: its fields' macro, each field once ([ai_base] too: towns)
         if kind != 'FLAGS': continue

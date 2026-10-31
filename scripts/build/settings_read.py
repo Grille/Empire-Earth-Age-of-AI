@@ -38,9 +38,21 @@ class Key:
     def __init__(self, name, type_, default, attrs, doc, where):
         self.name, self.type, self.default, self.doc, self.where = name, type_, default, doc, where
         self.attrs = dict((a[0], a[1]) for a in attrs)
+        self.master = None   # a member of a [master] group: the master's key
 
     def has(self, attr):
         return attr in self.attrs
+
+
+MASTER_TYPE = 'master'   # a [master] group's own key: a CHOICE of MASTER_VALUES
+MASTER_VALUES = {'default': 'each its shipped default (a key below set in the file is not used)',
+                 'custom': 'each as set below, else its default',
+                 'enabled': 'every part on (a factor: its default)',
+                 'disabled': "every part off (a factor: 100%, the game's own)"}
+
+
+def snake(ident):   # ImprovedUnitMovement -> improved_unit_movement
+    return re.sub(r'(?<=[a-z0-9])(?=[A-Z])', '_', ident).lower()
 
 
 def title_of(ident):   # a name as a title: a section's or key's snake_case, a group's PascalCase (CitizensUnderAttack:
@@ -69,8 +81,10 @@ def arg_text(a):   # an attribute's argument as written: a string's text, a numb
 
 
 def kind_of(sec, k):   # rows.h's kind of a key
-    if k.has('child'):
-        return 'CHILD'
+    if k.type == MASTER_TYPE:
+        return 'CHOICE'
+    if k.type == 'factor':
+        return 'FACTOR'
     if k.type == 'bool':
         return 'FLAG'
     if k.type in sec.enums:
@@ -88,6 +102,7 @@ def kind_of(sec, k):   # rows.h's kind of a key
 
 def read_file(path):
     secs, doc, attr_text, depth, cur, group = [], [], '', 0, None, None   # group: the title of a group just begun
+    master = None   # the [master] group's key its keys follow, while in it
     inner = None   # an enum or struct written as a block: [kind, name, its doc, {member: file name} or [fields], {member: doc}]
     rel = os.path.relpath(path, ROOT).replace(os.sep, '/')
     for n, raw in enumerate(open(path, encoding='utf-8'), 1):
@@ -165,6 +180,7 @@ def read_file(path):
                 depth -= 1
                 continue
         if depth == 2 and cur and code == '}':   # a group ends
+            master = None
             if doc:
                 raise SystemExit('%s: /// lines at the end of a group - they belong before a key, or after the group' % where)
             depth -= 1
@@ -185,7 +201,14 @@ def read_file(path):
             name = re.match(r'^class\s+@?(\w+)$', code).group(1)
             named = dict((a[0], a[1]) for a in spec_read.attrs_of(attr_text))
             group = arg_text(named['title'][0]) if 'title' in named else title_of(name)
-            attr_text = ''
+            if 'master' in named:   # its own key first, its /// lines the class's
+                k = Key(snake(name), MASTER_TYPE, MASTER_TYPE + '.default', [], doc, where)
+                k.attrs['group'], group = [group], None
+                cur.keys.append(k)
+                cur.enums[MASTER_TYPE] = {v: v for v in MASTER_VALUES}
+                cur.docs[MASTER_TYPE] = {v: [t] for v, t in MASTER_VALUES.items()}
+                master = k.name
+            attr_text, doc = '', []
         elif depth in (1, 2) and cur and code.endswith(';'):
             m = re.match(r'^(\w+)\s+@?(\w+)\s*(?:=\s*(.+))?;$', code)
             if not m:
@@ -193,6 +216,10 @@ def read_file(path):
             k = Key(m.group(2), m.group(1), m.group(3), spec_read.attrs_of(attr_text), doc, where)
             if group is not None:
                 k.attrs['group'], group = [group], None
+            if master:
+                if k.type not in ('bool', 'factor'):
+                    raise SystemExit('%s: %s is a %s - a [master] group holds bool and factor keys only' % (where, k.name, k.type))
+                k.master = master
             cur.keys.append(k)
             attr_text, doc = '', []
         depth += code.count('{') - code.count('}')

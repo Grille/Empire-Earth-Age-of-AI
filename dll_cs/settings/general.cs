@@ -102,95 +102,100 @@ class general
         answer_fire_choice answer_fire = answer_fire_choice.game;
     }
 
-    class Movement
+    /// Improved unit movement: the mod's changes to how units move (the routes, turns and collisions below), as one
+    /// setting. The keys below count only with custom: improved_unit_movement=custom with formation_follow=0 (the ; in
+    /// front removed) is everything but the marching formations.
+    [master]
+    class ImprovedUnitMovement
     {
-        /// Improved unit movement: the mod's changes to how units move (the routes, turns and collisions below), as one
-        /// setting. A key below set on its own (remove the ; in front) wins over this: improved_unit_movement=default with
-        /// formation_follow=0 is everything but the marching formations.
-        improved_unit_movement_choice improved_unit_movement = improved_unit_movement_choice.@default;
         /// Ship routes: a ship's route planned whole and in straight lines where the water allows (the game's comes in pieces
         /// of 8-18 tiles in the 8 tile directions, so at any other angle it zigzags), off the shallows and the coast.
         /// 0 = the original (the player's and the AI's ships alike)
-        [child(nameof(improved_unit_movement)), commented("0")]
+        [commented("0")]
         bool ship_routes = true;
         /// Land routes: the same for land units (and hovercraft) - a route planned whole, straight wherever the ground
         /// between two points is clear, instead of the game's pieces in the 8 tile directions. 0 = the original
-        [child(nameof(improved_unit_movement)), commented("0")]
+        [commented("0")]
         bool land_routes = true;
         /// Land route corners (with land routes): each corner of a route moved up to 1.5 tiles away from the buildings,
         /// trees and cliffs it rounds, as far as there is room (through a gap it keeps to the middle), so units don't scrape
         /// every corner on the way. 0 = the corners as the search finds them
-        [child(nameof(improved_unit_movement)), commented("0")]
+        [commented("0")]
         bool land_widen = true;
         /// Shared routes (with ship or land routes): a route planned is kept for a second, and the next unit sent to the same
         /// spot joins it from where it stands instead of planning its own over the whole map - a group sent far asked for a
         /// route per unit, together long enough to make the picture stand. 0 = each unit its own route
-        [child(nameof(improved_unit_movement)), commented("0")]
+        [commented("0")]
         bool share_routes = true;
         /// Route budget (with ship or land routes): the route planning of one simulation step is limited - past it a unit
         /// sent far gets the first part of its route at once and the rest a moment later, so a big army's order doesn't
         /// hold up the picture. 0 = every route planned whole at once
-        [child(nameof(improved_unit_movement)), commented("0")]
+        [commented("0")]
         bool route_budget = true;
-        /// Route corridor (with land routes): a long land trip's route is searched only along a coarse route through the
-        /// map's walkable cells (planned in a fraction of the time), and a spot no land unit can walk to is known at once
-        /// instead of after searching everything reachable. A corridor a building blocks is searched again without it.
-        /// 1 = on, being measured
-        bool route_corridor = false;
         /// Ship turns: a ship whose next waypoint lies more than 45 degrees off its bow (a new order while under way, a corner)
         /// turns in an arc at the speed the turn allows, where the circle is free, instead of slowing to a crawl and turning
         /// almost on the spot, steers at a point sliding along its route and sails through shift-queued points. 0 = the original
-        [child(nameof(improved_unit_movement)), commented("0")]
+        [commented("0")]
         bool ship_turns = true;
         /// Land turns: land units (and hovercraft) steer at a point sliding along their route instead of at each tile's
         /// centre - the heading no longer jumps at every waypoint - and walk on through shift-queued points. 0 = the original
-        [child(nameof(improved_unit_movement)), commented("0")]
+        [commented("0")]
         bool land_turns = true;
         /// Ship collision: ships (and submarines among themselves) are kept apart by their hulls (a capsule along the ship,
         /// its length the game's size) and slide past each other - the overlap undone gently over a few steps, the smaller
         /// ship giving way more, a standing ship of the same player nudged aside - instead of the game's thin-line test, which
         /// lets them pass through each other, halves the speed and jumps them back. 0 = the original
-        [child(nameof(improved_unit_movement)), commented("0")]
+        [commented("0")]
         bool ship_collide = true;
         /// Land collision: the same for land units (and hovercraft): circles as big as the game's size for them, pushed
         /// apart gently instead of halved and jumped back, a standing unit of the same player nudged aside; units at work
         /// (gathering, building) are passed as in the game. 0 = the original
-        [child(nameof(improved_unit_movement)), commented("0")]
+        [commented("0")]
         bool land_collide = true;
         /// Formations: a group sent somewhere takes up its formation (line, staggered, wedge, circle - as chosen) laid out
         /// by its units' own sizes around the clicked point, each unit keeping its place in the group (the front ones in front,
         /// the left ones left) - instead of the game's grid, spaced by the largest unit in only 5 columns behind the point, with
         /// units and places paired by distance alone, so a big mixed army spread over half the map. 0 = the original
         /// (its front row on the clicked point, turned by a right-button drag)
-        [child(nameof(improved_unit_movement)), commented("0")]
+        [commented("0")]
         bool formations = true;
         /// Formation march (with formations): a group sent somewhere marches at its slowest unit's speed, so riders and
         /// tanks stay with the infantry instead of running ahead. 0 = the original, each at its own speed
-        [child(nameof(improved_unit_movement)), commented("0")]
+        [commented("0")]
         bool formation_march = true;
         /// Formation follow (with formations; land units, or ships): a group sent somewhere marches in its formation behind a leader,
         /// each unit keeping its place beside and behind it, a blocked one taking its own way for a while; near the goal each
         /// goes to its own spot. 0 = the original, each on its own route (the formations' places stay)
-        [child(nameof(improved_unit_movement)), commented("0")]
+        [commented("0")]
         bool formation_follow = true;
         /// Formation catch-up (with formation follow): how fast a unit behind its place in the marching formation may go to
         /// keep it, in percent of its own top speed - all of it within its own size of its place, falling off to its own top
         /// speed at four times that, and for 5 seconds after it was last in its place (a re-form or a new order on the march:
         /// no more than the boost it had then; none from rest). 100% = never faster than its own top speed
-        [range(1, 3), under(nameof(improved_unit_movement))]
-        share formation_catchup = 1.25;
+        [range(1, 3)]
+        factor formation_catchup = 1.25;
         /// Formation wait (with formation follow): the formation goes at most this share of each unit's speed now - a unit
         /// fallen behind has only its top speed, so the formation slows to this share of it and the unit catches up at the
         /// rest; all near their places (with formation catchup) let it go at its slowest unit's top speed. Lower = the
         /// formation waits more for units behind (tighter, slower), 100% = it doesn't slow below a straggler's speed (the
         /// straggler never gains on it)
         [range(0.25, 1)]
-        share formation_wait = 1;
+        factor formation_wait = 1;
         /// Friendly collision (with land collide / ship collide): two units of one player or of allies push each other off
         /// at this share of their size, so they slip past each other instead of getting stuck (a formation's places stay as
         /// far apart); a standing ally steps aside for a moving unit like one's own. 100% = as any two units
-        [range(0.25, 1), under(nameof(improved_unit_movement))]
-        share friendly_collision = 0.75;
+        [range(0.25, 1)]
+        factor friendly_collision = 0.75;
+    }
+
+    [title("Movement (being measured)")]
+    class MovementBeingMeasured
+    {
+        /// Route corridor (with land routes): a long land trip's route is searched only along a coarse route through the
+        /// map's walkable cells (planned in a fraction of the time), and a spot no land unit can walk to is known at once
+        /// instead of after searching everything reachable. A corridor a building blocks is searched again without it.
+        /// 1 = on, being measured
+        bool route_corridor = false;
     }
 
     class AIChatAndPersonalities

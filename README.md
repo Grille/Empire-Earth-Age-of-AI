@@ -350,10 +350,12 @@ Settings in `ageofai.ini`:
   often only one or two began. Such a citizen of a human player is now sent again (up to three times, the game's
   own placing call: it picks the tile nearest to where it stands then). 0 = the original.
 - `[general] improved_unit_movement=default`: the movement settings below (ship_routes, land_routes, land_widen,
-  ship_turns, land_turns, ship_collide, land_collide, formations, formation_march, formation_follow) as
-  one. `default` gives each its own default (all on since 2026-10-26: the player's play), `enabled` all of them on,
-  `disabled` all off - the game's own movement. Each one set on its own wins over it (formation_follow=0: everything
-  but the marching formations); the shipped file shows them commented out, so they follow it.
+  share_routes, route_budget, ship_turns, land_turns, ship_collide, land_collide, formations, formation_march,
+  formation_follow, and the factors formation_catchup, formation_wait, friendly_collision) as one. `default` gives each
+  its own default (all on since 2026-10-26: the player's play), `custom` each as set in the file (else its default),
+  `enabled` all of them on, `disabled` all off and the factors at 100% - the game's own movement. Only `custom` reads
+  the keys below (improved_unit_movement=custom with formation_follow=0: everything but the marching formations); with
+  another value a key set there is logged (`# ini:`) and not used.
 - `[general] ship_routes=1` (default): the game plans a ship's route in pieces of 8-18
   tiles, each in the 8 tile directions only, so a route at any angle between them zigzags and a slow-turning ship
   keeps swinging its bow. With 1 a ship's route is planned whole at once, in straight lines wherever the water between

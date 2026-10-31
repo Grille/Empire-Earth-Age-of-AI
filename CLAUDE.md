@@ -100,10 +100,10 @@ and the runners, eectl, the MCP server), `results/` (log readers, scorers), `re/
   [ai_base] - medium plays [ai_base], it has no section; code that doesn't tell difficulties apart reads [1]), and the test ini's [autotest] overrides a
   row by that same name (`scripts/build/settings_check.py`, run by the build, holds rows and file together). Nothing
   reads ageofai.ini itself any more; a test-only knob is a field of autotest.cs. A new section is a class with
-  [section(place, "title")] (its order and title make ageofai_config.exe's section; its topics there: [group("t")],
-  each from its key on). A CHILD row is a flag under a
-  master CHOICE `default|enabled|disabled` (improved_unit_movement over the seven movement keys): not set, it follows
-  the master; the shipped file has it commented out. A row's range is a sanity bound: outside it a warning, the value
+  [section(place)] (its order makes ageofai_config.exe's section; its topics there: a group, a nested class). A
+  [master] group is one key over its keys (bool and factor only; ImprovedUnitMovement: improved_unit_movement):
+  default = their defaults, custom = the file's, enabled / disabled = all on / off (a factor its default / 1) -
+  settings.cs "A MASTER". A row's range is a sanity bound: outside it a warning, the value
   used (the code clamps what it can't take); only what can't be used at all is a mistake, the default instead. A key
   that only sets one of the game's own values has [game(...)] (rows.h SETTING_GAME: ageofai_config.exe shows its key blue).
 - The game reads the personality files from `config/personalities/` (`ai_dir` in the user's ageofai.ini): a change to

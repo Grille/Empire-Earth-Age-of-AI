@@ -14,7 +14,7 @@
 #define SET_FIELD_CHOICE(name, a) int name;
 #define SET_FIELD_STR(name, a) char name[a];
 #define SET_FIELD_STR_P(name, a) char name[16][a];
-#define SET_FIELD_CHILD(name, a) int name;
+#define SET_FIELD_FACTOR(name, a) float name;
 #define SETF_INT_B(f) int f;
 #define SETF_INT_E(f, names) int f;
 #define SET_FIELD_FLAGS(name, a) struct { a(SETF_INT_B, SETF_INT_E) } name;   // a FLAGS row: an int per field
@@ -32,10 +32,10 @@ internal const char *const k_set_diff_sec[3] = { "ai_easy", NULL, "ai_hard" };  
 #define SET_ID_D(kind, key, def, a, b) SETTING_##key,
 enum { SETTINGS(SET_ID_X, SET_ID_D) SETTING_N };
 
-enum { SETK_FLAG, SETK_INT, SETK_NUM, SETK_SHARE, SETK_CHOICE, SETK_STR, SETK_STR_P, SETK_CHILD, SETK_FLAGS };
+enum { SETK_FLAG, SETK_INT, SETK_NUM, SETK_SHARE, SETK_CHOICE, SETK_STR, SETK_STR_P, SETK_FACTOR, SETK_FLAGS };
 // name: the field's, and the key that overrides it in the test ini; choices: a CHOICE's names, '|' between them - a
 // FLAGS row's fields, each name or name=a/b/c and a '|' after it; ai: a row of [ai_base] (its field in struct
-// settings_ai, a value per difficulty); a: a CHILD's master (its row's id), a FLAGS row's count of fields
+// settings_ai, a value per difficulty); a: a FLAGS row's count of fields
 struct setting_row { const char *sec, *key, *name; int kind, ai; size_t off; int def; const char *def_s, *choices; int a, b; };
 #define SET_ROW_FLAG(sec, key, name, st, ai, def, a, b) { #sec, #key, #name, SETK_FLAG, ai, offsetof(st, name), def, NULL, NULL, a, b },
 #define SET_ROW_INT(sec, key, name, st, ai, def, a, b) { #sec, #key, #name, SETK_INT, ai, offsetof(st, name), def, NULL, NULL, a, b },
@@ -44,7 +44,7 @@ struct setting_row { const char *sec, *key, *name; int kind, ai; size_t off; int
 #define SET_ROW_CHOICE(sec, key, name, st, ai, def, a, b) { #sec, #key, #name, SETK_CHOICE, ai, offsetof(st, name), 0, def, a, 0, b },
 #define SET_ROW_STR(sec, key, name, st, ai, def, a, b) { #sec, #key, #name, SETK_STR, ai, offsetof(st, name), 0, def, NULL, a, b },
 #define SET_ROW_STR_P(sec, key, name, st, ai, def, a, b) { #sec, #key, #name, SETK_STR_P, ai, offsetof(st, name), 0, def, NULL, a, b },
-#define SET_ROW_CHILD(sec, key, name, st, ai, def, a, b) { #sec, #key, #name, SETK_CHILD, ai, offsetof(st, name), def, NULL, NULL, SETTING_##a, b },
+#define SET_ROW_FACTOR(sec, key, name, st, ai, def, a, b) { #sec, #key, #name, SETK_FACTOR, ai, offsetof(st, name), def, NULL, NULL, a, b },
 #define SETF_STR_B(f) #f "|"
 #define SETF_STR_E(f, names) #f "=" names "|"
 #define SETF_ONE_B(f) + 1
@@ -55,8 +55,8 @@ struct setting_row { const char *sec, *key, *name; int kind, ai; size_t off; int
 #define SET_ROW_D(kind, key, def, a, b) SET_ROW_##kind(ai_base, key, key, struct settings_ai, 1, def, a, b)
 internal const struct setting_row k_settings[SETTING_N] = { SETTINGS(SET_ROW_X, SET_ROW_D) };
 
-#define SET_UNDER(key, master) { SETTING_##key, SETTING_##master },
-internal const struct { int row, master; } k_settings_under[] = { SETTING_UNDER(SET_UNDER) };
+#define SET_MEMBER(key, master) { SETTING_##key, SETTING_##master },
+internal const struct { int row, master; } k_settings_members[] = { SETTING_MEMBERS(SET_MEMBER) };
 
 #define SET_ALSO(key, sec) { SETTING_##key, #sec },
 internal const struct { int row; const char *sec; } k_settings_also[] = { SETTING_ALSO(SET_ALSO) };
@@ -69,7 +69,11 @@ internal const struct { int row; const char *title; } k_settings_titles[] = { SE
 #define SET_GAME(field, what, game, keep) { SETTING_##field, what, game, keep },
 internal const struct { int row; const char *what, *game; int keep; } k_settings_game[] = { SETTING_GAME(SET_GAME) };
 #define SETTING_GAME_N ((int)(sizeof k_settings_game / sizeof *k_settings_game))
-#define SETTING_UNDER_N ((int)(sizeof k_settings_under / sizeof *k_settings_under))
+#define SETTING_MEMBER_N ((int)(sizeof k_settings_members / sizeof *k_settings_members))
+internal int setting_master_of(const struct setting_row *r) {   // a member's master row, -1 none
+    for (int i = 0; i < SETTING_MEMBER_N; i++) if (&k_settings[k_settings_members[i].row] == r) return k_settings_members[i].master;
+    return -1;
+}
 
 #define SET_GROUP(first, title) { SETTING_##first, title },
 internal const struct { int first; const char *title; } k_setting_groups[] = { SETTING_GROUPS(SET_GROUP) };
@@ -226,7 +230,7 @@ internal void setting_default(const struct setting_row *r, void *at) {
     if (r->kind == SETK_STR || r->kind == SETK_STR_P) lstrcpynA((char *)at, r->def_s, r->a);
     else if (r->kind == SETK_FLAGS) setting_flags(r, r->def_s, (int *)at, why, sizeof why);
     else if (r->kind == SETK_CHOICE) *(int *)at = setting_choice(r->choices, r->def_s);
-    else if (r->kind == SETK_SHARE) *(float *)at = (float)(r->def / 100.0);
+    else if (r->kind == SETK_SHARE || r->kind == SETK_FACTOR) *(float *)at = (float)(r->def / 100.0);
     else *(int *)at = r->def;
 }
 
@@ -264,13 +268,13 @@ internal int setting_value(const struct setting_row *r, const char *f, const cha
         *(int *)at = i;
         return 1;
     }
-    if (r->kind == SETK_SHARE) {   // a mistake: told, the default
+    if (r->kind == SETK_SHARE || r->kind == SETK_FACTOR) {   // a mistake: told, the default
         *(float *)at = (float)ini_share_of(f, s, k, v, r->def / 100.0, r->a / 100.0, r->b / 100.0);
         return 1;
     }
     double x;
     int n;
-    int flag = r->kind == SETK_FLAG || r->kind == SETK_CHILD;
+    int flag = r->kind == SETK_FLAG;
     if (!ini_eval_as(f, s, k, v, &x, flag) || !ini_whole(f, s, k, v, x, &n)) return 0;
     int lo = flag ? 0 : r->a, hi = flag ? 1 : r->b;
     if (r->kind != SETK_NUM && (n < lo || n > hi)) {
@@ -327,31 +331,46 @@ internal void settings_unknown(const char *ini, const char *sec) {
         if (!setting_known(sec, k)) ini_unknown(ini, sec, k);
 }
 
-// a CHILD row that isn't set, in the values at base (g_set, or a difficulty's g_set_ai): its master's word - default
-// (0) keeps the child's own default, enabled (1) is on, disabled (2) off; the master is read before it (an earlier row)
-internal void setting_follow(const struct setting_row *r, uint8_t *base) {
-    int m = *(int *)(base + k_settings[r->a].off);
-    if (m) *(int *)(base + r->off) = m == 1;
+// A [master] group's members (SETTING_MEMBERS) as their master's word says - read first, in the values at base (g_set,
+// or a difficulty's g_set_ai): default (0) each its default, custom (1) as read (the file's, else its default), enabled
+// (2) a bool on and a factor its default, disabled (3) a bool off and a factor 1 (the game's own). set: the member was
+// in a file - told when the master doesn't use it
+internal int setting_master_word(int master, const uint8_t *base) { return *(const int *)(base + k_settings[master].off); }
+internal void setting_member(const struct setting_row *r, int w, int set, uint8_t *base) {
+    uint8_t *at = base + r->off;
+    if (w == 1) return;
+    if (set) {
+        char line[200], word[16];
+        setting_choice_name(k_settings[setting_master_of(r)].choices, w, word, sizeof word);
+        snprintf(line, sizeof line, "%s is set, but %s=%s: only custom uses it - ignored", r->key,
+                 k_settings[setting_master_of(r)].key, word);
+        ini_tell(line);
+    }
+    setting_default(r, at);
+    if (w == 2 && r->kind == SETK_FLAG) *(int *)at = 1;
+    if (w == 3) {
+        if (r->kind == SETK_FACTOR) *(float *)at = 1.0f;
+        else *(int *)at = 0;
+    }
 }
 
 internal void settings_read(const char *ini, const char *test_ini) {
+    static uint8_t set_ai[SETTING_N][3];   // a row of [ai_base] read from a file, per difficulty
     for (int i = 0; i < SETTING_N; i++) {
         const struct setting_row *r = &k_settings[i];
         g_set_from[i] = 0;
         if (r->ai) {
             for (int d = 0; d < 3; d++) {
                 uint8_t from = 0;
-                if (!setting_read(r, d, r->key, r->name, (uint8_t *)&g_set_ai[d] + r->off, ini, test_ini, &from) &&
-                    r->kind == SETK_CHILD)
-                    setting_follow(r, (uint8_t *)&g_set_ai[d]);
+                setting_read(r, d, r->key, r->name, (uint8_t *)&g_set_ai[d] + r->off, ini, test_ini, &from);
+                set_ai[i][d] = from;
                 if (from > g_set_from[i]) g_set_from[i] = from;
             }
             continue;
         }
         uint8_t *at = (uint8_t *)&g_set + r->off;
         if (r->kind != SETK_STR_P) {
-            if (!setting_read(r, 0, r->key, r->name, at, ini, test_ini, &g_set_from[i]) && r->kind == SETK_CHILD)
-                setting_follow(r, (uint8_t *)&g_set);
+            setting_read(r, 0, r->key, r->name, at, ini, test_ini, &g_set_from[i]);
             continue;
         }
         for (int p = 0; p < 16; p++) {
@@ -361,6 +380,13 @@ internal void settings_read(const char *ini, const char *test_ini) {
             setting_read(r, 0, key, key, at + p * r->a, ini, test_ini, &from);
             if (from > g_set_from[i]) g_set_from[i] = from;
         }
+    }
+    for (int m = 0; m < SETTING_MEMBER_N; m++) {   // the masters' members, now that every master is read
+        int i = k_settings_members[m].row;
+        const struct setting_row *r = &k_settings[i];
+        if (!r->ai) { setting_member(r, setting_master_word(k_settings_members[m].master, (uint8_t *)&g_set), g_set_from[i], (uint8_t *)&g_set); continue; }
+        for (int d = 0; d < 3; d++)
+            setting_member(r, setting_master_word(k_settings_members[m].master, (uint8_t *)&g_set_ai[d]), set_ai[i][d], (uint8_t *)&g_set_ai[d]);
     }
     for (int s = 0; s < SETTING_SECTION_N; s++)
         if (k_setting_sections[s].kind != SECK_TEST) settings_unknown(ini, k_setting_sections[s].sec);
@@ -373,7 +399,7 @@ internal void settings_read(const char *ini, const char *test_ini) {
 // row r's value at at as text (out, cap)
 internal void setting_text(const struct setting_row *r, const uint8_t *at, char *out, int cap) {
     switch (r->kind) {
-    case SETK_SHARE: snprintf(out, cap, "%.4g%%", *(const float *)at * 100.0); break;
+    case SETK_SHARE: case SETK_FACTOR: snprintf(out, cap, "%.4g%%", *(const float *)at * 100.0); break;
     case SETK_CHOICE: setting_choice_name(r->choices, *(const int *)at, out, cap); break;
     case SETK_FLAGS: {   // the fields not at their first: name (a bool), name=b (an enum), ", " between them
         char name[32], val[32];
