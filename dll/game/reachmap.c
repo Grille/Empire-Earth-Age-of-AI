@@ -397,8 +397,14 @@ internal int rm_region_of(int p, int x, int y) { return rm_node_region_of(p, rm_
 // filled every tile it could reach to learn that: 58000 tiles once, the picture stood 100 ms); -1 can't tell (no
 // reach map, or a type that walks otherwise than a citizen - the map is a citizen's; -2 / -3 its start / goal off
 // walkable land, 2 tiles round too). For player p: through the gates open to it (-1 also: at a gate shut to it).
-// The coarse route is an A* over the nodes (a straight cell step 10, a diagonal 14, the octile estimate); buildings
-// and walls aren't in the map, so a search the corridor fails is searched again without it (shiproute.c).
+// The coarse route is an A* over the nodes (a straight cell step 10, a diagonal 14, the octile estimate); a search the
+// corridor fails is searched again without it (shiproute.c).
+// Tried and dropped (2026-10-31, the player's late save, 4 min; the corridor alone: ~1490 tiles a long trip's search,
+// its route 1.04 x the trip): the trip searched in legs between waypoints on the coarse route every 8 / 16 / 32 nodes -
+// 790-1335 tiles, but routes 1.11-1.18 x (a route bent through each waypoint); the coarse way to the goal (Dijkstra over
+// the corridor's nodes) as the search's estimate - 970 tiles but 1.26 x (it overestimates beside obstacles: the search
+// turns greedy); scaled to 85 / 70 / 50% of it - 1360 / 1540 / 1450 tiles, 1.08 / 1.05 / 1.04 x. Cheaper only where the
+// routes get longer.
 #define RM_MARGIN 3
 internal struct {
     uint32_t gen, mark;
