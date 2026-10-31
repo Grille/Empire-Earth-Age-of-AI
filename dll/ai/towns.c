@@ -89,7 +89,8 @@ internal struct tn_st {
     uint32_t t, plan_t, log_t;
     struct tn_town town[TN_MAX]; int n;
     struct { ivec2 c; int losses; uint32_t again; } bad[16]; int nbad;
-    unsigned plans, founded, held, lost, laid, built, rebuilt, orders, assigned, sent, unpaid, prods, walls;
+    unsigned plans, founded, held, lost, laid, built, rebuilt, orders, assigned, sent, unpaid, prods, walls, guards, scouts;
+    ee_unit *scout; int scout_id; uint32_t scout_t;   // SPREAD's scout
     uint32_t fsave;   // saving for a forward base since (0: not)
     const char *why;
 } g_tn[16];
@@ -233,7 +234,10 @@ internal int tn_site_spread(ee_player *pl, unsigned idx, ivec2 base, unsigned hc
         for (int k = 0; k < g_tn[idx].nbad && ok; k++)
             if (ivec2_dist2(p, g_tn[idx].bad[k].c) < 12 * 12 && (g_tn[idx].bad[k].losses >= 3 || game_time() < g_tn[idx].bad[k].again)) ok = 0;
         if (!ok || threat_at(idx, p) > 0) { g_tn_why[5]++; continue; }
-        int key = (int)sqrtf((float)dn) * 4 - (sc < 24 ? sc : 24);   // the nearest; a richer one within a few tiles
+        int df = 0x7FFFFFFF;   // the nearest enemy building it knows: the back country first
+        for (int k = 0; k < w->nf; k++) if (ivec2_dist2(p, w->foe[k]) < df) df = ivec2_dist2(p, w->foe[k]);
+        df = df == 0x7FFFFFFF ? 0 : (int)sqrtf((float)df);
+        int key = (int)sqrtf((float)dn) * 4 - (sc < 24 ? sc : 24) - (df < 160 ? df : 160);   // the nearest; richer, or farther from the enemy, within a few tiles
         if (key < best) { best = key; *o = p; *o_n = mines; found = 1; }
     }
     return found;
@@ -637,6 +641,39 @@ internal int towns_production(ee_player *pl, unsigned idx, int type) {
            (int)sqrtf((float)bd), (int)sqrtf((float)bbase));
     return 1;
 }
+// SPREAD's guard (removed): a town with enemy soldiers within 18 tiles got the nearest free soldiers within 90 until
+// those there were 1.3 x the enemy - 1v1 huge Continental, 24 games: 3275 orders, B - A losses +175 (se 36), kills -167
+// (51): they walked in a few at a time and died one by one (muster's lesson at home). A town's defence needs the army
+// to gather first.
+// SPREAD's scout: no site left and land of the home continent it has never seen - a free soldier walks to the unseen
+// cell nearest to its towns (a player sends a scout; the AI knew only what passed by: 15-30% of its continent's
+// resources unseen at minute 120). One at a time, a new one after 90 s.
+internal void tn_scout(ee_player *pl, unsigned idx, struct tn_st *s, ivec2 base, unsigned hc, struct tn_world *w, uint32_t now) {
+    if (s->scout && unit_get_hp(s->scout) > 0 && unit_get_id(s->scout) == s->scout_id && now - s->scout_t < 90000) return;
+    ee_map *map = game_map();
+    int size = map ? (int)map_get_size(map) : 0, best = 0x7FFFFFFF;
+    ivec2 to = base;
+    for (int y = TN_CELL / 2; y < size; y += TN_CELL)
+        for (int x = TN_CELL / 2; x < size; x += TN_CELL) {
+            ivec2 p = iv2(x, y);
+            if (intel_looked_ago(pl, x, y) != 0xFFFFFFFFu || area_id(p, 2) != hc) continue;
+            int d = ivec2_dist2(p, base);
+            for (int k = 0; k < w->no; k++) if (ivec2_dist2(p, w->own[k]) < d) d = ivec2_dist2(p, w->own[k]);
+            if (d < best) { best = d; to = p; }
+        }
+    if (best == 0x7FFFFFFF) return;   // all of it seen
+    ee_unit *sc = NULL;
+    int bd = 0x7FFFFFFF;
+    for (struct grid_it it = grid_it_box(base.x, base.y, 40, 1); grid_it_next(&it); ) {
+        ee_unit *u = it.u;
+        if (unit_get_owner(u) != pl || unit_get_hp(u) <= 0 || !is_soldier(it.td) || unit_get_goal(u)) continue;
+        int d = ivec2_dist2(unit_get_tile(u), to);
+        if (d < bd) { bd = d; sc = u; }
+    }
+    if (!sc || !unit_goal(sc, goal_move((float)to.x + 0.5f, (float)to.y + 0.5f), 0, 0x1F40)) return;
+    s->scout = sc; s->scout_id = unit_get_id(sc); s->scout_t = now ? now : 1; s->scouts++;
+    tn_say(idx, now, "scout to %d,%d (unseen land, %d tiles from its nearest town)", to.x, to.y, (int)sqrtf((float)best));
+}
 internal void tn_plan(ee_player *pl, unsigned idx, struct tn_st *s, unsigned hc, ivec2 base, uint32_t now) {
     float mine = 0, theirs = 0;
     int n = 0, going = 0, nf = 0, fgoing = 0;
@@ -689,6 +726,7 @@ internal void tn_plan(ee_player *pl, unsigned idx, struct tn_st *s, unsigned hc,
             if (fs >= 4 && !(TOWNS(idx) & 16)) { if (!why) why = "free places at its mines"; }   // SPREAD: not waiting for them
             else if (!((TOWNS(idx) & 16) ? tn_site_spread : tn_site)(pl, idx, base, hc, &w, &c, &nm)) {
                 why = "no free mines";
+                if (TOWNS(idx) & 16) tn_scout(pl, idx, s, base, hc, &w, now);
                 if (g_autotest) tn_say(idx, now, "mines: %d on the home continent, %d unexplored, %d too near or far, %d by a drop site, %d by an enemy building, %d lost there or defended",
                                        g_tn_why[0], g_tn_why[1], g_tn_why[2], g_tn_why[3], g_tn_why[4], g_tn_why[5]);
             }
@@ -715,8 +753,8 @@ internal void towns_act(ee_player *pl, unsigned idx, uint32_t now) {
         s->log_t = now ? now : 1;
         int n = 0, held = 0;
         for (int k = 0; k < TN_MAX; k++) { n += s->town[k].state != 0; held += s->town[k].state == 2; }
-        tn_say(idx, now, "status - %d towns (%d standing) | planned %u founded %u stood %u lost %u unpaid %u | laid %u built %u laid again %u orders %u assigned %u sent %u | production %u walls %u",
-               n, held, s->plans, s->founded, s->held, s->lost, s->unpaid, s->laid, s->built, s->rebuilt, s->orders, s->assigned, s->sent, s->prods, s->walls);
+        tn_say(idx, now, "status - %d towns (%d standing) | planned %u founded %u stood %u lost %u unpaid %u | laid %u built %u laid again %u orders %u assigned %u sent %u | production %u walls %u | guards sent %u scouts %u",
+               n, held, s->plans, s->founded, s->held, s->lost, s->unpaid, s->laid, s->built, s->rebuilt, s->orders, s->assigned, s->sent, s->prods, s->walls, s->guards, s->scouts);
     }
 }
 internal void towns_new_game(void) { memset(g_tn, 0, sizeof g_tn); }
