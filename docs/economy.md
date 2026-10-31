@@ -1095,3 +1095,11 @@ head to head (MIRROR=1, many seeds) after 1+2, then build 3.
 assignment fills each resource's shortfall only, so a refused citizen stands while the target is short. Step 2 can't
 be left to the game: it needs per-town targets (a town's shortfall from its own citizens), i.e. step 3. Remaining
 long trips: mines 499 (paths not covered yet - find them with order_log's mine ask/pick lines), food 144, wood 130.
+
+2026-10-31: steps 2+3 built as town_work (off, sites.c TOWN WORK): the mod picks the site at all 11 of the assignment's
+sends (a site 60+ tiles from the citizen's home swapped for work at home), citizens trained for the town with free
+mines at the town center that gets them there first (neighbours help), a home per citizen. The player's save: long
+gather trips 1266 -> 727-764. 1v1 huge Continental, towns=1, 120 min, mirrored, 24 games (2685 swaps, 966 trained
+for a town), B - A: workers -14.5 (se 14.4), razed -9.9 (7.4), alive -0.08 (0.06), kills +22.5 (22.9) - leans worse, off.
+Both sides held under one extra town at the end (0.8 standing): the AIs hardly expand, so the spread the player
+expects (each half the map) isn't there to measure yet.
