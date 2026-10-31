@@ -63,17 +63,6 @@ internal inline char ballistic(ee_unit *u, ee_unit_stats *type, float *from, flo
 }
 // is the map object explored by pl (a site's +0x14: its map object)
 internal inline char explored_by(ee_unit *site, ee_player *pl) { return fn_unit_vis_explored(FIELD(site, of_unit_vis, void *), pl); }
-// does gate g let player pl's units through. The game has no test by player: the only one is lets_pass(gate, unit)
-// (EEComplexUnit::lets_pass 0x5EC317, the movement's for each unit stepping on its tiles - the one place the lock is
-// read), and it reads of the unit only its owner (the gate's owner, or one its owner is allied with: stance 0) and its
-// type (0xD1 passes enemy gates too). So it is asked with any of pl's units not of type 0xD1: the player's answer,
-// the game's own rule (frozen, half-built in a wall chain, locked; AoC's one test more). A copy of the rule by hand
-// shut 62 of 155 gates the game keeps open (2026-10-31). A player without such a unit: shut (nothing of it walks).
-internal int gate_opens_for(ee_unit *g, ee_player *pl) {
-    ee_unit *w = pl ? player_get_units(pl) : NULL;
-    for (int n = 0; w && n < 64 && (!unit_get_type_data(w) || unit_type_get_id(unit_get_type_data(w)) == 0xD1); n++) w = unit_get_next(w);
-    return w && unit_get_type_data(w) && unit_type_get_id(unit_get_type_data(w)) != 0xD1 && unit_lets_pass(g, w);
-}
 // a new unit of type t for player pi on tile (x, y), made as the scenario's Create effect makes one (0x5ACD49,
 // docs/triggers.md): the type's create, built, an aircraft's flight time and ammo and a unit's power as new, the
 // player's id for it, the map's place - in the simulation, on every PC alike: no message (the new-unit cheat's goes

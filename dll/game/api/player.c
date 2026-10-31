@@ -5,6 +5,23 @@
 internal inline const char *player_get_name(const ee_player *pl) { return wstring_text(player_name_at(pl)); }   // the name's text
 // +0x9E0 whom its chat reaches: 0 everyone, 1 allies, 2 enemies, 3 the players marked at +0xB2C
 internal inline int player_get_stance(const ee_player *pl, int i) { return FIELD(pl, of_player_stance + i * 4, int); } // +0x9E4 [16] towards player i: 0 allied, 1 enemy
+// does gate g let player pl's units through. The game has no test by player: the only one is lets_pass(gate, unit)
+// (EEComplexUnit::lets_pass 0x5EC317, the movement's for each unit stepping on its tiles - the one place the lock is
+// read), and it reads of the unit only its owner (the gate's owner, or one its owner is allied with: stance 0) and its
+// type (0xD1 passes enemy gates too). So it is asked with any of pl's units not of type 0xD1: the player's answer,
+// the game's own rule (frozen, half-built in a wall chain, locked; AoC's one test more). A copy of the rule by hand
+// shut 62 of 155 gates the game keeps open (2026-10-31). A player without such a unit: shut (nothing of it walks).
+// Not the passing moment: a gate out of its closed state (goal 15001: swinging open for its own side's units) lets
+// everyone through while it stands open - asked then, an enemy got "open" for a second that a route through it can't
+// count on (a corridor through an enemy gate broke when it shut, 2026-10-31). So only its owner and the players its
+// owner is allied with count, and of those whom the game lets through.
+internal int gate_opens_for(ee_unit *g, ee_player *pl) {
+    ee_player *owner = unit_get_owner(g);
+    if (!pl || (owner && owner != pl && player_get_stance(owner, player_get_index(pl)) != 0)) return 0;
+    ee_unit *w = player_get_units(pl);
+    for (int n = 0; w && n < 64 && (!unit_get_type_data(w) || unit_type_get_id(unit_get_type_data(w)) == 0xD1); n++) w = unit_get_next(w);
+    return w && unit_get_type_data(w) && unit_type_get_id(unit_get_type_data(w)) != 0xD1 && unit_lets_pass(g, w);
+}
 // +0xB10 / +0xB1C / +0xB20: population counts - +0xB1C and +0xB20 in production (0x556E11), +0xB10 not known
 internal inline uint8_t player_get_chat_to_player(const ee_player *pl, int i) { return FIELD(pl, of_player_chat_to_player + i, uint8_t); } // +0xB2C [16]
 internal inline void player_set_chat_to_player(ee_player *pl, int i, uint8_t v) { FIELD(pl, of_player_chat_to_player + i, uint8_t) = v; }

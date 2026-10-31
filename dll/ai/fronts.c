@@ -66,8 +66,8 @@ internal void fronts_look(ee_player *pl, unsigned idx, uint32_t now) {
     struct fronts_st *s = &g_fronts[idx];
     int n = side * side;
     rm_ready();
-    if (g_fr_land_map != map || g_fr_land_size != size || g_fr_land_built != g_reach.built) {   // the cells' land, with each build of the reach map
-        g_fr_land_map = map; g_fr_land_size = size; g_fr_land_built = g_reach.built;
+    if (g_fr_land_map != map || g_fr_land_size != size || g_fr_land_built != g_reach.version) {   // the cells' land, with each change of the reach map
+        g_fr_land_map = map; g_fr_land_size = size; g_fr_land_built = g_reach.version;
         for (int i = 0; i < n; i++) {
             int x0 = (i % side) * FR_CELL, y0 = (i / side) * FR_CELL, land = 0;
             ivec2 first = iv2(-1, -1);
