@@ -73,8 +73,9 @@ class display
     [group("Renderer")] renderer_choice renderer = renderer_choice.auto;
     /// The own renderer only: the AI's plans drawn on the map, a comma list of layers - routes = each attack group's
     /// route (its player's colour; red rings: waypoints in reach of known defences, a ring at the goal), danger = each
-    /// AI's danger map (its colour: faint where enemies reach, stronger where it would lose the fight, the edges marked)
-    /// - or all. Empty = none. The control pipe switches them while playing: overlay routes (overlay off: none)
+    /// AI's danger map (its colour: faint where enemies reach, stronger where it would lose the fight, the edges marked),
+    /// fronts = each AI's territory (faint), its border with land the enemy can reach (strong) and a circle at each front,
+    /// the bigger the more of its army that front should get - or all. Empty = none. The control pipe switches them while playing: overlay routes (overlay off: none)
     overlay_fields overlay;
     ///
     /// --- Wrapper (only with renderer = wrapper) ---
