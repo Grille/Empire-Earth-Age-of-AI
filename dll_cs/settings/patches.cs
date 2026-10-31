@@ -4,23 +4,30 @@
 // back to the original. The mod's own changes of how the game plays (movement, combat, the AI) are in [general] and
 // the AI's sections.
 ///
-[section(15, "Game fixes")]
+[section(15), title("Game fixes")]
 class patches
 {
     enum reload_choice { game, full, swing }
 
-    /// Sight counts: a map tile counts the units that see it in one byte, so with more than 254 units seeing it the
-    /// count wrapped - the tile took itself for unexplored, and it and everything on it (units, trees) blinked out in
-    /// big armies. 1 = the whole count kept (up to 65000); 0 = the original
-    [group("Engine limits")] bool sight_counts = true;
-    /// Turn fix: Art of Conquest's fix brought back - units that turn with momentum (ships, helicopters, tanks ...)
-    /// stop on their heading instead of swinging past it and back. 0 = the original
-    [group("Art of Conquest and Empire Earth")] bool turn_fix = true;
-    /// Reload in The Art of Conquest: AoC waits a random share (0..100%) of a unit's reload between blows, and a wait
-    /// shorter than the attack animation restarts the swing before the blow lands - citizens stood beside an animal
-    /// for the whole game (AoC's own AI and the player's alike):
-    ///   game  = AoC's as it is
-    ///   full  = Empire Earth's: the whole reload every time
-    ///   swing = AoC's random wait, but a swing under way is never restarted before its blow
-    reload_choice aoc_reload = reload_choice.swing;
+    class EngineLimits
+    {
+        /// Sight counts: a map tile counts the units that see it in one byte, so with more than 254 units seeing it the
+        /// count wrapped - the tile took itself for unexplored, and it and everything on it (units, trees) blinked out in
+        /// big armies. 1 = the whole count kept (up to 65000); 0 = the original
+        bool sight_counts = true;
+    }
+
+    [title("Art of Conquest and Empire Earth")] class ArtOfConquestAndEmpireEarth
+    {
+        /// Turn fix: Art of Conquest's fix brought back - units that turn with momentum (ships, helicopters, tanks ...)
+        /// stop on their heading instead of swinging past it and back. 0 = the original
+        bool turn_fix = true;
+        /// Reload in The Art of Conquest: AoC waits a random share (0..100%) of a unit's reload between blows, and a wait
+        /// shorter than the attack animation restarts the swing before the blow lands - citizens stood beside an animal
+        /// for the whole game (AoC's own AI and the player's alike):
+        ///   game  = AoC's as it is
+        ///   full  = Empire Earth's: the whole reload every time
+        ///   swing = AoC's random wait, but a swing under way is never restarted before its blow
+        reload_choice aoc_reload = reload_choice.swing;
+    }
 }

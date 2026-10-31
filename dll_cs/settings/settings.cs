@@ -7,11 +7,17 @@
 // limits and doc. C# is only how they are written down: names and types checked (settings.csproj; dotnet build
 // there). Nothing of it runs. A new setting: a field here, with its lines for the file, then the build.
 //
-// A SECTION is a class with [section(place, "title")] - place: ageofai_config.exe's order, title: its page; [all] the
+// A SECTION is a class with [section(place)] - place: ageofai_config.exe's order, its page's title the class's name
+// (camera: Camera) or [title("t")]; [all] the
 // AI's rows ([ai_base]: a value per difficulty), [diff] a difficulty's own section ([ai_easy], [ai_hard]: its fields
 // are [ai_base] keys with the difficulty's value, written bool, int or "text" - [ai_easy]'s are also what the easy AI
 // gets where the player's file says nothing), [test] the test ini's own (not in ageofai.ini). Its fields in the
 // file's order.
+//
+// A GROUP is a class inside a section (PascalCase, apart from the keys: CitizensUnderAttack): ageofai_config.exe's
+// topic, its title the name's words (Citizens under attack; a word in capitals stays: AIChat - AI chat) or
+// [title("t")]. Its keys in it; keys before the first group belong to none. Enums and structs stay in the section.
+// A key's name stays the key alone - a group or section is only where it is shown.
 //
 // A KEY is a field; its type and attributes are its kind (rows.h's header tells each):
 //   bool k = true;                               FLAG     (in the file 1 / 0)
@@ -34,14 +40,13 @@
 // it (a value to try, not in force: ;diag=0), [commented("x")] with x instead of the default
 // (;ai_dir=_aimod\config\personalities), [commented("x", "key_P2")] as another key (one slot of a per-player key).
 //
-// MORE ABOUT A KEY: [group("t")] starts ageofai_config.exe's topic t at this key (rows.h SETTING_GROUPS);
-// [game("what", "original", keep)] it sets one of the game's own values (SETTING_GAME: the tool shows its key blue);
+// MORE ABOUT A KEY: [game("what", "original", keep)] it sets one of the game's own values (SETTING_GAME: the tool shows its key blue);
 // [under(nameof(master))] the tool folds it under a master it doesn't follow (SETTING_UNDER); [also("section")] the tool
 // lists it on that section's page too (SETTING_ALSO) - the key itself stays in its own section, once in the file.
 
 using System;
 
-[AttributeUsage(AttributeTargets.Class)] public sealed class section : Attribute { public section(int place, string title) { } }
+[AttributeUsage(AttributeTargets.Class)] public sealed class section : Attribute { public section(int place) { } }
 [AttributeUsage(AttributeTargets.Class)] public sealed class all : Attribute { }
 [AttributeUsage(AttributeTargets.Class)] public sealed class diff : Attribute { }
 [AttributeUsage(AttributeTargets.Class)] public sealed class test : Attribute { }
@@ -54,7 +59,7 @@ using System;
 [AttributeUsage(AttributeTargets.Field)] public sealed class child : Attribute { public child(string master) { } }
 [AttributeUsage(AttributeTargets.Field)] public sealed class name : Attribute { public name(string text) { } }
 [AttributeUsage(AttributeTargets.Field)] public sealed class commented : Attribute { public commented(string value = "", string key = "") { } }
-[AttributeUsage(AttributeTargets.Field)] public sealed class group : Attribute { public group(string title) { } }
+[AttributeUsage(AttributeTargets.Class | AttributeTargets.Field)] public sealed class title : Attribute { public title(string text) { } }
 [AttributeUsage(AttributeTargets.Field)] public sealed class game : Attribute { public game(string what, string original, int keep) { } }
 [AttributeUsage(AttributeTargets.Field)] public sealed class under : Attribute { public under(string master) { } }
 [AttributeUsage(AttributeTargets.Field)] public sealed class also : Attribute { public also(string section) { } }

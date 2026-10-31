@@ -1,5 +1,5 @@
 // [autotest]: the test ini's own knobs (ageofai_autotest.ini, run_test.ps1): not in ageofai.ini
-[section(0, "Tests"), test]
+[section(0), title("Tests"), test]
 class autotest
 {
     bool aim_hits = true;

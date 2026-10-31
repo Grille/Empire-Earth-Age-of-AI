@@ -1,6 +1,6 @@
 // [sound]: the sound mixer (engine/sound.c)
 ///
-[section(50, "Sound")]
+[section(50)]
 class sound
 {
     /// Sound diagnostics into ageofai_log.csv: 1 = counts of dropped sounds once a game minute, 2 = every sound played. 0 = off

@@ -25,8 +25,8 @@ class Section:
         return self.attrs['section'][0][1]
 
     @property
-    def title(self):
-        return self.attrs['section'][1]
+    def title(self):   # ageofai_config.exe's page: [title("t")], else the class's name (ai_base: Ai base)
+        return arg_text(self.attrs['title'][0]) if 'title' in self.attrs else title_of(self.name)
 
     @property
     def kind(self):   # rows.h's SETTING_SECTIONS kind
@@ -40,6 +40,13 @@ class Key:
 
     def has(self, attr):
         return attr in self.attrs
+
+
+def title_of(ident):   # a name as a title: a section's or key's snake_case, a group's PascalCase (CitizensUnderAttack:
+    # Citizens under attack; a word in capitals stays: AIChat - AI chat)
+    words = re.findall(r'[A-Z]+(?![a-z])|[A-Z]?[a-z0-9]+', ident) if ident[:1].isupper() else ident.split('_')
+    t = ' '.join(w if w.isupper() and len(w) > 1 else w.lower() for w in words)
+    return t[:1].upper() + t[1:]
 
 
 def arg_text(a):   # an attribute's argument as written: a string's text, a number, a name (nameof(x) -> x)
@@ -71,7 +78,7 @@ def kind_of(sec, k):   # rows.h's kind of a key
 
 
 def read_file(path):
-    secs, doc, attr_text, depth, cur = [], [], '', 0, None
+    secs, doc, attr_text, depth, cur, group = [], [], '', 0, None, None   # group: the title of a group just begun
     rel = os.path.relpath(path, ROOT).replace(os.sep, '/')
     for n, raw in enumerate(open(path, encoding='utf-8'), 1):
         line = raw.strip()
@@ -110,6 +117,11 @@ def read_file(path):
                 cur.trailer, doc = doc, []
                 depth -= 1
                 continue
+        if depth == 2 and cur and code == '}':   # a group ends
+            if doc:
+                raise SystemExit('%s: /// lines at the end of a group - they belong before a key, or after the group' % where)
+            depth -= 1
+            continue
         while code.startswith('['):
             m = re.match(r'^\[(?:[^\[\]"]|"[^"]*")*\]\s*', code)
             attr_text += ' ' + m.group(0)
@@ -122,11 +134,19 @@ def read_file(path):
                 cur = Section(m.group(1), spec_read.attrs_of(attr_text), doc, path)
                 secs.append(cur)
             attr_text, doc = '', []
-        elif depth == 1 and cur and code.endswith(';'):
+        elif depth == 1 and cur and re.match(r'^class\s+@?\w+$', code):   # a group: ageofai_config.exe's topic, from its first key on
+            name = re.match(r'^class\s+@?(\w+)$', code).group(1)
+            named = dict((a[0], a[1]) for a in spec_read.attrs_of(attr_text))
+            group = arg_text(named['title'][0]) if 'title' in named else title_of(name)
+            attr_text = ''
+        elif depth in (1, 2) and cur and code.endswith(';'):
             m = re.match(r'^(\w+)\s+@?(\w+)\s*(?:=\s*(.+))?;$', code)
             if not m:
                 raise SystemExit('%s: a key is "type name = default;": %s' % (where, code))
-            cur.keys.append(Key(m.group(2), m.group(1), m.group(3), spec_read.attrs_of(attr_text), doc, where))
+            k = Key(m.group(2), m.group(1), m.group(3), spec_read.attrs_of(attr_text), doc, where)
+            if group is not None:
+                k.attrs['group'], group = [group], None
+            cur.keys.append(k)
             attr_text, doc = '', []
         depth += code.count('{') - code.count('}')
     return secs

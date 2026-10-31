@@ -2,7 +2,7 @@
 // the player's [ai_easy] and [ai_base] say nothing
 ///
 ///
-[section(80, "Easy"), diff]
+[section(80), title("Easy"), diff]
 class ai_easy
 {
     /// the population limit follows the humans, and the AI keeps to your epoch (see [ai_base])

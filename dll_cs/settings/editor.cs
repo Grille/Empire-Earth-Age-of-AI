@@ -1,6 +1,6 @@
 // [editor]: the scenario editor (engine/editor*.c)
 ///
-[section(40, "Scenario editor")]
+[section(40), title("Scenario editor")]
 class editor
 {
     /// Resolution of the scenario editor:

@@ -1,6 +1,6 @@
 // [camera]: how the view moves (engine/camera.c)
 ///
-[section(20, "Camera")]
+[section(20)]
 class camera
 {
     enum scroll_choice { game, ee, aoc }
