@@ -116,6 +116,20 @@ internal void stage_place(ee_player *pl, unsigned idx, struct stage *st, uint32_
             if (area_id(r, 2) != a || stage_danger(idx, r)) break;
             st->s = r;
         }
+        // front_army (fronts.c): the army's home is its front station - the stage there instead, when one is out of
+        // danger on the base's land and no further from the march's front than the stage found (the army gathers and
+        // sets off where it stands between attacks). Head-to-head 2026-11-01 (Continental huge 1v1 late, 60 min, 48
+        // mirrored games, ~18 stages a game put there): soldiers +0.7 (se 4.5), kills +2.0 (11.2), losses -2.4 (10.9),
+        // razed +0.5 (0.5) - no gain shown
+        if (FRONT_ARMY(idx)) {
+            struct fa_st *fa = &g_fa[idx];
+            int best_d = ivec2_dist2(st->s, l) + 20 * 20, bk = -1;
+            for (int k = 0; k < fa->n; k++) {
+                int d2 = ivec2_dist2(fa->at[k], l);
+                if (d2 < best_d && area_id(fa->at[k], 2) == a && !stage_danger(idx, fa->at[k])) { best_d = d2; bk = k; }
+            }
+            if (bk >= 0) { st->s = fa->at[bk]; g_fa_stage[idx]++; }
+        }
         return;
     }
 }

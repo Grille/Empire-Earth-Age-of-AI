@@ -267,6 +267,7 @@ internal struct fa_st {
 internal ee_unit *g_fa_member[1024];   // this pass's attack subgroup members (fa_member)
 internal int g_fa_nmember;
 internal unsigned g_fa_forming;   // the log's: forming subgroups seen
+internal unsigned g_fa_stage[16];   // the log's: staging points put at a front station (stage.c)
 internal int fa_member(ee_unit *u) { for (int i = 0; i < g_fa_nmember; i++) if (g_fa_member[i] == u) return 1; return 0; }
 internal void fa_members(ee_player *pl) {
     g_fa_nmember = 0;
@@ -374,7 +375,7 @@ internal void front_army(ee_player *pl, unsigned idx, uint32_t now) {
         EnterCriticalSection(&g_lock);
         fprintf(g_log, "# front army: P%u at %.1f min: %d armies", idx, now / 60000.0, a->n);
         for (int q = 0; q < a->n; q++) fprintf(g_log, " | at %d,%d share %.0f%% has %d", a->at[q].x, a->at[q].y, 100 * a->share[q], a->have[q]);
-        fprintf(g_log, " | sent %u, idle seen %u, attack members %u, forming subgroups %u, station unsafe %u\n", a->sent, a->idle, a->members, g_fa_forming, a->unsafe);
+        fprintf(g_log, " | sent %u, idle seen %u, attack members %u, forming subgroups %u, station unsafe %u, stage at a station %u\n", a->sent, a->idle, a->members, g_fa_forming, a->unsafe, g_fa_stage[idx]);
         LeaveCriticalSection(&g_lock);
     }
 }
