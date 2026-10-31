@@ -132,6 +132,12 @@ class general
         /// hold up the picture. 0 = every route planned whole at once
         [commented("0")]
         bool route_budget = true;
+        /// Route corridor (with land routes): a long land trip's route is searched only along a coarse route through the
+        /// map's walkable cells (who can walk where, gates by who may pass), and a spot no land unit can walk to is known at
+        /// once instead of after searching everything reachable - the same routes for a third less work. 0 = every route
+        /// searched over the whole map
+        [commented("0")]
+        bool route_corridor = true;
         /// Ship turns: a ship whose next waypoint lies more than 45 degrees off its bow (a new order while under way, a corner)
         /// turns in an arc at the speed the turn allows, where the circle is free, instead of slowing to a crawl and turning
         /// almost on the spot, steers at a point sliding along its route and sails through shift-queued points. 0 = the original
@@ -186,16 +192,6 @@ class general
         /// far apart); a standing ally steps aside for a moving unit like one's own. 100% = as any two units
         [range(0.25, 1)]
         factor friendly_collision = 0.75;
-    }
-
-    [title("Movement (being measured)")]
-    class MovementBeingMeasured
-    {
-        /// Route corridor (with land routes): a long land trip's route is searched only along a coarse route through the
-        /// map's walkable cells (planned in a fraction of the time), and a spot no land unit can walk to is known at once
-        /// instead of after searching everything reachable. A corridor a building blocks is searched again without it.
-        /// 1 = on, being measured
-        bool route_corridor = false;
     }
 
     class AIChatAndPersonalities
