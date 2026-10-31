@@ -56,6 +56,7 @@ internal void danger_new_game(void);       // game/danger.c
 internal void persist_load(const char *name);
 internal void econ_targets(ee_resource_mgr *rm);
 internal void econ_rebalance(ee_resource_mgr *rm);
+internal void town_idle(ee_resource_mgr *rm);   // sites.c
 internal void econ_fields(ee_resource_mgr *rm);
 internal void food_hunt(ee_resource_mgr *rm);   // food.c
 internal void food_pull(ee_resource_mgr *rm);
@@ -143,6 +144,7 @@ internal char __thiscall hook_assign_citizens(ee_resource_mgr *rm) {
     food_hunt(rm);   // idle citizens to animals (food.c)
     char r = resource_mgr_assign_citizens(rm);
     econ_rebalance(rm);
+    town_idle(rm);   // town_work: idle citizens to their own town's work (sites.c)
     food_pull(rm);   // gatherers back to food (food.c)
     log_state(rm, "post_assign", game_time());
     return r;

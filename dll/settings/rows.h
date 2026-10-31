@@ -198,6 +198,7 @@
     D(FLAG,  mine_choice,                  1, 0, 0) \
     D(FLAG,  mine_crowds,                  1, 0, 0) \
     D(FLAG,  local_mines,                  0, 0, 0) \
+    D(FLAG,  town_work,                    0, 0, 0) \
     D(FLAG,  overseas_mines,               1, 0, 0) \
     D(FLAG,  rebalance_workers,            1, 0, 0) \
     D(NUM,   food_plan,                    3, 0, 0) \

@@ -143,12 +143,14 @@ internal uintptr_t __thiscall tr_train_citizens(ee_unit_mgr *um, uintptr_t a) {
     return r;
 }
 
+internal int g_town_hooked;   // ai/sites.c: its gather hook holds the call sites, this one goes after it
+internal resource_mgr_assign_to_site_fn g_gather_next;
 internal void trace_start(const char *ini) {
     g_trace_player = ini_int("autotest", "trace_player", -1, ini);
     if (g_trace_player < 0) return;
     g_trace_until_ms = (uint32_t)ini_int("autotest", "trace_until_min", 0, ini) * 60000u;
     int total = 1;   // the citizens trained
-    int ok = patch_find_food(tr_find_food, &total) + patch_gather(tr_gather, &total) + patch_find_wood(tr_find_wood, &total) +
+    int ok = patch_find_food(tr_find_food, &total) + (g_town_hooked ? (g_gather_next = tr_gather, 0) : patch_gather(tr_gather, &total)) + patch_find_wood(tr_find_wood, &total) +
              patch_hunt(tr_hunt, &total) + patch_farms(tr_farms, NULL, &total) + patch_train_citizens(tr_train_citizens) +
              patch_find_mine(tr_find_mine, &total);
     if (g_log) fprintf(g_log, "# trace: player %d, %d/%d call sites hooked\n", g_trace_player, ok, total);

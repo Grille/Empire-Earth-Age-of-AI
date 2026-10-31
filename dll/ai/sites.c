@@ -180,6 +180,9 @@ internal void cmd_minecheck(char *out, const char *args) {
 #define LOCAL_MINE_TILES 40
 #define LOCAL_MINE_FAR 60
 internal int g_local_mines;
+internal int g_town_work, g_v_town_work = -1, g_town_hooked;   // TOWN WORK below: local only too; v_: h2h variant B
+internal unsigned g_var_mask;   // econ.c: the players of variant B
+internal int town_on(unsigned pi) { return (g_var_mask >> (pi & 15) & 1) && g_v_town_work >= 0 ? g_v_town_work : g_town_work; }
 // not_region: a continent (region class 2) whose mines don't count, -1 none (overseas_mines)
 internal ee_unit *select_mine_near_drop(ee_resource_mgr *rm, int type, ee_unit *unit, int not_region) {
     ee_player *pl = resource_mgr_player(rm);
@@ -194,7 +197,7 @@ internal ee_unit *select_mine_near_drop(ee_resource_mgr *rm, int type, ee_unit *
     short ref_region = unit ? (short)map_area(unit_get_tile(unit), 2) : 0;
     ee_unit *best = NULL;
     int best_d = 0x7FFFFFFF, best_local = 0;
-    int local = g_local_mines && unit && !is_vanilla(pl);
+    int local = (g_local_mines || town_on(pi)) && unit && !is_vanilla(pl);
     ivec2 at = unit ? unit_get_tile(unit) : (ivec2){ 0, 0 };
     ee_zone **zb = player_get_zones_begin(pl); ee_zone **ze = player_get_zones_end(pl);
     for (int z = 0; zb && zb + z < ze; z++) {
@@ -321,7 +324,7 @@ internal void *find_mine_pick(ee_resource_mgr *rm, int type, ee_unit *unit, uint
     ee_unit *r = g_mine_choice && type >= 4 && type < 7 ? select_mine_near_drop(rm, type, unit, -1) : NULL;
     if (r) return r;
     r = refuse_danger(rm, resource_mgr_find_mine(rm, (uintptr_t)type, unit, rev), type == 2, type);
-    if (r && g_local_mines && unit && type >= 4 && type < 7) {   // local_mines: the game's pick another town's - refused
+    if (r && unit && type >= 4 && type < 7 && (g_local_mines || town_on((unsigned)player_get_index(resource_mgr_player(rm))))) {   // local_mines: the game's pick another town's - refused
         ee_player *pl = resource_mgr_player(rm);
         unsigned pi = (unsigned)player_get_index(pl) & 15;
         drops_cached(pl);
@@ -378,16 +381,108 @@ internal ee_unit *__thiscall hook_find_wood(ee_resource_mgr *rm, uintptr_t flag,
     return refuse_danger(rm, resource_mgr_find_wood(rm, flag, unit), 0, 3);
 }
 
+// TOWN WORK ([ai_base] town_work, off; docs/economy.md "citizens stay in their town"): the game's assignment
+// (0x48A554) fills each resource's empire-wide shortfall with whichever citizen and site it finds - citizens walked
+// 200 tiles to another town's mine and back. Refusing those sites alone (local_mines) left the citizens idle: the
+// assignment only fills shortfalls, asks again and gets refused again. Here the mod decides the site at every one
+// of the assignment's sends (calls_gather): a site whose nearest drop site lies beyond TOWN_FAR of the citizen is
+// swapped for local work - the same resource, else the shortest one, else wood, else food; another town's only when
+// its own has no work at all. After the assignment the idle citizens get local work the same way (town_idle), and
+// every mine search is local only (select_mine_near_drop, find_mine_pick).
+#define TOWN_FAR LOCAL_MINE_FAR
+internal int rm_count(ee_resource_mgr *rm, int t);   // econ.c: citizens on resource t
+internal int citizen_free(ee_unit *u, int idle);     // econ.c
+internal resource_mgr_assign_to_site_fn g_gather_next;   // NULL the original, else trace.c's logging hook before it
+internal struct { unsigned swapped, away, idle; uint32_t logged; } g_town[16];
+// site's nearest drop site (food: granaries too) within TOWN_FAR of the citizen
+internal int town_local(unsigned pi, ee_unit *u, ee_unit *site, int food) {
+    int k = -1;
+    if (drop_nearest(pi, unit_get_tile(site), food, &k) == 0x7FFFFFFF || k < 0) return 0;
+    return ivec2_dist2(g_drops[pi].d[k].p, unit_get_tile(u)) <= TOWN_FAR * TOWN_FAR;
+}
+// a local site of resource r (2 food .. 6 iron) for citizen u, NULL none
+internal ee_unit *town_site(ee_resource_mgr *rm, int r, ee_unit *u) {
+    ee_player *pl = resource_mgr_player(rm);
+    unsigned pi = (unsigned)player_get_index(pl) & 15;
+    drops_cached(pl);
+    ee_unit *s = r >= 4 ? select_mine_near_drop(rm, r, u, -1)   // local only with town_work
+               : r == 3 ? hook_find_wood(rm, 1, u) : hook_find_food(rm, 1, 1, u);
+    return s && town_local(pi, u, s, r == 2) ? s : NULL;
+}
+// local work for u: resource first (-1 none), then the resources by shortfall, then wood, then food
+internal ee_unit *town_work_for(ee_resource_mgr *rm, ee_unit *u, int first) {
+    ee_unit *s = first >= 2 && first < 7 ? town_site(rm, first, u) : NULL;
+    if (s) return s;
+    uint32_t *target = resource_mgr_target_at(rm);
+    int tried = first >= 2 && first < 7 ? 1 << first : 0;
+    for (;;) {
+        int r = -1, most = 0;
+        for (int t = 2; t < 7; t++) {
+            int short_by = (int)target[t] - rm_count(rm, t);
+            if (!(tried >> t & 1) && short_by > most) { most = short_by; r = t; }
+        }
+        if (r < 0) break;
+        tried |= 1 << r;
+        if ((s = town_site(rm, r, u))) return s;
+    }
+    if (!(tried & 8) && (s = town_site(rm, 3, u))) return s;
+    if (!(tried & 4) && (s = town_site(rm, 2, u))) return s;
+    return NULL;
+}
+internal void __thiscall hook_town_gather(ee_resource_mgr *rm, ee_unit *u, ee_unit *site, int c) {
+    ee_player *pl = resource_mgr_player(rm);
+    unsigned pi = pl ? (unsigned)player_get_index(pl) & 15 : 0;
+    if (pl && town_on(pi) && !is_vanilla(pl) && u && site && is_citizen_type(unit_type_get_id(unit_get_type_data(u)))) {
+        int r = unit_get_resource(site);
+        drops_cached(pl);
+        if (!town_local(pi, u, site, r == 2)) {
+            ee_unit *s = town_work_for(rm, u, r);
+            if (s) { site = s; g_town[pi].swapped++; }
+            else g_town[pi].away++;   // its town has no work: it goes
+        }
+    }
+    if (g_gather_next) g_gather_next(rm, u, site, c); else resource_mgr_assign_as(rm, u, site, c);
+}
+// after the assignment: the idle citizens to local work (40 at most a pass)
+internal void town_idle(ee_resource_mgr *rm) {
+    ee_player *pl = resource_mgr_player(rm);
+    if (!pl || is_vanilla(pl)) return;
+    unsigned pi = (unsigned)player_get_index(pl) & 15;
+    if (!town_on(pi)) return;
+    int given = 0;
+    for (int r = 0; r < 7 && given < 40; r++) {
+        uint8_t *list = resource_mgr_list_at(rm, r);
+        for (unsigned k = 0, first = deque_front(list), cnt = deque_count(list); k < cnt && given < 40; k++) {
+            ee_unit *u = deque_at(list, first + k);
+            if (!citizen_free(u, 1)) continue;
+            ee_unit *s = town_work_for(rm, u, -1);
+            if (!s) continue;
+            resource_mgr_assign(rm, u, s);
+            given++;
+        }
+    }
+    g_town[pi].idle += (unsigned)given;
+    uint32_t now = game_time();
+    if (g_log && (!g_town[pi].logged || now < g_town[pi].logged || now - g_town[pi].logged >= 60000)) {
+        g_town[pi].logged = now ? now : 1;
+        fprintf(g_log, "# town work: P%u at %.1f min: %u far sites swapped for local work, %u sent far (no local work), %u idle citizens given local work\n",
+                pi, now / 60000.0, g_town[pi].swapped, g_town[pi].away, g_town[pi].idle);
+    }
+}
+
 internal void sites_install(void) {
     g_site_max_dist = g_set_ai[1].site_max_distance;
     g_mine_choice = g_set_ai[1].mine_choice;
     g_mine_crowds = g_set_ai[1].mine_crowds;
     g_local_mines = g_set_ai[1].local_mines;
+    g_town_work = g_set_ai[1].town_work;
+    if (g_autotest) g_v_town_work = ini_int("autotest", "v_town_work", -1, g_ini);
     g_overseas_mines = g_set_ai[1].overseas_mines;
     int ok = 0, total = 0;
     // always: the searches refuse sites behind known enemy towers (avoid_towers_citizens, attack.c)
     ok += patch_find_mine(hook_find_mine, &total) + patch_find_food(hook_find_food, &total) + patch_find_wood(hook_find_wood, &total) +
           patch_farms(hook_farms, hook_unbuilt_farms, &total) + patch_hunt(hook_hunt, &total);
+    if (g_town_work || g_v_town_work > 0) { ok += patch_gather(hook_town_gather, &total); g_town_hooked = 1; }
     if (g_log) fprintf(g_log, "# site hooks: %d/%d, max distance %d; mine_choice=%d, overseas_mines=%d\n", ok, total, g_site_max_dist, g_mine_choice, g_overseas_mines);
 }
 
