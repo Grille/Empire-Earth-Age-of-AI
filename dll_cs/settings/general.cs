@@ -11,9 +11,33 @@ namespace ageofai.settings;
 [section(10)]
 class general
 {
-    enum improved_unit_movement_choice { @default, enabled, disabled }
-    enum answer_fire_choice { game, all, computers }
-    enum chat_choice { off, debug, status }
+    enum improved_unit_movement_choice
+    {
+        /// each as the mod ships it (all on)
+        @default,
+        /// all of them on
+        enabled,
+        /// all off (the game's own movement)
+        disabled,
+    }
+    enum answer_fire_choice
+    {
+        /// the original
+        game,
+        /// every player's units
+        all,
+        /// the computer players' only
+        computers,
+    }
+    enum chat_choice
+    {
+        /// none (original)
+        off,
+        /// the AI says what it decides (attacks, new epoch, extra towers, walls, siege, counter-siege, home guard)
+        debug,
+        /// also a status line every 5 minutes
+        status,
+    }
 
     class TheMod
     {
@@ -75,18 +99,14 @@ class general
         bool units_first = false;
         /// An idle soldier shot by an enemy beyond its reply range (a mortar, a sniper, a tower further off than it shoots) goes
         /// for it when it can see it, hurt it and walk there, within 24 tiles (the original stands and is shot):
-        ///   game      = the original
-        ///   all       = every player's units
-        ///   computers = the computer players' only
         answer_fire_choice answer_fire = answer_fire_choice.game;
     }
 
     class Movement
     {
         /// Improved unit movement: the mod's changes to how units move (the routes, turns and collisions below), as one
-        /// setting. default = each as the mod ships it (all on), enabled = all of them on, disabled = all off (the game's
-        /// own movement). A key below set on its own (remove the ; in front) wins over this: improved_unit_movement=default
-        /// with formation_follow=0 is everything but the marching formations.
+        /// setting. A key below set on its own (remove the ; in front) wins over this: improved_unit_movement=default with
+        /// formation_follow=0 is everything but the marching formations.
         improved_unit_movement_choice improved_unit_movement = improved_unit_movement_choice.@default;
         /// Ship routes: a ship's route planned whole and in straight lines where the water allows (the game's comes in pieces
         /// of 8-18 tiles in the 8 tile directions, so at any other angle it zigzags), off the shallows and the coast.
@@ -175,11 +195,8 @@ class general
 
     class AIChatAndPersonalities
     {
-        /// AI chat lines (shown in the game's chat as the AI player), rate-limited per player:
-        ///   off    = none (original)
-        ///   debug  = the AI says what it decides (attacks, new epoch, extra towers, walls, siege, counter-siege, home guard)
-        ///   status = also a status line every 5 minutes
-        /// chat_seconds = how long a line stays on screen
+        /// AI chat lines (shown in the game's chat as the AI player), rate-limited per player; chat_seconds = how long a line
+        /// stays on screen:
         chat_choice chat = chat_choice.off;
         [range(0, 3600)]
         int chat_seconds = 15;

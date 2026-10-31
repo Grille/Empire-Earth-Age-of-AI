@@ -5,12 +5,17 @@ namespace ageofai.settings;
 [section(20)]
 class camera
 {
-    enum scroll_choice { game, ee, aoc }
+    enum scroll_choice
+    {
+        /// the game's own: Empire Earth's constant speed, The Art of Conquest's acceleration
+        game,
+        /// Empire Earth's: constant speed (also in The Art of Conquest)
+        ee,
+        /// The Art of Conquest's: starts slowly and accelerates to the same top speed (also in Empire Earth)
+        aoc,
+    }
 
     /// Camera scrolling (mouse at the screen edge / scroll keys):
-    ///   game = the game's own: Empire Earth's constant speed, The Art of Conquest's acceleration
-    ///   ee   = Empire Earth's: constant speed (also in The Art of Conquest)
-    ///   aoc  = The Art of Conquest's: starts slowly and accelerates to the same top speed (also in Empire Earth)
     scroll_choice scroll = scroll_choice.game;
     /// Fine scrolling: the game moved the camera in fixed steps from a timer (every 10 or 25 ms) while frames come
     /// every few ms - some frames without a step, all steps the same size: jitter - and a busy game held the camera.

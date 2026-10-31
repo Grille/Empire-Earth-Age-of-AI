@@ -8,6 +8,7 @@ usage: gen_settings.py [--force] [--print]   (--print: the two files to stdout, 
 import hashlib
 import os
 import sys
+import textwrap
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import settings_read   # noqa: E402
@@ -150,6 +151,23 @@ def rows_h(secs):   # the file below its header
     return '\n'.join(out).rstrip('\n') + '\n'
 
 
+def values_doc(sec, k):   # a CHOICE's or FLAGS key's list under its doc, of its members' own /// lines:
+    # "  name = text", the names padded to the longest, the text flowed to the file's width (120) under itself
+    docs = sec.docs.get(k.type)
+    if not docs or not any(docs.values()):
+        return []
+    names = sec.enums[k.type] if k.type in sec.enums else {f: f for _, f in sec.structs[k.type][0]}
+    w = max(len(names[m]) for m in docs)
+    out = []
+    for m, d in docs.items():
+        if not d:
+            raise SystemExit('%s: %s.%s has no /// line - every member of a documented %s has one' % (k.where, k.type, m, k.type))
+        text = textwrap.wrap(' '.join(x.strip() for x in d), 113 - w, break_long_words=False, break_on_hyphens=False)
+        out.append('  %s = %s' % (names[m].ljust(w), text[0]))
+        out += ['  %s   %s' % (' ' * w, x) for x in text[1:]]
+    return out
+
+
 def ini(secs):
     out = []
     base = next(s for s in secs if s.kind == 'ALL')
@@ -161,7 +179,7 @@ def ini(secs):
             continue
         out += text(sec.before) + ['[%s]' % sec.name]
         for k in sec.keys:
-            out += text(k.doc)
+            out += text(k.doc + values_doc(sec, k))
             if sec.kind == 'DIFF':
                 out.append('%s=%s' % (k.name, diff_value(base, k)))
                 continue

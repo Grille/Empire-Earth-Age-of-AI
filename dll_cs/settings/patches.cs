@@ -9,7 +9,15 @@ namespace ageofai.settings;
 [section(15), title("Game fixes")]
 class patches
 {
-    enum reload_choice { game, full, swing }
+    enum reload_choice
+    {
+        /// AoC's as it is
+        game,
+        /// Empire Earth's: the whole reload every time
+        full,
+        /// AoC's random wait, but a swing under way is never restarted before its blow
+        swing,
+    }
 
     class EngineLimits
     {
@@ -30,9 +38,6 @@ class patches
         /// Reload in The Art of Conquest: AoC waits a random share (0..100%) of a unit's reload between blows, and a wait
         /// shorter than the attack animation restarts the swing before the blow lands - citizens stood beside an animal
         /// for the whole game (AoC's own AI and the player's alike):
-        ///   game  = AoC's as it is
-        ///   full  = Empire Earth's: the whole reload every time
-        ///   swing = AoC's random wait, but a swing under way is never restarted before its blow
         [title("Reload in Art of Conquest")]
         reload_choice aoc_reload = reload_choice.swing;
     }

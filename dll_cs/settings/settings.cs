@@ -39,6 +39,16 @@
 // it (a value to try, not in force: ;diag=0), [commented("x")] with x instead of the default
 // (;ai_dir=_aimod\config\personalities), [commented("x", "key_P2")] as another key (one slot of a per-player key).
 //
+// A VALUE'S OWN TEXT: an enum (CHOICE) or a struct (FLAGS) written as a block, a member a line, its /// lines above
+// it - the member says what it does, not the key. The file gets the key's /// lines, then a line per member
+// "  name = text" (the names padded, the text flowed to the file's width under itself; gen_settings.py values_doc):
+//     enum sound_log_choice              sound_log=        ; Sound diagnostics into ageofai_log.csv:
+//     {                                                    ;   off   = none
+//         /// none                                         ;   drops = counts of dropped sounds once a game minute
+//         off,                                             ;   all   = also every sound played
+//         ...
+// Every member of such a block has its text; one written on one line ({ a, b }) has none - its key tells them.
+//
 // MORE ABOUT A KEY: [game("what", "original", keep)] it sets one of the game's own values (SETTING_GAME: the tool shows its key blue);
 // [under(nameof(master))] the tool folds it under a master it doesn't follow (SETTING_UNDER); [also("section")] the tool
 // lists it on that section's page too (SETTING_ALSO) - the key itself stays in its own section, once in the file.

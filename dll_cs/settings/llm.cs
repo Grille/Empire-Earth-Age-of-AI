@@ -5,8 +5,23 @@ namespace ageofai.settings;
 [section(60), title("Language model")]
 class llm
 {
-    enum memory_mode_choice { pair, player }
-    enum fallback_choice { rules, pause }
+    enum memory_mode_choice
+    {
+        /// a memory for the talk with you and one for each pair of AIs (each knows only what was said there)
+        pair,
+        /// one memory per AI: all it said and heard - with you and with every AI - and its events, in order
+        /// (it knows what it told the others and may keep it or share it; longer requests - set memory higher,
+        /// e.g. 64)
+        player,
+    }
+    enum fallback_choice
+    {
+        /// the computer players say their fixed lines and the rules decide
+        rules,
+        /// the game pauses until it answers (tried again every 5 s; resume the game yourself to play on - the
+        /// answers still come)
+        pause,
+    }
 
     /// AI voice (optional): a language model on this PC speaks for the computer players - LM Studio, Ollama, llama.cpp or
     /// any server with the OpenAI chat API. Words only: what the AIs decide stays with the mod's rules. Start the server
@@ -57,18 +72,14 @@ class llm
     /// saved games
     [range(0, 100000)]
     int llm_memory = 8;
-    /// pair = a memory for the talk with you and one for each pair of AIs (each knows only what was said there);
-    /// player = one memory per AI: all it said and heard - with you and with every AI - and its events, in order (it
-    /// knows what it told the others and may keep it or share it; longer requests - set memory higher, e.g. 64)
+    /// What a computer player remembers of the talk:
     memory_mode_choice llm_memory_mode = memory_mode_choice.pair;
     /// the model isn't told who is human: you are "another leader in this game" like every AI (1), or the human player (0)
     bool llm_equal = false;
     /// seconds a line may wait for the model (2..120), else the fixed line
     [range(0, 1000000)]
     int llm_timeout = 20;
-    /// When the model can't be reached or hasn't answered within timeout: rules = the computer players say their fixed
-    /// lines and the rules decide; pause = the game pauses until it answers (tried again every 5 s; resume the game
-    /// yourself to play on - the answers still come). Single player only
+    /// When the model can't be reached or hasn't answered within timeout (single player only):
     fallback_choice llm_fallback = fallback_choice.rules;
     /// answer length (tokens, 16..8000; 300 is plenty for one or two sentences - more only with think=1) and temperature
     /// (80% = 0.8, up to 200%)

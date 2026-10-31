@@ -16,6 +16,7 @@ class Section:
     def __init__(self, name, attrs, before, path):
         self.name, self.attrs, self.before, self.path = name, dict((a[0], a[1]) for a in attrs), before, path
         self.keys, self.enums, self.structs, self.trailer = [], {}, {}, []
+        self.docs = {}   # an enum's or struct's {member or field: its /// lines} (written as a block: a line each)
 
     def has(self, attr):
         return attr in self.attrs
@@ -87,6 +88,7 @@ def kind_of(sec, k):   # rows.h's kind of a key
 
 def read_file(path):
     secs, doc, attr_text, depth, cur, group = [], [], '', 0, None, None   # group: the title of a group just begun
+    inner = None   # an enum or struct written as a block: [kind, name, its doc, {member: file name} or [fields], {member: doc}]
     rel = os.path.relpath(path, ROOT).replace(os.sep, '/')
     for n, raw in enumerate(open(path, encoding='utf-8'), 1):
         line = raw.strip()
@@ -100,7 +102,44 @@ def read_file(path):
                 doc = []
             continue
         where = '%s:%d' % (rel, n)
+        if inner:   # a member (enum: name, - struct: bool name;) with its /// lines and attributes above it
+            if code == '{':
+                continue
+            if code == '}':
+                kind, name, sdoc, members, docs = inner
+                if kind == 'enum':
+                    cur.enums[name] = members
+                else:
+                    cur.structs[name] = (members, sdoc)
+                cur.docs[name], inner, doc, attr_text = docs, None, [], ''
+                continue
+            while code.startswith('['):
+                m = re.match(r'^\[(?:[^\[\]"]|"[^"]*")*\]\s*', code)
+                attr_text += ' ' + m.group(0)
+                code = code[m.end():]
+            if not code:
+                continue
+            if inner[0] == 'enum':
+                m = re.match(r'^@?(\w+),?$', code)
+                if not m:
+                    raise SystemExit('%s: an enum member is "name,": %s' % (where, code))
+                named = dict((x[0], x[1]) for x in spec_read.attrs_of(attr_text))
+                inner[3][m.group(1)] = arg_text(named['name'][0]) if 'name' in named else m.group(1)
+                inner[4][m.group(1)] = doc
+            else:
+                m = re.match(r'^(\w+)\s+(\w+);$', code)
+                if not m:
+                    raise SystemExit('%s: a struct field is "type name;": %s' % (where, code))
+                inner[3].append((m.group(1), m.group(2)))
+                inner[4][m.group(2)] = doc
+            doc, attr_text = [], ''
+            continue
         if depth == 1 and cur:
+            m = re.match(r'^(enum|struct)\s+(\w+)$', code)
+            if m:   # a block: its members on the lines below, each with its doc
+                inner = [m.group(1), m.group(2), doc, {} if m.group(1) == 'enum' else [], {}]
+                doc = []
+                continue
             m = re.match(r'^enum\s+(\w+)\s*\{(.*)\}$', code)
             if m:
                 names = {}   # the C# member -> its name in the file, in order
