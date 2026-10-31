@@ -757,12 +757,12 @@ internal void cover_tick(ee_player *pl, uint32_t now) {
 }
 internal void cover_install(const char *autotest_ini) {
     g_fall_back = g_set_ai[1].fall_back;
-    g_fb_ratio = g_set_ai[1].fall_back_ratio;
-    g_fb_hp = g_set_ai[1].fall_back_hp;
+    g_fb_ratio = setting_pct(g_set_ai[1].fall_back_ratio);
+    g_fb_hp = setting_pct(g_set_ai[1].fall_back_hp);
     g_fb_value = g_set_ai[1].fall_back_value;
     g_fb_dist = g_set_ai[1].fall_back_dist;
     g_fb_breaks = g_set_ai[1].fall_back_breaks;
-    g_fb_end = g_set_ai[1].fall_back_end;
+    g_fb_end = setting_pct(g_set_ai[1].fall_back_end);
     g_fight_mem = g_set_ai[1].fight_memory;
     g_threat_mem = g_set_ai[1].threat_memory;
     if (autotest_ini) g_v_threat_mem = ini_int("autotest", "v_threat_memory", -1, autotest_ini);

@@ -42,8 +42,11 @@ def default_of(sec, k):   # the default as the code's row has it and as the file
     if kind in ('STR', 'STR_P'):
         s = cs_str(d)
         return c_str(s), s
+    if kind == 'SHARE':
+        v = settings_read.percent(d, k.where)
+        return v, v + '%'
     v = d or '0'
-    return v, v + ('%' if kind in ('PCT', 'SHARE') else '')
+    return v, v
 
 
 def diff_value(base, k):   # a difficulty's own value of an [ai_base] key, as the file writes it
@@ -53,8 +56,10 @@ def diff_value(base, k):   # a difficulty's own value of an [ai_base] key, as th
     kind = settings_read.kind_of(base, row)
     if k.type == 'bool':
         return '1' if k.default == 'true' else '0'
+    if k.type == 'share' or kind == 'SHARE':
+        return settings_read.percent(k.default, k.where) + '%'
     if k.type == 'int':
-        return k.default + ('%' if kind in ('PCT', 'SHARE') else '')
+        return k.default
     v = cs_str(k.default)
     if kind == 'CHOICE' and v not in base.enums[row.type].values():
         raise SystemExit('%s: %s is none of %s' % (k.where, v, '|'.join(base.enums[row.type].values())))
@@ -70,8 +75,7 @@ def row_of(sec, k):   # X(FLAG, general, enabled, 1, 0, 0) - D for a row of [ai_
         'FLAG': ('0', '0'),
         'INT': tuple(arg(x) for x in a.get('range', [])) or ('0', '0'),
         'NUM': tuple(arg(x) for x in a.get('range', [])) or ('0', '0'),
-        'PCT': (arg(a['pct'][0]) if 'pct' in a else '0', '0'),
-        'SHARE': tuple(arg(x) for x in a.get('share', [])),
+        'SHARE': tuple(settings_read.percent(arg(x), k.where) for x in a.get('range', [])) or ('-1000000', '1000000'),   # no bound
         'CHOICE': (c_str('|'.join(sec.enums.get(k.type, {}).values())), '0'),
         'STR': (arg(a['length'][0]) if 'length' in a else '0', '0'),
         'STR_P': (arg(a['length'][0]) if 'length' in a else '0', '0'),

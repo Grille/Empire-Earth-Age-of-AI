@@ -1715,7 +1715,7 @@ internal void llm_install(void) {
     g_llm_chat = g_set.llm_chat;
     g_llm_timeout = g_set.llm_timeout;
     g_llm_max_tokens = g_set.llm_max_tokens;
-    g_llm_temp = g_set.llm_temperature;   // 80% = 0.8
+    g_llm_temp = setting_pct(g_set.llm_temperature);   // 80% = 0.8
     g_llm_log = g_set.llm_log;
     g_llm_think = g_set.llm_think;
     g_llm_decide = g_set.llm_decide;

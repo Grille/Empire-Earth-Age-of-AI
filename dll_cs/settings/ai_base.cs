@@ -22,8 +22,8 @@ class ai_base
         /// Resource discount: what the AI pays, in percent of the real price.
         ///   100% = fair (same prices as you), 75% = a quarter cheaper, 50% = half price.
         ///   0    = don't touch it: use the game's "Cheat" setting (scenario editor / data files).
-        [pct(1000), game("the price the AI pays, in percent of the real one (with the game's Cheat toggle)", "100%", 0)]
-        int cost_percent = 100;
+        [range(0, 10), game("the price the AI pays, in percent of the real one (with the game's Cheat toggle)", "100%", 0)]
+        share cost_percent = 1;
         ///
         /// Early-game economy plan (before farms, which arrive in the Copper Age):
         /// the AI builds up its economy, counts the food it can find, saves for the next epochs,
@@ -31,8 +31,8 @@ class ai_base
         /// 2 = experimental (docs/economy.md): only the next epoch is saved for, and above min_workforce the citizens keep
         /// training - epoch_share of the income goes into an epoch account instead; food_floor food workers before farms
         int copper_plan = 1;
-        [share(0, 100), commented]
-        int epoch_share = 40;
+        [range(0, 1), commented]
+        share epoch_share = 0.4;
         [commented]
         int food_floor = 18;
         ///
@@ -40,13 +40,13 @@ class ai_base
         /// everything it gathers; the rest goes into economy and epochs. 1 = on, 0 = original behaviour
         int budget = 1;
         /// share of the starting stock / of all income that may go into the army (0% - 100%)
-        [share(0, 100)]
-        int military_start_share = 30;
-        [share(0, 100)]
-        int military_income_share = 40;
+        [range(0, 1)]
+        share military_start_share = 0.3;
+        [range(0, 1)]
+        share military_income_share = 0.4;
         /// from the Copper Age on (farms: food no longer runs out) a player puts most of his income into the army
-        [share(0, 100)]
-        int military_income_share_farms = 65;
+        [range(0, 1)]
+        share military_income_share_farms = 0.65;
         ///
         /// Epoch pacing - when the AI advances to the next epoch:
         ///   classic     = the original game: its epoch timer (epoch_min..epoch_max below), and at most one epoch ahead of
@@ -85,20 +85,20 @@ class ai_base
         [game("minutes between the AI's attack waves, at most", "17", 0)]
         int attack_interval_max = 25;
         /// size of an attack group (original: easy 80%, medium 110%, hard computed)
-        [pct(1000), game("the size of the AI's attack groups", "easy 80%, medium 110%, hard computed", 0)]
-        int attack_group_percent = 150;
+        [range(0, 10), game("the size of the AI's attack groups", "easy 80%, medium 110%, hard computed", 0)]
+        share attack_group_percent = 1.5;
         /// chance of an extra, immediate attack - the source of many small, wasted waves:
         ///   on contact with an enemy (original 71%), to take an enemy's resources (original 20%),
         ///   out of revenge when attacked (original 10%). 0% = never.
-        [pct(100), game("the chance of an extra attack on contact with an enemy", "71%", -1)]
-        int attack_on_contact = 0;
-        [pct(100), game("the chance of an extra attack to take an enemy's resources", "20%", -1)]
-        int attack_for_resources = 0;
-        [pct(100), game("the chance of an extra attack out of revenge", "10%", -1), commented("10%")]
-        int attack_revenge = -1;
+        [range(0, 1), game("the chance of an extra attack on contact with an enemy", "71%", -1)]
+        share attack_on_contact = 0;
+        [range(0, 1), game("the chance of an extra attack to take an enemy's resources", "20%", -1)]
+        share attack_for_resources = 0;
+        [range(-0.01, 1), game("the chance of an extra attack out of revenge", "10%", -1), commented("10%")]
+        share attack_revenge = -0.01;
         /// share of the population cap for citizens (the rest is military), e.g. 60%; 0 = the game's own (default)
-        [share(0, 100), game("the AI's share of the population cap for citizens", "45%", 0), commented("0")]
-        int citizen_share = 0;
+        [range(0, 1), game("the AI's share of the population cap for citizens", "45%", 0), commented("0")]
+        share citizen_share = 0;
     }
 
     class AttackRouting
@@ -151,8 +151,8 @@ class ai_base
         bool militia_estimate = false;
         /// ... with militia_estimate: caught by faster soldiers, the citizens fight back only when they would still destroy this
         /// share of the attackers (100% = all of them; 33% had 3 citizens attack a tank 42 times)
-        [share(0, 100), commented]
-        int militia_caught_share = 100;
+        [range(0, 1), commented]
+        share militia_caught_share = 1;
     }
 
     class TheEarlyGame
@@ -169,8 +169,8 @@ class ai_base
         /// no army in the first age, then food-free ranged soldiers (Slinger, Simple Bowman, Javelin, Composite Bow,
         /// Long Bow ...) while the economy grows; the army's account is its own money before farms. 0 = off (default)
         bool early_army = false;
-        [share(0, 100), commented]
-        int early_army_food_share = 10;
+        [range(0, 1), commented]
+        share early_army_food_share = 0.1;
         [commented]
         int early_army_workers = 60;
         /// the alternative to the towers: this many soldiers at home in the first age (with early_army). 0 = none
@@ -276,8 +276,8 @@ class ai_base
         /// share scales with how many enemies live across the water (none: no navy account). 1 = on
         bool navy = true;
         /// The navy's share of the income on island maps (all enemies across the water)
-        [pct(100)]
-        int navy_share = 25;
+        [range(0, 1)]
+        share navy_share = 0.25;
         /// Fleet (water maps): the AI leads its warships itself instead of the game's sea groups - it guards its fishing
         /// grounds and home waters, fights enemy ships that come near when it is not weaker, hunts the enemy fleet, its
         /// fishing boats and transports and shells its coast when clearly stronger (retreating at half strength), clears the
@@ -290,11 +290,11 @@ class ai_base
         /// (fishing boats, coastal citizens and docks), a patrol on the sea lanes and a landing escort
         int navy_fleet = 2;
         /// (navy_fleet=2) the fleet's size as a share of the population limit (15%: 26 warships at a limit of 176)
-        [pct(100)]
-        int navy_fleet_pop = 15;
+        [range(0, 1)]
+        share navy_fleet_pop = 0.15;
         /// (navy_fleet=2) the navy's share of the income while the fleet is below that size
-        [pct(100)]
-        int navy_share_max = 50;
+        [range(0, 1)]
+        share navy_share_max = 0.5;
         /// (navy_fleet=2) mass before striking: while weaker than the enemy fleet known or below a quarter of its size the
         /// ships wait at a rally inside the reach of its towers (a tower is built by the dock if none covers the sea), fight
         /// there with the towers and strike as one force at 1.25 times the enemy's strength. 0 = stage 4 (shelter only)
@@ -360,8 +360,8 @@ class ai_base
         /// AI with the cheat won 31 of 120 games instead of 45); 0 = the game's citizen share.
         int citizen_plan = 3;
         /// the population cap's share kept for the army when the citizens' goal is larger (the home mines always fit)
-        [share(0, 90), commented]
-        int citizen_army_share = 40;
+        [range(0, 0.9), commented]
+        share citizen_army_share = 0.4;
         /// Workforce into army (docs/economy.md "Workforce into army"), bits, from the Copper Age: 1 = the citizens wanted at
         /// most what the economy uses (mine slots, food, the wood actually spent, builders, a margin of cap / 40); 2 = wood's
         /// target at most the wood spent while wood piles, the rest to the mines' slots and the fields; 4 = army_plan's
@@ -427,8 +427,8 @@ class ai_base
         int army_mass_group = 5;
         [commented]
         int army_mass_hold = 120;
-        [pct(1000), commented]
-        int army_mass_ratio = 130;
+        [range(0, 10), commented]
+        share army_mass_ratio = 1.3;
         [commented]
         int army_mass_wait = 10;
         [commented]
@@ -437,8 +437,8 @@ class ai_base
         /// one gathering point outside every danger on the way from there to the base; the army waits there and goes in
         /// together once its fighters there beat the enemy at the destination by army_stage_go. 0 = off
         bool army_stage = true;
-        [pct(1000), commented]
-        int army_stage_go = 130;
+        [range(0, 10), commented]
+        share army_stage_go = 1.3;
         /// The attack commits (with army_stage): no squad goes past the staging point alone - the whole wave gathers there and
         /// goes in together, fighting on the way (an attack-move), and for 2.5 minutes none of its units falls back. 1 = on
         bool attack_commit = true;
@@ -460,18 +460,18 @@ class ai_base
         /// attack most of whose units (fall_back_end) gave up, not winning where it stands, is called off - the next comes
         /// within 5 minutes. Measured 15 against 7 (16 cells, head-to-head): no clear gain, and the call-off can crash the game.
         int fall_back = 7;
-        [pct(1000), commented]
-        int fall_back_ratio = 50;
-        [pct(100), commented]
-        int fall_back_hp = 40;
+        [range(0, 10), commented]
+        share fall_back_ratio = 0.5;
+        [range(0, 1), commented]
+        share fall_back_hp = 0.4;
         [commented]
         int fall_back_value = 100;
         [commented]
         int fall_back_dist = 60;
         [commented]
         int fall_back_breaks = 2;
-        [pct(100), commented]
-        int fall_back_end = 50;
+        [range(0, 1), commented]
+        share fall_back_end = 0.5;
     }
 
     class OtherIslands
@@ -619,8 +619,8 @@ class ai_base
         /// Home guard: the AI keeps 6 + this many soldiers per age at home (it only trained for its next attack). 0 = off
         int home_guard = 4;
         /// ... and at least this share of its room for soldiers (population cap x (1 - citizen share)) - grows with the cap
-        [share(0, 100)]
-        int home_guard_share = 35;
+        [range(0, 1)]
+        share home_guard_share = 0.35;
         /// Muster: when an enemy army in the base is hopeless to fight (at least 8 soldiers, twice the strength of the AI's
         /// soldiers and towers there), the AI no longer feeds its soldiers in one by one: they gather 18 tiles beyond the
         /// base and strike together once 1.3 x as strong; citizens next to the enemy flee there too (around the enemy, not
@@ -723,8 +723,8 @@ class ai_base
         /// (else they sat on 1000 iron while the Stone Age waited for food); -1 = follow the army's demand
         int mineral_worker_margin = 300;
         /// share of the wild food it has found (berries) the AI counts on gathering
-        [share(0, 100)]
-        int wild_food_share = 60;
+        [range(0, 1)]
+        share wild_food_share = 0.6;
         /// food above the epoch reserve + this amount may always go into the army (no endless hoarding)
         int hoard_cap = 3000;
         /// the same for stone, gold and iron (hardly any civilian use besides the epoch cost, which is reserved anyway) -

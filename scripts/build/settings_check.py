@@ -49,7 +49,6 @@ def ini():
 def same(kind, value, default):
     """the file's value is the row's default (a share either way: 35% or 0.35)"""
     want = default.strip('"')
-    if kind == 'PCT': return value == want + '%'
     if kind == 'SHARE':
         try: x = float(value[:-1]) / 100 if value.endswith('%') else float(value)
         except ValueError: return False

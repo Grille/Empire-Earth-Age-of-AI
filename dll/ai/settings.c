@@ -121,7 +121,7 @@ internal void settings_load(void) {
         c->mil_start_share = v->military_start_share;
         c->mil_income_share = v->military_income_share;
         c->mil_income_share_farms = v->military_income_share_farms;
-        c->cost_percent = v->cost_percent;
+        c->cost_percent = setting_pct(v->cost_percent);
         c->pacing = v->epoch_pacing;   // the names in PACE_ order (rows.h)
         c->epoch_min = v->epoch_min;
         c->epoch_max = v->epoch_max;
@@ -132,10 +132,10 @@ internal void settings_load(void) {
         c->attack_min = v->attack_interval_min;
         c->attack_max = v->attack_interval_max;
         if (c->attack_max < c->attack_min) c->attack_max = c->attack_min;
-        c->attack_group_percent = v->attack_group_percent;
-        c->attack_on_contact = v->attack_on_contact;
-        c->attack_for_resources = v->attack_for_resources;
-        c->attack_revenge = v->attack_revenge;
+        c->attack_group_percent = setting_pct(v->attack_group_percent);
+        c->attack_on_contact = setting_pct(v->attack_on_contact);
+        c->attack_for_resources = setting_pct(v->attack_for_resources);
+        c->attack_revenge = setting_pct(v->attack_revenge);
         c->citizen_share = v->citizen_share;
         c->home_guard_share = v->home_guard_share;
         c->pop_follow = v->pop_follow_human;

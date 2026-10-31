@@ -818,11 +818,11 @@ internal void navy_install(const char *autotest_ini) {
     int ok = g_fish_boat ? patch_fish_type(hook_fish_type, NULL) : 0;
     if (g_log) fprintf(g_log, "# fishing: boat choice %s (hooks %d/2)\n", g_fish_boat ? "newest available" : "the game's", ok);
     g_navy = g_set_ai[1].navy;
-    g_navy_share = g_set_ai[1].navy_share;
+    g_navy_share = setting_pct(g_set_ai[1].navy_share);
     if (g_navy_share < 0) g_navy_share = 0;
     if (g_navy_share > 80) g_navy_share = 80;
-    g_navy_fleet_pop = g_set_ai[1].navy_fleet_pop;
-    g_navy_share_max = g_set_ai[1].navy_share_max;
+    g_navy_fleet_pop = setting_pct(g_set_ai[1].navy_fleet_pop);
+    g_navy_share_max = setting_pct(g_set_ai[1].navy_share_max);
     if (g_navy_share_max > 80) g_navy_share_max = 80;
     if (autotest_ini) g_v_navy = ini_int("autotest", "v_navy", -1, autotest_ini);
     g_navy_mines = g_set_ai[1].navy_mines;

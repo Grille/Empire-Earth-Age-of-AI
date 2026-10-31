@@ -23,11 +23,19 @@ struct @record { }   // (@: C#'s own word)
 struct filter { }
 struct any { }
 
+// a share: a fraction, in a file written in percent (ageofai.ini's home_guard_share=35%, a script's 70%: both 0.35 /
+// 0.7) - above 100% too where the key says so (cost_percent=150%). Declared as the fraction (share navy_share = 0.25),
+// its bounds a [range] in fractions too; how the code keeps it is the code's
+struct share
+{
+    public static implicit operator share(double value) => default;
+}
+
 // a name to show for a section, a group or a key (ageofai_config.exe; a section's or group's title else comes from its
 // name - settings/settings.cs)
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Field)]
 public sealed class title : Attribute { public title(string text) { } }
 
-// a sanity bound lo .. hi of a whole number (a setting's: outside it a warning, the value used)
+// a sanity bound lo .. hi of a whole number or a share (a setting's: outside it a warning, the value used)
 [AttributeUsage(AttributeTargets.Field)]
-public sealed class range : Attribute { public range(int lo, int hi) { } }
+public sealed class range : Attribute { public range(int lo, int hi) { } public range(double lo, double hi) { } }

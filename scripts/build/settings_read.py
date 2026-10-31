@@ -49,11 +49,21 @@ def title_of(ident):   # a name as a title: a section's or key's snake_case, a g
     return t[:1].upper() + t[1:]
 
 
+def percent(x, where):   # a share's fraction as the whole percents rows.h keeps: 0.35 -> 35
+    from decimal import Decimal
+    d = Decimal(str(x)) * 100
+    if d != d.to_integral_value():
+        raise SystemExit('%s: %s is no whole percent' % (where, x))
+    return str(int(d))
+
+
 def arg_text(a):   # an attribute's argument as written: a string's text, a number, a name (nameof(x) -> x)
     if isinstance(a, str):   # its escapes undone: "_aimod\\config" -> _aimod\config
         return re.sub(r'\\(.)', r'\1', a)
     if a[0] == 'num':
         return str(a[1])
+    if re.match(r'^-?\d+\.\d+$', a[1]):   # a decimal (a share's range: 0.25)
+        return a[1]
     return a[1].split('.')[-1]   # nameof(x): x; limits.MAX_PATH: MAX_PATH
 
 
@@ -68,10 +78,9 @@ def kind_of(sec, k):   # rows.h's kind of a key
         return 'FLAGS'
     if k.type == 'string':
         return 'STR_P' if k.has('per_player') else 'STR'
+    if k.type == 'share':
+        return 'SHARE'
     if k.type == 'int':
-        for a in ('pct', 'share'):
-            if k.has(a):
-                return a.upper()
         return 'INT' if k.has('range') else 'NUM'
     raise SystemExit('%s: %s %s: no kind (settings.cs)' % (k.where, k.type, k.name))
 

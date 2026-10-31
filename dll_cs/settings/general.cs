@@ -154,20 +154,20 @@ class general
         /// keep it, in percent of its own top speed - all of it within its own size of its place, falling off to its own top
         /// speed at four times that, and for 5 seconds after it was last in its place (a re-form or a new order on the march:
         /// no more than the boost it had then; none from rest). 100% = never faster than its own top speed
-        [share(100, 300), under(nameof(improved_unit_movement))]
-        int formation_catchup = 125;
+        [range(1, 3), under(nameof(improved_unit_movement))]
+        share formation_catchup = 1.25;
         /// Formation wait (with formation follow): the formation goes at most this share of each unit's speed now - a unit
         /// fallen behind has only its top speed, so the formation slows to this share of it and the unit catches up at the
         /// rest; all near their places (with formation catchup) let it go at its slowest unit's top speed. Lower = the
         /// formation waits more for units behind (tighter, slower), 100% = it doesn't slow below a straggler's speed (the
         /// straggler never gains on it)
-        [share(25, 100)]
-        int formation_wait = 100;
+        [range(0.25, 1)]
+        share formation_wait = 1;
         /// Friendly collision (with land collide / ship collide): two units of one player or of allies push each other off
         /// at this share of their size, so they slip past each other instead of getting stuck (a formation's places stay as
         /// far apart); a standing ally steps aside for a moving unit like one's own. 100% = as any two units
-        [share(25, 100), under(nameof(improved_unit_movement))]
-        int friendly_collision = 75;
+        [range(0.25, 1), under(nameof(improved_unit_movement))]
+        share friendly_collision = 0.75;
     }
 
     class AIChatAndPersonalities

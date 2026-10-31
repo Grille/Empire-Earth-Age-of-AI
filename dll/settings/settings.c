@@ -10,7 +10,6 @@
 #define SET_FIELD_FLAG(name, a) int name;
 #define SET_FIELD_INT(name, a) int name;
 #define SET_FIELD_NUM(name, a) int name;
-#define SET_FIELD_PCT(name, a) int name;
 #define SET_FIELD_SHARE(name, a) float name;
 #define SET_FIELD_CHOICE(name, a) int name;
 #define SET_FIELD_STR(name, a) char name[a];
@@ -33,7 +32,7 @@ internal const char *const k_set_diff_sec[3] = { "ai_easy", NULL, "ai_hard" };  
 #define SET_ID_D(kind, key, def, a, b) SETTING_##key,
 enum { SETTINGS(SET_ID_X, SET_ID_D) SETTING_N };
 
-enum { SETK_FLAG, SETK_INT, SETK_NUM, SETK_PCT, SETK_SHARE, SETK_CHOICE, SETK_STR, SETK_STR_P, SETK_CHILD, SETK_FLAGS };
+enum { SETK_FLAG, SETK_INT, SETK_NUM, SETK_SHARE, SETK_CHOICE, SETK_STR, SETK_STR_P, SETK_CHILD, SETK_FLAGS };
 // name: the field's, and the key that overrides it in the test ini; choices: a CHOICE's names, '|' between them - a
 // FLAGS row's fields, each name or name=a/b/c and a '|' after it; ai: a row of [ai_base] (its field in struct
 // settings_ai, a value per difficulty); a: a CHILD's master (its row's id), a FLAGS row's count of fields
@@ -41,7 +40,6 @@ struct setting_row { const char *sec, *key, *name; int kind, ai; size_t off; int
 #define SET_ROW_FLAG(sec, key, name, st, ai, def, a, b) { #sec, #key, #name, SETK_FLAG, ai, offsetof(st, name), def, NULL, NULL, a, b },
 #define SET_ROW_INT(sec, key, name, st, ai, def, a, b) { #sec, #key, #name, SETK_INT, ai, offsetof(st, name), def, NULL, NULL, a, b },
 #define SET_ROW_NUM(sec, key, name, st, ai, def, a, b) { #sec, #key, #name, SETK_NUM, ai, offsetof(st, name), def, NULL, NULL, a, b },
-#define SET_ROW_PCT(sec, key, name, st, ai, def, a, b) { #sec, #key, #name, SETK_PCT, ai, offsetof(st, name), def, NULL, NULL, a, b },
 #define SET_ROW_SHARE(sec, key, name, st, ai, def, a, b) { #sec, #key, #name, SETK_SHARE, ai, offsetof(st, name), def, NULL, NULL, a, b },
 #define SET_ROW_CHOICE(sec, key, name, st, ai, def, a, b) { #sec, #key, #name, SETK_CHOICE, ai, offsetof(st, name), 0, def, a, 0, b },
 #define SET_ROW_STR(sec, key, name, st, ai, def, a, b) { #sec, #key, #name, SETK_STR, ai, offsetof(st, name), 0, def, NULL, a, b },
@@ -89,6 +87,12 @@ internal const struct setting_section k_setting_sections[] = { SETTING_SECTIONS(
 // where each row's value came from: 0 its default, 1 ageofai.ini, 2 the test ini ([autotest]); a row of [ai_base]: the
 // furthest of its difficulties
 internal uint8_t g_set_from[SETTING_N];
+// a share setting (a float: 35% is 0.35) as the whole percents a part keeps (35), rounded, -1% too
+internal int setting_pct(float share) {
+    float x = share * 100.0f;
+    return (int)(x < 0 ? x - 0.5f : x + 0.5f);
+}
+
 internal const char *settings_section(int id) {   // the section a row's value was read from (not for a row of [ai_base])
     return g_set_from[id] == 2 ? "autotest" : k_settings[id].sec;
 }
@@ -256,10 +260,6 @@ internal int setting_value(const struct setting_row *r, const char *f, const cha
         *(float *)at = (float)ini_share_of(f, s, k, v, r->def / 100.0, r->a / 100.0, r->b / 100.0);
         return 1;
     }
-    if (r->kind == SETK_PCT) {
-        *(int *)at = ini_pct_of(f, s, k, v, r->def, r->a);
-        return 1;
-    }
     double x;
     int n;
     if (!ini_eval(f, s, k, v, &x) || !ini_whole(f, s, k, v, x, &n)) return 0;
@@ -364,7 +364,6 @@ internal void settings_read(const char *ini, const char *test_ini) {
 // row r's value at at as text (out, cap)
 internal void setting_text(const struct setting_row *r, const uint8_t *at, char *out, int cap) {
     switch (r->kind) {
-    case SETK_PCT: snprintf(out, cap, "%d%%", *(const int *)at); break;
     case SETK_SHARE: snprintf(out, cap, "%.4g%%", *(const float *)at * 100.0); break;
     case SETK_CHOICE: setting_choice_name(r->choices, *(const int *)at, out, cap); break;
     case SETK_FLAGS: {   // the fields not at their first: name (a bool), name=b (an enum), ", " between them

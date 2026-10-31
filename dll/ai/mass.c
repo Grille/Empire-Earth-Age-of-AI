@@ -427,7 +427,7 @@ internal void mass_install(const char *autotest_ini) {
     g_army_mass = g_set_ai[1].army_mass;
     g_mass_group = g_set_ai[1].army_mass_group;
     g_mass_hold = g_set_ai[1].army_mass_hold;
-    g_mass_ratio = g_set_ai[1].army_mass_ratio;
+    g_mass_ratio = setting_pct(g_set_ai[1].army_mass_ratio);
     g_mass_wait = g_set_ai[1].army_mass_wait;
     g_mass_tether = g_set_ai[1].army_mass_tether;
     if (autotest_ini) g_v_army_mass = ini_int("autotest", "v_army_mass", -1, autotest_ini);

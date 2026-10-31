@@ -355,7 +355,7 @@ internal void wave_focus_new_game(void) { memset(g_wv, 0, sizeof g_wv); memset(g
 
 internal void stage_install(const char *autotest_ini) {
     g_army_stage = g_set_ai[1].army_stage;
-    g_stage_go = g_set_ai[1].army_stage_go;
+    g_stage_go = setting_pct(g_set_ai[1].army_stage_go);
     g_wave_focus = g_set_ai[1].wave_focus;
     g_attack_commit = g_set_ai[1].attack_commit;
     if (autotest_ini) g_v_army_stage = ini_int("autotest", "v_army_stage", -1, autotest_ini);

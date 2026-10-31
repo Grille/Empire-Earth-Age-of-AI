@@ -74,8 +74,8 @@ class llm
     /// (80% = 0.8, up to 200%)
     [range(0, 1000000)]
     int llm_max_tokens = 300;
-    [pct(200)]
-    int llm_temperature = 80;
+    [range(0, 2)]
+    share llm_temperature = 0.8;
     /// Reasoning models think before they answer: 0 = asked not to ("reasoning_effort":"none" - answers in seconds; a server
     /// that doesn't know the field gets requests without it), 1 = let them think (much slower; needs more llm_max_tokens)
     bool llm_think = false;
