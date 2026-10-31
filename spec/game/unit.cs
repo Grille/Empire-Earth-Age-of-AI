@@ -605,9 +605,13 @@ unsafe struct EEComplexUnit
     [call_site("set_tile", (ee)0x0059763E, (aoc)0x005A7814)]
     [call_site("set_tile", (ee)0x00597727, (aoc)0x005A78FE)]
     [call_site("set_tile", (ee)0x005ED341, (aoc)0x005FB285)]
-    [call_site("set_tile", (ee)0x005F02B2, (aoc)none)]
+    /// the placing by x, y (0x5F0252); AoC's (0x5FE611) is the other two placings' too - by a vector (0x5F033A) and by a
+    /// matrix (0x5F043B) call it there (0x5FE76E, 0x5FE7A8), so their own calls are EE's only
+    [call_site("set_tile", (ee)0x005F02B2, (aoc)0x005FE671)]
     [call_site("set_tile", (ee)0x005F03AB, (aoc)none)]
     [call_site("set_tile", (ee)0x005F04AD, (aoc)none)]
+    /// AoC's only: a unit made beside another and put on its tile (0x6340A7, after a check of the place 0x4C7486)
+    [call_site("set_tile", (ee)none, (aoc)0x0063448D)]
     [call_site("set_tile", (ee)0x00616B81, (aoc)0x006296AA)]
     [call_site("set_tile", (ee)0x0061F0BA, (aoc)0x00632D94)]
     [call_site("set_tile", (ee)0x0063861E, (aoc)0x0064E5EA)]

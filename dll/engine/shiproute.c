@@ -13,7 +13,7 @@
 // the tiles' corners. The movement turns at the corners in its own arcs. A target it can't reach (land, another sea) or a search too big
 // goes to the game's request as before. A group sent far gets no sector route for a cluster of ships (the game's
 // chain of auto-waypoint goals through the sector centres, EEActiveGroup::vf16): each ship asks for its own route.
-// Only the 2017 update (AoC's request takes another argument). `land_routes` (default 0 until measured): the same for
+// AoC too (its request takes an 8th argument, handed on: hook_path_request_aoc). `land_routes` (default 0 until measured): the same for
 // land units (and hovercraft: model_kind's MODEL_LAND) - the game's tile test as it is (buildings, walls, gates, the
 // terrain byte), without the ships' water test and their dearer tiles near the shore; each search timed (fmove sum
 // prints them: land units ask for routes far more often than ships). `land_widen` (with land_routes, default 0 until
@@ -581,13 +581,14 @@ internal int sr_route(ee_unit *u, int *from, int *to, void *caller, int sectors)
 // the searches of the simulation step running (control.c's step hook reads and clears them: a slow step's line)
 internal struct { unsigned n, tiles, longest_tiles; double ms, longest_ms; int lx0, ly0, lx1, ly1, lfound; } g_sr_step;
 
-internal void __thiscall hook_path_request(void *mgr, ee_unit *u, int *from, int *to, int sync, int limit, int sectors, void *ctx) {
+// 1: the mod routed it, the game's request not to be called
+internal int sr_request(ee_unit *u, int *from, int *to, void *caller, int sectors) {
     if (sr_wants(u) && from && to) {
         int land = !sr_is_ship(u);
         LARGE_INTEGER t0, t1, f;
         QueryPerformanceCounter(&t0);
         unsigned tiles0 = g_sr_tiles;
-        int done = sr_route(u, from, to, __builtin_return_address(0), sectors);
+        int done = sr_route(u, from, to, caller, sectors);
         QueryPerformanceCounter(&t1);
         QueryPerformanceFrequency(&f);
         double ms = (double)(t1.QuadPart - t0.QuadPart) * 1000.0 / (double)f.QuadPart;
@@ -605,10 +606,16 @@ internal void __thiscall hook_path_request(void *mgr, ee_unit *u, int *from, int
             g_sr_step.lx0 = from[0]; g_sr_step.ly0 = from[1]; g_sr_step.lx1 = to[0]; g_sr_step.ly1 = to[1];
             g_sr_step.lfound = done;
         }
-        if (done) return;
+        if (done) return 1;
         g_sr_passed++;
     }
-    path_mgr_request(mgr, u, from, to, sync, limit, sectors, ctx);
+    return 0;
+}
+internal void __thiscall hook_path_request(void *mgr, ee_unit *u, int *from, int *to, int sync, int limit, int sectors, void *ctx) {
+    if (!sr_request(u, from, to, __builtin_return_address(0), sectors)) path_mgr_request(mgr, u, from, to, sync, limit, sectors, ctx);
+}
+internal void __thiscall hook_path_request_aoc(void *mgr, ee_unit *u, int *from, int *to, int sync, int limit, int sectors, void *ctx, int skip_try) {
+    if (!sr_request(u, from, to, __builtin_return_address(0), sectors)) path_mgr_request_aoc(mgr, u, from, to, sync, limit, sectors, ctx, skip_try);
 }
 
 internal void __thiscall hook_group_sector_route(ee_group *group, int *from, int *to, void *units) {
@@ -896,7 +903,7 @@ internal void shiproute_install(const char *autotest_ini) {
     g_sr_share = (g_sr_on || g_lr_on) && g_set.share_routes;
     g_sr_budget = (g_sr_on || g_lr_on) && g_set.route_budget;
     g_sr_weight = (float)g_set.route_weight / 100.0f;
-    int ok = g_sr_on || g_lr_on ? patch_path_request(hook_path_request) && patch_group_sector_route(hook_group_sector_route) : 0;
-    if (g_log) fprintf(g_log, "# shiproute: ship_routes=%d land_routes=%d (corners widened: %d, shared: %d, step budget: %d) (hook %s)%s\n", g_sr_on, g_lr_on, g_lr_widen, g_sr_share, g_sr_budget, !g_sr_on && !g_lr_on ? "-" : ok ? "ok" : build_is("aoc") ? "not in AoC" : "FAILED",
+    int ok = g_sr_on || g_lr_on ? patch_path_request(hook_path_request, hook_path_request_aoc) && patch_group_sector_route(hook_group_sector_route) : 0;
+    if (g_log) fprintf(g_log, "# shiproute: ship_routes=%d land_routes=%d (corners widened: %d, shared: %d, step budget: %d) (hook %s)%s\n", g_sr_on, g_lr_on, g_lr_widen, g_sr_share, g_sr_budget, !g_sr_on && !g_lr_on ? "-" : ok ? "ok" : "FAILED",
                        g_sr_log ? ", routes logged" : "");
 }

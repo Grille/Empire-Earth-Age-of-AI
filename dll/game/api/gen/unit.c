@@ -585,10 +585,13 @@ internal inline void unit_build_next(ee_unit *unit, ee_unit *building) { fn_unit
 // map's square), and with link set and x changed its place in the world's x-sorted unit list again (EEWorld.resort,
 // whose walk runs off the list's end for an x past the map - the player's crash at 594.7 min, Empire
 // Earth.exe+228D6F under a holder's unload 0x5F04AD); (-10000, -10000) takes it off the map (garrisoned, loaded)
+// the placing by x, y (0x5F0252); AoC's (0x5FE611) is the other two placings' too - by a vector (0x5F033A) and by a
+// matrix (0x5F043B) call it there (0x5FE76E, 0x5FE7A8), so their own calls are EE's only
+// AoC's only: a unit made beside another and put on its tile (0x6340A7, after a check of the place 0x4C7486)
 typedef void (__thiscall *unit_set_tile_fn)(ee_unit *, uint32_t, uint32_t, char);
 internal unit_set_tile_fn fn_unit_set_tile;
 internal inline void unit_set_tile(ee_unit *unit, uint32_t x, uint32_t y, char link) { fn_unit_set_tile(unit, x, y, link); }
-internal inline int patch_set_tile(unit_set_tile_fn h, int *of) { return patch_calls(calls_set_tile, 10, (uintptr_t)fn_unit_set_tile, (void *)h, of); }
+internal inline int patch_set_tile(unit_set_tile_fn h, int *of) { return patch_calls(calls_set_tile, 11, (uintptr_t)fn_unit_set_tile, (void *)h, of); }
 // freed: its slot 12 (+0x30), its references 0, then back to the game's pool (0x5F20FB / AoC 0x60096B)
 internal unit_release_fn fn_ee_complex_unit_release;
 internal inline void ee_complex_unit_release(ee_unit *unit) { fn_ee_complex_unit_release(unit); }
@@ -855,9 +858,10 @@ internal int spec_unit_select(int build) {
         calls_set_tile[4] = 0x005F02B2;
         calls_set_tile[5] = 0x005F03AB;
         calls_set_tile[6] = 0x005F04AD;
-        calls_set_tile[7] = 0x00616B81;
-        calls_set_tile[8] = 0x0061F0BA;
-        calls_set_tile[9] = 0x0063861E;
+        calls_set_tile[7] = 0;
+        calls_set_tile[8] = 0x00616B81;
+        calls_set_tile[9] = 0x0061F0BA;
+        calls_set_tile[10] = 0x0063861E;
         fn_ee_complex_unit_release = (unit_release_fn)0x005ED71E;
         vt_ee_ghost_unit = 0x00831588;
         size_ee_ghost_unit = 0x334;
@@ -889,7 +893,7 @@ internal int spec_unit_select(int build) {
         fn_unit_distance = (unit_distance_fn)0x0062D5A4;
         fn_unit_give = (unit_give_fn)0x00638670;
         fn_unit_attr_set = (unit_attr_set_fn)0x005B8823;
-        return 0;
+        return 1;
     case 1:   // aoc
         size_rts_unit = 0x2C;
         of_unit_refs = 0x4;
@@ -1033,12 +1037,13 @@ internal int spec_unit_select(int build) {
         calls_set_tile[1] = 0x005A7814;
         calls_set_tile[2] = 0x005A78FE;
         calls_set_tile[3] = 0x005FB285;
-        calls_set_tile[4] = 0;
+        calls_set_tile[4] = 0x005FE671;
         calls_set_tile[5] = 0;
         calls_set_tile[6] = 0;
-        calls_set_tile[7] = 0x006296AA;
-        calls_set_tile[8] = 0x00632D94;
-        calls_set_tile[9] = 0x0064E5EA;
+        calls_set_tile[7] = 0x0063448D;
+        calls_set_tile[8] = 0x006296AA;
+        calls_set_tile[9] = 0x00632D94;
+        calls_set_tile[10] = 0x0064E5EA;
         fn_ee_complex_unit_release = (unit_release_fn)0x005FB7FB;
         vt_ee_ghost_unit = 0x00846EF4;
         size_ee_ghost_unit = 0x334;
@@ -1070,12 +1075,12 @@ internal int spec_unit_select(int build) {
         fn_unit_distance = (unit_distance_fn)0x00642489;
         fn_unit_give = (unit_give_fn)0x0064E7DA;
         fn_unit_attr_set = (unit_attr_set_fn)0x005C8F28;
-        return 3;
+        return 2;
     }
     return 0;
 }
 // the names a build hasn't got, by build
-internal const char *const k_spec_unit_missing[ADDR_BUILDS] = { "", "EEComplexUnit.set_tile [call_site set_tile 4] EEComplexUnit.set_tile [call_site set_tile 5] EEComplexUnit.set_tile [call_site set_tile 6]" };
+internal const char *const k_spec_unit_missing[ADDR_BUILDS] = { "EEComplexUnit.set_tile [call_site set_tile 7]", "EEComplexUnit.set_tile [call_site set_tile 5] EEComplexUnit.set_tile [call_site set_tile 6]" };
 // the load-time check: what the spec says of the running build's exe (spec_check): the failures
 internal int spec_unit_check(void) {
     int bad = 0;
@@ -1117,6 +1122,7 @@ internal int spec_unit_check(void) {
     bad += spec_call(calls_set_tile[7], (uintptr_t)fn_unit_set_tile, "EEComplexUnit.set_tile [call_site set_tile 7]");
     bad += spec_call(calls_set_tile[8], (uintptr_t)fn_unit_set_tile, "EEComplexUnit.set_tile [call_site set_tile 8]");
     bad += spec_call(calls_set_tile[9], (uintptr_t)fn_unit_set_tile, "EEComplexUnit.set_tile [call_site set_tile 9]");
+    bad += spec_call(calls_set_tile[10], (uintptr_t)fn_unit_set_tile, "EEComplexUnit.set_tile [call_site set_tile 10]");
     bad += spec_code((uintptr_t)fn_ee_complex_unit_release, "EEComplexUnit.release");
     bad += spec_slot(vt_ee_complex_unit, slot_unit_release, (uintptr_t)fn_ee_complex_unit_release, "EEComplexUnit.release [slot]");
     bad += spec_vtable(vt_ee_ghost_unit, ".?AVEEGhostUnit@@", "EEGhostUnit [vtable]");

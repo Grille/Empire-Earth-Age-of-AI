@@ -1326,7 +1326,7 @@ internal uint32_t of_unit_size;
 internal uint32_t call_ripple_speed;
 internal uint32_t call_unload_retry_give;
 internal uint32_t call_repair_goal;
-internal uint32_t calls_set_tile[10];
+internal uint32_t calls_set_tile[11];
 internal uint32_t vt_ee_ghost_unit;
 internal uint32_t size_ee_ghost_unit;
 internal uint32_t of_ghost_unit_player;
