@@ -8,6 +8,7 @@
 [section(70, "AI"), all]
 class ai_base
 {
+    struct towns_fields { bool resource_towns, settlement, forward_production, forward_base, spread, scout, grow; }
     enum epoch_pacing_choice { classic, timer, rush, follow, independent }
 
     /// Numbers here may be written as small expressions: 35% is 0.35, 2 * 60, min(...) - shares always as shares
@@ -394,23 +395,27 @@ class ai_base
     /// Idle citizens stranded on land without a drop site of their AI (a transport put them off there) are fetched home by
     /// one of its transports - the game gives a citizen work only on its own land. 0 = off
     bool rescue_citizens = true;
-    /// Towns on the home continent, each with a purpose and only what it can hold: 1 = a resource town once the mines near
-    /// its drop sites are full (fewer than 4 free places) and its army at least the enemy's it knows - the richest explored
-    /// mine group no other drop site is within 18 tiles of, none of its own within 32, no enemy building it knows within 22,
-    /// 32-90 tiles from its base: a Town Center (a Settlement when it can't pay one) and towers_per_town towers on the
-    /// enemy's side; towns_citizens of its nearest citizens (never its miners) build it and then gather at its mines.
-    /// 8 = a forward base where its army is (its staging point, else its biggest group in the field, just out of the
-    /// enemy's reach), 32+ tiles out, in a stalemate too (its army 0.8 x the enemy's): 8 citizens walk there and put up two
-    /// towers, a Hospital, a production building, two more towers and a wall in front, the towers first; then they go back. Not before the Copper Age, not with enemies in its base, one at a time, at most towns_max. 2 = a Settlement, never a
-    /// Town Center. 4 = army_plan's next production building goes up in the town nearest the enemy when it is 15+ tiles
-    /// nearer than the base. 16 (with 1) = spread: a town at the explored resources nearest to its towns, however far,
-    /// without waiting for the home mines to fill - as many as it has the people for (15 workers a town; towns_max
-    /// doesn't apply), one going up per 50 workers, only with a surplus (6 spare citizens, twice a Town Center's price
-    /// in stock); within 45 tiles of a town where it can, never more than 20 tiles ahead of its front town; 2 towers
-    /// and 1 per 4 mines, 5 houses, a wall 60+ tiles out. 32 (with 16) = a scout to unseen land. 64 (with 16) = with wood
-    /// and stone to spare its towns grow (towers, Hospital, Temple, University, production) - measured worse, off. 0 = off. Default 17 (the player
-    /// 2026-10-31: the AI must expand; 1v1 huge Continental 120 min, 24 games: 5 towns founded, even with off).
-    [num, range(0, 127)] int towns = 17;
+    /// Towns on the home continent, a list of parts (apart by commas or '|'):
+    /// resource_towns = a resource town once the mines near its drop sites are full (fewer than 4 free places) and its
+    /// army at least the enemy's it knows - the richest explored mine group no other drop site is within 18 tiles of,
+    /// none of its own within 32, no enemy building it knows within 22, 32-90 tiles from its base: a Town Center (a
+    /// Settlement when it can't pay one) and towers_per_town towers on the enemy's side; towns_citizens of its nearest
+    /// citizens (never its miners) build it and then gather at its mines.
+    /// spread (with resource_towns) = a town at the explored resources nearest to its towns, however far, without
+    /// waiting for the home mines to fill - as many as it has the people for (15 workers a town; towns_max doesn't
+    /// apply), one going up per 50 workers, only with a surplus (6 spare citizens, twice a Town Center's price in
+    /// stock); within 45 tiles of a town where it can, never more than 20 tiles ahead of its front town; 2 towers and 1
+    /// per 4 mines, 5 houses, a wall 60+ tiles out. On (the player 2026-10-31: the AI must expand; 1v1 huge
+    /// Continental 120 min, 24 games: 5 towns founded, even with off).
+    /// scout (with spread) = a scout to unseen land - measured a cost, off. grow (with spread) = with wood and stone to
+    /// spare its towns grow (towers, Hospital, Temple, University, production) - measured worse, off.
+    /// settlement = the drop site a Settlement, never a Town Center. forward_production = army_plan's next production
+    /// building goes up in the town nearest the enemy when it is 15+ tiles nearer than the base. forward_base = a
+    /// forward base where its army is (its staging point, else its biggest group in the field, just out of the
+    /// enemy's reach), 32+ tiles out (its army 0.8 x the enemy's): 8 citizens put up two towers, a Hospital, a
+    /// production building, two more towers and a wall in front; then they go back - measured even, off.
+    /// Not before the Copper Age, not with enemies in its base. Empty = none
+    [on("resource_towns, spread")] towns_fields towns;
     [num, range(0, 6), commented] int towns_max = 3;
     [num, range(1, 12), commented] int towns_citizens = 6;
     [num, range(0, 7), commented] int towers_per_town = 2;

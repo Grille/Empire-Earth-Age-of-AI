@@ -90,9 +90,8 @@ def main():
             bad.append('[%s] %s: set in config/ageofai.ini - a child follows its master only commented out (;%s=...)'
                        % (sec, key, key))
     src = open(os.path.join(ROOT, 'dll', 'settings', 'rows.h'), encoding='utf-8').read()
-    for kind, sec, key, default, lo in table:   # a FLAGS row: its fields' macro, each field once, not [ai_base]
+    for kind, sec, key, default, lo in table:   # a FLAGS row: its fields' macro, each field once ([ai_base] too: towns)
         if kind != 'FLAGS': continue
-        if sec == 'ai_base': bad.append('[%s] %s: a FLAGS row of [ai_base] - not supported' % (sec, key))
         m = re.search(r'#define\s+' + re.escape(lo) + r'\(field_bool,\s*field_enum\)\s*(.*)', src)
         if not m:
             bad.append('[%s] %s: its fields %s are no #define %s(field_bool, field_enum) in rows.h' % (sec, key, lo, lo))

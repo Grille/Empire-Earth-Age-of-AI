@@ -25,7 +25,7 @@
 //   [per_player, length(n)] string k_P = "";     STR_P    a text per player slot (k_P0 .. k_P15)
 //   [child(nameof(master))] bool k = true;       CHILD    follows the master CHOICE when not set
 //   k_fields k;                                  FLAGS    a struct of the section: bool fields and enum fields; its
-//                                                         default all at their first
+//                                                         default all at their first ([on("a, b")]: those on)
 //
 // THE FILE, line for line: a key's /// lines are the file's lines above it - "/// text" the line "; text", an empty
 // "///" a blank line (headings like "; --- Attacks ---" are lines as any other); several keys under one comment: the
@@ -56,6 +56,7 @@ using System;
 [AttributeUsage(AttributeTargets.Field)] public sealed class group : Attribute { public group(string title) { } }
 [AttributeUsage(AttributeTargets.Field)] public sealed class game : Attribute { public game(string what, string original, int keep) { } }
 [AttributeUsage(AttributeTargets.Field)] public sealed class under : Attribute { public under(string master) { } }
+[AttributeUsage(AttributeTargets.Field)] public sealed class on : Attribute { public on(string fields) { } }
 
 static class limits {
     public const int MAX_PATH = 260;   // windows.h's: a path's buffer

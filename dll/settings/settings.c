@@ -154,17 +154,17 @@ internal int setting_field_value(const char *vals, int nv, const char *v, size_t
     }
     return -1;
 }
-// text v as a FLAGS row's fields into at (an int each, every one 0 first): its words apart by commas or spaces
-// (routes danger, routes, danger), name=value without spaces; NULL, else what is wrong
+// text v as a FLAGS row's fields into at (an int each, every one 0 first): its words apart by commas, '|' or spaces
+// (routes danger, routes, danger, routes | danger), name=value without spaces; NULL, else what is wrong
 internal const char *setting_flags(const struct setting_row *r, const char *v, int *at, char *why, int cap) {
     char name[32];
     const char *vals;
     int nv;
     for (int k = 0; k < r->a; k++) at[k] = 0;
     for (const char *p = v; *p; ) {
-        while (*p == ',' || *p == ' ' || *p == '\t') p++;
+        while (*p == ',' || *p == '|' || *p == ' ' || *p == '\t') p++;
         const char *e = p;
-        while (*e && *e != ',' && *e != ' ' && *e != '\t') e++;
+        while (*e && *e != ',' && *e != '|' && *e != ' ' && *e != '\t') e++;
         const char *end = e;
         if (end == p) continue;
         const char *eq = memchr(p, '=', (size_t)(end - p));

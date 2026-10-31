@@ -894,14 +894,30 @@ internal void towns_act(ee_player *pl, unsigned idx, uint32_t now) {
     }
 }
 internal void towns_new_game(void) { memset(g_tn, 0, sizeof g_tn); }
+// the towns key's fields (resource_towns, settlement, forward_production, forward_base, spread, scout, grow - its
+// struct's order) as the bits the code tests: 1, 2, 4, 8, 16, 32, 64
+internal int towns_bits(const int *f) {
+    int b = 0;
+    for (int k = 0; k < 7; k++) if (f[k]) b |= 1 << k;
+    return b;
+}
 internal void towns_install(const char *autotest_ini) {
-    g_towns = g_set_ai[1].towns;
+    g_towns = towns_bits((const int *)&g_set_ai[1].towns);
     g_tn_max = g_set_ai[1].towns_max;
     g_tn_cits = g_set_ai[1].towns_citizens;
     g_tn_towers = g_set_ai[1].towers_per_town;
     if (g_tn_max > TN_MAX) g_tn_max = TN_MAX;
     if (g_tn_cits > 12) g_tn_cits = 12;
     if (g_tn_towers > TN_PROJ - 1) g_tn_towers = TN_PROJ - 1;
-    if (autotest_ini) g_v_towns = ini_int("autotest", "v_towns", -1, autotest_ini);
+    if (autotest_ini) {   // v_towns=resource_towns|spread (the same names; a number: the bits)
+        char v[128];
+        GetPrivateProfileStringA("autotest", "v_towns", "", v, sizeof v, autotest_ini);
+        int f[8] = { 0 };
+        char why[96];
+        if (!v[0]) g_v_towns = -1;
+        else if (v[0] >= '0' && v[0] <= '9') g_v_towns = atoi(v);
+        else if (setting_flags(&k_settings[SETTING_towns], v, f, why, sizeof why)) { g_v_towns = -1; if (g_log) fprintf(g_log, "# towns: v_towns=%s: %s\n", v, why); }
+        else g_v_towns = towns_bits(f);
+    }
     if (g_log) fprintf(g_log, "# towns: towns %d (variant %d), at most %d, %d citizens, %d towers each\n", g_towns, g_v_towns, g_tn_max, g_tn_cits, g_tn_towers);
 }

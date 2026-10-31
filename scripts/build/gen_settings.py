@@ -36,8 +36,9 @@ def default_of(sec, k):   # the default as the code's row has it and as the file
     if kind == 'CHOICE':
         name = sec.enums[k.type][d.split('.')[-1].lstrip('@')]   # scroll_choice.game -> game, lock_mouse_choice.on -> 1
         return c_str(name), name
-    if kind == 'FLAGS':
-        return '""', ''
+    if kind == 'FLAGS':   # [on("a, b")]: those fields on
+        on = settings_read.arg_text(k.attrs['on'][0]) if k.has('on') else ''
+        return c_str(on), on
     if kind in ('STR', 'STR_P'):
         s = cs_str(d)
         return c_str(s), s
