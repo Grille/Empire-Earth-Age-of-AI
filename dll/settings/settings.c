@@ -262,8 +262,9 @@ internal int setting_value(const struct setting_row *r, const char *f, const cha
     }
     double x;
     int n;
-    if (!ini_eval(f, s, k, v, &x) || !ini_whole(f, s, k, v, x, &n)) return 0;
-    int flag = r->kind == SETK_FLAG || r->kind == SETK_CHILD, lo = flag ? 0 : r->a, hi = flag ? 1 : r->b;
+    int flag = r->kind == SETK_FLAG || r->kind == SETK_CHILD;
+    if (!ini_eval_as(f, s, k, v, &x, flag) || !ini_whole(f, s, k, v, x, &n)) return 0;
+    int lo = flag ? 0 : r->a, hi = flag ? 1 : r->b;
     if (r->kind != SETK_NUM && (n < lo || n > hi)) {
         if (flag) lstrcpyA(why, "0 or 1 expected");
         else snprintf(why, sizeof why, "%d to %d expected", lo, hi);

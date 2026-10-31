@@ -3335,8 +3335,9 @@ internal int x_eval(const char *src, struct xctx *c, struct xval *v) {   // its 
 }
 
 // an ini file's number (ini.c): a constant expression - numbers, %, + - * / ( ), min, max, abs, round, floor, log2;
-// 0: a mistake, *why (not logged here)
-internal int x_const_eval(const char *src, double *out, const char **why) {
+// true and false (1, 0) and comparisons too - *is_bool says it was one (the type check's XT_BOOL), for the reader to
+// take only where a bool belongs; 0: a mistake, *why (not logged here)
+internal int x_const_eval(const char *src, double *out, const char **why, int *is_bool) {
     struct xctx c;
     memset(&c, 0, sizeof c);
     c.found = 1; c.nogame = 1; c.fixed = 1;
@@ -3345,6 +3346,14 @@ internal int x_const_eval(const char *src, double *out, const char **why) {
     if (!x_eval(src, &c, &v)) { *why = g_x_last_fail[0] ? g_x_last_fail : "not a number or an expression"; return 0; }
     if (!v.w || !v.has_n || v.has_s || v.obj || v.kind) { *why = "a number expected"; return 0; }
     *out = v.n;
+    const struct xunit *u = x_compiled(src);
+    struct xcheck k;
+    struct xscope sc;
+    memset(&k, 0, sizeof k);
+    memset(&sc, 0, sizeof sc);
+    k.c = &c;
+    k.script = 1;   // the literals' and operators' types
+    *is_bool = u->ok && x_stype(&k, u->root, &sc) == XT_BOOL;
     return 1;
 }
 // the syntax of an expression, and the checks a file gets when read (x_check); nothing worked out (no game needed);

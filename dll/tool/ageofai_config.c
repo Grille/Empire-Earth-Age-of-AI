@@ -831,7 +831,8 @@ internal void show_editor(int k) {
     if (box) {
         double x;
         const char *why;
-        SendMessageA(ed->check, BM_SETCHECK, x_const_eval(v, &x, &why) && x != 0 ? BST_CHECKED : BST_UNCHECKED, 0);
+        int b;
+        SendMessageA(ed->check, BM_SETCHECK, x_const_eval(v, &x, &why, &b) && x != 0 ? BST_CHECKED : BST_UNCHECKED, 0);
     } else if (list) {
         SendMessageA(ed->combo, CB_RESETCONTENT, 0, 0);
         int base = inherits(e);
@@ -842,7 +843,7 @@ internal void show_editor(int k) {
         if (flag) {
             SendMessageA(ed->combo, CB_ADDSTRING, 0, (LPARAM)"off (0)");
             SendMessageA(ed->combo, CB_ADDSTRING, 0, (LPARAM)"on (1)");
-            if (sel < 0) { double x; const char *why; sel = base + (x_const_eval(v, &x, &why) && x != 0); }
+            if (sel < 0) { double x; const char *why; int b; sel = base + (x_const_eval(v, &x, &why, &b) && x != 0); }
         } else {
             char name[64];
             for (int i = 0; ; i++) {

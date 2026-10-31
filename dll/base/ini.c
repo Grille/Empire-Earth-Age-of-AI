@@ -7,7 +7,7 @@
 // (GetPrivateProfileInt took the digits in front: 25% as 25, 0.35 as 0); a value out of its range (a sanity bound) is
 // logged as a warning and used as it is. Missing or empty: the default. An
 // inline comment (; to the line's end) is cut off. Included by eeaimod.c before everything that reads a setting.
-internal int (*g_ini_eval)(const char *src, double *out, const char **why);   // the text language's x_const_eval (eeaimod.c install)
+internal int (*g_ini_eval)(const char *src, double *out, const char **why, int *is_bool);   // the text language's x_const_eval (eeaimod.c install)
 
 internal char g_ini_pending[8][200];   // mistakes found before the log is open (load_autotest): written when it opens
 internal int g_ini_npending;
@@ -57,11 +57,22 @@ internal int ini_raw(const char *sec, const char *key, const char *file, char *o
     return out[0] && out[0] != '\x01';
 }
 // v worked out; 0: a mistake (told)
-internal int ini_eval(const char *file, const char *sec, const char *key, const char *v, double *out) {
+// a number - a bool (true, false, 1 < 2) only where bool_ok, a 0 / 1 key's: anywhere else a mistake, not a 1 or 0
+internal int ini_eval_as(const char *file, const char *sec, const char *key, const char *v, double *out, int bool_ok) {
     const char *why = NULL;
-    if (g_ini_eval(v, out, &why)) return 1;
-    ini_error(file, sec, key, v, why ? why : "a number expected");
-    return 0;
+    int b = 0;
+    if (!g_ini_eval(v, out, &why, &b)) {
+        ini_error(file, sec, key, v, why ? why : "a number expected");
+        return 0;
+    }
+    if (b && !bool_ok) {
+        ini_error(file, sec, key, v, "a number expected (true and false only for a 0 / 1 key)");
+        return 0;
+    }
+    return 1;
+}
+internal int ini_eval(const char *file, const char *sec, const char *key, const char *v, double *out) {
+    return ini_eval_as(file, sec, key, v, out, 0);
 }
 internal int ini_whole(const char *file, const char *sec, const char *key, const char *v, double x, int *out) {
     if (x != (double)(long long)x || x < -2147483647.0 || x > 2147483647.0) {

@@ -9,7 +9,13 @@ using System;
 
 namespace ageofai;
 
-// the language's own types (lang/language.cs "TYPES": what each is) - int, float, bool and void are C#'s
+// the language's own types (lang/language.cs "TYPES": what each is). int, float, bool and void are written with C#'s
+// words because the language has the same names (a script's x: int) - but they are the language's, not C#'s:
+//   bool   true / false; in ageofai.ini also 1 / 0 (the file writes 1 / 0), and a bool only for a 0 / 1 key - true
+//          for a number is a mistake there (ini.c ini_eval_as), not a 1
+//   int    a whole number, read as an expression (epoch_min=2*25); a fraction is a mistake, never rounded
+//   float  a number with decimals - the game's double
+//   share  below: a float written in percent
 struct text { }
 struct epoch { }
 struct color { }

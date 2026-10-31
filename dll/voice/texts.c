@@ -423,8 +423,9 @@ internal void texts_corpus(char *out, const char *path) {
             for (char *e = v + strlen(v); e > v && (e[-1] == '\n' || e[-1] == '\r' || e[-1] == ' ' || e[-1] == '\t'); ) *--e = 0;
             double x = 0;
             const char *why = NULL;
+            int b;
             corpus_begin();
-            int ok = x_const_eval(v, &x, &why);
+            int ok = x_const_eval(v, &x, &why, &b);
             g_x_capture = NULL;
             fprintf(g_corpus, "ageofai.ini [%s] %s = %s | ok %d %.9g %s", sec, s, v, ok, ok ? x : 0, ok ? "" : why);
             corpus_end();
