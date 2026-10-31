@@ -589,7 +589,7 @@ internal int diff_set(const struct entry *e) {   // an AI row whose easy or hard
 
 // an entry's looks in the list (draw_cell), worked out with its line's text: a paint - each line's cells again on
 // every resize and scroll - only reads them
-internal struct { uint8_t bold, grey, game, level; } g_look[sizeof g_e / sizeof *g_e];
+internal struct { uint8_t bold, grey, game, own, level; } g_look[sizeof g_e / sizeof *g_e];
 
 internal void fill_item(int item, LPARAM p) {
     char v[TEXT_CAP] = "", def[TEXT_CAP] = "", why[MAX_PATH], key[64];
@@ -598,7 +598,8 @@ internal void fill_item(int item, LPARAM p) {
     const struct entry *e = &g_e[p];
     g_look[p].bold = is_changed(e) || diff_set(e);
     g_look[p].grey = !g_look[p].bold;   // whether the file has the key is the file's business: the value is the default
-    g_look[p].game = game_of(e->row) >= 0 && game_keeps(e, game_of(e->row)) && entry_level(e) != CHECK_MISTAKE;
+    g_look[p].game = game_of(e->row) >= 0;   // the key sets one of the game's values directly
+    g_look[p].own = g_look[p].game && game_keeps(e, game_of(e->row)) && entry_level(e) != CHECK_MISTAKE;
     g_look[p].level = (uint8_t)entry_level(e);
     int grey;
     key_of(e, key, sizeof key);
@@ -1102,11 +1103,11 @@ internal void show_mode(void) {
 #define TINT_MISTAKE RGB(255, 205, 205)
 #define TEXT_WARN RGB(150, 100, 0)
 #define TEXT_MISTAKE RGB(190, 0, 0)
-#define TEXT_GAME RGB(0, 70, 190)   // a value that is the game's own (a key that sets one of the game's values)
+#define TEXT_GAME RGB(0, 70, 190)   // a key that sets one of the game's own values; a value that is the game's own
 #define TEXT_GAME_GREY RGB(120, 150, 205)   // ... and the default
 
 // a custom-drawn cell: changed bold (an AI row: easy or hard set too; a section or group line bold), the value grey
-// while it is the default, blue while it is the game's own; the key never grey; the value tinted by its check
+// while it is the default, blue while it is the game's own; the key never grey, blue when it sets a game's value; the value tinted by its check
 internal LRESULT draw_cell(NMLVCUSTOMDRAW *cd) {
     LPARAM p = cd->nmcd.lItemlParam;
     int bold = 0, grey = 0, game = 0;
@@ -1114,8 +1115,8 @@ internal LRESULT draw_cell(NMLVCUSTOMDRAW *cd) {
     if (node_kind(p) != NODE_ENTRY) bold = 1;
     else if (cd->iSubItem < COLS - 1) {
         bold = g_look[p].bold;   // worked out by fill_item
-        grey = cd->iSubItem == 1 && g_look[p].grey;
-        game = cd->iSubItem == 1 && g_look[p].game;
+        grey = cd->iSubItem == 1 && g_look[p].grey;   // the key: blue as it is, never pale
+        game = cd->iSubItem == 0 ? g_look[p].game : cd->iSubItem == 1 && g_look[p].own;
         int level = cd->iSubItem == 1 ? g_look[p].level : CHECK_OK;
         if (level == CHECK_WARN) bk = TINT_WARN;
         else if (level == CHECK_MISTAKE) bk = TINT_MISTAKE;
@@ -1142,6 +1143,8 @@ internal const struct { int look; const char *sample, *text; } k_help[] = {
     { HL_HEAD, NULL, "The looks of a value" },
     { HL_BOLD, "changed", "Not the default: your file sets a value of its own, or easy or hard plays another." },
     { HL_GREY, "the default", "The value is the mod's default (whether your file has the key or not)." },
+    { HL_GAME, "attack_on_contact", "The key only sets one of the game's own values directly, no code of the mod "
+                                    "around it. The Default column and the name over the editor name the game's own (game: 71%)." },
     { HL_GAME, "the game's (71%)", "The value is the game's own: the key only sets one of the game's values, and this "
                                    "one leaves it as the unmodded game has it; pale while it is the default too." },
     { HL_WARN, "outside its range", "Outside its usual range: the game uses it anyway. Allowed, but likely not what "
