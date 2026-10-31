@@ -89,7 +89,7 @@ internal struct tn_st {
     uint32_t t, plan_t, log_t;
     struct tn_town town[TN_MAX]; int n;
     struct { ivec2 c; int losses; uint32_t again; } bad[16]; int nbad;
-    unsigned plans, founded, held, lost, laid, built, rebuilt, orders, assigned, sent, unpaid, prods, walls, guards, scouts;
+    unsigned plans, founded, held, lost, laid, built, rebuilt, orders, assigned, sent, unpaid, prods, walls, guards, scouts, scouts_back;
     ee_unit *scout; int scout_id; uint32_t scout_t;   // SPREAD's scout
     uint32_t fsave;   // saving for a forward base since (0: not)
     const char *why;
@@ -671,9 +671,28 @@ internal int towns_production(ee_player *pl, unsigned idx, int type) {
 // those there were 1.3 x the enemy - 1v1 huge Continental, 24 games: 3275 orders, B - A losses +175 (se 36), kills -167
 // (51): they walked in a few at a time and died one by one (muster's lesson at home). A town's defence needs the army
 // to gather first.
-// SPREAD's scout (towns bit 32, with 16): no site left and land of the home continent it has never seen - a free soldier walks to the unseen
-// cell nearest to its towns (a player sends a scout; the AI knew only what passed by: 15-30% of its continent's
-// resources unseen at minute 120). One at a time, a new one after 90 s.
+// SPREAD's scout (towns bit 32, with 16): no site left and land of the home continent it has never seen - its fastest
+// free soldier walks to the unseen cell nearest to its towns (a player sends a scout; the AI knew only what passed by:
+// 15-30% of its continent's resources unseen at minute 120). With care (the player: "just feeding soldiers into enemy
+// defences is how this all started"; the first scout - any soldier, any unseen cell - cost workers -12 and kills
+// -23 over no scout): only land no nearer to the enemy than its front town (tn_front) and outside every defence it
+// knows (threat_at); back home as soon as an enemy soldier is within TN_SCOUT_SIGHT or a known defence covers it
+// (tn_scout_watch). One at a time, a new one after 90 s.
+#define TN_SCOUT_SIGHT 12
+internal int tn_front(struct tn_world *w, ivec2 base, ivec2 p, int *df) {   // the front's distance to the enemy; *df p's
+    int front = -1;
+    for (int k = -1; k < w->no && w->nf; k++) {
+        ivec2 q = k < 0 ? base : w->own[k];
+        int d = 0x7FFFFFFF;
+        for (int f = 0; f < w->nf; f++) if (ivec2_dist2(q, w->foe[f]) < d) d = ivec2_dist2(q, w->foe[f]);
+        d = (int)sqrtf((float)d);
+        if (front < 0 || d < front) front = d;
+    }
+    int d = 0x7FFFFFFF;
+    for (int f = 0; f < w->nf; f++) if (ivec2_dist2(p, w->foe[f]) < d) d = ivec2_dist2(p, w->foe[f]);
+    *df = w->nf ? (int)sqrtf((float)d) : 0x7FFFFFFF;
+    return front;
+}
 internal void tn_scout(ee_player *pl, unsigned idx, struct tn_st *s, ivec2 base, unsigned hc, struct tn_world *w, uint32_t now) {
     if (s->scout && unit_get_hp(s->scout) > 0 && unit_get_id(s->scout) == s->scout_id && now - s->scout_t < 90000) return;
     ee_map *map = game_map();
@@ -682,23 +701,40 @@ internal void tn_scout(ee_player *pl, unsigned idx, struct tn_st *s, ivec2 base,
     for (int y = TN_CELL / 2; y < size; y += TN_CELL)
         for (int x = TN_CELL / 2; x < size; x += TN_CELL) {
             ivec2 p = iv2(x, y);
-            if (intel_looked_ago(pl, x, y) != 0xFFFFFFFFu || area_id(p, 2) != hc) continue;
+            if (intel_looked_ago(pl, x, y) != 0xFFFFFFFFu || area_id(p, 2) != hc || threat_at(idx, p) > 0) continue;
+            int df, front = tn_front(w, base, p, &df);
+            if (front >= 0 && df < front) continue;   // beyond its line
             int d = ivec2_dist2(p, base);
             for (int k = 0; k < w->no; k++) if (ivec2_dist2(p, w->own[k]) < d) d = ivec2_dist2(p, w->own[k]);
             if (d < best) { best = d; to = p; }
         }
-    if (best == 0x7FFFFFFF) return;   // all of it seen
+    if (best == 0x7FFFFFFF) return;   // all of it seen, or only beyond its line
     ee_unit *sc = NULL;
-    int bd = 0x7FFFFFFF;
-    for (struct grid_it it = grid_it_box(base.x, base.y, 40, 1); grid_it_next(&it); ) {
+    float fast = 0;
+    for (struct grid_it it = grid_it_box(base.x, base.y, 40, 1); grid_it_next(&it); ) {   // the fastest idle one at home
         ee_unit *u = it.u;
         if (unit_get_owner(u) != pl || unit_get_hp(u) <= 0 || !is_soldier(it.td) || unit_get_goal(u)) continue;
-        int d = ivec2_dist2(unit_get_tile(u), to);
-        if (d < bd) { bd = d; sc = u; }
+        float v = unit_max_speed(u);
+        if (v > fast) { fast = v; sc = u; }
     }
     if (!sc || !unit_goal(sc, goal_move((float)to.x + 0.5f, (float)to.y + 0.5f), 0, 0x1F40)) return;
     s->scout = sc; s->scout_id = unit_get_id(sc); s->scout_t = now ? now : 1; s->scouts++;
     tn_say(idx, now, "scout to %d,%d (unseen land, %d tiles from its nearest town)", to.x, to.y, (int)sqrtf((float)best));
+}
+// the scout on its way: an enemy soldier in sight or a known defence over it - home
+internal void tn_scout_watch(ee_player *pl, unsigned idx, struct tn_st *s, ivec2 base) {
+    ee_unit *sc = s->scout;
+    if (!sc || unit_get_hp(sc) <= 0 || unit_get_id(sc) != s->scout_id) { s->scout = NULL; return; }
+    ivec2 at = unit_get_tile(sc);
+    int seen = threat_at(idx, at) > 0;
+    for (struct grid_it it = grid_it_box(at.x, at.y, TN_SCOUT_SIGHT, 1); grid_it_next(&it) && !seen; ) {
+        ee_player *o = unit_get_owner(it.u);
+        seen = o && o != pl && unit_get_hp(it.u) > 0 && is_soldier(it.td) && is_enemy(pl, o);
+    }
+    if (!seen) return;
+    unit_goal(sc, goal_move((float)base.x + 0.5f, (float)base.y + 0.5f), 0, 0x1F40);
+    s->scout = NULL;   // its job ends; a new one after the pause
+    s->scouts_back++;
 }
 internal int idle_citizens(ee_player *pl);   // econ.c: unassigned ones plus those beyond their resource's target
 // SPREAD's pace: citizens to spare (a town's towns_citizens idle or beyond their resource's target) and twice a Town
@@ -784,13 +820,14 @@ internal void towns_act(ee_player *pl, unsigned idx, uint32_t now) {
     unsigned hc = (unsigned)area_id(base, 2);
     if (!hc) return;
     for (int k = 0; k < TN_MAX; k++) if (s->town[k].state) tn_run(pl, idx, s, &s->town[k], hc, now);
+    if (s->scout) tn_scout_watch(pl, idx, s, base);
     if (!s->plan_t || now - s->plan_t >= 30000) { s->plan_t = now ? now : 1; tn_plan(pl, idx, s, hc, base, now); }
     if (g_autotest && g_log && (!s->log_t || now / 300000 != s->log_t / 300000) && s->plans) {
         s->log_t = now ? now : 1;
         int n = 0, held = 0;
         for (int k = 0; k < TN_MAX; k++) { n += s->town[k].state != 0; held += s->town[k].state == 2; }
-        tn_say(idx, now, "status - %d towns (%d standing) | planned %u founded %u stood %u lost %u unpaid %u | laid %u built %u laid again %u orders %u assigned %u sent %u | production %u walls %u | guards sent %u scouts %u",
-               n, held, s->plans, s->founded, s->held, s->lost, s->unpaid, s->laid, s->built, s->rebuilt, s->orders, s->assigned, s->sent, s->prods, s->walls, s->guards, s->scouts);
+        tn_say(idx, now, "status - %d towns (%d standing) | planned %u founded %u stood %u lost %u unpaid %u | laid %u built %u laid again %u orders %u assigned %u sent %u | production %u walls %u | guards sent %u scouts %u (%u turned back)",
+               n, held, s->plans, s->founded, s->held, s->lost, s->unpaid, s->laid, s->built, s->rebuilt, s->orders, s->assigned, s->sent, s->prods, s->walls, s->guards, s->scouts, s->scouts_back);
     }
 }
 internal void towns_new_game(void) { memset(g_tn, 0, sizeof g_tn); }
