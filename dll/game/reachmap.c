@@ -6,9 +6,11 @@
 // the nodes joined by links are a region - one lookup answers "can it walk from here to there". A tile is walkable as
 // the route planner tests it for a citizen (sr_pass): its terrain (the citizen's terrain table, inside the map's
 // diamond - one-tile fords of shallow water walkable) and nothing standing on it that doesn't move and that the game's
-// own test (lets_pass) keeps a citizen out of - mines, buildings, walls; not farms, rubble, the dead, nor trees (a
-// citizen's type "Can walk through trees", as infantry's: counted walls, a tenth of the "no land route" answers were
-// wrong). Trees fall and buildings rise: rm_scan keeps it up to date (every tile within RM_SCAN_MS of game time) -
+// own test (lets_pass, asked for a citizen) keeps a citizen out of - trees, mines, buildings, walls; not farms, rubble,
+// the dead, and not some tree types the test lets through (the palms 354-356 on the player's late save: every object
+// counted a wall made a tenth of the "no land route" answers wrong). No citizen "Can walk through trees" (the data:
+// helicopters, balloons, partisans, barbarians, wolves) - tests/probes/tree_pass.eeai: citizens round a wall of maples,
+// by the game's routes and the mod's. Trees fall and buildings rise: rm_scan keeps it up to date (every tile within RM_SCAN_MS of game time) -
 // deterministic, the same on every PC. Not yet: ships.
 // GATES: a gate's tiles are pieces of their own, in none of the map's regions: which player walks through is the
 // game's test (gate_opens_for) - its owner and the players it is allied with (allies' units count as its own), unless
@@ -86,8 +88,8 @@ internal int rm_tile_ok(ee_map *map, int size, int x, int y) {
         if (!o || !otd || (st && unit_stats_get_speed(st) > 0)) continue;
         if (unit_type_get_class_id(otd) == CLS_GATE && unit_get_hp(o) > 0) { gate = 1; continue; }
         if (unit_type_get_resource_type(otd) == 3) { g_reach.tree_x = (short)x; g_reach.tree_y = (short)y; }
-        // the game's test as the route planner asks it, for a citizen: a farm, rubble, the dead pass - and trees, for
-        // a type that "Can walk through trees" (EEUnit::lets_pass 0x6167C7: the asker's type decides; citizens can)
+        // the game's test as the route planner asks it, for a citizen (EEUnit::lets_pass 0x6167C7): a farm, rubble, the
+        // dead pass, a tree only for a type that "Can walk through trees" (the asker's type decides: not a citizen)
         if (unit_lets_pass(o, g_reach.walker)) continue;
         return 0;
     }
