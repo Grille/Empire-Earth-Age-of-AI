@@ -240,17 +240,24 @@ internal void fronts_look(ee_player *pl, unsigned idx, uint32_t now) {
 // FA_NEAR tiles from every station walk to the station whose army is the furthest under its share of the weights; a
 // unit sent at most once in FA_AGAIN. The pushes stay the game's: its attacks take their soldiers from the stations.
 // Measured 2026-10-31 (head-to-head, Continental huge 1v1 late, 60 min, 24 mirrored games; ~260 soldiers sent a game):
-// B - A soldiers -13.0 (se 5.9), kills -1.7 (14.2), losses +11.5 (16.3), razed +0.5 (0.5) - fewer soldiers: off.
+// B - A soldiers -13.0 (se 5.9), kills -1.7 (14.2), losses +11.5 (16.3), razed +0.5 (0.5) - fewer soldiers: off. Its
+// extra dead (# cvd / # mass) were the trickle: +13 died away from the base, +10 alone, +14 outnumbered, +12 in lost
+// fights, +2 under towers. So now they go in groups of FA_GROUP or more, all to one station, and none while the
+// station lies where the AI's fight is lost (game/danger.c DANGER_LOST, within FA_SAFE tiles of it).
+// Measured again (the same test, ~230 soldiers sent a game): soldiers +0.3 (se 6.0), kills +6.1 (13.8), losses -12.5
+// (20.5), razed +0.6 (0.5); its dead -8 away, -8 outnumbered, -10 in lost fights - within the noise: off.
 #define FA_SECOND 0.5f
 #define FA_BEHIND 4
 #define FA_NEAR 10
 #define FA_AGAIN 60000
 #define FA_ARMIES 2
+#define FA_SAFE 6
+#define FA_GROUP 5               // soldiers that go together at least (one by one they were caught: the measurement below)
 internal int g_front_army = 0, g_v_front_army = -1;
 #define FRONT_ARMY(idx) PV(idx, g_v_front_army, g_front_army)
 internal struct fa_st {
     int n; ivec2 at[FA_ARMIES]; float share[FA_ARMIES]; int have[FA_ARMIES];
-    unsigned sent, idle, members;          // the log's: soldiers sent, idle ones seen, attack members left alone
+    unsigned sent, idle, members, unsafe;  // the log's: soldiers sent, idle ones seen, attack members left alone, passes the station was in a lost fight
     uint32_t log_t;
     struct { int serial; uint32_t t; } sent_at[512];
 } g_fa[16];
@@ -332,13 +339,28 @@ internal void front_army(ee_player *pl, unsigned idx, uint32_t now) {
         if (at >= 0) { a->have[at]++; continue; }
         if (nfree < (int)(sizeof free_u / sizeof *free_u)) free_u[nfree++] = u;
     }
+    int go = 0;   // the free ones not sent lately: they go together, or not at all
     for (int i = 0; i < nfree; i++) {
+        int serial = unit_get_serial(free_u[i]), slot = (int)((unsigned)serial % 512u);
+        if (a->sent_at[slot].serial == serial && now >= a->sent_at[slot].t && now - a->sent_at[slot].t < FA_AGAIN) continue;
+        free_u[go++] = free_u[i];
+    }
+    int k = 0;   // the station furthest under its share
+    float most = -1e9f;
+    for (int q = 0; q < a->n; q++) { float under = a->share[q] * (float)total - (float)a->have[q]; if (under > most) { most = under; k = q; } }
+    ee_map *map = game_map();
+    int size = map ? (int)map_get_size(map) : 0, safe = 1;
+    const uint8_t *lost = size ? danger_map(idx, DANGER_LOST, size) : NULL;
+    for (int dy = -FA_SAFE; dy <= FA_SAFE && lost && safe; dy++)
+        for (int dx = -FA_SAFE; dx <= FA_SAFE && safe; dx++) {
+            int x = a->at[k].x + dx, y = a->at[k].y + dy;
+            if (x >= 0 && y >= 0 && x < size && y < size && lost[y * size + x]) safe = 0;
+        }
+    if (!safe) a->unsafe++;
+    if (go < FA_GROUP || !safe) go = 0;
+    for (int i = 0; i < go; i++) {
         ee_unit *u = free_u[i];
         int serial = unit_get_serial(u), slot = (int)((unsigned)serial % 512u);
-        if (a->sent_at[slot].serial == serial && now >= a->sent_at[slot].t && now - a->sent_at[slot].t < FA_AGAIN) continue;
-        int k = 0;
-        float most = -1e9f;
-        for (int q = 0; q < a->n; q++) { float under = a->share[q] * (float)total - (float)a->have[q]; if (under > most) { most = under; k = q; } }
         float jx = (float)((serial * 7) % 5) - 2.0f, jy = (float)((serial * 13) % 5) - 2.0f;   // spread over a few tiles
         if (!unit_goal(u, goal_move((float)a->at[k].x + 0.5f + jx, (float)a->at[k].y + 0.5f + jy), 0, 0x1F40)) continue;
         a->sent_at[slot].serial = serial; a->sent_at[slot].t = now ? now : 1;
@@ -348,8 +370,8 @@ internal void front_army(ee_player *pl, unsigned idx, uint32_t now) {
         a->log_t = now ? now : 1;
         EnterCriticalSection(&g_lock);
         fprintf(g_log, "# front army: P%u at %.1f min: %d armies", idx, now / 60000.0, a->n);
-        for (int k = 0; k < a->n; k++) fprintf(g_log, " | at %d,%d share %.0f%% has %d", a->at[k].x, a->at[k].y, 100 * a->share[k], a->have[k]);
-        fprintf(g_log, " | sent %u, idle seen %u, attack members %u, forming subgroups %u\n", a->sent, a->idle, a->members, g_fa_forming);
+        for (int q = 0; q < a->n; q++) fprintf(g_log, " | at %d,%d share %.0f%% has %d", a->at[q].x, a->at[q].y, 100 * a->share[q], a->have[q]);
+        fprintf(g_log, " | sent %u, idle seen %u, attack members %u, forming subgroups %u, station unsafe %u\n", a->sent, a->idle, a->members, g_fa_forming, a->unsafe);
         LeaveCriticalSection(&g_lock);
     }
 }
