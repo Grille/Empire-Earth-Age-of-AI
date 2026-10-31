@@ -4,8 +4,10 @@
 // middle ocean two armies for both ends of my reach, on flatland more to spread over my whole open border, with
 // concentrations only where I want to attack or fear a concentrated enemy push"). No count of armies is set: the
 // border found here decides - water, cliffs and the map's edge are no border, so the terrain makes the fronts.
-// Every 10 s per AI, the map in FR_CELL-tile cells (land: most of 5 tiles of it land, inside the map's diamond - the
-// citizen may stand on its terrain kind, as the route planner tests; the AI areas' ids mark a coastal area both sea and land):
+// Every 10 s per AI, the map in FR_CELL-tile cells (land: FR_CELL of its tiles walkable - a strip across it, so a
+// one-tile ford of shallow water counts (the player: "1 tile deep water is walkable") - inside the map's diamond: a
+// citizen may stand on the tile's terrain kind, as the route planner tests; the AI areas' ids mark a coastal area both
+// sea and land; the terrain doesn't change, so the cells are looked at once a game):
 //   its territory - land cells within FR_TERR cells of its buildings, along land (not over water);
 //   the enemy's - the same round the enemy buildings it knows (intel, honest);
 //   border - a cell of its territory beside a land cell that isn't, on land where an enemy building it knows stands
@@ -27,6 +29,8 @@ internal uint8_t g_fr_land[FR_SIDE * FR_SIDE], g_fr_own[FR_SIDE * FR_SIDE], g_fr
 internal short g_fr_q[FR_SIDE * FR_SIDE * 2];
 internal unsigned g_fr_area[FR_SIDE * FR_SIDE];
 internal int g_fr_lab[FR_SIDE * FR_SIDE];
+internal ee_map *g_fr_land_map;   // the map g_fr_land was made for
+internal int g_fr_land_size;
 internal int fr_tile_land(ee_map *map, int size, int x, int y) {
     if (x < 0 || y < 0 || x >= size || y >= size) return 0;
     if (x + y <= map_get_edge_sum(map) || x + y >= map_get_edge_sum_2(map) || y - x >= map_get_edge_diff(map) || x - y >= map_get_edge_diff(map)) return 0;
@@ -36,7 +40,7 @@ internal int fr_tile_land(ee_map *map, int size, int x, int y) {
     return tile && walker && unit_type_terrain_ok(walker, tile_get_kind(tile));
 }
 internal int fr_building(ee_unit_type *td) {
-    int fam = unit_type_get_family(td);
+    int fam = unit_type_get_class_id(td);   // the class (attack.c), not the family field
     return fam == CLS_BUILDING || fam == CLS_FORTRESS || is_tower_type(unit_type_get_id(td));
 }
 // territory: distance in cells from the seeds marked 1 in m, along land, up to FR_TERR (m: 0 none, else 1 + distance)
@@ -64,12 +68,17 @@ internal void fronts_look(ee_player *pl, unsigned idx, uint32_t now) {
     if (side > FR_SIDE) side = FR_SIDE;
     struct fronts_st *s = &g_fronts[idx];
     int n = side * side;
-    for (int i = 0; i < n; i++) {
-        int x0 = (i % side) * FR_CELL, y0 = (i / side) * FR_CELL, h = FR_CELL / 2, land = 0;
-        land += fr_tile_land(map, size, x0 + h, y0 + h) + fr_tile_land(map, size, x0 + 1, y0 + 1) + fr_tile_land(map, size, x0 + FR_CELL - 2, y0 + 1) +
-                fr_tile_land(map, size, x0 + 1, y0 + FR_CELL - 2) + fr_tile_land(map, size, x0 + FR_CELL - 2, y0 + FR_CELL - 2);
-        g_fr_land[i] = land >= 3;
-        g_fr_area[i] = g_fr_land[i] ? area_id(iv2(x0 + h, y0 + h), 2) : 0;
+    if (g_fr_land_map != map || g_fr_land_size != size) {   // the cells' land, once a map (a new game clears it)
+        g_fr_land_map = map; g_fr_land_size = size;
+        for (int i = 0; i < n; i++) {
+            int x0 = (i % side) * FR_CELL, y0 = (i / side) * FR_CELL, land = 0;
+            ivec2 first = iv2(-1, -1);
+            for (int y = y0; y < y0 + FR_CELL; y++)
+                for (int x = x0; x < x0 + FR_CELL; x++)
+                    if (fr_tile_land(map, size, x, y)) { if (!land++) first = iv2(x, y); }
+            g_fr_land[i] = land >= FR_CELL;
+            g_fr_area[i] = g_fr_land[i] ? area_id(first, 2) : 0;
+        }
     }
     memset(g_fr_own, 0, (size_t)n); memset(g_fr_foe, 0, (size_t)n);
     #define FR_IDX(p) ((((p).y / FR_CELL) < side ? (p).y / FR_CELL : side - 1) * side + (((p).x / FR_CELL) < side ? (p).x / FR_CELL : side - 1))
@@ -198,4 +207,4 @@ internal void fronts_tick(ee_player *pl, unsigned idx, uint32_t now) {
     s->t = now ? now : 1;
     fronts_look(pl, idx, now);
 }
-internal void fronts_new_game(void) { memset(g_fronts, 0, sizeof g_fronts); }
+internal void fronts_new_game(void) { memset(g_fronts, 0, sizeof g_fronts); memset(g_fr_land, 0, sizeof g_fr_land); g_fr_land_map = NULL; }
