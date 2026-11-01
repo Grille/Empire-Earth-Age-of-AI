@@ -33,12 +33,12 @@ class patches
     {
         /// Turn fix: Art of Conquest's fix brought back - units that turn with momentum (ships, helicopters, tanks ...)
         /// stop on their heading instead of swinging past it and back. 0 = the original
-        [title("Turn fix (from Art of Conquest)")]
+        [title("Turn fix (from Art of Conquest)"), target(ee)]
         bool turn_fix = true;
         /// Reload in The Art of Conquest: AoC waits a random share (0..100%) of a unit's reload between blows, and a wait
         /// shorter than the attack animation restarts the swing before the blow lands - citizens stood beside an animal
         /// for the whole game (AoC's own AI and the player's alike):
-        [title("Reload in Art of Conquest")]
+        [title("Reload in Art of Conquest"), target(aoc)]
         reload_choice aoc_reload = reload_choice.swing;
         /// Overseas mines: on a water map the game puts idle citizens on a boat to a mine elsewhere, but took any free
         /// mine for it - mostly one at home; the boat rarely came and they stood idle meanwhile. Only a mine on another

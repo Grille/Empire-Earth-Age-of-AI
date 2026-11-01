@@ -60,7 +60,10 @@
 // MORE ABOUT A KEY: [game("what", "original", keep)] it sets one of the game's own values (SETTING_GAME: the tool shows its key blue);
 // [also("section")] the tool
 // lists it on that section's page too (SETTING_ALSO) - the key itself stays in its own section, once in the file.
+// [target(aoc)] (or ee) it matters in that build only - the other has it of its own or lacks what it changes
+// (SETTING_TARGET: the tool greys it out next to the other build's exe).
 
+global using static ageofai.settings.build;   // [target(aoc)]: the builds by their names
 using System;
 
 namespace ageofai.settings;
@@ -89,6 +92,11 @@ public sealed class master : Attribute { }
 public sealed class also : Attribute { public also(string section) { } }
 [AttributeUsage(AttributeTargets.Field)]
 public sealed class on : Attribute { public on(string fields) { } }
+[AttributeUsage(AttributeTargets.Field)]
+public sealed class target : Attribute { public target(build b) { } }
+
+// the game's builds: Empire Earth (the 2017 update) and The Art of Conquest
+public enum build { ee, aoc }
 
 static class limits {
     public const int MAX_PATH = 260;   // windows.h's: a path's buffer

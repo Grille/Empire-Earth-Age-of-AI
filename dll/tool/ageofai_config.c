@@ -530,6 +530,20 @@ internal int node_kind(LPARAM p) { return p >= 0 ? NODE_ENTRY : p > -1000 ? NODE
 internal int node_id(LPARAM p) { return p >= 0 ? (int)p : p > -1000 ? (int)(-1 - p) : (int)(-1000 - p); }
 internal int is_section_page(int p) { return g_page_of[p].section >= 0 && page_kind(p) != SECK_DIFF; }
 
+// a row of one build only (rows.h SETTING_TARGET) next to the other build's exe: greyed out, the status says so; its
+// build's name ("aoc", "ee"), NULL where it counts (no target, or no exe found: nothing to tell)
+internal void exe_find(void);
+internal const char *g_exe_name;
+internal const char *other_build(int row) {
+    static int found;
+    if (!found) { exe_find(); found = 1; }
+    if (!g_exe_name) return NULL;
+    const char *here = lstrcmpiA(g_exe_name, "EE-AOC.exe") ? "ee" : "aoc";
+    for (int i = 0; i < SETTING_TARGET_N; i++)
+        if (k_settings_target[i].row == row && lstrcmpA(k_settings_target[i].build, here)) return k_settings_target[i].build;
+    return NULL;
+}
+
 internal int also_on(int row, int p) {   // row is listed on page p too (SETTING_ALSO)
     for (int i = 0; i < SETTING_ALSO_N; i++) if (k_settings_also[i].row == row && !lstrcmpA(k_settings_also[i].sec, g_page_of[p].sec)) return 1;
     return 0;
@@ -589,7 +603,7 @@ internal int diff_set(const struct entry *e) {   // an AI row whose easy or hard
 
 // an entry's looks in the list (draw_cell), worked out with its line's text: a paint - each line's cells again on
 // every resize and scroll - only reads them
-internal struct { uint8_t bold, grey, game, own, level; } g_look[sizeof g_e / sizeof *g_e];
+internal struct { uint8_t bold, grey, game, own, level, other; } g_look[sizeof g_e / sizeof *g_e];
 
 internal void fill_item(int item, LPARAM p) {
     char v[TEXT_CAP] = "", def[TEXT_CAP] = "", why[MAX_PATH], key[64];
@@ -601,6 +615,7 @@ internal void fill_item(int item, LPARAM p) {
     g_look[p].game = game_of(e->row) >= 0;   // the key sets one of the game's values directly
     g_look[p].own = g_look[p].game && game_keeps(e, game_of(e->row)) && entry_level(e) != CHECK_MISTAKE;
     g_look[p].level = (uint8_t)entry_level(e);
+    g_look[p].other = other_build(e->row) != NULL;   // the other build's: key and value grey
     int grey;
     key_of(e, key, sizeof key);
     shown_value(e, v, sizeof v, &grey);
@@ -780,7 +795,12 @@ internal void show_status(int k) {
     char why[MAX_PATH], shown[TEXT_CAP], msg[MAX_PATH + 64], key[64], word[32];
     key_of(e, key, sizeof key);
     g_ed[k].level = CHECK_OK;
-    if (is_member(e) && member_overruled(e, shown, sizeof shown, word, sizeof word)) {
+    const char *other = other_build(e->row);
+    if (other) {
+        snprintf(msg, sizeof msg, "Only for %s - this game is %s: the key does nothing here.",
+                 !lstrcmpA(other, "aoc") ? "The Art of Conquest" : "Empire Earth (the 2017 update)",
+                 !lstrcmpA(other, "aoc") ? "Empire Earth" : "The Art of Conquest");
+    } else if (is_member(e) && member_overruled(e, shown, sizeof shown, word, sizeof word)) {
         snprintf(msg, sizeof msg, "%s=%s: %s%s.", k_settings[under_of(e->row)].key, word, shown,
                  e->text[0] ? " - the value here counts only with custom" : "");
     } else if (!e->text[0] && on_diff_page(e)) {
@@ -1115,7 +1135,7 @@ internal LRESULT draw_cell(NMLVCUSTOMDRAW *cd) {
     if (node_kind(p) != NODE_ENTRY) bold = 1;
     else if (cd->iSubItem < COLS - 1) {
         bold = g_look[p].bold;   // worked out by fill_item
-        grey = cd->iSubItem == 1 && g_look[p].grey;   // the key: blue as it is, never pale
+        grey = (cd->iSubItem == 1 && g_look[p].grey) || (cd->iSubItem < 2 && g_look[p].other);   // the key: never pale - but in the other build's
         game = cd->iSubItem == 0 ? g_look[p].game : cd->iSubItem == 1 && g_look[p].own;
         int level = cd->iSubItem == 1 ? g_look[p].level : CHECK_OK;
         if (level == CHECK_WARN) bk = TINT_WARN;

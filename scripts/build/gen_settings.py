@@ -103,7 +103,7 @@ def table(name, args, lines):
 
 
 def rows_h(secs):   # the file below its header
-    fields, rows, groups, game, members, also, titles, easy = [], [], [], [], [], [], [], []
+    fields, rows, groups, game, members, also, titles, easy, target = [], [], [], [], [], [], [], [], []
     arg = settings_read.arg_text
     seen = {}
     for sec in secs:
@@ -136,6 +136,11 @@ def rows_h(secs):   # the file below its header
                 if to not in [s.name for s in secs] or to == sec.name:
                     raise SystemExit('%s: [also("%s")]: no other section of that name' % (k.where, to))
                 also.append('A(%s %s)' % ((k.name + ',').ljust(20), to))
+            if 'target' in k.attrs:
+                to = settings_read.arg_text(k.attrs['target'][0])
+                if to not in ('ee', 'aoc'):
+                    raise SystemExit('%s: [target(%s)]: ee or aoc' % (k.where, to))
+                target.append('B(%s %s)' % ((k.name + ',').ljust(20), to))
             if k.master:
                 members.append('M(%s %s)' % ((k.name + ',').ljust(20), k.master))
     sections = ['T(%s %s %s %s)' % ((s.name + ',').ljust(10), ('%d,' % s.place).rjust(4), (s.kind + ',').ljust(6), c_str(s.title))
@@ -148,6 +153,7 @@ def rows_h(secs):   # the file below its header
     out += table('SETTING_GAME', 'V', game)
     out += table('SETTING_MEMBERS', 'M', members)
     out += table('SETTING_ALSO', 'A', also)
+    out += table('SETTING_TARGET', 'B', target)
     out += table('SETTING_TITLES', 'K', titles)
     return '\n'.join(out).rstrip('\n') + '\n'
 

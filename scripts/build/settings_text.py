@@ -42,6 +42,10 @@ TEXT = {
         "Rows ageofai_config.exe shows on another section's page too: the same key - one value, one line in the file, in",
         "its own section - listed where a player would also look for it (a display limit among the game fixes).",
     ],
+    'SETTING_TARGET': [
+        "Rows that matter in one build only (ee: the 2017 update, aoc: The Art of Conquest) - the other has the change of",
+        "its own or lacks what it changes; ageofai_config.exe greys them out next to the other build's exe.",
+    ],
     'SETTING_TITLES': [
         "Keys with a title of their own ([title(\"t\")]): ageofai_config.exe lists them by it, the key beside it on the",
         "setting's own line; a key without one is listed by its name.",

@@ -63,6 +63,9 @@ internal const struct { int row, master; } k_settings_members[] = { SETTING_MEMB
 #define SET_ALSO(key, sec) { SETTING_##key, #sec },
 internal const struct { int row; const char *sec; } k_settings_also[] = { SETTING_ALSO(SET_ALSO) };
 #define SETTING_ALSO_N ((int)(sizeof k_settings_also / sizeof *k_settings_also))
+#define SET_TARGET(key, build) { SETTING_##key, #build },
+internal const struct { int row; const char *build; } k_settings_target[] = { SETTING_TARGET(SET_TARGET) };
+#define SETTING_TARGET_N ((int)(sizeof k_settings_target / sizeof *k_settings_target))
 
 #define SET_TITLE(key, title) { SETTING_##key, title },
 internal const struct { int row; const char *title; } k_settings_titles[] = { SETTING_TITLES(SET_TITLE) };
