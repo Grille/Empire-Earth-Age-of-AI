@@ -180,13 +180,15 @@ def analyse():
     files = [f for f in files if not f.startswith('dinput/')]   # another DLL (its own rule below)
     code = {f: strip(open(os.path.join(DLL, f), 'rb').read().decode('latin-1')) for f in files}
     # the settings' rows name a kind, a section and an ini key (X(FLAG, display, frame_watch, ...), D(FLAG, muster, ...),
-    # E(epoch_pacing, ...)): words of the ini, not uses of a function that happens to share the name
+    # E(epoch_pacing, ...), B(turn_fix, ee)): words of the ini, not uses of a function that happens to share the name
     if 'settings/rows.h' in code:
         blank = lambda m: ' ' * len(m.group(0))
         rows = re.sub(r'\b[XS]\(\s*\w+\s*,\s*\w+\s*,\s*\w+\s*,', blank, code['settings/rows.h'])
         rows = re.sub(r'\bT\(\s*\w+\s*,\s*\d+\s*,\s*\w+\s*,', blank, rows)
         rows = re.sub(r'\bG\(\s*\w+\s*,', blank, rows)
         rows = re.sub(r'\bV\(\s*\w+\s*,', blank, rows)
+        rows = re.sub(r'\bB\(\s*\w+\s*,\s*\w+\s*\)', blank, rows)   # SETTING_TARGET's: a key and its build (ee, aoc)
+        rows = re.sub(r'\bSETTING_TARGET\(B\)', blank, rows)   # its parameter: persist.c has a macro B of its own
         code['settings/rows.h'] = re.sub(r'\b[DE]\(\s*\w+\s*,(\s*\w+\s*,)?', blank, rows)
     owner = collections.defaultdict(set)
     for f in files:
