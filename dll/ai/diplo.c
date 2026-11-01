@@ -546,6 +546,49 @@ internal int is_vassal(int ai) {
     ee_player *pl = player_at(ai), *pk = l ? player_at(l) : NULL;
     return pk && pl && !is_out(pk) && !stance_of(pl, l);
 }
+// THE DIPLOMACY SCREEN (form 27; spec EEUIEDSOpen): each other player's row - its name, its civilization's name, its
+// stance towards you ... A vassal's says whose in the civilization's column (wide, and empty for most AIs; the stance
+// column holds no more than the game's word): mod/system.eeai's diplo_vassal for the vassal (me), its lord ({lord})
+// and you (them), after the civilization's name when it has one. The game fills the screen anew each time it opens,
+// so the hook on its open is all it takes. Rows: from control 19, 11 each, in player order without the local player
+// (the game's own loop, both builds). Returns the labels set; g_ds_said what they say (tests).
+#define DS_ROW0 19
+#define DS_ROW 11
+#define DS_CIV 3   // in a row: its colour, the chat box, the name, the civilization, the stance ...
+#define DS_END 0xB8
+internal char g_ds_said[1024];
+internal int g_ds_opened;
+internal int diplo_screen_vassals(ee_ui_form *form) {
+    uint8_t **ctl = form ? ui_form_get_controls(form) : NULL;
+    if (!ctl || g_texts_missing) return 0;
+    int own = (int)local_player_index(), n = (int)game_player_count(), set = 0;
+    int a = own == 1 ? 2 : 1, o = 0;
+    g_ds_said[0] = 0;
+    for (int i = DS_ROW0; i < DS_END; i += DS_ROW) {
+        if (a < n && a < 16 && is_vassal(a) && ctl[i + DS_CIV]) {
+            ee_player *pl = player_at(a);
+            const char *civ = wstring_text(player_civ_name_at(pl)), *st = sysf("diplo_vassal", pl, NULL, NULL, NULL);
+            char text[256];
+            snprintf(text, sizeof text, "%s%s%s", civ ? civ : "", civ && *civ ? ", " : "", st);
+            __attribute__((aligned(8))) uint8_t line[32];
+            wstring_init(line);
+            wstring_set(line, text);
+            label_set_text(ctl[i + DS_CIV], line);
+            wstring_free(line);
+            if (o < (int)sizeof g_ds_said) o += snprintf(g_ds_said + o, sizeof g_ds_said - o, "P%d: %s\n", a, text);
+            set++;
+        }
+        a++;
+        if (a == own) a++;
+    }
+    return set;
+}
+internal uint32_t __thiscall hook_diplomacy_open(eeuieds_open *ev, ee_ui_form *form, uint32_t arg) {
+    uint32_t r = eeuieds_open_execute(ev, form, arg);
+    diplo_screen_vassals(form);
+    g_ds_opened++;
+    return r;
+}
 internal int block_veto(int ai, int j, uint32_t now, int *own);   // alliance blocks (below)
 internal void block_refuse(ee_player *pl, int j, int who, int own);
 // THE RULES' MOVES TOWARDS THE LOCAL PLAYER, put to the language model first ([llm] llm_decide=1): an alliance offer, a
@@ -1773,6 +1816,16 @@ internal void cmd_diplo(char *out, const char *args) {
         REPLY("done\n");
         return;
     }
+    if (!strcmp(args, "screen")) {   // diplo screen: the diplomacy screen opened as the game screen's button does (event
+        // 23, EEUIEMGDisplayDiplomacy, of the creator ui.event_creators[5]) and the vassal rows of its last opening (tests)
+        void *uim = ui_manager();
+        ee_ui_form *cur = uim ? ui_current_form(uim) : NULL;
+        ee_ui_event *ev = cur ? ui_event_new(5, cur, 23) : NULL;
+        if (!ev) { REPLY("error: no game screen\n"); return; }
+        ui_event_execute(ev, cur, 0);   // (the screen's own open runs at the UI's next update: ask again for its rows)
+        REPLY("opened %d times so far; the last opening's vassal rows:\n%s", g_ds_opened, g_ds_said);
+        return;
+    }
     if (!strncmp(args, "chat ", 5)) {   // diplo chat TEXT: the local player sends TEXT to everyone (tests)
         chat_send(args + 5);
         REPLY("sent\n");
@@ -1905,6 +1958,7 @@ internal void diplo_install(const char *test_ini) {
     BOOL kills = patch_kill_stat(kill_stat_thunk);
     if (g_log) fprintf(g_log, "# diplomacy: kills by pair %s\n", kills ? "ok" : "FAILED");
     int leave = patch_msg_resign(hook_resign) + patch_exit_confirm(hook_exit_confirm);
-    if (g_log) fprintf(g_log, "# diplomacy: answer_war=%d ai_diplomacy=%d surrender=%d alliance_blocks=%d auto_victory=%d, tribute hook %d, chat hook %d, leave hooks %d/2\n",
-                       g_answer_war, g_ai_diplomacy, g_surrender, g_blocks, g_auto_victory, ok, chat, leave);
+    int screen = patch_diplomacy_open(hook_diplomacy_open);
+    if (g_log) fprintf(g_log, "# diplomacy: answer_war=%d ai_diplomacy=%d surrender=%d alliance_blocks=%d auto_victory=%d, tribute hook %d, chat hook %d, leave hooks %d/2, screen hook %d\n",
+                       g_answer_war, g_ai_diplomacy, g_surrender, g_blocks, g_auto_victory, ok, chat, leave, screen);
 }

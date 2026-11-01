@@ -20,6 +20,9 @@ system = {
     // your peace offer to a vassal
     // in braces: {me} {lord}
     vassal_ask_lord = "{me} is a vassal of {lord}: negotiate with {lord}.",
+    // the diplomacy screen: a vassal's row, in its civilization's column (after the civilization's name, if any)
+    // in braces: {me} {lord} {them} (you)
+    diplo_vassal = "{lord == them ? "your vassal" : "vassal of {lord}"}",
     // two members of your alliance block made peace
     // in braces: {me} {ally}
     block_peace = "{me} and {ally} make peace: they are in the same alliance.",

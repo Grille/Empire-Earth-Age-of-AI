@@ -383,8 +383,9 @@ a check - in a text (`{lord}`), a sum, a member (`lord.soldiers`) or a relation 
 mistake, told when the file is read (the line is skipped): a line that names a lord nobody has makes no sense. A check
 holds where it guards - right of `and`, in the `?` branch, in `if`'s block - and works for a relation's value too
 (`me.war_minutes(them) != null ? "{me.war_minutes(them)} minutes of war"`); a name set elsewhere (`long_war =
-me.war_minutes(them) > 30`) is no check where it is used. Where the code guarantees a lord - `vassal_ask_lord` in
-`mod/system.eeai` and `terms_vassal` in `mod/prompt.eeai` are only said by a vassal - `{lord}` needs none.
+me.war_minutes(them) > 30`) is no check where it is used. Where the code guarantees a lord - `vassal_ask_lord` and
+`diplo_vassal` in `mod/system.eeai` and `terms_vassal` in `mod/prompt.eeai` are only said by a vassal - `{lord}` needs
+none.
 
 Shortcuts: my own `epoch`, traits, `allies` and `enemies` without `me.` (`aggression` is `me.aggression`), a relation of mine without
 `me.` (`opinion(enemy)` is `me.opinion(enemy)`), and `opinion`, `at_war`, `allied` alone: mine with them

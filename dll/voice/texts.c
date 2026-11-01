@@ -15,15 +15,15 @@
 struct text_key { const char *key, *ph; };
 // k_sys: the system lines the player reads (mod/system.eeai)
 internal const struct text_key k_sys[] = {
-    { "now_enemy", "" }, { "now_ally", "" }, { "vassal_ask_lord", "" }, { "block_peace", "ally" },
-    { "block_unity", "" }, { "veto_own", "ally" }, { "veto_block", "ally" }, { "alliance_offer", "" },
-    { "capitulation", "tribute" }, { "peace_offer", "" }, { "tribute_sent", "tribute" }, { "victory_vassals", "" },
-    { "victory_none", "" }, { "victory_not_yet", "names" }, { "chat_unread", "" }, { "chat_unanswered", "" },
-    { "chat_filtered", "" }, { "chat_nobody", "" }, { "chat_who", "names" }, { "chat_down", "url" },
-    { "chat_busy", "" }, { "llm_down", "url error" }, { "llm_failed", "error" }, { "llm_wait", "" },
-    { "llm_wait_down", "url" }, { "talk_to", "text" }, { "food", "" }, { "wood", "" }, { "stone", "" },
-    { "gold", "" }, { "iron", "" }, { "nothing", "" }, { "opinion1", "" }, { "opinion2", "" }, { "opinion3", "" },
-    { "opinion4", "" }, { "opinion5", "" },
+    { "now_enemy", "" }, { "now_ally", "" }, { "vassal_ask_lord", "" }, { "diplo_vassal", "" },
+    { "block_peace", "ally" }, { "block_unity", "" }, { "veto_own", "ally" }, { "veto_block", "ally" },
+    { "alliance_offer", "" }, { "capitulation", "tribute" }, { "peace_offer", "" }, { "tribute_sent", "tribute" },
+    { "victory_vassals", "" }, { "victory_none", "" }, { "victory_not_yet", "names" }, { "chat_unread", "" },
+    { "chat_unanswered", "" }, { "chat_filtered", "" }, { "chat_nobody", "" }, { "chat_who", "names" },
+    { "chat_down", "url" }, { "chat_busy", "" }, { "llm_down", "url error" }, { "llm_failed", "error" },
+    { "llm_wait", "" }, { "llm_wait_down", "url" }, { "talk_to", "text" }, { "food", "" }, { "wood", "" },
+    { "stone", "" }, { "gold", "" }, { "iron", "" }, { "nothing", "" }, { "opinion1", "" }, { "opinion2", "" },
+    { "opinion3", "" }, { "opinion4", "" }, { "opinion5", "" },
 };
 #define N_SYS (int)(sizeof k_sys / sizeof *k_sys)
 #include "texts_prompt.h"   // k_tpl: the language model's instructions
@@ -133,10 +133,11 @@ internal const char *x_code_placeholders(const char *file, const char *sec, cons
     if (!lstrcmpiA(sec, "lines")) return " tribute tribute_total ";   // a personality's line (line_ctx_init)
     return all;
 }
-// the names the code guarantees for a key (g_x_host.has): lord where only a vassal's texts are said (diplo.c: is_vassal)
+// the names the code guarantees for a key (g_x_host.has): lord where only a vassal's texts are said (diplo.c: is_vassal;
+// diplo_vassal the diplomacy screen's vassal rows)
 internal const char *x_code_has(const char *file, const char *sec, const char *key) {
     (void)file;
-    if (!lstrcmpiA(sec, "system") && !lstrcmpiA(key, "vassal_ask_lord")) return " lord ";
+    if (!lstrcmpiA(sec, "system") && (!lstrcmpiA(key, "vassal_ask_lord") || !lstrcmpiA(key, "diplo_vassal"))) return " lord ";
     if (!lstrcmpiA(sec, "prompt") && !lstrcmpiA(key, "terms_vassal")) return " lord ";
     return NULL;
 }

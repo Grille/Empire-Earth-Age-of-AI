@@ -275,7 +275,7 @@
           "include": "#comment"
         },
         {
-          "begin": "^\\s*((?:vassal_ask_lord|victory_vassals|victory_not_yet|chat_unanswered|alliance_offer|chat_filtered|llm_wait_down|capitulation|tribute_sent|victory_none|block_peace|block_unity|peace_offer|chat_unread|chat_nobody|veto_block|llm_failed|now_enemy|chat_down|chat_busy|now_ally|veto_own|chat_who|llm_down|llm_wait|opinion1|opinion2|opinion3|opinion4|opinion5|talk_to|nothing|stone|food|wood|gold|iron))\\s*(=)",
+          "begin": "^\\s*((?:vassal_ask_lord|victory_vassals|victory_not_yet|chat_unanswered|alliance_offer|chat_filtered|llm_wait_down|diplo_vassal|capitulation|tribute_sent|victory_none|block_peace|block_unity|peace_offer|chat_unread|chat_nobody|veto_block|llm_failed|now_enemy|chat_down|chat_busy|now_ally|veto_own|chat_who|llm_down|llm_wait|opinion1|opinion2|opinion3|opinion4|opinion5|talk_to|nothing|stone|food|wood|gold|iron))\\s*(=)",
           "beginCaptures": {
             "1": {
               "name": "support.type.property-name.eeaimod"

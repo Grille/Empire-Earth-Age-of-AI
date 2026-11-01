@@ -46,6 +46,15 @@ internal inline void ui_form_add_hotkey(void *form, unsigned long key, void *ev)
 // the UI manager's current form, an edit box's text, the settings saved to the registry (as the options screens do)
 internal inline ee_ui_form *ui_current_form(void *uim) { return ((ee_ui_form *(__thiscall *)(void *))*(void **)data_ui_iat_uim_form)(uim); }
 internal inline const char *edit_text(void *edit) { return ((const char *(__thiscall *)(void *, unsigned long))*(void **)data_ui_iat_edit_get_text)(edit, 0); }
+// a text label's text (UITextLabel::SetText(const UWideString &, bool) - the game passes 1: the diplomacy screen)
+internal inline void label_set_text(void *label, void *wstr) {
+    ((void (__thiscall *)(void *, void *, char))*(void **)data_ui_imports_iat_text_label_set_text)(label, wstr, 1);
+}
+// a control event of the UI database by its id, made by the event creator that knows it (ui.event_creators: the
+// index in that list) for form; NULL: none
+internal inline ee_ui_event *ui_event_new(int creator, ee_ui_form *form, int id) {
+    return ((ee_ui_event *(__cdecl *)(ee_ui_form *, int))(uintptr_t)data_ui_event_creators[creator])(form, id);
+}
 // A COMMAND'S CIRCLES (transports.c): the graphical effects' kinds by their ids (gfx_kind_game's records; the same in
 // both builds) - what the code that draws them shows them for
 enum gfx_kind {

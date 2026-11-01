@@ -612,7 +612,12 @@ unsafe struct EEUIEDSOKButton
 [@base(typeof(UIEvent)), size((ee)0xC, (aoc)0xC), vtable((ee)0x00834F5C, (aoc)0x0084B008)]
 unsafe struct EEUIEDSOpen
 {
+    /// the diplomacy screen (form 27) filled when it opens: from control 19 on a row of 11 per other player (by index,
+    /// the local one left out; 15 rows) - its colour, the chat check box, its name, its civilization, its stance
+    /// towards you (a UITextLabel: string 0x7349 allied, 0x734A enemy), your Allied check box, five tribute boxes;
+    /// a row without a player, or one out of the game, hidden
     [address((ee)0x005C3A3A, (aoc)0x005D4165), overrides(typeof(UIEvent))]
+    [vtable_site("diplomacy_open")]
     extern uint32 execute(UIForm* form, uint32 arg);
 }
 

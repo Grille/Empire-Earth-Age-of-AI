@@ -529,9 +529,14 @@ internal inline uint32_t eeuiedsok_button_execute(eeuiedsok_button *eeuiedsok_bu
 // class EEUIEDSOpen (eeuieds_open)
 // made in 0x659F31
 // UIEvent's, the base's
+// the diplomacy screen (form 27) filled when it opens: from control 19 on a row of 11 per other player (by index,
+// the local one left out; 15 rows) - its colour, the chat check box, its name, its civilization, its stance
+// towards you (a UITextLabel: string 0x7349 allied, 0x734A enemy), your Allied check box, five tribute boxes;
+// a row without a player, or one out of the game, hidden
 typedef uint32_t (__thiscall *eeuieds_open_execute_fn)(eeuieds_open *, ee_ui_form *, uint32_t);
 internal eeuieds_open_execute_fn fn_eeuieds_open_execute;
 internal inline uint32_t eeuieds_open_execute(eeuieds_open *eeuieds_open, ee_ui_form *form, uint32_t arg) { return fn_eeuieds_open_execute(eeuieds_open, form, arg); }
+internal inline int patch_diplomacy_open(eeuieds_open_execute_fn h) { return patch_vtable(vt_eeuieds_open, (int)slot_ui_event_execute, (uintptr_t)fn_eeuieds_open_execute, (void *)h); }
 
 // class EEUIEDSTributeLClick (eeuieds_tribute_l_click)
 // made in 0x5C3A3A
