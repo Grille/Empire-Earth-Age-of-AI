@@ -16,6 +16,7 @@ class camera
     }
 
     /// Camera scrolling (mouse at the screen edge / scroll keys):
+    [also("patches")]
     scroll_choice scroll = scroll_choice.game;
     /// Fine scrolling: the game moved the camera in fixed steps from a timer (every 10 or 25 ms) while frames come
     /// every few ms - some frames without a step, all steps the same size: jitter - and a busy game held the camera.

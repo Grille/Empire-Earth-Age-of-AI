@@ -13,6 +13,6 @@ class editor
     ///   or any WIDTHxHEIGHT from 800x600 up, e.g. 1920x1080 (same layout rules)
     /// The background art is the original 800x600 one, stretched. Full-screen pages (players, texts) keep their
     /// controls at the top left, as in AoC.
-    [length(16)]
+    [length(16), also("patches")]
     string editor_resolution = "ee";
 }

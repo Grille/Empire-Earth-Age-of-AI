@@ -557,10 +557,6 @@ class ai_base
         /// workers, else wood or food), idle citizens get their town's work, mines are searched in the own town only.
         /// Another town's site only when its own has no work at all. 0 = off
         bool town_work = false;
-        /// Water maps: the game puts idle citizens on a boat to a mine elsewhere, but takes any free mine
-        /// for it - mostly a home mine; the boat rarely comes and they stand idle meanwhile. Only a mine on another island
-        /// (as the expansion fixed it). 1 = on
-        bool overseas_mines = true;
         /// Move workers from a resource with far more workers than it needs to stone, gold or iron mines that are
         /// short (the game only ever reassigns idle citizens). 1 = on
         bool rebalance_workers = true;

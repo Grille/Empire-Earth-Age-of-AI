@@ -40,5 +40,10 @@ class patches
         /// for the whole game (AoC's own AI and the player's alike):
         [title("Reload in Art of Conquest")]
         reload_choice aoc_reload = reload_choice.swing;
+        /// Overseas mines: on a water map the game puts idle citizens on a boat to a mine elsewhere, but took any free
+        /// mine for it - mostly one at home; the boat rarely came and they stood idle meanwhile. Only a mine on another
+        /// island, as Art of Conquest fixed it (the AI's citizens). 0 = the original
+        [title("Overseas mines (from Art of Conquest)")]
+        bool overseas_mines = true;
     }
 }

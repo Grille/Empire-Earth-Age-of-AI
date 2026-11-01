@@ -285,7 +285,7 @@ internal void mine_crowds(ee_resource_mgr *rm) {
     if (moved && g_log) fprintf(g_log, "# mine crowds: P%u at %.1f min: %d citizens beyond the cap moved to free mines (%u in all)\n", pi, now / 60000.0, moved, g_crowd_moved[pi]);
 }
 
-// OVERSEAS MINES ([ai_base] overseas_mines, default on - Art of Conquest's fix): on a water map the citizen assignment
+// OVERSEAS MINES ([patches] overseas_mines, default on - Art of Conquest's fix): on a water map the citizen assignment
 // (0x48A554) asks at its last call (data_ai_managers_mine_sites[5]) for any mine, no unit given, whenever a mine type is still short or
 // the overseas timer (0x43123A) is due - with nobody short too - and puts every idle citizen of the home island on the
 // transport manager's crossing to it (0x48A382). Any free mine does, the home island's too (60-75% of the searches;
@@ -579,7 +579,7 @@ internal void sites_install(void) {
     g_local_mines = g_set_ai[1].local_mines;
     g_town_work = g_set_ai[1].town_work;
     if (g_autotest) g_v_town_work = ini_int("autotest", "v_town_work", -1, g_ini);
-    g_overseas_mines = g_set_ai[1].overseas_mines;
+    g_overseas_mines = g_set.overseas_mines;
     int ok = 0, total = 0;
     // always: the searches refuse sites behind known enemy towers (avoid_towers_citizens, attack.c)
     ok += patch_find_mine(hook_find_mine, &total) + patch_find_food(hook_find_food, &total) + patch_find_wood(hook_find_wood, &total) +
