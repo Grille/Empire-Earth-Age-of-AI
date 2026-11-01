@@ -39,7 +39,7 @@
 // the log.
 // AI DECIDE ([llm] llm_ai_decide=1, default 0; single player, not in scenarios, not with fixed teams): the model makes
 // the AIs' decisions towards each other too. An AI's alliance offer or capitulation to another AI (the rules decided
-// those at once) stands like one to a human (2 minutes) and opens an exchange: the offer in the offerer's words,
+// those at once) stands like one to a human (up to 2 minutes, OFFER_AI_MS) and opens an exchange: the offer in the offerer's words,
 // the other's answer with the tool make_peace to accept (the rules check what is possible: an ally's veto, a
 // vassal), the offerer's reply. In every exchange between AIs (with ai_talk too) a message may carry a step towards
 // the other: offer peace (the other decides in its answer), declare war (on an ally of 5+ minutes, never on its
@@ -1081,7 +1081,7 @@ internal void llm_apply(struct llm_job *j, int ok) {
             make_peace(ai, h, now);
             tsub(ev[nev++], sizeof ev[0], "ev_made_peace", pl, ph, NULL);
             fixed = j->decide == 1 ? L_PEACE_ACCEPT : L_OFFER_ACCEPTED;
-        } else {   // its offer: he has 2 minutes (diplo_tick, as its alliance offers)
+        } else {   // its offer: it stands until they turn allied (diplo_tick, STANDING OFFERS)
             g_offer_t[ai][h] = now ? now : 1;
             g_offer_kind[ai][h] = 0;
             g_offer_vs[ai][h] = 0;
@@ -1515,7 +1515,7 @@ internal void talk_done(struct llm_job *j, int ok) {
         if (j->offer == 0) {   // closed now: the offerer may offer again in its answer (haggling)
             g_offer_t[b][a] = 0;
             g_offer_ignored[b][a]++;
-        } else offer_refused(b, a);   // a capitulation: its cease-fire ends (diplo_tick)
+        } else offer_refused(b, a);   // a capitulation: off at the next look, with its line (diplo_tick)
         if (g_llm_log && g_log) fprintf(g_log, "# llm: talk P%d refuses the %s of P%d\n", a, j->offer ? "capitulation" : "alliance offer", b);
     }
     if (j->confirm) {   // only its decision counts, not the words

@@ -31,7 +31,8 @@
 // 60 s from minute 10:
 //   alliance: at war with a leader (power > 1.5 x own; decide seek_ally) - offer an alliance to another enemy of
 //     the leader it is at war with, the one it likes best (opinion; decide ally_score) if above -20: an AI decides like a peace offer (+15 common enemy); a human gets the offer as a
-//     line and 2 minutes to answer by turning allied - only then does the AI turn allied - otherwise it is withdrawn.
+//     line - the AI fights on and turns allied when the player does, whenever that is, as long as the leader is
+//     still their common enemy (STANDING OFFERS below).
 //   betrayal: allied for 10+ minutes with a player of under half its power, opinion < 30: chance per minute
 //     (100 - loyalty) x aggression / 100000 - then war (betray line). Never the player it capitulated to.
 //   Threat: per AI and player, that player's soldiers within 20 tiles of the AI's base, summed over the 10-s scans
@@ -42,10 +43,18 @@
 // the attacker (highest threat) has 5+ soldiers in its base and threat 15+, the AI has lost over 10% of its peak
 // buildings, and the attacker's power is at least 1.5 + pride/20 - caution/50 times its own (Khan 5.0x, a cautious
 // AI 2-3x) - it offers the attacker peace and tribute: 20% + caution/4 % + (100 - greed)/4 % of each resource
-// (line capitulate, {tribute} = the total). A human accepts by turning allied within 2 minutes (the AI turns allied
-// at once, so its units stop fighting): the AI pays (as far as its stock still has it), says capitulate_accepted
-// and never betrays him; otherwise capitulate_refused and war again. An AI conqueror decides at once: peace score
-// + the tribute's worth to it (as tribute) > 0.
+// (line capitulate, {tribute} = the total). A human accepts by turning allied: the AI turns allied too, pays (as
+// far as its stock still has it), says capitulate_accepted and never betrays the player. Until then it fights on -
+// a white flag while the player decided let their army walk in unopposed - and the offer stands as long as the AI
+// is still losing (the attacker's power at least 3/4 of the ratio that made it capitulate); once it holds its own
+// again it is off (capitulate_refused). An AI conqueror decides at once: peace score + the tribute's worth to it
+// (as tribute) > 0.
+//
+// STANDING OFFERS: an offer to a human - an alliance, a capitulation, the language model's peace, a block's peace -
+// has no time limit: it tells the player the AI would take peace now, and the AI fights on until they turn allied,
+// so waiting gains them nothing. It is off when its reason is gone (offer_off: the common enemy is no common enemy
+// any more, an ally of the AI vetoes it, the AI holds its own again, the two left one block) - with offer_withdrawn
+// / capitulate_refused. An offer to an AI is answered by its model within the talk; it runs out after OFFER_AI_MS.
 //
 // PEACE ENDS ATTACKS: an attack keeps its target player from the launch. Whenever an AI's own stance towards a
 // player turns allied (peace, alliance, capitulation) - or an attack group still marches on a non-enemy (attack.c
@@ -71,7 +80,7 @@
 #define GAME_STATE    (game_state())
 #define TEAMS_LOCKED  (*teams_locked_var())
 internal int g_answer_war = 1, g_ai_diplomacy = 1;
-internal int g_offer_min = 2;   // [ai_base] offer_minutes: how long an offer stands (alliance, peace, capitulation, block peace)
+#define OFFER_AI_MS 120000u   // an offer to an AI (its model answers in the talk): off unanswered after 2 minutes
 internal int g_diplo_seen[16];
 internal int g_diplo_prev[16][16];        // [ai][j]: player j's stance towards the AI at the last look
 internal uint32_t g_diplo_due[16][16];    // [ai][j]: answer war at this time (0 = nothing pending)
@@ -79,17 +88,16 @@ internal uint32_t g_war_since[16][16];    // [ai][j]: when j declared war on the
 internal uint32_t g_ally_since[16][16];   // [ai][j]: allied (both ways) since
 internal uint32_t g_peace_due[16][16];    // [ai][j]: decide j's peace offer at this time
 internal int g_peace_refused[16][16];
-internal uint32_t g_offer_t[16][16];      // [ai][j]: AI offered j an alliance at (0 none), withdrawn after 2 min
+internal uint32_t g_offer_t[16][16];      // [ai][j]: AI's offer to j stands since (0 none) - STANDING OFFERS
 internal uint32_t g_offer_last[16][16];
-internal int g_offer_ignored[16][16];   // [ai][j]: alliance offers j let run out in a row (next offer 10/20/40 min later)
+internal int g_offer_ignored[16][16];   // [ai][j]: alliance offers j left unanswered until they were off, in a row (next offer 10/20/40 min later)
 internal float g_opinion[16][16];
 internal uint8_t g_war_betrayal[16][16];  // [ai][j]: the pending answer is to a betrayal
 internal unsigned g_diplo_answers[16];
 internal float g_pressure[16][16];        // [ai][j]: j's soldiers near the AI's base, summed over scans (x0.8 per 10 s)
-internal uint8_t g_offer_kind[16][16];    // [ai][j]: the pending offer to a human is 0 an alliance, 1 a capitulation
+internal uint8_t g_offer_kind[16][16];    // [ai][j]: the pending offer is 0 an alliance (or peace), 1 a capitulation, 2 block peace
 internal uint8_t g_offer_vs[16][16];      // [ai][j]: whom its pending alliance offer to j is against (0: no one - peace)
 internal int g_promise[16][7];            // [ai]: resources offered with a capitulation (food..iron = 2..6)
-internal uint8_t g_escrow[16];            // [ai]: the promise is taken out of its stock while a human decides
 internal int g_victory_told;               // victory over vassals (below the tribute hook)
 internal int g_victory_off, g_victory_claimed;   // auto_victory=0: the mod cleared the end byte / the player ended the game
 internal void victory_hint(ee_player *pl, int ai);
@@ -593,8 +601,8 @@ internal void peace_offer(ee_player *pl, int ai, int j, uint32_t now) {
 //    a side - the one it capitulated to; else its direct ally if it is allied with only one of the two; else the
 //    one it thinks better of (the attacked +10) - and declares war on the other;
 //  - inside a block there is peace: two AIs of one block at war make peace (their common ally brokers it); an AI
-//    at war with a human of its block offers him peace (allied at once, a system line says why, 2 minutes to
-//    answer) - if he doesn't, it counts as his war on the AI and the block splits;
+//    at war with a human of its block offers them peace (a system line says why; the AI turns allied when they do,
+//    and the offer stands while both are in the block - STANDING OFFERS);
 //  - a betrayal is war on the victim's whole block (only if that block has under half the traitor's power, never
 //    the block of the one it capitulated to).
 // Tests: the idle observer of a test random map (allied with every AI) is no member.
@@ -830,7 +838,7 @@ internal void offer_alliance(int ai, int best, int lead, uint32_t now) {
     g_offer_last[ai][best] = now;
     persona_say(pl, L_ALLIANCE_OFFER, pj, player_at(lead));
     if (mod_ai(best) && llm_ai_deciding() && llm_ai_offer(ai, best, 0, lead)) {   // the model answers (llm.c)
-        g_offer_t[ai][best] = now ? now : 1;   // as to a human: it stands 2 minutes; acceptance = allied
+        g_offer_t[ai][best] = now ? now : 1;   // as to a human: it stands (OFFER_AI_MS); acceptance = allied
         g_offer_kind[ai][best] = 0;
         g_offer_vs[ai][best] = (uint8_t)lead;
         if (g_log) fprintf(g_log, "# diplomacy: P%d offers P%d (AI, the model decides) an alliance against P%d\n", ai, best, lead);
@@ -842,7 +850,7 @@ internal void offer_alliance(int ai, int best, int lead, uint32_t now) {
             make_peace(best, ai, now);
             persona_say(pj, L_OFFER_ACCEPTED, pl, player_at(lead));
         } else persona_say(pj, L_PEACE_REFUSE, pl, NULL);
-    } else {                 // a human: the offer as a line; the AI turns allied when he does (2 minutes)
+    } else {                 // a human: the offer as a line; the AI fights on and turns allied when they do (it stands)
         g_offer_t[ai][best] = now ? now : 1;
         g_offer_kind[ai][best] = 0;
         g_offer_vs[ai][best] = (uint8_t)lead;
@@ -1013,26 +1021,16 @@ internal void diplo_situations(ee_player *pl, int ai, uint32_t now) {
 }
 
 // capitulation (every 10 s, after the scan; see the header)
-// a capitulation offered to a human: the tribute leaves the stock at once, so it can't be spent while he decides
-// (in a game: 1454 promised, 1211 left 40 s later); back into the stock before paying or when he ignores it
-internal void promise_escrow(int ai, int take) {
-    ee_player *pl = player_at(ai);
-    if (!pl || g_escrow[ai] == take) return;
-    int *stock = player_stock_at(pl), total = 0;
-    for (int r = 2; r < 7; r++) {
-        int n = g_promise[ai][r];
-        if (take && n > stock[r]) n = g_promise[ai][r] = stock[r] > 0 ? stock[r] : 0;
-        stock[r] += take ? -n : n;
-        total += n;
-    }
-    g_escrow[ai] = (uint8_t)take;
-    if (g_log) fprintf(g_log, "# diplomacy: P%d tribute of %d %s\n", ai, total, take ? "held back from its stock" : "back in its stock");
+// the tribute stays in its stock while the offer stands: the AI fights on and spends what it needs (holding it back
+// would starve an offer that stands for good), so whoever waits gets what is left of it
+internal float capit_need(ee_player *pl) {   // the attacker's power over its own that makes it capitulate: pride holds out
+    float need = 1.5f + (float)trait(pl, T_PRIDE) / 20.0f - (float)trait(pl, T_CAUTION) / 50.0f;
+    return need < 1.5f ? 1.5f : need;
 }
 internal int pay_promise(int ai, int j, int *paid) {   // what was offered, as far as the stock still has it
     ee_player *pl = player_at(ai), *pj = player_at(j);
     int total = 0;
     if (paid) memset(paid, 0, 7 * sizeof *paid);
-    promise_escrow(ai, 0);
     if (pl && pj) {
         int *from = player_stock_at(pl), *to = player_stock_at(pj);
         for (int r = 2; r < 7; r++) {
@@ -1058,8 +1056,6 @@ internal void capitulate(ee_player *pl, int ai, int a, uint32_t now) {
                        g_ws.buildings[ai], g_ws.peak[ai]);
     persona_say(pl, L_CAPITULATE, pa, NULL);
     if (mod_ai(a) && llm_ai_deciding() && llm_ai_offer(ai, a, 1, 0)) {   // the model answers: as to a human (below)
-        set_stance(ai, a, 0);
-        promise_escrow(ai, 1);
         g_offer_t[ai][a] = now ? now : 1;
         g_offer_kind[ai][a] = 1;
         g_offer_vs[ai][a] = 0;
@@ -1084,10 +1080,7 @@ internal void capitulate(ee_player *pl, int ai, int a, uint32_t now) {
         }
         return;
     }
-    set_stance(ai, a, 0);   // a human: its units stop fighting (a white flag); his answer (allied) within 2 minutes
-    if (g_stance_lines >= 2) chat_stance_line(pl, 0);
-    promise_escrow(ai, 1);
-    g_offer_t[ai][a] = now ? now : 1;
+    g_offer_t[ai][a] = now ? now : 1;   // a human: it fights on until they turn allied (STANDING OFFERS)
     g_offer_kind[ai][a] = 1;
     g_offer_vs[ai][a] = 0;
     char what[96];
@@ -1095,14 +1088,43 @@ internal void capitulate(ee_player *pl, int ai, int a, uint32_t now) {
     block_line(a, sysf("capitulation", pl, player_at(a), NULL, "tribute", what, NULL));
 }
 // AN AI'S OFFER TO AN AI, ANSWERED BY THE MODEL ([llm] llm_ai_decide): it stands like an offer to a human (g_offer_t,
-// 2 minutes; the answer is the other's stance turning allied - diplo_tick does the rest). Refused: it runs out now.
+// OFFER_AI_MS; the answer is the other's stance turning allied - diplo_tick does the rest). Refused: it runs out now.
 internal void offer_refused(int from, int to) {
     uint32_t now = game_time();
     hist_refused(to, from);
-    if (g_offer_t[from][to]) {   // run out at the next look: now - t past offer_minutes (unsigned: early in a game too -
-        uint32_t t = now - (uint32_t)g_offer_min * 60000u - 1u;   // 1 stood 2 more minutes there)
+    if (g_offer_t[from][to]) {   // run out at the next look: now - t past OFFER_AI_MS (unsigned: early in a game too -
+        uint32_t t = now - OFFER_AI_MS - 1u;   // 1 stood 2 more minutes there)
         g_offer_t[from][to] = t ? t : 0xFFFFFFFFu;   // 0 = no offer
     }
+}
+// STANDING OFFERS (see the header): why AI ai's pending offer to j is off now, NULL while it stands; *quiet: it ends
+// without a line (the two are allied by another way, j is out, or the block it was about is gone)
+internal const char *offer_off(int ai, int j, uint32_t now, int *quiet) {
+    ee_player *pl = player_at(ai), *pj = player_at(j);
+    int vs = g_offer_vs[ai][j];
+    *quiet = 1;
+    if (!pl || !pj || is_out(pj)) return "out of the game";
+    if (!stance_of(pl, j)) return "allied already";
+    *quiet = 0;
+    if (mod_ai(j)) return now - g_offer_t[ai][j] > OFFER_AI_MS ? "no answer" : NULL;
+    if (g_offer_kind[ai][j] == 2) {   // block peace: while both are in one block
+        int blk[16];
+        *quiet = 1;
+        if (!blocks_on()) return "no blocks";
+        blocks_compute(blk);
+        return blk[ai] && blk[ai] == blk[j] ? NULL : "no longer in one block";
+    }
+    if (is_vassal(ai)) return "a vassal now";
+    if (g_offer_kind[ai][j] == 1)   // a capitulation: while it is still losing (3/4 of the ratio that made it give in)
+        return power_of(j) < 0.75f * capit_need(pl) * power_of(ai) ? "holds its own again" : NULL;
+    if (!vs) return NULL;   // the model's peace: it stands
+    if (is_out(player_at(vs))) return "the common enemy is out";
+    if (!stance_of(pl, vs)) return "at peace with the common enemy";
+    if (!stance_of(pj, vs)) return "allied with the common enemy";
+    g_veto_quiet = 1;
+    int veto = block_veto(ai, j, now, NULL);
+    g_veto_quiet = 0;
+    return veto ? "an ally stands in the way" : NULL;
 }
 // no answer from the model: the rules decide, as they did at once before
 internal void ai_offer_rules(int from, int to) {
@@ -1177,14 +1199,17 @@ internal void check_capitulation(ee_player *pl, int ai, uint32_t now) {
     int a = 0;   // the attacker: whose soldiers have been in its base the most lately
     for (int j = 1; j < nplayers(); j++) {
         void *pj = player_at(j);
-        if (!pj || j == ai || is_out(pj) || !stance_of(pl, j) || !stance_of(pj, ai) || g_offer_t[ai][j] || is_vanilla_idx(j)) continue;
+        if (!pj || j == ai || is_out(pj) || !stance_of(pl, j) || !stance_of(pj, ai) || is_vanilla_idx(j)) continue;
+        if (g_offer_t[ai][j] && (g_offer_kind[ai][j] || mod_ai(j))) continue;   // a standing alliance offer gives way (below)
         if (!a || g_pressure[ai][j] > g_pressure[ai][a]) a = j;
     }
     if (!a || g_ws.close_by[ai][a] < 5 || g_pressure[ai][a] < 15) return;      // its army is in the base, and stays
     if (g_ws.peak[ai] < 5 || g_ws.buildings[ai] * 10 >= g_ws.peak[ai] * 9) return;   // and it is losing buildings
-    float need = 1.5f + (float)trait(pl, T_PRIDE) / 20.0f - (float)trait(pl, T_CAUTION) / 50.0f;   // pride holds out
-    if (need < 1.5f) need = 1.5f;
-    if (power_of(a) < need * power_of(ai)) return;
+    if (power_of(a) < capit_need(pl) * power_of(ai)) return;
+    if (g_offer_t[ai][a]) {   // its alliance offer to the player who is beating it now: a capitulation instead
+        g_offer_t[ai][a] = 0;
+        if (g_log) fprintf(g_log, "# diplomacy: P%d withdraws its alliance offer to P%d to capitulate\n", ai, a);
+    }
     if (llm_propose(ai, a, P_CAPIT, 0, now)) return;   // the model decides (towards the local player)
     capitulate(pl, ai, a, now);
 }
@@ -1415,12 +1440,14 @@ internal void diplo_tick(ee_player *pl, unsigned ai, uint32_t now) {
             g_peace_due[ai][j] = 0;
             if (!s && stance_of(pl, j) && !is_out(pj)) peace_offer(pl, (int)ai, j, now);
         }
-        if (g_offer_t[ai][j]) {   // the AI's alliance offer, capitulation or block peace to a human
-            int capit = g_offer_kind[ai][j] == 1, unity = g_offer_kind[ai][j] == 2;
+        if (g_offer_t[ai][j]) {   // the AI's alliance offer, capitulation or block peace (STANDING OFFERS)
+            int capit = g_offer_kind[ai][j] == 1, unity = g_offer_kind[ai][j] == 2, quiet;
+            const char *off;
             if (!s) {
                 g_offer_t[ai][j] = 0;
                 g_ally_since[ai][j] = now ? now : 1;
                 if (capit) {
+                    make_peace((int)ai, j, now);   // it fought on until now
                     int paid_total = pay_promise((int)ai, j, g_say_tribute);
                     g_lord[ai] = j;
                     g_lord_since[ai] = now ? now : 1;
@@ -1436,21 +1463,14 @@ internal void diplo_tick(ee_player *pl, unsigned ai, uint32_t now) {
                                        unity ? "block peace" : "alliance");
                 }
                 g_offer_ignored[ai][j] = 0;
-            } else if (now - g_offer_t[ai][j] > (uint32_t)g_offer_min * 60000u) {
+            } else if ((off = offer_off((int)ai, j, now, &quiet)) != NULL) {
                 g_offer_t[ai][j] = 0;
-                if (capit) { promise_escrow((int)ai, 0); memset(g_promise[ai], 0, sizeof g_promise[ai]); }
-                if (capit && g_log) fprintf(g_log, "# diplomacy: P%u at %.1f min: P%d ignored the capitulation\n", ai, now / 60000.0, j);
-                persona_say(pl, capit ? L_CAPITULATE_REFUSED : L_OFFER_WITHDRAWN, pj, NULL);
-                if (!capit && !unity) g_offer_ignored[ai][j]++;   // after its line: them.ignored(me) there counts the offers before
-                if (!stance_of(pl, j)) {   // the capitulation's cease-fire ends (an offer never changed its stance)
-                    set_stance((int)ai, j, 1);
-                    stance_note((int)ai, j, 1);
-                }
-                if (unity && blocks_on()) {   // he stays at war with a member of his block: it splits
-                    int blk[16];
-                    blocks_compute(blk);
-                    if (g_log) fprintf(g_log, "# diplomacy: blocks: P%d (human) let the block peace with P%u run out\n", j, ai);
-                    if (blk[j] && blk[j] == blk[ai]) block_split(j, (int)ai, blk, now);
+                if (capit) memset(g_promise[ai], 0, sizeof g_promise[ai]);
+                if (g_log) fprintf(g_log, "# diplomacy: P%u at %.1f min: its %s to P%d is off: %s\n", ai, now / 60000.0,
+                                   capit ? "capitulation" : unity ? "block peace" : "alliance offer", j, off);
+                if (!quiet) {
+                    persona_say(pl, capit ? L_CAPITULATE_REFUSED : L_OFFER_WITHDRAWN, pj, NULL);
+                    if (!capit && !unity) g_offer_ignored[ai][j]++;   // after its line: them.ignored(me) there counts the offers before
                 }
             }
         }
@@ -1526,7 +1546,6 @@ internal void diplo_new_game(void) {
     memset(g_offer_kind, 0, sizeof g_offer_kind);
     memset(g_offer_vs, 0, sizeof g_offer_vs);
     memset(g_promise, 0, sizeof g_promise);
-    memset(g_escrow, 0, sizeof g_escrow);
     g_victory_told = 0;
     g_victory_off = g_victory_claimed = 0;
     memset(g_capit_last, 0, sizeof g_capit_last);
@@ -1876,7 +1895,6 @@ internal void diplo_install(const char *test_ini) {
     g_surrender = g_set_ai[1].surrender;
     g_blocks = g_set_ai[1].alliance_blocks;
     g_stance_lines = g_set_ai[1].stance_lines;
-    g_offer_min = g_set_ai[1].offer_minutes;
     g_auto_victory = g_set.auto_victory;
     if (test_ini) {
         g_block_observer = ini_int("autotest", "block_observer", 0, test_ini);

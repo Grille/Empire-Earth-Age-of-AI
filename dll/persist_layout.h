@@ -25,7 +25,6 @@ internal const struct { const char *tag; uint32_t hash; } k_layout[] = {
     { "g_talk_last", 0xA985EE81U },
     { "g_talk_any", 0xA985EE81U },
     { "g_offer_ignored", 0x39C4DAA8U },
-    { "g_escrow", 0x5AB04A1DU },
     { "g_lord_since", 0x12226C9DU },
     { "g_kills", 0x9F3053A3U },
     { "g_kills_min", 0xCEE512A4U },

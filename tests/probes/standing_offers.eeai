@@ -1,0 +1,29 @@
+// standing offers (diplo.c STANDING OFFERS): an offer to the player has no time limit, the AI fights on meanwhile,
+// and the offer is off once its reason is gone. P1 is the test observer; 3 AIs (ai_count=3).
+
+wait_until(1min)
+// P1 at war with everyone (the AIs answer), P2 and P3 at war with each other
+diplo(1, 2, 1)
+diplo(1, 3, 1)
+diplo(1, 4, 1)
+diplo(2, 3, 1)
+diplo(3, 2, 1)
+wait_until(2min)
+// P3 offers P1 an alliance against P2: it stands (it was withdrawn after 2 minutes before)
+cmd("diplo offer 3 1 2")
+wait_until(6min)
+diplo()
+// still pending, P3 still hostile; now P3 makes peace with P2: the common enemy is none - off (offer_withdrawn)
+diplo(3, 2, 0)
+diplo(2, 3, 0)
+wait_until(7min)
+// P4 capitulates: no white flag - its stance stays hostile; P1 accepts at once - P4 turns allied and pays
+diplo("capitulate", 4, 1)
+diplo()
+diplo(1, 4, 0)
+wait_until(8min)
+diplo()
+// P2 capitulates and P1 doesn't answer: the observer has no army, so P2 holds its own - off (capitulate_refused)
+diplo("capitulate", 2, 1)
+wait_until(9min)
+diplo()

@@ -615,7 +615,7 @@
         },
         {
           "name": "variable.language.game-value.eeaimod",
-          "match": "\\b(?:population_limit|llm_constrained|max_population|offer_minutes|forgiveness|aggression|llm_equal|language|opinion|minutes|players|enemies|loyalty|caution|at_war|allied|allies|enemy|epoch|pride|greed|them|lord|talk|me)\\b(?!\\.)"
+          "match": "\\b(?:population_limit|llm_constrained|max_population|forgiveness|aggression|llm_equal|language|opinion|minutes|players|enemies|loyalty|caution|at_war|allied|allies|enemy|epoch|pride|greed|them|lord|talk|me)\\b(?!\\.)"
         },
         {
           "name": "constant.numeric.eeaimod",
@@ -810,7 +810,7 @@
         },
         {
           "name": "variable.language.game-value.eeaimod",
-          "match": "\\b(?:population_limit|llm_constrained|max_population|offer_minutes|forgiveness|aggression|llm_equal|language|opinion|minutes|players|enemies|loyalty|caution|at_war|allied|allies|enemy|epoch|pride|greed|them|lord|talk|me)\\b(?!\\.)"
+          "match": "\\b(?:population_limit|llm_constrained|max_population|forgiveness|aggression|llm_equal|language|opinion|minutes|players|enemies|loyalty|caution|at_war|allied|allies|enemy|epoch|pride|greed|them|lord|talk|me)\\b(?!\\.)"
         },
         {
           "name": "constant.numeric.eeaimod",

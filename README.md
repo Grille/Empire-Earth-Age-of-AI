@@ -127,7 +127,9 @@ peace or alliances. With the mod:
   against one of yours (and says who stands in the way). Vassals have no say in their lord's alliances - they
   make peace as told, grumbling if they hold a grudge.
 - **Capitulation:** when your army is in its base and the fight is lost, an AI offers peace and tribute
-  ("set us allied"); accept within 2 minutes and it pays and stays loyal. Proud personalities hold out longer.
+  ("set us allied"); accept and it pays and stays loyal. Proud personalities hold out longer. Like every offer to
+  you, it has no time limit but no cease-fire either: the AI fights on until you accept, spending what it needs
+  (you get what its stock still holds), and withdraws the offer once it holds its own again.
   A vassal has no diplomacy of its own: no offers, no betrayal, and whoever asks it for peace is sent to its lord.
   It still defends itself, and a lord who attacks his vassal sets it free.
 - **Reputation:** breaking an alliance is seen by every AI - each thinks worse of the traitor, the more loyal it

@@ -214,9 +214,9 @@ prompt = {
     // tool descriptions (the tool names stay)
     // in braces: {them}
     tool_accept_peace = "Accept the peace {them} offers you: you are allies from now on.",
-    // in braces: {them} {offer_minutes}
-    tool_offer_alliance_automated = ("Offer {them} peace: they get {offer_minutes} minutes to set their stance "
-        "towards you to allied - only then are you allies."),
+    // in braces: {them}
+    tool_offer_alliance_automated = ("Offer {them} peace: once they set their stance towards you to allied you are "
+        "allies - until then the war goes on."),
     // in braces: {them}
     tool_offer_alliance = "Offer {them} peace and an alliance: they decide in their answer.",
     // in braces: {them}
@@ -228,17 +228,17 @@ prompt = {
     tool_war = "End your alliance with {them} and declare war on them, now. Only when you truly mean it.",
     // in braces: {them} {tribute_room}
     tool_tribute = "Give {them} resources from your stock, as a tribute{tribute_room}.",
-    // in braces: {them} {tribute} {offer_minutes}
-    tool_capitulate = ("Capitulate to {them}: you offer them {tribute} and to serve them as their vassal; they have "
-        "{offer_minutes} minutes to accept."),
+    // in braces: {them} {tribute}
+    tool_capitulate = ("Capitulate to {them}: you offer them {tribute} and to serve them as their vassal; you fight "
+        "on until they accept."),
     // in braces: {what} {them}
     tool_refuse = "Refuse the {what} of {them}.",
     // events in the AI's memory of its exchange with the local player
     // in braces: {them}
     ev_made_peace = "You made peace with {them}: you are allies now.",
-    // in braces: {them} {offer_minutes}
-    ev_offered_peace = ("You offered {them} peace: they have {offer_minutes} minutes to set their stance towards you "
-        "to allied."),
+    // in braces: {them}
+    ev_offered_peace = ("You offered {them} peace: it stands until they set their stance towards you to allied - "
+        "the war goes on until then."),
     // in braces: {them}
     ev_declared_war = "You declared war on {them}.",
     // in braces: {them} {tribute}
@@ -256,8 +256,8 @@ prompt = {
     // events in the memory of a talk between AIs (third person)
     // in braces: {me} {what} {them}
     ev3_accepted = "{me} accepted the {what} of {them}",
-    // in braces: {me} {them} {offer_minutes}
-    ev3_offered = "{me} offered {them} peace and an alliance - {them} has {offer_minutes} minutes to accept",
+    // in braces: {me} {them}
+    ev3_offered = "{me} offered {them} peace and an alliance - {them} decides",
     // in braces: {me} {them}
     ev3_war = "{me} declared war on {them}",
     // in braces: {me} {them} {tribute}
@@ -267,9 +267,9 @@ prompt = {
     proposal = ("(Not a chat line: {move} Decide: if you want it, call {tool} and say it to {them} in your own "
         "words, one or two sentences, in {language_name}. If not, call no tool and write nothing - they will never "
         "know.)"),
-    // in braces: {them} {enemy} {offer_minutes}
+    // in braces: {them} {enemy}
     prop_alliance = ("Your advisers propose an alliance with {them} against {enemy}, who is far stronger than you: "
-        "you would set your stance towards {them} to allied, and they have {offer_minutes} minutes to accept."),
+        "you would offer it, and once they set their stance towards you to allied you are allies."),
     // in braces: {them}
     prop_betray = ("Your advisers propose to end your alliance with {them} and declare war on them: their side is "
         "weak, and you don't think much of them."),
@@ -294,7 +294,7 @@ prompt = {
     // in braces: {them}
     sit_offer_accepted = "{them} has accepted your alliance offer",
     // in braces: {them}
-    sit_offer_withdrawn = "your alliance offer to {them} has expired unanswered",
+    sit_offer_withdrawn = "your alliance offer to {them} went unanswered, and you withdraw it",
     // in braces: {them}
     sit_betray = "you betray {them}, your ally, and declare war on them",
     // in braces: {them} {tribute}
@@ -332,7 +332,7 @@ prompt = {
     sit_capitulate_accepted = ("{them} accepted your capitulation: you PAY them the tribute ({tribute}) and serve "
         "them from now on"),
     // in braces: {them}
-    sit_capitulate_refused = "{them} did not accept your capitulation: the war goes on",
+    sit_capitulate_refused = "{them} did not accept your capitulation, and you withdraw it: the war goes on",
     // in braces: {them}
     sit_attack_threat = "your army is about to attack {them}",
     // in braces: {them}
@@ -365,7 +365,7 @@ prompt = {
     // in braces: {them} {me}
     pair_offer_accepted = "{them} accepted the alliance {me} offered",
     // in braces: {me} {them}
-    pair_offer_withdrawn = "the alliance {me} offered {them} expired unanswered",
+    pair_offer_withdrawn = "the alliance {me} offered {them} went unanswered and is withdrawn",
     // in braces: {me} {them}
     pair_betray = "{me} betrays {them}, their ally, and declares war on them",
     // in braces: {them} {me} {tribute}
@@ -380,7 +380,7 @@ prompt = {
     pair_capitulate_accepted = ("{them} accepted the capitulation of {me}: {me} pays the tribute ({tribute}) and "
         "serves {them} from now on"),
     // in braces: {them} {me}
-    pair_capitulate_refused = "{them} did not accept the capitulation of {me}: the war goes on",
+    pair_capitulate_refused = "{them} did not accept the capitulation of {me}: it is withdrawn, the war goes on",
     // in braces: {me} {them}
     pair_attack_threat = "the army of {me} is about to attack {them}",
     // in braces: {them} {me}

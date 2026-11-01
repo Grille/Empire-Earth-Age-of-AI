@@ -7,7 +7,7 @@ diplo(1, 2, 1)
 // within its pride's 90 s: no make_peace offered (only send_tribute)
 wait_until(2min)
 cmd("llm say 2 Frieden?")
-// now peace is possible, he is hostile: its offer (2 minutes, he doesn't take it: withdrawn at ~5)
+// now peace is possible, he is hostile: its offer (it stands - no time limit; he takes it at 6 below)
 wait_until(3min)
 cmd("llm say 2 Frieden, Haendler?")
 // his peace offer: the model accepts (make_peace) - allies

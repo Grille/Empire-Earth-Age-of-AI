@@ -23,23 +23,23 @@ system = {
     // two members of your alliance block made peace
     // in braces: {me} {ally}
     block_peace = "{me} and {ally} make peace: they are in the same alliance.",
-    // in braces: {me} {offer_minutes}
-    block_unity = ("{me} is allied with your allies and offers peace: turn allied within {offer_minutes} minutes, or "
-        "the alliance breaks."),
+    // in braces: {me}
+    block_unity = ("{me} is allied with your allies and offers peace: set {me} to allied to accept - it fights on "
+        "until then."),
     // a peace offer refused for an ally's sake
     // in braces: {me} {ally} {them}
     veto_own = "{me} refuses: its ally {ally} won't make peace with {them}.",
     // in braces: {me} {them} {ally}
     veto_block = "{me} refuses: no peace with {them} while allied with {ally}.",
-    // in braces: {me} {enemy} {offer_minutes}
-    alliance_offer = ("{me} offers an alliance against {enemy}: set {me} to allied within {offer_minutes} minutes to "
-        "accept."),
-    // in braces: {me} {tribute} {offer_minutes}
-    capitulation = ("{me} surrenders and offers {tribute}: set {me} to allied within {offer_minutes} minutes to "
-        "accept."),
+    // in braces: {me} {enemy}
+    alliance_offer = ("{me} offers an alliance against {enemy}: set {me} to allied to accept - it fights on until "
+        "then."),
+    // in braces: {me} {tribute}
+    capitulation = ("{me} would surrender and pay {tribute}: set {me} to allied to accept - it fights on until then, "
+        "and pays what its stock still holds."),
     // the language model's peace offer ([llm] llm_decide)
-    // in braces: {me} {offer_minutes}
-    peace_offer = "{me} offers peace: set {me} to allied within {offer_minutes} minutes to accept.",
+    // in braces: {me}
+    peace_offer = "{me} offers peace: set {me} to allied to accept - it fights on until then.",
     // in braces: {me} {tribute}
     tribute_sent = "{me} sends you a tribute: {tribute}.",
     // victory over vassals (the chat words 'victory' and 'sieg' stay)

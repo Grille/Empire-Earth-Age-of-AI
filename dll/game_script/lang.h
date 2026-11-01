@@ -48,7 +48,7 @@ internal const struct xmember k_xmembers[] = {
     { "alliance_minutes", XM_REL, "how long A and B have been allied - nothing when they are not", XT_INT | X_NULLABLE, 1, 1, 0, 0 },
     { "betrayals", XM_REL, "how often A turned on B while they were allied (an alliance of 2 minutes or more: a peace broken at once is war, not betrayal) - (B, minutes): in the last minutes; in betrayed the betrayals before the one it is about", XT_INT, 1, 2, 0, 0 },
     { "refusals", XM_REL, "how often A refused B's offers of peace or alliance - (B, minutes): in the last minutes", XT_INT, 1, 2, 0, 0 },
-    { "ignored", XM_REL, "B's alliance offers A let run out, in a row - in offer_withdrawn those before the one withdrawn", XT_INT, 1, 1, 0, 0 },
+    { "ignored", XM_REL, "B's alliance offers A left unanswered until B withdrew them, in a row - in offer_withdrawn those before this one", XT_INT, 1, 1, 0, 0 },
     { "tribute", XM_REL, "resources A has paid B in this game - (B, minutes): in the last minutes, them.tribute(me, 15); in tribute_thanks / tribute_small what was paid before this tribute", XT_INT, 1, 2, 0, 0 },
     { "near", XM_REL, "A's soldiers within 20 tiles of B's base now, while B treats A as an enemy (an AI's base)", XT_INT, 1, 1, 0, 0 },
     { "in_town", XM_REL, "1 when A's army is in B's town: its soldiers have stayed near B's base for a while (an AI's base)", XT_BOOL, 1, 1, 0, 0 },
@@ -75,7 +75,6 @@ internal const struct xmember k_xglobals[] = {
     { "population_limit", XM_PLAYER, "the game's unit limit per player (its setting)", XT_INT, -1, -1, 0, 0 },
     { "max_population", XM_PLAYER, "the largest population of a player still in - kills > max_population / 2: many for this stage of the game", XT_INT, -1, -1, 0, 0 },
     { "language", XM_PLAYER, "the game's language: de, en, fr, ...", XT_TEXT, -1, -1, 0, 0 },
-    { "offer_minutes", XM_PLAYER, "how long an offer stands, in minutes ([ai_base] offer_minutes in ageofai.ini)", XT_FLOAT, -1, -1, 0, 0 },
     { "llm_equal", XM_PLAYER, "1 when the language model is told nothing of who plays the computer ([llm] llm_equal)", XT_BOOL, -1, -1, 0, 0 },
     { "llm_constrained", XM_PLAYER, "1 when the language model decides within the rules' limits ([llm] llm_constrained)", XT_BOOL, -1, -1, 0, 0 },
 };

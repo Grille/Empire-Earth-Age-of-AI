@@ -11,7 +11,7 @@
 // persona.c.
 // THE KEYS the code asks for - their texts are in the files only (mod/system.eeai, mod/prompt.eeai, a
 // personality's prompt = { }): each key with the placeholders the code fills in it ({tribute}, {url} ...;
-// the game's values - {me}, {offer_minutes} - and the files' names are no placeholders)
+// the game's values - {me}, {minutes} - and the files' names are no placeholders)
 struct text_key { const char *key, *ph; };
 // k_sys: the system lines the player reads (mod/system.eeai)
 internal const struct text_key k_sys[] = {

@@ -124,7 +124,7 @@ class player
     /// how often A refused B's offers of peace or alliance - (B, minutes): in the last minutes
     [relation]
     extern int refusals(player b, float minutes = 0);
-    /// B's alliance offers A let run out, in a row - in offer_withdrawn those before the one withdrawn
+    /// B's alliance offers A left unanswered until B withdrew them, in a row - in offer_withdrawn those before this one
     [relation]
     extern int ignored(player b);
     /// resources A has paid B in this game - (B, minutes): in the last minutes, them.tribute(me, 15); in

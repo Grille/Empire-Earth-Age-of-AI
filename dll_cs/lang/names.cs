@@ -32,8 +32,6 @@ static class names
     static int max_population;
     /// the game's language: de, en, fr, ...
     static text language;
-    /// how long an offer stands, in minutes ([ai_base] offer_minutes in ageofai.ini)
-    static float offer_minutes;
     /// 1 when the language model is told nothing of who plays the computer ([llm] llm_equal)
     static bool llm_equal;
     /// 1 when the language model decides within the rules' limits ([llm] llm_constrained)

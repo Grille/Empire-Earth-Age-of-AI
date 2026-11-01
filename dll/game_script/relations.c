@@ -206,7 +206,6 @@ internal int x_builtin(struct xctx *c, const char *name, struct xval *v) {
         double r = 0;
         if (!strcmp(name, "minutes")) r = (double)(game_time() / 60000u);
         else if (!strcmp(name, "language")) { xstr(v, g_lang); return 1; }
-        else if (!strcmp(name, "offer_minutes")) r = g_offer_min;
         else if (!strcmp(name, "llm_equal")) r = g_llm_equal;
         else if (!strcmp(name, "llm_constrained")) r = g_llm_constrained;
         else if (!strcmp(name, "population_limit")) r = pop_limit_setting();   // the game setting (econ.c)

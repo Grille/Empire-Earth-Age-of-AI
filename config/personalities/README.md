@@ -215,7 +215,7 @@ lines = {
 | `peace_refuse` | you refuse {them}'s offer of peace | {them} | always | 60 s |  |
 | `alliance_offer` | you offer {them} an alliance against {enemy}, your common enemy | {them} | always |  |  |
 | `offer_accepted` | {them} has accepted your alliance offer | {them} | always |  |  |
-| `offer_withdrawn` | your alliance offer to {them} has expired unanswered | {them} | always |  |  |
+| `offer_withdrawn` | your alliance offer to {them} went unanswered, and you withdraw it | {them} | always |  |  |
 | `betray` | you betray {them}, your ally, and declare war on them | {them} | always |  |  |
 | `tribute_thanks` | {them} sent you a generous tribute: {tribute} | {them} | always | 20 s |  |
 | `tribute_small` | {them} sent you a tribute - a small one: {tribute} | {them} | always | 60 s |  |
@@ -240,7 +240,7 @@ lines = {
 | `surrender` | you give up the game | everyone | always |  | `defeated` |
 | `capitulate` | you capitulate: {them} is beating you, and you offer to PAY them a tribute ({tribute}) for peace - you give, they receive | {them} | always |  |  |
 | `capitulate_accepted` | {them} accepted your capitulation: you PAY them the tribute ({tribute}) and serve them from now on | {them} | always |  |  |
-| `capitulate_refused` | {them} did not accept your capitulation: the war goes on | {them} | always |  |  |
+| `capitulate_refused` | {them} did not accept your capitulation, and you withdraw it: the war goes on | {them} | always |  |  |
 | `attack_threat` | your army is about to attack {them} | {them} | 60% | 300 s |  |
 | `all_submitted` | every other player has submitted to {them}, your lord | {them} | always |  |  |
 | `other_victory` | {them} has won the game | everyone | always |  |  |
@@ -434,7 +434,7 @@ Shortcuts: my own `epoch`, traits, `allies` and `enemies` without `me.` (`aggres
 | `A.alliance_minutes(B)` | how long A and B have been allied - nothing when they are not |
 | `A.betrayals(B)` | how often A turned on B while they were allied (an alliance of 2 minutes or more: a peace broken at once is war, not betrayal) - (B, minutes): in the last minutes; in betrayed the betrayals before the one it is about |
 | `A.refusals(B)` | how often A refused B's offers of peace or alliance - (B, minutes): in the last minutes |
-| `A.ignored(B)` | B's alliance offers A let run out, in a row - in offer_withdrawn those before the one withdrawn |
+| `A.ignored(B)` | B's alliance offers A left unanswered until B withdrew them, in a row - in offer_withdrawn those before this one |
 | `A.tribute(B)` | resources A has paid B in this game - (B, minutes): in the last minutes, them.tribute(me, 15); in tribute_thanks / tribute_small what was paid before this tribute |
 | `A.near(B)` | A's soldiers within 20 tiles of B's base now, while B treats A as an enemy (an AI's base) |
 | `A.in_town(B)` | 1 when A's army is in B's town: its soldiers have stayed near B's base for a while (an AI's base) |
@@ -457,7 +457,6 @@ Shortcuts: my own `epoch`, traits, `allies` and `enemies` without `me.` (`aggres
 | `population_limit` | the game's unit limit per player (its setting) |
 | `max_population` | the largest population of a player still in - kills &gt; max_population / 2: many for this stage of the game |
 | `language` | the game's language: de, en, fr, ... |
-| `offer_minutes` | how long an offer stands, in minutes ([ai_base] offer_minutes in ageofai.ini) |
 | `llm_equal` | 1 when the language model is told nothing of who plays the computer ([llm] llm_equal) |
 | `llm_constrained` | 1 when the language model decides within the rules' limits ([llm] llm_constrained) |
 <!-- /values -->
