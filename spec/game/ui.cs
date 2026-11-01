@@ -224,28 +224,424 @@ unsafe struct EEUIEKeyboardScroll
     extern uint32 execute(uint32 a, uint32 b);
 }
 
-/// the UI manager's current form
-unsafe struct ee_ui_form
+// THE USER INTERFACE: Low-Level Engine.dll's UI classes (UIManager, UIForm, UIControl and its kinds, UIEvent) build
+// every screen from the UI database (data.ssa's db/dbui*.dat: dbuiforms one row per form - its id the row, +0xCC -,
+// dbuicontrols the controls with their form and rectangle, dbuiback the backgrounds, dbuifonts, dbuicontrolevents /
+// dbuiformevents the events by id, dbuihotkey the keys). The exe adds its own: EEUIManager ([game.ui_manager]) makes
+// form 11 an EEUIFMainGame and the controls of types 1000.. (the minimap, the status buttons, the unit bars ...), and
+// its event creators turn an event id into the exe's event object (EEUIE*: a button's handler, its execute). The
+// scenario editor builds its form in code (editor.cs). The classes here, the forms and controls of the exe
+// (ui_forms.cs), the events (ui_events.cs) and the DLL's UI functions the exe imports (ui_imports.cs): their vtables,
+// constructors and sizes found in both builds by scripts/re/ui_classes.py (--events: the creators' ids), the slots'
+// names by the DLL's exported vtables (scripts/re/dll_vtable.py). A layout changes by the control's rectangle
+// (set_rectangle, set_location; set_display_mode hides one) once its form is built, a form by a hook on its open or
+// its constructor, a button by a hook on its event's execute.
+
+/// the forms of the UI database by their id (dbuiforms.dat: the row, its name there; 0 and 1 empty rows)
+[c_prefix("FORM")]
+enum ui_form_id : int32
 {
-    /// votes 6/7
-    [offset((ee)0x5D8, (aoc)0x5E8), found(h, "votes 6/7")]
-    int32 top_bar;
+    /// "Test form"
+    test = 2,
+    /// "In Game Scenario & Save Game Screen"
+    save_game,
+    /// "In Game Scenario & Load Game Screen"
+    load_game,
+    /// "Game Settings Screen"
+    game_settings,
+    /// "Single Player Menu"
+    single_player,
+    /// "CivBuilder Main Form"
+    civ_builder,
+    /// "Play Campaign Form"
+    play_campaign,
+    /// "Game Tools Menu"
+    game_tools,
+    /// "Choose Campaign Screen"
+    choose_campaign,
+    /// "Scott Main Game Form": the game's screen (EEUIFMainGame)
+    main_game,
+    /// "Main Menu Screen"
+    main_menu,
+    /// "Single Player Load Game Screen"
+    load_single,
+    /// "Campaign Screen"
+    campaign,
+    /// "CivBuilder New Civilization Form"
+    civ_new,
+    /// "CivBuilder Save Civilization Form"
+    civ_save,
+    /// "CivBuilder Load Civilization Form"
+    civ_load,
+    /// "Chat In Game pop-up dialog"
+    chat,
+    /// "Scenario Intro Screen(Briefing Screen)"
+    scenario_intro,
+    /// "Scenario Load Screen"
+    scenario_load,
+    /// "WON.net Stat Screen"
+    won_stats,
+    /// "DS Debug Sound Screen"
+    debug_sound,
+    /// "Splash Screen": also the multiplayer loading screen (EEUserInterface.loading_bar)
+    splash,
+    /// "Campaign Editor Form"
+    campaign_editor,
+    /// "Post Game Summary Screen"
+    post_game,
+    /// "Multi/Single Setup Screen(Lobby)": the game setup screen
+    setup,
+    /// "Diplomacy Screen"
+    diplomacy,
+    /// "In-game Options form"
+    options,
+    /// "Chat Log Form"
+    chat_log,
+    /// "Multiplayer Menu Form"
+    multiplayer,
+    /// "Available Rooms (Sierra) Form"
+    sierra_rooms,
+    /// "Available Games (Sierra) Form"
+    sierra_games,
+    /// "Campaign Scenario Select Form"
+    campaign_scenario,
+    /// "Choose Custom Campaign Form"
+    custom_campaign,
+    /// "Predefined Civ Form"
+    predefined_civ,
+    /// "Create Sierra Account Form"
+    sierra_create_account,
+    /// "Update Sierra Account Form"
+    sierra_update_account,
+    /// "Select Server Form"
+    select_server,
+    /// "Demo Outro Form"
+    demo_outro
 }
 
-/// a single-player menu screen (EEUIESP*)
-unsafe struct ee_ui_screen
+/// a form (a screen or a dialog), Low-Level Engine.dll's UIForm: made from its row of dbuiforms.dat (UIManager's
+/// create_form), the UI manager's current one (UIManager::GetCurrentForm, ui.iat_uim_form). Its vtable is the DLL's;
+/// the exe's forms (EEUIFMainGame, EEUIFScenarioEditor ...) derive from it. Its slots: the DLL's export names
+[c_type("ee_ui_form")]
+unsafe struct UIForm
 {
+    /// its controls by their index in the form (the single-player menu's name field: entry 8, a UIEditBox); the event
+    /// creators read entry 4 (0x65A46D)
     [offset(0xF8), found(v)]
     uint8** controls;
+
+    // VIRTUAL FUNCTIONS (slot 0 the destructor)
+
+    [slot(1)]
+    extern void activate();
+
+    [slot(2)]
+    extern void add_ime_result_string(void* text);
+
+    [slot(3)]
+    extern int32 change_ime_composition_string(void* text, void* attributes, uint32 cursor);
+
+    [slot(4)]
+    extern int32 close_ime_composition_string();
+
+    [slot(5)]
+    extern void deactivate();
+
+    /// a GERectangle
+    [slot(6)]
+    extern int32 draw_background(void* rect);
+
+    [slot(7)]
+    extern int32 open_ime_composition_string();
+
+    /// the form laid out anew in rect (a GERectangle: the screen)
+    [slot(8)]
+    extern void relayout_form(void* rect);
+
+    [slot(9)]
+    extern void set_help_text_popup_location();
+
+    [slot(10)]
+    extern void update_information();
+
+    [slot(11)]
+    extern int32 update_keyboard();
+
+    [slot(12)]
+    extern int32 update_mouse();
+
+    /// a typed key (its text, its flags)
+    [slot(13)]
+    extern int32 update_translated_key(char8* key, int16 flags);
+
+    [slot(14)]
+    extern void close();
+
+    [slot(15)]
+    extern int32 copy_data();
+
+    [slot(16)]
+    extern int32 draw_polygons();
+
+    [slot(17)]
+    extern int32 draw_text();
+
+    /// the form opened (shown): where a form of the exe places what it builds itself (EEUIFScenarioEditor's lays out
+    /// its panels, dll/game/api/editor_layout.h)
+    [slot(18)]
+    extern void open();
+
+    [slot(19)]
+    extern void set_rectangle(void* rect);
 }
 
-/// the scenario editor's form (EEUIFScenarioEditor)
-[c_type("ee_editor_form"), vtable((ee)0x0082F7B4, (aoc)0x00845084)]
-unsafe struct EEUIFScenarioEditor
+/// a control of a form, Low-Level Engine.dll's UIControl (UIEntity's): made from its row of dbuicontrols.dat - the
+/// DLL's own kinds (UIButton, UITextLabel, UIEditBox, UIComboBox, a list box ...) or, for types 1000.., EEUIManager's
+/// create_control. Its vtable is the DLL's; its slots by the DLL's export names (17 and 18 one empty function there:
+/// by their order). Coordinates are floats in the form's design resolution (dbuiforms +0xE8 / +0xEC: 800x600 or
+/// 1024x768), rectangles GERectangles, points GE2DPoints
+[c_type("ee_ui_control")]
+unsafe struct UIControl
 {
-    [address((ee)0x0058D3E1, (aoc)0x0059D615)]
-    [call_site("editor_form", (ee)0x0065BA13, (aoc)0x00673E9B)]
-    extern void* init(void* owner);
+    // VIRTUAL FUNCTIONS (slot 0 the destructor)
+
+    [slot(1)]
+    extern void add_ime_result_string(void* text);
+
+    [slot(2)]
+    extern int32 change_ime_composition_string(void* text, void* attributes, uint32 cursor);
+
+    /// a GEFont
+    [slot(3)]
+    extern void change_font(void* font);
+
+    [slot(4)]
+    extern int32 close_ime_composition_string();
+
+    [slot(5)]
+    extern int32 copy_data();
+
+    [slot(6)]
+    extern int32 draw_polygons();
+
+    [slot(7)]
+    extern int32 draw_text();
+
+    /// its help text into a UWideString; 0: none
+    [slot(8)]
+    extern uint8 get_help_string(void* text);
+
+    [slot(9)]
+    extern uint8 get_ime_enabled();
+
+    [slot(10)]
+    extern uint8 get_tabable();
+
+    [slot(11)]
+    extern uint32 get_type();
+
+    [slot(12)]
+    extern void hide_control();
+
+    [slot(13)]
+    extern int32 mouse_l_button_down();
+
+    [slot(14)]
+    extern int32 mouse_l_button_up();
+
+    [slot(15)]
+    extern int32 mouse_l_button_double_pressed();
+
+    /// a GE2DPoint
+    [slot(16)]
+    extern int32 mouse_move(void* at);
+
+    [slot(17)]
+    extern int32 mouse_r_button_down();
+
+    [slot(18)]
+    extern int32 mouse_r_button_up();
+
+    [slot(19)]
+    extern int32 mouse_wheel_turned(int32 amount);
+
+    [slot(20)]
+    extern int32 open_ime_composition_string();
+
+    [slot(21)]
+    extern void release_captured_keyboard();
+
+    [slot(22)]
+    extern void release_captured_mouse();
+
+    /// a GEColor
+    [slot(23)]
+    extern void set_bg_color(void* color);
+
+    [slot(24)]
+    extern void set_bg_opacity(float32 opacity);
+
+    /// to be drawn again
+    [slot(25)]
+    extern void set_dirty(uint8 dirty);
+
+    /// shown, hidden ... (the DLL's display modes)
+    [slot(26)]
+    extern void set_display_mode(uint32 mode);
+
+    /// its top left corner (a GE2DPoint)
+    [slot(27)]
+    extern void set_location(void* at);
+
+    /// its place and size (a GERectangle)
+    [slot(28)]
+    extern void set_rectangle(void* rect);
+
+    [slot(29)]
+    extern void tabbed_to();
+
+    [slot(30)]
+    extern void tabbed_from();
+
+    [slot(31)]
+    extern int32 update_keyboard();
+
+    [slot(32)]
+    extern int32 update_translated_key(char8* key, int16 flags);
+
+    [slot(33)]
+    extern int32 draw_border(void* rect, uint32 flags);
+}
+
+/// a button, Low-Level Engine.dll's UIButton (its vtable the DLL's): the slots it adds
+[@base(typeof(UIControl)), c_type("ee_ui_button")]
+unsafe struct UIButton
+{
+    [slot(34)]
+    extern void button_down();
+
+    [slot(35)]
+    extern void button_up();
+
+    [slot(36)]
+    extern void mouse_over();
+}
+
+/// a form's background, Low-Level Engine.dll's UIBackground (dbuiback.dat's rows; EEUIManager's create_background
+/// makes the exe's of type 0x65)
+[c_type("ee_ui_background")]
+unsafe struct UIBackground
+{
+    [slot(1)]
+    extern void close();
+
+    [slot(2)]
+    extern void open();
+
+    [slot(3)]
+    extern void relayout_background();
+}
+
+/// what a control or a form does, Low-Level Engine.dll's UIEvent (a UReferenceCounter: vtable, refcount, 0): the
+/// DLL runs a control's events when it is used (a button pressed), a form's when it opens or closes; the exe's are
+/// made by EEUIManager's event creators from their id (ui_events.cs)
+[size(0xC), c_type("ee_ui_event")]
+unsafe struct UIEvent
+{
+    /// thiscall(event, the form, ?), ret 8 in both builds: what the event does (the single-player menu's buttons
+    /// read the form: dll/engine/playername.c); slot 0 the destructor
+    [slot(1)]
+    extern uint32 execute(UIForm* form, uint32 arg);
+
+    [slot(2)]
+    extern int32 initialize_event();
+
+    [slot(3)]
+    extern int32 uninitialize_event();
+}
+
+/// the UI's manager, Low-Level Engine.dll's UIManager: the forms (by id: UIManager::GetFormByID, the stack of open
+/// ones: Push / Pop / SwapForm - ui_imports.cs), the UI database. Its slots by the DLL's export names
+[c_type("ee_uim")]
+unsafe struct UIManager
+{
+    [slot(1)]
+    extern int32 change_ime_candidate_window(void* list);
+
+    [slot(2)]
+    extern int32 change_ime_composition_string(void* text, void* attributes, uint32 cursor);
+
+    [slot(3)]
+    extern int32 close_ime_candidate_window();
+
+    [slot(4)]
+    extern int32 close_ime_composition_string();
+
+    /// a background of a type the DLL doesn't know (its row of dbuiback.dat); the DLL's: none
+    [slot(5)]
+    extern UIBackground* create_user_defined_background(void* row);
+
+    /// a control of a type the DLL doesn't know (its row of dbuicontrols.dat); the DLL's: none
+    [slot(6)]
+    extern UIControl* create_user_defined_control(void* row);
+
+    /// a form from its row of dbuiforms.dat (a UIDbDataForms)
+    [slot(7)]
+    extern UIForm* create_form(void* row);
+
+    [slot(8)]
+    extern int32 open_ime_candidate_window();
+
+    [slot(9)]
+    extern int32 open_ime_composition_string();
+
+    /// a GE2DPoint: the mouse
+    [slot(10)]
+    extern int32 update_ui(void* mouse);
+
+    [slot(11)]
+    extern int32 update_keyboard();
+
+    [slot(12)]
+    extern int32 update_mouse(void* mouse);
+}
+
+/// the game's UI manager, [game.ui_manager] (an object there, not a pointer): the DLL's UIManager with the exe's
+/// forms, controls and event creators
+[@base(typeof(UIManager)), vtable((ee)0x00834DE4, (aoc)0x0084AE90)]
+unsafe struct EEUIManager
+{
+    /// the event creators (ui.event_creators), a list of cdecl(form, id) -> UIEvent* or 0: the constructor pushes
+    /// each (0x65DD92 onto +0x1C, both builds)
+    [offset(0x1C), found(c)]
+    vector event_creators;
+
+    /// its constructor: the DLL's UIManager with the sound manager and the resources, then the event creators
+    [address((ee)0x00659CDD, (aoc)0x00671319)]
+    extern void* init(uint32 p1, uint32 p2, uint32 p3);
+
+    // VIRTUAL FUNCTIONS
+
+    /// type 0x65 (row +0x68): an EEUIBGenericBackground of the form +0x64
+    [address((ee)0x0065BE8F, (aoc)0x00674564), overrides(typeof(UIManager))]
+    extern UIBackground* create_user_defined_background(void* row);
+
+    /// by the row's type (+0x110; its form +0x108): 1000 EEUIFMGStatusButton, 1001 EEUIMiniMap, 1003 EEUIFMGErrorLog,
+    /// 1004 EEUIFMGStatusBar, 1005 EEUIFMGAttribute, 1007 EEUICSelectUnits, 1008 EEUICCommandUnits, 1009 EEUICPortrait,
+    /// 1010 EEUICChatLine, 1011 EECBUIListBox, 1013 EEUICWonNetStatBox, 1014 EEUICUnitIconBar, 1015 EEUIBSavedGroup,
+    /// 1016 EEUIPGSLineGraph, 1017 EEUICPing, 1018 EEUICWonNetRoomsBox, 1019 EEUICWonNetGamesBox
+    [address((ee)0x0065BF72, (aoc)0x00674647), overrides(typeof(UIManager))]
+    extern UIControl* create_user_defined_control(void* row);
+
+    /// form 11 (row +0xCC) an EEUIFMainGame (0x64C8B0), every other the DLL's
+    [address((ee)0x0065C5B3, (aoc)0x00674C94), overrides(typeof(UIManager))]
+    extern UIForm* create_form(void* row);
+
+    [address((ee)0x0065C99D, (aoc)0x006750A9), overrides(typeof(UIManager))]
+    extern int32 update_keyboard();
+
+    [address((ee)0x0065CA9F, (aoc)0x006751AB), overrides(typeof(UIManager))]
+    extern int32 update_mouse(void* mouse);
 }
 
 /// the save-game action (EEASaveGame)
@@ -377,6 +773,31 @@ static unsafe class ui
 
     [address((ee)0x00825098, (aoc)0x0083907C)]
     static vftable vt_scroll;
+
+    /// the UI manager's event creators (EEUIManager.event_creators), in its constructor's order (the fourth twice):
+    /// cdecl(form, id) -> the UIEvent of a control event id they know (dbuicontrolevents.dat's rows, 0..251), else 0.
+    /// Which makes which: each event's comment in ui_events.cs (scripts/re/ui_classes.py --events runs them for every
+    /// id) - 0x65A1A5 the forms' open and close (1..10), 0x65A46D save and load (11..20), 0x65AF3A the game screen's
+    /// buttons (22..27, 138..143, 241..249 ...), 0x65B496 the main menu (28..33), 0x65BCBD the single-player menu
+    /// (35..40), 0x65B7DA the post-game summary (144..184) ...
+    [address((ee)0x0065A9E6, (aoc)0x006726B3)]
+    [address((ee)0x0065ABE0, (aoc)0x00672AB1)]
+    [address((ee)0x0065AC0D, (aoc)0x00672ADE)]
+    [address((ee)0x00659F31, (aoc)0x00671598)]
+    [address((ee)0x0065A46D, (aoc)0x00671F5D)]
+    [address((ee)0x0065AF3A, (aoc)0x00672DE6)]
+    [address((ee)0x0065B496, (aoc)0x006734C5)]
+    [address((ee)0x0065B684, (aoc)0x00673836)]
+    [address((ee)0x0065B7DA, (aoc)0x00673A89)]
+    [address((ee)0x0065BA24, (aoc)0x00673EAC)]
+    [address((ee)0x0065BBE6, (aoc)0x0067406E)]
+    [address((ee)0x0065BCBD, (aoc)0x00674200)]
+    [address((ee)0x0065BDB8, (aoc)0x006743D2)]
+    [address((ee)0x00659F31, (aoc)0x00671598)]
+    [address((ee)0x0065C5EE, (aoc)0x00674CCF)]
+    [address((ee)0x0065A81E, (aoc)0x006724EB)]
+    [address((ee)0x0065A1A5, (aoc)0x00671A10)]
+    static code event_creators;
 }
 
 /// the game's functions ui.c wraps, by the names the C side gives them

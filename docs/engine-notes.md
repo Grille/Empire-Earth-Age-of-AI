@@ -878,6 +878,26 @@ conditions, 162 states with their ids) were dumped by a helper, not kept in the 
   0x00|n, 0x40|n + bits 8..15, or 0x80|n + bits 8..23 (n <= 63), n bytes of bits 0..7; empty = 0xFF.
   `[general] big_selection` packs the same format up to the 255 bytes (about 240 units; 236 tested).
 
+## User interface (spec/game/ui.cs, ui_forms.cs, ui_events.cs, editor.cs, ui_imports.cs; 2026-11-01)
+
+Menus and the game screen are data, not code: `Low-Level Engine.dll`'s UIManager loads the UI database from data.ssa's
+db/ - dbuiforms.dat (40 rows of 268 bytes: name +0, music +100, the form id +0xCC = the row, its design resolution
++0xE8 / +0xEC, 800x600 or 1024x768), dbuicontrols.dat (each control's form, rectangle and type +0x110), dbuiback,
+dbuifonts, dbuicontrolevents.dat (252 rows of 116 bytes: name +0, id +0x68) and dbuiformevents.dat (21 rows, the form
++0x6C), dbuihotkey. Moving or hiding a menu's button is a change of dbuicontrols.dat or, at run time, of the control
+(UIForm::GetControlById, then the control's set_rectangle / set_display_mode slots). The exe adds three things through
+EEUIManager ([game.ui_manager]): create_form makes form 11 an EEUIFMainGame, create_user_defined_control the controls of
+types 1000..1019 (the minimap, the status buttons, the unit bars, the portrait, the WON.net lists, the post-game graph),
+and its 17 event creators turn an event id into the exe's UIEvent - the handler of a button (execute: thiscall(event,
+form, ?), ret 8). `scripts/re/ui_classes.py --events` runs each creator for every id under unicorn: 232 ids map to a
+class, the same in both builds (EEUIEPCECampaign4, id 89, only in the 2017 update); the creator 0x65A1A5 answers the
+form events 1..10 (its classes match dbuiformevents.dat's names), the others control events. The scenario editor is
+the exception: its form (EEUIFScenarioEditor) and panels are built in code with their coordinates as immediates
+(dll/game/api/editor_layout.h patches them per screen size). The spec now holds the exe's 560 UI classes (the
+lobby's WONAPI dialogs and the trigger model EESM* aside) with their vtables, constructors and sizes, their own
+functions in the DLL classes' slots, and 455 more of the DLL's UI functions the exe imports: the load-time check grew
+from about 660 to 3516 checks (AoC 3474), all hold.
+
 ## Drawing
 
 - EEROUnits::vf0 0x503B83 (each frame) collects what is on screen into the global block 0x8D2CB8 (static ctor

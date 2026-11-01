@@ -205,25 +205,240 @@ internal key_scroll_execute_fn fn_eeuie_keyboard_scroll_execute;
 internal inline uint32_t eeuie_keyboard_scroll_execute(ee_key_scroll *key_scroll, uint32_t a, uint32_t b) { return fn_eeuie_keyboard_scroll_execute(key_scroll, a, b); }
 internal inline int patch_key_scroll_execute(key_scroll_execute_fn h) { return patch_vtable(vt_eeuie_keyboard_scroll, (int)slot_key_scroll_execute, (uintptr_t)fn_eeuie_keyboard_scroll_execute, (void *)h); }
 
-// class ee_ui_form (ee_ui_form)
-// the UI manager's current form
-// votes 6/7
-internal inline int ui_form_get_top_bar(const ee_ui_form *o) { return *(int *)((uint8_t *)o + of_ui_form_top_bar); }
-internal inline void ui_form_set_top_bar(ee_ui_form *o, int v) { *(int *)((uint8_t *)o + of_ui_form_top_bar) = v; }
-internal inline int *ui_form_top_bar_at(const ee_ui_form *o) { return (int *)((uint8_t *)o + of_ui_form_top_bar); }
+// class ui_form_id (enum ui_form_id)
+// the forms of the UI database by their id (dbuiforms.dat: the row, its name there; 0 and 1 empty rows)
 
-// class ee_ui_screen (ee_ui_screen)
-// a single-player menu screen (EEUIESP*)
-internal inline uint8_t **ui_screen_get_controls(const ee_ui_screen *o) { return *(uint8_t ***)((uint8_t *)o + of_ui_screen_controls); }
-internal inline void ui_screen_set_controls(ee_ui_screen *o, uint8_t **v) { *(uint8_t ***)((uint8_t *)o + of_ui_screen_controls) = v; }
-internal inline uint8_t ***ui_screen_controls_at(const ee_ui_screen *o) { return (uint8_t ***)((uint8_t *)o + of_ui_screen_controls); }
+// class UIForm (ee_ui_form)
+// a form (a screen or a dialog), Low-Level Engine.dll's UIForm: made from its row of dbuiforms.dat (UIManager's
+// create_form), the UI manager's current one (UIManager::GetCurrentForm, ui.iat_uim_form). Its vtable is the DLL's;
+// the exe's forms (EEUIFMainGame, EEUIFScenarioEditor ...) derive from it. Its slots: the DLL's export names
+// its controls by their index in the form (the single-player menu's name field: entry 8, a UIEditBox); the event
+// creators read entry 4 (0x65A46D)
+internal inline uint8_t **ui_form_get_controls(const ee_ui_form *o) { return *(uint8_t ***)((uint8_t *)o + of_ui_form_controls); }
+internal inline void ui_form_set_controls(ee_ui_form *o, uint8_t **v) { *(uint8_t ***)((uint8_t *)o + of_ui_form_controls) = v; }
+internal inline uint8_t ***ui_form_controls_at(const ee_ui_form *o) { return (uint8_t ***)((uint8_t *)o + of_ui_form_controls); }
+typedef void (__thiscall *ui_form_activate_fn)(ee_ui_form *);
+internal inline void ui_form_activate(ee_ui_form *ui_form) { ((ui_form_activate_fn)(*(void ***)ui_form)[slot_ui_form_activate])(ui_form); }
+typedef void (__thiscall *ui_form_add_ime_result_string_fn)(ee_ui_form *, void *);
+internal inline void ui_form_add_ime_result_string(ee_ui_form *ui_form, void *text) { ((ui_form_add_ime_result_string_fn)(*(void ***)ui_form)[slot_ui_form_add_ime_result_string])(ui_form, text); }
+typedef int (__thiscall *ui_form_change_ime_composition_string_fn)(ee_ui_form *, void *, void *, uint32_t);
+internal inline int ui_form_change_ime_composition_string(ee_ui_form *ui_form, void *text, void *attributes, uint32_t cursor) { return ((ui_form_change_ime_composition_string_fn)(*(void ***)ui_form)[slot_ui_form_change_ime_composition_string])(ui_form, text, attributes, cursor); }
+typedef int (__thiscall *ui_form_close_ime_composition_string_fn)(ee_ui_form *);
+internal inline int ui_form_close_ime_composition_string(ee_ui_form *ui_form) { return ((ui_form_close_ime_composition_string_fn)(*(void ***)ui_form)[slot_ui_form_close_ime_composition_string])(ui_form); }
+typedef void (__thiscall *ui_form_deactivate_fn)(ee_ui_form *);
+internal inline void ui_form_deactivate(ee_ui_form *ui_form) { ((ui_form_deactivate_fn)(*(void ***)ui_form)[slot_ui_form_deactivate])(ui_form); }
+// a GERectangle
+typedef int (__thiscall *ui_form_draw_background_fn)(ee_ui_form *, void *);
+internal inline int ui_form_draw_background(ee_ui_form *ui_form, void *rect) { return ((ui_form_draw_background_fn)(*(void ***)ui_form)[slot_ui_form_draw_background])(ui_form, rect); }
+typedef int (__thiscall *ui_form_open_ime_composition_string_fn)(ee_ui_form *);
+internal inline int ui_form_open_ime_composition_string(ee_ui_form *ui_form) { return ((ui_form_open_ime_composition_string_fn)(*(void ***)ui_form)[slot_ui_form_open_ime_composition_string])(ui_form); }
+// the form laid out anew in rect (a GERectangle: the screen)
+typedef void (__thiscall *ui_form_relayout_form_fn)(ee_ui_form *, void *);
+internal inline void ui_form_relayout_form(ee_ui_form *ui_form, void *rect) { ((ui_form_relayout_form_fn)(*(void ***)ui_form)[slot_ui_form_relayout_form])(ui_form, rect); }
+typedef void (__thiscall *ui_form_set_help_text_popup_location_fn)(ee_ui_form *);
+internal inline void ui_form_set_help_text_popup_location(ee_ui_form *ui_form) { ((ui_form_set_help_text_popup_location_fn)(*(void ***)ui_form)[slot_ui_form_set_help_text_popup_location])(ui_form); }
+typedef void (__thiscall *ui_form_update_information_fn)(ee_ui_form *);
+internal inline void ui_form_update_information(ee_ui_form *ui_form) { ((ui_form_update_information_fn)(*(void ***)ui_form)[slot_ui_form_update_information])(ui_form); }
+typedef int (__thiscall *ui_form_update_keyboard_fn)(ee_ui_form *);
+internal inline int ui_form_update_keyboard(ee_ui_form *ui_form) { return ((ui_form_update_keyboard_fn)(*(void ***)ui_form)[slot_ui_form_update_keyboard])(ui_form); }
+typedef int (__thiscall *ui_form_update_mouse_fn)(ee_ui_form *);
+internal inline int ui_form_update_mouse(ee_ui_form *ui_form) { return ((ui_form_update_mouse_fn)(*(void ***)ui_form)[slot_ui_form_update_mouse])(ui_form); }
+// a typed key (its text, its flags)
+typedef int (__thiscall *ui_form_update_translated_key_fn)(ee_ui_form *, char *, int16_t);
+internal inline int ui_form_update_translated_key(ee_ui_form *ui_form, char *key, int16_t flags) { return ((ui_form_update_translated_key_fn)(*(void ***)ui_form)[slot_ui_form_update_translated_key])(ui_form, key, flags); }
+typedef void (__thiscall *ui_form_close_fn)(ee_ui_form *);
+internal inline void ui_form_close(ee_ui_form *ui_form) { ((ui_form_close_fn)(*(void ***)ui_form)[slot_ui_form_close])(ui_form); }
+typedef int (__thiscall *ui_form_copy_data_fn)(ee_ui_form *);
+internal inline int ui_form_copy_data(ee_ui_form *ui_form) { return ((ui_form_copy_data_fn)(*(void ***)ui_form)[slot_ui_form_copy_data])(ui_form); }
+typedef int (__thiscall *ui_form_draw_polygons_fn)(ee_ui_form *);
+internal inline int ui_form_draw_polygons(ee_ui_form *ui_form) { return ((ui_form_draw_polygons_fn)(*(void ***)ui_form)[slot_ui_form_draw_polygons])(ui_form); }
+typedef int (__thiscall *ui_form_draw_text_fn)(ee_ui_form *);
+internal inline int ui_form_draw_text(ee_ui_form *ui_form) { return ((ui_form_draw_text_fn)(*(void ***)ui_form)[slot_ui_form_draw_text])(ui_form); }
+// the form opened (shown): where a form of the exe places what it builds itself (EEUIFScenarioEditor's lays out
+// its panels, dll/game/api/editor_layout.h)
+typedef void (__thiscall *ui_form_open_fn)(ee_ui_form *);
+internal inline void ui_form_open(ee_ui_form *ui_form) { ((ui_form_open_fn)(*(void ***)ui_form)[slot_ui_form_open])(ui_form); }
+typedef void (__thiscall *ui_form_set_rectangle_fn)(ee_ui_form *, void *);
+internal inline void ui_form_set_rectangle(ee_ui_form *ui_form, void *rect) { ((ui_form_set_rectangle_fn)(*(void ***)ui_form)[slot_ui_form_set_rectangle])(ui_form, rect); }
 
-// class EEUIFScenarioEditor (ee_editor_form)
-// the scenario editor's form (EEUIFScenarioEditor)
-typedef void *(__thiscall *editor_form_init_fn)(ee_editor_form *, void *);
-internal editor_form_init_fn fn_editor_form_init;
-internal inline void *editor_form_init(ee_editor_form *editor_form, void *owner) { return fn_editor_form_init(editor_form, owner); }
-internal inline int patch_editor_form(editor_form_init_fn h) { return patch_call(call_editor_form, (uintptr_t)fn_editor_form_init, (void *)h); }
+// class UIControl (ee_ui_control)
+// a control of a form, Low-Level Engine.dll's UIControl (UIEntity's): made from its row of dbuicontrols.dat - the
+// DLL's own kinds (UIButton, UITextLabel, UIEditBox, UIComboBox, a list box ...) or, for types 1000.., EEUIManager's
+// create_control. Its vtable is the DLL's; its slots by the DLL's export names (17 and 18 one empty function there:
+// by their order). Coordinates are floats in the form's design resolution (dbuiforms +0xE8 / +0xEC: 800x600 or
+// 1024x768), rectangles GERectangles, points GE2DPoints
+typedef void (__thiscall *ui_control_add_ime_result_string_fn)(ee_ui_control *, void *);
+internal inline void ui_control_add_ime_result_string(ee_ui_control *ui_control, void *text) { ((ui_control_add_ime_result_string_fn)(*(void ***)ui_control)[slot_ui_control_add_ime_result_string])(ui_control, text); }
+typedef int (__thiscall *ui_control_change_ime_composition_string_fn)(ee_ui_control *, void *, void *, uint32_t);
+internal inline int ui_control_change_ime_composition_string(ee_ui_control *ui_control, void *text, void *attributes, uint32_t cursor) { return ((ui_control_change_ime_composition_string_fn)(*(void ***)ui_control)[slot_ui_control_change_ime_composition_string])(ui_control, text, attributes, cursor); }
+// a GEFont
+typedef void (__thiscall *ui_control_change_font_fn)(ee_ui_control *, void *);
+internal inline void ui_control_change_font(ee_ui_control *ui_control, void *font) { ((ui_control_change_font_fn)(*(void ***)ui_control)[slot_ui_control_change_font])(ui_control, font); }
+typedef int (__thiscall *ui_control_close_ime_composition_string_fn)(ee_ui_control *);
+internal inline int ui_control_close_ime_composition_string(ee_ui_control *ui_control) { return ((ui_control_close_ime_composition_string_fn)(*(void ***)ui_control)[slot_ui_control_close_ime_composition_string])(ui_control); }
+typedef int (__thiscall *ui_control_copy_data_fn)(ee_ui_control *);
+internal inline int ui_control_copy_data(ee_ui_control *ui_control) { return ((ui_control_copy_data_fn)(*(void ***)ui_control)[slot_ui_control_copy_data])(ui_control); }
+typedef int (__thiscall *ui_control_draw_polygons_fn)(ee_ui_control *);
+internal inline int ui_control_draw_polygons(ee_ui_control *ui_control) { return ((ui_control_draw_polygons_fn)(*(void ***)ui_control)[slot_ui_control_draw_polygons])(ui_control); }
+typedef int (__thiscall *ui_control_draw_text_fn)(ee_ui_control *);
+internal inline int ui_control_draw_text(ee_ui_control *ui_control) { return ((ui_control_draw_text_fn)(*(void ***)ui_control)[slot_ui_control_draw_text])(ui_control); }
+// its help text into a UWideString; 0: none
+typedef uint8_t (__thiscall *ui_control_get_help_string_fn)(ee_ui_control *, void *);
+internal inline uint8_t ui_control_get_help_string(ee_ui_control *ui_control, void *text) { return ((ui_control_get_help_string_fn)(*(void ***)ui_control)[slot_ui_control_get_help_string])(ui_control, text); }
+typedef uint8_t (__thiscall *ui_control_get_ime_enabled_fn)(ee_ui_control *);
+internal inline uint8_t ui_control_get_ime_enabled(ee_ui_control *ui_control) { return ((ui_control_get_ime_enabled_fn)(*(void ***)ui_control)[slot_ui_control_get_ime_enabled])(ui_control); }
+typedef uint8_t (__thiscall *ui_control_get_tabable_fn)(ee_ui_control *);
+internal inline uint8_t ui_control_get_tabable(ee_ui_control *ui_control) { return ((ui_control_get_tabable_fn)(*(void ***)ui_control)[slot_ui_control_get_tabable])(ui_control); }
+typedef uint32_t (__thiscall *ui_control_get_type_fn)(ee_ui_control *);
+internal inline uint32_t ui_control_get_type(ee_ui_control *ui_control) { return ((ui_control_get_type_fn)(*(void ***)ui_control)[slot_ui_control_get_type])(ui_control); }
+typedef void (__thiscall *ui_control_hide_control_fn)(ee_ui_control *);
+internal inline void ui_control_hide_control(ee_ui_control *ui_control) { ((ui_control_hide_control_fn)(*(void ***)ui_control)[slot_ui_control_hide_control])(ui_control); }
+typedef int (__thiscall *ui_control_mouse_l_button_down_fn)(ee_ui_control *);
+internal inline int ui_control_mouse_l_button_down(ee_ui_control *ui_control) { return ((ui_control_mouse_l_button_down_fn)(*(void ***)ui_control)[slot_ui_control_mouse_l_button_down])(ui_control); }
+typedef int (__thiscall *ui_control_mouse_l_button_up_fn)(ee_ui_control *);
+internal inline int ui_control_mouse_l_button_up(ee_ui_control *ui_control) { return ((ui_control_mouse_l_button_up_fn)(*(void ***)ui_control)[slot_ui_control_mouse_l_button_up])(ui_control); }
+typedef int (__thiscall *ui_control_mouse_l_button_double_pressed_fn)(ee_ui_control *);
+internal inline int ui_control_mouse_l_button_double_pressed(ee_ui_control *ui_control) { return ((ui_control_mouse_l_button_double_pressed_fn)(*(void ***)ui_control)[slot_ui_control_mouse_l_button_double_pressed])(ui_control); }
+// a GE2DPoint
+typedef int (__thiscall *ui_control_mouse_move_fn)(ee_ui_control *, void *);
+internal inline int ui_control_mouse_move(ee_ui_control *ui_control, void *at) { return ((ui_control_mouse_move_fn)(*(void ***)ui_control)[slot_ui_control_mouse_move])(ui_control, at); }
+typedef int (__thiscall *ui_control_mouse_r_button_down_fn)(ee_ui_control *);
+internal inline int ui_control_mouse_r_button_down(ee_ui_control *ui_control) { return ((ui_control_mouse_r_button_down_fn)(*(void ***)ui_control)[slot_ui_control_mouse_r_button_down])(ui_control); }
+typedef int (__thiscall *ui_control_mouse_r_button_up_fn)(ee_ui_control *);
+internal inline int ui_control_mouse_r_button_up(ee_ui_control *ui_control) { return ((ui_control_mouse_r_button_up_fn)(*(void ***)ui_control)[slot_ui_control_mouse_r_button_up])(ui_control); }
+typedef int (__thiscall *ui_control_mouse_wheel_turned_fn)(ee_ui_control *, int);
+internal inline int ui_control_mouse_wheel_turned(ee_ui_control *ui_control, int amount) { return ((ui_control_mouse_wheel_turned_fn)(*(void ***)ui_control)[slot_ui_control_mouse_wheel_turned])(ui_control, amount); }
+typedef int (__thiscall *ui_control_open_ime_composition_string_fn)(ee_ui_control *);
+internal inline int ui_control_open_ime_composition_string(ee_ui_control *ui_control) { return ((ui_control_open_ime_composition_string_fn)(*(void ***)ui_control)[slot_ui_control_open_ime_composition_string])(ui_control); }
+typedef void (__thiscall *ui_control_release_captured_keyboard_fn)(ee_ui_control *);
+internal inline void ui_control_release_captured_keyboard(ee_ui_control *ui_control) { ((ui_control_release_captured_keyboard_fn)(*(void ***)ui_control)[slot_ui_control_release_captured_keyboard])(ui_control); }
+typedef void (__thiscall *ui_control_release_captured_mouse_fn)(ee_ui_control *);
+internal inline void ui_control_release_captured_mouse(ee_ui_control *ui_control) { ((ui_control_release_captured_mouse_fn)(*(void ***)ui_control)[slot_ui_control_release_captured_mouse])(ui_control); }
+// a GEColor
+typedef void (__thiscall *ui_control_set_bg_color_fn)(ee_ui_control *, void *);
+internal inline void ui_control_set_bg_color(ee_ui_control *ui_control, void *color) { ((ui_control_set_bg_color_fn)(*(void ***)ui_control)[slot_ui_control_set_bg_color])(ui_control, color); }
+typedef void (__thiscall *ui_control_set_bg_opacity_fn)(ee_ui_control *, float);
+internal inline void ui_control_set_bg_opacity(ee_ui_control *ui_control, float opacity) { ((ui_control_set_bg_opacity_fn)(*(void ***)ui_control)[slot_ui_control_set_bg_opacity])(ui_control, opacity); }
+// to be drawn again
+typedef void (__thiscall *ui_control_set_dirty_fn)(ee_ui_control *, uint8_t);
+internal inline void ui_control_set_dirty(ee_ui_control *ui_control, uint8_t dirty) { ((ui_control_set_dirty_fn)(*(void ***)ui_control)[slot_ui_control_set_dirty])(ui_control, dirty); }
+// shown, hidden ... (the DLL's display modes)
+typedef void (__thiscall *ui_control_set_display_mode_fn)(ee_ui_control *, uint32_t);
+internal inline void ui_control_set_display_mode(ee_ui_control *ui_control, uint32_t mode) { ((ui_control_set_display_mode_fn)(*(void ***)ui_control)[slot_ui_control_set_display_mode])(ui_control, mode); }
+// its top left corner (a GE2DPoint)
+typedef void (__thiscall *ui_control_set_location_fn)(ee_ui_control *, void *);
+internal inline void ui_control_set_location(ee_ui_control *ui_control, void *at) { ((ui_control_set_location_fn)(*(void ***)ui_control)[slot_ui_control_set_location])(ui_control, at); }
+// its place and size (a GERectangle)
+typedef void (__thiscall *ui_control_set_rectangle_fn)(ee_ui_control *, void *);
+internal inline void ui_control_set_rectangle(ee_ui_control *ui_control, void *rect) { ((ui_control_set_rectangle_fn)(*(void ***)ui_control)[slot_ui_control_set_rectangle])(ui_control, rect); }
+typedef void (__thiscall *ui_control_tabbed_to_fn)(ee_ui_control *);
+internal inline void ui_control_tabbed_to(ee_ui_control *ui_control) { ((ui_control_tabbed_to_fn)(*(void ***)ui_control)[slot_ui_control_tabbed_to])(ui_control); }
+typedef void (__thiscall *ui_control_tabbed_from_fn)(ee_ui_control *);
+internal inline void ui_control_tabbed_from(ee_ui_control *ui_control) { ((ui_control_tabbed_from_fn)(*(void ***)ui_control)[slot_ui_control_tabbed_from])(ui_control); }
+typedef int (__thiscall *ui_control_update_keyboard_fn)(ee_ui_control *);
+internal inline int ui_control_update_keyboard(ee_ui_control *ui_control) { return ((ui_control_update_keyboard_fn)(*(void ***)ui_control)[slot_ui_control_update_keyboard])(ui_control); }
+typedef int (__thiscall *ui_control_update_translated_key_fn)(ee_ui_control *, char *, int16_t);
+internal inline int ui_control_update_translated_key(ee_ui_control *ui_control, char *key, int16_t flags) { return ((ui_control_update_translated_key_fn)(*(void ***)ui_control)[slot_ui_control_update_translated_key])(ui_control, key, flags); }
+typedef int (__thiscall *ui_control_draw_border_fn)(ee_ui_control *, void *, uint32_t);
+internal inline int ui_control_draw_border(ee_ui_control *ui_control, void *rect, uint32_t flags) { return ((ui_control_draw_border_fn)(*(void ***)ui_control)[slot_ui_control_draw_border])(ui_control, rect, flags); }
+
+// class UIButton (ee_ui_button)
+// a button, Low-Level Engine.dll's UIButton (its vtable the DLL's): the slots it adds
+// UIControl's, the base's
+typedef void (__thiscall *ui_button_button_down_fn)(ee_ui_button *);
+internal inline void ui_button_button_down(ee_ui_button *ui_button) { ((ui_button_button_down_fn)(*(void ***)ui_button)[slot_ui_button_button_down])(ui_button); }
+typedef void (__thiscall *ui_button_button_up_fn)(ee_ui_button *);
+internal inline void ui_button_button_up(ee_ui_button *ui_button) { ((ui_button_button_up_fn)(*(void ***)ui_button)[slot_ui_button_button_up])(ui_button); }
+typedef void (__thiscall *ui_button_mouse_over_fn)(ee_ui_button *);
+internal inline void ui_button_mouse_over(ee_ui_button *ui_button) { ((ui_button_mouse_over_fn)(*(void ***)ui_button)[slot_ui_button_mouse_over])(ui_button); }
+
+// class UIBackground (ee_ui_background)
+// a form's background, Low-Level Engine.dll's UIBackground (dbuiback.dat's rows; EEUIManager's create_background
+// makes the exe's of type 0x65)
+typedef void (__thiscall *ui_background_close_fn)(ee_ui_background *);
+internal inline void ui_background_close(ee_ui_background *ui_background) { ((ui_background_close_fn)(*(void ***)ui_background)[slot_ui_background_close])(ui_background); }
+typedef void (__thiscall *ui_background_open_fn)(ee_ui_background *);
+internal inline void ui_background_open(ee_ui_background *ui_background) { ((ui_background_open_fn)(*(void ***)ui_background)[slot_ui_background_open])(ui_background); }
+typedef void (__thiscall *ui_background_relayout_background_fn)(ee_ui_background *);
+internal inline void ui_background_relayout_background(ee_ui_background *ui_background) { ((ui_background_relayout_background_fn)(*(void ***)ui_background)[slot_ui_background_relayout_background])(ui_background); }
+
+// class UIEvent (ee_ui_event)
+// what a control or a form does, Low-Level Engine.dll's UIEvent (a UReferenceCounter: vtable, refcount, 0): the
+// DLL runs a control's events when it is used (a button pressed), a form's when it opens or closes; the exe's are
+// made by EEUIManager's event creators from their id (ui_events.cs)
+// thiscall(event, the form, ?), ret 8 in both builds: what the event does (the single-player menu's buttons
+// read the form: dll/engine/playername.c); slot 0 the destructor
+typedef uint32_t (__thiscall *ui_event_execute_fn)(ee_ui_event *, ee_ui_form *, uint32_t);
+internal inline uint32_t ui_event_execute(ee_ui_event *ui_event, ee_ui_form *form, uint32_t arg) { return ((ui_event_execute_fn)(*(void ***)ui_event)[slot_ui_event_execute])(ui_event, form, arg); }
+typedef int (__thiscall *ui_event_initialize_event_fn)(ee_ui_event *);
+internal inline int ui_event_initialize_event(ee_ui_event *ui_event) { return ((ui_event_initialize_event_fn)(*(void ***)ui_event)[slot_ui_event_initialize_event])(ui_event); }
+typedef int (__thiscall *ui_event_uninitialize_event_fn)(ee_ui_event *);
+internal inline int ui_event_uninitialize_event(ee_ui_event *ui_event) { return ((ui_event_uninitialize_event_fn)(*(void ***)ui_event)[slot_ui_event_uninitialize_event])(ui_event); }
+
+// class UIManager (ee_uim)
+// the UI's manager, Low-Level Engine.dll's UIManager: the forms (by id: UIManager::GetFormByID, the stack of open
+// ones: Push / Pop / SwapForm - ui_imports.cs), the UI database. Its slots by the DLL's export names
+typedef int (__thiscall *uim_change_ime_candidate_window_fn)(ee_uim *, void *);
+internal inline int uim_change_ime_candidate_window(ee_uim *uim, void *list) { return ((uim_change_ime_candidate_window_fn)(*(void ***)uim)[slot_uim_change_ime_candidate_window])(uim, list); }
+typedef int (__thiscall *uim_change_ime_composition_string_fn)(ee_uim *, void *, void *, uint32_t);
+internal inline int uim_change_ime_composition_string(ee_uim *uim, void *text, void *attributes, uint32_t cursor) { return ((uim_change_ime_composition_string_fn)(*(void ***)uim)[slot_uim_change_ime_composition_string])(uim, text, attributes, cursor); }
+typedef int (__thiscall *uim_close_ime_candidate_window_fn)(ee_uim *);
+internal inline int uim_close_ime_candidate_window(ee_uim *uim) { return ((uim_close_ime_candidate_window_fn)(*(void ***)uim)[slot_uim_close_ime_candidate_window])(uim); }
+typedef int (__thiscall *uim_close_ime_composition_string_fn)(ee_uim *);
+internal inline int uim_close_ime_composition_string(ee_uim *uim) { return ((uim_close_ime_composition_string_fn)(*(void ***)uim)[slot_uim_close_ime_composition_string])(uim); }
+// a background of a type the DLL doesn't know (its row of dbuiback.dat); the DLL's: none
+typedef ee_ui_background *(__thiscall *uim_create_user_defined_background_fn)(ee_uim *, void *);
+internal inline ee_ui_background *uim_create_user_defined_background(ee_uim *uim, void *row) { return ((uim_create_user_defined_background_fn)(*(void ***)uim)[slot_uim_create_user_defined_background])(uim, row); }
+// a control of a type the DLL doesn't know (its row of dbuicontrols.dat); the DLL's: none
+typedef ee_ui_control *(__thiscall *uim_create_user_defined_control_fn)(ee_uim *, void *);
+internal inline ee_ui_control *uim_create_user_defined_control(ee_uim *uim, void *row) { return ((uim_create_user_defined_control_fn)(*(void ***)uim)[slot_uim_create_user_defined_control])(uim, row); }
+// a form from its row of dbuiforms.dat (a UIDbDataForms)
+typedef ee_ui_form *(__thiscall *uim_create_form_fn)(ee_uim *, void *);
+internal inline ee_ui_form *uim_create_form(ee_uim *uim, void *row) { return ((uim_create_form_fn)(*(void ***)uim)[slot_uim_create_form])(uim, row); }
+typedef int (__thiscall *uim_open_ime_candidate_window_fn)(ee_uim *);
+internal inline int uim_open_ime_candidate_window(ee_uim *uim) { return ((uim_open_ime_candidate_window_fn)(*(void ***)uim)[slot_uim_open_ime_candidate_window])(uim); }
+typedef int (__thiscall *uim_open_ime_composition_string_fn)(ee_uim *);
+internal inline int uim_open_ime_composition_string(ee_uim *uim) { return ((uim_open_ime_composition_string_fn)(*(void ***)uim)[slot_uim_open_ime_composition_string])(uim); }
+// a GE2DPoint: the mouse
+typedef int (__thiscall *uim_update_ui_fn)(ee_uim *, void *);
+internal inline int uim_update_ui(ee_uim *uim, void *mouse) { return ((uim_update_ui_fn)(*(void ***)uim)[slot_uim_update_ui])(uim, mouse); }
+typedef int (__thiscall *uim_update_keyboard_fn)(ee_uim *);
+internal inline int uim_update_keyboard(ee_uim *uim) { return ((uim_update_keyboard_fn)(*(void ***)uim)[slot_uim_update_keyboard])(uim); }
+typedef int (__thiscall *uim_update_mouse_fn)(ee_uim *, void *);
+internal inline int uim_update_mouse(ee_uim *uim, void *mouse) { return ((uim_update_mouse_fn)(*(void ***)uim)[slot_uim_update_mouse])(uim, mouse); }
+
+// class EEUIManager (eeui_manager)
+// the game's UI manager, [game.ui_manager] (an object there, not a pointer): the DLL's UIManager with the exe's
+// forms, controls and event creators
+// UIManager's, the base's
+// the event creators (ui.event_creators), a list of cdecl(form, id) -> UIEvent* or 0: the constructor pushes
+// each (0x65DD92 onto +0x1C, both builds)
+internal inline uint8_t *eeui_manager_event_creators_at(const eeui_manager *o) { return (uint8_t *)o + of_eeui_manager_event_creators; }
+// its constructor: the DLL's UIManager with the sound manager and the resources, then the event creators
+typedef void *(__thiscall *eeui_manager_init_fn)(eeui_manager *, uint32_t, uint32_t, uint32_t);
+internal eeui_manager_init_fn fn_eeui_manager_init;
+internal inline void *eeui_manager_init(eeui_manager *eeui_manager, uint32_t p1, uint32_t p2, uint32_t p3) { return fn_eeui_manager_init(eeui_manager, p1, p2, p3); }
+// type 0x65 (row +0x68): an EEUIBGenericBackground of the form +0x64
+typedef ee_ui_background *(__thiscall *eeui_manager_create_user_defined_background_fn)(eeui_manager *, void *);
+internal eeui_manager_create_user_defined_background_fn fn_eeui_manager_create_user_defined_background;
+internal inline ee_ui_background *eeui_manager_create_user_defined_background(eeui_manager *eeui_manager, void *row) { return fn_eeui_manager_create_user_defined_background(eeui_manager, row); }
+// by the row's type (+0x110; its form +0x108): 1000 EEUIFMGStatusButton, 1001 EEUIMiniMap, 1003 EEUIFMGErrorLog,
+// 1004 EEUIFMGStatusBar, 1005 EEUIFMGAttribute, 1007 EEUICSelectUnits, 1008 EEUICCommandUnits, 1009 EEUICPortrait,
+// 1010 EEUICChatLine, 1011 EECBUIListBox, 1013 EEUICWonNetStatBox, 1014 EEUICUnitIconBar, 1015 EEUIBSavedGroup,
+// 1016 EEUIPGSLineGraph, 1017 EEUICPing, 1018 EEUICWonNetRoomsBox, 1019 EEUICWonNetGamesBox
+typedef ee_ui_control *(__thiscall *eeui_manager_create_user_defined_control_fn)(eeui_manager *, void *);
+internal eeui_manager_create_user_defined_control_fn fn_eeui_manager_create_user_defined_control;
+internal inline ee_ui_control *eeui_manager_create_user_defined_control(eeui_manager *eeui_manager, void *row) { return fn_eeui_manager_create_user_defined_control(eeui_manager, row); }
+// form 11 (row +0xCC) an EEUIFMainGame (0x64C8B0), every other the DLL's
+typedef ee_ui_form *(__thiscall *eeui_manager_create_form_fn)(eeui_manager *, void *);
+internal eeui_manager_create_form_fn fn_eeui_manager_create_form;
+internal inline ee_ui_form *eeui_manager_create_form(eeui_manager *eeui_manager, void *row) { return fn_eeui_manager_create_form(eeui_manager, row); }
+typedef int (__thiscall *eeui_manager_update_keyboard_fn)(eeui_manager *);
+internal eeui_manager_update_keyboard_fn fn_eeui_manager_update_keyboard;
+internal inline int eeui_manager_update_keyboard(eeui_manager *eeui_manager) { return fn_eeui_manager_update_keyboard(eeui_manager); }
+typedef int (__thiscall *eeui_manager_update_mouse_fn)(eeui_manager *, void *);
+internal eeui_manager_update_mouse_fn fn_eeui_manager_update_mouse;
+internal inline int eeui_manager_update_mouse(eeui_manager *eeui_manager, void *mouse) { return fn_eeui_manager_update_mouse(eeui_manager, mouse); }
 
 // class EEASaveGame (ee_save_action)
 // the save-game action (EEASaveGame)
@@ -302,6 +517,12 @@ internal inline uint8_t *ui_site_scroll_timer_at(void) { return (uint8_t *)(uint
 // their slot 1
 // the single player screens' vtables (playername.c)
 internal inline uint8_t *ui_vt_scroll_at(void) { return (uint8_t *)(uintptr_t)data_ui_vt_scroll; }
+// the UI manager's event creators (EEUIManager.event_creators), in its constructor's order (the fourth twice):
+// cdecl(form, id) -> the UIEvent of a control event id they know (dbuicontrolevents.dat's rows, 0..251), else 0.
+// Which makes which: each event's comment in ui_events.cs (scripts/re/ui_classes.py --events runs them for every
+// id) - 0x65A1A5 the forms' open and close (1..10), 0x65A46D save and load (11..20), 0x65AF3A the game screen's
+// buttons (22..27, 138..143, 241..249 ...), 0x65B496 the main menu (28..33), 0x65BCBD the single-player menu
+// (35..40), 0x65B7DA the post-game summary (144..184) ...
 
 // static class ui_functions
 // the game's functions ui.c wraps, by the names the C side gives them
@@ -380,11 +601,89 @@ internal int spec_ui_select(int build) {
         of_key_scroll_direction = 0xC;
         slot_key_scroll_execute = 1;
         fn_eeuie_keyboard_scroll_execute = (key_scroll_execute_fn)0x005C9070;
-        of_ui_form_top_bar = 0x5D8;
-        of_ui_screen_controls = 0xF8;
-        vt_eeuif_scenario_editor = 0x0082F7B4;
-        fn_editor_form_init = (editor_form_init_fn)0x0058D3E1;
-        call_editor_form = 0x0065BA13;
+        of_ui_form_controls = 0xF8;
+        slot_ui_form_activate = 1;
+        slot_ui_form_add_ime_result_string = 2;
+        slot_ui_form_change_ime_composition_string = 3;
+        slot_ui_form_close_ime_composition_string = 4;
+        slot_ui_form_deactivate = 5;
+        slot_ui_form_draw_background = 6;
+        slot_ui_form_open_ime_composition_string = 7;
+        slot_ui_form_relayout_form = 8;
+        slot_ui_form_set_help_text_popup_location = 9;
+        slot_ui_form_update_information = 10;
+        slot_ui_form_update_keyboard = 11;
+        slot_ui_form_update_mouse = 12;
+        slot_ui_form_update_translated_key = 13;
+        slot_ui_form_close = 14;
+        slot_ui_form_copy_data = 15;
+        slot_ui_form_draw_polygons = 16;
+        slot_ui_form_draw_text = 17;
+        slot_ui_form_open = 18;
+        slot_ui_form_set_rectangle = 19;
+        slot_ui_control_add_ime_result_string = 1;
+        slot_ui_control_change_ime_composition_string = 2;
+        slot_ui_control_change_font = 3;
+        slot_ui_control_close_ime_composition_string = 4;
+        slot_ui_control_copy_data = 5;
+        slot_ui_control_draw_polygons = 6;
+        slot_ui_control_draw_text = 7;
+        slot_ui_control_get_help_string = 8;
+        slot_ui_control_get_ime_enabled = 9;
+        slot_ui_control_get_tabable = 10;
+        slot_ui_control_get_type = 11;
+        slot_ui_control_hide_control = 12;
+        slot_ui_control_mouse_l_button_down = 13;
+        slot_ui_control_mouse_l_button_up = 14;
+        slot_ui_control_mouse_l_button_double_pressed = 15;
+        slot_ui_control_mouse_move = 16;
+        slot_ui_control_mouse_r_button_down = 17;
+        slot_ui_control_mouse_r_button_up = 18;
+        slot_ui_control_mouse_wheel_turned = 19;
+        slot_ui_control_open_ime_composition_string = 20;
+        slot_ui_control_release_captured_keyboard = 21;
+        slot_ui_control_release_captured_mouse = 22;
+        slot_ui_control_set_bg_color = 23;
+        slot_ui_control_set_bg_opacity = 24;
+        slot_ui_control_set_dirty = 25;
+        slot_ui_control_set_display_mode = 26;
+        slot_ui_control_set_location = 27;
+        slot_ui_control_set_rectangle = 28;
+        slot_ui_control_tabbed_to = 29;
+        slot_ui_control_tabbed_from = 30;
+        slot_ui_control_update_keyboard = 31;
+        slot_ui_control_update_translated_key = 32;
+        slot_ui_control_draw_border = 33;
+        slot_ui_button_button_down = 34;
+        slot_ui_button_button_up = 35;
+        slot_ui_button_mouse_over = 36;
+        slot_ui_background_close = 1;
+        slot_ui_background_open = 2;
+        slot_ui_background_relayout_background = 3;
+        size_ui_event = 0xC;
+        slot_ui_event_execute = 1;
+        slot_ui_event_initialize_event = 2;
+        slot_ui_event_uninitialize_event = 3;
+        slot_uim_change_ime_candidate_window = 1;
+        slot_uim_change_ime_composition_string = 2;
+        slot_uim_close_ime_candidate_window = 3;
+        slot_uim_close_ime_composition_string = 4;
+        slot_uim_create_user_defined_background = 5;
+        slot_uim_create_user_defined_control = 6;
+        slot_uim_create_form = 7;
+        slot_uim_open_ime_candidate_window = 8;
+        slot_uim_open_ime_composition_string = 9;
+        slot_uim_update_ui = 10;
+        slot_uim_update_keyboard = 11;
+        slot_uim_update_mouse = 12;
+        vt_eeui_manager = 0x00834DE4;
+        of_eeui_manager_event_creators = 0x1C;
+        fn_eeui_manager_init = (eeui_manager_init_fn)0x00659CDD;
+        fn_eeui_manager_create_user_defined_background = (eeui_manager_create_user_defined_background_fn)0x0065BE8F;
+        fn_eeui_manager_create_user_defined_control = (eeui_manager_create_user_defined_control_fn)0x0065BF72;
+        fn_eeui_manager_create_form = (eeui_manager_create_form_fn)0x0065C5B3;
+        fn_eeui_manager_update_keyboard = (eeui_manager_update_keyboard_fn)0x0065C99D;
+        fn_eeui_manager_update_mouse = (eeui_manager_update_mouse_fn)0x0065CA9F;
         vt_eea_save_game = 0x00825084;
         fn_save_action_init = (save_action_init_fn)0x00404FA1;
         vt_eea_join_or_host_a_game = 0x00824C34;
@@ -422,6 +721,23 @@ internal int spec_ui_select(int build) {
         data_ui_sp_vtables[4] = 0x0083577C;
         data_ui_sp_vtables[5] = 0x00835790;
         data_ui_vt_scroll = 0x00825098;
+        data_ui_event_creators[0] = 0x0065A9E6;
+        data_ui_event_creators[1] = 0x0065ABE0;
+        data_ui_event_creators[2] = 0x0065AC0D;
+        data_ui_event_creators[3] = 0x00659F31;
+        data_ui_event_creators[4] = 0x0065A46D;
+        data_ui_event_creators[5] = 0x0065AF3A;
+        data_ui_event_creators[6] = 0x0065B496;
+        data_ui_event_creators[7] = 0x0065B684;
+        data_ui_event_creators[8] = 0x0065B7DA;
+        data_ui_event_creators[9] = 0x0065BA24;
+        data_ui_event_creators[10] = 0x0065BBE6;
+        data_ui_event_creators[11] = 0x0065BCBD;
+        data_ui_event_creators[12] = 0x0065BDB8;
+        data_ui_event_creators[13] = 0x00659F31;
+        data_ui_event_creators[14] = 0x0065C5EE;
+        data_ui_event_creators[15] = 0x0065A81E;
+        data_ui_event_creators[16] = 0x0065A1A5;
         fn_game_color_rgb = (game_color_rgb_fn)0x00526B85;
         call_player_color = 0x005262E4;
         fn_gfx_kind_game = (gfx_kind_game_fn)0x00404C83;
@@ -485,11 +801,89 @@ internal int spec_ui_select(int build) {
         of_key_scroll_direction = 0xC;
         slot_key_scroll_execute = 1;
         fn_eeuie_keyboard_scroll_execute = (key_scroll_execute_fn)0x005D9B6F;
-        of_ui_form_top_bar = 0x5E8;
-        of_ui_screen_controls = 0xF8;
-        vt_eeuif_scenario_editor = 0x00845084;
-        fn_editor_form_init = (editor_form_init_fn)0x0059D615;
-        call_editor_form = 0x00673E9B;
+        of_ui_form_controls = 0xF8;
+        slot_ui_form_activate = 1;
+        slot_ui_form_add_ime_result_string = 2;
+        slot_ui_form_change_ime_composition_string = 3;
+        slot_ui_form_close_ime_composition_string = 4;
+        slot_ui_form_deactivate = 5;
+        slot_ui_form_draw_background = 6;
+        slot_ui_form_open_ime_composition_string = 7;
+        slot_ui_form_relayout_form = 8;
+        slot_ui_form_set_help_text_popup_location = 9;
+        slot_ui_form_update_information = 10;
+        slot_ui_form_update_keyboard = 11;
+        slot_ui_form_update_mouse = 12;
+        slot_ui_form_update_translated_key = 13;
+        slot_ui_form_close = 14;
+        slot_ui_form_copy_data = 15;
+        slot_ui_form_draw_polygons = 16;
+        slot_ui_form_draw_text = 17;
+        slot_ui_form_open = 18;
+        slot_ui_form_set_rectangle = 19;
+        slot_ui_control_add_ime_result_string = 1;
+        slot_ui_control_change_ime_composition_string = 2;
+        slot_ui_control_change_font = 3;
+        slot_ui_control_close_ime_composition_string = 4;
+        slot_ui_control_copy_data = 5;
+        slot_ui_control_draw_polygons = 6;
+        slot_ui_control_draw_text = 7;
+        slot_ui_control_get_help_string = 8;
+        slot_ui_control_get_ime_enabled = 9;
+        slot_ui_control_get_tabable = 10;
+        slot_ui_control_get_type = 11;
+        slot_ui_control_hide_control = 12;
+        slot_ui_control_mouse_l_button_down = 13;
+        slot_ui_control_mouse_l_button_up = 14;
+        slot_ui_control_mouse_l_button_double_pressed = 15;
+        slot_ui_control_mouse_move = 16;
+        slot_ui_control_mouse_r_button_down = 17;
+        slot_ui_control_mouse_r_button_up = 18;
+        slot_ui_control_mouse_wheel_turned = 19;
+        slot_ui_control_open_ime_composition_string = 20;
+        slot_ui_control_release_captured_keyboard = 21;
+        slot_ui_control_release_captured_mouse = 22;
+        slot_ui_control_set_bg_color = 23;
+        slot_ui_control_set_bg_opacity = 24;
+        slot_ui_control_set_dirty = 25;
+        slot_ui_control_set_display_mode = 26;
+        slot_ui_control_set_location = 27;
+        slot_ui_control_set_rectangle = 28;
+        slot_ui_control_tabbed_to = 29;
+        slot_ui_control_tabbed_from = 30;
+        slot_ui_control_update_keyboard = 31;
+        slot_ui_control_update_translated_key = 32;
+        slot_ui_control_draw_border = 33;
+        slot_ui_button_button_down = 34;
+        slot_ui_button_button_up = 35;
+        slot_ui_button_mouse_over = 36;
+        slot_ui_background_close = 1;
+        slot_ui_background_open = 2;
+        slot_ui_background_relayout_background = 3;
+        size_ui_event = 0xC;
+        slot_ui_event_execute = 1;
+        slot_ui_event_initialize_event = 2;
+        slot_ui_event_uninitialize_event = 3;
+        slot_uim_change_ime_candidate_window = 1;
+        slot_uim_change_ime_composition_string = 2;
+        slot_uim_close_ime_candidate_window = 3;
+        slot_uim_close_ime_composition_string = 4;
+        slot_uim_create_user_defined_background = 5;
+        slot_uim_create_user_defined_control = 6;
+        slot_uim_create_form = 7;
+        slot_uim_open_ime_candidate_window = 8;
+        slot_uim_open_ime_composition_string = 9;
+        slot_uim_update_ui = 10;
+        slot_uim_update_keyboard = 11;
+        slot_uim_update_mouse = 12;
+        vt_eeui_manager = 0x0084AE90;
+        of_eeui_manager_event_creators = 0x1C;
+        fn_eeui_manager_init = (eeui_manager_init_fn)0x00671319;
+        fn_eeui_manager_create_user_defined_background = (eeui_manager_create_user_defined_background_fn)0x00674564;
+        fn_eeui_manager_create_user_defined_control = (eeui_manager_create_user_defined_control_fn)0x00674647;
+        fn_eeui_manager_create_form = (eeui_manager_create_form_fn)0x00674C94;
+        fn_eeui_manager_update_keyboard = (eeui_manager_update_keyboard_fn)0x006750A9;
+        fn_eeui_manager_update_mouse = (eeui_manager_update_mouse_fn)0x006751AB;
         vt_eea_save_game = 0x00839060;
         fn_save_action_init = (save_action_init_fn)0x00404613;
         vt_eea_join_or_host_a_game = 0x00838C08;
@@ -527,6 +921,23 @@ internal int spec_ui_select(int build) {
         data_ui_sp_vtables[4] = 0x0084B850;
         data_ui_sp_vtables[5] = 0x0084B864;
         data_ui_vt_scroll = 0x0083907C;
+        data_ui_event_creators[0] = 0x006726B3;
+        data_ui_event_creators[1] = 0x00672AB1;
+        data_ui_event_creators[2] = 0x00672ADE;
+        data_ui_event_creators[3] = 0x00671598;
+        data_ui_event_creators[4] = 0x00671F5D;
+        data_ui_event_creators[5] = 0x00672DE6;
+        data_ui_event_creators[6] = 0x006734C5;
+        data_ui_event_creators[7] = 0x00673836;
+        data_ui_event_creators[8] = 0x00673A89;
+        data_ui_event_creators[9] = 0x00673EAC;
+        data_ui_event_creators[10] = 0x0067406E;
+        data_ui_event_creators[11] = 0x00674200;
+        data_ui_event_creators[12] = 0x006743D2;
+        data_ui_event_creators[13] = 0x00671598;
+        data_ui_event_creators[14] = 0x00674CCF;
+        data_ui_event_creators[15] = 0x006724EB;
+        data_ui_event_creators[16] = 0x00671A10;
         fn_game_color_rgb = (game_color_rgb_fn)0x005318BD;
         call_player_color = 0x00531057;
         fn_gfx_kind_game = (gfx_kind_game_fn)0x0040432F;
@@ -562,9 +973,18 @@ internal int spec_ui_check(void) {
     bad += spec_vtable(vt_eeuie_keyboard_scroll, ".?AVEEUIEKeyboardScroll@@", "EEUIEKeyboardScroll [vtable]");
     bad += spec_code((uintptr_t)fn_eeuie_keyboard_scroll_execute, "EEUIEKeyboardScroll.execute");
     bad += spec_slot(vt_eeuie_keyboard_scroll, slot_key_scroll_execute, (uintptr_t)fn_eeuie_keyboard_scroll_execute, "EEUIEKeyboardScroll.execute [slot]");
-    bad += spec_vtable(vt_eeuif_scenario_editor, ".?AVEEUIFScenarioEditor@@", "EEUIFScenarioEditor [vtable]");
-    bad += spec_code((uintptr_t)fn_editor_form_init, "EEUIFScenarioEditor.init");
-    bad += spec_call(call_editor_form, (uintptr_t)fn_editor_form_init, "EEUIFScenarioEditor.init [call_site editor_form]");
+    bad += spec_vtable(vt_eeui_manager, ".?AVEEUIManager@@", "EEUIManager [vtable]");
+    bad += spec_code((uintptr_t)fn_eeui_manager_init, "EEUIManager.init");
+    bad += spec_code((uintptr_t)fn_eeui_manager_create_user_defined_background, "EEUIManager.create_user_defined_background");
+    bad += spec_slot(vt_eeui_manager, slot_uim_create_user_defined_background, (uintptr_t)fn_eeui_manager_create_user_defined_background, "EEUIManager.create_user_defined_background [slot]");
+    bad += spec_code((uintptr_t)fn_eeui_manager_create_user_defined_control, "EEUIManager.create_user_defined_control");
+    bad += spec_slot(vt_eeui_manager, slot_uim_create_user_defined_control, (uintptr_t)fn_eeui_manager_create_user_defined_control, "EEUIManager.create_user_defined_control [slot]");
+    bad += spec_code((uintptr_t)fn_eeui_manager_create_form, "EEUIManager.create_form");
+    bad += spec_slot(vt_eeui_manager, slot_uim_create_form, (uintptr_t)fn_eeui_manager_create_form, "EEUIManager.create_form [slot]");
+    bad += spec_code((uintptr_t)fn_eeui_manager_update_keyboard, "EEUIManager.update_keyboard");
+    bad += spec_slot(vt_eeui_manager, slot_uim_update_keyboard, (uintptr_t)fn_eeui_manager_update_keyboard, "EEUIManager.update_keyboard [slot]");
+    bad += spec_code((uintptr_t)fn_eeui_manager_update_mouse, "EEUIManager.update_mouse");
+    bad += spec_slot(vt_eeui_manager, slot_uim_update_mouse, (uintptr_t)fn_eeui_manager_update_mouse, "EEUIManager.update_mouse [slot]");
     bad += spec_vtable(vt_eea_save_game, ".?AVEEASaveGame@@", "EEASaveGame [vtable]");
     bad += spec_code((uintptr_t)fn_save_action_init, "EEASaveGame.init");
     bad += spec_vtable(vt_eea_join_or_host_a_game, ".?AVEEAJoinOrHostAGame@@", "EEAJoinOrHostAGame [vtable]");
@@ -597,6 +1017,23 @@ internal int spec_ui_check(void) {
     bad += spec_data(data_ui_sp_vtables[4], "ui.sp_vtables 4");
     bad += spec_data(data_ui_sp_vtables[5], "ui.sp_vtables 5");
     bad += spec_data(data_ui_vt_scroll, "ui.vt_scroll");
+    bad += spec_code(data_ui_event_creators[0], "ui.event_creators 0");
+    bad += spec_code(data_ui_event_creators[1], "ui.event_creators 1");
+    bad += spec_code(data_ui_event_creators[2], "ui.event_creators 2");
+    bad += spec_code(data_ui_event_creators[3], "ui.event_creators 3");
+    bad += spec_code(data_ui_event_creators[4], "ui.event_creators 4");
+    bad += spec_code(data_ui_event_creators[5], "ui.event_creators 5");
+    bad += spec_code(data_ui_event_creators[6], "ui.event_creators 6");
+    bad += spec_code(data_ui_event_creators[7], "ui.event_creators 7");
+    bad += spec_code(data_ui_event_creators[8], "ui.event_creators 8");
+    bad += spec_code(data_ui_event_creators[9], "ui.event_creators 9");
+    bad += spec_code(data_ui_event_creators[10], "ui.event_creators 10");
+    bad += spec_code(data_ui_event_creators[11], "ui.event_creators 11");
+    bad += spec_code(data_ui_event_creators[12], "ui.event_creators 12");
+    bad += spec_code(data_ui_event_creators[13], "ui.event_creators 13");
+    bad += spec_code(data_ui_event_creators[14], "ui.event_creators 14");
+    bad += spec_code(data_ui_event_creators[15], "ui.event_creators 15");
+    bad += spec_code(data_ui_event_creators[16], "ui.event_creators 16");
     bad += spec_code((uintptr_t)fn_game_color_rgb, "ui_functions.game_color_rgb");
     bad += spec_call(call_player_color, (uintptr_t)fn_game_color_rgb, "ui_functions.game_color_rgb [call_site player_color]");
     bad += spec_code((uintptr_t)fn_gfx_kind_game, "ui_functions.gfx_kind_game");

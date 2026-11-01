@@ -136,6 +136,17 @@ enum sm_class : int32_t { SM_CLASS_ANY };
 // an area's type: its rectangle, the land or sea its point is on, a player's shape round its point
 enum sm_area_type : int32_t { SM_AREA_RECTANGLE, SM_AREA_REGION, SM_AREA_PLAYER_SHAPE };
 
+// the forms of the UI database by their id (dbuiforms.dat: the row, its name there; 0 and 1 empty rows)
+enum ui_form_id : int32_t {
+    FORM_TEST = 2, FORM_SAVE_GAME, FORM_LOAD_GAME, FORM_GAME_SETTINGS, FORM_SINGLE_PLAYER, FORM_CIV_BUILDER,
+    FORM_PLAY_CAMPAIGN, FORM_GAME_TOOLS, FORM_CHOOSE_CAMPAIGN, FORM_MAIN_GAME, FORM_MAIN_MENU, FORM_LOAD_SINGLE,
+    FORM_CAMPAIGN, FORM_CIV_NEW, FORM_CIV_SAVE, FORM_CIV_LOAD, FORM_CHAT, FORM_SCENARIO_INTRO, FORM_SCENARIO_LOAD,
+    FORM_WON_STATS, FORM_DEBUG_SOUND, FORM_SPLASH, FORM_CAMPAIGN_EDITOR, FORM_POST_GAME, FORM_SETUP, FORM_DIPLOMACY,
+    FORM_OPTIONS, FORM_CHAT_LOG, FORM_MULTIPLAYER, FORM_SIERRA_ROOMS, FORM_SIERRA_GAMES, FORM_CAMPAIGN_SCENARIO,
+    FORM_CUSTOM_CAMPAIGN, FORM_PREDEFINED_CIV, FORM_SIERRA_CREATE_ACCOUNT, FORM_SIERRA_UPDATE_ACCOUNT,
+    FORM_SELECT_SERVER, FORM_DEMO_OUTRO
+};
+
 // a unit type's class_id, the game data's "Unit type": the class of its type data, one each (EEUC + the name: 4
 // EEUCNaval) - every type's read in a running game of both builds 2026-10-25
 enum unit_class : int32_t {
