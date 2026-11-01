@@ -28,7 +28,8 @@
 //
 // A KEY is a field; its type and attributes are its kind (rows.h's header tells each):
 //   bool k = true;                               FLAG     (in the file 1 / 0)
-//   [range(lo, hi)] int k = 4096;                INT      a whole number lo .. hi
+//   [range(lo, hi)] int k = 4096;                INT      a whole number lo .. hi (outside: a warning, used)
+//   [range(lo, hi, error: true)] int k = 32;     LIMIT    a whole number lo .. hi, nothing else (outside: a mistake)
 //   int k = 7;                                   NUM      any whole number (a level, a bit mask, a count)
 //   [range(0.25, 1)] share k = 0.35;             SHARE    a share (dll_cs/language.cs), in the file in percent: 35%
 //   kind k = kind.auto;                          CHOICE   an enum of the section: its members the names, in order

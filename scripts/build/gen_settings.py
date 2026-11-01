@@ -74,13 +74,14 @@ def row_of(sec, k):   # X(FLAG, general, enabled, 1, 0, 0) - D for a row of [ai_
     arg = settings_read.arg_text
     lo_hi = {
         'FLAG': ('0', '0'),
-        'INT': tuple(arg(x) for x in a.get('range', [])) or ('0', '0'),
-        'NUM': tuple(arg(x) for x in a.get('range', [])) or ('0', '0'),
-        'SHARE': tuple(settings_read.percent(arg(x), k.where) for x in a.get('range', [])) or ('-1000000', '1000000'),   # no bound
+        'INT': tuple(arg(x) for x in a.get('range', [])[:2]) or ('0', '0'),
+        'NUM': tuple(arg(x) for x in a.get('range', [])[:2]) or ('0', '0'),
+        'LIMIT': tuple(arg(x) for x in a.get('range', [])[:2]),
+        'SHARE': tuple(settings_read.percent(arg(x), k.where) for x in a.get('range', [])[:2]) or ('-1000000', '1000000'),   # no bound
         'CHOICE': (c_str('|'.join(sec.enums.get(k.type, {}).values())), '0'),
         'STR': (arg(a['length'][0]) if 'length' in a else '0', '0'),
         'STR_P': (arg(a['length'][0]) if 'length' in a else '0', '0'),
-        'FACTOR': tuple(settings_read.percent(arg(x), k.where) for x in a.get('range', [])) or ('-1000000', '1000000'),
+        'FACTOR': tuple(settings_read.percent(arg(x), k.where) for x in a.get('range', [])[:2]) or ('-1000000', '1000000'),
         'FLAGS': ('%s_FIELDS' % k.name.upper(), '0'),
     }[kind]
     if sec.kind == 'ALL':

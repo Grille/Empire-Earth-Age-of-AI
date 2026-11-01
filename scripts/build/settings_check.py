@@ -51,7 +51,7 @@ def same(kind, value, default):
         try: x = float(value[:-1]) / 100 if value.endswith('%') else float(value)
         except ValueError: return False
         return abs(x - int(want) / 100) < 1e-9
-    if kind in ('FLAG', 'INT', 'NUM'):
+    if kind in ('FLAG', 'INT', 'NUM', 'LIMIT'):
         try: return int(value, 0) == int(want, 0)
         except ValueError: return False
     return value == want

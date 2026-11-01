@@ -10,6 +10,7 @@
 #define SET_FIELD_FLAG(name, a) int name;
 #define SET_FIELD_INT(name, a) int name;
 #define SET_FIELD_NUM(name, a) int name;
+#define SET_FIELD_LIMIT(name, a) int name;
 #define SET_FIELD_SHARE(name, a) float name;
 #define SET_FIELD_CHOICE(name, a) int name;
 #define SET_FIELD_STR(name, a) char name[a];
@@ -32,13 +33,14 @@ internal const char *const k_set_diff_sec[3] = { "ai_easy", NULL, "ai_hard" };  
 #define SET_ID_D(kind, key, def, a, b) SETTING_##key,
 enum { SETTINGS(SET_ID_X, SET_ID_D) SETTING_N };
 
-enum { SETK_FLAG, SETK_INT, SETK_NUM, SETK_SHARE, SETK_CHOICE, SETK_STR, SETK_STR_P, SETK_FACTOR, SETK_FLAGS };
+enum { SETK_FLAG, SETK_INT, SETK_NUM, SETK_SHARE, SETK_CHOICE, SETK_STR, SETK_STR_P, SETK_FACTOR, SETK_FLAGS, SETK_LIMIT };
 // name: the field's, and the key that overrides it in the test ini; choices: a CHOICE's names, '|' between them - a
 // FLAGS row's fields, each name or name=a/b/c and a '|' after it; ai: a row of [ai_base] (its field in struct
 // settings_ai, a value per difficulty); a: a FLAGS row's count of fields
 struct setting_row { const char *sec, *key, *name; int kind, ai; size_t off; int def; const char *def_s, *choices; int a, b; };
 #define SET_ROW_FLAG(sec, key, name, st, ai, def, a, b) { #sec, #key, #name, SETK_FLAG, ai, offsetof(st, name), def, NULL, NULL, a, b },
 #define SET_ROW_INT(sec, key, name, st, ai, def, a, b) { #sec, #key, #name, SETK_INT, ai, offsetof(st, name), def, NULL, NULL, a, b },
+#define SET_ROW_LIMIT(sec, key, name, st, ai, def, a, b) { #sec, #key, #name, SETK_LIMIT, ai, offsetof(st, name), def, NULL, NULL, a, b },
 #define SET_ROW_NUM(sec, key, name, st, ai, def, a, b) { #sec, #key, #name, SETK_NUM, ai, offsetof(st, name), def, NULL, NULL, a, b },
 #define SET_ROW_SHARE(sec, key, name, st, ai, def, a, b) { #sec, #key, #name, SETK_SHARE, ai, offsetof(st, name), def, NULL, NULL, a, b },
 #define SET_ROW_CHOICE(sec, key, name, st, ai, def, a, b) { #sec, #key, #name, SETK_CHOICE, ai, offsetof(st, name), 0, def, a, 0, b },
@@ -237,7 +239,8 @@ internal void setting_default(const struct setting_row *r, void *at) {
 // text v as row r's value into at (f, s, k: the file, section and key it was read from, for a mistake's message);
 // 0: a mistake - what can't be used at all (no number, no whole number, a FLAG not 0 or 1, no CHOICE's name, a text
 // too long; told: ini_error), at keeps the default. A row's range is a sanity bound: a value outside it is a warning
-// (ini_warn) and kept - silly, but it runs (the player: let people be dumb if they want, just tell them)
+// (ini_warn) and kept - silly, but it runs (the player: let people be dumb if they want, just tell them); a LIMIT's is
+// what the code can take at all - outside it a mistake
 internal int setting_value(const struct setting_row *r, const char *f, const char *s, const char *k, const char *v, void *at) {
     char why[96];
     setting_default(r, at);
@@ -280,7 +283,7 @@ internal int setting_value(const struct setting_row *r, const char *f, const cha
     if (r->kind != SETK_NUM && (n < lo || n > hi)) {
         if (flag) lstrcpyA(why, "0 or 1 expected");
         else snprintf(why, sizeof why, "%d to %d expected", lo, hi);
-        if (flag) { ini_error(f, s, k, v, why); return 0; }
+        if (flag || r->kind == SETK_LIMIT) { ini_error(f, s, k, v, why); setting_default(r, at); return 0; }
         ini_warn(f, s, k, v, why);
     }
     *(int *)at = n;

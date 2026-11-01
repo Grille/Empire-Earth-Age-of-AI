@@ -165,7 +165,7 @@ internal void sound_tick(uint32_t now) {
 // SetMaxChannels (exe IAT 0x823AD4) is held to the mixer's maximum: 200% = 100% = 16 channels.
 internal int g_clamp_channels = 1;
 internal set_max_ch_fn g_set_max_ch;
-// MORE CHANNELS (ageofai.ini [sound] sound_channels, default 32; 0 = the mixer's own maximum). The mixer's maximum is 16
+// MORE CHANNELS (ageofai.ini [sound] sound_channels, default 32, 8..63: 16 the mixer's own maximum). The mixer's maximum is 16
 // only because Windows reports no hardware voices; Miles mixes in software and is opened for 64 samples
 // (DIG_MIXER_CHANNELS), one of which the plugin keeps. The maximum (the global SPIMGetMaximumChannelCount reads,
 // `mov eax, [addr]; ret`) is raised to `channels` (8..63) before the game's first SetMaxChannels, and the count the

@@ -96,7 +96,9 @@ def kind_of(sec, k):   # rows.h's kind of a key
     if k.type == 'share':
         return 'SHARE'
     if k.type == 'int':
-        return 'INT' if k.has('range') else 'NUM'
+        if not k.has('range'):
+            return 'NUM'
+        return 'LIMIT' if k.attrs['range'][2:] == [('word', 'true')] else 'INT'
     raise SystemExit('%s: %s %s: no kind (settings.cs)' % (k.where, k.type, k.name))
 
 

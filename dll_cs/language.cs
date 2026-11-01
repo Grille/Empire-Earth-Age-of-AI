@@ -49,6 +49,11 @@ struct factor
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Field)]
 public sealed class title : Attribute { public title(string text) { } }
 
-// a sanity bound lo .. hi of a whole number or a share (a setting's: outside it a warning, the value used)
+// a sanity bound lo .. hi of a whole number or a share (a setting's: outside it a warning, the value used); error: true
+// a whole number's hard limit - the code can't take a value outside it (a mistake: told, the default instead)
 [AttributeUsage(AttributeTargets.Field)]
-public sealed class range : Attribute { public range(int lo, int hi) { } public range(double lo, double hi) { } }
+public sealed class range : Attribute
+{
+    public range(int lo, int hi, bool error = false) { }
+    public range(double lo, double hi) { }
+}

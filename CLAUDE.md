@@ -104,7 +104,8 @@ and the runners, eectl, the MCP server), `results/` (log readers, scorers), `re/
   [master] group is one key over its keys (bool and factor only; ImprovedUnitMovement: improved_unit_movement):
   default = their defaults, custom = the file's, enabled / disabled = all on / off (a factor its default / 1) -
   settings.cs "A MASTER". A row's range is a sanity bound: outside it a warning, the value
-  used (the code clamps what it can't take); only what can't be used at all is a mistake, the default instead. A key
+  used (the code clamps what it can't take); only what can't be used at all is a mistake, the default instead -
+  a range the code can't go beyond is `[range(lo, hi, error: true)]` (LIMIT: outside it a mistake too). A key
   that only sets one of the game's own values has [game(...)] (rows.h SETTING_GAME: ageofai_config.exe shows its key blue).
 - The game reads the personality files from `config/personalities/` (`ai_dir` in the user's ageofai.ini): a change to
   their format needs the matching installed DLL.
