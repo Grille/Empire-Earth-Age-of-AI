@@ -43,7 +43,7 @@ class patches
         /// Overseas mines: on a water map the game puts idle citizens on a boat to a mine elsewhere, but took any free
         /// mine for it - mostly one at home; the boat rarely came and they stood idle meanwhile. Only a mine on another
         /// island, as Art of Conquest fixed it (the AI's citizens). 0 = the original
-        [title("Overseas mines (from Art of Conquest)")]
+        [title("Overseas mines (from Art of Conquest)"), target(ee)]
         bool overseas_mines = true;
     }
 }

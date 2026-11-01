@@ -315,7 +315,7 @@ internal ee_unit *__thiscall hook_find_mine(ee_resource_mgr *rm, int type, ee_un
     if (!r) return r;
     if ((short)map_area(unit_get_tile(r), 2) != home) { n[2]++; return r; }
     n[1]++;
-    if (!g_overseas_mines || is_vanilla(pl)) return r;
+    if (!g_overseas_mines || is_vanilla(pl) || build_is("aoc")) return r;   // AoC: its own fix (it ships only who can't walk there)
     r = g_mine_choice && type >= 4 && type < 7 ? select_mine_near_drop(rm, type, NULL, home) : NULL;
     if (r) n[3]++;
     return r;
