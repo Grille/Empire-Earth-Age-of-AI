@@ -145,7 +145,7 @@ internal void label_of(const struct entry *e, char *out, int cap) {
 // the row's default as the file would write it
 internal void default_text(const struct setting_row *r, char *out, int cap) {
     switch (r->kind) {
-    case SETK_SHARE: snprintf(out, cap, "%d%%", r->def); break;
+    case SETK_SHARE: case SETK_FACTOR: snprintf(out, cap, "%d%%", r->def); break;   // both keep whole percents
     case SETK_CHOICE: case SETK_STR: case SETK_STR_P: case SETK_FLAGS: lstrcpynA(out, r->def_s, cap); break;
     default: snprintf(out, cap, "%d", r->def);
     }
