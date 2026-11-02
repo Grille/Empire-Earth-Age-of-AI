@@ -23,11 +23,12 @@
 // every AR_JUDGE_EVERY the force is judged as a whole - all its members out against the enemy at its middle and at
 // its destination, the lesser - and under AR_BACK_PCT twice running it goes home as one (a plain move: no fighting on
 // the way). The building down (none seen within AR_DONE of the destination with a member there), the next: the known
-// enemy building nearest the force's middle, judged the same - under AR_GO_PCT: home. A raid (an enemy land fighter
-// seen within AR_RAID_R of an own building, within AR_RAID_REACH of home) while the force is home: the whole force
-// attack-moves to it - one order to the force, not one per soldier - and goes home once no enemy fighter is seen
-// there. Soldiers trained while the force is out gather at home (not sent after it one by one) and join the next push.
-// A member idle away from where the force was sent is ordered again, at most every AR_REORDER.
+// enemy building nearest the force's middle, judged the same - under AR_GO_PCT: home. A raid (AR_RAID_BAND enemy land
+// fighters seen within AR_RAID_R of an own building, or one attacking something of ours, within AR_RAID_REACH of
+// home, seen there twice running) while the force is home: the whole force attack-moves to it - one order to the
+// force, not one per soldier - and goes home once no enemy fighter is seen there. Soldiers trained while the force
+// is out gather at home (not sent after it one by one) and join the next push. A member idle away from where the
+// force was sent is ordered again, at most every AR_REORDER.
 // Measured 2026-11-02 (head-to-head, Continental huge 1v1 late, 75 min, 24 mirrored games; a game: 1.6 pushes, 3.5
 // further legs, 12.3 raids answered, 1.7 retreats as losing, 0.25 next targets refused, no wait at the attack time -
 // the enemy there is unknown then -, 3260 orders): soldiers +9.3 (se 7.7), kills +9.3 (12.6), losses -15.8 (13.9),
@@ -46,7 +47,19 @@
 // (10.7), razed +7.3 (3.0), buildings lost 11.7 / 20.2; Mediterranean huge 1v1 late - kills -6.8 (13.0), losses
 // +5.8 (13.4), razed +3.3 (1.5), workers -10.2 (5.7), buildings lost 6.8 / 10.1; from epoch 1 on Continental large,
 // 100 min - kills +19.3 (13.1), losses -3.7 (18.5), razed +11.3 (5.4), buildings lost 15.5 / 28.7 (23 raids a game
-// there). On by default since 2026-11-02 ([ai_base] mod_armies).
+// there). On by default since 2026-11-02 ([ai_base] mod_armies). The raid's band (AR_RAID_BAND 3, before: any
+// enemy fighter seen near a building; 48 games): raids 12.4 -> 9.8 a game, orders 2876 -> 2567, every score level
+// (kills +1.5 se 7.4, losses -1.1, razed -0.4, buildings lost 6.5 / 6.9) - nearly every raid answered is one enemy
+// actually attacking something of ours; kept as the sanity bound it is. PRESSING ON (AR_PRESS 1: after a push, the
+// next as soon as the force beats by AR_GO_PCT the enemy that sent it home, 1.9 presses a game; 48 games): kills
+// -35.3 (se 9.6), losses +34.2 (9.5), razed -0.1, buildings lost 5.7 / 5.6 - the judge at the target from home sees
+// nothing of a base it hasn't scouted, so the force walks back into what beat it and bleeds again before the retreat
+// rule bites. Only after a push that razed and wasn't driven off (AR_PRESS 2): 0.2 presses a game, level (kills -6.9
+// se 8.1, razed +0.7 se 1.5). Off: the game's attack times stay the push times. THE FORTIFIED LINE (AR_FORT: home at
+// the own defence near the station covered by the most defences, found on 2026 of 2250 home checks in a smoke game;
+// 48 games): level - soldiers -7.9 (se 5.2), kills +1.7 (7.2), losses -3.1 (7.1), razed -0.3, buildings lost 6.6 /
+// 6.3. Off. The Mediterranean workers -10.2 of the confirmation was noise: a second 24 there gave +0.4 (6.5), razed
+// +2.7 (2.0).
 // BEFORE THE FORCE (2026-11-02, head-to-head, Continental huge 1v1 late, 75 min, 24 mirrored games each): PARITY - the
 // held let go to the game's own launch a tick ahead of the attack time (ai_held cleared, register_unit): soldiers
 // +14.5 (se 6.2), kills +1.3 (6.9), losses -8.0 (8.5), razed -1.8 (1.6), workers -8.1 (10.5) - the soldiers trained
@@ -90,7 +103,19 @@
 #define AR_HOME_MOVE 12            // home moves when the station is this far from it for AR_HOME_STAY (at once when home is in danger)
 #define AR_HOME_STAY 60000
 #define AR_RAID_SAME 10            // a raid: a raider seen twice running (AR_RAID_EVERY apart) within this of each other
-internal int g_mod_armies = 0, g_v_mod_armies = -1;
+#ifndef AR_PRESS
+#define AR_PRESS 0                 // pressing on: 1 after any push, 2 after one that razed and wasn't driven off - the next as soon as the force beats what stopped it (0: the attack time only; 1 lost: below)
+#endif
+#define AR_PRESS_EVERY 10000
+#define AR_PRESS_HOME_PCT 75       // pressing on: this much of the force gathered at home
+#ifndef AR_FORT
+#define AR_FORT 0                  // home at the own fortified line: the own defence within AR_FORT_R of the station covered by the most own defences (level: above)
+#endif
+#define AR_FORT_R 25
+#ifndef AR_RAID_BAND
+#define AR_RAID_BAND 3             // a raid: this many enemy fighters seen within AR_RAID_R of the raider, or one of them attacking ours
+#endif
+internal int g_mod_armies = 0, g_v_mod_armies = -1, g_v_ar_raid_band = -1, g_v_ar_press = -1, g_v_ar_fort = -1;   // [autotest] v_ar_raid_band, v_ar_press, v_ar_fort: the variant players' AR_RAID_BAND, AR_PRESS, AR_FORT
 #define MOD_ARMIES(idx) PV(idx, g_v_mod_armies, g_mod_armies)
 internal struct armies_st {
     uint32_t t, log_t;
@@ -99,10 +124,10 @@ internal struct armies_st {
     int out;                               // 0 home, 1 a push, 2 a raid
     ivec2 home, dest, cand, raid_c;         // home; the force's destination; the next home seen (since cand_t); the raider seen last
     ee_unit *target; int target_id;        // the push's building (NULL: a raid's point)
-    uint32_t judge_t, raid_t, out_t, wait_due, home_t, cand_t, raid_c_t;
-    int weak, clear;                       // judgements running under AR_BACK_PCT; raid checks running with no enemy seen
-    float ratio, out_hp;                   // the last judgement; the force's hit points as it went out
-    unsigned held_all, pushes, legs, raids, backs, waits, orders, refused;
+    uint32_t judge_t, raid_t, out_t, wait_due, home_t, cand_t, raid_c_t, press_t;
+    int weak, clear, stopped;              // judgements running under AR_BACK_PCT; raid checks running with no enemy seen; a push has ended (2: with its target down, not driven off)
+    float ratio, out_hp, stop_hp;          // the last judgement; the force's hit points as it went out; the enemy's that ended the last push
+    unsigned held_all, pushes, presses, legs, raids, backs, waits, orders, refused, forted;   // forted: home checks that found a defence to stand at
 } g_armies[16];
 internal struct st_side g_ar_own;
 internal int g_ar_debug = 0, g_ar_foe_mid_n; internal float g_ar_foe_mid_hp;   // DEBUG
@@ -139,10 +164,38 @@ __attribute__((format(printf, 3, 4))) internal void ar_log(unsigned idx, uint32_
 // station moves with the fronts' weights (every 10 s), the staging point with the marches: home follows only a
 // place that stays AR_HOME_MOVE away for AR_HOME_STAY (the smoke game: home jumped 20-60 tiles every few minutes and
 // the whole force walked after it, 1900 orders in 45 min), at once when home is in danger.
+// THE FORTIFIED LINE (AR_FORT, the player: "retreat into fortified positions"): home is not the bare station but the
+// own built defence within AR_FORT_R of it that the most own defences cover (the nearest on ties), when there is one
+// and it isn't in danger - the force stands under its towers and walls and the enemy that follows it home meets them.
+internal int defence_stats(ee_unit *u, float *range, float *attack);   // attack.c
+internal ivec2 ar_fort(ee_player *pl, unsigned idx, ivec2 at) {
+    static ee_unit *def[256]; static float rg[256];
+    int nd = 0;
+    for (struct grid_it it = grid_it_box(at.x, at.y, AR_FORT_R, 1); grid_it_next(&it) && nd < 256; ) {
+        ee_unit *u = it.u;
+        int fam = unit_type_get_class_id(it.td);
+        float r, atk;
+        if (unit_get_owner(u) != pl || (fam != CLS_BUILDING && fam != CLS_FORTRESS) || !cv_alive(u) || !cv_built(u)) continue;
+        if (!defence_stats(u, &r, &atk) || atk <= 0 || ivec2_dist2(unit_get_tile(u), at) > AR_FORT_R * AR_FORT_R) continue;
+        def[nd] = u; rg[nd] = r; nd++;
+    }
+    int best = -1, bc = 0;
+    long bd = 0;
+    for (int k = 0; k < nd; k++) {
+        ivec2 p = unit_get_tile(def[k]);
+        if (stage_danger(idx, p)) continue;
+        int c = 0;
+        for (int j = 0; j < nd; j++) c += (float)ivec2_dist2(unit_get_tile(def[j]), p) <= (rg[j] + 1.0f) * (rg[j] + 1.0f);
+        long d = ivec2_dist2(p, at);
+        if (best < 0 || c > bc || (c == bc && d < bd)) { best = k; bc = c; bd = d; }
+    }
+    return best >= 0 ? unit_get_tile(def[best]) : at;
+}
 internal int ar_home(ee_player *pl, unsigned idx, struct armies_st *a, uint32_t now) {
     ivec2 at;
     struct stage *st = &g_stg[idx];
     if (!(fronts_station(idx, 0, &at) && !stage_danger(idx, at)) && !(st->on && !stage_danger(idx, (at = st->s))) && !ms_base(pl, &at)) return 0;
+    if (PV(idx, g_v_ar_fort, AR_FORT)) { ivec2 f = ar_fort(pl, idx, at); a->forted += f.x != at.x || f.y != at.y; at = f; }
     if (!a->home_t) { a->home = at; a->home_t = now ? now : 1; return 1; }
     if (ivec2_dist2(at, a->home) <= AR_HOME_MOVE * AR_HOME_MOVE) { a->cand_t = 0; return 1; }
     if (stage_danger(idx, a->home)) { a->home = at; a->cand_t = 0; return 1; }
@@ -185,6 +238,7 @@ internal ee_unit *ar_target(ee_player *pl, ivec2 from) {
     }
     return best;
 }
+internal ee_unit *fl_target_of(ee_unit *u);   // fleet.c: its attack order's target
 internal int ar_enemy_near(ee_player *pl, ivec2 d, int r, int buildings) {   // enemy land fighters (or buildings) pl sees within r of d
     for (struct grid_it it = grid_it_box(d.x, d.y, r, 1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
@@ -216,6 +270,7 @@ internal void ar_go(struct armies_st *a, int kind, ivec2 d, ee_unit *target, int
     }
     if (!out_only) { ar_side(a, 1, NULL); a->out_hp = g_ar_own.hp; }
 }
+internal void ar_stopped(struct armies_st *a, float foe_hp, int won) { a->stopped = won ? 2 : 1; a->stop_hp = foe_hp; }   // a push ends: what stopped it
 internal void ar_home_all(struct armies_st *a, uint32_t now) {   // the force out comes home as one
     a->out = 0; a->target = NULL; a->backs++;
     for (int k = 0; k < a->n; k++) {
@@ -234,7 +289,12 @@ internal int ar_count(struct armies_st *a, int out) {
 internal void ar_out(ee_player *pl, unsigned idx, struct armies_st *a, uint32_t now) {
     ivec2 mid;
     int n = ar_side(a, 1, &mid);
-    if (n < (a->out == 2 ? 1 : AR_MIN_LAUNCH / 2)) { ar_log(idx, now, "the force out is down to %d - home to %d,%d", n, a->home.x, a->home.y); ar_home_all(a, now); return; }
+    if (n < (a->out == 2 ? 1 : AR_MIN_LAUNCH / 2)) {
+        ar_log(idx, now, "the force out is down to %d - home to %d,%d", n, a->home.x, a->home.y);
+        if (a->out == 1) ar_stopped(a, g_sgs_foe.hp, 0);
+        ar_home_all(a, now);
+        return;
+    }
     if (!a->judge_t || now - a->judge_t >= AR_JUDGE_EVERY) {
         a->judge_t = now ? now : 1;
         float r = ar_judge(pl, a, 1, mid);
@@ -245,12 +305,14 @@ internal void ar_out(ee_player *pl, unsigned idx, struct armies_st *a, uint32_t 
         if (g_ar_debug) ar_log(idx, now, "  judge: %d out (hp %.0f) at %d,%d - at the middle %.2f (enemy %d, hp %.0f), at %d,%d %.2f (enemy %d, hp %.0f)", n, g_ar_own.hp, mid.x, mid.y, r, g_ar_foe_mid_n, g_ar_foe_mid_hp, a->dest.x, a->dest.y, rd, foe, g_sgs_foe.hp);
         if (AR_BLEED_PCT && g_ar_own.hp < a->out_hp * (float)(100 - AR_BLEED_PCT) / 100.0f) {
             ar_log(idx, now, "the force of %d at %d,%d has bled (hp %.0f of %.0f) - home to %d,%d", n, mid.x, mid.y, g_ar_own.hp, a->out_hp, a->home.x, a->home.y);
+            if (a->out == 1) ar_stopped(a, g_sgs_foe.hp, 0);
             ar_home_all(a, now);
             return;
         }
         if (a->ratio * 100.0f < (float)AR_BACK_PCT) {
             if (++a->weak >= 2) {
                 ar_log(idx, now, "the force of %d at %d,%d is losing (%.2f: own %d, enemy %d at %d,%d) - home to %d,%d", n, mid.x, mid.y, a->ratio, own, foe, a->dest.x, a->dest.y, a->home.x, a->home.y);
+                if (a->out == 1) ar_stopped(a, rd < r ? g_sgs_foe.hp : g_ar_foe_mid_hp, 0);
                 ar_home_all(a, now);
                 return;
             }
@@ -269,6 +331,7 @@ internal void ar_out(ee_player *pl, unsigned idx, struct armies_st *a, uint32_t 
         float r = t ? ar_judge(pl, a, 1, d) : 0.0f;
         if (!t || r * 100.0f < (float)AR_GO_PCT) {
             ar_log(idx, now, "%d,%d is down - %s - the force of %d home to %d,%d", a->dest.x, a->dest.y, t ? "the next is too strong" : "no enemy building known", n, a->home.x, a->home.y);
+            ar_stopped(a, t ? g_sgs_foe.hp : 0.0f, 1);
             ar_home_all(a, now);
             return;
         }
@@ -299,6 +362,7 @@ internal void ar_at_home(ee_player *pl, unsigned idx, struct armies_st *a, uint3
         a->raid_t = now ? now : 1;
         ee_unit *raider = NULL;
         long bd = 0;
+        int band = 0;
         for (struct grid_it it = grid_it_box(a->home.x, a->home.y, AR_RAID_REACH, 1); grid_it_next(&it); ) {
             ee_unit *u = it.u;
             ee_player *o = unit_get_owner(u);
@@ -306,10 +370,22 @@ internal void ar_at_home(ee_player *pl, unsigned idx, struct armies_st *a, uint3
             ivec2 p = unit_get_tile(u);
             long d = ivec2_dist2(p, a->home);
             if (d > (long)AR_RAID_REACH * AR_RAID_REACH || (raider && d >= bd)) continue;
-            int close = 0;
+            // a raid, not a scout passing: the raider's band (enemy fighters seen within AR_RAID_R of it) is AR_RAID_BAND
+            // strong, or one of them is attacking something of ours - the whole force went for every single scout before
+            // (12-23 raids a game, 3000 orders, the force away when the real attack came)
+            int close = 0, nb = 0, hitting = 0;
             for (struct grid_it jt = grid_it_box(p.x, p.y, AR_RAID_R, 1); grid_it_next(&jt) && !close; )
                 close = unit_get_owner(jt.u) == pl && cv_alive(jt.u) && fr_building(jt.td) && ivec2_dist2(unit_get_tile(jt.u), p) <= AR_RAID_R * AR_RAID_R;
-            if (close) { raider = u; bd = d; }
+            if (!close) continue;
+            for (struct grid_it jt = grid_it_box(p.x, p.y, AR_RAID_R, 1); grid_it_next(&jt) && !hitting; ) {
+                ee_player *jo = unit_get_owner(jt.u);
+                if (!jo || !is_enemy(pl, jo) || !ms_land_soldier(jt.u, jt.td) || !seen_by(jt.u, pl) || ivec2_dist2(unit_get_tile(jt.u), p) > AR_RAID_R * AR_RAID_R) continue;
+                nb++;
+                ee_unit *t = fl_target_of(jt.u);
+                hitting = t && unit_get_owner(t) == pl;
+            }
+            if (nb < PV(idx, g_v_ar_raid_band, AR_RAID_BAND) && !hitting) continue;
+            raider = u; bd = d; band = nb;
         }
         ivec2 d = raider ? unit_get_tile(raider) : iv2(-1000, -1000);
         int again = raider && a->raid_c_t && now - a->raid_c_t <= 2 * AR_RAID_EVERY && ivec2_dist2(d, a->raid_c) <= AR_RAID_SAME * AR_RAID_SAME;   // seen there twice running
@@ -318,26 +394,41 @@ internal void ar_at_home(ee_player *pl, unsigned idx, struct armies_st *a, uint3
             float r = ar_judge(pl, a, 0, d);
             if (r * 100.0f >= (float)AR_BACK_PCT) {
                 a->raids++;
-                ar_log(idx, now, "a raid at %d,%d - the force of %d goes (%.2f: own %d, enemy %d)", d.x, d.y, n, r, g_ar_own.n, g_sgs_foe.n);
+                ar_log(idx, now, "a raid of %d at %d,%d - the force of %d goes (%.2f: own %d, enemy %d)", band, d.x, d.y, n, r, g_ar_own.n, g_sgs_foe.n);
                 ar_go(a, 2, d, NULL, 0, now);
                 return;
             }
         }
     }
+    // PRESSING ON: the game's attack times are minutes apart; after a push the force goes again as soon as it beats
+    // what stopped it (the enemy's hit points at the judgement that sent it home: the judge at the target from home
+    // sees nothing of an enemy base it hasn't scouted) by AR_GO_PCT, AR_PRESS_HOME_PCT of it gathered, and the target
+    // judged as at the attack time. The first try waited for the force's own hit points as it went out: a push of 123
+    // that razed three buildings and came home with 50 never pressed again.
     uint32_t due = player_get_next_attack(pl);
-    if (n >= AR_MIN_LAUNCH && now + 2 * AR_TICK >= due && a->wait_due != due) {   // the attack time: once per attack time
-        a->wait_due = due;
+    int press = 0;
+    int press_mode = PV(idx, g_v_ar_press, AR_PRESS);
+    if (press_mode && a->stopped && (press_mode < 2 || a->stopped == 2) && n >= AR_MIN_LAUNCH && (!a->press_t || now - a->press_t >= AR_PRESS_EVERY) && !(now + 2 * AR_TICK >= due && a->wait_due != due)) {
+        a->press_t = now ? now : 1;
+        int at_home = 0;
+        for (int k = 0; k < a->n; k++) at_home += cv_alive(a->held[k].u) && ivec2_dist2(unit_get_tile(a->held[k].u), a->home) <= AR_HOME_R * AR_HOME_R;
+        ar_side(a, 0, NULL);
+        press = at_home * 100 >= n * AR_PRESS_HOME_PCT && g_ar_own.hp * 100.0f >= a->stop_hp * (float)AR_GO_PCT;
+    }
+    if (press || (n >= AR_MIN_LAUNCH && now + 2 * AR_TICK >= due && a->wait_due != due)) {   // the attack time: once per attack time
+        if (!press) a->wait_due = due;
         ee_unit *t = ar_target(pl, a->home);
         ivec2 d = t ? unit_get_tile(t) : a->home;
         float r = t ? ar_judge(pl, a, 0, d) : 0.0f;
         if (!t || r * 100.0f < (float)AR_GO_PCT) {
+            if (press) return;   // told at the attack time
             a->waits++;
             if (t) ar_log(idx, now, "the attack time: the force of %d waits at %d,%d - %d,%d is too strong (%.2f: own %d, enemy %d)", n, a->home.x, a->home.y, d.x, d.y, r, g_ar_own.n, g_sgs_foe.n);
             else ar_log(idx, now, "the attack time: the force of %d waits at %d,%d - no enemy building known", n, a->home.x, a->home.y);
             return;
         }
-        a->pushes++;
-        ar_log(idx, now, "the attack time: the force of %d from %d,%d at %d,%d (%.2f: own %d, enemy %d)", n, a->home.x, a->home.y, d.x, d.y, r, g_ar_own.n, g_sgs_foe.n);
+        if (press) a->presses++; else a->pushes++;
+        ar_log(idx, now, "%s: the force of %d from %d,%d at %d,%d (%.2f: own %d, enemy %d; stopped by hp %.0f)", press ? "pressing on" : "the attack time", n, a->home.x, a->home.y, d.x, d.y, r, g_ar_own.n, g_sgs_foe.n, a->stop_hp);
         ar_go(a, 1, d, t, 0, now);
     }
 }
@@ -375,14 +466,19 @@ internal void armies_tick(ee_player *pl, uint32_t now) {
     ar_at_home(pl, idx, a, now);
     if (g_log && g_autotest && (!a->log_t || now < a->log_t || now - a->log_t >= 60000)) {
         a->log_t = now ? now : 1;
-        ar_log(idx, now, "held %d (in all %u), %s%d,%d (judged %.2f), pushes %u legs %u raids %u backs %u waits %u, orders %u, offers refused %u, next attack at %.1f min",
+        ar_log(idx, now, "held %d (in all %u), %s%d,%d (judged %.2f), pushes %u (pressing on %u) legs %u raids %u backs %u waits %u, orders %u, offers refused %u, forted %u, next attack at %.1f min",
                a->n, a->held_all, a->out == 1 ? "out at " : a->out == 2 ? "at a raid at " : "home at ", a->out ? a->dest.x : a->home.x, a->out ? a->dest.y : a->home.y,
-               a->ratio > 99.0f ? 99.0f : a->ratio, a->pushes, a->legs, a->raids, a->backs, a->waits, a->orders, a->refused, player_get_next_attack(pl) / 60000.0);
+               a->ratio > 99.0f ? 99.0f : a->ratio, a->pushes, a->presses, a->legs, a->raids, a->backs, a->waits, a->orders, a->refused, a->forted, player_get_next_attack(pl) / 60000.0);
     }
 }
 internal void armies_new_game(void) { memset(g_armies, 0, sizeof g_armies); }
 internal void armies_install(const char *autotest_ini) {
     g_mod_armies = g_set_ai[1].mod_armies;
-    if (autotest_ini) g_v_mod_armies = ini_int("autotest", "v_mod_armies", -1, autotest_ini);
+    if (autotest_ini) {
+        g_v_mod_armies = ini_int("autotest", "v_mod_armies", -1, autotest_ini);
+        g_v_ar_raid_band = ini_int("autotest", "v_ar_raid_band", -1, autotest_ini);
+        g_v_ar_press = ini_int("autotest", "v_ar_press", -1, autotest_ini);
+        g_v_ar_fort = ini_int("autotest", "v_ar_fort", -1, autotest_ini);
+    }
     if (g_log) fprintf(g_log, "# mod armies: %d (variant %d)\n", g_mod_armies, g_v_mod_armies);
 }
