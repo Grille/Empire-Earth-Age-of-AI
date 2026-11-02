@@ -1,0 +1,23 @@
+// Taking a place in the formation (the player: a rider whose place is in front should get there quickly, at its own
+// speed, not eased in at little more than the citizens' pace): Continental (seed 101, start_epoch 12), 24 citizens
+// (0.5 tiles/s) at 36,44 and 12 dragoons (0.8) six tiles behind them at 30,44, sent together 40 tiles east to 76,46 in
+// one right-click - the formation puts the dragoons in the front rank, so they have to overtake the whole formation.
+// `fmove watch 1` logs every unit every step (# fmwatch): a reader takes the time until the dragoons' middle is ahead
+// of the citizens' middle along the move, and how far behind their final places they still are; fmove sum the rest.
+// Found 2026-11-02 (game_seed 1): the dragoons are in front of the citizens at 15 s and march in their place from
+// then on - the closing rule (groupmove.c ff_speed: the formation's speed plus FF_GAIN for each tile behind, capped
+// at the unit's own top speed x formation_catchup) gives a 0.8 rider its full speed whenever it is more than 0.6
+// tiles behind its place; a ramp straight to the cap changed nothing here. A rider seen held to the citizens' pace
+// while taking its place is something else: the formation's own start, a re-form on the march, or a block.
+wait_until(0.1min)
+spawn(1, unit.citizen, 36, 44, 24)
+spawn(1, unit.cav09_dragoon_gun, 30, 44, 12)
+wait_until(0.4min)
+cmd("fmove watch 1")
+cmd("fmove go 1 33 44 10 76 46")
+every(2s, 0.4min, 2.4min, (run) => {
+    cmd("fmove stat")
+})
+wait_until(2.45min)
+cmd("fmove sum")
+cmd("fmove watch 0")
