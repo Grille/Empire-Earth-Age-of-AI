@@ -38,6 +38,9 @@ and the runners, eectl, the MCP server), `results/` (log readers, scorers), `re/
 - A move that should change no code (files, functions between files): `scripts/build/code_same.py HEAD` must say "0 differ".
 - `sh scripts/build/install.sh` puts the committed build into the game: built from a clean `git archive HEAD` (never the
   working tree), copied under a reservation of the game folder (a loaded DLL can't be replaced). Commit first.
+- A release: `local/venv/Scripts/python.exe scripts/build/pack_release.py` - HEAD built from a clean archive, zipped
+  as the game folder lays it out (ageofai.dll, ageofai_config.exe, ageofai/ with ageofai.ini and personalities/) into
+  `local/work/release/`, ageofai_check.exe beside the zip (a download of its own); no dinput.dll.
 - Every commit installs itself (the user's rule: the install is for testing the newest changes, a crash is welcome
   news): `.git/hooks/post-commit` (local) starts `scripts/build/install_latest.sh` in the background - it waits for the
   user's own game to end, then install.sh; log `local/work/install.log`. No manual install after a commit.
