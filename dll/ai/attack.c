@@ -952,6 +952,7 @@ internal int bk_shelter(ee_player *pl, ee_unit *u);
 internal void bk_flush(ee_player *pl, unsigned pi, uint32_t now);
 internal void bk_build(ee_player *pl, unsigned pi, uint32_t now);
 internal void bk_reserve_tick(ee_player *pl, unsigned pi, uint32_t now);
+internal void town_guards_install(void);
 internal void shelf_tick(ee_player *pl, unsigned pi, uint32_t now);   // bunker.c
 internal int g_bk_res;
 internal void citizens_safety(ee_resource_mgr *rm) {   // before the citizen assignment
@@ -1754,6 +1755,7 @@ internal void attack_install(void) {
     g_avoid_lost = g_set_ai[1].avoid_lost_fights;
     g_bunkers = g_set_ai[1].bunkers;
     g_bk_res = g_set_ai[1].bunker_reserve;
+    town_guards_install();   // bunker.c
     BOOL repair = patch_repair_goal(hook_repair_goal);
     if (g_log) fprintf(g_log, "# repairs under attack: refused (hook %s)\n", repair ? "ok" : "FAILED");
     g_avoid_weight = g_set_ai[1].avoid_towers_weight;

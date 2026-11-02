@@ -7,6 +7,20 @@
 // after landing.c (the load goal as the transports': EEUGLoadTransport 0x61487F on the holder, its part for each unit).
 
 #define FORTRESS_TYPE UT(B_FORTRESS)
+// TOWN GUARDS ([ai_base] town_guards; [autotest] v_town_guards; with the reserve; the player 2026-10-31: smaller
+// defence forces in the backland, "often stored in fortresses if only needed as a rare fallback for smaller
+// breakthroughs" - out of the population while not needed): a fortress also at each front station (fronts.c - its
+// tower nearest the front, 4 tiles back) without one within TG_NEAR tiles, and the reserve fills each fortress from the
+// free soldiers within 25 tiles of it, not only those at the base. Each lets its guard out when enemies come near it.
+#define TG_NEAR 12
+internal int g_town_guards = 0, g_v_town_guards = -1;
+#define TOWN_GUARDS(idx) PV(idx, g_v_town_guards, g_town_guards)
+internal int fronts_station(unsigned idx, int k, ivec2 *at);   // fronts.c
+internal void town_guards_install(void) {
+    g_town_guards = g_set_ai[1].town_guards;
+    if (g_autotest) g_v_town_guards = ini_int("autotest", "v_town_guards", -1, g_ini);
+    if (g_log) fprintf(g_log, "# town guards: %d (variant %d)\n", g_town_guards, g_v_town_guards);
+}
 internal int bk_capacity(ee_unit *u) {   // what a building holds as a transport does, 0 = none
     ee_unit_type *td = u ? unit_get_type_data(u) : NULL;
     return td && unit_type_get_class_id(td) == CLS_FORTRESS ? unit_type_get_transport_capacity(td) : 0;
@@ -255,6 +269,16 @@ internal void bk_build(ee_player *pl, unsigned pi, uint32_t now) {
     int want = air || bk_hurt_recent(pi, 0, 0, 10000, 120000) >= 3 ? (cit >= 40 ? 2 : 1) : 0;
     if (g_bk_res >> pi & 1 && bk_room(pl) <= 5 && want < 1) want = 1;   // the reserve: near the population cap
     if (g_shelf[pi].want && want < g_bk[pi].nall + 1) want = g_bk[pi].nall + 1 < 8 ? g_bk[pi].nall + 1 : 8;   // the shelf: full
+    ivec2 guard_at = iv2(-1, -1);   // town guards: a front station without a fortress near
+    if (TOWN_GUARDS(pi) && g_bk_res >> pi & 1 && g_bk[pi].nall < 8) {
+        ivec2 st;
+        for (int k = 0; fronts_station(pi, k, &st) && guard_at.x < 0; k++) {
+            int has = 0;
+            for (int q = 0; q < g_bk[pi].nall && !has; q++) has = ivec2_dist2(unit_get_tile(g_bk[pi].all[q]), st) <= TG_NEAR * TG_NEAR;
+            if (!has) guard_at = st;
+        }
+        if (guard_at.x >= 0 && want < g_bk[pi].nall + 1) want = g_bk[pi].nall + 1;
+    }
     g_bk[pi].need_wood = 0;
     if (g_bk[pi].nall >= want) return;
     // 350 wood (0x555710 also wants a free builder at that moment: it passed in 2 of 10 games before minute 20, the
@@ -275,6 +299,7 @@ internal void bk_build(ee_player *pl, unsigned pi, uint32_t now) {
             held_near = abs(unit_get_x(g_bk[pi].all[k]) - p->p.x) <= 10 && abs(unit_get_y(g_bk[pi].all[k]) - p->p.y) <= 10;
         if (!p->food && !held_near && dd < bd) { bd = dd; d = p->p; }
     }
+    if (guard_at.x >= 0) { d = guard_at; bd = 0; }   // the town guard's fortress at its station
     if (bd == 0x7FFFFFFF) return;
     for (int r = 4; r <= 9; r++)
         for (int ax = -r; ax <= r; ax++)
@@ -285,7 +310,7 @@ internal void bk_build(ee_player *pl, unsigned pi, uint32_t now) {
                 ee_unit *b = place_foundation(pl, FORTRESS_TYPE, x, y);
                 int sent = b ? bk_builders(pl, b, 3) : 0;
                 if (g_log) fprintf(g_log, "# bunker: P%u at %.1f min: fortress foundation at %d,%d %s, %d builders (%s, %d citizens, %d fortresses)\n", pi,
-                                   now / 60000.0, x, y, b ? "laid" : "refused", sent, air ? "aircraft possible" : "citizens hurt", cit, g_bk[pi].nall);
+                                   now / 60000.0, x, y, b ? "laid" : "refused", sent, guard_at.x >= 0 ? "a town guard at the front" : air ? "aircraft possible" : "citizens hurt", cit, g_bk[pi].nall);
                 return;
             }
 }
@@ -351,11 +376,24 @@ internal void bk_reserve_tick(ee_player *pl, unsigned pi, uint32_t now) {
         if (!f.cm || !bm) return;
         g_bk_nmem = ou_members(pl, g_bk_mem, 4096);
         qsort(g_bk_mem, (size_t)g_bk_nmem, sizeof *g_bk_mem, bk_ptr_cmp);
-        grid_each(bk_free_unit, &f);
         int best = -1, space = 0;
-        for (int k = 0; k < g_bk[pi].nf; k++) {
-            int s = bk_capacity(g_bk[pi].f[k]) - bk_held(g_bk[pi].f[k]) - g_bk[pi].walk[k];
-            if (s > space && !g_bk[pi].store[k]) { space = s; best = k; }
+        if (TOWN_GUARDS(pi)) {   // town guards: the fortress with the most free soldiers round it (and room)
+            static struct bk_free tf;
+            int most = 0;
+            for (int k = 0; k < g_bk[pi].nf; k++) {
+                int s = bk_capacity(g_bk[pi].f[k]) - bk_held(g_bk[pi].f[k]) - g_bk[pi].walk[k];
+                if (s <= 0 || g_bk[pi].store[k] || g_bk[pi].shelter[k]) continue;
+                tf = f; tf.b = unit_get_tile(g_bk[pi].f[k]); tf.n = 0;
+                grid_each(bk_free_unit, &tf);
+                if (tf.n > most) { most = tf.n; best = k; space = s; }
+            }
+            if (best >= 0) { f.b = unit_get_tile(g_bk[pi].f[best]); grid_each(bk_free_unit, &f); }
+        } else {
+            grid_each(bk_free_unit, &f);
+            for (int k = 0; k < g_bk[pi].nf; k++) {
+                int s = bk_capacity(g_bk[pi].f[k]) - bk_held(g_bk[pi].f[k]) - g_bk[pi].walk[k];
+                if (s > space && !g_bk[pi].store[k]) { space = s; best = k; }
+            }
         }
         int n = f.n - 4;
         if (n > 10) n = 10;

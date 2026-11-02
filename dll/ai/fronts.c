@@ -286,7 +286,8 @@ internal void fa_members(ee_player *pl) {
         }
     }
 }
-internal void front_army(ee_player *pl, unsigned idx, uint32_t now) {
+// the armies' stations (front_army's, the town guards' fortresses in bunker.c): every look
+internal void fa_stations(ee_player *pl, unsigned idx) {
     struct fronts_st *s = &g_fronts[idx];
     struct fa_st *a = &g_fa[idx];
     ivec2 base;
@@ -324,10 +325,20 @@ internal void front_army(ee_player *pl, unsigned idx, uint32_t now) {
         if (same >= 0) { a->share[same] += f->weight; continue; }   // one front for two sections that close
         a->at[a->n] = at; a->share[a->n] = f->weight; a->have[a->n] = 0; a->n++;
     }
-    if (!a->n) return;
     float wsum = 0;
     for (int k = 0; k < a->n; k++) wsum += a->share[k];
     for (int k = 0; k < a->n; k++) a->share[k] = wsum > 0 ? a->share[k] / wsum : 1.0f / (float)a->n;
+}
+// bunker.c: station k of AI idx (0: none)
+internal int fronts_station(unsigned idx, int k, ivec2 *at) {
+    struct fa_st *a = &g_fa[idx & 15];
+    if (k < 0 || k >= a->n) return 0;
+    *at = a->at[k];
+    return 1;
+}
+internal void front_army(ee_player *pl, unsigned idx, uint32_t now) {
+    struct fa_st *a = &g_fa[idx];
+    if (!a->n) return;
     fa_members(pl);
     static ee_unit *free_u[1024];
     int nfree = 0, total = 0;
@@ -385,6 +396,7 @@ internal void fronts_tick(ee_player *pl, unsigned idx, uint32_t now) {
     if (s->t && now - s->t < 10000) return;
     s->t = now ? now : 1;
     fronts_look(pl, idx, now);
+    fa_stations(pl, idx);
     if (FRONT_ARMY(idx)) front_army(pl, idx, now);
 }
 internal void fronts_install(const char *autotest_ini) {
