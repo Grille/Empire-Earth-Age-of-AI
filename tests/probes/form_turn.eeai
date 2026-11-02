@@ -12,6 +12,10 @@
 // its own route, the game's way) and the set-ahead stops short of the end: 7.3 tiles, the last at 44 s (median 14 s).
 // Before the set-ahead (62ea451) 8.4 tiles and 49 s. A drag at the wedge's tip (the formation's radius) is level either
 // way (9.1 tiles, 54 s as a march, 64 s in place); 12 tiles and further the march walks what the game's own slots do.
+// Later the same day: a formation standing as it marched (the wedge here, formed by the first order) is moved as it
+// is by a re-form within its own size - each unit keeps its place, the drag here done at 26.6 s (48.1 before); the
+// save's wedge clicked 3 tiles ahead and a bit aside, every unit off the common displacement 0.07 tiles (0.55, 17 of
+// 109 by more than a tile, before).
 wait_until(0.1min)
 spawn(1, unit.inf08_halberdier, 40, 40, 60)
 spawn(1, unit.inf09_grenadier, 40, 40, 30)
