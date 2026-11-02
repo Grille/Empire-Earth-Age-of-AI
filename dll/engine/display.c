@@ -755,12 +755,12 @@ internal int install_windowed_present(int dpi) {
 //   window is in the background) and minimizes the window (CloseWindow, 0x662670) when the app loses focus.
 // - non-exclusive, the device sees every click while the window is in front, also on the title bar or other
 //   windows: the mouse is unacquired while the cursor is outside the client area (and no button is held).
-// ageofai.ini [display] lock_mouse = 1 keeps the cursor inside the window while the game is in front; auto (default)
+// ageofai.ini [display] lock_mouse = on keeps the cursor inside the window while the game is in front; auto (default)
 // only in borderless (a full-screen picture: edge scrolling must not slide onto another monitor), not in a window
 // (Alt+Enter switches both). Native fullscreen needs nothing: the exclusive DirectInput mouse never leaves.
 typedef void (__thiscall *ThisFn)(void *);
 internal ThisFn g_recompute_buttons;   // ISMouse::RecomputeCurrentButtonState
-internal int g_lock_mouse = 2;   // 0 never, 1 always, 2 auto (borderless only)
+internal int g_lock_mouse = 2;   // the CHOICE's index: 0 off, 1 on, 2 auto (borderless only)
 internal int mouse_locked(void) { return g_lock_mouse == 1 || (g_lock_mouse == 2 && g_borderless); }
 internal WNDPROC g_game_wndproc;
 internal HWND g_subclassed;

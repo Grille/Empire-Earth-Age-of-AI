@@ -35,7 +35,7 @@ def default_of(sec, k):   # the default as the code's row has it and as the file
         v = '1' if d == 'true' else '0'
         return v, v
     if kind == 'CHOICE':
-        name = sec.enums[k.type][d.split('.')[-1].lstrip('@')]   # scroll_choice.game -> game, lock_mouse_choice.on -> 1
+        name = sec.enums[k.type][d.split('.')[-1].lstrip('@')]   # scroll_choice.game -> game, sound_sample_rate_choice.hz_48000 -> 48000
         return c_str(name), name
     if kind == 'FLAGS':   # [on("a, b")]: those fields on
         on = settings_read.arg_text(k.attrs['on'][0]) if k.has('on') else ''

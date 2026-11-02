@@ -21,10 +21,8 @@ class display
     enum lock_mouse_choice
     {
         /// never
-        [name("0")]
         off,
         /// always
-        [name("1")]
         on,
         /// only in borderless, free in a window (follows Alt+Enter)
         auto,
