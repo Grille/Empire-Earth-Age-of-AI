@@ -4,9 +4,9 @@
 // each also with a taskbar button for a moment; WS_EX_NOACTIVATE alone doesn't stop a window created visible from
 // being activated. A thread CBT hook sees every window of the thread before it shows: no taskbar button
 // (WS_EX_TOOLWINDOW), off-screen (layered windows - DDrawCompat's presentation window - stay where they are), and
-// every activation refused. Installed by dinput.dll (eesettings.c) at the process start when run_test.ps1 sets
-// EEAIMOD_HEADLESS=1 - before the display DLLs load - and by ageofai.dll with headless=1 (display.c), for a game
-// without the mod's dinput.dll. Included by both.
+// every activation refused. Installed at the process start when ageofai.dll is loaded with the engine (the game's
+// settings in a file: eeaimod.c early_start) and run_test.ps1 sets EEAIMOD_HEADLESS=1 - before the display DLLs load -
+// and with headless=1 (display.c) when the engine's DLL scan loads it, for a game without that.
 internal HHOOK g_hl_cbt;
 internal LRESULT CALLBACK hl_cbt(int code, WPARAM w, LPARAM l) {
     if (code == HCBT_CREATEWND) {

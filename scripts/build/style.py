@@ -36,7 +36,7 @@ def top_comma(s):
 def check(path, rel):
     bad = []
     src = blank(open(path, encoding='latin-1').read())
-    words = not rel.startswith('dinput/') and rel != 'base/lang.h'   # dinput/: its own DLL
+    words = rel != 'base/lang.h'
     depth, cont = 0, False
     for ln, line in enumerate(src.split('\n'), 1):
         pre, cont = cont or line.lstrip().startswith('#'), line.rstrip().endswith('\\')

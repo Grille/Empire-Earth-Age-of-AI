@@ -148,19 +148,22 @@ try {
     [void][EEAimod.Power]::SetThreadExecutionState([uint32]"0x80000001")
 } catch { "keep-awake request failed: $_" }
 # a game that is no test slot's - the player's own - is never disturbed. A slot (1..30) has its own test ini, log,
-# dumps and pipe, and with the mod's dinput.dll its own settings: it runs beside the player's game. Slot 0 shares the
-# game folder's (and without that dinput.dll every run mutes the sound in the registry): not while the player plays
-$proxy = (Test-Path "$g\dinput.dll") -and (Select-String -Path "$g\dinput.dll" -Pattern 'EEAimodSettings' -SimpleMatch -Quiet)
+# dumps and pipe, and with the game's settings in a file its own settings: it runs beside the player's game. Slot 0
+# shares the game folder's (and with the settings in the registry every run mutes the sound there): not while the
+# player plays. The settings are in a file when ageofai.dll is an import of the engine (ageofai_config.exe
+# --settings-file on: its function's name in Low-Level Engine.dll) - or with the mod's dinput.dll of before
+$proxy = ((Test-Path "$g\Low-Level Engine.dll") -and (Select-String -Path "$g\Low-Level Engine.dll" -Pattern 'ageofai_settings' -SimpleMatch -Quiet)) -or
+         ((Test-Path "$g\dinput.dll") -and (Select-String -Path "$g\dinput.dll" -Pattern 'EEAimodSettings' -SimpleMatch -Quiet))
 $others = Other-Runners
 # a test game holds its eeaimod_game_<pid>; one a runner is just starting may not have it yet: its parent is a runner
 $foreign = @(Get-Process -Name $exeName -ErrorAction SilentlyContinue | Where-Object { -not (Test-Named "eeaimod_game_$($_.Id)") } | Where-Object {
     $pp = (Get-CimInstance Win32_Process -Filter "ProcessId=$($_.Id)" -ErrorAction SilentlyContinue).ParentProcessId
     -not ($pp -and (Test-Named "eeaimod_runner_$pp")) })
 if ($foreign -and (-not $Slot -or ($Mute -and -not $proxy))) {
-    "game already running - aborting$(if (-not $Slot) { ' (slot 0 shares its folder: -Slot n runs beside it)' } else { ' (no mod dinput.dll: the run would mute it)' })"; exit 1
+    "game already running - aborting$(if (-not $Slot) { ' (slot 0 shares its folder: -Slot n runs beside it)' } else { ' (its settings in the registry: the run would mute it - ageofai_config.exe --settings-file on)' })"; exit 1
 }
 if (-not $others) { Restore-Sound }   # leftover from an interrupted run (with other slots running: theirs)
-# The game's settings. With the mod's dinput.dll in the game folder (dll/dinput/eesettings.c) every run reads a copy of
+# The game's settings. With them in a file (dll/engine/game_settings.c) every run reads a copy of
 # -Settings (env SETTINGS; default tests\config\eesettings.ini: fixed settings, sound off) - not the player's
 # eesettings.ini, not the registry - and nothing needs muting. -Mute:$false: the player's own settings.
 if (-not $Settings) { $Settings = "$repo\tests\config\eesettings.ini" }
@@ -234,8 +237,8 @@ if ($Slot) { $env:EEAIMOD_SLOT = "$Slot"; $env:EEAIMOD_SLOT_DIR = $sdir }
 else { Remove-Item Env:EEAIMOD_SLOT, Env:EEAIMOD_SLOT_DIR -ErrorAction SilentlyContinue }
 $env:EEAIMOD_REPO = $repo   # the repository (texts corpus: its tests\text_engine_cases.txt)
 $env:EEAIMOD_UNREADY = "1"   # a known build that isn't ready yet plays here (game/api/exe.c) - never in normal play
-# headless: the mod's dinput.dll keeps every window of the game from taking the focus or a taskbar button, from the
-# process start on (dll/base/headless_win.c; ageofai.dll alone only from its load on)
+# headless: no window of the game takes the focus or a taskbar button - from the process start on when ageofai.dll is
+# loaded with the engine (dll/base/headless_win.c; else from the engine's DLL scan on)
 if ($extra -contains "headless=1") { $env:EEAIMOD_HEADLESS = "1" } else { Remove-Item Env:EEAIMOD_HEADLESS -ErrorAction SilentlyContinue }
 try {
     # an existing log in the game folder is from normal play (tests archive theirs below): keep it, never delete it;

@@ -3,8 +3,7 @@ Empire Earth.exe) it is the mod as README "Installing" lays it out:
     ageofai.dll, ageofai_config.exe            beside the game
     ageofai/ageofai.ini, ageofai/personalities/ the mod's folder: the shipped settings and personalities
 and beside the zip ageofai_check.exe, the .eeai checker - a download of its own on the release page, never in the zip
-(the player 2026-11-02: for modders). dinput.dll (the game's settings in eesettings.ini) stays out too: it replaces a
-file other programs ship under that name.
+(the player 2026-11-02: for modders). The game's settings in a file are ageofai_config.exe's to switch on (Game).
 Built from the committed state - a clean `git archive HEAD` built anew (as scripts/build/install.sh), never the
 working tree, which may hold another session's unfinished changes: commit first.
     python scripts/build/pack_release.py"""

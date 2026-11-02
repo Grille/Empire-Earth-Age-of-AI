@@ -1,6 +1,6 @@
 #!/bin/sh
-# The mod's files in the game folder's ageofai\ (the game folder itself keeps only ageofai.dll, dinput.dll and
-# ageofai_config.exe). A game folder set up before has them under their old names - beside the game (before
+# The mod's files in the game folder's ageofai\ (the game folder itself keeps only ageofai.dll,
+# ageofai_config.exe and ageofai_check.exe). A game folder set up before has them under their old names - beside the game (before
 # 2026-10-27) or in aimod\ (until the name Age of AI, 2026-10-27) - moved in once, by every install (install.sh,
 # build.sh install) before the new DLL can look for them: aimod.ini -> ageofai.ini, aimod_econ.csv ->
 # ageofai_log.csv, aimod_dumps -> ageofai_dumps, aimod_autotest.ini -> ageofai_autotest.ini, eesettings.ini and

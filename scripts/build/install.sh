@@ -1,5 +1,5 @@
 #!/bin/sh
-# Installs the committed build into the game folder: ageofai.dll (and the mod's dinput.dll, ageofai_config.exe) built from a clean
+# Installs the committed build into the game folder: ageofai.dll (and ageofai_config.exe, ageofai_check.exe) built from a clean
 # `git archive HEAD` - never from the working tree, which may hold another session's unfinished changes. A DLL a
 # running game has loaded can't be replaced: it builds first (HEAD as it is now), then reserves the game folder
 # (reserve.sh: no test starts a game any more, the running ones - and the player's - are waited for) and copies.
@@ -17,8 +17,6 @@ reserve_begin "install $REV"
 mod_dir_move "$G" || exit 1   # ageofai.ini, eesettings.ini, the log and the dumps into <game>\ageofai\, once
 cp "$B/dll/ageofai.dll" "$G/ageofai.dll" || exit 1
 mod_old_remove "$G"   # eeaimod.dll and aimod_config.exe, the old names: two copies of the mod would both load
-# another program's dinput.dll is never replaced (then the game's settings stay in the registry)
-if [ ! -f "$G/dinput.dll" ] || grep -q EEAimodSettings "$G/dinput.dll"; then cp "$B/dll/dinput.dll" "$G/dinput.dll" || exit 1; fi
 # the settings program: one the player has open can't be replaced - said, and the exit code 3 (install_latest.sh waits
 # for it to close and installs again)
 cfg=0

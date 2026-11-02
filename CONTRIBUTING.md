@@ -82,7 +82,7 @@ Not sure whether something fits? Open an issue and ask before you write the code
 
 ## How the code is built
 
-The mod is C, built 32-bit by llvm-mingw into `dll/ageofai.dll` (plus `dinput.dll` and `ageofai_config.exe`):
+The mod is C, built 32-bit by llvm-mingw into `dll/ageofai.dll` (plus `ageofai_config.exe` and `ageofai_check.exe`):
 
 ```sh
 sh build.sh

@@ -220,8 +220,8 @@ siege, home guard.
 
 ## Installing (players)
 
-The mod keeps the game folder tidy: next to `Empire Earth.exe` go only `ageofai.dll`, the optional
-`dinput.dll` and `ageofai_config.exe` (Windows and the game load DLLs from there only); everything else of the mod
+The mod keeps the game folder tidy: next to `Empire Earth.exe` go only `ageofai.dll` and
+`ageofai_config.exe` (Windows and the game load DLLs from there only); everything else of the mod
 is in one folder `ageofai` beside them - its settings, the personalities, the game's settings file, the log.
 Writing personalities? `ageofai_check.exe`, a download of its own, goes there too: it checks them without starting
 the game (config/personalities/README.md).
@@ -243,17 +243,18 @@ the game (config/personalities/README.md).
    to it and can give the game 4 GB of memory instead of 2 (the Large Address Aware flag - big armies and maps
    need it; one bit in the exe's header, the game closed, the exe kept as `Empire Earth.exe.original` and put
    back by Restore). Help (F1) explains its colours and the rest.
-5. Optional: copy `dinput.dll` next to `Empire Earth.exe` too. The game then keeps its own settings (graphics,
-   sound, scroll speed, the last game's options - what the options screen sets) in `ageofai\eesettings.ini`
-   instead of the Windows registry, so they travel with the folder; the first start copies the registry's values
-   into it. It is a stand-in Windows loads at the start: the game's one DirectInput call goes on to the system's
-   `dinput.dll`. If another program in the folder already has a `dinput.dll`, keep that one - everything works
-   without ours, the settings then simply stay in the registry. Delete it to go back to the registry (the file is
-   then ignored).
+5. Optional: on the same Game page, "Settings in a file": the game then keeps its own settings (graphics, sound,
+   scroll speed, the last game's options - what the options screen sets) in `ageofai\eesettings.ini` instead of
+   the Windows registry, so they travel with the folder; the first start copies the registry's values into it.
+   The game reads them before it loads the mod, so this makes Windows load `ageofai.dll` earlier: it adds it to
+   the imports of `Low-Level Engine.dll` (the engine's code stays as it is; the file kept as
+   `Low-Level Engine.dll.original`). The same button takes it out again, and so does the game's "verify files"
+   (Steam, GOG) - the settings are then in the registry again. While it is on, the game needs `ageofai.dll`.
 
 `ageofai\ageofai.ini` is required: without it Empire Earth shows an error and closes. To play the original game,
 set `enabled=0` at the top of `ageofai.ini` (the mod then installs nothing), or delete `ageofai.dll` to
-uninstall. A setting missing from an older `ageofai.ini` takes its built-in default. The DLL writes a log to
+uninstall (with the settings in a file: switch that off first - the engine won't start without the DLL). A setting
+missing from an older `ageofai.ini` takes its built-in default. The DLL writes a log to
 `ageofai\ageofai_log.csv`.
 
 ### NeoEE
@@ -570,7 +571,7 @@ dll/              the mod (C), one translation unit: eeaimod.c includes every pa
                   hooks that call the parts, install, DllMain; persist.c the mod's state in saved games
   base/             the DLL's own helpers: log, patching, the pipe commands' REPLY, paths and the test slot, mistakes.c
                     the report of a mistake in the mod's files, math.c (the same bits on every PC), ageofai.ini
-                    (ini.c), watchpoints, headless_win.c test windows without focus or taskbar button (also in dinput.dll)
+                    (ini.c), watchpoints, headless_win.c test windows without focus or taskbar button
   game/             what the mod knows of the game: api/ the game's own code and objects, one module (api.c) - exe.c
                     the exe build, its addresses per build (gen/: the spec's C, generated; builds.h;
                     editor_layout.h generated), its objects typed (types.h), a file per object (unit.c, player.c,
@@ -603,7 +604,6 @@ dll/              the mod (C), one translation unit: eeaimod.c includes every pa
                     the DLL's own rows and checks; the shipped ageofai.ini built in as the help)
   check/            ageofai_check.c: ageofai_check.exe, the .eeai files checked without the game (the DLL's code
                     compiled into a program: the checks the game runs at its start; the build runs it too)
-  dinput/           eesettings.c: dinput.dll, the game's settings in eesettings.ini instead of the registry
 config/           ageofai.ini and the personalities, shipped to players
 tests/            what the tests run: scenarios/ the setup scripts (docs/scripts.md) that turn a save into a test
                   scenario (attacks, sieges, raids), probes/ the one-off setups of single measurements, config/

@@ -27,10 +27,11 @@
 #include "script/expr.c"
 #include "settings/settings.c"
 #include "game/api/builds.h"   // the exe builds the mod knows, and how a file is known as one
+#include "tool/engine_import.c"   // the game's settings in a file: ageofai.dll an import of the engine
 
 #define TITLE "Empire Earth: Age of AI - settings"
 enum { ID_FILTER = 100, ID_LIST, ID_HELP, ID_NAME, ID_FILE, ID_SAVE, ID_CLOSE, ID_UNKNOWN, ID_REMOVE, ID_GAME, ID_GAME_TEXT,
-       ID_GAME_APPLY, ID_GAME_RESTORE, ID_HELP_OPEN };
+       ID_GAME_APPLY, ID_GAME_RESTORE, ID_HELP_OPEN, ID_GAME_SETTINGS };
 
 // THE PAGES: a section each (rows.h SETTING_SECTIONS by their order, the test ini's left out) - the tree's sections and
 // the AI's difficulty columns; diff >= 0: a difficulty's own section, its rows those of [ai_base]
@@ -74,7 +75,7 @@ internal struct { char sec[16], key[64]; } g_unk[64];
 internal int g_nunk, g_remove_unknown;
 
 internal HWND g_wnd, g_filter, g_list, g_help, g_name, g_file_label, g_save, g_close, g_unk_label, g_remove, g_game,
-              g_game_text, g_game_apply, g_game_restore;
+              g_game_text, g_game_apply, g_game_restore, g_game_settings;
 internal HFONT g_font, g_bold, g_mono;   // g_mono: the game page's report, aligned for a fixed-width font
 internal int g_sel = -1, g_filling;   // g_sel: the selected setting's entry; g_filling: the controls set by the program
 internal float g_dpi = 1;
@@ -372,6 +373,11 @@ internal void help_of(const char *sec, const char *key, int slots, char *out, in
 internal char g_exe[MAX_PATH], g_exe_backup[MAX_PATH + 16];
 internal const char *g_exe_name;
 
+internal void game_dir(char *dir) {   // this program's folder (the game's), with its '\'
+    GetModuleFileNameA(NULL, dir, MAX_PATH);
+    char *s = strrchr(dir, '\\');
+    if (s) s[1] = 0; else dir[0] = 0;
+}
 internal void exe_find(void) {
     static const char *const names[2] = { "Empire Earth.exe", "EE-AOC.exe" };
     char dir[MAX_PATH];
@@ -413,7 +419,7 @@ internal int exe_build_of(uint32_t hash) {   // its index in k_exe_builds, -1 no
 }
 
 internal void game_show(void) {
-    char t[3072];
+    char t[4096];
     exe_find();
     if (!g_exe_name) {
         snprintf(t, sizeof t, "No Empire Earth.exe (or EE-AOC.exe) next to this program (%s).\r\n\r\n"
@@ -452,9 +458,47 @@ internal void game_show(void) {
         size_t o = strlen(t) - 2;
         snprintf(t + o, sizeof t - o, "%s - Restore puts it back\r\n", strrchr(g_exe_backup, '\\') + 1);
     }
+    char dir[MAX_PATH], lle[MAX_PATH + 32];
+    game_dir(dir);
+    snprintf(lle, sizeof lle, "%s" LLE_FILE, dir);
+    int st = lle_state(lle);
+    size_t o = strlen(t);
+    snprintf(t + o, sizeof t - o,
+             "\r\nSettings: %s\r\n"
+             "          The game keeps its own settings (resolution, sound, keys ...) in the registry and reads them\r\n"
+             "          before the mod is loaded. In a file instead - ageofai\\eesettings.ini, beside ageofai.ini: they\r\n"
+             "          go with the folder, every copy of the game has its own - the mod must be loaded first: this\r\n"
+             "          adds ageofai.dll to the imports of Low-Level Engine.dll (a copy of it kept as\r\n"
+             "          Low-Level Engine.dll.original; the engine's code stays as it is). The first start copies the\r\n"
+             "          registry's settings into the file. With it the game needs ageofai.dll - remove the mod with\r\n"
+             "          the button (back to the registry) or the game's \"verify files\", not by deleting the DLL.\r\n",
+             st < 0 ? "Low-Level Engine.dll isn't there or can't be read"
+                    : st ? "in ageofai\\eesettings.ini - ageofai.dll is loaded with the engine"
+                         : "in the registry (the game's own way)");
     SetWindowTextA(g_game_text, t);
     EnableWindow(g_game_apply, laa == 0 && g_exe_build >= 0);
     EnableWindow(g_game_restore, backup);
+    SetWindowTextA(g_game_settings, st > 0 ? "Settings back to the registry" : "Settings in a file");
+    EnableWindow(g_game_settings, st >= 0 && g_exe_build >= 0);
+}
+
+// the settings in eesettings.ini, or back in the registry (the Game page's button)
+internal void game_message(const char *what, UINT icon);
+internal void game_settings(void) {
+    char dir[MAX_PATH], lle[MAX_PATH + 32];
+    game_dir(dir);
+    snprintf(lle, sizeof lle, "%s" LLE_FILE, dir);
+    int on = lle_state(lle) > 0;
+    const char *why = on ? lle_unpatch(dir) : lle_patch(dir);
+    if (why) game_message(why, MB_ICONWARNING);
+    else if (on) game_message("Done: the game keeps its settings in the registry again from its next start (the values it had "
+                              "there before - ageofai\\eesettings.ini stays, unused).", MB_ICONINFORMATION);
+    else game_message(old_dinput_remove(dir)
+                      ? "Done: the game keeps its settings in ageofai\\eesettings.ini from its next start. The mod's old "
+                        "dinput.dll did that before - it is removed, the import does it now."
+                      : "Done: the game keeps its settings in ageofai\\eesettings.ini from its next start (the first one copies "
+                        "the registry's settings into it).", MB_ICONINFORMATION);
+    game_show();
 }
 
 internal void game_message(const char *what, UINT icon) { MessageBoxA(g_wnd, what, TITLE, MB_OK | icon); }
@@ -1030,6 +1074,7 @@ internal void layout(void) {
     put_control(g_game_text, x, m, rw, gh);
     put_control(g_game_apply, x, m + gh + dpi_px(8), dpi_px(140), dpi_px(28));
     put_control(g_game_restore, x + dpi_px(150), m + gh + dpi_px(8), dpi_px(200), dpi_px(28));
+    put_control(g_game_settings, x + dpi_px(360), m + gh + dpi_px(8), dpi_px(220), dpi_px(28));
     EndDeferWindowPos(g_defer);
     int sw = lw * 40 / 100 < dpi_px(280) ? lw * 40 / 100 : dpi_px(280), cw = lw - dpi_px(24) - sw;   // the setting's
     int cols[COLS] = { sw, cw * 65 / 100, cw * 35 / 100 };   // column, then the values' share the rest
@@ -1087,9 +1132,11 @@ internal void create_controls(void) {
     SendMessageA(g_game_text, WM_SETFONT, (WPARAM)g_mono, TRUE);
     g_game_apply = make_child(WC_BUTTONA, "Allow 4 GB", BS_PUSHBUTTON | WS_TABSTOP, ID_GAME_APPLY);
     g_game_restore = make_child(WC_BUTTONA, "Restore the original exe", BS_PUSHBUTTON | WS_TABSTOP, ID_GAME_RESTORE);
+    g_game_settings = make_child(WC_BUTTONA, "Settings in a file", BS_PUSHBUTTON | WS_TABSTOP, ID_GAME_SETTINGS);
     ShowWindow(g_game_text, SW_HIDE);
     ShowWindow(g_game_apply, SW_HIDE);
     ShowWindow(g_game_restore, SW_HIDE);
+    ShowWindow(g_game_settings, SW_HIDE);
     char f[MAX_PATH + 16];
     snprintf(f, sizeof f, "File: %s", g_ini_path);
     SetWindowTextA(g_file_label, f);
@@ -1111,6 +1158,7 @@ internal void show_mode(void) {
     ShowWindow(g_game_text, game ? SW_SHOW : SW_HIDE);
     ShowWindow(g_game_apply, game ? SW_SHOW : SW_HIDE);
     ShowWindow(g_game_restore, game ? SW_SHOW : SW_HIDE);
+    ShowWindow(g_game_settings, game ? SW_SHOW : SW_HIDE);
     SetWindowTextA(g_game, game ? "Back to the settings" : "Game exe...");
     if (game) game_show();
     else fill_list(g_node, 1);
@@ -1331,6 +1379,7 @@ internal LRESULT CALLBACK wnd_proc(HWND w, UINT msg, WPARAM wp, LPARAM lp) {
         else if (id == ID_HELP_OPEN) help_open();
         else if (id == ID_GAME_APPLY) game_apply();
         else if (id == ID_GAME_RESTORE) game_restore();
+        else if (id == ID_GAME_SETTINGS) game_settings();
         else if (id == ID_REMOVE) { g_remove_unknown = 1; show_unknown(); update_title(); }
         else if (id == ID_SAVE) {
             if (save_file()) { read_file(); show_unknown(); show_mode(); layout(); update_title(); }
@@ -1397,8 +1446,38 @@ internal char *shipped_text(void) {
     return t;
 }
 
+// ageofai_config.exe --settings-file on|off|state ["<game folder>"]: the Game page's button without the window (a
+// script, the test runner) - for this program's folder or the one named. What happened in the console it was started
+// from; exit 0 done (state: 1 on, 0 off), 1 not done, 2 a mistake in the arguments.
+internal int settings_cli(const char *cmd) {
+    char what[16] = "", dir[MAX_PATH] = "";
+    const char *s = cmd + 15;
+    while (*s == ' ') s++;
+    int n = 0;
+    while (*s && *s != ' ' && n < 15) what[n++] = *s++;
+    what[n] = 0;
+    while (*s == ' ') s++;
+    if (*s) {
+        lstrcpynA(dir, *s == '"' ? s + 1 : s, MAX_PATH - 1);
+        char *q = strchr(dir, '"');
+        if (q) *q = 0;
+        if (dir[0] && dir[strlen(dir) - 1] != '\\') lstrcatA(dir, "\\");
+    } else game_dir(dir);
+    if (AttachConsole(ATTACH_PARENT_PROCESS)) { freopen("CONOUT$", "w", stdout); }
+    char lle[MAX_PATH + 32];
+    snprintf(lle, sizeof lle, "%s" LLE_FILE, dir);
+    int st = lle_state(lle);
+    if (!strcmp(what, "state")) { printf("%s: %s\n", lle, st < 0 ? "not readable" : st ? "on (ageofai.dll imported)" : "off"); return st > 0; }
+    if (strcmp(what, "on") && strcmp(what, "off")) { printf("usage: ageofai_config --settings-file on|off|state [\"<game folder>\"]\n"); return 2; }
+    const char *why = what[1] == 'n' ? lle_patch(dir) : lle_unpatch(dir);
+    if (!why && what[1] == 'n' && old_dinput_remove(dir)) printf("%sdinput.dll (the mod's old one) removed\n", dir);
+    printf("%s: %s\n", lle, why ? why : what[1] == 'n' ? "on" : "off");
+    return why ? 1 : 0;
+}
+
 int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmd, int show) {
     (void)prev;
+    if (cmd && !strncmp(cmd, "--settings-file", 15)) return settings_cli(cmd);
     g_ini_eval = x_const_eval;
     g_shipped = shipped_text();
     // the file: the one named on the command line, else ageofai\ageofai.ini in this program's folder (the game folder)

@@ -17,7 +17,7 @@ and the runners, eectl, the MCP server), `results/` (log readers, scorers), `re/
 
 ## Build and install
 
-- `sh build.sh` builds `dll/ageofai.dll`, `dll/dinput.dll` and `dll/ageofai_config.exe` (llvm-mingw in `local/tools/`, 32-bit; it also
+- `sh build.sh` builds `dll/ageofai.dll` and `dll/ageofai_config.exe` (llvm-mingw in `local/tools/`, 32-bit; it also
   regenerates `dll/persist_layout.h` and `dll/test/cmd_verbs.h`). One translation unit: `dll/eeaimod.c` includes the rest.
   A build must be free of warnings. It also writes `.editor/compile_commands.json` (git-ignored, read by VS Code's
   C/C++ through `.vscode/c_cpp_properties.json`): each part with the text eeaimod.c has before it, so the editor
@@ -40,7 +40,7 @@ and the runners, eectl, the MCP server), `results/` (log readers, scorers), `re/
   working tree), copied under a reservation of the game folder (a loaded DLL can't be replaced). Commit first.
 - A release: `local/venv/Scripts/python.exe scripts/build/pack_release.py` - HEAD built from a clean archive, zipped
   as the game folder lays it out (ageofai.dll, ageofai_config.exe, ageofai/ with ageofai.ini and personalities/) into
-  `local/work/release/`, ageofai_check.exe beside the zip (a download of its own); no dinput.dll.
+  `local/work/release/`, ageofai_check.exe beside the zip (a download of its own).
 - Every commit installs itself (the user's rule: the install is for testing the newest changes, a crash is welcome
   news): `.git/hooks/post-commit` (local) starts `scripts/build/install_latest.sh` in the background - it waits for the
   user's own game to end, then install.sh; log `local/work/install.log`. No manual install after a commit.
@@ -91,10 +91,14 @@ and the runners, eectl, the MCP server), `results/` (log readers, scorers), `re/
   game (the same game_seed, the logs compared - with the run-to-run heap addresses masked; AoC's player stock 0 and 1
   are memory it never sets, and an AoC game parts ways now and then with any DLL: seed 9 on Small Islands, about one
   run in 15 when many run at once, at 36 s - a control pair of one DLL first).
-- The engine loads every DLL in the game folder: never leave copies of DLLs there (a stray dinput copy crashed it).
-- The game folder holds only ageofai.dll, dinput.dll and ageofai_config.exe (the player 2026-10-27: keep the root
-  clean) - and ageofai_check.exe, the .eeai checker (the player 2026-11-02: special enough; installed, but not in the
-  release zip - a download of its own on the release page); everything else of the mod is in `<game>\ageofai\` - ageofai.ini, eesettings.ini, personalities\ (when no
+- The engine loads every DLL in the game folder: never leave copies of DLLs there (a stray copy of the mod's
+  old dinput.dll crashed it).
+- The game folder holds only ageofai.dll and ageofai_config.exe (the player 2026-10-27: keep the root clean) - and ageofai_check.exe, the .eeai checker (the player 2026-11-02: special enough; installed, but not in the
+  release zip - a download of its own on the release page). The game's own settings in a file (eesettings.ini) are
+  ageofai.dll's when it is loaded with the engine: an import of Low-Level Engine.dll that ageofai_config.exe adds and
+  removes (the player 2026-11-02: no stand-in for another program's DLL - the mod's dinput.dll of before is gone;
+  engine/game_settings.c, eeaimod.c early_start, tool/engine_import.c); test runs need it on in the game folder for
+  their own settings (else they mute the registry's sound); everything else of the mod is in `<game>\ageofai\` - ageofai.ini, eesettings.ini, personalities\ (when no
   ai_dir), the log, the dumps, slot 0's test ini (base/paths.c slot_dir; a test slot has its own folder instead). A
   new file the mod writes goes there too. install.sh moves a folder set up before (scripts/build/mod_dir.sh) - also
   the names before Empire Earth: Age of AI (2026-10-27: aimod\, aimod.ini, aimod_econ.csv, *.aimod beside the saves),

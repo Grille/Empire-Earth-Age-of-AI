@@ -1080,7 +1080,7 @@ TryMedia ActiveMARK wrapper with its debugger checks cracked (strings in its sec
 the GOG code but for 32320 import operands and 41 places (the 39 above, 0x7A3A1A / 0x7A3A67 a jump into a stub, 0x7A5ABC
 1999 -> 2999). What they are: the lobby's game options allow a population of 4000 instead of 1200 (0x67B002, the
 defaults at 0x6793C3 / 0x943700), WON's registry key under HKCU instead of HKLM (0x69F6E1), the registry root
-`Software\Neo\Empire Earth` (`.data` strings; dinput.dll's eesettings already knows it). Every one of the mod's spec
+`Software\Neo\Empire Earth` (`.data` strings; engine/game_settings.c already knows it). Every one of the mod's spec
 addresses is at least 40 bytes from them, none is in a section the wrapper fills, `.data` and the vtables are the
 same; the mod's 29 import-table slots all map by name onto NeoEE's (each of their code references pairs with one
 NeoEE slot) - a column of its own would be the `ee` column with those 29 values. Art of Conquest the same: 42 places,
@@ -1113,7 +1113,7 @@ are the slots. Checked: 15-minute test games, GOG and NeoEE side by side (Contin
 598 checks hold on both, every hook the same, the economy at 15 minutes within a few citizens (NeoEE's dbworld.dat
 differs). AoC's NeoEE exe is a row too, not ready as AoC itself. Test runs there: EE_GAME_DIR=<NeoEE's game folder>
 (its single-instance check is NeoEE's own nop, run_test.ps1 warns that it found no je to nop), the mod's
-ageofai.dll / dinput.dll in that folder, and newgame.ees in its Saved Games.
+ageofai.dll in that folder, and newgame.ees in its Saved Games.
 
 **An exe of no known file (since 2026-10-27):** NeoEE showed that the 1.04 code is one compile in every wrapper - the
 retail CD's copy protection, TryMedia's, the 2017 update's with none - so the retail game's no-CD exes (each crack a
@@ -1143,11 +1143,15 @@ ADVAPI32 imports of `Low-Level Engine.dll` (RegOpenKeyExA, RegCreateKeyExA, RegQ
 RegDeleteValueA, RegDeleteKeyA, RegCloseKey; RegQueryValueExA at 0x1007F0CC/F1D5 in the two Get, 0x1007F2EB/F421 in the
 two Set). Traced 2026-10-19 by hooking those imports from our DLL: after the engine has loaded it the game queries
 no value at all - every setting is read before - and at exit it writes all of them back (also `Game Options`). So a
-redirect of the settings (to an ini next to the game) needs code that runs before the engine reads: a proxy DLL the
-loader brings in (one of the engine's imports, e.g. DINPUT.dll) or the suspended start of a test run. Done that way:
-`dll/dinput/eesettings.c`, built as `dinput.dll` (README, Installing: optional) - DINPUT.dll is no KnownDLL, so the game
-folder's comes first; it passes DirectInputCreateA (the engine's only DINPUT import) to the system's and points the 7
-imports at `eesettings.ini` (all 7 or none). The engine opens HKCU with no subkey first, then the game's key below
+redirect of the settings (to an ini next to the game) needs code that runs before the engine reads: a DLL the
+loader brings in with the engine. First (2026-10-19) a stand-in for one of its imports, DINPUT.dll (no KnownDLL: the
+game folder's came first) - another program's file name, which other mods use too; since 2026-11-02 ageofai.dll itself,
+an import ageofai_config.exe adds to `Low-Level Engine.dll` (tool/engine_import.c: a section `.ageofai` with the import
+table copied and one entry more, the header pointed at it - the engine's code and data stay where they are; the file
+kept as `.original`). Windows then loads ageofai.dll before the engine's code runs - its DllMain's lpReserved set, a
+static load - and `dll/engine/game_settings.c` points the engine's 7 registry imports at `eesettings.ini` (all 7 or
+none); the rest of the mod waits for the engine's DLL scan, whose LoadLibraryA/ExA of the same file it watches
+(eeaimod.c early_start: Windows hands back the module loaded, its DllMain doesn't run again). The engine opens HKCU with no subkey first, then the game's key below
 that handle - the redirect follows handle paths. Two values were REG_SZ of 0 bytes (WonNet Password, Last Quick Save).
 
 ## Art of Conquest (EE-AOC.exe) - first overview
@@ -1246,7 +1250,7 @@ games crashed at once, then after 4 minutes; what AoC had changed beyond address
   the stack arguments (ret N) of every FN_ row: these three differ, the rest match.
 - AoC checks for the 2017 update's install ("needs the original game") through the HKCU\Software\SSSI\Empire Earth
   values "Installed From Volume" / "Directory" - read through Low-Level Engine's registry imports, so through the
-  settings dinput.dll's file; a test slot's copy gets them from the registry.
+  settings file when the mod is loaded with the engine; a test slot's copy gets them from the registry.
 - Its single-instance check's je is at 0x540DA6 (the base's 0x535CDA); TCP Protocol.dll's port immediates moved
   (data_tcp_protocol_ports); Low-Level Engine's NESynchronousServer::Send wait (turbo) is value_hooks_rva_lle_send_wait.
 Then: 20- and 30-minute games on Continental and Small Islands, two at once, ran to their end - the AIs grew 44-52

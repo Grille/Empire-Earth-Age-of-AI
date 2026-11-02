@@ -1,6 +1,6 @@
 #!/bin/sh
 # Builds the project: the checks and generators of scripts/build/ (spec/, dll_cs/ -> C and config/ageofai.ini), then
-# dll/ageofai.dll (32-bit), dll/dinput.dll and dll/ageofai_config.exe with llvm-mingw (local/tools/llvm-mingw, or set
+# dll/ageofai.dll (32-bit), dll/ageofai_config.exe and dll/ageofai_check.exe with llvm-mingw (local/tools/llvm-mingw, or set
 # CC to another i686 mingw compiler). Run through the root's build.sh (the one script to know); it works in dll/.
 # usage: sh build.sh [install]   - "install" also copies the DLL into the game folder (scripts/game_dir.sh).
 # -mstackrealign: the game calls our hooks with a 4-byte aligned stack; vectorized code (movdqa to the stack)
@@ -12,8 +12,9 @@
 # arguments before C23 - f(void) none), -Wimplicit-fallthrough (a case running into the next), -Wvla (an array
 # sized at run time on the stack), -Wshadow (an inner variable hiding an outer one of the same name - the outer one
 # looks changed but is not): C's legacy traps the code has none of, kept out
-# --exclude-all-symbols: the DLL exports nothing (without an export list mingw exports every name without static -
-# dxguid's 1370 GUIDs and a few hooks; nothing looks them up: the hooks are reached by patched addresses)
+# --exclude-all-symbols: the DLL exports only what it marks (without that mingw exports every name without static -
+# dxguid's 1370 GUIDs and a few hooks; nothing looks them up: the hooks are reached by patched addresses) - one function,
+# ageofai_settings: the engine's import of it when the game's settings are in a file (engine/game_settings.c)
 cd "$(dirname "$0")/../../dll"   # the paths below are dll/'s: the sources, the outputs beside them, ../ the root
 CC=${CC:-../local/tools/llvm-mingw/bin/i686-w64-mingw32-clang}
 # the layout hashes of the saved-game blocks (persist.c): persist_layout.h, kept in git for a build without Python
@@ -29,8 +30,6 @@ PY=${PY:-../local/venv/Scripts/python.exe}   # install.sh: the repository's, for
 if [ -n "$PY" ]; then "$PY" ../scripts/build/persist_layout.py && "$PY" ../scripts/build/gen_cmd_verbs.py && "$PY" ../scripts/build/gen_api.py && "$PY" ../scripts/build/gen_lang.py && "$PY" ../scripts/build/gen_settings.py && "$PY" ../scripts/build/layers.py --quiet && "$PY" ../scripts/build/settings_check.py && "$PY" ../scripts/build/spec_check.py && "$PY" ../scripts/build/style.py && "$PY" ../scripts/build/gen_editor_context.py || exit 1
 else echo "no Python: persist_layout.h and cmd_verbs.h left as they are, the folders' rules unchecked (scripts/build/persist_layout.py after changing a saved variable, gen_cmd_verbs.py after a new pipe command)"; fi
 "$CC" -O2 -mstackrealign -fno-strict-aliasing -Wall -Wextra -Wformat=2 -Wstrict-prototypes -Wimplicit-fallthrough -Wvla -Wshadow -shared -static -I. -o ageofai.dll eeaimod.c -lgdi32 -ldxguid -lwinmm -lwinhttp -Wl,--image-base,0x6E000000 -Wl,--exclude-all-symbols || exit 1
-# dinput.dll (optional): the game's settings in eesettings.ini instead of the registry (dinput/eesettings.c)
-"$CC" -O2 -Wall -Wextra -Wformat=2 -Wstrict-prototypes -Wimplicit-fallthrough -Wvla -Wshadow -shared -static -o dinput.dll dinput/eesettings.c dinput/eesettings.def -ladvapi32 -luser32 || exit 1
 # ageofai_config.exe: the settings in a window (tool/ageofai_config.c), a program of its own from base/, script/ and
 # settings/ - the DLL's rows and checks; its resources the shipped config/ageofai.ini (the help) and a manifest.
 # -Wno-unused-function: it takes those files whole and calls only part of them
@@ -51,8 +50,4 @@ if [ "$1" = install ]; then   # the working tree's build (scripts/build/install.
     cp ageofai.dll "$GAME/ageofai.dll" && echo "installed to $GAME/ageofai.dll" && mod_old_remove "$GAME"
     cp ageofai_config.exe "$GAME/ageofai_config.exe" && echo "installed to $GAME/ageofai_config.exe" || echo "ageofai_config.exe is open - not replaced"
     cp ageofai_check.exe "$GAME/ageofai_check.exe" && echo "installed to $GAME/ageofai_check.exe" || echo "ageofai_check.exe is running - not replaced"
-    # another program's dinput.dll is never replaced (then the settings simply stay in the registry)
-    if [ ! -f "$GAME/dinput.dll" ] || grep -q EEAimodSettings "$GAME/dinput.dll"; then
-        cp dinput.dll "$GAME/dinput.dll" && echo "installed to $GAME/dinput.dll (settings in eesettings.ini)"
-    else echo "kept another program's dinput.dll - the game's settings stay in the registry"; fi
 fi

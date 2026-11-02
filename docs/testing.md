@@ -67,7 +67,7 @@ powershell -ExecutionPolicy Bypass -File scripts/test/run_test.ps1 -Save newgame
     -IniExtra "random_map=Continental,map_size=0,ai_count=3,seed=101,teams=ffa,ai_cheat=0,ai_ignore=1"
 ```
 
-- **The game's own settings.** With the mod's `dinput.dll` in the game folder (dll/dinput/eesettings.c - the game's registry settings in a file) every run reads a copy of `-Settings` (env `SETTINGS`, default `tests/config/eesettings.ini`: a player's settings of 2026-10-19 without the personal values, sound and music off) as `local/work/settings_slot<n>.ini` - not the player's `eesettings.ini`, not the registry; the log says `# game settings: <file>`. So tests no longer depend on the player's options (animal herds, scroll speed, the engine's tick rates ...), and nothing is muted. Checked 2026-10-19: the registry byte for byte unchanged after a run and after 2 parallel slots. Without the dinput.dll (`# game settings: registry ...`): sound and music are muted in the registry for the run and restored afterwards (a backup in `local/work/` covers interrupted runs). `-Mute:$false`: the player's own settings.
+- **The game's own settings.** With the game's settings in a file in the game folder (ageofai_config.exe --settings-file on: ageofai.dll loaded with the engine, dll/engine/game_settings.c) every run reads a copy of `-Settings` (env `SETTINGS`, default `tests/config/eesettings.ini`: a player's settings of 2026-10-19 without the personal values, sound and music off) as `local/work/settings_slot<n>.ini` - not the player's `eesettings.ini`, not the registry; the log says `# game settings: <file>`. So tests no longer depend on the player's options (animal herds, scroll speed, the engine's tick rates ...), and nothing is muted. Checked 2026-10-19: the registry byte for byte unchanged after a run and after 2 parallel slots. Without the dinput.dll (`# game settings: registry ...`): sound and music are muted in the registry for the run and restored afterwards (a backup in `local/work/` covers interrupted runs). `-Mute:$false`: the player's own settings.
 - The log is moved to `local/work/autotest_<stamp><tag>.csv.gz`, gzipped (~7 times smaller; `zgrep`, `zcat`, `less`). The
   scripts read logs through `scripts/results/logs.py` (`open_log`, `log_paths`): gzipped or not, and a pattern ending in
   `.csv` finds the `.csv.gz` too - the usage lines' patterns work as they are. Logs older than 7 days go, then the oldest while all of them
@@ -1076,10 +1076,9 @@ appears before the engine loads the DLL, centred on screen, and takes the focus)
 Every window of the game gets no taskbar button and is never activated (dll/base/headless_win.c, a CBT hook):
 the display DLLs' 16x16 probe windows activated ~21 times per start and the game window once, each with a
 taskbar button - with several slots starting, the taskbar flickered and the desktop kept losing the focus.
-The mod's dinput.dll installs it at the process start (`EEAIMOD_HEADLESS=1`, set by run_test.ps1), before
-the display DLLs probe; ageofai.dll only from its own load on (without the mod's dinput.dll, 6 probes still
-activate). Nothing of the game should become visible or take the focus. Backups of a DLL never go into the game
-folder (`local/work/dll_backup/`): the engine loads every `*.dll` there - a second dinput.dll (`dinput.old.dll`) crashed
+ageofai.dll installs it at the process start when it is loaded with the engine (`EEAIMOD_HEADLESS=1`, set by
+run_test.ps1), before the display DLLs probe; else only from the engine's DLL scan on (6 probes still activate). Nothing of the game should become visible or take the focus. Backups of a DLL never go into the game
+folder (`local/work/dll_backup/`): the engine loads every `*.dll` there - a second copy of the mod's old dinput.dll (`dinput.old.dll`) crashed
 every start on 2026-10-19 from 21:42 on (now a copy does nothing).
 
 | Command | |

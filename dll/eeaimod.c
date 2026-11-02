@@ -124,6 +124,7 @@ internal PRINTF_LIKE(1, 2) void log_line(const char *fmt, ...);
 internal BOOL install_srand(void);
 #include "base/ini.c"
 #include "settings/settings.c"   // the settings: ageofai.ini's keys as rows, read once into g_set
+#include "engine/game_settings.c"   // the game's settings in eesettings.ini (loaded with the engine: early_start)
 #include "engine/scenario_ai.c"
 #include "game/world.c"
 #include "ai/econ_rows.c"
@@ -568,9 +569,10 @@ internal void install(HMODULE self) {
             fprintf(g_log, "# dll: %s (the test run's own, built %s %s)\n", me, __DATE__, __TIME__);
         if (g_slot) fprintf(g_log, "# slot: %d (pipe eeaimod%d, ports %d/%d, files in %s)\n", g_slot, g_slot,
                             33334 + 2 * g_slot, 33335 + 2 * g_slot, dir);
-        // the game's settings: eesettings.ini through the optional dinput.dll (eesettings.c), else the registry
+        // the game's settings: eesettings.ini when ageofai.dll is loaded with the engine (engine/game_settings.c), else
+        // the registry
         char gs[MAX_PATH + 64];
-        if (!GetEnvironmentVariableA("EEAIMOD_SETTINGS_FILE", gs, sizeof gs)) lstrcpyA(gs, "registry (no dinput.dll of the mod)");
+        if (!GetEnvironmentVariableA("EEAIMOD_SETTINGS_FILE", gs, sizeof gs)) lstrcpyA(gs, "registry (ageofai.dll not loaded with the engine: ageofai_config.exe, Game)");
         fprintf(g_log, "# game settings: %s\n", gs);
     }
 
@@ -680,15 +682,65 @@ internal int run_other_dll(HINSTANCE self) {
     return 1;
 }
 
+internal void mod_start(HINSTANCE inst) {   // the mod, when the engine's DLL scan loads this file
+    if (run_other_dll(inst)) return;
+    uint32_t hash;
+    int build = game_build(&hash);
+    if (build > 0) install(inst);
+    else if (build < 0) build_unknown(hash);
+}
+
+// LOADED WITH THE ENGINE: ageofai_config.exe (Game: the settings in a file) adds this DLL to Low-Level Engine.dll's
+// imports - then Windows loads it at the process start, before the engine runs and reads the game's settings, and the
+// redirect into eesettings.ini goes in (engine/game_settings.c). The rest of the mod waits for the moment it has
+// without the import: the engine's DLL scan LoadLibrary()s every DLL of the game folder, this one too (Windows hands
+// back the one loaded, its DllMain doesn't run again) - the engine's LoadLibraryA / LoadLibraryExA watched for it,
+// mod_start() then, and the two imports given back. The import names this export (a test can read the file in use).
+__declspec(dllexport) const char *ageofai_settings(void) { return g_gs_on ? g_gs_file : NULL; }
+internal HINSTANCE g_self;
+internal uintptr_t *g_scan_slot[2], g_scan_real[2];   // the engine's LoadLibraryA, LoadLibraryExA imports and theirs
+internal int scan_is_me(const char *name) {   // the file the engine loads: this DLL (by its file name)
+    char me[MAX_PATH];
+    if (!name || !GetModuleFileNameA(g_self, me, sizeof me)) return 0;
+    const char *a = strrchr(name, '\\'), *b = strrchr(me, '\\'), *s = strrchr(name, '/');
+    if (s > a) a = s;
+    return !lstrcmpiA(a ? a + 1 : name, b ? b + 1 : me);
+}
+internal void scan_found(void) {   // this DLL's turn in the scan: the imports given back, the mod started
+    for (int i = 0; i < 2; i++) if (g_scan_slot[i]) gs_slot_write(g_scan_slot[i], g_scan_real[i]);
+    mod_start(g_self);
+}
+internal HMODULE WINAPI scan_load(LPCSTR name) {
+    if (scan_is_me(name)) scan_found();
+    return ((HMODULE (WINAPI *)(LPCSTR))g_scan_real[0])(name);
+}
+internal HMODULE WINAPI scan_load_ex(LPCSTR name, HANDLE file, DWORD flags) {
+    if (scan_is_me(name)) scan_found();
+    return ((HMODULE (WINAPI *)(LPCSTR, HANDLE, DWORD))g_scan_real[1])(name, file, flags);
+}
+internal void early_start(HINSTANCE inst) {
+    g_self = inst;
+    game_settings_start(inst);
+    char hl[4];   // a test (run_test.ps1): its windows hidden from the start, before the display DLLs load
+    if (GetEnvironmentVariableA("EEAIMOD_HEADLESS", hl, sizeof hl) == 1 && hl[0] == '1') headless_windows();
+    HMODULE lle = GetModuleHandleA("Low-Level Engine.dll");
+    static const char *const k_fn[2] = { "LoadLibraryA", "LoadLibraryExA" };
+    static void *const k_hook[2] = { (void *)scan_load, (void *)scan_load_ex };
+    int put = 0;
+    for (int i = 0; i < 2 && lle; i++) {
+        g_scan_slot[i] = gs_iat_slot(lle, "KERNEL32.dll", k_fn[i]);
+        if (!g_scan_slot[i]) continue;
+        g_scan_real[i] = *g_scan_slot[i];   // whatever is there (another program's hook too): called on
+        put += gs_slot_write(g_scan_slot[i], (uintptr_t)k_hook[i]);
+    }
+    if (!put) mod_start(inst);   // no scan to wait for (not the engine's import): as without it, now
+}
+
 BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, LPVOID reserved) {
-    (void)reserved;
     if (reason == DLL_PROCESS_ATTACH) {
         DisableThreadLibraryCalls(inst);
-        if (run_other_dll(inst)) return TRUE;
-        uint32_t hash;
-        int build = game_build(&hash);
-        if (build > 0) install(inst);
-        else if (build < 0) build_unknown(hash);
-    }
+        if (reserved) early_start(inst);   // loaded by Windows with the engine (an import: reserved set), not by its scan
+        else mod_start(inst);
+    } else if (reason == DLL_PROCESS_DETACH) game_settings_end();
     return TRUE;
 }

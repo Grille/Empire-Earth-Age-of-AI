@@ -179,7 +179,6 @@ def folder(f):
 def analyse():
     files = sorted(os.path.relpath(p, DLL).replace(os.sep, '/') for p in
                    glob.glob(os.path.join(DLL, '**', '*.c'), recursive=True) + glob.glob(os.path.join(DLL, '**', '*.h'), recursive=True))
-    files = [f for f in files if not f.startswith('dinput/')]   # another DLL (its own rule below)
     code = {f: strip(open(os.path.join(DLL, f), 'rb').read().decode('latin-1')) for f in files}
     # the settings' rows name a kind, a section and an ini key (X(FLAG, display, frame_watch, ...), D(FLAG, muster, ...),
     # E(epoch_pacing, ...), B(turn_fix, ee)): words of the ini, not uses of a function that happens to share the name
@@ -252,10 +251,6 @@ def main():
                 e = excepted(u, d, n)
                 if e: used.add(e)
                 else: bad.append('%s uses %s of %s (%s may use %s)' % (u, n, d, fu, ', '.join(MAY_USE[fu]) or 'nothing but itself'))
-    # dinput.dll: its own file, base/headless_win.c and the words it is written with (base/lang.h)
-    for f in glob.glob(os.path.join(DLL, 'dinput', '*.c')):
-        for inc in re.findall(r'#include\s+"([^"]+)"', open(f, encoding='latin-1').read()):
-            if inc not in ('../base/headless_win.c', '../base/lang.h'): bad.append('dinput/%s includes %s' % (os.path.basename(f), inc))
     # game/api/editor_layout.h only inside game/api/; the variables of the spec's C too (its accessors are for everyone)
     gen_values = set()
     for f in glob.glob(os.path.join(DLL, 'game', 'api', 'gen', '*.c')):
