@@ -469,9 +469,9 @@ Settings in `ageofai.ini`:
 - `[general] friendly_collision=75%` (with land_collide / ship_collide): two units of one player or of allies push
   each other off at this share of their size - they slip past each other instead of getting stuck, and a
   formation's places stay as far apart (100% as any two units). Every friendly pair, moving or standing, so nothing
-  switches and shoves them apart; a standing ally steps aside for a moving unit as one's own does. For 10 seconds
-  after a formation arrived a unit standing in it that is pushed off its spot turns, walks back to it and turns to
-  the formation's facing.
+  switches and shoves them apart; a standing ally steps aside for a moving unit as one's own does. Until 10 seconds
+  after the last unit of an arrived formation came to rest (a re-form in place too) a unit standing in it that is
+  pushed off its spot turns, walks back to it and turns to the formation's facing.
 - `[general] goal_markers=1` (default; 0 the original): a move order drew its circle at the goal of only the group's
   first 15 units (20 in the other lines and wedges, every few in a circle formation). Now every unit's shows.
 - `[sound] sound_clamp_channels=1` (default): the "Max Number Of Sounds" slider goes to 200%, which asks for 32 sound
