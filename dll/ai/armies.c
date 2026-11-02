@@ -66,7 +66,20 @@
 // 100 min, at 100 (24 games): pushes 2.1 -> 0.9 a game, 1.1 waits, legs 4.3 -> 1.5, razed -4.0 (se 5.4), buildings
 // lost 19.2 / 15.7, kills and losses level - the force sat at home while the enemy kept coming. The blind push is
 // already cheap: it goes, meets what is there and turns home when it is no longer winning; the pushes the assumption
-// skipped would have razed. Off.
+// skipped would have razed. Off. THE WAY HOME, measured (24 games, both sides the force; "home from" lines): a push
+// starts with 69 soldiers, turns home with 45 (35% lost in the fight) and has 33 alive two minutes after the home
+// order - 27% of what turned, half of what went, dies on the way; a raid's way home costs 12%. The retreat is a
+// plain move with the enemy at the force's back. Against that: the way home as an attack-move (AR_BACK_FIGHT, the
+// members fight what catches them) - 48 games razed +2.7 (se 1.2), buildings lost 4.2 / 6.9, the next 48 kills -17.5
+// (8.4), losses +15.8, razed -0.9, and more lost on the way (72 against 55 a game: the members stop to fight the
+// pursuers); 96 games level (kills -8.7 se 6.1, razed +0.9 se 1.0). Off. Home at 120% instead of 100 (v_ar_back_pct;
+// 48 games): level, 15.8 retreats a game instead of 11.7. 100 kept. Who dies on the way (cover.c's "# cvd" lines
+// matched to the pushes' home orders, 24 games): ranged 37% of the dead against 25% in the fight, cavalry 6%
+// against 15% - the slow die, the fast get away. A cavalry rearguard (AR_BACK_FIGHT 2: the cavalry attack-moves
+// home, the rest walks; 48 games): kills +10.5 (se 7.5), losses -11.1 (7.7), razed -1.5 (0.8), buildings lost 5.6 /
+// 4.2, lost on the way 71.7 against 70.6 a game - the cavalry's fight doesn't cover the slow. Off. The way home
+// stays a plain move; what would help it is the next thing to find (a nearer fallback, the retreat earlier for the
+// slow lines, the slow lines kept out of the push's front).
 // BEFORE THE FORCE (2026-11-02, head-to-head, Continental huge 1v1 late, 75 min, 24 mirrored games each): PARITY - the
 // held let go to the game's own launch a tick ahead of the attack time (ai_held cleared, register_unit): soldiers
 // +14.5 (se 6.2), kills +1.3 (6.9), losses -8.0 (8.5), razed -1.8 (1.6), workers -8.1 (10.5) - the soldiers trained
@@ -96,6 +109,9 @@
 #define AR_GO_PCT 130              // a push: the force beats the enemy at the target by this (army_stage_go's 130)
 #ifndef AR_BACK_PCT
 #define AR_BACK_PCT 100            // out: the force's fight under this twice running - home (70 bled: below)
+#endif
+#ifndef AR_BACK_FIGHT
+#define AR_BACK_FIGHT 0            // the way home: 1 an attack-move (the members fight what catches them), 2 the cavalry's only (a rearguard: the fast cover the slow), 0 a plain move
 #endif
 #ifndef AR_BLEED_PCT
 #define AR_BLEED_PCT 0             // out: the force's hit points down by this much of what it went out with - home (0: never)
@@ -127,12 +143,12 @@
 #ifndef AR_RAID_BAND
 #define AR_RAID_BAND 3             // a raid: this many enemy fighters seen within AR_RAID_R of the raider, or one of them attacking ours
 #endif
-internal int g_mod_armies = 0, g_v_mod_armies = -1, g_v_ar_raid_band = -1, g_v_ar_press = -1, g_v_ar_fort = -1, g_v_ar_assume = -1;   // [autotest] v_ar_raid_band, v_ar_press, v_ar_fort, v_ar_assume: the variant players' AR_RAID_BAND, AR_PRESS, AR_FORT, AR_ASSUME
+internal int g_mod_armies = 0, g_v_mod_armies = -1, g_v_ar_raid_band = -1, g_v_ar_press = -1, g_v_ar_fort = -1, g_v_ar_assume = -1, g_v_ar_back_pct = -1, g_v_ar_back_fight = -1;   // [autotest] v_ar_raid_band, v_ar_press, v_ar_fort, v_ar_assume, v_ar_back_pct, v_ar_back_fight: the variant players' AR_RAID_BAND, AR_PRESS, AR_FORT, AR_ASSUME, AR_BACK_PCT, AR_BACK_FIGHT
 #define MOD_ARMIES(idx) PV(idx, g_v_mod_armies, g_mod_armies)
 internal struct armies_st {
     uint32_t t, log_t;
     int n;
-    struct { ee_unit *u; int id; uint32_t order_t; uint8_t out; } held[AR_HELD];   // out: went with the force
+    struct { ee_unit *u; int id; uint32_t order_t; uint8_t out, back; } held[AR_HELD];   // out: went with the force; back: on its way home from the last home order
     int out;                               // 0 home, 1 a push, 2 a raid
     ivec2 home, dest, cand, raid_c;         // home; the force's destination; the next home seen (since cand_t); the raider seen last
     ee_unit *target; int target_id;        // the push's building (NULL: a raid's point)
@@ -141,6 +157,8 @@ internal struct armies_st {
     float ratio, out_hp, stop_hp;          // the last judgement; the force's hit points as it went out; the enemy's that ended the last push
     unsigned held_all, pushes, presses, legs, raids, backs, waits, orders, refused, forted;   // forted: home checks that found a defence to stand at
     int kills[AR_WIN + 1], losses[AR_WIN + 1], win_n;   // the game's own counts of units killed and lost, a sample a minute (the oldest first)
+    uint32_t back_t; int back_n, back_kind; float back_hp;   // the last home order: when, how many went, from what (1 a push, 2 a raid), their hit points
+    unsigned way_n, way_lost; float way_hp, way_hp_lost;     // the measure: soldiers sent home and lost on the way, their hit points and those lost
     uint32_t win_t;
 } g_armies[16];
 internal struct st_side g_ar_own;
@@ -317,13 +335,36 @@ internal void ar_go(struct armies_st *a, int kind, ivec2 d, ee_unit *target, int
     if (!out_only) { ar_side(a, 1, NULL); a->out_hp = g_ar_own.hp; }
 }
 internal void ar_stopped(struct armies_st *a, float foe_hp, int won) { a->stopped = won ? 2 : 1; a->stop_hp = foe_hp; }   // a push ends: what stopped it
-internal void ar_home_all(struct armies_st *a, uint32_t now) {   // the force out comes home as one
+internal int mt_line(ee_player *pl, int t);   // metal.c: a unit type's line (MB_INF, MB_RNG, MB_CAV, MB_SIE)
+internal void ar_home_all(ee_player *pl, unsigned idx, struct armies_st *a, uint32_t now) {   // the force out comes home as one
+    int fight = PV(idx, g_v_ar_back_fight, AR_BACK_FIGHT);
+    a->back_t = now ? now : 1; a->back_n = 0; a->back_hp = 0.0f; a->back_kind = a->out;
     a->out = 0; a->target = NULL; a->backs++;
     for (int k = 0; k < a->n; k++) {
+        a->held[k].back = 0;
         if (!a->held[k].out) continue;
         a->held[k].out = 0;
-        ar_order(a, k, ar_goal_at(a->home, k, 0), now);
+        int f = fight == 2 ? mt_line(pl, unit_type_get_id(unit_get_type_data(a->held[k].u))) == MB_CAV : fight;
+        ar_order(a, k, ar_goal_at(a->home, k, f), now);
+        if (cv_alive(a->held[k].u)) { a->held[k].back = 1; a->back_n++; a->back_hp += unit_get_hp(a->held[k].u); }
     }
+}
+// THE WAY HOME, measured (2026-11-02): what of the force sent home arrives - once every member sent is home (within
+// AR_HOME_R), dead or two minutes have passed - against what went
+internal void ar_way_home(unsigned idx, struct armies_st *a, uint32_t now) {
+    if (!a->back_t) return;
+    int alive = 0, home = 0;
+    float hp = 0.0f;
+    for (int k = 0; k < a->n; k++) {
+        if (!a->held[k].back || !cv_alive(a->held[k].u)) continue;
+        alive++; hp += unit_get_hp(a->held[k].u);
+        home += ivec2_dist2(unit_get_tile(a->held[k].u), a->home) <= AR_HOME_R * AR_HOME_R;
+    }
+    if (alive > home && now - a->back_t < 120000) return;
+    a->way_n += (unsigned)a->back_n; a->way_lost += (unsigned)(a->back_n - alive); a->way_hp += a->back_hp; a->way_hp_lost += a->back_hp - hp;
+    ar_log(idx, now, "home from %s: %d of %d arrived (hp %.0f of %.0f) in %.1f min, %d still on the way", a->back_kind == 1 ? "a push" : "a raid", alive, a->back_n, hp, a->back_hp, (now - a->back_t) / 60000.0, alive - home);
+    a->back_t = 0;
+    for (int k = 0; k < a->n; k++) a->held[k].back = 0;
 }
 internal int ar_idle(ee_unit *u) { return unit_ai_state_id(u) == 5000 && !unit_get_goal(u); }
 internal int ar_count(struct armies_st *a, int out) {
@@ -338,7 +379,7 @@ internal void ar_out(ee_player *pl, unsigned idx, struct armies_st *a, uint32_t 
     if (n < (a->out == 2 ? 1 : AR_MIN_LAUNCH / 2)) {
         ar_log(idx, now, "the force out is down to %d - home to %d,%d", n, a->home.x, a->home.y);
         if (a->out == 1) ar_stopped(a, g_sgs_foe.hp, 0);
-        ar_home_all(a, now);
+        ar_home_all(pl, idx, a, now);
         return;
     }
     if (!a->judge_t || now - a->judge_t >= AR_JUDGE_EVERY) {
@@ -352,14 +393,14 @@ internal void ar_out(ee_player *pl, unsigned idx, struct armies_st *a, uint32_t 
         if (AR_BLEED_PCT && g_ar_own.hp < a->out_hp * (float)(100 - AR_BLEED_PCT) / 100.0f) {
             ar_log(idx, now, "the force of %d at %d,%d has bled (hp %.0f of %.0f) - home to %d,%d", n, mid.x, mid.y, g_ar_own.hp, a->out_hp, a->home.x, a->home.y);
             if (a->out == 1) ar_stopped(a, g_sgs_foe.hp, 0);
-            ar_home_all(a, now);
+            ar_home_all(pl, idx, a, now);
             return;
         }
-        if (a->ratio * 100.0f < (float)AR_BACK_PCT) {
+        if (a->ratio * 100.0f < (float)PV(idx, g_v_ar_back_pct, AR_BACK_PCT)) {
             if (++a->weak >= 2) {
                 ar_log(idx, now, "the force of %d at %d,%d is losing (%.2f: own %d, enemy %d at %d,%d) - home to %d,%d", n, mid.x, mid.y, a->ratio, own, foe, a->dest.x, a->dest.y, a->home.x, a->home.y);
                 if (a->out == 1) ar_stopped(a, rd < r ? g_sgs_foe.hp : g_ar_foe_mid_hp, 0);
-                ar_home_all(a, now);
+                ar_home_all(pl, idx, a, now);
                 return;
             }
         } else a->weak = 0;
@@ -371,14 +412,14 @@ internal void ar_out(ee_player *pl, unsigned idx, struct armies_st *a, uint32_t 
     if (a->out == 2) { a->clear = ar_enemy_near(pl, a->dest, SG_FOE, 0) ? 0 : a->clear + 1; done = a->clear >= 2; }
     else done = (a->target && (unit_get_id(a->target) != a->target_id || !cv_alive(a->target))) || (there && !ar_enemy_near(pl, a->dest, 3, 1));
     if (done) {
-        if (a->out == 2) { ar_log(idx, now, "the raid at %d,%d is over - the force of %d home to %d,%d", a->dest.x, a->dest.y, n, a->home.x, a->home.y); ar_home_all(a, now); return; }
+        if (a->out == 2) { ar_log(idx, now, "the raid at %d,%d is over - the force of %d home to %d,%d", a->dest.x, a->dest.y, n, a->home.x, a->home.y); ar_home_all(pl, idx, a, now); return; }
         ee_unit *t = ar_target(pl, mid);
         ivec2 d = t ? unit_get_tile(t) : mid;
         float r = t ? ar_judge(pl, a, 1, d) : 0.0f;
         if (!t || r * 100.0f < (float)AR_GO_PCT) {
             ar_log(idx, now, "%d,%d is down - %s - the force of %d home to %d,%d", a->dest.x, a->dest.y, t ? "the next is too strong" : "no enemy building known", n, a->home.x, a->home.y);
             ar_stopped(a, t ? g_sgs_foe.hp : 0.0f, 1);
-            ar_home_all(a, now);
+            ar_home_all(pl, idx, a, now);
             return;
         }
         a->legs++;
@@ -506,18 +547,19 @@ internal void armies_tick(ee_player *pl, uint32_t now) {
         if (bsearch(&u, mem, (size_t)nm, sizeof *mem, ar_ptr_cmp)) continue;
         if (!combat_mgr_unit_free(cm, unit_get_physics(u)) || landing_has_unit(pl, u) || ou_sortie(pl, u)) continue;
         player_hold_unit(pl, u);
-        a->held[a->n].u = u; a->held[a->n].id = unit_get_id(u); a->held[a->n].order_t = 0; a->held[a->n].out = 0; a->n++;
+        a->held[a->n].u = u; a->held[a->n].id = unit_get_id(u); a->held[a->n].order_t = 0; a->held[a->n].out = 0; a->held[a->n].back = 0; a->n++;
         a->held_all++;
     }
     ar_window(pl, a, now);
     if (!ar_home(pl, idx, a, now)) return;
     if (a->out) ar_out(pl, idx, a, now);
+    ar_way_home(idx, a, now);
     ar_at_home(pl, idx, a, now);
     if (g_log && g_autotest && (!a->log_t || now < a->log_t || now - a->log_t >= 60000)) {
         a->log_t = now ? now : 1;
-        ar_log(idx, now, "held %d (in all %u), %s%d,%d (judged %.2f), pushes %u (pressing on %u) legs %u raids %u backs %u waits %u, orders %u, offers refused %u, forted %u, next attack at %.1f min",
+        ar_log(idx, now, "held %d (in all %u), %s%d,%d (judged %.2f), pushes %u (pressing on %u) legs %u raids %u backs %u waits %u, orders %u, offers refused %u, forted %u, on the way home lost %u of %u (hp %.0f of %.0f), next attack at %.1f min",
                a->n, a->held_all, a->out == 1 ? "out at " : a->out == 2 ? "at a raid at " : "home at ", a->out ? a->dest.x : a->home.x, a->out ? a->dest.y : a->home.y,
-               a->ratio > 99.0f ? 99.0f : a->ratio, a->pushes, a->presses, a->legs, a->raids, a->backs, a->waits, a->orders, a->refused, a->forted, player_get_next_attack(pl) / 60000.0);
+               a->ratio > 99.0f ? 99.0f : a->ratio, a->pushes, a->presses, a->legs, a->raids, a->backs, a->waits, a->orders, a->refused, a->forted, a->way_lost, a->way_n, a->way_hp_lost, a->way_hp, player_get_next_attack(pl) / 60000.0);
     }
 }
 internal void armies_new_game(void) { memset(g_armies, 0, sizeof g_armies); }
@@ -529,6 +571,8 @@ internal void armies_install(const char *autotest_ini) {
         g_v_ar_press = ini_int("autotest", "v_ar_press", -1, autotest_ini);
         g_v_ar_fort = ini_int("autotest", "v_ar_fort", -1, autotest_ini);
         g_v_ar_assume = ini_int("autotest", "v_ar_assume", -1, autotest_ini);
+        g_v_ar_back_pct = ini_int("autotest", "v_ar_back_pct", -1, autotest_ini);
+        g_v_ar_back_fight = ini_int("autotest", "v_ar_back_fight", -1, autotest_ini);
     }
     if (g_log) fprintf(g_log, "# mod armies: %d (variant %d)\n", g_mod_armies, g_v_mod_armies);
 }
