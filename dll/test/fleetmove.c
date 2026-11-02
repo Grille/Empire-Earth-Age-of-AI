@@ -148,7 +148,7 @@ internal void cmd_fmove(char *out, const char *args) {
         REPLY("fmove: tracing %06x\n", g_fm_trace & 0xFFFFFF);
         return;
     }
-    if (!strcmp(what, "watch")) { g_fm_watch = p; REPLY("fmove: watch %s\n", p ? "on" : "off"); return; }   // fmove watch 1|0
+    if (!strcmp(what, "watch")) { g_fm_watch = g_ff_watch = p; REPLY("fmove: watch %s\n", p ? "on" : "off"); return; }   // fmove watch 1|0 (the marches' anchors too: # ffwatch)
     if (!strcmp(what, "stat")) { if (g_fm_n) fm_sample(out, 0); else REPLY("fmove: no order given\n"); return; }
     if (!strcmp(what, "sum")) {
         float moved = 0, done = 0, stood = 0, crept = 0;

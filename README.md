@@ -438,7 +438,9 @@ Settings in `ageofai.ini`:
   formation wider than the channel it passes) is drawn in towards the formation's middle, so it narrows there instead
   of losing its outer units; units march as one formation when the gaps between them are under 4 tiles (their sizes
   counted, so a fleet of large ships stays one); near the goal each goes to its own spot.
-  The formation goes at the slowest unit's speed, turning like a ship (no unit walks backwards in a turn), facing
+  The formation goes at the slowest unit's speed, turning like a ship (no unit walks backwards in a turn: it slows
+  in a turn so its outermost units keep up, eased in and out over a few seconds - a bend in the route costs a little,
+  only a sustained turn the whole), facing
   the way it goes and turning into its final facing at the goal (re-forming there when that is 45 degrees or more
   off); a shift-queued turn under 45 degrees keeps the formation. A fleet turns together: its formation swings to the
   new course at once and every ship turns on its own circle to its new place, instead of the whole fleet wheeling
@@ -467,7 +469,8 @@ Settings in `ageofai.ini`:
 - `[general] formation_wait=100%` (with formation_follow): the formation goes at most this share of a straggler's
   speed - a unit fallen behind the formation's rear beyond its catch-up (formation_catchup_falloff times its size)
   has only its top speed, so at 80% the formation slows to 80% of that until the unit is within its catch-up of its
-  place again (it catches up at the other 20%). A unit within the formation's body, or one held up, slows it no
+  place again (it catches up at the other 20%). A unit within the formation's body, or one held up for 2 seconds or
+  more (a moment's bump in the crowd counts for nothing), slows it no
   further than it goes itself, and one not gaining on its place for 10 seconds (blocked, jostled in a crowd) is
   given up on - so the formation always either moves or waits for a straggler that is closing. Lower waits more for
   the stragglers (tighter, slower); 0% stands until they have caught up; 100% never slows below a straggler's
