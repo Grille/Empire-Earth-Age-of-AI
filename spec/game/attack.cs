@@ -38,7 +38,9 @@ unsafe struct EECPCombatManager
     [address((ee)0x0046FFB7, (aoc)0x00472EC3)]
     extern void revenge(EEPlayer* target);
 
-    /// the unit (its state, unit +0x30) in none of the combat manager's groups (the game's caller 0x471F29 its own)
+    /// the unit (its state, unit +0x30) is one the commander may take: not held (ai_held), a type that fights
+    /// (0x470823), alive, not chained, moving. No group test: a member of an attack subgroup passes it (army.c
+    /// ou_members for that). The game's caller 0x471F29 (register_unit)
     [address((ee)0x004707D8, (aoc)0x0047377E)]
     extern char8 unit_free(void* unit_state);
 

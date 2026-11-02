@@ -37,7 +37,9 @@ internal inline char combat_mgr_attack_plan_ok(ee_combat_mgr *combat_mgr, void *
 typedef void (__thiscall *combat_mgr_revenge_fn)(ee_combat_mgr *, ee_player *);
 internal combat_mgr_revenge_fn fn_combat_mgr_revenge;
 internal inline void combat_mgr_revenge(ee_combat_mgr *combat_mgr, ee_player *target) { fn_combat_mgr_revenge(combat_mgr, target); }
-// the unit (its state, unit +0x30) in none of the combat manager's groups (the game's caller 0x471F29 its own)
+// the unit (its state, unit +0x30) is one the commander may take: not held (ai_held), a type that fights
+// (0x470823), alive, not chained, moving. No group test: a member of an attack subgroup passes it (army.c
+// ou_members for that). The game's caller 0x471F29 (register_unit)
 typedef char (__thiscall *combat_mgr_unit_free_fn)(ee_combat_mgr *, void *);
 internal combat_mgr_unit_free_fn fn_combat_mgr_unit_free;
 internal inline char combat_mgr_unit_free(ee_combat_mgr *combat_mgr, void *unit_state) { return fn_combat_mgr_unit_free(combat_mgr, unit_state); }
