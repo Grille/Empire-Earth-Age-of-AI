@@ -23,6 +23,9 @@ if [ ! -f "$G/dinput.dll" ] || grep -q EEAimodSettings "$G/dinput.dll"; then cp 
 # for it to close and installs again)
 cfg=0
 cp "$B/dll/ageofai_config.exe" "$G/ageofai_config.exe" 2>/dev/null || { echo "ageofai_config.exe is open - NOT replaced" >&2; cfg=3; }
+# the .eeai checker (the player 2026-11-02: in the game folder - for modders, not in the release zip: a download of
+# its own); one running a check this moment is left, said only
+cp "$B/dll/ageofai_check.exe" "$G/ageofai_check.exe" 2>/dev/null || echo "ageofai_check.exe is running - not replaced" >&2
 reserve_end
 echo "installed $REV"
 exit $cfg

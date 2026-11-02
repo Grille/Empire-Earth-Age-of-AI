@@ -90,7 +90,8 @@ and the runners, eectl, the MCP server), `results/` (log readers, scorers), `re/
   run in 15 when many run at once, at 36 s - a control pair of one DLL first).
 - The engine loads every DLL in the game folder: never leave copies of DLLs there (a stray dinput copy crashed it).
 - The game folder holds only ageofai.dll, dinput.dll and ageofai_config.exe (the player 2026-10-27: keep the root
-  clean); everything else of the mod is in `<game>\ageofai\` - ageofai.ini, eesettings.ini, personalities\ (when no
+  clean) - and ageofai_check.exe, the .eeai checker (the player 2026-11-02: special enough; installed, but not in the
+  release zip - a download of its own on the release page); everything else of the mod is in `<game>\ageofai\` - ageofai.ini, eesettings.ini, personalities\ (when no
   ai_dir), the log, the dumps, slot 0's test ini (base/paths.c slot_dir; a test slot has its own folder instead). A
   new file the mod writes goes there too. install.sh moves a folder set up before (scripts/build/mod_dir.sh) - also
   the names before Empire Earth: Age of AI (2026-10-27: aimod\, aimod.ini, aimod_econ.csv, *.aimod beside the saves),

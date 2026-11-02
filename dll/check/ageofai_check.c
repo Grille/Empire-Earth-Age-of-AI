@@ -7,6 +7,7 @@
 //   ageofai_check <file.eeai> ...           a personality file: its folder; any other: a script, with the
 //                                           personalities of --ai <folder> or else config\personalities above it
 //   ageofai_check <folder> ...              another folder: each of its .eeai files a script
+//   ageofai_check                           the folder the game beside it reads (ageofai.ini's ai_dir)
 //
 // One personality folder a run (the game reads one; its state isn't made to be read twice), scripts as many as given.
 // The DLL's own code, compiled into a program of its own: the same checks, not a copy of them. Nothing of the game is
@@ -82,6 +83,27 @@ internal void chk_script(const char *path, const char *ai) {   // a script, afte
     int line;
     if (!script_load(path, &text, &u, &why, &line)) { printf("%s:%d: %s\n", path, line > 0 ? line : 1, why); g_chk_n++; }
 }
+// without arguments, in the game folder (installed beside the DLL): the folder the game reads - <game>\ageofai\
+// personalities\, or ageofai.ini's ai_dir as the DLL takes it (config_ai_dir); its window kept open when it is its own
+// (started from Explorer: no console it was started in)
+internal void chk_game(void) {
+    char path[MAX_PATH];
+    GetModuleFileNameA(NULL, path, MAX_PATH);
+    char *slash = strrchr(path, '\\');
+    if (slash) slash[1] = 0;
+    lstrcpyA(g_game_dir, path);
+    wsprintfA(g_ai_dir, "%sageofai\\personalities\\", path);
+    wsprintfA(g_aimod_ini, "%sageofai\\ageofai.ini", path);
+    if (GetFileAttributesA(g_aimod_ini) != INVALID_FILE_ATTRIBUTES) settings_read(g_aimod_ini, NULL);
+    config_ai_dir();
+    if (g_ai_dir_why[0]) printf("ageofai_check: %s - %s instead\n", g_ai_dir_why, g_ai_dir);
+    size_t n = strlen(g_ai_dir);
+    if (n && g_ai_dir[n - 1] == '\\') g_ai_dir[n - 1] = 0;
+    char dir[MAX_PATH];
+    lstrcpyA(dir, g_ai_dir);
+    printf("ageofai_check: %s\n", dir);
+    chk_folder(dir);
+}
 int main(int argc, char **argv) {
     const char *ai = NULL;
     int n = 0;
@@ -89,10 +111,18 @@ int main(int argc, char **argv) {
         if (!strcmp(argv[i], "--ai") && i + 1 < argc) ai = argv[++i];
         else n++;
     }
-    if (!n) { fprintf(stderr, "usage: ageofai_check <personality folder | file.eeai> ... [--ai <personality folder>]\n"); return 2; }
     InitializeCriticalSection(&g_x_lock);
     x_host_install();
     g_x_told = chk_told;
+    if (!n) {   // the game's own folder
+        DWORD pids[2];
+        int own = GetConsoleProcessList(pids, 2) == 1;
+        chk_game();
+        if (g_unit_nlater) printf("ageofai_check: %d unit.<identifier> name(s) not checked - the game's data checks them at its start\n", g_unit_nlater);
+        printf("ageofai_check: %d mistake(s)\n", g_chk_n);
+        if (own) { printf("\n(Enter closes this window - usage: ageofai_check <personality folder | file.eeai> ...)\n"); getchar(); }
+        return g_chk_n ? 1 : 0;
+    }
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "--ai")) { i++; continue; }
         char full[MAX_PATH], dir[MAX_PATH], up[MAX_PATH];

@@ -50,6 +50,7 @@ if [ "$1" = install ]; then   # the working tree's build (scripts/build/install.
     mod_dir_move "$GAME"   # the mod's files into <game>\ageofai\, once
     cp ageofai.dll "$GAME/ageofai.dll" && echo "installed to $GAME/ageofai.dll" && mod_old_remove "$GAME"
     cp ageofai_config.exe "$GAME/ageofai_config.exe" && echo "installed to $GAME/ageofai_config.exe" || echo "ageofai_config.exe is open - not replaced"
+    cp ageofai_check.exe "$GAME/ageofai_check.exe" && echo "installed to $GAME/ageofai_check.exe" || echo "ageofai_check.exe is running - not replaced"
     # another program's dinput.dll is never replaced (then the settings simply stay in the registry)
     if [ ! -f "$GAME/dinput.dll" ] || grep -q EEAimodSettings "$GAME/dinput.dll"; then
         cp dinput.dll "$GAME/dinput.dll" && echo "installed to $GAME/dinput.dll (settings in eesettings.ini)"

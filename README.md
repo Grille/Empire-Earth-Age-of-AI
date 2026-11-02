@@ -223,6 +223,8 @@ siege, home guard.
 The mod keeps the game folder tidy: next to `Empire Earth.exe` go only `ageofai.dll`, the optional
 `dinput.dll` and `ageofai_config.exe` (Windows and the game load DLLs from there only); everything else of the mod
 is in one folder `ageofai` beside them - its settings, the personalities, the game's settings file, the log.
+Writing personalities? `ageofai_check.exe`, a download of its own, goes there too: it checks them without starting
+the game (config/personalities/README.md).
 
 1. Copy `ageofai.dll` into the Empire Earth folder (next to `Empire Earth.exe`), and make a folder `ageofai` there.
 2. Copy [`config/ageofai.ini`](config/ageofai.ini) into `ageofai` and adjust it. Every option is explained in the
@@ -599,6 +601,8 @@ dll/              the mod (C), one translation unit: eeaimod.c includes every pa
                     g_set / g_set_ai (a value per AI difficulty) - the parts read those, never the file
   tool/             ageofai_config.c: ageofai_config.exe, the settings in a window (from base/, script/ and settings/ only:
                     the DLL's own rows and checks; the shipped ageofai.ini built in as the help)
+  check/            ageofai_check.c: ageofai_check.exe, the .eeai files checked without the game (the DLL's code
+                    compiled into a program: the checks the game runs at its start; the build runs it too)
   dinput/           eesettings.c: dinput.dll, the game's settings in eesettings.ini instead of the registry
 config/           ageofai.ini and the personalities, shipped to players
 tests/            what the tests run: scenarios/ the setup scripts (docs/scripts.md) that turn a save into a test
