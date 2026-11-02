@@ -1,7 +1,7 @@
 """The spec's guesses ([guess]: a name and type from what the code does with a field, not confirmed) and where the mod
 uses them: the generated accessors under a guess's comment (dll/game/api/gen/, made by the build) and their uses in
 dll/ outside gen/ - a guess the mod reads or writes is the first to confirm (a read of the code, a peek in a running
-game). usage: python scripts/re/spec_guesses.py   (after sh dll/build.sh)"""
+game). usage: python scripts/re/spec_guesses.py   (after sh build.sh)"""
 import os, re
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

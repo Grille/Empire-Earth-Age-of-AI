@@ -1,4 +1,4 @@
-"""Rules of the C style the compiler doesn't check (run by dll/build.sh: a violation fails the build).
+"""Rules of the C style the compiler doesn't check (run by build.sh: a violation fails the build).
 
 - `int* a, b;` is refused: the * reads as part of the type, but C gives it to the first name only - b is a plain
   int. The code puts the * on the name (`int *a, b;`, `uint8_t *u = it.u, *td = it.td;`), where it says what it

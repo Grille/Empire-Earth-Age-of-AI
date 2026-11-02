@@ -4,7 +4,7 @@ with them, so the DLLs differ byte for byte, but every function's instructions m
 
 usage: python scripts/build/code_same.py <old: a dll/ folder or a git revision> [<new: a dll/ folder, default dll/>]
                                   [--same old_symbol=new_symbol ...]   (a variable that only got another name)
-Compiles eeaimod.c of both into objects (each function and variable in its own section, otherwise as dll/build.sh
+Compiles eeaimod.c of both into objects (each function and variable in its own section, otherwise as build.sh
 does) and compares each function's instructions without addresses: a reference to a variable by its name, to a
 constant by the bytes it points at. A revision is checked out into local/work/code_same/tree (a git worktree)."""
 import os, re, struct, subprocess, sys, collections

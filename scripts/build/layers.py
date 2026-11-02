@@ -1,4 +1,4 @@
-"""Which part of the DLL may use which: the folders of dll/ and their rules, checked (run by dll/build.sh).
+"""Which part of the DLL may use which: the folders of dll/ and their rules, checked (run by build.sh).
 
 The DLL is one translation unit (eeaimod.c includes every file), so the compiler lets any file use any other's
 names; this check holds the line. A file uses another when it names one of its top-level definitions (a function,
@@ -6,7 +6,7 @@ a variable, a type, a struct tag, an enum constant, a macro). Allowed: its own f
 lists below. A use that crosses another line must be in EXCEPTIONS (each with why it is still there) - the build
 fails on any other, and on an exception that isn't needed any more.
 
-    python scripts/build/layers.py            the check (exit 1 on a violation; --quiet: only the problems, dll/build.sh)
+    python scripts/build/layers.py            the check (exit 1 on a violation; --quiet: only the problems, build.sh)
     python scripts/build/layers.py --map      who uses what, by folder
     python scripts/build/layers.py --why X    every use of folder (or file) X by the others
 """

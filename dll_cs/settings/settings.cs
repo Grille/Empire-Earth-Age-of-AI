@@ -1,7 +1,7 @@
 // THE SETTINGS: the keys of ageofai.ini as C# declarations - a class per section (general.cs, display.cs ...), a field
 // per key in the shipped file's order, its /// lines the comment above it in the file (the documentation the player
 // reads, and ageofai_config.exe's help). Declared once here, read by scripts/build/settings_read.py: gen_settings.py
-// (run by dll/build.sh) makes dll/settings/rows.h and the shipped config/ageofai.ini of it - both generated, never
+// (run by build.sh) makes dll/settings/rows.h and the shipped config/ageofai.ini of it - both generated, never
 // edited (one changed by hand stops the build: its change belongs here). What a setting does stays the code's (it
 // reads g_set.key, g_set.section_key, g_set_ai[d].key - rows.h's header); a declaration is its name, kind, default,
 // limits and doc. C# is only how they are written down: names and types checked (dll_cs/dll_cs.csproj; dotnet build

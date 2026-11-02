@@ -189,7 +189,7 @@ if ($Dll) {
     if (-not [System.IO.Path]::IsPathRooted($Dll)) { $Dll = Join-Path $repo $Dll }
     $why = if (-not (Test-Path $Dll)) { "-Dll not found: $Dll" }
            elseif (-not (Select-String -Path "$g\ageofai.dll" -Pattern 'EEAIMOD_DLL' -SimpleMatch -Quiet)) {
-               "the installed ageofai.dll predates -Dll (install a current build once: sh dll/build.sh install)" }
+               "the installed ageofai.dll predates -Dll (install a current build once: sh build.sh install)" }
     if ($why) { $why; exit 1 }
     $env:EEAIMOD_DLL = "$repo\local\work\eeaimod_slot$Slot.dll"
     try { Copy-Item $Dll $env:EEAIMOD_DLL -Force -ErrorAction Stop }

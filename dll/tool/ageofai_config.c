@@ -7,7 +7,7 @@
 // 35%, 2 * 60, min(...)), and its mistake told as the game would log it. Saving writes only the keys changed, each
 // through WritePrivateProfileString, so the file's comments and order stay; an empty value removes the key (the
 // default, or for a difficulty [ai_base]'s value). Keys in the file that are no setting of this version are listed
-// and can be removed. The Help button (F1) opens a window on the colours and the use. Its own translation unit (dll/build.sh), from base/, script/ and settings/ only (layers.py).
+// and can be removed. The Help button (F1) opens a window on the colours and the use. Its own translation unit (build.sh), from base/, script/ and settings/ only (layers.py).
 #include <windows.h>
 #include <commctrl.h>
 #include <stdio.h>

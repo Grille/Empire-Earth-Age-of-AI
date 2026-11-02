@@ -497,7 +497,7 @@ cd eeaimod
 # elsewhere: name the game folder (or set EE_GAME_DIR) - the tests and the install use it
 echo "X:/Games/Empire Earth Gold/Empire Earth" > local/game_dir.txt
 # unpack llvm-mingw to local/tools/llvm-mingw (or set CC=/path/to/i686-w64-mingw32-clang)
-sh dll/build.sh            # -> dll/ageofai.dll
+sh build.sh                      # -> dll/ageofai.dll
 sh scripts/build/install.sh      # the committed build into the game folder (reserves it: waits until no game runs)
 ```
 

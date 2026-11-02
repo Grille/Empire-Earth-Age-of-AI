@@ -1,7 +1,7 @@
 // THE GAME'S OBJECTS, TYPED: a pointer type of its own for each kind of object (the spec's classes, their [c_type]), for
 // the module's accessors, wrappers and hook types (one place: the objects point at each other). The types are never defined, only pointed to: a unit passed where a
 // player is wanted, or the arguments swapped, doesn't build (a void * still passes - code not moved over yet). FIELD
-// reads them as before; dll/build.sh's -fno-strict-aliasing keeps the types out of the optimizer's aliasing.
+// reads them as before; build.sh's -fno-strict-aliasing keeps the types out of the optimizer's aliasing.
 
 typedef struct ee_player ee_player;             // PL: a player (EEPlayer, EEComputerPlayer)
 typedef struct ee_unit ee_unit;                 // UNIT: a unit, building or resource on the map

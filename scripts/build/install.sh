@@ -11,7 +11,7 @@ B="${A:?no repository}/local/work/install_build"
 rm -rf "$B" && mkdir -p "$B"
 REV=$(cd "$A" && git rev-parse --short HEAD)
 (cd "$A" && git archive "$REV" | tar -x -C "$B") || exit 1
-(cd "$B/dll" && PY="$A/local/venv/Scripts/python.exe" CC="$A/local/tools/llvm-mingw/bin/i686-w64-mingw32-clang" sh build.sh > build.txt 2>&1) || { cat "$B/dll/build.txt"; exit 1; }
+(cd "$B" && PY="$A/local/venv/Scripts/python.exe" CC="$A/local/tools/llvm-mingw/bin/i686-w64-mingw32-clang" sh build.sh > dll/build.txt 2>&1) || { cat "$B/dll/build.txt"; exit 1; }
 reserve_begin "install $REV"
 . "$(dirname "$0")/mod_dir.sh"
 mod_dir_move "$G" || exit 1   # ageofai.ini, eesettings.ini, the log and the dumps into <game>\ageofai\, once

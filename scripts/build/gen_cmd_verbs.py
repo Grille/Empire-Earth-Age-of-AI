@@ -1,5 +1,5 @@
 """dll/test/cmd_verbs.h: the pipe's commands (the verbs control.c's execute() knows), for the scripts' command functions
-(expr.c x_command_verb: spawn(...), stats(...) ...). Run by dll/build.sh; the header is kept in git for a build
+(expr.c x_command_verb: spawn(...), stats(...) ...). Run by build.sh; the header is kept in git for a build
 without Python."""
 import os
 import re

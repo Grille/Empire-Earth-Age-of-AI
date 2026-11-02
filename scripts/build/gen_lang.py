@@ -1,4 +1,4 @@
-"""The language's objects made C (run by dll/build.sh): dll/game_script/lang.h from dll_cs/lang/*.cs (lang_read.py) - the tables
+"""The language's objects made C (run by build.sh): dll/game_script/lang.h from dll_cs/lang/*.cs (lang_read.py) - the tables
 relations.c includes. k_xmembers: a player's members (player.cs) - name, kind (XM_: a value, a player, a relation, a
 method, an effect), doc, type, arguments, set (a script may), mine (a text has it alone); k_xglobals: the names a text
 has of its own (names.cs); k_xk_player / k_xk_game / k_xk_slot: each kind's members as the check reads them

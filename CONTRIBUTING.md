@@ -85,7 +85,7 @@ Not sure whether something fits? Open an issue and ask before you write the code
 The mod is C, built 32-bit by llvm-mingw into `dll/ageofai.dll` (plus `dinput.dll` and `ageofai_config.exe`):
 
 ```sh
-sh dll/build.sh
+sh build.sh
 ```
 
 **The build must stay free of warnings and pass its checks.** It runs them itself:

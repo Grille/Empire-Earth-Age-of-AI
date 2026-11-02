@@ -1,4 +1,4 @@
-"""The settings' rows (dll/settings/rows.h) against the shipped config/ageofai.ini, run by dll/build.sh: every row of
+"""The settings' rows (dll/settings/rows.h) against the shipped config/ageofai.ini, run by build.sh: every row of
 ageofai.ini's sections is in the file - set (key=value, then with the row's default: the built-in default is what the
 shipped file says) or shown commented out (;key=example) - every key set in a section is a row, a key of [ai_easy] /
 [ai_hard] a row of [ai_base] (D), and the shipped [ai_easy] sets what SETTINGS_EASY says. The sections

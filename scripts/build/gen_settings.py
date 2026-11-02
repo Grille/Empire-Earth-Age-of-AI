@@ -1,4 +1,4 @@
-"""ageofai.ini's keys made C and text (run by dll/build.sh): dll_cs/settings/*.cs (settings_read.py) -> dll/settings/rows.h
+"""ageofai.ini's keys made C and text (run by build.sh): dll_cs/settings/*.cs (settings_read.py) -> dll/settings/rows.h
 (the rows, the FLAGS rows' fields, the sections, the groups, the easy AI's values, the game's values, the folded rows -
 with the comments around them, settings_text.py) and the shipped config/ageofai.ini (every section's text, each key
 under its lines). Both are written whole and only when they change. They are generated, not edited: rows.h's header

@@ -1,5 +1,7 @@
 #!/bin/sh
-# Builds ageofai.dll (32-bit) with llvm-mingw (local/tools/llvm-mingw, or set CC to another i686 mingw compiler).
+# Builds the project: the checks and generators of scripts/build/ (spec/, dll_cs/ -> C and config/ageofai.ini), then
+# dll/ageofai.dll (32-bit), dll/dinput.dll and dll/ageofai_config.exe with llvm-mingw (local/tools/llvm-mingw, or set
+# CC to another i686 mingw compiler). At the root, as the one script to know; it works in dll/.
 # usage: sh build.sh [install]   - "install" also copies the DLL into the game folder (scripts/game_dir.sh).
 # -mstackrealign: the game calls our hooks with a 4-byte aligned stack; vectorized code (movdqa to the stack)
 # would crash without it.
@@ -12,7 +14,7 @@
 # looks changed but is not): C's legacy traps the code has none of, kept out
 # --exclude-all-symbols: the DLL exports nothing (without an export list mingw exports every name without static -
 # dxguid's 1370 GUIDs and a few hooks; nothing looks them up: the hooks are reached by patched addresses)
-cd "$(dirname "$0")"
+cd "$(dirname "$0")/dll"   # the paths below are dll/'s: the sources, the outputs beside them, ../ the root
 CC=${CC:-../local/tools/llvm-mingw/bin/i686-w64-mingw32-clang}
 # the layout hashes of the saved-game blocks (persist.c): persist_layout.h, kept in git for a build without Python
 PY=${PY:-../local/venv/Scripts/python.exe}   # install.sh: the repository's, for its clean copy

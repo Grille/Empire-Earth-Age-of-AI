@@ -7,7 +7,7 @@ the setup here) - scripts find it through `scripts/game_dir.sh` / `game_dir.py` 
 docs/testing.md.
 Several sessions may work in this tree at the same time - see Git below.
 
-The tree (2026-10-25): `dll/` the mod, `spec/` the game as the mod knows it (below), `dll_cs/` the C# the build makes some of dll/'s C from
+The tree (2026-10-25): `build.sh` the build (at the root as the one script to know, the player 2026-11-02), `dll/` the mod, `spec/` the game as the mod knows it (below), `dll_cs/` the C# the build makes some of dll/'s C from
 (beside it on purpose, the player 2026-10-31) - `lang/` the .eeai language's objects (below), `settings/` ageofai.ini's
 keys (below), `config/` what ships, `tests/` what the tests run (`scenarios/`, `probes/`,
 `config/` with autotest.ini), `scripts/` by job - `build/` (the build's checks, generators, install), `test/` (run_test
@@ -17,7 +17,7 @@ and the runners, eectl, the MCP server), `results/` (log readers, scorers), `re/
 
 ## Build and install
 
-- `sh dll/build.sh` builds `dll/ageofai.dll`, `dll/dinput.dll` and `dll/ageofai_config.exe` (llvm-mingw in `local/tools/`, 32-bit; it also
+- `sh build.sh` builds `dll/ageofai.dll`, `dll/dinput.dll` and `dll/ageofai_config.exe` (llvm-mingw in `local/tools/`, 32-bit; it also
   regenerates `dll/persist_layout.h` and `dll/test/cmd_verbs.h`). One translation unit: `dll/eeaimod.c` includes the rest.
   A build must be free of warnings. It also writes `.editor/compile_commands.json` (git-ignored, read by VS Code's
   C/C++ through `.vscode/c_cpp_properties.json`): each part with the text eeaimod.c has before it, so the editor
@@ -127,9 +127,9 @@ and the runners, eectl, the MCP server), `results/` (log readers, scorers), `re/
 
 | Change | Run |
 |---|---|
-| a pipe command, a saved variable | `sh dll/build.sh` (does both) |
-| a setting (dll_cs/settings/*.cs) | `sh dll/build.sh` (gen_settings.py: dll/settings/rows.h and config/ageofai.ini) |
-| a member of the language's objects (dll_cs/lang/*.cs: player, game, slot, a text's names) | `sh dll/build.sh` (gen_lang.py: dll/game_script/lang.h), then `scripts/build/gen_eeai_readme.py` and the grammar (next row) |
+| a pipe command, a saved variable | `sh build.sh` (does both) |
+| a setting (dll_cs/settings/*.cs) | `sh build.sh` (gen_settings.py: dll/settings/rows.h and config/ageofai.ini) |
+| a member of the language's objects (dll_cs/lang/*.cs: player, game, slot, a text's names) | `sh build.sh` (gen_lang.py: dll/game_script/lang.h), then `scripts/build/gen_eeai_readme.py` and the grammar (next row) |
 | names the text files know (values, situations, keys) | `scripts/build/gen_vscode_grammar.py`, then `scripts/build/pack_vscode.py` |
 | situations, the format help | `scripts/build/gen_persona.py` (`_template.eeai`), `scripts/build/gen_eeai_readme.py` (personalities README tables) |
 | the game data's unit types | `scripts/re/gen_units.py` (docs/units.md) |
