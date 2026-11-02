@@ -17,43 +17,43 @@
 include("mod/units.eeai")
 
 // game_state_other: the stances between you
-stance = (
+stance => (
     not me.hostile(them) and not them.hostile(me) ? "You are allied with each other." :
     me.hostile(them) and them.hostile(me) ? "You are at war with each other." :
     me.hostile(them) ? "You treat them as an enemy, but they have set allied towards you (they offer peace)." :
     "You are allied with them, but they treat you as an enemy."
 )
 // their forces against yours
-strength_ratio = (them.strength > 1 ? them.strength : 1) / (me.strength > 1 ? me.strength : 1)
-power = (
+strength_ratio => (them.strength > 1 ? them.strength : 1) / (me.strength > 1 ? me.strength : 1)
+power => (
     strength_ratio < 0.25 ? "much weaker than yours" :
     strength_ratio < 0.67 ? "weaker than yours" :
     strength_ratio <= 1.5 ? "about as strong as yours" :
     strength_ratio <= 4 ? "stronger than yours" :
     "much stronger than yours"
 )
-town = them.in_town(me) ? " Their soldiers are in your town right now." : ""
+town => them.in_town(me) ? " Their soldiers are in your town right now." : ""
 // attack_minutes is nothing without an attack - 0 minutes is one
-my_attack = me.attack_minutes(them) != null ? " Your last army set out against their town {me.attack_minutes(them)} minutes ago." : ""
-their_attack = them.attack_minutes(me) != null ? " Their last army set out against your town {them.attack_minutes(me)} minutes ago." : ""
-attacks = "{my_attack}{their_attack}"
+my_attack => me.attack_minutes(them) != null ? " Your last army set out against their town {me.attack_minutes(them)} minutes ago." : ""
+their_attack => them.attack_minutes(me) != null ? " Their last army set out against your town {them.attack_minutes(me)} minutes ago." : ""
+attacks => "{my_attack}{their_attack}"
 // what by destroyed of of's in the last minutes (0: the whole game) - aircraft and ships only when there are any
-destroyed(by, of, minutes) = (
+destroyed(by, of, minutes) => (
     "{by.kills(of, minutes, army)} land units, "
     "{by.kills(of, minutes, airforce) ? "{by.kills(of, minutes, airforce)} aircraft, " : ""}"
     "{by.kills(of, minutes, marine) ? "{by.kills(of, minutes, marine)} ships, " : ""}"
     "{by.kills(of, minutes, civilians)} civilians (citizens, fishing boats) and {by.kills(of, minutes, buildings)} buildings"
 )
 // all that was destroyed between you, units and buildings
-fought(minutes) = me.kills(them, minutes) + them.kills(me, minutes)
+fought(minutes) => me.kills(them, minutes) + them.kills(me, minutes)
 // how far back the fighting counts as recent
 recent_minutes = 20
-fighting = fought(0) ? (
+fighting => fought(0) ? (
     " The fighting between you so far."
     " You destroyed of theirs: {destroyed(me, them, 0)}."
     " They destroyed of yours: {destroyed(them, me, 0)}."
 ) : ""
-fighting_recent = (
+fighting_recent => (
     not fought(0) ? "" :
     fought(recent_minutes) == fought(0) ? " All of it in the last {recent_minutes} minutes." :
     fought(recent_minutes) ? (
@@ -64,13 +64,13 @@ fighting_recent = (
     " No fighting between you in the last {recent_minutes} minutes."
 )
 // a lord or a vassal
-bond = (
+bond => (
     me.lord == them ? " You have capitulated to them: they are your lord, you pay and serve them." :
     them.lord == me ? " They have capitulated to you: they are your vassal." :
     ""
 )
 // tool_tribute: what it may give - a quarter of each, or all with [llm] llm_constrained=0
-tribute_room = (
+tribute_room => (
     llm_constrained ? (
         " (at most a quarter of each: food {floor(me.food / 4)}, wood {floor(me.wood / 4)},"
         " stone {floor(me.stone / 4)}, gold {floor(me.gold / 4)}, iron {floor(me.iron / 4)})"
@@ -80,7 +80,7 @@ tribute_room = (
     )
 )
 
-fighting_report(minutes) = "The fighting between you so far: you killed {me.kills(them, minutes, military)} of their soldiers and {me.kills(them, minutes, civilians)} of their citizens (workers) and destroyed {me.kills(them, minutes, buildings)} of their buildings; they killed {them.kills(me, minutes, military)} of your soldiers and {them.kills(me, minutes, civilians)} of your citizens and destroyed {them.kills(me, minutes, buildings)} of your buildings."
+fighting_report(minutes) => "The fighting between you so far: you killed {me.kills(them, minutes, military)} of their soldiers and {me.kills(them, minutes, civilians)} of their citizens (workers) and destroyed {me.kills(them, minutes, buildings)} of their buildings; they killed {them.kills(me, minutes, military)} of your soldiers and {them.kills(me, minutes, civilians)} of your citizens and destroyed {them.kills(me, minutes, buildings)} of your buildings."
 
 prompt = {
     // the system message: who the AI is

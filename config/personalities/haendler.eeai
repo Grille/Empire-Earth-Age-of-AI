@@ -30,14 +30,14 @@ style = {
 }
 
 // Benedict keeps books on everyone: who paid whom, and what the war has cost
-good_customer = them.tribute(me) > 0
-i_paid = me.tribute(them) > 0
-big_spender = them.tribute(me) > big_tribute
+good_customer => them.tribute(me) > 0
+i_paid => me.tribute(them) > 0
+big_spender => them.tribute(me) > big_tribute
 // losses are costs, their losses are returns - more than a skirmish
-my_costs = them.kills(me, units) > many_dead
-my_returns = me.kills(them, units) > many_dead
+my_costs => them.kills(me, units) > many_dead
+my_returns => me.kills(them, units) > many_dead
 // a full treasury - his own stock, the only one he can see
-full_coffers = me.gold > 1000
+full_coffers => me.gold > 1000
 
 lines = {
     greeting = [

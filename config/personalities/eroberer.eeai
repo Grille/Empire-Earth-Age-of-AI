@@ -32,11 +32,11 @@ style = {
 }
 
 // the Khan measures everyone by strength
-weakling = them.strength * 2 < me.strength
-worthy = me.strength * 2 < them.strength
+weakling => them.strength * 2 < me.strength
+worthy => me.strength * 2 < them.strength
 // blood between us: more than a skirmish
-my_dead = them.kills(me, units) > many_dead
-their_dead = me.kills(them, units) > many_dead
+my_dead => them.kills(me, units) > many_dead
+their_dead => me.kills(them, units) > many_dead
 
 lines = {
     greeting = [

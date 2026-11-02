@@ -117,12 +117,20 @@ def record(names, keys, key_scope):
         'patterns': lines,
     }
 
-# a name of the file's own with parameters: name(a, b) = ...
+# a name of the file's own with parameters: name(a, b) => ...
 function_def = {
-    'begin': r'^\s*([A-Za-z_]\w*)\s*(\()([^)]*)(\))\s*(=)(?![=>])',
+    'begin': r'^\s*([A-Za-z_]\w*)\s*(\()([^)]*)(\))\s*(=>)',
     'beginCaptures': {'1': {'name': 'entity.name.function.eeaimod'}, '2': {'name': 'punctuation.definition.parameters.begin.eeaimod'},
                       '3': {'name': 'variable.parameter.eeaimod'}, '4': {'name': 'punctuation.definition.parameters.end.eeaimod'},
                       '5': {'name': 'keyword.operator.assignment.eeaimod'}},
+    'end': r'$',
+    'patterns': [{'include': '#value'}],
+}
+
+# a name of the file's own worked out where it is used: name => ... (name = ... is data: the assignment below)
+computed_def = {
+    'begin': r'^([A-Za-z_]\w*)\s*(=>)',
+    'beginCaptures': {'1': {'name': 'entity.name.function.eeaimod'}, '2': {'name': 'storage.type.function.arrow.eeaimod'}},
     'end': r'$',
     'patterns': [{'include': '#value'}],
 }
@@ -152,6 +160,7 @@ grammar = {
         record(r'[A-Za-z_]\w*', [], ''),
         {'name': 'invalid.illegal.section.eeaimod', 'match': r'^\[[^\]]*\]'},   # the old [sections]
         function_def,
+        computed_def,
         assignment,   # a name of the file's own (vars), a script's statements
         {'include': '#value'},
     ],

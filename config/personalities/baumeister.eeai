@@ -30,13 +30,13 @@ style = {
 }
 
 // Hedda counts her towers - and is proud of the number
-many_towers = me.towers >= 10
+many_towers => me.towers >= 10
 // she measures soberly: who is stronger by far
-outmatched = me.strength * 2 < them.strength
-brittle = them.strength * 2 < me.strength
+outmatched => me.strength * 2 < them.strength
+brittle => them.strength * 2 < me.strength
 // blood between us: more than a skirmish
-my_dead = them.kills(me, units) > many_dead
-their_dead = me.kills(them, units) > many_dead
+my_dead => them.kills(me, units) > many_dead
+their_dead => me.kills(them, units) > many_dead
 
 lines = {
     greeting = [

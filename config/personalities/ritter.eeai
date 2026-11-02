@@ -26,16 +26,16 @@ style = {
 }
 
 // the knight weighs a foe by his strength - and spares the one who cannot stand
-worthy = them.strength > me.strength
-outmatched = them.strength * 2 < me.strength
+worthy => them.strength > me.strength
+outmatched => them.strength * 2 < me.strength
 // a word given and broken: theirs, and his own shame
-oathbreaker = them.betrayals(me) > 0
-my_shame = me.betrayals(them) > 0
+oathbreaker => them.betrayals(me) > 0
+my_shame => me.betrayals(them) > 0
 // blood between us: more than a skirmish
-my_fallen = them.kills(me, units) > many_dead
-their_fallen = me.kills(them, units) > many_dead
+my_fallen => them.kills(me, units) > many_dead
+their_fallen => me.kills(them, units) > many_dead
 // a long bond - only where we are allied (nothing otherwise)
-old_bond = me.alliance_minutes(them) > 30
+old_bond => me.alliance_minutes(them) > 30
 
 lines = {
     greeting = [

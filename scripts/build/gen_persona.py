@@ -25,8 +25,9 @@ FORMAT_HELP = [   # the rest is in README.md
     '#',
     '# key = value, a value is an expression: "a string" ({placeholders} and {expressions} in it), ["a list", "of',
     '# strings"] (one at random), allied ? "a condition", a ?? b, numbers ... The keys the mod reads stand in records',
-    '# (lines = { ... }, a comma after each entry); a name outside them is the file\'s own, for its values - a record of',
-    '# your own too (colors = { dark = ..., light = ... }: colors.dark). The format, the expressions and every',
+    '# (lines = { ... }, a comma after each entry); a name outside them is the file\'s own: name => ... worked out where',
+    '# it is used (me, them, opinion ...), name = ... data, the same everywhere - a record of your own too (colors = {',
+    '# dark = ..., light = ... }: colors.dark). The format, the expressions and every',
     '# value of the game (opinion, them.soldiers, epoch.middle, ...): README.md in this folder.',
 ]
 

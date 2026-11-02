@@ -232,18 +232,22 @@ internal int x_check_par_has(const char *s, int n) {
     }
     return 0;
 }
-// THE NAMES (vars) of all the files too (x_name_check: an entry may come from another file, or later in this one)
+// THE NAMES (vars) of all the files too (x_name_check: an entry may come from another file, or later in this one) -
+// each one's data (name = value, a record) or worked out where it is used (name => ...)
 internal char g_xvn[256][40];
+internal unsigned char g_xvd[256];
 internal int g_xvn_n;
-internal void x_var_add(const char *b, size_t n) { if (n && n < 40 && g_xvn_n < 256) lstrcpynA(g_xvn[g_xvn_n++], b, (int)n + 1); }
+internal void x_var_add(const char *b, size_t n, int data) {
+    if (n && n < 40 && g_xvn_n < 256) { g_xvd[g_xvn_n] = (unsigned char)data; lstrcpynA(g_xvn[g_xvn_n++], b, (int)n + 1); }
+}
 // a comment: // to the line's end, as in the game's own scripts (.rmv, .tai) - a # is a mistake (the game's # is a
 // preprocessor's: #define, #include)
 internal int x_comment(const char *s) { return s[0] == '/' && s[1] == '/'; }
 #define X_HASH_WHY "# - a comment starts with // (as in the game's own scripts)"
 internal int x_string_at(const char *s);
 internal int x_string(const char *s, char *out, int cap, const char **end, const char **why);
-// the lines "name(a, b) =" of a file, and "name =" outside its records - a record too (its members: name.key) unless
-// the program reads it itself (lines, personality ...: g_x_host.code_record)
+// the lines "name(a, b) =>" of a file, and "name =" / "name =>" outside its records - a record too (its members:
+// name.key) unless the program reads it itself (lines, personality ...: g_x_host.code_record)
 internal void x_fn_scan(const char *text) {
     int depth = 0;   // records (and braces) open at the line's start
     for (const char *s = text; *s; ) {
@@ -257,7 +261,7 @@ internal void x_fn_scan(const char *text) {
             if (*e == '=' && e[1] != '=') {
                 char nm[40];
                 lstrcpynA(nm, b, (int)(n < 39 ? n : 39) + 1);
-                if (e[1 + strspn(e + 1, " \t")] != '{' || !g_x_host.code_record(nm)) x_var_add(b, n);
+                if (e[1 + strspn(e + 1, " \t")] != '{' || !g_x_host.code_record(nm)) x_var_add(b, n, e[1] != '>');
             }
         }
         for (const char *q = s; *q && *q != '\n' && !x_comment(q); q++) {   // the line's braces, strings left out
@@ -292,6 +296,11 @@ internal int x_fn_known(const char *name) {   // its parameter count, -1: no fun
 internal int x_var_known(const char *name) {
     if (!g_xfn_scanned) { g_xfn_scanned = 1; g_x_host.scan_functions(); }
     for (int i = 0; i < g_xvn_n; i++) if (!lstrcmpiA(g_xvn[i], name)) return 1;
+    return 0;
+}
+internal int x_var_data(const char *name) {   // a name of the files that is data (name = value): worked out the same anywhere
+    if (!g_xfn_scanned) { g_xfn_scanned = 1; g_x_host.scan_functions(); }
+    for (int i = 0; i < g_xvn_n; i++) if (!lstrcmpiA(g_xvn[i], name)) return g_xvd[i];
     return 0;
 }
 // THE NAMES CHECK while a file is read (tfile_parse): a name that is nothing known - no parameter, constant, vars
@@ -3714,6 +3723,38 @@ internal void tl_rec_sep(struct tlex *l) {
 // and line, their keys skipped. A record: name = { key = value, ... } - a comma after each entry (the last's may be
 // left out), on one line or many, records in it
 internal int tl_declaration(const char *key) { return !strcmp(key, "include") || !strcmp(key, "register_personality"); }
+// DATA: name = value outside the records holds a value that is the same wherever it is used - numbers, strings
+// without placeholders, lists and records of them, the game's constants (kind.towers, unit.<id>), other data names,
+// vec() and rgb(). Whatever changes with the game or the speaker (me, them, game values, a function's call, a
+// placeholder) is worked out where it is used: name => ... - so the two never look alike (let, later, holds state).
+// 0: not data, *why the first name or call that makes it so (in buf)
+internal int x_data_node(const struct xnode *n, char *buf, int cap) {
+    if (!n) return 1;
+    switch (n->k) {
+    case XN_NUM: break;
+    case XN_STR: if (strchr(n->s, '{')) { snprintf(buf, (size_t)cap, "a placeholder in \"%.30s\"", n->s); return 0; } break;
+    case XN_NAME: {
+        struct xval t;
+        char head[48];
+        lstrcpynA(head, n->s, (int)(strcspn(n->s, ".") < 47 ? strcspn(n->s, ".") : 47) + 1);
+        int fixed = !strncmp(n->s, "unit.", 5) || !strncmp(n->s, "kind.", 5) || !strncmp(n->s, "resource.", 9);   // (unit.<id>: the
+        if (!fixed && !g_x_host.constant(n->s, &t) && !x_var_data(n->s) && !x_var_data(head)) {               // game's data, later)
+            snprintf(buf, (size_t)cap, "%s", n->s);
+            return 0;
+        }
+        break;
+    }
+    case XN_CALL:
+        if (strcmp(n->s, "vec") && strcmp(n->s, "rgb")) { snprintf(buf, (size_t)cap, "%s(...)", n->s); return 0; }
+        break;
+    case XN_LIST: case XN_REC: case XN_NEG: case XN_NOT: case XN_MUL: case XN_ADD: case XN_CMP: case XN_AND: case XN_OR:
+    case XN_COAL: case XN_COND: case XN_MEMBER: case XN_INDEX: case XN_ASSIGN: break;   // (assign: a record's member)
+    default: snprintf(buf, (size_t)cap, "a function or statement"); return 0;
+    }
+    if (!x_data_node(n->a, buf, cap) || !x_data_node(n->b, buf, cap) || !x_data_node(n->c, buf, cap)) return 0;
+    for (int i = 0; i < n->n_items; i++) if (!x_data_node(n->items[i], buf, cap)) return 0;
+    return 1;
+}
 typedef void (*tfile_fn)(void *arg, const char *record, const char *key, struct tval *v, struct tlex *l);
 #define TL_DEPTH 8
 internal void tfile_parse(const char *file, const char *text, tfile_fn fn, void *arg) {
@@ -3796,9 +3837,15 @@ internal void tfile_parse(const char *file, const char *text, tfile_fn fn, void 
                 else { tl_error(&l, why); n = -1; }
             }
             if (n >= 0) tl_blank(&l, 0);
+            int arrow = n > 0 && l.s[0] == '=' && l.s[1] == '>', isfn = n > 0 && strchr(key, '(') != NULL;
             if (n < 0) ;   // (its mistake told)
-            else if (!n || *l.s != '=') tl_error(&l, "no name = value");
-            else if (l.s[1 + strspn(l.s + 1, " \t")] == '{') {   // name = { - a record: its entries up to its }
+            else if (!n || *l.s != '=') tl_error(&l, "no name = value (or name => ...)");
+            else if (arrow && depth) tl_error(&l, "=> outside the records only - a record's entries are values: key = ...");
+            else if (isfn && !arrow) {
+                char why[120];
+                snprintf(why, sizeof why, "a function is written with =>: %.*s => ...", (int)(strchr(key, ')') - key) + 1, key);
+                tl_error(&l, why);
+            } else if (!arrow && l.s[1 + strspn(l.s + 1, " \t")] == '{') {   // name = { - a record: its entries up to its }
                 if (strchr(key, '(')) tl_error(&l, "a record has no parameters");
                 else if (depth == TL_DEPTH) tl_error(&l, "records in records more than 8 deep");
                 else if (strlen(record) + strlen(key) + 2 > sizeof record) tl_error(&l, "a record's path too long");
@@ -3810,8 +3857,8 @@ internal void tfile_parse(const char *file, const char *text, tfile_fn fn, void 
                 }
             } else if (!depth && tl_declaration(key)) {
                 tl_error(&l, key[0] == 'i' ? "include(\"pack_base.eeai\") - a call, not a name" : "register_personality() - a call, not a name");
-            } else {
-                l.s++;
+            } else {   // name = value (data, outside the records), name => ... / name(a, b) => ...: worked out where used
+                l.s += arrow ? 2 : 1;
                 struct tval v;
                 g_x_check_par = strchr(key, '(') ? strchr(key, '(') + 1 : NULL;
                 g_x_check_file = file;
@@ -3822,6 +3869,18 @@ internal void tfile_parse(const char *file, const char *text, tfile_fn fn, void 
                 g_x_check_has = NULL;
                 g_x_check_par = NULL;
                 g_x_check_file = NULL;
+                if (!l.err && !arrow && !depth) {   // data: the same wherever it is used (x_data_node)
+                    const struct xunit *u = x_compiled(v.src);
+                    char what[64], why[200];
+                    if (u->ok && !x_data_node(u->root, what, sizeof what)) {
+                        int cur = l.line;
+                        l.line = v.line;
+                        snprintf(why, sizeof why, "%s = ... changes with the game (%s) - a name worked out where it is used: %s => ...",
+                                 key, what, key);
+                        tl_error(&l, why);
+                        l.line = cur;
+                    }
+                }
                 if (!l.err) {
                     fn(arg, record, key, &v, &l);
                     l.err = 0;   // a mistake the reader's user told (an unknown key): the value is read whole - on after it

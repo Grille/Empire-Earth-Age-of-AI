@@ -51,8 +51,8 @@ personality = {
     character = "A sea captain: dry humour, proud of her fleet, keeps her word.",
 }
 
-// a name of the file's own, for its lines
-friend = opinion > 30% ? "old friend" : "captain"
+// a name of the file's own, for its lines - worked out where it is used (=>)
+friend => opinion > 30% ? "old friend" : "captain"
 
 lines = {
     greeting = ["Fair winds, {them}.", "The tide is with us today."],
@@ -75,9 +75,10 @@ A file is made of `name = value` lines, one a line:
   not), over as many lines as you like, records in records. Those the mod reads hold its keys: a personality has
   `personality`, `lines`, `style`, `decide` and `prompt`; `mod/system.eeai` has `system`.
 - **Names outside them** are the file's own (its *vars*): values its lines use, `{friend}` or `friend` - written
-  anywhere outside those records, before or after the lines that use them. A record of your own is such a name too,
-  its entries `colors.dark`, `colors.light` - and `colors` the whole record: `colors = { dark = "black", light =
-  "white" }`.
+  anywhere outside those records, before or after the lines that use them. `name => ...` is worked out where it is
+  used (it changes with the game and with who speaks to whom), `name = ...` is data, the same everywhere (see "Names
+  of your own" below). A record of your own is data too, its entries `colors.dark`, `colors.light` - and `colors` the
+  whole record: `colors = { dark = "black", light = "white" }`.
 - **`include("pack_base.eeai")`** names files whose lines, names and keys the personality builds on (see below);
   **`register_personality()`** makes the file a personality.
 
@@ -105,11 +106,11 @@ the string.
 string. That works for every key, also in `prompt` and `system`, which take strings only:
 
 ```
-peace_offer = ("Peace, {them}? "
+offer_text => ("Peace, {them}? "
     "My walls have held so far - "
     "but I would rather build than fight.")
 
-report = (
+report => (
     allied ? "We stand together." :
     them.kills(me, units) > 10 ? (
         "You have killed {them.kills(me, units)} of mine. "
@@ -284,15 +285,24 @@ lines = {
 
 ### Names of your own (vars)
 
-A name outside the records holds a string or an expression for the texts. A personality's own names come first, then
+A name outside the records holds a value or an expression for the texts, written one of two ways:
+
+- `name => ...` - **worked out where it is used**: anything that changes with the game or with who speaks to whom
+  (`me`, `them`, `opinion`, `epoch`, a `{placeholder}`, a function's call).
+- `name = ...` - **data**, the same wherever it is used: numbers, strings without placeholders, lists and records of
+  them, `unit.<id>` / `kind.<kind>`, other data names, `vec()` and `rgb()`. Anything else written with `=` is a
+  mistake when the file is read (`pawn = ... changes with the game (them.strength) - ... pawn => ...`): the two never
+  look alike.
+
+A personality's own names come first, then
 those of its layers (`mod/prompt.eeai`'s too: `stance`, `power` ...), then those of `mod/system.eeai`. A prompt text
 is filled with the names of the file it comes from: `mod/prompt.eeai`'s own `power` in its texts, whatever a
 personality calls `power`. A record's key can't be one (`greeting = ...` outside `lines = { }` is a mistake: it
 belongs in the record).
 
 ```
-address = opinion > 30% ? "friend" : opinion < -30% ? "enemy" : "neighbour"
-title = "my lord {them}"
+address => opinion > 30% ? "friend" : opinion < -30% ? "enemy" : "neighbour"
+title => "my lord {them}"
 angry = ["Go away.", "You again?"]
 ```
 
@@ -301,11 +311,11 @@ is used: `"{angry} {angry}"` picks twice, maybe two different items, and `len(an
 is worked out once, when it is called: given a list, it keeps the list (`len(l)` inside) and the item it picked
 (`{l}` is the same item every time).
 
-**Functions:** a name with parameters is worked out with the values it is given:
+**Functions:** a name with parameters, written with `=>`, is worked out with the values it is given:
 
 ```
-losses(minutes) = them.kills(me, minutes, units)
-fighting_report(minutes) = "you killed {me.kills(them, minutes, army)} of their soldiers and sank {me.kills(them, minutes, marine)} of their ships; they killed {them.kills(me, minutes, military)} of yours"
+losses(minutes) => them.kills(me, minutes, units)
+fighting_report(minutes) => "you killed {me.kills(them, minutes, army)} of their soldiers and sank {me.kills(them, minutes, marine)} of their ships; they killed {them.kills(me, minutes, military)} of yours"
 
 lines = {
     under_attack = losses(10) > many_dead / 3 ? "{losses(10)} dead in ten minutes. Enough!",
@@ -315,7 +325,7 @@ lines = {
 - Inside the function its parameters are names like any other; outside it they don't exist. Its other names are the
   game's values and the file's names, as everywhere (a name it uses doesn't see its parameters).
 - It is called with exactly as many values as it has parameters (`losses()` or `losses(1, 2)` is a mistake, found
-  when the file is read). Up to 8 parameters; none is fine too: `greeting_line() = ...`.
+  when the file is read). Up to 8 parameters; none is fine too: `greeting_line() => ...`.
 - A parameter may have the name of a value - `minutes`, `them` - and then means the parameter inside its function.
 - A function may call others; one that calls itself stops at the nesting limit (a mistake, never a hang).
 - Lookup is as for the other names: the personality's own first, then its layers, then `mod/system.eeai`.
@@ -540,7 +550,7 @@ in `mod/units.eeai`, a layer of every personality (a name of your own of the sam
 | `buildings` | every building - towers and walls too |
 
 ```
-sea_war = them.kills(me, 10, marine) > 3 ? "Leave my ships alone, {them}!"
+sea_war => them.kills(me, 10, marine) > 3 ? "Leave my ships alone, {them}!"
 lines = {
     peace_accept = them.kills(me, this_war, buildings) > 5 ? "{them.kills(me, this_war, buildings)} of my buildings in ruins. Peace.",
 }
