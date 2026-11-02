@@ -41,7 +41,12 @@
 // (7.9), losses -31.9 (7.9), razed +3.3 (1.6), buildings lost 7.2 against 10.6. The same with 70 and a bleed rule
 // instead (home once the force has lost half the hit points it went out with, AR_BLEED_PCT 50; 48 games): kills
 // +31.9 (6.9), losses -33.0 (7.0), razed +1.8 (1.3), soldiers +6.9 (4.1), buildings lost 5.6 / 7.4 - as good on the
-// fight, less on the buildings; 100 kept, the bleed rule left in at 0.
+// fight, less on the buildings; 100 kept, the bleed rule left in at 0. Confirmed with 100 on other setups (24
+// mirrored games each): 4 AIs on Continental huge late - soldiers +18.4 (6.0), kills -22.0 (9.0), losses -33.1
+// (10.7), razed +7.3 (3.0), buildings lost 11.7 / 20.2; Mediterranean huge 1v1 late - kills -6.8 (13.0), losses
+// +5.8 (13.4), razed +3.3 (1.5), workers -10.2 (5.7), buildings lost 6.8 / 10.1; from epoch 1 on Continental large,
+// 100 min - kills +19.3 (13.1), losses -3.7 (18.5), razed +11.3 (5.4), buildings lost 15.5 / 28.7 (23 raids a game
+// there). On by default since 2026-11-02 ([ai_base] mod_armies).
 // BEFORE THE FORCE (2026-11-02, head-to-head, Continental huge 1v1 late, 75 min, 24 mirrored games each): PARITY - the
 // held let go to the game's own launch a tick ahead of the attack time (ai_held cleared, register_unit): soldiers
 // +14.5 (se 6.2), kills +1.3 (6.9), losses -8.0 (8.5), razed -1.8 (1.6), workers -8.1 (10.5) - the soldiers trained
