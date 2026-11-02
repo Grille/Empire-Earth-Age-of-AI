@@ -444,7 +444,9 @@ Settings in `ageofai.ini`:
   new course at once and every ship turns on its own circle to its new place, instead of the whole fleet wheeling
   round in one wide arc; a ship ahead of its place slows for it instead of turning back, one beside it merges at a
   shallow angle. Told to form within its own size (a right-button drag where it stands, to turn it) a formation
-  takes its places without a march - each unit by its own route, as the game does.
+  takes its places without a march - each unit by its own route, as the game does; a formation that stands as it
+  marched moves and turns as it is then, no unit changing place, and a click keeps its facing (the way to a point
+  three tiles off would have turned the whole formation).
 - `[general] formation_catchup=125%` (with formation_follow): how fast a unit behind its place may go to keep it, in
   percent of its own top speed (100% never faster than its own) - near its place only: all of it within its size,
   none from formation_catchup_falloff times that. Also how much the formation slows in a turn (its outermost unit

@@ -587,6 +587,36 @@ internal void ff_start(void *group, int n, vec2 c, vec2 fwd, vec2 right, int que
 // it): the same formation goes on - each unit's spot its offset from the leader in that march, turned to the new facing
 // around the leader's spot (as far from the point c as before) - instead of a new layout; the march's index, else -1
 internal vec2 g_fo_arc_off[FO_MAX];
+// the formation the units just laid out (g_fo[0..n)) stand in: one march, finished or not, all of its units among them
+// (and units of no march: a straggler that was out of reach when it began) - its index, else -1 (a re-form in place of
+// a formation moves it as it is: ff_keep_layout)
+internal int ff_same_group(int n) {
+    int og = -1, in = 0;
+    for (int i = 0; i < n; i++) {
+        struct ff_unit *e = ff_find((uint32_t)unit_get_serial(g_fo[i].u), 0);
+        if (!e || e->g < 0) continue;
+        if (og >= 0 && e->g != og) return -1;
+        og = e->g;
+        in++;
+    }
+    return og >= 0 && g_ff[og].n == in ? og : -1;
+}
+// the places of a re-form in place of the formation og: each unit's offset from the leader in it (one of no march:
+// where it stands, from the leader's spot), the leader's spot as far from the point c as before - in the layout's frame
+// (x right, y ahead), as fo_rows lays them; the formation moves and turns as it is, no unit changes place (the player,
+// 2026-11-02: the wedge of the save "slow" ordered 3 tiles ahead and a bit aside - laid out anew, the units given
+// their places by where they stand, neighbours swapped places and crossed each other's way: "they look a bit messy")
+internal void ff_keep_layout(int og, int n) {
+    struct ff_group *old = &g_ff[og];
+    vec2 f = old->fwd, r = v2(f.y, -f.x);
+    for (int i = 0; i < n; i++) {
+        struct ff_unit *e = ff_find((uint32_t)unit_get_serial(g_fo[i].u), 0);
+        vec2 off;
+        if (e && e->g == og) off = e->off;
+        else { vec2 d = vec2_sub(g_fo[i].from, old->end); off = v2(vec2_dot(d, r), vec2_dot(d, f)); }
+        g_fo[i].at = v2(off.x + old->lead_off.x, off.y + old->lead_off.y);
+    }
+}
 internal int ff_arc_layout(int n, vec2 c, vec2 fwd, vec2 right) {
     struct ff_unit *e0 = ff_find((uint32_t)unit_get_serial(g_fo[0].u), 0);
     struct ff_pend *p0 = e0 ? ff_pend_last(e0) : NULL;
@@ -1343,6 +1373,17 @@ internal void __thiscall hook_formation_slots(void *f, void *group, void *slots)
     // it stands (a few stragglers 15 tiles ahead made a 35-tile move "in place") nor the game's own slots (its grid is
     // twice as wide). A circle marches as before
     int in_place = gl < 2 * spread;
+    // the formation they stand in, moved as it is (ff_keep_layout); a click keeps its facing too - the way to a point 3
+    // tiles off would have turned the whole formation
+    int same = in_place && !g_fo_queued && !circle && g_ff_on ? ff_same_group(n) : -1;
+    if (same >= 0 && facing == 0) {
+        fwd = g_ff[same].fwd;
+        right = v2(fwd.y, -fwd.x);
+        float a = fo_atan2(-fwd.x, fwd.y);
+        uint32_t bits;
+        memcpy(&bits, &a, sizeof bits);
+        for (int i = 0; i < n; i++) game_facing[i] = bits;
+    }
     g_fo_has_march = 0;
     g_fo_naval = 1;
     for (int i = 0; i < n; i++) {
@@ -1373,6 +1414,7 @@ internal void __thiscall hook_formation_slots(void *f, void *group, void *slots)
         g_fo[i].p = vec2_sub(g_fo[i].p, c);   // the circles' angles: around the point
     }
     if (circle) fo_rings(g_fo_order, n); else fo_rows(g_fo_order, n, kind, front);
+    if (same >= 0) ff_keep_layout(same, n);
     // the front row (a wedge's tip) on the clicked point, as the game's: the mouse gives the front line; a circle around it
     vec2 mid = v2(0, 0);
     // each unit's spot, and the slots moved there (the game pairs units with them by these points)
@@ -1408,7 +1450,7 @@ internal void __thiscall hook_formation_slots(void *f, void *group, void *slots)
     if (g_ff_on) { ff_start(group, n, c, fwd, right, g_fo_queued, arc); if (in_place) ff_in_place(); }
     // a line a move (the player's games: what a reported layout or march did)
     if (g_log) fprintf(g_log, "# formation: %d units, kind %d, %s%d from their last order%s, from %.1f,%.1f to %.1f,%.1f facing %.2f,%.2f (%s), %.1f tiles (the formation's radius %.1f), %s%d marches\n",
-                       n, kind, g_fo_queued ? "queued, " : "", from_last, reface ? " (the click's facing turned to their way)" : "", mean.x, mean.y, c.x, c.y, fwd.x, fwd.y, facing == 0 ? "click" : "drag", gl, spread, in_place ? "in place, " : "", g_ff_on ? g_ff_count : 0);
+                       n, kind, g_fo_queued ? "queued, " : "", from_last, reface ? " (the click's facing turned to their way)" : "", mean.x, mean.y, c.x, c.y, fwd.x, fwd.y, facing == 0 ? "click" : "drag", gl, spread, same >= 0 ? "in place as it stands, " : in_place ? "in place, " : "", g_ff_on ? g_ff_count : 0);
 }
 
 // a unit's location goal in the dispatch: its own spot (and facing) instead of the slot it was paired with - the slot
