@@ -11,34 +11,6 @@ namespace ageofai.settings;
 [section(10)]
 class general
 {
-    enum improved_unit_movement_choice
-    {
-        /// each as the mod ships it (all on)
-        @default,
-        /// all of them on
-        enabled,
-        /// all off (the game's own movement)
-        disabled,
-    }
-    enum answer_fire_choice
-    {
-        /// the original
-        game,
-        /// every player's units
-        all,
-        /// the computer players' only
-        computers,
-    }
-    enum chat_choice
-    {
-        /// none (original)
-        off,
-        /// the AI says what it decides (attacks, new epoch, extra towers, walls, siege, counter-siege, home guard)
-        debug,
-        /// also a status line every 5 minutes
-        status,
-    }
-
     class TheMod
     {
         /// 1 = the mod is active. 0 = the mod does nothing at all: the original game (no AI changes, no scenario fix,
@@ -97,6 +69,15 @@ class general
         /// its shots (the original keeps shooting the building while the enemy's soldiers shoot it). Every player's units; an
         /// ordered attack is never changed. 0 = the original
         bool units_first = false;
+        enum answer_fire_choice
+        {
+            /// the original
+            game,
+            /// every player's units
+            all,
+            /// the computer players' only
+            computers,
+        }
         /// An idle soldier shot by an enemy beyond its reply range (a mortar, a sniper, a tower further off than it shoots) goes
         /// for it when it can see it, hurt it and walk there, within 24 tiles (the original stands and is shot):
         answer_fire_choice answer_fire = answer_fire_choice.game;
@@ -196,6 +177,15 @@ class general
 
     class AIChatAndPersonalities
     {
+        enum chat_choice
+        {
+            /// none (original)
+            off,
+            /// the AI says what it decides (attacks, new epoch, extra towers, walls, siege, counter-siege, home guard)
+            debug,
+            /// also a status line every 5 minutes
+            status,
+        }
         /// AI chat lines (shown in the game's chat as the AI player), rate-limited per player; chat_seconds = how long a line
         /// stays on screen:
         chat_choice chat = chat_choice.off;

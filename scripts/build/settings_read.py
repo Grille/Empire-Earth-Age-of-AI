@@ -124,6 +124,8 @@ def read_file(path):
                 continue
             if code == '}':
                 kind, name, sdoc, members, docs = inner
+                if name in cur.enums or name in cur.structs:
+                    raise SystemExit('%s: a second %s in [%s] - a type\'s name is one of its section' % (where, name, cur.name))
                 if kind == 'enum':
                     cur.enums[name] = members
                 else:
@@ -151,7 +153,7 @@ def read_file(path):
                 inner[4][m.group(2)] = doc
             doc, attr_text = [], ''
             continue
-        if depth == 1 and cur:
+        if depth in (1, 2) and cur:   # a type, above the key it is of (in its group too): the section's
             m = re.match(r'^(enum|struct)\s+(\w+)$', code)
             if m:   # a block: its members on the lines below, each with its doc
                 inner = [m.group(1), m.group(2), doc, {} if m.group(1) == 'enum' else [], {}]
@@ -177,6 +179,7 @@ def read_file(path):
                 cur.structs[m.group(1)] = (fields, doc)
                 doc = []
                 continue
+        if depth == 1 and cur:
             if code == '}':   # the class ends: the /// lines left are the text after its last key
                 cur.trailer, doc = doc, []
                 depth -= 1

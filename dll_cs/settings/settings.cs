@@ -16,7 +16,9 @@
 //
 // A GROUP is a class inside a section (PascalCase, apart from the keys: CitizensUnderAttack): ageofai_config.exe's
 // topic, its title the name's words (Citizens under attack; a word in capitals stays: AIChat - AI chat) or
-// [title("t")]. Its keys in it; keys before the first group belong to none. Enums and structs stay in the section.
+// [title("t")]. Its keys in it; keys before the first group belong to none.
+// An enum or struct stands directly above the key it is the type of, before that key's /// lines (in its group too):
+// a key and its values read together. Its name is one of the section's (a second one in another group is a mistake).
 // A key's name stays the key alone - a group or section is only where it is shown.
 //
 // A MASTER is a group with [master]: one key of its own (the class's name: ImprovedUnitMovement improved_unit_movement,

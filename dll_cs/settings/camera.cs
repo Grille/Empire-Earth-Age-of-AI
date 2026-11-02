@@ -14,7 +14,6 @@ class camera
         /// The Art of Conquest's: starts slowly and accelerates to the same top speed (also in Empire Earth)
         aoc,
     }
-
     /// Camera scrolling (mouse at the screen edge / scroll keys):
     [also("patches")]
     scroll_choice scroll = scroll_choice.game;
