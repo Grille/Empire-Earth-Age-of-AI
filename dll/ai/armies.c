@@ -59,7 +59,14 @@
 // the own defence near the station covered by the most defences, found on 2026 of 2250 home checks in a smoke game;
 // 48 games): level - soldiers -7.9 (se 5.2), kills +1.7 (7.2), losses -3.1 (7.1), razed -0.3, buildings lost 6.6 /
 // 6.3. Off. The Mediterranean workers -10.2 of the confirmation was noise: a second 24 there gave +0.4 (6.5), razed
-// +2.7 (2.0).
+// +2.7 (2.0). THE ASSUMED ENEMY (AR_ASSUME; Continental huge 1v1 late, 75 min): at 100 - kills +6.9 (se 7.7),
+// losses -6.8, razed -1.0 (0.7), buildings lost 5.5 / 4.5, 0.5 waits a game (48 games): more careful, nothing won;
+// at 50 - 48 games kills +12.4 (7.1), losses -12.4, the next 48 the exact reverse: 96 games level (kills -0.0 se
+// 5.3). In a 75-minute game the assumption is full only for the last quarter, so from epoch 1 on Continental large,
+// 100 min, at 100 (24 games): pushes 2.1 -> 0.9 a game, 1.1 waits, legs 4.3 -> 1.5, razed -4.0 (se 5.4), buildings
+// lost 19.2 / 15.7, kills and losses level - the force sat at home while the enemy kept coming. The blind push is
+// already cheap: it goes, meets what is there and turns home when it is no longer winning; the pushes the assumption
+// skipped would have razed. Off.
 // BEFORE THE FORCE (2026-11-02, head-to-head, Continental huge 1v1 late, 75 min, 24 mirrored games each): PARITY - the
 // held let go to the game's own launch a tick ahead of the attack time (ai_held cleared, register_unit): soldiers
 // +14.5 (se 6.2), kills +1.3 (6.9), losses -8.0 (8.5), razed -1.8 (1.6), workers -8.1 (10.5) - the soldiers trained
@@ -112,10 +119,15 @@
 #define AR_FORT 0                  // home at the own fortified line: the own defence within AR_FORT_R of the station covered by the most own defences (level: above)
 #endif
 #define AR_FORT_R 25
+#ifndef AR_ASSUME
+#define AR_ASSUME 0                // the push: the unseen enemy at the target assumed this % of the own army's strength (0: the seen only)
+#endif
+#define AR_ASSUME_MIN 60           // the assumption grows with the game's minutes to its full at this
+#define AR_WIN 15                  // the kills and losses of the last this many minutes correct it
 #ifndef AR_RAID_BAND
 #define AR_RAID_BAND 3             // a raid: this many enemy fighters seen within AR_RAID_R of the raider, or one of them attacking ours
 #endif
-internal int g_mod_armies = 0, g_v_mod_armies = -1, g_v_ar_raid_band = -1, g_v_ar_press = -1, g_v_ar_fort = -1;   // [autotest] v_ar_raid_band, v_ar_press, v_ar_fort: the variant players' AR_RAID_BAND, AR_PRESS, AR_FORT
+internal int g_mod_armies = 0, g_v_mod_armies = -1, g_v_ar_raid_band = -1, g_v_ar_press = -1, g_v_ar_fort = -1, g_v_ar_assume = -1;   // [autotest] v_ar_raid_band, v_ar_press, v_ar_fort, v_ar_assume: the variant players' AR_RAID_BAND, AR_PRESS, AR_FORT, AR_ASSUME
 #define MOD_ARMIES(idx) PV(idx, g_v_mod_armies, g_mod_armies)
 internal struct armies_st {
     uint32_t t, log_t;
@@ -128,6 +140,8 @@ internal struct armies_st {
     int weak, clear, stopped;              // judgements running under AR_BACK_PCT; raid checks running with no enemy seen; a push has ended (2: with its target down, not driven off)
     float ratio, out_hp, stop_hp;          // the last judgement; the force's hit points as it went out; the enemy's that ended the last push
     unsigned held_all, pushes, presses, legs, raids, backs, waits, orders, refused, forted;   // forted: home checks that found a defence to stand at
+    int kills[AR_WIN + 1], losses[AR_WIN + 1], win_n;   // the game's own counts of units killed and lost, a sample a minute (the oldest first)
+    uint32_t win_t;
 } g_armies[16];
 internal struct st_side g_ar_own;
 internal int g_ar_debug = 0, g_ar_foe_mid_n; internal float g_ar_foe_mid_hp;   // DEBUG
@@ -159,6 +173,38 @@ __attribute__((format(printf, 3, 4))) internal void ar_log(unsigned idx, uint32_
     fputc('\n', g_log);
     LeaveCriticalSection(&g_lock);
     va_end(ap);
+}
+// THE ASSUMED ENEMY (AR_ASSUME, the player: "I don't need to see the enemy after an hour of playing to know he
+// probably built up similar strength to me"): the enemy at the target as the push judges it is at least the own
+// army's strength - the own land soldiers' hit points, grown with the game's minutes to its full at AR_ASSUME_MIN -
+// plus what the enemy gained on us in the last AR_WIN minutes (the units we lost less those we killed, the game's own
+// counts for the player, in the own soldiers' average hit points), AR_ASSUME % of that: the seen and remembered
+// enemy (stage_foe) stays the floor. Without it a push judged an unscouted base at 1000000 (enemy 0) and walked
+// into the whole enemy army.
+internal int ar_stat(ee_player *pl, int k) {   // the player's statistics series k, its latest value (attack.c "# battle")
+    ee_player_stats *st = player_stats_at(pl);
+    if (!st) return 0;
+    uint8_t *b = player_stats_get_begin(st, k), *e = player_stats_get_end(st, k);
+    return b && e > b && (e - b) % 8 == 0 && e - b < (1 << 20) && mem_readable(e - 8, 8) ? FIELD(e, -8, int) : 0;
+}
+internal void ar_window(ee_player *pl, struct armies_st *a, uint32_t now) {   // a sample a minute: series 3 units killed, 4 units lost
+    if (a->win_t && now >= a->win_t && now - a->win_t < 60000) return;
+    a->win_t = now ? now : 1;
+    if (a->win_n == AR_WIN + 1) { memmove(a->kills, a->kills + 1, AR_WIN * sizeof *a->kills); memmove(a->losses, a->losses + 1, AR_WIN * sizeof *a->losses); a->win_n--; }
+    a->kills[a->win_n] = ar_stat(pl, 3); a->losses[a->win_n] = ar_stat(pl, 4); a->win_n++;
+}
+// the force (all of it, g_ar_own) against the assumed enemy: the ratio, 99 when nothing is assumed
+internal float ar_assumed(unsigned idx, struct armies_st *a, uint32_t now, float *foe_hp) {
+    int pct = PV(idx, g_v_ar_assume, AR_ASSUME);
+    *foe_hp = 0.0f;
+    if (!pct || !g_ar_own.n) return 99.0f;
+    float avg = g_ar_own.hp / (float)g_ar_own.n;
+    int net = a->win_n > 1 ? (a->losses[a->win_n - 1] - a->losses[0]) - (a->kills[a->win_n - 1] - a->kills[0]) : 0;
+    float ramp = now < (uint32_t)AR_ASSUME_MIN * 60000u ? (float)now / (float)(AR_ASSUME_MIN * 60000) : 1.0f;
+    float foe = (g_ar_own.hp + (float)net * avg) * ramp * (float)pct / 100.0f;
+    if (foe <= 0.0f) return 99.0f;
+    *foe_hp = foe;
+    return g_ar_own.hp / foe;
 }
 // the force's home: the front station when it is safe, else the staging point, else the base (0: none yet). The
 // station moves with the fronts' weights (every 10 s), the staging point with the marches: home follows only a
@@ -419,16 +465,18 @@ internal void ar_at_home(ee_player *pl, unsigned idx, struct armies_st *a, uint3
         if (!press) a->wait_due = due;
         ee_unit *t = ar_target(pl, a->home);
         ivec2 d = t ? unit_get_tile(t) : a->home;
-        float r = t ? ar_judge(pl, a, 0, d) : 0.0f;
+        float r = t ? ar_judge(pl, a, 0, d) : 0.0f, foe_hp = 0.0f;
+        float ra = t ? ar_assumed(idx, a, now, &foe_hp) : 99.0f;
+        if (ra < r) r = ra;
         if (!t || r * 100.0f < (float)AR_GO_PCT) {
             if (press) return;   // told at the attack time
             a->waits++;
-            if (t) ar_log(idx, now, "the attack time: the force of %d waits at %d,%d - %d,%d is too strong (%.2f: own %d, enemy %d)", n, a->home.x, a->home.y, d.x, d.y, r, g_ar_own.n, g_sgs_foe.n);
+            if (t) ar_log(idx, now, "the attack time: the force of %d waits at %d,%d - %d,%d is too strong (%.2f: own %d, enemy %d; assumed hp %.0f against own %.0f, %.2f)", n, a->home.x, a->home.y, d.x, d.y, r, g_ar_own.n, g_sgs_foe.n, foe_hp, g_ar_own.hp, ra);
             else ar_log(idx, now, "the attack time: the force of %d waits at %d,%d - no enemy building known", n, a->home.x, a->home.y);
             return;
         }
         if (press) a->presses++; else a->pushes++;
-        ar_log(idx, now, "%s: the force of %d from %d,%d at %d,%d (%.2f: own %d, enemy %d; stopped by hp %.0f)", press ? "pressing on" : "the attack time", n, a->home.x, a->home.y, d.x, d.y, r, g_ar_own.n, g_sgs_foe.n, a->stop_hp);
+        ar_log(idx, now, "%s: the force of %d from %d,%d at %d,%d (%.2f: own %d, enemy %d; assumed hp %.0f against own %.0f, %.2f)", press ? "pressing on" : "the attack time", n, a->home.x, a->home.y, d.x, d.y, r, g_ar_own.n, g_sgs_foe.n, foe_hp, g_ar_own.hp, ra);
         ar_go(a, 1, d, t, 0, now);
     }
 }
@@ -461,6 +509,7 @@ internal void armies_tick(ee_player *pl, uint32_t now) {
         a->held[a->n].u = u; a->held[a->n].id = unit_get_id(u); a->held[a->n].order_t = 0; a->held[a->n].out = 0; a->n++;
         a->held_all++;
     }
+    ar_window(pl, a, now);
     if (!ar_home(pl, idx, a, now)) return;
     if (a->out) ar_out(pl, idx, a, now);
     ar_at_home(pl, idx, a, now);
@@ -479,6 +528,7 @@ internal void armies_install(const char *autotest_ini) {
         g_v_ar_raid_band = ini_int("autotest", "v_ar_raid_band", -1, autotest_ini);
         g_v_ar_press = ini_int("autotest", "v_ar_press", -1, autotest_ini);
         g_v_ar_fort = ini_int("autotest", "v_ar_fort", -1, autotest_ini);
+        g_v_ar_assume = ini_int("autotest", "v_ar_assume", -1, autotest_ini);
     }
     if (g_log) fprintf(g_log, "# mod armies: %d (variant %d)\n", g_mod_armies, g_v_mod_armies);
 }
