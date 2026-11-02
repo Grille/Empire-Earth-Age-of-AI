@@ -1101,7 +1101,7 @@ internal int fo_follow_aim(ee_unit *u, const float *pos, float *aim) {
     uint32_t step = ff_step();
     ee_unit *l;
     struct ff_group *gr = ff_march(e, u, step, &l);
-    if (!gr || e->out) return 0;
+    if (!gr || e->out) { if (g_ff_watch && g_log) fprintf(g_log, "# ffaim %u %06x %s\n", game_time(), (unsigned)unit_get_serial(u) & 0xFFFFFF, !gr ? "nomarch" : "out"); return 0; }
     vec2 way, face;
     float vel;
     vec2 anchor = ff_anchor_now(gr, &way, &face, &vel), right = v2(face.y, -face.x);
@@ -1231,6 +1231,7 @@ internal int fo_follow_aim(ee_unit *u, const float *pos, float *aim) {
         if (e->waited > 0 && ff_since(e->wait_at) >= FF_OUT_S) { e->waited = -1; g_ff_wait_gave_up++; }   // not gaining in FF_OUT_S (jostled in the crowd, blocked): given up till it is near its point - the formation goes on, and the moving formation untangles it (the clock runs on through a swing beside or ahead of its point: a jostled unit flipped in and out of straggling every few seconds, and a fresh clock each time never ran out)
     }
     if (e->waited > 0 && straggling && !jammed && (gr->pace_next < 0 || now < gr->pace_next)) gr->pace_next = now;
+    if (!ok && g_ff_watch && g_log) fprintf(g_log, "# ffaim %u %06x own why %d at %.1f,%.1f pt %.1f,%.1f\n", game_time(), (unsigned)unit_get_serial(u) & 0xFFFFFF, why, at.x, at.y, pt.x, pt.y);
     if (!ok) {   // its own route for now: from where it stands, when it steered at its point till now (at most every FF_REROUTE_S)
         if (e->step != ~0u && step - e->step <= 3 && (!e->rerouted_at || ff_since(e->rerouted_at) >= FF_REROUTE_S)) {
             // the march goes on through its leg's end and that lies behind: the leg ends here (its next order takes it
@@ -1260,20 +1261,30 @@ internal int fo_follow_aim(ee_unit *u, const float *pos, float *aim) {
 // (ships: shiproute.c's speed step calls it with the game's step s)
 internal float ff_speed(ee_unit *u, float s, float angle) {
     struct ff_unit *e = g_ff_on && u ? ff_find((uint32_t)unit_get_serial(u), 0) : NULL;
-    if (!e || fabsf(angle) > 0.7853982f) return s;
+    if (!e) return s;
     uint32_t step = ff_step();
+    // turning more than 45 degrees to the game's own route point: the game's step - unless the unit is steered at its
+    // point by the follow (this tick or the last): the game's angle is to its own waypoint then, behind a unit waiting
+    // abreast for its point, and the game's step turned it round and walked it back, ours turned it forward again - a
+    // twitch every second while it waited (the save's 27-tile march: a unit 0 -> 0.34 -> 0.60 -> 0.26 -> 0, five times)
+    if (fabsf(angle) > 0.7853982f && (e->step == ~0u || step - e->step > 1)) { if (g_ff_watch && g_log) fprintf(g_log, "# ffspd %u %06x game s %.3f ang %.2f steered %d own %d\n", game_time(), (unsigned)unit_get_serial(u) & 0xFFFFFF, s, angle, e->step == ~0u ? -1 : (int)(ff_step() - e->step), e->own); return s; }
     ee_unit *l;
     struct ff_group *gr = ff_march(e, u, step, &l);
-    if (!gr) return s;
+    if (!gr) { if (g_ff_watch && g_log) fprintf(g_log, "# ffspd %u %06x nomarch s %.3f\n", game_time(), (unsigned)unit_get_serial(u) & 0xFFFFFF, s); return s; }
     float top = unit_max_speed(u), want, cap = top;
-    if (e->step == ~0u || step - e->step > FF_KEEP) return s;   // steered at its point lately (a ship isn't every tick)
+    if (e->step == ~0u || step - e->step > FF_KEEP) { if (g_ff_watch && g_log) fprintf(g_log, "# ffspd %u %06x own s %.3f since %u\n", game_time(), (unsigned)unit_get_serial(u) & 0xFFFFFF, s, e->step == ~0u ? 0 : step - e->step); return s; }   // steered at its point lately (a ship isn't every tick)
     want = e->with + FF_GAIN * e->along;   // its point's speed its way, and closing
     if (e->along > 0) cap = top * (1 + ff_boost(e, u, step));   // near its place only, or in the re-form's grace
     if (want > cap) want = cap;
     if (want < 0) want = 0;
     e->want = want;
     ee_physics *ph = game_physics();
+    // by its own acceleration: capped (0.5 tiles/s/s against a halberdier's 1.3) the units arrived late - one stopped
+    // by a push near its spot got going too slowly (form_place's last at 104 s, 64 uncapped; form_back 82, 68); and
+    // the march slowed into its goal (over the last 2-4 tiles, to 40-50%) doubled the pushes at rest and left a unit
+    // shuffling for minutes - the units' own stop at their spots, as the game's, is the clean one (2026-11-02)
     float v = unit_get_speed(u), acc = ph ? physics_get_step_s(ph) * unit_accel(u) : 0.01f;
+    if (g_ff_watch && g_log) fprintf(g_log, "# ffspd %u %06x ff s %.3f ang %.2f want %.3f v %.3f along %.2f with %.3f acc %.3f\n", game_time(), (unsigned)unit_get_serial(u) & 0xFFFFFF, s, angle, want, v, e->along, e->with, acc);
     return v < want ? (v + acc < want ? v + acc : want) : (v - acc > want ? v - acc : want);
 }
 // a ship's turn at its point (shiproute.c, after the game's turn towards it: *left the angle off its bow then): at a
