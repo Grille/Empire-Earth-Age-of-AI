@@ -635,8 +635,8 @@ internal int x_type_named(const char *t) {
     return -1;
 }
 // "(a, b) =>" at s: a function's head - its parameters' names (at most 8), each one's type as written after a ':'
-// ("" none), and where its body starts; NULL: none
-internal const char *xps_lambda_head(const char *s, char names[8][24], char types[8][32], int *n) {
+// ("" none), and where its body starts; NULL: none. brace: a declaration's - name(a, b) { ... } too (at its {)
+internal const char *xps_lambda_head(const char *s, char names[8][24], char types[8][32], int *n, int brace) {
     *n = 0;
     s++;
     while (*s == ' ' || *s == '\t' || *s == '\n' || *s == '\r') s++;
@@ -663,7 +663,45 @@ internal const char *xps_lambda_head(const char *s, char names[8][24], char type
     if (*s != ')') return NULL;
     s++;
     while (*s == ' ' || *s == '\t') s++;
+    if (brace && *s == '{') return s;
     return s[0] == '=' && s[1] == '>' ? s + 2 : NULL;
+}
+// a function from its head (xps_lambda_head's names and types) and its body at body - one value, or { ... }: its
+// XN_LAMBDA (an offset), NULL with p->err
+internal struct xnode *xps_lambda(struct xps *p, const char *s, char pn[8][24], char pt[8][32], int npn, const char *body) {
+    uintptr_t *it = NULL;
+    int n = 0, cap = 0;
+    for (int i = 0; i < npn; i++) {
+        for (int j = 0; j < i; j++) if (!strcmp(pn[i], pn[j])) { p->err = 1; p->why = "a parameter twice"; free(it); return NULL; }
+        if (x_word_reserved(pn[i])) { p->err = 1; p->why = "a word of the language is no name"; free(it); return NULL; }
+        int ty = pt[i][0] ? x_type_named(pt[i]) : X_ANY;
+        if (ty < 0) {
+            p->err = 1;
+            p->why = "an unknown type - int, float, bool, text, vec2, vec3, vec4, epoch, color, unit_type, function, record, trigger, player, game, slot; list<T> a list, T? or null";
+            free(it);
+            return NULL;
+        }
+        struct xnode *x = xn_new(p, XN_NAME, s);
+        if (!x) { free(it); return NULL; }
+        x->s = _strdup(pn[i]);
+        x->n = ty;   // its type (the check's), X_ANY none written
+        if (!xps_items_add(p, &it, &n, &cap, XOFF(p, x))) { free(it); return NULL; }
+    }
+    p->s = body;
+    xps_space(p);
+    int par = p->par;
+    p->par = 0;
+    struct xnode *b;
+    if (*p->s == '{') xps_block(p, &b);
+    else xps_expr(p, &b);
+    p->par = par;
+    if (p->err) { free(it); return NULL; }
+    struct xnode *o = xn_new(p, XN_LAMBDA, s);
+    if (!o) { free(it); return NULL; }
+    o->n_items = n;
+    o->items = (struct xnode **)it;
+    o->a = b;
+    return XOFF(p, o);
 }
 internal void xps_primary(struct xps *p, struct xnode **out) {
     xps_space(p);
@@ -673,40 +711,8 @@ internal void xps_primary(struct xps *p, struct xnode **out) {
     int npn;
     const char *body;
     *out = NULL;
-    if (*s == '(' && (body = xps_lambda_head(s, pn, pt, &npn)) != NULL) {   // a function: (a: int, b) => value, or => { ... }
-        uintptr_t *it = NULL;
-        int n = 0, cap = 0;
-        for (int i = 0; i < npn; i++) {
-            for (int j = 0; j < i; j++) if (!strcmp(pn[i], pn[j])) { p->err = 1; p->why = "a parameter twice"; free(it); return; }
-            if (x_word_reserved(pn[i])) { p->err = 1; p->why = "a word of the language is no name"; free(it); return; }
-            int ty = pt[i][0] ? x_type_named(pt[i]) : X_ANY;
-            if (ty < 0) {
-                p->err = 1;
-                p->why = "an unknown type - int, float, bool, text, vec2, vec3, vec4, epoch, color, unit_type, function, record, trigger, player, game, slot; list<T> a list, T? or null";
-                free(it);
-                return;
-            }
-            struct xnode *x = xn_new(p, XN_NAME, s);
-            if (!x) { free(it); return; }
-            x->s = _strdup(pn[i]);
-            x->n = ty;   // its type (the check's), X_ANY none written
-            if (!xps_items_add(p, &it, &n, &cap, XOFF(p, x))) { free(it); return; }
-        }
-        p->s = body;
-        xps_space(p);
-        int par = p->par;
-        p->par = 0;
-        struct xnode *b;
-        if (*p->s == '{') xps_block(p, &b);
-        else xps_expr(p, &b);
-        p->par = par;
-        if (p->err) { free(it); return; }
-        o = xn_new(p, XN_LAMBDA, s);
-        if (!o) { free(it); return; }
-        o->n_items = n;
-        o->items = (struct xnode **)it;
-        o->a = b;
-        o = XOFF(p, o);
+    if (*s == '(' && (body = xps_lambda_head(s, pn, pt, &npn, 0)) != NULL) {   // a function: (a: int, b) => value, or => { ... }
+        if (!(o = xps_lambda(p, s, pn, pt, npn, body))) return;
     } else if (*s == '(') {
         p->s++;
         p->par++;
@@ -1068,6 +1074,29 @@ internal void xps_stmt(struct xps *p, struct xnode **out) {
     const char *at = p->s;
     char name[40];
     *out = NULL;
+    {   // name(a: int) => value, name(a: int) { ... }: a function declared - a let of it (op 'D', on it and its function),
+        // moved to the script's top (xps_stmts): known in the whole file, never set anew
+        const char *q = p->s;
+        int k = 0;
+        while ((isalnum((unsigned char)*q) || *q == '_') && k < 39) name[k++] = *q++;
+        name[k] = 0;
+        char pn[8][24], pt[8][32];
+        int npn;
+        const char *body = k && !isdigit((unsigned char)name[0]) && *q == '(' && !x_word_reserved(name) ? xps_lambda_head(q, pn, pt, &npn, 1) : NULL;
+        if (body) {
+            struct xnode *f = xps_lambda(p, q, pn, pt, npn, body);
+            if (!f) return;
+            XPTR(p, f)->op = 'D';
+            struct xnode *o = xn_new(p, XN_LET, at);
+            if (!o) return;
+            o->s = _strdup(name);
+            o->a = f;
+            o->n = X_ANY;
+            o->op = 'D';
+            *out = XOFF(p, o);
+            return;
+        }
+    }
     if (xps_word(p, "return")) {
         struct xnode *v = NULL;
         xps_space(p);
@@ -1202,8 +1231,21 @@ internal void xps_stmts(struct xps *p, struct xnode **out, int brace, const char
         if (!*p->s) { if (brace) { p->err = 1; p->why = "a { without its }"; free(it); return; } break; }
         if (n && !xps_newline_before(p)) { p->err = 1; p->why = "one statement a line"; free(it); return; }
         struct xnode *x;
+        const char *st = p->s;
         xps_stmt(p, &x);
+        if (!p->err && brace && x && XPTR(p, x)->k == XN_LET && XPTR(p, x)->op == 'D') {
+            p->s = st;
+            p->err = 1;
+            p->why = "a function is declared at the script's top - inside a block: let name = (a: int) => ...";
+        }
         if (p->err || !xps_items_add(p, &it, &n, &cap, x)) { free(it); return; }
+    }
+    for (int i = 0, d = 0; i < n; i++) {   // the declared functions first, in their order: known (and made) before the rest runs
+        struct xnode *x = XPTR(p, (struct xnode *)it[i]);
+        if (x->k != XN_LET || x->op != 'D') continue;
+        uintptr_t keep = it[i];
+        memmove(it + d + 1, it + d, (size_t)(i - d) * sizeof *it);
+        it[d++] = keep;
     }
     struct xnode *o = xn_new(p, XN_BLOCK, at);
     if (!o) { free(it); return; }
@@ -1821,7 +1863,9 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
         return 1;
     case XN_ASSIGN: {
         int f = xsc_find(sc, n->s, strlen(n->s), NULL);   // (the code around's too: set in its own frame)
-        if (!f) snprintf(k->whybuf, sizeof k->whybuf, "%s = ...: no variable %s - let %s = ... makes one", n->s, n->s, n->s);
+        const struct xnode *fd = f ? xsc_fn(sc, n->s, strlen(n->s)) : NULL;
+        if (fd && fd->op == 'D') snprintf(k->whybuf, sizeof k->whybuf, "%s = ...: %s is a function declared with %s(...) - only a let's variable is set", n->s, n->s, n->s);
+        else if (!f) snprintf(k->whybuf, sizeof k->whybuf, "%s = ...: no variable %s - let %s = ... makes one", n->s, n->s, n->s);
         else if (f == 2) snprintf(k->whybuf, sizeof k->whybuf, "%s is set before its let", n->s);
         else {
             if (!x_check(k, n->a, sc)) return 0;

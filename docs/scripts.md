@@ -35,6 +35,7 @@ One a line; `//` starts a comment, as in the game's own scripts (.rmv, .tai) - a
 | `for i in 1..5 { ... }` | the block for every whole number from 1 to 5 (both in; none when the second is smaller); `for p in [2, 3, 5]`: for each item of a list |
 | `break`, `continue` | in a loop: out of it, or on to its next round |
 | `return value`, `return` | in a function's `{ }` body: what it hands back (nothing without one) |
+| `name(a: int) => value`, `name(a: int) { ... }` | a function declared, at the script's top only: known in the whole file (used above where it is written too), never set anew ("Functions and their names") |
 
 A line may go on while a `(`, `[` or `{` is open; a block's `{` is on its statement's line. A condition is true as in
 an expression (a number not 0, a text not empty, a list, a player). A `let` in a block (an `if`'s, a loop's) is that
@@ -193,6 +194,21 @@ every(10s, 50s, 2min, (run) => {
     checks += 1                            // the script's own: 3 after it
     return run == 3 ? stop                 // three times, then on
 })
+```
+
+**Declared functions:** at the script's top, `name(a: int) => value` (one value) or `name(a: int) { ... }`
+(statements, `return` for a value) declares a function - made before anything else runs, so it can be used above
+where it is written, and declared ones call each other in any order. Named without `( )` it is its value, to pass on
+(`every(10s, 0, 1min, check)`, `let f = check`). It is never set anew (`check = ...` is a mistake: only a `let`'s
+variable changes), and inside a block (an `if`'s, a function's) it is a mistake - there it is
+`let name = (a: int) => ...`. Its parameters take their types as a function's do.
+
+```
+let n = twice(4)                           // 8 - declared further down
+twice(x: int) => x * 2
+spawn_row(y: int) {
+    for i in 1..3 { spawn(3, unit.b_guard_tower_bronze, 51, y + i * 3) }
+}
 ```
 
 ## Triggers
