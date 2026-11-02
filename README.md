@@ -290,7 +290,8 @@ Settings in `ageofai.ini`:
   `[display] present=auto` picks the matching way to show the picture (DDrawCompat: its primary surface;
   otherwise Direct3D 11).
   The mouse follows the Windows cursor (your pointer speed), the window can be moved and switched like
-  any other. `lock_mouse` keeps the cursor inside while the game is in front: `auto` (default) only in
+  any other: another window in front takes the keyboard at once, the game cursor follows while you hover over
+  the game in the background, and the click that brings it back counts as a click. `lock_mouse` keeps the cursor inside while the game is in front: `auto` (default) only in
   borderless, so edge scrolling doesn't slide onto a second monitor, while a window stays free; `on` always, `off` never.
 - `[display] display_mode=borderless`: a frameless window over the whole monitor, the game image scaled to it
   (aspect kept). Alt+Enter switches between window and borderless. The window is DPI-aware (`dpi_aware`),

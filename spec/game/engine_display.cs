@@ -23,6 +23,11 @@ unsafe struct ISMouse
     [offset(0x18), found(c)]
     block buttons;
 
+    /// the buttons' counters as the frame before (Refresh copies +0x18 here first; RecomputeCurrentButtonState sets both
+    /// alike): a press is a counter odd now and different here
+    [offset(0x1C), found(c)]
+    block buttons_before;
+
     [offset(0x44), found(c)]
     void** device;
 }

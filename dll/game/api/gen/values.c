@@ -510,6 +510,7 @@ internal uint32_t of_font_hfont;
 internal uint32_t of_font_bitmap;
 internal uint32_t of_input_mouse_suspended;
 internal uint32_t of_input_mouse_buttons;
+internal uint32_t of_input_mouse_buttons_before;
 internal uint32_t of_input_mouse_device;
 internal uint32_t of_rasterizer_screen_states;
 internal uint32_t of_rasterizer_dstates;

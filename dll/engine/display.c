@@ -765,6 +765,9 @@ internal int mouse_locked(void) { return g_lock_mouse == 1 || (g_lock_mouse == 2
 internal WNDPROC g_game_wndproc;
 internal HWND g_subclassed;
 internal volatile LONG g_mouse_updates, g_mouse_unacq, g_mouse_reacq;
+internal volatile LONG g_focus_click = -1;      // a click that activated the window: its button (0 left, 1 right, 2 middle)
+internal volatile DWORD g_focus_click_at;
+internal volatile DWORD g_hover_at;             // GetTickCount of the last cursor update in the background (WM_SETCURSOR)
 
 internal void os_cursor_visible(void) {   // display count back to 0 for this thread
     int c = ShowCursor(TRUE);
@@ -978,8 +981,8 @@ internal LRESULT CALLBACK window_proc(HWND h, UINT msg, WPARAM w, LPARAM l) {
         p->flags &= ~SWP_NOSIZE;
         break;
     }
-    case WM_SETCURSOR:   // game cursor in the client area while in front, Windows' cursor everywhere else
-        if (LOWORD(l) == HTCLIENT && GetForegroundWindow() == h) { SetCursor(NULL); return TRUE; }
+    case WM_SETCURSOR:   // game cursor in the client area while in front or followed there (hover), Windows' cursor elsewhere
+        if (LOWORD(l) == HTCLIENT && (GetForegroundWindow() == h || GetTickCount() - g_hover_at < 200)) { SetCursor(NULL); return TRUE; }
         os_cursor_visible();
         if (LOWORD(l) == HTCLIENT) { SetCursor(LoadCursorA(NULL, (LPCSTR)IDC_ARROW)); return TRUE; }
         return DefWindowProcA(h, msg, w, l);
@@ -990,6 +993,13 @@ internal LRESULT CALLBACK window_proc(HWND h, UINT msg, WPARAM w, LPARAM l) {
     }
     case WM_ACTIVATEAPP:
         if (!w) ClipCursor(NULL);
+        break;
+    case WM_MOUSEACTIVATE:   // a click into the window in the background: its press is the game's too (focus_click)
+        if (LOWORD(l) == HTCLIENT && GetForegroundWindow() != h) {
+            UINT b = HIWORD(l);
+            LONG k = b == WM_LBUTTONDOWN ? 0 : b == WM_RBUTTONDOWN ? 1 : b == WM_MBUTTONDOWN ? 2 : -1;
+            if (k >= 0) { g_focus_click_at = GetTickCount(); g_focus_click = k; }
+        }
         break;
     case WM_SIZE:   // the window's own size from now on (window_rect_for): its first and the player's own
         if (w == SIZE_RESTORED && !g_borderless && !g_headless && LOWORD(l) >= 160 && HIWORD(l) >= 120 &&
@@ -1102,10 +1112,57 @@ internal void mouse_acquire(int want) {
 // and restored. The intro sequence (0x538xxx) also ends with Suspend. In front, a suspended device is resumed.
 internal volatile LONG g_input_resumes;
 internal void resume_if_suspended(void *d, DWORD *last) {   // the mouse or the keyboard (an ISDevice: its +4 the same)
-    if (!d || !input_mouse_get_suspended(d) || GetTickCount() - *last < 250) return;   // +4: suspended (ISDevice)
+    if (!d || !input_mouse_get_suspended(d) || GetTickCount() - *last < 50) return;   // +4: suspended (ISDevice)
     *last = GetTickCount();
     ((ThisFn)(*(void ***)d)[4])(d);   // Resume (vtable +0x10)
     InterlockedIncrement(&g_input_resumes);
+}
+
+// Focus out (the player, 2026-11-02: after Alt+Tab or the Windows key the game sometimes still took the keys). The game
+// suspends its devices only in its window procedure (WM_ACTIVATEAPP(0)), on the window's thread - late while that
+// thread is busy, and until then the keyboard (DirectInput, buffered) reads what is typed into the window in front.
+// Every mouse update (the drawing thread's frame, the mouse thread's 25 ms) looks itself: not in front, keyboard and
+// mouse are suspended at once - the game's own Suspend later finds them so.
+internal int suspend_if_resumed(void *d) {   // the mouse or the keyboard: Suspend (vtable +0x18) unless suspended
+    if (!d || input_mouse_get_suspended(d)) return 0;
+    ((ThisFn)(*(void ***)d)[6])(d);
+    return 1;
+}
+
+// Focus in by a click (the player: the click that brings the game back should count). Its press came before the
+// mouse was acquired again: Resume reads the button as held (RecomputeCurrentButtonState: the counter and the frame
+// before's alike) - never a press - and a click shorter than the resume isn't seen at all. WM_MOUSEACTIVATE notes the
+// button; the first update in front with the mouse resumed, after the cursor's position, makes it the game's press:
+// still held, the frame before counts as up; already let go, a whole click (down now, up FOCUS_UP_MS later, as the
+// virtual mouse's).
+#define FOCUS_CLICK_MS 1000   // a noted click this old is dropped (the mouse never came back)
+#define FOCUS_UP_MS 100
+internal volatile LONG g_focus_up = -1;   // the button to let go
+internal volatile DWORD g_focus_up_at;
+internal volatile LONG g_focus_clicks;
+internal void focus_click(ee_input_mouse *ms) {
+    DWORD now = GetTickCount();
+    uint8_t *st = input_mouse_buttons_at(ms), *before = input_mouse_buttons_before_at(ms);
+    LONG b = g_focus_up;
+    if (b >= 0 && now - g_focus_up_at >= FOCUS_UP_MS && InterlockedCompareExchange(&g_focus_up, -1, b) == b && (st[b] & 1))
+        st[b]++;   // up
+    if (g_focus_click < 0) return;
+    if (now - g_focus_click_at > FOCUS_CLICK_MS) { g_focus_click = -1; return; }
+    b = InterlockedExchange(&g_focus_click, -1);
+    if (b < 0) return;
+    if (!(st[b] & 1)) {   // let go before the mouse came back: down now, up later
+        st[b]++;
+        g_focus_up_at = now;
+        g_focus_up = b;
+    } else if (before[b] == st[b]) before[b] = (uint8_t)(st[b] - 1);
+    InterlockedIncrement(&g_focus_clicks);
+}
+
+// the window under the cursor is one of the game's (its own, DDrawCompat's presentation window over it)
+internal int cursor_over_game(POINT pt) {
+    HWND w = WindowFromPoint(pt);
+    DWORD pid = 0;
+    return w && GetWindowThreadProcessId(w, &pid) && pid == GetCurrentProcessId();
 }
 
 // virtual mouse (headless): position in game coordinates from the control pipe; a click increments the button's
@@ -1136,6 +1193,7 @@ internal void virtual_mouse(ee_mouse *m, int frozen) {
 }
 
 internal void window_mouse_in(ee_mouse *m, int frozen, ee_window *win, HWND hwnd);
+internal void window_mouse_to(ee_mouse *m, ee_window *win, const RECT *rc, POINT c);
 internal void window_mouse(ee_mouse *m, int frozen) {
     ee_window *win = game_window();
     HWND hwnd = win ? window_get_hwnd(win) : NULL;
@@ -1156,7 +1214,11 @@ internal void window_mouse_in(ee_mouse *m, int frozen, ee_window *win, HWND hwnd
     int fg = GetForegroundWindow() == hwnd;
     int inside = PtInRect(&rc, c);
     int held = ((GetAsyncKeyState(VK_LBUTTON) | GetAsyncKeyState(VK_RBUTTON) | GetAsyncKeyState(VK_MBUTTON)) & 0x8000) != 0;
-    if (fg && !IsIconic(hwnd)) {
+    if (!fg) {
+        int k = suspend_if_resumed(input_keyboard()), mo = suspend_if_resumed(input_mouse());
+        if ((k || mo) && g_log) log_locked("# focus: another window in front, the game's %s%s%s still on - suspended\n",
+                                           k ? "keyboard" : "", k && mo ? " and " : "", mo ? "mouse" : "");
+    } else if (!IsIconic(hwnd)) {
         static DWORD last_mouse, last_keyboard;
         resume_if_suspended(input_mouse(), &last_mouse);
         resume_if_suspended(input_keyboard(), &last_keyboard);
@@ -1167,15 +1229,25 @@ internal void window_mouse_in(ee_mouse *m, int frozen, ee_window *win, HWND hwnd
         MapWindowPoints(hwnd, NULL, (POINT *)&want, 2);
         if (!GetClipCursor(&cur) || !EqualRect(&cur, &want)) ClipCursor(&want);
     }
-    if (frozen || !fg) return;
-    if (!inside && !held && WindowFromPoint(pt) == hwnd) return;   // on the title bar or frame: leave it
-    // client position -> game resolution (GEWindow +0xC/+0x10; the window may be scaled). The cursor range
-    // (+0x18..) is only the clamp: while dragging in the 3D view the game narrows it to the map area.
-    // Outside the window (or dragging out of it) the position clamps to the edge: edge scrolling works by
-    // pushing past the border; the last pixel maps to the full width (clamped to end - 1, like fullscreen)
+    // in the background the game cursor follows the Windows one while it is over the picture (the player: hovering
+    // should move it before the click), uncovered and not minimized
+    int hover = !fg && inside && !IsIconic(hwnd) && cursor_over_game(pt);
+    if (!frozen && (fg || hover) && (inside || held || WindowFromPoint(pt) != hwnd)) {   // on the title bar or frame: leave it
+        window_mouse_to(m, win, &rc, c);
+        if (hover) g_hover_at = GetTickCount();
+    }
+    ee_input_mouse *ms = input_mouse();
+    if (fg && ms && !input_mouse_get_suspended(ms)) focus_click(ms);   // after the position: the click lands where it was
+}
+
+// client position -> game resolution (GEWindow +0xC/+0x10; the window may be scaled). The cursor range
+// (+0x18..) is only the clamp: while dragging in the 3D view the game narrows it to the map area.
+// Outside the window (or dragging out of it) the position clamps to the edge: edge scrolling works by
+// pushing past the border; the last pixel maps to the full width (clamped to end - 1, like fullscreen)
+internal void window_mouse_to(ee_mouse *m, ee_window *win, const RECT *rc, POINT c) {
     unsigned gw = (unsigned)window_get_width(win), gh = (unsigned)window_get_height(win);
     if (gw < 2 || gh < 2) return;
-    RECT v = view_rect(&rc, (int)gw, (int)gh);   // borderless: the image may have bars
+    RECT v = view_rect(rc, (int)gw, (int)gh);   // borderless: the image may have bars
     if (v.right - v.left < 2 || v.bottom - v.top < 2) return;
     mouse_set_x(m, (float)(c.x - v.left) * (float)gw / (float)(v.right - v.left - 1));
     mouse_set_y(m, (float)(c.y - v.top) * (float)gh / (float)(v.bottom - v.top - 1));
@@ -2028,9 +2100,10 @@ internal void cmd_ddinfo(char *out, const char *args) {
           g_present_frames, g_present_fail, g_lit_frames, g_lit_frames ? g_lit_samples / g_lit_frames : 0, g_lock_fail);
     ee_mouse *gm = game_mouse(); ee_input_mouse *ms = is_mouse();
     if (gm) REPLY("mouse: game cursor %.1f,%.1f of x %.0f..%.0f y %.0f..%.0f, updates %ld, unacquired %ld, reacquired %ld, "
-                  "device %s, resumed by us %ld, subclassed %p\n", mouse_get_x(gm), mouse_get_y(gm), mouse_get_x_min(gm),
+                  "device %s, resumed by us %ld, activating clicks %ld, subclassed %p\n", mouse_get_x(gm), mouse_get_y(gm), mouse_get_x_min(gm),
                   mouse_get_x_max(gm), mouse_get_y_min(gm), mouse_get_y_max(gm), g_mouse_updates, g_mouse_unacq,
-                  g_mouse_reacq, ms ? (input_mouse_get_suspended(ms) ? "suspended" : "active") : "-", g_input_resumes, (void *)g_subclassed);
+                  g_mouse_reacq, ms ? (input_mouse_get_suspended(ms) ? "suspended" : "active") : "-", g_input_resumes,
+                  g_focus_clicks, (void *)g_subclassed);
     {
         LARGE_INTEGER f;
         QueryPerformanceFrequency(&f);
