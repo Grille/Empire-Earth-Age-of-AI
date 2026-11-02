@@ -83,6 +83,7 @@ Everything the personalities' expressions have (numbers, `70%`, texts with `{pla
 | `player(3)`, `game` | objects - "Objects" below |
 | `l[2]` | a list's item, from 1 (`l[0]`, one past its end: a mistake) |
 | `vec(70, 50)` | a vector (2 to 4 numbers - a place in tiles): `let home = vec(70, 50)` then `home.x`, `step(home).x`, `home + vec(5, 0)`, `home * 2`, `distance(home, there)` (the README's "Vectors"); as a command's argument its numbers one each: `spawn(2, unit.inf02_spearman, home, 10)` is `spawn 2 24 70 50 10` |
+| `dict<player, int>(0)` | a dict: an entry per key, the default (here 0) for every key without one - `let kills = dict<player, int>(0)`, `kills[p] += 1`, `kills[p]` (never missing: the default). Keys: `int`, `text` or an object (`player` ...); values: `int`, `float`, `bool` or `text` - a key or value of another type is a mistake when it is worked out. A dict is one table: `let k = kills` is the same one, `k[p] = 5` is seen in `kills` too. Only a dict's entries are set (`l[1] = 5` on a list is a mistake) |
 | `{ x = 70, y = 50, units = 10 }` | a record (the README's "Records"): `let wave = { at = vec(70, 50), units = 10 }` then `wave.at`, `wave.units`, `has(wave, "units")`; a comma after each member |
 | `time` | the game time now, in seconds |
 | `stop` | what an `every` body returns to end it early |

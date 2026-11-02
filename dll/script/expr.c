@@ -103,11 +103,13 @@ struct xctx {
 // it, ln: a list's items (ln 0: no list) - its value meanwhile is one of them, at random; kind: a function (fn: its
 // definition and where it was made), stop (a for / every body's "no more"), a vector (vc: its vn numbers, 2..4 -
 // .x .y .z .w; in the region like a text), a record (rec: its members by name) or a trigger (n: its index -
-// TRIGGERS below) - neither number nor text
-enum { XV_PLAIN, XV_FN, XV_STOP, XV_VEC, XV_REC, XV_TRIG };
+// TRIGGERS below) - neither number nor text - or a dict (dict: its entries, DICTS below; one table, shared by every
+// value that holds it: d[k] = v is seen through all of them)
+enum { XV_PLAIN, XV_FN, XV_STOP, XV_VEC, XV_REC, XV_TRIG, XV_DICT };
 struct xfn;
 struct xrec;
-struct xval { int has_n, has_s, w, obj, okind, ln, kind, vn; double n; const char *s; const struct xval *it; const struct xfn *fn; const double *vc; const struct xrec *rec; char miss[24]; };
+struct xdict;
+struct xval { int has_n, has_s, w, obj, okind, ln, kind, vn; double n; const char *s; const struct xval *it; const struct xfn *fn; const double *vc; const struct xrec *rec; struct xdict *dict; char miss[24]; };
 struct xrec { int n; const char **key; struct xval *val; };   // a record's members in the order written (in the region)
 internal int xl_n(const struct xval *v) { return v->ln ? v->ln : v->w > 0; }   // its items (one value: 1, nothing: 0)
 internal const struct xval *xl_at(const struct xval *v, int i) { return v->ln ? &v->it[i] : v; }
@@ -516,7 +518,7 @@ internal void x_missing(struct xctx *c, const char *who) {
 // deepest path, itself included (a function's body counts on its own). line, at: where it starts in the source.
 enum { XN_NUM, XN_STR, XN_NAME, XN_CALL, XN_LIST, XN_NEG, XN_NOT, XN_MUL, XN_ADD, XN_CMP, XN_AND, XN_OR, XN_COAL, XN_COND,
        XN_LAMBDA, XN_BLOCK, XN_ASSIGN, XN_RETURN, XN_MEMBER, XN_REC, XN_LET, XN_IF, XN_WHILE, XN_FOR, XN_BREAK, XN_CONTINUE,
-       XN_INDEX, XN_MCALL, XN_SETM };
+       XN_INDEX, XN_MCALL, XN_SETM, XN_DICT, XN_SETI };
 struct xnode {
     unsigned char k, op, lvl, depth;
     int n_items;                 // a list's items, a call's arguments (all; the first 8 are used), a function's
@@ -837,6 +839,40 @@ internal void xps_primary(struct xps *p, struct xnode **out) {
             o = xn_new(p, XN_NUM, s - n);
             if (!o) return;
             o->op = 'n';
+            o = XOFF(p, o);
+        } else if (!strcmp(name, "dict") && *p->s == '<') {   // dict<K, V>(default): a new dict (DICTS) - its types in n
+            char kt[32], vt[32];
+            const char *q = p->s + 1;
+            int a = 0, b = 0;
+            while (*q == ' ') q++;
+            while ((isalnum((unsigned char)*q) || *q == '_') && a < 31) kt[a++] = *q++;
+            kt[a] = 0;
+            while (*q == ' ') q++;
+            if (*q == ',') q++;
+            while (*q == ' ') q++;
+            while ((isalnum((unsigned char)*q) || *q == '_') && b < 31) vt[b++] = *q++;
+            vt[b] = 0;
+            while (*q == ' ') q++;
+            int kt_ = a ? x_type_named(kt) : -1, vt_ = b ? x_type_named(vt) : -1;
+            const char *why = NULL;
+            if (*q != '>' || kt_ < 0 || vt_ < 0) why = "dict<K, V>(default) - K an int, a text or an object (player ...), V an int, a float, a bool or a text";
+            else if (!(kt_ == XT_INT || kt_ == XT_TEXT || (kt_ > 0 && kt_ < XT_INT))) why = "dict<K, V>: a key is an int, a text or an object (player ...)";
+            else if (!(vt_ == XT_INT || vt_ == XT_FLOAT || vt_ == XT_BOOL || vt_ == XT_TEXT)) why = "dict<K, V>: a value is an int, a float, a bool or a text";
+            if (why) { p->err = 1; p->why = why; return; }
+            p->s = q + 1;
+            xps_space(p);
+            if (*p->s != '(') { p->err = 1; p->why = "dict<K, V>(default) - the default: what a key without an entry holds"; return; }
+            p->s++;
+            p->par++;
+            struct xnode *d;
+            xps_expr(p, &d);
+            p->par--;
+            if (!p->err && !xps_op(p, ")")) { p->err = 1; p->why = "dict<K, V>(default): a ) missing"; }
+            if (p->err) return;
+            o = xn_new(p, XN_DICT, s - n);
+            if (!o) return;
+            o->n = kt_ * 4096 + vt_;
+            o->a = d;
             o = XOFF(p, o);
         } else {
             xps_space(p);
@@ -1194,6 +1230,18 @@ internal void xps_stmt(struct xps *p, struct xnode **out) {
     if (!op && (*r != '=' || r[1] == '=')) return;
     struct xnode *t = XPTR(p, *out), *obj, *v;
     char member[40];
+    if (t->k == XN_INDEX) {   // d[k] = value, d[k] += 1: a dict's entry - the dict and the key worked out once (the op kept)
+        struct xnode *ta = t->a, *tb = t->b;   // (offsets: the nodes move as they grow)
+        p->s = r + (op ? 2 : 1);
+        xps_expr(p, &v);
+        if (p->err) return;
+        struct xnode *o = xn_new(p, XN_SETI, at);
+        if (!o) return;
+        o->a = ta; o->b = tb; o->c = v;
+        o->op = (unsigned char)op;
+        *out = XOFF(p, o);
+        return;
+    }
     const char *dot = t->k == XN_NAME ? strrchr(t->s, '.') : NULL;
     if (t->k == XN_MEMBER) { obj = t->a; lstrcpynA(member, t->s, sizeof member); }
     else if (dot && dot - t->s < 40) {   // a.b.c = ...: the object a.b
@@ -2203,6 +2251,80 @@ internal int xcmp(const struct xval *a, const struct xval *b) {   // <0, 0, >0: 
     if (xis_num(a, &x) && xis_num(b, &y)) return x < y ? -1 : x > y;
     return lstrcmpiA(xtext_of(a), xtext_of(b));
 }
+// DICTS: dict<K, V>(default) - an entry per key, the default for every key without one (so d[k] is always a value, none
+// guessed). K: int, text or an object's kind (player ...: by its index, as == tells them apart); V: int, float, bool or
+// text. A dict is a table of its own, outside the values' regions: the values holding it share it (d[k] = v is seen
+// through every one), and a new game frees them all (x_triggers_reset). Its types are checked when it is worked out.
+struct xdent { int kobj; double kn; char *ks; double vn; char *vs; int vhas_s; };
+struct xdict { struct xdict *next; int kt, vt, n, cap; struct xdent def, *e; };
+internal struct xdict *g_xdicts;
+internal void x_dicts_free(void) {
+    while (g_xdicts) {
+        struct xdict *d = g_xdicts;
+        g_xdicts = d->next;
+        for (int i = 0; i < d->n; i++) { free(d->e[i].ks); free(d->e[i].vs); }
+        free(d->def.vs);
+        free(d->e);
+        free(d);
+    }
+}
+internal const char *xdict_tname(int t, char *buf, int cap) {   // a key's or value's type for the messages
+    return t < XT_INT ? lstrcpynA(buf, x_kind_name(t), cap) : xty_name(t, buf, cap);
+}
+// v fits type t (a key's: k 1) - into *de; 0: a mistake told (what: "[...]", "dict<...>(...)")
+internal int xdict_fit(struct xe *e, int t, const struct xval *v, struct xdent *de, int k, const char *what) {
+    char tn[40];
+    memset(de, 0, sizeof *de);
+    if (t < XT_INT) {   // an object of a kind: by its index
+        if (v->obj && v->w && v->okind == t) { de->kobj = v->obj; return 1; }
+    } else if (t == XT_TEXT) {
+        if (v->w && v->has_s && !v->obj && !v->kind && !v->ln) {
+            if (k) de->ks = _strdup(v->s); else { de->vs = _strdup(v->s); de->vhas_s = 1; }
+            return 1;
+        }
+    } else if (v->w && v->has_n && !v->obj && !v->kind && !v->ln && (t != XT_INT || v->n == floor(v->n))) {   // int float bool
+        if (k) de->kn = v->n; else de->vn = v->n;
+        return 1;
+    }
+    x_fail(e, "%s: %.40s is no %s - the dict's %s are %ss", what, xtext_of(v), xdict_tname(t, tn, sizeof tn), k ? "keys" : "values", tn);
+    return 0;
+}
+internal struct xdent *xdict_find(struct xdict *d, const struct xdent *k) {
+    for (int i = 0; i < d->n; i++) {
+        struct xdent *x = &d->e[i];
+        if (d->kt < XT_INT ? x->kobj == k->kobj : d->kt == XT_TEXT ? !lstrcmpiA(x->ks, k->ks) : x->kn == k->kn) return x;
+    }
+    return NULL;
+}
+internal void xdict_value(const struct xdict *d, const struct xdent *x, struct xval *v) {   // an entry's value (or the default's)
+    if (d->vt == XT_TEXT) xstr(v, x->vs ? x->vs : "");
+    else xnum(v, x->vn);
+}
+internal void xdict_get(struct xe *e, struct xdict *d, const struct xval *key, struct xval *v) {   // d[key]
+    struct xdent k;
+    if (!xdict_fit(e, d->kt, key, &k, 1, "[...]")) return;
+    const struct xdent *x = xdict_find(d, &k);
+    free(k.ks);
+    xdict_value(d, x ? x : &d->def, v);
+}
+internal void xdict_set(struct xe *e, struct xdict *d, const struct xval *key, const struct xval *val) {   // d[key] = val
+    struct xdent k, nv;
+    if (!xdict_fit(e, d->kt, key, &k, 1, "[...] = ...")) return;
+    if (!xdict_fit(e, d->vt, val, &nv, 0, "[...] = ...")) { free(k.ks); return; }
+    struct xdent *x = xdict_find(d, &k);
+    if (x) { free(k.ks); free(x->vs); }
+    else {
+        if (d->n == d->cap) {
+            struct xdent *m = realloc(d->e, (size_t)(d->cap = d->cap ? d->cap * 2 : 8) * sizeof *m);
+            if (!m) { free(k.ks); free(nv.vs); e->err = 1; return; }
+            d->e = m;
+        }
+        x = &d->e[d->n++];
+        *x = k;
+    }
+    x->vn = nv.vn; x->vs = nv.vs; x->vhas_s = nv.vhas_s;
+}
+
 // the triggers (TRIGGERS below): t.on, t.fired, t.name read here
 #define XT_MAX 128
 struct xtrig { struct xval when, run; int on, fired, loop; double hold, since, period, next; char name[48]; };   // period: a timer's
@@ -2594,7 +2716,8 @@ internal struct xafter g_xa[XA_MAX];
 internal int g_xa_n;
 internal struct xregion g_xt_keep, g_xt_tmp;   // what they keep (their functions, frames); a turn's values
 internal double g_xt_next;   // the next check (game seconds)
-internal void x_triggers_reset(void) {   // a new game: none
+internal void x_triggers_reset(void) {   // a new game: none (nor dicts)
+    x_dicts_free();
     g_xt_n = g_xa_n = 0;
     g_xt_next = 0;
     x_region_free(&g_xt_keep);
@@ -3052,6 +3175,27 @@ internal void x_stmt(struct xe *e, const struct xnode *s) {
         break;
     case XN_BREAK: e->brk = 1; break;
     case XN_CONTINUE: e->brk = 2; break;
+    case XN_SETI: {   // d[k] = value, d[k] += value: a dict's entry (DICTS)
+        struct xval d, key;
+        xe(e, s->a, &d);
+        if (!e->err) x_use(e, &d);
+        if (!e->err) xe(e, s->b, &key);
+        if (!e->err) x_use(e, &key);
+        if (!e->err) xe(e, s->c, &v);
+        if (!e->err) x_use(e, &v);
+        if (e->err) return;
+        if (d.kind != XV_DICT) { x_fail(e, "[...] = ...: %.40s is no dict - a list's items are not set", xtext_of(&d)); return; }
+        if (s->op) {   // d[k] += 1: what it holds now (or the default), op the value
+            struct xval cur;
+            xdict_get(e, d.dict, &key, &cur);
+            if (e->err || !x_numeric_ok(e, &cur) || !x_numeric_ok(e, &v)) return;
+            double x = xto_num(&cur), y = xto_num(&v);
+            if (s->op == '/' && y == 0) { x_fail(e, "a division by 0"); return; }
+            xnum(&v, s->op == '+' ? x + y : s->op == '-' ? x - y : s->op == '*' ? x * y : x / y);
+        }
+        xdict_set(e, d.dict, &key, &v);
+        break;
+    }
     case XN_SETM: {   // o.name = value: a member its kind lets be set, by the host
         struct xval o;
         xe(e, s->a, &o);
@@ -3213,6 +3357,11 @@ internal void xe(struct xe *e, const struct xnode *n, struct xval *v) {
         if (!e->err) x_use(e, &l);
         if (!e->err) xe(e, n->b, &i);
         if (e->err) break;
+        if (l.kind == XV_DICT) {   // d[k]: its entry, else the default
+            x_use(e, &i);
+            if (!e->err) xdict_get(e, l.dict, &i, v);
+            break;
+        }
         if (l.w && !l.ln) { x_fail(e, "[...]: %.40s is no list", l.kind == XV_REC ? "a record" : l.kind == XV_VEC ? "a vector" : xtext_of(&l)); break; }
         if (!x_numeric_ok(e, &i)) break;
         int k = (int)i.n;
@@ -3233,6 +3382,22 @@ internal void xe(struct xe *e, const struct xnode *n, struct xval *v) {
         if (e->err) break;
         if (!o.obj || !o.w) { x_fail(e, "%s(...): %.40s is no object - a method is a player's, the game's ...", whole, xtext_of(&o)); break; }
         x_obj_member(e, &o, n->s, a, n->n_items, 1, v, whole);
+        break;
+    }
+    case XN_DICT: {   // dict<K, V>(default): a new dict, empty (DICTS)
+        struct xval d;
+        xe(e, n->a, &d);
+        if (!e->err) x_use(e, &d);
+        if (e->err) break;
+        struct xdict *t = calloc(1, sizeof *t);
+        if (!t) { e->err = 1; break; }
+        t->kt = (int)n->n / 4096;
+        t->vt = (int)n->n % 4096;
+        t->next = g_xdicts;
+        g_xdicts = t;
+        if (!xdict_fit(e, t->vt, &d, &t->def, 0, "dict<K, V>(default)")) break;
+        xnothing(v);
+        v->w = 1; v->kind = XV_DICT; v->dict = t; v->s = "a dict";
         break;
     }
     case XN_REC: {   // a record: each member worked out now, in order - a mistake in one fails it whole
