@@ -127,7 +127,6 @@ internal int member_overruled(const struct entry *e, char *out, int cap, char *w
     else if (r->kind == SETK_INT) setting_text(r, (const uint8_t *)&d, out, cap);   // an int: its default whatever the word
     else lstrcpynA(out, (w == 0 ? r->def : w == 2) ? "on" : "off", cap);
     return 1;
-
 }
 
 internal void key_of(const struct entry *e, char *out, int cap) {

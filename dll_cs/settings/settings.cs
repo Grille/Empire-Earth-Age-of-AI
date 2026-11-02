@@ -27,7 +27,6 @@
 //   custom   = each as the file sets it, else its default
 //   enabled  = every bool on, every factor and int its default
 //   disabled = every bool off, every factor 1 (the game's own), an int its default (a tuning number of a bool that is off)
-
 //
 // A KEY is a field; its type and attributes are its kind (rows.h's header tells each):
 //   bool k = true;                               FLAG     (in the file 1 / 0)

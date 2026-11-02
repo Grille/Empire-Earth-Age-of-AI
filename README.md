@@ -458,10 +458,14 @@ Settings in `ageofai.ini`:
   march), fading out, and no more than the catch-up it had at that moment (a straggler with none gets none; none from
   rest - a group standing about takes its time to assemble). The three were one key (formation_catchup) till
   2026-11-02; keeping the place and taking it are different manoeuvres (the player).
-- `[general] formation_wait=100%` (with formation_follow): the formation goes at most this share of each unit's speed
-  now - slowed to 80% of a unit's top speed while it has fallen behind (it catches up at the other 20%), at its
-  slowest unit's top speed when all near their places have 125% or more. Lower waits more for the stragglers
-  (tighter, slower); 100% never slows below a straggler's speed, so it doesn't gain on the formation.
+- `[general] formation_wait=100%` (with formation_follow): the formation goes at most this share of a straggler's
+  speed - a unit fallen behind the formation's rear beyond its catch-up (formation_catchup_falloff times its size)
+  has only its top speed, so at 80% the formation slows to 80% of that until the unit is within its catch-up of its
+  place again (it catches up at the other 20%). A unit within the formation's body, or one held up, slows it no
+  further than it goes itself, and one not gaining on its place for 10 seconds (blocked, jostled in a crowd) is
+  given up on - so the formation always either moves or waits for a straggler that is closing. Lower waits more for
+  the stragglers (tighter, slower); 0% stands until they have caught up; 100% never slows below a straggler's
+  speed, so it doesn't gain on the formation.
 - `[general] friendly_collision=75%` (with land_collide / ship_collide): two units of one player or of allies push
   each other off at this share of their size - they slip past each other instead of getting stuck, and a
   formation's places stay as far apart (100% as any two units). Every friendly pair, moving or standing, so nothing

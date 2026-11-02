@@ -224,7 +224,6 @@ def read_file(path):
             if master:
                 if k.type not in ('bool', 'factor', 'int'):
                     raise SystemExit('%s: %s is a %s - a [master] group holds bool, factor and int keys only' % (where, k.name, k.type))
-
                 k.master = master
             cur.keys.append(k)
             attr_text, doc = '', []

@@ -307,6 +307,7 @@ internal void fo_march(ee_active_group *grp) {
                                // sawtooth, and every speed-up threw out a bow wave (the player: far too dense)
 #define FF_GRACE 5.0f          // s: ... unless it was in its place (or its march began: a re-form) this long ago or less
 #define FF_FRESH 20            // steps: a unit whose catch-up share was reckoned this recently comes from a march, else from rest
+#define FF_WAIT_GAIN 0.5f      // tiles: a straggler the formation waits for must gain this on its point within FF_OUT_S, else it goes on without waiting
 #define FF_LINK 4.0f           // tiles: units this close where they set out (chained) march as one block - the gap
                                // between their spots' edges (their sizes padded as laid out: a fixed 4 tiles between
                                // the centres left ships of a fleet out, each on its own route - the player)
@@ -330,16 +331,17 @@ internal void fo_march(ee_active_group *grp) {
 // the point the formation hangs on (ff_leader), way its heading, vel its speed, turning its share of the tightest turn
 // last step, started: set out (prev: the march it went on from, else -1), t0 the step then, linger the step it arrived
 // (0: not yet, or not arrived - given another order)
-struct ff_group { uint32_t leader; ee_group *grp; ee_goal *goal; vec2 fwd, way, face, end, lead_off, onward, anchor, way_from, face_from, way_rot, face_rot; float speed, reach, turn_r, acc, pace, pace_next, vel, vel_from, turning, dt; uint32_t step, t0, linger, at_ms; float sp, front, rear, fw; int n, cols; int on, live, through, passed, started, prev, reform, arc, pivot, naval; };   // sp: its members' mean spacing, front: the front rank's offset, fw: the formation's width, n: its units, cols: narrowed to this many abreast (0: as laid out)   // arc: it goes on from prev in the same formation (else it re-forms on the move: pivot - its anchor turns onto the new leg sharply); naval: ships
+struct ff_group { uint32_t leader; ee_group *grp; ee_goal *goal; vec2 fwd, way, face, end, lead_off, onward, anchor, way_from, face_from, way_rot, face_rot; float speed, reach, turn_r, acc, pace, pace_next, jam, jam_next, vel, vel_from, turning, dt; uint32_t step, t0, linger, at_ms; float sp, front, rear, fw; int n, cols; int on, live, through, passed, started, prev, reform, arc, pivot, naval; };   // sp: its members' mean spacing, front: the front rank's offset, fw: the formation's width, n: its units, cols: narrowed to this many abreast (0: as laid out)   // arc: it goes on from prev in the same formation (else it re-forms on the move: pivot - its anchor turns onto the new leg sharply); naval: ships
 internal struct ff_group g_ff[FF_GROUPS];
 internal unsigned g_ff_next;
 internal int g_ff_first, g_ff_count;   // the marches started by the move being dispatched, for their leaders' goals
 // step: the last it followed; pend (1-based, into g_ff_p): the first of the queued moves' marches it joins, each when it
 // sets out; home its spot at the goal
-struct ff_unit { uint32_t id; int g, pend; vec2 off, home; uint32_t step; float along, with, off_by, share, grace_cap, want; vec2 lag_pos; uint32_t in_at, share_at, yaw, lag_at, rerouted_at; int tries, own, out, order; };   // order: its place front to back, left to right in its formation (ff_off); out: dropped out of its march (lag_at, lag_pos: since when it lags, where it stood then); own: why it took its own route last (1 its point too far, 2 the point steered at on a tile it may not enter, 3 not in a clear line); in_at: the step it was last in its place (or its march began); share its catch-up share at share_at, grace_cap the most of it the grace gives; yaw its facing there (the slot's float, 0: none), tries its walks back
+struct ff_unit { uint32_t id; int g, pend; vec2 off, home; uint32_t step; float along, with, off_by, share, grace_cap, want; vec2 lag_pos; uint32_t in_at, share_at, yaw, lag_at, rerouted_at; int tries, own, out, order, waited; uint32_t wait_at; float wait_along; };   // waited: 1 a straggler the formation waits for (formation_wait), till it is within its catch-up of its point, -1 one it gave up on till then (wait_at, wait_along: the step it last gained on its point, and how far behind it was then)   // order: its place front to back, left to right in its formation (ff_off); out: dropped out of its march (lag_at, lag_pos: since when it lags, where it stood then); own: why it took its own route last (1 its point too far, 2 the point steered at on a tile it may not enter, 3 not in a clear line); in_at: the step it was last in its place (or its march began); share its catch-up share at share_at, grace_cap the most of it the grace gives; yaw its facing there (the slot's float, 0: none), tries its walks back
 internal struct ff_unit g_ff_u[FF_UNITS];
 internal unsigned g_ff_set_ahead;   // marches from rest whose formation was set ahead of the leader (no unit's point behind it)
 internal unsigned g_ff_in_place;    // re-forms in place: no march
+internal unsigned g_ff_wait_gave_up;   // stragglers the formation stopped waiting for (formation_wait): not gaining on their points
 // a queued move's march a unit joins once it sets out (its offset, its spot and facing at the goal, its goal in that move),
 // after (1-based) the one queued behind it - a unit had one, so a third waypoint's took the second's place and from the
 // second on each unit went its own way (a tank at its own top speed)
@@ -452,7 +454,7 @@ internal void ff_start_block(void *group, const int *idx, int k, vec2 c, vec2 fw
     gr->t0 = gr->linger = 0;
     gr->on = 1;
     gr->live = 0;
-    gr->pace = gr->pace_next = -1;
+    gr->pace = gr->pace_next = gr->jam = gr->jam_next = -1;
     // the offsets, and each unit's place front to back, left to right (a narrowed formation fills its rows in that order)
     static vec2 offs[FO_MAX];
     static int ord[FO_MAX], rank_of[FO_MAX];
@@ -498,6 +500,7 @@ internal void ff_start_block(void *group, const int *idx, int k, vec2 c, vec2 fw
         e->g = gi;
         e->pend = 0;
         e->out = 0;
+        e->waited = 0;
         e->lag_at = 0;
         e->off = off;
         e->order = rank_of[j];
@@ -534,7 +537,6 @@ internal void ff_no_march(int n, int queued) {
         if (e) { e->g = -1; e->pend = 0; }
     }
 }
-
 // the marches of the units just laid out (g_fo[0..n)): a block each - the units within FF_LINK of each other where they
 // set out, chained (two blocks sent to the point between them can't follow one leader: each goes to its part of the
 // formation behind a leader of its own); a unit on its own takes its own route. All at the slowest member's top speed
@@ -750,7 +752,8 @@ internal ee_unit *ff_leader(struct ff_group *gr, uint32_t step) {
     gr->live = 1;
     // the slowest member's speed now last step (fo_follow_aim; -1: none told)
     gr->pace = gr->pace_next;
-    gr->pace_next = -1;
+    gr->jam = gr->jam_next;
+    gr->pace_next = gr->jam_next = -1;
     ee_physics *ph = game_physics();
     float dt = (ph ? physics_get_step_s(ph) : 0.05f) * (float)steps;
     float vn = 0;   // its speed now
@@ -803,10 +806,12 @@ internal ee_unit *ff_leader(struct ff_group *gr, uint32_t step) {
     float tl = vec2_len(to);
     vec2 dir = tl > 0.01f ? vec2_scale(to, 1.0f / tl) : gr->way;
     // its speed: the march's, no more than formation_wait (80%) of its slowest member's speed now (its top speed and its
-    // catch-up share: a unit fallen behind has only its top speed, the formation slows for it to 80% of that; all with
-    // 125% or more, near their places, let it go at the march's speed), less in a turn
+    // catch-up share: a unit fallen behind has only its top speed, the formation slows for it to 80% of that; members in
+    // their places or ahead of their points set no pace - all in place, it goes at the march's speed; formation_wait=0
+    // stands while one is behind), less in a turn
     float wait = g_set.formation_wait;
     float base = gr->pace >= 0 && wait * gr->pace < gr->speed ? wait * gr->pace : gr->speed;
+    if (gr->jam >= 0 && gr->jam < base) base = gr->jam;   // a member held up goes as it can: the formation no faster, whatever formation_wait (a jam inside it can't catch up until it moves)
     // re-forming on the move (pivot) it turns onto the new leg at FF_INNER, not at the formation's reach: the units take new
     // places anyway, and the wide swing at a sharp corner put their points on ground they couldn't reach
     // ships turn together: the anchor turns as one ship does (its least agile member's circle at its top speed) and the
@@ -1098,16 +1103,41 @@ internal int fo_follow_aim(ee_unit *u, const float *pos, float *aim) {
             e->lag_pos = here;
         }
     } else e->lag_at = 0;
-    float now = unit_max_speed(u) * (1 + ff_boost(e, u, step));   // its speed now: the formation's pace
-    // (one closing in at less goes the formation's speed and a bit: counted, it slowed the formation, itself with it, and
-    // so on down - to FF_JAM in open ground)
-    if (behind && e->want >= unit_max_speed(u) * 0.99f) {   // no less than FF_JAM of its top speed: one slowed in a turn
-                    // or by a push stopped the formation, and the others' speed, the formation's, with it
-        float v = unit_get_speed(u), lo = FF_JAM * unit_max_speed(u);
+    float now = unit_max_speed(u) * (1 + ff_boost(e, u, step));   // its speed now
+    // THE PACE (formation_wait): a straggler - fallen behind the formation's rear line beyond its catch-up,
+    // formation_catchup_falloff x its size - sets it with its speed now (its top speed: no catch-up left) until it is
+    // within its catch-up of its point again, and the formation goes at most formation_wait of that; a member within the
+    // formation's body sets none - it closes on its own, and the formation stops for nobody then, whatever
+    // formation_wait (the player, 2026-11-02: formation_wait=0 to test "stand until the stragglers have caught up" - the
+    // formation never set out, every member's speed now times 0; counting any member out of its place it stood for
+    // ever with them a tile beside their points, counting those behind their points beyond the catch-up it stood from
+    // rest with the back of a wedge sent behind itself behind its places by the formation's depth: the closing rule
+    // gives a unit speed for the distance behind its point only, and only the moving formation untangles a crowd).
+    // THE JAM: a member behind its point beyond its catch-up, asking its top speed and going slower (held up: one
+    // slowed in a turn or by a push stopped the formation, and the others' speed, the formation's, with it - no less
+    // than FF_JAM of its top speed) sets the formation's speed to what it goes - not scaled by formation_wait, and a
+    // straggler held up sets no pace meanwhile: in a jam at a gap the formation waits at the jam's speed (the player:
+    // its limited throughput, and then they don't run spread thin into enemy territory behind the choke, is the
+    // point), and one held up by the formation itself (riders from rest behind the standing citizens, their places in
+    // front) can't catch up until it moves
+    float top = unit_max_speed(u);
+    int jammed = 0;
+    if (behind && e->want >= top * 0.99f) {
+        float v = unit_get_speed(u), lo = FF_JAM * top;
+        jammed = v < top * 0.9f;
         if (v < lo) v = lo;
         if (v < now) now = v;
+        if (gr->jam_next < 0 || now < gr->jam_next) gr->jam_next = now;
     }
-    if (gr->pace_next < 0 || now < gr->pace_next) gr->pace_next = now;
+    float fallen = (float)g_set.formation_catchup_falloff * place;
+    int straggling = e->along - (e->off.y - gr->rear) > fallen;   // behind the rear line beyond its catch-up
+    if (e->off_by < fallen) e->waited = 0;   // within its catch-up of its point: the slate clean
+    else if (straggling) {
+        if (!e->waited) { e->waited = 1; e->wait_at = step ? step : 1; e->wait_along = e->along; }
+        else if (e->waited > 0 && e->along < e->wait_along - FF_WAIT_GAIN) { e->wait_at = step ? step : 1; e->wait_along = e->along; }   // gaining on its point
+        if (e->waited > 0 && ff_since(e->wait_at) >= FF_OUT_S) { e->waited = -1; g_ff_wait_gave_up++; }   // not gaining in FF_OUT_S (jostled in the crowd, blocked): given up till it is near its point - the formation goes on, and the moving formation untangles it (the clock runs on through a swing beside or ahead of its point: a jostled unit flipped in and out of straggling every few seconds, and a fresh clock each time never ran out)
+    }
+    if (e->waited > 0 && straggling && !jammed && (gr->pace_next < 0 || now < gr->pace_next)) gr->pace_next = now;
     if (!ok) {   // its own route for now: from where it stands, when it steered at its point till now (at most every FF_REROUTE_S)
         if (e->step != ~0u && step - e->step <= 3 && (!e->rerouted_at || ff_since(e->rerouted_at) >= FF_REROUTE_S)) {
             // the march goes on through its leg's end and that lies behind: the leg ends here (its next order takes it

@@ -358,7 +358,6 @@ internal void setting_member(const struct setting_row *r, int w, int set, uint8_
         if (r->kind == SETK_FACTOR) *(float *)at = 1.0f;
         else if (r->kind == SETK_FLAG) *(int *)at = 0;
     }
-
 }
 
 internal void settings_read(const char *ini, const char *test_ini) {

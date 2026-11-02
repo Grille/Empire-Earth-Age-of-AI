@@ -172,12 +172,14 @@ class general
         /// none gets none, and none from rest). 100% = at its own top speed
         [range(1, 3)]
         factor formation_reform = 1.25;
-        /// Formation wait (with formation follow): the formation goes at most this share of each unit's speed now - a unit
-        /// fallen behind has only its top speed, so the formation slows to this share of it and the unit catches up at the
-        /// rest; all near their places (with formation catchup) let it go at its slowest unit's top speed. Lower = the
-        /// formation waits more for units behind (tighter, slower), 100% = it doesn't slow below a straggler's speed (the
-        /// straggler never gains on it)
-        [range(0.25, 1)]
+        /// Formation wait (with formation follow): the formation goes at most this share of a straggler's speed - a unit
+        /// fallen behind the formation's rear beyond its catch-up (formation_catchup_falloff times its size) has only its
+        /// top speed, so the formation slows to this share of it until the unit is within its catch-up of its place
+        /// again; a unit within the formation's body, or one held up, slows it no further than it goes itself, and one
+        /// not gaining on its place for 10 seconds (blocked, jostled in a crowd) is given up on. Lower = the formation
+        /// waits more for stragglers (tighter, slower), 0% = it stands until they have caught up, 100% = it doesn't slow
+        /// below a straggler's speed (the straggler never gains on it)
+        [range(0, 1)]
         factor formation_wait = 1;
         /// Friendly collision (with land collide / ship collide): two units of one player or of allies push each other off
         /// at this share of their size, so they slip past each other instead of getting stuck (a formation's places stay as

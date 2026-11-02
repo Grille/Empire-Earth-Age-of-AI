@@ -37,7 +37,6 @@ TEXT = {
         "A [master] group's keys (bool, factor or int) and its master's key (a CHOICE default|custom|enabled|disabled): settings.c",
         "settings_masters sets each from the master's word - default its default, custom the file's else its default, enabled",
         "on / a factor or int its default, disabled off / a factor 1 / an int its default; ageofai_config.exe folds them under the master.",
-
     ],
     'SETTING_ALSO': [
         "Rows ageofai_config.exe shows on another section's page too: the same key - one value, one line in the file, in",
