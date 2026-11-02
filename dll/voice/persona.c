@@ -75,6 +75,7 @@ internal int decide_key(const char *key) { int k = 0; while (k < D_N && lstrcmpi
 #define INCLUDES_MAX 8
 #define LAYERS_MAX 8
 struct includes { int n; char name[INCLUDES_MAX][64]; };
+#define PFIELDS 24
 struct persona {
     char file[40], civ[48];   // civ: civilization= - the civilization's name the game shows for it
     char *name;   // name=: an expression - a string, or a list in order of preference (persona_name); NULL: none
@@ -91,6 +92,9 @@ struct persona {
     struct persona *layer[LAYERS_MAX];   // its includes, each one's own right after it (persona_layers)
     int nlayer, registered, resolving;   // registered: register_personality() - a personality, else a library
     unsigned trait_set;   // the traits it sets itself (bit per trait): the others from its layers, else 50%
+    int nfield;   // its fields, let name = ... at its top (PERSONALITY STATE): each AI's own, starting as field_src
+    char field_name[PFIELDS][40], field_type[PFIELDS][12];   // type: as written ("" none: its value's)
+    char *field_src[PFIELDS];
 };
 internal struct persona g_personas[MAX_PERSONAS];
 internal int g_npersonas;
@@ -281,7 +285,32 @@ internal void persona_key(void *arg, const char *sec, const char *key, struct tv
     if (!*sec) {   // a name outside the records (vars) - not one of a record's keys, written where it is no key
         const char *rec = record_of_key(key);
         if (rec) { char why[120]; snprintf(why, sizeof why, "%s belongs in %s = { ... }", key, rec); tl_error(l, why); return; }
+        for (int i = 0; i < p->nfield; i++)
+            if (xkey_is(key, p->field_name[i])) { tl_error(l, "a name of a field (let) too - one of them"); return; }
+        if (!_strnicmp(key, "on_", 3)) {   // on_<situation>() { ... }: its handler - a situation's, no parameters, statements
+            size_t n = strcspn(key + 3, "(");
+            int k = 0;
+            while (k < L_N && (strlen(k_lines[k].key) != n || _strnicmp(key + 3, k_lines[k].key, n))) k++;
+            if (k == L_N) { tl_error(l, "on_<situation>: an unknown situation (the README's lines)"); return; }
+            if (strcmp(key + 3 + n, "()") || v->src[0] != X_BODY) {
+                char why[120];
+                snprintf(why, sizeof why, "a handler takes nothing and runs statements: on_%s() { ... }", k_lines[k].key);
+                tl_error(l, why);
+                return;
+            }
+        }
         xvars_set(&p->vars, key, v->src);
+        return;
+    }
+    if (!lstrcmpiA(sec, "let")) {   // let name = value: a field (key "name" or "name:type")
+        char name[40];
+        lstrcpynA(name, key, (int)(strcspn(key, ":") < 39 ? strcspn(key, ":") : 39) + 1);
+        if (xvars_find(&p->vars, name) >= 0) { tl_error(l, "a field (let) of a name the file has - one of them"); return; }
+        for (int i = 0; i < p->nfield; i++) if (!lstrcmpiA(p->field_name[i], name)) { tl_error(l, "a field twice"); return; }
+        if (p->nfield == PFIELDS) { tl_error(l, "more than 24 fields"); return; }
+        lstrcpyA(p->field_name[p->nfield], name);
+        lstrcpynA(p->field_type[p->nfield], key[strlen(name)] == ':' ? key + strlen(name) + 1 : "", sizeof p->field_type[0]);
+        p->field_src[p->nfield++] = _strdup(v->src);
         return;
     }
     if (!lstrcmpiA(sec, "personality")) {
@@ -515,7 +544,7 @@ internal void x_fn_scan_folder(const char *dir) {
 }
 internal void x_fn_scan_dir(void) {
     char dir[MAX_PATH];
-    g_xfn_n = g_xvn_n = 0;
+    g_xfn_n = g_xvn_n = g_xfld_n = 0;
     ai_folder("", dir);   // <game>\ageofai\personalities\, [general] ai_dir or [autotest] ai_dir - through its links
     x_fn_scan_folder(dir);
     ai_folder("mod\\", dir);
@@ -740,7 +769,9 @@ internal int pc_taken(const struct pcolor *c, const int *used) {   // a table co
     }
     return 0;
 }
+internal void persona_state_reset(void);
 internal void persona_new_game(ee_setup *setup) {
+    persona_state_reset();   // the last game's fields, and the dicts its code made
     for (int i = 0; i < 16; i++) { g_persona_of[i] = g_plan_persona[i] = -1; g_plan_color[i].idx = -2; g_persona_assigned[i] = 0; }
     memset(g_persona_used, 0, sizeof g_persona_used);
     g_ai_color_n = g_ai_color_k = 0;
@@ -1025,7 +1056,121 @@ internal void llm_talk_event(ee_player *pl, enum line_kind k, ee_player *other, 
 // the language model's words for the next line, instead of one of the personality's (a move it decided, llm.c
 // llm_apply - its line is already written): said as it is, whatever the line's chance or cooldown
 internal const char *g_say_instead;
+
+// PERSONALITY STATE: a personality is a class, each AI that plays it an instance - its fields (let name = ... at the
+// top of its file and of its layers', its own first) made the first time the AI's code needs one in a game, from the
+// values written there (data: every PC makes the same), and dropped with the game (persona_new_game). Read in any line
+// or name (field_get), set only in statements - a function's { } body, an on_<situation>() handler (field_set) - each
+// to a value of its type: a number field an int (whole), a float or a bool, a text field a text; a dict field keeps
+// its table (its entries are set: name[key] = value). Its dicts are its own (g_xdict_keep), not the language's list.
+struct pfield { char name[40]; int type; double n; char *text; struct xdict *dict; };   // type: XT_INT ... XT_TEXT, 0 a dict
+struct pinst { int made; const struct persona *p; int n; struct pfield f[PFIELDS * 2]; };
+internal struct pinst g_pinst[16];
+internal void pinst_clear(struct pinst *in) {
+    for (int i = 0; i < in->n; i++) { free(in->f[i].text); x_dict_free(in->f[i].dict); }
+    memset(in, 0, sizeof *in);
+}
+internal void pinst_add(struct pinst *in, ee_player *pl, const struct persona *q, int i) {   // q's field i, unless there
+    for (int j = 0; j < in->n; j++) if (!lstrcmpiA(in->f[j].name, q->field_name[i])) return;   // (an own one of its name)
+    if (in->n == (int)(sizeof in->f / sizeof *in->f)) return;
+    struct pfield *f = &in->f[in->n];
+    struct line_ctx l;
+    struct xval v;
+    line_ctx_init(&l, pl, NULL, NULL);
+    l.c.vars[0] = &q->vars;
+    g_xdict_keep = 1;
+    int ok = x_eval(q->field_src[i], &l.c, &v);
+    g_xdict_keep = 0;
+    if (!ok || !v.w) { x_error("%s: let %s: no value here - the field left out", q->file, q->field_name[i]); return; }
+    memset(f, 0, sizeof *f);
+    lstrcpyA(f->name, q->field_name[i]);
+    const struct xunit *u = x_compiled(q->field_src[i]);
+    const struct xnode *r = u->ok ? u->root : NULL;
+    if (r && r->k == XN_NEG) r = r->a;
+    if (v.kind == XV_DICT) f->dict = v.dict;
+    else if (r && r->k == XN_STR) { f->type = XT_TEXT; f->text = _strdup(v.s); }
+    else {
+        f->type = q->field_type[i][0] ? x_type_named(q->field_type[i]) : r && r->op == 'b' ? XT_BOOL : r && r->op == 'f' ? XT_FLOAT : XT_INT;
+        f->n = v.n;
+    }
+    in->n++;
+}
+internal struct pinst *pinst_of(ee_player *pl) {   // AI pl's fields (made now if not yet in this game)
+    const struct persona *p = pl ? persona_of(pl) : NULL;
+    if (pl && !p && g_has_computer) p = &g_computer;
+    if (!p) return NULL;
+    struct pinst *in = &g_pinst[player_get_index(pl) & 15];
+    if (in->made && in->p == p) return in;
+    pinst_clear(in);
+    in->made = 1;
+    in->p = p;
+    for (int k = -1; k < p->nlayer; k++) {
+        const struct persona *q = k < 0 ? p : p->layer[k];
+        for (int i = 0; i < q->nfield; i++) pinst_add(in, pl, q, i);
+    }
+    return in;
+}
+internal void persona_state_reset(void) {
+    for (int i = 0; i < 16; i++) pinst_clear(&g_pinst[i]);
+    x_dicts_free();
+}
+internal struct pfield *pinst_field(struct xctx *c, const char *name) {
+    if (!c->pl || !x_field_known(name)) return NULL;
+    struct pinst *in = pinst_of(c->pl);
+    for (int i = 0; in && i < in->n; i++) if (!lstrcmpiA(in->f[i].name, name)) return &in->f[i];
+    return NULL;
+}
+internal int persona_field_get(struct xctx *c, const char *name, struct xval *v) {   // host.h field_get
+    const struct pfield *f = pinst_field(c, name);
+    if (!f) return 0;
+    if (f->dict) { xnothing(v); v->w = 1; v->kind = XV_DICT; v->dict = f->dict; v->s = "a dict"; }
+    else if (f->type == XT_TEXT) xstr(v, f->text);
+    else xnum(v, f->n);
+    return 1;
+}
+internal int persona_field_set(struct xctx *c, const char *name, const struct xval *v, const char **why) {   // field_set
+    struct pfield *f = pinst_field(c, name);
+    if (!f) return 0;
+    int plain = v->w && !v->obj && !v->kind && !v->ln;
+    if (f->dict) *why = "a dict field keeps its table - set its entries: name[key] = value";
+    else if (f->type == XT_TEXT) {
+        if (!plain || !v->has_s) *why = "a text field takes a text";
+        else { free(f->text); f->text = _strdup(v->s); }
+    } else if (!plain || !v->has_n) *why = "a number field takes a number";
+    else if (f->type == XT_INT && v->n != floor(v->n)) *why = "an int field takes a whole number - round(...), int(...)";
+    else f->n = f->type == XT_BOOL ? v->n != 0 : v->n;
+    return 1;
+}
+// a situation's handler, on_<situation>() { ... }: run every time the situation happens - said or not (no line, its
+// chance, the talk off, the model's words) - and after its line, so the line saw the state before it; the first of the
+// AI's own file and its layers that has one, with that file's names
+internal void persona_on(ee_player *pl, enum line_kind k, ee_player *other, ee_player *third) {
+    const struct persona *p = pl ? persona_of(pl) : NULL;
+    if (pl && !p && g_has_computer) p = &g_computer;
+    if (!p) return;
+    char name[48];
+    snprintf(name, sizeof name, "on_%s", k_lines[k].key);
+    for (int i = -1; i < p->nlayer; i++) {
+        const struct persona *q = i < 0 ? p : p->layer[i];
+        const char *par;
+        if (!xvars_fn(&q->vars, name, &par)) continue;
+        struct line_ctx l;
+        struct xval v;
+        line_ctx_init(&l, pl, other, third);
+        l.c.vars[0] = &q->vars;
+        lstrcatA(name, "()");
+        if (!x_eval(name, &l.c, &v) && g_log)
+            fprintf(g_log, "# persona: P%d %s.%s: a mistake (told above)\n", player_get_index(pl) & 15, q->file, name);
+        return;
+    }
+}
+internal int persona_say_line(ee_player *pl, enum line_kind k, ee_player *other, ee_player *third);
 internal int persona_say(ee_player *pl, enum line_kind k, ee_player *other, ee_player *third) {
+    int said = persona_say_line(pl, k, other, third);
+    persona_on(pl, k, other, third);
+    return said;
+}
+internal int persona_say_line(ee_player *pl, enum line_kind k, ee_player *other, ee_player *third) {
     struct persona *own = persona_of(pl);
     if (!pl || !g_ai_talk || (player_get_out(pl) && k != L_DEFEATED && k != L_SURRENDER)) return 0;
     unsigned idx = (unsigned)player_get_index(pl) & 15;

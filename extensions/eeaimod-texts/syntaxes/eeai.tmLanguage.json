@@ -416,7 +416,7 @@
       "match": "^\\[[^\\]]*\\]"
     },
     {
-      "begin": "^\\s*([A-Za-z_]\\w*)\\s*(\\()([^)]*)(\\))\\s*(=>)",
+      "begin": "^\\s*([A-Za-z_]\\w*)\\s*(\\()([^)]*)(\\))\\s*(=>|(?=\\{))",
       "beginCaptures": {
         "1": {
           "name": "entity.name.function.eeaimod"

@@ -179,6 +179,8 @@ internal const char *x_strdup(const char *s, size_t n) {   // n bytes of s as a 
 }
 
 
+// a vars function whose body is statements, name(a, b) { ... }: its value is X_BODY, then "(a, b) => { ... }" (tfile_parse)
+#define X_BODY '\x01'
 // vars keys: "name" or a function "name(a,b)" (its parameters, tfile_parse) - the same name is the same entry
 internal int xkey_is(const char *key, const char *name) {
     size_t n = strcspn(key, "(");
@@ -220,7 +222,7 @@ internal const char *xvars_fn(const struct xvars *v, const char *name, const cha
 }
 // THE FUNCTIONS of all the files in the folder (name and how many parameters): the files are checked when read, a
 // function may come from a file read later (an include, mod/system.eeai) - scanned from every file first (x_fn_known)
-internal struct { char name[40]; int n; } g_xfn[96];
+internal struct { char name[40]; int n, blk; } g_xfn[96];   // blk: its body is statements (name(a) { ... })
 internal int g_xfn_n, g_xfn_scanned;
 // the parameters ("a,b)") of the function whose definition is being read: its body's syntax check takes them for
 // players where a path starts with one (by.kills(of)) - at run time the frame has them (c->fpn)
@@ -239,6 +241,15 @@ internal int x_check_par_has(const char *s, int n) {
 internal char g_xvn[256][40];
 internal unsigned char g_xvd[256];
 internal int g_xvn_n;
+// THE FIELDS of all the files (let name = ... at a file's top): one per AI, read and set by the host (field_get / set)
+internal char g_xfld[64][40];
+internal int g_xfld_n;
+internal void x_field_add(const char *b, size_t n) { if (n && n < 40 && g_xfld_n < 64) lstrcpynA(g_xfld[g_xfld_n++], b, (int)n + 1); }
+internal int x_field_known(const char *name) {
+    if (!g_xfn_scanned) { g_xfn_scanned = 1; g_x_host.scan_functions(); }
+    for (int i = 0; i < g_xfld_n; i++) if (!lstrcmpiA(g_xfld[i], name)) return 1;
+    return 0;
+}
 internal void x_var_add(const char *b, size_t n, int data) {
     if (n && n < 40 && g_xvn_n < 256) { g_xvd[g_xvn_n] = (unsigned char)data; lstrcpynA(g_xvn[g_xvn_n++], b, (int)n + 1); }
 }
@@ -257,7 +268,13 @@ internal void x_fn_scan(const char *text) {
         const char *b = s;
         while (isalnum((unsigned char)*s) || *s == '_') s++;
         size_t n = (size_t)(s - b);
-        if (!depth && n && *s != '(') {
+        if (!depth && n == 3 && !strncmp(b, "let", 3) && (*s == ' ' || *s == '	')) {   // let name = ...: a field
+            const char *f = s;
+            while (*f == ' ' || *f == '	') f++;
+            const char *fb = f;
+            while (isalnum((unsigned char)*f) || *f == '_') f++;
+            x_field_add(fb, (size_t)(f - fb));
+        } else if (!depth && n && *s != '(') {
             const char *e = s;
             while (*e == ' ' || *e == '\t') e++;
             if (*e == '=' && e[1] != '=') {
@@ -280,8 +297,9 @@ internal void x_fn_scan(const char *text) {
             if (*s == ')') {
                 const char *e = s + 1;
                 while (*e == ' ' || *e == '\t') e++;
-                if (*e == '=' && e[1] != '=' && g_xfn_n < 96) {
+                if (((*e == '=' && e[1] != '=') || *e == '{') && g_xfn_n < 96) {
                     lstrcpynA(g_xfn[g_xfn_n].name, b, (int)n + 1);
+                    g_xfn[g_xfn_n].blk = *e == '{';
                     g_xfn[g_xfn_n++].n = empty ? 0 : k;
                 }
             }
@@ -289,6 +307,11 @@ internal void x_fn_scan(const char *text) {
         while (*s && *s != '\n') s++;
         if (*s) s++;
     }
+}
+internal int x_fn_blk(const char *name) {   // a function of the files whose body is statements
+    if (!g_xfn_scanned) { g_xfn_scanned = 1; g_x_host.scan_functions(); }
+    for (int i = 0; i < g_xfn_n; i++) if (!lstrcmpiA(g_xfn[i].name, name)) return g_xfn[i].blk;
+    return 0;
 }
 internal int x_fn_known(const char *name) {   // its parameter count, -1: no function of that name
     if (!g_xfn_scanned) { g_xfn_scanned = 1; g_x_host.scan_functions(); }
@@ -324,7 +347,7 @@ internal int x_name_known(const char *name) {   // a parameter, constant, vars e
         if (x_check_par_has(w, (int)strlen(w)) || x_var_known(w)) return 1;
     }
     wsprintfA(w, " %s ", name);
-    return x_check_par_has(name, (int)strlen(name)) || g_x_host.constant(name, &t) || x_var_known(name) || g_x_host.name_valid(name) ||
+    return x_check_par_has(name, (int)strlen(name)) || g_x_host.constant(name, &t) || x_var_known(name) || x_field_known(name) || g_x_host.name_valid(name) ||
            (g_x_check_ph && strstr(g_x_check_ph, w));
 }
 internal void x_name_check(const char *name) {
@@ -1479,7 +1502,8 @@ internal int xsc_kind(const struct xscope *s, const char *name, size_t len) {
 // each condition's pushed for what it guards and taken off after; a path set anew is struck (its length 0). nn_low: a
 // function's body sees only those from there up (it runs later: those around it hold no more then)
 struct xcheck { struct xctx *c; int script; const char *why; int line; char whybuf[200]; int loops; int ctx;
-                const char *nn[32]; unsigned char nl[32]; int n_nn, nn_low; int texts; };
+                const char *nn[32]; unsigned char nl[32]; int n_nn, nn_low; int texts;
+                int body; };   // body: inside statements (a function's { }): a text file's statement functions may be called there
 internal int xn_null(const struct xnode *n) { return n && n->k == XN_NUM && n->op == 'n'; }   // the null literal
 internal int xn_narrowed(const struct xcheck *k, const char *s, size_t len) {
     for (int i = k->nn_low; i < k->n_nn; i++) if (k->nl[i] == len && !strncmp(k->nn[i], s, len)) return 1;
@@ -1887,7 +1911,10 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
         int loops = k->loops, ctx = k->ctx, low = k->nn_low;   // (a break in it is none of a loop around it; a function in it
         k->loops = k->ctx = 0;                                 // has no context; it runs later: a != null around it holds no
         k->nn_low = k->n_nn;                                   // more then)
+        int blk = n->a && n->a->k == XN_BLOCK;
+        k->body += blk;
         int ok = x_check_body(k, n->a, &s);
+        k->body -= blk;
         k->loops = loops;
         k->ctx = ctx;
         k->nn_low = low;
@@ -1911,6 +1938,7 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
         return 1;
     case XN_ASSIGN: {
         int f = xsc_find(sc, n->s, strlen(n->s), NULL);   // (the code around's too: set in its own frame)
+        if (!f && !k->script && x_field_known(n->s)) return x_check(k, n->a, sc);   // a personality's field (let at its top)
         const struct xnode *fd = f ? xsc_fn(sc, n->s, strlen(n->s)) : NULL;
         if (fd && fd->op == 'D') snprintf(k->whybuf, sizeof k->whybuf, "%s = ...: %s is a function declared with %s(...) - only a let's variable is set", n->s, n->s, n->s);
         else if (!f) snprintf(k->whybuf, sizeof k->whybuf, "%s = ...: no variable %s - let %s = ... makes one", n->s, n->s, n->s);
@@ -2084,6 +2112,10 @@ internal int x_check(struct xcheck *k, const struct xnode *n, struct xscope *sc)
             }
             if (k->script && g_x_host.command(name)) return 1;
             int want = x_fn_known(name);
+            if (want >= 0 && !k->script && !k->body && x_fn_blk(name)) {   // statements change state: never from a line
+                snprintf(k->whybuf, sizeof k->whybuf, "%s(...) has statements - it runs from an on_... handler or another such function, not from a line or a name", name);
+                return xc_fail(k, n, k->whybuf);
+            }
             if (want >= 0) {
                 if (want != nk) { snprintf(k->whybuf, sizeof k->whybuf, "%s takes %d argument%s", name, want, want == 1 ? "" : "s"); return xc_fail(k, n, k->whybuf); }
                 return 1;
@@ -2258,14 +2290,19 @@ internal int xcmp(const struct xval *a, const struct xval *b) {   // <0, 0, >0: 
 struct xdent { int kobj; double kn; char *ks; double vn; char *vs; int vhas_s; };
 struct xdict { struct xdict *next; int kt, vt, n, cap; struct xdent def, *e; };
 internal struct xdict *g_xdicts;
+internal int g_xdict_keep;   // the dicts made now are their maker's to free (a personality's fields: x_dict_free), not the list's
+internal void x_dict_free(struct xdict *d) {
+    if (!d) return;
+    for (int i = 0; i < d->n; i++) { free(d->e[i].ks); free(d->e[i].vs); }
+    free(d->def.vs);
+    free(d->e);
+    free(d);
+}
 internal void x_dicts_free(void) {
     while (g_xdicts) {
         struct xdict *d = g_xdicts;
         g_xdicts = d->next;
-        for (int i = 0; i < d->n; i++) { free(d->e[i].ks); free(d->e[i].vs); }
-        free(d->def.vs);
-        free(d->e);
-        free(d);
+        x_dict_free(d);
     }
 }
 internal const char *xdict_tname(int t, char *buf, int cap) {   // a key's or value's type for the messages
@@ -2502,6 +2539,7 @@ internal void xe_ident(struct xe *e, const char *name, struct xval *v) {
         }
     for (int i = 0; i < c->np; i++)
         if (!strcmp(c->pn[i], name)) { xstr_or_num(v, c->pv[i]); return; }
+    if (g_x_host.field_get(c, name, v)) return;   // a field of the speaker's personality (let at a file's top)
     for (int k = 0; k < 3; k++) {
         const char *def = xvars_get(c->vars[k], name);
         if (!def) continue;
@@ -2528,6 +2566,7 @@ internal void xe_ident(struct xe *e, const char *name, struct xval *v) {
 }
 // a function's body (def), its parameters (par "a,b)") bound to the arguments: they alone are its names besides the
 // game's values and the vars - a function calling itself ends at the nesting limit like vars in a circle
+internal void x_call_value(struct xe *e, const struct xval *fv, const struct xval *a, int na, struct xval *v);
 internal void x_call(struct xe *e, const char *def, const char *par, const struct xval *a, int na, struct xval *v) {
     struct xctx *c = e->c;
     char names[8][24];
@@ -2543,6 +2582,17 @@ internal void x_call(struct xe *e, const char *def, const char *par, const struc
     }
     if (n != na) { e->err = 1; return; }
     if (c->depth >= X_NEST) { c->circle = 1; e->err = 1; return; }
+    if (def[0] == X_BODY) {   // name(a, b) { ... }: statements - kept as the function (a, b) => { ... }, called as a script's are
+        const struct xunit *u = x_compiled(def + 1);
+        struct xval fv;
+        if (!u->ok || u->root->k != XN_LAMBDA) { e->err = 1; return; }
+        xe(e, u->root, &fv);
+        if (e->err) return;
+        c->depth++;
+        x_call_value(e, &fv, a, na, v);
+        c->depth--;
+        return;
+    }
     const char *const *fpn = c->fpn;
     const struct xval *fpv = c->fpv;
     int fnp = c->fnp;
@@ -3149,7 +3199,12 @@ internal void x_assign(struct xe *e, const char *name, const struct xval *v) {
         f->val[i] = o->val[j];
         return;
     }
-    if (i == f->n) { if (f->n == XF_MAX) { x_fail(e, "more than %d names in a function", XF_MAX); return; } f->n++; }
+    if (i == f->n) {   // none of its own: a field of the speaker's personality (the check let it through as one), else a new one
+        const char *why = NULL;
+        if (g_x_host.field_set(e->c, name, v, &why)) { if (why) x_fail(e, "%s = ...: %s", name, why); return; }
+        if (f->n == XF_MAX) { x_fail(e, "more than %d names in a function", XF_MAX); return; }
+        f->n++;
+    }
     f->name[i] = name; f->val[i] = *v; f->own[i] = 1;
     e->c->fpn = f->name; e->c->fpv = f->val; e->c->fnp = f->n;
 }
@@ -3393,9 +3448,8 @@ internal void xe(struct xe *e, const struct xnode *n, struct xval *v) {
         if (!t) { e->err = 1; break; }
         t->kt = (int)n->n / 4096;
         t->vt = (int)n->n % 4096;
-        t->next = g_xdicts;
-        g_xdicts = t;
-        if (!xdict_fit(e, t->vt, &d, &t->def, 0, "dict<K, V>(default)")) break;
+        if (!g_xdict_keep) { t->next = g_xdicts; g_xdicts = t; }
+        if (!xdict_fit(e, t->vt, &d, &t->def, 0, "dict<K, V>(default)")) { if (g_xdict_keep) x_dict_free(t); break; }
         xnothing(v);
         v->w = 1; v->kind = XV_DICT; v->dict = t; v->s = "a dict";
         break;
@@ -3585,7 +3639,7 @@ internal int x_syntax_at(const char *src, const char **why, int ph) {
     c.found = 1;   // no players looked up
     const struct xunit *u = x_compiled(src);
     if (!u->ok) { *why = u->why ? u->why : "not an expression"; return 0; }
-    struct xcheck k = { &c, 0, NULL, 0, "", 0, 0, { 0 }, { 0 }, 0, 0, 1 };
+    struct xcheck k = { &c, 0, NULL, 0, "", 0, 0, { 0 }, { 0 }, 0, 0, 1, 0 };
     struct xscope sc = { NULL, { 0 }, 0, { 0 }, 0, { 0 }, { 0 } };
     xn_has(&k);
     if (!x_check(&k, u->root, &sc)) { *why = k.why ? k.why : "not an expression"; return 0; }
@@ -3809,14 +3863,17 @@ internal void tl_blank(struct tlex *l, int lines) {   // spaces; with lines: lin
     }
 }
 internal void tval_free(struct tval *v) { free(v->text); free(v->src); memset(v, 0, sizeof *v); }
-internal int tl_key_line(const char *t) {   // a line that starts a key ("name =", "name(a, b) =", not "a == b")
+internal int tl_key_line(const char *t) {   // a line that starts a key ("name =", "name(a, b) =", "name(a) {", "let", not "a == b")
     while (*t == ' ' || *t == '\t') t++;
+    if (!strncmp(t, "let", 3) && (t[3] == ' ' || t[3] == '\t')) return 1;
     const char *k = t;
     while (*t && (isalnum((unsigned char)*t) || strchr("_:.-", *t))) t++;
     if (t == k) return 0;
     if (*t == '(') {   // a function's parameters: names and commas
         for (t++; *t && *t != ')'; t++) if (!isalnum((unsigned char)*t) && !strchr("_, ", *t)) return 0;
         if (*t++ != ')') return 0;
+        while (*t == ' ' || *t == '\t') t++;
+        if (*t == '{') return 1;
     }
     while (*t == ' ' || *t == '\t') t++;
     return *t == '=' && t[1] != '=';
@@ -3965,6 +4022,112 @@ internal int x_data_node(const struct xnode *n, char *buf, int cap) {
     return 1;
 }
 typedef void (*tfile_fn)(void *arg, const char *record, const char *key, struct tval *v, struct tlex *l);
+internal int x_syntax(const char *src, const char **why);
+// name(a, b) { ... } at a file's top: a function of statements - read as written (one statement a line), kept as
+// X_BODY "(a,b) => { ... }" (x_call runs it as a script's function), checked as one; key "name(a,b)", record ""
+internal void tl_body(struct tlex *l, const char *key, tfile_fn fn, void *arg, const char *file) {
+    int line = l->line, depth = 0;
+    const char *b = l->s;
+    for (;;) {
+        char c = *l->s;
+        if (!c) { l->line = line; tl_error(l, "a { without its }"); return; }
+        if (x_string_at(l->s)) {
+            const char *e, *why;
+            if (x_string(l->s, NULL, 0, &e, &why) < 0) { tl_error(l, why); return; }
+            l->s = e;
+            continue;
+        }
+        if (x_comment(l->s)) { while (*l->s && *l->s != '\n') l->s++; continue; }
+        if (c == '\n') l->line++;
+        else if (c == '{') depth++;
+        else if (c == '}' && !--depth) { l->s++; break; }
+        l->s++;
+    }
+    if (!tl_line_end(l, "something after the function's }")) return;
+    const char *par = strchr(key, '(');
+    size_t pn = strlen(par), bn = (size_t)(l->s - b);
+    struct tval v;
+    memset(&v, 0, sizeof v);
+    v.line = line;
+    v.kind = TV_EXPR;
+    v.src = malloc(pn + bn + 8);
+    if (!v.src) return;
+    v.src[0] = X_BODY;
+    memcpy(v.src + 1, par, pn);
+    memcpy(v.src + 1 + pn, " => ", 4);
+    memcpy(v.src + 5 + pn, b, bn);
+    v.src[5 + pn + bn] = 0;
+    const char *why;
+    g_x_check_file = file;
+    g_x_check_line = line;
+    int ok = x_syntax(v.src + 1, &why);
+    g_x_check_file = NULL;
+    if (!ok) {
+        const struct xunit *u = x_compiled(v.src + 1);
+        int cur = l->line;
+        l->line = line + (!u->ok && u->line > 1 ? u->line - 1 : 0);
+        tl_error(l, why);
+        l->line = cur;
+    } else fn(arg, "", key, &v, l);
+    tval_free(&v);
+}
+// let name = value, let name: type = value at a file's top: a field - one per AI (the host's: persona.c PERSONALITY
+// STATE), starting as a number, a bool, a text or a dict<K, V>(default) - data (x_data_node). Record "let", key the
+// name, ":type" after it when written
+internal int x_data_node(const struct xnode *n, char *buf, int cap);
+internal void tl_let(struct tlex *l, tfile_fn fn, void *arg, const char *file) {
+    char name[40], type[48] = "", why[200], what[64];
+    int k = 0;
+    tl_blank(l, 0);
+    while ((isalnum((unsigned char)*l->s) || *l->s == '_') && k < 39) name[k++] = *l->s++;
+    name[k] = 0;
+    if (!k || isdigit((unsigned char)name[0]) || x_word_reserved(name)) { tl_error(l, "let name = value"); return; }
+    tl_blank(l, 0);
+    if (*l->s == ':') {   // its type as written: let n: float = 0, let g: dict<player, int> = ...
+        int t = 0;
+        for (l->s++; *l->s == ' ' || *l->s == '\t'; l->s++) {}
+        while (*l->s && *l->s != '=' && *l->s != '\n' && t < 47) type[t++] = *l->s++;
+        while (t && type[t - 1] == ' ') t--;
+        type[t] = 0;
+    }
+    if (*l->s != '=' || l->s[1] == '=' || l->s[1] == '>') { tl_error(l, "let name = value (a field: data, or dict<K, V>(default))"); return; }
+    l->s++;
+    struct tval v;
+    g_x_check_file = file;
+    g_x_check_line = l->line;
+    tl_value(l, &v, 0);
+    g_x_check_file = NULL;
+    if (l->err) return;
+    const struct xunit *u = x_compiled(v.src);
+    const struct xnode *r = u->ok ? u->root : NULL, *num = r && r->k == XN_NEG ? r->a : r;
+    int dict = r && r->k == XN_DICT;
+    int vt = dict ? -1 : num && num->k == XN_NUM && num->op != 'n' ? (num->op == 'b' ? XT_BOOL : num->op == 'f' ? XT_FLOAT : XT_INT) :
+             r && r->k == XN_STR && !strchr(r->s, '{') ? XT_TEXT : 0;
+    why[0] = 0;
+    if (r && !vt) {
+        if (!x_data_node(dict ? r->a : r, what, sizeof what)) snprintf(what + strlen(what), sizeof what - strlen(what), " changes with the game");
+        else snprintf(what, sizeof what, "%.40s", v.src);
+        snprintf(why, sizeof why, "let %s = ...: a field starts as a number, a bool, a text or a dict<K, V>(default) - not %s", name, what);
+    } else if (dict && !x_data_node(r->a, what, sizeof what)) {
+        snprintf(why, sizeof why, "let %s = dict<K, V>(...): its default changes with the game (%s)", name, what);
+    } else if (type[0]) {
+        int t = dict ? 0 : x_type_named(type);
+        if (dict ? strncmp(type, "dict<", 5) != 0 : !(t == vt || (t == XT_FLOAT && vt == XT_INT)))
+            snprintf(why, sizeof why, "let %s: %s = ...: its value is %s", name, type, dict ? "a dict" : vt == XT_TEXT ? "a text" : vt == XT_BOOL ? "a bool" : "a number");
+    }
+    if (why[0]) {
+        int cur = l->line;
+        l->line = v.line;
+        tl_error(l, why);
+        l->line = cur;
+    } else {
+        char key[96];
+        snprintf(key, sizeof key, "%s%s%s", name, type[0] && !dict ? ":" : "", dict ? "" : type);
+        fn(arg, "let", key, &v, l);
+        l->err = 0;
+    }
+    tval_free(&v);
+}
 #define TL_DEPTH 8
 internal void tfile_parse(const char *file, const char *text, tfile_fn fn, void *arg) {
     struct tlex l = { text, file, 1, 0 };
@@ -3997,6 +4160,11 @@ internal void tfile_parse(const char *file, const char *text, tfile_fn fn, void 
             int n = 0;
             while (*l.s && (isalnum((unsigned char)*l.s) || *l.s == '_') && n < 47) key[n++] = *l.s++;
             key[n] = 0;
+            if (n == 3 && !strcmp(key, "let") && (*l.s == ' ' || *l.s == '\t')) {   // let name = value: a field
+                if (depth) tl_error(&l, "let at the file's top only - a record's entries are values");
+                else tl_let(&l, fn, arg, file);
+                goto next;
+            }
             if (n && *l.s == '(' && !depth && tl_declaration(key)) {   // include("a.eeai", ...): ["a.eeai", ...]
                 struct tval v;
                 memset(&v, 0, sizeof v);
@@ -4048,7 +4216,10 @@ internal void tfile_parse(const char *file, const char *text, tfile_fn fn, void 
             if (n >= 0) tl_blank(&l, 0);
             int arrow = n > 0 && l.s[0] == '=' && l.s[1] == '>', isfn = n > 0 && strchr(key, '(') != NULL;
             if (n < 0) ;   // (its mistake told)
-            else if (!n || *l.s != '=') tl_error(&l, "no name = value (or name => ...)");
+            else if (isfn && *l.s == '{') {   // name(a, b) { ... }: a function of statements
+                if (depth) tl_error(&l, "a function in a record - at the file's top: name(a) { ... }");
+                else tl_body(&l, key, fn, arg, file);
+            } else if (!n || *l.s != '=') tl_error(&l, "no name = value (or name => ...)");
             else if (arrow && depth) tl_error(&l, "=> outside the records only - a record's entries are values: key = ...");
             else if (isfn && !arrow) {
                 char why[120];

@@ -507,6 +507,8 @@ internal void x_host_install(void) {
     g_x_host.name_type = x_name_type;
     g_x_host.has = x_code_has;
     g_x_host.obj_key = x_unit_key;
+    g_x_host.field_get = persona_field_get;
+    g_x_host.field_set = persona_field_set;
     g_ini_eval = x_const_eval;
 }
 

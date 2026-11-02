@@ -330,6 +330,45 @@ lines = {
 - A function may call others; one that calls itself stops at the nesting limit (a mistake, never a hang).
 - Lookup is as for the other names: the personality's own first, then its layers, then `mod/system.eeai`.
 
+### State: what an AI remembers
+
+A personality file is like a class, and every AI that plays it an instance of it. **Fields** - `let` at the file's
+top - are each AI's own: two AIs playing the same file count apart. They start as written when the AI first needs
+them in a game (a new game starts them afresh), are read anywhere like any name, and change only in **statements**:
+
+```
+let betrayals = 0                          // a number (an int: whole numbers; let x: float = 0, let b = false)
+let mood = "calm"                          // a text
+let grudges = dict<player, int>(0)         // a dict: every player starts at 0 (the default), see below
+
+on_betrayed() {                            // a handler: runs every time the situation happens
+    betrayals += 1
+    grudges[them] += 1
+    mood = "bitter"
+}
+remember(p) {                              // a function with statements: called from a handler or another such one
+    grudges[p] += 1
+}
+
+lines = {
+    peace_accept = grudges[them] > 1 ? "Peace - but I remember, {them}." : "Peace, {them}.",
+}
+```
+
+- A field starts as data: a number, a bool, a text, or `dict<K, V>(default)` - keys `int`, `text` or `player`,
+  values `int`, `float`, `bool` or `text`; `d[key]` is the key's entry or the default, `d[key] = value`,
+  `d[key] += 1` set it. A field's type stays: a text into a number field, 2.5 into an int field are mistakes, and a
+  dict field keeps its table (its entries are set, the field isn't).
+- **Handlers** `on_<situation>() { ... }` - any situation of the table above: `on_betrayed`, `on_greeting` ... - with
+  `me`, `them`, `enemy` as its lines have them. One runs every time its situation happens, whether a line is said or
+  not (none written, its chance, the talk switched off, the language model's words), and after the line - the line
+  sees the state from before. The AI's own file's handler counts, else its layers' first that has one.
+- **Statements** - `let`, `if`, `for`, `while`, `x = ...`, `x += ...`, `return` - only inside a function's `{ }`
+  (docs/scripts.md has them all). A line or a `=>` name never changes anything: a function with statements is a
+  mistake there (lines are worked out more often than said - to choose one, for the model's prompts), so state
+  changes only where something happened.
+- A name is a field or a name of the file, never both; `let` at the top only.
+
 ### Includes: building on other files
 
 Every personality builds on two files of eeaimod's without naming them: `mod/computer.eeai` (the lines that must

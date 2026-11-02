@@ -47,6 +47,10 @@ struct x_host {
     const char *(*has)(const char *file, const char *sec, const char *key);
     // an object's identity for == (a unit on its way: the unit it became, once there - the script holds for it)
     int (*obj_key)(const struct xval *v);
+    // a field of the speaker's personality (let name = ... at a file's top: one per AI) - its value; 0 none such
+    int (*field_get)(struct xctx *c, const char *name, struct xval *v);
+    // a field set: 0 none such, 1 set - *why a mistake (a value of another type), not set
+    int (*field_set)(struct xctx *c, const char *name, const struct xval *v, const char **why);
 };
 internal int xh_value(struct xctx *c, const char *name, struct xval *v) { (void)c; (void)name; (void)v; return 0; }
 internal int xh_name(const char *name) { (void)name; return 0; }
@@ -66,6 +70,10 @@ internal int xh_member(struct xctx *c, const struct xval *o, const char *name, c
 internal int xh_set(struct xctx *c, const struct xval *o, const char *name, const struct xval *v) {
     (void)c; (void)o; (void)name; (void)v; return 0;
 }
+internal int xh_field_get(struct xctx *c, const char *name, struct xval *v) { (void)c; (void)name; (void)v; return 0; }
+internal int xh_field_set(struct xctx *c, const char *name, const struct xval *v, const char **why) {
+    (void)c; (void)name; (void)v; (void)why; return 0;
+}
 internal struct x_host g_x_host = { xh_value, xh_name, xh_name, xh_method, xh_object, xh_constant, xh_rnd, xh_rnd, xh_scan,
                                   xh_placeholders, xh_name, xh_name, xh_kind, xh_name, xh_name, xh_member, xh_set, xh_name,
-                                  xh_name, xh_placeholders, xh_obj_key };
+                                  xh_name, xh_placeholders, xh_obj_key, xh_field_get, xh_field_set };
