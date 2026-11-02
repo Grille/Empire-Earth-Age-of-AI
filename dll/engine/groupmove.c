@@ -1377,10 +1377,14 @@ internal void __thiscall hook_formation_slots(void *f, void *group, void *slots)
     // it stands (a few stragglers 15 tiles ahead made a 35-tile move "in place") nor the game's own slots (its grid is
     // twice as wide). A circle marches as before
     int in_place = gl < 2 * spread;
-    // the formation they stand in, moved as it is (ff_keep_layout); with formation_keep_facing a click keeps its facing
-    // too, instead of the game's turn to face the way to the point (a click in the game's view comes as a drag facing
-    // that way: one within FO_CLICK of it is a click here; the player, 2026-11-02: the turn is the game's and intended,
-    // the keeping "worth saving as a setting")
+    // the formation they stand in, moved as it is (ff_keep_layout) when it turns less than 45 degrees (FF_ARC, as a
+    // queued move goes on in the same formation) - turned further it is laid out anew where it stands, each unit given
+    // its place by where it stands (the player, 2026-11-02: a wedge placed on the one standing, facing back, "they try
+    // to rotate into it instead of reforming, which causes a mess": every unit kept its offset and crossed the
+    // formation to the far side); with formation_keep_facing a click keeps its facing too, instead of the game's turn to
+    // face the way to the point (a click in the game's view comes as a drag facing that way: one within FO_CLICK of it
+    // is a click here; the player, 2026-11-02: the turn is the game's and intended, the keeping "worth saving as a
+    // setting")
     int same = in_place && !g_fo_queued && !circle && g_ff_on ? ff_same_group(n) : -1;
     if (same >= 0 && g_set.formation_keep_facing && (facing == 0 || (cl > 0.5f && vec2_dot(fwd, vec2_scale(cur, 1.0f / cl)) > FO_CLICK))) {
         fwd = g_ff[same].fwd;
@@ -1390,6 +1394,7 @@ internal void __thiscall hook_formation_slots(void *f, void *group, void *slots)
         memcpy(&bits, &a, sizeof bits);
         for (int i = 0; i < n; i++) game_facing[i] = bits;
     }
+    if (same >= 0 && vec2_dot(fwd, g_ff[same].fwd) < FF_ARC) same = -1;
     g_fo_has_march = 0;
     g_fo_naval = 1;
     for (int i = 0; i < n; i++) {

@@ -445,8 +445,10 @@ Settings in `ageofai.ini`:
   round in one wide arc; a ship ahead of its place slows for it instead of turning back, one beside it merges at a
   shallow angle. Told to form within its own size (a right-button drag where it stands, to turn it) a formation
   takes its places without a march - each unit by its own route, as the game does; a formation that stands as it
-  marched marches as it is then, no unit changing place, straight to the point and facing its final facing from the
-  start, so it holds the formation on the way. A click turns it to face the way to the point, as the game does;
+  marched and turns less than 45 degrees marches as it is then, no unit changing place, straight to the point and
+  facing its final facing from the start, so it holds the formation on the way (turned further, a wedge placed over
+  it facing back, it takes its places anew - every unit kept its offset and crossed the formation before). A click
+  turns it to face the way to the point, as the game does;
   `formation_keep_facing=1` keeps its facing instead (in the game's view a click comes as a drag facing the way to
   the point, so a drag within 10 degrees of that way counts as a click here).
 - `[general] formation_catchup=125%` (with formation_follow): how fast a unit behind its place may go to keep it, in
