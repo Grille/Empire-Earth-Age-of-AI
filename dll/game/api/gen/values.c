@@ -1041,6 +1041,7 @@ internal uint32_t of_player_explore;
 internal uint32_t of_player_gather;
 internal uint32_t of_player_ignore;
 internal uint32_t of_player_first_attack_done;
+internal uint32_t slot_player_hold_unit;
 internal uint32_t call_maint_delete;
 internal uint32_t slot_player_adopt;
 internal uint32_t of_player_b98_att;

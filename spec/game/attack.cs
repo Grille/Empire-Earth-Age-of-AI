@@ -41,6 +41,17 @@ unsafe struct EECPCombatManager
     /// the unit (its state, unit +0x30) in none of the combat manager's groups (the game's caller 0x471F29 its own)
     [address((ee)0x004707D8, (aoc)0x0047377E)]
     extern char8 unit_free(void* unit_state);
+
+    /// thiscall(cm, unit): a unit of the player's offered to the attack commander's pool of free units when it is free
+    /// (unit_free: not held, a type that fights, alive, not chained, moving) and the player's toggle 5 is on - every
+    /// new unit (EEComputerPlayer::vf48 0x43F702), and a held one let go (0x48A382 clears ai_held first)
+    [address((ee)0x00471F29, (aoc)0x00474FD8)]
+    extern void register_unit(EEUnit* u);
+
+    /// thiscall(cm, unit): the unit taken out of the commander's pool and its groups - a unit lost (vf49 0x43F736) or
+    /// held (EEComputerPlayer::hold_unit)
+    [address((ee)0x00471F8E, (aoc)0x00475047)]
+    extern void unregister_unit(EEUnit* u);
 }
 
 /// the object at the combat manager's +0x4C

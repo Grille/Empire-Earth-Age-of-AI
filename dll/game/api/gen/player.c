@@ -294,6 +294,15 @@ internal inline void player_view_sight_copy(ee_player *player) { fn_player_view_
 typedef void (__thiscall *player_call_off_attacks_fn)(ee_player *, ee_player *, int);
 internal player_call_off_attacks_fn fn_player_call_off_attacks;
 internal inline void player_call_off_attacks(ee_player *player, ee_player *target, int flag) { fn_player_call_off_attacks(player, target, flag); }
+// the AI holds this unit for a purpose of its own: EEPlayer's sets the unit's ai_held (+0x341), which keeps it out
+// of the combat manager's free units (unit_free) and the unit manager's spare ones (0x48F7CB); the wall manager
+// clears the flag after build_wall (0x497C3F). The computer player's (vf19) also takes it out of the combat
+// manager (unregister_unit) and sets the unit's +0x324 code to 0x46CD8 (a code set wherever a unit changes hands,
+// 0x46CD0..0x46CD8, read nowhere). The mod's armies hold their soldiers this way (ai/armies.c)
+typedef void (__thiscall *player_hold_unit_fn)(ee_player *, ee_unit *);
+internal inline void player_hold_unit(ee_player *player, ee_unit *u) { ((player_hold_unit_fn)(*(void ***)player)[slot_player_hold_unit])(player, u); }
+internal player_hold_unit_fn fn_ee_player_hold_unit;
+internal inline void ee_player_hold_unit(ee_player *player, ee_unit *u) { fn_ee_player_hold_unit(player, u); }
 typedef int (__thiscall *player_delete_for_room_fn)(ee_player *, void *, int);
 internal player_delete_for_room_fn fn_player_delete_for_room;
 internal inline int player_delete_for_room(ee_player *player, void *req, int flag) { return fn_player_delete_for_room(player, req, flag); }
@@ -1085,6 +1094,9 @@ internal inline int patch_pop_cap(player_update_pop_cap_fn h, int *of) { return 
 typedef void (__thiscall *player_schedule_attack_fn)(ee_player *, uint32_t);
 internal player_schedule_attack_fn fn_player_schedule_attack;
 internal inline void player_schedule_attack(ee_player *player, uint32_t now) { fn_player_schedule_attack(player, now); }
+// EEPlayer's hold_unit, then the unit out of the combat manager (unregister_unit) and its +0x324 code 0x46CD8
+internal player_hold_unit_fn fn_ee_computer_player_hold_unit;
+internal inline void ee_computer_player_hold_unit(ee_player *player, ee_unit *u) { fn_ee_computer_player_hold_unit(player, u); }
 
 // class EEPlayerStatistics (ee_player_stats)
 // a player's statistics, player +0x4A8 (EEPlayerStatistics)
@@ -1205,6 +1217,8 @@ internal int spec_player_select(int build) {
         fn_player_select = (player_select_fn)0x0055B3FB;
         fn_player_view_sight_copy = (player_view_sight_copy_fn)0x0055BC4E;
         fn_player_call_off_attacks = (player_call_off_attacks_fn)0x0043033E;
+        slot_player_hold_unit = 19;
+        fn_ee_player_hold_unit = (player_hold_unit_fn)0x005553DE;
         fn_player_delete_for_room = (player_delete_for_room_fn)0x00430D40;
         call_maint_delete = 0x00477B17;
         fn_player_population = (player_population_fn)0x00556E11;
@@ -1393,6 +1407,7 @@ internal int spec_player_select(int build) {
         calls_pop_cap[1] = 0x0043FA9B;
         calls_pop_cap[2] = 0x00474AF0;
         fn_player_schedule_attack = (player_schedule_attack_fn)0x0043DD2F;
+        fn_ee_computer_player_hold_unit = (player_hold_unit_fn)0x004301CD;
         of_player_stats_lists = 0x1C;
         fn_player_stats_add = (player_stats_add_fn)0x0055DBCF;
         data_player_call_kill_stat = 0x00617780;
@@ -1484,6 +1499,8 @@ internal int spec_player_select(int build) {
         fn_player_select = (player_select_fn)0x0056A658;
         fn_player_view_sight_copy = (player_view_sight_copy_fn)0x0056AEC0;
         fn_player_call_off_attacks = (player_call_off_attacks_fn)0x0042DCA6;
+        slot_player_hold_unit = 19;
+        fn_ee_player_hold_unit = (player_hold_unit_fn)0x0056367B;
         fn_player_delete_for_room = (player_delete_for_room_fn)0x0042E851;
         call_maint_delete = 0x0047B635;
         fn_player_population = (player_population_fn)0x005651E0;
@@ -1672,6 +1689,7 @@ internal int spec_player_select(int build) {
         calls_pop_cap[1] = 0x0043F2F6;
         calls_pop_cap[2] = 0x004781C9;
         fn_player_schedule_attack = (player_schedule_attack_fn)0x0043D4CD;
+        fn_ee_computer_player_hold_unit = (player_hold_unit_fn)0x0042DB35;
         of_player_stats_lists = 0x1C;
         fn_player_stats_add = (player_stats_add_fn)0x0056D507;
         data_player_call_kill_stat = 0x0062A2DF;
@@ -1697,6 +1715,7 @@ internal int spec_player_check(void) {
     bad += spec_code((uintptr_t)fn_player_select, "EEPlayer.select");
     bad += spec_code((uintptr_t)fn_player_view_sight_copy, "EEPlayer.view_sight_copy");
     bad += spec_code((uintptr_t)fn_player_call_off_attacks, "EEPlayer.call_off_attacks");
+    bad += spec_code((uintptr_t)fn_ee_player_hold_unit, "EEPlayer.hold_unit");
     bad += spec_code((uintptr_t)fn_player_delete_for_room, "EEPlayer.delete_for_room");
     bad += spec_call(call_maint_delete, (uintptr_t)fn_player_delete_for_room, "EEPlayer.delete_for_room [call_site maint_delete]");
     bad += spec_code((uintptr_t)fn_player_population, "EEPlayer.population");
@@ -1717,6 +1736,8 @@ internal int spec_player_check(void) {
     bad += spec_call(calls_pop_cap[1], (uintptr_t)fn_player_update_pop_cap, "EEComputerPlayer.update_pop_cap [call_site pop_cap 1]");
     bad += spec_call(calls_pop_cap[2], (uintptr_t)fn_player_update_pop_cap, "EEComputerPlayer.update_pop_cap [call_site pop_cap 2]");
     bad += spec_code((uintptr_t)fn_player_schedule_attack, "EEComputerPlayer.schedule_attack");
+    bad += spec_code((uintptr_t)fn_ee_computer_player_hold_unit, "EEComputerPlayer.hold_unit");
+    bad += spec_slot(vt_ee_computer_player, slot_player_hold_unit, (uintptr_t)fn_ee_computer_player_hold_unit, "EEComputerPlayer.hold_unit [slot]");
     bad += spec_code((uintptr_t)fn_player_stats_add, "EEPlayerStatistics.add");
     bad += spec_code(data_player_call_kill_stat, "player.call_kill_stat");
     bad += spec_code((uintptr_t)fn_can_place_game, "player_functions.can_place_game");

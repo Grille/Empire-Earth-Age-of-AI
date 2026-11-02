@@ -41,6 +41,17 @@ internal inline void combat_mgr_revenge(ee_combat_mgr *combat_mgr, ee_player *ta
 typedef char (__thiscall *combat_mgr_unit_free_fn)(ee_combat_mgr *, void *);
 internal combat_mgr_unit_free_fn fn_combat_mgr_unit_free;
 internal inline char combat_mgr_unit_free(ee_combat_mgr *combat_mgr, void *unit_state) { return fn_combat_mgr_unit_free(combat_mgr, unit_state); }
+// thiscall(cm, unit): a unit of the player's offered to the attack commander's pool of free units when it is free
+// (unit_free: not held, a type that fights, alive, not chained, moving) and the player's toggle 5 is on - every
+// new unit (EEComputerPlayer::vf48 0x43F702), and a held one let go (0x48A382 clears ai_held first)
+typedef void (__thiscall *combat_mgr_register_unit_fn)(ee_combat_mgr *, ee_unit *);
+internal combat_mgr_register_unit_fn fn_combat_mgr_register_unit;
+internal inline void combat_mgr_register_unit(ee_combat_mgr *combat_mgr, ee_unit *u) { fn_combat_mgr_register_unit(combat_mgr, u); }
+// thiscall(cm, unit): the unit taken out of the commander's pool and its groups - a unit lost (vf49 0x43F736) or
+// held (EEComputerPlayer::hold_unit)
+typedef void (__thiscall *combat_mgr_unregister_unit_fn)(ee_combat_mgr *, ee_unit *);
+internal combat_mgr_unregister_unit_fn fn_combat_mgr_unregister_unit;
+internal inline void combat_mgr_unregister_unit(ee_combat_mgr *combat_mgr, ee_unit *u) { fn_combat_mgr_unregister_unit(combat_mgr, u); }
 
 // class ee_combat_mgr_4c (void)
 // the object at the combat manager's +0x4C
@@ -489,6 +500,8 @@ internal int spec_attack_select(int build) {
         fn_combat_mgr_attack_plan_ok = (combat_mgr_attack_plan_ok_fn)0x0047067A;
         fn_combat_mgr_revenge = (combat_mgr_revenge_fn)0x0046FFB7;
         fn_combat_mgr_unit_free = (combat_mgr_unit_free_fn)0x004707D8;
+        fn_combat_mgr_register_unit = (combat_mgr_register_unit_fn)0x00471F29;
+        fn_combat_mgr_unregister_unit = (combat_mgr_unregister_unit_fn)0x00471F8E;
         of_combat_mgr_4c_0x48 = 0x48;
         of_attack_cmd_groups = 0x4;
         fn_attack_cmd_new_group = (attack_cmd_new_group_fn)0x0045106C;
@@ -630,6 +643,8 @@ internal int spec_attack_select(int build) {
         fn_combat_mgr_attack_plan_ok = (combat_mgr_attack_plan_ok_fn)0x0047360A;
         fn_combat_mgr_revenge = (combat_mgr_revenge_fn)0x00472EC3;
         fn_combat_mgr_unit_free = (combat_mgr_unit_free_fn)0x0047377E;
+        fn_combat_mgr_register_unit = (combat_mgr_register_unit_fn)0x00474FD8;
+        fn_combat_mgr_unregister_unit = (combat_mgr_unregister_unit_fn)0x00475047;
         of_combat_mgr_4c_0x48 = 0x48;
         of_attack_cmd_groups = 0x4;
         fn_attack_cmd_new_group = (attack_cmd_new_group_fn)0x00451D8E;
@@ -771,6 +786,8 @@ internal int spec_attack_check(void) {
     bad += spec_code((uintptr_t)fn_combat_mgr_attack_plan_ok, "EECPCombatManager.attack_plan_ok");
     bad += spec_code((uintptr_t)fn_combat_mgr_revenge, "EECPCombatManager.revenge");
     bad += spec_code((uintptr_t)fn_combat_mgr_unit_free, "EECPCombatManager.unit_free");
+    bad += spec_code((uintptr_t)fn_combat_mgr_register_unit, "EECPCombatManager.register_unit");
+    bad += spec_code((uintptr_t)fn_combat_mgr_unregister_unit, "EECPCombatManager.unregister_unit");
     bad += spec_code((uintptr_t)fn_attack_cmd_new_group, "ee_attack_cmd.new_group");
     bad += spec_code((uintptr_t)fn_attack_cmd_unit_to_group, "ee_attack_cmd.unit_to_group");
     bad += spec_call(call_unit_to_group, (uintptr_t)fn_attack_cmd_unit_to_group, "ee_attack_cmd.unit_to_group [call_site unit_to_group]");

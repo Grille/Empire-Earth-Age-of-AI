@@ -1638,8 +1638,10 @@ internal void __thiscall hook_asg_land_stats(ee_attack_subgroup *sg) {
 // taken" (the caller only notes it), the unit stays free and the game assigns it on its next pass.
 internal int g_in_calloff;
 internal unsigned g_calloff_skips;
+internal int armies_refuses_offer(ee_attack_cmd *cmd, ee_unit *unit);   // armies.c: a mod-army player's land soldier - not taken
 internal char __thiscall hook_unit_to_group(ee_attack_cmd *cmd, ee_unit *unit) {
     if (g_in_calloff) { g_calloff_skips++; return 0; }
+    if (armies_refuses_offer(cmd, unit)) return 0;
     return attack_cmd_unit_to_group(cmd, unit);
 }
 

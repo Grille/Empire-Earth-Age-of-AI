@@ -650,6 +650,10 @@ class ai_base
         /// one gathering point outside every danger on the way from there to the base; the army waits there and goes in
         /// together once its fighters there beat the enemy at the destination by army_stage_go. 0 = off
         bool army_stage = true;
+        /// The mod's armies (land maps): the AI's land soldiers belong to the mod's armies instead of the game's attack
+        /// commander - held out of its reach as they are trained, launched by the mod at the attack time as one group at
+        /// one target. The ground for standing front armies. 1 = on, being measured
+        bool mod_armies = false;
         /// The front army: between attacks the idle soldiers stand at the AI's heaviest front (and a second one weighing at
         /// least half of it), at its tower nearest the front, instead of idling at home; the attacks take them from there.
         /// 1 = on, being measured

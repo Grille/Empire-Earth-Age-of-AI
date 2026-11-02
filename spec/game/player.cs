@@ -305,6 +305,14 @@ unsafe struct EEPlayer
     [address((ee)0x0043033E, (aoc)0x0042DCA6)]
     extern void call_off_attacks(EEPlayer* target, int32 flag);
 
+    /// the AI holds this unit for a purpose of its own: EEPlayer's sets the unit's ai_held (+0x341), which keeps it out
+    /// of the combat manager's free units (unit_free) and the unit manager's spare ones (0x48F7CB); the wall manager
+    /// clears the flag after build_wall (0x497C3F). The computer player's (vf19) also takes it out of the combat
+    /// manager (unregister_unit) and sets the unit's +0x324 code to 0x46CD8 (a code set wherever a unit changes hands,
+    /// 0x46CD0..0x46CD8, read nowhere). The mod's armies hold their soldiers this way (ai/armies.c)
+    [slot(19), address((ee)0x005553DE, (aoc)0x0056367B)]
+    extern void hold_unit(EEUnit* u);
+
     [address((ee)0x00430D40, (aoc)0x0042E851)]
     [call_site("maint_delete", (ee)0x00477B17, (aoc)0x0047B635)]
     extern int32 delete_for_room(void* req, int32 flag);
@@ -1085,6 +1093,10 @@ unsafe struct EEComputerPlayer
     /// thiscall(player, now): the next attack time (+0xED8)
     [address((ee)0x0043DD2F, (aoc)0x0043D4CD)]
     extern void schedule_attack(uint32 now);
+
+    /// EEPlayer's hold_unit, then the unit out of the combat manager (unregister_unit) and its +0x324 code 0x46CD8
+    [address((ee)0x004301CD, (aoc)0x0042DB35), overrides(typeof(EEPlayer))]
+    extern void hold_unit(EEUnit* u);
 }
 
 /// a player's statistics, player +0x4A8 (EEPlayerStatistics)
