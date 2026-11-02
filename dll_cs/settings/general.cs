@@ -155,6 +155,10 @@ class general
         /// goes to its own spot. 0 = the original, each on its own route (the formations' places stay)
         [commented("0")]
         bool formation_follow = true;
+        /// Formation keep facing (with formation follow): a formation standing as it marched, clicked within its own size,
+        /// keeps its facing and moves as it is. 0 = the game's: it turns to face the way from where it stands to the point
+        [commented("1")]
+        bool formation_keep_facing = false;
         /// Formation catch-up (with formation follow): how fast a unit behind its place in the marching formation may go to
         /// keep it, in percent of its own top speed - all of it within its own size of its place, falling off to its own top
         /// speed at formation_catchup_falloff times that. Also how much the formation slows in a turn (the outermost unit

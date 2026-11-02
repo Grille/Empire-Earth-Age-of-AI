@@ -296,6 +296,7 @@ internal void fo_march(ee_active_group *grp) {
 #define FF_UNITS 4096          // the followers' table (open, by unit id)
 #define FF_FAR 24.0f           // tiles
 #define FF_END 3.0f            // tiles
+#define FF_END_PLACE 0.75f     // tiles: a formation moved as it stands (in_place 2) marches to this near its end - its units are at their offsets already
 #define FF_GAIN 0.5f           // tiles/s for each tile behind
 #define FF_AHEAD 1.5f          // tiles: the point steered at lies this far ahead of the follower's own (no circling on it)
 #define FF_LOOK 3.0f           // tiles: the anchor heads for the leader's route this far ahead of it
@@ -332,7 +333,7 @@ internal void fo_march(ee_active_group *grp) {
 // the point the formation hangs on (ff_leader), way its heading, vel its speed, turning its share of the tightest turn
 // last step, started: set out (prev: the march it went on from, else -1), t0 the step then, linger the step it arrived
 // (0: not yet, or not arrived - given another order)
-struct ff_group { uint32_t leader; ee_group *grp; ee_goal *goal; vec2 fwd, way, face, end, lead_off, onward, anchor, way_from, face_from, way_rot, face_rot; float speed, reach, turn_r, acc, pace, pace_next, jam, jam_next, vel, vel_from, turning, dt; uint32_t step, t0, linger, at_ms; float sp, front, rear, fw; int n, cols; int on, live, through, passed, started, prev, reform, arc, pivot, naval, in_place; uint32_t settled; };   // in_place: a re-form within the formation's own size - no march, each unit on its own route, the formation sorted out at the end as after a march; settled: the step its last unit came to rest after it arrived (0: not yet)   // sp: its members' mean spacing, front: the front rank's offset, fw: the formation's width, n: its units, cols: narrowed to this many abreast (0: as laid out)   // arc: it goes on from prev in the same formation (else it re-forms on the move: pivot - its anchor turns onto the new leg sharply); naval: ships
+struct ff_group { uint32_t leader; ee_group *grp; ee_goal *goal; vec2 fwd, way, face, end, lead_off, onward, anchor, way_from, face_from, way_rot, face_rot; float speed, reach, turn_r, acc, pace, pace_next, jam, jam_next, vel, vel_from, turning, dt; uint32_t step, t0, linger, at_ms; float sp, front, rear, fw; int n, cols; int on, live, through, passed, started, prev, reform, arc, pivot, naval, in_place; uint32_t settled; };   // in_place: a re-form within the formation's own size - 1 no march, each unit on its own route, the formation sorted out at the end as after a march; 2 a formation moved as it stands: a march straight to its end, facing its final facing from the start, to FF_END_PLACE of its end; settled: the step its last unit came to rest after it arrived (0: not yet)   // sp: its members' mean spacing, front: the front rank's offset, fw: the formation's width, n: its units, cols: narrowed to this many abreast (0: as laid out)   // arc: it goes on from prev in the same formation (else it re-forms on the move: pivot - its anchor turns onto the new leg sharply); naval: ships
 internal struct ff_group g_ff[FF_GROUPS];
 internal unsigned g_ff_next;
 internal int g_ff_first, g_ff_count;   // the marches started by the move being dispatched, for their leaders' goals
@@ -531,13 +532,16 @@ internal void ff_start_block(void *group, const int *idx, int k, vec2 c, vec2 fw
 
 // a re-form in place (the marches just started by ff_start): no march - its units take their own routes to their spots
 // as the game sends them, and the formation is sorted out at the end as after a march (ff_linger_tick: a unit pushed
-// off its spot walks back; the player, 2026-11-02: without it "the formation always seems to end up messy")
-internal void ff_in_place(void) {
+// off its spot walks back; the player, 2026-11-02: without it "the formation always seems to end up messy"). A
+// formation moved as it stands (ff_keep_layout) marches (in_place 2): the anchor straight from the leader to its spot,
+// the formation facing its final facing from the start, every unit at its offset - they hold the formation on the way
+// (the player, 2026-11-02: on their own routes "the moving units don't hold the formation like they do for a drag")
+internal void ff_in_place(int march) {
     g_ff_in_place++;
     for (int i = 0; i < g_ff_count; i++) {
         struct ff_group *gr = &g_ff[(g_ff_next - (unsigned)g_ff_count + (unsigned)i) % FF_GROUPS];
-        gr->in_place = 1;
-        gr->started = 1;
+        gr->in_place = march ? 2 : 1;
+        if (march) gr->face = gr->fwd; else gr->started = 1;
     }
 }
 // the marches of the units just laid out (g_fo[0..n)): a block each - the units within FF_LINK of each other where they
@@ -774,7 +778,7 @@ internal ee_unit *ff_leader(struct ff_group *gr, uint32_t step) {
     uint32_t steps = gr->step == ~0u || step - gr->step > 20 ? 1 : step - gr->step;   // since the last (no unit of it may have moved in between)
     gr->step = step;
     gr->live = 0;
-    if (gr->in_place) {   // no march: nobody steered; the leader's move done, the formation lingers (ff_linger_tick looks too)
+    if (gr->in_place == 1) {   // no march: nobody steered; the leader's move done, the formation lingers (ff_linger_tick looks too)
         if (!l || unit_get_hp(l) <= 0 || !unit_orders(l)) { gr->on = 0; gr->linger = step ? step : 1; }
         return NULL;
     }
@@ -815,7 +819,7 @@ internal ee_unit *ff_leader(struct ff_group *gr, uint32_t step) {
             // day: "they run in a large arc for a minute just to end in a complete mess"). Ships keep their start:
             // they turn as one on their circles
             gr->anchor = v2(p.x, p.y);
-            if (!gr->naval) {
+            if (!gr->naval && gr->in_place != 2) {   // moved as it stands: every unit at its offset already
                 int gi = (int)(gr - g_ff);
                 float lag = 0, most = vec2_dot(vec2_sub(gr->end, gr->anchor), gr->way) - FF_END;
                 if (most > gr->front - gr->rear) most = gr->front - gr->rear;
@@ -876,15 +880,15 @@ internal ee_unit *ff_leader(struct ff_group *gr, uint32_t step) {
     // the anchor at the leader's spot (where this step takes it): the march done, each unit on to its own; going on to a
     // queued march, the anchor goes on and the leader's leg ends there (its arrival starts the next order, which takes the
     // anchor over)
-    float de = vec2_len(vec2_sub(gr->end, vec2_add(gr->anchor, vec2_scale(fo_half(way0, gr->way), (vn + v) * 0.5f * dt))));
-    if (de < FF_END && !gr->through) { gr->on = gr->live = 0; gr->linger = step ? step : 1; return NULL; }
-    if (de < FF_END && gr->through && !gr->passed) { gr->passed = 1; ff_finish_leg(l); }
+    float de = vec2_len(vec2_sub(gr->end, vec2_add(gr->anchor, vec2_scale(fo_half(way0, gr->way), (vn + v) * 0.5f * dt)))), end_r = gr->in_place == 2 ? FF_END_PLACE : FF_END;
+    if (de < end_r && !gr->through) { gr->on = gr->live = 0; gr->linger = step ? step : 1; return NULL; }
+    if (de < end_r && gr->through && !gr->passed) { gr->passed = 1; ff_finish_leg(l); }
     // the facing: the heading, turned to the final facing over the last span - its share of the turn the time left on it
     // (the turn's arc for the outermost unit: at most the chord x pi / 2) - no faster than its outermost units swing round
     float spd = gr->speed > 0.05f ? gr->speed : 0.05f, left = de / spd;
     float span = gr->reach * vec2_len(vec2_sub(gr->fwd, gr->way)) * 1.5708f / spd;
     span = span < FF_SETTLE ? FF_SETTLE : span > FF_SETTLE_MAX ? FF_SETTLE_MAX : span;
-    vec2 want = left >= span || gr->through || gr->reform ? gr->way : fo_turn(gr->way, gr->fwd, 1 - left / span);
+    vec2 want = gr->in_place == 2 ? gr->fwd : left >= span || gr->through || gr->reform ? gr->way : fo_turn(gr->way, gr->fwd, 1 - left / span);
     float swing = FF_SWING * spd / (gr->reach > 1 ? gr->reach : 1) * dt;
     ch = vec2_len(vec2_sub(want, gr->face));
     gr->face = ch <= swing || gr->naval ? want : fo_turn(gr->face, want, swing / ch);
@@ -951,7 +955,7 @@ internal void ff_linger_tick(void) {
     int any = 0;
     for (int k = 0; k < FF_GROUPS; k++) {
         struct ff_group *gr = &g_ff[k];
-        if (gr->on && gr->in_place) {   // no march, nobody steering: its leader's move done, it lingers
+        if (gr->on && gr->in_place == 1) {   // no march, nobody steering: its leader's move done, it lingers
             ee_unit *l = unit_by_id(gr->leader);
             if (!l || unit_get_hp(l) <= 0 || !unit_orders(l)) { gr->on = 0; gr->linger = step ? step : 1; }
         }
@@ -1373,13 +1377,12 @@ internal void __thiscall hook_formation_slots(void *f, void *group, void *slots)
     // it stands (a few stragglers 15 tiles ahead made a 35-tile move "in place") nor the game's own slots (its grid is
     // twice as wide). A circle marches as before
     int in_place = gl < 2 * spread;
-    // the formation they stand in, moved as it is (ff_keep_layout); a click keeps its facing too - the way to a point 3
-    // tiles off would have turned the whole formation. A click in the game's view comes as a drag facing the way from
-    // the selection to the point (above): one within FO_CLICK of that way is a click here (the player, 2026-11-02:
-    // "just clicking on a spot in front scrambles them still" - turned by the few degrees to the point, every unit
-    // walked its own way)
+    // the formation they stand in, moved as it is (ff_keep_layout); with formation_keep_facing a click keeps its facing
+    // too, instead of the game's turn to face the way to the point (a click in the game's view comes as a drag facing
+    // that way: one within FO_CLICK of it is a click here; the player, 2026-11-02: the turn is the game's and intended,
+    // the keeping "worth saving as a setting")
     int same = in_place && !g_fo_queued && !circle && g_ff_on ? ff_same_group(n) : -1;
-    if (same >= 0 && (facing == 0 || (cl > 0.5f && vec2_dot(fwd, vec2_scale(cur, 1.0f / cl)) > FO_CLICK))) {
+    if (same >= 0 && g_set.formation_keep_facing && (facing == 0 || (cl > 0.5f && vec2_dot(fwd, vec2_scale(cur, 1.0f / cl)) > FO_CLICK))) {
         fwd = g_ff[same].fwd;
         right = v2(fwd.y, -fwd.x);
         float a = fo_atan2(-fwd.x, fwd.y);
@@ -1450,7 +1453,7 @@ internal void __thiscall hook_formation_slots(void *f, void *group, void *slots)
     g_fo_moves++;
     if (g_fo_queued) g_fo_queued_n++;
     g_ff_count = 0;
-    if (g_ff_on) { ff_start(group, n, c, fwd, right, g_fo_queued, arc); if (in_place) ff_in_place(); }
+    if (g_ff_on) { ff_start(group, n, c, fwd, right, g_fo_queued, arc); if (in_place) ff_in_place(same >= 0); }
     // a line a move (the player's games: what a reported layout or march did)
     if (g_log) fprintf(g_log, "# formation: %d units, kind %d, %s%d from their last order%s, from %.1f,%.1f to %.1f,%.1f facing %.2f,%.2f (%s), %.1f tiles (the formation's radius %.1f), %s%d marches\n",
                        n, kind, g_fo_queued ? "queued, " : "", from_last, reface ? " (the click's facing turned to their way)" : "", mean.x, mean.y, c.x, c.y, fwd.x, fwd.y, facing == 0 ? "click" : "drag", gl, spread, same >= 0 ? "in place as it stands, " : in_place ? "in place, " : "", g_ff_on ? g_ff_count : 0);
