@@ -1,0 +1,30 @@
+// A standing formation told to re-form where it stands (the player, 2026-11-02: "when I click and drag where they
+// stand to tell them to reform where they stand they run in a large arc for a minute just to end in a complete mess"):
+// Continental (seed 101, start_epoch 12), the save's mix - 60 halberdiers, 30 grenadiers, 10 diplomats, 4 colossus
+// artillery - at 40,40, sent 20 tiles to 40,60 as a deep wedge (autotest formation_kind=4) and left to form, then told
+// to form on its middle facing as it stands (a right-button drag of 1 degree: fmove go's facing; the selection takes
+// P1's five citizens standing 12 tiles aside too - a few units off the formation are part of it, and so is the ground
+// here: the same at 60,60 on open ground didn't show it). `fmove watch 1` logs every unit every step: a reader takes,
+// per unit after the drag, the path walked and when it last moved. Found (game_seed 1): with the march's formation set
+// ahead (groupmove.c ff_leader, 2026-11-02) the anchor started beyond the leader's spot and came round to it on the
+// formation's turning circle - the 109 units walked 27.7 tiles each (max 41.6), the last moving at 128 s, the middle
+// 13 tiles south and back; a re-form within the formation's own diameter is no march now (each unit to its place by
+// its own route, the game's way) and the set-ahead stops short of the end: 7.3 tiles, the last at 44 s (median 14 s).
+// Before the set-ahead (62ea451) 8.4 tiles and 49 s. A drag at the wedge's tip (the formation's radius) is level either
+// way (9.1 tiles, 54 s as a march, 64 s in place); 12 tiles and further the march walks what the game's own slots do.
+wait_until(0.1min)
+spawn(1, unit.inf08_halberdier, 40, 40, 60)
+spawn(1, unit.inf09_grenadier, 40, 40, 30)
+spawn(1, unit.x_diplomat, 40, 40, 10)
+spawn(1, unit.gun_artillery13_colossus, 40, 40, 4)
+wait_until(0.4min)
+cmd("fmove go 1 40 40 14 40 60")
+wait_until(1.7min)
+cmd("fmove watch 1")
+cmd("fmove go 1 40 55 12 40 55 0 1")
+every(2s, 1.7min, 4.2min, (run) => {
+    cmd("fmove stat")
+})
+wait_until(4.25min)
+cmd("fmove sum")
+cmd("fmove watch 0")
