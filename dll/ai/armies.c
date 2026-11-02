@@ -22,7 +22,7 @@
 // what it meets and walks on). Under that the force waits at home and grows - the ratio grows with its numbers. Out,
 // every AR_JUDGE_EVERY the force is judged as a whole - all its members out against the enemy at its middle and at
 // its destination, the lesser - and under AR_BACK_PCT twice running it goes home as one (a plain move: no fighting on
-// the way). The building down (none seen within AR_DONE of the destination with a member there), the next: the known
+// the way; as a group: AR_WAY below). The building down (none seen within AR_DONE of the destination with a member there), the next: the known
 // enemy building nearest the force's middle, judged the same - under AR_GO_PCT: home. A raid (AR_RAID_BAND enemy land
 // fighters seen within AR_RAID_R of an own building, or one attacking something of ours, within AR_RAID_REACH of
 // home, seen there twice running) while the force is home: the whole force attack-moves to it - one order to the
@@ -77,9 +77,13 @@
 // matched to the pushes' home orders, 24 games): ranged 37% of the dead against 25% in the fight, cavalry 6%
 // against 15% - the slow die, the fast get away. A cavalry rearguard (AR_BACK_FIGHT 2: the cavalry attack-moves
 // home, the rest walks; 48 games): kills +10.5 (se 7.5), losses -11.1 (7.7), razed -1.5 (0.8), buildings lost 5.6 /
-// 4.2, lost on the way 71.7 against 70.6 a game - the cavalry's fight doesn't cover the slow. Off. The way home
-// stays a plain move; what would help it is the next thing to find (a nearer fallback, the retreat earlier for the
-// slow lines, the slow lines kept out of the push's front).
+// 4.2, lost on the way 71.7 against 70.6 a game - the cavalry's fight doesn't cover the slow. Off. THE WAY HOME AS
+// A GROUP (AR_WAY, the player's design: stay a group, walk home together, turn on the chasers you beat once out of
+// the enemy base): the convoy alone (AR_WAY 1; 48 games) cut the losses on the way from 27 to 12 a game but the
+// scores stayed level (kills -6.4 se 8.4, losses +7.8) - the saved soldiers died later anyway; the convoy with the
+// stand (AR_WAY 3; 96 games): lost on the way 27 -> 7 a game, 2.8 stands a game, razed +2.3 (se 1.05), buildings
+// lost 4.6 against 6.9, kills -0.7 (5.7), losses +1.0 (5.7), further legs 1.2 -> 2.0 a game (the force survives its
+// retreats and pushes on); orders 2750 -> 5540 a game (the convoy's every 10 s). On by default (AR_WAY 3).
 // BEFORE THE FORCE (2026-11-02, head-to-head, Continental huge 1v1 late, 75 min, 24 mirrored games each): PARITY - the
 // held let go to the game's own launch a tick ahead of the attack time (ai_held cleared, register_unit): soldiers
 // +14.5 (se 6.2), kills +1.3 (6.9), losses -8.0 (8.5), razed -1.8 (1.6), workers -8.1 (10.5) - the soldiers trained
@@ -113,6 +117,12 @@
 #ifndef AR_BACK_FIGHT
 #define AR_BACK_FIGHT 0            // the way home: 1 an attack-move (the members fight what catches them), 2 the cavalry's only (a rearguard: the fast cover the slow), 0 a plain move
 #endif
+#ifndef AR_WAY
+#define AR_WAY 3                   // the way home: bit 1 a convoy (every AR_WAY_EVERY every member to a point AR_WAY_STEP ahead of the group's middle: the fast wait for the slow), bit 2 a stand (the chasers attacked once the group is clear of the enemy's defences and AR_WAY_CLEAR from the target, when it beats them by AR_GO_PCT)
+#endif
+#define AR_WAY_EVERY 10000
+#define AR_WAY_STEP 12
+#define AR_WAY_CLEAR 20
 #ifndef AR_BLEED_PCT
 #define AR_BLEED_PCT 0             // out: the force's hit points down by this much of what it went out with - home (0: never)
 #endif
@@ -143,7 +153,7 @@
 #ifndef AR_RAID_BAND
 #define AR_RAID_BAND 3             // a raid: this many enemy fighters seen within AR_RAID_R of the raider, or one of them attacking ours
 #endif
-internal int g_mod_armies = 0, g_v_mod_armies = -1, g_v_ar_raid_band = -1, g_v_ar_press = -1, g_v_ar_fort = -1, g_v_ar_assume = -1, g_v_ar_back_pct = -1, g_v_ar_back_fight = -1;   // [autotest] v_ar_raid_band, v_ar_press, v_ar_fort, v_ar_assume, v_ar_back_pct, v_ar_back_fight: the variant players' AR_RAID_BAND, AR_PRESS, AR_FORT, AR_ASSUME, AR_BACK_PCT, AR_BACK_FIGHT
+internal int g_mod_armies = 0, g_v_mod_armies = -1, g_v_ar_raid_band = -1, g_v_ar_press = -1, g_v_ar_fort = -1, g_v_ar_assume = -1, g_v_ar_back_pct = -1, g_v_ar_back_fight = -1, g_v_ar_way = -1;   // [autotest] v_ar_way: AR_WAY; v_ar_raid_band, v_ar_press, v_ar_fort, v_ar_assume, v_ar_back_pct, v_ar_back_fight: the variant players' AR_RAID_BAND, AR_PRESS, AR_FORT, AR_ASSUME, AR_BACK_PCT, AR_BACK_FIGHT
 #define MOD_ARMIES(idx) PV(idx, g_v_mod_armies, g_mod_armies)
 internal struct armies_st {
     uint32_t t, log_t;
@@ -159,6 +169,7 @@ internal struct armies_st {
     int kills[AR_WIN + 1], losses[AR_WIN + 1], win_n;   // the game's own counts of units killed and lost, a sample a minute (the oldest first)
     uint32_t back_t; int back_n, back_kind; float back_hp;   // the last home order: when, how many went, from what (1 a push, 2 a raid), their hit points
     unsigned way_n, way_lost; float way_hp, way_hp_lost;     // the measure: soldiers sent home and lost on the way, their hit points and those lost
+    uint32_t way_t; unsigned stands;                         // the convoy's last order; stands against the chasers
     uint32_t win_t;
 } g_armies[16];
 internal struct st_side g_ar_own;
@@ -351,16 +362,68 @@ internal void ar_home_all(ee_player *pl, unsigned idx, struct armies_st *a, uint
 }
 // THE WAY HOME, measured (2026-11-02): what of the force sent home arrives - once every member sent is home (within
 // AR_HOME_R), dead or two minutes have passed - against what went
-internal void ar_way_home(unsigned idx, struct armies_st *a, uint32_t now) {
-    if (!a->back_t) return;
-    int alive = 0, home = 0;
+// THE WAY HOME AS A GROUP (AR_WAY, the player: "on a retreat they should still stay a group ... walk home together;
+// after they are out of the enemy base, attacking smaller groups that still chase them is the right move, as long as
+// they can win these fights"): the convoy - every AR_WAY_EVERY every member on its way is ordered to the point
+// AR_WAY_STEP tiles ahead of the group's middle towards home, so the fast wait there for the slow (the game's group
+// move has no such thing: each unit walks to its slot at its own pace, docs/engine-notes.md "Group moves") - and
+// the stand: once the middle is AR_WAY_CLEAR from the push's target and no enemy defence covers it, the chasers
+// (the enemy land fighters seen within SG_FOE of the middle) are judged against the group as a whole, and beaten by
+// AR_GO_PCT the group attack-moves at their middle as a raid (home again when they are cleared or it is losing).
+internal void ar_way_home(ee_player *pl, unsigned idx, struct armies_st *a, uint32_t now) {
+    if (!a->back_t || a->out) return;
+    int mode = PV(idx, g_v_ar_way, AR_WAY), alive = 0, home = 0;
+    long sx = 0, sy = 0;
     float hp = 0.0f;
     for (int k = 0; k < a->n; k++) {
         if (!a->held[k].back || !cv_alive(a->held[k].u)) continue;
-        alive++; hp += unit_get_hp(a->held[k].u);
-        home += ivec2_dist2(unit_get_tile(a->held[k].u), a->home) <= AR_HOME_R * AR_HOME_R;
+        ivec2 p = unit_get_tile(a->held[k].u);
+        alive++; hp += unit_get_hp(a->held[k].u); sx += p.x; sy += p.y;
+        home += ivec2_dist2(p, a->home) <= AR_HOME_R * AR_HOME_R;
     }
-    if (alive > home && now - a->back_t < 120000) return;
+    if (alive > home && now - a->back_t < 120000) {
+        ivec2 mid = iv2((int)(sx / alive), (int)(sy / alive));
+        if ((mode & 2) && (!a->judge_t || now - a->judge_t >= AR_JUDGE_EVERY)) {
+            a->judge_t = now ? now : 1;
+            if (ivec2_dist2(mid, a->dest) >= AR_WAY_CLEAR * AR_WAY_CLEAR && !cv_enemy_def(pl, mid)) {
+                long cx = 0, cy = 0;
+                int nc = 0;
+                for (struct grid_it it = grid_it_box(mid.x, mid.y, SG_FOE, 1); grid_it_next(&it); ) {
+                    ee_player *o = unit_get_owner(it.u);
+                    if (!o || player_get_index(o) <= 0 || !is_enemy(pl, o) || !cv_alive(it.u) || !ms_land_soldier(it.u, it.td) || !seen_by(it.u, pl)) continue;
+                    ivec2 p = unit_get_tile(it.u);
+                    if (ivec2_dist2(p, mid) > SG_FOE * SG_FOE) continue;
+                    cx += p.x; cy += p.y; nc++;
+                }
+                if (nc) {
+                    stage_foe(pl, mid);
+                    st_side_clear(&g_ar_own);
+                    for (int k = 0; k < a->n; k++) if (a->held[k].back && cv_alive(a->held[k].u)) st_side_add(&g_ar_own, a->held[k].u);
+                    float ratio = st_ratio(&g_ar_own, &g_sgs_foe);
+                    if (ratio * 100.0f >= (float)AR_GO_PCT) {
+                        ivec2 c = iv2((int)(cx / nc), (int)(cy / nc));
+                        a->stands++;
+                        ar_log(idx, now, "%d chasers at %d,%d - the group of %d on its way home turns on them (%.2f: own %d, enemy %d)", nc, c.x, c.y, alive, ratio, g_ar_own.n, g_sgs_foe.n);
+                        for (int k = 0; k < a->n; k++) a->held[k].out = a->held[k].back && cv_alive(a->held[k].u);
+                        a->back_t = 0;
+                        ar_go(a, 2, c, NULL, 1, now);
+                        return;
+                    }
+                }
+            }
+        }
+        if ((mode & 1) && (!a->way_t || now - a->way_t >= AR_WAY_EVERY)) {
+            a->way_t = now ? now : 1;
+            float dx = (float)(a->home.x - mid.x), dy = (float)(a->home.y - mid.y), d = sqrtf(dx * dx + dy * dy);
+            ivec2 wp = d <= (float)AR_WAY_STEP ? a->home : iv2(mid.x + (int)(dx / d * (float)AR_WAY_STEP), mid.y + (int)(dy / d * (float)AR_WAY_STEP));
+            for (int k = 0; k < a->n; k++) {
+                ee_unit *u = a->held[k].u;
+                if (!a->held[k].back || !cv_alive(u) || ivec2_dist2(unit_get_tile(u), a->home) <= AR_HOME_R * AR_HOME_R) continue;
+                ar_order(a, k, ar_goal_at(wp, k, 0), now);
+            }
+        }
+        return;
+    }
     a->way_n += (unsigned)a->back_n; a->way_lost += (unsigned)(a->back_n - alive); a->way_hp += a->back_hp; a->way_hp_lost += a->back_hp - hp;
     ar_log(idx, now, "home from %s: %d of %d arrived (hp %.0f of %.0f) in %.1f min, %d still on the way", a->back_kind == 1 ? "a push" : "a raid", alive, a->back_n, hp, a->back_hp, (now - a->back_t) / 60000.0, alive - home);
     a->back_t = 0;
@@ -437,9 +500,10 @@ internal void ar_out(ee_player *pl, unsigned idx, struct armies_st *a, uint32_t 
 }
 // the force at home: its members gather there; a raid near answered; the attack time's push
 internal void ar_at_home(ee_player *pl, unsigned idx, struct armies_st *a, uint32_t now) {
+    int convoy = a->back_t && (PV(idx, g_v_ar_way, AR_WAY) & 1);
     for (int k = 0; k < a->n; k++) {
         ee_unit *u = a->held[k].u;
-        if (a->held[k].out || !cv_alive(u) || !ar_idle(u) || now - a->held[k].order_t < AR_REORDER) continue;
+        if (a->held[k].out || (convoy && a->held[k].back) || !cv_alive(u) || !ar_idle(u) || now - a->held[k].order_t < AR_REORDER) continue;
         if (ivec2_dist2(unit_get_tile(u), a->home) <= AR_HOME_R * AR_HOME_R) continue;
         ar_order(a, k, ar_goal_at(a->home, k, 0), now);
     }
@@ -553,13 +617,13 @@ internal void armies_tick(ee_player *pl, uint32_t now) {
     ar_window(pl, a, now);
     if (!ar_home(pl, idx, a, now)) return;
     if (a->out) ar_out(pl, idx, a, now);
-    ar_way_home(idx, a, now);
+    ar_way_home(pl, idx, a, now);
     ar_at_home(pl, idx, a, now);
     if (g_log && g_autotest && (!a->log_t || now < a->log_t || now - a->log_t >= 60000)) {
         a->log_t = now ? now : 1;
-        ar_log(idx, now, "held %d (in all %u), %s%d,%d (judged %.2f), pushes %u (pressing on %u) legs %u raids %u backs %u waits %u, orders %u, offers refused %u, forted %u, on the way home lost %u of %u (hp %.0f of %.0f), next attack at %.1f min",
+        ar_log(idx, now, "held %d (in all %u), %s%d,%d (judged %.2f), pushes %u (pressing on %u) legs %u raids %u backs %u waits %u, orders %u, offers refused %u, forted %u, on the way home lost %u of %u (hp %.0f of %.0f), stands %u, next attack at %.1f min",
                a->n, a->held_all, a->out == 1 ? "out at " : a->out == 2 ? "at a raid at " : "home at ", a->out ? a->dest.x : a->home.x, a->out ? a->dest.y : a->home.y,
-               a->ratio > 99.0f ? 99.0f : a->ratio, a->pushes, a->presses, a->legs, a->raids, a->backs, a->waits, a->orders, a->refused, a->forted, a->way_lost, a->way_n, a->way_hp_lost, a->way_hp, player_get_next_attack(pl) / 60000.0);
+               a->ratio > 99.0f ? 99.0f : a->ratio, a->pushes, a->presses, a->legs, a->raids, a->backs, a->waits, a->orders, a->refused, a->forted, a->way_lost, a->way_n, a->way_hp_lost, a->way_hp, a->stands, player_get_next_attack(pl) / 60000.0);
     }
 }
 internal void armies_new_game(void) { memset(g_armies, 0, sizeof g_armies); }
@@ -573,6 +637,7 @@ internal void armies_install(const char *autotest_ini) {
         g_v_ar_assume = ini_int("autotest", "v_ar_assume", -1, autotest_ini);
         g_v_ar_back_pct = ini_int("autotest", "v_ar_back_pct", -1, autotest_ini);
         g_v_ar_back_fight = ini_int("autotest", "v_ar_back_fight", -1, autotest_ini);
+        g_v_ar_way = ini_int("autotest", "v_ar_way", -1, autotest_ini);
     }
     if (g_log) fprintf(g_log, "# mod armies: %d (variant %d)\n", g_mod_armies, g_v_mod_armies);
 }
