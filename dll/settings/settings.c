@@ -339,8 +339,8 @@ internal void settings_unknown(const char *ini, const char *sec) {
 
 // A [master] group's members (SETTING_MEMBERS) as their master's word says - read first, in the values at base (g_set,
 // or a difficulty's g_set_ai): default (0) each its default, custom (1) as read (the file's, else its default), enabled
-// (2) a bool on and a factor its default, disabled (3) a bool off and a factor 1 (the game's own). set: the member was
-// in a file - told when the master doesn't use it
+// (2) a bool on and a factor or int its default, disabled (3) a bool off and a factor 1 (the game's own), an int its
+// default (a tuning number of a bool that is off then). set: the member was in a file - told when the master doesn't use it
 internal int setting_master_word(int master, const uint8_t *base) { return *(const int *)(base + k_settings[master].off); }
 internal void setting_member(const struct setting_row *r, int w, int set, uint8_t *base) {
     uint8_t *at = base + r->off;
@@ -356,8 +356,9 @@ internal void setting_member(const struct setting_row *r, int w, int set, uint8_
     if (w == 2 && r->kind == SETK_FLAG) *(int *)at = 1;
     if (w == 3) {
         if (r->kind == SETK_FACTOR) *(float *)at = 1.0f;
-        else *(int *)at = 0;
+        else if (r->kind == SETK_FLAG) *(int *)at = 0;
     }
+
 }
 
 internal void settings_read(const char *ini, const char *test_ini) {

@@ -281,7 +281,8 @@ internal void fo_march(ee_active_group *grp) {
 // its outermost units need the time to swing round, at most FF_SETTLE_MAX; with a move queued after it, the heading all
 // along) plus FF_AHEAD along the heading, through the turn (shiproute.c's hook of the land models' slot 7), and its speed
 // (the land models' speed step) is the anchor's plus FF_GAIN for each tile it is behind its point, while behind up to
-// formation_catchup (200%: near its point, or a few seconds after it was) of its own top speed. Its own route stays: whenever its point is further than FF_FAR, on a tile it may not
+// formation_catchup of its own top speed near its point (falling off to none at formation_catchup_falloff x its size),
+// or formation_reform for a few seconds after a march began or it was last in its place. Its own route stays: whenever its point is further than FF_FAR, on a tile it may not
 // enter or not in a clear line, it takes its route for that tick; while it follows, the waypoints it passed (or that
 // are within FF_DROP in a clear line) are dropped so the route is where it stands. Once the anchor is within FF_END of
 // the leader's spot, or the leader is gone or given another order, the march ends: each unit goes on to its own spot.
@@ -300,7 +301,7 @@ internal void fo_march(ee_active_group *grp) {
 #define FF_LOOK 3.0f           // tiles: the anchor heads for the leader's route this far ahead of it
 #define FF_INNER 1.0f          // tiles: the anchor's tightest arc leaves the innermost unit this far inside it
 #define FF_DROP 2.0f           // tiles
-#define FF_FALLEN 4.0f         // x its size: a follower this far from its point and further has no catch-up speed
+// (formation_catchup_falloff, 4 x its size: a follower this far from its point and further has no catch-up speed)
 #define FF_KEEP 10             // steps: a unit steered at its point this recently keeps the formation's speed - a ship
                                // isn't steered every tick, and the game's step in between braked it: its speed a
                                // sawtooth, and every speed-up threw out a bow wave (the player: far too dense)
@@ -955,14 +956,16 @@ internal struct ff_group *ff_march(struct ff_unit *e, ee_unit *u, uint32_t step,
     return *l && (e->id == gr->leader || unit_get_group(u) == unit_get_group(*l) || (q && q->goal && unit_get_goal(u) == q->goal)) ? gr : NULL;
 }
 
-// u's catch-up share (of formation_catchup over its top speed): only near its place - all of it within its size, none
-// from FF_FALLEN x its size on (a unit fallen behind doesn't run for long stretches at it: it walks, and the formation
-// slows for it) - or for FF_GRACE seconds after it was last in its place (a re-form, the march's start: none is in its
-// place yet), falling off, no more than the share it had when the march began (ff_grace_from); the larger counts.
-// e->off_by of this step
-internal float ff_share(struct ff_unit *e, ee_unit *u, uint32_t step) {
-    float sz = unit_get_size(u), place = sz < FO_MIN_SIZE ? FO_MIN_SIZE : sz;
-    float share = e->off_by <= place ? 1 : e->off_by >= FF_FALLEN * place ? 0 : (FF_FALLEN * place - e->off_by) / ((FF_FALLEN - 1) * place);
+// u's boost over its top speed (the factor less 1, times its share; e->off_by of this step): the catch-up
+// (formation_catchup), only near its place - all of it within its size, none from formation_catchup_falloff x its size on
+// (a unit fallen behind doesn't run for long stretches at it: it walks, and the formation slows for it) - or the re-form
+// boost (formation_reform) for FF_GRACE seconds after it was last in its place (a re-form, the march's start: none is in
+// its place yet), falling off, no more than the share it had when the march began (ff_grace_from); the larger boost
+// counts (the player, 2026-11-02: the two apart - keeping the place and taking it are different manoeuvres). e->share:
+// the larger share, the next march's grace cap
+internal float ff_boost(struct ff_unit *e, ee_unit *u, uint32_t step) {
+    float sz = unit_get_size(u), place = sz < FO_MIN_SIZE ? FO_MIN_SIZE : sz, fallen = (float)g_set.formation_catchup_falloff;
+    float share = e->off_by <= place ? 1 : e->off_by >= fallen * place ? 0 : (fallen * place - e->off_by) / ((fallen - 1) * place);
     ee_physics *ph = game_physics();
     float sstep = ph ? physics_get_step_s(ph) : 0.05f;
     if (!e->in_at || e->off_by <= place) e->in_at = step ? step : 1;
@@ -971,7 +974,8 @@ internal float ff_share(struct ff_unit *e, ee_unit *u, uint32_t step) {
     if (grace > e->grace_cap) grace = e->grace_cap;
     e->share = grace > share ? grace : share;
     e->share_at = step ? step : 1;
-    return e->share;
+    float boost = (g_set.formation_catchup - 1) * share, reform = (g_set.formation_reform - 1) * grace;
+    return reform > boost ? reform : boost;
 }
 
 // u's route planned anew from where it stands to the end of its waypoints (the mod's route search, with ship_routes /
@@ -1084,7 +1088,7 @@ internal int fo_follow_aim(ee_unit *u, const float *pos, float *aim) {
     // own from where it stands (the player: a unit can't hold the formation back - it drops out and follows the path
     // alone, from its position to its next waypoint)
     float sz = unit_get_size(u), place = sz < FO_MIN_SIZE ? FO_MIN_SIZE : sz;
-    int behind = e->along > 0 && e->off_by > FF_FALLEN * place;
+    int behind = e->along > 0 && e->off_by > (float)g_set.formation_catchup_falloff * place;
     vec2 here = v2(pos[0], pos[1]);
     if (!ok || behind) {
         if (!e->lag_at) { e->lag_at = step ? step : 1; e->lag_pos = here; }
@@ -1094,7 +1098,7 @@ internal int fo_follow_aim(ee_unit *u, const float *pos, float *aim) {
             e->lag_pos = here;
         }
     } else e->lag_at = 0;
-    float now = unit_max_speed(u) * (1 + (g_set.formation_catchup - 1) * ff_share(e, u, step));   // its speed now: the formation's pace
+    float now = unit_max_speed(u) * (1 + ff_boost(e, u, step));   // its speed now: the formation's pace
     // (one closing in at less goes the formation's speed and a bit: counted, it slowed the formation, itself with it, and
     // so on down - to FF_JAM in open ground)
     if (behind && e->want >= unit_max_speed(u) * 0.99f) {   // no less than FF_JAM of its top speed: one slowed in a turn
@@ -1127,7 +1131,7 @@ internal int fo_follow_aim(ee_unit *u, const float *pos, float *aim) {
 
 // the land models' speed step: the leader at the march's speed (the slowest member's top speed), less while a member
 // lags (formation_wait); a follower that steered this step at its point's speed (the leader's) its way plus
-// FF_GAIN for each tile behind it - while behind up to formation_catchup of its own top speed (the slowest ones could never catch up at their top speed,
+// FF_GAIN for each tile behind it - while behind up to formation_catchup (or formation_reform) of its own top speed (the slowest ones could never catch up at their top speed,
 // and the formation as a whole still goes no faster than its slowest unit) - towards it by its own acceleration a tick;
 // the game's own step while it turns more than 45 degrees
 // (ships: shiproute.c's speed step calls it with the game's step s)
@@ -1141,7 +1145,7 @@ internal float ff_speed(ee_unit *u, float s, float angle) {
     float top = unit_max_speed(u), want, cap = top;
     if (e->step == ~0u || step - e->step > FF_KEEP) return s;   // steered at its point lately (a ship isn't every tick)
     want = e->with + FF_GAIN * e->along;   // its point's speed its way, and closing
-    if (e->along > 0) cap = top * (1 + (g_set.formation_catchup - 1) * ff_share(e, u, step));   // near its place only
+    if (e->along > 0) cap = top * (1 + ff_boost(e, u, step));   // near its place only, or in the re-form's grace
     if (want > cap) want = cap;
     if (want < 0) want = 0;
     e->want = want;
@@ -1371,7 +1375,7 @@ internal void *__thiscall hook_slot_goal(ee_goal *g, float *pt, uint32_t a, uint
 
 // the ripple timer's 1 / top speed (unit_inv_speed at the timer's call): its product with the unit's speed held at 1.
 // A ship sends a ripple every max - (max - min) x speed / top ms (a frigate 4000 - 3700 x ...): above its top speed -
-// the catch-up of formation_follow, up to formation_catchup - the time runs out at 108% and below 0 above, a ripple
+// the catch-up of formation_follow, up to formation_catchup or formation_reform - the time runs out at 108% and below 0 above, a ripple
 // every frame, the stern a solid white plume (the player: the water effect); now as at its top speed. Only the picture
 internal float __thiscall hook_ripple_speed(ee_unit *u) {
     float inv = unit_inv_speed(u), v = unit_get_speed(u);

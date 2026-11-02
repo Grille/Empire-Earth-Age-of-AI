@@ -22,11 +22,12 @@
 // A key's name stays the key alone - a group or section is only where it is shown.
 //
 // A MASTER is a group with [master]: one key of its own (the class's name: ImprovedUnitMovement improved_unit_movement,
-// its /// lines the class's) over every key in it, which are bool or factor only:
+// its /// lines the class's) over every key in it, which are bool, factor or int only:
 //   default  = each its shipped default (a key set in the file is told and not used)
 //   custom   = each as the file sets it, else its default
-//   enabled  = every bool on, every factor its default
-//   disabled = every bool off, every factor 1 (the game's own)
+//   enabled  = every bool on, every factor and int its default
+//   disabled = every bool off, every factor 1 (the game's own), an int its default (a tuning number of a bool that is off)
+
 //
 // A KEY is a field; its type and attributes are its kind (rows.h's header tells each):
 //   bool k = true;                               FLAG     (in the file 1 / 0)

@@ -357,9 +357,11 @@ Settings in `ageofai.ini`:
   own placing call: it picks the tile nearest to where it stands then). 0 = the original.
 - `[general] improved_unit_movement=default`: the movement settings below (ship_routes, land_routes, land_widen,
   share_routes, route_budget, ship_turns, land_turns, ship_collide, land_collide, formations, formation_march,
-  formation_follow, and the factors formation_catchup, formation_wait, friendly_collision) as one. `default` gives each
+  formation_follow, formation_catchup_falloff, and the factors formation_catchup, formation_reform, formation_wait,
+  friendly_collision) as one. `default` gives each
   its own default (all on since 2026-10-26: the player's play), `custom` each as set in the file (else its default),
-  `enabled` all of them on, `disabled` all off and the factors at 100% - the game's own movement. Only `custom` reads
+  `enabled` all of them on, `disabled` all off and the factors at 100% (a number its default) - the game's own movement.
+ Only `custom` reads
   the keys below (improved_unit_movement=custom with formation_follow=0: everything but the marching formations); with
   another value a key set there is logged (`# ini:`) and not used.
 - `[general] ship_routes=1` (default): the game plans a ship's route in pieces of 8-18
@@ -444,11 +446,18 @@ Settings in `ageofai.ini`:
   shallow angle. Told to form within its own size (a right-button drag where it stands, to turn it) a formation
   takes its places without a march - each unit by its own route, as the game does.
 - `[general] formation_catchup=125%` (with formation_follow): how fast a unit behind its place may go to keep it, in
-  percent of its own top speed (100% never faster than its own) - near its place only (all of it within its size,
-  none from four times that) or within 5 seconds of last being in it (a re-form or a new order on the march: no more
-  than the boost it had then; none from rest - a group standing about takes its time to assemble). A ship above its
-  top speed so throws out its ripples no faster than at its top speed (the game's rate runs out at 108% of it: a
-  ripple every frame, a solid white plume behind the stern).
+  percent of its own top speed (100% never faster than its own) - near its place only: all of it within its size,
+  none from formation_catchup_falloff times that. Also how much the formation slows in a turn (its outermost unit
+  keeps up within it). A ship above its top speed throws out its ripples no faster than at its top speed (the game's
+  rate runs out at 108% of it: a ripple every frame, a solid white plume behind the stern).
+- `[general] formation_catchup_falloff=4` (with formation_follow): how far behind its place, in multiples of its own
+  size, a unit's catch-up has fallen off to nothing - from there on it walks at its own top speed and the formation
+  slows for it (formation_wait).
+- `[general] formation_reform=125%` (with formation_follow): how fast a unit may go to take its place when the
+  formation forms - within 5 seconds of a march's start or of last being in its place (a re-form or a new order on the
+  march), fading out, and no more than the catch-up it had at that moment (a straggler with none gets none; none from
+  rest - a group standing about takes its time to assemble). The three were one key (formation_catchup) till
+  2026-11-02; keeping the place and taking it are different manoeuvres (the player).
 - `[general] formation_wait=100%` (with formation_follow): the formation goes at most this share of each unit's speed
   now - slowed to 80% of a unit's top speed while it has fallen behind (it catches up at the other 20%), at its
   slowest unit's top speed when all near their places have 125% or more. Lower waits more for the stragglers

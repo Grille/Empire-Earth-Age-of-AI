@@ -122,9 +122,12 @@ internal int member_overruled(const struct entry *e, char *out, int cap, char *w
     if (w == 1) return 0;
     const struct setting_row *r = row_of(e);
     float f = w == 3 ? 1.0f : (float)(r->def / 100.0);
+    int d = r->def;
     if (r->kind == SETK_FACTOR) setting_text(r, (const uint8_t *)&f, out, cap);
+    else if (r->kind == SETK_INT) setting_text(r, (const uint8_t *)&d, out, cap);   // an int: its default whatever the word
     else lstrcpynA(out, (w == 0 ? r->def : w == 2) ? "on" : "off", cap);
     return 1;
+
 }
 
 internal void key_of(const struct entry *e, char *out, int cap) {
