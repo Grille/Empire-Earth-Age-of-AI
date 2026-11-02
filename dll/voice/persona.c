@@ -308,6 +308,9 @@ internal void persona_key(void *arg, const char *sec, const char *key, struct tv
         if (xvars_find(&p->vars, name) >= 0) { tl_error(l, "a field (let) of a name the file has - one of them"); return; }
         for (int i = 0; i < p->nfield; i++) if (!lstrcmpiA(p->field_name[i], name)) { tl_error(l, "a field twice"); return; }
         if (p->nfield == PFIELDS) { tl_error(l, "more than 24 fields"); return; }
+        int t = key[strlen(name)] == ':' ? x_type_named(key + strlen(name) + 1) : -1;
+        const struct x_kind *kd = t > 0 && X_TBASE(t) < XT_INT ? g_x_host.kind(X_TBASE(t)) : NULL;
+        if (kd && strcmp(kd->name, "player")) { tl_error(l, "of the game's objects a field keeps a player only (player?: kept by its number)"); return; }
         lstrcpyA(p->field_name[p->nfield], name);
         lstrcpynA(p->field_type[p->nfield], key[strlen(name)] == ':' ? key + strlen(name) + 1 : "", sizeof p->field_type[0]);
         p->field_src[p->nfield++] = _strdup(v->src);
@@ -1061,9 +1064,11 @@ internal const char *g_say_instead;
 // top of its file and of its layers', its own first) made the first time the AI's code needs one in a game, from the
 // values written there (data: every PC makes the same), and dropped with the game (persona_new_game). Read in any line
 // or name (field_get), set only in statements - a function's { } body, an on_<situation>() handler (field_set) - each
-// to a value of its type: a number field an int (whole), a float or a bool, a text field a text; a dict field keeps
-// its table (its entries are set: name[key] = value). Its dicts are its own (g_xdict_keep), not the language's list.
-struct pfield { char name[40]; int type; double n; char *text; struct xdict *dict; };   // type: XT_INT ... XT_TEXT, 0 a dict
+// to a value of its type: a number field an int (whole), a float or a bool, a text field a text, a player field
+// (player?, starting as null) a player or null; a dict field keeps its table (its entries are set: name[key] = value).
+// Its dicts are its own (g_xdict_keep), not the language's list.
+struct pfield { char name[40]; int type; double n; char *text; struct xdict *dict; };   // type: XT_INT ... XT_TEXT,
+                                                                                       // 0 a dict, < XT_INT a player (n its obj, 0 none)
 struct pinst { int made; const struct persona *p; int n; struct pfield f[PFIELDS * 2]; };
 internal struct pinst g_pinst[16];
 internal void pinst_clear(struct pinst *in) {
@@ -1081,11 +1086,18 @@ internal void pinst_add(struct pinst *in, ee_player *pl, const struct persona *q
     g_xdict_keep = 1;
     int ok = x_eval(q->field_src[i], &l.c, &v);
     g_xdict_keep = 0;
+    const struct xunit *u = x_compiled(q->field_src[i]);
+    const struct xnode *r = u->ok ? u->root : NULL;
+    if (xn_null(r)) {   // let name: player? = null
+        memset(f, 0, sizeof *f);
+        lstrcpyA(f->name, q->field_name[i]);
+        f->type = X_TBASE(x_type_named(q->field_type[i]));
+        in->n++;
+        return;
+    }
     if (!ok || !v.w) { x_error("%s: let %s: no value here - the field left out", q->file, q->field_name[i]); return; }
     memset(f, 0, sizeof *f);
     lstrcpyA(f->name, q->field_name[i]);
-    const struct xunit *u = x_compiled(q->field_src[i]);
-    const struct xnode *r = u->ok ? u->root : NULL;
     if (r && r->k == XN_NEG) r = r->a;
     if (v.kind == XV_DICT) f->dict = v.dict;
     else if (r && r->k == XN_STR) { f->type = XT_TEXT; f->text = _strdup(v.s); }
@@ -1115,7 +1127,8 @@ internal struct pinst *pinst_of(ee_player *pl) {   // AI pl's fields (made now i
     return in;
 }
 // SAVED: the fields go into the .ageofai file (persist.c block persona_state): per AI {u8 index, u32 length, its
-// record} - the record: its file's name, the fields' count, each {name, u8 type, its value}; a number as a double, a
+// record} - the record: its file's name, the fields' count, each {name, u8 type, its value}; a number (a player: its
+// obj, the game's index + 1, 0 none - the same after a load) as a double, a
 // text as u16 length + bytes, a dict as u8 key and value type, u32 entries {key, value} (its default is its file's).
 // Read back by name when the AI's fields are made after the load (the players don't exist yet when the file is read):
 // a field the file no longer has is dropped, a new one starts as written, another type or another personality start
@@ -1283,6 +1296,7 @@ internal int persona_field_get(struct xctx *c, const char *name, struct xval *v)
     const struct pfield *f = pinst_field(c, name);
     if (!f) return 0;
     if (f->dict) { xnothing(v); v->w = 1; v->kind = XV_DICT; v->dict = f->dict; v->s = "a dict"; }
+    else if (f->type < XT_INT) { if (!f->n || !g_x_host.object((int)f->n - 1, v)) xnothing(v); }   // (gone: null)
     else if (f->type == XT_TEXT) xstr(v, f->text);
     else xnum(v, f->n);
     return 1;
@@ -1292,7 +1306,11 @@ internal int persona_field_set(struct xctx *c, const char *name, const struct xv
     if (!f) return 0;
     int plain = v->w && !v->obj && !v->kind && !v->ln;
     if (f->dict) *why = "a dict field keeps its table - set its entries: name[key] = value";
-    else if (f->type == XT_TEXT) {
+    else if (f->type < XT_INT) {
+        if (!v->w) f->n = 0;
+        else if (v->obj && v->okind == f->type && !v->ln) f->n = v->obj;
+        else *why = "a player field takes a player or null";
+    } else if (f->type == XT_TEXT) {
         if (!plain || !v->has_s) *why = "a text field takes a text";
         else { free(f->text); f->text = _strdup(v->s); }
     } else if (!plain || !v->has_n) *why = "a number field takes a number";

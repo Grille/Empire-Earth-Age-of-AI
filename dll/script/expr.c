@@ -342,9 +342,9 @@ internal int x_name_known(const char *name) {   // a parameter, constant, vars e
     char w[48];
     if (strlen(name) > 40) return 1;
     const char *dot = strchr(name, '.');
-    if (dot && dot - name < 40) {   // r.a, home.x: a member path - its head a parameter or vars entry (a file's record)
+    if (dot && dot - name < 40) {   // r.a, home.x: a member path - its head a parameter, vars entry (a file's record) or field
         lstrcpynA(w, name, (int)(dot - name) + 1);
-        if (x_check_par_has(w, (int)strlen(w)) || x_var_known(w)) return 1;
+        if (x_check_par_has(w, (int)strlen(w)) || x_var_known(w) || x_field_known(w)) return 1;
     }
     wsprintfA(w, " %s ", name);
     return x_check_par_has(name, (int)strlen(name)) || g_x_host.constant(name, &t) || x_var_known(name) || x_field_known(name) || g_x_host.name_valid(name) ||
@@ -2516,6 +2516,7 @@ internal void xe_ident(struct xe *e, const char *name, struct xval *v) {
         for (int i = 0; i < c->fnp && !own; i++) own = !strcmp(c->fpn[i], head);
         for (int k = 0; k < 3 && !own; k++) exact |= c->vars[k] && c->vars[k]->dotted && xvars_get(c->vars[k], name);   // a file record's member itself
         for (int k = 0; k < 3 && !own && !exact; k++) own = xvars_get(c->vars[k], head) != NULL;
+        if (!own && !exact) own = x_field_known(head);   // a personality's field: rival.alive
         if (own) {
             struct xval h;
             xe_ident(e, head, &h);
@@ -4080,8 +4081,8 @@ internal void tl_body(struct tlex *l, const char *key, tfile_fn fn, void *arg, c
     tval_free(&v);
 }
 // let name = value, let name: type = value at a file's top: a field - one per AI (the host's: persona.c PERSONALITY
-// STATE), starting as a number, a bool, a text or a dict<K, V>(default) - data (x_data_node). Record "let", key the
-// name, ":type" after it when written
+// STATE), starting as a number, a bool, a text or a dict<K, V>(default) - data (x_data_node) - or as null, its type an
+// object or nothing (let rival: player? = null). Record "let", key the name, ":type" after it when written
 internal int x_data_node(const struct xnode *n, char *buf, int cap);
 internal void tl_let(struct tlex *l, tfile_fn fn, void *arg, const char *file) {
     char name[40], type[48] = "", why[200], what[64];
@@ -4112,7 +4113,13 @@ internal void tl_let(struct tlex *l, tfile_fn fn, void *arg, const char *file) {
     int vt = dict ? -1 : num && num->k == XN_NUM && num->op != 'n' ? (num->op == 'b' ? XT_BOOL : num->op == 'f' ? XT_FLOAT : XT_INT) :
              r && r->k == XN_STR && !strchr(r->s, '{') ? XT_TEXT : 0;
     why[0] = 0;
-    if (r && !vt) {
+    if (xn_null(r)) {   // let name: K? = null - one of the host's objects or none (which kinds it keeps: the host's)
+        int t = type[0] ? x_type_named(type) : -1;
+        if (t < 0 || !(t & X_NULLABLE) || (t & X_LIST_OF) || X_TBASE(t) >= XT_INT)
+            snprintf(why, sizeof why, "let %s = null: a field that starts as nothing is an object or nothing - let %s: player? = null", name, name);
+    } else if (type[0] && x_type_named(type) >= 0 && X_TBASE(x_type_named(type)) < XT_INT) {
+        snprintf(why, sizeof why, "let %s: %s = ...: a field of an object starts as null, a handler sets it (%s = them)", name, type, name);
+    } else if (r && !vt) {
         if (!x_data_node(dict ? r->a : r, what, sizeof what)) snprintf(what + strlen(what), sizeof what - strlen(what), " changes with the game");
         else snprintf(what, sizeof what, "%.40s", v.src);
         snprintf(why, sizeof why, "let %s = ...: a field starts as a number, a bool, a text or a dict<K, V>(default) - not %s", name, what);

@@ -340,11 +340,13 @@ them in a game (a new game starts them afresh), are read anywhere like any name,
 let betrayals = 0                          // a number (an int: whole numbers; let x: float = 0, let b = false)
 let mood = "calm"                          // a text
 let grudges = dict<player, int>(0)         // a dict: every player starts at 0 (the default), see below
+let traitor: player? = null                // a player, or nobody yet
 
 on_betrayed() {                            // a handler: runs every time the situation happens
     betrayals += 1
     grudges[them] += 1
     mood = "bitter"
+    traitor = them
 }
 remember(p) {                              // a function with statements: called from a handler or another such one
     grudges[p] += 1
@@ -359,6 +361,9 @@ lines = {
   values `int`, `float`, `bool` or `text`; `d[key]` is the key's entry or the default, `d[key] = value`,
   `d[key] += 1` set it. A field's type stays: a text into a number field, 2.5 into an int field are mistakes, and a
   dict field keeps its table (its entries are set, the field isn't).
+- A **player field**, `let name: player? = null`, starts as nobody and takes a player or `null`: `traitor = them`.
+  Read it after `!= null` - `traitor != null and traitor.alive`, `traitor == them`; a defeated player stays in it
+  (`traitor.alive` false). Only players: a list or another of the game's objects can't be a field yet.
 - **Handlers** `on_<situation>() { ... }` - any situation of the table above: `on_betrayed`, `on_greeting` ... - with
   `me`, `them`, `enemy` as its lines have them. One runs every time its situation happens, whether a line is said or
   not (none written, its chance, the talk switched off, the language model's words), and after the line - the line
