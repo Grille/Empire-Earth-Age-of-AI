@@ -1,0 +1,28 @@
+// A standing formation sent behind itself (the player's save "slow", 2026-11-02: a wedge facing one way, a click
+// behind it - the slowest units first walked forward to their places in the march's layout, the tip back through
+// them): Continental (seed 101, start_epoch 12), the save's mix - 60 halberdiers, 30 grenadiers, 10 diplomats (0.6
+// tiles/s) and 4 colossus artillery (0.5) - at 40,40, sent 20 tiles to 40,60 as a deep wedge (autotest
+// formation_kind=4) and left to form, then sent 30 tiles back to 40,30. `fmove watch 1` logs every unit every step:
+// a reader takes, per type after the second order, how far a unit first moves on towards the old front (+y) and when
+// it is a tile on its way. Found (game_seed 1): before the fix the grenadiers went on by 1.1 tiles on average (6.6 at
+// most), the diplomats 1.6 (4.5), the artillery 1.5 (4.4), a tile on their way after 8-14 s on average and up to 34
+// s - their places in the march's layout lay behind them, back towards the old front; with the march's formation set
+// ahead at its start (groupmove.c ff_leader: no unit's point behind where it stands) 0.05-0.14 tiles, on their way
+// after 3-4 s, the last at 8 s. The save itself (its wedge clicked behind): 3.0-3.9 tiles and 23-29 s before, none
+// and 2.4-3.8 s after. 20 citizens and 10 horsemen in a clean wedge didn't show it (they wait for the formation).
+wait_until(0.1min)
+spawn(1, unit.inf08_halberdier, 40, 40, 60)
+spawn(1, unit.inf09_grenadier, 40, 40, 30)
+spawn(1, unit.x_diplomat, 40, 40, 10)
+spawn(1, unit.gun_artillery13_colossus, 40, 40, 4)
+wait_until(0.4min)
+cmd("fmove go 1 40 40 8 40 60")
+wait_until(1.7min)
+cmd("fmove watch 1")
+cmd("fmove go 1 40 60 14 40 30")
+every(2s, 1.7min, 3.2min, (run) => {
+    cmd("fmove stat")
+})
+wait_until(3.25min)
+cmd("fmove sum")
+cmd("fmove watch 0")

@@ -337,6 +337,7 @@ internal int g_ff_first, g_ff_count;   // the marches started by the move being 
 // sets out; home its spot at the goal
 struct ff_unit { uint32_t id; int g, pend; vec2 off, home; uint32_t step; float along, with, off_by, share, grace_cap, want; vec2 lag_pos; uint32_t in_at, share_at, yaw, lag_at, rerouted_at; int tries, own, out, order; };   // order: its place front to back, left to right in its formation (ff_off); out: dropped out of its march (lag_at, lag_pos: since when it lags, where it stood then); own: why it took its own route last (1 its point too far, 2 the point steered at on a tile it may not enter, 3 not in a clear line); in_at: the step it was last in its place (or its march began); share its catch-up share at share_at, grace_cap the most of it the grace gives; yaw its facing there (the slot's float, 0: none), tries its walks back
 internal struct ff_unit g_ff_u[FF_UNITS];
+internal unsigned g_ff_set_ahead;   // marches from rest whose formation was set ahead of the leader (no unit's point behind it)
 // a queued move's march a unit joins once it sets out (its offset, its spot and facing at the goal, its goal in that move),
 // after (1-based) the one queued behind it - a unit had one, so a third waypoint's took the second's place and from the
 // second on each unit went its own way (a tank at its own top speed)
@@ -750,7 +751,30 @@ internal ee_unit *ff_leader(struct ff_group *gr, uint32_t step) {
             gr->way = w;
             if (gr->arc) gr->face = f; else gr->pivot = 1;
         }
-        else gr->anchor = v2(p.x, p.y);
+        else {
+            // from rest, the formation set ahead so that no land unit's point lies behind where it stands along the way:
+            // the anchor starts the largest backward lag ahead of the leader (the player, 2026-11-02: a wedge standing
+            // facing one way, clicked behind - its slow back rank first walked forward to its places behind the leader
+            // while the fast tip walked back through it; now the slow set out from where they stand and the fast walk
+            // the extra distance). Ships keep their start: they turn as one on their circles
+            gr->anchor = v2(p.x, p.y);
+            if (!gr->naval) {
+                int gi = (int)(gr - g_ff);
+                float lag = 0;
+                vec2 right = v2(gr->way.y, -gr->way.x);
+                for (int i = 0; i < FF_UNITS; i++) {
+                    struct ff_unit *e = &g_ff_u[i];
+                    if (!e->id || e->g != gi || e->out) continue;
+                    ee_unit *u = unit_by_id(e->id);
+                    if (!u || unit_get_hp(u) <= 0) continue;
+                    vec3 q = unit_get_pos(u);
+                    vec2 pt = vec2_add(gr->anchor, vec2_add(vec2_scale(right, e->off.x), vec2_scale(gr->way, e->off.y)));
+                    float d = vec2_dot(vec2_sub(v2(q.x, q.y), pt), gr->way);   // how far ahead of its point it stands
+                    if (d > lag) lag = d;
+                }
+                if (lag > 0) { gr->anchor = vec2_add(gr->anchor, vec2_scale(gr->way, lag)); g_ff_set_ahead++; }
+            }
+        }
     } else {   // where the last step sent it
         gr->anchor = ff_anchor_now(gr, &w, &f, &vn);
         gr->way = w;
