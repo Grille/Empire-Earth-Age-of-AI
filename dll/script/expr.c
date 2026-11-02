@@ -2298,6 +2298,14 @@ internal void x_dict_free(struct xdict *d) {
     free(d->e);
     free(d);
 }
+internal void xdict_put(struct xdict *d, struct xdent *x) {   // an entry as it is (a saved game's): x's texts taken over
+    if (d->n == d->cap) {
+        struct xdent *m = realloc(d->e, (size_t)(d->cap = d->cap ? d->cap * 2 : 8) * sizeof *m);
+        if (!m) { free(x->ks); free(x->vs); return; }
+        d->e = m;
+    }
+    d->e[d->n++] = *x;
+}
 internal void x_dicts_free(void) {
     while (g_xdicts) {
         struct xdict *d = g_xdicts;

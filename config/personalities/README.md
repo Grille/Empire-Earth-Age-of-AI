@@ -368,6 +368,9 @@ lines = {
   mistake there (lines are worked out more often than said - to choose one, for the model's prompts), so state
   changes only where something happened.
 - A name is a field or a name of the file, never both; `let` at the top only.
+- **Saved with the game** (the `.ageofai` file beside the save): a loaded game's AIs remember what they did. Matched
+  by name - a field you renamed or removed since is left out, a new one starts as written, another type or another
+  personality for that AI start afresh (each told in the log) - so editing a personality never breaks a save.
 
 ### Includes: building on other files
 

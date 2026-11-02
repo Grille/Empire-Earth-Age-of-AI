@@ -4,7 +4,8 @@
 // colours; what the mod rebuilds by itself (income rates, defence layout, siege, threat) needs nothing. Lost without
 // this file: opinions and grudges, alliance times, who capitulated to whom, pending offers and promised tribute, the
 // "already said" flags of the situations, the army accounts of the budget, the language model's memories (what it
-// and you, and the AIs among themselves, said - block llm_memory), who killed which types of whose and when (kill_log).
+// and you, and the AIs among themselves, said - block llm_memory), who killed which types of whose and when (kill_log),
+// what each AI's personality remembers (its fields, let at a file's top - persona_state, matched by name on load).
 //
 // Every save goes through 0x540ACA cdecl(UString *file, int, int, UString folder by value) -> 0 on success
 // (save dialog EEASaveGame::vf1, autosave, quicksave, the network save message: 4 call sites, all redirected). After a
@@ -31,10 +32,13 @@ internal const struct { const char *tag; void *p; size_t n; } k_blocks[] = {
 };
 internal uint8_t *llm_mem_save(uint32_t *size);              // llm.c: the language model's memories (variable size)
 internal void llm_mem_load(const uint8_t *p, uint32_t size);
+internal uint8_t *persona_state_save(uint32_t *size);        // persona.c: the personalities' fields (let), per AI
+internal void persona_state_load(const uint8_t *p, uint32_t size);
 // the blocks of a variable size: their own format, checked as they are read (no layout hash)
 internal const struct { const char *tag; uint8_t *(*save)(uint32_t *size); void (*load)(const uint8_t *p, uint32_t size); } k_var_blocks[] = {
     { "llm_memory", llm_mem_save, llm_mem_load },
     { "kill_log", kill_log_save, kill_log_load },   // diplo.c
+    { "persona_state", persona_state_save, persona_state_load },   // persona.c
 };
 struct persist_head { char magic[8]; uint32_t version, game_time; uint64_t ees_size; FILETIME ees_time; };
 #define PERSIST_FORMAT 2   // 1: blocks {tag[32], size, bytes}; 2: {tag[32], size, layout, bytes}

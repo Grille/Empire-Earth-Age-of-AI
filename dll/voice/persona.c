@@ -1095,6 +1095,8 @@ internal void pinst_add(struct pinst *in, ee_player *pl, const struct persona *q
     }
     in->n++;
 }
+internal void pinst_restore(struct pinst *in, unsigned idx);
+internal struct { uint8_t *b; uint32_t n; } g_pinst_saved[16];   // a loaded game's fields, per AI until made (SAVED below)
 internal struct pinst *pinst_of(ee_player *pl) {   // AI pl's fields (made now if not yet in this game)
     const struct persona *p = pl ? persona_of(pl) : NULL;
     if (pl && !p && g_has_computer) p = &g_computer;
@@ -1108,10 +1110,167 @@ internal struct pinst *pinst_of(ee_player *pl) {   // AI pl's fields (made now i
         const struct persona *q = k < 0 ? p : p->layer[k];
         for (int i = 0; i < q->nfield; i++) pinst_add(in, pl, q, i);
     }
+    unsigned idx = (unsigned)player_get_index(pl) & 15;
+    if (g_pinst_saved[idx].b) pinst_restore(in, idx);   // a loaded game: the fields as they were saved
     return in;
 }
+// SAVED: the fields go into the .ageofai file (persist.c block persona_state): per AI {u8 index, u32 length, its
+// record} - the record: its file's name, the fields' count, each {name, u8 type, its value}; a number as a double, a
+// text as u16 length + bytes, a dict as u8 key and value type, u32 entries {key, value} (its default is its file's).
+// Read back by name when the AI's fields are made after the load (the players don't exist yet when the file is read):
+// a field the file no longer has is dropped, a new one starts as written, another type or another personality start
+// afresh - each told in the log. A record not yet applied when the game is saved again is saved as it was.
+struct pbuf { uint8_t *b; uint32_t n, cap; int bad; };
+internal void pb_put(struct pbuf *o, const void *p, uint32_t n) {
+    if (o->n + n > o->cap) {
+        uint32_t cap = (o->n + n) * 2 + 256;
+        uint8_t *m = realloc(o->b, cap);
+        if (!m) { o->bad = 1; return; }
+        o->b = m;
+        o->cap = cap;
+    }
+    memcpy(o->b + o->n, p, n);
+    o->n += n;
+}
+internal void pb_str(struct pbuf *o, const char *s) { uint16_t n = (uint16_t)(strlen(s) < 65535 ? strlen(s) : 65535); pb_put(o, &n, 2); pb_put(o, s, n); }
+internal void pb_num(struct pbuf *o, double x) { pb_put(o, &x, 8); }
+internal void pinst_record(struct pbuf *o, const struct pinst *in) {
+    uint16_t nf = (uint16_t)in->n;
+    pb_str(o, in->p->file);
+    pb_put(o, &nf, 2);
+    for (int i = 0; i < in->n; i++) {
+        const struct pfield *f = &in->f[i];
+        uint8_t t = (uint8_t)f->type;
+        pb_str(o, f->name);
+        pb_put(o, &t, 1);
+        if (f->dict) {
+            const struct xdict *d = f->dict;
+            uint8_t kt = (uint8_t)d->kt, vt = (uint8_t)d->vt;
+            uint32_t n = (uint32_t)d->n;
+            pb_put(o, &kt, 1);
+            pb_put(o, &vt, 1);
+            pb_put(o, &n, 4);
+            for (int j = 0; j < d->n; j++) {
+                const struct xdent *x = &d->e[j];
+                if (d->kt < XT_INT) { uint32_t k = (uint32_t)x->kobj; pb_put(o, &k, 4); }
+                else if (d->kt == XT_TEXT) pb_str(o, x->ks ? x->ks : "");
+                else pb_num(o, x->kn);
+                if (d->vt == XT_TEXT) pb_str(o, x->vs ? x->vs : ""); else pb_num(o, x->vn);
+            }
+        } else if (f->type == XT_TEXT) pb_str(o, f->text ? f->text : "");
+        else pb_num(o, f->n);
+    }
+}
+internal uint8_t *persona_state_save(uint32_t *size) {
+    struct pbuf o = { 0 };
+    uint32_t format = 1;
+    pb_put(&o, &format, 4);
+    for (int i = 0; i < 16; i++) {
+        struct pbuf r = { 0 };
+        if (g_pinst[i].made && g_pinst[i].n) pinst_record(&r, &g_pinst[i]);
+        else if (g_pinst_saved[i].b) pb_put(&r, g_pinst_saved[i].b, g_pinst_saved[i].n);
+        if (r.n && !r.bad) { uint8_t ix = (uint8_t)i; pb_put(&o, &ix, 1); pb_put(&o, &r.n, 4); pb_put(&o, r.b, r.n); }
+        free(r.b);
+    }
+    if (o.bad || o.n <= 4) { free(o.b); *size = 0; return NULL; }
+    *size = o.n;
+    return o.b;
+}
+internal void persona_state_load(const uint8_t *b, uint32_t size) {   // (after persona_state_reset): kept until applied
+    uint32_t format, o = 4, n;
+    if (size < 4 || (memcpy(&format, b, 4), format != 1)) { if (g_log) fprintf(g_log, "# persist: persona_state of another format - fields start afresh\n"); return; }
+    while (o + 5 <= size) {
+        uint8_t ix = b[o];
+        memcpy(&n, b + o + 1, 4);
+        o += 5;
+        if (n > size - o || ix > 15) { if (g_log) fprintf(g_log, "# persist: persona_state broken - the rest left out\n"); return; }
+        free(g_pinst_saved[ix].b);
+        g_pinst_saved[ix].b = malloc(n);
+        if (g_pinst_saved[ix].b) { memcpy(g_pinst_saved[ix].b, b + o, n); g_pinst_saved[ix].n = n; }
+        o += n;
+    }
+}
+struct pread { const uint8_t *b; uint32_t n, o; int bad; };
+internal void pr_get(struct pread *r, void *p, uint32_t n) {
+    if (r->bad || n > r->n - r->o) { r->bad = 1; memset(p, 0, n); return; }
+    memcpy(p, r->b + r->o, n);
+    r->o += n;
+}
+internal char *pr_str(struct pread *r) {   // malloc'd
+    uint16_t n = 0;
+    pr_get(r, &n, 2);
+    char *s = malloc((size_t)n + 1);
+    if (!s) { r->bad = 1; return NULL; }
+    pr_get(r, s, n);
+    s[n] = 0;
+    return s;
+}
+internal double pr_num(struct pread *r) { double x = 0; pr_get(r, &x, 8); return x; }
+internal void pinst_restore(struct pinst *in, unsigned idx) {   // the saved record of AI idx, by the fields' names
+    struct pread r = { g_pinst_saved[idx].b, g_pinst_saved[idx].n, 0, 0 };
+    char *file = pr_str(&r);
+    uint16_t nf = 0;
+    int got = 0, left = 0;
+    pr_get(&r, &nf, 2);
+    if (!r.bad && file && lstrcmpiA(file, in->p->file)) {
+        if (g_log) fprintf(g_log, "# persona: P%u's saved fields are %s's, it plays %s now - they start afresh\n", idx, file, in->p->file);
+        nf = 0;
+    }
+    for (int i = 0; i < nf && !r.bad; i++) {
+        char *name = pr_str(&r);
+        uint8_t t = 0, kt = 0, vt = 0;
+        uint32_t ne = 0;
+        pr_get(&r, &t, 1);
+        struct pfield *f = NULL;
+        for (int j = 0; name && j < in->n && !f; j++) if (!lstrcmpiA(in->f[j].name, name)) f = &in->f[j];
+        int fits = f && (f->dict ? t == 0 : f->type == t);
+        if (t == 0) {   // a dict: its entries
+            pr_get(&r, &kt, 1);
+            pr_get(&r, &vt, 1);
+            pr_get(&r, &ne, 4);
+            fits = fits && f->dict->kt == kt && f->dict->vt == vt;
+            if (fits) {   // the saved entries instead of the start's
+                for (int j = 0; j < f->dict->n; j++) { free(f->dict->e[j].ks); free(f->dict->e[j].vs); }
+                f->dict->n = 0;
+            }
+            for (uint32_t j = 0; j < ne && !r.bad; j++) {
+                struct xdent x;
+                memset(&x, 0, sizeof x);
+                if (kt < XT_INT) { uint32_t k = 0; pr_get(&r, &k, 4); x.kobj = (int)k; }
+                else if (kt == XT_TEXT) x.ks = pr_str(&r);
+                else x.kn = pr_num(&r);
+                if (vt == XT_TEXT) { x.vs = pr_str(&r); x.vhas_s = 1; } else x.vn = pr_num(&r);
+                if (fits && !r.bad) xdict_put(f->dict, &x);
+                else { free(x.ks); free(x.vs); }
+            }
+        } else if (t == XT_TEXT) {
+            char *s = pr_str(&r);
+            if (fits && s) { free(f->text); f->text = s; } else free(s);
+        } else {
+            double x = pr_num(&r);
+            if (fits) f->n = x;
+        }
+        if (fits && !r.bad) got++;
+        else if (!r.bad) {
+            left++;
+            if (g_log) fprintf(g_log, "# persona: P%u's saved field %s left out (%s)\n", idx, name ? name : "?", f ? "another type" : "the file has none of that name");
+        }
+        free(name);
+    }
+    if (r.bad && g_log) fprintf(g_log, "# persona: P%u's saved fields broken - the rest start afresh\n", idx);
+    if (g_log) fprintf(g_log, "# persona: P%u's fields restored from the save: %d (%d left out)\n", idx, got, left);
+    free(file);
+    free(g_pinst_saved[idx].b);
+    g_pinst_saved[idx].b = NULL;
+    g_pinst_saved[idx].n = 0;
+}
 internal void persona_state_reset(void) {
-    for (int i = 0; i < 16; i++) pinst_clear(&g_pinst[i]);
+    for (int i = 0; i < 16; i++) {
+        pinst_clear(&g_pinst[i]);
+        free(g_pinst_saved[i].b);
+        g_pinst_saved[i].b = NULL;
+        g_pinst_saved[i].n = 0;
+    }
     x_dicts_free();
 }
 internal struct pfield *pinst_field(struct xctx *c, const char *name) {
@@ -1250,6 +1409,15 @@ internal char __thiscall hook_native_chat(ee_native_chat *pim, int base, int ms)
 internal void cmd_persona(char *out, const char *args) {
     int p = -1;
     char name[40] = "";
+    if (!strcmp(args, "state_roundtrip")) {   // persona state_roundtrip: the fields saved, dropped and read back as a load does (tests)
+        uint32_t n = 0;
+        uint8_t *b = persona_state_save(&n);
+        for (int i = 0; i < 16; i++) pinst_clear(&g_pinst[i]);
+        if (b) persona_state_load(b, n);
+        free(b);
+        REPLY("%u bytes saved and read back - the fields come back when next needed\n", n);
+        return;
+    }
     sscanf(args, "%d %39s", &p, name);
     if (p >= 0 && p < 16 && name[0]) {
         for (int i = 0; i < g_npersonas; i++)
