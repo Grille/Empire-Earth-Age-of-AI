@@ -38,6 +38,12 @@ WINDRES=${WINDRES:-${CC%clang}windres}
 "$WINDRES" -I. tool/ageofai_config.rc -O coff -o ageofai_config_res.o || exit 1
 "$CC" -O2 -Wall -Wextra -Wformat=2 -Wstrict-prototypes -Wimplicit-fallthrough -Wvla -Wshadow -Wno-unused-function -mwindows -static -I. -o ageofai_config.exe tool/ageofai_config.c ageofai_config_res.o -lcomctl32 -lgdi32 -limagehlp || { rm -f ageofai_config_res.o; exit 1; }
 rm -f ageofai_config_res.o
+# ageofai_check.exe: the DLL's code as a program that checks .eeai files without the game (check/ageofai_check.c) - its
+# image above the game's addresses, fixed (no ASLR): a stray read of the game's memory fails instead of reading its own.
+# Then the shipped personalities and every test script through it: a mistake in them stops the build
+"$CC" -O2 -mstackrealign -fno-strict-aliasing -Wall -Wextra -Wformat=2 -Wstrict-prototypes -Wimplicit-fallthrough -Wvla -Wshadow -static -I. -o ageofai_check.exe check/ageofai_check.c -lgdi32 -ldxguid -lwinmm -lwinhttp -Wl,--image-base,0x10000000 -Wl,--disable-dynamicbase || exit 1
+./ageofai_check.exe ../config/personalities ../tests/scenarios ../tests/probes > ageofai_check.log || { grep -v "^ageofai_check: [0-9]* unit" ageofai_check.log; exit 1; }
+rm -f ageofai_check.log
 if [ "$1" = install ]; then   # the working tree's build (scripts/build/install.sh: the committed one) into the game folder
     REPO="$(cd .. && pwd)"; . ../scripts/game_dir.sh   # GAME
     . ../scripts/build/mod_dir.sh

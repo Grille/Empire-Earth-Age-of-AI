@@ -13,12 +13,13 @@ internal int unit_type_named(const char *name, int n);
 internal char g_unit_ident[G_TYPES_N][64];      // "" no such type
 internal unsigned short g_kind_first[UNIT_KINDS + 1], g_kind_types[G_TYPES_N];   // a kind's types: g_kind_types[first[k]..first[k + 1])
 internal int g_unit_types_n;                    // the types read; 0: the game hasn't loaded its data yet
-internal struct { char name[48], file[48]; int line; } g_unit_later[32];   // unit.<identifier> in the files, before
-internal int g_unit_nlater;                                                 // the data was loaded: checked then
+internal struct unit_later { char name[48], file[48]; int line; } *g_unit_later;   // unit.<identifier> in the files,
+internal int g_unit_nlater, g_unit_later_cap;                                       // before the data was loaded: checked then
 internal void unit_types_check_later(void);
 // the type table into the identifiers and kinds - once the game has loaded its data (0 before: fewer than 100 types)
 internal int unit_types_load(void) {
     if (g_unit_types_n) return 1;
+    if (g_exe_build < 0) return 0;   // no game known (check/ageofai_check.c): no data either
     int n = 0;
     for (int t = 0; t < G_TYPES_N; t++) n += type_data(t) != NULL;
     if (n < 100) return 0;
@@ -96,7 +97,13 @@ internal int unit_type_named(const char *name, int n) {   // the type of an iden
 }
 // a unit.<identifier> in a file read before the game loaded its data: checked when it has (unit_types_load)
 internal void unit_name_later(const char *name, const char *file, int line) {
-    if (g_unit_nlater == (int)(sizeof g_unit_later / sizeof *g_unit_later)) return;
+    if (g_unit_nlater == g_unit_later_cap) {   // as many as the files have (it was 32: the rest went unchecked)
+        int cap = g_unit_later_cap ? g_unit_later_cap * 2 : 64;
+        struct unit_later *m = realloc(g_unit_later, (size_t)cap * sizeof *m);
+        if (!m) return;
+        g_unit_later = m;
+        g_unit_later_cap = cap;
+    }
     lstrcpynA(g_unit_later[g_unit_nlater].name, name, 48);
     lstrcpynA(g_unit_later[g_unit_nlater].file, file, 48);
     g_unit_later[g_unit_nlater++].line = line;

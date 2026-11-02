@@ -1,0 +1,34 @@
+{
+    // ageofai_check.exe (sh build.sh makes it in dll/): the .eeai files checked without the game, each mistake into
+    // the Problems panel. Terminal > Run Task..., or a key on workbench.action.tasks.runTask with the task's label.
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "eeai: check this file",
+            "detail": "a personality file: its whole folder (mod/ with it); a script: the script",
+            "type": "process",
+            "command": "${workspaceFolder}/dll/ageofai_check.exe",
+            "args": ["${file}"],
+            "presentation": { "reveal": "silent", "clear": true },
+            "problemMatcher": {
+                "owner": "eeai",
+                "fileLocation": "absolute",
+                "pattern": { "regexp": "^(.+\\.eeai):(\\d+):\\s+(.*)$", "file": 1, "line": 2, "message": 3 }
+            }
+        },
+        {
+            "label": "eeai: check all",
+            "detail": "config/personalities and every test script - what the build checks",
+            "type": "process",
+            "command": "${workspaceFolder}/dll/ageofai_check.exe",
+            "args": ["config/personalities", "tests/scenarios", "tests/probes"],
+            "options": { "cwd": "${workspaceFolder}" },
+            "presentation": { "reveal": "silent", "clear": true },
+            "problemMatcher": {
+                "owner": "eeai",
+                "fileLocation": "absolute",
+                "pattern": { "regexp": "^(.+\\.eeai):(\\d+):\\s+(.*)$", "file": 1, "line": 2, "message": 3 }
+            }
+        }
+    ]
+}

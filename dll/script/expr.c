@@ -3651,8 +3651,11 @@ internal int x_syntax_at(const char *src, const char **why, int ph) {
     struct xcheck k = { &c, 0, NULL, 0, "", 0, 0, { 0 }, { 0 }, 0, 0, 1, 0 };
     struct xscope sc = { NULL, { 0 }, 0, { 0 }, 0, { 0 }, { 0 } };
     xn_has(&k);
-    if (!x_check(&k, u->root, &sc)) { *why = k.why ? k.why : "not an expression"; return 0; }
-    return !ph || x_ph_ok(&k, u->root, &sc, src, why);
+    if (x_check(&k, u->root, &sc) && (!ph || x_ph_ok(&k, u->root, &sc, src, why))) return 1;
+    static char kept[sizeof k.whybuf];   // the message outlives k: its whybuf is this frame's (the caller's next calls wrote over it)
+    lstrcpynA(kept, k.why ? k.why : "not an expression", sizeof kept);
+    *why = kept;
+    return 0;
 }
 internal int x_syntax(const char *src, const char **why) { return x_syntax_at(src, why, 0); }
 

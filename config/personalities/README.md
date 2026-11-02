@@ -141,6 +141,12 @@ isn't there) as a line in the game.
 The VS Code extension in the mod's sources (`extensions/eeaimod-texts`) highlights these files and marks unknown keys,
 situations and `epoch.` names.
 
+**Without the game:** `ageofai_check.exe` (the mod's build makes it, `dll/` of its sources) reads a folder the way the
+game does at its start and lists every mistake the game would log there, as `file:line: what`:
+`ageofai_check config\personalities` (a file of it checks its whole folder; a script is checked as a test run reads
+it). In VS Code: Terminal > Run Task > "eeai: check this file" puts them into the Problems panel. Unit names
+(`unit.b_farm`) are left to the game - only its data knows them - and so is what only shows while playing.
+
 ## Lines
 
 Each key of `lines = { ... }` is a **situation**; its value is what the AI says then - usually a string or a list:

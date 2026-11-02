@@ -22,13 +22,18 @@ and the runners, eectl, the MCP server), `results/` (log readers, scorers), `re/
   A build must be free of warnings. It also writes `.editor/compile_commands.json` (git-ignored, read by VS Code's
   C/C++ through `.vscode/c_cpp_properties.json`): each part with the text eeaimod.c has before it, so the editor
   knows what the compiler knows there.
+- The build also makes `dll/ageofai_check.exe` (`dll/check/`: eeaimod.c compiled into a program, no game - the .eeai
+  files checked as the game reads them, `path:line: what`) and runs it over config/personalities and the test scripts:
+  a mistake there fails the build. Code the personalities' or scripts' loading calls must not read the game's memory
+  without a game (`g_exe_build < 0`: none known) - the checker faults on such a read. VS Code: `.vscode/tasks.json`
+  "eeai: check this file" / "eeai: check all" into the Problems panel.
 - `dll/` has a folder per part, and which part may use which is a rule the build checks (`scripts/build/layers.py`):
   base (nothing) <- game/api (the game's code and objects, one module: nothing of its gen/ values or editor_layout.h outside it) <- game <- engine, ai (and voice/say.h: what the AI says goes through it); script (base only: the
   language knows no game - script/host.h asks the program); voice (base, game, ai, script); game_script (the game in
   the language: all of those); settings (base only: ageofai.ini's keys as rows, read once into `g_set` - used by
   engine, ai, voice, game_script, test and the wiring); tool (base, settings, script: ageofai_config.exe, a program of
   its own - a name there must not be one of the DLL's too: layers.py reads the tree as one namespace);
-  test and the wiring (`eeaimod.c`, `persist.c`) everything. A new crossing fails the build - put the code where it
+  test, check/ and the wiring (`eeaimod.c`, `persist.c`) everything. A new crossing fails the build - put the code where it
   belongs (a shared helper down into base/ or game/) instead of adding an exception. `--why <folder>` lists the uses.
 - A move that should change no code (files, functions between files): `scripts/build/code_same.py HEAD` must say "0 differ".
 - `sh scripts/build/install.sh` puts the committed build into the game: built from a clean `git archive HEAD` (never the

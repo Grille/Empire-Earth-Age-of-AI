@@ -11,6 +11,7 @@ internal char g_x_queue[8][240];
 internal int g_x_queued, g_x_total, g_x_dropped;
 internal char *g_x_capture;   // texts corpus: every mistake's message appended here too (each time, not once)
 internal int g_x_capture_cap;
+internal void (*g_x_told)(const char *msg);   // a program of its own (check/ageofai_check.c): each mistake to it, not the log
 internal PRINTF_LIKE(1, 2) void x_error(const char *fmt, ...) {
     char msg[240];
     va_list ap;
@@ -27,6 +28,7 @@ internal PRINTF_LIKE(1, 2) void x_error(const char *fmt, ...) {
     h |= 1;
     if (told[h % 64] == h) return;
     told[h % 64] = h;
+    if (g_x_told) { g_x_told(msg); return; }
     if (g_log && g_x_logged < 60) { g_x_logged++; fprintf(g_log, "# texts: %s\n", msg); }
     if (!g_strict) return;
     EnterCriticalSection(&g_x_lock);

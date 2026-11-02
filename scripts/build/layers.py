@@ -16,7 +16,8 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 DLL = os.path.join(ROOT, 'dll')
 
 # THE RULES: what each folder may use besides itself. eeaimod.c and persist.c (dll/ itself: the wiring, the saves)
-# and test/ may use everything; nothing may use test/ or the wiring.
+# and test/ may use everything; nothing may use test/ or the wiring. check/ (ageofai_check.exe) is the whole DLL
+# compiled into a program of its own: everything too, used by nothing.
 MAY_USE = {
     'base':   [],                                          # the DLL's own helpers: no game, no part
     'settings': ['base'],                                  # ageofai.ini's keys as rows, read into g_set: knows no game
@@ -30,6 +31,7 @@ MAY_USE = {
     'tool':   ['base', 'settings', 'script', 'game/api/builds.h'],   # ageofai_config.exe, a program of its own: no game, only which exe it is
     'test':   ['base', 'settings', 'game/api', 'game', 'engine', 'ai', 'script', 'game_script', 'voice', 'dll'],
     'dll':    ['base', 'settings', 'game/api', 'game', 'engine', 'ai', 'script', 'game_script', 'voice', 'test'],
+    'check':  ['base', 'settings', 'game/api', 'game', 'engine', 'ai', 'script', 'game_script', 'voice', 'test', 'dll'],   # ageofai_check.exe: the DLL's code without the game
 }
 
 # A FILE OF A FOLDER as the rule names it (voice/say.h): only what that file declares - its prototypes, types and
@@ -61,7 +63,7 @@ IDENT = re.compile(r'[A-Za-z_]\w*')
 ATTRIBUTES = re.compile(r'__attribute__\s*\(\((?:[^()]|\([^()]*\))*\)\)|\bPRINTF_LIKE\s*\([^()]*\)')
 KEYWORDS = set('''if for while switch return sizeof static internal const struct enum union typedef unsigned signed int char void
 float double long short volatile extern inline do else case default break continue goto __attribute__ __asm__ asm
-__thiscall __cdecl __stdcall __fastcall __declspec'''.split())
+__thiscall __cdecl __stdcall __fastcall __declspec main'''.split())   # main: each program's own (tool/, check/)
 
 
 def strip(src):
@@ -224,7 +226,7 @@ def excepted(u, d, n):
 def main():
     files, code, edges = analyse()
     if '--map' in sys.argv:
-        order = ['dll', 'base', 'settings', 'tool', 'game/api', 'game', 'engine', 'ai', 'script', 'game_script', 'voice', 'test']
+        order = ['dll', 'base', 'settings', 'tool', 'game/api', 'game', 'engine', 'ai', 'script', 'game_script', 'voice', 'test', 'check']
         m = collections.defaultdict(collections.Counter)
         for u, ds in edges.items():
             for d, ns in ds.items():
