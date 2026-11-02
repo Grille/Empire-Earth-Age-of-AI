@@ -32,7 +32,16 @@
 // further legs, 12.3 raids answered, 1.7 retreats as losing, 0.25 next targets refused, no wait at the attack time -
 // the enemy there is unknown then -, 3260 orders): soldiers +9.3 (se 7.7), kills +9.3 (12.6), losses -15.8 (13.9),
 // razed +2.4 (4.4), workers +14.6 (11.3); buildings lost 8.7 against the commander's 11.2 - the first owned army
-// that loses fewer than the commander (the parity release: 6.2 against 4.5).
+// that loses fewer than the commander (the parity release: 6.2 against 4.5). A second 24 (seeds 13-24) brought the
+// 48 to soldiers +10.6 (5.1), kills +1.2 (9.3), losses -5.6 (9.9), razed +1.4 (2.4), buildings lost 8.2 / 9.6: level.
+// The judge lines of a push showed why: the force of 31 walked into the enemy base judged 1.3-3 all the way while its
+// hit points went 10700 -> 2900 in 3 minutes - the enemy's soldiers arrive one by one at the middle, the ratio stays
+// above 1 and the force is ground down; it was called losing with 19 of 71 left on average (84 of 96 pushes). So
+// home when the force is no longer winning: AR_BACK_PCT 70 -> 100 (48 games): soldiers +12.9 (se 5.5), kills +30.4
+// (7.9), losses -31.9 (7.9), razed +3.3 (1.6), buildings lost 7.2 against 10.6. The same with 70 and a bleed rule
+// instead (home once the force has lost half the hit points it went out with, AR_BLEED_PCT 50; 48 games): kills
+// +31.9 (6.9), losses -33.0 (7.0), razed +1.8 (1.3), soldiers +6.9 (4.1), buildings lost 5.6 / 7.4 - as good on the
+// fight, less on the buildings; 100 kept, the bleed rule left in at 0.
 // BEFORE THE FORCE (2026-11-02, head-to-head, Continental huge 1v1 late, 75 min, 24 mirrored games each): PARITY - the
 // held let go to the game's own launch a tick ahead of the attack time (ai_held cleared, register_unit): soldiers
 // +14.5 (se 6.2), kills +1.3 (6.9), losses -8.0 (8.5), razed -1.8 (1.6), workers -8.1 (10.5) - the soldiers trained
@@ -60,7 +69,12 @@
 #define AR_HELD 2048
 #define AR_HOME_R 10               // at home: within this of it
 #define AR_GO_PCT 130              // a push: the force beats the enemy at the target by this (army_stage_go's 130)
-#define AR_BACK_PCT 70             // out: the force's fight under this twice running - home
+#ifndef AR_BACK_PCT
+#define AR_BACK_PCT 100            // out: the force's fight under this twice running - home (70 bled: below)
+#endif
+#ifndef AR_BLEED_PCT
+#define AR_BLEED_PCT 0             // out: the force's hit points down by this much of what it went out with - home (0: never)
+#endif
 #define AR_JUDGE_EVERY 4000
 #define AR_DONE 8                  // the destination reached: a member within this of it
 #define AR_RAID_EVERY 4000
@@ -82,10 +96,11 @@ internal struct armies_st {
     ee_unit *target; int target_id;        // the push's building (NULL: a raid's point)
     uint32_t judge_t, raid_t, out_t, wait_due, home_t, cand_t, raid_c_t;
     int weak, clear;                       // judgements running under AR_BACK_PCT; raid checks running with no enemy seen
-    float ratio;                           // the last judgement
+    float ratio, out_hp;                   // the last judgement; the force's hit points as it went out
     unsigned held_all, pushes, legs, raids, backs, waits, orders, refused;
 } g_armies[16];
 internal struct st_side g_ar_own;
+internal int g_ar_debug = 0, g_ar_foe_mid_n; internal float g_ar_foe_mid_hp;   // DEBUG
 internal int ar_on(ee_player *pl, unsigned idx) { return pl && !is_vanilla(pl) && MOD_ARMIES(idx) && navy_land(idx); }
 internal int ar_ptr_cmp(const void *x, const void *y) { ee_unit *a = *(ee_unit *const *)x, *b = *(ee_unit *const *)y; return a < b ? -1 : a > b; }
 internal int ou_members(ee_player *pl, ee_unit **out, int max);   // army.c: the units in pl's attack subgroups
@@ -194,6 +209,7 @@ internal void ar_go(struct armies_st *a, int kind, ivec2 d, ee_unit *target, int
         a->held[k].out = 1;
         ar_order(a, k, ar_goal_at(d, k, 1), now);
     }
+    if (!out_only) { ar_side(a, 1, NULL); a->out_hp = g_ar_own.hp; }
 }
 internal void ar_home_all(struct armies_st *a, uint32_t now) {   // the force out comes home as one
     a->out = 0; a->target = NULL; a->backs++;
@@ -216,9 +232,17 @@ internal void ar_out(ee_player *pl, unsigned idx, struct armies_st *a, uint32_t 
     if (n < (a->out == 2 ? 1 : AR_MIN_LAUNCH / 2)) { ar_log(idx, now, "the force out is down to %d - home to %d,%d", n, a->home.x, a->home.y); ar_home_all(a, now); return; }
     if (!a->judge_t || now - a->judge_t >= AR_JUDGE_EVERY) {
         a->judge_t = now ? now : 1;
-        float r = ar_judge(pl, a, 1, mid), rd = ar_judge(pl, a, 1, a->dest);
+        float r = ar_judge(pl, a, 1, mid);
+        g_ar_foe_mid_n = g_sgs_foe.n; g_ar_foe_mid_hp = g_sgs_foe.hp;
+        float rd = ar_judge(pl, a, 1, a->dest);
         int own = g_ar_own.n, foe = g_sgs_foe.n;
         a->ratio = rd < r ? rd : r;
+        if (g_ar_debug) ar_log(idx, now, "  judge: %d out (hp %.0f) at %d,%d - at the middle %.2f (enemy %d, hp %.0f), at %d,%d %.2f (enemy %d, hp %.0f)", n, g_ar_own.hp, mid.x, mid.y, r, g_ar_foe_mid_n, g_ar_foe_mid_hp, a->dest.x, a->dest.y, rd, foe, g_sgs_foe.hp);
+        if (AR_BLEED_PCT && g_ar_own.hp < a->out_hp * (float)(100 - AR_BLEED_PCT) / 100.0f) {
+            ar_log(idx, now, "the force of %d at %d,%d has bled (hp %.0f of %.0f) - home to %d,%d", n, mid.x, mid.y, g_ar_own.hp, a->out_hp, a->home.x, a->home.y);
+            ar_home_all(a, now);
+            return;
+        }
         if (a->ratio * 100.0f < (float)AR_BACK_PCT) {
             if (++a->weak >= 2) {
                 ar_log(idx, now, "the force of %d at %d,%d is losing (%.2f: own %d, enemy %d at %d,%d) - home to %d,%d", n, mid.x, mid.y, a->ratio, own, foe, a->dest.x, a->dest.y, a->home.x, a->home.y);
