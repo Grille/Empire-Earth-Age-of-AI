@@ -7,7 +7,7 @@ the setup here) - scripts find it through `scripts/game_dir.sh` / `game_dir.py` 
 docs/testing.md.
 Several sessions may work in this tree at the same time - see Git below.
 
-The tree (2026-10-25): `build.sh` the build (at the root as the one script to know, the player 2026-11-02), `dll/` the mod, `spec/` the game as the mod knows it (below), `dll_cs/` the C# the build makes some of dll/'s C from
+The tree (2026-10-25): `build.sh` the build (scripts/build/build.sh, called from the root to be found first, the player 2026-11-02), `dll/` the mod, `spec/` the game as the mod knows it (below), `dll_cs/` the C# the build makes some of dll/'s C from
 (beside it on purpose, the player 2026-10-31) - `lang/` the .eeai language's objects (below), `settings/` ageofai.ini's
 keys (below), `config/` what ships, `tests/` what the tests run (`scenarios/`, `probes/`,
 `config/` with autotest.ini), `scripts/` by job - `build/` (the build's checks, generators, install), `test/` (run_test
