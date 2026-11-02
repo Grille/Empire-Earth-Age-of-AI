@@ -1374,9 +1374,12 @@ internal void __thiscall hook_formation_slots(void *f, void *group, void *slots)
     // twice as wide). A circle marches as before
     int in_place = gl < 2 * spread;
     // the formation they stand in, moved as it is (ff_keep_layout); a click keeps its facing too - the way to a point 3
-    // tiles off would have turned the whole formation
+    // tiles off would have turned the whole formation. A click in the game's view comes as a drag facing the way from
+    // the selection to the point (above): one within FO_CLICK of that way is a click here (the player, 2026-11-02:
+    // "just clicking on a spot in front scrambles them still" - turned by the few degrees to the point, every unit
+    // walked its own way)
     int same = in_place && !g_fo_queued && !circle && g_ff_on ? ff_same_group(n) : -1;
-    if (same >= 0 && facing == 0) {
+    if (same >= 0 && (facing == 0 || (cl > 0.5f && vec2_dot(fwd, vec2_scale(cur, 1.0f / cl)) > FO_CLICK))) {
         fwd = g_ff[same].fwd;
         right = v2(fwd.y, -fwd.x);
         float a = fo_atan2(-fwd.x, fwd.y);
