@@ -445,7 +445,11 @@ Settings in `ageofai.ini`:
   off); a shift-queued turn under 45 degrees keeps the formation. A fleet turns together: its formation swings to the
   new course at once and every ship turns on its own circle to its new place, instead of the whole fleet wheeling
   round in one wide arc; a ship ahead of its place slows for it instead of turning back, one beside it merges at a
-  shallow angle. Told to form within its own size (a right-button drag where it stands, to turn it) a formation
+  shallow angle. From rest the formation is laid over the group where it fits best along the way and sets out at
+  once: a unit standing behind its place closes on it, one standing ahead of its place faces the way and waits for
+  it to come up (the inner flank of a wheel) - nobody walks back through the formation, and the slowest units are
+  in their places within half the formation's depth.
+  Told to form within its own size (a right-button drag where it stands, to turn it) a formation
   takes its places without a march - each unit by its own route, as the game does; a formation that stands as it
   marched and turns less than 45 degrees marches as it is then, no unit changing place, straight to the point and
   facing its final facing from the start, so it holds the formation on the way (turned further, a wedge placed over

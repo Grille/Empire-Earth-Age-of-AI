@@ -10,6 +10,11 @@
 // ahead at its start (groupmove.c ff_leader: no unit's point behind where it stands) 0.05-0.14 tiles, on their way
 // after 3-4 s, the last at 8 s. The save itself (its wedge clicked behind): 3.0-3.9 tiles and 23-29 s before, none
 // and 2.4-3.8 s after. 20 citizens and 10 horsemen in a clean wedge didn't show it (they wait for the formation).
+// 2026-11-02, later: the set-ahead by the largest lag put the slowest units behind their places for a whole march
+// (the player: "still feels weird") - the anchor starts at the leader moved by the mean lag now, a unit ahead of its
+// place waits for it abreast: the grenadiers on towards the old front 0.13 tiles (max 0.6), a tile on their way after
+// 3.8 s on average (the slowest 9.9), 97 of 97 done at 68.5 s (96 at 66.5 set ahead; at the leader alone 29 units
+// stood over 10 s, the slowest 20.8, 96 done at 79.8).
 wait_until(0.1min)
 spawn(1, unit.inf08_halberdier, 40, 40, 60)
 spawn(1, unit.inf09_grenadier, 40, 40, 30)

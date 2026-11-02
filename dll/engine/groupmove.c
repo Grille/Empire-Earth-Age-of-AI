@@ -342,7 +342,6 @@ internal int g_ff_first, g_ff_count;   // the marches started by the move being 
 // sets out; home its spot at the goal
 struct ff_unit { uint32_t id; int g, pend; vec2 off, home; uint32_t step; float along, with, off_by, share, grace_cap, want; vec2 lag_pos; uint32_t in_at, share_at, yaw, lag_at, rerouted_at; int tries, own, out, order, waited; uint32_t wait_at, jam_at; float wait_along; };   // jam_at: the step it was first held up (behind its point, asking its top speed, going slower), 0: not now   // waited: 1 a straggler the formation waits for (formation_wait), till it is within its catch-up of its point, -1 one it gave up on till then (wait_at, wait_along: the step it last gained on its point, and how far behind it was then)   // order: its place front to back, left to right in its formation (ff_off); out: dropped out of its march (lag_at, lag_pos: since when it lags, where it stood then); own: why it took its own route last (1 its point too far, 2 the point steered at on a tile it may not enter, 3 not in a clear line); in_at: the step it was last in its place (or its march began); share its catch-up share at share_at, grace_cap the most of it the grace gives; yaw its facing there (the slot's float, 0: none), tries its walks back
 internal struct ff_unit g_ff_u[FF_UNITS];
-internal unsigned g_ff_set_ahead;   // marches from rest whose formation was set ahead of the leader (no unit's point behind it)
 internal unsigned g_ff_in_place;    // re-forms in place: no march
 internal unsigned g_ff_wait_gave_up;   // stragglers the formation stopped waiting for (formation_wait): not gaining on their points
 internal int g_ff_watch;   // `fmove watch 1` (test): every march's anchor logged every leader step (# ffwatch: its speed, the slowdowns)
@@ -811,20 +810,22 @@ internal ee_unit *ff_leader(struct ff_group *gr, uint32_t step) {
             if (gr->arc) gr->face = f; else gr->pivot = 1;
         }
         else {
-            // from rest, the formation set ahead so that no land unit's point lies behind where it stands along the way:
-            // the anchor starts the largest backward lag ahead of the leader (the player, 2026-11-02: a wedge standing
-            // facing one way, clicked behind - its slow back rank first walked forward to its places behind the leader
-            // while the fast tip walked back through it; now the slow set out from where they stand and the fast walk
-            // the extra distance) - at most the formation's depth, and never past its end: a few units standing far
-            // ahead (stragglers, a wedge told to re-form where it stands with citizens 12 tiles off) put the anchor
-            // beyond the leader's spot, and it came round to it on the formation's turning circle (the player, the same
-            // day: "they run in a large arc for a minute just to end in a complete mess"). Ships keep their start:
+            // from rest: the formation laid over the group where it fits best along the way - the anchor at the leader,
+            // moved by the mean of how far ahead of their points the land units stand there (the leader is the unit
+            // whose spot is nearest the formation's middle, standing anywhere in the group: form_place's stood at the
+            // group's rear edge, every unit's place 7 tiles behind it). Those standing behind their places close on
+            // them, those ahead wait for them (fo_follow_aim: abreast), the slowest trail by at most half the spread.
+            // Set ahead by the largest lag before (da60ba3: no unit's point behind it), the save's wedge marching 41
+            // degrees off its facing had its anchor 7 tiles ahead of its middle, the rear ran at its top speed for
+            // 35-50 s closing and the slowest, with no speed to spare, trailed the whole way (the player, 2026-11-02:
+            // "still feels weird"); at the leader alone, half of form_place stood 10-20 s. Never past the end (a few
+            // units standing far ahead - stragglers - put the anchor beyond the leader's spot once, and it came round
+            // on the formation's turning circle: "they run in a large arc for a minute"). Ships keep their start:
             // they turn as one on their circles
             gr->anchor = v2(p.x, p.y);
             if (!gr->naval && gr->in_place != 2) {   // moved as it stands: every unit at its offset already
-                int gi = (int)(gr - g_ff);
+                int gi = (int)(gr - g_ff), cnt = 0;
                 float lag = 0, most = vec2_dot(vec2_sub(gr->end, gr->anchor), gr->way) - FF_END;
-                if (most > gr->front - gr->rear) most = gr->front - gr->rear;
                 vec2 right = v2(gr->way.y, -gr->way.x);
                 for (int i = 0; i < FF_UNITS; i++) {
                     struct ff_unit *e = &g_ff_u[i];
@@ -833,11 +834,12 @@ internal ee_unit *ff_leader(struct ff_group *gr, uint32_t step) {
                     if (!u || unit_get_hp(u) <= 0) continue;
                     vec3 q = unit_get_pos(u);
                     vec2 pt = vec2_add(gr->anchor, vec2_add(vec2_scale(right, e->off.x), vec2_scale(gr->way, e->off.y)));
-                    float d = vec2_dot(vec2_sub(v2(q.x, q.y), pt), gr->way);   // how far ahead of its point it stands
-                    if (d > lag) lag = d;
+                    lag += vec2_dot(vec2_sub(v2(q.x, q.y), pt), gr->way);   // how far ahead of its point it stands
+                    cnt++;
                 }
+                if (cnt) lag /= (float)cnt;
                 if (lag > most) lag = most;
-                if (lag > 0) { gr->anchor = vec2_add(gr->anchor, vec2_scale(gr->way, lag)); g_ff_set_ahead++; }
+                gr->anchor = vec2_add(gr->anchor, vec2_scale(gr->way, lag));
             }
         }
     } else {   // where the last step sent it
@@ -1120,14 +1122,21 @@ internal int fo_follow_aim(ee_unit *u, const float *pos, float *aim) {
     // the point steered at: on ground it may enter, in a clear line - a ship's, two turning radii ahead, nearer its point
     // till it is (in a channel it lay on the shore: 2598 ticks of 16 ships on their own routes, two ships the whole
     // second leg - the player: some ships decide they aren't part of the group)
-    // A ship ahead of its point steers on from abreast of itself (it slows for its point instead of turning back to it:
-    // one with its point behind it went round in a full circle), one beside it at least twice that far ahead (it merges
-    // at a shallow angle: it turned 90 degrees to its point and back - the player: some turn the wrong way at the start,
-    // some do a full 360 with the target in front of them, or 90 and back)
+    // A unit ahead of its point steers on from abreast of itself: it faces the way and slows for its point (ff_speed:
+    // standing when the point is FF_AHEAD / FF_GAIN behind it) instead of walking back to it - a ship with its point
+    // behind it went round in a full circle; a land unit walked back through the formation (the player, 2026-11-02: a
+    // wedge clicked behind itself). Before, the march from rest was set ahead by the largest such lag so that no land
+    // unit's point lay behind it: the save's wedge marching 41 degrees off its facing had its anchor 7 tiles ahead
+    // of its middle, and the rear ran at its top speed for 35-50 s closing while the slowest could never (they
+    // have no speed to spare) - strung out most of the way, and the slow set out late; the game's own move keeps
+    // every unit at the group's speed from the first step (the player: "still feels weird"). A ship beside its point
+    // steers at least twice that far ahead (it merges at a shallow angle: it turned 90 degrees to its point and back -
+    // the player: some turn the wrong way at the start, some do a full 360 with the target in front of them)
     vec2 base = pt, rel = vec2_sub(v2(pos[0], pos[1]), pt);
+    float lon = vec2_dot(rel, way);
+    if (lon > 0) base = vec2_add(pt, vec2_scale(way, lon));
     if (gr->naval) {
-        float lon = vec2_dot(rel, way), lat = fabsf(vec2_dot(rel, v2(way.y, -way.x)));
-        if (lon > 0) base = vec2_add(pt, vec2_scale(way, lon));
+        float lat = fabsf(vec2_dot(rel, v2(way.y, -way.x)));
         if (ahead < 2 * lat) ahead = 2 * lat < FF_FAR ? 2 * lat : FF_FAR;
     }
     int ok = 0, why = 1;

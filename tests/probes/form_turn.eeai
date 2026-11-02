@@ -16,6 +16,8 @@
 // is by a re-form within its own size - each unit keeps its place, the drag here done at 26.6 s (48.1 before); the
 // save's wedge clicked 3 tiles ahead and a bit aside, every unit off the common displacement 0.07 tiles (0.55, 17 of
 // 109 by more than a tile, before).
+// 2026-11-02, later: the set-ahead replaced by the anchor starting at the mean lag (the slowest units no longer
+// behind their places for a whole march): the drag here done at 26.6 s as before, 10 walks back.
 wait_until(0.1min)
 spawn(1, unit.inf08_halberdier, 40, 40, 60)
 spawn(1, unit.inf09_grenadier, 40, 40, 30)
