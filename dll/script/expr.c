@@ -608,7 +608,8 @@ internal int xps_items_add(struct xps *p, uintptr_t **it, int *n, int *cap, stru
     return 1;
 }
 // A TYPE as written (name: type): int, float, bool, text, vec2..vec4, epoch, color, unit_type, function, record,
-// trigger, a kind of the host's objects (player); [T] a list of them, T? or null - its code (host.h), -1 none such
+// trigger, a kind of the host's objects (player); list<T> a list of them, T? or null - its code (host.h), -1 none such.
+// Types are written with < > only: [ ] is the language's for lists as values and for indexing (list<text> = [])
 internal int x_type_named(const char *t) {
     static const char *const own[] = { "int", "float", "bool", "text", "vec2", "vec3", "vec4", "epoch", "color", "unit_type",
                                        "function", "record", "trigger" };
@@ -616,10 +617,10 @@ internal int x_type_named(const char *t) {
     int flags = 0;
     if (n && t[n - 1] == '?') { flags |= X_NULLABLE; n--; }
     char b[32];
-    if (n > 2 && t[0] == '[' && t[n - 1] == ']') { flags |= X_LIST_OF; t++; n -= 2; }
+    if (n > 6 && !strncmp(t, "list<", 5) && t[n - 1] == '>') { flags |= X_LIST_OF; t += 5; n -= 6; }
     if (!n || n >= sizeof b) return -1;
     lstrcpynA(b, t, (int)n + 1);
-    if (strchr(b, '[') || strchr(b, ']') || strchr(b, '?')) return -1;   // (a list of lists, [T?]: not yet)
+    if (strchr(b, '<') || strchr(b, '>') || strchr(b, '?')) return -1;   // (a list of lists, list<T?>: not yet)
     for (size_t i = 0; i < sizeof own / sizeof *own; i++) if (!strcmp(b, own[i])) return (XT_INT + (int)i) | flags;
     for (int k = 1; k < XT_INT; k++) { const struct x_kind *kd = g_x_host.kind(k); if (kd && !strcmp(kd->name, b)) return k | flags; }
     return -1;
@@ -641,7 +642,7 @@ internal const char *xps_lambda_head(const char *s, char names[8][24], char type
         if (*s == ':') {   // its type
             for (s++; *s == ' ' || *s == '\t'; s++) {}
             k = 0;
-            while ((isalnum((unsigned char)*s) || strchr("_[]?", *s)) && *s && k < 31) types[*n][k++] = *s++;
+            while ((isalnum((unsigned char)*s) || strchr("_<>?", *s)) && *s && k < 31) types[*n][k++] = *s++;
             types[*n][k] = 0;
             if (!k) return NULL;
         }
@@ -672,7 +673,7 @@ internal void xps_primary(struct xps *p, struct xnode **out) {
             int ty = pt[i][0] ? x_type_named(pt[i]) : X_ANY;
             if (ty < 0) {
                 p->err = 1;
-                p->why = "an unknown type - int, float, bool, text, vec2, vec3, vec4, epoch, color, unit_type, function, record, trigger, player, game, slot; [T] a list, T? or null";
+                p->why = "an unknown type - int, float, bool, text, vec2, vec3, vec4, epoch, color, unit_type, function, record, trigger, player, game, slot; list<T> a list, T? or null";
                 free(it);
                 return;
             }
@@ -1109,11 +1110,11 @@ internal void xps_stmt(struct xps *p, struct xnode **out) {
             char t[32];
             int k = 0;
             for (p->s++; *p->s == ' ' || *p->s == '\t'; p->s++) {}
-            while ((isalnum((unsigned char)*p->s) || strchr("_[]?", *p->s)) && *p->s && k < 31) t[k++] = *p->s++;
+            while ((isalnum((unsigned char)*p->s) || strchr("_<>?", *p->s)) && *p->s && k < 31) t[k++] = *p->s++;
             t[k] = 0;
             if ((ty = x_type_named(t)) < 0) {
                 p->err = 1;
-                p->why = "let name: type = ... - an unknown type (int, float, bool, text, vec2, vec3, vec4, epoch, color, unit_type, function, record, trigger, player, game, slot; [T] a list, T? or null)";
+                p->why = "let name: type = ... - an unknown type (int, float, bool, text, vec2, vec3, vec4, epoch, color, unit_type, function, record, trigger, player, game, slot; list<T> a list, T? or null)";
                 return;
             }
             xps_space(p);

@@ -111,9 +111,9 @@ one of them, records, functions, triggers, and the game's objects (player, game,
 
 Written where it can't be told - a function's parameters: `let f = (pos: vec3, id: int) => ...`. A function handed to
 `every` has its `run` from there (`(run) => ...` is an int; `(run: text)` a mistake), the others take none. A `let`
-may say its own: `let n: float = 5` (then `n = n * 1.5` fits), `let names: [text] = []`, `let l: player? = p.lord`.
+may say its own: `let n: float = 5` (then `n = n * 1.5` fits), `let names: list<text> = []`, `let l: player? = p.lord`.
 The types by name: `int`, `float`, `bool`, `text`, `vec2` .. `vec4`, `epoch`, `color`, `unit_type`, `function`,
-`record`, `trigger`, `player`, `game`, `slot`; `[T]` a list of them, `T?` one or null. A call of a function a `let`
+`record`, `trigger`, `player`, `game`, `slot`; `list<T>` a list of them, `T?` one or null - types are written with `< >`, `[ ]` is for a list as a value (`[a, b]`, `[]`) and for indexing (`l[1]`). A call of a function a `let`
 made is checked against its parameters: their count and types (`f(2.5)` for an `x: int` is a mistake).
 
 Where a type still can't be told (a record's member, what a function gives back), the value is checked when it is
