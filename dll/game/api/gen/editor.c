@@ -1368,9 +1368,11 @@ typedef void *(__thiscall *editor_form_init_fn)(ee_editor_form *, void *);
 internal editor_form_init_fn fn_editor_form_init;
 internal inline void *editor_form_init(ee_editor_form *editor_form, void *owner) { return fn_editor_form_init(editor_form, owner); }
 internal inline int patch_editor_form(editor_form_init_fn h) { return patch_call(call_editor_form, (uintptr_t)fn_editor_form_init, (void *)h); }
+// every frame the editor is on screen (walls.c: the editor's walls watched while it is)
 typedef int (__thiscall *editor_form_draw_background_fn)(ee_editor_form *, void *);
 internal editor_form_draw_background_fn fn_editor_form_draw_background;
 internal inline int editor_form_draw_background(ee_editor_form *editor_form, void *rect) { return fn_editor_form_draw_background(editor_form, rect); }
+internal inline int patch_editor_frame(editor_form_draw_background_fn h) { return patch_vtable(vt_eeuif_scenario_editor, (int)slot_ui_form_draw_background, (uintptr_t)fn_editor_form_draw_background, (void *)h); }
 typedef int (__thiscall *editor_form_update_keyboard_fn)(ee_editor_form *);
 internal editor_form_update_keyboard_fn fn_editor_form_update_keyboard;
 internal inline int editor_form_update_keyboard(ee_editor_form *editor_form) { return fn_editor_form_update_keyboard(editor_form); }

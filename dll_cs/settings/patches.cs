@@ -55,7 +55,7 @@ class patches
     /// Walls a game starts with (with wall_slopes): a scenario's walls (made without the mod, or with these settings
     /// off) and a game's saved before are fitted and joined at the game's start, as if built with them. 0 = they stay
     /// as they were made; walls built in the game are fitted, and an old one a new one is drawn onto with it. In the
-    /// scenario editor 1 has every wall looked at whenever something is placed, 0 only those around what was placed.
+    /// scenario editor 1 has every wall looked at whenever walls change there, 0 only those around the change.
     /// In multiplayer every player needs the same setting
     [title("Fit the walls a game starts with")]
     bool wall_start_fit = true;

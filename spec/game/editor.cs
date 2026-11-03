@@ -1582,7 +1582,9 @@ unsafe struct EEUIFScenarioEditor
     [call_site("editor_form", (ee)0x0065BA13, (aoc)0x00673E9B)]
     extern void* init(void* owner);
 
+    /// every frame the editor is on screen (walls.c: the editor's walls watched while it is)
     [address((ee)0x0058F0D0, (aoc)0x0059F501), overrides(typeof(UIForm))]
+    [vtable_site("editor_frame")]
     extern int32 draw_background(void* rect);
 
     [address((ee)0x0058F997, (aoc)0x0059FDC8), overrides(typeof(UIForm))]

@@ -346,13 +346,14 @@ Settings in `ageofai.ini`:
   tower or gate it ran into. Now a post stands only where a wall ends, turns or branches: a wall runs on
   through, and into a tower or a gate. It is decided when a wall or a gate is built, as the game decides its posts;
   a destroyed wall's gap stays open. Both work in the scenario editor too: there the walls are fitted and joined
-  whenever something is placed. In multiplayer every player needs the same setting. `0` = the original.
+  as soon as they change - placed, deleted, moved, the ground under them painted. In multiplayer every player needs
+  the same setting. `0` = the original.
 - `[patches] wall_start_fit=1` (default; with `wall_slopes=1`): the walls a game starts with - a scenario's, made
   without the mod or with these settings off, and a game's saved before - are fitted and joined once at its start,
   as if built with them (a game saved with them on has nothing left to change). With `0` they stay as they were
-  made; walls built during the game are fitted, and an old wall a new one is drawn onto is fitted with it. In the scenario editor `1`
-  looks at every wall whenever something is placed, `0` only at those around what was placed. In multiplayer every
-  player needs the same setting.
+  made; walls built during the game are fitted, and an old wall a new one is drawn onto is fitted with it. In the
+  scenario editor `1` looks at every wall whenever walls change there, `0` only at those around the change. In
+  multiplayer every player needs the same setting.
 - `[general] big_selection=1` (default): double-clicking a unit (all of its kind on screen) or dragging a box selected
   at most 63 units - with a large army only a part. Now up to about 240, as many as the game's selection message
   can carry; the message keeps its format, so it should stay compatible in multiplayer.
