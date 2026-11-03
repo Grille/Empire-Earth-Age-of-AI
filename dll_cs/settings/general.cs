@@ -159,6 +159,12 @@ class general
         /// keeps its facing and moves as it is. 0 = the game's: it turns to face the way from where it stands to the point
         [commented("1")]
         bool formation_keep_facing = false;
+        /// Formation wheel (with formation follow), in tiles: a formation turns as it stands - told to form where it stands
+        /// facing another way, to face another way at its goal, or a shift-queued turn - when the turn moves its outermost
+        /// unit no further than this; turned further it forms anew, each unit to the nearest place. A squad of six wheels
+        /// right round within 3 tiles, a wedge of a hundred breaks up turning 30 degrees
+        [range(1, 20)]
+        int formation_wheel = 3;
         /// Formation catch-up (with formation follow): how fast a unit behind its place in the marching formation may go to
         /// keep it, in percent of its own top speed - all of it within its own size of its place, falling off to its own top
         /// speed at formation_catchup_falloff times that. Also how much the formation slows in a turn (the outermost unit

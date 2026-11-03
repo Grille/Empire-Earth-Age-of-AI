@@ -317,7 +317,6 @@ internal void fo_march(ee_active_group *grp) {
 #define FF_SWING 1.0f          // its facing turns at most this much x its speed / its reach a second (its outermost units
                                // swing round at about its speed)
 #define FF_TURN_EASE 0.33f     // the turn slowdown follows the turning share eased by this much a leader step (a route corner's at once: the speed jumped)
-#define FF_ARC 0.7071f         // a queued move turning less than this (cos 45 degrees) goes on in the same formation
 #define FF_LINGER 10.0f        // s: the formation lingers this long after the last of its units came to rest, and an
                                // idle unit pushed off its spot meanwhile walks back to it (ff_linger_tick) -
 #define FF_LINGER_MAX 60.0f    // s: at most this long after the march ended (a unit that never comes to rest)
@@ -588,10 +587,20 @@ internal void ff_start(void *group, int n, vec2 c, vec2 fwd, vec2 right, int que
     if (g_ff_count > 1) g_ff_split++;
 }
 
-// a queued move turning less than 45 degrees from the last march its units are on or queued for (all of them, all on
-// it): the same formation goes on - each unit's spot its offset from the leader in that march, turned to the new facing
+// a queued move turning so little from the last march its units are on or queued for (all of them, all on it) that
+// the formation wheels (ff_wheels): the same formation goes on - each unit's spot its offset from the leader in that march, turned to the new facing
 // around the leader's spot (as far from the point c as before) - instead of a new layout; the march's index, else -1
 internal vec2 g_fo_arc_off[FO_MAX];
+// a formation of this reach (its outermost unit's distance from its middle) turning by the angle of this cosine keeps
+// its layout - turns as it stands, each unit on the chord to its place - when that moves its outermost unit at most
+// formation_wheel tiles (the chord 2 x reach x sin(angle/2)); turned further it forms anew, each unit to the nearest
+// place. Not an angle alone (45 degrees before - the player, 2026-11-03: "a bit naive: for small groups even 180
+// would not be a real problem, while large ones already break before 45"): a squad of six, reach 1.5, wheels right
+// round for 3 tiles, the save's wedge of 109, reach 5.9, breaks up at 30 degrees
+internal int ff_wheels(float reach, float cosang) {
+    float w = (float)g_set.formation_wheel;
+    return reach <= w * 0.5f || cosang >= 1 - w * w / (2 * reach * reach);
+}
 // the formation the units just laid out (g_fo[0..n)) stand in: one march, finished or not, all of its units among them
 // (and units of no march: a straggler that was out of reach when it began) - its index, else -1 (a re-form in place of
 // a formation moves it as it is: ff_keep_layout)
@@ -638,7 +647,7 @@ internal int ff_arc_layout(int n, vec2 c, vec2 fwd, vec2 right) {
     }
     vec2 leg = vec2_sub(c, vec2_scale(mean, 1.0f / (float)n));
     float ll = vec2_len(leg);
-    if (ll < 0.5f || vec2_dot(old->way, vec2_scale(leg, 1.0f / ll)) <= FF_ARC) return -1;
+    if (ll < 0.5f || !ff_wheels(old->reach, vec2_dot(old->way, vec2_scale(leg, 1.0f / ll)))) return -1;
     vec2 lead = vec2_add(c, vec2_add(vec2_scale(right, old->lead_off.x), vec2_scale(fwd, old->lead_off.y)));
     for (int i = 0; i < n; i++) g_fo[i].at = vec2_add(lead, vec2_add(vec2_scale(right, g_fo_arc_off[i].x), vec2_scale(fwd, g_fo_arc_off[i].y)));
     return og;
@@ -1390,7 +1399,8 @@ internal void __thiscall hook_formation_slots(void *f, void *group, void *slots)
     }
     vec2 right = v2(fwd.y, -fwd.x);
     int circle = kind >= FORMATION_INWARD_CIRCLE;
-    // following, with the final facing 45 degrees or more off the way it goes (FF_ARC, as at a waypoint): the march
+    // following, with the final facing so far off the way it goes that the turn at the goal would move the outermost
+    // unit further than formation_wheel (ff_wheels, as at a waypoint): the march
     // forms for its way first - the same rows, the units given their places by where they stand along that way (a wedge
     // sent behind itself facing back: before, each unit crossed to the far side of the formation to walk with its final
     // front first, and the formation swung round at the goal) - and each unit goes on to its final place at the goal
@@ -1414,11 +1424,11 @@ internal void __thiscall hook_formation_slots(void *f, void *group, void *slots)
     // it stands (a few stragglers 15 tiles ahead made a 35-tile move "in place") nor the game's own slots (its grid is
     // twice as wide). A circle marches as before
     int in_place = gl < 2 * spread;
-    // the formation they stand in, moved as it is (ff_keep_layout) when it turns less than 45 degrees (FF_ARC, as a
-    // queued move goes on in the same formation) - turned further it is laid out anew where it stands, each unit given
-    // its place by where it stands (the player, 2026-11-02: a wedge placed on the one standing, facing back, "they try
-    // to rotate into it instead of reforming, which causes a mess": every unit kept its offset and crossed the
-    // formation to the far side); with formation_keep_facing a click keeps its facing too, instead of the game's turn to
+    // the formation they stand in, moved as it is (ff_keep_layout) when the turn moves its outermost unit no further
+    // than formation_wheel (ff_wheels, as a queued move goes on in the same formation) - turned further it is laid out
+    // anew where it stands, each unit given its place by where it stands (the player, 2026-11-02: a wedge placed on the
+    // one standing, facing back, "they try to rotate into it instead of reforming, which causes a mess": every unit
+    // kept its offset and crossed the formation to the far side); with formation_keep_facing a click keeps its facing too, instead of the game's turn to
     // face the way to the point (a click in the game's view comes as a drag facing that way: one within FO_CLICK of it
     // is a click here; the player, 2026-11-02: the turn is the game's and intended, the keeping "worth saving as a
     // setting")
@@ -1431,7 +1441,7 @@ internal void __thiscall hook_formation_slots(void *f, void *group, void *slots)
         memcpy(&bits, &a, sizeof bits);
         for (int i = 0; i < n; i++) game_facing[i] = bits;
     }
-    if (same >= 0 && vec2_dot(fwd, g_ff[same].fwd) < FF_ARC) same = -1;
+    if (same >= 0 && !ff_wheels(spread, vec2_dot(fwd, g_ff[same].fwd))) same = -1;
     g_fo_has_march = 0;
     g_fo_naval = 1;
     for (int i = 0; i < n; i++) {
@@ -1439,7 +1449,7 @@ internal void __thiscall hook_formation_slots(void *f, void *group, void *slots)
         int mk = td ? model_kind(unit_type_get_model(td)) : 0;
         if (mk != MODEL_SHIPS && mk != MODEL_SUBS) g_fo_naval = 0;
     }
-    if (g_ff_on && !circle && !in_place && gl > 0.5f && vec2_dot(vec2_scale(go, 1.0f / gl), fwd) < FF_ARC) {
+    if (g_ff_on && !circle && !in_place && gl > 0.5f && !ff_wheels(spread, vec2_dot(vec2_scale(go, 1.0f / gl), fwd))) {
         vec2 wf = vec2_scale(go, 1.0f / gl), wr = v2(wf.y, -wf.x);
         for (int i = 0; i < n; i++) {
             vec2 d = vec2_sub(g_fo[i].p, mean);

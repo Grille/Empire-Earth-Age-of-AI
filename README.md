@@ -358,7 +358,7 @@ Settings in `ageofai.ini`:
   own placing call: it picks the tile nearest to where it stands then). 0 = the original.
 - `[general] improved_unit_movement=default`: the movement settings below (ship_routes, land_routes, land_widen,
   share_routes, route_budget, ship_turns, land_turns, ship_collide, land_collide, formations, formation_march,
-  formation_follow, formation_catchup_falloff, and the factors formation_catchup, formation_reform, formation_wait,
+  formation_follow, formation_catchup_falloff, formation_wheel, and the factors formation_catchup, formation_reform, formation_wait,
   friendly_collision) as one. `default` gives each
   its own default (all on since 2026-10-26: the player's play), `custom` each as set in the file (else its default),
   `enabled` all of them on, `disabled` all off and the factors at 100% (a number its default) - the game's own movement.
@@ -442,8 +442,8 @@ Settings in `ageofai.ini`:
   The formation goes at the slowest unit's speed, turning like a ship (no unit walks backwards in a turn: it slows
   in a turn so its outermost units keep up, eased in and out over a few seconds - a bend in the route costs a little,
   only a sustained turn the whole), facing
-  the way it goes and turning into its final facing at the goal (re-forming there when that is 45 degrees or more
-  off); a shift-queued turn under 45 degrees keeps the formation. A fleet turns together: its formation swings to the
+  the way it goes and turning into its final facing at the goal (forming anew there when the turn would move its
+  outermost unit further than `formation_wheel` tiles); a shift-queued turn within that keeps the formation. A fleet turns together: its formation swings to the
   new course at once and every ship turns on its own circle to its new place, instead of the whole fleet wheeling
   round in one wide arc; a ship ahead of its place slows for it instead of turning back, one beside it merges at a
   shallow angle. From rest the formation is laid over the group where it fits best along the way and sets out at
@@ -452,12 +452,16 @@ Settings in `ageofai.ini`:
   in their places within half the formation's depth.
   Told to form within its own size (a right-button drag where it stands, to turn it) a formation
   takes its places without a march - each unit by its own route, as the game does; a formation that stands as it
-  marched and turns less than 45 degrees marches as it is then, no unit changing place, straight to the point and
+  marched and turns within `formation_wheel` marches as it is then, no unit changing place, straight to the point and
   facing its final facing from the start, so it holds the formation on the way (turned further, a wedge placed over
   it facing back, it takes its places anew - every unit kept its offset and crossed the formation before). A click
   turns it to face the way to the point, as the game does;
   `formation_keep_facing=1` keeps its facing instead (in the game's view a click comes as a drag facing the way to
   the point, so a drag within 10 degrees of that way counts as a click here).
+- `[general] formation_wheel=3` (tiles, with formation_follow): a formation turns as it stands - told to form where it
+  stands facing another way, to face another way at its goal, or at a shift-queued turn - when the turn moves its
+  outermost unit no further than this; turned further it forms anew, each unit to the nearest place. Not an angle: a
+  squad of six (radius 1.5) wheels right round within 3 tiles, a wedge of a hundred (radius 6) breaks up at 30 degrees.
 - `[general] formation_catchup=125%` (with formation_follow): how fast a unit behind its place may go to keep it, in
   percent of its own top speed (100% never faster than its own) - near its place only: all of it within its size,
   none from formation_catchup_falloff times that. Also how much the formation slows in a turn (its outermost unit
