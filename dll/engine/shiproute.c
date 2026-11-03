@@ -449,6 +449,57 @@ internal int sr_find(ee_map *map, ee_unit *u, ee_unit_type *td, int size, int sx
     return n;
 }
 
+// the way u's route from `from` to `to` sets out, as this planner finds it (the formation's leader will ask it for the
+// same): *leg the direction from the start to the route's point `ahead` tiles along it (the route's first clear-line
+// corner was 45 degrees off where a route hugging a wall's end went on: a short first piece), 1 - 0 when the planner is
+// off for u, the start or the target can't be entered or no route is found. The formation's march lays out facing it: laid out facing the point, a group whose route sets out another
+// way (the player's "siphon", 2026-11-03: 71 units in a walled bowl, the way out east and the point south) turned on the
+// spot before it moved ("they reform to face the destination, not their first checkpoint, which makes them very slow
+// to start moving")
+internal int sr_first_leg(ee_unit *u, vec2 from, vec2 to, float ahead, vec2 *leg) {
+    ee_map *map = game_map();
+    ee_unit_type *td = u ? unit_get_type_data(u) : NULL;
+    int size = map ? (int)map_get_size(map) : 0;
+    if (!sr_wants(u) || !td || size <= 0 || !sr_alloc((uint32_t)(size * size))) return 0;
+    int sx = (int)floorf(from.x), sy = (int)floorf(from.y), tx = (int)floorf(to.x), ty = (int)floorf(to.y);
+    if (sx < 0 || sy < 0 || sx >= size || sy >= size || tx < 0 || ty < 0 || tx >= size || ty >= size) return 0;
+    sr_stamp();
+    g_sr_ship = sr_is_ship(u);
+    g_sr_radius = g_sr_ship ? unit_type_get_formation_size(td) * 0.5f : 0;
+    if (g_sr_ship && g_sr_radius < 0.35f) g_sr_radius = 0.35f;
+    if (g_sr_radius > SR_RADIUS_MAX) g_sr_radius = SR_RADIUS_MAX;
+    g_sr_corr = 0;
+    if (!sr_pass(map, u, td, size, sx, sy)) return 0;
+    if (!sr_pass(map, u, td, size, tx, ty)) {   // as sr_search: the nearest tile it can enter
+        int best = -1, bx = tx, by = ty;
+        for (int dy = -SR_RETARGET; dy <= SR_RETARGET; dy++)
+            for (int dx = -SR_RETARGET; dx <= SR_RETARGET; dx++) {
+                int d2 = dx * dx + dy * dy;
+                if ((best < 0 || d2 < best) && sr_pass(map, u, td, size, tx + dx, ty + dy)) { best = d2; bx = tx + dx; by = ty + dy; }
+            }
+        if (best < 0) return 0;
+        tx = bx;
+        ty = by;
+    }
+    static uint32_t path[65536];
+    int expanded = 0, whole = 1;
+    int n = sr_find(map, u, td, size, sx, sy, tx, ty, path, 65536, &expanded, 0, &whole);
+    if (n < 2) return 0;
+    // the route's point `ahead` tiles along it from the start (the path goal first)
+    int at = n - 1, next = at;
+    float ax = (float)(path[at] % (uint32_t)size) + 0.5f, ay = (float)(path[at] / (uint32_t)size) + 0.5f, gone = 0;
+    while (next > 0 && gone < ahead) {
+        int dx = abs((int)(path[next] % (uint32_t)size) - (int)(path[next - 1] % (uint32_t)size)), dy = abs((int)(path[next] / (uint32_t)size) - (int)(path[next - 1] / (uint32_t)size));
+        gone += dx && dy ? 1.4142f : 1.0f;
+        next--;
+    }
+    vec2 d = v2((float)(path[next] % (uint32_t)size) + 0.5f - ax, (float)(path[next] / (uint32_t)size) + 0.5f - ay);
+    float dl = vec2_len(d);
+    if (dl < 0.5f) return 0;
+    *leg = vec2_scale(d, 1.0f / dl);
+    return 1;
+}
+
 // u's route from tile from to tile to as its waypoints; 0: left to the game
 internal int sr_search(ee_unit *u, int *from, int *to, void *caller, int sectors) {
     ee_map *map = game_map();

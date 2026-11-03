@@ -223,6 +223,7 @@ internal vec2 g_fo_march[FO_MAX];       // the march's own layout (formation_fol
 internal int g_fo_has_march;
 internal int g_fo_naval;                // the layout's units are ships (formation_follow: they turn together)
 internal int g_fo_kind;                 // the layout's formation kind (the button): a march remembers it - another one lays out anew
+internal vec2 g_fo_way;                 // the way the march being laid out sets out along: its route's first leg (sr_first_leg), else the way to the point
 internal unsigned g_fo_queued_n;        // group moves laid out from the units' last queued points
 
 // the move (EEMPathTo's Execute, the formation's slots laid out within it): whether it is queued - then the formation is
@@ -278,6 +279,7 @@ internal void fo_march(ee_active_group *grp) {
 // sent to the point between them) march as blocks, each behind a leader of its own (ff_start). All from the game's
 // state in the simulation: the same on every PC
 #define FF_GROUPS 64
+#define FF_TRAIL 128           // the anchor's trail: its place at this many leader steps back (a column of 109 two abreast is 65 tiles deep, a step about a tile)
 #define FF_UNITS 4096          // the followers' table (open, by unit id)
 #define FF_FAR 24.0f           // tiles
 #define FF_END 3.0f            // tiles
@@ -318,7 +320,7 @@ internal void fo_march(ee_active_group *grp) {
 // the point the formation hangs on (ff_leader), way its heading, vel its speed, turning its share of the tightest turn
 // (eased over the leader steps: FF_TURN_EASE), started: set out (prev: the march it went on from, else -1), t0 the step then, linger the step it arrived
 // (0: not yet, or not arrived - given another order)
-struct ff_group { uint32_t leader; ee_group *grp; ee_goal *goal; vec2 fwd, way, face, end, lead_off, onward, anchor, way_from, face_from, way_rot, face_rot; float speed, reach, turn_r, acc, pace, pace_next, jam, jam_next, vel, vel_from, turning, dt, side; uint32_t step, t0, linger, at_ms; float sp, front, rear, fw; int n, cols; int on, live, through, passed, started, prev, reform, arc, pivot, naval, in_place, kind; uint32_t settled; };   // in_place: a re-form within the formation's own size - 1 no march, each unit on its own route, the formation sorted out at the end as after a march; 2 a formation moved as it stands: a march straight to its end, facing its final facing from the start, to FF_END_PLACE of its end; settled: the step its last unit came to rest after it arrived (0: not yet)   // sp: its members' mean spacing, front: the front rank's offset, fw: the formation's width, n: its units, cols: narrowed to this many abreast (0: as laid out)   // arc: it goes on from prev in the same formation (else it re-forms on the move: pivot - its anchor turns onto the new leg sharply); naval: ships   // side: how far right of the leader's route the formation's line runs (ff_side: off an edge the route hugs)
+struct ff_group { uint32_t leader; ee_group *grp; ee_goal *goal; vec2 fwd, way, face, end, lead_off, onward, anchor, way_from, face_from, way_rot, face_rot; float speed, reach, turn_r, acc, pace, pace_next, jam, jam_next, vel, vel_from, turning, dt, side; uint32_t step, t0, linger, at_ms; float sp, front, rear, fw; int n, cols; int on, live, through, passed, started, prev, reform, arc, pivot, naval, in_place, kind; uint32_t settled; vec2 trail[FF_TRAIL]; int trail_n, trail_at; };   // in_place: a re-form within the formation's own size - 1 no march, each unit on its own route, the formation sorted out at the end as after a march; 2 a formation moved as it stands: a march straight to its end, facing its final facing from the start, to FF_END_PLACE of its end; settled: the step its last unit came to rest after it arrived (0: not yet)   // sp: its members' mean spacing, front: the front rank's offset, fw: the formation's width, n: its units, cols: narrowed to this many abreast (0: as laid out)   // arc: it goes on from prev in the same formation (else it re-forms on the move: pivot - its anchor turns onto the new leg sharply); naval: ships   // side: how far right of the leader's route the formation's line runs (ff_side: off an edge the route hugs)
 internal struct ff_group g_ff[FF_GROUPS];
 internal unsigned g_ff_next;
 internal int g_ff_first, g_ff_count;   // the marches started by the move being dispatched, for their leaders' goals
@@ -409,7 +411,7 @@ internal void ff_start_block(void *group, const int *idx, int k, vec2 c, vec2 fw
     gr->fwd = fwd;
     vec2 to = vec2_sub(g_fo[lead].at, g_fo[lead].from);
     float tl = vec2_len(to);
-    gr->way = gr->face = tl > 0.01f ? vec2_scale(to, 1.0f / tl) : fwd;
+    gr->way = gr->face = g_fo_has_march && from < 0 ? g_fo_way : tl > 0.01f ? vec2_scale(to, 1.0f / tl) : fwd;   // laid out for the way: it sets out along it (the route's first leg)
     gr->naval = g_fo_naval;
     gr->kind = g_fo_kind;
     gr->end = g_fo[lead].at;
@@ -421,6 +423,7 @@ internal void ff_start_block(void *group, const int *idx, int k, vec2 c, vec2 fw
     gr->reform = from < 0 && g_fo_has_march;
     gr->prev = from;
     gr->vel = gr->vel_from = gr->turning = gr->dt = gr->side = 0;
+    gr->trail_n = gr->trail_at = 0;
     gr->way_rot = gr->face_rot = v2(1, 0);
     gr->onward = v2(0, 0);
     if (from >= 0) {
@@ -661,10 +664,12 @@ internal int ff_on_move(struct ff_group *gr, ee_unit *l) {
 // by their distance along the way: the anchor runs beside the route by its side, a waypoint abreast is not ahead),
 // near the leader's spot on along the next leg when a march goes on from this one (the turn begins before the corner),
 // past it along the next leg. *route: 1 a point of the route (ff_side moves the formation's line off it), 0 the end;
-// *leg the route's direction on from that point (to its next waypoint, else the end; the way when there is none)
-internal vec2 ff_pursue(struct ff_group *gr, ee_unit *l, int *route, vec2 *leg) {
+// *leg the route's direction on from that point (to its next waypoint, else the end; the way when there is none), *qi
+// the point's index among the leader's waypoints (-1: not one of them)
+internal vec2 ff_pursue(struct ff_group *gr, ee_unit *l, int *route, vec2 *leg, int *qi) {
     vec2 a = gr->anchor;
     *route = 0;
+    *qi = -1;
     *leg = gr->way;
     if (gr->passed) return vec2_add(a, vec2_scale(gr->onward, FF_LOOK));
     float de = vec2_len(vec2_sub(gr->end, a));
@@ -681,6 +686,7 @@ internal vec2 ff_pursue(struct ff_group *gr, ee_unit *l, int *route, vec2 *leg) 
             float ol = vec2_len(on);
             if (ol > 0.5f) *leg = vec2_scale(on, 1.0f / ol);
             *route = 1;
+            *qi = i;
             return q;
         }
     }
@@ -716,9 +722,56 @@ internal vec2 ff_anchor_now(const struct ff_group *gr, vec2 *way, vec2 *face, fl
     return t > gr->dt ? vec2_add(a, vec2_scale(gr->way, gr->vel * (t - gr->dt))) : a;
 }
 
+// THE TRAIL (the player's "siphon", 2026-11-03: 71 units through a channel 3 tiles wide and 20 long, "the chokepoint
+// handling is very bad, many units get stuck / are separated from the main formation"): a land march's units behind the
+// anchor take their points on the anchor's trail - the path it came, at their offset back along it, their offset across
+// from the path's heading there - so a column snakes along the route and a corner is turned by each rank where the
+// anchor turned it. Every unit's point a fixed offset from the anchor turned with the facing (as a fleet's still are,
+// and a formation moved as it stands), the body swung round the anchor at a corner, its depth too: the anchor turned
+// into the channel on the formation's turning circle of 7 tiles, 2-3 tiles outside it inside the wall, and the rear
+// ranks swept through the wall - a quarter of the followers' steps on their own routes, the last unit at 135 s. With
+// the rear on the trail the anchor turns on the formation's half-width (narrowed: the column's) plus FF_INNER instead
+// of its reach. The trail holds the anchor's place at each leader step (ff_trail_push); before it began, straight back
+// along its oldest piece (the way, from rest). A queued march takes the march before's trail on with its anchor
+internal void ff_trail_push(struct ff_group *gr) {
+    if (gr->trail_n) {
+        vec2 last = gr->trail[(gr->trail_at - 1 + FF_TRAIL) % FF_TRAIL];
+        if (vec2_dist2(last, gr->anchor) < 0.05f * 0.05f) return;   // standing: no piece
+    }
+    gr->trail[gr->trail_at] = gr->anchor;
+    gr->trail_at = (gr->trail_at + 1) % FF_TRAIL;
+    if (gr->trail_n < FF_TRAIL) gr->trail_n++;
+}
+// the point `back` tiles behind the anchor along its trail, *dir the trail's heading there
+internal vec2 ff_trail_at(const struct ff_group *gr, vec2 anchor, vec2 way, float back, vec2 *dir) {
+    vec2 p = anchor, d = way;
+    for (int k = 0; k < gr->trail_n; k++) {
+        vec2 q = gr->trail[(gr->trail_at - 1 - k + 2 * FF_TRAIL) % FF_TRAIL], s = vec2_sub(p, q);
+        float sl = vec2_len(s);
+        if (sl < 0.01f) continue;
+        d = vec2_scale(s, 1.0f / sl);
+        if (back <= sl) { *dir = d; return vec2_sub(p, vec2_scale(d, back)); }
+        back -= sl;
+        p = q;
+    }
+    *dir = d;
+    return vec2_sub(p, vec2_scale(d, back));
+}
+// e's point (its offset off, the across part scaled by `across`: drawn in), *dir the heading of the formation there: a
+// land march's rear on the trail, the rest its offset from the anchor turned with the facing
+internal vec2 ff_point(const struct ff_group *gr, vec2 anchor, vec2 way, vec2 face, vec2 off, float across, vec2 *dir) {
+    if (!gr->naval && gr->in_place != 2 && off.y < 0) {
+        vec2 p = ff_trail_at(gr, anchor, way, -off.y, dir);
+        return vec2_add(p, vec2_scale(v2(dir->y, -dir->x), off.x * across));
+    }
+    *dir = face;
+    return vec2_add(anchor, vec2_add(vec2_scale(v2(face.y, -face.x), off.x * across), vec2_scale(face, off.y)));
+}
+
 // NARROWING (the player: a ray from the formation's anchor for the room there is, and where it sees room for one or two
-// abreast a fitting formation for the while): each step the room across the way is measured at every tile from the
-// formation's rear to FF_NARROW_LOOK beyond its front - the ground across its width the leader may enter - and where
+// abreast a fitting formation for the while): each step the room across the formation's line is measured at every tile
+// from its rear (along the anchor's trail) to FF_NARROW_LOOK beyond its front (along the leader's route: ff_line) - the
+// ground across its width the leader may enter, unbroken from the line out (ff_rooms) - and where
 // the narrowest is less than FF_NARROW_AT of the formation's width it fills its rows anew, front to back and left to right in its order, as many abreast as
 // fit at its members' mean spacing; it widens again once that room is there along all of it. The jam it had made
 // at a gap crawled through: its units couldn't all fit, the formation waited for them
@@ -732,18 +785,69 @@ internal vec2 ff_off(const struct ff_group *gr, const struct ff_unit *e) {
     if (in_row > gr->cols) in_row = gr->cols;
     return v2(((float)col - (float)(in_row - 1) * 0.5f) * gr->sp, gr->front - (float)row * gr->sp);
 }
-// the room across the way at p, lim to each side: the ground there it may enter (0: p itself blocked) - not to the
-// nearest thing that blocks: a tree or a house beside the way narrowed a formation in the open, and it came apart
-internal float ff_room(ee_map *map, ee_unit *u, ee_unit_type *td, int size, vec2 p, vec2 across, float lim) {
-    if (!sr_pass(map, u, td, size, (int)floorf(p.x), (int)floorf(p.y))) return 0;
+// the room from p outward along dir, to lim: how far the ground it may enter goes on unbroken. The passable ground
+// counted along the whole ray before: a wall a tile thick with the open behind it counted as room, and the formation
+// marched with a flank in the wall - and into a channel 3 tiles wide between two walls (the player's "siphon") 71 units
+// 11 wide never narrowed
+internal float ff_room_side(ee_map *map, ee_unit *u, ee_unit_type *td, int size, vec2 p, vec2 dir, float lim) {
     float room = 0;
-    for (float d = -lim; d <= lim; d += 0.5f) {
-        vec2 q = vec2_add(p, vec2_scale(across, d));
-        if (sr_pass(map, u, td, size, (int)floorf(q.x), (int)floorf(q.y))) room += 0.5f;
+    for (float d = 0.5f; d <= lim; d += 0.5f) {
+        vec2 q = vec2_add(p, vec2_scale(dir, d));
+        if (!sr_pass(map, u, td, size, (int)floorf(q.x), (int)floorf(q.y))) break;
+        room = d;
     }
     return room;
 }
-internal void ff_narrow(struct ff_group *gr, ee_unit *l) {
+// the room left and right of a line of n points (pts, the line's heading at each in dirs): rooms[i][0] left, [1] right
+// - a point's the most of its own and its neighbours' along the line (a tree or a house beside the way is passed, a
+// wall or a shore runs on: the nearest thing that blocks narrowed a formation in the open, and it came apart), -1 where
+// the line's own tile is blocked (a bend: no measure)
+#define FF_ROOM_TILES 48       // the points measured at most (one every tile of the formation's depth and the look beyond it)
+internal void ff_rooms(ee_map *map, ee_unit *u, ee_unit_type *td, int size, const vec2 *pts, const vec2 *dirs, int n, float lim, float rooms[][2]) {
+    float raw[FF_ROOM_TILES + 1][2];
+    for (int i = 0; i < n; i++) {
+        vec2 q = pts[i], right = v2(dirs[i].y, -dirs[i].x), left = v2(-dirs[i].y, dirs[i].x);
+        raw[i][0] = raw[i][1] = -1;
+        if (sr_pass(map, u, td, size, (int)floorf(q.x), (int)floorf(q.y))) { raw[i][0] = ff_room_side(map, u, td, size, q, left, lim); raw[i][1] = ff_room_side(map, u, td, size, q, right, lim); }
+    }
+    for (int i = 0; i < n; i++) {
+        rooms[i][0] = rooms[i][1] = -1;
+        for (int j = i - 1; j <= i + 1; j++) {
+            if (j < 0 || j >= n) continue;
+            if (raw[j][0] > rooms[i][0]) rooms[i][0] = raw[j][0];
+            if (raw[j][1] > rooms[i][1]) rooms[i][1] = raw[j][1];
+        }
+    }
+}
+// the formation's line as it runs, as points a tile apart (at most cap, further apart then) from `back` tiles behind
+// the anchor (negative: along its trail) to `front` ahead (along the leader's route: the point pursued q - its index
+// among the waypoints qi, -1 none - and the waypoints on from it, straight on past the last), the line's heading at
+// each in dirs. The room is measured across it. A straight line along the way from the anchor ran into the wall at
+// the channel's corner: 0.5 tiles of room there, and 71 units went through one abreast, a column 85 tiles long
+internal int ff_line(const struct ff_group *gr, ee_unit *l, vec2 q, int qi, float back, float front, vec2 *pts, vec2 *dirs, int cap) {
+    float span = front - back, step = span > (float)(cap - 1) ? span / (float)(cap - 1) : 1.0f, t = back;
+    int n = 0;
+    for (; t < 0 && n < cap; t += step) { pts[n] = ff_trail_at(gr, gr->anchor, gr->way, -t, &dirs[n]); n++; }
+    vec2 a = gr->anchor, b = q, dir = gr->way;
+    float gone = 0, sl = vec2_len(vec2_sub(b, a));
+    int i = qi, nw = l ? unit_get_waypoints_left(l) : 0;
+    for (; t <= front && n < cap; t += step) {
+        while (gone + sl < t) {   // onto the next piece: the next waypoint, else straight on
+            float w[3];
+            gone += sl;
+            a = b;
+            if (i >= 0 && i + 1 < nw && i + 1 < 32 && !unit_waypoint_at(l, i + 1, w)) { i++; b = v2(w[0], w[1]); }
+            else { i = -1; b = vec2_add(a, vec2_scale(dir, 1000.0f)); }
+            sl = vec2_len(vec2_sub(b, a));
+        }
+        if (sl > 0.01f) dir = vec2_scale(vec2_sub(b, a), 1.0f / sl);
+        pts[n] = vec2_add(a, vec2_scale(dir, t - gone));
+        dirs[n] = dir;
+        n++;
+    }
+    return n;
+}
+internal void ff_narrow(struct ff_group *gr, ee_unit *l, vec2 q, int qi) {
     ee_map *map = game_map();
     ee_unit_type *td = l ? unit_get_type_data(l) : NULL;
     int size = map ? (int)map_get_size(map) : 0;
@@ -755,12 +859,11 @@ internal void ff_narrow(struct ff_group *gr, ee_unit *l) {
         float rear = gr->front - (float)((gr->n - 1) / gr->cols) * gr->sp;
         if (rear < back) back = rear;
     }
-    vec2 across = v2(gr->way.y, -gr->way.x);
-    float room = 1e9f, lim = gr->fw * 0.5f + 1;
-    for (float t = back; t <= gr->front + FF_NARROW_LOOK; t += 1.0f) {
-        float r = ff_room(map, l, td, size, vec2_add(gr->anchor, vec2_scale(gr->way, t)), across, lim);
-        if (r > 0 && r < room) room = r;   // 0: the line itself on something (a bend) - not a measure of the gap
-    }
+    float room = 1e9f, lim = gr->fw * 0.5f + 1, rooms[FF_ROOM_TILES + 1][2];
+    vec2 pts[FF_ROOM_TILES + 1], dirs[FF_ROOM_TILES + 1];
+    int nr = ff_line(gr, l, q, qi, back, gr->front + FF_NARROW_LOOK, pts, dirs, FF_ROOM_TILES + 1);
+    ff_rooms(map, l, td, size, pts, dirs, nr, lim, rooms);
+    for (int i = 0; i < nr; i++) if (rooms[i][0] >= 0 && rooms[i][1] >= 0 && rooms[i][0] + rooms[i][1] < room) room = rooms[i][0] + rooms[i][1];
     // narrowed below FF_NARROW_AT of its width, narrower still where the room shrinks, as laid out again once FF_WIDEN_AT
     // of it is there along all of it (the whole width: a few trees about kept a formation narrowed for good) - each change
     // fills the rows anew (it went 4, 5, 4 abreast from step to step: every unit to a new place)
@@ -775,23 +878,11 @@ internal void ff_narrow(struct ff_group *gr, ee_unit *l) {
     if (cols) g_ff_narrowed++;
 }
 
-// the room from p outward along dir, to lim: how far the ground it may enter goes on unbroken (ff_room counts the
-// passable ground along its whole ray: a wall a tile thick with a town behind it counted as room, and the formation
-// marched with a flank in the wall)
-internal float ff_room_side(ee_map *map, ee_unit *u, ee_unit_type *td, int size, vec2 p, vec2 dir, float lim) {
-    float room = 0;
-    for (float d = 0.5f; d <= lim; d += 0.5f) {
-        vec2 q = vec2_add(p, vec2_scale(dir, d));
-        if (!sr_pass(map, u, td, size, (int)floorf(q.x), (int)floorf(q.y))) break;
-        room = d;
-    }
-    return room;
-}
 // CENTRING (the player, 2026-11-03: "the formations still drag along edges"): the leader's route is found for one unit
 // and runs as close by what it rounds as that unit fits, so along a shore or a wood the followers on that side had their
 // points in the water or the trees and went by their own routes, strung out behind. Each step the room to each side of
-// the route is measured across its leg at every tile from where the formation's rear will be when its anchor reaches
-// the point pursued to FF_NARROW_LOOK beyond its front (the route's own tile blocked - a bend - not a measure), and the
+// the route ahead is measured (ff_line, ff_rooms: from the anchor along the route to FF_NARROW_LOOK beyond the front;
+// the body behind is where it is; the route's own tile blocked - a bend - not a measure), and the
 // formation's line is moved off the route to where every tile has the formation's half-width (narrowed: the column's)
 // to each side - each tile allows a range of moves, the line takes the one nearest the route that all allow, and where
 // none does (a corridor narrower than the formation, a bend) the middle of what the tightest tiles ask from each side -,
@@ -802,9 +893,8 @@ internal float ff_room_side(ee_map *map, ee_unit *u, ee_unit_type *td, int size,
 // step (the log). The move that fixes the tile with the least room was tried first: it flipped between the front's
 // shore and the rear's cliff of a diagonal corridor from step to step, and the zigzag's turn slowdown halved the march
 #define FF_SIDE_RATE 0.5f
-#define FF_SIDE_TILES 48       // the tiles measured at most (one every tile of the formation's depth and the look beyond it)
 internal float g_ff_side_log[3];   // `fmove watch` (# ffwatch): the tiles measured (-1: none fit, -2: no route point), the least room left and right
-internal float ff_side(struct ff_group *gr, ee_unit *l, vec2 q, int route, vec2 leg, float base, float dt) {
+internal float ff_side(struct ff_group *gr, ee_unit *l, vec2 q, int qi, int route, float base, float dt) {
     ee_map *map = game_map();
     ee_unit_type *td = l ? unit_get_type_data(l) : NULL;
     int size = map ? (int)map_get_size(map) : 0;
@@ -812,32 +902,16 @@ internal float ff_side(struct ff_group *gr, ee_unit *l, vec2 q, int route, vec2 
     float de = vec2_len(vec2_sub(gr->end, gr->anchor));
     if (route && !gr->naval && gr->n >= 2 && hw > 0.5f && td && size > 0 && de > gr->reach + FF_LOOK * 2 && sr_alloc((uint32_t)(size * size))) {
         st_stamp_step();
-        vec2 right = v2(leg.y, -leg.x), left = v2(-leg.y, leg.x);
-        float back = gr->rear;
-        if (gr->cols) {
-            float rear = gr->front - (float)((gr->n - 1) / gr->cols) * gr->sp;
-            if (rear < back) back = rear;
-        }
-        float lim = hw * 2, span = gr->front + FF_NARROW_LOOK - back, step = span > FF_SIDE_TILES ? span / FF_SIDE_TILES : 1.0f;
-        float rl[FF_SIDE_TILES + 1], rr[FF_SIDE_TILES + 1];
-        int n = 0;
-        for (float t = back; t <= gr->front + FF_NARROW_LOOK && n <= FF_SIDE_TILES; t += step) {
-            vec2 p = vec2_add(q, vec2_scale(leg, t));
-            rl[n] = rr[n] = -1;   // the route's own tile blocked: no measure
-            if (sr_pass(map, l, td, size, (int)floorf(p.x), (int)floorf(p.y))) { rr[n] = ff_room_side(map, l, td, size, p, right, lim); rl[n] = ff_room_side(map, l, td, size, p, left, lim); }
-            n++;
-        }
+        float lim = hw * 2, rooms[FF_ROOM_TILES + 1][2];
+        vec2 pts[FF_ROOM_TILES + 1], dirs[FF_ROOM_TILES + 1];
+        int n = ff_line(gr, l, q, qi, 0, gr->front + FF_NARROW_LOOK, pts, dirs, FF_ROOM_TILES + 1);   // ahead: the body behind is where it is
+        ff_rooms(map, l, td, size, pts, dirs, n, lim, rooms);
         // each tile allows the line moved right by hw - left room up to right room - hw (a move that leaves it the
         // half-width to each side; none when its corridor is narrower than the formation)
         float lo = -1e9f, hi = 1e9f, min_l = lim, min_r = lim;
         int seen = 0;
         for (int i = 0; i < n; i++) {
-            float l_i = -1, r_i = -1;
-            for (int j = i - 1; j <= i + 1; j++) {
-                if (j < 0 || j >= n) continue;
-                if (rl[j] > l_i) l_i = rl[j];
-                if (rr[j] > r_i) r_i = rr[j];
-            }
+            float l_i = rooms[i][0], r_i = rooms[i][1];
             if (l_i < 0 || r_i < 0) continue;
             if (hw - l_i > lo) lo = hw - l_i;
             if (r_i - hw < hi) hi = r_i - hw;
@@ -894,6 +968,9 @@ internal ee_unit *ff_leader(struct ff_group *gr, uint32_t step) {
             gr->anchor = ff_anchor_now(pv, &w, &f, &vn);
             gr->way = w;
             if (gr->arc) gr->face = f; else gr->pivot = 1;
+            memcpy(gr->trail, pv->trail, sizeof gr->trail);
+            gr->trail_n = pv->trail_n;
+            gr->trail_at = pv->trail_at;
         }
         else {
             // from rest: the formation laid over the group where it fits best along the way - the anchor at the leader,
@@ -933,6 +1010,7 @@ internal ee_unit *ff_leader(struct ff_group *gr, uint32_t step) {
         gr->way = w;
         gr->face = f;
     }
+    ff_trail_push(gr);
     // its speed: the march's, no more than formation_wait (80%) of its slowest member's speed now (its top speed and its
     // catch-up share: a unit fallen behind has only its top speed, the formation slows for it to 80% of that; members in
     // their places or ahead of their points set no pace - all in place, it goes at the march's speed; formation_wait=0
@@ -946,13 +1024,16 @@ internal ee_unit *ff_leader(struct ff_group *gr, uint32_t step) {
     // formation's facing with it, every ship on its own circle to its new place, the pace slowing the fleet while they get
     // there - the whole fleet wheeling round its innermost ship's circle swung far out (the player: too large turns are
     // impractical in the game)
-    float r = gr->naval ? (gr->turn_r > FF_INNER ? gr->turn_r : FF_INNER) : gr->pivot ? FF_INNER : gr->reach + FF_INNER;
-    float k = gr->pivot || gr->naval ? 1 : g_set.formation_catchup * 0.85f * r / (r + gr->reach);
+    // a land march turns on its half-width (its rear follows the trail: the depth doesn't swing); a formation moved as it
+    // stands on its reach (its body turned whole)
+    float hw = gr->in_place == 2 ? gr->reach : (gr->cols ? (float)gr->cols * gr->sp : gr->fw) * 0.5f;
+    float r = gr->naval ? (gr->turn_r > FF_INNER ? gr->turn_r : FF_INNER) : gr->pivot ? FF_INNER : hw + FF_INNER;
+    float k = gr->pivot || gr->naval ? 1 : g_set.formation_catchup * 0.85f * r / (r + hw);
     if (k > 1) k = 1;
     // where it heads: the route's point ahead, moved across to the side with room (ff_side)
-    int route = 0;
-    vec2 leg, q = ff_pursue(gr, l, &route, &leg);
-    float want_side = ff_side(gr, l, q, route, leg, base, dt);
+    int route = 0, qi = -1;
+    vec2 leg, q = ff_pursue(gr, l, &route, &leg, &qi);
+    float want_side = ff_side(gr, l, q, qi, route, base, dt);
     if (route) q = vec2_add(q, vec2_scale(v2(leg.y, -leg.x), gr->side));
     vec2 to = vec2_sub(q, gr->anchor);
     float tl = vec2_len(to);
@@ -994,10 +1075,11 @@ internal ee_unit *ff_leader(struct ff_group *gr, uint32_t step) {
     float span = gr->reach * vec2_len(vec2_sub(gr->fwd, gr->way)) * 1.5708f / spd;
     span = span < FF_SETTLE ? FF_SETTLE : span > FF_SETTLE_MAX ? FF_SETTLE_MAX : span;
     vec2 want = gr->in_place == 2 ? gr->fwd : left >= span || gr->through || gr->reform ? gr->way : fo_turn(gr->way, gr->fwd, 1 - left / span);
+    if (!gr->naval && gr->in_place != 2) want = gr->way;   // a land march faces its way to the end: its rear is on the trail, a wheel into the final facing would swing the front alone - each unit turns on its spot
     float swing = FF_SWING * spd / (gr->reach > 1 ? gr->reach : 1) * dt;
     ch = vec2_len(vec2_sub(want, gr->face));
     gr->face = ch <= swing || gr->naval ? want : fo_turn(gr->face, want, swing / ch);
-    ff_narrow(gr, l);
+    ff_narrow(gr, l, q, qi);
     gr->way_from = way0;
     gr->face_from = face0;
     gr->way_rot = ff_rot_between(way0, gr->way);
@@ -1195,8 +1277,8 @@ internal int fo_follow_aim(ee_unit *u, const float *pos, float *aim) {
     if (!gr || e->out) { if (g_ff_watch && g_log) fprintf(g_log, "# ffaim %u %06x %s\n", game_time(), (unsigned)unit_get_serial(u) & 0xFFFFFF, !gr ? "nomarch" : "out"); return 0; }
     vec2 way, face;
     float vel;
-    vec2 anchor = ff_anchor_now(gr, &way, &face, &vel), right = v2(face.y, -face.x);
-    vec2 off = ff_off(gr, e), pt = vec2_add(anchor, vec2_add(vec2_scale(right, off.x), vec2_scale(face, off.y)));
+    vec2 anchor = ff_anchor_now(gr, &way, &face, &vel), dir;
+    vec2 off = ff_off(gr, e), pt = ff_point(gr, anchor, way, face, off, 1, &dir);
     ee_map *map = game_map();
     ee_unit_type *td = unit_get_type_data(u);
     int size = map ? (int)map_get_size(map) : 0;
@@ -1205,7 +1287,7 @@ internal int fo_follow_aim(ee_unit *u, const float *pos, float *aim) {
     if (td && size > 0 && sr_alloc((uint32_t)(size * size))) {
         st_stamp_step();
         for (int k = 3; k >= 0 && !sr_pass(map, u, td, size, (int)floorf(pt.x), (int)floorf(pt.y)); k--)
-            pt = vec2_add(anchor, vec2_add(vec2_scale(right, off.x * (float)k * 0.25f), vec2_scale(face, off.y)));
+            pt = ff_point(gr, anchor, way, face, off, (float)k * 0.25f, &dir);
     }
     vec2 d = vec2_sub(pt, v2(pos[0], pos[1]));
     float w = unit_max_turn(u), ahead = gr->naval && w > 0 ? 2 * unit_max_speed(u) / w : 0;   // a ship: two turning radii ahead (it closes on its place in a curve)
@@ -1264,6 +1346,7 @@ internal int fo_follow_aim(ee_unit *u, const float *pos, float *aim) {
     // wheeling fleet go faster, the inner slower - else the outer ones fell behind in every arc)
     float spin = gr->dt > 0 ? gr->face_rot.y / gr->dt : 0;
     vec2 r = vec2_sub(pt, anchor), vp = vec2_add(vec2_scale(way, vel), vec2_scale(v2(-r.y, r.x), spin));
+    if (!gr->naval && gr->in_place != 2 && off.y < 0) vp = vec2_scale(dir, vel);   // on the trail: along it
     e->with = vec2_dot(vp, a);
     // fallen behind (no catch-up share left, its point ahead) and asking for its top speed (ff_speed) it counts for the
     // pace with the speed it actually goes - in a jam at a gap the formation waits at the jam's speed (the player: its limited throughput, and then they don't run
@@ -1533,8 +1616,20 @@ internal void __thiscall hook_formation_slots(void *f, void *group, void *slots)
         int mk = td ? model_kind(unit_type_get_model(td)) : 0;
         if (mk != MODEL_SHIPS && mk != MODEL_SUBS) g_fo_naval = 0;
     }
-    if (g_ff_on && !circle && !in_place && gl > 0.5f && !ff_wheels(spread, vec2_dot(vec2_scale(go, 1.0f / gl), fwd))) {
-        vec2 wf = vec2_scale(go, 1.0f / gl), wr = v2(wf.y, -wf.x);
+    // the way the march sets out: its route's first leg where the route doesn't start straight for the point (the
+    // player, 2026-11-03, "siphon": laid out facing the point south, a group whose way out of its walled bowl ran east
+    // turned on the spot first, "very slow to start moving") - the route as the planner finds it for the unit nearest
+    // the group's middle, from there to the point; a queued move sets out from the move before's end, not from here
+    vec2 wf = gl > 0.5f ? vec2_scale(go, 1.0f / gl) : fwd;
+    if (g_ff_on && !circle && !in_place && !g_fo_queued && !g_fo_naval && gl > 0.5f) {
+        int nr = 0;
+        for (int i = 1; i < n; i++) if (vec2_dist2(g_fo[i].p, mean) < vec2_dist2(g_fo[nr].p, mean)) nr = i;
+        vec2 leg;
+        if (sr_first_leg(g_fo[nr].u, mean, c, spread + FF_LOOK, &leg)) wf = leg;
+    }
+    g_fo_way = wf;
+    if (g_ff_on && !circle && !in_place && gl > 0.5f && !ff_wheels(spread, vec2_dot(wf, fwd))) {
+        vec2 wr = v2(wf.y, -wf.x);
         for (int i = 0; i < n; i++) {
             vec2 d = vec2_sub(g_fo[i].p, mean);
             g_fo[i].along = vec2_dot(d, wf);
@@ -1548,7 +1643,7 @@ internal void __thiscall hook_formation_slots(void *f, void *group, void *slots)
     // go (the march is this layout turned to the way, and it turns into it at the goal: units standing for the way they
     // go - a formation on the move - keep their places)
     vec2 pf = fwd, pr = right;
-    if (g_ff_on && !circle && !in_place && gl > 0.5f && !g_fo_has_march) { pf = vec2_scale(go, 1.0f / gl); pr = v2(pf.y, -pf.x); }
+    if (g_ff_on && !circle && !in_place && gl > 0.5f && !g_fo_has_march) { pf = wf; pr = v2(pf.y, -pf.x); }
     for (int i = 0; i < n; i++) {
         vec2 d = vec2_sub(g_fo[i].p, mean);
         g_fo[i].along = vec2_dot(d, pf);

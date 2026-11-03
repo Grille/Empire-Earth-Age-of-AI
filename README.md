@@ -440,12 +440,15 @@ Settings in `ageofai.ini`:
   formation wider than the channel it passes) is drawn in towards the formation's middle, so it narrows there instead
   of losing its outer units; the formation keeps off an edge the leader's route hugs (a shore, a wood, a wall: the
   route is found for one unit) - it runs beside the route, by as much as gives every unit room, where the other side
-  has it, and down the middle of a corridor narrower than itself; units march as one formation when the gaps between them are under 4 tiles (their sizes
+  has it, and down the middle of a corridor narrower than itself; its rear ranks follow the path its head took, so a
+  column snakes through a channel and round its corners instead of the whole body swinging as one, and it turns on
+  its width, not its depth; a group whose route sets out another way than straight for the point forms up facing the
+  route's first stretch; units march as one formation when the gaps between them are under 4 tiles (their sizes
   counted, so a fleet of large ships stays one); near the goal each goes to its own spot.
   The formation goes at the slowest unit's speed, turning like a ship (no unit walks backwards in a turn: it slows
   in a turn so its outermost units keep up, eased in and out over a few seconds - a bend in the route costs a little,
   only a sustained turn the whole), facing
-  the way it goes and turning into its final facing at the goal (forming anew there when the turn would move its
+  the way it goes to the goal, where each unit turns to the final facing on its spot (forming anew there when the turn would move its
   outermost unit further than `formation_wheel` tiles); a shift-queued turn within that keeps the formation. A fleet turns together: its formation swings to the
   new course at once and every ship turns on its own circle to its new place, instead of the whole fleet wheeling
   round in one wide arc; a ship ahead of its place slows for it instead of turning back, one beside it merges at a
