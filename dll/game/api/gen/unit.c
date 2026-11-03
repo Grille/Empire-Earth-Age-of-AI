@@ -173,6 +173,11 @@ internal inline int *unit_contacts_count_at(const ee_unit *o) { return (int *)((
 // the scenario's unit attributes unit_variable1..3 (SM_UA 17..19) as ints (allocator byte +0xCC; init 0x5ECD26
 // sizes it to 3): 0x5B8823 adds to, takes from or sets begin[attr - 17]
 internal inline uint8_t *unit_unit_vars_at(const ee_unit *o) { return (uint8_t *)o + of_unit_unit_vars; }
+// the model it is drawn with now: the unit is a GEPhysicalModel from +0x130 (its matrix first), whose SetModel
+// (an import of the engine's) keeps the model at its +0x40 - the animation's (start_anim: the type's +0x234[anim])
+internal inline ee_model *unit_get_model(const ee_unit *o) { return *(ee_model **)((uint8_t *)o + of_unit_model); }
+internal inline void unit_set_model(ee_unit *o, ee_model *v) { *(ee_model **)((uint8_t *)o + of_unit_model) = v; }
+internal inline ee_model **unit_model_at(const ee_unit *o) { return (ee_model **)((uint8_t *)o + of_unit_model); }
 // its height: its stats' height x scale (airplanes recompute it each tick; the scenario's attribute 0xD adds to
 // it)
 internal inline float unit_get_height(const ee_unit *o) { return *(float *)((uint8_t *)o + of_unit_height); }
@@ -814,6 +819,7 @@ internal int spec_unit_select(int build) {
         of_unit_contacts = 0xC4;
         of_unit_contacts_count = 0xC8;
         of_unit_unit_vars = 0xD0;
+        of_unit_model = 0x170;
         of_unit_height = 0x174;
         of_unit_anim_frame = 0x178;
         of_unit_turn_rate = 0x17C;
@@ -1015,6 +1021,7 @@ internal int spec_unit_select(int build) {
         of_unit_contacts = 0xC4;
         of_unit_contacts_count = 0xC8;
         of_unit_unit_vars = 0xD0;
+        of_unit_model = 0x170;
         of_unit_height = 0x174;
         of_unit_anim_frame = 0x178;
         of_unit_turn_rate = 0x17C;

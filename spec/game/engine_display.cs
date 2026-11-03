@@ -329,6 +329,32 @@ unsafe struct GEText
     GEFont* font;
 }
 
+/// a model as the engine loaded it from its .cem (GEModel, Low-Level Engine.dll: a unit's EEUnit.model), the same
+/// offsets in both builds' engines (their exports ComputeBoundingBoxes, SetModel)
+[c_type("ee_model")]
+unsafe struct GEModel
+{
+    /// a box per frame of its animation (0x24 each), in the model's own space: ComputeBoundingBoxes (engine 0x31218)
+    /// from the frame's vertices
+    [offset(0x110), found(c)]
+    GEBoundingBox* boxes;
+
+    /// its frames, the boxes' count
+    [offset(0x140), found(c)]
+    uint32 frames;
+}
+
+/// the engine's box (GEBoundingBox::Define: the corners, then ComputeDimensions its size)
+[c_type("ee_box"), size(0x24)]
+unsafe struct GEBoundingBox
+{
+    [offset(0x0), found(c)]
+    vec3 min;
+
+    [offset(0xC), found(c)]
+    vec3 max;
+}
+
 [c_type("ee_window")]
 unsafe struct GEWindow
 {

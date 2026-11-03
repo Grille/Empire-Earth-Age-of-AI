@@ -211,6 +211,8 @@ typedef struct ee_ro_units ee_ro_units;
 typedef struct ee_ro_water ee_ro_water;
 typedef struct ee_ro_ui ee_ro_ui;
 typedef struct ee_ro_effects ee_ro_effects;
+typedef struct ee_model ee_model;
+typedef struct ee_box ee_box;
 typedef struct ee_cheat_codes ee_cheat_codes;
 typedef struct ee_world ee_world;
 typedef struct ee_world_table ee_world_table;

@@ -7,6 +7,12 @@ unsafe struct EEGraphicObject
     [offset(0x14C), found(c)]
     block map;
 
+    /// per animation (GEModel* each): its model - the animation setter (0x5EFD6D, AoC 0x5FE02A) gives it to the unit
+    /// (EEUnit.model); a wall's: 9 the straight piece, 10 the diagonal, 11 the post (a building site draws another
+    /// meanwhile)
+    [offset((ee)0x234, (aoc)0x244), found(c)]
+    block anim_model;
+
     /// per animation (int32 each): its first frame - the animation setter (0x5EFD6D, AoC 0x5FE02A) starts there
     [offset((ee)0x350, (aoc)0x360), found(c)]
     block anim_first;
@@ -15,6 +21,14 @@ unsafe struct EEGraphicObject
     /// (EEUGAttackUnit.tick) strikes when the frame is it, else waits its reload with the animation restarted
     [offset((ee)0x3F8, (aoc)0x408), found(c)]
     block anim_strike;
+
+    /// one user more (+0x4A8 counts them): the first loads its models into anim_model, under the engine's lock; 0
+    /// done. Its users take one as they need its pictures - a doppelganger (EEComplexDoppelganger::vf2 0x406909, the
+    /// fog of war's last-seen copy: so on each PC by what its player saw), the effects (EEE2DImpact::vf12 ...); a
+    /// wall's are none until a finished piece or a ghost of one needs them. AoC made it virtual (vf1, its callers through
+    /// the vtable; the 2017 update's class has vf0 alone): the same code, its fields 0x10 on (+0x4C0 -> +0x4D0)
+    [address((ee)0x004D29BC, (aoc)0x004D85ED)]
+    extern int32 acquire();
 
     /// the damage points of a state - the impact effects place theirs by it (EEE2DImpact::vf21 0x4DA7B2,
     /// EEE2DLightGlow::vf12 0x4DB2DF; game.call_damage_points hooked by the mod's guard)

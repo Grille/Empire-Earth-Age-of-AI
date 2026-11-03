@@ -262,6 +262,28 @@ internal inline ee_font *text_get_font(const ee_text *o) { return *(ee_font **)(
 internal inline void text_set_font(ee_text *o, ee_font *v) { *(ee_font **)((uint8_t *)o + of_text_font) = v; }
 internal inline ee_font **text_font_at(const ee_text *o) { return (ee_font **)((uint8_t *)o + of_text_font); }
 
+// class GEModel (ee_model)
+// a model as the engine loaded it from its .cem (GEModel, Low-Level Engine.dll: a unit's EEUnit.model), the same
+// offsets in both builds' engines (their exports ComputeBoundingBoxes, SetModel)
+// a box per frame of its animation (0x24 each), in the model's own space: ComputeBoundingBoxes (engine 0x31218)
+// from the frame's vertices
+internal inline ee_box *model_get_boxes(const ee_model *o) { return *(ee_box **)((uint8_t *)o + of_model_boxes); }
+internal inline void model_set_boxes(ee_model *o, ee_box *v) { *(ee_box **)((uint8_t *)o + of_model_boxes) = v; }
+internal inline ee_box **model_boxes_at(const ee_model *o) { return (ee_box **)((uint8_t *)o + of_model_boxes); }
+// its frames, the boxes' count
+internal inline uint32_t model_get_frames(const ee_model *o) { return *(uint32_t *)((uint8_t *)o + of_model_frames); }
+internal inline void model_set_frames(ee_model *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_model_frames) = v; }
+internal inline uint32_t *model_frames_at(const ee_model *o) { return (uint32_t *)((uint8_t *)o + of_model_frames); }
+
+// class GEBoundingBox (ee_box)
+// the engine's box (GEBoundingBox::Define: the corners, then ComputeDimensions its size)
+internal inline vec3 box_get_min(const ee_box *o) { return *(vec3 *)((uint8_t *)o + of_box_min); }
+internal inline void box_set_min(ee_box *o, vec3 v) { *(vec3 *)((uint8_t *)o + of_box_min) = v; }
+internal inline vec3 *box_min_at(const ee_box *o) { return (vec3 *)((uint8_t *)o + of_box_min); }
+internal inline vec3 box_get_max(const ee_box *o) { return *(vec3 *)((uint8_t *)o + of_box_max); }
+internal inline void box_set_max(ee_box *o, vec3 v) { *(vec3 *)((uint8_t *)o + of_box_max) = v; }
+internal inline vec3 *box_max_at(const ee_box *o) { return (vec3 *)((uint8_t *)o + of_box_max); }
+
 // class GEWindow (ee_window)
 internal inline uint8_t *window_hwnd_at(const ee_window *o) { return (uint8_t *)o + of_window_hwnd; }
 internal inline float window_get_4(const ee_window *o) { return *(float *)((uint8_t *)o + of_window_4); }
@@ -382,6 +404,11 @@ internal int spec_engine_display_select(int build) {
         of_surface_dc_out = 0x5D;
         of_text_string = 0x34;
         of_text_font = 0x44;
+        of_model_boxes = 0x110;
+        of_model_frames = 0x140;
+        size_ge_bounding_box = 0x24;
+        of_box_min = 0x0;
+        of_box_max = 0xC;
         of_window_hwnd = 0x0;
         of_window_4 = 0x4;
         of_window_8 = 0x8;
@@ -479,6 +506,11 @@ internal int spec_engine_display_select(int build) {
         of_surface_dc_out = 0x5D;
         of_text_string = 0x34;
         of_text_font = 0x44;
+        of_model_boxes = 0x110;
+        of_model_frames = 0x140;
+        size_ge_bounding_box = 0x24;
+        of_box_min = 0x0;
+        of_box_max = 0xC;
         of_window_hwnd = 0x0;
         of_window_4 = 0x4;
         of_window_8 = 0x8;

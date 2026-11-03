@@ -6,11 +6,23 @@
 // its damage points by state (a map; the end node +0x150)
 // damage_points 0x4D291F / AoC 0x4D84EC: the map's end node +0x150 compared in both
 internal inline uint8_t *dmg_model_map_at(const ee_dmg_model *o) { return (uint8_t *)o + of_dmg_model_map; }
+// per animation (GEModel* each): its model - the animation setter (0x5EFD6D, AoC 0x5FE02A) gives it to the unit
+// (EEUnit.model); a wall's: 9 the straight piece, 10 the diagonal, 11 the post (a building site draws another
+// meanwhile)
+internal inline uint8_t *dmg_model_anim_model_at(const ee_dmg_model *o) { return (uint8_t *)o + of_dmg_model_anim_model; }
 // per animation (int32 each): its first frame - the animation setter (0x5EFD6D, AoC 0x5FE02A) starts there
 internal inline uint8_t *dmg_model_anim_first_at(const ee_dmg_model *o) { return (uint8_t *)o + of_dmg_model_anim_first; }
 // per animation (int32 each): the frame its blow lands (a citizen's attack: 8 of 0..15) - the attack's tick
 // (EEUGAttackUnit.tick) strikes when the frame is it, else waits its reload with the animation restarted
 internal inline uint8_t *dmg_model_anim_strike_at(const ee_dmg_model *o) { return (uint8_t *)o + of_dmg_model_anim_strike; }
+// one user more (+0x4A8 counts them): the first loads its models into anim_model, under the engine's lock; 0
+// done. Its users take one as they need its pictures - a doppelganger (EEComplexDoppelganger::vf2 0x406909, the
+// fog of war's last-seen copy: so on each PC by what its player saw), the effects (EEE2DImpact::vf12 ...); a
+// wall's are none until a finished piece or a ghost of one needs them. AoC made it virtual (vf1, its callers through
+// the vtable; the 2017 update's class has vf0 alone): the same code, its fields 0x10 on (+0x4C0 -> +0x4D0)
+typedef int (__thiscall *dmg_model_acquire_fn)(ee_dmg_model *);
+internal dmg_model_acquire_fn fn_dmg_model_acquire;
+internal inline int dmg_model_acquire(ee_dmg_model *dmg_model) { return fn_dmg_model_acquire(dmg_model); }
 // the damage points of a state - the impact effects place theirs by it (EEE2DImpact::vf21 0x4DA7B2,
 // EEE2DLightGlow::vf12 0x4DB2DF; game.call_damage_points hooked by the mod's guard)
 typedef int (__thiscall *dmg_model_damage_points_fn)(ee_dmg_model *, int, uint32_t);
@@ -213,8 +225,10 @@ internal int spec_world_select(int build) {
     switch (build) {
     case 0:   // ee
         of_dmg_model_map = 0x14C;
+        of_dmg_model_anim_model = 0x234;
         of_dmg_model_anim_first = 0x350;
         of_dmg_model_anim_strike = 0x3F8;
+        fn_dmg_model_acquire = (dmg_model_acquire_fn)0x004D29BC;
         fn_dmg_model_damage_points = (dmg_model_damage_points_fn)0x004D291F;
         of_game_data_line_ms = 0x2CC;
         of_game_data_unit_limit = 0x2E8;
@@ -264,8 +278,10 @@ internal int spec_world_select(int build) {
         return 0;
     case 1:   // aoc
         of_dmg_model_map = 0x14C;
+        of_dmg_model_anim_model = 0x244;
         of_dmg_model_anim_first = 0x360;
         of_dmg_model_anim_strike = 0x408;
+        fn_dmg_model_acquire = (dmg_model_acquire_fn)0x004D85ED;
         fn_dmg_model_damage_points = (dmg_model_damage_points_fn)0x004D84EC;
         of_game_data_line_ms = 0x2CC;
         of_game_data_unit_limit = 0x2E8;
@@ -321,6 +337,7 @@ internal const char *const k_spec_world_missing[ADDR_BUILDS] = { "", "" };
 // the load-time check: what the spec says of the running build's exe (spec_check): the failures
 internal int spec_world_check(void) {
     int bad = 0;
+    bad += spec_code((uintptr_t)fn_dmg_model_acquire, "EEGraphicObject.acquire");
     bad += spec_code((uintptr_t)fn_dmg_model_damage_points, "EEGraphicObject.damage_points");
     bad += spec_code((uintptr_t)fn_physics_step, "EEPhysics.step");
     bad += spec_vtable(vt_ee_world, ".?AVEEWorld@@", "EEWorld [vtable]");

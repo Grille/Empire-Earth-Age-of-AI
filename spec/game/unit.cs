@@ -200,6 +200,11 @@ unsafe struct EEComplexUnit
     [offset(0xD0), found(c)]
     vector unit_vars;
 
+    /// the model it is drawn with now: the unit is a GEPhysicalModel from +0x130 (its matrix first), whose SetModel
+    /// (an import of the engine's) keeps the model at its +0x40 - the animation's (start_anim: the type's +0x234[anim])
+    [offset(0x170), found(c)]
+    GEModel* model;
+
     /// its height: its stats' height x scale (airplanes recompute it each tick; the scenario's attribute 0xD adds to
     /// it)
     [offset(0x174), found(c)]

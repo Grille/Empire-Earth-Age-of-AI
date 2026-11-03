@@ -23,7 +23,7 @@ internal inline float ground_corner(const ee_map *map, int x, int y) {
     if (y < 0 || (unsigned)y > map_get_size(map)) return NAN;
     const ee_corner_row *row = (const ee_corner_row *)((uint8_t *)map_get_corner_rows(map) + y * 0xC);
     unsigned i = (unsigned)(x - (int)corner_row_get_start(row));
-    return i < corner_row_get_len(row) ? corner_get_height((const ee_corner *)((uint8_t *)corner_row_get_corners(row) + i * 0xC)) : NAN;
+    return i < corner_row_get_len(row) ? corner_get_height((const ee_corner *)((uint8_t *)corner_row_get_corners(row) + i * size_ee_corner)) : NAN;
 }
 // the ground's height at a point (tiles), from its tile's four corners - exact on a tile's edges and corners, where a
 // wall piece's ends lie; NAN off the map

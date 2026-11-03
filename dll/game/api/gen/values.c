@@ -574,6 +574,11 @@ internal uint32_t of_surface_dc;
 internal uint32_t of_surface_dc_out;
 internal uint32_t of_text_string;
 internal uint32_t of_text_font;
+internal uint32_t of_model_boxes;
+internal uint32_t of_model_frames;
+internal uint32_t size_ge_bounding_box;
+internal uint32_t of_box_min;
+internal uint32_t of_box_max;
 internal uint32_t of_window_hwnd;
 internal uint32_t of_window_4;
 internal uint32_t of_window_8;
@@ -2806,6 +2811,7 @@ internal uint32_t of_unit_inside;
 internal uint32_t of_unit_contacts;
 internal uint32_t of_unit_contacts_count;
 internal uint32_t of_unit_unit_vars;
+internal uint32_t of_unit_model;
 internal uint32_t of_unit_height;
 internal uint32_t of_unit_anim_frame;
 internal uint32_t of_unit_turn_rate;
@@ -3000,6 +3006,7 @@ internal uint32_t value_unit_type_slot_type_can_carry;
 
 // world.cs
 internal uint32_t of_dmg_model_map;
+internal uint32_t of_dmg_model_anim_model;
 internal uint32_t of_dmg_model_anim_first;
 internal uint32_t of_dmg_model_anim_strike;
 internal uint32_t of_game_data_line_ms;
