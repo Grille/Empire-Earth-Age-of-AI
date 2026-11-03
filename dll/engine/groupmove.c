@@ -228,8 +228,10 @@ internal unsigned g_fo_queued_n;        // group moves laid out from the units' 
 
 // the move (EEMPathTo's Execute, the formation's slots laid out within it): whether it is queued - then the formation is
 // laid out from where each unit's last order leaves it, not where it stands
+internal int g_fo_forced = 1;   // the move's forced flag (0: an attack-move) - for the log line
 internal void __thiscall hook_path_execute(ee_path_msg *msg) {
     g_fo_queued = path_msg_get_queued(msg);
+    g_fo_forced = path_msg_get_goal_30(msg);
     path_msg_execute(msg);
     g_fo_queued = 0;
 }
@@ -547,19 +549,24 @@ internal void ff_in_place(int march) {
 // formation behind a leader of its own); a unit on its own takes its own route. All at the slowest member's top speed
 internal int g_ff_root[FO_MAX], g_ff_idx[FO_MAX];
 internal int ff_root(int i) { while (g_ff_root[i] != i) i = g_ff_root[i] = g_ff_root[g_ff_root[i]]; return i; }
+internal char g_ff_no_march[96];   // why the last layout got no march (the log line): empty when it did
 internal void ff_start(void *group, int n, vec2 c, vec2 fwd, vec2 right, int queued, int arc) {
     g_ff_count = 0;
+    g_ff_no_march[0] = 0;
     float slow = 1e9f;
     int naval = -1;   // land units or ships and submarines, not both: they can't keep one formation
     for (int i = 0; i < n; i++) {
         ee_unit_type *td = unit_get_type_data(g_fo[i].u);
         int kind = td ? model_kind(unit_type_get_model(td)) : 0, nv = kind == MODEL_SHIPS || kind == MODEL_SUBS;
-        if (!kind || (naval >= 0 && nv != naval)) return;
+        if (!kind || (naval >= 0 && nv != naval)) {
+            snprintf(g_ff_no_march, sizeof g_ff_no_march, !kind ? ", no march: type %d moves by no land or sea model" : ", no march: ships and land units together (type %d)", td ? unit_type_get_id(td) : -1);
+            return;
+        }
         naval = nv;
         float v = unit_max_speed(g_fo[i].u);
         if (v < slow) slow = v;
     }
-    if (slow <= 0) return;
+    if (slow <= 0) { snprintf(g_ff_no_march, sizeof g_ff_no_march, ", no march: a unit's top speed is 0"); return; }
     if (arc >= 0) {   // the same formation on: one block, its leader
         for (int i = 0; i < n; i++) g_ff_idx[i] = i;
         ff_start_block(group, g_ff_idx, n, c, fwd, right, queued, slow, arc);
@@ -2066,8 +2073,8 @@ internal void __thiscall hook_formation_slots(void *f, void *group, void *slots)
     // ring of 19 tiles, marched as a formation 38 tiles wide it was narrowed for the terrain and still forming at 150 s)
     if (g_ff_on) { ff_start(group, n, c, fwd, right, g_fo_queued, arc); if (in_place || circle) ff_in_place(same >= 0); }
     // a line a move (the player's games: what a reported layout or march did)
-    if (g_log) fprintf(g_log, "# formation: %d units, kind %d, %s%d from their last order%s, from %.1f,%.1f to %.1f,%.1f facing %.2f,%.2f (%s), %.1f tiles (the formation's radius %.1f), %s%d marches\n",
-                       n, kind, g_fo_queued ? "queued, " : "", from_last, reface ? " (the click's facing turned to their way)" : "", mean.x, mean.y, c.x, c.y, fwd.x, fwd.y, facing == 0 ? "click" : "drag", gl, spread, same >= 0 ? "in place as it stands, " : in_place ? "in place, " : "", g_ff_on ? g_ff_count : 0);
+    if (g_log) fprintf(g_log, "# formation: %d units, kind %d, %s%d from their last order%s, from %.1f,%.1f to %.1f,%.1f facing %.2f,%.2f (%s), %.1f tiles (the formation's radius %.1f), %s%d marches%s%s\n",
+                       n, kind, g_fo_queued ? "queued, " : "", from_last, reface ? " (the click's facing turned to their way)" : "", mean.x, mean.y, c.x, c.y, fwd.x, fwd.y, facing == 0 ? "click" : "drag", gl, spread, same >= 0 ? "in place as it stands, " : in_place ? "in place, " : "", g_ff_on ? g_ff_count : 0, g_fo_forced ? "" : ", an attack-move", g_ff_on ? g_ff_no_march : "");
 }
 
 // a unit's location goal in the dispatch: its own spot (and facing) instead of the slot it was paired with - the slot
