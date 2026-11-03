@@ -149,6 +149,7 @@ internal void cmd_fmove(char *out, const char *args) {
         return;
     }
     if (!strcmp(what, "watch")) { g_fm_watch = g_ff_watch = p; REPLY("fmove: watch %s\n", p ? "on" : "off"); return; }   // fmove watch 1|0 (the marches' anchors too: # ffwatch)
+    if (!strcmp(what, "kind")) { g_set.formation_kind = p; REPLY("fmove: formation kind %d\n", p); return; }   // fmove kind k: the formation kind of every order from now (-1: the button's) - another button chosen, in a test
     if (!strcmp(what, "stat")) { if (g_fm_n) fm_sample(out, 0); else REPLY("fmove: no order given\n"); return; }
     if (!strcmp(what, "sum")) {
         float moved = 0, done = 0, stood = 0, crept = 0;
@@ -194,7 +195,7 @@ internal void cmd_fmove(char *out, const char *args) {
         return;
     }
     int also = !strcmp(what, "also"), add = !strcmp(what, "add");   // fmove also ...: as go, the units added to the order's (the watch, sum); add P x y r: added without an order
-    if (strcmp(what, "go") && !also && !add) { REPLY("fmove go|also P x y r tx ty | add P x y r | then P tx ty | watch 1|0 | stat | sum\n"); return; }
+    if (strcmp(what, "go") && !also && !add) { REPLY("fmove go|also P x y r tx ty | add P x y r | then P tx ty | watch 1|0 | kind k | stat | sum\n"); return; }
     ee_player *pl = p > 0 && p < 16 ? game_players()[p] : NULL;
     if (!pl) { REPLY("fmove: no player %d\n", p); return; }
     static uint32_t ids[FM_MAX];
