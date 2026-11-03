@@ -132,15 +132,15 @@ internal void fm_sample(char *out, int quiet) {
           off_most, pairs, n_pt, n_pt ? pt_off / (float)n_pt : 0.0f, pt_most);
 }
 
-// pipe `fmove go P x y r tx ty [together [facing]]`: P's units within r tiles of x, y (no buildings) selected and sent to tx, ty
+// pipe `fmove go P x y r tx ty [together [facing [attack]]]`: P's units within r tiles of x, y (no buildings) selected and sent to tx, ty
 // by the right-click's message (together 1: its +0x1F set - the group's speed for all; facing in degrees: as a right-button
 // drag that way, 0 as a click); `fmove stat`: a sample (above); `fmove sum`: per unit its type, first moving, done, time
 // standing short of the goal, repaths, state changes - and the slowest of each
 internal void cmd_fmove(char *out, const char *args) {
     char what[8] = "";
-    int p = 0, x = 0, y = 0, r = 0, tx = 0, ty = 0, together = 0;
+    int p = 0, x = 0, y = 0, r = 0, tx = 0, ty = 0, together = 0, attack = 0;
     float facing = 0;
-    if (sscanf(args, "%7s %d %d %d %d %d %d %d %f", what, &p, &x, &y, &r, &tx, &ty, &together, &facing) < 1 || !game_map()) {
+    if (sscanf(args, "%7s %d %d %d %d %d %d %d %f %d", what, &p, &x, &y, &r, &tx, &ty, &together, &facing, &attack) < 1 || !game_map()) {
         REPLY("fmove go P x y r tx ty [together] | stat | sum\n");
         return;
     }
@@ -228,8 +228,9 @@ internal void cmd_fmove(char *out, const char *args) {
     g_fm_ty = (float)ty + 0.5f;
     path_msg_make((ee_path_msg *)mem, player_get_msg_id(pl), g_fm_tx, g_fm_ty, together, 0);
     path_msg_set_facing((ee_path_msg *)mem, facing * 0.01745329f);
+    if (attack) path_msg_set_forced((ee_path_msg *)mem, 0);   // attack 1: an attack-move (the goal not forced: the units take on enemies they spot)
     msg_execute((ee_msg *)mem);
     if (!also) g_fm_t0 = g_fm_last = game_time();
     int *grp = player_get_selected_group(pl);
-    REPLY("fmove: %d units of P%d sent to %d,%d%s (%u in the selected group)\n", g_fm_n - first, p, tx, ty, together ? " together" : "", grp ? group_count(grp) : 0);
+    REPLY("fmove: %d units of P%d sent to %d,%d%s%s (%u in the selected group)\n", g_fm_n - first, p, tx, ty, together ? " together" : "", attack ? " as an attack-move" : "", grp ? group_count(grp) : 0);
 }

@@ -466,7 +466,12 @@ Settings in `ageofai.ini`:
   there and the units left in the gap were the game's again: single file, and some stood for good, their orders given
   up); a unit whose move the game drops in the press at a gap's mouth (it stands idle, its order gone) is sent on to
   its spot at once, and when it was the one leading the march another leads on (before, the march ended there and the
-  rest went in by their own routes, a large part of them stuck at the entry); in a jam the formation slows to what gets through, so it doesn't spill out thin behind it; a unit that is really stuck drops out
+  rest went in by their own routes, a large part of them stuck at the entry); an attack-move marches in formation
+  too: a unit that takes on an enemy it meets fights as the game moves it and is steered back to its place when the
+  fight is over, the formation holds while three of its units, or a tenth of it, fight (a few firing from their places
+  hold nobody) and moves on after, and when the unit whose route the formation follows is among the fighters another
+  takes that over (before, a unit was steered on to its place all the same, its attack never let it close); in a jam
+  the formation slows to what gets through, so it doesn't spill out thin behind it; a unit that is really stuck drops out
   and goes on alone; a place on ground the unit can't enter (a
   formation wider than the channel it passes) is drawn in towards the formation's middle, so it narrows there instead
   of losing its outer units; the formation keeps off an edge the leader's route hugs (a shore, a wood, a wall: the

@@ -323,7 +323,7 @@ internal void fo_march(ee_active_group *grp) {
 // the point the formation hangs on (ff_leader), way its heading, vel its speed, turning its share of the tightest turn
 // (eased over the leader steps: FF_TURN_EASE), started: set out (prev: the march it went on from, else -1), t0 the step then, linger the step it arrived
 // (0: not yet, or not arrived - given another order)
-struct ff_group { uint32_t leader; ee_group *grp; ee_goal *goal; vec2 fwd, way, face, end, lead_off, onward, anchor, way_from, face_from, way_rot, face_rot; float speed, reach, turn_r, acc, pace, pace_next, jam, jam_next, vel, vel_from, turning, dt, side; uint32_t step, t0, linger, at_ms; float sp, front, rear, fw, col_w, col_rear; int n, cols; int on, live, through, passed, started, prev, reform, arc, pivot, naval, in_place, kind; uint32_t settled; vec2 trail[FF_TRAIL]; int trail_n, trail_at; uint32_t drain, rel_at; int stopped; float narrow_to, line_t[FF_ROOM_TILES + 1], line_room[FF_ROOM_TILES + 1]; int line_n; };   // in_place: a re-form within the formation's own size - 1 no march, each unit on its own route, the formation sorted out at the end as after a march; 2 a formation moved as it stands: a march straight to its end, facing its final facing from the start, to FF_END_PLACE of its end; settled: the step its last unit came to rest after it arrived (0: not yet)   // sp: its members' mean spacing, front: the front rank's offset, fw: the formation's width, n: its units, cols: narrowed (ff_fill_column: col_w the width its column is packed to, col_rear its last rank's offset; 0: as laid out)   // arc: it goes on from prev in the same formation (else it re-forms on the move: pivot - its anchor turns onto the new leg sharply); naval: ships   // side: how far right of the leader's route the formation's line runs (ff_side: off an edge the route hugs)   // stopped: the march ended with no unit on its move - the player's stop (the linger puts back only the pushed-off)   // drain: the step the anchor reached its end with the column still in a narrow (0: not draining), rel_at the step a unit was last let go, narrow_to how far along the line (ff_progress's measure) the narrow ends (ff_narrow); line_t, line_room: the line's points as last measured (how far along, the room across: -1 none), line_n of them
+struct ff_group { uint32_t leader; ee_group *grp; ee_goal *goal; vec2 fwd, way, face, end, lead_off, onward, anchor, way_from, face_from, way_rot, face_rot; float speed, reach, turn_r, acc, pace, pace_next, jam, jam_next, vel, vel_from, turning, dt, side; uint32_t step, t0, linger, at_ms; float sp, front, rear, fw, col_w, col_rear; int n, cols; int on, live, through, passed, started, prev, reform, arc, pivot, naval, in_place, kind; uint32_t settled; vec2 trail[FF_TRAIL]; int trail_n, trail_at; uint32_t drain, rel_at; int stopped, attack, fight; float narrow_to, line_t[FF_ROOM_TILES + 1], line_room[FF_ROOM_TILES + 1]; int line_n; };   // in_place: a re-form within the formation's own size - 1 no march, each unit on its own route, the formation sorted out at the end as after a march; 2 a formation moved as it stands: a march straight to its end, facing its final facing from the start, to FF_END_PLACE of its end; settled: the step its last unit came to rest after it arrived (0: not yet)   // sp: its members' mean spacing, front: the front rank's offset, fw: the formation's width, n: its units, cols: narrowed (ff_fill_column: col_w the width its column is packed to, col_rear its last rank's offset; 0: as laid out)   // arc: it goes on from prev in the same formation (else it re-forms on the move: pivot - its anchor turns onto the new leg sharply); naval: ships   // side: how far right of the leader's route the formation's line runs (ff_side: off an edge the route hugs)   // stopped: the march ended with no unit on its move - the player's stop (the linger puts back only the pushed-off); attack: an attack-move (its units take on what they meet, the formation holds while they fight; fight: how many fought at the last step)   // drain: the step the anchor reached its end with the column still in a narrow (0: not draining), rel_at the step a unit was last let go, narrow_to how far along the line (ff_progress's measure) the narrow ends (ff_narrow); line_t, line_room: the line's points as last measured (how far along, the room across: -1 none), line_n of them
 internal struct ff_group g_ff[FF_GROUPS];
 internal unsigned g_ff_next;
 internal int g_ff_first, g_ff_count;   // the marches started by the move being dispatched, for their leaders' goals
@@ -423,7 +423,7 @@ internal void ff_start_block(void *group, const int *idx, int k, vec2 c, vec2 fw
     gr->through = gr->passed = gr->started = gr->pivot = gr->in_place = 0;
     gr->settled = 0;
     gr->drain = 0;
-    gr->stopped = 0;
+    gr->stopped = gr->attack = gr->fight = 0;
     gr->narrow_to = -1e9f;
     gr->arc = from >= 0;
     gr->reform = from < 0 && g_fo_has_march;
@@ -665,7 +665,11 @@ internal void ff_finish_leg(ee_unit *u) {
 internal int ff_on_move(struct ff_group *gr, ee_unit *l) {
     if (!gr->goal) return unit_get_group(l) == gr->grp && unit_get_goal(l) && goal_is_location(unit_get_goal(l)) ? 1 : -1;
     int n = unit_orders(l);
-    for (int i = 0; i < n; i++) if (unit_order_at(l, i) == gr->goal) return i == 0;
+    for (int i = 0; i < n; i++) {
+        if (unit_order_at(l, i) != gr->goal) continue;
+        for (int k = 0; k < i; k++) if (!goal_is_attack(unit_order_at(l, k))) return 0;   // behind another move: queued
+        return 1;   // current - or behind the attacks of an attack-move: on it, fighting (the formation holds, ff_leader)
+    }
     return -1;
 }
 
@@ -1102,6 +1106,8 @@ internal float ff_side(struct ff_group *gr, ee_unit *l, vec2 q, int qi, int rout
 internal unsigned g_ff_released;   // units let go to their spots as their column drained
 internal unsigned g_ff_handed;     // marches whose lead was handed on (ff_hand_over)
 #define FF_DRAIN_STALL 3.0f    // s: a drain that let nobody go this long lets its front rank go
+#define FF_FIGHT_MIN 3         // units: the formation holds while this many fight, or a tenth of it (two riflemen firing from their places held 108 units 19 s)
+#define FF_FIGHT_SHARE 10
 #define FF_DRAIN_IDLE 15.0f    // s: a drain that let nobody go this long ends (the goal inside the narrow: the column's front stands at its place short of the release line)
 // u is on this march's move: its order a move to its spot (a member sent elsewhere alone keeps e->g, as does a member of
 // an earlier march in the same slot - the group test told them apart, and the drain can't use it: the leader's group
@@ -1160,7 +1166,20 @@ internal int ff_drain_done(struct ff_group *gr, uint32_t step) {
 // still on this march's move leads on - its route serves the anchor from here (the anchor's end and every offset stay
 // the old leader's: its spot is still where the anchor heads), the march's goal its own. NULL when nobody is on the
 // move any more: the player's stop
-internal ee_unit *ff_hand_over(struct ff_group *gr) {
+// gr's units fighting now: their current order an attack (an attack-move's: the game put it on top of the move when
+// the unit spotted an enemy; a plain move takes no enemies on)
+internal int ff_fighting(const struct ff_group *gr) {
+    int gi = (int)(gr - g_ff), n = 0;
+    for (int i = 0; i < FF_UNITS; i++) {
+        const struct ff_unit *e = &g_ff_u[i];
+        if (!e->id || e->g != gi || e->out) continue;
+        ee_unit *u = unit_by_id(e->id);
+        ee_goal *g = u && unit_get_hp(u) > 0 ? unit_get_goal(u) : NULL;
+        if (g && goal_is_attack(g)) n++;
+    }
+    return n;
+}
+internal ee_unit *ff_hand_over(struct ff_group *gr, const char *why) {
     int gi = (int)(gr - g_ff);
     struct ff_unit *best = NULL;
     ee_unit *bu = NULL;
@@ -1172,7 +1191,7 @@ internal ee_unit *ff_hand_over(struct ff_group *gr) {
         if (!best || (e->prog_at && (!best->prog_at || e->prog > best->prog))) { best = e; bu = u; }
     }
     if (!best) return NULL;
-    if (g_log) fprintf(g_log, "# formation: %d units at %.1f,%.1f: the leader's move dropped (%06x idle short of its spot), %06x leads on\n", gr->n, gr->anchor.x, gr->anchor.y, gr->leader & 0xFFFFFF, best->id & 0xFFFFFF);
+    if (g_log) fprintf(g_log, "# formation: %d units at %.1f,%.1f: the leader %06x %s, %06x leads on\n", gr->n, gr->anchor.x, gr->anchor.y, gr->leader & 0xFFFFFF, why, best->id & 0xFFFFFF);
     gr->leader = best->id;
     gr->goal = unit_get_goal(bu);
     g_ff_handed++;
@@ -1194,11 +1213,19 @@ internal ee_unit *ff_leader(struct ff_group *gr, uint32_t step) {
         if (!l || unit_get_hp(l) <= 0 || !unit_orders(l)) { gr->on = 0; gr->linger = step ? step : 1; }
         return NULL;
     }
+    if (l && !gr->drain && gr->started && unit_get_goal(l) && goal_is_attack(unit_get_goal(l))) {   // the leader fights: the anchor would follow its chase - another leads on (the fighter back to its place after, as any)
+        ee_unit *nl = ff_hand_over(gr, "fighting");
+        if (nl) l = nl;
+    }
+    if (l && gr->goal && gr->started && !gr->drain && unit_get_hp(l) > 0 && ff_on_move(gr, l) < 0) {   // the leader sent on again to its spot (ff_linger_tick, its move dropped) before this step saw it idle: it leads on by its new goal (else "another order", and the march ended for good)
+        struct ff_unit *le = ff_find(gr->leader, 0);
+        if (le && ff_on_this(le, l)) gr->goal = unit_get_goal(l);
+    }
     vec3 p = l ? unit_get_pos(l) : v3(0, 0, 0);
     int on = l && unit_get_hp(l) > 0 ? ff_on_move(gr, l) : -1;
     if (gr->drain && on < 0 && l && unit_get_hp(l) > 0 && !unit_orders(l)) on = 1;   // draining: the leader's own move is done, the column still drains (another order ends it)
     if (on < 0 && !gr->drain && gr->started && (!l || unit_get_hp(l) <= 0 || !unit_orders(l))) {   // its move dropped, or dead: another leads on (ff_hand_over); nobody on the move: stopped
-        ee_unit *nl = ff_hand_over(gr);
+        ee_unit *nl = ff_hand_over(gr, "idle, its move dropped short of its spot");
         if (nl) { l = nl; on = 1; }
         else gr->stopped = ff_most_far(gr);
     }
@@ -1225,6 +1252,26 @@ internal ee_unit *ff_leader(struct ff_group *gr, uint32_t step) {
         gr->dt = dt;
         gr->at_ms = game_time();
         ff_fill_column(gr, gr->col_w, 0);   // the units let go left out: the rest move up
+        return l;
+    }
+    // ATTACK-MOVE (the player, 2026-11-03: "attack move isn't working in formation" - the units formed up and marched,
+    // but one that spotted an enemy was steered on to its spot all the same, its attack on top of its move never let
+    // it close): a fighter is the game's own (ff_march), and the formation holds while any fight - the anchor stands,
+    // the rest keep their places about it - and moves on when the fight is over, the fighters back to their spots by
+    // the catch-up
+    int fighting = ff_fighting(gr), least = gr->n / FF_FIGHT_SHARE > FF_FIGHT_MIN ? gr->n / FF_FIGHT_SHARE : FF_FIGHT_MIN;
+    if (fighting < least) fighting = 0;   // a few firing from their places (riflemen at a target in range) hold nobody: they catch up
+    if (g_log && fighting && !gr->fight) fprintf(g_log, "# formation: %d units at %.1f,%.1f: holds, %d fighting\n", gr->n, gr->anchor.x, gr->anchor.y, fighting);
+    if (g_log && !fighting && gr->fight) fprintf(g_log, "# formation: %d units at %.1f,%.1f: moves on, the fight over\n", gr->n, gr->anchor.x, gr->anchor.y);
+    gr->fight = fighting;
+    if (fighting) {
+        gr->pace = gr->jam = gr->pace_next = gr->jam_next = -1;
+        gr->vel_from = gr->vel = 0;
+        gr->way_from = gr->way;
+        gr->face_from = gr->face;
+        gr->way_rot = gr->face_rot = v2(1, 0);
+        gr->dt = dt;
+        gr->at_ms = game_time();
         return l;
     }
     float vn = 0;   // its speed now
@@ -1391,14 +1438,15 @@ internal int ff_spot(ee_unit *u, vec2 *spot) {
 
 // u's march as `fmove watch` logs it: -1 none, 0 its march done, 1 on but not on its way (queued), 2 on its way and u
 // steered at its point the last step, 3 .. 5 on its way and u on its own route (3 the point steered at on a tile it may
-// not enter, 4 not in a clear line, 5 its point too far, 6 dropped out, 7 let go to its spot as the column drained); + 10 x its queued marches
+// not enter, 4 not in a clear line, 5 its point too far, 6 dropped out, 7 let go to its spot as the column drained, 8 fighting); + 10 x its queued marches
 internal int ff_watch_state(ee_unit *u) {
     struct ff_unit *e = g_ff_on ? ff_find((uint32_t)unit_get_serial(u), 0) : NULL;
     if (!e) return -1;
     int q = 0;
     for (struct ff_pend *p = ff_pend_of(e, e->pend); p && q < 9; p = ff_pend_of(e, p->after)) q++;
     struct ff_group *gr = e->g >= 0 ? &g_ff[e->g] : NULL;
-    int s = !gr ? -1 : !gr->on ? 0 : !gr->live ? 1 : e->out ? 6 : e->rel ? 7 : e->step + 1 >= ff_step() ? 2 : e->own == 1 ? 5 : e->own == 2 ? 3 : 4;
+    ee_goal *cur = unit_get_goal(u);
+    int s = !gr ? -1 : !gr->on ? 0 : !gr->live ? 1 : e->out ? 6 : e->rel ? 7 : cur && goal_is_attack(cur) ? 8 : e->step + 1 >= ff_step() ? 2 : e->own == 1 ? 5 : e->own == 2 ? 3 : 4;
     return s + 10 * q;
 }
 
@@ -1474,7 +1522,7 @@ internal void ff_linger_tick(void) {
         void *mem = goal_move_alloc();
         if (!mem) return;
         float xy[2] = { e->home.x, e->home.y }, yaw;
-        ee_goal *g = goal_move_init(mem, xy);
+        ee_goal *g = gr->attack ? goal_attack_move_init(mem, xy) : goal_move_init(mem, xy);   // an attack-move's unit goes on taking on what it meets
         memcpy(&yaw, &e->yaw, sizeof yaw);
         if (e->yaw == 0) yaw = fo_atan2(-gr->fwd.x, gr->fwd.y);   // a click: the formation's facing
         location_goal_set_yaw((ee_location_goal *)g, yaw);
@@ -1504,6 +1552,8 @@ internal struct ff_group *ff_march(struct ff_unit *e, ee_unit *u, uint32_t step,
     if (e->g < 0) { *l = NULL; return NULL; }
     struct ff_group *gr = &g_ff[e->g];
     *l = gr->on ? ff_leader(gr, step) : NULL;
+    ee_goal *cur = unit_get_goal(u);
+    if (cur && goal_is_attack(cur)) { e->lag_at = 0; *l = NULL; return NULL; }   // fighting (an attack-move's target on top of its move): the game's own movement, steered to its spot again once the fight is over (not stuck meanwhile: the drop-out's clock reset)
     struct ff_pend *q = ff_pend_of(e, e->pend);
     return *l && (e->id == gr->leader || unit_get_group(u) == unit_get_group(*l) || (q && q->goal && unit_get_goal(u) == q->goal)
                   || ff_on_this(e, u)) ? gr : NULL;   // or on its move by a goal of its own: draining (the leader's move is done and its group may be gone), or sent on again after the game dropped its move (ff_linger_tick)
@@ -1680,7 +1730,7 @@ internal int fo_follow_aim(ee_unit *u, const float *pos, float *aim) {
     float sz = unit_get_size(u), place = sz < FO_MIN_SIZE ? FO_MIN_SIZE : sz;
     int behind = e->along > 0 && e->off_by > (float)g_set.formation_catchup_falloff * place;
     vec2 here = v2(pos[0], pos[1]);
-    if (!ok || behind) {
+    if ((!ok || behind) && !gr->fight) {   // not while the formation holds for a fight: standing in it is no jam (22 of 108 dropped out so)
         if (!e->lag_at) { e->lag_at = step ? step : 1; e->lag_pos = here; }
         else if (ff_since(e->lag_at) >= FF_OUT_S) {
             if (vec2_dist2(here, e->lag_pos) < FF_OUT_MOVE * FF_OUT_MOVE) { ff_drop_out(e, u); return 0; }
@@ -2034,7 +2084,7 @@ internal void *__thiscall hook_slot_goal(ee_goal *g, float *pt, uint32_t a, uint
             if (fp && (unsigned)(fp->g - g_ff_first + FF_GROUPS) % FF_GROUPS < (unsigned)g_ff_count) fp->goal = g;   // the goal of the queued march it joins (this move's)
             for (int m = 0; m < g_ff_count && u; m++) {   // a march goes by its leader's goal
                 struct ff_group *gr = &g_ff[(g_ff_first + m) % FF_GROUPS];
-                if ((uint32_t)unit_get_serial(u) == gr->leader) gr->goal = g;
+                if ((uint32_t)unit_get_serial(u) == gr->leader) { gr->goal = g; gr->attack = !b; }   // b the goal's forced flag (move_at_game's +0x30): 0 an attack-move
             }
             for (int k = 0; k < g_fo_n; k++)
                 if (g_fo[k].u == u) { pt[0] = g_fo[k].at.x; pt[1] = g_fo[k].at.y; facing = g_fo[k].facing; break; }

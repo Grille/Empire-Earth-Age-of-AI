@@ -40,6 +40,8 @@ internal inline void path_msg_make(ee_path_msg *msg, int from, float x, float y,
     FIELD(msg, of_path_msg_queued, uint8_t) = (uint8_t)queued;
     FIELD(msg, of_path_msg_together, uint8_t) = (uint8_t)together;
 }
+// the move forced (1, a plain move) or not (0: an attack-move - the goal's +0x30)
+internal inline void path_msg_set_forced(ee_path_msg *msg, int forced) { FIELD(msg, of_path_msg_goal_30, uint8_t) = (uint8_t)forced; }
 // the game start (EEMStartLoading): +0x14 the game's seed
 
 // FUNCTIONS
