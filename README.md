@@ -443,10 +443,8 @@ Settings in `ageofai.ini`:
   somewhere marches in its formation behind a leader - the unit in its middle - each unit steering for its place
   beside and behind it, a blocked one following the formation's middle line (the leader's route, through a gap the
   formation is too wide for), only then its own way, planned anew from where it stands; where the way is much narrower than
-  the formation (a gap, a pass) it narrows for the while into a column - its ranks as many abreast as fit the gap by
-  their own widths (tanks one, soldiers three), given out by how far along each unit already is, so the ones nearest
-  the gap go first and nobody crosses the body to a place beyond it, and a queue: each rank closes up behind the one
-  ahead and moves when it moves - and spreads out again behind it; in a jam the formation slows to what gets through, so it doesn't spill out thin behind it; a unit that is really stuck drops out
+  the formation (a gap, a pass) it narrows for the while - one, two or more abreast, its order kept - and spreads
+  out again behind it; in a jam the formation slows to what gets through, so it doesn't spill out thin behind it; a unit that is really stuck drops out
   and goes on alone; a place on ground the unit can't enter (a
   formation wider than the channel it passes) is drawn in towards the formation's middle, so it narrows there instead
   of losing its outer units; the formation keeps off an edge the leader's route hugs (a shore, a wood, a wall: the
