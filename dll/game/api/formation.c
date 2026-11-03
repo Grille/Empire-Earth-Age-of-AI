@@ -3,9 +3,7 @@
 // and asks it for the slots (formation_slots), then pairs units and slots and gives each unit a location goal at
 // its slot. docs/engine-notes.md "Group moves".
 
-// +0x58 its kind: FORMATION_SHORT_LINE ... (the game's factory numbers them so)
-enum { FORMATION_SHORT_LINE, FORMATION_LONG_LINE, FORMATION_LOOSE_LINE, FORMATION_STAGGERED_LINE, FORMATION_DEEP_WEDGE,
-       FORMATION_SHALLOW_WEDGE, FORMATION_INWARD_CIRCLE, FORMATION_OUTWARD_CIRCLE };
+// +0x58 its kind: enum formation_kind (gen/enums.c: FORMATION_SHORT_LINE ... - the game's factory numbers them so)
 // a formation's slots: the vector formation_slots fills (begin +4, end +8 - the runtime library's), value_formation_size_formation_slot each
 internal inline int formation_slot_count(const void *v) {
     uint8_t *b = FIELD(v, 4, uint8_t *), *e = FIELD(v, 8, uint8_t *);

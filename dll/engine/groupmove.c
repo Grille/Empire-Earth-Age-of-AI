@@ -6,7 +6,8 @@
 // out again, for any group, from its units' own sizes, its front row on the clicked point and facing the way the game's
 // own slots face (a right-button drag turns them), keeping its kind's shape:
 //   lines (short, long, loose, staggered): rows of FO_ASPECT[kind] times as wide as deep, each unit as wide as its
-//     size x FO_PAD[kind], a row as deep as its largest unit, a staggered line's every other row shifted half a unit;
+//     size x FO_PAD[kind] (the loose and the staggered line's twice its size), a row as deep as its largest unit, a
+//     staggered line's every other row shifted half a unit;
 //   wedges (deep, shallow): rows from a single tip, each FO_WEDGE_GROW[kind] units wider than the one before;
 //   circles (inward, outward): rings from the middle out, the largest units innermost, as wide as their units.
 // Each unit has a rank (fo_rank: the close fighters in front, then the ranged soldiers and the healing heroes, siege,
@@ -21,7 +22,7 @@
 #define FO_MAX 2048        // units laid out; a larger group keeps the game's slots
 #define FO_MIN_SIZE 0.3f   // a unit's size counted at least this (a citizen 0.3)
 #define FO_BAND 0.85f      // units this much of a band's largest or more share its rows
-internal const float FO_PAD[8] = { 1.4f, 1.4f, 2.0f, 1.4f, 1.25f, 1.25f, 1.2f, 1.2f };   // by FORMATION_* kind
+internal const float FO_PAD[8] = { 1.4f, 1.4f, 2.0f, 2.0f, 1.25f, 1.25f, 1.2f, 1.2f };   // by formation_kind: the loose line and the staggered line are the loose ones (the player, 2026-11-03)
 internal const float FO_ASPECT[4] = { 2.0f, 6.0f, 2.0f, 3.0f };                          // a line's width : depth
 // a wedge's row this many units wider than the one before (deep 1, 2, 3 ..., shallow 1, 3, 5 ...) - a row's width
 // from its depth gave the deep wedge a tip of two units in a line (its second row too narrow for two) and the shallow

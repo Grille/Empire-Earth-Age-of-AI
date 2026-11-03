@@ -1,3 +1,8 @@
+/// a formation's kind, the formation buttons in their order (the factory 0x4D84xx numbers them so; EEFShortLine,
+/// EEFLine, EEFWedge, EEFCircle ...). The loose line and the staggered line are the loose ones (the player, 2026-11-03)
+[c_prefix("FORMATION")]
+enum formation_kind : int32 { short_line, long_line, loose_line, staggered_line, deep_wedge, shallow_wedge, inward_circle, outward_circle }
+
 /// a group's formation, its +0x34 (EEFormation, EEFLine, EEFWedge ...)
 [c_type("void")]
 unsafe struct EEFormation
@@ -6,10 +11,9 @@ unsafe struct EEFormation
     [offset(0x48), found(c)]
     vec3 center;
 
-    /// 0 ShortLine, 1 LongLine, 2 LooseLine, 3 StaggeredLine, 4 DeepWedge, 5 ShallowWedge, 6 InwardCircle, 7
-    /// OutwardCircle (the factory 0x4D84xx; both builds' EEFormation ctor)
+    /// its kind, the formation button (the factory 0x4D84xx; both builds' EEFormation ctor)
     [offset(0x58), found(c)]
-    int32 kind;
+    formation_kind kind;
 
     /// EEFormation::vf1 thiscall(formation, group, vector *slots), slot 1 of every formation's vtable (EEFLine,
     /// EEFShortLine, EEFWedge, EEFCircle ... 12): the group's units into a list, then the kind's vf2 (EEFLine
