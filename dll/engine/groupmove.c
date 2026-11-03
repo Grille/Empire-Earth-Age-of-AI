@@ -425,7 +425,8 @@ internal void ff_start_block(void *group, const int *idx, int k, vec2 c, vec2 fw
     gr->through = gr->passed = gr->started = gr->pivot = gr->in_place = 0;
     gr->settled = 0;
     gr->drain = 0;
-    gr->stopped = gr->attack = gr->fight = 0;
+    gr->stopped = gr->fight = 0;
+    gr->attack = !g_fo_forced;   // the move message's flag (the slot goals are made forced and get the flag after)
     gr->narrow_to = -1e9f;
     gr->arc = from >= 0;
     gr->reform = from < 0 && g_fo_has_march;
@@ -1113,8 +1114,7 @@ internal float ff_side(struct ff_group *gr, ee_unit *l, vec2 q, int qi, int rout
 internal unsigned g_ff_released;   // units let go to their spots as their column drained
 internal unsigned g_ff_handed;     // marches whose lead was handed on (ff_hand_over)
 #define FF_DRAIN_STALL 3.0f    // s: a drain that let nobody go this long lets its front rank go
-#define FF_FIGHT_MIN 3         // units: the formation holds while this many fight, or a tenth of it (two riflemen firing from their places held 108 units 19 s)
-#define FF_FIGHT_SHARE 10
+#define FF_FIGHT_LEASH 4.0f    // tiles: a fighter further than the formation's reach plus this from the anchor is chasing off - the formation moves on without it
 #define FF_DRAIN_IDLE 15.0f    // s: a drain that let nobody go this long ends (the goal inside the narrow: the column's front stands at its place short of the release line)
 // u is on this march's move: its order a move to its spot (a member sent elsewhere alone keeps e->g, as does a member of
 // an earlier march in the same slot - the group test told them apart, and the drain can't use it: the leader's group
@@ -1173,16 +1173,20 @@ internal int ff_drain_done(struct ff_group *gr, uint32_t step) {
 // still on this march's move leads on - its route serves the anchor from here (the anchor's end and every offset stay
 // the old leader's: its spot is still where the anchor heads), the march's goal its own. NULL when nobody is on the
 // move any more: the player's stop
-// gr's units fighting now: their current order an attack (an attack-move's: the game put it on top of the move when
-// the unit spotted an enemy; a plain move takes no enemies on)
+// gr's units fighting now near it: their current order an attack (an attack-move's: the game put it on top of the
+// move when the unit spotted an enemy; a plain move takes no enemies on). One chasing off beyond the formation's reach
+// plus FF_FIGHT_LEASH drops out: the formation moves on, it comes after on its own route
 internal int ff_fighting(const struct ff_group *gr) {
     int gi = (int)(gr - g_ff), n = 0;
     for (int i = 0; i < FF_UNITS; i++) {
-        const struct ff_unit *e = &g_ff_u[i];
+        struct ff_unit *e = &g_ff_u[i];
         if (!e->id || e->g != gi || e->out) continue;
         ee_unit *u = unit_by_id(e->id);
         ee_goal *g = u && unit_get_hp(u) > 0 ? unit_get_goal(u) : NULL;
-        if (g && goal_is_attack(g)) n++;
+        if (!g || !goal_is_attack(g)) continue;
+        vec3 p = unit_get_pos(u);
+        if (vec2_len(vec2_sub(v2(p.x, p.y), gr->anchor)) > gr->reach + FF_FIGHT_LEASH) { e->out = 1; g_ff_out++; continue; }
+        n++;
     }
     return n;
 }
@@ -1266,8 +1270,7 @@ internal ee_unit *ff_leader(struct ff_group *gr, uint32_t step) {
     // it close): a fighter is the game's own (ff_march), and the formation holds while any fight - the anchor stands,
     // the rest keep their places about it - and moves on when the fight is over, the fighters back to their spots by
     // the catch-up
-    int fighting = ff_fighting(gr), least = gr->n / FF_FIGHT_SHARE > FF_FIGHT_MIN ? gr->n / FF_FIGHT_SHARE : FF_FIGHT_MIN;
-    if (fighting < least) fighting = 0;   // a few firing from their places (riflemen at a target in range) hold nobody: they catch up
+    int fighting = ff_fighting(gr);   // any: with the march going on through its fighters (a tenth of it fighting held it, fewer not) the rest pushed them along, and a reload never finished - 50 doughboys died for 4 of yellow's 48, where the game's own attack-move killed all 48 for 39
     if (g_log && fighting && !gr->fight) fprintf(g_log, "# formation: %d units at %.1f,%.1f: holds, %d fighting\n", gr->n, gr->anchor.x, gr->anchor.y, fighting);
     if (g_log && !fighting && gr->fight) fprintf(g_log, "# formation: %d units at %.1f,%.1f: moves on, the fight over\n", gr->n, gr->anchor.x, gr->anchor.y);
     gr->fight = fighting;
@@ -1472,6 +1475,28 @@ internal float ff_point_off(ee_unit *u) {
 // itself out" - counted from the march's end, the anchor at the leader's spot, the 10 s were over before a big
 // formation's last units had walked to their spots, and the ones they pushed stayed off), FF_LINGER_MAX at most
 internal unsigned g_ff_walks, g_ff_walks_lost, g_ff_resent;   // walks back given, of them to units the game gave up on short of their spots; units sent on again while their march went on
+// an attack-move's steered units look for enemies (the player, 2026-11-03, yellow's 48 doughboys: the formation
+// marched in and died without a shot - 50 for 4, where the game's own attack-move killed all 48 for 39): the unit AI
+// script looks only at each waypoint (generic movement.tai: GetNextMoveWaypoint -> LookForEnemies), and a unit steered
+// at its point never arrives at one, so it stays in Advance through the enemy. Every FF_HOME_EVERY steps a steered unit
+// in Advance is put into LookForEnemies with its scan clock zeroed: an enemy spotted takes it to CheckRange and its
+// attack (the game's own, on top of its move), none back to Advance
+#define FF_STATE_ADVANCE 10003
+#define FF_STATE_LOOK 2015
+internal unsigned g_ff_looks;   // such looks given
+internal void ff_scan_tick(struct ff_group *gr, uint32_t step) {
+    int gi = (int)(gr - g_ff);
+    for (int i = 0; i < FF_UNITS; i++) {
+        const struct ff_unit *e = &g_ff_u[i];
+        if (!e->id || e->g != gi || e->out || e->rel || e->step == ~0u || step - e->step > 2) continue;   // steered this step or the last
+        ee_unit *u = unit_by_id(e->id);
+        if (!u || unit_get_hp(u) <= 0 || unit_ai_state_id(u) != FF_STATE_ADVANCE) continue;
+        unit_set_scan_ms(u, 0);
+        if (!find_target(u)) continue;   // the game's own search first: the look state itself stops the unit a tick, every half second it made the march stutter (164 s for 146)
+        unit_set_state(u, FF_STATE_LOOK);
+        g_ff_looks++;
+    }
+}
 // a land march on its way (the units sent on again while it goes - ships keep their own routes)
 internal int ff_marching(const struct ff_group *gr) { return gr->on && gr->started && !gr->naval && gr->in_place != 1 && !gr->drain; }   // not in the drain: a unit sent on again there is on its own goal, and the leader re-sent ended the march (the given up on walk back once it drained)
 internal int ff_lingering(const struct ff_group *gr) {
@@ -1485,6 +1510,7 @@ internal void ff_linger_tick(void) {
     for (int k = 0; k < FF_GROUPS; k++) {
         struct ff_group *gr = &g_ff[k];
         if (gr->on && gr->drain) ff_drain_done(gr, step);   // every unit idle: no tick asks ff_leader
+        if (gr->on && gr->live && gr->attack && !gr->naval) ff_scan_tick(gr, step);
         if (gr->on && gr->in_place == 1) {   // no march, nobody steering: its leader's move done, it lingers
             ee_unit *l = unit_by_id(gr->leader);
             if (!l || unit_get_hp(l) <= 0 || !unit_orders(l)) { gr->on = 0; gr->linger = step ? step : 1; }
@@ -2091,7 +2117,7 @@ internal void *__thiscall hook_slot_goal(ee_goal *g, float *pt, uint32_t a, uint
             if (fp && (unsigned)(fp->g - g_ff_first + FF_GROUPS) % FF_GROUPS < (unsigned)g_ff_count) fp->goal = g;   // the goal of the queued march it joins (this move's)
             for (int m = 0; m < g_ff_count && u; m++) {   // a march goes by its leader's goal
                 struct ff_group *gr = &g_ff[(g_ff_first + m) % FF_GROUPS];
-                if ((uint32_t)unit_get_serial(u) == gr->leader) { gr->goal = g; gr->attack = !b; }   // b the goal's forced flag (move_at_game's +0x30): 0 an attack-move
+                if ((uint32_t)unit_get_serial(u) == gr->leader) gr->goal = g;
             }
             for (int k = 0; k < g_fo_n; k++)
                 if (g_fo[k].u == u) { pt[0] = g_fo[k].at.x; pt[1] = g_fo[k].at.y; facing = g_fo[k].facing; break; }
