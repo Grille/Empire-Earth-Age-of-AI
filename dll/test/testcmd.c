@@ -348,6 +348,21 @@ internal void cmd_bqueue(char *out, const char *args) {
     }
 }
 
+// bqadd P T x y: AI player P's build manager gets a building of type T at x, y in its queue of the current epoch, as
+// the mod's defence queues its towers - placed by the manager (EECPBuildManager.place: the game's own placing call)
+internal void cmd_bqadd(char *out, const char *args) {
+    int p, t, x, y;
+    if (sscanf(args, "%d %d %d %d", &p, &t, &x, &y) < 4) { REPLY("error: usage: bqadd P T x y\n"); return; }
+    ee_player *pl = (p >= 0 && p < 16) ? g_players[p] : NULL;
+    void *cm = pl ? player_get_civ_mgr(pl) : NULL;
+    ee_build_mgr *bm = cm ? civ_mgr_get_build_mgr(cm) : NULL;
+    int e = pl ? current_epoch(pl) : -1;
+    if (!bm || e < 0 || t < 0 || t >= 724 || !type_data(t)) { REPLY("error: no AI player %d or type %d\n", p, t); return; }
+    int entry[3] = { t, x, y };
+    build_mgr_queue_add(bm, e, entry);
+    REPLY("ok: P%d type %d at %d,%d queued (epoch %d)\n", p, t, x, y, e);
+}
+
 // canbuild P: every type the game lets player P build or train now (0x555710: available in this epoch, affordable,
 // a builder) - which types of a family or class the data really offers (the Missile Base, campaign units)
 internal void cmd_canbuild(char *out, const char *args) {

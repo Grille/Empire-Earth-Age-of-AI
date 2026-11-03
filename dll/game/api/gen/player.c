@@ -1119,10 +1119,13 @@ internal inline uint8_t *player_call_kill_stat_at(void) { return (uint8_t *)(uin
 typedef char (__cdecl *can_place_game_fn)(void *, int, int, int, int, int, int);
 internal can_place_game_fn fn_can_place_game;
 internal inline char can_place_game(void *p1, int p2, int p3, int p4, int p5, int p6, int p7) { return fn_can_place_game(p1, p2, p3, p4, p5, p6, p7); }
-// cdecl(player, type, x, y): a building placed (a foundation)
+// cdecl(player, type, x, y): a building placed (a foundation). place_building: the player's (EEMBuildUnit::vf10
+// 0x4B3D85, AoC 0x4BBCC4) and the AI's build manager's (EECPBuildManager.place 0x46580A, AoC 0x4674C4); the third
+// call (0x48B367) places a town center
 typedef ee_unit *(__cdecl *place_foundation_fn)(ee_player *, int, int, int);
 internal place_foundation_fn fn_place_foundation;
 internal inline ee_unit *place_foundation(ee_player *pl, int type, int x, int y) { return fn_place_foundation(pl, type, x, y); }
+internal inline int patch_place_building(place_foundation_fn h, int *of) { return patch_calls(calls_place_building, 2, (uintptr_t)fn_place_foundation, (void *)h, of); }
 // thiscall(player +0x874, type): the per-player stats record
 typedef uint8_t **(__thiscall *type_stats_game_fn)(void *, int);
 internal type_stats_game_fn fn_type_stats_game;
@@ -1417,6 +1420,8 @@ internal int spec_player_select(int build) {
         value_player_slot_unit_limit = 31;
         fn_can_place_game = (can_place_game_fn)0x0062E940;
         fn_place_foundation = (place_foundation_fn)0x0062EF8A;
+        calls_place_building[0] = 0x004B3EE3;
+        calls_place_building[1] = 0x004659C4;
         fn_type_stats_game = (type_stats_game_fn)0x00492969;
         fn_flare_add = (flare_add_fn)0x0055EDA6;
         fn_vector_size = (vector_size_fn)0x004A670A;
@@ -1699,6 +1704,8 @@ internal int spec_player_select(int build) {
         value_player_slot_unit_limit = 31;
         fn_can_place_game = (can_place_game_fn)0x00643CE6;
         fn_place_foundation = (place_foundation_fn)0x00644C83;
+        calls_place_building[0] = 0x004BBE04;
+        calls_place_building[1] = 0x00467636;
         fn_type_stats_game = (type_stats_game_fn)0x0051E2A5;
         fn_flare_add = (flare_add_fn)0x0056E702;
         fn_vector_size = (vector_size_fn)0x0047C428;
@@ -1742,6 +1749,8 @@ internal int spec_player_check(void) {
     bad += spec_code(data_player_call_kill_stat, "player.call_kill_stat");
     bad += spec_code((uintptr_t)fn_can_place_game, "player_functions.can_place_game");
     bad += spec_code((uintptr_t)fn_place_foundation, "player_functions.place_foundation");
+    bad += spec_call(calls_place_building[0], (uintptr_t)fn_place_foundation, "player_functions.place_foundation [call_site place_building 0]");
+    bad += spec_call(calls_place_building[1], (uintptr_t)fn_place_foundation, "player_functions.place_foundation [call_site place_building 1]");
     bad += spec_code((uintptr_t)fn_type_stats_game, "player_functions.type_stats_game");
     bad += spec_code((uintptr_t)fn_flare_add, "player_functions.flare_add");
     bad += spec_code((uintptr_t)fn_vector_size, "player_functions.vector_size");

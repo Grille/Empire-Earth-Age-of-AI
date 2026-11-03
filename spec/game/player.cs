@@ -1142,8 +1142,12 @@ static unsafe class player_functions
     [address((ee)0x0062E940, (aoc)0x00643CE6), cdecl]
     static extern char8 can_place_game(void* p1, int32 p2, int32 p3, int32 p4, int32 p5, int32 p6, int32 p7);
 
-    /// cdecl(player, type, x, y): a building placed (a foundation)
+    /// cdecl(player, type, x, y): a building placed (a foundation). place_building: the player's (EEMBuildUnit::vf10
+    /// 0x4B3D85, AoC 0x4BBCC4) and the AI's build manager's (EECPBuildManager.place 0x46580A, AoC 0x4674C4); the third
+    /// call (0x48B367) places a town center
     [address((ee)0x0062EF8A, (aoc)0x00644C83), cdecl]
+    [call_site("place_building", (ee)0x004B3EE3, (aoc)0x004BBE04)]
+    [call_site("place_building", (ee)0x004659C4, (aoc)0x00467636)]
     static extern EEUnit* place_foundation(EEPlayer* pl, int32 type, int32 x, int32 y);
 
     /// thiscall(player +0x874, type): the per-player stats record

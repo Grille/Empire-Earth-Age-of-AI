@@ -52,6 +52,7 @@ internal void cmd_sitecheck(char *out, const char *args);
 internal void cmd_found(char *out, const char *args);
 internal void cmd_wall(char *out, const char *args);
 internal void cmd_gate(char *out, const char *args);
+internal void cmd_bqadd(char *out, const char *args);
 internal void cmd_plan(char *out, const char *args);
 internal void cmd_hurt(char *out, const char *args);
 internal void cmd_drops(char *out, const char *args);
@@ -399,6 +400,7 @@ internal void execute(const char *cmd, char *out) {
     else if (!strcmp(verb, "found")) cmd_found(out, args);
     else if (!strcmp(verb, "wall")) cmd_wall(out, args);
     else if (!strcmp(verb, "gate")) cmd_gate(out, args);
+    else if (!strcmp(verb, "bqadd")) cmd_bqadd(out, args);
     else if (!strcmp(verb, "plan")) cmd_plan(out, args);
     else if (!strcmp(verb, "hurt")) cmd_hurt(out, args);
     else if (!strcmp(verb, "drops")) cmd_drops(out, args);

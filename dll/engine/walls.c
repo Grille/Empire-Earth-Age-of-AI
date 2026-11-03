@@ -165,14 +165,16 @@ internal int ws_fit(ee_unit *u) {
 // wall and the tower or gate it runs into (the player, 2026-11-03: "the round connectors appearing in many places they
 // aren't supposed to ... walls should properly connect to gates and towers"). Decided when walls are built, as the
 // game decides its posts (the player: "a runtime check every few seconds seems overkill for something that should be
-// set at build time" - and the gaps of a destroyed wall stay open): a layout (at wall_joints) and a gate (build_gate's
-// conversions) note the tiles they touched, and at the end of the next step - their new pieces are on the map then -
+// set at build time" - and the gaps of a destroyed wall stay open): a layout (at wall_joints), a gate (build_gate's
+// conversions) and a tower placed note the tiles they touched, and at the end of the next step - their new pieces are on the map then -
 // each wall tile there is looked at by its neighbours: a piece points at the two tiles along its axis; a post becomes
 // a piece where two pieces point at it from either side (a post in a straight run), or one does and the tile on the
 // other side holds a wall, a tower or a gate (a wall's end against another's post or side, a tower, a gate: it
 // reaches into it); a piece becomes a post where a piece points at it from aside (a wall ending on its side: the
-// joint); a post no piece points at, beside one joint, tower or gate with nothing on its other side, becomes a stub
-// into it. From the tiles alone, so every PC comes to the same (the walls' state - anims and matrices - is saved);
+// joint); a post no piece points at becomes a piece where posts stand on both sides of it along one line (a run the
+// game cut into posts beside a tower), else, with no post beside it, where one joint, tower or gate is beside it with
+// nothing on its other side: a stub into it. A tower beside a straight wall changes nothing: it points at no tile.
+// From the tiles alone, so every PC comes to the same (the walls' state - anims and matrices - is saved);
 // the pieces there fitted again, a piece's end into a tower or a gate as into a post. A loaded game's walls are
 // looked at once, at its first step.
 #define WJ_EV_MAX 64        // areas noted, waiting for the next step's end
@@ -254,17 +256,26 @@ internal struct wj_at wj_want(const ee_map *map, int x, int y, struct wj_at self
         struct wj_at nb = wj_at(map, x + dir[k][0], y + dir[k][1], pl);
         w.kind = WJ_PIECE; w.sx = nb.sx; w.sy = nb.sy;
     }
-    // none points at it: beside one joint (a post pieces point at), tower or gate with nothing on its other side, a stub
-    // into it - a wall's first tile beside a gate, a post the game made at a gap beside a joint
-    if (!np) {
-        int cand = -1, nc = 0;
-        for (int j = 0; j < 8; j++) {
-            struct wj_at nb = wj_at(map, x + dir[j][0], y + dir[j][1], pl);
-            if ((nb.kind == WJ_HUB || (nb.kind == WJ_POST && wj_pointed(map, x + dir[j][0], y + dir[j][1], pl))) &&
-                wj_at(map, x - dir[j][0], y - dir[j][1], pl).kind == WJ_NONE) { cand = j; nc++; }
-        }
-        if (nc == 1) { w.kind = WJ_PIECE; w.sx = dir[cand][0]; w.sy = dir[cand][1]; }
+    if (np) return w;
+    // none points at it, posts on both sides along one line: a run the game cut into posts - its wall_joints counts
+    // a tower among a piece's neighbours, so a wall laid past a tower (a wall manager lays its whole wall again to
+    // mend it) got posts all along beside it
+    struct wj_at nb[8];
+    for (int j = 0; j < 8; j++) nb[j] = wj_at(map, x + dir[j][0], y + dir[j][1], pl);
+    int line = -1, nl = 0, posts = 0;
+    for (int j = 0; j < 8; j++) {
+        posts += nb[j].kind == WJ_POST;
+        if (j < 4 && nb[j].kind == WJ_POST && nb[j + 4].kind == WJ_POST) { line = j; nl++; }
     }
+    if (nl == 1) { w.kind = WJ_PIECE; w.sx = dir[line][0]; w.sy = dir[line][1]; return w; }
+    // no post beside it but one joint (a post pieces point at), or a tower or a gate, with nothing on its other side: a
+    // stub into it - a wall's first tile beside a gate, a post the game made at a gap beside a joint. Never with
+    // posts about it: which way the wall runs there is the line's
+    int cand = -1, nc = 0;
+    for (int j = 0; j < 8; j++)
+        if ((nb[j].kind == WJ_HUB || (nb[j].kind == WJ_POST && wj_pointed(map, x + dir[j][0], y + dir[j][1], pl))) &&
+            nb[(j + 4) % 8].kind == WJ_NONE) { cand = j; nc++; }
+    if (nc == 1 && posts <= (nb[cand].kind == WJ_POST)) { w.kind = WJ_PIECE; w.sx = dir[cand][0]; w.sy = dir[cand][1]; }
     return w;
 }
 
@@ -401,6 +412,21 @@ internal int __cdecl hook_gate_convert(ee_unit *u, int pi, ee_unit_type *td) {
     return r;
 }
 
+// a tower placed (place_foundation's calls place_building: the player's, the AI's build manager's): its tiles noted - a
+// wall's end post in line before it becomes a piece into it. A tower beside a straight wall leaves its pieces be: a
+// piece turns a post only where another piece points at it from aside, and a tower points at nothing (the game's
+// wall_joints counts towers among a piece's neighbours - a wall laid past a tower got a post beside it, a piece again
+// at its joins: pointed at from either side)
+internal ee_unit *__cdecl hook_place_building(ee_player *pl, int type, int x, int y) {
+    ee_unit *b = place_foundation(pl, type, x, y);
+    ee_unit_type *td = b && g_wj_on && ut_role(type, UTR_TOWER) ? type_data(type) : NULL;
+    if (td) {
+        int s = unit_type_get_size(td) > 0 ? unit_type_get_size(td) : 1;
+        wj_note(unit_get_x(b) - s, unit_get_y(b) - s, unit_get_x(b) + s, unit_get_y(b) + s);
+    }
+    return b;
+}
+
 // at a step's end (the same step on every PC): the walls a game starts with (a loaded game, a scenario's) at its
 // first; the areas noted at an earlier step (their new pieces on the map now)
 internal void __thiscall hook_step_end(ee_physics *ph) {
@@ -431,7 +457,9 @@ internal void walls_install(void) {
     g_wj_on = g_ws_on && g_set.wall_joins;
     int of = 0, n = g_ws_on ? patch_wall_piece(hook_wall_piece, &of) + patch_wall_joints(hook_wall_joints, &of) : 0;
     int more = g_ws_on ? patch_step_end(hook_step_end) + patch_gate_convert(hook_gate_convert) : 0;
-    if (g_log) fprintf(g_log, "# walls: wall_slopes=%d wall_joins=%d (%s%s)\n", g_ws_on, g_wj_on,
+    int pof = 0, pn = g_wj_on ? patch_place_building(hook_place_building, &pof) : 0;
+    if (g_log) fprintf(g_log, "# walls: wall_slopes=%d wall_joins=%d (%s%s%s)\n", g_ws_on, g_wj_on,
                        !g_ws_on ? "-" : n == of ? "the layout's calls hooked" : n ? "SOME of the layout's calls hooked" : "FAILED",
-                       !g_ws_on ? "" : more == 2 ? ", the step's end, the gate's" : ", the step's end or the gate's FAILED");
+                       !g_ws_on ? "" : more == 2 ? ", the step's end, the gate's" : ", the step's end or the gate's FAILED",
+                       !g_wj_on ? "" : pn == pof ? ", the buildings' placing" : ", the buildings' placing FAILED");
 }
