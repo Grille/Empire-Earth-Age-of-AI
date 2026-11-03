@@ -331,23 +331,23 @@ Settings in `ageofai.ini`:
   only one byte of that count - a tile seen by more than 254 units took itself for unexplored, and in a big army
   random tiles with everything on them (units, trees) blinked out, then went to fog while units still stood there.
   Now the whole count is kept (up to 65000). `0` = the original.
-- `[patches] wall_slopes=0` (off until tried): a wall piece stood flat at the height of one corner of its tile, so on a
+- `[patches] wall_slopes=1` (default): a wall piece stood flat at the height of one corner of its tile, so on a
   hill one end floated, the other sank into the ground, and neighbours at other heights stuck out of each other in
-  steps. The game has sloped pieces, but each fits one steepness and they were hardly ever chosen. With `1` every
-  piece leans along its length onto the ground under its two ends (its sides stay upright, as the game's sloped
+  steps. The game has sloped pieces, but each fits one steepness and they were hardly ever chosen. Now every piece
+  leans along its length onto the ground under its two ends (its sides stay upright, as the game's sloped
   pieces do) and stands a little into the ground, the round posts on the lowest corner of their tile - the wall
   follows the hill in one line. Each piece also spans its tile exactly and reaches into a round post beside it: the
   game's pieces are longer than their spacing, so neighbours overlapped, their faces flickered, and on a slope their
   ends stuck out at every bend. Walls built before are fitted when a game is loaded; a gate laid into a fitted wall
-  keeps its own shape. In multiplayer every player needs the same setting.
-- `[patches] wall_joins=0` (off until tried; only with `wall_slopes=1`): the game put a round post at the end of every
+  keeps its own shape. In multiplayer every player needs the same setting. `0` = the original.
+- `[patches] wall_joins=1` (default; only with `wall_slopes=1`): the game put a round post at the end of every
   stretch of wall it laid, where the ground stepped, and beside every joint - a wall drawn on from another had two
   posts side by side, walls crossing or meeting three or four in a cluster, and a post stood between a wall and the
-  tower or gate it ran into. With `1` a post stands only where a wall ends, turns or branches: a wall runs on
+  tower or gate it ran into. Now a post stands only where a wall ends, turns or branches: a wall runs on
   through, and into a tower or a gate. It is decided when a wall or a gate is built, as the game decides its posts;
   a destroyed wall's gap stays open. Both work in the scenario editor too: there the walls are fitted and joined
   whenever something is placed (a scenario opened there: at the first thing placed, and when it is played). In
-  multiplayer every player needs the same setting.
+  multiplayer every player needs the same setting. `0` = the original.
 - `[general] big_selection=1` (default): double-clicking a unit (all of its kind on screen) or dragging a box selected
   at most 63 units - with a large army only a part. Now up to about 240, as many as the game's selection message
   can carry; the message keeps its format, so it should stay compatible in multiplayer.
