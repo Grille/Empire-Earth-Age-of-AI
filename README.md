@@ -450,7 +450,7 @@ Settings in `ageofai.ini`:
   has it, and down the middle of a corridor narrower than itself; its rear ranks follow the path its head took, so a
   column snakes through a channel and round its corners instead of the whole body swinging as one, and it turns on
   its width, not its depth; a group whose route sets out another way than straight for the point forms up facing the
-  route's first stretch; units march as one formation when the gaps between them are under 4 tiles (their sizes
+  route's first stretch and sets out along its leader's route from the first step, no turn on the spot; units march as one formation when the gaps between them are under 4 tiles (their sizes
   counted, so a fleet of large ships stays one); near the goal each goes to its own spot.
   The formation goes at the slowest unit's speed, turning like a ship (no unit walks backwards in a turn: it slows
   in a turn so its outermost units keep up, eased in and out over a few seconds - a bend in the route costs a little,

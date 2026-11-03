@@ -450,9 +450,10 @@ internal int sr_find(ee_map *map, ee_unit *u, ee_unit_type *td, int size, int sx
 }
 
 // the way u's route from `from` to `to` sets out, as this planner finds it (the formation's leader will ask it for the
-// same): *leg the direction from the start to the route's point `ahead` tiles along it (the route's first clear-line
-// corner was 45 degrees off where a route hugging a wall's end went on: a short first piece), 1 - 0 when the planner is
-// off for u, the start or the target can't be entered or no route is found. The formation's march lays out facing it: laid out facing the point, a group whose route sets out another
+// same, from the same place: from the group's middle it was 20 degrees off the leader's own, and the formation swung
+// onto the route over its first 10 s): *leg the direction of its first leg (as the route's corners are pulled: to the
+// furthest tile in a clear line; to the point `ahead` tiles along it when the leg is shorter), 1 - 0 when the planner
+// is off for u, the start or the target can't be entered or no route is found. The formation's march lays out facing it: laid out facing the point, a group whose route sets out another
 // way (the player's "siphon", 2026-11-03: 71 units in a walled bowl, the way out east and the point south) turned on the
 // spot before it moved ("they reform to face the destination, not their first checkpoint, which makes them very slow
 // to start moving")
@@ -485,15 +486,21 @@ internal int sr_first_leg(ee_unit *u, vec2 from, vec2 to, float ahead, vec2 *leg
     int expanded = 0, whole = 1;
     int n = sr_find(map, u, td, size, sx, sy, tx, ty, path, 65536, &expanded, 0, &whole);
     if (n < 2) return 0;
-    // the route's point `ahead` tiles along it from the start (the path goal first)
-    int at = n - 1, next = at;
-    float ax = (float)(path[at] % (uint32_t)size) + 0.5f, ay = (float)(path[at] / (uint32_t)size) + 0.5f, gone = 0;
-    while (next > 0 && gone < ahead) {
-        int dx = abs((int)(path[next] % (uint32_t)size) - (int)(path[next - 1] % (uint32_t)size)), dy = abs((int)(path[next] / (uint32_t)size) - (int)(path[next - 1] / (uint32_t)size));
-        gone += dx && dy ? 1.4142f : 1.0f;
-        next--;
-    }
+    // the route's first leg as sr_search pulls it: from the start on to the furthest tile still in a clear line - the
+    // leader's first waypoint, where its anchor heads. A leg shorter than `ahead` (a corner close by): the direction
+    // to the route's point that far along it instead, so the formation isn't laid out for a leg it leaves at once
+    int at = n - 1, next = at - 1;
+    float ax = (float)(path[at] % (uint32_t)size) + 0.5f, ay = (float)(path[at] / (uint32_t)size) + 0.5f;
+    while (next > 0 && sr_clear(map, u, td, size, ax, ay, (float)(path[next - 1] % (uint32_t)size) + 0.5f, (float)(path[next - 1] / (uint32_t)size) + 0.5f)) next--;
     vec2 d = v2((float)(path[next] % (uint32_t)size) + 0.5f - ax, (float)(path[next] / (uint32_t)size) + 0.5f - ay);
+    if (vec2_len(d) < ahead) {
+        float gone = 0;
+        for (next = at; next > 0 && gone < ahead; next--) {
+            int dx = abs((int)(path[next] % (uint32_t)size) - (int)(path[next - 1] % (uint32_t)size)), dy = abs((int)(path[next] / (uint32_t)size) - (int)(path[next - 1] / (uint32_t)size));
+            gone += dx && dy ? 1.4142f : 1.0f;
+        }
+        d = v2((float)(path[next] % (uint32_t)size) + 0.5f - ax, (float)(path[next] / (uint32_t)size) + 0.5f - ay);
+    }
     float dl = vec2_len(d);
     if (dl < 0.5f) return 0;
     *leg = vec2_scale(d, 1.0f / dl);

@@ -825,6 +825,16 @@ internal void ff_rooms(ee_map *map, ee_unit *u, ee_unit_type *td, int size, cons
 // each in dirs. The room is measured across it. A straight line along the way from the anchor ran into the wall at
 // the channel's corner: 0.5 tiles of room there, and 71 units went through one abreast, a column 85 tiles long
 internal int ff_line(const struct ff_group *gr, ee_unit *l, vec2 q, int qi, float back, float front, vec2 *pts, vec2 *dirs, int cap) {
+    // no further back than the trail goes: the march's start (behind it the line is fiction - 36 tiles of it ran to
+    // the map's edge, "room 0.0", and the siphon's column went one abreast)
+    float len = 0;
+    vec2 last = gr->anchor;
+    for (int k = 0; k < gr->trail_n; k++) {
+        vec2 t_k = gr->trail[(gr->trail_at - 1 - k + 2 * FF_TRAIL) % FF_TRAIL];
+        len += vec2_len(vec2_sub(last, t_k));
+        last = t_k;
+    }
+    if (back < -len) back = -len;
     float span = front - back, step = span > (float)(cap - 1) ? span / (float)(cap - 1) : 1.0f, t = back;
     int n = 0;
     for (; t < 0 && n < cap; t += step) { pts[n] = ff_trail_at(gr, gr->anchor, gr->way, -t, &dirs[n]); n++; }
@@ -987,6 +997,14 @@ internal ee_unit *ff_leader(struct ff_group *gr, uint32_t step) {
             // they turn as one on their circles
             gr->anchor = v2(p.x, p.y);
             if (!gr->naval && gr->in_place != 2) {   // moved as it stands: every unit at its offset already
+                // the way: the leader's route's first waypoint from where it stands - its route is there now, nobody
+                // has moved yet, and the layout's estimate of it (sr_first_leg) was 16-33 degrees off where the
+                // route really went on the player's "siphon": the anchor swung onto the route over the first 10 s
+                // ("they still rotate after the first command")
+                int route = 0, qi = -1;
+                vec2 leg, q0 = ff_pursue(gr, l, &route, &leg, &qi), d0 = vec2_sub(q0, gr->anchor);
+                float dl = vec2_len(d0);
+                if (route && dl > 0.5f) gr->way = gr->face = vec2_scale(d0, 1.0f / dl);
                 int gi = (int)(gr - g_ff), cnt = 0;
                 float lag = 0, most = vec2_dot(vec2_sub(gr->end, gr->anchor), gr->way) - FF_END;
                 vec2 right = v2(gr->way.y, -gr->way.x);
@@ -1619,13 +1637,15 @@ internal void __thiscall hook_formation_slots(void *f, void *group, void *slots)
     // the way the march sets out: its route's first leg where the route doesn't start straight for the point (the
     // player, 2026-11-03, "siphon": laid out facing the point south, a group whose way out of its walled bowl ran east
     // turned on the spot first, "very slow to start moving") - the route as the planner finds it for the unit nearest
-    // the group's middle, from there to the point; a queued move sets out from the move before's end, not from here
+    // the group's middle (the leader, near enough), from where it stands (the leader's route starts there: from the
+    // group's middle it ran 20 degrees off the leader's, and the formation swung onto the route over its first 10 s -
+    // the player: "they still rotate after the first command"); a queued move sets out from the move before's end
     vec2 wf = gl > 0.5f ? vec2_scale(go, 1.0f / gl) : fwd;
     if (g_ff_on && !circle && !in_place && !g_fo_queued && !g_fo_naval && gl > 0.5f) {
         int nr = 0;
         for (int i = 1; i < n; i++) if (vec2_dist2(g_fo[i].p, mean) < vec2_dist2(g_fo[nr].p, mean)) nr = i;
         vec2 leg;
-        if (sr_first_leg(g_fo[nr].u, mean, c, spread + FF_LOOK, &leg)) wf = leg;
+        if (sr_first_leg(g_fo[nr].u, g_fo[nr].p, c, spread + FF_LOOK, &leg)) wf = leg;
     }
     g_fo_way = wf;
     if (g_ff_on && !circle && !in_place && gl > 0.5f && !ff_wheels(spread, vec2_dot(wf, fwd))) {
