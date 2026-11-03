@@ -345,7 +345,9 @@ Settings in `ageofai.ini`:
   posts side by side, walls crossing or meeting three or four in a cluster, and a post stood between a wall and the
   tower or gate it ran into. With `1` a post stands only where a wall ends, turns or branches: a wall runs on
   through, and into a tower or a gate. It is decided when a wall or a gate is built, as the game decides its posts;
-  a destroyed wall's gap stays open. In multiplayer every player needs the same setting.
+  a destroyed wall's gap stays open. Both work in the scenario editor too: there the walls are fitted and joined
+  whenever something is placed (a scenario opened there: at the first thing placed, and when it is played). In
+  multiplayer every player needs the same setting.
 - `[general] big_selection=1` (default): double-clicking a unit (all of its kind on screen) or dragging a box selected
   at most 63 units - with a large army only a part. Now up to about 240, as many as the game's selection message
   can carry; the message keeps its format, so it should stay compatible in multiplayer.

@@ -71,6 +71,7 @@ internal int g_ws_laid_n;
 struct wj_at { int kind, sx, sy; ee_unit *u; };
 internal struct wj_at wj_at(const ee_map *map, int x, int y, const ee_player *pl);
 internal int g_wj_on;
+internal volatile LONG g_ws_editor_due;   // GetTickCount of the scenario editor's last place action, 0 none (below)
 
 // a wall's round post on tile x, y, of pl's - or with wall_joins a tower or a gate of pl's: a piece's end reaches into
 // it. The layout's own pieces from its list - they come onto the map (the unit grid, a tile's objects) only after the
@@ -306,8 +307,8 @@ internal int wj_unfit(const ee_map *map, ee_unit *u) {
     return 1;
 }
 
-// the wall tiles in x0, y0 .. x1, y1 (all < 0: every wall) looked at, then fitted
-internal void wj_area(int x0, int y0, int x1, int y1) {
+// the wall tiles in x0, y0 .. x1, y1 (all < 0: every wall) looked at, then fitted; what: for the log
+internal void wj_area(int x0, int y0, int x1, int y1, const char *what) {
     ee_map *map = game_map();
     if (!map) return;
     int n = 0, all = x0 < 0 && y0 < 0 && x1 < 0 && y1 < 0;
@@ -336,9 +337,9 @@ internal void wj_area(int x0, int y0, int x1, int y1) {
     }
     unsigned fitted = 0;
     for (int i = 0; i < n; i++) fitted += (unsigned)ws_fit(g_wj_units[i]);
-    if (g_log && (all || g_wj_to_piece != piece0 || g_wj_to_post != post0))
+    if (g_log && ((all && !g_ws_editor_due) || g_wj_to_piece != piece0 || g_wj_to_post != post0 || g_wj_gates != gates0))
         fprintf(g_log, "# walls: %s at %.2f min: %u posts made pieces, %u pieces posts, %u gate units upright, %u pieces fitted\n",
-                all ? "the game's start" : "joins", (double)game_time() / 60000.0, g_wj_to_piece - piece0, g_wj_to_post - post0,
+                what, (double)game_time() / 60000.0, g_wj_to_piece - piece0, g_wj_to_post - post0,
                 g_wj_gates - gates0, fitted);
 }
 
@@ -434,16 +435,42 @@ internal void __thiscall hook_step_end(ee_physics *ph) {
     if (!g_ws_on || !game_map()) return;
     if (!g_ws_fitted_game) {
         g_ws_fitted_game = 1;
-        wj_area(-1, -1, -1, -1);
+        wj_area(-1, -1, -1, -1, "the game's start");
     }
     if (!g_wj_ev_n) return;
     uint32_t now = game_time();
     int k = 0;
     for (int i = 0; i < g_wj_ev_n; i++) {
         if (g_wj_ev[i].t == now) { g_wj_ev[k++] = g_wj_ev[i]; continue; }
-        wj_area(g_wj_ev[i].x0, g_wj_ev[i].y0, g_wj_ev[i].x1, g_wj_ev[i].y1);
+        wj_area(g_wj_ev[i].x0, g_wj_ev[i].y0, g_wj_ev[i].x1, g_wj_ev[i].y1, "joins");
     }
     g_wj_ev_n = k;
+}
+
+// THE SCENARIO EDITOR runs no steps (its time stays 0): what its actions note would wait for good, and the walls of a
+// scenario opened there were never fitted. Its place actions (EESEAPlaceWall, EESEAPlaceGate, EESEAPlaceUnit: vf1 -
+// a wall laid by the game's own placing, a gate by build_gate, units, a tower among them) have every wall looked at:
+// an action's new objects come onto the map only after it (a pass right after its own found the click before's), so
+// at the safe points between the simulation loop's passes (test/control.c hook_sim_receive: the editor runs the loop,
+// no steps) for WS_EDITOR_MS after it, every WS_EDITOR_EVERY - a pass is cheap and gives the same twice, and the
+// editor has no other PC to keep in step
+#define WS_EDITOR_MS 600
+#define WS_EDITOR_EVERY 100
+internal void ws_editor_due(void) { if (g_ws_on) g_ws_editor_due = (LONG)(GetTickCount() | 1); }
+internal void __thiscall hook_se_place_wall(ee_se_place_wall *a) { eesea_place_wall_run(a); ws_editor_due(); }
+internal void __thiscall hook_se_place_gate(ee_se_place_gate *a) { eesea_place_gate_run(a); ws_editor_due(); }
+internal void __thiscall hook_se_place_unit(ee_se_place_unit *a) { eesea_place_unit_run(a); ws_editor_due(); }
+internal void walls_safe_point(void) {
+    static DWORD last;
+    LONG due = g_ws_editor_due;
+    if (!due || !game_map()) return;
+    DWORD now = GetTickCount();
+    if (now - (DWORD)due > WS_EDITOR_MS) { g_ws_editor_due = 0; return; }
+    if (now - last < WS_EDITOR_EVERY) return;
+    last = now;
+    g_ws_fitted_game = 1;
+    g_wj_ev_n = 0;
+    wj_area(-1, -1, -1, -1, "the editor's");
 }
 
 internal void walls_new_game(void) {
@@ -458,8 +485,10 @@ internal void walls_install(void) {
     int of = 0, n = g_ws_on ? patch_wall_piece(hook_wall_piece, &of) + patch_wall_joints(hook_wall_joints, &of) : 0;
     int more = g_ws_on ? patch_step_end(hook_step_end) + patch_gate_convert(hook_gate_convert) : 0;
     int pof = 0, pn = g_wj_on ? patch_place_building(hook_place_building, &pof) : 0;
-    if (g_log) fprintf(g_log, "# walls: wall_slopes=%d wall_joins=%d (%s%s%s)\n", g_ws_on, g_wj_on,
+    int ed = g_ws_on ? patch_se_place_wall(hook_se_place_wall) + patch_se_place_gate(hook_se_place_gate) + patch_se_place_unit(hook_se_place_unit) : 0;
+    if (g_log) fprintf(g_log, "# walls: wall_slopes=%d wall_joins=%d (%s%s%s%s)\n", g_ws_on, g_wj_on,
                        !g_ws_on ? "-" : n == of ? "the layout's calls hooked" : n ? "SOME of the layout's calls hooked" : "FAILED",
                        !g_ws_on ? "" : more == 2 ? ", the step's end, the gate's" : ", the step's end or the gate's FAILED",
-                       !g_wj_on ? "" : pn == pof ? ", the buildings' placing" : ", the buildings' placing FAILED");
+                       !g_wj_on ? "" : pn == pof ? ", the buildings' placing" : ", the buildings' placing FAILED",
+                       !g_ws_on ? "" : ed == 3 ? ", the editor's" : ", the editor's FAILED");
 }

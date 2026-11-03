@@ -69,19 +69,37 @@ internal inline void *eesea_paint_area_init(eesea_paint_area *eesea_paint_area, 
 // made in 0x5955FE, 0x59B234
 // EESEAPaint's, the base's
 
-// class EESEAPlaceGate (eesea_place_gate)
+// class EESEAPlaceGate (ee_se_place_gate)
 // its constructor (0 arguments, not typed yet)
-typedef void *(__thiscall *eesea_place_gate_init_fn)(eesea_place_gate *);
-internal eesea_place_gate_init_fn fn_eesea_place_gate_init;
-internal inline void *eesea_place_gate_init(eesea_place_gate *eesea_place_gate) { return fn_eesea_place_gate_init(eesea_place_gate); }
+typedef void *(__thiscall *se_place_gate_init_fn)(ee_se_place_gate *);
+internal se_place_gate_init_fn fn_se_place_gate_init;
+internal inline void *se_place_gate_init(ee_se_place_gate *se_place_gate) { return fn_se_place_gate_init(se_place_gate); }
+// vf1: the gate laid - build_gate (0x6022E3) for each, as the player's gate button does (walls.c: the joins)
+typedef void (__thiscall *se_place_gate_run_fn)(ee_se_place_gate *);
+internal inline void se_place_gate_run(ee_se_place_gate *se_place_gate) { ((se_place_gate_run_fn)(*(void ***)se_place_gate)[slot_se_place_gate_run])(se_place_gate); }
+internal se_place_gate_run_fn fn_eesea_place_gate_run;
+internal inline void eesea_place_gate_run(ee_se_place_gate *se_place_gate) { fn_eesea_place_gate_run(se_place_gate); }
+internal inline int patch_se_place_gate(se_place_gate_run_fn h) { return patch_vtable(vt_eesea_place_gate, (int)slot_se_place_gate_run, (uintptr_t)fn_eesea_place_gate_run, (void *)h); }
 
-// class EESEAPlaceUnit (eesea_place_unit)
+// class EESEAPlaceUnit (ee_se_place_unit)
+// vf1: the units placed, finished (walls.c: the joins beside a tower)
+typedef void (__thiscall *se_place_unit_run_fn)(ee_se_place_unit *);
+internal inline void se_place_unit_run(ee_se_place_unit *se_place_unit) { ((se_place_unit_run_fn)(*(void ***)se_place_unit)[slot_se_place_unit_run])(se_place_unit); }
+internal se_place_unit_run_fn fn_eesea_place_unit_run;
+internal inline void eesea_place_unit_run(ee_se_place_unit *se_place_unit) { fn_eesea_place_unit_run(se_place_unit); }
+internal inline int patch_se_place_unit(se_place_unit_run_fn h) { return patch_vtable(vt_eesea_place_unit, (int)slot_se_place_unit_run, (uintptr_t)fn_eesea_place_unit_run, (void *)h); }
 
-// class EESEAPlaceWall (eesea_place_wall)
+// class EESEAPlaceWall (ee_se_place_wall)
 // its constructor (0 arguments, not typed yet)
-typedef void *(__thiscall *eesea_place_wall_init_fn)(eesea_place_wall *);
-internal eesea_place_wall_init_fn fn_eesea_place_wall_init;
-internal inline void *eesea_place_wall_init(eesea_place_wall *eesea_place_wall) { return fn_eesea_place_wall_init(eesea_place_wall); }
+typedef void *(__thiscall *se_place_wall_init_fn)(ee_se_place_wall *);
+internal se_place_wall_init_fn fn_se_place_wall_init;
+internal inline void *se_place_wall_init(ee_se_place_wall *se_place_wall) { return fn_se_place_wall_init(se_place_wall); }
+// vf1: the wall laid - the game's own placing (0x629DDB: wall_piece, wall_joints), finished (walls.c: the joins)
+typedef void (__thiscall *se_place_wall_run_fn)(ee_se_place_wall *);
+internal inline void se_place_wall_run(ee_se_place_wall *se_place_wall) { ((se_place_wall_run_fn)(*(void ***)se_place_wall)[slot_se_place_wall_run])(se_place_wall); }
+internal se_place_wall_run_fn fn_eesea_place_wall_run;
+internal inline void eesea_place_wall_run(ee_se_place_wall *se_place_wall) { fn_eesea_place_wall_run(se_place_wall); }
+internal inline int patch_se_place_wall(se_place_wall_run_fn h) { return patch_vtable(vt_eesea_place_wall, (int)slot_se_place_wall_run, (uintptr_t)fn_eesea_place_wall_run, (void *)h); }
 
 // class EESEAQuickSaveLoad (eesea_quick_save_load)
 // its constructor (1 argument, not typed yet)
@@ -1409,11 +1427,17 @@ internal int spec_editor_select(int build) {
         size_eesea_paint_terrain = 0x28;
         vt_eesea_place_gate = 0x0082F680;
         size_eesea_place_gate = 0x1C;
-        fn_eesea_place_gate_init = (eesea_place_gate_init_fn)0x0058C8A5;
+        fn_se_place_gate_init = (se_place_gate_init_fn)0x0058C8A5;
+        slot_se_place_gate_run = 1;
+        fn_eesea_place_gate_run = (se_place_gate_run_fn)0x00598E97;
         vt_eesea_place_unit = 0x0082F694;
+        slot_se_place_unit_run = 1;
+        fn_eesea_place_unit_run = (se_place_unit_run_fn)0x005994EF;
         vt_eesea_place_wall = 0x0082F6A8;
         size_eesea_place_wall = 0x1C;
-        fn_eesea_place_wall_init = (eesea_place_wall_init_fn)0x0058C969;
+        fn_se_place_wall_init = (se_place_wall_init_fn)0x0058C969;
+        slot_se_place_wall_run = 1;
+        fn_eesea_place_wall_run = (se_place_wall_run_fn)0x00599F78;
         vt_eesea_quick_save_load = 0x0082F888;
         fn_eesea_quick_save_load_init = (eesea_quick_save_load_init_fn)0x0058ECA2;
         vt_eesea_quick_save_scenario = 0x008306BC;
@@ -1931,11 +1955,17 @@ internal int spec_editor_select(int build) {
         size_eesea_paint_terrain = 0x28;
         vt_eesea_place_gate = 0x00844F18;
         size_eesea_place_gate = 0x1C;
-        fn_eesea_place_gate_init = (eesea_place_gate_init_fn)0x0059BA16;
+        fn_se_place_gate_init = (se_place_gate_init_fn)0x0059BA16;
+        slot_se_place_gate_run = 1;
+        fn_eesea_place_gate_run = (se_place_gate_run_fn)0x005A9112;
         vt_eesea_place_unit = 0x00844F04;
+        slot_se_place_unit_run = 1;
+        fn_eesea_place_unit_run = (se_place_unit_run_fn)0x005A9650;
         vt_eesea_place_wall = 0x00844F2C;
         size_eesea_place_wall = 0x1C;
-        fn_eesea_place_wall_init = (eesea_place_wall_init_fn)0x0059BA78;
+        fn_se_place_wall_init = (se_place_wall_init_fn)0x0059BA78;
+        slot_se_place_wall_run = 1;
+        fn_eesea_place_wall_run = (se_place_wall_run_fn)0x005AA0D1;
         vt_eesea_quick_save_load = 0x0084516C;
         fn_eesea_quick_save_load_init = (eesea_quick_save_load_init_fn)0x0059F0B1;
         vt_eesea_quick_save_scenario = 0x00845FC0;
@@ -2447,10 +2477,16 @@ internal int spec_editor_check(void) {
     bad += spec_vtable(vt_eesea_paint_moutains, ".?AVEESEAPaintMoutains@@", "EESEAPaintMoutains [vtable]");
     bad += spec_vtable(vt_eesea_paint_terrain, ".?AVEESEAPaintTerrain@@", "EESEAPaintTerrain [vtable]");
     bad += spec_vtable(vt_eesea_place_gate, ".?AVEESEAPlaceGate@@", "EESEAPlaceGate [vtable]");
-    bad += spec_code((uintptr_t)fn_eesea_place_gate_init, "EESEAPlaceGate.init");
+    bad += spec_code((uintptr_t)fn_se_place_gate_init, "EESEAPlaceGate.init");
+    bad += spec_code((uintptr_t)fn_eesea_place_gate_run, "EESEAPlaceGate.run");
+    bad += spec_slot(vt_eesea_place_gate, slot_se_place_gate_run, (uintptr_t)fn_eesea_place_gate_run, "EESEAPlaceGate.run [slot]");
     bad += spec_vtable(vt_eesea_place_unit, ".?AVEESEAPlaceUnit@@", "EESEAPlaceUnit [vtable]");
+    bad += spec_code((uintptr_t)fn_eesea_place_unit_run, "EESEAPlaceUnit.run");
+    bad += spec_slot(vt_eesea_place_unit, slot_se_place_unit_run, (uintptr_t)fn_eesea_place_unit_run, "EESEAPlaceUnit.run [slot]");
     bad += spec_vtable(vt_eesea_place_wall, ".?AVEESEAPlaceWall@@", "EESEAPlaceWall [vtable]");
-    bad += spec_code((uintptr_t)fn_eesea_place_wall_init, "EESEAPlaceWall.init");
+    bad += spec_code((uintptr_t)fn_se_place_wall_init, "EESEAPlaceWall.init");
+    bad += spec_code((uintptr_t)fn_eesea_place_wall_run, "EESEAPlaceWall.run");
+    bad += spec_slot(vt_eesea_place_wall, slot_se_place_wall_run, (uintptr_t)fn_eesea_place_wall_run, "EESEAPlaceWall.run [slot]");
     bad += spec_vtable(vt_eesea_quick_save_load, ".?AVEESEAQuickSaveLoad@@", "EESEAQuickSaveLoad [vtable]");
     bad += spec_code((uintptr_t)fn_eesea_quick_save_load_init, "EESEAQuickSaveLoad.init");
     bad += spec_vtable(vt_eesea_quick_save_scenario, ".?AVEESEAQuickSaveScenario@@", "EESEAQuickSaveScenario [vtable]");

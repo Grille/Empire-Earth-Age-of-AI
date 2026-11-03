@@ -1168,8 +1168,12 @@ internal int cursor_over_game(POINT pt) {
 // virtual mouse (headless): position in game coordinates from the control pipe; a click increments the button's
 // transition counter (ISMouse +0x18 + button: odd = down; JustPressed compares it with last frame's copy +0x1C,
 // which Refresh takes just before this hook) - down now, up 3 updates later. The device is never acquired
-// (the window is never in front), so no real input interferes.
+// (the window is never in front), so no real input interferes. A drag (vdrag): down, the cursor carried to its end
+// over VM_DRAG_MS, up VM_HOLD_MS after.
+#define VM_HOLD_MS 150
+#define VM_DRAG_MS 600
 internal volatile LONG g_vm_x = -1, g_vm_y = -1, g_vm_button = -1, g_vm_step, g_vm_clicks;
+internal volatile LONG g_vm_to_x = -1, g_vm_to_y = -1;   // a drag's end, -1 a click
 internal void virtual_mouse(ee_mouse *m, int frozen) {
     if (g_vm_x >= 0 && !frozen) {
         mouse_set_x(m, (float)g_vm_x);
@@ -1181,15 +1185,25 @@ internal void virtual_mouse(ee_mouse *m, int frozen) {
     if (!ms || b < 0 || b > 3) return;
     uint8_t *st = input_mouse_buttons_at(ms) + b;
     static DWORD down_at;
+    static LONG from_x, from_y;
     LONG step = g_vm_step++;
     if (step == 0) {                                // down, held ~150 ms like a real click
         if (!(*st & 1)) (*st)++;
         down_at = GetTickCount();
-    } else if (GetTickCount() - down_at >= 150) {
-        if (*st & 1) (*st)++;                      // up
-        g_vm_button = -1;
-        InterlockedIncrement(&g_vm_clicks);
+        from_x = g_vm_x; from_y = g_vm_y;
+        return;
     }
+    DWORD t = GetTickCount() - down_at;
+    if (g_vm_to_x >= 0) {                           // a drag: carried to its end, then held
+        DWORD f = t < VM_DRAG_MS ? t : VM_DRAG_MS;
+        g_vm_x = from_x + (LONG)((g_vm_to_x - from_x) * (LONG)f / VM_DRAG_MS);
+        g_vm_y = from_y + (LONG)((g_vm_to_y - from_y) * (LONG)f / VM_DRAG_MS);
+        if (t < VM_DRAG_MS + VM_HOLD_MS) return;
+    } else if (t < VM_HOLD_MS) return;
+    if (*st & 1) (*st)++;                          // up
+    g_vm_button = -1;
+    g_vm_to_x = g_vm_to_y = -1;
+    InterlockedIncrement(&g_vm_clicks);
 }
 
 internal void window_mouse_in(ee_mouse *m, int frozen, ee_window *win, HWND hwnd);
@@ -1852,6 +1866,19 @@ internal void cmd_headless(const char *verb, const char *args, char *out) {
             Sleep(30);
         }
         REPLY("ok: posted %d characters\n", n);
+        return;
+    }
+    if (!strcmp(verb, "vdrag")) {   // vdrag x0 y0 x1 y1: left button down at x0, y0, carried to x1, y1, up there
+        int x0, y0, x1, y1;
+        if (sscanf(args, "%d %d %d %d", &x0, &y0, &x1, &y1) < 4 || x0 < 0 || y0 < 0 || x1 < 0 || y1 < 0) { REPLY("usage: vdrag x0 y0 x1 y1\n"); return; }
+        g_vm_x = x0; g_vm_y = y0;
+        Sleep(100);   // a frame at the start first (hover)
+        LONG before = g_vm_clicks;
+        g_vm_to_x = x1; g_vm_to_y = y1;
+        g_vm_step = 0;
+        g_vm_button = 0;
+        for (int i = 0; i < 400 && g_vm_clicks == before; i++) Sleep(10);
+        REPLY(g_vm_clicks != before ? "ok: dragged %d,%d to %d,%d\n" : "error: drag not taken within 4 s (%d,%d to %d,%d)\n", x0, y0, x1, y1);
         return;
     }
     int x = -1, y = -1;

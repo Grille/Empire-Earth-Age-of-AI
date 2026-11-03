@@ -104,25 +104,39 @@ unsafe struct EESEAPaintTerrain
 {
 }
 
-[size((ee)0x1C, (aoc)0x1C), vtable((ee)0x0082F680, (aoc)0x00844F18)]
+[size((ee)0x1C, (aoc)0x1C), vtable((ee)0x0082F680, (aoc)0x00844F18), c_type("ee_se_place_gate")]
 unsafe struct EESEAPlaceGate
 {
     /// its constructor (0 arguments, not typed yet)
     [address((ee)0x0058C8A5, (aoc)0x0059BA16)]
     extern void* init();
+
+    /// vf1: the gate laid - build_gate (0x6022E3) for each, as the player's gate button does (walls.c: the joins)
+    [slot(1), address((ee)0x00598E97, (aoc)0x005A9112)]
+    [vtable_site("se_place_gate")]
+    extern void run();
 }
 
-[vtable((ee)0x0082F694, (aoc)0x00844F04)]
+[vtable((ee)0x0082F694, (aoc)0x00844F04), c_type("ee_se_place_unit")]
 unsafe struct EESEAPlaceUnit
 {
+    /// vf1: the units placed, finished (walls.c: the joins beside a tower)
+    [slot(1), address((ee)0x005994EF, (aoc)0x005A9650)]
+    [vtable_site("se_place_unit")]
+    extern void run();
 }
 
-[size((ee)0x1C, (aoc)0x1C), vtable((ee)0x0082F6A8, (aoc)0x00844F2C)]
+[size((ee)0x1C, (aoc)0x1C), vtable((ee)0x0082F6A8, (aoc)0x00844F2C), c_type("ee_se_place_wall")]
 unsafe struct EESEAPlaceWall
 {
     /// its constructor (0 arguments, not typed yet)
     [address((ee)0x0058C969, (aoc)0x0059BA78)]
     extern void* init();
+
+    /// vf1: the wall laid - the game's own placing (0x629DDB: wall_piece, wall_joints), finished (walls.c: the joins)
+    [slot(1), address((ee)0x00599F78, (aoc)0x005AA0D1)]
+    [vtable_site("se_place_wall")]
+    extern void run();
 }
 
 [vtable((ee)0x0082F888, (aoc)0x0084516C)]

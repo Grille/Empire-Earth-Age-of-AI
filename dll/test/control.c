@@ -477,6 +477,7 @@ internal void script_triggers(uint32_t now);   // scripts.c: the setup scripts' 
 internal void fm_tick(void);            // fleetmove.c: `fmove trace`
 internal void ff_linger_tick(void);     // groupmove.c: units of an arrived formation back to their spots
 internal void build_retry_tick(void);   // buildretry.c: citizens that stopped a tile off a building site sent again
+internal void walls_safe_point(void);   // walls.c: the scenario editor's walls, after its place actions
 internal void units_first_tick(void);   // unitsfirst.c: a unit shooting a building looks for an enemy unit between shots
 internal void answer_fire_tick(void);   // unitsfirst.c: an idle unit shot from beyond its reply range goes for its attacker
 internal void spoils_tick(void);        // spoils.c: a resigned player's buildings and units
@@ -486,6 +487,7 @@ internal long __thiscall hook_sim_receive(void *thread, void *a, void *b, void *
     aim_tick();
     ff_linger_tick();
     build_retry_tick();
+    walls_safe_point();
     units_first_tick();
     answer_fire_tick();
     spoils_tick();
@@ -781,7 +783,7 @@ internal DWORD WINAPI pipe_thread(LPVOID unused) {
             } else if (!strcmp(verb, "profile")) {
                 char *out = reply;
                 cmd_profile(cmd + n, out);
-            } else if (!strcmp(verb, "vmouse") || !strcmp(verb, "vclick") || !strcmp(verb, "wclick") || !strcmp(verb, "wtype") || !strcmp(verb, "shot") || !strcmp(verb, "mapshot")) {
+            } else if (!strcmp(verb, "vmouse") || !strcmp(verb, "vclick") || !strcmp(verb, "vdrag") || !strcmp(verb, "wclick") || !strcmp(verb, "wtype") || !strcmp(verb, "shot") || !strcmp(verb, "mapshot")) {
                 char *out = reply;
                 cmd_headless(verb, cmd + n, out);
             } else if (!strcmp(verb, "uipost")) {

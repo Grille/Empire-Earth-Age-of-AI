@@ -1,18 +1,21 @@
 #!/bin/sh
 # Start the game headless (off-screen window, virtual mouse, muted) and open the scenario editor.
-# usage: sh scripts/test/editor_headless.sh [editor_resolution]      e.g. game | aoc | 1920x1080
+# usage: [SLOT=n] sh scripts/test/editor_headless.sh [editor_resolution]      e.g. game | aoc | 1920x1080
+#   SLOT=n: in test slot n, beside the player's game (eectl.py and run_test.ps1 take SLOT from the environment)
+#   EXTRA=k=v,...: more test ini keys (wall_slopes=1,wall_joins=1)
 # Then drive it with: eectl.py vmouse/vclick/wclick/shot (see docs/testing.md). Quit with: eectl.py quit
 cd "$(dirname "$0")/../.." || exit 1
 REPO="$(pwd)"; . scripts/game_dir.sh   # GAME: its log is in the game folder's ageofai\ (slot 0)
 res=${1:-game}
 py=local/venv/Scripts/python
-if tasklist | grep -qi "empire earth"; then echo "a game is running - close it first"; exit 1; fi
+if [ -z "$SLOT" ] && tasklist | grep -qi "empire earth"; then echo "a game is running - close it first (or SLOT=n)"; exit 1; fi
 (powershell -ExecutionPolicy Bypass -File scripts/test/run_test.ps1 -Save nosuch.ees -TimeoutSec 3600 -Tag _editor \
-    -IniExtra "headless=1,editor_resolution=$res" > local/work/editor_headless.txt 2>&1 &)
+    -IniExtra "headless=1,editor_resolution=$res${EXTRA:+,$EXTRA}" > local/work/editor_headless.txt 2>&1 &)
 # main menu: wait until the control pipe answers and a frame can be taken
 for i in $(seq 1 60); do sleep 2; $py scripts/test/eectl.py shot menu >/dev/null 2>&1 && break; done
 sleep 3
 log="$GAME/ageofai/ageofai_log.csv"
+[ -n "$SLOT" ] && log="local/work/slot$SLOT/ageofai_log.csv"
 if [ "$res" = "ee" ]; then   # original editor: the mod hooks nothing, so no log line - click once, check by shot
     $py scripts/test/eectl.py vmouse 500 460 >/dev/null; sleep 1
     $py scripts/test/eectl.py vclick 512 472 >/dev/null; sleep 4
