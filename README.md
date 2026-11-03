@@ -341,8 +341,10 @@ Settings in `ageofai.ini`:
   pieces do) and stands a little into the ground, the round posts on the lowest corner of their tile - the wall
   follows the hill in one line. Each piece also spans its tile exactly and reaches into a round post beside it: the
   game's pieces are longer than their spacing, so neighbours overlapped, their faces flickered, and on a slope their
-  ends stuck out at every bend. Walls built before are fitted when a game is loaded; a gate laid into a fitted wall
-  keeps its own shape. In multiplayer every player needs the same setting. `0` = the original.
+  ends stuck out at every bend (the Copper Age wall and barbed wire keep their own length: the copper wall's stone is
+  as long as the spacing, only its top reaches beyond, and the wire's coils are made to overlap). Walls built before
+  are fitted when a game is loaded; a gate laid into a fitted wall keeps its own shape. In multiplayer every player
+  needs the same setting. `0` = the original.
 - `[patches] wall_joins=1` (default; only with `wall_slopes=1`): the game put a round post at the end of every
   stretch of wall it laid, where the ground stepped, and beside every joint - a wall drawn on from another had two
   posts side by side, walls crossing or meeting three or four in a cluster, and a post stood between a wall and the

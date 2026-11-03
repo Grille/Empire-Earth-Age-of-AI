@@ -20,6 +20,7 @@
     X(B_GUARD_TOWER_DIGITAL, "b_guard_tower_digital") X(B_TANK_OBSTACLE, "b_tank_obstacle") \
     X(B_WALL_COPPER, "b_wall_copper") X(B_WALL_BRONZE, "b_wall_bronze") X(B_WALL_MIDDLE, "b_wall_middle") \
     X(B_WALL_IMPERIAL, "b_wall_imperial") X(B_WALL_WW1, "b_wall_ww1") X(B_WALL_DIGITAL, "b_wall_digital") \
+    X(B_BARBED_WIRE, "b_barbed_wire") \
     X(B_GATE_COPPER, "b_gate_copper") X(B_GATE_BRONZE, "b_gate_bronze") X(B_GATE_MIDDLE, "b_gate_middle") \
     X(B_GATE_IMPERIAL, "b_gate_imperial") X(B_GATE_WW1, "b_gate_ww1") X(B_GATE_DIGITAL, "b_gate_digital") \
     X(B_AA10_GUN_88MM, "b_aa10_gun_88mm") X(B_AA13_MISSILE_TOWER, "b_aa13_missile_tower") \

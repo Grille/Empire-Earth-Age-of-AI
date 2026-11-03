@@ -145,6 +145,14 @@ internal int ws_fit(ee_unit *u) {
     ee_box *box = mdl && model_get_frames(mdl) ? model_get_boxes(mdl) : NULL;
     float ylo = box ? box_get_min(box).y : -d, yhi = box ? box_get_max(box).y : d;
     if (yhi - ylo < 0.1f) { ylo = -d; yhi = d; g_ws_no_model++; }
+    // drawn at their own length (only into a post longer): the Copper Age wall's stone is the span, its boards and flags
+    // on top reach beyond it - shrunk to the span a seam opened at every join (the player, 2026-11-03: "the straight
+    // copper age wall has a tiny gap"; its mesh 1.064, the others' 1.000 .. 1.044) - and barbed wire's coils are made
+    // to overlap ("barbed wire is a bit of an edge case, it should not be shortened")
+    else if (UT_IN(unit_type_get_id(unit_get_type_data(u)), UT_B_WALL_COPPER, UT_B_BARBED_WIRE)) {
+        float mid = (ylo + yhi) * 0.5f;
+        ylo = mid - d; yhi = mid + d;
+    }
     int sx = fx > 0.3f ? 1 : fx < -0.3f ? -1 : 0, sy = fy > 0.3f ? 1 : fy < -0.3f ? -1 : 0;
     ee_player *pl = unit_get_owner(u);
     float ea = ws_post_at(map, tx - sx, ty - sy, pl) ? WS_INTO_POST : 0, eb = ws_post_at(map, tx + sx, ty + sy, pl) ? WS_INTO_POST : 0;
