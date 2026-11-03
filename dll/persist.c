@@ -5,7 +5,8 @@
 // this file: opinions and grudges, alliance times, who capitulated to whom, pending offers and promised tribute, the
 // "already said" flags of the situations, the army accounts of the budget, the language model's memories (what it
 // and you, and the AIs among themselves, said - block llm_memory), who killed which types of whose and when (kill_log),
-// what each AI's personality remembers (its fields, let at a file's top - persona_state, matched by name on load).
+// what each AI's personality remembers (its fields, let at a file's top - persona_state, matched by name on load), the
+// mod's armies (who is in the force, whether it is out - the game saves only the members' ai_held).
 //
 // Every save goes through 0x540ACA cdecl(UString *file, int, int, UString folder by value) -> 0 on success
 // (save dialog EEASaveGame::vf1, autosave, quicksave, the network save message: 4 call sites, all redirected). After a
@@ -28,6 +29,7 @@ internal const struct { const char *tag; void *p; size_t n; } k_blocks[] = {
     B(g_kills), B(g_kills_min), B(g_kills_min_t), B(g_attack_sent), B(g_hist), B(g_offer_vs), B(g_hlog), B(g_hum),
     B(g_nv_acc),   // navy.c: the navy account (the map kind is found again)
     B(g_intel),   // intel.c: what each AI remembers (honest_vision) - unit pointers dropped on load, buildings matched again
+    B(g_armies),  // armies.c: the force - its members and whether it is out (the game saves only their ai_held); pointers found again by id
 #undef B
 };
 internal uint8_t *llm_mem_save(uint32_t *size);              // llm.c: the language model's memories (variable size)
@@ -187,6 +189,7 @@ internal void persist_load(const char *name) {
     fclose(f);
     if (broken && g_log) fprintf(g_log, "# persist: %s ends in a broken block - the rest left out\n", side);
     intel_loaded();
+    armies_loaded();
     if (g_log) fprintf(g_log, "# persist: state of %s restored (saved at %.1f min): %d blocks, %d skipped\n", name,
                        h.game_time / 60000.0, got, skipped);
 }

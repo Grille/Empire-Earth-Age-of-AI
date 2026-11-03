@@ -90,7 +90,7 @@ internal void stage_tick(ee_player *pl, uint32_t now);   // stage.c: the army's 
 internal void stage_new_game(void);
 internal void stage_install(const char *autotest_ini);
 internal void armies_tick(ee_player *pl, uint32_t now);   // armies.c: the mod's armies in the commander's place
-internal void armies_new_game(void);
+internal void armies_new_game(int from_save);
 internal void armies_install(const char *autotest_ini);
 internal void spoils_new_game(void);   // spoils.c: a resigned player's buildings and units
 internal void spoils_install(void);
@@ -346,7 +346,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
     mass_new_game();
     cover_new_game();
     stage_new_game();
-    armies_new_game();
+    armies_new_game(mode == 2);
     spoils_new_game();
     expand_new_game();
     tw_new_game();

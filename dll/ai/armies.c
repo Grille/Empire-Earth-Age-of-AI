@@ -116,7 +116,13 @@
 // against the commander's 10.3 (-6.8, se 2.1) - the wave went home once its one building fell. The game's
 // attack-on-a-player form (a task with the target player only, strategy kind 0) is refused by attack_plan_ok (it
 // wants a target unit or a location); the game's own launch doesn't ask it.
-// "# armies:" once a game minute (autotest) and at every order to the force.
+// A SAVED GAME (the player's save "attack", 2026-11-03: of P3's 252 soldiers the force knew 103 after the load, 102
+// stood idle in its base for good): the game saves its units' ai_held, the mod's force was not saved - so every
+// soldier held at the save was nobody's after a load (the commander skips the held, the force took only the free) and
+// a push under way was forgotten. Now g_armies goes into the save (persist.c; its unit pointers are of the old session:
+// found again by id at the player's first tick), and a load without it (a save of before, a block of another layout)
+// takes the held land soldiers into the force as they are.
+// "# armies:" once a game minute (autotest) and at every order to the force (every game: why a push turned home).
 #define AR_TICK 2000
 #define AR_MIN_LAUNCH 8            // soldiers a push needs at least (the outdated sortie's)
 #define AR_MIN_RAID 3
@@ -213,7 +219,7 @@ internal int armies_refuses_offer(ee_attack_cmd *cmd, ee_unit *u) {
     return 1;
 }
 __attribute__((format(printf, 3, 4))) internal void ar_log(unsigned idx, uint32_t now, const char *fmt, ...) {
-    if (!g_log || !g_autotest) return;
+    if (!g_log) return;
     va_list ap;
     va_start(ap, fmt);
     EnterCriticalSection(&g_lock);
@@ -679,10 +685,33 @@ internal void ar_at_home(ee_player *pl, unsigned idx, struct armies_st *a, uint3
         ar_go(pl, idx, a, 1, d, t, 0, now);
     }
 }
+internal int g_ar_load;          // the game came from a save: 1 without the force, 2 with it (pointers to find again)
+internal unsigned g_ar_loaded;   // players whose first tick after the load has run
+internal void ar_found_again(struct armies_st *a) {
+    int m = 0;
+    for (int k = 0; k < a->n; k++) if ((a->held[k].u = unit_by_id((unsigned)a->held[k].id))) a->held[m++] = a->held[k];
+    a->n = m;
+    a->target = a->target_id ? unit_by_id((unsigned)a->target_id) : NULL;
+}
+internal void ar_adopt(ee_player *pl, unsigned idx, struct armies_st *a, uint32_t now) {
+    if (!ar_on(pl, idx)) return;
+    int n = 0;
+    for (struct grid_it it = grid_it_all(1); grid_it_next(&it) && a->n < AR_HELD; ) {
+        ee_unit *u = it.u;
+        if (unit_get_owner(u) != pl || !ms_land_soldier(u, it.td) || !unit_get_ai_held(u) || ar_held(a, u) || landing_has_unit(pl, u)) continue;
+        a->held[a->n].u = u; a->held[a->n].id = unit_get_id(u); a->held[a->n].order_t = 0; a->held[a->n].out = 0; a->held[a->n].back = 0; a->held[a->n].pick = 0; a->n++;
+        a->held_all++; n++;
+    }
+    ar_log(idx, now, "a save without the force: %d held soldiers taken into it", n);
+}
 internal void armies_tick(ee_player *pl, uint32_t now) {
     unsigned idx = pl ? (unsigned)player_get_index(pl) & 15 : 0;
     struct armies_st *a = &g_armies[idx];
     if (now < a->t) memset(a, 0, sizeof *a);   // a new game
+    if (g_ar_load && !(g_ar_loaded & (1u << idx))) {   // the first tick after a load: the force found again, or the held taken in
+        g_ar_loaded |= 1u << idx;
+        if (g_ar_load == 2) ar_found_again(a); else ar_adopt(pl, idx, a, now);
+    }
     if (!ar_on(pl, idx) || (a->t && now - a->t < AR_TICK)) return;
     a->t = now ? now : 1;
     ee_combat_mgr *cm = player_get_combat_mgr(pl);
@@ -720,7 +749,18 @@ internal void armies_tick(ee_player *pl, uint32_t now) {
                a->ratio > 99.0f ? 99.0f : a->ratio, a->pushes, a->presses, a->legs, a->raids, a->backs, a->waits, a->orders, a->refused, a->forted, a->way_lost, a->way_n, a->way_hp_lost, a->way_hp, a->stands, a->group_moves, a->approaches, a->gathers, player_get_next_attack(pl) / 60000.0);
     }
 }
-internal void armies_new_game(void) { memset(g_armies, 0, sizeof g_armies); }
+internal void armies_new_game(int from_save) { memset(g_armies, 0, sizeof g_armies); g_ar_load = from_save; g_ar_loaded = 0; }
+// persist.c, after a save's blocks were read: the force came with it - its pointers wait for the first tick
+internal void armies_loaded(void) {
+    int any = 0;
+    for (int p = 0; p < 16; p++) any |= g_armies[p].n || g_armies[p].t;
+    if (!any) return;
+    g_ar_load = 2;
+    for (int p = 0; p < 16; p++) {
+        for (int k = 0; k < g_armies[p].n; k++) g_armies[p].held[k].u = NULL;
+        g_armies[p].target = NULL;
+    }
+}
 internal void armies_install(const char *autotest_ini) {
     g_mod_armies = g_set_ai[1].mod_armies;
     if (autotest_ini) {
