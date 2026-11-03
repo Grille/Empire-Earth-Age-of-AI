@@ -1,0 +1,16 @@
+// wall_slopes (docs/testing.md): walls over a slope through the game's own layout - the same game with wall_slopes=0
+// and 1, side by side: random_map=Highlands,ai_count=2,seed=7,start_epoch=5,game_seed=1,wall_slopes=0|1
+// P2's wall along y 76 over a fall of 1.7 -> 0.5 (x 66..72), P3's along the rise at y 58; at 12 min P2's diagonal
+// one across the first (the post where they cross - one order at a time, so after the first is up). Paused at 12
+// and 32 min: camera 69 79 / 68 80, then shot.
+
+wait_until(1min)
+give(2, 3000, resource.all)
+give(3, 3000, resource.all)
+wall(2, 469, 62, 76, 75, 76)
+wall(3, 469, 48, 58, 62, 58)
+wait_until(12min)
+pause()
+wall(2, 469, 62, 70, 72, 80)
+wait_until(32min)
+pause()

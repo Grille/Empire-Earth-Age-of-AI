@@ -17,6 +17,22 @@ internal inline uint16_t *viewrow_count_at(const void *row, unsigned x) {
     unsigned i = x - FIELD(row, of_view_row_start, unsigned);
     return i < FIELD(row, of_view_row_len, unsigned) ? (uint16_t *)(FIELD(row, of_view_row_data, uint8_t *) + i * 4) : NULL;
 }
+// the ground's height at corner x, y (tiles; a tile's corners are x, y .. x + 1, y + 1), NAN off the map: a row of
+// {first x, length, corners} per corner y, 0xC a corner - the map's diamond, short rows at its top and bottom
+internal inline float ground_corner(const ee_map *map, int x, int y) {
+    if (y < 0 || (unsigned)y > map_get_size(map)) return NAN;
+    const ee_corner_row *row = (const ee_corner_row *)((uint8_t *)map_get_corner_rows(map) + y * 0xC);
+    unsigned i = (unsigned)(x - (int)corner_row_get_start(row));
+    return i < corner_row_get_len(row) ? corner_get_height((const ee_corner *)((uint8_t *)corner_row_get_corners(row) + i * 0xC)) : NAN;
+}
+// the ground's height at a point (tiles), from its tile's four corners - exact on a tile's edges and corners, where a
+// wall piece's ends lie; NAN off the map
+internal inline float ground_at(const ee_map *map, float x, float y) {
+    int ix = (int)floorf(x), iy = (int)floorf(y);
+    float fx = x - (float)ix, fy = y - (float)iy;
+    float a = ground_corner(map, ix, iy), b = ground_corner(map, ix + 1, iy), c = ground_corner(map, ix, iy + 1), d = ground_corner(map, ix + 1, iy + 1);
+    return (a * (1 - fx) + b * fx) * (1 - fy) + (c * (1 - fx) + d * fx) * fy;
+}
 // the map's diamond: a tile with x + y = edge_sum or edge_sum_2, or y - x or x - y = edge_diff, is on its edge (no
 // unit enters it - the path search's tile test)
 // the unit grid (map +0x181724, unit_grid()): cells of cs tiles, nx x ny of them; a cell's units begin .. end

@@ -29,6 +29,11 @@ internal inline ee_unit ***grid_cell_units_begin_at(const ee_grid_cell *o) { ret
 
 // class EEMap (ee_map)
 // the map, [game.map] (EEMap)
+// the ground's corners: a row per corner y (0 .. size), 0xC each - 0x517C10 reads a tile's four, x, x + 1 of rows
+// y and y + 1; the wall's layout (0x636CDC) its slopes
+internal inline ee_corner_row *map_get_corner_rows(const ee_map *o) { return *(ee_corner_row **)((uint8_t *)o + of_map_corner_rows); }
+internal inline void map_set_corner_rows(ee_map *o, ee_corner_row *v) { *(ee_corner_row **)((uint8_t *)o + of_map_corner_rows) = v; }
+internal inline ee_corner_row **map_corner_rows_at(const ee_map *o) { return (ee_corner_row **)((uint8_t *)o + of_map_corner_rows); }
 // port_fields EEMap (x6): a row of VIEWROW per y, 0xC each
 internal inline void *map_get_view_rows(const ee_map *o) { return *(void **)((uint8_t *)o + of_map_view_rows); }
 internal inline void map_set_view_rows(ee_map *o, void *v) { *(void **)((uint8_t *)o + of_map_view_rows) = v; }
@@ -119,6 +124,28 @@ internal inline int8_t tile_get_sea_class(const ee_tile *o) { return *(int8_t *)
 internal inline void tile_set_sea_class(ee_tile *o, int8_t v) { *(int8_t *)((uint8_t *)o + of_tile_sea_class) = v; }
 internal inline int8_t *tile_sea_class_at(const ee_tile *o) { return (int8_t *)((uint8_t *)o + of_tile_sea_class); }
 
+// class ee_corner_row (ee_corner_row)
+// a row of the ground's corners (EEMap.corner_rows): {first x, length, the corners}
+// 0x517C10: the row's first x (a corner x reads corners + (x - start) x 0xC)
+internal inline uint32_t corner_row_get_start(const ee_corner_row *o) { return *(uint32_t *)((uint8_t *)o + of_corner_row_start); }
+internal inline void corner_row_set_start(ee_corner_row *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_corner_row_start) = v; }
+internal inline uint32_t *corner_row_start_at(const ee_corner_row *o) { return (uint32_t *)((uint8_t *)o + of_corner_row_start); }
+// the corners in the row (the map's diamond: few at its top and bottom)
+internal inline uint32_t corner_row_get_len(const ee_corner_row *o) { return *(uint32_t *)((uint8_t *)o + of_corner_row_len); }
+internal inline void corner_row_set_len(ee_corner_row *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_corner_row_len) = v; }
+internal inline uint32_t *corner_row_len_at(const ee_corner_row *o) { return (uint32_t *)((uint8_t *)o + of_corner_row_len); }
+// 0xC a corner, its height at +0 (tiles; land about 0.4 on Highlands, its hills up to 2.8)
+internal inline ee_corner *corner_row_get_corners(const ee_corner_row *o) { return *(ee_corner **)((uint8_t *)o + of_corner_row_corners); }
+internal inline void corner_row_set_corners(ee_corner_row *o, ee_corner *v) { *(ee_corner **)((uint8_t *)o + of_corner_row_corners) = v; }
+internal inline ee_corner **corner_row_corners_at(const ee_corner_row *o) { return (ee_corner **)((uint8_t *)o + of_corner_row_corners); }
+
+// class ee_corner (ee_corner)
+// a corner of the ground (ee_corner_row.corners)
+// its height (tiles): 0x517C10, a building's z (the wall pieces stand at their tile's corner x, y)
+internal inline float corner_get_height(const ee_corner *o) { return *(float *)((uint8_t *)o + of_corner_height); }
+internal inline void corner_set_height(ee_corner *o, float v) { *(float *)((uint8_t *)o + of_corner_height) = v; }
+internal inline float *corner_height_at(const ee_corner *o) { return (float *)((uint8_t *)o + of_corner_height); }
+
 // class ee_view_row (void)
 // a row of the map's per-tile view table (MAP_VIEW_ROWS): {first x, length, data}
 // 0x55BC4E (AoC: the same code): the row's first x
@@ -188,6 +215,7 @@ internal int spec_map_select(int build) {
         of_grid_nx = 0x10;
         of_grid_ny = 0x14;
         of_grid_cell_units_begin = 0x4;
+        of_map_corner_rows = 0x17B594;
         of_map_view_rows = 0x17B598;
         of_map_tiles = 0x1816D4;
         of_map_edge_sum = 0x1816EC;
@@ -207,6 +235,11 @@ internal int spec_map_select(int build) {
         of_tile_sight = 0xC;
         of_tile_height = 0x10;
         of_tile_sea_class = 0x14;
+        of_corner_row_start = 0x0;
+        of_corner_row_len = 0x4;
+        of_corner_row_corners = 0x8;
+        size_ee_corner = 0xC;
+        of_corner_height = 0x0;
         of_view_row_start = 0x0;
         of_view_row_len = 0x4;
         of_view_row_data = 0x8;
@@ -229,6 +262,7 @@ internal int spec_map_select(int build) {
         of_grid_nx = 0x10;
         of_grid_ny = 0x14;
         of_grid_cell_units_begin = 0x4;
+        of_map_corner_rows = 0x18F498;
         of_map_view_rows = 0x18F49C;
         of_map_tiles = 0x1955F0;
         of_map_edge_sum = 0x195608;
@@ -248,6 +282,11 @@ internal int spec_map_select(int build) {
         of_tile_sight = 0xC;
         of_tile_height = 0x10;
         of_tile_sea_class = 0x14;
+        of_corner_row_start = 0x0;
+        of_corner_row_len = 0x4;
+        of_corner_row_corners = 0x8;
+        size_ee_corner = 0xC;
+        of_corner_height = 0x0;
         of_view_row_start = 0x0;
         of_view_row_len = 0x4;
         of_view_row_data = 0x8;

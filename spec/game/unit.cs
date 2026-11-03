@@ -587,6 +587,11 @@ unsafe struct EEComplexUnit
     /// message through the server
     [address((ee)0x005EFF65, (aoc)0x005FE230)]
     extern void set_built(char8 done, char8 p3, char8 p4);
+    /// its animation (anim) from frame (-1: the animation's first, its type's +0x350[anim]) and, unless it moves
+    /// (+0x345), the model with it (the type's +0x234[anim]: a wall piece's straight, diagonal, sloped piece or post);
+    /// flag kept at +0x337, 0 plays the animation's start sound
+    [address((ee)0x005EFD6D, (aoc)0x005FE02A)]
+    extern void start_anim(int32 anim, int32 frame, char8 flag);
     /// the goal as its order (append: after the ones it has)
     [address((ee)0x005F05BD, (aoc)0x005FE863)]
     [call_site("repair_goal", (ee)0x0046DA88, (aoc)0x004706DF)]         // the game's repair orders, handed over
@@ -692,6 +697,18 @@ static unsafe class unit
     static extern int32 attack_anim(EEUnit* u);
 }
 
+/// a vector of units the game's code hands on (a wall's new pieces: unit_functions.wall_joints) - the runtime
+/// library's: its units from begin to end, 4 bytes each
+unsafe struct ee_unit_vec
+{
+    /// 0x62E73B: its first (the count (end - begin) >> 2)
+    [offset(0x4), found(c)]
+    EEUnit** begin;
+
+    [offset(0x8), found(c)]
+    EEUnit** end;
+}
+
 /// a unit's script state, its +0x1E8 (EEUnitAction: a state of its .tai, engine-notes.md "Unit AI scripts"; its RTTI
 /// in a running game, every unit's)
 [c_type("ee_ai_state")]
@@ -760,6 +777,27 @@ static unsafe class unit_functions
     /// (unit_give)
     [address((ee)0x0062F192, (aoc)0x00644E95), cdecl]
     static extern int32 unit_convert(EEUnit* u, int32 pi, EEUnitClass* new_td);
+
+    /// cdecl(piece, layout code, raised corners): a wall piece's model and turn by its place in the wall (0x63842B:
+    /// codes 1-2 straight, anim 9, along y or x; 3-4 diagonal, 10; 5-8 the straight piece with a slope built in, 6, its
+    /// uphill side by the turn; 9-12 the diagonal one, 3; else the round post, 11), then its matrix (0x5F043B). The
+    /// layout (0x636CDC) picks a sloped piece only where the ground between two tiles rises 0.4 or more - which fits its
+    /// mesh's one slope (0.42 over its length) and little ground; raised corners (0x517C10: how many of the tile's
+    /// corners stand 0.4 above its lowest) goes unread. The wall's placing (0x629DDB: a new piece, a piece joined anew)
+    /// and the editor's (0x66CB35, finished pieces) call it; the drag's preview has its own (0x6383E9)
+    [address((ee)0x00638628, (aoc)0x0064E647), cdecl]
+    [call_site("wall_piece", (ee)0x00629F9C, (aoc)0x0063ED73)]
+    [call_site("wall_piece", (ee)0x0062A0F9, (aoc)0x0063EF01)]
+    [call_site("wall_piece", (ee)0x0066CBF6, (aoc)0x00685CF3)]
+    static extern void wall_piece(EEUnit* u, int32 code, int32 raised);
+
+    /// cdecl(pieces, the layout's tiles, player, map): after a wall's layout (0x629DDB, the editor's 0x66CB35) each of its
+    /// pieces with more than two of the player's built walls-family objects within a tile becomes a post (anim 11),
+    /// turned back to yaw 0, its matrix made anew from its own (0x5F043B) - where walls meet or cross
+    [address((ee)0x0062E73B, (aoc)0x00643AE1), cdecl]
+    [call_site("wall_joints", (ee)0x0062A159, (aoc)0x0063EF61)]
+    [call_site("wall_joints", (ee)0x0066CC55, (aoc)0x00685D52)]
+    static extern void wall_joints(ee_unit_vec* pieces, void* tiles, EEPlayer* pl, EEMap* map);
 
     /// cdecl(unit, other)
     [address((ee)0x0062D5A4, (aoc)0x00642489), cdecl]

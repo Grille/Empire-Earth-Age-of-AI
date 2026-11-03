@@ -29,6 +29,11 @@ unsafe struct ee_grid_cell
 /// the map, [game.map] (EEMap)
 unsafe struct EEMap
 {
+    /// the ground's corners: a row per corner y (0 .. size), 0xC each - 0x517C10 reads a tile's four, x, x + 1 of rows
+    /// y and y + 1; the wall's layout (0x636CDC) its slopes
+    [offset((ee)0x17B594, (aoc)0x18F498), found(h, "0x517C10 and its pair AoC 0x5222ED read it in the same instruction")]
+    ee_corner_row* corner_rows;
+
     /// port_fields EEMap (x6): a row of VIEWROW per y, 0xC each
     [offset((ee)0x17B598, (aoc)0x18F49C), found(c)]
     void* view_rows;
@@ -122,6 +127,31 @@ unsafe struct ee_tile
     /// EEPMNaval::vf21's step test (0x550300 / AoC the same read): a signed byte against UNIT_SEA_MODE
     [offset(0x14), found(c)]
     int8 sea_class;
+}
+
+/// a row of the ground's corners (EEMap.corner_rows): {first x, length, the corners}
+unsafe struct ee_corner_row
+{
+    /// 0x517C10: the row's first x (a corner x reads corners + (x - start) x 0xC)
+    [offset(0x0), found(c)]
+    uint32 start;
+
+    /// the corners in the row (the map's diamond: few at its top and bottom)
+    [offset(0x4), found(c)]
+    uint32 len;
+
+    /// 0xC a corner, its height at +0 (tiles; land about 0.4 on Highlands, its hills up to 2.8)
+    [offset(0x8), found(c)]
+    ee_corner* corners;
+}
+
+/// a corner of the ground (ee_corner_row.corners)
+[size(0xC)]
+unsafe struct ee_corner
+{
+    /// its height (tiles): 0x517C10, a building's z (the wall pieces stand at their tile's corner x, y)
+    [offset(0x0), found(c)]
+    float32 height;
 }
 
 /// a row of the map's per-tile view table (MAP_VIEW_ROWS): {first x, length, data}

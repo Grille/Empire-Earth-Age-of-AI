@@ -51,6 +51,7 @@ internal void shipturns_new_game(void);   // engine/shiproute.c
 internal void collide_new_game(void);      // engine/collide.c
 internal void groupmove_new_game(void);    // engine/groupmove.c
 internal void build_retry_new_game(void);  // engine/buildretry.c
+internal void walls_new_game(void);        // engine/walls.c
 internal void units_first_new_game(void);  // engine/unitsfirst.c
 internal void danger_new_game(void);       // game/danger.c
 internal void persist_load(const char *name);
@@ -330,6 +331,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
     collide_new_game();
     groupmove_new_game();
     build_retry_new_game();
+    walls_new_game();
     units_first_new_game();
     danger_new_game();
     landing_new_game();
@@ -424,6 +426,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
 #include "engine/asg_queue.c"
 #include "engine/offmap.c"
 #include "engine/reload.c"
+#include "engine/walls.c"
 #include "voice/llm.c"
 #include "test/testcmd.c"
 #include "test/testopp.c"
@@ -644,6 +647,7 @@ internal void install(HMODULE self) {
     asg_queue_install();
     offmap_install();
     reload_install();
+    walls_install();
     llm_install();
     ctl_start(g_autotest || g_set.control_pipe);
     if (g_autotest && g_auto.game_seed) {

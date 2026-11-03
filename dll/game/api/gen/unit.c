@@ -570,6 +570,12 @@ internal inline int patch_unload_retry_give(unit_give_goal_fn h) { return patch_
 typedef void (__thiscall *unit_set_built_fn)(ee_unit *, char, char, char);
 internal unit_set_built_fn fn_unit_set_built;
 internal inline void unit_set_built(ee_unit *unit, char done, char p3, char p4) { fn_unit_set_built(unit, done, p3, p4); }
+// its animation (anim) from frame (-1: the animation's first, its type's +0x350[anim]) and, unless it moves
+// (+0x345), the model with it (the type's +0x234[anim]: a wall piece's straight, diagonal, sloped piece or post);
+// flag kept at +0x337, 0 plays the animation's start sound
+typedef void (__thiscall *unit_start_anim_fn)(ee_unit *, int, int, char);
+internal unit_start_anim_fn fn_unit_start_anim;
+internal inline void unit_start_anim(ee_unit *unit, int anim, int frame, char flag) { fn_unit_start_anim(unit, anim, frame, flag); }
 // the goal as its order (append: after the ones it has)
 typedef void (__thiscall *unit_assign_goal_fn)(ee_unit *, ee_goal *, int8_t, int);
 internal unit_assign_goal_fn fn_unit_assign_goal;
@@ -655,6 +661,17 @@ typedef int (__cdecl *unit_attack_anim_fn)(ee_unit *);
 internal unit_attack_anim_fn fn_unit_attack_anim;
 internal inline int unit_attack_anim(ee_unit *u) { return fn_unit_attack_anim(u); }
 
+// class ee_unit_vec (ee_unit_vec)
+// a vector of units the game's code hands on (a wall's new pieces: unit_functions.wall_joints) - the runtime
+// library's: its units from begin to end, 4 bytes each
+// 0x62E73B: its first (the count (end - begin) >> 2)
+internal inline ee_unit **unit_vec_get_begin(const ee_unit_vec *o) { return *(ee_unit ***)((uint8_t *)o + of_unit_vec_begin); }
+internal inline void unit_vec_set_begin(ee_unit_vec *o, ee_unit **v) { *(ee_unit ***)((uint8_t *)o + of_unit_vec_begin) = v; }
+internal inline ee_unit ***unit_vec_begin_at(const ee_unit_vec *o) { return (ee_unit ***)((uint8_t *)o + of_unit_vec_begin); }
+internal inline ee_unit **unit_vec_get_end(const ee_unit_vec *o) { return *(ee_unit ***)((uint8_t *)o + of_unit_vec_end); }
+internal inline void unit_vec_set_end(ee_unit_vec *o, ee_unit **v) { *(ee_unit ***)((uint8_t *)o + of_unit_vec_end) = v; }
+internal inline ee_unit ***unit_vec_end_at(const ee_unit_vec *o) { return (ee_unit ***)((uint8_t *)o + of_unit_vec_end); }
+
 // class EEUnitAction (ee_ai_state)
 // a unit's script state, its +0x1E8 (EEUnitAction: a state of its .tai, engine-notes.md "Unit AI scripts"; its RTTI
 // in a running game, every unit's)
@@ -713,6 +730,24 @@ internal inline char ballistic_game(ee_unit *p1, ee_unit_stats *p2, float *p3, f
 typedef int (__cdecl *unit_convert_fn)(ee_unit *, int, ee_unit_type *);
 internal unit_convert_fn fn_unit_convert;
 internal inline int unit_convert(ee_unit *u, int pi, ee_unit_type *new_td) { return fn_unit_convert(u, pi, new_td); }
+// cdecl(piece, layout code, raised corners): a wall piece's model and turn by its place in the wall (0x63842B:
+// codes 1-2 straight, anim 9, along y or x; 3-4 diagonal, 10; 5-8 the straight piece with a slope built in, 6, its
+// uphill side by the turn; 9-12 the diagonal one, 3; else the round post, 11), then its matrix (0x5F043B). The
+// layout (0x636CDC) picks a sloped piece only where the ground between two tiles rises 0.4 or more - which fits its
+// mesh's one slope (0.42 over its length) and little ground; raised corners (0x517C10: how many of the tile's
+// corners stand 0.4 above its lowest) goes unread. The wall's placing (0x629DDB: a new piece, a piece joined anew)
+// and the editor's (0x66CB35, finished pieces) call it; the drag's preview has its own (0x6383E9)
+typedef void (__cdecl *wall_piece_fn)(ee_unit *, int, int);
+internal wall_piece_fn fn_wall_piece;
+internal inline void wall_piece(ee_unit *u, int code, int raised) { fn_wall_piece(u, code, raised); }
+internal inline int patch_wall_piece(wall_piece_fn h, int *of) { return patch_calls(calls_wall_piece, 3, (uintptr_t)fn_wall_piece, (void *)h, of); }
+// cdecl(pieces, the layout's tiles, player, map): after a wall's layout (0x629DDB, the editor's 0x66CB35) each of its
+// pieces with more than two of the player's built walls-family objects within a tile becomes a post (anim 11),
+// turned back to yaw 0, its matrix made anew from its own (0x5F043B) - where walls meet or cross
+typedef void (__cdecl *wall_joints_fn)(ee_unit_vec *, void *, ee_player *, ee_map *);
+internal wall_joints_fn fn_wall_joints;
+internal inline void wall_joints(ee_unit_vec *pieces, void *tiles, ee_player *pl, ee_map *map) { fn_wall_joints(pieces, tiles, pl, map); }
+internal inline int patch_wall_joints(wall_joints_fn h, int *of) { return patch_calls(calls_wall_joints, 2, (uintptr_t)fn_wall_joints, (void *)h, of); }
 // cdecl(unit, other)
 typedef float (__cdecl *unit_distance_fn)(ee_unit *, ee_unit *);
 internal unit_distance_fn fn_unit_distance;
@@ -868,6 +903,7 @@ internal int spec_unit_select(int build) {
         fn_unit_give_goal = (unit_give_goal_fn)0x004412D4;
         call_unload_retry_give = 0x0048D03C;
         fn_unit_set_built = (unit_set_built_fn)0x005EFF65;
+        fn_unit_start_anim = (unit_start_anim_fn)0x005EFD6D;
         fn_unit_assign_goal = (unit_assign_goal_fn)0x005F05BD;
         call_repair_goal = 0x0046DA88;
         fn_unit_build_next = (unit_build_next_fn)0x005E8A3B;
@@ -905,6 +941,8 @@ internal int spec_unit_select(int build) {
         call_missile_aim = 0x0054E850;
         fn_unit_site_blocker = (unit_site_blocker_fn)0x0062E5D2;
         fn_unit_attack_anim = (unit_attack_anim_fn)0;
+        of_unit_vec_begin = 0x4;
+        of_unit_vec_end = 0x8;
         of_ai_state_handlers = 0x8;
         of_ai_state_id = 0x24;
         fn_ai_state_ask = (ai_state_ask_fn)0x00619FF5;
@@ -920,6 +958,13 @@ internal int spec_unit_select(int build) {
         fn_attack_retarget = (attack_retarget_fn)0x0062CD12;
         fn_ballistic_game = (ballistic_game_fn)0x0062CBB3;
         fn_unit_convert = (unit_convert_fn)0x0062F192;
+        fn_wall_piece = (wall_piece_fn)0x00638628;
+        calls_wall_piece[0] = 0x00629F9C;
+        calls_wall_piece[1] = 0x0062A0F9;
+        calls_wall_piece[2] = 0x0066CBF6;
+        fn_wall_joints = (wall_joints_fn)0x0062E73B;
+        calls_wall_joints[0] = 0x0062A159;
+        calls_wall_joints[1] = 0x0066CC55;
         fn_unit_distance = (unit_distance_fn)0x0062D5A4;
         fn_unit_give = (unit_give_fn)0x00638670;
         fn_unit_attr_set = (unit_attr_set_fn)0x005B8823;
@@ -1059,6 +1104,7 @@ internal int spec_unit_select(int build) {
         fn_unit_give_goal = (unit_give_goal_fn)0x0043D416;
         call_unload_retry_give = 0x00491B12;
         fn_unit_set_built = (unit_set_built_fn)0x005FE230;
+        fn_unit_start_anim = (unit_start_anim_fn)0x005FE02A;
         fn_unit_assign_goal = (unit_assign_goal_fn)0x005FE863;
         call_repair_goal = 0x004706DF;
         fn_unit_build_next = (unit_build_next_fn)0x005F60EA;
@@ -1096,6 +1142,8 @@ internal int spec_unit_select(int build) {
         call_missile_aim = 0x0055B1C3;
         fn_unit_site_blocker = (unit_site_blocker_fn)0x00643978;
         fn_unit_attack_anim = (unit_attack_anim_fn)0x0063C9D9;
+        of_unit_vec_begin = 0x4;
+        of_unit_vec_end = 0x8;
         of_ai_state_handlers = 0x8;
         of_ai_state_id = 0x24;
         fn_ai_state_ask = (ai_state_ask_fn)0x0062CD8B;
@@ -1111,6 +1159,13 @@ internal int spec_unit_select(int build) {
         fn_attack_retarget = (attack_retarget_fn)0x00641BC9;
         fn_ballistic_game = (ballistic_game_fn)0x00641A6A;
         fn_unit_convert = (unit_convert_fn)0x00644E95;
+        fn_wall_piece = (wall_piece_fn)0x0064E647;
+        calls_wall_piece[0] = 0x0063ED73;
+        calls_wall_piece[1] = 0x0063EF01;
+        calls_wall_piece[2] = 0x00685CF3;
+        fn_wall_joints = (wall_joints_fn)0x00643AE1;
+        calls_wall_joints[0] = 0x0063EF61;
+        calls_wall_joints[1] = 0x00685D52;
         fn_unit_distance = (unit_distance_fn)0x00642489;
         fn_unit_give = (unit_give_fn)0x0064E7DA;
         fn_unit_attr_set = (unit_attr_set_fn)0x005C8F28;
@@ -1147,6 +1202,7 @@ internal int spec_unit_check(void) {
     bad += spec_code((uintptr_t)fn_unit_give_goal, "EEComplexUnit.give_goal");
     bad += spec_call(call_unload_retry_give, (uintptr_t)fn_unit_give_goal, "EEComplexUnit.give_goal [call_site unload_retry_give]");
     bad += spec_code((uintptr_t)fn_unit_set_built, "EEComplexUnit.set_built");
+    bad += spec_code((uintptr_t)fn_unit_start_anim, "EEComplexUnit.start_anim");
     bad += spec_code((uintptr_t)fn_unit_assign_goal, "EEComplexUnit.assign_goal");
     bad += spec_call(call_repair_goal, (uintptr_t)fn_unit_assign_goal, "EEComplexUnit.assign_goal [call_site repair_goal]");
     bad += spec_code((uintptr_t)fn_unit_build_next, "EEComplexUnit.build_next");
@@ -1193,6 +1249,13 @@ internal int spec_unit_check(void) {
     bad += spec_code((uintptr_t)fn_attack_retarget, "unit_functions.attack_retarget");
     bad += spec_code((uintptr_t)fn_ballistic_game, "unit_functions.ballistic_game");
     bad += spec_code((uintptr_t)fn_unit_convert, "unit_functions.unit_convert");
+    bad += spec_code((uintptr_t)fn_wall_piece, "unit_functions.wall_piece");
+    bad += spec_call(calls_wall_piece[0], (uintptr_t)fn_wall_piece, "unit_functions.wall_piece [call_site wall_piece 0]");
+    bad += spec_call(calls_wall_piece[1], (uintptr_t)fn_wall_piece, "unit_functions.wall_piece [call_site wall_piece 1]");
+    bad += spec_call(calls_wall_piece[2], (uintptr_t)fn_wall_piece, "unit_functions.wall_piece [call_site wall_piece 2]");
+    bad += spec_code((uintptr_t)fn_wall_joints, "unit_functions.wall_joints");
+    bad += spec_call(calls_wall_joints[0], (uintptr_t)fn_wall_joints, "unit_functions.wall_joints [call_site wall_joints 0]");
+    bad += spec_call(calls_wall_joints[1], (uintptr_t)fn_wall_joints, "unit_functions.wall_joints [call_site wall_joints 1]");
     bad += spec_code((uintptr_t)fn_unit_distance, "unit_functions.unit_distance");
     bad += spec_code((uintptr_t)fn_unit_give, "unit_functions.unit_give");
     bad += spec_code((uintptr_t)fn_unit_attr_set, "unit_functions.unit_attr_set");

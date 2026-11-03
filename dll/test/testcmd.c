@@ -446,6 +446,19 @@ internal void cmd_found(char *out, const char *args) {
     REPLY("ok: type %d for P%d at %d,%d: %p%s\n", t, p, x, y, u, ok ? "" : " (a spot the player couldn't place it on)");
 }
 
+// wall P T x0 y0 x1 y1: AI player P's wall manager lays a wall of type T from x0, y0 to x1, y1 and sends its citizens
+// near the start to build it - as the AI's own walls are ordered (defence.c). Tests: the wall's layout on the ground
+// (engine/walls.c)
+internal void cmd_wall(char *out, const char *args) {
+    int p, t, a[2], b[2];
+    if (sscanf(args, "%d %d %d %d %d %d", &p, &t, &a[0], &a[1], &b[0], &b[1]) < 6) { REPLY("error: usage: wall P T x0 y0 x1 y1\n"); return; }
+    ee_player *pl = player_at(p);
+    void *cm = pl ? player_get_civ_mgr(pl) : NULL, *wm = cm ? civ_mgr_get_wall_mgr(cm) : NULL;
+    if (!wm || t < 0 || t >= 724 || !type_data(t)) { REPLY("error: no AI player %d or type %d\n", p, t); return; }
+    build_wall(wm, a, b, t);
+    REPLY("ok: P%d wall %d from %d,%d to %d,%d ordered\n", p, t, a[0], a[1], b[0], b[1]);
+}
+
 // build P bx by x y r [place]: player P's citizens within r tiles of x, y build (or repair) P's building at bx, by - the
 // game's order (EEUGBuildRepair: new 0x5C, 0x60BAD0(goal, player, building, 1)). Tests: enemy builders at a tower.
 // place: as the player's placing does instead (unit_build_next: no goal, the building first in the citizen's build list)
