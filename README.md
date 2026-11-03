@@ -453,7 +453,8 @@ Settings in `ageofai.ini`:
   their own widths (a gap of 3 tiles takes two tanks or three soldiers), each rank as wide as the way ahead of it
   allows, so the head spreads out past the gap while the tail is still in it, given out by how far along each unit
   already is, so the ones nearest the gap go first and nobody crosses the body to a place beyond it, and a queue: each
-  rank closes up behind the one ahead and moves when it moves; a column still in the gap when its head reaches the
+  rank closes up behind the one ahead and moves when it moves, and the ones waiting for their turn creep on with it
+  instead of standing till their place comes to them; a column still in the gap when its head reaches the
   goal keeps draining through it, each unit let go to its spot once it is past the narrow (before, the march ended
   there and the units left in the gap were the game's again: single file, and some stood for good, their orders given
   up); in a jam the formation slows to what gets through, so it doesn't spill out thin behind it; a unit that is really stuck drops out

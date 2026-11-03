@@ -286,6 +286,7 @@ internal void fo_march(ee_active_group *grp) {
 #define FF_END 3.0f            // tiles
 #define FF_END_PLACE 0.75f     // tiles: a formation moved as it stands (in_place 2) marches to this near its end - its units are at their offsets already
 #define FF_GAIN 0.5f           // tiles/s for each tile behind
+#define FF_CREEP 6.0f          // tiles: a column's unit ahead of its place creeps on at its point's speed less a share per tile ahead, none this far ahead (the player, 2026-11-03: "the tank pile looks very sluggish" - a unit stood dead till its place came under it, then lurched after it)
 #define FF_AHEAD 1.5f          // tiles: the point steered at lies this far ahead of the follower's own (no circling on it)
 #define FF_LOOK 3.0f           // tiles: the anchor heads for the leader's route this far ahead of it
 #define FF_INNER 1.0f          // tiles: the anchor's tightest arc leaves the innermost unit this far inside it
@@ -996,7 +997,7 @@ internal void ff_narrow(struct ff_group *gr, ee_unit *l, vec2 q, int qi) {
         float r = rooms[i][0] + rooms[i][1];
         gr->line_room[i] = r;
         if (r < room) room = r;
-        if (r < gr->fw * FF_WIDEN_AT && ts[i] > narrow_to) narrow_to = ts[i];
+        if (r < gr->fw * FF_NARROW_AT && ts[i] > narrow_to) narrow_to = ts[i];   // the narrow as it narrows a formation: by the widening's room it ran 4 tiles past the channel's end, and the head waited there in a clump
     }
     gr->narrow_to = narrow_to;
     // narrowed below FF_NARROW_AT of its width, narrower still where the room shrinks, as laid out again once FF_WIDEN_AT
@@ -1702,6 +1703,10 @@ internal float ff_speed(ee_unit *u, float s, float angle) {
     float top = unit_max_speed(u), want, cap = top;
     if (e->step == ~0u || step - e->step > FF_KEEP) { if (g_ff_watch && g_log) fprintf(g_log, "# ffspd %u %06x own s %.3f since %u\n", game_time(), (unsigned)unit_get_serial(u) & 0xFFFFFF, s, e->step == ~0u ? 0 : step - e->step); return s; }   // steered at its point lately (a ship isn't every tick)
     want = e->with + FF_GAIN * e->along;   // its point's speed its way, and closing
+    if (gr->cols && e->along < 0 && e->with > 0) {   // a column's unit ahead of its place: it creeps on with the column instead of standing till its place passes under it (FF_CREEP) - the pile at a gap compresses on the move
+        float creep = e->with * (1 + e->along / FF_CREEP);
+        if (creep > want) want = creep;
+    }
     if (e->along > 0) cap = top * (1 + ff_boost(e, u, step));   // near its place only, or in the re-form's grace
     if (want > cap) want = cap;
     if (want < 0) want = 0;
