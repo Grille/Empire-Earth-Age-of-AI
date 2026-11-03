@@ -19,6 +19,11 @@ EXCLUDE = {
     0x58E58C, 0x58E591,
     0x561100, 0x561130, 0x561160,   # EESEInstructions: assert line numbers
     0x5630DC, 0x563148, 0x563176,   # window message ids (WM_USER + n)
+    # the player page's diplomacy grid (FUN_0056835a / FUN_005685a3: its buttons' and column numbers' left edge, the
+    # row numbers' 137-159): AoC moves them right by 112 and the rule took that for centred, so at 2560 wide the grid
+    # stood 770 px off the player names (7-131, never moved). EE's values are the ones that fit: 15 columns of 25 px
+    # end at 559, under the 7-561 header and short of the game options at 600 - AoC's 274 run into those
+    0x568399, 0x5685F0, 0x568746, 0x56874E,
 }
 # entries whose EE -> AoC change isn't a plain move: (fx, fy) in halves
 ANCHOR = {

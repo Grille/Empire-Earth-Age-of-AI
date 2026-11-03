@@ -16,10 +16,6 @@ internal const struct { uint32_t addr; uint8_t kind, isf; uint32_t old; float ao
     { 0x561A3A, 1, 1, 0x443DC000, 983.00f, 2, 0 },   // EESEInstructions_00560ec7: fadd dword ptr [0x82d47c]  759 -> 983
     { 0x561BFB, 0, 1, 0x43A28000, 437.00f, 1, 0 },   // EESEInstructions_00560ec7: mov dword ptr [ebp - 0xc], 0x43a28000  325 -> 437
     { 0x561D05, 0, 1, 0x441D8000, 854.00f, 2, 0 },   // EESEInstructions_00560ec7: mov dword ptr [ebp - 0xc], 0x441d8000  630 -> 854
-    { 0x568399, 1, 1, 0x43220000, 274.00f, 1, 0 },   // FUN_0056835a: fadd dword ptr [0x82db54]  162 -> 274
-    { 0x5685F0, 1, 1, 0x43220000, 274.00f, 1, 0 },   // FUN_005685a3: fadd dword ptr [0x82db54]  162 -> 274
-    { 0x568746, 0, 1, 0x43090000, 249.00f, 1, 0 },   // FUN_005685a3: mov dword ptr [ebp - 0x28], 0x43090000  137 -> 249
-    { 0x56874E, 0, 1, 0x431F0000, 271.00f, 1, 0 },   // FUN_005685a3: mov dword ptr [ebp - 0x24], 0x431f0000  159 -> 271
     { 0x56B79D, 0, 1, 0x438C0000, 448.00f, 0, 2 },   // FUN_0056b75e: mov dword ptr [esi + 0x24], 0x438c0000  280 -> 448
     { 0x56B7A4, 0, 1, 0x43DB0000, 606.00f, 0, 2 },   // FUN_0056b75e: mov dword ptr [esi + 0x18], 0x43db0000  438 -> 606
     { 0x56B7AB, 0, 1, 0x4447C000, 1023.00f, 2, 0 },   // FUN_0056b75e: mov dword ptr [esi + 0x20], 0x4447c000  799 -> 1023
