@@ -14,8 +14,8 @@
 // overlap becomes even more noticeable now, and it flickers ... instead make the overlap targeted like extending into
 // the round connector pieces"). A sloped piece becomes the plain one first. A post stands on the lowest corner of its
 // tile, its top where it was. The layout's last step (wall_joints) makes a piece where walls meet a post anew, flat:
-// the wall's pieces are fitted again after it, with all their neighbours there. Pieces laid before (a loaded game)
-// are fitted at the game's first step. A gate laid into a fitted wall takes its pieces upright, as the game's (its
+// the wall's pieces are fitted again after it, with all their neighbours there. Pieces laid before (a loaded game, a
+// scenario's) are fitted at the game's first step (wall_start_fit: else they stay as made). A gate laid into a fitted wall takes its pieces upright, as the game's (its
 // middle kept a fitted piece's matrix: drawn shortened and sheared). A piece's collapse when destroyed turns it by its
 // sheared length (EEPMBuilding::vf12) - it tips over as it sinks.
 #define WS_SLOPE_DIAG 3     // the layout's animations (0x63842B): a diagonal piece with its slope built in
@@ -30,7 +30,7 @@
 #define WS_POST_HEIGHT 1.28f
 #define WS_INTO_POST 0.3f   // a piece's end into a post beside it (the posts' sides 0.49 .. 0.66 from their middle)
 
-internal int g_ws_on, g_ws_fitted_game;
+internal int g_ws_on, g_ws_start, g_ws_fitted_game;
 internal unsigned g_ws_pieces, g_ws_posts, g_ws_unsloped, g_ws_skipped, g_ws_no_model;
 #define WS_GFX_MAX 32
 internal ee_dmg_model *g_ws_gfx[WS_GFX_MAX];   // the graphics the fit took a user of this game (one each, kept)
@@ -177,7 +177,7 @@ internal int ws_fit(ee_unit *u) {
 // nothing on its other side: a stub into it. A tower beside a straight wall changes nothing: it points at no tile.
 // From the tiles alone, so every PC comes to the same (the walls' state - anims and matrices - is saved);
 // the pieces there fitted again, a piece's end into a tower or a gate as into a post. A loaded game's walls are
-// looked at once, at its first step.
+// looked at once, at its first step (wall_start_fit).
 #define WJ_EV_MAX 64        // areas noted, waiting for the next step's end
 #define WJ_MARGIN 2         // tiles around what a layout or a gate touched
 #define WJ_ROUNDS 4         // looks: a post turned a piece makes the side it reaches a post at the next
@@ -435,7 +435,7 @@ internal void __thiscall hook_step_end(ee_physics *ph) {
     if (!g_ws_on || !game_map()) return;
     if (!g_ws_fitted_game) {
         g_ws_fitted_game = 1;
-        wj_area(-1, -1, -1, -1, "the game's start");
+        if (g_ws_start) wj_area(-1, -1, -1, -1, "the game's start");
     }
     if (!g_wj_ev_n) return;
     uint32_t now = game_time();
@@ -453,24 +453,54 @@ internal void __thiscall hook_step_end(ee_physics *ph) {
 // an action's new objects come onto the map only after it (a pass right after its own found the click before's), so
 // at the safe points between the simulation loop's passes (test/control.c hook_sim_receive: the editor runs the loop,
 // no steps) for WS_EDITOR_MS after it, every WS_EDITOR_EVERY - a pass is cheap and gives the same twice, and the
-// editor has no other PC to keep in step
+// editor has no other PC to keep in step. Without wall_start_fit only the areas noted (a wall's, a gate's - its time
+// stays 0) and around the towers placed: the walls the scenario came with stay as made, but where a new one meets them;
+// a tower is found as one on the map that wasn't before its action (the editor's placing isn't place_foundation)
 #define WS_EDITOR_MS 600
 #define WS_EDITOR_EVERY 100
+#define WS_EDITOR_TOWERS 4096
+internal ee_unit *g_ws_ed_towers[WS_EDITOR_TOWERS];   // the towers on the map before the last place action
+internal int g_ws_ed_towers_n;
 internal void ws_editor_due(void) { if (g_ws_on) g_ws_editor_due = (LONG)(GetTickCount() | 1); }
 internal void __thiscall hook_se_place_wall(ee_se_place_wall *a) { eesea_place_wall_run(a); ws_editor_due(); }
 internal void __thiscall hook_se_place_gate(ee_se_place_gate *a) { eesea_place_gate_run(a); ws_editor_due(); }
-internal void __thiscall hook_se_place_unit(ee_se_place_unit *a) { eesea_place_unit_run(a); ws_editor_due(); }
+internal void __thiscall hook_se_place_unit(ee_se_place_unit *a) {
+    if (g_wj_on && !g_ws_start) {
+        g_ws_ed_towers_n = 0;
+        for (struct grid_it it = grid_it_all(1); grid_it_next(&it) && g_ws_ed_towers_n < WS_EDITOR_TOWERS; )
+            if (ut_role(unit_type_get_id(it.td), UTR_TOWER)) g_ws_ed_towers[g_ws_ed_towers_n++] = it.u;
+    }
+    eesea_place_unit_run(a);
+    ws_editor_due();
+}
+// the towers on the map now that weren't before the action noted, once each
+internal void ws_editor_towers(void) {
+    for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
+        if (!ut_role(unit_type_get_id(it.td), UTR_TOWER)) continue;
+        int k = 0;
+        while (k < g_ws_ed_towers_n && g_ws_ed_towers[k] != it.u) k++;
+        if (k < g_ws_ed_towers_n || g_ws_ed_towers_n == WS_EDITOR_TOWERS) continue;
+        g_ws_ed_towers[g_ws_ed_towers_n++] = it.u;
+        int s = unit_type_get_size(it.td) > 0 ? unit_type_get_size(it.td) : 1;
+        wj_note(unit_get_x(it.u) - s, unit_get_y(it.u) - s, unit_get_x(it.u) + s, unit_get_y(it.u) + s);
+    }
+}
 internal void walls_safe_point(void) {
     static DWORD last;
     LONG due = g_ws_editor_due;
     if (!due || !game_map()) return;
     DWORD now = GetTickCount();
-    if (now - (DWORD)due > WS_EDITOR_MS) { g_ws_editor_due = 0; return; }
+    if (now - (DWORD)due > WS_EDITOR_MS) { g_ws_editor_due = 0; g_wj_ev_n = 0; return; }
     if (now - last < WS_EDITOR_EVERY) return;
     last = now;
     g_ws_fitted_game = 1;
-    g_wj_ev_n = 0;
-    wj_area(-1, -1, -1, -1, "the editor's");
+    if (g_ws_start) {
+        g_wj_ev_n = 0;
+        wj_area(-1, -1, -1, -1, "the editor's");
+        return;
+    }
+    if (g_wj_on) ws_editor_towers();
+    for (int i = 0; i < g_wj_ev_n; i++) wj_area(g_wj_ev[i].x0, g_wj_ev[i].y0, g_wj_ev[i].x1, g_wj_ev[i].y1, "the editor's joins");
 }
 
 internal void walls_new_game(void) {
@@ -481,12 +511,13 @@ internal void walls_new_game(void) {
 
 internal void walls_install(void) {
     g_ws_on = g_set.wall_slopes;
+    g_ws_start = g_set.wall_start_fit;
     g_wj_on = g_ws_on && g_set.wall_joins;
     int of = 0, n = g_ws_on ? patch_wall_piece(hook_wall_piece, &of) + patch_wall_joints(hook_wall_joints, &of) : 0;
     int more = g_ws_on ? patch_step_end(hook_step_end) + patch_gate_convert(hook_gate_convert) : 0;
     int pof = 0, pn = g_wj_on ? patch_place_building(hook_place_building, &pof) : 0;
     int ed = g_ws_on ? patch_se_place_wall(hook_se_place_wall) + patch_se_place_gate(hook_se_place_gate) + patch_se_place_unit(hook_se_place_unit) : 0;
-    if (g_log) fprintf(g_log, "# walls: wall_slopes=%d wall_joins=%d (%s%s%s%s)\n", g_ws_on, g_wj_on,
+    if (g_log) fprintf(g_log, "# walls: wall_slopes=%d wall_joins=%d wall_start_fit=%d (%s%s%s%s)\n", g_ws_on, g_wj_on, g_ws_start,
                        !g_ws_on ? "-" : n == of ? "the layout's calls hooked" : n ? "SOME of the layout's calls hooked" : "FAILED",
                        !g_ws_on ? "" : more == 2 ? ", the step's end, the gate's" : ", the step's end or the gate's FAILED",
                        !g_wj_on ? "" : pn == pof ? ", the buildings' placing" : ", the buildings' placing FAILED",
