@@ -438,7 +438,9 @@ Settings in `ageofai.ini`:
   out again behind it; in a jam the formation slows to what gets through, so it doesn't spill out thin behind it; a unit that is really stuck drops out
   and goes on alone; a place on ground the unit can't enter (a
   formation wider than the channel it passes) is drawn in towards the formation's middle, so it narrows there instead
-  of losing its outer units; units march as one formation when the gaps between them are under 4 tiles (their sizes
+  of losing its outer units; the formation keeps off an edge the leader's route hugs (a shore, a wood, a wall: the
+  route is found for one unit) - it runs beside the route, by as much as gives every unit room, where the other side
+  has it, and down the middle of a corridor narrower than itself; units march as one formation when the gaps between them are under 4 tiles (their sizes
   counted, so a fleet of large ships stays one); near the goal each goes to its own spot.
   The formation goes at the slowest unit's speed, turning like a ship (no unit walks backwards in a turn: it slows
   in a turn so its outermost units keep up, eased in and out over a few seconds - a bend in the route costs a little,
