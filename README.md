@@ -424,8 +424,9 @@ Settings in `ageofai.ini`:
   dragged with the right button (a plain click: the way it moves), like sizes in rows of their own, each unit keeping
   its place in the group: the army in after 46 s instead of 52, back in 57 instead of 79 (with the land movement
   settings). The ranks front to back: who fights up close (melee, tanks, the fighting heroes), the ranged soldiers and
-  the healing heroes, siege and rams, then who doesn't fight (citizens, priests, medics) - in a circle formation they
-  are in the middle. Off while it is tried in games. (It replaces `group_block`, a big group gathered as one block.)
+  the healing heroes, siege and rams, then who doesn't fight (citizens, priests, medics). A circle is one ring of
+  every unit round the point, as the game's own, each unit walking to its place by its own route. Off while it is
+  tried in games. (It replaces `group_block`, a big group gathered as one block.)
 - `[general] formation_march=1` (default, with `formations`): a group sent somewhere marches at its
   slowest unit's speed, so riders and tanks stay with the infantry: a mixed army sent 40 tiles strung out to 14 tiles
   front to back, now about 10 - but they reach the goal all at once and the last is in about 15 s later.

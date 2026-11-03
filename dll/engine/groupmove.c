@@ -9,7 +9,7 @@
 //     size x FO_PAD[kind] (the loose and the staggered line's twice its size), a row as deep as its largest unit, a
 //     staggered line's every other row shifted half a unit;
 //   wedges (deep, shallow): rows from a single tip, each FO_WEDGE_GROW[kind] units wider than the one before;
-//   circles (inward, outward): rings from the middle out, the largest units innermost, as wide as their units.
+//   circles (inward, outward): one ring of every unit round the point, as the game's own.
 // Each unit has a rank (fo_rank: the close fighters in front, then the ranged soldiers and the healing heroes, siege,
 // and who doesn't fight at the back; a circle has them inside). Units of one rank and like size are put in bands, each
 // in rows of its own (a row is as deep as its largest unit), the ranks front to back, a rank's bands and the rows in
@@ -190,42 +190,23 @@ internal void fo_rows(int *idx, int n, int kind, int front) {
 // circles: rings from the middle out, the ranks back first (who doesn't fight in the middle, the fighters outside), a
 // rank's largest units innermost; on a ring by the angle they stand at now
 internal void fo_rings(int *idx, int n) {
-    const float TWO_PI = 6.28318531f;
-    fo_sort_by(idx, n, 2);
-    fo_sort_by(idx, n, 4);
-    float r = 0, prev = 0;
-    for (int i = 0, ring = 0; i < n; ring++) {
-        // the ring's radius from its largest unit (no longer always its first: the ranks come first) - its units taken
-        // at a radius from the first, then the radius from their largest and the units again
-        float deep = g_fo[idx[i]].w, sum = 0, r0 = r, rest = 0;
-        int k = 0;
-        for (int pass = 0; pass < 2; pass++) {
-            r = ring ? r0 + (prev + deep) * 0.5f : deep * 0.75f;
-            sum = 0; k = 0;
-            while (i + k < n && (k == 0 || sum + g_fo[idx[i + k]].w <= TWO_PI * r)) sum += g_fo[idx[i + k++]].w;
-            for (int a = 0; a < k; a++) if (g_fo[idx[i + a]].w > deep) deep = g_fo[idx[i + a]].w;
-        }
-        // the rest all on this ring when it holds them at no more than the next ring's radius - else 8 submarines were 4
-        // on a small ring and 4 on the next at the same angles: a cross
-        for (int a = i; a < n; a++) rest += g_fo[idx[a]].w;
-        if (rest / TWO_PI <= r + deep) {
-            for (int a = i + k; a < n; a++) if (g_fo[idx[a]].w > deep) deep = g_fo[idx[a]].w;
-            if (r < rest / TWO_PI) r = rest / TWO_PI;
-            k = n - i; sum = rest;
-        }
-        if (i + k == n && k == 1 && ring == 0) { g_fo[idx[i]].at = v2(0, 0); break; }   // one unit: the middle
-        int *ix = idx + i;
-        for (int a = 0; a < k; a++) g_fo_key[ix[a]] = -fo_pseudo_angle(g_fo[ix[a]].p);
-        fo_sort(ix, k, g_fo_key);   // counter-clockwise from +x, as the ring is laid
-        float at = ring & 1 ? sum * 0.5f / (float)k : 0;   // every other ring turned half a unit: no spokes
-        for (int a = 0; a < k; a++) {
-            float w = g_fo[ix[a]].w;
-            float ang = TWO_PI * (at + w * 0.5f) / sum;
-            g_fo[ix[a]].at = vec2_scale(fo_dir(ang >= TWO_PI ? ang - TWO_PI : ang), r);
-            at += w;
-        }
-        prev = deep;
-        i += k;
+    // one ring of every unit round the point, as the game's own circle (the player, 2026-11-03: "in the base game the
+    // circle is a one deep circle line around the center" - the rings from the middle out, the largest innermost, filled
+    // it): its circumference the units' widths, at least so far round that two neighbours stand a width apart, the
+    // units counter-clockwise from +x by where they stand; one unit in the middle
+    const float TWO_PI = 6.28318531f, PI = 3.14159265f;
+    if (n == 1) { g_fo[idx[0]].at = v2(0, 0); return; }
+    float sum = 0, wide = 0;
+    for (int a = 0; a < n; a++) { float w = g_fo[idx[a]].w; sum += w; if (w > wide) wide = w; }
+    float r = sum / TWO_PI, apart = wide / (2 * fo_sin_q(PI / (float)n));   // the chord between neighbours a width: r = w / (2 sin(pi / n))
+    if (r < apart) r = apart;
+    for (int a = 0; a < n; a++) g_fo_key[idx[a]] = -fo_pseudo_angle(g_fo[idx[a]].p);
+    fo_sort(idx, n, g_fo_key);
+    float at = 0;
+    for (int a = 0; a < n; a++) {
+        float w = g_fo[idx[a]].w, ang = TWO_PI * (at + w * 0.5f) / sum;
+        g_fo[idx[a]].at = vec2_scale(fo_dir(ang >= TWO_PI ? ang - TWO_PI : ang), r);
+        at += w;
     }
 }
 
@@ -1425,7 +1406,7 @@ internal void __thiscall hook_formation_slots(void *f, void *group, void *slots)
     // radius (the drag on a wedge's tip) a march and the own routes were level, 12 tiles and further the march is the
     // game's own walk (tests/probes/form_turn.eeai). The formation's size as laid out here, not the group's spread where
     // it stands (a few stragglers 15 tiles ahead made a 35-tile move "in place") nor the game's own slots (its grid is
-    // twice as wide). A circle marches as before
+    // twice as wide). A circle never marches (below)
     int in_place = gl < 2 * spread;
     // the formation they stand in, moved as it is (ff_keep_layout) when the turn moves its outermost unit no further
     // than formation_wheel (ff_wheels, as a queued move goes on in the same formation) - turned further it is laid out
@@ -1510,7 +1491,9 @@ internal void __thiscall hook_formation_slots(void *f, void *group, void *slots)
     g_fo_moves++;
     if (g_fo_queued) g_fo_queued_n++;
     g_ff_count = 0;
-    if (g_ff_on) { ff_start(group, n, c, fwd, right, g_fo_queued, arc); if (in_place) ff_in_place(same >= 0); }
+    // a circle takes its places by the units' own routes, as the game's own (one ring round the point: 109 units a
+    // ring of 19 tiles, marched as a formation 38 tiles wide it was narrowed for the terrain and still forming at 150 s)
+    if (g_ff_on) { ff_start(group, n, c, fwd, right, g_fo_queued, arc); if (in_place || circle) ff_in_place(same >= 0); }
     // a line a move (the player's games: what a reported layout or march did)
     if (g_log) fprintf(g_log, "# formation: %d units, kind %d, %s%d from their last order%s, from %.1f,%.1f to %.1f,%.1f facing %.2f,%.2f (%s), %.1f tiles (the formation's radius %.1f), %s%d marches\n",
                        n, kind, g_fo_queued ? "queued, " : "", from_last, reface ? " (the click's facing turned to their way)" : "", mean.x, mean.y, c.x, c.y, fwd.x, fwd.y, facing == 0 ? "click" : "drag", gl, spread, same >= 0 ? "in place as it stands, " : in_place ? "in place, " : "", g_ff_on ? g_ff_count : 0);
