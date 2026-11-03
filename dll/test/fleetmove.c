@@ -31,16 +31,18 @@ internal void fm_tick(void) {
     uint32_t now = game_time();
     if (now == g_fm_trace_last) return;
     g_fm_trace_last = now;
-    if (g_fm_watch)   // id, position, heading, speed, state, the foundation flag (a building's: the column kept for the readers) and the blocked time
+    if (g_fm_watch)   // id, position, heading, speed, state, the foundation flag (a building's: the column kept for the readers), the blocked time ... and its spot at the goal (-1 -1: none)
         for (int i = 0; i < g_fm_n; i++) {
             ee_unit *w = unit_by_id(g_fm[i].id);
             if (!w) continue;
             vec3 q = unit_get_pos(w), fq = unit_get_facing(w);
-            fprintf(g_log, "# fmwatch %u %06x %.3f %.3f %.1f %.3f %u %u %.2f push %.3f %.3f obst %d contacts %d size %.2f %.2f %.2f class %d ff %d orders %d\n", now, g_fm[i].id & 0xFFFFFF, q.x, q.y,
+            vec2 spot;
+            if (!ff_spot(w, &spot)) spot = v2(-1, -1);
+            fprintf(g_log, "# fmwatch %u %06x %.3f %.3f %.1f %.3f %u %u %.2f push %.3f %.3f obst %d contacts %d size %.2f %.2f %.2f class %d ff %d orders %d home %.1f %.1f\n", now, g_fm[i].id & 0xFFFFFF, q.x, q.y,
                     atan2f(fq.x, fq.y) * 57.29578f, unit_get_speed(w), unit_ai_state_id(w), unit_get_foundation(w), unit_get_blocked_ms(w),
                     FIELD(w, 0x230, float), FIELD(w, 0x234, float), unit_get_blocker(w) != NULL, unit_get_contacts_count(w),
                     unit_get_size(w), unit_type_get_collider_size(unit_get_type_data(w)), unit_type_get_formation_size(unit_get_type_data(w)), unit_type_get_class_id(unit_get_type_data(w)),
-                    ff_watch_state(w), unit_orders(w));
+                    ff_watch_state(w), unit_orders(w), spot.x, spot.y);
         }
     if (!g_fm_trace) return;
     ee_unit *u = unit_by_id(g_fm_trace);
@@ -165,9 +167,9 @@ internal void cmd_fmove(char *out, const char *args) {
         }
         REPLY("fmove sum: %d units, the last moving at %.1f s, %d done (the last at %.1f s), standing short of the goal %.1f s together (creeping %.1f); "
               "ship_turns so far: %u ticks kept the speed, %u steered along the route, %u waypoints dropped, %u passing a queued point; "
-              "collide: %u steps, %u overlaps pushed off, the deepest %.2f tiles, %u pushes at rest; %u walks back to a formation spot; land routes: %u searches, %.1f ms, the longest %.2f ms, %u of %u corners widened (room %.2f -> %.2f tiles); formations: %u group moves laid out (%u queued), %u marching, %u following (%u moves split into blocks, %u went on in the same formation, %u re-formed on the move (%u legs ended where the unit stood), %u ticks steered (%u along the formation's line), %u dropped out, %u routes planned anew, %u steps narrowed, %u on the own route: %u far from the point, %u it on ground the unit may not enter, %u not in a clear line)\n", g_fm_n, moved, n_done,
-              done, stood, crept, g_st_kept, g_st_steered, g_st_skipped, g_st_passing, g_uc_steps, g_uc_hits, g_uc_deepest, g_uc_rest, g_ff_walks, g_lr_routes,
-              g_lr_ms, g_lr_ms_max, g_lr_widened, g_lr_corners, g_lr_corners ? g_lr_room0 / g_lr_corners : 0.0, g_lr_corners ? g_lr_room1 / g_lr_corners : 0.0, g_fo_moves, g_fo_queued_n, g_fo_marches, g_ff_marches, g_ff_split, g_ff_arcs, g_ff_flows, g_ff_finished, g_ff_steered, g_ff_centre, g_ff_out, g_ff_rerouted, g_ff_narrowed, g_ff_own[1] + g_ff_own[2] + g_ff_own[3], g_ff_own[1], g_ff_own[2], g_ff_own[3]);
+              "collide: %u steps, %u overlaps pushed off, the deepest %.2f tiles, %u pushes at rest; %u walks back to a formation spot (%u of them given up on by the game short of it); land routes: %u searches, %.1f ms, the longest %.2f ms, %u of %u corners widened (room %.2f -> %.2f tiles); formations: %u group moves laid out (%u queued), %u marching, %u following (%u moves split into blocks, %u went on in the same formation, %u re-formed on the move (%u legs ended where the unit stood), %u ticks steered (%u along the formation's line), %u dropped out, %u let go to their spots as the column drained, %u routes planned anew, %u steps narrowed, %u on the own route: %u far from the point, %u it on ground the unit may not enter, %u not in a clear line)\n", g_fm_n, moved, n_done,
+              done, stood, crept, g_st_kept, g_st_steered, g_st_skipped, g_st_passing, g_uc_steps, g_uc_hits, g_uc_deepest, g_uc_rest, g_ff_walks, g_ff_walks_lost, g_lr_routes,
+              g_lr_ms, g_lr_ms_max, g_lr_widened, g_lr_corners, g_lr_corners ? g_lr_room0 / g_lr_corners : 0.0, g_lr_corners ? g_lr_room1 / g_lr_corners : 0.0, g_fo_moves, g_fo_queued_n, g_fo_marches, g_ff_marches, g_ff_split, g_ff_arcs, g_ff_flows, g_ff_finished, g_ff_steered, g_ff_centre, g_ff_out, g_ff_released, g_ff_rerouted, g_ff_narrowed, g_ff_own[1] + g_ff_own[2] + g_ff_own[3], g_ff_own[1], g_ff_own[2], g_ff_own[3]);
         return;
     }
     if (!strcmp(what, "then")) {   // fmove then P tx ty: the order's units (still there) also sent on to tx, ty, queued as with shift, the

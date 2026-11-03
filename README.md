@@ -344,8 +344,8 @@ Settings in `ageofai.ini`:
   stretch of wall it laid, where the ground stepped, and beside every joint - a wall drawn on from another had two
   posts side by side, walls crossing or meeting three or four in a cluster, and a post stood between a wall and the
   tower or gate it ran into. With `1` a post stands only where a wall ends, turns or branches: a wall runs on
-  through, and into a tower or a gate; when a piece is destroyed, its neighbours become the ends of the wall. In
-  multiplayer every player needs the same setting.
+  through, and into a tower or a gate. It is decided when a wall or a gate is built, as the game decides its posts;
+  a destroyed wall's gap stays open. In multiplayer every player needs the same setting.
 - `[general] big_selection=1` (default): double-clicking a unit (all of its kind on screen) or dragging a box selected
   at most 63 units - with a large army only a part. Now up to about 240, as many as the game's selection message
   can carry; the message keeps its format, so it should stay compatible in multiplayer.
@@ -450,9 +450,13 @@ Settings in `ageofai.ini`:
   beside and behind it, a blocked one following the formation's middle line (the leader's route, through a gap the
   formation is too wide for), only then its own way, planned anew from where it stands; where the way is much narrower than
   the formation (a gap, a pass) it narrows for the while into a column - its ranks as many abreast as fit the gap by
-  their own widths (tanks one, soldiers three), given out by how far along each unit already is, so the ones nearest
-  the gap go first and nobody crosses the body to a place beyond it, and a queue: each rank closes up behind the one
-  ahead and moves when it moves - and spreads out again behind it; in a jam the formation slows to what gets through, so it doesn't spill out thin behind it; a unit that is really stuck drops out
+  their own widths (a gap of 3 tiles takes two tanks or three soldiers), each rank as wide as the way ahead of it
+  allows, so the head spreads out past the gap while the tail is still in it, given out by how far along each unit
+  already is, so the ones nearest the gap go first and nobody crosses the body to a place beyond it, and a queue: each
+  rank closes up behind the one ahead and moves when it moves; a column still in the gap when its head reaches the
+  goal keeps draining through it, each unit let go to its spot once it is past the narrow (before, the march ended
+  there and the units left in the gap were the game's again: single file, and some stood for good, their orders given
+  up); in a jam the formation slows to what gets through, so it doesn't spill out thin behind it; a unit that is really stuck drops out
   and goes on alone; a place on ground the unit can't enter (a
   formation wider than the channel it passes) is drawn in towards the formation's middle, so it narrows there instead
   of losing its outer units; the formation keeps off an edge the leader's route hugs (a shore, a wood, a wall: the
@@ -461,7 +465,8 @@ Settings in `ageofai.ini`:
   column snakes through a channel and round its corners instead of the whole body swinging as one, and it turns on
   its width, not its depth; a group whose route sets out another way than straight for the point forms up facing the
   route's first stretch and sets out along its leader's route from the first step, no turn on the spot; units march as one formation when the gaps between them are under 4 tiles (their sizes
-  counted, so a fleet of large ships stays one); near the goal each goes to its own spot.
+  counted, so a fleet of large ships stays one); near the goal each goes to its own spot, and one the game gives up on
+  short of it (its route cut by its detour round a blocker) walks back to it.
   The formation goes at the slowest unit's speed, turning like a ship (no unit walks backwards in a turn: it slows
   in a turn so its outermost units keep up, eased in and out over a few seconds - a bend in the route costs a little,
   only a sustained turn the whole), facing
