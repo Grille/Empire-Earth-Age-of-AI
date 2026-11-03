@@ -1345,12 +1345,43 @@ unsafe struct EESEUITerrainTypeLB
     extern int32 update_keyboard();
 }
 
-[@base(typeof(EEUIFSEMainGroup)), vtable((ee)0x0082F5D8, (aoc)0x00844E9C)]
+/// the editor's units panel (its main button 3: the panel factory 0x58EB4B makes it with the editor): the unit types'
+/// list, its categories, the world player / player switch and the sort switches (engine/editor_search.c: a search box)
+[@base(typeof(EEUIFSEMainGroup)), size((ee)0x140, (aoc)0x140), vtable((ee)0x0082F5D8, (aoc)0x00844E9C)]
+[c_type("ee_se_unit")]
 unsafe struct EESEUnit
 {
-    /// its constructor (4 arguments, not typed yet)
+    /// the unit types' list
+    [offset(0x8C), found(c)]
+    EEUIFSELBUnitList* list;
+
+    /// the list's category, sort and units (the scenario's or all) as refill last built it: it builds the list anew
+    /// only when one of the three has changed
+    [offset(0x12C), found(c)]
+    int32 shown_category;
+
+    [offset(0x130), found(c)]
+    int32 shown_sort;
+
+    [offset(0x134), found(c)]
+    int32 shown_units;
+
+    /// its constructor: the form's running control index (each control takes one), the editor's form, the labels'
+    /// font, the form's +0x250
     [address((ee)0x0058A70E, (aoc)0x0059A93E)]
-    extern void* init(uint32 p1, uint32 p2, uint32 p3, uint32 p4);
+    [call_site("se_unit_init", (ee)0x0058EC1F, (aoc)0x0059F02E)]
+    extern void* init(int32* index, UIForm* form, void* font, uint32 arg);
+
+    /// the list built anew - every unit type of the category shown added (list.add) - when the category, the sort or
+    /// the units have changed (shown_*): when the panel is opened and by the sort and category switches' event
+    /// (EEUIFSEESortUnitList)
+    [address((ee)0x0058C2F5, (aoc)0x0059C64B)]
+    extern void refill();
+
+    /// vf0: deleted - its controls with it (0x58B7E2), each by its own vf0
+    [slot(0), address((ee)0x0058B7C6, (aoc)0x0059BB1C)]
+    [vtable_site("se_unit_delete")]
+    extern void* destroy(uint8 flags);
 }
 
 [@base(typeof(UIButton)), size((ee)0x104, (aoc)0x104), vtable((ee)0x0082F524, (aoc)0x00844DE8)]
@@ -1432,12 +1463,20 @@ unsafe struct EEUIFSELBCargoList
     extern void* init(uint32 p1, uint32 p2, uint32 p3, uint32 p4, uint32 p5, uint32 p6, uint32 p7, uint32 p8, uint32 p9, uint32 p10);
 }
 
+/// the units panel's list of unit types (EESEUnit.list): their names, the type ids beside them (+0x140)
 [@base(typeof(UILBString)), size((ee)0x154, (aoc)0x154), vtable((ee)0x0082F26C, (aoc)0x00844B30)]
+[c_type("ee_se_unit_list")]
 unsafe struct EEUIFSELBUnitList
 {
     /// its constructor (10 arguments, not typed yet)
     [address((ee)0x005898C7, (aoc)0x00599AFD)]
     extern void* init(uint32 p1, uint32 p2, uint32 p3, uint32 p4, uint32 p5, uint32 p6, uint32 p7, uint32 p8, uint32 p9, uint32 p10);
+
+    /// a unit type into the list at its place in the list's sort: its name (the type's name_text), or its epoch or
+    /// family number and its name
+    [address((ee)0x005899BC, (aoc)0x00599BF2)]
+    [call_site("se_unit_list_add", (ee)0x0058C46B, (aoc)0x0059C7C5)]
+    extern void add(int32 type);
 
     [address((ee)0x00589C4B, (aoc)0x00599E81), overrides(typeof(UIControl))]
     extern int32 update_keyboard();
@@ -1601,4 +1640,12 @@ unsafe struct EEUIFScenarioEditor
 
     [address((ee)0x0058F363, (aoc)0x0059F794), overrides(typeof(UIForm))]
     extern void open();
+}
+
+static unsafe class editor
+{
+    /// the units panel's group of the editor's form (UIForm::AddControl's second argument for each of its controls,
+    /// 0x58A70E): shown while the panel is
+    [value(6)]
+    static uint32 group_units;
 }

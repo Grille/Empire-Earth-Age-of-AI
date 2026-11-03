@@ -299,6 +299,9 @@ Settings in `ageofai.ini`:
 - `[editor] editor_resolution=aoc`: scenario editor at 1024x768 with The Art of Conquest's layout; `game` or any
   `WIDTHxHEIGHT` extends that layout to the resolution (map view fills the screen, panels at the bottom,
   minimap and file buttons at the bottom right).
+- `[editor] editor_unit_search=1` (off by default until tried): a search box above the scenario editor's unit
+  list. Type part of a name - as the list shows it, or the game's internal English name (`citizen` finds Bürger) -
+  and the list keeps only the matching units of the category shown, as you type; several words must all match.
 - `[camera] scroll`: `game` (default) the build's own camera scrolling, `aoc` The Art of Conquest's acceleration
   in either build, `ee` Empire Earth's constant speed in either build; `smooth=1` (default) moves the camera every
   frame by the frame's time instead of the game's fixed timer steps (jitter) - in both builds.

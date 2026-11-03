@@ -15,4 +15,10 @@ class editor
     /// controls at the top left, as in AoC.
     [length(16), also("patches")]
     string editor_resolution = "ee";
+
+    /// A search box above the unit list of the editor's units panel: type part of a unit's name - as the list shows
+    /// it, or the game's internal (English) name - and the list shows only the units that match, at once as you type;
+    /// several words must all match. Empty = the whole list, as without it
+    [title("Unit search")]
+    bool editor_unit_search = false;
 }

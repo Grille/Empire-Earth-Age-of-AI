@@ -167,6 +167,10 @@ unsafe struct EEUnitClass
     [offset((ee)0x55C, (aoc)0x25C), found(c)]
     int32 hp;
 
+    /// its name's string in the language file (the scenario editor's unit list shows it, 0x5899BC)
+    [offset((ee)0x560, (aoc)0x260), found(c)]
+    int32 name_text;
+
     /// the data's column 0x198 "Resource type": lets_pass (0x6167C7) and 0x48xxxx test 3 (wood: trees) with the other
     /// type's +0x617 (the data's "Can walk through trees")
     [offset((ee)0x568, (aoc)0x268), found(c)]

@@ -11,6 +11,21 @@ internal inline void *button_object_init(ee_button_object *button_object) { retu
 // control type 1011 (dbuicontrols.dat +0x110): EEUIManager.create_control makes it
 // UILBString's, the base's
 // UIControl's, the base's
+// its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
+// control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
+// x + w - 1, y}, 0x5898C7)
+internal inline float eecbui_list_box_get_bottom(const eecbui_list_box *o) { return *(float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline void eecbui_list_box_set_bottom(eecbui_list_box *o, float v) { *(float *)((uint8_t *)o + of_ui_control_bottom) = v; }
+internal inline float *eecbui_list_box_bottom_at(const eecbui_list_box *o) { return (float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline float eecbui_list_box_get_left(const eecbui_list_box *o) { return *(float *)((uint8_t *)o + of_ui_control_left); }
+internal inline void eecbui_list_box_set_left(eecbui_list_box *o, float v) { *(float *)((uint8_t *)o + of_ui_control_left) = v; }
+internal inline float *eecbui_list_box_left_at(const eecbui_list_box *o) { return (float *)((uint8_t *)o + of_ui_control_left); }
+internal inline float eecbui_list_box_get_right(const eecbui_list_box *o) { return *(float *)((uint8_t *)o + of_ui_control_right); }
+internal inline void eecbui_list_box_set_right(eecbui_list_box *o, float v) { *(float *)((uint8_t *)o + of_ui_control_right) = v; }
+internal inline float *eecbui_list_box_right_at(const eecbui_list_box *o) { return (float *)((uint8_t *)o + of_ui_control_right); }
+internal inline float eecbui_list_box_get_top(const eecbui_list_box *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
+internal inline void eecbui_list_box_set_top(eecbui_list_box *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
+internal inline float *eecbui_list_box_top_at(const eecbui_list_box *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
 // its constructor (9 arguments, not typed yet)
 typedef void *(__thiscall *eecbui_list_box_init_fn)(eecbui_list_box *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eecbui_list_box_init_fn fn_eecbui_list_box_init;
@@ -46,6 +61,21 @@ internal inline void *eepgs_form_manager_init(eepgs_form_manager *eepgs_form_man
 // class EEUIBColor (eeuib_color)
 // UIButton's, the base's
 // UIControl's, the base's
+// its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
+// control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
+// x + w - 1, y}, 0x5898C7)
+internal inline float eeuib_color_get_bottom(const eeuib_color *o) { return *(float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline void eeuib_color_set_bottom(eeuib_color *o, float v) { *(float *)((uint8_t *)o + of_ui_control_bottom) = v; }
+internal inline float *eeuib_color_bottom_at(const eeuib_color *o) { return (float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline float eeuib_color_get_left(const eeuib_color *o) { return *(float *)((uint8_t *)o + of_ui_control_left); }
+internal inline void eeuib_color_set_left(eeuib_color *o, float v) { *(float *)((uint8_t *)o + of_ui_control_left) = v; }
+internal inline float *eeuib_color_left_at(const eeuib_color *o) { return (float *)((uint8_t *)o + of_ui_control_left); }
+internal inline float eeuib_color_get_right(const eeuib_color *o) { return *(float *)((uint8_t *)o + of_ui_control_right); }
+internal inline void eeuib_color_set_right(eeuib_color *o, float v) { *(float *)((uint8_t *)o + of_ui_control_right) = v; }
+internal inline float *eeuib_color_right_at(const eeuib_color *o) { return (float *)((uint8_t *)o + of_ui_control_right); }
+internal inline float eeuib_color_get_top(const eeuib_color *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
+internal inline void eeuib_color_set_top(eeuib_color *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
+internal inline float *eeuib_color_top_at(const eeuib_color *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
 // its constructor (5 arguments, not typed yet)
 typedef void *(__thiscall *eeuib_color_init_fn)(eeuib_color *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eeuib_color_init_fn fn_eeuib_color_init;
@@ -75,6 +105,21 @@ internal inline void eeuib_generic_background_open(eeuib_generic_background *eeu
 // control type 1015 (dbuicontrols.dat +0x110): EEUIManager.create_control makes it
 // UIButton's, the base's
 // UIControl's, the base's
+// its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
+// control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
+// x + w - 1, y}, 0x5898C7)
+internal inline float eeuib_saved_group_get_bottom(const eeuib_saved_group *o) { return *(float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline void eeuib_saved_group_set_bottom(eeuib_saved_group *o, float v) { *(float *)((uint8_t *)o + of_ui_control_bottom) = v; }
+internal inline float *eeuib_saved_group_bottom_at(const eeuib_saved_group *o) { return (float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline float eeuib_saved_group_get_left(const eeuib_saved_group *o) { return *(float *)((uint8_t *)o + of_ui_control_left); }
+internal inline void eeuib_saved_group_set_left(eeuib_saved_group *o, float v) { *(float *)((uint8_t *)o + of_ui_control_left) = v; }
+internal inline float *eeuib_saved_group_left_at(const eeuib_saved_group *o) { return (float *)((uint8_t *)o + of_ui_control_left); }
+internal inline float eeuib_saved_group_get_right(const eeuib_saved_group *o) { return *(float *)((uint8_t *)o + of_ui_control_right); }
+internal inline void eeuib_saved_group_set_right(eeuib_saved_group *o, float v) { *(float *)((uint8_t *)o + of_ui_control_right) = v; }
+internal inline float *eeuib_saved_group_right_at(const eeuib_saved_group *o) { return (float *)((uint8_t *)o + of_ui_control_right); }
+internal inline float eeuib_saved_group_get_top(const eeuib_saved_group *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
+internal inline void eeuib_saved_group_set_top(eeuib_saved_group *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
+internal inline float *eeuib_saved_group_top_at(const eeuib_saved_group *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
 // its constructor (3 arguments, not typed yet)
 typedef void *(__thiscall *eeuib_saved_group_init_fn)(eeuib_saved_group *, uint32_t, uint32_t, uint32_t);
 internal eeuib_saved_group_init_fn fn_eeuib_saved_group_init;
@@ -98,6 +143,21 @@ internal inline int eeuib_saved_group_mouse_r_button_up(eeuib_saved_group *eeuib
 // class EEUIBUpgrade (eeuib_upgrade)
 // UIButton's, the base's
 // UIControl's, the base's
+// its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
+// control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
+// x + w - 1, y}, 0x5898C7)
+internal inline float eeuib_upgrade_get_bottom(const eeuib_upgrade *o) { return *(float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline void eeuib_upgrade_set_bottom(eeuib_upgrade *o, float v) { *(float *)((uint8_t *)o + of_ui_control_bottom) = v; }
+internal inline float *eeuib_upgrade_bottom_at(const eeuib_upgrade *o) { return (float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline float eeuib_upgrade_get_left(const eeuib_upgrade *o) { return *(float *)((uint8_t *)o + of_ui_control_left); }
+internal inline void eeuib_upgrade_set_left(eeuib_upgrade *o, float v) { *(float *)((uint8_t *)o + of_ui_control_left) = v; }
+internal inline float *eeuib_upgrade_left_at(const eeuib_upgrade *o) { return (float *)((uint8_t *)o + of_ui_control_left); }
+internal inline float eeuib_upgrade_get_right(const eeuib_upgrade *o) { return *(float *)((uint8_t *)o + of_ui_control_right); }
+internal inline void eeuib_upgrade_set_right(eeuib_upgrade *o, float v) { *(float *)((uint8_t *)o + of_ui_control_right) = v; }
+internal inline float *eeuib_upgrade_right_at(const eeuib_upgrade *o) { return (float *)((uint8_t *)o + of_ui_control_right); }
+internal inline float eeuib_upgrade_get_top(const eeuib_upgrade *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
+internal inline void eeuib_upgrade_set_top(eeuib_upgrade *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
+internal inline float *eeuib_upgrade_top_at(const eeuib_upgrade *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
 // its constructor (8 arguments, not typed yet)
 typedef void *(__thiscall *eeuib_upgrade_init_fn)(eeuib_upgrade *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eeuib_upgrade_init_fn fn_eeuib_upgrade_init;
@@ -145,6 +205,21 @@ internal inline void *eeui_build_gate_init(eeui_build_gate *eeui_build_gate, uin
 // class EEUICChatLine (eeuic_chat_line)
 // control type 1010 (dbuicontrols.dat +0x110): EEUIManager.create_control makes it
 // UIControl's, the base's
+// its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
+// control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
+// x + w - 1, y}, 0x5898C7)
+internal inline float eeuic_chat_line_get_bottom(const eeuic_chat_line *o) { return *(float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline void eeuic_chat_line_set_bottom(eeuic_chat_line *o, float v) { *(float *)((uint8_t *)o + of_ui_control_bottom) = v; }
+internal inline float *eeuic_chat_line_bottom_at(const eeuic_chat_line *o) { return (float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline float eeuic_chat_line_get_left(const eeuic_chat_line *o) { return *(float *)((uint8_t *)o + of_ui_control_left); }
+internal inline void eeuic_chat_line_set_left(eeuic_chat_line *o, float v) { *(float *)((uint8_t *)o + of_ui_control_left) = v; }
+internal inline float *eeuic_chat_line_left_at(const eeuic_chat_line *o) { return (float *)((uint8_t *)o + of_ui_control_left); }
+internal inline float eeuic_chat_line_get_right(const eeuic_chat_line *o) { return *(float *)((uint8_t *)o + of_ui_control_right); }
+internal inline void eeuic_chat_line_set_right(eeuic_chat_line *o, float v) { *(float *)((uint8_t *)o + of_ui_control_right) = v; }
+internal inline float *eeuic_chat_line_right_at(const eeuic_chat_line *o) { return (float *)((uint8_t *)o + of_ui_control_right); }
+internal inline float eeuic_chat_line_get_top(const eeuic_chat_line *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
+internal inline void eeuic_chat_line_set_top(eeuic_chat_line *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
+internal inline float *eeuic_chat_line_top_at(const eeuic_chat_line *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
 // its constructor (3 arguments, not typed yet)
 typedef void *(__thiscall *eeuic_chat_line_init_fn)(eeuic_chat_line *, uint32_t, uint32_t, uint32_t);
 internal eeuic_chat_line_init_fn fn_eeuic_chat_line_init;
@@ -186,6 +261,21 @@ internal inline int eeuic_chat_line_update_keyboard(eeuic_chat_line *eeuic_chat_
 // class EEUICCommandUnits (eeuic_command_units)
 // control type 1008 (dbuicontrols.dat +0x110): EEUIManager.create_control makes it
 // UIControl's, the base's
+// its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
+// control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
+// x + w - 1, y}, 0x5898C7)
+internal inline float eeuic_command_units_get_bottom(const eeuic_command_units *o) { return *(float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline void eeuic_command_units_set_bottom(eeuic_command_units *o, float v) { *(float *)((uint8_t *)o + of_ui_control_bottom) = v; }
+internal inline float *eeuic_command_units_bottom_at(const eeuic_command_units *o) { return (float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline float eeuic_command_units_get_left(const eeuic_command_units *o) { return *(float *)((uint8_t *)o + of_ui_control_left); }
+internal inline void eeuic_command_units_set_left(eeuic_command_units *o, float v) { *(float *)((uint8_t *)o + of_ui_control_left) = v; }
+internal inline float *eeuic_command_units_left_at(const eeuic_command_units *o) { return (float *)((uint8_t *)o + of_ui_control_left); }
+internal inline float eeuic_command_units_get_right(const eeuic_command_units *o) { return *(float *)((uint8_t *)o + of_ui_control_right); }
+internal inline void eeuic_command_units_set_right(eeuic_command_units *o, float v) { *(float *)((uint8_t *)o + of_ui_control_right) = v; }
+internal inline float *eeuic_command_units_right_at(const eeuic_command_units *o) { return (float *)((uint8_t *)o + of_ui_control_right); }
+internal inline float eeuic_command_units_get_top(const eeuic_command_units *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
+internal inline void eeuic_command_units_set_top(eeuic_command_units *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
+internal inline float *eeuic_command_units_top_at(const eeuic_command_units *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
 // its constructor (4 arguments, not typed yet)
 typedef void *(__thiscall *eeuic_command_units_init_fn)(eeuic_command_units *, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eeuic_command_units_init_fn fn_eeuic_command_units_init;
@@ -230,6 +320,21 @@ internal inline int eeuic_command_units_update_keyboard(eeuic_command_units *eeu
 // class EEUICPing (eeuic_ping)
 // control type 1017 (dbuicontrols.dat +0x110): EEUIManager.create_control makes it
 // UIControl's, the base's
+// its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
+// control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
+// x + w - 1, y}, 0x5898C7)
+internal inline float eeuic_ping_get_bottom(const eeuic_ping *o) { return *(float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline void eeuic_ping_set_bottom(eeuic_ping *o, float v) { *(float *)((uint8_t *)o + of_ui_control_bottom) = v; }
+internal inline float *eeuic_ping_bottom_at(const eeuic_ping *o) { return (float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline float eeuic_ping_get_left(const eeuic_ping *o) { return *(float *)((uint8_t *)o + of_ui_control_left); }
+internal inline void eeuic_ping_set_left(eeuic_ping *o, float v) { *(float *)((uint8_t *)o + of_ui_control_left) = v; }
+internal inline float *eeuic_ping_left_at(const eeuic_ping *o) { return (float *)((uint8_t *)o + of_ui_control_left); }
+internal inline float eeuic_ping_get_right(const eeuic_ping *o) { return *(float *)((uint8_t *)o + of_ui_control_right); }
+internal inline void eeuic_ping_set_right(eeuic_ping *o, float v) { *(float *)((uint8_t *)o + of_ui_control_right) = v; }
+internal inline float *eeuic_ping_right_at(const eeuic_ping *o) { return (float *)((uint8_t *)o + of_ui_control_right); }
+internal inline float eeuic_ping_get_top(const eeuic_ping *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
+internal inline void eeuic_ping_set_top(eeuic_ping *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
+internal inline float *eeuic_ping_top_at(const eeuic_ping *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
 // its constructor (4 arguments, not typed yet)
 typedef void *(__thiscall *eeuic_ping_init_fn)(eeuic_ping *, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eeuic_ping_init_fn fn_eeuic_ping_init;
@@ -268,6 +373,21 @@ internal inline int eeuic_ping_update_keyboard(eeuic_ping *eeuic_ping) { return 
 // class EEUICPortrait (eeuic_portrait)
 // control type 1009 (dbuicontrols.dat +0x110): EEUIManager.create_control makes it
 // UIControl's, the base's
+// its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
+// control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
+// x + w - 1, y}, 0x5898C7)
+internal inline float eeuic_portrait_get_bottom(const eeuic_portrait *o) { return *(float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline void eeuic_portrait_set_bottom(eeuic_portrait *o, float v) { *(float *)((uint8_t *)o + of_ui_control_bottom) = v; }
+internal inline float *eeuic_portrait_bottom_at(const eeuic_portrait *o) { return (float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline float eeuic_portrait_get_left(const eeuic_portrait *o) { return *(float *)((uint8_t *)o + of_ui_control_left); }
+internal inline void eeuic_portrait_set_left(eeuic_portrait *o, float v) { *(float *)((uint8_t *)o + of_ui_control_left) = v; }
+internal inline float *eeuic_portrait_left_at(const eeuic_portrait *o) { return (float *)((uint8_t *)o + of_ui_control_left); }
+internal inline float eeuic_portrait_get_right(const eeuic_portrait *o) { return *(float *)((uint8_t *)o + of_ui_control_right); }
+internal inline void eeuic_portrait_set_right(eeuic_portrait *o, float v) { *(float *)((uint8_t *)o + of_ui_control_right) = v; }
+internal inline float *eeuic_portrait_right_at(const eeuic_portrait *o) { return (float *)((uint8_t *)o + of_ui_control_right); }
+internal inline float eeuic_portrait_get_top(const eeuic_portrait *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
+internal inline void eeuic_portrait_set_top(eeuic_portrait *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
+internal inline float *eeuic_portrait_top_at(const eeuic_portrait *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
 // its constructor (5 arguments, not typed yet)
 typedef void *(__thiscall *eeuic_portrait_init_fn)(eeuic_portrait *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eeuic_portrait_init_fn fn_eeuic_portrait_init;
@@ -309,6 +429,21 @@ internal inline int eeuic_portrait_update_keyboard(eeuic_portrait *eeuic_portrai
 // class EEUICSelectUnits (eeuic_select_units)
 // control type 1007 (dbuicontrols.dat +0x110): EEUIManager.create_control makes it
 // UIControl's, the base's
+// its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
+// control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
+// x + w - 1, y}, 0x5898C7)
+internal inline float eeuic_select_units_get_bottom(const eeuic_select_units *o) { return *(float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline void eeuic_select_units_set_bottom(eeuic_select_units *o, float v) { *(float *)((uint8_t *)o + of_ui_control_bottom) = v; }
+internal inline float *eeuic_select_units_bottom_at(const eeuic_select_units *o) { return (float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline float eeuic_select_units_get_left(const eeuic_select_units *o) { return *(float *)((uint8_t *)o + of_ui_control_left); }
+internal inline void eeuic_select_units_set_left(eeuic_select_units *o, float v) { *(float *)((uint8_t *)o + of_ui_control_left) = v; }
+internal inline float *eeuic_select_units_left_at(const eeuic_select_units *o) { return (float *)((uint8_t *)o + of_ui_control_left); }
+internal inline float eeuic_select_units_get_right(const eeuic_select_units *o) { return *(float *)((uint8_t *)o + of_ui_control_right); }
+internal inline void eeuic_select_units_set_right(eeuic_select_units *o, float v) { *(float *)((uint8_t *)o + of_ui_control_right) = v; }
+internal inline float *eeuic_select_units_right_at(const eeuic_select_units *o) { return (float *)((uint8_t *)o + of_ui_control_right); }
+internal inline float eeuic_select_units_get_top(const eeuic_select_units *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
+internal inline void eeuic_select_units_set_top(eeuic_select_units *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
+internal inline float *eeuic_select_units_top_at(const eeuic_select_units *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
 // its constructor (5 arguments, not typed yet)
 typedef void *(__thiscall *eeuic_select_units_init_fn)(eeuic_select_units *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eeuic_select_units_init_fn fn_eeuic_select_units_init;
@@ -353,6 +488,21 @@ internal inline int eeuic_select_units_update_keyboard(eeuic_select_units *eeuic
 // class EEUICUnitIconBar (eeuic_unit_icon_bar)
 // control type 1014 (dbuicontrols.dat +0x110): EEUIManager.create_control makes it
 // UIControl's, the base's
+// its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
+// control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
+// x + w - 1, y}, 0x5898C7)
+internal inline float eeuic_unit_icon_bar_get_bottom(const eeuic_unit_icon_bar *o) { return *(float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline void eeuic_unit_icon_bar_set_bottom(eeuic_unit_icon_bar *o, float v) { *(float *)((uint8_t *)o + of_ui_control_bottom) = v; }
+internal inline float *eeuic_unit_icon_bar_bottom_at(const eeuic_unit_icon_bar *o) { return (float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline float eeuic_unit_icon_bar_get_left(const eeuic_unit_icon_bar *o) { return *(float *)((uint8_t *)o + of_ui_control_left); }
+internal inline void eeuic_unit_icon_bar_set_left(eeuic_unit_icon_bar *o, float v) { *(float *)((uint8_t *)o + of_ui_control_left) = v; }
+internal inline float *eeuic_unit_icon_bar_left_at(const eeuic_unit_icon_bar *o) { return (float *)((uint8_t *)o + of_ui_control_left); }
+internal inline float eeuic_unit_icon_bar_get_right(const eeuic_unit_icon_bar *o) { return *(float *)((uint8_t *)o + of_ui_control_right); }
+internal inline void eeuic_unit_icon_bar_set_right(eeuic_unit_icon_bar *o, float v) { *(float *)((uint8_t *)o + of_ui_control_right) = v; }
+internal inline float *eeuic_unit_icon_bar_right_at(const eeuic_unit_icon_bar *o) { return (float *)((uint8_t *)o + of_ui_control_right); }
+internal inline float eeuic_unit_icon_bar_get_top(const eeuic_unit_icon_bar *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
+internal inline void eeuic_unit_icon_bar_set_top(eeuic_unit_icon_bar *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
+internal inline float *eeuic_unit_icon_bar_top_at(const eeuic_unit_icon_bar *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
 // its constructor (3 arguments, not typed yet)
 typedef void *(__thiscall *eeuic_unit_icon_bar_init_fn)(eeuic_unit_icon_bar *, uint32_t, uint32_t, uint32_t);
 internal eeuic_unit_icon_bar_init_fn fn_eeuic_unit_icon_bar_init;
@@ -391,6 +541,21 @@ internal inline int eeuic_unit_icon_bar_update_keyboard(eeuic_unit_icon_bar *eeu
 // class EEUICWonNetGamesBox (eeuic_won_net_games_box)
 // control type 1019 (dbuicontrols.dat +0x110): EEUIManager.create_control makes it
 // UIControl's, the base's
+// its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
+// control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
+// x + w - 1, y}, 0x5898C7)
+internal inline float eeuic_won_net_games_box_get_bottom(const eeuic_won_net_games_box *o) { return *(float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline void eeuic_won_net_games_box_set_bottom(eeuic_won_net_games_box *o, float v) { *(float *)((uint8_t *)o + of_ui_control_bottom) = v; }
+internal inline float *eeuic_won_net_games_box_bottom_at(const eeuic_won_net_games_box *o) { return (float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline float eeuic_won_net_games_box_get_left(const eeuic_won_net_games_box *o) { return *(float *)((uint8_t *)o + of_ui_control_left); }
+internal inline void eeuic_won_net_games_box_set_left(eeuic_won_net_games_box *o, float v) { *(float *)((uint8_t *)o + of_ui_control_left) = v; }
+internal inline float *eeuic_won_net_games_box_left_at(const eeuic_won_net_games_box *o) { return (float *)((uint8_t *)o + of_ui_control_left); }
+internal inline float eeuic_won_net_games_box_get_right(const eeuic_won_net_games_box *o) { return *(float *)((uint8_t *)o + of_ui_control_right); }
+internal inline void eeuic_won_net_games_box_set_right(eeuic_won_net_games_box *o, float v) { *(float *)((uint8_t *)o + of_ui_control_right) = v; }
+internal inline float *eeuic_won_net_games_box_right_at(const eeuic_won_net_games_box *o) { return (float *)((uint8_t *)o + of_ui_control_right); }
+internal inline float eeuic_won_net_games_box_get_top(const eeuic_won_net_games_box *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
+internal inline void eeuic_won_net_games_box_set_top(eeuic_won_net_games_box *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
+internal inline float *eeuic_won_net_games_box_top_at(const eeuic_won_net_games_box *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
 // its constructor (8 arguments, not typed yet)
 typedef void *(__thiscall *eeuic_won_net_games_box_init_fn)(eeuic_won_net_games_box *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eeuic_won_net_games_box_init_fn fn_eeuic_won_net_games_box_init;
@@ -442,6 +607,21 @@ internal inline int eeuic_won_net_games_box_update_keyboard(eeuic_won_net_games_
 // class EEUICWonNetRoomsBox (eeuic_won_net_rooms_box)
 // control type 1018 (dbuicontrols.dat +0x110): EEUIManager.create_control makes it
 // UIControl's, the base's
+// its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
+// control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
+// x + w - 1, y}, 0x5898C7)
+internal inline float eeuic_won_net_rooms_box_get_bottom(const eeuic_won_net_rooms_box *o) { return *(float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline void eeuic_won_net_rooms_box_set_bottom(eeuic_won_net_rooms_box *o, float v) { *(float *)((uint8_t *)o + of_ui_control_bottom) = v; }
+internal inline float *eeuic_won_net_rooms_box_bottom_at(const eeuic_won_net_rooms_box *o) { return (float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline float eeuic_won_net_rooms_box_get_left(const eeuic_won_net_rooms_box *o) { return *(float *)((uint8_t *)o + of_ui_control_left); }
+internal inline void eeuic_won_net_rooms_box_set_left(eeuic_won_net_rooms_box *o, float v) { *(float *)((uint8_t *)o + of_ui_control_left) = v; }
+internal inline float *eeuic_won_net_rooms_box_left_at(const eeuic_won_net_rooms_box *o) { return (float *)((uint8_t *)o + of_ui_control_left); }
+internal inline float eeuic_won_net_rooms_box_get_right(const eeuic_won_net_rooms_box *o) { return *(float *)((uint8_t *)o + of_ui_control_right); }
+internal inline void eeuic_won_net_rooms_box_set_right(eeuic_won_net_rooms_box *o, float v) { *(float *)((uint8_t *)o + of_ui_control_right) = v; }
+internal inline float *eeuic_won_net_rooms_box_right_at(const eeuic_won_net_rooms_box *o) { return (float *)((uint8_t *)o + of_ui_control_right); }
+internal inline float eeuic_won_net_rooms_box_get_top(const eeuic_won_net_rooms_box *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
+internal inline void eeuic_won_net_rooms_box_set_top(eeuic_won_net_rooms_box *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
+internal inline float *eeuic_won_net_rooms_box_top_at(const eeuic_won_net_rooms_box *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
 // its constructor (8 arguments, not typed yet)
 typedef void *(__thiscall *eeuic_won_net_rooms_box_init_fn)(eeuic_won_net_rooms_box *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eeuic_won_net_rooms_box_init_fn fn_eeuic_won_net_rooms_box_init;
@@ -492,6 +672,21 @@ internal inline int eeuic_won_net_rooms_box_update_keyboard(eeuic_won_net_rooms_
 // class EEUICWonNetStatBox (eeuic_won_net_stat_box)
 // control type 1013 (dbuicontrols.dat +0x110): EEUIManager.create_control makes it
 // UIControl's, the base's
+// its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
+// control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
+// x + w - 1, y}, 0x5898C7)
+internal inline float eeuic_won_net_stat_box_get_bottom(const eeuic_won_net_stat_box *o) { return *(float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline void eeuic_won_net_stat_box_set_bottom(eeuic_won_net_stat_box *o, float v) { *(float *)((uint8_t *)o + of_ui_control_bottom) = v; }
+internal inline float *eeuic_won_net_stat_box_bottom_at(const eeuic_won_net_stat_box *o) { return (float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline float eeuic_won_net_stat_box_get_left(const eeuic_won_net_stat_box *o) { return *(float *)((uint8_t *)o + of_ui_control_left); }
+internal inline void eeuic_won_net_stat_box_set_left(eeuic_won_net_stat_box *o, float v) { *(float *)((uint8_t *)o + of_ui_control_left) = v; }
+internal inline float *eeuic_won_net_stat_box_left_at(const eeuic_won_net_stat_box *o) { return (float *)((uint8_t *)o + of_ui_control_left); }
+internal inline float eeuic_won_net_stat_box_get_right(const eeuic_won_net_stat_box *o) { return *(float *)((uint8_t *)o + of_ui_control_right); }
+internal inline void eeuic_won_net_stat_box_set_right(eeuic_won_net_stat_box *o, float v) { *(float *)((uint8_t *)o + of_ui_control_right) = v; }
+internal inline float *eeuic_won_net_stat_box_right_at(const eeuic_won_net_stat_box *o) { return (float *)((uint8_t *)o + of_ui_control_right); }
+internal inline float eeuic_won_net_stat_box_get_top(const eeuic_won_net_stat_box *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
+internal inline void eeuic_won_net_stat_box_set_top(eeuic_won_net_stat_box *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
+internal inline float *eeuic_won_net_stat_box_top_at(const eeuic_won_net_stat_box *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
 // its constructor (8 arguments, not typed yet)
 typedef void *(__thiscall *eeuic_won_net_stat_box_init_fn)(eeuic_won_net_stat_box *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eeuic_won_net_stat_box_init_fn fn_eeuic_won_net_stat_box_init;
@@ -548,6 +743,21 @@ internal inline void *eeuiecle_form_manager_init(eeuiecle_form_manager *eeuiecle
 // class EEUIFEBCancel (eeuifeb_cancel)
 // UIButton's, the base's
 // UIControl's, the base's
+// its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
+// control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
+// x + w - 1, y}, 0x5898C7)
+internal inline float eeuifeb_cancel_get_bottom(const eeuifeb_cancel *o) { return *(float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline void eeuifeb_cancel_set_bottom(eeuifeb_cancel *o, float v) { *(float *)((uint8_t *)o + of_ui_control_bottom) = v; }
+internal inline float *eeuifeb_cancel_bottom_at(const eeuifeb_cancel *o) { return (float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline float eeuifeb_cancel_get_left(const eeuifeb_cancel *o) { return *(float *)((uint8_t *)o + of_ui_control_left); }
+internal inline void eeuifeb_cancel_set_left(eeuifeb_cancel *o, float v) { *(float *)((uint8_t *)o + of_ui_control_left) = v; }
+internal inline float *eeuifeb_cancel_left_at(const eeuifeb_cancel *o) { return (float *)((uint8_t *)o + of_ui_control_left); }
+internal inline float eeuifeb_cancel_get_right(const eeuifeb_cancel *o) { return *(float *)((uint8_t *)o + of_ui_control_right); }
+internal inline void eeuifeb_cancel_set_right(eeuifeb_cancel *o, float v) { *(float *)((uint8_t *)o + of_ui_control_right) = v; }
+internal inline float *eeuifeb_cancel_right_at(const eeuifeb_cancel *o) { return (float *)((uint8_t *)o + of_ui_control_right); }
+internal inline float eeuifeb_cancel_get_top(const eeuifeb_cancel *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
+internal inline void eeuifeb_cancel_set_top(eeuifeb_cancel *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
+internal inline float *eeuifeb_cancel_top_at(const eeuifeb_cancel *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
 // its constructor (2 arguments, not typed yet)
 typedef void *(__thiscall *eeuifeb_cancel_init_fn)(eeuifeb_cancel *, uint32_t, uint32_t);
 internal eeuifeb_cancel_init_fn fn_eeuifeb_cancel_init;
@@ -562,6 +772,21 @@ internal inline int eeuifeb_cancel_draw_polygons(eeuifeb_cancel *eeuifeb_cancel)
 // class EEUIFEBOK (eeuifebok)
 // UIButton's, the base's
 // UIControl's, the base's
+// its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
+// control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
+// x + w - 1, y}, 0x5898C7)
+internal inline float eeuifebok_get_bottom(const eeuifebok *o) { return *(float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline void eeuifebok_set_bottom(eeuifebok *o, float v) { *(float *)((uint8_t *)o + of_ui_control_bottom) = v; }
+internal inline float *eeuifebok_bottom_at(const eeuifebok *o) { return (float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline float eeuifebok_get_left(const eeuifebok *o) { return *(float *)((uint8_t *)o + of_ui_control_left); }
+internal inline void eeuifebok_set_left(eeuifebok *o, float v) { *(float *)((uint8_t *)o + of_ui_control_left) = v; }
+internal inline float *eeuifebok_left_at(const eeuifebok *o) { return (float *)((uint8_t *)o + of_ui_control_left); }
+internal inline float eeuifebok_get_right(const eeuifebok *o) { return *(float *)((uint8_t *)o + of_ui_control_right); }
+internal inline void eeuifebok_set_right(eeuifebok *o, float v) { *(float *)((uint8_t *)o + of_ui_control_right) = v; }
+internal inline float *eeuifebok_right_at(const eeuifebok *o) { return (float *)((uint8_t *)o + of_ui_control_right); }
+internal inline float eeuifebok_get_top(const eeuifebok *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
+internal inline void eeuifebok_set_top(eeuifebok *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
+internal inline float *eeuifebok_top_at(const eeuifebok *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
 // its constructor (2 arguments, not typed yet)
 typedef void *(__thiscall *eeuifebok_init_fn)(eeuifebok *, uint32_t, uint32_t);
 internal eeuifebok_init_fn fn_eeuifebok_init;
@@ -599,6 +824,21 @@ internal inline void eeuif_error_open(eeuif_error *eeuif_error) { fn_eeuif_error
 // EEUIBUpgrade's, the base's
 // UIButton's, the base's
 // UIControl's, the base's
+// its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
+// control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
+// x + w - 1, y}, 0x5898C7)
+internal inline float eeuifmg_attribute_get_bottom(const eeuifmg_attribute *o) { return *(float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline void eeuifmg_attribute_set_bottom(eeuifmg_attribute *o, float v) { *(float *)((uint8_t *)o + of_ui_control_bottom) = v; }
+internal inline float *eeuifmg_attribute_bottom_at(const eeuifmg_attribute *o) { return (float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline float eeuifmg_attribute_get_left(const eeuifmg_attribute *o) { return *(float *)((uint8_t *)o + of_ui_control_left); }
+internal inline void eeuifmg_attribute_set_left(eeuifmg_attribute *o, float v) { *(float *)((uint8_t *)o + of_ui_control_left) = v; }
+internal inline float *eeuifmg_attribute_left_at(const eeuifmg_attribute *o) { return (float *)((uint8_t *)o + of_ui_control_left); }
+internal inline float eeuifmg_attribute_get_right(const eeuifmg_attribute *o) { return *(float *)((uint8_t *)o + of_ui_control_right); }
+internal inline void eeuifmg_attribute_set_right(eeuifmg_attribute *o, float v) { *(float *)((uint8_t *)o + of_ui_control_right) = v; }
+internal inline float *eeuifmg_attribute_right_at(const eeuifmg_attribute *o) { return (float *)((uint8_t *)o + of_ui_control_right); }
+internal inline float eeuifmg_attribute_get_top(const eeuifmg_attribute *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
+internal inline void eeuifmg_attribute_set_top(eeuifmg_attribute *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
+internal inline float *eeuifmg_attribute_top_at(const eeuifmg_attribute *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
 // its constructor (8 arguments, not typed yet)
 typedef void *(__thiscall *eeuifmg_attribute_init_fn)(eeuifmg_attribute *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eeuifmg_attribute_init_fn fn_eeuifmg_attribute_init;
@@ -623,6 +863,21 @@ internal inline int eeuifmg_attribute_update_keyboard(eeuifmg_attribute *eeuifmg
 // control type 1003 (dbuicontrols.dat +0x110): EEUIManager.create_control makes it
 // UILBString's, the base's
 // UIControl's, the base's
+// its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
+// control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
+// x + w - 1, y}, 0x5898C7)
+internal inline float eeuifmg_error_log_get_bottom(const eeuifmg_error_log *o) { return *(float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline void eeuifmg_error_log_set_bottom(eeuifmg_error_log *o, float v) { *(float *)((uint8_t *)o + of_ui_control_bottom) = v; }
+internal inline float *eeuifmg_error_log_bottom_at(const eeuifmg_error_log *o) { return (float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline float eeuifmg_error_log_get_left(const eeuifmg_error_log *o) { return *(float *)((uint8_t *)o + of_ui_control_left); }
+internal inline void eeuifmg_error_log_set_left(eeuifmg_error_log *o, float v) { *(float *)((uint8_t *)o + of_ui_control_left) = v; }
+internal inline float *eeuifmg_error_log_left_at(const eeuifmg_error_log *o) { return (float *)((uint8_t *)o + of_ui_control_left); }
+internal inline float eeuifmg_error_log_get_right(const eeuifmg_error_log *o) { return *(float *)((uint8_t *)o + of_ui_control_right); }
+internal inline void eeuifmg_error_log_set_right(eeuifmg_error_log *o, float v) { *(float *)((uint8_t *)o + of_ui_control_right) = v; }
+internal inline float *eeuifmg_error_log_right_at(const eeuifmg_error_log *o) { return (float *)((uint8_t *)o + of_ui_control_right); }
+internal inline float eeuifmg_error_log_get_top(const eeuifmg_error_log *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
+internal inline void eeuifmg_error_log_set_top(eeuifmg_error_log *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
+internal inline float *eeuifmg_error_log_top_at(const eeuifmg_error_log *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
 // its constructor (6 arguments, not typed yet)
 typedef void *(__thiscall *eeuifmg_error_log_init_fn)(eeuifmg_error_log *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eeuifmg_error_log_init_fn fn_eeuifmg_error_log_init;
@@ -684,6 +939,21 @@ internal inline void *eeuifmg_main_group_init(eeuifmg_main_group *eeuifmg_main_g
 // EEUIBUpgrade's, the base's
 // UIButton's, the base's
 // UIControl's, the base's
+// its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
+// control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
+// x + w - 1, y}, 0x5898C7)
+internal inline float eeuifmg_status_bar_get_bottom(const eeuifmg_status_bar *o) { return *(float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline void eeuifmg_status_bar_set_bottom(eeuifmg_status_bar *o, float v) { *(float *)((uint8_t *)o + of_ui_control_bottom) = v; }
+internal inline float *eeuifmg_status_bar_bottom_at(const eeuifmg_status_bar *o) { return (float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline float eeuifmg_status_bar_get_left(const eeuifmg_status_bar *o) { return *(float *)((uint8_t *)o + of_ui_control_left); }
+internal inline void eeuifmg_status_bar_set_left(eeuifmg_status_bar *o, float v) { *(float *)((uint8_t *)o + of_ui_control_left) = v; }
+internal inline float *eeuifmg_status_bar_left_at(const eeuifmg_status_bar *o) { return (float *)((uint8_t *)o + of_ui_control_left); }
+internal inline float eeuifmg_status_bar_get_right(const eeuifmg_status_bar *o) { return *(float *)((uint8_t *)o + of_ui_control_right); }
+internal inline void eeuifmg_status_bar_set_right(eeuifmg_status_bar *o, float v) { *(float *)((uint8_t *)o + of_ui_control_right) = v; }
+internal inline float *eeuifmg_status_bar_right_at(const eeuifmg_status_bar *o) { return (float *)((uint8_t *)o + of_ui_control_right); }
+internal inline float eeuifmg_status_bar_get_top(const eeuifmg_status_bar *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
+internal inline void eeuifmg_status_bar_set_top(eeuifmg_status_bar *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
+internal inline float *eeuifmg_status_bar_top_at(const eeuifmg_status_bar *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
 typedef int (__thiscall *eeuifmg_status_bar_copy_data_fn)(eeuifmg_status_bar *);
 internal eeuifmg_status_bar_copy_data_fn fn_eeuifmg_status_bar_copy_data;
 internal inline int eeuifmg_status_bar_copy_data(eeuifmg_status_bar *eeuifmg_status_bar) { return fn_eeuifmg_status_bar_copy_data(eeuifmg_status_bar); }
@@ -713,6 +983,21 @@ internal inline int eeuifmg_status_bar_mouse_r_button_up(eeuifmg_status_bar *eeu
 // control type 1000 (dbuicontrols.dat +0x110): EEUIManager.create_control makes it
 // UIButton's, the base's
 // UIControl's, the base's
+// its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
+// control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
+// x + w - 1, y}, 0x5898C7)
+internal inline float eeuifmg_status_button_get_bottom(const eeuifmg_status_button *o) { return *(float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline void eeuifmg_status_button_set_bottom(eeuifmg_status_button *o, float v) { *(float *)((uint8_t *)o + of_ui_control_bottom) = v; }
+internal inline float *eeuifmg_status_button_bottom_at(const eeuifmg_status_button *o) { return (float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline float eeuifmg_status_button_get_left(const eeuifmg_status_button *o) { return *(float *)((uint8_t *)o + of_ui_control_left); }
+internal inline void eeuifmg_status_button_set_left(eeuifmg_status_button *o, float v) { *(float *)((uint8_t *)o + of_ui_control_left) = v; }
+internal inline float *eeuifmg_status_button_left_at(const eeuifmg_status_button *o) { return (float *)((uint8_t *)o + of_ui_control_left); }
+internal inline float eeuifmg_status_button_get_right(const eeuifmg_status_button *o) { return *(float *)((uint8_t *)o + of_ui_control_right); }
+internal inline void eeuifmg_status_button_set_right(eeuifmg_status_button *o, float v) { *(float *)((uint8_t *)o + of_ui_control_right) = v; }
+internal inline float *eeuifmg_status_button_right_at(const eeuifmg_status_button *o) { return (float *)((uint8_t *)o + of_ui_control_right); }
+internal inline float eeuifmg_status_button_get_top(const eeuifmg_status_button *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
+internal inline void eeuifmg_status_button_set_top(eeuifmg_status_button *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
+internal inline float *eeuifmg_status_button_top_at(const eeuifmg_status_button *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
 // its constructor (3 arguments, not typed yet)
 typedef void *(__thiscall *eeuifmg_status_button_init_fn)(eeuifmg_status_button *, uint32_t, uint32_t, uint32_t);
 internal eeuifmg_status_button_init_fn fn_eeuifmg_status_button_init;
@@ -793,6 +1078,21 @@ internal inline void main_form_open(ee_main_form *main_form) { fn_main_form_open
 // class EEUIFileComboBox (eeui_file_combo_box)
 // UIComboBox's, the base's
 // UIControl's, the base's
+// its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
+// control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
+// x + w - 1, y}, 0x5898C7)
+internal inline float eeui_file_combo_box_get_bottom(const eeui_file_combo_box *o) { return *(float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline void eeui_file_combo_box_set_bottom(eeui_file_combo_box *o, float v) { *(float *)((uint8_t *)o + of_ui_control_bottom) = v; }
+internal inline float *eeui_file_combo_box_bottom_at(const eeui_file_combo_box *o) { return (float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline float eeui_file_combo_box_get_left(const eeui_file_combo_box *o) { return *(float *)((uint8_t *)o + of_ui_control_left); }
+internal inline void eeui_file_combo_box_set_left(eeui_file_combo_box *o, float v) { *(float *)((uint8_t *)o + of_ui_control_left) = v; }
+internal inline float *eeui_file_combo_box_left_at(const eeui_file_combo_box *o) { return (float *)((uint8_t *)o + of_ui_control_left); }
+internal inline float eeui_file_combo_box_get_right(const eeui_file_combo_box *o) { return *(float *)((uint8_t *)o + of_ui_control_right); }
+internal inline void eeui_file_combo_box_set_right(eeui_file_combo_box *o, float v) { *(float *)((uint8_t *)o + of_ui_control_right) = v; }
+internal inline float *eeui_file_combo_box_right_at(const eeui_file_combo_box *o) { return (float *)((uint8_t *)o + of_ui_control_right); }
+internal inline float eeui_file_combo_box_get_top(const eeui_file_combo_box *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
+internal inline void eeui_file_combo_box_set_top(eeui_file_combo_box *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
+internal inline float *eeui_file_combo_box_top_at(const eeui_file_combo_box *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
 // its constructor (17 arguments, not typed yet)
 typedef void *(__thiscall *eeui_file_combo_box_init_fn)(eeui_file_combo_box *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eeui_file_combo_box_init_fn fn_eeui_file_combo_box_init;
@@ -801,6 +1101,21 @@ internal inline void *eeui_file_combo_box_init(eeui_file_combo_box *eeui_file_co
 // class EEUIMiniMap (eeui_mini_map)
 // control type 1001 (dbuicontrols.dat +0x110): EEUIManager.create_control makes it
 // UIControl's, the base's
+// its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
+// control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
+// x + w - 1, y}, 0x5898C7)
+internal inline float eeui_mini_map_get_bottom(const eeui_mini_map *o) { return *(float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline void eeui_mini_map_set_bottom(eeui_mini_map *o, float v) { *(float *)((uint8_t *)o + of_ui_control_bottom) = v; }
+internal inline float *eeui_mini_map_bottom_at(const eeui_mini_map *o) { return (float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline float eeui_mini_map_get_left(const eeui_mini_map *o) { return *(float *)((uint8_t *)o + of_ui_control_left); }
+internal inline void eeui_mini_map_set_left(eeui_mini_map *o, float v) { *(float *)((uint8_t *)o + of_ui_control_left) = v; }
+internal inline float *eeui_mini_map_left_at(const eeui_mini_map *o) { return (float *)((uint8_t *)o + of_ui_control_left); }
+internal inline float eeui_mini_map_get_right(const eeui_mini_map *o) { return *(float *)((uint8_t *)o + of_ui_control_right); }
+internal inline void eeui_mini_map_set_right(eeui_mini_map *o, float v) { *(float *)((uint8_t *)o + of_ui_control_right) = v; }
+internal inline float *eeui_mini_map_right_at(const eeui_mini_map *o) { return (float *)((uint8_t *)o + of_ui_control_right); }
+internal inline float eeui_mini_map_get_top(const eeui_mini_map *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
+internal inline void eeui_mini_map_set_top(eeui_mini_map *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
+internal inline float *eeui_mini_map_top_at(const eeui_mini_map *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
 // its constructor (5 arguments, not typed yet)
 typedef void *(__thiscall *eeui_mini_map_init_fn)(eeui_mini_map *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eeui_mini_map_init_fn fn_eeui_mini_map_init;
@@ -842,6 +1157,21 @@ internal inline int eeui_mini_map_update_keyboard(eeui_mini_map *eeui_mini_map) 
 // class EEUIPGSLineGraph (eeuipgs_line_graph)
 // control type 1016 (dbuicontrols.dat +0x110): EEUIManager.create_control makes it
 // UIControl's, the base's
+// its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
+// control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
+// x + w - 1, y}, 0x5898C7)
+internal inline float eeuipgs_line_graph_get_bottom(const eeuipgs_line_graph *o) { return *(float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline void eeuipgs_line_graph_set_bottom(eeuipgs_line_graph *o, float v) { *(float *)((uint8_t *)o + of_ui_control_bottom) = v; }
+internal inline float *eeuipgs_line_graph_bottom_at(const eeuipgs_line_graph *o) { return (float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline float eeuipgs_line_graph_get_left(const eeuipgs_line_graph *o) { return *(float *)((uint8_t *)o + of_ui_control_left); }
+internal inline void eeuipgs_line_graph_set_left(eeuipgs_line_graph *o, float v) { *(float *)((uint8_t *)o + of_ui_control_left) = v; }
+internal inline float *eeuipgs_line_graph_left_at(const eeuipgs_line_graph *o) { return (float *)((uint8_t *)o + of_ui_control_left); }
+internal inline float eeuipgs_line_graph_get_right(const eeuipgs_line_graph *o) { return *(float *)((uint8_t *)o + of_ui_control_right); }
+internal inline void eeuipgs_line_graph_set_right(eeuipgs_line_graph *o, float v) { *(float *)((uint8_t *)o + of_ui_control_right) = v; }
+internal inline float *eeuipgs_line_graph_right_at(const eeuipgs_line_graph *o) { return (float *)((uint8_t *)o + of_ui_control_right); }
+internal inline float eeuipgs_line_graph_get_top(const eeuipgs_line_graph *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
+internal inline void eeuipgs_line_graph_set_top(eeuipgs_line_graph *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
+internal inline float *eeuipgs_line_graph_top_at(const eeuipgs_line_graph *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
 // its constructor (5 arguments, not typed yet)
 typedef void *(__thiscall *eeuipgs_line_graph_init_fn)(eeuipgs_line_graph *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eeuipgs_line_graph_init_fn fn_eeuipgs_line_graph_init;
@@ -860,6 +1190,21 @@ internal inline void *won_net_available_game_form_manager_init(ee_won_net_availa
 // made in 0x59198C
 // UIButton's, the base's
 // UIControl's, the base's
+// its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
+// control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
+// x + w - 1, y}, 0x5898C7)
+internal inline float uib_map_get_bottom(const uib_map *o) { return *(float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline void uib_map_set_bottom(uib_map *o, float v) { *(float *)((uint8_t *)o + of_ui_control_bottom) = v; }
+internal inline float *uib_map_bottom_at(const uib_map *o) { return (float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline float uib_map_get_left(const uib_map *o) { return *(float *)((uint8_t *)o + of_ui_control_left); }
+internal inline void uib_map_set_left(uib_map *o, float v) { *(float *)((uint8_t *)o + of_ui_control_left) = v; }
+internal inline float *uib_map_left_at(const uib_map *o) { return (float *)((uint8_t *)o + of_ui_control_left); }
+internal inline float uib_map_get_right(const uib_map *o) { return *(float *)((uint8_t *)o + of_ui_control_right); }
+internal inline void uib_map_set_right(uib_map *o, float v) { *(float *)((uint8_t *)o + of_ui_control_right) = v; }
+internal inline float *uib_map_right_at(const uib_map *o) { return (float *)((uint8_t *)o + of_ui_control_right); }
+internal inline float uib_map_get_top(const uib_map *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
+internal inline void uib_map_set_top(uib_map *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
+internal inline float *uib_map_top_at(const uib_map *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
 typedef void (__thiscall *uib_map_button_up_fn)(uib_map *);
 internal uib_map_button_up_fn fn_uib_map_button_up;
 internal inline void uib_map_button_up(uib_map *uib_map) { fn_uib_map_button_up(uib_map); }
@@ -867,19 +1212,79 @@ internal inline void uib_map_button_up(uib_map *uib_map) { fn_uib_map_button_up(
 // class UIBitmap (ui_bitmap)
 // made in 0x59B710, 0x5D23E7
 // UIControl's, the base's
+// its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
+// control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
+// x + w - 1, y}, 0x5898C7)
+internal inline float ui_bitmap_get_bottom(const ui_bitmap *o) { return *(float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline void ui_bitmap_set_bottom(ui_bitmap *o, float v) { *(float *)((uint8_t *)o + of_ui_control_bottom) = v; }
+internal inline float *ui_bitmap_bottom_at(const ui_bitmap *o) { return (float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline float ui_bitmap_get_left(const ui_bitmap *o) { return *(float *)((uint8_t *)o + of_ui_control_left); }
+internal inline void ui_bitmap_set_left(ui_bitmap *o, float v) { *(float *)((uint8_t *)o + of_ui_control_left) = v; }
+internal inline float *ui_bitmap_left_at(const ui_bitmap *o) { return (float *)((uint8_t *)o + of_ui_control_left); }
+internal inline float ui_bitmap_get_right(const ui_bitmap *o) { return *(float *)((uint8_t *)o + of_ui_control_right); }
+internal inline void ui_bitmap_set_right(ui_bitmap *o, float v) { *(float *)((uint8_t *)o + of_ui_control_right) = v; }
+internal inline float *ui_bitmap_right_at(const ui_bitmap *o) { return (float *)((uint8_t *)o + of_ui_control_right); }
+internal inline float ui_bitmap_get_top(const ui_bitmap *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
+internal inline void ui_bitmap_set_top(ui_bitmap *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
+internal inline float *ui_bitmap_top_at(const ui_bitmap *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
 
 // class UICheckBox (ui_check_box)
 // made in 0x56575B, 0x5672AC, 0x569046, 0x56E14F, 0x571B93, 0x57ED81, 0x583705, 0x58D3E1
 // UIButton's, the base's
 // UIControl's, the base's
+// its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
+// control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
+// x + w - 1, y}, 0x5898C7)
+internal inline float ui_check_box_get_bottom(const ui_check_box *o) { return *(float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline void ui_check_box_set_bottom(ui_check_box *o, float v) { *(float *)((uint8_t *)o + of_ui_control_bottom) = v; }
+internal inline float *ui_check_box_bottom_at(const ui_check_box *o) { return (float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline float ui_check_box_get_left(const ui_check_box *o) { return *(float *)((uint8_t *)o + of_ui_control_left); }
+internal inline void ui_check_box_set_left(ui_check_box *o, float v) { *(float *)((uint8_t *)o + of_ui_control_left) = v; }
+internal inline float *ui_check_box_left_at(const ui_check_box *o) { return (float *)((uint8_t *)o + of_ui_control_left); }
+internal inline float ui_check_box_get_right(const ui_check_box *o) { return *(float *)((uint8_t *)o + of_ui_control_right); }
+internal inline void ui_check_box_set_right(ui_check_box *o, float v) { *(float *)((uint8_t *)o + of_ui_control_right) = v; }
+internal inline float *ui_check_box_right_at(const ui_check_box *o) { return (float *)((uint8_t *)o + of_ui_control_right); }
+internal inline float ui_check_box_get_top(const ui_check_box *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
+internal inline void ui_check_box_set_top(ui_check_box *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
+internal inline float *ui_check_box_top_at(const ui_check_box *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
 
 // class UIComboBox (ui_combo_box)
 // made in 0x569046, 0x56D39A, 0x56EA99, 0x571B93, 0x572A2A, 0x57ED81, 0x583705, 0x58D3E1, 0x59198C
 // UIControl's, the base's
+// its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
+// control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
+// x + w - 1, y}, 0x5898C7)
+internal inline float ui_combo_box_get_bottom(const ui_combo_box *o) { return *(float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline void ui_combo_box_set_bottom(ui_combo_box *o, float v) { *(float *)((uint8_t *)o + of_ui_control_bottom) = v; }
+internal inline float *ui_combo_box_bottom_at(const ui_combo_box *o) { return (float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline float ui_combo_box_get_left(const ui_combo_box *o) { return *(float *)((uint8_t *)o + of_ui_control_left); }
+internal inline void ui_combo_box_set_left(ui_combo_box *o, float v) { *(float *)((uint8_t *)o + of_ui_control_left) = v; }
+internal inline float *ui_combo_box_left_at(const ui_combo_box *o) { return (float *)((uint8_t *)o + of_ui_control_left); }
+internal inline float ui_combo_box_get_right(const ui_combo_box *o) { return *(float *)((uint8_t *)o + of_ui_control_right); }
+internal inline void ui_combo_box_set_right(ui_combo_box *o, float v) { *(float *)((uint8_t *)o + of_ui_control_right) = v; }
+internal inline float *ui_combo_box_right_at(const ui_combo_box *o) { return (float *)((uint8_t *)o + of_ui_control_right); }
+internal inline float ui_combo_box_get_top(const ui_combo_box *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
+internal inline void ui_combo_box_set_top(ui_combo_box *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
+internal inline float *ui_combo_box_top_at(const ui_combo_box *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
 
 // class UIEditBox (ui_edit_box)
 // made in 0x560EC7, 0x569046, 0x56B75E, 0x56E14F, 0x571B93, 0x583705, 0x59198C, 0x64AAB7
 // UIControl's, the base's
+// its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
+// control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
+// x + w - 1, y}, 0x5898C7)
+internal inline float ui_edit_box_get_bottom(const ui_edit_box *o) { return *(float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline void ui_edit_box_set_bottom(ui_edit_box *o, float v) { *(float *)((uint8_t *)o + of_ui_control_bottom) = v; }
+internal inline float *ui_edit_box_bottom_at(const ui_edit_box *o) { return (float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline float ui_edit_box_get_left(const ui_edit_box *o) { return *(float *)((uint8_t *)o + of_ui_control_left); }
+internal inline void ui_edit_box_set_left(ui_edit_box *o, float v) { *(float *)((uint8_t *)o + of_ui_control_left) = v; }
+internal inline float *ui_edit_box_left_at(const ui_edit_box *o) { return (float *)((uint8_t *)o + of_ui_control_left); }
+internal inline float ui_edit_box_get_right(const ui_edit_box *o) { return *(float *)((uint8_t *)o + of_ui_control_right); }
+internal inline void ui_edit_box_set_right(ui_edit_box *o, float v) { *(float *)((uint8_t *)o + of_ui_control_right) = v; }
+internal inline float *ui_edit_box_right_at(const ui_edit_box *o) { return (float *)((uint8_t *)o + of_ui_control_right); }
+internal inline float ui_edit_box_get_top(const ui_edit_box *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
+internal inline void ui_edit_box_set_top(ui_edit_box *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
+internal inline float *ui_edit_box_top_at(const ui_edit_box *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
 
 // class UIFullBackground (ui_full_background)
 // made in 0x58E400
@@ -887,38 +1292,158 @@ internal inline void uib_map_button_up(uib_map *uib_map) { fn_uib_map_button_up(
 // class UILBString (uilb_string)
 // made in 0x56B75E, 0x571B93
 // UIControl's, the base's
+// its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
+// control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
+// x + w - 1, y}, 0x5898C7)
+internal inline float uilb_string_get_bottom(const uilb_string *o) { return *(float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline void uilb_string_set_bottom(uilb_string *o, float v) { *(float *)((uint8_t *)o + of_ui_control_bottom) = v; }
+internal inline float *uilb_string_bottom_at(const uilb_string *o) { return (float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline float uilb_string_get_left(const uilb_string *o) { return *(float *)((uint8_t *)o + of_ui_control_left); }
+internal inline void uilb_string_set_left(uilb_string *o, float v) { *(float *)((uint8_t *)o + of_ui_control_left) = v; }
+internal inline float *uilb_string_left_at(const uilb_string *o) { return (float *)((uint8_t *)o + of_ui_control_left); }
+internal inline float uilb_string_get_right(const uilb_string *o) { return *(float *)((uint8_t *)o + of_ui_control_right); }
+internal inline void uilb_string_set_right(uilb_string *o, float v) { *(float *)((uint8_t *)o + of_ui_control_right) = v; }
+internal inline float *uilb_string_right_at(const uilb_string *o) { return (float *)((uint8_t *)o + of_ui_control_right); }
+internal inline float uilb_string_get_top(const uilb_string *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
+internal inline void uilb_string_set_top(uilb_string *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
+internal inline float *uilb_string_top_at(const uilb_string *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
 
 // class UIRBMap (uirb_map)
 // made in 0x59198C
 // UIRadioButton's, the base's
 // UIButton's, the base's
 // UIControl's, the base's
+// its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
+// control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
+// x + w - 1, y}, 0x5898C7)
+internal inline float uirb_map_get_bottom(const uirb_map *o) { return *(float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline void uirb_map_set_bottom(uirb_map *o, float v) { *(float *)((uint8_t *)o + of_ui_control_bottom) = v; }
+internal inline float *uirb_map_bottom_at(const uirb_map *o) { return (float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline float uirb_map_get_left(const uirb_map *o) { return *(float *)((uint8_t *)o + of_ui_control_left); }
+internal inline void uirb_map_set_left(uirb_map *o, float v) { *(float *)((uint8_t *)o + of_ui_control_left) = v; }
+internal inline float *uirb_map_left_at(const uirb_map *o) { return (float *)((uint8_t *)o + of_ui_control_left); }
+internal inline float uirb_map_get_right(const uirb_map *o) { return *(float *)((uint8_t *)o + of_ui_control_right); }
+internal inline void uirb_map_set_right(uirb_map *o, float v) { *(float *)((uint8_t *)o + of_ui_control_right) = v; }
+internal inline float *uirb_map_right_at(const uirb_map *o) { return (float *)((uint8_t *)o + of_ui_control_right); }
+internal inline float uirb_map_get_top(const uirb_map *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
+internal inline void uirb_map_set_top(uirb_map *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
+internal inline float *uirb_map_top_at(const uirb_map *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
 
 // class UIRadioButton (ui_radio_button)
 // made in 0x56B75E, 0x56E14F, 0x571B93, 0x57ED81, 0x58A70E, 0x590734
 // UIButton's, the base's
 // UIControl's, the base's
+// its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
+// control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
+// x + w - 1, y}, 0x5898C7)
+internal inline float ui_radio_button_get_bottom(const ui_radio_button *o) { return *(float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline void ui_radio_button_set_bottom(ui_radio_button *o, float v) { *(float *)((uint8_t *)o + of_ui_control_bottom) = v; }
+internal inline float *ui_radio_button_bottom_at(const ui_radio_button *o) { return (float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline float ui_radio_button_get_left(const ui_radio_button *o) { return *(float *)((uint8_t *)o + of_ui_control_left); }
+internal inline void ui_radio_button_set_left(ui_radio_button *o, float v) { *(float *)((uint8_t *)o + of_ui_control_left) = v; }
+internal inline float *ui_radio_button_left_at(const ui_radio_button *o) { return (float *)((uint8_t *)o + of_ui_control_left); }
+internal inline float ui_radio_button_get_right(const ui_radio_button *o) { return *(float *)((uint8_t *)o + of_ui_control_right); }
+internal inline void ui_radio_button_set_right(ui_radio_button *o, float v) { *(float *)((uint8_t *)o + of_ui_control_right) = v; }
+internal inline float *ui_radio_button_right_at(const ui_radio_button *o) { return (float *)((uint8_t *)o + of_ui_control_right); }
+internal inline float ui_radio_button_get_top(const ui_radio_button *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
+internal inline void ui_radio_button_set_top(ui_radio_button *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
+internal inline float *ui_radio_button_top_at(const ui_radio_button *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
 
 // class UIScrollBar (ui_scroll_bar)
 // made in 0x59DE62
 // UIControl's, the base's
+// its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
+// control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
+// x + w - 1, y}, 0x5898C7)
+internal inline float ui_scroll_bar_get_bottom(const ui_scroll_bar *o) { return *(float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline void ui_scroll_bar_set_bottom(ui_scroll_bar *o, float v) { *(float *)((uint8_t *)o + of_ui_control_bottom) = v; }
+internal inline float *ui_scroll_bar_bottom_at(const ui_scroll_bar *o) { return (float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline float ui_scroll_bar_get_left(const ui_scroll_bar *o) { return *(float *)((uint8_t *)o + of_ui_control_left); }
+internal inline void ui_scroll_bar_set_left(ui_scroll_bar *o, float v) { *(float *)((uint8_t *)o + of_ui_control_left) = v; }
+internal inline float *ui_scroll_bar_left_at(const ui_scroll_bar *o) { return (float *)((uint8_t *)o + of_ui_control_left); }
+internal inline float ui_scroll_bar_get_right(const ui_scroll_bar *o) { return *(float *)((uint8_t *)o + of_ui_control_right); }
+internal inline void ui_scroll_bar_set_right(ui_scroll_bar *o, float v) { *(float *)((uint8_t *)o + of_ui_control_right) = v; }
+internal inline float *ui_scroll_bar_right_at(const ui_scroll_bar *o) { return (float *)((uint8_t *)o + of_ui_control_right); }
+internal inline float ui_scroll_bar_get_top(const ui_scroll_bar *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
+internal inline void ui_scroll_bar_set_top(ui_scroll_bar *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
+internal inline float *ui_scroll_bar_top_at(const ui_scroll_bar *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
 
 // class UISlider (ui_slider)
 // made in 0x5672AC, 0x569046, 0x56E14F, 0x571B93, 0x590734
 // UIControl's, the base's
+// its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
+// control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
+// x + w - 1, y}, 0x5898C7)
+internal inline float ui_slider_get_bottom(const ui_slider *o) { return *(float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline void ui_slider_set_bottom(ui_slider *o, float v) { *(float *)((uint8_t *)o + of_ui_control_bottom) = v; }
+internal inline float *ui_slider_bottom_at(const ui_slider *o) { return (float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline float ui_slider_get_left(const ui_slider *o) { return *(float *)((uint8_t *)o + of_ui_control_left); }
+internal inline void ui_slider_set_left(ui_slider *o, float v) { *(float *)((uint8_t *)o + of_ui_control_left) = v; }
+internal inline float *ui_slider_left_at(const ui_slider *o) { return (float *)((uint8_t *)o + of_ui_control_left); }
+internal inline float ui_slider_get_right(const ui_slider *o) { return *(float *)((uint8_t *)o + of_ui_control_right); }
+internal inline void ui_slider_set_right(ui_slider *o, float v) { *(float *)((uint8_t *)o + of_ui_control_right) = v; }
+internal inline float *ui_slider_right_at(const ui_slider *o) { return (float *)((uint8_t *)o + of_ui_control_right); }
+internal inline float ui_slider_get_top(const ui_slider *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
+internal inline void ui_slider_set_top(ui_slider *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
+internal inline float *ui_slider_top_at(const ui_slider *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
 
 // class UIStatusBar (ui_status_bar)
 // made in 0x5D23E7
 // UIControl's, the base's
+// its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
+// control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
+// x + w - 1, y}, 0x5898C7)
+internal inline float ui_status_bar_get_bottom(const ui_status_bar *o) { return *(float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline void ui_status_bar_set_bottom(ui_status_bar *o, float v) { *(float *)((uint8_t *)o + of_ui_control_bottom) = v; }
+internal inline float *ui_status_bar_bottom_at(const ui_status_bar *o) { return (float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline float ui_status_bar_get_left(const ui_status_bar *o) { return *(float *)((uint8_t *)o + of_ui_control_left); }
+internal inline void ui_status_bar_set_left(ui_status_bar *o, float v) { *(float *)((uint8_t *)o + of_ui_control_left) = v; }
+internal inline float *ui_status_bar_left_at(const ui_status_bar *o) { return (float *)((uint8_t *)o + of_ui_control_left); }
+internal inline float ui_status_bar_get_right(const ui_status_bar *o) { return *(float *)((uint8_t *)o + of_ui_control_right); }
+internal inline void ui_status_bar_set_right(ui_status_bar *o, float v) { *(float *)((uint8_t *)o + of_ui_control_right) = v; }
+internal inline float *ui_status_bar_right_at(const ui_status_bar *o) { return (float *)((uint8_t *)o + of_ui_control_right); }
+internal inline float ui_status_bar_get_top(const ui_status_bar *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
+internal inline void ui_status_bar_set_top(ui_status_bar *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
+internal inline float *ui_status_bar_top_at(const ui_status_bar *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
 
 // class UITextLabel (ui_text_label)
 // made in 0x560EC7, 0x563EB8, 0x56575B, 0x5672AC, 0x5685A3, 0x569046, 0x56B75E, 0x56D39A, 0x56E14F, 0x56EA99, 0x571B93, 0x572A2A, 0x57ED81, 0x583705, 0x58A70E, 0x58D3E1, 0x5900BB, 0x590734, 0x59198C, 0x594C3F, 0x59B710, 0x64AAB7, 0x6526E7
 // UIControl's, the base's
+// its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
+// control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
+// x + w - 1, y}, 0x5898C7)
+internal inline float ui_text_label_get_bottom(const ui_text_label *o) { return *(float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline void ui_text_label_set_bottom(ui_text_label *o, float v) { *(float *)((uint8_t *)o + of_ui_control_bottom) = v; }
+internal inline float *ui_text_label_bottom_at(const ui_text_label *o) { return (float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline float ui_text_label_get_left(const ui_text_label *o) { return *(float *)((uint8_t *)o + of_ui_control_left); }
+internal inline void ui_text_label_set_left(ui_text_label *o, float v) { *(float *)((uint8_t *)o + of_ui_control_left) = v; }
+internal inline float *ui_text_label_left_at(const ui_text_label *o) { return (float *)((uint8_t *)o + of_ui_control_left); }
+internal inline float ui_text_label_get_right(const ui_text_label *o) { return *(float *)((uint8_t *)o + of_ui_control_right); }
+internal inline void ui_text_label_set_right(ui_text_label *o, float v) { *(float *)((uint8_t *)o + of_ui_control_right) = v; }
+internal inline float *ui_text_label_right_at(const ui_text_label *o) { return (float *)((uint8_t *)o + of_ui_control_right); }
+internal inline float ui_text_label_get_top(const ui_text_label *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
+internal inline void ui_text_label_set_top(ui_text_label *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
+internal inline float *ui_text_label_top_at(const ui_text_label *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
 
 // class UITriStateCheckBox (ui_tri_state_check_box)
 // made in 0x57ED81
 // UIButton's, the base's
 // UIControl's, the base's
+// its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
+// control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
+// x + w - 1, y}, 0x5898C7)
+internal inline float ui_tri_state_check_box_get_bottom(const ui_tri_state_check_box *o) { return *(float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline void ui_tri_state_check_box_set_bottom(ui_tri_state_check_box *o, float v) { *(float *)((uint8_t *)o + of_ui_control_bottom) = v; }
+internal inline float *ui_tri_state_check_box_bottom_at(const ui_tri_state_check_box *o) { return (float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline float ui_tri_state_check_box_get_left(const ui_tri_state_check_box *o) { return *(float *)((uint8_t *)o + of_ui_control_left); }
+internal inline void ui_tri_state_check_box_set_left(ui_tri_state_check_box *o, float v) { *(float *)((uint8_t *)o + of_ui_control_left) = v; }
+internal inline float *ui_tri_state_check_box_left_at(const ui_tri_state_check_box *o) { return (float *)((uint8_t *)o + of_ui_control_left); }
+internal inline float ui_tri_state_check_box_get_right(const ui_tri_state_check_box *o) { return *(float *)((uint8_t *)o + of_ui_control_right); }
+internal inline void ui_tri_state_check_box_set_right(ui_tri_state_check_box *o, float v) { *(float *)((uint8_t *)o + of_ui_control_right) = v; }
+internal inline float *ui_tri_state_check_box_right_at(const ui_tri_state_check_box *o) { return (float *)((uint8_t *)o + of_ui_control_right); }
+internal inline float ui_tri_state_check_box_get_top(const ui_tri_state_check_box *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
+internal inline void ui_tri_state_check_box_set_top(ui_tri_state_check_box *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
+internal inline float *ui_tri_state_check_box_top_at(const ui_tri_state_check_box *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
 
 // the running build's values (spec_select, with addr_select): how many it hasn't got
 internal int spec_ui_forms_select(int build) {

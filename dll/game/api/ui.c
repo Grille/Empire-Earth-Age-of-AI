@@ -50,6 +50,33 @@ internal inline const char *edit_text(void *edit) { return ((const char *(__this
 internal inline void label_set_text(void *label, void *wstr) {
     ((void (__thiscall *)(void *, void *, char))*(void **)data_ui_imports_iat_text_label_set_text)(label, wstr, 1);
 }
+// THE SCENARIO EDITOR'S CONTROLS (engine/editor_search.c): an edit box made as the trigger screen makes its own
+// (0x57ED81: UIEditBox's constructor with the editor's font, then the exe's UIEditBox vtable) - rect a GERectangle
+// {bottom, left, right, top} in the form's coordinates, index the form's running control index (the box takes one);
+// NULL: no memory. A control into the form, shown with group's controls; into the editor's units panel (its group)
+internal inline ee_ui_control *edit_box_new(unsigned id, const float rect[4], ee_ui_form *form, int *index) {
+    ee_ui_control *box = game_new(size_ui_edit_box);
+    if (!box) return NULL;
+    typedef void *(__thiscall *ctor_fn)(void *, unsigned long, void *, unsigned long, char, const float *, ee_ui_form *,
+                                        unsigned long, unsigned long, char, char);
+    (*(ctor_fn *)data_ui_iat_edit_ctor)(box, id, ui_get_font_edit(), 5, 0, rect, form, (unsigned long)*index, 2, 1, 0);
+    *(uint32_t *)box = vt_ui_edit_box;
+    (*index)++;
+    return box;
+}
+internal inline void ui_form_add_control(ee_ui_form *form, ee_ui_control *c, unsigned long group) {
+    ((void (__thiscall *)(ee_ui_form *, ee_ui_control *, unsigned long))*(void **)data_ui_imports_iat_form_add_control)(form, c, group);
+}
+internal inline void editor_units_add_control(ee_ui_form *form, ee_ui_control *c) { ui_form_add_control(form, c, value_editor_group_units); }
+// an edit box of the mod's own kind: UIEditBox's vtable with its RTTI pointer before it copied into vt (room entries:
+// ui.edit_box_slots + 1) - the box's vtable is then vt + 1; the copy's UpdateKeyboard slot (called for the box while
+// it has the keyboard) for the caller's hook, NULL: no room
+internal inline void **edit_box_vtable_copy(void **vt, int room) {
+    int n = (int)value_ui_edit_box_slots + 1;
+    if (room < n) return NULL;
+    memcpy(vt, (void **)(uintptr_t)vt_ui_edit_box - 1, (size_t)n * sizeof *vt);
+    return &vt[1 + slot_ui_control_update_keyboard];
+}
 // a control event of the UI database by its id, made by the event creator that knows it (ui.event_creators: the
 // index in that list) for form; NULL: none
 internal inline ee_ui_event *ui_event_new(int creator, ee_ui_form *form, int id) {

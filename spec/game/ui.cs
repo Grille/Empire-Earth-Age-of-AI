@@ -403,6 +403,21 @@ unsafe struct UIForm
 [c_type("ee_ui_control")]
 unsafe struct UIControl
 {
+    /// its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
+    /// control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
+    /// x + w - 1, y}, 0x5898C7)
+    [offset(0x18), found(c)]
+    float32 bottom;
+
+    [offset(0x1C), found(c)]
+    float32 left;
+
+    [offset(0x20), found(c)]
+    float32 right;
+
+    [offset(0x24), found(c)]
+    float32 top;
+
     // VIRTUAL FUNCTIONS (slot 0 the destructor)
 
     [slot(1)]
@@ -722,6 +737,21 @@ static unsafe class ui
     [import_slot("Low-Level Engine.dll", "?GetText@UIEditBox@@QBEPBDK@Z")]
     [address((ee)0x00823328, (aoc)0x00837EE0)]
     static block iat_edit_get_text;
+
+    /// UIEditBox::UIEditBox(id, GEFont *, K, bool, const GERectangle &, UIForm *, the form's control index, K, bool,
+    /// bool) - the trigger screen's (0x57ED81): (id, ui.font_edit, 5, 0, rect, form, index, 2, 1, 0) into 0x1E0 bytes,
+    /// then the exe's vtable (UIEditBox's)
+    [import_slot("Low-Level Engine.dll", "??0UIEditBox@@QAE@KPAVGEFont@@K_NABVGERectangle@@PAVUIForm@@KK11@Z")]
+    [address((ee)0x00823D48, (aoc)0x00837D4C)]
+    static block iat_edit_ctor;
+
+    /// the font of the scenario editor's lists and edit boxes (the units list, the trigger screen's edit boxes)
+    [address((ee)0x009197B4, (aoc)0x00931930)]
+    static void* font_edit;
+
+    /// UIEditBox's vtable (the exe's): its slots, 0..35
+    [value(36)]
+    static uint32 edit_box_slots;
 
     /// UIForm::AddHotKey(key, 3 masks, 4 events, K, bool)
     [import_slot("Low-Level Engine.dll", "?AddHotKey@UIForm@@QAEXKKKKPAVUIEvent@@000K_N@Z")]

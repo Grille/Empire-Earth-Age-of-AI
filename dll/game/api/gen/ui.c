@@ -267,6 +267,21 @@ internal inline void ui_form_set_rectangle(ee_ui_form *ui_form, void *rect) { ((
 // create_control. Its vtable is the DLL's; its slots by the DLL's export names (17 and 18 one empty function there:
 // by their order). Coordinates are floats in the form's design resolution (dbuiforms +0xE8 / +0xEC: 800x600 or
 // 1024x768), rectangles GERectangles, points GE2DPoints
+// its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
+// control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
+// x + w - 1, y}, 0x5898C7)
+internal inline float ui_control_get_bottom(const ee_ui_control *o) { return *(float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline void ui_control_set_bottom(ee_ui_control *o, float v) { *(float *)((uint8_t *)o + of_ui_control_bottom) = v; }
+internal inline float *ui_control_bottom_at(const ee_ui_control *o) { return (float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline float ui_control_get_left(const ee_ui_control *o) { return *(float *)((uint8_t *)o + of_ui_control_left); }
+internal inline void ui_control_set_left(ee_ui_control *o, float v) { *(float *)((uint8_t *)o + of_ui_control_left) = v; }
+internal inline float *ui_control_left_at(const ee_ui_control *o) { return (float *)((uint8_t *)o + of_ui_control_left); }
+internal inline float ui_control_get_right(const ee_ui_control *o) { return *(float *)((uint8_t *)o + of_ui_control_right); }
+internal inline void ui_control_set_right(ee_ui_control *o, float v) { *(float *)((uint8_t *)o + of_ui_control_right) = v; }
+internal inline float *ui_control_right_at(const ee_ui_control *o) { return (float *)((uint8_t *)o + of_ui_control_right); }
+internal inline float ui_control_get_top(const ee_ui_control *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
+internal inline void ui_control_set_top(ee_ui_control *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
+internal inline float *ui_control_top_at(const ee_ui_control *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
 typedef void (__thiscall *ui_control_add_ime_result_string_fn)(ee_ui_control *, void *);
 internal inline void ui_control_add_ime_result_string(ee_ui_control *ui_control, void *text) { ((ui_control_add_ime_result_string_fn)(*(void ***)ui_control)[slot_ui_control_add_ime_result_string])(ui_control, text); }
 typedef int (__thiscall *ui_control_change_ime_composition_string_fn)(ee_ui_control *, void *, void *, uint32_t);
@@ -345,6 +360,21 @@ internal inline int ui_control_draw_border(ee_ui_control *ui_control, void *rect
 // class UIButton (ee_ui_button)
 // a button, Low-Level Engine.dll's UIButton (its vtable the DLL's): the slots it adds
 // UIControl's, the base's
+// its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
+// control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
+// x + w - 1, y}, 0x5898C7)
+internal inline float ui_button_get_bottom(const ee_ui_button *o) { return *(float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline void ui_button_set_bottom(ee_ui_button *o, float v) { *(float *)((uint8_t *)o + of_ui_control_bottom) = v; }
+internal inline float *ui_button_bottom_at(const ee_ui_button *o) { return (float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline float ui_button_get_left(const ee_ui_button *o) { return *(float *)((uint8_t *)o + of_ui_control_left); }
+internal inline void ui_button_set_left(ee_ui_button *o, float v) { *(float *)((uint8_t *)o + of_ui_control_left) = v; }
+internal inline float *ui_button_left_at(const ee_ui_button *o) { return (float *)((uint8_t *)o + of_ui_control_left); }
+internal inline float ui_button_get_right(const ee_ui_button *o) { return *(float *)((uint8_t *)o + of_ui_control_right); }
+internal inline void ui_button_set_right(ee_ui_button *o, float v) { *(float *)((uint8_t *)o + of_ui_control_right) = v; }
+internal inline float *ui_button_right_at(const ee_ui_button *o) { return (float *)((uint8_t *)o + of_ui_control_right); }
+internal inline float ui_button_get_top(const ee_ui_button *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
+internal inline void ui_button_set_top(ee_ui_button *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
+internal inline float *ui_button_top_at(const ee_ui_button *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
 typedef void (__thiscall *ui_button_button_down_fn)(ee_ui_button *);
 internal inline void ui_button_button_down(ee_ui_button *ui_button) { ((ui_button_button_down_fn)(*(void ***)ui_button)[slot_ui_button_button_down])(ui_button); }
 typedef void (__thiscall *ui_button_button_up_fn)(ee_ui_button *);
@@ -504,6 +534,15 @@ internal inline void ui_set_gfx_effects(ee_effect_mgr *v) { *(ee_effect_mgr **)(
 internal inline ee_effect_mgr **ui_gfx_effects_at(void) { return (ee_effect_mgr **)(uint8_t *)(uintptr_t)data_ui_gfx_effects; }
 // UIEditBox::GetText
 internal inline uint8_t *ui_iat_edit_get_text_at(void) { return (uint8_t *)(uintptr_t)data_ui_iat_edit_get_text; }
+// UIEditBox::UIEditBox(id, GEFont *, K, bool, const GERectangle &, UIForm *, the form's control index, K, bool,
+// bool) - the trigger screen's (0x57ED81): (id, ui.font_edit, 5, 0, rect, form, index, 2, 1, 0) into 0x1E0 bytes,
+// then the exe's vtable (UIEditBox's)
+internal inline uint8_t *ui_iat_edit_ctor_at(void) { return (uint8_t *)(uintptr_t)data_ui_iat_edit_ctor; }
+// the font of the scenario editor's lists and edit boxes (the units list, the trigger screen's edit boxes)
+internal inline void *ui_get_font_edit(void) { return *(void **)(uint8_t *)(uintptr_t)data_ui_font_edit; }
+internal inline void ui_set_font_edit(void *v) { *(void **)(uint8_t *)(uintptr_t)data_ui_font_edit = v; }
+internal inline void **ui_font_edit_at(void) { return (void **)(uint8_t *)(uintptr_t)data_ui_font_edit; }
+// UIEditBox's vtable (the exe's): its slots, 0..35
 // UIForm::AddHotKey(key, 3 masks, 4 events, K, bool)
 internal inline uint8_t *ui_iat_uiform_add_hotkey_at(void) { return (uint8_t *)(uintptr_t)data_ui_iat_uiform_add_hotkey; }
 // the UI manager's current form
@@ -621,6 +660,10 @@ internal int spec_ui_select(int build) {
         slot_ui_form_draw_text = 17;
         slot_ui_form_open = 18;
         slot_ui_form_set_rectangle = 19;
+        of_ui_control_bottom = 0x18;
+        of_ui_control_left = 0x1C;
+        of_ui_control_right = 0x20;
+        of_ui_control_top = 0x24;
         slot_ui_control_add_ime_result_string = 1;
         slot_ui_control_change_ime_composition_string = 2;
         slot_ui_control_change_font = 3;
@@ -701,6 +744,9 @@ internal int spec_ui_select(int build) {
         fn_effect_mgr_remove = (effect_mgr_remove_fn)0x004FBEB2;
         data_ui_gfx_effects = 0x00918E1C;
         data_ui_iat_edit_get_text = 0x00823328;
+        data_ui_iat_edit_ctor = 0x00823D48;
+        data_ui_font_edit = 0x009197B4;
+        value_ui_edit_box_slots = 36;
         data_ui_iat_uiform_add_hotkey = 0x00824048;
         data_ui_iat_uim_form = 0x00823D60;
         data_ui_site_scroll_timer = 0x004050C2;
@@ -821,6 +867,10 @@ internal int spec_ui_select(int build) {
         slot_ui_form_draw_text = 17;
         slot_ui_form_open = 18;
         slot_ui_form_set_rectangle = 19;
+        of_ui_control_bottom = 0x18;
+        of_ui_control_left = 0x1C;
+        of_ui_control_right = 0x20;
+        of_ui_control_top = 0x24;
         slot_ui_control_add_ime_result_string = 1;
         slot_ui_control_change_ime_composition_string = 2;
         slot_ui_control_change_font = 3;
@@ -901,6 +951,9 @@ internal int spec_ui_select(int build) {
         fn_effect_mgr_remove = (effect_mgr_remove_fn)0x005068C6;
         data_ui_gfx_effects = 0x0093185C;
         data_ui_iat_edit_get_text = 0x00837EE0;
+        data_ui_iat_edit_ctor = 0x00837D4C;
+        data_ui_font_edit = 0x00931930;
+        value_ui_edit_box_slots = 36;
         data_ui_iat_uiform_add_hotkey = 0x00837BE0;
         data_ui_iat_uim_form = 0x00837B44;
         data_ui_site_scroll_timer = 0x00404734;
@@ -1001,6 +1054,8 @@ internal int spec_ui_check(void) {
     bad += spec_code((uintptr_t)fn_effect_mgr_remove, "EEEffectManager.remove");
     bad += spec_data(data_ui_gfx_effects, "ui.gfx_effects");
     bad += spec_data(data_ui_iat_edit_get_text, "ui.iat_edit_get_text");
+    bad += spec_data(data_ui_iat_edit_ctor, "ui.iat_edit_ctor");
+    bad += spec_data(data_ui_font_edit, "ui.font_edit");
     bad += spec_data(data_ui_iat_uiform_add_hotkey, "ui.iat_uiform_add_hotkey");
     bad += spec_data(data_ui_iat_uim_form, "ui.iat_uim_form");
     bad += spec_code(data_ui_site_scroll_timer, "ui.site_scroll_timer");

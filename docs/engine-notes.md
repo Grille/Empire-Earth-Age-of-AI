@@ -898,6 +898,24 @@ lobby's WONAPI dialogs and the trigger model EESM* aside) with their vtables, co
 functions in the DLL classes' slots, and 455 more of the DLL's UI functions the exe imports: the load-time check grew
 from about 660 to 3516 checks (AoC 3474), all hold.
 
+A control of the mod's own in an editor panel (2026-11-03, engine/editor_search.c): the editor's form builds its
+panels by a factory (EEUIFScenarioEditor 0x58EB4B, AoC 0x59EF5A: n -> the panel's constructor - 3 the units panel
+EESEUnit), each constructor taking the form's running control index (a pointer: every control takes the next one) and
+making its controls with the DLL's constructors through their import slots (UITextLabel 0x823D50, UIRadioButton
+0x823DA8, UILBString 0x823F54, UIEditBox 0x823D48 - the exe's import table holds them, the spec's ui_imports.cs
+leaves the constructors out), then the exe's vtable of the class written over the DLL's, then UIForm::AddControl(control,
+group) - the group is the panel's (units 6, the player screen's diplomacy page 8, the trigger screen 0xD), shown
+while the panel is. A control's rectangle is at +0x18 as {bottom, left, right, top}. A panel's destructor deletes
+its controls one by one (vf0 with 1); UIControl::~UIControl doesn't take a control out of its form - the panels go
+only with the form. UIEditBox's slots (the DLL's export names): 24 SetBgOpacity (the editor's 0.4), 26
+SetDisplayMode, 28 SetRectangle, 31 UpdateKeyboard (the control with the keyboard, every UI pass), 32
+UpdateTranslatedKey (a typed character: WM_CHAR), 35 ProcessEnterKey; the exe's vtable has 36 slots, jumps into the
+DLL but for vf0. The units list (EEUIFSELBUnitList) keeps its type ids in a vector at +0x140 beside its lines; its
+add (0x5899BC) inserts a type by the list's sort (+0x14C: 0 name, 1 epoch, 2 family; its comparer +0x150), the name
+the language file's string of the type's +0x560 (AoC +0x260). The panel's refill (0x58C2F5) runs on the panel's
+opening and the sort and category switches' event (EEUIFSEESortUnitList) and builds the list only when the category,
+sort or units (scenario's / all) differ from those it built for (+0x12C / +0x130 / +0x134).
+
 ## Drawing
 
 - EEROUnits::vf0 0x503B83 (each frame) collects what is on screen into the global block 0x8D2CB8 (static ctor

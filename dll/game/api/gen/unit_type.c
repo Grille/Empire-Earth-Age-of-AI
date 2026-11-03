@@ -171,6 +171,10 @@ internal inline int *unit_type_transport_size_at(const ee_unit_type *o) { return
 internal inline int unit_type_get_hp(const ee_unit_type *o) { return *(int *)((uint8_t *)o + of_unit_type_hp); }
 internal inline void unit_type_set_hp(ee_unit_type *o, int v) { *(int *)((uint8_t *)o + of_unit_type_hp) = v; }
 internal inline int *unit_type_hp_at(const ee_unit_type *o) { return (int *)((uint8_t *)o + of_unit_type_hp); }
+// its name's string in the language file (the scenario editor's unit list shows it, 0x5899BC)
+internal inline int unit_type_get_name_text(const ee_unit_type *o) { return *(int *)((uint8_t *)o + of_unit_type_name_text); }
+internal inline void unit_type_set_name_text(ee_unit_type *o, int v) { *(int *)((uint8_t *)o + of_unit_type_name_text) = v; }
+internal inline int *unit_type_name_text_at(const ee_unit_type *o) { return (int *)((uint8_t *)o + of_unit_type_name_text); }
 // the data's column 0x198 "Resource type": lets_pass (0x6167C7) and 0x48xxxx test 3 (wood: trees) with the other
 // type's +0x617 (the data's "Can walk through trees")
 internal inline int unit_type_get_resource_type(const ee_unit_type *o) { return *(int *)((uint8_t *)o + of_unit_type_resource_type); }
@@ -439,6 +443,7 @@ internal int spec_unit_type_select(int build) {
         of_unit_type_garrison_capacity = 0x550;
         of_unit_type_transport_size = 0x558;
         of_unit_type_hp = 0x55C;
+        of_unit_type_name_text = 0x560;
         of_unit_type_resource_type = 0x568;
         of_unit_type_missile_delay = 0x588;
         of_unit_type_size = 0x58C;
@@ -532,6 +537,7 @@ internal int spec_unit_type_select(int build) {
         of_unit_type_garrison_capacity = 0x250;
         of_unit_type_transport_size = 0x258;
         of_unit_type_hp = 0x25C;
+        of_unit_type_name_text = 0x260;
         of_unit_type_resource_type = 0x268;
         of_unit_type_missile_delay = 0x288;
         of_unit_type_size = 0x28C;
