@@ -128,6 +128,13 @@ internal inline uint32_t *physics_time_at(const ee_physics *o) { return (uint32_
 typedef void (__thiscall *physics_step_fn)(ee_physics *);
 internal physics_step_fn fn_physics_step;
 internal inline void physics_step(ee_physics *physics) { fn_physics_step(physics); }
+// a step's end: step calls it last, on every path through a step that ran (AoC the same): the world's settle
+// (EEWorld.settle) and each player's vf1(0, 1) - what the mod does once a step, the same step on every PC, goes
+// after it (walls.c: the walls' joins; the safe point between steps may come after two of them)
+typedef void (__thiscall *physics_step_end_fn)(ee_physics *);
+internal physics_step_end_fn fn_physics_step_end;
+internal inline void physics_step_end(ee_physics *physics) { fn_physics_step_end(physics); }
+internal inline int patch_step_end(physics_step_end_fn h) { return patch_call(call_step_end, (uintptr_t)fn_physics_step_end, (void *)h); }
 
 // class EEWorld (ee_world)
 // the world, game.world - a static object: its players at +0x74 (game.players), its map at +0xBC (EEWorld)
@@ -252,6 +259,8 @@ internal int spec_world_select(int build) {
         of_physics_sync_ms = 0xCC;
         of_physics_time = 0xD0;
         fn_physics_step = (physics_step_fn)0x00546C63;
+        fn_physics_step_end = (physics_step_end_fn)0x00545C8F;
+        call_step_end = 0x00546E12;
         vt_ee_world = 0x0082C84C;
         of_world_players = 0x74;
         of_world_map = 0xBC;
@@ -305,6 +314,8 @@ internal int spec_world_select(int build) {
         of_physics_sync_ms = 0xCC;
         of_physics_time = 0xD0;
         fn_physics_step = (physics_step_fn)0x00553082;
+        fn_physics_step_end = (physics_step_end_fn)0x00551E9F;
+        call_step_end = 0x005532BE;
         vt_ee_world = 0x00841FEC;
         of_world_players = 0x74;
         of_world_map = 0xBC;
@@ -340,6 +351,8 @@ internal int spec_world_check(void) {
     bad += spec_code((uintptr_t)fn_dmg_model_acquire, "EEGraphicObject.acquire");
     bad += spec_code((uintptr_t)fn_dmg_model_damage_points, "EEGraphicObject.damage_points");
     bad += spec_code((uintptr_t)fn_physics_step, "EEPhysics.step");
+    bad += spec_code((uintptr_t)fn_physics_step_end, "EEPhysics.step_end");
+    bad += spec_call(call_step_end, (uintptr_t)fn_physics_step_end, "EEPhysics.step_end [call_site step_end]");
     bad += spec_vtable(vt_ee_world, ".?AVEEWorld@@", "EEWorld [vtable]");
     bad += spec_code((uintptr_t)fn_world_player, "EEWorld.player");
     bad += spec_code((uintptr_t)fn_world_settle, "EEWorld.settle");

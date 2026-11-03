@@ -338,8 +338,14 @@ Settings in `ageofai.ini`:
   pieces do) and stands a little into the ground, the round posts on the lowest corner of their tile - the wall
   follows the hill in one line. Each piece also spans its tile exactly and reaches into a round post beside it: the
   game's pieces are longer than their spacing, so neighbours overlapped, their faces flickered, and on a slope their
-  ends stuck out at every bend. Walls built before are fitted when a game is loaded. In multiplayer every player
-  needs the same setting.
+  ends stuck out at every bend. Walls built before are fitted when a game is loaded; a gate laid into a fitted wall
+  keeps its own shape. In multiplayer every player needs the same setting.
+- `[patches] wall_joins=0` (off until tried; only with `wall_slopes=1`): the game put a round post at the end of every
+  stretch of wall it laid, where the ground stepped, and beside every joint - a wall drawn on from another had two
+  posts side by side, walls crossing or meeting three or four in a cluster, and a post stood between a wall and the
+  tower or gate it ran into. With `1` a post stands only where a wall ends, turns or branches: a wall runs on
+  through, and into a tower or a gate; when a piece is destroyed, its neighbours become the ends of the wall. In
+  multiplayer every player needs the same setting.
 - `[general] big_selection=1` (default): double-clicking a unit (all of its kind on screen) or dragging a box selected
   at most 63 units - with a large army only a part. Now up to about 240, as many as the game's selection message
   can carry; the message keeps its format, so it should stay compatible in multiplayer.

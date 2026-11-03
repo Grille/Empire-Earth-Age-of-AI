@@ -132,6 +132,13 @@ unsafe struct EEPhysics
 
     [address((ee)0x00546C63, (aoc)0x00553082)]
     extern void step();
+
+    /// a step's end: step calls it last, on every path through a step that ran (AoC the same): the world's settle
+    /// (EEWorld.settle) and each player's vf1(0, 1) - what the mod does once a step, the same step on every PC, goes
+    /// after it (walls.c: the walls' joins; the safe point between steps may come after two of them)
+    [address((ee)0x00545C8F, (aoc)0x00551E9F)]
+    [call_site("step_end", (ee)0x00546E12, (aoc)0x005532BE)]
+    extern void step_end();
 }
 
 /// the world, game.world - a static object: its players at +0x74 (game.players), its map at +0xBC (EEWorld)

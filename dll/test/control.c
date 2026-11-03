@@ -51,6 +51,7 @@ internal void cmd_build(char *out, const char *args);
 internal void cmd_sitecheck(char *out, const char *args);
 internal void cmd_found(char *out, const char *args);
 internal void cmd_wall(char *out, const char *args);
+internal void cmd_gate(char *out, const char *args);
 internal void cmd_plan(char *out, const char *args);
 internal void cmd_hurt(char *out, const char *args);
 internal void cmd_drops(char *out, const char *args);
@@ -397,6 +398,7 @@ internal void execute(const char *cmd, char *out) {
     else if (!strcmp(verb, "sitecheck")) cmd_sitecheck(out, args);
     else if (!strcmp(verb, "found")) cmd_found(out, args);
     else if (!strcmp(verb, "wall")) cmd_wall(out, args);
+    else if (!strcmp(verb, "gate")) cmd_gate(out, args);
     else if (!strcmp(verb, "plan")) cmd_plan(out, args);
     else if (!strcmp(verb, "hurt")) cmd_hurt(out, args);
     else if (!strcmp(verb, "drops")) cmd_drops(out, args);
@@ -476,14 +478,12 @@ internal void build_retry_tick(void);   // buildretry.c: citizens that stopped a
 internal void units_first_tick(void);   // unitsfirst.c: a unit shooting a building looks for an enemy unit between shots
 internal void answer_fire_tick(void);   // unitsfirst.c: an idle unit shot from beyond its reply range goes for its attacker
 internal void spoils_tick(void);        // spoils.c: a resigned player's buildings and units
-internal void walls_tick(void);         // walls.c: the walls a game starts with onto the ground
 internal long __thiscall hook_sim_receive(void *thread, void *a, void *b, void *c) {
     diplo_safe_point();
     upgrade_stragglers();
     aim_tick();
     ff_linger_tick();
     build_retry_tick();
-    walls_tick();
     units_first_tick();
     answer_fire_tick();
     spoils_tick();

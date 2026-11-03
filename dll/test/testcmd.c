@@ -459,6 +459,18 @@ internal void cmd_wall(char *out, const char *args) {
     REPLY("ok: P%d wall %d from %d,%d to %d,%d ordered\n", p, t, a[0], a[1], b[0], b[1]);
 }
 
+// gate P T x y dir: player P's gate of type T laid over the five finished wall pieces centred on x, y along dir (1 x,
+// 2 y, 3 x+1,y-1, 4 x+1,y+1) - as the gate button and the AI lay one (build_gate), only where gate_fits says it can
+internal void cmd_gate(char *out, const char *args) {
+    int p, t, tile[2], dir;
+    if (sscanf(args, "%d %d %d %d %d", &p, &t, &tile[0], &tile[1], &dir) < 5) { REPLY("error: usage: gate P T x y dir\n"); return; }
+    ee_player *pl = player_at(p);
+    if (!pl || t < 0 || t >= 724 || !type_data(t)) { REPLY("error: no player %d or type %d\n", p, t); return; }
+    if (!gate_fits(pl, tile[0], tile[1], dir)) { REPLY("error: no five finished wall pieces of P%d at %d,%d along %d\n", p, tile[0], tile[1], dir); return; }
+    build_gate(tile, p, unit_type_get_tech(type_data(t)), dir);
+    REPLY("ok: P%d gate %d at %d,%d along %d\n", p, t, tile[0], tile[1], dir);
+}
+
 // build P bx by x y r [place]: player P's citizens within r tiles of x, y build (or repair) P's building at bx, by - the
 // game's order (EEUGBuildRepair: new 0x5C, 0x60BAD0(goal, player, building, 1)). Tests: enemy builders at a tower.
 // place: as the player's placing does instead (unit_build_next: no goal, the building first in the citizen's build list)

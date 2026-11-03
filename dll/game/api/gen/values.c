@@ -3030,6 +3030,7 @@ internal uint32_t of_physics_work_ms_sum;
 internal uint32_t of_physics_work_count;
 internal uint32_t of_physics_sync_ms;
 internal uint32_t of_physics_time;
+internal uint32_t call_step_end;
 internal uint32_t vt_ee_world;
 internal uint32_t of_world_players;
 internal uint32_t of_world_map;

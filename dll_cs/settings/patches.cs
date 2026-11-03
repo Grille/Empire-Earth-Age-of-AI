@@ -44,4 +44,12 @@ class patches
     /// player needs the same setting. 0 = the original
     [title("Walls on slopes")]
     bool wall_slopes = false;
+    /// Wall joins (with wall_slopes): the game put a round post at the end of every stretch of wall it laid and
+    /// beside every joint, so a wall drawn on from another had two posts side by side, walls crossing or meeting
+    /// three or four in a cluster, and a post stood between a wall and the tower or gate it ran into. A post now
+    /// stands only where a wall ends, turns or branches: a wall runs on through, and into a tower or a gate; a
+    /// piece beside a destroyed one becomes the wall's end. In multiplayer every player needs the same setting.
+    /// 0 = the original
+    [title("Wall joins")]
+    bool wall_joins = false;
 }
