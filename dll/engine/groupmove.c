@@ -1087,6 +1087,7 @@ internal float ff_since(uint32_t step) {
     return (float)(ff_step() - step) * (ph ? physics_get_step_s(ph) : 0.05f);
 }
 internal unsigned g_ff_released;   // units let go to their spots as their column drained
+#define FF_DRAIN_STALL 3.0f    // s: a drain that let nobody go this long lets its front rank go
 #define FF_DRAIN_IDLE 15.0f    // s: a drain that let nobody go this long ends (the goal inside the narrow: the column's front stands at its place short of the release line)
 // u is on this march's move: its order a move to its spot (a member sent elsewhere alone keeps e->g, as does a member of
 // an earlier march in the same slot - the group test told them apart, and the drain can't use it: the leader's group
@@ -1508,7 +1509,7 @@ internal int fo_follow_aim(ee_unit *u, const float *pos, float *aim) {
     e->prog = ff_progress(gr, anchor, v2(pos[0], pos[1]), NULL);
     e->prog_at = step ? step : 1;
     if (gr->drain) {   // the column drains (ff_leader): past the narrow a unit is let go to its spot on its own route, the ones behind queue up behind it still
-        if (!e->rel && (e->prog > gr->narrow_to + FF_REL_PAST || e->prog > gr->front - 1.0f)) { e->rel = 1; gr->rel_at = step ? step : 1; g_ff_released++; ff_reroute(u); }   // or at the column's front: no further to go (the goal inside the narrow)
+        if (!e->rel && (e->prog > gr->narrow_to + FF_REL_PAST || e->prog > gr->front - 1.0f || (!e->ahead && ff_since(gr->rel_at) >= FF_DRAIN_STALL))) { e->rel = 1; gr->rel_at = step ? step : 1; g_ff_released++; ff_reroute(u); }   // or at the column's front: no further to go (the goal inside the narrow); or the front rank of a drain that let nobody go for FF_DRAIN_STALL: the goal inside an enclosure, the line narrow to its end, the front rank standing short of a place in the far wall (the player, 2026-11-03: the last units waited till the others had reached their spots)
         if (e->rel) return 0;
     }
     vec2 off = ff_off(gr, e);
