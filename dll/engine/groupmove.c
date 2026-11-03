@@ -22,7 +22,7 @@
 #define FO_MAX 2048        // units laid out; a larger group keeps the game's slots
 #define FO_MIN_SIZE 0.3f   // a unit's size counted at least this (a citizen 0.3)
 #define FO_BAND 0.85f      // units this much of a band's largest or more share its rows
-internal const float FO_PAD[8] = { 1.4f, 1.4f, 2.0f, 2.0f, 1.25f, 1.25f, 1.2f, 1.2f };   // by formation_kind: the loose line and the staggered line are the loose ones (the player, 2026-11-03)
+internal const float FO_PAD[8] = { 1.4f, 1.4f, 2.0f, 2.0f, 1.25f, 1.25f, 1.0f, 1.0f };   // by formation_kind: the loose line and the staggered line are the loose ones, a circle packed tight (the player, 2026-11-03)
 internal const float FO_ASPECT[4] = { 2.0f, 6.0f, 2.0f, 3.0f };                          // a line's width : depth
 // a wedge's row this many units wider than the one before (deep 1, 2, 3 ..., shallow 1, 3, 5 ...) - a row's width
 // from its depth gave the deep wedge a tip of two units in a line (its second row too narrow for two) and the shallow
@@ -192,14 +192,16 @@ internal void fo_rows(int *idx, int n, int kind, int front) {
 internal void fo_rings(int *idx, int n) {
     // one ring of every unit round the point, as the game's own circle (the player, 2026-11-03: "in the base game the
     // circle is a one deep circle line around the center" - the rings from the middle out, the largest innermost, filled
-    // it): its circumference the units' widths, at least so far round that two neighbours stand a width apart, the
-    // units counter-clockwise from +x by where they stand; one unit in the middle
+    // it): its circumference the units' widths, packed tight (FO_PAD 1: a unit's own size), the units counter-clockwise
+    // from +x by where they stand; one unit in the middle. Neighbours stand on the chord, shorter than the arc: the
+    // radius widened by the arc's share over the chord (x / sin x, x = pi / n: two units 1.57, three 1.21, eight 1.03,
+    // many 1) - by the largest unit's width over the chord before, one large unit among 109 put the ring at 17 times
+    // its width (the player, 2026-11-03: "a single large unit shouldn't blow the whole formation over half the map")
     const float TWO_PI = 6.28318531f, PI = 3.14159265f;
     if (n == 1) { g_fo[idx[0]].at = v2(0, 0); return; }
-    float sum = 0, wide = 0;
-    for (int a = 0; a < n; a++) { float w = g_fo[idx[a]].w; sum += w; if (w > wide) wide = w; }
-    float r = sum / TWO_PI, apart = wide / (2 * fo_sin_q(PI / (float)n));   // the chord between neighbours a width: r = w / (2 sin(pi / n))
-    if (r < apart) r = apart;
+    float sum = 0, x = PI / (float)n;
+    for (int a = 0; a < n; a++) sum += g_fo[idx[a]].w;
+    float r = sum / TWO_PI * x / fo_sin_q(x);
     for (int a = 0; a < n; a++) g_fo_key[idx[a]] = -fo_pseudo_angle(g_fo[idx[a]].p);
     fo_sort(idx, n, g_fo_key);
     float at = 0;
