@@ -181,7 +181,7 @@ internal void fo_rows(int *idx, int n, int kind, int front) {
             k++;
         }
         if (row) y -= (prev + deep) * 0.5f;
-        fo_place_row(idx + i, k, y, kind == FORMATION_STAGGERED_LINE && (row & 1) ? wmean * 0.5f : 0);
+        fo_place_row(idx + i, k, y, kind == FORMATION_LOOSE_STAGGERED_LINE && (row & 1) ? wmean * 0.5f : 0);
         prev = deep;
         i += k;
     }

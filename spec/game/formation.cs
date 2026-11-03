@@ -1,7 +1,7 @@
 /// a formation's kind, the formation buttons in their order (the factory 0x4D84xx numbers them so; EEFShortLine,
 /// EEFLine, EEFWedge, EEFCircle ...). The loose line and the staggered line are the loose ones (the player, 2026-11-03)
 [c_prefix("FORMATION")]
-enum formation_kind : int32 { short_line, long_line, loose_line, staggered_line, deep_wedge, shallow_wedge, inward_circle, outward_circle }
+enum formation_kind : int32 { short_line, long_line, loose_line, loose_staggered_line, deep_wedge, shallow_wedge, inward_circle, outward_circle }
 
 /// a group's formation, its +0x34 (EEFormation, EEFLine, EEFWedge ...)
 [c_type("void")]

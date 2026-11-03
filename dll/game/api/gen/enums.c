@@ -4,8 +4,8 @@
 // a formation's kind, the formation buttons in their order (the factory 0x4D84xx numbers them so; EEFShortLine,
 // EEFLine, EEFWedge, EEFCircle ...). The loose line and the staggered line are the loose ones (the player, 2026-11-03)
 enum formation_kind : int32_t {
-    FORMATION_SHORT_LINE, FORMATION_LONG_LINE, FORMATION_LOOSE_LINE, FORMATION_STAGGERED_LINE, FORMATION_DEEP_WEDGE,
-    FORMATION_SHALLOW_WEDGE, FORMATION_INWARD_CIRCLE, FORMATION_OUTWARD_CIRCLE
+    FORMATION_SHORT_LINE, FORMATION_LONG_LINE, FORMATION_LOOSE_LINE, FORMATION_LOOSE_STAGGERED_LINE,
+    FORMATION_DEEP_WEDGE, FORMATION_SHALLOW_WEDGE, FORMATION_INWARD_CIRCLE, FORMATION_OUTWARD_CIRCLE
 };
 
 // an effect's category (29321) and each category's actions (scen_effect_get_kind)
