@@ -24,7 +24,7 @@ internal struct palette g_pal;
 // each a normal and a pressed one beside it - row 0 checked, empty, a radio on; row 1 a radio off, the knot up, down;
 // row 2 left, right, the scrollbar's ball. paint: the settings screen's painting (gamesettings, 1024x768); bg: it
 // darkened at the window's size (theme_size), b_bg a brush of it for what draws transparent over it
-struct game_look { int on; HDC ui_dc, paint_dc, bg_dc; HBITMAP ui, paint, bg; HBRUSH b_bg; int pw, ph; };
+struct game_look { int on; HWND main; HDC ui_dc, paint_dc, bg_dc; HBITMAP ui, paint, bg; HBRUSH b_bg; int pw, ph; };
 internal struct game_look g_gl;
 #define GL_CELL_CHECKED 0, 0
 #define GL_CELL_EMPTY 0, 2
@@ -101,6 +101,7 @@ internal void theme_init(const char *ini_path) {
 // out of proportion), darkened to under half so text reads over it
 internal void theme_size(HWND w) {
     if (!g_gl.on) return;
+    g_gl.main = w;   // the window the painting is under (the help's window has none)
     RECT rc;
     GetClientRect(w, &rc);
     int cw = rc.right > 1 ? rc.right : 1, ch = rc.bottom > 1 ? rc.bottom : 1;
@@ -142,7 +143,7 @@ internal POINT theme_at(HWND c) {   // a child's place in its parent's client ar
 }
 
 internal void theme_under(HDC dc, HWND c, const RECT *r) {   // what lies under a child: the background's part, else back
-    if (g_gl.on && GetParent(c) && GetAncestor(c, GA_ROOT) == GetParent(c)) {
+    if (g_gl.on && GetParent(c) && GetParent(c) == g_gl.main) {
         POINT pt = theme_at(c);
         BitBlt(dc, r->left, r->top, r->right - r->left, r->bottom - r->top, g_gl.bg_dc, pt.x + r->left, pt.y + r->top, SRCCOPY);
     } else FillRect(dc, r, g_pal.b_back);
@@ -159,24 +160,18 @@ internal void theme_shade(HDC dc, const RECT *r, int alpha) {   // black over r,
     AlphaBlend(dc, r->left, r->top, r->right - r->left, r->bottom - r->top, black, 0, 0, 1, 1, bf);
 }
 
-internal void theme_line(HDC dc, int x0, int y0, int x1, int y1, COLORREF c) {
-    HPEN pen = CreatePen(PS_SOLID, 1, c), old = (HPEN)SelectObject(dc, pen);
-    MoveToEx(dc, x0, y0, NULL);
-    LineTo(dc, x1, y1);
-    SelectObject(dc, old);
-    DeleteObject(pen);
-}
-
-// the game's bevel round r: light at the top and left, dark at the bottom and right (in: the other way, pressed)
+// the game's bevel, 2 pixels round r (measured in its 1024x768 menus): light (176,194,193) at the top and left, dark
+// (89,101,100) at the bottom and right - a button raised so; in: the other way round, a field and a button pressed
 internal void theme_bevel(HDC dc, const RECT *r, int in) {
-    COLORREF hi = RGB(205, 205, 205), lo = RGB(95, 95, 95), a = in ? lo : hi, b = in ? hi : lo;
-    for (int i = 0; i < 2; i++) {
-        int l = r->left + i, t = r->top + i, rr = r->right - 1 - i, bb = r->bottom - 1 - i;
-        theme_line(dc, l, bb, l, t, a);
-        theme_line(dc, l, t, rr, t, a);
-        theme_line(dc, rr, t, rr, bb, b);
-        theme_line(dc, rr, bb, l - 1, bb, b);
-    }
+    HBRUSH hi = CreateSolidBrush(RGB(176, 194, 193)), lo = CreateSolidBrush(RGB(89, 101, 100)), a = in ? lo : hi, b = in ? hi : lo;
+    RECT top = { r->left, r->top, r->right, r->top + 2 }, left = { r->left, r->top, r->left + 2, r->bottom };
+    RECT bottom = { r->left + 1, r->bottom - 2, r->right, r->bottom }, right = { r->right - 2, r->top + 1, r->right, r->bottom };
+    FillRect(dc, &top, a);
+    FillRect(dc, &left, a);
+    FillRect(dc, &bottom, b);
+    FillRect(dc, &right, b);
+    DeleteObject(hi);
+    DeleteObject(lo);
 }
 
 internal void theme_cell(HDC dc, int x, int y, int size, int row, int col) {   // a picture of uicontrols.sst
@@ -220,35 +215,31 @@ internal void theme_paint_button(HWND c, HDC dc) {
     if (focus) { InflateRect(&r, -4, -4); DrawFocusRect(dc, &r); }
 }
 
-// a dropdown as the game's: a black field, a thin light frame, the text, and the knot at its right end
+// a dropdown as the game's: a black field in the sunken bevel, the text, and right after it the knot, a square of the
+// whole height
 internal void theme_paint_combo(HWND c, HDC dc) {
     RECT r;
     char text[256] = "";
     GetClientRect(c, &r);
     int sel = (int)SendMessageA(c, CB_GETCURSEL, 0, 0);
     if (sel >= 0 && SendMessageA(c, CB_GETLBTEXTLEN, sel, 0) < (LRESULT)sizeof text) SendMessageA(c, CB_GETLBTEXT, sel, (LPARAM)text);
-    FillRect(dc, &r, g_pal.b_field);
-    HBRUSH frame = CreateSolidBrush(RGB(170, 170, 170));
-    FrameRect(dc, &r, frame);
-    DeleteObject(frame);
-    int size = r.bottom - 2;
-    theme_cell(dc, r.right - 1 - size, 1, size, GL_CELL_KNOT_DOWN + (SendMessageA(c, CB_GETDROPPEDSTATE, 0, 0) != 0));
-    RECT t = { r.left + 5, r.top, r.right - size - 4, r.bottom };
+    int size = r.bottom;
+    RECT f = { r.left, r.top, r.right - size, r.bottom };
+    FillRect(dc, &f, g_pal.b_field);
+    theme_bevel(dc, &f, 1);
+    theme_cell(dc, r.right - size, 0, size, GL_CELL_KNOT_DOWN + (SendMessageA(c, CB_GETDROPPEDSTATE, 0, 0) != 0));
+    RECT t = { f.left + 4, f.top + 2, f.right - 2, f.bottom - 2 };
     theme_text(dc, c, &t, text, IsWindowEnabled(c) ? g_pal.text : g_pal.grey, DT_LEFT);
-    if (GetFocus() == c && !SendMessageA(c, CB_GETDROPPEDSTATE, 0, 0)) { InflateRect(&t, 2, -3); DrawFocusRect(dc, &t); }
+    if (GetFocus() == c && !SendMessageA(c, CB_GETDROPPEDSTATE, 0, 0)) { InflateRect(&t, 2, -1); DrawFocusRect(dc, &t); }
 }
 
-// a field's frame (an edit, the list: their client edge) as the game's: a thin light line, black inside it
+// a field's frame (an edit, the list: their client edge, 2 pixels) the game's sunken bevel in place of Windows' line
 internal void theme_frame(HWND c) {
     HDC dc = GetWindowDC(c);
     RECT r;
     GetWindowRect(c, &r);
     OffsetRect(&r, -r.left, -r.top);
-    HBRUSH line = CreateSolidBrush(RGB(170, 170, 170));
-    FrameRect(dc, &r, line);
-    InflateRect(&r, -1, -1);
-    FrameRect(dc, &r, g_pal.b_field);
-    DeleteObject(line);
+    theme_bevel(dc, &r, 1);
     ReleaseDC(c, dc);
 }
 
@@ -362,7 +353,7 @@ internal LRESULT theme_ctlcolor(UINT msg, WPARAM wp, LPARAM lp) {
     SetTextColor((HDC)wp, g_pal.text);
     SetBkColor((HDC)wp, field ? g_pal.field : g_pal.back);
     if (field) return (LRESULT)g_pal.b_field;
-    if (g_gl.on && g_gl.b_bg && GetAncestor((HWND)lp, GA_ROOT) == GetParent((HWND)lp)) {
+    if (g_gl.on && g_gl.b_bg && GetParent((HWND)lp) == g_gl.main) {
         POINT pt = theme_at((HWND)lp);
         SetBkMode((HDC)wp, TRANSPARENT);
         SetBrushOrgEx((HDC)wp, -pt.x, -pt.y, NULL);
