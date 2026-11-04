@@ -1,5 +1,5 @@
 """The fields the game's code reads and the spec doesn't name, by class: the decompilation made after ApplySpec
-(local/games/<build>/decomp/, README "Setup") shows an access to such a field as var->field_0xNN of the spec's
+(local/games/<build>/decomp/, docs/development.md "Setup") shows an access to such a field as var->field_0xNN of the spec's
 structure - counted here by the variable's declared type (a parameter, a local, this), with the functions that do it.
 Offsets found to be no field (a local Ghidra typed as the class, a word of a container the spec declares, a
 subclass's field read through a base pointer) are in spec_gaps_known.txt with their reason - left out, counted.

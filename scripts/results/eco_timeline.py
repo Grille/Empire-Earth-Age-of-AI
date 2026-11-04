@@ -79,7 +79,7 @@ def death_summary(rows, label, games):
     print('    killer types ', '  '.join('%s %.1f' % (NAMES.get(t, 't%d' % t), c / games) for t, c in sorted(tt.items(), key=lambda x: -x[1])[:10]))
 
 import os
-NAMES = {}   # type id -> name, from local/games/ee/data/db/converteroutput.log (extracted game data, see README Setup) when there
+NAMES = {}   # type id -> name, from local/games/ee/data/db/converteroutput.log (extracted game data, see docs/development.md "Setup") when there
 try:
     for l in open(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'local', 'games', 'ee', 'data', 'db', 'converteroutput.log'), errors='replace'):
         m = re.match(r'Object\(value\):(\d+)\)InGame=\d Name:(.*?)\s+TechID', l)

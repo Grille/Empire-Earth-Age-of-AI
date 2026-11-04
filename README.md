@@ -2,237 +2,62 @@
 
 *An unofficial fan mod. Not affiliated with or endorsed by the rights holders of Empire Earth.*
 
-The name says it twice: the computer players are the heart of the mod, and the mod itself exists because of AI.
-The game's code was reverse-engineered and the mod written largely with AI coding tools. Short: **EE: Age of AI**;
+The name says it twice: the computer players are the heart of the mod, and the mod itself exists because of AI -
+the game's code was reverse-engineered and the mod written largely with AI coding tools. Short: **EE: Age of AI**.
 
-A runtime mod for **Empire Earth 1.04 with the Difficulty Setting & Multiplayer Lobby add-on** (the
-last official base-game exe; Art of Conquest is being ported). It fixes and tunes the game from inside: a DLL in the
-game folder patches the running exe, and the game's files stay unchanged. The engine loads every DLL
-in its folder, so dropping the file there is enough.
+A runtime mod for **Empire Earth 1.04 with the Difficulty Setting & Multiplayer Lobby add-on** (the last official
+base-game exe; Art of Conquest is being ported). It fixes and tunes the game from inside: a DLL in the game folder
+patches the running exe, and the game's files stay unchanged. The engine loads every DLL in its folder, so dropping
+the file there is enough.
 
-The current focus is the **computer player**: it should play fair, build a real economy and army, defend
-itself, and feel like an opponent with a character. The tooling here works for any part of the game: hooks,
-control pipe, automated tests and the engine notes.
+## What it changes
+
+- **The computer player** (the main focus): the original AI pays about 1% of the real prices and still can't run
+  an economy without that cheat. The mod's AI pays what you pay and never sees what a human couldn't: it builds a
+  real economy, defends its base, attacks as one army round the defences it has seen, and goes to sea on water
+  maps. Tuned for 200-400 population per player. [docs/ai-features.md](docs/ai-features.md)
+- **Diplomacy and personalities**: the AIs answer war, make peace and alliances, capitulate and betray, remember
+  across save and load, and speak with a character of their own - optionally through a language model on your PC
+  that you can talk to in the chat. [docs/diplomacy.md](docs/diplomacy.md)
+- **Fixes of the game itself**: windowed and borderless mode, the scenario editor at higher resolutions, smoother
+  camera, no blinking objects in big fights, walls that follow the ground, selections of more than 63 units,
+  transports that share out the units, straight routes, turning, collision and formations that hold together,
+  more sound channels. [docs/game-fixes.md](docs/game-fixes.md)
+
+Every feature has its own setting in `ageofai.ini`, explained in the file and in `ageofai_config.exe`.
+
+## Which game
 
 The mod needs the 1.04 exe of the 2017 update: the **GOG** version, the **Steam Gold Edition**
-(`steamapps\common\Empire Earth Gold Edition\Empire Earth` - the same code, only a signature and a DPI manifest are
-added), the **Vanilla** setup from empireearth.eu or **NeoEE** (the community's online version: the same code,
-its imports elsewhere - see [NeoEE](#neoee) below). Another copy of 1.04 - the retail CD game's exe without its
-copy protection (a no-CD exe), say - plays too when its code is the same: an exe the mod doesn't know by its file
-is checked against the 598 places the mod knows when the game starts, and the mod switches on only when every one
-holds (the log's `# build:` and `# spec:` lines). With the copy protection still on (SafeDisc, which Windows 10 and
-11 no longer run anyway) and with versions before 1.04 the code is elsewhere: the mod stays switched off, with a
-message (docs/engine-notes.md, Exe builds). Art of Conquest (`EE-AOC.exe`, GOG and Steam) is being ported: the mod knows
-its exe and all its addresses and the test games play it, but in a normal start it stays switched off until it has
-been played enough (see Status). The mod coexists with community DLL
-patches such as *Empire Earth Tweaks* or *dreXmod* (3.4 too: none of its 116 patches touches a place the mod
-patches), which patch different places.
+(`steamapps\common\Empire Earth Gold Edition\Empire Earth` - the same code, only a signature and a DPI manifest
+added), the **Vanilla** setup from empireearth.eu or **NeoEE** (the community's online version: see [NeoEE](#neoee)).
+Another copy of 1.04 - the retail CD game's exe without its copy protection, say - plays too when its code is the
+same: an exe the mod doesn't know by its file is checked against every place in its code the mod uses when the game
+starts, and the mod switches on only when every one holds (the log's `# build:` and `# spec:` lines). With the copy
+protection still on (SafeDisc, which Windows 10 and 11 no longer run anyway) and with versions before 1.04 the mod
+stays switched off, with a message.
 
-**Documentation**
+Art of Conquest (`EE-AOC.exe`, GOG and Steam) is being ported: the mod knows its exe and the test games play it,
+but in a normal start it stays switched off for now (see [Status](#status)).
 
-| Document | Contents |
-|---|---|
-| [docs/ai-analysis.md](docs/ai-analysis.md) | How the original AI works, where it fails, what the mod changes, and all test results |
-| [docs/engine-notes.md](docs/engine-notes.md) | Verified addresses and data layouts of the engine |
-| [docs/testing.md](docs/testing.md) | Autotest mode, test scenarios, log format, control pipe commands |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | What the project takes, how to report, the rules a change has to follow |
-| [config/ageofai.ini](config/ageofai.ini) | Every setting, explained |
-| [config/personalities/README.md](config/personalities/README.md) | The personalities and texts: format, expressions, values, situations |
-| [config/personalities/_template.eeai](config/personalities/_template.eeai) | An empty personality with every key explained, to copy |
-| [config/personalities/mod/](config/personalities/mod/) | The mod's own texts: `computer.eeai` (every personality's base), `prompt.eeai` (what the mod tells the language model - the AI voice), `system.eeai` (the system lines the mod shows), `units.eeai` (the groups the texts count with: units, army, buildings ...) |
+The mod coexists with community DLL patches such as *Empire Earth Tweaks* or *dreXmod* (3.4 too: none of its 116
+patches touches a place the mod patches); a few of their options overlap with the mod's
+([docs/game-fixes.md](docs/game-fixes.md#beside-other-dll-mods)).
 
-## Computer player
+## Installing
 
-The original AI cheats: by default it pays about 1% of the real prices. With cheating switched off, it
-can't run its economy, gets stuck in the early epochs, only trains soldiers for its next attack and leaves its
-base undefended. This mod changes that. Every feature has its own setting in `ageofai.ini`; the AI never gets
-information a human couldn't have (it only uses enemy buildings it has seen).
-
-**Where it is meant to play well.** A population of 200-400 per player is the target the AI is tuned and tested for
-(the tests run at 300 per player); up to 1000 per player is expected to work well too. Below 100 per player it plays,
-but isn't tuned for it - some features (the citizen shelf, the fortress reserve) then rarely or never act. The
-total of the game's own population setting is misleading here: the per-player number is what counts.
-
-**Economy**
-
-| Feature | What it does |
-|---|---|
-| Fair prices | The AI pays what you pay (configurable per difficulty, e.g. a discount only on Hard). |
-| Economy first | Before farms (Copper Age), the AI grows its workforce, counts the wild food it has found as its budget, saves for the next epochs and keeps only a token army. |
-| Military budget | Soldiers are paid from a share of the starting stock and of the income, never from the epoch reserve; from the Copper Age on most of the income goes to the army. |
-| Farm fields | The original AI left the fields around its granary as bare foundations (always on maps with fish, often on land), put nobody on finished ones and never replaced destroyed ones. It now builds them as far as its wood pays (keeping 50 wood per field for that), farms every one and lays out lost fields again. |
-| More granaries | The original AI built a single granary (8 fields) all game; its food stayed short and spare citizens went to gold. It now adds granaries while it wants more food workers than its fields hold. |
-| Citizens, towers and raids | Citizens no longer gather inside or walk past the range of enemy towers the AI has seen, nor go one by one to a field or mine where enemy soldiers stand; those working there are called back. The AI no longer plans its own towers and walls where the builders would walk into enemy fire. |
-| Ways round danger | (`danger_routes`) The AI keeps a map of where its enemies can reach - their defences it has seen, soldiers and warships it sees at their reach, where its citizens were hurt lately - and its units that can't fight (citizens, fishing boats, transports) take their way round it where there is one, through only where there is none. |
-| No feeding a lost fight | (`avoid_lost_fights`) Where the AI sees an enemy force its soldiers nearby can't beat, its soldiers on their way somewhere go round it, its attack groups stop at its edge and pick no target inside it beyond their own reach - they wait there until enough have come to win, then go in together, instead of running into it a few at a time. |
-| It remembers the enemy's army | (`fight_memory`) Its fight judgements - fall back, lost fights, the staging point - count the enemy soldiers it saw in the last 3 minutes where it saw them, not only those in sight at that moment: an army half in the fog no longer looks beatable until the AI's units are inside its reach. |
-| One staging point | (`army_stage`) An attack's march from safety into the enemy's reach goes to one gathering point outside every danger on the way back to its base, instead of each attack group touring the enemy's buildings on its own. The army waits there and goes in together once it would win at the front; a group that wins at its target by itself still goes. |
-| One army, ordered as one | (`mod_armies`, land maps) The AI's land soldiers are one force of the mod's instead of the game's attack commander's squads: it lives at the AI's front station, goes at the attack time as a whole when it beats the enemy at the nearest known enemy building, takes the next building while it wins - the target and the way to it chosen by the danger on the way (the enemy defences and shooters it has seen, and for 20 minutes where it last traded badly: going round a defended position wherever there is a way round) -, comes home as one when it is losing - before contact only on a clear deficit (under 0.7 of the enemy it sees ahead), in a fight once it has lost half again as many hit points as it took off the enemy over the last half minute - as a group, the fast waiting for the slow, and turning on the chasers it beats once it is clear of the enemy's base -, and answers a raid near home with the whole force. Against the commander (48 games each, 75 min): kills +30, losses -32, buildings lost 7 against 11 on Continental 1v1; losses -33, razed +7, buildings lost 12 against 20 with 4 AIs; buildings lost 7 against 10 on Mediterranean. The retreat as a group (96 games): soldiers lost on the way home 27 -> 7 a game, razed +2.3, buildings lost 4.6 against 6.9. The way round (24 games): razed +21 (se 12), soldiers +12 (6); on the player's save "choke wolf" with a push every 4 minutes (26 min) 45 buildings razed against 13, 540 units lost against 675. The retreat judged by the fight instead of the estimate (48 games, 4 AIs): kills -25 (se 11), losses +22 against the estimate's rule - on by the player's decision. |
-| Stranded citizens fetched home | (`rescue_citizens`) Idle citizens left on land where their AI has no drop site - a transport put them off on an islet - are picked up by one of its transports and brought back to its main land. The game only gives a citizen work on its own land, so they would stand there for the rest of the game. |
-| Walls where they help | (`game_walls`, `defence_walls`) The mod's AIs don't build the game's ring of walls around the base (one segment at a time, in practice a stray piece with a gate, its builders sent to the front one by one). They build one straight wall in front of their towers at each front: along the tiles or exactly diagonal, not a staircase, with a gate in its middle once the pieces there are finished - laid as the player lays one, over 5 finished pieces at once. |
-| A shelf for idle citizens | (`shelve_citizens`) At its population limit with food, wood, gold and iron piled up, the AI puts citizens it doesn't need into fortresses (and builds more for them) so the room goes to soldiers, and trains no new citizens; they come out when a resource runs low or citizens are lost. |
-| Production where it's needed | (`army_plan` 64) The AI adds a building of the kind that trains the soldiers it wants when those are busy, not only when all its production is - an AI training only cavalry had its stables full, its barracks idle and got no stable more. With resources piled up it may have more of them. |
-| No crowds at the mines | (`mine_crowds`) A mine has room for 6 gatherers, but the game counts only those already working, so every search sent more citizens to a crowded mine - one AI had 86 on one gold mine while dozens of its mines stood empty. The citizens walking there or waiting count now, and those beyond the 6 go to the nearest free mine. |
-| Settlement upgrades | (`garrison_upgrades`) Spare citizens - idle ones, and wood cutters while the wood stock is over 5000 - go into a Settlement by metal mines (5 make it a Town Center), then into the Town Center with the most metal mines near it (10 more: a Capitol, which takes up to 50). Each citizen inside raises the stone, gold and iron dropped there from mines within 4.5 tiles (+25% at 5, +50% at 15, +102% at 50); the citizens are used up. On the player's save at 114 min: 205 citizens in 10 minutes, Settlements 22 -> 11, Capitols 2 -> 9, the metal income of those minutes +10-15% with fewer miners. Head-to-head (24 games, 75 min): level; on by the player's decision (spare wood is a free gain). |
-| Rebuilding a lost economy | (`recover_economy`) An AI that lost its economy late in the game (fewer than 40 workers) puts two thirds of its workers on food, lets its citizens spend the whole stock and trains no soldiers unless its base is attacked, until the economy is back. Before, a ruined AI spent the food it got on soldiers and stayed stuck. |
-| The spoils of a resign | (`resign_spoils`) A player who leaves the game no longer leaves a frozen town behind. Its soldiers turn marauders: at war with everyone, they roam in bands hunting units and ignore buildings - they can't take a town, and houses to hit would only tie them down. Its buildings go to whoever beat it: everyone who did at least 20% of the damage it took in its last 10 minutes gets a share by that damage, the buildings nearest their own first, gates and airports whole. With nobody at 20% the buildings stay as they are. |
-| Short queues | (`train_queue`) At most 3 units in each production building, counting the one in the making: the original queued every request however deep - 80 soldiers in one building are resources tied up for 40 minutes. The rest stays in the bank and pays for more production buildings, so it trains more at once. |
-| Citizens fight back | Enemy citizens putting up a tower next to the AI's gatherers get attacked - the builders first, by its soldiers or its citizens - and in the early ages citizens beat off small raids when clearly stronger. |
-| Paid upgrades | The original AI got all unit and tower upgrades of an epoch for free the moment it reached it. It now researches them at their buildings and pays, like a player. |
-| Working build queue | The original build list started with a building that can't be placed, which blocked everything after it (granary, archery range, siege factory, university...). |
-| Short ways to work | Citizens mine the free mine nearest to a drop site, move from oversupplied resources to short ones, and get the gathering upgrades the original AI rarely researched. |
-| Epoch pacing | `classic` (the game's timer, at most one epoch ahead of the human), `timer` (the timer alone), `rush` (as soon as affordable), `follow` (never ahead of the human, prepared to follow at once) or `independent` (the default: the timer, and a few minutes after a human's advance the AIs behind follow). |
-
-**Defence and army**
-
-| Feature | What it does |
-|---|---|
-| Towers and walls | Towers at the front facing the enemy and at outlying mines instead of scattered around; a wall arc in front of them. |
-| Home guard | The AI keeps an army at home that grows with its population cap (the original trained only for its next attack). |
-| Muster | When an enemy army in its base is too strong to fight (twice its soldiers and towers), the AI stops sending every new soldier in alone: they gather beyond the base and strike together once they can win; citizens next to the enemy flee there too. |
-| Unit choice | When the AI asks for a unit it can't pay for or train, it trains the strongest soldier it can afford. |
-| Counter-siege | Soldiers near the base attack enemy siege weapons shelling it, when clearly stronger than the escort. |
-
-**Attacks**
-
-| Feature | What it does |
-|---|---|
-| Attack tuning | Fewer, bigger waves instead of a stream of small, wasted attacks. |
-| Routing | Armies march around the enemy towers they know about and look for undefended targets instead of running into the tower line. |
-| Siege | The AI builds siege weapons when it knows enemy defences, keeps them at firing range and breaks through walls. |
-
-**Scenarios and gathering**
-
-| Feature | What it does |
-|---|---|
-| Scenario fix | AIs in scenarios started from the menu play like in skirmish games (the original turns most of their planning off). |
-| Safe gathering | Optional: citizens only gather near their base, on routes away from known enemies. |
-
-## Diplomacy and personalities
-
-The original AI has no diplomacy at all: declaring war on it changes nothing on its side, and it never makes
-peace or alliances. With the mod:
-
-- **War is answered:** whoever declares war on an AI gets war back, with a revenge attack and a taunt.
-- **Peace and alliances:** an AI judges peace offers by its opinion of you, the strength of both sides, how
-  recently you attacked it and its character. Tribute buys goodwill. AIs ally against a much stronger enemy,
-  and a disloyal one may betray a weak ally. Nothing changes in scenarios or with locked teams.
-- **Offers to you are messages:** an AI offering you an alliance (or peace inside your block) only says so; it
-  stays at war until you set it to allied (2 minutes), and only then turns allied itself.
-- **Stance lines** (`stance_lines`): only the AIs' stance changes towards you are shown, naming the AI ("Khan
-  Temur is now your enemy"). The game's line for every change - also between AIs, without saying towards whom - is
-  `stance_lines=all`; `none` shows none (the personalities still speak).
-- **Alliance blocks:** everyone linked by alliances is one block, with peace inside it: two AIs allied with you
-  (or with the same AI) don't fight each other. An AI at war with you that joins your block offers you peace.
-  Whoever turns on a member breaks the block, and every other AI picks a side (`alliance_blocks`). Joining
-  means peace with the whole block, so an AI refuses an alliance when it - or one of its allies - holds a grudge
-  against one of yours (and says who stands in the way). Vassals have no say in their lord's alliances - they
-  make peace as told, grumbling if they hold a grudge.
-- **Capitulation:** when your army is in its base and the fight is lost, an AI offers peace and tribute
-  ("set us allied"); accept and it pays and stays loyal. Proud personalities hold out longer. Like every offer to
-  you, it has no time limit but no cease-fire either: the AI fights on until you accept, spending what it needs
-  (you get what its stock still holds), and withdraws the offer once it holds its own again.
-  A vassal has no diplomacy of its own: no offers, no betrayal, and whoever asks it for peace is sent to its lord.
-  It still defends itself, and a lord who attacks his vassal sets it free.
-- **Reputation:** breaking an alliance is seen by every AI - each thinks worse of the traitor, the more loyal it
-  is (twice as much if the victim is its own ally). Attacking your own vassal is three times as bad, and right after
-  accepting its capitulation (taking the tribute, then attacking) five times.
-- **Victory over vassals:** vassals at war with each other would keep the game running for ever. Once every
-  other player has capitulated to you, you are told so; play on as long as you like, and type `sieg` (or
-  `victory`) in the chat to end the game as the winner. Resigning or exiting from the menu then counts as
-  a victory too.
-- **Ending the game yourself** (`auto_victory=0`): the game no longer ends on its own when one alliance is left;
-  once nobody stands against you, a hint says so, and `sieg`/`victory`, Resign or Exit ends it as a victory.
-- **Saved games:** the AIs remember across save and load - grudges, alliances, capitulations, pending offers
-  (a small `.ageofai` file next to each save; `save_state`).
-- **Surrender:** an AI that has lost all its citizens and can't train new ones resigns (with a last line),
-  instead of leaving its last buildings for you to hunt down (`surrender`, not in scenarios). It gives up to
-  whoever destroyed the most of it lately, and doesn't capitulate or take sides in a war once it is beyond saving.
-- **Personalities** (optional folder [`config/personalities`](config/personalities)): every AI gets a name, a favoured
-  colour on random maps, character traits (aggression, loyalty, pride, greed, forgiveness, caution, talk) and
-  its own lines for situations of the game: greetings, attacks, being attacked, new ages, winning and losing,
-  diplomacy. Six personalities are included, in English (other languages: at the release, a file each). A saved
-  game finds its personalities again.
-  A file is a personality when it says so (`register_personality()`). `_template.eeai` is an empty personality
-  with every key explained: copy it to a new name to make your own.
-- **The mod's own texts** are in its subfolder `mod/`: `computer.eeai` is no personality but the base of every
-  one, without being named: neutral lines for what must not go unsaid (war, peace, offers waiting for your answer,
-  capitulation, victory), the diplomacy's rules and a few shared values. A personality without a line for such a
-  situation uses its line, and AIs without any personality speak only these lines. `prompt.eeai` holds everything
-  the mod tells the language model (the AI voice: who the AI is, the rules, the game as it stands, the situations,
-  the tools) - every personality's last layer, so a personality can say any of it its own way
-  (`prompt = { ... }`). `system.eeai` holds the system lines it shows you (offers waiting for your answer, chat
-  hints, victory) in English. Placeholders in braces are filled in. The mod has no texts of its own: these files
-  belong to it like the DLL - without them it says nothing (no personalities, no AI voice, no diplomacy of its own;
-  a message at the start tells so).
-- **The format** of all these files is the scripts' language ([docs/scripts.md](docs/scripts.md)), without the
-  commands: the keys the mod reads in records - `personality = { ... }`, `lines = { greeting = ... }` - and names
-  of the file's own outside them (`weakling = them.strength * 2 < me.strength`), each `name = value`, where a
-  value is an expression - a `"string"` with `{placeholders}` and `{expressions}` in it, a
-  `["list", "of", "strings"]` (one at random), conditions
-  (`allied ? "Welcome back."`), fallbacks (`a ?? b`) - over the game as it stands: what the AI thinks of you, how
-  strong each side is, how long the war has lasted, whether you betrayed it before, what you paid it, its epoch.
-  Everything - the format, the expressions, every value, every situation - is in
-  [`config/personalities/README.md`](config/personalities/README.md), which goes into the folder with the files. A mistake is
-  logged with the file and line and only that key is skipped; `strict_parsing=1` in ageofai.ini shows every mistake
-  at once (for whoever writes texts).
-- **Editing them in VS Code:** [`extensions/eeaimod-texts`](extensions/eeaimod-texts) highlights the `.eeai`
-  files - records, keys, strings, placeholders, expressions; an unknown key, situation or epoch name shows as an
-  error. `python scripts/build/pack_vscode.py`, then `code --install-extension local/work/eeaimod-texts.vsix`
-  and reload the window. The grammar takes the names from the DLL's sources (`scripts/build/gen_vscode_grammar.py`).
-- **Play style** (experimental, `ai_style=1`, off by default): a personality can also change how its AI plays
-  (attack timing, army share, home guard). Off, every AI plays the same, tested way.
-
-- **AI voice** (optional, `[llm] llm_enabled=1`): a language model on your PC (LM Studio, Ollama, llama.cpp - any
-  server with the OpenAI chat API) speaks for the AIs. Their lines come in their own words, knowing the game's
-  state (who is at war with whom, who is stronger, what they think of you, how many soldiers, citizens and buildings each of you has destroyed of the other's - in the whole game and in the last 20 minutes), and they answer when you write to them
-  in the chat - the game's chat filter decides who gets your line (everyone, allies, enemies or the players you
-  chose); of those, the one you name answers ("Temur, ..." - a typo or the first letters will do), else the last one
-  you heard, else the only one that got it. In single player a line nobody will answer gets a system line saying
-  why (no AI named, the filter reaches none or not the one you named, the model can't be reached; with the AI voice
-  off, once a game: the AIs don't read the chat). Words only: the model decides
-  nothing, and an AI can't be talked into anything - it knows its real terms for peace (the tribute that would buy
-  it, by the same rules that decide, or why no price would: its pride after your declaration, an ally's veto, a
-  grudge too deep), so it can name its price and its words match what it will do. Tribute amounts and names must survive the rewording, else the fixed line is shown;
-  without a server (or too slow, `timeout`) the fixed lines show as before. Only on your PC - in multiplayer each
-  player's own model (or none). `character=` in a personality file adds a few words about it for the model.
-  - **The model decides** (`decide=1`, single player, a model with tool calls): your peace offers are answered by
-    the model, and in the chat it can make peace, declare war on you or send you a tribute - real deals ("pay me
-    1000 and we have peace" holds if it says so). The rules only limit it: what isn't possible right now (its
-    pride after your declaration, an ally's veto, being a vassal, war within 5 minutes of an alliance, more than a
-    quarter of its stock as tribute) is never offered to it, and without an answer in time the rules decide. Its
-    nature and the rules' verdict are its advice. Everything else (answering war, capitulations, alliances between
-    the AIs, betrayal) stays with the rules.
-  - **The AIs talk to each other** (`ai_talk=1`, single player): when one AI says something to another (a
-    declaration of war, a betrayal, an alliance offer, a capitulation), they talk it over - a few messages, each
-    pair with its own memory of what they told each other (and what one tells another, you don't learn - it may tell
-    you something else). Words only, their decisions stay with the rules. One exchange at a time, at most one a minute
-    (`ai_talk_gap`), your own conversations go to the model first; `ai_talk_show=1` lets you read along.
-  - **The model decides between the AIs too** (`ai_decide=1`, single player): an AI's alliance offer or capitulation
-    to another AI is answered by the other's model (accept or refuse - and haggle: "an alliance against Gunther?
-    250 gold first"), and in their talks an AI can offer peace, declare war on an ally or send a tribute. The rules
-    still limit what is possible (an ally's veto, a vassal, war only after 5 minutes of alliance) and decide when
-    the model doesn't answer; answering war, betrayal and taking sides in a split alliance stay with the rules.
-  - **Nobody is special** (`equal=1`): the model isn't told who is human - you are another leader like the AIs, and
-    no AI is told it is played by the computer.
-
-The AIs can also explain themselves in the chat (`chat=debug`, a debug aid): attacks, new ages, towers, walls,
-siege, home guard.
-
-## Installing (players)
-
-The mod keeps the game folder tidy: next to `Empire Earth.exe` go only `ageofai.dll` and
-`ageofai_config.exe` (Windows and the game load DLLs from there only); everything else of the mod
-is in one folder `ageofai` beside them - its settings, the personalities, the game's settings file, the log.
-Writing personalities? `ageofai_check.exe`, a download of its own, goes there too: it checks them without starting
-the game (config/personalities/README.md).
+The mod keeps the game folder tidy: next to `Empire Earth.exe` go only `ageofai.dll` and `ageofai_config.exe`
+(Windows and the game load DLLs from there only); everything else of the mod is in one folder `ageofai` beside them
+- its settings, the personalities, the game's settings file, the log. Writing personalities? `ageofai_check.exe`, a
+download of its own, goes there too: it checks them without starting the game (config/personalities/README.md).
 
 1. Copy `ageofai.dll` into the Empire Earth folder (next to `Empire Earth.exe`), and make a folder `ageofai` there.
 2. Copy [`config/ageofai.ini`](config/ageofai.ini) into `ageofai` and adjust it. Every option is explained in the
    file. `[ai_base]` is every AI difficulty's (the medium AI plays it as it is); `[ai_easy]` and `[ai_hard]`
    override it for those two.
-3. Optional: copy the folder [`config/personalities`](config/personalities) into `ageofai` too, for the AI personalities.
-   Add or edit `.eeai` files there to make your own; they are read when Empire Earth starts.
+3. Optional: copy the folder [`config/personalities`](config/personalities) into `ageofai` too, for the AI
+   personalities and the mod's texts (without them the AIs say nothing and have no diplomacy of their own). Add or
+   edit `.eeai` files there to make your own; they are read when Empire Earth starts.
 4. Start the game normally. Changes to `ageofai.ini` take effect when a game starts or a save is loaded.
    Instead of editing the file you can copy `ageofai_config.exe` next to `Empire Earth.exe` and start it: every
    setting in one tree - the sections (General, Display, ... the AI), their topics (Movement, Navy, ...), a
@@ -258,6 +83,9 @@ uninstall (with the settings in a file: switch that off first - the engine won't
 missing from an older `ageofai.ini` takes its built-in default. The DLL writes a log to
 `ageofai\ageofai_log.csv`.
 
+For windowed or borderless play set `[display] display_mode`; the mod draws the picture itself or through a
+DirectDraw wrapper such as DDrawCompat ([docs/game-fixes.md](docs/game-fixes.md#window-and-picture)).
+
 ### NeoEE
 
 The same steps, in NeoEE's game folder (`%LOCALAPPDATA%\Programs\Neo Empire Earth\Empire Earth` for its current
@@ -272,445 +100,52 @@ differs from the GOG version:
   and game variants). The AI adapts to the data, but it was measured on the original rules.
 - NeoEE's Art of Conquest (`EE-AOC.exe`) is recognized too and goes with the Art of Conquest port: off in a
   normal start for now.
-- Not on NeoEE's online servers: see Multiplayer below.
+- Not on NeoEE's online servers: see [Multiplayer](#multiplayer).
 
-## Display and interface
+### Multiplayer
 
-Settings in `ageofai.ini`:
-
-- `[display] display_mode=windowed`: native windowed mode. The engine still contains SSSI's own windowed path; the
-  mod switches it on and fixes what broke on current Windows (presentation, crashes, terrain, editor).
-  The window has the game resolution from the game settings (scaled down if it doesn't fit the screen).
-  A DirectDraw wrapper (`ddraw.dll`) is still needed for the game to start on current Windows; which one is up
-  to you, the mod works with both it was tested with:
-  - [DDrawCompat](https://github.com/narzoul/DDrawCompat): fastest by far (2560x1440: ~4.5 ms per frame vs ~10).
-    Put `CpuAffinity = all` into `DDrawCompat-Empire Earth.ini` next to the exe (its default runs the whole
-    game on one CPU core). The window gets a classic (Windows 98 style) frame, which DDrawCompat draws itself.
-  - dgVoodoo (DirectX pass-through is enough): modern window frame, slower.
-
-  `[display] present=auto` picks the matching way to show the picture (DDrawCompat: its primary surface;
-  otherwise Direct3D 11).
-  The mouse follows the Windows cursor (your pointer speed), the window can be moved and switched like
-  any other: another window in front takes the keyboard at once, the game cursor follows while you hover over
-  the game in the background, and the click that brings it back counts as a click. `lock_mouse` keeps the cursor inside while the game is in front: `auto` (default) only in
-  borderless, so edge scrolling doesn't slide onto a second monitor, while a window stays free; `on` always, `off` never.
-- `[display] display_mode=borderless`: a frameless window over the whole monitor, the game image scaled to it
-  (aspect kept). Alt+Enter switches between window and borderless. The window is DPI-aware (`dpi_aware`),
-  so Windows display scaling doesn't blur it; `smooth=1` filters the scaled image.
-- `[editor] editor_resolution=aoc`: scenario editor at 1024x768 with The Art of Conquest's layout; `game` or any
-  `WIDTHxHEIGHT` extends that layout to the resolution (map view fills the screen, panels at the bottom,
-  minimap and file buttons at the bottom right).
-- `[editor] editor_unit_search=1` (off by default until tried): a search box above the scenario editor's unit
-  list. Type part of a name - as the list shows it, or the game's internal English name (`citizen` finds Bürger) -
-  and the list keeps only the matching units of the category shown, as you type; several words must all match.
-- `[camera] scroll`: `game` (default) the build's own camera scrolling, `aoc` The Art of Conquest's acceleration
-  in either build, `ee` Empire Earth's constant speed in either build; `smooth=1` (default) moves the camera every
-  frame by the frame's time instead of the game's fixed timer steps (jitter) - in both builds. While a text box
-  has the keyboard (the editor's unit search, any of the game's edit boxes) the arrow keys move its cursor only,
-  not the camera; a click anywhere outside the box (the map too) lets the keyboard go.
-- `[general] lead_targets=1` (default): ranged units and towers aim where a moving target will be when the
-  projectile comes down, not where it stood when it was fired. Before, slow projectiles (arrows, catapults,
-  cannon balls) missed nearly everything walking across their line of fire.
-- `[general] spread_missiles=1` (default): AA towers and other missile launchers stop wasting missiles on an
-  aircraft the missiles already on their way will destroy; they take another target in range or hold the shot.
-  `lead_missiles=1` (off by default) makes homing missiles intercept instead of chase.
-- Multiplayer (not tested yet): every player needs the same `ageofai.dll`, the same `ageofai.ini` and the same
-  personalities. The game is lockstep - every PC simulates everything - so different settings make
-  the games drift apart. The mod's decisions use only the game's own state, math and random numbers for this.
-  Nothing checks yet that every PC has the same; until the mod does (the host's settings for every PC), don't use
-  it in online games - and not in NeoEE's ranked games at all: its rank system and cheat detector expect the
-  original game, and how they treat the mod is a question for NeoEE's people, not something to try.
-- `[general] skip_intro=1`: skip the intro movies.
-- `[display] draw_limit=4096` (default): the game drew at most 512 units, buildings and missiles per frame - arrows
-  in flight or stuck in the ground included (a 360-archer fight reached 445) - so in big fights, and the more so at
-  high resolutions, the farthest objects blinked in and out. `0` keeps the 512.
-- `[display] frame_wait=auto` (default): the game's drawing thread slept at least a millisecond after every frame
-  (about 15 ms on many PCs), which capped the frame rate. Now it only gives up its turn while the game draws (in a
-  test about 290 -> 500-700 fps), and pauses as before once nothing has been drawn for 0.1 s (alt-tabbed,
-  minimized), so it doesn't keep a CPU core busy then. `yield` gives up its turn always (tweaks.dll's
-  SetSleepToZero), `game` is the original. Only the picture: the game itself runs on another thread.
-- `[display] vertex_sysmem=1` (default): with hardware T&L the renderer kept its 3D models' vertex buffer in video
-  memory, and every update of it made the graphics card finish its work first. The renderer without T&L already
-  keeps it in system memory, and with T&L it's now the same (measured by DDrawCompat's author on a big map: 18 ->
-  170 fps with DDrawCompat, 105 -> 315 without). dreXmod 3.4 does the same; `0` keeps video memory.
-- `[patches] sight_counts=1` (default): every map tile counts how many of a player's units see it, but the game read
-  only one byte of that count - a tile seen by more than 254 units took itself for unexplored, and in a big army
-  random tiles with everything on them (units, trees) blinked out, then went to fog while units still stood there.
-  Now the whole count is kept (up to 65000). `0` = the original.
-- `[patches] wall_slopes=1` (default): a wall piece stood flat at the height of one corner of its tile, so on a
-  hill one end floated, the other sank into the ground, and neighbours at other heights stuck out of each other in
-  steps. The game has sloped pieces, but each fits one steepness and they were hardly ever chosen. Now every piece
-  leans along its length onto the ground under its two ends (its sides stay upright, as the game's sloped
-  pieces do) with its bottom on the ground, the round posts on the ground at their tile's middle - the wall follows
-  the hill in one line. Where the ground falls away beside or below a piece (a side slope, a post's lower corners)
-  the wall's models reach further down instead of the piece being sunk, faced like the foundation of the tower of
-  the wall's era (its stone or the player's colour), so its lower part stays in sight. Each piece also spans its tile exactly and reaches into a round post beside it: the
-  game's pieces are longer than their spacing, so neighbours overlapped, their faces flickered, and on a slope their
-  ends stuck out at every bend (the Copper Age wall and barbed wire keep their own length: the copper wall's stone is
-  as long as the spacing, only its top reaches beyond, and the wire's coils are made to overlap). Walls built before
-  are fitted when a game is loaded; a gate laid into a fitted wall keeps its own shape. In multiplayer every player
-  needs the same setting. `0` = the original.
-- `[patches] wall_joins=1` (default; only with `wall_slopes=1`): the game put a round post at the end of every
-  stretch of wall it laid, where the ground stepped, and beside every joint - a wall drawn on from another had two
-  posts side by side, walls crossing or meeting three or four in a cluster, and a post stood between a wall and the
-  tower or gate it ran into. Now a post stands only where a wall ends, turns or branches: a wall runs on
-  through, and into a tower or a gate. It is decided when a wall or a gate is built, as the game decides its posts;
-  a destroyed wall's gap stays open. Both work in the scenario editor too: there the walls are fitted and joined
-  as soon as they change - placed, deleted, moved, the ground under them painted. In multiplayer every player needs
-  the same setting. `0` = the original.
-- `[patches] wall_start_fit=1` (default; with `wall_slopes=1`): the walls a game starts with - a scenario's, made
-  without the mod or with these settings off, and a game's saved before - are fitted and joined once at its start,
-  as if built with them (a game saved with them on has nothing left to change). With `0` they stay as they were
-  made; walls built during the game are fitted, and an old wall a new one is drawn onto is fitted with it. In the
-  scenario editor `1` looks at every wall whenever walls change there, `0` only at those around the change. In
-  multiplayer every player needs the same setting.
-- `[general] big_selection=1` (default): double-clicking a unit (all of its kind on screen) or dragging a box selected
-  at most 63 units - with a large army only a part. Now up to about 240, as many as the game's selection message
-  can carry; the message keeps its format, so it should stay compatible in multiplayer.
-- `[general] transport_split=1` (default): units right-clicked onto a transport - a ship, a helicopter or a land
-  transport (cargo truck, staff car, siege tower, Trojan Horse), mixed too, or a fortress. With transports of more
-  than one type selected the game's command broke (it tried to load the clicked transport into another one, and
-  nobody boarded); now the clicked one is the one loaded onto. The game sent every unit to the clicked transport
-  alone - the first 10 boarded, the rest walked there anyway and were turned back at its side, and the other selected
-  transports got nothing. Now the units are shared out: the clicked transport and every other selected one take the
-  nearest units they can carry while they have room; units without room keep what they did (with one transport too).
-  A ship gets a meeting point at the beach of its own (the game's was often the ship's own tile out at sea, so the
-  units could not reach it, or the same spot for two ships). A yellow circle shows where each transport goes (the
-  game's was a single one on the transport clicked).
-- `[general] transport_unload_spread=1` (default): several loaded transports told to unload at one spot all headed
-  for that one tile; each now gets its own tile there, apart by its size (ships 2 tiles, trucks and helicopters
-  side by side), and they unload side by side - a yellow
-  circle on each one's tile. Ships, helicopters and land transports alike, also mixed in one selection.
-  Loading and unloading both first work out all the spots (the groups of units, the landing tiles), then match the
-  transports to them so that the ways together are the shortest - so their ways don't cross.
-  Both run inside the game's simulation like the original commands: in multiplayer every PC needs the same settings.
-- `[general] build_retry=1` (default): citizens told to build together all walk to the free tile next to the site
-  nearest them - after a move order, standing close, the same one - and push each other off it; the game makes a
-  citizen that ends its walk off the site's edge, or finds no way round the others, stand idle there, so of five
-  often only one or two began. Such a citizen of a human player is now sent again (up to three times, the game's
-  own placing call: it picks the tile nearest to where it stands then). 0 = the original.
-- `[general] improved_unit_movement=default`: the movement settings below (ship_routes, land_routes, land_widen,
-  share_routes, route_budget, ship_turns, land_turns, ship_collide, land_collide, formations, formation_march,
-  formation_follow, formation_catchup_falloff, formation_wheel, and the factors formation_catchup, formation_reform, formation_wait,
-  friendly_collision) as one. `default` gives each
-  its own default (all on since 2026-10-26: the player's play), `custom` each as set in the file (else its default),
-  `enabled` all of them on, `disabled` all off and the factors at 100% (a number its default) - the game's own movement.
- Only `custom` reads
-  the keys below (improved_unit_movement=custom with formation_follow=0: everything but the marching formations); with
-  another value a key set there is logged (`# ini:`) and not used.
-- `[general] ship_routes=1` (default): the game plans a ship's route in pieces of 8-18
-  tiles, each in the 8 tile directions only, so a route at any angle between them zigzags and a slow-turning ship
-  keeps swinging its bow. With 1 a ship's route is planned whole at once, in straight lines wherever the water between
-  two points is clear, around the shallows a big ship can't enter, and keeping to the middle of channels; a fleet
-  doesn't get the game's chain of in-between stops through the map's sectors. The player's and the AI's ships alike
-  (the 2017 update; not yet in Art of Conquest). In multiplayer every PC needs the same setting.
-- `[general] land_routes=1` (default): the same for land units and hovercraft - a route
-  planned whole, straight wherever the ground between two points is clear, around buildings, walls and forests by
-  the game's own tile test, instead of pieces in the 8 tile directions. A search takes well under a millisecond.
-  The 2017 update; in multiplayer every PC needs the same setting.
-- `[general] land_widen=1` (default; with land_routes): a route pulled straight hugs
-  everything it rounds, so units scrape each building corner, tree and cliff on the way. With 1 each corner of a
-  land route is moved away from what it rounds, up to 1.5 tiles, till the unit has its own radius and half a tile
-  of room - only where there is room (through a gap it keeps to the middle, so choke points are still taken) and
-  the legs to it stay clear.
-- `[general] ship_turns=1` (default): told to go somewhere more than 45 degrees off its
-  bow - a new order while it sails, or a sharp corner - a ship braked to a crawl, turned almost on the spot and
-  sped up again (a U-turn took 6 s nearly standing). With 1 it turns in an arc: at full speed towards a far point,
-  slower and tighter towards a near one, and only where the circle it sweeps is free of land, shallows and other
-  ships - otherwise it turns as before. It also looks ahead: the ship steers at a point sliding along its route
-  two turning circles ahead, where the way there is clear, instead of at the next waypoint - a fast ship steered at
-  a waypoint inside its turning circle, overshot and circled it - and rounds corners in arcs. Through a shift-queued point
-  it sails on in an arc instead of braking for it, where the way on to the next point is clear. In multiplayer every
-  PC needs the same setting.
-- `[patches] turn_fix=1` (default; 0 the original): Art of Conquest's fix of the turn, brought back. Ships,
-  submarines, helicopters and the other units that turn with momentum braked their turn a step late and swung past
-  the heading, then back (a unit turning the wrong way was even let turn on). With 1 they brake in time and stop on
-  the heading, as in Art of Conquest. Tanks and hovercraft too (infantry and riders turn without momentum). A
-  helicopter told four ways under way reversed its heading 19 times, now 7. In multiplayer every PC needs the same
-  setting.
-- `[general] land_turns=1` (default): land units and hovercraft steered at each tile centre
-  of their route, so the heading jumped at every waypoint and a tank swung back and forth. With 1 they steer at a point
-  sliding along the route, as ship_turns does for ships, and walk on through shift-queued points. A tank told four
-  ways under way, with land_routes and turn_fix: 11 heading reversals and 837 degrees turned -> 5 and 680. In
-  multiplayer every PC needs the same setting.
-- `[general] ship_collide=1` (default; 0 the original): ships ran through each other, jumped back and got
-  stuck on each other - the game tests two ships as thin lines along their headings (side by side or at a shallow
-  angle they miss), a small ship next to a big one may not see it at all, and a hit halves the smaller one's speed
-  and pushes it back in one jump. With 1 every ship has a hull (a capsule as long as the game's size for it, a third
-  as wide), and ships whose hulls overlap are pushed apart gently, a little each step, the smaller one moving more; a
-  ship heading into another veers off to starboard and slides past, and a standing ship of the same player is
-  nudged aside instead of blocking. Submarines get the same among themselves (they pass under ships, as in the game). In a 16-ship fleet move through a channel the last
-  ship arrived 50-70 s sooner and the ships stood about 70% less time short of their goal. The player's and the AI's
-  ships alike; in multiplayer every PC needs the same setting.
-- `[general] land_collide=1` (default): the same for land units and hovercraft - circles as
-  big as the game's size for them (a citizen 0.3 tiles, infantry 0.5, a tank 1), pushed apart gently instead of
-  slowed and jumped back, a unit walking into another veers off and slides past, and a standing unit of the same
-  player steps aside. Units at work (gathering, building) are walked through as in the game, so citizens at a mine
-  don't wall it off. Units at rest drift apart too, so a crowd that stopped on one spot (after a melee fight, say)
-  doesn't stay one blob. Tanks through a block of standing infantry: about a quarter of the overlap, the deepest 0.79 ->
-  0.24 tiles. In multiplayer every PC needs the same setting.
-- `[general] formations=1` (default; 0 the game's grid): a group sent somewhere took up the formation's grid - only 5
-  columns, every row and column as wide as the group's largest unit, units and places paired by distance alone - so a
-  big army, worst with small and large units mixed, spread into a column dozens of tiles deep: 174 soldiers, riders and
-  tanks sent 20 tiles stood half of them more than 27 tiles from the click. With it every formation (lines, wedges,
-  circles) is laid out by its units' own sizes, its front row on the clicked point and facing the way the mouse was
-  dragged with the right button (a plain click: the way it moves), like sizes in rows of their own, each unit keeping
-  its place in the group: the army in after 46 s instead of 52, back in 57 instead of 79 (with the land movement
-  settings). The ranks front to back: who fights up close (melee, tanks, the fighting heroes), the ranged soldiers and
-  the healing heroes, siege and rams, then who doesn't fight (citizens, priests, medics). A circle is one ring of
-  every unit round the point, as the game's own, each unit walking to its place by its own route. Off while it is
-  tried in games. (It replaces `group_block`, a big group gathered as one block.)
-- `[general] formation_march=1` (default, with `formations`): a group sent somewhere marches at its
-  slowest unit's speed, so riders and tanks stay with the infantry: a mixed army sent 40 tiles strung out to 14 tiles
-  front to back, now about 10 - but they reach the goal all at once and the last is in about 15 s later.
-- `[general] formation_follow=1` (default, with `formations`; land units, or ships; 0 each on its own route): a group sent
-  somewhere marches in its formation behind a leader - the unit in its middle - each unit steering for its place
-  beside and behind it, a blocked one following the formation's middle line (the leader's route, through a gap the
-  formation is too wide for), only then its own way, planned anew from where it stands; where the way is much narrower than
-  the formation (a gap, a pass) it narrows for the while into a column - its ranks as many abreast as fit the gap by
-  their own widths (a gap of 3 tiles takes two tanks or three soldiers), each rank as wide as the way ahead of it
-  allows, so the head spreads out past the gap while the tail is still in it, given out by how far along each unit
-  already is, so the ones nearest the gap go first and nobody crosses the body to a place beyond it, and a queue: each
-  rank closes up behind the one ahead and moves when it moves, and the ones waiting for their turn creep on with it
-  instead of standing till their place comes to them; a column still in the gap when its head reaches the
-  goal keeps draining through it, each unit let go to its spot once it is past the narrow (before, the march ended
-  there and the units left in the gap were the game's again: single file, and some stood for good, their orders given
-  up); a unit whose move the game drops in the press at a gap's mouth (it stands idle, its order gone) is sent on to
-  its spot at once, and when it was the one leading the march another leads on (before, the march ended there and the
-  rest went in by their own routes, a large part of them stuck at the entry); an attack-move marches in formation
-  too: its units look for enemies as they march (the game's own units look only at each waypoint of their route,
-  and a unit steered at its place never arrives at one - a formation marched into an army and died without a shot),
-  a unit that takes on an enemy fights as the game moves it and is steered back to its place when the fight is over,
-  the formation holds while any of its units fights near it and moves on after (one chasing off is left to come
-  after on its own), and when the unit whose route the formation follows is among the fighters another takes that
-  over; in a jam the formation slows to what gets through, so it doesn't spill out thin behind it; a unit that is really stuck drops out
-  and goes on alone; a place on ground the unit can't enter (a
-  formation wider than the channel it passes) is drawn in towards the formation's middle, so it narrows there instead
-  of losing its outer units; the formation keeps off an edge the leader's route hugs (a shore, a wood, a wall: the
-  route is found for one unit) - it runs beside the route, by as much as gives every unit room, where the other side
-  has it, and down the middle of a corridor narrower than itself; its rear ranks follow the path its head took, so a
-  column snakes through a channel and round its corners instead of the whole body swinging as one, and it turns on
-  its width, not its depth; a group whose route sets out another way than straight for the point forms up facing the
-  route's first stretch and sets out along its leader's route from the first step, no turn on the spot; units march as one formation when the gaps between them are under 4 tiles (their sizes
-  counted, so a fleet of large ships stays one); near the goal each goes to its own spot, and one the game gives up on
-  short of it (its route cut by its detour round a blocker) walks back to it.
-  The formation goes at the slowest unit's speed, turning like a ship (no unit walks backwards in a turn: it slows
-  in a turn so its outermost units keep up, eased in and out over a few seconds - a bend in the route costs a little,
-  only a sustained turn the whole), facing
-  the way it goes to the goal, where each unit turns to the final facing on its spot (forming anew there when the turn would move its
-  outermost unit further than `formation_wheel` tiles); a shift-queued turn within that keeps the formation. A fleet turns together: its formation swings to the
-  new course at once and every ship turns on its own circle to its new place, instead of the whole fleet wheeling
-  round in one wide arc; a ship ahead of its place slows for it instead of turning back, one beside it merges at a
-  shallow angle. From rest the formation is laid over the group where it fits best along the way and sets out at
-  once: a unit standing behind its place closes on it, one standing ahead of its place faces the way and waits for
-  it to come up (the inner flank of a wheel) - nobody walks back through the formation, and the slowest units are
-  in their places within half the formation's depth.
-  Told to form within its own size (a right-button drag where it stands, to turn it) a formation
-  takes its places without a march - each unit by its own route, as the game does; a formation that stands as it
-  marched and turns within `formation_wheel` marches as it is then, no unit changing place, straight to the point and
-  facing its final facing from the start, so it holds the formation on the way (turned further, a wedge placed over
-  it facing back, it takes its places anew - every unit kept its offset and crossed the formation before). A click
-  turns it to face the way to the point, as the game does;
-  `formation_keep_facing=1` keeps its facing instead (in the game's view a click comes as a drag facing the way to
-  the point, so a drag within 10 degrees of that way counts as a click here).
-- `[general] formation_wheel=3` (tiles, with formation_follow): a formation turns as it stands - told to form where it
-  stands facing another way, to face another way at its goal, or at a shift-queued turn - when the turn moves its
-  outermost unit no further than this; turned further it forms anew, each unit to the nearest place. Not an angle: a
-  squad of six (radius 1.5) wheels right round within 3 tiles, a wedge of a hundred (radius 6) breaks up at 30 degrees.
-- `[general] formation_catchup=125%` (with formation_follow): how fast a unit behind its place may go to keep it, in
-  percent of its own top speed (100% never faster than its own) - near its place only: all of it within its size,
-  none from formation_catchup_falloff times that. Also how much the formation slows in a turn (its outermost unit
-  keeps up within it). A ship above its top speed throws out its ripples no faster than at its top speed (the game's
-  rate runs out at 108% of it: a ripple every frame, a solid white plume behind the stern).
-- `[general] formation_catchup_falloff=4` (with formation_follow): how far behind its place, in multiples of its own
-  size, a unit's catch-up has fallen off to nothing - from there on it walks at its own top speed and the formation
-  slows for it (formation_wait).
-- `[general] formation_reform=125%` (with formation_follow): how fast a unit may go to take its place when the
-  formation forms - within 5 seconds of a march's start or of last being in its place (a re-form or a new order on the
-  march), fading out, and no more than the catch-up it had at that moment (a straggler with none gets none; none from
-  rest - a group standing about takes its time to assemble). The three were one key (formation_catchup) till
-  2026-11-02; keeping the place and taking it are different manoeuvres (the player).
-- `[general] formation_wait=100%` (with formation_follow): the formation goes at most this share of a straggler's
-  speed - a unit fallen behind the formation's rear beyond its catch-up (formation_catchup_falloff times its size)
-  has only its top speed, so at 80% the formation slows to 80% of that until the unit is within its catch-up of its
-  place again (it catches up at the other 20%). A unit within the formation's body, or one held up for 2 seconds or
-  more (a moment's bump in the crowd counts for nothing), slows it no
-  further than it goes itself, and one not gaining on its place for 10 seconds (blocked, jostled in a crowd) is
-  given up on - so the formation always either moves or waits for a straggler that is closing. Lower waits more for
-  the stragglers (tighter, slower); 0% stands until they have caught up; 100% never slows below a straggler's
-  speed, so it doesn't gain on the formation.
-- `[general] friendly_collision=75%` (with land_collide / ship_collide): two units of one player or of allies push
-  each other off at this share of their size - they slip past each other instead of getting stuck, and a
-  formation's places stay as far apart (100% as any two units). Every friendly pair, moving or standing, so nothing
-  switches and shoves them apart; a standing ally steps aside for a moving unit as one's own does. Until 10 seconds
-  after the last unit of an arrived formation came to rest (a re-form in place too) a unit standing in it that is
-  pushed off its spot turns, walks back to it and turns to the formation's facing.
-- `[general] goal_markers=1` (default; 0 the original): a move order drew its circle at the goal of only the group's
-  first 15 units (20 in the other lines and wedges, every few in a circle formation). Now every unit's shows.
-- `[sound] sound_clamp_channels=1` (default): the "Max Number Of Sounds" slider goes to 200%, which asks for 32 sound
-  channels, but the sound mixer has only 16 on current Windows. Sounds put on the 16 missing channels were silent,
-  and a looping one (unit movement such as the U-boats', ambience) stayed stuck there and never played again -
-  especially after changing the slider in a running game. The channels are now held to what the mixer has, so
-  anything from 100% up gives the same working channels.
-- `[sound] sound_channels=32` (default): the mixer's 16 channels are only a fallback because Windows no longer reports
-  hardware voices; Miles mixes in software and allows 63. The mod raises the maximum to this value, so the slider
-  gives 8 (0%) to 32 (100% and up) channels: fewer sounds cut in big battles. `0` keeps the 16.
-- `[sound] sound_sample_rate=44100` (default): the game mixed its sound at 22050 Hz; now at this rate (up to 48000).
-  `0` keeps the 22050.
-- These three replace tweaks.dll's SetSleepToZero, VertexBufferSystemMem and AudioSampleRate. With tweaks.dll in
-  the game folder, switch those off in its tweaks.config. Its map-size patches are separate and stay with it.
+Not tested yet. Every player needs the same `ageofai.dll`, the same `ageofai.ini` and the same personalities. The
+game is lockstep - every PC simulates everything - so different settings make the games drift apart; the mod's
+decisions use only the game's own state, math and random numbers for this. Nothing checks yet that every PC has the
+same; until the mod does (the host's settings for every PC), don't use it in online games - and not in NeoEE's
+ranked games at all: its rank system and cheat detector expect the original game, and how they treat the mod is a
+question for NeoEE's people, not something to try.
 
 ## Status
 
-- **Confirmed in play:** scenario fix, the early economy (fair prices, economy first, budget), windowed and
+- **Confirmed in play:** the scenario fix, the early economy (fair prices, economy first, budget), windowed and
   borderless mode, editor resolution, camera scrolling.
-- **Tested in automated AI games and test scenarios, needs playtesting against a human:** build queue,
-  mines, gathering upgrades, defences, home guard and army size, attack routing, siege, diplomacy and
-  personalities. The numbers are in [docs/ai-analysis.md](docs/ai-analysis.md#test-results-so-far).
-- **NeoEE:** recognized and tested in automated games (the same checks and hooks as on the GOG exe, 15-minute
-  games side by side); not played by hand yet.
-- **Experimental, off by default:** personality play styles (`ai_style`).
+- **Tested in automated AI games and test scenarios, needs playtesting against a human:** most of the AI - build
+  queue, mines, defences, home guard, the army, attack routing, siege, the navy, diplomacy and personalities. The
+  numbers are in [docs/ai-analysis.md](docs/ai-analysis.md#test-results-so-far) and the commits.
+- **NeoEE:** recognized and tested in automated games (the same checks and hooks as on the GOG exe); not played by
+  hand yet.
+- **Experimental, off by default:** what hasn't shown a gain yet ([docs/experiments.md](docs/experiments.md)), the
+  personalities' play styles (`ai_style`).
 - **Art of Conquest, in progress:** every address the mod uses is known for it too (its load checks hold), and
-  automated test games of 20-30 minutes play there; AoC rewrote some functions the mod relies on, and some
-  of its fields are carried over from the base game rather than confirmed in AoC's code. Before the mod switches on
-  in a normal AoC start: longer test games and measurements there, and those rewritten functions checked in play.
+  automated test games play there; AoC rewrote some functions the mod relies on, and some of its fields are carried
+  over from the base game rather than confirmed in AoC's code. Before the mod switches on in a normal AoC start:
+  longer test games and measurements there, and those rewritten functions checked in play.
 
-## Building
+## Documentation
 
-Requirements: Windows, any 32-bit MinGW C compiler. The project uses
-[llvm-mingw](https://github.com/mstorsjo/llvm-mingw/releases) (`llvm-mingw-*-ucrt-x86_64.zip`) and a
-POSIX shell (Git Bash).
-
-```sh
-git clone <this repo> eeaimod     # anywhere; inside the game folder (<game>/_aimod) needs no setting
-cd eeaimod
-# elsewhere: name the game folder (or set EE_GAME_DIR) - the tests and the install use it
-echo "X:/Games/Empire Earth Gold/Empire Earth" > local/game_dir.txt
-# unpack llvm-mingw to local/tools/llvm-mingw (or set CC=/path/to/i686-w64-mingw32-clang)
-sh build.sh                      # -> dll/ageofai.dll
-sh scripts/build/install.sh      # the committed build into the game folder (reserves it: waits until no game runs)
-```
-
-The DLL is a single translation unit: `dll/eeaimod.c` includes the other `.c` files, one folder per part (Project layout).
-
-## Development setup
-
-Everything below is only needed for reverse engineering and automated tests.
-
-| Tool | Where | Used for |
-|---|---|---|
-| llvm-mingw | `local/tools/llvm-mingw` | building the DLL |
-| Python 3.12+ | `local/venv` (`python -m venv local/venv`, `local/venv/Scripts/pip install -r requirements.txt`) | analysis and test scripts |
-| Ghidra 12 + JDK 21 | `local/tools/ghidra12`, `local/tools/jdk21` | decompiling the game |
-
-None of these, and nothing derived from the game's files, are in the repository: they live in `local/` (git-ignored -
-`work/` the test logs and builds, `tools/`, `venv/`, `games/ee/` and `games/aoc/` what is taken from each game).
-Generate them locally:
-
-```sh
-# function names from the game's RTTI (vtables) -> local/work/names.tsv
-mkdir -p local/work && local/venv/Scripts/python scripts/re/rtti_names.py local/work/names.tsv
-# full decompilation to local/games/ee/decomp/<address>.c + local/games/ee/decomp/functions.tsv (takes a while)
-cp "../Empire Earth.exe" local/work/EE.exe
-local/tools/ghidra12/support/analyzeHeadless local/games/ee/ghidra_proj EE -import local/work/EE.exe \
-    -scriptPath scripts/re/ghidra -postScript ExportDecomp.java "$(pwd)/local/games/ee/decomp"
-# the spec's names, types, structures and enums into the project (before the decompilation above, so it reads with
-# them; again after a change of spec/ - the spec's names win): local/work/spec_ee.json, then ApplySpec (aoc: AOC's project)
-local/venv/Scripts/python scripts/re/spec_ghidra.py ee
-local/tools/ghidra12/support/analyzeHeadless local/games/ee/ghidra_proj EE -process -noanalysis     -scriptPath scripts/re/ghidra -postScript ApplySpec.java "$(pwd)/local/work/spec_ee.json"
-# the same for each engine DLL (scripts/re/port_dll.py; Art of Conquest's into local/games/aoc/decomp/dll/ from its folder)
-local/tools/ghidra12/support/analyzeHeadless local/games/ee/ghidra_proj DLL_LowLevelEngine -import "../Low-Level Engine.dll" \
-    -scriptPath scripts/re/ghidra -postScript ExportDecomp.java "$(pwd)/local/games/ee/decomp/dll/LowLevelEngine"
-# string table of the German Language.dll -> local/games/ee/strings_de.json
-local/venv/Scripts/python scripts/re/strtab.py "../Language.dll"
-```
-
-Helpers working on the dump and the exe:
-- `scripts/re/fn.sh <hex>`: print a decompiled function.
-- `scripts/re/refs.py <hex>`: list calls, jumps and pointers to an address.
-- `scripts/re/disp.py <hex>`: find instructions using a displacement or offset.
-- `scripts/re/pdis.py <hex>`: disassemble at an address.
-
-[docs/engine-notes.md](docs/engine-notes.md) collects the verified addresses and data layouts.
-The community's projects at [EE-modders](https://github.com/EE-modders) are a good second source (the game's
-text in all languages, the DB file formats, other DLL mods).
-
-## Testing
-
-The DLL has an **autotest mode** and a **control pipe**, so AI games run unattended. Scenario and save
-runs at the same speed are byte-identical, which makes A/B tests exact; random maps vary between runs, so
-those are compared over several runs. See [docs/testing.md](docs/testing.md).
-
-```sh
-# one 75-minute AI-vs-AI game on a random map, logs to local/work/autotest_<stamp>_<tag>.csv
-powershell -ExecutionPolicy Bypass -File scripts/test/run_test.ps1 -Save newgame.ees -Tag _try \
-    -IniExtra "random_map=Continental,ai_count=3,seed=101,avoid_towers=1"
-# the 4-map suite for several variants, scored per variant
-sh scripts/test/suite.sh 50 "base:" "smart:avoid_towers=1"
-# talk to the running game
-local/venv/Scripts/python scripts/test/eectl.py status | army 2 | diplo | persona | say 2 Hello | quit
-```
-
-## Project layout
-
-```
-dll/              the mod (C), one translation unit: eeaimod.c includes every part - the game start, the AI's update
-                  hooks that call the parts, install, DllMain; persist.c the mod's state in saved games
-  base/             the DLL's own helpers: log, patching, the pipe commands' REPLY, paths and the test slot, mistakes.c
-                    the report of a mistake in the mod's files, math.c (the same bits on every PC), ageofai.ini
-                    (ini.c), watchpoints, headless_win.c test windows without focus or taskbar button
-  game/             what the mod knows of the game: api/ the game's own code and objects, one module (api.c) - exe.c
-                    the exe build, its addresses per build (gen/: the spec's C, generated; builds.h;
-                    editor_layout.h generated), its objects typed (types.h), a file per object (unit.c, player.c,
-                    attack.c ...: its fields by name, the game's functions on it, its hooks; per build:
-                    spec/game/), game.c the globals, hooks.c the code patches; world.c
-                    type data, game time, RTTI names, players.c the players (and the vanilla
-                    ones, the colours), random.c the decisions' generator (alike on every PC), the unit types
-                    (unit_ids.h, unitnames.c, unit_names.h generated) and roles.c what a type is,
-                    grid.c the unit grid (iterator)
-  engine/           fixes and features of the game itself: display.c / present_d3d.c windowed mode (display_text.c,
-                    display_diag.c), camera.c scrolling, aim.c leading targets, sound.c, select.c, drawlist.c,
-                    playername.c the menu name fix, scenario_ai.c the scenario AI fix
-  ai/               the computer players: econ.c budget, epoch plan, build queue, workers, research; sites.c gathering
-                    sites; attack.c attack routing, siege, unit choice; stats.c fight estimates; defence.c towers, walls, home guard; diplo.c
-                    diplomacy; landing.c landings; navy.c / fleet.c the navy; settings.c ageofai.ini's AI settings ...
-  script/           expr.c the text language (parsed once into a tree; statements, functions) - it knows no game:
-                    what it asks the program it runs in is script/host.h (eeaimod.c x_host_install sets the game's)
-  game_script/      the game in the language: constants.c (epoch., resource., color., kind., unit.), relations.c
-                    the players' values and relations (them.soldiers, them.kills(me) - from the AI's state)
-  voice/            what the AI says: say.h the AI's one door to it (its lines, its personality's traits and
-                    decisions, the language model), persona.c personalities, texts.c the text files, chat.c chat lines, llm.c the
-                    language model
-  test/             control.c the control pipe, testcmd.c / testopp.c test commands and the sea opponent, randmap.c
-                    test-game setup, autotest.c, scripts.c the setup scripts (cmd_verbs.h, generated: the commands
-                    they call), trace.c call tracing, ecolog.c the economy log
-  settings/         rows.h (generated from dll_cs/settings/*.cs) every ageofai.ini key as a row (kind, section, default, limits), every section (order, kind,
-                    title) and the topics in them (ageofai_config.exe's tree), settings.c reads them once into
-                    g_set / g_set_ai (a value per AI difficulty) - the parts read those, never the file
-  tool/             ageofai_config.c: ageofai_config.exe, the settings in a window (from base/, script/ and settings/ only:
-                    the DLL's own rows and checks; the shipped ageofai.ini built in as the help)
-  check/            ageofai_check.c: ageofai_check.exe, the .eeai files checked without the game (the DLL's code
-                    compiled into a program: the checks the game runs at its start; the build runs it too)
-config/           ageofai.ini and the personalities, shipped to players
-tests/            what the tests run: scenarios/ the setup scripts (docs/scripts.md) that turn a save into a test
-                  scenario (attacks, sieges, raids), probes/ the one-off setups of single measurements, config/
-                  autotest.ini and the test configs, text_engine_cases.txt the text engine comparison's cases
-scripts/          game_dir.py / .sh: where the game is (every script's)
-  build/          the build's checks and generators (layers.py, style.py, spec_check.py, gen_api.py, persist_layout.py,
-                  gen_cmd_verbs.py, gen_*.py for the docs and the grammar), code_same.py, install.sh
-  test/           run_test.ps1 and the runners on top of it (suite.sh, scen.sh, h2h.sh, vanilla.sh, jobs.sh),
-                  reserve.sh, eectl.py the control client, ee_mcp.py the MCP server, work_prune.ps1
-  results/        the log readers and scorers (score.py, h2h.py, vanilla.py ...; logs.py opens the gzipped logs)
-  re/             reverse engineering: the exe and dump helpers, port_*.py for Art of Conquest, gen_units.py +
-                  dat_read.py (docs/units.md and dll/game/unit_names.h from the game data: the community DB editor's
-                  field layouts and English strings, downloaded into local/games/ee/dats/), make_cpbehavior.py (a
-                  tuned dbcpbehavior.dat; superseded by ageofai.ini), ghidra/ the headless scripts that name and
-                  decompile the exe (ExportDecomp) and put the spec into a project (ApplySpec, from spec_ghidra.py's file)
-extensions/       eeaimod-texts: the VS Code extension for the .eeai files
-local/            git-ignored: this machine's tools, test output and what is derived from the games (Setup)
-docs/             engine notes, AI analysis, testing guide, units.md (every type: id, identifier, stats),
-                  scripts.md (the setup scripts)
-```
+| Document | Contents |
+|---|---|
+| [docs/ai-features.md](docs/ai-features.md) | What the mod's computer player does differently, feature by feature, with the measurements |
+| [docs/diplomacy.md](docs/diplomacy.md) | Diplomacy, the personalities and their texts, the AI voice (language model) |
+| [docs/game-fixes.md](docs/game-fixes.md) | Display, editor, camera, walls, selection, transports, movement and sound fixes |
+| [config/ageofai.ini](config/ageofai.ini) | Every setting, explained |
+| [config/personalities/README.md](config/personalities/README.md) | The personalities and texts: format, expressions, values, situations |
+| [config/personalities/_template.eeai](config/personalities/_template.eeai) | An empty personality with every key explained, to copy |
+| [docs/ai-analysis.md](docs/ai-analysis.md) | How the original AI works, where it fails, and the test results |
+| [docs/economy.md](docs/economy.md), [docs/navy.md](docs/navy.md) | The AI's economy against the base game's AI; ship roles and the navy |
+| [docs/experiments.md](docs/experiments.md) | The AI experiments that are off: why they failed |
+| [docs/engine-notes.md](docs/engine-notes.md) | Verified addresses and data layouts of the engine |
+| [docs/triggers.md](docs/triggers.md), [docs/renderer.md](docs/renderer.md) | The scenario triggers; the mod's own renderer |
+| [docs/units.md](docs/units.md) | Every unit and building type: id, identifier, name (generated) |
+| [docs/development.md](docs/development.md) | Building, the reverse-engineering setup, the project layout |
+| [docs/testing.md](docs/testing.md), [docs/scripts.md](docs/scripts.md) | Automated tests, the control pipe, the test scripts |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | What the project takes, how to report, the rules a change has to follow |
 
 ## License
 

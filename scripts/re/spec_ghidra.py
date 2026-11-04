@@ -2,7 +2,7 @@
 fields first, the size [size] or the last field's end), its enums, its functions (by class: Class::member, a static
 class's by its name; their convention and types) and its places (data, places in the code, vtables, call sites) as
 labels, each with its doc - local/work/spec_<build>.json, which scripts/re/ghidra/ApplySpec.java puts into a Ghidra
-project (README "Setup"). A value the build hasn't got is left out; an engine DLL's class ([dll]) too.
+project (docs/development.md "Setup"). A value the build hasn't got is left out; an engine DLL's class ([dll]) too.
 usage: python scripts/re/spec_ghidra.py [ee|aoc]"""
 import json, os, sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'build'))
