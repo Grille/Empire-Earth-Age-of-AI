@@ -29,7 +29,8 @@ reserve_begin() {
     trap reserve_end EXIT INT TERM
     export EEAIMOD_RESERVED=1
     told=
-    while [ "$(reserve_games)" -gt 0 ]; do
+    # RESERVE_NO_WAIT: a task that doesn't mind running games (install.sh: it moves files in use aside)
+    while [ -z "$RESERVE_NO_WAIT" ] && [ "$(reserve_games)" -gt 0 ]; do
         [ -z "$told" ] && { echo "reserved for $1: waiting for $(reserve_games) running game(s) to end" >&2; told=1; }
         sleep 5
     done

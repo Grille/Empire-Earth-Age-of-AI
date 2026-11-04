@@ -42,8 +42,11 @@ and the runners, eectl, the MCP server), `results/` (log readers, scorers), `re/
   as the game folder lays it out (ageofai.dll, ageofai_config.exe, ageofai/ with ageofai.ini and personalities/) into
   `local/work/release/`, ageofai_check.exe beside the zip (a download of its own).
 - Every commit installs itself (the user's rule: the install is for testing the newest changes, a crash is welcome
-  news): `.git/hooks/post-commit` (local) starts `scripts/build/install_latest.sh` in the background - it waits for the
-  user's own game to end, then install.sh; log `local/work/install.log`. No manual install after a commit.
+  news): `.git/hooks/post-commit` (local) starts `scripts/build/install_latest.sh` in the background -
+  install.sh at once (a file in use - a running game's DLL - is moved aside, not waited for: the running game keeps its
+  build until restarted), a failure tried again; log `local/work/install.log`. No manual install after a commit. Before
+  telling the player a change is done: `sh scripts/build/install_wait.sh` (waits until HEAD is in the game folder, about
+  a minute - he kept testing builds from before the fix, 2026-11-04), and say so if his game runs (restart it).
 - A task that needs the game folder to itself (an install, a slot-0 run): `sh scripts/test/reserve.sh "<what>" <command>`
   - test runs start no game meanwhile, the running ones (and the player's) are waited for; nobody has to pause.
 - `spec/` is the source of truth about the game (2026-10-25): every class, field, function, call site, number and place
