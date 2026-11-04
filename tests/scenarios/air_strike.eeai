@@ -1,6 +1,7 @@
 // Continental seed 101, 2 AIs, start epoch 9 (World War I; base ini start_epoch=9): P2 base ~80,52, P3 base ~40,42.
 // The air strike (airstrike.c, v_air_strike): a held position of the idle human (P1, at war with P2) at x 56-60 -
-// three towers, four artillery, machine gunners; no anti-air. P2 gets an airport with six Gotha bombers, a land force
+// three towers, four artillery, machine gunners, two 88mm AA guns. P2 gets three airports side by side with twelve
+// Gotha bombers (the wing: a flight of 4 at each AA gun, one at the defences), a land force
 // and a tower that sees the position (the army after the game's first attack, 1.1 min: spawned before, the game's own
 // attack took it and the mod's force held 3), and is told to attack twice (attacknow). With the strike its bombers go at the
 // towers and the artillery as the force pushes. Score: P1's towers and artillery left (count), P2's losses ("# battle"),
@@ -12,8 +13,12 @@ spawn(1, unit.b_guard_tower_ww1, 58, 48)
 spawn(1, unit.b_guard_tower_ww1, 58, 54)
 spawn(1, unit.gun_artillery10_artillery, 54, 48, 4)
 spawn(1, unit.inf10_machine_gun, 56, 48, 10)
+spawn(1, unit.b_aa10_gun_88mm, 55, 44)
+spawn(1, unit.b_aa10_gun_88mm, 55, 52)
+spawn(2, unit.b_airport, 86, 38)
 spawn(2, unit.b_airport, 86, 44)
-spawn(2, unit.a_bomber_10_gotha, 86, 47, 6)
+spawn(2, unit.b_airport, 86, 50)
+spawn(2, unit.a_bomber_10_gotha, 89, 44, 12)
 wait(75s)
 spawn(2, unit.inf10_doughboy, 76, 50, 20)
 spawn(2, unit.inf10_machine_gun, 76, 54, 10)
@@ -38,3 +43,4 @@ wait(75s)
 count(1)
 objs(1, unit.b_guard_tower_ww1)
 objs(1, unit.gun_artillery10_artillery)
+objs(1, unit.b_aa10_gun_88mm)

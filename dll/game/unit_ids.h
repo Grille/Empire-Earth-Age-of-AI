@@ -41,7 +41,9 @@
     X(INF10_MACHINE_GUN, "inf10_machine_gun") X(INF10_DOUGHBOY, "inf10_doughboy") X(INF10_TRENCH_MORTAR, "inf10_trench_mortar") \
     X(GUN_ARTILLERY10_ARTILLERY, "gun_artillery10_artillery") X(GUN_AT10_57MM_AT_GUN, "gun_at10_57mm_at_gun") \
     X(TANK10_A7V, "tank10_a7v") X(A_STRAFE_FIGHTER10_FOKKER_DR_1, "a_strafe_fighter10_fokker_dr_1") \
-    X(A_BOMBER_10_GOTHA, "a_bomber_10_gotha") X(A_FIGHTER10_SOPWITH_CAMEL_F_1, "a_fighter10_sopwith_camel_f_1") \
+    X(A_BOMBER_10_GOTHA, "a_bomber_10_gotha") X(A_BOMBER_11_B_17, "a_bomber_11_b_17") X(A_BOMBER_11_HEINKEL_111, "a_bomber_11_heinkel_111") \
+    X(A_BOMBER_12_STEALTH_B_2, "a_bomber_12_stealth_b_2") X(A_BOMBER_13_B_122_WYVERN, "a_bomber_13_b_122_wyvern") \
+    X(A_FIGHTER10_SOPWITH_CAMEL_F_1, "a_fighter10_sopwith_camel_f_1") \
     X(A_HELICOPTERGUNSHIP12_GUN_SHIP, "a_helicoptergunship12_gun_ship")
 
 // the sets the code asks about (UT_IN(t, UT_TOWNS) ...), each written once - what a type is by its family or class

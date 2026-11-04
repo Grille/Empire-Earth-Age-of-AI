@@ -258,8 +258,10 @@ internal char __thiscall hook_asg_give_goal(ee_attack_subgroup *sg, ee_unit *u, 
     }
     return r;
 }
+internal int af_takes(ee_unit *u);   // airstrike.c: a bomber of the air force - no order of the game's groups
 internal char __thiscall hook_asg_air_give_goal(ee_attack_subgroup *sg, ee_unit *u, ee_goal *goal, int a, int prio) {
     if (!is_vanilla(attack_subgroup_get_player(sg)) && landing_leads(sg)) { g_ld_refused++; return 0; }
+    if (af_takes(u)) return 0;
     return attack_subgroup_air_give_goal(sg, u, goal, a, prio);
 }
 

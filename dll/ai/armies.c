@@ -225,6 +225,7 @@ internal struct armies_st {
     unsigned routed, round_ways;                             // pushes routed; of them with a way round (corners)
     struct { ivec2 at; uint32_t t; } grind[8]; unsigned grinds;   // the meat grinders: where the force traded badly, when (AR_GRIND_MS)
     struct { ivec2 at; int r; uint32_t t; } fire[16]; unsigned fires;   // the fire marks (AR_FIRE): where shots at the force came from, from how far, when
+    ivec2 strong; uint32_t strong_t;                         // the target the last attack time found too strong, when (airstrike.c bombs it)
     int scout_id, backs_breach; uint32_t scout_t; unsigned scouts, stand_backs;   // the breach's look: the member sent (its serial), when; the stand-off moved back this breach
 } g_armies[16];
 internal struct st_side g_ar_own;
@@ -243,6 +244,7 @@ internal int armies_refuses_offer(ee_attack_cmd *cmd, ee_unit *u) {
     ee_player *pl = u ? unit_get_owner(u) : NULL;
     unsigned idx = pl ? (unsigned)player_get_index(pl) & 15 : 0;
     ee_unit_type *td = u ? unit_get_type_data(u) : NULL;
+    if (af_takes(u)) return 1;   // airstrike.c: the air force's bomber
     if (!td || !ar_on(pl, idx) || !ms_land_soldier(u, td)) return 0;
     g_armies[idx].refused++;
     return 1;
@@ -1215,6 +1217,7 @@ internal void ar_at_home(ee_player *pl, unsigned idx, struct armies_st *a, uint3
         if (!t || r * 100.0f < (float)AR_GO_PCT) {
             if (press) return;   // told at the attack time
             a->waits++;
+            if (t) { a->strong = d; a->strong_t = now ? now : 1; }
             if (t) ar_log(idx, now, "the attack time: the force of %d waits at %d,%d - %d,%d is too strong (%.2f: own %d, enemy %d; assumed hp %.0f against own %.0f, %.2f)", n, a->home.x, a->home.y, d.x, d.y, r, g_ar_own.n, g_sgs_foe.n, foe_hp, g_ar_own.hp, ra);
             else ar_log(idx, now, "the attack time: the force of %d waits at %d,%d - no enemy building known", n, a->home.x, a->home.y);
             return;
