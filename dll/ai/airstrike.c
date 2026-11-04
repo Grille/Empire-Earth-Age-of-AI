@@ -35,7 +35,9 @@
 //   in its airport takes it; the mod's unit_goal refuses a unit off the map). A bomber of the wing whose target still
 //   stands is left alone while it has any goal and for AS_AGAIN after its order: a plane changes its goals by itself on
 //   a run (the attack, moves to take off and back to its airport) - an order every 5 s cut the runs short; idle again
-//   it goes again. A target down: its bombers back to the ready. What holds it, the soldiers seen there last (what the
+//   it goes again. A target down: its bombers back to the ready. A target not down AF_RUN_MS after the launch, or
+//   off the map (garrisoned), is given up: the bomber back to the ready (one wing at a time - on the save "choke
+//   wolf" the first wing of 4 went at 158 min and none after, 12 bombers held to 210: a target that never went down). What holds it, the soldiers seen there last (what the
 //   force's judgement counts: with the bombs only on the buildings it judged the position too strong all the same,
 //   air_strike.eeai). BOMB, THEN GO: a wing's targets all down, the force judges its push again at once (armies.c
 //   g_ar_push_now), not at its next attack time.
@@ -82,14 +84,15 @@
 #define AF_SHOOT_JOIN 5
 #define AF_SHOOT_MS 180000
 #define AF_SHOOTS 16
+#define AF_RUN_MS 180000
 
 internal int g_v_air_strike = -1;
 internal struct as_st {
     uint32_t t, log_t, train_t, airport_t, wait_log;
-    struct { int id, tgt; uint32_t t; } held[AS_BOMBERS]; int nh;   // the bombers held, their targets (serials; 0 none), when ordered
+    struct { int id, tgt; uint32_t t, t0; } held[AS_BOMBERS]; int nh;   // the bombers held, their targets (serials; 0 none), when ordered, when launched at it
     int needed; uint32_t need_t;                                    // the last position's wing, when
     int asked, ap_seen, ap_tries; uint32_t asked_t;                                   // bombers asked for and not out yet; airports (and building) at the last queue, queued since without more
-    unsigned waves, sent, trained, airports, waits;                 // waves launched, bombers sent, trained, airports queued, launches waited for more
+    unsigned waves, sent, trained, airports, waits, gave_up;        // waves launched, bombers sent, trained, airports queued, launches waited for more, targets given up
     int wing_out;                                                   // a wing launched whose targets aren't all down yet
     struct { ivec2 at; uint32_t t; int hits; } sh[AF_SHOOTS];       // the shooters' spots (intel.c reveal_attackers): where, the last hit, hits seen
 } g_as[16];
@@ -202,8 +205,8 @@ internal void airstrike_tick(ee_player *pl, uint32_t now) {
     if (current_epoch(pl) + 1 < 10) return;   // no bombers before World War I
     if (g_log && g_autotest && (!s->log_t || now - s->log_t >= 60000)) {
         s->log_t = now ? now : 1;
-        fprintf(g_log, "# air force: P%u at %.1f min: %d bombers held, %u trained, %u airports queued, %u waves (%u bombers sent), %u launches waited for more\n",
-                idx, now / 60000.0, s->nh, s->trained, s->airports, s->waves, s->sent, s->waits);
+        fprintf(g_log, "# air force: P%u at %.1f min: %d bombers held, %u trained, %u airports queued, %u waves (%u bombers sent), %u launches waited for more, %u targets given up\n",
+                idx, now / 60000.0, s->nh, s->trained, s->airports, s->waves, s->sent, s->waits, s->gave_up);
     }
     as_types();
     // HELD: every bomber the mod's; the dead out of the list
@@ -299,6 +302,12 @@ internal void airstrike_tick(ee_player *pl, uint32_t now) {
         ee_unit *t = s->held[e].tgt ? unit_by_id((unsigned)s->held[e].tgt) : NULL;
         int stands = t && unit_get_serial(t) == s->held[e].tgt && unit_get_hp(t) > 0;
         ee_goal *g = unit_get_goal(u);
+        if (stands && (unit_get_x(t) < 0 || now - s->held[e].t0 >= AF_RUN_MS)) {   // given up: the bomber to the next wing
+            ee_unit_type *ttd = unit_get_type_data(t);
+            ar_log(idx, now, "air force: a bomber gives up type %d at %d,%d (%s; seen %d, hp %d, the bomber's goal %d)", ttd ? unit_type_get_id(ttd) : -1,
+                   unit_get_tile(t).x, unit_get_tile(t).y, unit_get_x(t) < 0 ? "off the map" : "not down in time", seen_by(t, pl), unit_get_hp(t), g != NULL);
+            s->gave_up++; stands = 0;
+        }
         if (stands) {
             out++;
             if (g || now - s->held[e].t < AS_AGAIN) continue;
@@ -330,7 +339,7 @@ internal void airstrike_tick(ee_player *pl, uint32_t now) {
         ee_unit *t = f < na ? aa[f].u : nt ? tg[(f - na) % nt].u : aa[f % na].u;
         int e = as_held_at(s, unit_get_serial(ready[i]));
         if (e < 0 || !as_order(ready[i], goal_attack(ready[i], t))) continue;
-        s->held[e].tgt = unit_get_serial(t); s->held[e].t = now;
+        s->held[e].tgt = unit_get_serial(t); s->held[e].t = s->held[e].t0 = now ? now : 1;
         sent++;
     }
     if (!sent) return;
