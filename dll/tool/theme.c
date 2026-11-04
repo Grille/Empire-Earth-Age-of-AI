@@ -279,9 +279,180 @@ internal LRESULT CALLBACK theme_drawn_proc(HWND c, UINT msg, WPARAM wp, LPARAM l
     return res;
 }
 
+// THE SCROLLBAR (a field's vertical one: the list, the help) as the game's: its knot up at the top, down at the bottom,
+// whole cells 1:1 - the bar 20 pixels wide (at 96 dpi), Windows' 17 and the rest taken from the client area
+// (WM_NCCALCSIZE) - the track between them in the field's sunken bevel, the silver ball on it (not stretched to the
+// share shown, as the game's isn't). Windows' bar is never shown: painted over after every message that may have
+// drawn it (SetScrollInfo draws at once, past WM_NCPAINT), its mouse handled here - the knots and the track repeat
+// while held, the ball dragged scrolls the control by lines (a list by its rows' height, an edit by EM_LINESCROLL).
+#define GL_CELL_KNOT_UP 1, 2   // + 1 pressed (the brighter one unpressed, as the down knot: measured against the game)
+#define GL_CELL_BALL 2, 4
+enum { SB_PART_NONE, SB_PART_UP, SB_PART_DOWN, SB_PART_PAGE_UP, SB_PART_PAGE_DOWN, SB_PART_BALL };
+internal HWND g_sb_held;   // the control whose bar the mouse holds, and the part
+internal int g_sb_part;
+
+internal int theme_sb_width(HWND c) {
+    HDC dc = GetDC(c);
+    int w = MulDiv(GL_CELL, GetDeviceCaps(dc, LOGPIXELSY), 96);
+    ReleaseDC(c, dc);
+    return w;
+}
+
+// the bar in the window's coordinates (GetWindowDC's), 0 none shown; *ball: the ball's top and the track's ends
+internal int theme_sb_rect(HWND c, RECT *bar, int *track0, int *track1, int *ball) {
+    if (!(GetWindowLongA(c, GWL_STYLE) & WS_VSCROLL)) return 0;
+    RECT w, cl;
+    GetWindowRect(c, &w);
+    GetClientRect(c, &cl);
+    MapWindowPoints(c, NULL, (POINT *)&cl, 2);
+    int width = theme_sb_width(c);
+    bar->left = cl.right - w.left;
+    bar->right = bar->left + width;
+    bar->top = cl.top - w.top;
+    bar->bottom = cl.bottom - w.top;
+    if (bar->bottom - bar->top < 2 * width) return 0;
+    *track0 = bar->top + width;
+    *track1 = bar->bottom - width;
+    SCROLLINFO si = { sizeof si, SIF_ALL, 0, 0, 0, 0, 0 };
+    GetScrollInfo(c, SB_VERT, &si);
+    int range = si.nMax - si.nMin + 1 - (int)si.nPage, room = *track1 - *track0 - width;
+    *ball = range > 0 ? *track0 + (int)((long long)(si.nPos - si.nMin) * (room > 0 ? room : 0) / range) : -1;
+    return 1;
+}
+
+internal void theme_sb_paint(HWND c) {
+    RECT bar;
+    int t0, t1, ball;
+    if (!g_gl.on || !theme_sb_rect(c, &bar, &t0, &t1, &ball)) return;
+    int w = bar.right - bar.left, h = bar.bottom - bar.top, held = g_sb_held == c ? g_sb_part : SB_PART_NONE;
+    HDC dc = GetWindowDC(c), mem = CreateCompatibleDC(dc);
+    HBITMAP bm = CreateCompatibleBitmap(dc, w, h), old = (HBITMAP)SelectObject(mem, bm);
+    RECT track = { 0, t0 - bar.top, w, t1 - bar.top };
+    FillRect(mem, &track, g_pal.b_field);
+    theme_bevel(mem, &track, 1);
+    theme_cell(mem, 0, 0, w, GL_CELL_KNOT_UP + (held == SB_PART_UP));
+    theme_cell(mem, 0, h - w, w, GL_CELL_KNOT_DOWN - (held == SB_PART_DOWN));
+    if (ball >= 0) theme_cell(mem, 0, ball - bar.top, w, GL_CELL_BALL);
+    BitBlt(dc, bar.left, bar.top, w, h, mem, 0, 0, SRCCOPY);
+    SelectObject(mem, old);
+    DeleteObject(bm);
+    DeleteDC(mem);
+    ReleaseDC(c, dc);
+}
+
+internal int theme_sb_part(HWND c, POINT screen) {   // which part of the bar a point is on
+    RECT bar, w;
+    int t0, t1, ball;
+    if (!theme_sb_rect(c, &bar, &t0, &t1, &ball)) return SB_PART_NONE;
+    GetWindowRect(c, &w);
+    int x = screen.x - w.left, y = screen.y - w.top;
+    if (x < bar.left || x >= bar.right || y < bar.top || y >= bar.bottom) return SB_PART_NONE;
+    if (y < t0) return SB_PART_UP;
+    if (y >= t1) return SB_PART_DOWN;
+    if (ball < 0) return SB_PART_NONE;
+    if (y < ball) return SB_PART_PAGE_UP;
+    return y >= ball + (bar.right - bar.left) ? SB_PART_PAGE_DOWN : SB_PART_BALL;
+}
+
+internal void theme_sb_lines(HWND c, int lines) {   // the control scrolled by lines (the ball dragged)
+    char cls[32] = "";
+    GetClassNameA(c, cls, sizeof cls);
+    if (!lstrcmpiA(cls, WC_LISTVIEWA)) {
+        RECT r = { LVIR_BOUNDS, 0, 0, 0 };
+        int row = SendMessageA(c, LVM_GETITEMRECT, 0, (LPARAM)&r) ? r.bottom - r.top : 16;
+        SendMessageA(c, LVM_SCROLL, 0, lines * row);
+    } else SendMessageA(c, EM_LINESCROLL, 0, lines);
+}
+
+// the mouse held on the bar until it is let go: the knots and the track repeat (after 400 ms, then every 50), the ball
+// follows the mouse
+internal void theme_sb_track(HWND c, int part, POINT at) {
+    RECT bar;
+    int t0, t1, ball;
+    if (!theme_sb_rect(c, &bar, &t0, &t1, &ball)) return;
+    RECT win;
+    GetWindowRect(c, &win);
+    int grab = at.y - win.top - ball, width = bar.right - bar.left;
+    g_sb_held = c;
+    g_sb_part = part;
+    SetCapture(c);
+    DWORD next = GetTickCount();
+    for (int first = 1; GetCapture() == c; first = 0) {
+        POINT pt;
+        GetCursorPos(&pt);
+        if (part == SB_PART_BALL) {
+            SCROLLINFO si = { sizeof si, SIF_ALL, 0, 0, 0, 0, 0 };
+            GetScrollInfo(c, SB_VERT, &si);
+            int range = si.nMax - si.nMin + 1 - (int)si.nPage, room = t1 - t0 - width;
+            if (range > 0 && room > 0) {
+                int y = pt.y - win.top - grab - t0, want = si.nMin + (int)(((long long)y * range + room / 2) / room);
+                if (want < si.nMin) want = si.nMin;
+                if (want > si.nMin + range) want = si.nMin + range;
+                if (want != si.nPos) theme_sb_lines(c, want - si.nPos);
+            }
+        } else if (GetTickCount() >= next) {
+            int now = theme_sb_part(c, pt), code = part == SB_PART_UP ? SB_LINEUP : part == SB_PART_DOWN ? SB_LINEDOWN :
+                      part == SB_PART_PAGE_UP ? SB_PAGEUP : SB_PAGEDOWN;
+            if (first || now == part)   // held: while the mouse is still on it (a page: on that side of the ball)
+                SendMessageA(c, WM_VSCROLL, MAKEWPARAM(code, 0), 0);
+            next = GetTickCount() + (first ? 400 : 50);
+        }
+        theme_sb_paint(c);
+        MSG m;
+        while (PeekMessageA(&m, NULL, 0, 0, PM_REMOVE)) {
+            if (m.message == WM_LBUTTONUP || m.message == WM_NCLBUTTONUP || (m.message == WM_KEYDOWN && m.wParam == VK_ESCAPE)) { ReleaseCapture(); break; }
+            if (m.message == WM_MOUSEMOVE || m.message == WM_NCMOUSEMOVE || m.message == WM_LBUTTONDOWN) continue;
+            TranslateMessage(&m);
+            DispatchMessageA(&m);
+        }
+        if (GetCapture() == c) MsgWaitForMultipleObjects(0, NULL, FALSE, 15, QS_ALLINPUT);
+    }
+    if (GetCapture() == c) ReleaseCapture();
+    SendMessageA(c, WM_VSCROLL, MAKEWPARAM(SB_ENDSCROLL, 0), 0);
+    g_sb_held = NULL;
+    theme_sb_paint(c);
+}
+
+// a field's messages for its bar: 1 handled (*res the result); after any other the bar painted again when the
+// control's scrolling changed (or WM_NCPAINT drew Windows' bar)
+internal int theme_sb_before(HWND c, UINT msg, WPARAM wp, LPARAM lp, LRESULT *res) {
+    if (!g_gl.on) return 0;
+    if (msg == WM_NCCALCSIZE && (GetWindowLongA(c, GWL_STYLE) & WS_VSCROLL)) {   // the bar wider by taking from the client
+        *res = DefSubclassProc(c, msg, wp, lp);
+        RECT *r = (RECT *)lp;
+        int more = theme_sb_width(c) - GetSystemMetrics(SM_CXVSCROLL);
+        if (more > 0 && r->right - more > r->left) r->right -= more;
+        return 1;
+    }
+    POINT pt = { (short)LOWORD(lp), (short)HIWORD(lp) };
+    if (msg == WM_NCHITTEST && theme_sb_part(c, pt) != SB_PART_NONE) { *res = HTVSCROLL; return 1; }
+    if ((msg == WM_NCLBUTTONDOWN || msg == WM_NCLBUTTONDBLCLK) && wp == HTVSCROLL) {
+        int part = theme_sb_part(c, pt);
+        if (part != SB_PART_NONE) theme_sb_track(c, part, pt);
+        *res = 0;
+        return 1;
+    }
+    if ((msg == WM_NCMOUSEMOVE || msg == WM_NCMOUSELEAVE) && wp == HTVSCROLL) { *res = 0; return 1; }   // no hot look
+    return 0;
+}
+
+internal LRESULT theme_sb_after(HWND c, UINT msg, WPARAM wp, LPARAM lp) {   // the message through, the bar kept the game's
+    if (!g_gl.on) return DefSubclassProc(c, msg, wp, lp);
+    SCROLLINFO a = { sizeof a, SIF_ALL, 0, 0, 0, 0, 0 }, b = a;
+    LONG style = GetWindowLongA(c, GWL_STYLE);
+    GetScrollInfo(c, SB_VERT, &a);
+    LRESULT res = DefSubclassProc(c, msg, wp, lp);
+    GetScrollInfo(c, SB_VERT, &b);
+    if (msg == WM_NCPAINT || msg == WM_SIZE || a.nPos != b.nPos || a.nPage != b.nPage || a.nMax != b.nMax ||
+        style != GetWindowLongA(c, GWL_STYLE)) theme_sb_paint(c);
+    return res;
+}
+
 internal LRESULT CALLBACK theme_frame_proc(HWND c, UINT msg, WPARAM wp, LPARAM lp, UINT_PTR id, DWORD_PTR data) {
     (void)id; (void)data;
-    LRESULT res = DefSubclassProc(c, msg, wp, lp);
+    LRESULT res;
+    if (theme_sb_before(c, msg, wp, lp, &res)) return res;
+    res = theme_sb_after(c, msg, wp, lp);
     if (msg == WM_NCPAINT || msg == WM_SETFOCUS || msg == WM_KILLFOCUS || msg == WM_MOUSEMOVE) theme_frame(c);
     return res;
 }
@@ -312,7 +483,9 @@ internal LRESULT CALLBACK theme_list_proc(HWND w, UINT msg, WPARAM wp, LPARAM lp
         if (cd->dwDrawStage == CDDS_PREPAINT) return CDRF_NOTIFYITEMDRAW;
         if (cd->dwDrawStage == CDDS_ITEMPREPAINT) { SetTextColor(cd->hdc, g_pal.text); return CDRF_DODEFAULT; }
     }
-    LRESULT res = DefSubclassProc(w, msg, wp, lp);
+    LRESULT res;
+    if (theme_sb_before(w, msg, wp, lp, &res)) return res;
+    res = theme_sb_after(w, msg, wp, lp);
     if (msg == WM_NCPAINT && g_gl.on) theme_frame(w);
     return res;
 }
@@ -326,6 +499,7 @@ internal void theme_control(HWND c, const char *cls) {   // a child: its theme f
         theme_allow_dark(h);
         SetWindowTheme(h, L"ItemsView", NULL);
         SetWindowSubclass(c, theme_list_proc, 1, 0);
+        SetWindowPos(c, NULL, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);   // the bar's width (theme_sb_before)
         ListView_SetBkColor(c, g_pal.field);
         ListView_SetTextBkColor(c, g_pal.field);
         ListView_SetTextColor(c, g_pal.text);
@@ -352,7 +526,10 @@ internal void theme_control(HWND c, const char *cls) {   // a child: its theme f
             SendMessageA(c, CB_SETITEMHEIGHT, (WPARAM)-1, item > 1 ? item : 1);
         }
     }
-    else if (!lstrcmpA(cls, WC_EDITA) && (GetWindowLongA(c, GWL_EXSTYLE) & WS_EX_CLIENTEDGE)) SetWindowSubclass(c, theme_frame_proc, 1, 0);
+    else if (!lstrcmpA(cls, WC_EDITA) && (GetWindowLongA(c, GWL_EXSTYLE) & WS_EX_CLIENTEDGE)) {
+        SetWindowSubclass(c, theme_frame_proc, 1, 0);
+        SetWindowPos(c, NULL, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
+    }
 }
 
 // the WM_CTLCOLOR* messages in dark: the field's black for edits, lists and a read-only edit (it asks as a static);
