@@ -29,6 +29,7 @@
 #define CF_N 512      // committed units per AI
 #define CF_SHOOTERS 128
 #define CF_OWN 2048
+internal int sk_is_spotter(ee_unit *u);   // skirmish.c: the spotter (an attack order would give it away)
 
 internal int g_cfire = 1;
 internal unsigned g_cf_sent[16], g_cf_sorties[16], g_cf_short[16];
@@ -60,7 +61,7 @@ internal void cf_unit(ee_unit *u, void *ctx) {
     ee_player *owner = unit_get_owner(u);
     if (!td || !owner || unit_get_hp(u) <= 0 || unit_get_x(u) < 0) return;
     if (owner == s->pl) {
-        if (is_soldier(td) && !unit_get_holder(u) && s->no < CF_OWN) s->own[s->no++] = u;
+        if (is_soldier(td) && !unit_get_holder(u) && !sk_is_spotter(u) && s->no < CF_OWN) s->own[s->no++] = u;
         return;
     }
     if (!is_enemy(s->pl, owner) || !st_counts(u, td) || !seen_by(u, s->pl)) return;

@@ -39,6 +39,7 @@
     X(S10_GOOD_HOPE_FRIGATE, "s10_good_hope_frigate") X(S10_CRUISER, "s10_cruiser") \
     X(S10_DREADNOUGHT_BATTLESHIP, "s10_dreadnought_battleship") X(S10_U_BOAT, "s10_u_boat") \
     X(INF10_MACHINE_GUN, "inf10_machine_gun") X(INF10_DOUGHBOY, "inf10_doughboy") X(INF10_TRENCH_MORTAR, "inf10_trench_mortar") \
+    X(INF08_SHARPSHOOTER, "inf08_sharpshooter") X(INF10_SNIPER, "inf10_sniper") \
     X(GUN_ARTILLERY10_ARTILLERY, "gun_artillery10_artillery") X(GUN_AT10_57MM_AT_GUN, "gun_at10_57mm_at_gun") \
     X(TANK10_A7V, "tank10_a7v") X(A_STRAFE_FIGHTER10_FOKKER_DR_1, "a_strafe_fighter10_fokker_dr_1") \
     X(A_BOMBER_10_GOTHA, "a_bomber_10_gotha") X(A_BOMBER_11_B_17, "a_bomber_11_b_17") X(A_BOMBER_11_HEINKEL_111, "a_bomber_11_heinkel_111") \

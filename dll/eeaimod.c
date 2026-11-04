@@ -95,6 +95,8 @@ internal void garrison_tick(ee_player *pl, uint32_t now);   // garrison.c: settl
 internal void garrison_new_game(void);
 internal void airstrike_tick(ee_player *pl, uint32_t now);   // airstrike.c: bombers at what holds the force's way
 internal void airstrike_new_game(void);
+internal void skirmish_tick(ee_player *pl, uint32_t now);   // skirmish.c: small parties of long-range units at a position the force can't take
+internal void skirmish_new_game(void);
 internal void armies_install(const char *autotest_ini);
 internal void spoils_new_game(void);   // spoils.c: a resigned player's buildings and units
 internal void spoils_install(void);
@@ -224,6 +226,7 @@ internal void __thiscall hook_rm_update(ee_resource_mgr *rm, uint32_t now) {
     if (pl) armies_tick(pl, now);
     if (pl && !is_vanilla(pl)) garrison_tick(pl, now);
     if (pl && !is_vanilla(pl)) airstrike_tick(pl, now);
+    if (pl && !is_vanilla(pl)) skirmish_tick(pl, now);
     if (pl) expand_tick(pl, now);
     if (pl) tw_tick(pl, now);
     g_rm_seen = 1;
@@ -355,6 +358,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
     armies_new_game(mode == 2);
     garrison_new_game();
     airstrike_new_game();
+    skirmish_new_game();
     spoils_new_game();
     expand_new_game();
     tw_new_game();
@@ -416,6 +420,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
 #include "ai/armies.c"
 #include "ai/garrison.c"
 #include "ai/airstrike.c"
+#include "ai/skirmish.c"
 #include "ai/spoils.c"
 #include "persist.c"
 #include "engine/aim.c"
@@ -631,6 +636,7 @@ internal void install(HMODULE self) {
     armies_install(g_autotest ? g_ini : NULL);
     garrison_install(g_autotest ? g_ini : NULL);
     airstrike_install(g_autotest ? g_ini : NULL);
+    skirmish_install(g_autotest ? g_ini : NULL);
     spoils_install();
     expand_install(g_autotest ? g_ini : NULL);
     tw_install(g_autotest ? g_ini : NULL);
