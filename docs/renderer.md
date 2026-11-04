@@ -157,17 +157,20 @@ The player, 2026-11-04: dynamic shadows, cast on the terrain only - the models a
 would show it. `[display] shadows = dynamic` (default `game`; the pipe: `shadows game | dynamic [strength]`, the reply
 tells the last map's casters, ground batches, box, sun and shadow colour), engine/render_shadows.c:
 - Each draw gets a role: the terrain's receive; in the units' render object the lit draws that don't lie flat cast
-  (trees - alpha tested at 200 or more - without the tint below); the game's blob shadows (EEROGroundShadows) are not
-  drawn.
+  (trees - alpha tested at 200 or more - without the tint below), the textured ones lying flat (decals: roads, fields,
+  craters) receive in the main pixel shader; the game's blob shadows (EEROGroundShadows) are not drawn.
+- The casters' batches (copied as they go through the batch) are drawn from the sun into a 4096x4096 depth map fitted
+  to their box when the units' render object is done - the next frame's map (a moving unit's shadow a frame behind).
 - The ground's vertices are the game's own transform into the camera's space (its view only swaps y and z - measured:
   ground vertex (-0.7, 31.2, -6.8) with the camera at tile 73,86), so their place in the world needs the camera the
-  units are drawn with, this frame's. Both passes therefore run when the units' render object is done: the casters'
-  batches (copied as they went through the batch) from the sun into a 4096x4096 depth map fitted to their box; then
-  the ground's batches once more over the picture, multiplying it by the shadow (3x3 comparisons) - depth tested
-  against what is there, so a unit in front stays as it is, with the pass's depth a hair nearer so that the ground's
-  layers lying on each other darken a pixel once; the decals on the ground darken with it. No frame of lag.
+  units are drawn with. The ground is darkened at the first draw of the units, this frame's camera known: its batches
+  once more into a depth of their own, then where they are the nearest the darkest of their layers' shadow colours
+  (3x3 comparisons) into a picture, and the frame multiplied by that picture once. Everything after - the units and
+  what they draw see-through without depth - comes on top as it is. A first version darkened the ground after the
+  units, depth tested: it darkened a wonder's platform and a hovered unit's glow (the player's shot, 2026-11-04); and
+  the game's depth at the units' first draw turns the test down everywhere (measured), hence the depth of its own.
 - A unit (not a tree) standing in a shadow: its sun light scaled by the map at its origin (four texels), counting only
-  what is nearer the sun than its own size - its own body must not shade it. From the previous frame's map.
+  what is nearer the sun than its own size - its own body must not shade it.
 - The shadow's colour: the units' ambient light over ambient + sun on level ground, 80% of the way (strength 0.8).
 - Checked 2026-11-04 on "choke wolf" (WWI) and a Continental game at 8 min (epoch 4): towers, bunkers, AA guns,
   vehicles, biplanes (on the hillside), the town centre, giraffes' legs and trees cast their shapes; the frame's units

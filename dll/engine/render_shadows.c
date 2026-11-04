@@ -3,16 +3,19 @@
 // shapes onto the ground only - the models are low-poly, and light and shade on them would show it. Each draw gets a
 // role (rd3_shadow_role): the terrain's draws receive; the units' lit solid draws cast, and a unit standing in a shadow
 // is darkened as a whole by one look at its origin's place in the map (SH_TINT - no shading of its own); trees cast
-// without the tint (in a forest the trees around would darken them all).
-// The ground comes before the units, and its vertices are the game's own transform into the camera's space (its view
-// only swaps y and z): their place in the world needs the camera the units are drawn with, this frame's. So both
-// passes run when the units are done (rd3_shadow_units_done): the casters' batches, copied as they were drawn, from
-// the sun into a depth map; then the ground's batches, copied too, once more over the picture, multiplying it by the
-// shadow - depth tested against what is there (a unit in front stays as it is), each pixel once (the pass writes its
-// depth a hair nearer: the ground's layers lie on each other), the decals on it darkened with it. No frame of lag.
-// The map covers the casters drawn (the game draws what is in sight), seen along the sun: a shadow lies under its
-// caster in the map's coordinates.
-enum { SH_NONE, SH_RECEIVE, SH_CAST, SH_TINT };
+// without the tint (in a forest the trees around would darken them all); the decals lying on the ground (roads,
+// fields, craters - in the units' render object) receive in render_3d.c's pixel shader (SH_DECAL).
+// The casters' batches, copied as they go through the batch, are drawn from the sun into a depth map when the units
+// are done (rd3_shadow_units_done) - the next frame's (a moving unit's shadow a frame behind: not seen). The ground's
+// vertices are the game's own transform into the camera's space (its view only swaps y and z): their place in the
+// world needs the camera the units are drawn with. So the ground, copied too, is darkened at the first draw of the
+// units, this frame's camera known (rd3_shadow_ground): its batches once more into a picture of the shadow's colour
+// (depth tested against the ground's own depth, the darkest wins - the ground's layers lie on each other), then the
+// picture multiplied by it once. Everything after comes on top as it is: the units, and what they draw see-through
+// without depth (the darkening drawn after them darkened a wonder's platform, a hovered unit's glow - the player's
+// shot, 2026-11-04). The map covers the casters drawn (the game draws what is in sight), seen along the sun: a shadow
+// lies under its caster in the map's coordinates.
+enum { SH_NONE, SH_RECEIVE, SH_CAST, SH_TINT, SH_DECAL };
 #define SH_SIZE 4096
 #define SH_VERTS (512 * 1024)
 #define SH_INDICES (SH_VERTS * 3)
@@ -42,7 +45,15 @@ internal struct {
     ID3D11ShaderResourceView *wsrv;
     ID3D11RasterizerState *raster;
     ID3D11DepthStencilState *depth;
-    ID3D11BlendState *mul;
+    ID3D11BlendState *mul, *min;
+    ID3D11DepthStencilState *depth_eq;
+    ID3D11VertexShader *fvs;
+    ID3D11PixelShader *fps;
+    ID3D11Texture2D *fac, *fac_z;   // the shadow's colour over the picture, the target's size, and the ground's depth
+    ID3D11RenderTargetView *fac_rtv;
+    ID3D11ShaderResourceView *fac_srv;
+    ID3D11DepthStencilView *fac_dsv;
+    UINT fac_w, fac_h;
     sh_list cast, ground;
     float lo[3], hi[3];   // the casters' world box
     float sun[3];
@@ -73,17 +84,22 @@ internal const char k_sh_shader[] =
     "void ps(O i) { if (sa.y > 0 && t.Sample(s, i.t).a < sa.x) discard; }\n";
 // the ground once more: placed as the main pass placed it (render_3d.c's vertex shader: the same expression), its
 // place in the map through the units' camera (tom = the ground's view x the units' view inverted x the map's); the
-// pixel the shadow's colour, 3x3 comparisons apart by sp.x; sp.y the depth a hair nearer, sp.z the comparisons' bias
+// pixel the shadow's colour, 3x3 comparisons apart by sp.x, sp.z their bias
 internal const char k_sh_ground[] =
     "cbuffer g : register(b2) { row_major float4x4 vpm; row_major float4x4 tom; float4 shk; float4 vp; float4 sp; };\n"
     SH_VS_IN
     "Texture2D<float> sm : register(t2); SamplerComparisonState sc : register(s1);\n"
     "struct O { float4 p : SV_Position; float3 q : TEXCOORD0; };\n"
-    "O vs(I i) { O o; float4 p = world_pos(i); o.p = mul(p, vpm); o.p.xy += vp.xy * o.p.w; o.p.z -= sp.y * o.p.w;"
+    "O vs(I i) { O o; float4 p = world_pos(i); o.p = mul(p, vpm); o.p.xy += vp.xy * o.p.w;"
     " o.q = mul(p, tom).xyz; return o; }\n"
     "float4 ps(O i) : SV_Target { float z = min(i.q.z, 0.9999) - sp.z, l = 0;"
     " for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) l += sm.SampleCmpLevelZero(sc, i.q.xy + float2(x, y) * sp.x, z);"
     " return float4(lerp(shk.rgb, 1, l / 9), 1); }\n";
+// the picture times the shadow's colour: one triangle over the screen
+internal const char k_sh_screen[] =
+    "Texture2D f : register(t3);\n"
+    "float4 vs(uint id : SV_VertexID) : SV_Position { return float4(id == 1 ? 3 : -1, id == 2 ? -3 : 1, 0, 1); }\n"
+    "float4 ps(float4 p : SV_Position) : SV_Target { return float4(f.Load(int3(p.xy, 0)).rgb, 1); }\n";
 
 internal HRESULT rd3_shadow_shaders(const char *src, size_t n, ID3D11VertexShader **vs, ID3D11PixelShader **ps) {
     ID3DBlob *code = d3d_compile(src, n, "vs", "vs_4_0");
@@ -124,6 +140,7 @@ internal int rd3_shadow_init(void) {
     if (SUCCEEDED(hr)) hr = ID3D11Device_CreateSamplerState(dv, &ss, &g_sh.samp);
     if (SUCCEEDED(hr)) hr = rd3_shadow_shaders(k_sh_shader, sizeof k_sh_shader - 1, &g_sh.vs, &g_sh.ps);
     if (SUCCEEDED(hr)) hr = rd3_shadow_shaders(k_sh_ground, sizeof k_sh_ground - 1, &g_sh.gvs, &g_sh.gps);
+    if (SUCCEEDED(hr)) hr = rd3_shadow_shaders(k_sh_screen, sizeof k_sh_screen - 1, &g_sh.fvs, &g_sh.fps);
     D3D11_BUFFER_DESC bd = { 80, D3D11_USAGE_DEFAULT, D3D11_BIND_CONSTANT_BUFFER, 0, 0, 0 };
     if (SUCCEEDED(hr)) hr = ID3D11Device_CreateBuffer(dv, &bd, NULL, &g_sh.cb);
     bd.ByteWidth = 176;
@@ -141,11 +158,17 @@ internal int rd3_shadow_init(void) {
     if (SUCCEEDED(hr)) hr = ID3D11Device_CreateRasterizerState(dv, &rs, &g_sh.raster);
     D3D11_DEPTH_STENCIL_DESC ds = { TRUE, D3D11_DEPTH_WRITE_MASK_ALL, D3D11_COMPARISON_LESS, FALSE, 0, 0, { 0 }, { 0 } };
     if (SUCCEEDED(hr)) hr = ID3D11Device_CreateDepthStencilState(dv, &ds, &g_sh.depth);
+    ds.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO; ds.DepthFunc = D3D11_COMPARISON_EQUAL;
+    if (SUCCEEDED(hr)) hr = ID3D11Device_CreateDepthStencilState(dv, &ds, &g_sh.depth_eq);
     D3D11_BLEND_DESC bl = { 0 };   // the picture times the shadow's colour, its alpha kept
     bl.RenderTarget[0] = (D3D11_RENDER_TARGET_BLEND_DESC){ TRUE, D3D11_BLEND_ZERO, D3D11_BLEND_SRC_COLOR, D3D11_BLEND_OP_ADD,
                                                             D3D11_BLEND_ZERO, D3D11_BLEND_ONE, D3D11_BLEND_OP_ADD,
                                                             D3D11_COLOR_WRITE_ENABLE_ALL };
     if (SUCCEEDED(hr)) hr = ID3D11Device_CreateBlendState(dv, &bl, &g_sh.mul);
+    bl.RenderTarget[0] = (D3D11_RENDER_TARGET_BLEND_DESC){ TRUE, D3D11_BLEND_ONE, D3D11_BLEND_ONE, D3D11_BLEND_OP_MIN,
+                                                            D3D11_BLEND_ONE, D3D11_BLEND_ONE, D3D11_BLEND_OP_MIN,
+                                                            D3D11_COLOR_WRITE_ENABLE_ALL };   // the darkest
+    if (SUCCEEDED(hr)) hr = ID3D11Device_CreateBlendState(dv, &bl, &g_sh.min);
     if (FAILED(hr)) return rd_fail("the dynamic shadows", hr), 0;
     if (!sh_list_init(&g_sh.cast, SH_VERTS, SH_WORLDS, SH_RECORDS) || !sh_list_init(&g_sh.ground, SH_VERTS / 4, SH_WORLDS / 4, SH_GROUND))
         return rd_fail("the dynamic shadows' batches", E_OUTOFMEMORY), 0;
@@ -164,13 +187,14 @@ internal int rd3_shadow_init(void) {
 internal int rd3_shadow_role(rd_device *d, rd_vb *vb, DWORD start, DWORD nv) {
     if (!g_sh.on || vb->fvf != 0x152 || !d->rs[D3DRENDERSTATE_ZENABLE] || !rd3_shadow_init()) return SH_NONE;
     if (g_ro_cur == RO_TERRAIN) return SH_RECEIVE;
-    if (g_ro_cur != RO_UNITS || !d->rs[D3DRENDERSTATE_LIGHTING]) return SH_NONE;
+    if (g_ro_cur != RO_UNITS) return SH_NONE;
     float lo[3] = { 1e30f, 1e30f, 1e30f }, hi[3] = { -1e30f, -1e30f, -1e30f };
     for (DWORD k = 0; k < nv; k++) {
         const float *p = (const float *)(vb->mem + (size_t)(start + k) * vb->stride);
         for (int a = 0; a < 3; a++) { if (p[a] < lo[a]) lo[a] = p[a]; if (p[a] > hi[a]) hi[a] = p[a]; }
     }
-    if (hi[2] - lo[2] <= 0.01f * fmaxf(hi[0] - lo[0], hi[1] - lo[1])) return SH_NONE;
+    if (hi[2] - lo[2] <= 0.01f * fmaxf(hi[0] - lo[0], hi[1] - lo[1])) return d->tex[0] ? SH_DECAL : SH_NONE;
+    if (!d->rs[D3DRENDERSTATE_LIGHTING]) return SH_NONE;
     const D3DMATRIX *w = &d->world;
     float wl[3] = { 1e30f, 1e30f, 1e30f }, wh[3] = { -1e30f, -1e30f, -1e30f };
     for (int c = 0; c < 8; c++) {
@@ -196,14 +220,17 @@ internal int rd3_shadow_role(rd_device *d, rd_vb *vb, DWORD start, DWORD nv) {
     }
     return tree ? SH_CAST : SH_TINT;
 }
+internal void rd3_shadow_before(rd_device *d);
 // the draw's role on the device: a change is a change of the vertex constants (a new batch)
 internal void rd3_shadow_classify(rd_device *d, rd_vb *vb, DWORD start, DWORD nv) {
+    if (g_sh.on && g_sh.ready > 0) rd3_shadow_before(d);
     int role = rd3_shadow_role(d, vb, start, nv);
     if (role != d->sh_role) { d->sh_role = role; d->changed |= RD_CH_VC; }
 }
 
 // a batch of the frame's casters or ground (rd3_flush, before its upload: its world indices still its own) copied
 internal void rd3_shadow_capture(int role) {
+    if (role > SH_TINT) return;
     sh_list *l = role == SH_RECEIVE ? &g_sh.ground : &g_sh.cast;
     int cap_v = l == &g_sh.cast ? SH_VERTS : SH_VERTS / 4, cap_w = l == &g_sh.cast ? SH_WORLDS : SH_WORLDS / 4;
     if (g_rb.topo != D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST || g_sh.ready <= 0 || l->full) return;
@@ -317,6 +344,7 @@ internal int rd3_shadow_map(void) {
         ID3D11DeviceContext_PSSetShaderResources(x, 0, 1, &e->srv);
         ID3D11DeviceContext_DrawIndexed(x, e->n, e->at, 0);
     }
+    ID3D11DeviceContext_OMSetRenderTargets(x, 0, NULL, NULL);   // else Direct3D refuses the map as a texture
     // the colour a shadow leaves: the ambient light over the ambient and the sun on level ground, as much of it as the
     // strength says (1: the sun all gone)
     memcpy(g_sh.shm, m, sizeof m);
@@ -330,56 +358,107 @@ internal int rd3_shadow_map(void) {
     g_sh.inv_depth = 1 / wz;
     return 1;
 }
-// the ground once more, times the shadow, into the picture (the main pass's target and depth, bound)
-internal void rd3_shadow_ground(void) {
+// the shadow's colour picture, the target's size (made again when it changes)
+internal int rd3_shadow_factor_target(void) {
+    ID3D11Resource *r = NULL;
+    ID3D11RenderTargetView_GetResource(g_rd3.rtv, &r);
+    if (!r) return 0;
+    D3D11_TEXTURE2D_DESC td;
+    ID3D11Texture2D_GetDesc((ID3D11Texture2D *)r, &td);
+    ID3D11Resource_Release(r);
+    if (g_sh.fac && g_sh.fac_w == td.Width && g_sh.fac_h == td.Height) return 1;
+    D3D_RELEASE(g_sh.fac_srv); D3D_RELEASE(g_sh.fac_rtv); D3D_RELEASE(g_sh.fac); D3D_RELEASE(g_sh.fac_dsv); D3D_RELEASE(g_sh.fac_z);
+    D3D11_TEXTURE2D_DESC fd = { td.Width, td.Height, 1, 1, DXGI_FORMAT_R8G8B8A8_UNORM, { 1, 0 }, D3D11_USAGE_DEFAULT,
+                                D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE, 0, 0 };
+    HRESULT hr = ID3D11Device_CreateTexture2D(g_d3d.dev, &fd, NULL, &g_sh.fac);
+    if (SUCCEEDED(hr)) hr = ID3D11Device_CreateRenderTargetView(g_d3d.dev, (ID3D11Resource *)g_sh.fac, NULL, &g_sh.fac_rtv);
+    if (SUCCEEDED(hr)) hr = ID3D11Device_CreateShaderResourceView(g_d3d.dev, (ID3D11Resource *)g_sh.fac, NULL, &g_sh.fac_srv);
+    fd.Format = DXGI_FORMAT_D32_FLOAT; fd.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+    if (SUCCEEDED(hr)) hr = ID3D11Device_CreateTexture2D(g_d3d.dev, &fd, NULL, &g_sh.fac_z);
+    if (SUCCEEDED(hr)) hr = ID3D11Device_CreateDepthStencilView(g_d3d.dev, (ID3D11Resource *)g_sh.fac_z, NULL, &g_sh.fac_dsv);
+    if (FAILED(hr)) {
+        D3D_RELEASE(g_sh.fac_srv); D3D_RELEASE(g_sh.fac_rtv); D3D_RELEASE(g_sh.fac); D3D_RELEASE(g_sh.fac_dsv); D3D_RELEASE(g_sh.fac_z);
+        return rd_fail("the shadows' picture", hr), 0;
+    }
+    g_sh.fac_w = td.Width; g_sh.fac_h = td.Height;
+    return 1;
+}
+// the ground darkened (the first draw of the units: view their camera): its batches into a depth of their own (the
+// game's at this point turned the test down everywhere - measured), then where they are the nearest, the darkest of
+// their layers' shadow colours into a picture; the main pass's target (bound) multiplied by it
+internal void rd3_shadow_ground(const float *view) {
     ID3D11DeviceContext *x = g_d3d.ctx;
-    if (!g_sh.ground.nrec || !g_rd3.rtv || !g_rd3.dsv || !rd3_shadow_upload(&g_sh.ground)) return;
-    ID3D11DeviceContext_OMSetRenderTargets(x, 1, &g_rd3.rtv, g_rd3.dsv);
+    if (!g_sh.valid || !g_rd3.rtv || !rd3_shadow_factor_target() || !rd3_shadow_upload(&g_sh.ground)) return;
+    rd3_flush();
+    ID3D11RenderTargetView *target = g_rd3.rtv;
+    static const float white[4] = { 1, 1, 1, 1 };
+    ID3D11DeviceContext_ClearRenderTargetView(x, g_sh.fac_rtv, white);
+    ID3D11DeviceContext_ClearDepthStencilView(x, g_sh.fac_dsv, D3D11_CLEAR_DEPTH, 1, 0);
     ID3D11DeviceContext_RSSetViewports(x, 1, &g_rd3.vport);
-    ID3D11DeviceContext_OMSetDepthStencilState(x, g_sh.depth, 0);
-    ID3D11DeviceContext_OMSetBlendState(x, g_sh.mul, NULL, 0xFFFFFFFF);
     rd3_shadow_states(g_sh.gvs, g_sh.gps, g_sh.gcb);
     ID3D11DeviceContext_PSSetShaderResources(x, 2, 1, &g_sh.srv);
     ID3D11DeviceContext_PSSetSamplers(x, 1, 1, &g_sh.cmp);
     float iv[16], vm[16];   // the units' camera inverted, x the map's: camera space -> the map
-    rd3_rigid_inverse(iv, g_sh.view);
+    rd3_rigid_inverse(iv, view);
     rd3_mul(vm, iv, g_sh.shm);
     float cb[44];
     memcpy(cb + 32, g_sh.shk, 16);
-    cb[40] = 1.5f / SH_SIZE;   // the comparisons' spacing, the depth a hair nearer, the comparisons' bias
-    cb[41] = 2e-6f;
+    cb[40] = 1.5f / SH_SIZE;   // the comparisons' spacing and bias
+    cb[41] = 0;
     cb[42] = 0.002f;
     cb[43] = 0;
-    for (int k = 0; k < g_sh.ground.nrec; k++) {
-        sh_record *e = &g_sh.ground.rec[k];
-        memcpy(cb, e->vpm, 64);
-        rd3_mul(cb + 16, e->view, vm);
-        cb[36] = e->hp[0]; cb[37] = e->hp[1]; cb[38] = cb[39] = 0;
-        ID3D11DeviceContext_UpdateSubresource(x, (ID3D11Resource *)g_sh.gcb, 0, NULL, cb, 0, 0);
-        ID3D11DeviceContext_DrawIndexed(x, e->n, e->at, 0);
+    for (int pass = 0; pass < 2; pass++) {   // the depth, then the colour where it is the nearest
+        ID3D11DeviceContext_OMSetRenderTargets(x, pass, pass ? &g_sh.fac_rtv : NULL, g_sh.fac_dsv);
+        ID3D11DeviceContext_OMSetDepthStencilState(x, pass ? g_sh.depth_eq : g_sh.depth, 0);
+        ID3D11DeviceContext_OMSetBlendState(x, pass ? g_sh.min : NULL, NULL, 0xFFFFFFFF);
+        for (int k = 0; k < g_sh.ground.nrec; k++) {
+            sh_record *e = &g_sh.ground.rec[k];
+            memcpy(cb, e->vpm, 64);
+            rd3_mul(cb + 16, e->view, vm);
+            cb[36] = e->hp[0]; cb[37] = e->hp[1]; cb[38] = cb[39] = 0;
+            ID3D11DeviceContext_UpdateSubresource(x, (ID3D11Resource *)g_sh.gcb, 0, NULL, cb, 0, 0);
+            ID3D11DeviceContext_DrawIndexed(x, e->n, e->at, 0);
+        }
     }
+    ID3D11DeviceContext_OMSetRenderTargets(x, 1, &target, NULL);
+    ID3D11DeviceContext_OMSetBlendState(x, g_sh.mul, NULL, 0xFFFFFFFF);
+    ID3D11DeviceContext_IASetInputLayout(x, NULL);
+    ID3D11DeviceContext_VSSetShader(x, g_sh.fvs, NULL, 0);
+    ID3D11DeviceContext_PSSetShader(x, g_sh.fps, NULL, 0);
+    ID3D11DeviceContext_PSSetShaderResources(x, 3, 1, &g_sh.fac_srv);
+    ID3D11DeviceContext_Draw(x, 3, 0);
+    ID3D11ShaderResourceView *none = NULL;
+    ID3D11DeviceContext_PSSetShaderResources(x, 3, 1, &none);   // a target again next time
+    rd3_dirty();
 }
-// the units drawn (the hook of their render object): this frame's casters into the map, the ground darkened by it
+// before a draw: at the units' first (a camera of the map: its view leaves the origin), the ground darkened once
+internal void rd3_shadow_before(rd_device *d) {
+    if (g_ro_cur != RO_UNITS || !g_sh.ground.nrec || (d->view._41 == 0 && d->view._42 == 0 && d->view._43 == 0)) return;
+    rd3_shadow_ground(&d->view._11);
+    g_sh.last_ground = g_sh.ground.nrec;
+    g_sh.ground.nv = g_sh.ground.ni = g_sh.ground.nw = g_sh.ground.nrec = g_sh.ground.full = 0;
+}
+// the units drawn (the hook of their render object): this frame's casters into the map, for the next frame
 internal void rd3_shadow_units_done(void) {
     rd_device *d = g_rd3.prep_dev;
     if (!g_sh.on || g_sh.ready <= 0 || !d) return;
     rd3_flush();
     if (g_sh.cast.nrec && g_sh.have_view && rd3_shadow_map()) {
         g_sh.last_rec = g_sh.cast.nrec; g_sh.last_nv = g_sh.cast.nv; g_sh.last_full = g_sh.cast.full || g_sh.ground.full;
-        g_sh.last_ground = g_sh.ground.nrec;
         memcpy(g_sh.last_lo, g_sh.lo, sizeof g_sh.lo); memcpy(g_sh.last_hi, g_sh.hi, sizeof g_sh.hi);
-        rd3_shadow_ground();
         g_sh.valid = 1;
         g_sh.passes++;
-        d->changed |= RD_CH_VC;   // the units' tint: the new map's matrix
+        d->changed |= RD_CH_VC;   // the units' tint and the decals: the new map's matrix
     }
     rd3_shadow_reset();
     rd3_dirty();
 }
-// the shadow map for the units' tint (rd3_prepare binds it with the rest)
+// the shadow map for the units' tint and the decals (rd3_prepare binds it with the rest)
 internal void rd3_shadow_bind(ID3D11DeviceContext *x) {
     ID3D11ShaderResourceView *srv = g_sh.ready > 0 ? g_sh.srv : NULL;
     ID3D11DeviceContext_VSSetShaderResources(x, 2, 1, &srv);
+    ID3D11DeviceContext_PSSetShaderResources(x, 2, 1, &srv);
+    if (g_sh.ready > 0) ID3D11DeviceContext_PSSetSamplers(x, 1, 1, &g_sh.cmp);
 }
 // the shadows' part in the vertex shader's constants
 internal void rd3_shadow_constants(rd_device *d, rd3_vcb *vc) {
@@ -389,6 +468,13 @@ internal void rd3_shadow_constants(rd_device *d, rd3_vcb *vc) {
     vc->shp[1] = SH_SIZE;
     vc->shp[2] = g_sh.on && g_sh.valid ? 1.0f : 0.0f;
     vc->shp[3] = g_sh.inv_depth;
+}
+internal void rd3_shadow_pconstants(rd_device *d, rd3_pcb *pc) {
+    memcpy(pc->shk, g_sh.shk, sizeof pc->shk);
+    pc->shd[0] = (float)d->sh_role;
+    pc->shd[1] = 1.5f / SH_SIZE;   // the 3x3 comparisons' spacing
+    pc->shd[2] = g_sh.on && g_sh.valid ? 1.0f : 0.0f;
+    pc->shd[3] = 0.002f;           // their bias
 }
 
 // shadows [game | dynamic] [strength]: the shadows switched while playing (the setting's at the start); the strength

@@ -106,17 +106,19 @@ typedef struct {
     int32_t op[4], aop[4];
     float fogc[4], tf[4];
     float misc[4];   // alpha reference, fog on, colour key
+    float shk[4];    // the dynamic shadows (a decal's): their colour; the draw's role, a texel, on, the bias
+    float shd[4];
 } rd3_pcb;
 internal const char k_rd3_shader[] =
     "cbuffer v : register(b0) { row_major float4x4 vpm; row_major float4x4 view;"
     " float4 ldir[8]; float4 ldiff[8]; float4 lamb[8]; float4 mdiff, mamb, memi, gamb; int4 lit; int4 src; float4 fog;"
     " float4 vp; row_major float4x4 shm; float4 shk; float4 shp; };\n"
-    "cbuffer p : register(b1) { int4 op; int4 aop; float4 fogc; float4 tf; float4 misc; };\n"
+    "cbuffer p : register(b1) { int4 op; int4 aop; float4 fogc; float4 tf; float4 misc; float4 pshk; float4 shd; };\n"
     "Buffer<float4> wt : register(t1);\n"   // the world matrices, 4 rows each (RD3_WB_BYTES)
     "Texture2D t : register(t0); SamplerState s : register(s0);\n"
-    "Texture2D<float> sm : register(t2);\n"   // the dynamic shadows' map (render_shadows.c)
+    "Texture2D<float> sm : register(t2); SamplerComparisonState sc : register(s1);\n"   // the dynamic shadows' map
     "struct I { float3 p : POSITION; float3 n : NORMAL; float4 c : COLOR; float2 t : TEXCOORD; uint w : WORLD; };\n"
-    "struct O { float4 p : SV_Position; float4 c : COLOR; float2 t : TEXCOORD0; float f : FOG; };\n"
+    "struct O { float4 p : SV_Position; float4 c : COLOR; float2 t : TEXCOORD0; float f : FOG; float3 q : TEXCOORD1; };\n"
     // a unit's tint: how many of four texels around its origin's place in the map are nearer the sun by more than b
     "float shade_at(float3 q, float b) { if (q.x < 0 || q.y < 0 || q.x > 1 || q.y > 1) return 0;"
     " int n = (int)shp.y; int2 c = int2(q.xy * shp.y); float k = 0;"
@@ -124,7 +126,7 @@ internal const char k_rd3_shader[] =
     "  k += sm.Load(int3(a, 0)) < q.z - b ? 1 : 0; } return k / 4; }\n"
     "O vs(I i) { O o; uint r = i.w * 4; float4 r0 = wt.Load(r); float b = r0.w; r0.w = 0;"   // _14: the draw's size (SH_TINT)
     " float4x4 world = float4x4(r0, wt.Load(r + 1), wt.Load(r + 2), wt.Load(r + 3));"
-    " float4 p = mul(float4(i.p, 1), world); o.p = mul(p, vpm);"
+    " float4 p = mul(float4(i.p, 1), world); o.p = mul(p, vpm); o.q = mul(p, shm).xyz;"
     " o.p.xy += vp.xy * o.p.w;"
     " float4 vc = i.c.zyxw, c = vc;"   // D3DCOLOR's bytes are B G R A
     " if (lit.x) { float4 d = src.x ? vc : mdiff, a = src.y ? vc : mamb, e = src.z ? vc : memi;"
@@ -149,6 +151,9 @@ internal const char k_rd3_shader[] =
     " int A = (int)round(c.a * 255), R = (int)misc.x, f = aop.w;"
     " if (f && !(f == 8 || (f == 2 && A < R) || (f == 3 && A == R) || (f == 4 && A <= R) || (f == 5 && A > R)"
     "  || (f == 6 && A != R) || (f == 7 && A >= R))) discard;"
+    " if (shd.x == 4 && shd.z > 0) { float z = min(i.q.z, 0.9999) - shd.w, l = 0;"   // a decal: 3x3 comparisons
+    "  for (int y = -1; y <= 1; y++) for (int u = -1; u <= 1; u++) l += sm.SampleCmpLevelZero(sc, i.q.xy + float2(u, y) * shd.y, z);"
+    "  c.rgb *= lerp(pshk.rgb, 1, l / 9); }"
     " if (misc.y > 0.5) c.rgb = lerp(fogc.rgb, c.rgb, saturate(i.f));"
     " return c; }\n";
 
@@ -464,6 +469,7 @@ internal int rd3_prepare(rd_device *d, int clamp) {
     pc.misc[0] = (float)(rs[D3DRENDERSTATE_ALPHAREF] & 255);
     pc.misc[1] = fog ? 1.0f : 0.0f;
     pc.misc[2] = ckey ? 1.0f : 0.0f;
+    rd3_shadow_pconstants(d, &pc);
     if (full || memcmp(&pc, &g_rd3.pc, sizeof pc)) {
         rd3_flush();
         ID3D11DeviceContext_UpdateSubresource(x, (ID3D11Resource *)g_rd3.pcb, 0, NULL, &pc, 0, 0);
