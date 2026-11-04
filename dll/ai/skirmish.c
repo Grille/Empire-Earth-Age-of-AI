@@ -8,7 +8,7 @@
 //   the AI's from AF_SHOOT_D tiles or more, the spot hit from most often) or the target the last attack time found
 //   too strong (a->strong) -, within SK_REACH of home, SK_REST after the last party came home.
 // - WHO: up to SK_N of the force's members at home that shoot SK_RANGE tiles or further (sharpshooters, snipers,
-//   mortars, artillery ...), the longest first, with SK_FIT of their hit points; SK_MIN at least, else nobody goes.
+//   mortars, artillery ...) or are field guns from AF_GUN_D (ballistae), the longest first, with SK_FIT of their hit points; SK_MIN at least, else nobody goes.
 //   They leave the force's list for the sortie (none of its orders reach them) and stay held the game's way (the
 //   commander never gets them); home again they join the force.
 // - THE SORTIE: an attack-move to the stand SK_STAND tiles short of the position on the line from home; on the way
@@ -149,7 +149,7 @@ internal void sk_go(unsigned idx, struct armies_st *a, struct sk_st *s, uint32_t
         if (a->held[k].out || a->held[k].back || !cv_alive(u) || ivec2_dist2(unit_get_tile(u), a->home) > 4 * AR_HOME_R * AR_HOME_R) continue;
         if (unit_get_hp(u) * 100 < unit_type_get_hp(unit_get_type_data(u)) * SK_FIT) continue;
         float rg = sk_range(u);
-        if (rg < SK_RANGE) continue;
+        if (rg < SK_RANGE && !(sh_gun(unit_get_type_data(u)) && rg >= (float)AF_GUN_D)) continue;   // its own field guns too (the ballista: range 6)
         int i = nc++;
         while (i > 0 && c[i - 1].rg < rg) { c[i] = c[i - 1]; i--; }
         c[i].k = k; c[i].rg = rg;
@@ -190,7 +190,7 @@ internal int sk_pick(ee_player *pl, struct sk_st *s, int k) {
         if (d > (long)h * h) continue;
         ee_unit_stats *est = unit_get_stats(e);
         float erg = est ? unit_stats_get_range(est) : unit_type_get_range(it.td);
-        if (is_siege(unit_type_get_id(it.td)) || unit_type_get_family(it.td) == KIND_ARTILLERY || erg >= (float)AF_SHOOT_D) ;   // the shooters first
+        if (sh_gun(it.td) || erg >= (float)AF_SHOOT_D) ;   // the shooters first
         else if (ms_land_soldier(e, it.td) && d <= (long)r * r) d += (long)h * h;
         else continue;
         if (!best || d < bd) { best = e; bd = d; }

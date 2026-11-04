@@ -42,7 +42,7 @@ internal struct intel {
 // where each stood, how far from the unit it hit, a building or not (airstrike.c: the shooters) -, revealed so (summed)
 internal struct {
     ee_unit *u[INTEL_REVEAL];
-    struct { ivec2 at; short d, bld; } sh[INTEL_REVEAL / 2]; int nsh;
+    struct { ivec2 at; short d, bld, gun; } sh[INTEL_REVEAL / 2]; int nsh;
     unsigned n;
 } g_rev[16];
 internal int g_reveal = 1, g_v_reveal = -1;
@@ -65,6 +65,12 @@ internal int intel_remembers(ee_player *pl, ee_unit *u) {
     for (unsigned h = intel_hash(u), k = 0; k < 4096 && in->known[h]; h = (h + 1) & 4095, k++)
         if (in->known[h] == u) return 1;
     return 0;
+}
+// a field gun: siege, artillery, the medieval field weapons (the ballista: "the group killer", the player), the
+// cannons - what shells a force from where it can't answer, in every age (airstrike.c's shooters, skirmish.c)
+internal int sh_gun(ee_unit_type *td) {
+    int f = td ? unit_type_get_family(td) : -1;
+    return td && unit_type_get_class_id(td) == CLS_LAND && (is_siege(unit_type_get_id(td)) || f == KIND_ARTILLERY || f == KIND_MEDIEVAL_FIELD_WEAPON || f == KIND_MACHINES || f == KIND_SIEGE);
 }
 internal int intel_revealed(unsigned pi, ee_unit *u) {
     if (pi >= 16 || !u) return 0;
@@ -174,6 +180,7 @@ internal void intel_tick(ee_player *pl, uint32_t now) {
         rev[h] = s.at[k]; g_rev[pi].n++;
         int fam = unit_type_get_class_id(unit_get_type_data(s.at[k]));
         g_rev[pi].sh[g_rev[pi].nsh].at = unit_get_tile(s.at[k]); g_rev[pi].sh[g_rev[pi].nsh].d = s.at_d[k];
+        g_rev[pi].sh[g_rev[pi].nsh].gun = (short)sh_gun(unit_get_type_data(s.at[k]));
         g_rev[pi].sh[g_rev[pi].nsh++].bld = fam == CLS_BUILDING || fam == CLS_FORTRESS;
     }
     static uint32_t rev_log[16];

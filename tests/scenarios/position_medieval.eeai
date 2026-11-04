@@ -1,0 +1,40 @@
+// Continental seed 101, 2 AIs, start epoch 5 (Middle Ages: start_epoch=5 in the run's ini): P2 base ~80,52, P3 base
+// ~40,42. A held position before the airplanes (the player, 2026-11-04: "also consider the ages before airplanes, most
+// of the units exist in an earlier version"): the idle human (P1, at war with P2) at x 53-58 - three towers, six
+// ballistae behind them (range 6, area damage: "the group killer", the player - trebuchets first, but they hit
+// one unit), longbowmen and pikemen. P2 gets a land force (longswords, knights, crossbows, catapults and three
+// ballistae of its own) and a tower that sees the towers but not the ballistae, and is told to attack (attacknow)
+// three times. The skirmishers (skirmish.c, v_skirmish 1: the party of the long-range units and field guns at the
+// shooters' spot - what hit its units from 7+ tiles, a field gun from 5, intel.c reveal_attackers) against the force
+// alone. Score: P1's towers, ballistae and soldiers left (count, objs), P2's losses ("# battle"), "# armies:" lines.
+diplo(1, 2, 1)
+diplo(2, 1, 1)
+spawn(1, unit.b_guard_tower_middle, 58, 42)
+spawn(1, unit.b_guard_tower_middle, 58, 48)
+spawn(1, unit.b_guard_tower_middle, 58, 54)
+spawn(1, unit.gun_spear06_balistae, 54, 48, 6)
+spawn(1, unit.arch06_long_bow, 56, 48, 12)
+spawn(1, unit.inf06_pikeman, 57, 45, 10)
+wait(75s)
+spawn(2, unit.inf06_longsword, 76, 50, 16)
+spawn(2, unit.cav06_knight, 78, 54, 6)
+spawn(2, unit.arch05_cross_bow, 76, 46, 10)
+spawn(2, unit.gun_siege04_catapult, 78, 46, 2)
+spawn(2, unit.gun_spear06_balistae, 79, 50, 3)
+spawn(2, unit.b_guard_tower_middle, 66, 47)
+wait(30s)
+cmd("attacknow 2")
+wait(240s)
+count(1)
+objs(1, unit.gun_spear06_balistae)
+cmd("attacknow 2")
+wait(240s)
+count(1)
+objs(1, unit.gun_spear06_balistae)
+cmd("attacknow 2")
+wait(240s)
+count(1)
+objs(1, unit.b_guard_tower_middle)
+objs(1, unit.gun_spear06_balistae)
+objs(1, unit.arch06_long_bow)
+objs(1, unit.inf06_pikeman)

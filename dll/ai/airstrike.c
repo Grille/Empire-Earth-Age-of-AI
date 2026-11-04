@@ -23,7 +23,10 @@
 //   are a great counter here"): where a land unit hit the AI's units from AF_SHOOT_D tiles or more (intel.c
 //   reveal_attackers), spots within AF_SHOOT_JOIN joined, for AF_SHOOT_MS after its last hit - the one hit from most
 //   often is the position, its long-range units (artillery, siege, AF_SHOOT_D+ range) known there and the first
-//   targets after the anti-air; a spot with nothing left to hit is dropped.
+//   targets after the anti-air; a spot with nothing left to hit is dropped. A field gun (intel.c sh_gun: the
+//   ballista is the Middle Ages' group killer at range 6, the player) counts from AF_GUN_D. The spots are kept in every age and with
+//   the air force off (the skirmishers, skirmish.c, go at them too - the player: "also consider the ages before
+//   airplanes, most of the units exist in an earlier version": trebuchets and cannons hold a valley the same way).
 // - THE WING: else the position - the breach's focus while the force stands off (g_ar_breach), else its push's target
 //   while out, else for AF_STRONG_MS the target its last attack time found too strong (armies.c a->strong: "if I have
 //   to go through I bombard it" - the bombs before the push; air_strike.eeai: the force waited at a position with two
@@ -81,6 +84,7 @@
 #define AF_AIRPORT_TRIES 3
 #define AF_FORWARD 15
 #define AF_SHOOT_D 7
+#define AF_GUN_D 5
 #define AF_SHOOT_JOIN 5
 #define AF_SHOOT_MS 180000
 #define AF_SHOOTS 16
@@ -195,14 +199,34 @@ internal void af_train(ee_player *pl, unsigned idx, struct as_st *s, int have, u
         }
     }
 }
+// the shooters: what hit its units from afar at intel.c's last scan, joined into spots; the one hit from most often
+// (-1 none)
+internal int as_shooters(unsigned idx, struct as_st *s, uint32_t now) {
+    for (int k = 0; k < g_rev[idx].nsh; k++) {
+        if (g_rev[idx].sh[k].bld || g_rev[idx].sh[k].d < (g_rev[idx].sh[k].gun ? AF_GUN_D : AF_SHOOT_D)) continue;
+        ivec2 at = g_rev[idx].sh[k].at;
+        int j, old = 0;
+        for (j = 0; j < AF_SHOOTS; j++) {
+            if (s->sh[j].t && now - s->sh[j].t < AF_SHOOT_MS && ivec2_dist2(s->sh[j].at, at) <= AF_SHOOT_JOIN * AF_SHOOT_JOIN) break;
+            if (s->sh[j].t < s->sh[old].t) old = j;
+        }
+        if (j == AF_SHOOTS) { j = old; s->sh[j].at = at; s->sh[j].hits = 0; }
+        s->sh[j].hits++; s->sh[j].t = now ? now : 1;
+    }
+    int shoot = -1;
+    for (int j = 0; j < AF_SHOOTS; j++)
+        if (s->sh[j].t && now - s->sh[j].t < AF_SHOOT_MS && (shoot < 0 || s->sh[j].hits > s->sh[shoot].hits)) shoot = j;
+    return shoot;
+}
 internal void airstrike_tick(ee_player *pl, uint32_t now) {
     unsigned idx = (unsigned)player_get_index(pl) & 15;
     struct as_st *s = &g_as[idx];
-    if (!PV(idx, g_v_air_strike, AS_ON) || !ar_on(pl, idx)) return;
+    if (!ar_on(pl, idx)) return;
     if (s->t && now >= s->t && now - s->t < AS_EVERY) return;
     if (now < s->t) memset(s, 0, sizeof *s);
     s->t = now ? now : 1;
-    if (current_epoch(pl) + 1 < 10) return;   // no bombers before World War I
+    int shoot = as_shooters(idx, s, now);
+    if (!PV(idx, g_v_air_strike, AS_ON) || current_epoch(pl) + 1 < 10) return;   // no bombers before World War I
     if (g_log && g_autotest && (!s->log_t || now - s->log_t >= 60000)) {
         s->log_t = now ? now : 1;
         fprintf(g_log, "# air force: P%u at %.1f min: %d bombers held, %u trained, %u airports queued, %u waves (%u bombers sent), %u launches waited for more, %u targets given up\n",
@@ -234,21 +258,6 @@ internal void airstrike_tick(ee_player *pl, uint32_t now) {
         if (s->asked > 0) s->asked--;   // one of those asked for is out
     }
     af_train(pl, idx, s, nb, now);
-    // the shooters: what hit its units from afar at intel.c's last scan, joined into spots
-    for (int k = 0; k < g_rev[idx].nsh; k++) {
-        if (g_rev[idx].sh[k].bld || g_rev[idx].sh[k].d < AF_SHOOT_D) continue;
-        ivec2 at = g_rev[idx].sh[k].at;
-        int j, old = 0;
-        for (j = 0; j < AF_SHOOTS; j++) {
-            if (s->sh[j].t && now - s->sh[j].t < AF_SHOOT_MS && ivec2_dist2(s->sh[j].at, at) <= AF_SHOOT_JOIN * AF_SHOOT_JOIN) break;
-            if (s->sh[j].t < s->sh[old].t) old = j;
-        }
-        if (j == AF_SHOOTS) { j = old; s->sh[j].at = at; s->sh[j].hits = 0; }
-        s->sh[j].hits++; s->sh[j].t = now ? now : 1;
-    }
-    int shoot = -1;
-    for (int j = 0; j < AF_SHOOTS; j++)
-        if (s->sh[j].t && now - s->sh[j].t < AF_SHOOT_MS && (shoot < 0 || s->sh[j].hits > s->sh[shoot].hits)) shoot = j;
     // the position
     struct armies_st *a = &g_armies[idx];
     ivec2 pos;
@@ -269,7 +278,7 @@ internal void airstrike_tick(ee_player *pl, uint32_t now) {
         int fam = unit_type_get_class_id(it.td), f = unit_type_get_family(it.td);
         ee_unit_stats *ust = unit_get_stats(u);
         float rg = ust ? unit_stats_get_range(ust) : unit_type_get_range(it.td), at;
-        int lr = fam == CLS_LAND && (is_siege(unit_type_get_id(it.td)) || f == KIND_ARTILLERY || rg >= (float)AF_SHOOT_D);
+        int lr = fam == CLS_LAND && (sh_gun(it.td) || rg >= (float)AF_SHOOT_D);
         if (!seen_by(u, pl) && !(shoot >= 0 && lr && d <= AF_SHOOT_JOIN * AF_SHOOT_JOIN)) continue;   // the shooters' spot: known there
         if (f == KIND_AA_BUILDING || f == KIND_LAND_AA) {
             if (d > AS_AA_R * AS_AA_R || na == AS_TARGETS) continue;
