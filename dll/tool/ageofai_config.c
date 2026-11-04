@@ -28,6 +28,7 @@
 #include "settings/settings.c"
 #include "game/api/builds.h"   // the exe builds the mod knows, and how a file is known as one
 #include "tool/engine_import.c"   // the game's settings in a file: ageofai.dll an import of the engine
+#include "tool/theme.c"   // light or dark as Windows' apps: g_pal, the colours drawn with
 
 #define TITLE "Empire Earth: Age of AI - settings"
 enum { ID_FILTER = 100, ID_LIST, ID_HELP, ID_NAME, ID_FILE, ID_SAVE, ID_CLOSE, ID_UNKNOWN, ID_REMOVE, ID_GAME, ID_GAME_TEXT,
@@ -1090,6 +1091,7 @@ internal HWND make_child(const char *cls, const char *text, DWORD style, int id)
     HWND c = CreateWindowExA(!strcmp(cls, WC_EDITA) || !strcmp(cls, WC_LISTBOXA) ? WS_EX_CLIENTEDGE : 0, cls, text,
                              WS_CHILD | WS_VISIBLE | style, 0, 0, 10, 10, g_wnd, (HMENU)(INT_PTR)id, GetModuleHandleA(NULL), NULL);
     SendMessageA(c, WM_SETFONT, (WPARAM)g_font, TRUE);
+    theme_control(c, cls);
     return c;
 }
 
@@ -1100,6 +1102,7 @@ internal void create_controls(void) {
                              LVS_SINGLESEL | LVS_SHOWSELALWAYS, 0, 0, 10, 10, g_wnd, (HMENU)ID_LIST, GetModuleHandleA(NULL), NULL);
     SendMessageA(g_list, WM_SETFONT, (WPARAM)g_font, TRUE);
     ListView_SetExtendedListViewStyle(g_list, LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER);
+    theme_control(g_list, WC_LISTVIEWA);
     const char *cols[COLS] = { "Setting", "Value", "Default" };
     for (int i = 0; i < COLS; i++) {
         LVCOLUMNA c = { 0 };
@@ -1167,32 +1170,27 @@ internal void show_mode(void) {
     repaint();
 }
 
-// THE COLOURS: the value cell tinted by its check - a warning (outside its usual range, the game uses it) yellow, a
-// mistake (the game uses the default) red; the help (help_open) says what each is
-#define TINT_WARN RGB(255, 240, 180)
-#define TINT_MISTAKE RGB(255, 205, 205)
-#define TEXT_WARN RGB(150, 100, 0)
-#define TEXT_MISTAKE RGB(190, 0, 0)
-#define TEXT_GAME RGB(0, 70, 190)   // a key that sets one of the game's own values; a value that is the game's own
-#define TEXT_GAME_GREY RGB(120, 150, 205)   // ... and the default
+// THE COLOURS (g_pal, theme.c): the value cell tinted by its check - a warning (outside its usual range, the game uses
+// it) yellow, a mistake (the game uses the default) red; blue (game) a key that sets one of the game's own values, a
+// value that is the game's own - pale (game_grey) when it is the default too; the help (help_open) says what each is
 
 // a custom-drawn cell: changed bold (an AI row: easy or hard set too; a section or group line bold), the value grey
 // while it is the default, blue while it is the game's own; the key never grey, blue when it sets a game's value; the value tinted by its check
 internal LRESULT draw_cell(NMLVCUSTOMDRAW *cd) {
     LPARAM p = cd->nmcd.lItemlParam;
     int bold = 0, grey = 0, game = 0;
-    COLORREF bk = GetSysColor(COLOR_WINDOW);
+    COLORREF bk = g_pal.field;
     if (node_kind(p) != NODE_ENTRY) bold = 1;
     else if (cd->iSubItem < COLS - 1) {
         bold = g_look[p].bold;   // worked out by fill_item
         grey = (cd->iSubItem == 1 && g_look[p].grey) || (cd->iSubItem < 2 && g_look[p].other);   // the key: never pale - but in the other build's
         game = cd->iSubItem == 0 ? g_look[p].game : cd->iSubItem == 1 && g_look[p].own;
         int level = cd->iSubItem == 1 ? g_look[p].level : CHECK_OK;
-        if (level == CHECK_WARN) bk = TINT_WARN;
-        else if (level == CHECK_MISTAKE) bk = TINT_MISTAKE;
+        if (level == CHECK_WARN) bk = g_pal.tint_warn;
+        else if (level == CHECK_MISTAKE) bk = g_pal.tint_mistake;
     }
     SelectObject(cd->nmcd.hdc, bold ? g_bold : g_font);
-    cd->clrText = game ? (grey ? TEXT_GAME_GREY : TEXT_GAME) : GetSysColor(grey ? COLOR_GRAYTEXT : COLOR_WINDOWTEXT);
+    cd->clrText = game ? (grey ? g_pal.game_grey : g_pal.game) : grey ? g_pal.grey : g_pal.text;
     cd->clrTextBk = bk;
     return CDRF_NEWFONT;
 }
@@ -1251,18 +1249,18 @@ internal int help_lines(HDC dc, int w, int draw) {
             RECT s = { m, y, m + col - dpi_px(10), y + dpi_px(20) };
             sh = dpi_px(20);
             if (draw && (look == HL_WARN || look == HL_MISTAKE)) {
-                HBRUSH b = CreateSolidBrush(look == HL_WARN ? TINT_WARN : TINT_MISTAKE);
+                HBRUSH b = CreateSolidBrush(look == HL_WARN ? g_pal.tint_warn : g_pal.tint_mistake);
                 FillRect(dc, &s, b);
                 DeleteObject(b);
             }
             s.left += dpi_px(4);
             SelectObject(dc, look == HL_BOLD ? g_bold : g_font);
-            SetTextColor(dc, look == HL_GAME ? TEXT_GAME : GetSysColor(look == HL_GREY ? COLOR_GRAYTEXT : COLOR_WINDOWTEXT));
+            SetTextColor(dc, look == HL_GAME ? g_pal.game : look == HL_GREY ? g_pal.grey : g_pal.text);
             if (draw) DrawTextA(dc, k_help[i].sample, -1, &s, DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX | DT_END_ELLIPSIS);
             x = m + col;
         }
         SelectObject(dc, look == HL_HEAD ? g_bold : g_font);
-        SetTextColor(dc, GetSysColor(COLOR_WINDOWTEXT));
+        SetTextColor(dc, g_pal.text);
         RECT r = { x, y + (sh ? dpi_px(2) : 0), w - m, y };
         DrawTextA(dc, k_help[i].text, -1, &r, DT_WORDBREAK | DT_NOPREFIX | DT_CALCRECT);
         int th = r.bottom - r.top + (sh ? dpi_px(2) : 0);
@@ -1307,7 +1305,7 @@ internal void help_open(void) {
         wc.lpfnWndProc = help_proc;
         wc.hInstance = GetModuleHandleA(NULL);
         wc.hCursor = LoadCursor(NULL, IDC_ARROW);
-        wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
+        wc.hbrBackground = g_pal.b_field;
         wc.lpszClassName = "AimodConfigHelp";
         RegisterClassA(&wc);
         registered = 1;
@@ -1330,6 +1328,8 @@ internal void help_open(void) {
                               w - m - dpi_px(94), h - m - bh, dpi_px(94), bh, g_help_wnd, (HMENU)IDOK,
                               GetModuleHandleA(NULL), NULL);
     SendMessageA(ok, WM_SETFONT, (WPARAM)g_font, TRUE);
+    theme_control(ok, WC_BUTTONA);
+    theme_window(g_help_wnd);
     EnableWindow(g_wnd, FALSE);
     ShowWindow(g_help_wnd, SW_SHOW);
     SetFocus(ok);
@@ -1341,10 +1341,14 @@ internal LRESULT CALLBACK wnd_proc(HWND w, UINT msg, WPARAM wp, LPARAM lp) {
     case WM_CTLCOLORSTATIC:   // an editor's status in its check's colour
         for (int k = 0; k < EDITORS; k++) {
             if ((HWND)lp != g_ed[k].status || g_ed[k].level == CHECK_OK) continue;
-            SetTextColor((HDC)wp, g_ed[k].level == CHECK_WARN ? TEXT_WARN : TEXT_MISTAKE);
-            SetBkColor((HDC)wp, GetSysColor(COLOR_BTNFACE));
-            return (LRESULT)GetSysColorBrush(COLOR_BTNFACE);
+            SetTextColor((HDC)wp, g_ed[k].level == CHECK_WARN ? g_pal.text_warn : g_pal.text_mistake);
+            SetBkColor((HDC)wp, g_pal.back);
+            return (LRESULT)g_pal.b_back;
         }
+        if (g_pal.dark) return theme_ctlcolor(msg, wp, lp);
+        break;
+    case WM_CTLCOLOREDIT: case WM_CTLCOLORLISTBOX: case WM_CTLCOLORBTN:
+        if (g_pal.dark) return theme_ctlcolor(msg, wp, lp);
         break;
     case WM_SETCURSOR: {   // the split's arrows over the gap
         POINT pt;
@@ -1510,6 +1514,7 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmd, int show) {
     }
     INITCOMMONCONTROLSEX icc = { sizeof icc, ICC_LISTVIEW_CLASSES | ICC_STANDARD_CLASSES };
     InitCommonControlsEx(&icc);
+    theme_init();
     HDC dc = GetDC(NULL);
     g_dpi = GetDeviceCaps(dc, LOGPIXELSY) / 96.0f;
     ReleaseDC(NULL, dc);
@@ -1530,12 +1535,13 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmd, int show) {
     wc.lpfnWndProc = wnd_proc;
     wc.hInstance = inst;
     wc.hCursor = LoadCursor(NULL, IDC_ARROW);
-    wc.hbrBackground = (HBRUSH)(COLOR_BTNFACE + 1);
+    wc.hbrBackground = g_pal.b_back;
     wc.hIcon = LoadIconA(inst, MAKEINTRESOURCEA(1));
     wc.lpszClassName = "AimodConfig";
     RegisterClassA(&wc);
     g_wnd = CreateWindowExA(0, wc.lpszClassName, TITLE, WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN, CW_USEDEFAULT, CW_USEDEFAULT,
                             dpi_px(1180), dpi_px(760), NULL, NULL, inst, NULL);
+    theme_window(g_wnd);
     create_controls();
     show_unknown();
     layout();
