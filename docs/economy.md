@@ -700,6 +700,30 @@ goal object`). The guarded game played to its end (a citizen, type 32).
 means what the gold and iron buy (the game's gold-heavy requests, the 90-s saving, the navy account's share), and
 production buildings when the army has the metal.
 
+## Citizens by the mines (2026-11-04, dll/ai/citizens.c MINE CAP)
+
+The player, on his 4000-population game "choke wolf" on a small map: "the 2000 citizens (~50%) just have no useful
+work here ... 50% as a max pop limit, with the other limiter being all stone, gold, iron mines * 6 * 1.5 (for wood and
+food)". There P3 had 643 citizens of the 1984 the game wanted (45% of its cap of 4410), 441 of them idle and 284 cutting
+wood on a pile of 126000, while its food stood at 22-55 and its army's orders were refused for gold 233 times in 27
+minutes: every citizen trained took the food the army lacked.
+
+**`citizen_mine_cap`** ([ai_base], default 1; `v_citizen_mine_cap`): from the Copper Age the citizens wanted (the
+game's, citizen_plan's goal and so FEED's food) are at most half the population cap and at most the stone, gold and
+iron mines with something left that the AI knows (its zones' sites) x the gatherers a mine takes (the game's 6) x 1.5.
+`# citizens: ... mine cap` when it changes.
+
+| | razed | killed | lost | its buildings lost |
+|---|---|---|---|---|
+| "choke wolf" with (pushes from 30 / 45 / 90 s) | 29 / 41 / 31 | 329 / 357 / 339 | 1435 / 1514 / 1381 | 7 / 21 / 7 |
+| without | 17 / 12 / 23 | 285 / 264 / 301 | 1336 / 1416 / 1365 | 8 / 6 / 6 |
+
+Head-to-head (late.eeai, 75 min, 24 mirrored games, Continental map_size 1, 4 AIs), without - with: at
+`unit_limit=13000` (36 mines: 324 against the game's 1172) soldiers -16.0 (se 22.5), razed -3.7 (12.8), kills +3.9
+(36.7), losses +5.0 (18.4); at the default 300 a player workers +11.2 (13.3), razed +8.4 (10.3), kills +26.5 (28.4),
+losses +17.0 (15.0). Noise both; on as the player's rule, with the gain in his kind of game. A `unit_limit` above the
+game data's maximum (13208 here, `# random map: ... max`) leaves every player a cap of about 15.
+
 ## Gold and iron (2026-10-21, dll/ai/metal.c)
 
 The playtester: convert the economy into attack and defence; early food is for citizens, units that need no food are a

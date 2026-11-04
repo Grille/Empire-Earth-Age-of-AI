@@ -424,6 +424,11 @@ class ai_base
         /// the population cap's share kept for the army when the citizens' goal is larger (the home mines always fit)
         [range(0, 0.9), commented]
         share citizen_army_share = 0.4;
+        /// From the Copper Age the citizens wanted are at most half the population cap and at most the stone, gold and
+        /// iron mines the AI knows x the gatherers a mine takes x 1.5 (the half for food and wood): in a game of a high
+        /// population cap on a small map the rest has no work (the player's rule; on his 4000-population save the AI razed
+        /// about twice as many buildings with it). 1 = on
+        bool citizen_mine_cap = true;
         struct workforce_plan_fields
         {
             /// the citizens wanted at most what the economy uses (mine slots, food, the wood actually spent,

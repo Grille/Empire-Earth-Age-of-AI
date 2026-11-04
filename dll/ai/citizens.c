@@ -167,6 +167,51 @@ internal float g_cit_army = 0.40f;   // [ai_base] citizen_army_share
 #define CIT_PLAN(idx) PV(idx, g_v_cit_plan, g_cit_plan)
 internal int expand_cit_need(ee_player *pl, unsigned idx);   // expand.c: the citizens an outpost still needs (EXTRA)
 internal int wf_cap_wanted(unsigned idx, int n);         // below: workforce_plan CAP
+// MINE CAP ([ai_base] citizen_mine_cap; [autotest] v_citizen_mine_cap; the player 2026-11-04 on his 4000-population
+// game "choke wolf" on a small map: "the 2000 citizens (~50%) just have no useful work here ... 50% as a max pop limit,
+// with the other limiter being all stone, gold, iron mines * 6 * 1.5 (for wood and food)"). There P3 had 643 citizens
+// of the 1984 the game wanted (45% of its cap of 4410): 441 idle and 284 on 126000 wood at 153 min, food at 22-55
+// all along - every citizen trained took the food the army lacked. From the Copper Age the citizens wanted (the
+// game's, citizen_plan's goal and so FEED's food) are at most half the cap and the stone, gold and iron mines with
+// something left in the AI's zones (what it knows; a computer player knows the whole map) x the gatherers a mine
+// takes (the game's table 0x16: 6) x 3 / 2, counted every 30 s. "# citizens: ... mine cap" when it changes.
+// Measured (2026-11-04): on "choke wolf" (28 mines: a cap of 252 against the game's 1984; P3 pushed every 4 minutes
+// from 30, 45 and 90 s, 153 -> 180 min) with / without: razed 29 / 17, 41 / 12, 31 / 23, killed 329 / 285, 357 / 264,
+// 339 / 301, lost 1435 / 1336, 1514 / 1416, 1381 / 1365, its buildings lost 7 / 7, 21 / 8, 7 / 6. Head-to-head
+// (late.eeai, 75 min, 24 mirrored games, Continental map_size 1, 4 AIs), without - with: at unit_limit 13000 (36
+// mines: 324 against the game's 1172) soldiers -16.0 (se 22.5), razed -3.7 (12.8), kills +3.9 (36.7), losses +5.0
+// (18.4); at the default 300 a player (half the cap the limit) workers +11.2 (13.3), razed +8.4 (10.3), kills +26.5
+// (28.4), losses +17.0 (15.0) - noise both. On: the player's rule, and his kind of game gains.
+internal int g_cz_mine_cap = 1, g_v_cz_mine_cap = -1;
+#define CZ_MINE_CAP(idx) PV(idx, g_v_cz_mine_cap, g_cz_mine_cap)
+internal struct { uint32_t t; int mines, cap, logged; } g_czm[16];
+internal int cz_mine_cap(ee_player *pl, unsigned idx, int n) {
+    if (!CZ_MINE_CAP(idx) || current_epoch(pl) < FARM_EPOCH) return n;
+    uint32_t now = game_time();
+    if (!g_czm[idx].t || now < g_czm[idx].t || now - g_czm[idx].t >= 30000) {
+        g_czm[idx].t = now ? now : 1;
+        static ee_unit *seen[4096];
+        int ns = 0;
+        ee_zone **tb = player_get_zones_begin(pl), **te = player_get_zones_end(pl);
+        for (int t = 0; tb && tb + t < te && t < 256; t++) {
+            void **sb = tb[t] ? zone_get_sites_begin(tb[t]) : NULL, **se = tb[t] ? zone_get_sites_end(tb[t]) : NULL;
+            for (int k = 0; sb && sb + k < se && k < 4096; k++) {
+                ee_unit *s = sb[k];
+                int r = s ? unit_get_resource(s) : 0, j;
+                if (r < 4 || r > 6 || unit_get_amount(s) <= 0) continue;
+                for (j = 0; j < ns && seen[j] != s; j++) ;
+                if (j == ns && ns < 4096) seen[ns++] = s;
+            }
+        }
+        int half = unit_limit(pl) / 2, cap = ns * (int)table_value(0x16) * 3 / 2;
+        if (cap > half) cap = half;
+        if (g_log && cap != g_czm[idx].logged)
+            fprintf(g_log, "# citizens: P%u at %.1f min: mine cap %d (%d mines x %u x 1.5, half the cap %d), citizens %d, the game wants %d\n", idx,
+                    now / 60000.0, cap, ns, table_value(0x16), half, workforce(pl), n);
+        g_czm[idx].mines = ns; g_czm[idx].cap = g_czm[idx].logged = cap;
+    }
+    return n > g_czm[idx].cap ? g_czm[idx].cap : n;
+}
 
 // finished producers of citizens (Town Center, Capitol)
 internal int cz_producers(ee_player *pl) {
@@ -237,6 +282,7 @@ internal void cz_targets(ee_resource_mgr *rm) {
     if (lim < hl) lim = hl;
     if (goal > lim) goal = lim;
     if (goal < game) goal = game;
+    goal = cz_mine_cap(pl, idx, goal);   // MINE CAP
     g_czp[idx].goal = plan & 1 ? goal : 0;
     g_czp[idx].home = home; g_czp[idx].slots = slots;
     // floors: food keeps FEED's gatherers and its fields + 2 (farmers), wood its late target (late_targets bit 1),
@@ -266,7 +312,7 @@ internal int __thiscall hook_cit_wanted(ee_unit_mgr *um) {
     int fresh = game_time() >= g_czp[idx].t && game_time() - g_czp[idx].t <= 15000;
     int r = (CIT_PLAN(idx) & 1) && fresh && g_czp[idx].goal > n ? g_czp[idx].goal : n;
     r = shelf_wanted(pl, r, unit_mgr_citizens(um));   // bunker.c: none while citizens go onto the shelf or wait there
-    return wf_cap_wanted(idx, r);   // workforce_plan CAP: no more than the economy uses
+    return cz_mine_cap(pl, idx, wf_cap_wanted(idx, r));   // workforce_plan CAP: no more than the economy uses; MINE CAP
 }
 // FIRST (train_budget, a citizen's food): the stock without the epoch reserve while the income pays both
 internal int cz_visible_food(ee_player *pl, unsigned idx, const int *stock, int visible) {
@@ -433,6 +479,8 @@ internal void cz_install(const char *autotest_ini) {
     g_cit_train_ms = g_set.citizen_train_ms;
     if (g_cit_train_ms < 5000) g_cit_train_ms = 5000;
     if (autotest_ini) g_v_cit_plan = ini_int("autotest", "v_citizen_plan", -1, autotest_ini);
+    g_cz_mine_cap = g_set_ai[1].citizen_mine_cap;
+    if (autotest_ini) g_v_cz_mine_cap = ini_int("autotest", "v_citizen_mine_cap", -1, autotest_ini);
     g_wf_plan = SETTING_BITS(g_set_ai[1].workforce_plan);
     g_wf_army_cap = g_set_ai[1].workforce_army_cap;
     if (autotest_ini) g_v_wf_plan = ini_int("autotest", "v_workforce_plan", -1, autotest_ini);
