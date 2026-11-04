@@ -903,6 +903,59 @@ struct note { int entry, level; char text[MAX_PATH + 96]; };
 internal struct note g_note[3];   // the selected line's, an AI setting's easy's and hard's
 internal int g_nnote;
 internal char g_help_text[4096];   // the selected line's help, under the notes
+internal POINT g_edit_at[2];   // where the field's text starts from its window's corner, in the font and the bold one (draw_field's face: there too)
+
+internal void cell_look(LPARAM p, int sub, int *bold, COLORREF *text, COLORREF *bk);
+
+// the dropdown and the field in their line's look (theme_field_look): its value cell's colour, tint and boldness, as
+// the face drawn on the other lines (draw_field) - the face and the real one the same
+internal int editor_look(HWND c, COLORREF *text, COLORREF *bk) {
+    if ((c != g_combo && c != g_edit) || g_sel < 0) return 0;
+    int bold;
+    cell_look(g_sel, 1, &bold, text, bk);
+    return 1;
+}
+
+internal void editor_style(void) {   // again after the line's look changes (a value set)
+    if (g_sel < 0) return;
+    int bold;
+    COLORREF text, bk;
+    cell_look(g_sel, 1, &bold, &text, &bk);
+    HWND both[2] = { g_combo, g_edit };
+    for (int i = 0; i < 2; i++) {
+        HFONT f = bold ? g_bold : g_font;
+        if ((HFONT)SendMessageA(both[i], WM_GETFONT, 0, 0) != f) SendMessageA(both[i], WM_SETFONT, (WPARAM)f, FALSE);
+        InvalidateRect(both[i], NULL, TRUE);
+    }
+}
+
+// g_edit_at: the field's first character measured in both fonts, at a line's height (a line of its own put in the
+// empty list for it) - Windows' edit puts its text after margins of its own, by the edit's height
+internal void edit_measure(void) {
+    LVITEMA it = { 0 };
+    RECT line = { LVIR_BOUNDS, 0, 0, 0 };
+    SendMessageA(g_list, LVM_INSERTITEMA, 0, (LPARAM)&it);
+    SendMessageA(g_list, LVM_GETITEMRECT, 0, (LPARAM)&line);
+    SendMessageA(g_list, LVM_DELETEALLITEMS, 0, 0);
+    g_filling = 1;
+    SetWindowPos(g_edit, NULL, 0, 0, dpi_px(200), line.bottom - line.top, SWP_NOZORDER | SWP_NOACTIVATE);
+    SetWindowTextA(g_edit, "0");
+    for (int b = 0; b < 2; b++) {
+        SendMessageA(g_edit, WM_SETFONT, (WPARAM)(b ? g_bold : g_font), FALSE);
+        RECT w;
+        POINT o = { 0, 0 };
+        GetWindowRect(g_edit, &w);
+        ClientToScreen(g_edit, &o);
+        LRESULT at = SendMessageA(g_edit, EM_POSFROMCHAR, 0, 0);
+        RECT form;   // its formatting rectangle: the text's top (EM_POSFROMCHAR says 0, a pixel above it)
+        SendMessageA(g_edit, EM_GETRECT, 0, (LPARAM)&form);
+        g_edit_at[b].x = o.x - w.left + (short)LOWORD(at);
+        g_edit_at[b].y = o.y - w.top + form.top;
+    }
+    SendMessageA(g_edit, WM_SETFONT, (WPARAM)g_font, FALSE);
+    SetWindowTextA(g_edit, "");
+    g_filling = 0;
+}
 
 internal void note_of(struct note *n) {
     const struct entry *e = &g_e[n->entry];
@@ -1020,6 +1073,7 @@ internal void editor_fill(void) {
         SetWindowTextA(g_edit, e->text);
     }
     g_filling = 0;
+    editor_style();
     editor_place();
 }
 
@@ -1042,6 +1096,7 @@ internal void entry_set(struct entry *e, const char *text) {
     refill_items();
     notes_of();   // a master's value can overrule its members' notes, [ai_base]'s shows in easy's and hard's
     show_help();
+    editor_style();
     update_title();
 }
 
@@ -1242,6 +1297,8 @@ internal void create_controls(void) {
     g_edit = make_child(WC_EDITA, "", ES_AUTOHSCROLL | WS_TABSTOP, ED_EDIT);
     SetWindowSubclass(g_combo, combo_proc, 2, 0);
     SetWindowSubclass(g_edit, edit_proc, 2, 0);
+    theme_field_look = editor_look;
+    edit_measure();
     for (int i = 0; i < 2 && !g_gl.on; i++) {   // Windows' dropdown the line's height (the game's look: its knot's)
         RECT r;
         GetWindowRect(g_combo, &r);
@@ -1379,11 +1436,16 @@ internal void draw_field(HDC dc, LPARAM p, int item, RECT r) {
     }
     char text[TEXT_CAP];
     ListView_GetItemText(g_list, item, 1, text, sizeof text);
+    // the text where the real one has it: the game's dropdown (theme_paint_combo) centres it after 4 pixels, the field
+    // has it where it was measured (edit_measure); Windows' dropdown roughly so
     RECT t = { f.left + dpi_px(6), f.top, f.right - dpi_px(3), f.bottom };
+    UINT how = DT_VCENTER;
+    if (choice && g_gl.on) t = (RECT){ f.left + 4, f.top + 2, f.right - 2, f.bottom - 2 };
+    else if (!choice) { t.left = f.left + g_edit_at[bold].x; t.top = f.top + g_edit_at[bold].y; how = DT_TOP; }
     HFONT old = (HFONT)SelectObject(dc, bold ? g_bold : g_font);
     SetBkMode(dc, TRANSPARENT);
     SetTextColor(dc, color);
-    DrawTextA(dc, text, -1, &t, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX | DT_END_ELLIPSIS);
+    DrawTextA(dc, text, -1, &t, DT_LEFT | how | DT_SINGLELINE | DT_NOPREFIX | DT_END_ELLIPSIS);
     SelectObject(dc, old);
 }
 
@@ -1579,9 +1641,11 @@ internal LRESULT CALLBACK wnd_proc(HWND w, UINT msg, WPARAM wp, LPARAM lp) {
     switch (msg) {
     case WM_SIZE: theme_size(w); if (g_list) layout(); return 0;
     case WM_ERASEBKGND: if (theme_erase(w, (HDC)wp)) return 1; break;
-    case WM_CTLCOLORSTATIC: case WM_CTLCOLOREDIT: case WM_CTLCOLORLISTBOX: case WM_CTLCOLORBTN:
-        if (g_pal.dark) return theme_ctlcolor(msg, wp, lp);
+    case WM_CTLCOLORSTATIC: case WM_CTLCOLOREDIT: case WM_CTLCOLORLISTBOX: case WM_CTLCOLORBTN: {
+        LRESULT b = theme_ctlcolor(msg, wp, lp);   // 0: Windows' own
+        if (b) return b;
         break;
+    }
     case WM_SETCURSOR: {   // the split's arrows over the gap
         POINT pt;
         GetCursorPos(&pt);

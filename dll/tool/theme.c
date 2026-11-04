@@ -187,6 +187,10 @@ internal void theme_bevel(HDC dc, const RECT *r, int in) {
     DeleteObject(lo);
 }
 
+// a field's own colours (a dropdown drawn here, an edit): the program's, 1 when it sets them - ageofai_config's
+// controls over a line of its list take the line's look; else the palette's
+internal int (*theme_field_look)(HWND c, COLORREF *text, COLORREF *bk);
+
 internal void theme_cell(HDC dc, int x, int y, int size, int row, int col) {   // a picture of uicontrols.sst
     BLENDFUNCTION bf = { AC_SRC_OVER, 0, 255, AC_SRC_ALPHA };
     AlphaBlend(dc, x, y, size, size, g_gl.ui_dc, col * GL_CELL, row * GL_CELL, GL_CELL, GL_CELL, bf);
@@ -234,14 +238,18 @@ internal void theme_paint_combo(HWND c, HDC dc) {
     GetClientRect(c, &r);
     int sel = (int)SendMessageA(c, CB_GETCURSEL, 0, 0);
     if (sel >= 0 && SendMessageA(c, CB_GETLBTEXTLEN, sel, 0) < (LRESULT)sizeof text) SendMessageA(c, CB_GETLBTEXT, sel, (LPARAM)text);
+    COLORREF color = g_pal.text, bk = g_pal.field;
+    if (theme_field_look) theme_field_look(c, &color, &bk);
     int size = r.bottom;
     RECT f = { r.left, r.top, r.right - size, r.bottom };
-    FillRect(dc, &f, g_pal.b_field);
+    HBRUSH b = CreateSolidBrush(bk);
+    FillRect(dc, &f, b);
+    DeleteObject(b);
     theme_bevel(dc, &f, 1);
     theme_cell(dc, r.right - size, 0, size, GL_CELL_KNOT_DOWN - (SendMessageA(c, CB_GETDROPPEDSTATE, 0, 0) != 0));
-    RECT t = { f.left + 4, f.top + 2, f.right - 2, f.bottom - 2 };
+    RECT t = { f.left + 4, f.top + 2, f.right - 2, f.bottom - 2 };   // ageofai_config's draw_field draws its faces' text here too
     int focus = GetFocus() == c && !SendMessageA(c, CB_GETDROPPEDSTATE, 0, 0);
-    theme_text(dc, c, &t, text, !IsWindowEnabled(c) ? g_pal.grey : focus ? g_pal.focus : g_pal.text, DT_LEFT);
+    theme_text(dc, c, &t, text, !IsWindowEnabled(c) ? g_pal.grey : focus ? g_pal.focus : color, DT_LEFT);
 }
 
 // a field's frame (an edit, the list: their client edge, 2 pixels) the game's sunken bevel in place of Windows' line
@@ -802,8 +810,22 @@ internal void theme_control(HWND c, const char *cls) {   // a child: its theme f
 
 // the WM_CTLCOLOR* messages in dark: the field's black for edits, lists and a read-only edit (it asks as a static);
 // the rest the window's grey, or in the game's look the darkened painting under it (the brush's origin at the child's place:
-// the child fills with its part of it); 0 in light (Windows' own)
+// the child fills with its part of it); 0 in light (Windows' own) - but an edit with a look of its own (theme_field_look)
+// that in both
 internal LRESULT theme_ctlcolor(UINT msg, WPARAM wp, LPARAM lp) {
+    static HBRUSH own;   // the brush of the last look of its own
+    static COLORREF own_bk;
+    COLORREF text, bk;
+    if (msg == WM_CTLCOLOREDIT && theme_field_look && theme_field_look((HWND)lp, &text, &bk)) {
+        if (!own || own_bk != bk) {
+            if (own) DeleteObject(own);
+            own = CreateSolidBrush(bk);
+            own_bk = bk;
+        }
+        SetTextColor((HDC)wp, text);
+        SetBkColor((HDC)wp, bk);
+        return (LRESULT)own;
+    }
     if (!g_pal.dark) return 0;
     char cls[16] = "";
     GetClassNameA((HWND)lp, cls, sizeof cls);
