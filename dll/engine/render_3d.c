@@ -746,7 +746,7 @@ internal void rd3_probe(rd_device *d, D3DPRIMITIVETYPE type, rd_vb *vb, DWORD st
     rd_surface *t = d->tex[0];
     log_locked("# rprobe %s: prim %d verts %lu idx %lu | lit %lu amb %08lx light0 on %d type %d dir %.2f %.2f %.2f diff %.2f %.2f %.2f"
                " amb %.2f %.2f %.2f | mat d %.2f %.2f %.2f %.2f a %.2f %.2f %.2f src %lu %lu | blend %lu %lu-%lu z %lu/%lu"
-               " atest %lu/%lu cull %lu | cop %lu %lu %lu aop %lu %lu %lu tf %08lx | tex %p %lux%lu | ext %.2f %.2f %.2f flat %.3f"
+               " atest %lu/%lu cull %lu | cop %lu %lu %lu aop %lu %lu %lu tf %08lx | tex %p %lux%lu | ext %.2f %.2f %.2f from %.2f %.2f flat %.3f"
                " n0 %.2f %.2f %.2f col0 %08lx | world %.2f %.2f %.2f / %.2f %.2f %.2f / %.2f %.2f %.2f / %.1f %.1f %.2f"
                " | viewport %lu %lu %lux%lu | view at %.1f %.1f %.1f | world z %.2f - %.2f\n",
                g_ro_cur >= 0 ? k_ro_names[g_ro_cur] : "other", (int)type, (unsigned long)nv, (unsigned long)ni,
@@ -763,7 +763,7 @@ internal void rd3_probe(rd_device *d, D3DPRIMITIVETYPE type, rd_vb *vb, DWORD st
                (unsigned long)ts[D3DTSS_COLORARG1], (unsigned long)ts[D3DTSS_COLORARG2], (unsigned long)ts[D3DTSS_ALPHAOP],
                (unsigned long)ts[D3DTSS_ALPHAARG1], (unsigned long)ts[D3DTSS_ALPHAARG2],
                (unsigned long)rs[D3DRENDERSTATE_TEXTUREFACTOR], (void *)t, t ? (unsigned long)t->desc.dwWidth : 0UL,
-               t ? (unsigned long)t->desc.dwHeight : 0UL, hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2], flat, n0[0], n0[1],
+               t ? (unsigned long)t->desc.dwHeight : 0UL, hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2], lo[0], lo[1], flat, n0[0], n0[1],
                n0[2], (unsigned long)col0, w->_11, w->_12, w->_13, w->_21, w->_22, w->_23, w->_31, w->_32, w->_33, w->_41,
                w->_42, w->_43, (unsigned long)d->viewport.dwX, (unsigned long)d->viewport.dwY,
                (unsigned long)d->viewport.dwWidth, (unsigned long)d->viewport.dwHeight, d->view._41, d->view._42,
