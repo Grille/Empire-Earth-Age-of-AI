@@ -889,8 +889,9 @@ internal int parent_item(int item) {
     return -1;
 }
 
-// THE EDITOR: a value is changed in its Value cell - a flag's check box drawn in the cell of every flag line (a click
-// on it, or Space), a choice's dropdown and a text field over the selected line's cell (Enter or F2 takes the keyboard
+// THE EDITOR: a value is changed in its Value cell - a flag's check box (a click on it, or Space), a choice's dropdown,
+// a text field, each drawn in the cell of every line (draw_cell_after): the selected line has the real dropdown or
+// field over the drawing, a click on another's selects it and hands the click on (Enter or F2 takes the keyboard
 // there; Enter, Esc or the up and down keys back to the list, Esc undoing the field's typing), and the "<" button at
 // the start of the selected line's Default cell (or Delete) puts the default back - an easy or hard line's [ai_base]. What a value has
 // to say (a warning, a mistake, a value that doesn't count) leads the help panel.
@@ -1308,29 +1309,87 @@ internal void show_mode(void) {
 
 // a custom-drawn cell: changed bold (an AI row: easy or hard set too; a section or group line bold), the value grey
 // while it is the default, blue while it is the game's own; the key never grey, blue when it sets a game's value; the value tinted by its check
+internal void cell_look(LPARAM p, int sub, int *bold, COLORREF *text, COLORREF *bk) {   // line p's cell sub (column)
+    int grey = 0, game = 0;
+    *bold = 0;
+    *bk = g_pal.field;
+    if (node_kind(p) != NODE_ENTRY) *bold = 1;
+    else if (sub < COLS - 1) {
+        *bold = g_look[p].bold;   // worked out by fill_item
+        grey = (sub == 1 && g_look[p].grey) || (sub < 2 && g_look[p].other);   // the key: never pale - but in the other build's
+        game = sub == 0 ? g_look[p].game : sub == 1 && g_look[p].own;
+        int level = sub == 1 ? g_look[p].level : CHECK_OK;
+        if (level == CHECK_WARN) *bk = g_pal.tint_warn;
+        else if (level == CHECK_MISTAKE) *bk = g_pal.tint_mistake;
+    }
+    *text = game ? (grey ? g_pal.game_grey : g_pal.game) : grey ? g_pal.grey : g_pal.text;
+}
+
 internal LRESULT draw_cell(NMLVCUSTOMDRAW *cd) {
     LPARAM p = cd->nmcd.lItemlParam;
-    int bold = 0, grey = 0, game = 0;
-    COLORREF bk = g_pal.field;
-    if (node_kind(p) != NODE_ENTRY) bold = 1;
-    else if (cd->iSubItem < COLS - 1) {
-        bold = g_look[p].bold;   // worked out by fill_item
-        grey = (cd->iSubItem == 1 && g_look[p].grey) || (cd->iSubItem < 2 && g_look[p].other);   // the key: never pale - but in the other build's
-        game = cd->iSubItem == 0 ? g_look[p].game : cd->iSubItem == 1 && g_look[p].own;
-        int level = cd->iSubItem == 1 ? g_look[p].level : CHECK_OK;
-        if (level == CHECK_WARN) bk = g_pal.tint_warn;
-        else if (level == CHECK_MISTAKE) bk = g_pal.tint_mistake;
-    }
+    int bold;
+    cell_look(p, cd->iSubItem, &bold, &cd->clrText, &cd->clrTextBk);
     SelectObject(cd->nmcd.hdc, bold ? g_bold : g_font);
-    cd->clrText = game ? (grey ? g_pal.game_grey : g_pal.game) : grey ? g_pal.grey : g_pal.text;
-    cd->clrTextBk = bk;
     LRESULT res = CDRF_NEWFONT;
-    if (node_kind(p) == NODE_ENTRY && ((cd->iSubItem == 1 && is_flag(&g_e[p])) || (cd->iSubItem == COLS - 1 && g_look[p].reset &&
+    if (node_kind(p) == NODE_ENTRY && (cd->iSubItem == 1 || (cd->iSubItem == COLS - 1 && g_look[p].reset &&
         (int)cd->nmcd.dwItemSpec == (int)SendMessageA(g_list, LVM_GETNEXTITEM, (WPARAM)-1, LVNI_SELECTED)))) res |= CDRF_NOTIFYPOSTPAINT;
     return res;
 }
 
-// over a drawn cell: a flag's check box (the game's, else a square with a tick), the selected line's Default button
+// a choice's dropdown or a value's field drawn in its Value cell, as the real one placed there when the line is
+// selected (editor_place): the field the cell's height, the dropdown its own and the knot beside it; the value in it in
+// its look, the field tinted by its check
+internal void draw_field(HDC dc, LPARAM p, int item, RECT r) {
+    int choice = row_of(&g_e[p])->kind == SETK_CHOICE, bold;
+    COLORREF color, bk;
+    cell_look(p, 1, &bold, &color, &bk);
+    RECT f = r;
+    if (choice) {
+        RECT now;
+        GetWindowRect(g_combo, &now);
+        int h = now.bottom - now.top;
+        f.top = r.top + (r.bottom - r.top - h) / 2;
+        f.bottom = f.top + h;
+        f.right -= h;
+        if (g_gl.on) theme_cell(dc, f.right, f.top, h, GL_CELL_KNOT_DOWN);
+        else {   // a knot of its own: the arrow in a framed square
+            RECT k = { f.right, f.top, r.right, f.bottom };
+            HBRUSH fr = CreateSolidBrush(g_pal.grey);
+            FillRect(dc, &k, g_pal.b_back);
+            FrameRect(dc, &k, fr);
+            DeleteObject(fr);
+            int cx = (k.left + k.right) / 2, cy = (k.top + k.bottom) / 2, a = dpi_px(4);
+            POINT tri[3] = { { cx - a, cy - a / 2 }, { cx + a, cy - a / 2 }, { cx, cy + a / 2 + 1 } };
+            HBRUSH t = CreateSolidBrush(g_pal.text);
+            HPEN none = (HPEN)SelectObject(dc, GetStockObject(NULL_PEN));
+            HBRUSH ob = (HBRUSH)SelectObject(dc, t);
+            Polygon(dc, tri, 3);
+            SelectObject(dc, ob);
+            SelectObject(dc, none);
+            DeleteObject(t);
+        }
+    }
+    HBRUSH b = CreateSolidBrush(bk);
+    FillRect(dc, &f, b);
+    DeleteObject(b);
+    if (g_gl.on) theme_bevel(dc, &f, 1);
+    else {
+        HBRUSH fr = CreateSolidBrush(g_pal.grey);
+        FrameRect(dc, &f, fr);
+        DeleteObject(fr);
+    }
+    char text[TEXT_CAP];
+    ListView_GetItemText(g_list, item, 1, text, sizeof text);
+    RECT t = { f.left + dpi_px(6), f.top, f.right - dpi_px(3), f.bottom };
+    HFONT old = (HFONT)SelectObject(dc, bold ? g_bold : g_font);
+    SetBkMode(dc, TRANSPARENT);
+    SetTextColor(dc, color);
+    DrawTextA(dc, text, -1, &t, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX | DT_END_ELLIPSIS);
+    SelectObject(dc, old);
+}
+
+// over a drawn cell: a flag's check box (the game's, else a square with a tick), any other value's field or dropdown,
+// the selected line's "<" button
 internal void draw_cell_after(NMLVCUSTOMDRAW *cd) {
     LPARAM p = cd->nmcd.lItemlParam;
     int item = (int)cd->nmcd.dwItemSpec;
@@ -1338,6 +1397,7 @@ internal void draw_cell_after(NMLVCUSTOMDRAW *cd) {
     if (cd->iSubItem == 1) {
         RECT r = { LVIR_BOUNDS, 1, 0, 0 };
         SendMessageA(g_list, LVM_GETSUBITEMRECT, item, (LPARAM)&r);
+        if (!is_flag(&g_e[p])) { draw_field(dc, p, item, r); return; }
         int size = dpi_px(GL_CELL), x = r.left + dpi_px(4), y = r.top + (r.bottom - r.top - size) / 2, on = g_look[p].on;
         if (g_gl.on) {
             if (on) theme_cell(dc, x, y, size, GL_CELL_CHECKED);
@@ -1398,8 +1458,8 @@ internal const struct { int look; const char *sample, *text; } k_help[] = {
                                "plays the default instead, and its log says so." },
     { HL_HEAD, NULL, "Changing a setting" },
     { HL_TEXT, NULL, "A value is changed in its Value cell: a check box (click it, or press Space), a list, or a text "
-                     "field over the selected line's cell (click it, or press Enter or F2; Enter, Esc or the arrow keys "
-                     "go back to the list, Esc undoing the typing). On the right the setting's help, the comment over "
+                     "field (click it, or press Enter or F2 on the selected line; Enter, Esc or the arrow keys go back "
+                     "to the list, Esc undoing the typing). On the right the setting's help, the comment over "
                      "its key in the mod's ageofai.ini, under what a value of it has to say." },
     { HL_TEXT, NULL, "An AI setting opens to an easy and a hard line: empty, they play its [ai_base] value (the medium AI "
                      "always does)." },
@@ -1588,6 +1648,7 @@ internal LRESULT CALLBACK wnd_proc(HWND w, UINT msg, WPARAM wp, LPARAM lp) {
                 RECT b;
                 reset_rect(a->iItem, &b);
                 if (node_kind(p) == NODE_ENTRY && hit.iSubItem == 1 && is_flag(&g_e[p])) flag_toggle((int)p);
+                else if (node_kind(p) == NODE_ENTRY && hit.iSubItem == 1 && n->code == NM_CLICK) editor_start();   // the real one there now
                 else if (node_kind(p) == NODE_ENTRY && hit.iSubItem == COLS - 1 && a->iItem == g_btn_item && g_look[p].reset && PtInRect(&b, a->ptAction)) set_default((int)p);
                 else if (n->code == NM_DBLCLK || a->ptAction.x < tri) toggle(g_node);
             }
