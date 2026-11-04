@@ -15,7 +15,7 @@
 
 struct palette {
     int dark;
-    COLORREF back, field, text, grey, game, game_grey, tint_warn, tint_mistake, text_warn, text_mistake;
+    COLORREF back, field, text, grey, game, game_grey, tint_warn, tint_mistake, text_warn, text_mistake, focus;
     HBRUSH b_back, b_field;
 };
 internal struct palette g_pal;
@@ -80,6 +80,7 @@ internal void theme_init(const char *ini_path) {
         p->tint_mistake = RGB(98, 30, 30);
         p->text_warn = RGB(240, 190, 80);
         p->text_mistake = RGB(255, 115, 115);
+        p->focus = RGB(255, 210, 60);   // the control with the keyboard: its text gold, as the game's menus mark theirs
         HMODULE ux = LoadLibraryA("uxtheme.dll");
         typedef int (WINAPI *app_mode_fn)(int);   // SetPreferredAppMode: 2 always dark
         app_mode_fn mode = ux ? (app_mode_fn)(void *)GetProcAddress(ux, MAKEINTRESOURCEA(135)) : NULL;
@@ -95,6 +96,7 @@ internal void theme_init(const char *ini_path) {
         p->tint_mistake = RGB(255, 205, 205);
         p->text_warn = RGB(150, 100, 0);
         p->text_mistake = RGB(190, 0, 0);
+        p->focus = RGB(160, 105, 0);
     }
     p->b_back = CreateSolidBrush(p->back);
     p->b_field = CreateSolidBrush(p->field);
@@ -199,7 +201,7 @@ internal void theme_text(HDC dc, HWND c, RECT *r, const char *text, COLORREF col
 }
 
 // a push button as the game's menus draw theirs: the background darkened under it (less under the mouse), the bevel,
-// the text white; a check box: the game's box, its text beside it
+// the text white; a check box: the game's box, its text beside it. The keyboard's focus: the text gold (no dotted frame)
 internal void theme_paint_button(HWND c, HDC dc) {
     RECT r;
     char text[128];
@@ -214,16 +216,14 @@ internal void theme_paint_button(HWND c, HDC dc) {
         if (on) theme_cell(dc, 0, y, size, GL_CELL_CHECKED + (down || hot));
         else theme_cell(dc, 0, y, size, GL_CELL_EMPTY + (down || hot));
         RECT t = { size + size / 4, 0, r.right, r.bottom };
-        theme_text(dc, c, &t, text, off ? g_pal.grey : g_pal.text, DT_LEFT);
-        if (focus) { t.right = t.left + 2 + LOWORD(GetTabbedTextExtentA(dc, text, lstrlenA(text), 0, NULL)); DrawFocusRect(dc, &t); }
+        theme_text(dc, c, &t, text, off ? g_pal.grey : focus ? g_pal.focus : g_pal.text, DT_LEFT);
         return;
     }
     theme_shade(dc, &r, down ? 200 : hot ? 105 : 160);
     theme_bevel(dc, &r, down);
     RECT t = r;
     if (down) OffsetRect(&t, 1, 1);
-    theme_text(dc, c, &t, text, off ? g_pal.grey : g_pal.text, DT_CENTER);
-    if (focus) { InflateRect(&r, -4, -4); DrawFocusRect(dc, &r); }
+    theme_text(dc, c, &t, text, off ? g_pal.grey : focus ? g_pal.focus : g_pal.text, DT_CENTER);
 }
 
 // a dropdown as the game's: a black field in the sunken bevel, the text, and right after it the knot, a square of the
@@ -240,8 +240,8 @@ internal void theme_paint_combo(HWND c, HDC dc) {
     theme_bevel(dc, &f, 1);
     theme_cell(dc, r.right - size, 0, size, GL_CELL_KNOT_DOWN - (SendMessageA(c, CB_GETDROPPEDSTATE, 0, 0) != 0));
     RECT t = { f.left + 4, f.top + 2, f.right - 2, f.bottom - 2 };
-    theme_text(dc, c, &t, text, IsWindowEnabled(c) ? g_pal.text : g_pal.grey, DT_LEFT);
-    if (GetFocus() == c && !SendMessageA(c, CB_GETDROPPEDSTATE, 0, 0)) { InflateRect(&t, 2, -1); DrawFocusRect(dc, &t); }
+    int focus = GetFocus() == c && !SendMessageA(c, CB_GETDROPPEDSTATE, 0, 0);
+    theme_text(dc, c, &t, text, !IsWindowEnabled(c) ? g_pal.grey : focus ? g_pal.focus : g_pal.text, DT_LEFT);
 }
 
 // a field's frame (an edit, the list: their client edge, 2 pixels) the game's sunken bevel in place of Windows' line
