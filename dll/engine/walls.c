@@ -24,6 +24,7 @@
 #define WS_STRAIGHT 9
 #define WS_DIAG 10
 #define WS_POST 11
+#define WS_OVERLAP 0.01f    // every other overlapping piece this much thicker and taller (below)
 #define WS_INTO_POST 0.3f   // a piece's end into a post beside it (the posts' sides 0.49 .. 0.66 from their middle)
 
 internal int g_ws_on, g_ws_start, g_ws_fitted_game;
@@ -85,6 +86,7 @@ internal ee_model *ws_model(ee_unit *u, int anim) {
 #define WS_SKIRT_EDGE 0.02f      // a vertex this close above the mesh's lowest point is on its bottom
 #define WS_SKIRT_MODELS 64
 #define WS_TOWER_ANIMS 16        // a tower's graphics: its first model among these animations (its idle ones)
+#define WS_UV_MARGIN 0.008f      // a bottom edge's texture coordinates at least this far inside the sheet (2 texels of 256)
 struct ws_skirt { ee_model *m, *tower; ee_vertices *va; volatile LONG state; };   // state 0 asked, 1 made, 2 can't be
 internal struct ws_skirt g_ws_sk[WS_SKIRT_MODELS];
 internal volatile LONG g_ws_sk_n, g_ws_sk_asked;
@@ -133,6 +135,14 @@ internal void ws_skirt_want(ee_model *m, ee_model *tower) {
     g_ws_sk[n] = (struct ws_skirt){ m, tower, NULL, 0 };
     InterlockedIncrement(&g_ws_sk_asked);
     InterlockedExchange(&g_ws_sk_n, n + 1);
+}
+
+// a texture coordinate on (or a hair over) the sheet's border drawn inside it: the sheets wrap, so the filtering at
+// the border blends in the opposite one - the Copper Age sheet's bottom row (its walls' bottom edges, v 0.99 .. 1.00)
+// with its top rows, transparent: a pale seam where the wall meets its skirt (the player, 2026-11-04: "the alpha
+// blending bleeding in, betwen the wall and the skirt"; below the ground in the game's own walls)
+internal float ws_uv_in(float x) {
+    return x > 1 - WS_UV_MARGIN && x < 1 + WS_UV_MARGIN ? 1 - WS_UV_MARGIN : x > -WS_UV_MARGIN && x < WS_UV_MARGIN ? WS_UV_MARGIN : x;
 }
 
 internal int ws_cmp_first(const void *a, const void *b) {
@@ -320,7 +330,7 @@ internal int ws_skirt_make(ee_rasterizer *ras, ee_model *m, ee_model *tower, uin
                                 } else {   // its own bottom row drawn down
                                     ee_vertex *src = vertex_at(v0, along ? b : a);
                                     r->d = down ? WS_SKIRT : 0;
-                                    r->u = vertex_get_u(src); r->v = vertex_get_v(src);
+                                    r->u = ws_uv_in(vertex_get_u(src)); r->v = ws_uv_in(vertex_get_v(src));
                                 }
                             }
                     if (!ok) break;
@@ -357,6 +367,14 @@ internal int ws_skirt_make(ee_rasterizer *ras, ee_model *m, ee_model *tower, uin
             ee_vertex *src = vertices_get_data(va[f]), *dst = vertices_get_data(nva[f]);
             for (uint32_t k = 0; k < nm; k++)
                 memcpy(vertex_at(dst, start[k]), vertex_at(src, material_get_vertex_first(ord[k])), (size_t)material_get_vertex_count(ord[k]) * vertex_size());
+            for (uint32_t i = 0; i < bd.edge_n; i++)   // the edges' own corners off the sheet's border (ws_uv_in)
+                for (int e = 0; e < 2; e++) {
+                    uint32_t old = e ? bd.edge[i].b : bd.edge[i].a, k = 0;
+                    while (k + 1 < nm && old >= material_get_vertex_first(ord[k]) + material_get_vertex_count(ord[k])) k++;
+                    ee_vertex *d = vertex_at(dst, start[k] + old - material_get_vertex_first(ord[k]));
+                    vertex_set_u(d, ws_uv_in(vertex_get_u(d)));
+                    vertex_set_v(d, ws_uv_in(vertex_get_v(d)));
+                }
             for (uint32_t i = 0; i < bd.rv_n; i++) {
                 const struct ws_rv *rv = &bd.rv[i];
                 ee_vertex *d = vertex_at(dst, start[rv->k] + material_get_vertex_count(ord[rv->k]) + rv->i);
@@ -525,18 +543,24 @@ internal int ws_fit(ee_unit *u) {
     // on top reach beyond it - shrunk to the span a seam opened at every join (the player, 2026-11-03: "the straight
     // copper age wall has a tiny gap"; its mesh 1.064, the others' 1.000 .. 1.044) - and barbed wire's coils are made
     // to overlap ("barbed wire is a bit of an edge case, it should not be shortened")
-    else if (UT_IN(unit_type_get_id(unit_get_type_data(u)), UT_B_WALL_COPPER, UT_B_BARBED_WIRE)) {
+    // Their neighbours overlap then, the faces of the overlap in one plane - they flickered, as in the game (the
+    // player, 2026-11-04: "z fighting betwen wall pieces (was also an issue in the base game)"): every other piece
+    // along the run (by its tile across the run's direction) WS_OVERLAP thicker and taller, its faces off its
+    // neighbours'
+    float grow = 1;
+    if (UT_IN(unit_type_get_id(unit_get_type_data(u)), UT_B_WALL_COPPER, UT_B_BARBED_WIRE)) {
         float mid = (ylo + yhi) * 0.5f;
         ylo = mid - d; yhi = mid + d;
+        if ((fabsf(fx) >= fabsf(fy) ? tx : ty) & 1) grow = 1 + WS_OVERLAP;
     }
     int sx = fx > 0.3f ? 1 : fx < -0.3f ? -1 : 0, sy = fy > 0.3f ? 1 : fy < -0.3f ? -1 : 0;
     ee_player *pl = unit_get_owner(u);
     float ea = ws_post_at(map, tx - sx, ty - sy, pl) ? WS_INTO_POST : 0, eb = ws_post_at(map, tx + sx, ty + sy, pl) ? WS_INTO_POST : 0;
     float k = (2 * d + ea + eb) / (yhi - ylo), c = -d - ea - k * ylo, slope = (hb - ha) / (2 * d);   // its y -> k y + c along f
     const float m[12] = {
-        fy * len,  fx * k,    0, px + fx * c,
-        -fx * len, fy * k,    0, py + fy * c,
-        0,         slope * k, len,      (ha + hb) * 0.5f + slope * c,
+        fy * len * grow,  fx * k,    0, px + fx * c,
+        -fx * len * grow, fy * k,    0, py + fy * c,
+        0,                slope * k, len * grow, (ha + hb) * 0.5f + slope * c,
     };
     for (int i = 0; i < 12; i++) unit_set_matrix(u, i, m[i]);
     g_ws_pieces++;
