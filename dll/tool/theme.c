@@ -24,8 +24,9 @@ internal struct palette g_pal;
 // as the game draws them, in pairs - row 0 checked, empty, a radio on; row 1 a radio off, the knot up, down; row 2
 // left, right, the scrollbar's ball; which of a pair the game shows unpressed measured against its setup screen (the
 // pixels the same): a check box's the left one, the dropdown knot's the right one. paint: the settings screen's painting (gamesettings, 1024x768); bg: it
-// darkened at the window's size (theme_size), b_bg a brush of it for what draws transparent over it
-struct game_look { int on; HWND main; HDC ui_dc, paint_dc, bg_dc; HBITMAP ui, paint, bg; HBRUSH b_bg; int pw, ph; };
+// at the window's size (theme_size), b_bg a brush of it; dim: it darkened to under half, b_dim its brush for a label
+// drawn transparent over it (the list and the panel cover the rest: the painting itself as bright as the game's)
+struct game_look { int on; HWND main; HDC ui_dc, paint_dc, bg_dc; HBITMAP ui, paint, bg, dim; HBRUSH b_bg, b_dim; int pw, ph; };
 internal struct game_look g_gl;
 #define GL_CELL_CHECKED 0, 0   // + 1 pressed
 #define GL_CELL_EMPTY 0, 2   // + 1 pressed
@@ -100,7 +101,7 @@ internal void theme_init(const char *ini_path) {
 }
 
 // the window's background at its size (WM_SIZE): the painting over the whole of it, cut to its shape (no stretch
-// out of proportion), darkened to under half so text reads over it
+// out of proportion), and a copy of it darkened to under half, under the labels that lie on it
 internal void theme_size(HWND w) {
     if (!g_gl.on) return;
     g_gl.main = w;   // the window the painting is under (the help's window has none)
@@ -126,8 +127,16 @@ internal void theme_size(HWND w) {
     SetBrushOrgEx(g_gl.bg_dc, 0, 0, NULL);
     StretchBlt(g_gl.bg_dc, 0, 0, cw, ch, g_gl.paint_dc, (g_gl.pw - sw) / 2, (g_gl.ph - sh) / 2, sw, sh, SRCCOPY);
     GdiFlush();
-    for (size_t i = 0; i < (size_t)cw * ch * 4; i++) bits[i] = (uint8_t)(bits[i] * 45 / 100);
     g_gl.b_bg = CreatePatternBrush(bm);
+    uint8_t *dim;
+    HBITMAP dm = CreateDIBSection(NULL, &bi, DIB_RGB_COLORS, (void **)&dim, NULL, 0);
+    if (g_gl.b_dim) DeleteObject(g_gl.b_dim);
+    if (g_gl.dim) DeleteObject(g_gl.dim);
+    g_gl.dim = dm;
+    g_gl.b_dim = NULL;
+    if (!dm) return;
+    for (size_t i = 0; i < (size_t)cw * ch * 4; i++) dim[i] = (uint8_t)(bits[i] * 45 / 100);
+    g_gl.b_dim = CreatePatternBrush(dm);
 }
 
 internal int theme_erase(HWND w, HDC dc) {   // the window's background: 1 drawn
@@ -589,7 +598,7 @@ internal void theme_panel_paint(HWND w, HDC dc) {
     RECT r, in;
     GetClientRect(w, &r);
     theme_under(dc, w, &r);
-    theme_shade(dc, &r, 150);
+    theme_shade(dc, &r, 185);
     HBRUSH dark = CreateSolidBrush(RGB(20, 20, 20)), light = CreateSolidBrush(RGB(176, 194, 193)), mid = CreateSolidBrush(RGB(89, 101, 100));
     RECT f = r;
     FrameRect(dc, &f, dark);
@@ -792,7 +801,7 @@ internal void theme_control(HWND c, const char *cls) {   // a child: its theme f
 }
 
 // the WM_CTLCOLOR* messages in dark: the field's black for edits, lists and a read-only edit (it asks as a static);
-// the rest the window's grey, or in the game's look the painting under it (the brush's origin at the child's place:
+// the rest the window's grey, or in the game's look the darkened painting under it (the brush's origin at the child's place:
 // the child fills with its part of it); 0 in light (Windows' own)
 internal LRESULT theme_ctlcolor(UINT msg, WPARAM wp, LPARAM lp) {
     if (!g_pal.dark) return 0;
@@ -802,11 +811,11 @@ internal LRESULT theme_ctlcolor(UINT msg, WPARAM wp, LPARAM lp) {
     SetTextColor((HDC)wp, g_pal.text);
     SetBkColor((HDC)wp, field ? g_pal.field : g_pal.back);
     if (field) return (LRESULT)g_pal.b_field;
-    if (g_gl.on && g_gl.b_bg && GetParent((HWND)lp) == g_gl.main) {
+    if (g_gl.on && g_gl.b_dim && GetParent((HWND)lp) == g_gl.main) {
         POINT pt = theme_at((HWND)lp);
         SetBkMode((HDC)wp, TRANSPARENT);
         SetBrushOrgEx((HDC)wp, -pt.x, -pt.y, NULL);
-        return (LRESULT)g_gl.b_bg;
+        return (LRESULT)g_gl.b_dim;
     }
     return (LRESULT)g_pal.b_back;
 }
