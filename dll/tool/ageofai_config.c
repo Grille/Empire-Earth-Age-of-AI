@@ -191,11 +191,10 @@ internal void shown_value(const struct entry *e, char *out, int cap, int *grey) 
     char why[MAX_PATH], key[64], word[32];
     key_of(e, key, sizeof key);
     *grey = !e->text[0];
-    if (is_member(e) && member_overruled(e, out, cap, word, sizeof word)) { *grey = 1; return; }   // the status says why
+    if (is_member(e) && member_overruled(e, out, cap, word, sizeof word)) { *grey = 1; return; }   // the help panel says why
     if (e->text[0]) {
         int c = check(row_of(e), sec_of(e), key, e->text, why, out, cap);
-        if (c == CHECK_MISTAKE) snprintf(out, cap, "%s  (a mistake: the default instead)", e->text);
-        else if (c == CHECK_WARN && strlen(out) + 28 < (size_t)cap) lstrcatA(out, "  (outside its usual range)");
+        if (c == CHECK_MISTAKE) lstrcpynA(out, e->text, cap);   // as written: the cell's tint marks it, the help panel says why
         return;
     }
     if (on_diff_page(e)) {
