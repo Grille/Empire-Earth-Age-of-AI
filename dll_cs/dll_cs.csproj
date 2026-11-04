@@ -11,6 +11,6 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <!-- CS8981: lower-case type names, the language's and the file's (player, text, display, llm); CS0169 / CS0414 /
          CS0649 / CS8618: fields never used, read, set or initialised - the declarations describe, nothing reads them -->
-    <NoWarn>CS8981;CS0169;CS0414;CS0649;CS8618;IDE0380</NoWarn>
+    <NoWarn>CS8981;CS0169;CS0414;CS0649;CS8618;IDE0380;IDE0051;</NoWarn>
   </PropertyGroup>
 </Project>
