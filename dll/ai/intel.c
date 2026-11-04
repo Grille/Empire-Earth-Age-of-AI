@@ -11,12 +11,25 @@
 //   (moved on when that place is looked at and they are not there - still in the army estimate);
 // - looked at: per 6x6-tile cell the last time a unit of the AI or an ally was within 8 tiles;
 // - assumptions: a place not looked at for 3 minutes is assumed held by a quarter of the army it remembers.
+// - [ai_base] reveal_attackers (default 1; [autotest] v_reveal_attackers for the variant players): an enemy unit that
+//   is hitting one of the AI's own units (its last attacker, unit +0x1DC - the game drops it when the attack goal no
+//   longer aims at it) counts as seen now, as the player sees the shooter for a moment (the player, 2026-11-04: "as a
+//   player i see enemy units for a second when my units get damaged by it"). Without it the artillery behind the
+//   player's line shelled the mod's force from beyond its sight unknown: on his save "choke wolf" his Artillery (range
+//   12) killed 8-15k of P3's gold + iron in 27 minutes, counter-fire saw it 4 times, the force judged itself 2-3x the
+//   enemy it saw and came back trading 5000-8000 hit points for 0-1200 (docs/economy.md "Where it goes: the losses").
+//   Seen so, it is remembered where it stood like everything seen. Measured: the save (3 timings) on / off - P3's units
+//   lost 22-28k / 22k gold + iron, razed 29, 30, 47 / 31, 41, 57: knowing alone changed nothing (its judgement still
+//   took the position for beatable); head-to-head from WWI (Continental, 4 AIs, 12 mirrored games) off - on alive
+//   -0.12 (0.16), soldiers +0.3 (16.2), kills +0.7 (30.6), razed -1.3 (13.8): nothing. On (the player's call); the
+//   shooters' spots feed airstrike.c.
 // The systems ask through seen_by (attack.c), intel_soldiers, intel_army, intel_looked_ago - with 0 those give the
 // game's view (nothing remembered, everything looked at now), so every system works under both.
 #define INTEL_REC 1024
 #define INTEL_CELL 6
 #define INTEL_NC (600 / INTEL_CELL + 1)   // the map up to 600 tiles (150 until 2026-10-20: on Large / Huge maps, up to ~330 tiles, everything beyond 150 counted as never looked at - landing.c assumed every beach there held)
 struct intel_rec { ee_unit *u; int owner, type, kind, x, y, hp; float att; uint32_t t; };   // kind 0 building, 1 soldier, 2 ship, 3 aircraft, 4 other
+#define INTEL_REVEAL 512
 internal struct intel {
     struct intel_rec r[INTEL_REC]; int n;
     ee_unit *known[4096];                // buildings remembered (open addressing by pointer)
@@ -25,9 +38,18 @@ internal struct intel {
     unsigned seen_now, dropped, moved;
 } g_intel[16];
 
+// reveal_attackers, not saved: what hits its units at the last scan (open addressing by pointer), the same as a list -
+// where each stood, how far from the unit it hit, a building or not (airstrike.c: the shooters) -, revealed so (summed)
+internal struct {
+    ee_unit *u[INTEL_REVEAL];
+    struct { ivec2 at; short d, bld; } sh[INTEL_REVEAL / 2]; int nsh;
+    unsigned n;
+} g_rev[16];
+internal int g_reveal = 1, g_v_reveal = -1;
+#define REVEAL(idx) PV(idx, g_v_reveal, g_reveal)
 internal int g_intel_seed;   // a saved game without the AIs' memories: they start remembering the buildings of their enemies
 
-internal void intel_new_game(int from_save) { memset(g_intel, 0, sizeof g_intel); g_intel_seed = from_save; }
+internal void intel_new_game(int from_save) { memset(g_intel, 0, sizeof g_intel); memset(g_rev, 0, sizeof g_rev); g_intel_seed = from_save; }
 internal void intel_loaded(void) {   // the memories came with the save: their unit pointers are of the old session
     for (int p = 0; p < 16; p++) {
         struct intel *in = &g_intel[p];
@@ -42,6 +64,13 @@ internal int intel_remembers(ee_player *pl, ee_unit *u) {
     struct intel *in = &g_intel[(unsigned)player_get_index(pl) & 15];
     for (unsigned h = intel_hash(u), k = 0; k < 4096 && in->known[h]; h = (h + 1) & 4095, k++)
         if (in->known[h] == u) return 1;
+    return 0;
+}
+internal int intel_revealed(unsigned pi, ee_unit *u) {
+    if (pi >= 16 || !u) return 0;
+    ee_unit **rev = g_rev[pi].u;
+    for (unsigned h = intel_hash(u) & (INTEL_REVEAL - 1); rev[h]; h = (h + 1) & (INTEL_REVEAL - 1))
+        if (rev[h] == u) return 1;
     return 0;
 }
 internal int intel_kind(ee_unit_type *td) {
@@ -92,6 +121,7 @@ struct intel_scan {
     int nlive; ee_unit *live[6000], *by_addr[6000];
     uint16_t floor[16]; int fseen[16];
     int ne; ivec2 eye[3000];             // eyes: its and its allies' units
+    int nat; ee_unit *at[INTEL_REVEAL / 2]; short at_d[INTEL_REVEAL / 2];   // reveal_attackers: enemy units hitting its own, from how far
 };
 internal void intel_unit(ee_unit *u, void *ctx) {
     struct intel_scan *s = ctx;
@@ -100,6 +130,14 @@ internal void intel_unit(ee_unit *u, void *ctx) {
     int oi = player_get_index(o);
     if (oi <= 0 || oi >= 16) return;
     if (s->nlive < 6000) s->live[s->nlive++] = u;
+    if (o == s->pl && s->nat < INTEL_REVEAL / 2 && REVEAL(s->pi)) {
+        ee_unit *a = unit_get_attacker(u);
+        ee_player *ao = a ? unit_get_owner(a) : NULL;
+        if (ao && player_get_index(ao) > 0 && is_enemy(s->pl, ao) && unit_get_hp(a) > 0 && unit_get_x(a) >= 0) {
+            s->at_d[s->nat] = (short)sqrtf((float)ivec2_dist2(unit_get_tile(a), unit_get_tile(u)));
+            s->at[s->nat++] = a;
+        }
+    }
     if (!is_enemy(s->pl, o)) { if (s->ne < 3000) s->eye[s->ne++] = unit_get_tile(u); return; }
     ee_unit_vis *v = unit_get_vis(u);
     uint16_t *vis = v ? unit_vis_get_seen(v) : NULL;
@@ -119,13 +157,29 @@ internal void intel_tick(ee_player *pl, uint32_t now) {
     if (now < in->now) memset(in, 0, sizeof *in);   // a new game
     if (!g_honest_vision || (in->now && now - in->now < 3000)) return;
     static struct intel_scan s;
-    s.pl = pl; s.pi = pi; s.nlive = 0; s.ne = 0;
+    s.pl = pl; s.pi = pi; s.nlive = 0; s.ne = 0; s.nat = 0;
     memset(s.floor, 0, sizeof s.floor); memset(s.fseen, 0, sizeof s.fseen);
     grid_each(intel_unit, &s);
     for (int o = 0; o < 16; o++) g_vis_floor[pi][o] = s.fseen[o] ? s.floor[o] : 0;
     memcpy(s.by_addr, s.live, (size_t)s.nlive * sizeof *s.live);
     qsort(s.by_addr, (size_t)s.nlive, sizeof *s.by_addr, intel_ptr_cmp);
     in->last = in->now = now;
+    ee_unit **rev = g_rev[pi].u;
+    memset(g_rev[pi].u, 0, sizeof g_rev[pi].u);   // what hits its units now (half full at most: the probe ends)
+    g_rev[pi].nsh = 0;
+    for (int k = 0; k < s.nat; k++) {
+        unsigned h = intel_hash(s.at[k]) & (INTEL_REVEAL - 1);
+        while (rev[h] && rev[h] != s.at[k]) h = (h + 1) & (INTEL_REVEAL - 1);
+        if (rev[h]) continue;
+        rev[h] = s.at[k]; g_rev[pi].n++;
+        int fam = unit_type_get_class_id(unit_get_type_data(s.at[k]));
+        g_rev[pi].sh[g_rev[pi].nsh].at = unit_get_tile(s.at[k]); g_rev[pi].sh[g_rev[pi].nsh].d = s.at_d[k];
+        g_rev[pi].sh[g_rev[pi].nsh++].bld = fam == CLS_BUILDING || fam == CLS_FORTRESS;
+    }
+    static uint32_t rev_log[16];
+    if (g_log && REVEAL(pi) && now / 600000 != rev_log[pi] / 600000)
+        fprintf(g_log, "# intel: P%u at %u min: %u revealed hitting its units (summed over its 3-s scans)\n", pi, now / 60000, g_rev[pi].n);
+    rev_log[pi] = now;
     // looked at now
     for (int e = 0; e < s.ne; e++)
         for (int cx = (s.eye[e].x - 8) / INTEL_CELL; cx <= (s.eye[e].x + 8) / INTEL_CELL; cx++)
@@ -167,7 +221,7 @@ internal void intel_tick(ee_player *pl, uint32_t now) {
         ee_unit_vis *v = unit_get_vis(u);
         uint16_t *vis = v ? unit_vis_get_seen(v) : NULL;
         int oi = player_get_index(o) & 15;
-        if (!vis || sight_count(vis[pi]) <= g_vis_floor[pi][oi]) continue;
+        if (!vis || (sight_count(vis[pi]) <= g_vis_floor[pi][oi] && !intel_revealed(pi, u))) continue;
         in->seen_now++;
         int j = 0;
         while (j < in->n && in->r[j].u != u) j++;
@@ -388,8 +442,11 @@ internal void cmd_vistrack(char *out, const char *args) {
     }
 }
 
-internal void intel_install(void) {
+internal void intel_install(const char *autotest_ini) {
     g_honest_vision = g_set_ai[1].honest_vision;
+    g_reveal = g_set_ai[1].reveal_attackers;
+    if (autotest_ini) g_v_reveal = ini_int("autotest", "v_reveal_attackers", -1, autotest_ini);
+    if (g_log) fprintf(g_log, "# intel: reveal_attackers %d (variant %d)\n", g_reveal, g_v_reveal);
     if (g_log) fprintf(g_log, "# intel: honest_vision %d (%s)\n", g_honest_vision,
                        g_honest_vision ? "what it sees, remembers and assumes" : "the game's view - every unit of the human");
 }

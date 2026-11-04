@@ -148,6 +148,10 @@ class ai_base
         /// of the army it knows of at a place it hasn't looked at for 3 minutes; a landing's warships look at the beach first.
         /// The memories are saved with the game. (The game's own AI code still sees everything either way.)
         bool honest_vision = true;
+        /// With honest_vision: an enemy unit that is hitting one of the AI's units counts as seen while it does - as a player
+        /// sees the shooter for a moment when his units are hit -, so the AI remembers artillery and mortars that shell it
+        /// from beyond its sight where they stood. 0 = off
+        bool reveal_attackers = true;
     }
 
     class CitizensUnderAttack

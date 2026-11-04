@@ -39,6 +39,7 @@ internal int intel_remembers(ee_player *pl, ee_unit *u);   // intel.c: a buildin
 internal void intel_soldiers(ee_player *pl, int x, int y, int r, float *hp, float *att, float *pw, int *n);   // intel.c
 internal void intel_army(ee_player *pl, float *hp, float *att, float *pw, int *n);
 internal uint32_t intel_looked_ago(ee_player *pl, int x, int y);
+internal int intel_revealed(unsigned pi, ee_unit *u);   // intel.c: hitting one of pl's units now
 internal int seen_by(ee_unit *u, ee_player *pl) {
     ee_unit_vis *v = unit_get_vis(u);
     unsigned pi = (unsigned)player_get_index(pl);
@@ -49,7 +50,7 @@ internal int seen_by(ee_unit *u, ee_player *pl) {
     if (!g_honest_vision) return c != 0;
     ee_player *o = unit_get_owner(u);
     unsigned oi = o ? (unsigned)player_get_index(o) & 15 : 0;
-    if (c > g_vis_floor[pi][oi]) return 1;
+    if (c > g_vis_floor[pi][oi] || intel_revealed(pi, u)) return 1;
     int fam = unit_type_get_class_id(unit_get_type_data(u));
     return (fam == CLS_BUILDING || fam == CLS_FORTRESS) && intel_remembers(pl, u);
 }

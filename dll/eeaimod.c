@@ -122,7 +122,7 @@ internal void bunker_new_game(void);
 internal void defence_new_game(void);
 internal void counter_fire_new_game(void);   // ai/counterfire.c
 internal void sites_new_game(void);
-internal void intel_install(void);
+internal void intel_install(const char *autotest_ini);
 internal void landing_install(void);
 internal void navy_install(const char *autotest_ini);
 internal PRINTF_LIKE(1, 2) void log_line(const char *fmt, ...);
@@ -637,7 +637,7 @@ internal void install(HMODULE self) {
     attack_install();
     landing_install();
     navy_install(g_autotest ? g_ini : NULL);
-    intel_install();
+    intel_install(g_autotest ? g_ini : NULL);
     defence_install();
     counter_fire_install();
     chat_install();
