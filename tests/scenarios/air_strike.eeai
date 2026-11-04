@@ -1,0 +1,40 @@
+// Continental seed 101, 2 AIs, start epoch 9 (World War I; base ini start_epoch=9): P2 base ~80,52, P3 base ~40,42.
+// The air strike (airstrike.c, v_air_strike): a held position of the idle human (P1, at war with P2) at x 56-60 -
+// three towers, four artillery, machine gunners; no anti-air. P2 gets an airport with six Gotha bombers, a land force
+// and a tower that sees the position (the army after the game's first attack, 1.1 min: spawned before, the game's own
+// attack took it and the mod's force held 3), and is told to attack twice (attacknow). With the strike its bombers go at the
+// towers and the artillery as the force pushes. Score: P1's towers and artillery left (count), P2's losses ("# battle"),
+// the "# air strike:" and "# armies:" lines.
+diplo(1, 2, 1)
+diplo(2, 1, 1)
+spawn(1, unit.b_guard_tower_ww1, 58, 42)
+spawn(1, unit.b_guard_tower_ww1, 58, 48)
+spawn(1, unit.b_guard_tower_ww1, 58, 54)
+spawn(1, unit.gun_artillery10_artillery, 54, 48, 4)
+spawn(1, unit.inf10_machine_gun, 56, 48, 10)
+spawn(2, unit.b_airport, 86, 44)
+spawn(2, unit.a_bomber_10_gotha, 86, 47, 6)
+wait(75s)
+spawn(2, unit.inf10_doughboy, 76, 50, 20)
+spawn(2, unit.inf10_machine_gun, 76, 54, 10)
+spawn(2, unit.tank10_a7v, 78, 58, 4)
+spawn(2, unit.b_guard_tower_ww1, 66, 47)
+wait(30s)
+cmd("attacknow 2")
+objs(2, unit.a_bomber_10_gotha)
+wait(60s)
+objs(2, unit.a_bomber_10_gotha)
+wait(180s)
+cmd("attacknow 2")
+wait(15s)
+objs(2, unit.a_bomber_10_gotha)
+wait(10s)
+objs(2, unit.a_bomber_10_gotha)
+wait(10s)
+objs(2, unit.a_bomber_10_gotha)
+wait(10s)
+objs(2, unit.a_bomber_10_gotha)
+wait(75s)
+count(1)
+objs(1, unit.b_guard_tower_ww1)
+objs(1, unit.gun_artillery10_artillery)
