@@ -67,8 +67,14 @@ typedef struct {
     DWORD tss[2][RD_TSS];
     rd_surface *tex[2];
     int in_scene;
+    int sh_role;     // the draw's part in the dynamic shadows (render_shadows.c SH_), sh_b its size for the units' tint
+    float sh_b;
     int changed;   // states other than the world matrix set to other values since rd3_prepare last ran (RD_CH_)
 } rd_device;
+// the game's render objects (spec engine_display.cs), the one drawing (its draw hooked: rd_render_objects_install)
+enum { RO_TERRAIN, RO_SHADOWS, RO_UNITS, RO_WATER, RO_UI, RO_N };
+internal const char *const k_ro_names[RO_N] = { "terrain", "shadows", "units", "water", "interface" };
+internal int g_ro_cur = -1;
 enum { RD_CH_VC = 1, RD_CH_RS = 2, RD_CH_TEX = 4, RD_CH_TARGET = 8 };   // transforms, viewport, lights, material: the vertex constants
 internal volatile LONG g_rd_draws, g_rd_frames;
 internal DWORD g_rd_minute_tick;
@@ -91,6 +97,9 @@ typedef struct {
     int32_t src[4];   // diffuse, ambient, emissive from the vertex colour (1) or the material (0)
     float fog[4];     // mode (0 none, 1 exp, 2 exp2, 3 linear), start, end, density
     float vp[4];      // half a pixel in clip space (x, y), range fog
+    float shm[16];    // the dynamic shadows (render_shadows.c): world -> the shadow map's u, v and depth
+    float shk[4];     // the colour a shadow multiplies with (1 = none), w the strength
+    float shp[4];     // the draw's role, the map's size, on (a map drawn), 1 / the map's depth range
 } rd3_vcb;
 // the pixel shader's: stage 0's colour op and arguments, texture bound; alpha op and arguments, alpha function
 typedef struct {
@@ -101,13 +110,20 @@ typedef struct {
 internal const char k_rd3_shader[] =
     "cbuffer v : register(b0) { row_major float4x4 vpm; row_major float4x4 view;"
     " float4 ldir[8]; float4 ldiff[8]; float4 lamb[8]; float4 mdiff, mamb, memi, gamb; int4 lit; int4 src; float4 fog;"
-    " float4 vp; };\n"
+    " float4 vp; row_major float4x4 shm; float4 shk; float4 shp; };\n"
     "cbuffer p : register(b1) { int4 op; int4 aop; float4 fogc; float4 tf; float4 misc; };\n"
     "Buffer<float4> wt : register(t1);\n"   // the world matrices, 4 rows each (RD3_WB_BYTES)
     "Texture2D t : register(t0); SamplerState s : register(s0);\n"
+    "Texture2D<float> sm : register(t2);\n"   // the dynamic shadows' map (render_shadows.c)
     "struct I { float3 p : POSITION; float3 n : NORMAL; float4 c : COLOR; float2 t : TEXCOORD; uint w : WORLD; };\n"
     "struct O { float4 p : SV_Position; float4 c : COLOR; float2 t : TEXCOORD0; float f : FOG; };\n"
-    "O vs(I i) { O o; uint r = i.w * 4; float4x4 world = float4x4(wt.Load(r), wt.Load(r + 1), wt.Load(r + 2), wt.Load(r + 3));"
+    // a unit's tint: how many of four texels around its origin's place in the map are nearer the sun by more than b
+    "float shade_at(float3 q, float b) { if (q.x < 0 || q.y < 0 || q.x > 1 || q.y > 1) return 0;"
+    " int n = (int)shp.y; int2 c = int2(q.xy * shp.y); float k = 0;"
+    " for (int j = 0; j < 4; j++) { int2 a = clamp(c + int2(j & 1, j >> 1) * 4 - 2, 0, n - 1);"
+    "  k += sm.Load(int3(a, 0)) < q.z - b ? 1 : 0; } return k / 4; }\n"
+    "O vs(I i) { O o; uint r = i.w * 4; float4 r0 = wt.Load(r); float b = r0.w; r0.w = 0;"   // _14: the draw's size (SH_TINT)
+    " float4x4 world = float4x4(r0, wt.Load(r + 1), wt.Load(r + 2), wt.Load(r + 3));"
     " float4 p = mul(float4(i.p, 1), world); o.p = mul(p, vpm);"
     " o.p.xy += vp.xy * o.p.w;"
     " float4 vc = i.c.zyxw, c = vc;"   // D3DCOLOR's bytes are B G R A
@@ -115,6 +131,7 @@ internal const char k_rd3_shader[] =
     "  float3 n = mul(i.n, (float3x3)world); if (lit.z) n = normalize(n);"
     "  float3 am = gamb.rgb, df = 0;"
     "  for (int k = 0; k < lit.y; k++) { am += lamb[k].rgb; df += ldiff[k].rgb * max(0, dot(n, -ldir[k].xyz)); }"
+    "  if (shp.x == 3 && shp.z > 0) df *= 1 - shk.w * shade_at(mul(float4(world[3].xyz, 1), shm).xyz, b * shp.w);"
     "  c = float4(saturate(e.rgb + a.rgb * am + d.rgb * df), d.a); }"
     " o.c = c; o.t = i.t;"
     " float3 q = mul(p, view).xyz; float z = vp.z > 0.5 ? length(q) : q.z, f = 1;"
@@ -304,6 +321,8 @@ internal void rd3_color(float *f, D3DCOLOR c) {
 internal void rd3_value(float *f, const D3DCOLORVALUE *c) { f[0] = c->r; f[1] = c->g; f[2] = c->b; f[3] = c->a; }
 internal float rd3_float(DWORD v) { float f; memcpy(&f, &v, 4); return f; }
 
+#include "render_shadows.c"   // the dynamic shadows ([display] shadows = dynamic)
+
 // A picture on the screen (the interface's backgrounds: no depth test, every texture coordinate within 0..1) is
 // sampled with CLAMP whatever the game asks: a background is tiles of 256x256 textures stretched to the screen, and with
 // WRAP the bilinear filter takes its edge's half texel from the tile's opposite side - lines between the tiles (under
@@ -339,6 +358,7 @@ internal int rd3_prepare(rd_device *d, int clamp) {
         UINT stride = sizeof(rb_vertex), off = 0;
         ID3D11DeviceContext_IASetVertexBuffers(x, 0, 1, &g_rd3.vb, &stride, &off);
         ID3D11DeviceContext_IASetIndexBuffer(x, g_rd3.ib, DXGI_FORMAT_R32_UINT, 0);
+        rd3_shadow_bind(x);
         g_rd3.bound = 1;
     }
     // each state: the batch so far drawn with the old one before it changes
@@ -423,6 +443,7 @@ internal int rd3_prepare(rd_device *d, int clamp) {
         vc.vp[0] = d->viewport.dwWidth ? 1.0f / (float)d->viewport.dwWidth : 0;
         vc.vp[1] = d->viewport.dwHeight ? -1.0f / (float)d->viewport.dwHeight : 0;
         vc.vp[2] = rs[D3DRENDERSTATE_RANGEFOGENABLE] ? 1.0f : 0.0f;
+        rd3_shadow_constants(d, &vc);
         if (full || memcmp(&vc, &g_rd3.vc, sizeof vc)) {
             rd3_flush();
             ID3D11DeviceContext_UpdateSubresource(x, (ID3D11Resource *)g_rd3.vcb, 0, NULL, &vc, 0, 0);
@@ -488,6 +509,7 @@ internal int rd3_drawable(rd_vb *vb, D3DPRIMITIVETYPE type) {
 // the batch into the upload buffers and drawn with the states bound
 internal void rd3_flush(void) {
     if (!g_rb.ni) return;
+    if (g_sh.on && g_rd3.vc.shp[0] >= SH_RECEIVE) rd3_shadow_capture((int)g_rd3.vc.shp[0]);   // the dynamic shadows' copy
     ID3D11DeviceContext *x = g_d3d.ctx;
     long wa = rd3_upload(g_rd3.wb, RD3_WB_BYTES, &g_rd3.wb_pos, g_rb.w, (UINT)g_rb.nw * sizeof *g_rb.w, sizeof *g_rb.w);
     if (wa > 0) for (int k = 0; k < g_rb.nv; k++) g_rb.v[k].w += (uint32_t)wa / sizeof *g_rb.w;   // the batch's matrices' place
@@ -510,7 +532,10 @@ internal void rd3_append(rd_device *d, D3DPRIMITIVETYPE type, rd_vb *vb, DWORD s
     if (!out || nv > RB_VERTS || out > RB_INDICES) return;
     if (g_rb.ni && (g_rb.topo != topo || g_rb.nv + (int)nv > RB_VERTS || g_rb.ni + (int)out > RB_INDICES || g_rb.nw >= RB_WORLDS))
         rd3_flush();
-    if (!g_rb.nw || memcmp(g_rb.w[g_rb.nw - 1], &d->world._11, 64)) memcpy(g_rb.w[g_rb.nw++], &d->world._11, 64);
+    float wm[16];   // _14 (0 in the game's matrices): a tinted caster's size for the shader (render_shadows.c)
+    memcpy(wm, &d->world._11, 64);
+    if (d->sh_role == SH_TINT) wm[3] = d->sh_b;
+    if (!g_rb.nw || memcmp(g_rb.w[g_rb.nw - 1], wm, 64)) memcpy(g_rb.w[g_rb.nw++], wm, 64);
     g_rb.topo = topo;
     uint32_t w = (uint32_t)g_rb.nw - 1, base = (uint32_t)g_rb.nv;
     for (DWORD k = 0; k < nv; k++) {
@@ -669,16 +694,16 @@ internal int rd_world_lock_install(void) {
 
 // THE GAME'S DRAWING, BY ITS PARTS: RTSGraphics draws a frame through its render objects (spec engine_display.cs) -
 // each one's draw timed for the minute's line, the game's own work in it and the renderer's under it together
-enum { RO_TERRAIN, RO_SHADOWS, RO_UNITS, RO_WATER, RO_UI, RO_N };
-internal const char *const k_ro_names[RO_N] = { "terrain", "shadows", "units", "water", "interface" };
 internal LONGLONG g_ro_qpc[RO_N];
-internal int g_ro_cur = -1;   // the render object drawing (the probe's)
 internal int g_rp_skip;       // bit per render object: its draw skipped (the pipe's rprobe skip - the picture without it)
-#define RO_DRAW(i, call) do { if (g_rp_skip & 1 << (i)) return; int was_ = g_ro_cur; g_ro_cur = (i); \
+#define RO_DRAW(i, call) do { if (g_rp_skip & 1 << (i) || ((i) == RO_SHADOWS && g_sh.on)) return; int was_ = g_ro_cur; g_ro_cur = (i); \
     LONGLONG t_ = rd_qpc(); call; g_ro_qpc[i] += rd_qpc() - t_; g_ro_cur = was_; } while (0)
 internal void __thiscall rd_hook_ro_terrain(ee_ro_terrain *o) { RO_DRAW(RO_TERRAIN, ro_terrain_draw(o)); }
 internal void __thiscall rd_hook_ro_shadows(ee_ro_shadows *o) { RO_DRAW(RO_SHADOWS, ro_shadows_draw(o)); }
-internal void __thiscall rd_hook_ro_units(ee_ro_units *o) { RO_DRAW(RO_UNITS, ro_units_draw(o)); }
+internal void __thiscall rd_hook_ro_units(ee_ro_units *o) {
+    RO_DRAW(RO_UNITS, ro_units_draw(o));
+    if (g_sh.on) { RD_LOCK(); rd3_shadow_units_done(); RD_UNLOCK(); }   // the dynamic shadows: this frame's camera known
+}
 internal void __thiscall rd_hook_ro_water(ee_ro_water *o) { RO_DRAW(RO_WATER, ro_water_draw(o)); }
 internal void __thiscall rd_hook_ro_ui(ee_ro_ui *o) { RO_DRAW(RO_UI, ro_ui_draw(o)); }
 internal int rd_render_objects_install(void) {
@@ -950,6 +975,7 @@ internal HRESULT __stdcall rd_dev_draw_vb(rd_device *d, D3DPRIMITIVETYPE type, r
     RD_LOCK();
     rd3_overlay_before(d);
     rd3_probe(d, type, vb, start, n, NULL, 0);
+    rd3_shadow_classify(d, vb, start, n);
     if (rd3_prepare(d, rd3_flat_picture(d, vb, start, n))) rd3_append(d, type, vb, start, n, NULL, 0);
     g_rd_draw_qpc += rd_qpc() - t0;
     RD_UNLOCK();
@@ -965,6 +991,7 @@ internal HRESULT __stdcall rd_dev_draw_indexed_vb(rd_device *d, D3DPRIMITIVETYPE
     RD_LOCK();
     rd3_overlay_before(d);
     rd3_probe(d, type, vb, start, nv, idx, ni);
+    rd3_shadow_classify(d, vb, start, nv);
     if (rd3_prepare(d, rd3_flat_picture(d, vb, start, nv))) rd3_append(d, type, vb, start, nv, idx, ni);
     g_rd_draw_qpc += rd_qpc() - t0;
     RD_UNLOCK();

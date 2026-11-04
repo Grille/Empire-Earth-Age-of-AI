@@ -123,6 +123,16 @@ class display
         /// The own renderer only: the AI's plans drawn on the map, a comma list of layers - or all; empty = none. The control
         /// pipe switches them while playing: overlay routes (overlay off: none):
         overlay_fields overlay;
+        enum shadows_choice
+        {
+            /// the game's own: a soft patch under each object
+            game,
+            /// cast by the sun onto the ground from the units', buildings' and trees' shapes; a unit standing in a
+            /// shadow is darkened as a whole (being tried out - docs/renderer.md "Shadows")
+            dynamic,
+        }
+        /// The own renderer only: the shadows on the ground (the control pipe: shadows game / dynamic):
+        shadows_choice shadows = shadows_choice.game;
     }
 
     [title("Wrapper (only with renderer = wrapper)")]

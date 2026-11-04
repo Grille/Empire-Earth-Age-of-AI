@@ -887,7 +887,9 @@ internal void render_install(const char *autotest_ini) {
     char layers[128];   // [display] overlay: the layers of the AI's plans drawn on the map (a FLAGS row, as its text)
     setting_text(&k_settings[SETTING_overlay], (const uint8_t *)&g_set.overlay, layers, sizeof layers);
     overlay_show(layers);
+    g_sh.on = g_set.shadows == 1;   // [display] shadows = dynamic (render_shadows.c)
     int locks = rd_world_lock_install(), parts = rd_render_objects_install();   // the minute line's wait and parts
     if (g_log) fprintf(g_log, "# render: own renderer on (Direct3D 11) - the display DLLs' DirectDraw at their load%s; world lock hooks %d/3,"
-                       " render object hooks %d/5\n", g_rd_trace > 0 ? ", calls traced" : "", locks, parts);
+                       " render object hooks %d/5; shadows %s\n", g_rd_trace > 0 ? ", calls traced" : "", locks, parts,
+                       g_sh.on ? "dynamic" : "the game's");
 }
