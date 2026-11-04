@@ -217,6 +217,22 @@ internal inline int patch_key_scroll_execute(key_scroll_execute_fn h) { return p
 internal inline uint8_t **ui_form_get_controls(const ee_ui_form *o) { return *(uint8_t ***)((uint8_t *)o + of_ui_form_controls); }
 internal inline void ui_form_set_controls(ee_ui_form *o, uint8_t **v) { *(uint8_t ***)((uint8_t *)o + of_ui_form_controls) = v; }
 internal inline uint8_t ***ui_form_controls_at(const ee_ui_form *o) { return (uint8_t ***)((uint8_t *)o + of_ui_form_controls); }
+// the control that has the keyboard (an edit box clicked into), NULL none: GetKeyboardCaptured, set by
+// SetKeyboardCaptured from UIControl::CaptureKeyboard / ReleaseCapturedKeyboard; the game runs its own F-key
+// hotkeys only while it is NULL (EEUIManager::update_keyboard 0x65C99D), not the form's
+internal inline ee_ui_control *ui_form_get_keyboard_captured(const ee_ui_form *o) { return *(ee_ui_control **)((uint8_t *)o + of_ui_form_keyboard_captured); }
+internal inline void ui_form_set_keyboard_captured(ee_ui_form *o, ee_ui_control *v) { *(ee_ui_control **)((uint8_t *)o + of_ui_form_keyboard_captured) = v; }
+internal inline ee_ui_control **ui_form_keyboard_captured_at(const ee_ui_form *o) { return (ee_ui_control **)((uint8_t *)o + of_ui_form_keyboard_captured); }
+// the mouse in the form's coordinates (those of its controls' rectangles; the scenario editor's the screen's
+// pixels, y down): GetMouseLocation, set by UpdateMouseLocation every update, which then finds the control under
+// it by GERectangle::Contains (UIControl +0x18). (Its result, GetMouseOverControl +0x118, waits for a click while
+// a control has the keyboard)
+internal inline float ui_form_get_mouse_x(const ee_ui_form *o) { return *(float *)((uint8_t *)o + of_ui_form_mouse_x); }
+internal inline void ui_form_set_mouse_x(ee_ui_form *o, float v) { *(float *)((uint8_t *)o + of_ui_form_mouse_x) = v; }
+internal inline float *ui_form_mouse_x_at(const ee_ui_form *o) { return (float *)((uint8_t *)o + of_ui_form_mouse_x); }
+internal inline float ui_form_get_mouse_y(const ee_ui_form *o) { return *(float *)((uint8_t *)o + of_ui_form_mouse_y); }
+internal inline void ui_form_set_mouse_y(ee_ui_form *o, float v) { *(float *)((uint8_t *)o + of_ui_form_mouse_y) = v; }
+internal inline float *ui_form_mouse_y_at(const ee_ui_form *o) { return (float *)((uint8_t *)o + of_ui_form_mouse_y); }
 typedef void (__thiscall *ui_form_activate_fn)(ee_ui_form *);
 internal inline void ui_form_activate(ee_ui_form *ui_form) { ((ui_form_activate_fn)(*(void ***)ui_form)[slot_ui_form_activate])(ui_form); }
 typedef void (__thiscall *ui_form_add_ime_result_string_fn)(ee_ui_form *, void *);
@@ -282,6 +298,10 @@ internal inline float *ui_control_right_at(const ee_ui_control *o) { return (flo
 internal inline float ui_control_get_top(const ee_ui_control *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
 internal inline void ui_control_set_top(ee_ui_control *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
 internal inline float *ui_control_top_at(const ee_ui_control *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
+// the form it is in (UIControl::CaptureKeyboard captures it there)
+internal inline ee_ui_form *ui_control_get_form(const ee_ui_control *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+internal inline void ui_control_set_form(ee_ui_control *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
+internal inline ee_ui_form **ui_control_form_at(const ee_ui_control *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 typedef void (__thiscall *ui_control_add_ime_result_string_fn)(ee_ui_control *, void *);
 internal inline void ui_control_add_ime_result_string(ee_ui_control *ui_control, void *text) { ((ui_control_add_ime_result_string_fn)(*(void ***)ui_control)[slot_ui_control_add_ime_result_string])(ui_control, text); }
 typedef int (__thiscall *ui_control_change_ime_composition_string_fn)(ee_ui_control *, void *, void *, uint32_t);
@@ -375,6 +395,10 @@ internal inline float *ui_button_right_at(const ee_ui_button *o) { return (float
 internal inline float ui_button_get_top(const ee_ui_button *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
 internal inline void ui_button_set_top(ee_ui_button *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
 internal inline float *ui_button_top_at(const ee_ui_button *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
+// the form it is in (UIControl::CaptureKeyboard captures it there)
+internal inline ee_ui_form *ui_button_get_form(const ee_ui_button *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+internal inline void ui_button_set_form(ee_ui_button *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
+internal inline ee_ui_form **ui_button_form_at(const ee_ui_button *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 typedef void (__thiscall *ui_button_button_down_fn)(ee_ui_button *);
 internal inline void ui_button_button_down(ee_ui_button *ui_button) { ((ui_button_button_down_fn)(*(void ***)ui_button)[slot_ui_button_button_down])(ui_button); }
 typedef void (__thiscall *ui_button_button_up_fn)(ee_ui_button *);
@@ -645,6 +669,9 @@ internal int spec_ui_select(int build) {
         slot_key_scroll_execute = 1;
         fn_eeuie_keyboard_scroll_execute = (key_scroll_execute_fn)0x005C9070;
         of_ui_form_controls = 0xF8;
+        of_ui_form_keyboard_captured = 0x108;
+        of_ui_form_mouse_x = 0xE4;
+        of_ui_form_mouse_y = 0xE8;
         slot_ui_form_activate = 1;
         slot_ui_form_add_ime_result_string = 2;
         slot_ui_form_change_ime_composition_string = 3;
@@ -668,6 +695,7 @@ internal int spec_ui_select(int build) {
         of_ui_control_left = 0x1C;
         of_ui_control_right = 0x20;
         of_ui_control_top = 0x24;
+        of_ui_control_form = 0x68;
         slot_ui_control_add_ime_result_string = 1;
         slot_ui_control_change_ime_composition_string = 2;
         slot_ui_control_change_font = 3;
@@ -853,6 +881,9 @@ internal int spec_ui_select(int build) {
         slot_key_scroll_execute = 1;
         fn_eeuie_keyboard_scroll_execute = (key_scroll_execute_fn)0x005D9B6F;
         of_ui_form_controls = 0xF8;
+        of_ui_form_keyboard_captured = 0x108;
+        of_ui_form_mouse_x = 0xE4;
+        of_ui_form_mouse_y = 0xE8;
         slot_ui_form_activate = 1;
         slot_ui_form_add_ime_result_string = 2;
         slot_ui_form_change_ime_composition_string = 3;
@@ -876,6 +907,7 @@ internal int spec_ui_select(int build) {
         of_ui_control_left = 0x1C;
         of_ui_control_right = 0x20;
         of_ui_control_top = 0x24;
+        of_ui_control_form = 0x68;
         slot_ui_control_add_ime_result_string = 1;
         slot_ui_control_change_ime_composition_string = 2;
         slot_ui_control_change_font = 3;

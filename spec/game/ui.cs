@@ -330,6 +330,22 @@ unsafe struct UIForm
     [offset(0xF8), found(v)]
     uint8** controls;
 
+    /// the control that has the keyboard (an edit box clicked into), NULL none: GetKeyboardCaptured, set by
+    /// SetKeyboardCaptured from UIControl::CaptureKeyboard / ReleaseCapturedKeyboard; the game runs its own F-key
+    /// hotkeys only while it is NULL (EEUIManager::update_keyboard 0x65C99D), not the form's
+    [offset(0x108), found(c)]
+    UIControl* keyboard_captured;
+
+    /// the mouse in the form's coordinates (those of its controls' rectangles; the scenario editor's the screen's
+    /// pixels, y down): GetMouseLocation, set by UpdateMouseLocation every update, which then finds the control under
+    /// it by GERectangle::Contains (UIControl +0x18). (Its result, GetMouseOverControl +0x118, waits for a click while
+    /// a control has the keyboard)
+    [offset(0xE4), found(c)]
+    float32 mouse_x;
+
+    [offset(0xE8), found(c)]
+    float32 mouse_y;
+
     // VIRTUAL FUNCTIONS (slot 0 the destructor)
 
     [slot(1)]
@@ -417,6 +433,10 @@ unsafe struct UIControl
 
     [offset(0x24), found(c)]
     float32 top;
+
+    /// the form it is in (UIControl::CaptureKeyboard captures it there)
+    [offset(0x68), found(c)]
+    UIForm* form;
 
     // VIRTUAL FUNCTIONS (slot 0 the destructor)
 

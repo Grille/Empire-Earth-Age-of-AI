@@ -1175,12 +1175,17 @@ internal int cursor_over_game(POINT pt) {
 internal volatile LONG g_vm_x = -1, g_vm_y = -1, g_vm_button = -1, g_vm_step, g_vm_clicks;
 internal volatile LONG g_vm_to_x = -1, g_vm_to_y = -1;   // a drag's end, -1 a click
 internal void virtual_mouse(ee_mouse *m, int frozen) {
+    ee_input_mouse *ms = is_mouse();
+    static LONG at_x = -1, at_y = -1;
     if (g_vm_x >= 0 && !frozen) {
         mouse_set_x(m, (float)g_vm_x);
         mouse_set_y(m, (float)g_vm_y);
         mouse_clamp(m);
+        // moved: as input from the device, else the forms keep the mouse where it was (a hover, an edit box's click
+        // beside it read where the last click was)
+        if (ms && (g_vm_x != at_x || g_vm_y != at_y)) input_mouse_set_had_input(ms, 1);
+        at_x = g_vm_x; at_y = g_vm_y;
     }
-    ee_input_mouse *ms = is_mouse();
     LONG b = g_vm_button;
     if (!ms || b < 0 || b > 3) return;
     uint8_t *st = input_mouse_buttons_at(ms) + b;

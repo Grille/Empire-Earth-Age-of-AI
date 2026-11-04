@@ -20,6 +20,12 @@ internal inline uint8_t *input_mouse_buttons_at(const ee_input_mouse *o) { retur
 // the buttons' counters as the frame before (Refresh copies +0x18 here first; RecomputeCurrentButtonState sets both
 // alike): a press is a counter odd now and different here
 internal inline uint8_t *input_mouse_buttons_before_at(const ee_input_mouse *o) { return (uint8_t *)o + of_input_mouse_buttons_before; }
+// set by Refresh when the device's buffer held input this frame (cleared first): with a button changed or a
+// movement delta it makes GetShouldUpdate true - the UI's forms take the mouse's place only then
+// (UIManager::UpdateMouse, unless a control holds the mouse)
+internal inline uint8_t input_mouse_get_had_input(const ee_input_mouse *o) { return *(uint8_t *)((uint8_t *)o + of_input_mouse_had_input); }
+internal inline void input_mouse_set_had_input(ee_input_mouse *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_input_mouse_had_input) = v; }
+internal inline uint8_t *input_mouse_had_input_at(const ee_input_mouse *o) { return (uint8_t *)((uint8_t *)o + of_input_mouse_had_input); }
 internal inline void **input_mouse_get_device(const ee_input_mouse *o) { return *(void ***)((uint8_t *)o + of_input_mouse_device); }
 internal inline void input_mouse_set_device(ee_input_mouse *o, void **v) { *(void ***)((uint8_t *)o + of_input_mouse_device) = v; }
 internal inline void ***input_mouse_device_at(const ee_input_mouse *o) { return (void ***)((uint8_t *)o + of_input_mouse_device); }
@@ -434,6 +440,7 @@ internal int spec_engine_display_select(int build) {
         of_input_mouse_suspended = 0x4;
         of_input_mouse_buttons = 0x18;
         of_input_mouse_buttons_before = 0x1C;
+        of_input_mouse_had_input = 0x5C;
         of_input_mouse_device = 0x44;
         of_rasterizer_screen_states = 0x20;
         of_rasterizer_dstates = 0x6C;
@@ -562,6 +569,7 @@ internal int spec_engine_display_select(int build) {
         of_input_mouse_suspended = 0x4;
         of_input_mouse_buttons = 0x18;
         of_input_mouse_buttons_before = 0x1C;
+        of_input_mouse_had_input = 0x5C;
         of_input_mouse_device = 0x44;
         of_rasterizer_screen_states = 0x20;
         of_rasterizer_dstates = 0x6C;

@@ -28,6 +28,12 @@ unsafe struct ISMouse
     [offset(0x1C), found(c)]
     block buttons_before;
 
+    /// set by Refresh when the device's buffer held input this frame (cleared first): with a button changed or a
+    /// movement delta it makes GetShouldUpdate true - the UI's forms take the mouse's place only then
+    /// (UIManager::UpdateMouse, unless a control holds the mouse)
+    [offset(0x5C), found(c)]
+    uint8 had_input;
+
     [offset(0x44), found(c)]
     void** device;
 }

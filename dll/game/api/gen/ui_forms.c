@@ -26,6 +26,10 @@ internal inline float *eecbui_list_box_right_at(const eecbui_list_box *o) { retu
 internal inline float eecbui_list_box_get_top(const eecbui_list_box *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
 internal inline void eecbui_list_box_set_top(eecbui_list_box *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
 internal inline float *eecbui_list_box_top_at(const eecbui_list_box *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
+// the form it is in (UIControl::CaptureKeyboard captures it there)
+internal inline ee_ui_form *eecbui_list_box_get_form(const eecbui_list_box *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+internal inline void eecbui_list_box_set_form(eecbui_list_box *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
+internal inline ee_ui_form **eecbui_list_box_form_at(const eecbui_list_box *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 // its constructor (9 arguments, not typed yet)
 typedef void *(__thiscall *eecbui_list_box_init_fn)(eecbui_list_box *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eecbui_list_box_init_fn fn_eecbui_list_box_init;
@@ -76,6 +80,10 @@ internal inline float *eeuib_color_right_at(const eeuib_color *o) { return (floa
 internal inline float eeuib_color_get_top(const eeuib_color *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
 internal inline void eeuib_color_set_top(eeuib_color *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
 internal inline float *eeuib_color_top_at(const eeuib_color *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
+// the form it is in (UIControl::CaptureKeyboard captures it there)
+internal inline ee_ui_form *eeuib_color_get_form(const eeuib_color *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+internal inline void eeuib_color_set_form(eeuib_color *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
+internal inline ee_ui_form **eeuib_color_form_at(const eeuib_color *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 // its constructor (5 arguments, not typed yet)
 typedef void *(__thiscall *eeuib_color_init_fn)(eeuib_color *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eeuib_color_init_fn fn_eeuib_color_init;
@@ -120,6 +128,10 @@ internal inline float *eeuib_saved_group_right_at(const eeuib_saved_group *o) { 
 internal inline float eeuib_saved_group_get_top(const eeuib_saved_group *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
 internal inline void eeuib_saved_group_set_top(eeuib_saved_group *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
 internal inline float *eeuib_saved_group_top_at(const eeuib_saved_group *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
+// the form it is in (UIControl::CaptureKeyboard captures it there)
+internal inline ee_ui_form *eeuib_saved_group_get_form(const eeuib_saved_group *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+internal inline void eeuib_saved_group_set_form(eeuib_saved_group *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
+internal inline ee_ui_form **eeuib_saved_group_form_at(const eeuib_saved_group *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 // its constructor (3 arguments, not typed yet)
 typedef void *(__thiscall *eeuib_saved_group_init_fn)(eeuib_saved_group *, uint32_t, uint32_t, uint32_t);
 internal eeuib_saved_group_init_fn fn_eeuib_saved_group_init;
@@ -158,6 +170,10 @@ internal inline float *eeuib_upgrade_right_at(const eeuib_upgrade *o) { return (
 internal inline float eeuib_upgrade_get_top(const eeuib_upgrade *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
 internal inline void eeuib_upgrade_set_top(eeuib_upgrade *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
 internal inline float *eeuib_upgrade_top_at(const eeuib_upgrade *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
+// the form it is in (UIControl::CaptureKeyboard captures it there)
+internal inline ee_ui_form *eeuib_upgrade_get_form(const eeuib_upgrade *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+internal inline void eeuib_upgrade_set_form(eeuib_upgrade *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
+internal inline ee_ui_form **eeuib_upgrade_form_at(const eeuib_upgrade *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 // its constructor (8 arguments, not typed yet)
 typedef void *(__thiscall *eeuib_upgrade_init_fn)(eeuib_upgrade *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eeuib_upgrade_init_fn fn_eeuib_upgrade_init;
@@ -220,6 +236,10 @@ internal inline float *eeuic_chat_line_right_at(const eeuic_chat_line *o) { retu
 internal inline float eeuic_chat_line_get_top(const eeuic_chat_line *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
 internal inline void eeuic_chat_line_set_top(eeuic_chat_line *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
 internal inline float *eeuic_chat_line_top_at(const eeuic_chat_line *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
+// the form it is in (UIControl::CaptureKeyboard captures it there)
+internal inline ee_ui_form *eeuic_chat_line_get_form(const eeuic_chat_line *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+internal inline void eeuic_chat_line_set_form(eeuic_chat_line *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
+internal inline ee_ui_form **eeuic_chat_line_form_at(const eeuic_chat_line *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 // its constructor (3 arguments, not typed yet)
 typedef void *(__thiscall *eeuic_chat_line_init_fn)(eeuic_chat_line *, uint32_t, uint32_t, uint32_t);
 internal eeuic_chat_line_init_fn fn_eeuic_chat_line_init;
@@ -276,6 +296,10 @@ internal inline float *eeuic_command_units_right_at(const eeuic_command_units *o
 internal inline float eeuic_command_units_get_top(const eeuic_command_units *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
 internal inline void eeuic_command_units_set_top(eeuic_command_units *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
 internal inline float *eeuic_command_units_top_at(const eeuic_command_units *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
+// the form it is in (UIControl::CaptureKeyboard captures it there)
+internal inline ee_ui_form *eeuic_command_units_get_form(const eeuic_command_units *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+internal inline void eeuic_command_units_set_form(eeuic_command_units *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
+internal inline ee_ui_form **eeuic_command_units_form_at(const eeuic_command_units *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 // its constructor (4 arguments, not typed yet)
 typedef void *(__thiscall *eeuic_command_units_init_fn)(eeuic_command_units *, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eeuic_command_units_init_fn fn_eeuic_command_units_init;
@@ -335,6 +359,10 @@ internal inline float *eeuic_ping_right_at(const eeuic_ping *o) { return (float 
 internal inline float eeuic_ping_get_top(const eeuic_ping *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
 internal inline void eeuic_ping_set_top(eeuic_ping *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
 internal inline float *eeuic_ping_top_at(const eeuic_ping *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
+// the form it is in (UIControl::CaptureKeyboard captures it there)
+internal inline ee_ui_form *eeuic_ping_get_form(const eeuic_ping *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+internal inline void eeuic_ping_set_form(eeuic_ping *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
+internal inline ee_ui_form **eeuic_ping_form_at(const eeuic_ping *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 // its constructor (4 arguments, not typed yet)
 typedef void *(__thiscall *eeuic_ping_init_fn)(eeuic_ping *, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eeuic_ping_init_fn fn_eeuic_ping_init;
@@ -388,6 +416,10 @@ internal inline float *eeuic_portrait_right_at(const eeuic_portrait *o) { return
 internal inline float eeuic_portrait_get_top(const eeuic_portrait *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
 internal inline void eeuic_portrait_set_top(eeuic_portrait *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
 internal inline float *eeuic_portrait_top_at(const eeuic_portrait *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
+// the form it is in (UIControl::CaptureKeyboard captures it there)
+internal inline ee_ui_form *eeuic_portrait_get_form(const eeuic_portrait *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+internal inline void eeuic_portrait_set_form(eeuic_portrait *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
+internal inline ee_ui_form **eeuic_portrait_form_at(const eeuic_portrait *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 // its constructor (5 arguments, not typed yet)
 typedef void *(__thiscall *eeuic_portrait_init_fn)(eeuic_portrait *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eeuic_portrait_init_fn fn_eeuic_portrait_init;
@@ -444,6 +476,10 @@ internal inline float *eeuic_select_units_right_at(const eeuic_select_units *o) 
 internal inline float eeuic_select_units_get_top(const eeuic_select_units *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
 internal inline void eeuic_select_units_set_top(eeuic_select_units *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
 internal inline float *eeuic_select_units_top_at(const eeuic_select_units *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
+// the form it is in (UIControl::CaptureKeyboard captures it there)
+internal inline ee_ui_form *eeuic_select_units_get_form(const eeuic_select_units *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+internal inline void eeuic_select_units_set_form(eeuic_select_units *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
+internal inline ee_ui_form **eeuic_select_units_form_at(const eeuic_select_units *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 // its constructor (5 arguments, not typed yet)
 typedef void *(__thiscall *eeuic_select_units_init_fn)(eeuic_select_units *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eeuic_select_units_init_fn fn_eeuic_select_units_init;
@@ -503,6 +539,10 @@ internal inline float *eeuic_unit_icon_bar_right_at(const eeuic_unit_icon_bar *o
 internal inline float eeuic_unit_icon_bar_get_top(const eeuic_unit_icon_bar *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
 internal inline void eeuic_unit_icon_bar_set_top(eeuic_unit_icon_bar *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
 internal inline float *eeuic_unit_icon_bar_top_at(const eeuic_unit_icon_bar *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
+// the form it is in (UIControl::CaptureKeyboard captures it there)
+internal inline ee_ui_form *eeuic_unit_icon_bar_get_form(const eeuic_unit_icon_bar *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+internal inline void eeuic_unit_icon_bar_set_form(eeuic_unit_icon_bar *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
+internal inline ee_ui_form **eeuic_unit_icon_bar_form_at(const eeuic_unit_icon_bar *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 // its constructor (3 arguments, not typed yet)
 typedef void *(__thiscall *eeuic_unit_icon_bar_init_fn)(eeuic_unit_icon_bar *, uint32_t, uint32_t, uint32_t);
 internal eeuic_unit_icon_bar_init_fn fn_eeuic_unit_icon_bar_init;
@@ -556,6 +596,10 @@ internal inline float *eeuic_won_net_games_box_right_at(const eeuic_won_net_game
 internal inline float eeuic_won_net_games_box_get_top(const eeuic_won_net_games_box *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
 internal inline void eeuic_won_net_games_box_set_top(eeuic_won_net_games_box *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
 internal inline float *eeuic_won_net_games_box_top_at(const eeuic_won_net_games_box *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
+// the form it is in (UIControl::CaptureKeyboard captures it there)
+internal inline ee_ui_form *eeuic_won_net_games_box_get_form(const eeuic_won_net_games_box *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+internal inline void eeuic_won_net_games_box_set_form(eeuic_won_net_games_box *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
+internal inline ee_ui_form **eeuic_won_net_games_box_form_at(const eeuic_won_net_games_box *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 // its constructor (8 arguments, not typed yet)
 typedef void *(__thiscall *eeuic_won_net_games_box_init_fn)(eeuic_won_net_games_box *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eeuic_won_net_games_box_init_fn fn_eeuic_won_net_games_box_init;
@@ -622,6 +666,10 @@ internal inline float *eeuic_won_net_rooms_box_right_at(const eeuic_won_net_room
 internal inline float eeuic_won_net_rooms_box_get_top(const eeuic_won_net_rooms_box *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
 internal inline void eeuic_won_net_rooms_box_set_top(eeuic_won_net_rooms_box *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
 internal inline float *eeuic_won_net_rooms_box_top_at(const eeuic_won_net_rooms_box *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
+// the form it is in (UIControl::CaptureKeyboard captures it there)
+internal inline ee_ui_form *eeuic_won_net_rooms_box_get_form(const eeuic_won_net_rooms_box *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+internal inline void eeuic_won_net_rooms_box_set_form(eeuic_won_net_rooms_box *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
+internal inline ee_ui_form **eeuic_won_net_rooms_box_form_at(const eeuic_won_net_rooms_box *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 // its constructor (8 arguments, not typed yet)
 typedef void *(__thiscall *eeuic_won_net_rooms_box_init_fn)(eeuic_won_net_rooms_box *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eeuic_won_net_rooms_box_init_fn fn_eeuic_won_net_rooms_box_init;
@@ -687,6 +735,10 @@ internal inline float *eeuic_won_net_stat_box_right_at(const eeuic_won_net_stat_
 internal inline float eeuic_won_net_stat_box_get_top(const eeuic_won_net_stat_box *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
 internal inline void eeuic_won_net_stat_box_set_top(eeuic_won_net_stat_box *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
 internal inline float *eeuic_won_net_stat_box_top_at(const eeuic_won_net_stat_box *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
+// the form it is in (UIControl::CaptureKeyboard captures it there)
+internal inline ee_ui_form *eeuic_won_net_stat_box_get_form(const eeuic_won_net_stat_box *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+internal inline void eeuic_won_net_stat_box_set_form(eeuic_won_net_stat_box *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
+internal inline ee_ui_form **eeuic_won_net_stat_box_form_at(const eeuic_won_net_stat_box *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 // its constructor (8 arguments, not typed yet)
 typedef void *(__thiscall *eeuic_won_net_stat_box_init_fn)(eeuic_won_net_stat_box *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eeuic_won_net_stat_box_init_fn fn_eeuic_won_net_stat_box_init;
@@ -758,6 +810,10 @@ internal inline float *eeuifeb_cancel_right_at(const eeuifeb_cancel *o) { return
 internal inline float eeuifeb_cancel_get_top(const eeuifeb_cancel *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
 internal inline void eeuifeb_cancel_set_top(eeuifeb_cancel *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
 internal inline float *eeuifeb_cancel_top_at(const eeuifeb_cancel *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
+// the form it is in (UIControl::CaptureKeyboard captures it there)
+internal inline ee_ui_form *eeuifeb_cancel_get_form(const eeuifeb_cancel *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+internal inline void eeuifeb_cancel_set_form(eeuifeb_cancel *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
+internal inline ee_ui_form **eeuifeb_cancel_form_at(const eeuifeb_cancel *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 // its constructor (2 arguments, not typed yet)
 typedef void *(__thiscall *eeuifeb_cancel_init_fn)(eeuifeb_cancel *, uint32_t, uint32_t);
 internal eeuifeb_cancel_init_fn fn_eeuifeb_cancel_init;
@@ -787,6 +843,10 @@ internal inline float *eeuifebok_right_at(const eeuifebok *o) { return (float *)
 internal inline float eeuifebok_get_top(const eeuifebok *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
 internal inline void eeuifebok_set_top(eeuifebok *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
 internal inline float *eeuifebok_top_at(const eeuifebok *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
+// the form it is in (UIControl::CaptureKeyboard captures it there)
+internal inline ee_ui_form *eeuifebok_get_form(const eeuifebok *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+internal inline void eeuifebok_set_form(eeuifebok *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
+internal inline ee_ui_form **eeuifebok_form_at(const eeuifebok *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 // its constructor (2 arguments, not typed yet)
 typedef void *(__thiscall *eeuifebok_init_fn)(eeuifebok *, uint32_t, uint32_t);
 internal eeuifebok_init_fn fn_eeuifebok_init;
@@ -805,6 +865,22 @@ internal inline int eeuifebok_draw_polygons(eeuifebok *eeuifebok) { return fn_ee
 internal inline uint8_t **eeuif_error_get_controls(const eeuif_error *o) { return *(uint8_t ***)((uint8_t *)o + of_ui_form_controls); }
 internal inline void eeuif_error_set_controls(eeuif_error *o, uint8_t **v) { *(uint8_t ***)((uint8_t *)o + of_ui_form_controls) = v; }
 internal inline uint8_t ***eeuif_error_controls_at(const eeuif_error *o) { return (uint8_t ***)((uint8_t *)o + of_ui_form_controls); }
+// the control that has the keyboard (an edit box clicked into), NULL none: GetKeyboardCaptured, set by
+// SetKeyboardCaptured from UIControl::CaptureKeyboard / ReleaseCapturedKeyboard; the game runs its own F-key
+// hotkeys only while it is NULL (EEUIManager::update_keyboard 0x65C99D), not the form's
+internal inline ee_ui_control *eeuif_error_get_keyboard_captured(const eeuif_error *o) { return *(ee_ui_control **)((uint8_t *)o + of_ui_form_keyboard_captured); }
+internal inline void eeuif_error_set_keyboard_captured(eeuif_error *o, ee_ui_control *v) { *(ee_ui_control **)((uint8_t *)o + of_ui_form_keyboard_captured) = v; }
+internal inline ee_ui_control **eeuif_error_keyboard_captured_at(const eeuif_error *o) { return (ee_ui_control **)((uint8_t *)o + of_ui_form_keyboard_captured); }
+// the mouse in the form's coordinates (those of its controls' rectangles; the scenario editor's the screen's
+// pixels, y down): GetMouseLocation, set by UpdateMouseLocation every update, which then finds the control under
+// it by GERectangle::Contains (UIControl +0x18). (Its result, GetMouseOverControl +0x118, waits for a click while
+// a control has the keyboard)
+internal inline float eeuif_error_get_mouse_x(const eeuif_error *o) { return *(float *)((uint8_t *)o + of_ui_form_mouse_x); }
+internal inline void eeuif_error_set_mouse_x(eeuif_error *o, float v) { *(float *)((uint8_t *)o + of_ui_form_mouse_x) = v; }
+internal inline float *eeuif_error_mouse_x_at(const eeuif_error *o) { return (float *)((uint8_t *)o + of_ui_form_mouse_x); }
+internal inline float eeuif_error_get_mouse_y(const eeuif_error *o) { return *(float *)((uint8_t *)o + of_ui_form_mouse_y); }
+internal inline void eeuif_error_set_mouse_y(eeuif_error *o, float v) { *(float *)((uint8_t *)o + of_ui_form_mouse_y) = v; }
+internal inline float *eeuif_error_mouse_y_at(const eeuif_error *o) { return (float *)((uint8_t *)o + of_ui_form_mouse_y); }
 // its constructor (1 argument, not typed yet)
 typedef void *(__thiscall *eeuif_error_init_fn)(eeuif_error *, uint32_t);
 internal eeuif_error_init_fn fn_eeuif_error_init;
@@ -839,6 +915,10 @@ internal inline float *eeuifmg_attribute_right_at(const eeuifmg_attribute *o) { 
 internal inline float eeuifmg_attribute_get_top(const eeuifmg_attribute *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
 internal inline void eeuifmg_attribute_set_top(eeuifmg_attribute *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
 internal inline float *eeuifmg_attribute_top_at(const eeuifmg_attribute *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
+// the form it is in (UIControl::CaptureKeyboard captures it there)
+internal inline ee_ui_form *eeuifmg_attribute_get_form(const eeuifmg_attribute *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+internal inline void eeuifmg_attribute_set_form(eeuifmg_attribute *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
+internal inline ee_ui_form **eeuifmg_attribute_form_at(const eeuifmg_attribute *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 // its constructor (8 arguments, not typed yet)
 typedef void *(__thiscall *eeuifmg_attribute_init_fn)(eeuifmg_attribute *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eeuifmg_attribute_init_fn fn_eeuifmg_attribute_init;
@@ -878,6 +958,10 @@ internal inline float *eeuifmg_error_log_right_at(const eeuifmg_error_log *o) { 
 internal inline float eeuifmg_error_log_get_top(const eeuifmg_error_log *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
 internal inline void eeuifmg_error_log_set_top(eeuifmg_error_log *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
 internal inline float *eeuifmg_error_log_top_at(const eeuifmg_error_log *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
+// the form it is in (UIControl::CaptureKeyboard captures it there)
+internal inline ee_ui_form *eeuifmg_error_log_get_form(const eeuifmg_error_log *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+internal inline void eeuifmg_error_log_set_form(eeuifmg_error_log *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
+internal inline ee_ui_form **eeuifmg_error_log_form_at(const eeuifmg_error_log *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 // its constructor (6 arguments, not typed yet)
 typedef void *(__thiscall *eeuifmg_error_log_init_fn)(eeuifmg_error_log *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eeuifmg_error_log_init_fn fn_eeuifmg_error_log_init;
@@ -954,6 +1038,10 @@ internal inline float *eeuifmg_status_bar_right_at(const eeuifmg_status_bar *o) 
 internal inline float eeuifmg_status_bar_get_top(const eeuifmg_status_bar *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
 internal inline void eeuifmg_status_bar_set_top(eeuifmg_status_bar *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
 internal inline float *eeuifmg_status_bar_top_at(const eeuifmg_status_bar *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
+// the form it is in (UIControl::CaptureKeyboard captures it there)
+internal inline ee_ui_form *eeuifmg_status_bar_get_form(const eeuifmg_status_bar *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+internal inline void eeuifmg_status_bar_set_form(eeuifmg_status_bar *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
+internal inline ee_ui_form **eeuifmg_status_bar_form_at(const eeuifmg_status_bar *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 typedef int (__thiscall *eeuifmg_status_bar_copy_data_fn)(eeuifmg_status_bar *);
 internal eeuifmg_status_bar_copy_data_fn fn_eeuifmg_status_bar_copy_data;
 internal inline int eeuifmg_status_bar_copy_data(eeuifmg_status_bar *eeuifmg_status_bar) { return fn_eeuifmg_status_bar_copy_data(eeuifmg_status_bar); }
@@ -998,6 +1086,10 @@ internal inline float *eeuifmg_status_button_right_at(const eeuifmg_status_butto
 internal inline float eeuifmg_status_button_get_top(const eeuifmg_status_button *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
 internal inline void eeuifmg_status_button_set_top(eeuifmg_status_button *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
 internal inline float *eeuifmg_status_button_top_at(const eeuifmg_status_button *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
+// the form it is in (UIControl::CaptureKeyboard captures it there)
+internal inline ee_ui_form *eeuifmg_status_button_get_form(const eeuifmg_status_button *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+internal inline void eeuifmg_status_button_set_form(eeuifmg_status_button *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
+internal inline ee_ui_form **eeuifmg_status_button_form_at(const eeuifmg_status_button *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 // its constructor (3 arguments, not typed yet)
 typedef void *(__thiscall *eeuifmg_status_button_init_fn)(eeuifmg_status_button *, uint32_t, uint32_t, uint32_t);
 internal eeuifmg_status_button_init_fn fn_eeuifmg_status_button_init;
@@ -1039,6 +1131,22 @@ internal inline void eeuifmg_status_button_tabbed_from(eeuifmg_status_button *ee
 internal inline uint8_t **main_form_get_controls(const ee_main_form *o) { return *(uint8_t ***)((uint8_t *)o + of_ui_form_controls); }
 internal inline void main_form_set_controls(ee_main_form *o, uint8_t **v) { *(uint8_t ***)((uint8_t *)o + of_ui_form_controls) = v; }
 internal inline uint8_t ***main_form_controls_at(const ee_main_form *o) { return (uint8_t ***)((uint8_t *)o + of_ui_form_controls); }
+// the control that has the keyboard (an edit box clicked into), NULL none: GetKeyboardCaptured, set by
+// SetKeyboardCaptured from UIControl::CaptureKeyboard / ReleaseCapturedKeyboard; the game runs its own F-key
+// hotkeys only while it is NULL (EEUIManager::update_keyboard 0x65C99D), not the form's
+internal inline ee_ui_control *main_form_get_keyboard_captured(const ee_main_form *o) { return *(ee_ui_control **)((uint8_t *)o + of_ui_form_keyboard_captured); }
+internal inline void main_form_set_keyboard_captured(ee_main_form *o, ee_ui_control *v) { *(ee_ui_control **)((uint8_t *)o + of_ui_form_keyboard_captured) = v; }
+internal inline ee_ui_control **main_form_keyboard_captured_at(const ee_main_form *o) { return (ee_ui_control **)((uint8_t *)o + of_ui_form_keyboard_captured); }
+// the mouse in the form's coordinates (those of its controls' rectangles; the scenario editor's the screen's
+// pixels, y down): GetMouseLocation, set by UpdateMouseLocation every update, which then finds the control under
+// it by GERectangle::Contains (UIControl +0x18). (Its result, GetMouseOverControl +0x118, waits for a click while
+// a control has the keyboard)
+internal inline float main_form_get_mouse_x(const ee_main_form *o) { return *(float *)((uint8_t *)o + of_ui_form_mouse_x); }
+internal inline void main_form_set_mouse_x(ee_main_form *o, float v) { *(float *)((uint8_t *)o + of_ui_form_mouse_x) = v; }
+internal inline float *main_form_mouse_x_at(const ee_main_form *o) { return (float *)((uint8_t *)o + of_ui_form_mouse_x); }
+internal inline float main_form_get_mouse_y(const ee_main_form *o) { return *(float *)((uint8_t *)o + of_ui_form_mouse_y); }
+internal inline void main_form_set_mouse_y(ee_main_form *o, float v) { *(float *)((uint8_t *)o + of_ui_form_mouse_y) = v; }
+internal inline float *main_form_mouse_y_at(const ee_main_form *o) { return (float *)((uint8_t *)o + of_ui_form_mouse_y); }
 // the top bar's text: 0 the age, 1 the game clock, 2 "FPS: n" (votes 6/7)
 internal inline int main_form_get_top_bar(const ee_main_form *o) { return *(int *)((uint8_t *)o + of_main_form_top_bar); }
 internal inline void main_form_set_top_bar(ee_main_form *o, int v) { *(int *)((uint8_t *)o + of_main_form_top_bar) = v; }
@@ -1093,6 +1201,10 @@ internal inline float *eeui_file_combo_box_right_at(const eeui_file_combo_box *o
 internal inline float eeui_file_combo_box_get_top(const eeui_file_combo_box *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
 internal inline void eeui_file_combo_box_set_top(eeui_file_combo_box *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
 internal inline float *eeui_file_combo_box_top_at(const eeui_file_combo_box *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
+// the form it is in (UIControl::CaptureKeyboard captures it there)
+internal inline ee_ui_form *eeui_file_combo_box_get_form(const eeui_file_combo_box *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+internal inline void eeui_file_combo_box_set_form(eeui_file_combo_box *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
+internal inline ee_ui_form **eeui_file_combo_box_form_at(const eeui_file_combo_box *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 // its constructor (17 arguments, not typed yet)
 typedef void *(__thiscall *eeui_file_combo_box_init_fn)(eeui_file_combo_box *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eeui_file_combo_box_init_fn fn_eeui_file_combo_box_init;
@@ -1116,6 +1228,10 @@ internal inline float *eeui_mini_map_right_at(const eeui_mini_map *o) { return (
 internal inline float eeui_mini_map_get_top(const eeui_mini_map *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
 internal inline void eeui_mini_map_set_top(eeui_mini_map *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
 internal inline float *eeui_mini_map_top_at(const eeui_mini_map *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
+// the form it is in (UIControl::CaptureKeyboard captures it there)
+internal inline ee_ui_form *eeui_mini_map_get_form(const eeui_mini_map *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+internal inline void eeui_mini_map_set_form(eeui_mini_map *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
+internal inline ee_ui_form **eeui_mini_map_form_at(const eeui_mini_map *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 // its constructor (5 arguments, not typed yet)
 typedef void *(__thiscall *eeui_mini_map_init_fn)(eeui_mini_map *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eeui_mini_map_init_fn fn_eeui_mini_map_init;
@@ -1172,6 +1288,10 @@ internal inline float *eeuipgs_line_graph_right_at(const eeuipgs_line_graph *o) 
 internal inline float eeuipgs_line_graph_get_top(const eeuipgs_line_graph *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
 internal inline void eeuipgs_line_graph_set_top(eeuipgs_line_graph *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
 internal inline float *eeuipgs_line_graph_top_at(const eeuipgs_line_graph *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
+// the form it is in (UIControl::CaptureKeyboard captures it there)
+internal inline ee_ui_form *eeuipgs_line_graph_get_form(const eeuipgs_line_graph *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+internal inline void eeuipgs_line_graph_set_form(eeuipgs_line_graph *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
+internal inline ee_ui_form **eeuipgs_line_graph_form_at(const eeuipgs_line_graph *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 // its constructor (5 arguments, not typed yet)
 typedef void *(__thiscall *eeuipgs_line_graph_init_fn)(eeuipgs_line_graph *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eeuipgs_line_graph_init_fn fn_eeuipgs_line_graph_init;
@@ -1205,6 +1325,10 @@ internal inline float *uib_map_right_at(const uib_map *o) { return (float *)((ui
 internal inline float uib_map_get_top(const uib_map *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
 internal inline void uib_map_set_top(uib_map *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
 internal inline float *uib_map_top_at(const uib_map *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
+// the form it is in (UIControl::CaptureKeyboard captures it there)
+internal inline ee_ui_form *uib_map_get_form(const uib_map *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+internal inline void uib_map_set_form(uib_map *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
+internal inline ee_ui_form **uib_map_form_at(const uib_map *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 typedef void (__thiscall *uib_map_button_up_fn)(uib_map *);
 internal uib_map_button_up_fn fn_uib_map_button_up;
 internal inline void uib_map_button_up(uib_map *uib_map) { fn_uib_map_button_up(uib_map); }
@@ -1227,6 +1351,10 @@ internal inline float *ui_bitmap_right_at(const ui_bitmap *o) { return (float *)
 internal inline float ui_bitmap_get_top(const ui_bitmap *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
 internal inline void ui_bitmap_set_top(ui_bitmap *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
 internal inline float *ui_bitmap_top_at(const ui_bitmap *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
+// the form it is in (UIControl::CaptureKeyboard captures it there)
+internal inline ee_ui_form *ui_bitmap_get_form(const ui_bitmap *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+internal inline void ui_bitmap_set_form(ui_bitmap *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
+internal inline ee_ui_form **ui_bitmap_form_at(const ui_bitmap *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 
 // class UICheckBox (ui_check_box)
 // made in 0x56575B, 0x5672AC, 0x569046, 0x56E14F, 0x571B93, 0x57ED81, 0x583705, 0x58D3E1
@@ -1247,6 +1375,10 @@ internal inline float *ui_check_box_right_at(const ui_check_box *o) { return (fl
 internal inline float ui_check_box_get_top(const ui_check_box *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
 internal inline void ui_check_box_set_top(ui_check_box *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
 internal inline float *ui_check_box_top_at(const ui_check_box *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
+// the form it is in (UIControl::CaptureKeyboard captures it there)
+internal inline ee_ui_form *ui_check_box_get_form(const ui_check_box *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+internal inline void ui_check_box_set_form(ui_check_box *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
+internal inline ee_ui_form **ui_check_box_form_at(const ui_check_box *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 
 // class UIComboBox (ui_combo_box)
 // made in 0x569046, 0x56D39A, 0x56EA99, 0x571B93, 0x572A2A, 0x57ED81, 0x583705, 0x58D3E1, 0x59198C
@@ -1266,6 +1398,10 @@ internal inline float *ui_combo_box_right_at(const ui_combo_box *o) { return (fl
 internal inline float ui_combo_box_get_top(const ui_combo_box *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
 internal inline void ui_combo_box_set_top(ui_combo_box *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
 internal inline float *ui_combo_box_top_at(const ui_combo_box *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
+// the form it is in (UIControl::CaptureKeyboard captures it there)
+internal inline ee_ui_form *ui_combo_box_get_form(const ui_combo_box *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+internal inline void ui_combo_box_set_form(ui_combo_box *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
+internal inline ee_ui_form **ui_combo_box_form_at(const ui_combo_box *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 
 // class UIEditBox (ui_edit_box)
 // made in 0x560EC7, 0x569046, 0x56B75E, 0x56E14F, 0x571B93, 0x583705, 0x59198C, 0x64AAB7
@@ -1285,6 +1421,10 @@ internal inline float *ui_edit_box_right_at(const ui_edit_box *o) { return (floa
 internal inline float ui_edit_box_get_top(const ui_edit_box *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
 internal inline void ui_edit_box_set_top(ui_edit_box *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
 internal inline float *ui_edit_box_top_at(const ui_edit_box *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
+// the form it is in (UIControl::CaptureKeyboard captures it there)
+internal inline ee_ui_form *ui_edit_box_get_form(const ui_edit_box *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+internal inline void ui_edit_box_set_form(ui_edit_box *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
+internal inline ee_ui_form **ui_edit_box_form_at(const ui_edit_box *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 
 // class UIFullBackground (ui_full_background)
 // made in 0x58E400
@@ -1307,6 +1447,10 @@ internal inline float *uilb_string_right_at(const uilb_string *o) { return (floa
 internal inline float uilb_string_get_top(const uilb_string *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
 internal inline void uilb_string_set_top(uilb_string *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
 internal inline float *uilb_string_top_at(const uilb_string *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
+// the form it is in (UIControl::CaptureKeyboard captures it there)
+internal inline ee_ui_form *uilb_string_get_form(const uilb_string *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+internal inline void uilb_string_set_form(uilb_string *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
+internal inline ee_ui_form **uilb_string_form_at(const uilb_string *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 
 // class UIRBMap (uirb_map)
 // made in 0x59198C
@@ -1328,6 +1472,10 @@ internal inline float *uirb_map_right_at(const uirb_map *o) { return (float *)((
 internal inline float uirb_map_get_top(const uirb_map *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
 internal inline void uirb_map_set_top(uirb_map *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
 internal inline float *uirb_map_top_at(const uirb_map *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
+// the form it is in (UIControl::CaptureKeyboard captures it there)
+internal inline ee_ui_form *uirb_map_get_form(const uirb_map *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+internal inline void uirb_map_set_form(uirb_map *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
+internal inline ee_ui_form **uirb_map_form_at(const uirb_map *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 
 // class UIRadioButton (ui_radio_button)
 // made in 0x56B75E, 0x56E14F, 0x571B93, 0x57ED81, 0x58A70E, 0x590734
@@ -1348,6 +1496,10 @@ internal inline float *ui_radio_button_right_at(const ui_radio_button *o) { retu
 internal inline float ui_radio_button_get_top(const ui_radio_button *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
 internal inline void ui_radio_button_set_top(ui_radio_button *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
 internal inline float *ui_radio_button_top_at(const ui_radio_button *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
+// the form it is in (UIControl::CaptureKeyboard captures it there)
+internal inline ee_ui_form *ui_radio_button_get_form(const ui_radio_button *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+internal inline void ui_radio_button_set_form(ui_radio_button *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
+internal inline ee_ui_form **ui_radio_button_form_at(const ui_radio_button *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 
 // class UIScrollBar (ui_scroll_bar)
 // made in 0x59DE62
@@ -1367,6 +1519,10 @@ internal inline float *ui_scroll_bar_right_at(const ui_scroll_bar *o) { return (
 internal inline float ui_scroll_bar_get_top(const ui_scroll_bar *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
 internal inline void ui_scroll_bar_set_top(ui_scroll_bar *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
 internal inline float *ui_scroll_bar_top_at(const ui_scroll_bar *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
+// the form it is in (UIControl::CaptureKeyboard captures it there)
+internal inline ee_ui_form *ui_scroll_bar_get_form(const ui_scroll_bar *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+internal inline void ui_scroll_bar_set_form(ui_scroll_bar *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
+internal inline ee_ui_form **ui_scroll_bar_form_at(const ui_scroll_bar *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 
 // class UISlider (ui_slider)
 // made in 0x5672AC, 0x569046, 0x56E14F, 0x571B93, 0x590734
@@ -1386,6 +1542,10 @@ internal inline float *ui_slider_right_at(const ui_slider *o) { return (float *)
 internal inline float ui_slider_get_top(const ui_slider *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
 internal inline void ui_slider_set_top(ui_slider *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
 internal inline float *ui_slider_top_at(const ui_slider *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
+// the form it is in (UIControl::CaptureKeyboard captures it there)
+internal inline ee_ui_form *ui_slider_get_form(const ui_slider *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+internal inline void ui_slider_set_form(ui_slider *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
+internal inline ee_ui_form **ui_slider_form_at(const ui_slider *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 
 // class UIStatusBar (ui_status_bar)
 // made in 0x5D23E7
@@ -1405,6 +1565,10 @@ internal inline float *ui_status_bar_right_at(const ui_status_bar *o) { return (
 internal inline float ui_status_bar_get_top(const ui_status_bar *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
 internal inline void ui_status_bar_set_top(ui_status_bar *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
 internal inline float *ui_status_bar_top_at(const ui_status_bar *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
+// the form it is in (UIControl::CaptureKeyboard captures it there)
+internal inline ee_ui_form *ui_status_bar_get_form(const ui_status_bar *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+internal inline void ui_status_bar_set_form(ui_status_bar *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
+internal inline ee_ui_form **ui_status_bar_form_at(const ui_status_bar *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 
 // class UITextLabel (ui_text_label)
 // made in 0x560EC7, 0x563EB8, 0x56575B, 0x5672AC, 0x5685A3, 0x569046, 0x56B75E, 0x56D39A, 0x56E14F, 0x56EA99, 0x571B93, 0x572A2A, 0x57ED81, 0x583705, 0x58A70E, 0x58D3E1, 0x5900BB, 0x590734, 0x59198C, 0x594C3F, 0x59B710, 0x64AAB7, 0x6526E7
@@ -1424,6 +1588,10 @@ internal inline float *ui_text_label_right_at(const ui_text_label *o) { return (
 internal inline float ui_text_label_get_top(const ui_text_label *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
 internal inline void ui_text_label_set_top(ui_text_label *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
 internal inline float *ui_text_label_top_at(const ui_text_label *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
+// the form it is in (UIControl::CaptureKeyboard captures it there)
+internal inline ee_ui_form *ui_text_label_get_form(const ui_text_label *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+internal inline void ui_text_label_set_form(ui_text_label *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
+internal inline ee_ui_form **ui_text_label_form_at(const ui_text_label *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 
 // class UITriStateCheckBox (ui_tri_state_check_box)
 // made in 0x57ED81
@@ -1444,6 +1612,10 @@ internal inline float *ui_tri_state_check_box_right_at(const ui_tri_state_check_
 internal inline float ui_tri_state_check_box_get_top(const ui_tri_state_check_box *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
 internal inline void ui_tri_state_check_box_set_top(ui_tri_state_check_box *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
 internal inline float *ui_tri_state_check_box_top_at(const ui_tri_state_check_box *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
+// the form it is in (UIControl::CaptureKeyboard captures it there)
+internal inline ee_ui_form *ui_tri_state_check_box_get_form(const ui_tri_state_check_box *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+internal inline void ui_tri_state_check_box_set_form(ui_tri_state_check_box *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
+internal inline ee_ui_form **ui_tri_state_check_box_form_at(const ui_tri_state_check_box *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 
 // the running build's values (spec_select, with addr_select): how many it hasn't got
 internal int spec_ui_forms_select(int build) {

@@ -90,22 +90,40 @@ internal void __thiscall hook_scroll_execute(ee_scroll *self) {
 // went on at 120 fps. Smoothed like the edge: the event only tells which arrows are held, the render thread moves
 // the camera at the idle poll's speed - 0.05 per 10 ms, half the edge's EE speed - by each frame's time.
 // While an edit box has the keyboard the arrow keys are its own (they move its cursor), but its form runs its hotkeys
-// all the same: the camera moved with the cursor (the editor's unit search, 2026-11-04). Every edit box's
-// UpdateKeyboard - the form calls it for the box that has the keyboard - goes through one import of the exe
-// (hook_edit_keyboard); while one ran lately the arrows' events do nothing.
-#define CAM_TYPING_MS 250
+// all the same: the camera moved with the cursor (the editor's unit search, 2026-11-04). The form keeps the control
+// that has the keyboard (UIForm +0x108; the game's own F-keys wait for it to be none, 0x65C99D): while the current
+// form has one the arrows' events do nothing. (Timed by the box's keyboard updates instead, the camera still went in
+// steps: while an arrow is held the form runs the hotkey and gives the box no update.)
 internal volatile LONG g_arrow_keys;     // bit = the event's direction: 0 up, 1 down, 2 left, 3 right
 internal volatile DWORD g_arrow_at[4];   // GetTickCount of each direction's last event
-internal volatile DWORD g_typing_at;     // GetTickCount (| 1) of an edit box's last keyboard update, 0 never
 internal ui_control_update_keyboard_fn g_edit_keyboard;
 
+internal int keyboard_captured(void) {
+    void *uim = ui_manager();
+    ee_ui_form *f = uim ? ui_current_form(uim) : NULL;
+    return f && ui_form_get_keyboard_captured(f);
+}
+
+// An edit box kept the keyboard after a click beside it that hit no control (the 3D view, the panels' background):
+// only a control clicked takes it. Every edit box's UpdateKeyboard - the form calls it for the box that has the
+// keyboard - goes through one import of the exe (ui.iat_edit_keyboard): there a left press with the mouse outside the
+// box lets the keyboard go. (By the form's mouse and the box's rectangle: the form's control under the mouse is
+// found again only after the click, while a control has the keyboard. The press by the button's state at the box's
+// last update: the mouse's own frame copy is taken again before the box's update sees it.)
+internal int g_edit_lbutton;   // the left button down at an edit box's last keyboard update
 internal int __thiscall hook_edit_keyboard(ee_ui_control *box) {
-    g_typing_at = GetTickCount() | 1;
-    return g_edit_keyboard(box);
+    int r = g_edit_keyboard(box);
+    ee_ui_form *f = ui_control_get_form(box);
+    ee_input_mouse *ms = input_mouse();
+    int down = ms && (input_mouse_buttons_at(ms)[0] & 1), pressed = down && !g_edit_lbutton;
+    g_edit_lbutton = down;
+    if (pressed && f && ui_form_get_keyboard_captured(f) == box && !ui_control_under_mouse(box, f))
+        ui_control_release_captured_keyboard(box);
+    return r;
 }
 
 internal uint32_t __thiscall hook_key_scroll_execute(ee_key_scroll *self, uint32_t a, uint32_t b) {
-    if (g_typing_at && GetTickCount() - g_typing_at <= CAM_TYPING_MS) {
+    if (keyboard_captured()) {
         InterlockedExchange(&g_arrow_keys, 0);
         return 0;
     }
@@ -172,10 +190,10 @@ internal void camera_install(void) {
     g_scroll_aoc = g_set.scroll == SCROLL_GAME ? build_aoc : g_set.scroll == SCROLL_AOC;
     g_scroll_native = g_scroll_aoc == build_aoc;
     g_cam_smooth = g_set.smooth_scroll;
-    // the arrow keys still while an edit box has the keyboard: always
+    // the arrow keys still while an edit box has the keyboard, which a click beside it lets go: always
     int ok = patch_edit_box_keyboard(hook_edit_keyboard, &g_edit_keyboard) + patch_key_scroll_execute(hook_key_scroll_execute);
     if (g_scroll_native && !g_cam_smooth) {   // the build's own way without smoothing: the game untouched but for that
-        if (g_log) fprintf(g_log, "# camera: the arrow keys still while typing, patches %d/2\n", ok);
+        if (g_log) fprintf(g_log, "# camera: edit boxes and the arrow keys, patches %d/2\n", ok);
         return;
     }
     ok += patch_scroll_execute(hook_scroll_execute);
