@@ -151,6 +151,26 @@
 #define AR_TRADE_BAD 150           // lost / dealt in % that sends it home
 #define AR_TRADE_FLOOR 10          // ... once what it lost is this % of the hit points it went out with (the player's save "choke wolf": raids of 140 went home after losing 9 hit points, nothing dealt - the shooters out of sight)
 #define AR_FOE 512                 // enemy units kept for the trade
+// THE PRICE (AR_PRICE; v_ar_price): the player, 2026-11-04, on his save "choke wolf": "the problem isn't that the ai
+// trains armies, it's that it burns them without being able to show anything for it ... it will get hurt badly if it
+// isn't smart about it". The estimate (st_ratio: both sides' hit points and damage) assumes both sides can hit each
+// other; at his chokepoint his artillery, mortars and towers fired while P3's soldiers could not reach them - the
+// force judged itself 2-3x the enemy, went, turned home trading badly (lost 5000-8000 hit points against 0-1200
+// dealt) and judged the same 4 minutes later: 61-78% of its gold + iron income lost in units. So a push sent home by
+// its trade leaves the price at its target - what it lost and dealt there, with the hit points it went out with -
+// for AR_PRICE_MS: an attack time (or pressing on) at a target within AR_PRICE_R of it judges by the trade it got
+// there, dealt / lost x the force's hit points now over then, when that is less than the estimate. Too strong so, it
+// waits (and the air force bombs it: a->strong); a wing's targets there all down clears the price (airstrike.c).
+// OFF: on the save (3 timings, P3 the variant) 153 -> 180 min units lost 13-17k gold + iron instead of 22-28k, the army
+// 323-431 instead of 160-245 - but razed 13-20 instead of 29-47 (2 pushes, not 4-6); on to 210 min razed 63, 22, 108
+// against 56, 24, 80 without, and twice it sat with 736-750 soldiers and razed 22: dealt nothing, the price stays
+// whatever the force's size. A priced target should send it to another, not keep it home.
+#ifndef AR_PRICE
+#define AR_PRICE 0
+#endif
+#define AR_PRICE_R 20
+#define AR_PRICE_MS 900000
+#define AR_PRICES 8
 #ifndef AR_BACK_FIGHT
 #define AR_BACK_FIGHT 0            // the way home: 1 an attack-move (the members fight what catches them), 2 the cavalry's only (a rearguard: the fast cover the slow), 0 a plain move
 #endif
@@ -226,6 +246,7 @@ internal struct armies_st {
     struct { ivec2 at; uint32_t t; } grind[8]; unsigned grinds;   // the meat grinders: where the force traded badly, when (AR_GRIND_MS)
     struct { ivec2 at; int r; uint32_t t; } fire[16]; unsigned fires;   // the fire marks (AR_FIRE): where shots at the force came from, from how far, when
     ivec2 strong; uint32_t strong_t;                         // the target the last attack time found too strong, when (airstrike.c bombs it)
+    struct { ivec2 at; float lost, dealt, hp; uint32_t t; } price[AR_PRICES]; unsigned priced, price_waits;   // THE PRICE: a push's target, its trade, the force's hit points out, when; recorded, attack times waited for it
     int scout_id, backs_breach; uint32_t scout_t; unsigned scouts, stand_backs;   // the breach's look: the member sent (its serial), when; the stand-off moved back this breach
 } g_armies[16];
 internal struct st_side g_ar_own;
@@ -415,7 +436,23 @@ internal int ar_home(ee_player *pl, unsigned idx, struct armies_st *a, uint32_t 
 #define AR_FIRE_PAD 2
 #define AR_BREACH_BACKS 3
 #define AR_SCOUT_MS 20000
-internal int g_v_ar_route = -1, g_v_ar_breach = -1, g_v_ar_fire = -1;
+internal int g_v_ar_route = -1, g_v_ar_breach = -1, g_v_ar_fire = -1, g_v_ar_price = -1;
+// THE PRICE of a target at d (AR_PRICE): the force (g_ar_own, as judged just before) against the trade it got near d
+// last, 99 when none
+internal float ar_price(unsigned idx, struct armies_st *a, ivec2 d, uint32_t now) {
+    float best = 99.0f;
+    if (!PV(idx, g_v_ar_price, AR_PRICE)) return best;
+    for (int k = 0; k < AR_PRICES; k++) {
+        if (!a->price[k].t || now - a->price[k].t >= AR_PRICE_MS || ivec2_dist2(a->price[k].at, d) > AR_PRICE_R * AR_PRICE_R) continue;
+        float q = (a->price[k].dealt + 1.0f) / (a->price[k].lost + 1.0f) * g_ar_own.hp / (a->price[k].hp > 1.0f ? a->price[k].hp : 1.0f);
+        if (q < best) best = q;
+    }
+    return best;
+}
+// a wing's targets down near d (airstrike.c): the price there is paid
+internal void ar_price_clear(struct armies_st *a, ivec2 d) {
+    for (int k = 0; k < AR_PRICES; k++) if (a->price[k].t && ivec2_dist2(a->price[k].at, d) <= AR_PRICE_R * AR_PRICE_R) a->price[k].t = 0;
+}
 internal unsigned g_ar_push_now;   // test (attacknow): the players whose force pushes at its next tick at home
 internal struct ar_route_buf { int n; int *g, *par; uint64_t *heap; uint8_t *seen, *dang, *wall; unsigned short *land; int hn; } g_arr;   // seen: 1 open, 2 done; wall: an enemy wall or gate seen on the cell
 internal int ar_route_alloc(int n) {
@@ -1028,6 +1065,12 @@ internal void ar_out(ee_player *pl, unsigned idx, struct armies_st *a, uint32_t 
                 int gk = 0;   // the meat grinder remembered (the oldest place taken) - not at home with the fire marks
                 for (int k = 1; k < 8; k++) if (a->grind[k].t < a->grind[gk].t) gk = k;
                 if (!PV(idx, g_v_ar_fire, AR_FIRE) || ivec2_dist2(mid, a->home) > AR_GRIND_R * AR_GRIND_R) { a->grind[gk].at = mid; a->grind[gk].t = now ? now : 1; a->grinds++; }
+                if (PV(idx, g_v_ar_price, AR_PRICE)) {   // the price at its target (the oldest record taken)
+                    int pk = 0;
+                    for (int k = 1; k < AR_PRICES; k++) if (a->price[k].t < a->price[pk].t) pk = k;
+                    a->price[pk].at = a->dest; a->price[pk].lost = sl; a->price[pk].dealt = sd; a->price[pk].hp = a->out_hp; a->price[pk].t = now ? now : 1;
+                    a->priced++;
+                }
                 if (a->out == 1) ar_stopped(a, rd < r ? g_sgs_foe.hp : g_ar_foe_mid_hp, 0);
                 ar_home_all(pl, idx, a, now);
                 return;
@@ -1214,11 +1257,14 @@ internal void ar_at_home(ee_player *pl, unsigned idx, struct armies_st *a, uint3
         float r = t ? ar_judge(pl, a, 0, d) : 0.0f, foe_hp = 0.0f;
         float ra = t ? ar_assumed(idx, a, now, &foe_hp) : 99.0f;
         if (ra < r) r = ra;
+        float rp = t ? ar_price(idx, a, d, now) : 99.0f;
+        int priced = rp < r && rp * 100.0f < (float)AR_GO_PCT;
+        if (rp < r) r = rp;
         if (!t || r * 100.0f < (float)AR_GO_PCT) {
             if (press) return;   // told at the attack time
-            a->waits++;
+            a->waits++; a->price_waits += priced;
             if (t) { a->strong = d; a->strong_t = now ? now : 1; }
-            if (t) ar_log(idx, now, "the attack time: the force of %d waits at %d,%d - %d,%d is too strong (%.2f: own %d, enemy %d; assumed hp %.0f against own %.0f, %.2f)", n, a->home.x, a->home.y, d.x, d.y, r, g_ar_own.n, g_sgs_foe.n, foe_hp, g_ar_own.hp, ra);
+            if (t) ar_log(idx, now, "the attack time: the force of %d waits at %d,%d - %d,%d is too strong (%.2f: own %d, enemy %d; assumed hp %.0f against own %.0f, %.2f; the price %.2f)", n, a->home.x, a->home.y, d.x, d.y, r, g_ar_own.n, g_sgs_foe.n, foe_hp, g_ar_own.hp, ra, rp);
             else ar_log(idx, now, "the attack time: the force of %d waits at %d,%d - no enemy building known", n, a->home.x, a->home.y);
             return;
         }
@@ -1325,6 +1371,7 @@ internal void armies_install(const char *autotest_ini) {
         g_v_ar_route = ini_int("autotest", "v_ar_route", -1, autotest_ini);
         g_v_ar_breach = ini_int("autotest", "v_ar_breach", -1, autotest_ini);
         g_v_ar_fire = ini_int("autotest", "v_ar_fire", -1, autotest_ini);
+        g_v_ar_price = ini_int("autotest", "v_ar_price", -1, autotest_ini);
     }
     if (g_log) fprintf(g_log, "# mod armies: %d (variant %d)\n", g_mod_armies, g_v_mod_armies);
 }

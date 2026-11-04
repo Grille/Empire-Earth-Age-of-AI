@@ -19,7 +19,12 @@
 //   towards the front - when that is AF_FORWARD tiles or more from the base (the player: "a human player moves its
 //   airfields forward to reach deeper into enemy territory, the home airfields become empty backup ... the ai's
 //   airplanes are all stuck at home since the ai never extends their reach"), else where the build manager picks.
-// - THE WING: the position - the breach's focus while the force stands off (g_ar_breach), else its push's target
+// - THE SHOOTERS first (the player, 2026-11-04, on his artillery that shelled the force from beyond its sight: "planes
+//   are a great counter here"): where a land unit hit the AI's units from AF_SHOOT_D tiles or more (intel.c
+//   reveal_attackers), spots within AF_SHOOT_JOIN joined, for AF_SHOOT_MS after its last hit - the one hit from most
+//   often is the position, its long-range units (artillery, siege, AF_SHOOT_D+ range) known there and the first
+//   targets after the anti-air; a spot with nothing left to hit is dropped.
+// - THE WING: else the position - the breach's focus while the force stands off (g_ar_breach), else its push's target
 //   while out, else for AF_STRONG_MS the target its last attack time found too strong (armies.c a->strong: "if I have
 //   to go through I bombard it" - the bombs before the push; air_strike.eeai: the force waited at a position with two
 //   AA guns, no push, no strike) -; the anti-air near it (AA buildings and land AA units seen or remembered within AS_AA_R) and what
@@ -46,6 +51,10 @@
 // counted: soldiers -3.5 (9.7), kills -1.0 (19.8), losses +6.8 (9.9), razed -3.8 (7.2) - one AI of 48 flew a wing (2
 // waves): the test AIs can't pay for bombers (200 gold, 200 iron), their metal is short already. Not measured yet: a
 // rich late game; the plane's reach (no range or fuel known: the forward Airport only).
+// THE SHOOTERS (2026-11-04), the save "choke wolf" 153 -> 210 min (3 timings, P3 the variant), with - without: razed
+// 86, 108, 93 / 56, 24, 80 (the last run ended at 180), units killed 459, 592, 582 / 462, 295, 491, units lost in
+// gold + iron the same (44-45k / 28-50k); 1-3 wings, every one at the shooters' spot; the bombers came one at a time
+// (the gold stock ~200: the soldiers take the rest).
 
 #ifndef AS_ON
 #define AS_ON 0
@@ -66,6 +75,10 @@
 #define AF_STRONG_MS 300000
 #define AF_AIRPORT_TRIES 3
 #define AF_FORWARD 15
+#define AF_SHOOT_D 7
+#define AF_SHOOT_JOIN 5
+#define AF_SHOOT_MS 180000
+#define AF_SHOOTS 16
 
 internal int g_v_air_strike = -1;
 internal struct as_st {
@@ -75,6 +88,7 @@ internal struct as_st {
     int asked, ap_seen, ap_tries; uint32_t asked_t;                                   // bombers asked for and not out yet; airports (and building) at the last queue, queued since without more
     unsigned waves, sent, trained, airports, waits;                 // waves launched, bombers sent, trained, airports queued, launches waited for more
     int wing_out;                                                   // a wing launched whose targets aren't all down yet
+    struct { ivec2 at; uint32_t t; int hits; } sh[AF_SHOOTS];       // the shooters' spots (intel.c reveal_attackers): where, the last hit, hits seen
 } g_as[16];
 // the bombers to train, the newest first (epochs as the tech tree counts them: current_epoch + 1)
 internal const struct { enum ut_name type; int epoch; } k_af_types[] = {
@@ -214,10 +228,26 @@ internal void airstrike_tick(ee_player *pl, uint32_t now) {
         if (s->asked > 0) s->asked--;   // one of those asked for is out
     }
     af_train(pl, idx, s, nb, now);
+    // the shooters: what hit its units from afar at intel.c's last scan, joined into spots
+    for (int k = 0; k < g_rev[idx].nsh; k++) {
+        if (g_rev[idx].sh[k].bld || g_rev[idx].sh[k].d < AF_SHOOT_D) continue;
+        ivec2 at = g_rev[idx].sh[k].at;
+        int j, old = 0;
+        for (j = 0; j < AF_SHOOTS; j++) {
+            if (s->sh[j].t && now - s->sh[j].t < AF_SHOOT_MS && ivec2_dist2(s->sh[j].at, at) <= AF_SHOOT_JOIN * AF_SHOOT_JOIN) break;
+            if (s->sh[j].t < s->sh[old].t) old = j;
+        }
+        if (j == AF_SHOOTS) { j = old; s->sh[j].at = at; s->sh[j].hits = 0; }
+        s->sh[j].hits++; s->sh[j].t = now ? now : 1;
+    }
+    int shoot = -1;
+    for (int j = 0; j < AF_SHOOTS; j++)
+        if (s->sh[j].t && now - s->sh[j].t < AF_SHOOT_MS && (shoot < 0 || s->sh[j].hits > s->sh[shoot].hits)) shoot = j;
     // the position
     struct armies_st *a = &g_armies[idx];
     ivec2 pos;
-    if (g_ar_breach[idx].on) pos = g_ar_breach[idx].focus;
+    if (shoot >= 0) pos = s->sh[shoot].at;
+    else if (g_ar_breach[idx].on) pos = g_ar_breach[idx].focus;
     else if (a->out == 1 && a->target) pos = a->dest;
     else if (a->strong_t && now - a->strong_t < AF_STRONG_MS) pos = a->strong;
     else return;
@@ -228,10 +258,13 @@ internal void airstrike_tick(ee_player *pl, uint32_t now) {
     for (struct grid_it it = grid_it_box(pos.x, pos.y, r, 1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
         ee_player *o = unit_get_owner(u);
-        if (!o || player_get_index(o) <= 0 || !is_enemy(pl, o) || unit_get_hp(u) <= 0 || !seen_by(u, pl)) continue;
+        if (!o || player_get_index(o) <= 0 || !is_enemy(pl, o) || unit_get_hp(u) <= 0) continue;
         long d = ivec2_dist2(unit_get_tile(u), pos);
         int fam = unit_type_get_class_id(it.td), f = unit_type_get_family(it.td);
-        float rg, at;
+        ee_unit_stats *ust = unit_get_stats(u);
+        float rg = ust ? unit_stats_get_range(ust) : unit_type_get_range(it.td), at;
+        int lr = fam == CLS_LAND && (is_siege(unit_type_get_id(it.td)) || f == KIND_ARTILLERY || rg >= (float)AF_SHOOT_D);
+        if (!seen_by(u, pl) && !(shoot >= 0 && lr && d <= AF_SHOOT_JOIN * AF_SHOOT_JOIN)) continue;   // the shooters' spot: known there
         if (f == KIND_AA_BUILDING || f == KIND_LAND_AA) {
             if (d > AS_AA_R * AS_AA_R || na == AS_TARGETS) continue;
             int k = na++;
@@ -240,16 +273,18 @@ internal void airstrike_tick(ee_player *pl, uint32_t now) {
             continue;
         }
         if (d > AS_R * AS_R) continue;
-        if (fam == CLS_BUILDING || fam == CLS_FORTRESS) { if (!defence_stats(u, &rg, &at) || at <= 0) continue; }
-        else if (fam == CLS_LAND && (is_siege(unit_type_get_id(it.td)) || f == KIND_ARTILLERY)) d += (long)AS_R * AS_R;   // after the defences
-        else if (fam == CLS_LAND && is_soldier(it.td)) d += 2L * AS_R * AS_R;   // the soldiers last: what the force's judgement counts
-        else continue;
+        if (shoot < 0 || !lr) {   // (at the shooters' spot they come first, by their distance)
+            if (fam == CLS_BUILDING || fam == CLS_FORTRESS) { if (!defence_stats(u, &rg, &at) || at <= 0) continue; if (shoot >= 0) d += (long)AS_R * AS_R; }
+            else if (fam == CLS_LAND && (is_siege(unit_type_get_id(it.td)) || f == KIND_ARTILLERY)) d += (long)AS_R * AS_R;   // after the defences
+            else if (fam == CLS_LAND && is_soldier(it.td)) d += 2L * AS_R * AS_R;   // the soldiers last: what the force's judgement counts
+            else continue;
+        }
         if (nt == AS_TARGETS && tg[nt - 1].d <= d) continue;
         int k = nt < AS_TARGETS ? nt++ : AS_TARGETS - 1;
         while (k > 0 && tg[k - 1].d > d) { tg[k] = tg[k - 1]; k--; }
         tg[k].u = u; tg[k].d = d;
     }
-    if (!na && !nt) return;
+    if (!na && !nt) { if (shoot >= 0) s->sh[shoot].t = 0; return; }   // nothing left at the shooters' spot: the next
     s->needed = AF_FLIGHT * (na + (nt ? 1 : 0)); s->need_t = now ? now : 1;
     // the wing out: a bomber whose target stands keeps at it; idle again, its next run
     static ee_unit *ready[AS_BOMBERS];
@@ -274,6 +309,7 @@ internal void airstrike_tick(ee_player *pl, uint32_t now) {
     if (s->wing_out) {   // its targets down: the force judges its push again now, not at its next attack time
         s->wing_out = 0;
         g_ar_push_now |= 1u << idx;
+        ar_price_clear(a, pos);
         ar_log(idx, now, "air force: the wing's targets at %d,%d are down - the force judges its push again", pos.x, pos.y);
     }
     if (nr < s->needed && nr < AF_WING_MAX) {
@@ -296,8 +332,8 @@ internal void airstrike_tick(ee_player *pl, uint32_t now) {
     }
     if (!sent) return;
     s->waves++; s->sent += (unsigned)sent; s->wing_out = 1;
-    ar_log(idx, now, "air force: a wing of %d at %d,%d - %d at %d anti-air, the rest at %d defences (%d bombers in all)", sent, pos.x, pos.y,
-           na * AF_FLIGHT < sent ? na * AF_FLIGHT : sent, na, nt, nb);
+    ar_log(idx, now, "air force: a wing of %d at %d,%d%s - %d at %d anti-air, the rest at %d targets (%d bombers in all)", sent, pos.x, pos.y,
+           shoot >= 0 ? " (the shooters)" : "", na * AF_FLIGHT < sent ? na * AF_FLIGHT : sent, na, nt, nb);
 }
 internal void airstrike_new_game(void) { memset(g_as, 0, sizeof g_as); g_as_nt = -1; }
 internal void airstrike_install(const char *autotest_ini) {
