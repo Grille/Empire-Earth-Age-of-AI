@@ -495,6 +495,184 @@ internal LRESULT theme_sb_after(HWND c, UINT msg, WPARAM wp, LPARAM lp) {
     return res;
 }
 
+// THE TEXT PANEL (the game's look): text to read - the help, the game page's report - not in a field, which looks like
+// one to type in, but as the game's menus frame a group: the painting darkened under it, a frame of three lines (dark,
+// the light of the bevel, its dark) and the text over it. Scrolled by lines when it is longer than the panel - the
+// wheel, the game's scrollbar (WS_VSCROLL set by SetScrollInfo only then: none while the text fits).
+#define PANEL_CLASS "AgeOfAIText"
+struct text_panel { HFONT font; int top, line, lines, page, busy; };
+
+internal struct text_panel *theme_panel_of(HWND w) { return (struct text_panel *)GetWindowLongPtrA(w, GWLP_USERDATA); }
+
+internal void theme_panel_inner(HWND w, RECT *r) {   // where the text goes: inside the frame and a margin
+    GetClientRect(w, r);
+    InflateRect(r, -8, -6);
+}
+
+// the text's lines at the panel's width, the page, the scrolling; again when the bar comes or goes (the width changes)
+internal void theme_panel_layout(HWND w) {
+    struct text_panel *t = theme_panel_of(w);
+    if (!t || t->busy) return;
+    t->busy = 1;
+    for (int pass = 0; pass < 2; pass++) {
+        RECT in;
+        theme_panel_inner(w, &in);
+        int n = GetWindowTextLengthA(w);
+        char *text = malloc(n + 1);
+        if (!text) break;
+        GetWindowTextA(w, text, n + 1);
+        HDC dc = GetDC(w);
+        HFONT old = (HFONT)SelectObject(dc, t->font ? t->font : GetStockObject(DEFAULT_GUI_FONT));
+        TEXTMETRICA tm;
+        GetTextMetricsA(dc, &tm);
+        t->line = tm.tmHeight > 0 ? tm.tmHeight : 16;
+        RECT r = { 0, 0, in.right - in.left > 1 ? in.right - in.left : 1, 0 };
+        DrawTextA(dc, text, -1, &r, DT_CALCRECT | DT_WORDBREAK | DT_EDITCONTROL | DT_NOPREFIX | DT_EXPANDTABS);
+        SelectObject(dc, old);
+        ReleaseDC(w, dc);
+        free(text);
+        t->lines = (r.bottom + t->line - 1) / t->line;
+        t->page = (in.bottom - in.top) / t->line;
+        if (t->page < 1) t->page = 1;
+        int last = t->lines - t->page;
+        if (t->top > last) t->top = last;
+        if (t->top < 0) t->top = 0;
+        SCROLLINFO si = { sizeof si, SIF_RANGE | SIF_PAGE | SIF_POS, 0, t->lines - 1, (UINT)t->page, t->top, 0 };
+        LONG before = GetWindowLongA(w, GWL_STYLE) & WS_VSCROLL;
+        SetScrollInfo(w, SB_VERT, &si, TRUE);
+        if ((GetWindowLongA(w, GWL_STYLE) & WS_VSCROLL) == before) break;
+    }
+    t->busy = 0;
+    InvalidateRect(w, NULL, FALSE);
+}
+
+internal void theme_panel_scroll(HWND w, int to) {   // the first line shown
+    struct text_panel *t = theme_panel_of(w);
+    int last = t->lines - t->page;
+    if (to > last) to = last;
+    if (to < 0) to = 0;
+    if (to == t->top) return;
+    t->top = to;
+    SetScrollPos(w, SB_VERT, to, TRUE);
+    InvalidateRect(w, NULL, FALSE);
+}
+
+internal void theme_panel_paint(HWND w, HDC dc) {
+    struct text_panel *t = theme_panel_of(w);
+    RECT r, in;
+    GetClientRect(w, &r);
+    theme_under(dc, w, &r);
+    theme_shade(dc, &r, 150);
+    HBRUSH dark = CreateSolidBrush(RGB(20, 20, 20)), light = CreateSolidBrush(RGB(176, 194, 193)), mid = CreateSolidBrush(RGB(89, 101, 100));
+    RECT f = r;
+    FrameRect(dc, &f, dark);
+    InflateRect(&f, -1, -1);
+    FrameRect(dc, &f, light);
+    InflateRect(&f, -1, -1);
+    FrameRect(dc, &f, mid);
+    DeleteObject(dark);
+    DeleteObject(light);
+    DeleteObject(mid);
+    int n = GetWindowTextLengthA(w);
+    char *text = malloc(n + 1);
+    if (!text) return;
+    GetWindowTextA(w, text, n + 1);
+    theme_panel_inner(w, &in);
+    HRGN clip = CreateRectRgnIndirect(&in);
+    SelectClipRgn(dc, clip);
+    RECT tr = in;
+    tr.top -= t->top * t->line;
+    tr.bottom = 0x3FFFFFFF;
+    HFONT old = (HFONT)SelectObject(dc, t->font ? t->font : GetStockObject(DEFAULT_GUI_FONT));
+    SetBkMode(dc, TRANSPARENT);
+    SetTextColor(dc, g_pal.text);
+    DrawTextA(dc, text, -1, &tr, DT_WORDBREAK | DT_EDITCONTROL | DT_NOPREFIX | DT_EXPANDTABS);
+    SelectObject(dc, old);
+    SelectClipRgn(dc, NULL);
+    DeleteObject(clip);
+    free(text);
+}
+
+internal LRESULT CALLBACK theme_panel_proc(HWND w, UINT msg, WPARAM wp, LPARAM lp) {
+    struct text_panel *t = theme_panel_of(w);
+    switch (msg) {
+    case WM_NCCREATE:
+        SetWindowLongPtrA(w, GWLP_USERDATA, (LONG_PTR)calloc(1, sizeof(struct text_panel)));
+        break;
+    case WM_NCDESTROY: free(t); SetWindowLongPtrA(w, GWLP_USERDATA, 0); break;
+    case WM_SETFONT: if (t) { t->font = (HFONT)wp; theme_panel_layout(w); } return 0;
+    case WM_GETFONT: return t ? (LRESULT)t->font : 0;
+    case WM_SETTEXT: {
+        LRESULT res = DefWindowProcA(w, msg, wp, lp);
+        if (t) { t->top = 0; theme_panel_layout(w); }
+        return res;
+    }
+    case WM_SIZE: theme_panel_layout(w); return 0;
+    case WM_ERASEBKGND: return 1;
+    case WM_PAINT: {
+        PAINTSTRUCT ps;
+        RECT r;
+        HDC dc = BeginPaint(w, &ps);
+        GetClientRect(w, &r);
+        HDC mem = CreateCompatibleDC(dc);
+        HBITMAP bm = CreateCompatibleBitmap(dc, r.right, r.bottom), old = (HBITMAP)SelectObject(mem, bm);
+        if (t) theme_panel_paint(w, mem);
+        BitBlt(dc, 0, 0, r.right, r.bottom, mem, 0, 0, SRCCOPY);
+        SelectObject(mem, old);
+        DeleteObject(bm);
+        DeleteDC(mem);
+        EndPaint(w, &ps);
+        return 0;
+    }
+    case WM_VSCROLL: {
+        if (!t) return 0;
+        int to = t->top;
+        switch (LOWORD(wp)) {
+        case SB_LINEUP: to--; break;
+        case SB_LINEDOWN: to++; break;
+        case SB_PAGEUP: to -= t->page; break;
+        case SB_PAGEDOWN: to += t->page; break;
+        case SB_TOP: to = 0; break;
+        case SB_BOTTOM: to = t->lines; break;
+        case SB_THUMBTRACK: case SB_THUMBPOSITION: to = HIWORD(wp); break;
+        }
+        theme_panel_scroll(w, to);
+        return 0;
+    }
+    case EM_LINESCROLL: if (t) theme_panel_scroll(w, t->top + (int)lp); return TRUE;   // the game's scrollbar's ball
+    case WM_MOUSEWHEEL: {
+        UINT n = 3;
+        SystemParametersInfoA(SPI_GETWHEELSCROLLLINES, 0, &n, 0);
+        if (t) theme_panel_scroll(w, t->top - (short)HIWORD(wp) * (int)n / WHEEL_DELTA);
+        return 0;
+    }
+    }
+    return DefWindowProcA(w, msg, wp, lp);
+}
+
+// the class a text to read is made of: the panel in the game's look, else a read-only field
+internal const char *theme_text_class(void) {
+    if (!g_gl.on) return WC_EDITA;
+    static int registered;
+    if (!registered) {
+        WNDCLASSA wc = { 0 };
+        wc.lpfnWndProc = theme_panel_proc;
+        wc.hInstance = GetModuleHandleA(NULL);
+        wc.hCursor = LoadCursor(NULL, IDC_ARROW);
+        wc.lpszClassName = PANEL_CLASS;
+        RegisterClassA(&wc);
+        registered = 1;
+    }
+    return PANEL_CLASS;
+}
+
+internal LRESULT CALLBACK theme_scroll_proc(HWND c, UINT msg, WPARAM wp, LPARAM lp, UINT_PTR id, DWORD_PTR data) {
+    (void)id; (void)data;   // the panel's bar: as a field's, without a field's frame
+    LRESULT res;
+    if (theme_sb_before(c, msg, wp, lp, &res)) return res;
+    return theme_sb_after(c, msg, wp, lp);
+}
+
 internal LRESULT CALLBACK theme_frame_proc(HWND c, UINT msg, WPARAM wp, LPARAM lp, UINT_PTR id, DWORD_PTR data) {
     (void)id; (void)data;
     LRESULT res;
@@ -539,6 +717,11 @@ internal LRESULT CALLBACK theme_list_proc(HWND w, UINT msg, WPARAM wp, LPARAM lp
 
 internal void theme_control(HWND c, const char *cls) {   // a child: its theme for the mode
     if (!g_pal.dark) return;
+    if (!lstrcmpA(cls, PANEL_CLASS)) {   // the game's look's text panel: its bar
+        SetWindowSubclass(c, theme_scroll_proc, 1, 0);
+        SetWindowLongA(c, GWL_STYLE, GetWindowLongA(c, GWL_STYLE) | WS_CLIPSIBLINGS);
+        return;
+    }
     if (!lstrcmpA(cls, WC_LISTVIEWA)) {
         HWND h = ListView_GetHeader(c);
         theme_allow_dark(c);

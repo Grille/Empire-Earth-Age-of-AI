@@ -1113,7 +1113,7 @@ internal void create_controls(void) {
     }
     g_name = make_child(WC_STATICA, "", SS_LEFT | SS_NOPREFIX, ID_NAME);
     SendMessageA(g_name, WM_SETFONT, (WPARAM)g_bold, TRUE);
-    g_help = make_child(WC_EDITA, "", ES_MULTILINE | ES_READONLY | WS_VSCROLL | ES_AUTOVSCROLL, ID_HELP);
+    g_help = make_child(theme_text_class(), "", ES_MULTILINE | ES_READONLY | WS_VSCROLL | ES_AUTOVSCROLL, ID_HELP);   // the game's look: a panel
     SendMessageA(g_help, WM_SETFONT, (WPARAM)g_font, TRUE);
     for (int k = 0; k < EDITORS; k++) {
         struct editor *ed = &g_ed[k];
@@ -1133,7 +1133,7 @@ internal void create_controls(void) {
     g_close = make_child(WC_BUTTONA, "Close", BS_PUSHBUTTON | WS_TABSTOP, ID_CLOSE);
     g_unk_label = make_child(WC_STATICA, "", SS_LEFT | SS_NOPREFIX, ID_UNKNOWN);
     g_remove = make_child(WC_BUTTONA, "Remove them", BS_PUSHBUTTON | WS_TABSTOP, ID_REMOVE);
-    g_game_text = make_child(WC_EDITA, "", ES_MULTILINE | ES_READONLY | WS_VSCROLL, ID_GAME_TEXT);
+    g_game_text = make_child(theme_text_class(), "", ES_MULTILINE | ES_READONLY | WS_VSCROLL, ID_GAME_TEXT);
     SendMessageA(g_game_text, WM_SETFONT, (WPARAM)g_mono, TRUE);
     g_game_apply = make_child(WC_BUTTONA, "Allow 4 GB", BS_PUSHBUTTON | WS_TABSTOP, ID_GAME_APPLY);
     g_game_restore = make_child(WC_BUTTONA, "Restore the original exe", BS_PUSHBUTTON | WS_TABSTOP, ID_GAME_RESTORE);
