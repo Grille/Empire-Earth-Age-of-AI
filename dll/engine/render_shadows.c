@@ -35,7 +35,13 @@ internal struct {
     int on;          // [display] shadows (the pipe's shadows switches it)
     float strength;  // how much of the sun a shadow takes away (1: all but the ambient light)
     int ready;       // 1 made, -1 failed
-    ID3D11Texture2D *map;
+    ID3D11Texture2D *map, *tmap;   // the casters' depth from the sun, the ground's (what the hills hide from it)
+    ID3D11DepthStencilView *tdsv;
+    ID3D11ShaderResourceView *tsrv;
+    ID3D11RasterizerState *traster, *scissor;
+    RECT panels[8];   // the frame's depth cleared to 0 (rd_dev_clear): the game's panels, no 3D under them
+    int n_panels;
+    ID3D11DepthStencilState *depth_hud;
     ID3D11DepthStencilView *dsv;
     ID3D11ShaderResourceView *srv;
     ID3D11SamplerState *cmp, *samp;
@@ -60,6 +66,7 @@ internal struct {
     float amb[3], diff[3];   // the units' ambient (global + the light's) and the sun's colour
     float view[16];          // the units' camera this frame
     int have_view;
+    int ground_done;         // the ground darkened this frame (its batches kept for the terrain's map)
     // the map: world -> u, v, depth; the colour a shadow leaves; on once one is drawn (the units' tint reads it)
     float shm[16], shk[4], inv_depth;
     int valid;
@@ -84,17 +91,19 @@ internal const char k_sh_shader[] =
     "void ps(O i) { if (sa.y > 0 && t.Sample(s, i.t).a < sa.x) discard; }\n";
 // the ground once more: placed as the main pass placed it (render_3d.c's vertex shader: the same expression), its
 // place in the map through the units' camera (tom = the ground's view x the units' view inverted x the map's); the
-// pixel the shadow's colour, 3x3 comparisons apart by sp.x, sp.z their bias
+// pixel the shadow's colour, 3x3 comparisons apart by sp.x, sp.z their bias - where the hills don't hide it from the sun
+// already (the terrain's map, bias sp.w: its own surface; the hill's shading is the game's, baked into the ground)
 internal const char k_sh_ground[] =
     "cbuffer g : register(b2) { row_major float4x4 vpm; row_major float4x4 tom; float4 shk; float4 vp; float4 sp; };\n"
     SH_VS_IN
-    "Texture2D<float> sm : register(t2); SamplerComparisonState sc : register(s1);\n"
+    "Texture2D<float> sm : register(t2); SamplerComparisonState sc : register(s1); Texture2D<float> tm : register(t4);\n"
     "struct O { float4 p : SV_Position; float3 q : TEXCOORD0; };\n"
     "O vs(I i) { O o; float4 p = world_pos(i); o.p = mul(p, vpm); o.p.xy += vp.xy * o.p.w;"
     " o.q = mul(p, tom).xyz; return o; }\n"
-    "float4 ps(O i) : SV_Target { float z = min(i.q.z, 0.9999) - sp.z, l = 0;"
-    " for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) l += sm.SampleCmpLevelZero(sc, i.q.xy + float2(x, y) * sp.x, z);"
-    " return float4(lerp(shk.rgb, 1, l / 9), 1); }\n";
+    "float4 ps(O i) : SV_Target { float z = min(i.q.z, 0.9999), l = 0, t = 0;"
+    " for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) { float2 c = i.q.xy + float2(x, y) * sp.x;"
+    "  l += sm.SampleCmpLevelZero(sc, c, z - sp.z); t += tm.SampleCmpLevelZero(sc, c, z - sp.w); }"
+    " return float4(lerp(shk.rgb, 1, 1 - (1 - l / 9) * (t / 9)), 1); }\n";
 // the picture times the shadow's colour: one triangle over the screen
 internal const char k_sh_screen[] =
     "Texture2D f : register(t3);\n"
@@ -130,6 +139,9 @@ internal int rd3_shadow_init(void) {
     D3D11_SHADER_RESOURCE_VIEW_DESC sd = { .Format = DXGI_FORMAT_R32_FLOAT, .ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D };
     sd.Texture2D.MipLevels = 1;
     if (SUCCEEDED(hr)) hr = ID3D11Device_CreateShaderResourceView(dv, (ID3D11Resource *)g_sh.map, &sd, &g_sh.srv);
+    if (SUCCEEDED(hr)) hr = ID3D11Device_CreateTexture2D(dv, &td, NULL, &g_sh.tmap);
+    if (SUCCEEDED(hr)) hr = ID3D11Device_CreateDepthStencilView(dv, (ID3D11Resource *)g_sh.tmap, &dd, &g_sh.tdsv);
+    if (SUCCEEDED(hr)) hr = ID3D11Device_CreateShaderResourceView(dv, (ID3D11Resource *)g_sh.tmap, &sd, &g_sh.tsrv);
     // outside the map: depth 1 - nothing nearer the sun, lit
     D3D11_SAMPLER_DESC cs = { D3D11_FILTER_COMPARISON_MIN_MAG_LINEAR_MIP_POINT, D3D11_TEXTURE_ADDRESS_BORDER,
                               D3D11_TEXTURE_ADDRESS_BORDER, D3D11_TEXTURE_ADDRESS_BORDER, 0, 1, D3D11_COMPARISON_LESS_EQUAL,
@@ -156,10 +168,16 @@ internal int rd3_shadow_init(void) {
     if (SUCCEEDED(hr)) hr = ID3D11Device_CreateShaderResourceView(dv, (ID3D11Resource *)g_sh.wb, &wd, &g_sh.wsrv);
     D3D11_RASTERIZER_DESC rs = { D3D11_FILL_SOLID, D3D11_CULL_NONE, FALSE, 0, 0, 0, TRUE, FALSE, FALSE, FALSE };
     if (SUCCEEDED(hr)) hr = ID3D11Device_CreateRasterizerState(dv, &rs, &g_sh.raster);
+    rs.DepthClipEnable = FALSE;   // the ground nearer the sun than the casters' box: at its near end
+    if (SUCCEEDED(hr)) hr = ID3D11Device_CreateRasterizerState(dv, &rs, &g_sh.traster);
     D3D11_DEPTH_STENCIL_DESC ds = { TRUE, D3D11_DEPTH_WRITE_MASK_ALL, D3D11_COMPARISON_LESS, FALSE, 0, 0, { 0 }, { 0 } };
     if (SUCCEEDED(hr)) hr = ID3D11Device_CreateDepthStencilState(dv, &ds, &g_sh.depth);
     ds.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO; ds.DepthFunc = D3D11_COMPARISON_EQUAL;
     if (SUCCEEDED(hr)) hr = ID3D11Device_CreateDepthStencilState(dv, &ds, &g_sh.depth_eq);
+    ds.DepthFunc = D3D11_COMPARISON_ALWAYS; ds.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;   // the panels' depth 0
+    if (SUCCEEDED(hr)) hr = ID3D11Device_CreateDepthStencilState(dv, &ds, &g_sh.depth_hud);
+    rs.DepthClipEnable = TRUE; rs.ScissorEnable = TRUE;
+    if (SUCCEEDED(hr)) hr = ID3D11Device_CreateRasterizerState(dv, &rs, &g_sh.scissor);
     D3D11_BLEND_DESC bl = { 0 };   // the picture times the shadow's colour, its alpha kept
     bl.RenderTarget[0] = (D3D11_RENDER_TARGET_BLEND_DESC){ TRUE, D3D11_BLEND_ZERO, D3D11_BLEND_SRC_COLOR, D3D11_BLEND_OP_ADD,
                                                             D3D11_BLEND_ZERO, D3D11_BLEND_ONE, D3D11_BLEND_OP_ADD,
@@ -194,7 +212,9 @@ internal int rd3_shadow_role(rd_device *d, rd_vb *vb, DWORD start, DWORD nv) {
         for (int a = 0; a < 3; a++) { if (p[a] < lo[a]) lo[a] = p[a]; if (p[a] > hi[a]) hi[a] = p[a]; }
     }
     if (hi[2] - lo[2] <= 0.01f * fmaxf(hi[0] - lo[0], hi[1] - lo[1])) return d->tex[0] ? SH_DECAL : SH_NONE;
-    if (!d->rs[D3DRENDERSTATE_LIGHTING]) return SH_NONE;
+    // unlit, or see-through (no depth written: glass farms, buildings under construction - a full shadow under glass
+    // looked broken, the player's shot 2026-11-04): no shadow
+    if (!d->rs[D3DRENDERSTATE_LIGHTING] || !d->rs[D3DRENDERSTATE_ZWRITEENABLE]) return SH_NONE;
     const D3DMATRIX *w = &d->world;
     float wl[3] = { 1e30f, 1e30f, 1e30f }, wh[3] = { -1e30f, -1e30f, -1e30f };
     for (int c = 0; c < 8; c++) {
@@ -210,8 +230,11 @@ internal int rd3_shadow_role(rd_device *d, rd_vb *vb, DWORD start, DWORD nv) {
     g_sh.have_view = 1;
     int tree = d->rs[D3DRENDERSTATE_ALPHATESTENABLE] && (d->rs[D3DRENDERSTATE_ALPHAREF] & 255) >= 200;
     const D3DLIGHT7 *l = &d->light[0];
-    if (!tree && d->light_on[0] && l->dltType == D3DLIGHT_DIRECTIONAL && l->dvDirection.z < -0.05f) {   // the units' sun
-        float n = sqrtf(l->dvDirection.x * l->dvDirection.x + l->dvDirection.y * l->dvDirection.y + l->dvDirection.z * l->dvDirection.z);
+    float n = sqrtf(l->dvDirection.x * l->dvDirection.x + l->dvDirection.y * l->dvDirection.y + l->dvDirection.z * l->dvDirection.z);
+    // the units' sun: not the trees' light, nearly overhead (0.01, 0.11, -0.99) - other objects are lit by it too, and
+    // taken for the sun it laid every shadow under its caster (the player's shot, 2026-11-04)
+    if (!tree && d->light_on[0] && l->dltType == D3DLIGHT_DIRECTIONAL && n > 0 && l->dvDirection.z / n < -0.05f
+        && l->dvDirection.z / n > -0.9f) {
         g_sh.sun[0] = l->dvDirection.x / n; g_sh.sun[1] = l->dvDirection.y / n; g_sh.sun[2] = l->dvDirection.z / n;
         float ga[4];
         rd3_color(ga, d->rs[D3DRENDERSTATE_AMBIENT]);
@@ -271,6 +294,8 @@ internal void rd3_shadow_reset(void) {
     for (int k = 0; k < g_sh.cast.nrec; k++) if (g_sh.cast.rec[k].srv) ID3D11ShaderResourceView_Release(g_sh.cast.rec[k].srv);
     g_sh.cast.nv = g_sh.cast.ni = g_sh.cast.nw = g_sh.cast.nrec = g_sh.cast.full = 0;
     g_sh.ground.nv = g_sh.ground.ni = g_sh.ground.nw = g_sh.ground.nrec = g_sh.ground.full = 0;
+    g_sh.ground_done = 0;
+    g_sh.n_panels = 0;
     g_sh.lo[0] = g_sh.lo[1] = g_sh.lo[2] = 1e30f;
     g_sh.hi[0] = g_sh.hi[1] = g_sh.hi[2] = -1e30f;
     g_sh.have_view = 0;
@@ -344,7 +369,26 @@ internal int rd3_shadow_map(void) {
         ID3D11DeviceContext_PSSetShaderResources(x, 0, 1, &e->srv);
         ID3D11DeviceContext_DrawIndexed(x, e->n, e->at, 0);
     }
-    ID3D11DeviceContext_OMSetRenderTargets(x, 0, NULL, NULL);   // else Direct3D refuses the map as a texture
+    // the ground from the sun, in the same map's coordinates (camera space -> world through the units' camera; the
+    // casters' shader with the ground's own matrix, no alpha test)
+    ID3D11DeviceContext_PSSetShaderResources(x, 4, 1, &none);
+    ID3D11DeviceContext_OMSetRenderTargets(x, 0, NULL, g_sh.tdsv);
+    ID3D11DeviceContext_ClearDepthStencilView(x, g_sh.tdsv, D3D11_CLEAR_DEPTH, 1, 0);
+    if (g_sh.ground.nrec && rd3_shadow_upload(&g_sh.ground)) {
+        ID3D11DeviceContext_RSSetState(x, g_sh.traster);
+        float iv[16], vm[16];
+        rd3_rigid_inverse(iv, g_sh.view);
+        rd3_mul(vm, iv, m);
+        cb[16] = cb[17] = 0;
+        for (int k = 0; k < g_sh.ground.nrec; k++) {
+            sh_record *e = &g_sh.ground.rec[k];
+            if (e->view[12] != 0 || e->view[13] != 0 || e->view[14] != 0) continue;   // the sky (the map's camera), not the ground
+            rd3_mul(cb, e->view, vm);
+            ID3D11DeviceContext_UpdateSubresource(x, (ID3D11Resource *)g_sh.cb, 0, NULL, cb, 0, 0);
+            ID3D11DeviceContext_DrawIndexed(x, e->n, e->at, 0);
+        }
+    }
+    ID3D11DeviceContext_OMSetRenderTargets(x, 0, NULL, NULL);   // else Direct3D refuses the maps as textures
     // the colour a shadow leaves: the ambient light over the ambient and the sun on level ground, as much of it as the
     // strength says (1: the sun all gone)
     memcpy(g_sh.shm, m, sizeof m);
@@ -397,6 +441,7 @@ internal void rd3_shadow_ground(const float *view) {
     ID3D11DeviceContext_RSSetViewports(x, 1, &g_rd3.vport);
     rd3_shadow_states(g_sh.gvs, g_sh.gps, g_sh.gcb);
     ID3D11DeviceContext_PSSetShaderResources(x, 2, 1, &g_sh.srv);
+    ID3D11DeviceContext_PSSetShaderResources(x, 4, 1, &g_sh.tsrv);
     ID3D11DeviceContext_PSSetSamplers(x, 1, 1, &g_sh.cmp);
     float iv[16], vm[16];   // the units' camera inverted, x the map's: camera space -> the map
     rd3_rigid_inverse(iv, view);
@@ -406,7 +451,26 @@ internal void rd3_shadow_ground(const float *view) {
     cb[40] = 1.5f / SH_SIZE;   // the comparisons' spacing and bias
     cb[41] = 0;
     cb[42] = 0.002f;
-    cb[43] = 0;
+    cb[43] = 0.3f * g_sh.inv_depth;   // a third of a tile: the terrain's map and the ground differ by its texels
+    // the game clears its panels' depth to 0 (the info at the bottom left, the minimap) and draws no 3D there: nor the
+    // ground's shadow - those pixels aren't drawn again each frame, the multiply piled up to black there (the player's
+    // shot, 2026-11-04). Its depth tested against them it would be: at the units' first draw the game's depth turns
+    // everything down (measured) - so the panels go into the ground's own depth, at 0
+    if (g_sh.n_panels) {
+        ID3D11DeviceContext_OMSetRenderTargets(x, 0, NULL, g_sh.fac_dsv);
+        ID3D11DeviceContext_OMSetDepthStencilState(x, g_sh.depth_hud, 0);
+        ID3D11DeviceContext_RSSetState(x, g_sh.scissor);
+        ID3D11DeviceContext_IASetInputLayout(x, NULL);
+        ID3D11DeviceContext_VSSetShader(x, g_sh.fvs, NULL, 0);
+        ID3D11DeviceContext_PSSetShader(x, NULL, NULL, 0);
+        for (int k = 0; k < g_sh.n_panels; k++) {
+            D3D11_RECT r = g_sh.panels[k];
+            ID3D11DeviceContext_RSSetScissorRects(x, 1, &r);
+            ID3D11DeviceContext_Draw(x, 3, 0);
+        }
+        rd3_shadow_states(g_sh.gvs, g_sh.gps, g_sh.gcb);
+        ID3D11DeviceContext_IASetInputLayout(x, g_rd3.inputs);
+    }
     for (int pass = 0; pass < 2; pass++) {   // the depth, then the colour where it is the nearest
         ID3D11DeviceContext_OMSetRenderTargets(x, pass, pass ? &g_sh.fac_rtv : NULL, g_sh.fac_dsv);
         ID3D11DeviceContext_OMSetDepthStencilState(x, pass ? g_sh.depth_eq : g_sh.depth, 0);
@@ -428,15 +492,22 @@ internal void rd3_shadow_ground(const float *view) {
     ID3D11DeviceContext_PSSetShaderResources(x, 3, 1, &g_sh.fac_srv);
     ID3D11DeviceContext_Draw(x, 3, 0);
     ID3D11ShaderResourceView *none = NULL;
-    ID3D11DeviceContext_PSSetShaderResources(x, 3, 1, &none);   // a target again next time
+    ID3D11DeviceContext_PSSetShaderResources(x, 3, 1, &none);   // targets again next time
+    ID3D11DeviceContext_PSSetShaderResources(x, 4, 1, &none);
     rd3_dirty();
+}
+// the game's Clear of the depth (rd_dev_clear): rects cleared to 0 are its panels this frame
+internal void rd3_shadow_clear(DWORD n, const D3DRECT *rects, DWORD flags, float z) {
+    if (!(flags & D3DCLEAR_ZBUFFER) || !rects || z > 0) return;
+    for (DWORD i = 0; i < n && g_sh.n_panels < 8; i++)
+        g_sh.panels[g_sh.n_panels++] = (RECT){ rects[i].x1, rects[i].y1, rects[i].x2, rects[i].y2 };
 }
 // before a draw: at the units' first (a camera of the map: its view leaves the origin), the ground darkened once
 internal void rd3_shadow_before(rd_device *d) {
-    if (g_ro_cur != RO_UNITS || !g_sh.ground.nrec || (d->view._41 == 0 && d->view._42 == 0 && d->view._43 == 0)) return;
+    if (g_ro_cur != RO_UNITS || !g_sh.ground.nrec || g_sh.ground_done || (d->view._41 == 0 && d->view._42 == 0 && d->view._43 == 0)) return;
     rd3_shadow_ground(&d->view._11);
     g_sh.last_ground = g_sh.ground.nrec;
-    g_sh.ground.nv = g_sh.ground.ni = g_sh.ground.nw = g_sh.ground.nrec = g_sh.ground.full = 0;
+    g_sh.ground_done = 1;
 }
 // the units drawn (the hook of their render object): this frame's casters into the map, for the next frame
 internal void rd3_shadow_units_done(void) {

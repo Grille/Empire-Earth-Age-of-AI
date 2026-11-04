@@ -755,7 +755,8 @@ internal void rd3_probe(rd_device *d, D3DPRIMITIVETYPE type, rd_vb *vb, DWORD st
     log_locked("# rprobe %s: prim %d verts %lu idx %lu | lit %lu amb %08lx light0 on %d type %d dir %.2f %.2f %.2f diff %.2f %.2f %.2f"
                " amb %.2f %.2f %.2f | mat d %.2f %.2f %.2f %.2f a %.2f %.2f %.2f src %lu %lu | blend %lu %lu-%lu z %lu/%lu"
                " atest %lu/%lu cull %lu | cop %lu %lu %lu aop %lu %lu %lu tf %08lx | tex %p %lux%lu | ext %.2f %.2f %.2f flat %.3f"
-               " n0 %.2f %.2f %.2f col0 %08lx | world %.2f %.2f %.2f / %.2f %.2f %.2f / %.2f %.2f %.2f / %.1f %.1f %.2f\n",
+               " n0 %.2f %.2f %.2f col0 %08lx | world %.2f %.2f %.2f / %.2f %.2f %.2f / %.2f %.2f %.2f / %.1f %.1f %.2f"
+               " | viewport %lu %lu %lux%lu\n",
                g_ro_cur >= 0 ? k_ro_names[g_ro_cur] : "other", (int)type, (unsigned long)nv, (unsigned long)ni,
                (unsigned long)rs[D3DRENDERSTATE_LIGHTING], (unsigned long)rs[D3DRENDERSTATE_AMBIENT], d->light_on[0],
                (int)l->dltType, l->dvDirection.x, l->dvDirection.y, l->dvDirection.z, l->dcvDiffuse.r, l->dcvDiffuse.g,
@@ -772,7 +773,8 @@ internal void rd3_probe(rd_device *d, D3DPRIMITIVETYPE type, rd_vb *vb, DWORD st
                (unsigned long)rs[D3DRENDERSTATE_TEXTUREFACTOR], (void *)t, t ? (unsigned long)t->desc.dwWidth : 0UL,
                t ? (unsigned long)t->desc.dwHeight : 0UL, hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2], flat, n0[0], n0[1],
                n0[2], (unsigned long)col0, w->_11, w->_12, w->_13, w->_21, w->_22, w->_23, w->_31, w->_32, w->_33, w->_41,
-               w->_42, w->_43);
+               w->_42, w->_43, (unsigned long)d->viewport.dwX, (unsigned long)d->viewport.dwY,
+               (unsigned long)d->viewport.dwWidth, (unsigned long)d->viewport.dwHeight);
 }
 
 // rprobe [skip <parts | none>]: the own renderer's next frame logged draw by draw ("# rprobe", render_3d.c rd3_probe);
@@ -870,6 +872,14 @@ internal HRESULT __stdcall rd_dev_clear(rd_device *d, DWORD n, D3DRECT *rects, D
     (void)st;
     rd_surface *t = d->target;
     if (!t) return D3D_OK;
+    rd3_shadow_clear(n, rects, flags, z);
+    if (g_rp_state == 2)   // the probe: the frame's clears too
+        log_locked("# rprobe clear (%s): flags %lx, z %.3f, %lu rects, first %ld %ld - %ld %ld, viewport %lu %lu %lux%lu\n",
+                   g_ro_cur >= 0 ? k_ro_names[g_ro_cur] : "other", (unsigned long)flags, (double)z, (unsigned long)n,
+                   n && rects ? (long)rects[0].x1 : -1L, n && rects ? (long)rects[0].y1 : -1L,
+                   n && rects ? (long)rects[0].x2 : -1L, n && rects ? (long)rects[0].y2 : -1L,
+                   (unsigned long)d->viewport.dwX, (unsigned long)d->viewport.dwY, (unsigned long)d->viewport.dwWidth,
+                   (unsigned long)d->viewport.dwHeight);
     RD_LOCK();
     rd3_flush();
     for (DWORD i = 0; i < (n ? n : 1); i++) {

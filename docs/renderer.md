@@ -171,12 +171,20 @@ tells the last map's casters, ground batches, box, sun and shadow colour), engin
   the game's depth at the units' first draw turns the test down everywhere (measured), hence the depth of its own.
 - A unit (not a tree) standing in a shadow: its sun light scaled by the map at its origin (four texels), counting only
   what is nearer the sun than its own size - its own body must not shade it.
+- The player's shots of the first version, 2026-11-04, and what came of them: (1) shadows on ground the hills hide from
+  the sun - the ground is drawn from the sun into a second map, and where it hides a point the casters' shadow is left
+  out (the hill's shading is the game's, baked into the ground; no hill shadows of their own); (2) black over the info
+  panel - the game clears its panels' depth to 0 each frame (bottom left, the minimap; rprobe logs the frame's clears
+  now) and draws no 3D there, and those pixels aren't drawn again each frame, so the multiply piled up: the panels go
+  into the ground pass's own depth at 0 (the game's depth can't be used for it: at the units' first draw it turns every
+  test down, measured); glass farms and buildings under construction (drawn without depth) cast nothing now; (3) no
+  shadows at some camera spots - the sun had been taken from the trees' light, nearly overhead (0.01, 0.11, -0.99),
+  which some other objects are lit by too: a light that steep is no sun.
 - The shadow's colour: the units' ambient light over ambient + sun on level ground, 80% of the way (strength 0.8).
 - Checked 2026-11-04 on "choke wolf" (WWI) and a Continental game at 8 min (epoch 4): towers, bunkers, AA guns,
   vehicles, biplanes (on the hillside), the town centre, giraffes' legs and trees cast their shapes; the frame's units
   part 2.57 ms against 1.6-1.8 ms with the game's shadows (480 casting batches, 75k vertices) - the copying on the
-  game's thread. Open: the player's verdict; water receives nothing; a building under construction (translucent) casts
-  a full shadow; the units' tint not checked in a picture yet.
+  game's thread. Open: the player's verdict; water receives nothing; the units' tint not checked in a picture yet.
 
 What the game draws (the pipe's `rprobe`: the next frame's draws logged one by one with their render object, states,
 light, material, texture, world matrix and their vertices' extent and flatness; `rprobe skip <parts>` leaves render
