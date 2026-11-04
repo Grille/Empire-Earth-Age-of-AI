@@ -176,6 +176,11 @@ tells the last map's casters, ground batches, box, sun and shadow colour), engin
   (decals: roads, craters) receive; in the game's shadows' render object (EEROGroundShadows) the blobs (depth not
   written) are not drawn, the farms' fields (depth written, alpha tested at 127) receive; the water's surface (its
   render object's draws in the ground's camera space) receives.
+- Trees are a few flat planes crossed at the trunk, not much more than billboards (the player, 2026-11-05): a plane
+  edge-on to the sun cast a line. In the shadow pass a tree's planes face the sun - each vertex keeps its height and its
+  distance from the trunk, laid out across the sun's rays on its side of the trunk; every tree casts its full width,
+  however the game turned it (shots of a forest's edge on "choke wolf" at 100,60 against the build before: full firs
+  instead of narrow ones).
 - Under the water a shadow fades out with the depth (the player, 2026-11-05: none under water, ideally fading): gone
   0.8 under the level (the pipe: `shadows fade <depth>`). The level is the water's vertices' mean height each frame (in
   the world through the units' camera); measured on "choke wolf": the water at 0.00, the deepest seabed at -0.84 (rprobe

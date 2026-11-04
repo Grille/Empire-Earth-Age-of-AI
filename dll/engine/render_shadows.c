@@ -48,15 +48,20 @@ internal struct {
 } g_sh = { .strength = 0.8f, .fade = 0.8f, .sun = { 0.08f, 0.75f, -0.65f } };
 
 // from the sun: the batch's vertices placed as the main pass places them (render_3d.c's vertex shader), through shm
-// into the map (sa: alpha reference / 255, alpha tested)
+// into the map (sa: alpha reference / 255, alpha tested, a tree). A tree is a few flat planes crossed at its trunk (not
+// much more than billboards - the player, 2026-11-05): a plane standing edge-on to the sun cast a line. In this pass
+// its planes face the sun: each vertex keeps its height and its distance from the trunk (the world matrix's origin), laid
+// out across the sun's rays (sr: the map's horizontal axis), on the side of the trunk it was on.
 internal const char k_sh_shader[] =
-    "cbuffer s : register(b2) { row_major float4x4 shm; float4 sa; };\n"
+    "cbuffer s : register(b2) { row_major float4x4 shm; float4 sa; float4 sr; };\n"
     "Buffer<float4> wt : register(t1);\n"
     "struct I { float3 p : POSITION; float3 n : NORMAL; float4 c : COLOR; float2 t : TEXCOORD; uint w : WORLD; };\n"
     "Texture2D t : register(t0); SamplerState s : register(s0);\n"
     "struct O { float4 p : SV_Position; float2 t : TEXCOORD0; };\n"
-    "O vs(I i) { O o; uint r = i.w * 4; float4 r0 = wt.Load(r); r0.w = 0;"
-    " float4 p = mul(float4(i.p, 1), float4x4(r0, wt.Load(r + 1), wt.Load(r + 2), wt.Load(r + 3)));"
+    "O vs(I i) { O o; uint r = i.w * 4; float4 r0 = wt.Load(r), r3 = wt.Load(r + 3); r0.w = 0;"
+    " float4 p = mul(float4(i.p, 1), float4x4(r0, wt.Load(r + 1), wt.Load(r + 2), r3));"
+    " if (sa.z > 0) { float2 d = p.xy - r3.xy; float k = abs(d.x) > 1e-4 ? sign(d.x) : sign(d.y);"
+    "  p.xy = r3.xy + sr.xy * (length(d) * k); }"
     " float3 q = mul(p, shm).xyz; o.p = float4(q.x * 2 - 1, 1 - q.y * 2, q.z, 1); o.t = i.t; return o; }\n"
     "void ps(O i) { if (sa.y > 0 && t.Sample(s, i.t).a < sa.x) discard; }\n";
 
@@ -89,7 +94,7 @@ internal int rd3_shadow_init(void) {
     code = SUCCEEDED(hr) ? d3d_compile(k_sh_shader, sizeof k_sh_shader - 1, "ps", "ps_4_0") : NULL;
     hr = code ? ID3D11Device_CreatePixelShader(dv, ID3D10Blob_GetBufferPointer(code), ID3D10Blob_GetBufferSize(code), NULL, &g_sh.ps) : E_FAIL;
     D3D_RELEASE(code);
-    D3D11_BUFFER_DESC bd = { 80, D3D11_USAGE_DEFAULT, D3D11_BIND_CONSTANT_BUFFER, 0, 0, 0 };
+    D3D11_BUFFER_DESC bd = { 96, D3D11_USAGE_DEFAULT, D3D11_BIND_CONSTANT_BUFFER, 0, 0, 0 };
     if (SUCCEEDED(hr)) hr = ID3D11Device_CreateBuffer(dv, &bd, NULL, &g_sh.cb);
     D3D11_RASTERIZER_DESC rs = { D3D11_FILL_SOLID, D3D11_CULL_NONE, FALSE, 0, 0, 0, TRUE, FALSE, FALSE, FALSE };
     if (SUCCEEDED(hr)) hr = ID3D11Device_CreateRasterizerState(dv, &rs, &g_sh.raster);
@@ -242,19 +247,21 @@ internal void rd3_shadow_frame(void) {
     ID3D11DeviceContext_VSSetConstantBuffers(x, 2, 1, &g_sh.cb);
     ID3D11DeviceContext_PSSetConstantBuffers(x, 2, 1, &g_sh.cb);
     ID3D11DeviceContext_PSSetSamplers(x, 0, 1, &g_sh.samp);
-    float cb[20];
+    float cb[24];
     memcpy(cb, m, sizeof m);
     cb[18] = cb[19] = 0;
-    float aref = -2;
+    cb[20] = r[0]; cb[21] = r[1]; cb[22] = cb[23] = 0;
+    float aref = -2, tree = -1;
     ID3D11ShaderResourceView *srv = (ID3D11ShaderResourceView *)1;
     for (int i = 0; i < g_rf.n; i++) {
         const rf_cmd *c = &g_rf.cmd[i];
         if ((c->role != SH_CAST && c->role != SH_TINT) || c->topo != D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST) continue;
         const rd3_pcb *pc = &g_rf.pcs[c->pc];
         float a = pc->aop[3] && c->srv ? pc->misc[0] / 255.0f : -1;   // alpha tested: its texture's alpha
-        if (a != aref) {
-            aref = a;
-            cb[16] = a; cb[17] = a >= 0 ? 1.0f : 0.0f;
+        float t = a >= 200 / 255.0f ? 1.0f : 0.0f;   // a tree (rd3_shadow_role's test)
+        if (a != aref || t != tree) {
+            aref = a; tree = t;
+            cb[16] = a; cb[17] = a >= 0 ? 1.0f : 0.0f; cb[18] = t;
             ID3D11DeviceContext_UpdateSubresource(x, (ID3D11Resource *)g_sh.cb, 0, NULL, cb, 0, 0);
         }
         if (c->srv != srv) { srv = c->srv; ID3D11DeviceContext_PSSetShaderResources(x, 0, 1, &srv); }
@@ -267,7 +274,7 @@ internal void rd3_shadow_frame(void) {
     ID3D11DeviceContext_OMSetRenderTargets(x, 0, NULL, g_sh.tdsv);
     ID3D11DeviceContext_ClearDepthStencilView(x, g_sh.tdsv, D3D11_CLEAR_DEPTH, 1, 0);
     ID3D11DeviceContext_RSSetState(x, g_sh.traster);
-    cb[16] = cb[17] = 0;
+    cb[16] = cb[17] = cb[18] = 0;
     int vc = -1;
     for (int i = 0; i < g_rf.n; i++) {
         const rf_cmd *c = &g_rf.cmd[i];
