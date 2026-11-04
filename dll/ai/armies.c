@@ -132,6 +132,24 @@
 #ifndef AR_BACK_PCT
 #define AR_BACK_PCT 100            // out: the force's fight under this twice running - home (70 bled: below)
 #endif
+// THE JUDGE OUT (the player, 2026-11-04, after a raid of 75 (hp 34588) on 41 (16797) turned home 27 tiles short of
+// them without a shot: judged 1.11 as it went, 0.85 thirty seconds later as more of his base came into view - "let it
+// only turn back on a clear deficit"; his complaint "it aborted attacks that could have overrun me"). AR_JUDGE 1:
+// before contact (fewer than AR_CONTACT_MIN of the members out fighting - their order an attack) the estimate turns
+// it home only under AR_FAR_PCT twice running; in contact the fight itself judges - the hit points the force lost
+// (members out: their drop between two judgements, a dead one's last) against those it took off the enemy (the enemy
+// seen within SG_FOE of its middle at the last judgement: their drop, a dead one's last; buildings too), summed over
+// the last AR_TRADE_N judgements in contact: home once it lost AR_TRADE_BAD % of what it dealt, over AR_TRADE_MIN of
+// them at least. AR_JUDGE 0: the estimate under AR_BACK_PCT twice running, in contact or not (v_ar_judge for tests).
+#ifndef AR_JUDGE
+#define AR_JUDGE 1
+#endif
+#define AR_FAR_PCT 70
+#define AR_CONTACT_MIN 3           // members fighting: at least this many, or a tenth of the force out
+#define AR_TRADE_N 8               // judgements in contact summed (AR_JUDGE_EVERY apart: half a minute)
+#define AR_TRADE_MIN 4
+#define AR_TRADE_BAD 150           // lost / dealt in % that sends it home
+#define AR_FOE 512                 // enemy units kept for the trade
 #ifndef AR_BACK_FIGHT
 #define AR_BACK_FIGHT 0            // the way home: 1 an attack-move (the members fight what catches them), 2 the cavalry's only (a rearguard: the fast cover the slow), 0 a plain move
 #endif
@@ -177,12 +195,13 @@
 #ifndef AR_RAID_BAND
 #define AR_RAID_BAND 3             // a raid: this many enemy fighters seen within AR_RAID_R of the raider, or one of them attacking ours
 #endif
+internal int g_v_ar_judge = -1;
 internal int g_mod_armies = 0, g_v_mod_armies = -1, g_v_ar_raid_band = -1, g_v_ar_press = -1, g_v_ar_fort = -1, g_v_ar_assume = -1, g_v_ar_back_pct = -1, g_v_ar_back_fight = -1, g_v_ar_way = -1, g_v_ar_form = -1;   // [autotest] v_ar_way: AR_WAY, v_ar_form: AR_FORM; v_ar_raid_band, v_ar_press, v_ar_fort, v_ar_assume, v_ar_back_pct, v_ar_back_fight: the variant players' AR_RAID_BAND, AR_PRESS, AR_FORT, AR_ASSUME, AR_BACK_PCT, AR_BACK_FIGHT
 #define MOD_ARMIES(idx) PV(idx, g_v_mod_armies, g_mod_armies)
 internal struct armies_st {
     uint32_t t, log_t;
     int n;
-    struct { ee_unit *u; int id; uint32_t order_t; uint8_t out, back, pick; } held[AR_HELD];   // out: went with the force; back: on its way home from the last home order; pick: in the group move being given
+    struct { ee_unit *u; int id; uint32_t order_t; uint8_t out, back, pick; int hp; } held[AR_HELD];   // out: went with the force; back: on its way home from the last home order; pick: in the group move being given; hp: at the last judgement (-1 none yet)
     int out;                               // 0 home, 1 a push, 2 a raid
     ivec2 home, dest, cand, raid_c;         // home; the force's destination; the next home seen (since cand_t); the raider seen last
     ee_unit *target; int target_id;        // the push's building (NULL: a raid's point)
@@ -197,6 +216,9 @@ internal struct armies_st {
     int stage; ivec2 approach; uint32_t stage_t;             // out: 1 on the approach march to approach (since stage_t), 0 the attack-move
     unsigned approaches, gathers;                            // approach marches, gathers at home as group moves
     uint32_t win_t;
+    struct { int id, hp; } foe[AR_FOE]; int nfoe;              // the trade: the enemy near the force at the last judgement
+    float dealt[AR_TRADE_N], lost[AR_TRADE_N]; int trade_n;  // the trade of the last judgements in contact (a ring, trade_n of them so far)
+    unsigned contacts, traded_home;                          // judgements in contact; homes sent by the trade
 } g_armies[16];
 internal struct st_side g_ar_own;
 internal int g_ar_debug = 0, g_ar_foe_mid_n; internal float g_ar_foe_mid_hp;   // DEBUG
@@ -389,6 +411,7 @@ internal void ar_attack_out(struct armies_st *a, int out_only, uint32_t now) {  
 internal void ar_go(ee_player *pl, unsigned idx, struct armies_st *a, int kind, ivec2 d, ee_unit *target, int out_only, uint32_t now) {
     a->out = kind; a->dest = d; a->target = target; a->target_id = target ? unit_get_id(target) : 0;
     a->out_t = now ? now : 1; a->judge_t = 0; a->weak = 0; a->clear = 0; a->stage = 0;
+    if (!out_only) { a->trade_n = 0; a->nfoe = 0; }   // a next leg goes on with the fight's trade
     ivec2 mid;
     int n = ar_side(a, out_only, &mid), form = PV(idx, g_v_ar_form, AR_FORM);
     if (!out_only && n && (form & (kind == 1 ? 1 : 4))) {
@@ -523,6 +546,35 @@ internal int ar_count(struct armies_st *a, int out) {
     for (int k = 0; k < a->n; k++) n += (!out || a->held[k].out) && cv_alive(a->held[k].u);
     return n;
 }
+// THE TRADE since the last judgement (AR_JUDGE above): the hit points the members out lost and those the enemy seen
+// near mid lost; the enemy near mid kept for the next. Returns the members fighting.
+internal int ar_trade(ee_player *pl, struct armies_st *a, ivec2 mid, float *dealt, float *lost) {
+    int fighting = 0;
+    *dealt = *lost = 0.0f;
+    for (int k = 0; k < a->n; k++) {
+        ee_unit *u = a->held[k].u;
+        if (!a->held[k].out) { a->held[k].hp = -1; continue; }
+        int hp = cv_alive(u) ? unit_get_hp(u) : 0;
+        if (a->held[k].hp > hp) *lost += (float)(a->held[k].hp - hp);
+        a->held[k].hp = hp;
+        ee_goal *g = hp > 0 ? unit_get_goal(u) : NULL;
+        fighting += g && goal_is_attack(g);
+    }
+    for (int i = 0; i < a->nfoe; i++) {
+        ee_unit *u = unit_by_id((unsigned)a->foe[i].id);
+        int hp = u && unit_get_id(u) == a->foe[i].id && cv_alive(u) ? unit_get_hp(u) : 0;
+        if (a->foe[i].hp > hp) *dealt += (float)(a->foe[i].hp - hp);
+    }
+    a->nfoe = 0;
+    for (struct grid_it it = grid_it_box(mid.x, mid.y, SG_FOE, 1); grid_it_next(&it) && a->nfoe < AR_FOE; ) {
+        ee_unit *u = it.u;
+        ee_player *o = unit_get_owner(u);
+        if (!o || player_get_index(o) <= 0 || !is_enemy(pl, o) || !cv_alive(u) || !seen_by(u, pl) || ivec2_dist2(unit_get_tile(u), mid) > SG_FOE * SG_FOE) continue;
+        if (!cv_mil(it.td) && !fr_building(it.td)) continue;
+        a->foe[a->nfoe].id = unit_get_id(u); a->foe[a->nfoe].hp = unit_get_hp(u); a->nfoe++;
+    }
+    return fighting;
+}
 // the force out: its judgement, its next leg or its way home
 internal void ar_out(ee_player *pl, unsigned idx, struct armies_st *a, uint32_t now) {
     ivec2 mid;
@@ -540,21 +592,39 @@ internal void ar_out(ee_player *pl, unsigned idx, struct armies_st *a, uint32_t 
         float rd = ar_judge(pl, a, 1, a->dest);
         int own = g_ar_own.n, foe = g_sgs_foe.n;
         a->ratio = rd < r ? rd : r;
-        if (g_ar_debug) ar_log(idx, now, "  judge: %d out (hp %.0f) at %d,%d - at the middle %.2f (enemy %d, hp %.0f), at %d,%d %.2f (enemy %d, hp %.0f)", n, g_ar_own.hp, mid.x, mid.y, r, g_ar_foe_mid_n, g_ar_foe_mid_hp, a->dest.x, a->dest.y, rd, foe, g_sgs_foe.hp);
+        float dealt, lost, sd = 0.0f, sl = 0.0f;
+        int fighting = ar_trade(pl, a, mid, &dealt, &lost), judge = PV(idx, g_v_ar_judge, AR_JUDGE);
+        int contact = fighting >= AR_CONTACT_MIN && fighting * 10 >= n;
+        if (contact) {
+            a->dealt[a->trade_n % AR_TRADE_N] = dealt; a->lost[a->trade_n % AR_TRADE_N] = lost;
+            a->trade_n++; a->contacts++;
+        }
+        int tn = a->trade_n < AR_TRADE_N ? a->trade_n : AR_TRADE_N;
+        for (int i = 0; i < tn; i++) { sd += a->dealt[i]; sl += a->lost[i]; }
+        if (g_ar_debug) ar_log(idx, now, "  judge: %d out (hp %.0f) at %d,%d - at the middle %.2f (enemy %d, hp %.0f), at %d,%d %.2f (enemy %d, hp %.0f); %d fighting, dealt %.0f lost %.0f (%d in contact: %.0f / %.0f)", n, g_ar_own.hp, mid.x, mid.y, r, g_ar_foe_mid_n, g_ar_foe_mid_hp, a->dest.x, a->dest.y, rd, foe, g_sgs_foe.hp, fighting, dealt, lost, tn, sd, sl);
+        if (judge && contact) {   // the fight judges
+            a->weak = 0;
+            if (tn >= AR_TRADE_MIN && sl * 100.0f > sd * (float)AR_TRADE_BAD) {
+                ar_log(idx, now, "the force of %d at %d,%d is trading badly (lost %.0f, dealt %.0f in %d judgements; %d fighting) - home to %d,%d", n, mid.x, mid.y, sl, sd, tn, fighting, a->home.x, a->home.y);
+                a->traded_home++;
+                if (a->out == 1) ar_stopped(a, rd < r ? g_sgs_foe.hp : g_ar_foe_mid_hp, 0);
+                ar_home_all(pl, idx, a, now);
+                return;
+            }
+        } else if (a->ratio * 100.0f < (float)(judge ? AR_FAR_PCT : PV(idx, g_v_ar_back_pct, AR_BACK_PCT))) {
+            if (++a->weak >= 2) {
+                ar_log(idx, now, "the force of %d at %d,%d is losing (%.2f: own %d, enemy %d at %d,%d%s) - home to %d,%d", n, mid.x, mid.y, a->ratio, own, foe, a->dest.x, a->dest.y, judge ? ", before contact" : "", a->home.x, a->home.y);
+                if (a->out == 1) ar_stopped(a, rd < r ? g_sgs_foe.hp : g_ar_foe_mid_hp, 0);
+                ar_home_all(pl, idx, a, now);
+                return;
+            }
+        } else a->weak = 0;
         if (AR_BLEED_PCT && g_ar_own.hp < a->out_hp * (float)(100 - AR_BLEED_PCT) / 100.0f) {
             ar_log(idx, now, "the force of %d at %d,%d has bled (hp %.0f of %.0f) - home to %d,%d", n, mid.x, mid.y, g_ar_own.hp, a->out_hp, a->home.x, a->home.y);
             if (a->out == 1) ar_stopped(a, g_sgs_foe.hp, 0);
             ar_home_all(pl, idx, a, now);
             return;
         }
-        if (a->ratio * 100.0f < (float)PV(idx, g_v_ar_back_pct, AR_BACK_PCT)) {
-            if (++a->weak >= 2) {
-                ar_log(idx, now, "the force of %d at %d,%d is losing (%.2f: own %d, enemy %d at %d,%d) - home to %d,%d", n, mid.x, mid.y, a->ratio, own, foe, a->dest.x, a->dest.y, a->home.x, a->home.y);
-                if (a->out == 1) ar_stopped(a, rd < r ? g_sgs_foe.hp : g_ar_foe_mid_hp, 0);
-                ar_home_all(pl, idx, a, now);
-                return;
-            }
-        } else a->weak = 0;
     }
     if (a->stage == 1) {   // the approach march: done - the attack-move; else nothing more (the members at their spots are not idle-away)
         int arrived = 0;
@@ -699,7 +769,7 @@ internal void ar_adopt(ee_player *pl, unsigned idx, struct armies_st *a, uint32_
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it) && a->n < AR_HELD; ) {
         ee_unit *u = it.u;
         if (unit_get_owner(u) != pl || !ms_land_soldier(u, it.td) || !unit_get_ai_held(u) || ar_held(a, u) || landing_has_unit(pl, u)) continue;
-        a->held[a->n].u = u; a->held[a->n].id = unit_get_id(u); a->held[a->n].order_t = 0; a->held[a->n].out = 0; a->held[a->n].back = 0; a->held[a->n].pick = 0; a->n++;
+        a->held[a->n].u = u; a->held[a->n].id = unit_get_id(u); a->held[a->n].order_t = 0; a->held[a->n].out = 0; a->held[a->n].back = 0; a->held[a->n].pick = 0; a->held[a->n].hp = -1; a->n++;
         a->held_all++; n++;
     }
     ar_log(idx, now, "a save without the force: %d held soldiers taken into it", n);
@@ -734,7 +804,7 @@ internal void armies_tick(ee_player *pl, uint32_t now) {
         if (bsearch(&u, mem, (size_t)nm, sizeof *mem, ar_ptr_cmp)) continue;
         if (!combat_mgr_unit_free(cm, unit_get_physics(u)) || landing_has_unit(pl, u) || ou_sortie(pl, u)) continue;
         player_hold_unit(pl, u);
-        a->held[a->n].u = u; a->held[a->n].id = unit_get_id(u); a->held[a->n].order_t = 0; a->held[a->n].out = 0; a->held[a->n].back = 0; a->held[a->n].pick = 0; a->n++;
+        a->held[a->n].u = u; a->held[a->n].id = unit_get_id(u); a->held[a->n].order_t = 0; a->held[a->n].out = 0; a->held[a->n].back = 0; a->held[a->n].pick = 0; a->held[a->n].hp = -1; a->n++;
         a->held_all++;
     }
     ar_window(pl, a, now);
@@ -744,9 +814,9 @@ internal void armies_tick(ee_player *pl, uint32_t now) {
     ar_at_home(pl, idx, a, now);
     if (g_log && g_autotest && (!a->log_t || now < a->log_t || now - a->log_t >= 60000)) {
         a->log_t = now ? now : 1;
-        ar_log(idx, now, "held %d (in all %u), %s%d,%d (judged %.2f), pushes %u (pressing on %u) legs %u raids %u backs %u waits %u, orders %u, offers refused %u, forted %u, on the way home lost %u of %u (hp %.0f of %.0f), stands %u, group moves %u (approaches %u, gathers %u), next attack at %.1f min",
+        ar_log(idx, now, "held %d (in all %u), %s%d,%d (judged %.2f), pushes %u (pressing on %u) legs %u raids %u backs %u waits %u, orders %u, offers refused %u, forted %u, on the way home lost %u of %u (hp %.0f of %.0f), stands %u, group moves %u (approaches %u, gathers %u), judgements in contact %u, homes by the trade %u, next attack at %.1f min",
                a->n, a->held_all, a->out == 1 ? "out at " : a->out == 2 ? "at a raid at " : "home at ", a->out ? a->dest.x : a->home.x, a->out ? a->dest.y : a->home.y,
-               a->ratio > 99.0f ? 99.0f : a->ratio, a->pushes, a->presses, a->legs, a->raids, a->backs, a->waits, a->orders, a->refused, a->forted, a->way_lost, a->way_n, a->way_hp_lost, a->way_hp, a->stands, a->group_moves, a->approaches, a->gathers, player_get_next_attack(pl) / 60000.0);
+               a->ratio > 99.0f ? 99.0f : a->ratio, a->pushes, a->presses, a->legs, a->raids, a->backs, a->waits, a->orders, a->refused, a->forted, a->way_lost, a->way_n, a->way_hp_lost, a->way_hp, a->stands, a->group_moves, a->approaches, a->gathers, a->contacts, a->traded_home, player_get_next_attack(pl) / 60000.0);
     }
 }
 internal void armies_new_game(int from_save) { memset(g_armies, 0, sizeof g_armies); g_ar_load = from_save; g_ar_loaded = 0; }
@@ -773,6 +843,7 @@ internal void armies_install(const char *autotest_ini) {
         g_v_ar_back_fight = ini_int("autotest", "v_ar_back_fight", -1, autotest_ini);
         g_v_ar_way = ini_int("autotest", "v_ar_way", -1, autotest_ini);
         g_v_ar_form = ini_int("autotest", "v_ar_form", -1, autotest_ini);
+        g_v_ar_judge = ini_int("autotest", "v_ar_judge", -1, autotest_ini);
     }
     if (g_log) fprintf(g_log, "# mod armies: %d (variant %d)\n", g_mod_armies, g_v_mod_armies);
 }
