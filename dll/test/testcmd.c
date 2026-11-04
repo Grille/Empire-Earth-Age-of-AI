@@ -156,6 +156,7 @@ internal void cmd_attacknow(char *out, const char *args) {
     if (!pl) { REPLY("error: no AI player %d\n", p); return; }
     uint32_t was = player_get_next_attack(pl);
     player_set_next_attack(pl, game_time());
+    g_ar_push_now |= 1u << p;   // armies.c: the mod's force pushes too (the game moves its own time on before the force sees it)
     REPLY("P%d: next attack %.1f -> %.1f min\n", p, was / 60000.0, game_time() / 60000.0);
 }
 
