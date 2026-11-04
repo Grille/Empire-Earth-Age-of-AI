@@ -20,15 +20,17 @@ struct palette {
 };
 internal struct palette g_pal;
 
-// the game's look: on when both pictures were read. ui: uicontrols.sst, 20-pixel cells (an 18x18 picture a pixel in),
-// each a normal and a pressed one beside it - row 0 checked, empty, a radio on; row 1 a radio off, the knot up, down;
-// row 2 left, right, the scrollbar's ball. paint: the settings screen's painting (gamesettings, 1024x768); bg: it
+// the game's look: on when both pictures were read. ui: uicontrols.sst, 20x20 cells drawn whole and 1:1 (at 96 dpi)
+// as the game draws them, in pairs - row 0 checked, empty, a radio on; row 1 a radio off, the knot up, down; row 2
+// left, right, the scrollbar's ball; which of a pair the game shows unpressed measured against its setup screen (the
+// pixels the same): a check box's the left one, the dropdown knot's the right one. paint: the settings screen's painting (gamesettings, 1024x768); bg: it
 // darkened at the window's size (theme_size), b_bg a brush of it for what draws transparent over it
 struct game_look { int on; HWND main; HDC ui_dc, paint_dc, bg_dc; HBITMAP ui, paint, bg; HBRUSH b_bg; int pw, ph; };
 internal struct game_look g_gl;
-#define GL_CELL_CHECKED 0, 0
-#define GL_CELL_EMPTY 0, 2
-#define GL_CELL_KNOT_DOWN 1, 4
+#define GL_CELL_CHECKED 0, 0   // + 1 pressed
+#define GL_CELL_EMPTY 0, 2   // + 1 pressed
+#define GL_CELL_KNOT_DOWN 1, 5   // - 1 pressed
+#define GL_CELL 20
 
 internal int theme_windows_dark(void) {   // Windows' app mode: 1 dark
     DWORD light = 1, n = sizeof light;
@@ -176,7 +178,7 @@ internal void theme_bevel(HDC dc, const RECT *r, int in) {
 
 internal void theme_cell(HDC dc, int x, int y, int size, int row, int col) {   // a picture of uicontrols.sst
     BLENDFUNCTION bf = { AC_SRC_OVER, 0, 255, AC_SRC_ALPHA };
-    AlphaBlend(dc, x, y, size, size, g_gl.ui_dc, col * 20 + 1, row * 20 + 1, 18, 18, bf);
+    AlphaBlend(dc, x, y, size, size, g_gl.ui_dc, col * GL_CELL, row * GL_CELL, GL_CELL, GL_CELL, bf);
 }
 
 internal void theme_text(HDC dc, HWND c, RECT *r, const char *text, COLORREF color, UINT how) {
@@ -198,7 +200,7 @@ internal void theme_paint_button(HWND c, HDC dc) {
     int down = (st & BST_PUSHED) != 0, hot = (st & BST_HOT) != 0, off = !IsWindowEnabled(c), focus = GetFocus() == c;
     theme_under(dc, c, &r);
     if ((GetWindowLongA(c, GWL_STYLE) & BS_TYPEMASK) == BS_AUTOCHECKBOX) {
-        int size = MulDiv(18, GetDeviceCaps(dc, LOGPIXELSY), 96), y = (r.bottom - size) / 2;
+        int size = MulDiv(GL_CELL, GetDeviceCaps(dc, LOGPIXELSY), 96), y = (r.bottom - size) / 2;
         int on = SendMessageA(c, BM_GETCHECK, 0, 0) == BST_CHECKED;
         if (on) theme_cell(dc, 0, y, size, GL_CELL_CHECKED + (down || hot));
         else theme_cell(dc, 0, y, size, GL_CELL_EMPTY + (down || hot));
@@ -227,7 +229,7 @@ internal void theme_paint_combo(HWND c, HDC dc) {
     RECT f = { r.left, r.top, r.right - size, r.bottom };
     FillRect(dc, &f, g_pal.b_field);
     theme_bevel(dc, &f, 1);
-    theme_cell(dc, r.right - size, 0, size, GL_CELL_KNOT_DOWN + (SendMessageA(c, CB_GETDROPPEDSTATE, 0, 0) != 0));
+    theme_cell(dc, r.right - size, 0, size, GL_CELL_KNOT_DOWN - (SendMessageA(c, CB_GETDROPPEDSTATE, 0, 0) != 0));
     RECT t = { f.left + 4, f.top + 2, f.right - 2, f.bottom - 2 };
     theme_text(dc, c, &t, text, IsWindowEnabled(c) ? g_pal.text : g_pal.grey, DT_LEFT);
     if (GetFocus() == c && !SendMessageA(c, CB_GETDROPPEDSTATE, 0, 0)) { InflateRect(&t, 2, -1); DrawFocusRect(dc, &t); }
@@ -338,7 +340,18 @@ internal void theme_control(HWND c, const char *cls) {   // a child: its theme f
     SetWindowTheme(c, !lstrcmpA(cls, WC_COMBOBOXA) || !lstrcmpA(cls, WC_EDITA) ? L"DarkMode_CFD" : L"DarkMode_Explorer", NULL);
     if (!g_gl.on) return;
     if (!lstrcmpA(cls, WC_BUTTONA)) SetWindowSubclass(c, theme_drawn_proc, 1, 0);
-    else if (!lstrcmpA(cls, WC_COMBOBOXA)) SetWindowSubclass(c, theme_drawn_proc, 1, 1);
+    else if (!lstrcmpA(cls, WC_COMBOBOXA)) {   // the height of the knot: it is drawn 1:1, a square of the whole height
+        SetWindowSubclass(c, theme_drawn_proc, 1, 1);
+        HDC dc = GetDC(c);
+        int want = MulDiv(GL_CELL, GetDeviceCaps(dc, LOGPIXELSY), 96);
+        ReleaseDC(c, dc);
+        for (int i = 0; i < 2; i++) {   // the selection field's height sets the whole: the rest found by measuring
+            RECT r;
+            GetWindowRect(c, &r);
+            int item = (int)SendMessageA(c, CB_GETITEMHEIGHT, (WPARAM)-1, 0) + want - (r.bottom - r.top);
+            SendMessageA(c, CB_SETITEMHEIGHT, (WPARAM)-1, item > 1 ? item : 1);
+        }
+    }
     else if (!lstrcmpA(cls, WC_EDITA) && (GetWindowLongA(c, GWL_EXSTYLE) & WS_EX_CLIENTEDGE)) SetWindowSubclass(c, theme_frame_proc, 1, 0);
 }
 
