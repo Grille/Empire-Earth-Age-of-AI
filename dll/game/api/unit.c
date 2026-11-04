@@ -63,6 +63,24 @@ internal inline char ballistic(ee_unit *u, ee_unit_stats *type, float *from, flo
 }
 // is the map object explored by pl (a site's +0x14: its map object)
 internal inline char explored_by(ee_unit *site, ee_player *pl) { return fn_unit_vis_explored(FIELD(site, of_unit_vis, void *), pl); }
+// its stance, as the game's stance buttons set it (behaviour_table(), dbunitbehavior.dat's rows): 0 scout (never
+// attacks), 1 stand ground, 2 guard, 3 harass, 4 cautious, 5 aggressive; -1 a type that takes none (a building)
+#define UNIT_STANCES 6
+internal int unit_stance(ee_unit *u) {
+    void **tab = behaviour_table();
+    ee_unit_type *td = unit_get_type_data(u);
+    if (!tab || !td || !unit_type_get_behaviours(td)) return -1;
+    for (int b = 0; b < UNIT_STANCES; b++)
+        if (tab[b] && unit_get_behaviour(u) == tab[b]) return b;
+    return -1;
+}
+internal int unit_set_stance(ee_unit *u, int b) {   // 1 when changed
+    void **tab = behaviour_table();
+    ee_unit_type *td = unit_get_type_data(u);
+    if (!tab || b < 0 || b >= UNIT_STANCES || !tab[b] || !td || !unit_type_get_behaviours(td) || unit_get_behaviour(u) == tab[b]) return 0;
+    unit_set_behaviour(u, tab[b]);
+    return 1;
+}
 // a new unit of type t for player pi on tile (x, y), made as the scenario's Create effect makes one (0x5ACD49,
 // docs/triggers.md): the type's create, built, an aircraft's flight time and ammo and a unit's power as new, the
 // player's id for it, the map's place - in the simulation, on every PC alike: no message (the new-unit cheat's goes

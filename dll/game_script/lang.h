@@ -165,6 +165,7 @@ internal const struct x_kmember k_xk_unit[] = {
     { "max_hp", -1, -1, XT_INT, 0 },
     { "ammo", -1, -1, XT_INT, 1 },
     { "power", -1, -1, XT_INT, 1 },
+    { "stance", -1, -1, XT_INT, 1 },
     { "kill", 0, 0, X_ANY, 0 },
     { "remove", 0, 0, X_ANY, 0 },
 };

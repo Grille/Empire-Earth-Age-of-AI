@@ -28,6 +28,10 @@ class unit
     /// its power - a priest's, a prophet's (what its spells cost); a script sets it
     [set]
     int power;
+    /// its stance, as the game's stance buttons: 0 scout (never attacks), 1 stand ground, 2 guard, 3 harass, 4 cautious,
+    /// 5 aggressive; -1 a unit without one (a building). A script sets it: u.stance = 1 (a unit without one keeps none)
+    [set]
+    int stance;
     /// a script's: u.kill() - it dies (as a scenario's Kill effect: its death shown)
     [effect, script]
     extern void kill();

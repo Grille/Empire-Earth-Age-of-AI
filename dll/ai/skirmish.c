@@ -18,8 +18,11 @@
 //   of the stand walks on. Nothing to shoot at the stand: it creeps SK_CREEP closer every SK_CREEP_MS, to
 //   SK_STAND_MIN of the position. (The first try picked only for members without any order: the walk to the stand
 //   is one, 0 targets picked in 26 sorties while the unseen artillery shelled them on the way.)
-// - THE PULL-BACK: enemy fighters seen within SK_CHASE_R of the party's middle that it doesn't beat by SK_HOLD_PCT,
-//   its hit points under SK_BLEED_PCT of what it went out with, or SK_MAX_MS out: home, a plain move.
+// - THE PULL-BACK: enemy fighters coming at it - seen within SK_CHASE_R of the party's middle, moved SK_MOVED tiles
+//   or more since the last look (a defender standing its ground behind its wall chases nobody: on the wall test,
+//   tests/scenarios/hold_gap_medieval.eeai, every sortie turned home "chased" by stand-ground archers) - that it
+//   doesn't beat by SK_HOLD_PCT, its hit points under SK_BLEED_PCT of what it went out with (what stands and shoots
+//   wears it down), or SK_MAX_MS out: home, a plain move.
 // - THE BAIT: the party on its way home with chasers seen within SK_CHASE_R of it, and they within SK_AMBUSH of home:
 //   the force at home goes at them as at a raid (armies.c ar_go, kind 2: home again when they are cleared) when it
 //   beats them by AR_GO_PCT - the enemy broke formation to hunt the party, the force fights it on its own ground.
@@ -41,6 +44,14 @@
 // the bombers' targets given up 3-39 a run against 15-61 without, but fewer bombers (its gold) - razed 27, 56, 81
 // alone, 24, 33, 107 with the party, won 4 of 6 (one at 190.7). Level on all counts: off. The save no longer tells
 // them apart; a position that holds needs a test of its own.
+// The wall test (tests/scenarios/hold_gap_medieval.eeai, 2026-11-05, 20 game seeds each, P2 the variant): the position
+// holds in every run whatever P2 does - P1 keeps 1.4 towers and 3 of 6 ballistae at 12.5 min, P2's force of 36 at
+// 11-12. The party with the chasers as before (every fighter near): 30 sorties, 25 of them home "chased" by the
+// stand-ground archers behind the wall, 212 targets, 31 of 186 members lost; moving ones only (SK_MOVED): 18 sorties,
+// 0 chased, 14 bled, 302 targets, 54 of 124 lost - P1's ballistae left 3.0 / 3.0 / 2.8 (off): level. Its members
+// there are crossbowmen (range 8 upgraded): arrows against a ballista's armour (160) do next to nothing, and the
+// catapults that would hurt it died in the force's first push (one run: 4 minutes at the wall, 2 of 8 lost, 1
+// ballista killed). Still off.
 
 #ifndef SK_ON
 #define SK_ON 0
@@ -59,6 +70,7 @@
 #define SK_PICK 2
 #define SK_HUNT 14
 #define SK_CHASE_R 10
+#define SK_MOVED 2
 #define SK_HOLD_PCT 150
 #define SK_BLEED_PCT 50
 #define SK_MAX_MS 240000
@@ -79,6 +91,7 @@ internal struct sk_st {
     unsigned spotters, sp_lost, sp_trained;
 } g_sk[16];
 internal struct st_side g_sk_own, g_sk_foe;
+internal struct { struct { int id; ivec2 at; } u[64]; int n; uint32_t t; } g_sk_near[16];   // the fighters near at the last look
 
 internal int sk_alive(struct sk_st *s, int k) {
     ee_unit *u = s->m[k].u;
@@ -98,9 +111,13 @@ internal int sk_side(struct sk_st *s, ivec2 *mid) {
     if (mid && n) *mid = iv2((int)(sx / n), (int)(sy / n));
     return n;
 }
-// enemy land fighters pl sees within r of d into g_sk_foe; their middle
-internal int sk_chasers(ee_player *pl, ivec2 d, int r, ivec2 *mid) {
+// enemy land fighters pl sees within r of d that moved SK_MOVED since the last look (SK_EVERY ago: one seen first, or
+// a look too long ago, isn't) into g_sk_foe; their middle
+internal int sk_chasers(ee_player *pl, ivec2 d, int r, ivec2 *mid, uint32_t now) {
     long sx = 0, sy = 0;
+    unsigned idx = (unsigned)player_get_index(pl) & 15;
+    int fresh = g_sk_near[idx].t && now >= g_sk_near[idx].t && now - g_sk_near[idx].t <= 2 * SK_EVERY, n = 0;
+    struct { int id; ivec2 at; } seen[64];
     st_side_clear(&g_sk_foe);
     for (struct grid_it it = grid_it_box(d.x, d.y, r, 1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
@@ -108,9 +125,15 @@ internal int sk_chasers(ee_player *pl, ivec2 d, int r, ivec2 *mid) {
         if (!o || player_get_index(o) <= 0 || !is_enemy(pl, o) || !cv_alive(u) || !ms_land_soldier(u, it.td) || !seen_by(u, pl)) continue;
         ivec2 p = unit_get_tile(u);
         if (ivec2_dist2(p, d) > r * r) continue;
+        int id = unit_get_serial(u), j = 0;
+        if (n < 64) { seen[n].id = id; seen[n++].at = p; }
+        while (j < g_sk_near[idx].n && g_sk_near[idx].u[j].id != id) j++;
+        if (!fresh || j == g_sk_near[idx].n || ivec2_dist2(g_sk_near[idx].u[j].at, p) < SK_MOVED * SK_MOVED) continue;
         sx += p.x; sy += p.y;
         st_side_add(&g_sk_foe, u);
     }
+    memcpy(g_sk_near[idx].u, seen, (size_t)n * sizeof seen[0]);
+    g_sk_near[idx].n = n; g_sk_near[idx].t = now ? now : 1;
     if (mid && g_sk_foe.n) *mid = iv2((int)(sx / g_sk_foe.n), (int)(sy / g_sk_foe.n));
     return g_sk_foe.n;
 }
@@ -251,7 +274,7 @@ internal void sk_spotter(ee_player *pl, unsigned idx, struct armies_st *a, struc
         s->sp = a->held[best].u; s->sp_id = a->held[best].id;
         a->held[best] = a->held[--a->n];
         s->sp_beh = unit_get_behaviour(s->sp);
-        set_behaviour(s->sp, 0);   // Scout: never attacks
+        unit_set_stance(s->sp, 0);   // Scout: never attacks
         s->sp_t = 0; s->spotters++;
     }
     // its point: SP_BACK inside its sight short of the position
@@ -293,7 +316,7 @@ internal void skirmish_tick(ee_player *pl, uint32_t now) {
         for (int k = 0; k < s->n; k++) if (sk_alive(s, k)) unit_goal(s->m[k].u, ar_goal_at(a->home, k, 0), 0, 0x1F40);
     }
     ivec2 cmid = mid;
-    int nch = sk_chasers(pl, mid, SK_CHASE_R, &cmid);
+    int nch = sk_chasers(pl, mid, SK_CHASE_R, &cmid, now);
     float r = nch ? st_ratio(&g_sk_own, &g_sk_foe) : 99.0f;
     if (s->state == 1) {
         const char *why = NULL;
@@ -337,7 +360,7 @@ internal void skirmish_tick(ee_player *pl, uint32_t now) {
         s->end_t = now ? now : 1;
     }
 }
-internal void skirmish_new_game(void) { memset(g_sk, 0, sizeof g_sk); }
+internal void skirmish_new_game(void) { memset(g_sk, 0, sizeof g_sk); memset(g_sk_near, 0, sizeof g_sk_near); }
 internal void skirmish_install(const char *autotest_ini) {
     if (autotest_ini) g_v_skirmish = ini_int("autotest", "v_skirmish", -1, autotest_ini);
     if (g_log) fprintf(g_log, "# skirmish: %d (variant %d)\n", SK_ON, g_v_skirmish);

@@ -1,0 +1,65 @@
+// Continental seed 101, 2 AIs, start epoch 5 (Middle Ages: start_epoch=5 in the run's ini): P2 base ~80,52, P3 base
+// ~40,42. A position that holds, as the player's valley "choke wolf" does (the player, 2026-11-05: build the test, no
+// save of theirs has the case): no way round - a stone wall across the whole continent at x=54 with one 3-tile gap
+// (y 45-47), the idle human's (P1, at war with P2; P3 at peace with both, so P2's only enemy is behind the wall).
+// The gap is covered by two towers (range 5) and six ballistae (range 6, area damage - the Middle Ages' group killer,
+// the player) a few tiles behind it, longbowmen and pikemen in and behind it: what comes through the gap is shelled
+// from where its swords can't answer; P1's soldiers stand their ground (u.stance = 1). P2's force has what outranges
+// that from outside the wall - crossbows and catapults (7), trebuchets (8) - and its own ballistae (6). The
+// skirmishers (skirmish.c, v_skirmish 1: the party of the long-range units and field guns at the shooters' spot)
+// against the force alone; P2 is told to attack (attacknow) four times. Score: the "hold:" pings - P1's towers,
+// ballistae, archers, pikemen and P2's force left -, "# battle" lines, the "# armies: ... skirmish" lines.
+// sh scripts/test/scen.sh 17 hold_gap_medieval "random_map=Continental,map_size=0,ai_count=2,seed=101,start_epoch=5,
+// variant_players=2" "off:v_skirmish=0" "on:v_skirmish=1" (the v_ knobs reach only the variant_players).
+// 2026-11-05, 20 game seeds each: the position holds in every run - at 12.5 min P1 keeps 1.4 towers, 3 of 6
+// ballistae, P2's force of 36 is at 11-12, whatever the party does (skirmish.c: level). Before the stances were set
+// P1's whole defence ran out of the gap and was dead within 3.5 minutes.
+player(1).war(player(2))
+player(2).war(player(1))
+player(1).ally(player(3))
+player(3).ally(player(1))
+player(2).ally(player(3))
+player(3).ally(player(2))
+spawnline(1, unit.b_wall_middle, 54, 0, 54, 44)
+spawnline(1, unit.b_wall_middle, 54, 48, 54, 115)
+spawn(1, unit.b_guard_tower_middle, 52, 43)
+spawn(1, unit.b_guard_tower_middle, 52, 50)
+spawn(1, unit.gun_spear06_balistae, 50, 46, 6)
+spawn(1, unit.arch06_long_bow, 51, 46, 12)
+spawn(1, unit.inf06_pikeman, 52, 46, 12)
+// the spawns are made a few a step, the 105 wall pieces first: the soldiers there before their stance is set
+let tries = 0
+while player(1).count(unit.inf06_pikeman) < 12 and tries < 30 {
+    wait(1s)
+    tries += 1
+}
+// as a player holds a wall: nobody runs out of the gap after what shoots at them (on the idle human's default stance,
+// the first runs: P1's whole defence dead within 3.5 minutes, P2's force at 15 of 35)
+let held = 0
+for u in player(1).units() {
+    if u.stance > 1 {
+        u.stance = 1
+        held += 1
+    }
+}
+ping("hold: {held} of P1's units to stand ground")
+for c in player(1).units(unit.b_capitol) { ping("hold: P1's capitol at {c.pos}") }
+let hold = (when: text) => {
+    let p1 = player(1)
+    let p2 = player(2)
+    ping("hold: {when} at {time} s: P1 towers {p1.count(unit.b_guard_tower_middle)} ballistae {p1.count(unit.gun_spear06_balistae)} longbows {p1.count(unit.arch06_long_bow)} pikemen {p1.count(unit.inf06_pikeman)} wall {p1.count(unit.b_wall_middle)}; P2 soldiers {p2.soldiers} crossbows {p2.count(unit.arch05_cross_bow)} catapults {p2.count(unit.gun_siege04_catapult)} trebuchets {p2.count(unit.gun_siege06_trebuchet)} ballistae {p2.count(unit.gun_spear06_balistae)}")
+}
+wait(75s)
+spawn(2, unit.inf06_longsword, 76, 50, 16)
+spawn(2, unit.cav06_knight, 78, 54, 6)
+spawn(2, unit.arch05_cross_bow, 76, 46, 10)
+spawn(2, unit.gun_siege04_catapult, 78, 46, 3)
+spawn(2, unit.gun_siege06_trebuchet, 79, 44, 2)
+spawn(2, unit.gun_spear06_balistae, 79, 50, 3)
+wait(30s)
+hold("start")
+for i in 1..4 {
+    cmd("attacknow 2")
+    wait(210s)
+    hold("round {i}")
+}

@@ -18,7 +18,7 @@ enum { XS_COMING, XS_THERE, XS_NEVER, XS_DRY };
 internal struct { int x, y, type, pl; unsigned id; unsigned char state; } g_xslot[X_SPAWN_SLOTS];
 internal int g_xslot_n;               // slots used
 internal int g_x_safe;                // 1 while the triggers run (at that point: test/scripts.c script_triggers)
-enum { XJ_SPAWN, XJ_KILL, XJ_REMOVE, XJ_OWNER, XJ_HP, XJ_AMMO, XJ_POWER };
+enum { XJ_SPAWN, XJ_KILL, XJ_REMOVE, XJ_OWNER, XJ_HP, XJ_AMMO, XJ_POWER, XJ_STANCE };
 struct x_job { int op, obj, v; };     // the unit (its handle: xval obj), the value (the owner's index, hit points ...)
 internal struct x_job *g_xjob;
 internal int g_xjob_n, g_xjob_cap;    // still to be done
@@ -71,7 +71,9 @@ internal void x_job_do(const struct x_job *j) {   // one effect done (a unit gon
             g_xmoved = m;
         }
         g_xmoved[g_xmoved_n].from = id, g_xmoved[g_xmoved_n++].to = (unsigned)unit_get_serial(n);
-    } else   // as its Unit-Attribute, exactly (0x5B8823: hit points 0 or less and the unit vanishes)
+    } else if (j->op == XJ_STANCE)   // as its stance buttons (a type without stances: none)
+        unit_set_stance(u, j->v);
+    else   // as its Unit-Attribute, exactly (0x5B8823: hit points 0 or less and the unit vanishes)
         unit_attr_set(j->op == XJ_HP ? SM_UA_HITPOINTS : j->op == XJ_AMMO ? SM_UA_AMMUNITION : SM_UA_POWER, 0, u, j->v, 0, 0, SM_EXACTLY);
 }
 internal void x_units_flush(void) {   // the effects to be done, in the order they were asked for
@@ -136,6 +138,7 @@ internal int x_unit_member_of(struct xctx *c, const struct xval *o, const char *
     else if (!strcmp(name, "max_hp")) { ee_unit_stats *st = unit_get_stats(u); xnum(v, st ? unit_stats_get_hp(st) : 0); }
     else if (!strcmp(name, "ammo")) xnum(v, unit_get_ammo(u));
     else if (!strcmp(name, "power")) xnum(v, unit_get_power(u));
+    else if (!strcmp(name, "stance")) xnum(v, unit_stance(u));
     else return 0;
     return 1;
 }
@@ -162,10 +165,10 @@ internal int x_unit_do(struct xctx *c, const struct xval *o, const char *name, s
     if (x_unit_effect_ok(c, o, t) && !x_did(c, t)) x_job(name[0] == 'k' ? XJ_KILL : XJ_REMOVE, o->obj, 0);
     return 1;
 }
-// u.owner = p, u.hp = n, u.ammo = n, u.power = n (dll_cs/lang/unit.cs's [set] members): 1 done (or told), 0 a mistake (told)
+// u.owner = p, u.hp = n, u.ammo = n, u.power = n, u.stance = n (dll_cs/lang/unit.cs's [set] members): 1 done (or told), 0 a mistake (told)
 internal int x_unit_set(struct xctx *c, const struct xval *o, const char *name, const struct xval *v) {
     char t[100], u[40];
-    int op = !strcmp(name, "owner") ? XJ_OWNER : !strcmp(name, "hp") ? XJ_HP : !strcmp(name, "ammo") ? XJ_AMMO : !strcmp(name, "power") ? XJ_POWER : -1, n;
+    int op = !strcmp(name, "owner") ? XJ_OWNER : !strcmp(name, "hp") ? XJ_HP : !strcmp(name, "ammo") ? XJ_AMMO : !strcmp(name, "power") ? XJ_POWER : !strcmp(name, "stance") ? XJ_STANCE : -1, n;
     x_unit_said(o, u, sizeof u);
     if (op < 0) { x_host_fail(c, "%s.%s can't be set", u, name); return 0; }
     if (op == XJ_OWNER) {
@@ -179,6 +182,7 @@ internal int x_unit_set(struct xctx *c, const struct xval *o, const char *name, 
             return 0;
         }
         n = (int)v->n;
+        if (op == XJ_STANCE && n >= UNIT_STANCES) { x_host_fail(c, "%s.stance = %d: 0 to %d (scout ... aggressive)", u, n, UNIT_STANCES - 1); return 0; }
         snprintf(t, sizeof t, "%s.%s = %d", u, name, n);
     }
     if (!x_unit_effect_ok(c, o, t)) return 0;

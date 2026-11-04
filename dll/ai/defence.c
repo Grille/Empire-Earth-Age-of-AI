@@ -861,13 +861,6 @@ internal void asg_units(ee_player *pl) {   // the units of AI pl's attack subgro
         }
     }
 }
-internal int set_behaviour(ee_unit *u, int b) {   // 1 when changed
-    void **tab = behaviour_table();
-    ee_unit_type *td = unit_get_type_data(u);
-    if (!tab || !tab[b] || !td || !unit_type_get_behaviours(td) || unit_get_behaviour(u) == tab[b]) return 0;
-    unit_set_behaviour(u, tab[b]);
-    return 1;
-}
 internal void hold_town(ee_player *pl, unsigned idx, uint32_t now) {
     static uint32_t last[16];
     if (!g_hold || g_def_off[idx] || (now >= last[idx] && now - last[idx] < 3000)) return;
@@ -912,14 +905,14 @@ internal void hold_town(ee_player *pl, unsigned idx, uint32_t now) {
     // point beyond 35 tiles); attack groups' members beyond 35 tiles: as the game has them (Aggressive)
     for (int j = 0; j < g_asg_n; j++) {
         ee_unit *u = g_asg_units[j];
-        if (ivec2_dist2(unit_get_tile(u), iv2(s->bx, s->by)) > 35 * 35) set_behaviour(u, 5);
+        if (ivec2_dist2(unit_get_tile(u), iv2(s->bx, s->by)) > 35 * 35) unit_set_stance(u, 5);
     }
     for (int k = 0; k < s->no; k++) {
         ee_unit *u = s->own[k];
         ee_goal *g = unit_get_goal(u);
         if (landing_has_unit(pl, u)) continue;   // the landing leads them (it ordered loaded transports at their docks against raiders)
         if (g && goal_is_location(g)) {
-            if (vec2_dist2(v2(goal_get_dest_x(g), goal_get_dest_y(g)), v2((float)s->bx, (float)s->by)) > 35.0f * 35.0f) { set_behaviour(u, 5); continue; }   // marching out
+            if (vec2_dist2(v2(goal_get_dest_x(g), goal_get_dest_y(g)), v2((float)s->bx, (float)s->by)) > 35.0f * 35.0f) { unit_set_stance(u, 5); continue; }   // marching out
         }
         home[nh++] = u;
         hpow += unit_power(u);
@@ -928,7 +921,7 @@ internal void hold_town(ee_player *pl, unsigned idx, uint32_t now) {
     // the home soldiers against the enemies near (towers left out: they don't follow the soldiers out of their range)
     float stand = g_fight_est ? st_ratio(&g_ms_own, &g_ms_foe) : (epow > 0 ? hpow / epow : 1e6f);
     if (en == 0) {   // nothing near: as the game has them
-        for (int k = 0; k < nh; k++) set_behaviour(home[k], 5);
+        for (int k = 0; k < nh; k++) unit_set_stance(home[k], 5);
         if (g_hold_st[idx].holding && g_log) fprintf(g_log, "# hold: P%u at %.1f min: no enemy near the town - soldiers free again\n", idx, now / 60000.0);
         g_hold_st[idx].holding = 0;
         return;
@@ -938,7 +931,7 @@ internal void hold_town(ee_player *pl, unsigned idx, uint32_t now) {
         for (int k = 0; k < nh; k++) {
             ee_unit *u = home[k];
             ee_unit *best = NULL;
-            set_behaviour(u, 5);
+            unit_set_stance(u, 5);
             int bd = 0x7FFFFFFF, x = unit_get_x(u), y = unit_get_y(u);
             for (int j = 0; j < en && j < 128; j++) {
                 if (unit_get_hp(enemy[j]) <= 0) continue;
@@ -969,7 +962,7 @@ internal void hold_town(ee_player *pl, unsigned idx, uint32_t now) {
         for (int k = 0; k < nh; k++) {
             ee_unit *u = home[k];
             ee_goal *g = unit_get_goal(u);
-            changed += set_behaviour(u, 2);
+            changed += unit_set_stance(u, 2);
             float ux = (float)unit_get_x(u) - hx, uy = (float)unit_get_y(u) - hy;
             if (ux * ux + uy * uy <= 16.0f) continue;
             if (g && goal_is_location(g) && fabsf(goal_get_dest_x(g) - hx) < 2 && fabsf(goal_get_dest_y(g) - hy) < 2) continue;
