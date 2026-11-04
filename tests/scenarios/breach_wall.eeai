@@ -1,21 +1,29 @@
 // Continental seed 101, 2 AIs, start epoch 4 (base ini start_epoch=4): P2 base ~80,52, P3 base ~40,42.
-// No way round at all: a wall across the whole continent at x=60, archers and spearmen behind it, two towers - the
+// No way round at all: a wall across the whole continent at x=54 (13 tiles from P2's home: at 7 its raids took the defenders on at once and broke the wall), archers and spearmen behind it, two towers - the
 // breach (armies.c AR_BREACH): does P2's force stand off and have the wall and the defenders shelled before it goes in,
-// or walk into the wall? P2 gets a mixed army with 3 catapults and 2 rams, a tower of its own at the wall that sees
-// the position (the force targets what it sees - honest_vision off), and is told to attack twice (attacknow).
+// or walk into the wall? The position is the idle human's (P1, at war with P2, allied with P3): it holds as a player's
+// defence does - P3's own soldiers there sallied out at P2's tower and were beaten in the open, no breach. P2 gets a
+// mixed army with 3 catapults and 2 rams, a tower of its own at the wall that sees the position, and is told to attack
+// three times (attacknow).
+// Still no breach (2026-11-04): P2's tower near the wall pulls its home forward (62,47) and its raids take the
+// defenders on within 30 s (a raid's attack-move breaks wall pieces: no wall on the way after it).
 // Score: P3's buildings razed, both sides' losses ("# battle"), the "# armies:" and "# siege:" lines.
-spawnline(3, unit.b_wall_bronze, 60, 0, 60, 115)
-spawn(3, unit.b_guard_tower_bronze, 56, 44)
-spawn(3, unit.b_guard_tower_bronze, 56, 50)
-spawn(3, unit.arch03_simple_bowman, 57, 47, 12)
-spawn(3, unit.inf02_spearman, 55, 47, 10)
+diplo(1, 2, 1)
+diplo(2, 1, 1)
+spawnline(1, unit.b_wall_bronze, 54, 0, 54, 115)
+spawn(1, unit.b_guard_tower_bronze, 50, 44)
+spawn(1, unit.b_guard_tower_bronze, 50, 50)
+spawn(1, unit.arch03_simple_bowman, 51, 47, 12)
+spawn(1, unit.inf02_spearman, 49, 47, 10)
 spawn(2, unit.inf02_spearman, 76, 50, 20)
 spawn(2, unit.arch03_simple_bowman, 76, 58, 12)
 spawn(2, unit.cav04_bronze_spear_cavalry, 82, 58, 10)
 spawn(2, unit.gun_siege04_catapult, 72, 54, 3)
 spawn(2, unit.siege04_ram, 74, 54, 2)
-spawn(2, unit.b_guard_tower_bronze, 64, 47)
+spawn(2, unit.b_guard_tower_bronze, 59, 47)
 wait(60s)
+cmd("attacknow 2")
+wait(180s)
 cmd("attacknow 2")
 wait(180s)
 cmd("attacknow 2")

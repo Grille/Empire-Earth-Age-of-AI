@@ -224,6 +224,8 @@ internal struct armies_st {
     int breach, way_walls; ivec2 focus, standoff; uint32_t breach_t, breach_chk; unsigned breaches, breach_pushes, breach_homes;   // the breach (AR_BREACH, stage 3)
     unsigned routed, round_ways;                             // pushes routed; of them with a way round (corners)
     struct { ivec2 at; uint32_t t; } grind[8]; unsigned grinds;   // the meat grinders: where the force traded badly, when (AR_GRIND_MS)
+    struct { ivec2 at; int r; uint32_t t; } fire[16]; unsigned fires;   // the fire marks (AR_FIRE): where shots at the force came from, from how far, when
+    int scout_id, backs_breach; uint32_t scout_t; unsigned scouts, stand_backs;   // the breach's look: the member sent (its serial), when; the stand-off moved back this breach
 } g_armies[16];
 internal struct st_side g_ar_own;
 internal int g_ar_debug = 0, g_ar_foe_mid_n; internal float g_ar_foe_mid_hp;   // DEBUG
@@ -385,7 +387,33 @@ internal int ar_home(ee_player *pl, unsigned idx, struct armies_st *a, uint32_t 
 #define AR_GRIND_R 12
 #define AR_GRIND_LEVEL 3
 #define AR_GRIND_MS 1200000
-internal int g_v_ar_route = -1, g_v_ar_breach = -1;
+// THE FIRE MARKS (AR_FIRE): where the shots that hit the force came from - each member hit since the last judgement,
+// its attacker (unit +0x1DC, the game's: dropped once that attack ends) AR_FIRE_MIN tiles or more off it: its tile and
+// that distance, kept for AR_GRIND_MS (a mark within AR_FIRE_JOIN of one taken into it). A player reads as much off
+// the shells coming in; the danger map knows only the shooters seen, and artillery fires from beyond sight ("choke
+// wolf": a stand-off 8 tiles from the position lost 9145 hit points to guns it never saw, and dealt 106). The way
+// search counts AR_GRIND_LEVEL threats within a mark's distance + AR_FIRE_PAD: the way round and the stand-off keep
+// out of the reach the force has felt. No meat grinder is kept within AR_GRIND_R of home then (a bad trade there is a
+// defence of home, not the enemy's position: the danger of "choke wolf"'s breach began at home, the stand-off with it).
+// At the breach (stage 3): a mark since it began over the stand-off - the way searched again from home, the stand-off
+// back (a plain move; AR_BREACH_BACKS times, then home); a mark with nothing seen near it, or the position with nothing
+// seen near its focus - the fastest member walks to its sight short of it (a plain move: it looks, the siege and the
+// counter-fire shoot what it sees; back to the stand-off after AR_SCOUT_MS), one at a time. OFF (2026-11-04): the
+// player's save "choke wolf" (P3 pushed every 4 minutes from 30, 45 and 90 s, 153 -> 180 min; means of the three)
+// without - with - with the breach too: its buildings lost 12.0 / 6.7 / 5.7, razed 32.3 / 21.0 / 16.3 (the 32 one
+// run's 57), killed 318 / 304 / 277, lost 1415 / 1360 / 1360 - fewer losses, less razed; the breach once a run (2
+// and 8 looks, one stand-off back). Head-to-head (late.eeai, 75 min, 24 mirrored games, 4 AIs) with - without: kills
+// -10.4 (se 20.2), losses +6.4 (11.0), razed -2.3 (7.1), soldiers -0.3 (6.1) - noise.
+#ifndef AR_FIRE
+#define AR_FIRE 0
+#endif
+#define AR_FIRES 16
+#define AR_FIRE_MIN 5
+#define AR_FIRE_JOIN 4
+#define AR_FIRE_PAD 2
+#define AR_BREACH_BACKS 3
+#define AR_SCOUT_MS 20000
+internal int g_v_ar_route = -1, g_v_ar_breach = -1, g_v_ar_fire = -1;
 internal unsigned g_ar_push_now;   // test (attacknow): the players whose force pushes at its next tick at home
 internal struct ar_route_buf { int n; int *g, *par; uint64_t *heap; uint8_t *seen, *dang, *wall; unsigned short *land; int hn; } g_arr;   // seen: 1 open, 2 done; wall: an enemy wall or gate seen on the cell
 internal int ar_route_alloc(int n) {
@@ -421,7 +449,7 @@ internal uint64_t ar_hpop(void) {
 }
 // the cells' land and danger for pl's map now (danger: the most threats on a tile of the cell)
 internal int ar_route_cells(unsigned idx, int size, unsigned short land, const struct armies_st *a, uint32_t now) {
-    int n = (size + AR_CELL - 1) / AR_CELL;
+    int n = (size + AR_CELL - 1) / AR_CELL, fire = PV(idx, g_v_ar_fire, AR_FIRE);
     if (!ar_route_alloc(n)) return 0;
     const uint8_t *dm = danger_map(idx, DANGER_THREATS, size);
     for (int cy = 0; cy < n; cy++)
@@ -435,6 +463,10 @@ internal int ar_route_cells(unsigned idx, int size, unsigned short land, const s
                 for (int x = cx * AR_CELL; x < cx * AR_CELL + AR_CELL && x < size; x++) if (dm[y * size + x] > dmax) dmax = dm[y * size + x];
             for (int k = 0; k < 8; k++)
                 if (a->grind[k].t && now - a->grind[k].t < AR_GRIND_MS && ivec2_dist2(m, a->grind[k].at) <= AR_GRIND_R * AR_GRIND_R) dmax += AR_GRIND_LEVEL;
+            for (int k = 0; fire && k < AR_FIRES; k++) {
+                int r = a->fire[k].r + AR_FIRE_PAD;
+                if (a->fire[k].t && now - a->fire[k].t < AR_GRIND_MS && ivec2_dist2(m, a->fire[k].at) <= r * r) dmax += AR_GRIND_LEVEL;
+            }
             g_arr.dang[c] = (uint8_t)(dmax > 255 ? 255 : dmax);
         }
     memset(g_arr.wall, 0, (size_t)n * n);
@@ -621,6 +653,13 @@ internal int ar_enemy_near(ee_player *pl, ivec2 d, int r, int buildings) {   // 
         ee_player *o = unit_get_owner(u);
         if (!o || player_get_index(o) <= 0 || !is_enemy(pl, o) || !cv_alive(u) || ivec2_dist2(unit_get_tile(u), d) > r * r) continue;
         if ((buildings ? fr_building(it.td) : ms_land_soldier(u, it.td)) && seen_by(u, pl)) return 1;
+    }
+    return 0;
+}
+internal int ar_enemy_seen(ee_player *pl, ivec2 d, int r) {   // anything of an enemy pl sees within r of d
+    for (struct grid_it it = grid_it_box(d.x, d.y, r, 1); grid_it_next(&it); ) {
+        ee_player *o = unit_get_owner(it.u);
+        if (o && player_get_index(o) > 0 && is_enemy(pl, o) && cv_alive(it.u) && ivec2_dist2(unit_get_tile(it.u), d) <= r * r && seen_by(it.u, pl)) return 1;
     }
     return 0;
 }
@@ -827,16 +866,35 @@ internal int ar_count(struct armies_st *a, int out) {
     for (int k = 0; k < a->n; k++) n += (!out || a->held[k].out) && cv_alive(a->held[k].u);
     return n;
 }
+// a fire mark at e's tile, d tiles from what it hit (AR_FIRE)
+internal void ar_fire_mark(struct armies_st *a, ivec2 e, int d, uint32_t now) {
+    int k, old = 0;
+    for (k = 0; k < AR_FIRES; k++) {
+        if (a->fire[k].t && now - a->fire[k].t < AR_GRIND_MS && ivec2_dist2(a->fire[k].at, e) <= AR_FIRE_JOIN * AR_FIRE_JOIN) break;
+        if (a->fire[k].t < a->fire[old].t) old = k;
+    }
+    if (k == AR_FIRES) { k = old; a->fire[k].at = e; a->fire[k].r = 0; a->fires++; }
+    if (d > a->fire[k].r) a->fire[k].r = d;
+    a->fire[k].t = now ? now : 1;
+}
 // THE TRADE since the last judgement (AR_JUDGE above): the hit points the members out lost and those the enemy seen
-// near mid lost; the enemy near mid kept for the next. Returns the members fighting.
-internal int ar_trade(ee_player *pl, struct armies_st *a, ivec2 mid, float *dealt, float *lost) {
-    int fighting = 0;
+// near mid lost; the enemy near mid kept for the next; where the shots came from (AR_FIRE). Returns the members fighting.
+internal int ar_trade(ee_player *pl, unsigned idx, struct armies_st *a, ivec2 mid, float *dealt, float *lost, uint32_t now) {
+    int fighting = 0, fire = PV(idx, g_v_ar_fire, AR_FIRE);
     *dealt = *lost = 0.0f;
     for (int k = 0; k < a->n; k++) {
         ee_unit *u = a->held[k].u;
         if (!a->held[k].out) { a->held[k].hp = -1; continue; }
         int hp = cv_alive(u) ? unit_get_hp(u) : 0;
         if (a->held[k].hp > hp) *lost += (float)(a->held[k].hp - hp);
+        if (fire && hp > 0 && a->held[k].hp > hp) {
+            ee_unit *e = unit_get_attacker(u);
+            ee_player *o = e ? unit_get_owner(e) : NULL;
+            if (o && player_get_index(o) > 0 && is_enemy(pl, o) && cv_alive(e)) {
+                long d2 = ivec2_dist2(unit_get_tile(e), unit_get_tile(u));
+                if (d2 >= AR_FIRE_MIN * AR_FIRE_MIN) ar_fire_mark(a, unit_get_tile(e), (int)ceilf(sqrtf((float)d2)), now);
+            }
+        }
         a->held[k].hp = hp;
         ee_goal *g = hp > 0 ? unit_get_goal(u) : NULL;
         fighting += g && goal_is_attack(g);
@@ -856,6 +914,83 @@ internal int ar_trade(ee_player *pl, struct armies_st *a, ivec2 mid, float *deal
     }
     return fighting;
 }
+// the breach's look (AR_FIRE): the stand-off under fire - back; what fires at it, or what holds the position, unseen -
+// the fastest member looks. 1: the breach is over or the force walks back (nothing more this check)
+internal int ar_breach_look(ee_player *pl, unsigned idx, struct armies_st *a, uint32_t now) {
+    int hit = 0;
+    for (int k = 0; k < AR_FIRES && !hit; k++) {
+        int r = a->fire[k].r + AR_FIRE_PAD;
+        hit = a->fire[k].t >= a->breach_t && now - a->fire[k].t < AR_GRIND_MS && ivec2_dist2(a->fire[k].at, a->standoff) <= r * r;
+    }
+    if (hit) {
+        ivec2 old = a->standoff, focus = a->focus;
+        ee_unit *t = NULL;
+        int d = 0, line = 0, n = ar_count(a, 1);
+        if (a->backs_breach >= AR_BREACH_BACKS || !ar_route(pl, idx, a, a->home, &t, &d, &line, now)) {
+            ar_log(idx, now, "the breach at %d,%d: the stand-off %d,%d under fire %s - the force of %d home to %d,%d", focus.x, focus.y, old.x, old.y,
+                   a->backs_breach >= AR_BREACH_BACKS ? "again" : "and no way left", n, a->home.x, a->home.y);
+            a->breach_homes++;
+            ar_stopped(a, g_sgs_foe.hp, 0);
+            ar_home_all(pl, idx, a, now);
+            return 1;
+        }
+        a->backs_breach++; a->stand_backs++;
+        a->target = t; a->target_id = unit_get_serial(t); a->dest = unit_get_tile(t);
+        a->stage_t = now ? now : 1; a->way_i = 0;
+        if (a->breach) {
+            g_ar_breach[idx].focus = a->focus; g_ar_breach[idx].standoff = a->standoff;
+            ar_log(idx, now, "the breach at %d,%d: the stand-off %d,%d under fire - back to %d,%d (the position at %d,%d, danger on the way %d)", focus.x, focus.y, old.x, old.y,
+                   a->standoff.x, a->standoff.y, a->focus.x, a->focus.y, d);
+            for (int k = 0; k < a->n; k++) if (a->held[k].out && cv_alive(a->held[k].u)) ar_order(a, k, ar_goal_at(a->standoff, k, 0), now);
+        } else {
+            g_ar_breach[idx].on = 0;
+            a->stage = a->nway ? 2 : 0;
+            ar_log(idx, now, "the breach at %d,%d: the stand-off %d,%d under fire - a way round it now (%d corners, danger %d) to %d,%d", focus.x, focus.y, old.x, old.y, a->nway, d, a->dest.x, a->dest.y);
+            if (a->nway) { for (int k = 0; k < a->n; k++) if (a->held[k].out && cv_alive(a->held[k].u)) ar_order(a, k, ar_goal_at(a->way[0], k, 1), now); }
+            else ar_attack_out(a, 1, now);
+        }
+        return 1;
+    }
+    // the look: the member sent back after AR_SCOUT_MS; then the next where something fires unseen or the position is unseen
+    ee_unit *sc = a->scout_id ? unit_by_id((unsigned)a->scout_id) : NULL;
+    if (sc && (unit_get_serial(sc) != a->scout_id || !cv_alive(sc))) sc = NULL;
+    if (sc && now - a->scout_t < AR_SCOUT_MS) return 0;
+    if (sc) {
+        for (int k = 0; k < a->n; k++) if (a->held[k].u == sc) { ar_order(a, k, ar_goal_at(a->standoff, k, 0), now); break; }
+        a->scout_id = 0;
+        return 0;
+    }
+    a->scout_id = 0;
+    ivec2 look = a->focus;
+    long best = -1;
+    for (int k = 0; k < AR_FIRES; k++) {
+        if (!a->fire[k].t || now - a->fire[k].t >= AR_GRIND_MS || ivec2_dist2(a->fire[k].at, a->focus) > (AR_BREACH_R + AR_GRIND_R) * (AR_BREACH_R + AR_GRIND_R)) continue;
+        if (ar_enemy_seen(pl, a->fire[k].at, AR_FIRE_JOIN)) continue;
+        long d = ivec2_dist2(a->fire[k].at, a->standoff);
+        if (best < 0 || d < best) { best = d; look = a->fire[k].at; }
+    }
+    if (best < 0 && ar_enemy_seen(pl, a->focus, AR_FIRE_JOIN * 2)) return 0;   // the position is seen
+    int kb = -1;
+    float vb = 0.0f;
+    for (int k = 0; k < a->n; k++) {
+        ee_unit *u = a->held[k].u;
+        if (!a->held[k].out || !cv_alive(u) || unit_get_hp(u) * 2 < unit_type_get_hp(unit_get_type_data(u))) continue;
+        ee_unit_stats *st = unit_get_stats(u);
+        float v = st ? unit_stats_get_speed(st) : 0.0f;
+        if (kb < 0 || v > vb) { kb = k; vb = v; }
+    }
+    if (kb < 0) return 0;
+    ee_unit *u = a->held[kb].u;
+    ee_unit_stats *st = unit_get_stats(u);
+    float sight = st ? unit_stats_get_sight(st) : 4.0f, dx = (float)(a->standoff.x - look.x), dy = (float)(a->standoff.y - look.y), dl = sqrtf(dx * dx + dy * dy);
+    ivec2 at = look;
+    if (dl > sight) { at.x = look.x + (int)(dx / dl * (sight - 1.0f)); at.y = look.y + (int)(dy / dl * (sight - 1.0f)); }
+    ar_order(a, kb, ar_goal_at(at, 0, 0), now);
+    a->scout_id = unit_get_serial(u); a->scout_t = now ? now : 1; a->scouts++;
+    ar_log(idx, now, "the breach at %d,%d: a look at %d,%d (%s) - type %d to %d,%d (sight %.0f)", a->focus.x, a->focus.y, look.x, look.y, best >= 0 ? "fire from there, nothing seen" : "the position unseen",
+           unit_type_get_id(unit_get_type_data(u)), at.x, at.y, sight);
+    return 0;
+}
 // the force out: its judgement, its next leg or its way home
 internal void ar_out(ee_player *pl, unsigned idx, struct armies_st *a, uint32_t now) {
     ivec2 mid;
@@ -874,7 +1009,7 @@ internal void ar_out(ee_player *pl, unsigned idx, struct armies_st *a, uint32_t 
         int own = g_ar_own.n, foe = g_sgs_foe.n;
         a->ratio = a->stage == 3 ? r : rd < r ? rd : r;   // at the stand-off: its own spot (the target is beyond the position it waits out)
         float dealt, lost, sd = 0.0f, sl = 0.0f;
-        int fighting = ar_trade(pl, a, mid, &dealt, &lost), judge = PV(idx, g_v_ar_judge, AR_JUDGE);
+        int fighting = ar_trade(pl, idx, a, mid, &dealt, &lost, now), judge = PV(idx, g_v_ar_judge, AR_JUDGE);
         int contact = fighting >= AR_CONTACT_MIN && fighting * 10 >= n;
         if (contact) {
             a->dealt[a->trade_n % AR_TRADE_N] = dealt; a->lost[a->trade_n % AR_TRADE_N] = lost;
@@ -888,9 +1023,9 @@ internal void ar_out(ee_player *pl, unsigned idx, struct armies_st *a, uint32_t 
             if (tn >= AR_TRADE_MIN && sl * 100.0f > sd * (float)AR_TRADE_BAD && sl * 100.0f >= a->out_hp * (float)AR_TRADE_FLOOR) {
                 ar_log(idx, now, "the force of %d at %d,%d is trading badly (lost %.0f, dealt %.0f in %d judgements; %d fighting) - home to %d,%d", n, mid.x, mid.y, sl, sd, tn, fighting, a->home.x, a->home.y);
                 a->traded_home++;
-                int gk = 0;   // the meat grinder remembered (the oldest place taken)
+                int gk = 0;   // the meat grinder remembered (the oldest place taken) - not at home with the fire marks
                 for (int k = 1; k < 8; k++) if (a->grind[k].t < a->grind[gk].t) gk = k;
-                a->grind[gk].at = mid; a->grind[gk].t = now ? now : 1; a->grinds++;
+                if (!PV(idx, g_v_ar_fire, AR_FIRE) || ivec2_dist2(mid, a->home) > AR_GRIND_R * AR_GRIND_R) { a->grind[gk].at = mid; a->grind[gk].t = now ? now : 1; a->grinds++; }
                 if (a->out == 1) ar_stopped(a, rd < r ? g_sgs_foe.hp : g_ar_foe_mid_hp, 0);
                 ar_home_all(pl, idx, a, now);
                 return;
@@ -913,6 +1048,7 @@ internal void ar_out(ee_player *pl, unsigned idx, struct armies_st *a, uint32_t 
     if (a->stage == 3) {   // the breach: the way on searched again - open, the push; too long, the push if it wins there, else home
         if (now - a->breach_chk < AR_BREACH_EVERY) return;
         a->breach_chk = now ? now : 1;
+        if (PV(idx, g_v_ar_fire, AR_FIRE) && ar_breach_look(pl, idx, a, now)) return;
         ee_map *map = game_map();
         int size = map ? (int)map_get_size(map) : 0, cn = size > 0 ? ar_route_cells(idx, size, map_area(a->standoff, 2), a, now) : 0, d = 0, w = 0, len = 0;
         static int path[65536];
@@ -942,7 +1078,7 @@ internal void ar_out(ee_player *pl, unsigned idx, struct armies_st *a, uint32_t 
         if (arrived * 100 >= n * AR_APPROACH_PCT || now - a->stage_t >= AR_LEG_MAX) {
             a->stage_t = now ? now : 1;
             if (++a->way_i >= a->nway && a->breach) {
-                a->stage = 3; a->breach_t = a->breach_chk = now ? now : 1; a->breaches++;
+                a->stage = 3; a->breach_t = a->breach_chk = now ? now : 1; a->breaches++; a->backs_breach = 0; a->scout_id = 0;
                 g_ar_breach[idx].on = 1; g_ar_breach[idx].focus = a->focus; g_ar_breach[idx].standoff = a->standoff;
                 ar_log(idx, now, "at the stand-off %d,%d (%d of %d there): the position at %d,%d is shelled before the push at %d,%d", a->standoff.x, a->standoff.y, arrived, n, a->focus.x, a->focus.y, a->dest.x, a->dest.y);
             } else if (a->way_i >= a->nway) {
@@ -1152,9 +1288,9 @@ internal void armies_tick(ee_player *pl, uint32_t now) {
     ar_at_home(pl, idx, a, now);
     if (g_log && g_autotest && (!a->log_t || now < a->log_t || now - a->log_t >= 60000)) {
         a->log_t = now ? now : 1;
-        ar_log(idx, now, "held %d (in all %u), %s%d,%d (judged %.2f), pushes %u (pressing on %u) legs %u raids %u backs %u waits %u, orders %u, offers refused %u, forted %u, on the way home lost %u of %u (hp %.0f of %.0f), stands %u, group moves %u (approaches %u, gathers %u), judgements in contact %u, homes by the trade %u, pushes routed %u (a way round %u), breaches %u (pushed %u, home %u), next attack at %.1f min",
+        ar_log(idx, now, "held %d (in all %u), %s%d,%d (judged %.2f), pushes %u (pressing on %u) legs %u raids %u backs %u waits %u, orders %u, offers refused %u, forted %u, on the way home lost %u of %u (hp %.0f of %.0f), stands %u, group moves %u (approaches %u, gathers %u), judgements in contact %u, homes by the trade %u, pushes routed %u (a way round %u), breaches %u (pushed %u, home %u, stand-offs back %u, looks %u), fire marks %u, next attack at %.1f min",
                a->n, a->held_all, a->out == 1 ? "out at " : a->out == 2 ? "at a raid at " : "home at ", a->out ? a->dest.x : a->home.x, a->out ? a->dest.y : a->home.y,
-               a->ratio > 99.0f ? 99.0f : a->ratio, a->pushes, a->presses, a->legs, a->raids, a->backs, a->waits, a->orders, a->refused, a->forted, a->way_lost, a->way_n, a->way_hp_lost, a->way_hp, a->stands, a->group_moves, a->approaches, a->gathers, a->contacts, a->traded_home, a->routed, a->round_ways, a->breaches, a->breach_pushes, a->breach_homes, player_get_next_attack(pl) / 60000.0);
+               a->ratio > 99.0f ? 99.0f : a->ratio, a->pushes, a->presses, a->legs, a->raids, a->backs, a->waits, a->orders, a->refused, a->forted, a->way_lost, a->way_n, a->way_hp_lost, a->way_hp, a->stands, a->group_moves, a->approaches, a->gathers, a->contacts, a->traded_home, a->routed, a->round_ways, a->breaches, a->breach_pushes, a->breach_homes, a->stand_backs, a->scouts, a->fires, player_get_next_attack(pl) / 60000.0);
     }
 }
 internal void armies_new_game(int from_save) { memset(g_armies, 0, sizeof g_armies); g_ar_load = from_save; g_ar_loaded = 0; }
@@ -1185,6 +1321,7 @@ internal void armies_install(const char *autotest_ini) {
         g_v_ar_far_pct = ini_int("autotest", "v_ar_far_pct", -1, autotest_ini);
         g_v_ar_route = ini_int("autotest", "v_ar_route", -1, autotest_ini);
         g_v_ar_breach = ini_int("autotest", "v_ar_breach", -1, autotest_ini);
+        g_v_ar_fire = ini_int("autotest", "v_ar_fire", -1, autotest_ini);
     }
     if (g_log) fprintf(g_log, "# mod armies: %d (variant %d)\n", g_mod_armies, g_v_mod_armies);
 }
