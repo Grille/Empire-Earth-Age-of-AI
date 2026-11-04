@@ -315,6 +315,11 @@ internal inline uint32_t *model_lods_at(const ee_model *o) { return (uint32_t *)
 // a model's material (GEMaterial, Low-Level Engine.dll, 0x48: AllocateInternalData; its ranges LoadMaterialsChunk):
 // its vertices a run of the model's, its triangles a run of each lod's whose indices count from vertex_first - drawn
 // as one: the run copied into the vertex buffer, the triangles indexed into it (DrawModelHierarchy)
+// per screen: its texture (GETexture, the texture manager's - one per file, shared by the models that load it:
+// LoadTexturesForScreen, SetTexture counts its users)
+internal inline void **material_get_textures(const ee_material *o) { return *(void ***)((uint8_t *)o + of_material_textures); }
+internal inline void material_set_textures(ee_material *o, void **v) { *(void ***)((uint8_t *)o + of_material_textures) = v; }
+internal inline void ***material_textures_at(const ee_material *o) { return (void ***)((uint8_t *)o + of_material_textures); }
 // per lod: its first triangle in the model's polygons[lod]
 internal inline uint32_t *material_get_polygon_first(const ee_material *o) { return *(uint32_t **)((uint8_t *)o + of_material_polygon_first); }
 internal inline void material_set_polygon_first(ee_material *o, uint32_t *v) { *(uint32_t **)((uint8_t *)o + of_material_polygon_first) = v; }
@@ -514,6 +519,7 @@ internal int spec_engine_display_select(int build) {
         of_model_polygon_count = 0x148;
         of_model_vertex_count = 0x14C;
         of_model_lods = 0x154;
+        of_material_textures = 0x24;
         of_material_polygon_first = 0x2C;
         of_material_polygon_count = 0x30;
         of_material_vertex_first = 0x34;
@@ -641,6 +647,7 @@ internal int spec_engine_display_select(int build) {
         of_model_polygon_count = 0x148;
         of_model_vertex_count = 0x14C;
         of_model_lods = 0x154;
+        of_material_textures = 0x24;
         of_material_polygon_first = 0x2C;
         of_material_polygon_count = 0x30;
         of_material_vertex_first = 0x34;

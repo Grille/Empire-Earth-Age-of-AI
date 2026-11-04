@@ -63,42 +63,74 @@ internal ee_model *ws_model(ee_unit *u, int anim) {
 // a whole band of it, the player's colour with it (the player, 2026-11-04: "it hides the player color for some wall
 // pieces ... instead of sinking the mesh its possible to extrude from the wall pieces downwards?"). So a piece stands
 // on the ground and its model reaches below it: every triangle with two corners on the mesh's bottom (its lowest
-// point, WS_SKIRT_EDGE) goes on downwards by a quad WS_SKIRT deep, its two lower corners copies of the edge's
-// (normal, texture coordinates: the bottom row of the texture drawn down), in the triangle's material and winding
-// - into the ground where it is level, filling the gap where it falls away. A model is the engine's (GEModel, one
-// for every piece of that kind and era): each material a run of its vertices and of each level of detail's
-// triangles, indices counted from the run's first (spec GEMaterial) - its arrays made anew larger by the display
-// DLL (DX7Rasterizer.create_vertex_array, create_polygon_array), each material's run followed by its skirt. The
-// renderer copies a material's vertices into its vertex buffer every time it draws it (CopyStdVertices), so the new
-// arrays are drawn from the next frame on. The graphics thread draws the models while the simulation runs: the fit
-// (simulation thread) asks for the skirt (ws_skirt_want), the model's draw (DrawModelHierarchy, hooked in both
-// display DLLs) makes it before drawing it, on the one thread that reads a model's arrays. The old arrays stay (other
-// code may hold them; a few KB a model). Only the picture: the pieces' places and the game state are the fit's.
+// point, WS_SKIRT_EDGE) goes on downwards WS_SKIRT deep, in the triangle's winding - into the ground where it is
+// level, filling the gap where it falls away. Its face is the foundation of the tower of the wall's era (the player:
+// "the streched down skirt dosnt look great yet, and is fully broken on copper age wall because of alpha ... reusing
+// the towers foundation texture with the propper uv mapping"): the towers reach 0.47 .. 0.84 below their base, their
+// foundation a patch of the same texture sheet the era's walls draw from (the game gives one sheet to an era's walls,
+// posts and tower - the model files' texture names are not the ones drawn), so the skirt is laid in the wall's
+// material with the tower's texture, the patch of the tower's largest foundation face (its corners' texture
+// coordinates, which way runs along and which down) tiled over it at the tower's scale: a tile the face's width
+// along the edge, its height down. A wall with no such material (none seen) or no tower (barbed wire, no skirt)
+// draws its own bottom row down instead. A model is the engine's (GEModel, one for every piece of that kind and
+// era): each material a run of its vertices and of each level of detail's triangles, indices counted from the run's
+// first (spec GEMaterial) - its arrays made anew larger by the display DLL (DX7Rasterizer.create_vertex_array,
+// create_polygon_array), each material's run followed by its skirt. The renderer copies a material's vertices into
+// its vertex buffer every time it draws it (CopyStdVertices), so the new arrays are drawn from the next frame on.
+// The graphics thread draws the models while the simulation runs: the fit (simulation thread) asks for the skirt
+// (ws_skirt_want, with the tower's model), the model's draw (DrawModelHierarchy, hooked in both display DLLs) makes
+// it before drawing it, on the one thread that reads a model's arrays. The old arrays stay (other code may hold them;
+// a few KB a model). Only the picture: the pieces' places and the game state are the fit's.
 #define WS_SKIRT 1.0f            // how far below its bottom a model reaches
 #define WS_SKIRT_EDGE 0.02f      // a vertex this close above the mesh's lowest point is on its bottom
 #define WS_SKIRT_MODELS 64
-struct ws_skirt { ee_model *m; ee_vertices *va; volatile LONG state; };   // state 0 asked, 1 made, 2 can't be
+#define WS_TOWER_ANIMS 16        // a tower's graphics: its first model among these animations (its idle ones)
+struct ws_skirt { ee_model *m, *tower; ee_vertices *va; volatile LONG state; };   // state 0 asked, 1 made, 2 can't be
 internal struct ws_skirt g_ws_sk[WS_SKIRT_MODELS];
 internal volatile LONG g_ws_sk_n, g_ws_sk_asked;
 internal rasterizer_draw_model_hierarchy_fn g_ws_draw[2];
 internal int g_ws_draw_hooks;
 
+// the tower of a wall's era (UT_WALL_LINE's i-th is UT_TOWER_LINE's i+1-th: the towers start in the Stone Age), from
+// the wall's owner's graphics of it - loaded for the fit as the wall's are; NULL for barbed wire and any wall of no line
+internal ee_model *ws_tower_model(ee_unit *u) {
+    static const enum ut_name walls[] = { UT_WALL_LINE }, towers[] = { UT_TOWER_LINE };
+    int t = unit_type_get_id(unit_get_type_data(u));
+    ee_player *pl = unit_get_owner(u);
+    for (int i = 0; i < (int)(sizeof walls / sizeof *walls); i++) {
+        if (g_ut[walls[i]] != t) continue;
+        int tt = g_ut[towers[i + 1]];
+        if (!pl || tt < 0 || (unsigned)tt >= type_stats_count(pl)) return NULL;
+        ee_unit_stats **sp = type_stats(pl, tt), *st = sp ? *sp : NULL;
+        ee_dmg_model *gfx = st ? unit_stats_get_gfx(st) : NULL;
+        if (!gfx) return NULL;
+        ee_model **am = (ee_model **)dmg_model_anim_model_at(gfx);
+        for (int k = 0; k < 2; k++) {
+            for (int a = 0; a < WS_TOWER_ANIMS; a++) if (am[a]) return am[a];
+            if (!k) ws_acquire(gfx);
+        }
+        return NULL;
+    }
+    return NULL;
+}
+
 // the fit's model: its skirt made at its next draw (the simulation thread; the draw reads g_ws_sk[0 .. g_ws_sk_n))
-internal void ws_skirt_want(ee_model *m) {
-    if (!m || !g_ws_draw_hooks) return;
+internal void ws_skirt_want(ee_model *m, ee_model *tower) {
+    if (!m || !tower || !g_ws_draw_hooks) return;
     LONG n = g_ws_sk_n;
     for (LONG i = 0; i < n; i++) {
         struct ws_skirt *s = &g_ws_sk[i];
         if (s->m != m) continue;
         // a model loaded anew where one was (the graphics freed and loaded again): not the arrays it was given
         if (s->state && model_get_frames(m) && model_get_vertices(m) && model_get_vertices(m)[0] != s->va) {
+            s->tower = tower;
             s->state = 0;
             InterlockedIncrement(&g_ws_sk_asked);
         }
         return;
     }
     if (n >= WS_SKIRT_MODELS) return;
-    g_ws_sk[n] = (struct ws_skirt){ m, NULL, 0 };
+    g_ws_sk[n] = (struct ws_skirt){ m, tower, NULL, 0 };
     InterlockedIncrement(&g_ws_sk_asked);
     InterlockedExchange(&g_ws_sk_n, n + 1);
 }
@@ -108,16 +140,94 @@ internal int ws_cmp_first(const void *a, const void *b) {
     return x < y ? -1 : x > y;
 }
 
-// the skirt of m (the graphics thread, before its draw): 1 made, 0 none (no bottom edge), -1 a model it can't take
-// (another vertex kind, materials not in runs one after another, a material beyond the vertex buffer) - left as it is
-internal int ws_skirt_make(ee_rasterizer *ras, ee_model *m, unsigned *edges_out) {
+// a model's arrays as the skirt reads them: standard vertices in every frame, a triangle array for lod 0
+internal int ws_model_ok(ee_model *m) {
+    uint32_t nf = model_get_frames(m), nl = model_get_lods(m), nm = model_get_material_count(m), nv = model_get_vertex_count(m);
+    ee_vertices **va = model_get_vertices(m);
+    ee_polygons **pa = model_get_polygons(m);
+    if (!nf || !nl || !nm || !nv || nf > 256 || nl > 16 || nm > 256 || !va || !pa || !pa[0] || !model_get_materials(m)) return 0;
+    for (uint32_t f = 0; f < nf; f++)
+        if (!va[f] || vertices_get_type(va[f]) != 0 || vertices_get_count(va[f]) < nv) return 0;
+    return 1;
+}
+internal float ws_lowest(ee_model *m) {
+    ee_vertex *v0 = vertices_get_data(model_get_vertices(m)[0]);
+    float zmin = 1e9f;
+    for (uint32_t i = 0; i < model_get_vertex_count(m); i++) { float z = vertex_point_at(vertex_at(v0, i))->z; if (z < zmin) zmin = z; }
+    return zmin;
+}
+
+// a tower's foundation: the face of the largest triangle below its base reaching its lowest point - its material and
+// texture, its width along (w) and height down (h), the texture coordinates of its top corner (u0, v0) and their step
+// across the face along (su, sv) and down it (tu, tv)
+struct ws_found { int mat; void *tex; float w, h, u0, v0, su, sv, tu, tv; };
+internal int ws_found_of(ee_model *t, uint32_t screen, struct ws_found *f) {
+    if (!ws_model_ok(t)) return 0;
+    ee_vertex *v0 = vertices_get_data(model_get_vertices(t)[0]);
+    ee_material **mat = model_get_materials(t);
+    const uint16_t *ix = polygons_get_indices(model_get_polygons(t)[0]);
+    float zmin = ws_lowest(t), best = 0;
+    for (uint32_t k = 0; k < model_get_material_count(t); k++) {
+        if (!mat[k]) continue;
+        uint32_t vf = material_get_vertex_first(mat[k]), vc = material_get_vertex_count(mat[k]);
+        uint32_t pf = material_get_polygon_first(mat[k])[0], pc = material_get_polygon_count(mat[k])[0];
+        for (uint32_t i = pf; i < pf + pc; i++) {
+            ee_vertex *p[3];
+            float z[3];
+            int ok = 1;
+            for (int j = 0; j < 3; j++) {
+                if (ix[i * 3 + j] >= vc) { ok = 0; break; }
+                p[j] = vertex_at(v0, vf + ix[i * 3 + j]);
+                z[j] = vertex_point_at(p[j])->z;
+                if (z[j] > 0.01f) ok = 0;
+            }
+            if (!ok || fminf(z[0], fminf(z[1], z[2])) > zmin + 0.01f) continue;
+            // two corners at one height (its edge along), the third above or below one of them
+            int a = -1;
+            for (int j = 0; j < 3; j++) if (fabsf(z[j] - z[(j + 1) % 3]) < 0.01f) a = j;
+            if (a < 0) continue;
+            int b = (a + 1) % 3, c = (a + 2) % 3;
+            vec3 pa = *vertex_point_at(p[a]), pb = *vertex_point_at(p[b]), pc3 = *vertex_point_at(p[c]);
+            float w = sqrtf((pb.x - pa.x) * (pb.x - pa.x) + (pb.y - pa.y) * (pb.y - pa.y)), h = fabsf(pc3.z - pa.z);
+            if (w * h <= best || h < 0.1f) continue;
+            // q: the one of the pair under (or over) the third, r the other
+            float da = (pc3.x - pa.x) * (pc3.x - pa.x) + (pc3.y - pa.y) * (pc3.y - pa.y);
+            float db = (pc3.x - pb.x) * (pc3.x - pb.x) + (pc3.y - pb.y) * (pc3.y - pb.y);
+            ee_vertex *q = da <= db ? p[a] : p[b], *r = da <= db ? p[b] : p[a], *top = p[c], *bot = q;
+            if (pc3.z < pa.z) { top = q; bot = p[c]; }   // the pair on top
+            void **tex = material_get_textures(mat[k]);
+            best = w * h;
+            *f = (struct ws_found){ (int)k, tex ? tex[screen] : NULL, w, h, vertex_get_u(top), vertex_get_v(top),
+                                    vertex_get_u(r) - vertex_get_u(q), vertex_get_v(r) - vertex_get_v(q),
+                                    vertex_get_u(bot) - vertex_get_u(top), vertex_get_v(bot) - vertex_get_v(top) };
+        }
+    }
+    return best > 0 && f->tex;
+}
+
+// a vertex of the skirt: at s of the way from old vertex a to b (their normals too), d below; its texture coordinates
+struct ws_rv { uint32_t a, b, k, i; float s, d, u, v; };   // k, i: its material (sorted) and its place in its skirt
+struct ws_tri { uint16_t l, k, i[3]; };            // a skirt triangle: its lod, its material (sorted), its corners
+struct ws_edge { uint32_t a, b, first, n; };       // an edge's skirt: its vertices' first (its material's own) and count
+struct ws_build { struct ws_rv *rv; struct ws_tri *tri; struct ws_edge *edge; uint32_t rv_n, rv_cap, tri_n, tri_cap, edge_n, edge_cap; };
+#define WS_GROW(p, n, cap) ((n) < (cap) || ws_grow((void **)&(p), &(cap), sizeof *(p)))
+internal int ws_grow(void **p, uint32_t *cap, size_t size) {
+    uint32_t c = *cap ? *cap * 2 : 64;
+    void *q = realloc(*p, c * size);
+    if (!q) return 0;
+    *p = q; *cap = c;
+    return 1;
+}
+
+// the skirt of m (the graphics thread, before its draw): 2 made with the tower's foundation, 1 made with its own
+// bottom row, 0 none (no bottom edge), -1 a model it can't take (another vertex kind, materials not in runs one after
+// another, a material beyond the vertex buffer) - left as it is
+internal int ws_skirt_make(ee_rasterizer *ras, ee_model *m, ee_model *tower, uint32_t screen, unsigned *edges_out) {
+    if (!ws_model_ok(m)) return -1;
     uint32_t nf = model_get_frames(m), nl = model_get_lods(m), nm = model_get_material_count(m), nv = model_get_vertex_count(m);
     ee_vertices **va = model_get_vertices(m);
     ee_polygons **pa = model_get_polygons(m);
     ee_material **mat = model_get_materials(m);
-    if (!nf || !nl || !nm || !nv || nf > 256 || nl > 16 || nm > 256 || !va || !pa || !mat) return -1;
-    for (uint32_t f = 0; f < nf; f++)
-        if (!va[f] || vertices_get_type(va[f]) != 0 || vertices_get_count(va[f]) < nv) return -1;
     // the materials in the order of their vertices: one run after another from 0 to nv, and each lod's triangles too
     ee_material *ord[256];
     for (uint32_t k = 0; k < nm; k++) { ord[k] = mat[k]; if (!ord[k]) return -1; }
@@ -138,20 +248,25 @@ internal int ws_skirt_make(ee_rasterizer *ras, ee_model *m, unsigned *edges_out)
         }
         if (pa[l] && pat > polygons_get_count(pa[l])) return -1;
     }
+    // the tower's foundation, and the material here with its texture (the tower's own index first: the plain and the
+    // player's colour share one sheet)
+    struct ws_found fd = { 0 };
+    int kt = -1;
+    if (tower && ws_found_of(tower, screen, &fd)) {
+        if ((uint32_t)fd.mat < nm && material_get_textures(mat[fd.mat]) && material_get_textures(mat[fd.mat])[screen] == fd.tex) kt = fd.mat;
+        for (uint32_t k = 0; kt < 0 && k < nm; k++)
+            if (material_get_textures(mat[k]) && material_get_textures(mat[k])[screen] == fd.tex) kt = (int)k;
+    }
+    if (kt >= 0)
+        for (uint32_t k = 0; k < nm; k++) if (ord[k] == mat[kt]) { kt = (int)k; break; }   // its place in ord
     ee_vertex *v0 = vertices_get_data(va[0]);
-    float zmin = 1e9f;
-    for (uint32_t i = 0; i < nv; i++) { float z = vertex_point_at(vertex_at(v0, i))->z; if (z < zmin) zmin = z; }
-    // per material: its bottom vertices that get a copy below (by index in its run: the copy's index, 0 none), and per
-    // lod the skirt's triangles; the edges counted at lod 0
-    uint32_t *copy = calloc(nv, sizeof *copy);
-    uint16_t *tri = NULL;   // per lod and material: the skirt's triangles (3 indices each), appended
-    uint32_t tri_n = 0, tri_cap = 0, add_v = 0, edges = 0;
-    uint32_t *tri_at = calloc((size_t)nl * nm + 1, sizeof *tri_at);   // [l * nm + k]: its first in tri, then the end
-    uint32_t *extra = calloc(nm, sizeof *extra);                       // [k]: its copies
-    int ok = copy && tri_at && extra;
+    float zmin = ws_lowest(m);
+    uint32_t *extra = calloc(nm, sizeof *extra);   // [k]: its skirt's vertices
+    struct ws_build bd = { 0 };
+    unsigned edges = 0;
+    int ok = extra != NULL;
     for (uint32_t l = 0; ok && l < nl; l++)
         for (uint32_t k = 0; ok && k < nm; k++) {
-            tri_at[l * nm + k] = tri_n;
             uint32_t vf = material_get_vertex_first(ord[k]), vc = material_get_vertex_count(ord[k]);
             uint32_t pf = material_get_polygon_first(ord[k])[l], pc = material_get_polygon_count(ord[k])[l];
             const uint16_t *ix = pc ? polygons_get_indices(pa[l]) : NULL;
@@ -164,121 +279,165 @@ internal int ws_skirt_make(ee_rasterizer *ras, ee_model *m, unsigned *edges_out)
                     lows += low[j];
                 }
                 if (!ok || lows != 2) continue;
-                // the edge a -> b in the triangle's order; below it (b, a, a') and (b, a', b'), the same way round
+                // the edge a -> b in the triangle's order; below it each tile (b side, a side, a side down), (b side,
+                // a side down, b side down), the same way round
                 int j = low[0] && low[1] ? 0 : low[1] && low[2] ? 1 : 2;
-                uint16_t a = c[j], b = c[(j + 1) % 3];
-                for (int e = 0; e < 2; e++) {
-                    uint16_t w = e ? b : a;
-                    if (!copy[vf + w]) { copy[vf + w] = vc + ++extra[k]; add_v++; }
+                uint32_t a = vf + c[j], b = vf + c[(j + 1) % 3];
+                uint32_t to = kt >= 0 ? (uint32_t)kt : k;   // the material it goes into
+                struct ws_edge *e = NULL;
+                for (uint32_t i = 0; i < bd.edge_n; i++) if (bd.edge[i].a == a && bd.edge[i].b == b) { e = &bd.edge[i]; break; }
+                int segs = 1, rows = 1;
+                float last = 1;   // the last row's share of a tile
+                if (kt >= 0) {
+                    vec3 pa3 = *vertex_point_at(vertex_at(v0, a)), pb3 = *vertex_point_at(vertex_at(v0, b));
+                    float len = sqrtf((pb3.x - pa3.x) * (pb3.x - pa3.x) + (pb3.y - pa3.y) * (pb3.y - pa3.y) + (pb3.z - pa3.z) * (pb3.z - pa3.z));
+                    segs = (int)(len / fd.w + 0.5f);
+                    if (segs < 1) segs = 1;
+                    if (segs > 8) segs = 8;
+                    rows = (int)ceilf(WS_SKIRT / fd.h - 0.01f);
+                    if (rows > 8) rows = 8;
+                    last = (WS_SKIRT - (float)(rows - 1) * fd.h) / fd.h;
                 }
-                if (tri_n + 6 > tri_cap) {
-                    tri_cap = tri_cap ? tri_cap * 2 : 192;
-                    uint16_t *t2 = realloc(tri, tri_cap * sizeof *tri);
-                    if (!t2) { ok = 0; break; }
-                    tri = t2;
+                if (!e) {   // its vertices: four a tile (the texture starts anew in each)
+                    if (!WS_GROW(bd.edge, bd.edge_n, bd.edge_cap)) { ok = 0; break; }
+                    e = &bd.edge[bd.edge_n++];
+                    *e = (struct ws_edge){ a, b, extra[to], (uint32_t)(segs * rows * 4) };
+                    if (kt < 0) e->n = 4;
+                    for (int sg = 0; sg < (kt >= 0 ? segs : 1); sg++)
+                        for (int rw = 0; rw < rows; rw++)
+                            for (int corner = 0; corner < 4; corner++) {
+                                if (!WS_GROW(bd.rv, bd.rv_n, bd.rv_cap)) { ok = 0; break; }
+                                int along = corner & 1, down = corner >> 1;
+                                struct ws_rv *r = &bd.rv[bd.rv_n++];
+                                r->a = a; r->b = b; r->k = to; r->i = extra[to]++;
+                                r->s = ((float)sg + (float)along) / (float)segs;
+                                if (kt >= 0) {
+                                    float dt = rw == rows - 1 && down ? last : (float)down;
+                                    r->d = ((float)rw + dt) * fd.h;
+                                    if (r->d > WS_SKIRT) r->d = WS_SKIRT;
+                                    r->u = fd.u0 + fd.su * (float)along + fd.tu * dt;
+                                    r->v = fd.v0 + fd.sv * (float)along + fd.tv * dt;
+                                } else {   // its own bottom row drawn down
+                                    ee_vertex *src = vertex_at(v0, along ? b : a);
+                                    r->d = down ? WS_SKIRT : 0;
+                                    r->u = vertex_get_u(src); r->v = vertex_get_v(src);
+                                }
+                            }
+                    if (!ok) break;
                 }
-                uint16_t a2 = (uint16_t)(copy[vf + a] - 1), b2 = (uint16_t)(copy[vf + b] - 1);
-                uint16_t q[6] = { b, a, a2, b, a2, b2 };
-                memcpy(tri + tri_n, q, sizeof q);
-                tri_n += 6;
+                // its triangles at this lod, into its material's run after its own vertices
+                uint32_t base = material_get_vertex_count(ord[to]) + e->first;
+                for (uint32_t cell = 0; cell < e->n / 4; cell++) {
+                    uint32_t q = base + cell * 4;   // a, b side above; a, b side below
+                    uint16_t tris[2][3] = { { (uint16_t)(q + 1), (uint16_t)q, (uint16_t)(q + 2) },
+                                            { (uint16_t)(q + 1), (uint16_t)(q + 2), (uint16_t)(q + 3) } };
+                    for (int h = 0; h < 2; h++) {
+                        if (!WS_GROW(bd.tri, bd.tri_n, bd.tri_cap)) { ok = 0; break; }
+                        bd.tri[bd.tri_n++] = (struct ws_tri){ (uint16_t)l, (uint16_t)to, { tris[h][0], tris[h][1], tris[h][2] } };
+                    }
+                }
                 if (!l) edges++;
             }
         }
-    if (ok) tri_at[nl * nm] = tri_n;
     for (uint32_t k = 0; ok && k < nm; k++)
         if (material_get_vertex_count(ord[k]) + extra[k] > display_vb_vertices() || material_get_vertex_count(ord[k]) + extra[k] > 0xFFFF) ok = 0;
-    int r = !ok ? -1 : !edges ? 0 : 1;
-    if (r == 1) {
+    int r = !ok ? -1 : !edges ? 0 : kt >= 0 ? 2 : 1;
+    if (r > 0) {
         // the new arrays: each frame's (one for the frames that shared one), each lod's
-        uint32_t nv2 = nv + add_v;
+        uint32_t nv2 = nv + bd.rv_n;
         ee_vertices *nva[256] = { 0 };
         ee_polygons *npa[16] = { 0 };
-        for (uint32_t f = 0; r == 1 && f < nf; f++) {
+        uint32_t start[256];   // [k]: its run's first in the new arrays
+        for (uint32_t k = 0, s = 0; k < nm; k++) { start[k] = s; s += material_get_vertex_count(ord[k]) + extra[k]; }
+        for (uint32_t f = 0; r > 0 && f < nf; f++) {
             uint32_t g = 0;
             while (g < f && va[g] != va[f]) g++;
             if (g < f) { nva[f] = nva[g]; continue; }
             if (!(nva[f] = rasterizer_create_vertex_array(ras, 0, nv2))) { r = -1; break; }
             ee_vertex *src = vertices_get_data(va[f]), *dst = vertices_get_data(nva[f]);
-            uint32_t to = 0;
-            for (uint32_t k = 0; k < nm; k++) {
-                uint32_t vf = material_get_vertex_first(ord[k]), vc = material_get_vertex_count(ord[k]);
-                memcpy(vertex_at(dst, to), vertex_at(src, vf), (size_t)vc * vertex_size());
-                for (uint32_t i = 0; i < vc; i++)
-                    if (copy[vf + i]) {
-                        ee_vertex *d = vertex_at(dst, to + copy[vf + i] - 1);
-                        memcpy(d, vertex_at(src, vf + i), vertex_size());
-                        vertex_point_at(d)->z -= WS_SKIRT;
-                    }
-                to += vc + extra[k];
+            for (uint32_t k = 0; k < nm; k++)
+                memcpy(vertex_at(dst, start[k]), vertex_at(src, material_get_vertex_first(ord[k])), (size_t)material_get_vertex_count(ord[k]) * vertex_size());
+            for (uint32_t i = 0; i < bd.rv_n; i++) {
+                const struct ws_rv *rv = &bd.rv[i];
+                ee_vertex *d = vertex_at(dst, start[rv->k] + material_get_vertex_count(ord[rv->k]) + rv->i);
+                ee_vertex *pa1 = vertex_at(src, rv->a), *pb1 = vertex_at(src, rv->b);
+                memcpy(d, pa1, vertex_size());
+                vec3 p = *vertex_point_at(pa1), q = *vertex_point_at(pb1), n = *vertex_normal_at(pa1), n2 = *vertex_normal_at(pb1);
+                *vertex_point_at(d) = (vec3){ p.x + (q.x - p.x) * rv->s, p.y + (q.y - p.y) * rv->s, p.z + (q.z - p.z) * rv->s - rv->d };
+                *vertex_normal_at(d) = (vec3){ n.x + (n2.x - n.x) * rv->s, n.y + (n2.y - n.y) * rv->s, n.z + (n2.z - n.z) * rv->s };
+                vertex_set_u(d, rv->u);
+                vertex_set_v(d, rv->v);
             }
         }
-        for (uint32_t l = 0; r == 1 && l < nl; l++) {
+        for (uint32_t l = 0; r > 0 && l < nl; l++) {
             if (!pa[l]) continue;
-            uint32_t n2 = polygons_get_count(pa[l]) + (tri_at[l * nm + nm] - tri_at[l * nm]) / 3;
+            uint32_t add = 0;
+            for (uint32_t i = 0; i < bd.tri_n; i++) add += bd.tri[i].l == l;
+            uint32_t n2 = polygons_get_count(pa[l]) + add;
             if (!(npa[l] = rasterizer_create_polygon_array(ras, n2))) { r = -1; break; }
             const uint16_t *src = polygons_get_indices(pa[l]);
             uint16_t *dst = polygons_get_indices(npa[l]);
-            uint32_t to = 0;
+            uint32_t to = 0, own = 0;
             for (uint32_t k = 0; k < nm; k++) {
                 uint32_t pf = material_get_polygon_first(ord[k])[l], pc = material_get_polygon_count(ord[k])[l];
-                uint32_t s0 = tri_at[l * nm + k], s1 = tri_at[l * nm + k + 1];
                 memcpy(dst + to * 3, src + pf * 3, (size_t)pc * 3 * sizeof *dst);
-                memcpy(dst + to * 3 + pc * 3, tri + s0, (size_t)(s1 - s0) * sizeof *dst);
-                to += pc + (s1 - s0) / 3;
+                to += pc; own += pc;
+                for (uint32_t i = 0; i < bd.tri_n; i++)
+                    if (bd.tri[i].l == l && bd.tri[i].k == k) { memcpy(dst + to * 3, bd.tri[i].i, 3 * sizeof *dst); to++; }
             }
             // a lod's triangles beyond its materials' (none seen) stay at its end
-            uint32_t own = 0;
-            for (uint32_t k = 0; k < nm; k++) own += material_get_polygon_count(ord[k])[l];
             memcpy(dst + to * 3, src + own * 3, (size_t)(polygons_get_count(pa[l]) - own) * 3 * sizeof *dst);
         }
-        if (r == 1) {   // the model onto them: the runs moved by the skirts before them
+        if (r > 0) {   // the model onto them: the runs moved by the skirts before them
             for (uint32_t f = 0; f < nf; f++) va[f] = nva[f];
             for (uint32_t l = 0; l < nl; l++) if (npa[l]) pa[l] = npa[l];
-            uint32_t vto = 0, pto[16] = { 0 };
+            uint32_t pto[16] = { 0 };
             for (uint32_t k = 0; k < nm; k++) {
-                material_set_vertex_first(ord[k], vto);
-                material_set_vertex_count(ord[k], material_get_vertex_count(ord[k]) + extra[k]);
-                vto += material_get_vertex_count(ord[k]);
+                uint32_t *pf = material_get_polygon_first(ord[k]), *pc = material_get_polygon_count(ord[k]);
                 for (uint32_t l = 0; l < nl; l++) {
-                    uint32_t *pf = material_get_polygon_first(ord[k]), *pc = material_get_polygon_count(ord[k]);
-                    if (!pc[l]) continue;
+                    uint32_t add = 0;
+                    for (uint32_t i = 0; i < bd.tri_n; i++) add += bd.tri[i].l == l && bd.tri[i].k == k;
+                    if (!pc[l] && !add) continue;
                     pf[l] = pto[l];
-                    pc[l] += (tri_at[l * nm + k + 1] - tri_at[l * nm + k]) / 3;
+                    pc[l] += add;
                     pto[l] += pc[l];
                 }
+                material_set_vertex_first(ord[k], start[k]);
+                material_set_vertex_count(ord[k], material_get_vertex_count(ord[k]) + extra[k]);
             }
             model_set_vertex_count(m, nv2);
             if (npa[0]) model_set_polygon_count(m, polygons_get_count(npa[0]));
         }
     }
-    free(copy); free(tri); free(tri_at); free(extra);
+    free(extra); free(bd.rv); free(bd.tri); free(bd.edge);
     *edges_out = edges;
     return r;
 }
 
 // a model drawn: its skirt first if the fit asked for it
-internal void ws_skirt_drawn(ee_rasterizer *ras, ee_model *m) {
+internal void ws_skirt_drawn(ee_rasterizer *ras, ee_model *m, uint32_t screen) {
     LONG n = g_ws_sk_n;
     for (LONG i = 0; i < n; i++) {
         struct ws_skirt *s = &g_ws_sk[i];
         if (s->m != m || s->state) continue;
         unsigned edges = 0;
-        int r = ws_skirt_make(ras, m, &edges);
+        int r = ws_skirt_make(ras, m, s->tower, screen, &edges);
         s->va = model_get_frames(m) && model_get_vertices(m) ? model_get_vertices(m)[0] : NULL;
         s->state = r >= 0 ? 1 : 2;
         InterlockedDecrement(&g_ws_sk_asked);
-        log_locked("# walls: model %p %s (%u bottom edges, %u vertices, %u materials, %u lods)\n", (void *)m,
-                   r > 0 ? "skirted" : r == 0 ? "has no bottom edge" : "CAN'T be skirted", edges,
-                   model_get_vertex_count(m), model_get_material_count(m), model_get_lods(m));
+        log_locked("# walls: model %p %s (%u bottom edges, %u vertices, %u materials, %u lods; tower %p)\n", (void *)m,
+                   r == 2 ? "skirted with its tower's foundation" : r == 1 ? "skirted with its own bottom row (no material with its tower's texture)" :
+                   r == 0 ? "has no bottom edge" : "CAN'T be skirted", edges,
+                   model_get_vertex_count(m), model_get_material_count(m), model_get_lods(m), (void *)s->tower);
         return;
     }
 }
 internal int __thiscall ws_hook_draw0(ee_rasterizer *ras, void *m, uint32_t screen, float p3, int8_t p4) {
-    if (g_ws_sk_asked > 0) ws_skirt_drawn(ras, m);
+    if (g_ws_sk_asked > 0) ws_skirt_drawn(ras, m, screen);
     return g_ws_draw[0](ras, m, screen, p3, p4);
 }
 internal int __thiscall ws_hook_draw1(ee_rasterizer *ras, void *m, uint32_t screen, float p3, int8_t p4) {
-    if (g_ws_sk_asked > 0) ws_skirt_drawn(ras, m);
+    if (g_ws_sk_asked > 0) ws_skirt_drawn(ras, m, screen);
     return g_ws_draw[1](ras, m, screen, p3, p4);
 }
 // DrawModelHierarchy in each display DLL's vtable (at its load: they load after the mod, patch.c on_module_load)
@@ -332,7 +491,7 @@ internal int ws_fit(ee_unit *u) {
     int tx = unit_get_x(u), ty = unit_get_y(u);
     float px = (float)tx + 0.5f, py = (float)ty + 0.5f;
     ee_model *mdl = ws_model(u, anim);
-    ws_skirt_want(mdl);
+    ws_skirt_want(mdl, ws_tower_model(u));
     if (anim == WS_POST) {
         float mid = ground_at(map, px, py);
         if (mid != mid) { g_ws_skipped++; return 0; }

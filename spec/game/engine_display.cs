@@ -388,6 +388,11 @@ unsafe struct GEModel
 [c_type("ee_material")]
 unsafe struct GEMaterial
 {
+    /// per screen: its texture (GETexture, the texture manager's - one per file, shared by the models that load it:
+    /// LoadTexturesForScreen, SetTexture counts its users)
+    [offset(0x24), found(c)]
+    void** textures;
+
     /// per lod: its first triangle in the model's polygons[lod]
     [offset(0x2C), found(c)]
     uint32* polygon_first;

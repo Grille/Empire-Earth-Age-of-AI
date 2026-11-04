@@ -597,6 +597,7 @@ internal uint32_t of_model_material_count;
 internal uint32_t of_model_polygon_count;
 internal uint32_t of_model_vertex_count;
 internal uint32_t of_model_lods;
+internal uint32_t of_material_textures;
 internal uint32_t of_material_polygon_first;
 internal uint32_t of_material_polygon_count;
 internal uint32_t of_material_vertex_first;
