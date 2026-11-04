@@ -91,6 +91,8 @@ internal void stage_new_game(void);
 internal void stage_install(const char *autotest_ini);
 internal void armies_tick(ee_player *pl, uint32_t now);   // armies.c: the mod's armies in the commander's place
 internal void armies_new_game(int from_save);
+internal void garrison_tick(ee_player *pl, uint32_t now);   // garrison.c: settlement upgrades with spare citizens
+internal void garrison_new_game(void);
 internal void armies_install(const char *autotest_ini);
 internal void spoils_new_game(void);   // spoils.c: a resigned player's buildings and units
 internal void spoils_install(void);
@@ -218,6 +220,7 @@ internal void __thiscall hook_rm_update(ee_resource_mgr *rm, uint32_t now) {
     if (pl) cover_tick(pl, now);
     if (pl) stage_tick(pl, now);
     if (pl) armies_tick(pl, now);
+    if (pl && !is_vanilla(pl)) garrison_tick(pl, now);
     if (pl) expand_tick(pl, now);
     if (pl) tw_tick(pl, now);
     g_rm_seen = 1;
@@ -347,6 +350,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
     cover_new_game();
     stage_new_game();
     armies_new_game(mode == 2);
+    garrison_new_game();
     spoils_new_game();
     expand_new_game();
     tw_new_game();
@@ -406,6 +410,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
 #include "ai/cover.c"
 #include "ai/stage.c"
 #include "ai/armies.c"
+#include "ai/garrison.c"
 #include "ai/spoils.c"
 #include "persist.c"
 #include "engine/aim.c"
@@ -619,6 +624,7 @@ internal void install(HMODULE self) {
     cover_install(g_autotest ? g_ini : NULL);
     stage_install(g_autotest ? g_ini : NULL);
     armies_install(g_autotest ? g_ini : NULL);
+    garrison_install(g_autotest ? g_ini : NULL);
     spoils_install();
     expand_install(g_autotest ? g_ini : NULL);
     tw_install(g_autotest ? g_ini : NULL);

@@ -226,6 +226,67 @@ typedef void *(__thiscall *load_goal_init_fn)(ee_load_goal *, void *, void *, in
 internal load_goal_init_fn fn_load_goal_init;
 internal inline void *load_goal_init(ee_load_goal *load_goal, void *p2, void *p3, int p4) { return fn_load_goal_init(load_goal, p2, p3, p4); }
 
+// class EEUGLoadGarrison (ee_garrison_goal)
+// the garrison goal (EEUGLoadGarrison): citizens into a Settlement, Town Center, Capitol or Improved Granary for good -
+// each one entering (0x5E8830) adds its transport size to the holder's garrisoned and is removed (no death); a
+// Settlement full (5) becomes a Town Center, a Town Center full (15) a Capitol (0x6147B0 -> unit_convert 0x62F192: a
+// new unit, the hit points' fraction kept), each step only once its build tech (type +0x4E0) is open; a Capitol fills
+// to 50 for the bonus only. The bonus: stone, gold and iron dropped there from a mine within 4.5 tiles of it count
+// 5% more per citizen inside up to 5, 2.5% up to 15, 1.5% beyond (0x62F4D3, type +0x450). The player's right-click is
+// EEMLoadGarrison::vf10 (0x4B8FEF): flag 0; the game's own AI (0x46CA7E) passes 1
+// EEUnitGoal's, the base's
+// (aim.c: 2 while it attacks)
+internal inline uint8_t garrison_goal_get_state(const ee_garrison_goal *o) { return *(uint8_t *)((uint8_t *)o + of_goal_state); }
+internal inline void garrison_goal_set_state(ee_garrison_goal *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_goal_state) = v; }
+internal inline uint8_t *garrison_goal_state_at(const ee_garrison_goal *o) { return (uint8_t *)((uint8_t *)o + of_goal_state); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// 0 from the base constructor 0x6283AB: +1 per path request for the goal (EEUnitClass::vf52 0x6222A8), +8 per
+// detour waypoint pair (vf53 0x6225E7)
+internal inline int garrison_goal_get_path_tries(const ee_garrison_goal *o) { return *(int *)((uint8_t *)o + of_goal_path_tries); }
+internal inline void garrison_goal_set_path_tries(ee_garrison_goal *o, int v) { *(int *)((uint8_t *)o + of_goal_path_tries) = v; }
+internal inline int *garrison_goal_path_tries_at(const ee_garrison_goal *o) { return (int *)((uint8_t *)o + of_goal_path_tries); }
+// 1 for a goal from an order (commands, the AI), 0 for the unit's own (its target search); the guard return skips
+// an ordered one
+internal inline uint8_t garrison_goal_get_ordered(const ee_garrison_goal *o) { return *(uint8_t *)((uint8_t *)o + of_goal_ordered); }
+internal inline void garrison_goal_set_ordered(ee_garrison_goal *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_goal_ordered) = v; }
+internal inline uint8_t *garrison_goal_ordered_at(const ee_garrison_goal *o) { return (uint8_t *)((uint8_t *)o + of_goal_ordered); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// 0 from the base constructor; the group dispatch 0x5DB641 (and 0x5E94C1, 0x5EF6A7) sets 1 on each member's goal:
+// vf52 asks EEPathManager::request for a sector route only without it
+internal inline uint8_t garrison_goal_get_no_sectors(const ee_garrison_goal *o) { return *(uint8_t *)((uint8_t *)o + of_goal_no_sectors); }
+internal inline void garrison_goal_set_no_sectors(ee_garrison_goal *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_goal_no_sectors) = v; }
+internal inline uint8_t *garrison_goal_no_sectors_at(const ee_garrison_goal *o) { return (uint8_t *)((uint8_t *)o + of_goal_no_sectors); }
+internal inline float garrison_goal_get_dest_x(const ee_garrison_goal *o) { return *(float *)((uint8_t *)o + of_goal_dest_x); }
+internal inline void garrison_goal_set_dest_x(ee_garrison_goal *o, float v) { *(float *)((uint8_t *)o + of_goal_dest_x) = v; }
+internal inline float *garrison_goal_dest_x_at(const ee_garrison_goal *o) { return (float *)((uint8_t *)o + of_goal_dest_x); }
+// the destination's y
+internal inline float garrison_goal_get_dest_y(const ee_garrison_goal *o) { return *(float *)((uint8_t *)o + of_goal_dest_y); }
+internal inline void garrison_goal_set_dest_y(ee_garrison_goal *o, float v) { *(float *)((uint8_t *)o + of_goal_dest_y) = v; }
+internal inline float *garrison_goal_dest_y_at(const ee_garrison_goal *o) { return (float *)((uint8_t *)o + of_goal_dest_y); }
+// the destination's z
+internal inline float garrison_goal_get_dest_z(const ee_garrison_goal *o) { return *(float *)((uint8_t *)o + of_goal_dest_z); }
+internal inline void garrison_goal_set_dest_z(ee_garrison_goal *o, float v) { *(float *)((uint8_t *)o + of_goal_dest_z) = v; }
+internal inline float *garrison_goal_dest_z_at(const ee_garrison_goal *o) { return (float *)((uint8_t *)o + of_goal_dest_z); }
+// a kind 6 goal's target
+// a kind 6 goal's target - the contact test (EEPhysicsModel::vf14, AoC vf15) lets two units at work on kind 6 meet
+// only when it is the same
+internal inline void *garrison_goal_get_0x38(const ee_garrison_goal *o) { return *(void **)((uint8_t *)o + of_goal_0x38); }
+internal inline void garrison_goal_set_0x38(ee_garrison_goal *o, void *v) { *(void **)((uint8_t *)o + of_goal_0x38) = v; }
+internal inline void **garrison_goal_0x38_at(const ee_garrison_goal *o) { return (void **)((uint8_t *)o + of_goal_0x38); }
+// a kind 4 goal's target
+// a kind 4 goal's target - the same for kind 4
+internal inline void *garrison_goal_get_0x3c(const ee_garrison_goal *o) { return *(void **)((uint8_t *)o + of_goal_0x3c); }
+internal inline void garrison_goal_set_0x3c(ee_garrison_goal *o, void *v) { *(void **)((uint8_t *)o + of_goal_0x3c) = v; }
+internal inline void **garrison_goal_0x3c_at(const ee_garrison_goal *o) { return (void **)((uint8_t *)o + of_goal_0x3c); }
+internal inline ee_unit *garrison_goal_get_holder(const ee_garrison_goal *o) { return *(ee_unit **)((uint8_t *)o + of_goal_holder); }
+internal inline void garrison_goal_set_holder(ee_garrison_goal *o, ee_unit *v) { *(ee_unit **)((uint8_t *)o + of_goal_holder) = v; }
+internal inline ee_unit **garrison_goal_holder_at(const ee_garrison_goal *o) { return (ee_unit **)((uint8_t *)o + of_goal_holder); }
+// new 0x74: thiscall(goal, holder, vector of the units {_, begin, end, cap}, flag) - the load goal's base
+// (0x613080) as EEUGLoadTransport's
+typedef void *(__thiscall *garrison_goal_init_fn)(ee_garrison_goal *, void *, void *, int);
+internal garrison_goal_init_fn fn_garrison_goal_init;
+internal inline void *garrison_goal_init(ee_garrison_goal *garrison_goal, void *p2, void *p3, int p4) { return fn_garrison_goal_init(garrison_goal, p2, p3, p4); }
+
 // class EEUGLocation (ee_location_goal)
 // the go-to-a-location goal (EEUGLocation)
 // EEUnitGoal's, the base's
@@ -312,6 +373,7 @@ internal inline uint8_t *goal_fn_goal_attack_ctor_at(void) { return (uint8_t *)(
 // goal.fn_goal_attack_ctor
 // goal_build_init
 // goal_load_ctor
+// EEUGLoadGarrison (EEMLoadGarrison::vf10 0x4B8FEF, AoC 0x4C1722: new 0x74 in both)
 // goal_move_ctor
 // goal_unload_init
 // EEUGLoadContainer: thiscall(goal, unit) - the unit out of its holder's load goal's pending passengers
@@ -617,6 +679,8 @@ internal int spec_goal_select(int build) {
         fn_build_goal_replaced = (build_goal_replaced_fn)0x0060D759;
         vt_eeug_load_transport = 0x00831DC0;
         fn_load_goal_init = (load_goal_init_fn)0x0061487F;
+        vt_eeug_load_garrison = 0x00831D20;
+        fn_garrison_goal_init = (garrison_goal_init_fn)0x00614120;
         vt_eeug_location = 0x00831E64;
         of_location_goal_yaw = 0x2C;
         of_location_goal_forced = 0x30;
@@ -630,6 +694,7 @@ internal int spec_goal_select(int build) {
         value_goal_size_goal_attack = 64;
         value_goal_size_goal_build = 92;
         value_goal_size_goal_load = 104;
+        value_goal_size_goal_garrison = 116;
         value_goal_size_goal_move = 56;
         value_goal_size_goal_unload = 64;
         value_goal_slot_goal_drop = 19;
@@ -694,6 +759,8 @@ internal int spec_goal_select(int build) {
         fn_build_goal_replaced = (build_goal_replaced_fn)0x0061FEB2;
         vt_eeug_load_transport = 0x008477F8;
         fn_load_goal_init = (load_goal_init_fn)0x00627286;
+        vt_eeug_load_garrison = 0x00847754;
+        fn_garrison_goal_init = (garrison_goal_init_fn)0x00626B0E;
         vt_eeug_location = 0x008478A0;
         of_location_goal_yaw = 0x2C;
         of_location_goal_forced = 0x30;
@@ -707,6 +774,7 @@ internal int spec_goal_select(int build) {
         value_goal_size_goal_attack = 68;
         value_goal_size_goal_build = 92;
         value_goal_size_goal_load = 104;
+        value_goal_size_goal_garrison = 116;
         value_goal_size_goal_move = 56;
         value_goal_size_goal_unload = 64;
         value_goal_slot_goal_drop = 19;
@@ -763,6 +831,8 @@ internal int spec_goal_check(void) {
     bad += spec_slot(vt_eeug_build_repair, slot_goal_replaced, (uintptr_t)fn_build_goal_replaced, "EEUGBuildRepair.replaced [slot]");
     bad += spec_vtable(vt_eeug_load_transport, ".?AVEEUGLoadTransport@@", "EEUGLoadTransport [vtable]");
     bad += spec_code((uintptr_t)fn_load_goal_init, "EEUGLoadTransport.init");
+    bad += spec_vtable(vt_eeug_load_garrison, ".?AVEEUGLoadGarrison@@", "EEUGLoadGarrison [vtable]");
+    bad += spec_code((uintptr_t)fn_garrison_goal_init, "EEUGLoadGarrison.init");
     bad += spec_vtable(vt_eeug_location, ".?AVEEUGLocation@@", "EEUGLocation [vtable]");
     bad += spec_code((uintptr_t)fn_location_goal_init, "EEUGLocation.init");
     bad += spec_code(data_goal_at_goal_set_read, "goal.at_goal_set_read");

@@ -230,6 +230,11 @@ class ai_base
         bool shelve_citizens = true;
         [range(500, 1000000)]
         int shelve_stock = 5000;
+        /// Settlement upgrades: spare citizens (idle, or wood cutters while the wood stock is over 5000) go into a Settlement by
+        /// metal mines - 5 make it a Town Center -, then into the Town Center with the most metal mines near it - 10 more make
+        /// it a Capitol, which takes up to 50. Each citizen inside adds to the stone, gold and iron dropped there from mines
+        /// within 4.5 tiles (+25% at 5, +50% at 15, +102% at 50); the citizens are used up. 1 = on, being measured
+        bool garrison_upgrades = false;
     }
 
     class SiegeAndTowerRouting

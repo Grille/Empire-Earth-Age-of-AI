@@ -145,6 +145,22 @@ unsafe struct EEUGLoadTransport
     extern void* init(void* p2, void* p3, int32 p4);
 }
 
+/// the garrison goal (EEUGLoadGarrison): citizens into a Settlement, Town Center, Capitol or Improved Granary for good -
+/// each one entering (0x5E8830) adds its transport size to the holder's garrisoned and is removed (no death); a
+/// Settlement full (5) becomes a Town Center, a Town Center full (15) a Capitol (0x6147B0 -> unit_convert 0x62F192: a
+/// new unit, the hit points' fraction kept), each step only once its build tech (type +0x4E0) is open; a Capitol fills
+/// to 50 for the bonus only. The bonus: stone, gold and iron dropped there from a mine within 4.5 tiles of it count
+/// 5% more per citizen inside up to 5, 2.5% up to 15, 1.5% beyond (0x62F4D3, type +0x450). The player's right-click is
+/// EEMLoadGarrison::vf10 (0x4B8FEF): flag 0; the game's own AI (0x46CA7E) passes 1
+[@base(typeof(EEUnitGoal)), c_type("ee_garrison_goal"), vtable((ee)0x00831D20, (aoc)0x00847754)]
+unsafe struct EEUGLoadGarrison
+{
+    /// new 0x74: thiscall(goal, holder, vector of the units {_, begin, end, cap}, flag) - the load goal's base
+    /// (0x613080) as EEUGLoadTransport's
+    [address((ee)0x00614120, (aoc)0x00626B0E)]
+    extern void* init(void* p2, void* p3, int32 p4);
+}
+
 /// the go-to-a-location goal (EEUGLocation)
 [@base(typeof(EEUnitGoal)), c_type("ee_location_goal"), vtable((ee)0x00831E64, (aoc)0x008478A0)]
 unsafe struct EEUGLocation
@@ -199,6 +215,10 @@ static unsafe class goal
     /// goal_load_ctor
     [value(0x68)]
     static uint32 size_goal_load;
+
+    /// EEUGLoadGarrison (EEMLoadGarrison::vf10 0x4B8FEF, AoC 0x4C1722: new 0x74 in both)
+    [value(0x74)]
+    static uint32 size_goal_garrison;
 
     /// goal_move_ctor
     [value(56)]

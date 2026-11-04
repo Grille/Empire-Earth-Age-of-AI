@@ -218,6 +218,7 @@ typedef struct ee_world ee_world;
 typedef struct ee_world_table ee_world_table;
 typedef struct ee_build_goal ee_build_goal;
 typedef struct ee_load_goal ee_load_goal;
+typedef struct ee_garrison_goal ee_garrison_goal;
 typedef struct ee_location_goal ee_location_goal;
 typedef struct ee_attack_goal ee_attack_goal;
 typedef struct eeug_unload_transport eeug_unload_transport;

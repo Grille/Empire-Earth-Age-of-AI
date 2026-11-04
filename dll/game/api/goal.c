@@ -49,6 +49,9 @@ internal inline ee_goal *goal_attack_init(void *mem, ee_unit *u, ee_unit *target
 }
 // the units of vec (a std::vector) into holder (a transport or a building)
 internal inline ee_goal *goal_load_init(void *mem, ee_unit *holder, void *vec) { return (ee_goal *)fn_load_goal_init(mem, holder, vec, 1); }
+// the citizens of vec into holder for good (a garrison, EEUGLoadGarrison: a Settlement, Town Center or Capitol takes
+// them in to grow; flag 1 as the game's own AI passes it, 0x46CA7E)
+internal inline ee_goal *goal_garrison_init(void *mem, ee_unit *holder, void *vec) { return (ee_goal *)fn_garrison_goal_init(mem, holder, vec, 1); }
 // the holder's units out at x, y
 // a move to xy (float[2])
 internal inline ee_goal *goal_move_init(void *mem, float *xy) { return (ee_goal *)fn_location_goal_init(mem, xy, 1, 1, 0, 0.0f, 0, 0); }
@@ -62,10 +65,12 @@ internal inline int goal_is_location(const ee_goal *g) { return *(const uintptr_
 internal inline int goal_is_build(const ee_goal *g) { return *(const uintptr_t *)g == data_goal_vt_goal_build; }
 internal inline int goal_is_load(const ee_goal *g) { return *(const uintptr_t *)g == data_goal_vt_goal_load; }
 internal inline int goal_is_unload(const ee_goal *g) { return *(const uintptr_t *)g == data_goal_vt_goal_unload; }
+internal inline int goal_is_garrison(const ee_goal *g) { return *(const uintptr_t *)g == vt_eeug_load_garrison; }
 // the memory of a goal the game may free (game_new of its size), then made with its _init
 internal inline void *goal_build_alloc(void) { return game_new(value_goal_size_goal_build); }
 internal inline void *goal_attack_alloc(void) { return game_new(value_goal_size_goal_attack); }
 internal inline void *goal_load_alloc(void) { return game_new(value_goal_size_goal_load); }
+internal inline void *goal_garrison_alloc(void) { return game_new(value_goal_size_goal_garrison); }
 internal inline void *goal_unload_alloc(void) { return game_new(value_goal_size_goal_unload); }
 internal inline void *goal_move_alloc(void) { return game_new(value_goal_size_goal_move); }
 // a load goal's part the units walk into (the goal's vtable)
