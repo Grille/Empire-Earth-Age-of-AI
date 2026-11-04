@@ -150,3 +150,27 @@ The setting's default is `auto` (2026-10-27, the player): the own renderer when 
 Windows' own DirectDraw crashes the game windowed (DX7HRTnLDisplay.dll+c7d8) - else the wrapper there; `wrapper` and
 `own` choose either outright. With `own` a ddraw.dll in the folder is still loaded (the engine loads every DLL there,
 the display DLLs import it) but never called; DDrawCompat hooks parts of Windows at its load, so keep it out then.
+
+## Shadows (planned)
+
+The player, 2026-11-04: dynamic shadows, cast on the terrain only - the models are low-poly and shading on them
+would show it. The plan: units, buildings and trees drawn once more from the sun into a depth map, the terrain's
+draws darkened where it covers them; a unit standing in a shadow tinted as a whole by one look-up at its foot
+(no self-shadowing); the game's own shadows off; `[display] shadows = game | dynamic`, default `game`.
+
+What the game draws (the pipe's `rprobe`: the next frame's draws logged one by one with their render object, states,
+light, material, texture, world matrix and their vertices' extent and flatness; `rprobe skip <parts>` leaves render
+objects out of the picture). Probed 2026-11-04 in a Continental game at 8 min (epoch 4) and on the player's save
+"choke wolf" (WWI, 153 min, five camera spots, 4744 draws):
+- The game's shadows (EEROGroundShadows) are a blob a unit: one quad lying on the ground, a soft dark texture of
+  16x16 to 256x256 per kind of object (18 textures in the WWI view: 628 draws of one 16x16 - the soldiers -, every tree
+  the same 32x32), scaled to the object, turned with it, unlit (light off, ambient white), blended, depth tested and not
+  written. Faint: in the WWI view they are hardly seen beside the units.
+- The terrain is drawn unlit (LIGHTING 0): its shading - the hillsides' - is baked into the vertex colours. A shadow
+  there multiplies the colour.
+- The units' light: one directional, dir (0.08, 0.75, -0.65) (z is up: about 40 degrees above the horizon), white,
+  ambient 0xff657899. Trees (alpha test 229, no culling) are lit by another, nearly overhead: (0.01, 0.11, -0.99) - the
+  sun for the shadows is the units' light.
+- No upright flat sprites: of 2882 unit draws 2429 are solid meshes; the flat ones lie on the ground (decals - 277
+  unlit 128x128, 56 untextured, a few lit) - those must not cast. 3 nearly flat upright draws of 56 vertices (a
+  0.12 x 0.04 x 0.06 part scaled 2x). Buildings under construction are drawn translucent (alpha test 7).

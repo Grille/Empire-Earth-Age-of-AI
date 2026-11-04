@@ -670,18 +670,101 @@ internal int rd_world_lock_install(void) {
 // THE GAME'S DRAWING, BY ITS PARTS: RTSGraphics draws a frame through its render objects (spec engine_display.cs) -
 // each one's draw timed for the minute's line, the game's own work in it and the renderer's under it together
 enum { RO_TERRAIN, RO_SHADOWS, RO_UNITS, RO_WATER, RO_UI, RO_N };
+internal const char *const k_ro_names[RO_N] = { "terrain", "shadows", "units", "water", "interface" };
 internal LONGLONG g_ro_qpc[RO_N];
-internal void __thiscall rd_hook_ro_terrain(ee_ro_terrain *o) { LONGLONG t = rd_qpc(); ro_terrain_draw(o); g_ro_qpc[RO_TERRAIN] += rd_qpc() - t; }
-internal void __thiscall rd_hook_ro_shadows(ee_ro_shadows *o) { LONGLONG t = rd_qpc(); ro_shadows_draw(o); g_ro_qpc[RO_SHADOWS] += rd_qpc() - t; }
-internal void __thiscall rd_hook_ro_units(ee_ro_units *o) { LONGLONG t = rd_qpc(); ro_units_draw(o); g_ro_qpc[RO_UNITS] += rd_qpc() - t; }
-internal void __thiscall rd_hook_ro_water(ee_ro_water *o) { LONGLONG t = rd_qpc(); ro_water_draw(o); g_ro_qpc[RO_WATER] += rd_qpc() - t; }
-internal void __thiscall rd_hook_ro_ui(ee_ro_ui *o) { LONGLONG t = rd_qpc(); ro_ui_draw(o); g_ro_qpc[RO_UI] += rd_qpc() - t; }
+internal int g_ro_cur = -1;   // the render object drawing (the probe's)
+internal int g_rp_skip;       // bit per render object: its draw skipped (the pipe's rprobe skip - the picture without it)
+#define RO_DRAW(i, call) do { if (g_rp_skip & 1 << (i)) return; int was_ = g_ro_cur; g_ro_cur = (i); \
+    LONGLONG t_ = rd_qpc(); call; g_ro_qpc[i] += rd_qpc() - t_; g_ro_cur = was_; } while (0)
+internal void __thiscall rd_hook_ro_terrain(ee_ro_terrain *o) { RO_DRAW(RO_TERRAIN, ro_terrain_draw(o)); }
+internal void __thiscall rd_hook_ro_shadows(ee_ro_shadows *o) { RO_DRAW(RO_SHADOWS, ro_shadows_draw(o)); }
+internal void __thiscall rd_hook_ro_units(ee_ro_units *o) { RO_DRAW(RO_UNITS, ro_units_draw(o)); }
+internal void __thiscall rd_hook_ro_water(ee_ro_water *o) { RO_DRAW(RO_WATER, ro_water_draw(o)); }
+internal void __thiscall rd_hook_ro_ui(ee_ro_ui *o) { RO_DRAW(RO_UI, ro_ui_draw(o)); }
 internal int rd_render_objects_install(void) {
     return patch_ro_terrain_draw(rd_hook_ro_terrain) + patch_ro_shadows_draw(rd_hook_ro_shadows) +
            patch_ro_units_draw(rd_hook_ro_units) + patch_ro_water_draw(rd_hook_ro_water) + patch_ro_ui_draw(rd_hook_ro_ui);
 }
 
+// THE PROBE (the pipe's rprobe): the next whole frame's draws logged, each with its render object, states, light,
+// material, texture, world matrix and its vertices' extent and flatness (the largest distance from the plane of its
+// first triangle, in the model's own units) - what the game draws where, for the shadows' plan (docs/renderer.md)
+internal volatile LONG g_rp_state;   // 1 asked, 2 logging this frame
+internal void rd3_probe(rd_device *d, D3DPRIMITIVETYPE type, rd_vb *vb, DWORD start, DWORD nv, WORD *idx, DWORD ni) {
+    if (g_rp_state != 2 || vb->fvf != 0x152) return;
+    const uint8_t *m = vb->mem + start * vb->stride;
+    float lo[3] = { 1e30f, 1e30f, 1e30f }, hi[3] = { -1e30f, -1e30f, -1e30f };
+    for (DWORD i = 0; i < nv; i++) {
+        const float *p = (const float *)(m + i * vb->stride);
+        for (int k = 0; k < 3; k++) { if (p[k] < lo[k]) lo[k] = p[k]; if (p[k] > hi[k]) hi[k] = p[k]; }
+    }
+    float flat = -1;
+    DWORD a = idx && ni >= 3 ? idx[0] : 0, b = idx && ni >= 3 ? idx[1] : 1, c = idx && ni >= 3 ? idx[2] : 2;
+    if (nv >= 3 && a < nv && b < nv && c < nv) {
+        const float *p0 = (const float *)(m + a * vb->stride), *p1 = (const float *)(m + b * vb->stride),
+                    *p2 = (const float *)(m + c * vb->stride);
+        float u[3] = { p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2] }, v[3] = { p2[0] - p0[0], p2[1] - p0[1], p2[2] - p0[2] };
+        float n[3] = { u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0] };
+        float len = sqrtf(n[0] * n[0] + n[1] * n[1] + n[2] * n[2]);
+        if (len > 1e-9f) {
+            flat = 0;
+            for (DWORD i = 0; i < nv; i++) {
+                const float *p = (const float *)(m + i * vb->stride);
+                float dd = fabsf((p[0] - p0[0]) * n[0] + (p[1] - p0[1]) * n[1] + (p[2] - p0[2]) * n[2]) / len;
+                if (dd > flat) flat = dd;
+            }
+        }
+    }
+    const float *n0 = (const float *)(m + 12);
+    DWORD col0 = *(const DWORD *)(m + 24);
+    const DWORD *rs = d->rs, *ts = d->tss[0];
+    const D3DLIGHT7 *l = &d->light[0];
+    const D3DMATRIX *w = &d->world;
+    rd_surface *t = d->tex[0];
+    log_locked("# rprobe %s: prim %d verts %lu idx %lu | lit %lu amb %08lx light0 on %d type %d dir %.2f %.2f %.2f diff %.2f %.2f %.2f"
+               " amb %.2f %.2f %.2f | mat d %.2f %.2f %.2f %.2f a %.2f %.2f %.2f src %lu %lu | blend %lu %lu-%lu z %lu/%lu"
+               " atest %lu/%lu cull %lu | cop %lu %lu %lu aop %lu %lu %lu tf %08lx | tex %p %lux%lu | ext %.2f %.2f %.2f flat %.3f"
+               " n0 %.2f %.2f %.2f col0 %08lx | world %.2f %.2f %.2f / %.2f %.2f %.2f / %.2f %.2f %.2f / %.1f %.1f %.2f\n",
+               g_ro_cur >= 0 ? k_ro_names[g_ro_cur] : "other", (int)type, (unsigned long)nv, (unsigned long)ni,
+               (unsigned long)rs[D3DRENDERSTATE_LIGHTING], (unsigned long)rs[D3DRENDERSTATE_AMBIENT], d->light_on[0],
+               (int)l->dltType, l->dvDirection.x, l->dvDirection.y, l->dvDirection.z, l->dcvDiffuse.r, l->dcvDiffuse.g,
+               l->dcvDiffuse.b, l->dcvAmbient.r, l->dcvAmbient.g, l->dcvAmbient.b, d->material.diffuse.r,
+               d->material.diffuse.g, d->material.diffuse.b, d->material.diffuse.a, d->material.ambient.r,
+               d->material.ambient.g, d->material.ambient.b, (unsigned long)rs[D3DRENDERSTATE_DIFFUSEMATERIALSOURCE],
+               (unsigned long)rs[D3DRENDERSTATE_AMBIENTMATERIALSOURCE], (unsigned long)rs[D3DRENDERSTATE_ALPHABLENDENABLE],
+               (unsigned long)rs[D3DRENDERSTATE_SRCBLEND], (unsigned long)rs[D3DRENDERSTATE_DESTBLEND],
+               (unsigned long)rs[D3DRENDERSTATE_ZENABLE], (unsigned long)rs[D3DRENDERSTATE_ZWRITEENABLE],
+               (unsigned long)rs[D3DRENDERSTATE_ALPHATESTENABLE], (unsigned long)rs[D3DRENDERSTATE_ALPHAREF],
+               (unsigned long)rs[D3DRENDERSTATE_CULLMODE], (unsigned long)ts[D3DTSS_COLOROP],
+               (unsigned long)ts[D3DTSS_COLORARG1], (unsigned long)ts[D3DTSS_COLORARG2], (unsigned long)ts[D3DTSS_ALPHAOP],
+               (unsigned long)ts[D3DTSS_ALPHAARG1], (unsigned long)ts[D3DTSS_ALPHAARG2],
+               (unsigned long)rs[D3DRENDERSTATE_TEXTUREFACTOR], (void *)t, t ? (unsigned long)t->desc.dwWidth : 0UL,
+               t ? (unsigned long)t->desc.dwHeight : 0UL, hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2], flat, n0[0], n0[1],
+               n0[2], (unsigned long)col0, w->_11, w->_12, w->_13, w->_21, w->_22, w->_23, w->_31, w->_32, w->_33, w->_41,
+               w->_42, w->_43);
+}
+
+// rprobe [skip <parts | none>]: the own renderer's next frame logged draw by draw ("# rprobe", render_3d.c rd3_probe);
+// skip leaves render objects out of the picture (terrain, shadows, units, water, interface - a comma list) until none
+internal void cmd_rprobe(char *out, const char *args) {
+    while (*args == ' ') args++;
+    if (!strncmp(args, "skip", 4)) {
+        int skip = 0;
+        for (int i = 0; i < RO_N; i++)
+            if (strstr(args + 4, k_ro_names[i])) skip |= 1 << i;
+        g_rp_skip = skip;
+        REPLY("rprobe: skipping");
+        for (int i = 0; i < RO_N; i++) if (skip & 1 << i) REPLY(" %s", k_ro_names[i]);
+        REPLY("%s\n", skip ? "" : " none");
+        return;
+    }
+    g_rp_state = 1;
+    REPLY("rprobe: the next frame's draws go to the log (# rprobe)\n");
+}
+
 internal void rd_frame_tick(void) {
+    if (g_rp_state == 2) { g_rp_state = 0; log_locked("# rprobe: frame end\n"); }
+    else if (g_rp_state == 1) g_rp_state = 2;
     g_rd_thread = GetCurrentThreadId();
     InterlockedIncrement(&g_rd_frames);
     DWORD now = GetTickCount();
@@ -866,6 +949,7 @@ internal HRESULT __stdcall rd_dev_draw_vb(rd_device *d, D3DPRIMITIVETYPE type, r
     LONGLONG t0 = rd_qpc();
     RD_LOCK();
     rd3_overlay_before(d);
+    rd3_probe(d, type, vb, start, n, NULL, 0);
     if (rd3_prepare(d, rd3_flat_picture(d, vb, start, n))) rd3_append(d, type, vb, start, n, NULL, 0);
     g_rd_draw_qpc += rd_qpc() - t0;
     RD_UNLOCK();
@@ -880,6 +964,7 @@ internal HRESULT __stdcall rd_dev_draw_indexed_vb(rd_device *d, D3DPRIMITIVETYPE
     LONGLONG t0 = rd_qpc();
     RD_LOCK();
     rd3_overlay_before(d);
+    rd3_probe(d, type, vb, start, nv, idx, ni);
     if (rd3_prepare(d, rd3_flat_picture(d, vb, start, nv))) rd3_append(d, type, vb, start, nv, idx, ni);
     g_rd_draw_qpc += rd_qpc() - t0;
     RD_UNLOCK();

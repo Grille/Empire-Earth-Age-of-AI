@@ -15,6 +15,7 @@ internal void cmd_train(char *out, const char *args);
 internal void cmd_give(char *out, const char *args);
 internal void cmd_continent(char *out, const char *args);
 internal void cmd_aigroup(char *out, const char *args);
+internal void cmd_rprobe(char *out, const char *args);   // engine/render_3d.c
 internal void cmd_landing(char *out, const char *args);
 internal void cmd_vis(char *out, const char *args);
 internal void cmd_intel(char *out, const char *args);
@@ -349,6 +350,7 @@ internal void execute(const char *cmd, char *out) {
     else if (!strcmp(verb, "status")) cmd_status(out);
     else if (!strcmp(verb, "camera")) cmd_camera(out, args);
     else if (!strcmp(verb, "overlay")) cmd_overlay(out, args);
+    else if (!strcmp(verb, "rprobe")) cmd_rprobe(out, args);
     else if (!strcmp(verb, "sites")) cmd_sites(out, args);
     else if (!strcmp(verb, "minecheck")) cmd_minecheck(out, args);
     else if (!strcmp(verb, "texts")) cmd_texts(out, args);
