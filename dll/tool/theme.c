@@ -498,15 +498,42 @@ internal LRESULT theme_sb_after(HWND c, UINT msg, WPARAM wp, LPARAM lp) {
 // THE TEXT PANEL (the game's look): text to read - the help, the game page's report - not in a field, which looks like
 // one to type in, but as the game's menus frame a group: the painting darkened under it, a frame of three lines (dark,
 // the light of the bevel, its dark) and the text over it. Scrolled by lines when it is longer than the panel - the
-// wheel, the game's scrollbar (WS_VSCROLL set by SetScrollInfo only then: none while the text fits).
+// wheel, the game's scrollbar (WS_VSCROLL set by SetScrollInfo only then: none while the text fits). Its first
+// characters can be a lead in a colour of their own (PANEL_LEAD before the text: the editors' warnings and mistakes over
+// the help), a blank line between it and the rest.
 #define PANEL_CLASS "AgeOfAIText"
-struct text_panel { HFONT font; int top, line, lines, page, busy; };
+#define PANEL_LEAD (WM_APP + 1)   // wParam the lead's colour, lParam its length (0: none); another class ignores it
+struct text_panel { HFONT font; COLORREF lead_color; int lead, top, line, lines, page, busy; };
 
 internal struct text_panel *theme_panel_of(HWND w) { return (struct text_panel *)GetWindowLongPtrA(w, GWLP_USERDATA); }
 
 internal void theme_panel_inner(HWND w, RECT *r) {   // where the text goes: inside the frame and a margin
     GetClientRect(w, r);
     InflateRect(r, -8, -6);
+}
+
+// the lead and the rest from at's top down (calc: only measured), the height they take
+internal int theme_panel_draw(struct text_panel *t, HDC dc, const char *text, RECT at, int calc) {
+    UINT how = DT_WORDBREAK | DT_EDITCONTROL | DT_NOPREFIX | DT_EXPANDTABS | (calc ? DT_CALCRECT : 0);
+    int n = (int)strlen(text), lead = t->lead < n ? t->lead : n, y = at.top;
+    const char *rest = text + lead;
+    while (*rest == '\r' || *rest == '\n') rest++;
+    if (lead) {
+        RECT r = at;
+        SetTextColor(dc, t->lead_color);
+        DrawTextA(dc, text, lead, &r, how | DT_CALCRECT);
+        if (!calc) { r.right = at.right; DrawTextA(dc, text, lead, &r, how); }
+        y = r.bottom + (*rest ? t->line : 0);
+    }
+    if (*rest) {
+        RECT r = at;
+        r.top = y;
+        SetTextColor(dc, g_pal.text);
+        DrawTextA(dc, rest, -1, &r, how | DT_CALCRECT);
+        if (!calc) { r.right = at.right; DrawTextA(dc, rest, -1, &r, how); }
+        y = r.bottom;
+    }
+    return y - at.top;
 }
 
 // the text's lines at the panel's width, the page, the scrolling; again when the bar comes or goes (the width changes)
@@ -527,11 +554,11 @@ internal void theme_panel_layout(HWND w) {
         GetTextMetricsA(dc, &tm);
         t->line = tm.tmHeight > 0 ? tm.tmHeight : 16;
         RECT r = { 0, 0, in.right - in.left > 1 ? in.right - in.left : 1, 0 };
-        DrawTextA(dc, text, -1, &r, DT_CALCRECT | DT_WORDBREAK | DT_EDITCONTROL | DT_NOPREFIX | DT_EXPANDTABS);
+        int height = theme_panel_draw(t, dc, text, r, 1);
         SelectObject(dc, old);
         ReleaseDC(w, dc);
         free(text);
-        t->lines = (r.bottom + t->line - 1) / t->line;
+        t->lines = (height + t->line - 1) / t->line;
         t->page = (in.bottom - in.top) / t->line;
         if (t->page < 1) t->page = 1;
         int last = t->lines - t->page;
@@ -585,8 +612,7 @@ internal void theme_panel_paint(HWND w, HDC dc) {
     tr.bottom = 0x3FFFFFFF;
     HFONT old = (HFONT)SelectObject(dc, t->font ? t->font : GetStockObject(DEFAULT_GUI_FONT));
     SetBkMode(dc, TRANSPARENT);
-    SetTextColor(dc, g_pal.text);
-    DrawTextA(dc, text, -1, &tr, DT_WORDBREAK | DT_EDITCONTROL | DT_NOPREFIX | DT_EXPANDTABS);
+    theme_panel_draw(t, dc, text, tr, 0);
     SelectObject(dc, old);
     SelectClipRgn(dc, NULL);
     DeleteObject(clip);
@@ -602,6 +628,7 @@ internal LRESULT CALLBACK theme_panel_proc(HWND w, UINT msg, WPARAM wp, LPARAM l
     case WM_NCDESTROY: free(t); SetWindowLongPtrA(w, GWLP_USERDATA, 0); break;
     case WM_SETFONT: if (t) { t->font = (HFONT)wp; theme_panel_layout(w); } return 0;
     case WM_GETFONT: return t ? (LRESULT)t->font : 0;
+    case PANEL_LEAD: if (t) { t->lead_color = (COLORREF)wp; t->lead = (int)lp; } return 0;
     case WM_SETTEXT: {
         LRESULT res = DefWindowProcA(w, msg, wp, lp);
         if (t) { t->top = 0; theme_panel_layout(w); }

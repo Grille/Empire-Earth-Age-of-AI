@@ -31,7 +31,7 @@
 #include "tool/theme.c"   // the game's look, or light or dark as Windows' apps: g_pal, the colours drawn with
 
 #define TITLE "Empire Earth: Age of AI - settings"
-enum { ID_FILTER = 100, ID_LIST, ID_HELP, ID_NAME, ID_FILE, ID_SAVE, ID_CLOSE, ID_UNKNOWN, ID_REMOVE, ID_GAME, ID_GAME_TEXT,
+enum { ID_FILTER = 100, ID_LIST, ID_HELP, ID_FILE, ID_SAVE, ID_CLOSE, ID_UNKNOWN, ID_REMOVE, ID_GAME, ID_GAME_TEXT,
        ID_GAME_APPLY, ID_GAME_RESTORE, ID_HELP_OPEN, ID_GAME_SETTINGS };
 
 // THE PAGES: a section each (rows.h SETTING_SECTIONS by their order, the test ini's left out) - the tree's sections and
@@ -75,7 +75,7 @@ internal char g_unknown[4096];   // "[sec] key" of the keys that are no setting,
 internal struct { char sec[16], key[64]; } g_unk[64];
 internal int g_nunk, g_remove_unknown;
 
-internal HWND g_wnd, g_filter, g_list, g_help, g_name, g_file_label, g_save, g_close, g_unk_label, g_remove, g_game,
+internal HWND g_wnd, g_filter, g_list, g_help, g_file_label, g_save, g_close, g_unk_label, g_remove, g_game,
               g_game_text, g_game_apply, g_game_restore, g_game_settings;
 internal HFONT g_font, g_bold, g_mono;   // g_mono: the game page's report, aligned for a fixed-width font
 internal int g_sel = -1, g_filling;   // g_sel: the selected setting's entry; g_filling: the controls set by the program
@@ -839,42 +839,58 @@ internal int parent_item(int item) {
 }
 
 // THE EDITORS: one for a plain setting; for an AI setting three - every difficulty's ([ai_base], the medium AI's) and
-// easy's, hard's own - each a checkbox, a list or a text field, a button (Default / As [ai_base] / Follow) and what it
-// comes to
+// easy's, hard's own - each a checkbox, a list or a text field and a button (Default / As [ai_base] / Follow); what one
+// has to say (a warning, a mistake, a value that doesn't count) leads the help panel, the value itself is the list's
 #define EDITORS 3
 enum { ED_CHECK, ED_COMBO, ED_EDIT, ED_BUTTON, ED_PARTS = 10 };
 #define ID_ED 200   // set k's part: ID_ED + k * ED_PARTS + part
-struct editor { HWND label, check, combo, edit, button, status; int entry, level; };   // level: its check (the status's colour)
+struct editor { HWND label, check, combo, edit, button; int entry, level; char note[MAX_PATH + 96]; };   // level: the note's
 internal struct editor g_ed[EDITORS];
 internal int g_ned;
+internal char g_help_text[4096];   // the selected line's help, under the editors' notes
 
-internal void show_status(int k) {
+internal void note_of(int k) {
     const struct entry *e = &g_e[g_ed[k].entry];
-    char why[MAX_PATH], shown[TEXT_CAP], msg[MAX_PATH + 64], key[64], word[32];
+    char why[MAX_PATH], shown[TEXT_CAP], *msg = g_ed[k].note, key[64], word[32];
+    size_t cap = sizeof g_ed[k].note;
     key_of(e, key, sizeof key);
-    g_ed[k].level = CHECK_OK;
+    g_ed[k].level = CHECK_WARN;
+    msg[0] = 0;
     const char *other = other_build(e->row);
     if (other) {
-        snprintf(msg, sizeof msg, "Only for %s - this game is %s: the key does nothing here.",
+        snprintf(msg, cap, "Only for %s - this game is %s: the key does nothing here.",
                  !lstrcmpA(other, "aoc") ? "The Art of Conquest" : "Empire Earth (the 2017 update)",
                  !lstrcmpA(other, "aoc") ? "Empire Earth" : "The Art of Conquest");
     } else if (is_member(e) && member_overruled(e, shown, sizeof shown, word, sizeof word)) {
-        snprintf(msg, sizeof msg, "%s=%s: %s%s.", k_settings[under_of(e->row)].key, word, shown,
+        snprintf(msg, cap, "%s=%s: %s%s.", k_settings[under_of(e->row)].key, word, shown,
                  e->text[0] ? " - the value here counts only with custom" : "");
-    } else if (!e->text[0] && on_diff_page(e)) {
-        int grey;
-        shown_value(e, shown, sizeof shown, &grey);
-        snprintf(msg, sizeof msg, "Not set: %s - %s.", easy_default(e) && !g_e[g_all_of[e->row]].text[0] ? "the easy AI's own default" : "as [ai_base]", shown);
-    } else if (!e->text[0]) lstrcpyA(msg, "Not in the file: the default counts.");
-    else {
+    } else if (e->text[0]) {
         int c = check(row_of(e), sec_of(e), key, e->text, why, shown, sizeof shown);
         g_ed[k].level = c;
-        if (c == CHECK_OK) snprintf(msg, sizeof msg, "= %s", shown);
-        else if (c == CHECK_WARN) snprintf(msg, sizeof msg, "= %s - warning: %s; the game uses it anyway.", shown, why);
-        else snprintf(msg, sizeof msg, "Mistake: %s - the game uses the default instead.", why);
+        if (c == CHECK_WARN) snprintf(msg, cap, "Warning: %s - the game uses it anyway.", why);
+        else if (c == CHECK_MISTAKE) snprintf(msg, cap, "Mistake: %s - the game uses the default instead.", why);
     }
-    SetWindowTextA(g_ed[k].status, msg);
-    InvalidateRect(g_ed[k].status, NULL, TRUE);
+}
+
+// the help panel: the editors' notes (an AI setting's each with its editor's name) over the help, red when one is a mistake
+internal void show_help(void) {
+    char text[sizeof g_help_text + EDITORS * (sizeof g_ed[0].note + 32)];
+    size_t o = 0;
+    int mistake = 0;
+    for (int k = 0; k < g_ned; k++) {
+        if (!g_ed[k].note[0]) continue;
+        char label[64];
+        GetWindowTextA(g_ed[k].label, label, sizeof label);
+        o += (size_t)snprintf(text + o, sizeof text - o, "%s%s%s%s", o ? "\r\n" : "", g_ned > 1 ? label : "", g_ned > 1 ? ": " : "", g_ed[k].note);
+        mistake |= g_ed[k].level == CHECK_MISTAKE;
+    }
+    size_t lead = o;
+    snprintf(text + o, sizeof text - o, "%s%s", o && g_help_text[0] ? "\r\n\r\n" : "", g_help_text);
+    char now[sizeof text];
+    GetWindowTextA(g_help, now, sizeof now);
+    if (!strcmp(now, text)) return;   // typing in a field: the panel keeps its place while its text stays
+    SendMessageA(g_help, PANEL_LEAD, mistake ? g_pal.text_mistake : g_pal.text_warn, (LPARAM)lead);
+    SetWindowTextA(g_help, text);
 }
 
 // editor k for its entry: a checkbox (on / off), a list (a choice; for a difficulty on / off too, with "as [ai_base]" first;
@@ -890,7 +906,6 @@ internal void show_editor(int k) {
     ShowWindow(ed->combo, list ? SW_SHOW : SW_HIDE);
     ShowWindow(ed->edit, !box && !list ? SW_SHOW : SW_HIDE);
     ShowWindow(ed->button, SW_SHOW);
-    ShowWindow(ed->status, SW_SHOW);
     SetWindowTextA(ed->label, on_diff_page(e) ? g_page_of[e->page].title : r->ai ? "All" : "Value");
     SetWindowTextA(ed->button, on_diff_page(e) ? "As [ai_base]" : "Default");
     char def[TEXT_CAP];
@@ -924,45 +939,28 @@ internal void show_editor(int k) {
         }
         SendMessageA(ed->combo, CB_SETCURSEL, sel < 0 ? 0 : sel, 0);
     } else SetWindowTextA(ed->edit, e->text);
-    show_status(k);
+    note_of(k);
 }
 
 internal void hide_editor(int k) {
-    HWND c[6] = { g_ed[k].label, g_ed[k].check, g_ed[k].combo, g_ed[k].edit, g_ed[k].button, g_ed[k].status };
-    for (int i = 0; i < 6; i++) ShowWindow(c[i], SW_HIDE);
+    HWND c[5] = { g_ed[k].label, g_ed[k].check, g_ed[k].combo, g_ed[k].edit, g_ed[k].button };
+    for (int i = 0; i < 5; i++) ShowWindow(c[i], SW_HIDE);
 }
 
-// the selected line's name, help and editors (a section or a group: what it holds)
+// the selected line's editors and help (a section or a group: nothing yet - no help of its own)
 internal void show_editors(void) {
     g_filling = 1;
     int old = g_ned;
     g_ned = 0;
-    char title[512], help[4096];
-    title[0] = help[0] = 0;
-    if (g_nvis && node_kind(g_node) != NODE_ENTRY) {   // a section or a group: its name and size (no help of its own yet)
-        int kind = node_kind(g_node), id = node_id(g_node), n = 0;
-        for (int i = 0; i < g_ne; i++)
-            if (kind == NODE_SECTION ? g_e[i].page == id : is_section_page(g_e[i].page) && g_group_of[g_e[i].row] == id) n++;
-        snprintf(title, sizeof title, "%s - %d settings (the triangle, a double click or the right arrow key opens it)",
-                 kind == NODE_SECTION ? g_page_of[id].title : k_setting_groups[id].title, n);
-    } else if (g_sel >= 0) {
+    g_help_text[0] = 0;
+    if (g_nvis && node_kind(g_node) == NODE_ENTRY && g_sel >= 0) {
         struct entry *e = &g_e[g_sel];
-        char key[64], label[96], head[200];
-        key_of(e, key, sizeof key);
-        label_of(e, label, sizeof label);
-        if (lstrcmpA(label, key)) snprintf(head, sizeof head, "%s - [%s] %s", label, sec_of(e), key);   // the key: what the file has
-        else snprintf(head, sizeof head, "[%s] %s", sec_of(e), key);
-        int game = game_of(e->row);
-        if (game >= 0) snprintf(title, sizeof title, "%s - the game's own value: %s (the game's: %s)", head,
-                                k_settings_game[game].what, k_settings_game[game].game);
-        else lstrcpynA(title, head, sizeof title);
-        help_of(sec_of(e), row_of(e)->key, row_of(e)->kind == SETK_STR_P, help, sizeof help);
+        help_of(sec_of(e), row_of(e)->key, row_of(e)->kind == SETK_STR_P, g_help_text, sizeof g_help_text);
         g_ed[g_ned++].entry = g_sel;
         for (int d = 0; d < 3; d++) if (diff_entry(e, d)) g_ed[g_ned++].entry = g_diff_of[e->row][d];
     }
-    SetWindowTextA(g_name, title);
-    SetWindowTextA(g_help, help);
     for (int k = 0; k < EDITORS; k++) if (k < g_ned) show_editor(k); else hide_editor(k);
+    show_help();
     if (g_ned != old) layout();
     else repaint();
     g_filling = 0;
@@ -983,7 +981,8 @@ internal void editor_changed(int k, int part) {
     } else if (part == ED_EDIT) GetWindowTextA(ed->edit, e->text, sizeof e->text);
     e->has = e->text[0] != 0;
     refill_items();
-    for (int j = 0; j < g_ned; j++) show_status(j);   // [ai_base]'s value shows in the difficulties' "as [ai_base]"
+    for (int j = 0; j < g_ned; j++) note_of(j);   // a master's value can overrule its members' notes
+    show_help();
     update_title();
 }
 
@@ -1051,9 +1050,8 @@ internal void layout(void) {
     g_defer = BeginDeferWindowPos(32);
     put_control(g_filter, x, m, lw < dpi_px(300) ? lw : dpi_px(300), dpi_px(24));
     put_control(g_list, x, m + dpi_px(32), lw, list_h);
-    put_control(g_name, px, m, pw, dpi_px(36));   // two lines: the name line of a game value is long
-    int per = dpi_px(66), y = m + dpi_px(42);   // an editor: its line, then what it comes to (up to two lines) under it
-    for (int k = 0; k < EDITORS; k++) {   // its label, its control, the button; under them its status
+    int per = dpi_px(32), y = m;   // an editor a line: its label, its control, the button
+    for (int k = 0; k < EDITORS; k++) {
         struct editor *ed = &g_ed[k];
         int ey = y + k * per, ex = px + dpi_px(56), cw = pw - dpi_px(56) - dpi_px(100);
         if (cw > dpi_px(260)) cw = dpi_px(260);
@@ -1063,9 +1061,8 @@ internal void layout(void) {
         put_control(ed->edit, ex, ey, cw, dpi_px(24));
         int bx = ex + (IsWindowVisible(ed->check) ? dpi_px(60) : cw) + dpi_px(10);
         put_control(ed->button, bx, ey - dpi_px(1), dpi_px(90), dpi_px(26));
-        put_control(ed->status, ex, ey + dpi_px(29), pw - dpi_px(56), dpi_px(34));
     }
-    int hy = y + g_ned * per + (g_ned ? dpi_px(4) : 0);
+    int hy = m + dpi_px(32) + (g_ned > 1 ? (g_ned - 1) * per : 0);   // level with the list under one editor or none
     put_control(g_help, px, hy, pw, list_end - hy);
     int by = h - dpi_px(32) - m / 2;
     if (unk) {
@@ -1116,8 +1113,6 @@ internal void create_controls(void) {
         c.cx = dpi_px(120);
         SendMessageA(g_list, LVM_INSERTCOLUMNA, i, (LPARAM)&c);
     }
-    g_name = make_child(WC_STATICA, "", SS_LEFT | SS_NOPREFIX, ID_NAME);
-    SendMessageA(g_name, WM_SETFONT, (WPARAM)g_bold, TRUE);
     g_help = make_child(theme_text_class(), "", ES_MULTILINE | ES_READONLY | WS_VSCROLL | ES_AUTOVSCROLL, ID_HELP);   // the game's look: a panel
     SendMessageA(g_help, WM_SETFONT, (WPARAM)g_font, TRUE);
     for (int k = 0; k < EDITORS; k++) {
@@ -1128,7 +1123,6 @@ internal void create_controls(void) {
         ed->combo = make_child(WC_COMBOBOXA, "", CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP, id + ED_COMBO);
         ed->edit = make_child(WC_EDITA, "", ES_AUTOHSCROLL | WS_TABSTOP, id + ED_EDIT);
         ed->button = make_child(WC_BUTTONA, "Default", BS_PUSHBUTTON | WS_TABSTOP, id + ED_BUTTON);
-        ed->status = make_child(WC_STATICA, "", SS_LEFT | SS_NOPREFIX, 0);   // wraps: two lines under the editor
         hide_editor(k);
     }
     g_game = make_child(WC_BUTTONA, "Game exe...", BS_PUSHBUTTON | WS_TABSTOP, ID_GAME);
@@ -1162,7 +1156,7 @@ internal int ask_close(void) {
 // the settings, or the game page in their place (the Game exe button)
 internal void show_mode(void) {
     int game = g_game_mode;
-    HWND side[] = { g_filter, g_list, g_name, g_help };
+    HWND side[] = { g_filter, g_list, g_help };
     for (size_t i = 0; i < sizeof side / sizeof *side; i++) ShowWindow(side[i], game ? SW_HIDE : SW_SHOW);
     for (int k = 0; k < EDITORS; k++) if (game || k >= g_ned) hide_editor(k);
     ShowWindow(g_game_text, game ? SW_SHOW : SW_HIDE);
@@ -1344,18 +1338,7 @@ internal LRESULT CALLBACK wnd_proc(HWND w, UINT msg, WPARAM wp, LPARAM lp) {
     switch (msg) {
     case WM_SIZE: theme_size(w); if (g_list) layout(); return 0;
     case WM_ERASEBKGND: if (theme_erase(w, (HDC)wp)) return 1; break;
-    case WM_CTLCOLORSTATIC:   // an editor's status in its check's colour
-        for (int k = 0; k < EDITORS; k++) {
-            if ((HWND)lp != g_ed[k].status || g_ed[k].level == CHECK_OK) continue;
-            LRESULT b = theme_ctlcolor(msg, wp, lp);
-            SetTextColor((HDC)wp, g_ed[k].level == CHECK_WARN ? g_pal.text_warn : g_pal.text_mistake);
-            if (b) return b;
-            SetBkColor((HDC)wp, g_pal.back);
-            return (LRESULT)g_pal.b_back;
-        }
-        if (g_pal.dark) return theme_ctlcolor(msg, wp, lp);
-        break;
-    case WM_CTLCOLOREDIT: case WM_CTLCOLORLISTBOX: case WM_CTLCOLORBTN:
+    case WM_CTLCOLORSTATIC: case WM_CTLCOLOREDIT: case WM_CTLCOLORLISTBOX: case WM_CTLCOLORBTN:
         if (g_pal.dark) return theme_ctlcolor(msg, wp, lp);
         break;
     case WM_SETCURSOR: {   // the split's arrows over the gap
