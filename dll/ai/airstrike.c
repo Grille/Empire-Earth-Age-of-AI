@@ -1,4 +1,4 @@
-// THE AIR FORCE ([autotest] v_air_strike; AS_ON, off until measured). The player, 2026-11-04, on breaking through a
+// THE AIR FORCE ([autotest] v_air_strike; AS_ON, on since 2026-11-04 - below). The player, 2026-11-04, on breaking through a
 // held position: "if I have to go through I bombard it, airplanes are preferred if the AA is weak"; then: "we need take
 // full control of aircraft training and deployment too, the ai trickles them in which is very inefficient ... a proper
 // bombing run can take care of [AA], you notice I have 4 airfields side by side with bombers, so pairs of 4 arrive
@@ -41,7 +41,7 @@
 //   g_ar_push_now), not at its next attack time.
 // The planes come back to their airports by themselves (the air traffic control). "# air force:" lines; a summary a
 // minute (autotest).
-// OFF (2026-11-04). tests/scenarios/air_strike.eeai (a WWI position of the idle human with two 88mm AA guns; P2 with
+// First measured (2026-11-04, off then): tests/scenarios/air_strike.eeai (a WWI position of the idle human with two 88mm AA guns; P2 with
 // three airports and twelve Gothas): the force found the position too strong, the wing of 12-13 went at 3.3-3.8 min,
 // two flights of 4 took out both AA guns, the rest the towers; single runs of the scene go different ways at every
 // step. Head-to-head from World War I (late.eeai, start_epoch 9, 75 min, 24 mirrored games, 4 AIs) with - without: a
@@ -54,10 +54,13 @@
 // THE SHOOTERS (2026-11-04), the save "choke wolf" 153 -> 210 min (3 timings, P3 the variant), with - without: razed
 // 86, 108, 93 / 56, 24, 80 (the last run ended at 180), units killed 459, 592, 582 / 462, 295, 491, units lost in
 // gold + iron the same (44-45k / 28-50k); 1-3 wings, every one at the shooters' spot; the bombers came one at a time
-// (the gold stock ~200: the soldiers take the rest).
+// (the gold stock ~200: the soldiers take the rest). Head-to-head from WWI (Continental, 4 AIs, 36 mirrored games) with -
+// without: alive +0.00 (0.10), soldiers -4.5 (8.4), kills -5.1 (18.7), losses -10.5 (9.2), razed -2.9 (6.9) - 49 wings
+// flown in the first 12 (the AIs shell each other too). ON (2026-11-04): the gain where the player's kind of position
+// holds the way, nothing lost elsewhere, and the player's call ("we need take full control of aircraft").
 
 #ifndef AS_ON
-#define AS_ON 0
+#define AS_ON 1
 #endif
 #define AS_EVERY 5000
 #define AS_R 14
