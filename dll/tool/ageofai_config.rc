@@ -1,5 +1,7 @@
 // ageofai_config.exe's resources: the manifest (common controls 6 - the current look -, system DPI aware: sharp at
 // Windows' display scaling) and the shipped config/ageofai.ini, whose comments are the settings' help and which makes a
-// missing ageofai.ini (ageofai_config.c shipped_text). Paths relative to dll/, where build.sh runs.
+// missing ageofai.ini (ageofai_config.c shipped_text), and the icon (the exe's in Explorer, the window's: LoadIconA 1 - the
+// player's, 2026-11-04, after EE-AOC.exe's). Paths relative to dll/, where build.sh runs.
 1 24 "tool/ageofai_config.manifest"
+1 ICON "tool/ageofai_config.ico"
 101 RCDATA "../config/ageofai.ini"
