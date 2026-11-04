@@ -950,7 +950,6 @@ internal void hide_editor(int k) {
 // the selected line's editors and help (a section or a group: nothing yet - no help of its own)
 internal void show_editors(void) {
     g_filling = 1;
-    int old = g_ned;
     g_ned = 0;
     g_help_text[0] = 0;
     if (g_nvis && node_kind(g_node) == NODE_ENTRY && g_sel >= 0) {
@@ -961,8 +960,7 @@ internal void show_editors(void) {
     }
     for (int k = 0; k < EDITORS; k++) if (k < g_ned) show_editor(k); else hide_editor(k);
     show_help();
-    if (g_ned != old) layout();
-    else repaint();
+    layout();   // the editors: their number and kinds (a checkbox, a field: the button beside it) - put_control moves only what changed
     g_filling = 0;
 }
 
