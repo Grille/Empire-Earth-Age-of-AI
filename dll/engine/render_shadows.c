@@ -4,19 +4,24 @@
 // role (rd3_shadow_role): the terrain's draws receive; the units' lit solid draws cast, and a unit standing in a shadow
 // is darkened as a whole by one look at its origin's place in the map (SH_TINT - no shading of its own); trees cast
 // without the tint (in a forest the trees around would darken them all); the decals lying on the ground (roads,
-// craters - in the units' render object; the farms' fields - in the game's shadows') receive; the game's blobs are not
-// drawn.
+// craters - in the units' render object; the farms' fields - in the game's shadows') and the water's surface receive;
+// the game's blobs are not drawn. Under the water a shadow fades out with the depth: gone at g_sh.fade below the level
+// (the deepest seabed measured: 0.84 under it, the water at 0 - "choke wolf", 2026-11-04).
 // The frame is recorded (render_frame.c): before its list is drawn, the casters in it are drawn from the sun into a
 // depth map fitted to their box, and the ground into a second one (what the hills hide from the sun) - this frame's,
 // from the batches as they lie in the upload buffers (rd3_shadow_frame). The terrain and the decals then receive in the
 // main pixel shader. The ground's vertices are the game's own transform into the camera's space (its view only swaps
 // y and z): their place in the world needs the camera the units are drawn with, which comes later in the frame - known
 // when the list is drawn (rd3_shadow_vc).
-enum { SH_NONE, SH_RECEIVE, SH_CAST, SH_TINT, SH_DECAL, SH_BLOB };
+enum { SH_NONE, SH_RECEIVE, SH_CAST, SH_TINT, SH_DECAL, SH_BLOB, SH_WATER };
 #define SH_SIZE 4096
 internal struct {
     int on;          // [display] shadows (the pipe's shadows switches it)
     float strength;  // how much of the sun a shadow takes away (1: all but the ambient light)
+    float fade;      // the depth under the water by which a shadow is gone
+    double water_z;  // the water's vertices' heights this frame, summed, and how many (its level)
+    int water_n;
+    float level;     // the last frame's
     int ready;       // 1 made, -1 failed
     ID3D11Texture2D *map, *tmap;   // the casters' depth from the sun, the ground's (what the hills hide from it)
     ID3D11DepthStencilView *dsv, *tdsv;
@@ -31,14 +36,14 @@ internal struct {
     float sun[3];
     float amb[3], diff[3];   // the units' ambient (global + the light's) and the sun's colour
     float view[16];          // the units' camera, the last seen
-    // the map: world -> u, v, depth; camera space (the ground's) -> the same; the colour a shadow leaves; on while a
-    // map of the frame's casters is drawn
-    float shm[16], gm[16], shk[4], inv_depth;
+    // the map: world -> u, v, depth; camera space (the ground's) -> the same, and -> the world (gw: its height); the
+    // colour a shadow leaves; the water (rd3_vcb shl); on while a map of the frame's casters is drawn
+    float shm[16], gm[16], gw[16], shk[4], shl[4], inv_depth;
     int valid;
     LONG passes;
     int last_cast, last_ground;   // the last map's (the pipe's shadows)
     float last_lo[3], last_hi[3];
-} g_sh = { .strength = 0.8f, .sun = { 0.08f, 0.75f, -0.65f } };
+} g_sh = { .strength = 0.8f, .fade = 0.8f, .sun = { 0.08f, 0.75f, -0.65f } };
 
 // from the sun: the batch's vertices placed as the main pass places them (render_3d.c's vertex shader), through shm
 // into the map (sa: alpha reference / 255, alpha tested)
@@ -97,6 +102,15 @@ internal int rd3_shadow_init(void) {
     return 1;
 }
 
+// a rigid 4x4 (rotation, translation; row vectors) inverted
+internal void rd3_rigid_inverse(float *r, const float *m) {
+    memset(r, 0, 64);
+    for (int i = 0; i < 3; i++)
+        for (int j = 0; j < 3; j++) r[i * 4 + j] = m[j * 4 + i];
+    for (int j = 0; j < 3; j++) r[12 + j] = -(m[12] * r[j] + m[13] * r[4 + j] + m[14] * r[8 + j]);
+    r[15] = 1;
+}
+
 // A draw's role (SH_), from the render object drawing it and its vertices - the probe's findings (docs/renderer.md):
 // the terrain's draws receive (not the sky drawn with them: its view leaves the origin); the game's blob shadows aren't
 // drawn, its fields receive; in the units' render object the lit draws that don't lie flat (their vertices' height over 1% of their width
@@ -110,6 +124,20 @@ internal int rd3_shadow_role(rd_device *d, rd_vb *vb, DWORD start, DWORD nv) {
     // the game's shadows' render object draws the farms' fields too (depth written, alpha tested at 127 - the probe on
     // "choke wolf", 2026-11-04): those are kept and receive; the blobs (depth not written) aren't drawn
     if (g_ro_cur == RO_SHADOWS) return d->rs[D3DRENDERSTATE_ZWRITEENABLE] && d->tex[0] ? SH_DECAL : SH_BLOB;
+    // the water's surface: in the ground's camera space too (drawn after the units: their camera known - its level)
+    if (g_ro_cur == RO_WATER) {
+        if (d->view._41 != 0 || d->view._42 != 0 || d->view._43 != 0) return SH_NONE;
+        float iv[16], wv[16], m[16];
+        rd3_rigid_inverse(iv, g_sh.view);
+        rd3_mul(wv, &d->world._11, &d->view._11);
+        rd3_mul(m, wv, iv);
+        for (DWORD k = 0; k < nv; k++) {
+            const float *p = (const float *)(vb->mem + (size_t)(start + k) * vb->stride);
+            g_sh.water_z += p[0] * m[2] + p[1] * m[6] + p[2] * m[10] + m[14];
+        }
+        g_sh.water_n += (int)nv;
+        return SH_WATER;
+    }
     if (g_ro_cur != RO_UNITS) return SH_NONE;
     float lo[3] = { 1e30f, 1e30f, 1e30f }, hi[3] = { -1e30f, -1e30f, -1e30f };
     for (DWORD k = 0; k < nv; k++) {
@@ -153,14 +181,6 @@ internal void rd3_shadow_classify(rd_device *d, rd_vb *vb, DWORD start, DWORD nv
     if (role != d->sh_role) { d->sh_role = role; d->changed |= RD_CH_VC; }
 }
 
-// a rigid 4x4 (rotation, translation; row vectors) inverted
-internal void rd3_rigid_inverse(float *r, const float *m) {
-    memset(r, 0, 64);
-    for (int i = 0; i < 3; i++)
-        for (int j = 0; j < 3; j++) r[i * 4 + j] = m[j * 4 + i];
-    for (int j = 0; j < 3; j++) r[12 + j] = -(m[12] * r[j] + m[13] * r[4 + j] + m[14] * r[8 + j]);
-    r[15] = 1;
-}
 // Before the frame's list is drawn (rf_replay): its casters from the sun into the map, its ground into the terrain's,
 // each batch drawn from where it lies in the upload buffers. A list without casters leaves the map as it is (one drawn
 // for the interface alone), with ground but no casters it has no shadows.
@@ -171,8 +191,13 @@ internal void rd3_shadow_frame(void) {
         const rf_cmd *c = &g_rf.cmd[i];
         if (c->topo != D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST) continue;
         if (c->role == SH_CAST || c->role == SH_TINT) nc++;
-        else if (c->role == SH_RECEIVE) ng++;
+        else if (c->role == SH_RECEIVE || c->role == SH_WATER) ng++;
     }
+    // the water's level: its vertices' mean height (no water drawn: no fading)
+    if (g_sh.water_n) g_sh.level = (float)(g_sh.water_z / g_sh.water_n);
+    g_sh.shl[0] = g_sh.level; g_sh.shl[1] = 1 / fmaxf(g_sh.fade, 0.01f); g_sh.shl[2] = g_sh.water_n ? 1.0f : 0.0f;
+    g_sh.water_z = 0;
+    g_sh.water_n = 0;
     if (!nc) { if (ng) g_sh.valid = 0; return; }
     // the map's axes: r and u across the sun's rays, f along them (depth: farther from the sun)
     const float *f = g_sh.sun;
@@ -234,9 +259,8 @@ internal void rd3_shadow_frame(void) {
     }
     // the ground from the sun, in the same map's coordinates (camera space -> world through the units' camera, no
     // alpha test)
-    float iv[16];
-    rd3_rigid_inverse(iv, g_sh.view);
-    rd3_mul(g_sh.gm, iv, m);
+    rd3_rigid_inverse(g_sh.gw, g_sh.view);
+    rd3_mul(g_sh.gm, g_sh.gw, m);
     ID3D11DeviceContext_OMSetRenderTargets(x, 0, NULL, g_sh.tdsv);
     ID3D11DeviceContext_ClearDepthStencilView(x, g_sh.tdsv, D3D11_CLEAR_DEPTH, 1, 0);
     ID3D11DeviceContext_RSSetState(x, g_sh.traster);
@@ -275,8 +299,17 @@ internal void rd3_shadow_frame(void) {
 internal void rd3_shadow_vc(rd3_vcb *vc) {
     vc->shp[2] = g_sh.valid ? 1.0f : 0.0f;
     if (!g_sh.valid) return;
-    if ((int)vc->shp[0] == SH_RECEIVE) rd3_mul(vc->shm, vc->view, g_sh.gm);
-    else memcpy(vc->shm, g_sh.shm, sizeof vc->shm);
+    int role = (int)vc->shp[0];
+    if (role == SH_RECEIVE || role == SH_WATER) {
+        rd3_mul(vc->shm, vc->view, g_sh.gm);
+        float w[16];
+        rd3_mul(w, vc->view, g_sh.gw);
+        vc->shz[0] = w[2]; vc->shz[1] = w[6]; vc->shz[2] = w[10]; vc->shz[3] = w[14];
+    } else {
+        memcpy(vc->shm, g_sh.shm, sizeof vc->shm);
+        vc->shz[0] = vc->shz[1] = vc->shz[3] = 0; vc->shz[2] = 1;
+    }
+    memcpy(vc->shl, g_sh.shl, sizeof vc->shl);
     memcpy(vc->shk, g_sh.shk, sizeof vc->shk);
     vc->shp[3] = g_sh.inv_depth;
 }
@@ -306,20 +339,26 @@ internal void rd3_shadow_pconstants(rd_device *d, rd3_pcb *pc) {
 }
 
 // shadows [game | dynamic] [strength]: the shadows switched while playing (the setting's at the start); the strength
-// how much of the sun a shadow takes (0..1, default 0.8)
+// how much of the sun a shadow takes (0..1, default 0.8). shadows fade <depth>: by how deep under the water a shadow is
+// gone (default 0.8)
 internal void cmd_shadows(char *out, const char *args) {
     char mode[16] = "";
     float s = -1;
     sscanf(args, "%15s %f", mode, &s);
-    if (!strcmp(mode, "game")) g_sh.on = 0;
+    if (!strcmp(mode, "fade")) {
+        if (s > 0) g_sh.fade = s;
+        else { REPLY("error: usage: shadows fade <depth under the water, > 0>\n"); return; }
+    } else if (!strcmp(mode, "game")) g_sh.on = 0;
     else if (!strcmp(mode, "dynamic")) g_sh.on = 1;
-    else if (mode[0]) { REPLY("error: usage: shadows [game | dynamic] [strength 0..1]\n"); return; }
-    if (s >= 0 && s <= 1) g_sh.strength = s;
+    else if (mode[0]) { REPLY("error: usage: shadows [game | dynamic] [strength 0..1] | fade <depth>\n"); return; }
+    if (strcmp(mode, "fade") && s >= 0 && s <= 1) g_sh.strength = s;
     REPLY("shadows: %s, strength %.2f, %s, %ld maps drawn; the last: %d casting batches, %d of ground;"
-          " the casters' box %.1f %.1f %.1f - %.1f %.1f %.1f, the sun %.2f %.2f %.2f, a shadow's colour %.2f %.2f %.2f\n",
+          " the casters' box %.1f %.1f %.1f - %.1f %.1f %.1f, the sun %.2f %.2f %.2f, a shadow's colour %.2f %.2f %.2f;"
+          " the water at %.2f%s, a shadow gone %.2f under it\n",
           g_sh.on ? "dynamic" : "game", (double)g_sh.strength,
           g_sh.ready > 0 ? "ready" : g_sh.ready < 0 ? "FAILED (the log says why)" : "not made yet", (long)g_sh.passes,
           g_sh.last_cast, g_sh.last_ground, (double)g_sh.last_lo[0], (double)g_sh.last_lo[1], (double)g_sh.last_lo[2],
           (double)g_sh.last_hi[0], (double)g_sh.last_hi[1], (double)g_sh.last_hi[2], (double)g_sh.sun[0],
-          (double)g_sh.sun[1], (double)g_sh.sun[2], (double)g_sh.shk[0], (double)g_sh.shk[1], (double)g_sh.shk[2]);
+          (double)g_sh.sun[1], (double)g_sh.sun[2], (double)g_sh.shk[0], (double)g_sh.shk[1], (double)g_sh.shk[2],
+          (double)g_sh.level, g_sh.shl[2] > 0 ? "" : " (none seen)", (double)g_sh.fade);
 }

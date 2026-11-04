@@ -174,7 +174,14 @@ tells the last map's casters, ground batches, box, sun and shadow colour), engin
 - Each draw gets a role: the terrain's receive (not the sky drawn with it); in the units' render object the lit draws
   that don't lie flat cast (trees - alpha tested at 200 or more - without the tint below), the textured ones lying flat
   (decals: roads, craters) receive; in the game's shadows' render object (EEROGroundShadows) the blobs (depth not
-  written) are not drawn, the farms' fields (depth written, alpha tested at 127) receive.
+  written) are not drawn, the farms' fields (depth written, alpha tested at 127) receive; the water's surface (its
+  render object's draws in the ground's camera space) receives.
+- Under the water a shadow fades out with the depth (the player, 2026-11-05: none under water, ideally fading): gone
+  0.8 under the level (the pipe: `shadows fade <depth>`). The level is the water's vertices' mean height each frame (in
+  the world through the units' camera); measured on "choke wolf": the water at 0.00, the deepest seabed at -0.84 (rprobe
+  logs each draw's view translation and its heights in the world now) - a fade to -2 the player asked about would leave
+  60% of a shadow on the deepest seabed. The water is drawn half see-through (vertex alpha 0x80): a shadow on deep water
+  is half of one on land, on the shallows by the beach nearly all.
 - The frame is recorded (above, "the frame recorded"): before its list is drawn, its casters are drawn from the sun
   into a 4096x4096 depth map fitted to their box, its ground into a second one (what the hills hide from the sun) -
   this frame's, from the batches where they lie in the upload buffers (no copies). The terrain, the decals and the
@@ -202,7 +209,8 @@ tells the last map's casters, ground batches, box, sun and shadow colour), engin
   vehicles, biplanes (on the hillside), the town centre, giraffes' legs and trees cast their shapes; recorded, the fields
   are drawn and tanks' shadows lie on them, the info panel is clean, a building under construction see-through over the
   shadowed ground. The frame's units part 1.35 ms (running at speed 1; the copying version 2.57, the game's shadows
-  1.6-1.8). Open: the player's verdict; water receives nothing; the units' tint not checked in a picture yet.
+  1.6-1.8). The water: ships' shadows on its surface, fading on the deep seabed (shots at 73,86 with fade 0.8, without
+  fading and with the game's shadows). Open: the player's verdict; the units' tint not checked in a picture yet.
 
 What the game draws (the pipe's `rprobe`: the next frame's draws logged one by one with their render object, states,
 light, material, texture, world matrix and their vertices' extent and flatness; `rprobe skip <parts>` leaves render

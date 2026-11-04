@@ -100,6 +100,8 @@ typedef struct {
     float shm[16];    // the dynamic shadows (render_shadows.c): world -> the shadow map's u, v and depth
     float shk[4];     // the colour a shadow multiplies with (1 = none), w the strength
     float shp[4];     // the draw's role, the map's size, on (a map drawn), 1 / the map's depth range
+    float shz[4];     // the draw's height in the world: its placed vertex (camera space for the ground) dotted with it
+    float shl[4];     // the water's level, 1 / the depth a shadow fades out by under it, on (water seen this frame)
 } rd3_vcb;
 // the pixel shader's: stage 0's colour op and arguments, texture bound; alpha op and arguments, alpha function
 typedef struct {
@@ -113,14 +115,14 @@ typedef struct {
 internal const char k_rd3_shader[] =
     "cbuffer v : register(b0) { row_major float4x4 vpm; row_major float4x4 view;"
     " float4 ldir[8]; float4 ldiff[8]; float4 lamb[8]; float4 mdiff, mamb, memi, gamb; int4 lit; int4 src; float4 fog;"
-    " float4 vp; row_major float4x4 shm; float4 shk; float4 shp; };\n"
+    " float4 vp; row_major float4x4 shm; float4 shk; float4 shp; float4 shz; float4 shl; };\n"
     "cbuffer p : register(b1) { int4 op; int4 aop; float4 fogc; float4 tf; float4 misc; float4 pshk; float4 shd; float4 sht; };\n"
     "Buffer<float4> wt : register(t1);\n"   // the world matrices, 4 rows each (RD3_WB_BYTES)
     "Texture2D t : register(t0); SamplerState s : register(s0);\n"
     "Texture2D<float> sm : register(t2); SamplerComparisonState sc : register(s1);\n"   // the dynamic shadows' maps:
     "Texture2D<float> tm : register(t4);\n"   // the casters', the terrain's (what the hills hide from the sun)
     "struct I { float3 p : POSITION; float3 n : NORMAL; float4 c : COLOR; float2 t : TEXCOORD; uint w : WORLD; };\n"
-    "struct O { float4 p : SV_Position; float4 c : COLOR; float2 t : TEXCOORD0; float f : FOG; float3 q : TEXCOORD1; };\n"
+    "struct O { float4 p : SV_Position; float4 c : COLOR; float2 t : TEXCOORD0; float f : FOG; float4 q : TEXCOORD1; };\n"
     // a unit's tint: how many of four texels around its origin's place in the map are nearer the sun by more than b
     "float shade_at(float3 q, float b) { if (q.x < 0 || q.y < 0 || q.x > 1 || q.y > 1) return 0;"
     " int n = (int)shp.y; int2 c = int2(q.xy * shp.y); float k = 0;"
@@ -128,7 +130,9 @@ internal const char k_rd3_shader[] =
     "  k += sm.Load(int3(a, 0)) < q.z - b ? 1 : 0; } return k / 4; }\n"
     "O vs(I i) { O o; uint r = i.w * 4; float4 r0 = wt.Load(r); float b = r0.w; r0.w = 0;"   // _14: the draw's size (SH_TINT)
     " float4x4 world = float4x4(r0, wt.Load(r + 1), wt.Load(r + 2), wt.Load(r + 3));"
-    " float4 p = mul(float4(i.p, 1), world); o.p = mul(p, vpm); o.q = mul(p, shm).xyz;"
+    " float4 p = mul(float4(i.p, 1), world); o.p = mul(p, vpm); o.q.xyz = mul(p, shm).xyz;"
+    // under water the shadow fades out with the depth (the sun's light scattered in the water)
+    " o.q.w = shl.z > 0 ? saturate(1 - (shl.x - dot(p, shz)) * shl.y) : 1;"
     " o.p.xy += vp.xy * o.p.w;"
     " float4 vc = i.c.zyxw, c = vc;"   // D3DCOLOR's bytes are B G R A
     " if (lit.x) { float4 d = src.x ? vc : mdiff, a = src.y ? vc : mamb, e = src.z ? vc : memi;"
@@ -153,11 +157,12 @@ internal const char k_rd3_shader[] =
     " int A = (int)round(c.a * 255), R = (int)misc.x, f = aop.w;"
     " if (f && !(f == 8 || (f == 2 && A < R) || (f == 3 && A == R) || (f == 4 && A <= R) || (f == 5 && A > R)"
     "  || (f == 6 && A != R) || (f == 7 && A >= R))) discard;"
-    // the ground and a decal on it: 3x3 comparisons with the casters' map, where the terrain's doesn't hide the sun
-    " if ((shd.x == 1 || shd.x == 4) && shd.z > 0) { float z = min(i.q.z, 0.9999), l = 0, h = 0;"
+    // the ground, a decal or field on it, the water: 3x3 comparisons with the casters' map, where the terrain's doesn't
+    // hide the sun
+    " if ((shd.x == 1 || shd.x == 4 || shd.x == 6) && shd.z > 0) { float z = min(i.q.z, 0.9999), l = 0, h = 0;"
     "  for (int y = -1; y <= 1; y++) for (int u = -1; u <= 1; u++) { float2 k = i.q.xy + float2(u, y) * shd.y;"
     "   l += sm.SampleCmpLevelZero(sc, k, z - shd.w); h += tm.SampleCmpLevelZero(sc, k, z - sht.x); }"
-    "  c.rgb *= lerp(pshk.rgb, 1, 1 - (1 - l / 9) * (h / 9)); }"
+    "  c.rgb *= lerp(1, pshk.rgb, (1 - l / 9) * (h / 9) * i.q.w); }"
     " if (misc.y > 0.5) c.rgb = lerp(fogc.rgb, c.rgb, saturate(i.f));"
     " return c; }\n";
 
@@ -721,6 +726,18 @@ internal void rd3_probe(rd_device *d, D3DPRIMITIVETYPE type, rd_vb *vb, DWORD st
             }
         }
     }
+    // the heights in the world: through the draw's world and view and the units' camera back (the ground's and the
+    // water's vertices are in the camera's space - render_shadows.c)
+    float iv[16], wv[16], wm[16], zl = 1e30f, zh = -1e30f;
+    rd3_rigid_inverse(iv, g_sh.view);
+    rd3_mul(wv, &d->world._11, &d->view._11);
+    rd3_mul(wm, wv, iv);
+    for (DWORD i = 0; i < nv; i++) {
+        const float *p = (const float *)(m + i * vb->stride);
+        float z = p[0] * wm[2] + p[1] * wm[6] + p[2] * wm[10] + wm[14];
+        if (z < zl) zl = z;
+        if (z > zh) zh = z;
+    }
     const float *n0 = (const float *)(m + 12);
     DWORD col0 = *(const DWORD *)(m + 24);
     const DWORD *rs = d->rs, *ts = d->tss[0];
@@ -731,7 +748,7 @@ internal void rd3_probe(rd_device *d, D3DPRIMITIVETYPE type, rd_vb *vb, DWORD st
                " amb %.2f %.2f %.2f | mat d %.2f %.2f %.2f %.2f a %.2f %.2f %.2f src %lu %lu | blend %lu %lu-%lu z %lu/%lu"
                " atest %lu/%lu cull %lu | cop %lu %lu %lu aop %lu %lu %lu tf %08lx | tex %p %lux%lu | ext %.2f %.2f %.2f flat %.3f"
                " n0 %.2f %.2f %.2f col0 %08lx | world %.2f %.2f %.2f / %.2f %.2f %.2f / %.2f %.2f %.2f / %.1f %.1f %.2f"
-               " | viewport %lu %lu %lux%lu\n",
+               " | viewport %lu %lu %lux%lu | view at %.1f %.1f %.1f | world z %.2f - %.2f\n",
                g_ro_cur >= 0 ? k_ro_names[g_ro_cur] : "other", (int)type, (unsigned long)nv, (unsigned long)ni,
                (unsigned long)rs[D3DRENDERSTATE_LIGHTING], (unsigned long)rs[D3DRENDERSTATE_AMBIENT], d->light_on[0],
                (int)l->dltType, l->dvDirection.x, l->dvDirection.y, l->dvDirection.z, l->dcvDiffuse.r, l->dcvDiffuse.g,
@@ -749,7 +766,8 @@ internal void rd3_probe(rd_device *d, D3DPRIMITIVETYPE type, rd_vb *vb, DWORD st
                t ? (unsigned long)t->desc.dwHeight : 0UL, hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2], flat, n0[0], n0[1],
                n0[2], (unsigned long)col0, w->_11, w->_12, w->_13, w->_21, w->_22, w->_23, w->_31, w->_32, w->_33, w->_41,
                w->_42, w->_43, (unsigned long)d->viewport.dwX, (unsigned long)d->viewport.dwY,
-               (unsigned long)d->viewport.dwWidth, (unsigned long)d->viewport.dwHeight);
+               (unsigned long)d->viewport.dwWidth, (unsigned long)d->viewport.dwHeight, d->view._41, d->view._42,
+               d->view._43, zl, zh);
 }
 
 // rprobe [skip <parts | none>]: the own renderer's next frame logged draw by draw ("# rprobe", render_3d.c rd3_probe);
