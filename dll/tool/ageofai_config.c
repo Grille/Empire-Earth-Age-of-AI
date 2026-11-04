@@ -135,8 +135,10 @@ internal void key_of(const struct entry *e, char *out, int cap) {
     else lstrcpynA(out, row_of(e)->key, cap);
 }
 
-// what the list calls an entry: its row's title (SETTING_TITLES; a slot's number after it), else its key
+// what the list calls an entry: its row's title (SETTING_TITLES; a slot's number after it), else its key; an AI
+// setting's easy or hard line its difficulty
 internal void label_of(const struct entry *e, char *out, int cap) {
+    if (on_diff_page(e)) { lstrcpynA(out, k_set_diff[g_page_of[e->page].diff], cap); return; }
     for (int i = 0; i < SETTING_TITLE_N; i++)
         if (k_settings_titles[i].row == e->row) {
             if (e->slot >= 0) snprintf(out, cap, "%s %d", k_settings_titles[i].title, e->slot);
@@ -661,7 +663,26 @@ internal int diff_set(const struct entry *e) {   // an AI row whose easy or hard
 
 // an entry's looks in the list (draw_cell), worked out with its line's text: a paint - each line's cells again on
 // every resize and scroll - only reads them
-internal struct { uint8_t bold, grey, game, own, level, other; } g_look[sizeof g_e / sizeof *g_e];
+internal struct { uint8_t bold, grey, game, own, level, other, on, reset; } g_look[sizeof g_e / sizeof *g_e];
+internal int g_box_pad, g_def_pad;   // the spaces a flag's value starts with (room for its check box: draw_cell's post
+                                     // paint), and every default (room for the selected line's "<" button)
+
+internal int is_flag(const struct entry *e) { return row_of(e)->kind == SETK_FLAG; }
+
+// a flag as its box shows it: what the game plays - a mistake the default, an easy or hard line without a value
+// [ai_base]'s (or easy's own), a member its master's word
+internal int flag_on(const struct entry *e) {
+    char why[MAX_PATH], shown[TEXT_CAP], key[64], word[32];
+    key_of(e, key, sizeof key);
+    if (is_member(e) && member_overruled(e, shown, sizeof shown, word, sizeof word)) return !strcmp(shown, "on");
+    if (e->text[0] && check(row_of(e), sec_of(e), key, e->text, why, shown, sizeof shown) != CHECK_MISTAKE) return !strcmp(shown, "on");
+    if (on_diff_page(e)) {
+        const char *easy = easy_default(e);
+        if (!g_e[g_all_of[e->row]].text[0] && easy) { check(row_of(e), sec_of(e), key, easy, why, shown, sizeof shown); return !strcmp(shown, "on"); }
+        return flag_on(&g_e[g_all_of[e->row]]);
+    }
+    return row_of(e)->def != 0;
+}
 
 internal void fill_item(int item, LPARAM p) {
     char v[TEXT_CAP] = "", def[TEXT_CAP] = "", why[MAX_PATH], key[64];
@@ -674,6 +695,8 @@ internal void fill_item(int item, LPARAM p) {
     g_look[p].own = g_look[p].game && game_keeps(e, game_of(e->row)) && entry_level(e) != CHECK_MISTAKE;
     g_look[p].level = (uint8_t)entry_level(e);
     g_look[p].other = other_build(e->row) != NULL;   // the other build's: key and value grey
+    g_look[p].on = is_flag(e) && flag_on(e);
+    g_look[p].reset = e->text[0] && (on_diff_page(e) || is_changed(e));   // the Default button: something to put back
     int grey;
     key_of(e, key, sizeof key);
     shown_value(e, v, sizeof v, &grey);
@@ -707,6 +730,21 @@ internal void fill_item(int item, LPARAM p) {
         if (o >= sizeof v) o = sizeof v - 1;
     }
     if (n && o + 1 < sizeof v) lstrcpyA(v + o, ")");
+    if (on_diff_page(e)) {   // what an easy or hard line without a value plays
+        const char *easy = easy_default(e);
+        if (easy && !g_e[g_all_of[e->row]].text[0]) { check(row_of(e), sec_of(e), key, easy, why, def, sizeof def); lstrcpyA(def + strlen(def), "  (the easy AI's own)"); }
+        else lstrcpyA(def, "as [ai_base]");
+    }
+    if (is_flag(e)) {   // room for the box
+        char t[TEXT_CAP];
+        snprintf(t, sizeof t, "%*s%s", g_box_pad, "", v);
+        lstrcpyA(v, t);
+    }
+    {   // room for the "<" button
+        char t[TEXT_CAP];
+        snprintf(t, sizeof t, "%*s%s", g_def_pad, "", def);
+        lstrcpyA(def, t);
+    }
     ListView_SetItemText(g_list, item, 1, v);
     ListView_SetItemText(g_list, item, COLS - 1, def);
 }
@@ -749,6 +787,18 @@ internal void add_line(int kind, int id, int level) {
     if (g_nvis < (int)(sizeof g_vis / sizeof *g_vis)) { g_vis[g_nvis].kind = kind; g_vis[g_nvis].id = id; g_vis[g_nvis].level = level; g_nvis++; }
 }
 
+internal int has_diffs(const struct entry *e) {   // an AI setting with easy and hard lines
+    for (int d = 0; d < 3; d++) if (diff_entry(e, d)) return 1;
+    return 0;
+}
+
+// an entry's line, and an opened AI setting's easy and hard lines under it (a search leaves them closed)
+internal void add_entry(int i, int level) {
+    add_line(NODE_ENTRY, i, level);
+    if (!has_diffs(&g_e[i]) || !g_open[g_e[i].row]) return;
+    for (int d = 0; d < 3; d++) if (diff_entry(&g_e[i], d)) add_line(NODE_ENTRY, g_diff_of[g_e[i].row][d], level + 1);
+}
+
 // the lines: a closed node's lines left out; with a search, every setting it finds and the nodes above them (open).
 // keep: the line selected again; stay: the list scrolled as it was (a node opened or closed), else from its start
 internal void fill_list(LPARAM keep, int stay) {
@@ -774,10 +824,10 @@ internal void fill_list(LPARAM keep, int stay) {
             int master = under_of(g_e[i].row), shown = 0;   // shown: its master is a line too (a search may leave it out)
             if (master >= 0 && !filter[0] && !g_open[master]) continue;
             for (int j = 0; master >= 0 && j < g_ne; j++) if (g_e[j].page == p && g_e[j].row == master) shown = found[j];
-            add_line(NODE_ENTRY, i, (gr >= 0) + 1 + shown);
+            add_entry(i, (gr >= 0) + 1 + shown);
         }
         for (int i = 0; i < g_ne; i++)   // the rows SETTING_ALSO shows here too: the entry of their own page, after this page's
-            if (found[i] && g_e[i].page != p && also_on(g_e[i].row, p)) add_line(NODE_ENTRY, i, 1);
+            if (found[i] && g_e[i].page != p && also_on(g_e[i].row, p)) add_entry(i, 1);
     }
     int top = stay ? ListView_GetTopIndex(g_list) : 0;
     SendMessageA(g_list, WM_SETREDRAW, FALSE, 0);
@@ -791,7 +841,8 @@ internal void fill_list(LPARAM keep, int stay) {
         else if (kind == NODE_GROUP) { lstrcpynA(name, k_setting_groups[id].title, sizeof name); open = g_grp_open[id] || filter[0]; }
         else {
             label_of(&g_e[id], name, sizeof name);
-            if (is_master(g_e[id].row)) open = g_open[g_e[id].row] || filter[0];
+            if (is_master(g_e[id].row) && !on_diff_page(&g_e[id])) open = g_open[g_e[id].row] || filter[0];
+            else if (has_diffs(&g_e[id])) open = g_open[g_e[id].row];
         }
         if (open >= 0) { text[o++] = open ? 0x25BE : 0x25B8; text[o++] = ' '; }   // a triangle down / right
         else if (kind == NODE_ENTRY) { text[o++] = ' '; text[o++] = ' '; text[o++] = ' '; }
@@ -820,8 +871,8 @@ internal void fill_list(LPARAM keep, int stay) {
     } else show_editors();
 }
 
-// a node opened or closed (a section, a group, a master)
-internal int is_node(LPARAM p) { return node_kind(p) != NODE_ENTRY || is_master(g_e[p].row); }
+// a node opened or closed (a section, a group, a master, an AI setting)
+internal int is_node(LPARAM p) { return node_kind(p) != NODE_ENTRY || (!on_diff_page(&g_e[p]) && (is_master(g_e[p].row) || has_diffs(&g_e[p]))); }
 internal int *open_of(LPARAM p) {
     return node_kind(p) == NODE_SECTION ? &g_sec_open[node_id(p)] : node_kind(p) == NODE_GROUP ? &g_grp_open[node_id(p)] : &g_open[g_e[p].row];
 }
@@ -838,23 +889,27 @@ internal int parent_item(int item) {
     return -1;
 }
 
-// THE EDITORS: one for a plain setting; for an AI setting three - every difficulty's ([ai_base], the medium AI's) and
-// easy's, hard's own - each a checkbox, a list or a text field and a button (Default / As [ai_base] / Follow); what one
-// has to say (a warning, a mistake, a value that doesn't count) leads the help panel, the value itself is the list's
-#define EDITORS 3
-enum { ED_CHECK, ED_COMBO, ED_EDIT, ED_BUTTON, ED_PARTS = 10 };
-#define ID_ED 200   // set k's part: ID_ED + k * ED_PARTS + part
-struct editor { HWND label, check, combo, edit, button; int entry, level; char note[MAX_PATH + 96]; };   // level: the note's
-internal struct editor g_ed[EDITORS];
-internal int g_ned;
-internal char g_help_text[4096];   // the selected line's help, under the editors' notes
+// THE EDITOR: a value is changed in its Value cell - a flag's check box drawn in the cell of every flag line (a click
+// on it, or Space), a choice's dropdown and a text field over the selected line's cell (Enter or F2 takes the keyboard
+// there; Enter, Esc or the up and down keys back to the list, Esc undoing the field's typing), and the "<" button at
+// the start of the selected line's Default cell (or Delete) puts the default back - an easy or hard line's [ai_base]. What a value has
+// to say (a warning, a mistake, a value that doesn't count) leads the help panel.
+enum { ED_COMBO = 200, ED_EDIT };   // the controls' ids
+enum { ED_NONE, ED_LIST, ED_FIELD };
+internal HWND g_combo, g_edit;
+internal int g_ed_kind, g_btn_item = -1, g_placing, g_row_h;   // g_btn_item: the line whose Default button was drawn
+internal char g_edit_was[TEXT_CAP];   // the field's text when it took the keyboard (Esc puts it back)
+struct note { int entry, level; char text[MAX_PATH + 96]; };
+internal struct note g_note[3];   // the selected line's, an AI setting's easy's and hard's
+internal int g_nnote;
+internal char g_help_text[4096];   // the selected line's help, under the notes
 
-internal void note_of(int k) {
-    const struct entry *e = &g_e[g_ed[k].entry];
-    char why[MAX_PATH], shown[TEXT_CAP], *msg = g_ed[k].note, key[64], word[32];
-    size_t cap = sizeof g_ed[k].note;
+internal void note_of(struct note *n) {
+    const struct entry *e = &g_e[n->entry];
+    char why[MAX_PATH], shown[TEXT_CAP], *msg = n->text, key[64], word[32];
+    size_t cap = sizeof n->text;
     key_of(e, key, sizeof key);
-    g_ed[k].level = CHECK_WARN;
+    n->level = CHECK_WARN;
     msg[0] = 0;
     const char *other = other_build(e->row);
     if (other) {
@@ -866,23 +921,31 @@ internal void note_of(int k) {
                  e->text[0] ? " - the value here counts only with custom" : "");
     } else if (e->text[0]) {
         int c = check(row_of(e), sec_of(e), key, e->text, why, shown, sizeof shown);
-        g_ed[k].level = c;
+        n->level = c;
         if (c == CHECK_WARN) snprintf(msg, cap, "Warning: %s - the game uses it anyway.", why);
         else if (c == CHECK_MISTAKE) snprintf(msg, cap, "Mistake: %s - the game uses the default instead.", why);
     }
 }
 
-// the help panel: the editors' notes (an AI setting's each with its editor's name) over the help, red when one is a mistake
+internal void notes_of(void) {
+    g_nnote = 0;
+    if (g_sel < 0) return;
+    g_note[g_nnote++].entry = g_sel;
+    for (int d = 0; d < 3; d++) if (diff_entry(&g_e[g_sel], d)) g_note[g_nnote++].entry = g_diff_of[g_e[g_sel].row][d];
+    for (int k = 0; k < g_nnote; k++) note_of(&g_note[k]);
+}
+
+// the help panel: the notes (an AI setting's each with its line's name) over the help, red when one is a mistake
 internal void show_help(void) {
-    char text[sizeof g_help_text + EDITORS * (sizeof g_ed[0].note + 32)];
+    char text[sizeof g_help_text + 3 * (sizeof g_note[0].text + 32)];
     size_t o = 0;
     int mistake = 0;
-    for (int k = 0; k < g_ned; k++) {
-        if (!g_ed[k].note[0]) continue;
-        char label[64];
-        GetWindowTextA(g_ed[k].label, label, sizeof label);
-        o += (size_t)snprintf(text + o, sizeof text - o, "%s%s%s%s", o ? "\r\n" : "", g_ned > 1 ? label : "", g_ned > 1 ? ": " : "", g_ed[k].note);
-        mistake |= g_ed[k].level == CHECK_MISTAKE;
+    for (int k = 0; k < g_nnote; k++) {
+        if (!g_note[k].text[0]) continue;
+        const struct entry *e = &g_e[g_note[k].entry];
+        const char *name = g_nnote < 2 ? "" : on_diff_page(e) ? k_set_diff[g_page_of[e->page].diff] : "[ai_base]";
+        o += (size_t)snprintf(text + o, sizeof text - o, "%s%s%s%s", o ? "\r\n" : "", name, name[0] ? ": " : "", g_note[k].text);
+        mistake |= g_note[k].level == CHECK_MISTAKE;
     }
     size_t lead = o;
     snprintf(text + o, sizeof text - o, "%s%s", o && g_help_text[0] ? "\r\n\r\n" : "", g_help_text);
@@ -893,107 +956,175 @@ internal void show_help(void) {
     SetWindowTextA(g_help, text);
 }
 
-// editor k for its entry: a checkbox (on / off), a list (a choice; for a difficulty on / off too, with "as [ai_base]" first;
-// a child: follow its master, off, on), or a text field
-internal void show_editor(int k) {
-    struct editor *ed = &g_ed[k];
-    struct entry *e = &g_e[ed->entry];
-    const struct setting_row *r = row_of(e);
-    int flag = r->kind == SETK_FLAG;
-    int box = flag && !inherits(e), list = r->kind == SETK_CHOICE || (flag && inherits(e));
-    ShowWindow(ed->label, SW_SHOW);
-    ShowWindow(ed->check, box ? SW_SHOW : SW_HIDE);
-    ShowWindow(ed->combo, list ? SW_SHOW : SW_HIDE);
-    ShowWindow(ed->edit, !box && !list ? SW_SHOW : SW_HIDE);
-    ShowWindow(ed->button, SW_SHOW);
-    SetWindowTextA(ed->label, on_diff_page(e) ? g_page_of[e->page].title : r->ai ? "All" : "Value");
-    SetWindowTextA(ed->button, on_diff_page(e) ? "As [ai_base]" : "Default");
-    char def[TEXT_CAP];
-    default_text(r, def, sizeof def);
-    char bad[MAX_PATH], shown[TEXT_CAP], key[64];
-    key_of(e, key, sizeof key);
-    // a checkbox or a list shows what the game plays: for a mistake the default (the text field keeps the text, to mend)
-    const char *v = e->text[0] && check(r, sec_of(e), key, e->text, bad, shown, sizeof shown) != CHECK_MISTAKE ? e->text : def;
-    if (box) {
-        double x;
-        const char *why;
-        int b;
-        SendMessageA(ed->check, BM_SETCHECK, x_const_eval(v, &x, &why, &b) && x != 0 ? BST_CHECKED : BST_UNCHECKED, 0);
-    } else if (list) {
-        SendMessageA(ed->combo, CB_RESETCONTENT, 0, 0);
-        int base = inherits(e);
-        if (base) SendMessageA(ed->combo, CB_ADDSTRING, 0, (LPARAM)"as [ai_base]");
-        int sel = base && !e->text[0] ? 0 : -1;
-        if (flag) {
-            SendMessageA(ed->combo, CB_ADDSTRING, 0, (LPARAM)"off (0)");
-            SendMessageA(ed->combo, CB_ADDSTRING, 0, (LPARAM)"on (1)");
-            if (sel < 0) { double x; const char *why; int b; sel = base + (x_const_eval(v, &x, &why, &b) && x != 0); }
-        } else {
-            char name[64];
-            for (int i = 0; ; i++) {
-                setting_choice_name(r->choices, i, name, sizeof name);
-                if (!name[0]) break;
-                SendMessageA(ed->combo, CB_ADDSTRING, 0, (LPARAM)name);
-                if (sel < 0 && !lstrcmpiA(name, v)) sel = base + i;
-            }
-        }
-        SendMessageA(ed->combo, CB_SETCURSEL, sel < 0 ? 0 : sel, 0);
-    } else SetWindowTextA(ed->edit, e->text);
-    note_of(k);
+// the dropdown or the field over the selected line's Value cell - hidden while the cell is scrolled out of the list
+// (under its header, past its bottom) or the line has none; again after whatever moves the list's lines (list_proc)
+internal void editor_place(void) {
+    if (g_placing || !g_list) return;
+    g_placing = 1;
+    HWND c = g_ed_kind == ED_LIST ? g_combo : g_ed_kind == ED_FIELD ? g_edit : NULL;
+    int item = c && !g_game_mode ? (int)SendMessageA(g_list, LVM_GETNEXTITEM, (WPARAM)-1, LVNI_SELECTED) : -1;
+    RECT cell = { LVIR_BOUNDS, 1, 0, 0 }, head, rc;
+    if (item >= 0) {
+        SendMessageA(g_list, LVM_GETSUBITEMRECT, item, (LPARAM)&cell);
+        GetClientRect(g_list, &rc);
+        GetWindowRect(ListView_GetHeader(g_list), &head);
+        MapWindowPoints(NULL, g_list, (POINT *)&head, 2);
+        if (cell.right > rc.right) cell.right = rc.right;
+        if (cell.top < head.bottom || cell.bottom > rc.bottom || cell.right - cell.left < dpi_px(40)) item = -1;
+    }
+    HWND both[2] = { g_combo, g_edit };
+    for (int i = 0; i < 2; i++) if (both[i] != c || item < 0) { if (IsWindowVisible(both[i])) ShowWindow(both[i], SW_HIDE); }
+    if (item >= 0) {
+        MapWindowPoints(g_list, g_wnd, (POINT *)&cell, 2);
+        RECT now;
+        GetWindowRect(c, &now);
+        MapWindowPoints(NULL, g_wnd, (POINT *)&now, 2);
+        int h = c == g_combo ? now.bottom - now.top : cell.bottom - cell.top, y = cell.top + (cell.bottom - cell.top - h) / 2;
+        if (now.left != cell.left || now.top != y || now.right != cell.right || !IsWindowVisible(c))   // a dropdown's height its list's too
+            SetWindowPos(c, HWND_TOP, cell.left, y, cell.right - cell.left, c == g_combo ? dpi_px(300) : h, SWP_NOACTIVATE | SWP_SHOWWINDOW);
+    }
+    g_placing = 0;
 }
 
-internal void hide_editor(int k) {
-    HWND c[5] = { g_ed[k].label, g_ed[k].check, g_ed[k].combo, g_ed[k].edit, g_ed[k].button };
-    for (int i = 0; i < 5; i++) ShowWindow(c[i], SW_HIDE);
-}
-
-// the selected line's editors and help (a section or a group: nothing yet - no help of its own)
-internal void show_editors(void) {
+// the controls for the selected line: a choice's names in the dropdown ("as [ai_base]" first on an easy or hard
+// line), a field's text - empty, it shows grey what it comes to then
+internal void editor_fill(void) {
     g_filling = 1;
-    g_ned = 0;
+    struct entry *e = g_sel >= 0 ? &g_e[g_sel] : NULL;
+    const struct setting_row *r = e ? row_of(e) : NULL;
+    g_ed_kind = !e || r->kind == SETK_FLAG ? ED_NONE : r->kind == SETK_CHOICE ? ED_LIST : ED_FIELD;
+    if (g_ed_kind == ED_LIST) {
+        char def[TEXT_CAP], bad[MAX_PATH], shown[TEXT_CAP], key[64], name[64];
+        default_text(r, def, sizeof def);
+        key_of(e, key, sizeof key);
+        const char *v = e->text[0] && check(r, sec_of(e), key, e->text, bad, shown, sizeof shown) != CHECK_MISTAKE ? e->text : def;
+        SendMessageA(g_combo, CB_RESETCONTENT, 0, 0);
+        int base = inherits(e), sel = base && !e->text[0] ? 0 : -1;
+        if (base) SendMessageA(g_combo, CB_ADDSTRING, 0, (LPARAM)"as [ai_base]");
+        for (int i = 0; ; i++) {
+            setting_choice_name(r->choices, i, name, sizeof name);
+            if (!name[0]) break;
+            SendMessageA(g_combo, CB_ADDSTRING, 0, (LPARAM)name);
+            if (sel < 0 && !lstrcmpiA(name, v)) sel = base + i;
+        }
+        SendMessageA(g_combo, CB_SETCURSEL, sel < 0 ? 0 : sel, 0);
+    } else if (g_ed_kind == ED_FIELD) {
+        struct entry empty = *e;
+        char shown[TEXT_CAP];
+        wchar_t cue[TEXT_CAP];
+        int grey;
+        empty.text[0] = 0;
+        shown_value(&empty, shown, sizeof shown, &grey);
+        MultiByteToWideChar(CP_ACP, 0, shown, -1, cue, TEXT_CAP);
+        SendMessageW(g_edit, EM_SETCUEBANNER, TRUE, (LPARAM)cue);
+        SetWindowTextA(g_edit, e->text);
+    }
+    g_filling = 0;
+    editor_place();
+}
+
+// the selected line's help, notes and controls (a section or a group: nothing yet - no help of its own)
+internal void show_editors(void) {
     g_help_text[0] = 0;
     if (g_nvis && node_kind(g_node) == NODE_ENTRY && g_sel >= 0) {
-        struct entry *e = &g_e[g_sel];
-        help_of(sec_of(e), row_of(e)->key, row_of(e)->kind == SETK_STR_P, g_help_text, sizeof g_help_text);
-        g_ed[g_ned++].entry = g_sel;
-        for (int d = 0; d < 3; d++) if (diff_entry(e, d)) g_ed[g_ned++].entry = g_diff_of[e->row][d];
+        const struct entry *e = &g_e[g_sel], *h = on_diff_page(e) ? &g_e[g_all_of[e->row]] : e;   // easy's, hard's: the setting's
+        help_of(sec_of(h), row_of(h)->key, row_of(h)->kind == SETK_STR_P, g_help_text, sizeof g_help_text);
     }
-    for (int k = 0; k < EDITORS; k++) if (k < g_ned) show_editor(k); else hide_editor(k);
+    notes_of();
     show_help();
-    layout();   // the editors: their number and kinds (a checkbox, a field: the button beside it) - put_control moves only what changed
-    g_filling = 0;
+    editor_fill();
 }
 
-// the player changed editor k (part: ED_*): its entry's text from it
-internal void editor_changed(int k, int part) {
-    if (g_filling || k >= g_ned) return;
-    struct editor *ed = &g_ed[k];
-    struct entry *e = &g_e[ed->entry];
-    const struct setting_row *r = row_of(e);
-    if (part == ED_CHECK) lstrcpyA(e->text, SendMessageA(ed->check, BM_GETCHECK, 0, 0) == BST_CHECKED ? "1" : "0");
-    else if (part == ED_COMBO) {
-        int i = (int)SendMessageA(ed->combo, CB_GETCURSEL, 0, 0) - inherits(e);
-        if (i < 0) e->text[0] = 0;
-        else if (r->kind == SETK_FLAG) lstrcpyA(e->text, i ? "1" : "0");
-        else setting_choice_name(r->choices, i, e->text, sizeof e->text);
-    } else if (part == ED_EDIT) GetWindowTextA(ed->edit, e->text, sizeof e->text);
+// an entry's new text: the list's values, the notes, the title after it
+internal void entry_set(struct entry *e, const char *text) {
+    if (e->text != text) lstrcpynA(e->text, text, sizeof e->text);
     e->has = e->text[0] != 0;
     refill_items();
-    for (int j = 0; j < g_ned; j++) note_of(j);   // a master's value can overrule its members' notes
+    notes_of();   // a master's value can overrule its members' notes, [ai_base]'s shows in easy's and hard's
     show_help();
     update_title();
 }
 
-internal void set_default(int k) {
-    if (k >= g_ned) return;
-    struct entry *e = &g_e[g_ed[k].entry];
-    if (inherits(e) || !e->had) e->text[0] = 0;
-    else default_text(row_of(e), e->text, sizeof e->text);   // a key the file has keeps its line, with the default
-    e->has = e->text[0] != 0;
-    g_filling = 1;
-    show_editor(k);
-    g_filling = 0;
-    editor_changed(k, -1);
+internal void flag_toggle(int entry) { entry_set(&g_e[entry], flag_on(&g_e[entry]) ? "0" : "1"); }
+
+// the player changed the dropdown or the field (part: ED_COMBO, ED_EDIT): the selected entry's text from it
+internal void editor_changed(int part) {
+    if (g_filling || g_sel < 0) return;
+    struct entry *e = &g_e[g_sel];
+    char text[TEXT_CAP] = "";
+    if (part == ED_COMBO) {
+        int i = (int)SendMessageA(g_combo, CB_GETCURSEL, 0, 0) - inherits(e);
+        if (i >= 0) setting_choice_name(row_of(e)->choices, i, text, sizeof text);
+    } else GetWindowTextA(g_edit, text, sizeof text);
+    entry_set(e, text);
+}
+
+internal void set_default(int entry) {
+    struct entry *e = &g_e[entry];
+    char def[TEXT_CAP] = "";
+    if (!inherits(e) && e->had) default_text(row_of(e), def, sizeof def);   // a key the file has keeps its line, with the default
+    entry_set(e, def);
+    if (entry == g_sel) editor_fill();
+}
+
+// Enter or F2 on the selected line: a flag switched, the dropdown opened, the field takes the keyboard; a node opened
+internal void editor_start(void) {
+    if (g_sel < 0) { if (g_nvis && is_node(g_node)) toggle(g_node); return; }
+    if (is_flag(&g_e[g_sel])) flag_toggle(g_sel);
+    else if (g_ed_kind == ED_LIST && IsWindowVisible(g_combo)) { SetFocus(g_combo); SendMessageA(g_combo, CB_SHOWDROPDOWN, TRUE, 0); }
+    else if (g_ed_kind == ED_FIELD && IsWindowVisible(g_edit)) { SetFocus(g_edit); SendMessageA(g_edit, EM_SETSEL, 0, -1); }
+}
+
+// the selected line's "<" button (the default over to the value): a square at the start of its Default cell, the
+// column's text after it on every line (g_def_pad)
+internal void reset_rect(int item, RECT *b) {
+    RECT r = { LVIR_BOUNDS, COLS - 1, 0, 0 };
+    SendMessageA(g_list, LVM_GETSUBITEMRECT, item, (LPARAM)&r);
+    int m = dpi_px(3), side = r.bottom - r.top - 2 * m;
+    SetRect(b, r.left + m, r.top + m, r.left + m + side, r.bottom - m);
+}
+
+// the keys the dialog code would take (Enter: Save, Esc: Close) kept for the list and the controls; Enter, F2, Space
+// and Delete on the list's selected line; the field's Enter, Esc and up / down back to the list
+internal int dlg_key(LPARAM lp, int esc) {
+    const MSG *m = (const MSG *)lp;
+    return m && m->message == WM_KEYDOWN && (m->wParam == VK_RETURN || (esc && m->wParam == VK_ESCAPE));
+}
+internal LRESULT CALLBACK list_proc(HWND w, UINT msg, WPARAM wp, LPARAM lp, UINT_PTR id, DWORD_PTR data) {
+    (void)id; (void)data;
+    if (msg == WM_GETDLGCODE && dlg_key(lp, 0)) return DefSubclassProc(w, msg, wp, lp) | DLGC_WANTMESSAGE;
+    if (msg == WM_CHAR && (wp == ' ' || wp == '\r')) return 0;   // no search for a line starting so (the indent), no beep
+    if (msg == WM_KEYDOWN) {
+        if (wp == VK_RETURN || wp == VK_F2) { editor_start(); return 0; }
+        if (wp == VK_SPACE) { if (g_sel >= 0 && is_flag(&g_e[g_sel])) flag_toggle(g_sel); return 0; }
+        if (wp == VK_DELETE) { if (g_sel >= 0 && g_look[g_sel].reset) set_default(g_sel); return 0; }
+    }
+    LRESULT res = DefSubclassProc(w, msg, wp, lp);
+    switch (msg) {   // what moves the lines (a smooth scroll by timer, a column's width through the header's WM_NOTIFY)
+    case WM_VSCROLL: case WM_HSCROLL: case WM_MOUSEWHEEL: case WM_MOUSEHWHEEL: case WM_KEYDOWN: case WM_SIZE: case WM_TIMER:
+    case WM_NOTIFY: case WM_SETREDRAW: case WM_WINDOWPOSCHANGED: case LVM_SCROLL: case LVM_ENSUREVISIBLE: case LVM_SETCOLUMNWIDTH:
+        editor_place();
+    }
+    return res;
+}
+internal LRESULT CALLBACK edit_proc(HWND w, UINT msg, WPARAM wp, LPARAM lp, UINT_PTR id, DWORD_PTR data) {
+    (void)id; (void)data;
+    if (msg == WM_GETDLGCODE && dlg_key(lp, 1)) return DefSubclassProc(w, msg, wp, lp) | DLGC_WANTMESSAGE;
+    if (msg == WM_CHAR && (wp == '\r' || wp == 27)) return 0;
+    if (msg == WM_SETFOCUS) GetWindowTextA(w, g_edit_was, sizeof g_edit_was);
+    if (msg == WM_KEYDOWN) {
+        if (wp == VK_ESCAPE) SetWindowTextA(w, g_edit_was);   // EN_CHANGE: the entry too
+        if (wp == VK_RETURN || wp == VK_ESCAPE) { SetFocus(g_list); return 0; }
+        if (wp == VK_UP || wp == VK_DOWN || wp == VK_PRIOR || wp == VK_NEXT) { SetFocus(g_list); SendMessageA(g_list, msg, wp, lp); return 0; }
+    }
+    return DefSubclassProc(w, msg, wp, lp);
+}
+internal LRESULT CALLBACK combo_proc(HWND w, UINT msg, WPARAM wp, LPARAM lp, UINT_PTR id, DWORD_PTR data) {
+    (void)id; (void)data;
+    int open = (msg == WM_GETDLGCODE || msg == WM_KEYDOWN) && DefSubclassProc(w, CB_GETDROPPEDSTATE, 0, 0);   // past this subclass: not again
+    if (msg == WM_GETDLGCODE && !open && dlg_key(lp, 1)) return DefSubclassProc(w, msg, wp, lp) | DLGC_WANTMESSAGE;
+    if (msg == WM_KEYDOWN && !open && (wp == VK_RETURN || wp == VK_ESCAPE)) { SetFocus(g_list); return 0; }
+    return DefSubclassProc(w, msg, wp, lp);
 }
 
 internal void show_unknown(void) {
@@ -1048,20 +1179,7 @@ internal void layout(void) {
     g_defer = BeginDeferWindowPos(32);
     put_control(g_filter, x, m, lw < dpi_px(300) ? lw : dpi_px(300), dpi_px(24));
     put_control(g_list, x, m + dpi_px(32), lw, list_h);
-    int per = dpi_px(32), y = m;   // an editor a line: its label, its control, the button
-    for (int k = 0; k < EDITORS; k++) {
-        struct editor *ed = &g_ed[k];
-        int ey = y + k * per, ex = px + dpi_px(56), cw = pw - dpi_px(56) - dpi_px(100);
-        if (cw > dpi_px(260)) cw = dpi_px(260);
-        put_control(ed->label, px, ey + dpi_px(4), dpi_px(52), dpi_px(20));
-        put_control(ed->check, ex, ey, dpi_px(60), dpi_px(24));
-        put_control(ed->combo, ex, ey, cw, dpi_px(300));
-        put_control(ed->edit, ex, ey, cw, dpi_px(24));
-        int bx = ex + (IsWindowVisible(ed->check) ? dpi_px(60) : cw) + dpi_px(10);
-        put_control(ed->button, bx, ey - dpi_px(1), dpi_px(90), dpi_px(26));
-    }
-    int hy = m + dpi_px(32) + (g_ned > 1 ? (g_ned - 1) * per : 0);   // level with the list under one editor or none
-    put_control(g_help, px, hy, pw, list_end - hy);
+    put_control(g_help, px, m, pw, list_end - m);
     int by = h - dpi_px(32) - m / 2;
     if (unk) {
         put_control(g_unk_label, m, by - unk, w - 3 * m - dpi_px(110), unk - dpi_px(4));
@@ -1084,6 +1202,7 @@ internal void layout(void) {
     for (int c = 0; c < COLS; c++)   // only a width that changes: each change has the list lay itself out again
         if (ListView_GetColumnWidth(g_list, c) != cols[c]) ListView_SetColumnWidth(g_list, c, cols[c]);
     SendMessageA(g_list, WM_SETREDRAW, TRUE, 0);
+    editor_place();
     repaint();
 }
 
@@ -1113,16 +1232,32 @@ internal void create_controls(void) {
     }
     g_help = make_child(theme_text_class(), "", ES_MULTILINE | ES_READONLY | WS_VSCROLL | ES_AUTOVSCROLL, ID_HELP);   // the game's look: a panel
     SendMessageA(g_help, WM_SETFONT, (WPARAM)g_font, TRUE);
-    for (int k = 0; k < EDITORS; k++) {
-        struct editor *ed = &g_ed[k];
-        int id = ID_ED + k * ED_PARTS;
-        ed->label = make_child(WC_STATICA, "", SS_LEFT | SS_NOPREFIX, 0);
-        ed->check = make_child(WC_BUTTONA, "on", BS_AUTOCHECKBOX | WS_TABSTOP, id + ED_CHECK);
-        ed->combo = make_child(WC_COMBOBOXA, "", CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP, id + ED_COMBO);
-        ed->edit = make_child(WC_EDITA, "", ES_AUTOHSCROLL | WS_TABSTOP, id + ED_EDIT);
-        ed->button = make_child(WC_BUTTONA, "Default", BS_PUSHBUTTON | WS_TABSTOP, id + ED_BUTTON);
-        hide_editor(k);
+    // the editor's controls over the list (siblings it doesn't draw over), its lines high enough for them (a small
+    // image list's height sets a report view's line height)
+    SetWindowLongA(g_list, GWL_STYLE, GetWindowLongA(g_list, GWL_STYLE) | WS_CLIPSIBLINGS);
+    g_row_h = dpi_px(22);
+    ListView_SetImageList(g_list, ImageList_Create(1, g_row_h, ILC_COLOR, 1, 0), LVSIL_SMALL);
+    SetWindowSubclass(g_list, list_proc, 2, 0);
+    g_combo = make_child(WC_COMBOBOXA, "", CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP, ED_COMBO);
+    g_edit = make_child(WC_EDITA, "", ES_AUTOHSCROLL | WS_TABSTOP, ED_EDIT);
+    SetWindowSubclass(g_combo, combo_proc, 2, 0);
+    SetWindowSubclass(g_edit, edit_proc, 2, 0);
+    for (int i = 0; i < 2 && !g_gl.on; i++) {   // Windows' dropdown the line's height (the game's look: its knot's)
+        RECT r;
+        GetWindowRect(g_combo, &r);
+        int item = (int)SendMessageA(g_combo, CB_GETITEMHEIGHT, (WPARAM)-1, 0) + g_row_h - 2 - (r.bottom - r.top);
+        SendMessageA(g_combo, CB_SETITEMHEIGHT, (WPARAM)-1, item > 1 ? item : 1);
     }
+    ShowWindow(g_combo, SW_HIDE);
+    ShowWindow(g_edit, SW_HIDE);
+    HDC dc = GetDC(g_list);
+    HFONT old = (HFONT)SelectObject(dc, g_font);
+    SIZE sp;
+    GetTextExtentPoint32A(dc, " ", 1, &sp);
+    SelectObject(dc, old);
+    ReleaseDC(g_list, dc);
+    g_box_pad = sp.cx > 0 ? (dpi_px(24) + sp.cx - 1) / sp.cx : 6;   // the box from the cell's start, the text after it
+    g_def_pad = sp.cx > 0 ? (g_row_h + sp.cx - 1) / sp.cx : 6;
     g_game = make_child(WC_BUTTONA, "Game exe...", BS_PUSHBUTTON | WS_TABSTOP, ID_GAME);
     g_help_open = make_child(WC_BUTTONA, "Help (F1)", BS_PUSHBUTTON | WS_TABSTOP, ID_HELP_OPEN);
     g_file_label = make_child(WC_STATICA, "", SS_LEFT | SS_NOPREFIX | SS_PATHELLIPSIS, ID_FILE);
@@ -1156,7 +1291,6 @@ internal void show_mode(void) {
     int game = g_game_mode;
     HWND side[] = { g_filter, g_list, g_help };
     for (size_t i = 0; i < sizeof side / sizeof *side; i++) ShowWindow(side[i], game ? SW_HIDE : SW_SHOW);
-    for (int k = 0; k < EDITORS; k++) if (game || k >= g_ned) hide_editor(k);
     ShowWindow(g_game_text, game ? SW_SHOW : SW_HIDE);
     ShowWindow(g_game_apply, game ? SW_SHOW : SW_HIDE);
     ShowWindow(g_game_restore, game ? SW_SHOW : SW_HIDE);
@@ -1164,6 +1298,7 @@ internal void show_mode(void) {
     SetWindowTextA(g_game, game ? "Back to the settings" : "Game exe...");
     if (game) game_show();
     else fill_list(g_node, 1);
+    editor_place();
     repaint();
 }
 
@@ -1189,7 +1324,52 @@ internal LRESULT draw_cell(NMLVCUSTOMDRAW *cd) {
     SelectObject(cd->nmcd.hdc, bold ? g_bold : g_font);
     cd->clrText = game ? (grey ? g_pal.game_grey : g_pal.game) : grey ? g_pal.grey : g_pal.text;
     cd->clrTextBk = bk;
-    return CDRF_NEWFONT;
+    LRESULT res = CDRF_NEWFONT;
+    if (node_kind(p) == NODE_ENTRY && ((cd->iSubItem == 1 && is_flag(&g_e[p])) || (cd->iSubItem == COLS - 1 && g_look[p].reset &&
+        (int)cd->nmcd.dwItemSpec == (int)SendMessageA(g_list, LVM_GETNEXTITEM, (WPARAM)-1, LVNI_SELECTED)))) res |= CDRF_NOTIFYPOSTPAINT;
+    return res;
+}
+
+// over a drawn cell: a flag's check box (the game's, else a square with a tick), the selected line's Default button
+internal void draw_cell_after(NMLVCUSTOMDRAW *cd) {
+    LPARAM p = cd->nmcd.lItemlParam;
+    int item = (int)cd->nmcd.dwItemSpec;
+    HDC dc = cd->nmcd.hdc;
+    if (cd->iSubItem == 1) {
+        RECT r = { LVIR_BOUNDS, 1, 0, 0 };
+        SendMessageA(g_list, LVM_GETSUBITEMRECT, item, (LPARAM)&r);
+        int size = dpi_px(GL_CELL), x = r.left + dpi_px(4), y = r.top + (r.bottom - r.top - size) / 2, on = g_look[p].on;
+        if (g_gl.on) {
+            if (on) theme_cell(dc, x, y, size, GL_CELL_CHECKED);
+            else theme_cell(dc, x, y, size, GL_CELL_EMPTY);
+            return;
+        }
+        int b = dpi_px(13);
+        RECT box = { x + (size - b) / 2, y + (size - b) / 2, x + (size - b) / 2 + b, y + (size - b) / 2 + b };
+        HBRUSH fr = CreateSolidBrush(g_look[p].grey ? g_pal.grey : g_pal.text);
+        FrameRect(dc, &box, fr);
+        DeleteObject(fr);
+        if (on) {
+            HPEN pen = CreatePen(PS_SOLID, dpi_px(2), g_look[p].grey ? g_pal.grey : g_pal.text), old = (HPEN)SelectObject(dc, pen);
+            POINT tick[3] = { { box.left + b / 5, box.top + b / 2 }, { box.left + b * 2 / 5, box.bottom - b / 4 }, { box.right - b / 5, box.top + b / 4 } };
+            Polyline(dc, tick, 3);
+            DeleteObject(SelectObject(dc, old));
+        }
+        return;
+    }
+    RECT b;
+    reset_rect(item, &b);
+    g_btn_item = item;   // as the game's arrow buttons that move a list's lines over: black, a light frame, the arrow white
+    HBRUSH fill = CreateSolidBrush(g_gl.on ? RGB(0, 0, 0) : g_pal.back), fr = CreateSolidBrush(g_gl.on ? RGB(176, 194, 193) : g_pal.grey);
+    FillRect(dc, &b, fill);
+    FrameRect(dc, &b, fr);
+    DeleteObject(fill);
+    DeleteObject(fr);
+    HFONT old = (HFONT)SelectObject(dc, g_bold);
+    SetBkMode(dc, TRANSPARENT);
+    SetTextColor(dc, g_gl.on ? RGB(255, 255, 255) : g_pal.text);
+    DrawTextA(dc, "<", -1, &b, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+    SelectObject(dc, old);
 }
 
 // THE HELP (the Help button, F1): what a line's looks mean and how the program is used, in a window of its own over
@@ -1209,20 +1389,24 @@ internal const struct { int look; const char *sample, *text; } k_help[] = {
     { HL_BOLD, "changed", "Not the default: your file sets a value of its own, or easy or hard plays another." },
     { HL_GREY, "the default", "The value is the mod's default (whether your file has the key or not)." },
     { HL_GAME, "attack_on_contact", "The key only sets one of the game's own values directly, no code of the mod "
-                                    "around it. The Default column and the name over the editor name the game's own (game: 71%)." },
+                                    "around it. The Default column names the game's own (game: 71%)." },
     { HL_GAME, "the game's (71%)", "The value is the game's own: the key only sets one of the game's values, and this "
                                    "one leaves it as the unmodded game has it; pale while it is the default too." },
     { HL_WARN, "outside its range", "Outside its usual range: the game uses it anyway. Allowed, but likely not what "
-                                    "you meant - the line under the editor says what it comes to." },
+                                    "you meant - the panel on the right says why." },
     { HL_MISTAKE, "a mistake", "A value that can't be used (no number, a name the list doesn't have ...): the game "
                                "plays the default instead, and its log says so." },
     { HL_HEAD, NULL, "Changing a setting" },
-    { HL_TEXT, NULL, "Select a setting: on the right its editor - on / off, a list or a text field - and under it its "
-                     "help, the comment over its key in the mod's ageofai.ini. An AI setting has a line each for All, Easy and Hard: an "
-                     "empty Easy or Hard plays the All value (the medium AI always does)." },
+    { HL_TEXT, NULL, "A value is changed in its Value cell: a check box (click it, or press Space), a list, or a text "
+                     "field over the selected line's cell (click it, or press Enter or F2; Enter, Esc or the arrow keys "
+                     "go back to the list, Esc undoing the typing). On the right the setting's help, the comment over "
+                     "its key in the mod's ageofai.ini, under what a value of it has to say." },
+    { HL_TEXT, NULL, "An AI setting opens to an easy and a hard line: empty, they play its [ai_base] value (the medium AI "
+                     "always does)." },
     { HL_TEXT, NULL, "A text field takes arithmetic, as the file does: 35%, 2 * 60, min(10, 4 * 3). It is checked as "
                      "you type." },
-    { HL_TEXT, NULL, "Default puts the mod's default back - on an Easy or Hard line, the All value." },
+    { HL_TEXT, NULL, "The < button at the start of the selected line's Default cell (or Delete) puts the mod's default back - "
+                     "on an easy or hard line, the [ai_base] value." },
     { HL_TEXT, NULL, "A master setting opens to its children (Movement: improved_unit_movement). default plays each "
                      "child's own default, enabled turns them all on, disabled all off; a child set in your file goes "
                      "its own way." },
@@ -1364,12 +1548,9 @@ internal LRESULT CALLBACK wnd_proc(HWND w, UINT msg, WPARAM wp, LPARAM lp) {
     case WM_GETMINMAXINFO: ((MINMAXINFO *)lp)->ptMinTrackSize.x = dpi_px(900); ((MINMAXINFO *)lp)->ptMinTrackSize.y = dpi_px(600); return 0;
     case WM_COMMAND: {
         int id = LOWORD(wp), code = HIWORD(wp);
-        if (id >= ID_ED && id < ID_ED + EDITORS * ED_PARTS) {
-            int k = (id - ID_ED) / ED_PARTS, part = (id - ID_ED) % ED_PARTS;
-            if ((part == ED_CHECK && code == BN_CLICKED) || (part == ED_COMBO && code == CBN_SELCHANGE) || (part == ED_EDIT && code == EN_CHANGE))
-                editor_changed(k, part);
-            else if (part == ED_BUTTON && code == BN_CLICKED) set_default(k);
-        } else if (id == ID_FILTER && code == EN_CHANGE) fill_list(g_node, 0);
+        if ((id == ED_COMBO && code == CBN_SELCHANGE) || (id == ED_EDIT && code == EN_CHANGE)) editor_changed(id);
+        else if (id == ED_COMBO && code == CBN_CLOSEUP) SetFocus(g_list);   // the keys go on with the lines
+        else if (id == ID_FILTER && code == EN_CHANGE) fill_list(g_node, 0);
         else if (id == ID_GAME) { g_game_mode ^= 1; show_mode(); }
         else if (id == ID_HELP_OPEN) help_open();
         else if (id == ID_GAME_APPLY) game_apply();
@@ -1387,6 +1568,7 @@ internal LRESULT CALLBACK wnd_proc(HWND w, UINT msg, WPARAM wp, LPARAM lp) {
         if (n->code == LVN_ITEMCHANGED) {
             NMLISTVIEW *v = (NMLISTVIEW *)lp;
             if ((v->uChanged & LVIF_STATE) && (v->uNewState & LVIS_SELECTED)) {
+                g_btn_item = -1;   // a click on the newly selected line isn't one on its Default button (not drawn yet)
                 g_node = (int)v->lParam;
                 g_sel = node_kind(v->lParam) == NODE_ENTRY ? (int)v->lParam : -1;
                 show_editors();
@@ -1395,11 +1577,19 @@ internal LRESULT CALLBACK wnd_proc(HWND w, UINT msg, WPARAM wp, LPARAM lp) {
         }
         // a node opened or closed: a click on its triangle, a double click on it, the right / left arrow key (on a
         // line that is no open node the left key goes to the line that holds it)
+        // a click on a flag's Value cell switches it, one on the Default button puts the default back
         if (n->code == NM_CLICK || n->code == NM_DBLCLK) {
             NMITEMACTIVATE *a = (NMITEMACTIVATE *)lp;
+            LVHITTESTINFO hit = { a->ptAction, 0, -1, 0, 0 };
+            SendMessageA(g_list, LVM_SUBITEMHITTEST, 0, (LPARAM)&hit);
             if (a->iItem >= 0 && a->iItem < g_nvis) {
+                LPARAM p = node_param(g_vis[a->iItem].kind, g_vis[a->iItem].id);
                 int tri = dpi_px(6) + g_vis[a->iItem].level * dpi_px(14) + dpi_px(16);   // about where the triangle ends
-                if (n->code == NM_DBLCLK || a->ptAction.x < tri) toggle(g_node);
+                RECT b;
+                reset_rect(a->iItem, &b);
+                if (node_kind(p) == NODE_ENTRY && hit.iSubItem == 1 && is_flag(&g_e[p])) flag_toggle((int)p);
+                else if (node_kind(p) == NODE_ENTRY && hit.iSubItem == COLS - 1 && a->iItem == g_btn_item && g_look[p].reset && PtInRect(&b, a->ptAction)) set_default((int)p);
+                else if (n->code == NM_DBLCLK || a->ptAction.x < tri) toggle(g_node);
             }
             return 0;
         }
@@ -1420,6 +1610,7 @@ internal LRESULT CALLBACK wnd_proc(HWND w, UINT msg, WPARAM wp, LPARAM lp) {
             if (cd->nmcd.dwDrawStage == CDDS_PREPAINT) return CDRF_NOTIFYITEMDRAW;
             if (cd->nmcd.dwDrawStage == CDDS_ITEMPREPAINT) return CDRF_NOTIFYSUBITEMDRAW;
             if (cd->nmcd.dwDrawStage == (CDDS_ITEMPREPAINT | CDDS_SUBITEM)) return draw_cell(cd);
+            if (cd->nmcd.dwDrawStage == (CDDS_ITEMPOSTPAINT | CDDS_SUBITEM)) { draw_cell_after(cd); return CDRF_DODEFAULT; }
         }
         break;
     }
