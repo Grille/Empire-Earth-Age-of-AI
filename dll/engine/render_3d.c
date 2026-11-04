@@ -106,17 +106,19 @@ typedef struct {
     int32_t op[4], aop[4];
     float fogc[4], tf[4];
     float misc[4];   // alpha reference, fog on, colour key
-    float shk[4];    // the dynamic shadows (a decal's): their colour; the draw's role, a texel, on, the bias
-    float shd[4];
+    float shk[4];    // the dynamic shadows (the ground's, a decal's): their colour; the draw's role, a texel, on, the bias;
+    float shd[4];    // the bias against the terrain's map
+    float sht[4];
 } rd3_pcb;
 internal const char k_rd3_shader[] =
     "cbuffer v : register(b0) { row_major float4x4 vpm; row_major float4x4 view;"
     " float4 ldir[8]; float4 ldiff[8]; float4 lamb[8]; float4 mdiff, mamb, memi, gamb; int4 lit; int4 src; float4 fog;"
     " float4 vp; row_major float4x4 shm; float4 shk; float4 shp; };\n"
-    "cbuffer p : register(b1) { int4 op; int4 aop; float4 fogc; float4 tf; float4 misc; float4 pshk; float4 shd; };\n"
+    "cbuffer p : register(b1) { int4 op; int4 aop; float4 fogc; float4 tf; float4 misc; float4 pshk; float4 shd; float4 sht; };\n"
     "Buffer<float4> wt : register(t1);\n"   // the world matrices, 4 rows each (RD3_WB_BYTES)
     "Texture2D t : register(t0); SamplerState s : register(s0);\n"
-    "Texture2D<float> sm : register(t2); SamplerComparisonState sc : register(s1);\n"   // the dynamic shadows' map
+    "Texture2D<float> sm : register(t2); SamplerComparisonState sc : register(s1);\n"   // the dynamic shadows' maps:
+    "Texture2D<float> tm : register(t4);\n"   // the casters', the terrain's (what the hills hide from the sun)
     "struct I { float3 p : POSITION; float3 n : NORMAL; float4 c : COLOR; float2 t : TEXCOORD; uint w : WORLD; };\n"
     "struct O { float4 p : SV_Position; float4 c : COLOR; float2 t : TEXCOORD0; float f : FOG; float3 q : TEXCOORD1; };\n"
     // a unit's tint: how many of four texels around its origin's place in the map are nearer the sun by more than b
@@ -151,21 +153,23 @@ internal const char k_rd3_shader[] =
     " int A = (int)round(c.a * 255), R = (int)misc.x, f = aop.w;"
     " if (f && !(f == 8 || (f == 2 && A < R) || (f == 3 && A == R) || (f == 4 && A <= R) || (f == 5 && A > R)"
     "  || (f == 6 && A != R) || (f == 7 && A >= R))) discard;"
-    " if (shd.x == 4 && shd.z > 0) { float z = min(i.q.z, 0.9999) - shd.w, l = 0;"   // a decal: 3x3 comparisons
-    "  for (int y = -1; y <= 1; y++) for (int u = -1; u <= 1; u++) l += sm.SampleCmpLevelZero(sc, i.q.xy + float2(u, y) * shd.y, z);"
-    "  c.rgb *= lerp(pshk.rgb, 1, l / 9); }"
+    // the ground and a decal on it: 3x3 comparisons with the casters' map, where the terrain's doesn't hide the sun
+    " if ((shd.x == 1 || shd.x == 4) && shd.z > 0) { float z = min(i.q.z, 0.9999), l = 0, h = 0;"
+    "  for (int y = -1; y <= 1; y++) for (int u = -1; u <= 1; u++) { float2 k = i.q.xy + float2(u, y) * shd.y;"
+    "   l += sm.SampleCmpLevelZero(sc, k, z - shd.w); h += tm.SampleCmpLevelZero(sc, k, z - sht.x); }"
+    "  c.rgb *= lerp(pshk.rgb, 1, 1 - (1 - l / 9) * (h / 9)); }"
     " if (misc.y > 0.5) c.rgb = lerp(fogc.rgb, c.rgb, saturate(i.f));"
     " return c; }\n";
 
-#define RD3_VB_BYTES (4u << 20)
-#define RD3_IB_BYTES (1u << 20)
-#define RD3_WB_BYTES (1u << 20)   // the batches' world matrices, appended like the vertices (no discard a batch)
+#define RD3_VB_BYTES (48u << 20)   // the frame's (render_frame.c): a busy base's frame about 4 MB
+#define RD3_IB_BYTES (16u << 20)
+#define RD3_WB_BYTES (4u << 20)   // the batches' world matrices, appended like the vertices (no discard a batch)
 // THE BATCH: the game draws an object at a time (5000 draws a frame in a busy base, each a few dozen triangles), and
 // a draw call costs its time on the game's thread whatever its size. Draws in a row whose states match - the same
 // texture, blend, material ... - differing only in their world matrix are collected and drawn as one: their vertices
 // (with their matrix's index in the batch's table) and indices into the upload buffers, then one DrawIndexed. Strips
-// become lists (one batch takes many). Whatever else uses the context sends the batch first (rd3_flush): a state that
-// changes (rd3_prepare), a texture's upload, the 2D path, clear, read back, present, the overlay, a texture freed.
+// become lists (one batch takes many). A state that changes (rd3_prepare) ends the batch (rd3_flush): into the frame's
+// list (render_frame.c), drawn when the frame is done or something else needs the context (rd3_submit).
 #define RB_VERTS 32768
 #define RB_INDICES (RB_VERTS * 3)
 #define RB_WORLDS 256
@@ -189,7 +193,7 @@ internal struct {
     UINT vb_pos, ib_pos, wb_pos;
     rd3_vcb vc;
     rd3_pcb pc;
-    // what is bound (rebound in full after the 2D path or the present - rd3_dirty)
+    // the states the batch is collected under (the frame's list draws with them)
     ID3D11RenderTargetView *rtv;
     ID3D11DepthStencilView *dsv;
     void *blend, *depth, *raster, *samp;
@@ -204,8 +208,6 @@ internal struct {
     rd_device *prep_dev;   // whose states are bound (rd3_prepare), with which clamp
     int prep_clamp;
 } g_rd3;
-
-internal void rd3_dirty(void) { g_rd3.bound = 0; }   // the 2D draw or the present set states of their own
 
 internal int rd3_init(void) {
     if (g_rd3.ready) return g_rd3.ready > 0;
@@ -326,6 +328,7 @@ internal void rd3_color(float *f, D3DCOLOR c) {
 internal void rd3_value(float *f, const D3DCOLORVALUE *c) { f[0] = c->r; f[1] = c->g; f[2] = c->b; f[3] = c->a; }
 internal float rd3_float(DWORD v) { float f; memcpy(&f, &v, 4); return f; }
 
+#include "render_frame.c"     // the frame recorded and drawn at once
 #include "render_shadows.c"   // the dynamic shadows ([display] shadows = dynamic)
 
 // A picture on the screen (the interface's backgrounds: no depth test, every texture coordinate within 0..1) is
@@ -340,7 +343,8 @@ internal int rd3_flat_picture(rd_device *d, rd_vb *vb, DWORD start, DWORD n) {
     }
     return 1;
 }
-// the device's states into the shaders' constants and the pipeline; 0: nothing to draw into. clamp: CLAMP addressing
+// the device's states into the shaders' constants and the states the batch is collected under; 0: nothing to draw
+// into. clamp: CLAMP addressing
 internal int rd3_prepare(rd_device *d, int clamp) {
     rd_surface *t = d->target;
     if (!t || !t->rtv || !rd3_init()) return 0;
@@ -350,53 +354,37 @@ internal int rd3_prepare(rd_device *d, int clamp) {
     if (!d->changed && g_rd3.bound && g_rd3.prep_dev == d && g_rd3.prep_clamp == clamp && g_rd3.rtv == t->rtv
         && g_rd3.dsv == (t->zbuf ? t->zbuf->dsv : NULL) && !(tx && tx->kind != RK_TARGET && tx->dirty))
         return 1;
-    ID3D11DeviceContext *x = g_d3d.ctx;
     const DWORD *rs = d->rs;
-    int full = !g_rd3.bound;   // (whoever unbound flushed before)
-    if (full) {
-        ID3D11DeviceContext_IASetInputLayout(x, g_rd3.inputs);
-        ID3D11DeviceContext_VSSetShader(x, g_rd3.vs, NULL, 0);
-        ID3D11DeviceContext_PSSetShader(x, g_rd3.ps, NULL, 0);
-        ID3D11DeviceContext_VSSetConstantBuffers(x, 0, 1, &g_rd3.vcb);
-        ID3D11DeviceContext_VSSetShaderResources(x, 1, 1, &g_rd3.wsrv);
-        ID3D11DeviceContext_PSSetConstantBuffers(x, 1, 1, &g_rd3.pcb);
-        UINT stride = sizeof(rb_vertex), off = 0;
-        ID3D11DeviceContext_IASetVertexBuffers(x, 0, 1, &g_rd3.vb, &stride, &off);
-        ID3D11DeviceContext_IASetIndexBuffer(x, g_rd3.ib, DXGI_FORMAT_R32_UINT, 0);
-        rd3_shadow_bind(x);
-        g_rd3.bound = 1;
-    }
-    // each state: the batch so far drawn with the old one before it changes
+    int full = !g_rd3.bound;
+    g_rd3.bound = 1;
+    // each state: the batch so far ended with the old one before it changes
     ID3D11DepthStencilView *dsv = t->zbuf ? t->zbuf->dsv : NULL;
-    if (full || g_rd3.rtv != t->rtv || g_rd3.dsv != dsv) {
-        rd3_flush();
-        ID3D11DeviceContext_OMSetRenderTargets(x, 1, &t->rtv, dsv);
-        g_rd3.rtv = t->rtv; g_rd3.dsv = dsv;
-    }
+    if (full || g_rd3.rtv != t->rtv || g_rd3.dsv != dsv) { rd3_flush(); g_rd3.rtv = t->rtv; g_rd3.dsv = dsv; }
     D3D11_VIEWPORT vp = { (float)d->viewport.dwX, (float)d->viewport.dwY, (float)d->viewport.dwWidth,
                           (float)d->viewport.dwHeight, d->viewport.dvMinZ, d->viewport.dvMaxZ };
-    if (full || memcmp(&vp, &g_rd3.vport, sizeof vp)) { rd3_flush(); ID3D11DeviceContext_RSSetViewports(x, 1, &vp); g_rd3.vport = vp; }
+    if (full || memcmp(&vp, &g_rd3.vport, sizeof vp)) { rd3_flush(); g_rd3.vport = vp; }
     uint32_t bk = rs[D3DRENDERSTATE_ALPHABLENDENABLE] ? 1 | (rs[D3DRENDERSTATE_SRCBLEND] & 15) << 1 | (rs[D3DRENDERSTATE_DESTBLEND] & 15) << 5 : 0;
     void *o = rd3_cache(g_rd3.blends, &g_rd3.n_blend, 32, bk, rd3_mk_blend);
-    if (full || o != g_rd3.blend) { rd3_flush(); ID3D11DeviceContext_OMSetBlendState(x, o, NULL, 0xFFFFFFFF); g_rd3.blend = o; }
+    if (full || o != g_rd3.blend) { rd3_flush(); g_rd3.blend = o; }
     uint32_t dk = (rs[D3DRENDERSTATE_ZENABLE] ? 1 : 0) | (rs[D3DRENDERSTATE_ZWRITEENABLE] ? 2 : 0) | (rs[D3DRENDERSTATE_ZFUNC] & 15) << 2;
     o = rd3_cache(g_rd3.depths, &g_rd3.n_depth, 32, dk, rd3_mk_depth);
-    if (full || o != g_rd3.depth) { rd3_flush(); ID3D11DeviceContext_OMSetDepthStencilState(x, o, 0); g_rd3.depth = o; }
+    if (full || o != g_rd3.depth) { rd3_flush(); g_rd3.depth = o; }
     o = rd3_cache(g_rd3.rasters, &g_rd3.n_raster, 8, rs[D3DRENDERSTATE_CULLMODE] & 3, rd3_mk_raster);
-    if (full || o != g_rd3.raster) { rd3_flush(); ID3D11DeviceContext_RSSetState(x, o); g_rd3.raster = o; }
+    if (full || o != g_rd3.raster) { rd3_flush(); g_rd3.raster = o; }
 
     // texture stage 0 (stage 1 is always off in the game)
     const DWORD *ts = d->tss[0];
     rd_surface *tex = d->tex[0];
     int ckey = rs[D3DRENDERSTATE_COLORKEYENABLE] && tex && (tex->top ? tex->top : tex)->has_key;
     ID3D11ShaderResourceView *srv = tex ? rd_gpu_texture(tex, ckey) : NULL;
-    if (full || srv != g_rd3.srv) { rd3_flush(); ID3D11DeviceContext_PSSetShaderResources(x, 0, 1, &srv); g_rd3.srv = srv; }
+    if (tex) (tex->top ? tex->top : tex)->rf_used = g_rd_epoch;   // in the list: its pixels kept until it is drawn
+    if (full || srv != g_rd3.srv) { rd3_flush(); g_rd3.srv = srv; }
     int bias = (int)(rd3_float(ts[D3DTSS_MIPMAPLODBIAS]) * 16.0f);
     uint32_t au = clamp ? D3DTADDRESS_CLAMP : ts[D3DTSS_ADDRESSU], av = clamp ? D3DTADDRESS_CLAMP : ts[D3DTSS_ADDRESSV];
     uint32_t sk = (au & 7) | (av & 7) << 3 | (ts[D3DTSS_MAGFILTER] & 3) << 6 |
                   (ts[D3DTSS_MINFILTER] & 3) << 8 | (ts[D3DTSS_MIPFILTER] & 3) << 10 | (uint32_t)(bias & 255) << 12;
     o = rd3_cache(g_rd3.samps, &g_rd3.n_samp, 32, sk, rd3_mk_samp);
-    if (full || o != g_rd3.samp) { rd3_flush(); ID3D11DeviceContext_PSSetSamplers(x, 0, 1, (ID3D11SamplerState **)&o); g_rd3.samp = o; }
+    if (full || o != g_rd3.samp) { rd3_flush(); g_rd3.samp = o; }
 
     // the vertex shader's constants - not when only a texture or its stage changed (most often, between two batches)
     if (full || g_rd3.prep_dev != d || (d->changed & (RD_CH_VC | RD_CH_RS))) {
@@ -449,11 +437,7 @@ internal int rd3_prepare(rd_device *d, int clamp) {
         vc.vp[1] = d->viewport.dwHeight ? -1.0f / (float)d->viewport.dwHeight : 0;
         vc.vp[2] = rs[D3DRENDERSTATE_RANGEFOGENABLE] ? 1.0f : 0.0f;
         rd3_shadow_constants(d, &vc);
-        if (full || memcmp(&vc, &g_rd3.vc, sizeof vc)) {
-            rd3_flush();
-            ID3D11DeviceContext_UpdateSubresource(x, (ID3D11Resource *)g_rd3.vcb, 0, NULL, &vc, 0, 0);
-            g_rd3.vc = vc;
-        }
+        if (full || memcmp(&vc, &g_rd3.vc, sizeof vc)) { rd3_flush(); g_rd3.vc = vc; g_rf.vc_new = 1; }
     }
     int fog = g_rd3.vc.fog[0] != 0;   // (0 while fog is off)
 
@@ -470,11 +454,7 @@ internal int rd3_prepare(rd_device *d, int clamp) {
     pc.misc[1] = fog ? 1.0f : 0.0f;
     pc.misc[2] = ckey ? 1.0f : 0.0f;
     rd3_shadow_pconstants(d, &pc);
-    if (full || memcmp(&pc, &g_rd3.pc, sizeof pc)) {
-        rd3_flush();
-        ID3D11DeviceContext_UpdateSubresource(x, (ID3D11Resource *)g_rd3.pcb, 0, NULL, &pc, 0, 0);
-        g_rd3.pc = pc;
-    }
+    if (full || memcmp(&pc, &g_rd3.pc, sizeof pc)) { rd3_flush(); g_rd3.pc = pc; g_rf.pc_new = 1; }
     d->changed = 0;
     g_rd3.prep_dev = d; g_rd3.prep_clamp = clamp;
     return 1;
@@ -485,7 +465,11 @@ internal long rd3_upload(ID3D11Buffer *b, UINT cap, UINT *pos, const void *src, 
     if (n > cap) return -1;
     UINT at = (*pos + align - 1) / align * align;
     D3D11_MAP how = D3D11_MAP_WRITE_NO_OVERWRITE;
-    if (at + n > cap) { at = 0; how = D3D11_MAP_WRITE_DISCARD; }
+    if (at + n > cap) {   // the ring full: what the list draws from drawn first (render_frame.c)
+        if (g_rf.n) { g_rf.wraps++; rf_replay(); }
+        at = 0;
+        how = D3D11_MAP_WRITE_DISCARD;
+    }
     D3D11_MAPPED_SUBRESOURCE ms;
     if (FAILED(ID3D11DeviceContext_Map(g_d3d.ctx, (ID3D11Resource *)b, 0, how, 0, &ms))) return -1;
     memcpy((uint8_t *)ms.pData + at, src, n);
@@ -512,20 +496,14 @@ internal int rd3_drawable(rd_vb *vb, D3DPRIMITIVETYPE type) {
     return 1;
 }
 
-// the batch into the upload buffers and drawn with the states bound
+// the batch into the upload buffers and the frame's list (render_frame.c), with the states it was collected under
 internal void rd3_flush(void) {
     if (!g_rb.ni) return;
-    if (g_sh.on && g_rd3.vc.shp[0] >= SH_RECEIVE) rd3_shadow_capture((int)g_rd3.vc.shp[0]);   // the dynamic shadows' copy
-    ID3D11DeviceContext *x = g_d3d.ctx;
     long wa = rd3_upload(g_rd3.wb, RD3_WB_BYTES, &g_rd3.wb_pos, g_rb.w, (UINT)g_rb.nw * sizeof *g_rb.w, sizeof *g_rb.w);
     if (wa > 0) for (int k = 0; k < g_rb.nv; k++) g_rb.v[k].w += (uint32_t)wa / sizeof *g_rb.w;   // the batch's matrices' place
     long at = wa >= 0 ? rd3_upload(g_rd3.vb, RD3_VB_BYTES, &g_rd3.vb_pos, g_rb.v, (UINT)g_rb.nv * sizeof *g_rb.v, sizeof *g_rb.v) : -1;
     long ia = at >= 0 ? rd3_upload(g_rd3.ib, RD3_IB_BYTES, &g_rd3.ib_pos, g_rb.i, (UINT)g_rb.ni * 4, 4) : -1;
-    if (ia >= 0) {
-        ID3D11DeviceContext_IASetPrimitiveTopology(x, g_rb.topo);
-        ID3D11DeviceContext_DrawIndexed(x, (UINT)g_rb.ni, (UINT)ia / 4, (INT)((UINT)at / sizeof *g_rb.v));
-        g_rb.batches++;
-    }
+    if (ia >= 0) rf_record((UINT)ia / 4, (UINT)g_rb.ni, (INT)((UINT)at / sizeof *g_rb.v));
     g_rb.nv = g_rb.ni = g_rb.nw = 0;
 }
 // a draw into the batch (rd3_prepare bound its states): nv vertices from start, ni indices (NULL: 0..nv-1) of type
@@ -702,14 +680,11 @@ internal int rd_world_lock_install(void) {
 // each one's draw timed for the minute's line, the game's own work in it and the renderer's under it together
 internal LONGLONG g_ro_qpc[RO_N];
 internal int g_rp_skip;       // bit per render object: its draw skipped (the pipe's rprobe skip - the picture without it)
-#define RO_DRAW(i, call) do { if (g_rp_skip & 1 << (i) || ((i) == RO_SHADOWS && g_sh.on)) return; int was_ = g_ro_cur; g_ro_cur = (i); \
+#define RO_DRAW(i, call) do { if (g_rp_skip & 1 << (i)) return; int was_ = g_ro_cur; g_ro_cur = (i); \
     LONGLONG t_ = rd_qpc(); call; g_ro_qpc[i] += rd_qpc() - t_; g_ro_cur = was_; } while (0)
 internal void __thiscall rd_hook_ro_terrain(ee_ro_terrain *o) { RO_DRAW(RO_TERRAIN, ro_terrain_draw(o)); }
 internal void __thiscall rd_hook_ro_shadows(ee_ro_shadows *o) { RO_DRAW(RO_SHADOWS, ro_shadows_draw(o)); }
-internal void __thiscall rd_hook_ro_units(ee_ro_units *o) {
-    RO_DRAW(RO_UNITS, ro_units_draw(o));
-    if (g_sh.on) { RD_LOCK(); rd3_shadow_units_done(); RD_UNLOCK(); }   // the dynamic shadows: this frame's camera known
-}
+internal void __thiscall rd_hook_ro_units(ee_ro_units *o) { RO_DRAW(RO_UNITS, ro_units_draw(o)); }
 internal void __thiscall rd_hook_ro_water(ee_ro_water *o) { RO_DRAW(RO_WATER, ro_water_draw(o)); }
 internal void __thiscall rd_hook_ro_ui(ee_ro_ui *o) { RO_DRAW(RO_UI, ro_ui_draw(o)); }
 internal int rd_render_objects_install(void) {
@@ -802,7 +777,7 @@ internal void rd_frame_tick(void) {
     InterlockedIncrement(&g_rd_frames);
     DWORD now = GetTickCount();
     if (now - g_rd_minute_tick < 60000) return;
-    static LONG frames0, draws0, batches0;
+    static LONG frames0, draws0, batches0, replays0, forced0, wraps0;
     static LONGLONG present0, wait0, held0;
     static DWORD tick0;
     LARGE_INTEGER f;
@@ -815,6 +790,10 @@ internal void rd_frame_tick(void) {
                (double)(g_rd_draw_qpc - g_rd_draw_qpc_told) * k, (double)(g_d3d_present_qpc - present0) * k,
                (double)(g_rwl_wait_qpc - wait0) * k,
                secs > 0 ? (double)(g_rwl_held_qpc - held0) * 1000.0 / (double)f.QuadPart / secs : 0, (long)fr);
+    log_locked("# render: the frame's list drawn %.2f times a frame, %.2f of them inside the scene (a texture, a read back,"
+               " the 2D path), the ring full %ld times\n", fr > 0 ? (double)(g_rf.replays - replays0) / fr : 0,
+               fr > 0 ? (double)(g_rf.forced - forced0) / fr : 0, (long)(g_rf.wraps - wraps0));
+    replays0 = g_rf.replays; forced0 = g_rf.forced; wraps0 = g_rf.wraps;
     static LONGLONG ro0[RO_N];
     double ro[RO_N];
     for (int i = 0; i < RO_N; i++) { ro[i] = (double)(g_ro_qpc[i] - ro0[i]) * k; ro0[i] = g_ro_qpc[i]; }
@@ -847,8 +826,8 @@ internal HRESULT __stdcall rd_dev_begin(rd_device *d) { d->in_scene = 1; return 
 internal HRESULT __stdcall rd_dev_end(rd_device *d) {
     d->in_scene = 0;
     RD_LOCK();
-    rd3_flush();
     rd3_overlay_frame_end(d);
+    rf_scene_end();
     RD_UNLOCK();
     rd_frame_tick();
     return D3D_OK;
@@ -872,7 +851,6 @@ internal HRESULT __stdcall rd_dev_clear(rd_device *d, DWORD n, D3DRECT *rects, D
     (void)st;
     rd_surface *t = d->target;
     if (!t) return D3D_OK;
-    rd3_shadow_clear(n, rects, flags, z);
     if (g_rp_state == 2)   // the probe: the frame's clears too
         log_locked("# rprobe clear (%s): flags %lx, z %.3f, %lu rects, first %ld %ld - %ld %ld, viewport %lu %lu %lux%lu\n",
                    g_ro_cur >= 0 ? k_ro_names[g_ro_cur] : "other", (unsigned long)flags, (double)z, (unsigned long)n,
@@ -881,7 +859,7 @@ internal HRESULT __stdcall rd_dev_clear(rd_device *d, DWORD n, D3DRECT *rects, D
                    (unsigned long)d->viewport.dwX, (unsigned long)d->viewport.dwY, (unsigned long)d->viewport.dwWidth,
                    (unsigned long)d->viewport.dwHeight);
     RD_LOCK();
-    rd3_flush();
+    rd3_submit();
     for (DWORD i = 0; i < (n ? n : 1); i++) {
         RECT r = { 0, 0, (LONG)t->desc.dwWidth, (LONG)t->desc.dwHeight };
         if (n && rects) { r.left = rects[i].x1; r.top = rects[i].y1; r.right = rects[i].x2; r.bottom = rects[i].y2; }
@@ -992,7 +970,7 @@ internal HRESULT __stdcall rd_dev_draw_vb(rd_device *d, D3DPRIMITIVETYPE type, r
     rd3_overlay_before(d);
     rd3_probe(d, type, vb, start, n, NULL, 0);
     rd3_shadow_classify(d, vb, start, n);
-    if (rd3_prepare(d, rd3_flat_picture(d, vb, start, n))) rd3_append(d, type, vb, start, n, NULL, 0);
+    if (d->sh_role != SH_BLOB && rd3_prepare(d, rd3_flat_picture(d, vb, start, n))) rd3_append(d, type, vb, start, n, NULL, 0);
     g_rd_draw_qpc += rd_qpc() - t0;
     RD_UNLOCK();
     return D3D_OK;
@@ -1008,7 +986,7 @@ internal HRESULT __stdcall rd_dev_draw_indexed_vb(rd_device *d, D3DPRIMITIVETYPE
     rd3_overlay_before(d);
     rd3_probe(d, type, vb, start, nv, idx, ni);
     rd3_shadow_classify(d, vb, start, nv);
-    if (rd3_prepare(d, rd3_flat_picture(d, vb, start, nv))) rd3_append(d, type, vb, start, nv, idx, ni);
+    if (d->sh_role != SH_BLOB && rd3_prepare(d, rd3_flat_picture(d, vb, start, nv))) rd3_append(d, type, vb, start, nv, idx, ni);
     g_rd_draw_qpc += rd_qpc() - t0;
     RD_UNLOCK();
     return D3D_OK;

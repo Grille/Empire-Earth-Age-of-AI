@@ -120,7 +120,7 @@ internal void rd3_overlay(rd_device *d) {
         }
     }
     if (!g_ro.n) return;
-    rd3_flush();
+    rd3_submit();
     ID3D11DeviceContext *x = g_d3d.ctx;
     D3D11_MAPPED_SUBRESOURCE ms;
     if (FAILED(ID3D11DeviceContext_Map(x, (ID3D11Resource *)g_ro.vb, 0, D3D11_MAP_WRITE_DISCARD, 0, &ms))) return;
@@ -147,7 +147,6 @@ internal void rd3_overlay(rd_device *d) {
     ID3D11DeviceContext_VSSetConstantBuffers(x, 0, 1, &g_ro.cb);
     ID3D11DeviceContext_PSSetShader(x, g_ro.ps, NULL, 0);
     ID3D11DeviceContext_Draw(x, (UINT)g_ro.n, 0);
-    rd3_dirty();
 }
 // before a draw: the map is done when the game draws without the depth test after it
 internal void rd3_overlay_before(rd_device *d) {

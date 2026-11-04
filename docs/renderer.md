@@ -128,6 +128,21 @@ gained nothing: the cost was the mod's own per-draw work. The rest of a 10 ms fr
 dropped: the matrices in a constant buffer discarded per batch (the frame rate fell to a third - the driver stalls).
 Picture: the same as before (mean difference 0.05-0.46 at the same moment; trees and light patches move in real time).
 
+2026-11-04, the frame recorded (the player, after the shadows' workarounds: "take control of these renderer steps ...
+fighting the game's antique renderer seems a bad idea"). engine/render_frame.c: a batch is no longer drawn when it ends
+but goes into the frame's list with the states it was collected under (targets, viewport, blend, depth, raster,
+texture, sampler; the vertex and pixel constants as snapshots shared by a run of batches) and its place in the upload
+buffers; the list is drawn at the scene's end (rf_scene_end), or earlier where something needs the context as the game
+left it (rd3_submit: a texture uploaded that the list draws with, a surface freed, a read back or a lock's write, the
+2D path, a Clear, the overlay, the present). The mod's own passes go in with the whole frame known - the shadows' maps
+from this frame's casters before anything is drawn. The upload buffers (48 / 16 / 4 MB) are a ring written without
+overwrite, so a recorded batch's data stays where it is; the ring starts over at a scene's end when less than a quarter
+is left, within one only if full (the list drawn first). The minute's line tells it: `# render: the frame's list drawn
+N times a frame, M of them inside the scene ..., the ring full K times`. Measured on "choke wolf" running at speed 1:
+1.00 lists a frame, 0.00 inside the scene, the ring never full, 1253 draws in 621 batches, 1.25 ms in them. Picture with
+the game's shadows: the same as the build before where nothing moves (a terrain patch identical to the pixel; the info
+panel and the counters differ with the game's state).
+
 ## The debug overlay
 
 2026-10-28 (the player: what the renderer could do - the AI's plans on the map). `[display] overlay = routes,danger`
@@ -156,35 +171,38 @@ the display DLLs import it) but never called; DDrawCompat hooks parts of Windows
 The player, 2026-11-04: dynamic shadows, cast on the terrain only - the models are low-poly and shading on them
 would show it. `[display] shadows = dynamic` (default `game`; the pipe: `shadows game | dynamic [strength]`, the reply
 tells the last map's casters, ground batches, box, sun and shadow colour), engine/render_shadows.c:
-- Each draw gets a role: the terrain's receive; in the units' render object the lit draws that don't lie flat cast
-  (trees - alpha tested at 200 or more - without the tint below), the textured ones lying flat (decals: roads, fields,
-  craters) receive in the main pixel shader; the game's blob shadows (EEROGroundShadows) are not drawn.
-- The casters' batches (copied as they go through the batch) are drawn from the sun into a 4096x4096 depth map fitted
-  to their box when the units' render object is done - the next frame's map (a moving unit's shadow a frame behind).
+- Each draw gets a role: the terrain's receive (not the sky drawn with it); in the units' render object the lit draws
+  that don't lie flat cast (trees - alpha tested at 200 or more - without the tint below), the textured ones lying flat
+  (decals: roads, craters) receive; in the game's shadows' render object (EEROGroundShadows) the blobs (depth not
+  written) are not drawn, the farms' fields (depth written, alpha tested at 127) receive.
+- The frame is recorded (above, "the frame recorded"): before its list is drawn, its casters are drawn from the sun
+  into a 4096x4096 depth map fitted to their box, its ground into a second one (what the hills hide from the sun) -
+  this frame's, from the batches where they lie in the upload buffers (no copies). The terrain, the decals and the
+  fields then receive in the main pixel shader (3x3 comparisons; a layer of the terrain blends SRCALPHA/INVSRCALPHA, so
+  each layer times the shadow is the ground times it).
 - The ground's vertices are the game's own transform into the camera's space (its view only swaps y and z - measured:
   ground vertex (-0.7, 31.2, -6.8) with the camera at tile 73,86), so their place in the world needs the camera the
-  units are drawn with. The ground is darkened at the first draw of the units, this frame's camera known: its batches
-  once more into a depth of their own, then where they are the nearest the darkest of their layers' shadow colours
-  (3x3 comparisons) into a picture, and the frame multiplied by that picture once. Everything after - the units and
-  what they draw see-through without depth - comes on top as it is. A first version darkened the ground after the
-  units, depth tested: it darkened a wonder's platform and a hovered unit's glow (the player's shot, 2026-11-04); and
-  the game's depth at the units' first draw turns the test down everywhere (measured), hence the depth of its own.
+  units are drawn with - later in the frame, known when the list is drawn: the terrain's constants get the map's
+  matrix through it then (rd3_shadow_vc).
+- What came before (2026-11-04, the same day): the frame drawn as the game sent it, the ground darkened at the units'
+  first draw with a copy of its batches into a depth of its own, the frame multiplied by a picture of the shadow, the
+  panels' depth clears copied into it, the map a frame behind. Each fix a guess at the game's order, and the player's
+  shots found the next: the panel turned black where a selected building's info sat, the fields vanished (the game's
+  shadows' render object was skipped whole - it draws the fields too). With the frame recorded all of it is gone.
 - A unit (not a tree) standing in a shadow: its sun light scaled by the map at its origin (four texels), counting only
   what is nearer the sun than its own size - its own body must not shade it.
 - The player's shots of the first version, 2026-11-04, and what came of them: (1) shadows on ground the hills hide from
-  the sun - the ground is drawn from the sun into a second map, and where it hides a point the casters' shadow is left
-  out (the hill's shading is the game's, baked into the ground; no hill shadows of their own); (2) black over the info
-  panel - the game clears its panels' depth to 0 each frame (bottom left, the minimap; rprobe logs the frame's clears
-  now) and draws no 3D there, and those pixels aren't drawn again each frame, so the multiply piled up: the panels go
-  into the ground pass's own depth at 0 (the game's depth can't be used for it: at the units' first draw it turns every
-  test down, measured); glass farms and buildings under construction (drawn without depth) cast nothing now; (3) no
-  shadows at some camera spots - the sun had been taken from the trees' light, nearly overhead (0.01, 0.11, -0.99),
-  which some other objects are lit by too: a light that steep is no sun.
+  the sun - the terrain's map: where it hides a point the casters' shadow is left out (the hill's shading is the
+  game's, baked into the ground; no hill shadows of their own); (2) black over the info panel (the multiply above);
+  glass farms and buildings under construction (drawn without depth) cast nothing; (3) no shadows at some camera spots
+  - the sun had been taken from the trees' light, nearly overhead (0.01, 0.11, -0.99), which some other objects are lit
+  by too: a light that steep is no sun.
 - The shadow's colour: the units' ambient light over ambient + sun on level ground, 80% of the way (strength 0.8).
 - Checked 2026-11-04 on "choke wolf" (WWI) and a Continental game at 8 min (epoch 4): towers, bunkers, AA guns,
-  vehicles, biplanes (on the hillside), the town centre, giraffes' legs and trees cast their shapes; the frame's units
-  part 2.57 ms against 1.6-1.8 ms with the game's shadows (480 casting batches, 75k vertices) - the copying on the
-  game's thread. Open: the player's verdict; water receives nothing; the units' tint not checked in a picture yet.
+  vehicles, biplanes (on the hillside), the town centre, giraffes' legs and trees cast their shapes; recorded, the fields
+  are drawn and tanks' shadows lie on them, the info panel is clean, a building under construction see-through over the
+  shadowed ground. The frame's units part 1.35 ms (running at speed 1; the copying version 2.57, the game's shadows
+  1.6-1.8). Open: the player's verdict; water receives nothing; the units' tint not checked in a picture yet.
 
 What the game draws (the pipe's `rprobe`: the next frame's draws logged one by one with their render object, states,
 light, material, texture, world matrix and their vertices' extent and flatness; `rprobe skip <parts>` leaves render
