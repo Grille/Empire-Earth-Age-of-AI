@@ -197,7 +197,9 @@ tells the last map's casters, ground batches, box, sun and shadow colour), engin
   shots found the next: the panel turned black where a selected building's info sat, the fields vanished (the game's
   shadows' render object was skipped whole - it draws the fields too). With the frame recorded all of it is gone.
 - A unit (not a tree) standing in a shadow: its sun light scaled by the map at its origin (four texels), counting only
-  what is nearer the sun than its own size - its own body must not shade it.
+  what is nearer the sun than its own size - its own body must not shade it. Off since 2026-11-05 (the player: "it
+  mostly comes off as bugged flicker" - a unit darkening and brightening as it moves through shadows; the pipe's
+  `shadows tint on` brings it back).
 - The player's shots of the first version, 2026-11-04, and what came of them: (1) shadows on ground the hills hide from
   the sun - the terrain's map: where it hides a point the casters' shadow is left out (the hill's shading is the
   game's, baked into the ground; no hill shadows of their own); (2) black over the info panel (the multiply above);

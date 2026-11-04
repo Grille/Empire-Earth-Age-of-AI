@@ -2,7 +2,8 @@
 // a unit (EEROGroundShadows, a quad on the ground); these are cast by the sun from the units', buildings' and trees'
 // shapes onto the ground only - the models are low-poly, and light and shade on them would show it. Each draw gets a
 // role (rd3_shadow_role): the terrain's draws receive; the units' lit solid draws cast, and a unit standing in a shadow
-// is darkened as a whole by one look at its origin's place in the map (SH_TINT - no shading of its own); trees cast
+// is darkened as a whole by one look at its origin's place in the map (SH_TINT - no shading of its own; off unless the
+// pipe's shadows tint on: it came across as flicker, units darkening and brightening as they move); trees cast
 // without the tint (in a forest the trees around would darken them all); the decals lying on the ground (roads,
 // craters - in the units' render object; the farms' fields - in the game's shadows') and the water's surface receive;
 // the game's blobs are not drawn. Under the water a shadow fades out with the depth: gone at g_sh.fade below the level
@@ -19,6 +20,7 @@ internal struct {
     int on;          // [display] shadows (the pipe's shadows switches it)
     float strength;  // how much of the sun a shadow takes away (1: all but the ambient light)
     float fade;      // the depth under the water by which a shadow is gone
+    int tint;        // a unit in a shadow darkened (SH_TINT): off - it came across as flicker (the player, 2026-11-05)
     double water_z;  // the water's vertices' heights this frame, summed, and how many (its level)
     int water_n;
     float level;     // the last frame's
@@ -174,7 +176,7 @@ internal int rd3_shadow_role(rd_device *d, rd_vb *vb, DWORD start, DWORD nv) {
         g_sh.amb[0] = ga[0] + l->dcvAmbient.r; g_sh.amb[1] = ga[1] + l->dcvAmbient.g; g_sh.amb[2] = ga[2] + l->dcvAmbient.b;
         g_sh.diff[0] = l->dcvDiffuse.r; g_sh.diff[1] = l->dcvDiffuse.g; g_sh.diff[2] = l->dcvDiffuse.b;
     }
-    return tree ? SH_CAST : SH_TINT;
+    return tree || !g_sh.tint ? SH_CAST : SH_TINT;
 }
 // the draw's role on the device: a change is a change of the vertex constants (a new batch)
 internal void rd3_shadow_classify(rd_device *d, rd_vb *vb, DWORD start, DWORD nv) {
@@ -341,25 +343,28 @@ internal void rd3_shadow_pconstants(rd_device *d, rd3_pcb *pc) {
 
 // shadows [game | dynamic] [strength]: the shadows switched while playing (the setting's at the start); the strength
 // how much of the sun a shadow takes (0..1, default 0.8). shadows fade <depth>: by how deep under the water a shadow is
-// gone (default 0.8)
+// gone (default 0.8). shadows tint on | off: a unit standing in a shadow darkened (off by default)
 internal void cmd_shadows(char *out, const char *args) {
-    char mode[16] = "";
-    float s = -1;
-    sscanf(args, "%15s %f", mode, &s);
-    if (!strcmp(mode, "fade")) {
+    char mode[16] = "", arg[16] = "";
+    sscanf(args, "%15s %15s", mode, arg);
+    float s = arg[0] ? (float)atof(arg) : -1;
+    if (!strcmp(mode, "tint")) {
+        if (!strcmp(arg, "on") || !strcmp(arg, "off")) g_sh.tint = arg[1] == 'n';
+        else { REPLY("error: usage: shadows tint on | off\n"); return; }
+    } else if (!strcmp(mode, "fade")) {
         if (s > 0) g_sh.fade = s;
         else { REPLY("error: usage: shadows fade <depth under the water, > 0>\n"); return; }
     } else if (!strcmp(mode, "game")) g_sh.on = 0;
     else if (!strcmp(mode, "dynamic")) g_sh.on = 1;
-    else if (mode[0]) { REPLY("error: usage: shadows [game | dynamic] [strength 0..1] | fade <depth>\n"); return; }
-    if (strcmp(mode, "fade") && s >= 0 && s <= 1) g_sh.strength = s;
+    else if (mode[0]) { REPLY("error: usage: shadows [game | dynamic] [strength 0..1] | fade <depth> | tint on | off\n"); return; }
+    if ((!strcmp(mode, "game") || !strcmp(mode, "dynamic")) && s >= 0 && s <= 1) g_sh.strength = s;
     REPLY("shadows: %s, strength %.2f, %s, %ld maps drawn; the last: %d casting batches, %d of ground;"
           " the casters' box %.1f %.1f %.1f - %.1f %.1f %.1f, the sun %.2f %.2f %.2f, a shadow's colour %.2f %.2f %.2f;"
-          " the water at %.2f%s, a shadow gone %.2f under it\n",
+          " the water at %.2f%s, a shadow gone %.2f under it; units in a shadow darkened: %s\n",
           g_sh.on ? "dynamic" : "game", (double)g_sh.strength,
           g_sh.ready > 0 ? "ready" : g_sh.ready < 0 ? "FAILED (the log says why)" : "not made yet", (long)g_sh.passes,
           g_sh.last_cast, g_sh.last_ground, (double)g_sh.last_lo[0], (double)g_sh.last_lo[1], (double)g_sh.last_lo[2],
           (double)g_sh.last_hi[0], (double)g_sh.last_hi[1], (double)g_sh.last_hi[2], (double)g_sh.sun[0],
           (double)g_sh.sun[1], (double)g_sh.sun[2], (double)g_sh.shk[0], (double)g_sh.shk[1], (double)g_sh.shk[2],
-          (double)g_sh.level, g_sh.shl[2] > 0 ? "" : " (none seen)", (double)g_sh.fade);
+          (double)g_sh.level, g_sh.shl[2] > 0 ? "" : " (none seen)", (double)g_sh.fade, g_sh.tint ? "on" : "off");
 }
