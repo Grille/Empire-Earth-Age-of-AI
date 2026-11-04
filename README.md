@@ -339,8 +339,10 @@ Settings in `ageofai.ini`:
   hill one end floated, the other sank into the ground, and neighbours at other heights stuck out of each other in
   steps. The game has sloped pieces, but each fits one steepness and they were hardly ever chosen. Now every piece
   leans along its length onto the ground under its two ends (its sides stay upright, as the game's sloped
-  pieces do) and stands a little into the ground, the round posts on the lowest corner of their tile - the wall
-  follows the hill in one line. Each piece also spans its tile exactly and reaches into a round post beside it: the
+  pieces do) with its bottom on the ground, the round posts on the ground at their tile's middle - the wall follows
+  the hill in one line. Where the ground falls away beside or below a piece (a side slope, a post's lower corners)
+  the wall's models reach further down instead of the piece being sunk, so its lower part - the player's colour -
+  stays in sight. Each piece also spans its tile exactly and reaches into a round post beside it: the
   game's pieces are longer than their spacing, so neighbours overlapped, their faces flickered, and on a slope their
   ends stuck out at every bend (the Copper Age wall and barbed wire keep their own length: the copper wall's stone is
   as long as the spacing, only its top reaches beyond, and the wire's coils are made to overlap). Walls built before

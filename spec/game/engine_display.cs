@@ -58,6 +58,14 @@ unsafe struct DX7Rasterizer
     [slot(7)]
     extern int32 clear_z(float32 depth, void* rect, uint32 screen);
 
+    /// CreatePolygonArray(K): count triangles (the engine's model loading: GERasterizer::sActiveRasterizer's)
+    [slot(10)]
+    extern DX7PolygonArray* create_polygon_array(uint32 count);
+
+    /// CreateVertexArray(K, K): type 0 a DX7StandardVertexArray, 1 a DX7StdColorVertexArray; count vertices
+    [slot(11)]
+    extern DX7StandardVertexArray* create_vertex_array(uint32 type, uint32 count);
+
     /// Draw(GEPolygonArray &, K, GEVertexArray &, K, GETexture *, K, bool): one array of polygons, the units' and the
     /// effects' (DrawModelHierarchy's for each of a model's parts)
     [slot(13)]
@@ -339,9 +347,109 @@ unsafe struct GEModel
     [offset(0x110), found(c)]
     GEBoundingBox* boxes;
 
+    /// per level of detail (lods): its triangles - DrawModelHierarchy takes one by the model's size on screen, each
+    /// material's from its polygon_first[lod] (AllocateInternalData makes the first, LoadPolygonsChunk the others)
+    [offset(0x100), found(c)]
+    DX7PolygonArray** polygons;
+
+    /// per frame: its vertices (a frame like another shares that one's array: AllocateInternalData); every material's
+    /// are copied from the frame drawn into the vertex buffer each time it is drawn (CopyStdVertices)
+    [offset(0x104), found(c)]
+    DX7StandardVertexArray** vertices;
+
+    /// its materials (material_count): each a texture and its share of the vertices and of each lod's triangles
+    [offset(0x108), found(c)]
+    GEMaterial** materials;
+
     /// its frames, the boxes' count
     [offset(0x140), found(c)]
     uint32 frames;
+
+    /// LoadCountsChunk
+    [offset(0x144), found(c)]
+    uint32 material_count;
+
+    /// the first lod's triangles (LoadCountsChunk; AllocateInternalData's polygons[0])
+    [offset(0x148), found(c)]
+    uint32 polygon_count;
+
+    /// each frame's (LoadCountsChunk; AllocateInternalData's vertex arrays)
+    [offset(0x14C), found(c)]
+    uint32 vertex_count;
+
+    /// levels of detail, polygons' count (LoadCountsChunk; 1 if the file has none)
+    [offset(0x154), found(c)]
+    uint32 lods;
+}
+
+/// a model's material (GEMaterial, Low-Level Engine.dll, 0x48: AllocateInternalData; its ranges LoadMaterialsChunk):
+/// its vertices a run of the model's, its triangles a run of each lod's whose indices count from vertex_first - drawn
+/// as one: the run copied into the vertex buffer, the triangles indexed into it (DrawModelHierarchy)
+[c_type("ee_material")]
+unsafe struct GEMaterial
+{
+    /// per lod: its first triangle in the model's polygons[lod]
+    [offset(0x2C), found(c)]
+    uint32* polygon_first;
+
+    /// per lod: its triangles (none: not drawn at that lod)
+    [offset(0x30), found(c)]
+    uint32* polygon_count;
+
+    [offset(0x34), found(c)]
+    uint32 vertex_first;
+
+    [offset(0x38), found(c)]
+    uint32 vertex_count;
+}
+
+/// the display DLLs' triangles (GEPolygonArray; DX7PolygonArray, the same in both and both builds:
+/// DX7Rasterizer.create_polygon_array) - three 16-bit vertex indices each
+[c_type("ee_polygons")]
+unsafe struct DX7PolygonArray
+{
+    [offset(0x4), found(c)]
+    uint16* indices;
+
+    /// 3 x count
+    [offset(0x8), found(c)]
+    uint32 index_count;
+
+    [offset(0xC), found(c)]
+    uint32 count;
+}
+
+/// the display DLLs' vertices without colours (GEVertexArray; DX7StandardVertexArray, type 0 of
+/// DX7Rasterizer.create_vertex_array - type 1 DX7StdColorVertexArray, another layout)
+[c_type("ee_vertices")]
+unsafe struct DX7StandardVertexArray
+{
+    [offset(0x4), found(c)]
+    D3DVERTEX* data;
+
+    [offset(0x8), found(c)]
+    uint32 count;
+
+    /// GetType: 0 this class, 1 DX7StdColorVertexArray
+    [slot(8)]
+    extern uint32 get_type();
+}
+
+/// a vertex of DX7StandardVertexArray (Direct3D 7's D3DVERTEX: CopyStdVertices)
+[c_type("ee_vertex"), size(0x20)]
+unsafe struct D3DVERTEX
+{
+    [offset(0x0), found(c)]
+    vec3 point;
+
+    [offset(0xC), found(c)]
+    vec3 normal;
+
+    [offset(0x18), found(c)]
+    float32 u;
+
+    [offset(0x1C), found(c)]
+    float32 v;
 }
 
 /// the engine's box (GEBoundingBox::Define: the corners, then ComputeDimensions its size)
@@ -396,6 +504,11 @@ static unsafe class engine_display
     /// D3DVBCAPS_SYSTEMMEMORY)
     [value((ee)0xF475, (aoc)0x103CE)]
     static uint32 rva_tnl_vb_caps;
+
+    /// the display DLLs' vertex buffer, in vertices: DX7Rasterizer::LockVB starts it anew when fewer than a material's
+    /// are left - a material of more would overrun it (the 2017 update's both DLLs; AoC's DX7HRTnLDisplay.dll)
+    [value((ee)0x98A, (aoc)0x960)]
+    static uint32 vb_vertices;
 
     /// the render objects RTSGraphics draws (pointers; the game's start makes them, 0x504DAF adds them in this
     /// order: effects, terrain, shadows, units, water, interface)

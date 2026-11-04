@@ -43,6 +43,12 @@ internal inline int rasterizer_clear(ee_rasterizer *rasterizer, void *color, voi
 // ClearZBuffer(M, GERectangle const &, K): the depth buffer in rect to depth (the render objects' clear slot)
 typedef int (__thiscall *rasterizer_clear_z_fn)(ee_rasterizer *, float, void *, uint32_t);
 internal inline int rasterizer_clear_z(ee_rasterizer *rasterizer, float depth, void *rect, uint32_t screen) { return ((rasterizer_clear_z_fn)(*(void ***)rasterizer)[slot_rasterizer_clear_z])(rasterizer, depth, rect, screen); }
+// CreatePolygonArray(K): count triangles (the engine's model loading: GERasterizer::sActiveRasterizer's)
+typedef ee_polygons *(__thiscall *rasterizer_create_polygon_array_fn)(ee_rasterizer *, uint32_t);
+internal inline ee_polygons *rasterizer_create_polygon_array(ee_rasterizer *rasterizer, uint32_t count) { return ((rasterizer_create_polygon_array_fn)(*(void ***)rasterizer)[slot_rasterizer_create_polygon_array])(rasterizer, count); }
+// CreateVertexArray(K, K): type 0 a DX7StandardVertexArray, 1 a DX7StdColorVertexArray; count vertices
+typedef ee_vertices *(__thiscall *rasterizer_create_vertex_array_fn)(ee_rasterizer *, uint32_t, uint32_t);
+internal inline ee_vertices *rasterizer_create_vertex_array(ee_rasterizer *rasterizer, uint32_t type, uint32_t count) { return ((rasterizer_create_vertex_array_fn)(*(void ***)rasterizer)[slot_rasterizer_create_vertex_array])(rasterizer, type, count); }
 // Draw(GEPolygonArray &, K, GEVertexArray &, K, GETexture *, K, bool): one array of polygons, the units' and the
 // effects' (DrawModelHierarchy's for each of a model's parts)
 typedef int (__thiscall *rasterizer_draw_polygons_fn)(ee_rasterizer *, void *, uint32_t, void *, uint32_t, void *, uint32_t, int8_t);
@@ -270,10 +276,101 @@ internal inline ee_font **text_font_at(const ee_text *o) { return (ee_font **)((
 internal inline ee_box *model_get_boxes(const ee_model *o) { return *(ee_box **)((uint8_t *)o + of_model_boxes); }
 internal inline void model_set_boxes(ee_model *o, ee_box *v) { *(ee_box **)((uint8_t *)o + of_model_boxes) = v; }
 internal inline ee_box **model_boxes_at(const ee_model *o) { return (ee_box **)((uint8_t *)o + of_model_boxes); }
+// per level of detail (lods): its triangles - DrawModelHierarchy takes one by the model's size on screen, each
+// material's from its polygon_first[lod] (AllocateInternalData makes the first, LoadPolygonsChunk the others)
+internal inline ee_polygons **model_get_polygons(const ee_model *o) { return *(ee_polygons ***)((uint8_t *)o + of_model_polygons); }
+internal inline void model_set_polygons(ee_model *o, ee_polygons **v) { *(ee_polygons ***)((uint8_t *)o + of_model_polygons) = v; }
+internal inline ee_polygons ***model_polygons_at(const ee_model *o) { return (ee_polygons ***)((uint8_t *)o + of_model_polygons); }
+// per frame: its vertices (a frame like another shares that one's array: AllocateInternalData); every material's
+// are copied from the frame drawn into the vertex buffer each time it is drawn (CopyStdVertices)
+internal inline ee_vertices **model_get_vertices(const ee_model *o) { return *(ee_vertices ***)((uint8_t *)o + of_model_vertices); }
+internal inline void model_set_vertices(ee_model *o, ee_vertices **v) { *(ee_vertices ***)((uint8_t *)o + of_model_vertices) = v; }
+internal inline ee_vertices ***model_vertices_at(const ee_model *o) { return (ee_vertices ***)((uint8_t *)o + of_model_vertices); }
+// its materials (material_count): each a texture and its share of the vertices and of each lod's triangles
+internal inline ee_material **model_get_materials(const ee_model *o) { return *(ee_material ***)((uint8_t *)o + of_model_materials); }
+internal inline void model_set_materials(ee_model *o, ee_material **v) { *(ee_material ***)((uint8_t *)o + of_model_materials) = v; }
+internal inline ee_material ***model_materials_at(const ee_model *o) { return (ee_material ***)((uint8_t *)o + of_model_materials); }
 // its frames, the boxes' count
 internal inline uint32_t model_get_frames(const ee_model *o) { return *(uint32_t *)((uint8_t *)o + of_model_frames); }
 internal inline void model_set_frames(ee_model *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_model_frames) = v; }
 internal inline uint32_t *model_frames_at(const ee_model *o) { return (uint32_t *)((uint8_t *)o + of_model_frames); }
+// LoadCountsChunk
+internal inline uint32_t model_get_material_count(const ee_model *o) { return *(uint32_t *)((uint8_t *)o + of_model_material_count); }
+internal inline void model_set_material_count(ee_model *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_model_material_count) = v; }
+internal inline uint32_t *model_material_count_at(const ee_model *o) { return (uint32_t *)((uint8_t *)o + of_model_material_count); }
+// the first lod's triangles (LoadCountsChunk; AllocateInternalData's polygons[0])
+internal inline uint32_t model_get_polygon_count(const ee_model *o) { return *(uint32_t *)((uint8_t *)o + of_model_polygon_count); }
+internal inline void model_set_polygon_count(ee_model *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_model_polygon_count) = v; }
+internal inline uint32_t *model_polygon_count_at(const ee_model *o) { return (uint32_t *)((uint8_t *)o + of_model_polygon_count); }
+// each frame's (LoadCountsChunk; AllocateInternalData's vertex arrays)
+internal inline uint32_t model_get_vertex_count(const ee_model *o) { return *(uint32_t *)((uint8_t *)o + of_model_vertex_count); }
+internal inline void model_set_vertex_count(ee_model *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_model_vertex_count) = v; }
+internal inline uint32_t *model_vertex_count_at(const ee_model *o) { return (uint32_t *)((uint8_t *)o + of_model_vertex_count); }
+// levels of detail, polygons' count (LoadCountsChunk; 1 if the file has none)
+internal inline uint32_t model_get_lods(const ee_model *o) { return *(uint32_t *)((uint8_t *)o + of_model_lods); }
+internal inline void model_set_lods(ee_model *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_model_lods) = v; }
+internal inline uint32_t *model_lods_at(const ee_model *o) { return (uint32_t *)((uint8_t *)o + of_model_lods); }
+
+// class GEMaterial (ee_material)
+// a model's material (GEMaterial, Low-Level Engine.dll, 0x48: AllocateInternalData; its ranges LoadMaterialsChunk):
+// its vertices a run of the model's, its triangles a run of each lod's whose indices count from vertex_first - drawn
+// as one: the run copied into the vertex buffer, the triangles indexed into it (DrawModelHierarchy)
+// per lod: its first triangle in the model's polygons[lod]
+internal inline uint32_t *material_get_polygon_first(const ee_material *o) { return *(uint32_t **)((uint8_t *)o + of_material_polygon_first); }
+internal inline void material_set_polygon_first(ee_material *o, uint32_t *v) { *(uint32_t **)((uint8_t *)o + of_material_polygon_first) = v; }
+internal inline uint32_t **material_polygon_first_at(const ee_material *o) { return (uint32_t **)((uint8_t *)o + of_material_polygon_first); }
+// per lod: its triangles (none: not drawn at that lod)
+internal inline uint32_t *material_get_polygon_count(const ee_material *o) { return *(uint32_t **)((uint8_t *)o + of_material_polygon_count); }
+internal inline void material_set_polygon_count(ee_material *o, uint32_t *v) { *(uint32_t **)((uint8_t *)o + of_material_polygon_count) = v; }
+internal inline uint32_t **material_polygon_count_at(const ee_material *o) { return (uint32_t **)((uint8_t *)o + of_material_polygon_count); }
+internal inline uint32_t material_get_vertex_first(const ee_material *o) { return *(uint32_t *)((uint8_t *)o + of_material_vertex_first); }
+internal inline void material_set_vertex_first(ee_material *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_material_vertex_first) = v; }
+internal inline uint32_t *material_vertex_first_at(const ee_material *o) { return (uint32_t *)((uint8_t *)o + of_material_vertex_first); }
+internal inline uint32_t material_get_vertex_count(const ee_material *o) { return *(uint32_t *)((uint8_t *)o + of_material_vertex_count); }
+internal inline void material_set_vertex_count(ee_material *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_material_vertex_count) = v; }
+internal inline uint32_t *material_vertex_count_at(const ee_material *o) { return (uint32_t *)((uint8_t *)o + of_material_vertex_count); }
+
+// class DX7PolygonArray (ee_polygons)
+// the display DLLs' triangles (GEPolygonArray; DX7PolygonArray, the same in both and both builds:
+// DX7Rasterizer.create_polygon_array) - three 16-bit vertex indices each
+internal inline uint16_t *polygons_get_indices(const ee_polygons *o) { return *(uint16_t **)((uint8_t *)o + of_polygons_indices); }
+internal inline void polygons_set_indices(ee_polygons *o, uint16_t *v) { *(uint16_t **)((uint8_t *)o + of_polygons_indices) = v; }
+internal inline uint16_t **polygons_indices_at(const ee_polygons *o) { return (uint16_t **)((uint8_t *)o + of_polygons_indices); }
+// 3 x count
+internal inline uint32_t polygons_get_index_count(const ee_polygons *o) { return *(uint32_t *)((uint8_t *)o + of_polygons_index_count); }
+internal inline void polygons_set_index_count(ee_polygons *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_polygons_index_count) = v; }
+internal inline uint32_t *polygons_index_count_at(const ee_polygons *o) { return (uint32_t *)((uint8_t *)o + of_polygons_index_count); }
+internal inline uint32_t polygons_get_count(const ee_polygons *o) { return *(uint32_t *)((uint8_t *)o + of_polygons_count); }
+internal inline void polygons_set_count(ee_polygons *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_polygons_count) = v; }
+internal inline uint32_t *polygons_count_at(const ee_polygons *o) { return (uint32_t *)((uint8_t *)o + of_polygons_count); }
+
+// class DX7StandardVertexArray (ee_vertices)
+// the display DLLs' vertices without colours (GEVertexArray; DX7StandardVertexArray, type 0 of
+// DX7Rasterizer.create_vertex_array - type 1 DX7StdColorVertexArray, another layout)
+internal inline ee_vertex *vertices_get_data(const ee_vertices *o) { return *(ee_vertex **)((uint8_t *)o + of_vertices_data); }
+internal inline void vertices_set_data(ee_vertices *o, ee_vertex *v) { *(ee_vertex **)((uint8_t *)o + of_vertices_data) = v; }
+internal inline ee_vertex **vertices_data_at(const ee_vertices *o) { return (ee_vertex **)((uint8_t *)o + of_vertices_data); }
+internal inline uint32_t vertices_get_count(const ee_vertices *o) { return *(uint32_t *)((uint8_t *)o + of_vertices_count); }
+internal inline void vertices_set_count(ee_vertices *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_vertices_count) = v; }
+internal inline uint32_t *vertices_count_at(const ee_vertices *o) { return (uint32_t *)((uint8_t *)o + of_vertices_count); }
+// GetType: 0 this class, 1 DX7StdColorVertexArray
+typedef uint32_t (__thiscall *vertices_get_type_fn)(ee_vertices *);
+internal inline uint32_t vertices_get_type(ee_vertices *vertices) { return ((vertices_get_type_fn)(*(void ***)vertices)[slot_vertices_get_type])(vertices); }
+
+// class D3DVERTEX (ee_vertex)
+// a vertex of DX7StandardVertexArray (Direct3D 7's D3DVERTEX: CopyStdVertices)
+internal inline vec3 vertex_get_point(const ee_vertex *o) { return *(vec3 *)((uint8_t *)o + of_vertex_point); }
+internal inline void vertex_set_point(ee_vertex *o, vec3 v) { *(vec3 *)((uint8_t *)o + of_vertex_point) = v; }
+internal inline vec3 *vertex_point_at(const ee_vertex *o) { return (vec3 *)((uint8_t *)o + of_vertex_point); }
+internal inline vec3 vertex_get_normal(const ee_vertex *o) { return *(vec3 *)((uint8_t *)o + of_vertex_normal); }
+internal inline void vertex_set_normal(ee_vertex *o, vec3 v) { *(vec3 *)((uint8_t *)o + of_vertex_normal) = v; }
+internal inline vec3 *vertex_normal_at(const ee_vertex *o) { return (vec3 *)((uint8_t *)o + of_vertex_normal); }
+internal inline float vertex_get_u(const ee_vertex *o) { return *(float *)((uint8_t *)o + of_vertex_u); }
+internal inline void vertex_set_u(ee_vertex *o, float v) { *(float *)((uint8_t *)o + of_vertex_u) = v; }
+internal inline float *vertex_u_at(const ee_vertex *o) { return (float *)((uint8_t *)o + of_vertex_u); }
+internal inline float vertex_get_v(const ee_vertex *o) { return *(float *)((uint8_t *)o + of_vertex_v); }
+internal inline void vertex_set_v(ee_vertex *o, float v) { *(float *)((uint8_t *)o + of_vertex_v) = v; }
+internal inline float *vertex_v_at(const ee_vertex *o) { return (float *)((uint8_t *)o + of_vertex_v); }
 
 // class GEBoundingBox (ee_box)
 // the engine's box (GEBoundingBox::Define: the corners, then ComputeDimensions its size)
@@ -311,6 +408,8 @@ internal inline uint8_t *engine_display_iat_sleep_at(void) { return (uint8_t *)(
 // DX7HRTnLDisplay.dll: the caps of the vertex buffer each rasterizer state creates (D3DVERTEXBUFFERDESC.dwCaps, a
 // mov [ebp-0xC], imm32: D3DVBCAPS_WRITEONLY - video memory; its other buffer and DX7HRDisplay.dll's add
 // D3DVBCAPS_SYSTEMMEMORY)
+// the display DLLs' vertex buffer, in vertices: DX7Rasterizer::LockVB starts it anew when fewer than a material's
+// are left - a material of more would overrun it (the 2017 update's both DLLs; AoC's DX7HRTnLDisplay.dll)
 // the render objects RTSGraphics draws (pointers; the game's start makes them, 0x504DAF adds them in this
 // order: effects, terrain, shadows, units, water, interface)
 internal inline uint8_t *engine_display_ro_effects_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_ro_effects; }
@@ -336,6 +435,8 @@ internal int spec_engine_display_select(int build) {
         slot_rasterizer_begin_scene = 4;
         slot_rasterizer_clear = 6;
         slot_rasterizer_clear_z = 7;
+        slot_rasterizer_create_polygon_array = 10;
+        slot_rasterizer_create_vertex_array = 11;
         slot_rasterizer_draw_polygons = 13;
         slot_rasterizer_draw_terrain = 14;
         slot_rasterizer_draw_model = 19;
@@ -405,7 +506,29 @@ internal int spec_engine_display_select(int build) {
         of_text_string = 0x34;
         of_text_font = 0x44;
         of_model_boxes = 0x110;
+        of_model_polygons = 0x100;
+        of_model_vertices = 0x104;
+        of_model_materials = 0x108;
         of_model_frames = 0x140;
+        of_model_material_count = 0x144;
+        of_model_polygon_count = 0x148;
+        of_model_vertex_count = 0x14C;
+        of_model_lods = 0x154;
+        of_material_polygon_first = 0x2C;
+        of_material_polygon_count = 0x30;
+        of_material_vertex_first = 0x34;
+        of_material_vertex_count = 0x38;
+        of_polygons_indices = 0x4;
+        of_polygons_index_count = 0x8;
+        of_polygons_count = 0xC;
+        of_vertices_data = 0x4;
+        of_vertices_count = 0x8;
+        slot_vertices_get_type = 8;
+        size_d3_dvertex = 0x20;
+        of_vertex_point = 0x0;
+        of_vertex_normal = 0xC;
+        of_vertex_u = 0x18;
+        of_vertex_v = 0x1C;
         size_ge_bounding_box = 0x24;
         of_box_min = 0x0;
         of_box_max = 0xC;
@@ -418,6 +541,7 @@ internal int spec_engine_display_select(int build) {
         data_engine_display_call_frame_mouse = 0x0050FEC8;
         data_engine_display_iat_sleep = 0x0082318C;
         value_engine_display_rva_tnl_vb_caps = 62581;
+        value_engine_display_vb_vertices = 2442;
         data_engine_display_ro_effects = 0x00943318;
         data_engine_display_ro_terrain = 0x00943314;
         data_engine_display_ro_shadows = 0x00943310;
@@ -438,6 +562,8 @@ internal int spec_engine_display_select(int build) {
         slot_rasterizer_begin_scene = 4;
         slot_rasterizer_clear = 6;
         slot_rasterizer_clear_z = 7;
+        slot_rasterizer_create_polygon_array = 10;
+        slot_rasterizer_create_vertex_array = 11;
         slot_rasterizer_draw_polygons = 13;
         slot_rasterizer_draw_terrain = 14;
         slot_rasterizer_draw_model = 19;
@@ -507,7 +633,29 @@ internal int spec_engine_display_select(int build) {
         of_text_string = 0x34;
         of_text_font = 0x44;
         of_model_boxes = 0x110;
+        of_model_polygons = 0x100;
+        of_model_vertices = 0x104;
+        of_model_materials = 0x108;
         of_model_frames = 0x140;
+        of_model_material_count = 0x144;
+        of_model_polygon_count = 0x148;
+        of_model_vertex_count = 0x14C;
+        of_model_lods = 0x154;
+        of_material_polygon_first = 0x2C;
+        of_material_polygon_count = 0x30;
+        of_material_vertex_first = 0x34;
+        of_material_vertex_count = 0x38;
+        of_polygons_indices = 0x4;
+        of_polygons_index_count = 0x8;
+        of_polygons_count = 0xC;
+        of_vertices_data = 0x4;
+        of_vertices_count = 0x8;
+        slot_vertices_get_type = 8;
+        size_d3_dvertex = 0x20;
+        of_vertex_point = 0x0;
+        of_vertex_normal = 0xC;
+        of_vertex_u = 0x18;
+        of_vertex_v = 0x1C;
         size_ge_bounding_box = 0x24;
         of_box_min = 0x0;
         of_box_max = 0xC;
@@ -520,6 +668,7 @@ internal int spec_engine_display_select(int build) {
         data_engine_display_call_frame_mouse = 0x0051A487;
         data_engine_display_iat_sleep = 0x00837174;
         value_engine_display_rva_tnl_vb_caps = 66510;
+        value_engine_display_vb_vertices = 2400;
         data_engine_display_ro_effects = 0x00965360;
         data_engine_display_ro_terrain = 0x0096535C;
         data_engine_display_ro_shadows = 0x00965358;

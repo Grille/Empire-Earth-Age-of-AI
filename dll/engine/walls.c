@@ -6,14 +6,15 @@
 // tiles rises 0.4 or more - on Highlands 90% of the neighbouring corners differ by less than 0.27; the corners it
 // counts for them (0x517C10) it never reads. Here a piece leans onto the ground instead: its matrix (unit +0x130, the
 // engine's GETransformation - drawn, saved and loaded as written, damage leaves it, 2026-11-03) gets a shear along its
-// length, z rising with the ground from one end to the other (its sides stay upright), its middle on that line and
-// set into the ground by the ground's fall below the line across its thickness and a little more, taller by as much
-// (its top stays). And it spans its tile exactly, into a post beside it: the meshes are longer than the pieces'
-// spacing (straight 1.00 .. 1.06 on 1, diagonal 1.58 .. 1.71 on 1.41), so neighbours overlapped - the faces in one
-// plane flickered, and pieces leaning apart stuck out of each other at every bend (the player, 2026-11-03: "the
-// overlap becomes even more noticeable now, and it flickers ... instead make the overlap targeted like extending into
-// the round connector pieces"). A sloped piece becomes the plain one first. A post stands on the lowest corner of its
-// tile, its top where it was. The layout's last step (wall_joints) makes a piece where walls meet a post anew, flat:
+// length, z rising with the ground from one end to the other (its sides stay upright), its bottom on that line. And
+// it spans its tile exactly, into a post beside it: the meshes are longer than the pieces' spacing (straight
+// 1.00 .. 1.06 on 1, diagonal 1.58 .. 1.71 on 1.41), so neighbours overlapped - the faces in one plane flickered, and
+// pieces leaning apart stuck out of each other at every bend (the player, 2026-11-03: "the overlap becomes even more
+// noticeable now, and it flickers ... instead make the overlap targeted like extending into the round connector
+// pieces"). A sloped piece becomes the plain one first. A post stands on the ground at its tile's middle. Where the
+// ground falls away below a piece (across its thickness, a bump between its ends, a post's lower corners) its skirt
+// fills the gap: the wall's models are drawn reaching WS_SKIRT further down (below). The layout's last step
+// (wall_joints) makes a piece where walls meet a post anew, flat:
 // the wall's pieces are fitted again after it, with all their neighbours there. Pieces laid before (a loaded game, a
 // scenario's) are fitted at the game's first step (wall_start_fit: else they stay as made). A gate laid into a fitted wall takes its pieces upright, as the game's (its
 // middle kept a fitted piece's matrix: drawn shortened and sheared). A piece's collapse when destroyed turns it by its
@@ -23,11 +24,6 @@
 #define WS_STRAIGHT 9
 #define WS_DIAG 10
 #define WS_POST 11
-#define WS_SINK 0.06f       // into the ground beyond what the ground's fall across the piece needs
-#define WS_SINK_MAX 0.5f    // a piece on a cliff's edge: no deeper than this
-#define WS_HALF_THICK 0.25f // a piece's sides from its middle line (the meshes: 0.21 .. 0.31)
-#define WS_HEIGHT 1.05f     // a piece's mesh (Copper 0.98 .. Nano 1.21): taller by the sink over this, its top stays
-#define WS_POST_HEIGHT 1.28f
 #define WS_INTO_POST 0.3f   // a piece's end into a post beside it (the posts' sides 0.49 .. 0.66 from their middle)
 
 internal int g_ws_on, g_ws_start, g_ws_fitted_game;
@@ -45,19 +41,257 @@ internal void ws_acquire(ee_dmg_model *gfx) {
     if (g_log) fprintf(g_log, "# walls: the graphics %p loaded for the fit (%d)\n", (void *)gfx, r);
 }
 
-// the ground's lowest point below the line from a to b (heights ha, hb) across the piece's thickness (side sx, sy):
-// at both ends and the middle, on the line and to either side - how deep the piece must stand to touch it everywhere
-internal float ws_fall(const ee_map *map, float ax, float ay, float bx, float by, float ha, float hb, float sx, float sy) {
-    float fall = 0;
-    for (int k = 0; k <= 2; k++) {
-        float t = (float)k * 0.5f, x = ax + (bx - ax) * t, y = ay + (by - ay) * t, line = ha + (hb - ha) * t;
-        for (int s = -1; s <= 1; s++) {
-            float g = ground_at(map, x + (float)s * WS_HALF_THICK * sx, y + (float)s * WS_HALF_THICK * sy);
-            if (g == g && line - g > fall) fall = line - g;
+// a piece's model by its animation (a sloped one's: the plain one's). Its graphics', not the one it is drawn with:
+// a piece laid out is a building site and draws the site's until built. The game loads a graphics' models when a
+// first user needs them, and a doppelganger (the fog of war's last-seen copy) is one - on each PC by what its player
+// saw: a wall's are often not there yet when its first pieces are laid out (none in the first game minutes). The
+// matrix is the game's state (the unit's position, its points), so the fit takes a user of its own, the same step on
+// every PC, and has the same model everywhere
+internal ee_model *ws_model(ee_unit *u, int anim) {
+    ee_unit_stats *st = unit_get_stats(u);
+    ee_dmg_model *gfx = st ? unit_stats_get_gfx(st) : NULL;
+    int ma = anim == WS_SLOPE ? WS_STRAIGHT : anim == WS_SLOPE_DIAG ? WS_DIAG : anim;
+    ee_model *mdl = gfx ? ((ee_model **)dmg_model_anim_model_at(gfx))[ma] : NULL;
+    if (gfx && !mdl) {
+        ws_acquire(gfx);
+        mdl = ((ee_model **)dmg_model_anim_model_at(gfx))[ma];
+    }
+    return mdl;
+}
+
+// WALL SKIRTS: a piece set into the ground deep enough to touch it everywhere hid its lower part - a side slope took
+// a whole band of it, the player's colour with it (the player, 2026-11-04: "it hides the player color for some wall
+// pieces ... instead of sinking the mesh its possible to extrude from the wall pieces downwards?"). So a piece stands
+// on the ground and its model reaches below it: every triangle with two corners on the mesh's bottom (its lowest
+// point, WS_SKIRT_EDGE) goes on downwards by a quad WS_SKIRT deep, its two lower corners copies of the edge's
+// (normal, texture coordinates: the bottom row of the texture drawn down), in the triangle's material and winding
+// - into the ground where it is level, filling the gap where it falls away. A model is the engine's (GEModel, one
+// for every piece of that kind and era): each material a run of its vertices and of each level of detail's
+// triangles, indices counted from the run's first (spec GEMaterial) - its arrays made anew larger by the display
+// DLL (DX7Rasterizer.create_vertex_array, create_polygon_array), each material's run followed by its skirt. The
+// renderer copies a material's vertices into its vertex buffer every time it draws it (CopyStdVertices), so the new
+// arrays are drawn from the next frame on. The graphics thread draws the models while the simulation runs: the fit
+// (simulation thread) asks for the skirt (ws_skirt_want), the model's draw (DrawModelHierarchy, hooked in both
+// display DLLs) makes it before drawing it, on the one thread that reads a model's arrays. The old arrays stay (other
+// code may hold them; a few KB a model). Only the picture: the pieces' places and the game state are the fit's.
+#define WS_SKIRT 1.0f            // how far below its bottom a model reaches
+#define WS_SKIRT_EDGE 0.02f      // a vertex this close above the mesh's lowest point is on its bottom
+#define WS_SKIRT_MODELS 64
+struct ws_skirt { ee_model *m; ee_vertices *va; volatile LONG state; };   // state 0 asked, 1 made, 2 can't be
+internal struct ws_skirt g_ws_sk[WS_SKIRT_MODELS];
+internal volatile LONG g_ws_sk_n, g_ws_sk_asked;
+internal rasterizer_draw_model_hierarchy_fn g_ws_draw[2];
+internal int g_ws_draw_hooks;
+
+// the fit's model: its skirt made at its next draw (the simulation thread; the draw reads g_ws_sk[0 .. g_ws_sk_n))
+internal void ws_skirt_want(ee_model *m) {
+    if (!m || !g_ws_draw_hooks) return;
+    LONG n = g_ws_sk_n;
+    for (LONG i = 0; i < n; i++) {
+        struct ws_skirt *s = &g_ws_sk[i];
+        if (s->m != m) continue;
+        // a model loaded anew where one was (the graphics freed and loaded again): not the arrays it was given
+        if (s->state && model_get_frames(m) && model_get_vertices(m) && model_get_vertices(m)[0] != s->va) {
+            s->state = 0;
+            InterlockedIncrement(&g_ws_sk_asked);
+        }
+        return;
+    }
+    if (n >= WS_SKIRT_MODELS) return;
+    g_ws_sk[n] = (struct ws_skirt){ m, NULL, 0 };
+    InterlockedIncrement(&g_ws_sk_asked);
+    InterlockedExchange(&g_ws_sk_n, n + 1);
+}
+
+internal int ws_cmp_first(const void *a, const void *b) {
+    uint32_t x = material_get_vertex_first(*(ee_material *const *)a), y = material_get_vertex_first(*(ee_material *const *)b);
+    return x < y ? -1 : x > y;
+}
+
+// the skirt of m (the graphics thread, before its draw): 1 made, 0 none (no bottom edge), -1 a model it can't take
+// (another vertex kind, materials not in runs one after another, a material beyond the vertex buffer) - left as it is
+internal int ws_skirt_make(ee_rasterizer *ras, ee_model *m, unsigned *edges_out) {
+    uint32_t nf = model_get_frames(m), nl = model_get_lods(m), nm = model_get_material_count(m), nv = model_get_vertex_count(m);
+    ee_vertices **va = model_get_vertices(m);
+    ee_polygons **pa = model_get_polygons(m);
+    ee_material **mat = model_get_materials(m);
+    if (!nf || !nl || !nm || !nv || nf > 256 || nl > 16 || nm > 256 || !va || !pa || !mat) return -1;
+    for (uint32_t f = 0; f < nf; f++)
+        if (!va[f] || vertices_get_type(va[f]) != 0 || vertices_get_count(va[f]) < nv) return -1;
+    // the materials in the order of their vertices: one run after another from 0 to nv, and each lod's triangles too
+    ee_material *ord[256];
+    for (uint32_t k = 0; k < nm; k++) { ord[k] = mat[k]; if (!ord[k]) return -1; }
+    qsort(ord, nm, sizeof *ord, ws_cmp_first);
+    uint32_t at = 0;
+    for (uint32_t k = 0; k < nm; k++) {
+        if (material_get_vertex_first(ord[k]) != at) return -1;
+        at += material_get_vertex_count(ord[k]);
+    }
+    if (at != nv) return -1;
+    for (uint32_t l = 0; l < nl; l++) {
+        uint32_t pat = 0;
+        for (uint32_t k = 0; k < nm; k++) {
+            uint32_t pc = material_get_polygon_count(ord[k])[l];
+            if (!pc) continue;
+            if (!pa[l] || material_get_polygon_first(ord[k])[l] != pat) return -1;
+            pat += pc;
+        }
+        if (pa[l] && pat > polygons_get_count(pa[l])) return -1;
+    }
+    ee_vertex *v0 = vertices_get_data(va[0]);
+    float zmin = 1e9f;
+    for (uint32_t i = 0; i < nv; i++) { float z = vertex_point_at(vertex_at(v0, i))->z; if (z < zmin) zmin = z; }
+    // per material: its bottom vertices that get a copy below (by index in its run: the copy's index, 0 none), and per
+    // lod the skirt's triangles; the edges counted at lod 0
+    uint32_t *copy = calloc(nv, sizeof *copy);
+    uint16_t *tri = NULL;   // per lod and material: the skirt's triangles (3 indices each), appended
+    uint32_t tri_n = 0, tri_cap = 0, add_v = 0, edges = 0;
+    uint32_t *tri_at = calloc((size_t)nl * nm + 1, sizeof *tri_at);   // [l * nm + k]: its first in tri, then the end
+    uint32_t *extra = calloc(nm, sizeof *extra);                       // [k]: its copies
+    int ok = copy && tri_at && extra;
+    for (uint32_t l = 0; ok && l < nl; l++)
+        for (uint32_t k = 0; ok && k < nm; k++) {
+            tri_at[l * nm + k] = tri_n;
+            uint32_t vf = material_get_vertex_first(ord[k]), vc = material_get_vertex_count(ord[k]);
+            uint32_t pf = material_get_polygon_first(ord[k])[l], pc = material_get_polygon_count(ord[k])[l];
+            const uint16_t *ix = pc ? polygons_get_indices(pa[l]) : NULL;
+            for (uint32_t t = pf; ok && t < pf + pc; t++) {
+                uint16_t c[3] = { ix[t * 3], ix[t * 3 + 1], ix[t * 3 + 2] };
+                int low[3], lows = 0;
+                for (int j = 0; j < 3; j++) {
+                    if (c[j] >= vc) { ok = 0; break; }
+                    low[j] = vertex_point_at(vertex_at(v0, vf + c[j]))->z <= zmin + WS_SKIRT_EDGE;
+                    lows += low[j];
+                }
+                if (!ok || lows != 2) continue;
+                // the edge a -> b in the triangle's order; below it (b, a, a') and (b, a', b'), the same way round
+                int j = low[0] && low[1] ? 0 : low[1] && low[2] ? 1 : 2;
+                uint16_t a = c[j], b = c[(j + 1) % 3];
+                for (int e = 0; e < 2; e++) {
+                    uint16_t w = e ? b : a;
+                    if (!copy[vf + w]) { copy[vf + w] = vc + ++extra[k]; add_v++; }
+                }
+                if (tri_n + 6 > tri_cap) {
+                    tri_cap = tri_cap ? tri_cap * 2 : 192;
+                    uint16_t *t2 = realloc(tri, tri_cap * sizeof *tri);
+                    if (!t2) { ok = 0; break; }
+                    tri = t2;
+                }
+                uint16_t a2 = (uint16_t)(copy[vf + a] - 1), b2 = (uint16_t)(copy[vf + b] - 1);
+                uint16_t q[6] = { b, a, a2, b, a2, b2 };
+                memcpy(tri + tri_n, q, sizeof q);
+                tri_n += 6;
+                if (!l) edges++;
+            }
+        }
+    if (ok) tri_at[nl * nm] = tri_n;
+    for (uint32_t k = 0; ok && k < nm; k++)
+        if (material_get_vertex_count(ord[k]) + extra[k] > display_vb_vertices() || material_get_vertex_count(ord[k]) + extra[k] > 0xFFFF) ok = 0;
+    int r = !ok ? -1 : !edges ? 0 : 1;
+    if (r == 1) {
+        // the new arrays: each frame's (one for the frames that shared one), each lod's
+        uint32_t nv2 = nv + add_v;
+        ee_vertices *nva[256] = { 0 };
+        ee_polygons *npa[16] = { 0 };
+        for (uint32_t f = 0; r == 1 && f < nf; f++) {
+            uint32_t g = 0;
+            while (g < f && va[g] != va[f]) g++;
+            if (g < f) { nva[f] = nva[g]; continue; }
+            if (!(nva[f] = rasterizer_create_vertex_array(ras, 0, nv2))) { r = -1; break; }
+            ee_vertex *src = vertices_get_data(va[f]), *dst = vertices_get_data(nva[f]);
+            uint32_t to = 0;
+            for (uint32_t k = 0; k < nm; k++) {
+                uint32_t vf = material_get_vertex_first(ord[k]), vc = material_get_vertex_count(ord[k]);
+                memcpy(vertex_at(dst, to), vertex_at(src, vf), (size_t)vc * vertex_size());
+                for (uint32_t i = 0; i < vc; i++)
+                    if (copy[vf + i]) {
+                        ee_vertex *d = vertex_at(dst, to + copy[vf + i] - 1);
+                        memcpy(d, vertex_at(src, vf + i), vertex_size());
+                        vertex_point_at(d)->z -= WS_SKIRT;
+                    }
+                to += vc + extra[k];
+            }
+        }
+        for (uint32_t l = 0; r == 1 && l < nl; l++) {
+            if (!pa[l]) continue;
+            uint32_t n2 = polygons_get_count(pa[l]) + (tri_at[l * nm + nm] - tri_at[l * nm]) / 3;
+            if (!(npa[l] = rasterizer_create_polygon_array(ras, n2))) { r = -1; break; }
+            const uint16_t *src = polygons_get_indices(pa[l]);
+            uint16_t *dst = polygons_get_indices(npa[l]);
+            uint32_t to = 0;
+            for (uint32_t k = 0; k < nm; k++) {
+                uint32_t pf = material_get_polygon_first(ord[k])[l], pc = material_get_polygon_count(ord[k])[l];
+                uint32_t s0 = tri_at[l * nm + k], s1 = tri_at[l * nm + k + 1];
+                memcpy(dst + to * 3, src + pf * 3, (size_t)pc * 3 * sizeof *dst);
+                memcpy(dst + to * 3 + pc * 3, tri + s0, (size_t)(s1 - s0) * sizeof *dst);
+                to += pc + (s1 - s0) / 3;
+            }
+            // a lod's triangles beyond its materials' (none seen) stay at its end
+            uint32_t own = 0;
+            for (uint32_t k = 0; k < nm; k++) own += material_get_polygon_count(ord[k])[l];
+            memcpy(dst + to * 3, src + own * 3, (size_t)(polygons_get_count(pa[l]) - own) * 3 * sizeof *dst);
+        }
+        if (r == 1) {   // the model onto them: the runs moved by the skirts before them
+            for (uint32_t f = 0; f < nf; f++) va[f] = nva[f];
+            for (uint32_t l = 0; l < nl; l++) if (npa[l]) pa[l] = npa[l];
+            uint32_t vto = 0, pto[16] = { 0 };
+            for (uint32_t k = 0; k < nm; k++) {
+                material_set_vertex_first(ord[k], vto);
+                material_set_vertex_count(ord[k], material_get_vertex_count(ord[k]) + extra[k]);
+                vto += material_get_vertex_count(ord[k]);
+                for (uint32_t l = 0; l < nl; l++) {
+                    uint32_t *pf = material_get_polygon_first(ord[k]), *pc = material_get_polygon_count(ord[k]);
+                    if (!pc[l]) continue;
+                    pf[l] = pto[l];
+                    pc[l] += (tri_at[l * nm + k + 1] - tri_at[l * nm + k]) / 3;
+                    pto[l] += pc[l];
+                }
+            }
+            model_set_vertex_count(m, nv2);
+            if (npa[0]) model_set_polygon_count(m, polygons_get_count(npa[0]));
         }
     }
-    return fall;
+    free(copy); free(tri); free(tri_at); free(extra);
+    *edges_out = edges;
+    return r;
 }
+
+// a model drawn: its skirt first if the fit asked for it
+internal void ws_skirt_drawn(ee_rasterizer *ras, ee_model *m) {
+    LONG n = g_ws_sk_n;
+    for (LONG i = 0; i < n; i++) {
+        struct ws_skirt *s = &g_ws_sk[i];
+        if (s->m != m || s->state) continue;
+        unsigned edges = 0;
+        int r = ws_skirt_make(ras, m, &edges);
+        s->va = model_get_frames(m) && model_get_vertices(m) ? model_get_vertices(m)[0] : NULL;
+        s->state = r >= 0 ? 1 : 2;
+        InterlockedDecrement(&g_ws_sk_asked);
+        log_locked("# walls: model %p %s (%u bottom edges, %u vertices, %u materials, %u lods)\n", (void *)m,
+                   r > 0 ? "skirted" : r == 0 ? "has no bottom edge" : "CAN'T be skirted", edges,
+                   model_get_vertex_count(m), model_get_material_count(m), model_get_lods(m));
+        return;
+    }
+}
+internal int __thiscall ws_hook_draw0(ee_rasterizer *ras, void *m, uint32_t screen, float p3, int8_t p4) {
+    if (g_ws_sk_asked > 0) ws_skirt_drawn(ras, m);
+    return g_ws_draw[0](ras, m, screen, p3, p4);
+}
+internal int __thiscall ws_hook_draw1(ee_rasterizer *ras, void *m, uint32_t screen, float p3, int8_t p4) {
+    if (g_ws_sk_asked > 0) ws_skirt_drawn(ras, m);
+    return g_ws_draw[1](ras, m, screen, p3, p4);
+}
+// DrawModelHierarchy in each display DLL's vtable (at its load: they load after the mod, patch.c on_module_load)
+internal void ws_display_loaded(int i, uintptr_t base) {
+    void *f = (void *)GetProcAddress((HMODULE)base, "?DrawModelHierarchy@DX7Rasterizer@@MAEJPAVGEModel@@KM_N@Z");
+    if (!f || g_ws_draw[i]) return;
+    g_ws_draw[i] = (rasterizer_draw_model_hierarchy_fn)f;
+    int n = replace_rdata_ptr((HMODULE)base, f, i ? (void *)ws_hook_draw1 : (void *)ws_hook_draw0);
+    if (n) g_ws_draw_hooks++;
+    log_locked("# walls: skirts - %s's model draw %s\n", i ? "DX7HRTnLDisplay.dll" : "DX7HRDisplay.dll", n == 1 ? "hooked" : n ? "hooked (more than once)" : "NOT hooked");
+}
+internal void ws_display_loaded0(uintptr_t base) { ws_display_loaded(0, base); }
+internal void ws_display_loaded1(uintptr_t base) { ws_display_loaded(1, base); }
 
 #define WS_LAID_MAX 512
 internal ee_unit *g_ws_laid[WS_LAID_MAX];   // the pieces of the layout under way, fitted again at its last step
@@ -97,19 +331,17 @@ internal int ws_fit(ee_unit *u) {
     // the middle of its tile, not the matrix's: a piece's matrix is moved below, a fit again gives the same
     int tx = unit_get_x(u), ty = unit_get_y(u);
     float px = (float)tx + 0.5f, py = (float)ty + 0.5f;
+    ee_model *mdl = ws_model(u, anim);
+    ws_skirt_want(mdl);
     if (anim == WS_POST) {
-        float mid = ground_at(map, px, py), low = mid;
-        for (int k = 0; k < 4; k++) {
-            float g = ground_at(map, px + (k & 1 ? 0.5f : -0.5f), py + (k & 2 ? 0.5f : -0.5f));
-            if (g < low) low = g;
-        }
-        if (mid != mid || low != low) { g_ws_skipped++; return 0; }
-        // its scale from its turn (x, y), so fitting it again gives the same: as tall above mid as it was
-        float z = low - WS_SINK, s = sqrtf(unit_get_matrix(u, 0) * unit_get_matrix(u, 0) + unit_get_matrix(u, 4) * unit_get_matrix(u, 4));
+        float mid = ground_at(map, px, py);
+        if (mid != mid) { g_ws_skipped++; return 0; }
+        // its scale from its turn (x, y), so fitting it again gives the same; its skirt down to its lower corners
+        float s = sqrtf(unit_get_matrix(u, 0) * unit_get_matrix(u, 0) + unit_get_matrix(u, 4) * unit_get_matrix(u, 4));
         unit_set_matrix(u, 8, 0);
         unit_set_matrix(u, 9, 0);
-        unit_set_matrix(u, 10, s * (1 + (mid - z) / WS_POST_HEIGHT));
-        unit_set_matrix(u, 11, z);
+        unit_set_matrix(u, 10, s);
+        unit_set_matrix(u, 11, mid);
         g_ws_posts++;
         return 1;
     }
@@ -123,25 +355,10 @@ internal int ws_fit(ee_unit *u) {
     float ax = px - d * fx, ay = py - d * fy, bx = px + d * fx, by = py + d * fy;
     float ha = ground_at(map, ax, ay), hb = ground_at(map, bx, by);
     if (ha != ha || hb != hb) { g_ws_skipped++; return 0; }
-    float sink = WS_SINK + ws_fall(map, ax, ay, bx, by, ha, hb, fy, -fx);
-    if (sink > WS_SINK_MAX) sink = WS_SINK_MAX;
     // its mesh (the model's first frame, its y from ylo to yhi - each era's its own length, 1.00 .. 1.71, and off its
     // middle by up to 0.025) stretched onto its tile's span exactly: the meshes were made longer than the spacing, and
     // neighbours overlapped - the faces flickered and, leaning apart, stuck out at every bend. Into a post at an end
-    // (it hides it; a diagonal piece's end at the corner would stop short of one). The animation's model from its
-    // graphics, not the one it is drawn with: a piece laid out is a building site and draws the site's until built
-    // The game loads a graphics' models when a first user needs them, and a doppelganger (the fog of war's last-seen
-    // copy) is one - on each PC by what its player saw: a wall's are often not there yet when its first pieces are
-    // laid out (none in the first game minutes). The matrix is the game's state (the unit's position, its points),
-    // so the fit takes a user of its own, the same step on every PC, and has the same model everywhere
-    ee_unit_stats *st = unit_get_stats(u);
-    ee_dmg_model *gfx = st ? unit_stats_get_gfx(st) : NULL;
-    int ma = anim == WS_SLOPE ? WS_STRAIGHT : anim == WS_SLOPE_DIAG ? WS_DIAG : anim;
-    ee_model *mdl = gfx ? ((ee_model **)dmg_model_anim_model_at(gfx))[ma] : NULL;
-    if (gfx && !mdl) {
-        ws_acquire(gfx);
-        mdl = ((ee_model **)dmg_model_anim_model_at(gfx))[ma];
-    }
+    // (it hides it; a diagonal piece's end at the corner would stop short of one)
     ee_box *box = mdl && model_get_frames(mdl) ? model_get_boxes(mdl) : NULL;
     float ylo = box ? box_get_min(box).y : -d, yhi = box ? box_get_max(box).y : d;
     if (yhi - ylo < 0.1f) { ylo = -d; yhi = d; g_ws_no_model++; }
@@ -160,7 +377,7 @@ internal int ws_fit(ee_unit *u) {
     const float m[12] = {
         fy * len,  fx * k,    0, px + fx * c,
         -fx * len, fy * k,    0, py + fy * c,
-        0,         slope * k, len * (1 + sink / WS_HEIGHT), (ha + hb) * 0.5f - sink + slope * c,
+        0,         slope * k, len,      (ha + hb) * 0.5f + slope * c,
     };
     for (int i = 0; i < 12; i++) unit_set_matrix(u, i, m[i]);
     g_ws_pieces++;
@@ -563,6 +780,8 @@ internal void walls_install(void) {
     int more = g_ws_on ? patch_step_end(hook_step_end) + patch_gate_convert(hook_gate_convert) : 0;
     int pof = 0, pn = g_wj_on ? patch_place_building(hook_place_building, &pof) : 0;
     int ed = g_ws_on ? patch_editor_frame(hook_editor_frame) : 0;
+    if (g_ws_on && (!on_module_load("DX7HRDisplay.dll", ws_display_loaded0) || !on_module_load("DX7HRTnLDisplay.dll", ws_display_loaded1)) && g_log)
+        fprintf(g_log, "# walls: skirts - the display DLLs' loads not watchable\n");
     if (g_log) fprintf(g_log, "# walls: wall_slopes=%d wall_joins=%d wall_start_fit=%d (%s%s%s%s)\n", g_ws_on, g_wj_on, g_ws_start,
                        !g_ws_on ? "-" : n == of ? "the layout's calls hooked" : n ? "SOME of the layout's calls hooked" : "FAILED",
                        !g_ws_on ? "" : more == 2 ? ", the step's end, the gate's" : ", the step's end or the gate's FAILED",

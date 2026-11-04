@@ -26,6 +26,11 @@ internal inline HWND window_get_hwnd(const ee_window *w) { return FIELD(w, of_wi
 // the DirectInput mouse (ISMouse): +0x4 suspended (window inactive), +0x18 the buttons' bytes, +0x44 the device
 // a text (GEText): its string +0x34, font +0x44; a font (GEFont): its HFONT +0x18, the bitmap font +0x24
 internal inline HFONT font_get_hfont(const ee_font *f) { return FIELD(f, of_font_hfont, HFONT); }
+// a model's vertices (DX7StandardVertexArray's data): the i-th, the size of one; the vertex buffer's room (in vertices)
+// for one material
+internal inline ee_vertex *vertex_at(ee_vertex *data, uint32_t i) { return (ee_vertex *)((uint8_t *)data + (size_t)i * size_d3_dvertex); }
+internal inline uint32_t vertex_size(void) { return size_d3_dvertex; }
+internal inline uint32_t display_vb_vertices(void) { return value_engine_display_vb_vertices; }
 
 // HOOKS
 // the graphics thread's Sleep(1) after every pass of its loop (display.c frame_wait): that call -> hook, Sleep's own type
