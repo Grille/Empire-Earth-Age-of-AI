@@ -14,7 +14,11 @@
 // (mbl: Barracks .. Fortress, docks), other buildings (bld); each as n:F/W/S/G/I (payments, sums). Then the army alive
 // by the same lines, the enemy soldiers it knows of (intel.c, seen within 10 minutes) by line, the budget's saving for
 // a refused unit (econ.c substitute_wait: 5-s samples saving, the gold + iron in stock then, refusals while saving),
-// the gold + iron in stock and in the navy account (5-s means), and what metal_plan did.
+// the gold + iron in stock and in the navy account (5-s means), and what metal_plan did. Then what it lost (its units
+// and buildings destroyed since the start, diplo.c's kill log, by the same lines as n:F/W/S/G/I at its current prices)
+// and the price of what it destroyed (at its victims' prices, F/W/S/G/I): what the fighting costs it against what it
+// mines. Then what killed its units (the dead unit's last attacker, by its line - tower, siege ...; "none": not known)
+// as n:G+I of the dead.
 #define MT_NB 18
 enum { MB_CIT, MB_INF, MB_RNG, MB_CAV, MB_SIE, MB_OTH, MB_WSH, MB_BOAT, MB_AIR, MB_EP, MB_UP7, MB_TECH, MB_TOWER, MB_WALL,
        MB_MBL, MB_BLD, MB_UNK, MB_NONE };
@@ -29,6 +33,8 @@ internal struct mt_st {
     uint32_t save_last;             // the last refusal while saving
     unsigned picks, kept, nowait, navy_cut, waited;   // metal_plan, since the last line
     int navy_freed;
+    unsigned by_n[MT_NB]; int by_gi[MT_NB];   // its units killed (diplo.c, autotest) by the killer's line: how many, their gold + iron
+    int by_type[768];                         // the same gold + iron by the killer's type
     uint32_t calm_since;            // NAVY: the sea calm since
 } g_mt[16];
 internal void mt_new_game(void) { memset(g_mt, 0, sizeof g_mt); }
@@ -62,6 +68,14 @@ internal int mt_line(ee_player *pl, int t) {
     }
     return MB_OTH;
 }
+// the price of type t for pl (its tech's cost, no AdjustCost: am_raw_cost by resource) added n times to c
+internal void mt_cost_add(ee_player *pl, int t, uint32_t n, int *c) {
+    ee_unit_type *td = type_data(t);
+    ee_tech_tree *tt = pl ? player_get_tech_tree(pl) : NULL;
+    ee_tech *tech = td && tt ? tech_tree_lookup(tt, unit_type_get_tech(td)) : NULL;
+    ee_tech_data *d = tech ? tech_get_data(tech) : NULL;
+    for (int r = 2; d && r < 7; r++) c[r] += (int)n * tech_data_get_cost(d, r);
+}
 // income (econ.c hook_add_resource, every player)
 internal void mt_income(ee_player *pl, int type, int amount) {
     if (amount > 0 && type >= 2 && type < 7) g_mt[(unsigned)player_get_index(pl) & 15].inc[type] += amount;
@@ -83,6 +97,19 @@ internal void mt_paid(ee_player *pl, ee_tech *what, const int *before, const int
     int any = 0;
     for (int r = 2; r < 7; r++) if (before[r] > stock[r]) { m->paid[b][r] += before[r] - stock[r]; any = 1; }
     if (any) m->np[b]++;
+}
+// a unit killed (diplo.c hook_kill_stat, autotest): the killer's line, the dead one's gold + iron
+internal void mt_death(ee_unit *dead) {
+    ee_player *pl = g_autotest ? unit_get_owner(dead) : NULL;
+    if (!pl) return;
+    ee_unit *e = unit_get_attacker(dead);
+    ee_player *o = e ? unit_get_owner(e) : NULL;
+    ee_unit_type *etd = o ? unit_get_type_data(e) : NULL;   // (referenced by the dead one: still there)
+    int b = etd ? mt_line(o, unit_type_get_id(etd)) : MB_NONE, c[7] = { 0 };
+    mt_cost_add(pl, unit_type_get_id(unit_get_type_data(dead)), 1, c);
+    struct mt_st *m = &g_mt[(unsigned)player_get_index(pl) & 15];
+    m->by_n[b]++; m->by_gi[b] += c[5] + c[6];
+    if (etd && unit_type_get_id(etd) >= 0 && unit_type_get_id(etd) < 768) m->by_type[unit_type_get_id(etd)] += c[5] + c[6];
 }
 // econ.c train_budget: the budget saves for a refused unit
 internal void mt_saving(unsigned idx) { struct mt_st *m = &g_mt[idx & 15]; m->save_refused++; m->save_last = game_time(); if (!m->save_last) m->save_last = 1; }
@@ -307,6 +334,16 @@ internal void mt_log(ee_player *pl, unsigned idx, unsigned min) {
                 if (b >= MB_INF && b <= MB_OTH) foe[b]++;
             }
     }
+    int lost[MT_NB][7] = { { 0 } }, killed[7] = { 0 };
+    unsigned nlost[MT_NB] = { 0 };
+    for (int k = 0; k < 16; k++) {
+        const struct kl_pair *p = &g_kl[k][idx], *q = &g_kl[idx][k];
+        ee_player *vic = k < nplayers() ? player_at(k) : NULL;
+        for (int t = 0; t < G_TYPES_N; t++) {
+            if (p->total && p->total[t]) { int b = mt_line(pl, t); nlost[b] += p->total[t]; mt_cost_add(pl, t, p->total[t], lost[b]); }
+            if (q->total && q->total[t] && vic) mt_cost_add(vic, t, q->total[t], killed);
+        }
+    }
     int *st = player_stock_at(pl);
     float sm = m->samples ? (float)m->samples : 1.0f;
     EnterCriticalSection(&g_lock);
@@ -320,6 +357,14 @@ internal void mt_log(ee_player *pl, unsigned idx, unsigned min) {
             foe[MB_INF], foe[MB_RNG], foe[MB_CAV], foe[MB_SIE], foe[MB_OTH], m->saving, m->samples,
             m->saving ? m->save_gi / m->saving : 0.0, m->save_refused, m->stock_gi / sm, m->navy_gi / sm,
             m->picks, m->kept, m->nowait, m->waited, m->navy_cut, m->navy_freed);
+    fprintf(g_log, "# metal: P%u at %u min: lost", idx, min);
+    for (int b = 0; b < MT_NB; b++)
+        if (nlost[b]) fprintf(g_log, " %s=%u:%d/%d/%d/%d/%d", k_mb[b], nlost[b], lost[b][2], lost[b][3], lost[b][4], lost[b][5], lost[b][6]);
+    fprintf(g_log, " | killed %d/%d/%d/%d/%d | by", killed[2], killed[3], killed[4], killed[5], killed[6]);
+    for (int b = 0; b < MT_NB; b++) if (m->by_n[b]) fprintf(g_log, " %s=%u:%d", k_mb[b], m->by_n[b], m->by_gi[b]);
+    fprintf(g_log, " | by type");
+    for (int t = 0; t < 768; t++) if (m->by_type[t] >= 200) fprintf(g_log, " %d:%d", t, m->by_type[t]);
+    fputc('\n', g_log);
     LeaveCriticalSection(&g_lock);
     m->samples = m->saving = m->save_refused = 0;
     m->save_gi = m->stock_gi = m->navy_gi = 0;

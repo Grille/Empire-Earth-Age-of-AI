@@ -805,6 +805,19 @@ the variant never acted (below `metal_cap`, no water: 0 picks, no outpost) - B -
 -22 (18) / +13 (8)). No clear gain without a loss elsewhere: **off**.
 The next lever is the metal itself: other islands (below) and the warships that sink.
 
+**Where it goes: the losses** (2026-11-04). `# metal: ... lost` (autotest): the player's units and buildings destroyed
+since the start (diplo.c's kill log) by line, at its prices; what it destroyed at its victims' prices; and what killed
+its units - the dead unit's last attacker (unit +0x1DC, referenced, so still there) by line and by type, as gold + iron
+of the dead. The player's save "choke wolf" (153 -> 180 min, 6 runs, P3's force pushed every 4 minutes by the script):
+its gold and iron mines full (52 gold and 50 iron miners, a few beyond 6 a mine), 28-32k gold + iron mined, all of it
+spent (the stock at ~200; 127000 wood and 20000 stone unused), 61-78% of it lost again in units - infantry ~200
+(7-8k), 57mm AT guns 120-160 (8-11k), planes 10-22 (2-5k, to his 88mm AA) - against 3.6-4.4k of his destroyed. What
+killed them: his Artillery (range 12) 8-15k, Trench Mortars 3-7k, concrete towers 2.5-3k, 88mm AA 2-5k, AT guns,
+Doughboys. Counter-fire saw the artillery 4 times in 27 minutes (the mortars 19, the towers 17): it fires from beyond
+what the AI sees. The force went out judging itself 2-3x stronger than the enemy it saw and came back trading
+badly (lost 5000-8000 hit points against 0-1200 dealt). Fresh games from WWI (Continental, 4 AIs, 8 games): 20-60%
+of the gold + iron lost, about as much destroyed of the others - even trades between equals.
+
 ## More metal: outposts that follow the sea and the army (2026-10-21, dll/ai/expand.c FOLLOW)
 
 The playtester: take other islands early (a short break in the home work is fine) but concentrate - a forward island

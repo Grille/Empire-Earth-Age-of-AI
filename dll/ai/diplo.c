@@ -441,6 +441,7 @@ internal void fleet_kill(int k, ee_unit *dead, int n);   // fleet.c: which task 
 internal void fleet_lost(int v, ee_unit *dead);          // fleet.c: an own ship of a task force sunk
 internal void mass_death(ee_unit *dead);                 // mass.c: a land soldier killed - who stood by it
 internal void cover_death(ee_unit *dead, int k);         // cover.c: a military unit killed - its fight, its hit points
+internal void mt_death(ee_unit *dead);                   // metal.c: what killed it (autotest)
 __attribute__((used)) void __thiscall hook_kill_stat(ee_player_stats *stats, int n, int d) {
     ee_player *owner = g_kill_unit ? unit_get_owner(g_kill_unit) : NULL;
     if (stats && owner && (n == 2 || n == 3)) {
@@ -461,6 +462,7 @@ __attribute__((used)) void __thiscall hook_kill_stat(ee_player_stats *stats, int
         if (n == 3) mass_death(g_kill_unit);
         if (n == 3) cover_death(g_kill_unit, k);
         if (n == 3) eco_death(g_kill_unit, k, v);
+        if (n == 3) mt_death(g_kill_unit);
     }
     player_stats_add(stats, n, d);
 }
