@@ -164,7 +164,11 @@
 // OFF: on the save (3 timings, P3 the variant) 153 -> 180 min units lost 13-17k gold + iron instead of 22-28k, the army
 // 323-431 instead of 160-245 - but razed 13-20 instead of 29-47 (2 pushes, not 4-6); on to 210 min razed 63, 22, 108
 // against 56, 24, 80 without, and twice it sat with 736-750 soldiers and razed 22: dealt nothing, the price stays
-// whatever the force's size. A priced target should send it to another, not keep it home.
+// whatever the force's size. A priced target should send it to another, not keep it home: the way search (AR_ROUTE)
+// takes a target whose price the force can't pay only when every other is priced too. Measured so (to 210 min, 3
+// timings): razed 99, 44, 63 (with the air force 84, 22, 105) against 56, 24, 80 off and 86, 108, 93 with the air force
+// alone; three of the six still sat with 720-740 soldiers - behind his chokepoint every target is near the priced
+// spot. Still off.
 #ifndef AR_PRICE
 #define AR_PRICE 0
 #endif
@@ -604,6 +608,7 @@ internal int ar_route(ee_player *pl, unsigned idx, struct armies_st *a, ivec2 fr
         int d = 0, w = 0, len = ar_route_find(n, from, unit_get_tile(cand[i]), path, 65536, &d, &w);
         if (!len) continue;
         int cost = (d + w * AR_ROUTE_WALL / 10) * 1000 + len;   // the least danger (a wall as much as 3 threats), then the shortest
+        if (ar_price(idx, a, unit_get_tile(cand[i]), now) * 100.0f < (float)AR_GO_PCT) cost += 100000000;   // THE PRICE: another first
         if (best >= 0 && cost >= best_cost) continue;
         best = i; best_cost = cost; best_d = d; best_len = len; best_w = w;
         memcpy(best_path, path, (size_t)len * sizeof *path);
