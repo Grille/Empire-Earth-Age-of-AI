@@ -193,6 +193,11 @@ internal void breach_note(ee_player *pl, ee_attack_subgroup *sg, int x, int y) {
     g_breaches[free_k].sg = sg; g_breaches[free_k].pl = pl; g_breaches[free_k].x = x; g_breaches[free_k].y = y;
 }
 
+// THE FORCE'S BREACH (armies.c AR_BREACH): the mod's force stands off before a defended position on its way - focus
+// where the danger begins, standoff where it waits -, and the siege weapons gather at the stand-off and shell what
+// holds the position (siege_tick below)
+internal struct { int on; ivec2 focus, standoff; } g_ar_breach[16];
+#define AR_BREACH_R 14             // the position: what holds it within this of the focus
 // before the game deletes subgroups of player pl (diplo.c: attacks called off): forget their breaches
 internal void breach_forget(ee_player *pl) {
     for (int k = 0; k < 64; k++)
@@ -1153,7 +1158,8 @@ internal int bq_has(ee_build_mgr *bm, int type) {
     return 0;
 }
 
-internal int siege_want(ee_player *pl, unsigned pi) {   // 2 + a quarter of the known enemy defences, at most 4; a breach: 2
+internal int siege_want(ee_player *pl, unsigned pi) {   // 2 + a quarter of the known enemy defences, at most 4; a breach: 2, the force's 4
+    if (g_ar_breach[pi].on) return 4;
     int want = g_threat[pi].n ? 2 + g_threat[pi].n / 4 : 0;
     for (int k = 0; k < 64 && !want; k++)
         if (g_breaches[k].sg && g_breaches[k].pl == pl) want = 2;
@@ -1267,6 +1273,29 @@ internal void siege_tick(ee_player *pl, uint32_t now) {
         float d = vec2_dist2(v2((float)g_breaches[k].x, (float)g_breaches[k].y), v2(sx, sy));
         if (w && d < best) { best = d; t = w; }
     }
+    if (!t && g_ar_breach[pi].on) {   // the force's breach: what holds the position, the nearest to the stand-off first - walls and
+        // gates (they don't shoot), defences and shooters (artillery, archers, gunners) the siege outranges
+        ivec2 f = g_ar_breach[pi].focus, so = g_ar_breach[pi].standoff;
+        for (struct grid_it it = grid_it_box(f.x, f.y, AR_BREACH_R, 1); grid_it_next(&it); ) {
+            ee_unit *u = it.u;
+            ee_player *o = unit_get_owner(u);
+            if (!o || player_get_index(o) <= 0 || !is_enemy(pl, o) || unit_get_hp(u) <= 0 || !seen_by(u, pl)) continue;
+            ivec2 p = unit_get_tile(u);
+            if (ivec2_dist2(p, f) > AR_BREACH_R * AR_BREACH_R) continue;
+            int type = unit_type_get_id(it.td), fam = unit_type_get_class_id(it.td);
+            float rg = 0, at = 0;
+            if (is_wall(type) || fam == CLS_GATE) rg = 0;
+            else if (fam == CLS_BUILDING || fam == CLS_FORTRESS) { if (!defence_stats(u, &rg, &at) || at <= 0) continue; }
+            else if (fam == CLS_LAND && unit_type_get_attack(it.td) > 0) {
+                ee_unit_stats *es = unit_get_stats(u);
+                rg = es ? unit_stats_get_range(es) : unit_type_get_range(it.td);
+                if (rg < 3.0f) continue;   // the melee are the force's
+            } else continue;
+            if (rg + 0.5f >= srange) continue;
+            float dd = (float)ivec2_dist2(p, so);
+            if (dd < best) { best = dd; t = u; }
+        }
+    }
     if (!t) {
         threat_refresh(pl, now);
         for (int k = 0; k < g_threat[pi].n; k++) {
@@ -1304,10 +1333,15 @@ internal void siege_tick(ee_player *pl, uint32_t now) {
     // at the firing position or on the way there. While a wave is out (siege attacking the target or on the way),
     // newcomers wait for the next one.
     ivec2 d;
-    if (!nearest_drop(pl, iv2(tx, ty), 0, &d)) return;
-    float gx = (float)d.x - (float)tx, gy = (float)d.y - (float)ty, gl = sqrtf(gx * gx + gy * gy);
-    if (gl > 0) { gx = (float)d.x + 0.5f + gx / gl * 3.0f; gy = (float)d.y + 0.5f + gy / gl * 3.0f; }
-    else { gx = (float)d.x + 0.5f; gy = (float)d.y + 0.5f; }
+    float gx, gy;
+    if (g_ar_breach[pi].on) { gx = (float)g_ar_breach[pi].standoff.x + 0.5f; gy = (float)g_ar_breach[pi].standoff.y + 0.5f; }   // the force's stand-off
+    else {
+        if (!nearest_drop(pl, iv2(tx, ty), 0, &d)) return;
+        gx = (float)d.x - (float)tx; gy = (float)d.y - (float)ty;
+        float gl = sqrtf(gx * gx + gy * gy);
+        if (gl > 0) { gx = (float)d.x + 0.5f + gx / gl * 3.0f; gy = (float)d.y + 0.5f + gy / gl * 3.0f; }
+        else { gx = (float)d.x + 0.5f; gy = (float)d.y + 0.5f; }
+    }
     ee_unit *out[MAXS];
     ee_unit *home[MAXS];
     ee_unit *away[MAXS]; int nout = 0, nhome = 0, naway = 0;
@@ -1354,7 +1388,7 @@ internal void siege_tick(ee_player *pl, uint32_t now) {
         int fam = unit_type_get_class_id(td);
         idle += fam == CLS_LAND && is_soldier(td);   // land soldiers (is_soldier: no citizens, siege, rams - the ram 158 was missed)
     }
-    if (!hold && idle < 2) hold = "no escorts";
+    if (!hold && idle < 2 && !g_ar_breach[pi].on) hold = "no escorts";   // a breach's escort is the force at the stand-off
     if (hold) {
         if (strcmp(hold, "a wave is out")) g_siege_st[pi].held++;
         if (g_log && (changed || now / 60000 != g_siege_st[pi].logged_min) && strcmp(hold, "a wave is out") && g_siege_st[pi].logged < 80) {

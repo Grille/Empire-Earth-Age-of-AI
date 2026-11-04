@@ -1,0 +1,21 @@
+// Continental seed 101, 2 AIs, start epoch 4 (base ini start_epoch=4): P2 base ~80,52, P3 base ~40,42.
+// No way round at all: a wall across the whole continent at x=60, archers and spearmen behind it, two towers - the
+// breach (armies.c AR_BREACH): does P2's force stand off and have the wall and the defenders shelled before it goes in,
+// or walk into the wall? P2 gets a mixed army with 3 catapults and 2 rams, a tower of its own at the wall that sees
+// the position (the force targets what it sees - honest_vision off), and is told to attack twice (attacknow).
+// Score: P3's buildings razed, both sides' losses ("# battle"), the "# armies:" and "# siege:" lines.
+spawnline(3, unit.b_wall_bronze, 60, 0, 60, 115)
+spawn(3, unit.b_guard_tower_bronze, 56, 44)
+spawn(3, unit.b_guard_tower_bronze, 56, 50)
+spawn(3, unit.arch03_simple_bowman, 57, 47, 12)
+spawn(3, unit.inf02_spearman, 55, 47, 10)
+spawn(2, unit.inf02_spearman, 76, 50, 20)
+spawn(2, unit.arch03_simple_bowman, 76, 58, 12)
+spawn(2, unit.cav04_bronze_spear_cavalry, 82, 58, 10)
+spawn(2, unit.gun_siege04_catapult, 72, 54, 3)
+spawn(2, unit.siege04_ram, 74, 54, 2)
+spawn(2, unit.b_guard_tower_bronze, 64, 47)
+wait(60s)
+cmd("attacknow 2")
+wait(180s)
+cmd("attacknow 2")
