@@ -77,6 +77,11 @@ internal inline void **edit_box_vtable_copy(void **vt, int room) {
     memcpy(vt, (void **)(uintptr_t)vt_ui_edit_box - 1, (size_t)n * sizeof *vt);
     return &vt[1 + slot_ui_control_update_keyboard];
 }
+// every edit box's UpdateKeyboard (the exe's import: its vtables reach it through it, the mod's copy too) - the
+// original into *orig
+internal inline int patch_edit_box_keyboard(ui_control_update_keyboard_fn h, ui_control_update_keyboard_fn *orig) {
+    return iat_hook(data_ui_iat_edit_keyboard, "Low-Level Engine.dll", "?UpdateKeyboard@UIEditBox@@UAEJXZ", (void *)h, (void **)orig);
+}
 // a control event of the UI database by its id, made by the event creator that knows it (ui.event_creators: the
 // index in that list) for form; NULL: none
 internal inline ee_ui_event *ui_event_new(int creator, ee_ui_form *form, int id) {

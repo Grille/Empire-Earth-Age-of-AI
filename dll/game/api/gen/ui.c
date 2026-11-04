@@ -538,6 +538,10 @@ internal inline uint8_t *ui_iat_edit_get_text_at(void) { return (uint8_t *)(uint
 // bool) - the trigger screen's (0x57ED81): (id, ui.font_edit, 5, 0, rect, form, index, 2, 1, 0) into 0x1E0 bytes,
 // then the exe's vtable (UIEditBox's)
 internal inline uint8_t *ui_iat_edit_ctor_at(void) { return (uint8_t *)(uintptr_t)data_ui_iat_edit_ctor; }
+// UIEditBox::UpdateKeyboard - the slot every edit box's vtable of the exe reaches (the vtables' slot 31 a jmp
+// through it: the trigger screen's boxes, the chat line, the mod's): a form calls it for the box that has the
+// keyboard
+internal inline uint8_t *ui_iat_edit_keyboard_at(void) { return (uint8_t *)(uintptr_t)data_ui_iat_edit_keyboard; }
 // the font of the scenario editor's lists and edit boxes (the units list, the trigger screen's edit boxes)
 internal inline void *ui_get_font_edit(void) { return *(void **)(uint8_t *)(uintptr_t)data_ui_font_edit; }
 internal inline void ui_set_font_edit(void *v) { *(void **)(uint8_t *)(uintptr_t)data_ui_font_edit = v; }
@@ -745,6 +749,7 @@ internal int spec_ui_select(int build) {
         data_ui_gfx_effects = 0x00918E1C;
         data_ui_iat_edit_get_text = 0x00823328;
         data_ui_iat_edit_ctor = 0x00823D48;
+        data_ui_iat_edit_keyboard = 0x00823C50;
         data_ui_font_edit = 0x009197B4;
         value_ui_edit_box_slots = 36;
         data_ui_iat_uiform_add_hotkey = 0x00824048;
@@ -952,6 +957,7 @@ internal int spec_ui_select(int build) {
         data_ui_gfx_effects = 0x0093185C;
         data_ui_iat_edit_get_text = 0x00837EE0;
         data_ui_iat_edit_ctor = 0x00837D4C;
+        data_ui_iat_edit_keyboard = 0x00837C4C;
         data_ui_font_edit = 0x00931930;
         value_ui_edit_box_slots = 36;
         data_ui_iat_uiform_add_hotkey = 0x00837BE0;
@@ -1055,6 +1061,7 @@ internal int spec_ui_check(void) {
     bad += spec_data(data_ui_gfx_effects, "ui.gfx_effects");
     bad += spec_data(data_ui_iat_edit_get_text, "ui.iat_edit_get_text");
     bad += spec_data(data_ui_iat_edit_ctor, "ui.iat_edit_ctor");
+    bad += spec_data(data_ui_iat_edit_keyboard, "ui.iat_edit_keyboard");
     bad += spec_data(data_ui_font_edit, "ui.font_edit");
     bad += spec_data(data_ui_iat_uiform_add_hotkey, "ui.iat_uiform_add_hotkey");
     bad += spec_data(data_ui_iat_uim_form, "ui.iat_uim_form");

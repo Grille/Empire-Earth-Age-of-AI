@@ -1641,6 +1641,7 @@ internal uint32_t call_click_mark;
 internal uint32_t data_ui_gfx_effects;
 internal uint32_t data_ui_iat_edit_get_text;
 internal uint32_t data_ui_iat_edit_ctor;
+internal uint32_t data_ui_iat_edit_keyboard;
 internal uint32_t data_ui_font_edit;
 internal uint32_t value_ui_edit_box_slots;
 internal uint32_t data_ui_iat_uiform_add_hotkey;

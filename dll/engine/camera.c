@@ -89,10 +89,26 @@ internal void __thiscall hook_scroll_execute(ee_scroll *self) {
 // 8.3 ms frame); a busy one late in a big game every 30 ms or more - the camera stood, then jumped, while the frames
 // went on at 120 fps. Smoothed like the edge: the event only tells which arrows are held, the render thread moves
 // the camera at the idle poll's speed - 0.05 per 10 ms, half the edge's EE speed - by each frame's time.
+// While an edit box has the keyboard the arrow keys are its own (they move its cursor), but its form runs its hotkeys
+// all the same: the camera moved with the cursor (the editor's unit search, 2026-11-04). Every edit box's
+// UpdateKeyboard - the form calls it for the box that has the keyboard - goes through one import of the exe
+// (hook_edit_keyboard); while one ran lately the arrows' events do nothing.
+#define CAM_TYPING_MS 250
 internal volatile LONG g_arrow_keys;     // bit = the event's direction: 0 up, 1 down, 2 left, 3 right
 internal volatile DWORD g_arrow_at[4];   // GetTickCount of each direction's last event
+internal volatile DWORD g_typing_at;     // GetTickCount (| 1) of an edit box's last keyboard update, 0 never
+internal ui_control_update_keyboard_fn g_edit_keyboard;
+
+internal int __thiscall hook_edit_keyboard(ee_ui_control *box) {
+    g_typing_at = GetTickCount() | 1;
+    return g_edit_keyboard(box);
+}
 
 internal uint32_t __thiscall hook_key_scroll_execute(ee_key_scroll *self, uint32_t a, uint32_t b) {
+    if (g_typing_at && GetTickCount() - g_typing_at <= CAM_TYPING_MS) {
+        InterlockedExchange(&g_arrow_keys, 0);
+        return 0;
+    }
     int d = key_scroll_get_direction(self);
     if (!g_cam_smooth || d < 0 || d > 3) return eeuie_keyboard_scroll_execute(self, a, b);
     g_arrow_at[d] = GetTickCount();
@@ -156,12 +172,16 @@ internal void camera_install(void) {
     g_scroll_aoc = g_set.scroll == SCROLL_GAME ? build_aoc : g_set.scroll == SCROLL_AOC;
     g_scroll_native = g_scroll_aoc == build_aoc;
     g_cam_smooth = g_set.smooth_scroll;
-    if (g_scroll_native && !g_cam_smooth) return;   // the build's own way without smoothing: the game untouched
-    int ok = patch_scroll_execute(hook_scroll_execute);
+    // the arrow keys still while an edit box has the keyboard: always
+    int ok = patch_edit_box_keyboard(hook_edit_keyboard, &g_edit_keyboard) + patch_key_scroll_execute(hook_key_scroll_execute);
+    if (g_scroll_native && !g_cam_smooth) {   // the build's own way without smoothing: the game untouched but for that
+        if (g_log) fprintf(g_log, "# camera: the arrow keys still while typing, patches %d/2\n", ok);
+        return;
+    }
+    ok += patch_scroll_execute(hook_scroll_execute);
     ok += patch_scroll_timer(build_aoc ? 0x0A : 0x19, g_cam_smooth ? 0x01 : 0x0A);   // push 25 (AoC 10) -> 10 ms ticks like AoC, 1 ms fine
-    if (g_cam_smooth) ok += patch_key_scroll_execute(hook_key_scroll_execute);
-    if (g_log) fprintf(g_log, "# camera: scroll=%s (%s), fine steps %d, patches %d/%d\n", g_scroll_aoc ? "aoc" : "ee",
-                       g_scroll_native ? "the game's own" : "the other build's", g_cam_smooth, ok, g_cam_smooth ? 3 : 2);
+    if (g_log) fprintf(g_log, "# camera: scroll=%s (%s), fine steps %d, patches %d/4\n", g_scroll_aoc ? "aoc" : "ee",
+                       g_scroll_native ? "the game's own" : "the other build's", g_cam_smooth, ok);
 }
 
 // camtrace N (tests): for the next N presented frames the time since the previous frame, the camera's movement

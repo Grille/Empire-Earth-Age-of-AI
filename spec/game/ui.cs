@@ -745,6 +745,13 @@ static unsafe class ui
     [address((ee)0x00823D48, (aoc)0x00837D4C)]
     static block iat_edit_ctor;
 
+    /// UIEditBox::UpdateKeyboard - the slot every edit box's vtable of the exe reaches (the vtables' slot 31 a jmp
+    /// through it: the trigger screen's boxes, the chat line, the mod's): a form calls it for the box that has the
+    /// keyboard
+    [import_slot("Low-Level Engine.dll", "?UpdateKeyboard@UIEditBox@@UAEJXZ")]
+    [address((ee)0x00823C50, (aoc)0x00837C4C)]
+    static block iat_edit_keyboard;
+
     /// the font of the scenario editor's lists and edit boxes (the units list, the trigger screen's edit boxes)
     [address((ee)0x009197B4, (aoc)0x00931930)]
     static void* font_edit;

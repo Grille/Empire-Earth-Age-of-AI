@@ -305,7 +305,9 @@ Settings in `ageofai.ini`:
   and the list keeps only the matching units of the category shown, as you type; several words must all match.
 - `[camera] scroll`: `game` (default) the build's own camera scrolling, `aoc` The Art of Conquest's acceleration
   in either build, `ee` Empire Earth's constant speed in either build; `smooth=1` (default) moves the camera every
-  frame by the frame's time instead of the game's fixed timer steps (jitter) - in both builds.
+  frame by the frame's time instead of the game's fixed timer steps (jitter) - in both builds. While a text box
+  has the keyboard (the editor's unit search, any of the game's edit boxes) the arrow keys move its cursor only,
+  not the camera.
 - `[general] lead_targets=1` (default): ranged units and towers aim where a moving target will be when the
   projectile comes down, not where it stood when it was fired. Before, slow projectiles (arrows, catapults,
   cannon balls) missed nearly everything walking across their line of fire.

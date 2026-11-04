@@ -721,6 +721,7 @@ internal int spec_imports(void) {
     bad += spec_import(&data_messages_iat_import_header, "Low-Level Engine.dll", "?ImportHeader@NEMessage@@QAEKPAE@Z", "messages.iat_import_header");
     bad += spec_import(&data_ui_iat_edit_get_text, "Low-Level Engine.dll", "?GetText@UIEditBox@@QBEPBDK@Z", "ui.iat_edit_get_text");
     bad += spec_import(&data_ui_iat_edit_ctor, "Low-Level Engine.dll", "??0UIEditBox@@QAE@KPAVGEFont@@K_NABVGERectangle@@PAVUIForm@@KK11@Z", "ui.iat_edit_ctor");
+    bad += spec_import(&data_ui_iat_edit_keyboard, "Low-Level Engine.dll", "?UpdateKeyboard@UIEditBox@@UAEJXZ", "ui.iat_edit_keyboard");
     bad += spec_import(&data_ui_iat_uiform_add_hotkey, "Low-Level Engine.dll", "?AddHotKey@UIForm@@QAEXKKKKPAVUIEvent@@000K_N@Z", "ui.iat_uiform_add_hotkey");
     bad += spec_import(&data_ui_iat_uim_form, "Low-Level Engine.dll", "?GetCurrentForm@UIManager@@QBEPAVUIForm@@XZ", "ui.iat_uim_form");
     bad += spec_import(&data_ui_imports_iat_b_full_draw_background, "Low-Level Engine.dll", "?DrawBackground@UIBFull@@UAEJABVGERectangle@@@Z", "ui_imports.iat_b_full_draw_background");
