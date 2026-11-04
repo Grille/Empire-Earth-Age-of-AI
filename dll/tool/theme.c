@@ -1,13 +1,17 @@
-// THE LOOK: light or dark as Windows' apps are (Settings - Personalization - Colors: "Choose your default app mode"),
-// read once at the start. The colours the program draws with are g_pal's, never GetSysColor's, so both modes keep
-// the list's meanings (grey the default, blue the game's own, the warning and mistake tints) readable - a dark
-// colour loses its hue on white, a light one keeps it on black. Dark: Windows' own dark themes where its controls
-// have one (DarkMode_Explorer: buttons, the list, scrollbars; DarkMode_CFD: edit fields and dropdowns - the names
-// Explorer and the file dialog use), the rest by the WM_CTLCOLOR* messages; a check box is drawn classic, the one
-// control whose themed text Windows keeps black. The calls that switch the app's menus and scrollbars to dark
-// (uxtheme's ordinals 133 and 135) have no names: looked up by number, left out where the Windows has none.
+// THE LOOK: the game's own when the player's Data\data.ssa has its pictures (game_art.c: the settings screen's
+// painting under the window, the game's check boxes and dropdown knots, buttons and fields drawn as its menus draw
+// them - always dark: its menus are), else light or dark as Windows' apps are (Settings - Personalization - Colors:
+// "Choose your default app mode"), read once at the start. The colours the program draws with are g_pal's, never
+// GetSysColor's, so every look keeps the list's meanings (grey the default, blue the game's own, the warning and
+// mistake tints) readable - a dark colour loses its hue on white, a light one keeps it on black. Dark: Windows' own
+// dark themes where its controls have one (DarkMode_Explorer: buttons, the list, scrollbars; DarkMode_CFD: edit fields
+// and dropdowns - the names Explorer and the file dialog use), the rest by the WM_CTLCOLOR* messages; without the
+// game's pictures a check box is drawn classic, the one control whose themed text Windows keeps black. The calls that
+// switch the app's menus and scrollbars to dark (uxtheme's ordinals 133 and 135) have no names: looked up by number,
+// left out where the Windows has none.
 #include <uxtheme.h>
 #include <dwmapi.h>
+#include "tool/game_art.c"
 
 struct palette {
     int dark;
@@ -16,6 +20,16 @@ struct palette {
 };
 internal struct palette g_pal;
 
+// the game's look: on when both pictures were read. ui: uicontrols.sst, 20-pixel cells (an 18x18 picture a pixel in),
+// each a normal and a pressed one beside it - row 0 checked, empty, a radio on; row 1 a radio off, the knot up, down;
+// row 2 left, right, the scrollbar's ball. paint: the settings screen's painting (gamesettings, 1024x768); bg: it
+// darkened at the window's size (theme_size), b_bg a brush of it for what draws transparent over it
+struct game_look { int on; HDC ui_dc, paint_dc, bg_dc; HBITMAP ui, paint, bg; HBRUSH b_bg; int pw, ph; };
+internal struct game_look g_gl;
+#define GL_CELL_CHECKED 0, 0
+#define GL_CELL_EMPTY 0, 2
+#define GL_CELL_KNOT_DOWN 1, 4
+
 internal int theme_windows_dark(void) {   // Windows' app mode: 1 dark
     DWORD light = 1, n = sizeof light;
     if (RegGetValueA(HKEY_CURRENT_USER, "Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
@@ -23,12 +37,38 @@ internal int theme_windows_dark(void) {   // Windows' app mode: 1 dark
     return light == 0;
 }
 
-internal void theme_init(void) {
+// the game's pictures from the folder the program is in (the game folder, where it is installed), else the one the
+// ini's folder is in (<game>\ageofai\ageofai.ini)
+internal void theme_game_open(const char *ini_path) {
+    char dir[MAX_PATH], *s;
+    GetModuleFileNameA(NULL, dir, sizeof dir);
+    if ((s = strrchr(dir, '\\'))) *s = 0;
+    if (!art_open(dir)) {
+        lstrcpynA(dir, ini_path, sizeof dir);
+        for (int up = 0; up < 2; up++) if ((s = strrchr(dir, '\\'))) *s = 0;
+        if (!art_open(dir)) return;
+    }
+    int w, h;
+    uint32_t *px = art_texture("uicontrols", &w, &h);
+    if (px && w == 128 && h == 128) g_gl.ui = art_bitmap(px, w, h);
+    free(px);
+    g_gl.paint = art_picture("gamesettings", 3, 4, &g_gl.pw, &g_gl.ph);
+    if (!g_gl.ui || !g_gl.paint) return;
+    g_gl.ui_dc = CreateCompatibleDC(NULL);
+    SelectObject(g_gl.ui_dc, g_gl.ui);
+    g_gl.paint_dc = CreateCompatibleDC(NULL);
+    SelectObject(g_gl.paint_dc, g_gl.paint);
+    g_gl.bg_dc = CreateCompatibleDC(NULL);
+    g_gl.on = 1;
+}
+
+internal void theme_init(const char *ini_path) {
     struct palette *p = &g_pal;
-    p->dark = theme_windows_dark();
+    theme_game_open(ini_path);
+    p->dark = g_gl.on || theme_windows_dark();
     if (p->dark) {   // the game's own look: black fields, light text
         p->back = RGB(32, 32, 32);
-        p->field = RGB(18, 18, 18);
+        p->field = g_gl.on ? RGB(8, 8, 8) : RGB(18, 18, 18);
         p->text = RGB(228, 228, 228);
         p->grey = RGB(130, 130, 130);
         p->game = RGB(110, 170, 255);
@@ -57,6 +97,202 @@ internal void theme_init(void) {
     p->b_field = CreateSolidBrush(p->field);
 }
 
+// the window's background at its size (WM_SIZE): the painting over the whole of it, cut to its shape (no stretch
+// out of proportion), darkened to under half so text reads over it
+internal void theme_size(HWND w) {
+    if (!g_gl.on) return;
+    RECT rc;
+    GetClientRect(w, &rc);
+    int cw = rc.right > 1 ? rc.right : 1, ch = rc.bottom > 1 ? rc.bottom : 1;
+    BITMAPINFO bi = { 0 };
+    bi.bmiHeader.biSize = sizeof bi.bmiHeader;
+    bi.bmiHeader.biWidth = cw;
+    bi.bmiHeader.biHeight = -ch;
+    bi.bmiHeader.biPlanes = 1;
+    bi.bmiHeader.biBitCount = 32;
+    uint8_t *bits;
+    HBITMAP bm = CreateDIBSection(NULL, &bi, DIB_RGB_COLORS, (void **)&bits, NULL, 0);
+    if (!bm) return;
+    SelectObject(g_gl.bg_dc, bm);
+    if (g_gl.bg) DeleteObject(g_gl.bg);
+    if (g_gl.b_bg) DeleteObject(g_gl.b_bg);
+    g_gl.bg = bm;
+    int sw = g_gl.pw, sh = g_gl.pw * ch / cw;   // the painting's part with the window's shape, centred
+    if (sh > g_gl.ph) { sh = g_gl.ph; sw = g_gl.ph * cw / ch; }
+    SetStretchBltMode(g_gl.bg_dc, HALFTONE);
+    SetBrushOrgEx(g_gl.bg_dc, 0, 0, NULL);
+    StretchBlt(g_gl.bg_dc, 0, 0, cw, ch, g_gl.paint_dc, (g_gl.pw - sw) / 2, (g_gl.ph - sh) / 2, sw, sh, SRCCOPY);
+    GdiFlush();
+    for (size_t i = 0; i < (size_t)cw * ch * 4; i++) bits[i] = (uint8_t)(bits[i] * 45 / 100);
+    g_gl.b_bg = CreatePatternBrush(bm);
+}
+
+internal int theme_erase(HWND w, HDC dc) {   // the window's background: 1 drawn
+    if (!g_gl.on) return 0;
+    RECT r;
+    GetClientRect(w, &r);
+    BitBlt(dc, 0, 0, r.right, r.bottom, g_gl.bg_dc, 0, 0, SRCCOPY);
+    return 1;
+}
+
+internal POINT theme_at(HWND c) {   // a child's place in its parent's client area
+    POINT pt = { 0, 0 };
+    MapWindowPoints(c, GetParent(c), &pt, 1);
+    return pt;
+}
+
+internal void theme_under(HDC dc, HWND c, const RECT *r) {   // what lies under a child: the background's part, else back
+    if (g_gl.on && GetParent(c) && GetAncestor(c, GA_ROOT) == GetParent(c)) {
+        POINT pt = theme_at(c);
+        BitBlt(dc, r->left, r->top, r->right - r->left, r->bottom - r->top, g_gl.bg_dc, pt.x + r->left, pt.y + r->top, SRCCOPY);
+    } else FillRect(dc, r, g_pal.b_back);
+}
+
+internal void theme_shade(HDC dc, const RECT *r, int alpha) {   // black over r, alpha of 255
+    static HDC black;
+    if (!black) {
+        black = CreateCompatibleDC(NULL);
+        SelectObject(black, CreateCompatibleBitmap(GetDC(NULL), 1, 1));   // 1x1, black
+        PatBlt(black, 0, 0, 1, 1, BLACKNESS);
+    }
+    BLENDFUNCTION bf = { AC_SRC_OVER, 0, (BYTE)alpha, 0 };
+    AlphaBlend(dc, r->left, r->top, r->right - r->left, r->bottom - r->top, black, 0, 0, 1, 1, bf);
+}
+
+internal void theme_line(HDC dc, int x0, int y0, int x1, int y1, COLORREF c) {
+    HPEN pen = CreatePen(PS_SOLID, 1, c), old = (HPEN)SelectObject(dc, pen);
+    MoveToEx(dc, x0, y0, NULL);
+    LineTo(dc, x1, y1);
+    SelectObject(dc, old);
+    DeleteObject(pen);
+}
+
+// the game's bevel round r: light at the top and left, dark at the bottom and right (in: the other way, pressed)
+internal void theme_bevel(HDC dc, const RECT *r, int in) {
+    COLORREF hi = RGB(205, 205, 205), lo = RGB(95, 95, 95), a = in ? lo : hi, b = in ? hi : lo;
+    for (int i = 0; i < 2; i++) {
+        int l = r->left + i, t = r->top + i, rr = r->right - 1 - i, bb = r->bottom - 1 - i;
+        theme_line(dc, l, bb, l, t, a);
+        theme_line(dc, l, t, rr, t, a);
+        theme_line(dc, rr, t, rr, bb, b);
+        theme_line(dc, rr, bb, l - 1, bb, b);
+    }
+}
+
+internal void theme_cell(HDC dc, int x, int y, int size, int row, int col) {   // a picture of uicontrols.sst
+    BLENDFUNCTION bf = { AC_SRC_OVER, 0, 255, AC_SRC_ALPHA };
+    AlphaBlend(dc, x, y, size, size, g_gl.ui_dc, col * 20 + 1, row * 20 + 1, 18, 18, bf);
+}
+
+internal void theme_text(HDC dc, HWND c, RECT *r, const char *text, COLORREF color, UINT how) {
+    HFONT old = (HFONT)SelectObject(dc, (HFONT)SendMessageA(c, WM_GETFONT, 0, 0));
+    SetBkMode(dc, TRANSPARENT);
+    SetTextColor(dc, color);
+    DrawTextA(dc, text, -1, r, how | DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX | DT_END_ELLIPSIS);
+    SelectObject(dc, old);
+}
+
+// a push button as the game's menus draw theirs: the background darkened under it (less under the mouse), the bevel,
+// the text white; a check box: the game's box, its text beside it
+internal void theme_paint_button(HWND c, HDC dc) {
+    RECT r;
+    char text[128];
+    GetClientRect(c, &r);
+    GetWindowTextA(c, text, sizeof text);
+    LRESULT st = SendMessageA(c, BM_GETSTATE, 0, 0);
+    int down = (st & BST_PUSHED) != 0, hot = (st & BST_HOT) != 0, off = !IsWindowEnabled(c), focus = GetFocus() == c;
+    theme_under(dc, c, &r);
+    if ((GetWindowLongA(c, GWL_STYLE) & BS_TYPEMASK) == BS_AUTOCHECKBOX) {
+        int size = MulDiv(18, GetDeviceCaps(dc, LOGPIXELSY), 96), y = (r.bottom - size) / 2;
+        int on = SendMessageA(c, BM_GETCHECK, 0, 0) == BST_CHECKED;
+        if (on) theme_cell(dc, 0, y, size, GL_CELL_CHECKED + (down || hot));
+        else theme_cell(dc, 0, y, size, GL_CELL_EMPTY + (down || hot));
+        RECT t = { size + size / 4, 0, r.right, r.bottom };
+        theme_text(dc, c, &t, text, off ? g_pal.grey : g_pal.text, DT_LEFT);
+        if (focus) { t.right = t.left + 2 + LOWORD(GetTabbedTextExtentA(dc, text, lstrlenA(text), 0, NULL)); DrawFocusRect(dc, &t); }
+        return;
+    }
+    theme_shade(dc, &r, down ? 200 : hot ? 105 : 160);
+    theme_bevel(dc, &r, down);
+    RECT t = r;
+    if (down) OffsetRect(&t, 1, 1);
+    theme_text(dc, c, &t, text, off ? g_pal.grey : g_pal.text, DT_CENTER);
+    if (focus) { InflateRect(&r, -4, -4); DrawFocusRect(dc, &r); }
+}
+
+// a dropdown as the game's: a black field, a thin light frame, the text, and the knot at its right end
+internal void theme_paint_combo(HWND c, HDC dc) {
+    RECT r;
+    char text[256] = "";
+    GetClientRect(c, &r);
+    int sel = (int)SendMessageA(c, CB_GETCURSEL, 0, 0);
+    if (sel >= 0 && SendMessageA(c, CB_GETLBTEXTLEN, sel, 0) < (LRESULT)sizeof text) SendMessageA(c, CB_GETLBTEXT, sel, (LPARAM)text);
+    FillRect(dc, &r, g_pal.b_field);
+    HBRUSH frame = CreateSolidBrush(RGB(170, 170, 170));
+    FrameRect(dc, &r, frame);
+    DeleteObject(frame);
+    int size = r.bottom - 2;
+    theme_cell(dc, r.right - 1 - size, 1, size, GL_CELL_KNOT_DOWN + (SendMessageA(c, CB_GETDROPPEDSTATE, 0, 0) != 0));
+    RECT t = { r.left + 5, r.top, r.right - size - 4, r.bottom };
+    theme_text(dc, c, &t, text, IsWindowEnabled(c) ? g_pal.text : g_pal.grey, DT_LEFT);
+    if (GetFocus() == c && !SendMessageA(c, CB_GETDROPPEDSTATE, 0, 0)) { InflateRect(&t, 2, -3); DrawFocusRect(dc, &t); }
+}
+
+// a field's frame (an edit, the list: their client edge) as the game's: a thin light line, black inside it
+internal void theme_frame(HWND c) {
+    HDC dc = GetWindowDC(c);
+    RECT r;
+    GetWindowRect(c, &r);
+    OffsetRect(&r, -r.left, -r.top);
+    HBRUSH line = CreateSolidBrush(RGB(170, 170, 170));
+    FrameRect(dc, &r, line);
+    InflateRect(&r, -1, -1);
+    FrameRect(dc, &r, g_pal.b_field);
+    DeleteObject(line);
+    ReleaseDC(c, dc);
+}
+
+// what the controls drawn here look like now: a change (the mouse over it, a press, a check, the focus, a choice, the
+// dropdown open) paints them again - the control's own code draws some of them at once, past WM_PAINT
+internal LRESULT theme_state(HWND c, int combo) {
+    if (combo) return SendMessageA(c, CB_GETCURSEL, 0, 0) << 2 | (SendMessageA(c, CB_GETDROPPEDSTATE, 0, 0) != 0) << 1 | (GetFocus() == c);
+    return SendMessageA(c, BM_GETSTATE, 0, 0) << 2 | SendMessageA(c, BM_GETCHECK, 0, 0);
+}
+
+internal LRESULT CALLBACK theme_drawn_proc(HWND c, UINT msg, WPARAM wp, LPARAM lp, UINT_PTR id, DWORD_PTR combo) {
+    (void)id;
+    if (msg == BM_GETSTATE || msg == BM_GETCHECK || msg == CB_GETCURSEL || msg == CB_GETDROPPEDSTATE)
+        return DefSubclassProc(c, msg, wp, lp);   // theme_state's own questions: straight through
+    if (msg == WM_ERASEBKGND) return 1;
+    if (msg == WM_PAINT || msg == WM_PRINTCLIENT) {
+        PAINTSTRUCT ps;
+        HDC dc = msg == WM_PAINT ? BeginPaint(c, &ps) : (HDC)wp;
+        RECT r;
+        GetClientRect(c, &r);
+        HDC mem = CreateCompatibleDC(dc);   // drawn off screen: no flicker
+        HBITMAP bm = CreateCompatibleBitmap(dc, r.right, r.bottom), old = (HBITMAP)SelectObject(mem, bm);
+        if (combo) theme_paint_combo(c, mem); else theme_paint_button(c, mem);
+        BitBlt(dc, 0, 0, r.right, r.bottom, mem, 0, 0, SRCCOPY);
+        SelectObject(mem, old);
+        DeleteObject(bm);
+        DeleteDC(mem);
+        if (msg == WM_PAINT) EndPaint(c, &ps);
+        return 0;
+    }
+    LRESULT before = theme_state(c, (int)combo);
+    LRESULT res = DefSubclassProc(c, msg, wp, lp);
+    if (theme_state(c, (int)combo) != before || msg == WM_SETTEXT || msg == WM_ENABLE || msg == WM_SETFOCUS ||
+        msg == WM_KILLFOCUS || msg == WM_MOUSELEAVE || msg == WM_LBUTTONUP || msg == WM_KEYUP) InvalidateRect(c, NULL, FALSE);
+    return res;
+}
+
+internal LRESULT CALLBACK theme_frame_proc(HWND c, UINT msg, WPARAM wp, LPARAM lp, UINT_PTR id, DWORD_PTR data) {
+    (void)id; (void)data;
+    LRESULT res = DefSubclassProc(c, msg, wp, lp);
+    if (msg == WM_NCPAINT || msg == WM_SETFOCUS || msg == WM_KILLFOCUS || msg == WM_MOUSEMOVE) theme_frame(c);
+    return res;
+}
+
 internal void theme_allow_dark(HWND w) {   // AllowDarkModeForWindow: the window's own theme parts dark too
     static int (WINAPI *allow)(HWND, int);
     static int looked;
@@ -74,7 +310,8 @@ internal void theme_window(HWND w) {   // a top-level window: its title bar dark
     DwmSetWindowAttribute(w, 20, &on, sizeof on);
 }
 
-// a header's text in the palette's colour: the dark header theme draws it black (the list's subclass)
+// a header's text in the palette's colour: the dark header theme draws it black (the list's subclass); the list's
+// frame the game's
 internal LRESULT CALLBACK theme_list_proc(HWND w, UINT msg, WPARAM wp, LPARAM lp, UINT_PTR id, DWORD_PTR data) {
     (void)id; (void)data;
     if (msg == WM_NOTIFY && ((NMHDR *)lp)->code == NM_CUSTOMDRAW && ((NMHDR *)lp)->hwndFrom == ListView_GetHeader(w)) {
@@ -82,7 +319,9 @@ internal LRESULT CALLBACK theme_list_proc(HWND w, UINT msg, WPARAM wp, LPARAM lp
         if (cd->dwDrawStage == CDDS_PREPAINT) return CDRF_NOTIFYITEMDRAW;
         if (cd->dwDrawStage == CDDS_ITEMPREPAINT) { SetTextColor(cd->hdc, g_pal.text); return CDRF_DODEFAULT; }
     }
-    return DefSubclassProc(w, msg, wp, lp);
+    LRESULT res = DefSubclassProc(w, msg, wp, lp);
+    if (msg == WM_NCPAINT && g_gl.on) theme_frame(w);
+    return res;
 }
 
 internal void theme_control(HWND c, const char *cls) {   // a child: its theme for the mode
@@ -99,16 +338,22 @@ internal void theme_control(HWND c, const char *cls) {   // a child: its theme f
         ListView_SetTextColor(c, g_pal.text);
         return;
     }
-    if (!lstrcmpA(cls, WC_BUTTONA) && (GetWindowLongA(c, GWL_STYLE) & BS_TYPEMASK) == BS_AUTOCHECKBOX) {
+    int check = !lstrcmpA(cls, WC_BUTTONA) && (GetWindowLongA(c, GWL_STYLE) & BS_TYPEMASK) == BS_AUTOCHECKBOX;
+    if (check && !g_gl.on) {
         SetWindowTheme(c, L" ", L" ");   // classic: its text in WM_CTLCOLORSTATIC's colour
         return;
     }
     theme_allow_dark(c);
     SetWindowTheme(c, !lstrcmpA(cls, WC_COMBOBOXA) || !lstrcmpA(cls, WC_EDITA) ? L"DarkMode_CFD" : L"DarkMode_Explorer", NULL);
+    if (!g_gl.on) return;
+    if (!lstrcmpA(cls, WC_BUTTONA)) SetWindowSubclass(c, theme_drawn_proc, 1, 0);
+    else if (!lstrcmpA(cls, WC_COMBOBOXA)) SetWindowSubclass(c, theme_drawn_proc, 1, 1);
+    else if (!lstrcmpA(cls, WC_EDITA) && (GetWindowLongA(c, GWL_EXSTYLE) & WS_EX_CLIENTEDGE)) SetWindowSubclass(c, theme_frame_proc, 1, 0);
 }
 
-// the WM_CTLCOLOR* messages in dark: the field's black for edits, lists and a read-only edit (it asks as a static),
-// the window's grey for the rest; 0 in light (Windows' own)
+// the WM_CTLCOLOR* messages in dark: the field's black for edits, lists and a read-only edit (it asks as a static);
+// the rest the window's grey, or in the game's look the painting under it (the brush's origin at the child's place:
+// the child fills with its part of it); 0 in light (Windows' own)
 internal LRESULT theme_ctlcolor(UINT msg, WPARAM wp, LPARAM lp) {
     if (!g_pal.dark) return 0;
     char cls[16] = "";
@@ -116,5 +361,12 @@ internal LRESULT theme_ctlcolor(UINT msg, WPARAM wp, LPARAM lp) {
     int field = msg == WM_CTLCOLOREDIT || msg == WM_CTLCOLORLISTBOX || !lstrcmpiA(cls, "Edit");
     SetTextColor((HDC)wp, g_pal.text);
     SetBkColor((HDC)wp, field ? g_pal.field : g_pal.back);
-    return (LRESULT)(field ? g_pal.b_field : g_pal.b_back);
+    if (field) return (LRESULT)g_pal.b_field;
+    if (g_gl.on && g_gl.b_bg && GetAncestor((HWND)lp, GA_ROOT) == GetParent((HWND)lp)) {
+        POINT pt = theme_at((HWND)lp);
+        SetBkMode((HDC)wp, TRANSPARENT);
+        SetBrushOrgEx((HDC)wp, -pt.x, -pt.y, NULL);
+        return (LRESULT)g_gl.b_bg;
+    }
+    return (LRESULT)g_pal.b_back;
 }

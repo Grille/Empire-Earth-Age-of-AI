@@ -28,7 +28,7 @@
 #include "settings/settings.c"
 #include "game/api/builds.h"   // the exe builds the mod knows, and how a file is known as one
 #include "tool/engine_import.c"   // the game's settings in a file: ageofai.dll an import of the engine
-#include "tool/theme.c"   // light or dark as Windows' apps: g_pal, the colours drawn with
+#include "tool/theme.c"   // the game's look, or light or dark as Windows' apps: g_pal, the colours drawn with
 
 #define TITLE "Empire Earth: Age of AI - settings"
 enum { ID_FILTER = 100, ID_LIST, ID_HELP, ID_NAME, ID_FILE, ID_SAVE, ID_CLOSE, ID_UNKNOWN, ID_REMOVE, ID_GAME, ID_GAME_TEXT,
@@ -1337,11 +1337,14 @@ internal void help_open(void) {
 
 internal LRESULT CALLBACK wnd_proc(HWND w, UINT msg, WPARAM wp, LPARAM lp) {
     switch (msg) {
-    case WM_SIZE: if (g_list) layout(); return 0;
+    case WM_SIZE: theme_size(w); if (g_list) layout(); return 0;
+    case WM_ERASEBKGND: if (theme_erase(w, (HDC)wp)) return 1; break;
     case WM_CTLCOLORSTATIC:   // an editor's status in its check's colour
         for (int k = 0; k < EDITORS; k++) {
             if ((HWND)lp != g_ed[k].status || g_ed[k].level == CHECK_OK) continue;
+            LRESULT b = theme_ctlcolor(msg, wp, lp);
             SetTextColor((HDC)wp, g_ed[k].level == CHECK_WARN ? g_pal.text_warn : g_pal.text_mistake);
+            if (b) return b;
             SetBkColor((HDC)wp, g_pal.back);
             return (LRESULT)g_pal.b_back;
         }
@@ -1514,7 +1517,7 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmd, int show) {
     }
     INITCOMMONCONTROLSEX icc = { sizeof icc, ICC_LISTVIEW_CLASSES | ICC_STANDARD_CLASSES };
     InitCommonControlsEx(&icc);
-    theme_init();
+    theme_init(g_ini_path);
     HDC dc = GetDC(NULL);
     g_dpi = GetDeviceCaps(dc, LOGPIXELSY) / 96.0f;
     ReleaseDC(NULL, dc);

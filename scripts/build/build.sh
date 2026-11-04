@@ -35,7 +35,7 @@ else echo "no Python: persist_layout.h and cmd_verbs.h left as they are, the fol
 # -Wno-unused-function: it takes those files whole and calls only part of them
 WINDRES=${WINDRES:-${CC%clang}windres}
 "$WINDRES" -I. tool/ageofai_config.rc -O coff -o ageofai_config_res.o || exit 1
-"$CC" -O2 -Wall -Wextra -Wformat=2 -Wstrict-prototypes -Wimplicit-fallthrough -Wvla -Wshadow -Wno-unused-function -mwindows -static -I. -o ageofai_config.exe tool/ageofai_config.c ageofai_config_res.o -lcomctl32 -lgdi32 -limagehlp -luxtheme -ldwmapi || { rm -f ageofai_config_res.o; exit 1; }
+"$CC" -O2 -Wall -Wextra -Wformat=2 -Wstrict-prototypes -Wimplicit-fallthrough -Wvla -Wshadow -Wno-unused-function -mwindows -static -I. -o ageofai_config.exe tool/ageofai_config.c ageofai_config_res.o -lcomctl32 -lgdi32 -limagehlp -luxtheme -ldwmapi -lmsimg32 || { rm -f ageofai_config_res.o; exit 1; }
 rm -f ageofai_config_res.o
 # ageofai_check.exe: the DLL's code as a program that checks .eeai files without the game (check/ageofai_check.c) - its
 # image above the game's addresses, fixed (no ASLR): a stray read of the game's memory fails instead of reading its own.
