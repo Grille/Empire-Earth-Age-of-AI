@@ -145,9 +145,10 @@ internal int rd3_shadow_role(rd_device *d, rd_vb *vb, DWORD start, DWORD nv) {
         for (int a = 0; a < 3; a++) { if (p[a] < lo[a]) lo[a] = p[a]; if (p[a] > hi[a]) hi[a] = p[a]; }
     }
     if (hi[2] - lo[2] <= 0.01f * fmaxf(hi[0] - lo[0], hi[1] - lo[1])) return d->tex[0] ? SH_DECAL : SH_NONE;
-    // unlit, or see-through (no depth written: glass farms, buildings under construction - a full shadow under glass
-    // looked broken, the player's shot 2026-11-04): no shadow
-    if (!d->rs[D3DRENDERSTATE_LIGHTING] || !d->rs[D3DRENDERSTATE_ZWRITEENABLE]) return SH_NONE;
+    // unlit: no shadow. See-through it casts as solid: the game draws a building see-through while units stand behind it,
+    // or under construction (material alpha 0.35 or 0.60, alpha tested, no depth written - rprobe 2026-11-05), and its
+    // shadow came and went with that (the player: "they should always see the real building")
+    if (!d->rs[D3DRENDERSTATE_LIGHTING]) return SH_NONE;
     const D3DMATRIX *w = &d->world;
     float wl[3] = { 1e30f, 1e30f, 1e30f }, wh[3] = { -1e30f, -1e30f, -1e30f };
     for (int c = 0; c < 8; c++) {

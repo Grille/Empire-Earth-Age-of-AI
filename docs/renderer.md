@@ -201,7 +201,10 @@ tells the last map's casters, ground batches, box, sun and shadow colour), engin
 - The player's shots of the first version, 2026-11-04, and what came of them: (1) shadows on ground the hills hide from
   the sun - the terrain's map: where it hides a point the casters' shadow is left out (the hill's shading is the
   game's, baked into the ground; no hill shadows of their own); (2) black over the info panel (the multiply above);
-  glass farms and buildings under construction (drawn without depth) cast nothing; (3) no shadows at some camera spots
+  buildings drawn see-through (no depth written) were left out of the casters - wrong: the game draws a building
+  see-through while units stand behind it, and its shadow came and went with that (the player's shot, 2026-11-05:
+  "they should always see the real building"); now every lit draw that doesn't lie flat casts, see-through or not
+  (the see-through ones: material alpha 0.35 or 0.60, alpha tested at 7 or 127); (3) no shadows at some camera spots
   - the sun had been taken from the trees' light, nearly overhead (0.01, 0.11, -0.99), which some other objects are lit
   by too: a light that steep is no sun.
 - The shadow's colour: the units' ambient light over ambient + sun on level ground, 80% of the way (strength 0.8).
