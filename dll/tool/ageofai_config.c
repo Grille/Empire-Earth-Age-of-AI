@@ -1177,7 +1177,7 @@ internal void layout(void) {
     g_split_y1 = list_end;
     SendMessageA(g_list, WM_SETREDRAW, FALSE, 0);   // the list moved and its columns set, then painted once
     g_defer = BeginDeferWindowPos(32);
-    put_control(g_filter, x, m, lw < dpi_px(300) ? lw : dpi_px(300), dpi_px(24));
+    put_control(g_filter, x, m, lw, dpi_px(24));
     put_control(g_list, x, m + dpi_px(32), lw, list_h);
     put_control(g_help, px, m, pw, list_end - m);
     int by = h - dpi_px(32) - m / 2;
@@ -1256,7 +1256,7 @@ internal void create_controls(void) {
     GetTextExtentPoint32A(dc, " ", 1, &sp);
     SelectObject(dc, old);
     ReleaseDC(g_list, dc);
-    g_box_pad = sp.cx > 0 ? (dpi_px(24) + sp.cx - 1) / sp.cx : 6;   // the box from the cell's start, the text after it
+    g_box_pad = sp.cx > 0 ? (dpi_px(18) + sp.cx - 1) / sp.cx : 5;   // the box at the cell's start (as the fields), the text after it (past the list's own 6 px)
     g_def_pad = sp.cx > 0 ? (g_row_h + sp.cx - 1) / sp.cx : 6;
     g_game = make_child(WC_BUTTONA, "Game exe...", BS_PUSHBUTTON | WS_TABSTOP, ID_GAME);
     g_help_open = make_child(WC_BUTTONA, "Help (F1)", BS_PUSHBUTTON | WS_TABSTOP, ID_HELP_OPEN);
@@ -1397,7 +1397,7 @@ internal void draw_cell_after(NMLVCUSTOMDRAW *cd) {
         RECT r = { LVIR_BOUNDS, 1, 0, 0 };
         SendMessageA(g_list, LVM_GETSUBITEMRECT, item, (LPARAM)&r);
         if (!is_flag(&g_e[p])) { draw_field(dc, p, item, r); return; }
-        int size = dpi_px(GL_CELL), x = r.left + dpi_px(4), y = r.top + (r.bottom - r.top - size) / 2, on = g_look[p].on;
+        int size = dpi_px(GL_CELL), x = r.left, y = r.top + (r.bottom - r.top - size) / 2, on = g_look[p].on;
         if (g_gl.on) {
             if (on) theme_cell(dc, x, y, size, GL_CELL_CHECKED);
             else theme_cell(dc, x, y, size, GL_CELL_EMPTY);
