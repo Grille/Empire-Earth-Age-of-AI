@@ -1,4 +1,5 @@
-// SETTLEMENT UPGRADES ([ai_base] garrison_upgrades, default off until measured; [autotest] v_garrison_upgrades). Included
+// SETTLEMENT UPGRADES ([ai_base] garrison_upgrades, default on - the player 2026-11-04: "as long as it only pulls from
+// excess wood its a nobrainer"; head-to-head level; [autotest] v_garrison_upgrades). Included
 // by eeaimod.c after armies.c (econ.c citizen_free, attack.c raiders_near and unit_goal, cover.c cv_built, landing.c,
 // expand.c, towns.c: their citizens are theirs).
 // The player (2026-11-04): "the ai has huge amounts of useless citizens right now, it should focus on upgrading its
