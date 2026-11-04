@@ -363,6 +363,17 @@ internal void help_of(const char *sec, const char *key, int slots, char *out, in
     }
     if (o >= (size_t)cap) o = cap - 1;   // cut short (snprintf counts what didn't fit)
     out[o] = 0;
+    // a sentence a line: the file's comments run them on (". " in the middle of a line), a wall of text in the panel;
+    // not after an abbreviation with a dot inside it (e.g. 35, i.e. the)
+    for (char *d = strstr(out, ". "); d; d = strstr(d, ". ")) {
+        if (d - out >= 2 && d[-2] == '.') { d += 2; continue; }
+        size_t rest = strlen(d + 2);
+        if ((size_t)(d - out) + 4 + rest >= (size_t)cap) break;
+        memmove(d + 3, d + 2, rest + 1);
+        d[1] = '\r';
+        d[2] = '\n';
+        d += 3;
+    }
     if (!out[0]) lstrcpynA(out, "(no description in config/ageofai.ini)", cap);
 }
 
@@ -928,16 +939,10 @@ internal void show_editors(void) {
     g_ned = 0;
     char title[512], help[4096];
     title[0] = help[0] = 0;
-    if (g_nvis && node_kind(g_node) != NODE_ENTRY) {
+    if (g_nvis && node_kind(g_node) != NODE_ENTRY) {   // a section or a group: its name and size (no help of its own yet)
         int kind = node_kind(g_node), id = node_id(g_node), n = 0;
-        size_t o = 0;
-        for (int i = 0; i < g_ne; i++) {
-            if (kind == NODE_SECTION ? g_e[i].page != id : (!is_section_page(g_e[i].page) || g_group_of[g_e[i].row] != id)) continue;
-            char key[64];
-            key_of(&g_e[i], key, sizeof key);
-            if (o + strlen(key) + 4 < sizeof help) o += (size_t)snprintf(help + o, sizeof help - o, "%s%s", n ? ", " : "", key);
-            n++;
-        }
+        for (int i = 0; i < g_ne; i++)
+            if (kind == NODE_SECTION ? g_e[i].page == id : is_section_page(g_e[i].page) && g_group_of[g_e[i].row] == id) n++;
         snprintf(title, sizeof title, "%s - %d settings (the triangle, a double click or the right arrow key opens it)",
                  kind == NODE_SECTION ? g_page_of[id].title : k_setting_groups[id].title, n);
     } else if (g_sel >= 0) {
