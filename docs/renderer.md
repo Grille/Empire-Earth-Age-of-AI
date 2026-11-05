@@ -234,7 +234,12 @@ of the frames drawn during a step. The water's (its animation) runs too.
     17 - 37 (the far plane at 50: the far depth widened too only shrank the factor through the region's limit);
   - the vertex buffers: a material's draw writes all of its vertices into the display DLL's 2442 from the start,
     whatever their count - the grass's went past it with the margin (written beyond our memory, the draw dropped):
-    each buffer has room for 65536 now (render_3d.c RD_VB_ROOM), a draw up to as many.
+    each buffer has room for 65536 now (render_3d.c RD_VB_ROOM), a draw up to as many. And LockVB starts the buffer
+    over by that room (its immediate patched at each display DLL's load, spec engine_display.of_lock_vb_room): it
+    subtracts its place from 2442 unsigned, so after a ground draw of more (2997 on the 8000-unit save) the place
+    was never started over and grew with every model until a copy wrote past our memory - the player's crash,
+    DX7HRTnLDisplay.dll's CopyAndSmoothStdVertices, 5 game seconds after loading that save (the minute's line
+    counts the draws of more than 2442 by render object).
   On that save, a scroll of 4.5 tiles during a 2.5 s step: the sky at the right and top before, ground to every edge
   with it (17400 vertices kept against 3900; the units and trees out there come with the next update); 12.7 tiles
   (more than a screen) still leave a strip. The ground's draw 0.3 -> 0.6 ms a frame, the frames a minute the same.

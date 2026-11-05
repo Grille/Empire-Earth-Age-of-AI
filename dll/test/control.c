@@ -203,6 +203,9 @@ internal void cmd_camera(char *out, const char *args) {
         return;
     }
     if (sscanf(args, "zoom %f", &dx) == 1) {   // as the wheel does: the camera's steps turn and move it there
+        // the wheel keeps it in 0 .. 1 (EEUIEHotKeyZoom 0x5C913C clamps it); at 3 the step's turn went NaN and the
+        // engine's UMCos, which adds 2 pi until the angle is above -pi, never returned
+        if (!(dx >= 0 && dx <= 1)) { REPLY("error: zoom %.2f outside 0 .. 1, the wheel's range\n", (double)dx); return; }
         camera_zoom_to(game_camera(), dx);
         REPLY("ok: camera zooming to %.2f\n", (double)dx);
         return;

@@ -499,6 +499,9 @@ internal inline uint8_t *engine_display_iat_terrain_visible_at(void) { return (u
 // D3DVBCAPS_SYSTEMMEMORY)
 // the display DLLs' vertex buffer, in vertices: DX7Rasterizer::LockVB starts it anew when fewer than a material's
 // are left - a material of more would overrun it (the 2017 update's both DLLs; AoC's DX7HRTnLDisplay.dll)
+// DX7Rasterizer::LockVB (exported by name): the immediate of its mov ecx, vb_vertices - the room it subtracts the
+// buffer's place (+0x28 of the screen's state) from, unsigned: past it the place is never started anew and grows
+// with every draw. Both DLLs of both builds
 // the render objects RTSGraphics draws (pointers; the game's start makes them, 0x504DAF adds them in this
 // order: effects, terrain, shadows, units, water, interface)
 internal inline uint8_t *engine_display_ro_effects_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_ro_effects; }
@@ -661,6 +664,7 @@ internal int spec_engine_display_select(int build) {
         value_engine_display_of_viewport_fov = 604;
         value_engine_display_rva_tnl_vb_caps = 62581;
         value_engine_display_vb_vertices = 2442;
+        value_engine_display_of_lock_vb_room = 21;
         data_engine_display_ro_effects = 0x00943318;
         data_engine_display_ro_terrain = 0x00943314;
         data_engine_display_ro_shadows = 0x00943310;
@@ -818,6 +822,7 @@ internal int spec_engine_display_select(int build) {
         value_engine_display_of_viewport_fov = 604;
         value_engine_display_rva_tnl_vb_caps = 66510;
         value_engine_display_vb_vertices = 2400;
+        value_engine_display_of_lock_vb_room = 21;
         data_engine_display_ro_effects = 0x00965360;
         data_engine_display_ro_terrain = 0x0096535C;
         data_engine_display_ro_shadows = 0x00965358;

@@ -646,6 +646,7 @@ internal uint32_t value_engine_display_of_viewport_side_normals;
 internal uint32_t value_engine_display_of_viewport_fov;
 internal uint32_t value_engine_display_rva_tnl_vb_caps;
 internal uint32_t value_engine_display_vb_vertices;
+internal uint32_t value_engine_display_of_lock_vb_room;
 internal uint32_t data_engine_display_ro_effects;
 internal uint32_t data_engine_display_ro_terrain;
 internal uint32_t data_engine_display_ro_shadows;

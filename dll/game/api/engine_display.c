@@ -31,6 +31,11 @@ internal inline HFONT font_get_hfont(const ee_font *f) { return FIELD(f, of_font
 internal inline ee_vertex *vertex_at(ee_vertex *data, uint32_t i) { return (ee_vertex *)((uint8_t *)data + (size_t)i * size_d3_dvertex); }
 internal inline uint32_t vertex_size(void) { return size_d3_dvertex; }
 internal inline uint32_t display_vb_vertices(void) { return value_engine_display_vb_vertices; }
+// a display DLL's LockVB started anew at `room` vertices instead of display_vb_vertices: 1 done, 0 other code
+internal inline int display_lock_vb_room(HMODULE m, uint32_t room) {
+    uintptr_t f = (uintptr_t)GetProcAddress(m, "?LockVB@DX7Rasterizer@@IAEJKKAAPAUD3DVERTEX_STD_COLOR@@@Z");
+    return f && patch_code32(f + value_engine_display_of_lock_vb_room, value_engine_display_vb_vertices, room);
+}
 
 // HOOKS
 // the graphics thread's Sleep(1) after every pass of its loop (display.c frame_wait): that call -> hook, Sleep's own type

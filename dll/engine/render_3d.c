@@ -9,7 +9,8 @@
 // The display DLLs' buffer is 2442 vertices (DX7Rasterizer::LockVB starts it over when fewer are left), and a ground
 // material's draw writes all of its vertices from the start whatever their count: with the ground's margin
 // (render_frame.c) the big ones - the grass's - went past it, written beyond the memory and their draws dropped. So
-// each buffer has room for RD_VB_ROOM (an 88-tile region of one material: 47 000) and the draws are checked by it.
+// each buffer has room for RD_VB_ROOM (an 88-tile region of one material: 47 000) and the draws are checked by it; and
+// LockVB starts it over by that room (render.c render_display_loaded: by its own, a place past 2442 never started over).
 #define RD_VB_ROOM 65536
 typedef struct { void **vt; LONG refs; DWORD caps, fvf, n, stride, room; uint8_t *mem; } rd_vb;
 internal DWORD rd_fvf_stride(DWORD fvf) {
@@ -86,6 +87,20 @@ internal volatile LONG g_rd_draws, g_rd_frames;
 internal DWORD g_rd_minute_tick;
 internal LONGLONG g_rd_draw_qpc, g_rd_draw_qpc_told;   // time inside the draw calls (the game's thread), for the minute's line
 internal LONGLONG rd_qpc(void) { LARGE_INTEGER t; QueryPerformanceCounter(&t); return t.QuadPart; }
+// the draws of more vertices than the display DLL's own buffer holds (display_vb_vertices: a real Direct3D 7 one
+// overrun; LockVB unpatched left its place past it for good - render.c render_display_loaded), by render object
+// (RO_N: none), the most in one; and those past our room (dropped) - the minute's line
+internal volatile LONG g_rd_vb_over[RO_N + 1], g_rd_vb_dropped;
+internal DWORD g_rd_vb_most;
+internal int rd_vb_fits(const rd_vb *vb, DWORD start, DWORD n) {
+    if (n > display_vb_vertices()) {
+        g_rd_vb_over[g_ro_cur >= 0 ? g_ro_cur : RO_N]++;
+        if (n > g_rd_vb_most) g_rd_vb_most = n;
+    }
+    if (start + n <= vb->room) return 1;
+    g_rd_vb_dropped++;
+    return 0;
+}
 internal LONGLONG rd_qpc_ms(int ms) {
     static LONGLONG per_ms;
     if (!per_ms) { LARGE_INTEGER f; QueryPerformanceFrequency(&f); per_ms = f.QuadPart / 1000; }
@@ -911,6 +926,10 @@ internal void rd_frame_tick(void) {
     for (int i = 0; i < RO_N; i++) { ro[i] = (double)(g_ro_qpc[i] - ro0[i]) * k; ro0[i] = g_ro_qpc[i]; }
     log_locked("# render: the game's drawing a frame (ms, the renderer's draws inside): terrain %.2f, shadows %.2f, units %.2f,"
                " water %.2f, interface %.2f\n", ro[RO_TERRAIN], ro[RO_SHADOWS], ro[RO_UNITS], ro[RO_WATER], ro[RO_UI]);
+    log_locked("# render: draws of more than the display DLL's %u vertices (terrain, shadows, units, water, interface, none) %ld %ld"
+               " %ld %ld %ld %ld, the most %lu; past our room, dropped %ld\n", display_vb_vertices(), (long)g_rd_vb_over[RO_TERRAIN],
+               (long)g_rd_vb_over[RO_SHADOWS], (long)g_rd_vb_over[RO_UNITS], (long)g_rd_vb_over[RO_WATER],
+               (long)g_rd_vb_over[RO_UI], (long)g_rd_vb_over[RO_N], (unsigned long)g_rd_vb_most, (long)g_rd_vb_dropped);
     // the long waits and holds of the minute, the sites by their time held long
     double ms = 1000.0 / (double)f.QuadPart;
     char sites[512];
@@ -1084,7 +1103,7 @@ internal HRESULT __stdcall rd_dev_validate(rd_device *d, DWORD *passes) { (void)
 internal HRESULT __stdcall rd_dev_draw_vb(rd_device *d, D3DPRIMITIVETYPE type, rd_vb *vb, DWORD start, DWORD n, DWORD flags) {
     (void)flags;
     InterlockedIncrement(&g_rd_draws);
-    if (!n || start + n > vb->room || !rd3_drawable(vb, type)) return D3D_OK;
+    if (!n || !rd_vb_fits(vb, start, n) || !rd3_drawable(vb, type)) return D3D_OK;
     LONGLONG t0 = rd_qpc();
     RD_LOCK();
     rd3_overlay_before(d);
@@ -1101,7 +1120,7 @@ internal HRESULT __stdcall rd_dev_draw_indexed_vb(rd_device *d, D3DPRIMITIVETYPE
                                                   WORD *idx, DWORD ni, DWORD flags) {
     (void)flags;
     InterlockedIncrement(&g_rd_draws);
-    if (!nv || !ni || !idx || start + nv > vb->room || !rd3_drawable(vb, type)) return D3D_OK;
+    if (!nv || !ni || !idx || !rd_vb_fits(vb, start, nv) || !rd3_drawable(vb, type)) return D3D_OK;
     LONGLONG t0 = rd_qpc();
     RD_LOCK();
     rd3_overlay_before(d);

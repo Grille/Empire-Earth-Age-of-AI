@@ -652,6 +652,12 @@ static unsafe class engine_display
     [value((ee)0x98A, (aoc)0x960)]
     static uint32 vb_vertices;
 
+    /// DX7Rasterizer::LockVB (exported by name): the immediate of its mov ecx, vb_vertices - the room it subtracts the
+    /// buffer's place (+0x28 of the screen's state) from, unsigned: past it the place is never started anew and grows
+    /// with every draw. Both DLLs of both builds
+    [value((ee)0x15, (aoc)0x15)]
+    static uint32 of_lock_vb_room;
+
     /// the render objects RTSGraphics draws (pointers; the game's start makes them, 0x504DAF adds them in this
     /// order: effects, terrain, shadows, units, water, interface)
     [address((ee)0x00943318, (aoc)0x00965360)]

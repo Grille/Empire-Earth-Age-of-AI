@@ -798,15 +798,18 @@ internal int render_present(IDirectDrawSurface7 *back, HWND hwnd) {
 }
 
 // [display] renderer = own: the vtables, and the display DLLs' DirectDraw imports at their load (display.c's
-// show_loaded calls it for each)
+// show_loaded calls it for each). Their LockVB starts the vertex buffer anew at our buffers' room: at its own 2442
+// (AoC 2400) a ground material of the margin's region with more than that set the buffer's place past it, the
+// unsigned room left wrapped, and the place grew with every draw until a model's copy wrote past our buffer (the
+// player's game, 21 minutes in: DX7HRTnLDisplay.dll's CopyAndSmoothStdVertices).
 internal void render_display_loaded(HMODULE m, const char *name) {
     if (!g_rd_on) return;
     int n = patch_iat(m, "ddraw.dll", "DirectDrawCreateEx", (void *)rd_create_ex) +
             patch_iat(m, "ddraw.dll", "DirectDrawEnumerateA", (void *)rd_enumerate) +
             patch_iat(m, "ddraw.dll", "DirectDrawEnumerateExA", (void *)rd_enumerate_ex);
     log_locked("# render: %s's DirectDraw imports %d/3 to the mod's renderer; its model test %d/2 (the shadows' casters off"
-               " the screen); its ground's clipping %d/1 (the ground's margin)\n", name, n, shadow_reach_display(m),
-               rf_ground_display_loaded(m, name));
+               " the screen); its ground's clipping %d/1 (the ground's margin); its vertex buffer's room %d/1\n", name, n,
+               shadow_reach_display(m), rf_ground_display_loaded(m, name), display_lock_vb_room(m, RD_VB_ROOM));
 }
 // autotest render_trace=N: the first N calls of the renderer's methods logged ("# render call", caller and thread) - a
 // stub in front of each slot, as the probe's
