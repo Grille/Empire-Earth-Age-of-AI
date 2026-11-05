@@ -18,6 +18,12 @@ class patches
     /// stop on their heading instead of swinging past it and back. 0 = the original
     [title("Turn fix (from Art of Conquest)"), target(ee)]
     bool turn_fix = true;
+    /// Data order in The Art of Conquest: AoC takes what it didn't change from Empire Earth's folder, and the game
+    /// looked in both folders' loose files before either archive - a loose file in Empire Earth's Data folder
+    /// (a tweaked dbworld.dat ...) beat AoC's own data, and AoC read tables shorter than its own (units with no
+    /// reload). 1 = AoC's files first, loose or packed, then Empire Earth's; 0 = the original
+    [title("Data order in Art of Conquest"), target(aoc)]
+    bool aoc_data_order = true;
     enum reload_choice
     {
         /// AoC's as it is
