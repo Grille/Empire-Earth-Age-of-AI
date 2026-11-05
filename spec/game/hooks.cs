@@ -30,6 +30,19 @@ static unsafe class hooks
     [address((ee)0x006177CF, (aoc)0x0062A366)]
     static code call_attack_alert;
 
+    /// the 2017 update sets a unit's reload inline where AoC calls unit.reload_wait (its random wait): the attack ticks'
+    /// cmp [esi+0x2A0], eax before their store of the type's reload (EEUGAttackGround 0x60ABC0, EEUGAttackUnit
+    /// 0x60B34C; a je over the store follows) ...
+    [address((ee)0x0060ABC0, (aoc)none)]
+    [address((ee)0x0060B34C, (aoc)none)]
+    static code reload_tick_cmp;
+
+    /// ... and the fire's stores mov [esi+0x2A0], eax (0x61E18E the type's reload while the unit's is 0, 0x61E1C7 1.5 x
+    /// it with alt_attack) - the unit in esi, the reload in eax at all four
+    [address((ee)0x0061E18E, (aoc)none)]
+    [address((ee)0x0061E1C7, (aoc)none)]
+    static code reload_fire_store;
+
     /// the loading splash's start (jne)
     [address((ee)0x00534400, (aoc)0x0053F2FE)]
     static code code_splash_start_jne;

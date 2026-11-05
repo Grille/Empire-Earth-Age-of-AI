@@ -139,6 +139,11 @@ unsafe struct EEPhysics
     [address((ee)0x00545C8F, (aoc)0x00551E9F)]
     [call_site("step_end", (ee)0x00546E12, (aoc)0x005532BE)]
     extern void step_end();
+
+    /// a draw from the game's generator (+0x18, the same on every PC) between lo and hi: lo + (hi - lo) x its
+    /// next number - AoC's reload (unit.reload_wait) draws its factor by it
+    [address((ee)0x005531A8, (aoc)0x005612B9)]
+    extern float32 random_range(float32 lo, float32 hi);
 }
 
 /// the world, game.world - a static object: its players at +0x74 (game.players), its map at +0xBC (EEWorld)

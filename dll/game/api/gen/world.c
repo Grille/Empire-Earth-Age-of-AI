@@ -135,6 +135,11 @@ typedef void (__thiscall *physics_step_end_fn)(ee_physics *);
 internal physics_step_end_fn fn_physics_step_end;
 internal inline void physics_step_end(ee_physics *physics) { fn_physics_step_end(physics); }
 internal inline int patch_step_end(physics_step_end_fn h) { return patch_call(call_step_end, (uintptr_t)fn_physics_step_end, (void *)h); }
+// a draw from the game's generator (+0x18, the same on every PC) between lo and hi: lo + (hi - lo) x its
+// next number - AoC's reload (unit.reload_wait) draws its factor by it
+typedef float (__thiscall *physics_random_range_fn)(ee_physics *, float, float);
+internal physics_random_range_fn fn_physics_random_range;
+internal inline float physics_random_range(ee_physics *physics, float lo, float hi) { return fn_physics_random_range(physics, lo, hi); }
 
 // class EEWorld (ee_world)
 // the world, game.world - a static object: its players at +0x74 (game.players), its map at +0xBC (EEWorld)
@@ -267,6 +272,7 @@ internal int spec_world_select(int build) {
         fn_physics_step = (physics_step_fn)0x00546C63;
         fn_physics_step_end = (physics_step_end_fn)0x00545C8F;
         call_step_end = 0x00546E12;
+        fn_physics_random_range = (physics_random_range_fn)0x005531A8;
         vt_ee_world = 0x0082C84C;
         of_world_players = 0x74;
         of_world_map = 0xBC;
@@ -323,6 +329,7 @@ internal int spec_world_select(int build) {
         fn_physics_step = (physics_step_fn)0x00553082;
         fn_physics_step_end = (physics_step_end_fn)0x00551E9F;
         call_step_end = 0x005532BE;
+        fn_physics_random_range = (physics_random_range_fn)0x005612B9;
         vt_ee_world = 0x00841FEC;
         of_world_players = 0x74;
         of_world_map = 0xBC;
@@ -361,6 +368,7 @@ internal int spec_world_check(void) {
     bad += spec_code((uintptr_t)fn_physics_step, "EEPhysics.step");
     bad += spec_code((uintptr_t)fn_physics_step_end, "EEPhysics.step_end");
     bad += spec_call(call_step_end, (uintptr_t)fn_physics_step_end, "EEPhysics.step_end [call_site step_end]");
+    bad += spec_code((uintptr_t)fn_physics_random_range, "EEPhysics.random_range");
     bad += spec_vtable(vt_ee_world, ".?AVEEWorld@@", "EEWorld [vtable]");
     bad += spec_code((uintptr_t)fn_world_player, "EEWorld.player");
     bad += spec_code((uintptr_t)fn_world_settle, "EEWorld.settle");

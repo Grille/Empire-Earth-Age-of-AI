@@ -26,18 +26,18 @@ class patches
     bool aoc_data_order = true;
     enum reload_choice
     {
-        /// AoC's as it is
+        /// each game its own
         game,
         /// Empire Earth's: the whole reload every time
-        full,
-        /// AoC's random wait, but a swing under way is never restarted before its blow
-        swing,
+        ee,
+        /// Art of Conquest's: a random 80..120% of the reload each time
+        aoc,
     }
-    /// Reload in The Art of Conquest: AoC waits a random share (0..100%) of a unit's reload between blows, and a wait
-    /// shorter than the attack animation restarts the swing before the blow lands - citizens stood beside an animal
-    /// for the whole game (AoC's own AI and the player's alike):
-    [title("Reload in Art of Conquest"), target(aoc)]
-    reload_choice aoc_reload = reload_choice.swing;
+    /// Reload: how long a unit waits between two attacks. Empire Earth waits the unit's whole reload, The Art of
+    /// Conquest a random 80..120% of it (the same on average, but shots and blows don't come in step). Either game
+    /// can play the other's. In multiplayer every player needs the same setting:
+    [title("Reload")]
+    reload_choice reload = reload_choice.game;
     /// Overseas mines: on a water map the game puts idle citizens on a boat to a mine elsewhere, but took any free
     /// mine for it - mostly one at home; the boat rarely came and they stood idle meanwhile. Only a mine on another
     /// island, as Art of Conquest fixed it (the AI's citizens). 0 = the original

@@ -823,6 +823,8 @@ internal uint32_t of_draw_record_tint;
 internal uint32_t of_draw_record_0x58;
 internal uint32_t of_draw_record_0xfc;
 internal uint32_t data_hooks_call_attack_alert;
+internal uint32_t data_hooks_reload_tick_cmp[2];
+internal uint32_t data_hooks_reload_fire_store[2];
 internal uint32_t data_hooks_code_splash_start_jne;
 internal uint32_t data_hooks_code_splash_stop_jne;
 internal uint32_t data_hooks_draw_old;

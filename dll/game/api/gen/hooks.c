@@ -25,6 +25,11 @@ internal inline void draw_record_init(void *draw_record) { fn_draw_record_init(d
 // static class hooks
 // hooks's data of the game, places in its code and numbers
 internal inline uint8_t *hooks_call_attack_alert_at(void) { return (uint8_t *)(uintptr_t)data_hooks_call_attack_alert; }
+// the 2017 update sets a unit's reload inline where AoC calls unit.reload_wait (its random wait): the attack ticks'
+// cmp [esi+0x2A0], eax before their store of the type's reload (EEUGAttackGround 0x60ABC0, EEUGAttackUnit
+// 0x60B34C; a je over the store follows) ...
+// ... and the fire's stores mov [esi+0x2A0], eax (0x61E18E the type's reload while the unit's is 0, 0x61E1C7 1.5 x
+// it with alt_attack) - the unit in esi, the reload in eax at all four
 // the loading splash's start (jne)
 internal inline uint8_t *hooks_code_splash_start_jne_at(void) { return (uint8_t *)(uintptr_t)data_hooks_code_splash_start_jne; }
 // the loading splash's stop (jne)
@@ -89,6 +94,10 @@ internal int spec_hooks_select(int build) {
         of_draw_record_0xfc = 0xFC;
         fn_draw_record_init = (draw_record_init_fn)0x00506442;
         data_hooks_call_attack_alert = 0x006177CF;
+        data_hooks_reload_tick_cmp[0] = 0x0060ABC0;
+        data_hooks_reload_tick_cmp[1] = 0x0060B34C;
+        data_hooks_reload_fire_store[0] = 0x0061E18E;
+        data_hooks_reload_fire_store[1] = 0x0061E1C7;
         data_hooks_code_splash_start_jne = 0x00534400;
         data_hooks_code_splash_stop_jne = 0x0053443D;
         data_hooks_draw_old = 0x008D2D30;
@@ -161,6 +170,10 @@ internal int spec_hooks_select(int build) {
         of_draw_record_0xfc = 0xFC;
         fn_draw_record_init = (draw_record_init_fn)0x005118E9;
         data_hooks_call_attack_alert = 0x0062A366;
+        data_hooks_reload_tick_cmp[0] = 0;
+        data_hooks_reload_tick_cmp[1] = 0;
+        data_hooks_reload_fire_store[0] = 0;
+        data_hooks_reload_fire_store[1] = 0;
         data_hooks_code_splash_start_jne = 0x0053F2FE;
         data_hooks_code_splash_stop_jne = 0x0053F33B;
         data_hooks_draw_old = 0x008E94D0;
@@ -225,17 +238,21 @@ internal int spec_hooks_select(int build) {
         data_tcp_protocol_ports[2] = 0x00002035;
         data_tcp_protocol_ports[3] = 0x00002689;
         data_tcp_protocol_ports[4] = 0x00002E1C;
-        return 0;
+        return 4;
     }
     return 0;
 }
 // the names a build hasn't got, by build
-internal const char *const k_spec_hooks_missing[ADDR_BUILDS] = { "", "" };
+internal const char *const k_spec_hooks_missing[ADDR_BUILDS] = { "", "hooks.reload_tick_cmp 0 hooks.reload_tick_cmp 1 hooks.reload_fire_store 0 hooks.reload_fire_store 1" };
 // the load-time check: what the spec says of the running build's exe (spec_check): the failures
 internal int spec_hooks_check(void) {
     int bad = 0;
     bad += spec_code((uintptr_t)fn_draw_record_init, "ee_draw_record.init");
     bad += spec_code(data_hooks_call_attack_alert, "hooks.call_attack_alert");
+    bad += spec_code(data_hooks_reload_tick_cmp[0], "hooks.reload_tick_cmp 0");
+    bad += spec_code(data_hooks_reload_tick_cmp[1], "hooks.reload_tick_cmp 1");
+    bad += spec_code(data_hooks_reload_fire_store[0], "hooks.reload_fire_store 0");
+    bad += spec_code(data_hooks_reload_fire_store[1], "hooks.reload_fire_store 1");
     bad += spec_code(data_hooks_code_splash_start_jne, "hooks.code_splash_start_jne");
     bad += spec_code(data_hooks_code_splash_stop_jne, "hooks.code_splash_stop_jne");
     bad += spec_data(data_hooks_draw_old, "hooks.draw_old");

@@ -188,6 +188,18 @@ internal inline int patch_tcp_ports(HMODULE m, int add, int add_connect) {
 // the exit dialog's confirmation (a code pointer in the menu's table)
 internal inline int patch_exit_confirm(void (__cdecl *h)(void)) { return patch_code32(data_hooks_exit_confirm_at, (uintptr_t)fn_exit_confirm, (uint32_t)(uintptr_t)h); }
 
+// the 2017 update's four reload stores (hooks.reload_tick_cmp, reload_fire_store) sent to a thunk: unit esi, reload
+// eax; it must store the reload and return with ZF set (the ticks' je then skips their own store). 0..4 patched
+internal int patch_reload_stores(void (*thunk)(void)) {
+    static const uint8_t cmp[6] = { 0x39, 0x86, 0xA0, 0x02, 0x00, 0x00 }, mov[6] = { 0x89, 0x86, 0xA0, 0x02, 0x00, 0x00 };
+    int n = 0;
+    for (int i = 0; i < 2; i++) {
+        n += patch_insn6_call(data_hooks_reload_tick_cmp[i], cmp, (void *)thunk);
+        n += patch_insn6_call(data_hooks_reload_fire_store[i], mov, (void *)thunk);
+    }
+    return n;
+}
+
 // The editor layout for any resolution from 800x600 up: Art of Conquest's 1024x768 values (generated from a
 // comparison of both exes, scripts/re/layout_diff.py + gen_editor_layout.py), each moved with the screen size the way
 // AoC moved it from EE's 800x600: anchored right/bottom, stretched, or centred. Computed when the editor is entered.

@@ -101,6 +101,19 @@ internal int patch_entry(uintptr_t fn, const uint8_t *prologue, int n, void *hoo
     return 1;
 }
 
+// A 6-byte instruction replaced by a call of hook and a nop, only while it holds `expected` (0: a build without it)
+internal int patch_insn6_call(uintptr_t at, const uint8_t expected[6], void *hook) {
+    uint8_t *p = (uint8_t *)at;
+    DWORD old;
+    if (!at || memcmp(p, expected, 6) || !VirtualProtect(p, 6, PAGE_EXECUTE_READWRITE, &old)) return 0;
+    p[0] = 0xE8;
+    *(int32_t *)(p + 1) = (int32_t)((uintptr_t)hook - (at + 5));
+    p[5] = 0x90;
+    VirtualProtect(p, 6, old, &old);
+    FlushInstructionCache(GetCurrentProcess(), p, 6);
+    return 1;
+}
+
 // one byte of the code, only while it holds `expected`
 internal int patch_byte(uintptr_t at, uint8_t expected, uint8_t val) {
     uint8_t *p = (uint8_t *)at;

@@ -643,7 +643,8 @@ unsafe struct EEComplexUnit
     extern void stand(float32* pos);
 
     /// AoC's only: its reload until the next blow, reload x a random factor between the game data's +0x984 and
-    /// +0x988 (0.0 and 1.0: anything from none to the whole reload; read once into 0x963160 / 0x96315C) - the 2017
+    /// +0x988 (AoC's dbworld.dat: 0.8 and 1.2; read once into 0x963160 / 0x96315C; with the 2017 update's 84-row
+    /// table loaded - a loose file, game.file_path - they lie past its end: heap memory, a factor near 0) - the 2017
     /// update sets the reload itself. The attack ticks' (EEUGAttackGround 0x61D186, EEUGAttackUnit 0x61D9A9) and the
     /// fire's (0x631395, 0x6313C7)
     [address((ee)none, (aoc)0x005FEA22)]
