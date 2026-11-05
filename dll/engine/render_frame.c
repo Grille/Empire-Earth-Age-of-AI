@@ -131,9 +131,25 @@ internal void rf_camera_frame(void);
 // the region's size is worked out first as GetFrustrumWorldPoints and GetTileRowsInVolume would make it (the corners
 // by the engine's own DenormalizePerspectivePoint, their box on the map) and the factor taken back until it is at most
 // GM_TILES - estimated from the last region instead, a zoom out between two updates went to 95 tiles.
+// Toward the camera (the player: "the ground should extend 1 or two tiles more under the camera ... zooming out or
+// moving down still exposes void"). GetTileRowsInVolume takes the hull of the eight corners, and toward the camera it
+// narrows to the near ones - at the viewport's near depth, which the game sets about at the region's nearest ground
+// (19.3 at zoom 1 on that save, 0.1 at zoom 0.5): the region ended at the screen's bottom edge, a point under the
+// camera. The far corners (depth 58) reach far forward and to the sides by themselves. So the near depth for the
+// call is the viewport's / (1 + the margin) less GM_BEHIND times the margin - below 0 the corners lie behind the eye,
+// mirrored (GetFrustrumWorldPoints: the rectangle's point times the depth through the camera's inverse): -8.6 at zoom
+// 1, -12 at zoom 0.5, the hull's near end wide behind the camera's foot; the bottom of the rectangle 1 + twice the
+// margin; and at the cap the top gives way first (g_gm_kt), then the sides (g_gm_k), then the near end, the bottom
+// last.
 #define GM_TILES 88
+#define GM_CLIP 4.0f    // the clip codes' planes (rf_to_camera, below)
+#define GM_BEHIND 12.0f // the region's near depth: the viewport's / (1 + the margin) less this times the margin
 internal float g_gm_margin = 1.0f;
-internal float g_gm_k;          // the factor of the last region
+internal float g_gm_k;          // the factor of the last region: its sides
+internal float g_gm_kt;         // its top
+internal float g_gm_kb;         // its bottom
+internal float g_gm_near;       // its near depth (0: the viewport's)
+internal float g_gm_depths[2];  // the viewport's near and far depths then
 internal long g_gm_size[2];     // its size, tiles less one (the mesh's)
 internal long g_gm_pred;        // and as worked out before (the larger side)
 typedef void (__thiscall *gm_denorm_fn)(const void *viewport, const float *p, float depth, float *out);
@@ -185,10 +201,11 @@ internal long rf_region_size(const void *viewport, const float *r) {
     }
     return big;
 }
-internal void rf_scale_rect(float *r, const float *was, float k) {
+// the rectangle r (bottom, left, right, top) widened about was' centre: its sides by k, its bottom by kb, its top by kt
+internal void rf_scale_rect(float *r, const float *was, float k, float kb, float kt) {
     float cx = (was[1] + was[2]) * 0.5f, cy = (was[0] + was[3]) * 0.5f;
     r[1] = cx + (was[1] - cx) * k; r[2] = cx + (was[2] - cx) * k;
-    r[0] = cy + (was[0] - cy) * k; r[3] = cy + (was[3] - cy) * k;
+    r[0] = cy + (was[0] - cy) * kb; r[3] = cy + (was[3] - cy) * kt;
 }
 internal void __thiscall rf_hook_terrain_visible(void *mesh, const void *camera, void *viewport, unsigned long a, unsigned long b,
                                                  unsigned long c, uint8_t fixed) {
@@ -199,21 +216,34 @@ internal void __thiscall rf_hook_terrain_visible(void *mesh, const void *camera,
     float *r = viewport_rect(viewport), was[4];
     memcpy(was, r, sizeof was);
     // the fixed camera's frustum is the orthographic one: as it was; without the pools the mesh's own would overflow
-    float k = fixed || g_gm_pools < 2 ? 1.0f : 1.0f + g_gm_margin;
+    int on = !fixed && g_gm_pools >= 2;
+    float k = on ? 1.0f + g_gm_margin : 1.0f, kt = k, kb = on ? 1.0f + 2.0f * g_gm_margin : 1.0f;
+    // the near depth (above): the corners there behind the eye with a margin, mirrored - GetFrustrumWorldPoints takes
+    // the rectangle's points times the depth through the camera's inverse
+    float *nd = viewport_near_at(viewport), near0 = *nd, behind = on ? GM_BEHIND * g_gm_margin : 0;
     long n = -1;
-    for (int tries = 0; k > 1.0f; tries++) {
-        rf_scale_rect(r, was, k);
+    for (int tries = 0; kb > 1.0f; tries++) {
+        *nd = near0 / k - behind;
+        rf_scale_rect(r, was, k, kb, kt);
         n = rf_region_size(viewport, r);
         if (n >= 0 && n <= GM_TILES) break;
-        if (n < 0 || tries == 6) k = 1.0f;
-        else k = 1.0f + (k - 1.0f) * 0.7f;
+        if (n < 0 || tries == 24) k = kt = kb = 1.0f;   // the top first, the sides, behind, the bottom last (above)
+        else if (kt > 1.02f) kt = 1.0f + (kt - 1.0f) * 0.7f;
+        else if (k > 1.02f) { kt = 1.0f; k = 1.0f + (k - 1.0f) * 0.7f; }
+        else if (behind > 0.3f) { kt = k = 1.0f; behind *= 0.7f; }
+        else { kt = k = 1.0f; behind = 0; kb = 1.0f + (kb - 1.0f) * 0.7f; }
     }
-    if (k <= 1.0f) { memcpy(r, was, sizeof was); n = rf_region_size(viewport, r); }
+    if (kb <= 1.0f) { k = kt = kb = 1.0f; behind = 0; *nd = near0; memcpy(r, was, sizeof was); n = rf_region_size(viewport, r); }
     terrain_visible(mesh, camera, viewport, a, b, c, fixed);
     memcpy(r, was, sizeof was);
+    g_gm_near = kb > 1.0f ? *nd : 0;
+    *nd = near0;
     const long *sz = terrain_mesh_visible_size(mesh);
     g_gm_size[0] = sz[0]; g_gm_size[1] = sz[1];
     g_gm_k = k;
+    g_gm_kt = kt;
+    g_gm_kb = kb;
+    g_gm_depths[0] = near0; g_gm_depths[1] = viewport_far(viewport);
     g_gm_pred = n;
     for (int w = 0; w < 2; w++) {
         g_gm_polys[w] = terrain_polygons(mesh, w);
@@ -226,9 +256,12 @@ internal void __thiscall rf_hook_terrain_visible(void *mesh, const void *camera,
 // orthographic camera's: the rectangle) and its near and far depths - and a polygon wholly outside one is left out.
 // With the region alone widened the draws stayed the screen's (the pipe's rprobe: 30 ground draws, 3900 vertices at
 // either margin; the kept ground's depth 17 - 37 at any margin, the far plane at 50). So for that call the view is
-// widened by the factor the region was made with - the stored side normals' depth part times it (their slope's
-// tangent), normalized; the field of view to 2 atan(k tan(fov / 2)) for the top and bottom; the rectangle - in both
-// display DLLs (their vtables, at their load: render.c render_display_loaded).
+// widened - the stored side normals' depth part times GM_CLIP (their slope's tangent), normalized; the field of view to
+// 2 atan(GM_CLIP tan(fov / 2)) for the top and bottom; the rectangle as the region's; in the T&L DLL the near depth the
+// region's, at least 0.05 - in both display DLLs (their vtables, at their load: render.c render_display_loaded). The
+// region decides what ground there is: by the region's factors the planes still cut into it - through the eye, each a
+// line on the ground from the camera's foot (triangles of sky in the bottom corners after a zoom out from 0.5 to 1
+// during a step), the bottom's and the near depth level across the screen.
 // the viewport's four stored side planes widened by k (each normal's depth part times it, normalized) - the stored
 // ones into was; and put back
 internal void rf_view_widen(void *viewport, float k, float was[4][3]) {
@@ -245,17 +278,21 @@ typedef void (__thiscall *gm_to_camera_fn)(void *ras, void *mesh, void *viewport
 internal gm_to_camera_fn g_gm_to_camera[2];   // DX7HRDisplay.dll's, DX7HRTnLDisplay.dll's
 internal void rf_to_camera(int i, void *ras, void *mesh, void *viewport, float dt, uint8_t a, uint8_t b) {
     float *r = viewport_rect(viewport), was[4], planes[4][3], *fov = viewport_fov_at(viewport), fov0 = *fov;
-    float k = g_gm_k;
+    float k = g_gm_k, kb = g_gm_kb, kv = k > 1.0f || kb > 1.0f ? fmaxf(GM_CLIP, kb) : 1.0f;   // the planes' (above)
+    float *nd = viewport_near_at(viewport), near0 = *nd;
     memcpy(was, r, sizeof was);
-    if (k > 1.0f) {
-        rf_scale_rect(r, was, k);
-        if (fov0 > 0 && fov0 < 3.0f) *fov = 2.0f * atanf(k * tanf(fov0 * 0.5f));
-        rf_view_widen(viewport, k, planes);
+    if (kv > 1.0f) {
+        rf_scale_rect(r, was, k, kb, g_gm_kt);
+        if (fov0 > 0 && fov0 < 3.0f) *fov = 2.0f * atanf(kv * tanf(fov0 * 0.5f));
+        rf_view_widen(viewport, kv, planes);
+        // the near depth in the T&L DLL only: the other projects the vertices itself
+        if (i == 1 && g_gm_near != 0 && g_gm_near < near0) *nd = fmaxf(g_gm_near, 0.05f);
     }
     g_gm_to_camera[i](ras, mesh, viewport, dt, a, b);
-    if (k > 1.0f) {
+    if (kv > 1.0f) {
         memcpy(r, was, sizeof was);
         *fov = fov0;
+        *nd = near0;
         rf_view_restore(viewport, planes);
     }
 }

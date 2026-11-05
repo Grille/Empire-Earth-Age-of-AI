@@ -74,6 +74,7 @@ internal inline float viewport_scale(const void *viewport) { return *(const floa
 internal inline const float *viewport_centre(const void *viewport) { return (const float *)((const uint8_t *)viewport + value_engine_display_of_viewport_centre); }
 internal inline float viewport_near(const void *viewport) { return *(const float *)((const uint8_t *)viewport + value_engine_display_of_viewport_near); }
 internal inline float viewport_far(const void *viewport) { return *(const float *)((const uint8_t *)viewport + value_engine_display_of_viewport_far); }
+internal inline float *viewport_near_at(void *viewport) { return (float *)((uint8_t *)viewport + value_engine_display_of_viewport_near); }
 internal inline float *viewport_fov_at(void *viewport) { return (float *)((uint8_t *)viewport + value_engine_display_of_viewport_fov); }
 // its side planes' normals (i: left, right, top, bottom; x, y the depth, z)
 internal inline float *viewport_side_normal(void *viewport, int i) { return (float *)((uint8_t *)viewport + value_engine_display_of_viewport_side_normals + i * 0x18); }

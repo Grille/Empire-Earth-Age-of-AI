@@ -244,6 +244,21 @@ of the frames drawn during a step. The water's (its animation) runs too.
   with it (17400 vertices kept against 3900; the units and trees out there come with the next update); 12.7 tiles
   (more than a screen) still leave a strip. The ground's draw 0.3 -> 0.6 ms a frame, the frames a minute the same.
   AoC (Continental, the same steps): hooked in both display DLLs, the right side's sky filled.
+  Toward the camera (2026-11-06, the player: "the ground should extend 1 or two tiles more under the camera ...
+  zooming out or moving down still exposes void"). The region is the tiles in the hull of the eight corners
+  (GetTileRowsInVolume), narrowing toward the camera to the near ones, at the viewport's near depth - which the game
+  sets about at the last region's nearest ground (19.3 at zoom 1, 0.1 at zoom 0.5): the region ended under the screen's
+  bottom edge. Now for the region's call the near depth is the viewport's / (1 + the margin) less 12 x the margin
+  (below 0 the corners behind the eye, mirrored: -8.6 at zoom 1, -12 at 0.5), the rectangle's bottom 1 + twice the
+  margin, and at the 88-tile cap the top gives way first, then the sides, the near end, the bottom last (the reply
+  shows each). And the clip codes no longer go by the region's factors: by them the planes still cut into it - the
+  sides, through the eye, as lines on the ground from the camera's foot (triangles of sky in the bottom corners after
+  a zoom out), the bottom and the near depth level across the screen (a pan toward the bottom) - so the planes are
+  widened by 4 and in the T&L DLL the near depth is the region's (at least 0.05; the software DLL projects the vertices
+  itself, its near stays). The 8000-unit save in slot 24, 2560 x 1440, 3 s steps (`stepload`), against the installed
+  build: a zoom out from 0.5 to 1 - the two triangles before, ground to every edge now; a pan of 0.03 tiles a frame
+  toward the bottom - the ground there in both, to the map's edge; the region 84 / 89 tiles at zoom 1 / 0.5, the kept
+  ground 17700 -> 21100 vertices, the ground's draw 0.11 -> 0.13 ms a frame.
 - The objects' margin (`[display] object_margin`, default 10%; the pipe: `picture objects <0..0.5>`, its reply how
   many passed by it): the units, trees and buildings beyond the screen stayed away in a frame during a step after a
   scroll - the ground there bare (the player: "one extra tile before trees and units vanish would be good"). The game
