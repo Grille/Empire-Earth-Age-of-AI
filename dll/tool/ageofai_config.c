@@ -78,6 +78,7 @@ internal int g_nunk, g_remove_unknown;
 internal HWND g_wnd, g_filter, g_list, g_help, g_file_label, g_save, g_close, g_unk_label, g_remove, g_game,
               g_game_text, g_game_apply, g_game_restore, g_game_settings;
 internal HFONT g_font, g_bold, g_mono;   // g_mono: the game page's report, aligned for a fixed-width font
+internal HFONT g_strike[2];   // g_font, g_bold struck through: a master's member whose value doesn't play
 internal int g_sel = -1, g_filling;   // g_sel: the selected setting's entry; g_filling: the controls set by the program
 internal float g_dpi = 1;
 internal HWND g_help_open, g_help_wnd;   // the Help button, the help's window while it is open
@@ -187,12 +188,12 @@ internal const char *easy_default(const struct entry *e) {
     return NULL;
 }
 
-// what the entry comes to as shown in the list (*grey: not in the file - the default, [ai_base]'s or easy's own)
+// what the entry comes to as shown in the list (*grey: not in the file - the default, [ai_base]'s or easy's own); a
+// master's member its own value whatever the master's word (member_effect colours it where that doesn't play)
 internal void shown_value(const struct entry *e, char *out, int cap, int *grey) {
-    char why[MAX_PATH], key[64], word[32];
+    char why[MAX_PATH], key[64];
     key_of(e, key, sizeof key);
     *grey = !e->text[0];
-    if (is_member(e) && member_overruled(e, out, cap, word, sizeof word)) { *grey = 1; return; }   // the help panel says why
     if (e->text[0]) {
         int c = check(row_of(e), sec_of(e), key, e->text, why, out, cap);
         if (c == CHECK_MISTAKE) lstrcpynA(out, e->text, cap);   // as written: the cell's tint marks it, the help panel says why
@@ -215,6 +216,19 @@ internal void shown_value(const struct entry *e, char *out, int cap, int *grey) 
     char def[TEXT_CAP];
     default_text(row_of(e), def, sizeof def);
     if (!check(row_of(e), sec_of(e), key, def, why, out, cap)) lstrcpynA(out, "(the game's own)", cap);   // a default that leaves it: -1
+}
+
+// a master's member whose shown value isn't what the game plays, its master's word overruling it: MEMBER_OVERRULED
+// (purple) the value doesn't count - a flag on that plays off, a number that plays its default; MEMBER_FORCED (teal) a
+// flag off that plays on. Switching the master changes no value, only these colours: the value stays the file's to set
+enum { MEMBER_PLAYS, MEMBER_OVERRULED, MEMBER_FORCED };
+internal int member_effect(const struct entry *e) {
+    char plays[TEXT_CAP], shown[TEXT_CAP], word[32];
+    int grey;
+    if (!is_member(e) || !member_overruled(e, plays, sizeof plays, word, sizeof word)) return MEMBER_PLAYS;
+    shown_value(e, shown, sizeof shown, &grey);
+    if (!strcmp(shown, plays)) return MEMBER_PLAYS;
+    return row_of(e)->kind == SETK_FLAG && !strcmp(plays, "on") ? MEMBER_FORCED : MEMBER_OVERRULED;
 }
 
 // changed from the default: shown bold (a difficulty's page: any value of its own)
@@ -354,7 +368,10 @@ internal void help_of(const char *sec, const char *key, int slots, char *out, in
         const char *t = l + indent;
         int len = (int)strcspn(t, "\r\n"), name = 0;
         if (!len) continue;
-        while (name < len && t[name] != ' ') name++;
+        while (name < len && t[name] != ' ') {   // a name of words joined by " | " or " & ": default | file
+            name++;
+            if (name + 2 < len && t[name] == ' ' && (t[name + 1] == '|' || t[name + 1] == '&') && t[name + 2] == ' ') name += 3;
+        }
         int eq = name;
         while (eq < len && t[eq] == ' ') eq++;
         int row = indent >= 2 && eq < len && t[eq] == '=';
@@ -663,18 +680,17 @@ internal int diff_set(const struct entry *e) {   // an AI row whose easy or hard
 
 // an entry's looks in the list (draw_cell), worked out with its line's text: a paint - each line's cells again on
 // every resize and scroll - only reads them
-internal struct { uint8_t bold, grey, game, own, level, other, on, reset; } g_look[sizeof g_e / sizeof *g_e];
+internal struct { uint8_t bold, grey, game, own, level, other, on, reset, member; } g_look[sizeof g_e / sizeof *g_e];
 internal int g_box_pad, g_def_pad;   // the spaces a flag's value starts with (room for its check box: draw_cell's post
                                      // paint), and every default (room for the selected line's "<" button)
 
 internal int is_flag(const struct entry *e) { return row_of(e)->kind == SETK_FLAG; }
 
 // a flag as its box shows it: what the game plays - a mistake the default, an easy or hard line without a value
-// [ai_base]'s (or easy's own), a member its master's word
+// [ai_base]'s (or easy's own); a member its own value (member_effect: its colour says when the master's word overrules it)
 internal int flag_on(const struct entry *e) {
-    char why[MAX_PATH], shown[TEXT_CAP], key[64], word[32];
+    char why[MAX_PATH], shown[TEXT_CAP], key[64];
     key_of(e, key, sizeof key);
-    if (is_member(e) && member_overruled(e, shown, sizeof shown, word, sizeof word)) return !strcmp(shown, "on");
     if (e->text[0] && check(row_of(e), sec_of(e), key, e->text, why, shown, sizeof shown) != CHECK_MISTAKE) return !strcmp(shown, "on");
     if (on_diff_page(e)) {
         const char *easy = easy_default(e);
@@ -696,6 +712,7 @@ internal void fill_item(int item, LPARAM p) {
     g_look[p].level = (uint8_t)entry_level(e);
     g_look[p].other = other_build(e->row) != NULL;   // the other build's: key and value grey
     g_look[p].on = is_flag(e) && flag_on(e);
+    g_look[p].member = (uint8_t)member_effect(e);
     g_look[p].reset = e->text[0] && (on_diff_page(e) || is_changed(e));   // the Default button: something to put back
     int grey;
     key_of(e, key, sizeof key);
@@ -907,6 +924,7 @@ internal char g_help_text[4096];   // the selected line's help, under the notes
 internal POINT g_edit_at[2];   // where the field's text starts from its window's corner, in the font and the bold one (draw_field's face: there too)
 
 internal void cell_look(LPARAM p, int sub, int *bold, COLORREF *text, COLORREF *bk);
+internal HFONT cell_font(LPARAM p, int sub, int bold);
 
 // the dropdown and the field in their line's look (theme_field_look): its value cell's colour, tint and boldness, as
 // the face drawn on the other lines (draw_field) - the face and the real one the same
@@ -924,7 +942,7 @@ internal void editor_style(void) {   // again after the line's look changes (a v
     cell_look(g_sel, 1, &bold, &text, &bk);
     HWND both[2] = { g_combo, g_edit };
     for (int i = 0; i < 2; i++) {
-        HFONT f = bold ? g_bold : g_font;
+        HFONT f = cell_font(g_sel, 1, bold);
         if ((HFONT)SendMessageA(both[i], WM_GETFONT, 0, 0) != f) SendMessageA(both[i], WM_SETFONT, (WPARAM)f, FALSE);
         InvalidateRect(both[i], NULL, TRUE);
     }
@@ -972,7 +990,7 @@ internal void note_of(struct note *n) {
                  !lstrcmpA(other, "aoc") ? "Empire Earth" : "The Art of Conquest");
     } else if (is_member(e) && member_overruled(e, shown, sizeof shown, word, sizeof word)) {
         snprintf(msg, cap, "%s=%s: %s%s.", k_settings[under_of(e->row)].key, word, shown,
-                 e->text[0] ? " - the value set here doesn't count" : "");
+                 member_effect(e) != MEMBER_PLAYS ? " - the value set here doesn't count" : "");
     } else if (e->text[0]) {
         int c = check(row_of(e), sec_of(e), key, e->text, why, shown, sizeof shown);
         n->level = c;
@@ -1362,7 +1380,9 @@ internal void show_mode(void) {
 
 // THE COLOURS (g_pal, theme.c): the value cell tinted by its check - a warning (outside its usual range, the game uses
 // it) yellow, a mistake (the game uses the default) red; blue (game) a key that sets one of the game's own values, a
-// value that is the game's own - pale (game_grey) when it is the default too; the help (help_open) says what each is
+// value that is the game's own - pale (game_grey) when it is the default too; a master's member whose value its
+// master's word overrules (member_effect) purple (overruled) or teal (forced), struck through; the help (help_open)
+// says what each is
 
 // a custom-drawn cell: changed bold (an AI row: easy or hard set too; a section or group line bold), the value grey
 // while it is the default, blue while it is the game's own; the key never grey, blue when it sets a game's value; the value tinted by its check
@@ -1380,13 +1400,21 @@ internal void cell_look(LPARAM p, int sub, int *bold, COLORREF *text, COLORREF *
         else if (level == CHECK_MISTAKE) *bk = g_pal.tint_mistake;
     }
     *text = game ? (grey ? g_pal.game_grey : g_pal.game) : grey ? g_pal.grey : g_pal.text;
+    if (node_kind(p) == NODE_ENTRY && sub == 1 && g_look[p].member)
+        *text = g_look[p].member == MEMBER_FORCED ? g_pal.forced : g_pal.overruled;
+}
+
+// the font of line p's cell sub (column) in cell_look's boldness: struck through where a member's value doesn't play
+internal HFONT cell_font(LPARAM p, int sub, int bold) {
+    if (node_kind(p) == NODE_ENTRY && sub == 1 && g_look[p].member) return g_strike[bold];
+    return bold ? g_bold : g_font;
 }
 
 internal LRESULT draw_cell(NMLVCUSTOMDRAW *cd) {
     LPARAM p = cd->nmcd.lItemlParam;
     int bold;
     cell_look(p, cd->iSubItem, &bold, &cd->clrText, &cd->clrTextBk);
-    SelectObject(cd->nmcd.hdc, bold ? g_bold : g_font);
+    SelectObject(cd->nmcd.hdc, cell_font(p, cd->iSubItem, bold));
     LRESULT res = CDRF_NEWFONT;
     if (node_kind(p) == NODE_ENTRY && (cd->iSubItem == 1 || (cd->iSubItem == COLS - 1 && g_look[p].reset &&
         (int)cd->nmcd.dwItemSpec == (int)SendMessageA(g_list, LVM_GETNEXTITEM, (WPARAM)-1, LVNI_SELECTED)))) res |= CDRF_NOTIFYPOSTPAINT;
@@ -1443,7 +1471,7 @@ internal void draw_field(HDC dc, LPARAM p, int item, RECT r) {
     UINT how = DT_VCENTER;
     if (choice && g_gl.on) t = (RECT){ f.left + 4, f.top + 2, f.right - 2, f.bottom - 2 };
     else if (!choice) { t.left = f.left + g_edit_at[bold].x; t.top = f.top + g_edit_at[bold].y; how = DT_TOP; }
-    HFONT old = (HFONT)SelectObject(dc, bold ? g_bold : g_font);
+    HFONT old = (HFONT)SelectObject(dc, cell_font(p, 1, bold));
     SetBkMode(dc, TRANSPARENT);
     SetTextColor(dc, color);
     DrawTextA(dc, text, -1, &t, DT_LEFT | how | DT_SINGLELINE | DT_NOPREFIX | DT_END_ELLIPSIS);
@@ -1497,7 +1525,7 @@ internal void draw_cell_after(NMLVCUSTOMDRAW *cd) {
 // THE HELP (the Help button, F1): what a line's looks mean and how the program is used, in a window of its own over
 // the main one - which waits meanwhile (disabled), as under a message box. A line: a heading, a paragraph, or a sample
 // in one of the looks with what it means beside it.
-enum { HL_HEAD, HL_TEXT, HL_BOLD, HL_GREY, HL_GAME, HL_WARN, HL_MISTAKE };
+enum { HL_HEAD, HL_TEXT, HL_BOLD, HL_GREY, HL_GAME, HL_WARN, HL_MISTAKE, HL_OVERRULED, HL_FORCED };
 internal const struct { int look; const char *sample, *text; } k_help[] = {
     { HL_HEAD, NULL, "The list" },
     { HL_TEXT, NULL, "Every setting in one tree: the sections, their topics, the settings. A triangle opens or closes a "
@@ -1518,6 +1546,9 @@ internal const struct { int look; const char *sample, *text; } k_help[] = {
                                     "you meant - the panel on the right says why." },
     { HL_MISTAKE, "a mistake", "A value that can't be used (no number, a name the list doesn't have ...): the game "
                                "plays the default instead, and its log says so." },
+    { HL_OVERRULED, "on", "A master's child whose value its master overrules: set on, but it plays off - or a number "
+                          "that plays its default. The value stays yours to set; the master's word decides whether it counts." },
+    { HL_FORCED, "off", "A master's child set off that its master turns on (default | file, a child on by default)." },
     { HL_HEAD, NULL, "Changing a setting" },
     { HL_TEXT, NULL, "A value is changed in its Value cell: a check box (click it, or press Space), a list, or a text "
                      "field (click it, or press Enter or F2 on the selected line; Enter, Esc or the arrow keys go back "
@@ -1531,7 +1562,8 @@ internal const struct { int look; const char *sample, *text; } k_help[] = {
                      "on an easy or hard line, the [ai_base] value." },
     { HL_TEXT, NULL, "A master setting opens to its children (Movement: improved_unit_movement). default plays each "
                      "child's own default, file each as your file sets it; default | file turns a child on when its "
-                     "default or your file has it on, default & file only when both do." },
+                     "default or your file has it on, default & file only when both do. A child keeps the value you set "
+                     "whichever word: purple or teal (above) marks where the master's word overrules it." },
     { HL_HEAD, NULL, "Saving" },
     { HL_TEXT, NULL, "Save writes only the keys you changed - your file's comments and order stay; a key set to its "
                      "default is taken out, so that it follows the mod's default when an update changes it. The game reads "
@@ -1557,8 +1589,9 @@ internal int help_lines(HDC dc, int w, int draw) {
                 DeleteObject(b);
             }
             s.left += dpi_px(4);
-            SelectObject(dc, look == HL_BOLD ? g_bold : g_font);
-            SetTextColor(dc, look == HL_GAME ? g_pal.game : look == HL_GREY ? g_pal.grey : g_pal.text);
+            SelectObject(dc, look == HL_BOLD ? g_bold : look >= HL_OVERRULED ? g_strike[0] : g_font);
+            SetTextColor(dc, look == HL_GAME ? g_pal.game : look == HL_GREY ? g_pal.grey : look == HL_OVERRULED ? g_pal.overruled
+                         : look == HL_FORCED ? g_pal.forced : g_pal.text);
             if (draw) DrawTextA(dc, k_help[i].sample, -1, &s, DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX | DT_END_ELLIPSIS);
             x = m + col;
         }
@@ -1830,6 +1863,10 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmd, int show) {
     g_font = CreateFontIndirectA(&ncm.lfMessageFont);
     ncm.lfMessageFont.lfWeight = FW_BOLD;
     g_bold = CreateFontIndirectA(&ncm.lfMessageFont);
+    ncm.lfMessageFont.lfStrikeOut = 1;
+    g_strike[1] = CreateFontIndirectA(&ncm.lfMessageFont);
+    ncm.lfMessageFont.lfWeight = FW_NORMAL;
+    g_strike[0] = CreateFontIndirectA(&ncm.lfMessageFont);
     g_mono = CreateFontA(ncm.lfMessageFont.lfHeight, 0, 0, 0, FW_NORMAL, 0, 0, 0, DEFAULT_CHARSET, 0, 0, CLEARTYPE_QUALITY, FIXED_PITCH, "Consolas");
     make_pages();
     make_groups();

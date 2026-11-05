@@ -15,7 +15,8 @@
 
 struct palette {
     int dark;
-    COLORREF back, field, text, grey, game, game_grey, tint_warn, tint_mistake, text_warn, text_mistake, focus;
+    COLORREF back, field, text, grey, game, game_grey, tint_warn, tint_mistake, text_warn, text_mistake, focus,
+             overruled, forced;   // a master's member: its value set but not played, off but played on
     HBRUSH b_back, b_field;
 };
 internal struct palette g_pal;
@@ -118,6 +119,8 @@ internal void theme_init(const char *ini_path) {
         p->text_warn = RGB(240, 190, 80);
         p->text_mistake = RGB(255, 115, 115);
         p->focus = RGB(255, 210, 60);   // the control with the keyboard: its text gold, as the game's menus mark theirs
+        p->overruled = RGB(196, 140, 255);   // purple and teal, not red and green: told apart without red-green vision
+        p->forced = RGB(70, 205, 185);
         HMODULE ux = LoadLibraryA("uxtheme.dll");
         typedef int (WINAPI *app_mode_fn)(int);   // SetPreferredAppMode: 2 always dark
         app_mode_fn mode = ux ? (app_mode_fn)(void *)GetProcAddress(ux, MAKEINTRESOURCEA(135)) : NULL;
@@ -134,6 +137,8 @@ internal void theme_init(const char *ini_path) {
         p->text_warn = RGB(150, 100, 0);
         p->text_mistake = RGB(190, 0, 0);
         p->focus = RGB(160, 105, 0);
+        p->overruled = RGB(125, 40, 170);
+        p->forced = RGB(0, 125, 115);
     }
     p->b_back = CreateSolidBrush(p->back);
     p->b_field = CreateSolidBrush(p->field);
