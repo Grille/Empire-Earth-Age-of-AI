@@ -208,11 +208,12 @@ internal inline uint8_t *unit_type_uses_ammo_at(const ee_unit_type *o) { return 
 internal inline uint8_t unit_type_get_high_arc(const ee_unit_type *o) { return *(uint8_t *)((uint8_t *)o + of_unit_type_high_arc); }
 internal inline void unit_type_set_high_arc(ee_unit_type *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_unit_type_high_arc) = v; }
 internal inline uint8_t *unit_type_high_arc_at(const ee_unit_type *o) { return (uint8_t *)((uint8_t *)o + of_unit_type_high_arc); }
-// its model tilts with its speed
+// its model pitches with the ground (0x51216A: the ground 0.65 ahead against 0.65 behind) where it is put
+// (EEUnit.stand) and on its land movement's steps (EEPMLand::vf20) - the AA guns' legs on a hill
 internal inline uint8_t unit_type_get_pitches(const ee_unit_type *o) { return *(uint8_t *)((uint8_t *)o + of_unit_type_pitches); }
 internal inline void unit_type_set_pitches(ee_unit_type *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_unit_type_pitches) = v; }
 internal inline uint8_t *unit_type_pitches_at(const ee_unit_type *o) { return (uint8_t *)((uint8_t *)o + of_unit_type_pitches); }
-// its model rolls in turns (bank_angle)
+// its model rolls with the ground across it (0x512257, as pitches sideways)
 internal inline uint8_t unit_type_get_banks(const ee_unit_type *o) { return *(uint8_t *)((uint8_t *)o + of_unit_type_banks); }
 internal inline void unit_type_set_banks(ee_unit_type *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_unit_type_banks) = v; }
 internal inline uint8_t *unit_type_banks_at(const ee_unit_type *o) { return (uint8_t *)((uint8_t *)o + of_unit_type_banks); }

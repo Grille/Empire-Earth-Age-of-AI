@@ -611,6 +611,13 @@ typedef void (__thiscall *unit_set_tile_fn)(ee_unit *, uint32_t, uint32_t, char)
 internal unit_set_tile_fn fn_unit_set_tile;
 internal inline void unit_set_tile(ee_unit *unit, uint32_t x, uint32_t y, char link) { fn_unit_set_tile(unit, x, y, link); }
 internal inline int patch_set_tile(unit_set_tile_fn h, int *of) { return patch_calls(calls_set_tile, 11, (uintptr_t)fn_unit_set_tile, (void *)h, of); }
+// its matrix moved to pos (float[3]; its type's vf1 corrects it first: the ground's height) and turned by its
+// heading, leaned with the ground there by its type's pitches and banks - the map's place (0x5117E6: a unit
+// spawned, a scenario's), the editor's moves, a land unit's step (0x549A08) call it; a building laid out in a
+// game (place_foundation) never does, so it stood level (an AA gun's legs in the hill)
+typedef void (__thiscall *unit_stand_fn)(ee_unit *, float *);
+internal unit_stand_fn fn_unit_stand;
+internal inline void unit_stand(ee_unit *unit, float *pos) { fn_unit_stand(unit, pos); }
 // AoC's only: its reload until the next blow, reload x a random factor between the game data's +0x984 and
 // +0x988 (0.0 and 1.0: anything from none to the whole reload; read once into 0x963160 / 0x96315C) - the 2017
 // update sets the reload itself. The attack ticks' (EEUGAttackGround 0x61D186, EEUGAttackUnit 0x61D9A9) and the
@@ -930,6 +937,7 @@ internal int spec_unit_select(int build) {
         calls_set_tile[8] = 0x00616B81;
         calls_set_tile[9] = 0x0061F0BA;
         calls_set_tile[10] = 0x0063861E;
+        fn_unit_stand = (unit_stand_fn)0x005EE7D7;
         fn_unit_reload_wait = (unit_reload_wait_fn)0;
         calls_reload_wait[0] = 0;
         calls_reload_wait[1] = 0;
@@ -1133,6 +1141,7 @@ internal int spec_unit_select(int build) {
         calls_set_tile[8] = 0x006296AA;
         calls_set_tile[9] = 0x00632D94;
         calls_set_tile[10] = 0x0064E5EA;
+        fn_unit_stand = (unit_stand_fn)0x005FC90C;
         fn_unit_reload_wait = (unit_reload_wait_fn)0x005FEA22;
         calls_reload_wait[0] = 0x0061D186;
         calls_reload_wait[1] = 0x0061D9A9;
@@ -1232,6 +1241,7 @@ internal int spec_unit_check(void) {
     bad += spec_call(calls_set_tile[8], (uintptr_t)fn_unit_set_tile, "EEComplexUnit.set_tile [call_site set_tile 8]");
     bad += spec_call(calls_set_tile[9], (uintptr_t)fn_unit_set_tile, "EEComplexUnit.set_tile [call_site set_tile 9]");
     bad += spec_call(calls_set_tile[10], (uintptr_t)fn_unit_set_tile, "EEComplexUnit.set_tile [call_site set_tile 10]");
+    bad += spec_code((uintptr_t)fn_unit_stand, "EEComplexUnit.stand");
     bad += spec_code((uintptr_t)fn_unit_reload_wait, "EEComplexUnit.reload_wait");
     bad += spec_call(calls_reload_wait[0], (uintptr_t)fn_unit_reload_wait, "EEComplexUnit.reload_wait [call_site reload_wait 0]");
     bad += spec_call(calls_reload_wait[1], (uintptr_t)fn_unit_reload_wait, "EEComplexUnit.reload_wait [call_site reload_wait 1]");

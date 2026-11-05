@@ -80,7 +80,9 @@ changes the simulation: in a lockstep game different values make the PCs' games 
   pieces do) with its bottom on the ground, the round posts on the ground at their tile's middle - the wall follows
   the hill in one line. Where the ground falls away beside or below a piece (a side slope, a post's lower corners)
   the wall's models reach further down instead of the piece being sunk, faced like the foundation of the tower of
-  the wall's era (its stone or the player's colour), so its lower part stays in sight. Each piece also spans its tile exactly and reaches into a round post beside it: the
+  the wall's era (its stone or the player's colour), so its lower part stays in sight. Barbed wire, which has no
+  such foundation, leans across a side slope as well (sheared: its stakes stay upright), its feet on the ground on
+  both sides. Each piece also spans its tile exactly and reaches into a round post beside it: the
   game's pieces are longer than their spacing, so neighbours overlapped, their faces flickered, and on a slope their
   ends stuck out at every bend (the Copper Age wall and barbed wire keep their own length: the copper wall's stone is
   as long as the spacing, only its top reaches beyond, and the wire's coils are made to overlap). Walls built before
@@ -100,6 +102,12 @@ changes the simulation: in a lockstep game different values make the PCs' games 
   made; walls built during the game are fitted, and an old wall a new one is drawn onto is fitted with it. In the
   scenario editor `1` looks at every wall whenever walls change there, `0` only at those around the change. In
   multiplayer every player needs the same setting.
+- `[patches] building_lean=1` (default): some buildings lean with the ground under them - the AA guns' type data
+  says so (pitch and roll with the ground). The game leans a unit where it is put on the map - spawned, placed by a
+  scenario or moved in the editor (which is why changing the ground under an editor's AA gun leaned it) - but a
+  building laid out in a game never went through that: it stood level, its legs in the hill on one side and in the
+  air on the other. Now a building laid out by a player or the AI leans as a placed one does, and keeps it when
+  finished. In multiplayer every player needs the same setting. `0` = the original.
 
 ## Selection, transports and building
 

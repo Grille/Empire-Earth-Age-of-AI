@@ -921,9 +921,10 @@ internal void cmd_uinfo(char *out, const char *args) {
         // -1 none) - what has a unit standing about in the player's game
         ee_goal *g = unit_get_goal(u);   // where it goes: a move's point, an attack's target
         ee_unit *tg = g && goal_is_attack(g) ? goal_get_target(g) : NULL;
-        REPLY("%p type %d P%d hp %d pos %.3f,%.3f,%.2f spd %.3f/%.3f fwd %.2f,%.2f,%.2f goal %s to %.0f,%.0f state %u orders %d wps %d ff %d\n",
+        // side: the model's x axis's rise (its roll; fwd's z its pitch)
+        REPLY("%p type %d P%d hp %d pos %.3f,%.3f,%.2f spd %.3f/%.3f fwd %.2f,%.2f,%.2f side %.2f goal %s to %.0f,%.0f state %u orders %d wps %d ff %d\n",
               u, unit_type_get_id(td), owner ? player_get_index(owner) : -1, unit_get_hp(u), pos.x, pos.y, pos.z,
-              unit_get_speed(u), unit_get_speed_min(u), fwd.x, fwd.y, fwd.z, rtti_name(g),
+              unit_get_speed(u), unit_get_speed_min(u), fwd.x, fwd.y, fwd.z, unit_get_matrix(u, 8), rtti_name(g),
               tg ? (float)unit_get_x(tg) : g ? goal_get_dest_x(g) : -1.0f, tg ? (float)unit_get_y(tg) : g ? goal_get_dest_y(g) : -1.0f,
               unit_ai_state_id(u), unit_orders(u), unit_get_waypoints_left(u), ff_watch_state(u));
     }

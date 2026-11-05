@@ -26,6 +26,7 @@
 #define WS_POST 11
 #define WS_OVERLAP 0.01f    // every other overlapping piece this much thicker and taller (below)
 #define WS_INTO_POST 0.3f   // a piece's end into a post beside it (the posts' sides 0.49 .. 0.66 from their middle)
+#define WS_ACROSS 0.4f      // barbed wire's lean across: the ground this far to either side of its middle
 
 internal int g_ws_on, g_ws_start, g_ws_fitted_game;
 internal unsigned g_ws_pieces, g_ws_posts, g_ws_unsloped, g_ws_skipped, g_ws_no_model;
@@ -547,11 +548,20 @@ internal int ws_fit(ee_unit *u) {
     // player, 2026-11-04: "z fighting betwen wall pieces (was also an issue in the base game)"): every other piece
     // along the run (by its tile across the run's direction) WS_OVERLAP thicker and taller, its faces off its
     // neighbours'
-    float grow = 1;
-    if (UT_IN(unit_type_get_id(unit_get_type_data(u)), UT_B_WALL_COPPER, UT_B_BARBED_WIRE)) {
+    float grow = 1, across = 0;
+    int type = unit_type_get_id(unit_get_type_data(u));
+    if (UT_IN(type, UT_B_WALL_COPPER, UT_B_BARBED_WIRE)) {
         float mid = (ylo + yhi) * 0.5f;
         ylo = mid - d; yhi = mid + d;
         if ((fabsf(fx) >= fabsf(fy) ? tx : ty) & 1) grow = 1 + WS_OVERLAP;
+    }
+    // barbed wire leans across the slope too (its local x, sheared: the stakes stay upright), its feet on the ground on
+    // both sides - it has no skirt below it (the player, 2026-11-05: "the aa guns have a feature to be rotated towards
+    // the ground, might be useful here?"; the game's turn of the whole model would lean the stakes off the vertical).
+    // A wall's foot side to side is its skirt's
+    if (type == UT(B_BARBED_WIRE)) {
+        float hl = ground_at(map, px + WS_ACROSS * fy, py - WS_ACROSS * fx), hr = ground_at(map, px - WS_ACROSS * fy, py + WS_ACROSS * fx);
+        if (hl == hl && hr == hr) across = (hl - hr) / (2 * WS_ACROSS);
     }
     int sx = fx > 0.3f ? 1 : fx < -0.3f ? -1 : 0, sy = fy > 0.3f ? 1 : fy < -0.3f ? -1 : 0;
     ee_player *pl = unit_get_owner(u);
@@ -560,7 +570,7 @@ internal int ws_fit(ee_unit *u) {
     const float m[12] = {
         fy * len * grow,  fx * k,    0, px + fx * c,
         -fx * len * grow, fy * k,    0, py + fy * c,
-        0,                slope * k, len * grow, (ha + hb) * 0.5f + slope * c,
+        across * len * grow, slope * k, len * grow, (ha + hb) * 0.5f + slope * c,
     };
     for (int i = 0; i < 12; i++) unit_set_matrix(u, i, m[i]);
     g_ws_pieces++;
@@ -711,7 +721,7 @@ internal void wj_turn(const ee_map *map, ee_unit *u, struct wj_at w) {
 // length, sheared)
 internal int wj_unfit(const ee_map *map, ee_unit *u) {
     float fx = unit_get_matrix(u, 1), fy = unit_get_matrix(u, 5), f = sqrtf(fx * fx + fy * fy);
-    if (f < 0.01f || (fabsf(f - 1) < 0.001f && unit_get_matrix(u, 9) == 0 && fabsf(unit_get_matrix(u, 10) - 1) < 0.001f)) return 0;
+    if (f < 0.01f || (fabsf(f - 1) < 0.001f && unit_get_matrix(u, 8) == 0 && unit_get_matrix(u, 9) == 0 && fabsf(unit_get_matrix(u, 10) - 1) < 0.001f)) return 0;
     wj_upright(map, u, fx / f, fy / f);
     return 1;
 }
@@ -827,8 +837,18 @@ internal int __cdecl hook_gate_convert(ee_unit *u, int pi, ee_unit_type *td) {
 // piece turns a post only where another piece points at it from aside, and a tower points at nothing (the game's
 // wall_joints counts towers among a piece's neighbours - a wall laid past a tower got a post beside it, a piece again
 // at its joins: pointed at from either side)
+// With building_lean a building that leans with the ground (its type's pitches, banks: the AA guns) stood onto it as the
+// map's place stands a spawned one - laid out in a game it stood level, its legs in the hill on one side
+internal int g_bl_on;
 internal ee_unit *__cdecl hook_place_building(ee_player *pl, int type, int x, int y) {
     ee_unit *b = place_foundation(pl, type, x, y);
+    ee_unit_type *bt = b && g_bl_on ? unit_get_type_data(b) : NULL;
+    if (bt && (unit_type_get_pitches(bt) || unit_type_get_banks(bt))) {
+        float p[3] = { unit_get_matrix(b, 3), unit_get_matrix(b, 7), unit_get_matrix(b, 11) };
+        unit_stand(b, p);
+        if (g_log) fprintf(g_log, "# walls: building_lean: type %d at %d,%d leaned onto the ground (its facing's rise %.2f, its side's %.2f)\n",
+                           type, unit_get_x(b), unit_get_y(b), unit_get_matrix(b, 9), unit_get_matrix(b, 8));
+    }
     ee_unit_type *td = b && g_wj_on && ut_role(type, UTR_TOWER) ? type_data(type) : NULL;
     if (td) {
         int s = unit_type_get_size(td) > 0 ? unit_type_get_size(td) : 1;
@@ -961,13 +981,14 @@ internal void walls_install(void) {
     g_wj_on = g_ws_on && g_set.wall_joins;
     int of = 0, n = g_ws_on ? patch_wall_piece(hook_wall_piece, &of) + patch_wall_joints(hook_wall_joints, &of) : 0;
     int more = g_ws_on ? patch_step_end(hook_step_end) + patch_gate_convert(hook_gate_convert) : 0;
-    int pof = 0, pn = g_wj_on ? patch_place_building(hook_place_building, &pof) : 0;
+    g_bl_on = g_set.building_lean;
+    int pof = 0, pn = g_wj_on || g_bl_on ? patch_place_building(hook_place_building, &pof) : 0;
     int ed = g_ws_on ? patch_editor_frame(hook_editor_frame) : 0;
     if (g_ws_on && (!on_module_load("DX7HRDisplay.dll", ws_display_loaded0) || !on_module_load("DX7HRTnLDisplay.dll", ws_display_loaded1)) && g_log)
         fprintf(g_log, "# walls: skirts - the display DLLs' loads not watchable\n");
-    if (g_log) fprintf(g_log, "# walls: wall_slopes=%d wall_joins=%d wall_start_fit=%d (%s%s%s%s)\n", g_ws_on, g_wj_on, g_ws_start,
+    if (g_log) fprintf(g_log, "# walls: wall_slopes=%d wall_joins=%d wall_start_fit=%d building_lean=%d (%s%s%s%s)\n", g_ws_on, g_wj_on, g_ws_start, g_bl_on,
                        !g_ws_on ? "-" : n == of ? "the layout's calls hooked" : n ? "SOME of the layout's calls hooked" : "FAILED",
                        !g_ws_on ? "" : more == 2 ? ", the step's end, the gate's" : ", the step's end or the gate's FAILED",
-                       !g_wj_on ? "" : pn == pof ? ", the buildings' placing" : ", the buildings' placing FAILED",
+                       !g_wj_on && !g_bl_on ? "" : pn == pof ? ", the buildings' placing" : ", the buildings' placing FAILED",
                        !g_ws_on ? "" : ed ? ", the editor's" : ", the editor's FAILED");
 }

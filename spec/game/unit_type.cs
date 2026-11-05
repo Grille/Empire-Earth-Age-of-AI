@@ -206,11 +206,12 @@ unsafe struct EEUnitClass
     [offset((ee)0x5E9, (aoc)0x2E5), found(c)]
     uint8 high_arc;
 
-    /// its model tilts with its speed
+    /// its model pitches with the ground (0x51216A: the ground 0.65 ahead against 0.65 behind) where it is put
+    /// (EEUnit.stand) and on its land movement's steps (EEPMLand::vf20) - the AA guns' legs on a hill
     [offset((ee)0x5F3, (aoc)0x2EF), found(c)]
     uint8 pitches;
 
-    /// its model rolls in turns (bank_angle)
+    /// its model rolls with the ground across it (0x512257, as pitches sideways)
     [offset((ee)0x5F4, (aoc)0x2F0), found(c)]
     uint8 banks;
 

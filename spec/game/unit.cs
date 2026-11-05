@@ -635,6 +635,13 @@ unsafe struct EEComplexUnit
     [call_site("set_tile", (ee)0x0063861E, (aoc)0x0064E5EA)]
     extern void set_tile(uint32 x, uint32 y, char8 link);
 
+    /// its matrix moved to pos (float[3]; its type's vf1 corrects it first: the ground's height) and turned by its
+    /// heading, leaned with the ground there by its type's pitches and banks - the map's place (0x5117E6: a unit
+    /// spawned, a scenario's), the editor's moves, a land unit's step (0x549A08) call it; a building laid out in a
+    /// game (place_foundation) never does, so it stood level (an AA gun's legs in the hill)
+    [address((ee)0x005EE7D7, (aoc)0x005FC90C)]
+    extern void stand(float32* pos);
+
     /// AoC's only: its reload until the next blow, reload x a random factor between the game data's +0x984 and
     /// +0x988 (0.0 and 1.0: anything from none to the whole reload; read once into 0x963160 / 0x96315C) - the 2017
     /// update sets the reload itself. The attack ticks' (EEUGAttackGround 0x61D186, EEUGAttackUnit 0x61D9A9) and the

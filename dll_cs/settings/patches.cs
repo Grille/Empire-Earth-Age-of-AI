@@ -40,8 +40,9 @@ class patches
     /// Walls on slopes: a wall piece stood flat at the height of one corner of its tile, so on a hill one end floated
     /// and the other sank into the ground, and neighbours at other heights stuck out of each other in steps; the
     /// game's own sloped pieces fit one steepness and were hardly ever chosen. Each piece now leans along its length
-    /// onto the ground under its two ends (its sides stay upright) and stands a little into it. In multiplayer every
-    /// player needs the same setting. 0 = the original
+    /// onto the ground under its two ends (its sides stay upright; barbed wire leans across the slope too), and below
+    /// it its tower's foundation reaches down into the hill. In multiplayer every player needs the same setting.
+    /// 0 = the original
     [title("Walls on slopes")]
     bool wall_slopes = true;
     /// Wall joins (with wall_slopes): the game put a round post at the end of every stretch of wall it laid and
@@ -59,4 +60,10 @@ class patches
     /// In multiplayer every player needs the same setting
     [title("Fit the walls a game starts with")]
     bool wall_start_fit = true;
+    /// Buildings on slopes: some buildings lean with the ground under them (the AA guns), but only those put on the
+    /// map by a scenario or moved in the editor - one built in a game stood level, its legs in the hill on one side
+    /// and in the air on the other. A building laid out in a game now leans as a placed one does. In multiplayer
+    /// every player needs the same setting. 0 = the original
+    [title("Buildings on slopes")]
+    bool building_lean = true;
 }
