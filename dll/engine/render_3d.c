@@ -961,6 +961,10 @@ internal void rd_frame_tick(void) {
                " %ld %ld %ld %ld, the most %lu; past our room, dropped %ld\n", display_vb_vertices(), (long)g_rd_vb_over[RO_TERRAIN],
                (long)g_rd_vb_over[RO_SHADOWS], (long)g_rd_vb_over[RO_UNITS], (long)g_rd_vb_over[RO_WATER],
                (long)g_rd_vb_over[RO_UI], (long)g_rd_vb_over[RO_N], (unsigned long)g_rd_vb_most, (long)g_rd_vb_dropped);
+    log_locked("# render: the ground's polygons, the most in a region: the ground %lu, the water %lu (the mesh's own room %u and"
+               " %u; the mod's pools %s)\n", g_gm_polys_max[0], g_gm_polys_max[1], terrain_ground_polygons_room(),
+               terrain_water_polygons_room(), g_gm_pools == 2 ? "on" : "OFF - no ground margin");
+    g_gm_polys_max[0] = g_gm_polys_max[1] = 0;
     // the long waits and holds of the minute, the sites by their time held long
     double ms = 1000.0 / (double)f.QuadPart;
     char sites[512];

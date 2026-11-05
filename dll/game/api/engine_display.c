@@ -78,6 +78,40 @@ internal inline float *viewport_fov_at(void *viewport) { return (float *)((uint8
 // its side planes' normals (i: left, right, top, bottom; x, y the depth, z)
 internal inline float *viewport_side_normal(void *viewport, int i) { return (float *)((uint8_t *)viewport + value_engine_display_of_viewport_side_normals + i * 0x18); }
 internal inline const long *terrain_mesh_visible_size(const void *mesh) { return (const long *)((const uint8_t *)mesh + value_engine_display_of_mesh_visible_size); }
+// the mesh's polygon pools (UpdateVisibleTerrain's, unchecked): a polygon's size, the mesh's own room in polygons
+internal inline uint32_t terrain_polygon_size(void) { return value_engine_display_size_mesh_polygon; }
+internal inline uint32_t terrain_ground_polygons_room(void) { return value_engine_display_mesh_ground_polygons; }
+internal inline uint32_t terrain_water_polygons_room(void) { return value_engine_display_mesh_water_polygons; }
+// UpdateVisibleTerrain's lea eax, [mesh + off] at `at` made a mov eax, to: 1 done, 0 other code
+internal int terrain_pool_move(uint8_t *at, uint32_t off, void *to) {
+    DWORD old;
+    if (at[0] != 0x8D || (at[1] & 0xF8) != 0x80 || (at[1] & 7) == 4 || *(uint32_t *)(at + 2) != off
+        || !VirtualProtect(at, 6, PAGE_EXECUTE_READWRITE, &old)) return 0;
+    at[0] = 0xB8;
+    *(uint32_t *)(at + 1) = (uint32_t)(uintptr_t)to;
+    at[5] = 0x90;
+    VirtualProtect(at, 6, old, &old);
+    FlushInstructionCache(GetCurrentProcess(), at, 6);
+    return 1;
+}
+// UpdateVisibleTerrain's polygons from the pools at ground and water instead of the mesh's own (there is one mesh, the
+// game's): how many of the two moved
+internal inline int terrain_pools_move(void *ground, void *water) {
+    HMODULE lle = GetModuleHandleA("Low-Level Engine.dll");
+    uint8_t *f = lle ? (uint8_t *)(void *)GetProcAddress(lle, "?UpdateVisibleTerrain@GETerrainMesh@@QAEXABVGETransformation@@AAVGEViewport@@KKK_N@Z") : NULL;
+    if (!f) return 0;
+    return terrain_pool_move(f + value_engine_display_of_visible_ground_pool, value_engine_display_of_mesh_ground_polygons, ground)
+           + terrain_pool_move(f + value_engine_display_of_visible_water_pool, value_engine_display_of_mesh_water_polygons, water);
+}
+// the polygons the last update made: the ground's (water 0) or the water's (1), over all their textures' groups
+internal inline unsigned long terrain_polygons(const void *mesh, int water) {
+    const uint8_t *v = (const uint8_t *)mesh + (water ? value_engine_display_of_mesh_water_groups : value_engine_display_of_mesh_ground_groups);
+    const uint8_t *g = *(uint8_t *const *)(v + 4), *end = *(uint8_t *const *)(v + 8);
+    unsigned long n = 0;
+    for (; g && g < end; g += value_engine_display_size_mesh_group)
+        n += (unsigned long)(*(uint8_t *const *)(g + 0xC) - *(uint8_t *const *)(g + 8)) / 4;
+    return n;
+}
 internal inline int patch_units_rows(terrain_rows_fn h, terrain_row_fn h_row) {
     return patch_import_call(data_engine_display_call_units_rows, data_engine_display_iat_terrain_rows, (void *)h)
          + patch_import_call(data_engine_display_call_units_row, data_engine_display_iat_terrain_row, (void *)h_row);

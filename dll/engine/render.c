@@ -898,8 +898,9 @@ internal void render_install(const char *autotest_ini) {
     g_rwl_free = g_set.draw_during_steps;   // [display] draw_during_steps (render_3d.c)
     g_gm_margin = g_set.ground_margin;      // [display] ground_margin, object_margin (render_frame.c)
     g_om_margin = g_set.object_margin;
+    int pools = rf_ground_pools_install();   // before the ground's first update (render_frame.c)
     int locks = rd_world_lock_install(), parts = rd_render_objects_install();   // the minute line's wait and parts
     if (g_log) fprintf(g_log, "# render: own renderer on (Direct3D 11) - the display DLLs' DirectDraw at their load%s; world lock hooks %d/10,"
-                       " render object hooks %d/5; shadows %s\n", g_rd_trace > 0 ? ", calls traced" : "", locks, parts,
-                       g_sh.on ? "dynamic" : "the game's");
+                       " render object hooks %d/5, the ground's polygon pools %d/2; shadows %s\n", g_rd_trace > 0 ? ", calls traced" : "",
+                       locks, parts, pools, g_sh.on ? "dynamic" : "the game's");
 }

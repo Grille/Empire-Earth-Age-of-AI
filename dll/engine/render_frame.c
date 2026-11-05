@@ -138,6 +138,25 @@ internal long g_gm_size[2];     // its size, tiles less one (the mesh's)
 internal long g_gm_pred;        // and as worked out before (the larger side)
 typedef void (__thiscall *gm_denorm_fn)(const void *viewport, const float *p, float depth, float *out);
 internal gm_denorm_fn g_gm_denorm;
+// The region's polygons: UpdateVisibleTerrain takes them from two pools in the mesh and checks neither - the ground's
+// 12000 (a tile's two, two more for each of up to four neighbours' textures blended over it, four for a map edge's
+// skirt) and the water's 5000 (a water tile's two), each followed by its vertex grid. Twice the screen's region over
+// the sea ran the water's into its grid, the grid's vertices then written over the polygons (the player's 8000-unit
+// save, 2026-11-05: TransformToCamera reading a water polygon's vertex at 4). The pools moved to the mod's, room for
+// the whole 101 x 101 grid at the most each tile can have (address space: the pages taken as they are written); no
+// margin without them. The polygons the last update made, the most since the minute's line: ground, water.
+#define GM_GRID 101
+#define GM_GROUND_POLYS (GM_GRID * GM_GRID * 10 + 4 * GM_GRID * 4 + 1024)
+#define GM_WATER_POLYS (GM_GRID * GM_GRID * 2)
+internal int g_gm_pools;        // the two moved (2), else the mesh's own
+internal unsigned long g_gm_polys[2], g_gm_polys_max[2];
+internal int rf_ground_pools_install(void) {
+    size_t g = (size_t)GM_GROUND_POLYS * terrain_polygon_size(), w = (size_t)GM_WATER_POLYS * terrain_polygon_size();
+    uint8_t *p = VirtualAlloc(NULL, g + w, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+    if (!p) return 0;
+    g_gm_pools = terrain_pools_move(p, p + g);
+    return g_gm_pools;
+}
 // the larger side of the region the frustum through rectangle r would give, tiles less one (-1: not known)
 internal long rf_region_size(const void *viewport, const float *r) {
     ee_map *map = game_map();
@@ -179,7 +198,8 @@ internal void __thiscall rf_hook_terrain_visible(void *mesh, const void *camera,
     }
     float *r = viewport_rect(viewport), was[4];
     memcpy(was, r, sizeof was);
-    float k = fixed ? 1.0f : 1.0f + g_gm_margin;   // the fixed camera's frustum is the orthographic one: as it was
+    // the fixed camera's frustum is the orthographic one: as it was; without the pools the mesh's own would overflow
+    float k = fixed || g_gm_pools < 2 ? 1.0f : 1.0f + g_gm_margin;
     long n = -1;
     for (int tries = 0; k > 1.0f; tries++) {
         rf_scale_rect(r, was, k);
@@ -195,6 +215,10 @@ internal void __thiscall rf_hook_terrain_visible(void *mesh, const void *camera,
     g_gm_size[0] = sz[0]; g_gm_size[1] = sz[1];
     g_gm_k = k;
     g_gm_pred = n;
+    for (int w = 0; w < 2; w++) {
+        g_gm_polys[w] = terrain_polygons(mesh, w);
+        if (g_gm_polys[w] > g_gm_polys_max[w]) g_gm_polys_max[w] = g_gm_polys[w];
+    }
 }
 // The region's polygons are drawn only where they reach into the view: the display DLL's TransformToCamera (the
 // ground's update, every one - the rasterizer's +0x10c) gives each vertex of the region its clip codes - against the

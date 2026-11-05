@@ -480,6 +480,19 @@ internal inline uint8_t *engine_display_iat_terrain_visible_at(void) { return (u
 // UpdateVisibleTerrain from GetTileRowsInVolume's corners (the 2017 update's engine 0x1003CD4D, AoC's 0x1002C299
 // writes it at +0x1905B8). Its arrays per tile of the region are 101 x 101 (a row 0x65, memset 0x27D9 twice, a tile
 // and its +1 neighbours written) and nothing checks the size against them
+// GETerrainMesh's polygons (GETMPolygon, 0x30 each: three vertex pointers first, the clip codes the display DLLs'
+// TransformToCamera reads at a vertex's +0x20), which UpdateVisibleTerrain makes for its region from two pools in the
+// mesh, taken in turn and never checked: the ground's (12000 - every tile's two, two more for each of up to four
+// neighbours' textures blended over it, four for a map edge's skirt) and the water's (5000 - a water tile's two).
+// Each pool is followed by its vertex grid (101 x 101), so a region with more runs into the grid: the grid then
+// overwrites the polygons (the 2017 update's constructor 0x100066A8, AoC's 0x100273C9)
+// UpdateVisibleTerrain (exported by name): its lea eax, [mesh + of_mesh_ground_polygons] (6 bytes: 8D, a modrm
+// [reg + disp32] into eax, the offset) that starts the ground's pool - the 2017 update's with edi, AoC's with esi
+// and its lea eax, [mesh + of_mesh_water_polygons], the water's
+// GETerrainMesh: its polygons by texture - a vector (MSVC: the first element at +4, the end at +8) of groups
+// (0x34 each; the group's own vector of polygon pointers at +4: the first at +8, the end at +0xC) - the ground's
+// at +0x10, the water's (one per frame of its animation, UpdateWaterAnimation) at +0x30; what the display DLLs'
+// TransformToCamera walks. Both builds
 // Low-Level Engine.dll's GEViewport: its rectangle (GERectangle, 4 floats: bottom, left, right, top - pixels;
 // GetFrustrumWorldPoints' x from +4 and +8, y from +0xC and +0), the one UpdateVisibleTerrain's frustum goes through;
 // both engines
@@ -655,6 +668,16 @@ internal int spec_engine_display_select(int build) {
         data_engine_display_call_terrain_visible = 0x00503B05;
         data_engine_display_iat_terrain_visible = 0x00823860;
         value_engine_display_of_mesh_visible_size = 1558188;
+        value_engine_display_of_mesh_ground_polygons = 3308;
+        value_engine_display_of_mesh_water_polygons = 946544;
+        value_engine_display_mesh_ground_polygons = 12000;
+        value_engine_display_mesh_water_polygons = 5000;
+        value_engine_display_size_mesh_polygon = 48;
+        value_engine_display_of_visible_ground_pool = 929;
+        value_engine_display_of_visible_water_pool = 938;
+        value_engine_display_of_mesh_ground_groups = 16;
+        value_engine_display_of_mesh_water_groups = 48;
+        value_engine_display_size_mesh_group = 52;
         value_engine_display_of_viewport_rect = 16;
         value_engine_display_of_viewport_scale = 620;
         value_engine_display_of_viewport_centre = 628;
@@ -813,6 +836,16 @@ internal int spec_engine_display_select(int build) {
         data_engine_display_call_terrain_visible = 0x0050E9AA;
         data_engine_display_iat_terrain_visible = 0x00837830;
         value_engine_display_of_mesh_visible_size = 1639864;
+        value_engine_display_of_mesh_ground_polygons = 3368;
+        value_engine_display_of_mesh_water_polygons = 987408;
+        value_engine_display_mesh_ground_polygons = 12000;
+        value_engine_display_mesh_water_polygons = 5000;
+        value_engine_display_size_mesh_polygon = 48;
+        value_engine_display_of_visible_ground_pool = 932;
+        value_engine_display_of_visible_water_pool = 941;
+        value_engine_display_of_mesh_ground_groups = 16;
+        value_engine_display_of_mesh_water_groups = 48;
+        value_engine_display_size_mesh_group = 52;
         value_engine_display_of_viewport_rect = 16;
         value_engine_display_of_viewport_scale = 620;
         value_engine_display_of_viewport_centre = 628;
