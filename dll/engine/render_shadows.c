@@ -344,7 +344,7 @@ internal void rd3_shadow_card(rd_device *d, D3DPRIMITIVETYPE type, rd_vb *vb, DW
     d->world._11 = d->world._22 = d->world._33 = d->world._44 = 1;
     d->sh_role = SH_AWAY;
     d->changed |= RD_CH_VC;
-    rd_vb card = { NULL, 0, vb->caps, vb->fvf, nv, 36, g_card.v };
+    rd_vb card = { NULL, 0, vb->caps, vb->fvf, nv, 36, nv, g_card.v };
     if (rd3_prepare(d, 0)) rd3_append(d, type, &card, 0, nv, idx, ni);
     d->world = keep;
     d->sh_role = role;

@@ -112,7 +112,7 @@ internal void rd3_fxaa(ID3D11RenderTargetView *rtv, const D3D11_VIEWPORT *vp) {
 }
 
 internal int g_rwl_free; internal LONG g_rwl_skips;   // render_3d.c: the frame during a step (below its lock hooks)
-// the pipe: picture [aa on | off] [aniso <1..16>] [edge <0..1>] [steps on | off]
+// the pipe: picture [aa on | off] [aniso <1..16>] [edge <0..1>] [steps on | off] [margin <0..2>]
 internal void cmd_picture(char *out, const char *args) {
     char mode[16] = "", arg[16] = "";
     sscanf(args, "%15s %15s", mode, arg);
@@ -133,11 +133,17 @@ internal void cmd_picture(char *out, const char *args) {
         g_kg_trace_dx = (float)atof(dx);
         g_kg_trace_dy = (float)atof(dy);
         g_kg_trace = atoi(arg);
+    } else if (!strcmp(mode, "margin")) {
+        float m = (float)atof(arg);
+        if (arg[0] && m >= 0 && m <= 2) g_gm_margin = m;
+        else { REPLY("error: usage: picture margin <0..2>\n"); return; }
     } else if (!strcmp(mode, "steps")) {
         if (!strcmp(arg, "on") || !strcmp(arg, "off")) g_rwl_free = arg[1] == 'n';
         else { REPLY("error: usage: picture steps on | off\n"); return; }
-    } else if (mode[0]) { REPLY("error: usage: picture [aa on | off] [aniso <1..16>] [edge <0..1>] [steps on | off]\n"); return; }
+    } else if (mode[0]) { REPLY("error: usage: picture [aa on | off] [aniso <1..16>] [edge <0..1>] [steps on | off] [margin <0..2>]\n"); return; }
     REPLY("picture: anti-aliasing %s (%s, %ld passes, an edge %.2f of its brightest), anisotropy %d; frames drawn during a"
-          " step %s (%ld)\n", g_fx.on ? "on" : "off", g_fx.ready > 0 ? "ready" : g_fx.ready < 0 ? "FAILED (the log says why)" : "not made yet",
-          (long)g_fx.passes, (double)g_fx.edge, g_fx.aniso, g_rwl_free ? "on" : "off", (long)g_rwl_skips);
+          " step %s (%ld); the ground's margin %.2f (the last region %ld x %ld tiles at %.2f, worked out %ld; the ground kept %d batches, %d vertices)\n", g_fx.on ? "on" : "off",
+          g_fx.ready > 0 ? "ready" : g_fx.ready < 0 ? "FAILED (the log says why)" : "not made yet",
+          (long)g_fx.passes, (double)g_fx.edge, g_fx.aniso, g_rwl_free ? "on" : "off", (long)g_rwl_skips,
+          (double)g_gm_margin, g_gm_size[0] + 1, g_gm_size[1] + 1, (double)g_gm_k, g_gm_pred + 1, g_kg.nb, g_kg.nv);
 }

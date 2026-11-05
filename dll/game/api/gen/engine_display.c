@@ -469,6 +469,31 @@ internal inline uint8_t *engine_display_call_units_row_at(void) { return (uint8_
 internal inline uint8_t *engine_display_iat_terrain_rows_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_iat_terrain_rows; }
 internal inline uint8_t *engine_display_iat_terrain_row_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_iat_terrain_row; }
 internal inline uint8_t *engine_display_iat_model_intersects_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_iat_model_intersects; }
+// the ground's update's (0x503A7F, AoC 0x50E8D1) call of GETerrainMesh::UpdateVisibleTerrain - thiscall on the mesh
+// (0x91831C): the camera's transformation, the viewport, 2, 1, 3, game.camera_fixed; ret 0x18. The visible region
+// it makes - the tiles under the frustum through the viewport's rectangle (GetFrustrumWorldPoints, all eight
+// corners, the far plane's too, then GetTileRowsInVolume) - is the ground drawn and the rows the units' collection
+// walks: call [UpdateVisibleTerrain], its only call in both builds
+internal inline uint8_t *engine_display_call_terrain_visible_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_call_terrain_visible; }
+internal inline uint8_t *engine_display_iat_terrain_visible_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_iat_terrain_visible; }
+// Low-Level Engine.dll's GETerrainMesh: the visible region's size in tiles less one, x then y at +4 - set by
+// UpdateVisibleTerrain from GetTileRowsInVolume's corners (the 2017 update's engine 0x1003CD4D, AoC's 0x1002C299
+// writes it at +0x1905B8). Its arrays per tile of the region are 101 x 101 (a row 0x65, memset 0x27D9 twice, a tile
+// and its +1 neighbours written) and nothing checks the size against them
+// Low-Level Engine.dll's GEViewport: its rectangle (GERectangle, 4 floats: bottom, left, right, top - pixels;
+// GetFrustrumWorldPoints' x from +4 and +8, y from +0xC and +0), the one UpdateVisibleTerrain's frustum goes through;
+// both engines
+// GEViewport, the rest GetFrustrumWorldPoints reads (2017 update 0x1004928A, AoC 0x100375A6 the same): the pixels'
+// scale (+0x26C: a point x = (px - centre x) / it, y = -(py - centre y) / it), the centre (+0x274 x, +0x278 y),
+// the near depth (+0x264: the corners' first points, z 0) and the far (+0x270: z 1), each corner then through
+// DenormalizePerspectivePoint (x, y, z times the depth, the camera's inverse +0x170 applied)
+// GEViewport: its four side planes' normals in the camera's space (ComputePlanes, 2017 update 0x10048E28, AoC the
+// same: a point and a normal each, 0x18 apart - the left's normal at +0x5C, the right's +0x74, the top's +0x8C,
+// the bottom's +0xA4; through the eye, y the depth: the left (cos h, sin h, 0), h half the field of view), what
+// the display DLLs' TransformToCamera gives the ground's vertices their clip codes by
+// GEViewport: its field of view (radians; ComputePlanes' left and right from half of it). The display DLLs'
+// TransformToCamera makes the top and bottom planes from it itself (atan(+0x268 x tan(it / 2) / (+0x26C - 1))),
+// not from the stored ones (2017 update DX7HRDisplay.dll 0x10007204)
 // DX7HRTnLDisplay.dll: the caps of the vertex buffer each rasterizer state creates (D3DVERTEXBUFFERDESC.dwCaps, a
 // mov [ebp-0xC], imm32: D3DVBCAPS_WRITEONLY - video memory; its other buffer and DX7HRDisplay.dll's add
 // D3DVBCAPS_SYSTEMMEMORY)
@@ -624,6 +649,16 @@ internal int spec_engine_display_select(int build) {
         data_engine_display_iat_terrain_rows = 0x00823768;
         data_engine_display_iat_terrain_row = 0x00823864;
         data_engine_display_iat_model_intersects = 0x00823850;
+        data_engine_display_call_terrain_visible = 0x00503B05;
+        data_engine_display_iat_terrain_visible = 0x00823860;
+        value_engine_display_of_mesh_visible_size = 1558188;
+        value_engine_display_of_viewport_rect = 16;
+        value_engine_display_of_viewport_scale = 620;
+        value_engine_display_of_viewport_centre = 628;
+        value_engine_display_of_viewport_near = 612;
+        value_engine_display_of_viewport_far = 624;
+        value_engine_display_of_viewport_side_normals = 92;
+        value_engine_display_of_viewport_fov = 604;
         value_engine_display_rva_tnl_vb_caps = 62581;
         value_engine_display_vb_vertices = 2442;
         data_engine_display_ro_effects = 0x00943318;
@@ -771,6 +806,16 @@ internal int spec_engine_display_select(int build) {
         data_engine_display_iat_terrain_rows = 0x00837728;
         data_engine_display_iat_terrain_row = 0x00837838;
         data_engine_display_iat_model_intersects = 0x00837820;
+        data_engine_display_call_terrain_visible = 0x0050E9AA;
+        data_engine_display_iat_terrain_visible = 0x00837830;
+        value_engine_display_of_mesh_visible_size = 1639864;
+        value_engine_display_of_viewport_rect = 16;
+        value_engine_display_of_viewport_scale = 620;
+        value_engine_display_of_viewport_centre = 628;
+        value_engine_display_of_viewport_near = 612;
+        value_engine_display_of_viewport_far = 624;
+        value_engine_display_of_viewport_side_normals = 92;
+        value_engine_display_of_viewport_fov = 604;
         value_engine_display_rva_tnl_vb_caps = 66510;
         value_engine_display_vb_vertices = 2400;
         data_engine_display_ro_effects = 0x00965360;
@@ -842,6 +887,8 @@ internal int spec_engine_display_check(void) {
     bad += spec_data(data_engine_display_iat_terrain_rows, "engine_display.iat_terrain_rows");
     bad += spec_data(data_engine_display_iat_terrain_row, "engine_display.iat_terrain_row");
     bad += spec_data(data_engine_display_iat_model_intersects, "engine_display.iat_model_intersects");
+    bad += spec_code(data_engine_display_call_terrain_visible, "engine_display.call_terrain_visible");
+    bad += spec_data(data_engine_display_iat_terrain_visible, "engine_display.iat_terrain_visible");
     bad += spec_data(data_engine_display_ro_effects, "engine_display.ro_effects");
     bad += spec_data(data_engine_display_ro_terrain, "engine_display.ro_terrain");
     bad += spec_data(data_engine_display_ro_shadows, "engine_display.ro_shadows");

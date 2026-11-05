@@ -51,6 +51,28 @@ internal inline void terrain_row(const void *mesh, unsigned long i, long *y, lon
 internal inline uint8_t model_intersects(const void *model, const void *viewport, uint8_t flag) {
     return (*(model_intersects_fn *)data_engine_display_iat_model_intersects)(model, viewport, flag);
 }
+// the ground's visible region made (GETerrainMesh::UpdateVisibleTerrain on the mesh: the camera's transformation, the
+// viewport, three numbers, the fixed camera's flag): its call in the ground's update -> a hook of the import's type;
+// the viewport's rectangle its frustum goes through (bottom, left, right, top); the region's size in tiles less one
+typedef void (__thiscall *terrain_visible_fn)(void *mesh, const void *camera, void *viewport, unsigned long a, unsigned long b,
+                                              unsigned long c, uint8_t fixed);
+internal inline void terrain_visible(void *mesh, const void *camera, void *viewport, unsigned long a, unsigned long b,
+                                     unsigned long c, uint8_t fixed) {
+    (*(terrain_visible_fn *)data_engine_display_iat_terrain_visible)(mesh, camera, viewport, a, b, c, fixed);
+}
+internal inline int patch_terrain_visible(terrain_visible_fn h) {
+    return patch_import_call(data_engine_display_call_terrain_visible, data_engine_display_iat_terrain_visible, (void *)h);
+}
+internal inline float *viewport_rect(void *viewport) { return (float *)((uint8_t *)viewport + value_engine_display_of_viewport_rect); }
+// its frustum's other numbers: the pixels' scale, the centre (x, y), the near and far depths
+internal inline float viewport_scale(const void *viewport) { return *(const float *)((const uint8_t *)viewport + value_engine_display_of_viewport_scale); }
+internal inline const float *viewport_centre(const void *viewport) { return (const float *)((const uint8_t *)viewport + value_engine_display_of_viewport_centre); }
+internal inline float viewport_near(const void *viewport) { return *(const float *)((const uint8_t *)viewport + value_engine_display_of_viewport_near); }
+internal inline float viewport_far(const void *viewport) { return *(const float *)((const uint8_t *)viewport + value_engine_display_of_viewport_far); }
+internal inline float *viewport_fov_at(void *viewport) { return (float *)((uint8_t *)viewport + value_engine_display_of_viewport_fov); }
+// its side planes' normals (i: left, right, top, bottom; x, y the depth, z)
+internal inline float *viewport_side_normal(void *viewport, int i) { return (float *)((uint8_t *)viewport + value_engine_display_of_viewport_side_normals + i * 0x18); }
+internal inline const long *terrain_mesh_visible_size(const void *mesh) { return (const long *)((const uint8_t *)mesh + value_engine_display_of_mesh_visible_size); }
 internal inline int patch_units_rows(terrain_rows_fn h, terrain_row_fn h_row) {
     return patch_import_call(data_engine_display_call_units_rows, data_engine_display_iat_terrain_rows, (void *)h)
          + patch_import_call(data_engine_display_call_units_row, data_engine_display_iat_terrain_row, (void *)h_row);

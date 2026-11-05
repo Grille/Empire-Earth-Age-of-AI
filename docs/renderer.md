@@ -216,9 +216,30 @@ of the frames drawn during a step. The water's (its animation) runs too.
   Checked on a copy of the 8000 save: scrolling, the eye 0.035 a frame every frame; zoom 0.6, the eye down from 14.6 to
   6.2 in even frames (the game's own blend lagging behind); shots during a scroll under 60 ms steps, the trees and
   units on their ground.
-- Left: beyond the last update's ground, a fast scroll during a long step shows the sky blue at the edge (3 tiles in
-  one move: a strip at the side); the units there come with the next update. Scrolling 0.05 tiles a frame under 15 ms
-  steps: eight shots complete, no edge, the ground under the debris.
+- Beyond the last update's ground a scroll or zoom out during a long step showed the sky blue (the player, the
+  8000-unit save: "i can move the camera so far over the edge that half the screen is sky"). The ground's margin
+  (`[display] ground_margin`, default 100%; the pipe: `picture margin <0..2>`, its reply the region's size, the size
+  worked out before and the kept ground's vertices; render_frame.c): the game cuts the ground to the screen three
+  times, each widened by 1 + the margin for its call -
+  - the region (GETerrainMesh::UpdateVisibleTerrain, its call in the ground's update hooked through the import: the
+    tiles under the frustum through the viewport's rectangle, its far plane's corners too - 48 x 49 tiles on that save,
+    81 x 81 at the margin): the rectangle widened about its centre. The mesh's arrays are 101 x 101 tiles, unchecked:
+    the region's size is worked out first from the same corners (the engine's DenormalizePerspectivePoint) and the
+    factor taken back to keep it within 88 (estimated from the last region it went to 95 on a zoom out between two
+    updates); worked out and made agreed in every case on that save, AoC's came out above the engine's (72 against 66);
+  - the clip codes (the display DLLs' TransformToCamera, their vtables at their load - every update): the left and
+    right planes stored in the viewport (their normals' depth part times the factor), the top and bottom it makes in
+    the call from the field of view (to 2 atan(k tan(fov / 2))). With the region alone the draws stayed the screen's
+    (rprobe: 30 ground draws, 3900 vertices at any margin); with the side planes the width grew but the depth stayed
+    17 - 37 (the far plane at 50: the far depth widened too only shrank the factor through the region's limit);
+  - the vertex buffers: a material's draw writes all of its vertices into the display DLL's 2442 from the start,
+    whatever their count - the grass's went past it with the margin (written beyond our memory, the draw dropped):
+    each buffer has room for 65536 now (render_3d.c RD_VB_ROOM), a draw up to as many.
+  On that save, a scroll of 4.5 tiles during a 2.5 s step: the sky at the right and top before, ground to every edge
+  with it (17400 vertices kept against 3900; the units and trees out there come with the next update); 12.7 tiles
+  (more than a screen) still leave a strip. The ground's draw 0.3 -> 0.6 ms a frame, the frames a minute the same.
+  AoC (Continental, the same steps): hooked in both display DLLs, the right side's sky filled. Still there with or
+  without the margin: after a long move during a step the water shows dark squares and pieces beyond the map's edge.
 Checked on the reference save (slot 21, speed 2.5, the pipe's stepload 9 - each step held 9 ms, the simulation 410 ms
 a second): frames waiting 8 ms or more 260-383 a minute off, 0-2 on; frames a minute 7300-8700 off, 11200-13300 on;
 an 842 ms step no wait. Shots in steps held 600-4000 ms: complete frames (six over 3 s of one step the same); a 3-tile

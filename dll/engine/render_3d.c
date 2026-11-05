@@ -6,7 +6,12 @@
 // per combination, the vertices and indices of each draw copied into one upload buffer.
 
 // ---- vertex buffers ----
-typedef struct { void **vt; LONG refs; DWORD caps, fvf, n, stride; uint8_t *mem; } rd_vb;
+// The display DLLs' buffer is 2442 vertices (DX7Rasterizer::LockVB starts it over when fewer are left), and a ground
+// material's draw writes all of its vertices from the start whatever their count: with the ground's margin
+// (render_frame.c) the big ones - the grass's - went past it, written beyond the memory and their draws dropped. So
+// each buffer has room for RD_VB_ROOM (an 88-tile region of one material: 47 000) and the draws are checked by it.
+#define RD_VB_ROOM 65536
+typedef struct { void **vt; LONG refs; DWORD caps, fvf, n, stride, room; uint8_t *mem; } rd_vb;
 internal DWORD rd_fvf_stride(DWORD fvf) {
     DWORD s = 0;
     switch (fvf & D3DFVF_POSITION_MASK) {
@@ -193,7 +198,7 @@ internal const char k_rd3_shader[] =
 // (with their matrix's index in the batch's table) and indices into the upload buffers, then one DrawIndexed. Strips
 // become lists (one batch takes many). A state that changes (rd3_prepare) ends the batch (rd3_flush): into the frame's
 // list (render_frame.c), drawn when the frame is done or something else needs the context (rd3_submit).
-#define RB_VERTS 32768
+#define RB_VERTS 65536       // a draw's: RD_VB_ROOM's (the ground's materials with the margin, render_frame.c)
 #define RB_INDICES (RB_VERTS * 3)
 #define RB_WORLDS 256
 typedef struct { uint8_t fvf[36]; uint32_t w; } rb_vertex;   // FVF 0x152 and the world's index
@@ -752,7 +757,7 @@ internal int rd_world_lock_install(void) {
            patch_iat(exe, "Low-Level Engine.dll", "?WriteUnlock@TSReadWriteLock@@QAEXXZ", (void *)rd_hook_write_unlock) +
            patch_graphics_update(rd_hook_graphics_update) + patch_ro_terrain_update(rd_hook_ro_terrain_update) +
            patch_ro_units_update(rd_hook_ro_units_update) + patch_ro_shadows_update(rd_hook_ro_shadows_update) +
-           patch_ro_effects_update(rd_hook_ro_effects_update);
+           patch_ro_effects_update(rd_hook_ro_effects_update) + patch_terrain_visible(rf_hook_terrain_visible);
 }
 
 // THE GAME'S DRAWING, BY ITS PARTS: RTSGraphics draws a frame through its render objects (spec engine_display.cs) -
@@ -1064,7 +1069,7 @@ internal HRESULT __stdcall rd_dev_validate(rd_device *d, DWORD *passes) { (void)
 internal HRESULT __stdcall rd_dev_draw_vb(rd_device *d, D3DPRIMITIVETYPE type, rd_vb *vb, DWORD start, DWORD n, DWORD flags) {
     (void)flags;
     InterlockedIncrement(&g_rd_draws);
-    if (!n || start + n > vb->n || !rd3_drawable(vb, type)) return D3D_OK;
+    if (!n || start + n > vb->room || !rd3_drawable(vb, type)) return D3D_OK;
     LONGLONG t0 = rd_qpc();
     RD_LOCK();
     rd3_overlay_before(d);
@@ -1081,7 +1086,7 @@ internal HRESULT __stdcall rd_dev_draw_indexed_vb(rd_device *d, D3DPRIMITIVETYPE
                                                   WORD *idx, DWORD ni, DWORD flags) {
     (void)flags;
     InterlockedIncrement(&g_rd_draws);
-    if (!nv || !ni || !idx || start + nv > vb->n || !rd3_drawable(vb, type)) return D3D_OK;
+    if (!nv || !ni || !idx || start + nv > vb->room || !rd3_drawable(vb, type)) return D3D_OK;
     LONGLONG t0 = rd_qpc();
     RD_LOCK();
     rd3_overlay_before(d);
@@ -1180,7 +1185,8 @@ internal HRESULT __stdcall rd_d3d_create_vb(rd_d3d *o, D3DVERTEXBUFFERDESC *desc
     b->refs = 1;
     b->caps = desc->dwCaps; b->fvf = desc->dwFVF; b->n = desc->dwNumVertices;
     b->stride = rd_fvf_stride(desc->dwFVF);
-    b->mem = calloc(b->n ? b->n : 1, b->stride ? b->stride : 4);
+    b->room = b->n > RD_VB_ROOM ? b->n : RD_VB_ROOM;
+    b->mem = calloc(b->room, b->stride ? b->stride : 4);
     if (!b->mem) { free(b); return DDERR_OUTOFMEMORY; }
     *out = b;
     return D3D_OK;

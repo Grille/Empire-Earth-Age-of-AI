@@ -144,6 +144,12 @@ class display
         /// units, the camera and cursor moved, instead of waiting for the step (the picture stood, then jumped, in big
         /// games; the control pipe: picture steps on / off):
         bool draw_during_steps = true;
+        /// The own renderer only: the ground is made this much wider and taller than the screen (100% = twice its
+        /// size), so that a frame drawn during a step after a scroll or a zoom out still has ground at the edges
+        /// (0% = the screen's, as the game had it; limited by the game's 101-tile region; the control pipe: picture
+        /// margin <share>):
+        [range(0, 2)]
+        share ground_margin = 1.0;
     }
 
     [title("Wrapper (only with renderer = wrapper)")]

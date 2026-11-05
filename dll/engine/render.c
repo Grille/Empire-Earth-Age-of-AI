@@ -805,7 +805,8 @@ internal void render_display_loaded(HMODULE m, const char *name) {
             patch_iat(m, "ddraw.dll", "DirectDrawEnumerateA", (void *)rd_enumerate) +
             patch_iat(m, "ddraw.dll", "DirectDrawEnumerateExA", (void *)rd_enumerate_ex);
     log_locked("# render: %s's DirectDraw imports %d/3 to the mod's renderer; its model test %d/2 (the shadows' casters off"
-               " the screen)\n", name, n, shadow_reach_display(m));
+               " the screen); its ground's clipping %d/1 (the ground's margin)\n", name, n, shadow_reach_display(m),
+               rf_ground_display_loaded(m, name));
 }
 // autotest render_trace=N: the first N calls of the renderer's methods logged ("# render call", caller and thread) - a
 // stub in front of each slot, as the probe's
@@ -892,8 +893,9 @@ internal void render_install(const char *autotest_ini) {
     g_fx.on = g_set.antialias;      // [display] antialias, anisotropy (render_fxaa.c)
     g_fx.aniso = g_set.anisotropy;
     g_rwl_free = g_set.draw_during_steps;   // [display] draw_during_steps (render_3d.c)
+    g_gm_margin = g_set.ground_margin;      // [display] ground_margin (render_frame.c)
     int locks = rd_world_lock_install(), parts = rd_render_objects_install();   // the minute line's wait and parts
-    if (g_log) fprintf(g_log, "# render: own renderer on (Direct3D 11) - the display DLLs' DirectDraw at their load%s; world lock hooks %d/9,"
+    if (g_log) fprintf(g_log, "# render: own renderer on (Direct3D 11) - the display DLLs' DirectDraw at their load%s; world lock hooks %d/10,"
                        " render object hooks %d/5; shadows %s\n", g_rd_trace > 0 ? ", calls traced" : "", locks, parts,
                        g_sh.on ? "dynamic" : "the game's");
 }

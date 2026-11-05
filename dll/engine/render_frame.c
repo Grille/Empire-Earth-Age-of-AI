@@ -120,6 +120,120 @@ internal void rf_keep_ground(void) {
 // the last one's drawn again - the units' view is that frame's update's; one frame older was one frame's camera move
 // off - the ground and the debris on it jumped against each other while scrolling, the player 2026-11-05)
 internal void rf_camera_frame(void);
+// The ground's margin ([display] ground_margin; the pipe: picture margin): the kept ground is the last update's visible
+// region, the screen's - a frame during a long step that had scrolled or zoomed out past it showed the sky (the
+// player's 8000-unit save: half the screen before the next update). The region is made by the ground's update through
+// the viewport's rectangle (UpdateVisibleTerrain: the tiles under the frustum's eight corners, the far plane's with
+// them - 58 x 57 tiles on that save at the screen's own): the rectangle widened about its centre by 1 + the margin for
+// that call, the region grows with it - the ground drawn beyond the screen, the units' collection walking its rows
+// (their models still tested against the true view). The mesh's arrays hold 101 x 101 tiles and nothing checks it:
+// the region's size is worked out first as GetFrustrumWorldPoints and GetTileRowsInVolume would make it (the corners
+// by the engine's own DenormalizePerspectivePoint, their box on the map) and the factor taken back until it is at most
+// GM_TILES - estimated from the last region instead, a zoom out between two updates went to 95 tiles.
+#define GM_TILES 88
+internal float g_gm_margin = 1.0f;
+internal float g_gm_k;          // the factor of the last region
+internal long g_gm_size[2];     // its size, tiles less one (the mesh's)
+internal long g_gm_pred;        // and as worked out before (the larger side)
+typedef void (__thiscall *gm_denorm_fn)(const void *viewport, const float *p, float depth, float *out);
+internal gm_denorm_fn g_gm_denorm;
+// the larger side of the region the frustum through rectangle r would give, tiles less one (-1: not known)
+internal long rf_region_size(const void *viewport, const float *r) {
+    ee_map *map = game_map();
+    float s = viewport_scale(viewport);
+    if (!g_gm_denorm || !map || !(s != 0)) return -1;
+    const float *c = viewport_centre(viewport);
+    float x0 = r[1], x1 = r[2], y0 = r[3], y1 = r[0];
+    if (x1 - x0 <= 2) x1 = x0 + 2;   // as GetFrustrumWorldPoints
+    if (y1 - y0 <= 2) y1 = y0 + 2;
+    float lo[2] = { 1e30f, 1e30f }, hi[2] = { -1e30f, -1e30f };
+    for (int i = 0; i < 8; i++) {
+        float p[3] = { ((i & 1 ? x1 : x0) - c[0]) / s, -((i & 2 ? y1 : y0) - c[1]) / s, (float)(i >> 2) }, w[3];
+        g_gm_denorm(viewport, p, i & 4 ? viewport_far(viewport) : viewport_near(viewport), w);
+        for (int a = 0; a < 2; a++) {
+            if (!(w[a] > -1e6f && w[a] < 1e6f)) return -1;
+            if (w[a] < lo[a]) lo[a] = w[a];
+            if (w[a] > hi[a]) hi[a] = w[a];
+        }
+    }
+    float top = (float)map_get_size(map) - 1;
+    long big = 0;
+    for (int a = 0; a < 2; a++) {
+        float l = lo[a] < 0 ? 0 : lo[a] > top ? top : lo[a], h = hi[a] < 0 ? 0 : hi[a] > top ? top : hi[a];
+        long n = (long)floorf(h) - (long)floorf(l);
+        if (n > big) big = n;
+    }
+    return big;
+}
+internal void rf_scale_rect(float *r, const float *was, float k) {
+    float cx = (was[1] + was[2]) * 0.5f, cy = (was[0] + was[3]) * 0.5f;
+    r[1] = cx + (was[1] - cx) * k; r[2] = cx + (was[2] - cx) * k;
+    r[0] = cy + (was[0] - cy) * k; r[3] = cy + (was[3] - cy) * k;
+}
+internal void __thiscall rf_hook_terrain_visible(void *mesh, const void *camera, void *viewport, unsigned long a, unsigned long b,
+                                                 unsigned long c, uint8_t fixed) {
+    if (!g_gm_denorm) {
+        HMODULE lle = GetModuleHandleA("Low-Level Engine.dll");
+        if (lle) g_gm_denorm = (gm_denorm_fn)(void *)GetProcAddress(lle, "?DenormalizePerspectivePoint@GEViewport@@QBEXABVGE3DPoint@@MAAV2@@Z");
+    }
+    float *r = viewport_rect(viewport), was[4];
+    memcpy(was, r, sizeof was);
+    float k = fixed ? 1.0f : 1.0f + g_gm_margin;   // the fixed camera's frustum is the orthographic one: as it was
+    long n = -1;
+    for (int tries = 0; k > 1.0f; tries++) {
+        rf_scale_rect(r, was, k);
+        n = rf_region_size(viewport, r);
+        if (n >= 0 && n <= GM_TILES) break;
+        if (n < 0 || tries == 6) k = 1.0f;
+        else k = 1.0f + (k - 1.0f) * 0.7f;
+    }
+    if (k <= 1.0f) { memcpy(r, was, sizeof was); n = rf_region_size(viewport, r); }
+    terrain_visible(mesh, camera, viewport, a, b, c, fixed);
+    memcpy(r, was, sizeof was);
+    const long *sz = terrain_mesh_visible_size(mesh);
+    g_gm_size[0] = sz[0]; g_gm_size[1] = sz[1];
+    g_gm_k = k;
+    g_gm_pred = n;
+}
+// The region's polygons are drawn only where they reach into the view: the display DLL's TransformToCamera (the
+// ground's update, every one - the rasterizer's +0x10c) gives each vertex of the region its clip codes - against the
+// viewport's left and right planes (stored), its top and bottom (made in the call from the field of view; the
+// orthographic camera's: the rectangle) and its near and far depths - and a polygon wholly outside one is left out.
+// With the region alone widened the draws stayed the screen's (the pipe's rprobe: 30 ground draws, 3900 vertices at
+// either margin; the kept ground's depth 17 - 37 at any margin, the far plane at 50). So for that call the view is
+// widened by the factor the region was made with - the stored side normals' depth part times it (their slope's
+// tangent), normalized; the field of view to 2 atan(k tan(fov / 2)) for the top and bottom; the rectangle - in both
+// display DLLs (their vtables, at their load: render.c render_display_loaded).
+typedef void (__thiscall *gm_to_camera_fn)(void *ras, void *mesh, void *viewport, float dt, uint8_t a, uint8_t b);
+internal gm_to_camera_fn g_gm_to_camera[2];   // DX7HRDisplay.dll's, DX7HRTnLDisplay.dll's
+internal void rf_to_camera(int i, void *ras, void *mesh, void *viewport, float dt, uint8_t a, uint8_t b) {
+    float *r = viewport_rect(viewport), was[4], planes[4][3], *fov = viewport_fov_at(viewport), fov0 = *fov;
+    float k = g_gm_k;
+    memcpy(was, r, sizeof was);
+    for (int p = 0; p < 4; p++) memcpy(planes[p], viewport_side_normal(viewport, p), sizeof planes[p]);
+    if (k > 1.0f) {
+        rf_scale_rect(r, was, k);
+        if (fov0 > 0 && fov0 < 3.0f) *fov = 2.0f * atanf(k * tanf(fov0 * 0.5f));
+        for (int p = 0; p < 4; p++) {
+            float *n = viewport_side_normal(viewport, p), x = n[0], y = n[1] * k, z = n[2], len = sqrtf(x * x + y * y + z * z);
+            if (len > 0) { n[0] = x / len; n[1] = y / len; n[2] = z / len; }
+        }
+    }
+    g_gm_to_camera[i](ras, mesh, viewport, dt, a, b);
+    memcpy(r, was, sizeof was);
+    *fov = fov0;
+    for (int p = 0; p < 4; p++) memcpy(viewport_side_normal(viewport, p), planes[p], sizeof planes[p]);
+}
+internal void __thiscall rf_hook_to_camera0(void *ras, void *mesh, void *viewport, float dt, uint8_t a, uint8_t b) { rf_to_camera(0, ras, mesh, viewport, dt, a, b); }
+internal void __thiscall rf_hook_to_camera1(void *ras, void *mesh, void *viewport, float dt, uint8_t a, uint8_t b) { rf_to_camera(1, ras, mesh, viewport, dt, a, b); }
+// a display DLL loaded: its TransformToCamera hooked (1 done)
+internal int rf_ground_display_loaded(HMODULE m, const char *name) {
+    int i = strstr(name, "TnL") != NULL;
+    void *f = (void *)GetProcAddress(m, "?TransformToCamera@DX7Rasterizer@@UAEXAAVGETerrainMesh@@AAVGEViewport@@M_N2@Z");
+    if (!f || g_gm_to_camera[i]) return 0;
+    g_gm_to_camera[i] = (gm_to_camera_fn)f;
+    return replace_rdata_ptr(m, f, i ? (void *)rf_hook_to_camera1 : (void *)rf_hook_to_camera0) > 0;
+}
 internal void rf_ground_frame(int skip) {
     g_kg_skip = skip;
     rf_camera_frame();
