@@ -643,7 +643,6 @@ internal struct {
     int off;                      // the pipe's shadows reach off
     long y[SHR_ROWS], x0[SHR_ROWS], x1[SHR_ROWS];
     int n, own;                   // the rows handed out this collection, the game's own (the first)
-    int extra;                    // the row handed out last is one of the widened ones: its objects pass the view's test
     int lo[SHR_MAP], hi[SHR_MAP], olo[SHR_MAP], ohi[SHR_MAP];   // per y: the widened rows' x, the game's
     float reach;                  // the last collection's (tiles)
     float rise;                   // its ground's highest toward the sun over the screen's lowest, within the reach
@@ -663,7 +662,7 @@ internal void shr_add(ee_tile **tiles, unsigned w, int y, int a, int b) {
 
 internal unsigned long __thiscall shr_hook_rows(const void *mesh) {
     unsigned long n = terrain_rows(mesh);
-    g_shr.n = g_shr.own = g_shr.extra = 0;
+    g_shr.n = g_shr.own = 0;
     ee_map *map = game_map();
     const float *f = g_sh.sun;
     float h = sqrtf(f[0] * f[0] + f[1] * f[1]);
@@ -737,10 +736,12 @@ internal void __thiscall shr_hook_row(const void *mesh, unsigned long i, long *y
     if (!g_shr.n) { terrain_row(mesh, i, y, x0, x1); return; }
     if (i >= (unsigned long)g_shr.n) i = (unsigned long)g_shr.n - 1;
     *y = g_shr.y[i]; *x0 = g_shr.x0[i]; *x1 = g_shr.x1[i];
-    g_shr.extra = (int)i >= g_shr.own;
 }
+// while the rows are widened every object on them passes, the game's own rows' too: one there whose box has just left
+// the picture (its tile still in a visible row) lost its shadow with it (the player, 2026-11-05: "the unit and building
+// shadow still vanishes the second their exact bounding leave the image")
 internal uint8_t __thiscall shr_hook_view(const void *model, const void *viewport, uint8_t flag) {
-    return model_intersects(model, viewport, flag) || g_shr.extra;
+    return g_shr.n > 0 || model_intersects(model, viewport, flag);
 }
 // The display DLLs draw a model only where the engine's test of it against the view passes
 // (DX7Rasterizer::DrawModelHierarchy: GERasterizer::IsPerspectiveModelVisible / IsOrthographicModelVisible, their

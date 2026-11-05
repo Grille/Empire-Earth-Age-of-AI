@@ -256,6 +256,11 @@ tells the last map's casters, ground batches, box, sun and shadow colour), engin
   a tower on the hill at 64,86, the camera at 74,100 (the tower off the screen): its shadow across the slope, which
   the build before didn't draw (reach 6.6 -> 21 tiles, 167 -> 475 casting draws off the screen, the units part 2.52 ->
   3.25 ms); on level ground at 40,60 no change (1.54 / 1.60 ms).
+  The game's own rows kept their test against the view: an object there whose box had just left the picture lost its
+  shadow at the screen's edge (the player, 2026-11-05: "the unit and building shadow still vanishes the second their
+  exact bounding leave the image"). While the rows are widened every object on all of them passes now. "choke wolf" at
+  17 o'clock: casting draws off the screen 558 -> 669 at 74,100 and 18 -> 117 at 40,60, the units part 3.44 -> 3.95
+  and 2.23 -> 2.54 ms (two games side by side - they drifted apart, so no picture of the same edge).
 - Under the water a shadow fades out with the depth (the player, 2026-11-05: none under water, ideally fading): gone
   0.8 under the level (the pipe: `shadows fade <depth>`). The level is the water's vertices' mean height each frame (in
   the world through the units' camera); measured on "choke wolf": the water at 0.00, the deepest seabed at -0.84 (rprobe
