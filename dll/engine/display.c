@@ -1489,6 +1489,15 @@ internal int is_return_address(uintptr_t a) {
     if (a < 0x10000 || !GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, (LPCSTR)a, &m))
         return 0;
     if (a - (uintptr_t)m < 0x1000) return 0;   // headers, not code (and the 7 bytes before must lie in the module)
+    // and be readable: a module's image has pages without access (the step watch read one in KERNEL32 off a slow
+    // step's stack, 2026-11-05)
+    for (uintptr_t q = a - 7; ; q = (q | 0xFFF) + 1) {
+        MEMORY_BASIC_INFORMATION mi;
+        if (!VirtualQuery((const void *)q, &mi, sizeof mi) || mi.State != MEM_COMMIT || (mi.Protect & (PAGE_NOACCESS | PAGE_GUARD)) ||
+            !(mi.Protect & (PAGE_EXECUTE_READ | PAGE_EXECUTE_READWRITE | PAGE_READONLY | PAGE_READWRITE | PAGE_EXECUTE_WRITECOPY | PAGE_WRITECOPY)))
+            return 0;
+        if ((q | 0xFFF) >= a - 1) break;
+    }
     const uint8_t *p = (const uint8_t *)a;
     if (p[-5] == 0xE8) return 1;
     for (int len = 2; len <= 7; len++) {

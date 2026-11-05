@@ -184,6 +184,18 @@ unsafe struct RTSGraphics
     extern void finish_objects();
 }
 
+/// the game's graphics (RTTI, the object the graphics thread draws with): RTSGraphics with the world's lock
+[@base(typeof(RTSGraphics)), vtable((ee)0x0082C264, (aoc)0x008412C0)]
+unsafe struct EEGraphics
+{
+    /// the render objects' update under the world's read lock (with the interface's critical section; another mode
+    /// +0x70 takes the write lock): the frame's only read of the world under it - draw_objects draws from what the
+    /// update left. Before it the UI manager's form, its own call (0x823804) unless the rasterizer's +0x84 says so
+    [address((ee)0x004FED2D, (aoc)0x00509840), overrides(typeof(RTSGraphics))]
+    [vtable_site("graphics_update")]
+    extern void update_objects();
+}
+
 /// a part of the picture RTSGraphics draws each frame, in four steps: update before the scene, clear (the depth
 /// buffer where it needs), draw inside the scene, finish after it. Its own slots are pure (0x683712); a step a class
 /// has nothing for is the empty function 0x5248D4

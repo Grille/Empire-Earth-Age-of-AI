@@ -111,7 +111,8 @@ internal void rd3_fxaa(ID3D11RenderTargetView *rtv, const D3D11_VIEWPORT *vp) {
     g_fx.passes++;
 }
 
-// the pipe: picture [aa on | off] [aniso <1..16>]
+internal int g_rwl_free; internal LONG g_rwl_skips;   // render_3d.c: the frame during a step (below its lock hooks)
+// the pipe: picture [aa on | off] [aniso <1..16>] [edge <0..1>] [steps on | off]
 internal void cmd_picture(char *out, const char *args) {
     char mode[16] = "", arg[16] = "";
     sscanf(args, "%15s %15s", mode, arg);
@@ -126,8 +127,11 @@ internal void cmd_picture(char *out, const char *args) {
         float e = (float)atof(arg);
         if (e > 0 && e < 1) g_fx.edge = e;
         else { REPLY("error: usage: picture edge <0..1>\n"); return; }
-    } else if (mode[0]) { REPLY("error: usage: picture [aa on | off] [aniso <1..16>] [edge <0..1>]\n"); return; }
-    REPLY("picture: anti-aliasing %s (%s, %ld passes, an edge %.2f of its brightest), anisotropy %d\n", g_fx.on ? "on" : "off",
-          g_fx.ready > 0 ? "ready" : g_fx.ready < 0 ? "FAILED (the log says why)" : "not made yet", (long)g_fx.passes,
-          (double)g_fx.edge, g_fx.aniso);
+    } else if (!strcmp(mode, "steps")) {
+        if (!strcmp(arg, "on") || !strcmp(arg, "off")) g_rwl_free = arg[1] == 'n';
+        else { REPLY("error: usage: picture steps on | off\n"); return; }
+    } else if (mode[0]) { REPLY("error: usage: picture [aa on | off] [aniso <1..16>] [edge <0..1>] [steps on | off]\n"); return; }
+    REPLY("picture: anti-aliasing %s (%s, %ld passes, an edge %.2f of its brightest), anisotropy %d; frames drawn during a"
+          " step %s (%ld)\n", g_fx.on ? "on" : "off", g_fx.ready > 0 ? "ready" : g_fx.ready < 0 ? "FAILED (the log says why)" : "not made yet",
+          (long)g_fx.passes, (double)g_fx.edge, g_fx.aniso, g_rwl_free ? "on" : "off", (long)g_rwl_skips);
 }

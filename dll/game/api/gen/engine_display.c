@@ -158,6 +158,15 @@ internal inline void graphics_finish_objects(ee_graphics *graphics) { ((graphics
 internal graphics_finish_objects_fn fn_rts_graphics_finish_objects;
 internal inline void rts_graphics_finish_objects(ee_graphics *graphics) { fn_rts_graphics_finish_objects(graphics); }
 
+// class EEGraphics (ee_graphics)
+// the game's graphics (RTTI, the object the graphics thread draws with): RTSGraphics with the world's lock
+// the render objects' update under the world's read lock (with the interface's critical section; another mode
+// +0x70 takes the write lock): the frame's only read of the world under it - draw_objects draws from what the
+// update left. Before it the UI manager's form, its own call (0x823804) unless the rasterizer's +0x84 says so
+internal graphics_update_objects_fn fn_ee_graphics_update_objects;
+internal inline void ee_graphics_update_objects(ee_graphics *graphics) { fn_ee_graphics_update_objects(graphics); }
+internal inline int patch_graphics_update(graphics_update_objects_fn h) { return patch_vtable(vt_ee_graphics, (int)slot_graphics_update_objects, (uintptr_t)fn_ee_graphics_update_objects, (void *)h); }
+
 // class RTSRenderObject (ee_render_object)
 // a part of the picture RTSGraphics draws each frame, in four steps: update before the scene, clear (the depth
 // buffer where it needs), draw inside the scene, finish after it. Its own slots are pure (0x683712); a step a class
@@ -503,6 +512,8 @@ internal int spec_engine_display_select(int build) {
         fn_rts_graphics_draw_objects = (graphics_draw_objects_fn)0x00510363;
         slot_graphics_finish_objects = 7;
         fn_rts_graphics_finish_objects = (graphics_finish_objects_fn)0x0051039E;
+        vt_ee_graphics = 0x0082C264;
+        fn_ee_graphics_update_objects = (graphics_update_objects_fn)0x004FED2D;
         vt_rts_render_object = 0x0082C334;
         size_rts_render_object = 0x4;
         slot_render_object_update = 0;
@@ -644,6 +655,8 @@ internal int spec_engine_display_select(int build) {
         fn_rts_graphics_draw_objects = (graphics_draw_objects_fn)0x0051A922;
         slot_graphics_finish_objects = 7;
         fn_rts_graphics_finish_objects = (graphics_finish_objects_fn)0x0051A95D;
+        vt_ee_graphics = 0x008412C0;
+        fn_ee_graphics_update_objects = (graphics_update_objects_fn)0x00509840;
         vt_rts_render_object = 0x00841390;
         size_rts_render_object = 0x4;
         slot_render_object_update = 0;
@@ -759,6 +772,9 @@ internal int spec_engine_display_check(void) {
     bad += spec_slot(vt_rts_graphics, slot_graphics_draw_objects, (uintptr_t)fn_rts_graphics_draw_objects, "RTSGraphics.draw_objects [slot]");
     bad += spec_code((uintptr_t)fn_rts_graphics_finish_objects, "RTSGraphics.finish_objects");
     bad += spec_slot(vt_rts_graphics, slot_graphics_finish_objects, (uintptr_t)fn_rts_graphics_finish_objects, "RTSGraphics.finish_objects [slot]");
+    bad += spec_vtable(vt_ee_graphics, ".?AVEEGraphics@@", "EEGraphics [vtable]");
+    bad += spec_code((uintptr_t)fn_ee_graphics_update_objects, "EEGraphics.update_objects");
+    bad += spec_slot(vt_ee_graphics, slot_graphics_update_objects, (uintptr_t)fn_ee_graphics_update_objects, "EEGraphics.update_objects [slot]");
     bad += spec_vtable(vt_rts_render_object, ".?AVRTSRenderObject@@", "RTSRenderObject [vtable]");
     bad += spec_vtable(vt_eero_terrain, ".?AVEEROTerrain@@", "EEROTerrain [vtable]");
     bad += spec_code((uintptr_t)fn_ro_terrain_draw, "EEROTerrain.draw");

@@ -140,6 +140,10 @@ class display
         /// samples; 1 = off, as the game had it, 16 the sharpest; the control pipe: picture aniso <n>):
         [range(1, 16)]
         int anisotropy = 16;
+        /// The own renderer only: a frame that comes while the simulation runs a step is drawn from the last one's
+        /// units, the camera and cursor moved, instead of waiting for the step (the picture stood, then jumped, in big
+        /// games; the control pipe: picture steps on / off):
+        bool draw_during_steps = true;
     }
 
     [title("Wrapper (only with renderer = wrapper)")]

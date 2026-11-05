@@ -557,6 +557,7 @@ internal uint32_t slot_graphics_frame;
 internal uint32_t slot_graphics_clear_objects;
 internal uint32_t slot_graphics_draw_objects;
 internal uint32_t slot_graphics_finish_objects;
+internal uint32_t vt_ee_graphics;
 internal uint32_t vt_rts_render_object;
 internal uint32_t size_rts_render_object;
 internal uint32_t slot_render_object_update;

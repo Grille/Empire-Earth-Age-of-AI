@@ -276,7 +276,7 @@ task: a poll left running after its caller gave up keeps sending commands to wha
 | Command | |
 |---|---|
 | `status` | game time, speed, per AI: epoch, stock, workers, targets, demand |
-| `camera [x y]` | read or center the camera (tiles) |
+| `camera [x y]`, `camera pan <dx> <dy>` | read or center the camera (tiles; centering is a game action, run between steps); pan moves it at once, as the render thread's scrolling does - also during a step (the frame during a step, docs/renderer.md) |
 | `overlay [layers \| off]` | the debug overlay's layers drawn on the map (own renderer; `routes`, `danger`, `all` - docs/renderer.md); without one the layers known and which are on. The camera moves while paused: a setup script's `pause()` at a time, then `camera` and `shot` |
 | `speed [s]`, `pause`, `resume`, `quit` | |
 | `stepload <ms>` | each simulation step held at least that long (a busy wait after it, under the lock; 0 off; test runs only - control.c hook_phys_step): a heavy late game's steps for the renderer's lock tests, the game itself unchanged |

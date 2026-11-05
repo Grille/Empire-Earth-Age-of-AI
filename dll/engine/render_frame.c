@@ -69,12 +69,111 @@ internal void rf_record(UINT at, UINT n, INT base) {
     c->at = at; c->n = n; c->base = base;
 }
 
+// THE GROUND KEPT (render_3d.c "the frame during a step"): a frame drawn while the simulation runs a step skips the
+// render objects' update, and the ground's draw draws nothing without it (the ground's patches are made in the update,
+// with the units' visible region - that update can't run alone). So each frame's ground batches are kept on the CPU as
+// they are flushed - vertices, indices, world matrices, states, constants - and a frame during a step draws the last
+// frame's again in the ground's place. The game's view is made in the update too: such a frame's units are drawn from
+// the camera of the last update. The camera moved since (scrolling goes on, on this thread: camera.c) is the list's
+// to show (rf_shift): every 3D draw's constants moved by it as the list is drawn - the vertices stay as they were
+// placed, the shadows' maps with them.
+typedef struct { rf_cmd c; rd3_vcb vc; rd3_pcb pc; int v0, nv, i0, ni, w0, nw; } rf_kept;
+typedef struct {
+    rb_vertex *v;
+    uint32_t *i;
+    float (*w)[16];
+    rf_kept *b;
+    int nv, ni, nw, nb, cap_v, cap_i, cap_w, cap_b;
+} rf_ground;
+internal rf_ground g_kg[2];
+internal int g_kg_rec;    // the one being recorded; the other one is the last frame's
+internal int g_kg_skip;   // this frame is drawn during a step: nothing recorded
+internal LONG g_kg_drawn; // ground batches drawn again (the pipe's picture)
+internal float g_kg_cam[3];   // the camera's look-at at the last update: the view the game's draws have
+internal void rf_ground_clear(rf_ground *g) {
+    for (int k = 0; k < g->nb; k++) D3D_RELEASE(g->b[k].c.srv);
+    g->nv = g->ni = g->nw = g->nb = 0;
+}
+// the batch being flushed (rd3_flush, before its matrices' place is added), when it is the ground's
+internal void rf_keep_ground(void) {
+    if (g_kg_skip || g_ro_cur != RO_TERRAIN) return;
+    rf_ground *g = &g_kg[g_kg_rec];
+    if (!rf_grow((void **)&g->b, &g->cap_b, g->nb + 1, sizeof *g->b) || !rf_grow((void **)&g->v, &g->cap_v, g->nv + g_rb.nv, sizeof *g->v)
+        || !rf_grow((void **)&g->i, &g->cap_i, g->ni + g_rb.ni, sizeof *g->i) || !rf_grow((void **)&g->w, &g->cap_w, g->nw + g_rb.nw, sizeof *g->w))
+        return;
+    rf_kept *b = &g->b[g->nb++];
+    memset(&b->c, 0, sizeof b->c);
+    b->c.rtv = g_rd3.rtv; b->c.dsv = g_rd3.dsv;
+    b->c.blend = g_rd3.blend; b->c.depth = g_rd3.depth; b->c.raster = g_rd3.raster; b->c.samp = g_rd3.samp;
+    b->c.srv = g_rd3.srv;
+    if (b->c.srv) ID3D11ShaderResourceView_AddRef(b->c.srv);
+    b->c.vport = g_rd3.vport;
+    b->c.topo = g_rb.topo;
+    b->vc = g_rd3.vc; b->pc = g_rd3.pc;
+    b->v0 = g->nv; b->nv = g_rb.nv; b->i0 = g->ni; b->ni = g_rb.ni; b->w0 = g->nw; b->nw = g_rb.nw;
+    memcpy(g->v + g->nv, g_rb.v, (size_t)g_rb.nv * sizeof *g->v);
+    memcpy(g->i + g->ni, g_rb.i, (size_t)g_rb.ni * sizeof *g->i);
+    memcpy(g->w + g->nw, g_rb.w, (size_t)g_rb.nw * sizeof *g->w);
+    g->nv += g_rb.nv; g->ni += g_rb.ni; g->nw += g_rb.nw;
+}
+// the render objects' update: a frame drawn as before (skip 0) - the one recorded becomes the last frame's - or during
+// a step (skip 1)
+internal void rf_ground_frame(int skip) {
+    g_kg_skip = skip;
+    if (skip) return;
+    ee_camera *cam = game_camera();
+    if (cam) memcpy(g_kg_cam, camera_look_at(cam), sizeof g_kg_cam);
+    g_kg_rec ^= 1;
+    rf_ground_clear(&g_kg[g_kg_rec]);
+}
+// a frame during a step: the last frame's ground into the list
+internal void rf_ground_again(void) {
+    rf_ground *g = &g_kg[g_kg_rec ^ 1];
+    if (!g_kg_skip || !g->nb) return;
+    rd3_flush();
+    for (int k = 0; k < g->nb; k++) {
+        const rf_kept *b = &g->b[k];
+        g_rd3.rtv = b->c.rtv; g_rd3.dsv = b->c.dsv;
+        g_rd3.blend = b->c.blend; g_rd3.depth = b->c.depth; g_rd3.raster = b->c.raster; g_rd3.samp = b->c.samp;
+        g_rd3.srv = b->c.srv;
+        g_rd3.vport = b->c.vport;
+        g_rb.topo = b->c.topo;
+        g_rd3.vc = b->vc; g_rd3.pc = b->pc;
+        g_rf.vc_new = g_rf.pc_new = 1;
+        memcpy(g_rb.v, g->v + b->v0, (size_t)b->nv * sizeof *g_rb.v);
+        memcpy(g_rb.i, g->i + b->i0, (size_t)b->ni * sizeof *g_rb.i);
+        memcpy(g_rb.w, g->w + b->w0, (size_t)b->nw * sizeof *g_rb.w);
+        g_rb.nv = b->nv; g_rb.ni = b->ni; g_rb.nw = b->nw;
+        rd3_flush();
+        g_kg_drawn++;
+    }
+    g_rd3.bound = 0;   // the game's next draw binds all its states again
+}
+
 internal void rd3_shadow_frame(void);
 internal void rd3_shadow_vc(rd3_vcb *vc);
 internal void rd3_shadow_pc(rd3_pcb *pc);
 internal void rd3_shadow_bind(ID3D11DeviceContext *x);
 internal int rd3_shadow_only(int role);
 internal void rd3_fxaa(ID3D11RenderTargetView *rtv, const D3D11_VIEWPORT *vp);
+// a frame during a step: a 3D draw's constants moved by the camera's move since the last update (rf_ground) - the
+// units' (a view with the camera's place in it) by the world's shift, the ground's and the water's (drawn in the
+// camera's space, a view without one) by that shift seen through the camera
+internal void rf_shift(rd3_vcb *vc, int ro) {
+    ee_camera *cam = game_camera();
+    if (!g_kg_skip || ro < RO_TERRAIN || ro > RO_WATER || !cam) return;
+    // the look-at's height too: it follows the ground under it (the picture went up or down a hill's worth)
+    const float *at = camera_look_at(cam), *v = g_rd3.scene_view;
+    float d[3] = { at[0] - g_kg_cam[0], at[1] - g_kg_cam[1], at[2] - g_kg_cam[2] }, t[3];
+    if (d[0] == 0 && d[1] == 0 && d[2] == 0) return;
+    if (vc->view[12] != 0 || vc->view[13] != 0 || vc->view[14] != 0) for (int a = 0; a < 3; a++) t[a] = -d[a];
+    else for (int a = 0; a < 3; a++) t[a] = -(d[0] * v[a] + d[1] * v[4 + a] + d[2] * v[8 + a]);
+    // the translation before the matrix (row vectors): its last row plus t's combination of the first three
+    for (int c = 0; c < 4; c++) {
+        vc->vpm[12 + c] += t[0] * vc->vpm[c] + t[1] * vc->vpm[4 + c] + t[2] * vc->vpm[8 + c];
+        vc->view[12 + c] += t[0] * vc->view[c] + t[1] * vc->view[4 + c] + t[2] * vc->view[8 + c];
+    }
+}
 // the list's shaders, buffers and maps bound (the batches' own states come with them)
 internal void rf_bind(ID3D11DeviceContext *x) {
     ID3D11DeviceContext_IASetInputLayout(x, g_rd3.inputs);
@@ -120,9 +219,10 @@ internal void rf_replay(void) {
         if (first || c->srv != b.srv) ID3D11DeviceContext_PSSetShaderResources(x, 0, 1, &c->srv);
         if (first || c->samp != b.samp) ID3D11DeviceContext_PSSetSamplers(x, 0, 1, (ID3D11SamplerState **)&c->samp);
         if (c->topo != b.topo) ID3D11DeviceContext_IASetPrimitiveTopology(x, c->topo);
-        if (c->vc != b.vc) {
+        if (c->vc != b.vc || c->ro != b.ro) {
             rd3_vcb vc = g_rf.vcs[c->vc];
             rd3_shadow_vc(&vc);   // this frame's map
+            rf_shift(&vc, c->ro);
             ID3D11DeviceContext_UpdateSubresource(x, (ID3D11Resource *)g_rd3.vcb, 0, NULL, &vc, 0, 0);
         }
         if (c->pc != b.pc) {

@@ -145,23 +145,44 @@ panel and the counters differ with the game's state).
 
 ## The frame and the simulation's lock
 
-The game draws a frame under the world's read lock (Low-Level Engine's TSReadWriteLock): EEGraphics::vf3 0x4FED2D
-takes it once (with the interface's critical section), runs RTSGraphics::vf3 - every render object's draw, the scene's
-end - and lets it go; the simulation's loop (RTSPhysics::Main 0x5532FB) takes the write lock once a pass for its step.
-A frame that comes during a step waits for the rest of it: the camera stands, then jumps (the player's late game,
-2026-11-03: 100-250 frames a minute 8 ms or more, the holds 30-90 ms). The lock: a writer enters a critical section
-and waits on an auto-reset event the last reader sets again; a first reader waits on the same event.
+The graphics thread draws a frame through RTSGraphics.frame: update_objects (every render object's update), the
+clears, draw_objects inside the scene, show. EEGraphics (the game's class) overrides update_objects (0x4FED2D, AoC
+0x509840): it takes the world's read lock (Low-Level Engine's TSReadWriteLock, with the interface's critical section)
+around the update - the frame's only read of the world under the lock; the draws draw from what the update left. The
+simulation's loop (RTSPhysics::Main 0x5532FB) takes the write lock once a pass for its step. A frame that comes during
+a step waited for the rest of it: the camera stood, then jumped (the player's late game, 2026-11-03: 100-250 frames a
+minute 8 ms or more, the holds 30-90 ms). The lock: a writer enters a critical section and waits on an auto-reset event
+the last reader sets again; a first reader waits on the same event.
 The minute's lines: `frames waiting 8 ms or more for the lock` (the holds that long by where the game took the lock) and
-`the frame's read holds of the world` (how long the frame keeps it - what the simulation waits for a frame; one hold a
-frame, 0.5-1.3 ms on the reference save).
+`the frame's read holds of the world` (how long the frame keeps it - what the simulation waits for a frame; 0.5-1.3 ms
+on the reference save; frames drawn during a step).
+
+The frame during a step (`[display] draw_during_steps`, default on; the pipe: `picture steps on | off`; render_3d.c
+rd_hook_graphics_update, render_frame.c), 2026-11-05: while the simulation holds the write lock the update is skipped
+and the frame drawn from the last update's state - the units as they stood, the camera and the cursor moving on.
+- The ground's draw draws nothing without its update (the clear's sky blue where the ground was; units, trees and
+  buildings were there). Its update alone (and the water's) took everything else with it - it makes the visible region
+  the units' draw uses. So each frame's ground batches are kept on the CPU as they are flushed (vertices, indices,
+  world matrices, states, constants: render_frame.c rf_keep_ground) and a frame during a step draws the last frame's
+  again in the ground's place (rf_ground_again).
+- The game's view is made in the update too: the units of such a frame are drawn from the camera of the last update.
+  The camera's move since (its look-at, the height with it - a hill's worth up or down otherwise) is applied as the
+  list is drawn (rf_shift): the units' constants by the world's shift, the ground's and the water's (drawn in the
+  camera's space) by the shift seen through the camera's axes. The vertices stay where they were placed, the shadows'
+  maps with them.
+- Left: beyond the last update's ground, a fast scroll during a long step shows the sky blue at the edge (3 tiles in
+  one move: a strip at the side); the units there come with the next update.
+Checked on the reference save (slot 21, speed 2.5, the pipe's stepload 9 - each step held 9 ms, the simulation 410 ms
+a second): frames waiting 8 ms or more 260-383 a minute off, 0-2 on; frames a minute 7300-8700 off, 11200-13300 on;
+an 842 ms step no wait. Shots in steps held 600-4000 ms: complete frames (six over 3 s of one step the same); a 3-tile
+pan during the step against the frame after it: the farm, towers, trees and ground in the same places.
 
 Tried and dropped, 2026-11-05 (the player: "is it possible to decouple the rendering from the simulation lock?"): the
 loop runs up to two steps under one hold, so the lock was let go between them while a frame waited (the step's vtable
 slot). It never came up: the loop runs a second step only when its timer was late, and its step count is taken from
 the time since the timer's wait ended, so even 25 ms steps (the pipe's stepload, longer than the 22 ms pass) ran one
 step a hold - 2275 holds a minute of 25 ms each, one frame let in in 10 minutes of the reference save. The holds the
-frames wait for are single steps. What is left: the frame not waiting at all - while the simulation holds the lock,
-the last frame's list drawn again from the camera as it is now (EEGraphics::vf3 skipped), or the steps made shorter.
+frames wait for are single steps. What came of it: the frame during a step (above).
 
 ## The debug overlay
 

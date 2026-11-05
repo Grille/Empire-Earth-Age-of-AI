@@ -195,6 +195,12 @@ internal void cmd_camera(char *out, const char *args) {
     float *cam = camera_look_at(game_camera());   // current look-at; +0x40 = previous (interpolated per frame)
     int x, y;
     if (!game_map()) { REPLY("error: no map\n"); return; }   // in the menus and while a game loads (its size read through NULL)
+    float dx, dy;
+    if (sscanf(args, "pan %f %f", &dx, &dy) == 2) {   // moved at once, as the render thread's scrolling does (camera.c)
+        camera_pan(dx, dy);
+        REPLY("ok: camera moved by %.2f %.2f\n", (double)dx, (double)dy);
+        return;
+    }
     if (sscanf(args, "%d %d", &x, &y) == 2) {
         uint32_t size = map_get_size(game_map());
         if (x < 0 || y < 0 || (uint32_t)x >= size || (uint32_t)y >= size) { REPLY("error: tile outside map (size %u)\n", size); return; }

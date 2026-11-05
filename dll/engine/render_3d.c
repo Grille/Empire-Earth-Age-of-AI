@@ -225,7 +225,7 @@ internal struct {
     rd3_cached blends[32], depths[32], rasters[8], samps[32];
     int n_blend, n_depth, n_raster, n_samp;
     // the map's camera this frame (render_overlay.c draws with it): view x projection, the viewport; the overlay drawn
-    float scene_vp[16];
+    float scene_vp[16], scene_view[16];   // and its view (render_frame.c rf_shift: the camera's axes)
     D3D11_VIEWPORT scene_port;
     int scene_seen, overlay_done;
     rd_device *prep_dev;   // whose states are bound (rd3_prepare), with which clamp
@@ -423,6 +423,7 @@ internal int rd3_prepare(rd_device *d, int clamp) {
         if (rs[D3DRENDERSTATE_ZENABLE] && (d->view._41 != 0 || d->view._42 != 0 || d->view._43 != 0)) {
             // the map's camera (a view away from the origin - the interface's 3D pieces have none): the overlay's
             memcpy(g_rd3.scene_vp, vc.vpm, sizeof vc.vpm);
+            memcpy(g_rd3.scene_view, vc.view, sizeof vc.view);
             g_rd3.scene_port = vp;
             g_rd3.scene_seen = 1;
         }
@@ -527,6 +528,7 @@ internal int rd3_drawable(rd_vb *vb, D3DPRIMITIVETYPE type) {
 // the batch into the upload buffers and the frame's list (render_frame.c), with the states it was collected under
 internal void rd3_flush(void) {
     if (!g_rb.ni) return;
+    rf_keep_ground();
     long wa = rd3_upload(g_rd3.wb, RD3_WB_BYTES, &g_rd3.wb_pos, g_rb.w, (UINT)g_rb.nw * sizeof *g_rb.w, sizeof *g_rb.w);
     if (wa > 0) for (int k = 0; k < g_rb.nv; k++) g_rb.v[k].w += (uint32_t)wa / sizeof *g_rb.w;   // the batch's matrices' place
     long at = wa >= 0 ? rd3_upload(g_rd3.vb, RD3_VB_BYTES, &g_rd3.vb_pos, g_rb.v, (UINT)g_rb.nv * sizeof *g_rb.v, sizeof *g_rb.v) : -1;
@@ -706,6 +708,26 @@ internal void __thiscall rd_hook_write_unlock(void *lock) {
     }
     g_rwl_wunlock(lock);
 }
+// THE FRAME DURING A STEP ([display] draw_during_steps; the pipe: picture steps on | off): the frame reads the world
+// only in the render objects' update (EEGraphics.update_objects, under the read lock); draw_objects draws from what the
+// last update left. While the simulation holds the lock for a step the update is skipped and the frame drawn from the
+// last one's - the camera (moved on this thread: camera.c) and the cursor go on, the units stand till the step is done -
+// where it waited for the step before (the camera stood, then jumped). Not before an update has run at all.
+// The ground's draw draws nothing without its update (the clear's sky blue where it was): the last frame's ground is
+// drawn again (render_frame.c "the ground kept"). Its update alone took the units with it (their visible region).
+internal int g_rwl_free = 1;
+internal LONG g_rwl_skips, g_rwl_updates;
+internal ee_render_object *g_ro_obj[RO_N];   // the render objects, as their draws are called
+internal void __thiscall rd_hook_graphics_update(ee_graphics *g) {
+    if (g_rwl_free && g_rwl_updates && g_rwl_world && g_rwl_write_at) {
+        g_rwl_skips++;
+        rf_ground_frame(1);
+        return;
+    }
+    rf_ground_frame(0);
+    g_rwl_updates++;
+    ee_graphics_update_objects(g);
+}
 internal int rd_world_lock_install(void) {
     HMODULE lle = GetModuleHandleA("Low-Level Engine.dll"), exe = GetModuleHandleA(NULL);
     if (!lle) return 0;
@@ -717,16 +739,17 @@ internal int rd_world_lock_install(void) {
     return patch_iat(exe, "Low-Level Engine.dll", "?ReadLock@TSReadWriteLock@@QAEXXZ", (void *)rd_hook_read_lock) +
            patch_iat(exe, "Low-Level Engine.dll", "?ReadUnlock@TSReadWriteLock@@QAEXXZ", (void *)rd_hook_read_unlock) +
            patch_iat(exe, "Low-Level Engine.dll", "?WriteLock@TSReadWriteLock@@QAEXXZ", (void *)rd_hook_write_lock) +
-           patch_iat(exe, "Low-Level Engine.dll", "?WriteUnlock@TSReadWriteLock@@QAEXXZ", (void *)rd_hook_write_unlock);
+           patch_iat(exe, "Low-Level Engine.dll", "?WriteUnlock@TSReadWriteLock@@QAEXXZ", (void *)rd_hook_write_unlock) +
+           patch_graphics_update(rd_hook_graphics_update);
 }
 
 // THE GAME'S DRAWING, BY ITS PARTS: RTSGraphics draws a frame through its render objects (spec engine_display.cs) -
 // each one's draw timed for the minute's line, the game's own work in it and the renderer's under it together
 internal LONGLONG g_ro_qpc[RO_N];
 internal int g_rp_skip;       // bit per render object: its draw skipped (the pipe's rprobe skip - the picture without it)
-#define RO_DRAW(i, call) do { if (g_rp_skip & 1 << (i)) return; int was_ = g_ro_cur; g_ro_cur = (i); \
+#define RO_DRAW(i, call) do { g_ro_obj[i] = (ee_render_object *)o; if (g_rp_skip & 1 << (i)) return; int was_ = g_ro_cur; g_ro_cur = (i); \
     LONGLONG t_ = rd_qpc(); call; g_ro_qpc[i] += rd_qpc() - t_; g_ro_cur = was_; } while (0)
-internal void __thiscall rd_hook_ro_terrain(ee_ro_terrain *o) { RO_DRAW(RO_TERRAIN, ro_terrain_draw(o)); }
+internal void __thiscall rd_hook_ro_terrain(ee_ro_terrain *o) { RO_DRAW(RO_TERRAIN, (rf_ground_again(), ro_terrain_draw(o))); }
 internal void __thiscall rd_hook_ro_shadows(ee_ro_shadows *o) { RO_DRAW(RO_SHADOWS, ro_shadows_draw(o)); }
 internal void __thiscall rd_hook_ro_units(ee_ro_units *o) { RO_DRAW(RO_UNITS, ro_units_draw(o)); }
 internal void __thiscall rd_hook_ro_water(ee_ro_water *o) { RO_DRAW(RO_WATER, ro_water_draw(o)); }
@@ -872,11 +895,13 @@ internal void rd_frame_tick(void) {
     }
     log_locked("# render: frames waiting %d ms or more for the lock %ld (longest %.0f ms); its holds that long by where the"
                " game took it: %s\n", RWL_LONG_MS, (long)g_rwl_waits_long, (double)g_rwl_wait_max * ms, len ? sites : "none");
-    static LONG reads0;
+    static LONG reads0, skips0;
     static LONGLONG read0;
-    log_locked("# render: the frame's read holds of the world %.2f ms a frame (%.2f holds; the game took the last at %08x)\n",
-               (double)(g_rwl_read_qpc - read0) * k, fr > 0 ? (double)(g_rwl_reads - reads0) / fr : 0, (unsigned)g_rwl_read_ret);
-    reads0 = g_rwl_reads; read0 = g_rwl_read_qpc;
+    log_locked("# render: the frame's read holds of the world %.2f ms a frame (%.2f holds; the game took the last at %08x);"
+               " frames drawn during a step %ld (draw_during_steps %s)\n", (double)(g_rwl_read_qpc - read0) * k,
+               fr > 0 ? (double)(g_rwl_reads - reads0) / fr : 0, (unsigned)g_rwl_read_ret, (long)(g_rwl_skips - skips0),
+               g_rwl_free ? "on" : "off");
+    reads0 = g_rwl_reads; read0 = g_rwl_read_qpc; skips0 = g_rwl_skips;
     memset(g_rwl_long, 0, sizeof g_rwl_long);
     g_rwl_waits_long = 0;
     g_rwl_wait_max = 0;
