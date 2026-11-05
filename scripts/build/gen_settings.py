@@ -63,7 +63,7 @@ def diff_value(base, k):   # a difficulty's own value of an [ai_base] key, as th
         return k.default
     v = cs_str(k.default)
     if kind == 'CHOICE' and v not in base.enums[row.type].values():
-        raise SystemExit('%s: %s is none of %s' % (k.where, v, '|'.join(base.enums[row.type].values())))
+        raise SystemExit('%s: %s is none of %s' % (k.where, v, ', '.join(base.enums[row.type].values())))
     return v
 
 
@@ -78,7 +78,7 @@ def row_of(sec, k):   # X(FLAG, general, enabled, 1, 0, 0) - D for a row of [ai_
         'NUM': tuple(arg(x) for x in a.get('range', [])[:2]) or ('0', '0'),
         'LIMIT': tuple(arg(x) for x in a.get('range', [])[:2]),
         'SHARE': tuple(settings_read.percent(arg(x), k.where) for x in a.get('range', [])[:2]) or ('-1000000', '1000000'),   # no bound
-        'CHOICE': (c_str('|'.join(sec.enums.get(k.type, {}).values())), '0'),
+        'CHOICE': (c_str(','.join(sec.enums.get(k.type, {}).values())), '0'),   # a name may hold a | (default | file)
         'STR': (arg(a['length'][0]) if 'length' in a else '0', '0'),
         'STR_P': (arg(a['length'][0]) if 'length' in a else '0', '0'),
         'FACTOR': tuple(settings_read.percent(arg(x), k.where) for x in a.get('range', [])[:2]) or ('-1000000', '1000000'),
@@ -192,7 +192,7 @@ def ini(secs):
                 continue
             _, v = default_of(sec, k)
             c = k.attrs.get('commented')
-            if c is None and k.master:   # a master's key: commented out (only custom reads it), its default to try
+            if c is None and k.master:   # a master's key: commented out (only file and the combinations read it), its default to try
                 c = []
             if c is None:
                 out.append('%s=%s' % (k.name, v))

@@ -146,10 +146,11 @@ changes the simulation: in a lockstep game different values make the PCs' games 
   share_routes, route_budget, ship_turns, land_turns, ship_collide, land_collide, formations, formation_march,
   formation_follow, formation_catchup_falloff, formation_wheel, and the factors formation_catchup, formation_reform, formation_wait,
   friendly_collision) as one. `default` gives each
-  its own default (all on since 2026-10-26: the player's play), `custom` each as set in the file (else its default),
-  `enabled` all of them on, `disabled` all off and the factors at 100% (a number its default) - the game's own movement.
-  Only `custom` reads the keys below (improved_unit_movement=custom with formation_follow=0: everything but the marching formations); with
-  another value a key set there is logged (`# ini:`) and not used.
+  its own default (all on since 2026-10-26: the player's play), `file` each as set in the file (else its default),
+  `default | file` a switch on when its default or the file has it on, `default & file` only when both do (a factor or
+  number as the file sets it in both; 2026-11-05, the player's names in place of custom / enabled / disabled: the
+  game's own movement is each switch set off with `file`). With `default` a key set below is logged (`# ini:`) and not
+  used (improved_unit_movement=file with formation_follow=0: everything but the marching formations).
 - `[general] ship_routes=1` (default): the game plans a ship's route in pieces of 8-18
   tiles, each in the 8 tile directions only, so a route at any angle between them zigzags and a slow-turning ship
   keeps swinging its bow. With 1 a ship's route is planned whole at once, in straight lines wherever the water between

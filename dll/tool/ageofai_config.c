@@ -91,7 +91,7 @@ internal const char *sec_of(const struct entry *e) { return g_page_of[e->page].s
 internal int on_diff_page(const struct entry *e) { return g_page_of[e->page].diff >= 0; }
 
 // MASTERS AND MEMBERS: a [master] group's keys (SETTING_MEMBERS) come to what their master's word says (settings.c
-// setting_member) - the file's value only with custom; the master's entry shows them under it when opened (g_open)
+// setting_member) - the file's value with file, a bool's in a combination with its default; the master's entry shows them under it when opened (g_open)
 internal int g_open[SETTING_N];
 internal int under_of(int row) { return setting_master_of(&k_settings[row]); }   // the master a row is shown under, -1 none
 internal int is_member(const struct entry *e) { return under_of(e->row) >= 0; }
@@ -102,7 +102,7 @@ internal int is_master(int row) {
 // an entry without a value of its own takes another's: [ai_base]'s on a difficulty's page
 internal int inherits(const struct entry *e) { return on_diff_page(e); }
 
-// the member's master on its page: 0 default, 1 custom, 2 enabled, 3 disabled (its text, else its default); *name: the word
+// the member's master on its page: MASTER_DEFAULT, _FILE, _OR, _AND (its text, else its default); *name: the word
 internal int master_word(const struct entry *e, char *name, int cap) {
     int mr = under_of(e->row);
     const struct setting_row *m = &k_settings[mr];
@@ -115,18 +115,19 @@ internal int master_word(const struct entry *e, char *name, int cap) {
     return w;
 }
 
-// what a member comes to while its master isn't custom (as settings.c setting_member), as the list shows it; *word the
-// master's; 0: the master is custom (the member's own value counts)
+// what a member comes to while its master overrules its own value (as settings.c setting_member), as the list shows it;
+// *word the master's; 0: the member's own value counts - file; a combination's factor or int; a combination's bool its
+// value decides (default | file: its default off; default & file: its default on)
 internal void setting_text(const struct setting_row *r, const uint8_t *at, char *out, int cap);
 internal int member_overruled(const struct entry *e, char *out, int cap, char *word, int wcap) {
     int w = master_word(e, word, wcap);
-    if (w == 1) return 0;
     const struct setting_row *r = row_of(e);
-    float f = w == 3 ? 1.0f : (float)(r->def / 100.0);
+    if (w == MASTER_FILE || (w != MASTER_DEFAULT && (r->kind != SETK_FLAG || r->def == (w == MASTER_AND)))) return 0;
+    float f = (float)(r->def / 100.0);
     int d = r->def;
     if (r->kind == SETK_FACTOR) setting_text(r, (const uint8_t *)&f, out, cap);
-    else if (r->kind == SETK_INT) setting_text(r, (const uint8_t *)&d, out, cap);   // an int: its default whatever the word
-    else lstrcpynA(out, (w == 0 ? r->def : w == 2) ? "on" : "off", cap);
+    else if (r->kind == SETK_INT) setting_text(r, (const uint8_t *)&d, out, cap);
+    else lstrcpynA(out, r->def ? "on" : "off", cap);   // default: its default; default | file on, default & file off - its default too
     return 1;
 }
 
@@ -971,7 +972,7 @@ internal void note_of(struct note *n) {
                  !lstrcmpA(other, "aoc") ? "Empire Earth" : "The Art of Conquest");
     } else if (is_member(e) && member_overruled(e, shown, sizeof shown, word, sizeof word)) {
         snprintf(msg, cap, "%s=%s: %s%s.", k_settings[under_of(e->row)].key, word, shown,
-                 e->text[0] ? " - the value here counts only with custom" : "");
+                 e->text[0] ? " - the value set here doesn't count" : "");
     } else if (e->text[0]) {
         int c = check(row_of(e), sec_of(e), key, e->text, why, shown, sizeof shown);
         n->level = c;
@@ -1529,8 +1530,8 @@ internal const struct { int look; const char *sample, *text; } k_help[] = {
     { HL_TEXT, NULL, "The < button at the start of the selected line's Default cell (or Delete) puts the mod's default back - "
                      "on an easy or hard line, the [ai_base] value." },
     { HL_TEXT, NULL, "A master setting opens to its children (Movement: improved_unit_movement). default plays each "
-                     "child's own default, enabled turns them all on, disabled all off; a child set in your file goes "
-                     "its own way." },
+                     "child's own default, file each as your file sets it; default | file turns a child on when its "
+                     "default or your file has it on, default & file only when both do." },
     { HL_HEAD, NULL, "Saving" },
     { HL_TEXT, NULL, "Save writes only the keys you changed - your file's comments and order stay; a key set to its "
                      "default is taken out, so that it follows the mod's default when an update changes it. The game reads "

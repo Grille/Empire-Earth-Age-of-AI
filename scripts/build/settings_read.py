@@ -44,11 +44,11 @@ class Key:
         return attr in self.attrs
 
 
-MASTER_TYPE = 'master'   # a [master] group's own key: a CHOICE of MASTER_VALUES
-MASTER_VALUES = {'default': 'each its shipped default (a key below set in the file is not used)',
-                 'custom': 'each as set below, else its default',
-                 'enabled': 'every part on (a factor: its default)',
-                 'disabled': "every part off (a factor: 100%, the game's own)"}
+MASTER_TYPE = 'master'   # a [master] group's own key: a CHOICE of MASTER_VALUES (its member: its name, its line)
+MASTER_VALUES = {'default': ('default', 'each its shipped default (a key below set in the file is not used)'),
+                 'file': ('file', 'each as set below, else its default'),
+                 'default_or_file': ('default | file', 'a part on when its default or the file has it on (a number: as file)'),
+                 'default_and_file': ('default & file', 'a part on when its default and the file have it on (a number: as file)')}
 
 
 def snake(ident):   # ImprovedUnitMovement -> improved_unit_movement
@@ -210,8 +210,8 @@ def read_file(path):
                 k = Key(snake(name), MASTER_TYPE, MASTER_TYPE + '.default', [], doc, where)
                 k.attrs['group'], group = [group], None
                 cur.keys.append(k)
-                cur.enums[MASTER_TYPE] = {v: v for v in MASTER_VALUES}
-                cur.docs[MASTER_TYPE] = {v: [t] for v, t in MASTER_VALUES.items()}
+                cur.enums[MASTER_TYPE] = {v: n for v, (n, _) in MASTER_VALUES.items()}
+                cur.docs[MASTER_TYPE] = {v: [t] for v, (_, t) in MASTER_VALUES.items()}
                 master = k.name
             attr_text, doc = '', []
         elif depth in (1, 2) and cur and code.endswith(';'):

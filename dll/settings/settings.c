@@ -34,8 +34,8 @@ internal const char *const k_set_diff_sec[3] = { "ai_easy", NULL, "ai_hard" };  
 enum { SETTINGS(SET_ID_X, SET_ID_D) SETTING_N };
 
 enum { SETK_FLAG, SETK_INT, SETK_NUM, SETK_SHARE, SETK_CHOICE, SETK_STR, SETK_STR_P, SETK_FACTOR, SETK_FLAGS, SETK_LIMIT };
-// name: the field's, and the key that overrides it in the test ini; choices: a CHOICE's names, '|' between them - a
-// FLAGS row's fields, each name or name=a/b/c and a '|' after it; ai: a row of [ai_base] (its field in struct
+// name: the field's, and the key that overrides it in the test ini; choices: a CHOICE's names, ',' between them (a name
+// may hold a '|': a master's default | file) - a FLAGS row's fields, each name or name=a/b/c and a '|' after it; ai: a row of [ai_base] (its field in struct
 // settings_ai, a value per difficulty); a: a FLAGS row's count of fields
 struct setting_row { const char *sec, *key, *name; int kind, ai; size_t off; int def; const char *def_s, *choices; int a, b; };
 #define SET_ROW_FLAG(sec, key, name, st, ai, def, a, b) { #sec, #key, #name, SETK_FLAG, ai, offsetof(st, name), def, NULL, NULL, a, b },
@@ -118,7 +118,7 @@ internal const char *settings_section(int id) {   // the section a row's value w
 internal int setting_choice(const char *choices, const char *v) {
     int i = 0;
     for (const char *c = choices; ; i++) {
-        const char *e = strchr(c, '|');
+        const char *e = strchr(c, ',');
         size_t n = e ? (size_t)(e - c) : strlen(c);
         if (strlen(v) == n && !_strnicmp(c, v, n)) return i;
         if (!e) return -1;
@@ -127,8 +127,8 @@ internal int setting_choice(const char *choices, const char *v) {
 }
 internal void setting_choice_name(const char *choices, int i, char *out, int cap) {   // a CHOICE's name i
     const char *c = choices;
-    for (; i > 0 && c; i--) { c = strchr(c, '|'); if (c) c++; }
-    const char *e = c ? strchr(c, '|') : NULL;
+    for (; i > 0 && c; i--) { c = strchr(c, ','); if (c) c++; }
+    const char *e = c ? strchr(c, ',') : NULL;
     int n = !c ? 0 : e ? (int)(e - c) : (int)strlen(c);
     lstrcpynA(out, c ? c : "", n + 1 < cap ? n + 1 : cap);
 }
@@ -267,7 +267,14 @@ internal int setting_value(const struct setting_row *r, const char *f, const cha
     if (r->kind == SETK_CHOICE) {
         int i = setting_choice(r->choices, v);
         if (i < 0) {
-            snprintf(why, sizeof why, "one of %s expected", r->choices);
+            char names[256];   // the names with ", " between them
+            int n = 0;
+            for (const char *c = r->choices; *c && n < (int)sizeof names - 2; c++) {
+                names[n++] = *c;
+                if (*c == ',') names[n++] = ' ';
+            }
+            names[n] = 0;
+            snprintf(why, sizeof why, "one of %s expected", names);
             ini_error(f, s, k, v, why);
             return 0;
         }
@@ -338,26 +345,27 @@ internal void settings_unknown(const char *ini, const char *sec) {
 }
 
 // A [master] group's members (SETTING_MEMBERS) as their master's word says - read first, in the values at base (g_set,
-// or a difficulty's g_set_ai): default (0) each its default, custom (1) as read (the file's, else its default), enabled
-// (2) a bool on and a factor or int its default, disabled (3) a bool off and a factor 1 (the game's own), an int its
-// default (a tuning number of a bool that is off then). set: the member was in a file - told when the master doesn't use it
+// or a difficulty's g_set_ai): default each its default, file as read (the file's, else its default), default | file a
+// bool on when its default or the file's is (a factor or int as read), default & file a bool on when both are. set: the
+// member was in a file - told when the master is default (it doesn't use it then)
+enum { MASTER_DEFAULT, MASTER_FILE, MASTER_OR, MASTER_AND };   // the master's words in their order (settings_read.py)
 internal int setting_master_word(int master, const uint8_t *base) { return *(const int *)(base + k_settings[master].off); }
 internal void setting_member(const struct setting_row *r, int w, int set, uint8_t *base) {
     uint8_t *at = base + r->off;
-    if (w == 1) return;
-    if (set) {
-        char line[200], word[16];
-        setting_choice_name(k_settings[setting_master_of(r)].choices, w, word, sizeof word);
-        snprintf(line, sizeof line, "%s is set, but %s=%s: only custom uses it - ignored", r->key,
-                 k_settings[setting_master_of(r)].key, word);
-        ini_tell(line);
+    if (w == MASTER_FILE) return;
+    if (w == MASTER_DEFAULT) {
+        if (set) {
+            char line[200];
+            snprintf(line, sizeof line, "%s is set, but %s=default: ignored", r->key, k_settings[setting_master_of(r)].key);
+            ini_tell(line);
+        }
+        setting_default(r, at);
+        return;
     }
+    if (r->kind != SETK_FLAG) return;
+    int read = *(int *)at;
     setting_default(r, at);
-    if (w == 2 && r->kind == SETK_FLAG) *(int *)at = 1;
-    if (w == 3) {
-        if (r->kind == SETK_FACTOR) *(float *)at = 1.0f;
-        else if (r->kind == SETK_FLAG) *(int *)at = 0;
-    }
+    *(int *)at = w == MASTER_OR ? read || *(int *)at : read && *(int *)at;
 }
 
 internal void settings_read(const char *ini, const char *test_ini) {

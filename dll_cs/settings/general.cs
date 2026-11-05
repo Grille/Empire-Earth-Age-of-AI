@@ -84,8 +84,8 @@ class general
     }
 
     /// Improved unit movement: the mod's changes to how units move (the routes, turns and collisions below), as one
-    /// setting. The keys below count only with custom: improved_unit_movement=custom with formation_follow=0 (the ; in
-    /// front removed) is everything but the marching formations.
+    /// setting. The keys below count with file and the combinations: improved_unit_movement=file with formation_follow=0
+    /// (the ; in front removed) is everything but the marching formations.
     [master]
     class ImprovedUnitMovement
     {
