@@ -23,6 +23,7 @@
 // not casting (a tree whose card casts)
 enum { SH_NONE, SH_RECEIVE, SH_CAST, SH_TINT, SH_DECAL, SH_BLOB, SH_WATER, SH_AWAY, SH_GONE, SH_TREE };
 #define SH_SIZE 4096
+#define SH_BLOCK 8   // tiles a block of the ground's highest and lowest (g_sh.bmax)
 internal struct {
     int on;          // [display] shadows (the pipe's shadows switches it)
     float strength;  // how much of the sun a shadow takes away (1: all but the ambient light)
@@ -61,6 +62,11 @@ internal struct {
     ID3D11DepthStencilState *depth;
     float lo[3], hi[3];      // the casters' world box (the draws recorded since the last map)
     float tall, tall_frame;  // the tallest caster's height (tiles; the frame's so far) - the reach off the screen
+    // the ground's highest (bmax) and lowest (bmax + bw * bw) in blocks of SH_BLOCK tiles, bw a side: a caster on a hill
+    // casts farther by its height over the ground on the screen (the player's shot, 2026-11-05: a tower on a hill, its
+    // shadow gone with it off the screen)
+    float *bmax;
+    int bw;
     int off_frame, last_off; // the casting draws wholly off the screen (the frame's so far, the last map's)
     // the sun the map is drawn from: the light's, never lower than sun_low degrees over the horizon (the day's cycle's
     // evening: shadows of many tiles, the player's screenshot of 2026-11-05); sun_lit its true height (the shadows' colour)
@@ -400,10 +406,20 @@ internal void shadow_hills(void) {
         D3D_RELEASE(g_sh.hsrv);
         D3D_RELEASE(g_sh.hill);
         if (!corner || !g_sh.hground || !g_sh.hceil) { free(corner); rd_fail("the hills' shadows' memory", E_OUTOFMEMORY); g_sh.hfail = 1; return; }
+        // and the ground's highest and lowest in blocks of SH_BLOCK tiles (the reach off the screen: shr_hook_rows)
+        int bw = ((int)w + SH_BLOCK - 1) / SH_BLOCK;
+        free(g_sh.bmax);
+        g_sh.bmax = malloc((size_t)bw * bw * 2 * sizeof(float));
+        g_sh.bw = g_sh.bmax ? bw : 0;
+        for (int i = 0; g_sh.bmax && i < bw * bw; i++) { g_sh.bmax[i] = -1e30f; g_sh.bmax[bw * bw + i] = 1e30f; }
         for (int y = 0; y < cw; y++)
             for (int x = 0; x < cw; x++) {
                 float h = ground_corner(map, x, y);
                 corner[y * cw + x] = isnan(h) ? -1e9f : h;   // off the map: hides nothing
+                if (isnan(h) || !g_sh.bmax) continue;
+                int b = (y / SH_BLOCK < bw ? y / SH_BLOCK : bw - 1) * bw + (x / SH_BLOCK < bw ? x / SH_BLOCK : bw - 1);
+                g_sh.bmax[b] = fmaxf(g_sh.bmax[b], h);
+                g_sh.bmax[bw * bw + b] = fminf(g_sh.bmax[bw * bw + b], h);
             }
         for (int j = 0; j < n; j++)
             for (int i = 0; i < n; i++) {
@@ -630,6 +646,7 @@ internal struct {
     int extra;                    // the row handed out last is one of the widened ones: its objects pass the view's test
     int lo[SHR_MAP], hi[SHR_MAP], olo[SHR_MAP], ohi[SHR_MAP];   // per y: the widened rows' x, the game's
     float reach;                  // the last collection's (tiles)
+    float rise;                   // its ground's highest toward the sun over the screen's lowest, within the reach
     int last_own, last_extra;     // its rows
 } g_shr;
 
@@ -664,8 +681,34 @@ internal unsigned long __thiscall shr_hook_rows(const void *mesh) {
         if (x1 > g_shr.ohi[y]) g_shr.ohi[y] = (int)x1;
     }
     g_shr.n = g_shr.own = (int)n;
-    // each swept toward the sun (the map's tiles are its world's x and y) by the reach, in half tiles
-    float reach = fminf(g_sh.tall * h / -f[2], SHR_REACH) + 1, dx = -f[0] / h, dy = -f[1] / h;
+    // each swept toward the sun (the map's tiles are its world's x and y) by the reach, in half tiles: as far as a
+    // caster as tall as the tallest, on the highest ground of the blocks that far toward the sun, can cast onto the
+    // lowest ground of the screen's (without the blocks - no map of them yet - the tallest on level ground)
+    float slope = -f[2] / h, dx = -f[0] / h, dy = -f[1] / h, reach = fminf(g_sh.tall / slope, SHR_REACH);
+    g_shr.rise = 0;
+    if (g_sh.bmax && g_sh.hmap == map && g_sh.bw == ((int)w + SH_BLOCK - 1) / SH_BLOCK) {
+        int bw = g_sh.bw;
+        const float *bmin = g_sh.bmax + bw * bw;
+        float low = 1e30f;
+        for (unsigned long i = 0; i < n; i++) {
+            int by = (int)g_shr.y[i] / SH_BLOCK;
+            if (by < 0 || by >= bw) continue;
+            for (int bx = (int)g_shr.x0[i] / SH_BLOCK; bx <= (int)g_shr.x1[i] / SH_BLOCK && bx < bw; bx++)
+                if (bx >= 0) low = fminf(low, bmin[by * bw + bx]);
+        }
+        reach = 0;
+        for (float k = 0.5f; k <= SHR_REACH && low < 1e29f; k += 0.5f) {
+            float high = -1e30f;
+            for (unsigned long i = 0; i < n; i++) {
+                int by = (int)floorf((float)g_shr.y[i] + dy * k) / SH_BLOCK;
+                if (by < 0 || by >= bw) continue;
+                int b0 = (int)floorf((float)g_shr.x0[i] + dx * k) / SH_BLOCK, b1 = (int)ceilf((float)g_shr.x1[i] + dx * k) / SH_BLOCK;
+                for (int bx = b0 < 0 ? 0 : b0; bx <= b1 && bx < bw; bx++) high = fmaxf(high, g_sh.bmax[by * bw + bx]);
+            }
+            if (high + g_sh.tall - low >= (k - 1) * slope) { reach = k; g_shr.rise = fmaxf(g_shr.rise, high - low); }
+        }
+    }
+    reach += 1;
     for (unsigned long i = 0; i < n; i++)
         for (float k = 0; k <= reach; k += 0.5f) {
             float yy = (float)g_shr.y[i] + dy * k;
@@ -787,7 +830,7 @@ internal void cmd_shadows(char *out, const char *args) {
     REPLY("shadows: %s, strength %.2f, %s, %ld maps drawn; the last: %d casting batches, %d of ground;"
           " the casters' box %.1f %.1f %.1f - %.1f %.1f %.1f, the sun %.2f %.2f %.2f, a shadow's colour %.2f %.2f %.2f;"
           " the water at %.2f%s, a shadow gone %.2f under it; units in a shadow darkened: %s, receiving: %s; the sun at least %.0f degrees"
-          " high (the light's %.0f); casters off the screen: %s, %.1f tiles (the tallest %.1f), %d rows and %d more; %d casting draws off the screen;"
+          " high (the light's %.0f); casters off the screen: %s, %.1f tiles (the tallest %.1f, the ground's rise %.1f), %d rows and %d more; %d casting draws off the screen;"
           " the ground's mean colour %.0f %.0f %.0f; the hills' shadows: %s, %dx%d texels (%d a tile), made %ld times, the last in %.1f ms\n",
           g_sh.on ? "dynamic" : "game", (double)g_sh.strength,
           g_sh.ready > 0 ? "ready" : g_sh.ready < 0 ? "FAILED (the log says why)" : "not made yet", (long)g_sh.passes,
@@ -796,7 +839,7 @@ internal void cmd_shadows(char *out, const char *args) {
           (double)g_sh.sun[1], (double)g_sh.sun[2], (double)g_sh.shk[0], (double)g_sh.shk[1], (double)g_sh.shk[2],
           (double)g_sh.level, g_sh.shl[2] > 0 ? "" : " (none seen)", (double)g_sh.fade, g_sh.tint ? "on" : "off", g_sh.all ? "everything" : "the ground",
           (double)g_sh.sun_low, (double)(asinf(fminf(1, fmaxf(-1, g_sh.sun_lit))) * 180 / 3.14159265f),
-          !g_shr.on ? "not (no hooks)" : g_shr.off ? "off" : "collected", (double)g_shr.reach, (double)g_sh.tall, g_shr.last_own, g_shr.last_extra, g_sh.last_off,
+          !g_shr.on ? "not (no hooks)" : g_shr.off ? "off" : "collected", (double)g_shr.reach, (double)g_sh.tall, (double)g_shr.rise, g_shr.last_own, g_shr.last_extra, g_sh.last_off,
           (double)g_sh.ground_mean[0], (double)g_sh.ground_mean[1], (double)g_sh.ground_mean[2],
           g_sh.nohills ? "off" : g_sh.hill_ok ? "on" : "not made", g_sh.hn, g_sh.hn, g_sh.hr, (long)g_sh.hill_made, (double)g_sh.hill_ms);
 }

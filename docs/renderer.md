@@ -247,6 +247,15 @@ tells the last map's casters, ground batches, box, sun and shadow colour), engin
   long shadows over the fields with the reach on, none with it off; the collection 271 -> 413 objects at 56,84, about
   200 casting draws off the screen; the frame's units part 1.14 ms with the reach off, 1.38 on (a
   minute each, paused, the sun at 15 degrees: the longest reach).
+  A caster on a hill casts farther by its height over the ground its shadow falls on (the player's shot, 2026-11-05:
+  a tower on a hill, its shadow gone with it off the screen - the reach was the tallest caster on level ground). Since
+  then the reach is as far as a caster as tall as the tallest, on the highest ground of the blocks that far toward the
+  sun, casts onto the lowest ground of the screen's rows (the ground's highest and lowest in blocks of 8 tiles, made
+  with the hills' map once a map; each half tile of the sweep checks the blocks the swept rows cross). The whole map's
+  height range instead put every hilly map at 24 tiles. Checked: "choke wolf" at 17 o'clock (casters' sun 25 degrees),
+  a tower on the hill at 64,86, the camera at 74,100 (the tower off the screen): its shadow across the slope, which
+  the build before didn't draw (reach 6.6 -> 21 tiles, 167 -> 475 casting draws off the screen, the units part 2.52 ->
+  3.25 ms); on level ground at 40,60 no change (1.54 / 1.60 ms).
 - Under the water a shadow fades out with the depth (the player, 2026-11-05: none under water, ideally fading): gone
   0.8 under the level (the pipe: `shadows fade <depth>`). The level is the water's vertices' mean height each frame (in
   the world through the units' camera); measured on "choke wolf": the water at 0.00, the deepest seabed at -0.84 (rprobe
