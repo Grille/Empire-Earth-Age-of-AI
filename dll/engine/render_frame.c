@@ -74,13 +74,9 @@ internal void rd3_shadow_vc(rd3_vcb *vc);
 internal void rd3_shadow_pc(rd3_pcb *pc);
 internal void rd3_shadow_bind(ID3D11DeviceContext *x);
 internal int rd3_shadow_only(int role);
-// the list drawn, in its order (the shadows' maps first), and emptied - all its states bound, whoever used the context
-// before (the 2D path, the present, the overlay set their own)
-internal void rf_replay(void) {
-    if (!g_rf.n || g_rf.in_submit) return;
-    g_rf.in_submit = 1;
-    ID3D11DeviceContext *x = g_d3d.ctx;
-    rd3_shadow_frame();   // the maps from the list's casters and ground (nothing while the shadows are the game's)
+internal void rd3_fxaa(ID3D11RenderTargetView *rtv, const D3D11_VIEWPORT *vp);
+// the list's shaders, buffers and maps bound (the batches' own states come with them)
+internal void rf_bind(ID3D11DeviceContext *x) {
     ID3D11DeviceContext_IASetInputLayout(x, g_rd3.inputs);
     ID3D11DeviceContext_VSSetShader(x, g_rd3.vs, NULL, 0);
     ID3D11DeviceContext_PSSetShader(x, g_rd3.ps, NULL, 0);
@@ -91,6 +87,16 @@ internal void rf_replay(void) {
     ID3D11DeviceContext_IASetVertexBuffers(x, 0, 1, &g_rd3.vb, &stride, &off);
     ID3D11DeviceContext_IASetIndexBuffer(x, g_rd3.ib, DXGI_FORMAT_R32_UINT, 0);
     rd3_shadow_bind(x);
+}
+// the list drawn, in its order (the shadows' maps first), and emptied - all its states bound, whoever used the context
+// before (the 2D path, the present, the overlay set their own). At the first of the interface's draws after the 3D
+// scene the scene is smoothed (render_fxaa.c), and everything bound again.
+internal void rf_replay(void) {
+    if (!g_rf.n || g_rf.in_submit) return;
+    g_rf.in_submit = 1;
+    ID3D11DeviceContext *x = g_d3d.ctx;
+    rd3_shadow_frame();   // the maps from the list's casters and ground (nothing while the shadows are the game's)
+    rf_bind(x);
     // what is bound, set again where a batch's differs
     rf_cmd b;
     memset(&b, 0, sizeof b);
@@ -100,6 +106,12 @@ internal void rf_replay(void) {
     for (int i = 0; i < g_rf.n; i++) {
         const rf_cmd *c = &g_rf.cmd[i];
         if (rd3_shadow_only(c->role)) continue;   // a caster off the screen: in the map only
+        if (!first && b.ro >= RO_TERRAIN && b.ro <= RO_WATER && (c->ro < RO_TERRAIN || c->ro > RO_WATER)) {
+            rd3_fxaa(b.rtv, &b.vport);
+            rf_bind(x);
+            first = 1;
+            b.topo = D3D11_PRIMITIVE_TOPOLOGY_UNDEFINED;
+        }
         if (first || c->rtv != b.rtv || c->dsv != b.dsv) ID3D11DeviceContext_OMSetRenderTargets(x, 1, &c->rtv, c->dsv);
         if (first || memcmp(&c->vport, &b.vport, sizeof b.vport)) ID3D11DeviceContext_RSSetViewports(x, 1, &c->vport);
         if (first || c->blend != b.blend) ID3D11DeviceContext_OMSetBlendState(x, c->blend, NULL, 0xFFFFFFFF);

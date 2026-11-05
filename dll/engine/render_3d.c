@@ -322,7 +322,7 @@ internal void *rd3_mk_raster(uint32_t key) {   // D3DCULL: 1 none, 2 clockwise, 
     return o;
 }
 // D3DTADDRESS (1..4 as Direct3D 11's), D3DTFG / D3DTFN (point, linear; anisotropic as linear), D3DTFP (none, point,
-// linear), the mip bias in 1/16
+// linear), the mip bias in 1/16, the anisotropy (bits 20..24)
 internal void *rd3_mk_samp(uint32_t key) {
     D3D11_SAMPLER_DESC sd = { 0 };
     DWORD u = key & 7, v = key >> 3 & 7, mag = key >> 6 & 3, min = key >> 8 & 3, mip = key >> 10 & 3;
@@ -331,7 +331,10 @@ internal void *rd3_mk_samp(uint32_t key) {
     sd.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
     sd.Filter = (D3D11_FILTER)((min >= 2 ? 0x10 : 0) | (mag >= 2 ? 0x4 : 0) | (mip == 3 ? 0x1 : 0));
     sd.MipLODBias = (float)(int8_t)(key >> 12 & 255) / 16.0f;
-    sd.MaxAnisotropy = 1;
+    // the game's linear minifying with mip levels as anisotropic: the ground at a slant kept sharp ([display] anisotropy)
+    DWORD an = key >> 20 & 31;
+    sd.MaxAnisotropy = an > 1 && min >= 2 && mip >= 2 ? an : 1;
+    if (sd.MaxAnisotropy > 1) sd.Filter = D3D11_FILTER_ANISOTROPIC;
     sd.ComparisonFunc = D3D11_COMPARISON_NEVER;
     sd.MaxLOD = mip == D3DTFP_NONE || mip == 0 ? 0 : D3D11_FLOAT32_MAX;
     ID3D11SamplerState *o = NULL;
@@ -353,6 +356,7 @@ internal float rd3_float(DWORD v) { float f; memcpy(&f, &v, 4); return f; }
 
 #include "render_frame.c"     // the frame recorded and drawn at once
 #include "render_shadows.c"   // the dynamic shadows ([display] shadows = dynamic)
+#include "render_fxaa.c"      // the picture's sharpness ([display] antialias, anisotropy)
 
 // A picture on the screen (the interface's backgrounds: no depth test, every texture coordinate within 0..1) is
 // sampled with CLAMP whatever the game asks: a background is tiles of 256x256 textures stretched to the screen, and with
@@ -405,7 +409,8 @@ internal int rd3_prepare(rd_device *d, int clamp) {
     int bias = (int)(rd3_float(ts[D3DTSS_MIPMAPLODBIAS]) * 16.0f);
     uint32_t au = clamp ? D3DTADDRESS_CLAMP : ts[D3DTSS_ADDRESSU], av = clamp ? D3DTADDRESS_CLAMP : ts[D3DTSS_ADDRESSV];
     uint32_t sk = (au & 7) | (av & 7) << 3 | (ts[D3DTSS_MAGFILTER] & 3) << 6 |
-                  (ts[D3DTSS_MINFILTER] & 3) << 8 | (ts[D3DTSS_MIPFILTER] & 3) << 10 | (uint32_t)(bias & 255) << 12;
+                  (ts[D3DTSS_MINFILTER] & 3) << 8 | (ts[D3DTSS_MIPFILTER] & 3) << 10 | (uint32_t)(bias & 255) << 12 |
+                  (uint32_t)(g_fx.aniso & 31) << 20;
     o = rd3_cache(g_rd3.samps, &g_rd3.n_samp, 32, sk, rd3_mk_samp);
     if (full || o != g_rd3.samp) { rd3_flush(); g_rd3.samp = o; }
 

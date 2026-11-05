@@ -166,6 +166,20 @@ Windows' own DirectDraw crashes the game windowed (DX7HRTnLDisplay.dll+c7d8) - e
 `own` choose either outright. With `own` a ddraw.dll in the folder is still loaded (the engine loads every DLL there,
 the display DLLs import it) but never called; DDrawCompat hooks parts of Windows at its load, so keep it out then.
 
+## The picture's sharpness
+
+engine/render_fxaa.c, 2026-11-05 (the player: "start with them" - of the ideas after the shadows):
+- Anisotropic filtering (`[display] anisotropy`, 1..16, default 16; the pipe: `picture aniso <n>`): the game's samplers
+  with linear minifying and mip levels are anisotropic (rd3_mk_samp, the level in the sampler key's bits 20..24). The
+  ground at the camera's slant kept its grass far into the picture instead of a blur.
+- FXAA (`[display] antialias`, default on; the pipe: `picture aa on | off`, `picture edge <0..1>`): the simple form
+  (Lottes's four diagonal neighbours), once a frame at the first of the interface's draws after the 3D scene's
+  (rf_replay) - the scene's viewport copied into a texture and drawn back through the filter, the interface's text and
+  panels drawn over it after. A pixel is an edge where its neighbours' luma range is at least half of the brightest's
+  (picture edge 0.5): at 0.25 the grass texture's own grain counted, 42% of a patch of grass changed and it looked
+  blurred; at 0.35 9%, at 0.5 0.1% - the wall's stair-stepped top edge still smoothed (24% of its pixels changed).
+  Checked on "choke wolf" in the same paused frame, pixel counts by scripts and zoomed shots.
+
 ## Shadows
 
 The player, 2026-11-04: dynamic shadows, cast on the terrain only - the models are low-poly and shading on them
@@ -261,6 +275,13 @@ tells the last map's casters, ground batches, box, sun and shadow colour), engin
   exact bounding leave the image"). While the rows are widened every object on all of them passes now. "choke wolf" at
   17 o'clock: casting draws off the screen 558 -> 669 at 74,100 and 18 -> 117 at 40,60, the units part 3.44 -> 3.95
   and 2.23 -> 2.54 ms (two games side by side - they drifted apart, so no picture of the same edge).
+- Dusk and dawn (2026-11-05, shadow_dusk). With the pipe's `shadows hour` stepped through the day: the light sets
+  at about 17:45 (12 degrees at 17, 6 at 17:30), the mod took no light under 3 degrees - the shadows stayed, from the
+  last sun's direction - and at about 20 the light is the moon's, 24 degrees high from the other side (44 at 22, the
+  shadows as dark as at 16), the shadows turning at once. Now a shadow's share is a smooth step from none with the light
+  2 degrees over the horizon to all at 12, a light under 3 degrees counts as 0, and the share moves there within
+  1.5 s; a light turned by more than 20 degrees at once starts it from 0. Checked: hours 12 to 8 the next morning on
+  "choke wolf": 1.00 down to 17, 0.36 at 17:30, 0 at 18 and 19, back to 1 with the moon at 20.
 - Under the water a shadow fades out with the depth (the player, 2026-11-05: none under water, ideally fading): gone
   0.8 under the level (the pipe: `shadows fade <depth>`). The level is the water's vertices' mean height each frame (in
   the world through the units' camera); measured on "choke wolf": the water at 0.00, the deepest seabed at -0.84 (rprobe

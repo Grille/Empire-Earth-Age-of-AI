@@ -73,6 +73,10 @@ internal struct {
     // the sun the map is drawn from: the light's, never lower than sun_low degrees over the horizon (the day's cycle's
     // evening: shadows of many tiles, the player's screenshot of 2026-11-05); sun_lit its true height (the shadows' colour)
     float sun[3], sun_low, sun_lit;
+    // the shadows' share by the light's height (the day's cycle: out as the sun sets, in as the moon rises - the
+    // light froze below 3 degrees and jumped to the moon's direction before, 2026-11-05) and when it was last moved
+    float dusk;
+    DWORD dusk_tick;
     float light[3];          // the light's own direction (the terrain's baked shading follows it)
     float hlight[3];         // the hills' sun (shadow_hills)
     float sun_set;           // the pipe's shadows height: the sun's height for the shadows set (degrees; 0 the light's)
@@ -228,10 +232,15 @@ internal int rd3_shadow_role(rd_device *d, rd_vb *vb, DWORD start, DWORD nv) {
     float n = sqrtf(l->dvDirection.x * l->dvDirection.x + l->dvDirection.y * l->dvDirection.y + l->dvDirection.z * l->dvDirection.z);
     // the units' sun: not the trees' light, nearly overhead (0.01, 0.11, -0.99) - other objects are lit by it too, and
     // taken for the sun it laid every shadow under its caster (the player's shot, 2026-11-04)
-    if (!tree && d->light_on[0] && l->dltType == D3DLIGHT_DIRECTIONAL && n > 0 && l->dvDirection.z / n < -0.05f
-        && l->dvDirection.z / n > -0.9f) {
+    // A light at the horizon (the sun set, the moon not yet up) is no sun: its height 0 fades the shadows out
+    // (shadow_dusk), its direction kept
+    if (!tree && d->light_on[0] && l->dltType == D3DLIGHT_DIRECTIONAL && n > 0 && l->dvDirection.z / n >= -0.05f)
+        g_sh.sun_lit = fmaxf(0, -l->dvDirection.z / n);
+    else if (!tree && d->light_on[0] && l->dltType == D3DLIGHT_DIRECTIONAL && n > 0 && l->dvDirection.z / n > -0.9f) {
         float s[3] = { l->dvDirection.x / n, l->dvDirection.y / n, l->dvDirection.z / n };
         float h = sqrtf(s[0] * s[0] + s[1] * s[1]), low = sinf(g_sh.sun_low * 3.14159265f / 180);
+        // the light turned by more than 20 degrees at once (the sun's light handed over to the moon's): out, then in
+        if (s[0] * g_sh.light[0] + s[1] * g_sh.light[1] + s[2] * g_sh.light[2] < 0.94f) g_sh.dusk = 0;
         g_sh.sun_lit = -s[2];
         memcpy(g_sh.light, s, sizeof g_sh.light);
         if (g_sh.sun_set > 0) low = sinf(g_sh.sun_set * 3.14159265f / 180);
@@ -457,6 +466,18 @@ internal void shadow_hills(void) {
     SetEvent(g_sh.hgo);
 }
 
+// the shadows' share now: from none with the light 2 degrees over the horizon to all at 12 (a smooth step), reached
+// within 1.5 s - no shadow pops in or out, nor turns at once when the light hands over to the moon
+internal float shadow_dusk(void) {
+    float deg = asinf(fminf(1, fmaxf(0, g_sh.sun_lit))) * 180 / 3.14159265f, t = fminf(1, fmaxf(0, (deg - 2) / 10));
+    t = t * t * (3 - 2 * t);
+    DWORD now = GetTickCount();
+    float step = g_sh.dusk_tick ? (float)(now - g_sh.dusk_tick) / 1500.0f : 1;
+    g_sh.dusk_tick = now;
+    g_sh.dusk = g_sh.dusk < t ? fminf(t, g_sh.dusk + step) : fmaxf(t, g_sh.dusk - step);
+    return g_sh.dusk;
+}
+
 // Before the frame's list is drawn (rf_replay): its casters from the sun into the map, each batch drawn from where it
 // lies in the upload buffers. A list without casters leaves the map as it is (one drawn
 // for the interface alone), with ground but no casters it has no shadows.
@@ -482,13 +503,13 @@ internal void rd3_shadow_frame(void) {
     // the ambient and the sun on level ground, as much of it as the strength says (1: the sun all gone) -, the hills'
     if (ng) {
         rd3_rigid_inverse(g_sh.gw, g_sh.view);
-        float sun = fmaxf(0, g_sh.sun_lit);
+        float sun = fmaxf(0, g_sh.sun_lit), strength = g_sh.strength * shadow_dusk();
         for (int a = 0; a < 3; a++) {
             float lit = g_sh.amb[a] + g_sh.diff[a] * sun;
             float k = lit > 0 ? fminf(1, g_sh.amb[a] / lit) : 1;
-            g_sh.shk[a] = 1 - g_sh.strength * (1 - k);
+            g_sh.shk[a] = 1 - strength * (1 - k);
         }
-        g_sh.shk[3] = g_sh.strength;
+        g_sh.shk[3] = strength;
         shadow_hills();
     }
     if (!nc) { if (ng) g_sh.valid = 0; return; }
@@ -836,7 +857,7 @@ internal void cmd_shadows(char *out, const char *args) {
     if ((!strcmp(mode, "game") || !strcmp(mode, "dynamic")) && s >= 0 && s <= 1) g_sh.strength = s;
     REPLY("shadows: %s, strength %.2f, %s, %ld maps drawn; the last: %d casting batches, %d of ground;"
           " the casters' box %.1f %.1f %.1f - %.1f %.1f %.1f, the sun %.2f %.2f %.2f, a shadow's colour %.2f %.2f %.2f;"
-          " the water at %.2f%s, a shadow gone %.2f under it, %.2f of it on the surface; units in a shadow darkened: %s, receiving: %s; the sun at least %.0f degrees"
+          " the water at %.2f%s, a shadow gone %.2f under it, %.2f of it on the surface; units in a shadow darkened: %s, receiving: %s; by the light's height %.2f of a shadow; the sun at least %.0f degrees"
           " high (the light's %.0f); casters off the screen: %s, %.1f tiles (the tallest %.1f, the ground's rise %.1f), %d rows and %d more; %d casting draws off the screen;"
           " the ground's mean colour %.0f %.0f %.0f; the hills' shadows: %s, %dx%d texels (%d a tile), made %ld times, the last in %.1f ms\n",
           g_sh.on ? "dynamic" : "game", (double)g_sh.strength,
@@ -844,7 +865,7 @@ internal void cmd_shadows(char *out, const char *args) {
           g_sh.last_cast, g_sh.last_ground, (double)g_sh.last_lo[0], (double)g_sh.last_lo[1], (double)g_sh.last_lo[2],
           (double)g_sh.last_hi[0], (double)g_sh.last_hi[1], (double)g_sh.last_hi[2], (double)g_sh.sun[0],
           (double)g_sh.sun[1], (double)g_sh.sun[2], (double)g_sh.shk[0], (double)g_sh.shk[1], (double)g_sh.shk[2],
-          (double)g_sh.level, g_sh.shl[2] > 0 ? "" : " (none seen)", (double)g_sh.fade, (double)g_sh.water, g_sh.tint ? "on" : "off", g_sh.all ? "everything" : "the ground",
+          (double)g_sh.level, g_sh.shl[2] > 0 ? "" : " (none seen)", (double)g_sh.fade, (double)g_sh.water, g_sh.tint ? "on" : "off", g_sh.all ? "everything" : "the ground", (double)g_sh.dusk,
           (double)g_sh.sun_low, (double)(asinf(fminf(1, fmaxf(-1, g_sh.sun_lit))) * 180 / 3.14159265f),
           !g_shr.on ? "not (no hooks)" : g_shr.off ? "off" : "collected", (double)g_shr.reach, (double)g_sh.tall, (double)g_shr.rise, g_shr.last_own, g_shr.last_extra, g_sh.last_off,
           (double)g_sh.ground_mean[0], (double)g_sh.ground_mean[1], (double)g_sh.ground_mean[2],

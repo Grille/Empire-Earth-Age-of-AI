@@ -889,6 +889,8 @@ internal void render_install(const char *autotest_ini) {
     setting_text(&k_settings[SETTING_overlay], (const uint8_t *)&g_set.overlay, layers, sizeof layers);
     overlay_show(layers);
     g_sh.on = g_set.shadows == 1;   // [display] shadows = dynamic (render_shadows.c)
+    g_fx.on = g_set.antialias;      // [display] antialias, anisotropy (render_fxaa.c)
+    g_fx.aniso = g_set.anisotropy;
     int locks = rd_world_lock_install(), parts = rd_render_objects_install();   // the minute line's wait and parts
     if (g_log) fprintf(g_log, "# render: own renderer on (Direct3D 11) - the display DLLs' DirectDraw at their load%s; world lock hooks %d/3,"
                        " render object hooks %d/5; shadows %s\n", g_rd_trace > 0 ? ", calls traced" : "", locks, parts,

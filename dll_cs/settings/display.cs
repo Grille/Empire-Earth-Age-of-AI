@@ -127,12 +127,19 @@ class display
         {
             /// the game's own: a soft patch under each object
             game,
-            /// cast by the sun onto the ground from the units', buildings' and trees' shapes; a unit standing in a
-            /// shadow is darkened as a whole (being tried out - docs/renderer.md "Shadows")
+            /// cast by the sun from the units', buildings', trees' and hills' shapes onto the ground and everything
+            /// standing on it (docs/renderer.md "Shadows")
             dynamic,
         }
         /// The own renderer only: the shadows on the ground (the control pipe: shadows game / dynamic):
         shadows_choice shadows = shadows_choice.game;
+        /// The own renderer only: the 3D scene's edges smoothed (FXAA - before the interface is drawn: its text stays
+        /// sharp; the control pipe: picture aa on / off):
+        bool antialias = true;
+        /// The own renderer only: textures seen at a slant - the ground far off - kept sharp (anisotropic filtering, its
+        /// samples; 1 = off, as the game had it, 16 the sharpest; the control pipe: picture aniso <n>):
+        [range(1, 16)]
+        int anisotropy = 16;
     }
 
     [title("Wrapper (only with renderer = wrapper)")]
