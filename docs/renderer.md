@@ -176,20 +176,23 @@ tells the last map's casters, ground batches, box, sun and shadow colour), engin
   (decals: roads, craters) receive; in the game's shadows' render object (EEROGroundShadows) the blobs (depth not
   written) are not drawn, the farms' fields (depth written, alpha tested at 127) receive; the water's surface (its
   render object's draws in the ground's camera space) receives.
-- Trees are a few flat planes crossed at the trunk, not much more than billboards (the player, 2026-11-05): a plane
-  edge-on to the sun cast a line. In the shadow pass a tree is turned about its trunk until its widest direction lies
-  across the sun's rays: each tree draw's vertices measured along 12 directions 15 degrees apart (rd3_shadow_role), the
-  widest handed to the shader in the world matrix's _24 / _34 (0 in the game's; both vertex shaders clear them). The
-  game doesn't turn trees (their world matrices are plain scales - rprobe), so the model's x axis taken for it (the
-  second version) left many cast narrow (the player's shots, 2026-11-05: "the shadow caster dont get the full tree width
-  again"); spawned firs, cedars, dead pines, maples and palms on "choke wolf" against that build: full widths. The first version laid
-  every vertex out on that line instead (its height and its distance from the trunk kept): a palm's crown - fronds
-  spread all around - cast as one smooth blob (the player's shot, 2026-11-05: "the palm shadows look quite bad"); turned,
-  a crown keeps its outline. The alpha test of the shadow pass reads a tree's texture at most one mip level down: the
-  map has about 60 texels a tile, fewer than the texture over a crown, and at the level that fits the fronds' alpha was
-  averaged away - only the crown's dense middle passed the trees' alpha reference of 229 (rprobe: palms' crowns 229,
-  their trunks 127). Checked with palms spawned on "choke wolf" (types 353, 356, 358 at 54-58,82-86) against the build
-  before: the crowns' lobes instead of round blobs; a palm's leaflets are finer than a texel, its shadow stays soft.
+- Trees cast a card (rd3_shadow_card). The game's camera never turns, and its trees are curved cards made for it (the
+  player, 2026-11-05: "there no real 3d shapes, they are curved billboards to sell the illusion better, but from the
+  side or behind they break" - static objects' back faces are left out too). Each piece of a tree draw (its triangles
+  joined by shared vertices: a crown, a card) is laid flat along the camera's view - its width across the screen and
+  its height kept, the depth dropped - and stood up facing the sun about its own middle; made each draw from the
+  vertices as the game animated them (the wind's wave), drawn into the map only (SH_AWAY), the tree itself drawn without
+  casting (off the screen not at all: SH_GONE). A tree: alpha tested at 200 or more (palms' crowns 229, their trunks
+  127 - the trunks cast as they are). The pipe: `shadows cards on | off`. Three tries came before, the same day, each
+  turning the tree as a whole in the shadow pass: every vertex laid out across the sun's rays at its distance from the
+  trunk (a palm's crown a solid blob), the model's x axis turned across them (the game doesn't turn trees - their world
+  matrices are plain scales - and many cast narrow), the widest of 12 directions of the draw's vertices (flipped with
+  the wave where two were nearly as wide, and a multi-tree object's crowns came off their trunks: turned about its
+  origin). The alpha test of the shadow pass reads a tree's texture at most one mip level down: the map has about 60
+  texels a tile, fewer than the texture over a crown, and at the level that fits a palm's fronds' alpha was averaged
+  away - only the crown's dense middle passed 229, a smooth blob. Checked on "choke wolf" with trees spawned (firs,
+  cedars, spruces, dead pines, maples, palms, the multi-palm 356), cards on and off in the same paused frame: palms cast
+  their crowns, dead pines their sparse width instead of a line, the multi-palm's crowns beside their trunks.
 - Casters off the screen (the player, 2026-11-05: with the day's cycle a low sun casts long shadows, and they dropped
   out as soon as the building's or unit's bounds left the screen - his AoC shot: towers' shadows of 3-4 tiles). The
   game culls twice: its units' render object collects the objects on the terrain mesh's visible tile rows that pass

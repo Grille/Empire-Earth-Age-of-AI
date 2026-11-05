@@ -14,13 +14,15 @@
 // main pixel shader. The ground's vertices are the game's own transform into the camera's space (its view only swaps
 // y and z): their place in the world needs the camera the units are drawn with, which comes later in the frame - known
 // when the list is drawn (rd3_shadow_vc).
-enum { SH_NONE, SH_RECEIVE, SH_CAST, SH_TINT, SH_DECAL, SH_BLOB, SH_WATER, SH_AWAY };   // SH_AWAY: casts, off the screen
+// SH_AWAY: casts, not drawn (off the screen, a tree's card); SH_GONE: neither (a tree off the screen)
+enum { SH_NONE, SH_RECEIVE, SH_CAST, SH_TINT, SH_DECAL, SH_BLOB, SH_WATER, SH_AWAY, SH_GONE };
 #define SH_SIZE 4096
 internal struct {
     int on;          // [display] shadows (the pipe's shadows switches it)
     float strength;  // how much of the sun a shadow takes away (1: all but the ambient light)
     float fade;      // the depth under the water by which a shadow is gone
     int tint;        // a unit in a shadow darkened (SH_TINT): off - it came across as flicker (the player, 2026-11-05)
+    int nocards;     // the pipe's shadows cards off: trees cast themselves (rd3_shadow_card)
     double water_z;  // the water's vertices' heights this frame, summed, and how many (its level)
     int water_n;
     float level;     // the last frame's
@@ -54,28 +56,18 @@ internal struct {
 } g_sh = { .strength = 0.8f, .fade = 0.8f, .tall = 2, .sun = { 0.08f, 0.75f, -0.65f }, .sun_low = 25, .sun_lit = 0.65f };
 
 // from the sun: the batch's vertices placed as the main pass places them (render_3d.c's vertex shader), through shm
-// into the map (sa: alpha reference / 255, alpha tested, a tree). A tree is a few flat planes crossed at its trunk (not
-// much more than billboards - the player, 2026-11-05): a plane standing edge-on to the sun cast a line. In this pass
-// the tree is turned about its trunk (the world matrix's origin) until the draw's widest direction lies across the sun's
-// rays (sr: the map's horizontal axis) - u, in the model's x and y, measured from its vertices (rd3_shadow_role) and
-// handed over in the world matrix's _24 and _34 (0 in the game's): a plane along it casts at full width. The model's
-// x axis instead (the second version) cast many trees narrow: the game doesn't turn trees, their planes lie where their
-// model has them (the player's shots, 2026-11-05). Turned, not flattened: laying every vertex out on that line (the first version) cast a palm's crown - fronds
-// spread all around - as one solid blob (the player's shot, 2026-11-05). The alpha test reads the texture at most one
-// mip level down: the map has about 60 texels a tile, fewer than a tree's texture over it, and at the level that fits
-// the fronds' alpha was averaged away - only a crown's dense middle passed the trees' 229, a smooth blob again.
+// into the map (sa: alpha reference / 255, alpha tested). A tree casts its card (rd3_shadow_card), not itself. The
+// alpha test reads the texture at most one mip level down: the map has about 60 texels a tile, fewer than a tree's
+// texture over it, and at the level that fits a palm's fronds' alpha was averaged away - only a crown's dense middle
+// passed the trees' 229, a smooth blob (the player's shot, 2026-11-05).
 internal const char k_sh_shader[] =
-    "cbuffer s : register(b2) { row_major float4x4 shm; float4 sa; float4 sr; };\n"
+    "cbuffer s : register(b2) { row_major float4x4 shm; float4 sa; };\n"
     "Buffer<float4> wt : register(t1);\n"
     "struct I { float3 p : POSITION; float3 n : NORMAL; float4 c : COLOR; float2 t : TEXCOORD; uint w : WORLD; };\n"
     "Texture2D t : register(t0); SamplerState s : register(s0);\n"
     "struct O { float4 p : SV_Position; float2 t : TEXCOORD0; };\n"
-    "O vs(I i) { O o; uint r = i.w * 4; float4 r0 = wt.Load(r), r1 = wt.Load(r + 1), r2 = wt.Load(r + 2), r3 = wt.Load(r + 3);"
-    " float2 u = float2(r1.w, r2.w); r0.w = 0; r1.w = 0; r2.w = 0;"
-    " float4 p = mul(float4(i.p, 1), float4x4(r0, r1, r2, r3));"
-    " float2 a = u.x * r0.xy + u.y * r1.xy; float l = length(a);"
-    " if (sa.z > 0 && l > 1e-6) { float2 d = p.xy - r3.xy; a /= l; float c = dot(a, sr.xy), n = a.x * sr.y - a.y * sr.x;"
-    "  p.xy = r3.xy + float2(c * d.x - n * d.y, n * d.x + c * d.y); }"
+    "O vs(I i) { O o; uint r = i.w * 4; float4 r0 = wt.Load(r); r0.w = 0;"
+    " float4 p = mul(float4(i.p, 1), float4x4(r0, wt.Load(r + 1), wt.Load(r + 2), wt.Load(r + 3)));"
     " float3 q = mul(p, shm).xyz; o.p = float4(q.x * 2 - 1, 1 - q.y * 2, q.z, 1); o.t = i.t; return o; }\n"
     "void ps(O i) { if (sa.y <= 0) return; float w, h; t.GetDimensions(w, h); float2 u = i.t * float2(w, h);"
     " float l = clamp(0.5 * log2(max(dot(ddx(u), ddx(u)), dot(ddy(u), ddy(u)))), 0, 1);"
@@ -192,19 +184,7 @@ internal int rd3_shadow_role(rd_device *d, rd_vb *vb, DWORD start, DWORD nv) {
     if (dz > g_sh.tall_frame) g_sh.tall_frame = dz;
     memcpy(g_sh.view, &d->view._11, sizeof g_sh.view);
     int tree = d->rs[D3DRENDERSTATE_ALPHATESTENABLE] && (d->rs[D3DRENDERSTATE_ALPHAREF] & 255) >= 200;
-    if (tree) {   // its widest direction for the shadow pass: its vertices' extent along 12 directions 15 degrees apart
-        float best = -1;
-        for (int a = 0; a < 12; a++) {
-            float c = cosf((float)a * 0.2617994f), s = sinf((float)a * 0.2617994f), mn = 1e30f, mx = -1e30f;
-            for (DWORD k = 0; k < nv; k++) {
-                const float *p = (const float *)(vb->mem + (size_t)(start + k) * vb->stride);
-                float t = p[0] * c + p[1] * s;
-                if (t < mn) mn = t;
-                if (t > mx) mx = t;
-            }
-            if (mx - mn > best) { best = mx - mn; d->sh_u[0] = c; d->sh_u[1] = s; }
-        }
-    }
+    d->sh_card = tree && !g_sh.nocards;   // a tree casts its card (rd3_shadow_card) and is drawn without casting - off the screen not at all
     const D3DLIGHT7 *l = &d->light[0];
     float n = sqrtf(l->dvDirection.x * l->dvDirection.x + l->dvDirection.y * l->dvDirection.y + l->dvDirection.z * l->dvDirection.z);
     // the units' sun: not the trees' light, nearly overhead (0.01, 0.11, -0.99) - other objects are lit by it too, and
@@ -226,13 +206,91 @@ internal int rd3_shadow_role(rd_device *d, rd_vb *vb, DWORD start, DWORD nv) {
         g_sh.amb[0] = ga[0] + l->dcvAmbient.r; g_sh.amb[1] = ga[1] + l->dcvAmbient.g; g_sh.amb[2] = ga[2] + l->dcvAmbient.b;
         g_sh.diff[0] = l->dcvDiffuse.r; g_sh.diff[1] = l->dcvDiffuse.g; g_sh.diff[2] = l->dcvDiffuse.b;
     }
-    return out ? SH_AWAY : tree || !g_sh.tint ? SH_CAST : SH_TINT;
+    if (d->sh_card) return out ? SH_GONE : SH_NONE;
+    return out ? SH_AWAY : !g_sh.tint ? SH_CAST : SH_TINT;
 }
-// the list's draw only drawn into the casters' map (rf_replay leaves it out)
-internal int rd3_shadow_only(int role) { return role == SH_AWAY; }
+// A TREE'S CARD (the player, 2026-11-05): the game's camera never turns, and its trees are curved cards made for it -
+// "there no real 3d shapes, they are curved billboards to sell the illusion better, but from the side or behind they
+// break". Turned toward the sun as a whole they cast narrow (a plane edge-on), flipped with the wind's wave (two
+// directions nearly as wide) and lost multi-tree objects' crowns from their trunks (turned about the object's origin).
+// So a tree casts the shape the camera sees: each piece of it (its triangles joined by shared vertices: a crown, a
+// card) laid flat along the camera's view - its width across the screen and its height kept - and stood up facing the
+// sun about its own middle. Made each draw from the vertices as the game animated them, cast only (SH_AWAY); the tree
+// itself is drawn without casting.
+internal int rd3_prepare(rd_device *d, int clamp);
+internal void rd3_append(rd_device *d, D3DPRIMITIVETYPE type, rd_vb *vb, DWORD start, DWORD nv, const WORD *idx, DWORD ni);
+#define SH_CARD_MAX 4096
+internal struct {
+    uint8_t v[SH_CARD_MAX * 36];   // the card's vertices (FVF 0x152), in the world
+    int up[SH_CARD_MAX], n[SH_CARD_MAX];   // a vertex's piece (union-find), a piece's vertices
+    float cx[SH_CARD_MAX], cy[SH_CARD_MAX];   // a piece's middle
+} g_card;
+internal int card_piece(int i) {
+    while (g_card.up[i] != i) i = g_card.up[i] = g_card.up[g_card.up[i]];
+    return i;
+}
+internal void rd3_shadow_card(rd_device *d, D3DPRIMITIVETYPE type, rd_vb *vb, DWORD start, DWORD nv, const WORD *idx,
+                              DWORD ni) {
+    if (type != D3DPT_TRIANGLELIST || nv > SH_CARD_MAX || vb->stride != 36) return;
+    // across the screen (the camera's x axis in the world) and across the sun's rays, on the same side
+    float ax = d->view._11, ay = d->view._21, al = sqrtf(ax * ax + ay * ay);
+    float sx = g_sh.sun[1], sy = -g_sh.sun[0], sl = sqrtf(sx * sx + sy * sy);
+    if (al < 1e-4f || sl < 1e-4f) return;
+    ax /= al; ay /= al; sx /= sl; sy /= sl;
+    if (ax * sx + ay * sy < 0) { sx = -sx; sy = -sy; }
+    // the pieces
+    DWORD nt = (idx ? ni : nv) / 3;
+    for (DWORD k = 0; k < nv; k++) { g_card.up[k] = (int)k; g_card.n[k] = 0; g_card.cx[k] = g_card.cy[k] = 0; }
+    for (DWORD t = 0; t < nt; t++) {
+        int a = idx ? idx[t * 3] : (int)(t * 3), b = idx ? idx[t * 3 + 1] : (int)(t * 3 + 1), c = idx ? idx[t * 3 + 2] : (int)(t * 3 + 2);
+        if ((DWORD)a >= nv || (DWORD)b >= nv || (DWORD)c >= nv) return;
+        a = card_piece(a); b = card_piece(b); c = card_piece(c);
+        g_card.up[b] = a;
+        g_card.up[card_piece(c)] = a;
+    }
+    // the vertices in the world, each piece's middle
+    const D3DMATRIX *w = &d->world;
+    for (DWORD k = 0; k < nv; k++) {
+        uint8_t *o = g_card.v + k * 36;
+        memcpy(o, vb->mem + (size_t)(start + k) * 36, 36);
+        float *p = (float *)o, x = p[0], y = p[1], z = p[2];
+        p[0] = x * w->_11 + y * w->_21 + z * w->_31 + w->_41;
+        p[1] = x * w->_12 + y * w->_22 + z * w->_32 + w->_42;
+        p[2] = x * w->_13 + y * w->_23 + z * w->_33 + w->_43;
+        int r = card_piece((int)k);
+        g_card.cx[r] += p[0]; g_card.cy[r] += p[1]; g_card.n[r]++;
+    }
+    // each laid flat along the camera's view and stood up across the sun's rays about its middle
+    for (DWORD k = 0; k < nv; k++) {
+        float *p = (float *)(g_card.v + k * 36);
+        int r = card_piece((int)k);
+        float cx = g_card.cx[r] / (float)g_card.n[r], cy = g_card.cy[r] / (float)g_card.n[r];
+        float s = (p[0] - cx) * ax + (p[1] - cy) * ay;
+        p[0] = cx + sx * s; p[1] = cy + sy * s;
+        if (p[0] < g_sh.lo[0]) g_sh.lo[0] = p[0];
+        if (p[0] > g_sh.hi[0]) g_sh.hi[0] = p[0];
+        if (p[1] < g_sh.lo[1]) g_sh.lo[1] = p[1];
+        if (p[1] > g_sh.hi[1]) g_sh.hi[1] = p[1];
+    }
+    // drawn into the map only, in the world (no world matrix of its own)
+    D3DMATRIX keep = d->world;
+    int role = d->sh_role;
+    memset(&d->world, 0, sizeof d->world);
+    d->world._11 = d->world._22 = d->world._33 = d->world._44 = 1;
+    d->sh_role = SH_AWAY;
+    d->changed |= RD_CH_VC;
+    rd_vb card = { NULL, 0, vb->caps, vb->fvf, nv, 36, g_card.v };
+    if (rd3_prepare(d, 0)) rd3_append(d, type, &card, 0, nv, idx, ni);
+    d->world = keep;
+    d->sh_role = role;
+    d->changed |= RD_CH_VC;
+}
+
+// the list's draw left out of the frame (rf_replay): only drawn into the casters' map, or nowhere
+internal int rd3_shadow_only(int role) { return role == SH_AWAY || role == SH_GONE; }
 // the draw's role on the device: a change is a change of the vertex constants (a new batch)
 internal void rd3_shadow_classify(rd_device *d, rd_vb *vb, DWORD start, DWORD nv) {
-    d->sh_u[0] = d->sh_u[1] = 0;   // a tree's widest direction (rd3_shadow_role sets it)
+    d->sh_card = 0;
     int role = rd3_shadow_role(d, vb, start, nv);
     if (role != d->sh_role) { d->sh_role = role; d->changed |= RD_CH_VC; }
 }
@@ -302,19 +360,17 @@ internal void rd3_shadow_frame(void) {
     ID3D11DeviceContext_PSSetSamplers(x, 0, 1, &g_sh.samp);
     float cb[24];
     memcpy(cb, m, sizeof m);
-    cb[18] = cb[19] = 0;
-    cb[20] = r[0]; cb[21] = r[1]; cb[22] = cb[23] = 0;
-    float aref = -2, tree = -1;
+    for (int k = 18; k < 24; k++) cb[k] = 0;
+    float aref = -2;
     ID3D11ShaderResourceView *srv = (ID3D11ShaderResourceView *)1;
     for (int i = 0; i < g_rf.n; i++) {
         const rf_cmd *c = &g_rf.cmd[i];
         if ((c->role != SH_CAST && c->role != SH_TINT && c->role != SH_AWAY) || c->topo != D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST) continue;
         const rd3_pcb *pc = &g_rf.pcs[c->pc];
         float a = pc->aop[3] && c->srv ? pc->misc[0] / 255.0f : -1;   // alpha tested: its texture's alpha
-        float t = a >= 200 / 255.0f ? 1.0f : 0.0f;   // a tree (rd3_shadow_role's test)
-        if (a != aref || t != tree) {
-            aref = a; tree = t;
-            cb[16] = a; cb[17] = a >= 0 ? 1.0f : 0.0f; cb[18] = t;
+        if (a != aref) {
+            aref = a;
+            cb[16] = a; cb[17] = a >= 0 ? 1.0f : 0.0f;
             ID3D11DeviceContext_UpdateSubresource(x, (ID3D11Resource *)g_sh.cb, 0, NULL, cb, 0, 0);
         }
         if (c->srv != srv) { srv = c->srv; ID3D11DeviceContext_PSSetShaderResources(x, 0, 1, &srv); }
@@ -545,6 +601,9 @@ internal void cmd_shadows(char *out, const char *args) {
     if (!strcmp(mode, "tint")) {
         if (!strcmp(arg, "on") || !strcmp(arg, "off")) g_sh.tint = arg[1] == 'n';
         else { REPLY("error: usage: shadows tint on | off\n"); return; }
+    } else if (!strcmp(mode, "cards")) {
+        if (!strcmp(arg, "on") || !strcmp(arg, "off")) g_sh.nocards = arg[1] != 'n';
+        else { REPLY("error: usage: shadows cards on | off\n"); return; }
     } else if (!strcmp(mode, "reach")) {
         if (!strcmp(arg, "on") || !strcmp(arg, "off")) g_shr.off = arg[1] != 'n';
         else { REPLY("error: usage: shadows reach on | off\n"); return; }
@@ -562,7 +621,7 @@ internal void cmd_shadows(char *out, const char *args) {
         else { REPLY("error: usage: shadows fade <depth under the water, > 0>\n"); return; }
     } else if (!strcmp(mode, "game")) g_sh.on = 0;
     else if (!strcmp(mode, "dynamic")) g_sh.on = 1;
-    else if (mode[0]) { REPLY("error: usage: shadows [game | dynamic] [strength 0..1] | fade <depth> | sun <degrees> | height <degrees> | turn <degrees> | reach on | off | tint on | off\n"); return; }
+    else if (mode[0]) { REPLY("error: usage: shadows [game | dynamic] [strength 0..1] | fade <depth> | sun <degrees> | height <degrees> | turn <degrees> | reach on | off | cards on | off | tint on | off\n"); return; }
     if ((!strcmp(mode, "game") || !strcmp(mode, "dynamic")) && s >= 0 && s <= 1) g_sh.strength = s;
     REPLY("shadows: %s, strength %.2f, %s, %ld maps drawn; the last: %d casting batches, %d of ground;"
           " the casters' box %.1f %.1f %.1f - %.1f %.1f %.1f, the sun %.2f %.2f %.2f, a shadow's colour %.2f %.2f %.2f;"
