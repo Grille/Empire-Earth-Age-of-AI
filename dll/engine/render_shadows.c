@@ -56,9 +56,11 @@ internal struct {
 // from the sun: the batch's vertices placed as the main pass places them (render_3d.c's vertex shader), through shm
 // into the map (sa: alpha reference / 255, alpha tested, a tree). A tree is a few flat planes crossed at its trunk (not
 // much more than billboards - the player, 2026-11-05): a plane standing edge-on to the sun cast a line. In this pass
-// the tree is turned about its trunk (the world matrix's origin) until its model's x axis lies across the sun's rays
-// (sr: the map's horizontal axis): its planes at the model's axes cast at full width, crossed ones at 45 degrees to them
-// at 70%. Turned, not flattened: laying every vertex out on that line (the first version) cast a palm's crown - fronds
+// the tree is turned about its trunk (the world matrix's origin) until the draw's widest direction lies across the sun's
+// rays (sr: the map's horizontal axis) - u, in the model's x and y, measured from its vertices (rd3_shadow_role) and
+// handed over in the world matrix's _24 and _34 (0 in the game's): a plane along it casts at full width. The model's
+// x axis instead (the second version) cast many trees narrow: the game doesn't turn trees, their planes lie where their
+// model has them (the player's shots, 2026-11-05). Turned, not flattened: laying every vertex out on that line (the first version) cast a palm's crown - fronds
 // spread all around - as one solid blob (the player's shot, 2026-11-05). The alpha test reads the texture at most one
 // mip level down: the map has about 60 texels a tile, fewer than a tree's texture over it, and at the level that fits
 // the fronds' alpha was averaged away - only a crown's dense middle passed the trees' 229, a smooth blob again.
@@ -68,10 +70,11 @@ internal const char k_sh_shader[] =
     "struct I { float3 p : POSITION; float3 n : NORMAL; float4 c : COLOR; float2 t : TEXCOORD; uint w : WORLD; };\n"
     "Texture2D t : register(t0); SamplerState s : register(s0);\n"
     "struct O { float4 p : SV_Position; float2 t : TEXCOORD0; };\n"
-    "O vs(I i) { O o; uint r = i.w * 4; float4 r0 = wt.Load(r), r3 = wt.Load(r + 3); r0.w = 0;"
-    " float4 p = mul(float4(i.p, 1), float4x4(r0, wt.Load(r + 1), wt.Load(r + 2), r3));"
-    " float l = length(r0.xy);"
-    " if (sa.z > 0 && l > 1e-6) { float2 a = r0.xy / l, d = p.xy - r3.xy; float c = dot(a, sr.xy), n = a.x * sr.y - a.y * sr.x;"
+    "O vs(I i) { O o; uint r = i.w * 4; float4 r0 = wt.Load(r), r1 = wt.Load(r + 1), r2 = wt.Load(r + 2), r3 = wt.Load(r + 3);"
+    " float2 u = float2(r1.w, r2.w); r0.w = 0; r1.w = 0; r2.w = 0;"
+    " float4 p = mul(float4(i.p, 1), float4x4(r0, r1, r2, r3));"
+    " float2 a = u.x * r0.xy + u.y * r1.xy; float l = length(a);"
+    " if (sa.z > 0 && l > 1e-6) { float2 d = p.xy - r3.xy; a /= l; float c = dot(a, sr.xy), n = a.x * sr.y - a.y * sr.x;"
     "  p.xy = r3.xy + float2(c * d.x - n * d.y, n * d.x + c * d.y); }"
     " float3 q = mul(p, shm).xyz; o.p = float4(q.x * 2 - 1, 1 - q.y * 2, q.z, 1); o.t = i.t; return o; }\n"
     "void ps(O i) { if (sa.y <= 0) return; float w, h; t.GetDimensions(w, h); float2 u = i.t * float2(w, h);"
@@ -189,6 +192,19 @@ internal int rd3_shadow_role(rd_device *d, rd_vb *vb, DWORD start, DWORD nv) {
     if (dz > g_sh.tall_frame) g_sh.tall_frame = dz;
     memcpy(g_sh.view, &d->view._11, sizeof g_sh.view);
     int tree = d->rs[D3DRENDERSTATE_ALPHATESTENABLE] && (d->rs[D3DRENDERSTATE_ALPHAREF] & 255) >= 200;
+    if (tree) {   // its widest direction for the shadow pass: its vertices' extent along 12 directions 15 degrees apart
+        float best = -1;
+        for (int a = 0; a < 12; a++) {
+            float c = cosf((float)a * 0.2617994f), s = sinf((float)a * 0.2617994f), mn = 1e30f, mx = -1e30f;
+            for (DWORD k = 0; k < nv; k++) {
+                const float *p = (const float *)(vb->mem + (size_t)(start + k) * vb->stride);
+                float t = p[0] * c + p[1] * s;
+                if (t < mn) mn = t;
+                if (t > mx) mx = t;
+            }
+            if (mx - mn > best) { best = mx - mn; d->sh_u[0] = c; d->sh_u[1] = s; }
+        }
+    }
     const D3DLIGHT7 *l = &d->light[0];
     float n = sqrtf(l->dvDirection.x * l->dvDirection.x + l->dvDirection.y * l->dvDirection.y + l->dvDirection.z * l->dvDirection.z);
     // the units' sun: not the trees' light, nearly overhead (0.01, 0.11, -0.99) - other objects are lit by it too, and
@@ -216,6 +232,7 @@ internal int rd3_shadow_role(rd_device *d, rd_vb *vb, DWORD start, DWORD nv) {
 internal int rd3_shadow_only(int role) { return role == SH_AWAY; }
 // the draw's role on the device: a change is a change of the vertex constants (a new batch)
 internal void rd3_shadow_classify(rd_device *d, rd_vb *vb, DWORD start, DWORD nv) {
+    d->sh_u[0] = d->sh_u[1] = 0;   // a tree's widest direction (rd3_shadow_role sets it)
     int role = rd3_shadow_role(d, vb, start, nv);
     if (role != d->sh_role) { d->sh_role = role; d->changed |= RD_CH_VC; }
 }

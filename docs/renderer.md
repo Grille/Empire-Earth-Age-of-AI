@@ -177,9 +177,12 @@ tells the last map's casters, ground batches, box, sun and shadow colour), engin
   written) are not drawn, the farms' fields (depth written, alpha tested at 127) receive; the water's surface (its
   render object's draws in the ground's camera space) receives.
 - Trees are a few flat planes crossed at the trunk, not much more than billboards (the player, 2026-11-05): a plane
-  edge-on to the sun cast a line. In the shadow pass a tree is turned about its trunk until its model's x axis lies
-  across the sun's rays: planes at the model's axes cast at full width, crossed ones at 45 degrees to them at 70% (shots
-  of a forest's edge on "choke wolf" at 100,60: full firs instead of the narrow ones of before). The first version laid
+  edge-on to the sun cast a line. In the shadow pass a tree is turned about its trunk until its widest direction lies
+  across the sun's rays: each tree draw's vertices measured along 12 directions 15 degrees apart (rd3_shadow_role), the
+  widest handed to the shader in the world matrix's _24 / _34 (0 in the game's; both vertex shaders clear them). The
+  game doesn't turn trees (their world matrices are plain scales - rprobe), so the model's x axis taken for it (the
+  second version) left many cast narrow (the player's shots, 2026-11-05: "the shadow caster dont get the full tree width
+  again"); spawned firs, cedars, dead pines, maples and palms on "choke wolf" against that build: full widths. The first version laid
   every vertex out on that line instead (its height and its distance from the trunk kept): a palm's crown - fronds
   spread all around - cast as one smooth blob (the player's shot, 2026-11-05: "the palm shadows look quite bad"); turned,
   a crown keeps its outline. The alpha test of the shadow pass reads a tree's texture at most one mip level down: the

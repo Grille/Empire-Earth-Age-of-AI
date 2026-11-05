@@ -69,6 +69,7 @@ typedef struct {
     int in_scene;
     int sh_role;     // the draw's part in the dynamic shadows (render_shadows.c SH_), sh_b its size for the units' tint
     float sh_b;
+    float sh_u[2];   // a tree's widest direction (its model's x, y; 0 0 for anything else) for the shadow pass
     int changed;   // states other than the world matrix set to other values since rd3_prepare last ran (RD_CH_)
 } rd_device;
 // the game's render objects (spec engine_display.cs), the one drawing (its draw hooked: rd_render_objects_install)
@@ -129,7 +130,8 @@ internal const char k_rd3_shader[] =
     " for (int j = 0; j < 4; j++) { int2 a = clamp(c + int2(j & 1, j >> 1) * 4 - 2, 0, n - 1);"
     "  k += sm.Load(int3(a, 0)) < q.z - b ? 1 : 0; } return k / 4; }\n"
     "O vs(I i) { O o; uint r = i.w * 4; float4 r0 = wt.Load(r); float b = r0.w; r0.w = 0;"   // _14: the draw's size (SH_TINT)
-    " float4x4 world = float4x4(r0, wt.Load(r + 1), wt.Load(r + 2), wt.Load(r + 3));"
+    " float4 r1 = wt.Load(r + 1), r2 = wt.Load(r + 2); r1.w = 0; r2.w = 0;"   // _24 _34: a tree's widest direction
+    " float4x4 world = float4x4(r0, r1, r2, wt.Load(r + 3));"
     " float4 p = mul(float4(i.p, 1), world); o.p = mul(p, vpm); o.q.xyz = mul(p, shm).xyz;"
     // under water the shadow fades out with the depth (the sun's light scattered in the water)
     " o.q.w = shl.z > 0 ? saturate(1 - (shl.x - dot(p, shz)) * shl.y) : 1;"
@@ -521,9 +523,10 @@ internal void rd3_append(rd_device *d, D3DPRIMITIVETYPE type, rd_vb *vb, DWORD s
     if (!out || nv > RB_VERTS || out > RB_INDICES) return;
     if (g_rb.ni && (g_rb.topo != topo || g_rb.nv + (int)nv > RB_VERTS || g_rb.ni + (int)out > RB_INDICES || g_rb.nw >= RB_WORLDS))
         rd3_flush();
-    float wm[16];   // _14 (0 in the game's matrices): a tinted caster's size for the shader (render_shadows.c)
+    float wm[16];   // _14 (0 in the game's matrices): a tinted caster's size for the shader (render_shadows.c); _24 _34 a tree's widest direction
     memcpy(wm, &d->world._11, 64);
     if (d->sh_role == SH_TINT) wm[3] = d->sh_b;
+    wm[7] = d->sh_u[0]; wm[11] = d->sh_u[1];
     if (!g_rb.nw || memcmp(g_rb.w[g_rb.nw - 1], wm, 64)) memcpy(g_rb.w[g_rb.nw++], wm, 64);
     g_rb.topo = topo;
     uint32_t w = (uint32_t)g_rb.nw - 1, base = (uint32_t)g_rb.nv;
