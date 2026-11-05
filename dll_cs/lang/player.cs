@@ -100,13 +100,13 @@ class player
     /// (round(opinion): the number). An AI's opinion; a human's of an AI is a guess from what the AI did to them
     /// (war, a betrayal, peace, tribute, a refusal, their losses), nothing of another human
     [relation]
-    extern float opinion(player b);
+    public extern float opinion(player b);
     /// 1 when A and B are enemies, both of them
     [relation]
-    extern bool at_war(player b);
+    public extern bool at_war(player b);
     /// 1 when A and B are allied, both of them
     [relation]
-    extern bool allied(player b);
+    public extern bool allied(player b);
     /// 1 when A treats B as an enemy (whatever B does)
     [relation]
     extern bool hostile(player b);

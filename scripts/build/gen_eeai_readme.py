@@ -1,5 +1,5 @@
 """Fills the generated tables of config/personalities/README.md from the DLL's sources - the situations (persona.c k_lines,
-line_fallback; their descriptions: mod/prompt.eeai sit_<key>), the game's values (dll_cs/lang/player.cs, names.cs), the epochs (expr.c
+line_fallback; their descriptions: mod/prompt.eeai sit_<key>), the game's values (dll_cs/lang/player.cs, playerctx.cs), the epochs (expr.c
 k_epoch_const), the style keys (settings.c k_style_keys) - between its <!-- name: ... --> and <!-- /name --> markers.
 Run it after changing one of them: local/venv/Scripts/python.exe scripts/build/gen_eeai_readme.py"""
 import glob
@@ -61,7 +61,7 @@ values = '\n\n'.join([
     '(`16.5` too), without it (or with 0) the whole game. Older events are the whole game minus the window - '
     '`them.betrayals(me) - them.betrayals(me, 20)` counts those more than 20 minutes ago, `me.kills(them, 60, buildings) - '
     'me.kills(them, 20, buildings)` those 20 to 60 minutes ago; a negative window is a mistake:\n\n' + table(kinds['XM_REL'], 'A.', 'Relation', '(B)'),
-    '**The game:**\n\n' + table([(m.name, m.doc) for m in lang['names'].members], '', 'Name'),
+    '**The game:**\n\n' + table([(m.name, m.doc) for m in lang['playerctx'].members], '', 'Name'),
 ])
 
 # epochs, style keys

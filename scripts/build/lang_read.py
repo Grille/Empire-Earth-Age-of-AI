@@ -1,4 +1,4 @@
-"""The language's objects (dll_cs/lang/*.cs) read into Python: each class (a kind of object, names.cs's names) with its
+"""The language's objects (dll_cs/lang/*.cs) read into Python: each class (a kind of object, playerctx.cs's names) with its
 members - a field or a method, its type, parameters (a default: optional), attributes and doc. For gen_lang.py (the C
 tables), gen_eeai_readme.py and gen_vscode_grammar.py. The format is dll_cs/lang/language.cs's header; line by line as written:
 attributes in [...] on their own line above a declaration (as spec/), its /// lines above them."""
@@ -21,8 +21,9 @@ class Kind:
 
 
 class Member:
-    def __init__(self, name, type_, params, attrs, doc, where):
+    def __init__(self, name, type_, params, attrs, doc, where, with_them=False):
         self.name, self.type, self.params, self.attrs, self.doc, self.where = name, type_, params, attrs, doc, where
+        self.with_them = with_them   # playerctx's 'x => me.x(them)': the speaker's relation with them
 
     def has(self, attr):
         return any(a[0] == attr for a in self.attrs)
@@ -81,8 +82,15 @@ def read_file(path):
             attr_text, doc = '', []
         elif depth == 1 and cur and code.endswith(';'):
             where = '%s:%d' % (os.path.relpath(path, ROOT).replace(os.sep, '/'), n)
+            code, _, body = code.partition('=>')
             name, type_, params = decl(code, where)
-            cur.members.append(Member(name, type_, params, spec_read.attrs_of(attr_text), ' '.join(doc), where))
+            with_them = bool(body)
+            if with_them:   # relations.c finds the relation by the name's own: x is me.x(them), nothing else
+                if params is not None or body.strip().rstrip(';').replace(' ', '') != 'me.%s(them)' % name:
+                    raise SystemExit('%s: a property is "type x => me.x(them);" - the speaker\'s relation with them '
+                                     'under its own name: %s' % (where, line))
+                doc = ['me.%s(them):' % name] + doc
+            cur.members.append(Member(name, type_, params, spec_read.attrs_of(attr_text), ' '.join(doc), where, with_them))
             attr_text, doc = '', []
         depth += code.count('{') - code.count('}')
     return kinds
@@ -98,7 +106,7 @@ def read_all():   # {class name: Kind} of every file in dll_cs/lang/
 
 
 def xm_kind(m):   # a player member's kind in relations.c's terms (XM_ ...): a value, a player, a relation, a method, an effect
-    if m.has('relation') or m.has('with_them'):
+    if m.has('relation'):
         return 'XM_REL'
     if m.has('effect'):
         return 'XM_DO'

@@ -515,8 +515,8 @@ Shortcuts: my own `epoch`, traits, `allies` and `enemies` without `me.` (`aggres
 | `enemy` | a third player: the enemy in an alliance offer, the ally or lord in some lines |
 | `lord` | my lord (me.lord), the player I capitulated to - in every line; nothing when I have none |
 | `opinion` | me.opinion(them): what I think of them |
-| `at_war` | me.at_war(them) |
-| `allied` | me.allied(them) |
+| `at_war` | me.at_war(them): 1 when we are enemies, both of us |
+| `allied` | me.allied(them): 1 when we are allied, both of us |
 | `minutes` | the game time in minutes |
 | `players` | the players still in, me among them |
 | `population_limit` | the game's unit limit per player (its setting) |

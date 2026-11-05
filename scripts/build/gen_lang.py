@@ -1,7 +1,7 @@
 """The language's objects made C (run by build.sh): dll/game_script/lang.h from dll_cs/lang/*.cs (lang_read.py) - the tables
 relations.c includes. k_xmembers: a player's members (player.cs) - name, kind (XM_: a value, a player, a relation, a
 method, an effect), doc, type, arguments, set (a script may), mine (a text has it alone); k_xglobals: the names a text
-has of its own (names.cs); k_xk_player / k_xk_game / k_xk_slot: each kind's members as the check reads them
+has of its own (playerctx.cs); k_xk_player / k_xk_game / k_xk_slot: each kind's members as the check reads them
 (script/host.h x_kmember). A type is host.h's code: the language's own XT_..., a kind relations.c's XK_..., T? with
 X_NULLABLE, T[] with X_LIST_OF."""
 import os
@@ -47,7 +47,7 @@ def main():
         out.append('internal const struct xmember %s[] = {' % cname)
         for m in kind.members:
             lo, hi = m.arity
-            xk = lang_read.xm_kind(m) if kind.name == 'player' else 'XM_REL' if m.has('with_them') else 'XM_PLAYER'   # a name: a value
+            xk = lang_read.xm_kind(m) if kind.name == 'player' else 'XM_REL' if m.with_them else 'XM_PLAYER'   # a name: a value
             out.append('    { %s, %s, %s, %s, %d, %d, %d, %d },' % (cstr(m.name), xk, cstr(m.doc),
                                                                  ctype(m.type, m.where), lo, hi, m.has('set'), m.has('mine')))
         out.append('};')
@@ -61,7 +61,7 @@ def main():
 
     xmembers('k_xmembers', kinds['player'])
     out.append('#define N_XMEMBERS (int)(sizeof k_xmembers / sizeof *k_xmembers)')
-    xmembers('k_xglobals', kinds['names'])
+    xmembers('k_xglobals', kinds['playerctx'])
     out.append('#define N_XGLOBALS (int)(sizeof k_xglobals / sizeof *k_xglobals)')
     for k in KINDS:
         kmembers('k_xk_' + k, kinds[k])
@@ -70,7 +70,7 @@ def main():
     old = open(OUT, encoding='utf-8').read() if os.path.exists(OUT) else None
     if old != text:
         open(OUT, 'w', encoding='utf-8', newline='\n').write(text)
-        print('lang.h: %d text names; members: %s' % (len(kinds['names'].members),
+        print('lang.h: %d text names; members: %s' % (len(kinds['playerctx'].members),
               ', '.join('%s %d' % (k, len(kinds[k].members)) for k in KINDS)))
 
 

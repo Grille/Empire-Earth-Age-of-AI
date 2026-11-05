@@ -1,5 +1,5 @@
 // THE LANGUAGE'S OBJECTS: what a .eeai script or text sees of the game, as C# declarations - a class per kind of object
-// (player.cs, game.cs, slot.cs), names.cs the names a text has of its own (me, them, minutes ...), this file the
+// (player.cs, game.cs, slot.cs), playerctx.cs the names a text has of its own (me, them, minutes ...), this file the
 // language's own types and the attributes. Declared once here, read by scripts/build/lang_read.py: gen_lang.py makes
 // the C tables of it (dll/game_script/lang.h - the check's types and arguments, the runtime's names and docs),
 // gen_eeai_readme.py the README's tables, gen_vscode_grammar.py the editor's names. What a member does stays the
@@ -46,10 +46,6 @@ public sealed class set : Attribute { }
 // a player's value a text has alone, as the speaker's: epoch is me.epoch
 [AttributeUsage(AttributeTargets.Field)]
 public sealed class mine : Attribute { }
-
-// a text's name of its own that is the speaker's relation with them: opinion is me.opinion(them)
-[AttributeUsage(AttributeTargets.Field)]
-public sealed class with_them : Attribute { }
 
 // a kind whose objects a command takes by number (spawn(p, ...): its number)
 [AttributeUsage(AttributeTargets.Class)]
