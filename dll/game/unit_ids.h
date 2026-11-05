@@ -9,6 +9,8 @@
     X(B_TOWN_CENTER, "b_town_center") X(B_CAPITOL, "b_capitol") X(B_SETTLEMENT, "b_settlement") X(B_HOUSE, "b_house") \
     X(X_SINGLE_PLAYER_SETTLEMENT, "x_single_player_settlement") \
     X(B_FARM, "b_farm") X(B_GRANARY, "b_granary") X(B_GRANARY_IMPROVED, "b_granary_improved") \
+    X(AMB_DEBRIS_1X, "amb_debris_1x") X(AMB_DEBRIS_2X, "amb_debris_2x") X(AMB_DEBRIS_3X, "amb_debris_3x") \
+    X(AMB_DEBRIS_4X, "amb_debris_4x") \
     X(RES_FORAGE_BUSH, "res_forage_bush") X(RES_FISH, "res_fish") X(RES_TIGER, "res_tiger") X(RES_WOLF, "res_wolf") \
     X(B_BARRACKS, "b_barracks") X(B_ARCHERY_RANGE, "b_archery_range") X(B_STABLE, "b_stable") \
     X(B_SIEGE_FACTORY, "b_siege_factory") X(B_DOCK, "b_dock") X(B_NAVY_YARD, "b_navy_yard") X(B_AIRPORT, "b_airport") \

@@ -453,19 +453,25 @@ internal void ws_skirt_drawn(ee_rasterizer *ras, ee_model *m, uint32_t screen) {
 }
 // BENT OBJECTS (building_lean): an ambient object's or a resource site's model bent onto the ground where it is drawn (bl_bend below)
 internal volatile LONG g_bl_n;
-internal ee_vertices *bl_bend(ee_model *m);
+internal ee_vertices *bl_bend(ee_model *m, int *decal);
 internal void bl_unbend(ee_vertices *a);
 internal int __thiscall ws_hook_draw0(ee_rasterizer *ras, void *m, uint32_t screen, float p3, int8_t p4) {
     if (g_ws_sk_asked > 0) ws_skirt_drawn(ras, m, screen);
-    ee_vertices *b = g_bl_n ? bl_bend(m) : NULL;
+    int decal = 0;
+    ee_vertices *b = g_bl_n ? bl_bend(m, &decal) : NULL;
+    g_sh_decal = decal;
     int r = g_ws_draw[0](ras, m, screen, p3, p4);
+    g_sh_decal = 0;
     if (b) bl_unbend(b);
     return r;
 }
 internal int __thiscall ws_hook_draw1(ee_rasterizer *ras, void *m, uint32_t screen, float p3, int8_t p4) {
     if (g_ws_sk_asked > 0) ws_skirt_drawn(ras, m, screen);
-    ee_vertices *b = g_bl_n ? bl_bend(m) : NULL;
+    int decal = 0;
+    ee_vertices *b = g_bl_n ? bl_bend(m, &decal) : NULL;
+    g_sh_decal = decal;
     int r = g_ws_draw[1](ras, m, screen, p3, p4);
+    g_sh_decal = 0;
     if (b) bl_unbend(b);
     return r;
 }
@@ -914,21 +920,23 @@ internal void bl_ground_all(const char *what) {
 // and its model is bent instead: shared by every object of its kind, but the renderer copies the frame's vertices into
 // its vertex buffer at every draw (CopyStdVertices) at the model's transformation, which the exe sets to the object's
 // before - so there each vertex goes up or down by the ground's height under it over the ground's at its middle (its
-// model z by that over the transformation's z scale), and back after the draw. The ground under a vertex is the highest
-// within BL_SPAN around it: the debris' base is a few big triangles (75 vertices, drawn at twice their size for the
-// 2x2), whose middles went under a bulge between their corners. Its models: every animation's of its type's graphics
+// model z by that over the transformation's z scale), and back after the draw. Over a bulge a vertex goes up by as much
+// as the ground under it stands above the ground around it (BL_SPAN): the debris' base is a few big triangles (75
+// vertices, drawn at twice their size for the 2x2), whose middles went under a bulge between their corners - the
+// highest ground around tried first lifted everything on a slope ("the mines now seem to float a bit"). A debris draw
+// is a decal to the shadows (g_sh_decal): bent, its vertices no longer lie flat. Its models: every animation's of its type's graphics
 // (BL_ANIMS), noted when its record is filled (a hash of the graphics objects seen: a lookup a frame)
 #define BL_MODELS 512       // models bent (the plain sheared kinds': ambient objects, resources)
 #define BL_GFX 1024         // graphics objects seen (a power of two)
 #define BL_ANIMS 71         // EEGraphicObject's models, one per animation (+0x234 .. +0x350)
 #define BL_BEND_MAX 8192    // vertices of a frame bent at most
-#define BL_SPAN 0.25f       // a bent vertex goes onto the highest ground this far around it (a tile, by the model's scale)
-struct bl_model { ee_model *m; };
+#define BL_SPAN 0.25f       // a bent vertex's bulge: the ground this far around it (a tile, by the model's scale)
+struct bl_model { ee_model *m; int decal; };   // decal: debris - casts no shadow
 internal struct bl_model g_bl_models[BL_MODELS];
 internal void *g_bl_gfx[BL_GFX];
 internal float g_bl_z[BL_BEND_MAX];   // the bent vertices' own z, put back after the draw (the graphics thread's)
 
-internal void bl_mark(ee_unit *u) {
+internal void bl_mark(ee_unit *u, int decal) {
     ee_unit_stats *st = unit_get_stats(u);
     ee_dmg_model *gfx = st ? unit_stats_get_gfx(st) : NULL;
     if (!gfx) return;
@@ -941,17 +949,18 @@ internal void bl_mark(ee_unit *u) {
         int n = g_bl_n, dup = 0;
         for (int i = 0; i < n && !dup; i++) dup = g_bl_models[i].m == m;
         if (!m || dup || n >= BL_MODELS) continue;
-        g_bl_models[n] = (struct bl_model){ m };
+        g_bl_models[n] = (struct bl_model){ m, decal };
         InterlockedIncrement(&g_bl_n);   // after the entry: the graphics thread reads up to the count
     }
 }
 
 // m's frame bent onto the ground at its transformation, when it is a noted model: its vertex array (to put back), else
 // NULL
-internal ee_vertices *bl_bend(ee_model *m) {
+internal ee_vertices *bl_bend(ee_model *m, int *decal) {
     int n = g_bl_n, i = 0;
     while (i < n && g_bl_models[i].m != m) i++;
     if (i == n) return NULL;
+    *decal = g_bl_models[i].decal;
     ee_vertices **va = model_get_vertices(m);
     ee_map *map = game_map();
     uint32_t f = model_get_frame(m);
@@ -969,14 +978,11 @@ internal ee_vertices *bl_bend(ee_model *m) {
     for (uint32_t k = 0; k < cnt; k++) {
         float *v = (float *)vertex_at(data, k);
         float px = t[0] * v[0] + t[1] * v[1] + t[2] * v[2] + t[3], py = t[4] * v[0] + t[5] * v[1] + t[6] * v[2] + t[7];
-        // the highest ground around it (BL_SPAN of the model's scale): a big triangle between bent corners stays
-        // over a bulge of the ground under its middle
-        float g = ground_at(map, px, py);
-        for (int q = 0; q < 4; q++) {
-            float h = ground_at(map, px + (q & 1 ? span : -span), py + (q & 2 ? span : -span));
-            if (h > g) g = h;
-        }
-        float d = g - g0;
+        // and over a bulge by as much as it stands above the ground around it (BL_SPAN of the model's scale): a big
+        // triangle between bent corners stays over the ground under its middle - nothing on an even slope
+        float g = ground_at(map, px, py), around = 0;
+        for (int q = 0; q < 4; q++) around += 0.25f * ground_at(map, px + (q & 1 ? span : -span), py + (q & 2 ? span : -span));
+        float d = g + fmaxf(0, g - around) - g0;
         g_bl_z[k] = v[2];
         if (d == d) v[2] += d / t[10];
     }
@@ -998,7 +1004,7 @@ internal void __thiscall hook_draw_record_fill(void *c, ee_unit *u, float *rec, 
     ee_map *map = game_map();
     if (!td || !map || !rec || !bl_sheared(td)) return;
     if (unit_get_physics(u)) bl_shear(map, rec, unit_type_get_size(td), unit_type_get_class_id(td) != CLS_BUILDING);
-    else bl_mark(u);
+    else bl_mark(u, UT_IN(unit_type_get_id(td), UT_AMB_DEBRIS_1X, UT_AMB_DEBRIS_2X, UT_AMB_DEBRIS_3X, UT_AMB_DEBRIS_4X));
 }
 internal ee_unit *__cdecl hook_place_building(ee_player *pl, int type, int x, int y) {
     ee_unit *b = place_foundation(pl, type, x, y);

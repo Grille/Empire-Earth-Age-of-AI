@@ -170,6 +170,10 @@ internal void rd3_rigid_inverse(float *r, const float *m) {
 // own) without the tint. A caster's world box goes into the frame's, its size (the box's diagonal, at least a tile) into
 // d->sh_b: how much nearer the sun than its origin a shadow must be to darken it - its own body (a tank's hull over its
 // wheels) must not.
+// walls.c sets it while a debris' model is drawn: a decal the ground's shape bends (building_lean), its vertices no longer
+// flat - it cast a shadow of a pile hanging in the air (the player, 2026-11-05: "since its basically a decal we should
+// consider disabling shadows for debris")
+internal int g_sh_decal;
 internal int rd3_shadow_role(rd_device *d, rd_vb *vb, DWORD start, DWORD nv) {
     if (!g_sh.on || vb->fvf != 0x152 || !d->rs[D3DRENDERSTATE_ZENABLE] || !rd3_shadow_init()) return SH_NONE;
     if (g_ro_cur == RO_TERRAIN) {
@@ -204,7 +208,7 @@ internal int rd3_shadow_role(rd_device *d, rd_vb *vb, DWORD start, DWORD nv) {
         const float *p = (const float *)(vb->mem + (size_t)(start + k) * vb->stride);
         for (int a = 0; a < 3; a++) { if (p[a] < lo[a]) lo[a] = p[a]; if (p[a] > hi[a]) hi[a] = p[a]; }
     }
-    if (hi[2] - lo[2] <= 0.01f * fmaxf(hi[0] - lo[0], hi[1] - lo[1])) return d->tex[0] ? SH_DECAL : SH_NONE;
+    if (g_sh_decal || hi[2] - lo[2] <= 0.01f * fmaxf(hi[0] - lo[0], hi[1] - lo[1])) return d->tex[0] ? SH_DECAL : SH_NONE;
     // unlit: no shadow. See-through it casts as solid: the game draws a building see-through while units stand behind it,
     // or under construction (material alpha 0.35 or 0.60, alpha tested, no depth written - rprobe 2026-11-05), and its
     // shadow came and went with that (the player: "they should always see the real building")
