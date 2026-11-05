@@ -212,6 +212,12 @@ unsafe struct EEWorld
     [address((ee)0x0052E5F7, (aoc)0x00539532)]
     extern uint32 site_gatherers(EEUnit* site);
 
+    /// the time of day, 0..1 (the daylight-hour effect passes ((hour + 18) % 24) / 24: 0 is 6 o'clock): kept at +0xB74,
+    /// the light's two direction vectors at +0x980 / +0x98C turned to it; the physics' day/night cycle calls it as its
+    /// timer runs (0x547BE3)
+    [address((ee)0x00531292, (aoc)0x0053C301)]
+    extern void set_time_of_day(float32 t);
+
     /// vf5: a unit's place in the world's x-sorted unit list after a move - thiscall(world, its handle: +0x30 the
     /// unit); out of the list (0x60xxxx unlink), the list walked from its old neighbours by the unit's tile x, linked in
     /// again (0x628D34). A tile x past every unit's ends the walk with no node and the link reads NULL+8 (the

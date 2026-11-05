@@ -28,6 +28,9 @@ internal struct {
     int all;         // the units, buildings and trees receive too, per pixel (on; the pipe: shadows all on | off)
     double water_z;  // the water's vertices' heights this frame, summed, and how many (its level)
     int water_n;
+    double ground_c[3];   // the terrain's vertex colours this frame, summed, and how many - the game's baked shading
+    int ground_n;
+    float ground_mean[3]; // the last frame's mean (the pipe's reply: does it follow the time of day?)
     float level;     // the last frame's
     int ready;       // 1 made, -1 failed
     ID3D11Texture2D *map, *tmap;   // the casters' depth from the sun, the ground's (what the hills hide from it)
@@ -138,7 +141,15 @@ internal void rd3_rigid_inverse(float *r, const float *m) {
 // wheels) must not.
 internal int rd3_shadow_role(rd_device *d, rd_vb *vb, DWORD start, DWORD nv) {
     if (!g_sh.on || vb->fvf != 0x152 || !d->rs[D3DRENDERSTATE_ZENABLE] || !rd3_shadow_init()) return SH_NONE;
-    if (g_ro_cur == RO_TERRAIN) return d->view._41 == 0 && d->view._42 == 0 && d->view._43 == 0 ? SH_RECEIVE : SH_NONE;
+    if (g_ro_cur == RO_TERRAIN) {
+        if (d->view._41 != 0 || d->view._42 != 0 || d->view._43 != 0) return SH_NONE;
+        for (DWORD k = 0; k < nv; k++) {
+            const uint8_t *c = vb->mem + (size_t)(start + k) * vb->stride + 24;   // the diffuse colour: B G R A
+            g_sh.ground_c[0] += c[2]; g_sh.ground_c[1] += c[1]; g_sh.ground_c[2] += c[0];
+        }
+        g_sh.ground_n += (int)nv;
+        return SH_RECEIVE;
+    }
     // the game's shadows' render object draws the farms' fields too (depth written, alpha tested at 127 - the probe on
     // "choke wolf", 2026-11-04): those are kept and receive; the blobs (depth not written) aren't drawn
     if (g_ro_cur == RO_SHADOWS) return d->rs[D3DRENDERSTATE_ZWRITEENABLE] && d->tex[0] ? SH_DECAL : SH_BLOB;
@@ -315,6 +326,10 @@ internal void rd3_shadow_frame(void) {
     g_sh.shl[0] = g_sh.level; g_sh.shl[1] = 1 / fmaxf(g_sh.fade, 0.01f); g_sh.shl[2] = g_sh.water_n ? 1.0f : 0.0f;
     g_sh.water_z = 0;
     g_sh.water_n = 0;
+    if (g_sh.ground_n)
+        for (int a = 0; a < 3; a++) g_sh.ground_mean[a] = (float)(g_sh.ground_c[a] / g_sh.ground_n);
+    g_sh.ground_c[0] = g_sh.ground_c[1] = g_sh.ground_c[2] = 0;
+    g_sh.ground_n = 0;
     if (!nc) { if (ng) g_sh.valid = 0; return; }
     // the tallest caster: this list's, falling slowly (a list drawn early in a frame has fewer)
     g_sh.tall = fmaxf(fmaxf(g_sh.tall_frame, g_sh.tall * 0.98f), 2);
@@ -603,7 +618,10 @@ internal void cmd_shadows(char *out, const char *args) {
     char mode[16] = "", arg[16] = "";
     sscanf(args, "%15s %15s", mode, arg);
     float s = arg[0] ? (float)atof(arg) : -1;
-    if (!strcmp(mode, "tint")) {
+    if (!strcmp(mode, "hour")) {   // the game's time of day (as the daylight-hour effect sets it)
+        if (s >= 0 && s < 24) game_set_hour(s);
+        else { REPLY("error: usage: shadows hour <0..24>\n"); return; }
+    } else if (!strcmp(mode, "tint")) {
         if (!strcmp(arg, "on") || !strcmp(arg, "off")) g_sh.tint = arg[1] == 'n';
         else { REPLY("error: usage: shadows tint on | off\n"); return; }
     } else if (!strcmp(mode, "all")) {
@@ -629,12 +647,13 @@ internal void cmd_shadows(char *out, const char *args) {
         else { REPLY("error: usage: shadows fade <depth under the water, > 0>\n"); return; }
     } else if (!strcmp(mode, "game")) g_sh.on = 0;
     else if (!strcmp(mode, "dynamic")) g_sh.on = 1;
-    else if (mode[0]) { REPLY("error: usage: shadows [game | dynamic] [strength 0..1] | fade <depth> | sun <degrees> | height <degrees> | turn <degrees> | reach on | off | cards on | off | all on | off | tint on | off\n"); return; }
+    else if (mode[0]) { REPLY("error: usage: shadows [game | dynamic] [strength 0..1] | fade <depth> | sun <degrees> | height <degrees> | turn <degrees> | hour <0..24> | reach on | off | cards on | off | all on | off | tint on | off\n"); return; }
     if ((!strcmp(mode, "game") || !strcmp(mode, "dynamic")) && s >= 0 && s <= 1) g_sh.strength = s;
     REPLY("shadows: %s, strength %.2f, %s, %ld maps drawn; the last: %d casting batches, %d of ground;"
           " the casters' box %.1f %.1f %.1f - %.1f %.1f %.1f, the sun %.2f %.2f %.2f, a shadow's colour %.2f %.2f %.2f;"
           " the water at %.2f%s, a shadow gone %.2f under it; units in a shadow darkened: %s, receiving: %s; the sun at least %.0f degrees"
-          " high (the light's %.0f); casters off the screen: %s, %.1f tiles (the tallest %.1f), %d rows and %d more; %d casting draws off the screen\n",
+          " high (the light's %.0f); casters off the screen: %s, %.1f tiles (the tallest %.1f), %d rows and %d more; %d casting draws off the screen;"
+          " the ground's mean colour %.0f %.0f %.0f\n",
           g_sh.on ? "dynamic" : "game", (double)g_sh.strength,
           g_sh.ready > 0 ? "ready" : g_sh.ready < 0 ? "FAILED (the log says why)" : "not made yet", (long)g_sh.passes,
           g_sh.last_cast, g_sh.last_ground, (double)g_sh.last_lo[0], (double)g_sh.last_lo[1], (double)g_sh.last_lo[2],
@@ -642,5 +661,6 @@ internal void cmd_shadows(char *out, const char *args) {
           (double)g_sh.sun[1], (double)g_sh.sun[2], (double)g_sh.shk[0], (double)g_sh.shk[1], (double)g_sh.shk[2],
           (double)g_sh.level, g_sh.shl[2] > 0 ? "" : " (none seen)", (double)g_sh.fade, g_sh.tint ? "on" : "off", g_sh.all ? "everything" : "the ground",
           (double)g_sh.sun_low, (double)(asinf(fminf(1, fmaxf(-1, g_sh.sun_lit))) * 180 / 3.14159265f),
-          !g_shr.on ? "not (no hooks)" : g_shr.off ? "off" : "collected", (double)g_shr.reach, (double)g_sh.tall, g_shr.last_own, g_shr.last_extra, g_sh.last_off);
+          !g_shr.on ? "not (no hooks)" : g_shr.off ? "off" : "collected", (double)g_shr.reach, (double)g_sh.tall, g_shr.last_own, g_shr.last_extra, g_sh.last_off,
+          (double)g_sh.ground_mean[0], (double)g_sh.ground_mean[1], (double)g_sh.ground_mean[2]);
 }

@@ -93,6 +93,8 @@ internal inline ee_unit *unit_by_id(unsigned id) {
 }
 // the stance of player index from towards to (the game's own change, with its message)
 internal inline void game_set_stance(int from, int to, int stance) { fn_world_set_stance((void *)data_game_game_state, from, to, stance); }
+// the time of day, the hour 0..24 (the daylight-hour effect's way: the game's 0 is 6 o'clock)
+internal inline void game_set_hour(float hour) { fn_world_set_time_of_day((void *)data_game_game_state, fmodf(hour + 18, 24) / 24); }
 // player index out of the game (the resign's first step)
 internal inline void game_player_out(int flag, int index) { fn_world_player_out((void *)data_game_game_state, flag, index); }
 // the local player resigns (the menu's message sent), the exit dialog's confirmation (the originals of diplo.c's hooks)
