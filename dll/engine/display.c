@@ -1401,6 +1401,11 @@ internal void display_install(const char *autotest_ini) {
     if (g_log) fprintf(g_log, "# editor: form hook %d/1\n", form);
     const char *mode = g_set.editor_resolution;
     if (!lstrcmpiA(mode, "ee")) return;
+    if (build_is("aoc") && lstrcmpiA(mode, "aoc")) {   // the layout (editor_layout.h) is the 2017 update's only: AoC's
+        // form would stay 800x600 in a corner of the bigger screen - AoC keeps its own 1024x768 editor
+        if (g_log) fprintf(g_log, "# editor: resolution=%s not in The Art of Conquest yet (no layout for it) - its own 1024x768\n", mode);
+        return;
+    }
     if (!lstrcmpiA(mode, "aoc")) { g_editor_w = 1024; g_editor_h = 768; }
     else if (!lstrcmpiA(mode, "game")) g_editor_game = 1;
     else if (sscanf(mode, "%dx%d", &g_editor_w, &g_editor_h) != 2 || g_editor_w < 800 || g_editor_h < 600) {

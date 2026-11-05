@@ -28,8 +28,8 @@ for try in 1 2 3 4 5; do
     $py scripts/test/eectl.py vclick 512 472 >/dev/null; sleep 4     # main menu: game tools
     $py scripts/test/eectl.py vmouse 500 360 >/dev/null; sleep 1
     $py scripts/test/eectl.py vclick 512 370 >/dev/null              # game tools: scenario editor
-    for i in $(seq 1 15); do sleep 1; grep -aq "# editor: building" "$log" && break; done
-    if grep -aq "# editor: building" "$log"; then
+    for i in $(seq 1 15); do sleep 1; grep -aq "# editor: building|# editor: unit search box" "$log" && break; done
+    if grep -aq "# editor: building|# editor: unit search box" "$log"; then
         sleep 8; grep -a "# editor: \(building\|resolution [0-9]\)\|# exception" "$log"; echo "editor open"; exit 0
     fi
     $py scripts/test/eectl.py vclick 512 680 >/dev/null; sleep 3     # back to the main menu (bottom button) and retry
