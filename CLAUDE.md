@@ -76,8 +76,8 @@ and the runners, eectl, the MCP server), `results/` (log readers, scorers), `re/
   locator +0xC -> type descriptor +8: `.?AVName@@`), a constructor's by the vtable it writes, scripts/re/vtables.py a
   class's in both exes; a class's [vtable] is checked by that name at load. The game's enums are the spec's too (`[c_prefix("SM_CAT")] enum sm_category : int32 { @object = 1, ... }`: gen/enums.c's
   SM_CAT_OBJECT ..., as the spec's integer type: enum sm_category : int32_t; the scenario editor's lists, the unit type's class_id: CLS_NAVAL ... - its family the field family, the data's Family ID). A name or type read from what the code does with a field, not confirmed, is `[guess]` with its evidence in the /// comment (the build insists; gen/ and Ghidra say "A GUESS"; `scripts/re/spec_guesses.py` lists them with the mod's uses - confirm one before the mod relies on it). Ghidra knows the spec too: scripts/re/spec_ghidra.py + ApplySpec.java (docs/development.md "Setup") name
-  the functions Class::member with their types, the structures and enums under /spec - run them after a spec change. Two builds: the 2017 update and Art of Conquest (not ready: tested in AoC only since 2026-10-21 -
-  test runs play it, `EE_GAME_DIR=<its folder>`, docs/testing.md); a new value needs both. The port scripts read the
+  the functions Class::member with their types, the structures and enums under /spec - run them after a spec change. Two builds: the 2017 update and Art of Conquest (ready since 2026-11-05; NeoEE's AoC
+  not yet - test runs play it too, `EE_GAME_DIR=<its folder>`, docs/testing.md); a new value needs both. The port scripts read the
   spec (`scripts/re/port_addrs.py`: every address's AoC value found again and compared with the spec's - same,
   DIFFERS, NEW; `port_check.py` a class's fields by its code; `port_fields.py`, `port_dll.py`): a value they find goes
   into the spec by hand, one found by hand also into port_addrs.py's EXE_HAND. AoC's function

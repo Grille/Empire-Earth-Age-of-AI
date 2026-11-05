@@ -6,7 +6,7 @@ The name says it twice: the computer players are the heart of the mod, and the m
 the game's code was reverse-engineered and the mod written largely with AI coding tools. Short: **EE: Age of AI**.
 
 A runtime mod for **Empire Earth 1.04 with the Difficulty Setting & Multiplayer Lobby add-on** (the last official
-base-game exe; Art of Conquest is being ported). It fixes and tunes the game from inside: a DLL in the game folder
+base-game exe) and **The Art of Conquest**. It fixes and tunes the game from inside: a DLL in the game folder
 patches the running exe, and the game's files stay unchanged. The engine loads every DLL in its folder, so dropping
 the file there is enough.
 
@@ -37,8 +37,7 @@ starts, and the mod switches on only when every one holds (the log's `# build:` 
 protection still on (SafeDisc, which Windows 10 and 11 no longer run anyway) and with versions before 1.04 the mod
 stays switched off, with a message.
 
-Art of Conquest (`EE-AOC.exe`, GOG and Steam) is being ported: the mod knows its exe and the test games play it,
-but in a normal start it stays switched off for now (see [Status](#status)).
+Art of Conquest (`EE-AOC.exe`, GOG and Steam) plays with the mod too, since 2026-11-05 (see [Status](#status)).
 
 The mod coexists with community DLL patches such as *Empire Earth Tweaks* or *dreXmod* (3.4 too: none of its 116
 patches touches a place the mod patches); a few of their options overlap with the mod's
@@ -98,8 +97,8 @@ differs from the GOG version:
   and the mod's `[camera]` and `[display]` settings haven't been tried together by hand yet.
 - NeoEE's data changes a few rules (its `Data\db` files: a population limit of 4000, more starting-resource levels
   and game variants). The AI adapts to the data, but it was measured on the original rules.
-- NeoEE's Art of Conquest (`EE-AOC.exe`) is recognized too and goes with the Art of Conquest port: off in a
-  normal start for now.
+- NeoEE's Art of Conquest (`EE-AOC.exe`) is recognized too, but off in a normal start until test games have run on
+  it.
 - Not on NeoEE's online servers: see [Multiplayer](#multiplayer).
 
 ### Multiplayer
@@ -122,10 +121,10 @@ question for NeoEE's people, not something to try.
   hand yet.
 - **Experimental, off by default:** what hasn't shown a gain yet ([docs/experiments.md](docs/experiments.md)), the
   personalities' play styles (`ai_style`).
-- **Art of Conquest, in progress:** every address the mod uses is known for it too (its load checks hold), and
-  automated test games play there; AoC rewrote some functions the mod relies on, and some of its fields are carried
-  over from the base game rather than confirmed in AoC's code. Before the mod switches on in a normal AoC start:
-  longer test games and measurements there, and those rewritten functions checked in play.
+- **Art of Conquest, on since 2026-11-05:** every address the mod uses is known for it too (its load checks hold).
+  Automated test games: 14 maps and seeds of 45 minutes each, AoC and the base game the same games, no crash and the
+  AI as strong in both (alive, epoch, workers, soldiers within a few percent). The base game's online screens, which
+  AoC removed, and two of the off-map fix's ten calls are the base game's only. Not played by hand much yet.
 
 ## Documentation
 

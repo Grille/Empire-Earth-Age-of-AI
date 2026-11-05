@@ -1135,7 +1135,7 @@ calls the game's code `.data` and has two `.text` sections (the game's data and 
 patching.c's scans; and display.c's patch_iat on the exe finds a slot by the function it holds where the name thunks
 are the slots. Checked: 15-minute test games, GOG and NeoEE side by side (Continental seed 101, game_seed 1) - all
 598 checks hold on both, every hook the same, the economy at 15 minutes within a few citizens (NeoEE's dbworld.dat
-differs). AoC's NeoEE exe is a row too, not ready as AoC itself. Test runs there: EE_GAME_DIR=<NeoEE's game folder>
+differs). AoC's NeoEE exe is a row too, not ready yet (AoC itself is since 2026-11-05). Test runs there: EE_GAME_DIR=<NeoEE's game folder>
 (its single-instance check is NeoEE's own nop, run_test.ps1 warns that it found no je to nop), the mod's
 ageofai.dll in that folder, and newgame.ees in its Saved Games.
 
@@ -1180,8 +1180,8 @@ that handle - the redirect follows handle paths. Two values were REG_SZ of 0 byt
 
 ## Art of Conquest (EE-AOC.exe) - first overview
 
-Not supported yet; notes for the port. Steam and GOG `EE-AOC.exe` have identical code (build hash 0x0644BA54, in
-game/api/builds.h but not ready). AoC's `Low-Level Engine.dll` also loads every `*.dll` in its folder, so the mod gets in the
+Notes from the port (ready since 2026-11-05). Steam and GOG `EE-AOC.exe` have identical code (build hash 0x0644BA54,
+game/api/builds.h). AoC's `Low-Level Engine.dll` also loads every `*.dll` in its folder, so the mod gets in the
 same way; all its engine DLLs (Low-Level Engine, DX7HRDisplay, Default, Language ...) differ from the base's.
 
 - RTTI: 1741 classes (base 1717), 1696 shared. New: the Space Age (EECPASGSpace*, EEUCSpaceship..., carriers),

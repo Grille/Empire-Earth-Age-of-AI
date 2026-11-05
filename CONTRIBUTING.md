@@ -26,7 +26,7 @@ welcome on the same terms as any other: you answer for what you send - you have 
 - **Personalities and texts** (`config/personalities/`): new characters, better lines.
 - **NeoEE**, the community's online version, as much as the GOG and Steam versions: its `Empire Earth.exe` is the
   2017 update's code in another layout, and every change has to work on both (README "NeoEE").
-- **The Art of Conquest port** (in progress, see the spec's two builds; NeoEE's AoC goes with it).
+- **The Art of Conquest** (the spec's second build; on since 2026-11-05, NeoEE's AoC still off until tested).
 
 **Out of scope**
 

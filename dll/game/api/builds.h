@@ -10,9 +10,9 @@ internal const char *const k_build_names[ADDR_BUILDS] = { "ee", "aoc" };
 #define EXE_BUILDS 4
 internal const struct exe_build { uint32_t hash; int col; int ready; const char *what; } k_exe_builds[EXE_BUILDS] = {
     { 0x4FB6A479, 0, 1, "the 2017 update" },           // GOG, Steam, empireearth.eu Vanilla
-    { 0x0644BA54, 1, 0, "The Art of Conquest" },       // EE-AOC.exe (GOG, Steam)
+    { 0x0644BA54, 1, 1, "The Art of Conquest" },       // EE-AOC.exe (GOG, Steam): ready since 2026-11-05
     { 0x62BC693E, 0, 1, "NeoEE" },                     // NeoEE's Empire Earth.exe (its installer of 2026)
-    { 0xA4FF1307, 1, 0, "NeoEE's Art of Conquest" },   // NeoEE's EE-AOC.exe
+    { 0xA4FF1307, 1, 0, "NeoEE's Art of Conquest" },   // NeoEE's EE-AOC.exe (not ready: no test games on it yet)
 };
 internal int g_exe_build = -1;   // the running build's column (-1: none known - the mod stays off)
 internal int g_exe_kind = -1;    // its exe: k_exe_builds' row
