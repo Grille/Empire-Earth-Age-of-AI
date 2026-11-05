@@ -68,6 +68,7 @@ internal struct {
     // casts farther by its height over the ground on the screen (the player's shot, 2026-11-05: a tower on a hill, its
     // shadow gone with it off the screen)
     float *bmax;
+    float glow;              // the map's lowest ground (-50 before a map's is known): no caster below it
     int bw;
     int off_frame, last_off; // the casting draws wholly off the screen (the frame's so far, the last map's)
     // the sun the map is drawn from: the light's, never lower than sun_low degrees over the horizon (the day's cycle's
@@ -91,7 +92,7 @@ internal struct {
     LONG passes;
     int last_cast, last_ground;   // the last map's (the pipe's shadows)
     float last_lo[3], last_hi[3];
-} g_sh = { .strength = 0.8f, .fade = 0.8f, .water = 0.5f, .moon = 0.75f, .all = 1, .tall = 2, .sun = { 0.08f, 0.75f, -0.65f }, .light = { 0.08f, 0.75f, -0.65f }, .hlight = { 0.08f, 0.75f, -0.65f }, .sun_low = 25, .sun_lit = 0.65f };
+} g_sh = { .strength = 0.8f, .fade = 0.8f, .water = 0.5f, .moon = 0.75f, .glow = -50, .all = 1, .tall = 2, .sun = { 0.08f, 0.75f, -0.65f }, .light = { 0.08f, 0.75f, -0.65f }, .hlight = { 0.08f, 0.75f, -0.65f }, .sun_low = 25, .sun_lit = 0.65f };
 
 // from the sun: the batch's vertices placed as the main pass places them (render_3d.c's vertex shader), through shm
 // into the map (sa: alpha reference / 255, alpha tested). A tree casts its card (rd3_shadow_card), not itself. The
@@ -221,6 +222,11 @@ internal int rd3_shadow_role(rd_device *d, rd_vb *vb, DWORD start, DWORD nv) {
               cw = q[0] * vp[3] + q[1] * vp[7] + q[2] * vp[11] + vp[15];
         out &= (cx < -cw) | (cx > cw) << 1 | (cy < -cw) << 2 | (cy > cw) << 3;
     }
+    // under the map's lowest ground the game keeps objects out of sight (one at -5854 in the player's game, 2026-11-05:
+    // the casters' box and the map's depth with it 2000 times as deep, every shadow gone): those cast nothing, and no
+    // caster's box reaches down there
+    if (wh[2] < g_sh.glow - 2) return SH_NONE;
+    wl[2] = fmaxf(wl[2], g_sh.glow - 2);
     if (out) g_sh.off_frame++;   // wholly off the screen: in the map only (SH_AWAY)
     for (int a = 0; a < 3; a++) { if (wl[a] < g_sh.lo[a]) g_sh.lo[a] = wl[a]; if (wh[a] > g_sh.hi[a]) g_sh.hi[a] = wh[a]; }
     float dx = wh[0] - wl[0], dy = wh[1] - wl[1], dz = wh[2] - wl[2];
@@ -424,15 +430,18 @@ internal void shadow_hills(void) {
         g_sh.bmax = malloc((size_t)bw * bw * 2 * sizeof(float));
         g_sh.bw = g_sh.bmax ? bw : 0;
         for (int i = 0; g_sh.bmax && i < bw * bw; i++) { g_sh.bmax[i] = -1e30f; g_sh.bmax[bw * bw + i] = 1e30f; }
+        float glow = 1e30f;
         for (int y = 0; y < cw; y++)
             for (int x = 0; x < cw; x++) {
                 float h = ground_corner(map, x, y);
                 corner[y * cw + x] = isnan(h) ? -1e9f : h;   // off the map: hides nothing
+                if (!isnan(h)) glow = fminf(glow, h);
                 if (isnan(h) || !g_sh.bmax) continue;
                 int b = (y / SH_BLOCK < bw ? y / SH_BLOCK : bw - 1) * bw + (x / SH_BLOCK < bw ? x / SH_BLOCK : bw - 1);
                 g_sh.bmax[b] = fmaxf(g_sh.bmax[b], h);
                 g_sh.bmax[bw * bw + b] = fminf(g_sh.bmax[bw * bw + b], h);
             }
+        if (glow < 1e29f) g_sh.glow = glow;
         for (int j = 0; j < n; j++)
             for (int i = 0; i < n; i++) {
                 float x = (i + 0.5f) / hr, y = (j + 0.5f) / hr;
