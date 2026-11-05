@@ -229,6 +229,12 @@ unsafe struct EEROTerrain
 {
     // VIRTUAL FUNCTIONS
 
+    /// the ground's update: the camera's matrices, the terrain mesh's patches and fog for it - the visible region the
+    /// units' draw walks with them
+    [address((ee)0x00506FB9, (aoc)0x00512638), overrides(typeof(RTSRenderObject))]
+    [vtable_site("ro_terrain_update")]
+    extern void update();
+
     /// the ground's draw (the rasterizer's draw_terrain, the grid, the highlight)
     [address((ee)0x00508390, (aoc)0x005131A4), overrides(typeof(RTSRenderObject))]
     [vtable_site("ro_terrain_draw")]
@@ -242,6 +248,11 @@ unsafe struct EEROGroundShadows
 {
     // VIRTUAL FUNCTIONS
 
+    /// the shadows' update (the units' shadows from the world's units)
+    [address((ee)0x00506840, (aoc)0x00511DE7), overrides(typeof(RTSRenderObject))]
+    [vtable_site("ro_shadows_update")]
+    extern void update();
+
     [address((ee)0x00506AD8, (aoc)0x0051207F), overrides(typeof(RTSRenderObject))]
     [vtable_site("ro_shadows_draw")]
     extern void draw();
@@ -254,6 +265,11 @@ unsafe struct EEROGroundShadows
 unsafe struct EEROUnits
 {
     // VIRTUAL FUNCTIONS
+
+    /// the units' update (from the world's units)
+    [address((ee)0x00509D06, (aoc)0x00514521), overrides(typeof(RTSRenderObject))]
+    [vtable_site("ro_units_update")]
+    extern void update();
 
     [address((ee)0x0050D90E, (aoc)0x00518203), overrides(typeof(RTSRenderObject))]
     [vtable_site("ro_units_draw")]
@@ -291,6 +307,12 @@ unsafe struct EEROUserInterface
 [vtable((ee)0x0082C378, (aoc)0x008413D0)]
 unsafe struct EEROEffects
 {
+    // VIRTUAL FUNCTIONS
+
+    /// the effects' update: in the 2017 update a jump to 0x5010A9, which reads the units the effects belong to
+    [address((ee)0x005067CF, (aoc)0x00511D76), overrides(typeof(RTSRenderObject))]
+    [vtable_site("ro_effects_update")]
+    extern void update();
 }
 
 [c_type("ee_screen")]

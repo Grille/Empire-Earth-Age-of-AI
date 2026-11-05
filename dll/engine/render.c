@@ -893,7 +893,7 @@ internal void render_install(const char *autotest_ini) {
     g_fx.aniso = g_set.anisotropy;
     g_rwl_free = g_set.draw_during_steps;   // [display] draw_during_steps (render_3d.c)
     int locks = rd_world_lock_install(), parts = rd_render_objects_install();   // the minute line's wait and parts
-    if (g_log) fprintf(g_log, "# render: own renderer on (Direct3D 11) - the display DLLs' DirectDraw at their load%s; world lock hooks %d/5,"
+    if (g_log) fprintf(g_log, "# render: own renderer on (Direct3D 11) - the display DLLs' DirectDraw at their load%s; world lock hooks %d/9,"
                        " render object hooks %d/5; shadows %s\n", g_rd_trace > 0 ? ", calls traced" : "", locks, parts,
                        g_sh.on ? "dynamic" : "the game's");
 }

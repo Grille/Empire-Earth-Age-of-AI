@@ -85,8 +85,7 @@ typedef struct {
     rf_kept *b;
     int nv, ni, nw, nb, cap_v, cap_i, cap_w, cap_b;
 } rf_ground;
-internal rf_ground g_kg[2];
-internal int g_kg_rec;    // the one being recorded; the other one is the last frame's
+internal rf_ground g_kg;   // the last frame drawn with an update (a frame during a step records none)
 internal int g_kg_skip;   // this frame is drawn during a step: nothing recorded
 internal LONG g_kg_drawn; // ground batches drawn again (the pipe's picture)
 internal float g_kg_cam[3];   // the camera's look-at at the last update: the view the game's draws have
@@ -97,7 +96,7 @@ internal void rf_ground_clear(rf_ground *g) {
 // the batch being flushed (rd3_flush, before its matrices' place is added), when it is the ground's
 internal void rf_keep_ground(void) {
     if (g_kg_skip || g_ro_cur != RO_TERRAIN) return;
-    rf_ground *g = &g_kg[g_kg_rec];
+    rf_ground *g = &g_kg;
     if (!rf_grow((void **)&g->b, &g->cap_b, g->nb + 1, sizeof *g->b) || !rf_grow((void **)&g->v, &g->cap_v, g->nv + g_rb.nv, sizeof *g->v)
         || !rf_grow((void **)&g->i, &g->cap_i, g->ni + g_rb.ni, sizeof *g->i) || !rf_grow((void **)&g->w, &g->cap_w, g->nw + g_rb.nw, sizeof *g->w))
         return;
@@ -116,19 +115,19 @@ internal void rf_keep_ground(void) {
     memcpy(g->w + g->nw, g_rb.w, (size_t)g_rb.nw * sizeof *g->w);
     g->nv += g_rb.nv; g->ni += g_rb.ni; g->nw += g_rb.nw;
 }
-// the render objects' update: a frame drawn as before (skip 0) - the one recorded becomes the last frame's - or during
-// a step (skip 1)
+// the render objects' update: a frame drawn as before (skip 0) - its ground recorded anew - or during a step (skip 1:
+// the last one's drawn again - the units' view is that frame's update's; one frame older was one frame's camera move
+// off - the ground and the debris on it jumped against each other while scrolling, the player 2026-11-05)
 internal void rf_ground_frame(int skip) {
     g_kg_skip = skip;
     if (skip) return;
     ee_camera *cam = game_camera();
     if (cam) memcpy(g_kg_cam, camera_look_at(cam), sizeof g_kg_cam);
-    g_kg_rec ^= 1;
-    rf_ground_clear(&g_kg[g_kg_rec]);
+    rf_ground_clear(&g_kg);
 }
 // a frame during a step: the last frame's ground into the list
 internal void rf_ground_again(void) {
-    rf_ground *g = &g_kg[g_kg_rec ^ 1];
+    rf_ground *g = &g_kg;
     if (!g_kg_skip || !g->nb) return;
     rd3_flush();
     for (int k = 0; k < g->nb; k++) {
@@ -248,9 +247,22 @@ internal void rd3_submit(void) {
     rf_replay();
 }
 // the scene's end: the list drawn; the ring started over while it is empty if less than a quarter is left
+internal LONG g_kg_trace;   // the pipe's picture camtrace: frames left to log
+internal float g_kg_trace_dx;   // and the camera moved this far a frame meanwhile (as scrolling does)
 internal void rf_scene_end(void) {
     rd3_flush();
     rf_replay();
+    ee_camera *cam = game_camera();
+    if (g_kg_trace > 0 && cam) {   // the camera's look-at against the eye of the view the units were drawn with
+        g_kg_trace--;
+        if (g_kg_trace_dx != 0) camera_pan(g_kg_trace_dx, 0);
+        const float *v = g_rd3.scene_view, *at = camera_look_at(cam);
+        float e[3];
+        for (int j = 0; j < 3; j++) e[j] = -(v[12] * v[4 * j] + v[13] * v[4 * j + 1] + v[14] * v[4 * j + 2]);
+        log_locked("# camtrace2: %lu %s at %.3f %.3f %.3f eye %.3f %.3f %.3f, at the update %.3f %.3f %.3f\n",
+                   (unsigned long)GetTickCount(), g_kg_skip ? "step" : "real", (double)at[0], (double)at[1], (double)at[2],
+                   (double)e[0], (double)e[1], (double)e[2], (double)g_kg_cam[0], (double)g_kg_cam[1], (double)g_kg_cam[2]);
+    }
     if (g_rd3.vb_pos > RD3_VB_BYTES / 4 * 3) g_rd3.vb_pos = RD3_VB_BYTES;
     if (g_rd3.ib_pos > RD3_IB_BYTES / 4 * 3) g_rd3.ib_pos = RD3_IB_BYTES;
     if (g_rd3.wb_pos > RD3_WB_BYTES / 4 * 3) g_rd3.wb_pos = RD3_WB_BYTES;

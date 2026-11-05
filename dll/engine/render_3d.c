@@ -663,13 +663,16 @@ internal LONG g_rwl_reads;
 internal uintptr_t g_rwl_read_ret;   // where the game took it
 internal int g_rwl_read_depth;
 internal rd_rwl_fn g_rwl_runlock;
+internal int g_rwl_pass;   // a frame during a step: the world's lock passed over (rd_hook_graphics_update)
 internal void __thiscall rd_hook_read_unlock(void *lock) {
+    if (g_rwl_pass && lock == g_rwl_world && GetCurrentThreadId() == g_rd_thread) return;
     if (GetCurrentThreadId() == g_rd_thread && g_rwl_read_depth > 0 && --g_rwl_read_depth == 0)
         g_rwl_read_qpc += rd_qpc() - g_rwl_read_at;
     g_rwl_runlock(lock);
 }
 internal void __thiscall rd_hook_read_lock(void *lock) {
     if (GetCurrentThreadId() != g_rd_thread) { g_rwl_read(lock); return; }
+    if (g_rwl_pass && lock == g_rwl_world) return;
     LONGLONG t0 = rd_qpc();
     g_rwl_read(lock);
     g_rwl_read_ret = (uintptr_t)__builtin_return_address(0);
@@ -713,21 +716,28 @@ internal void __thiscall rd_hook_write_unlock(void *lock) {
 // last update left. While the simulation holds the lock for a step the update is skipped and the frame drawn from the
 // last one's - the camera (moved on this thread: camera.c) and the cursor go on, the units stand till the step is done -
 // where it waited for the step before (the camera stood, then jumped). Not before an update has run at all.
-// The ground's draw draws nothing without its update (the clear's sky blue where it was): the last frame's ground is
-// drawn again (render_frame.c "the ground kept"). Its update alone took the units with it (their visible region).
+// Only the updates that read the world's units are skipped - the ground's (its patches and the units' visible region
+// with them), the units', their shadows' and the effects' (it crashed reading a unit, run during a step); the game's update runs with the lock passed over, the interface's with it
+// (UIManager::CopyData and RedrawAll under the interface's own lock: the messages and buttons over the 3D view were
+// missing from such frames - they flickered while moving) and the water's animation. The ground's draw draws nothing
+// without its update (the clear's sky blue where it was): the last frame's ground is drawn again (render_frame.c "the
+// ground kept").
 internal int g_rwl_free = 1;
 internal LONG g_rwl_skips, g_rwl_updates;
 internal ee_render_object *g_ro_obj[RO_N];   // the render objects, as their draws are called
 internal void __thiscall rd_hook_graphics_update(ee_graphics *g) {
-    if (g_rwl_free && g_rwl_updates && g_rwl_world && g_rwl_write_at) {
-        g_rwl_skips++;
-        rf_ground_frame(1);
-        return;
-    }
-    rf_ground_frame(0);
-    g_rwl_updates++;
+    int skip = g_rwl_free && g_rwl_updates && g_rwl_world && g_rwl_write_at;
+    rf_ground_frame(skip);
+    if (skip) g_rwl_skips++;
+    else g_rwl_updates++;
+    g_rwl_pass = skip;
     ee_graphics_update_objects(g);
+    g_rwl_pass = 0;
 }
+internal void __thiscall rd_hook_ro_terrain_update(ee_ro_terrain *o) { if (!g_rwl_pass) ro_terrain_update(o); }
+internal void __thiscall rd_hook_ro_units_update(ee_ro_units *o) { if (!g_rwl_pass) ro_units_update(o); }
+internal void __thiscall rd_hook_ro_shadows_update(ee_ro_shadows *o) { if (!g_rwl_pass) ro_shadows_update(o); }
+internal void __thiscall rd_hook_ro_effects_update(ee_ro_effects *o) { if (!g_rwl_pass) ro_effects_update(o); }
 internal int rd_world_lock_install(void) {
     HMODULE lle = GetModuleHandleA("Low-Level Engine.dll"), exe = GetModuleHandleA(NULL);
     if (!lle) return 0;
@@ -740,7 +750,9 @@ internal int rd_world_lock_install(void) {
            patch_iat(exe, "Low-Level Engine.dll", "?ReadUnlock@TSReadWriteLock@@QAEXXZ", (void *)rd_hook_read_unlock) +
            patch_iat(exe, "Low-Level Engine.dll", "?WriteLock@TSReadWriteLock@@QAEXXZ", (void *)rd_hook_write_lock) +
            patch_iat(exe, "Low-Level Engine.dll", "?WriteUnlock@TSReadWriteLock@@QAEXXZ", (void *)rd_hook_write_unlock) +
-           patch_graphics_update(rd_hook_graphics_update);
+           patch_graphics_update(rd_hook_graphics_update) + patch_ro_terrain_update(rd_hook_ro_terrain_update) +
+           patch_ro_units_update(rd_hook_ro_units_update) + patch_ro_shadows_update(rd_hook_ro_shadows_update) +
+           patch_ro_effects_update(rd_hook_ro_effects_update);
 }
 
 // THE GAME'S DRAWING, BY ITS PARTS: RTSGraphics draws a frame through its render objects (spec engine_display.cs) -

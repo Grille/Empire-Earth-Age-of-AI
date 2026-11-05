@@ -158,20 +158,31 @@ The minute's lines: `frames waiting 8 ms or more for the lock` (the holds that l
 on the reference save; frames drawn during a step).
 
 The frame during a step (`[display] draw_during_steps`, default on; the pipe: `picture steps on | off`; render_3d.c
-rd_hook_graphics_update, render_frame.c), 2026-11-05: while the simulation holds the write lock the update is skipped
-and the frame drawn from the last update's state - the units as they stood, the camera and the cursor moving on.
+rd_hook_graphics_update, render_frame.c), 2026-11-05: while the simulation holds the write lock the game's update runs
+with the world's lock passed over, and the render objects' updates that read the units are skipped - the ground's,
+the units', their shadows' and the effects' (spec: their update slots; the effects' read a unit and crashed when it
+ran). The frame is drawn from the last update's state - the units as they stood, the camera and the cursor moving on.
+The interface's update runs (UIManager::CopyData, under the interface's own lock, and RedrawAll before it - outside
+the world's lock in the game too): skipped at first, the chat lines and buttons over the 3D view were missing from such
+frames and flickered while moving (the player); with it two chat lines in all of six shots while scrolling, two thirds
+of the frames drawn during a step. The water's (its animation) runs too.
 - The ground's draw draws nothing without its update (the clear's sky blue where the ground was; units, trees and
-  buildings were there). Its update alone (and the water's) took everything else with it - it makes the visible region
-  the units' draw uses. So each frame's ground batches are kept on the CPU as they are flushed (vertices, indices,
-  world matrices, states, constants: render_frame.c rf_keep_ground) and a frame during a step draws the last frame's
-  again in the ground's place (rf_ground_again).
+  buildings were there). Its update alone took everything else with it - it makes the visible region the units' draw
+  uses. So the ground batches of the last frame drawn with an update are kept on the CPU as they are flushed (vertices,
+  indices, world matrices, states, constants: render_frame.c rf_keep_ground) and a frame during a step draws them again
+  in the ground's place (rf_ground_again). First the frame before that one was drawn (two buffers swapped at the
+  update): one frame's camera move off the units' - while scrolling the ground jumped against the debris on it, up and
+  down on hills, and showed a row or two of sky at the edge (the player).
 - The game's view is made in the update too: the units of such a frame are drawn from the camera of the last update.
   The camera's move since (its look-at, the height with it - a hill's worth up or down otherwise) is applied as the
   list is drawn (rf_shift): the units' constants by the world's shift, the ground's and the water's (drawn in the
   camera's space) by the shift seen through the camera's axes. The vertices stay where they were placed, the shadows'
   maps with them.
+- Measured with the pipe's `picture camtrace N [dx]` (each frame's look-at against the eye of the units' view, the
+  camera moved dx a frame meanwhile; `# camtrace2` lines): the eye follows the look-at at once, its height too.
 - Left: beyond the last update's ground, a fast scroll during a long step shows the sky blue at the edge (3 tiles in
-  one move: a strip at the side); the units there come with the next update.
+  one move: a strip at the side); the units there come with the next update. Scrolling 0.05 tiles a frame under 15 ms
+  steps: eight shots complete, no edge, the ground under the debris.
 Checked on the reference save (slot 21, speed 2.5, the pipe's stepload 9 - each step held 9 ms, the simulation 410 ms
 a second): frames waiting 8 ms or more 260-383 a minute off, 0-2 on; frames a minute 7300-8700 off, 11200-13300 on;
 an 842 ms step no wait. Shots in steps held 600-4000 ms: complete frames (six over 3 s of one step the same); a 3-tile

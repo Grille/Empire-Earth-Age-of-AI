@@ -187,6 +187,12 @@ internal inline void render_object_finish(ee_render_object *render_object) { ((r
 // class EEROTerrain (ee_ro_terrain)
 // the map's ground (engine_display.ro_terrain): update 0x506FB9, draw
 // RTSRenderObject's, the base's
+// the ground's update: the camera's matrices, the terrain mesh's patches and fog for it - the visible region the
+// units' draw walks with them
+typedef void (__thiscall *ro_terrain_update_fn)(ee_ro_terrain *);
+internal ro_terrain_update_fn fn_ro_terrain_update;
+internal inline void ro_terrain_update(ee_ro_terrain *ro_terrain) { fn_ro_terrain_update(ro_terrain); }
+internal inline int patch_ro_terrain_update(ro_terrain_update_fn h) { return patch_vtable(vt_eero_terrain, (int)slot_render_object_update, (uintptr_t)fn_ro_terrain_update, (void *)h); }
 // the ground's draw (the rasterizer's draw_terrain, the grid, the highlight)
 typedef void (__thiscall *ro_terrain_draw_fn)(ee_ro_terrain *);
 internal ro_terrain_draw_fn fn_ro_terrain_draw;
@@ -196,6 +202,11 @@ internal inline int patch_ro_terrain_draw(ro_terrain_draw_fn h) { return patch_v
 // class EEROGroundShadows (ee_ro_shadows)
 // the units' shadows on the ground (engine_display.ro_shadows)
 // RTSRenderObject's, the base's
+// the shadows' update (the units' shadows from the world's units)
+typedef void (__thiscall *ro_shadows_update_fn)(ee_ro_shadows *);
+internal ro_shadows_update_fn fn_ro_shadows_update;
+internal inline void ro_shadows_update(ee_ro_shadows *ro_shadows) { fn_ro_shadows_update(ro_shadows); }
+internal inline int patch_ro_shadows_update(ro_shadows_update_fn h) { return patch_vtable(vt_eero_ground_shadows, (int)slot_render_object_update, (uintptr_t)fn_ro_shadows_update, (void *)h); }
 typedef void (__thiscall *ro_shadows_draw_fn)(ee_ro_shadows *);
 internal ro_shadows_draw_fn fn_ro_shadows_draw;
 internal inline void ro_shadows_draw(ee_ro_shadows *ro_shadows) { fn_ro_shadows_draw(ro_shadows); }
@@ -205,6 +216,11 @@ internal inline int patch_ro_shadows_draw(ro_shadows_draw_fn h) { return patch_v
 // the units, buildings, trees and their effects (engine_display.ro_units): draw walks the objects in sight, finish
 // (0x50DC3A) the draw list's records (hooks.draw_old - the mod's larger list)
 // RTSRenderObject's, the base's
+// the units' update (from the world's units)
+typedef void (__thiscall *ro_units_update_fn)(ee_ro_units *);
+internal ro_units_update_fn fn_ro_units_update;
+internal inline void ro_units_update(ee_ro_units *ro_units) { fn_ro_units_update(ro_units); }
+internal inline int patch_ro_units_update(ro_units_update_fn h) { return patch_vtable(vt_eero_units, (int)slot_render_object_update, (uintptr_t)fn_ro_units_update, (void *)h); }
 typedef void (__thiscall *ro_units_draw_fn)(ee_ro_units *);
 internal ro_units_draw_fn fn_ro_units_draw;
 internal inline void ro_units_draw(ee_ro_units *ro_units) { fn_ro_units_draw(ro_units); }
@@ -231,6 +247,11 @@ internal inline int patch_ro_ui_draw(ro_ui_draw_fn h) { return patch_vtable(vt_e
 // effects (engine_display.ro_effects): update 0x5067CF and clear 0x5067D4 (the whole view's depth to 1) only - no
 // draw of its own
 // RTSRenderObject's, the base's
+// the effects' update: in the 2017 update a jump to 0x5010A9, which reads the units the effects belong to
+typedef void (__thiscall *ro_effects_update_fn)(ee_ro_effects *);
+internal ro_effects_update_fn fn_ro_effects_update;
+internal inline void ro_effects_update(ee_ro_effects *ro_effects) { fn_ro_effects_update(ro_effects); }
+internal inline int patch_ro_effects_update(ro_effects_update_fn h) { return patch_vtable(vt_eero_effects, (int)slot_render_object_update, (uintptr_t)fn_ro_effects_update, (void *)h); }
 
 // class DX7Screen (ee_screen)
 internal inline uint8_t *screen_get_modes_begin(const ee_screen *o) { return *(uint8_t **)((uint8_t *)o + of_screen_modes_begin); }
@@ -522,12 +543,15 @@ internal int spec_engine_display_select(int build) {
         slot_render_object_finish = 3;
         vt_eero_terrain = 0x0082C3C4;
         size_eero_terrain = 0x8;
+        fn_ro_terrain_update = (ro_terrain_update_fn)0x00506FB9;
         fn_ro_terrain_draw = (ro_terrain_draw_fn)0x00508390;
         vt_eero_ground_shadows = 0x0082C398;
         size_eero_ground_shadows = 0x4;
+        fn_ro_shadows_update = (ro_shadows_update_fn)0x00506840;
         fn_ro_shadows_draw = (ro_shadows_draw_fn)0x00506AD8;
         vt_eero_units = 0x0082C42C;
         size_eero_units = 0x4;
+        fn_ro_units_update = (ro_units_update_fn)0x00509D06;
         fn_ro_units_draw = (ro_units_draw_fn)0x0050D90E;
         vt_eero_water = 0x0082C480;
         size_eero_water = 0x4;
@@ -536,6 +560,7 @@ internal int spec_engine_display_select(int build) {
         fn_ro_ui_draw = (ro_ui_draw_fn)0x0050E012;
         vt_eero_effects = 0x0082C378;
         size_eero_effects = 0x4;
+        fn_ro_effects_update = (ro_effects_update_fn)0x005067CF;
         of_screen_modes_begin = 0x10;
         of_screen_ddraw = 0x30;
         of_screen_mode = 0x38;
@@ -665,12 +690,15 @@ internal int spec_engine_display_select(int build) {
         slot_render_object_finish = 3;
         vt_eero_terrain = 0x00841B7C;
         size_eero_terrain = 0x8;
+        fn_ro_terrain_update = (ro_terrain_update_fn)0x00512638;
         fn_ro_terrain_draw = (ro_terrain_draw_fn)0x005131A4;
         vt_eero_ground_shadows = 0x008413F0;
         size_eero_ground_shadows = 0x4;
+        fn_ro_shadows_update = (ro_shadows_update_fn)0x00511DE7;
         fn_ro_shadows_draw = (ro_shadows_draw_fn)0x0051207F;
         vt_eero_units = 0x00841BBC;
         size_eero_units = 0x4;
+        fn_ro_units_update = (ro_units_update_fn)0x00514521;
         fn_ro_units_draw = (ro_units_draw_fn)0x00518203;
         vt_eero_water = 0x00841C10;
         size_eero_water = 0x4;
@@ -679,6 +707,7 @@ internal int spec_engine_display_select(int build) {
         fn_ro_ui_draw = (ro_ui_draw_fn)0x00518907;
         vt_eero_effects = 0x008413D0;
         size_eero_effects = 0x4;
+        fn_ro_effects_update = (ro_effects_update_fn)0x00511D76;
         of_screen_modes_begin = 0x10;
         of_screen_ddraw = 0x30;
         of_screen_mode = 0x38;
@@ -777,12 +806,18 @@ internal int spec_engine_display_check(void) {
     bad += spec_slot(vt_ee_graphics, slot_graphics_update_objects, (uintptr_t)fn_ee_graphics_update_objects, "EEGraphics.update_objects [slot]");
     bad += spec_vtable(vt_rts_render_object, ".?AVRTSRenderObject@@", "RTSRenderObject [vtable]");
     bad += spec_vtable(vt_eero_terrain, ".?AVEEROTerrain@@", "EEROTerrain [vtable]");
+    bad += spec_code((uintptr_t)fn_ro_terrain_update, "EEROTerrain.update");
+    bad += spec_slot(vt_eero_terrain, slot_render_object_update, (uintptr_t)fn_ro_terrain_update, "EEROTerrain.update [slot]");
     bad += spec_code((uintptr_t)fn_ro_terrain_draw, "EEROTerrain.draw");
     bad += spec_slot(vt_eero_terrain, slot_render_object_draw, (uintptr_t)fn_ro_terrain_draw, "EEROTerrain.draw [slot]");
     bad += spec_vtable(vt_eero_ground_shadows, ".?AVEEROGroundShadows@@", "EEROGroundShadows [vtable]");
+    bad += spec_code((uintptr_t)fn_ro_shadows_update, "EEROGroundShadows.update");
+    bad += spec_slot(vt_eero_ground_shadows, slot_render_object_update, (uintptr_t)fn_ro_shadows_update, "EEROGroundShadows.update [slot]");
     bad += spec_code((uintptr_t)fn_ro_shadows_draw, "EEROGroundShadows.draw");
     bad += spec_slot(vt_eero_ground_shadows, slot_render_object_draw, (uintptr_t)fn_ro_shadows_draw, "EEROGroundShadows.draw [slot]");
     bad += spec_vtable(vt_eero_units, ".?AVEEROUnits@@", "EEROUnits [vtable]");
+    bad += spec_code((uintptr_t)fn_ro_units_update, "EEROUnits.update");
+    bad += spec_slot(vt_eero_units, slot_render_object_update, (uintptr_t)fn_ro_units_update, "EEROUnits.update [slot]");
     bad += spec_code((uintptr_t)fn_ro_units_draw, "EEROUnits.draw");
     bad += spec_slot(vt_eero_units, slot_render_object_draw, (uintptr_t)fn_ro_units_draw, "EEROUnits.draw [slot]");
     bad += spec_vtable(vt_eero_water, ".?AVEEROWater@@", "EEROWater [vtable]");
@@ -792,6 +827,8 @@ internal int spec_engine_display_check(void) {
     bad += spec_code((uintptr_t)fn_ro_ui_draw, "EEROUserInterface.draw");
     bad += spec_slot(vt_eero_user_interface, slot_render_object_draw, (uintptr_t)fn_ro_ui_draw, "EEROUserInterface.draw [slot]");
     bad += spec_vtable(vt_eero_effects, ".?AVEEROEffects@@", "EEROEffects [vtable]");
+    bad += spec_code((uintptr_t)fn_ro_effects_update, "EEROEffects.update");
+    bad += spec_slot(vt_eero_effects, slot_render_object_update, (uintptr_t)fn_ro_effects_update, "EEROEffects.update [slot]");
     bad += spec_code(data_engine_display_call_frame_sleep, "engine_display.call_frame_sleep");
     bad += spec_code(data_engine_display_call_frame_mouse, "engine_display.call_frame_mouse");
     bad += spec_data(data_engine_display_iat_sleep, "engine_display.iat_sleep");
