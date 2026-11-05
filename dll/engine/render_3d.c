@@ -114,7 +114,7 @@ typedef struct {
     float misc[4];   // alpha reference, fog on, colour key
     float shk[4];    // the dynamic shadows (the ground's, a decal's): their colour; the draw's role, a texel, on, the bias;
     float shd[4];
-    float sht[4];    // -, shadows all on, a caster's bias
+    float sht[4];    // the water's share of a shadow, shadows all on, a caster's bias
     float shh[4];    // the hills' map: the world's x, y -> u, v; the soft edge, the bias (tiles); on
 } rd3_pcb;
 internal const char k_rd3_shader[] =
@@ -180,7 +180,7 @@ internal const char k_rd3_shader[] =
     "  if (shd.z > 0) { l = 0; for (int y = -1; y <= 1; y++) for (int u = -1; u <= 1; u++)"
     "   l += sm.SampleCmpLevelZero(sc, i.q.xy + float2(u, y) * shd.y, z - b); }"
     "  if (shh.w > 0) hl = saturate((hm.SampleLevel(hs, i.w.xy * shh.x, 0) - i.w.z - shh.z) / shh.y);"
-    "  c.rgb *= lerp(1, i.k, max(1 - l / 9, hl) * i.q.w); }"
+    "  c.rgb *= lerp(1, i.k, max(1 - l / 9, hl) * i.q.w * (shd.x == 6 ? sht.x : 1)); }"
     " if (misc.y > 0.5) c.rgb = lerp(fogc.rgb, c.rgb, saturate(i.f));"
     " return c; }\n";
 

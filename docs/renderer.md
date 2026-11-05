@@ -266,7 +266,9 @@ tells the last map's casters, ground batches, box, sun and shadow colour), engin
   the world through the units' camera); measured on "choke wolf": the water at 0.00, the deepest seabed at -0.84 (rprobe
   logs each draw's view translation and its heights in the world now) - a fade to -2 the player asked about would leave
   60% of a shadow on the deepest seabed. The water is drawn half see-through (vertex alpha 0x80): a shadow on deep water
-  is half of one on land, on the shallows by the beach nearly all.
+  is half of one on land, on the shallows by the beach nearly all. Both the seabed under it and the surface took the
+  shadow, the shallows twice: too strong (the player, 2026-11-05). The surface takes half of one since (it shows the
+  sky's light too; the pipe: `shadows water <0..1>`).
 - The frame is recorded (above, "the frame recorded"): before its list is drawn, its casters are drawn from the sun
   into a 4096x4096 depth map fitted to their box, its ground into a second one (what the hills hide from the sun) -
   this frame's, from the batches where they lie in the upload buffers (no copies). The terrain, the decals and the
