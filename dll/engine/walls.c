@@ -840,6 +840,24 @@ internal int __cdecl hook_gate_convert(ee_unit *u, int pi, ee_unit_type *td) {
 // With building_lean a building that leans with the ground (its type's pitches, banks: the AA guns) stood onto it as the
 // map's place stands a spawned one - laid out in a game it stood level, its legs in the hill on one side
 internal int g_bl_on;
+
+// every unit that leans with the ground (not an aircraft's or a ship's type: theirs is their flight's) stood onto it by
+// the game's own stand, its heading kept: the scenario editor's placing and moving pitch it only, never roll it (an AA
+// gun on a hill falling sideways sank in on one side and floated on the other - the player, 2026-11-05: "only changing
+// the terrain forces it to place correctly"), its turning stands it level; a game's start mends what a scenario saved
+// so. What: for the log, which names how many changed
+internal void bl_lean_all(const char *what) {
+    int n = 0, all = 0;
+    for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
+        if ((!unit_type_get_pitches(it.td) && !unit_type_get_banks(it.td)) || (unit_type_get_kind_flags(it.td) & 5) || unit_get_x(it.u) < 0) continue;
+        float m[12], p[3] = { unit_get_matrix(it.u, 3), unit_get_matrix(it.u, 7), unit_get_matrix(it.u, 11) };
+        for (int i = 0; i < 12; i++) m[i] = unit_get_matrix(it.u, i);
+        unit_stand(it.u, p);
+        all++;
+        for (int i = 0; i < 12; i++) if (fabsf(unit_get_matrix(it.u, i) - m[i]) > 1e-4f) { n++; break; }
+    }
+    if (n && g_log) fprintf(g_log, "# walls: building_lean: %d of %d units that lean with the ground stood onto it (%s)\n", n, all, what);
+}
 internal ee_unit *__cdecl hook_place_building(ee_player *pl, int type, int x, int y) {
     ee_unit *b = place_foundation(pl, type, x, y);
     ee_unit_type *bt = b && g_bl_on ? unit_get_type_data(b) : NULL;
@@ -861,13 +879,14 @@ internal ee_unit *__cdecl hook_place_building(ee_player *pl, int type, int x, in
 // first; the areas noted at an earlier step (their new pieces on the map now)
 internal void __thiscall hook_step_end(ee_physics *ph) {
     physics_step_end(ph);
-    if (!g_ws_on || !game_map()) return;
+    if (!game_map()) return;
     if (game_time()) { g_ws_ed_seen = 0; g_ws_ed_base = 0; }   // a game runs (a test play): not the editor - its time stays 0
     if (!g_ws_fitted_game) {
         g_ws_fitted_game = 1;
-        if (g_ws_start) wj_area(-1, -1, -1, -1, "the game's start");
+        if (g_bl_on) bl_lean_all("the game's start");
+        if (g_ws_on && g_ws_start) wj_area(-1, -1, -1, -1, "the game's start");
     }
-    if (!g_wj_ev_n) return;
+    if (!g_ws_on || !g_wj_ev_n) return;
     uint32_t now = game_time();
     int k = 0;
     for (int i = 0; i < g_wj_ev_n; i++) {
@@ -933,12 +952,14 @@ internal void walls_safe_point(void) {
     static DWORD last;
     LONG seen = g_ws_ed_seen;
     ee_map *map = game_map();
-    if (!g_ws_on || !seen || !map) return;
+    if (!seen || !map) return;
     DWORD now = GetTickCount();
     if ((LONG)(now - (DWORD)seen) > WS_ED_GONE) { g_ws_ed_seen = 0; g_ws_ed_base = 0; return; }   // seen (| 1) may be 1 ahead
     if (now - last < WS_ED_EVERY) return;
     last = now;
     g_ws_fitted_game = 1;
+    if (g_bl_on) bl_lean_all("the editor's");
+    if (!g_ws_on) return;
     g_wj_ev_n = 0;   // the layouts' notes (time 0): the look below finds their pieces
     const struct ws_ed *o = g_ws_ed[g_ws_ed_cur];
     int on = g_ws_ed_n[g_ws_ed_cur], cur = g_ws_ed_cur ^ 1;
@@ -980,15 +1001,16 @@ internal void walls_install(void) {
     g_ws_start = g_set.wall_start_fit;
     g_wj_on = g_ws_on && g_set.wall_joins;
     int of = 0, n = g_ws_on ? patch_wall_piece(hook_wall_piece, &of) + patch_wall_joints(hook_wall_joints, &of) : 0;
-    int more = g_ws_on ? patch_step_end(hook_step_end) + patch_gate_convert(hook_gate_convert) : 0;
     g_bl_on = g_set.building_lean;
+    int any = g_ws_on || g_bl_on;
+    int more = (any ? patch_step_end(hook_step_end) : 0) + (g_ws_on ? patch_gate_convert(hook_gate_convert) : 0);
     int pof = 0, pn = g_wj_on || g_bl_on ? patch_place_building(hook_place_building, &pof) : 0;
-    int ed = g_ws_on ? patch_editor_frame(hook_editor_frame) : 0;
+    int ed = any ? patch_editor_frame(hook_editor_frame) : 0;
     if (g_ws_on && (!on_module_load("DX7HRDisplay.dll", ws_display_loaded0) || !on_module_load("DX7HRTnLDisplay.dll", ws_display_loaded1)) && g_log)
         fprintf(g_log, "# walls: skirts - the display DLLs' loads not watchable\n");
     if (g_log) fprintf(g_log, "# walls: wall_slopes=%d wall_joins=%d wall_start_fit=%d building_lean=%d (%s%s%s%s)\n", g_ws_on, g_wj_on, g_ws_start, g_bl_on,
                        !g_ws_on ? "-" : n == of ? "the layout's calls hooked" : n ? "SOME of the layout's calls hooked" : "FAILED",
-                       !g_ws_on ? "" : more == 2 ? ", the step's end, the gate's" : ", the step's end or the gate's FAILED",
+                       !any ? "" : more == 1 + g_ws_on ? ", the step's end, the gate's" : ", the step's end or the gate's FAILED",
                        !g_wj_on && !g_bl_on ? "" : pn == pof ? ", the buildings' placing" : ", the buildings' placing FAILED",
-                       !g_ws_on ? "" : ed ? ", the editor's" : ", the editor's FAILED");
+                       !any ? "" : ed ? ", the editor's" : ", the editor's FAILED");
 }

@@ -60,10 +60,11 @@ class patches
     /// In multiplayer every player needs the same setting
     [title("Fit the walls a game starts with")]
     bool wall_start_fit = true;
-    /// Buildings on slopes: some buildings lean with the ground under them (the AA guns), but only those put on the
-    /// map by a scenario or moved in the editor - one built in a game stood level, its legs in the hill on one side
-    /// and in the air on the other. A building laid out in a game now leans as a placed one does. In multiplayer
-    /// every player needs the same setting. 0 = the original
+    /// Buildings on slopes: some buildings lean with the ground under them (the AA guns), but one built in a game
+    /// stood level, its legs in the hill on one side and in the air on the other, and the scenario editor leaned
+    /// one only forward and back (on a hill falling sideways it sank in and floated) or, turned, stood it level.
+    /// Now they lean with the ground both ways wherever they are built or placed, and a scenario's are mended at its
+    /// start. In multiplayer every player needs the same setting. 0 = the original
     [title("Buildings on slopes")]
     bool building_lean = true;
 }

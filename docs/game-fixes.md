@@ -103,11 +103,14 @@ changes the simulation: in a lockstep game different values make the PCs' games 
   scenario editor `1` looks at every wall whenever walls change there, `0` only at those around the change. In
   multiplayer every player needs the same setting.
 - `[patches] building_lean=1` (default): some buildings lean with the ground under them - the AA guns' type data
-  says so (pitch and roll with the ground). The game leans a unit where it is put on the map - spawned, placed by a
-  scenario or moved in the editor (which is why changing the ground under an editor's AA gun leaned it) - but a
-  building laid out in a game never went through that: it stood level, its legs in the hill on one side and in the
-  air on the other. Now a building laid out by a player or the AI leans as a placed one does, and keeps it when
-  finished. In multiplayer every player needs the same setting. `0` = the original.
+  says so (pitch and roll with the ground). The game leans a unit both ways only where it is put on the map whole -
+  spawned, or the ground under it changed in the editor. A building laid out in a game never went through that: it
+  stood level, its legs in the hill on one side and in the air on the other. The editor's own placing and moving
+  lean it forward and back only (on a hill falling sideways one side sank in, the other floated) and its turning
+  stands it level - only painting the ground under it put it right. Now a building laid out by a player or the AI
+  leans as a placed one does and keeps it when finished; in the editor every such unit is stood onto the ground a
+  moment after any change (with the walls' watch), and a game's start stands those a scenario saved half leaned.
+  Ships and aircraft are left alone. In multiplayer every player needs the same setting. `0` = the original.
 
 ## Selection, transports and building
 
