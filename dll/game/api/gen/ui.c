@@ -62,6 +62,11 @@ internal inline float *camera_x_at(const ee_camera *o) { return (float *)((uint8
 internal inline float camera_get_y(const ee_camera *o) { return *(float *)((uint8_t *)o + of_camera_y); }
 internal inline void camera_set_y(ee_camera *o, float v) { *(float *)((uint8_t *)o + of_camera_y) = v; }
 internal inline float *camera_y_at(const ee_camera *o) { return (float *)((uint8_t *)o + of_camera_y); }
+// its transformation (a GETransformation, 4x4 floats by rows: the eye's place in the world at +0xC, +0x1C, +0x2C),
+// made by 0x51D2F2; the camera's move (move) sets it at once - the device's view the frames draw with follows it
+// only at the next simulation step (the pipe's picture camtrace, 2026-11-05: the eye in it equals the view's in a
+// frame drawn after a step, ahead of it while the step runs). AoC's offset by its other fields' (not looked at)
+internal inline uint8_t *camera_transformation_at(const ee_camera *o) { return (uint8_t *)o + of_camera_transformation; }
 // A GUESS (the spec's [guess]): its name and type, from what the code does with it -
 // 0x51EE75 advances it by dt x +0xDC up to 1.0 and passes it as t to the lerps 0x51D46C / 0x51D56A and to 0x51D2F2
 // (the view matrix +0x84)
@@ -626,6 +631,7 @@ internal int spec_ui_select(int build) {
         of_camera_eye = 0x6C;
         of_camera_x = 0x78;
         of_camera_y = 0x7C;
+        of_camera_transformation = 0x84;
         of_camera_blend = 0xD8;
         of_camera_zoom = 0xE0;
         fn_camera_move = (camera_move_fn)0x0051E2E6;
@@ -838,6 +844,7 @@ internal int spec_ui_select(int build) {
         of_camera_eye = 0x6C;
         of_camera_x = 0x78;
         of_camera_y = 0x7C;
+        of_camera_transformation = 0x84;
         of_camera_blend = 0xD8;
         of_camera_zoom = 0xE0;
         fn_camera_move = (camera_move_fn)0x00528EA5;

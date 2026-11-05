@@ -64,6 +64,13 @@ unsafe struct EECameraControl
     [offset(0x7C), found(c)]
     float32 y;
 
+    /// its transformation (a GETransformation, 4x4 floats by rows: the eye's place in the world at +0xC, +0x1C, +0x2C),
+    /// made by 0x51D2F2; the camera's move (move) sets it at once - the device's view the frames draw with follows it
+    /// only at the next simulation step (the pipe's picture camtrace, 2026-11-05: the eye in it equals the view's in a
+    /// frame drawn after a step, ahead of it while the step runs). AoC's offset by its other fields' (not looked at)
+    [offset(0x84), found(c)]
+    block transformation;
+
     /// 0x51EE75 advances it by dt x +0xDC up to 1.0 and passes it as t to the lerps 0x51D46C / 0x51D56A and to 0x51D2F2
     /// (the view matrix +0x84)
     [offset(0xD8), found(c), guess]

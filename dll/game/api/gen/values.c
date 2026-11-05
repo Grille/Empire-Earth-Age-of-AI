@@ -1536,6 +1536,7 @@ internal uint32_t of_camera_last_y;
 internal uint32_t of_camera_eye;
 internal uint32_t of_camera_x;
 internal uint32_t of_camera_y;
+internal uint32_t of_camera_transformation;
 internal uint32_t of_camera_blend;
 internal uint32_t of_camera_zoom;
 internal uint32_t of_gfx_owner;

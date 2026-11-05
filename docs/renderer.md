@@ -178,8 +178,15 @@ of the frames drawn during a step. The water's (its animation) runs too.
   list is drawn (rf_shift): the units' constants by the world's shift, the ground's and the water's (drawn in the
   camera's space) by the shift seen through the camera's axes. The vertices stay where they were placed, the shadows'
   maps with them.
-- Measured with the pipe's `picture camtrace N [dx]` (each frame's look-at against the eye of the units' view, the
-  camera moved dx a frame meanwhile; `# camtrace2` lines): the eye follows the look-at at once, its height too.
+- The camera's place (rf_shift, every frame, not only those during a step): the camera's move sets its transformation
+  (spec EECameraControl.transformation, the eye at +0xC/+0x1C/+0x2C) at once, but the view the game's draws are made
+  with follows only at the next simulation step. The player's game, the pipe's `picture camtrace N [dx]` (each frame's
+  look-at, its view's eye, the camera's eye; `# camtrace2`): while scrolling the view's eye moved 0.25-0.7 tiles at a
+  time, every other frame or so - the first version moved frames during a step by the look-at since the update, the
+  frames between steps kept the view's place, and the picture jumped between the two (the player: "all problems are
+  still there"; the headless tests scrolled slowly and their views kept up). Now each 3D draw is moved by the camera's
+  eye now less the eye it was made with - a view's own (its translation), the ground's the eye at its frame's update.
+  A still camera: nothing moved (the same picture as before).
 - Left: beyond the last update's ground, a fast scroll during a long step shows the sky blue at the edge (3 tiles in
   one move: a strip at the side); the units there come with the next update. Scrolling 0.05 tiles a frame under 15 ms
   steps: eight shots complete, no edge, the ground under the debris.

@@ -73,10 +73,8 @@ internal void rf_record(UINT at, UINT n, INT base) {
 // render objects' update, and the ground's draw draws nothing without it (the ground's patches are made in the update,
 // with the units' visible region - that update can't run alone). So each frame's ground batches are kept on the CPU as
 // they are flushed - vertices, indices, world matrices, states, constants - and a frame during a step draws the last
-// frame's again in the ground's place. The game's view is made in the update too: such a frame's units are drawn from
-// the camera of the last update. The camera moved since (scrolling goes on, on this thread: camera.c) is the list's
-// to show (rf_shift): every 3D draw's constants moved by it as the list is drawn - the vertices stay as they were
-// placed, the shadows' maps with them.
+// frame's again in the ground's place. The camera moved since (scrolling goes on, on this thread: camera.c) is the
+// list's to show (rf_shift, below) - the vertices stay as they were placed, the shadows' maps with them.
 typedef struct { rf_cmd c; rd3_vcb vc; rd3_pcb pc; int v0, nv, i0, ni, w0, nw; } rf_kept;
 typedef struct {
     rb_vertex *v;
@@ -88,7 +86,7 @@ typedef struct {
 internal rf_ground g_kg;   // the last frame drawn with an update (a frame during a step records none)
 internal int g_kg_skip;   // this frame is drawn during a step: nothing recorded
 internal LONG g_kg_drawn; // ground batches drawn again (the pipe's picture)
-internal float g_kg_cam[3];   // the camera's look-at at the last update: the view the game's draws have
+internal float g_kg_eye[3];   // the camera's eye at the last update: the ground's camera space is made from it
 internal void rf_ground_clear(rf_ground *g) {
     for (int k = 0; k < g->nb; k++) D3D_RELEASE(g->b[k].c.srv);
     g->nv = g->ni = g->nw = g->nb = 0;
@@ -122,7 +120,10 @@ internal void rf_ground_frame(int skip) {
     g_kg_skip = skip;
     if (skip) return;
     ee_camera *cam = game_camera();
-    if (cam) memcpy(g_kg_cam, camera_look_at(cam), sizeof g_kg_cam);
+    if (cam) {
+        const float *m = (const float *)camera_transformation_at(cam);
+        g_kg_eye[0] = m[3]; g_kg_eye[1] = m[7]; g_kg_eye[2] = m[11];
+    }
     rf_ground_clear(&g_kg);
 }
 // a frame during a step: the last frame's ground into the list
@@ -155,17 +156,28 @@ internal void rd3_shadow_pc(rd3_pcb *pc);
 internal void rd3_shadow_bind(ID3D11DeviceContext *x);
 internal int rd3_shadow_only(int role);
 internal void rd3_fxaa(ID3D11RenderTargetView *rtv, const D3D11_VIEWPORT *vp);
-// a frame during a step: a 3D draw's constants moved by the camera's move since the last update (rf_ground) - the
-// units' (a view with the camera's place in it) by the world's shift, the ground's and the water's (drawn in the
-// camera's space, a view without one) by that shift seen through the camera
+// The camera's place as it is now on every 3D draw (rf_shift, as the list is drawn): the camera's move sets its
+// transformation at once, but the view the game's draws are made with follows only at the next simulation step - a
+// frame drawn during a step showed the camera's place, the frames between steps the view's, up to a step's scrolling
+// behind (the player's game, the pipe's picture camtrace: the eye 0.25-0.7 tiles back at a time) and the picture
+// jumped between the two while scrolling. So each draw is moved by the camera's eye now less the eye it was made with -
+// the units' (a view with the camera's place in it) by its own view's, in the world; the ground's and the water's
+// (drawn in the camera's space, a view without one) by the eye at its frame's update, seen through the camera's axes.
+// Without a move both are the same and nothing changes.
 internal void rf_shift(rd3_vcb *vc, int ro) {
     ee_camera *cam = game_camera();
-    if (!g_kg_skip || ro < RO_TERRAIN || ro > RO_WATER || !cam) return;
-    // the look-at's height too: it follows the ground under it (the picture went up or down a hill's worth)
-    const float *at = camera_look_at(cam), *v = g_rd3.scene_view;
-    float d[3] = { at[0] - g_kg_cam[0], at[1] - g_kg_cam[1], at[2] - g_kg_cam[2] }, t[3];
-    if (d[0] == 0 && d[1] == 0 && d[2] == 0) return;
-    if (vc->view[12] != 0 || vc->view[13] != 0 || vc->view[14] != 0) for (int a = 0; a < 3; a++) t[a] = -d[a];
+    if (ro < RO_TERRAIN || ro > RO_WATER || !cam) return;
+    const float *m = (const float *)camera_transformation_at(cam), *v = g_rd3.scene_view;
+    float now[3] = { m[3], m[7], m[11] }, d[3], t[3];
+    int world = vc->view[12] != 0 || vc->view[13] != 0 || vc->view[14] != 0;
+    for (int a = 0; a < 3; a++) {
+        // a view's eye: the place its translation comes from (row vectors: eye R + t = 0)
+        float was = world ? -(vc->view[12] * vc->view[4 * a] + vc->view[13] * vc->view[4 * a + 1] + vc->view[14] * vc->view[4 * a + 2])
+                          : g_kg_eye[a];
+        d[a] = now[a] - was;
+    }
+    if (fabsf(d[0]) + fabsf(d[1]) + fabsf(d[2]) < 1e-4f) return;
+    if (world) for (int a = 0; a < 3; a++) t[a] = -d[a];
     else for (int a = 0; a < 3; a++) t[a] = -(d[0] * v[a] + d[1] * v[4 + a] + d[2] * v[8 + a]);
     // the translation before the matrix (row vectors): its last row plus t's combination of the first three
     for (int c = 0; c < 4; c++) {
@@ -255,13 +267,16 @@ internal void rf_scene_end(void) {
     ee_camera *cam = game_camera();
     if (g_kg_trace > 0 && cam) {   // the camera's look-at against the eye of the view the units were drawn with
         g_kg_trace--;
-        if (g_kg_trace_dx != 0) camera_pan(g_kg_trace_dx, 0);
         const float *v = g_rd3.scene_view, *at = camera_look_at(cam);
         float e[3];
         for (int j = 0; j < 3; j++) e[j] = -(v[12] * v[4 * j] + v[13] * v[4 * j + 1] + v[14] * v[4 * j + 2]);
-        log_locked("# camtrace2: %lu %s at %.3f %.3f %.3f eye %.3f %.3f %.3f, at the update %.3f %.3f %.3f\n",
+        const float *tr = (const float *)camera_transformation_at(cam);
+        vec3 ec = { tr[3], tr[7], tr[11] };
+        log_locked("# camtrace2: %lu %s at %.3f %.3f %.3f eye %.3f %.3f %.3f, the eye at the update %.3f %.3f %.3f, the camera's eye %.3f %.3f %.3f\n",
                    (unsigned long)GetTickCount(), g_kg_skip ? "step" : "real", (double)at[0], (double)at[1], (double)at[2],
-                   (double)e[0], (double)e[1], (double)e[2], (double)g_kg_cam[0], (double)g_kg_cam[1], (double)g_kg_cam[2]);
+                   (double)e[0], (double)e[1], (double)e[2], (double)g_kg_eye[0], (double)g_kg_eye[1], (double)g_kg_eye[2],
+                   (double)ec.x, (double)ec.y, (double)ec.z);
+        if (g_kg_trace_dx != 0) camera_pan(g_kg_trace_dx, 0);
     }
     if (g_rd3.vb_pos > RD3_VB_BYTES / 4 * 3) g_rd3.vb_pos = RD3_VB_BYTES;
     if (g_rd3.ib_pos > RD3_IB_BYTES / 4 * 3) g_rd3.ib_pos = RD3_IB_BYTES;
