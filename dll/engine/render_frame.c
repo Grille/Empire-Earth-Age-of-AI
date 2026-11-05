@@ -83,10 +83,13 @@ typedef struct {
     rf_kept *b;
     int nv, ni, nw, nb, cap_v, cap_i, cap_w, cap_b;
 } rf_ground;
+internal int rf_camera_view(float *v);
 internal rf_ground g_kg;   // the last frame drawn with an update (a frame during a step records none)
 internal int g_kg_skip;   // this frame is drawn during a step: nothing recorded
 internal LONG g_kg_drawn; // ground batches drawn again (the pipe's picture)
-internal float g_kg_eye[3];   // the camera's eye at the last update: the ground's camera space is made from it
+internal float g_kg_eye[3];   // the camera's eye at the last update (the pipe's picture camtrace)
+internal float g_kg_view[16];    // the camera's view at the last update: the ground's camera space is made from it
+internal int g_kg_view_ok;
 internal void rf_ground_clear(rf_ground *g) {
     for (int k = 0; k < g->nb; k++) D3D_RELEASE(g->b[k].c.srv);
     g->nv = g->ni = g->nw = g->nb = 0;
@@ -124,6 +127,7 @@ internal void rf_ground_frame(int skip) {
         const float *m = (const float *)camera_transformation_at(cam);
         g_kg_eye[0] = m[3]; g_kg_eye[1] = m[7]; g_kg_eye[2] = m[11];
     }
+    g_kg_view_ok = rf_camera_view(g_kg_view);
     rf_ground_clear(&g_kg);
 }
 // a frame during a step: the last frame's ground into the list
@@ -150,47 +154,74 @@ internal void rf_ground_again(void) {
     g_rd3.bound = 0;   // the game's next draw binds all its states again
 }
 
+internal void rd3_rigid_inverse(float *r, const float *m);
 internal void rd3_shadow_frame(void);
 internal void rd3_shadow_vc(rd3_vcb *vc);
 internal void rd3_shadow_pc(rd3_pcb *pc);
 internal void rd3_shadow_bind(ID3D11DeviceContext *x);
 internal int rd3_shadow_only(int role);
 internal void rd3_fxaa(ID3D11RenderTargetView *rtv, const D3D11_VIEWPORT *vp);
-// The camera's place as it is now on every 3D draw (rf_shift, as the list is drawn): the camera's move sets its
-// transformation at once, but the view the game's draws are made with follows only at the next simulation step - a
-// frame drawn during a step showed the camera's place, the frames between steps the view's, up to a step's scrolling
-// behind (the player's game, the pipe's picture camtrace: the eye 0.25-0.7 tiles back at a time) and the picture
-// jumped between the two while scrolling. So each draw is moved by the camera's eye now less the eye it was made with -
-// the units' (a view with the camera's place in it) by its own view's, in the world; the ground's and the water's
-// (drawn in the camera's space, a view without one) by the eye at its frame's update, seen through the camera's axes.
-// Without a move both are the same and nothing changes.
-internal void rf_shift(rd3_vcb *vc, int ro) {
+// The camera as it is now on every 3D draw (rf_shift, as the list is drawn): the camera's move sets its
+// transformation at once, its zoom turns and moves it a step at a time (0x51EE75, in the simulation's step), but the
+// view the game's draws are made with follows only at the next simulation step - a frame drawn during a step showed
+// the camera's place, the frames between steps the view's, up to a step's scrolling behind (the player's game, the
+// pipe's picture camtrace: the eye 0.25-0.7 tiles back at a time) and the picture jumped between the two. So each
+// draw's view is replaced by the camera's: its transformation M (a GETransformation, by rows with the eye in the
+// fourth column) to the view by the game's axes A = M^T V, taken from a frame whose view and transformation have the
+// same eye (rf_camera_axes) - the view now (M^T)^-1 A. Moving the eye alone left the zoom's turn out: it jittered
+// (the player). A draw with the camera's place in its view (the units') gets V_now V^-1 before its view and
+// projection; the ground's and the water's (drawn in the camera's space by a view of their own that swaps y and z -
+// 1 0 0 / 0 0 1 / 0 1 0) go back through that view to the camera of its frame's update and forward through the one
+// now. Without a move or a zoom nothing changes.
+internal float g_cam_axes[16];   // A: the camera's transformation to its view, the game's axes
+internal int g_cam_axes_ok;
+// the camera's view by its transformation now (0: no axes yet)
+internal int rf_camera_view(float *v) {
     ee_camera *cam = game_camera();
-    if (ro < RO_TERRAIN || ro > RO_WATER || !cam) return;
-    const float *m = (const float *)camera_transformation_at(cam), *v = g_rd3.scene_view;
-    float now[3] = { m[3], m[7], m[11] }, d[3], t[3];
-    int world = vc->view[12] != 0 || vc->view[13] != 0 || vc->view[14] != 0;
-    for (int a = 0; a < 3; a++) {
-        // a view's eye: the place its translation comes from (row vectors: eye R + t = 0)
-        float was = world ? -(vc->view[12] * vc->view[4 * a] + vc->view[13] * vc->view[4 * a + 1] + vc->view[14] * vc->view[4 * a + 2])
-                          : g_kg_eye[a];
-        d[a] = now[a] - was;
+    if (!cam || !g_cam_axes_ok) return 0;
+    const float *m = (const float *)camera_transformation_at(cam);
+    float mt[16], inv[16];
+    for (int i = 0; i < 4; i++)
+        for (int j = 0; j < 4; j++) mt[i * 4 + j] = m[j * 4 + i];
+    rd3_rigid_inverse(inv, mt);
+    rd3_mul(v, inv, g_cam_axes);
+    return 1;
+}
+// a frame drawn with an update: the axes from its view where its eye is the transformation's
+internal void rf_camera_axes(void) {
+    ee_camera *cam = game_camera();
+    const float *m = cam ? (const float *)camera_transformation_at(cam) : NULL, *v = g_rd3.scene_view;
+    if (!m || !g_rd3.scene_seen) return;
+    for (int a = 0; a < 3; a++)
+        if (fabsf(m[4 * a + 3] + (v[12] * v[4 * a] + v[13] * v[4 * a + 1] + v[14] * v[4 * a + 2])) > 1e-3f) return;
+    float mt[16];
+    for (int i = 0; i < 4; i++)
+        for (int j = 0; j < 4; j++) mt[i * 4 + j] = m[j * 4 + i];
+    rd3_mul(g_cam_axes, mt, v);
+    g_cam_axes_ok = 1;
+}
+internal void rf_shift(rd3_vcb *vc, int ro) {
+    float now[16], inv[16], k[16], t[16];
+    if (ro < RO_TERRAIN || ro > RO_WATER || !rf_camera_view(now)) return;
+    if (vc->view[12] != 0 || vc->view[13] != 0 || vc->view[14] != 0) {
+        rd3_rigid_inverse(inv, vc->view);
+        rd3_mul(k, now, inv);   // V_now V^-1
+    } else {
+        if (!g_kg_view_ok) return;
+        float sinv[16], a[16];
+        rd3_rigid_inverse(inv, g_kg_view);
+        rd3_rigid_inverse(sinv, vc->view);
+        rd3_mul(a, vc->view, inv);
+        rd3_mul(t, a, now);
+        rd3_mul(k, t, sinv);    // S V_update^-1 V_now S^-1
     }
-    if (fabsf(d[0]) + fabsf(d[1]) + fabsf(d[2]) < 1e-4f) return;
-    if (world) for (int a = 0; a < 3; a++) t[a] = -d[a];
-    else {
-        // the shift in the camera's space (-d R), then back through the draw's own view (the ground's swaps y and z:
-        // 1 0 0 / 0 0 1 / 0 1 0 - taken as none, up and down the screen moved the ground in depth: it jumped while
-        // scrolling up or down, the player) - its rotation's inverse, its transpose
-        float c[3];
-        for (int a = 0; a < 3; a++) c[a] = -(d[0] * v[a] + d[1] * v[4 + a] + d[2] * v[8 + a]);
-        for (int a = 0; a < 3; a++) t[a] = c[0] * vc->view[4 * a] + c[1] * vc->view[4 * a + 1] + c[2] * vc->view[4 * a + 2];
-    }
-    // the translation before the matrix (row vectors): its last row plus t's combination of the first three
-    for (int c = 0; c < 4; c++) {
-        vc->vpm[12 + c] += t[0] * vc->vpm[c] + t[1] * vc->vpm[4 + c] + t[2] * vc->vpm[8 + c];
-        vc->view[12 + c] += t[0] * vc->view[c] + t[1] * vc->view[4 + c] + t[2] * vc->view[8 + c];
-    }
+    float dev = 0;
+    for (int i = 0; i < 16; i++) dev += fabsf(k[i] - (i % 5 == 0 ? 1.0f : 0.0f));
+    if (dev < 1e-5f) return;
+    rd3_mul(t, k, vc->vpm);
+    memcpy(vc->vpm, t, sizeof t);
+    rd3_mul(t, k, vc->view);
+    memcpy(vc->view, t, sizeof t);
 }
 // the list's shaders, buffers and maps bound (the batches' own states come with them)
 internal void rf_bind(ID3D11DeviceContext *x) {
@@ -271,6 +302,7 @@ internal float g_kg_trace_dx, g_kg_trace_dy;   // and the camera moved this far 
 internal void rf_scene_end(void) {
     rd3_flush();
     rf_replay();
+    if (!g_kg_skip) rf_camera_axes();
     ee_camera *cam = game_camera();
     if (g_kg_trace > 0 && cam) {   // the camera's look-at against the eye of the view the units were drawn with
         g_kg_trace--;

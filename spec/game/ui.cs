@@ -83,6 +83,11 @@ unsafe struct EECameraControl
     /// thiscall on game.camera (float dx, float dy)
     [address((ee)0x0051E2E6, (aoc)0x00528EA5)]
     extern void move(float32 dx, float32 dy);
+
+    /// the zoom (+0xE0) set and the camera's move to it started (0x51DDD7, AoC 0x528996): the step's blend (+0xD8)
+    /// turns and moves the transformation to it a step at a time
+    [address((ee)0x0051F2F3, (aoc)0x00529EB2)]
+    extern void zoom_to(float32 zoom);
 }
 
 /// a graphical effect (a command's circle), [ui.gfx_effects] by its handle (gfx_get)

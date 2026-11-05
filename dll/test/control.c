@@ -202,6 +202,11 @@ internal void cmd_camera(char *out, const char *args) {
         REPLY("ok: camera moved by %.2f %.2f\n", (double)dx, (double)dy);
         return;
     }
+    if (sscanf(args, "zoom %f", &dx) == 1) {   // as the wheel does: the camera's steps turn and move it there
+        camera_zoom_to(game_camera(), dx);
+        REPLY("ok: camera zooming to %.2f\n", (double)dx);
+        return;
+    }
     if (sscanf(args, "%d %d", &x, &y) == 2) {
         uint32_t size = map_get_size(game_map());
         if (x < 0 || y < 0 || (uint32_t)x >= size || (uint32_t)y >= size) { REPLY("error: tile outside map (size %u)\n", size); return; }

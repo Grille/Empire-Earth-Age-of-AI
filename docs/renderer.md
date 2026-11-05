@@ -193,6 +193,15 @@ of the frames drawn during a step. The water's (its animation) runs too.
   shift goes back through the draw's own view. The trace's ground vertices, through that view and the units' camera
   back into the world: whole tiles at height 0 (86 139 0, 100 110 0); a 3-tile pan up the screen during a step against
   the frame after it: the towers, the farm, the trees in the same places.
+- The zoom (the player: "zooming in and out still cause heavy camera jitter"): EECameraControl.zoom_to (0x51F2F3, AoC
+  0x529EB2; the pipe's `camera zoom <z>`) starts it, the camera's step (0x51EE75, in the simulation's step) turns and
+  moves the transformation there over half a second - the eye from 121.4 75.0 24.2 to 114.5 81.9 5.7 at zoom 0.6, not
+  along the line of sight: the camera tilts. Moving the eye alone left the turn out. Now each draw's view is replaced
+  by the camera's whole view, (M^T)^-1 A with the game's axes A = M^T V taken from a frame whose view has the
+  transformation's eye (rf_camera_axes); the ground through its own view to the camera of its update and on to the one
+  now. Zooming in and out under 12 ms steps: nine shots through the turn, the trees, buildings and fields on their
+  ground. Zooming out, a frame during a step shows the sky blue in a corner the last update's ground doesn't reach
+  (the frames between the steps have it).
 - Left: beyond the last update's ground, a fast scroll during a long step shows the sky blue at the edge (3 tiles in
   one move: a strip at the side); the units there come with the next update. Scrolling 0.05 tiles a frame under 15 ms
   steps: eight shots complete, no edge, the ground under the debris.

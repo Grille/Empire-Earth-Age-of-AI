@@ -81,6 +81,11 @@ internal inline float *camera_zoom_at(const ee_camera *o) { return (float *)((ui
 typedef void (__thiscall *camera_move_fn)(ee_camera *, float, float);
 internal camera_move_fn fn_camera_move;
 internal inline void camera_move(ee_camera *camera, float dx, float dy) { fn_camera_move(camera, dx, dy); }
+// the zoom (+0xE0) set and the camera's move to it started (0x51DDD7, AoC 0x528996): the step's blend (+0xD8)
+// turns and moves the transformation to it a step at a time
+typedef void (__thiscall *camera_zoom_to_fn)(ee_camera *, float);
+internal camera_zoom_to_fn fn_camera_zoom_to;
+internal inline void camera_zoom_to(ee_camera *camera, float zoom) { fn_camera_zoom_to(camera, zoom); }
 
 // class ee_gfx (ee_gfx)
 // a graphical effect (a command's circle), [ui.gfx_effects] by its handle (gfx_get)
@@ -635,6 +640,7 @@ internal int spec_ui_select(int build) {
         of_camera_blend = 0xD8;
         of_camera_zoom = 0xE0;
         fn_camera_move = (camera_move_fn)0x0051E2E6;
+        fn_camera_zoom_to = (camera_zoom_to_fn)0x0051F2F3;
         of_gfx_owner = 0x20;
         of_gfx_shown = 0x2D;
         of_gfx_0x2e = 0x2E;
@@ -848,6 +854,7 @@ internal int spec_ui_select(int build) {
         of_camera_blend = 0xD8;
         of_camera_zoom = 0xE0;
         fn_camera_move = (camera_move_fn)0x00528EA5;
+        fn_camera_zoom_to = (camera_zoom_to_fn)0x00529EB2;
         of_gfx_owner = 0x20;
         of_gfx_shown = 0x2D;
         of_gfx_0x2e = 0x2E;
@@ -1055,6 +1062,7 @@ internal int spec_ui_check(void) {
     bad += spec_code((uintptr_t)fn_ui_screenshot, "EEUserInterface.screenshot");
     bad += spec_code((uintptr_t)fn_ui_line, "EEUserInterface.line");
     bad += spec_code((uintptr_t)fn_camera_move, "EECameraControl.move");
+    bad += spec_code((uintptr_t)fn_camera_zoom_to, "EECameraControl.zoom_to");
     bad += spec_code((uintptr_t)fn_mouse_update, "RTSMouse.update");
     bad += spec_call(calls_mouse_update[0], (uintptr_t)fn_mouse_update, "RTSMouse.update [call_site mouse_update 0]");
     bad += spec_call(calls_mouse_update[1], (uintptr_t)fn_mouse_update, "RTSMouse.update [call_site mouse_update 1]");
