@@ -103,6 +103,8 @@ typedef struct {
     float shp[4];     // the draw's role, the map's size, on (a map drawn), 1 / the map's depth range
     float shz[4];     // the draw's height in the world: its placed vertex (camera space for the ground) dotted with it
     float shl[4];     // the water's level, 1 / the depth a shadow fades out by under it, on (water seen this frame)
+    float shs[4];     // the game's light in the draw's space, w on: the ground's shadow weighed by how much it faces it
+    float sha[4], shf[4];   // the units' ambient and the sun's colour: a shadow leaves a face its ambient part
 } rd3_vcb;
 // the pixel shader's: stage 0's colour op and arguments, texture bound; alpha op and arguments, alpha function
 typedef struct {
@@ -116,7 +118,7 @@ typedef struct {
 internal const char k_rd3_shader[] =
     "cbuffer v : register(b0) { row_major float4x4 vpm; row_major float4x4 view;"
     " float4 ldir[8]; float4 ldiff[8]; float4 lamb[8]; float4 mdiff, mamb, memi, gamb; int4 lit; int4 src; float4 fog;"
-    " float4 vp; row_major float4x4 shm; float4 shk; float4 shp; float4 shz; float4 shl; };\n"
+    " float4 vp; row_major float4x4 shm; float4 shk; float4 shp; float4 shz; float4 shl; float4 shs; float4 sha; float4 shf; };\n"
     "cbuffer p : register(b1) { int4 op; int4 aop; float4 fogc; float4 tf; float4 misc; float4 pshk; float4 shd; float4 sht; };\n"
     "Buffer<float4> wt : register(t1);\n"   // the world matrices, 4 rows each (RD3_WB_BYTES)
     "Texture2D t : register(t0); SamplerState s : register(s0);\n"
@@ -135,7 +137,12 @@ internal const char k_rd3_shader[] =
     // under water the shadow fades out with the depth (the sun's light scattered in the water)
     " o.q.w = shl.z > 0 ? saturate(1 - (shl.x - dot(p, shz)) * shl.y) : 1;"
     " o.p.xy += vp.xy * o.p.w;"
-    " float4 vc = i.c.zyxw, c = vc; o.k = 1;"   // D3DCOLOR's bytes are B G R A
+    " float4 vc = i.c.zyxw, c = vc; o.k = shk.rgb;"   // D3DCOLOR's bytes are B G R A
+    // the ground in a shadow keeps its ambient part of the light it faces: a slope turned from the game's light (its
+    // baked shading already dark) loses nothing - the shadows' sun, never lower than 25 degrees, isn't the shading's
+    " if (shs.w > 0 && dot(i.n, i.n) > 0) {"
+    "  float3 lt = sha.rgb + shf.rgb * max(0, dot(normalize(i.n), -shs.xyz));"
+    "  o.k = 1 - shk.w * (1 - saturate(sha.rgb / max(lt, 0.001))); }"
     " if (lit.x) { float4 d = src.x ? vc : mdiff, a = src.y ? vc : mamb, e = src.z ? vc : memi;"
     "  float3 n = mul(i.n, (float3x3)world); if (lit.z) n = normalize(n);"
     "  float3 am = gamb.rgb, df = 0;"
@@ -160,13 +167,14 @@ internal const char k_rd3_shader[] =
     " int A = (int)round(c.a * 255), R = (int)misc.x, f = aop.w;"
     " if (f && !(f == 8 || (f == 2 && A < R) || (f == 3 && A == R) || (f == 4 && A <= R) || (f == 5 && A > R)"
     "  || (f == 6 && A != R) || (f == 7 && A >= R))) discard;"
-    // the ground, a decal or field on it, the water: 3x3 comparisons with the casters' map, where the terrain's doesn't
-    // hide the sun; with shadows all on the units, buildings and trees too, their colour without the sun's part
+    // the ground, a decal or field on it, the water: 3x3 comparisons with the casters' map, its colour in a shadow as
+    // the vertex shader worked it out; with shadows all on the units, buildings and trees too, their colour without
+    // the sun's part
     " bool g = shd.x == 1 || shd.x == 4 || shd.x == 6, rc = sht.y > 0 && (shd.x == 2 || shd.x == 3 || shd.x == 9);"
-    " if ((g || rc) && shd.z > 0) { float z = min(i.q.z, 0.9999), l = 0, h = 0, b = g ? shd.w : sht.z;"
-    "  for (int y = -1; y <= 1; y++) for (int u = -1; u <= 1; u++) { float2 k = i.q.xy + float2(u, y) * shd.y;"
-    "   l += sm.SampleCmpLevelZero(sc, k, z - b); h += tm.SampleCmpLevelZero(sc, k, z - sht.x); }"
-    "  c.rgb *= lerp(1, g ? pshk.rgb : i.k, (1 - l / 9) * (h / 9) * i.q.w); }"
+    " if ((g || rc) && shd.z > 0) { float z = min(i.q.z, 0.9999), l = 0, b = g ? shd.w : sht.z;"
+    "  for (int y = -1; y <= 1; y++) for (int u = -1; u <= 1; u++)"
+    "   l += sm.SampleCmpLevelZero(sc, i.q.xy + float2(u, y) * shd.y, z - b);"
+    "  c.rgb *= lerp(1, i.k, (1 - l / 9) * i.q.w); }"
     " if (misc.y > 0.5) c.rgb = lerp(fogc.rgb, c.rgb, saturate(i.f));"
     " return c; }\n";
 

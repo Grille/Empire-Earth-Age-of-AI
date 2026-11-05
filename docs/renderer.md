@@ -202,6 +202,17 @@ tells the last map's casters, ground batches, box, sun and shadow colour), engin
   on "choke wolf" (the sun at 30 and at 20 degrees, turned 150): towers shade the bunker and wall beside them, the
   gate's wall its own; units in a wall's shadow darker; trees shaded on their side away from the sun; no acne on the
   buildings' lit faces.
+- The ground's shadow by the light it faces (2026-11-05). The game re-shades the terrain's vertices as the sun moves
+  (measured with the pipe's `shadows hour <0..24>`, which sets the time of day as the daylight-hour effect does -
+  EEWorld.set_time_of_day: the hillsides' light and dark sides swap between 10 and 15 o'clock, the ground's mean
+  colour 135 at 7, 238 at noon, 100 at 18, bluish at night). The terrain's map from the sun (what the hills hide) kept
+  the casters' shadows off the slopes it hid - from the shadows' sun, never lower than 25 degrees, while the evening's
+  baked shading is the lower light's: a tower's shadow on a hill broke off on its far slope, lit in the picture (the
+  player's shot). Now a shadow leaves a ground vertex the ambient part of the game's light as its normal faces it (the
+  units' ambient and sun colour, as on level ground before): a slope turned away loses nothing, and the map isn't read
+  (still drawn - the hills' own shadows are next). Checked: "choke wolf" at 8 o'clock (the light 24 degrees), towers
+  and trees spawned on the hill, the installed build and this one side by side: the long shadows run on over the far
+  slope instead of breaking off.
 - Casters off the screen (the player, 2026-11-05: with the day's cycle a low sun casts long shadows, and they dropped
   out as soon as the building's or unit's bounds left the screen - his AoC shot: towers' shadows of 3-4 tiles). The
   game culls twice: its units' render object collects the objects on the terrain mesh's visible tile rows that pass

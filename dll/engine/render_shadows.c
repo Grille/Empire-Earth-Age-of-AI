@@ -12,7 +12,10 @@
 // The frame is recorded (render_frame.c): before its list is drawn, the casters in it are drawn from the sun into a
 // depth map fitted to their box, and the ground into a second one (what the hills hide from the sun) - this frame's,
 // from the batches as they lie in the upload buffers (rd3_shadow_frame). The terrain and the decals then receive in the
-// main pixel shader. The ground's vertices are the game's own transform into the camera's space (its view only swaps
+// main pixel shader, a shadow leaving a point the ambient part of the light it faces (the game's light, as its baked
+// shading: a slope turned away loses nothing). The second map isn't read since (2026-11-05): it took the casters'
+// shadows off the slopes it hid from the shadows' sun - never lower than 25 degrees, while the evening's baked
+// shading is the lower light's, and the tower's shadow on a hill broke off on its lit far slope (the player's shot). The ground's vertices are the game's own transform into the camera's space (its view only swaps
 // y and z): their place in the world needs the camera the units are drawn with, which comes later in the frame - known
 // when the list is drawn (rd3_shadow_vc).
 // SH_AWAY: casts, not drawn (off the screen, a tree's card); SH_GONE: neither (a tree off the screen); SH_TREE: drawn,
@@ -48,6 +51,7 @@ internal struct {
     // the sun the map is drawn from: the light's, never lower than sun_low degrees over the horizon (the day's cycle's
     // evening: shadows of many tiles, the player's screenshot of 2026-11-05); sun_lit its true height (the shadows' colour)
     float sun[3], sun_low, sun_lit;
+    float light[3];          // the light's own direction (the terrain's baked shading follows it)
     float sun_set;           // the pipe's shadows height: the sun's height for the shadows set (degrees; 0 the light's)
     float sun_turn;          // the pipe's shadows turn: the sun's direction turned about the vertical (degrees)
     float amb[3], diff[3];   // the units' ambient (global + the light's) and the sun's colour
@@ -59,7 +63,7 @@ internal struct {
     LONG passes;
     int last_cast, last_ground;   // the last map's (the pipe's shadows)
     float last_lo[3], last_hi[3];
-} g_sh = { .strength = 0.8f, .fade = 0.8f, .all = 1, .tall = 2, .sun = { 0.08f, 0.75f, -0.65f }, .sun_low = 25, .sun_lit = 0.65f };
+} g_sh = { .strength = 0.8f, .fade = 0.8f, .all = 1, .tall = 2, .sun = { 0.08f, 0.75f, -0.65f }, .light = { 0.08f, 0.75f, -0.65f }, .sun_low = 25, .sun_lit = 0.65f };
 
 // from the sun: the batch's vertices placed as the main pass places them (render_3d.c's vertex shader), through shm
 // into the map (sa: alpha reference / 255, alpha tested). A tree casts its card (rd3_shadow_card), not itself. The
@@ -208,6 +212,7 @@ internal int rd3_shadow_role(rd_device *d, rd_vb *vb, DWORD start, DWORD nv) {
         float s[3] = { l->dvDirection.x / n, l->dvDirection.y / n, l->dvDirection.z / n };
         float h = sqrtf(s[0] * s[0] + s[1] * s[1]), low = sinf(g_sh.sun_low * 3.14159265f / 180);
         g_sh.sun_lit = -s[2];
+        memcpy(g_sh.light, s, sizeof g_sh.light);
         if (g_sh.sun_set > 0) low = sinf(g_sh.sun_set * 3.14159265f / 180);
         if (g_sh.sun_turn != 0) {
             float a = g_sh.sun_turn * 3.14159265f / 180, x = s[0];
@@ -437,15 +442,23 @@ internal void rd3_shadow_vc(rd3_vcb *vc) {
     vc->shp[2] = g_sh.valid ? 1.0f : 0.0f;
     if (!g_sh.valid) return;
     int role = (int)vc->shp[0];
+    const float *l = g_sh.light;
     if (role == SH_RECEIVE || role == SH_WATER) {
         rd3_mul(vc->shm, vc->view, g_sh.gm);
         float w[16];
         rd3_mul(w, vc->view, g_sh.gw);
         vc->shz[0] = w[2]; vc->shz[1] = w[6]; vc->shz[2] = w[10]; vc->shz[3] = w[14];
+        // the light in the ground's camera space: a normal n there lies in the world as n times w's rotation
+        for (int a = 0; a < 3; a++) vc->shs[a] = w[a * 4] * l[0] + w[a * 4 + 1] * l[1] + w[a * 4 + 2] * l[2];
+        vc->shs[3] = role == SH_RECEIVE ? 1.0f : 0.0f;   // the water: as level ground
     } else {
         memcpy(vc->shm, g_sh.shm, sizeof vc->shm);
         vc->shz[0] = vc->shz[1] = vc->shz[3] = 0; vc->shz[2] = 1;
+        memcpy(vc->shs, l, sizeof g_sh.light);   // a decal: in the world
+        vc->shs[3] = role == SH_DECAL ? 1.0f : 0.0f;
     }
+    memcpy(vc->sha, g_sh.amb, sizeof g_sh.amb);
+    memcpy(vc->shf, g_sh.diff, sizeof g_sh.diff);
     memcpy(vc->shl, g_sh.shl, sizeof vc->shl);
     memcpy(vc->shk, g_sh.shk, sizeof vc->shk);
     vc->shp[3] = g_sh.inv_depth;
