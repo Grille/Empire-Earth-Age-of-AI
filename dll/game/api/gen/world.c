@@ -170,6 +170,11 @@ internal inline uint8_t *world_gatherer_counts_at(const ee_world *o) { return (u
 // records of 0x18 bytes, each a vector of player indices at +4: the standard victory check 0x531913 ends the game
 // when one is left
 internal inline uint8_t *world_alliances_at(const ee_world *o) { return (uint8_t *)o + of_world_alliances; }
+// the time of day, 0..1 (0 is 6 o'clock): set_time_of_day 0x531292 (AoC 0x53C301) stores its argument here;
+// EEComputerPlayer::vf9 0x43DED9 and 0x53FC80 read it (both builds' +0xB74)
+internal inline float world_get_daytime(const ee_world *o) { return *(float *)((uint8_t *)o + of_world_daytime); }
+internal inline void world_set_daytime(ee_world *o, float v) { *(float *)((uint8_t *)o + of_world_daytime) = v; }
+internal inline float *world_daytime_at(const ee_world *o) { return (float *)((uint8_t *)o + of_world_daytime); }
 // the local player's index (game.local_player is this memory): player_out 0x52E2B7 runs the local defeat 0x5150F2
 // when it is the player going out
 internal inline int world_get_local_player(const ee_world *o) { return *(int *)((uint8_t *)o + of_world_local_player); }
@@ -281,6 +286,7 @@ internal int spec_world_select(int build) {
         of_world_setup_2 = 0x51C;
         of_world_gatherer_counts = 0x9A4;
         of_world_alliances = 0x9B4;
+        of_world_daytime = 0xB74;
         of_world_local_player = 0xB84;
         of_world_standard_victory = 0xB96;
         fn_world_player = (world_player_fn)0x0052E6EF;
@@ -338,6 +344,7 @@ internal int spec_world_select(int build) {
         of_world_setup_2 = 0x51C;
         of_world_gatherer_counts = 0x9A4;
         of_world_alliances = 0x9B4;
+        of_world_daytime = 0xB74;
         of_world_local_player = 0xB84;
         of_world_standard_victory = 0xB96;
         fn_world_player = (world_player_fn)0x00539670;

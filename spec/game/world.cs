@@ -183,6 +183,11 @@ unsafe struct EEWorld
     [offset(0x9B4), found(c), guess]
     vector alliances;
 
+    /// the time of day, 0..1 (0 is 6 o'clock): set_time_of_day 0x531292 (AoC 0x53C301) stores its argument here;
+    /// EEComputerPlayer::vf9 0x43DED9 and 0x53FC80 read it (both builds' +0xB74)
+    [offset(0xB74), found(c)]
+    float32 daytime;
+
     /// the local player's index (game.local_player is this memory): player_out 0x52E2B7 runs the local defeat 0x5150F2
     /// when it is the player going out
     [offset(0xB84), found(c)]

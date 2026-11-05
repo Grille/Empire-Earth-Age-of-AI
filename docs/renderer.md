@@ -282,6 +282,10 @@ tells the last map's casters, ground batches, box, sun and shadow colour), engin
   2 degrees over the horizon to all at 12, a light under 3 degrees counts as 0, and the share moves there within
   1.5 s; a light turned by more than 20 degrees at once starts it from 0. Checked: hours 12 to 8 the next morning on
   "choke wolf": 1.00 down to 17, 0.36 at 17:30, 0 at 18 and 19, back to 1 with the moon at 20.
+  By moonlight (19 o'clock to 6 - the game's light bluish, 0.49 0.49 0.90 at 22; the sun's warm, full red) a shadow
+  takes 75% (the player: "moon should probably be a bit softer 75% maybe"; the pipe: `shadows moon <0..1>`); the hour
+  is the world's time of day (spec EEWorld.daytime, +0xB74 in both builds). At 22 a shadow's colour 0.73 instead of
+  0.64, the day's unchanged.
 - Under the water a shadow fades out with the depth (the player, 2026-11-05: none under water, ideally fading): gone
   0.8 under the level (the pipe: `shadows fade <depth>`). The level is the water's vertices' mean height each frame (in
   the world through the units' camera); measured on "choke wolf": the water at 0.00, the deepest seabed at -0.84 (rprobe
