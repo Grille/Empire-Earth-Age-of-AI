@@ -31,8 +31,12 @@ internal void editor_size(int *w, int *h) {
 internal float g_mm_fx = 1.0f / 800.0f, g_mm_fy = 1.0f / 600.0f;
 internal int redirect_minimap_scale(void) { return patch_minimap_scale(&g_mm_fx, &g_mm_fy); }
 
+// installed whatever editor_resolution says: entering the editor (also back from a test run) is where the game's
+// players are gone - a test run from the editor starts no game the game start hook sees, so the AI met the last
+// game's players there (AoC, 2026-11-05: crash in hook_train_units after ca.ees, the editor and a test run)
 internal void __stdcall hook_editor_resolution(int w, int h, int force, int flag) {
     memset(g_players, 0, sizeof g_players);   // into the editor (also back from a test run): the game's players are gone
+    if (!g_editor_layout) { set_resolution(w, h, force, flag); return; }   // the build's own size
     editor_size(&w, &h);
     int lay = apply_editor_layout(w, h);
     g_mm_fx = 1.28f / (float)w;
@@ -1400,6 +1404,8 @@ internal void display_install(const char *autotest_ini) {
     int form = patch_editor_form(hook_editor_form);   // the arrow keys, whatever the resolution
     if (g_log) fprintf(g_log, "# editor: form hook %d/1\n", form);
     const char *mode = g_set.editor_resolution;
+    int ok = patch_editor_resolution(hook_editor_resolution);   // the players' reset (hook_editor_resolution), at any size
+    if (g_log) fprintf(g_log, "# editor: resolution=%s hooks %d/2\n", mode, ok);
     if (!lstrcmpiA(mode, "ee")) return;
     if (build_is("aoc") && lstrcmpiA(mode, "aoc")) {   // the layout (editor_layout.h) is the 2017 update's only: AoC's
         // form would stay 800x600 in a corner of the bigger screen - AoC keeps its own 1024x768 editor
@@ -1413,11 +1419,9 @@ internal void display_install(const char *autotest_ini) {
         return;
     }
     g_editor_layout = 1;
-    int ok = patch_editor_resolution(hook_editor_resolution);
     int other = patch_other_resolution(hook_other_resolution, NULL);
     int mm = redirect_minimap_scale();
     if (g_log) fprintf(g_log, "# editor: minimap scale operands %d/6, other resolution switches %d/7\n", mm, other);
-    if (g_log) fprintf(g_log, "# editor: resolution=%s hooks %d/2\n", mode, ok);
 }
 
 // ddinfo [blit]: state of the DirectDraw presentation (for the windowed mode work). Rasterizer [0x919794],
