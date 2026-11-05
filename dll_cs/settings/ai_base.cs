@@ -718,6 +718,10 @@ class ai_base
         /// A town still going up whose citizens are all dead is given up and its unfinished buildings are removed
         /// (refunded) - left standing, the game's repair round kept sending citizens to them. 0 = off (default)
         bool towns_remove_unbuilt = false;
+        /// (with spread) Towns with sense, however far: no spot with enemy soldiers it knows near it, in the
+        /// enemy's reach or where it lost a fight, and none whose way from its nearest town passes enemy soldiers,
+        /// towers or buildings. 1 = on (default): 1v1 huge Continental, 96 games, losses -18, soldiers +5
+        bool towns_care = true;
     }
 
     class ResearchAndDefence

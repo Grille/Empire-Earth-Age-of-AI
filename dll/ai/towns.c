@@ -70,7 +70,8 @@
 //   AI spreads ring by ring; one town going up per TN_SPREAD_BUILDING workers at a time. No count limit
 //   (the player: "if the map allows 100 towns because it's ridiculously large and the AI has the pop to support it,
 //   that's ok"; towns_max doesn't apply): a new town needs TN_SPREAD_WORKERS workers for every town it would then
-//   hold. The safety checks (army outmatched, enemies in its base, one at a time) stay.
+//   hold. The safety checks (army outmatched, enemies in its base, one at a time) stay. With towns_care (on) the spot and
+//   its way must be safe (tn_safe; more parts measured, off: TN_CARE).
 #define TN_MAX 128   // a table size, not a limit
 #define TN_SPREAD_WORKERS 15
 #define TN_SPREAD_BUILDING 50
@@ -86,13 +87,15 @@ struct tn_town {
     struct tn_proj proj[TN_PROJ]; int nproj;
     ee_unit *cit[12]; int cid[12], ncit; uint8_t sent_mine[12];   // sent_mine: assigned to the town's mines once - the game's economy's from then on
     uint32_t t, plan_t;
+    uint32_t hurt_t;                 // a building of it destroyed or a citizen of it killed (towns_care)
 };
 internal struct tn_st {
     uint32_t t, plan_t, log_t;
     struct tn_town town[TN_MAX]; int n;
     struct { ivec2 c; int losses; uint32_t again; } bad[16]; int nbad;
-    unsigned plans, founded, held, lost, laid, built, rebuilt, orders, assigned, sent, unpaid, prods, walls, guards, scouts, scouts_back, grown;
+    unsigned plans, founded, held, lost, laid, built, rebuilt, orders, assigned, sent, unpaid, prods, walls, guards, scouts, scouts_back, grown, gaveup;
     uint32_t grow_t;   // SPREAD's last growth look
+    uint32_t lost_t;   // its last town lost (towns_care: a pause)
     ee_unit *scout; int scout_id; uint32_t scout_t;   // SPREAD's scout
     uint32_t fsave;   // saving for a forward base since (0: not)
     const char *why;
@@ -114,6 +117,19 @@ internal PRINTF_LIKE(3, 4) void tn_say(unsigned idx, uint32_t now, const char *f
 internal int tn_alive(struct tn_proj *p) {
     ee_unit *b = p->b;
     return b && unit_get_type_data(b) && unit_get_hp(b) > 0 && unit_get_id(b) == p->id;
+}
+// its buildings laid but not finished removed (vf24 (0, 0, 0): refunded, as econ.c removes stacked ones): their 1-hp
+// foundations drew the game's repair round's citizens to them (attack.c ONE AT A TIME); the count
+internal int tn_remove_unbuilt(struct tn_town *t) {
+    int removed = 0;
+    for (int j = 0; j < t->nproj; j++) {
+        struct tn_proj *p = &t->proj[j];
+        ee_unit *bs = p->state == 1 && tn_alive(p) ? unit_get_physics(p->b) : NULL;
+        if (p->state != 1 || !tn_alive(p) || (bs && unit_get_finished(bs))) continue;
+        unit_destroy(p->b, 0, 0, 0);
+        p->b = NULL; p->state = 3; removed++;
+    }
+    return removed;
 }
 internal int tn_is_drop(int t) { return UT_IN(t, UT_TOWNS, UT_X_SINGLE_PLAYER_SETTLEMENT); }
 
@@ -137,7 +153,7 @@ internal void tn_world(ee_player *pl, unsigned idx, struct tn_world *w) {
     }
 }
 // the home continent's best free mine group: its middle, its mines in o_n; 0 none
-internal int g_tn_why[6];   // the last pick's mines: on the home continent, unexplored, too near / far from the base, by a drop site, by an enemy building, lost there or defended
+internal int g_tn_why[7];   // the last pick's mines: on the home continent, unexplored, too near / far from the base, by a drop site, by an enemy building, lost there or defended (towns_care: enemy soldiers, the enemy's reach), an unsafe way or too poor for its distance
 internal int tn_site(ee_player *pl, unsigned idx, ivec2 base, unsigned hc, struct tn_world *w, ivec2 *o, int *o_n) {
     struct { ivec2 p; } m[512];
     int nm = 0;
@@ -199,6 +215,44 @@ internal int tn_site(ee_player *pl, unsigned idx, ivec2 base, unsigned hc, struc
 #define TN_HOUSES 5   // the Town Center's full defence bonus
 #define TN_CELLS (128 * 128)   // a 1024-tile map; a bigger one folds its far cells onto the edge
 internal struct tn_cell { int sc, n, sx, sy; uint16_t wood, mines; } g_tn_cells[TN_CELLS];
+// towns_care (the player's game 2026-11-05: blue laid 6 towns in 11 minutes, 82-292 tiles out on one mine each, their
+// foundations razed as they were laid, again and again - "far away bases make the AI more interesting, but it has to
+// happen with sense"): a spot without enemy soldiers it knows within TN_CARE_SOLDIERS, out of the enemy's reach and
+// where it lost no fight (stage.c's danger map), its way from its nearest town (or base) clear of enemy soldiers it
+// knows, their towers, and 22 tiles of their buildings (not through enemy land) - part 1, the setting. Parts for
+// v_towns_care only: 2 beyond TN_COMPACT of its towns only for 2 mines or more; 4 the pace (at most 2 towns going up,
+// none for 5 minutes after one is lost); 8 hold under attack (nothing laid again, no builder sent while enemy soldiers
+// are in sight of the town); 16 give up a town going up that they hurt (its foundations removed, its citizens home).
+// Measured (1v1 huge Continental, epoch 5, 120 min, mirrored, B - A per game, se in brackets): 1 alone, 96 games:
+// losses -17.9 (10.0), soldiers +5.1 (2.8), kills +13.6 (13.8), workers -0.5 (2.8); 179 towns stood against 205, 27
+// lost against 31, about 103 tiles out on both sides - on. 1+4, 96 games: soldiers -3.6 (2.7), losses +9.2 (9.9),
+// towns stood 167 against 214. 48 games each: 2 alone razed +12.0 (4.6), losses +26.4 (18.0), towns stood 102 against
+// 143; 4 alone soldiers +9.3 (3.9), losses +21.9 (15.4); 8 (with 16, given up at the first sight of soldiers) 54
+// towns given up, outcome even; 1+2+4 even, towns stood 73 against 99; 1+2+4+8 workers -8.3 (5.8). Off.
+#define TN_CARE_TRIES 24
+#define TN_CARE_SOLDIERS 20
+#define TN_CARE_PAUSE 300000   // part 4: no new town for 5 minutes after one is lost
+internal int g_tn_care = 0, g_v_tn_care = -1;
+#define TN_CARE(idx) PV(idx, g_v_tn_care, g_tn_care)   // its parts (above)
+internal struct { ivec2 p; int mines, key, compact; } g_tn_cand[1024];
+internal int stage_danger(unsigned idx, ivec2 p);   // stage.c: in the enemy's reach or a lost fight
+internal int tn_safe(ee_player *pl, unsigned idx, ivec2 base, struct tn_world *w, ivec2 p, int mines, int compact) {
+    if ((TN_CARE(idx) & 2) && !compact && mines < 2) { g_tn_why[6]++; return 0; }
+    if (!(TN_CARE(idx) & 1)) return 1;
+    if (raiders_known(pl, p, TN_CARE_SOLDIERS) || stage_danger(idx, p)) { g_tn_why[5]++; return 0; }
+    ivec2 from = base;
+    int d = ivec2_dist2(p, base);
+    for (int k = 0; k < w->no; k++) if (ivec2_dist2(p, w->own[k]) < d) { d = ivec2_dist2(p, w->own[k]); from = w->own[k]; }
+    if (path_raided(pl, from.x, from.y, p.x, p.y) || route_covered(pl, from.x, from.y, p.x, p.y)) { g_tn_why[6]++; return 0; }
+    float dx = (float)(p.x - from.x), dy = (float)(p.y - from.y), l2 = dx * dx + dy * dy;
+    for (int k = 0; k < w->nf; k++) {   // the way's nearest point to each enemy building it knows
+        float t = l2 > 0 ? ((float)(w->foe[k].x - from.x) * dx + (float)(w->foe[k].y - from.y) * dy) / l2 : 0;
+        t = t < 0 ? 0 : t > 1 ? 1 : t;
+        float ex = (float)from.x + dx * t - (float)w->foe[k].x, ey = (float)from.y + dy * t - (float)w->foe[k].y;
+        if (ex * ex + ey * ey < 22.0f * 22.0f) { g_tn_why[6]++; return 0; }
+    }
+    return 1;
+}
 internal int tn_site_spread(ee_player *pl, unsigned idx, ivec2 base, unsigned hc, struct tn_world *w, ivec2 *o, int *o_n) {
     ee_map *map = game_map();
     int side = map ? ((int)map_get_size(map) + TN_CELL - 1) / TN_CELL : 0;
@@ -232,8 +286,7 @@ internal int tn_site_spread(ee_player *pl, unsigned idx, ivec2 base, unsigned hc
             d = (int)sqrtf((float)d);
             if (front < 0 || d < front) front = d;
         }
-    int best = 0x7FFFFFFF, bestc = 0x7FFFFFFF, found = 0, foundc = 0, nc = 0;
-    ivec2 pc = base;
+    int nk = 0;
     for (int i = 0; i < side * side; i++) {
         struct tn_cell *c = &g_tn_cells[i];
         if (!c->n) continue;
@@ -262,11 +315,22 @@ internal int tn_site_spread(ee_player *pl, unsigned idx, ivec2 base, unsigned hc
         df = df == 0x7FFFFFFF ? 0 : (int)sqrtf((float)df);
         if (front >= 0 && df < front - TN_FRONT_STEP) { g_tn_why[4]++; continue; }   // ahead of its line
         int key = (int)sqrtf((float)dn) * 4 - (sc < 24 ? sc : 24) - (df < 160 ? df : 160);   // the nearest; richer, or farther from the enemy, within a few tiles
-        if (dn <= TN_COMPACT * TN_COMPACT && key < bestc) { bestc = key; pc = p; nc = mines; foundc = 1; }
-        if (key < best) { best = key; *o = p; *o_n = mines; found = 1; }
+        if (nk < (int)(sizeof g_tn_cand / sizeof *g_tn_cand)) { g_tn_cand[nk].p = p; g_tn_cand[nk].mines = mines; g_tn_cand[nk].key = key; g_tn_cand[nk].compact = dn <= TN_COMPACT * TN_COMPACT; nk++; }
     }
-    if (foundc) { *o = pc; *o_n = nc; }   // within reach of a town first; else the nearest anywhere (an oasis)
-    return found;
+    // within reach of a town first, else the nearest anywhere (an oasis); with towns_care the first whose spot and way
+    // are safe (tn_safe: costly, so in this order and TN_CARE_TRIES at most)
+    for (int tries = 0; tries < (TN_CARE(idx) & 3 ? TN_CARE_TRIES : 1); tries++) {
+        int bj = -1;
+        for (int j = 0; j < nk; j++)
+            if (g_tn_cand[j].key != 0x7FFFFFFF && (bj < 0 || g_tn_cand[j].compact > g_tn_cand[bj].compact ||
+                                                   (g_tn_cand[j].compact == g_tn_cand[bj].compact && g_tn_cand[j].key < g_tn_cand[bj].key))) bj = j;
+        if (bj < 0) return 0;
+        g_tn_cand[bj].key = 0x7FFFFFFF;
+        if ((TN_CARE(idx) & 3) && !tn_safe(pl, idx, base, w, g_tn_cand[bj].p, g_tn_cand[bj].mines, g_tn_cand[bj].compact)) continue;
+        *o = g_tn_cand[bj].p; *o_n = g_tn_cand[bj].mines;
+        return 1;
+    }
+    return 0;
 }
 // a spot for type near c on the home continent, clear of the town's other buildings, the fewest defences on it
 internal int tn_spot(ee_player *pl, unsigned idx, struct tn_town *t, int type, ivec2 c, unsigned hc, ivec2 *o) {
@@ -472,6 +536,7 @@ internal void tn_lost(unsigned idx, struct tn_st *s, struct tn_town *t, uint32_t
     if (k == s->nbad && s->nbad < 16) { s->bad[k].c = t->c; s->bad[k].losses = 0; s->nbad++; }
     if (k < 16) { s->bad[k].losses++; s->bad[k].again = now + 480000; }
     s->lost++;
+    s->lost_t = now ? now : 1;
     tn_say(idx, now, "the town at %d,%d lost (%d times there)", t->c.x, t->c.y, k < 16 ? s->bad[k].losses : 0);
     t->state = 0;
 }
@@ -484,6 +549,7 @@ internal void tn_run(ee_player *pl, unsigned idx, struct tn_st *s, struct tn_tow
             if (!tn_alive(p)) {
                 tn_say(idx, now, "%s %d at %d,%d destroyed%s", k_tk[p->kind], p->type, p->p.x, p->p.y, p->tries < 3 ? " - laid again" : "");
                 p->b = NULL; p->state = p->tries < 3 ? 0 : 3;
+                t->hurt_t = now ? now : 1;
                 if (p->state == 0) s->rebuilt++;
                 continue;
             }
@@ -499,21 +565,29 @@ internal void tn_run(ee_player *pl, unsigned idx, struct tn_st *s, struct tn_tow
     for (int j = 0; j < t->ncit; j++)   // its citizens alive
         if (!t->cit[j] || unit_get_hp(t->cit[j]) <= 0 || unit_get_id(t->cit[j]) != t->cid[j]) {
             t->cit[j] = t->cit[t->ncit - 1]; t->cid[j] = t->cid[t->ncit - 1]; t->sent_mine[j] = t->sent_mine[t->ncit - 1]; t->ncit--; j--;
+            t->hurt_t = now ? now : 1;
         }
     if (!any && !t->ncit && now - t->t > 60000) { tn_lost(idx, s, t, now); return; }
     // towns_remove_unbuilt: going up with all its citizens dead - nobody plans or builds it any more, and its
     // foundations (1 hp: damaged) drew the game's repair round's citizens to them (attack.c ONE AT A TIME); removed
     // as econ.c removes stacked ones (vf24 (0, 0, 0): refunded) and the town lost
     if (g_tn_remove && t->state == 1 && any && !t->ncit && now - t->t > 60000) {
-        int removed = 0;
-        for (int j = 0; j < t->nproj; j++) {
-            struct tn_proj *p = &t->proj[j];
-            ee_unit *bs = p->state == 1 && tn_alive(p) ? unit_get_physics(p->b) : NULL;
-            if (p->state != 1 || !tn_alive(p) || (bs && unit_get_finished(bs))) continue;
-            unit_destroy(p->b, 0, 0, 0);
-            p->b = NULL; p->state = 3; removed++;
-        }
-        tn_say(idx, now, "the town at %d,%d: its citizens dead, %d unfinished buildings removed", t->c.x, t->c.y, removed);
+        tn_say(idx, now, "the town at %d,%d: its citizens dead, %d unfinished buildings removed", t->c.x, t->c.y, tn_remove_unbuilt(t));
+        tn_lost(idx, s, t, now);
+        return;
+    }
+    // towns_care: enemy soldiers in sight at a resource town (not remembered ones: those stalled towns for good) - it
+    // lays nothing again and sends no builder while they are there; before its drop site stands and hurt by them (a
+    // building destroyed or a citizen killed in the last 30 s) it is given up (its foundations removed, its citizens
+    // home) rather than fed to them. Given up at the first sight of them, 13 towns were dropped in 24 games where the
+    // other side lost one: soldiers passing by mostly leave a town going up alone
+    int hot = (TN_CARE(idx) & 8) && !t->forward && raiders_near(pl, t->c, 12);
+    if (hot && (TN_CARE(idx) & 16) && t->state == 1 && !drop_ok && t->hurt_t && now - t->hurt_t < 30000) {
+        s->gaveup++;
+        tn_say(idx, now, "the town at %d,%d given up: enemy soldiers hurt it, %d unfinished buildings removed, %d citizens home", t->c.x, t->c.y, tn_remove_unbuilt(t), t->ncit);
+        ivec2 home = build_mgr_get_base(civ_mgr_get_build_mgr(player_get_civ_mgr(pl)));
+        for (int k = 0; k < t->ncit; k++) unit_goal(t->cit[k], goal_move((float)home.x + 0.5f, (float)home.y + 0.5f), 0, 0x1F40);
+        t->ncit = 0;
         tn_lost(idx, s, t, now);
         return;
     }
@@ -530,8 +604,9 @@ internal void tn_run(ee_player *pl, unsigned idx, struct tn_st *s, struct tn_tow
     tn_wall(pl, idx, t, now);
     if (t->state == 1 && t->forward && standing + dropped == t->nproj) t->ncit = 0;   // its citizens back to the game
     if (t->state == 1 && drop_ok && standing + dropped == t->nproj) { t->state = 2; s->held++; tn_say(idx, now, "the town at %d,%d stands (%d buildings)", t->c.x, t->c.y, standing); }
+    if (hot) return;
     // the next building (every 8 s), the drop site alone first; one it can't pay waits (the drop site always)
-    if (t->ncit && (!t->plan_t || now - t->plan_t >= 8000)) {
+    if (t->ncit &&(!t->plan_t || now - t->plan_t >= 8000)) {
         t->plan_t = now ? now : 1;
         int going = 0;
         for (int j = 0; j < t->nproj; j++) going += t->proj[j].state == 1;
@@ -867,7 +942,10 @@ internal void tn_plan(ee_player *pl, unsigned idx, struct tn_st *s, unsigned hc,
         }
         if (!done && (TOWNS(idx) & 1)) {
             why = NULL;
-            if (going >= ((TOWNS(idx) & 16) && workforce(pl) >= 2 * TN_SPREAD_BUILDING ? workforce(pl) / TN_SPREAD_BUILDING : 1)) why = "a town going up";
+            int most = (TOWNS(idx) & 16) && workforce(pl) >= 2 * TN_SPREAD_BUILDING ? workforce(pl) / TN_SPREAD_BUILDING : 1;
+            if ((TN_CARE(idx) & 4) && most > 2) most = 2;
+            if (going >= most) why = "a town going up";
+            else if ((TN_CARE(idx) & 4) && s->lost_t && now - s->lost_t < TN_CARE_PAUSE) why = "a town lost in the last 5 minutes";
             else if (!(TOWNS(idx) & 16) && n >= g_tn_max) why = "holds towns_max towns";
             else if ((TOWNS(idx) & 16) && workforce(pl) < TN_SPREAD_WORKERS * (n + 2)) why = "too few workers for another town";   // its base and the new one count
             else if ((TOWNS(idx) & 16) && !tn_surplus(pl)) why = "no surplus for a town";
@@ -879,8 +957,8 @@ internal void tn_plan(ee_player *pl, unsigned idx, struct tn_st *s, unsigned hc,
             else if (!((TOWNS(idx) & 16) ? tn_site_spread : tn_site)(pl, idx, base, hc, &w, &c, &nm)) {
                 why = "no free mines";
                 if ((TOWNS(idx) & 48) == 48) tn_scout(pl, idx, s, base, hc, &w, now);
-                if (g_autotest) tn_say(idx, now, "mines: %d on the home continent, %d unexplored, %d too near or far, %d by a drop site, %d by an enemy building, %d lost there or defended",
-                                       g_tn_why[0], g_tn_why[1], g_tn_why[2], g_tn_why[3], g_tn_why[4], g_tn_why[5]);
+                if (g_autotest) tn_say(idx, now, "mines: %d on the home continent, %d unexplored, %d too near or far, %d by a drop site, %d by an enemy building, %d lost there or defended, %d unsafe way or too poor",
+                                       g_tn_why[0], g_tn_why[1], g_tn_why[2], g_tn_why[3], g_tn_why[4], g_tn_why[5], g_tn_why[6]);
             }
             else { s->plans++; tn_found(pl, idx, s, c, nm, &w, hc, now, 0); why = NULL; }
         }
@@ -907,8 +985,8 @@ internal void towns_act(ee_player *pl, unsigned idx, uint32_t now) {
         s->log_t = now ? now : 1;
         int n = 0, held = 0;
         for (int k = 0; k < TN_MAX; k++) { n += s->town[k].state != 0; held += s->town[k].state == 2; }
-        tn_say(idx, now, "status - %d towns (%d standing) | planned %u founded %u stood %u lost %u unpaid %u | laid %u built %u laid again %u orders %u assigned %u sent %u | production %u walls %u | guards sent %u scouts %u (%u turned back) | grown %u",
-               n, held, s->plans, s->founded, s->held, s->lost, s->unpaid, s->laid, s->built, s->rebuilt, s->orders, s->assigned, s->sent, s->prods, s->walls, s->guards, s->scouts, s->scouts_back, s->grown);
+        tn_say(idx, now, "status - %d towns (%d standing) | planned %u founded %u stood %u lost %u unpaid %u | laid %u built %u laid again %u orders %u assigned %u sent %u | production %u walls %u | guards sent %u scouts %u (%u turned back) | grown %u | given up %u",
+               n, held, s->plans, s->founded, s->held, s->lost, s->unpaid, s->laid, s->built, s->rebuilt, s->orders, s->assigned, s->sent, s->prods, s->walls, s->guards, s->scouts, s->scouts_back, s->grown, s->gaveup);
     }
 }
 internal void towns_new_game(void) { memset(g_tn, 0, sizeof g_tn); }
@@ -920,6 +998,7 @@ internal void towns_install(const char *autotest_ini) {
     g_tn_cits = g_set_ai[1].towns_citizens;
     g_tn_towers = g_set_ai[1].towers_per_town;
     g_tn_remove = g_set_ai[1].towns_remove_unbuilt;
+    g_tn_care = g_set_ai[1].towns_care ? 1 : 0;   // the safe spot and way: the other parts measured no gain (TN_CARE)
     if (g_tn_max > TN_MAX) g_tn_max = TN_MAX;
     if (g_tn_cits > 12) g_tn_cits = 12;
     if (g_tn_towers > TN_PROJ - 1) g_tn_towers = TN_PROJ - 1;
@@ -932,6 +1011,7 @@ internal void towns_install(const char *autotest_ini) {
         else if (v[0] >= '0' && v[0] <= '9') g_v_towns = atoi(v);
         else if (setting_flags(&k_settings[SETTING_towns], v, f, why, sizeof why)) { g_v_towns = -1; if (g_log) fprintf(g_log, "# towns: v_towns=%s: %s\n", v, why); }
         else g_v_towns = setting_bits(f, 7);
+        g_v_tn_care = ini_int("autotest", "v_towns_care", -1, autotest_ini);
     }
-    if (g_log) fprintf(g_log, "# towns: towns %d (variant %d), at most %d, %d citizens, %d towers each\n", g_towns, g_v_towns, g_tn_max, g_tn_cits, g_tn_towers);
+    if (g_log) fprintf(g_log, "# towns: towns %d (variant %d), at most %d, %d citizens, %d towers each, care %d (variant %d)\n", g_towns, g_v_towns, g_tn_max, g_tn_cits, g_tn_towers, g_tn_care, g_v_tn_care);
 }
