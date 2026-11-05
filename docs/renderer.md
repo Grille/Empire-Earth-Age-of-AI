@@ -277,10 +277,12 @@ tells the last map's casters, ground batches, box, sun and shadow colour), engin
   uploaded with the next frame. The sun is the light's own height, not the casters' floor of 25 degrees: the map covers
   everything, no reach to keep short - and the ground's shading is the light's (the casters' floor left the hills of
   "choke wolf", gentler than 25 degrees, with hardly a shadow). Everything that receives compares its world height with
-  it: in the shadow below it, a soft edge of 0.25 tiles, a bias of 0.05; the darker of it and the casters' shadow - the
-  ground, decals, water, and with shadows all on the units, buildings and trees (a tower's foot in a hill's shadow, its
-  top in the sun). The terrain's second depth map is gone. The pipe: `shadows hills on | off`, the reply tells the
-  map's size and its last making. Checked: "choke wolf" at 8 and 17 o'clock (the light 24 and 12 degrees), hills off
+  it: in the shadow below it, full 0.75 tiles under it (0.25 before 2026-11-05 - the player: the ground cut level for
+  a building site in a slope was a pit whose rim, a few tenths of a tile high, laid a full shadow over the site in the
+  evening light; now such a rim gives under half, a hill's deep shadow stays full, its edge a wider soft band), a bias
+  of 0.05; the darker of it and the casters' shadow - the ground, decals, water, and with shadows all on the units,
+  buildings and trees (a tower's foot in a hill's shadow, its top in the sun). The terrain's second depth map is gone.
+  The pipe: `shadows hills on | off`, `shadows hillsoft <tiles>`; the reply tells the map's size and its last making. Checked: "choke wolf" at 8 and 17 o'clock (the light 24 and 12 degrees), hills off
   and on in the same paused frame: at 17 the hill's eastern side and the plain behind it in shadow, a tower and the
   trees standing there darkened with it; a 210-tile random map (840 texels) made in 1.1 ms.
 - Casters off the screen (the player, 2026-11-05: with the day's cycle a low sun casts long shadows, and they dropped

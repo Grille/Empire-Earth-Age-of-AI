@@ -82,6 +82,7 @@ internal struct {
     float light[3];          // the light's own direction (the terrain's baked shading follows it)
     float hlight[3];         // the hills' sun (shadow_hills)
     float sun_set;           // the pipe's shadows height: the sun's height for the shadows set (degrees; 0 the light's)
+    float hsoft;             // the hills' shadow full this far (tiles) below the ground's ceiling (the pipe: shadows hillsoft)
     float sun_turn;          // the pipe's shadows turn: the sun's direction turned about the vertical (degrees)
     float amb[3], diff[3];   // the units' ambient (global + the light's) and the sun's colour
     float view[16];          // the units' camera, the last seen
@@ -92,7 +93,7 @@ internal struct {
     LONG passes;
     int last_cast, last_ground;   // the last map's (the pipe's shadows)
     float last_lo[3], last_hi[3];
-} g_sh = { .strength = 0.8f, .fade = 0.8f, .water = 0.5f, .moon = 0.75f, .glow = -50, .all = 1, .tall = 2, .sun = { 0.08f, 0.75f, -0.65f }, .light = { 0.08f, 0.75f, -0.65f }, .hlight = { 0.08f, 0.75f, -0.65f }, .sun_low = 25, .sun_lit = 0.65f };
+} g_sh = { .strength = 0.8f, .fade = 0.8f, .water = 0.5f, .moon = 0.75f, .glow = -50, .all = 1, .tall = 2, .sun = { 0.08f, 0.75f, -0.65f }, .light = { 0.08f, 0.75f, -0.65f }, .hlight = { 0.08f, 0.75f, -0.65f }, .sun_low = 25, .sun_lit = 0.65f, .hsoft = 0.75f };
 
 // from the sun: the batch's vertices placed as the main pass places them (render_3d.c's vertex shader), through shm
 // into the map (sa: alpha reference / 255, alpha tested). A tree casts its card (rd3_shadow_card), not itself. The
@@ -640,7 +641,7 @@ internal void rd3_shadow_pc(rd3_pcb *pc) {
     // the hills' map: the world's x, y -> its u, v; the shadow's soft edge and its bias (tiles: the ground's triangles
     // and the map's texels differ a little); on
     pc->shh[0] = g_sh.hn ? 1.0f / (float)(g_sh.hn / g_sh.hr) : 0;
-    pc->shh[1] = 0.25f;
+    pc->shh[1] = g_sh.hsoft;
     pc->shh[2] = 0.05f;
     pc->shh[3] = g_sh.hill_ok && !g_sh.nohills ? 1.0f : 0.0f;
 }
@@ -845,6 +846,9 @@ internal void cmd_shadows(char *out, const char *args) {
     } else if (!strcmp(mode, "all")) {
         if (!strcmp(arg, "on") || !strcmp(arg, "off")) g_sh.all = arg[1] == 'n';
         else { REPLY("error: usage: shadows all on | off\n"); return; }
+    } else if (!strcmp(mode, "hillsoft")) {
+        if (s > 0 && s <= 8) g_sh.hsoft = s;
+        else { REPLY("error: usage: shadows hillsoft <tiles below the ground's ceiling a hill's shadow is full at, 0..8>\n"); return; }
     } else if (!strcmp(mode, "hills")) {
         if (!strcmp(arg, "on") || !strcmp(arg, "off")) g_sh.nohills = arg[1] != 'n';
         else { REPLY("error: usage: shadows hills on | off\n"); return; }
@@ -874,13 +878,13 @@ internal void cmd_shadows(char *out, const char *args) {
         else { REPLY("error: usage: shadows moon <a shadow's share by moonlight, 0..1>\n"); return; }
     } else if (!strcmp(mode, "game")) g_sh.on = 0;
     else if (!strcmp(mode, "dynamic")) g_sh.on = 1;
-    else if (mode[0]) { REPLY("error: usage: shadows [game | dynamic] [strength 0..1] | fade <depth> | water <0..1> | moon <0..1> | sun <degrees> | height <degrees> | turn <degrees> | hour <0..24> | reach on | off | cards on | off | all on | off | hills on | off | tint on | off\n"); return; }
+    else if (mode[0]) { REPLY("error: usage: shadows [game | dynamic] [strength 0..1] | fade <depth> | water <0..1> | moon <0..1> | sun <degrees> | height <degrees> | turn <degrees> | hour <0..24> | reach on | off | cards on | off | all on | off | hills on | off | hillsoft <tiles> | tint on | off\n"); return; }
     if ((!strcmp(mode, "game") || !strcmp(mode, "dynamic")) && s >= 0 && s <= 1) g_sh.strength = s;
     REPLY("shadows: %s, strength %.2f, %s, %ld maps drawn; the last: %d casting batches, %d of ground;"
           " the casters' box %.1f %.1f %.1f - %.1f %.1f %.1f, the sun %.2f %.2f %.2f, a shadow's colour %.2f %.2f %.2f, the light's %.2f %.2f %.2f, the hour %.2f;"
           " the water at %.2f%s, a shadow gone %.2f under it, %.2f of it on the surface; units in a shadow darkened: %s, receiving: %s; by the light's height %.2f of a shadow (by moonlight at most %.2f); the sun at least %.0f degrees"
           " high (the light's %.0f); casters off the screen: %s, %.1f tiles (the tallest %.1f, the ground's rise %.1f), %d rows and %d more; %d casting draws off the screen;"
-          " the ground's mean colour %.0f %.0f %.0f; the hills' shadows: %s, %dx%d texels (%d a tile), made %ld times, the last in %.1f ms\n",
+          " the ground's mean colour %.0f %.0f %.0f; the hills' shadows: %s (full %.2f tiles under the ceiling), %dx%d texels (%d a tile), made %ld times, the last in %.1f ms\n",
           g_sh.on ? "dynamic" : "game", (double)g_sh.strength,
           g_sh.ready > 0 ? "ready" : g_sh.ready < 0 ? "FAILED (the log says why)" : "not made yet", (long)g_sh.passes,
           g_sh.last_cast, g_sh.last_ground, (double)g_sh.last_lo[0], (double)g_sh.last_lo[1], (double)g_sh.last_lo[2],
@@ -890,5 +894,5 @@ internal void cmd_shadows(char *out, const char *args) {
           (double)g_sh.sun_low, (double)(asinf(fminf(1, fmaxf(-1, g_sh.sun_lit))) * 180 / 3.14159265f),
           !g_shr.on ? "not (no hooks)" : g_shr.off ? "off" : "collected", (double)g_shr.reach, (double)g_sh.tall, (double)g_shr.rise, g_shr.last_own, g_shr.last_extra, g_sh.last_off,
           (double)g_sh.ground_mean[0], (double)g_sh.ground_mean[1], (double)g_sh.ground_mean[2],
-          g_sh.nohills ? "off" : g_sh.hill_ok ? "on" : "not made", g_sh.hn, g_sh.hn, g_sh.hr, (long)g_sh.hill_made, (double)g_sh.hill_ms);
+          g_sh.nohills ? "off" : g_sh.hill_ok ? "on" : "not made", (double)g_sh.hsoft, g_sh.hn, g_sh.hn, g_sh.hr, (long)g_sh.hill_made, (double)g_sh.hill_ms);
 }
