@@ -479,6 +479,16 @@ internal void cmd_wall(char *out, const char *args) {
     REPLY("ok: P%d wall %d from %d,%d to %d,%d ordered\n", p, t, a[0], a[1], b[0], b[1]);
 }
 
+// wallfit x0 y0 x1 y1: the walls in the box fitted onto the ground again, as a wall or a tower placed beside them has
+// it (engine/walls.c wj_area). Tests: a fit again leaves a piece as it was
+internal void cmd_wallfit(char *out, const char *args) {
+    int x0, y0, x1, y1;
+    if (sscanf(args, "%d %d %d %d", &x0, &y0, &x1, &y1) < 4) { REPLY("error: usage: wallfit x0 y0 x1 y1\n"); return; }
+    if (!game_map()) { REPLY("error: no map\n"); return; }
+    wj_area(x0, y0, x1, y1, "the pipe's wallfit");
+    REPLY("ok: the walls from %d,%d to %d,%d fitted again\n", x0, y0, x1, y1);
+}
+
 // gate P T x y dir: player P's gate of type T laid over the five finished wall pieces centred on x, y along dir (1 x,
 // 2 y, 3 x+1,y-1, 4 x+1,y+1) - as the gate button and the AI lay one (build_gate), only where gate_fits says it can
 internal void cmd_gate(char *out, const char *args) {
@@ -921,10 +931,10 @@ internal void cmd_uinfo(char *out, const char *args) {
         // -1 none) - what has a unit standing about in the player's game
         ee_goal *g = unit_get_goal(u);   // where it goes: a move's point, an attack's target
         ee_unit *tg = g && goal_is_attack(g) ? goal_get_target(g) : NULL;
-        // side: the model's x axis's rise (its roll; fwd's z its pitch)
-        REPLY("%p type %d P%d hp %d pos %.3f,%.3f,%.2f spd %.3f/%.3f fwd %.2f,%.2f,%.2f side %.2f goal %s to %.0f,%.0f state %u orders %d wps %d ff %d\n",
+        // side: the model's x axis's rise (its roll; fwd's z its pitch); up: its z axis's height (its scale upwards)
+        REPLY("%p type %d P%d hp %d pos %.3f,%.3f,%.2f spd %.3f/%.3f fwd %.2f,%.2f,%.2f side %.2f up %.3f goal %s to %.0f,%.0f state %u orders %d wps %d ff %d\n",
               u, unit_type_get_id(td), owner ? player_get_index(owner) : -1, unit_get_hp(u), pos.x, pos.y, pos.z,
-              unit_get_speed(u), unit_get_speed_min(u), fwd.x, fwd.y, fwd.z, unit_get_matrix(u, 8), rtti_name(g),
+              unit_get_speed(u), unit_get_speed_min(u), fwd.x, fwd.y, fwd.z, unit_get_matrix(u, 8), unit_get_matrix(u, 10), rtti_name(g),
               tg ? (float)unit_get_x(tg) : g ? goal_get_dest_x(g) : -1.0f, tg ? (float)unit_get_y(tg) : g ? goal_get_dest_y(g) : -1.0f,
               unit_ai_state_id(u), unit_orders(u), unit_get_waypoints_left(u), ff_watch_state(u));
     }

@@ -541,8 +541,13 @@ internal int ws_fit(ee_unit *u) {
     }
     // its length: the local y axis, its turn (x, y; the local x axis keeps its scale, 1 for walls); its ends half a
     // tile out along it - an edge's middle (straight) or a corner (diagonal), where the ground's corners are exact
+    // Its scale the unit's own (1 normally), not the matrix's: that holds the last fit's WS_OVERLAP, and read back each
+    // fit grew a Copper or barbed wire piece by it again - a wall laid on beside it fitted it once more, and it rose
+    // into a tower of stone (the player, 2026-11-05: "wall grows infinitely when i continue to place a wall segment
+    // into or beside it")
     float fx = unit_get_matrix(u, 1), fy = unit_get_matrix(u, 5), f = sqrtf(fx * fx + fy * fy);
-    float len = sqrtf(unit_get_matrix(u, 0) * unit_get_matrix(u, 0) + unit_get_matrix(u, 4) * unit_get_matrix(u, 4));
+    float len = unit_get_scale(u);
+    if (!(len > 0.01f && len < 100)) len = sqrtf(unit_get_matrix(u, 0) * unit_get_matrix(u, 0) + unit_get_matrix(u, 4) * unit_get_matrix(u, 4));
     if (f < 0.01f || len < 0.01f) { g_ws_skipped++; return 0; }
     fx /= f; fy /= f;
     float d = 0.5f * (fabsf(fx) + fabsf(fy));
