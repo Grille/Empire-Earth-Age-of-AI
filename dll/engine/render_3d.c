@@ -101,6 +101,7 @@ typedef struct {
     float shm[16];    // the dynamic shadows (render_shadows.c): world -> the shadow map's u, v and depth
     float shk[4];     // the colour a shadow multiplies with (1 = none), w the strength
     float shp[4];     // the draw's role, the map's size, on (a map drawn), 1 / the map's depth range
+    float shx[4], shy[4];   // the draw's x and y in the world, as shz (the hills' map)
     float shz[4];     // the draw's height in the world: its placed vertex (camera space for the ground) dotted with it
     float shl[4];     // the water's level, 1 / the depth a shadow fades out by under it, on (water seen this frame)
     float shs[4];     // the game's light in the draw's space, w on: the ground's shadow weighed by how much it faces it
@@ -112,20 +113,23 @@ typedef struct {
     float fogc[4], tf[4];
     float misc[4];   // alpha reference, fog on, colour key
     float shk[4];    // the dynamic shadows (the ground's, a decal's): their colour; the draw's role, a texel, on, the bias;
-    float shd[4];    // the bias against the terrain's map
-    float sht[4];
+    float shd[4];
+    float sht[4];    // -, shadows all on, a caster's bias
+    float shh[4];    // the hills' map: the world's x, y -> u, v; the soft edge, the bias (tiles); on
 } rd3_pcb;
 internal const char k_rd3_shader[] =
     "cbuffer v : register(b0) { row_major float4x4 vpm; row_major float4x4 view;"
     " float4 ldir[8]; float4 ldiff[8]; float4 lamb[8]; float4 mdiff, mamb, memi, gamb; int4 lit; int4 src; float4 fog;"
-    " float4 vp; row_major float4x4 shm; float4 shk; float4 shp; float4 shz; float4 shl; float4 shs; float4 sha; float4 shf; };\n"
-    "cbuffer p : register(b1) { int4 op; int4 aop; float4 fogc; float4 tf; float4 misc; float4 pshk; float4 shd; float4 sht; };\n"
+    " float4 vp; row_major float4x4 shm; float4 shk; float4 shp; float4 shx; float4 shy; float4 shz; float4 shl; float4 shs; float4 sha; float4 shf; };\n"
+    "cbuffer p : register(b1) { int4 op; int4 aop; float4 fogc; float4 tf; float4 misc; float4 pshk; float4 shd; float4 sht;"
+    " float4 shh; };\n"
     "Buffer<float4> wt : register(t1);\n"   // the world matrices, 4 rows each (RD3_WB_BYTES)
     "Texture2D t : register(t0); SamplerState s : register(s0);\n"
     "Texture2D<float> sm : register(t2); SamplerComparisonState sc : register(s1);\n"   // the dynamic shadows' maps:
-    "Texture2D<float> tm : register(t4);\n"   // the casters', the terrain's (what the hills hide from the sun)
+    "Texture2D<float> hm : register(t4); SamplerState hs : register(s2);\n"   // the casters', the hills' (render_shadows.c)
     "struct I { float3 p : POSITION; float3 n : NORMAL; float4 c : COLOR; float2 t : TEXCOORD; uint w : WORLD; };\n"
-    "struct O { float4 p : SV_Position; float4 c : COLOR; float2 t : TEXCOORD0; float f : FOG; float4 q : TEXCOORD1; float3 k : TEXCOORD2; };\n"
+    "struct O { float4 p : SV_Position; float4 c : COLOR; float2 t : TEXCOORD0; float f : FOG; float4 q : TEXCOORD1;"
+    " float3 k : TEXCOORD2; float3 w : TEXCOORD3; };\n"
     // a unit's tint: how many of four texels around its origin's place in the map are nearer the sun by more than b
     "float shade_at(float3 q, float b) { if (q.x < 0 || q.y < 0 || q.x > 1 || q.y > 1) return 0;"
     " int n = (int)shp.y; int2 c = int2(q.xy * shp.y); float k = 0;"
@@ -135,7 +139,8 @@ internal const char k_rd3_shader[] =
     " float4x4 world = float4x4(r0, wt.Load(r + 1), wt.Load(r + 2), wt.Load(r + 3));"
     " float4 p = mul(float4(i.p, 1), world); o.p = mul(p, vpm); o.q.xyz = mul(p, shm).xyz;"
     // under water the shadow fades out with the depth (the sun's light scattered in the water)
-    " o.q.w = shl.z > 0 ? saturate(1 - (shl.x - dot(p, shz)) * shl.y) : 1;"
+    " o.w = float3(dot(p, shx), dot(p, shy), dot(p, shz));"
+    " o.q.w = shl.z > 0 ? saturate(1 - (shl.x - o.w.z) * shl.y) : 1;"
     " o.p.xy += vp.xy * o.p.w;"
     " float4 vc = i.c.zyxw, c = vc; o.k = shk.rgb;"   // D3DCOLOR's bytes are B G R A
     // the ground in a shadow keeps its ambient part of the light it faces: a slope turned from the game's light (its
@@ -169,12 +174,13 @@ internal const char k_rd3_shader[] =
     "  || (f == 6 && A != R) || (f == 7 && A >= R))) discard;"
     // the ground, a decal or field on it, the water: 3x3 comparisons with the casters' map, its colour in a shadow as
     // the vertex shader worked it out; with shadows all on the units, buildings and trees too, their colour without
-    // the sun's part
+    // the sun's part. The hills' map: in their shadow below its height (a soft edge); the darker of the two shadows
     " bool g = shd.x == 1 || shd.x == 4 || shd.x == 6, rc = sht.y > 0 && (shd.x == 2 || shd.x == 3 || shd.x == 9);"
-    " if ((g || rc) && shd.z > 0) { float z = min(i.q.z, 0.9999), l = 0, b = g ? shd.w : sht.z;"
-    "  for (int y = -1; y <= 1; y++) for (int u = -1; u <= 1; u++)"
-    "   l += sm.SampleCmpLevelZero(sc, i.q.xy + float2(u, y) * shd.y, z - b);"
-    "  c.rgb *= lerp(1, i.k, (1 - l / 9) * i.q.w); }"
+    " if ((g || rc) && (shd.z > 0 || shh.w > 0)) { float z = min(i.q.z, 0.9999), l = 9, b = g ? shd.w : sht.z, hl = 0;"
+    "  if (shd.z > 0) { l = 0; for (int y = -1; y <= 1; y++) for (int u = -1; u <= 1; u++)"
+    "   l += sm.SampleCmpLevelZero(sc, i.q.xy + float2(u, y) * shd.y, z - b); }"
+    "  if (shh.w > 0) hl = saturate((hm.SampleLevel(hs, i.w.xy * shh.x, 0) - i.w.z - shh.z) / shh.y);"
+    "  c.rgb *= lerp(1, i.k, max(1 - l / 9, hl) * i.q.w); }"
     " if (misc.y > 0.5) c.rgb = lerp(fogc.rgb, c.rgb, saturate(i.f));"
     " return c; }\n";
 

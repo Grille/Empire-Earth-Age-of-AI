@@ -210,9 +210,24 @@ tells the last map's casters, ground batches, box, sun and shadow colour), engin
   baked shading is the lower light's: a tower's shadow on a hill broke off on its far slope, lit in the picture (the
   player's shot). Now a shadow leaves a ground vertex the ambient part of the game's light as its normal faces it (the
   units' ambient and sun colour, as on level ground before): a slope turned away loses nothing, and the map isn't read
-  (still drawn - the hills' own shadows are next). Checked: "choke wolf" at 8 o'clock (the light 24 degrees), towers
-  and trees spawned on the hill, the installed build and this one side by side: the long shadows run on over the far
-  slope instead of breaking off.
+  (gone with the hills' shadows, below). Checked: "choke wolf" at 8 o'clock (the light 24 degrees), towers and trees
+  spawned on the hill, the installed build and this one side by side: the long shadows run on over the far slope
+  instead of breaking off.
+- The hills' shadows (2026-11-05, shadow_hills). A map over the whole map of the height below which the hills hide the
+  sun: each texel's ground (from the tile's corners: ground_corner, once a map), then one sweep from the sun's side,
+  each texel the higher of its ground and the texel before it toward the sun lowered by the sun's slope over the step
+  (that texel between two of the line before - interpolated, so a shadow's edge softens with its length). 4 texels a
+  tile up to a 256-tile map, 2 up to 512, at most 1024 a side. Made again when the sun has turned by a third of a degree,
+  on a thread of its own (0.5 ms at 600 a side, 1.1 at 840; 10 ms in the frame before its loop was simplified) and
+  uploaded with the next frame. The sun is the light's own height, not the casters' floor of 25 degrees: the map covers
+  everything, no reach to keep short - and the ground's shading is the light's (the casters' floor left the hills of
+  "choke wolf", gentler than 25 degrees, with hardly a shadow). Everything that receives compares its world height with
+  it: in the shadow below it, a soft edge of 0.25 tiles, a bias of 0.05; the darker of it and the casters' shadow - the
+  ground, decals, water, and with shadows all on the units, buildings and trees (a tower's foot in a hill's shadow, its
+  top in the sun). The terrain's second depth map is gone. The pipe: `shadows hills on | off`, the reply tells the
+  map's size and its last making. Checked: "choke wolf" at 8 and 17 o'clock (the light 24 and 12 degrees), hills off
+  and on in the same paused frame: at 17 the hill's eastern side and the plain behind it in shadow, a tower and the
+  trees standing there darkened with it; a 210-tile random map (840 texels) made in 1.1 ms.
 - Casters off the screen (the player, 2026-11-05: with the day's cycle a low sun casts long shadows, and they dropped
   out as soon as the building's or unit's bounds left the screen - his AoC shot: towers' shadows of 3-4 tiles). The
   game culls twice: its units' render object collects the objects on the terrain mesh's visible tile rows that pass

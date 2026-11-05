@@ -10,13 +10,14 @@
 // the game's blobs are not drawn. Under the water a shadow fades out with the depth: gone at g_sh.fade below the level
 // (the deepest seabed measured: 0.84 under it, the water at 0 - "choke wolf", 2026-11-04).
 // The frame is recorded (render_frame.c): before its list is drawn, the casters in it are drawn from the sun into a
-// depth map fitted to their box, and the ground into a second one (what the hills hide from the sun) - this frame's,
-// from the batches as they lie in the upload buffers (rd3_shadow_frame). The terrain and the decals then receive in the
-// main pixel shader, a shadow leaving a point the ambient part of the light it faces (the game's light, as its baked
-// shading: a slope turned away loses nothing). The second map isn't read since (2026-11-05): it took the casters'
-// shadows off the slopes it hid from the shadows' sun - never lower than 25 degrees, while the evening's baked
-// shading is the lower light's, and the tower's shadow on a hill broke off on its lit far slope (the player's shot). The ground's vertices are the game's own transform into the camera's space (its view only swaps
-// y and z): their place in the world needs the camera the units are drawn with, which comes later in the frame - known
+// depth map fitted to their box - this frame's, from the batches as they lie in the upload buffers (rd3_shadow_frame);
+// the hills' shadows are a map of their own over the whole map (shadow_hills). The terrain and the decals then receive
+// in the main pixel shader, a shadow leaving a point the ambient part of the light it faces (the game's light, as its
+// baked shading: a slope turned away loses nothing). Until 2026-11-05 the ground was drawn from the sun into a second
+// depth map, which kept the casters' shadows off the slopes it hid from the shadows' sun - never lower than 25
+// degrees, while the evening's baked shading is the lower light's: a tower's shadow on a hill broke off on its lit far
+// slope (the player's shot). The ground's vertices are the game's own transform into the camera's space (its view only
+// swaps y and z): their place in the world needs the camera the units are drawn with, which comes later in the frame - known
 // when the list is drawn (rd3_shadow_vc).
 // SH_AWAY: casts, not drawn (off the screen, a tree's card); SH_GONE: neither (a tree off the screen); SH_TREE: drawn,
 // not casting (a tree whose card casts)
@@ -36,14 +37,27 @@ internal struct {
     float ground_mean[3]; // the last frame's mean (the pipe's reply: does it follow the time of day?)
     float level;     // the last frame's
     int ready;       // 1 made, -1 failed
-    ID3D11Texture2D *map, *tmap;   // the casters' depth from the sun, the ground's (what the hills hide from it)
-    ID3D11DepthStencilView *dsv, *tdsv;
-    ID3D11ShaderResourceView *srv, *tsrv;
-    ID3D11SamplerState *cmp, *samp;
+    ID3D11Texture2D *map;   // the casters' depth from the sun
+    ID3D11DepthStencilView *dsv;
+    ID3D11ShaderResourceView *srv;
+    ID3D11SamplerState *cmp, *samp, *lin;
     ID3D11VertexShader *vs;
     ID3D11PixelShader *ps;
     ID3D11Buffer *cb;
-    ID3D11RasterizerState *raster, *traster;
+    ID3D11RasterizerState *raster;
+    // the hills' shadows (shadow_hills): the height below which the hills hide the sun, a texel each 1/hr tile over
+    // the map (hn a side); the texels' ground kept (from the map hmap, cw its corners a side); the sun it was made for
+    ID3D11Texture2D *hill;
+    ID3D11ShaderResourceView *hsrv;
+    float *hceil, *hground;
+    int hn, hr, cw, hill_ok, nohills;
+    const void *hmap;
+    float hsun[3];
+    volatile LONG hjob;      // its making on the thread: 0 none, 1 under way (hceil the thread's), 2 made (to upload)
+    HANDLE hgo, hthread;
+    int hfail;               // the texture or the thread not made: no hills' shadows (the log says so, once)
+    LONG hill_made;
+    float hill_ms;           // the last making's time
     ID3D11DepthStencilState *depth;
     float lo[3], hi[3];      // the casters' world box (the draws recorded since the last map)
     float tall, tall_frame;  // the tallest caster's height (tiles; the frame's so far) - the reach off the screen
@@ -52,6 +66,7 @@ internal struct {
     // evening: shadows of many tiles, the player's screenshot of 2026-11-05); sun_lit its true height (the shadows' colour)
     float sun[3], sun_low, sun_lit;
     float light[3];          // the light's own direction (the terrain's baked shading follows it)
+    float hlight[3];         // the hills' sun (shadow_hills)
     float sun_set;           // the pipe's shadows height: the sun's height for the shadows set (degrees; 0 the light's)
     float sun_turn;          // the pipe's shadows turn: the sun's direction turned about the vertical (degrees)
     float amb[3], diff[3];   // the units' ambient (global + the light's) and the sun's colour
@@ -63,7 +78,7 @@ internal struct {
     LONG passes;
     int last_cast, last_ground;   // the last map's (the pipe's shadows)
     float last_lo[3], last_hi[3];
-} g_sh = { .strength = 0.8f, .fade = 0.8f, .all = 1, .tall = 2, .sun = { 0.08f, 0.75f, -0.65f }, .light = { 0.08f, 0.75f, -0.65f }, .sun_low = 25, .sun_lit = 0.65f };
+} g_sh = { .strength = 0.8f, .fade = 0.8f, .all = 1, .tall = 2, .sun = { 0.08f, 0.75f, -0.65f }, .light = { 0.08f, 0.75f, -0.65f }, .hlight = { 0.08f, 0.75f, -0.65f }, .sun_low = 25, .sun_lit = 0.65f };
 
 // from the sun: the batch's vertices placed as the main pass places them (render_3d.c's vertex shader), through shm
 // into the map (sa: alpha reference / 255, alpha tested). A tree casts its card (rd3_shadow_card), not itself. The
@@ -95,9 +110,6 @@ internal int rd3_shadow_init(void) {
     HRESULT hr = ID3D11Device_CreateTexture2D(dv, &td, NULL, &g_sh.map);
     if (SUCCEEDED(hr)) hr = ID3D11Device_CreateDepthStencilView(dv, (ID3D11Resource *)g_sh.map, &dd, &g_sh.dsv);
     if (SUCCEEDED(hr)) hr = ID3D11Device_CreateShaderResourceView(dv, (ID3D11Resource *)g_sh.map, &sd, &g_sh.srv);
-    if (SUCCEEDED(hr)) hr = ID3D11Device_CreateTexture2D(dv, &td, NULL, &g_sh.tmap);
-    if (SUCCEEDED(hr)) hr = ID3D11Device_CreateDepthStencilView(dv, (ID3D11Resource *)g_sh.tmap, &dd, &g_sh.tdsv);
-    if (SUCCEEDED(hr)) hr = ID3D11Device_CreateShaderResourceView(dv, (ID3D11Resource *)g_sh.tmap, &sd, &g_sh.tsrv);
     // outside the map: depth 1 - nothing nearer the sun, lit
     D3D11_SAMPLER_DESC cs = { D3D11_FILTER_COMPARISON_MIN_MAG_LINEAR_MIP_POINT, D3D11_TEXTURE_ADDRESS_BORDER,
                               D3D11_TEXTURE_ADDRESS_BORDER, D3D11_TEXTURE_ADDRESS_BORDER, 0, 1, D3D11_COMPARISON_LESS_EQUAL,
@@ -106,6 +118,9 @@ internal int rd3_shadow_init(void) {
     D3D11_SAMPLER_DESC ss = { D3D11_FILTER_MIN_MAG_MIP_POINT, D3D11_TEXTURE_ADDRESS_WRAP, D3D11_TEXTURE_ADDRESS_WRAP,
                               D3D11_TEXTURE_ADDRESS_WRAP, 0, 1, D3D11_COMPARISON_NEVER, { 0 }, 0, 0 };
     if (SUCCEEDED(hr)) hr = ID3D11Device_CreateSamplerState(dv, &ss, &g_sh.samp);
+    D3D11_SAMPLER_DESC ls = { D3D11_FILTER_MIN_MAG_MIP_LINEAR, D3D11_TEXTURE_ADDRESS_CLAMP, D3D11_TEXTURE_ADDRESS_CLAMP,
+                              D3D11_TEXTURE_ADDRESS_CLAMP, 0, 1, D3D11_COMPARISON_NEVER, { 0 }, 0, 0 };
+    if (SUCCEEDED(hr)) hr = ID3D11Device_CreateSamplerState(dv, &ls, &g_sh.lin);
     ID3DBlob *code = SUCCEEDED(hr) ? d3d_compile(k_sh_shader, sizeof k_sh_shader - 1, "vs", "vs_4_0") : NULL;
     hr = code ? ID3D11Device_CreateVertexShader(dv, ID3D10Blob_GetBufferPointer(code), ID3D10Blob_GetBufferSize(code), NULL, &g_sh.vs) : E_FAIL;
     D3D_RELEASE(code);
@@ -116,8 +131,6 @@ internal int rd3_shadow_init(void) {
     if (SUCCEEDED(hr)) hr = ID3D11Device_CreateBuffer(dv, &bd, NULL, &g_sh.cb);
     D3D11_RASTERIZER_DESC rs = { D3D11_FILL_SOLID, D3D11_CULL_NONE, FALSE, 0, 0, 0, TRUE, FALSE, FALSE, FALSE };
     if (SUCCEEDED(hr)) hr = ID3D11Device_CreateRasterizerState(dv, &rs, &g_sh.raster);
-    rs.DepthClipEnable = FALSE;   // the ground nearer the sun than the casters' box: at its near end
-    if (SUCCEEDED(hr)) hr = ID3D11Device_CreateRasterizerState(dv, &rs, &g_sh.traster);
     D3D11_DEPTH_STENCIL_DESC ds = { TRUE, D3D11_DEPTH_WRITE_MASK_ALL, D3D11_COMPARISON_LESS, FALSE, 0, 0, { 0 }, { 0 } };
     if (SUCCEEDED(hr)) hr = ID3D11Device_CreateDepthStencilState(dv, &ds, &g_sh.depth);
     if (FAILED(hr)) return rd_fail("the dynamic shadows", hr), 0;
@@ -218,7 +231,11 @@ internal int rd3_shadow_role(rd_device *d, rd_vb *vb, DWORD start, DWORD nv) {
             float a = g_sh.sun_turn * 3.14159265f / 180, x = s[0];
             s[0] = x * cosf(a) - s[1] * sinf(a); s[1] = x * sinf(a) + s[1] * cosf(a);
         }
+        // the hills' sun: the light's own height (their map covers the whole map: no reach to keep short), the pipe's
+        // height and turn as the casters'
+        memcpy(g_sh.hlight, s, sizeof s);
         if ((-s[2] < low || g_sh.sun_set > 0) && h > 0) { float k = sqrtf(1 - low * low) / h; s[0] *= k; s[1] *= k; s[2] = -low; }
+        if (g_sh.sun_set > 0) memcpy(g_sh.hlight, s, sizeof s);
         memcpy(g_sh.sun, s, sizeof s);
         float ga[4];
         rd3_color(ga, d->rs[D3DRENDERSTATE_AMBIENT]);
@@ -314,11 +331,119 @@ internal void rd3_shadow_classify(rd_device *d, rd_vb *vb, DWORD start, DWORD nv
     if (role != d->sh_role) { d->sh_role = role; d->changed |= RD_CH_VC; }
 }
 
-// Before the frame's list is drawn (rf_replay): its casters from the sun into the map, its ground into the terrain's,
-// each batch drawn from where it lies in the upload buffers. A list without casters leaves the map as it is (one drawn
+// THE HILLS' SHADOWS (the player, 2026-11-05: "the last step would be terrain shadows"): a map over the whole map of
+// the height below which the hills hide the sun - each texel's the higher of its ground and the texel before it toward
+// the sun, lowered by the sun's slope over the step between them: one sweep over the map, made again when the sun has
+// turned by about a third of a degree (the day's cycle) or the map changed. Everything that receives compares its height
+// with it (render_3d.c's shader): the ground, the decals, the water, and - shadows all on - the units, buildings and
+// trees, a tall one's top in the sun while its foot is in a hill's shadow. Off the screen too: the map has every hill.
+// The ground's corners' heights are the game's own (ground_corner), the world's x and y its tiles.
+#define SH_HILL_TEXELS 1024   // the map's side at most (texels): 4 a tile up to a 256-tile map, 2 up to 512
+// the sweep, on a thread of its own (a hitch of 10 ms at 840 texels a side in the frame, each time the sun turned on):
+// along the axis the sun's rays run more along, a line of texels at a time from the sun's side; the texel before one
+// toward the sun lies a step back on that axis and the same distance across it for every texel (between two of the
+// line before)
+internal DWORD WINAPI shadow_hills_thread(void *arg) {
+    (void)arg;
+    for (;;) {
+        WaitForSingleObject(g_sh.hgo, INFINITE);
+        LARGE_INTEGER t0, t1, tf;
+        QueryPerformanceCounter(&t0);
+        int n = g_sh.hn, hr = g_sh.hr;
+        float *c = g_sh.hceil;
+        const float *f = g_sh.hsun;
+        memcpy(c, g_sh.hground, (size_t)n * n * sizeof(float));
+        float fh = sqrtf(f[0] * f[0] + f[1] * f[1]), dx = f[0] / fh, dy = f[1] / fh, slope = -f[2] / fh;
+        int xmajor = fabsf(dx) >= fabsf(dy);
+        float a = xmajor ? dx : dy, b = xmajor ? dy : dx;
+        float t = 1 / fabsf(a), off = -b * t, drop = slope * t / hr;   // texels across, tiles down a step
+        int s = a > 0 ? 1 : -1, k0 = (int)floorf(off);
+        float fm = off - (float)k0;
+        int lo = k0 < 0 ? -k0 : 0, hi = n - 1 - (k0 + 1 > 0 ? k0 + 1 : 0);   // m with both of m + k0, m + k0 + 1 inside
+        // a line's step along it, across it (x major: a column - texels n apart, its neighbours 1)
+        int along = xmajor ? 1 : n, across = xmajor ? n : 1;
+        for (int l = 1; l < n; l++) {
+            int at = s > 0 ? l : n - 1 - l;
+            float *me = c + (size_t)at * along, *pr = c + (size_t)(at - s) * along;
+            for (int m = lo; m <= hi; m++) {
+                const float *p = pr + (size_t)(m + k0) * across;
+                float h = p[0] + (p[across] - p[0]) * fm - drop, *q = me + (size_t)m * across;
+                if (h > *q) *q = h;
+            }
+        }
+        QueryPerformanceCounter(&t1);
+        QueryPerformanceFrequency(&tf);
+        g_sh.hill_ms = (float)(1000.0 * (double)(t1.QuadPart - t0.QuadPart) / (double)tf.QuadPart);
+        InterlockedExchange(&g_sh.hjob, 2);
+    }
+}
+internal void shadow_hills(void) {
+    ee_map *map = game_map();
+    unsigned w = map ? map_get_size(map) : 0;
+    const float *f = g_sh.hlight;
+    float fh = sqrtf(f[0] * f[0] + f[1] * f[1]);
+    if (g_sh.hfail || !w || w > 2048 || fh < 1e-3f || f[2] >= 0) { g_sh.hill_ok = 0; return; }
+    // each texel's ground, once a map (the terrain doesn't change in a game): its middle's height from its tile's four
+    // corners; a map under way finished first (its buffers the thread's)
+    if (map != g_sh.hmap || (int)w + 1 != g_sh.cw) {
+        if (g_sh.hjob == 1) return;
+        InterlockedExchange(&g_sh.hjob, 0);
+        free(g_sh.hground); free(g_sh.hceil);
+        int cw = (int)w + 1, hr = SH_HILL_TEXELS / (int)w;
+        if (hr > 4) hr = 4;
+        if (hr < 1) hr = 1;
+        int n = (int)w * hr;
+        float *corner = malloc((size_t)cw * cw * sizeof(float));
+        g_sh.hground = malloc((size_t)n * n * sizeof(float));
+        g_sh.hceil = malloc((size_t)n * n * sizeof(float));
+        g_sh.hmap = map; g_sh.cw = cw; g_sh.hr = hr; g_sh.hn = n; g_sh.hill_ok = 0;
+        D3D_RELEASE(g_sh.hsrv);
+        D3D_RELEASE(g_sh.hill);
+        if (!corner || !g_sh.hground || !g_sh.hceil) { free(corner); rd_fail("the hills' shadows' memory", E_OUTOFMEMORY); g_sh.hfail = 1; return; }
+        for (int y = 0; y < cw; y++)
+            for (int x = 0; x < cw; x++) {
+                float h = ground_corner(map, x, y);
+                corner[y * cw + x] = isnan(h) ? -1e9f : h;   // off the map: hides nothing
+            }
+        for (int j = 0; j < n; j++)
+            for (int i = 0; i < n; i++) {
+                float x = (i + 0.5f) / hr, y = (j + 0.5f) / hr;
+                int ix = (int)x, iy = (int)y;
+                float fx = x - ix, fy = y - iy;
+                const float *k = corner + iy * cw + ix;
+                g_sh.hground[j * n + i] = (k[0] * (1 - fx) + k[1] * fx) * (1 - fy) + (k[cw] * (1 - fx) + k[cw + 1] * fx) * fy;
+            }
+        free(corner);
+        D3D11_TEXTURE2D_DESC td = { (UINT)g_sh.hn, (UINT)g_sh.hn, 1, 1, DXGI_FORMAT_R32_FLOAT, { 1, 0 }, D3D11_USAGE_DEFAULT,
+                                    D3D11_BIND_SHADER_RESOURCE, 0, 0 };
+        HRESULT hr2 = ID3D11Device_CreateTexture2D(g_d3d.dev, &td, NULL, &g_sh.hill);
+        if (SUCCEEDED(hr2)) hr2 = ID3D11Device_CreateShaderResourceView(g_d3d.dev, (ID3D11Resource *)g_sh.hill, NULL, &g_sh.hsrv);
+        if (FAILED(hr2)) { rd_fail("the hills' shadows", hr2); g_sh.hfail = 1; return; }
+    }
+    // a map made: into the texture (its sun the one it was made for)
+    if (g_sh.hjob == 2) {
+        ID3D11DeviceContext_UpdateSubresource(g_d3d.ctx, (ID3D11Resource *)g_sh.hill, 0, NULL, g_sh.hceil,
+                                              (UINT)g_sh.hn * sizeof(float), 0);
+        g_sh.hill_ok = 1;
+        g_sh.hill_made++;
+        InterlockedExchange(&g_sh.hjob, 0);
+    }
+    if (g_sh.hjob || (g_sh.hill_ok && f[0] * g_sh.hsun[0] + f[1] * g_sh.hsun[1] + f[2] * g_sh.hsun[2] > 0.99998f)) return;
+    if (!g_sh.hthread) {
+        g_sh.hgo = CreateEventA(NULL, FALSE, FALSE, NULL);
+        g_sh.hthread = g_sh.hgo ? CreateThread(NULL, 0, shadow_hills_thread, NULL, 0, NULL) : NULL;
+        if (!g_sh.hthread) { rd_fail("the hills' shadows' thread", E_FAIL); g_sh.hfail = 1; return; }
+    }
+    memcpy(g_sh.hsun, f, sizeof g_sh.hsun);
+    InterlockedExchange(&g_sh.hjob, 1);
+    SetEvent(g_sh.hgo);
+}
+
+// Before the frame's list is drawn (rf_replay): its casters from the sun into the map, each batch drawn from where it
+// lies in the upload buffers. A list without casters leaves the map as it is (one drawn
 // for the interface alone), with ground but no casters it has no shadows.
 internal void rd3_shadow_frame(void) {
-    if (!g_sh.on || g_sh.ready <= 0) { g_sh.valid = 0; return; }
+    if (!g_sh.on || g_sh.ready <= 0) { g_sh.valid = g_sh.hill_ok = 0; return; }
     int nc = 0, ng = 0;
     for (int i = 0; i < g_rf.n; i++) {
         const rf_cmd *c = &g_rf.cmd[i];
@@ -335,6 +460,19 @@ internal void rd3_shadow_frame(void) {
         for (int a = 0; a < 3; a++) g_sh.ground_mean[a] = (float)(g_sh.ground_c[a] / g_sh.ground_n);
     g_sh.ground_c[0] = g_sh.ground_c[1] = g_sh.ground_c[2] = 0;
     g_sh.ground_n = 0;
+    // the ground's place in the world (through the units' camera), the colour a shadow leaves - the ambient light over
+    // the ambient and the sun on level ground, as much of it as the strength says (1: the sun all gone) -, the hills'
+    if (ng) {
+        rd3_rigid_inverse(g_sh.gw, g_sh.view);
+        float sun = fmaxf(0, g_sh.sun_lit);
+        for (int a = 0; a < 3; a++) {
+            float lit = g_sh.amb[a] + g_sh.diff[a] * sun;
+            float k = lit > 0 ? fminf(1, g_sh.amb[a] / lit) : 1;
+            g_sh.shk[a] = 1 - g_sh.strength * (1 - k);
+        }
+        g_sh.shk[3] = g_sh.strength;
+        shadow_hills();
+    }
     if (!nc) { if (ng) g_sh.valid = 0; return; }
     // the tallest caster: this list's, falling slowly (a list drawn early in a frame has fewer)
     g_sh.tall = fmaxf(fmaxf(g_sh.tall_frame, g_sh.tall * 0.98f), 2);
@@ -362,7 +500,6 @@ internal void rd3_shadow_frame(void) {
     ID3D11ShaderResourceView *none = NULL;
     ID3D11DeviceContext_VSSetShaderResources(x, 2, 1, &none);   // the maps are targets now
     ID3D11DeviceContext_PSSetShaderResources(x, 2, 1, &none);
-    ID3D11DeviceContext_PSSetShaderResources(x, 4, 1, &none);
     ID3D11DeviceContext_OMSetRenderTargets(x, 0, NULL, g_sh.dsv);
     ID3D11DeviceContext_ClearDepthStencilView(x, g_sh.dsv, D3D11_CLEAR_DEPTH, 1, 0);
     D3D11_VIEWPORT vp = { 0, 0, SH_SIZE, SH_SIZE, 0, 1 };
@@ -399,36 +536,9 @@ internal void rd3_shadow_frame(void) {
         if (c->srv != srv) { srv = c->srv; ID3D11DeviceContext_PSSetShaderResources(x, 0, 1, &srv); }
         ID3D11DeviceContext_DrawIndexed(x, c->n, c->at, c->base);
     }
-    // the ground from the sun, in the same map's coordinates (camera space -> world through the units' camera, no
-    // alpha test)
-    rd3_rigid_inverse(g_sh.gw, g_sh.view);
-    rd3_mul(g_sh.gm, g_sh.gw, m);
-    ID3D11DeviceContext_OMSetRenderTargets(x, 0, NULL, g_sh.tdsv);
-    ID3D11DeviceContext_ClearDepthStencilView(x, g_sh.tdsv, D3D11_CLEAR_DEPTH, 1, 0);
-    ID3D11DeviceContext_RSSetState(x, g_sh.traster);
-    cb[16] = cb[17] = cb[18] = 0;
-    int vc = -1;
-    for (int i = 0; i < g_rf.n; i++) {
-        const rf_cmd *c = &g_rf.cmd[i];
-        if (c->role != SH_RECEIVE || c->topo != D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST) continue;
-        if (c->vc != vc) {
-            vc = c->vc;
-            rd3_mul(cb, g_rf.vcs[vc].view, g_sh.gm);
-            ID3D11DeviceContext_UpdateSubresource(x, (ID3D11Resource *)g_sh.cb, 0, NULL, cb, 0, 0);
-        }
-        ID3D11DeviceContext_DrawIndexed(x, c->n, c->at, c->base);
-    }
-    ID3D11DeviceContext_OMSetRenderTargets(x, 0, NULL, NULL);   // else Direct3D refuses the maps as textures
-    // the colour a shadow leaves: the ambient light over the ambient and the sun on level ground, as much of it as the
-    // strength says (1: the sun all gone)
+    ID3D11DeviceContext_OMSetRenderTargets(x, 0, NULL, NULL);   // else Direct3D refuses the map as a texture
+    rd3_mul(g_sh.gm, g_sh.gw, m);   // the ground (camera space) into the map
     memcpy(g_sh.shm, m, sizeof m);
-    float sun = fmaxf(0, g_sh.sun_lit);
-    for (int a = 0; a < 3; a++) {
-        float lit = g_sh.amb[a] + g_sh.diff[a] * sun;
-        float k = lit > 0 ? fminf(1, g_sh.amb[a] / lit) : 1;
-        g_sh.shk[a] = 1 - g_sh.strength * (1 - k);
-    }
-    g_sh.shk[3] = g_sh.strength;
     g_sh.inv_depth = 1 / wz;
     g_sh.valid = 1;
     g_sh.passes++;
@@ -440,20 +550,21 @@ internal void rd3_shadow_frame(void) {
 // a batch's constants as the list draws it: this frame's map - the ground's place in it through the units' camera
 internal void rd3_shadow_vc(rd3_vcb *vc) {
     vc->shp[2] = g_sh.valid ? 1.0f : 0.0f;
-    if (!g_sh.valid) return;
+    if (!g_sh.valid && !(g_sh.hill_ok && !g_sh.nohills)) return;
     int role = (int)vc->shp[0];
     const float *l = g_sh.light;
     if (role == SH_RECEIVE || role == SH_WATER) {
-        rd3_mul(vc->shm, vc->view, g_sh.gm);
+        if (g_sh.valid) rd3_mul(vc->shm, vc->view, g_sh.gm);
         float w[16];
         rd3_mul(w, vc->view, g_sh.gw);
-        vc->shz[0] = w[2]; vc->shz[1] = w[6]; vc->shz[2] = w[10]; vc->shz[3] = w[14];
+        for (int a = 0; a < 4; a++) { vc->shx[a] = w[a * 4]; vc->shy[a] = w[a * 4 + 1]; vc->shz[a] = w[a * 4 + 2]; }
         // the light in the ground's camera space: a normal n there lies in the world as n times w's rotation
         for (int a = 0; a < 3; a++) vc->shs[a] = w[a * 4] * l[0] + w[a * 4 + 1] * l[1] + w[a * 4 + 2] * l[2];
         vc->shs[3] = role == SH_RECEIVE ? 1.0f : 0.0f;   // the water: as level ground
     } else {
         memcpy(vc->shm, g_sh.shm, sizeof vc->shm);
-        vc->shz[0] = vc->shz[1] = vc->shz[3] = 0; vc->shz[2] = 1;
+        for (int a = 0; a < 4; a++) vc->shx[a] = vc->shy[a] = vc->shz[a] = 0;
+        vc->shx[0] = vc->shy[1] = vc->shz[2] = 1;
         memcpy(vc->shs, l, sizeof g_sh.light);   // a decal: in the world
         vc->shs[3] = role == SH_DECAL ? 1.0f : 0.0f;
     }
@@ -466,17 +577,25 @@ internal void rd3_shadow_vc(rd3_vcb *vc) {
 internal void rd3_shadow_pc(rd3_pcb *pc) {
     pc->shd[2] = g_sh.valid ? 1.0f : 0.0f;
     memcpy(pc->shk, g_sh.shk, sizeof pc->shk);
-    pc->sht[0] = 0.3f * g_sh.inv_depth;   // a third of a tile: the terrain's map and the ground differ by its texels
     pc->sht[1] = g_sh.all ? 1.0f : 0.0f;
     pc->sht[2] = 0.15f * g_sh.inv_depth;   // a caster against its own shape in the map: the low-poly faces' slopes
+    // the hills' map: the world's x, y -> its u, v; the shadow's soft edge and its bias (tiles: the ground's triangles
+    // and the map's texels differ a little); on
+    pc->shh[0] = g_sh.hn ? 1.0f / (float)(g_sh.hn / g_sh.hr) : 0;
+    pc->shh[1] = 0.25f;
+    pc->shh[2] = 0.05f;
+    pc->shh[3] = g_sh.hill_ok && !g_sh.nohills ? 1.0f : 0.0f;
 }
 // the maps for the main pass (rf_replay binds them with the rest)
 internal void rd3_shadow_bind(ID3D11DeviceContext *x) {
-    ID3D11ShaderResourceView *srv = g_sh.ready > 0 ? g_sh.srv : NULL, *tsrv = g_sh.ready > 0 ? g_sh.tsrv : NULL;
+    ID3D11ShaderResourceView *srv = g_sh.ready > 0 ? g_sh.srv : NULL, *hsrv = g_sh.ready > 0 ? g_sh.hsrv : NULL;
     ID3D11DeviceContext_VSSetShaderResources(x, 2, 1, &srv);
     ID3D11DeviceContext_PSSetShaderResources(x, 2, 1, &srv);
-    ID3D11DeviceContext_PSSetShaderResources(x, 4, 1, &tsrv);
-    if (g_sh.ready > 0) ID3D11DeviceContext_PSSetSamplers(x, 1, 1, &g_sh.cmp);
+    ID3D11DeviceContext_PSSetShaderResources(x, 4, 1, &hsrv);
+    if (g_sh.ready > 0) {
+        ID3D11DeviceContext_PSSetSamplers(x, 1, 1, &g_sh.cmp);
+        ID3D11DeviceContext_PSSetSamplers(x, 2, 1, &g_sh.lin);
+    }
 }
 // the shadows' part in the constants as the draw is recorded: its role (the map's matrix and colour come when the list
 // is drawn)
@@ -640,6 +759,9 @@ internal void cmd_shadows(char *out, const char *args) {
     } else if (!strcmp(mode, "all")) {
         if (!strcmp(arg, "on") || !strcmp(arg, "off")) g_sh.all = arg[1] == 'n';
         else { REPLY("error: usage: shadows all on | off\n"); return; }
+    } else if (!strcmp(mode, "hills")) {
+        if (!strcmp(arg, "on") || !strcmp(arg, "off")) g_sh.nohills = arg[1] != 'n';
+        else { REPLY("error: usage: shadows hills on | off\n"); return; }
     } else if (!strcmp(mode, "cards")) {
         if (!strcmp(arg, "on") || !strcmp(arg, "off")) g_sh.nocards = arg[1] != 'n';
         else { REPLY("error: usage: shadows cards on | off\n"); return; }
@@ -660,13 +782,13 @@ internal void cmd_shadows(char *out, const char *args) {
         else { REPLY("error: usage: shadows fade <depth under the water, > 0>\n"); return; }
     } else if (!strcmp(mode, "game")) g_sh.on = 0;
     else if (!strcmp(mode, "dynamic")) g_sh.on = 1;
-    else if (mode[0]) { REPLY("error: usage: shadows [game | dynamic] [strength 0..1] | fade <depth> | sun <degrees> | height <degrees> | turn <degrees> | hour <0..24> | reach on | off | cards on | off | all on | off | tint on | off\n"); return; }
+    else if (mode[0]) { REPLY("error: usage: shadows [game | dynamic] [strength 0..1] | fade <depth> | sun <degrees> | height <degrees> | turn <degrees> | hour <0..24> | reach on | off | cards on | off | all on | off | hills on | off | tint on | off\n"); return; }
     if ((!strcmp(mode, "game") || !strcmp(mode, "dynamic")) && s >= 0 && s <= 1) g_sh.strength = s;
     REPLY("shadows: %s, strength %.2f, %s, %ld maps drawn; the last: %d casting batches, %d of ground;"
           " the casters' box %.1f %.1f %.1f - %.1f %.1f %.1f, the sun %.2f %.2f %.2f, a shadow's colour %.2f %.2f %.2f;"
           " the water at %.2f%s, a shadow gone %.2f under it; units in a shadow darkened: %s, receiving: %s; the sun at least %.0f degrees"
           " high (the light's %.0f); casters off the screen: %s, %.1f tiles (the tallest %.1f), %d rows and %d more; %d casting draws off the screen;"
-          " the ground's mean colour %.0f %.0f %.0f\n",
+          " the ground's mean colour %.0f %.0f %.0f; the hills' shadows: %s, %dx%d texels (%d a tile), made %ld times, the last in %.1f ms\n",
           g_sh.on ? "dynamic" : "game", (double)g_sh.strength,
           g_sh.ready > 0 ? "ready" : g_sh.ready < 0 ? "FAILED (the log says why)" : "not made yet", (long)g_sh.passes,
           g_sh.last_cast, g_sh.last_ground, (double)g_sh.last_lo[0], (double)g_sh.last_lo[1], (double)g_sh.last_lo[2],
@@ -675,5 +797,6 @@ internal void cmd_shadows(char *out, const char *args) {
           (double)g_sh.level, g_sh.shl[2] > 0 ? "" : " (none seen)", (double)g_sh.fade, g_sh.tint ? "on" : "off", g_sh.all ? "everything" : "the ground",
           (double)g_sh.sun_low, (double)(asinf(fminf(1, fmaxf(-1, g_sh.sun_lit))) * 180 / 3.14159265f),
           !g_shr.on ? "not (no hooks)" : g_shr.off ? "off" : "collected", (double)g_shr.reach, (double)g_sh.tall, g_shr.last_own, g_shr.last_extra, g_sh.last_off,
-          (double)g_sh.ground_mean[0], (double)g_sh.ground_mean[1], (double)g_sh.ground_mean[2]);
+          (double)g_sh.ground_mean[0], (double)g_sh.ground_mean[1], (double)g_sh.ground_mean[2],
+          g_sh.nohills ? "off" : g_sh.hill_ok ? "on" : "not made", g_sh.hn, g_sh.hn, g_sh.hr, (long)g_sh.hill_made, (double)g_sh.hill_ms);
 }
