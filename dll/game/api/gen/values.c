@@ -854,6 +854,7 @@ internal uint32_t data_hooks_site_editor_res;
 internal uint32_t data_hooks_site_sim_receive;
 internal uint32_t data_hooks_site_sim_wait;
 internal uint32_t calls_other_resolution[7];
+internal uint32_t call_draw_record_fill;
 internal uint32_t data_tcp_protocol_connect_ports[3];
 internal uint32_t data_tcp_protocol_ports[5];
 

@@ -185,6 +185,15 @@ static unsafe class hooks_functions
     [call_site("other_resolution", (ee)0x00661329, (aoc)0x00678973)]
     [call_site("other_resolution", (ee)0x00661363, (aoc)0x006789AD)]
     static extern void set_resolution(int32 w, int32 h, int32 force, int32 flag);
+
+    /// thiscall(the collection's, unit, its draw list record (ee_draw_record, 0x148), p3, p4): the units' collection
+    /// (EEROUnits::vf0 0x503B83) fills a unit's record - its type, colours ... and its matrix (the record's first 3 x 4
+    /// floats, as a unit's): a unit's from its physics part, an object without one (an ambient object, a resource
+    /// site: the plain EEUnit, no matrix of its own) turned by its heading only (type +0x5FA, else 0) at the ground's
+    /// height at its middle - level on any slope. Types with the flag +0x619 get the small record (0x501DFF) instead
+    [address((ee)0x00502622, (aoc)0x0050D3AD), thiscall]
+    [call_site("draw_record_fill", (ee)0x00503FFD, (aoc)0x0050EF38)]
+    static extern void draw_record_fill(void* collection, EEUnit* u, float32* record, void* p3, void* p4);
 }
 
 /// TCP Protocol.dll's code (each build ships its own): its places relative to the DLL's base

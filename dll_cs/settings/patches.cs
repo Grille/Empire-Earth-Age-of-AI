@@ -70,7 +70,9 @@ class patches
     /// stood level, its legs in the hill on one side and in the air on the other, and the scenario editor leaned
     /// one only forward and back (on a hill falling sideways it sank in and floated) or, turned, stood it level.
     /// Now they lean with the ground both ways wherever they are built or placed, and a scenario's are mended at its
-    /// start. In multiplayer every player needs the same setting. 0 = the original
-    [title("Buildings on slopes")]
+    /// start. Farms, mines, forage bushes and the ambient objects (debris, rocks, bones, wrecks, plants) stood
+    /// level too: they now follow the slope under them, their upright parts kept upright. In multiplayer every
+    /// player needs the same setting. 0 = the original
+    [title("Objects on slopes")]
     bool building_lean = true;
 }

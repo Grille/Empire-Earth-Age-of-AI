@@ -76,6 +76,15 @@ typedef void (__stdcall *set_resolution_fn)(int, int, int, int);
 internal set_resolution_fn fn_set_resolution;
 internal inline void set_resolution(int w, int h, int force, int flag) { fn_set_resolution(w, h, force, flag); }
 internal inline int patch_other_resolution(set_resolution_fn h, int *of) { return patch_calls(calls_other_resolution, 7, (uintptr_t)fn_set_resolution, (void *)h, of); }
+// thiscall(the collection's, unit, its draw list record (ee_draw_record, 0x148), p3, p4): the units' collection
+// (EEROUnits::vf0 0x503B83) fills a unit's record - its type, colours ... and its matrix (the record's first 3 x 4
+// floats, as a unit's): a unit's from its physics part, an object without one (an ambient object, a resource
+// site: the plain EEUnit, no matrix of its own) turned by its heading only (type +0x5FA, else 0) at the ground's
+// height at its middle - level on any slope. Types with the flag +0x619 get the small record (0x501DFF) instead
+typedef void (__thiscall *draw_record_fill_fn)(void *, ee_unit *, float *, void *, void *);
+internal draw_record_fill_fn fn_draw_record_fill;
+internal inline void draw_record_fill(void *collection, ee_unit *u, float *record, void *p3, void *p4) { fn_draw_record_fill(collection, u, record, p3, p4); }
+internal inline int patch_draw_record_fill(draw_record_fill_fn h) { return patch_call(call_draw_record_fill, (uintptr_t)fn_draw_record_fill, (void *)h); }
 
 // static class tcp_protocol
 // TCP Protocol.dll's code (each build ships its own): its places relative to the DLL's base
@@ -154,6 +163,8 @@ internal int spec_hooks_select(int build) {
         calls_other_resolution[4] = 0x00660CD3;
         calls_other_resolution[5] = 0x00661329;
         calls_other_resolution[6] = 0x00661363;
+        fn_draw_record_fill = (draw_record_fill_fn)0x00502622;
+        call_draw_record_fill = 0x00503FFD;
         data_tcp_protocol_connect_ports[0] = 0x000017E2;
         data_tcp_protocol_connect_ports[1] = 0x0000196F;
         data_tcp_protocol_connect_ports[2] = 0x000019EB;
@@ -230,6 +241,8 @@ internal int spec_hooks_select(int build) {
         calls_other_resolution[4] = 0x0067831D;
         calls_other_resolution[5] = 0x00678973;
         calls_other_resolution[6] = 0x006789AD;
+        fn_draw_record_fill = (draw_record_fill_fn)0x0050D3AD;
+        call_draw_record_fill = 0x0050EF38;
         data_tcp_protocol_connect_ports[0] = 0x00001684;
         data_tcp_protocol_connect_ports[1] = 0x0000185C;
         data_tcp_protocol_connect_ports[2] = 0x000018D8;
@@ -303,5 +316,7 @@ internal int spec_hooks_check(void) {
     bad += spec_call(calls_other_resolution[4], (uintptr_t)fn_set_resolution, "hooks_functions.set_resolution [call_site other_resolution 4]");
     bad += spec_call(calls_other_resolution[5], (uintptr_t)fn_set_resolution, "hooks_functions.set_resolution [call_site other_resolution 5]");
     bad += spec_call(calls_other_resolution[6], (uintptr_t)fn_set_resolution, "hooks_functions.set_resolution [call_site other_resolution 6]");
+    bad += spec_code((uintptr_t)fn_draw_record_fill, "hooks_functions.draw_record_fill");
+    bad += spec_call(call_draw_record_fill, (uintptr_t)fn_draw_record_fill, "hooks_functions.draw_record_fill [call_site draw_record_fill]");
     return bad;
 }

@@ -110,7 +110,13 @@ changes the simulation: in a lockstep game different values make the PCs' games 
   stands it level - only painting the ground under it put it right. Now a building laid out by a player or the AI
   leans as a placed one does and keeps it when finished; in the editor every such unit is stood onto the ground a
   moment after any change (with the walls' watch), and a game's start stands those a scenario saved half leaned.
-  Ships and aircraft are left alone. In multiplayer every player needs the same setting. `0` = the original.
+  Ships and aircraft are left alone. Farms, mines, forage bushes and the ambient objects (debris, rocks, bones,
+  wrecks, plants) stood level on any slope as well, half in the hill: they are now sheared onto the slope under
+  them - their foot on the ground on every side, their upright parts (crop rows, stakes, lamps) still upright;
+  trees and what doesn't stand on the ground (lily pads) stay as they were. Only their drawing changes: each frame
+  the matrix they are drawn with (an ambient object or a mine has none of its own - the game makes one, level) is
+  sheared by the ground under them, so it holds in the editor, in saved scenarios and in every game alike. The
+  smallest plants (a short draw record of their own) stay level. In multiplayer every player needs the same setting. `0` = the original.
 
 ## Selection, transports and building
 

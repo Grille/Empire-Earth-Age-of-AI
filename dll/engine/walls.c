@@ -837,36 +837,80 @@ internal int __cdecl hook_gate_convert(ee_unit *u, int pi, ee_unit_type *td) {
 // piece turns a post only where another piece points at it from aside, and a tower points at nothing (the game's
 // wall_joints counts towers among a piece's neighbours - a wall laid past a tower got a post beside it, a piece again
 // at its joins: pointed at from either side)
-// With building_lean a building that leans with the ground (its type's pitches, banks: the AA guns) stood onto it as the
-// map's place stands a spawned one - laid out in a game it stood level, its legs in the hill on one side
+// With building_lean what stands on the ground follows it: a type that leans with the ground (its type's pitches, banks:
+// the AA guns) stood onto it as the map's place stands a spawned one - laid out in a game it stood level, its legs in the
+// hill on one side; farms, the resources but trees (mines, forage bushes) and the ambient objects (debris, rocks, bones,
+// wrecks, plants) sheared onto the ground's slope under them (the player, 2026-11-05: "could you apply the lean to debris
+// too? the resources/mines could also profit from that") - their upright parts stay upright (a farm's crop rows, a
+// lamp), their foot on the ground on every side; one not standing on the ground (lily pads on the water) left alone
 internal int g_bl_on;
 
-// every unit that leans with the ground (not an aircraft's or a ship's type: theirs is their flight's) stood onto it by
-// the game's own stand, its heading kept: the scenario editor's placing and moving pitch it only, never roll it (an AA
-// gun on a hill falling sideways sank in on one side and floated on the other - the player, 2026-11-05: "only changing
-// the terrain forces it to place correctly"), its turning stands it level; a game's start mends what a scenario saved
-// so. What: for the log, which names how many changed
-internal void bl_lean_all(const char *what) {
-    int n = 0, all = 0;
-    for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
-        if ((!unit_type_get_pitches(it.td) && !unit_type_get_banks(it.td)) || (unit_type_get_kind_flags(it.td) & 5) || unit_get_x(it.u) < 0) continue;
-        float m[12], p[3] = { unit_get_matrix(it.u, 3), unit_get_matrix(it.u, 7), unit_get_matrix(it.u, 11) };
-        for (int i = 0; i < 12; i++) m[i] = unit_get_matrix(it.u, i);
-        unit_stand(it.u, p);
-        all++;
-        for (int i = 0; i < 12; i++) if (fabsf(unit_get_matrix(it.u, i) - m[i]) > 1e-4f) { n++; break; }
-    }
-    if (n && g_log) fprintf(g_log, "# walls: building_lean: %d of %d units that lean with the ground stood onto it (%s)\n", n, all, what);
+#define BL_ON_GROUND 0.1f   // a sheared object stands on the ground: its height this near the ground's at its middle
+
+internal int bl_sheared(const ee_unit_type *td) {
+    enum unit_class c = unit_type_get_class_id(td);
+    if (c == CLS_AMBIENT) return 1;
+    if (c == CLS_RESOURCE) return unit_type_get_resource_type(td) > 0 && unit_type_get_resource_type(td) != 3;   // 3 wood: trees; 0 scaffolding, foundations, markers
+    return unit_type_get_id(td) == UT(B_FARM);
+}
+
+// m (3 x 4, by row: a unit's matrix, a draw record's) sheared onto the ground's slope over a footprint of size tiles
+// (half a tile out at least): z rises by gx, gy per tile of x, y - its local x and y by their world x, y (their own
+// scale and turn kept). on_ground: only when its height is the ground's at its middle (not a lily pad on the water; a
+// building is left to its own height). 0: left as it was
+internal int bl_shear(const ee_map *map, float *m, int size, int on_ground) {
+    float g = ground_at(map, m[3], m[7]);
+    if (g != g || (on_ground && fabsf(m[11] - g) > BL_ON_GROUND)) return 0;
+    float r = size > 1 ? 0.5f * (float)size : 0.5f;
+    float gx = (ground_at(map, m[3] + r, m[7]) - ground_at(map, m[3] - r, m[7])) / (2 * r);
+    float gy = (ground_at(map, m[3], m[7] + r) - ground_at(map, m[3], m[7] - r)) / (2 * r);
+    if (gx != gx || gy != gy) return 0;
+    m[8] = gx * m[0] + gy * m[4];
+    m[9] = gx * m[1] + gy * m[5];
+    return 1;
+}
+
+// u onto the ground by the game's stand (a leaning type's, else nothing); 1 when its matrix changed. Only a unit with its
+// physics part has a matrix (+0x130): an ambient object or a resource site is the plain EEUnit (0x48 bytes). The
+// sheared kinds are sheared where they are drawn (hook_draw_record_fill below): the game's state stays as it was
+internal int bl_ground(ee_unit *u, const ee_unit_type *td) {
+    if (!unit_get_physics(u) || unit_get_x(u) < 0 || (unit_type_get_kind_flags(td) & 5)) return 0;   // off the map; an aircraft's, a ship's type
+    float m[12];
+    for (int i = 0; i < 12; i++) m[i] = unit_get_matrix(u, i);
+    if (unit_type_get_pitches(td) || unit_type_get_banks(td)) {
+        float p[3] = { m[3], m[7], m[11] };
+        unit_stand(u, p);
+    } else return 0;
+    for (int i = 0; i < 12; i++) if (fabsf(unit_get_matrix(u, i) - m[i]) > 1e-4f) return 1;
+    return 0;
+}
+
+// every unit on the map onto the ground: the scenario editor's placing and moving pitch a leaning one only, never roll
+// it (an AA gun on a hill falling sideways sank in on one side and floated on the other - the player, 2026-11-05: "only
+// changing the terrain forces it to place correctly"), its turning stands it level; a game's start mends what a
+// scenario saved so. What: for the log, which names how many changed
+internal void bl_ground_all(const char *what) {
+    ee_map *map = game_map();
+    int n = 0;
+    for (struct grid_it it = grid_it_all(1); map && grid_it_next(&it); ) n += bl_ground(it.u, it.td);
+    if (n && g_log) fprintf(g_log, "# walls: building_lean: %d units put onto the ground (%s)\n", n, what);
+}
+
+// a sheared kind's draw record sheared onto the ground - every frame, the drawing only (the game's state untouched, the
+// same on every PC whatever this one draws): an ambient object or a resource site has no matrix of its own (the
+// collection turns it by its heading at the ground's height, level), a farm's is its unit's (level as laid out)
+internal void __thiscall hook_draw_record_fill(void *c, ee_unit *u, float *rec, void *p3, void *p4) {
+    draw_record_fill(c, u, rec, p3, p4);
+    ee_unit_type *td = u ? unit_get_type_data(u) : NULL;
+    ee_map *map = game_map();
+    if (td && map && rec && bl_sheared(td)) bl_shear(map, rec, unit_type_get_size(td), unit_type_get_class_id(td) != CLS_BUILDING);
 }
 internal ee_unit *__cdecl hook_place_building(ee_player *pl, int type, int x, int y) {
     ee_unit *b = place_foundation(pl, type, x, y);
-    ee_unit_type *bt = b && g_bl_on ? unit_get_type_data(b) : NULL;
-    if (bt && (unit_type_get_pitches(bt) || unit_type_get_banks(bt))) {
-        float p[3] = { unit_get_matrix(b, 3), unit_get_matrix(b, 7), unit_get_matrix(b, 11) };
-        unit_stand(b, p);
-        if (g_log) fprintf(g_log, "# walls: building_lean: type %d at %d,%d leaned onto the ground (its facing's rise %.2f, its side's %.2f)\n",
-                           type, unit_get_x(b), unit_get_y(b), unit_get_matrix(b, 9), unit_get_matrix(b, 8));
-    }
+    ee_map *map = game_map();
+    if (b && g_bl_on && map && bl_ground(b, unit_get_type_data(b)) && g_log)
+        fprintf(g_log, "# walls: building_lean: type %d at %d,%d put onto the ground (its facing's rise %.2f, its side's %.2f)\n",
+                type, unit_get_x(b), unit_get_y(b), unit_get_matrix(b, 9), unit_get_matrix(b, 8));
     ee_unit_type *td = b && g_wj_on && ut_role(type, UTR_TOWER) ? type_data(type) : NULL;
     if (td) {
         int s = unit_type_get_size(td) > 0 ? unit_type_get_size(td) : 1;
@@ -883,7 +927,7 @@ internal void __thiscall hook_step_end(ee_physics *ph) {
     if (game_time()) { g_ws_ed_seen = 0; g_ws_ed_base = 0; }   // a game runs (a test play): not the editor - its time stays 0
     if (!g_ws_fitted_game) {
         g_ws_fitted_game = 1;
-        if (g_bl_on) bl_lean_all("the game's start");
+        if (g_bl_on) bl_ground_all("the game's start");
         if (g_ws_on && g_ws_start) wj_area(-1, -1, -1, -1, "the game's start");
     }
     if (!g_ws_on || !g_wj_ev_n) return;
@@ -958,7 +1002,7 @@ internal void walls_safe_point(void) {
     if (now - last < WS_ED_EVERY) return;
     last = now;
     g_ws_fitted_game = 1;
-    if (g_bl_on) bl_lean_all("the editor's");
+    if (g_bl_on) bl_ground_all("the editor's");
     if (!g_ws_on) return;
     g_wj_ev_n = 0;   // the layouts' notes (time 0): the look below finds their pieces
     const struct ws_ed *o = g_ws_ed[g_ws_ed_cur];
@@ -1006,11 +1050,13 @@ internal void walls_install(void) {
     int more = (any ? patch_step_end(hook_step_end) : 0) + (g_ws_on ? patch_gate_convert(hook_gate_convert) : 0);
     int pof = 0, pn = g_wj_on || g_bl_on ? patch_place_building(hook_place_building, &pof) : 0;
     int ed = any ? patch_editor_frame(hook_editor_frame) : 0;
+    int df = g_bl_on ? patch_draw_record_fill(hook_draw_record_fill) : 0;
     if (g_ws_on && (!on_module_load("DX7HRDisplay.dll", ws_display_loaded0) || !on_module_load("DX7HRTnLDisplay.dll", ws_display_loaded1)) && g_log)
         fprintf(g_log, "# walls: skirts - the display DLLs' loads not watchable\n");
-    if (g_log) fprintf(g_log, "# walls: wall_slopes=%d wall_joins=%d wall_start_fit=%d building_lean=%d (%s%s%s%s)\n", g_ws_on, g_wj_on, g_ws_start, g_bl_on,
+    if (g_log) fprintf(g_log, "# walls: wall_slopes=%d wall_joins=%d wall_start_fit=%d building_lean=%d (%s%s%s%s%s)\n", g_ws_on, g_wj_on, g_ws_start, g_bl_on,
                        !g_ws_on ? "-" : n == of ? "the layout's calls hooked" : n ? "SOME of the layout's calls hooked" : "FAILED",
                        !any ? "" : more == 1 + g_ws_on ? ", the step's end, the gate's" : ", the step's end or the gate's FAILED",
                        !g_wj_on && !g_bl_on ? "" : pn == pof ? ", the buildings' placing" : ", the buildings' placing FAILED",
-                       !any ? "" : ed ? ", the editor's" : ", the editor's FAILED");
+                       !any ? "" : ed ? ", the editor's" : ", the editor's FAILED",
+                       !g_bl_on ? "" : df ? ", the objects' drawing" : ", the objects' drawing FAILED");
 }
