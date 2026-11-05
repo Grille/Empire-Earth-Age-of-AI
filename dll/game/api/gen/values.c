@@ -3104,6 +3104,7 @@ internal uint32_t of_world_setup;
 internal uint32_t of_world_setup_2;
 internal uint32_t of_world_gatherer_counts;
 internal uint32_t of_world_alliances;
+internal uint32_t of_world_daytime;
 internal uint32_t of_world_local_player;
 internal uint32_t of_world_standard_victory;
 internal uint32_t slot_world_resort;
