@@ -115,10 +115,11 @@ changes the simulation: in a lockstep game different values make the PCs' games 
   them - their foot on the ground on every side, their upright parts (crop rows, stakes, lamps) still upright;
   trees and what doesn't stand on the ground (lily pads) stay as they were. Only their drawing changes: each frame
   the matrix they are drawn with (an ambient object or a mine has none of its own - the game makes one, level) is
-  sheared by the ground under them, so it holds in the editor, in saved scenarios and in every game alike. On a
-  curved slope a plane still left a big one (4-tile debris over a ridge) floating at its ends: so an ambient object's
-  or a mine's model is also bent onto the ground as it is drawn - each vertex up or down by the ground's distance
-  from that plane under it, as the game lays a farm's ground mesh corner by corner (the renderer copies the
+  sheared by the ground under them (a farm), so it holds in the editor, in saved scenarios and in every game alike.
+  A plane leaves a big object on a curved slope (4-tile debris over a ridge) floating at its ends, and a skewed
+  matrix lights it darker: so an ambient object's or a mine's model is bent onto the ground as it is drawn instead -
+  each vertex up or down to the ground under it (the highest within a quarter tile of the model's scale, so a big
+  base triangle stays over a bulge), as the game lays a farm's ground mesh corner by corner (the renderer copies the
   vertices at every draw: they are put back after, the shared model unchanged). The smallest plants (a short draw record of their own) stay level. In multiplayer every player needs the same setting. `0` = the original.
 
 ## Selection, transports and building

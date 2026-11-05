@@ -451,7 +451,7 @@ internal void ws_skirt_drawn(ee_rasterizer *ras, ee_model *m, uint32_t screen) {
         return;
     }
 }
-// BENT OBJECTS (building_lean): a sheared object's model bent onto the ground where it is drawn (bl_bend below)
+// BENT OBJECTS (building_lean): an ambient object's or a resource site's model bent onto the ground where it is drawn (bl_bend below)
 internal volatile LONG g_bl_n;
 internal ee_vertices *bl_bend(ee_model *m);
 internal void bl_unbend(ee_vertices *a);
@@ -906,25 +906,29 @@ internal void bl_ground_all(const char *what) {
     if (n && g_log) fprintf(g_log, "# walls: building_lean: %d units put onto the ground (%s)\n", n, what);
 }
 
-// The shear fits a plane: on a curved slope a big object (debris over 4 tiles between hills) still floated at its ends
-// and sank in its middle (the player, 2026-11-05: "this is still a bit silly, could it follow the same transform the
-// farms use to fit the ground" - a farm's ground is a mesh of its own, each corner at the ground's height, 0x4E4F4A).
-// A model is shared by every object of its kind, but the renderer copies the frame's vertices into its vertex buffer
-// at every draw (CopyStdVertices) at the model's transformation, which the exe sets to the object's before: so where
-// a plain sheared object's model is drawn, each vertex goes up or down by the ground's distance from that plane under
-// it (its model z by that over the transformation's z scale), and back after the draw. Its models: every animation's
-// of its type's graphics (BL_ANIMS), noted with its footprint when its record is filled (a hash of the graphics
-// objects seen, so it costs a lookup a frame)
+// BENT OBJECTS: a shear fits a plane - on a curved slope a big object (debris over 4 tiles between hills) still floated
+// at its ends and sank in its middle (the player, 2026-11-05: "this is still a bit silly, could it follow the same
+// transform the farms use to fit the ground" - a farm's ground is a mesh of its own, each corner at the ground's height,
+// 0x4E4F4A), and a sheared matrix lights the model by its skew (a 2x2 debris on a steep spot drawn dark, squashed: "the
+// 2x2 debris is still messy"). So an ambient object or a resource site keeps the level matrix the collection gives it,
+// and its model is bent instead: shared by every object of its kind, but the renderer copies the frame's vertices into
+// its vertex buffer at every draw (CopyStdVertices) at the model's transformation, which the exe sets to the object's
+// before - so there each vertex goes up or down by the ground's height under it over the ground's at its middle (its
+// model z by that over the transformation's z scale), and back after the draw. The ground under a vertex is the highest
+// within BL_SPAN around it: the debris' base is a few big triangles (75 vertices, drawn at twice their size for the
+// 2x2), whose middles went under a bulge between their corners. Its models: every animation's of its type's graphics
+// (BL_ANIMS), noted when its record is filled (a hash of the graphics objects seen: a lookup a frame)
 #define BL_MODELS 512       // models bent (the plain sheared kinds': ambient objects, resources)
 #define BL_GFX 1024         // graphics objects seen (a power of two)
 #define BL_ANIMS 71         // EEGraphicObject's models, one per animation (+0x234 .. +0x350)
 #define BL_BEND_MAX 8192    // vertices of a frame bent at most
-struct bl_model { ee_model *m; int size; };
+#define BL_SPAN 0.25f       // a bent vertex goes onto the highest ground this far around it (a tile, by the model's scale)
+struct bl_model { ee_model *m; };
 internal struct bl_model g_bl_models[BL_MODELS];
 internal void *g_bl_gfx[BL_GFX];
 internal float g_bl_z[BL_BEND_MAX];   // the bent vertices' own z, put back after the draw (the graphics thread's)
 
-internal void bl_mark(ee_unit *u, int size) {
+internal void bl_mark(ee_unit *u) {
     ee_unit_stats *st = unit_get_stats(u);
     ee_dmg_model *gfx = st ? unit_stats_get_gfx(st) : NULL;
     if (!gfx) return;
@@ -937,7 +941,7 @@ internal void bl_mark(ee_unit *u, int size) {
         int n = g_bl_n, dup = 0;
         for (int i = 0; i < n && !dup; i++) dup = g_bl_models[i].m == m;
         if (!m || dup || n >= BL_MODELS) continue;
-        g_bl_models[n] = (struct bl_model){ m, size };
+        g_bl_models[n] = (struct bl_model){ m };
         InterlockedIncrement(&g_bl_n);   // after the entry: the graphics thread reads up to the count
     }
 }
@@ -945,10 +949,9 @@ internal void bl_mark(ee_unit *u, int size) {
 // m's frame bent onto the ground at its transformation, when it is a noted model: its vertex array (to put back), else
 // NULL
 internal ee_vertices *bl_bend(ee_model *m) {
-    int n = g_bl_n, i = 0, size = 0;
+    int n = g_bl_n, i = 0;
     while (i < n && g_bl_models[i].m != m) i++;
     if (i == n) return NULL;
-    size = g_bl_models[i].size;
     ee_vertices **va = model_get_vertices(m);
     ee_map *map = game_map();
     uint32_t f = model_get_frame(m);
@@ -958,16 +961,22 @@ internal ee_vertices *bl_bend(ee_model *m) {
     ee_vertex *data = vertices_get_data(a);
     const float *t = model_transform_at(m);
     if (!data || cnt > BL_BEND_MAX || fabsf(t[10]) < 1e-3f) return NULL;
-    // the plane its shear stands on (bl_shear's)
-    float r = size > 1 ? 0.5f * (float)size : 0.5f, cx = t[3], cy = t[7];
-    float g0 = ground_at(map, cx, cy);
-    float gx = (ground_at(map, cx + r, cy) - ground_at(map, cx - r, cy)) / (2 * r);
-    float gy = (ground_at(map, cx, cy + r) - ground_at(map, cx, cy - r)) / (2 * r);
-    if (g0 != g0 || gx != gx || gy != gy) return NULL;
+    // level at the ground's height at its middle, as the collection made it (one not standing there - a lily pad on the
+    // water - left as it is)
+    float g0 = ground_at(map, t[3], t[7]);
+    if (g0 != g0 || fabsf(t[11] - g0) > BL_ON_GROUND) return NULL;
+    float span = BL_SPAN * sqrtf(t[0] * t[0] + t[4] * t[4]);
     for (uint32_t k = 0; k < cnt; k++) {
         float *v = (float *)vertex_at(data, k);
         float px = t[0] * v[0] + t[1] * v[1] + t[2] * v[2] + t[3], py = t[4] * v[0] + t[5] * v[1] + t[6] * v[2] + t[7];
-        float g = ground_at(map, px, py), d = g - (g0 + gx * (px - cx) + gy * (py - cy));
+        // the highest ground around it (BL_SPAN of the model's scale): a big triangle between bent corners stays
+        // over a bulge of the ground under its middle
+        float g = ground_at(map, px, py);
+        for (int q = 0; q < 4; q++) {
+            float h = ground_at(map, px + (q & 1 ? span : -span), py + (q & 2 ? span : -span));
+            if (h > g) g = h;
+        }
+        float d = g - g0;
         g_bl_z[k] = v[2];
         if (d == d) v[2] += d / t[10];
     }
@@ -979,16 +988,17 @@ internal void bl_unbend(ee_vertices *a) {
     for (uint32_t k = 0; k < cnt && k < BL_BEND_MAX; k++) ((float *)vertex_at(data, k))[2] = g_bl_z[k];
 }
 
-// a sheared kind's draw record sheared onto the ground - every frame, the drawing only (the game's state untouched, the
-// same on every PC whatever this one draws): an ambient object or a resource site has no matrix of its own (the
-// collection turns it by its heading at the ground's height, level), a farm's is its unit's (level as laid out)
+// a sheared kind's drawing onto the ground - every frame, the drawing only (the game's state untouched, the same on every
+// PC whatever this one draws): a farm's record (its unit's matrix, level as laid out) sheared; an ambient object or a
+// resource site (no matrix of its own: the collection turns it by its heading at the ground's height, level) its model
+// noted, to be bent where it is drawn
 internal void __thiscall hook_draw_record_fill(void *c, ee_unit *u, float *rec, void *p3, void *p4) {
     draw_record_fill(c, u, rec, p3, p4);
     ee_unit_type *td = u ? unit_get_type_data(u) : NULL;
     ee_map *map = game_map();
     if (!td || !map || !rec || !bl_sheared(td)) return;
-    if (bl_shear(map, rec, unit_type_get_size(td), unit_type_get_class_id(td) != CLS_BUILDING) && !unit_get_physics(u))
-        bl_mark(u, unit_type_get_size(td));
+    if (unit_get_physics(u)) bl_shear(map, rec, unit_type_get_size(td), unit_type_get_class_id(td) != CLS_BUILDING);
+    else bl_mark(u);
 }
 internal ee_unit *__cdecl hook_place_building(ee_player *pl, int type, int x, int y) {
     ee_unit *b = place_foundation(pl, type, x, y);
