@@ -143,6 +143,26 @@ N times a frame, M of them inside the scene ..., the ring full K times`. Measure
 the game's shadows: the same as the build before where nothing moves (a terrain patch identical to the pixel; the info
 panel and the counters differ with the game's state).
 
+## The frame and the simulation's lock
+
+The game draws a frame under the world's read lock (Low-Level Engine's TSReadWriteLock): EEGraphics::vf3 0x4FED2D
+takes it once (with the interface's critical section), runs RTSGraphics::vf3 - every render object's draw, the scene's
+end - and lets it go; the simulation's loop (RTSPhysics::Main 0x5532FB) takes the write lock once a pass for its step.
+A frame that comes during a step waits for the rest of it: the camera stands, then jumps (the player's late game,
+2026-11-03: 100-250 frames a minute 8 ms or more, the holds 30-90 ms). The lock: a writer enters a critical section
+and waits on an auto-reset event the last reader sets again; a first reader waits on the same event.
+The minute's lines: `frames waiting 8 ms or more for the lock` (the holds that long by where the game took the lock) and
+`the frame's read holds of the world` (how long the frame keeps it - what the simulation waits for a frame; one hold a
+frame, 0.5-1.3 ms on the reference save).
+
+Tried and dropped, 2026-11-05 (the player: "is it possible to decouple the rendering from the simulation lock?"): the
+loop runs up to two steps under one hold, so the lock was let go between them while a frame waited (the step's vtable
+slot). It never came up: the loop runs a second step only when its timer was late, and its step count is taken from
+the time since the timer's wait ended, so even 25 ms steps (the pipe's stepload, longer than the 22 ms pass) ran one
+step a hold - 2275 holds a minute of 25 ms each, one frame let in in 10 minutes of the reference save. The holds the
+frames wait for are single steps. What is left: the frame not waiting at all - while the simulation holds the lock,
+the last frame's list drawn again from the camera as it is now (EEGraphics::vf3 skipped), or the steps made shorter.
+
 ## The debug overlay
 
 2026-10-28 (the player: what the renderer could do - the AI's plans on the map). `[display] overlay = routes,danger`

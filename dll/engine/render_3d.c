@@ -656,11 +656,25 @@ internal struct { uintptr_t ret; LONG n; LONGLONG sum, max; } g_rwl_long[RWL_SIT
 internal uintptr_t g_rwl_write_ret;
 internal LONG g_rwl_waits_long;
 internal LONGLONG g_rwl_wait_max;
+internal LONGLONG g_rwl_read_at, g_rwl_read_qpc;   // the render thread's read holds (the frame's time the simulation waits)
+internal LONG g_rwl_reads;
+internal uintptr_t g_rwl_read_ret;   // where the game took it
+internal int g_rwl_read_depth;
+internal rd_rwl_fn g_rwl_runlock;
+internal void __thiscall rd_hook_read_unlock(void *lock) {
+    if (GetCurrentThreadId() == g_rd_thread && g_rwl_read_depth > 0 && --g_rwl_read_depth == 0)
+        g_rwl_read_qpc += rd_qpc() - g_rwl_read_at;
+    g_rwl_runlock(lock);
+}
 internal void __thiscall rd_hook_read_lock(void *lock) {
     if (GetCurrentThreadId() != g_rd_thread) { g_rwl_read(lock); return; }
     LONGLONG t0 = rd_qpc();
     g_rwl_read(lock);
-    LONGLONG w = rd_qpc() - t0;
+    g_rwl_read_ret = (uintptr_t)__builtin_return_address(0);
+    LONGLONG t1 = rd_qpc();
+    if (g_rwl_read_depth++ == 0) g_rwl_read_at = t1;
+    g_rwl_reads++;
+    LONGLONG w = t1 - t0;
     g_rwl_wait_qpc += w;
     if (w >= rd_qpc_ms(RWL_LONG_MS)) g_rwl_waits_long++;
     if (w > g_rwl_wait_max) g_rwl_wait_max = w;
@@ -696,10 +710,12 @@ internal int rd_world_lock_install(void) {
     HMODULE lle = GetModuleHandleA("Low-Level Engine.dll"), exe = GetModuleHandleA(NULL);
     if (!lle) return 0;
     g_rwl_read = (rd_rwl_fn)(void *)GetProcAddress(lle, "?ReadLock@TSReadWriteLock@@QAEXXZ");
+    g_rwl_runlock = (rd_rwl_fn)(void *)GetProcAddress(lle, "?ReadUnlock@TSReadWriteLock@@QAEXXZ");
     g_rwl_write = (rd_rwl_fn)(void *)GetProcAddress(lle, "?WriteLock@TSReadWriteLock@@QAEXXZ");
     g_rwl_wunlock = (rd_rwl_fn)(void *)GetProcAddress(lle, "?WriteUnlock@TSReadWriteLock@@QAEXXZ");
-    if (!g_rwl_read || !g_rwl_write || !g_rwl_wunlock) return 0;
+    if (!g_rwl_read || !g_rwl_runlock || !g_rwl_write || !g_rwl_wunlock) return 0;
     return patch_iat(exe, "Low-Level Engine.dll", "?ReadLock@TSReadWriteLock@@QAEXXZ", (void *)rd_hook_read_lock) +
+           patch_iat(exe, "Low-Level Engine.dll", "?ReadUnlock@TSReadWriteLock@@QAEXXZ", (void *)rd_hook_read_unlock) +
            patch_iat(exe, "Low-Level Engine.dll", "?WriteLock@TSReadWriteLock@@QAEXXZ", (void *)rd_hook_write_lock) +
            patch_iat(exe, "Low-Level Engine.dll", "?WriteUnlock@TSReadWriteLock@@QAEXXZ", (void *)rd_hook_write_unlock);
 }
@@ -856,6 +872,11 @@ internal void rd_frame_tick(void) {
     }
     log_locked("# render: frames waiting %d ms or more for the lock %ld (longest %.0f ms); its holds that long by where the"
                " game took it: %s\n", RWL_LONG_MS, (long)g_rwl_waits_long, (double)g_rwl_wait_max * ms, len ? sites : "none");
+    static LONG reads0;
+    static LONGLONG read0;
+    log_locked("# render: the frame's read holds of the world %.2f ms a frame (%.2f holds; the game took the last at %08x)\n",
+               (double)(g_rwl_read_qpc - read0) * k, fr > 0 ? (double)(g_rwl_reads - reads0) / fr : 0, (unsigned)g_rwl_read_ret);
+    reads0 = g_rwl_reads; read0 = g_rwl_read_qpc;
     memset(g_rwl_long, 0, sizeof g_rwl_long);
     g_rwl_waits_long = 0;
     g_rwl_wait_max = 0;

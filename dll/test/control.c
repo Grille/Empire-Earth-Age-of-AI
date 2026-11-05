@@ -338,6 +338,7 @@ internal void cmd_units(char *out, const char *args) {
 }
 
 // Runs on the game thread.
+internal double g_step_load_ms;   // the pipe's stepload (hook_phys_step)
 internal void execute(const char *cmd, char *out) {
     char verb[32] = "";
     int n = 0;
@@ -449,6 +450,10 @@ internal void execute(const char *cmd, char *out) {
     else if (!strcmp(verb, "turbo")) {
         if (*args) g_turbo = atoi(args);
         REPLY("turbo=%d\n", g_turbo);
+    }
+    else if (!strcmp(verb, "stepload")) {
+        if (*args) g_step_load_ms = atof(args);
+        REPLY("stepload: each step at least %.1f ms (a heavy late game's steps for the renderer's tests; 0 off)\n", g_step_load_ms);
     }
     else if (!strcmp(verb, "pause") || !strcmp(verb, "resume")) {
         int want = verb[0] == 'p';
@@ -635,6 +640,11 @@ internal void __thiscall hook_phys_step(ee_physics *phys) {
     g_step_t0 = t0.QuadPart;
     InterlockedExchange(&g_in_step, 1);
     physics_step(phys);
+    if (g_step_load_ms > 0) {   // the pipe's stepload: the step held that long at least, as a heavy game's (no game change)
+        LARGE_INTEGER n, fq;
+        QueryPerformanceFrequency(&fq);
+        do QueryPerformanceCounter(&n); while ((double)(n.QuadPart - t0.QuadPart) * 1000.0 / (double)fq.QuadPart < g_step_load_ms);
+    }
     InterlockedExchange(&g_in_step, 0);
     QueryPerformanceCounter(&t1);
     QueryPerformanceFrequency(&f);
