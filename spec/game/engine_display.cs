@@ -348,6 +348,15 @@ unsafe struct GEText
 [c_type("ee_model")]
 unsafe struct GEModel
 {
+    /// its transformation (3 x 4 floats by row, as a unit's matrix): DrawModelHierarchy draws it there - under the
+    /// hierarchy's stack's top when one is pushed - so a model drawn for several objects is set to each one's before
+    [offset(0x88), found(c)]
+    fixed float32 transform[12];
+
+    /// the frame drawn: CopyStdVertices copies vertices[frame]
+    [offset(0x134), found(c)]
+    uint32 frame;
+
     /// a box per frame of its animation (0x24 each), in the model's own space: ComputeBoundingBoxes (engine 0x31218)
     /// from the frame's vertices
     [offset(0x110), found(c)]

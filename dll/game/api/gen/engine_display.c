@@ -277,6 +277,15 @@ internal inline ee_font **text_font_at(const ee_text *o) { return (ee_font **)((
 // class GEModel (ee_model)
 // a model as the engine loaded it from its .cem (GEModel, Low-Level Engine.dll: a unit's EEUnit.model), the same
 // offsets in both builds' engines (their exports ComputeBoundingBoxes, SetModel)
+// its transformation (3 x 4 floats by row, as a unit's matrix): DrawModelHierarchy draws it there - under the
+// hierarchy's stack's top when one is pushed - so a model drawn for several objects is set to each one's before
+internal inline float model_get_transform(const ee_model *o, int i) { return ((float *)((uint8_t *)o + of_model_transform))[i]; }
+internal inline void model_set_transform(ee_model *o, int i, float v) { ((float *)((uint8_t *)o + of_model_transform))[i] = v; }
+internal inline float *model_transform_at(const ee_model *o) { return (float *)((uint8_t *)o + of_model_transform); }
+// the frame drawn: CopyStdVertices copies vertices[frame]
+internal inline uint32_t model_get_frame(const ee_model *o) { return *(uint32_t *)((uint8_t *)o + of_model_frame); }
+internal inline void model_set_frame(ee_model *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_model_frame) = v; }
+internal inline uint32_t *model_frame_at(const ee_model *o) { return (uint32_t *)((uint8_t *)o + of_model_frame); }
 // a box per frame of its animation (0x24 each), in the model's own space: ComputeBoundingBoxes (engine 0x31218)
 // from the frame's vertices
 internal inline ee_box *model_get_boxes(const ee_model *o) { return *(ee_box **)((uint8_t *)o + of_model_boxes); }
@@ -531,6 +540,8 @@ internal int spec_engine_display_select(int build) {
         of_surface_dc_out = 0x5D;
         of_text_string = 0x34;
         of_text_font = 0x44;
+        of_model_transform = 0x88;
+        of_model_frame = 0x134;
         of_model_boxes = 0x110;
         of_model_polygons = 0x100;
         of_model_vertices = 0x104;
@@ -670,6 +681,8 @@ internal int spec_engine_display_select(int build) {
         of_surface_dc_out = 0x5D;
         of_text_string = 0x34;
         of_text_font = 0x44;
+        of_model_transform = 0x88;
+        of_model_frame = 0x134;
         of_model_boxes = 0x110;
         of_model_polygons = 0x100;
         of_model_vertices = 0x104;
