@@ -27,7 +27,7 @@
 #include "game/api/builds.h"       // the exe builds the mod knows: the spec's builds (ee, aoc)
 #include "game/api/gen/values.c"   // the spec's values: offsets, addresses, slots (spec_select sets them)
 #include "game/api/exe.c"          // which build runs: game_build
-#include "game/api/editor_layout.h"   // the scenario editor's layout sites (generated, the 2017 update)
+#include "game/api/editor_layout.h"   // the scenario editor's layout sites (generated, both builds)
 #include "game/api/layout.h"       // FIELD: a read at a field's offset or a plain number
 #include "game/api/patching.c"     // the installers' helpers: patch_calls, PATCH_LIST, site_index
 #include "game/api/gen/enums.c"    // the game's enums (spec/game/scenario_lists.cs ...): the spec's C types fields by them

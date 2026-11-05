@@ -73,7 +73,8 @@ def compare(base, aoc, va, name, pairs, rows):
                         kx, fx = plausible(vx); ky, fy = plausible(vy)
                         if kx and ky:
                             # operand address: the imm32 is the last 4 bytes of the instruction for push/mov imm32
-                            rows.append(('imm', va, name, x.address, x.address + x.size - 4, kx, fx, fy, x.mnemonic + ' ' + x.op_str))
+                            rows.append(('imm', va, name, x.address, x.address + x.size - 4, kx, fx, fy, x.mnemonic + ' ' + x.op_str,
+                                         y.address + y.size - 4))
                 elif ox.type == x86.X86_OP_MEM and oy.type == x86.X86_OP_MEM and ox.mem.base == 0 and ox.mem.index == 0:
                     ax, ay = ox.mem.disp & 0xFFFFFFFF, oy.mem.disp & 0xFFFFFFFF
                     if is_addr(ax) and is_addr(ay) and ax >= 0x823000 and ay >= 0x837000:   # constants in .rdata
@@ -83,7 +84,8 @@ def compare(base, aoc, va, name, pairs, rows):
                             kx, fx = plausible(vx); ky, fy = plausible(vy)
                             if kx and ky and kx == ky and kx == 'f':
                                 # absolute memory operand without immediate: the disp32 is the last 4 bytes
-                                rows.append(('const', va, name, x.address, x.address + x.size - 4, kx, fx, fy, x.mnemonic + ' ' + x.op_str))
+                                rows.append(('const', va, name, x.address, x.address + x.size - 4, kx, fx, fy, x.mnemonic + ' ' + x.op_str,
+                                             y.address + y.size - 4))
 
 def fuzzy_pairs(bi, ai):
     """align two instruction lists on their normalized form; pairs from the equal blocks"""
@@ -141,7 +143,7 @@ def main():
             compare(base, aoc, va, name, best[2], rows)
     print('functions in range: %d matched exactly, %d of %d others matched fuzzily' % (matched, fuzzy, len(pending)))
     for r in rows:
-        line = '%s\t%06x\t%s\t%06x\t%06x\t%s\t%g\t%g\t%s' % r
+        line = '%s\t%06x\t%s\t%06x\t%06x\t%s\t%g\t%g\t%s\t%06x' % r   # the last column: AoC's operand
         print(line)
         if out: out.write(line + '\n')
     print(len(rows), 'value differences')
