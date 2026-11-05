@@ -510,6 +510,40 @@ static unsafe class engine_display
     [address((ee)0x0082318C, (aoc)0x00837174)]
     static block iat_sleep;
 
+    /// the units' render object's collection (EEROUnits.draw): the terrain mesh's visible tile rows - how many, then
+    /// each by its index (its y, first and last x: map tiles) - and the objects on their tiles; call
+    /// [GetNumVisibleTileRows], call [GetVisibleTileRow] (the other GetNumVisibleTileRows, 0x4DB8A9, isn't the
+    /// collection's)
+    [address((ee)0x00503EBB, (aoc)0x0050EDF6)]
+    static code call_units_rows;
+
+    [address((ee)0x00503EE9, (aoc)0x0050EE24)]
+    static code call_units_row;
+
+    /// the collection's test of an object's model against the view (call [Intersects]): 0x5008B8's three (an object
+    /// of its own, one riding another, a small object), the remembered small objects' (0x502224) and buildings'
+    /// (0x5035AD) in the fog - all of the collection's (the other one, 0x625991, isn't)
+    [address((ee)0x00500A2C, (aoc)0x0050B527)]
+    [address((ee)0x00500B7A, (aoc)0x0050B675)]
+    [address((ee)0x00500CD9, (aoc)0x0050B7D4)]
+    [address((ee)0x0050239B, (aoc)0x0050D133)]
+    [address((ee)0x00503741, (aoc)0x0050E55C)]
+    static code calls_units_view;
+
+    /// the exe's import slots of GETerrainMesh::GetNumVisibleTileRows, GetVisibleTileRow (thiscall: the row's index,
+    /// then its y, first x, last x written) and GEPhysicalModel::Intersects (thiscall: the viewport, a flag; a bool)
+    [import_slot("Low-Level Engine.dll", "?GetNumVisibleTileRows@GETerrainMesh@@QBEKXZ")]
+    [address((ee)0x00823768, (aoc)0x00837728)]
+    static block iat_terrain_rows;
+
+    [import_slot("Low-Level Engine.dll", "?GetVisibleTileRow@GETerrainMesh@@QBEXKAAJ00@Z")]
+    [address((ee)0x00823864, (aoc)0x00837838)]
+    static block iat_terrain_row;
+
+    [import_slot("Low-Level Engine.dll", "?Intersects@GEPhysicalModel@@QBE_NABVGEViewport@@_N@Z")]
+    [address((ee)0x00823850, (aoc)0x00837820)]
+    static block iat_model_intersects;
+
     /// DX7HRTnLDisplay.dll: the caps of the vertex buffer each rasterizer state creates (D3DVERTEXBUFFERDESC.dwCaps, a
     /// mov [ebp-0xC], imm32: D3DVBCAPS_WRITEONLY - video memory; its other buffer and DX7HRDisplay.dll's add
     /// D3DVBCAPS_SYSTEMMEMORY)

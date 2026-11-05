@@ -804,7 +804,8 @@ internal void render_display_loaded(HMODULE m, const char *name) {
     int n = patch_iat(m, "ddraw.dll", "DirectDrawCreateEx", (void *)rd_create_ex) +
             patch_iat(m, "ddraw.dll", "DirectDrawEnumerateA", (void *)rd_enumerate) +
             patch_iat(m, "ddraw.dll", "DirectDrawEnumerateExA", (void *)rd_enumerate_ex);
-    log_locked("# render: %s's DirectDraw imports %d/3 to the mod's renderer\n", name, n);
+    log_locked("# render: %s's DirectDraw imports %d/3 to the mod's renderer; its model test %d/2 (the shadows' casters off"
+               " the screen)\n", name, n, shadow_reach_display(m));
 }
 // autotest render_trace=N: the first N calls of the renderer's methods logged ("# render call", caller and thread) - a
 // stub in front of each slot, as the probe's

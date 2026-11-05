@@ -416,6 +416,20 @@ internal inline uint8_t *engine_display_call_frame_sleep_at(void) { return (uint
 internal inline uint8_t *engine_display_call_frame_mouse_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_call_frame_mouse; }
 // the exe's import slot of Sleep
 internal inline uint8_t *engine_display_iat_sleep_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_iat_sleep; }
+// the units' render object's collection (EEROUnits.draw): the terrain mesh's visible tile rows - how many, then
+// each by its index (its y, first and last x: map tiles) - and the objects on their tiles; call
+// [GetNumVisibleTileRows], call [GetVisibleTileRow] (the other GetNumVisibleTileRows, 0x4DB8A9, isn't the
+// collection's)
+internal inline uint8_t *engine_display_call_units_rows_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_call_units_rows; }
+internal inline uint8_t *engine_display_call_units_row_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_call_units_row; }
+// the collection's test of an object's model against the view (call [Intersects]): 0x5008B8's three (an object
+// of its own, one riding another, a small object), the remembered small objects' (0x502224) and buildings'
+// (0x5035AD) in the fog - all of the collection's (the other one, 0x625991, isn't)
+// the exe's import slots of GETerrainMesh::GetNumVisibleTileRows, GetVisibleTileRow (thiscall: the row's index,
+// then its y, first x, last x written) and GEPhysicalModel::Intersects (thiscall: the viewport, a flag; a bool)
+internal inline uint8_t *engine_display_iat_terrain_rows_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_iat_terrain_rows; }
+internal inline uint8_t *engine_display_iat_terrain_row_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_iat_terrain_row; }
+internal inline uint8_t *engine_display_iat_model_intersects_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_iat_model_intersects; }
 // DX7HRTnLDisplay.dll: the caps of the vertex buffer each rasterizer state creates (D3DVERTEXBUFFERDESC.dwCaps, a
 // mov [ebp-0xC], imm32: D3DVBCAPS_WRITEONLY - video memory; its other buffer and DX7HRDisplay.dll's add
 // D3DVBCAPS_SYSTEMMEMORY)
@@ -553,6 +567,16 @@ internal int spec_engine_display_select(int build) {
         data_engine_display_call_frame_sleep = 0x0050FEE8;
         data_engine_display_call_frame_mouse = 0x0050FEC8;
         data_engine_display_iat_sleep = 0x0082318C;
+        data_engine_display_call_units_rows = 0x00503EBB;
+        data_engine_display_call_units_row = 0x00503EE9;
+        data_engine_display_calls_units_view[0] = 0x00500A2C;
+        data_engine_display_calls_units_view[1] = 0x00500B7A;
+        data_engine_display_calls_units_view[2] = 0x00500CD9;
+        data_engine_display_calls_units_view[3] = 0x0050239B;
+        data_engine_display_calls_units_view[4] = 0x00503741;
+        data_engine_display_iat_terrain_rows = 0x00823768;
+        data_engine_display_iat_terrain_row = 0x00823864;
+        data_engine_display_iat_model_intersects = 0x00823850;
         value_engine_display_rva_tnl_vb_caps = 62581;
         value_engine_display_vb_vertices = 2442;
         data_engine_display_ro_effects = 0x00943318;
@@ -682,6 +706,16 @@ internal int spec_engine_display_select(int build) {
         data_engine_display_call_frame_sleep = 0x0051A4A7;
         data_engine_display_call_frame_mouse = 0x0051A487;
         data_engine_display_iat_sleep = 0x00837174;
+        data_engine_display_call_units_rows = 0x0050EDF6;
+        data_engine_display_call_units_row = 0x0050EE24;
+        data_engine_display_calls_units_view[0] = 0x0050B527;
+        data_engine_display_calls_units_view[1] = 0x0050B675;
+        data_engine_display_calls_units_view[2] = 0x0050B7D4;
+        data_engine_display_calls_units_view[3] = 0x0050D133;
+        data_engine_display_calls_units_view[4] = 0x0050E55C;
+        data_engine_display_iat_terrain_rows = 0x00837728;
+        data_engine_display_iat_terrain_row = 0x00837838;
+        data_engine_display_iat_model_intersects = 0x00837820;
         value_engine_display_rva_tnl_vb_caps = 66510;
         value_engine_display_vb_vertices = 2400;
         data_engine_display_ro_effects = 0x00965360;
@@ -732,6 +766,16 @@ internal int spec_engine_display_check(void) {
     bad += spec_code(data_engine_display_call_frame_sleep, "engine_display.call_frame_sleep");
     bad += spec_code(data_engine_display_call_frame_mouse, "engine_display.call_frame_mouse");
     bad += spec_data(data_engine_display_iat_sleep, "engine_display.iat_sleep");
+    bad += spec_code(data_engine_display_call_units_rows, "engine_display.call_units_rows");
+    bad += spec_code(data_engine_display_call_units_row, "engine_display.call_units_row");
+    bad += spec_code(data_engine_display_calls_units_view[0], "engine_display.calls_units_view 0");
+    bad += spec_code(data_engine_display_calls_units_view[1], "engine_display.calls_units_view 1");
+    bad += spec_code(data_engine_display_calls_units_view[2], "engine_display.calls_units_view 2");
+    bad += spec_code(data_engine_display_calls_units_view[3], "engine_display.calls_units_view 3");
+    bad += spec_code(data_engine_display_calls_units_view[4], "engine_display.calls_units_view 4");
+    bad += spec_data(data_engine_display_iat_terrain_rows, "engine_display.iat_terrain_rows");
+    bad += spec_data(data_engine_display_iat_terrain_row, "engine_display.iat_terrain_row");
+    bad += spec_data(data_engine_display_iat_model_intersects, "engine_display.iat_model_intersects");
     bad += spec_data(data_engine_display_ro_effects, "engine_display.ro_effects");
     bad += spec_data(data_engine_display_ro_terrain, "engine_display.ro_terrain");
     bad += spec_data(data_engine_display_ro_shadows, "engine_display.ro_shadows");

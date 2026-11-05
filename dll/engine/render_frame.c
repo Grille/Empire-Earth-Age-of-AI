@@ -73,6 +73,7 @@ internal void rd3_shadow_frame(void);
 internal void rd3_shadow_vc(rd3_vcb *vc);
 internal void rd3_shadow_pc(rd3_pcb *pc);
 internal void rd3_shadow_bind(ID3D11DeviceContext *x);
+internal int rd3_shadow_only(int role);
 // the list drawn, in its order (the shadows' maps first), and emptied - all its states bound, whoever used the context
 // before (the 2D path, the present, the overlay set their own)
 internal void rf_replay(void) {
@@ -98,6 +99,7 @@ internal void rf_replay(void) {
     int first = 1;
     for (int i = 0; i < g_rf.n; i++) {
         const rf_cmd *c = &g_rf.cmd[i];
+        if (rd3_shadow_only(c->role)) continue;   // a caster off the screen: in the map only
         if (first || c->rtv != b.rtv || c->dsv != b.dsv) ID3D11DeviceContext_OMSetRenderTargets(x, 1, &c->rtv, c->dsv);
         if (first || memcmp(&c->vport, &b.vport, sizeof b.vport)) ID3D11DeviceContext_RSSetViewports(x, 1, &c->vport);
         if (first || c->blend != b.blend) ID3D11DeviceContext_OMSetBlendState(x, c->blend, NULL, 0xFFFFFFFF);

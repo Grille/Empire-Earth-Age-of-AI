@@ -181,6 +181,25 @@ tells the last map's casters, ground batches, box, sun and shadow colour), engin
   distance from the trunk, laid out across the sun's rays on its side of the trunk; every tree casts its full width,
   however the game turned it (shots of a forest's edge on "choke wolf" at 100,60 against the build before: full firs
   instead of narrow ones).
+- Casters off the screen (the player, 2026-11-05: with the day's cycle a low sun casts long shadows, and they dropped
+  out as soon as the building's or unit's bounds left the screen - his AoC shot: towers' shadows of 3-4 tiles). The
+  game culls twice: its units' render object collects the objects on the terrain mesh's visible tile rows that pass
+  GEPhysicalModel::Intersects against the view (EEROUnits.draw: GetNumVisibleTileRows / GetVisibleTileRow, five
+  Intersects calls - spec engine_display), and the display DLLs draw a model only where
+  GERasterizer::IsPerspectiveModelVisible / IsOrthographicModelVisible pass (DX7Rasterizer::DrawModelHierarchy, their
+  imports from the engine; the second flag they write is the D3D clipping state). The mod widens the collection's rows
+  toward the sun by the longest shadow (the tallest caster's height - measured each map, at least 2 tiles - over the
+  sun's slope, at most 24 tiles; tiles the map hasn't got left out: the game's tile test would read them), as rows of
+  their own after the game's, on which every object passes Intersects; the display DLLs' test passes every model in
+  the units' render object. A draw wholly off the screen (its box's corners all beyond one side) is SH_AWAY: drawn into
+  the casters' map only, not in the frame. Only with the draw list moved (draw_limit over 512). The sun for the shadows
+  is never lower than 25 degrees (the pipe: `shadows sun <degrees>`; the shadows' colour keeps the light's true height):
+  shorter evening shadows, and a shorter reach. For looking at it without the day's cycle the pipe sets the sun's
+  height and turns its direction (`shadows height <deg>`, `shadows turn <deg>`), and `shadows reach on | off`.
+  Checked 2026-11-05 on "choke wolf" (sun at 15 degrees, 60,88 - 64,92): the towers beyond the left edge cast their
+  long shadows over the fields with the reach on, none with it off; the collection 271 -> 413 objects at 56,84, about
+  200 casting draws off the screen; the frame's units part 1.14 ms with the reach off, 1.38 on (a
+  minute each, paused, the sun at 15 degrees: the longest reach).
 - Under the water a shadow fades out with the depth (the player, 2026-11-05: none under water, ideally fading): gone
   0.8 under the level (the pipe: `shadows fade <depth>`). The level is the water's vertices' mean height each frame (in
   the world through the units' camera); measured on "choke wolf": the water at 0.00, the deepest seabed at -0.84 (rprobe

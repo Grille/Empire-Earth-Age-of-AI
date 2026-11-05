@@ -35,6 +35,9 @@ internal void drawlist_install(void) {
                             r ? "no memory" : "exe differs");
 }
 
+// the draw list is the larger one (render_shadows.c: the casters off the screen collected only then)
+internal int draw_list_moved(void) { return g_draw_recs != NULL; }
+
 // drawcount: objects collected for the last frame (units etc. / small objects). Tests.
 internal void cmd_drawcount(char *out, const char *args) {
     (void)args;

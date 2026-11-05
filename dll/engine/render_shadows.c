@@ -14,7 +14,7 @@
 // main pixel shader. The ground's vertices are the game's own transform into the camera's space (its view only swaps
 // y and z): their place in the world needs the camera the units are drawn with, which comes later in the frame - known
 // when the list is drawn (rd3_shadow_vc).
-enum { SH_NONE, SH_RECEIVE, SH_CAST, SH_TINT, SH_DECAL, SH_BLOB, SH_WATER };
+enum { SH_NONE, SH_RECEIVE, SH_CAST, SH_TINT, SH_DECAL, SH_BLOB, SH_WATER, SH_AWAY };   // SH_AWAY: casts, off the screen
 #define SH_SIZE 4096
 internal struct {
     int on;          // [display] shadows (the pipe's shadows switches it)
@@ -35,7 +35,13 @@ internal struct {
     ID3D11RasterizerState *raster, *traster;
     ID3D11DepthStencilState *depth;
     float lo[3], hi[3];      // the casters' world box (the draws recorded since the last map)
-    float sun[3];
+    float tall, tall_frame;  // the tallest caster's height (tiles; the frame's so far) - the reach off the screen
+    int off_frame, last_off; // the casting draws wholly off the screen (the frame's so far, the last map's)
+    // the sun the map is drawn from: the light's, never lower than sun_low degrees over the horizon (the day's cycle's
+    // evening: shadows of many tiles, the player's screenshot of 2026-11-05); sun_lit its true height (the shadows' colour)
+    float sun[3], sun_low, sun_lit;
+    float sun_set;           // the pipe's shadows height: the sun's height for the shadows set (degrees; 0 the light's)
+    float sun_turn;          // the pipe's shadows turn: the sun's direction turned about the vertical (degrees)
     float amb[3], diff[3];   // the units' ambient (global + the light's) and the sun's colour
     float view[16];          // the units' camera, the last seen
     // the map: world -> u, v, depth; camera space (the ground's) -> the same, and -> the world (gw: its height); the
@@ -45,7 +51,7 @@ internal struct {
     LONG passes;
     int last_cast, last_ground;   // the last map's (the pipe's shadows)
     float last_lo[3], last_hi[3];
-} g_sh = { .strength = 0.8f, .fade = 0.8f, .sun = { 0.08f, 0.75f, -0.65f } };
+} g_sh = { .strength = 0.8f, .fade = 0.8f, .tall = 2, .sun = { 0.08f, 0.75f, -0.65f }, .sun_low = 25, .sun_lit = 0.65f };
 
 // from the sun: the batch's vertices placed as the main pass places them (render_3d.c's vertex shader), through shm
 // into the map (sa: alpha reference / 255, alpha tested, a tree). A tree is a few flat planes crossed at its trunk (not
@@ -157,16 +163,23 @@ internal int rd3_shadow_role(rd_device *d, rd_vb *vb, DWORD start, DWORD nv) {
     // shadow came and went with that (the player: "they should always see the real building")
     if (!d->rs[D3DRENDERSTATE_LIGHTING]) return SH_NONE;
     const D3DMATRIX *w = &d->world;
-    float wl[3] = { 1e30f, 1e30f, 1e30f }, wh[3] = { -1e30f, -1e30f, -1e30f };
+    float wl[3] = { 1e30f, 1e30f, 1e30f }, wh[3] = { -1e30f, -1e30f, -1e30f }, vp[16];
+    rd3_mul(vp, &d->view._11, &d->proj._11);
+    int out = 0x3F;   // the screen's sides every corner lies beyond (none: on the screen)
     for (int c = 0; c < 8; c++) {
         float x = c & 1 ? hi[0] : lo[0], y = c & 2 ? hi[1] : lo[1], z = c & 4 ? hi[2] : lo[2];
         float q[3] = { x * w->_11 + y * w->_21 + z * w->_31 + w->_41, x * w->_12 + y * w->_22 + z * w->_32 + w->_42,
                        x * w->_13 + y * w->_23 + z * w->_33 + w->_43 };
         for (int a = 0; a < 3; a++) { if (q[a] < wl[a]) wl[a] = q[a]; if (q[a] > wh[a]) wh[a] = q[a]; }
+        float cx = q[0] * vp[0] + q[1] * vp[4] + q[2] * vp[8] + vp[12], cy = q[0] * vp[1] + q[1] * vp[5] + q[2] * vp[9] + vp[13],
+              cw = q[0] * vp[3] + q[1] * vp[7] + q[2] * vp[11] + vp[15];
+        out &= (cx < -cw) | (cx > cw) << 1 | (cy < -cw) << 2 | (cy > cw) << 3;
     }
+    if (out) g_sh.off_frame++;   // wholly off the screen: in the map only (SH_AWAY)
     for (int a = 0; a < 3; a++) { if (wl[a] < g_sh.lo[a]) g_sh.lo[a] = wl[a]; if (wh[a] > g_sh.hi[a]) g_sh.hi[a] = wh[a]; }
     float dx = wh[0] - wl[0], dy = wh[1] - wl[1], dz = wh[2] - wl[2];
     d->sh_b = fmaxf(sqrtf(dx * dx + dy * dy + dz * dz), 1.0f);
+    if (dz > g_sh.tall_frame) g_sh.tall_frame = dz;
     memcpy(g_sh.view, &d->view._11, sizeof g_sh.view);
     int tree = d->rs[D3DRENDERSTATE_ALPHATESTENABLE] && (d->rs[D3DRENDERSTATE_ALPHAREF] & 255) >= 200;
     const D3DLIGHT7 *l = &d->light[0];
@@ -175,14 +188,25 @@ internal int rd3_shadow_role(rd_device *d, rd_vb *vb, DWORD start, DWORD nv) {
     // taken for the sun it laid every shadow under its caster (the player's shot, 2026-11-04)
     if (!tree && d->light_on[0] && l->dltType == D3DLIGHT_DIRECTIONAL && n > 0 && l->dvDirection.z / n < -0.05f
         && l->dvDirection.z / n > -0.9f) {
-        g_sh.sun[0] = l->dvDirection.x / n; g_sh.sun[1] = l->dvDirection.y / n; g_sh.sun[2] = l->dvDirection.z / n;
+        float s[3] = { l->dvDirection.x / n, l->dvDirection.y / n, l->dvDirection.z / n };
+        float h = sqrtf(s[0] * s[0] + s[1] * s[1]), low = sinf(g_sh.sun_low * 3.14159265f / 180);
+        g_sh.sun_lit = -s[2];
+        if (g_sh.sun_set > 0) low = sinf(g_sh.sun_set * 3.14159265f / 180);
+        if (g_sh.sun_turn != 0) {
+            float a = g_sh.sun_turn * 3.14159265f / 180, x = s[0];
+            s[0] = x * cosf(a) - s[1] * sinf(a); s[1] = x * sinf(a) + s[1] * cosf(a);
+        }
+        if ((-s[2] < low || g_sh.sun_set > 0) && h > 0) { float k = sqrtf(1 - low * low) / h; s[0] *= k; s[1] *= k; s[2] = -low; }
+        memcpy(g_sh.sun, s, sizeof s);
         float ga[4];
         rd3_color(ga, d->rs[D3DRENDERSTATE_AMBIENT]);
         g_sh.amb[0] = ga[0] + l->dcvAmbient.r; g_sh.amb[1] = ga[1] + l->dcvAmbient.g; g_sh.amb[2] = ga[2] + l->dcvAmbient.b;
         g_sh.diff[0] = l->dcvDiffuse.r; g_sh.diff[1] = l->dcvDiffuse.g; g_sh.diff[2] = l->dcvDiffuse.b;
     }
-    return tree || !g_sh.tint ? SH_CAST : SH_TINT;
+    return out ? SH_AWAY : tree || !g_sh.tint ? SH_CAST : SH_TINT;
 }
+// the list's draw only drawn into the casters' map (rf_replay leaves it out)
+internal int rd3_shadow_only(int role) { return role == SH_AWAY; }
 // the draw's role on the device: a change is a change of the vertex constants (a new batch)
 internal void rd3_shadow_classify(rd_device *d, rd_vb *vb, DWORD start, DWORD nv) {
     int role = rd3_shadow_role(d, vb, start, nv);
@@ -198,7 +222,7 @@ internal void rd3_shadow_frame(void) {
     for (int i = 0; i < g_rf.n; i++) {
         const rf_cmd *c = &g_rf.cmd[i];
         if (c->topo != D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST) continue;
-        if (c->role == SH_CAST || c->role == SH_TINT) nc++;
+        if (c->role == SH_CAST || c->role == SH_TINT || c->role == SH_AWAY) nc++;
         else if (c->role == SH_RECEIVE || c->role == SH_WATER) ng++;
     }
     // the water's level: its vertices' mean height (no water drawn: no fading)
@@ -207,6 +231,11 @@ internal void rd3_shadow_frame(void) {
     g_sh.water_z = 0;
     g_sh.water_n = 0;
     if (!nc) { if (ng) g_sh.valid = 0; return; }
+    // the tallest caster: this list's, falling slowly (a list drawn early in a frame has fewer)
+    g_sh.tall = fmaxf(fmaxf(g_sh.tall_frame, g_sh.tall * 0.98f), 2);
+    g_sh.tall_frame = 0;
+    g_sh.last_off = g_sh.off_frame;
+    g_sh.off_frame = 0;
     // the map's axes: r and u across the sun's rays, f along them (depth: farther from the sun)
     const float *f = g_sh.sun;
     float r[3] = { f[1], -f[0], 0 };   // f x up
@@ -255,7 +284,7 @@ internal void rd3_shadow_frame(void) {
     ID3D11ShaderResourceView *srv = (ID3D11ShaderResourceView *)1;
     for (int i = 0; i < g_rf.n; i++) {
         const rf_cmd *c = &g_rf.cmd[i];
-        if ((c->role != SH_CAST && c->role != SH_TINT) || c->topo != D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST) continue;
+        if ((c->role != SH_CAST && c->role != SH_TINT && c->role != SH_AWAY) || c->topo != D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST) continue;
         const rd3_pcb *pc = &g_rf.pcs[c->pc];
         float a = pc->aop[3] && c->srv ? pc->misc[0] / 255.0f : -1;   // alpha tested: its texture's alpha
         float t = a >= 200 / 255.0f ? 1.0f : 0.0f;   // a tree (rd3_shadow_role's test)
@@ -290,7 +319,7 @@ internal void rd3_shadow_frame(void) {
     // the colour a shadow leaves: the ambient light over the ambient and the sun on level ground, as much of it as the
     // strength says (1: the sun all gone)
     memcpy(g_sh.shm, m, sizeof m);
-    float sun = fmaxf(0, -f[2]);
+    float sun = fmaxf(0, g_sh.sun_lit);
     for (int a = 0; a < 3; a++) {
         float lit = g_sh.amb[a] + g_sh.diff[a] * sun;
         float k = lit > 0 ? fminf(1, g_sh.amb[a] / lit) : 1;
@@ -348,9 +377,143 @@ internal void rd3_shadow_pconstants(rd_device *d, rd3_pcb *pc) {
     pc->shd[3] = 0.002f;           // their bias
 }
 
+// SHADOWS FROM OFF THE SCREEN: the game collects what it draws from the terrain mesh's visible tile rows, each object
+// there that passes a test of its model against the view (EEROUnits.draw) - a building off the screen wasn't drawn,
+// and its shadow reaching onto the screen went with it (the day's cycle's evening shadows: a few tiles - the player,
+// 2026-11-05). The collection's rows are widened toward the sun by the longest shadow the sun's height and the tallest
+// caster make, as rows of their own after the game's; on those every object passes the view's test (the display DLLs'
+// test of a model too, below); a draw wholly off the screen casts and isn't drawn (SH_AWAY). A tile the map hasn't got (outside its diamond: no tile) is left out,
+// the game's test of a tile would read it. Only with the draw list moved: the original's 512 would fill with them.
+#define SHR_ROWS 8192
+#define SHR_MAP 4096       // the largest map's side the rows are widened on
+#define SHR_REACH 24       // the longest reach (tiles)
+internal const char k_shr_visible[] = "?IsPerspectiveModelVisible@GERasterizer@@IAEXPAVGEModel@@MPAVGEViewport@@AAVGETransformation@@AA_N3@Z";
+internal const char k_shr_visible_ortho[] = "?IsOrthographicModelVisible@GERasterizer@@IAEXPAVGEModel@@PAVGEViewport@@AAVGETransformation@@AA_N3@Z";
+internal int draw_list_moved(void);   // drawlist.c
+internal struct {
+    int on;                       // the hooks are in
+    int off;                      // the pipe's shadows reach off
+    long y[SHR_ROWS], x0[SHR_ROWS], x1[SHR_ROWS];
+    int n, own;                   // the rows handed out this collection, the game's own (the first)
+    int extra;                    // the row handed out last is one of the widened ones: its objects pass the view's test
+    int lo[SHR_MAP], hi[SHR_MAP], olo[SHR_MAP], ohi[SHR_MAP];   // per y: the widened rows' x, the game's
+    float reach;                  // the last collection's (tiles)
+    int last_own, last_extra;     // its rows
+} g_shr;
+
+// a piece [a, b] of row y: its runs of tiles the map has
+internal void shr_add(ee_tile **tiles, unsigned w, int y, int a, int b) {
+    for (int x = a; x <= b && g_shr.n < SHR_ROWS; x++) {
+        if (!tiles[(unsigned)y * w + (unsigned)x]) continue;
+        int e = x;
+        while (e < b && tiles[(unsigned)y * w + (unsigned)e + 1]) e++;
+        g_shr.y[g_shr.n] = y; g_shr.x0[g_shr.n] = x; g_shr.x1[g_shr.n] = e; g_shr.n++;
+        x = e;
+    }
+}
+
+internal unsigned long __thiscall shr_hook_rows(const void *mesh) {
+    unsigned long n = terrain_rows(mesh);
+    g_shr.n = g_shr.own = g_shr.extra = 0;
+    ee_map *map = game_map();
+    const float *f = g_sh.sun;
+    float h = sqrtf(f[0] * f[0] + f[1] * f[1]);
+    unsigned w = map ? map_get_size(map) : 0;
+    if (!g_shr.on || g_shr.off || !g_sh.on || !draw_list_moved() || !w || w > SHR_MAP || n > SHR_ROWS / 4 || h < 0.01f || f[2] > -0.01f) return n;
+    ee_tile **tiles = map_get_tiles(map);
+    for (unsigned y = 0; y < w; y++) { g_shr.lo[y] = g_shr.olo[y] = INT_MAX; g_shr.hi[y] = g_shr.ohi[y] = INT_MIN; }
+    // the game's rows, as it would have had them
+    for (unsigned long i = 0; i < n; i++) {
+        long y, x0, x1;
+        terrain_row(mesh, i, &y, &x0, &x1);
+        g_shr.y[i] = y; g_shr.x0[i] = x0; g_shr.x1[i] = x1;
+        if (y < 0 || (unsigned)y >= w) continue;
+        if (x0 < g_shr.olo[y]) g_shr.olo[y] = (int)x0;
+        if (x1 > g_shr.ohi[y]) g_shr.ohi[y] = (int)x1;
+    }
+    g_shr.n = g_shr.own = (int)n;
+    // each swept toward the sun (the map's tiles are its world's x and y) by the reach, in half tiles
+    float reach = fminf(g_sh.tall * h / -f[2], SHR_REACH) + 1, dx = -f[0] / h, dy = -f[1] / h;
+    for (unsigned long i = 0; i < n; i++)
+        for (float k = 0; k <= reach; k += 0.5f) {
+            float yy = (float)g_shr.y[i] + dy * k;
+            int x0 = (int)floorf((float)g_shr.x0[i] + dx * k), x1 = (int)ceilf((float)g_shr.x1[i] + dx * k);
+            if (x0 < 0) x0 = 0;
+            if (x1 > (int)w - 1) x1 = (int)w - 1;
+            for (int y = (int)floorf(yy); y <= (int)ceilf(yy); y++) {
+                if (y < 0 || y >= (int)w || x0 > x1) continue;
+                if (x0 < g_shr.lo[y]) g_shr.lo[y] = x0;
+                if (x1 > g_shr.hi[y]) g_shr.hi[y] = x1;
+            }
+        }
+    // the widened rows' pieces outside the game's
+    for (unsigned y = 0; y < w; y++) {
+        if (g_shr.lo[y] > g_shr.hi[y]) continue;
+        if (g_shr.olo[y] > g_shr.ohi[y]) { shr_add(tiles, w, (int)y, g_shr.lo[y], g_shr.hi[y]); continue; }
+        if (g_shr.lo[y] < g_shr.olo[y]) shr_add(tiles, w, (int)y, g_shr.lo[y], g_shr.olo[y] - 1);
+        if (g_shr.hi[y] > g_shr.ohi[y]) shr_add(tiles, w, (int)y, g_shr.ohi[y] + 1, g_shr.hi[y]);
+    }
+    g_shr.reach = reach;
+    g_shr.last_own = g_shr.own;
+    g_shr.last_extra = g_shr.n - g_shr.own;
+    return (unsigned long)g_shr.n;
+}
+internal void __thiscall shr_hook_row(const void *mesh, unsigned long i, long *y, long *x0, long *x1) {
+    if (!g_shr.n) { terrain_row(mesh, i, y, x0, x1); return; }
+    if (i >= (unsigned long)g_shr.n) i = (unsigned long)g_shr.n - 1;
+    *y = g_shr.y[i]; *x0 = g_shr.x0[i]; *x1 = g_shr.x1[i];
+    g_shr.extra = (int)i >= g_shr.own;
+}
+internal uint8_t __thiscall shr_hook_view(const void *model, const void *viewport, uint8_t flag) {
+    return model_intersects(model, viewport, flag) || g_shr.extra;
+}
+// The display DLLs draw a model only where the engine's test of it against the view passes
+// (DX7Rasterizer::DrawModelHierarchy: GERasterizer::IsPerspectiveModelVisible / IsOrthographicModelVisible, their
+// imports - the first flag visible, the second the clipping it is drawn with): in the units' render object every model
+// the collection handed over passes, clipped (the game's own off the screen too, a few). Their draws wholly off the
+// screen cast without being drawn (SH_AWAY).
+typedef void (__thiscall *model_visible_fn)(void *ras, void *model, float lod, void *viewport, void *at, uint8_t *visible,
+                                            uint8_t *clip);
+typedef void (__thiscall *model_visible_ortho_fn)(void *ras, void *model, void *viewport, void *at, uint8_t *visible,
+                                                  uint8_t *clip);
+internal model_visible_fn g_shr_visible;
+internal model_visible_ortho_fn g_shr_visible_ortho;
+internal int shr_pass(void) { return g_shr.on && !g_shr.off && g_sh.on && g_ro_cur == RO_UNITS && draw_list_moved(); }
+internal void __thiscall shr_hook_visible(void *ras, void *model, float lod, void *viewport, void *at, uint8_t *visible,
+                                          uint8_t *clip) {
+    g_shr_visible(ras, model, lod, viewport, at, visible, clip);
+    if (!*visible && shr_pass()) { *visible = 1; *clip = 1; }
+}
+internal void __thiscall shr_hook_visible_ortho(void *ras, void *model, void *viewport, void *at, uint8_t *visible,
+                                                uint8_t *clip) {
+    g_shr_visible_ortho(ras, model, viewport, at, visible, clip);
+    if (!*visible && shr_pass()) { *visible = 1; *clip = 1; }
+}
+// a display DLL loaded (render.c render_display_loaded): its imports of the test -> the hooks; how many
+internal int shadow_reach_display(HMODULE m) {
+    HMODULE lle = GetModuleHandleA("Low-Level Engine.dll");
+    if (!lle) return 0;
+    if (!g_shr_visible) g_shr_visible = (model_visible_fn)(void *)GetProcAddress(lle, k_shr_visible);
+    if (!g_shr_visible_ortho) g_shr_visible_ortho = (model_visible_ortho_fn)(void *)GetProcAddress(lle, k_shr_visible_ortho);
+    if (!g_shr_visible || !g_shr_visible_ortho) return 0;
+    return patch_iat(m, "Low-Level Engine.dll", k_shr_visible, (void *)shr_hook_visible)
+         + patch_iat(m, "Low-Level Engine.dll", k_shr_visible_ortho, (void *)shr_hook_visible_ortho);
+}
+// with the own renderer (eeaimod.c, after the draw list is moved)
+internal void shadow_reach_install(void) {
+    int r = patch_units_rows(shr_hook_rows, shr_hook_row), v = patch_units_view(shr_hook_view);
+    g_shr.on = r == 2 && v == 5;
+    if (g_log) fprintf(g_log, "# shadows: casters off the screen collected %s (rows %d/2, view tests %d/5)\n",
+                       g_shr.on ? "toward the sun" : "NOT - exe differs", r, v);
+}
+
 // shadows [game | dynamic] [strength]: the shadows switched while playing (the setting's at the start); the strength
 // how much of the sun a shadow takes (0..1, default 0.8). shadows fade <depth>: by how deep under the water a shadow is
-// gone (default 0.8). shadows tint on | off: a unit standing in a shadow darkened (off by default)
+// gone (default 0.8). shadows tint on | off: a unit standing in a shadow darkened (off by default). shadows sun
+// <degrees>: the sun's lowest height for the shadows (default 25). shadows reach on | off: the casters off the screen
+// collected (on by default). shadows height <degrees>: the sun's height for the shadows set, its direction the light's
+// (0: the light's height, the default) - long evening shadows to look at without the day's cycle. shadows turn <degrees>:
+// the sun's direction turned about the vertical (0 the light's, the default) - shadows toward each of the screen's edges
 internal void cmd_shadows(char *out, const char *args) {
     char mode[16] = "", arg[16] = "";
     sscanf(args, "%15s %15s", mode, arg);
@@ -358,20 +521,35 @@ internal void cmd_shadows(char *out, const char *args) {
     if (!strcmp(mode, "tint")) {
         if (!strcmp(arg, "on") || !strcmp(arg, "off")) g_sh.tint = arg[1] == 'n';
         else { REPLY("error: usage: shadows tint on | off\n"); return; }
+    } else if (!strcmp(mode, "reach")) {
+        if (!strcmp(arg, "on") || !strcmp(arg, "off")) g_shr.off = arg[1] != 'n';
+        else { REPLY("error: usage: shadows reach on | off\n"); return; }
+    } else if (!strcmp(mode, "height")) {
+        if (s >= 0 && s <= 90) g_sh.sun_set = s;
+        else { REPLY("error: usage: shadows height <the sun's height for the shadows, degrees 1..90; 0 the light's>\n"); return; }
+    } else if (!strcmp(mode, "turn")) {
+        if (arg[0] && fabsf(s) <= 360) g_sh.sun_turn = (float)atof(arg);
+        else { REPLY("error: usage: shadows turn <degrees about the vertical, -360..360>\n"); return; }
+    } else if (!strcmp(mode, "sun")) {
+        if (s >= 0 && s <= 90) g_sh.sun_low = s;
+        else { REPLY("error: usage: shadows sun <the sun's lowest height for the shadows, degrees 0..90>\n"); return; }
     } else if (!strcmp(mode, "fade")) {
         if (s > 0) g_sh.fade = s;
         else { REPLY("error: usage: shadows fade <depth under the water, > 0>\n"); return; }
     } else if (!strcmp(mode, "game")) g_sh.on = 0;
     else if (!strcmp(mode, "dynamic")) g_sh.on = 1;
-    else if (mode[0]) { REPLY("error: usage: shadows [game | dynamic] [strength 0..1] | fade <depth> | tint on | off\n"); return; }
+    else if (mode[0]) { REPLY("error: usage: shadows [game | dynamic] [strength 0..1] | fade <depth> | sun <degrees> | height <degrees> | turn <degrees> | reach on | off | tint on | off\n"); return; }
     if ((!strcmp(mode, "game") || !strcmp(mode, "dynamic")) && s >= 0 && s <= 1) g_sh.strength = s;
     REPLY("shadows: %s, strength %.2f, %s, %ld maps drawn; the last: %d casting batches, %d of ground;"
           " the casters' box %.1f %.1f %.1f - %.1f %.1f %.1f, the sun %.2f %.2f %.2f, a shadow's colour %.2f %.2f %.2f;"
-          " the water at %.2f%s, a shadow gone %.2f under it; units in a shadow darkened: %s\n",
+          " the water at %.2f%s, a shadow gone %.2f under it; units in a shadow darkened: %s; the sun at least %.0f degrees"
+          " high (the light's %.0f); casters off the screen: %s, %.1f tiles (the tallest %.1f), %d rows and %d more; %d casting draws off the screen\n",
           g_sh.on ? "dynamic" : "game", (double)g_sh.strength,
           g_sh.ready > 0 ? "ready" : g_sh.ready < 0 ? "FAILED (the log says why)" : "not made yet", (long)g_sh.passes,
           g_sh.last_cast, g_sh.last_ground, (double)g_sh.last_lo[0], (double)g_sh.last_lo[1], (double)g_sh.last_lo[2],
           (double)g_sh.last_hi[0], (double)g_sh.last_hi[1], (double)g_sh.last_hi[2], (double)g_sh.sun[0],
           (double)g_sh.sun[1], (double)g_sh.sun[2], (double)g_sh.shk[0], (double)g_sh.shk[1], (double)g_sh.shk[2],
-          (double)g_sh.level, g_sh.shl[2] > 0 ? "" : " (none seen)", (double)g_sh.fade, g_sh.tint ? "on" : "off");
+          (double)g_sh.level, g_sh.shl[2] > 0 ? "" : " (none seen)", (double)g_sh.fade, g_sh.tint ? "on" : "off",
+          (double)g_sh.sun_low, (double)(asinf(fminf(1, fmaxf(-1, g_sh.sun_lit))) * 180 / 3.14159265f),
+          !g_shr.on ? "not (no hooks)" : g_shr.off ? "off" : "collected", (double)g_shr.reach, (double)g_sh.tall, g_shr.last_own, g_shr.last_extra, g_sh.last_off);
 }

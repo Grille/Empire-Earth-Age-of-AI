@@ -38,6 +38,29 @@ typedef void (__stdcall *frame_sleep_fn)(DWORD ms);
 internal inline int patch_frame_sleep(frame_sleep_fn h) {
     return patch_import_call(data_engine_display_call_frame_sleep, data_engine_display_iat_sleep, (void *)h);
 }
+// the units' collection's visible tile rows (the terrain mesh's: how many, then each by index - its y, first and last
+// x) and its test of an object's model against the view: those calls -> hooks of the imports' own types; the imports
+// themselves for the hooks
+typedef unsigned long (__thiscall *terrain_rows_fn)(const void *mesh);
+typedef void (__thiscall *terrain_row_fn)(const void *mesh, unsigned long i, long *y, long *x0, long *x1);
+typedef uint8_t (__thiscall *model_intersects_fn)(const void *model, const void *viewport, uint8_t flag);   // bool: al
+internal inline unsigned long terrain_rows(const void *mesh) { return (*(terrain_rows_fn *)data_engine_display_iat_terrain_rows)(mesh); }
+internal inline void terrain_row(const void *mesh, unsigned long i, long *y, long *x0, long *x1) {
+    (*(terrain_row_fn *)data_engine_display_iat_terrain_row)(mesh, i, y, x0, x1);
+}
+internal inline uint8_t model_intersects(const void *model, const void *viewport, uint8_t flag) {
+    return (*(model_intersects_fn *)data_engine_display_iat_model_intersects)(model, viewport, flag);
+}
+internal inline int patch_units_rows(terrain_rows_fn h, terrain_row_fn h_row) {
+    return patch_import_call(data_engine_display_call_units_rows, data_engine_display_iat_terrain_rows, (void *)h)
+         + patch_import_call(data_engine_display_call_units_row, data_engine_display_iat_terrain_row, (void *)h_row);
+}
+internal inline int patch_units_view(model_intersects_fn h) {
+    int n = 0;
+    for (size_t i = 0; i < sizeof data_engine_display_calls_units_view / sizeof *data_engine_display_calls_units_view; i++)
+        n += patch_import_call(data_engine_display_calls_units_view[i], data_engine_display_iat_model_intersects, (void *)h);
+    return n;
+}
 // its call of mouse_update on the path that draws a frame (one of mouse_update's sites) -> hook
 internal inline int patch_frame_mouse(mouse_update_fn h) { return patch_call(data_engine_display_call_frame_mouse, (uintptr_t)fn_mouse_update, (void *)h); }
 // DX7HRTnLDisplay.dll at base: the vertex buffer its rasterizer states create in system memory (D3DVBCAPS_SYSTEMMEMORY
