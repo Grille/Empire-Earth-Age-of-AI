@@ -1,0 +1,24 @@
+// far foundations and the game's repair round (attack.c ONE AT A TIME): three of P2's Town Center foundations laid at
+// the far ends of its continent (Continental 101, map 116 tiles, its Town Center at 75,52; each 45-55 tiles away) and
+// 40 more citizens at its base - with repair_one_walker=0 the round sends another citizen to each every 31 s while the
+// last is still walking (the log's "# doing:" builders grow); with 1 one walks to each at a time (the citizens line:
+// repairs refused with a citizen on its way)
+
+wait_until(0.5min)
+spawn(2, unit.citizen, 78, 56, 40)
+wait_until(1min)
+found(2, unit.b_town_center, 55, 20)
+found(2, unit.b_town_center, 22, 64)
+found(2, unit.b_town_center, 52, 92)
+objs(2, unit.b_town_center)
+wait_until(2min)
+units(2)
+wait_until(3min)
+units(2)
+wait_until(4min)
+units(2)
+wait_until(5min)
+units(2)
+wait_until(6min)
+units(2)
+objs(2, unit.b_town_center)

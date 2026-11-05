@@ -160,6 +160,14 @@ class ai_base
         /// it has seen, past them on the way from its drop site, or where enemy soldiers stand (6 tiles), and calls back
         /// those already working there. 1 = on
         bool avoid_towers_citizens = true;
+        /// One citizen at a time to a building: the game's repair round (every 31 s) sends a citizen to each damaged or
+        /// unfinished building nobody is working on - also while the last one it sent is still walking there, so a
+        /// foundation far away drew a citizen every 31 s (an AI lost its farmers and miners to four of them in ten
+        /// minutes). The round now skips a building a citizen is already on its way to. 1 = on
+        bool repair_one_walker = true;
+        /// The repair round's citizens go only by a safe way: no order whose way passes enemy soldiers the AI sees or
+        /// remembers, or known enemy towers. 0 = off (default)
+        bool repair_safe_way = false;
         /// Citizens fight back: they attack the enemy citizens building a tower near them (any age) and, up to the Bronze Age,
         /// small groups attacking them - only when clearly stronger (3x hit points x attack). 1 = on
         bool citizen_militia = true;
@@ -707,6 +715,9 @@ class ai_base
         int towns_citizens = 6;
         [range(0, 7), commented]
         int towers_per_town = 2;
+        /// A town still going up whose citizens are all dead is given up and its unfinished buildings are removed
+        /// (refunded) - left standing, the game's repair round kept sending citizens to them. 0 = off (default)
+        bool towns_remove_unbuilt = false;
     }
 
     class ResearchAndDefence

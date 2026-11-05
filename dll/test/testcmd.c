@@ -457,6 +457,10 @@ internal void cmd_found(char *out, const char *args) {
     if (sscanf(args, "%d %d %d %d", &p, &t, &x, &y) < 4) { REPLY("error: usage: found P T x y\n"); return; }
     ee_player *pl = player_at(p);   // diplo.c: any player, human or AI
     if (!pl || t < 0 || t >= 724 || !type_data(t)) { REPLY("error: no player %d or type %d\n", p, t); return; }
+    ee_map *map = game_map();   // off the map the foundation's placement (0x62EF8A) crashed
+    int n = map ? (int)map_get_size(map) : 0;
+    if (x < 0 || y < 0 || x >= n || y >= n) { REPLY("error: %d,%d is off the map (%d tiles)\n", x, y, n); return; }
+    if (unit_type_get_class_id(type_data(t)) == CLS_BUILDING && !area_id(iv2(x, y), 2)) { REPLY("error: %d,%d is not land\n", x, y); return; }
     int ok = can_place(pl, t, iv2(x, y));   // the placement test the player's click passes first (defence.c) - placed anyway
     void *u = place_foundation(pl, t, x, y);
     REPLY("ok: type %d for P%d at %d,%d: %p%s\n", t, p, x, y, u, ok ? "" : " (a spot the player couldn't place it on)");

@@ -17,7 +17,9 @@
 //   at its free mines (the game's assignment) - from then on the town is the game's economy's like every drop site.
 //   Not while its army is outmatched or enemy soldiers are in its base, not before the Copper Age, at most towns_max.
 //   A building destroyed is laid again (3 times); the town lost (no building of it left) - again after 8 minutes, the
-//   spot's third loss: never again.
+//   spot's third loss: never again. With towns_remove_unbuilt a town going up whose citizens are all dead is lost too,
+//   its unfinished buildings removed: their 1-hp foundations kept drawing the game's repair round's citizens
+//   (attack.c ONE AT A TIME).
 // 2 SETTLEMENT: the drop site a Settlement, never a Town Center.
 // 8 FORWARD BASE (the player: "not just when the AI is ahead - a great way to push in a stalemate, a fortified position
 //   from which to attack and retreat under cover, able to heal and train quick reinforcements; the point is to be
@@ -95,7 +97,7 @@ internal struct tn_st {
     uint32_t fsave;   // saving for a forward base since (0: not)
     const char *why;
 } g_tn[16];
-internal int g_towns = 0, g_v_towns = -1, g_tn_max = 3, g_tn_cits = 6, g_tn_towers = 2;
+internal int g_towns = 0, g_v_towns = -1, g_tn_max = 3, g_tn_cits = 6, g_tn_towers = 2, g_tn_remove = 0;
 #define TOWNS(idx) PV(idx, g_v_towns, g_towns)
 
 internal PRINTF_LIKE(3, 4) void tn_say(unsigned idx, uint32_t now, const char *fmt, ...) {
@@ -499,6 +501,22 @@ internal void tn_run(ee_player *pl, unsigned idx, struct tn_st *s, struct tn_tow
             t->cit[j] = t->cit[t->ncit - 1]; t->cid[j] = t->cid[t->ncit - 1]; t->sent_mine[j] = t->sent_mine[t->ncit - 1]; t->ncit--; j--;
         }
     if (!any && !t->ncit && now - t->t > 60000) { tn_lost(idx, s, t, now); return; }
+    // towns_remove_unbuilt: going up with all its citizens dead - nobody plans or builds it any more, and its
+    // foundations (1 hp: damaged) drew the game's repair round's citizens to them (attack.c ONE AT A TIME); removed
+    // as econ.c removes stacked ones (vf24 (0, 0, 0): refunded) and the town lost
+    if (g_tn_remove && t->state == 1 && any && !t->ncit && now - t->t > 60000) {
+        int removed = 0;
+        for (int j = 0; j < t->nproj; j++) {
+            struct tn_proj *p = &t->proj[j];
+            ee_unit *bs = p->state == 1 && tn_alive(p) ? unit_get_physics(p->b) : NULL;
+            if (p->state != 1 || !tn_alive(p) || (bs && unit_get_finished(bs))) continue;
+            unit_destroy(p->b, 0, 0, 0);
+            p->b = NULL; p->state = 3; removed++;
+        }
+        tn_say(idx, now, "the town at %d,%d: its citizens dead, %d unfinished buildings removed", t->c.x, t->c.y, removed);
+        tn_lost(idx, s, t, now);
+        return;
+    }
     if (!t->proj[0].state && !t->proj[0].tries && now - t->t > 180000) {   // its first drop site not paid in 3 minutes: given up, not lost
         s->unpaid++;
         tn_say(idx, now, "the town at %d,%d given up: its drop site not paid in 3 minutes", t->c.x, t->c.y);
@@ -901,6 +919,7 @@ internal void towns_install(const char *autotest_ini) {
     g_tn_max = g_set_ai[1].towns_max;
     g_tn_cits = g_set_ai[1].towns_citizens;
     g_tn_towers = g_set_ai[1].towers_per_town;
+    g_tn_remove = g_set_ai[1].towns_remove_unbuilt;
     if (g_tn_max > TN_MAX) g_tn_max = TN_MAX;
     if (g_tn_cits > 12) g_tn_cits = 12;
     if (g_tn_towers > TN_PROJ - 1) g_tn_towers = TN_PROJ - 1;

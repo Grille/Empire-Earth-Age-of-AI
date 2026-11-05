@@ -945,6 +945,7 @@ internal int unit_goal(ee_unit *u, ee_goal *goal, int append, unsigned state);
 internal int muster_rally(unsigned idx, float *x, float *y);   // defence.c: the rally point while the base is overrun
 internal struct { unsigned sent; } g_cit_stats[16];
 internal unsigned g_repair_refused[16];   // repair orders refused at buildings under attack (hook_repair_goal)
+internal unsigned g_repair_walking[16], g_repair_unsafe[16];   // ... at buildings a citizen walks to already, by an unsafe way
 // STRAY CITIZENS: an attack that ends hands its units back to the resource manager's list 0 (not assigned) with the
 // attack's last order still on them - march to the target's Town Center. The assignment only gives work to idle
 // citizens, so they marched on and died there: all 34 of Hedda's, first into the player's town, then into Livia's
@@ -1092,12 +1093,13 @@ internal void citizens_safety(ee_resource_mgr *rm) {   // before the citizen ass
                                 "attack's leftover order) sent home\n", idx, now / 60000.0, stray);
     if (fled && g_log) fprintf(g_log, "# citizens: P%u at %.1f min: %d fled (base overrun): %d to the rally point, %d aside "
                                "(enemies on the way)\n", idx, now / 60000.0, fled, fled - aside, aside);
-    if (g_log && (sent || now / 300000 != logged[idx] / 300000) && (g_cit_stats[idx].sent || g_site_refused[idx] || g_repair_refused[idx])) {
+    if (g_log && (sent || now / 300000 != logged[idx] / 300000) && (g_cit_stats[idx].sent || g_site_refused[idx] || g_repair_refused[idx] || g_repair_walking[idx] || g_repair_unsafe[idx])) {
         logged[idx] = now;
         char ks[64] = "";
         for (int j = 0; j < 4 && kinds[j][1]; j++) { size_t l = strlen(ks); snprintf(ks + l, sizeof ks - l, " %dx%d", kinds[j][0], kinds[j][1]); }
-        fprintf(g_log, "# citizens: P%u at %.1f min: %d sent back from sites near enemy towers or raiders (site type x count:%s; %u in all, %u dangerous sites refused, %u repairs refused, %u hurt)\n",
-                idx, now / 60000.0, sent, ks, g_cit_stats[idx].sent, g_site_refused[idx], g_repair_refused[idx], g_hurt_count[idx]);
+        fprintf(g_log, "# citizens: P%u at %.1f min: %d sent back from sites near enemy towers or raiders (site type x count:%s; %u in all, %u dangerous sites refused, %u repairs refused, %u hurt; repairs refused with a citizen on its way %u, by an unsafe way %u)\n",
+                idx, now / 60000.0, sent, ks, g_cit_stats[idx].sent, g_site_refused[idx], g_repair_refused[idx], g_hurt_count[idx],
+                g_repair_walking[idx], g_repair_unsafe[idx]);
     }
 }
 
@@ -1106,11 +1108,35 @@ internal void citizens_safety(ee_resource_mgr *rm) {   // before the citizen ass
 // army (P3: 17 in 15 minutes, sent back by citizens_safety only once it was on its way). Its order (EEUGBuildRepair,
 // 0x60BAD0) is refused at the handing-over (0x5F05BD at 0x46DA88) while enemy soldiers stand within 8 tiles (or their range + 3) of the
 // building (as citizens_safety): the goal deleted (its vf0, which lets go of the building), the citizen keeps its work.
+// ONE AT A TIME ([ai_base] repair_one_walker): the round picks buildings with no builder at work (+0x274) - one still
+// walking there doesn't count, so a foundation 150+ tiles away got another citizen every 31 s until one arrived. In
+// the player's game 2026-11-05 four of a town's (towns.c) foundations far out, their builders killed on the way, drew
+// P2's farmers and miners: builders 64 -> 166 in four minutes, 218 citizens -> 57. Refused when another of its
+// citizens already holds a build goal on the building. SAFE WAY (repair_safe_way): refused when enemy soldiers it
+// knows stand on the straight way or known enemy towers cover it (path_raided, route_covered).
+internal int g_repair_one = 1, g_repair_way = 0;
+internal int repair_walker(ee_player *pl, ee_unit *b, ee_unit *self) {   // one of its units on its way to build b
+    int n = 0;
+    for (ee_unit *w = player_get_units(pl); w && n < 100000; w = unit_get_next(w), n++) {
+        if (w == self || unit_get_hp(w) <= 0) continue;
+        ee_goal *g = unit_get_goal(w);
+        if (g && goal_is_build(g) && goal_get_building(g) == b) return 1;
+    }
+    return 0;
+}
 internal void __thiscall hook_repair_goal(ee_unit *u, ee_goal *goal, int8_t append, int prio) {
     ee_player *pl = u ? unit_get_owner(u) : NULL;
     ee_unit *b = goal && goal_is_build(goal) ? goal_get_building(goal) : NULL;
-    if (g_avoid_citizens && pl && b && !is_vanilla(pl) && raiders_known(pl, unit_get_tile(b), 8)) {
-        g_repair_refused[(unsigned)player_get_index(pl) & 15]++;
+    unsigned pi = pl ? (unsigned)player_get_index(pl) & 15 : 0;
+    int refuse = 0;
+    if (pl && b && !is_vanilla(pl)) {
+        ivec2 bt = unit_get_tile(b);
+        if (g_avoid_citizens && raiders_known(pl, bt, 8)) { g_repair_refused[pi]++; refuse = 1; }
+        else if (g_repair_one && repair_walker(pl, b, u)) { g_repair_walking[pi]++; refuse = 1; }
+        else if (g_repair_way && (path_raided(pl, unit_get_x(u), unit_get_y(u), bt.x, bt.y) ||
+                                  route_covered(pl, unit_get_x(u), unit_get_y(u), bt.x, bt.y))) { g_repair_unsafe[pi]++; refuse = 1; }
+    }
+    if (refuse) {
         ((void (__thiscall *)(void *, int))(*(void ***)goal)[0])(goal, 1);
         return;
     }
@@ -1788,6 +1814,8 @@ internal void attack_install(void) {
     g_avoid_towers = g_set_ai[1].avoid_towers;
     g_avoid_citizens = g_set_ai[1].avoid_towers_citizens;
     g_cit_threats = g_set_ai[1].citizen_threats;
+    g_repair_one = g_set_ai[1].repair_one_walker;
+    g_repair_way = g_set_ai[1].repair_safe_way;
     g_danger_routes = g_set_ai[1].danger_routes;
     g_avoid_lost = g_set_ai[1].avoid_lost_fights;
     g_bunkers = g_set_ai[1].bunkers;
@@ -1922,6 +1950,8 @@ internal void attack_new_game(void) {
     memset(g_hurt_count, 0, sizeof g_hurt_count);
     memset(g_cit_stats, 0, sizeof g_cit_stats);
     memset(g_repair_refused, 0, sizeof g_repair_refused);
+    memset(g_repair_walking, 0, sizeof g_repair_walking);
+    memset(g_repair_unsafe, 0, sizeof g_repair_unsafe);
     memset(g_siege_train, 0, sizeof g_siege_train);
     memset(g_trace, 0, sizeof g_trace);
 }
