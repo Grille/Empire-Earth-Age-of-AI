@@ -123,7 +123,7 @@ internal const char k_rd3_shader[] =
     "Texture2D<float> sm : register(t2); SamplerComparisonState sc : register(s1);\n"   // the dynamic shadows' maps:
     "Texture2D<float> tm : register(t4);\n"   // the casters', the terrain's (what the hills hide from the sun)
     "struct I { float3 p : POSITION; float3 n : NORMAL; float4 c : COLOR; float2 t : TEXCOORD; uint w : WORLD; };\n"
-    "struct O { float4 p : SV_Position; float4 c : COLOR; float2 t : TEXCOORD0; float f : FOG; float4 q : TEXCOORD1; };\n"
+    "struct O { float4 p : SV_Position; float4 c : COLOR; float2 t : TEXCOORD0; float f : FOG; float4 q : TEXCOORD1; float3 k : TEXCOORD2; };\n"
     // a unit's tint: how many of four texels around its origin's place in the map are nearer the sun by more than b
     "float shade_at(float3 q, float b) { if (q.x < 0 || q.y < 0 || q.x > 1 || q.y > 1) return 0;"
     " int n = (int)shp.y; int2 c = int2(q.xy * shp.y); float k = 0;"
@@ -135,13 +135,15 @@ internal const char k_rd3_shader[] =
     // under water the shadow fades out with the depth (the sun's light scattered in the water)
     " o.q.w = shl.z > 0 ? saturate(1 - (shl.x - dot(p, shz)) * shl.y) : 1;"
     " o.p.xy += vp.xy * o.p.w;"
-    " float4 vc = i.c.zyxw, c = vc;"   // D3DCOLOR's bytes are B G R A
+    " float4 vc = i.c.zyxw, c = vc; o.k = 1;"   // D3DCOLOR's bytes are B G R A
     " if (lit.x) { float4 d = src.x ? vc : mdiff, a = src.y ? vc : mamb, e = src.z ? vc : memi;"
     "  float3 n = mul(i.n, (float3x3)world); if (lit.z) n = normalize(n);"
     "  float3 am = gamb.rgb, df = 0;"
     "  for (int k = 0; k < lit.y; k++) { am += lamb[k].rgb; df += ldiff[k].rgb * max(0, dot(n, -ldir[k].xyz)); }"
     "  if (shp.x == 3 && shp.z > 0) df *= 1 - shk.w * shade_at(mul(float4(world[3].xyz, 1), shm).xyz, b * shp.w);"
-    "  c = float4(saturate(e.rgb + a.rgb * am + d.rgb * df), d.a); }"
+    "  c = float4(saturate(e.rgb + a.rgb * am + d.rgb * df), d.a);"
+    // a caster in a shadow (shadows all on): its colour without the lights' diffuse part, as much as the strength takes
+    "  o.k = saturate(e.rgb + a.rgb * am + d.rgb * df * (1 - shk.w)) / max(c.rgb, 0.001); }"
     " o.c = c; o.t = i.t;"
     " float3 q = mul(p, view).xyz; float z = vp.z > 0.5 ? length(q) : q.z, f = 1;"
     " if (fog.x == 3) f = (fog.z - z) / (fog.z - fog.y); else if (fog.x == 1) f = exp(-fog.w * z);"
@@ -159,11 +161,12 @@ internal const char k_rd3_shader[] =
     " if (f && !(f == 8 || (f == 2 && A < R) || (f == 3 && A == R) || (f == 4 && A <= R) || (f == 5 && A > R)"
     "  || (f == 6 && A != R) || (f == 7 && A >= R))) discard;"
     // the ground, a decal or field on it, the water: 3x3 comparisons with the casters' map, where the terrain's doesn't
-    // hide the sun
-    " if ((shd.x == 1 || shd.x == 4 || shd.x == 6) && shd.z > 0) { float z = min(i.q.z, 0.9999), l = 0, h = 0;"
+    // hide the sun; with shadows all on the units, buildings and trees too, their colour without the sun's part
+    " bool g = shd.x == 1 || shd.x == 4 || shd.x == 6, rc = sht.y > 0 && (shd.x == 2 || shd.x == 3 || shd.x == 9);"
+    " if ((g || rc) && shd.z > 0) { float z = min(i.q.z, 0.9999), l = 0, h = 0, b = g ? shd.w : sht.z;"
     "  for (int y = -1; y <= 1; y++) for (int u = -1; u <= 1; u++) { float2 k = i.q.xy + float2(u, y) * shd.y;"
-    "   l += sm.SampleCmpLevelZero(sc, k, z - shd.w); h += tm.SampleCmpLevelZero(sc, k, z - sht.x); }"
-    "  c.rgb *= lerp(1, pshk.rgb, (1 - l / 9) * (h / 9) * i.q.w); }"
+    "   l += sm.SampleCmpLevelZero(sc, k, z - b); h += tm.SampleCmpLevelZero(sc, k, z - sht.x); }"
+    "  c.rgb *= lerp(1, g ? pshk.rgb : i.k, (1 - l / 9) * (h / 9) * i.q.w); }"
     " if (misc.y > 0.5) c.rgb = lerp(fogc.rgb, c.rgb, saturate(i.f));"
     " return c; }\n";
 

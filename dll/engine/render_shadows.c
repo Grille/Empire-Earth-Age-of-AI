@@ -1,6 +1,7 @@
 // THE DYNAMIC SHADOWS ([display] shadows = dynamic; docs/renderer.md "Shadows"): the game's shadows are a blurred patch
 // a unit (EEROGroundShadows, a quad on the ground); these are cast by the sun from the units', buildings' and trees'
-// shapes onto the ground only - the models are low-poly, and light and shade on them would show it. Each draw gets a
+// shapes onto the ground, and onto the units, buildings and trees too (g_sh.all: per pixel, the lights' diffuse part
+// taken out of their colour - a face turned from the sun keeps its own shading, nothing darkens twice). Each draw gets a
 // role (rd3_shadow_role): the terrain's draws receive; the units' lit solid draws cast, and a unit standing in a shadow
 // is darkened as a whole by one look at its origin's place in the map (SH_TINT - no shading of its own; off unless the
 // pipe's shadows tint on: it came across as flicker, units darkening and brightening as they move); trees cast
@@ -14,8 +15,9 @@
 // main pixel shader. The ground's vertices are the game's own transform into the camera's space (its view only swaps
 // y and z): their place in the world needs the camera the units are drawn with, which comes later in the frame - known
 // when the list is drawn (rd3_shadow_vc).
-// SH_AWAY: casts, not drawn (off the screen, a tree's card); SH_GONE: neither (a tree off the screen)
-enum { SH_NONE, SH_RECEIVE, SH_CAST, SH_TINT, SH_DECAL, SH_BLOB, SH_WATER, SH_AWAY, SH_GONE };
+// SH_AWAY: casts, not drawn (off the screen, a tree's card); SH_GONE: neither (a tree off the screen); SH_TREE: drawn,
+// not casting (a tree whose card casts)
+enum { SH_NONE, SH_RECEIVE, SH_CAST, SH_TINT, SH_DECAL, SH_BLOB, SH_WATER, SH_AWAY, SH_GONE, SH_TREE };
 #define SH_SIZE 4096
 internal struct {
     int on;          // [display] shadows (the pipe's shadows switches it)
@@ -23,6 +25,7 @@ internal struct {
     float fade;      // the depth under the water by which a shadow is gone
     int tint;        // a unit in a shadow darkened (SH_TINT): off - it came across as flicker (the player, 2026-11-05)
     int nocards;     // the pipe's shadows cards off: trees cast themselves (rd3_shadow_card)
+    int all;         // the units, buildings and trees receive too, per pixel (on; the pipe: shadows all on | off)
     double water_z;  // the water's vertices' heights this frame, summed, and how many (its level)
     int water_n;
     float level;     // the last frame's
@@ -53,7 +56,7 @@ internal struct {
     LONG passes;
     int last_cast, last_ground;   // the last map's (the pipe's shadows)
     float last_lo[3], last_hi[3];
-} g_sh = { .strength = 0.8f, .fade = 0.8f, .tall = 2, .sun = { 0.08f, 0.75f, -0.65f }, .sun_low = 25, .sun_lit = 0.65f };
+} g_sh = { .strength = 0.8f, .fade = 0.8f, .all = 1, .tall = 2, .sun = { 0.08f, 0.75f, -0.65f }, .sun_low = 25, .sun_lit = 0.65f };
 
 // from the sun: the batch's vertices placed as the main pass places them (render_3d.c's vertex shader), through shm
 // into the map (sa: alpha reference / 255, alpha tested). A tree casts its card (rd3_shadow_card), not itself. The
@@ -206,7 +209,7 @@ internal int rd3_shadow_role(rd_device *d, rd_vb *vb, DWORD start, DWORD nv) {
         g_sh.amb[0] = ga[0] + l->dcvAmbient.r; g_sh.amb[1] = ga[1] + l->dcvAmbient.g; g_sh.amb[2] = ga[2] + l->dcvAmbient.b;
         g_sh.diff[0] = l->dcvDiffuse.r; g_sh.diff[1] = l->dcvDiffuse.g; g_sh.diff[2] = l->dcvDiffuse.b;
     }
-    if (d->sh_card) return out ? SH_GONE : SH_NONE;
+    if (d->sh_card) return out ? SH_GONE : SH_TREE;
     return out ? SH_AWAY : !g_sh.tint ? SH_CAST : SH_TINT;
 }
 // A TREE'S CARD (the player, 2026-11-05): the game's camera never turns, and its trees are curved cards made for it -
@@ -436,6 +439,8 @@ internal void rd3_shadow_pc(rd3_pcb *pc) {
     pc->shd[2] = g_sh.valid ? 1.0f : 0.0f;
     memcpy(pc->shk, g_sh.shk, sizeof pc->shk);
     pc->sht[0] = 0.3f * g_sh.inv_depth;   // a third of a tile: the terrain's map and the ground differ by its texels
+    pc->sht[1] = g_sh.all ? 1.0f : 0.0f;
+    pc->sht[2] = 0.15f * g_sh.inv_depth;   // a caster against its own shape in the map: the low-poly faces' slopes
 }
 // the maps for the main pass (rf_replay binds them with the rest)
 internal void rd3_shadow_bind(ID3D11DeviceContext *x) {
@@ -601,6 +606,9 @@ internal void cmd_shadows(char *out, const char *args) {
     if (!strcmp(mode, "tint")) {
         if (!strcmp(arg, "on") || !strcmp(arg, "off")) g_sh.tint = arg[1] == 'n';
         else { REPLY("error: usage: shadows tint on | off\n"); return; }
+    } else if (!strcmp(mode, "all")) {
+        if (!strcmp(arg, "on") || !strcmp(arg, "off")) g_sh.all = arg[1] == 'n';
+        else { REPLY("error: usage: shadows all on | off\n"); return; }
     } else if (!strcmp(mode, "cards")) {
         if (!strcmp(arg, "on") || !strcmp(arg, "off")) g_sh.nocards = arg[1] != 'n';
         else { REPLY("error: usage: shadows cards on | off\n"); return; }
@@ -621,18 +629,18 @@ internal void cmd_shadows(char *out, const char *args) {
         else { REPLY("error: usage: shadows fade <depth under the water, > 0>\n"); return; }
     } else if (!strcmp(mode, "game")) g_sh.on = 0;
     else if (!strcmp(mode, "dynamic")) g_sh.on = 1;
-    else if (mode[0]) { REPLY("error: usage: shadows [game | dynamic] [strength 0..1] | fade <depth> | sun <degrees> | height <degrees> | turn <degrees> | reach on | off | cards on | off | tint on | off\n"); return; }
+    else if (mode[0]) { REPLY("error: usage: shadows [game | dynamic] [strength 0..1] | fade <depth> | sun <degrees> | height <degrees> | turn <degrees> | reach on | off | cards on | off | all on | off | tint on | off\n"); return; }
     if ((!strcmp(mode, "game") || !strcmp(mode, "dynamic")) && s >= 0 && s <= 1) g_sh.strength = s;
     REPLY("shadows: %s, strength %.2f, %s, %ld maps drawn; the last: %d casting batches, %d of ground;"
           " the casters' box %.1f %.1f %.1f - %.1f %.1f %.1f, the sun %.2f %.2f %.2f, a shadow's colour %.2f %.2f %.2f;"
-          " the water at %.2f%s, a shadow gone %.2f under it; units in a shadow darkened: %s; the sun at least %.0f degrees"
+          " the water at %.2f%s, a shadow gone %.2f under it; units in a shadow darkened: %s, receiving: %s; the sun at least %.0f degrees"
           " high (the light's %.0f); casters off the screen: %s, %.1f tiles (the tallest %.1f), %d rows and %d more; %d casting draws off the screen\n",
           g_sh.on ? "dynamic" : "game", (double)g_sh.strength,
           g_sh.ready > 0 ? "ready" : g_sh.ready < 0 ? "FAILED (the log says why)" : "not made yet", (long)g_sh.passes,
           g_sh.last_cast, g_sh.last_ground, (double)g_sh.last_lo[0], (double)g_sh.last_lo[1], (double)g_sh.last_lo[2],
           (double)g_sh.last_hi[0], (double)g_sh.last_hi[1], (double)g_sh.last_hi[2], (double)g_sh.sun[0],
           (double)g_sh.sun[1], (double)g_sh.sun[2], (double)g_sh.shk[0], (double)g_sh.shk[1], (double)g_sh.shk[2],
-          (double)g_sh.level, g_sh.shl[2] > 0 ? "" : " (none seen)", (double)g_sh.fade, g_sh.tint ? "on" : "off",
+          (double)g_sh.level, g_sh.shl[2] > 0 ? "" : " (none seen)", (double)g_sh.fade, g_sh.tint ? "on" : "off", g_sh.all ? "everything" : "the ground",
           (double)g_sh.sun_low, (double)(asinf(fminf(1, fmaxf(-1, g_sh.sun_lit))) * 180 / 3.14159265f),
           !g_shr.on ? "not (no hooks)" : g_shr.off ? "off" : "collected", (double)g_shr.reach, (double)g_sh.tall, g_shr.last_own, g_shr.last_extra, g_sh.last_off);
 }

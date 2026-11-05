@@ -169,7 +169,7 @@ the display DLLs import it) but never called; DDrawCompat hooks parts of Windows
 ## Shadows
 
 The player, 2026-11-04: dynamic shadows, cast on the terrain only - the models are low-poly and shading on them
-would show it. `[display] shadows = dynamic` (default `game`; the pipe: `shadows game | dynamic [strength]`, the reply
+would show it (on everything since 2026-11-05, below). `[display] shadows = dynamic` (default `game`; the pipe: `shadows game | dynamic [strength]`, the reply
 tells the last map's casters, ground batches, box, sun and shadow colour), engine/render_shadows.c:
 - Each draw gets a role: the terrain's receive (not the sky drawn with it); in the units' render object the lit draws
   that don't lie flat cast (trees - alpha tested at 200 or more - without the tint below), the textured ones lying flat
@@ -193,6 +193,15 @@ tells the last map's casters, ground batches, box, sun and shadow colour), engin
   away - only the crown's dense middle passed 229, a smooth blob. Checked on "choke wolf" with trees spawned (firs,
   cedars, spruces, dead pines, maples, palms, the multi-palm 356), cards on and off in the same paused frame: palms cast
   their crowns, dead pines their sparse width instead of a line, the multi-palm's crowns beside their trunks.
+- Shadows on everything (the player, 2026-11-05: "how hard would it be to make the shadows affect everything"): the
+  casters and the trees receive too, per pixel - the same 3x3 comparisons as the ground's, with a bias of 0.15 tiles
+  against their own shape in the map. The vertex shader works out each vertex's colour without the lights' diffuse
+  part (as much as the strength takes) and hands over its ratio to the lit colour; a shadow multiplies with that. A face
+  turned from the sun has no diffuse part to lose, so it isn't darkened twice. A tree drawn while its card casts is
+  SH_TREE: it receives its card's shadow as well, its far half shaded. The pipe: `shadows all on | off` (on). Checked
+  on "choke wolf" (the sun at 30 and at 20 degrees, turned 150): towers shade the bunker and wall beside them, the
+  gate's wall its own; units in a wall's shadow darker; trees shaded on their side away from the sun; no acne on the
+  buildings' lit faces.
 - Casters off the screen (the player, 2026-11-05: with the day's cycle a low sun casts long shadows, and they dropped
   out as soon as the building's or unit's bounds left the screen - his AoC shot: towers' shadows of 3-4 tiles). The
   game culls twice: its units' render object collects the objects on the terrain mesh's visible tile rows that pass
