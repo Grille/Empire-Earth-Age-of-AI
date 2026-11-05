@@ -150,6 +150,11 @@ class display
         /// margin <share>):
         [range(0, 2)]
         share ground_margin = 1.0;
+        /// The own renderer only: the units, trees and buildings this much beyond the screen are drawn too, so that
+        /// they don't vanish at the edge of a frame drawn during a step (10% = a tile or two; 0% as the game had it;
+        /// the control pipe: picture objects <share>):
+        [range(0, 0.5)]
+        share object_margin = 0.1;
     }
 
     [title("Wrapper (only with renderer = wrapper)")]

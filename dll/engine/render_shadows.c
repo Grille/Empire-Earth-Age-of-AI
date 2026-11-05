@@ -784,7 +784,7 @@ internal void __thiscall shr_hook_row(const void *mesh, unsigned long i, long *y
 // the picture (its tile still in a visible row) lost its shadow with it (the player, 2026-11-05: "the unit and building
 // shadow still vanishes the second their exact bounding leave the image")
 internal uint8_t __thiscall shr_hook_view(const void *model, const void *viewport, uint8_t flag) {
-    return g_shr.n > 0 || model_intersects(model, viewport, flag);
+    return g_shr.n > 0 || model_intersects(model, viewport, flag) || rf_object_again(model, viewport, flag);   // the objects' margin
 }
 // The display DLLs draw a model only where the engine's test of it against the view passes
 // (DX7Rasterizer::DrawModelHierarchy: GERasterizer::IsPerspectiveModelVisible / IsOrthographicModelVisible, their
@@ -802,6 +802,13 @@ internal void __thiscall shr_hook_visible(void *ras, void *model, float lod, voi
                                           uint8_t *clip) {
     g_shr_visible(ras, model, lod, viewport, at, visible, clip);
     if (!*visible && shr_pass()) { *visible = 1; *clip = 1; }
+    else if (!*visible && g_ro_cur == RO_UNITS && g_om_margin > 0) {   // the objects' margin (render_frame.c)
+        float was[4][3];
+        rf_view_widen(viewport, 1.0f + g_om_margin, was);
+        g_shr_visible(ras, model, lod, viewport, at, visible, clip);
+        rf_view_restore(viewport, was);
+        if (*visible) *clip = 1;
+    }
 }
 internal void __thiscall shr_hook_visible_ortho(void *ras, void *model, void *viewport, void *at, uint8_t *visible,
                                                 uint8_t *clip) {

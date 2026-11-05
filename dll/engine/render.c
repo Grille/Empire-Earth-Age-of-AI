@@ -893,7 +893,8 @@ internal void render_install(const char *autotest_ini) {
     g_fx.on = g_set.antialias;      // [display] antialias, anisotropy (render_fxaa.c)
     g_fx.aniso = g_set.anisotropy;
     g_rwl_free = g_set.draw_during_steps;   // [display] draw_during_steps (render_3d.c)
-    g_gm_margin = g_set.ground_margin;      // [display] ground_margin (render_frame.c)
+    g_gm_margin = g_set.ground_margin;      // [display] ground_margin, object_margin (render_frame.c)
+    g_om_margin = g_set.object_margin;
     int locks = rd_world_lock_install(), parts = rd_render_objects_install();   // the minute line's wait and parts
     if (g_log) fprintf(g_log, "# render: own renderer on (Direct3D 11) - the display DLLs' DirectDraw at their load%s; world lock hooks %d/10,"
                        " render object hooks %d/5; shadows %s\n", g_rd_trace > 0 ? ", calls traced" : "", locks, parts,

@@ -359,6 +359,7 @@ internal void rd3_color(float *f, D3DCOLOR c) {
 internal void rd3_value(float *f, const D3DCOLORVALUE *c) { f[0] = c->r; f[1] = c->g; f[2] = c->b; f[3] = c->a; }
 internal float rd3_float(DWORD v) { float f; memcpy(&f, &v, 4); return f; }
 
+internal volatile LONG g_rp_state;   // the probe (below)
 #include "render_frame.c"     // the frame recorded and drawn at once
 #include "render_shadows.c"   // the dynamic shadows ([display] shadows = dynamic)
 #include "render_fxaa.c"      // the picture's sharpness ([display] antialias, anisotropy)
@@ -736,6 +737,7 @@ internal void __thiscall rd_hook_graphics_update(ee_graphics *g) {
     if (skip) g_rwl_skips++;
     else g_rwl_updates++;
     g_rwl_pass = skip;
+    if (skip && g_rp_state == 3) g_rp_state = 2;   // the pipe's rprobe step
     ee_graphics_update_objects(g);
     g_rwl_pass = 0;
 }
@@ -764,12 +766,24 @@ internal int rd_world_lock_install(void) {
 // each one's draw timed for the minute's line, the game's own work in it and the renderer's under it together
 internal LONGLONG g_ro_qpc[RO_N];
 internal int g_rp_skip;       // bit per render object: its draw skipped (the pipe's rprobe skip - the picture without it)
+// Each one's batch flushed at its end: a batch takes the render object current when it is flushed (rd3_flush, at the
+// next draw with other states), so the ground's last went in with the units' first and the water's last with the
+// interface's - left out of the kept ground and water, and the water's not moved with the camera during a step (drawn
+// where the camera had been: pieces of water over the map's edge, squares of the seabed on the water - AoC, 2026-11-05)
 #define RO_DRAW(i, call) do { g_ro_obj[i] = (ee_render_object *)o; if (g_rp_skip & 1 << (i)) return; int was_ = g_ro_cur; g_ro_cur = (i); \
-    LONGLONG t_ = rd_qpc(); call; g_ro_qpc[i] += rd_qpc() - t_; g_ro_cur = was_; } while (0)
-internal void __thiscall rd_hook_ro_terrain(ee_ro_terrain *o) { RO_DRAW(RO_TERRAIN, (rf_ground_again(), ro_terrain_draw(o))); }
+    LONGLONG t_ = rd_qpc(); call; RD_LOCK(); rd3_flush(); RD_UNLOCK(); g_ro_qpc[i] += rd_qpc() - t_; g_ro_cur = was_; } while (0)
+// during a step the last real frame's ground instead of the game's draw, which in Art of Conquest draws its last lists
+// again (rprobe step: the same 73 draws) - the ground twice, its see-through layers twice as strong (render_frame.c
+// rf_ground_again)
+internal void __thiscall rd_hook_ro_terrain(ee_ro_terrain *o) {
+    RO_DRAW(RO_TERRAIN, if (g_kg_skip && g_kg.nb) rf_ground_again(&g_kg); else ro_terrain_draw(o));
+}
 internal void __thiscall rd_hook_ro_shadows(ee_ro_shadows *o) { RO_DRAW(RO_SHADOWS, ro_shadows_draw(o)); }
 internal void __thiscall rd_hook_ro_units(ee_ro_units *o) { RO_DRAW(RO_UNITS, ro_units_draw(o)); }
-internal void __thiscall rd_hook_ro_water(ee_ro_water *o) { RO_DRAW(RO_WATER, ro_water_draw(o)); }
+// during a step the last real frame's water, as its ground (render_frame.c rf_ground_again)
+internal void __thiscall rd_hook_ro_water(ee_ro_water *o) {
+    RO_DRAW(RO_WATER, if (g_kg_skip && g_kw.nb) rf_ground_again(&g_kw); else ro_water_draw(o));
+}
 internal void __thiscall rd_hook_ro_ui(ee_ro_ui *o) { RO_DRAW(RO_UI, ro_ui_draw(o)); }
 internal int rd_render_objects_install(void) {
     return patch_ro_terrain_draw(rd_hook_ro_terrain) + patch_ro_shadows_draw(rd_hook_ro_shadows) +
@@ -779,7 +793,7 @@ internal int rd_render_objects_install(void) {
 // THE PROBE (the pipe's rprobe): the next whole frame's draws logged, each with its render object, states, light,
 // material, texture, world matrix and its vertices' extent and flatness (the largest distance from the plane of its
 // first triangle, in the model's own units) - what the game draws where, for the shadows' plan (docs/renderer.md)
-internal volatile LONG g_rp_state;   // 1 asked, 2 logging this frame
+internal volatile LONG g_rp_state;   // 1 asked, 2 logging this frame, 3 asked for a frame drawn during a step
 internal void rd3_probe(rd_device *d, D3DPRIMITIVETYPE type, rd_vb *vb, DWORD start, DWORD nv, WORD *idx, DWORD ni) {
     if (g_rp_state != 2 || vb->fvf != 0x152) return;
     const uint8_t *m = vb->mem + start * vb->stride;
@@ -849,7 +863,8 @@ internal void rd3_probe(rd_device *d, D3DPRIMITIVETYPE type, rd_vb *vb, DWORD st
                d->view._43, zl, zh);
 }
 
-// rprobe [skip <parts | none>]: the own renderer's next frame logged draw by draw ("# rprobe", render_3d.c rd3_probe);
+// rprobe [step | skip <parts | none>]: the own renderer's next frame (step: the next drawn during a step) logged draw
+// by draw ("# rprobe", render_3d.c rd3_probe);
 // skip leaves render objects out of the picture (terrain, shadows, units, water, interface - a comma list) until none
 internal void cmd_rprobe(char *out, const char *args) {
     while (*args == ' ') args++;
@@ -863,8 +878,8 @@ internal void cmd_rprobe(char *out, const char *args) {
         REPLY("%s\n", skip ? "" : " none");
         return;
     }
-    g_rp_state = 1;
-    REPLY("rprobe: the next frame's draws go to the log (# rprobe)\n");
+    g_rp_state = strncmp(args, "step", 4) ? 1 : 3;
+    REPLY("rprobe: the next frame's%s draws go to the log (# rprobe)\n", g_rp_state == 3 ? " drawn during a step" : "");
 }
 
 internal void rd_frame_tick(void) {

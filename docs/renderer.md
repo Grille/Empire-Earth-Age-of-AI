@@ -238,8 +238,24 @@ of the frames drawn during a step. The water's (its animation) runs too.
   On that save, a scroll of 4.5 tiles during a 2.5 s step: the sky at the right and top before, ground to every edge
   with it (17400 vertices kept against 3900; the units and trees out there come with the next update); 12.7 tiles
   (more than a screen) still leave a strip. The ground's draw 0.3 -> 0.6 ms a frame, the frames a minute the same.
-  AoC (Continental, the same steps): hooked in both display DLLs, the right side's sky filled. Still there with or
-  without the margin: after a long move during a step the water shows dark squares and pieces beyond the map's edge.
+  AoC (Continental, the same steps): hooked in both display DLLs, the right side's sky filled.
+- The objects' margin (`[display] object_margin`, default 10%; the pipe: `picture objects <0..0.5>`, its reply how
+  many passed by it): the units, trees and buildings beyond the screen stayed away in a frame during a step after a
+  scroll - the ground there bare (the player: "one extra tile before trees and units vanish would be good"). The game
+  tests each object twice against the viewport's four stored side planes (the units' collection's
+  GEPhysicalModel::Intersects, the display DLLs' GERasterizer::IsPerspectiveModelVisible); one that fails is tested
+  again with the planes widened by 1 + the margin (render_shadows.c's hooks of both, render_frame.c rf_object_again).
+  The 8000-unit save, a 3-tile pan during a step: the units at the right edge reach about 70 px further; the units'
+  draw 1.35 -> 1.55 ms a frame.
+- The water during a step (AoC, after a long move: dark and sandy squares on the water, pieces of water over the
+  map's edge; the same at margin 0): a batch takes the render object current when it is flushed, which is at the next
+  draw with other states - the ground's last batch went in with the units' first, the water's last with the
+  interface's. So both were missing from what is kept (rf_keep_ground) and the water's last was not moved with the
+  camera (rf_shift leaves the interface alone): drawn where the camera had been. Each render object's batch is now
+  flushed at its draw's end (RO_DRAW). The water is kept and drawn again like the ground, and during a step the kept
+  ground replaces the game's ground draw - in AoC that draws its last lists again (`rprobe step`: the same 73 draws
+  as the frame before), the ground came twice. Checked on that AoC map, a 4.5-tile pan during a 2 s step: none of
+  either, no hole; the 2017 update's 8000-unit save the same, its pond whole.
 Checked on the reference save (slot 21, speed 2.5, the pipe's stepload 9 - each step held 9 ms, the simulation 410 ms
 a second): frames waiting 8 ms or more 260-383 a minute off, 0-2 on; frames a minute 7300-8700 off, 11200-13300 on;
 an 842 ms step no wait. Shots in steps held 600-4000 ms: complete frames (six over 3 s of one step the same); a 3-tile

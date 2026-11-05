@@ -85,6 +85,7 @@ typedef struct {
 } rf_ground;
 internal int rf_camera_view(float *v, const float *m);
 internal rf_ground g_kg;   // the last frame drawn with an update (a frame during a step records none)
+internal rf_ground g_kw;   // its water (the same: rf_water_again)
 internal int g_kg_skip;   // this frame is drawn during a step: nothing recorded
 internal LONG g_kg_drawn; // ground batches drawn again (the pipe's picture)
 internal float g_kg_eye[3];   // the camera's eye at the last update (the pipe's picture camtrace)
@@ -96,8 +97,8 @@ internal void rf_ground_clear(rf_ground *g) {
 }
 // the batch being flushed (rd3_flush, before its matrices' place is added), when it is the ground's
 internal void rf_keep_ground(void) {
-    if (g_kg_skip || g_ro_cur != RO_TERRAIN) return;
-    rf_ground *g = &g_kg;
+    if (g_kg_skip || (g_ro_cur != RO_TERRAIN && g_ro_cur != RO_WATER)) return;
+    rf_ground *g = g_ro_cur == RO_WATER ? &g_kw : &g_kg;
     if (!rf_grow((void **)&g->b, &g->cap_b, g->nb + 1, sizeof *g->b) || !rf_grow((void **)&g->v, &g->cap_v, g->nv + g_rb.nv, sizeof *g->v)
         || !rf_grow((void **)&g->i, &g->cap_i, g->ni + g_rb.ni, sizeof *g->i) || !rf_grow((void **)&g->w, &g->cap_w, g->nw + g_rb.nw, sizeof *g->w))
         return;
@@ -204,25 +205,53 @@ internal void __thiscall rf_hook_terrain_visible(void *mesh, const void *camera,
 // widened by the factor the region was made with - the stored side normals' depth part times it (their slope's
 // tangent), normalized; the field of view to 2 atan(k tan(fov / 2)) for the top and bottom; the rectangle - in both
 // display DLLs (their vtables, at their load: render.c render_display_loaded).
+// the viewport's four stored side planes widened by k (each normal's depth part times it, normalized) - the stored
+// ones into was; and put back
+internal void rf_view_widen(void *viewport, float k, float was[4][3]) {
+    for (int p = 0; p < 4; p++) {
+        float *n = viewport_side_normal(viewport, p), x = n[0], y = n[1] * k, z = n[2], len = sqrtf(x * x + y * y + z * z);
+        memcpy(was[p], n, sizeof was[p]);
+        if (len > 0) { n[0] = x / len; n[1] = y / len; n[2] = z / len; }
+    }
+}
+internal void rf_view_restore(void *viewport, float was[4][3]) {
+    for (int p = 0; p < 4; p++) memcpy(viewport_side_normal(viewport, p), was[p], sizeof was[p]);
+}
 typedef void (__thiscall *gm_to_camera_fn)(void *ras, void *mesh, void *viewport, float dt, uint8_t a, uint8_t b);
 internal gm_to_camera_fn g_gm_to_camera[2];   // DX7HRDisplay.dll's, DX7HRTnLDisplay.dll's
 internal void rf_to_camera(int i, void *ras, void *mesh, void *viewport, float dt, uint8_t a, uint8_t b) {
     float *r = viewport_rect(viewport), was[4], planes[4][3], *fov = viewport_fov_at(viewport), fov0 = *fov;
     float k = g_gm_k;
     memcpy(was, r, sizeof was);
-    for (int p = 0; p < 4; p++) memcpy(planes[p], viewport_side_normal(viewport, p), sizeof planes[p]);
     if (k > 1.0f) {
         rf_scale_rect(r, was, k);
         if (fov0 > 0 && fov0 < 3.0f) *fov = 2.0f * atanf(k * tanf(fov0 * 0.5f));
-        for (int p = 0; p < 4; p++) {
-            float *n = viewport_side_normal(viewport, p), x = n[0], y = n[1] * k, z = n[2], len = sqrtf(x * x + y * y + z * z);
-            if (len > 0) { n[0] = x / len; n[1] = y / len; n[2] = z / len; }
-        }
+        rf_view_widen(viewport, k, planes);
     }
     g_gm_to_camera[i](ras, mesh, viewport, dt, a, b);
-    memcpy(r, was, sizeof was);
-    *fov = fov0;
-    for (int p = 0; p < 4; p++) memcpy(viewport_side_normal(viewport, p), planes[p], sizeof planes[p]);
+    if (k > 1.0f) {
+        memcpy(r, was, sizeof was);
+        *fov = fov0;
+        rf_view_restore(viewport, planes);
+    }
+}
+// The objects' margin ([display] object_margin; the pipe: picture objects): the units, trees and buildings are cut to
+// the screen twice - the units' collection tests each object's model against the view (GEPhysicalModel::Intersects),
+// the display DLL each model it draws (GERasterizer::IsPerspectiveModelVisible), both by the viewport's stored side
+// planes - so a frame during a step that had scrolled showed the ground beyond the screen bare, the objects there
+// came with the next update (the player: "one extra tile before trees and units vanish would be good"). One that fails
+// is tested again with the planes widened by 1 + the margin (render_shadows.c's hooks of both tests, which pass the
+// casters toward the sun the same way).
+internal float g_om_margin = 0.1f;
+internal LONG g_om_passed;   // objects passed by the margin
+internal uint8_t rf_object_again(const void *model, const void *viewport, uint8_t flag) {
+    if (!(g_om_margin > 0)) return 0;
+    float was[4][3];
+    rf_view_widen((void *)viewport, 1.0f + g_om_margin, was);
+    uint8_t r = model_intersects(model, viewport, flag);
+    rf_view_restore((void *)viewport, was);
+    if (r) g_om_passed++;
+    return r;
 }
 internal void __thiscall rf_hook_to_camera0(void *ras, void *mesh, void *viewport, float dt, uint8_t a, uint8_t b) { rf_to_camera(0, ras, mesh, viewport, dt, a, b); }
 internal void __thiscall rf_hook_to_camera1(void *ras, void *mesh, void *viewport, float dt, uint8_t a, uint8_t b) { rf_to_camera(1, ras, mesh, viewport, dt, a, b); }
@@ -244,10 +273,10 @@ internal void rf_ground_frame(int skip) {
     g_kg_eye[0] = m[3]; g_kg_eye[1] = m[7]; g_kg_eye[2] = m[11];
     g_kg_view_ok = rf_camera_view(g_kg_view, m);
     rf_ground_clear(&g_kg);
+    rf_ground_clear(&g_kw);
 }
 // a frame during a step: the last frame's ground into the list
-internal void rf_ground_again(void) {
-    rf_ground *g = &g_kg;
+internal void rf_ground_again(rf_ground *g) {
     if (!g_kg_skip || !g->nb) return;
     rd3_flush();
     for (int k = 0; k < g->nb; k++) {
