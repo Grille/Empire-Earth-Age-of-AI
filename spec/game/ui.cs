@@ -65,16 +65,33 @@ unsafe struct EECameraControl
     float32 y;
 
     /// its transformation (a GETransformation, 4x4 floats by rows: the eye's place in the world at +0xC, +0x1C, +0x2C),
-    /// made by 0x51D2F2; the camera's move (move) sets it at once - the device's view the frames draw with follows it
-    /// only at the next simulation step (the pipe's picture camtrace, 2026-11-05: the eye in it equals the view's in a
-    /// frame drawn after a step, ahead of it while the step runs). AoC's offset by its other fields' (not looked at)
+    /// made by make_transformation at blend in the camera's step (0x51EE75, AoC 0x529A34) alone, which also sets the
+    /// device's view from it: the camera's move (move) only sets where it goes and snap. The step runs in the
+    /// simulation thread's loop, between its steps (0x546CAE) - in a light game every few ms, so the move looked as if
+    /// it set it at once; in the player's 8000-unit save it stood for up to six frames of 120 (the pipe's picture
+    /// camtrace, 2026-11-05). AoC's offset by its other fields' (not looked at)
     [offset(0x84), found(c)]
     block transformation;
 
-    /// 0x51EE75 advances it by dt x +0xDC up to 1.0 and passes it as t to the lerps 0x51D46C / 0x51D56A and to 0x51D2F2
-    /// (the view matrix +0x84)
+    /// 0x51EE75 advances it by dt x blend_rate up to 1.0 (snap: at once) and passes it as t to the lerps 0x51D46C /
+    /// 0x51D56A and to make_transformation (the view matrix +0x84); 0x51E79C sets it 0 for a new move
     [offset(0xD8), found(c), guess]
     float32 blend;
+
+    /// blend's speed, per second of the step's dt (0x51E79C: from the distance to go; AoC 0x529A34 the same)
+    [offset(0xDC), found(c)]
+    float32 blend_rate;
+
+    /// 0x51E79C sets it from its record (the move: 1 - not a ride along a path); the step then puts blend at 1.0 at once
+    /// and clears it (AoC 0x529A34 the same)
+    [offset(0xFC), found(c)]
+    uint8 snap;
+
+    /// thiscall (m, t): the camera's transformation at blend t into m - the eye and look-at lerped from their last
+    /// places (+0x34, +0x40) to the new (+0x6C, +0x78), the turn slerped, the eye kept above the ground (0x51CC45, the
+    /// map's heights); only the camera's fields and the map read, m written. AoC 0x527EB1 the same code
+    [address((ee)0x0051D2F2, (aoc)0x00527EB1)]
+    extern void make_transformation(void* m, float32 t);
 
     /// port_check: 10 reads in the paired camera code, AoC the same
     [offset(0xE0), found(c)]

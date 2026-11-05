@@ -24,6 +24,8 @@ internal inline void *camera_action_alloc(void) { return game_new(value_ui_size_
 // the scroll action executed (the original of camera.c's hook), the camera moved by dx, dy; a scroll action object
 // made by hand (camera.c's test: vtable, then its fields)
 internal inline void camera_pan(float dx, float dy) { fn_camera_move((void *)data_game_camera, dx, dy); }
+// the camera's step makes a fixed view, not its transformation by blend (game.camera_fixed)
+internal inline int camera_fixed_view(void) { return *game_camera_fixed_at() != 0; }
 internal inline void scroll_action_init(ee_scroll *obj) { *(uint32_t *)obj = data_ui_vt_scroll; }
 // the arrow keys' scrolling (display.c gives it to the editor, which has none): an EEUIEKeyboardScroll event (vtable,
 // refcount 1, 0, the direction: 0 up, 1 down, 2 left, 3 right - its Execute moves the camera) made in the game's

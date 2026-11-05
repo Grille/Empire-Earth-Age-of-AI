@@ -202,6 +202,20 @@ of the frames drawn during a step. The water's (its animation) runs too.
   now. Zooming in and out under 12 ms steps: nine shots through the turn, the trees, buildings and fields on their
   ground. Zooming out, a frame during a step shows the sky blue in a corner the last update's ground doesn't reach
   (the frames between the steps have it).
+- The camera itself, made on the render thread (the player, the 8000-unit save: "it feels like before again, a bit
+  sluggish", zoom, arrows, edge and middle mouse all - the cursor smooth at 120 fps). Two faults: the axes were never
+  taken - rf_camera_axes ran at the scene's end after the overlay's frame end had cleared scene_seen, so from 91c9476 on
+  nothing was corrected (the shots lined up because every draw kept the game's own stale view); it now runs before it.
+  And the camera's transformation is not the move's: the move (camera.c's scrolling, every frame on the render thread)
+  only sets a ride from where the camera stands (+0x34/+0x40, by its blend) to the new place with snap set; the
+  camera's step (0x51EE75, in the simulation thread's loop between its steps) makes the transformation by blend
+  (make_transformation 0x51D2F2, AoC 0x527EB1) and the device's view from it. In that save the transformation stood
+  for up to six frames, then jumped (picture camtrace: the look-at 0.035 tiles a frame, the eye 0 0 0 0.10 0 0 ...).
+  Now rf_camera_frame makes it each frame as the step would - at 1 with snap, a zoom's ride its blend moved on by
+  blend_rate x the time since the step last changed it, never back within a ride - and every draw is corrected to it.
+  Checked on a copy of the 8000 save: scrolling, the eye 0.035 a frame every frame; zoom 0.6, the eye down from 14.6 to
+  6.2 in even frames (the game's own blend lagging behind); shots during a scroll under 60 ms steps, the trees and
+  units on their ground.
 - Left: beyond the last update's ground, a fast scroll during a long step shows the sky blue at the edge (3 tiles in
   one move: a strip at the side); the units there come with the next update. Scrolling 0.05 tiles a frame under 15 ms
   steps: eight shots complete, no edge, the ground under the debris.

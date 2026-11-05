@@ -8,6 +8,10 @@ internal inline uint8_t *game_call_damage_points_at(void) { return (uint8_t *)(u
 internal inline uint8_t *game_behaviour_table_at(void) { return (uint8_t *)(uintptr_t)data_game_behaviour_table; }
 // EECameraControl; +0x78/+0x7C/+0x80 look-at x/y/z (tiles), +0xE0 zoom
 internal inline ee_camera *game_camera_at(void) { return (ee_camera *)(uint8_t *)(uintptr_t)data_game_camera; }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// byte: the camera's step (0x51EE75, AoC 0x529A34) makes a fixed view instead of the camera's transformation from
+// its blend (45 degrees, 40 up) while it is set - not seen set in play
+internal inline uint8_t *game_camera_fixed_at(void) { return (uint8_t *)(uintptr_t)data_game_camera_fixed; }
 internal inline uint8_t *game_cheats_on_at(void) { return (uint8_t *)(uintptr_t)data_game_cheats_on; }
 internal inline ee_cheat_codes *game_get_cheat_parser(void) { return *(ee_cheat_codes **)(uint8_t *)(uintptr_t)data_game_cheat_parser; }
 internal inline void game_set_cheat_parser(ee_cheat_codes *v) { *(ee_cheat_codes **)(uint8_t *)(uintptr_t)data_game_cheat_parser = v; }
@@ -206,6 +210,7 @@ internal int spec_game_select(int build) {
         data_game_call_damage_points = 0x004F80A4;
         data_game_behaviour_table = 0x008D2044;
         data_game_camera = 0x00918CD0;
+        data_game_camera_fixed = 0x00919461;
         data_game_cheats_on = 0x00918E9A;
         data_game_cheat_parser = 0x00919858;
         data_game_colors_begin = 0x008CFA74;
@@ -301,6 +306,7 @@ internal int spec_game_select(int build) {
         data_game_call_damage_points = 0x0050232D;
         data_game_behaviour_table = 0x008E8744;
         data_game_camera = 0x00931710;
+        data_game_camera_fixed = 0x009308E2;
         data_game_cheats_on = 0x009318DA;
         data_game_cheat_parser = 0x009319D4;
         data_game_colors_begin = 0x008E610C;
@@ -403,6 +409,7 @@ internal int spec_game_check(void) {
     bad += spec_code(data_game_call_damage_points, "game.call_damage_points");
     bad += spec_data(data_game_behaviour_table, "game.behaviour_table");
     bad += spec_data(data_game_camera, "game.camera");
+    bad += spec_data(data_game_camera_fixed, "game.camera_fixed");
     bad += spec_data(data_game_cheats_on, "game.cheats_on");
     bad += spec_data(data_game_cheat_parser, "game.cheat_parser");
     bad += spec_data(data_game_colors_begin, "game.colors_begin");

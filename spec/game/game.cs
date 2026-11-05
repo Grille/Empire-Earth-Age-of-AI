@@ -12,6 +12,11 @@ static unsafe class game
     [address((ee)0x00918CD0, (aoc)0x00931710)]
     static EECameraControl camera;
 
+    /// byte: the camera's step (0x51EE75, AoC 0x529A34) makes a fixed view instead of the camera's transformation from
+    /// its blend (45 degrees, 40 up) while it is set - not seen set in play
+    [address((ee)0x00919461, (aoc)0x009308E2), guess]
+    static block camera_fixed;
+
     [address((ee)0x00918E9A, (aoc)0x009318DA)]
     static block cheats_on;
 

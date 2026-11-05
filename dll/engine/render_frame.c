@@ -83,7 +83,7 @@ typedef struct {
     rf_kept *b;
     int nv, ni, nw, nb, cap_v, cap_i, cap_w, cap_b;
 } rf_ground;
-internal int rf_camera_view(float *v);
+internal int rf_camera_view(float *v, const float *m);
 internal rf_ground g_kg;   // the last frame drawn with an update (a frame during a step records none)
 internal int g_kg_skip;   // this frame is drawn during a step: nothing recorded
 internal LONG g_kg_drawn; // ground batches drawn again (the pipe's picture)
@@ -119,15 +119,16 @@ internal void rf_keep_ground(void) {
 // the render objects' update: a frame drawn as before (skip 0) - its ground recorded anew - or during a step (skip 1:
 // the last one's drawn again - the units' view is that frame's update's; one frame older was one frame's camera move
 // off - the ground and the debris on it jumped against each other while scrolling, the player 2026-11-05)
+internal void rf_camera_frame(void);
 internal void rf_ground_frame(int skip) {
     g_kg_skip = skip;
+    rf_camera_frame();
     if (skip) return;
     ee_camera *cam = game_camera();
-    if (cam) {
-        const float *m = (const float *)camera_transformation_at(cam);
-        g_kg_eye[0] = m[3]; g_kg_eye[1] = m[7]; g_kg_eye[2] = m[11];
-    }
-    g_kg_view_ok = rf_camera_view(g_kg_view);
+    if (!cam) return;
+    const float *m = (const float *)camera_transformation_at(cam);
+    g_kg_eye[0] = m[3]; g_kg_eye[1] = m[7]; g_kg_eye[2] = m[11];
+    g_kg_view_ok = rf_camera_view(g_kg_view, m);
     rf_ground_clear(&g_kg);
 }
 // a frame during a step: the last frame's ground into the list
@@ -161,9 +162,9 @@ internal void rd3_shadow_pc(rd3_pcb *pc);
 internal void rd3_shadow_bind(ID3D11DeviceContext *x);
 internal int rd3_shadow_only(int role);
 internal void rd3_fxaa(ID3D11RenderTargetView *rtv, const D3D11_VIEWPORT *vp);
-// The camera as it is now on every 3D draw (rf_shift, as the list is drawn): the camera's move sets its
-// transformation at once, its zoom turns and moves it a step at a time (0x51EE75, in the simulation's step), but the
-// view the game's draws are made with follows only at the next simulation step - a frame drawn during a step showed
+// The camera as it is now on every 3D draw (rf_shift, as the list is drawn): the camera's move and its zoom turn and
+// move it (its transformation as rf_camera_frame makes it each frame), but the view the game's draws are made with
+// follows only at the camera's step in the simulation thread - a frame drawn during a step showed
 // the camera's place, the frames between steps the view's, up to a step's scrolling behind (the player's game, the
 // pipe's picture camtrace: the eye 0.25-0.7 tiles back at a time) and the picture jumped between the two. So each
 // draw's view is replaced by the camera's: its transformation M (a GETransformation, by rows with the eye in the
@@ -175,11 +176,9 @@ internal void rd3_fxaa(ID3D11RenderTargetView *rtv, const D3D11_VIEWPORT *vp);
 // now. Without a move or a zoom nothing changes.
 internal float g_cam_axes[16];   // A: the camera's transformation to its view, the game's axes
 internal int g_cam_axes_ok;
-// the camera's view by its transformation now (0: no axes yet)
-internal int rf_camera_view(float *v) {
-    ee_camera *cam = game_camera();
-    if (!cam || !g_cam_axes_ok) return 0;
-    const float *m = (const float *)camera_transformation_at(cam);
+// the camera's view by its transformation m (0: no axes yet)
+internal int rf_camera_view(float *v, const float *m) {
+    if (!g_cam_axes_ok) return 0;
     float mt[16], inv[16];
     for (int i = 0; i < 4; i++)
         for (int j = 0; j < 4; j++) mt[i * 4 + j] = m[j * 4 + i];
@@ -187,13 +186,56 @@ internal int rf_camera_view(float *v) {
     rd3_mul(v, inv, g_cam_axes);
     return 1;
 }
-// a frame drawn with an update: the axes from its view where its eye is the transformation's
+// The camera's transformation itself is made only in the camera's step (0x51EE75), which runs in the simulation
+// thread's loop between its steps: the move (scrolling, on this thread: camera.c) sets where it goes, the step makes
+// the transformation and the device's view from it. In a light game the step comes every few ms; in the player's
+// 8000-unit save the transformation stood for up to six frames of 120 while the look-at moved every frame, then
+// jumped (picture camtrace, 2026-11-05) - scrolling, the edge, the middle mouse and the zoom all felt slow. So every
+// frame makes it here as the step would (make_transformation: only the camera's fields and the map's heights read):
+// at blend 1 after a move (snap), during the zoom's ride its blend moved on by the time since the step last changed
+// it - never back within one ride (a step's dt shorter than the time here), a new ride (blend set back) starts over.
+internal float g_cam_now[16];   // the camera's transformation this frame (rf_camera_frame)
+internal float g_cam_view_now[16];
+internal int g_cam_now_ok;
+internal float g_cam_blend_seen, g_cam_t;
+internal LONGLONG g_cam_blend_at;
+internal void rf_camera_frame(void) {
+    ee_camera *cam = game_camera();
+    g_cam_now_ok = 0;
+    if (!cam || !game_map()) return;
+    const float *m = (const float *)camera_transformation_at(cam);
+    if (camera_fixed_view()) memcpy(g_cam_now, m, sizeof g_cam_now);
+    else {
+        LONGLONG now = rd_qpc();
+        float b = camera_get_blend(cam), t;
+        if (b != g_cam_blend_seen) {   // the step ran (or a new ride began)
+            if (b < g_cam_blend_seen) g_cam_t = b;
+            g_cam_blend_seen = b;
+            g_cam_blend_at = now;
+        }
+        if (camera_get_snap(cam)) t = 1;
+        else {
+            t = b + camera_get_blend_rate(cam) * (float)((double)(now - g_cam_blend_at) / (double)rd_qpc_ms(1000));
+            if (!(t <= 1)) t = 1;   // NaN too
+            if (t < g_cam_t) t = g_cam_t;
+            if (t < 0) t = 0;
+        }
+        g_cam_t = t;
+        camera_make_transformation(cam, g_cam_now, t);
+    }
+    g_cam_now_ok = rf_camera_view(g_cam_view_now, g_cam_now);
+}
+// a frame drawn with an update: the axes from its view where its eye is the transformation's - to 0.01 tile: the
+// view's eye made back from its rotation and place is a float's rounding off, more far out on the map (eyes 130 tiles
+// out in the player's 8000-unit save). Taken before the overlay's frame end (rd_dev_end),
+// which clears scene_seen: after it, at the scene's end, the axes were never taken at all - nothing was corrected
+// from 91c9476 on, the frames lagged as before (the player: "it feels like before again")
 internal void rf_camera_axes(void) {
     ee_camera *cam = game_camera();
     const float *m = cam ? (const float *)camera_transformation_at(cam) : NULL, *v = g_rd3.scene_view;
     if (!m || !g_rd3.scene_seen) return;
     for (int a = 0; a < 3; a++)
-        if (fabsf(m[4 * a + 3] + (v[12] * v[4 * a] + v[13] * v[4 * a + 1] + v[14] * v[4 * a + 2])) > 1e-3f) return;
+        if (fabsf(m[4 * a + 3] + (v[12] * v[4 * a] + v[13] * v[4 * a + 1] + v[14] * v[4 * a + 2])) > 1e-2f) return;
     float mt[16];
     for (int i = 0; i < 4; i++)
         for (int j = 0; j < 4; j++) mt[i * 4 + j] = m[j * 4 + i];
@@ -202,7 +244,8 @@ internal void rf_camera_axes(void) {
 }
 internal void rf_shift(rd3_vcb *vc, int ro) {
     float now[16], inv[16], k[16], t[16];
-    if (ro < RO_TERRAIN || ro > RO_WATER || !rf_camera_view(now)) return;
+    if (ro < RO_TERRAIN || ro > RO_WATER || !g_cam_now_ok) return;
+    memcpy(now, g_cam_view_now, sizeof now);
     if (vc->view[12] != 0 || vc->view[13] != 0 || vc->view[14] != 0) {
         rd3_rigid_inverse(inv, vc->view);
         rd3_mul(k, now, inv);   // V_now V^-1
@@ -302,19 +345,18 @@ internal float g_kg_trace_dx, g_kg_trace_dy;   // and the camera moved this far 
 internal void rf_scene_end(void) {
     rd3_flush();
     rf_replay();
-    if (!g_kg_skip) rf_camera_axes();
     ee_camera *cam = game_camera();
     if (g_kg_trace > 0 && cam) {   // the camera's look-at against the eye of the view the units were drawn with
         g_kg_trace--;
         const float *v = g_rd3.scene_view, *at = camera_look_at(cam);
         float e[3];
         for (int j = 0; j < 3; j++) e[j] = -(v[12] * v[4 * j] + v[13] * v[4 * j + 1] + v[14] * v[4 * j + 2]);
-        const float *tr = (const float *)camera_transformation_at(cam);
+        const float *tr = g_cam_now_ok ? g_cam_now : (const float *)camera_transformation_at(cam);
         vec3 ec = { tr[3], tr[7], tr[11] };
-        log_locked("# camtrace2: %lu %s at %.3f %.3f %.3f eye %.3f %.3f %.3f, the eye at the update %.3f %.3f %.3f, the camera's eye %.3f %.3f %.3f\n",
+        log_locked("# camtrace2: %lu %s at %.3f %.3f %.3f eye %.3f %.3f %.3f, the eye at the update %.3f %.3f %.3f, the camera's eye %.3f %.3f %.3f (t %.3f, its blend %.3f, snap %d, made %d)\n",
                    (unsigned long)GetTickCount(), g_kg_skip ? "step" : "real", (double)at[0], (double)at[1], (double)at[2],
                    (double)e[0], (double)e[1], (double)e[2], (double)g_kg_eye[0], (double)g_kg_eye[1], (double)g_kg_eye[2],
-                   (double)ec.x, (double)ec.y, (double)ec.z);
+                   (double)ec.x, (double)ec.y, (double)ec.z, (double)g_cam_t, (double)camera_get_blend(cam), camera_get_snap(cam), g_cam_now_ok);
         // a ground vertex back in the world by either eye: the ground's grid lies on whole tiles with the one it was made by
         for (int k = 0; k < 3 && g_kg.nv; k++) {
             float c[3], w[2][3];

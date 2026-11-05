@@ -925,6 +925,7 @@ internal HRESULT __stdcall rd_dev_begin(rd_device *d) { d->in_scene = 1; return 
 internal HRESULT __stdcall rd_dev_end(rd_device *d) {
     d->in_scene = 0;
     RD_LOCK();
+    if (!g_kg_skip) rf_camera_axes();
     rd3_overlay_frame_end(d);
     rf_scene_end();
     RD_UNLOCK();
