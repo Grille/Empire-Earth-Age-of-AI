@@ -40,23 +40,60 @@ internal int theme_windows_dark(void) {   // Windows' app mode: 1 dark
     return light == 0;
 }
 
+// the original game's folder (the 2017 update's): Art of Conquest's archive holds only the art it adds, the rest it
+// reads from there - found as AoC finds it, HKCU\Software\SSSI\Empire Earth's "Installed From Volume" and "Directory",
+// in the registry or in the settings file the engine reads when the mod is loaded with it (ageofai\eesettings.ini
+// beside the ini: the registry's values quoted, a backslash doubled)
+internal int theme_original_dir(const char *ini_path, char *dir, int cap) {
+    char vol[16] = "", sub[MAX_PATH] = "", file[MAX_PATH], *s;
+    DWORD n = sizeof vol, m = sizeof sub;
+    const char *key = "Software\\SSSI\\Empire Earth";
+    if (RegGetValueA(HKEY_CURRENT_USER, key, "Installed From Volume", RRF_RT_REG_SZ, NULL, vol, &n) != ERROR_SUCCESS ||
+        RegGetValueA(HKEY_CURRENT_USER, key, "Installed From Directory", RRF_RT_REG_SZ, NULL, sub, &m) != ERROR_SUCCESS) {
+        lstrcpynA(file, ini_path, sizeof file);
+        if ((s = strrchr(file, '\\'))) s[1] = 0; else file[0] = 0;
+        char path[MAX_PATH + 16];
+        snprintf(path, sizeof path, "%seesettings.ini", file);
+        GetPrivateProfileStringA("HKCU\\Software\\SSSI\\Empire Earth", "Installed From Volume", "", vol, sizeof vol, path);
+        GetPrivateProfileStringA("HKCU\\Software\\SSSI\\Empire Earth", "Installed From Directory", "", sub, sizeof sub, path);
+        for (char *r = sub, *w = sub; ; ) {
+            if (r[0] == '\\' && r[1] == '\\') r++;
+            if (!(*w++ = *r++)) break;
+        }
+    }
+    if (!vol[0] || !sub[0]) return 0;
+    snprintf(dir, cap, "%s%s", vol, sub);
+    size_t len = strlen(dir);
+    if (len && dir[len - 1] == '\\') dir[len - 1] = 0;
+    return 1;
+}
+
+internal int theme_game_from(const char *dir) {   // both pictures from <dir>\Data\data.ssa: 1, else none (0)
+    int w, h, ok = 0;
+    if (art_open(dir)) {
+        uint32_t *px = art_texture("uicontrols", &w, &h);
+        if (px && w == 128 && h == 128) g_gl.ui = art_bitmap(px, w, h);
+        free(px);
+        if (g_gl.ui) g_gl.paint = art_picture("gamesettings", 3, 4, &g_gl.pw, &g_gl.ph);
+        ok = g_gl.ui && g_gl.paint;
+        if (!ok && g_gl.ui) { DeleteObject(g_gl.ui); g_gl.ui = NULL; }
+    }
+    art_close();
+    return ok;
+}
+
 // the game's pictures from the folder the program is in (the game folder, where it is installed), else the one the
-// ini's folder is in (<game>\ageofai\ageofai.ini)
+// ini's folder is in (<game>\ageofai\ageofai.ini), else the original game's (Art of Conquest's folder: its art isn't
+// all there)
 internal void theme_game_open(const char *ini_path) {
     char dir[MAX_PATH], *s;
     GetModuleFileNameA(NULL, dir, sizeof dir);
     if ((s = strrchr(dir, '\\'))) *s = 0;
-    if (!art_open(dir)) {
+    if (!theme_game_from(dir)) {
         lstrcpynA(dir, ini_path, sizeof dir);
         for (int up = 0; up < 2; up++) if ((s = strrchr(dir, '\\'))) *s = 0;
-        if (!art_open(dir)) return;
+        if (!theme_game_from(dir) && !(theme_original_dir(ini_path, dir, sizeof dir) && theme_game_from(dir))) return;
     }
-    int w, h;
-    uint32_t *px = art_texture("uicontrols", &w, &h);
-    if (px && w == 128 && h == 128) g_gl.ui = art_bitmap(px, w, h);
-    free(px);
-    g_gl.paint = art_picture("gamesettings", 3, 4, &g_gl.pw, &g_gl.ph);
-    if (!g_gl.ui || !g_gl.paint) return;
     g_gl.ui_dc = CreateCompatibleDC(NULL);
     SelectObject(g_gl.ui_dc, g_gl.ui);
     g_gl.paint_dc = CreateCompatibleDC(NULL);

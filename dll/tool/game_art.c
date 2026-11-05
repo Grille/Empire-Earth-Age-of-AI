@@ -18,7 +18,15 @@ internal int art_read_at(uint32_t at, void *buf, uint32_t n) {
     return ReadFile(g_art_file, buf, n, &got, &o) && got == n;
 }
 
-// the archive <game>\Data\data.ssa opened and its directory read: 1, else 0
+internal void art_close(void) {   // the archive closed, its directory forgotten (another one opened next)
+    if (g_art_file != INVALID_HANDLE_VALUE) CloseHandle(g_art_file);
+    g_art_file = INVALID_HANDLE_VALUE;
+    free(g_art_dir);
+    g_art_dir = NULL;
+    g_art_n = 0;
+}
+
+// the archive <game>\Data\data.ssa opened and its directory read: 1, else 0 (art_close after either)
 internal int art_open(const char *game_dir) {
     char path[MAX_PATH];
     snprintf(path, sizeof path, "%s\\Data\\data.ssa", game_dir);
