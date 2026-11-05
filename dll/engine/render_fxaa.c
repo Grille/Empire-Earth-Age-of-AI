@@ -128,9 +128,10 @@ internal void cmd_picture(char *out, const char *args) {
         if (e > 0 && e < 1) g_fx.edge = e;
         else { REPLY("error: usage: picture edge <0..1>\n"); return; }
     } else if (!strcmp(mode, "camtrace")) {
-        char dx[16] = "";
-        sscanf(args, "%*s %*s %15s", dx);
+        char dx[16] = "", dy[16] = "";
+        sscanf(args, "%*s %*s %15s %15s", dx, dy);
         g_kg_trace_dx = (float)atof(dx);
+        g_kg_trace_dy = (float)atof(dy);
         g_kg_trace = atoi(arg);
     } else if (!strcmp(mode, "steps")) {
         if (!strcmp(arg, "on") || !strcmp(arg, "off")) g_rwl_free = arg[1] == 'n';

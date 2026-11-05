@@ -187,6 +187,12 @@ of the frames drawn during a step. The water's (its animation) runs too.
   still there"; the headless tests scrolled slowly and their views kept up). Now each 3D draw is moved by the camera's
   eye now less the eye it was made with - a view's own (its translation), the ground's the eye at its frame's update.
   A still camera: nothing moved (the same picture as before).
+- The ground's view is no identity but swaps y and z (1 0 0 / 0 0 1 / 0 1 0; its world matrix the identity): its
+  vertices are the camera's space with y and z exchanged. The shift taken in the camera's space as it was moved the
+  ground in depth when scrolling up or down the screen - the ground jumped, far more than sideways (the player). Now the
+  shift goes back through the draw's own view. The trace's ground vertices, through that view and the units' camera
+  back into the world: whole tiles at height 0 (86 139 0, 100 110 0); a 3-tile pan up the screen during a step against
+  the frame after it: the towers, the farm, the trees in the same places.
 - Left: beyond the last update's ground, a fast scroll during a long step shows the sky blue at the edge (3 tiles in
   one move: a strip at the side); the units there come with the next update. Scrolling 0.05 tiles a frame under 15 ms
   steps: eight shots complete, no edge, the ground under the debris.

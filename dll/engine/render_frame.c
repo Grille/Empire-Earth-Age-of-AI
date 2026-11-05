@@ -178,7 +178,14 @@ internal void rf_shift(rd3_vcb *vc, int ro) {
     }
     if (fabsf(d[0]) + fabsf(d[1]) + fabsf(d[2]) < 1e-4f) return;
     if (world) for (int a = 0; a < 3; a++) t[a] = -d[a];
-    else for (int a = 0; a < 3; a++) t[a] = -(d[0] * v[a] + d[1] * v[4 + a] + d[2] * v[8 + a]);
+    else {
+        // the shift in the camera's space (-d R), then back through the draw's own view (the ground's swaps y and z:
+        // 1 0 0 / 0 0 1 / 0 1 0 - taken as none, up and down the screen moved the ground in depth: it jumped while
+        // scrolling up or down, the player) - its rotation's inverse, its transpose
+        float c[3];
+        for (int a = 0; a < 3; a++) c[a] = -(d[0] * v[a] + d[1] * v[4 + a] + d[2] * v[8 + a]);
+        for (int a = 0; a < 3; a++) t[a] = c[0] * vc->view[4 * a] + c[1] * vc->view[4 * a + 1] + c[2] * vc->view[4 * a + 2];
+    }
     // the translation before the matrix (row vectors): its last row plus t's combination of the first three
     for (int c = 0; c < 4; c++) {
         vc->vpm[12 + c] += t[0] * vc->vpm[c] + t[1] * vc->vpm[4 + c] + t[2] * vc->vpm[8 + c];
@@ -260,7 +267,7 @@ internal void rd3_submit(void) {
 }
 // the scene's end: the list drawn; the ring started over while it is empty if less than a quarter is left
 internal LONG g_kg_trace;   // the pipe's picture camtrace: frames left to log
-internal float g_kg_trace_dx;   // and the camera moved this far a frame meanwhile (as scrolling does)
+internal float g_kg_trace_dx, g_kg_trace_dy;   // and the camera moved this far a frame meanwhile (as scrolling does)
 internal void rf_scene_end(void) {
     rd3_flush();
     rf_replay();
@@ -276,7 +283,30 @@ internal void rf_scene_end(void) {
                    (unsigned long)GetTickCount(), g_kg_skip ? "step" : "real", (double)at[0], (double)at[1], (double)at[2],
                    (double)e[0], (double)e[1], (double)e[2], (double)g_kg_eye[0], (double)g_kg_eye[1], (double)g_kg_eye[2],
                    (double)ec.x, (double)ec.y, (double)ec.z);
-        if (g_kg_trace_dx != 0) camera_pan(g_kg_trace_dx, 0);
+        // a ground vertex back in the world by either eye: the ground's grid lies on whole tiles with the one it was made by
+        for (int k = 0; k < 3 && g_kg.nv; k++) {
+            float c[3], w[2][3];
+            float p[3];
+            memcpy(p, g_kg.v[k * (g_kg.nv - 1) / 2].fvf, sizeof p);
+            const float *gv = g_kg.nb ? g_kg.b[0].vc.view : NULL;   // through the ground's own view first
+            for (int j = 0; j < 3; j++) c[j] = gv ? p[0] * gv[j] + p[1] * gv[4 + j] + p[2] * gv[8 + j] : p[j];
+            for (int j = 0; j < 3; j++) {
+                float r = c[0] * v[4 * j] + c[1] * v[4 * j + 1] + c[2] * v[4 * j + 2];
+                w[0][j] = r + e[j];
+                w[1][j] = r + g_kg_eye[j];
+            }
+            log_locked("# camtrace2:   ground vertex %d: by the view's eye %.3f %.3f %.3f, by the update's %.3f %.3f %.3f\n", k,
+                       (double)w[0][0], (double)w[0][1], (double)w[0][2], (double)w[1][0], (double)w[1][1], (double)w[1][2]);
+        }
+        if (g_kg.nb) {
+            const float *gv = g_kg.b[0].vc.view, *gw = g_kg.w[g_kg.b[0].w0];
+            log_locked("# camtrace2:   the ground's view %.3f %.3f %.3f / %.3f %.3f %.3f / %.3f %.3f %.3f / %.3f %.3f %.3f; its first world"
+                       " %.3f %.3f %.3f / %.3f %.3f %.3f / %.3f %.3f %.3f / %.3f %.3f %.3f (%d batches)\n",
+                       (double)gv[0], (double)gv[1], (double)gv[2], (double)gv[4], (double)gv[5], (double)gv[6], (double)gv[8], (double)gv[9], (double)gv[10],
+                       (double)gv[12], (double)gv[13], (double)gv[14], (double)gw[0], (double)gw[1], (double)gw[2], (double)gw[4], (double)gw[5],
+                       (double)gw[6], (double)gw[8], (double)gw[9], (double)gw[10], (double)gw[12], (double)gw[13], (double)gw[14], g_kg.nb);
+        }
+        if (g_kg_trace_dx != 0 || g_kg_trace_dy != 0) camera_pan(g_kg_trace_dx, g_kg_trace_dy);
     }
     if (g_rd3.vb_pos > RD3_VB_BYTES / 4 * 3) g_rd3.vb_pos = RD3_VB_BYTES;
     if (g_rd3.ib_pos > RD3_IB_BYTES / 4 * 3) g_rd3.ib_pos = RD3_IB_BYTES;
