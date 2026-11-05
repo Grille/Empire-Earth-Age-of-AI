@@ -689,6 +689,7 @@ internal uint32_t data_game_end_epoch;
 internal uint32_t data_game_epoch_techs;
 internal uint32_t data_game_fullscreen;
 internal uint32_t data_game_game_data;
+internal uint32_t data_game_file_path;
 internal uint32_t data_game_game_mode;
 internal uint32_t data_game_game_res_h;
 internal uint32_t data_game_game_res_w;

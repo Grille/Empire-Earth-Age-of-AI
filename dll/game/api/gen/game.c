@@ -33,6 +33,12 @@ internal inline uint8_t *game_epoch_techs_at(void) { return (uint8_t *)(uintptr_
 internal inline uint8_t *game_fullscreen_at(void) { return (uint8_t *)(uintptr_t)data_game_fullscreen; }
 // game data loaded (unit limit +0x2EC, chat time +0x2CC)
 internal inline uint8_t *game_game_data_at(void) { return (uint8_t *)(uintptr_t)data_game_game_data; }
+// the data files' search path (FSPath*, Low-Level Engine.dll's): every data file the game opens is found through
+// it (the db tables 0x541734, models, textures, sounds). Set up once at the start (AoC 0x53FE97, the 2017 update
+// 0x535121's function): AoC's has two roots - its own folder (the startup directory) and the 2017 update's install
+// folder (the registry's) - a directory Data\ and an archive Data\data.ssa each, FindFile looking in every
+// directory before any archive
+internal inline uint8_t *game_file_path_at(void) { return (uint8_t *)(uintptr_t)data_game_file_path; }
 internal inline uint8_t *game_game_mode_at(void) { return (uint8_t *)(uintptr_t)data_game_game_mode; }
 internal inline uint8_t *game_game_res_h_at(void) { return (uint8_t *)(uintptr_t)data_game_game_res_h; }
 internal inline uint8_t *game_game_res_w_at(void) { return (uint8_t *)(uintptr_t)data_game_game_res_w; }
@@ -214,6 +220,7 @@ internal int spec_game_select(int build) {
         data_game_epoch_techs = 0x0093B1B8;
         data_game_fullscreen = 0x0091945A;
         data_game_game_data = 0x00917BB8;
+        data_game_file_path = 0x0091978C;
         data_game_game_mode = 0x00918808;
         data_game_game_res_h = 0x009193F8;
         data_game_game_res_w = 0x009193FC;
@@ -308,6 +315,7 @@ internal int spec_game_select(int build) {
         data_game_epoch_techs = 0x0095CF80;
         data_game_fullscreen = 0x009308DB;
         data_game_game_data = 0x0092FCA8;
+        data_game_file_path = 0x00931908;
         data_game_game_mode = 0x00931248;
         data_game_game_res_h = 0x00930878;
         data_game_game_res_w = 0x0093087C;
@@ -409,6 +417,7 @@ internal int spec_game_check(void) {
     bad += spec_data(data_game_epoch_techs, "game.epoch_techs");
     bad += spec_data(data_game_fullscreen, "game.fullscreen");
     bad += spec_data(data_game_game_data, "game.game_data");
+    bad += spec_data(data_game_file_path, "game.file_path");
     bad += spec_data(data_game_game_mode, "game.game_mode");
     bad += spec_data(data_game_game_res_h, "game.game_res_h");
     bad += spec_data(data_game_game_res_w, "game.game_res_w");

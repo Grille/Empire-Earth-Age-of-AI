@@ -622,6 +622,12 @@ docs/testing.md "Multiplayer test games") does by hand, 2026-10-27:
 
 - `Data\data.ssa`: "rass" archive. Each file is "PK01" + u32 size + 4 bytes, then a PKWARE DCL stream (decoder:
   `scripts/re/blast.py`, extractor: `scripts/re/extract_all.py`). Loose files under `Data\` override the archive.
+  The search path (FSPath, [game.file_path]; Low-Level Engine.dll's FindFile) looks in every directory before any
+  archive. AoC's has two roots - its own folder and the 2017 update's (the registry's: AoC's data.ssa holds only what
+  it changed) - so a loose file in the 2017 update's `Data\` beat AoC's own archive: a tweaked `Data\DB\dbworld.dat`
+  gave AoC the 2017 update's 84-row world table, AoC's code read its rows 84..94 past the end (the reload's random
+  factor 0.8..1.2 at +0x984: a heap pointer's tiny float - units fired as fast as they could turn). `aoc_data_order`
+  (engine/data_order.c) looks in AoC's directory and archive first, then the 2017 update's.
 - `.scn`/`.ees` (one format: a save is a scenario further on; github.com EEScnEdit has the header's fields): u32 the
   size of the rest of the file, a header (names, players, settings) with the lump table - u32 count, then the lumps'
   types in file order (both the save and the scenario here: 1, 2, 4, 3, 6, 10, 12, 5, 7, 8, 11; 9 never) - then the

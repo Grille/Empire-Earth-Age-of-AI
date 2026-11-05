@@ -114,6 +114,11 @@ internal void randmap_rewrite(ee_setup *setup) {
     setup_set_end_epoch(setup, 13);
     setup_set_variant(setup, g_rm.size);
     setup_set_resources(setup, 3);
+    // the game's most (the world table's: 1200 in both builds' archives) raised to the limit asked for - above it the
+    // game took its default, 50: AoC's tests had run on the player's loose 2017 update dbworld.dat (13208) until
+    // aoc_data_order gave AoC its own table, then had 10 a player
+    ee_game_data *gd = game_data();
+    if (gd && game_data_get_unit_limit_max(gd) < g_rm.unit_limit) game_data_set_unit_limit_max(gd, g_rm.unit_limit);
     setup_set_unit_limit(setup, g_rm.unit_limit);
     setup_set_wonders(setup, 3);
     setup_set_difficulty(setup, g_rm.difficulty);

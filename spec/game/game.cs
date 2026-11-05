@@ -63,6 +63,14 @@ static unsafe class game
     [address((ee)0x00917BB8, (aoc)0x0092FCA8)]
     static block game_data;
 
+    /// the data files' search path (FSPath*, Low-Level Engine.dll's): every data file the game opens is found through
+    /// it (the db tables 0x541734, models, textures, sounds). Set up once at the start (AoC 0x53FE97, the 2017 update
+    /// 0x535121's function): AoC's has two roots - its own folder (the startup directory) and the 2017 update's install
+    /// folder (the registry's) - a directory Data\ and an archive Data\data.ssa each, FindFile looking in every
+    /// directory before any archive
+    [address((ee)0x0091978C, (aoc)0x00931908)]
+    static block file_path;
+
     [address((ee)0x00918808, (aoc)0x00931248)]
     static block game_mode;
 

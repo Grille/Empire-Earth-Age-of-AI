@@ -80,6 +80,27 @@ internal int patch_vtable(uintptr_t vt, int slot, uintptr_t expected, void *hook
     return 1;
 }
 
+// A function's start sent to hook, only while its first n bytes (whole instructions, 5..16) are `prologue`: those
+// bytes go to an executable trampoline followed by a jmp back, *orig gets the trampoline - calling it runs the original
+// function. 0 when the bytes differ (another version, another hook) - left alone.
+internal int patch_entry(uintptr_t fn, const uint8_t *prologue, int n, void *hook, void **orig) {
+    uint8_t *p = (uint8_t *)fn;
+    if (!fn || n < 5 || n > 16 || memcmp(p, prologue, (size_t)n)) return 0;
+    uint8_t *t = VirtualAlloc(NULL, 32, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+    if (!t) return 0;
+    memcpy(t, p, (size_t)n);
+    t[n] = 0xE9;
+    *(int32_t *)(t + n + 1) = (int32_t)((uintptr_t)p + n - ((uintptr_t)t + n + 5));
+    DWORD old;
+    if (!VirtualProtect(p, 5, PAGE_EXECUTE_READWRITE, &old)) { VirtualFree(t, 0, MEM_RELEASE); return 0; }
+    *orig = t;
+    p[0] = 0xE9;
+    *(int32_t *)(p + 1) = (int32_t)((uintptr_t)hook - (fn + 5));
+    VirtualProtect(p, 5, old, &old);
+    FlushInstructionCache(GetCurrentProcess(), p, 5);
+    return 1;
+}
+
 // one byte of the code, only while it holds `expected`
 internal int patch_byte(uintptr_t at, uint8_t expected, uint8_t val) {
     uint8_t *p = (uint8_t *)at;
