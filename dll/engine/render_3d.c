@@ -204,9 +204,16 @@ internal const char k_rd3_shader[] =
     " if (misc.y > 0.5) c.rgb = lerp(fogc.rgb, c.rgb, saturate(i.f));"
     " return c; }\n";
 
-#define RD3_VB_BYTES (48u << 20)   // the frame's (render_frame.c): a busy base's frame about 4 MB
+// The upload buffers, rings the frame's list draws from (render_frame.c): a busy base's frame about 4 MB of vertices.
+// A ring full while the list still holds draws draws the list first (rd3_upload) - the frame then in parts, and a
+// part's ground gets the shadows of only its own casters: over the 8000-unit save's archers (3 million vertices a
+// frame) 2 parts more a frame, the shadows of the rows of units after the cut gone, a cut that moved every frame
+// (the player: "the shadows repeatedly load in like scanlines"). Such a ring is made twice as big then, up to 8
+// times its first size, so the next frames fit in one.
+#define RD3_VB_BYTES (48u << 20)
 #define RD3_IB_BYTES (16u << 20)
 #define RD3_WB_BYTES (4u << 20)   // the batches' world matrices, appended like the vertices (no discard a batch)
+#define RD3_GROW_MAX 8
 // THE BATCH: the game draws an object at a time (5000 draws a frame in a busy base, each a few dozen triangles), and
 // a draw call costs its time on the game's thread whatever its size. Draws in a row whose states match - the same
 // texture, blend, material ... - differing only in their world matrix are collected and drawn as one: their vertices
@@ -234,6 +241,7 @@ internal struct {
     ID3D11Buffer *vcb, *pcb, *wb, *vb, *ib;
     ID3D11ShaderResourceView *wsrv;
     UINT vb_pos, ib_pos, wb_pos;
+    UINT vb_cap, ib_cap, wb_cap;   // their sizes (bytes): RD3_*_BYTES, grown (rd3_upload)
     rd3_vcb vc;
     rd3_pcb pc;
     // the states the batch is collected under (the frame's list draws with them)
@@ -252,6 +260,25 @@ internal struct {
     int prep_clamp;
 } g_rd3;
 
+// an upload ring of `bytes` into *b (bind: its use - the world matrices' with their view, g_rd3.wsrv); the old one
+// released only once the new is made
+internal HRESULT rd3_make_upload(ID3D11Buffer **b, UINT bytes, UINT bind) {
+    D3D11_BUFFER_DESC ud = { bytes, D3D11_USAGE_DYNAMIC, bind, D3D11_CPU_ACCESS_WRITE, 0, 0 };
+    ID3D11Buffer *nb = NULL;
+    ID3D11ShaderResourceView *nv = NULL;
+    HRESULT hr = ID3D11Device_CreateBuffer(g_d3d.dev, &ud, NULL, &nb);
+    if (SUCCEEDED(hr) && bind == D3D11_BIND_SHADER_RESOURCE) {
+        D3D11_SHADER_RESOURCE_VIEW_DESC sd = { .Format = DXGI_FORMAT_R32G32B32A32_FLOAT, .ViewDimension = D3D11_SRV_DIMENSION_BUFFER };
+        sd.Buffer.NumElements = bytes / 16;
+        hr = ID3D11Device_CreateShaderResourceView(g_d3d.dev, (ID3D11Resource *)nb, &sd, &nv);
+        if (FAILED(hr)) D3D_RELEASE(nb);
+    }
+    if (FAILED(hr)) return hr;
+    D3D_RELEASE(*b);
+    *b = nb;
+    if (nv) { D3D_RELEASE(g_rd3.wsrv); g_rd3.wsrv = nv; }
+    return hr;
+}
 internal int rd3_init(void) {
     if (g_rd3.ready) return g_rd3.ready > 0;
     g_rd3.ready = -1;
@@ -273,23 +300,17 @@ internal int rd3_init(void) {
     if (SUCCEEDED(hr)) hr = ID3D11Device_CreateBuffer(g_d3d.dev, &bd, NULL, &g_rd3.vcb);
     bd.ByteWidth = sizeof(rd3_pcb);
     if (SUCCEEDED(hr)) hr = ID3D11Device_CreateBuffer(g_d3d.dev, &bd, NULL, &g_rd3.pcb);
-    D3D11_BUFFER_DESC ud = { RD3_VB_BYTES, D3D11_USAGE_DYNAMIC, D3D11_BIND_VERTEX_BUFFER, D3D11_CPU_ACCESS_WRITE, 0, 0 };
-    if (SUCCEEDED(hr)) hr = ID3D11Device_CreateBuffer(g_d3d.dev, &ud, NULL, &g_rd3.vb);
-    ud.ByteWidth = RD3_IB_BYTES; ud.BindFlags = D3D11_BIND_INDEX_BUFFER;
-    if (SUCCEEDED(hr)) hr = ID3D11Device_CreateBuffer(g_d3d.dev, &ud, NULL, &g_rd3.ib);
-    ud.ByteWidth = RD3_WB_BYTES; ud.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-    if (SUCCEEDED(hr)) hr = ID3D11Device_CreateBuffer(g_d3d.dev, &ud, NULL, &g_rd3.wb);
-    D3D11_SHADER_RESOURCE_VIEW_DESC sd = { .Format = DXGI_FORMAT_R32G32B32A32_FLOAT, .ViewDimension = D3D11_SRV_DIMENSION_BUFFER };
-    sd.Buffer.NumElements = RD3_WB_BYTES / 16;
-    if (SUCCEEDED(hr)) hr = ID3D11Device_CreateShaderResourceView(g_d3d.dev, (ID3D11Resource *)g_rd3.wb, &sd, &g_rd3.wsrv);
+    if (SUCCEEDED(hr)) hr = rd3_make_upload(&g_rd3.vb, g_rd3.vb_cap = RD3_VB_BYTES, D3D11_BIND_VERTEX_BUFFER);
+    if (SUCCEEDED(hr)) hr = rd3_make_upload(&g_rd3.ib, g_rd3.ib_cap = RD3_IB_BYTES, D3D11_BIND_INDEX_BUFFER);
+    if (SUCCEEDED(hr)) hr = rd3_make_upload(&g_rd3.wb, g_rd3.wb_cap = RD3_WB_BYTES, D3D11_BIND_SHADER_RESOURCE);
     if (FAILED(hr)) return rd_fail("the 3D pipeline", hr), 0;
     g_rb.v = malloc(RB_VERTS * sizeof *g_rb.v);
     g_rb.i = malloc(RB_INDICES * sizeof *g_rb.i);
     g_rb.w = malloc(RB_WORLDS * sizeof *g_rb.w);
     if (!g_rb.v || !g_rb.i || !g_rb.w) return rd_fail("the 3D pipeline's batch", E_OUTOFMEMORY), 0;
-    g_rd3.vb_pos = RD3_VB_BYTES;   // the first write discards
-    g_rd3.ib_pos = RD3_IB_BYTES;
-    g_rd3.wb_pos = RD3_WB_BYTES;
+    g_rd3.vb_pos = g_rd3.vb_cap;   // the first write discards
+    g_rd3.ib_pos = g_rd3.ib_cap;
+    g_rd3.wb_pos = g_rd3.wb_cap;
     g_rd3.ready = 1;
     return 1;
 }
@@ -510,20 +531,30 @@ internal int rd3_prepare(rd_device *d, int clamp) {
     return 1;
 }
 
-// n bytes into an upload buffer at a multiple of align; the offset, or -1
-internal long rd3_upload(ID3D11Buffer *b, UINT cap, UINT *pos, const void *src, UINT n, UINT align) {
-    if (n > cap) return -1;
+// n bytes into an upload ring (*b, *cap bytes; bind its use) at a multiple of align; the offset, or -1
+internal long rd3_upload(ID3D11Buffer **b, UINT *cap, UINT bind, UINT *pos, const void *src, UINT n, UINT align) {
+    if (n > *cap) return -1;
     UINT at = (*pos + align - 1) / align * align;
     D3D11_MAP how = D3D11_MAP_WRITE_NO_OVERWRITE;
-    if (at + n > cap) {   // the ring full: what the list draws from drawn first (render_frame.c)
-        if (g_rf.n) { g_rf.wraps++; rf_replay(); }
+    if (at + n > *cap) {   // the ring full: what the list draws from drawn first (render_frame.c), then the ring bigger
+        if (g_rf.n) {
+            g_rf.wraps++;
+            rf_replay();
+            UINT first = bind == D3D11_BIND_VERTEX_BUFFER ? RD3_VB_BYTES : bind == D3D11_BIND_INDEX_BUFFER ? RD3_IB_BYTES : RD3_WB_BYTES;
+            if (*cap < first * RD3_GROW_MAX && SUCCEEDED(rd3_make_upload(b, *cap * 2, bind))) {
+                *cap *= 2;
+                log_locked("# render: the %s' upload ring full inside a frame (the frame drawn in parts, its shadows cut):"
+                           " made %u MB\n", bind == D3D11_BIND_VERTEX_BUFFER ? "vertices" : bind == D3D11_BIND_INDEX_BUFFER
+                           ? "indices" : "world matrices", *cap >> 20);
+            }
+        }
         at = 0;
         how = D3D11_MAP_WRITE_DISCARD;
     }
     D3D11_MAPPED_SUBRESOURCE ms;
-    if (FAILED(ID3D11DeviceContext_Map(g_d3d.ctx, (ID3D11Resource *)b, 0, how, 0, &ms))) return -1;
+    if (FAILED(ID3D11DeviceContext_Map(g_d3d.ctx, (ID3D11Resource *)*b, 0, how, 0, &ms))) return -1;
     memcpy((uint8_t *)ms.pData + at, src, n);
-    ID3D11DeviceContext_Unmap(g_d3d.ctx, (ID3D11Resource *)b, 0);
+    ID3D11DeviceContext_Unmap(g_d3d.ctx, (ID3D11Resource *)*b, 0);
     *pos = at + n;
     return (long)at;
 }
@@ -550,10 +581,10 @@ internal int rd3_drawable(rd_vb *vb, D3DPRIMITIVETYPE type) {
 internal void rd3_flush(void) {
     if (!g_rb.ni) return;
     rf_keep_ground();
-    long wa = rd3_upload(g_rd3.wb, RD3_WB_BYTES, &g_rd3.wb_pos, g_rb.w, (UINT)g_rb.nw * sizeof *g_rb.w, sizeof *g_rb.w);
+    long wa = rd3_upload(&g_rd3.wb, &g_rd3.wb_cap, D3D11_BIND_SHADER_RESOURCE, &g_rd3.wb_pos, g_rb.w, (UINT)g_rb.nw * sizeof *g_rb.w, sizeof *g_rb.w);
     if (wa > 0) for (int k = 0; k < g_rb.nv; k++) g_rb.v[k].w += (uint32_t)wa / sizeof *g_rb.w;   // the batch's matrices' place
-    long at = wa >= 0 ? rd3_upload(g_rd3.vb, RD3_VB_BYTES, &g_rd3.vb_pos, g_rb.v, (UINT)g_rb.nv * sizeof *g_rb.v, sizeof *g_rb.v) : -1;
-    long ia = at >= 0 ? rd3_upload(g_rd3.ib, RD3_IB_BYTES, &g_rd3.ib_pos, g_rb.i, (UINT)g_rb.ni * 4, 4) : -1;
+    long at = wa >= 0 ? rd3_upload(&g_rd3.vb, &g_rd3.vb_cap, D3D11_BIND_VERTEX_BUFFER, &g_rd3.vb_pos, g_rb.v, (UINT)g_rb.nv * sizeof *g_rb.v, sizeof *g_rb.v) : -1;
+    long ia = at >= 0 ? rd3_upload(&g_rd3.ib, &g_rd3.ib_cap, D3D11_BIND_INDEX_BUFFER, &g_rd3.ib_pos, g_rb.i, (UINT)g_rb.ni * 4, 4) : -1;
     if (ia >= 0) rf_record((UINT)ia / 4, (UINT)g_rb.ni, (INT)((UINT)at / sizeof *g_rb.v));
     g_rb.nv = g_rb.ni = g_rb.nw = 0;
 }

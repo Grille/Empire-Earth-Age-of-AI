@@ -482,7 +482,8 @@ internal void rd3_submit(void) {
     if (g_rf.n) g_rf.forced++;   // (the scene's end: rf_scene_end)
     rf_replay();
 }
-// the scene's end: the list drawn; the ring started over while it is empty if less than a quarter is left
+// the scene's end: the list drawn; each upload ring started over while it is empty if less is left than the frame
+// used (rd3_upload: else the next frame's list cut where it wraps)
 internal LONG g_kg_trace;   // the pipe's picture camtrace: frames left to log
 internal float g_kg_trace_dx, g_kg_trace_dy;   // and the camera moved this far a frame meanwhile (as scrolling does)
 internal void rf_scene_end(void) {
@@ -525,7 +526,11 @@ internal void rf_scene_end(void) {
         }
         if (g_kg_trace_dx != 0 || g_kg_trace_dy != 0) camera_pan(g_kg_trace_dx, g_kg_trace_dy);
     }
-    if (g_rd3.vb_pos > RD3_VB_BYTES / 4 * 3) g_rd3.vb_pos = RD3_VB_BYTES;
-    if (g_rd3.ib_pos > RD3_IB_BYTES / 4 * 3) g_rd3.ib_pos = RD3_IB_BYTES;
-    if (g_rd3.wb_pos > RD3_WB_BYTES / 4 * 3) g_rd3.wb_pos = RD3_WB_BYTES;
+    static UINT was[3];   // where the frame began in each (after a wrap inside it: 0, the use a little short)
+    UINT *pos[3] = { &g_rd3.vb_pos, &g_rd3.ib_pos, &g_rd3.wb_pos }, cap[3] = { g_rd3.vb_cap, g_rd3.ib_cap, g_rd3.wb_cap };
+    for (int k = 0; k < 3; k++) {
+        UINT used = *pos[k] >= was[k] && *pos[k] <= cap[k] ? *pos[k] - was[k] : *pos[k] <= cap[k] ? *pos[k] : 0;
+        if (*pos[k] >= cap[k] || cap[k] - *pos[k] < used + used / 8) *pos[k] = cap[k];   // with an eighth to spare
+        was[k] = *pos[k] >= cap[k] ? 0 : *pos[k];
+    }
 }

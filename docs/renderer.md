@@ -346,6 +346,15 @@ tells the last map's casters, ground batches, box, sun and shadow colour), engin
   on "choke wolf" (the sun at 30 and at 20 degrees, turned 150): towers shade the bunker and wall beside them, the
   gate's wall its own; units in a wall's shadow darker; trees shaded on their side away from the sun; no acne on the
   buildings' lit faces.
+- One map a frame needs the frame's list whole (2026-11-05, the player on the 8000-unit save: "on the main mass of
+  the archers the shadows repeatedly load in like scanlines"). The map is drawn from the list's casters before the list
+  (rd3_shadow_frame), and an upload ring running full draws the list so far: over the archers (3 million vertices a
+  frame) twice a frame, the ground in the first part with the casters recorded before the cut, the rows drawn after
+  it without their shadows on the ground - a cut that moved every frame. A ring full inside a frame now grows (twice,
+  up to 8 times its first 48 / 16 / 4 MB; the log's "upload ring full inside a frame"), and a ring starts over at the
+  frame's end when less is left than the frame used. Checked there, 2560 x 1440: the vertices' ring 96 MB, the
+  indices' 32 MB after one cut each, then the list drawn once a frame (before: 3.29 times, 2762 cuts a minute in the
+  player's game), two shots a second apart with the same shadows over the mass.
 - The ground's shadow by the light it faces (2026-11-05). The game re-shades the terrain's vertices as the sun moves
   (measured with the pipe's `shadows hour <0..24>`, which sets the time of day as the daylight-hour effect does -
   EEWorld.set_time_of_day: the hillsides' light and dark sides swap between 10 and 15 o'clock, the ground's mean
