@@ -56,8 +56,12 @@ internal struct {
 // from the sun: the batch's vertices placed as the main pass places them (render_3d.c's vertex shader), through shm
 // into the map (sa: alpha reference / 255, alpha tested, a tree). A tree is a few flat planes crossed at its trunk (not
 // much more than billboards - the player, 2026-11-05): a plane standing edge-on to the sun cast a line. In this pass
-// its planes face the sun: each vertex keeps its height and its distance from the trunk (the world matrix's origin), laid
-// out across the sun's rays (sr: the map's horizontal axis), on the side of the trunk it was on.
+// the tree is turned about its trunk (the world matrix's origin) until its model's x axis lies across the sun's rays
+// (sr: the map's horizontal axis): its planes at the model's axes cast at full width, crossed ones at 45 degrees to them
+// at 70%. Turned, not flattened: laying every vertex out on that line (the first version) cast a palm's crown - fronds
+// spread all around - as one solid blob (the player's shot, 2026-11-05). The alpha test reads the texture at most one
+// mip level down: the map has about 60 texels a tile, fewer than a tree's texture over it, and at the level that fits
+// the fronds' alpha was averaged away - only a crown's dense middle passed the trees' 229, a smooth blob again.
 internal const char k_sh_shader[] =
     "cbuffer s : register(b2) { row_major float4x4 shm; float4 sa; float4 sr; };\n"
     "Buffer<float4> wt : register(t1);\n"
@@ -66,10 +70,13 @@ internal const char k_sh_shader[] =
     "struct O { float4 p : SV_Position; float2 t : TEXCOORD0; };\n"
     "O vs(I i) { O o; uint r = i.w * 4; float4 r0 = wt.Load(r), r3 = wt.Load(r + 3); r0.w = 0;"
     " float4 p = mul(float4(i.p, 1), float4x4(r0, wt.Load(r + 1), wt.Load(r + 2), r3));"
-    " if (sa.z > 0) { float2 d = p.xy - r3.xy; float k = abs(d.x) > 1e-4 ? sign(d.x) : sign(d.y);"
-    "  p.xy = r3.xy + sr.xy * (length(d) * k); }"
+    " float l = length(r0.xy);"
+    " if (sa.z > 0 && l > 1e-6) { float2 a = r0.xy / l, d = p.xy - r3.xy; float c = dot(a, sr.xy), n = a.x * sr.y - a.y * sr.x;"
+    "  p.xy = r3.xy + float2(c * d.x - n * d.y, n * d.x + c * d.y); }"
     " float3 q = mul(p, shm).xyz; o.p = float4(q.x * 2 - 1, 1 - q.y * 2, q.z, 1); o.t = i.t; return o; }\n"
-    "void ps(O i) { if (sa.y > 0 && t.Sample(s, i.t).a < sa.x) discard; }\n";
+    "void ps(O i) { if (sa.y <= 0) return; float w, h; t.GetDimensions(w, h); float2 u = i.t * float2(w, h);"
+    " float l = clamp(0.5 * log2(max(dot(ddx(u), ddx(u)), dot(ddy(u), ddy(u)))), 0, 1);"
+    " if (t.SampleLevel(s, i.t, l).a < sa.x) discard; }\n";
 
 internal int rd3_shadow_init(void) {
     if (g_sh.ready) return g_sh.ready > 0;

@@ -177,10 +177,16 @@ tells the last map's casters, ground batches, box, sun and shadow colour), engin
   written) are not drawn, the farms' fields (depth written, alpha tested at 127) receive; the water's surface (its
   render object's draws in the ground's camera space) receives.
 - Trees are a few flat planes crossed at the trunk, not much more than billboards (the player, 2026-11-05): a plane
-  edge-on to the sun cast a line. In the shadow pass a tree's planes face the sun - each vertex keeps its height and its
-  distance from the trunk, laid out across the sun's rays on its side of the trunk; every tree casts its full width,
-  however the game turned it (shots of a forest's edge on "choke wolf" at 100,60 against the build before: full firs
-  instead of narrow ones).
+  edge-on to the sun cast a line. In the shadow pass a tree is turned about its trunk until its model's x axis lies
+  across the sun's rays: planes at the model's axes cast at full width, crossed ones at 45 degrees to them at 70% (shots
+  of a forest's edge on "choke wolf" at 100,60: full firs instead of the narrow ones of before). The first version laid
+  every vertex out on that line instead (its height and its distance from the trunk kept): a palm's crown - fronds
+  spread all around - cast as one smooth blob (the player's shot, 2026-11-05: "the palm shadows look quite bad"); turned,
+  a crown keeps its outline. The alpha test of the shadow pass reads a tree's texture at most one mip level down: the
+  map has about 60 texels a tile, fewer than the texture over a crown, and at the level that fits the fronds' alpha was
+  averaged away - only the crown's dense middle passed the trees' alpha reference of 229 (rprobe: palms' crowns 229,
+  their trunks 127). Checked with palms spawned on "choke wolf" (types 353, 356, 358 at 54-58,82-86) against the build
+  before: the crowns' lobes instead of round blobs; a palm's leaflets are finer than a texel, its shadow stays soft.
 - Casters off the screen (the player, 2026-11-05: with the day's cycle a low sun casts long shadows, and they dropped
   out as soon as the building's or unit's bounds left the screen - his AoC shot: towers' shadows of 3-4 tiles). The
   game culls twice: its units' render object collects the objects on the terrain mesh's visible tile rows that pass
