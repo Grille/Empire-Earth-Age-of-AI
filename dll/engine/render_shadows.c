@@ -812,7 +812,11 @@ internal uint8_t __thiscall shr_hook_view(const void *model, const void *viewpor
 // (DX7Rasterizer::DrawModelHierarchy: GERasterizer::IsPerspectiveModelVisible / IsOrthographicModelVisible, their
 // imports - the first flag visible, the second the clipping it is drawn with): in the units' render object every model
 // the collection handed over passes, clipped (the game's own off the screen too, a few). Their draws wholly off the
-// screen cast without being drawn (SH_AWAY).
+// screen cast without being drawn (SH_AWAY). While every model passes, the test isn't asked at all: its answer was
+// overruled but its time spent - about 0.7 ms of the units' 12 a frame over the 8000-unit save's army (a sphere against
+// six planes, per model). Besides visible and clip it writes only the rasterizer's flags of the planes the model crosses
+// (+0x158..0x15D), which nothing reads - not the engine, not either display DLL -, and clip 1 is what the overruled
+// ones got: the GPU clips anyway.
 typedef void (__thiscall *model_visible_fn)(void *ras, void *model, float lod, void *viewport, void *at, uint8_t *visible,
                                             uint8_t *clip);
 typedef void (__thiscall *model_visible_ortho_fn)(void *ras, void *model, void *viewport, void *at, uint8_t *visible,
@@ -822,9 +826,9 @@ internal model_visible_ortho_fn g_shr_visible_ortho;
 internal int shr_pass(void) { return g_shr.on && !g_shr.off && g_sh.on && g_ro_cur == RO_UNITS && draw_list_moved(); }
 internal void __thiscall shr_hook_visible(void *ras, void *model, float lod, void *viewport, void *at, uint8_t *visible,
                                           uint8_t *clip) {
+    if (shr_pass()) { *visible = 1; *clip = 1; return; }
     g_shr_visible(ras, model, lod, viewport, at, visible, clip);
-    if (!*visible && shr_pass()) { *visible = 1; *clip = 1; }
-    else if (!*visible && g_ro_cur == RO_UNITS && g_om_margin > 0) {   // the objects' margin (render_frame.c)
+    if (!*visible && g_ro_cur == RO_UNITS && g_om_margin > 0) {   // the objects' margin (render_frame.c)
         float was[4][3];
         rf_view_widen(viewport, 1.0f + g_om_margin, was);
         g_shr_visible(ras, model, lod, viewport, at, visible, clip);
@@ -834,8 +838,8 @@ internal void __thiscall shr_hook_visible(void *ras, void *model, float lod, voi
 }
 internal void __thiscall shr_hook_visible_ortho(void *ras, void *model, void *viewport, void *at, uint8_t *visible,
                                                 uint8_t *clip) {
+    if (shr_pass()) { *visible = 1; *clip = 1; return; }
     g_shr_visible_ortho(ras, model, viewport, at, visible, clip);
-    if (!*visible && shr_pass()) { *visible = 1; *clip = 1; }
 }
 // a display DLL loaded (render.c render_display_loaded): its imports of the test -> the hooks; how many
 internal int shadow_reach_display(HMODULE m) {
