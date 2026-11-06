@@ -35,7 +35,8 @@ internal struct {
     int all;         // the units, buildings and trees receive too, per pixel (on; the pipe: shadows all on | off)
     double water_z;  // the water's vertices' heights this frame, summed, and how many (its level)
     int water_n;
-    int water_on;    // water seen in the last frame drawn with an update (the fading under it on)
+    int water_on;    // the fading under the water on: water seen in this frame or the last drawn with an update
+    int water_frame; // water seen in this frame (rd3_shadow_new_frame)
     double ground_c[3];   // the terrain's vertex colours this frame, summed, and how many - the game's baked shading
     int ground_n;
     float ground_mean[3]; // the last frame's mean (the pipe's reply: does it follow the time of day?)
@@ -511,12 +512,18 @@ internal void rd3_shadow_frame(void) {
         if (c->role == SH_CAST || c->role == SH_TINT || c->role == SH_AWAY) nc++;
         else if (c->role == SH_RECEIVE || c->role == SH_WATER) ng++;
     }
-    // the water's level: its vertices' mean height (no water drawn: no fading). A frame drawn during a step draws the
-    // last update's water again, not measured (render_frame.c rf_ground_again): it keeps that frame's - without, the
-    // fading went off in every such frame, the shadows under the water at full strength for a frame and faded again
-    // in the next (the player, 2026-11-06: "the shadow flicker is only for water")
-    if (g_sh.water_n) g_sh.level = (float)(g_sh.water_z / g_sh.water_n);
-    if (!g_kg_skip) g_sh.water_on = g_sh.water_n > 0;
+    // the water's level: its vertices' mean height, and the fading under it on - for the frame, not this list: a
+    // frame's list is drawn in parts (a texture uploaded that it draws with, ...), and a part drawn after the water
+    // had none of it and switched the fading off again - so did a frame drawn during a step, which draws the last
+    // update's water again, unmeasured (render_frame.c rf_ground_again): the ships' shadows on the seabed at full
+    // strength in those, faded in the others, a flicker at the steps' pace (the player, 2026-11-06: "the shadows of
+    // the cruisers ... flicker severely", "when i slow the game down the pace of flicker also slows down"; the pipe's
+    // record: 102 by the ships in a frame with an update, 99 in one during a step, the same 100 with the fading off).
+    // Off only after a frame drawn with an update saw no water at all (rd3_shadow_new_frame).
+    if (g_sh.water_n) {
+        g_sh.level = (float)(g_sh.water_z / g_sh.water_n);
+        g_sh.water_on = g_sh.water_frame = 1;
+    }
     g_sh.shl[0] = g_sh.level; g_sh.shl[1] = 1 / fmaxf(g_sh.fade, 0.01f); g_sh.shl[2] = g_sh.water_on ? 1.0f : 0.0f;
     g_sh.water_z = 0;
     g_sh.water_n = 0;
@@ -610,6 +617,11 @@ internal void rd3_shadow_frame(void) {
     memcpy(g_sh.last_lo, g_sh.lo, sizeof g_sh.lo); memcpy(g_sh.last_hi, g_sh.hi, sizeof g_sh.hi);
     g_sh.lo[0] = g_sh.lo[1] = g_sh.lo[2] = 1e30f;
     g_sh.hi[0] = g_sh.hi[1] = g_sh.hi[2] = -1e30f;
+}
+// a frame begins (render_frame.c rf_ground_frame) - drawn with an update: the water's fading as the last such frame saw
+internal void rd3_shadow_new_frame(void) {
+    g_sh.water_on = g_sh.water_frame;
+    g_sh.water_frame = 0;
 }
 // a batch's constants as the list draws it: this frame's map - the ground's place in it through the units' camera
 internal void rd3_shadow_vc(rd3_vcb *vc) {

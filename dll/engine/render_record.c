@@ -101,6 +101,12 @@ internal void rec_flush(void) {
         if (g_rec.dep[i]) g_rec.dep[i]->lpVtbl->Release(g_rec.dep[i]);
         g_rec.pic[i] = g_rec.dep[i] = NULL;
     }
+    snprintf(path, sizeof path, "%s.done", g_rec.base);   // the end, for whoever waits for the files
+    FILE *f = fopen(path, "w");
+    if (f) {
+        fprintf(f, "%d of %d frames taken, %d written\n", g_rec.taken, g_rec.n, g_rec.written);
+        fclose(f);
+    }
 }
 
 // a presented frame (render_present, its list drawn): recorded while frames are left, the counts started over
@@ -176,6 +182,8 @@ internal void cmd_record(char *out, const char *args) {
         REPLY("error: the recording's path is too long\n");
         return;
     }
+    snprintf(path, sizeof path, "%s.done", g_rec.base);
+    DeleteFileA(path);   // an earlier recording's
     snprintf(path, sizeof path, "%s.csv", g_rec.base);
     FILE *c = fopen(path, "w");
     if (!c) { REPLY("error: can't write %s\n", path); return; }
@@ -199,17 +207,9 @@ internal void cmd_record(char *out, const char *args) {
     g_rec.taken = g_rec.written = 0;
     g_rec.left = n;
     RD_UNLOCK();
-    int waited = 0;
-    while (g_rec.left > 0 && waited < 20000 + n * 1000) { Sleep(20); waited += 20; }
-    if (g_rec.left > 0) {
-        RD_LOCK();
-        REPLY("error: only %d of %d frames presented in %d s\n", n - (int)g_rec.left, n, waited / 1000);
-        g_rec.left = 0;
-        if (g_rec.csv) { fclose(g_rec.csv); g_rec.csv = NULL; }
-        rec_flush();
-        RD_UNLOCK();
-        return;
-    }
-    REPLY("%s: %d of %d frames taken, %d written: %s_000.bmp ..., %s.csv\n", g_rec.written == n ? "ok" : "error", g_rec.taken, n,
-          g_rec.written, g_rec.base, g_rec.base);
+    // not waited for: the pipe's commands run on the game's thread, and waiting there held the simulation for the
+    // whole recording - the frames drawn on, the game standing still (the player, 2026-11-06: "does recording pause
+    // the game?"; the flicker they saw is only there while it runs). <name>.done says when the files are written.
+    REPLY("ok: recording %d frames into %s_000.bmp ... and %s.csv; %s.done once they are written (the game stops for that)\n",
+          n, g_rec.base, g_rec.base, g_rec.base);
 }

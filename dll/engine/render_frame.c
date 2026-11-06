@@ -327,10 +327,12 @@ internal int rf_ground_display_loaded(HMODULE m, const char *name) {
     g_gm_to_camera[i] = (gm_to_camera_fn)f;
     return replace_rdata_ptr(m, f, i ? (void *)rf_hook_to_camera1 : (void *)rf_hook_to_camera0) > 0;
 }
+internal void rd3_shadow_new_frame(void);   // render_shadows.c: the water's fading for the new frame
 internal void rf_ground_frame(int skip) {
     g_kg_skip = skip;
     rf_camera_frame();
     if (skip) return;
+    rd3_shadow_new_frame();
     ee_camera *cam = game_camera();
     if (!cam) return;
     const float *m = (const float *)camera_transformation_at(cam);
