@@ -129,9 +129,254 @@ internal void def_refresh(ee_player *pl, unsigned idx, uint32_t now) {
     }
 }
 
+// ENCLOSE ([ai_base] enclose, default 0 until measured; the player 2026-11-06: "the tower line with a wall is silly
+// anyways, even on land you just go around it, the ai should try to enclose itself fully" - and on an island the wall
+// stands at the water's edge, which makes landings impossible instead of keeping the landed troops out; towers packed
+// tightly along the coast keep the ships away). Against the cheating base AI on Small Islands (docs/testing.md
+// 2026-11-06) 86% of the mod's dead citizens were killed by troops that had landed, the first at 17-40 min.
+// A plan per AI every minute (encl_plan): its home continent flood-filled from the base point - at most ENCL_ISLAND
+// tiles and no enemy building seen on it: an island, its ring the coast (its land tiles beside the ocean); else a ring
+// around the town, an octagon (its sides along the tiles and exactly diagonal, as the game lays a straight wall) 3
+// tiles beyond its farthest building within 30 tiles, at least defence_distance + 2 and never shrinking, its tiles in
+// the water left out (the water closes it). Within 2 tiles of an own dock the ring stays open (3 opened 29 of a small
+// island's 36 coast tiles): the dock's builders, and the mod's landings board at the nearest free shore (landing.c).
+// The ring nearest the own buildings first. Walls (in defence_tick): up to two straight runs a tick (8 directions, at
+// most 12 pieces) of free ring tiles the wall can take; a gate in the middle of each of the octagon's four straight
+// sides once its pieces stand. Towers: the defence layout's slots become spots along the ring (on the coast 1 tile
+// inland and 5 apart, in the octagon 2 tiles inside and 6 apart), the outposts' after them; the front walls are not
+// built. Stone: the walls first - a whole coast of 77 tiles is 770 stone, 4-5 towers; with 6 stone gatherers the extra
+// towers took it all (from minute 10 every tick found under the 110 a piece needs): the extra towers wait for the open
+// ring's stone (up to 40 pieces), and the economy puts workers on stone for it (econ.c, encl_stone).
+#define ENCL_RING 2048
+#define ENCL_ISLAND 8000
+internal int g_encl = 0;
+internal struct encl {
+    ee_player *pl; uint32_t t, log_t; int island, r, tiles, walled;
+    int nring; int16_t rx[ENCL_RING], ry[ENCL_RING];   // in build order
+    int nslot; int16_t sx[96], sy[96];                 // tower spots
+    int ngate; struct { int16_t x, y; uint8_t dir, tries; } gate[4];
+    struct { int16_t ax, ay, bx, by; uint32_t t; } pend[24];   // runs ordered (their builders may not have started)
+    unsigned runs, pieces, gates;
+    int stone;   // the open ring's walls (the wall it builds now)
+    unsigned skip_pend, skip_fire, skip_raid, skip_stone;   // DIAG: why the scans since the last log ordered nothing
+} g_encs[16];
+
+struct encl_scan { ee_player *pl; unsigned hc; int nb, enemy; ivec2 b[512]; int nd; ivec2 d[16]; int nfoe; ivec2 foe[8]; };
+internal void encl_scan_unit(ee_unit *u, void *ctx) {   // own buildings and docks, an enemy building on the continent
+    struct encl_scan *s = ctx;
+    ee_unit_type *td = unit_get_type_data(u);
+    ee_player *o = unit_get_owner(u);
+    int fam = unit_type_get_class_id(td), t = unit_type_get_id(td);
+    if (o && o != s->pl && fam == CLS_LAND && unit_get_hp(u) > 0 && unit_get_x(u) >= 0 && player_get_index(o) > 0 && is_enemy(s->pl, o)) {
+        ivec2 p = unit_get_tile(u);   // DIAG: enemy soldiers on the continent
+        if (area_id(p, 2) == s->hc) { if (s->nfoe < 8) s->foe[s->nfoe] = p; s->nfoe++; }
+        return;
+    }
+    if (!o || (fam != CLS_BUILDING && fam != CLS_FORTRESS) || unit_get_hp(u) <= 0 || is_wall(t)) return;
+    ivec2 p = unit_get_tile(u);
+    if (o == s->pl) {
+        if (t == UT(B_DOCK) && s->nd < 16) s->d[s->nd++] = p;
+        if (s->nb < 512) s->b[s->nb++] = p;
+    } else if (player_get_index(o) > 0 && is_enemy(s->pl, o) && seen_by(u, s->pl) && area_id(p, 2) == s->hc) s->enemy = 1;
+}
+internal int encl_walled(int x, int y);
+internal int encl_land(ivec2 q, unsigned hc, int n) {   // land of the continent (a wall piece takes its tile out), off the map's edge
+    return q.x >= 3 && q.y >= 3 && q.x < n - 3 && q.y < n - 3 && ((area_id(q, 2) == hc && !area_id(q, 1)) || encl_walled(q.x, q.y));
+}
+internal int encl_coast(ivec2 q) {
+    for (int dx = -1; dx <= 1; dx++)
+        for (int dy = -1; dy <= 1; dy++)
+            if ((dx || dy) && area_id(iv2(q.x + dx, q.y + dy), 1)) return 1;
+    return 0;
+}
+internal int encl_walled(int x, int y) {   // a wall or gate piece on the tile (anyone's, any state)
+    ee_map *map = game_map();
+    int n = map ? (int)map_get_size(map) : 0;
+    if (x < 0 || y < 0 || x >= n || y >= n) return 0;
+    ee_tile *tile = map_get_tiles(map)[y * n + x];
+    for (void *node = tile ? tile_get_objects(tile) : NULL; node; node = tilenode_get_next(node)) {
+        ee_unit *o = tilenode_get_object(node);
+        ee_unit_type *td = o ? unit_get_type_data(o) : NULL;
+        if (td && unit_type_get_is_wall(td)) return 1;
+    }
+    return 0;
+}
+struct encl_key { int16_t x, y; int key; };
+internal int encl_key_cmp(const void *a, const void *b) {
+    const struct encl_key *p = a, *q = b;
+    return p->key != q->key ? (p->key < q->key ? -1 : 1) : p->x != q->x ? p->x - q->x : p->y - q->y;
+}
+internal void encl_plan(ee_player *pl, unsigned idx, struct def_plan *p, uint32_t now) {
+    struct encl *e = &g_encs[idx];
+    if (e->pl == pl && now >= e->t && now - e->t < 60000) return;
+    if (e->pl != pl) memset(e, 0, sizeof *e);
+    e->pl = pl; e->t = now ? now : 1;
+    e->nring = e->nslot = e->ngate = 0;
+    ee_map *map = game_map();
+    int n = map ? (int)map_get_size(map) : 0;
+    ivec2 b = iv2(p->bx, p->by);
+    unsigned hc = n > 16 && p->pl == pl ? area_id(b, 2) : 0;
+    if (!hc) return;
+    static struct encl_scan s;
+    memset(&s, 0, sizeof s);
+    s.pl = pl; s.hc = hc;
+    grid_each(encl_scan_unit, &s);
+    static struct encl_key k[ENCL_RING];
+    int nk = 0;
+    e->island = 0; e->tiles = 0;
+    if (!s.enemy) {   // the continent, flood-filled over its land
+        static int16_t qx[ENCL_ISLAND], qy[ENCL_ISLAND];
+        uint8_t *mark = calloc((size_t)n * (size_t)n, 1);
+        int qn = 0, over = 0;
+        if (mark) {
+            mark[b.y * n + b.x] = 1; qx[qn] = (int16_t)b.x; qy[qn++] = (int16_t)b.y;
+            static const int nb4[4][2] = { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } };
+            for (int h = 0; h < qn && !over; h++)
+                for (int d = 0; d < 4 && !over; d++) {
+                    ivec2 q = iv2(qx[h] + nb4[d][0], qy[h] + nb4[d][1]);
+                    if (q.x < 0 || q.y < 0 || q.x >= n || q.y >= n || mark[q.y * n + q.x]) continue;
+                    mark[q.y * n + q.x] = 1;
+                    // a wall piece takes its tile out of the continent: kept, or the walled coast left the ring
+                    if ((area_id(q, 2) != hc || area_id(q, 1)) && !encl_walled(q.x, q.y)) continue;
+                    if (qn >= ENCL_ISLAND) { over = 1; break; }
+                    qx[qn] = (int16_t)q.x; qy[qn++] = (int16_t)q.y;
+                }
+            free(mark);
+            e->tiles = qn;
+            e->island = !over;
+        }
+        for (int h = 0; e->island && h < qn && nk < ENCL_RING; h++) {
+            ivec2 q = iv2(qx[h], qy[h]);
+            if (encl_land(q, hc, n) && encl_coast(q)) { k[nk].x = (int16_t)q.x; k[nk++].y = (int16_t)q.y; }
+        }
+    }
+    if (!e->island) {   // the octagon around the town
+        int reach = 0;
+        for (int i = 0; i < s.nb; i++) {
+            int dx = abs(s.b[i].x - b.x), dy = abs(s.b[i].y - b.y), d = dx > dy ? dx : dy;
+            int dd = (int)ceilf((float)(dx + dy) / 1.414f);
+            if (dd > d) d = dd;
+            if (d <= 30 && d > reach) reach = d;
+        }
+        int r = reach + 3;
+        if (r < g_def_dist + 2) r = g_def_dist + 2;
+        if (r > 32) r = 32;
+        if (r < e->r) r = e->r;
+        e->r = r;
+        int sd = (int)lroundf((float)r * 1.414f);
+#define ENCL_IN(dx, dy) (abs(dx) <= r && abs(dy) <= r && abs(dx) + abs(dy) <= sd)
+        for (int dx = -r; dx <= r; dx++)
+            for (int dy = -r; dy <= r && nk < ENCL_RING; dy++) {
+                if (!ENCL_IN(dx, dy) || (ENCL_IN(dx + 1, dy) && ENCL_IN(dx - 1, dy) && ENCL_IN(dx, dy + 1) && ENCL_IN(dx, dy - 1))) continue;
+                ivec2 q = iv2(b.x + dx, b.y + dy);
+                if (encl_land(q, hc, n)) { k[nk].x = (int16_t)q.x; k[nk++].y = (int16_t)q.y; }
+            }
+#undef ENCL_IN
+        static const int side[4][3] = { { 1, 0, 2 }, { -1, 0, 2 }, { 0, 1, 1 }, { 0, -1, 1 } };   // gate_fits' dir along the side
+        for (int i = 0; i < 4; i++) {
+            ivec2 q = iv2(b.x + side[i][0] * r, b.y + side[i][1] * r);
+            if (!encl_land(q, hc, n)) continue;
+            e->gate[e->ngate].x = (int16_t)q.x; e->gate[e->ngate].y = (int16_t)q.y;
+            e->gate[e->ngate].dir = (uint8_t)side[i][2]; e->gate[e->ngate++].tries = 0;
+        }
+    }
+    int m = 0;   // open at the docks; the rest by distance to the nearest own building
+    for (int i = 0; i < nk; i++) {
+        int open = 0, best = 0x7FFFFFFF;
+        for (int d = 0; d < s.nd && !open; d++) open = abs(s.d[d].x - k[i].x) <= 2 && abs(s.d[d].y - k[i].y) <= 2;
+        if (open) continue;
+        for (int j = 0; j < s.nb; j++) {
+            int d2 = ivec2_dist2(s.b[j], iv2(k[i].x, k[i].y));
+            if (d2 < best) best = d2;
+        }
+        k[m] = k[i]; k[m++].key = best;
+    }
+    qsort(k, (size_t)m, sizeof k[0], encl_key_cmp);
+    int walled = 0, gap = e->island ? 5 : 6, in = e->island ? 1 : 2;
+    for (int i = 0; i < m; i++) {
+        e->rx[i] = k[i].x; e->ry[i] = k[i].y;
+        walled += encl_walled(k[i].x, k[i].y);
+        if (e->nslot >= 96) continue;
+        // a tower spot: inward towards the base point (on the coast 1 or 2 tiles, the first off the ring - asking for a
+        // tile without water beside it left 1-2 spots on a small island's 40-tile coast)
+        int sx = 0, sy = 0, ok = 0;
+        for (int d = in; d <= in + 1 && !ok; d++) {
+            sx = k[i].x + d * (b.x > k[i].x ? 1 : b.x < k[i].x ? -1 : 0); sy = k[i].y + d * (b.y > k[i].y ? 1 : b.y < k[i].y ? -1 : 0);
+            ok = encl_land(iv2(sx, sy), hc, n) && !encl_walled(sx, sy);
+            for (int j = 0; j < m && ok; j++) ok = k[j].x != sx || k[j].y != sy;
+        }
+        for (int j = 0; j < e->nslot && ok; j++) ok = abs(e->sx[j] - sx) >= gap || abs(e->sy[j] - sy) >= gap;
+        if (ok) { e->sx[e->nslot] = (int16_t)sx; e->sy[e->nslot++] = (int16_t)sy; }
+    }
+    e->nring = m; e->walled = walled;
+    {
+        static const enum ut_name wl[] = { UT_WALL_LINE };
+        int wt = 0;
+        for (int i = 5; i >= 0 && !wt; i--) if (ut_has(g_ut[wl[i]]) && can_build(pl, g_ut[wl[i]])) wt = g_ut[wl[i]];
+        e->stone = wt ? (m - walled) * unit_cost(pl, wt, 4) : 0;
+    }
+    if (g_log && s.nfoe) {   // DIAG: enemy soldiers on the island, the open ring tiles
+        char buf[512];
+        int len = snprintf(buf, sizeof buf, "# enclose diag: P%u at %.1f min: %d enemy soldiers on the continent (", idx, now / 60000.0, s.nfoe);
+        for (int i = 0; i < s.nfoe && i < 8 && len < 400; i++) len += snprintf(buf + len, sizeof buf - (size_t)len, "%s%d,%d", i ? " " : "", s.foe[i].x, s.foe[i].y);
+        len += snprintf(buf + len, sizeof buf - (size_t)len, "), open ring:");
+        for (int i = 0, shown = 0; i < m && shown < 16 && len < 480; i++)
+            if (!encl_walled(k[i].x, k[i].y)) { len += snprintf(buf + len, sizeof buf - (size_t)len, " %d,%d", k[i].x, k[i].y); shown++; }
+        fprintf(g_log, "%s\n", buf);
+    }
+    if (g_log && (!e->log_t || now - e->log_t >= 300000)) {
+        e->log_t = now ? now : 1;
+        // DIAG: what the open ring tiles hold, and what the island's land borders on
+        static const enum ut_name wline[] = { UT_WALL_LINE };
+        int wtype = 0, place = 0, obj = 0, bare = 0, nb_ocean = 0, nb_none = 0, nb_other = 0;
+        for (int i = 5; i >= 0 && !wtype; i--) if (ut_has(g_ut[wline[i]]) && can_build(pl, g_ut[wline[i]])) wtype = g_ut[wline[i]];
+        for (int i = 0; i < m && wtype; i++) {
+            int x = e->rx[i], y = e->ry[i];
+            if (encl_walled(x, y)) continue;
+            if (can_place(pl, wtype, iv2(x, y))) { place++; continue; }
+            ee_tile *tile = map_get_tiles(map)[y * n + x];
+            int any = 0;
+            for (void *node = tile ? tile_get_objects(tile) : NULL; node; node = tilenode_get_next(node)) {
+                ee_unit *o = tilenode_get_object(node);
+                ee_unit_type *td = o ? unit_get_type_data(o) : NULL;
+                if (td && !any) {
+                    any = 1;
+                    if (obj < 6) fprintf(g_log, "# enclose diag: P%u ring %d,%d holds type %d class %d\n", idx, x, y, unit_type_get_id(td), unit_type_get_class_id(td));
+                }
+            }
+            if (any) obj++; else bare++;
+        }
+        for (int dx = -40; e->island && dx <= 40; dx++)
+            for (int dy = -40; dy <= 40; dy++) {
+                ivec2 q = iv2(b.x + dx, b.y + dy);
+                if (q.x < 1 || q.y < 1 || q.x >= n - 1 || q.y >= n - 1 || area_id(q, 2) != hc || area_id(q, 1)) continue;
+                static const int nb4[4][2] = { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } };
+                for (int d = 0; d < 4; d++) {
+                    ivec2 r2 = iv2(q.x + nb4[d][0], q.y + nb4[d][1]);
+                    unsigned c = area_id(r2, 2), o = area_id(r2, 1);
+                    if (c == hc && !o) continue;
+                    if (o) nb_ocean++; else if (!c) nb_none++; else nb_other++;
+                }
+            }
+        fprintf(g_log, "# enclose diag: P%u open ring tiles: %d placeable, %d hold an object, %d bare but refused; the land's edges: %d ocean, %d no area, %d another land\n",
+                idx, place, obj, bare, nb_ocean, nb_none, nb_other);
+        fprintf(g_log, "# enclose: P%u at %.1f min: %s (continent %d tiles%s), ring %d tiles, %d walled, tower spots %d, gates %d, docks %d; runs %u, pieces %u, gates built %u; skipped: pending %u, tower fire %u, enemies near %u, no stone %u\n",
+                idx, now / 60000.0, e->island ? "island" : "town ring", e->tiles, e->island ? "" : s.enemy ? ", an enemy on it" : " or more",
+                m, walled, e->nslot, e->ngate, s.nd, e->runs, e->pieces, e->gates, e->skip_pend, e->skip_fire, e->skip_raid, e->skip_stone);
+        e->skip_pend = e->skip_fire = e->skip_raid = e->skip_stone = 0;
+    }
+}
+
 // Slot i of the plan in build order, 0 when there is none.
 internal int def_slot(struct def_plan *p, int i, int *x, int *y) {
     static const int first[3] = { 0, -1, 1 }, more[2] = { -2, 2 };
+    struct encl *e = &g_encs[(p - g_plan) & 15];
+    if (g_encl && e->pl == p->pl && e->nslot) {
+        if (i < e->nslot) { *x = e->sx[i]; *y = e->sy[i]; return 1; }
+        i -= e->nslot;
+        if (i < p->nout) { *x = p->out[i][0]; *y = p->out[i][1]; return 1; }
+        return 0;
+    }
     for (int k = 0; k < p->nf; k++, i -= 3)
         if (i < 3) { *x = p->f[k].fx + (int)lroundf(-p->f[k].dy * 3.0f * first[i]); *y = p->f[k].fy + (int)lroundf(p->f[k].dx * 3.0f * first[i]); return 1; }
     if (i < p->nout) { *x = p->out[i][0]; *y = p->out[i][1]; return 1; }
@@ -152,6 +397,7 @@ internal int defence_spot(ee_player *pl, int type, int *ox, int *oy) {
     struct def_plan *p = &g_plan[idx];
     struct def_scan *s = &g_scan;
     if (s->pl != pl) { p->t = now - 60000; def_refresh(pl, idx, now); }   // the scan belongs to another AI
+    if (g_encl) encl_plan(pl, idx, p, now);
     int x, y;
     threat_refresh(pl, now);   // slots inside known enemy defences would cost the builders (attack.c)
     for (int i = 0; def_slot(p, i, &x, &y); i++) {
@@ -211,10 +457,101 @@ internal int gate_fits(ee_player *pl, int x, int y, int dir) {
     return 1;
 }
 
+// econ.c: the stone the ring still needs - its open walls, and once there is a ring 200 for repairs (0: enclose off).
+// Without it nobody mined stone on a finished ring (the walls owed nothing, few towers asked) and the pieces the
+// enemy broke from minute 35 stayed open: its soldiers, stranded on the beach since minute 20, walked in.
+internal int encl_stone(ee_player *pl) {
+    struct encl *e = pl ? &g_encs[(unsigned)player_get_index(pl) & 15] : NULL;
+    return g_encl && e && e->pl == pl && e->nring ? e->stone + 200 : 0;
+}
+internal int encl_owed(ee_player *pl) {   // the open walls' stone alone: the extra towers wait for it
+    struct encl *e = pl ? &g_encs[(unsigned)player_get_index(pl) & 15] : NULL;
+    return g_encl && e && e->pl == pl ? e->stone : 0;
+}
+internal int encl_ring_has(struct encl *e, int x, int y) {
+    for (int i = 0; i < e->nring; i++) if (e->rx[i] == x && e->ry[i] == y) return 1;
+    return 0;
+}
+internal int encl_pending(struct encl *e, int x, int y, uint32_t now) {   // on a run ordered in the last 4 minutes
+    for (int i = 0; i < 24; i++) {
+        if (!e->pend[i].t || now - e->pend[i].t >= 240000) continue;
+        int ax = e->pend[i].ax, ay = e->pend[i].ay, dx = e->pend[i].bx - ax, dy = e->pend[i].by - ay;
+        int len = abs(dx) > abs(dy) ? abs(dx) : abs(dy), sx = dx > 0 ? 1 : dx < 0 ? -1 : 0, sy = dy > 0 ? 1 : dy < 0 ? -1 : 0;
+        for (int j = 0; j <= len; j++) if (ax + sx * j == x && ay + sy * j == y) return 1;
+    }
+    return 0;
+}
+internal int encl_free(ee_player *pl, struct encl *e, int wtype, int x, int y, uint32_t now) {
+    return encl_ring_has(e, x, y) && !encl_walled(x, y) && !encl_pending(e, x, y, now) && can_place(pl, wtype, iv2(x, y));
+}
+// The ring's walls and gates (defence_tick): up to two runs a tick, the stone above a tower's 100 kept back.
+internal void encl_walls(ee_player *pl, unsigned idx, struct def_plan *p, void *wm, const int *have_stock, uint32_t now) {
+    struct encl *e = &g_encs[idx];
+    int stock[7];   // what this tick's runs leave (the game takes it as they are built)
+    memcpy(stock, have_stock, sizeof stock);
+    encl_plan(pl, idx, p, now);
+    if (e->pl != pl || !e->nring) return;
+    for (int g = 0; g < e->ngate; g++) {   // a gate, once the side's middle stands finished: the newest it can build
+        if (e->gate[g].tries >= 20 || !gate_fits(pl, e->gate[g].x, e->gate[g].y, e->gate[g].dir)) continue;
+        static const enum ut_name gline[] = { UT_GATE_LINE };   // oldest first
+        int gtype = 0;
+        for (int i = 5; i >= 0 && !gtype; i--)
+            if (ut_has(g_ut[gline[i]]) && can_build(pl, g_ut[gline[i]])) gtype = g_ut[gline[i]];
+        e->gate[g].tries++;
+        if (!gtype) continue;
+        int tile[2] = { e->gate[g].x, e->gate[g].y };
+        build_gate(tile, player_get_index(pl), unit_type_get_tech(type_data(gtype)), e->gate[g].dir);
+        e->gate[g].tries = 20;
+        e->gates++;
+        if (g_log) fprintf(g_log, "# enclose: P%u gate %d at %d,%d\n", idx, gtype, tile[0], tile[1]);
+        return;
+    }
+    static const enum ut_name wline[] = { UT_WALL_LINE };   // oldest first
+    int wtype = 0;
+    for (int i = 5; i >= 0 && !wtype; i--)   // the newest it can build
+        if (ut_has(g_ut[wline[i]]) && can_build(pl, g_ut[wline[i]])) wtype = g_ut[wline[i]];
+    if (!wtype) return;
+    threat_refresh(pl, now);
+    for (int order = 0; order < 2; order++) {
+        int most = 12;   // the pieces the stock pays for
+        for (int r = 2; r < 7; r++) {
+            int c = unit_cost(pl, wtype, r), have = stock[r] - (r == 4 ? 100 : 0);
+            if (c > 0 && have / c < most) most = have / c;
+        }
+        if (most < 1) { e->skip_stone++; return; }
+        int ax = -1, ay = -1, bx = -1, by = -1;
+        for (int i = 0; i < e->nring && ax < 0; i++) {
+            int x = e->rx[i], y = e->ry[i];
+            if (!encl_free(pl, e, wtype, x, y, now)) { e->skip_pend += !encl_walled(x, y) && encl_pending(e, x, y, now); continue; }
+            if (route_covered(pl, p->bx, p->by, x, y)) { e->skip_fire++; continue; }   // the builders would walk into enemy fire
+            if (raiders_near(pl, iv2(x, y), 10)) { e->skip_raid++; continue; }   // or an enemy army, ships off the coast
+            static const int axis[4][2] = { { 1, 0 }, { 0, 1 }, { 1, 1 }, { 1, -1 } };
+            int best = 0;
+            for (int a = 0; a < 4; a++) {
+                int f = 0, bk = 0, dx = axis[a][0], dy = axis[a][1];
+                while (f + 1 < most && encl_free(pl, e, wtype, x + dx * (f + 1), y + dy * (f + 1), now)) f++;
+                while (f + bk + 1 < most && encl_free(pl, e, wtype, x - dx * (bk + 1), y - dy * (bk + 1), now)) bk++;
+                if (f + bk + 1 > best) { best = f + bk + 1; ax = x - dx * bk; ay = y - dy * bk; bx = x + dx * f; by = y + dy * f; }
+            }
+        }
+        if (ax < 0) return;
+        int a[2] = { ax, ay }, bb[2] = { bx, by }, len = abs(bx - ax) > abs(by - ay) ? abs(bx - ax) : abs(by - ay);
+        build_wall(wm, a, bb, wtype);
+        int o = 0;
+        for (int i = 1; i < 24; i++) if (e->pend[i].t < e->pend[o].t) o = i;
+        e->pend[o].ax = (int16_t)ax; e->pend[o].ay = (int16_t)ay; e->pend[o].bx = (int16_t)bx; e->pend[o].by = (int16_t)by;
+        e->pend[o].t = now ? now : 1;
+        e->runs++; e->pieces += (unsigned)len + 1;
+        for (int r = 2; r < 7; r++) stock[r] -= (len + 1) * unit_cost(pl, wtype, r);
+        if (g_log) fprintf(g_log, "# enclose: P%u wall %d from %d,%d to %d,%d (%d pieces; ring %d, %d walled)\n",
+                           idx, wtype, ax, ay, bx, by, len + 1, e->nring, e->walled);
+    }
+}
+
 // Walls: per AI every 20 s (econ_tick). Best wall type the player can build now (0x555710: available, affordable).
 internal void defence_tick(ee_player *pl, unsigned idx, uint32_t now) {
     static uint32_t last[16];
-    if (!g_def || !g_def_walls || g_def_off[idx] || (now >= last[idx] && now - last[idx] < 20000)) return;
+    if (!g_def || (!g_def_walls && !g_encl) || g_def_off[idx] || (now >= last[idx] && now - last[idx] < 20000)) return;
     last[idx] = now;
     def_refresh(pl, idx, now);
     struct def_plan *p = &g_plan[idx];
@@ -231,7 +568,9 @@ internal void defence_tick(ee_player *pl, unsigned idx, uint32_t now) {
     if (g_def_more && (!last_tower[idx] || now < last_tower[idx] || now - last_tower[idx] >= 60000)) {
         int queued = tower_queued(bm), ttype = tower_newest(pl);
         int x, y, e = current_epoch(pl);
-        if (!queued && ttype && stock[4] >= unit_cost(pl, ttype, 4) + 100 && e >= 0 && e < 14 &&
+        int owed = encl_owed(pl);   // enclose: the open ring's walls first
+        owed = owed > 400 ? 400 : owed;
+        if (!queued && ttype && stock[4] >= unit_cost(pl, ttype, 4) + 100 + owed && e >= 0 && e < 14 &&
             defence_spot(pl, ttype, &x, &y)) {
             int entry[3] = { ttype, x, y };
             build_mgr_queue_add(bm, e, entry);
@@ -240,6 +579,7 @@ internal void defence_tick(ee_player *pl, unsigned idx, uint32_t now) {
             ai_say(pl, CHAT_TOWER, "[ai] extra tower (type %d) at %d,%d, stone %d", ttype, x, y, stock[4]);
         }
     }
+    if (g_encl) { encl_walls(pl, idx, p, wm, stock, now); return; }   // the ring instead of the fronts' walls
     for (int k = 0; k < p->nf; k++) {   // the gate, once the wall's middle stands finished: the newest it can build
         struct front *f = &p->f[k];
         if (!f->gdir || f->gtries >= 20 || !gate_fits(pl, f->gx, f->gy, f->gdir)) continue;
@@ -1028,7 +1368,11 @@ internal void cmd_basemap(char *out, const char *args) {
             if (x >= 0 && y >= 0 && x < w && y < w) g[y * w + x] = 'm';
         }
     grid_each(basemap_unit, &m);
-    unsigned pi = (unsigned)p & 15;   // planned tower slots of the defence layout: o
+    unsigned pi = (unsigned)p & 15;   // planned tower slots of the defence layout: o; the enclosing ring: ,
+    for (int i = 0; g_encl && g_encs[pi].pl == pl && i < g_encs[pi].nring; i++) {
+        int gx = g_encs[pi].rx[i] - m.x0 + r, gy = g_encs[pi].ry[i] - m.y0 + r;
+        if (gx >= 0 && gy >= 0 && gx < w && gy < w && g[gy * w + gx] == '.') g[gy * w + gx] = ',';
+    }
     if (g_plan[pi].pl == pl) {
         int sx, sy;
         for (int i = 0; def_slot(&g_plan[pi], i, &sx, &sy); i++) {
@@ -1114,6 +1458,7 @@ internal void defence_install(void) {
     g_def_dist = g_set_ai[1].defence_distance;
     g_def_walls = g_set_ai[1].defence_walls;
     g_def_more = g_set_ai[1].defence_towers;
+    g_encl = g_set_ai[1].enclose;
     g_csiege = g_set_ai[1].counter_siege;
     g_militia = g_set_ai[1].citizen_militia;
     g_militia_est = g_set_ai[1].militia_estimate;
@@ -1128,7 +1473,7 @@ internal void defence_install(void) {
     g_hold = g_set_ai[1].hold_town;
     BOOL guard = patch_damage_points(damage_points_thunk);
     if (g_log) fprintf(g_log, "# engine guard: damage points %s\n", guard ? "ok" : "FAILED");
-    if (g_log) fprintf(g_log, "# defence: layout=%d distance=%d walls=%d own towers=%d counter-siege=%d home guard=%d/epoch, %.2f of the military room, fight_estimate=%d hold_town=%d\n", g_def, g_def_dist, g_def_walls, g_def_more, g_csiege, g_home_guard, g_home_share, g_fight_est, g_hold);
+    if (g_log) fprintf(g_log, "# defence: layout=%d distance=%d walls=%d enclose=%d own towers=%d counter-siege=%d home guard=%d/epoch, %.2f of the military room, fight_estimate=%d hold_town=%d\n", g_def, g_def_dist, g_def_walls, g_encl, g_def_more, g_csiege, g_home_guard, g_home_share, g_fight_est, g_hold);
 }
 
 // ANTI-AIR ([ai_base] anti_air, default 1). The game's unit choice hardly asks for anti-air: the user's planes overran

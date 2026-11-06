@@ -107,6 +107,7 @@ internal void spend_log(unsigned idx, uint32_t now) {
 internal int defence_spot(ee_player *pl, int type, int *ox, int *oy);   // defence.c
 internal int can_place(ee_player *pl, int type, ivec2 p);   // defence.c: the game's placement test, every tile
 internal void defence_tick(ee_player *pl, unsigned idx, uint32_t now);
+internal int encl_stone(ee_player *pl);   // defence.c (enclose): the stone the open ring still needs
 internal void anti_air(ee_player *pl, unsigned idx, uint32_t now);   // defence.c
 internal void bunker_reserve(ee_player *pl, int *reserve);   // bunker.c
 internal void prod_sync(ee_player *pl, unsigned idx, uint32_t now);   // below
@@ -1281,6 +1282,22 @@ internal void econ_targets(ee_resource_mgr *rm) {
             }
         }
         navy_mines(pl, idx, rm, target, stock, reserve, demand);   // navy.c: the mines on a water map (the navy's and all reachable)
+        // enclose (defence.c): the ring's open walls and its repairs are no demand of the game's - stone workers that pay
+        // for them within about 3 minutes (at most a fifth of the workers), from the largest other targets
+        int ring = encl_stone(pl) + 100 - stock[4];
+        if (ring > 0) {
+            float ps = g_rate[idx].per_worker[4];
+            int stone_want = (int)((float)ring / (3.0f * (ps > 2.0f ? ps : 2.0f)) + 0.99f), stone_most = total / 5;
+            stone_want = stone_want > stone_most ? stone_most : stone_want;
+            while ((int)target[4] < stone_want) {
+                int from = -1;
+                for (int r = 2; r < 7; r++)
+                    if (r != 4 && (int)target[r] > 2 && (from < 0 || target[r] > target[from])) from = r;
+                if (from < 0) break;
+                target[from]--;
+                target[4]++;
+            }
+        }
         return;
     }
     need[2] = reserve[2] + 300 - stock[2];
