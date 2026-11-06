@@ -1,0 +1,18 @@
+// Continental seed 101, 2 AIs, start epoch 5 (Middle Ages: start_epoch=5 in the run's ini): P3 base ~40,42 (its town
+// x 33-44, y 33-46), P2 base ~80,52. Riders passing through (the player 2026-11-07: "a few riders just moving through
+// can disrupt the ai's economy for minutes"): at minute 25 P2 gets 6 knights at 66,40 that ride through P3's town to
+// 26,42 without stopping for anything (a forced move), then south past it and back out east; at minute 28 those
+// left are taken off. Measure how long P3's gathering is down against riders_none.eeai, the same games without them:
+// scripts/results/riders.py (the # doing lines' gatherers a minute, the citizens sent back, the sites refused).
+
+defence(2, 0)
+wait_until(25min)
+let knights = player(2).spawn(unit.cav06_knight, vec(66, 40), 6)
+wait_until(25.05min)
+move(2, 66, 40, 8, 26, 42)
+wait_until(26.2min)
+move(2, 26, 42, 10, 30, 58)
+wait_until(26.8min)
+move(2, 30, 58, 10, 66, 58)
+wait_until(28min)
+for k in knights { if k.hp > 0 { k.remove() } }
