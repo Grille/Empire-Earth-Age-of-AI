@@ -779,8 +779,9 @@ internal void __thiscall rd_hook_write_unlock(void *lock) {
 internal int g_rwl_free = 1;
 internal LONG g_rwl_skips, g_rwl_updates;
 internal ee_render_object *g_ro_obj[RO_N];   // the render objects, as their draws are called
+internal int rec_step(void);   // render_record.c: the pipe's record steps - every second frame drawn as during a step
 internal void __thiscall rd_hook_graphics_update(ee_graphics *g) {
-    int skip = g_rwl_free && g_rwl_updates && g_rwl_world && g_rwl_write_at;
+    int skip = g_rwl_updates && ((g_rwl_free && g_rwl_world && g_rwl_write_at) || rec_step());
     rf_ground_frame(skip);
     if (skip) g_rwl_skips++;
     else g_rwl_updates++;
