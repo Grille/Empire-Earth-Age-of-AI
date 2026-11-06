@@ -75,10 +75,12 @@ unsafe struct EETechTreeNode
     [offset((ee)0x1E, (aoc)0x22), found(c)]
     uint8 disabled;
 
-    /// ee_scen_effect::run 0x5AD29B sets 1 after 0x558CB6(unit type, 0x7F) for a tech that passes 0x5BF041; the grant
-    /// 0x5BF4C8 and the destructor 0x5BE7B3 undo it (0x55C0A2) and clear it
-    [offset((ee)0x1F, (aoc)0x23), found(c), guess]
-    uint8 type_modified;
+    /// its unit type's media (models, sounds) are loaded for the player: ee_scen_effect::run 0x5AD29B loads them
+    /// (0x558CB6(unit type, 0x7F)) for a tech that needs them (0x5BF041) and sets 1; the grant 0x5BF4C8 and the
+    /// destructor 0x5BE7B3 unload them (0x55C0A2) and clear it (the AoC decompilation: mIsUnitMediaLoaded,
+    /// SetUnitClassMedia / UnloadUnitClassMedia)
+    [offset((ee)0x1F, (aoc)0x23), found(c)]
+    uint8 unit_media_loaded;
 
     [offset(0x24), found(v)]
     uint8* kids_begin;

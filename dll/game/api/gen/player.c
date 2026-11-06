@@ -69,12 +69,12 @@ internal inline int **player_selected_group_at(const ee_player *o) { return (int
 internal inline void *player_get_ui_group(const ee_player *o) { return *(void **)((uint8_t *)o + of_player_ui_group); }
 internal inline void player_set_ui_group(ee_player *o, void *v) { *(void **)((uint8_t *)o + of_player_ui_group) = v; }
 internal inline void **player_ui_group_at(const ee_player *o) { return (void **)((uint8_t *)o + of_player_ui_group); }
-// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
-// the unit set of a wonder bonus 6 (0x40DD73 of its type's +0x5B8, "Effect apply to"), set when such a building is
-// finished (0x556xxx) with +0xB42 = 1; the player's init zeroes it
-internal inline void *player_get_wonder_unit_set(const ee_player *o) { return *(void **)((uint8_t *)o + of_player_wonder_unit_set); }
-internal inline void player_set_wonder_unit_set(ee_player *o, void *v) { *(void **)((uint8_t *)o + of_player_wonder_unit_set) = v; }
-internal inline void **player_wonder_unit_set_at(const ee_player *o) { return (void **)((uint8_t *)o + of_player_wonder_unit_set); }
+// the unit types its wonder heals: the unit set of a wonder bonus 6 (0x40DD73 of its type's +0x5B8, "Effect apply
+// to"), set when such a building is finished (0x556xxx) with +0xB42 = 1 (heals units); the player's init zeroes
+// it (the AoC decompilation: mHealedUnitSet, its heal timer healing the units of the set's types)
+internal inline void *player_get_healed_unit_set(const ee_player *o) { return *(void **)((uint8_t *)o + of_player_healed_unit_set); }
+internal inline void player_set_healed_unit_set(ee_player *o, void *v) { *(void **)((uint8_t *)o + of_player_healed_unit_set) = v; }
+internal inline void **player_healed_unit_set_at(const ee_player *o) { return (void **)((uint8_t *)o + of_player_healed_unit_set); }
 internal inline ee_tech_tree *player_get_tech_tree(const ee_player *o) { return *(ee_tech_tree **)((uint8_t *)o + of_player_tech_tree); }
 internal inline void player_set_tech_tree(ee_player *o, ee_tech_tree *v) { *(ee_tech_tree **)((uint8_t *)o + of_player_tech_tree) = v; }
 internal inline ee_tech_tree **player_tech_tree_at(const ee_player *o) { return (ee_tech_tree **)((uint8_t *)o + of_player_tech_tree); }
@@ -135,9 +135,9 @@ internal inline int *player_pop_b10_at(const ee_player *o) { return (int *)((uin
 internal inline int player_get_objects(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_objects); }
 internal inline void player_set_objects(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_objects) = v; }
 internal inline int *player_objects_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_objects); }
-// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
 // counts its finished buildings of tech 0x432's set (0x5BEFCB): 0 or more switches techs 0x41D / 0x404 queueable;
 // 0x5EC2C3 forbids deleting such a building while it is 1, EEMBuildUnit::vf10 0x4B3D85 tests it
+// (the AoC decompilation: mNumCapitols, its code counting the units of the Citizen tech's set)
 internal inline int player_get_citizen_buildings(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_citizen_buildings); }
 internal inline void player_set_citizen_buildings(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_citizen_buildings) = v; }
 internal inline int *player_citizen_buildings_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_citizen_buildings); }
@@ -148,9 +148,8 @@ internal inline int player_get_pop_b20(const ee_player *o) { return *(int *)((ui
 internal inline void player_set_pop_b20(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_pop_b20) = v; }
 internal inline int *player_pop_b20_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_pop_b20); }
 internal inline uint8_t *player_chat_to_player_at(const ee_player *o) { return (uint8_t *)o + of_player_chat_to_player; }
-// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
 // the cheat 0xD toggles it (0x520F75; its string 30633 "Brainstorm"), build time and cost code read it (0x600xxx,
-// 0x624DF8, 0x5592xx)
+// 0x624DF8, 0x5592xx) (the AoC decompilation: mInstantBuild)
 internal inline uint8_t player_get_instant_build(const ee_player *o) { return *(uint8_t *)((uint8_t *)o + of_player_instant_build); }
 internal inline void player_set_instant_build(ee_player *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_player_instant_build) = v; }
 internal inline uint8_t *player_instant_build_at(const ee_player *o) { return (uint8_t *)((uint8_t *)o + of_player_instant_build); }
@@ -492,9 +491,9 @@ internal inline float *player_guard_pct_76_at(const ee_player *o) { return (floa
 internal inline float player_get_guard_town_pct(const ee_player *o) { return *(float *)((uint8_t *)o + of_player_guard_town_pct); }
 internal inline void player_set_guard_town_pct(ee_player *o, float v) { *(float *)((uint8_t *)o + of_player_guard_town_pct) = v; }
 internal inline float *player_guard_town_pct_at(const ee_player *o) { return (float *)((uint8_t *)o + of_player_guard_town_pct); }
-// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
 // record 73, no name in the game's strings (0.85): the land subgroups' town guard chance - EECPASGLand::vf45
 // 0x446910 returns it, which the guard spot's choice 0x4769F7 rolls against (the aircraft's: guard_town_pct)
+// (the AoC decompilation: mGuardTownLandPercentage)
 internal inline float player_get_guard_town_land_pct(const ee_player *o) { return *(float *)((uint8_t *)o + of_player_guard_town_land_pct); }
 internal inline void player_set_guard_town_land_pct(ee_player *o, float v) { *(float *)((uint8_t *)o + of_player_guard_town_land_pct) = v; }
 internal inline float *player_guard_town_land_pct_at(const ee_player *o) { return (float *)((uint8_t *)o + of_player_guard_town_land_pct); }
@@ -528,10 +527,10 @@ internal inline float *player_response_range_at(const ee_player *o) { return (fl
 internal inline float player_get_military_pct(const ee_player *o) { return *(float *)((uint8_t *)o + of_player_military_pct); }
 internal inline void player_set_military_pct(ee_player *o, float v) { *(float *)((uint8_t *)o + of_player_military_pct) = v; }
 internal inline float *player_military_pct_at(const ee_player *o) { return (float *)((uint8_t *)o + of_player_military_pct); }
-// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
 // record 69, no name in the game's strings (0.1): the enemy strength near another player over that player's own
 // (0x4759CE, at most 1) above which it sends a military aid package (0x474E85) and keeps helping (the package's
 // states 0x4813AE, 0x48143E, 0x48149D, 0x4814F3, its done test 0x47A606)
+// (the AoC decompilation: mAidThreatThreshold)
 internal inline float player_get_aid_threat_min(const ee_player *o) { return *(float *)((uint8_t *)o + of_player_aid_threat_min); }
 internal inline void player_set_aid_threat_min(ee_player *o, float v) { *(float *)((uint8_t *)o + of_player_aid_threat_min) = v; }
 internal inline float *player_aid_threat_min_at(const ee_player *o) { return (float *)((uint8_t *)o + of_player_aid_threat_min); }
@@ -555,15 +554,15 @@ internal inline float *player_prophet_chance_at(const ee_player *o) { return (fl
 internal inline float player_get_attention_period(const ee_player *o) { return *(float *)((uint8_t *)o + of_player_attention_period); }
 internal inline void player_set_attention_period(ee_player *o, float v) { *(float *)((uint8_t *)o + of_player_attention_period) = v; }
 internal inline float *player_attention_period_at(const ee_player *o) { return (float *)((uint8_t *)o + of_player_attention_period); }
-// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
 // record 12, no name in the game's strings, its second value x 0.01 (0.4): a citizen's weight in a player's
 // strength (0x47CBCC: intel +0x4C = it x citizens + strength_weight_military x military units; no reader of that
 // found). The scenario's Set AI Variable writes strength_weight_military twice and never this one
+// (the AoC decompilation: mWorkerCountWeight, the strength military x mMilitaryCountWeight + gatherers x it)
 internal inline float player_get_strength_weight_citizen(const ee_player *o) { return *(float *)((uint8_t *)o + of_player_strength_weight_citizen); }
 internal inline void player_set_strength_weight_citizen(ee_player *o, float v) { *(float *)((uint8_t *)o + of_player_strength_weight_citizen) = v; }
 internal inline float *player_strength_weight_citizen_at(const ee_player *o) { return (float *)((uint8_t *)o + of_player_strength_weight_citizen); }
-// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
 // record 12's first value x 0.01 (0.6): a military unit's weight in that strength (0x47CBCC)
+// (the AoC decompilation: mMilitaryCountWeight)
 internal inline float player_get_strength_weight_military(const ee_player *o) { return *(float *)((uint8_t *)o + of_player_strength_weight_military); }
 internal inline void player_set_strength_weight_military(ee_player *o, float v) { *(float *)((uint8_t *)o + of_player_strength_weight_military) = v; }
 internal inline float *player_strength_weight_military_at(const ee_player *o) { return (float *)((uint8_t *)o + of_player_strength_weight_military); }
@@ -590,9 +589,8 @@ internal inline float *player_dm_attack_factor_at(const ee_player *o) { return (
 internal inline float player_get_dm_first_attack_factor(const ee_player *o, int i) { return ((float *)((uint8_t *)o + of_player_dm_first_attack_factor))[i]; }
 internal inline void player_set_dm_first_attack_factor(ee_player *o, int i, float v) { ((float *)((uint8_t *)o + of_player_dm_first_attack_factor))[i] = v; }
 internal inline float *player_dm_first_attack_factor_at(const ee_player *o) { return (float *)((uint8_t *)o + of_player_dm_first_attack_factor); }
-// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
 // its player index % 10 (the loader), given to the object at +0xB9C (0x484E25): which of ten updates is its turn,
-// an update stagger
+// an update stagger (the AoC decompilation: mSeed, the interaction manager's turn (game time + it) % 10)
 internal inline int player_get_update_slot(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_update_slot); }
 internal inline void player_set_update_slot(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_update_slot) = v; }
 internal inline int *player_update_slot_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_update_slot); }
@@ -609,9 +607,9 @@ internal inline int *player_ships_at(const ee_player *o) { return (int *)((uint8
 internal inline int player_get_naval_check_min(const ee_player *o) { return *(int *)((uint8_t *)o + of_player_naval_check_min); }
 internal inline void player_set_naval_check_min(ee_player *o, int v) { *(int *)((uint8_t *)o + of_player_naval_check_min) = v; }
 internal inline int *player_naval_check_min_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_naval_check_min); }
-// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
 // record 4 "Troops to Assist Allies" by difficulty - the record's text says the troops it sends an ally, but the
 // loader stores minutes x 60000: a time in ms
+// (the AoC decompilation: mAssistAlliesDelayEasy.., the aid package's delay)
 internal inline int player_get_assist_allies_ms(const ee_player *o, int i) { return ((int *)((uint8_t *)o + of_player_assist_allies_ms))[i]; }
 internal inline void player_set_assist_allies_ms(ee_player *o, int i, int v) { ((int *)((uint8_t *)o + of_player_assist_allies_ms))[i] = v; }
 internal inline int *player_assist_allies_ms_at(const ee_player *o) { return (int *)((uint8_t *)o + of_player_assist_allies_ms); }
@@ -1163,7 +1161,7 @@ internal int spec_player_select(int build) {
         of_player_computer = 0x9B4;
         of_player_selected_group = 0x9BC;
         of_player_ui_group = 0x9C0;
-        of_player_wonder_unit_set = 0x9C8;
+        of_player_healed_unit_set = 0x9C8;
         of_player_tech_tree = 0x9D4;
         of_player_selected_unit = 0x9D8;
         of_player_ui_unit = 0x9DC;
@@ -1447,7 +1445,7 @@ internal int spec_player_select(int build) {
         of_player_computer = 0x9A4;
         of_player_selected_group = 0x9AC;
         of_player_ui_group = 0x9B0;
-        of_player_wonder_unit_set = 0x9B8;
+        of_player_healed_unit_set = 0x9B8;
         of_player_tech_tree = 0x9CC;
         of_player_selected_unit = 0x9D0;
         of_player_ui_unit = 0x9D4;

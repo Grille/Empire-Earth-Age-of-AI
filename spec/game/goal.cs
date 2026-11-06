@@ -7,8 +7,8 @@ unsafe struct EEUnitGoal
     uint8 state;
 
     /// 0 from the base constructor 0x6283AB: +1 per path request for the goal (EEUnitClass::vf52 0x6222A8), +8 per
-    /// detour waypoint pair (vf53 0x6225E7)
-    [offset(0x18), found(c), guess]
+    /// detour waypoint pair (vf53 0x6225E7) (the AoC decompilation: mPathAttempts)
+    [offset(0x18), found(c)]
     int32 path_tries;
 
     /// 1 for a goal from an order (commands, the AI), 0 for the unit's own (its target search); the guard return skips
@@ -314,13 +314,17 @@ unsafe struct EEUGExplore
 [@base(typeof(EEUnitGoal)), vtable((ee)0x00831B80, (aoc)0x008475A8)]
 unsafe struct EEUGGather
 {
-    /// 1 once it has found a drop-off and heads there (state 0x1F48, 0x6106F9), cleared at 0x610A3D, 0x610BB6 and in
-    /// vf20: vf18 0x611065 takes the drop-off's reach test while it is set; the script condition 0x138F returns it
-    [offset(0x40), found(c), guess]
-    uint8 returning;
+    /// its out-of-sync dump's "Gathering Flag": 1 while it works the resource, 0 while it carries to the drop-off (the
+    /// debug text's "Gathering" / "Dropping Off"); 0x6106F9 sets 1 when it starts on a resource, 0x610A3D (a settlement
+    /// to build instead) and 0x610BB6 (the resource full) clear it, vf20 too; the script condition 0x138F returns it -
+    /// read from the AoC decompilation (mGathering), EE's code writes it at the same places
+    [offset(0x40), found(c)]
+    uint8 gathering;
 
-    /// 0x610BB6 sets 1 (returning 0) to walk to its spot at dest_x / dest_y: vf18 then tests the distance to it instead
-    /// of the reach; the script condition 0x139B returns it
-    [offset(0x41), found(c), guess]
-    uint8 to_spot;
+    /// its out-of-sync dump's "Waiting Flag": 0x610BB6 sets 1 (gathering 0) when the resource has no room for it and
+    /// it is far off - it then waits at its waiting area (its dump's "Waiting Area", where vf18 measures the distance
+    /// instead of the reach); 0x6106F9 clears it when it starts; the script condition 0x139B returns it (the AoC
+    /// decompilation: mWaiting)
+    [offset(0x41), found(c)]
+    uint8 waiting;
 }

@@ -200,7 +200,7 @@ internal int gate_fits(ee_player *pl, int x, int y, int dir) {
         for (void *node = tile ? tile_get_objects(tile) : NULL; node; node = tilenode_get_next(node)) {
             ee_unit *o = tilenode_get_object(node);
             ee_unit_type *td = o ? unit_get_type_data(o) : NULL;
-            if (!td || !unit_type_get_is_tower(td)) continue;
+            if (!td || !unit_type_get_is_wall(td)) continue;
             ee_unit *bs = unit_get_physics(o);
             int t = unit_type_get_id(td);
             cnt++;

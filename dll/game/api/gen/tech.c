@@ -74,12 +74,13 @@ internal inline uint8_t *tech_queueable_at(const ee_tech *o) { return (uint8_t *
 internal inline uint8_t tech_get_disabled(const ee_tech *o) { return *(uint8_t *)((uint8_t *)o + of_tech_disabled); }
 internal inline void tech_set_disabled(ee_tech *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_tech_disabled) = v; }
 internal inline uint8_t *tech_disabled_at(const ee_tech *o) { return (uint8_t *)((uint8_t *)o + of_tech_disabled); }
-// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
-// ee_scen_effect::run 0x5AD29B sets 1 after 0x558CB6(unit type, 0x7F) for a tech that passes 0x5BF041; the grant
-// 0x5BF4C8 and the destructor 0x5BE7B3 undo it (0x55C0A2) and clear it
-internal inline uint8_t tech_get_type_modified(const ee_tech *o) { return *(uint8_t *)((uint8_t *)o + of_tech_type_modified); }
-internal inline void tech_set_type_modified(ee_tech *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_tech_type_modified) = v; }
-internal inline uint8_t *tech_type_modified_at(const ee_tech *o) { return (uint8_t *)((uint8_t *)o + of_tech_type_modified); }
+// its unit type's media (models, sounds) are loaded for the player: ee_scen_effect::run 0x5AD29B loads them
+// (0x558CB6(unit type, 0x7F)) for a tech that needs them (0x5BF041) and sets 1; the grant 0x5BF4C8 and the
+// destructor 0x5BE7B3 unload them (0x55C0A2) and clear it (the AoC decompilation: mIsUnitMediaLoaded,
+// SetUnitClassMedia / UnloadUnitClassMedia)
+internal inline uint8_t tech_get_unit_media_loaded(const ee_tech *o) { return *(uint8_t *)((uint8_t *)o + of_tech_unit_media_loaded); }
+internal inline void tech_set_unit_media_loaded(ee_tech *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_tech_unit_media_loaded) = v; }
+internal inline uint8_t *tech_unit_media_loaded_at(const ee_tech *o) { return (uint8_t *)((uint8_t *)o + of_tech_unit_media_loaded); }
 internal inline uint8_t *tech_get_kids_begin(const ee_tech *o) { return *(uint8_t **)((uint8_t *)o + of_tech_kids_begin); }
 internal inline void tech_set_kids_begin(ee_tech *o, uint8_t *v) { *(uint8_t **)((uint8_t *)o + of_tech_kids_begin) = v; }
 internal inline uint8_t **tech_kids_begin_at(const ee_tech *o) { return (uint8_t **)((uint8_t *)o + of_tech_kids_begin); }
@@ -236,7 +237,7 @@ internal int spec_tech_select(int build) {
         of_tech_last_epoch = 0x18;
         of_tech_queueable = 0x1D;
         of_tech_disabled = 0x1E;
-        of_tech_type_modified = 0x1F;
+        of_tech_unit_media_loaded = 0x1F;
         of_tech_kids_begin = 0x24;
         fn_tech_grant = (tech_grant_fn)0x005BF335;
         of_tech_data_makers_begin = 0x10;
@@ -286,7 +287,7 @@ internal int spec_tech_select(int build) {
         of_tech_last_epoch = 0x18;
         of_tech_queueable = 0x21;
         of_tech_disabled = 0x22;
-        of_tech_type_modified = 0x23;
+        of_tech_unit_media_loaded = 0x23;
         of_tech_kids_begin = 0x24;
         fn_tech_grant = (tech_grant_fn)0x005CFA53;
         of_tech_data_makers_begin = 0x10;

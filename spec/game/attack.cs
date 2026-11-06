@@ -171,8 +171,8 @@ unsafe struct EECPAttackSubGroup
 
     /// vf91 0x45CCC3 picks a kind (2/3/4/7/9) by random ratios when it splits the group, not while it is 10; vf37
     /// 0x45BFC9 chooses by it which units leave (4 a random 30..70 %, 11 every free unit); update's state 0x3E9 sets 10
-    /// (0x4491DD), message 0x232A 11
-    [offset((ee)0x1CC, (aoc)0x1D0), found(c), guess]
+    /// (0x4491DD), message 0x232A 11 (the AoC decompilation: mSplitKind)
+    [offset((ee)0x1CC, (aoc)0x1D0), found(c)]
     int32 split_kind;
 
     [offset((ee)0x1D0, (aoc)0x1D4), found(c)]
@@ -308,13 +308,13 @@ unsafe struct EEAIGPGModifierLandAttackSubGroupRoutePlanner
     extern int32 cost(int32* edge, ee_route_node* node);
 
     /// plan_route's weights[5] == 0 (the constructor 0x414187): while 0, cost multiplies a node in an area other than
-    /// the start's and the goal's by 50
-    [offset(0x58), found(c), guess]
+    /// the start's and the goal's by 50 (the AoC decompilation: mAnyContinent)
+    [offset(0x58), found(c)]
     uint8 free_crossing;
 
     /// always 1 from the constructor: vf2 then returns 0 for a kind 0xD node of its own or an allied player's object
-    /// (the player's +0x9E4 table)
-    [offset(0x59), found(c), guess]
+    /// (the player's +0x9E4 table) (the AoC decompilation: mAvoidFriendlyBlockers)
+    [offset(0x59), found(c)]
     uint8 owner_test;
 }
 
@@ -327,18 +327,21 @@ unsafe struct EECPCombatStrategy
     [offset(0x8), found(c), guess]
     vector requests;
 
-    /// 0x473CE2 scales a shortfall of its argument (+0x78) by it to share units into count_0..2 (AoC has a fourth
-    /// weight after weight_2)
-    [offset(0x14), found(c), guess]
-    float32 weight_0;
+    /// the share of air units: 0x473CE2 scales a shortfall of its argument's air units (+0x78; AoC +0x7C) by it to
+    /// share units into air_count, sea_count and land_count (AoC has a space share after land_share; the AoC
+    /// decompilation: mAirShare, the intelligence counting units by their class's movement domain)
+    [offset(0x14), found(c)]
+    float32 air_share;
 
-    /// the same for the argument's +0x74 (0x473CE2)
-    [offset(0x18), found(c), guess]
-    float32 weight_1;
+    /// the share of sea units, the same for the argument's sea units +0x74 (0x473CE2; the AoC decompilation:
+    /// mSeaShare)
+    [offset(0x18), found(c)]
+    float32 sea_share;
 
-    /// the same for the argument's +0x7C (0x473CE2)
-    [offset(0x1C), found(c), guess]
-    float32 weight_2;
+    /// the share of land units, the same for the argument's land units +0x7C (0x473CE2; the AoC decompilation:
+    /// mLandShare)
+    [offset(0x1C), found(c)]
+    float32 land_share;
 
     /// 0x4753A9 sets it from an object's +0x74 before new_group; init, reset and the copies (0x473C2E, 0x473E71) handle
     /// it
@@ -349,26 +352,27 @@ unsafe struct EECPCombatStrategy
     [offset((ee)0x24, (aoc)0x28), found(c), guess]
     int16 target_area;
 
-    /// the total 0x473CE2 splits into count_0..2 (the rest into count_2); its callers set 1..4, 1..20 or a rounded
-    /// count, always the same as units_max (0x47111D, 0x4554xx)
-    [offset((ee)0x28, (aoc)0x2C), found(c), guess]
+    /// the total 0x473CE2 splits into air_count, sea_count and land_count (the rest into land_count); its callers set
+    /// 1..4, 1..20 or a rounded count, always the same as units_max (0x47111D, 0x4554xx; the AoC decompilation:
+    /// mNumUnits)
+    [offset((ee)0x28, (aoc)0x2C), found(c)]
     int32 units;
 
     /// written with the same value as units by every caller; no reader of its own found
     [offset((ee)0x2C, (aoc)0x30), found(c), guess]
     int32 units_max;
 
-    /// units x weight_0, rounded (0x473CE2)
-    [offset((ee)0x30, (aoc)0x34), found(c), guess]
-    int32 count_0;
+    /// its air units: units x air_share, rounded (0x473CE2; the AoC decompilation: mNumAir)
+    [offset((ee)0x30, (aoc)0x34), found(c)]
+    int32 air_count;
 
-    /// units x weight_1, rounded (0x473CE2)
-    [offset((ee)0x34, (aoc)0x38), found(c), guess]
-    int32 count_1;
+    /// its sea units: units x sea_share, rounded (0x473CE2; the AoC decompilation: mNumSea)
+    [offset((ee)0x34, (aoc)0x38), found(c)]
+    int32 sea_count;
 
-    /// the rest of units (0x473CE2; AoC has a fourth count after it)
-    [offset((ee)0x38, (aoc)0x3C), found(c), guess]
-    int32 count_2;
+    /// its land units: the rest of units (0x473CE2; AoC has a space count after it; the AoC decompilation: mNumLand)
+    [offset((ee)0x38, (aoc)0x3C), found(c)]
+    int32 land_count;
 
     /// init sets 0 (AoC adds a weight and a count before it: its init 0x477084, reset 0x47717B and copy 0x4773BF have
     /// it at +0x44)
@@ -452,10 +456,10 @@ unsafe struct EECPILocation
     [address((ee)0x0047C8B7, (aoc)0x00480C42)]
     extern void set(EECPILocation* from);
 
-    /// 0x44E535 (from init) zeroes it, set 0x47C8B7 copies it, save and load (0x47C5F9 / 0x47C680) write it as unit_id;
-    /// no reader of its own
-    [offset(0x14), found(c), guess]
-    uint32 _0x14;
+    /// a player's index in the world's players: 0x44E535 (from init) zeroes it, set 0x47C8B7 copies it, save and load
+    /// (0x47C5F9 / 0x47C680) write it as unit_id (the AoC decompilation: mPlayer, read as gWorld.mPlayers[it])
+    [offset(0x14), found(c)]
+    uint32 player;
 }
 
 /// attack's data of the game, places in its code and numbers

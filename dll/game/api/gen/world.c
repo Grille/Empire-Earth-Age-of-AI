@@ -50,14 +50,14 @@ internal inline int *game_data_unit_limit_max_at(const ee_game_data *o) { return
 internal inline uint32_t physics_get_seed(const ee_physics *o) { return *(uint32_t *)((uint8_t *)o + of_physics_seed); }
 internal inline void physics_set_seed(ee_physics *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_physics_seed) = v; }
 internal inline uint32_t *physics_seed_at(const ee_physics *o) { return (uint32_t *)((uint8_t *)o + of_physics_seed); }
-// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
 // 0x553663 sets it with +0x54 (it in ms) and +0x58 (1 / it) and sets the timer; the step 0x546C63 passes it to
-// 0x51EE75 every step; the game speed message 0x4B9378 resets it
+// 0x51EE75 every step; the game speed message 0x4B9378 resets it (the AoC decompilation: RTSPhysics::SetSpeed
+// "sets the seconds per tick")
 internal inline float physics_get_tick_s(const ee_physics *o) { return *(float *)((uint8_t *)o + of_physics_tick_s); }
 internal inline void physics_set_tick_s(ee_physics *o, float v) { *(float *)((uint8_t *)o + of_physics_tick_s) = v; }
 internal inline float *physics_tick_s_at(const ee_physics *o) { return (float *)((uint8_t *)o + of_physics_tick_s); }
-// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
-// tick_s in ms (0x553663): each step adds it to sync_ms
+// tick_s in ms (0x553663), the timer's interval: each step adds it to autosave_ms (the AoC decompilation:
+// mTimerInterval)
 internal inline uint32_t physics_get_tick_ms(const ee_physics *o) { return *(uint32_t *)((uint8_t *)o + of_physics_tick_ms); }
 internal inline void physics_set_tick_ms(ee_physics *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_physics_tick_ms) = v; }
 internal inline uint32_t *physics_tick_ms_at(const ee_physics *o) { return (uint32_t *)((uint8_t *)o + of_physics_tick_ms); }
@@ -85,9 +85,8 @@ internal inline uint32_t *physics_step_start_at(const ee_physics *o) { return (u
 internal inline uint32_t physics_get_prev_step_start(const ee_physics *o) { return *(uint32_t *)((uint8_t *)o + of_physics_prev_step_start); }
 internal inline void physics_set_prev_step_start(ee_physics *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_physics_prev_step_start) = v; }
 internal inline uint32_t *physics_prev_step_start_at(const ee_physics *o) { return (uint32_t *)((uint8_t *)o + of_physics_prev_step_start); }
-// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
 // each step's draw from the game's generator (+0x18, URandom::Generate) rounded; an argument of 0x40CFC7 (the
-// map's code)
+// map's code) (the AoC decompilation: mTickRandom)
 internal inline int physics_get_step_random(const ee_physics *o) { return *(int *)((uint8_t *)o + of_physics_step_random); }
 internal inline void physics_set_step_random(ee_physics *o, int v) { *(int *)((uint8_t *)o + of_physics_step_random) = v; }
 internal inline int *physics_step_random_at(const ee_physics *o) { return (int *)((uint8_t *)o + of_physics_step_random); }
@@ -115,12 +114,12 @@ internal inline uint32_t *physics_work_ms_sum_at(const ee_physics *o) { return (
 internal inline uint32_t physics_get_work_count(const ee_physics *o) { return *(uint32_t *)((uint8_t *)o + of_physics_work_count); }
 internal inline void physics_set_work_count(ee_physics *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_physics_work_count) = v; }
 internal inline uint32_t *physics_work_count_at(const ee_physics *o) { return (uint32_t *)((uint8_t *)o + of_physics_work_count); }
-// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
-// ms since the last server sync: the server's step adds tick_ms and past [0x91943C] zeroes it and runs 0x547676
-// and the server's vf8 twice; 0x520DE3 zeroes it
-internal inline uint32_t physics_get_sync_ms(const ee_physics *o) { return *(uint32_t *)((uint8_t *)o + of_physics_sync_ms); }
-internal inline void physics_set_sync_ms(ee_physics *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_physics_sync_ms) = v; }
-internal inline uint32_t *physics_sync_ms_at(const ee_physics *o) { return (uint32_t *)((uint8_t *)o + of_physics_sync_ms); }
+// ms since the last autosave: the server's step adds tick_ms and past the preferences' autosave time [0x91943C]
+// (not in a cinematic or a scenario dialog) zeroes it, posts the autosave 0x547676 and reads the communications
+// tick twice; 0x520DE3 zeroes it (the AoC decompilation: mAutoSaveClock, mAutoSaveInMilliseconds)
+internal inline uint32_t physics_get_autosave_ms(const ee_physics *o) { return *(uint32_t *)((uint8_t *)o + of_physics_autosave_ms); }
+internal inline void physics_set_autosave_ms(ee_physics *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_physics_autosave_ms) = v; }
+internal inline uint32_t *physics_autosave_ms_at(const ee_physics *o) { return (uint32_t *)((uint8_t *)o + of_physics_autosave_ms); }
 // game time (ms)
 internal inline uint32_t physics_get_time(const ee_physics *o) { return *(uint32_t *)((uint8_t *)o + of_physics_time); }
 internal inline void physics_set_time(ee_physics *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_physics_time) = v; }
@@ -155,16 +154,15 @@ internal inline ee_map **world_map_at(const ee_world *o) { return (ee_map **)((u
 internal inline uint32_t world_get_players_n(const ee_world *o) { return *(uint32_t *)((uint8_t *)o + of_world_players_n); }
 internal inline void world_set_players_n(ee_world *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_world_players_n) = v; }
 internal inline uint32_t *world_players_n_at(const ee_world *o) { return (uint32_t *)((uint8_t *)o + of_world_players_n); }
-// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
 // the game's setup, an ee_setup in it (the constructor 0x52CCC9 builds one here and a second at +0x51C):
-// game.end_epoch is its +0x3E4, game.scenario_flag its +0x409
+// game.end_epoch is its +0x3E4, game.scenario_flag its +0x409 (the AoC decompilation: mGameOptions)
 internal inline uint8_t *world_setup_at(const ee_world *o) { return (uint8_t *)o + of_world_setup; }
 // A GUESS (the spec's [guess]): its name and type, from what the code does with it -
 // a second ee_setup the constructor 0x52CCC9 builds (its use not read yet)
 internal inline uint8_t *world_setup_2_at(const ee_world *o) { return (uint8_t *)o + of_world_setup_2; }
-// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
 // a map site -> gatherers (allocator byte, head +4, size +8): site_gatherers 0x52E5F7 finds the site (0x404CA6)
 // against its head +0x9A8 and returns the node's +0x10
+// (the AoC decompilation: mResourceUsers, a resource unit -> its gatherers)
 internal inline uint8_t *world_gatherer_counts_at(const ee_world *o) { return (uint8_t *)o + of_world_gatherer_counts; }
 // A GUESS (the spec's [guess]): its name and type, from what the code does with it -
 // records of 0x18 bytes, each a vector of player indices at +4: the standard victory check 0x531913 ends the game
@@ -272,7 +270,7 @@ internal int spec_world_select(int build) {
         of_physics_gap_count = 0xC0;
         of_physics_work_ms_sum = 0xC4;
         of_physics_work_count = 0xC8;
-        of_physics_sync_ms = 0xCC;
+        of_physics_autosave_ms = 0xCC;
         of_physics_time = 0xD0;
         fn_physics_step = (physics_step_fn)0x00546C63;
         fn_physics_step_end = (physics_step_end_fn)0x00545C8F;
@@ -330,7 +328,7 @@ internal int spec_world_select(int build) {
         of_physics_gap_count = 0xC0;
         of_physics_work_ms_sum = 0xC4;
         of_physics_work_count = 0xC8;
-        of_physics_sync_ms = 0xCC;
+        of_physics_autosave_ms = 0xCC;
         of_physics_time = 0xD0;
         fn_physics_step = (physics_step_fn)0x00553082;
         fn_physics_step_end = (physics_step_end_fn)0x00551E9F;

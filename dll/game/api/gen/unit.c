@@ -36,9 +36,8 @@ internal inline int *unit_y_at(const ee_unit *o) { return (int *)((uint8_t *)o +
 internal inline int unit_get_serial(const ee_unit *o) { return *(int *)((uint8_t *)o + of_unit_serial); }
 internal inline void unit_set_serial(ee_unit *o, int v) { *(int *)((uint8_t *)o + of_unit_serial) = v; }
 internal inline int *unit_serial_at(const ee_unit *o) { return (int *)((uint8_t *)o + of_unit_serial); }
-// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
 // the scenario editor's selection: its select 0x58E1E7 sets 1, its mouse and lasso actions (EESEAMouseClick::vf1
-// 0x5972DB, 0x5971B6) select a unit with 0 and deselect one with 1
+// 0x5972DB, 0x5971B6) select a unit with 0 and deselect one with 1 (the AoC decompilation: mIsEditorSelected)
 internal inline uint8_t unit_get_selected(const ee_unit *o) { return *(uint8_t *)((uint8_t *)o + of_unit_selected); }
 internal inline void unit_set_selected(ee_unit *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_unit_selected) = v; }
 internal inline uint8_t *unit_selected_at(const ee_unit *o) { return (uint8_t *)((uint8_t *)o + of_unit_selected); }
@@ -136,13 +135,13 @@ internal inline int unit_count_inside(ee_unit *unit) { return fn_unit_count_insi
 typedef void *(__thiscall *unit_goal_queue_fn)(ee_unit *, int);
 internal unit_goal_queue_fn fn_unit_goal_queue;
 internal inline void *unit_goal_queue(ee_unit *unit, int slot) { return fn_unit_goal_queue(unit, slot); }
-// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
-// bits 0..1 a phase (game seconds modulo 3), bit 5 while a live unit with +0x346 or a moving ambient object stands
-// next to it: EEUnit::vf16 0x61648E checks it again every 3 s and returns 1 while bit 5 is set; the constructor
-// 0x616BDD clears it
-internal inline uint8_t unit_get_neighbour_flags(const ee_unit *o) { return *(uint8_t *)((uint8_t *)o + of_unit_neighbour_flags); }
-internal inline void unit_set_neighbour_flags(ee_unit *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_unit_neighbour_flags) = v; }
-internal inline uint8_t *unit_neighbour_flags_at(const ee_unit *o) { return (uint8_t *)((uint8_t *)o + of_unit_neighbour_flags); }
+// bits 0..1 the hidden check's phase (game seconds modulo 3), bit 4 moved (MoveTo sets it), bit 5 hidden (behind
+// a live unit with +0x346 or a moving ambient object next to it): EEUnit::vf16 0x61648E checks it again every 3 s
+// and returns 1 while bit 5 is set; the constructor 0x616BDD clears it (the AoC decompilation: mHiddenFlags,
+// kHiddenFlagMoved 0x10 / kHiddenFlagHidden 0x20, UpdateHidden)
+internal inline uint8_t unit_get_hidden_flags(const ee_unit *o) { return *(uint8_t *)((uint8_t *)o + of_unit_hidden_flags); }
+internal inline void unit_set_hidden_flags(ee_unit *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_unit_hidden_flags) = v; }
+internal inline uint8_t *unit_hidden_flags_at(const ee_unit *o) { return (uint8_t *)((uint8_t *)o + of_unit_hidden_flags); }
 
 // class EEComplexUnit (ee_unit)
 // a unit, building, ship or projectile: everything on the map that moves or is built
@@ -276,10 +275,9 @@ internal inline ee_unit **unit_blocker_at(const ee_unit *o) { return (ee_unit **
 internal inline float unit_get_bob_phase(const ee_unit *o) { return *(float *)((uint8_t *)o + of_unit_bob_phase); }
 internal inline void unit_set_bob_phase(ee_unit *o, float v) { *(float *)((uint8_t *)o + of_unit_bob_phase) = v; }
 internal inline float *unit_bob_phase_at(const ee_unit *o) { return (float *)((uint8_t *)o + of_unit_bob_phase); }
-// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
 // seconds to its next heal search: state 16000 (EEUnitClass::vf29 0x61AD41) looks for a unit in sight to heal
 // (EEUGHealUnit) and resets it to type +0x4A4; 0x600822 counts it down by the step (EEUCBasicPriest::vf45,
-// EEUCLand::vf45)
+// EEUCLand::vf45) (the AoC decompilation: mHealSearchTimer)
 internal inline float unit_get_heal_search_s(const ee_unit *o) { return *(float *)((uint8_t *)o + of_unit_heal_search_s); }
 internal inline void unit_set_heal_search_s(ee_unit *o, float v) { *(float *)((uint8_t *)o + of_unit_heal_search_s) = v; }
 internal inline float *unit_heal_search_s_at(const ee_unit *o) { return (float *)((uint8_t *)o + of_unit_heal_search_s); }
@@ -299,9 +297,9 @@ internal inline float *unit_blocked_ms_at(const ee_unit *o) { return (float *)((
 internal inline float unit_get_blocked_ms_prev(const ee_unit *o) { return *(float *)((uint8_t *)o + of_unit_blocked_ms_prev); }
 internal inline void unit_set_blocked_ms_prev(ee_unit *o, float v) { *(float *)((uint8_t *)o + of_unit_blocked_ms_prev) = v; }
 internal inline float *unit_blocked_ms_prev_at(const ee_unit *o) { return (float *)((uint8_t *)o + of_unit_blocked_ms_prev); }
-// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
 // game time (EEPhysics +0xD0): 0x5F0F7E asks its AI state (goalset_ask) while it isn't idle or the time is not
 // past this, and while idle sets it to now + 350; entering idle (vf29 state 5000) sets -1
+// (the AoC decompilation: mNextTriggerTime)
 internal inline uint32_t unit_get_idle_ask_until(const ee_unit *o) { return *(uint32_t *)((uint8_t *)o + of_unit_idle_ask_until); }
 internal inline void unit_set_idle_ask_until(ee_unit *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_unit_idle_ask_until) = v; }
 internal inline uint32_t *unit_idle_ask_until_at(const ee_unit *o) { return (uint32_t *)((uint8_t *)o + of_unit_idle_ask_until); }
@@ -331,9 +329,9 @@ internal inline int *unit_physics_order_at(const ee_unit *o) { return (int *)((u
 internal inline int unit_get_crew_hp(const ee_unit *o) { return *(int *)((uint8_t *)o + of_unit_crew_hp); }
 internal inline void unit_set_crew_hp(ee_unit *o, int v) { *(int *)((uint8_t *)o + of_unit_crew_hp) = v; }
 internal inline int *unit_crew_hp_at(const ee_unit *o) { return (int *)((uint8_t *)o + of_unit_crew_hp); }
-// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
 // a building's work left on its production: the start 0x5EF9FF sets the item's time x rate (1 with the player's
 // instant_build), 0x5EF6A7 zeroes it when done, the progress bar 0x64297D draws the total minus it
+// (the AoC decompilation: mProductionTime)
 internal inline int unit_get_produce_left(const ee_unit *o) { return *(int *)((uint8_t *)o + of_unit_produce_left); }
 internal inline void unit_set_produce_left(ee_unit *o, int v) { *(int *)((uint8_t *)o + of_unit_produce_left) = v; }
 internal inline int *unit_produce_left_at(const ee_unit *o) { return (int *)((uint8_t *)o + of_unit_produce_left); }
@@ -341,9 +339,9 @@ internal inline int *unit_produce_left_at(const ee_unit *o) { return (int *)((ui
 internal inline int unit_get_garrisoned(const ee_unit *o) { return *(int *)((uint8_t *)o + of_unit_garrisoned); }
 internal inline void unit_set_garrisoned(ee_unit *o, int v) { *(int *)((uint8_t *)o + of_unit_garrisoned) = v; }
 internal inline int *unit_garrisoned_at(const ee_unit *o) { return (int *)((uint8_t *)o + of_unit_garrisoned); }
-// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
 // beside garrisoned: entering (0x5E8830) adds the occupant type's slot 27 (0x6C, its transport size), 0x5E88C6
 // sets it, 0x5EB0C4 zeroes both; only passed on, never read for its value (0x46CA7E, 0x5B8823 attribute 9)
+// (the AoC decompilation: mGarrisonPopulation)
 internal inline int unit_get_garrison_load(const ee_unit *o) { return *(int *)((uint8_t *)o + of_unit_garrison_load); }
 internal inline void unit_set_garrison_load(ee_unit *o, int v) { *(int *)((uint8_t *)o + of_unit_garrison_load) = v; }
 internal inline int *unit_garrison_load_at(const ee_unit *o) { return (int *)((uint8_t *)o + of_unit_garrison_load); }
@@ -351,8 +349,8 @@ internal inline int *unit_garrison_load_at(const ee_unit *o) { return (int *)((u
 internal inline int unit_get_flight_ms(const ee_unit *o) { return *(int *)((uint8_t *)o + of_unit_flight_ms); }
 internal inline void unit_set_flight_ms(ee_unit *o, int v) { *(int *)((uint8_t *)o + of_unit_flight_ms) = v; }
 internal inline int *unit_flight_ms_at(const ee_unit *o) { return (int *)((uint8_t *)o + of_unit_flight_ms); }
-// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
 // its index in the movement group's slot list, set by the group dispatch 0x5DB641; init 1
+// (the AoC decompilation: mFormationSlot)
 internal inline int unit_get_group_index(const ee_unit *o) { return *(int *)((uint8_t *)o + of_unit_group_index); }
 internal inline void unit_set_group_index(ee_unit *o, int v) { *(int *)((uint8_t *)o + of_unit_group_index) = v; }
 internal inline int *unit_group_index_at(const ee_unit *o) { return (int *)((uint8_t *)o + of_unit_group_index); }
@@ -390,9 +388,8 @@ internal inline int *unit_power_at(const ee_unit *o) { return (int *)((uint8_t *
 internal inline int unit_get_moving(const ee_unit *o) { return *(int *)((uint8_t *)o + of_unit_moving); }
 internal inline void unit_set_moving(ee_unit *o, int v) { *(int *)((uint8_t *)o + of_unit_moving) = v; }
 internal inline int *unit_moving_at(const ee_unit *o) { return (int *)((uint8_t *)o + of_unit_moving); }
-// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
 // the group dispatch 0x5DB641 sets round(group_index / members x 4), 0..4; the group's auto waypoints (0x5F0844)
-// take rank / 5 x [0x917DC8] as their threshold when type +0x5D4 has bit 4
+// take rank / 5 x [0x917DC8] as their threshold when type +0x5D4 has bit 4 (the AoC decompilation: mFormationRank)
 internal inline int unit_get_group_rank(const ee_unit *o) { return *(int *)((uint8_t *)o + of_unit_group_rank); }
 internal inline void unit_set_group_rank(ee_unit *o, int v) { *(int *)((uint8_t *)o + of_unit_group_rank) = v; }
 internal inline int *unit_group_rank_at(const ee_unit *o) { return (int *)((uint8_t *)o + of_unit_group_rank); }
@@ -404,9 +401,8 @@ internal inline int *unit_sea_mode_at(const ee_unit *o) { return (int *)((uint8_
 internal inline int unit_get_ammo(const ee_unit *o) { return *(int *)((uint8_t *)o + of_unit_ammo); }
 internal inline void unit_set_ammo(ee_unit *o, int v) { *(int *)((uint8_t *)o + of_unit_ammo) = v; }
 internal inline int *unit_ammo_at(const ee_unit *o) { return (int *)((uint8_t *)o + of_unit_ammo); }
-// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
 // the fire point of the next shot: fire 0x61E11C steps it (+1 modulo the fire points), 0x5FC749 looks up the
-// projectile's start by it, EEE2DMuzzleFlash::vf12 reads it
+// projectile's start by it, EEE2DMuzzleFlash::vf12 reads it (the AoC decompilation: mWeaponTagPoint)
 internal inline int unit_get_muzzle(const ee_unit *o) { return *(int *)((uint8_t *)o + of_unit_muzzle); }
 internal inline void unit_set_muzzle(ee_unit *o, int v) { *(int *)((uint8_t *)o + of_unit_muzzle) = v; }
 internal inline int *unit_muzzle_at(const ee_unit *o) { return (int *)((uint8_t *)o + of_unit_muzzle); }
@@ -422,9 +418,8 @@ internal inline int *unit_times_updated_at(const ee_unit *o) { return (int *)((u
 internal inline int unit_get_next_frame(const ee_unit *o) { return *(int *)((uint8_t *)o + of_unit_next_frame); }
 internal inline void unit_set_next_frame(ee_unit *o, int v) { *(int *)((uint8_t *)o + of_unit_next_frame) = v; }
 internal inline int *unit_next_frame_at(const ee_unit *o) { return (int *)((uint8_t *)o + of_unit_next_frame); }
-// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
 // game time: the ship contact test EEPMNaval::vf16 0x54F84C sets now + 5000 when both ships stand and pushes them
-// apart; till then contacts with it take the push branch
+// apart; till then contacts with it take the push branch (the AoC decompilation: mPushImmuneUntil)
 internal inline uint32_t unit_get_nudge_until(const ee_unit *o) { return *(uint32_t *)((uint8_t *)o + of_unit_nudge_until); }
 internal inline void unit_set_nudge_until(ee_unit *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_unit_nudge_until) = v; }
 internal inline uint32_t *unit_nudge_until_at(const ee_unit *o) { return (uint32_t *)((uint8_t *)o + of_unit_nudge_until); }
@@ -433,10 +428,9 @@ internal inline uint32_t *unit_nudge_until_at(const ee_unit *o) { return (uint32
 internal inline uint16_t unit_get_collision_state(const ee_unit *o) { return *(uint16_t *)((uint8_t *)o + of_unit_collision_state); }
 internal inline void unit_set_collision_state(ee_unit *o, uint16_t v) { *(uint16_t *)((uint8_t *)o + of_unit_collision_state) = v; }
 internal inline uint16_t *unit_collision_state_at(const ee_unit *o) { return (uint16_t *)((uint8_t *)o + of_unit_collision_state); }
-// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
 // init 1, set from its type's deletable (0x5B1F5B, 0x5B32CB) and cleared while frozen (0x5AF0BB): 0x5EC2C3 returns
 // it and EEMKillUnit::vf10 0x4B7ED0 deletes only units it allows; the calamities' functors (fire, plague,
-// hurricane) test it too
+// hurricane) test it too (the AoC decompilation: mIsDeletable)
 internal inline uint8_t unit_get_deletable(const ee_unit *o) { return *(uint8_t *)((uint8_t *)o + of_unit_deletable); }
 internal inline void unit_set_deletable(ee_unit *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_unit_deletable) = v; }
 internal inline uint8_t *unit_deletable_at(const ee_unit *o) { return (uint8_t *)((uint8_t *)o + of_unit_deletable); }
@@ -462,9 +456,9 @@ internal inline uint8_t *unit_frozen_at(const ee_unit *o) { return (uint8_t *)((
 internal inline uint8_t unit_get_gate_locked(const ee_unit *o) { return *(uint8_t *)((uint8_t *)o + of_unit_gate_locked); }
 internal inline void unit_set_gate_locked(ee_unit *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_unit_gate_locked) = v; }
 internal inline uint8_t *unit_gate_locked_at(const ee_unit *o) { return (uint8_t *)((uint8_t *)o + of_unit_gate_locked); }
-// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
 // init 1, set when a path search for it finishes (0x4A24E1, 0x4A2B29, 0x4A32C0): the move state 8000's test
 // (EEUnitClass::vf39 0x61BE4B) and EECPASGLand::vf127 wait for it; no write of 0 outside save and load
+// (the AoC decompilation: mIsPathDone)
 internal inline uint8_t unit_get_path_done(const ee_unit *o) { return *(uint8_t *)((uint8_t *)o + of_unit_path_done); }
 internal inline void unit_set_path_done(ee_unit *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_unit_path_done) = v; }
 internal inline uint8_t *unit_path_done_at(const ee_unit *o) { return (uint8_t *)((uint8_t *)o + of_unit_path_done); }
@@ -819,7 +813,7 @@ internal int spec_unit_select(int build) {
         fn_unit_unlink = (unit_unlink_fn)0x00628E29;
         fn_unit_count_inside = (unit_count_inside_fn)0x0042E347;
         fn_unit_goal_queue = (unit_goal_queue_fn)0x005F3473;
-        of_unit_neighbour_flags = 0x44;
+        of_unit_hidden_flags = 0x44;
         vt_ee_complex_unit = 0x00831494;
         size_ee_complex_unit = 0x348;
         of_unit_queue_begin = 0x4C;
@@ -1023,7 +1017,7 @@ internal int spec_unit_select(int build) {
         fn_unit_unlink = (unit_unlink_fn)0x0063DBDA;
         fn_unit_count_inside = (unit_count_inside_fn)0x0040D5C5;
         fn_unit_goal_queue = (unit_goal_queue_fn)0x005FA1CD;
-        of_unit_neighbour_flags = 0x44;
+        of_unit_hidden_flags = 0x44;
         vt_ee_complex_unit = 0x00846DDC;
         size_ee_complex_unit = 0x364;
         of_unit_queue_begin = 0x4C;

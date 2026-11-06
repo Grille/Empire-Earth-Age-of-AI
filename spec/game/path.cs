@@ -49,8 +49,8 @@ unsafe struct EEActiveGroup
     EEUnitGoal* goal;
 
     /// the group's action as a unit state: 5000 none (the constructor, 0x5DD18B), 8000 move, 2001 attack, 11002
-    /// explore; the dispatch 0x5DD463 switches on it
-    [offset(0x6C), found(c), guess]
+    /// explore; the dispatch 0x5DD463 switches on it (the AoC decompilation: mAction)
+    [offset(0x6C), found(c)]
     int32 action;
 
     /// the members' top speed, tiles/s - the average, at most the slowest x the settings table's 0x31 (speeds); every
@@ -124,8 +124,8 @@ unsafe struct EEActiveGroup
     float32 speed_cap;
 
     /// 0x5DD2AA deletes the goal, puts the group into its player's +0x854 list of groups to drop (0x5596xx releases
-    /// them), adds one to +4 and sets this; the constructor clears it, no reader
-    [offset(0xB4), found(c), guess]
+    /// them), adds one to +4 and sets this; the constructor clears it, no reader (the AoC decompilation: mIsFinished)
+    [offset(0xB4), found(c)]
     uint8 retired;
 
     /// 0x5DD436's second argument, the order's queued (0x4B0000.c): with it the dispatch (0x5DB641, 0x5DD463) gives a

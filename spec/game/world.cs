@@ -60,12 +60,14 @@ unsafe struct EEPhysics
     uint32 seed;
 
     /// 0x553663 sets it with +0x54 (it in ms) and +0x58 (1 / it) and sets the timer; the step 0x546C63 passes it to
-    /// 0x51EE75 every step; the game speed message 0x4B9378 resets it
-    [offset(0x50), found(c), guess]
+    /// 0x51EE75 every step; the game speed message 0x4B9378 resets it (the AoC decompilation: RTSPhysics::SetSpeed
+    /// "sets the seconds per tick")
+    [offset(0x50), found(c)]
     float32 tick_s;
 
-    /// tick_s in ms (0x553663): each step adds it to sync_ms
-    [offset(0x54), found(c), guess]
+    /// tick_s in ms (0x553663), the timer's interval: each step adds it to autosave_ms (the AoC decompilation:
+    /// mTimerInterval)
+    [offset(0x54), found(c)]
     uint32 tick_ms;
 
     /// steps done
@@ -93,8 +95,8 @@ unsafe struct EEPhysics
     uint32 prev_step_start;
 
     /// each step's draw from the game's generator (+0x18, URandom::Generate) rounded; an argument of 0x40CFC7 (the
-    /// map's code)
-    [offset(0xB0), found(c), guess]
+    /// map's code) (the AoC decompilation: mTickRandom)
+    [offset(0xB0), found(c)]
     int32 step_random;
 
     /// steps run (a second counter: zeroed by the reset 0x54650E, saved)
@@ -121,10 +123,11 @@ unsafe struct EEPhysics
     [offset(0xC8), found(c)]
     uint32 work_count;
 
-    /// ms since the last server sync: the server's step adds tick_ms and past [0x91943C] zeroes it and runs 0x547676
-    /// and the server's vf8 twice; 0x520DE3 zeroes it
-    [offset(0xCC), found(c), guess]
-    uint32 sync_ms;
+    /// ms since the last autosave: the server's step adds tick_ms and past the preferences' autosave time [0x91943C]
+    /// (not in a cinematic or a scenario dialog) zeroes it, posts the autosave 0x547676 and reads the communications
+    /// tick twice; 0x520DE3 zeroes it (the AoC decompilation: mAutoSaveClock, mAutoSaveInMilliseconds)
+    [offset(0xCC), found(c)]
+    uint32 autosave_ms;
 
     /// game time (ms)
     [offset(0xD0), found(c)]
@@ -165,8 +168,8 @@ unsafe struct EEWorld
     uint32 players_n;
 
     /// the game's setup, an ee_setup in it (the constructor 0x52CCC9 builds one here and a second at +0x51C):
-    /// game.end_epoch is its +0x3E4, game.scenario_flag its +0x409
-    [offset(0x110), found(c), guess]
+    /// game.end_epoch is its +0x3E4, game.scenario_flag its +0x409 (the AoC decompilation: mGameOptions)
+    [offset(0x110), found(c)]
     block setup;
 
     /// a second ee_setup the constructor 0x52CCC9 builds (its use not read yet)
@@ -175,7 +178,8 @@ unsafe struct EEWorld
 
     /// a map site -> gatherers (allocator byte, head +4, size +8): site_gatherers 0x52E5F7 finds the site (0x404CA6)
     /// against its head +0x9A8 and returns the node's +0x10
-    [offset(0x9A4), found(c), guess]
+    /// (the AoC decompilation: mResourceUsers, a resource unit -> its gatherers)
+    [offset(0x9A4), found(c)]
     block gatherer_counts;
 
     /// records of 0x18 bytes, each a vector of player indices at +4: the standard victory check 0x531913 ends the game

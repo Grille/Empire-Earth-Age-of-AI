@@ -156,10 +156,9 @@ internal inline uint32_t *attack_subgroup_hold_until_at(const ee_attack_subgroup
 internal inline uint32_t attack_subgroup_get_next_update(const ee_attack_subgroup *o) { return *(uint32_t *)((uint8_t *)o + of_attack_subgroup_next_update); }
 internal inline void attack_subgroup_set_next_update(ee_attack_subgroup *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_attack_subgroup_next_update) = v; }
 internal inline uint32_t *attack_subgroup_next_update_at(const ee_attack_subgroup *o) { return (uint32_t *)((uint8_t *)o + of_attack_subgroup_next_update); }
-// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
 // vf91 0x45CCC3 picks a kind (2/3/4/7/9) by random ratios when it splits the group, not while it is 10; vf37
 // 0x45BFC9 chooses by it which units leave (4 a random 30..70 %, 11 every free unit); update's state 0x3E9 sets 10
-// (0x4491DD), message 0x232A 11
+// (0x4491DD), message 0x232A 11 (the AoC decompilation: mSplitKind)
 internal inline int attack_subgroup_get_split_kind(const ee_attack_subgroup *o) { return *(int *)((uint8_t *)o + of_attack_subgroup_split_kind); }
 internal inline void attack_subgroup_set_split_kind(ee_attack_subgroup *o, int v) { *(int *)((uint8_t *)o + of_attack_subgroup_split_kind) = v; }
 internal inline int *attack_subgroup_split_kind_at(const ee_attack_subgroup *o) { return (int *)((uint8_t *)o + of_attack_subgroup_split_kind); }
@@ -290,15 +289,13 @@ internal inline int16_t *route_planner_dest_area_at(const ee_route_planner *o) {
 typedef int (__thiscall *route_planner_cost_fn)(ee_route_planner *, int *, ee_route_node *);
 internal route_planner_cost_fn fn_route_planner_cost;
 internal inline int route_planner_cost(ee_route_planner *route_planner, int *edge, ee_route_node *node) { return fn_route_planner_cost(route_planner, edge, node); }
-// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
 // plan_route's weights[5] == 0 (the constructor 0x414187): while 0, cost multiplies a node in an area other than
-// the start's and the goal's by 50
+// the start's and the goal's by 50 (the AoC decompilation: mAnyContinent)
 internal inline uint8_t route_planner_get_free_crossing(const ee_route_planner *o) { return *(uint8_t *)((uint8_t *)o + of_route_planner_free_crossing); }
 internal inline void route_planner_set_free_crossing(ee_route_planner *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_route_planner_free_crossing) = v; }
 internal inline uint8_t *route_planner_free_crossing_at(const ee_route_planner *o) { return (uint8_t *)((uint8_t *)o + of_route_planner_free_crossing); }
-// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
 // always 1 from the constructor: vf2 then returns 0 for a kind 0xD node of its own or an allied player's object
-// (the player's +0x9E4 table)
+// (the player's +0x9E4 table) (the AoC decompilation: mAvoidFriendlyBlockers)
 internal inline uint8_t route_planner_get_owner_test(const ee_route_planner *o) { return *(uint8_t *)((uint8_t *)o + of_route_planner_owner_test); }
 internal inline void route_planner_set_owner_test(ee_route_planner *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_route_planner_owner_test) = v; }
 internal inline uint8_t *route_planner_owner_test_at(const ee_route_planner *o) { return (uint8_t *)((uint8_t *)o + of_route_planner_owner_test); }
@@ -309,22 +306,22 @@ internal inline uint8_t *route_planner_owner_test_at(const ee_route_planner *o) 
 // 0x28-byte records (the allocator byte +4; built empty by 0x53C3CF(0)): attack_plan_ok 0x47067A refuses a plan
 // while it is empty and there are no unit ids; 0x495569 tests an element's +0x24 == 3
 internal inline uint8_t *strategy_requests_at(const ee_strategy *o) { return (uint8_t *)o + of_strategy_requests; }
-// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
-// 0x473CE2 scales a shortfall of its argument (+0x78) by it to share units into count_0..2 (AoC has a fourth
-// weight after weight_2)
-internal inline float strategy_get_weight_0(const ee_strategy *o) { return *(float *)((uint8_t *)o + of_strategy_weight_0); }
-internal inline void strategy_set_weight_0(ee_strategy *o, float v) { *(float *)((uint8_t *)o + of_strategy_weight_0) = v; }
-internal inline float *strategy_weight_0_at(const ee_strategy *o) { return (float *)((uint8_t *)o + of_strategy_weight_0); }
-// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
-// the same for the argument's +0x74 (0x473CE2)
-internal inline float strategy_get_weight_1(const ee_strategy *o) { return *(float *)((uint8_t *)o + of_strategy_weight_1); }
-internal inline void strategy_set_weight_1(ee_strategy *o, float v) { *(float *)((uint8_t *)o + of_strategy_weight_1) = v; }
-internal inline float *strategy_weight_1_at(const ee_strategy *o) { return (float *)((uint8_t *)o + of_strategy_weight_1); }
-// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
-// the same for the argument's +0x7C (0x473CE2)
-internal inline float strategy_get_weight_2(const ee_strategy *o) { return *(float *)((uint8_t *)o + of_strategy_weight_2); }
-internal inline void strategy_set_weight_2(ee_strategy *o, float v) { *(float *)((uint8_t *)o + of_strategy_weight_2) = v; }
-internal inline float *strategy_weight_2_at(const ee_strategy *o) { return (float *)((uint8_t *)o + of_strategy_weight_2); }
+// the share of air units: 0x473CE2 scales a shortfall of its argument's air units (+0x78; AoC +0x7C) by it to
+// share units into air_count, sea_count and land_count (AoC has a space share after land_share; the AoC
+// decompilation: mAirShare, the intelligence counting units by their class's movement domain)
+internal inline float strategy_get_air_share(const ee_strategy *o) { return *(float *)((uint8_t *)o + of_strategy_air_share); }
+internal inline void strategy_set_air_share(ee_strategy *o, float v) { *(float *)((uint8_t *)o + of_strategy_air_share) = v; }
+internal inline float *strategy_air_share_at(const ee_strategy *o) { return (float *)((uint8_t *)o + of_strategy_air_share); }
+// the share of sea units, the same for the argument's sea units +0x74 (0x473CE2; the AoC decompilation:
+// mSeaShare)
+internal inline float strategy_get_sea_share(const ee_strategy *o) { return *(float *)((uint8_t *)o + of_strategy_sea_share); }
+internal inline void strategy_set_sea_share(ee_strategy *o, float v) { *(float *)((uint8_t *)o + of_strategy_sea_share) = v; }
+internal inline float *strategy_sea_share_at(const ee_strategy *o) { return (float *)((uint8_t *)o + of_strategy_sea_share); }
+// the share of land units, the same for the argument's land units +0x7C (0x473CE2; the AoC decompilation:
+// mLandShare)
+internal inline float strategy_get_land_share(const ee_strategy *o) { return *(float *)((uint8_t *)o + of_strategy_land_share); }
+internal inline void strategy_set_land_share(ee_strategy *o, float v) { *(float *)((uint8_t *)o + of_strategy_land_share) = v; }
+internal inline float *strategy_land_share_at(const ee_strategy *o) { return (float *)((uint8_t *)o + of_strategy_land_share); }
 // A GUESS (the spec's [guess]): its name and type, from what the code does with it -
 // 0x4753A9 sets it from an object's +0x74 before new_group; init, reset and the copies (0x473C2E, 0x473E71) handle
 // it
@@ -336,9 +333,9 @@ internal inline int *strategy_target_ref_at(const ee_strategy *o) { return (int 
 internal inline int16_t strategy_get_target_area(const ee_strategy *o) { return *(int16_t *)((uint8_t *)o + of_strategy_target_area); }
 internal inline void strategy_set_target_area(ee_strategy *o, int16_t v) { *(int16_t *)((uint8_t *)o + of_strategy_target_area) = v; }
 internal inline int16_t *strategy_target_area_at(const ee_strategy *o) { return (int16_t *)((uint8_t *)o + of_strategy_target_area); }
-// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
-// the total 0x473CE2 splits into count_0..2 (the rest into count_2); its callers set 1..4, 1..20 or a rounded
-// count, always the same as units_max (0x47111D, 0x4554xx)
+// the total 0x473CE2 splits into air_count, sea_count and land_count (the rest into land_count); its callers set
+// 1..4, 1..20 or a rounded count, always the same as units_max (0x47111D, 0x4554xx; the AoC decompilation:
+// mNumUnits)
 internal inline int strategy_get_units(const ee_strategy *o) { return *(int *)((uint8_t *)o + of_strategy_units); }
 internal inline void strategy_set_units(ee_strategy *o, int v) { *(int *)((uint8_t *)o + of_strategy_units) = v; }
 internal inline int *strategy_units_at(const ee_strategy *o) { return (int *)((uint8_t *)o + of_strategy_units); }
@@ -347,21 +344,18 @@ internal inline int *strategy_units_at(const ee_strategy *o) { return (int *)((u
 internal inline int strategy_get_units_max(const ee_strategy *o) { return *(int *)((uint8_t *)o + of_strategy_units_max); }
 internal inline void strategy_set_units_max(ee_strategy *o, int v) { *(int *)((uint8_t *)o + of_strategy_units_max) = v; }
 internal inline int *strategy_units_max_at(const ee_strategy *o) { return (int *)((uint8_t *)o + of_strategy_units_max); }
-// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
-// units x weight_0, rounded (0x473CE2)
-internal inline int strategy_get_count_0(const ee_strategy *o) { return *(int *)((uint8_t *)o + of_strategy_count_0); }
-internal inline void strategy_set_count_0(ee_strategy *o, int v) { *(int *)((uint8_t *)o + of_strategy_count_0) = v; }
-internal inline int *strategy_count_0_at(const ee_strategy *o) { return (int *)((uint8_t *)o + of_strategy_count_0); }
-// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
-// units x weight_1, rounded (0x473CE2)
-internal inline int strategy_get_count_1(const ee_strategy *o) { return *(int *)((uint8_t *)o + of_strategy_count_1); }
-internal inline void strategy_set_count_1(ee_strategy *o, int v) { *(int *)((uint8_t *)o + of_strategy_count_1) = v; }
-internal inline int *strategy_count_1_at(const ee_strategy *o) { return (int *)((uint8_t *)o + of_strategy_count_1); }
-// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
-// the rest of units (0x473CE2; AoC has a fourth count after it)
-internal inline int strategy_get_count_2(const ee_strategy *o) { return *(int *)((uint8_t *)o + of_strategy_count_2); }
-internal inline void strategy_set_count_2(ee_strategy *o, int v) { *(int *)((uint8_t *)o + of_strategy_count_2) = v; }
-internal inline int *strategy_count_2_at(const ee_strategy *o) { return (int *)((uint8_t *)o + of_strategy_count_2); }
+// its air units: units x air_share, rounded (0x473CE2; the AoC decompilation: mNumAir)
+internal inline int strategy_get_air_count(const ee_strategy *o) { return *(int *)((uint8_t *)o + of_strategy_air_count); }
+internal inline void strategy_set_air_count(ee_strategy *o, int v) { *(int *)((uint8_t *)o + of_strategy_air_count) = v; }
+internal inline int *strategy_air_count_at(const ee_strategy *o) { return (int *)((uint8_t *)o + of_strategy_air_count); }
+// its sea units: units x sea_share, rounded (0x473CE2; the AoC decompilation: mNumSea)
+internal inline int strategy_get_sea_count(const ee_strategy *o) { return *(int *)((uint8_t *)o + of_strategy_sea_count); }
+internal inline void strategy_set_sea_count(ee_strategy *o, int v) { *(int *)((uint8_t *)o + of_strategy_sea_count) = v; }
+internal inline int *strategy_sea_count_at(const ee_strategy *o) { return (int *)((uint8_t *)o + of_strategy_sea_count); }
+// its land units: the rest of units (0x473CE2; AoC has a space count after it; the AoC decompilation: mNumLand)
+internal inline int strategy_get_land_count(const ee_strategy *o) { return *(int *)((uint8_t *)o + of_strategy_land_count); }
+internal inline void strategy_set_land_count(ee_strategy *o, int v) { *(int *)((uint8_t *)o + of_strategy_land_count) = v; }
+internal inline int *strategy_land_count_at(const ee_strategy *o) { return (int *)((uint8_t *)o + of_strategy_land_count); }
 // init sets 0 (AoC adds a weight and a count before it: its init 0x477084, reset 0x47717B and copy 0x4773BF have
 // it at +0x44)
 internal inline int strategy_get_0x3c(const ee_strategy *o) { return *(int *)((uint8_t *)o + of_strategy_0x3c); }
@@ -439,12 +433,11 @@ internal inline void location_init(ee_location *location) { fn_location_init(loc
 typedef void (__thiscall *location_set_fn)(ee_location *, ee_location *);
 internal location_set_fn fn_location_set;
 internal inline void location_set(ee_location *location, ee_location *from) { fn_location_set(location, from); }
-// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
-// 0x44E535 (from init) zeroes it, set 0x47C8B7 copies it, save and load (0x47C5F9 / 0x47C680) write it as unit_id;
-// no reader of its own
-internal inline uint32_t location_get_0x14(const ee_location *o) { return *(uint32_t *)((uint8_t *)o + of_location_0x14); }
-internal inline void location_set_0x14(ee_location *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_location_0x14) = v; }
-internal inline uint32_t *location_0x14_at(const ee_location *o) { return (uint32_t *)((uint8_t *)o + of_location_0x14); }
+// a player's index in the world's players: 0x44E535 (from init) zeroes it, set 0x47C8B7 copies it, save and load
+// (0x47C5F9 / 0x47C680) write it as unit_id (the AoC decompilation: mPlayer, read as gWorld.mPlayers[it])
+internal inline uint32_t location_get_player(const ee_location *o) { return *(uint32_t *)((uint8_t *)o + of_location_player); }
+internal inline void location_set_player(ee_location *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_location_player) = v; }
+internal inline uint32_t *location_player_at(const ee_location *o) { return (uint32_t *)((uint8_t *)o + of_location_player); }
 
 // static class attack
 // attack's data of the game, places in its code and numbers
@@ -565,16 +558,16 @@ internal int spec_attack_select(int build) {
         of_route_planner_owner_test = 0x59;
         vt_eecp_combat_strategy = 0x0082795C;
         of_strategy_requests = 0x8;
-        of_strategy_weight_0 = 0x14;
-        of_strategy_weight_1 = 0x18;
-        of_strategy_weight_2 = 0x1C;
+        of_strategy_air_share = 0x14;
+        of_strategy_sea_share = 0x18;
+        of_strategy_land_share = 0x1C;
         of_strategy_target_ref = 0x20;
         of_strategy_target_area = 0x24;
         of_strategy_units = 0x28;
         of_strategy_units_max = 0x2C;
-        of_strategy_count_0 = 0x30;
-        of_strategy_count_1 = 0x34;
-        of_strategy_count_2 = 0x38;
+        of_strategy_air_count = 0x30;
+        of_strategy_sea_count = 0x34;
+        of_strategy_land_count = 0x38;
         of_strategy_0x3c = 0x3C;
         of_strategy_0x40 = 0x40;
         fn_strategy_init = (strategy_init_fn)0x00473BC4;
@@ -598,7 +591,7 @@ internal int spec_attack_select(int build) {
         of_location_kind = 0x10;
         fn_location_init = (location_init_fn)0x0047C4E8;
         fn_location_set = (location_set_fn)0x0047C8B7;
-        of_location_0x14 = 0x14;
+        of_location_player = 0x14;
         data_attack_asgu_vtables[0] = 0x00827844;
         data_attack_asgu_vtables[1] = 0x008253C0;
         data_attack_asgu_vtables[2] = 0x00825708;
@@ -708,16 +701,16 @@ internal int spec_attack_select(int build) {
         of_route_planner_owner_test = 0x59;
         vt_eecp_combat_strategy = 0x0083C0A4;
         of_strategy_requests = 0x8;
-        of_strategy_weight_0 = 0x14;
-        of_strategy_weight_1 = 0x18;
-        of_strategy_weight_2 = 0x1C;
+        of_strategy_air_share = 0x14;
+        of_strategy_sea_share = 0x18;
+        of_strategy_land_share = 0x1C;
         of_strategy_target_ref = 0x24;
         of_strategy_target_area = 0x28;
         of_strategy_units = 0x2C;
         of_strategy_units_max = 0x30;
-        of_strategy_count_0 = 0x34;
-        of_strategy_count_1 = 0x38;
-        of_strategy_count_2 = 0x3C;
+        of_strategy_air_count = 0x34;
+        of_strategy_sea_count = 0x38;
+        of_strategy_land_count = 0x3C;
         of_strategy_0x3c = 0x44;
         of_strategy_0x40 = 0x48;
         fn_strategy_init = (strategy_init_fn)0x00477084;
@@ -741,7 +734,7 @@ internal int spec_attack_select(int build) {
         of_location_kind = 0x10;
         fn_location_init = (location_init_fn)0x00480873;
         fn_location_set = (location_set_fn)0x00480C42;
-        of_location_0x14 = 0x14;
+        of_location_player = 0x14;
         data_attack_asgu_vtables[0] = 0x0083BF4C;
         data_attack_asgu_vtables[1] = 0x0083936C;
         data_attack_asgu_vtables[2] = 0x008396BC;

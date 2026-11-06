@@ -7,9 +7,8 @@
 internal inline uint8_t goal_get_state(const ee_goal *o) { return *(uint8_t *)((uint8_t *)o + of_goal_state); }
 internal inline void goal_set_state(ee_goal *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_goal_state) = v; }
 internal inline uint8_t *goal_state_at(const ee_goal *o) { return (uint8_t *)((uint8_t *)o + of_goal_state); }
-// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
 // 0 from the base constructor 0x6283AB: +1 per path request for the goal (EEUnitClass::vf52 0x6222A8), +8 per
-// detour waypoint pair (vf53 0x6225E7)
+// detour waypoint pair (vf53 0x6225E7) (the AoC decompilation: mPathAttempts)
 internal inline int goal_get_path_tries(const ee_goal *o) { return *(int *)((uint8_t *)o + of_goal_path_tries); }
 internal inline void goal_set_path_tries(ee_goal *o, int v) { *(int *)((uint8_t *)o + of_goal_path_tries) = v; }
 internal inline int *goal_path_tries_at(const ee_goal *o) { return (int *)((uint8_t *)o + of_goal_path_tries); }
@@ -86,9 +85,8 @@ internal inline void goal_add_passenger(ee_goal *goal, ee_unit *u) { fn_goal_add
 internal inline uint8_t build_goal_get_state(const ee_build_goal *o) { return *(uint8_t *)((uint8_t *)o + of_goal_state); }
 internal inline void build_goal_set_state(ee_build_goal *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_goal_state) = v; }
 internal inline uint8_t *build_goal_state_at(const ee_build_goal *o) { return (uint8_t *)((uint8_t *)o + of_goal_state); }
-// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
 // 0 from the base constructor 0x6283AB: +1 per path request for the goal (EEUnitClass::vf52 0x6222A8), +8 per
-// detour waypoint pair (vf53 0x6225E7)
+// detour waypoint pair (vf53 0x6225E7) (the AoC decompilation: mPathAttempts)
 internal inline int build_goal_get_path_tries(const ee_build_goal *o) { return *(int *)((uint8_t *)o + of_goal_path_tries); }
 internal inline void build_goal_set_path_tries(ee_build_goal *o, int v) { *(int *)((uint8_t *)o + of_goal_path_tries) = v; }
 internal inline int *build_goal_path_tries_at(const ee_build_goal *o) { return (int *)((uint8_t *)o + of_goal_path_tries); }
@@ -179,9 +177,8 @@ internal inline int patch_build_replaced(build_goal_replaced_fn h) { return patc
 internal inline uint8_t load_goal_get_state(const ee_load_goal *o) { return *(uint8_t *)((uint8_t *)o + of_goal_state); }
 internal inline void load_goal_set_state(ee_load_goal *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_goal_state) = v; }
 internal inline uint8_t *load_goal_state_at(const ee_load_goal *o) { return (uint8_t *)((uint8_t *)o + of_goal_state); }
-// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
 // 0 from the base constructor 0x6283AB: +1 per path request for the goal (EEUnitClass::vf52 0x6222A8), +8 per
-// detour waypoint pair (vf53 0x6225E7)
+// detour waypoint pair (vf53 0x6225E7) (the AoC decompilation: mPathAttempts)
 internal inline int load_goal_get_path_tries(const ee_load_goal *o) { return *(int *)((uint8_t *)o + of_goal_path_tries); }
 internal inline void load_goal_set_path_tries(ee_load_goal *o, int v) { *(int *)((uint8_t *)o + of_goal_path_tries) = v; }
 internal inline int *load_goal_path_tries_at(const ee_load_goal *o) { return (int *)((uint8_t *)o + of_goal_path_tries); }
@@ -239,9 +236,8 @@ internal inline void *load_goal_init(ee_load_goal *load_goal, void *p2, void *p3
 internal inline uint8_t garrison_goal_get_state(const ee_garrison_goal *o) { return *(uint8_t *)((uint8_t *)o + of_goal_state); }
 internal inline void garrison_goal_set_state(ee_garrison_goal *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_goal_state) = v; }
 internal inline uint8_t *garrison_goal_state_at(const ee_garrison_goal *o) { return (uint8_t *)((uint8_t *)o + of_goal_state); }
-// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
 // 0 from the base constructor 0x6283AB: +1 per path request for the goal (EEUnitClass::vf52 0x6222A8), +8 per
-// detour waypoint pair (vf53 0x6225E7)
+// detour waypoint pair (vf53 0x6225E7) (the AoC decompilation: mPathAttempts)
 internal inline int garrison_goal_get_path_tries(const ee_garrison_goal *o) { return *(int *)((uint8_t *)o + of_goal_path_tries); }
 internal inline void garrison_goal_set_path_tries(ee_garrison_goal *o, int v) { *(int *)((uint8_t *)o + of_goal_path_tries) = v; }
 internal inline int *garrison_goal_path_tries_at(const ee_garrison_goal *o) { return (int *)((uint8_t *)o + of_goal_path_tries); }
@@ -294,9 +290,8 @@ internal inline void *garrison_goal_init(ee_garrison_goal *garrison_goal, void *
 internal inline uint8_t location_goal_get_state(const ee_location_goal *o) { return *(uint8_t *)((uint8_t *)o + of_goal_state); }
 internal inline void location_goal_set_state(ee_location_goal *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_goal_state) = v; }
 internal inline uint8_t *location_goal_state_at(const ee_location_goal *o) { return (uint8_t *)((uint8_t *)o + of_goal_state); }
-// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
 // 0 from the base constructor 0x6283AB: +1 per path request for the goal (EEUnitClass::vf52 0x6222A8), +8 per
-// detour waypoint pair (vf53 0x6225E7)
+// detour waypoint pair (vf53 0x6225E7) (the AoC decompilation: mPathAttempts)
 internal inline int location_goal_get_path_tries(const ee_location_goal *o) { return *(int *)((uint8_t *)o + of_goal_path_tries); }
 internal inline void location_goal_set_path_tries(ee_location_goal *o, int v) { *(int *)((uint8_t *)o + of_goal_path_tries) = v; }
 internal inline int *location_goal_path_tries_at(const ee_location_goal *o) { return (int *)((uint8_t *)o + of_goal_path_tries); }
@@ -396,9 +391,8 @@ internal inline uint8_t *goal_vt_goal_unload_at(void) { return (uint8_t *)(uintp
 internal inline uint8_t attack_goal_get_state(const ee_attack_goal *o) { return *(uint8_t *)((uint8_t *)o + of_goal_state); }
 internal inline void attack_goal_set_state(ee_attack_goal *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_goal_state) = v; }
 internal inline uint8_t *attack_goal_state_at(const ee_attack_goal *o) { return (uint8_t *)((uint8_t *)o + of_goal_state); }
-// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
 // 0 from the base constructor 0x6283AB: +1 per path request for the goal (EEUnitClass::vf52 0x6222A8), +8 per
-// detour waypoint pair (vf53 0x6225E7)
+// detour waypoint pair (vf53 0x6225E7) (the AoC decompilation: mPathAttempts)
 internal inline int attack_goal_get_path_tries(const ee_attack_goal *o) { return *(int *)((uint8_t *)o + of_goal_path_tries); }
 internal inline void attack_goal_set_path_tries(ee_attack_goal *o, int v) { *(int *)((uint8_t *)o + of_goal_path_tries) = v; }
 internal inline int *attack_goal_path_tries_at(const ee_attack_goal *o) { return (int *)((uint8_t *)o + of_goal_path_tries); }
@@ -460,9 +454,8 @@ internal inline int patch_attack_unit_tick(attack_goal_tick_fn h) { return patch
 internal inline uint8_t eeug_unload_transport_get_state(const eeug_unload_transport *o) { return *(uint8_t *)((uint8_t *)o + of_goal_state); }
 internal inline void eeug_unload_transport_set_state(eeug_unload_transport *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_goal_state) = v; }
 internal inline uint8_t *eeug_unload_transport_state_at(const eeug_unload_transport *o) { return (uint8_t *)((uint8_t *)o + of_goal_state); }
-// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
 // 0 from the base constructor 0x6283AB: +1 per path request for the goal (EEUnitClass::vf52 0x6222A8), +8 per
-// detour waypoint pair (vf53 0x6225E7)
+// detour waypoint pair (vf53 0x6225E7) (the AoC decompilation: mPathAttempts)
 internal inline int eeug_unload_transport_get_path_tries(const eeug_unload_transport *o) { return *(int *)((uint8_t *)o + of_goal_path_tries); }
 internal inline void eeug_unload_transport_set_path_tries(eeug_unload_transport *o, int v) { *(int *)((uint8_t *)o + of_goal_path_tries) = v; }
 internal inline int *eeug_unload_transport_path_tries_at(const eeug_unload_transport *o) { return (int *)((uint8_t *)o + of_goal_path_tries); }
@@ -523,9 +516,8 @@ internal inline float *eeug_unload_transport_unload_range_sq_at(const eeug_unloa
 internal inline uint8_t eeug_explore_get_state(const eeug_explore *o) { return *(uint8_t *)((uint8_t *)o + of_goal_state); }
 internal inline void eeug_explore_set_state(eeug_explore *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_goal_state) = v; }
 internal inline uint8_t *eeug_explore_state_at(const eeug_explore *o) { return (uint8_t *)((uint8_t *)o + of_goal_state); }
-// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
 // 0 from the base constructor 0x6283AB: +1 per path request for the goal (EEUnitClass::vf52 0x6222A8), +8 per
-// detour waypoint pair (vf53 0x6225E7)
+// detour waypoint pair (vf53 0x6225E7) (the AoC decompilation: mPathAttempts)
 internal inline int eeug_explore_get_path_tries(const eeug_explore *o) { return *(int *)((uint8_t *)o + of_goal_path_tries); }
 internal inline void eeug_explore_set_path_tries(eeug_explore *o, int v) { *(int *)((uint8_t *)o + of_goal_path_tries) = v; }
 internal inline int *eeug_explore_path_tries_at(const eeug_explore *o) { return (int *)((uint8_t *)o + of_goal_path_tries); }
@@ -582,9 +574,8 @@ internal inline int *eeug_explore_tile_y_at(const eeug_explore *o) { return (int
 internal inline uint8_t eeug_gather_get_state(const eeug_gather *o) { return *(uint8_t *)((uint8_t *)o + of_goal_state); }
 internal inline void eeug_gather_set_state(eeug_gather *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_goal_state) = v; }
 internal inline uint8_t *eeug_gather_state_at(const eeug_gather *o) { return (uint8_t *)((uint8_t *)o + of_goal_state); }
-// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
 // 0 from the base constructor 0x6283AB: +1 per path request for the goal (EEUnitClass::vf52 0x6222A8), +8 per
-// detour waypoint pair (vf53 0x6225E7)
+// detour waypoint pair (vf53 0x6225E7) (the AoC decompilation: mPathAttempts)
 internal inline int eeug_gather_get_path_tries(const eeug_gather *o) { return *(int *)((uint8_t *)o + of_goal_path_tries); }
 internal inline void eeug_gather_set_path_tries(eeug_gather *o, int v) { *(int *)((uint8_t *)o + of_goal_path_tries) = v; }
 internal inline int *eeug_gather_path_tries_at(const eeug_gather *o) { return (int *)((uint8_t *)o + of_goal_path_tries); }
@@ -624,18 +615,20 @@ internal inline void **eeug_gather_0x3c_at(const eeug_gather *o) { return (void 
 internal inline ee_unit *eeug_gather_get_holder(const eeug_gather *o) { return *(ee_unit **)((uint8_t *)o + of_goal_holder); }
 internal inline void eeug_gather_set_holder(eeug_gather *o, ee_unit *v) { *(ee_unit **)((uint8_t *)o + of_goal_holder) = v; }
 internal inline ee_unit **eeug_gather_holder_at(const eeug_gather *o) { return (ee_unit **)((uint8_t *)o + of_goal_holder); }
-// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
-// 1 once it has found a drop-off and heads there (state 0x1F48, 0x6106F9), cleared at 0x610A3D, 0x610BB6 and in
-// vf20: vf18 0x611065 takes the drop-off's reach test while it is set; the script condition 0x138F returns it
-internal inline uint8_t eeug_gather_get_returning(const eeug_gather *o) { return *(uint8_t *)((uint8_t *)o + of_eeug_gather_returning); }
-internal inline void eeug_gather_set_returning(eeug_gather *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_eeug_gather_returning) = v; }
-internal inline uint8_t *eeug_gather_returning_at(const eeug_gather *o) { return (uint8_t *)((uint8_t *)o + of_eeug_gather_returning); }
-// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
-// 0x610BB6 sets 1 (returning 0) to walk to its spot at dest_x / dest_y: vf18 then tests the distance to it instead
-// of the reach; the script condition 0x139B returns it
-internal inline uint8_t eeug_gather_get_to_spot(const eeug_gather *o) { return *(uint8_t *)((uint8_t *)o + of_eeug_gather_to_spot); }
-internal inline void eeug_gather_set_to_spot(eeug_gather *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_eeug_gather_to_spot) = v; }
-internal inline uint8_t *eeug_gather_to_spot_at(const eeug_gather *o) { return (uint8_t *)((uint8_t *)o + of_eeug_gather_to_spot); }
+// its out-of-sync dump's "Gathering Flag": 1 while it works the resource, 0 while it carries to the drop-off (the
+// debug text's "Gathering" / "Dropping Off"); 0x6106F9 sets 1 when it starts on a resource, 0x610A3D (a settlement
+// to build instead) and 0x610BB6 (the resource full) clear it, vf20 too; the script condition 0x138F returns it -
+// read from the AoC decompilation (mGathering), EE's code writes it at the same places
+internal inline uint8_t eeug_gather_get_gathering(const eeug_gather *o) { return *(uint8_t *)((uint8_t *)o + of_eeug_gather_gathering); }
+internal inline void eeug_gather_set_gathering(eeug_gather *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_eeug_gather_gathering) = v; }
+internal inline uint8_t *eeug_gather_gathering_at(const eeug_gather *o) { return (uint8_t *)((uint8_t *)o + of_eeug_gather_gathering); }
+// its out-of-sync dump's "Waiting Flag": 0x610BB6 sets 1 (gathering 0) when the resource has no room for it and
+// it is far off - it then waits at its waiting area (its dump's "Waiting Area", where vf18 measures the distance
+// instead of the reach); 0x6106F9 clears it when it starts; the script condition 0x139B returns it (the AoC
+// decompilation: mWaiting)
+internal inline uint8_t eeug_gather_get_waiting(const eeug_gather *o) { return *(uint8_t *)((uint8_t *)o + of_eeug_gather_waiting); }
+internal inline void eeug_gather_set_waiting(eeug_gather *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_eeug_gather_waiting) = v; }
+internal inline uint8_t *eeug_gather_waiting_at(const eeug_gather *o) { return (uint8_t *)((uint8_t *)o + of_eeug_gather_waiting); }
 
 // the running build's values (spec_select, with addr_select): how many it hasn't got
 internal int spec_goal_select(int build) {
@@ -717,8 +710,8 @@ internal int spec_goal_select(int build) {
         of_eeug_explore_tile_x = 0x3C;
         of_eeug_explore_tile_y = 0x40;
         vt_eeug_gather = 0x00831B80;
-        of_eeug_gather_returning = 0x40;
-        of_eeug_gather_to_spot = 0x41;
+        of_eeug_gather_gathering = 0x40;
+        of_eeug_gather_waiting = 0x41;
         return 0;
     case 1:   // aoc
         of_goal_state = 0x5;
@@ -797,8 +790,8 @@ internal int spec_goal_select(int build) {
         of_eeug_explore_tile_x = 0x3C;
         of_eeug_explore_tile_y = 0x40;
         vt_eeug_gather = 0x008475A8;
-        of_eeug_gather_returning = 0x40;
-        of_eeug_gather_to_spot = 0x41;
+        of_eeug_gather_gathering = 0x40;
+        of_eeug_gather_waiting = 0x41;
         return 0;
     }
     return 0;

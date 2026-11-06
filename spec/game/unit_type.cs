@@ -11,7 +11,8 @@ unsafe struct EEUnitClass
 
     /// the data's column 0x344 (the community editor: "Plane refuel location") - 1 the airport planes, 2 the carriers'
     /// (F-14, Corsair, Avenger); the air models (0x54A5AE, 0x54AA2B, 0x54B540, 0x54BC24) treat 2 apart, AoC also 4
-    [offset(0x28), found(c), guess]
+    /// (the AoC decompilation: mAirTrafficType, an airport's air traffic slot - 1)
+    [offset(0x28), found(c)]
     int32 refuel_at;
 
     /// the graphic effect a missile or projectile plays on itself when it arrives
@@ -24,7 +25,8 @@ unsafe struct EEUnitClass
 
     /// the effect at the shot's point (z 0) instead of impact_gfx when a missile or projectile ends below 0 over a tile
     /// below 0 (water?) without attacking a unit (EEUCMissile::vf29 0x605E9B, EEUCProjectile::vf29 0x607B11)
-    [offset((ee)0x394, (aoc)0x84), found(c), guess]
+    /// (the AoC decompilation: mSplashEffect, the splash on the water)
+    [offset((ee)0x394, (aoc)0x84), found(c)]
     void* ground_gfx;
 
     /// the shot's effect: a beam from the attacker to the target, or at the aim point without one
@@ -42,8 +44,8 @@ unsafe struct EEUnitClass
     void* model;
 
     /// the data's column 0x1D4 (the editor: "Flight altitude"); below it the air models scale the height by
-    /// stats.height x (z / it x 0.5 + 0.5)
-    [offset((ee)0x418, (aoc)0x11C), found(c), guess]
+    /// stats.height x (z / it x 0.5 + 0.5) (the AoC decompilation: mCruiseAltitude)
+    [offset((ee)0x418, (aoc)0x11C), found(c)]
     float32 flight_altitude;
 
     /// the type data's constructors
@@ -241,24 +243,28 @@ unsafe struct EEUnitClass
 
     /// the data's column 0x245 (the editor: Can be owned by "World"; resources, scaffolding, ambient): the subgroup's
     /// target filter 0x446124 skips such objects unless they are armed and the stance is 2
-    [offset((ee)0x609, (aoc)0x306), found(c), guess]
+    /// (the AoC decompilation: mIsGaiaPlaceable)
+    [offset((ee)0x609, (aoc)0x306), found(c)]
     uint8 world_ownable;
 
-    /// set after the load (0x62188D) as membership of unit group 9 (0x4A7618(type, 9)); with is_guard_tower in freeze
-    /// (0x5AF0BB), death and state (0x63862x, 0x60D36C), the attack scoring and the boarding. Set on wall pieces too:
-    /// build_gate (0x6022E3) converts the objects with it on its tiles, the wall manager (0x498017) lays a gate where
-    /// a finished object has it and not +0x61E, and the mod's gate_fits found the walls' pieces by it (2026-10-27)
-    [offset((ee)0x612, (aoc)0x310), found(c), guess]
-    uint8 is_tower;
+    /// a wall: set after the load (0x62188D) as membership of unit set 9 (0x4A7618(type, 9)), dbunitset.dat's "Walls 1"
+    /// - the wall pieces of every epoch (467..472) and the castle tower (176), continued in set 10 "Walls 2" (barbed
+    /// wire 178, the castle wall 40); with is_guard_tower in freeze (0x5AF0BB), death and state (0x63862x, 0x60D36C),
+    /// the attack scoring and the boarding; build_gate (0x6022E3) converts the objects with it on its tiles, the wall
+    /// manager (0x498017) lays a gate where a finished object has it and not +0x61E, the path planners take it for a
+    /// wall unless a gate (the AoC decompilation: mIsWall, kAITileWall)
+    [offset((ee)0x612, (aoc)0x310), found(c)]
+    uint8 is_wall;
 
     /// the data's column 0x248 (the editor: "You can kill this object with Delete key"; 0 for 24 types): a unit's
     /// +0x334 starts as it (0x5E6024); freeze clears that and unfreeze restores it from here (0x5AF0BB, 0x5B32CB)
-    [offset((ee)0x613, (aoc)0x311), found(c), guess]
+    /// (the AoC decompilation: mIsDeletable)
+    [offset((ee)0x613, (aoc)0x311), found(c)]
     uint8 deletable;
 
     /// the data's column 0x3B0 (the editor: "Melee attack"): EECPAttackSubGroupUnit::score 0x461854 picks its table 0
-    /// by it
-    [offset((ee)0x61A, (aoc)0x318), found(c), guess]
+    /// by it (the AoC decompilation: mIsMelee)
+    [offset((ee)0x61A, (aoc)0x318), found(c)]
     uint8 melee;
 
     /// the constructor sets 1 only for ids 47 and 461..466, the guard towers (AoC also 0x2FD, 0x302, 0x312, 0x322);

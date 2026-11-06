@@ -419,9 +419,9 @@ internal inline uint8_t *start_msg_spare_at(const ee_start_msg *o) { return (uin
 internal inline uint8_t start_msg_get_sendable_when_out(const ee_start_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_sendable_when_out); }
 internal inline void start_msg_set_sendable_when_out(ee_start_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_sendable_when_out) = v; }
 internal inline uint8_t *start_msg_sendable_when_out_at(const ee_start_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_sendable_when_out); }
-// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
 // the sender (0x5C7538's area) counts the start slots of kinds 1 and 2 into it; execute 0x4BEE57 copies it to
 // server +0x2C and sets server +0x2E (multiplayer) when it is above 1; 1 byte on the wire
+// (the AoC decompilation: mNumHumanPlayers)
 internal inline uint8_t start_msg_get_humans(const ee_start_msg *o) { return *(uint8_t *)((uint8_t *)o + of_start_msg_humans); }
 internal inline void start_msg_set_humans(ee_start_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_start_msg_humans) = v; }
 internal inline uint8_t *start_msg_humans_at(const ee_start_msg *o) { return (uint8_t *)((uint8_t *)o + of_start_msg_humans); }
