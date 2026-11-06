@@ -316,6 +316,16 @@ internal inline float *model_transform_at(const ee_model *o) { return (float *)(
 internal inline uint32_t model_get_frame(const ee_model *o) { return *(uint32_t *)((uint8_t *)o + of_model_frame); }
 internal inline void model_set_frame(ee_model *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_model_frame) = v; }
 internal inline uint32_t *model_frame_at(const ee_model *o) { return (uint32_t *)((uint8_t *)o + of_model_frame); }
+// the frame blended toward: CopyAndSmoothStdVertices copies (1 - fraction) x vertices[frame] + fraction x
+// vertices[next_frame] (position and normal; the texture coordinates frame's)
+internal inline uint32_t model_get_next_frame(const ee_model *o) { return *(uint32_t *)((uint8_t *)o + of_model_next_frame); }
+internal inline void model_set_next_frame(ee_model *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_model_next_frame) = v; }
+internal inline uint32_t *model_next_frame_at(const ee_model *o) { return (uint32_t *)((uint8_t *)o + of_model_next_frame); }
+// how far between frame and next_frame (SetFractionalFramePosition); the exe's unit draw sets 0 unless smoothing
+// is on (0x50B4AC), and 0 draws by CopyStdVertices
+internal inline float model_get_fraction(const ee_model *o) { return *(float *)((uint8_t *)o + of_model_fraction); }
+internal inline void model_set_fraction(ee_model *o, float v) { *(float *)((uint8_t *)o + of_model_fraction) = v; }
+internal inline float *model_fraction_at(const ee_model *o) { return (float *)((uint8_t *)o + of_model_fraction); }
 // a box per frame of its animation (0x24 each), in the model's own space: ComputeBoundingBoxes (engine 0x31218)
 // from the frame's vertices
 internal inline ee_box *model_get_boxes(const ee_model *o) { return *(ee_box **)((uint8_t *)o + of_model_boxes); }
@@ -619,6 +629,8 @@ internal int spec_engine_display_select(int build) {
         of_text_font = 0x44;
         of_model_transform = 0x88;
         of_model_frame = 0x134;
+        of_model_next_frame = 0x138;
+        of_model_fraction = 0x130;
         of_model_boxes = 0x110;
         of_model_polygons = 0x100;
         of_model_vertices = 0x104;
@@ -787,6 +799,8 @@ internal int spec_engine_display_select(int build) {
         of_text_font = 0x44;
         of_model_transform = 0x88;
         of_model_frame = 0x134;
+        of_model_next_frame = 0x138;
+        of_model_fraction = 0x130;
         of_model_boxes = 0x110;
         of_model_polygons = 0x100;
         of_model_vertices = 0x104;

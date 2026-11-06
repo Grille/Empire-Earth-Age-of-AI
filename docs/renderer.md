@@ -299,6 +299,35 @@ the time since the timer's wait ended, so even 25 ms steps (the pipe's stepload,
 step a hold - 2275 holds a minute of 25 ms each, one frame let in in 10 minutes of the reference save. The holds the
 frames wait for are single steps. What came of it: the frame during a step (above).
 
+## The units' animation on the graphics card
+
+`[display] gpu_animation` (default on; the pipe: `picture morph on | off`; render_morph.c), 2026-11-06. EE animates a
+model by morphing: every frame of its animation is a whole vertex array (spec GEModel.vertices, frames alike share
+one), and the T&L DLL's DrawModelHierarchy draws each material by copying its run of the frame into the vertex buffer
+- blended with the next frame's by the model's fraction (CopyAndSmoothStdVertices: position and normal; the texture
+coordinates the first frame's; plain CopyStdVertices at fraction 0) - for every unit, every frame. The light is the
+card's already (hardware T&L). The renderer then copied the vertices into its batch and uploaded them again. On the
+8000-unit save, paused: 4566 unit draws a frame, 296 000 vertices, of 33 different parts (the soldiers 1385 units of
+three parts) in 12-15 poses each; the profile had the drawing thread half in the DLL's model draws, a fifth in the
+upload.
+
+The two copy functions are hooked (the T&L DLL's only - the software DLL has the same, its own): they note what they
+would copy and copy nothing. The draw that follows takes the note: each run goes once into a pool on the GPU (64 MB,
+the 32-byte vertices as they are, two float4 each; known by its address, checked by its first and last vertex - a
+model's memory reused - and started over when full), and the draw becomes a batch entry in the world matrices' table
+(the two runs' places, the fraction, its matrix's slot) and indices that name the entry and the vertex in the run (top
+bit set; the vertex buffer isn't read for them). Both vertex shaders (the picture's, the shadows' map) blend the two
+runs (RD3_MORPH_HLSL). Such batches hold blended draws only; their indices are moved to the entries' place at the
+upload. The shadows' role needs only the draw's box: each run's is kept with it. The copy is made after all where the
+vertices are read on the CPU - a tree's shadow card (the tree itself still the GPU's), the probe, a draw without depth
+- and for a model building_lean bends for its draw (walls.c; its arrays aren't its frames then).
+
+Measured 2026-11-06 on the 8000-unit save, paused, in one game (picture morph on / off, 120 recorded frames each,
+twice): 51.6 / 43.6 and 53.2 / 43.2 fps. Running: walking units drawn as before; two shots on / off differ no more than
+two shots in a row. Left on the CPU per frame there: about 1700 trees' cards (their copies), and the DLL's own work per
+draw - a SetTransform, SetMaterial, the vertex buffer's lock, the draw call - 2800 draws a frame: instancing (a draw
+for all units of a part and frame) is the next step.
+
 ## The debug overlay
 
 2026-10-28 (the player: what the renderer could do - the AI's plans on the map). `[display] overlay = routes,danger`

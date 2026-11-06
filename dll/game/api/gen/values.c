@@ -592,6 +592,8 @@ internal uint32_t of_text_string;
 internal uint32_t of_text_font;
 internal uint32_t of_model_transform;
 internal uint32_t of_model_frame;
+internal uint32_t of_model_next_frame;
+internal uint32_t of_model_fraction;
 internal uint32_t of_model_boxes;
 internal uint32_t of_model_polygons;
 internal uint32_t of_model_vertices;

@@ -391,6 +391,16 @@ unsafe struct GEModel
     [offset(0x134), found(c)]
     uint32 frame;
 
+    /// the frame blended toward: CopyAndSmoothStdVertices copies (1 - fraction) x vertices[frame] + fraction x
+    /// vertices[next_frame] (position and normal; the texture coordinates frame's)
+    [offset(0x138), found(c)]
+    uint32 next_frame;
+
+    /// how far between frame and next_frame (SetFractionalFramePosition); the exe's unit draw sets 0 unless smoothing
+    /// is on (0x50B4AC), and 0 draws by CopyStdVertices
+    [offset(0x130), found(c)]
+    float32 fraction;
+
     /// a box per frame of its animation (0x24 each), in the model's own space: ComputeBoundingBoxes (engine 0x31218)
     /// from the frame's vertices
     [offset(0x110), found(c)]

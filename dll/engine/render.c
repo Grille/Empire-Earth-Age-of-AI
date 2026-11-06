@@ -847,8 +847,9 @@ internal void render_display_loaded(HMODULE m, const char *name) {
             patch_iat(m, "ddraw.dll", "DirectDrawEnumerateA", (void *)rd_enumerate) +
             patch_iat(m, "ddraw.dll", "DirectDrawEnumerateExA", (void *)rd_enumerate_ex);
     log_locked("# render: %s's DirectDraw imports %d/3 to the mod's renderer; its model test %d/2 (the shadows' casters off"
-               " the screen); its ground's clipping %d/1 (the ground's margin); its vertex buffer's room %d/1\n", name, n,
-               shadow_reach_display(m), rf_ground_display_loaded(m, name), display_lock_vb_room(m, RD_VB_ROOM));
+               " the screen); its ground's clipping %d/1 (the ground's margin); its vertex buffer's room %d/1; its animation's"
+               " copies %d/2 (the GPU blends them)\n", name, n, shadow_reach_display(m), rf_ground_display_loaded(m, name),
+               display_lock_vb_room(m, RD_VB_ROOM), mo_display_loaded(m, name));
 }
 // autotest render_trace=N: the first N calls of the renderer's methods logged ("# render call", caller and thread) - a
 // stub in front of each slot, as the probe's
@@ -935,6 +936,7 @@ internal void render_install(const char *autotest_ini) {
     g_fx.on = g_set.antialias;      // [display] antialias, anisotropy (render_fxaa.c)
     g_fx.aniso = g_set.anisotropy;
     g_rwl_free = g_set.draw_during_steps;   // [display] draw_during_steps (render_3d.c)
+    g_mo.on = g_set.gpu_animation;          // [display] gpu_animation (render_morph.c)
     g_gm_margin = g_set.ground_margin;      // [display] ground_margin, object_margin (render_frame.c)
     g_om_margin = g_set.object_margin;
     int pools = rf_ground_pools_install();   // before the ground's first update (render_frame.c)

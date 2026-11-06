@@ -470,7 +470,9 @@ internal int __thiscall ws_hook_draw1(ee_rasterizer *ras, void *m, uint32_t scre
     int decal = 0;
     ee_vertices *b = g_bl_n ? bl_bend(m, &decal) : NULL;
     g_sh_decal = decal;
+    g_mo_off = b != NULL;   // its frame's vertices bent for this draw: copied, not the GPU's (render_morph.c)
     int r = g_ws_draw[1](ras, m, screen, p3, p4);
+    g_mo_off = 0;
     g_sh_decal = 0;
     if (b) bl_unbend(b);
     return r;

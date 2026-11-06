@@ -137,6 +137,16 @@ typedef struct {
     float sht[4];    // the water's share of a shadow, shadows all on, a caster's bias
     float shh[4];    // the hills' map: the world's x, y -> u, v; the soft edge, the bias (tiles); on
 } rd3_pcb;
+// a blended draw's vertex (render_morph.c): its index has the top bit, its batch entry (the world table's slot: the
+// two runs' places in the pool, the fraction, how many slots back its world matrix is) and the vertex in the run - the
+// vertex buffer isn't read for it (the input assembler's read past the buffer gives zeros)
+#define RD3_MORPH_HLSL \
+    "Buffer<float4> mp : register(t5);\n" \
+    "void morph(inout I i, uint id) { if (id < 0x80000000) return; uint s = (id >> 12) & 0x7FFFF, k = id & 0xFFF;" \
+    " float4 m = wt.Load(s * 4); uint a = ((uint)m.x + k) * 2, b = ((uint)m.y + k) * 2;" \
+    " float4 a0 = mp.Load(a), a1 = mp.Load(a + 1), b0 = mp.Load(b), b1 = mp.Load(b + 1);" \
+    " i.p = lerp(a0.xyz, b0.xyz, m.z); i.n = lerp(float3(a0.w, a1.xy), float3(b0.w, b1.xy), m.z); i.t = a1.zw;" \
+    " i.c = float4(1, 1, 1, 1); i.w = s - (uint)m.w; }\n"
 internal const char k_rd3_shader[] =
     "cbuffer v : register(b0) { row_major float4x4 vpm; row_major float4x4 view;"
     " float4 ldir[8]; float4 ldiff[8]; float4 lamb[8]; float4 mdiff, mamb, memi, gamb; int4 lit; int4 src; float4 fog;"
@@ -148,6 +158,7 @@ internal const char k_rd3_shader[] =
     "Texture2D<float> sm : register(t2); SamplerComparisonState sc : register(s1);\n"   // the dynamic shadows' maps:
     "Texture2D<float> hm : register(t4); SamplerState hs : register(s2);\n"   // the casters', the hills' (render_shadows.c)
     "struct I { float3 p : POSITION; float3 n : NORMAL; float4 c : COLOR; float2 t : TEXCOORD; uint w : WORLD; };\n"
+    RD3_MORPH_HLSL
     "struct O { float4 p : SV_Position; float4 c : COLOR; float2 t : TEXCOORD0; float f : FOG; float4 q : TEXCOORD1;"
     " float3 k : TEXCOORD2; float3 w : TEXCOORD3; };\n"
     // a unit's tint: how many of four texels around its origin's place in the map are nearer the sun by more than b
@@ -155,7 +166,7 @@ internal const char k_rd3_shader[] =
     " int n = (int)shp.y; int2 c = int2(q.xy * shp.y); float k = 0;"
     " for (int j = 0; j < 4; j++) { int2 a = clamp(c + int2(j & 1, j >> 1) * 4 - 2, 0, n - 1);"
     "  k += sm.Load(int3(a, 0)) < q.z - b ? 1 : 0; } return k / 4; }\n"
-    "O vs(I i) { O o; uint r = i.w * 4; float4 r0 = wt.Load(r); float b = r0.w; r0.w = 0;"   // _14: the draw's size (SH_TINT)
+    "O vs(I i, uint id : SV_VertexID) { O o; morph(i, id); uint r = i.w * 4; float4 r0 = wt.Load(r); float b = r0.w; r0.w = 0;"   // _14: the draw's size (SH_TINT)
     " float4x4 world = float4x4(r0, wt.Load(r + 1), wt.Load(r + 2), wt.Load(r + 3));"
     " float4 p = mul(float4(i.p, 1), world); o.p = mul(p, vpm); o.q.xyz = mul(p, shm).xyz;"
     // under water the shadow fades out with the depth (the sun's light scattered in the water)
@@ -230,6 +241,7 @@ internal struct {
     float (*w)[16];
     int nv, ni, nw;
     D3D11_PRIMITIVE_TOPOLOGY topo;
+    int morph;      // the batch's draws are blended ones (render_morph.c): indices only, no vertices
     LONG batches;   // draw calls made (the minute's line)
 } g_rb;
 typedef struct { uint32_t key; void *obj; } rd3_cached;
@@ -397,8 +409,11 @@ internal float rd3_float(DWORD v) { float f; memcpy(&f, &v, 4); return f; }
 
 internal volatile LONG g_rp_state;   // the probe (below)
 internal void rec_count(int role, DWORD nv);   // render_record.c: a draw's role counted for the frame
+internal ID3D11ShaderResourceView *g_mo_srv;   // the animation's pool (render_morph.c), bound with the list
+internal volatile LONG g_rp_state;   // the pipe's rprobe (below)
 #include "render_frame.c"     // the frame recorded and drawn at once
 #include "render_shadows.c"   // the dynamic shadows ([display] shadows = dynamic)
+#include "render_morph.c"     // the units' animation blended on the graphics card ([display] gpu_animation)
 #include "render_fxaa.c"      // the picture's sharpness ([display] antialias, anisotropy)
 
 // A picture on the screen (the interface's backgrounds: no depth test, every texture coordinate within 0..1) is
@@ -583,6 +598,14 @@ internal void rd3_flush(void) {
     if (!g_rb.ni) return;
     rf_keep_ground();
     long wa = rd3_upload(&g_rd3.wb, &g_rd3.wb_cap, D3D11_BIND_SHADER_RESOURCE, &g_rd3.wb_pos, g_rb.w, (UINT)g_rb.nw * sizeof *g_rb.w, sizeof *g_rb.w);
+    if (wa >= 0 && g_rb.morph) {   // indices only: their entries' slots moved to the matrices' place
+        uint32_t add = (uint32_t)wa / sizeof *g_rb.w << 12;
+        if (add) for (int k = 0; k < g_rb.ni; k++) g_rb.i[k] += add;
+        long ia = rd3_upload(&g_rd3.ib, &g_rd3.ib_cap, D3D11_BIND_INDEX_BUFFER, &g_rd3.ib_pos, g_rb.i, (UINT)g_rb.ni * 4, 4);
+        if (ia >= 0) rf_record((UINT)ia / 4, (UINT)g_rb.ni, 0);
+        g_rb.nv = g_rb.ni = g_rb.nw = 0;
+        return;
+    }
     if (wa > 0) for (int k = 0; k < g_rb.nv; k++) g_rb.v[k].w += (uint32_t)wa / sizeof *g_rb.w;   // the batch's matrices' place
     long at = wa >= 0 ? rd3_upload(&g_rd3.vb, &g_rd3.vb_cap, D3D11_BIND_VERTEX_BUFFER, &g_rd3.vb_pos, g_rb.v, (UINT)g_rb.nv * sizeof *g_rb.v, sizeof *g_rb.v) : -1;
     long ia = at >= 0 ? rd3_upload(&g_rd3.ib, &g_rd3.ib_cap, D3D11_BIND_INDEX_BUFFER, &g_rd3.ib_pos, g_rb.i, (UINT)g_rb.ni * 4, 4) : -1;
@@ -597,8 +620,9 @@ internal void rd3_append(rd_device *d, D3DPRIMITIVETYPE type, rd_vb *vb, DWORD s
     DWORD n = idx ? ni : nv;   // the primitives' vertices as given
     DWORD out = !strip ? n : line ? (n >= 2 ? (n - 1) * 2 : 0) : (n >= 3 ? (n - 2) * 3 : 0);
     if (!out || nv > RB_VERTS || out > RB_INDICES) return;
-    if (g_rb.ni && (g_rb.topo != topo || g_rb.nv + (int)nv > RB_VERTS || g_rb.ni + (int)out > RB_INDICES || g_rb.nw >= RB_WORLDS))
+    if (g_rb.ni && (g_rb.morph || g_rb.topo != topo || g_rb.nv + (int)nv > RB_VERTS || g_rb.ni + (int)out > RB_INDICES || g_rb.nw >= RB_WORLDS))
         rd3_flush();
+    g_rb.morph = 0;
     float wm[16];   // _14 (0 in the game's matrices): a tinted caster's size for the shader (render_shadows.c)
     memcpy(wm, &d->world._11, 64);
     if (d->sh_role == SH_TINT) wm[3] = d->sh_b;
@@ -619,6 +643,25 @@ internal void rd3_append(rd_device *d, D3DPRIMITIVETYPE type, rd_vb *vb, DWORD s
     }
     #undef RB_AT
     g_rb.ni += (int)out;
+}
+// a blended draw into the batch (render_morph.c): its world matrix, its entry - the runs' places, the fraction, the
+// matrix's slot back from it - and its triangles' indices to the entry and the vertex in the run
+internal void rd3_append_morph(rd_device *d, const mo_run *a, const mo_run *b, float f, const WORD *idx, DWORD ni) {
+    if (g_rb.ni && (!g_rb.morph || g_rb.ni + (int)ni > RB_INDICES || g_rb.nw + 2 > RB_WORLDS)) rd3_flush();
+    float wm[16];
+    memcpy(wm, &d->world._11, 64);
+    if (d->sh_role == SH_TINT) wm[3] = d->sh_b;
+    if (!g_rb.nw || memcmp(g_rb.w[g_rb.nw - 1], wm, 64)) memcpy(g_rb.w[g_rb.nw++], wm, 64);
+    uint32_t w = (uint32_t)g_rb.nw - 1, s = (uint32_t)g_rb.nw++;
+    float *e = g_rb.w[s];
+    memset(e, 0, 64);
+    e[0] = (float)a->at; e[1] = (float)b->at; e[2] = f; e[3] = (float)(s - w);
+    g_rb.morph = 1;
+    g_rb.topo = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+    uint32_t *o = g_rb.i + g_rb.ni, top = 0x80000000u | s << 12;
+    for (DWORD k = 0; k < ni; k++) *o++ = top | (idx[k] & 0xFFF);
+    g_rb.ni += (int)ni;
+    g_mo.draws++;
 }
 
 #include "render_overlay.c"   // the debug overlay: the AI's plans on the map
@@ -977,6 +1020,16 @@ internal void rd_frame_tick(void) {
                (double)(g_rd_draw_qpc - g_rd_draw_qpc_told) * k, (double)(g_d3d_present_qpc - present0) * k,
                (double)(g_rwl_wait_qpc - wait0) * k,
                secs > 0 ? (double)(g_rwl_held_qpc - held0) * 1000.0 / (double)f.QuadPart / secs : 0, (long)fr);
+    static LONG mo_draws0, mo_up0, mo_copied0, why0[4];
+    log_locked("# render: the units' animation on the graphics card %s: %.0f draws a frame blended there, %.1f runs put into"
+               " its pool a frame (%u vertices in it, started over %ld times), %.1f copies a frame made on the CPU after all"
+               " (in the minute: not the GPU's %ld, not the draw's %ld, a card %ld, the probe %ld)\n",
+               !g_mo.on ? "off" : g_mo_smooth ? "on" : "NOT hooked", fr > 0 ? (double)(g_mo.draws - mo_draws0) / fr : 0,
+               fr > 0 ? (double)(g_mo.uploads - mo_up0) / fr : 0, g_mo.used, (long)g_mo.resets,
+               fr > 0 ? (double)(g_mo.copied - mo_copied0) / fr : 0, (long)(g_mo.why[0] - why0[0]),
+               (long)(g_mo.why[1] - why0[1]), (long)(g_mo.why[2] - why0[2]), (long)(g_mo.why[3] - why0[3]));
+    mo_draws0 = g_mo.draws; mo_up0 = g_mo.uploads; mo_copied0 = g_mo.copied;
+    memcpy(why0, g_mo.why, sizeof why0);
     log_locked("# render: the frame's list drawn %.2f times a frame, %.2f of them inside the scene (a texture, a read back,"
                " the 2D path), the ring full %ld times\n", fr > 0 ? (double)(g_rf.replays - replays0) / fr : 0,
                fr > 0 ? (double)(g_rf.forced - forced0) / fr : 0, (long)(g_rf.wraps - wraps0));
@@ -1186,13 +1239,22 @@ internal HRESULT __stdcall rd_dev_draw_indexed_vb(rd_device *d, D3DPRIMITIVETYPE
                                                   WORD *idx, DWORD ni, DWORD flags) {
     (void)flags;
     InterlockedIncrement(&g_rd_draws);
-    if (!nv || !ni || !idx || !rd_vb_fits(vb, start, nv) || !rd3_drawable(vb, type)) return D3D_OK;
+    if (!nv || !ni || !idx || !rd_vb_fits(vb, start, nv) || !rd3_drawable(vb, type)) { mo_copy_now(); return D3D_OK; }
     LONGLONG t0 = rd_qpc();
     RD_LOCK();
     rd3_overlay_before(d);
+    mo_run *ma = NULL, *mb = NULL;
+    float box[6];
+    int morph = mo_take(d, type, vb, start, nv, &ma, &mb, box);   // its vertices not in the buffer: the GPU blends them
+    float f = g_mo_note.f;
+    g_mo_box = morph ? box : NULL;
     rd3_probe(d, type, vb, start, nv, idx, ni);
     rd3_shadow_classify(d, vb, start, nv);
-    if (d->sh_role != SH_BLOB && rd3_prepare(d, rd3_flat_picture(d, vb, start, nv))) rd3_append(d, type, vb, start, nv, idx, ni);
+    g_mo_box = NULL;
+    if (morph && d->sh_card) { g_mo.why[2]++; mo_copy_now(); }   // a tree's card is made of its vertices (the tree the GPU's)
+    g_mo_note.dst = NULL;
+    if (morph) { if (d->sh_role != SH_BLOB && rd3_prepare(d, 0)) rd3_append_morph(d, ma, mb, f, idx, ni); }
+    else if (d->sh_role != SH_BLOB && rd3_prepare(d, rd3_flat_picture(d, vb, start, nv))) rd3_append(d, type, vb, start, nv, idx, ni);
     if (d->sh_card) rd3_shadow_card(d, type, vb, start, nv, idx, ni);
     g_rd_draw_qpc += rd_qpc() - t0;
     RD_UNLOCK();

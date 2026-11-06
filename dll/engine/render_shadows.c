@@ -106,9 +106,10 @@ internal const char k_sh_shader[] =
     "cbuffer s : register(b2) { row_major float4x4 shm; float4 sa; };\n"
     "Buffer<float4> wt : register(t1);\n"
     "struct I { float3 p : POSITION; float3 n : NORMAL; float4 c : COLOR; float2 t : TEXCOORD; uint w : WORLD; };\n"
+    RD3_MORPH_HLSL
     "Texture2D t : register(t0); SamplerState s : register(s0);\n"
     "struct O { float4 p : SV_Position; float2 t : TEXCOORD0; };\n"
-    "O vs(I i) { O o; uint r = i.w * 4; float4 r0 = wt.Load(r); r0.w = 0;"
+    "O vs(I i, uint id : SV_VertexID) { O o; morph(i, id); uint r = i.w * 4; float4 r0 = wt.Load(r); r0.w = 0;"
     " float4 p = mul(float4(i.p, 1), float4x4(r0, wt.Load(r + 1), wt.Load(r + 2), wt.Load(r + 3)));"
     " float3 q = mul(p, shm).xyz; o.p = float4(q.x * 2 - 1, 1 - q.y * 2, q.z, 1); o.t = i.t; return o; }\n"
     "void ps(O i) { if (sa.y <= 0) return; float w, h; t.GetDimensions(w, h); float2 u = i.t * float2(w, h);"
@@ -177,6 +178,7 @@ internal void rd3_rigid_inverse(float *r, const float *m) {
 // flat - it cast a shadow of a pile hanging in the air (the player, 2026-11-05: "since its basically a decal we should
 // consider disabling shadows for debris")
 internal int g_sh_decal;
+internal const float *g_mo_box;   // a blended draw's box, lo and hi (render_morph.c): its vertices aren't in the buffer
 internal int rd3_shadow_role(rd_device *d, rd_vb *vb, DWORD start, DWORD nv) {
     if (!g_sh.on || vb->fvf != 0x152 || !d->rs[D3DRENDERSTATE_ZENABLE] || !rd3_shadow_init()) return SH_NONE;
     if (g_ro_cur == RO_TERRAIN) {
@@ -207,7 +209,8 @@ internal int rd3_shadow_role(rd_device *d, rd_vb *vb, DWORD start, DWORD nv) {
     }
     if (g_ro_cur != RO_UNITS) return SH_NONE;
     float lo[3] = { 1e30f, 1e30f, 1e30f }, hi[3] = { -1e30f, -1e30f, -1e30f };
-    for (DWORD k = 0; k < nv; k++) {
+    if (g_mo_box) for (int a = 0; a < 3; a++) { lo[a] = g_mo_box[a]; hi[a] = g_mo_box[3 + a]; }
+    else for (DWORD k = 0; k < nv; k++) {
         const float *p = (const float *)(vb->mem + (size_t)(start + k) * vb->stride);
         for (int a = 0; a < 3; a++) { if (p[a] < lo[a]) lo[a] = p[a]; if (p[a] > hi[a]) hi[a] = p[a]; }
     }
@@ -586,6 +589,7 @@ internal void rd3_shadow_frame(void) {
     ID3D11DeviceContext_VSSetShader(x, g_sh.vs, NULL, 0);
     ID3D11DeviceContext_PSSetShader(x, g_sh.ps, NULL, 0);
     ID3D11DeviceContext_VSSetShaderResources(x, 1, 1, &g_rd3.wsrv);
+    ID3D11DeviceContext_VSSetShaderResources(x, 5, 1, &g_mo_srv);
     ID3D11DeviceContext_VSSetConstantBuffers(x, 2, 1, &g_sh.cb);
     ID3D11DeviceContext_PSSetConstantBuffers(x, 2, 1, &g_sh.cb);
     ID3D11DeviceContext_PSSetSamplers(x, 0, 1, &g_sh.samp);

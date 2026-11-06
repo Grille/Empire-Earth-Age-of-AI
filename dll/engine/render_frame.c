@@ -483,6 +483,7 @@ internal void rf_bind(ID3D11DeviceContext *x) {
     ID3D11DeviceContext_PSSetShader(x, g_rd3.ps, NULL, 0);
     ID3D11DeviceContext_VSSetConstantBuffers(x, 0, 1, &g_rd3.vcb);
     ID3D11DeviceContext_VSSetShaderResources(x, 1, 1, &g_rd3.wsrv);
+    ID3D11DeviceContext_VSSetShaderResources(x, 5, 1, &g_mo_srv);   // the animation's pool (render_morph.c)
     ID3D11DeviceContext_PSSetConstantBuffers(x, 1, 1, &g_rd3.pcb);
     UINT stride = sizeof(rb_vertex), off = 0;
     ID3D11DeviceContext_IASetVertexBuffers(x, 0, 1, &g_rd3.vb, &stride, &off);
