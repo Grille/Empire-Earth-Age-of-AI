@@ -663,6 +663,7 @@ internal void install(HMODULE self) {
     units_first_install();
     shiproute_install(g_autotest ? g_ini : NULL);
     drawlist_install();
+    draw_many_install();
     if (g_rd_on) shadow_reach_install();   // the own renderer's shadows: casters off the screen in the larger draw list
     sight_install();
     asg_queue_install();

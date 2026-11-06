@@ -23,6 +23,14 @@ internal inline uint8_t *dmg_model_anim_strike_at(const ee_dmg_model *o) { retur
 typedef int (__thiscall *dmg_model_acquire_fn)(ee_dmg_model *);
 internal dmg_model_acquire_fn fn_dmg_model_acquire;
 internal inline int dmg_model_acquire(ee_dmg_model *dmg_model) { return fn_dmg_model_acquire(dmg_model); }
+// its users (acquire counts them, under engine_display.graphics_lock; the first loads its models)
+internal inline int dmg_model_get_users(const ee_dmg_model *o) { return *(int *)((uint8_t *)o + of_dmg_model_users); }
+internal inline void dmg_model_set_users(ee_dmg_model *o, int v) { *(int *)((uint8_t *)o + of_dmg_model_users) = v; }
+internal inline int *dmg_model_users_at(const ee_dmg_model *o) { return (int *)((uint8_t *)o + of_dmg_model_users); }
+// its first user is loading its models (acquire: the others wait for it, Sleep(1))
+internal inline uint8_t dmg_model_get_loading(const ee_dmg_model *o) { return *(uint8_t *)((uint8_t *)o + of_dmg_model_loading); }
+internal inline void dmg_model_set_loading(ee_dmg_model *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_dmg_model_loading) = v; }
+internal inline uint8_t *dmg_model_loading_at(const ee_dmg_model *o) { return (uint8_t *)((uint8_t *)o + of_dmg_model_loading); }
 // the damage points of a state - the impact effects place theirs by it (EEE2DImpact::vf21 0x4DA7B2,
 // EEE2DLightGlow::vf12 0x4DB2DF; game.call_damage_points hooked by the mod's guard)
 typedef int (__thiscall *dmg_model_damage_points_fn)(ee_dmg_model *, int, uint32_t);
@@ -254,6 +262,8 @@ internal int spec_world_select(int build) {
         of_dmg_model_anim_first = 0x350;
         of_dmg_model_anim_strike = 0x3F8;
         fn_dmg_model_acquire = (dmg_model_acquire_fn)0x004D29BC;
+        of_dmg_model_users = 0x4A8;
+        of_dmg_model_loading = 0x4DE;
         fn_dmg_model_damage_points = (dmg_model_damage_points_fn)0x004D291F;
         of_game_data_line_ms = 0x2CC;
         of_game_data_unit_limit = 0x2E8;
@@ -312,6 +322,8 @@ internal int spec_world_select(int build) {
         of_dmg_model_anim_first = 0x360;
         of_dmg_model_anim_strike = 0x408;
         fn_dmg_model_acquire = (dmg_model_acquire_fn)0x004D85ED;
+        of_dmg_model_users = 0x4B8;
+        of_dmg_model_loading = 0x4EE;
         fn_dmg_model_damage_points = (dmg_model_damage_points_fn)0x004D84EC;
         of_game_data_line_ms = 0x2CC;
         of_game_data_unit_limit = 0x2E8;

@@ -194,6 +194,14 @@ static unsafe class hooks_functions
     [address((ee)0x00502622, (aoc)0x0050D3AD), thiscall]
     [call_site("draw_record_fill", (ee)0x00503FFD, (aoc)0x0050EF38)]
     static extern void draw_record_fill(void* collection, EEUnit* u, float32* record, void* p3, void* p4);
+
+    /// thiscall(the click's list - the units' collection's list of what it drew, at 0x9125D8: 0x50-byte entries from
+    /// +0x2A0, their count +0x2A8, the object +0x4C -, object): whether the object has an entry already. The collection
+    /// asks it for every object it is about to draw (one on several tiles is met again): a linear search, on the
+    /// 8000-unit save 1000 a frame over 1175 entries
+    [address((ee)0x0050E57F, (aoc)0x00518E74), thiscall]
+    [call_site("pick_listed", (ee)0x00503F92, (aoc)0x0050EECD)]
+    static extern uint8 pick_listed(void* list, EEUnit* u);
 }
 
 /// TCP Protocol.dll's code (each build ships its own): its places relative to the DLL's base

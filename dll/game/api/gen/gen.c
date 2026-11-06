@@ -217,6 +217,8 @@ typedef struct ee_model ee_model;
 typedef struct ee_box ee_box;
 typedef struct ee_material ee_material;
 typedef struct ee_vertex ee_vertex;
+typedef struct ee_pick_list ee_pick_list;
+typedef struct ee_pick_entry ee_pick_entry;
 typedef struct ee_cheat_codes ee_cheat_codes;
 typedef struct ee_world ee_world;
 typedef struct ee_world_table ee_world_table;

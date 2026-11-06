@@ -85,6 +85,14 @@ typedef void (__thiscall *draw_record_fill_fn)(void *, ee_unit *, float *, void 
 internal draw_record_fill_fn fn_draw_record_fill;
 internal inline void draw_record_fill(void *collection, ee_unit *u, float *record, void *p3, void *p4) { fn_draw_record_fill(collection, u, record, p3, p4); }
 internal inline int patch_draw_record_fill(draw_record_fill_fn h) { return patch_call(call_draw_record_fill, (uintptr_t)fn_draw_record_fill, (void *)h); }
+// thiscall(the click's list - the units' collection's list of what it drew, at 0x9125D8: 0x50-byte entries from
+// +0x2A0, their count +0x2A8, the object +0x4C -, object): whether the object has an entry already. The collection
+// asks it for every object it is about to draw (one on several tiles is met again): a linear search, on the
+// 8000-unit save 1000 a frame over 1175 entries
+typedef uint8_t (__thiscall *pick_listed_fn)(void *, ee_unit *);
+internal pick_listed_fn fn_pick_listed;
+internal inline uint8_t pick_listed(void *list, ee_unit *u) { return fn_pick_listed(list, u); }
+internal inline int patch_pick_listed(pick_listed_fn h) { return patch_call(call_pick_listed, (uintptr_t)fn_pick_listed, (void *)h); }
 
 // static class tcp_protocol
 // TCP Protocol.dll's code (each build ships its own): its places relative to the DLL's base
@@ -165,6 +173,8 @@ internal int spec_hooks_select(int build) {
         calls_other_resolution[6] = 0x00661363;
         fn_draw_record_fill = (draw_record_fill_fn)0x00502622;
         call_draw_record_fill = 0x00503FFD;
+        fn_pick_listed = (pick_listed_fn)0x0050E57F;
+        call_pick_listed = 0x00503F92;
         data_tcp_protocol_connect_ports[0] = 0x000017E2;
         data_tcp_protocol_connect_ports[1] = 0x0000196F;
         data_tcp_protocol_connect_ports[2] = 0x000019EB;
@@ -243,6 +253,8 @@ internal int spec_hooks_select(int build) {
         calls_other_resolution[6] = 0x006789AD;
         fn_draw_record_fill = (draw_record_fill_fn)0x0050D3AD;
         call_draw_record_fill = 0x0050EF38;
+        fn_pick_listed = (pick_listed_fn)0x00518E74;
+        call_pick_listed = 0x0050EECD;
         data_tcp_protocol_connect_ports[0] = 0x00001684;
         data_tcp_protocol_connect_ports[1] = 0x0000185C;
         data_tcp_protocol_connect_ports[2] = 0x000018D8;
@@ -318,5 +330,7 @@ internal int spec_hooks_check(void) {
     bad += spec_call(calls_other_resolution[6], (uintptr_t)fn_set_resolution, "hooks_functions.set_resolution [call_site other_resolution 6]");
     bad += spec_code((uintptr_t)fn_draw_record_fill, "hooks_functions.draw_record_fill");
     bad += spec_call(call_draw_record_fill, (uintptr_t)fn_draw_record_fill, "hooks_functions.draw_record_fill [call_site draw_record_fill]");
+    bad += spec_code((uintptr_t)fn_pick_listed, "hooks_functions.pick_listed");
+    bad += spec_call(call_pick_listed, (uintptr_t)fn_pick_listed, "hooks_functions.pick_listed [call_site pick_listed]");
     return bad;
 }

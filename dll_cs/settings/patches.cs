@@ -75,4 +75,10 @@ class patches
     /// player needs the same setting. 0 = the original
     [title("Objects on slopes")]
     bool building_lean = true;
+    /// Drawing many units: for every object it drew, the game searched the whole list of what it had drawn so far
+    /// (one on several tiles is met again), and for every unit drawn it made and freed sixteen empty lists while
+    /// counting another user of the unit's pictures - with thousands of units on the screen a good share of every
+    /// frame. 1 = the list looked up, the user counted directly; 0 = the original
+    [title("Drawing many units")]
+    bool draw_many_units = true;
 }

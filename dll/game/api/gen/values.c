@@ -614,6 +614,10 @@ internal uint32_t of_polygons_count;
 internal uint32_t of_vertices_data;
 internal uint32_t of_vertices_count;
 internal uint32_t slot_vertices_get_type;
+internal uint32_t of_pick_list_entries;
+internal uint32_t of_pick_list_count;
+internal uint32_t size_ee_pick_entry;
+internal uint32_t of_pick_entry_unit;
 internal uint32_t size_d3_dvertex;
 internal uint32_t of_vertex_point;
 internal uint32_t of_vertex_normal;
@@ -665,6 +669,8 @@ internal uint32_t data_engine_display_ro_shadows;
 internal uint32_t data_engine_display_ro_units;
 internal uint32_t data_engine_display_ro_water;
 internal uint32_t data_engine_display_ro_ui;
+internal uint32_t data_engine_display_pick_list;
+internal uint32_t data_engine_display_graphics_lock;
 
 // engine_sound.cs
 internal uint32_t of_se_mixer_spim;
@@ -882,6 +888,7 @@ internal uint32_t data_hooks_site_sim_receive;
 internal uint32_t data_hooks_site_sim_wait;
 internal uint32_t calls_other_resolution[7];
 internal uint32_t call_draw_record_fill;
+internal uint32_t call_pick_listed;
 internal uint32_t data_tcp_protocol_connect_ports[3];
 internal uint32_t data_tcp_protocol_ports[5];
 
@@ -3105,6 +3112,8 @@ internal uint32_t of_dmg_model_map;
 internal uint32_t of_dmg_model_anim_model;
 internal uint32_t of_dmg_model_anim_first;
 internal uint32_t of_dmg_model_anim_strike;
+internal uint32_t of_dmg_model_users;
+internal uint32_t of_dmg_model_loading;
 internal uint32_t of_game_data_line_ms;
 internal uint32_t of_game_data_unit_limit;
 internal uint32_t of_game_data_unit_limit_max;

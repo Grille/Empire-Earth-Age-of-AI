@@ -417,6 +417,23 @@ internal inline uint32_t *vertices_count_at(const ee_vertices *o) { return (uint
 typedef uint32_t (__thiscall *vertices_get_type_fn)(ee_vertices *);
 internal inline uint32_t vertices_get_type(ee_vertices *vertices) { return ((vertices_get_type_fn)(*(void ***)vertices)[slot_vertices_get_type])(vertices); }
 
+// class EEPickList (ee_pick_list)
+// the units' collection's (EEROUnits::vf0) list of what it drew this frame, at engine_display.pick_list: an entry
+// per object - its model, a transformation, the object (it takes a reference to it, 0x50F6E2) - the mouse's to pick
+// from [guess]: the entries hold what a pick test needs and nothing reads them in the drawing; hooks_functions.pick_listed
+// searches it
+internal inline ee_pick_entry *pick_list_get_entries(const ee_pick_list *o) { return *(ee_pick_entry **)((uint8_t *)o + of_pick_list_entries); }
+internal inline void pick_list_set_entries(ee_pick_list *o, ee_pick_entry *v) { *(ee_pick_entry **)((uint8_t *)o + of_pick_list_entries) = v; }
+internal inline ee_pick_entry **pick_list_entries_at(const ee_pick_list *o) { return (ee_pick_entry **)((uint8_t *)o + of_pick_list_entries); }
+internal inline uint32_t pick_list_get_count(const ee_pick_list *o) { return *(uint32_t *)((uint8_t *)o + of_pick_list_count); }
+internal inline void pick_list_set_count(ee_pick_list *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_pick_list_count) = v; }
+internal inline uint32_t *pick_list_count_at(const ee_pick_list *o) { return (uint32_t *)((uint8_t *)o + of_pick_list_count); }
+
+// class EEPickEntry (ee_pick_entry)
+internal inline ee_unit *pick_entry_get_unit(const ee_pick_entry *o) { return *(ee_unit **)((uint8_t *)o + of_pick_entry_unit); }
+internal inline void pick_entry_set_unit(ee_pick_entry *o, ee_unit *v) { *(ee_unit **)((uint8_t *)o + of_pick_entry_unit) = v; }
+internal inline ee_unit **pick_entry_unit_at(const ee_pick_entry *o) { return (ee_unit **)((uint8_t *)o + of_pick_entry_unit); }
+
 // class D3DVERTEX (ee_vertex)
 // a vertex of DX7StandardVertexArray (Direct3D 7's D3DVERTEX: CopyStdVertices)
 internal inline vec3 vertex_get_point(const ee_vertex *o) { return *(vec3 *)((uint8_t *)o + of_vertex_point); }
@@ -533,6 +550,10 @@ internal inline uint8_t *engine_display_ro_shadows_at(void) { return (uint8_t *)
 internal inline uint8_t *engine_display_ro_units_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_ro_units; }
 internal inline uint8_t *engine_display_ro_water_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_ro_water; }
 internal inline uint8_t *engine_display_ro_ui_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_ro_ui; }
+// the units' collection's list of what it drew (EEPickList; its address the collection passes, 0x503F8D)
+internal inline uint8_t *engine_display_pick_list_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_pick_list; }
+// the engine's lock over the graphic objects' users (a TSCriticalSection*): EEGraphicObject.acquire takes it
+internal inline uint8_t *engine_display_graphics_lock_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_graphics_lock; }
 
 // the running build's values (spec_select, with addr_select): how many it hasn't got
 internal int spec_engine_display_select(int build) {
@@ -651,6 +672,10 @@ internal int spec_engine_display_select(int build) {
         of_vertices_data = 0x4;
         of_vertices_count = 0x8;
         slot_vertices_get_type = 8;
+        of_pick_list_entries = 0x2A0;
+        of_pick_list_count = 0x2A8;
+        size_ee_pick_entry = 0x50;
+        of_pick_entry_unit = 0x4C;
         size_d3_dvertex = 0x20;
         of_vertex_point = 0x0;
         of_vertex_normal = 0xC;
@@ -706,6 +731,8 @@ internal int spec_engine_display_select(int build) {
         data_engine_display_ro_units = 0x0094330C;
         data_engine_display_ro_water = 0x00943308;
         data_engine_display_ro_ui = 0x00943304;
+        data_engine_display_pick_list = 0x009125D8;
+        data_engine_display_graphics_lock = 0x008D1D50;
         return 0;
     case 1:   // aoc
         of_draw_state_device = 0x1C;
@@ -821,6 +848,10 @@ internal int spec_engine_display_select(int build) {
         of_vertices_data = 0x4;
         of_vertices_count = 0x8;
         slot_vertices_get_type = 8;
+        of_pick_list_entries = 0x2A0;
+        of_pick_list_count = 0x2A8;
+        size_ee_pick_entry = 0x50;
+        of_pick_entry_unit = 0x4C;
         size_d3_dvertex = 0x20;
         of_vertex_point = 0x0;
         of_vertex_normal = 0xC;
@@ -876,6 +907,8 @@ internal int spec_engine_display_select(int build) {
         data_engine_display_ro_units = 0x00965354;
         data_engine_display_ro_water = 0x00965350;
         data_engine_display_ro_ui = 0x0096534C;
+        data_engine_display_pick_list = 0x00928D78;
+        data_engine_display_graphics_lock = 0x008E8430;
         return 0;
     }
     return 0;
@@ -947,5 +980,7 @@ internal int spec_engine_display_check(void) {
     bad += spec_data(data_engine_display_ro_units, "engine_display.ro_units");
     bad += spec_data(data_engine_display_ro_water, "engine_display.ro_water");
     bad += spec_data(data_engine_display_ro_ui, "engine_display.ro_ui");
+    bad += spec_data(data_engine_display_pick_list, "engine_display.pick_list");
+    bad += spec_data(data_engine_display_graphics_lock, "engine_display.graphics_lock");
     return bad;
 }

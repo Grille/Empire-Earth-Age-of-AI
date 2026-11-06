@@ -38,6 +38,73 @@ internal void drawlist_install(void) {
 // the draw list is the larger one (render_shadows.c: the casters off the screen collected only then)
 internal int draw_list_moved(void) { return g_draw_recs != NULL; }
 
+// DRAWING MANY UNITS ([patches] draw_many_units). Two costs of the collection's that grow with what is on the screen
+// (the 8000-unit save: 1000 objects drawn a frame, the drawing thread a third in the collection, 2026-11-06):
+// - before it draws an object it asks whether its list of what it drew has it already (hooks_functions.pick_listed: an
+//   object on several tiles is met again) - a search through the whole list, 1175 entries on average: the list is
+//   mirrored in a hash set instead, made anew when the list starts over (fewer entries or another array) and topped
+//   up with the entries added since;
+// - each object drawn takes a user of its type's pictures (EEGraphicObject.acquire), and acquire makes and frees 16
+//   empty maps whatever it does with them - 32 allocations a call, used only by the first user, who loads the models:
+//   a user more of loaded models is counted directly, under the engine's lock as acquire does.
+#define PL_SLOTS (1 << 16)   // the set's room: two thirds full at most, else the game's search
+internal ee_unit *g_pl_set[PL_SLOTS];
+internal const ee_pick_entry *g_pl_entries;   // the list's array the set holds
+internal uint32_t g_pl_n;                     // its entries in it
+internal ee_unit *g_pl_ends[2];               // the first and the last of them: the list filled anew to as many
+internal uint8_t __thiscall hook_pick_listed(void *p, ee_unit *u) {
+    ee_pick_list *l = p;
+    uint32_t n = pick_list_get_count(l);
+    if (n > PL_SLOTS * 2 / 3) return pick_listed(p, u);
+    if (n && (pick_list_get_entries(l) != g_pl_entries || (g_pl_n && n >= g_pl_n &&
+        (pick_entry_get_unit(pick_list_entry(l, 0)) != g_pl_ends[0] ||
+         pick_entry_get_unit(pick_list_entry(l, g_pl_n - 1)) != g_pl_ends[1]))))
+        g_pl_n = n + 1;   // another array, other entries: all anew
+    if (n < g_pl_n) {
+        memset(g_pl_set, 0, sizeof g_pl_set);
+        g_pl_n = 0;
+        g_pl_entries = n ? pick_list_get_entries(l) : NULL;
+    }
+    for (; g_pl_n < n; g_pl_n++) {
+        ee_unit *e = pick_entry_get_unit(pick_list_entry(l, g_pl_n));
+        uint32_t h = (uint32_t)((uintptr_t)e >> 3) * 2654435761u >> 16;
+        while (g_pl_set[h] && g_pl_set[h] != e) h = (h + 1) & (PL_SLOTS - 1);
+        g_pl_set[h] = e;
+        if (!g_pl_n) g_pl_ends[0] = e;
+        g_pl_ends[1] = e;
+    }
+    uint32_t h = (uint32_t)((uintptr_t)u >> 3) * 2654435761u >> 16;
+    for (; g_pl_set[h]; h = (h + 1) & (PL_SLOTS - 1))
+        if (g_pl_set[h] == u) return 1;
+    return 0;
+}
+typedef void (__thiscall *ts_lock_fn)(void *cs);
+internal ts_lock_fn g_ts_enter, g_ts_leave;
+internal dmg_model_acquire_fn g_acquire;   // the game's
+internal int __thiscall hook_acquire(ee_dmg_model *g) {
+    void *cs = graphics_lock();
+    if (cs) {
+        g_ts_enter(cs);
+        int users = dmg_model_get_users(g);
+        if (users && !dmg_model_get_loading(g)) {
+            dmg_model_set_users(g, users + 1);
+            g_ts_leave(cs);
+            return 0;
+        }
+        g_ts_leave(cs);
+    }
+    return g_acquire(g);
+}
+internal void draw_many_install(void) {
+    if (!g_set.draw_many_units) { if (g_log) fprintf(g_log, "# draw many units: off\n"); return; }
+    HMODULE lle = GetModuleHandleA("Low-Level Engine.dll");
+    g_ts_enter = lle ? (ts_lock_fn)(void *)GetProcAddress(lle, "?Enter@TSCriticalSection@@QAEXXZ") : NULL;
+    g_ts_leave = lle ? (ts_lock_fn)(void *)GetProcAddress(lle, "?Leave@TSCriticalSection@@QAEXXZ") : NULL;
+    int a = patch_pick_listed(hook_pick_listed), b = g_ts_enter && g_ts_leave && patch_acquire(hook_acquire, &g_acquire);
+    if (g_log) fprintf(g_log, "# draw many units: the list's search %s, acquire %s\n", a ? "hooked" : "NOT hooked (exe differs)",
+                       b ? "hooked" : "NOT hooked (exe differs)");
+}
+
 // drawcount: objects collected for the last frame (units etc. / small objects). Tests.
 internal void cmd_drawcount(char *out, const char *args) {
     (void)args;

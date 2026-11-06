@@ -499,6 +499,27 @@ unsafe struct DX7StandardVertexArray
     extern uint32 get_type();
 }
 
+/// the units' collection's (EEROUnits::vf0) list of what it drew this frame, at engine_display.pick_list: an entry
+/// per object - its model, a transformation, the object (it takes a reference to it, 0x50F6E2) - the mouse's to pick
+/// from [guess]: the entries hold what a pick test needs and nothing reads them in the drawing; hooks_functions.pick_listed
+/// searches it
+[c_type("ee_pick_list")]
+unsafe struct EEPickList
+{
+    [offset(0x2A0), found(c)]
+    EEPickEntry* entries;
+
+    [offset(0x2A8), found(c)]
+    uint32 count;
+}
+
+[c_type("ee_pick_entry"), size(0x50)]
+unsafe struct EEPickEntry
+{
+    [offset(0x4C), found(c)]
+    EEUnit* unit;
+}
+
 /// a vertex of DX7StandardVertexArray (Direct3D 7's D3DVERTEX: CopyStdVertices)
 [c_type("ee_vertex"), size(0x20)]
 unsafe struct D3DVERTEX
@@ -730,4 +751,12 @@ static unsafe class engine_display
 
     [address((ee)0x00943304, (aoc)0x0096534C)]
     static block ro_ui;
+
+    /// the units' collection's list of what it drew (EEPickList; its address the collection passes, 0x503F8D)
+    [address((ee)0x009125D8, (aoc)0x00928D78)]
+    static block pick_list;
+
+    /// the engine's lock over the graphic objects' users (a TSCriticalSection*): EEGraphicObject.acquire takes it
+    [address((ee)0x008D1D50, (aoc)0x008E8430)]
+    static block graphics_lock;
 }

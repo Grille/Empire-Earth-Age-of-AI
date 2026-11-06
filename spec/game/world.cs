@@ -30,6 +30,14 @@ unsafe struct EEGraphicObject
     [address((ee)0x004D29BC, (aoc)0x004D85ED)]
     extern int32 acquire();
 
+    /// its users (acquire counts them, under engine_display.graphics_lock; the first loads its models)
+    [offset((ee)0x4A8, (aoc)0x4B8), found(c)]
+    int32 users;
+
+    /// its first user is loading its models (acquire: the others wait for it, Sleep(1))
+    [offset((ee)0x4DE, (aoc)0x4EE), found(c)]
+    uint8 loading;
+
     /// the damage points of a state - the impact effects place theirs by it (EEE2DImpact::vf21 0x4DA7B2,
     /// EEE2DLightGlow::vf12 0x4DB2DF; game.call_damage_points hooked by the mod's guard)
     [address((ee)0x004D291F, (aoc)0x004D84EC)]

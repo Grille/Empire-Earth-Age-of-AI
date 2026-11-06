@@ -132,3 +132,16 @@ internal inline int tnl_vb_sysmem(uintptr_t base) {
     uintptr_t at = base + value_engine_display_rva_tnl_vb_caps;
     return *(uint32_t *)at == 0x10800 ? 2 : patch_code32(at, 0x10000, 0x10800);
 }
+// the units' collection's list of what it drew: its i-th entry; the graphic objects' users' lock (a TSCriticalSection)
+internal inline ee_pick_entry *pick_list_entry(ee_pick_list *l, uint32_t i) {
+    return (ee_pick_entry *)((uint8_t *)pick_list_get_entries(l) + (size_t)i * size_ee_pick_entry);
+}
+internal inline void *graphics_lock(void) { return *(void **)engine_display_graphics_lock_at(); }
+// EEGraphicObject.acquire's start -> h, *orig the game's (push ebp; mov ebp, esp; sub esp, 0x1B0 in both builds)
+internal inline int patch_acquire(dmg_model_acquire_fn h, dmg_model_acquire_fn *orig) {
+    static const uint8_t pro[9] = { 0x55, 0x8B, 0xEC, 0x81, 0xEC, 0xB0, 0x01, 0x00, 0x00 };
+    void *o = NULL;
+    if (!patch_entry((uintptr_t)fn_dmg_model_acquire, pro, 9, (void *)h, &o)) return 0;
+    *orig = (dmg_model_acquire_fn)o;
+    return 1;
+}
