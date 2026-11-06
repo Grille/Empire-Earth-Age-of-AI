@@ -272,8 +272,14 @@ internal ID3D11ShaderResourceView *rd_gpu_texture(rd_surface *s, int keyed) {
     return t->srv;
 }
 
+// the reads of a texture back from the GPU (a lock of the render target, rd_read_back) and the time in them - a read waits
+// for the GPU to finish what it was given: the minute's line (render_3d.c)
+internal LONG g_rd_reads;
+internal LONGLONG g_rd_read_qpc;
 // the render target's pixels in r into its memory (a staging copy of that rect)
 internal int rd_read_target(rd_surface *s, const RECT *r) {
+    LARGE_INTEGER t0, t1;
+    QueryPerformanceCounter(&t0);
     rd3_submit();
     uint8_t *m = rd_mem(s);
     if (!m || !s->tex) return 0;
@@ -295,12 +301,17 @@ internal int rd_read_target(rd_surface *s, const RECT *r) {
         ID3D11DeviceContext_Unmap(g_d3d.ctx, (ID3D11Resource *)st, 0);
     }
     st->lpVtbl->Release(st);
+    QueryPerformanceCounter(&t1);
+    g_rd_reads++;
+    g_rd_read_qpc += t1.QuadPart - t0.QuadPart;
     return ok;
 }
 // a surface whose texture is newer than its memory (gpu_newer): the texture read into the memory, when the CPU wants
 // its pixels (rd_mem)
 internal void rd_read_back(rd_surface *s) {
     s->gpu_newer = 0;
+    LARGE_INTEGER t0, t1;
+    QueryPerformanceCounter(&t0);
     rd3_submit();
     D3D11_TEXTURE2D_DESC td = { 0 };
     td.Width = s->desc.dwWidth; td.Height = s->desc.dwHeight; td.MipLevels = 1; td.ArraySize = 1;
@@ -317,6 +328,9 @@ internal void rd_read_back(rd_surface *s) {
         ID3D11DeviceContext_Unmap(g_d3d.ctx, (ID3D11Resource *)st, 0);
     }
     st->lpVtbl->Release(st);
+    QueryPerformanceCounter(&t1);
+    g_rd_reads++;
+    g_rd_read_qpc += t1.QuadPart - t0.QuadPart;
 }
 // its memory in r back to the GPU (after a lock that wrote)
 internal void rd_write_target(rd_surface *s, const RECT *r) {
@@ -404,7 +418,76 @@ internal void rd2_depth_rect(rd_surface *dst, const RECT *r, float z) {
                      { 0, 0, 1, 1 }, { 0, 0, 0, 1 }, { 1, 0, z, 0 } };
     rd2_draw(dst, &c, NULL, 1);
 }
+internal void rd2_draw_with(rd_surface *dst, const rd2_consts *c, ID3D11ShaderResourceView *src, int depth,
+                            ID3D11PixelShader *ps, ID3D11BlendState *blend);
 internal void rd2_draw(rd_surface *dst, const rd2_consts *c, ID3D11ShaderResourceView *src, int depth) {
+    rd2_draw_with(dst, c, src, depth, g_rd2.ps, depth ? g_rd2.no_colour : g_rd2.opaque);
+}
+// TEXT ON THE TARGET (display_text.c): what a text phase of the game's drew with GDI, over black (b) and over white (w)
+// - rows of pitch bytes, BGRX, for the rectangle r - blended onto the target: GDI's text over a background x is
+// b + x * (w - b) for any colour, fill and smoothing that blends linearly (the second output of the pixel shader the
+// factor of the target's colour). Without it each phase read its rectangle of the target back before and after the
+// text (a lock of the target): each read waited for the graphics card to finish the frame so far - the frame's
+// time and the card's added up (the 8000-unit save: 8 reads a frame, 6-7 ms in them, 32-37 ms a frame against 20).
+internal struct { int ready, w, h; ID3D11PixelShader *ps; ID3D11BlendState *blend; ID3D11Texture2D *tex; ID3D11ShaderResourceView *srv; } g_rtl;
+internal const char k_rtl_shader[] =
+    "cbuffer c : register(b0) { float4 dst; float4 uv; float4 col; float4 mode; };\n"   // col: the rect's left, top, height
+    "Texture2D t : register(t0);\n"
+    "struct V { float4 p : SV_Position; float2 uv : TEXCOORD0; };\n"
+    "struct O { float4 c : SV_Target0; float4 k : SV_Target1; };\n"
+    "O ps(V i) { int2 q = int2(i.p.xy - col.xy); float3 b = t.Load(int3(q, 0)).rgb, w = t.Load(int3(q.x, q.y + (int)col.z, 0)).rgb;"
+    " O o; o.c = float4(b, 0); o.k = float4(saturate(w - b), 1); return o; }\n";
+internal int rd_text_target(const void *p) {   // a surface the text goes onto the GPU for: the own renderer's target
+    return rd_is_surface(p) && ((const rd_surface *)p)->kind == RK_TARGET && ((const rd_surface *)p)->rtv;
+}
+internal int rtl_init(void) {
+    if (g_rtl.ready) return g_rtl.ready > 0;
+    g_rtl.ready = -1;
+    ID3DBlob *code = d3d_compile(k_rtl_shader, sizeof k_rtl_shader - 1, "ps", "ps_4_0");
+    HRESULT hr = code ? ID3D11Device_CreatePixelShader(g_d3d.dev, ID3D10Blob_GetBufferPointer(code), ID3D10Blob_GetBufferSize(code), NULL, &g_rtl.ps) : E_FAIL;
+    D3D_RELEASE(code);
+    D3D11_BLEND_DESC bl = { 0 };
+    D3D11_RENDER_TARGET_BLEND_DESC *t = &bl.RenderTarget[0];
+    t->BlendEnable = TRUE;
+    t->SrcBlend = D3D11_BLEND_ONE; t->DestBlend = D3D11_BLEND_SRC1_COLOR; t->BlendOp = D3D11_BLEND_OP_ADD;
+    t->SrcBlendAlpha = D3D11_BLEND_ONE; t->DestBlendAlpha = D3D11_BLEND_SRC1_ALPHA; t->BlendOpAlpha = D3D11_BLEND_OP_ADD;
+    t->RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+    if (SUCCEEDED(hr)) hr = ID3D11Device_CreateBlendState(g_d3d.dev, &bl, &g_rtl.blend);
+    if (FAILED(hr)) return rd_fail("the text on the target", hr), 0;
+    g_rtl.ready = 1;
+    return 1;
+}
+internal int rd_text_layer(void *p, const RECT *r, const uint8_t *b, const uint8_t *w, int pitch) {
+    rd_surface *d = p;
+    int bw = r->right - r->left, bh = r->bottom - r->top;
+    if (bw <= 0 || bh <= 0) return 1;
+    RD_LOCK();
+    int ok = rd2_init() && rtl_init();
+    if (ok && (bw > g_rtl.w || bh * 2 > g_rtl.h)) {   // its texture: the two pictures one over the other
+        D3D_RELEASE(g_rtl.srv); D3D_RELEASE(g_rtl.tex);
+        int nw = bw > g_rtl.w ? bw : g_rtl.w, nh = bh * 2 > g_rtl.h ? bh * 2 : g_rtl.h;
+        D3D11_TEXTURE2D_DESC td = { (UINT)nw, (UINT)nh, 1, 1, DXGI_FORMAT_B8G8R8A8_UNORM, { 1, 0 }, D3D11_USAGE_DEFAULT,
+                                    D3D11_BIND_SHADER_RESOURCE, 0, 0 };
+        ok = SUCCEEDED(ID3D11Device_CreateTexture2D(g_d3d.dev, &td, NULL, &g_rtl.tex)) &&
+             SUCCEEDED(ID3D11Device_CreateShaderResourceView(g_d3d.dev, (ID3D11Resource *)g_rtl.tex, NULL, &g_rtl.srv));
+        g_rtl.w = ok ? nw : 0; g_rtl.h = ok ? nh : 0;
+    }
+    if (ok) {
+        rd3_submit();
+        D3D11_BOX bx = { 0, 0, 0, (UINT)bw, (UINT)bh, 1 };
+        ID3D11DeviceContext_UpdateSubresource(g_d3d.ctx, (ID3D11Resource *)g_rtl.tex, 0, &bx, b, (UINT)pitch, 0);
+        bx.top = (UINT)bh; bx.bottom = (UINT)bh * 2;
+        ID3D11DeviceContext_UpdateSubresource(g_d3d.ctx, (ID3D11Resource *)g_rtl.tex, 0, &bx, w, (UINT)pitch, 0);
+        float W = (float)d->desc.dwWidth, H = (float)d->desc.dwHeight;
+        rd2_consts c = { { r->left / W * 2 - 1, 1 - r->top / H * 2, r->right / W * 2 - 1, 1 - r->bottom / H * 2 },
+                         { 0, 0, 1, 1 }, { (float)r->left, (float)r->top, (float)bh, 0 }, { 0, 0, 0, 0 } };
+        rd2_draw_with(d, &c, g_rtl.srv, 0, g_rtl.ps, g_rtl.blend);
+    }
+    RD_UNLOCK();
+    return ok;
+}
+internal void rd2_draw_with(rd_surface *dst, const rd2_consts *c, ID3D11ShaderResourceView *src, int depth,
+                            ID3D11PixelShader *ps, ID3D11BlendState *blend) {
     float W = (float)dst->desc.dwWidth, H = (float)dst->desc.dwHeight;
     ID3D11DeviceContext *x = g_d3d.ctx;
     rd3_submit();
@@ -412,7 +495,7 @@ internal void rd2_draw(rd_surface *dst, const rd2_consts *c, ID3D11ShaderResourc
     D3D11_VIEWPORT vp = { 0, 0, W, H, 0, 1 };
     D3D11_RECT sc = { 0, 0, (LONG)W, (LONG)H };
     ID3D11DeviceContext_OMSetRenderTargets(x, 1, &dst->rtv, depth ? dst->zbuf->dsv : NULL);
-    ID3D11DeviceContext_OMSetBlendState(x, depth ? g_rd2.no_colour : g_rd2.opaque, NULL, 0xFFFFFFFF);
+    ID3D11DeviceContext_OMSetBlendState(x, blend, NULL, 0xFFFFFFFF);
     ID3D11DeviceContext_OMSetDepthStencilState(x, depth ? g_rd2.depth_set : g_rd2.no_depth, 0);
     ID3D11DeviceContext_RSSetState(x, g_rd2.raster);
     ID3D11DeviceContext_RSSetViewports(x, 1, &vp);
@@ -421,7 +504,7 @@ internal void rd2_draw(rd_surface *dst, const rd2_consts *c, ID3D11ShaderResourc
     ID3D11DeviceContext_IASetPrimitiveTopology(x, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
     ID3D11DeviceContext_VSSetShader(x, g_rd2.vs, NULL, 0);
     ID3D11DeviceContext_VSSetConstantBuffers(x, 0, 1, &g_rd2.cb);
-    ID3D11DeviceContext_PSSetShader(x, g_rd2.ps, NULL, 0);
+    ID3D11DeviceContext_PSSetShader(x, ps, NULL, 0);
     ID3D11DeviceContext_PSSetConstantBuffers(x, 0, 1, &g_rd2.cb);
     ID3D11DeviceContext_PSSetShaderResources(x, 0, 1, &src);
     ID3D11DeviceContext_PSSetSamplers(x, 0, 1, &g_d3d.point);

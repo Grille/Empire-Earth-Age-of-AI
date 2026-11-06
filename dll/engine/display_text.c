@@ -230,8 +230,20 @@ internal int g_text_dc = 1;
 // ago - they were kept for the session, and from the seventh size on all text went the leaking way. Surfaces up to
 // 8192x8192 (the tile map's size only: 64 KB, its loops go as far as the surface; it was 2560x1600, and 4K or
 // ultrawide windows got the game's own GDI text and its leak).
-internal struct { int w, h, bpp; DWORD masks[3]; HDC dc; HBITMAP bmp; void *bits; int pitch; unsigned used; } g_tdc[6];
-internal struct { void *surf; int slot; DDSURFACEDESC2 d; } g_tdc_active[8];
+internal struct {
+    int w, h, bpp; DWORD masks[3]; HDC dc; HBITMAP bmp; void *bits; int pitch; unsigned used;
+    HDC wdc; HBITMAP wbmp; void *wbits;   // the same over white (text on the own renderer's target, below)
+} g_tdc[6];
+internal struct { void *surf; int slot; DDSURFACEDESC2 d; int layer; } g_tdc_active[8];
+// TEXT ON THE OWN RENDERER'S TARGET (picture text on | off, the pipe; on by default): no lock of the target at all -
+// a lock reads its rectangle back from the graphics card, waiting for the frame so far; at 8 a frame (four text phases
+// of the interface's, each loading and storing its tiles) the 8000-unit save's frame took 32-37 ms against 20, in
+// games where the interface redrew text every frame. Each tile the text touches starts black in the DIB and white in
+// a second one, each text output is drawn on both, and at the phase's end the two go to the renderer, which blends
+// them onto the target (render.c rd_text_layer). 32-bit targets (BGRX) only; else the tiles as above.
+internal int g_text_layer = 1;
+internal int rd_text_target(const void *p);   // render.c
+internal int rd_text_layer(void *p, const RECT *r, const uint8_t *b, const uint8_t *w, int pitch);
 enum { TDC_TILE = 32, TDC_MAX = 8192, TDC_TW = TDC_MAX / TDC_TILE + 2, TDC_TH = TDC_MAX / TDC_TILE + 2 };
 internal uint8_t g_tdc_tiles[TDC_TH][TDC_TW];   // loaded in this text phase (one phase at a time)
 internal unsigned g_tdc_clock;
@@ -267,6 +279,7 @@ internal int text_dc_slot(const DDSURFACEDESC2 *d) {
                               g_tdc[free_].h, g_tdc[free_].bpp);
         DeleteDC(g_tdc[free_].dc);   // the DIB was selected into it: deleted after the DC
         DeleteObject(g_tdc[free_].bmp);
+        if (g_tdc[free_].wdc) { DeleteDC(g_tdc[free_].wdc); DeleteObject(g_tdc[free_].wbmp); }
         memset(&g_tdc[free_], 0, sizeof g_tdc[free_]);
     }
     struct { BITMAPINFOHEADER h; DWORD masks[3]; } bi = {
@@ -336,7 +349,32 @@ internal void tdc_copy_tiles(int a, int to_surface) {
         }
     tdc_unlock(a, &r);
 }
-// load the tiles of rectangle x0,y0-x1,y1 (exclusive) from the surface into the DIB, once a phase
+// the white DIB beside a 32-bit slot's, made the first time (text on the target)
+internal int tdc_white(int slot) {
+    if (g_tdc[slot].wdc) return 1;
+    struct { BITMAPINFOHEADER h; DWORD masks[3]; } bi = {
+        { sizeof bi.h, g_tdc[slot].w, -g_tdc[slot].h, 1, 32, BI_BITFIELDS, 0, 0, 0, 0, 0 },
+        { g_tdc[slot].masks[0], g_tdc[slot].masks[1], g_tdc[slot].masks[2] },
+    };
+    void *bits = NULL;
+    HDC dc = CreateCompatibleDC(NULL);
+    HBITMAP bmp = dc ? CreateDIBSection(dc, (BITMAPINFO *)&bi, DIB_RGB_COLORS, &bits, NULL, 0) : NULL;
+    if (!bmp) { if (dc) DeleteDC(dc); return 0; }
+    SelectObject(dc, bmp);
+    g_tdc[slot].wdc = dc; g_tdc[slot].wbmp = bmp; g_tdc[slot].wbits = bits;
+    return 1;
+}
+// a tile of the phase's black in the DIB and white in the other (nothing drawn on it yet: the target shows through)
+internal void tdc_tile_clear(int slot, int tx, int ty) {
+    int w = g_tdc[slot].w, h = g_tdc[slot].h, x0 = tx * TDC_TILE, n = (x0 + TDC_TILE > w ? w - x0 : TDC_TILE) * 4;
+    for (int y = ty * TDC_TILE; y < ty * TDC_TILE + TDC_TILE && y < h; y++) {
+        size_t at = (size_t)y * (size_t)g_tdc[slot].pitch + (size_t)x0 * 4;
+        memset((uint8_t *)g_tdc[slot].bits + at, 0, (size_t)n);
+        memset((uint8_t *)g_tdc[slot].wbits + at, 0xFF, (size_t)n);
+    }
+}
+// load the tiles of rectangle x0,y0-x1,y1 (exclusive) from the surface into the DIB, once a phase (on the target:
+// black and white instead)
 internal void tdc_load(int a, int x0, int y0, int x1, int y1) {
     int slot = g_tdc_active[a].slot, w = g_tdc[slot].w, h = g_tdc[slot].h, any = 0;
     if (x0 < 0) x0 = 0;
@@ -345,12 +383,62 @@ internal void tdc_load(int a, int x0, int y0, int x1, int y1) {
     if (y1 > h) y1 = h;
     for (int ty = y0 / TDC_TILE; ty * TDC_TILE < y1 && ty < TDC_TH; ty++)
         for (int tx = x0 / TDC_TILE; tx * TDC_TILE < x1 && tx < TDC_TW; tx++)
-            if (!g_tdc_tiles[ty][tx]) { g_tdc_tiles[ty][tx] = 2; any = 1; }
+            if (!g_tdc_tiles[ty][tx]) {
+                if (g_tdc_active[a].layer) { tdc_tile_clear(slot, tx, ty); g_tdc_tiles[ty][tx] = 1; g_tdc_any = 1; }
+                else { g_tdc_tiles[ty][tx] = 2; any = 1; }
+            }
     if (any) { g_tdc_any = 1; tdc_copy_tiles(a, 0); }
 }
+// the phase's tiles onto the target: the box around them (its other tiles cleared - nothing drawn there) to the renderer
+internal void tdc_layer_store(int a) {
+    int slot = g_tdc_active[a].slot, tw = (g_tdc[slot].w + TDC_TILE - 1) / TDC_TILE, th = (g_tdc[slot].h + TDC_TILE - 1) / TDC_TILE;
+    int tx0 = TDC_TW, ty0 = TDC_TH, tx1 = -1, ty1 = -1;
+    for (int ty = 0; ty < th && ty < TDC_TH; ty++)
+        for (int tx = 0; tx < tw && tx < TDC_TW; tx++)
+            if (g_tdc_tiles[ty][tx]) {
+                if (tx < tx0) tx0 = tx;
+                if (tx > tx1) tx1 = tx;
+                if (ty < ty0) ty0 = ty;
+                if (ty > ty1) ty1 = ty;
+            }
+    if (tx1 < 0) return;
+    for (int ty = ty0; ty <= ty1; ty++)
+        for (int tx = tx0; tx <= tx1; tx++) {
+            if (!g_tdc_tiles[ty][tx]) tdc_tile_clear(slot, tx, ty);
+            g_tdc_tiles[ty][tx] = 0;
+        }
+    RECT r = { tx0 * TDC_TILE, ty0 * TDC_TILE, (tx1 + 1) * TDC_TILE, (ty1 + 1) * TDC_TILE };
+    if (r.right > g_tdc[slot].w) r.right = g_tdc[slot].w;
+    if (r.bottom > g_tdc[slot].h) r.bottom = g_tdc[slot].h;
+    size_t at = (size_t)r.top * (size_t)g_tdc[slot].pitch + (size_t)r.left * 4;
+    if (!rd_text_layer(surface_get_dds(g_tdc_active[a].surf), &r, (const uint8_t *)g_tdc[slot].bits + at,
+                       (const uint8_t *)g_tdc[slot].wbits + at, g_tdc[slot].pitch)) {
+        g_text_layer = 0;   // the renderer can't (the log says why): the tiles read and written from the next phase on
+        if (g_log) log_locked("# text dc: text on the target failed - the target locked for text again\n");
+    }
+}
 internal void tdc_store(int a) {   // the loaded tiles back into the surface
-    if (g_tdc_any) tdc_copy_tiles(a, 1);
+    if (g_tdc_any) {
+        if (g_tdc_active[a].layer) tdc_layer_store(a);
+        else tdc_copy_tiles(a, 1);
+    }
     g_tdc_any = 0;
+}
+// the white DC drawn on as the game's: its font, colours, alignment, origin, position and clipping
+internal void tdc_sync(HDC from, HDC to) {
+    static HRGN clip;
+    SelectObject(to, GetCurrentObject(from, OBJ_FONT));
+    SetTextColor(to, GetTextColor(from));
+    SetBkColor(to, GetBkColor(from));
+    SetBkMode(to, GetBkMode(from));
+    SetTextAlign(to, GetTextAlign(from));
+    SetTextCharacterExtra(to, GetTextCharacterExtra(from));
+    POINT p;
+    if (GetViewportOrgEx(from, &p)) SetViewportOrgEx(to, p.x, p.y, NULL);
+    if (GetWindowOrgEx(from, &p)) SetWindowOrgEx(to, p.x, p.y, NULL);
+    if (GetCurrentPositionEx(from, &p)) MoveToEx(to, p.x, p.y, NULL);
+    if (!clip) clip = CreateRectRgn(0, 0, 0, 0);
+    SelectClipRgn(to, clip && GetClipRgn(from, clip) == 1 ? clip : NULL);
 }
 // the box a text output can touch: the text's extent placed by the DC's alignment, the clip/opaque rectangle,
 // and a margin for overhangs
@@ -478,6 +566,11 @@ internal BOOL WINAPI hook_ext_text_out(HDC dc, int x, int y, UINT opts, const RE
         if (g_fbm_making && !rc && n == 1 && str &&
             (GetTextAlign(dc) & (TA_CENTER | TA_BOTTOM | TA_BASELINE | TA_UPDATECP)) == 0 && atlas_glyph(a, dc, x, y, str[0], sz))
             return TRUE;
+        if (g_tdc_active[a].layer) {   // over white too (before the game's DC moves its position)
+            HDC wdc = g_tdc[g_tdc_active[a].slot].wdc;
+            tdc_sync(dc, wdc);
+            g_ext_text_out(wdc, x, y, opts, rc, str, n, dx);
+        }
     }
     return g_ext_text_out(dc, x, y, opts, rc, str, n, dx);
 }
@@ -494,6 +587,11 @@ internal BOOL WINAPI hook_text_out_w(HDC dc, int x, int y, LPCWSTR str, int n) {
         RECT box;
         tdc_text_box(dc, x, y, sz, 0, NULL, &box);
         tdc_load(a, box.left, box.top, box.right, box.bottom);
+        if (g_tdc_active[a].layer) {
+            HDC wdc = g_tdc[g_tdc_active[a].slot].wdc;
+            tdc_sync(dc, wdc);
+            g_text_out_w(wdc, x, y, str, n);
+        }
     }
     return g_text_out_w(dc, x, y, str, n);
 }
@@ -526,6 +624,8 @@ internal long __thiscall hook_text_lock(ee_surface *surf) {
     }
     g_tdc_active[a].surf = surf;
     g_tdc_active[a].slot = slot;
+    g_tdc_active[a].layer = g_text_layer && g_tdc[slot].bpp == 32 && g_tdc[slot].masks[0] == 0xFF0000 &&
+                            g_tdc[slot].masks[1] == 0xFF00 && g_tdc[slot].masks[2] == 0xFF && rd_text_target(dds) && tdc_white(slot);
     surface_set_dc(surf, g_tdc[slot].dc);
     surface_set_dc_out(surf, 1);
     return 0;
@@ -538,6 +638,7 @@ internal long __thiscall hook_text_unlock(ee_surface *surf) {
     GdiFlush();
     tdc_store(a);
     SelectObject(g_tdc[slot].dc, g_tdc_stock);
+    if (g_tdc[slot].wdc) { SelectObject(g_tdc[slot].wdc, g_tdc_stock); SelectClipRgn(g_tdc[slot].wdc, NULL); }
     g_tdc_active[a].surf = NULL;
     surface_set_dc_out(surf, 0);
     return 0;

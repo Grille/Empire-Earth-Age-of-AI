@@ -1049,6 +1049,20 @@ internal void rd_frame_tick(void) {
     for (int i = 0; i < RO_N; i++) { ro[i] = (double)(g_ro_qpc[i] - ro0[i]) * k; ro0[i] = g_ro_qpc[i]; }
     log_locked("# render: the game's drawing a frame (ms, the renderer's draws inside): terrain %.2f, shadows %.2f, units %.2f,"
                " water %.2f, interface %.2f\n", ro[RO_TERRAIN], ro[RO_SHADOWS], ro[RO_UNITS], ro[RO_WATER], ro[RO_UI]);
+    // the frame's time by its parts: what none of them holds is the game's own work around them (its loop, the
+    // interface's update, the sound ...) or a wait of the thread's; the reads back from the GPU (a lock of the target -
+    // the GDI text of the interface -, wherever they are) wait for it to finish the frame so far
+    static LONGLONG rf0, rh0, rr0;
+    static LONG rn0;
+    double rsum = 0, fms = fr > 0 ? secs * 1000.0 / fr : 0, lst = (double)(g_rf.qpc - rf0) * k,
+           hld = (double)(g_rwl_read_qpc - rh0) * k, prs = (double)(g_d3d_present_qpc - present0) * k;
+    for (int i = 0; i < RO_N; i++) rsum += ro[i];
+    if (secs > 0)
+        log_locked("# render: a frame %.2f ms: the render objects' draws %.2f, the update's read holds of the world %.2f, the"
+                   " lists to the GPU %.2f, Present %.2f, the rest (the game's own around them, waits) %.2f; reads back from the"
+                   " GPU %.2f a frame, %.2f ms\n", fms, rsum, hld, lst, prs, fms - rsum - hld - lst - prs,
+                   fr > 0 ? (double)(g_rd_reads - rn0) / fr : 0, (double)(g_rd_read_qpc - rr0) * k);
+    rf0 = g_rf.qpc; rh0 = g_rwl_read_qpc; rr0 = g_rd_read_qpc; rn0 = g_rd_reads;
     log_locked("# render: draws of more than the display DLL's %u vertices (terrain, shadows, units, water, interface, none) %ld %ld"
                " %ld %ld %ld %ld, the most %lu; past our room, dropped %ld\n", display_vb_vertices(), (long)g_rd_vb_over[RO_TERRAIN],
                (long)g_rd_vb_over[RO_SHADOWS], (long)g_rd_vb_over[RO_UNITS], (long)g_rd_vb_over[RO_WATER],

@@ -31,6 +31,7 @@ internal struct {
     int vc_new, pc_new;     // g_rd3.vc / pc changed since the last snapshot
     LONG replays, forced;   // lists drawn; of them inside a scene (not at its end) - the minute's line
     LONG wraps;             // the ring full within a scene
+    LONGLONG qpc;           // time in drawing the lists (rf_replay: the shadows' maps with them) - the minute's line
     int in_submit;
 } g_rf;
 
@@ -498,6 +499,7 @@ internal void rf_bind(ID3D11DeviceContext *x) {
 internal void rf_replay(void) {
     if (!g_rf.n || g_rf.in_submit) return;
     g_rf.in_submit = 1;
+    LONGLONG t0 = rd_qpc();
     ID3D11DeviceContext *x = g_d3d.ctx;
     rd3_shadow_frame();   // the maps from the list's casters and ground (nothing while the shadows are the game's)
     rf_bind(x);
@@ -543,6 +545,7 @@ internal void rf_replay(void) {
     g_rf.n = g_rf.nvc = g_rf.npc = 0;
     g_rf.vc_new = g_rf.pc_new = 1;   // the next batch's constants a snapshot of their own
     g_rf.replays++;
+    g_rf.qpc += rd_qpc() - t0;
     g_rd_epoch++;   // no surface is in the list now (rd_gpu_texture)
     g_rf.in_submit = 0;
 }
