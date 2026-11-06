@@ -99,6 +99,10 @@ internal inline uint8_t *game_select_rect_at(void) { return (uint8_t *)(uintptr_
 internal inline uint8_t *game_server_at(void) { return (uint8_t *)(uintptr_t)data_game_server; }
 // the game settings object
 internal inline uint8_t *game_settings_at(void) { return (uint8_t *)(uintptr_t)data_game_settings; }
+// the settings' Rasterizer Name (a UString at settings +0x49C: settings_save_game writes its text +0x4A0 to the
+// registry): the display's start (0x5392E9, AoC 0x5444D0) walks GERasterizer's list, game.rasterizer each one in
+// turn, and takes the first whose name (+0x54) is equal to it by UString's operator== - else the first of the list
+internal inline uint8_t *game_settings_rasterizer_name_at(void) { return (uint8_t *)(uintptr_t)data_game_settings_rasterizer_name; }
 // the scenario manager
 internal inline uint8_t *game_sm_mgr_at(void) { return (uint8_t *)(uintptr_t)data_game_sm_mgr; }
 internal inline uint8_t *game_sound_manager_at(void) { return (uint8_t *)(uintptr_t)data_game_sound_manager; }
@@ -256,6 +260,7 @@ internal int spec_game_select(int build) {
         data_game_select_rect = 0x008D2778;
         data_game_server = 0x0091984C;
         data_game_settings = 0x00918EA8;
+        data_game_settings_rasterizer_name = 0x00919344;
         data_game_sm_mgr = 0x00918E24;
         data_game_sound_manager = 0x00919848;
         data_game_sound_percent = 0x009193B8;
@@ -352,6 +357,7 @@ internal int spec_game_select(int build) {
         data_game_select_rect = 0x008E8F18;
         data_game_server = 0x009319C8;
         data_game_settings = 0x00930308;
+        data_game_settings_rasterizer_name = 0x009307A4;
         data_game_sm_mgr = 0x00931864;
         data_game_sound_manager = 0x009319C4;
         data_game_sound_percent = 0x00930838;
@@ -455,6 +461,7 @@ internal int spec_game_check(void) {
     bad += spec_data(data_game_select_rect, "game.select_rect");
     bad += spec_data(data_game_server, "game.server");
     bad += spec_data(data_game_settings, "game.settings");
+    bad += spec_data(data_game_settings_rasterizer_name, "game.settings_rasterizer_name");
     bad += spec_data(data_game_sm_mgr, "game.sm_mgr");
     bad += spec_data(data_game_sound_manager, "game.sound_manager");
     bad += spec_data(data_game_sound_percent, "game.sound_percent");

@@ -753,6 +753,7 @@ internal uint32_t data_game_scroll_speed;
 internal uint32_t data_game_select_rect;
 internal uint32_t data_game_server;
 internal uint32_t data_game_settings;
+internal uint32_t data_game_settings_rasterizer_name;
 internal uint32_t data_game_sm_mgr;
 internal uint32_t data_game_sound_manager;
 internal uint32_t data_game_sound_percent;

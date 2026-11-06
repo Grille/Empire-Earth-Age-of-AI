@@ -1334,6 +1334,40 @@ internal void dirty_rects_loaded(uintptr_t base) {
     log_locked("# display: the interface redrawn where it changed (the T&L rasterizer's dirty rectangles): %s\n",
                ok ? "ok" : "NOT patched (the DLL differs)");
 }
+// THE T&L RASTERIZER WITH THE OWN RENDERER: the game's video options offer the display DLLs' rasterizers - Direct3D
+// Hardware (the game's default: that DLL transformed and lit the vertices on the CPU) and Direct3D Hardware TnL (the
+// card did it). With the own renderer its vertex shader does it either way; what is left between them is each DLL's
+// own code - the renderer's work is made for and measured with the T&L DLL (the units' animation blended on the card:
+// render_morph.c), and a player can't know to pick it. So while the own renderer draws, the display's start takes the
+// T&L rasterizer whatever the setting says: its one comparison of a rasterizer's name with the setting's (UString's
+// operator==, the exe's import - spec game.settings_rasterizer_name) answers by the candidate's DLL (game.rasterizer is
+// the candidate meanwhile), and the setting takes that name (the options show it, the settings keep it). No T&L DLL
+// loaded: the game's own choice.
+typedef uint8_t (__cdecl *ustr_eq_fn)(const void *, const void *);
+typedef void *(__thiscall *ustr_assign_fn)(void *, const void *);
+internal ustr_eq_fn g_ustr_eq;
+internal ustr_assign_fn g_ustr_assign;
+internal uint8_t __cdecl hook_ustr_eq(const void *a, const void *b) {
+    HMODULE tnl = GetModuleHandleA("DX7HRTnLDisplay.dll"), m = NULL;
+    if (b != game_settings_rasterizer_name_at() || !tnl) return g_ustr_eq(a, b);
+    void *const *r = (void *const *)rasterizer();   // the candidate: its vtable in the T&L DLL
+    if (!r || !GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                                  (LPCSTR)*r, &m) || m != tnl)
+        return 0;
+    if (!g_ustr_eq(a, b)) {
+        g_ustr_assign((void *)b, a);
+        log_locked("# display: the T&L rasterizer taken (the setting named another; the own renderer draws)\n");
+    }
+    return 1;
+}
+internal void tnl_pick_install(void) {
+    HMODULE lle = GetModuleHandleA("Low-Level Engine.dll");
+    g_ustr_eq = lle ? (ustr_eq_fn)(void *)GetProcAddress(lle, "??8@YA_NABVUString@@0@Z") : NULL;
+    g_ustr_assign = lle ? (ustr_assign_fn)(void *)GetProcAddress(lle, "??4UString@@QAEAAV0@ABV0@@Z") : NULL;
+    int ok = g_ustr_eq && g_ustr_assign &&
+             patch_iat(GetModuleHandleA(NULL), "Low-Level Engine.dll", "??8@YA_NABVUString@@0@Z", (void *)hook_ustr_eq);
+    if (g_log) fprintf(g_log, "# display: the T&L rasterizer with the own renderer: %s\n", ok ? "hooked" : "NOT hooked");
+}
 internal void frame_install(void) {
     g_frame_wait = g_set.frame_wait;
     const char *names[] = { "game", "yield", "auto" };

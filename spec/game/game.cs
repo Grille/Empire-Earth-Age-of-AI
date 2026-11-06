@@ -192,6 +192,12 @@ static unsafe class game
     [address((ee)0x00918EA8, (aoc)0x00930308)]
     static block settings;
 
+    /// the settings' Rasterizer Name (a UString at settings +0x49C: settings_save_game writes its text +0x4A0 to the
+    /// registry): the display's start (0x5392E9, AoC 0x5444D0) walks GERasterizer's list, game.rasterizer each one in
+    /// turn, and takes the first whose name (+0x54) is equal to it by UString's operator== - else the first of the list
+    [address((ee)0x00919344, (aoc)0x009307A4)]
+    static block settings_rasterizer_name;
+
     /// the scenario manager
     [address((ee)0x00918E24, (aoc)0x00931864)]
     static block sm_mgr;

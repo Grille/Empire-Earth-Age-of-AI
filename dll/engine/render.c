@@ -1022,6 +1022,7 @@ internal void render_install(const char *autotest_ini) {
     g_mo.on = g_set.gpu_animation;          // [display] gpu_animation (render_morph.c)
     g_gm_margin = g_set.ground_margin;      // [display] ground_margin, object_margin (render_frame.c)
     g_om_margin = g_set.object_margin;
+    tnl_pick_install();   // display.c: the T&L rasterizer, whatever the game's setting
     int pools = rf_ground_pools_install();   // before the ground's first update (render_frame.c)
     int locks = rd_world_lock_install(), parts = rd_render_objects_install();   // the minute line's wait and parts
     if (g_log) fprintf(g_log, "# render: own renderer on (Direct3D 11) - the display DLLs' DirectDraw at their load%s; world lock hooks %d/10,"

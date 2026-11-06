@@ -364,6 +364,16 @@ does for any other card. Three pairs of games with it: the byte 00 in three of t
 phases a frame; the resource bar's population count, shot 10 s apart, redrawn clean. The pipe's picture now reports
 the frames, text phases and reads back so far (two replies a few seconds apart: the rates).
 
+The T&L rasterizer always (2026-11-07, the player: "the game defaults to non T&L and most won't know"). The video
+options offer Direct3D Hardware (the game's default: its DLL transformed and lit the vertices on the CPU) and Direct3D
+Hardware TnL (the card did). The own renderer's vertex shader does it either way; what is left between them is each
+DLL's own code, and the renderer's work is made for the T&L DLL (the units' animation on the card hooks only its
+copies). So while the own renderer draws, the display's start (0x5392E9, AoC 0x5444D0) takes the T&L rasterizer: its
+one comparison of a rasterizer's name with the setting's (spec game.settings_rasterizer_name, through the exe's import
+of UString's operator==) answers by the candidate's DLL, and the setting takes its name (display.c hook_ustr_eq). With
+the setting on Direct3D Hardware: EE and AoC log the T&L rasterizer taken, the 8000 save's units blended on the card
+(16 110 draws a frame), the picture as before. A wrapper's games keep the player's choice.
+
 Now (picture text on | off, the pipe; on): on the own renderer's target nothing is locked. Each tile the text touches
 starts black in the text DC's DIB and white in a second one, each text output is drawn on both (the second DC given
 the first's font, colours, alignment, origin, position and clipping), and at the phase's end the box of its tiles goes
