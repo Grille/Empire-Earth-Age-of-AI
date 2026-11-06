@@ -396,6 +396,7 @@ internal void rd3_value(float *f, const D3DCOLORVALUE *c) { f[0] = c->r; f[1] = 
 internal float rd3_float(DWORD v) { float f; memcpy(&f, &v, 4); return f; }
 
 internal volatile LONG g_rp_state;   // the probe (below)
+internal void rec_count(int role, DWORD nv);   // render_record.c: a draw's role counted for the frame
 #include "render_frame.c"     // the frame recorded and drawn at once
 #include "render_shadows.c"   // the dynamic shadows ([display] shadows = dynamic)
 #include "render_fxaa.c"      // the picture's sharpness ([display] antialias, anisotropy)
@@ -621,6 +622,7 @@ internal void rd3_append(rd_device *d, D3DPRIMITIVETYPE type, rd_vb *vb, DWORD s
 }
 
 #include "render_overlay.c"   // the debug overlay: the AI's plans on the map
+#include "render_record.c"    // the pipe's record: frames one after another, to find a flicker
 
 internal HRESULT __stdcall rd_dev_qi(rd_device *d, const GUID *iid, void **out) { (void)d; (void)iid; *out = NULL; return E_NOINTERFACE; }
 internal ULONG __stdcall rd_dev_addref(rd_device *d) { return (ULONG)InterlockedIncrement(&d->refs); }
@@ -824,7 +826,10 @@ internal int g_rp_skip;       // bit per render object: its draw skipped (the pi
 internal void __thiscall rd_hook_ro_terrain(ee_ro_terrain *o) {
     RO_DRAW(RO_TERRAIN, if (g_kg_skip && g_kg.nb) rf_ground_again(&g_kg); else ro_terrain_draw(o));
 }
-internal void __thiscall rd_hook_ro_shadows(ee_ro_shadows *o) { RO_DRAW(RO_SHADOWS, ro_shadows_draw(o)); }
+// during a step the last real frame's fields (the game's blob shadows aren't drawn: render_shadows.c SH_BLOB)
+internal void __thiscall rd_hook_ro_shadows(ee_ro_shadows *o) {
+    RO_DRAW(RO_SHADOWS, if (g_kg_skip && g_ks.nb) rf_ground_again(&g_ks); else ro_shadows_draw(o));
+}
 internal void __thiscall rd_hook_ro_units(ee_ro_units *o) { RO_DRAW(RO_UNITS, ro_units_draw(o)); }
 // during a step the last real frame's water, as its ground (render_frame.c rf_ground_again)
 internal void __thiscall rd_hook_ro_water(ee_ro_water *o) {

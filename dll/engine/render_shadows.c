@@ -357,6 +357,7 @@ internal int rd3_shadow_only(int role) { return role == SH_AWAY || role == SH_GO
 internal void rd3_shadow_classify(rd_device *d, rd_vb *vb, DWORD start, DWORD nv) {
     d->sh_card = 0;
     int role = rd3_shadow_role(d, vb, start, nv);
+    rec_count(role, nv);
     if (role != d->sh_role) { d->sh_role = role; d->changed |= RD_CH_VC; }
 }
 

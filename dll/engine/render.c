@@ -782,6 +782,7 @@ internal int render_present(IDirectDrawSurface7 *back, HWND hwnd) {
         g_shot_req = 0;
         InterlockedIncrement(&g_shot_done);
     }
+    rec_frame(s);   // the pipe's record (render_record.c)
     window_hook(hwnd);
     void *dpi = dpi_enter(hwnd);
     RECT cr;

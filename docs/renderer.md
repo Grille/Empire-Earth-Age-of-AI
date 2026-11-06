@@ -173,6 +173,11 @@ of the frames drawn during a step. The water's (its animation) runs too.
   in the ground's place (rf_ground_again). First the frame before that one was drawn (two buffers swapped at the
   update): one frame's camera move off the units' - while scrolling the ground jumped against the debris on it, up and
   down on hills, and showed a row or two of sky at the edge (the player).
+- The game's shadows' render object draws the farms' fields, and draws nothing without its update either: every frame
+  drawn during a step showed the farms without their fields (the player, 2026-11-06: "farms flicker in visibility" -
+  standing still too). Its batches (the fields alone: the blob shadows aren't drawn) are kept and drawn again the same
+  way (g_ks). Found with the pipe's record (below, testing.md): the frame drawn during a step 59 kept batches and no
+  field, with it 147 - the 88 fields of every other frame - and the field in the picture.
 - The game's view is made in the update too: the units of such a frame are drawn from the camera of the last update.
   The camera's move since (its look-at, the height with it - a hill's worth up or down otherwise) is applied as the
   list is drawn (rf_shift): the units' constants by the world's shift, the ground's and the water's (drawn in the

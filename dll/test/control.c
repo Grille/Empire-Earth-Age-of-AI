@@ -18,6 +18,7 @@ internal void cmd_aigroup(char *out, const char *args);
 internal void cmd_rprobe(char *out, const char *args);   // engine/render_3d.c
 internal void cmd_shadows(char *out, const char *args);  // engine/render_shadows.c
 internal void cmd_picture(char *out, const char *args);  // engine/render_fxaa.c
+internal void cmd_record(char *out, const char *args);   // engine/render_record.c
 internal void cmd_landing(char *out, const char *args);
 internal void cmd_vis(char *out, const char *args);
 internal void cmd_intel(char *out, const char *args);
@@ -371,6 +372,7 @@ internal void execute(const char *cmd, char *out) {
     else if (!strcmp(verb, "rprobe")) cmd_rprobe(out, args);
     else if (!strcmp(verb, "shadows")) cmd_shadows(out, args);
     else if (!strcmp(verb, "picture")) cmd_picture(out, args);
+    else if (!strcmp(verb, "record")) cmd_record(out, args);
     else if (!strcmp(verb, "sites")) cmd_sites(out, args);
     else if (!strcmp(verb, "minecheck")) cmd_minecheck(out, args);
     else if (!strcmp(verb, "texts")) cmd_texts(out, args);

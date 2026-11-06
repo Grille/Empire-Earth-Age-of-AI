@@ -86,6 +86,9 @@ typedef struct {
 internal int rf_camera_view(float *v, const float *m);
 internal rf_ground g_kg;   // the last frame drawn with an update (a frame during a step records none)
 internal rf_ground g_kw;   // its water (the same: rf_water_again)
+internal rf_ground g_ks;   // the game's shadows' decals, the farms' fields: the same (their draw, as the ground's, draws
+                           // nothing during a step - every frame drawn during one showed the farms without their fields,
+                           // the player 2026-11-06: "farms flicker in visibility", the pipe's record: fields 0 in those)
 internal int g_kg_skip;   // this frame is drawn during a step: nothing recorded
 internal LONG g_kg_drawn; // ground batches drawn again (the pipe's picture)
 internal float g_kg_eye[3];   // the camera's eye at the last update (the pipe's picture camtrace)
@@ -97,8 +100,8 @@ internal void rf_ground_clear(rf_ground *g) {
 }
 // the batch being flushed (rd3_flush, before its matrices' place is added), when it is the ground's
 internal void rf_keep_ground(void) {
-    if (g_kg_skip || (g_ro_cur != RO_TERRAIN && g_ro_cur != RO_WATER)) return;
-    rf_ground *g = g_ro_cur == RO_WATER ? &g_kw : &g_kg;
+    if (g_kg_skip || (g_ro_cur != RO_TERRAIN && g_ro_cur != RO_WATER && g_ro_cur != RO_SHADOWS)) return;
+    rf_ground *g = g_ro_cur == RO_WATER ? &g_kw : g_ro_cur == RO_SHADOWS ? &g_ks : &g_kg;
     if (!rf_grow((void **)&g->b, &g->cap_b, g->nb + 1, sizeof *g->b) || !rf_grow((void **)&g->v, &g->cap_v, g->nv + g_rb.nv, sizeof *g->v)
         || !rf_grow((void **)&g->i, &g->cap_i, g->ni + g_rb.ni, sizeof *g->i) || !rf_grow((void **)&g->w, &g->cap_w, g->nw + g_rb.nw, sizeof *g->w))
         return;
@@ -335,6 +338,7 @@ internal void rf_ground_frame(int skip) {
     g_kg_view_ok = rf_camera_view(g_kg_view, m);
     rf_ground_clear(&g_kg);
     rf_ground_clear(&g_kw);
+    rf_ground_clear(&g_ks);
 }
 // a frame during a step: the last frame's ground into the list
 internal void rf_ground_again(rf_ground *g) {
