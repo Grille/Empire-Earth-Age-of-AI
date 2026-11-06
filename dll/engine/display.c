@@ -1315,6 +1315,25 @@ internal void tnl_loaded(uintptr_t base) {
     log_locked("# display: T&L vertex buffer in system memory: %s\n",
                ok == 2 ? "already set (another mod)" : ok ? "ok" : "NOT patched (the DLL's code differs)");
 }
+// THE INTERFACE'S DIRTY RECTANGLES ([patches] interface_redraw): every frame EEGraphics asks the rasterizer whether the
+// screen keeps its back buffer (GetDirtyRectangleSupport, a byte of the rasterizer's screen); where not, it redraws
+// the whole interface (UIManager::RedrawAll: every bar, its text through GDI) instead of what changed. DX7Rasterizer's
+// ActivateTheScreen sets the byte - yes but for two old cards (an ATI, a 3dfx) -, the T&L rasterizer's own one
+// (DX7HRTnLDisplay.dll, EE's and AoC's) never does: it was what the heap had there, and a game redrew its interface
+// every frame or never by chance (the 8000-unit save: one game in two to six, 23-33 ms a frame against 18; read in two
+// games: 00 in the one redrawing, 03 in the other). The T&L rasterizer's slot of it answers as DX7Rasterizer does for
+// any other card: yes.
+internal uint8_t __thiscall hook_dirty_rects(void *ras, unsigned long screen) { (void)ras; (void)screen; return 1; }
+internal void dirty_rects_loaded(uintptr_t base) {
+    HMODULE m = (HMODULE)base;
+    const uintptr_t *vt = (const uintptr_t *)(void *)GetProcAddress(m, "??_7DX7TnLRasterizer@@6B@");
+    uintptr_t f = (uintptr_t)GetProcAddress(m, "?GetDirtyRectangleSupport@DX7Rasterizer@@UAE_NK@Z");
+    int ok = 0;
+    for (int i = 0; vt && f && i < 256 && !ok; i++)   // its slot: where the vtable has the inherited function
+        if (vt[i] == f) ok = patch_vtable((uintptr_t)vt, i, f, (void *)hook_dirty_rects);
+    log_locked("# display: the interface redrawn where it changed (the T&L rasterizer's dirty rectangles): %s\n",
+               ok ? "ok" : "NOT patched (the DLL differs)");
+}
 internal void frame_install(void) {
     g_frame_wait = g_set.frame_wait;
     const char *names[] = { "game", "yield", "auto" };
@@ -1324,6 +1343,9 @@ internal void frame_install(void) {
                        !g_frame_wait ? "" : hook ? " (hooks ok)" : " - hook FAILED (exe differs), the game's pause");
     if (g_set.vertex_sysmem && !on_module_load("DX7HRTnLDisplay.dll", tnl_loaded) && g_log)
         fprintf(g_log, "# display: vertex_sysmem - module loads not watchable, left in video memory\n");
+    if (!g_set.interface_redraw) { if (g_log) fprintf(g_log, "# display: the interface's dirty rectangles: the game's\n"); }
+    else if (!on_module_load("DX7HRTnLDisplay.dll", dirty_rects_loaded) && g_log)
+        fprintf(g_log, "# display: interface_redraw - module loads not watchable, the game's\n");
 }
 
 internal int install_windowed_input(void) {

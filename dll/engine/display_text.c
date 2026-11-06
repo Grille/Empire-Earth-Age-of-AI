@@ -242,6 +242,7 @@ internal struct { void *surf; int slot; DDSURFACEDESC2 d; int layer; } g_tdc_act
 // a second one, each text output is drawn on both, and at the phase's end the two go to the renderer, which blends
 // them onto the target (render.c rd_text_layer). 32-bit targets (BGRX) only; else the tiles as above.
 internal int g_text_layer = 1;
+internal volatile LONG g_tdc_phases;   // text phases of our DC (the pipe's picture: a frame's)
 internal int rd_text_target(const void *p);   // render.c
 internal int rd_text_layer(void *p, const RECT *r, const uint8_t *b, const uint8_t *w, int pitch);
 enum { TDC_TILE = 32, TDC_MAX = 8192, TDC_TW = TDC_MAX / TDC_TILE + 2, TDC_TH = TDC_MAX / TDC_TILE + 2 };
@@ -622,6 +623,7 @@ internal long __thiscall hook_text_lock(ee_surface *surf) {
                 d->ddpfPixelFormat.dwRGBBitCount, caps.dwCaps, caps.dwCaps & DDSCAPS_VIDEOMEMORY ? "video memory" : "system memory", slot);
         LeaveCriticalSection(&g_lock);
     }
+    g_tdc_phases++;
     g_tdc_active[a].surf = surf;
     g_tdc_active[a].slot = slot;
     g_tdc_active[a].layer = g_text_layer && g_tdc[slot].bpp == 32 && g_tdc[slot].masks[0] == 0xFF0000 &&

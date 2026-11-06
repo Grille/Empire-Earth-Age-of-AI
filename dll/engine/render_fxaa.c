@@ -151,9 +151,9 @@ internal void cmd_picture(char *out, const char *args) {
         if (!strcmp(arg, "on") || !strcmp(arg, "off")) g_rwl_free = arg[1] == 'n';
         else { REPLY("error: usage: picture steps on | off\n"); return; }
     } else if (mode[0]) { REPLY("error: usage: picture [aa on | off] [aniso <1..16>] [edge <0..1>] [steps on | off] [morph on | off] [text on | off] [margin <0..2>] [objects <0..0.5>]\n"); return; }
-    REPLY("picture: anti-aliasing %s (%s, %ld passes, an edge %.2f of its brightest), anisotropy %d; text on the target %s; frames drawn during a"
+    REPLY("picture: anti-aliasing %s (%s, %ld passes, an edge %.2f of its brightest), anisotropy %d; text on the target %s (frames %ld, text phases %ld, reads back %ld so far); frames drawn during a"
           " step %s (%ld); the ground's margin %.2f (the last region %ld x %ld tiles at %.2f, its top %.2f, its bottom %.2f, the depths %.2f .. %.2f, its near %.2f, worked out %ld, its polygons %lu and %lu on the water; the ground kept %d batches, %d vertices); the objects' margin %.2f (%ld passed by it)\n", g_fx.on ? "on" : "off",
           g_fx.ready > 0 ? "ready" : g_fx.ready < 0 ? "FAILED (the log says why)" : "not made yet",
-          (long)g_fx.passes, (double)g_fx.edge, g_fx.aniso, g_text_layer ? "on the GPU" : "by locks", g_rwl_free ? "on" : "off", (long)g_rwl_skips,
+          (long)g_fx.passes, (double)g_fx.edge, g_fx.aniso, g_text_layer ? "on the GPU" : "by locks", (long)g_rd_frames, (long)g_tdc_phases, (long)g_rd_reads, g_rwl_free ? "on" : "off", (long)g_rwl_skips,
           (double)g_gm_margin, g_gm_size[0] + 1, g_gm_size[1] + 1, (double)g_gm_k, (double)g_gm_kt, (double)g_gm_kb, (double)g_gm_depths[0], (double)g_gm_depths[1], (double)g_gm_near, g_gm_pred + 1, g_gm_polys[0], g_gm_polys[1], g_kg.nb, g_kg.nv, (double)g_om_margin, (long)g_om_passed);
 }

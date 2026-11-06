@@ -81,4 +81,10 @@ class patches
     /// frame. 1 = the list looked up, the user counted directly; 0 = the original
     [title("Drawing many units")]
     bool draw_many_units = true;
+    /// Interface redraw: with the hardware T&L renderer the game left unset whether the screen keeps its picture
+    /// between frames, so in some games (by chance, at every start) it redrew the whole interface every frame - its
+    /// bars and their text - instead of only what changed: a third slower on a big map. 1 = only what changed, as
+    /// with the other renderer; 0 = the original
+    [title("Interface redrawn only where it changed")]
+    bool interface_redraw = true;
 }

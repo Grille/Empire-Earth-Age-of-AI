@@ -349,11 +349,20 @@ The minute's line now breaks the frame into its parts - `# render: a frame N ms:
 update's read holds, the lists to the GPU, Present, the rest; reads back from the GPU N a frame, N ms`. The slow games'
 rest was 12-15 ms against 1, and they read the picture back from the graphics card 8 times a frame (6-9 ms in the
 reads); the text log (pipe `textlog`): those games drew the epoch's name and the resource numbers with GDI every frame,
-the fast ones never. In some games the interface redraws its bars every frame - what sets it off is not known yet: not
-the mouse over the bar alone (placed there by the pipe's vmouse, one game redrew, another didn't); two games started
-together were mostly alike -, and each text phase (display_text.c's own text DC) locked the target twice, to load the
-tiles under its text and to store them: a read back that waits for the card to finish the frame so far, so the card's
-time and the frame's added up.
+the fast ones never. In some games the interface redraws its bars every frame (why: below), and each text phase
+(display_text.c's own text DC) locked the target twice, to load the tiles under its text and to store them: a read
+back that waits for the card to finish the frame so far, so the card's time and the frame's added up.
+
+Why some games redraw (2026-11-07): every frame EEGraphics (0x4FED2D) calls UIManager::RedrawAll unless the
+rasterizer says the screen keeps its back buffer (GetDirtyRectangleSupport: a byte of the display DLL's screen object,
++0x71). DX7Rasterizer::ActivateTheScreen sets it - yes but for two old cards -, DX7TnLRasterizer's own (the T&L DLL,
+EE's and AoC's alike) never does, and the screen object comes from operator new: the byte was the heap's left-over.
+Found with the exe's calls of RedrawAll hooked (a slow game: 2486 a minute, all from there; the fast ones none) and the
+byte read in running games (00 in the slow one, 03 in the fast one - a value no code writes). [patches]
+interface_redraw (display.c dirty_rects_loaded): the T&L rasterizer's vtable slot of it answers yes, as DX7Rasterizer
+does for any other card. Three pairs of games with it: the byte 00 in three of the six, all at 56-58 fps and 0.05 text
+phases a frame; the resource bar's population count, shot 10 s apart, redrawn clean. The pipe's picture now reports
+the frames, text phases and reads back so far (two replies a few seconds apart: the rates).
 
 Now (picture text on | off, the pipe; on): on the own renderer's target nothing is locked. Each tile the text touches
 starts black in the text DC's DIB and white in a second one, each text output is drawn on both (the second DC given
