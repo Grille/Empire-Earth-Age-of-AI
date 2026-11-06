@@ -328,6 +328,20 @@ two shots in a row. Left on the CPU per frame there: about 1700 trees' cards (th
 draw - a SetTransform, SetMaterial, the vertex buffer's lock, the draw call - 2800 draws a frame: instancing (a draw
 for all units of a part and frame) is the next step.
 
+The material per draw (2026-11-06, the next step). Over the 8000-unit save's army (camera on it, running) the frame
+had 19 100 draws in 12 300 batches - batching merged almost nothing - and the renderer's work for them was 12 ms of a
+27 ms frame (37 fps); the profile: a seventh in the upload of each small batch (a Map of three rings each), a twelfth
+in building and comparing the vertex constants. One frame's unit draws by the probe: 16 553 draws in 24 states, the
+state changed 15 286 times - all but 21 of them the material: a model's parts alternate between white and the
+player's colour (its banner parts). The material (diffuse, ambient, emissive) is now each draw's own like its world
+matrix: the batch's table holds an entry of 8 rows a draw (rb_world: the matrix, the material, a blended draw's runs),
+the vertex shader reads it there, and SetMaterial notes no change of the states. Measured the same way: 647 batches a
+frame, 6.0 ms in the draws, 55 fps (3282 frames in the minute against 2227). Picture: a shot of each build paused at the
+same step differs from the other no more than two shots of one build (the units and trees animate while paused:
+42-44 % of the pixels either way). That was the instancing's gain without a draw call of its own per part: the batches
+are few now, the game's own work per draw (the T&L DLL's model draw, its visibility test of each model - a ninth of
+the drawing thread) is what is left.
+
 ## The debug overlay
 
 2026-10-28 (the player: what the renderer could do - the AI's plans on the map). `[display] overlay = routes,danger`

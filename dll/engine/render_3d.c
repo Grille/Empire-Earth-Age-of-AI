@@ -109,11 +109,12 @@ internal LONGLONG rd_qpc_ms(int ms) {
 
 // ---- the 3D pipeline ----
 // the vertex shader's constants (D3D7's row vectors: v * world * view * projection, row_major in HLSL); the world
-// matrix is the vertex's own (its index into the batch's table, cbuffer w), so draws that differ only in it batch
+// matrix and the material are the vertex's own (its draw's entry in the batch's table, rb_world), so draws that differ
+// only in them batch
 typedef struct {
     float vpm[16], view[16];   // view x projection, view
     float ldir[8][4], ldiff[8][4], lamb[8][4];
-    float mdiff[4], mamb[4], memi[4], gamb[4];
+    float gamb[4];
     int32_t lit[4];   // lighting, lights, normalize normals
     int32_t src[4];   // diffuse, ambient, emissive from the vertex colour (1) or the material (0)
     float fog[4];     // mode (0 none, 1 exp, 2 exp2, 3 linear), start, end, density
@@ -137,23 +138,29 @@ typedef struct {
     float sht[4];    // the water's share of a shadow, shadows all on, a caster's bias
     float shh[4];    // the hills' map: the world's x, y -> u, v; the soft edge, the bias (tiles); on
 } rd3_pcb;
-// a blended draw's vertex (render_morph.c): its index has the top bit, its batch entry (the world table's slot: the
-// two runs' places in the pool, the fraction, how many slots back its world matrix is) and the vertex in the run - the
-// vertex buffer isn't read for it (the input assembler's read past the buffer gives zeros)
+// a draw's entry in the batch's table (the shaders' wt, 8 rows): its world matrix (_14: a tinted caster's size -
+// render_shadows.c), its material's diffuse, ambient and emissive, and a blended draw's runs (render_morph.c). The
+// units' draws alternate between two materials - the white of a model's parts and the player's colour of its banner
+// parts -, and as a constant of the batch's the material ended it at every other draw: 12 000 batches a frame over the
+// 8000-unit save's army (16 500 draws in 24 states, 21 changes of a state other than the material)
+typedef struct { float m[16], diff[4], amb[4], emi[4], mo[4]; } rb_world;
+// a blended draw's vertex (render_morph.c): its index has the top bit, its entry (mo: the two runs' places in the pool,
+// the fraction) and the vertex in the run - the vertex buffer isn't read for it (the input assembler's read past the
+// buffer gives zeros)
 #define RD3_MORPH_HLSL \
     "Buffer<float4> mp : register(t5);\n" \
     "void morph(inout I i, uint id) { if (id < 0x80000000) return; uint s = (id >> 12) & 0x7FFFF, k = id & 0xFFF;" \
-    " float4 m = wt.Load(s * 4); uint a = ((uint)m.x + k) * 2, b = ((uint)m.y + k) * 2;" \
+    " float4 m = wt.Load(s * 8 + 7); uint a = ((uint)m.x + k) * 2, b = ((uint)m.y + k) * 2;" \
     " float4 a0 = mp.Load(a), a1 = mp.Load(a + 1), b0 = mp.Load(b), b1 = mp.Load(b + 1);" \
     " i.p = lerp(a0.xyz, b0.xyz, m.z); i.n = lerp(float3(a0.w, a1.xy), float3(b0.w, b1.xy), m.z); i.t = a1.zw;" \
-    " i.c = float4(1, 1, 1, 1); i.w = s - (uint)m.w; }\n"
+    " i.c = float4(1, 1, 1, 1); i.w = s; }\n"
 internal const char k_rd3_shader[] =
     "cbuffer v : register(b0) { row_major float4x4 vpm; row_major float4x4 view;"
-    " float4 ldir[8]; float4 ldiff[8]; float4 lamb[8]; float4 mdiff, mamb, memi, gamb; int4 lit; int4 src; float4 fog;"
+    " float4 ldir[8]; float4 ldiff[8]; float4 lamb[8]; float4 gamb; int4 lit; int4 src; float4 fog;"
     " float4 vp; row_major float4x4 shm; float4 shk; float4 shp; float4 shx; float4 shy; float4 shz; float4 shl; float4 shs; float4 sha; float4 shf; };\n"
     "cbuffer p : register(b1) { int4 op; int4 aop; float4 fogc; float4 tf; float4 misc; float4 pshk; float4 shd; float4 sht;"
     " float4 shh; };\n"
-    "Buffer<float4> wt : register(t1);\n"   // the world matrices, 4 rows each (RD3_WB_BYTES)
+    "Buffer<float4> wt : register(t1);\n"   // the draws' entries, 8 rows each (rb_world)
     "Texture2D t : register(t0); SamplerState s : register(s0);\n"
     "Texture2D<float> sm : register(t2); SamplerComparisonState sc : register(s1);\n"   // the dynamic shadows' maps:
     "Texture2D<float> hm : register(t4); SamplerState hs : register(s2);\n"   // the casters', the hills' (render_shadows.c)
@@ -166,7 +173,7 @@ internal const char k_rd3_shader[] =
     " int n = (int)shp.y; int2 c = int2(q.xy * shp.y); float k = 0;"
     " for (int j = 0; j < 4; j++) { int2 a = clamp(c + int2(j & 1, j >> 1) * 4 - 2, 0, n - 1);"
     "  k += sm.Load(int3(a, 0)) < q.z - b ? 1 : 0; } return k / 4; }\n"
-    "O vs(I i, uint id : SV_VertexID) { O o; morph(i, id); uint r = i.w * 4; float4 r0 = wt.Load(r); float b = r0.w; r0.w = 0;"   // _14: the draw's size (SH_TINT)
+    "O vs(I i, uint id : SV_VertexID) { O o; morph(i, id); uint r = i.w * 8; float4 r0 = wt.Load(r); float b = r0.w; r0.w = 0;"   // _14: the draw's size (SH_TINT)
     " float4x4 world = float4x4(r0, wt.Load(r + 1), wt.Load(r + 2), wt.Load(r + 3));"
     " float4 p = mul(float4(i.p, 1), world); o.p = mul(p, vpm); o.q.xyz = mul(p, shm).xyz;"
     // under water the shadow fades out with the depth (the sun's light scattered in the water)
@@ -179,7 +186,7 @@ internal const char k_rd3_shader[] =
     " if (shs.w > 0 && dot(i.n, i.n) > 0) {"
     "  float3 lt = sha.rgb + shf.rgb * max(0, dot(normalize(i.n), -shs.xyz));"
     "  o.k = 1 - shk.w * (1 - saturate(sha.rgb / max(lt, 0.001))); }"
-    " if (lit.x) { float4 d = src.x ? vc : mdiff, a = src.y ? vc : mamb, e = src.z ? vc : memi;"
+    " if (lit.x) { float4 d = src.x ? vc : wt.Load(r + 4), a = src.y ? vc : wt.Load(r + 5), e = src.z ? vc : wt.Load(r + 6);"
     "  float3 n = mul(i.n, (float3x3)world); if (lit.z) n = normalize(n);"
     "  float3 am = gamb.rgb, df = 0;"
     "  for (int k = 0; k < lit.y; k++) { am += lamb[k].rgb; df += ldiff[k].rgb * max(0, dot(n, -ldir[k].xyz)); }"
@@ -223,22 +230,23 @@ internal const char k_rd3_shader[] =
 // times its first size, so the next frames fit in one.
 #define RD3_VB_BYTES (48u << 20)
 #define RD3_IB_BYTES (16u << 20)
-#define RD3_WB_BYTES (4u << 20)   // the batches' world matrices, appended like the vertices (no discard a batch)
+#define RD3_WB_BYTES (4u << 20)   // the batches' entries (rb_world), appended like the vertices (no discard a batch)
 #define RD3_GROW_MAX 8
 // THE BATCH: the game draws an object at a time (5000 draws a frame in a busy base, each a few dozen triangles), and
 // a draw call costs its time on the game's thread whatever its size. Draws in a row whose states match - the same
-// texture, blend, material ... - differing only in their world matrix are collected and drawn as one: their vertices
-// (with their matrix's index in the batch's table) and indices into the upload buffers, then one DrawIndexed. Strips
+// texture, blend, lights ... - differing only in their world matrix and material are collected and drawn as one: their
+// vertices (with their entry's index in the batch's table, rb_world) and indices into the upload buffers, then one
+// DrawIndexed. Strips
 // become lists (one batch takes many). A state that changes (rd3_prepare) ends the batch (rd3_flush): into the frame's
 // list (render_frame.c), drawn when the frame is done or something else needs the context (rd3_submit).
 #define RB_VERTS 65536       // a draw's: RD_VB_ROOM's (the ground's materials with the margin, render_frame.c)
 #define RB_INDICES (RB_VERTS * 3)
-#define RB_WORLDS 256
-typedef struct { uint8_t fvf[36]; uint32_t w; } rb_vertex;   // FVF 0x152 and the world's index
+#define RB_WORLDS 4096       // entries: a blended draw has one of its own (its runs)
+typedef struct { uint8_t fvf[36]; uint32_t w; } rb_vertex;   // FVF 0x152 and its entry's index
 internal struct {
     rb_vertex *v;
     uint32_t *i;
-    float (*w)[16];
+    rb_world *w;
     int nv, ni, nw;
     D3D11_PRIMITIVE_TOPOLOGY topo;
     int morph;      // the batch's draws are blended ones (render_morph.c): indices only, no vertices
@@ -498,9 +506,6 @@ internal int rd3_prepare(rd_device *d, int clamp) {
                 rd3_value(vc.lamb[lights], &l->dcvAmbient);
                 lights++;
             }
-            rd3_value(vc.mdiff, &d->material.diffuse);
-            rd3_value(vc.mamb, &d->material.ambient);
-            rd3_value(vc.memi, &d->material.emissive);
             rd3_color(vc.gamb, rs[D3DRENDERSTATE_AMBIENT]);
             int cv = rs[D3DRENDERSTATE_COLORVERTEX] != 0;   // the vertex has a diffuse colour (COLOR1), no specular (COLOR2)
             vc.src[0] = cv && rs[D3DRENDERSTATE_DIFFUSEMATERIALSOURCE] == D3DMCS_COLOR1;
@@ -612,6 +617,16 @@ internal void rd3_flush(void) {
     if (ia >= 0) rf_record((UINT)ia / 4, (UINT)g_rb.ni, (INT)((UINT)at / sizeof *g_rb.v));
     g_rb.nv = g_rb.ni = g_rb.nw = 0;
 }
+// a draw's entry: its world matrix (_14, 0 in the game's matrices: a tinted caster's size for the shader -
+// render_shadows.c) and material
+internal void rd3_entry(const rd_device *d, rb_world *e) {
+    memset(e, 0, sizeof *e);
+    memcpy(e->m, &d->world._11, 64);
+    if (d->sh_role == SH_TINT) e->m[3] = d->sh_b;
+    rd3_value(e->diff, &d->material.diffuse);
+    rd3_value(e->amb, &d->material.ambient);
+    rd3_value(e->emi, &d->material.emissive);
+}
 // a draw into the batch (rd3_prepare bound its states): nv vertices from start, ni indices (NULL: 0..nv-1) of type
 internal void rd3_append(rd_device *d, D3DPRIMITIVETYPE type, rd_vb *vb, DWORD start, DWORD nv, const WORD *idx, DWORD ni) {
     int line = type == D3DPT_LINELIST || type == D3DPT_LINESTRIP, strip = type == D3DPT_TRIANGLESTRIP || type == D3DPT_LINESTRIP;
@@ -623,10 +638,9 @@ internal void rd3_append(rd_device *d, D3DPRIMITIVETYPE type, rd_vb *vb, DWORD s
     if (g_rb.ni && (g_rb.morph || g_rb.topo != topo || g_rb.nv + (int)nv > RB_VERTS || g_rb.ni + (int)out > RB_INDICES || g_rb.nw >= RB_WORLDS))
         rd3_flush();
     g_rb.morph = 0;
-    float wm[16];   // _14 (0 in the game's matrices): a tinted caster's size for the shader (render_shadows.c)
-    memcpy(wm, &d->world._11, 64);
-    if (d->sh_role == SH_TINT) wm[3] = d->sh_b;
-    if (!g_rb.nw || memcmp(g_rb.w[g_rb.nw - 1], wm, 64)) memcpy(g_rb.w[g_rb.nw++], wm, 64);
+    rb_world e;
+    rd3_entry(d, &e);
+    if (!g_rb.nw || memcmp(&g_rb.w[g_rb.nw - 1], &e, sizeof e)) g_rb.w[g_rb.nw++] = e;
     g_rb.topo = topo;
     uint32_t w = (uint32_t)g_rb.nw - 1, base = (uint32_t)g_rb.nv;
     for (DWORD k = 0; k < nv; k++) {
@@ -644,18 +658,14 @@ internal void rd3_append(rd_device *d, D3DPRIMITIVETYPE type, rd_vb *vb, DWORD s
     #undef RB_AT
     g_rb.ni += (int)out;
 }
-// a blended draw into the batch (render_morph.c): its world matrix, its entry - the runs' places, the fraction, the
-// matrix's slot back from it - and its triangles' indices to the entry and the vertex in the run
+// a blended draw into the batch (render_morph.c): its entry - with the runs' places and the fraction - and its
+// triangles' indices to the entry and the vertex in the run
 internal void rd3_append_morph(rd_device *d, const mo_run *a, const mo_run *b, float f, const WORD *idx, DWORD ni) {
-    if (g_rb.ni && (!g_rb.morph || g_rb.ni + (int)ni > RB_INDICES || g_rb.nw + 2 > RB_WORLDS)) rd3_flush();
-    float wm[16];
-    memcpy(wm, &d->world._11, 64);
-    if (d->sh_role == SH_TINT) wm[3] = d->sh_b;
-    if (!g_rb.nw || memcmp(g_rb.w[g_rb.nw - 1], wm, 64)) memcpy(g_rb.w[g_rb.nw++], wm, 64);
-    uint32_t w = (uint32_t)g_rb.nw - 1, s = (uint32_t)g_rb.nw++;
-    float *e = g_rb.w[s];
-    memset(e, 0, 64);
-    e[0] = (float)a->at; e[1] = (float)b->at; e[2] = f; e[3] = (float)(s - w);
+    if (g_rb.ni && (!g_rb.morph || g_rb.ni + (int)ni > RB_INDICES || g_rb.nw >= RB_WORLDS)) rd3_flush();
+    uint32_t s = (uint32_t)g_rb.nw++;
+    rb_world *e = &g_rb.w[s];
+    rd3_entry(d, e);
+    e->mo[0] = (float)a->at; e->mo[1] = (float)b->at; e->mo[2] = f;
     g_rb.morph = 1;
     g_rb.topo = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
     uint32_t *o = g_rb.i + g_rb.ni, top = 0x80000000u | s << 12;
@@ -1157,8 +1167,7 @@ internal HRESULT __stdcall rd_dev_set_viewport(rd_device *d, D3DVIEWPORT7 *v) {
     return D3D_OK;
 }
 internal HRESULT __stdcall rd_dev_get_viewport(rd_device *d, D3DVIEWPORT7 *v) { *v = d->viewport; return D3D_OK; }
-internal HRESULT __stdcall rd_dev_set_material(rd_device *d, D3DMATERIAL7 *m) {
-    if (memcmp(&d->material, m, sizeof *m) != 0) d->changed |= RD_CH_VC;
+internal HRESULT __stdcall rd_dev_set_material(rd_device *d, D3DMATERIAL7 *m) {   // the draw's own, as the world (rb_world)
     d->material = *m;
     return D3D_OK;
 }

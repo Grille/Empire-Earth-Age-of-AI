@@ -75,11 +75,11 @@ internal void rf_record(UINT at, UINT n, INT base) {
 // they are flushed - vertices, indices, world matrices, states, constants - and a frame during a step draws the last
 // frame's again in the ground's place. The camera moved since (scrolling goes on, on this thread: camera.c) is the
 // list's to show (rf_shift, below) - the vertices stay as they were placed, the shadows' maps with them.
-typedef struct { rf_cmd c; rd3_vcb vc; rd3_pcb pc; int v0, nv, i0, ni, w0, nw; } rf_kept;
+typedef struct { rf_cmd c; rd3_vcb vc; rd3_pcb pc; int v0, nv, i0, ni, w0, nw, morph; } rf_kept;
 typedef struct {
     rb_vertex *v;
     uint32_t *i;
-    float (*w)[16];
+    rb_world *w;
     rf_kept *b;
     int nv, ni, nw, nb, cap_v, cap_i, cap_w, cap_b;
 } rf_ground;
@@ -113,6 +113,7 @@ internal void rf_keep_ground(void) {
     if (b->c.srv) ID3D11ShaderResourceView_AddRef(b->c.srv);
     b->c.vport = g_rd3.vport;
     b->c.topo = g_rb.topo;
+    b->morph = g_rb.morph;
     b->vc = g_rd3.vc; b->pc = g_rd3.pc;
     b->v0 = g->nv; b->nv = g_rb.nv; b->i0 = g->ni; b->ni = g_rb.ni; b->w0 = g->nw; b->nw = g_rb.nw;
     memcpy(g->v + g->nv, g_rb.v, (size_t)g_rb.nv * sizeof *g->v);
@@ -353,6 +354,7 @@ internal void rf_ground_again(rf_ground *g) {
         g_rd3.srv = b->c.srv;
         g_rd3.vport = b->c.vport;
         g_rb.topo = b->c.topo;
+        g_rb.morph = b->morph;
         g_rd3.vc = b->vc; g_rd3.pc = b->pc;
         g_rf.vc_new = g_rf.pc_new = 1;
         memcpy(g_rb.v, g->v + b->v0, (size_t)b->nv * sizeof *g_rb.v);
@@ -585,7 +587,7 @@ internal void rf_scene_end(void) {
                        (double)w[0][0], (double)w[0][1], (double)w[0][2], (double)w[1][0], (double)w[1][1], (double)w[1][2]);
         }
         if (g_kg.nb) {
-            const float *gv = g_kg.b[0].vc.view, *gw = g_kg.w[g_kg.b[0].w0];
+            const float *gv = g_kg.b[0].vc.view, *gw = g_kg.w[g_kg.b[0].w0].m;
             log_locked("# camtrace2:   the ground's view %.3f %.3f %.3f / %.3f %.3f %.3f / %.3f %.3f %.3f / %.3f %.3f %.3f; its first world"
                        " %.3f %.3f %.3f / %.3f %.3f %.3f / %.3f %.3f %.3f / %.3f %.3f %.3f (%d batches)\n",
                        (double)gv[0], (double)gv[1], (double)gv[2], (double)gv[4], (double)gv[5], (double)gv[6], (double)gv[8], (double)gv[9], (double)gv[10],

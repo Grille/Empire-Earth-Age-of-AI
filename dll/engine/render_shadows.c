@@ -109,7 +109,7 @@ internal const char k_sh_shader[] =
     RD3_MORPH_HLSL
     "Texture2D t : register(t0); SamplerState s : register(s0);\n"
     "struct O { float4 p : SV_Position; float2 t : TEXCOORD0; };\n"
-    "O vs(I i, uint id : SV_VertexID) { O o; morph(i, id); uint r = i.w * 4; float4 r0 = wt.Load(r); r0.w = 0;"
+    "O vs(I i, uint id : SV_VertexID) { O o; morph(i, id); uint r = i.w * 8; float4 r0 = wt.Load(r); r0.w = 0;"
     " float4 p = mul(float4(i.p, 1), float4x4(r0, wt.Load(r + 1), wt.Load(r + 2), wt.Load(r + 3)));"
     " float3 q = mul(p, shm).xyz; o.p = float4(q.x * 2 - 1, 1 - q.y * 2, q.z, 1); o.t = i.t; return o; }\n"
     "void ps(O i) { if (sa.y <= 0) return; float w, h; t.GetDimensions(w, h); float2 u = i.t * float2(w, h);"
