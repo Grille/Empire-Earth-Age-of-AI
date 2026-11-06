@@ -2,8 +2,8 @@
 // each as <name>_NNN.bmp with its depth <name>_NNN.depth (the depth buffer's float a pixel, 0..1, rows top down), and a
 // line each in <name>.csv - the camera the map was drawn with (scene_vp, the viewport), whether the frame was drawn
 // during a step (the last update's ground, water and fields drawn again: kept, their batches - not counted by role), the
-// shadow map's fitting (shm, the casters' box, the maps drawn) and the draws by their shadow role - to find what changes from one frame to the next
-// that shouldn't (the player, 2026-11-06: "shadows are still unstable, and farms flicker in visibility" - standing still
+// water's level and whether the shadows fade under it, the shadow map's fitting (shm, the casters' box, the maps drawn)
+// and the draws by their shadow role - to find what changes from one frame to the next that shouldn't (the player, 2026-11-06: "shadows are still unstable, and farms flicker in visibility" - standing still
 // too, worse while the camera moves). A single shot lands on a frame by chance; a flicker of one frame in twenty needs
 // them all. The depth lets the script place each pixel in the world and find it again in the frames before and after
 // while the camera moves (with pan dx dy: moved by that every frame, as the pipe's camera pan). The frames are copies
@@ -119,6 +119,7 @@ internal void rec_frame(rd_surface *s) {
         }
         for (int a = 0; a < 16; a++) fprintf(c, ",%.9g", (double)vp[a]);
         fprintf(c, ",%d,%ld", g_kg_skip, (long)(g_kg_drawn - g_rec.kept));
+        fprintf(c, ",%.4f,%d", (double)g_sh.shl[0], (int)g_sh.shl[2]);
         fprintf(c, ",%d,%ld,%d", g_sh.valid, (long)(g_sh.passes - g_rec.passes), g_sh.last_cast);
         for (int k = 0; k < 3; k++) fprintf(c, ",%.4f", (double)g_sh.last_lo[k]);
         for (int k = 0; k < 3; k++) fprintf(c, ",%.4f", (double)g_sh.last_hi[k]);
@@ -169,7 +170,7 @@ internal void cmd_record(char *out, const char *args) {
     if (!c) { REPLY("error: can't write %s\n", path); return; }
     fprintf(c, "frame,ms,w,h,picture,depth,port_x,port_y,port_w,port_h");
     for (int k = 0; k < 16; k++) fprintf(c, ",vp%d", k);
-    fprintf(c, ",step,kept,sh_valid,sh_maps,sh_cast,sh_lo_x,sh_lo_y,sh_lo_z,sh_hi_x,sh_hi_y,sh_hi_z");
+    fprintf(c, ",step,kept,water_level,water_fade,sh_valid,sh_maps,sh_cast,sh_lo_x,sh_lo_y,sh_lo_z,sh_hi_x,sh_hi_y,sh_hi_z");
     for (int k = 0; k < 16; k++) fprintf(c, ",shm%d", k);
     static const char *const roles[REC_ROLES] = { "none", "receive", "cast", "tint", "decal", "blob", "water", "away", "gone", "tree", "fields" };
     for (int k = 0; k < REC_ROLES; k++) fprintf(c, ",%s_draws,%s_verts", roles[k], roles[k]);
