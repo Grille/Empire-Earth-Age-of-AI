@@ -166,6 +166,12 @@ The interface's update runs (UIManager::CopyData, under the interface's own lock
 the world's lock in the game too): skipped at first, the chat lines and buttons over the 3D view were missing from such
 frames and flickered while moving (the player); with it two chat lines in all of six shots while scrolling, two thirds
 of the frames drawn during a step. The water's (its animation) runs too.
+A simulation that is behind runs its steps back to back, the lock free only for a moment between them - no frame began
+in it, every frame was drawn during a step and the units stood for minutes (10844 units at speed 2, the player
+2026-11-06). So a frame drawn during a step hands off: the simulation's next write lock waits until a frame has
+updated from the step's result (at most 50 ms; g_rwl_want, g_rwl_taken) - every step's result is drawn and no frame
+waits for a step. On the 8000 save at speed 4: 62 fps with 9 updates a second, the simulation waiting about 16 ms a
+hand-off (about 7 % less game time than frames that waited for a step every 100 ms).
 - The ground's draw draws nothing without its update (the clear's sky blue where the ground was; units, trees and
   buildings were there). Its update alone took everything else with it - it makes the visible region the units' draw
   uses. So the ground batches of the last frame drawn with an update are kept on the CPU as they are flushed (vertices,
