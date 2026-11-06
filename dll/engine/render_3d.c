@@ -739,7 +739,22 @@ internal void __thiscall rd_hook_read_lock(void *lock) {
     if (w > g_rwl_wait_max) g_rwl_wait_max = w;
     if (w > 0 && !g_rwl_world) g_rwl_world = lock;
 }
+// The hand-off (the frame during a step, below): a frame that found a step under way leaves g_rwl_want, and the
+// simulation's next write lock waits for the update that reads the step's result (g_rwl_taken, set after it) - at
+// most RWL_HANDOFF_MS, once (a picture that stopped, minimized, holds nothing up)
+#define RWL_HANDOFF_MS 50
+internal volatile LONG g_rwl_want;
+internal HANDLE g_rwl_taken;
+internal LONG g_rwl_handoffs;
+internal LONGLONG g_rwl_handoff_qpc;   // the simulation's time waiting for them
 internal void __thiscall rd_hook_write_lock(void *lock) {
+    if (lock == g_rwl_world && g_rwl_want && g_rwl_taken && GetCurrentThreadId() != g_rd_thread) {
+        LONGLONG t0 = rd_qpc();
+        WaitForSingleObject(g_rwl_taken, RWL_HANDOFF_MS);
+        g_rwl_want = 0;
+        g_rwl_handoffs++;
+        g_rwl_handoff_qpc += rd_qpc() - t0;
+    }
     g_rwl_write(lock);
     if (lock == g_rwl_world) {
         g_rwl_write_at = rd_qpc();
@@ -776,26 +791,26 @@ internal void __thiscall rd_hook_write_unlock(void *lock) {
 // missing from such frames - they flickered while moving) and the water's animation. The ground's draw draws nothing
 // without its update (the clear's sky blue where it was): the last frame's ground is drawn again (render_frame.c "the
 // ground kept").
-// A game whose simulation is behind runs its steps back to back - the lock free for a moment between them (10844 units
-// at speed 2, the player 2026-11-06: "the 3d view doesnt change anymore", every frame drawn during a step, minutes
-// long): after RWL_STALE_MS without an update the frame waits for the step as before, the units moved that often.
-#define RWL_STALE_MS 100
+// A game whose simulation is behind runs its steps back to back, the lock free for a moment between them that no frame
+// hit (10844 units at speed 2, the player 2026-11-06: "the 3d view doesnt change anymore" - every frame drawn during a
+// step, minutes long): a frame drawn during a step hands off (g_rwl_want above) - the simulation waits before its next
+// step until a frame has updated from this one's result, so every step's result is drawn and no frame waits for a step.
 internal int g_rwl_free = 1;
 internal LONG g_rwl_skips, g_rwl_updates;
-internal LONGLONG g_rwl_update_at;   // the last update's time
 internal ee_render_object *g_ro_obj[RO_N];   // the render objects, as their draws are called
 internal int rec_step(void);   // render_record.c: the pipe's record steps - every second frame drawn as during a step
 internal void __thiscall rd_hook_graphics_update(ee_graphics *g) {
-    LONGLONG now = rd_qpc();
-    int stale = now - g_rwl_update_at >= rd_qpc_ms(RWL_STALE_MS);
-    int skip = g_rwl_updates && ((g_rwl_free && g_rwl_world && g_rwl_write_at && !stale) || rec_step());
+    int held = g_rwl_updates && g_rwl_free && g_rwl_world && g_rwl_write_at;
+    int skip = held || (g_rwl_updates && rec_step());
+    if (held && g_rwl_taken) { ResetEvent(g_rwl_taken); g_rwl_want = 1; }
     rf_ground_frame(skip);
     if (skip) g_rwl_skips++;
-    else { g_rwl_updates++; g_rwl_update_at = now; }
+    else g_rwl_updates++;
     g_rwl_pass = skip;
     if (skip && g_rp_state == 3) g_rp_state = 2;   // the pipe's rprobe step
     ee_graphics_update_objects(g);
     g_rwl_pass = 0;
+    if (!skip && g_rwl_taken) SetEvent(g_rwl_taken);
 }
 internal void __thiscall rd_hook_ro_terrain_update(ee_ro_terrain *o) { if (!g_rwl_pass) ro_terrain_update(o); }
 internal void __thiscall rd_hook_ro_units_update(ee_ro_units *o) { if (!g_rwl_pass) ro_units_update(o); }
@@ -809,6 +824,7 @@ internal int rd_world_lock_install(void) {
     g_rwl_write = (rd_rwl_fn)(void *)GetProcAddress(lle, "?WriteLock@TSReadWriteLock@@QAEXXZ");
     g_rwl_wunlock = (rd_rwl_fn)(void *)GetProcAddress(lle, "?WriteUnlock@TSReadWriteLock@@QAEXXZ");
     if (!g_rwl_read || !g_rwl_runlock || !g_rwl_write || !g_rwl_wunlock) return 0;
+    g_rwl_taken = CreateEventA(NULL, TRUE, FALSE, NULL);
     return patch_iat(exe, "Low-Level Engine.dll", "?ReadLock@TSReadWriteLock@@QAEXXZ", (void *)rd_hook_read_lock) +
            patch_iat(exe, "Low-Level Engine.dll", "?ReadUnlock@TSReadWriteLock@@QAEXXZ", (void *)rd_hook_read_unlock) +
            patch_iat(exe, "Low-Level Engine.dll", "?WriteLock@TSReadWriteLock@@QAEXXZ", (void *)rd_hook_write_lock) +
@@ -994,13 +1010,15 @@ internal void rd_frame_tick(void) {
     }
     log_locked("# render: frames waiting %d ms or more for the lock %ld (longest %.0f ms); its holds that long by where the"
                " game took it: %s\n", RWL_LONG_MS, (long)g_rwl_waits_long, (double)g_rwl_wait_max * ms, len ? sites : "none");
-    static LONG reads0, skips0;
-    static LONGLONG read0;
+    static LONG reads0, skips0, handoffs0;
+    static LONGLONG read0, handoff0;
     log_locked("# render: the frame's read holds of the world %.2f ms a frame (%.2f holds; the game took the last at %08x);"
-               " frames drawn during a step %ld (draw_during_steps %s)\n", (double)(g_rwl_read_qpc - read0) * k,
+               " frames drawn during a step %ld (draw_during_steps %s), the simulation waiting for their update %ld times,"
+               " %.0f ms\n", (double)(g_rwl_read_qpc - read0) * k,
                fr > 0 ? (double)(g_rwl_reads - reads0) / fr : 0, (unsigned)g_rwl_read_ret, (long)(g_rwl_skips - skips0),
-               g_rwl_free ? "on" : "off");
+               g_rwl_free ? "on" : "off", (long)(g_rwl_handoffs - handoffs0), (double)(g_rwl_handoff_qpc - handoff0) * ms);
     reads0 = g_rwl_reads; read0 = g_rwl_read_qpc; skips0 = g_rwl_skips;
+    handoffs0 = g_rwl_handoffs; handoff0 = g_rwl_handoff_qpc;
     memset(g_rwl_long, 0, sizeof g_rwl_long);
     g_rwl_waits_long = 0;
     g_rwl_wait_max = 0;
