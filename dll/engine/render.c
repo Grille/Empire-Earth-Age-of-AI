@@ -177,6 +177,7 @@ struct rd_surface {
     uint8_t *mem;                   // CPU pixels (desc.lPitch); a target's: what the last lock read
     rd_surface *top, *next, *zbuf;  // mip chain (the top owns the GPU texture), attached depth buffer
     int dirty;                      // CPU pixels newer than the GPU texture (on the top for a chain)
+    int gpu_newer;                  // the reverse: a copy from the target went into the texture only (rd_sf_blt)
     LONG rf_used;                   // the frame's list it was last recorded into (g_rd_epoch)
     int keyed;                      // the GPU copy has alpha 0 where the colour key matches
     DDCOLORKEY key;
@@ -202,8 +203,10 @@ internal void rd_surface_free(rd_surface *s) {
     free(s);
 }
 
+internal void rd_read_back(rd_surface *s);
 internal uint8_t *rd_mem(rd_surface *s) {
     if (!s->mem) s->mem = calloc((size_t)s->desc.lPitch, s->desc.dwHeight ? s->desc.dwHeight : 1);
+    if (s->gpu_newer && s->mem) rd_read_back(s);
     return s->mem;
 }
 
@@ -293,6 +296,27 @@ internal int rd_read_target(rd_surface *s, const RECT *r) {
     }
     st->lpVtbl->Release(st);
     return ok;
+}
+// a surface whose texture is newer than its memory (gpu_newer): the texture read into the memory, when the CPU wants
+// its pixels (rd_mem)
+internal void rd_read_back(rd_surface *s) {
+    s->gpu_newer = 0;
+    rd3_submit();
+    D3D11_TEXTURE2D_DESC td = { 0 };
+    td.Width = s->desc.dwWidth; td.Height = s->desc.dwHeight; td.MipLevels = 1; td.ArraySize = 1;
+    td.SampleDesc.Count = 1; td.Format = DXGI_FORMAT_B8G8R8A8_UNORM; td.Usage = D3D11_USAGE_STAGING;
+    td.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+    ID3D11Texture2D *st = NULL;
+    if (!s->tex || FAILED(ID3D11Device_CreateTexture2D(g_d3d.dev, &td, NULL, &st))) return;
+    ID3D11DeviceContext_CopySubresourceRegion(g_d3d.ctx, (ID3D11Resource *)st, 0, 0, 0, 0, (ID3D11Resource *)s->tex, 0, NULL);
+    D3D11_MAPPED_SUBRESOURCE ms;
+    if (SUCCEEDED(ID3D11DeviceContext_Map(g_d3d.ctx, (ID3D11Resource *)st, 0, D3D11_MAP_READ, 0, &ms))) {
+        for (int y = 0; y < (int)td.Height; y++)
+            rf_from_bgra(s->fmt, (const uint32_t *)((uint8_t *)ms.pData + (size_t)y * ms.RowPitch),
+                         s->mem + (size_t)y * s->desc.lPitch, (int)td.Width);
+        ID3D11DeviceContext_Unmap(g_d3d.ctx, (ID3D11Resource *)st, 0);
+    }
+    st->lpVtbl->Release(st);
 }
 // its memory in r back to the GPU (after a lock that wrote)
 internal void rd_write_target(rd_surface *s, const RECT *r) {
@@ -535,6 +559,20 @@ internal HRESULT __stdcall rd_sf_blt(rd_surface *d, RECT *dr0, rd_surface *s, RE
     if (d->kind == RK_TARGET) {
         ID3D11ShaderResourceView *v = rd_gpu_texture(s, keyed);
         if (v) rd2_rect(d, &dr, v, (int)s->desc.dwWidth, (int)s->desc.dwHeight, &sr, NULL, keyed);
+    } else if (d->kind != RK_ZBUF && d->kind != RK_PRIMARY && s->kind == RK_TARGET && !keyed && !d->top && !d->next &&
+               dr.right - dr.left == sr.right - sr.left && dr.bottom - dr.top == sr.bottom - sr.top && dr.left >= 0 &&
+               dr.top >= 0 && dr.right <= (LONG)d->desc.dwWidth && dr.bottom <= (LONG)d->desc.dwHeight && sr.left >= 0 &&
+               sr.top >= 0 && sr.right <= (LONG)s->desc.dwWidth && sr.bottom <= (LONG)s->desc.dwHeight && s->tex &&
+               rd_gpu_texture(d, 0) && d->tex) {
+        // The target into a surface in memory, the same size: the game's mouse cursor saves the 32 x 32 pixels under
+        // it every frame and puts them back before the next (0x51078A, 0x5108EE). Read back, it made the frame wait for
+        // the graphics card (a fifth of the drawing thread's time on the 8000 save, paused): copied on the GPU into the
+        // surface's texture instead - its memory reads it back only when the CPU asks for its pixels.
+        rd3_submit();
+        D3D11_BOX box = { (UINT)sr.left, (UINT)sr.top, 0, (UINT)sr.right, (UINT)sr.bottom, 1 };
+        ID3D11DeviceContext_CopySubresourceRegion(g_d3d.ctx, (ID3D11Resource *)d->tex, 0, (UINT)dr.left, (UINT)dr.top, 0,
+                                                  (ID3D11Resource *)s->tex, 0, &box);
+        d->gpu_newer = 1;
     } else if (d->kind != RK_ZBUF && d->kind != RK_PRIMARY) {
         // CPU: nearest neighbour, a target source read back first
         if (s->kind == RK_TARGET) rd_read_target(s, &sr);
