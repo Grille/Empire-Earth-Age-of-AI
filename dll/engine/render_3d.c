@@ -776,15 +776,22 @@ internal void __thiscall rd_hook_write_unlock(void *lock) {
 // missing from such frames - they flickered while moving) and the water's animation. The ground's draw draws nothing
 // without its update (the clear's sky blue where it was): the last frame's ground is drawn again (render_frame.c "the
 // ground kept").
+// A game whose simulation is behind runs its steps back to back - the lock free for a moment between them (10844 units
+// at speed 2, the player 2026-11-06: "the 3d view doesnt change anymore", every frame drawn during a step, minutes
+// long): after RWL_STALE_MS without an update the frame waits for the step as before, the units moved that often.
+#define RWL_STALE_MS 100
 internal int g_rwl_free = 1;
 internal LONG g_rwl_skips, g_rwl_updates;
+internal LONGLONG g_rwl_update_at;   // the last update's time
 internal ee_render_object *g_ro_obj[RO_N];   // the render objects, as their draws are called
 internal int rec_step(void);   // render_record.c: the pipe's record steps - every second frame drawn as during a step
 internal void __thiscall rd_hook_graphics_update(ee_graphics *g) {
-    int skip = g_rwl_updates && ((g_rwl_free && g_rwl_world && g_rwl_write_at) || rec_step());
+    LONGLONG now = rd_qpc();
+    int stale = now - g_rwl_update_at >= rd_qpc_ms(RWL_STALE_MS);
+    int skip = g_rwl_updates && ((g_rwl_free && g_rwl_world && g_rwl_write_at && !stale) || rec_step());
     rf_ground_frame(skip);
     if (skip) g_rwl_skips++;
-    else g_rwl_updates++;
+    else { g_rwl_updates++; g_rwl_update_at = now; }
     g_rwl_pass = skip;
     if (skip && g_rp_state == 3) g_rp_state = 2;   // the pipe's rprobe step
     ee_graphics_update_objects(g);
