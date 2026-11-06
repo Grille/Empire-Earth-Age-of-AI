@@ -689,6 +689,24 @@ Continental game ended with the mod resigning at 23-50 min after 27-43 citizens 
 more ships. Where to work: the economy's size (workers) and keeping the citizens alive against early waves on land;
 on the islands the land war after the crossings.
 
+60 minutes are too short to say who beats whom (the player 2026-11-06: EE is slow, the epoch timer alone is 50-70 min
+an epoch from Copper on) - most of those games were "standing". 2026-11-06, build 627b805, the same setup but
+`quit_minutes=600` (a decided game ends the run: 1-8 min real time each, 120 games in about 40 min at JOBS=6), cheat
+on only:
+
+| Map | mod won / vanilla won / standing | decided at (mean) | kills | losses | workers | soldiers | fish food |
+|---|---|---|---|---|---|---|---|
+| Continental e0 | 27 / 13 / 0 | 101 min | +245 (39) | -240 (39) | +52 (20) | +74 (11) | 0 |
+| Small Islands e5 | 0 / 36 / 4 | 58 min | +15 (15) | -25 (19) | -113 (7) | -63 (8) | -7823 (861) |
+| Large Islands e5 | 12 / 24 / 4 | 115 min | +12 (46) | -3 (50) | -51 (16) | +7 (18) | -11717 (991) |
+
+On land the mod's AI now beats the cheating one two games in three. On the islands it doesn't: on Small Islands it
+resigns at 31-45 min without citizens (53-99 of them killed in the last 20 minutes, "can't pay a citizen") against
+147 vanilla workers to its 35; the vanilla AI lives off the sea (8457 fish food a game against 634) and has 7.6
+warships to 0.1. The one pilot game that went long on Continental (game_seed 1, mod P2) was lost the other way: ahead
+in epochs, the population stuck at 150-195 of 300 from minute 100, citizens killed 50-80 every 20 minutes, collapse
+at 260-300 min.
+
 ### The early game against the base AI (docs/economy.md)
 
 2026-10-19: towers first, the bait, the careful militia (`early_towers`, `tower_bait`, `early_militia`: A), the early
