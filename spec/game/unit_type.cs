@@ -12,7 +12,7 @@ unsafe struct EEUnitClass
     /// the data's column 0x344 (the community editor: "Plane refuel location") - 1 the airport planes, 2 the carriers'
     /// (F-14, Corsair, Avenger); the air models (0x54A5AE, 0x54AA2B, 0x54B540, 0x54BC24) treat 2 apart, AoC also 4
     /// (the AoC decompilation: mAirTrafficType, an airport's air traffic slot - 1)
-    [offset(0x28), found(c)]
+    [offset(0x28), found(c), guess]
     int32 refuel_at;
 
     /// the graphic effect a missile or projectile plays on itself when it arrives
@@ -26,7 +26,7 @@ unsafe struct EEUnitClass
     /// the effect at the shot's point (z 0) instead of impact_gfx when a missile or projectile ends below 0 over a tile
     /// below 0 (water?) without attacking a unit (EEUCMissile::vf29 0x605E9B, EEUCProjectile::vf29 0x607B11)
     /// (the AoC decompilation: mSplashEffect, the splash on the water)
-    [offset((ee)0x394, (aoc)0x84), found(c)]
+    [offset((ee)0x394, (aoc)0x84), found(c), guess]
     void* ground_gfx;
 
     /// the shot's effect: a beam from the attacker to the target, or at the aim point without one
@@ -45,7 +45,7 @@ unsafe struct EEUnitClass
 
     /// the data's column 0x1D4 (the editor: "Flight altitude"); below it the air models scale the height by
     /// stats.height x (z / it x 0.5 + 0.5) (the AoC decompilation: mCruiseAltitude)
-    [offset((ee)0x418, (aoc)0x11C), found(c)]
+    [offset((ee)0x418, (aoc)0x11C), found(c), guess]
     float32 flight_altitude;
 
     /// the type data's constructors
@@ -244,7 +244,7 @@ unsafe struct EEUnitClass
     /// the data's column 0x245 (the editor: Can be owned by "World"; resources, scaffolding, ambient): the subgroup's
     /// target filter 0x446124 skips such objects unless they are armed and the stance is 2
     /// (the AoC decompilation: mIsGaiaPlaceable)
-    [offset((ee)0x609, (aoc)0x306), found(c)]
+    [offset((ee)0x609, (aoc)0x306), found(c), guess]
     uint8 world_ownable;
 
     /// a wall: set after the load (0x62188D) as membership of unit set 9 (0x4A7618(type, 9)), dbunitset.dat's "Walls 1"
@@ -259,12 +259,12 @@ unsafe struct EEUnitClass
     /// the data's column 0x248 (the editor: "You can kill this object with Delete key"; 0 for 24 types): a unit's
     /// +0x334 starts as it (0x5E6024); freeze clears that and unfreeze restores it from here (0x5AF0BB, 0x5B32CB)
     /// (the AoC decompilation: mIsDeletable)
-    [offset((ee)0x613, (aoc)0x311), found(c)]
+    [offset((ee)0x613, (aoc)0x311), found(c), guess]
     uint8 deletable;
 
     /// the data's column 0x3B0 (the editor: "Melee attack"): EECPAttackSubGroupUnit::score 0x461854 picks its table 0
     /// by it (the AoC decompilation: mIsMelee)
-    [offset((ee)0x61A, (aoc)0x318), found(c)]
+    [offset((ee)0x61A, (aoc)0x318), found(c), guess]
     uint8 melee;
 
     /// the constructor sets 1 only for ids 47 and 461..466, the guard towers (AoC also 0x2FD, 0x302, 0x312, 0x322);

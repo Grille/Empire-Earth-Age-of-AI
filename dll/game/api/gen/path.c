@@ -39,6 +39,7 @@ internal inline uint8_t *active_group_0x5c_at(const ee_active_group *o) { return
 internal inline ee_goal *active_group_get_goal(const ee_active_group *o) { return *(ee_goal **)((uint8_t *)o + of_active_group_goal); }
 internal inline void active_group_set_goal(ee_active_group *o, ee_goal *v) { *(ee_goal **)((uint8_t *)o + of_active_group_goal) = v; }
 internal inline ee_goal **active_group_goal_at(const ee_active_group *o) { return (ee_goal **)((uint8_t *)o + of_active_group_goal); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
 // the group's action as a unit state: 5000 none (the constructor, 0x5DD18B), 8000 move, 2001 attack, 11002
 // explore; the dispatch 0x5DD463 switches on it (the AoC decompilation: mAction)
 internal inline int active_group_get_action(const ee_active_group *o) { return *(int *)((uint8_t *)o + of_active_group_action); }
@@ -114,6 +115,7 @@ internal inline float *active_group_turn_accel_inv_at(const ee_active_group *o) 
 internal inline float active_group_get_speed_cap(const ee_active_group *o) { return *(float *)((uint8_t *)o + of_active_group_speed_cap); }
 internal inline void active_group_set_speed_cap(ee_active_group *o, float v) { *(float *)((uint8_t *)o + of_active_group_speed_cap) = v; }
 internal inline float *active_group_speed_cap_at(const ee_active_group *o) { return (float *)((uint8_t *)o + of_active_group_speed_cap); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
 // 0x5DD2AA deletes the goal, puts the group into its player's +0x854 list of groups to drop (0x5596xx releases
 // them), adds one to +4 and sets this; the constructor clears it, no reader (the AoC decompilation: mIsFinished)
 internal inline uint8_t active_group_get_retired(const ee_active_group *o) { return *(uint8_t *)((uint8_t *)o + of_active_group_retired); }

@@ -220,7 +220,7 @@ unsafe struct EEMStartLoading
     /// the sender (0x5C7538's area) counts the start slots of kinds 1 and 2 into it; execute 0x4BEE57 copies it to
     /// server +0x2C and sets server +0x2E (multiplayer) when it is above 1; 1 byte on the wire
     /// (the AoC decompilation: mNumHumanPlayers)
-    [offset(0x10), found(c)]
+    [offset(0x10), found(c), guess]
     uint8 humans;
 
     [offset(0x14), found(c)]

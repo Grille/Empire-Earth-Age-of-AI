@@ -69,6 +69,7 @@ internal inline float *camera_y_at(const ee_camera *o) { return (float *)((uint8
 // it set it at once; in the player's 8000-unit save it stood for up to six frames of 120 (the pipe's picture
 // camtrace, 2026-11-05). AoC's offset by its other fields' (not looked at)
 internal inline uint8_t *camera_transformation_at(const ee_camera *o) { return (uint8_t *)o + of_camera_transformation; }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
 // 0x51EE75 advances it by dt x blend_rate up to 1.0 (snap: at once) and passes it as t to the lerps 0x51D46C /
 // 0x51D56A and to make_transformation (the view matrix +0x84); 0x51E79C sets it 0 for a new move
 // (the AoC decompilation: mFraction)

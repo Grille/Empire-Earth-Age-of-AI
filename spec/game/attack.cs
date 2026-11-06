@@ -172,7 +172,7 @@ unsafe struct EECPAttackSubGroup
     /// vf91 0x45CCC3 picks a kind (2/3/4/7/9) by random ratios when it splits the group, not while it is 10; vf37
     /// 0x45BFC9 chooses by it which units leave (4 a random 30..70 %, 11 every free unit); update's state 0x3E9 sets 10
     /// (0x4491DD), message 0x232A 11 (the AoC decompilation: mSplitKind)
-    [offset((ee)0x1CC, (aoc)0x1D0), found(c)]
+    [offset((ee)0x1CC, (aoc)0x1D0), found(c), guess]
     int32 split_kind;
 
     [offset((ee)0x1D0, (aoc)0x1D4), found(c)]
@@ -309,12 +309,12 @@ unsafe struct EEAIGPGModifierLandAttackSubGroupRoutePlanner
 
     /// plan_route's weights[5] == 0 (the constructor 0x414187): while 0, cost multiplies a node in an area other than
     /// the start's and the goal's by 50 (the AoC decompilation: mAnyContinent)
-    [offset(0x58), found(c)]
+    [offset(0x58), found(c), guess]
     uint8 free_crossing;
 
     /// always 1 from the constructor: vf2 then returns 0 for a kind 0xD node of its own or an allied player's object
     /// (the player's +0x9E4 table) (the AoC decompilation: mAvoidFriendlyBlockers)
-    [offset(0x59), found(c)]
+    [offset(0x59), found(c), guess]
     uint8 owner_test;
 }
 
@@ -328,8 +328,9 @@ unsafe struct EECPCombatStrategy
     vector requests;
 
     /// the share of air units: 0x473CE2 scales a shortfall of its argument's air units (+0x78; AoC +0x7C) by it to
-    /// share units into air_count, sea_count and land_count (AoC has a space share after land_share; the AoC
-    /// decompilation: mAirShare, the intelligence counting units by their class's movement domain)
+    /// share units into air_count, sea_count and land_count - the intelligence 0x47D6D9 counts a military type with
+    /// movement bit 0 (an aircraft) into +0x78, bit 2 (a ship) into +0x74, the others into +0x7C (AoC has a space
+    /// share after land_share; the AoC decompilation: mAirShare)
     [offset(0x14), found(c)]
     float32 air_share;
 
@@ -355,7 +356,7 @@ unsafe struct EECPCombatStrategy
     /// the total 0x473CE2 splits into air_count, sea_count and land_count (the rest into land_count); its callers set
     /// 1..4, 1..20 or a rounded count, always the same as units_max (0x47111D, 0x4554xx; the AoC decompilation:
     /// mNumUnits)
-    [offset((ee)0x28, (aoc)0x2C), found(c)]
+    [offset((ee)0x28, (aoc)0x2C), found(c), guess]
     int32 units;
 
     /// written with the same value as units by every caller; no reader of its own found
@@ -457,7 +458,8 @@ unsafe struct EECPILocation
     extern void set(EECPILocation* from);
 
     /// a player's index in the world's players: 0x44E535 (from init) zeroes it, set 0x47C8B7 copies it, save and load
-    /// (0x47C5F9 / 0x47C680) write it as unit_id (the AoC decompilation: mPlayer, read as gWorld.mPlayers[it])
+    /// (0x47C5F9 / 0x47C680) write it as unit_id, 0x47C6CC looks the player up by it to find its town at the tile (the
+    /// AoC decompilation: mPlayer)
     [offset(0x14), found(c)]
     uint32 player;
 }

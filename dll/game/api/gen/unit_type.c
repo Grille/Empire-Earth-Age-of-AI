@@ -10,6 +10,7 @@ internal inline uint8_t **unit_type_vtable_at(const ee_unit_type *o) { return (u
 internal inline char *unit_type_get_name(const ee_unit_type *o) { return *(char **)((uint8_t *)o + of_unit_type_name); }
 internal inline void unit_type_set_name(ee_unit_type *o, char *v) { *(char **)((uint8_t *)o + of_unit_type_name) = v; }
 internal inline char **unit_type_name_at(const ee_unit_type *o) { return (char **)((uint8_t *)o + of_unit_type_name); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
 // the data's column 0x344 (the community editor: "Plane refuel location") - 1 the airport planes, 2 the carriers'
 // (F-14, Corsair, Avenger); the air models (0x54A5AE, 0x54AA2B, 0x54B540, 0x54BC24) treat 2 apart, AoC also 4
 // (the AoC decompilation: mAirTrafficType, an airport's air traffic slot - 1)
@@ -24,6 +25,7 @@ internal inline void **unit_type_impact_gfx_at(const ee_unit_type *o) { return (
 internal inline void *unit_type_get_fire_gfx(const ee_unit_type *o) { return *(void **)((uint8_t *)o + of_unit_type_fire_gfx); }
 internal inline void unit_type_set_fire_gfx(ee_unit_type *o, void *v) { *(void **)((uint8_t *)o + of_unit_type_fire_gfx) = v; }
 internal inline void **unit_type_fire_gfx_at(const ee_unit_type *o) { return (void **)((uint8_t *)o + of_unit_type_fire_gfx); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
 // the effect at the shot's point (z 0) instead of impact_gfx when a missile or projectile ends below 0 over a tile
 // below 0 (water?) without attacking a unit (EEUCMissile::vf29 0x605E9B, EEUCProjectile::vf29 0x607B11)
 // (the AoC decompilation: mSplashEffect, the splash on the water)
@@ -44,6 +46,7 @@ internal inline ee_unit_type **unit_type_projectile_at(const ee_unit_type *o) { 
 internal inline void *unit_type_get_model(const ee_unit_type *o) { return *(void **)((uint8_t *)o + of_unit_type_model); }
 internal inline void unit_type_set_model(ee_unit_type *o, void *v) { *(void **)((uint8_t *)o + of_unit_type_model) = v; }
 internal inline void **unit_type_model_at(const ee_unit_type *o) { return (void **)((uint8_t *)o + of_unit_type_model); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
 // the data's column 0x1D4 (the editor: "Flight altitude"); below it the air models scale the height by
 // stats.height x (z / it x 0.5 + 0.5) (the AoC decompilation: mCruiseAltitude)
 internal inline float unit_type_get_flight_altitude(const ee_unit_type *o) { return *(float *)((uint8_t *)o + of_unit_type_flight_altitude); }
@@ -240,6 +243,7 @@ internal inline uint8_t *unit_type_boards_ship_at(const ee_unit_type *o) { retur
 internal inline uint8_t unit_type_get_boards_fortress(const ee_unit_type *o) { return *(uint8_t *)((uint8_t *)o + of_unit_type_boards_fortress); }
 internal inline void unit_type_set_boards_fortress(ee_unit_type *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_unit_type_boards_fortress) = v; }
 internal inline uint8_t *unit_type_boards_fortress_at(const ee_unit_type *o) { return (uint8_t *)((uint8_t *)o + of_unit_type_boards_fortress); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
 // the data's column 0x245 (the editor: Can be owned by "World"; resources, scaffolding, ambient): the subgroup's
 // target filter 0x446124 skips such objects unless they are armed and the stance is 2
 // (the AoC decompilation: mIsGaiaPlaceable)
@@ -255,12 +259,14 @@ internal inline uint8_t *unit_type_world_ownable_at(const ee_unit_type *o) { ret
 internal inline uint8_t unit_type_get_is_wall(const ee_unit_type *o) { return *(uint8_t *)((uint8_t *)o + of_unit_type_is_wall); }
 internal inline void unit_type_set_is_wall(ee_unit_type *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_unit_type_is_wall) = v; }
 internal inline uint8_t *unit_type_is_wall_at(const ee_unit_type *o) { return (uint8_t *)((uint8_t *)o + of_unit_type_is_wall); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
 // the data's column 0x248 (the editor: "You can kill this object with Delete key"; 0 for 24 types): a unit's
 // +0x334 starts as it (0x5E6024); freeze clears that and unfreeze restores it from here (0x5AF0BB, 0x5B32CB)
 // (the AoC decompilation: mIsDeletable)
 internal inline uint8_t unit_type_get_deletable(const ee_unit_type *o) { return *(uint8_t *)((uint8_t *)o + of_unit_type_deletable); }
 internal inline void unit_type_set_deletable(ee_unit_type *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_unit_type_deletable) = v; }
 internal inline uint8_t *unit_type_deletable_at(const ee_unit_type *o) { return (uint8_t *)((uint8_t *)o + of_unit_type_deletable); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
 // the data's column 0x3B0 (the editor: "Melee attack"): EECPAttackSubGroupUnit::score 0x461854 picks its table 0
 // by it (the AoC decompilation: mIsMelee)
 internal inline uint8_t unit_type_get_melee(const ee_unit_type *o) { return *(uint8_t *)((uint8_t *)o + of_unit_type_melee); }

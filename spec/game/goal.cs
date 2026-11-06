@@ -8,7 +8,7 @@ unsafe struct EEUnitGoal
 
     /// 0 from the base constructor 0x6283AB: +1 per path request for the goal (EEUnitClass::vf52 0x6222A8), +8 per
     /// detour waypoint pair (vf53 0x6225E7) (the AoC decompilation: mPathAttempts)
-    [offset(0x18), found(c)]
+    [offset(0x18), found(c), guess]
     int32 path_tries;
 
     /// 1 for a goal from an order (commands, the AI), 0 for the unit's own (its target search); the guard return skips
@@ -314,17 +314,18 @@ unsafe struct EEUGExplore
 [@base(typeof(EEUnitGoal)), vtable((ee)0x00831B80, (aoc)0x008475A8)]
 unsafe struct EEUGGather
 {
-    /// its out-of-sync dump's "Gathering Flag": 1 while it works the resource, 0 while it carries to the drop-off (the
-    /// debug text's "Gathering" / "Dropping Off"); 0x6106F9 sets 1 when it starts on a resource, 0x610A3D (a settlement
-    /// to build instead) and 0x610BB6 (the resource full) clear it, vf20 too; the script condition 0x138F returns it -
-    /// read from the AoC decompilation (mGathering), EE's code writes it at the same places
+    /// its out-of-sync dump's "Gathering Flag" (vf5 0x60FB62 prints it): 1 while it works the resource, 0 while it
+    /// carries to the drop-off (the debug texts vf7 0x6103EF / vf8 0x6104A4: "gather" / "Gathering" while set,
+    /// "dropoff" / "Dropping Off" while 0); 0x6106F9 sets 1 when it starts on a resource, 0x610A3D (a settlement to
+    /// build instead) and 0x610BB6 (the resource full) clear it, vf20 too; the script condition 0x138F returns it (the
+    /// AoC decompilation: mGathering)
     [offset(0x40), found(c)]
     uint8 gathering;
 
-    /// its out-of-sync dump's "Waiting Flag": 0x610BB6 sets 1 (gathering 0) when the resource has no room for it and
-    /// it is far off - it then waits at its waiting area (its dump's "Waiting Area", where vf18 measures the distance
-    /// instead of the reach); 0x6106F9 clears it when it starts; the script condition 0x139B returns it (the AoC
-    /// decompilation: mWaiting)
+    /// its out-of-sync dump's "Waiting Flag" (vf5 0x60FB62): 0x610BB6 sets 1 (gathering 0) when the resource has no
+    /// room for it and it is far off - it then waits at its waiting area (its dump's "Waiting Area", where vf18
+    /// measures the distance instead of the reach); 0x6106F9 clears it when it starts; the script condition 0x139B
+    /// returns it (the AoC decompilation: mWaiting)
     [offset(0x41), found(c)]
     uint8 waiting;
 }

@@ -96,7 +96,7 @@ unsafe struct EEPhysics
 
     /// each step's draw from the game's generator (+0x18, URandom::Generate) rounded; an argument of 0x40CFC7 (the
     /// map's code) (the AoC decompilation: mTickRandom)
-    [offset(0xB0), found(c)]
+    [offset(0xB0), found(c), guess]
     int32 step_random;
 
     /// steps run (a second counter: zeroed by the reset 0x54650E, saved)
@@ -123,9 +123,10 @@ unsafe struct EEPhysics
     [offset(0xC8), found(c)]
     uint32 work_count;
 
-    /// ms since the last autosave: the server's step adds tick_ms and past the preferences' autosave time [0x91943C]
-    /// (not in a cinematic or a scenario dialog) zeroes it, posts the autosave 0x547676 and reads the communications
-    /// tick twice; 0x520DE3 zeroes it (the AoC decompilation: mAutoSaveClock, mAutoSaveInMilliseconds)
+    /// ms since the last autosave: the server's step (EEPhysics::step 0x546C63) adds tick_ms and past the settings'
+    /// "AutoSave In Milliseconds" [0x91943C] (game.settings +0x594, the options screen 0x5C76A2 sets it to minutes x
+    /// 60000; not in a cinematic or a scenario dialog) zeroes it, posts the autosave 0x547676 and reads the
+    /// communications tick twice; 0x520DE3 zeroes it (the AoC decompilation: mAutoSaveClock)
     [offset(0xCC), found(c)]
     uint32 autosave_ms;
 
@@ -169,7 +170,7 @@ unsafe struct EEWorld
 
     /// the game's setup, an ee_setup in it (the constructor 0x52CCC9 builds one here and a second at +0x51C):
     /// game.end_epoch is its +0x3E4, game.scenario_flag its +0x409 (the AoC decompilation: mGameOptions)
-    [offset(0x110), found(c)]
+    [offset(0x110), found(c), guess]
     block setup;
 
     /// a second ee_setup the constructor 0x52CCC9 builds (its use not read yet)
@@ -179,7 +180,7 @@ unsafe struct EEWorld
     /// a map site -> gatherers (allocator byte, head +4, size +8): site_gatherers 0x52E5F7 finds the site (0x404CA6)
     /// against its head +0x9A8 and returns the node's +0x10
     /// (the AoC decompilation: mResourceUsers, a resource unit -> its gatherers)
-    [offset(0x9A4), found(c)]
+    [offset(0x9A4), found(c), guess]
     block gatherer_counts;
 
     /// records of 0x18 bytes, each a vector of player indices at +4: the standard victory check 0x531913 ends the game

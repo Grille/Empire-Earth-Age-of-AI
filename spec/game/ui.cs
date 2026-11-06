@@ -76,7 +76,7 @@ unsafe struct EECameraControl
     /// 0x51EE75 advances it by dt x blend_rate up to 1.0 (snap: at once) and passes it as t to the lerps 0x51D46C /
     /// 0x51D56A and to make_transformation (the view matrix +0x84); 0x51E79C sets it 0 for a new move
     /// (the AoC decompilation: mFraction)
-    [offset(0xD8), found(c)]
+    [offset(0xD8), found(c), guess]
     float32 blend;
 
     /// blend's speed, per second of the step's dt (0x51E79C: from the distance to go; AoC 0x529A34 the same)

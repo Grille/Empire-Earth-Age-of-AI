@@ -48,7 +48,7 @@ unsafe struct RTSUnit
 
     /// the scenario editor's selection: its select 0x58E1E7 sets 1, its mouse and lasso actions (EESEAMouseClick::vf1
     /// 0x5972DB, 0x5971B6) select a unit with 0 and deselect one with 1 (the AoC decompilation: mIsEditorSelected)
-    [offset(0x29), found(c)]
+    [offset(0x29), found(c), guess]
     uint8 selected;
 
     /// back in the pool (vf12 sets it)
@@ -155,10 +155,11 @@ unsafe struct EEUnit
     [address((ee)0x005F3473, (aoc)0x005FA1CD)]
     extern void* goal_queue(int32 slot);
 
-    /// bits 0..1 the hidden check's phase (game seconds modulo 3), bit 4 moved (MoveTo sets it), bit 5 hidden (behind
-    /// a live unit with +0x346 or a moving ambient object next to it): EEUnit::vf16 0x61648E checks it again every 3 s
-    /// and returns 1 while bit 5 is set; the constructor 0x616BDD clears it (the AoC decompilation: mHiddenFlags,
-    /// kHiddenFlagMoved 0x10 / kHiddenFlagHidden 0x20, UpdateHidden)
+    /// bits 0..1 the hidden check's phase (game seconds modulo 3), bit 4 moved (MoveTo sets it, and the "show hidden
+    /// units" toggle EEUIEMGToggleShowHiddenUnits::vf1 0x64A102 on the units with +0x346), bit 5 hidden: the hidden
+    /// check EEComplexUnit::vf16 0x5EA87E sets it and the phase on the units on a moved unit's tile; EEUnit::vf16
+    /// 0x61648E checks it again every 3 s and returns 1 while bit 5 is set; the constructor 0x616BDD clears it (the AoC
+    /// decompilation: mHiddenFlags, kHiddenFlagMoved 0x10 / kHiddenFlagHidden 0x20, UpdateHidden)
     [offset(0x44), found(c)]
     uint8 hidden_flags;
 }
@@ -306,7 +307,7 @@ unsafe struct EEComplexUnit
     /// seconds to its next heal search: state 16000 (EEUnitClass::vf29 0x61AD41) looks for a unit in sight to heal
     /// (EEUGHealUnit) and resets it to type +0x4A4; 0x600822 counts it down by the step (EEUCBasicPriest::vf45,
     /// EEUCLand::vf45) (the AoC decompilation: mHealSearchTimer)
-    [offset(0x22C), found(c)]
+    [offset(0x22C), found(c), guess]
     float32 heal_search_s;
 
     /// the push velocity (tiles/s)
@@ -328,7 +329,7 @@ unsafe struct EEComplexUnit
     /// game time (EEPhysics +0xD0): 0x5F0F7E asks its AI state (goalset_ask) while it isn't idle or the time is not
     /// past this, and while idle sets it to now + 350; entering idle (vf29 state 5000) sets -1
     /// (the AoC decompilation: mNextTriggerTime)
-    [offset((ee)0x254, (aoc)0x258), found(c)]
+    [offset((ee)0x254, (aoc)0x258), found(c), guess]
     uint32 idle_ask_until;
 
     /// its animation's sound (the animation setter 0x5EFD6D)
@@ -360,7 +361,7 @@ unsafe struct EEComplexUnit
     /// a building's work left on its production: the start 0x5EF9FF sets the item's time x rate (1 with the player's
     /// instant_build), 0x5EF6A7 zeroes it when done, the progress bar 0x64297D draws the total minus it
     /// (the AoC decompilation: mProductionTime)
-    [offset((ee)0x27C, (aoc)0x280), found(c)]
+    [offset((ee)0x27C, (aoc)0x280), found(c), guess]
     int32 produce_left;
 
     /// room taken inside it: its occupants' transport sizes, at most its type's garrison_capacity
@@ -370,7 +371,7 @@ unsafe struct EEComplexUnit
     /// beside garrisoned: entering (0x5E8830) adds the occupant type's slot 27 (0x6C, its transport size), 0x5E88C6
     /// sets it, 0x5EB0C4 zeroes both; only passed on, never read for its value (0x46CA7E, 0x5B8823 attribute 9)
     /// (the AoC decompilation: mGarrisonPopulation)
-    [offset((ee)0x288, (aoc)0x28C), found(c)]
+    [offset((ee)0x288, (aoc)0x28C), found(c), guess]
     int32 garrison_load;
 
     /// a missile's climb left (ms)
@@ -379,7 +380,7 @@ unsafe struct EEComplexUnit
 
     /// its index in the movement group's slot list, set by the group dispatch 0x5DB641; init 1
     /// (the AoC decompilation: mFormationSlot)
-    [offset((ee)0x298, (aoc)0x29C), found(c)]
+    [offset((ee)0x298, (aoc)0x29C), found(c), guess]
     int32 group_index;
 
     /// its hit points at the start of its tick (a script condition compares them to see a hit)
@@ -418,7 +419,7 @@ unsafe struct EEComplexUnit
 
     /// the group dispatch 0x5DB641 sets round(group_index / members x 4), 0..4; the group's auto waypoints (0x5F0844)
     /// take rank / 5 x [0x917DC8] as their threshold when type +0x5D4 has bit 4 (the AoC decompilation: mFormationRank)
-    [offset((ee)0x2DC, (aoc)0x2E0), found(c)]
+    [offset((ee)0x2DC, (aoc)0x2E0), found(c), guess]
     int32 group_rank;
 
     /// EEPMNaval::vf21's step test (0x550300 / AoC 0x55xxxx's read of +0x2E4) against TILE_SEA_CLASS
@@ -431,7 +432,7 @@ unsafe struct EEComplexUnit
 
     /// the fire point of the next shot: fire 0x61E11C steps it (+1 modulo the fire points), 0x5FC749 looks up the
     /// projectile's start by it, EEE2DMuzzleFlash::vf12 reads it (the AoC decompilation: mWeaponTagPoint)
-    [offset((ee)0x2E8, (aoc)0x2EC), found(c)]
+    [offset((ee)0x2E8, (aoc)0x2EC), found(c), guess]
     int32 muzzle;
 
     /// ms into the current frame (or the hold): + a step's ms each tick, 0 at a new animation
@@ -448,7 +449,7 @@ unsafe struct EEComplexUnit
 
     /// game time: the ship contact test EEPMNaval::vf16 0x54F84C sets now + 5000 when both ships stand and pushes them
     /// apart; till then contacts with it take the push branch (the AoC decompilation: mPushImmuneUntil)
-    [offset((ee)0x320, (aoc)0x324), found(c)]
+    [offset((ee)0x320, (aoc)0x324), found(c), guess]
     uint32 nudge_until;
 
     /// the out-of-synch dump's "Collision State" (0x5EB998): 0, 2 or 8 - at 2 the contact test 0x548A3C gives up (state
@@ -459,7 +460,7 @@ unsafe struct EEComplexUnit
     /// init 1, set from its type's deletable (0x5B1F5B, 0x5B32CB) and cleared while frozen (0x5AF0BB): 0x5EC2C3 returns
     /// it and EEMKillUnit::vf10 0x4B7ED0 deletes only units it allows; the calamities' functors (fire, plague,
     /// hurricane) test it too (the AoC decompilation: mIsDeletable)
-    [offset((ee)0x334, (aoc)0x340), found(c)]
+    [offset((ee)0x334, (aoc)0x340), found(c), guess]
     uint8 deletable;
 
     /// init 1, the freeze effect 0x5AF0BB sets it to !frozen: the group orders (0x5DD463) skip members without it,
@@ -486,7 +487,7 @@ unsafe struct EEComplexUnit
     /// init 1, set when a path search for it finishes (0x4A24E1, 0x4A2B29, 0x4A32C0): the move state 8000's test
     /// (EEUnitClass::vf39 0x61BE4B) and EECPASGLand::vf127 wait for it; no write of 0 outside save and load
     /// (the AoC decompilation: mIsPathDone)
-    [offset((ee)0x33E, (aoc)0x34A), found(c)]
+    [offset((ee)0x33E, (aoc)0x34A), found(c), guess]
     uint8 path_done;
 
     /// set each physics tick by its type's arrival test (slot 34, the distance to the waypoint), cleared when it stops

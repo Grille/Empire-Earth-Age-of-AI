@@ -85,6 +85,7 @@ internal inline uint32_t *physics_step_start_at(const ee_physics *o) { return (u
 internal inline uint32_t physics_get_prev_step_start(const ee_physics *o) { return *(uint32_t *)((uint8_t *)o + of_physics_prev_step_start); }
 internal inline void physics_set_prev_step_start(ee_physics *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_physics_prev_step_start) = v; }
 internal inline uint32_t *physics_prev_step_start_at(const ee_physics *o) { return (uint32_t *)((uint8_t *)o + of_physics_prev_step_start); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
 // each step's draw from the game's generator (+0x18, URandom::Generate) rounded; an argument of 0x40CFC7 (the
 // map's code) (the AoC decompilation: mTickRandom)
 internal inline int physics_get_step_random(const ee_physics *o) { return *(int *)((uint8_t *)o + of_physics_step_random); }
@@ -114,9 +115,10 @@ internal inline uint32_t *physics_work_ms_sum_at(const ee_physics *o) { return (
 internal inline uint32_t physics_get_work_count(const ee_physics *o) { return *(uint32_t *)((uint8_t *)o + of_physics_work_count); }
 internal inline void physics_set_work_count(ee_physics *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_physics_work_count) = v; }
 internal inline uint32_t *physics_work_count_at(const ee_physics *o) { return (uint32_t *)((uint8_t *)o + of_physics_work_count); }
-// ms since the last autosave: the server's step adds tick_ms and past the preferences' autosave time [0x91943C]
-// (not in a cinematic or a scenario dialog) zeroes it, posts the autosave 0x547676 and reads the communications
-// tick twice; 0x520DE3 zeroes it (the AoC decompilation: mAutoSaveClock, mAutoSaveInMilliseconds)
+// ms since the last autosave: the server's step (EEPhysics::step 0x546C63) adds tick_ms and past the settings'
+// "AutoSave In Milliseconds" [0x91943C] (game.settings +0x594, the options screen 0x5C76A2 sets it to minutes x
+// 60000; not in a cinematic or a scenario dialog) zeroes it, posts the autosave 0x547676 and reads the
+// communications tick twice; 0x520DE3 zeroes it (the AoC decompilation: mAutoSaveClock)
 internal inline uint32_t physics_get_autosave_ms(const ee_physics *o) { return *(uint32_t *)((uint8_t *)o + of_physics_autosave_ms); }
 internal inline void physics_set_autosave_ms(ee_physics *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_physics_autosave_ms) = v; }
 internal inline uint32_t *physics_autosave_ms_at(const ee_physics *o) { return (uint32_t *)((uint8_t *)o + of_physics_autosave_ms); }
@@ -154,12 +156,14 @@ internal inline ee_map **world_map_at(const ee_world *o) { return (ee_map **)((u
 internal inline uint32_t world_get_players_n(const ee_world *o) { return *(uint32_t *)((uint8_t *)o + of_world_players_n); }
 internal inline void world_set_players_n(ee_world *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_world_players_n) = v; }
 internal inline uint32_t *world_players_n_at(const ee_world *o) { return (uint32_t *)((uint8_t *)o + of_world_players_n); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
 // the game's setup, an ee_setup in it (the constructor 0x52CCC9 builds one here and a second at +0x51C):
 // game.end_epoch is its +0x3E4, game.scenario_flag its +0x409 (the AoC decompilation: mGameOptions)
 internal inline uint8_t *world_setup_at(const ee_world *o) { return (uint8_t *)o + of_world_setup; }
 // A GUESS (the spec's [guess]): its name and type, from what the code does with it -
 // a second ee_setup the constructor 0x52CCC9 builds (its use not read yet)
 internal inline uint8_t *world_setup_2_at(const ee_world *o) { return (uint8_t *)o + of_world_setup_2; }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
 // a map site -> gatherers (allocator byte, head +4, size +8): site_gatherers 0x52E5F7 finds the site (0x404CA6)
 // against its head +0x9A8 and returns the node's +0x10
 // (the AoC decompilation: mResourceUsers, a resource unit -> its gatherers)

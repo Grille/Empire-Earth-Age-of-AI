@@ -80,8 +80,9 @@ unsafe struct EEPlayer
     void* ui_group;
 
     /// the unit types its wonder heals: the unit set of a wonder bonus 6 (0x40DD73 of its type's +0x5B8, "Effect apply
-    /// to"), set when such a building is finished (0x556xxx) with +0xB42 = 1 (heals units); the player's init zeroes
-    /// it (the AoC decompilation: mHealedUnitSet, its heal timer healing the units of the set's types)
+    /// to"), set when such a building is finished (0x556xxx) with +0xB42 = 1 and its heal timer +0xA40: EEPlayer::vf37
+    /// 0x55C802 then heals its units of the set's types each time the timer runs out (world table values 37, 51, 52);
+    /// the player's init zeroes it (the AoC decompilation: mHealedUnitSet, mHealsUnits)
     [offset((ee)0x9C8, (aoc)0x9B8), found(c)]
     void* healed_unit_set;
 
@@ -148,7 +149,7 @@ unsafe struct EEPlayer
     /// counts its finished buildings of tech 0x432's set (0x5BEFCB): 0 or more switches techs 0x41D / 0x404 queueable;
     /// 0x5EC2C3 forbids deleting such a building while it is 1, EEMBuildUnit::vf10 0x4B3D85 tests it
     /// (the AoC decompilation: mNumCapitols, its code counting the units of the Citizen tech's set)
-    [offset((ee)0xB18, (aoc)0xB1C), found(c)]
+    [offset((ee)0xB18, (aoc)0xB1C), found(c), guess]
     int32 citizen_buildings;
 
     [offset((ee)0xB1C, (aoc)0xB20), found(c)]
@@ -162,7 +163,7 @@ unsafe struct EEPlayer
 
     /// the cheat 0xD toggles it (0x520F75; its string 30633 "Brainstorm"), build time and cost code read it (0x600xxx,
     /// 0x624DF8, 0x5592xx) (the AoC decompilation: mInstantBuild)
-    [offset((ee)0xB41, (aoc)0xB45), found(c)]
+    [offset((ee)0xB41, (aoc)0xB45), found(c), guess]
     uint8 instant_build;
 
     /// (0: the civ dialog opens)
@@ -502,7 +503,7 @@ unsafe struct EEComputerPlayer
     /// record 73, no name in the game's strings (0.85): the land subgroups' town guard chance - EECPASGLand::vf45
     /// 0x446910 returns it, which the guard spot's choice 0x4769F7 rolls against (the aircraft's: guard_town_pct)
     /// (the AoC decompilation: mGuardTownLandPercentage)
-    [offset((ee)0xC28, (aoc)0xC60), found(c)]
+    [offset((ee)0xC28, (aoc)0xC60), found(c), guess]
     float32 guard_town_land_pct;
 
     /// of two places to guard, the chance it picks the waterway one (record 82 "Guard Waterway Percentage") -
@@ -539,7 +540,7 @@ unsafe struct EEComputerPlayer
     /// (0x4759CE, at most 1) above which it sends a military aid package (0x474E85) and keeps helping (the package's
     /// states 0x4813AE, 0x48143E, 0x48149D, 0x4814F3, its done test 0x47A606)
     /// (the AoC decompilation: mAidThreatThreshold)
-    [offset((ee)0xC48, (aoc)0xC80), found(c)]
+    [offset((ee)0xC48, (aoc)0xC80), found(c), guess]
     float32 aid_threat_min;
 
     /// the most of its population cap priests may be (record 49 "Priest Usage", the float)
@@ -566,12 +567,12 @@ unsafe struct EEComputerPlayer
     /// strength (0x47CBCC: intel +0x4C = it x citizens + strength_weight_military x military units; no reader of that
     /// found). The scenario's Set AI Variable writes strength_weight_military twice and never this one
     /// (the AoC decompilation: mWorkerCountWeight, the strength military x mMilitaryCountWeight + gatherers x it)
-    [offset((ee)0xC60, (aoc)0xC98), found(c)]
+    [offset((ee)0xC60, (aoc)0xC98), found(c), guess]
     float32 strength_weight_citizen;
 
     /// record 12's first value x 0.01 (0.6): a military unit's weight in that strength (0x47CBCC)
     /// (the AoC decompilation: mMilitaryCountWeight)
-    [offset((ee)0xC64, (aoc)0xC9C), found(c)]
+    [offset((ee)0xC64, (aoc)0xC9C), found(c), guess]
     float32 strength_weight_military;
 
     /// with fewer ships than the humans: the share of the difference it adds to the ships it builds (record 111 "Naval
@@ -598,7 +599,7 @@ unsafe struct EEComputerPlayer
 
     /// its player index % 10 (the loader), given to the object at +0xB9C (0x484E25): which of ten updates is its turn,
     /// an update stagger (the AoC decompilation: mSeed, the interaction manager's turn (game time + it) % 10)
-    [offset((ee)0xCA0, (aoc)0xCD8), found(c)]
+    [offset((ee)0xCA0, (aoc)0xCD8), found(c), guess]
     int32 update_slot;
 
     /// deathmatch: the least ships it keeps by difficulty (record 44 "Ships to Maintain (Deathmatch)"; the hard one the
@@ -617,7 +618,7 @@ unsafe struct EEComputerPlayer
     /// record 4 "Troops to Assist Allies" by difficulty - the record's text says the troops it sends an ally, but the
     /// loader stores minutes x 60000: a time in ms
     /// (the AoC decompilation: mAssistAlliesDelayEasy.., the aid package's delay)
-    [offset((ee)0xCC0, (aoc)0xCF8), found(c)]
+    [offset((ee)0xCC0, (aoc)0xCF8), found(c), guess]
     fixed int32 assist_allies_ms[3];
 
     /// the most carriers in an attack or defence group (record 52 "Carrier Usage", first value)
