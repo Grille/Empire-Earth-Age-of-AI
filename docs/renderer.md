@@ -349,19 +349,22 @@ The minute's line now breaks the frame into its parts - `# render: a frame N ms:
 update's read holds, the lists to the GPU, Present, the rest; reads back from the GPU N a frame, N ms`. The slow games'
 rest was 12-15 ms against 1, and they read the picture back from the graphics card 8 times a frame (6-9 ms in the
 reads); the text log (pipe `textlog`): those games drew the epoch's name and the resource numbers with GDI every frame,
-the fast ones never. The interface redraws its bars every frame while the mouse is over them (test games see the
-desktop's real pointer - two games at once were alike), and each text phase (display_text.c's own text DC) locked the
-target twice, to load the tiles under its text and to store them: a read back that waits for the card to finish the
-frame so far, so the card's time and the frame's added up.
+the fast ones never. In some games the interface redraws its bars every frame - what sets it off is not known yet: not
+the mouse over the bar alone (placed there by the pipe's vmouse, one game redrew, another didn't); two games started
+together were mostly alike -, and each text phase (display_text.c's own text DC) locked the target twice, to load the
+tiles under its text and to store them: a read back that waits for the card to finish the frame so far, so the card's
+time and the frame's added up.
 
 Now (picture text on | off, the pipe; on): on the own renderer's target nothing is locked. Each tile the text touches
 starts black in the text DC's DIB and white in a second one, each text output is drawn on both (the second DC given
 the first's font, colours, alignment, origin, position and clipping), and at the phase's end the box of its tiles goes
 to the renderer (render.c rd_text_layer): one texture with both, drawn onto the target with a second pixel shader
 output as the target's factor - GDI's text over a background x is b + x * (w - b), for any colour, fill and smoothing
-that blends linearly. Measured in one game, the mouse placed by the pipe (vmouse) on the resource bar: 33.4 ms a frame
-with the locks (8 reads, 9.0 ms), 23.3 without (no reads). Picture: the two bars, paused, against the locks' - at most
-1 apart, at 578 and 137 of their pixels (the text's smoothed edges).
+that blends linearly. Measured in one game redrawing its bars every frame (paused, the mouse placed on the resource bar
+by vmouse, shot, resumed): 33.4 ms a frame with the locks (8 reads, 9.0 ms), 23.3 without (no reads) - the frames of
+a game that doesn't redraw them took 17-19 ms (a rest of 0.4 ms), so the redrawing still costs about 5 ms of the
+game's own. Picture: the two bars, paused, against the locks' - at most 1 apart, at 578 and 137 of their pixels (the
+text's smoothed edges).
 
 ## The debug overlay
 
