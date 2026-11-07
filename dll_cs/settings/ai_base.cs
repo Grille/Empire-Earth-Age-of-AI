@@ -768,6 +768,13 @@ class ai_base
         /// packed along it; else a closed ring around the town with a gate on each side and towers inside it. Open by
         /// the docks. 0 = off (default until measured)
         bool enclose = false;
+        /// With enclose: the ring only once the AI has this many citizens, the usual towers and front walls before - the
+        /// economy first (the ring from the start took most of the citizens off gathering: every Small Islands game lost)
+        [range(0, 400)]
+        int enclose_citizens = 40;
+        /// With enclose: runs of wall (up to 12 pieces each) ordered every 20 s
+        [range(1, 4)]
+        int enclose_runs = 1;
         /// tiles from the base centre to the tower line
         [commented]
         int defence_distance = 10;
