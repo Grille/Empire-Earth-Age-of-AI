@@ -331,6 +331,16 @@ internal inline ee_font **text_font_at(const ee_text *o) { return (ee_font **)((
 // class GEModel (ee_model)
 // a model as the engine loaded it from its .cem (GEModel, Low-Level Engine.dll: a unit's EEUnit.model), the same
 // offsets in both builds' engines (their exports ComputeBoundingBoxes, SetModel)
+// its centre in its own space (GE3DPoint; the AoC decompilation's mCenterPoint): the units' opacity puts it
+// through the unit's transformation and the camera's inverse for its depth
+internal inline vec3 model_get_center(const ee_model *o) { return *(vec3 *)((uint8_t *)o + of_model_center); }
+internal inline void model_set_center(ee_model *o, vec3 v) { *(vec3 *)((uint8_t *)o + of_model_center) = v; }
+internal inline vec3 *model_center_at(const ee_model *o) { return (vec3 *)((uint8_t *)o + of_model_center); }
+// a bounding radius per frame (the AoC decompilation's mBoundingRadii): the units' opacity takes the frame's,
+// times the unit's scale, off the centre's depth
+internal inline float *model_get_radii(const ee_model *o) { return *(float **)((uint8_t *)o + of_model_radii); }
+internal inline void model_set_radii(ee_model *o, float *v) { *(float **)((uint8_t *)o + of_model_radii) = v; }
+internal inline float **model_radii_at(const ee_model *o) { return (float **)((uint8_t *)o + of_model_radii); }
 // its transformation (3 x 4 floats by row, as a unit's matrix): DrawModelHierarchy draws it there - under the
 // hierarchy's stack's top when one is pushed - so a model drawn for several objects is set to each one's before
 internal inline float model_get_transform(const ee_model *o, int i) { return ((float *)((uint8_t *)o + of_model_transform))[i]; }
@@ -616,6 +626,32 @@ internal inline uint8_t *engine_display_viewport_view_at(void) { return (uint8_t
 // waypoints' lines), the depth range of the building being placed (0x50A4A1) and of the objects drawn over the
 // rest (0x50B9A4) by their depth in the camera. The fourth (0x53C193: a sound's pan and volume by its place on
 // the screen) isn't the draw's
+// THE UNITS' OPACITY (EEROUnits.opacity, the AoC decompilation's GetUnitOpacity; collect.c's port) reads these.
+// The "show hidden units" mode (int; gRenderEnvironment.mShowHiddenUnits): 1 an obstacle or a moved unit hidden
+// behind something (EEUnit.update_hidden) drawn see-through, 2 every obstacle
+internal inline uint8_t *engine_display_show_hidden_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_show_hidden; }
+// float constants of its code: a hidden one's opacity; 1 (the cloak's full opacity, the depth range's numerator);
+// a cloaked unit's opacity to an enemy (kCloakedOpacity); 0; how near the front plane a land building starts to fade
+// (times the depth range's inverse); a tile's middle (0.5)
+internal inline uint8_t *engine_display_hidden_opacity_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_hidden_opacity; }
+internal inline uint8_t *engine_display_float_one_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_float_one; }
+internal inline uint8_t *engine_display_cloaked_opacity_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_cloaked_opacity; }
+internal inline uint8_t *engine_display_float_zero_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_float_zero; }
+internal inline uint8_t *engine_display_front_fade_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_front_fade; }
+internal inline uint8_t *engine_display_float_half_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_float_half; }
+// float: 1 less cloaked_opacity (kCloakedOpacityRange, made at the start), the cloak's range
+internal inline uint8_t *engine_display_cloaked_range_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_cloaked_range; }
+// the GEViewport its land buildings fade by (the AoC decompilation's gViewport; not the map's, viewport_view's):
+// its camera's inverse at +0xF0 (opacity_view_inverse), its front and rear clipping distances at +0x264 / +0x270
+// (of_viewport_near, of_viewport_far)
+internal inline uint8_t *engine_display_opacity_viewport_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_opacity_viewport; }
+// the exe's import slots of GETransformation::Apply (thiscall on the transformation: a GE3DPoint in, one out) and
+// GETerrainMesh::GetMeshZ (thiscall on the mesh: x, y; the ground's height, a float on the FPU's stack)
+internal inline uint8_t *engine_display_iat_transform_apply_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_iat_transform_apply; }
+internal inline uint8_t *engine_display_iat_mesh_z_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_iat_mesh_z; }
+// a unit's script state while it dies and rots (EEUnitAction.id; the AoC decompilation's kActionUnitRotting): the
+// opacity is its rot_ms over its type's rot_time
+// EEUnit.hidden_flags' moved bit (kHiddenFlagMoved)
 
 // static class engine_display_functions
 // the game's functions engine_display.c wraps, by the names the C side gives them
@@ -727,6 +763,8 @@ internal int spec_engine_display_select(int build) {
         of_surface_dc_out = 0x5D;
         of_text_string = 0x34;
         of_text_font = 0x44;
+        of_model_center = 0xC8;
+        of_model_radii = 0x124;
         of_model_transform = 0x88;
         of_model_frame = 0x134;
         of_model_next_frame = 0x138;
@@ -830,6 +868,20 @@ internal int spec_engine_display_select(int build) {
         data_engine_display_viewport_view_ops[0] = 0x0050DD99;
         data_engine_display_viewport_view_ops[1] = 0x0050A5F5;
         data_engine_display_viewport_view_ops[2] = 0x0050BA99;
+        data_engine_display_show_hidden = 0x009125C8;
+        data_engine_display_hidden_opacity = 0x0082C2F0;
+        data_engine_display_float_one = 0x008254DC;
+        data_engine_display_cloaked_opacity = 0x0082C314;
+        data_engine_display_float_zero = 0x00824E64;
+        data_engine_display_front_fade = 0x0082C30C;
+        data_engine_display_float_half = 0x00824AD0;
+        data_engine_display_cloaked_range = 0x009128C0;
+        data_engine_display_opacity_viewport = 0x00919470;
+        value_engine_display_of_viewport_inverse = 240;
+        data_engine_display_iat_transform_apply = 0x008231C4;
+        data_engine_display_iat_mesh_z = 0x0082327C;
+        value_engine_display_state_rotting = 6002;
+        value_engine_display_hidden_moved = 16;
         fn_doppelganger_set_find = (doppelganger_set_find_fn)0x005050BD;
         fn_doppelganger_set_insert = (doppelganger_set_insert_fn)0x00505007;
         return 0;
@@ -928,6 +980,8 @@ internal int spec_engine_display_select(int build) {
         of_surface_dc_out = 0x5D;
         of_text_string = 0x34;
         of_text_font = 0x44;
+        of_model_center = 0xC8;
+        of_model_radii = 0x124;
         of_model_transform = 0x88;
         of_model_frame = 0x134;
         of_model_next_frame = 0x138;
@@ -1031,6 +1085,20 @@ internal int spec_engine_display_select(int build) {
         data_engine_display_viewport_view_ops[0] = 0x0051868E;
         data_engine_display_viewport_view_ops[1] = 0x00514E10;
         data_engine_display_viewport_view_ops[2] = 0x0051638E;
+        data_engine_display_show_hidden = 0x00928D68;
+        data_engine_display_hidden_opacity = 0x00841350;
+        data_engine_display_float_one = 0x0083948C;
+        data_engine_display_cloaked_opacity = 0x00849B04;
+        data_engine_display_float_zero = 0x00838EDC;
+        data_engine_display_front_fade = 0x0084136C;
+        data_engine_display_float_half = 0x00838AAC;
+        data_engine_display_cloaked_range = 0x00964498;
+        data_engine_display_opacity_viewport = 0x009308F0;
+        value_engine_display_of_viewport_inverse = 240;
+        data_engine_display_iat_transform_apply = 0x008371C0;
+        data_engine_display_iat_mesh_z = 0x00837278;
+        value_engine_display_state_rotting = 6002;
+        value_engine_display_hidden_moved = 16;
         fn_doppelganger_set_find = (doppelganger_set_find_fn)0x0042B588;
         fn_doppelganger_set_insert = (doppelganger_set_insert_fn)0x0050FED2;
         return 0;
@@ -1120,6 +1188,17 @@ internal int spec_engine_display_check(void) {
     bad += spec_code(data_engine_display_viewport_view_ops[0], "engine_display.viewport_view_ops 0");
     bad += spec_code(data_engine_display_viewport_view_ops[1], "engine_display.viewport_view_ops 1");
     bad += spec_code(data_engine_display_viewport_view_ops[2], "engine_display.viewport_view_ops 2");
+    bad += spec_data(data_engine_display_show_hidden, "engine_display.show_hidden");
+    bad += spec_data(data_engine_display_hidden_opacity, "engine_display.hidden_opacity");
+    bad += spec_data(data_engine_display_float_one, "engine_display.float_one");
+    bad += spec_data(data_engine_display_cloaked_opacity, "engine_display.cloaked_opacity");
+    bad += spec_data(data_engine_display_float_zero, "engine_display.float_zero");
+    bad += spec_data(data_engine_display_front_fade, "engine_display.front_fade");
+    bad += spec_data(data_engine_display_float_half, "engine_display.float_half");
+    bad += spec_data(data_engine_display_cloaked_range, "engine_display.cloaked_range");
+    bad += spec_data(data_engine_display_opacity_viewport, "engine_display.opacity_viewport");
+    bad += spec_data(data_engine_display_iat_transform_apply, "engine_display.iat_transform_apply");
+    bad += spec_data(data_engine_display_iat_mesh_z, "engine_display.iat_mesh_z");
     bad += spec_code((uintptr_t)fn_doppelganger_set_find, "engine_display_functions.doppelganger_set_find");
     bad += spec_code((uintptr_t)fn_doppelganger_set_insert, "engine_display_functions.doppelganger_set_insert");
     return bad;

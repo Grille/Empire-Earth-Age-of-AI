@@ -427,6 +427,21 @@ record of the object (in step 3 the simulation's, at its step's end, for every o
 that (the frame's: the camera's parts - GetUnitOpacity fades what is near the camera, IsUnitDrawn tests the model
 against the view). Both halves in the frame first, each fill held against the game's by `drawcount hash`.
 
+The opacity ported (collect.c uc_opacity, 2026-11-07; the pipe: `picture collect opacity game | check | own` - check
+runs both on every object the mod's walk lists, keeps the game's and logs the differences with `drawcount hash`;
+docs/testing.md). GetUnitOpacity (EE 0x5044D7, AoC 0x50F412) is the object's opacity into its record and whether it is
+drawn see-through: "show hidden units" (1: an obstacle or a moved unit hidden behind something, by its update_hidden;
+2: every obstacle), a dying unit fading by its rot_ms over its type's rot_time, a cloakable unit by its own opacity -
+dimmed to an enemy to at most 0.5 -, and a land building fading as it comes within half a unit (front_fade) of the
+front clipping plane of a viewport of its own (0x919470, not the map's). AoC moved the rot and cloak part into a
+function (0x63CEE2) and takes it also for an object already see-through while it is cloaked (mIsCloaked, +0x346 - EE
+has none), and reads the rot time of the complex unit's type where EE reads the part's. Ported from the disassembly with
+the FPU's long doubles between the code's own float stores, so the result is the game's bit for bit whatever the
+render thread's precision is: held against the game's, 0 of 8.4 million objects differed in the 8000 save (trees
+see-through by show-hidden among them) and 0 of 915 000 on an EE Continental map, 0 of 430 000 in AoC. The near fade
+never fires at the game's own constant (its window is half a unit before the plane, and objects behind the plane
+aren't drawn); with it poked to 2 .. 40, 3927 (EE) and 2990 (AoC) land buildings faded, all alike.
+
 `[display] gpu_animation` (default on; the pipe: `picture morph on | off`; render_morph.c), 2026-11-06. EE animates a
 model by morphing: every frame of its animation is a whole vertex array (spec GEModel.vertices, frames alike share
 one), and the T&L DLL's DrawModelHierarchy draws each material by copying its run of the frame into the vertex buffer

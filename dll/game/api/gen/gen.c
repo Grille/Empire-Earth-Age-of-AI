@@ -704,6 +704,8 @@ internal int spec_imports(void) {
     bad += spec_import(&data_engine_display_iat_terrain_row, "Low-Level Engine.dll", "?GetVisibleTileRow@GETerrainMesh@@QBEXKAAJ00@Z", "engine_display.iat_terrain_row");
     bad += spec_import(&data_engine_display_iat_model_intersects, "Low-Level Engine.dll", "?Intersects@GEPhysicalModel@@QBE_NABVGEViewport@@_N@Z", "engine_display.iat_model_intersects");
     bad += spec_import(&data_engine_display_iat_terrain_visible, "Low-Level Engine.dll", "?UpdateVisibleTerrain@GETerrainMesh@@QAEXABVGETransformation@@AAVGEViewport@@KKK_N@Z", "engine_display.iat_terrain_visible");
+    bad += spec_import(&data_engine_display_iat_transform_apply, "Low-Level Engine.dll", "?Apply@GETransformation@@QBEXABVGE3DPoint@@AAV2@@Z", "engine_display.iat_transform_apply");
+    bad += spec_import(&data_engine_display_iat_mesh_z, "Low-Level Engine.dll", "?GetMeshZ@GETerrainMesh@@QBEMMM@Z", "engine_display.iat_mesh_z");
     bad += spec_import(&data_engine_sound_iat_snd_play, "Low-Level Engine.dll", "?Play@SESoundManager@@QAEKKMMM_NPAD@Z", "engine_sound.iat_snd_play");
     bad += spec_import(&data_engine_sound_iat_snd_playref, "Low-Level Engine.dll", "?PlayAndReturnReferencedNode@SESoundManager@@QAEPAVSESMInstanceNode@@KMMM_NPAD@Z", "engine_sound.iat_snd_playref");
     bad += spec_import(&data_engine_sound_iat_snd_setmaxch, "Low-Level Engine.dll", "?SetMaxChannels@SESoundManager@@QAEJK@Z", "engine_sound.iat_snd_setmaxch");

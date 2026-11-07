@@ -17,6 +17,102 @@ internal LONG g_uc_walks;   // walks of ours (the pipe's reply)
 internal uint32_t g_uc_dopp;  // the doppelgangers our last walk filled (the lists' print)
 __attribute__((used)) uintptr_t g_uc_lock_at, g_uc_end;   // the picker's lock, where the update goes on (collect_install)
 __attribute__((used)) volatile int g_uc_own;              // the walk ours (the pipe)
+internal transform_ctor_fn g_uc_transform_ctor;            // GETransformation's constructor (collect_install)
+
+// STEP 2, THE FILLS OURS: THE OPACITY (EEROUnits.opacity, the AoC decompilation's GetUnitOpacity: EE 0x5044D7, AoC
+// 0x50F412 with its cloak part in a function of its own, 0x63CEE2). An object's opacity into *out, and whether it is
+// drawn see-through (its record into the see-through sort map): "show hidden units" (1: an obstacle or a moved unit
+// hidden behind something, 2: every obstacle) at hidden_opacity; a dying unit fading as it rots; a cloakable unit by its
+// own opacity, dimmed to an enemy; and a land building faded as it comes near the camera's front plane. Ported from
+// the disassembly, its floats as the FPU has them: long double between the stores the game's code makes (a float
+// there), in the same order - the game's precision whatever the FPU is set to on the render thread.
+internal int uc_cloak(ee_unit *u, ee_unit *cu, int see, float *out, const opacity_consts *c) {
+    if (unit_rotting(cu)) {
+        // EE: the object's type and its complex unit's rot; AoC: the complex unit's type and its complex unit's
+        int t = unit_type_get_rot_time(unit_get_type_data(build_is("aoc") ? cu : u));
+        *out = t ? (float)((long double)unit_get_rot_ms(unit_get_physics(build_is("aoc") ? cu : u)) / t) : 0.0f;
+        return see;
+    }
+    if (!unit_get_cloakable(cu) || *game_free_camera_at()) {
+        *out = 1.0f;
+        return see;
+    }
+    long double x = unit_get_opacity(cu);
+    *out = (float)x;
+    if (!(x >= c->one)) see = 1;
+    ee_player *me = game_players()[local_player_index()], *owner = unit_get_owner(cu);
+    if (me == owner || player_stance_to(owner, player_get_index(me)) == 0 || player_get_out(me)) return see;
+    long double y = (x - c->cloaked) / c->range * c->cloaked;
+    *out = (float)y;
+    if (!(y >= c->zero)) *out = 0.0f;
+    else if (y > c->cloaked) *out = c->cloaked;
+    return see;
+}
+internal uint32_t g_uc_op_land, g_uc_op_near;   // the check's: land buildings the near fade tested, faded
+internal int uc_opacity(ee_unit *u, float *out) {
+    opacity_consts c = opacity_consts_now();
+    ee_unit *cu = unit_get_physics(u);
+    ee_unit_type *ty = unit_get_type_data(u);
+    int see = 0, mode = show_hidden_mode();
+    *out = 1.0f;
+    if ((mode == 1 && (unit_type_get_is_obstacle(ty) || unit_moved(u)) && unit_update_hidden(u)) ||
+        (mode == 2 && unit_type_get_is_obstacle(ty))) {
+        see = 1;
+        *out = c.hidden;
+    }
+    // AoC: a see-through one by its cloak too while it is cloaked
+    if (cu && (!see || (build_is("aoc") && unit_get_cloakable(cu) && unit_get_cloaked(cu)))) see = uc_cloak(u, cu, see, out, &c);
+    if (!unit_type_is_land_building(ty) || *game_cinematic_at() || *game_camera_fixed_at()) return see;
+    void *vp = opacity_viewport();
+    long double r = c.one / ((long double)viewport_far(vp) - viewport_near(vp));
+    float range = (float)r, limit = (float)(c.front * r), center[3] = { 0, 0, 0 }, view[3] = { 0, 0, 0 }, scale;
+    ee_model *m;
+    int frame;
+    if (cu) {
+        m = ((ee_model **)dmg_model_anim_model_at(unit_graphics(u)))[unit_get_anim(cu)];
+        scale = unit_get_height(cu);   // its physical model's scale (the AoC decompilation's GetScale)
+        frame = unit_get_anim_frame(cu);
+        transform_apply(unit_matrix_at(cu), (const float *)model_center_at(m), center);
+    } else {   // on its tile's middle, the ground's height there
+        __attribute__((aligned(8))) float t[16];
+        g_uc_transform_ctor(t);
+        t[3] = (float)((long double)unit_get_x(u) + c.half);
+        t[7] = (float)((long double)unit_get_y(u) + c.half);
+        t[11] = mesh_z(map_mesh_at(game_map()), t[3], t[7]);
+        m = ((ee_model **)dmg_model_anim_model_at(unit_graphics(u)))[0];
+        scale = unit_stats_get_height(unit_get_stats(u));
+        frame = 0;
+        transform_apply(t, (const float *)model_center_at(m), center);
+    }
+    transform_apply(opacity_view_inverse(), center, view);
+    g_uc_op_land++;
+    long double d = ((long double)view[1] - (long double)model_get_radii(m)[frame] * scale - viewport_near(vp)) * range;
+    if (d >= limit) return see;
+    d /= limit;
+    g_uc_op_near++;
+    if (!(d >= c.zero)) d = 0;
+    if (!(d >= *out)) *out = (float)d;
+    return 1;
+}
+// the walk's opacity: the game's, the game's held against ours (each object: both, the game's kept, the differences
+// counted and the first logged) or ours (the pipe: picture collect opacity game | check | own)
+internal volatile int g_uc_opacity;
+internal uint32_t g_uc_op_n, g_uc_op_diff;
+internal int uc_opacity_of(ee_ro_units *ro, ee_unit *o, float *out) {
+    if (g_uc_opacity == 2) return uc_opacity(o, out);
+    int see = ro_units_opacity(ro, o, out);
+    if (g_uc_opacity == 1) {
+        float mine;
+        int s = uc_opacity(o, &mine);
+        g_uc_op_n++;
+        if ((s != 0) != (see != 0) || memcmp(&mine, out, sizeof mine)) {
+            if (g_uc_op_diff++ < 8)
+                log_locked("# collect: opacity differs: type %d at %d,%d: the game's %d %.9g, ours %d %.9g\n",
+                           unit_type_get_id(unit_get_type_data(o)), unit_get_x(o), unit_get_y(o), see != 0, *out, s, mine);
+        }
+    }
+    return see;
+}
 
 __attribute__((used)) void __cdecl collect_walk(uint8_t *f) {
     units_walk w = units_walk_of(f);
@@ -56,12 +152,12 @@ __attribute__((used)) void __cdecl collect_walk(uint8_t *f) {
                         if (!unit_type_get_is_tree(unit_get_type_data(o))) {
                             if (unit_get_physics(o)) *w.complex_n += 1.0f;
                             uint8_t *rec = recs + (size_t)*n * DRAW_REC;
-                            int see = ro_units_opacity(ro, o, draw_record_opacity(rec));
+                            int see = uc_opacity_of(ro, o, draw_record_opacity(rec));
                             w.fill(ro, o, (float *)rec, maps + (see ? 0xC : 0), info);
                             ++*n;
                         } else {
                             uint8_t *rec = small + (size_t)*sn * DRAW_SMALL_REC;
-                            int see = ro_units_opacity(ro, o, draw_small_record_opacity(rec));
+                            int see = uc_opacity_of(ro, o, draw_small_record_opacity(rec));
                             ro_units_fill_object(ro, o, rec, maps + (see ? 0x30 : 0x24), info);
                             ++*sn;
                         }
@@ -103,7 +199,6 @@ __attribute__((used)) void __cdecl collect_walk(uint8_t *f) {
 // the screen the rest couldn't be clicked (the 8000 save: 7198 drawn, 1536 in it; the player: "a known limitation").
 // It gets room for all the draw lists hold (objects and trees, drawlist.c's limits): an array of its own, swapped in
 // once inside its lock with the list emptied, before the first walk (game/api pick_list_grow).
-internal transform_ctor_fn g_uc_transform_ctor;
 internal int g_uc_grown;   // 1 grown, -1 not (once)
 internal void picker_grow(void) {
     ee_pick_list *l = (ee_pick_list *)engine_display_pick_list_at();
@@ -164,6 +259,13 @@ internal int collect_own(int on) {
     g_uc_own = on;
     return 0;
 }
+// picture collect opacity game | check | own (0, 1, 2; the walk's - collect own): the counts begin again
+internal int collect_opacity(int how) {
+    if (!g_uc_installed) return -1;
+    g_uc_op_n = g_uc_op_diff = g_uc_op_land = g_uc_op_near = 0;
+    g_uc_opacity = how;
+    return 0;
+}
 
 // THE LISTS' PRINT (the pipe's drawcount hash): what the last update collected, to hold the mod's walk against the
 // game's in a paused game - the counts, the picker's, the sort maps' sizes and a hash of the records' contents but
@@ -193,4 +295,7 @@ internal void collect_print(void) {
                g_uc_own ? "the mod's" : "the game's", n, h, sn, hs, pick_list_get_count((ee_pick_list *)engine_display_pick_list_at()),
                *(const uint32_t *)(maps + 8), *(const uint32_t *)(maps + 0x14), *(const uint32_t *)(maps + 0x20),
                *(const uint32_t *)(maps + 0x2C), *(const uint32_t *)(maps + 0x38), *(const uint32_t *)(maps + 0x44), g_uc_dopp);
+    if (g_uc_opacity == 1)
+        log_locked("# collect: opacity held against the game's: %u objects, %u differ (land buildings tested by the camera's front plane %u, faded %u)\n",
+                   g_uc_op_n, g_uc_op_diff, g_uc_op_land, g_uc_op_near);
 }

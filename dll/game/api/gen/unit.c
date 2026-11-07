@@ -106,6 +106,15 @@ internal inline void unit_destroy(ee_unit *unit, int die, int p3, int p4) { ((un
 // on the map only for its owner
 typedef uint8_t (__thiscall *unit_is_foundation_fn)(ee_unit *);
 internal inline uint8_t unit_is_foundation(ee_unit *unit) { return ((unit_is_foundation_fn)(*(void ***)unit)[slot_unit_is_foundation])(unit); }
+// vf16 (the AoC decompilation's UpdateHidden; EEUnit's 0x61648E): hidden behind something - every 3 s checked
+// again, else hidden_flags' bit 5. The units' opacity (EEROUnits.opacity) draws an obstacle or a moved unit see-through
+// by it when "show hidden units" is 1
+typedef uint8_t (__thiscall *unit_update_hidden_fn)(ee_unit *);
+internal inline uint8_t unit_update_hidden(ee_unit *unit) { return ((unit_update_hidden_fn)(*(void ***)unit)[slot_unit_update_hidden])(unit); }
+// vf21: its graphics (the AoC decompilation's GetModel) - the units' opacity takes the model of its animation
+// (EEGraphicObject.anim_model)
+typedef ee_dmg_model *(__thiscall *unit_graphics_fn)(ee_unit *);
+internal inline ee_dmg_model *unit_graphics(ee_unit *unit) { return ((unit_graphics_fn)(*(void ***)unit)[slot_unit_graphics])(unit); }
 // freed: its slot 12 (+0x30), its references 0, then deleted
 internal unit_release_fn fn_ee_unit_release;
 internal inline void ee_unit_release(ee_unit *unit) { fn_ee_unit_release(unit); }
@@ -385,6 +394,20 @@ internal inline int *unit_room_at(const ee_unit *o) { return (int *)((uint8_t *)
 internal inline int unit_get_rot_ms(const ee_unit *o) { return *(int *)((uint8_t *)o + of_unit_rot_ms); }
 internal inline void unit_set_rot_ms(ee_unit *o, int v) { *(int *)((uint8_t *)o + of_unit_rot_ms) = v; }
 internal inline int *unit_rot_ms_at(const ee_unit *o) { return (int *)((uint8_t *)o + of_unit_rot_ms); }
+// its own opacity (saved; the AoC decompilation's mOpacity): a cloakable unit's - the units' opacity
+// (EEROUnits.opacity) draws it so, see-through below 1, and to an enemy dimmed to at most cloaked_opacity
+internal inline float unit_get_opacity(const ee_unit *o) { return *(float *)((uint8_t *)o + of_unit_opacity); }
+internal inline void unit_set_opacity(ee_unit *o, float v) { *(float *)((uint8_t *)o + of_unit_opacity) = v; }
+internal inline float *unit_opacity_at(const ee_unit *o) { return (float *)((uint8_t *)o + of_unit_opacity); }
+// it can cloak (the AoC decompilation's mIsCloakable): the units' opacity draws it by its opacity, else at 1
+internal inline uint8_t unit_get_cloakable(const ee_unit *o) { return *(uint8_t *)((uint8_t *)o + of_unit_cloakable); }
+internal inline void unit_set_cloakable(ee_unit *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_unit_cloakable) = v; }
+internal inline uint8_t *unit_cloakable_at(const ee_unit *o) { return (uint8_t *)((uint8_t *)o + of_unit_cloakable); }
+// AoC's: it is cloaked now (mIsCloaked) - AoC's units' opacity (0x63CEE2) draws a unit already see-through
+// (show hidden units) by its cloak only while cloakable and this are set
+internal inline uint8_t unit_get_cloaked(const ee_unit *o) { return *(uint8_t *)((uint8_t *)o + of_unit_cloaked); }
+internal inline void unit_set_cloaked(ee_unit *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_unit_cloaked) = v; }
+internal inline uint8_t *unit_cloaked_at(const ee_unit *o) { return (uint8_t *)((uint8_t *)o + of_unit_cloaked); }
 // ms until it next looks for a target: counted down by a step's ms, reset to type +0x564 after a search; an
 // attack-move zeroes it
 internal inline int unit_get_scan_ms(const ee_unit *o) { return *(int *)((uint8_t *)o + of_unit_scan_ms); }
@@ -853,6 +876,8 @@ internal int spec_unit_select(int build) {
         slot_unit_damage = 28;
         slot_unit_destroy = 24;
         slot_unit_is_foundation = 22;
+        slot_unit_update_hidden = 16;
+        slot_unit_graphics = 21;
         fn_ee_unit_release = (unit_release_fn)0x00616DBB;
         fn_unit_pop_waypoint = (unit_pop_waypoint_fn)0x005EDCF4;
         fn_unit_accel = (unit_accel_fn)0x0054A4CA;
@@ -916,6 +941,9 @@ internal int spec_unit_select(int build) {
         of_unit_reload = 0x2A0;
         of_unit_room = 0x2A4;
         of_unit_rot_ms = 0x2A8;
+        of_unit_opacity = 0x218;
+        of_unit_cloakable = 0x339;
+        of_unit_cloaked = NA;
         of_unit_scan_ms = 0x2AC;
         of_unit_power = 0x2D0;
         of_unit_moving = 0x2D8;
@@ -1033,7 +1061,7 @@ internal int spec_unit_select(int build) {
         fn_unit_distance = (unit_distance_fn)0x0062D5A4;
         fn_unit_give = (unit_give_fn)0x00638670;
         fn_unit_attr_set = (unit_attr_set_fn)0x005B8823;
-        return 7;
+        return 8;
     case 1:   // aoc
         size_rts_unit = 0x2C;
         of_unit_refs = 0x4;
@@ -1062,6 +1090,8 @@ internal int spec_unit_select(int build) {
         slot_unit_damage = 29;
         slot_unit_destroy = 24;
         slot_unit_is_foundation = 22;
+        slot_unit_update_hidden = 16;
+        slot_unit_graphics = 21;
         fn_ee_unit_release = (unit_release_fn)0x006298E1;
         fn_unit_pop_waypoint = (unit_pop_waypoint_fn)0x005FBDD1;
         fn_unit_accel = (unit_accel_fn)0x00554C95;
@@ -1125,6 +1155,9 @@ internal int spec_unit_select(int build) {
         of_unit_reload = 0x2A4;
         of_unit_room = 0x2A8;
         of_unit_rot_ms = 0x2AC;
+        of_unit_opacity = 0x218;
+        of_unit_cloakable = 0x345;
+        of_unit_cloaked = 0x346;
         of_unit_scan_ms = 0x2B0;
         of_unit_power = 0x2D4;
         of_unit_moving = 0x2DC;
@@ -1247,7 +1280,7 @@ internal int spec_unit_select(int build) {
     return 0;
 }
 // the names a build hasn't got, by build
-internal const char *const k_spec_unit_missing[ADDR_BUILDS] = { "EEComplexUnit.set_tile [call_site set_tile 7] EEComplexUnit.reload_wait EEComplexUnit.reload_wait [call_site reload_wait 0] EEComplexUnit.reload_wait [call_site reload_wait 1] EEComplexUnit.reload_wait [call_site reload_wait 2] EEComplexUnit.reload_wait [call_site reload_wait 3] unit.attack_anim", "EEComplexUnit.set_tile [call_site set_tile 5] EEComplexUnit.set_tile [call_site set_tile 6]" };
+internal const char *const k_spec_unit_missing[ADDR_BUILDS] = { "EEComplexUnit.cloaked EEComplexUnit.set_tile [call_site set_tile 7] EEComplexUnit.reload_wait EEComplexUnit.reload_wait [call_site reload_wait 0] EEComplexUnit.reload_wait [call_site reload_wait 1] EEComplexUnit.reload_wait [call_site reload_wait 2] EEComplexUnit.reload_wait [call_site reload_wait 3] unit.attack_anim", "EEComplexUnit.set_tile [call_site set_tile 5] EEComplexUnit.set_tile [call_site set_tile 6]" };
 // the load-time check: what the spec says of the running build's exe (spec_check): the failures
 internal int spec_unit_check(void) {
     int bad = 0;

@@ -124,6 +124,17 @@ unsafe struct EEUnit
     [slot(22), guess]
     extern uint8 is_foundation();
 
+    /// vf16 (the AoC decompilation's UpdateHidden; EEUnit's 0x61648E): hidden behind something - every 3 s checked
+    /// again, else hidden_flags' bit 5. The units' opacity (EEROUnits.opacity) draws an obstacle or a moved unit see-through
+    /// by it when "show hidden units" is 1
+    [slot(16)]
+    extern uint8 update_hidden();
+
+    /// vf21: its graphics (the AoC decompilation's GetModel) - the units' opacity takes the model of its animation
+    /// (EEGraphicObject.anim_model)
+    [slot(21)]
+    extern EEGraphicObject* graphics();
+
     /// freed: its slot 12 (+0x30), its references 0, then deleted
     [address((ee)0x00616DBB, (aoc)0x006298E1), overrides(typeof(RTSUnit))]
     extern void release();
@@ -406,6 +417,20 @@ unsafe struct EEComplexUnit
     /// 0x1772, 0x607B11); the scenario attribute 0xF changes it
     [offset((ee)0x2A8, (aoc)0x2AC), found(c)]
     int32 rot_ms;
+
+    /// its own opacity (saved; the AoC decompilation's mOpacity): a cloakable unit's - the units' opacity
+    /// (EEROUnits.opacity) draws it so, see-through below 1, and to an enemy dimmed to at most cloaked_opacity
+    [offset(0x218), found(c)]
+    float32 opacity;
+
+    /// it can cloak (the AoC decompilation's mIsCloakable): the units' opacity draws it by its opacity, else at 1
+    [offset((ee)0x339, (aoc)0x345), found(c)]
+    uint8 cloakable;
+
+    /// AoC's: it is cloaked now (mIsCloaked) - AoC's units' opacity (0x63CEE2) draws a unit already see-through
+    /// (show hidden units) by its cloak only while cloakable and this are set
+    [offset((ee)none, (aoc)0x346), found(c)]
+    uint8 cloaked;
 
     /// ms until it next looks for a target: counted down by a step's ms, reset to type +0x564 after a search; an
     /// attack-move zeroes it

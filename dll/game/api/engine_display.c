@@ -169,6 +169,38 @@ internal inline int pick_list_grow(ee_pick_list *l, uint32_t room, transform_cto
     pick_list_set_room(l, room);
     return 1;
 }
+// THE UNITS' OPACITY's inputs (collect.c's port of EEROUnits.opacity): the show-hidden mode, the float constants of
+// its code (read from the exe, as its code reads them), the viewport its land buildings fade by (its camera's inverse,
+// front and rear distances), GETransformation::Apply and GETerrainMesh::GetMeshZ through the exe's imports, the rotting
+// state and the moved bit
+typedef struct { float hidden, one, cloaked, zero, front, half, range; } opacity_consts;
+internal inline int show_hidden_mode(void) { return *(const int *)data_engine_display_show_hidden; }
+internal inline opacity_consts opacity_consts_now(void) {
+    opacity_consts c = { *(const float *)data_engine_display_hidden_opacity, *(const float *)data_engine_display_float_one,
+                         *(const float *)data_engine_display_cloaked_opacity, *(const float *)data_engine_display_float_zero,
+                         *(const float *)data_engine_display_front_fade, *(const float *)data_engine_display_float_half,
+                         *(const float *)data_engine_display_cloaked_range };
+    return c;
+}
+internal inline void *opacity_viewport(void) { return (void *)(uintptr_t)data_engine_display_opacity_viewport; }
+internal inline const void *opacity_view_inverse(void) {
+    return (const uint8_t *)(uintptr_t)data_engine_display_opacity_viewport + value_engine_display_of_viewport_inverse;
+}
+typedef void (__thiscall *transform_apply_fn)(const void *t, const float *in, float *out);
+typedef float (__thiscall *mesh_z_fn)(const void *mesh, float x, float y);
+internal inline void transform_apply(const void *t, const float *in, float *out) {
+    (*(transform_apply_fn *)data_engine_display_iat_transform_apply)(t, in, out);
+}
+internal inline float mesh_z(const void *mesh, float x, float y) { return (*(mesh_z_fn *)data_engine_display_iat_mesh_z)(mesh, x, y); }
+internal inline int unit_rotting(const ee_unit *u) {
+    ee_ai_state *s = unit_get_ai_state(u);
+    return (s ? ai_state_get_id(s) : 0) == value_engine_display_state_rotting;
+}
+internal inline int unit_moved(const ee_unit *u) { return (unit_get_hidden_flags(u) & value_engine_display_hidden_moved) == value_engine_display_hidden_moved; }
+// a player's stance toward another, by its index (EEPlayer.stance; the opacity dims a cloak to one it isn't 0 to - the
+// AoC decompilation's mEnemies)
+internal inline int32_t player_stance_to(const ee_player *p, int index) { return ((const int32_t *)player_stance_at(p))[index]; }
+
 // EEGraphicObject.acquire's start -> h, *orig the game's (push ebp; mov ebp, esp; sub esp, 0x1B0 in both builds)
 internal inline int patch_acquire(dmg_model_acquire_fn h, dmg_model_acquire_fn *orig) {
     static const uint8_t pro[9] = { 0x55, 0x8B, 0xEC, 0x81, 0xEC, 0xB0, 0x01, 0x00, 0x00 };

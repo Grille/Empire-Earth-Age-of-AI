@@ -409,6 +409,16 @@ unsafe struct GEText
 [c_type("ee_model")]
 unsafe struct GEModel
 {
+    /// its centre in its own space (GE3DPoint; the AoC decompilation's mCenterPoint): the units' opacity puts it
+    /// through the unit's transformation and the camera's inverse for its depth
+    [offset(0xC8), found(c)]
+    vec3 center;
+
+    /// a bounding radius per frame (the AoC decompilation's mBoundingRadii): the units' opacity takes the frame's,
+    /// times the unit's scale, off the centre's depth
+    [offset(0x124), found(c)]
+    float32* radii;
+
     /// its transformation (3 x 4 floats by row, as a unit's matrix): DrawModelHierarchy draws it there - under the
     /// hierarchy's stack's top when one is pushed - so a model drawn for several objects is set to each one's before
     [offset(0x88), found(c)]
@@ -863,6 +873,65 @@ static unsafe class engine_display
     [address((ee)0x0050A5F5, (aoc)0x00514E10)]
     [address((ee)0x0050BA99, (aoc)0x0051638E)]
     static code viewport_view_ops;
+
+    /// THE UNITS' OPACITY (EEROUnits.opacity, the AoC decompilation's GetUnitOpacity; collect.c's port) reads these.
+    /// The "show hidden units" mode (int; gRenderEnvironment.mShowHiddenUnits): 1 an obstacle or a moved unit hidden
+    /// behind something (EEUnit.update_hidden) drawn see-through, 2 every obstacle
+    [address((ee)0x009125C8, (aoc)0x00928D68)]
+    static block show_hidden;
+
+    /// float constants of its code: a hidden one's opacity; 1 (the cloak's full opacity, the depth range's numerator);
+    /// a cloaked unit's opacity to an enemy (kCloakedOpacity); 0; how near the front plane a land building starts to fade
+    /// (times the depth range's inverse); a tile's middle (0.5)
+    [address((ee)0x0082C2F0, (aoc)0x00841350)]
+    static block hidden_opacity;
+
+    [address((ee)0x008254DC, (aoc)0x0083948C)]
+    static block float_one;
+
+    [address((ee)0x0082C314, (aoc)0x00849B04)]
+    static block cloaked_opacity;
+
+    [address((ee)0x00824E64, (aoc)0x00838EDC)]
+    static block float_zero;
+
+    [address((ee)0x0082C30C, (aoc)0x0084136C)]
+    static block front_fade;
+
+    [address((ee)0x00824AD0, (aoc)0x00838AAC)]
+    static block float_half;
+
+    /// float: 1 less cloaked_opacity (kCloakedOpacityRange, made at the start), the cloak's range
+    [address((ee)0x009128C0, (aoc)0x00964498)]
+    static block cloaked_range;
+
+    /// the GEViewport its land buildings fade by (the AoC decompilation's gViewport; not the map's, viewport_view's):
+    /// its camera's inverse at +0xF0 (opacity_view_inverse), its front and rear clipping distances at +0x264 / +0x270
+    /// (of_viewport_near, of_viewport_far)
+    [address((ee)0x00919470, (aoc)0x009308F0)]
+    static block opacity_viewport;
+
+    [value((ee)0xF0, (aoc)0xF0)]
+    static uint32 of_viewport_inverse;
+
+    /// the exe's import slots of GETransformation::Apply (thiscall on the transformation: a GE3DPoint in, one out) and
+    /// GETerrainMesh::GetMeshZ (thiscall on the mesh: x, y; the ground's height, a float on the FPU's stack)
+    [import_slot("Low-Level Engine.dll", "?Apply@GETransformation@@QBEXABVGE3DPoint@@AAV2@@Z")]
+    [address((ee)0x008231C4, (aoc)0x008371C0)]
+    static block iat_transform_apply;
+
+    [import_slot("Low-Level Engine.dll", "?GetMeshZ@GETerrainMesh@@QBEMMM@Z")]
+    [address((ee)0x0082327C, (aoc)0x00837278)]
+    static block iat_mesh_z;
+
+    /// a unit's script state while it dies and rots (EEUnitAction.id; the AoC decompilation's kActionUnitRotting): the
+    /// opacity is its rot_ms over its type's rot_time
+    [value((ee)0x1772, (aoc)0x1772)]
+    static uint32 state_rotting;
+
+    /// EEUnit.hidden_flags' moved bit (kHiddenFlagMoved)
+    [value((ee)0x10, (aoc)0x10)]
+    static uint32 hidden_moved;
 }
 
 /// the game's functions engine_display.c wraps, by the names the C side gives them

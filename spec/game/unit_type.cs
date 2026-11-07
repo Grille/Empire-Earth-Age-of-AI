@@ -307,6 +307,11 @@ unsafe struct EEUnitClass
     /// the world's settle and the map's place (game/api/unit.c unit_create)
     [slot(12)]
     extern EEUnit* create(int32 x, int32 y, int32 player, int32 p4, int32 p5);
+
+    /// vf21: a building on land (the AoC decompilation's IsLandBuilding) - the units' opacity (EEROUnits.opacity)
+    /// fades one that comes near the camera's front plane
+    [slot(21)]
+    extern uint8 is_land_building();
 }
 
 /// a missile's type data (EEUCMissile; EEUCTorpedo derives from it and keeps its launch)

@@ -112,8 +112,9 @@ internal void rd3_fxaa(ID3D11RenderTargetView *rtv, const D3D11_VIEWPORT *vp) {
 }
 
 internal int g_rwl_free, g_rwl_handoff_after; internal LONG g_rwl_skips;   // render_3d.c: the frame during a step (below its lock hooks)
-internal int collect_own(int on); internal LONG g_uc_walks; extern volatile int g_uc_own;   // collect.c: the units' walk
-// the pipe: picture [aa on | off] [aniso <1..16>] [edge <0..1>] [steps on | off] [handoff <ms>] [morph on | off] [text on | off] [margin <0..2>] [objects <0..0.5>] [collect own | game]
+internal int collect_own(int on), collect_opacity(int how); internal LONG g_uc_walks;   // collect.c: the units' walk, its opacity
+extern volatile int g_uc_own; internal volatile int g_uc_opacity;
+// the pipe: picture [aa on | off] [aniso <1..16>] [edge <0..1>] [steps on | off] [handoff <ms>] [morph on | off] [text on | off] [margin <0..2>] [objects <0..0.5>] [collect own | game | opacity game | check | own]
 internal void cmd_picture(char *out, const char *args) {
     char mode[16] = "", arg[16] = "";
     sscanf(args, "%15s %15s", mode, arg);
@@ -156,13 +157,19 @@ internal void cmd_picture(char *out, const char *args) {
         if (!strcmp(arg, "on") || !strcmp(arg, "off")) g_rwl_free = arg[1] == 'n';
         else { REPLY("error: usage: picture steps on | off\n"); return; }
     } else if (!strcmp(mode, "collect")) {   // collect.c: the units' walk the mod's own or the game's
-        if (strcmp(arg, "own") && strcmp(arg, "game")) { REPLY("error: usage: picture collect own | game\n"); return; }
-        if (collect_own(arg[0] == 'o') < 0) { REPLY("error: the units' walk isn't hooked (the log: # collect)\n"); return; }
-    } else if (mode[0]) { REPLY("error: usage: picture [aa on | off] [aniso <1..16>] [edge <0..1>] [steps on | off] [handoff <ms>] [morph on | off] [text on | off] [margin <0..2>] [objects <0..0.5>] [collect own | game]\n"); return; }
+        char how[16] = "";
+        sscanf(args, "%*s %*s %15s", how);
+        int bad = strcmp(arg, "opacity") ? strcmp(arg, "own") && strcmp(arg, "game")
+                                         : strcmp(how, "game") && strcmp(how, "check") && strcmp(how, "own");
+        if (bad) { REPLY("error: usage: picture collect own | game | opacity game | check | own\n"); return; }
+        int r = strcmp(arg, "opacity") ? collect_own(arg[0] == 'o') : collect_opacity(how[0] == 'g' ? 0 : how[0] == 'c' ? 1 : 2);
+        if (r < 0) { REPLY("error: the units' walk isn't hooked (the log: # collect)\n"); return; }
+    } else if (mode[0]) { REPLY("error: usage: picture [aa on | off] [aniso <1..16>] [edge <0..1>] [steps on | off] [handoff <ms>] [morph on | off] [text on | off] [margin <0..2>] [objects <0..0.5>] [collect own | game | opacity game | check | own]\n"); return; }
     REPLY("picture: anti-aliasing %s (%s, %ld passes, an edge %.2f of its brightest), anisotropy %d; text on the target %s (frames %ld, text phases %ld, reads back %ld so far); frames drawn during a"
-          " step %s (%ld; the simulation waits for one after %d ms without); the ground's margin %.2f (the last region %ld x %ld tiles at %.2f, its top %.2f, its bottom %.2f, the depths %.2f .. %.2f, its near %.2f (its camera pulled back %.1f for a zoom out), worked out %ld, its polygons %lu and %lu on the water; the ground kept %d batches, %d vertices); the objects' margin %.2f (%ld passed by it); the units' walk %s (%ld walks of the mod's)\n", g_fx.on ? "on" : "off",
+          " step %s (%ld; the simulation waits for one after %d ms without); the ground's margin %.2f (the last region %ld x %ld tiles at %.2f, its top %.2f, its bottom %.2f, the depths %.2f .. %.2f, its near %.2f (its camera pulled back %.1f for a zoom out), worked out %ld, its polygons %lu and %lu on the water; the ground kept %d batches, %d vertices); the objects' margin %.2f (%ld passed by it); the units' walk %s (%ld walks of the mod's), its opacity %s\n", g_fx.on ? "on" : "off",
           g_fx.ready > 0 ? "ready" : g_fx.ready < 0 ? "FAILED (the log says why)" : "not made yet",
           (long)g_fx.passes, (double)g_fx.edge, g_fx.aniso, g_text_layer ? "on the GPU" : "by locks", (long)g_rd_frames, (long)g_tdc_phases, (long)g_rd_reads, g_rwl_free ? "on" : "off", (long)g_rwl_skips, g_rwl_handoff_after,
           (double)g_gm_margin, g_gm_size[0] + 1, g_gm_size[1] + 1, (double)g_gm_k, (double)g_gm_kt, (double)g_gm_kb, (double)g_gm_depths[0], (double)g_gm_depths[1], (double)g_gm_near, (double)g_gm_ride, g_gm_pred + 1, g_gm_polys[0], g_gm_polys[1], g_kg.nb, g_kg.nv, (double)g_om_margin, (long)g_om_passed,
-          g_uc_own ? "the mod's" : "the game's", (long)g_uc_walks);
+          g_uc_own ? "the mod's" : "the game's", (long)g_uc_walks,
+          g_uc_opacity == 2 ? "the mod's" : g_uc_opacity == 1 ? "the game's, the mod's held against it" : "the game's");
 }

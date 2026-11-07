@@ -308,6 +308,10 @@ internal inline int unit_type_launch(ee_unit_type *unit_type, ee_unit *m, float 
 // the world's settle and the map's place (game/api/unit.c unit_create)
 typedef ee_unit *(__thiscall *unit_type_create_fn)(ee_unit_type *, int, int, int, int, int);
 internal inline ee_unit *unit_type_create(ee_unit_type *unit_type, int x, int y, int player, int p4, int p5) { return ((unit_type_create_fn)(*(void ***)unit_type)[slot_unit_type_create])(unit_type, x, y, player, p4, p5); }
+// vf21: a building on land (the AoC decompilation's IsLandBuilding) - the units' opacity (EEROUnits.opacity)
+// fades one that comes near the camera's front plane
+typedef uint8_t (__thiscall *unit_type_is_land_building_fn)(ee_unit_type *);
+internal inline uint8_t unit_type_is_land_building(ee_unit_type *unit_type) { return ((unit_type_is_land_building_fn)(*(void ***)unit_type)[slot_unit_type_is_land_building])(unit_type); }
 
 // class EEUCMissile (ee_unit_type)
 // a missile's type data (EEUCMissile; EEUCTorpedo derives from it and keeps its launch)
@@ -501,6 +505,7 @@ internal int spec_unit_type_select(int build) {
         calls_fire[3] = 0x0060B33C;
         slot_unit_type_launch = 42;
         slot_unit_type_create = 12;
+        slot_unit_type_is_land_building = 21;
         vt_eeuc_missile = 0x00832E90;
         fn_eeuc_missile_launch = (unit_type_launch_fn)0x00606109;
         vt_eeuc_projectile = 0x00833060;
@@ -598,6 +603,7 @@ internal int spec_unit_type_select(int build) {
         calls_fire[3] = 0x0061D997;
         slot_unit_type_launch = 43;
         slot_unit_type_create = 12;
+        slot_unit_type_is_land_building = 21;
         vt_eeuc_missile = 0x00848CF8;
         fn_eeuc_missile_launch = (unit_type_launch_fn)0x0061799B;
         vt_eeuc_projectile = 0x00848ED0;
