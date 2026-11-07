@@ -171,8 +171,16 @@ A unit's tile changes through 0x616F9D (thiscall(unit, x, y, link), 10 calls; sp
   goal at all; the wall untouched too) - without the wall they raze them (tests/probes/wall_ships.eeai). It is the
   ship's target choice, not the flight: the catapult ship's arc would clear the wall. Land units outside a closed box
   of wall hit the houses inside: longbows 272 damage (open 414), catapults all three razed (open the same;
-  tests/probes/wall_archers.eeai). Not yet known: why the ships pass the targets over - a wall inland of the shore,
-  guns, a target on the wall's own tile.
+  tests/probes/wall_archers.eeai).
+  The rule, from the game's data (so AoC's and modded types fit): a unit fires over a wall when its type has
+  high_arc (+0x5E9, AoC +0x2E5) or its stats have lob (+0x15C, AoC +0x164); every other shooter is stopped by one -
+  the AI's target choice (EECPAttackSubGroupUnit::vf4 0x4620DF) asks line_of_fire_game (0x637F5A, AoC 0x64DF23;
+  from a tile 0x637D65 / 0x64DD2E) only for those and drops a target when another object stands on the line (why
+  the ships never shot), and their shots meet the wall's box in flight (0x61F6A4: a wall passed only by a shooter
+  with lob in its alt_attack). In 1.04 and AoC alike (`stats types P`, P1 in the Middle Ages): lob - Simple Bowman
+  10, Cavalry Archer 11, Chariot Archer 12, Composite Bow 15, Long Bow 17, Pilum 96, Trebuchet 105, Slinger 207;
+  high_arc - the 7 above; neither - the Crossbow 16, every ship and gun. Not yet tried: a wall inland of the
+  shore, a target on the wall's own tile.
 - Hit: on the target's footprint (tiles +0x1C/+0x20, size class +0x58C); EEUCProjectile vf55 0x6078F9 is
   mostly the miss path (it came down beside the target). Missiles (EEUCMissile 0x832E90, torpedoes 0x832CC0)
   steer on their own.

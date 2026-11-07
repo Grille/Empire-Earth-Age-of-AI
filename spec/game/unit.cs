@@ -796,6 +796,19 @@ static unsafe class unit_functions
     [address((ee)0x0062CBB3, (aoc)0x00641A6A), cdecl]
     static extern char8 ballistic_game(EEUnit* p1, ee_unit_stats* p2, float32* p3, float32* p4, float32* p5);
 
+    /// cdecl(shooter, target, &blocker, ?, ?): the line of fire from the shooter to its target - 1 when an object
+    /// stands on it, *blocker that object (the target itself when nothing else does). The AI's target choice
+    /// (EECPAttackSubGroupUnit::vf4 0x4620DF, AoC 0x463D50) asks it only for a unit that can't lob (unit_type
+    /// high_arc 0, ee_unit_stats lob 0) and drops the target when the blocker is another object: a warship 4 tiles off
+    /// a coast walled on its last land tile never attacked the houses behind it (tests/probes/wall_ships.eeai)
+    [address((ee)0x00637F5A, (aoc)0x0064DF23), cdecl, guess]
+    static extern char8 line_of_fire_game(EEUnit* shooter, EEUnit* target, EEUnit** blocker, uint32* p4, int32* p5);
+
+    /// cdecl(x, y, target x, target y, &blocker, ?, ?): line_of_fire_game from a tile (the same choice's check of the
+    /// spot it would shoot from)
+    [address((ee)0x00637D65, (aoc)0x0064DD2E), cdecl, guess]
+    static extern char8 line_of_fire_at_game(uint32 x, uint32 y, uint32 tx, uint32 ty, EEUnit** blocker, uint32* p6, uint32* p7);
+
     /// cdecl(unit, player index, new type data): the unit made anew as that type (0x62F2E5) with its share of hit
     /// points, the old one deleted - a line upgrade's (0x5BA59D), a wall piece's turn into a gate; no owner's change
     /// (unit_give)

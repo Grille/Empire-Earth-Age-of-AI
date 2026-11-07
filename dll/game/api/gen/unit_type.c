@@ -390,6 +390,15 @@ internal inline int *unit_stats_hp_at(const ee_unit_stats *o) { return (int *)((
 internal inline int unit_stats_get_power(const ee_unit_stats *o) { return *(int *)((uint8_t *)o + of_unit_stats_power); }
 internal inline void unit_stats_set_power(ee_unit_stats *o, int v) { *(int *)((uint8_t *)o + of_unit_stats_power) = v; }
 internal inline int *unit_stats_power_at(const ee_unit_stats *o) { return (int *)((uint8_t *)o + of_unit_stats_power); }
+// it may lob over a wall: a shot of its that hits a wall in the way sets its unit's alt_attack, and with this the
+// unit then fires the high arc (ballistic_game) at 1.5 x its reload, its shots passing walls (the flight's check
+// 0x61F6A4 skips group 0x2A objects only for a shooter with this and alt_attack); the AI's target choice skips
+// the line of fire test (line_of_fire_game) for it as for a high_arc type. Longbows have it (the player: they lob
+// after their first shot hits a wall; tests/probes/wall_archers.eeai). AoC: its target choice reads +0x164 beside
+// the type's high_arc +0x2E5, ballistic_game the same
+internal inline uint8_t unit_stats_get_lob(const ee_unit_stats *o) { return *(uint8_t *)((uint8_t *)o + of_unit_stats_lob); }
+internal inline void unit_stats_set_lob(ee_unit_stats *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_unit_stats_lob) = v; }
+internal inline uint8_t *unit_stats_lob_at(const ee_unit_stats *o) { return (uint8_t *)((uint8_t *)o + of_unit_stats_lob); }
 
 // class EEToHitTable (ee_to_hit_table)
 // the attack bonuses by weapon and target, unit_type.bonus_table - a static object (EEToHitTable)
@@ -501,6 +510,7 @@ internal int spec_unit_type_select(int build) {
         of_unit_stats_reload = 0x138;
         of_unit_stats_hp = 0x144;
         of_unit_stats_power = 0x148;
+        of_unit_stats_lob = 0x15C;
         vt_ee_to_hit_table = 0x0082C920;
         fn_to_hit_table_attack_bonus = (to_hit_table_attack_bonus_fn)0x004D5F2C;
         data_unit_type_bonus_table = 0x00917DE0;
@@ -595,6 +605,7 @@ internal int spec_unit_type_select(int build) {
         of_unit_stats_reload = 0x138;
         of_unit_stats_hp = 0x144;
         of_unit_stats_power = 0x148;
+        of_unit_stats_lob = 0x164;
         vt_ee_to_hit_table = 0x008420C0;
         fn_to_hit_table_attack_bonus = (to_hit_table_attack_bonus_fn)0x004DBE44;
         data_unit_type_bonus_table = 0x009318E8;

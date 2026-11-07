@@ -274,7 +274,7 @@ internal void cmd_stats(char *out, const char *args) {
             if (!td || !st || unit_stats_get_attack(st) <= 0) continue;
             REPLY("%3d fam %2d class %d cat %2d weapon %2d%s: att %g hp %d reload %.2f s range %g (min %g) speed %g area %g armour", t,
                   unit_type_get_class_id(td), unit_type_get_damage_class(td), unit_type_get_family(td), unit_type_get_weapon(td),
-                  unit_type_get_high_arc(td) ? " high arc" : "",
+                  unit_type_get_high_arc(td) ? " high arc" : unit_stats_get_lob(st) ? " lob" : "",
                   unit_stats_get_attack(st), st_maxhp(td, st), st_reload_t(td, st), unit_stats_get_range(st), unit_type_get_min_range(td), unit_stats_get_speed(st), unit_stats_get_area(st));
             for (int c = 0; c < 6; c++) REPLY(" %g", unit_stats_get_armor(st, c));
             REPLY("\n");

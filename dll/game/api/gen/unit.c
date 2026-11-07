@@ -746,6 +746,21 @@ internal inline void attack_retarget(ee_unit *u, ee_goal *goal, ee_unit *target)
 typedef char (__cdecl *ballistic_game_fn)(ee_unit *, ee_unit_stats *, float *, float *, float *);
 internal ballistic_game_fn fn_ballistic_game;
 internal inline char ballistic_game(ee_unit *p1, ee_unit_stats *p2, float *p3, float *p4, float *p5) { return fn_ballistic_game(p1, p2, p3, p4, p5); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// cdecl(shooter, target, &blocker, ?, ?): the line of fire from the shooter to its target - 1 when an object
+// stands on it, *blocker that object (the target itself when nothing else does). The AI's target choice
+// (EECPAttackSubGroupUnit::vf4 0x4620DF, AoC 0x463D50) asks it only for a unit that can't lob (unit_type
+// high_arc 0, ee_unit_stats lob 0) and drops the target when the blocker is another object: a warship 4 tiles off
+// a coast walled on its last land tile never attacked the houses behind it (tests/probes/wall_ships.eeai)
+typedef char (__cdecl *line_of_fire_game_fn)(ee_unit *, ee_unit *, ee_unit **, uint32_t *, int *);
+internal line_of_fire_game_fn fn_line_of_fire_game;
+internal inline char line_of_fire_game(ee_unit *shooter, ee_unit *target, ee_unit **blocker, uint32_t *p4, int *p5) { return fn_line_of_fire_game(shooter, target, blocker, p4, p5); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// cdecl(x, y, target x, target y, &blocker, ?, ?): line_of_fire_game from a tile (the same choice's check of the
+// spot it would shoot from)
+typedef char (__cdecl *line_of_fire_at_game_fn)(uint32_t, uint32_t, uint32_t, uint32_t, ee_unit **, uint32_t *, uint32_t *);
+internal line_of_fire_at_game_fn fn_line_of_fire_at_game;
+internal inline char line_of_fire_at_game(uint32_t x, uint32_t y, uint32_t tx, uint32_t ty, ee_unit **blocker, uint32_t *p6, uint32_t *p7) { return fn_line_of_fire_at_game(x, y, tx, ty, blocker, p6, p7); }
 // cdecl(unit, player index, new type data): the unit made anew as that type (0x62F2E5) with its share of hit
 // points, the old one deleted - a line upgrade's (0x5BA59D), a wall piece's turn into a gate; no owner's change
 // (unit_give)
@@ -983,6 +998,8 @@ internal int spec_unit_select(int build) {
         fn_find_target = (find_target_fn)0x0062EBD2;
         fn_attack_retarget = (attack_retarget_fn)0x0062CD12;
         fn_ballistic_game = (ballistic_game_fn)0x0062CBB3;
+        fn_line_of_fire_game = (line_of_fire_game_fn)0x00637F5A;
+        fn_line_of_fire_at_game = (line_of_fire_at_game_fn)0x00637D65;
         fn_unit_convert = (unit_convert_fn)0x0062F192;
         call_gate_convert = 0x00602456;
         fn_wall_piece = (wall_piece_fn)0x00638628;
@@ -1187,6 +1204,8 @@ internal int spec_unit_select(int build) {
         fn_find_target = (find_target_fn)0x00643F78;
         fn_attack_retarget = (attack_retarget_fn)0x00641BC9;
         fn_ballistic_game = (ballistic_game_fn)0x00641A6A;
+        fn_line_of_fire_game = (line_of_fire_game_fn)0x0064DF23;
+        fn_line_of_fire_at_game = (line_of_fire_at_game_fn)0x0064DD2E;
         fn_unit_convert = (unit_convert_fn)0x00644E95;
         call_gate_convert = 0x006109F2;
         fn_wall_piece = (wall_piece_fn)0x0064E647;
@@ -1279,6 +1298,8 @@ internal int spec_unit_check(void) {
     bad += spec_code((uintptr_t)fn_find_target, "unit_functions.find_target");
     bad += spec_code((uintptr_t)fn_attack_retarget, "unit_functions.attack_retarget");
     bad += spec_code((uintptr_t)fn_ballistic_game, "unit_functions.ballistic_game");
+    bad += spec_code((uintptr_t)fn_line_of_fire_game, "unit_functions.line_of_fire_game");
+    bad += spec_code((uintptr_t)fn_line_of_fire_at_game, "unit_functions.line_of_fire_at_game");
     bad += spec_code((uintptr_t)fn_unit_convert, "unit_functions.unit_convert");
     bad += spec_call(call_gate_convert, (uintptr_t)fn_unit_convert, "unit_functions.unit_convert [call_site gate_convert]");
     bad += spec_code((uintptr_t)fn_wall_piece, "unit_functions.wall_piece");

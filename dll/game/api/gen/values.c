@@ -3105,6 +3105,7 @@ internal uint32_t of_unit_stats_flight_ms;
 internal uint32_t of_unit_stats_reload;
 internal uint32_t of_unit_stats_hp;
 internal uint32_t of_unit_stats_power;
+internal uint32_t of_unit_stats_lob;
 internal uint32_t vt_ee_to_hit_table;
 internal uint32_t data_unit_type_bonus_table;
 internal uint32_t value_unit_type_slot_type_assign;

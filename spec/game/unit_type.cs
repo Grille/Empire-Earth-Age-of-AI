@@ -397,6 +397,15 @@ unsafe struct ee_unit_stats
     /// a new unit's power (a priest's, a prophet's; the scenario's Create gives it this when more than 0)
     [offset(0x148), found(c)]
     int32 power;
+
+    /// it may lob over a wall: a shot of its that hits a wall in the way sets its unit's alt_attack, and with this the
+    /// unit then fires the high arc (ballistic_game) at 1.5 x its reload, its shots passing walls (the flight's check
+    /// 0x61F6A4 skips group 0x2A objects only for a shooter with this and alt_attack); the AI's target choice skips
+    /// the line of fire test (line_of_fire_game) for it as for a high_arc type. Longbows have it (the player: they lob
+    /// after their first shot hits a wall; tests/probes/wall_archers.eeai). AoC: its target choice reads +0x164 beside
+    /// the type's high_arc +0x2E5, ballistic_game the same
+    [offset((ee)0x15C, (aoc)0x164), found(c)]
+    uint8 lob;
 }
 
 /// the attack bonuses by weapon and target, unit_type.bonus_table - a static object (EEToHitTable)
