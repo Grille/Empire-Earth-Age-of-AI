@@ -255,6 +255,10 @@ Scripts:
 While the game runs, the DLL serves `\\.\pipe\eeaimod`, one command per connection. Commands that touch
 game state run on the simulation thread. The pipe is open in autotest runs; in a normal game only with
 ageofai.ini `[general] control_pipe=1` (default 0 since 2026-10-17 - a command on one PC desyncs multiplayer).
+Where the pipe is open, the chat is its console too: a line of the local player that begins with `>` (`> status`,
+`>spawn 2 knight 40 40`) runs as a pipe command at the pipe's own place, and its reply comes back as white system lines
+(16 of them, wrapped at 110 characters; the whole reply in the log, `# control: console`). Not in a game with more than
+one human; the pipe thread's own commands (`profile`, `shot`, the window commands) need the pipe, `peek`/`poke` work.
 Setup scripts (`setup=`, [scripts.md](scripts.md)) call the commands as functions - `spawn(2, unit.inf02_spearman, 70, 50)` - directly, not through the pipe.
 
 A unit or building type is given by its number or by its identifier, in every command that takes one (`spawn`,

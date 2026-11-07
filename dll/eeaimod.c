@@ -674,6 +674,7 @@ internal void install(HMODULE self) {
     editor_search_install();
     llm_install();
     ctl_start(g_autotest || g_set.control_pipe);
+    g_chat_console = chat_console;   // '>' lines of the chat: the pipe's commands (diplo.c -> test/control.c)
     if (g_autotest && g_auto.game_seed) {
         BOOL ok = install_srand(), start = start_hook();
         if (g_log) fprintf(g_log, "# autotest: game_seed=%d (srand hook %s, start message hook %s)\n", g_auto.game_seed,

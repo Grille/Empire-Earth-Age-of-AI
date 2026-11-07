@@ -1764,6 +1764,7 @@ internal void __cdecl hook_exit_confirm(void) {
     exit_confirm();
 }
 
+internal int (*g_chat_console)(const char *text);   // test/control.c chat_console, set by the wiring: 1 if a command
 internal void __thiscall hook_ingame_chat(ee_chat_msg *msg) {
     // chat runs on every PC: the claim goes by the sender (+0xA, as hook_resign), so every PC ends the game alike
     // (only the local player's own word claimed before - a multiplayer desync); the refusal line is the sender's only
@@ -1774,6 +1775,11 @@ internal void __thiscall hook_ingame_chat(ee_chat_msg *msg) {
     for (int i = 1; text && !from && i < nplayers(); i++) {
         void *p = player_at(i);
         if (p && !g_players[i] && player_get_msg_id(p) == chat_msg_get_from(msg)) from = i;
+    }
+    if (local && text && *text == '>' && g_chat_console) {   // the console: the player's line shown, the command run
+        chat_msg_execute(msg);
+        g_chat_console(text);
+        return;
     }
     if (from && text && victory_word(text))
         refused = !claim_victory(from, "the chat word");

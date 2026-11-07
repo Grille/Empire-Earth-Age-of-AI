@@ -96,6 +96,7 @@ internal void cmd_ddpoke(char *out, const char *args);
 internal void cmd_headless(const char *verb, const char *args, char *out);
 internal BOOL CALLBACK close_own_window(HWND w, LPARAM lp);
 internal void cmd_profile(const char *args, char *out);
+internal void mem_command(const char *verb, const char *args, char *out);
 internal struct {
     char cmd[512];
     char out[REPLY_CAP];
@@ -510,6 +511,84 @@ internal void walls_safe_point(void);   // walls.c: the scenario editor's walls,
 internal void units_first_tick(void);   // unitsfirst.c: a unit shooting a building looks for an enemy unit between shots
 internal void answer_fire_tick(void);   // unitsfirst.c: an idle unit shot from beyond its reply range goes for its attacker
 internal void spoils_tick(void);        // spoils.c: a resigned player's buildings and units
+internal void system_line(const char *text, int ms);   // voice/chat.c
+
+// THE CONSOLE IN THE CHAT: a chat line of the local player that begins with '>' is a command of the pipe ("> status",
+// ">spawn 2 knight 40 40"), run at the pipe's own place (hook_sim_receive, between steps) and its reply shown in the
+// chat as white lines - CONSOLE_LINES of them, wrapped at CONSOLE_WIDTH, the whole reply in the log. The chat
+// message's execute hands it over (diplo.c hook_ingame_chat, through g_chat_console: set by the wiring). Only where
+// the pipe is open (control_pipe, test runs) and with one human: a command on one PC desyncs a multiplayer game.
+// The pipe thread's own commands (peek / poke aside: safe anywhere) need the pipe: profile samples the simulation
+// thread, the window commands wait for the window's.
+// Lines of one tick arrive together: CONSOLE_QUEUE of them wait, one runs at each hook_sim_receive (the chat's
+// execute and that hook are both the simulation thread's).
+enum { CONSOLE_LINES = 16, CONSOLE_WIDTH = 110, CONSOLE_QUEUE = 8 };
+internal int g_console_on;            // ctl_start: the pipe's own switch
+internal char g_console_cmd[CONSOLE_QUEUE][512];
+internal unsigned g_console_head, g_console_tail;
+internal int chat_console(const char *text) {   // the simulation thread; 1: the line was a command
+    if (*text != '>') return 0;
+    if (!g_console_on || g_mp) {
+        system_line(g_mp ? "console: not in a multiplayer game (a command on one PC desyncs it)"
+                         : "console: closed - ageofai.ini [general] control_pipe=1 opens it", 10000);
+        return 1;
+    }
+    while (*++text == ' ') {}
+    if (!*text) return 1;
+    if (g_console_tail - g_console_head >= CONSOLE_QUEUE) {
+        system_line("console: too many commands at once - this one is dropped", 10000);
+        return 1;
+    }
+    lstrcpynA(g_console_cmd[g_console_tail++ % CONSOLE_QUEUE], text, sizeof g_console_cmd[0]);
+    return 1;
+}
+internal void console_run(void) {
+    static char out[REPLY_CAP];
+    const char *cmd = g_console_cmd[g_console_head % CONSOLE_QUEUE];
+    char verb[16] = "";
+    int n = 0;
+    sscanf(cmd, "%15s %n", verb, &n);
+    out[0] = 0;
+    if (!strcmp(verb, "peek") || !strcmp(verb, "poke")) mem_command(verb, cmd + n, out);
+    else if (!strcmp(verb, "profile") || !strcmp(verb, "uipost") || !strcmp(verb, "vmouse") || !strcmp(verb, "vclick")
+             || !strcmp(verb, "vdrag") || !strcmp(verb, "wclick") || !strcmp(verb, "wtype") || !strcmp(verb, "shot")
+             || !strcmp(verb, "mapshot"))
+        REPLY("error: %s works through the pipe only (scripts/test/eectl.py)\n", verb);
+    else execute(cmd, out);
+    ctl_log("console '%s': %s", cmd, out);
+    g_console_head++;
+    if (!out[0]) REPLY("ok\n");
+    ee_game_data *opt = game_data();
+    int ms = opt ? game_data_get_line_ms(opt) * 3 : 30000, shown = 0, more = 0;
+    for (char *p = out; *p; ) {
+        size_t len = strcspn(p, "\n");
+        char *next = p + len + (p[len] == '\n');
+        while (len) {   // wrapped at a space where there is one
+            size_t take = len;
+            if (take > CONSOLE_WIDTH) {
+                take = CONSOLE_WIDTH;
+                for (size_t k = CONSOLE_WIDTH; k > CONSOLE_WIDTH / 2; k--) if (p[k] == ' ') { take = k; break; }
+            }
+            if (shown < CONSOLE_LINES) {
+                char line[CONSOLE_WIDTH + 1];
+                lstrcpynA(line, p, (int)take + 1);
+                for (char *t = line; *t; t++) if (*t == '\t' || *t == '\r') *t = ' ';
+                system_line(line, ms);
+                shown++;
+            } else more++;
+            p += take;
+            len -= take;
+            while (len && *p == ' ') { p++; len--; }
+        }
+        p = next;
+    }
+    if (more) {
+        char line[80];
+        snprintf(line, sizeof line, "... %d more lines in ageofai_log.csv (# control: console)", more);
+        system_line(line, ms);
+    }
+}
+
 internal long __thiscall hook_sim_receive(void *thread, void *a, void *b, void *c) {
     diplo_safe_point();
     upgrade_stragglers();
@@ -530,6 +609,7 @@ internal long __thiscall hook_sim_receive(void *thread, void *a, void *b, void *
         g_req.state = 3;
         SetEvent(g_req.done);
     }
+    if (g_console_head != g_console_tail) console_run();
     return ts_receive(thread, a, b, c);
 }
 
@@ -882,6 +962,7 @@ internal void ctl_start(int pipe) {
                 c ? "ok" : "FAILED", g_turbo);
     }
     g_req.done = CreateEventA(NULL, TRUE, FALSE, NULL);
-    ctl_log("pipe %s", pipe ? "on" : "off (ageofai.ini [general] control_pipe=0)");
+    g_console_on = pipe;
+    ctl_log("pipe %s", pipe ? "on (and the console in the chat: '>' lines)" : "off (ageofai.ini [general] control_pipe=0)");
     if (pipe) CloseHandle(CreateThread(NULL, 0, pipe_thread, NULL, 0, NULL));
 }
