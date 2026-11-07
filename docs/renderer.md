@@ -187,11 +187,14 @@ about 0.6 ms; the 8000 save at speed 4 (behind) - 342-348 hand-offs, 4.9-5.4 s (
 frame being drawn, then its update), the read waits 63-84 ms, a read hold 2-5 ms; the player's 450-unit game with the
 threshold (their log): 49-59 hand-offs, 0.5-0.6 s. A buffer of the units' records the simulation fills itself (the
 units' update, 0x503B83, moved to the end of its step, the frames drawing from the other half) is not the gain it
-seemed: the update chooses the units' poses (the animation's time - not the draw: 40 frames recorded inside steps,
-none updated, differ from each other in 2300-2900 pixels, 40 paused ones, each updated, in 87 000-150 000), so the
-units would animate at the steps' rate, and the simulation would do the update's work itself every step - about what
-it waits now where the game keeps up. Where it is behind, the hand-off's 15 ms against the update's 2-5 ms is the gain
-left.
+seemed: the simulation would do the update's work itself every step - more than it waits now where the game keeps
+up (the farm save's 0.6 ms a step against its 0.3 s a minute). Where it is behind, the hand-off's 15 ms against the
+update's 2-5 ms is the gain left. A unit's pose is the simulation's: the update copies it from the unit's physics
+object (0x502622: its frame +0x178, next frame +0x308, the fraction between them +0x23C - the record's +0x12C, +0x130,
++0x104, given to the model by the draw - and its transformation +0x130), which no write touches while the game is
+paused (the pipe's watch on a soldier's fraction: none in 2 s; the poses of the click list's units alike a second
+apart). What the update moves by the clock is the trees' sway: 40 frames recorded paused, each updated, differ in
+87 000-150 000 pixels, all of them trees and the chat's text; 40 inside steps, none updated, in 2300-2900.
 Two waits were left behind a step (2026-11-07, the player with the pipe's `stepload 1000`: "the mouse sidescroll lags
 for one second once the sim takes control again ... one mouse click and it freezes once the next simstep comes"). The
 pipe's `profile stacks` (now reading each stack page by page - one read past its end got nothing - and showing only
