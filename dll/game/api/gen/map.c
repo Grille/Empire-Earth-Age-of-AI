@@ -72,6 +72,37 @@ internal inline uint32_t *map_flags_at(const ee_map *o) { return (uint32_t *)((u
 // Create's last step (unit.c unit_create)
 typedef void (__thiscall *map_place_fn)(ee_map *, ee_unit *);
 internal inline void map_place(ee_map *map, ee_unit *u) { ((map_place_fn)(*(void ***)map)[slot_map_place])(map, u); }
+// the corners of tiles x_lo .. x_hi, y_hi down to y_lo coloured from a colour type's set (color_type: its
+// record's set) - SetColorSet on each corner above the water. The editor's terrain paint (0x512C6A, its
+// EESEAPaintTerrain's run) calls it after the textures with the colour list's type, a tile's texture change
+// (0x512D13) with the texture's own
+typedef void (__thiscall *map_paint_colors_fn)(ee_map *, int, int, int, int, int);
+internal map_paint_colors_fn fn_map_paint_colors;
+internal inline void map_paint_colors(ee_map *map, int x_lo, int x_hi, int y_hi, int y_lo, int color_type) { fn_map_paint_colors(map, x_lo, x_hi, y_hi, y_lo, color_type); }
+internal inline int patch_map_paint_colors(map_paint_colors_fn h) { return patch_call(call_map_paint_colors, (uintptr_t)fn_map_paint_colors, (void *)h); }
+
+// class ee_color_type (ee_color_type)
+// a colour type of the ground, a record of db\dbterraintype.dat (map.color_types; 0x80 bytes: a name, its id, the
+// first and last slot of the colour table, a language id ...; read at the start, 0x4D5E16)
+// its set's index in the map's mesh (RegisterColorSet's, at the map's setup 0x51371F)
+internal inline uint32_t color_type_get_set(const ee_color_type *o) { return *(uint32_t *)((uint8_t *)o + of_color_type_set); }
+internal inline void color_type_set_set(ee_color_type *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_color_type_set) = v; }
+internal inline uint32_t *color_type_set_at(const ee_color_type *o) { return (uint32_t *)((uint8_t *)o + of_color_type_set); }
+// its index in map.color_types (EESEAPaintTerrain passes it, map_paint_colors looks it up by color_type)
+internal inline uint32_t color_type_get_id(const ee_color_type *o) { return *(uint32_t *)((uint8_t *)o + of_color_type_id); }
+internal inline void color_type_set_id(ee_color_type *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_color_type_id) = v; }
+internal inline uint32_t *color_type_id_at(const ee_color_type *o) { return (uint32_t *)((uint8_t *)o + of_color_type_id); }
+// its slots of the colour table, first to last (the setup registers them as its set)
+internal inline uint32_t color_type_get_first(const ee_color_type *o) { return *(uint32_t *)((uint8_t *)o + of_color_type_first); }
+internal inline void color_type_set_first(ee_color_type *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_color_type_first) = v; }
+internal inline uint32_t *color_type_first_at(const ee_color_type *o) { return (uint32_t *)((uint8_t *)o + of_color_type_first); }
+internal inline uint32_t color_type_get_last(const ee_color_type *o) { return *(uint32_t *)((uint8_t *)o + of_color_type_last); }
+internal inline void color_type_set_last(ee_color_type *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_color_type_last) = v; }
+internal inline uint32_t *color_type_last_at(const ee_color_type *o) { return (uint32_t *)((uint8_t *)o + of_color_type_last); }
+// 1: in the editor's colour list (the terrain panel's constructor takes those)
+internal inline uint8_t color_type_get_in_editor(const ee_color_type *o) { return *(uint8_t *)((uint8_t *)o + of_color_type_in_editor); }
+internal inline void color_type_set_in_editor(ee_color_type *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_color_type_in_editor) = v; }
+internal inline uint8_t *color_type_in_editor_at(const ee_color_type *o) { return (uint8_t *)((uint8_t *)o + of_color_type_in_editor); }
 
 // class ee_unit_vis (ee_unit_vis)
 // a unit's visibility record, its +0x14 (a site's: its ownership flag too)
@@ -234,6 +265,12 @@ internal inline ee_continent_mgr *map_map_areas_at(void) { return (ee_continent_
 // the set's id into the record's +4) and then hands it the table: SetColorTable, its only call in both builds -
 // thiscall on the mesh, a vector of GEColor (3 floats, 0xC each; 256 at most, the rest white)
 internal inline uint8_t *map_iat_color_table_at(void) { return (uint8_t *)(uintptr_t)data_map_iat_color_table; }
+// GETerrainMesh::RegisterColorSet (thiscall on the mesh: a vector of uint32 slots, its index out): a set more,
+// the slots copied - the map's setup's for every colour type
+internal inline uint8_t *map_iat_register_color_set_at(void) { return (uint8_t *)(uintptr_t)data_map_iat_register_color_set; }
+// the colour types (ee_color_type), db\dbterraintype.dat's records in its order: a vector of pointers (MSVC: the
+// first at +4, the end at +8); map_functions.color_type reads it
+internal inline uint8_t *map_color_types_at(void) { return (uint8_t *)(uintptr_t)data_map_color_types; }
 // GETerrainMesh: its colour sets - a vector (MSVC: the first element at +4, the end at +8) of sets, 0x10 each, a
 // set a vector of uint32 slots (first at +4, end at +8). SetColorSet gives a corner the slot at (n - 1) x a noise
 // value of the corner's x & 63, y & 63 (+0x17B574's table; the 2017 update's engine 0x1003C3C2, AoC's 0x1002AE9B):
@@ -246,6 +283,10 @@ internal inline uint8_t *map_terrain_current_at(void) { return (uint8_t *)(uintp
 
 // static class map_functions
 // the game's functions map.c wraps, by the names the C side gives them
+// a colour type by its id (map.color_types; NULL past the end)
+typedef ee_color_type *(__cdecl *color_type_fn)(uint32_t);
+internal color_type_fn fn_color_type;
+internal inline ee_color_type *color_type(uint32_t id) { return fn_color_type(id); }
 
 // the running build's values (spec_select, with addr_select): how many it hasn't got
 internal int spec_map_select(int build) {
@@ -267,6 +308,14 @@ internal int spec_map_select(int build) {
         of_map_grid = 0x181724;
         of_map_flags = 0x181730;
         slot_map_place = 8;
+        fn_map_paint_colors = (map_paint_colors_fn)0x00512DFB;
+        call_map_paint_colors = 0x00512D09;
+        size_ee_color_type = 0x80;
+        of_color_type_set = 0x4;
+        of_color_type_id = 0x8;
+        of_color_type_first = 0xC;
+        of_color_type_last = 0x10;
+        of_color_type_in_editor = 0x1C;
         of_unit_vis_flag = 0x4;
         of_unit_vis_seen = 0xC;
         fn_unit_vis_explored = (unit_vis_explored_fn)0x00404A8A;
@@ -303,9 +352,12 @@ internal int spec_map_select(int build) {
         data_map_fn_tile_sight_sub = 0x00519E26;
         data_map_map_areas = 0x00917BC8;
         data_map_iat_color_table = 0x00823914;
+        data_map_iat_register_color_set = 0x0082391C;
+        data_map_color_types = 0x008D1FF8;
         value_map_of_mesh_color_sets = 80;
         value_map_of_mesh_color_table = 140;
         data_map_terrain_current = 0x009128CB;
+        fn_color_type = (color_type_fn)0x00513BE7;
         return 0;
     case 1:   // aoc
         of_grid_cells = 0x4;
@@ -324,6 +376,14 @@ internal int spec_map_select(int build) {
         of_map_grid = 0x195640;
         of_map_flags = 0x19564C;
         slot_map_place = 8;
+        fn_map_paint_colors = (map_paint_colors_fn)0x0051D433;
+        call_map_paint_colors = 0x0051D341;
+        size_ee_color_type = 0x80;
+        of_color_type_set = 0x4;
+        of_color_type_id = 0x8;
+        of_color_type_first = 0xC;
+        of_color_type_last = 0x10;
+        of_color_type_in_editor = 0x1C;
         of_unit_vis_flag = 0x4;
         of_unit_vis_seen = 0xC;
         fn_unit_vis_explored = (unit_vis_explored_fn)0x004042E2;
@@ -360,9 +420,12 @@ internal int spec_map_select(int build) {
         data_map_fn_tile_sight_sub = 0x005246C4;
         data_map_map_areas = 0x00930BF0;
         data_map_iat_color_table = 0x008378F0;
+        data_map_iat_register_color_set = 0x008378F8;
+        data_map_color_types = 0x008E86F8;
         value_map_of_mesh_color_sets = 108;
         value_map_of_mesh_color_table = 200;
         data_map_terrain_current = 0x00929067;
+        fn_color_type = (color_type_fn)0x0051E22B;
         return 0;
     }
     return 0;
@@ -372,6 +435,8 @@ internal const char *const k_spec_map_missing[ADDR_BUILDS] = { "", "" };
 // the load-time check: what the spec says of the running build's exe (spec_check): the failures
 internal int spec_map_check(void) {
     int bad = 0;
+    bad += spec_code((uintptr_t)fn_map_paint_colors, "EEMap.paint_colors");
+    bad += spec_call(call_map_paint_colors, (uintptr_t)fn_map_paint_colors, "EEMap.paint_colors [call_site map_paint_colors]");
     bad += spec_code((uintptr_t)fn_unit_vis_explored, "ee_unit_vis.explored");
     bad += spec_code((uintptr_t)fn_unit_vis_seen_by, "ee_unit_vis.seen_by");
     bad += spec_code((uintptr_t)fn_unit_vis_doppelganger_count, "ee_unit_vis.doppelganger_count");
@@ -388,6 +453,9 @@ internal int spec_map_check(void) {
     bad += spec_code(data_map_fn_tile_sight_sub, "map.fn_tile_sight_sub");
     bad += spec_data(data_map_map_areas, "map.map_areas");
     bad += spec_data(data_map_iat_color_table, "map.iat_color_table");
+    bad += spec_data(data_map_iat_register_color_set, "map.iat_register_color_set");
+    bad += spec_data(data_map_color_types, "map.color_types");
     bad += spec_data(data_map_terrain_current, "map.terrain_current");
+    bad += spec_code((uintptr_t)fn_color_type, "map_functions.color_type");
     return bad;
 }

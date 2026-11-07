@@ -74,6 +74,39 @@ unsafe struct EEMap
     /// Create's last step (unit.c unit_create)
     [slot(8)]
     extern void place(EEUnit* u);
+
+    /// the corners of tiles x_lo .. x_hi, y_hi down to y_lo coloured from a colour type's set (color_type: its
+    /// record's set) - SetColorSet on each corner above the water. The editor's terrain paint (0x512C6A, its
+    /// EESEAPaintTerrain's run) calls it after the textures with the colour list's type, a tile's texture change
+    /// (0x512D13) with the texture's own
+    [address((ee)0x00512DFB, (aoc)0x0051D433)]
+    [call_site("map_paint_colors", (ee)0x00512D09, (aoc)0x0051D341)]
+    extern void paint_colors(int32 x_lo, int32 x_hi, int32 y_hi, int32 y_lo, int32 color_type);
+}
+
+/// a colour type of the ground, a record of db\dbterraintype.dat (map.color_types; 0x80 bytes: a name, its id, the
+/// first and last slot of the colour table, a language id ...; read at the start, 0x4D5E16)
+[size(0x80), c_type("ee_color_type")]
+unsafe struct ee_color_type
+{
+    /// its set's index in the map's mesh (RegisterColorSet's, at the map's setup 0x51371F)
+    [offset(0x4), found(c)]
+    uint32 set;
+
+    /// its index in map.color_types (EESEAPaintTerrain passes it, map_paint_colors looks it up by color_type)
+    [offset(0x8), found(c)]
+    uint32 id;
+
+    /// its slots of the colour table, first to last (the setup registers them as its set)
+    [offset(0xC), found(c)]
+    uint32 first;
+
+    [offset(0x10), found(c)]
+    uint32 last;
+
+    /// 1: in the editor's colour list (the terrain panel's constructor takes those)
+    [offset(0x1C), found(c)]
+    uint8 in_editor;
 }
 
 /// a unit's visibility record, its +0x14 (a site's: its ownership flag too)
@@ -261,6 +294,17 @@ static unsafe class map
     [address((ee)0x00823914, (aoc)0x008378F0)]
     static block iat_color_table;
 
+    /// GETerrainMesh::RegisterColorSet (thiscall on the mesh: a vector of uint32 slots, its index out): a set more,
+    /// the slots copied - the map's setup's for every colour type
+    [import_slot("Low-Level Engine.dll", "?RegisterColorSet@GETerrainMesh@@QAEJAAV?$vector@KV?$allocator@K@std@@@std@@AAK@Z")]
+    [address((ee)0x0082391C, (aoc)0x008378F8)]
+    static block iat_register_color_set;
+
+    /// the colour types (ee_color_type), db\dbterraintype.dat's records in its order: a vector of pointers (MSVC: the
+    /// first at +4, the end at +8); map_functions.color_type reads it
+    [address((ee)0x008D1FF8, (aoc)0x008E86F8)]
+    static block color_types;
+
     /// GETerrainMesh: its colour sets - a vector (MSVC: the first element at +4, the end at +8) of sets, 0x10 each, a
     /// set a vector of uint32 slots (first at +4, end at +8). SetColorSet gives a corner the slot at (n - 1) x a noise
     /// value of the corner's x & 63, y & 63 (+0x17B574's table; the 2017 update's engine 0x1003C3C2, AoC's 0x1002AE9B):
@@ -283,4 +327,7 @@ static unsafe class map
 [c_prefix("")]
 static unsafe class map_functions
 {
+    /// a colour type by its id (map.color_types; NULL past the end)
+    [address((ee)0x00513BE7, (aoc)0x0051E22B), cdecl]
+    static extern ee_color_type* color_type(uint32 id);
 }

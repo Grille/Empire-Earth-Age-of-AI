@@ -1382,70 +1382,95 @@ typedef int (__thiscall *eeseui_tech_list_box_draw_polygons_fn)(eeseui_tech_list
 internal eeseui_tech_list_box_draw_polygons_fn fn_eeseui_tech_list_box_draw_polygons;
 internal inline int eeseui_tech_list_box_draw_polygons(eeseui_tech_list_box *eeseui_tech_list_box) { return fn_eeseui_tech_list_box_draw_polygons(eeseui_tech_list_box); }
 
-// class EESEUITerrainColorLB (eeseui_terrain_color_lb)
-// made in 0x59B710
+// class EESEUITerrainColorLB (ee_se_color_list)
+// the terrain panel's colour list (EEUIFSETerrain.color_list, made in 0x59B710): an item a colour type, drawn as a
+// strip of its colours - an item a vector of GEColor (0x10: the allocator, first +4, end +8, 3 floats each)
 // UIControl's, the base's
 // its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
 // control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
 // x + w - 1, y}, 0x5898C7)
-internal inline float eeseui_terrain_color_lb_get_bottom(const eeseui_terrain_color_lb *o) { return *(float *)((uint8_t *)o + of_ui_control_bottom); }
-internal inline void eeseui_terrain_color_lb_set_bottom(eeseui_terrain_color_lb *o, float v) { *(float *)((uint8_t *)o + of_ui_control_bottom) = v; }
-internal inline float *eeseui_terrain_color_lb_bottom_at(const eeseui_terrain_color_lb *o) { return (float *)((uint8_t *)o + of_ui_control_bottom); }
-internal inline float eeseui_terrain_color_lb_get_left(const eeseui_terrain_color_lb *o) { return *(float *)((uint8_t *)o + of_ui_control_left); }
-internal inline void eeseui_terrain_color_lb_set_left(eeseui_terrain_color_lb *o, float v) { *(float *)((uint8_t *)o + of_ui_control_left) = v; }
-internal inline float *eeseui_terrain_color_lb_left_at(const eeseui_terrain_color_lb *o) { return (float *)((uint8_t *)o + of_ui_control_left); }
-internal inline float eeseui_terrain_color_lb_get_right(const eeseui_terrain_color_lb *o) { return *(float *)((uint8_t *)o + of_ui_control_right); }
-internal inline void eeseui_terrain_color_lb_set_right(eeseui_terrain_color_lb *o, float v) { *(float *)((uint8_t *)o + of_ui_control_right) = v; }
-internal inline float *eeseui_terrain_color_lb_right_at(const eeseui_terrain_color_lb *o) { return (float *)((uint8_t *)o + of_ui_control_right); }
-internal inline float eeseui_terrain_color_lb_get_top(const eeseui_terrain_color_lb *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
-internal inline void eeseui_terrain_color_lb_set_top(eeseui_terrain_color_lb *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
-internal inline float *eeseui_terrain_color_lb_top_at(const eeseui_terrain_color_lb *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
+internal inline float se_color_list_get_bottom(const ee_se_color_list *o) { return *(float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline void se_color_list_set_bottom(ee_se_color_list *o, float v) { *(float *)((uint8_t *)o + of_ui_control_bottom) = v; }
+internal inline float *se_color_list_bottom_at(const ee_se_color_list *o) { return (float *)((uint8_t *)o + of_ui_control_bottom); }
+internal inline float se_color_list_get_left(const ee_se_color_list *o) { return *(float *)((uint8_t *)o + of_ui_control_left); }
+internal inline void se_color_list_set_left(ee_se_color_list *o, float v) { *(float *)((uint8_t *)o + of_ui_control_left) = v; }
+internal inline float *se_color_list_left_at(const ee_se_color_list *o) { return (float *)((uint8_t *)o + of_ui_control_left); }
+internal inline float se_color_list_get_right(const ee_se_color_list *o) { return *(float *)((uint8_t *)o + of_ui_control_right); }
+internal inline void se_color_list_set_right(ee_se_color_list *o, float v) { *(float *)((uint8_t *)o + of_ui_control_right) = v; }
+internal inline float *se_color_list_right_at(const ee_se_color_list *o) { return (float *)((uint8_t *)o + of_ui_control_right); }
+internal inline float se_color_list_get_top(const ee_se_color_list *o) { return *(float *)((uint8_t *)o + of_ui_control_top); }
+internal inline void se_color_list_set_top(ee_se_color_list *o, float v) { *(float *)((uint8_t *)o + of_ui_control_top) = v; }
+internal inline float *se_color_list_top_at(const ee_se_color_list *o) { return (float *)((uint8_t *)o + of_ui_control_top); }
 // the form it is in (UIControl::CaptureKeyboard captures it there)
-internal inline ee_ui_form *eeseui_terrain_color_lb_get_form(const eeseui_terrain_color_lb *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
-internal inline void eeseui_terrain_color_lb_set_form(eeseui_terrain_color_lb *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
-internal inline ee_ui_form **eeseui_terrain_color_lb_form_at(const eeseui_terrain_color_lb *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
-typedef int (__thiscall *eeseui_terrain_color_lb_copy_data_fn)(eeseui_terrain_color_lb *);
-internal eeseui_terrain_color_lb_copy_data_fn fn_eeseui_terrain_color_lb_copy_data;
-internal inline int eeseui_terrain_color_lb_copy_data(eeseui_terrain_color_lb *eeseui_terrain_color_lb) { return fn_eeseui_terrain_color_lb_copy_data(eeseui_terrain_color_lb); }
-typedef int (__thiscall *eeseui_terrain_color_lb_draw_polygons_fn)(eeseui_terrain_color_lb *);
-internal eeseui_terrain_color_lb_draw_polygons_fn fn_eeseui_terrain_color_lb_draw_polygons;
-internal inline int eeseui_terrain_color_lb_draw_polygons(eeseui_terrain_color_lb *eeseui_terrain_color_lb) { return fn_eeseui_terrain_color_lb_draw_polygons(eeseui_terrain_color_lb); }
-typedef int (__thiscall *eeseui_terrain_color_lb_draw_text_fn)(eeseui_terrain_color_lb *);
-internal eeseui_terrain_color_lb_draw_text_fn fn_eeseui_terrain_color_lb_draw_text;
-internal inline int eeseui_terrain_color_lb_draw_text(eeseui_terrain_color_lb *eeseui_terrain_color_lb) { return fn_eeseui_terrain_color_lb_draw_text(eeseui_terrain_color_lb); }
-typedef int (__thiscall *eeseui_terrain_color_lb_mouse_l_button_down_fn)(eeseui_terrain_color_lb *);
-internal eeseui_terrain_color_lb_mouse_l_button_down_fn fn_eeseui_terrain_color_lb_mouse_l_button_down;
-internal inline int eeseui_terrain_color_lb_mouse_l_button_down(eeseui_terrain_color_lb *eeseui_terrain_color_lb) { return fn_eeseui_terrain_color_lb_mouse_l_button_down(eeseui_terrain_color_lb); }
-typedef int (__thiscall *eeseui_terrain_color_lb_mouse_l_button_up_fn)(eeseui_terrain_color_lb *);
-internal eeseui_terrain_color_lb_mouse_l_button_up_fn fn_eeseui_terrain_color_lb_mouse_l_button_up;
-internal inline int eeseui_terrain_color_lb_mouse_l_button_up(eeseui_terrain_color_lb *eeseui_terrain_color_lb) { return fn_eeseui_terrain_color_lb_mouse_l_button_up(eeseui_terrain_color_lb); }
-typedef int (__thiscall *eeseui_terrain_color_lb_mouse_l_button_double_pressed_fn)(eeseui_terrain_color_lb *);
-internal eeseui_terrain_color_lb_mouse_l_button_double_pressed_fn fn_eeseui_terrain_color_lb_mouse_l_button_double_pressed;
-internal inline int eeseui_terrain_color_lb_mouse_l_button_double_pressed(eeseui_terrain_color_lb *eeseui_terrain_color_lb) { return fn_eeseui_terrain_color_lb_mouse_l_button_double_pressed(eeseui_terrain_color_lb); }
-typedef int (__thiscall *eeseui_terrain_color_lb_mouse_move_fn)(eeseui_terrain_color_lb *, void *);
-internal eeseui_terrain_color_lb_mouse_move_fn fn_eeseui_terrain_color_lb_mouse_move;
-internal inline int eeseui_terrain_color_lb_mouse_move(eeseui_terrain_color_lb *eeseui_terrain_color_lb, void *at) { return fn_eeseui_terrain_color_lb_mouse_move(eeseui_terrain_color_lb, at); }
-typedef int (__thiscall *eeseui_terrain_color_lb_mouse_r_button_down_fn)(eeseui_terrain_color_lb *);
-internal eeseui_terrain_color_lb_mouse_r_button_down_fn fn_eeseui_terrain_color_lb_mouse_r_button_down;
-internal inline int eeseui_terrain_color_lb_mouse_r_button_down(eeseui_terrain_color_lb *eeseui_terrain_color_lb) { return fn_eeseui_terrain_color_lb_mouse_r_button_down(eeseui_terrain_color_lb); }
-typedef int (__thiscall *eeseui_terrain_color_lb_mouse_r_button_up_fn)(eeseui_terrain_color_lb *);
-internal eeseui_terrain_color_lb_mouse_r_button_up_fn fn_eeseui_terrain_color_lb_mouse_r_button_up;
-internal inline int eeseui_terrain_color_lb_mouse_r_button_up(eeseui_terrain_color_lb *eeseui_terrain_color_lb) { return fn_eeseui_terrain_color_lb_mouse_r_button_up(eeseui_terrain_color_lb); }
-typedef int (__thiscall *eeseui_terrain_color_lb_mouse_wheel_turned_fn)(eeseui_terrain_color_lb *, int);
-internal eeseui_terrain_color_lb_mouse_wheel_turned_fn fn_eeseui_terrain_color_lb_mouse_wheel_turned;
-internal inline int eeseui_terrain_color_lb_mouse_wheel_turned(eeseui_terrain_color_lb *eeseui_terrain_color_lb, int amount) { return fn_eeseui_terrain_color_lb_mouse_wheel_turned(eeseui_terrain_color_lb, amount); }
-typedef void (__thiscall *eeseui_terrain_color_lb_set_location_fn)(eeseui_terrain_color_lb *, void *);
-internal eeseui_terrain_color_lb_set_location_fn fn_eeseui_terrain_color_lb_set_location;
-internal inline void eeseui_terrain_color_lb_set_location(eeseui_terrain_color_lb *eeseui_terrain_color_lb, void *at) { fn_eeseui_terrain_color_lb_set_location(eeseui_terrain_color_lb, at); }
-typedef void (__thiscall *eeseui_terrain_color_lb_tabbed_to_fn)(eeseui_terrain_color_lb *);
-internal eeseui_terrain_color_lb_tabbed_to_fn fn_eeseui_terrain_color_lb_tabbed_to;
-internal inline void eeseui_terrain_color_lb_tabbed_to(eeseui_terrain_color_lb *eeseui_terrain_color_lb) { fn_eeseui_terrain_color_lb_tabbed_to(eeseui_terrain_color_lb); }
-typedef void (__thiscall *eeseui_terrain_color_lb_tabbed_from_fn)(eeseui_terrain_color_lb *);
-internal eeseui_terrain_color_lb_tabbed_from_fn fn_eeseui_terrain_color_lb_tabbed_from;
-internal inline void eeseui_terrain_color_lb_tabbed_from(eeseui_terrain_color_lb *eeseui_terrain_color_lb) { fn_eeseui_terrain_color_lb_tabbed_from(eeseui_terrain_color_lb); }
-typedef int (__thiscall *eeseui_terrain_color_lb_update_keyboard_fn)(eeseui_terrain_color_lb *);
-internal eeseui_terrain_color_lb_update_keyboard_fn fn_eeseui_terrain_color_lb_update_keyboard;
-internal inline int eeseui_terrain_color_lb_update_keyboard(eeseui_terrain_color_lb *eeseui_terrain_color_lb) { return fn_eeseui_terrain_color_lb_update_keyboard(eeseui_terrain_color_lb); }
+internal inline ee_ui_form *se_color_list_get_form(const ee_se_color_list *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+internal inline void se_color_list_set_form(ee_se_color_list *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
+internal inline ee_ui_form **se_color_list_form_at(const ee_se_color_list *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+// the selected item (0x59D123 reads it: valid while there are items and +0x133 is set)
+internal inline int se_color_list_get_selected(const ee_se_color_list *o) { return *(int *)((uint8_t *)o + of_se_color_list_selected); }
+internal inline void se_color_list_set_selected(ee_se_color_list *o, int v) { *(int *)((uint8_t *)o + of_se_color_list_selected) = v; }
+internal inline int *se_color_list_selected_at(const ee_se_color_list *o) { return (int *)((uint8_t *)o + of_se_color_list_selected); }
+// vf34: an item more at the end, copied from item (a vector of GEColor)
+typedef void (__thiscall *se_color_list_add_fn)(ee_se_color_list *, void *);
+internal inline void se_color_list_add(ee_se_color_list *se_color_list, void *item) { ((se_color_list_add_fn)(*(void ***)se_color_list)[slot_se_color_list_add])(se_color_list, item); }
+internal se_color_list_add_fn fn_eeseui_terrain_color_lb_add;
+internal inline void eeseui_terrain_color_lb_add(ee_se_color_list *se_color_list, void *item) { fn_eeseui_terrain_color_lb_add(se_color_list, item); }
+// vf36: the item selected - notify: the list's event (EEUIETerrainColorChange, 0x3EB) runs; scroll: into view
+typedef void (__thiscall *se_color_list_select_fn)(ee_se_color_list *, uint32_t, uint8_t, uint8_t);
+internal inline void se_color_list_select(ee_se_color_list *se_color_list, uint32_t index, uint8_t notify, uint8_t scroll) { ((se_color_list_select_fn)(*(void ***)se_color_list)[slot_se_color_list_select])(se_color_list, index, notify, scroll); }
+internal se_color_list_select_fn fn_eeseui_terrain_color_lb_select;
+internal inline void eeseui_terrain_color_lb_select(ee_se_color_list *se_color_list, uint32_t index, uint8_t notify, uint8_t scroll) { fn_eeseui_terrain_color_lb_select(se_color_list, index, notify, scroll); }
+// vf39: the item at index taken out
+typedef void (__thiscall *se_color_list_remove_fn)(ee_se_color_list *, uint32_t);
+internal inline void se_color_list_remove(ee_se_color_list *se_color_list, uint32_t index) { ((se_color_list_remove_fn)(*(void ***)se_color_list)[slot_se_color_list_remove])(se_color_list, index); }
+internal se_color_list_remove_fn fn_eeseui_terrain_color_lb_remove;
+internal inline void eeseui_terrain_color_lb_remove(ee_se_color_list *se_color_list, uint32_t index) { fn_eeseui_terrain_color_lb_remove(se_color_list, index); }
+// vf42: the items
+typedef uint32_t (__thiscall *se_color_list_count_fn)(ee_se_color_list *);
+internal inline uint32_t se_color_list_count(ee_se_color_list *se_color_list) { return ((se_color_list_count_fn)(*(void ***)se_color_list)[slot_se_color_list_count])(se_color_list); }
+internal se_color_list_count_fn fn_eeseui_terrain_color_lb_count;
+internal inline uint32_t eeseui_terrain_color_lb_count(ee_se_color_list *se_color_list) { return fn_eeseui_terrain_color_lb_count(se_color_list); }
+typedef int (__thiscall *se_color_list_copy_data_fn)(ee_se_color_list *);
+internal se_color_list_copy_data_fn fn_se_color_list_copy_data;
+internal inline int se_color_list_copy_data(ee_se_color_list *se_color_list) { return fn_se_color_list_copy_data(se_color_list); }
+typedef int (__thiscall *se_color_list_draw_polygons_fn)(ee_se_color_list *);
+internal se_color_list_draw_polygons_fn fn_se_color_list_draw_polygons;
+internal inline int se_color_list_draw_polygons(ee_se_color_list *se_color_list) { return fn_se_color_list_draw_polygons(se_color_list); }
+typedef int (__thiscall *se_color_list_draw_text_fn)(ee_se_color_list *);
+internal se_color_list_draw_text_fn fn_se_color_list_draw_text;
+internal inline int se_color_list_draw_text(ee_se_color_list *se_color_list) { return fn_se_color_list_draw_text(se_color_list); }
+typedef int (__thiscall *se_color_list_mouse_l_button_down_fn)(ee_se_color_list *);
+internal se_color_list_mouse_l_button_down_fn fn_se_color_list_mouse_l_button_down;
+internal inline int se_color_list_mouse_l_button_down(ee_se_color_list *se_color_list) { return fn_se_color_list_mouse_l_button_down(se_color_list); }
+typedef int (__thiscall *se_color_list_mouse_l_button_up_fn)(ee_se_color_list *);
+internal se_color_list_mouse_l_button_up_fn fn_se_color_list_mouse_l_button_up;
+internal inline int se_color_list_mouse_l_button_up(ee_se_color_list *se_color_list) { return fn_se_color_list_mouse_l_button_up(se_color_list); }
+typedef int (__thiscall *se_color_list_mouse_l_button_double_pressed_fn)(ee_se_color_list *);
+internal se_color_list_mouse_l_button_double_pressed_fn fn_se_color_list_mouse_l_button_double_pressed;
+internal inline int se_color_list_mouse_l_button_double_pressed(ee_se_color_list *se_color_list) { return fn_se_color_list_mouse_l_button_double_pressed(se_color_list); }
+typedef int (__thiscall *se_color_list_mouse_move_fn)(ee_se_color_list *, void *);
+internal se_color_list_mouse_move_fn fn_se_color_list_mouse_move;
+internal inline int se_color_list_mouse_move(ee_se_color_list *se_color_list, void *at) { return fn_se_color_list_mouse_move(se_color_list, at); }
+typedef int (__thiscall *se_color_list_mouse_r_button_down_fn)(ee_se_color_list *);
+internal se_color_list_mouse_r_button_down_fn fn_se_color_list_mouse_r_button_down;
+internal inline int se_color_list_mouse_r_button_down(ee_se_color_list *se_color_list) { return fn_se_color_list_mouse_r_button_down(se_color_list); }
+typedef int (__thiscall *se_color_list_mouse_r_button_up_fn)(ee_se_color_list *);
+internal se_color_list_mouse_r_button_up_fn fn_se_color_list_mouse_r_button_up;
+internal inline int se_color_list_mouse_r_button_up(ee_se_color_list *se_color_list) { return fn_se_color_list_mouse_r_button_up(se_color_list); }
+typedef int (__thiscall *se_color_list_mouse_wheel_turned_fn)(ee_se_color_list *, int);
+internal se_color_list_mouse_wheel_turned_fn fn_se_color_list_mouse_wheel_turned;
+internal inline int se_color_list_mouse_wheel_turned(ee_se_color_list *se_color_list, int amount) { return fn_se_color_list_mouse_wheel_turned(se_color_list, amount); }
+typedef void (__thiscall *se_color_list_set_location_fn)(ee_se_color_list *, void *);
+internal se_color_list_set_location_fn fn_se_color_list_set_location;
+internal inline void se_color_list_set_location(ee_se_color_list *se_color_list, void *at) { fn_se_color_list_set_location(se_color_list, at); }
+typedef void (__thiscall *se_color_list_tabbed_to_fn)(ee_se_color_list *);
+internal se_color_list_tabbed_to_fn fn_se_color_list_tabbed_to;
+internal inline void se_color_list_tabbed_to(ee_se_color_list *se_color_list) { fn_se_color_list_tabbed_to(se_color_list); }
+typedef void (__thiscall *se_color_list_tabbed_from_fn)(ee_se_color_list *);
+internal se_color_list_tabbed_from_fn fn_se_color_list_tabbed_from;
+internal inline void se_color_list_tabbed_from(ee_se_color_list *se_color_list) { fn_se_color_list_tabbed_from(se_color_list); }
+typedef int (__thiscall *se_color_list_update_keyboard_fn)(ee_se_color_list *);
+internal se_color_list_update_keyboard_fn fn_se_color_list_update_keyboard;
+internal inline int se_color_list_update_keyboard(ee_se_color_list *se_color_list) { return fn_se_color_list_update_keyboard(se_color_list); }
 
 // class EESEUITerrainTypeLB (eeseui_terrain_type_lb)
 // UIControl's, the base's
@@ -1977,12 +2002,29 @@ typedef void *(__thiscall *eeuifsetrb_paint_type_init_fn)(eeuifsetrb_paint_type 
 internal eeuifsetrb_paint_type_init_fn fn_eeuifsetrb_paint_type_init;
 internal inline void *eeuifsetrb_paint_type_init(eeuifsetrb_paint_type *eeuifsetrb_paint_type, uint32_t p1, uint32_t p2, uint32_t p3, uint32_t p4, uint32_t p5, uint32_t p6, uint32_t p7) { return fn_eeuifsetrb_paint_type_init(eeuifsetrb_paint_type, p1, p2, p3, p4, p5, p6, p7); }
 
-// class EEUIFSETerrain (eeuifse_terrain)
+// class EEUIFSETerrain (ee_se_terrain)
+// the editor's terrain panel (its main button 2): the textures' list, the colours' list, the paint
 // EEUIFSEMainGroup's, the base's
-// its constructor (5 arguments, not typed yet)
-typedef void *(__thiscall *eeuifse_terrain_init_fn)(eeuifse_terrain *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
-internal eeuifse_terrain_init_fn fn_eeuifse_terrain_init;
-internal inline void *eeuifse_terrain_init(eeuifse_terrain *eeuifse_terrain, uint32_t p1, uint32_t p2, uint32_t p3, uint32_t p4, uint32_t p5) { return fn_eeuifse_terrain_init(eeuifse_terrain, p1, p2, p3, p4, p5); }
+// the colour types of the colour list, an item each in its order: a vector of ee_color_type pointers (MSVC: the
+// first at +4, the end at +8) - the constructor's of every type in_editor; the paint (EEUIFSETerrainPaint vf34)
+// passes the selected item's type's id
+internal inline uint8_t *se_terrain_color_types_at(const ee_se_terrain *o) { return (uint8_t *)o + of_se_terrain_color_types; }
+// the colour list
+internal inline ee_se_color_list *se_terrain_get_color_list(const ee_se_terrain *o) { return *(ee_se_color_list **)((uint8_t *)o + of_se_terrain_color_list); }
+internal inline void se_terrain_set_color_list(ee_se_terrain *o, ee_se_color_list *v) { *(ee_se_color_list **)((uint8_t *)o + of_se_terrain_color_list) = v; }
+internal inline ee_se_color_list **se_terrain_color_list_at(const ee_se_terrain *o) { return (ee_se_color_list **)((uint8_t *)o + of_se_terrain_color_list); }
+// its constructor: the editor form's +0x234 and +0x244, the form's running control index (each control takes
+// one), the editor's form, the labels' font - the lists filled from the game data
+typedef void *(__thiscall *se_terrain_init_fn)(ee_se_terrain *, uint32_t, uint32_t, int *, ee_ui_form *, void *);
+internal se_terrain_init_fn fn_se_terrain_init;
+internal inline void *se_terrain_init(ee_se_terrain *se_terrain, uint32_t p1, uint32_t p2, int *index, ee_ui_form *form, void *font) { return fn_se_terrain_init(se_terrain, p1, p2, index, form, font); }
+internal inline int patch_se_terrain_init(se_terrain_init_fn h) { return patch_call(call_se_terrain_init, (uintptr_t)fn_se_terrain_init, (void *)h); }
+// vf0: deleted with the editor
+typedef void *(__thiscall *se_terrain_destroy_fn)(ee_se_terrain *, uint8_t);
+internal inline void *se_terrain_destroy(ee_se_terrain *se_terrain, uint8_t flags) { return ((se_terrain_destroy_fn)(*(void ***)se_terrain)[slot_se_terrain_destroy])(se_terrain, flags); }
+internal se_terrain_destroy_fn fn_eeuifse_terrain_destroy;
+internal inline void *eeuifse_terrain_destroy(ee_se_terrain *se_terrain, uint8_t flags) { return fn_eeuifse_terrain_destroy(se_terrain, flags); }
+internal inline int patch_se_terrain_delete(se_terrain_destroy_fn h) { return patch_vtable(vt_eeuifse_terrain, (int)slot_se_terrain_destroy, (uintptr_t)fn_eeuifse_terrain_destroy, (void *)h); }
 
 // class EEUIFSETerrainPaint (eeuifse_terrain_paint)
 // made in 0x59B710
@@ -2097,6 +2139,14 @@ internal inline void editor_form_open(ee_editor_form *editor_form) { fn_editor_f
 // static class editor
 // the units panel's group of the editor's form (UIForm::AddControl's second argument for each of its controls,
 // 0x58A70E): shown while the panel is
+
+// static class editor_functions
+// the game's functions the editor's code wraps, by the names the C side gives them
+// push_back on a vector of pointers (MSVC: the vector's allocator first, thiscall on it; the item by reference) -
+// the terrain panel's constructor's for its colour types (0x59B7D3)
+typedef void (__thiscall *ptr_vector_push_fn)(void *, void **);
+internal ptr_vector_push_fn fn_ptr_vector_push;
+internal inline void ptr_vector_push(void *vec, void **item) { fn_ptr_vector_push(vec, item); }
 
 // the running build's values (spec_select, with addr_select): how many it hasn't got
 internal int spec_editor_select(int build) {
@@ -2509,20 +2559,29 @@ internal int spec_editor_select(int build) {
         fn_eeseui_tech_list_box_draw_polygons = (eeseui_tech_list_box_draw_polygons_fn)0x0058765F;
         vt_eeseui_terrain_color_lb = 0x00830220;
         size_eeseui_terrain_color_lb = 0x134;
-        fn_eeseui_terrain_color_lb_copy_data = (eeseui_terrain_color_lb_copy_data_fn)0x0059C1B1;
-        fn_eeseui_terrain_color_lb_draw_polygons = (eeseui_terrain_color_lb_draw_polygons_fn)0x0059A9C4;
-        fn_eeseui_terrain_color_lb_draw_text = (eeseui_terrain_color_lb_draw_text_fn)0x0059D111;
-        fn_eeseui_terrain_color_lb_mouse_l_button_down = (eeseui_terrain_color_lb_mouse_l_button_down_fn)0x0059D985;
-        fn_eeseui_terrain_color_lb_mouse_l_button_up = (eeseui_terrain_color_lb_mouse_l_button_up_fn)0x0059DA20;
-        fn_eeseui_terrain_color_lb_mouse_l_button_double_pressed = (eeseui_terrain_color_lb_mouse_l_button_double_pressed_fn)0x0059D17E;
-        fn_eeseui_terrain_color_lb_mouse_move = (eeseui_terrain_color_lb_mouse_move_fn)0x00649012;
-        fn_eeseui_terrain_color_lb_mouse_r_button_down = (eeseui_terrain_color_lb_mouse_r_button_down_fn)0x004D84A2;
-        fn_eeseui_terrain_color_lb_mouse_r_button_up = (eeseui_terrain_color_lb_mouse_r_button_up_fn)0x004D84A2;
-        fn_eeseui_terrain_color_lb_mouse_wheel_turned = (eeseui_terrain_color_lb_mouse_wheel_turned_fn)0x006470AE;
-        fn_eeseui_terrain_color_lb_set_location = (eeseui_terrain_color_lb_set_location_fn)0x00648EC1;
-        fn_eeseui_terrain_color_lb_tabbed_to = (eeseui_terrain_color_lb_tabbed_to_fn)0x006490E8;
-        fn_eeseui_terrain_color_lb_tabbed_from = (eeseui_terrain_color_lb_tabbed_from_fn)0x0059D24A;
-        fn_eeseui_terrain_color_lb_update_keyboard = (eeseui_terrain_color_lb_update_keyboard_fn)0x006470CC;
+        of_se_color_list_selected = 0x120;
+        slot_se_color_list_add = 34;
+        fn_eeseui_terrain_color_lb_add = (se_color_list_add_fn)0x0059CCC8;
+        slot_se_color_list_select = 36;
+        fn_eeseui_terrain_color_lb_select = (se_color_list_select_fn)0x0059CD3A;
+        slot_se_color_list_remove = 39;
+        fn_eeseui_terrain_color_lb_remove = (se_color_list_remove_fn)0x0059D083;
+        slot_se_color_list_count = 42;
+        fn_eeseui_terrain_color_lb_count = (se_color_list_count_fn)0x0059D165;
+        fn_se_color_list_copy_data = (se_color_list_copy_data_fn)0x0059C1B1;
+        fn_se_color_list_draw_polygons = (se_color_list_draw_polygons_fn)0x0059A9C4;
+        fn_se_color_list_draw_text = (se_color_list_draw_text_fn)0x0059D111;
+        fn_se_color_list_mouse_l_button_down = (se_color_list_mouse_l_button_down_fn)0x0059D985;
+        fn_se_color_list_mouse_l_button_up = (se_color_list_mouse_l_button_up_fn)0x0059DA20;
+        fn_se_color_list_mouse_l_button_double_pressed = (se_color_list_mouse_l_button_double_pressed_fn)0x0059D17E;
+        fn_se_color_list_mouse_move = (se_color_list_mouse_move_fn)0x00649012;
+        fn_se_color_list_mouse_r_button_down = (se_color_list_mouse_r_button_down_fn)0x004D84A2;
+        fn_se_color_list_mouse_r_button_up = (se_color_list_mouse_r_button_up_fn)0x004D84A2;
+        fn_se_color_list_mouse_wheel_turned = (se_color_list_mouse_wheel_turned_fn)0x006470AE;
+        fn_se_color_list_set_location = (se_color_list_set_location_fn)0x00648EC1;
+        fn_se_color_list_tabbed_to = (se_color_list_tabbed_to_fn)0x006490E8;
+        fn_se_color_list_tabbed_from = (se_color_list_tabbed_from_fn)0x0059D24A;
+        fn_se_color_list_update_keyboard = (se_color_list_update_keyboard_fn)0x006470CC;
         vt_eeseui_terrain_type_lb = 0x00830328;
         size_eeseui_terrain_type_lb = 0x144;
         fn_eeseui_terrain_type_lb_init = (eeseui_terrain_type_lb_init_fn)0x0059C1E4;
@@ -2622,7 +2681,12 @@ internal int spec_editor_select(int build) {
         fn_eeuifsetrb_paint_type_init = (eeuifsetrb_paint_type_init_fn)0x0059C31F;
         vt_eeuifse_terrain = 0x008302F8;
         size_eeuifse_terrain = 0x48;
-        fn_eeuifse_terrain_init = (eeuifse_terrain_init_fn)0x0059B710;
+        of_se_terrain_color_types = 0x14;
+        of_se_terrain_color_list = 0x3C;
+        fn_se_terrain_init = (se_terrain_init_fn)0x0059B710;
+        call_se_terrain_init = 0x0058EC4A;
+        slot_se_terrain_destroy = 0;
+        fn_eeuifse_terrain_destroy = (se_terrain_destroy_fn)0x0059C445;
         vt_eeuifse_terrain_paint = 0x0083017C;
         size_eeuifse_terrain_paint = 0xC0;
         vt_eeuifse_undo = 0x0082FEA8;
@@ -2640,6 +2704,7 @@ internal int spec_editor_select(int build) {
         fn_editor_form_copy_data = (editor_form_copy_data_fn)0x0058E30D;
         fn_editor_form_open = (editor_form_open_fn)0x0058F363;
         value_editor_group_units = 6;
+        fn_ptr_vector_push = (ptr_vector_push_fn)0x0059C98E;
         return 0;
     case 1:   // aoc
         vt_eesea_change_load_text = 0x00842E44;
@@ -3049,20 +3114,29 @@ internal int spec_editor_select(int build) {
         fn_eeseui_tech_list_box_draw_polygons = (eeseui_tech_list_box_draw_polygons_fn)0x0059789F;
         vt_eeseui_terrain_color_lb = 0x00845B24;
         size_eeseui_terrain_color_lb = 0x134;
-        fn_eeseui_terrain_color_lb_copy_data = (eeseui_terrain_color_lb_copy_data_fn)0x005AC31D;
-        fn_eeseui_terrain_color_lb_draw_polygons = (eeseui_terrain_color_lb_draw_polygons_fn)0x005AAAD4;
-        fn_eeseui_terrain_color_lb_draw_text = (eeseui_terrain_color_lb_draw_text_fn)0x0065F3F4;
-        fn_eeseui_terrain_color_lb_mouse_l_button_down = (eeseui_terrain_color_lb_mouse_l_button_down_fn)0x005AD441;
-        fn_eeseui_terrain_color_lb_mouse_l_button_up = (eeseui_terrain_color_lb_mouse_l_button_up_fn)0x0065C4C4;
-        fn_eeseui_terrain_color_lb_mouse_l_button_double_pressed = (eeseui_terrain_color_lb_mouse_l_button_double_pressed_fn)0x005AD4DC;
-        fn_eeseui_terrain_color_lb_mouse_move = (eeseui_terrain_color_lb_mouse_move_fn)0x005AD5A8;
-        fn_eeseui_terrain_color_lb_mouse_r_button_down = (eeseui_terrain_color_lb_mouse_r_button_down_fn)0x005AD67E;
-        fn_eeseui_terrain_color_lb_mouse_r_button_up = (eeseui_terrain_color_lb_mouse_r_button_up_fn)0x005AD67E;
-        fn_eeseui_terrain_color_lb_mouse_wheel_turned = (eeseui_terrain_color_lb_mouse_wheel_turned_fn)0x005ADDD5;
-        fn_eeseui_terrain_color_lb_set_location = (eeseui_terrain_color_lb_set_location_fn)0x005AD1F2;
-        fn_eeseui_terrain_color_lb_tabbed_to = (eeseui_terrain_color_lb_tabbed_to_fn)0x005ADE79;
-        fn_eeseui_terrain_color_lb_tabbed_from = (eeseui_terrain_color_lb_tabbed_from_fn)0x0065C61F;
-        fn_eeseui_terrain_color_lb_update_keyboard = (eeseui_terrain_color_lb_update_keyboard_fn)0x005AD327;
+        of_se_color_list_selected = 0x120;
+        slot_se_color_list_add = 34;
+        fn_eeseui_terrain_color_lb_add = (se_color_list_add_fn)0x005ACE34;
+        slot_se_color_list_select = 36;
+        fn_eeseui_terrain_color_lb_select = (se_color_list_select_fn)0x0065BEB7;
+        slot_se_color_list_remove = 39;
+        fn_eeseui_terrain_color_lb_remove = (se_color_list_remove_fn)0x005AD12E;
+        slot_se_color_list_count = 42;
+        fn_eeseui_terrain_color_lb_count = (se_color_list_count_fn)0x005AD428;
+        fn_se_color_list_copy_data = (se_color_list_copy_data_fn)0x005AC31D;
+        fn_se_color_list_draw_polygons = (se_color_list_draw_polygons_fn)0x005AAAD4;
+        fn_se_color_list_draw_text = (se_color_list_draw_text_fn)0x0065F3F4;
+        fn_se_color_list_mouse_l_button_down = (se_color_list_mouse_l_button_down_fn)0x005AD441;
+        fn_se_color_list_mouse_l_button_up = (se_color_list_mouse_l_button_up_fn)0x0065C4C4;
+        fn_se_color_list_mouse_l_button_double_pressed = (se_color_list_mouse_l_button_double_pressed_fn)0x005AD4DC;
+        fn_se_color_list_mouse_move = (se_color_list_mouse_move_fn)0x005AD5A8;
+        fn_se_color_list_mouse_r_button_down = (se_color_list_mouse_r_button_down_fn)0x005AD67E;
+        fn_se_color_list_mouse_r_button_up = (se_color_list_mouse_r_button_up_fn)0x005AD67E;
+        fn_se_color_list_mouse_wheel_turned = (se_color_list_mouse_wheel_turned_fn)0x005ADDD5;
+        fn_se_color_list_set_location = (se_color_list_set_location_fn)0x005AD1F2;
+        fn_se_color_list_tabbed_to = (se_color_list_tabbed_to_fn)0x005ADE79;
+        fn_se_color_list_tabbed_from = (se_color_list_tabbed_from_fn)0x0065C61F;
+        fn_se_color_list_update_keyboard = (se_color_list_update_keyboard_fn)0x005AD327;
         vt_eeseui_terrain_type_lb = 0x00845C2C;
         size_eeseui_terrain_type_lb = 0x144;
         fn_eeseui_terrain_type_lb_init = (eeseui_terrain_type_lb_init_fn)0x005AC350;
@@ -3162,7 +3236,12 @@ internal int spec_editor_select(int build) {
         fn_eeuifsetrb_paint_type_init = (eeuifsetrb_paint_type_init_fn)0x005AC48B;
         vt_eeuifse_terrain = 0x00845BFC;
         size_eeuifse_terrain = 0x48;
-        fn_eeuifse_terrain_init = (eeuifse_terrain_init_fn)0x005AB87C;
+        of_se_terrain_color_types = 0x14;
+        of_se_terrain_color_list = 0x3C;
+        fn_se_terrain_init = (se_terrain_init_fn)0x005AB87C;
+        call_se_terrain_init = 0x0059F059;
+        slot_se_terrain_destroy = 0;
+        fn_eeuifse_terrain_destroy = (se_terrain_destroy_fn)0x005AC5B1;
         vt_eeuifse_terrain_paint = 0x00845A80;
         size_eeuifse_terrain_paint = 0xC0;
         vt_eeuifse_undo = 0x00845778;
@@ -3180,6 +3259,7 @@ internal int spec_editor_select(int build) {
         fn_editor_form_copy_data = (editor_form_copy_data_fn)0x0059E72C;
         fn_editor_form_open = (editor_form_open_fn)0x0059F794;
         value_editor_group_units = 6;
+        fn_ptr_vector_push = (ptr_vector_push_fn)0x005ACAFA;
         return 0;
     }
     return 0;
@@ -3551,34 +3631,42 @@ internal int spec_editor_check(void) {
     bad += spec_code((uintptr_t)fn_eeseui_tech_list_box_draw_polygons, "EESEUITechListBox.draw_polygons");
     bad += spec_slot(vt_eeseui_tech_list_box, slot_ui_control_draw_polygons, (uintptr_t)fn_eeseui_tech_list_box_draw_polygons, "EESEUITechListBox.draw_polygons [slot]");
     bad += spec_vtable(vt_eeseui_terrain_color_lb, ".?AVEESEUITerrainColorLB@@", "EESEUITerrainColorLB [vtable]");
-    bad += spec_code((uintptr_t)fn_eeseui_terrain_color_lb_copy_data, "EESEUITerrainColorLB.copy_data");
-    bad += spec_slot(vt_eeseui_terrain_color_lb, slot_ui_control_copy_data, (uintptr_t)fn_eeseui_terrain_color_lb_copy_data, "EESEUITerrainColorLB.copy_data [slot]");
-    bad += spec_code((uintptr_t)fn_eeseui_terrain_color_lb_draw_polygons, "EESEUITerrainColorLB.draw_polygons");
-    bad += spec_slot(vt_eeseui_terrain_color_lb, slot_ui_control_draw_polygons, (uintptr_t)fn_eeseui_terrain_color_lb_draw_polygons, "EESEUITerrainColorLB.draw_polygons [slot]");
-    bad += spec_code((uintptr_t)fn_eeseui_terrain_color_lb_draw_text, "EESEUITerrainColorLB.draw_text");
-    bad += spec_slot(vt_eeseui_terrain_color_lb, slot_ui_control_draw_text, (uintptr_t)fn_eeseui_terrain_color_lb_draw_text, "EESEUITerrainColorLB.draw_text [slot]");
-    bad += spec_code((uintptr_t)fn_eeseui_terrain_color_lb_mouse_l_button_down, "EESEUITerrainColorLB.mouse_l_button_down");
-    bad += spec_slot(vt_eeseui_terrain_color_lb, slot_ui_control_mouse_l_button_down, (uintptr_t)fn_eeseui_terrain_color_lb_mouse_l_button_down, "EESEUITerrainColorLB.mouse_l_button_down [slot]");
-    bad += spec_code((uintptr_t)fn_eeseui_terrain_color_lb_mouse_l_button_up, "EESEUITerrainColorLB.mouse_l_button_up");
-    bad += spec_slot(vt_eeseui_terrain_color_lb, slot_ui_control_mouse_l_button_up, (uintptr_t)fn_eeseui_terrain_color_lb_mouse_l_button_up, "EESEUITerrainColorLB.mouse_l_button_up [slot]");
-    bad += spec_code((uintptr_t)fn_eeseui_terrain_color_lb_mouse_l_button_double_pressed, "EESEUITerrainColorLB.mouse_l_button_double_pressed");
-    bad += spec_slot(vt_eeseui_terrain_color_lb, slot_ui_control_mouse_l_button_double_pressed, (uintptr_t)fn_eeseui_terrain_color_lb_mouse_l_button_double_pressed, "EESEUITerrainColorLB.mouse_l_button_double_pressed [slot]");
-    bad += spec_code((uintptr_t)fn_eeseui_terrain_color_lb_mouse_move, "EESEUITerrainColorLB.mouse_move");
-    bad += spec_slot(vt_eeseui_terrain_color_lb, slot_ui_control_mouse_move, (uintptr_t)fn_eeseui_terrain_color_lb_mouse_move, "EESEUITerrainColorLB.mouse_move [slot]");
-    bad += spec_code((uintptr_t)fn_eeseui_terrain_color_lb_mouse_r_button_down, "EESEUITerrainColorLB.mouse_r_button_down");
-    bad += spec_slot(vt_eeseui_terrain_color_lb, slot_ui_control_mouse_r_button_down, (uintptr_t)fn_eeseui_terrain_color_lb_mouse_r_button_down, "EESEUITerrainColorLB.mouse_r_button_down [slot]");
-    bad += spec_code((uintptr_t)fn_eeseui_terrain_color_lb_mouse_r_button_up, "EESEUITerrainColorLB.mouse_r_button_up");
-    bad += spec_slot(vt_eeseui_terrain_color_lb, slot_ui_control_mouse_r_button_up, (uintptr_t)fn_eeseui_terrain_color_lb_mouse_r_button_up, "EESEUITerrainColorLB.mouse_r_button_up [slot]");
-    bad += spec_code((uintptr_t)fn_eeseui_terrain_color_lb_mouse_wheel_turned, "EESEUITerrainColorLB.mouse_wheel_turned");
-    bad += spec_slot(vt_eeseui_terrain_color_lb, slot_ui_control_mouse_wheel_turned, (uintptr_t)fn_eeseui_terrain_color_lb_mouse_wheel_turned, "EESEUITerrainColorLB.mouse_wheel_turned [slot]");
-    bad += spec_code((uintptr_t)fn_eeseui_terrain_color_lb_set_location, "EESEUITerrainColorLB.set_location");
-    bad += spec_slot(vt_eeseui_terrain_color_lb, slot_ui_control_set_location, (uintptr_t)fn_eeseui_terrain_color_lb_set_location, "EESEUITerrainColorLB.set_location [slot]");
-    bad += spec_code((uintptr_t)fn_eeseui_terrain_color_lb_tabbed_to, "EESEUITerrainColorLB.tabbed_to");
-    bad += spec_slot(vt_eeseui_terrain_color_lb, slot_ui_control_tabbed_to, (uintptr_t)fn_eeseui_terrain_color_lb_tabbed_to, "EESEUITerrainColorLB.tabbed_to [slot]");
-    bad += spec_code((uintptr_t)fn_eeseui_terrain_color_lb_tabbed_from, "EESEUITerrainColorLB.tabbed_from");
-    bad += spec_slot(vt_eeseui_terrain_color_lb, slot_ui_control_tabbed_from, (uintptr_t)fn_eeseui_terrain_color_lb_tabbed_from, "EESEUITerrainColorLB.tabbed_from [slot]");
-    bad += spec_code((uintptr_t)fn_eeseui_terrain_color_lb_update_keyboard, "EESEUITerrainColorLB.update_keyboard");
-    bad += spec_slot(vt_eeseui_terrain_color_lb, slot_ui_control_update_keyboard, (uintptr_t)fn_eeseui_terrain_color_lb_update_keyboard, "EESEUITerrainColorLB.update_keyboard [slot]");
+    bad += spec_code((uintptr_t)fn_eeseui_terrain_color_lb_add, "EESEUITerrainColorLB.add");
+    bad += spec_slot(vt_eeseui_terrain_color_lb, slot_se_color_list_add, (uintptr_t)fn_eeseui_terrain_color_lb_add, "EESEUITerrainColorLB.add [slot]");
+    bad += spec_code((uintptr_t)fn_eeseui_terrain_color_lb_select, "EESEUITerrainColorLB.select");
+    bad += spec_slot(vt_eeseui_terrain_color_lb, slot_se_color_list_select, (uintptr_t)fn_eeseui_terrain_color_lb_select, "EESEUITerrainColorLB.select [slot]");
+    bad += spec_code((uintptr_t)fn_eeseui_terrain_color_lb_remove, "EESEUITerrainColorLB.remove");
+    bad += spec_slot(vt_eeseui_terrain_color_lb, slot_se_color_list_remove, (uintptr_t)fn_eeseui_terrain_color_lb_remove, "EESEUITerrainColorLB.remove [slot]");
+    bad += spec_code((uintptr_t)fn_eeseui_terrain_color_lb_count, "EESEUITerrainColorLB.count");
+    bad += spec_slot(vt_eeseui_terrain_color_lb, slot_se_color_list_count, (uintptr_t)fn_eeseui_terrain_color_lb_count, "EESEUITerrainColorLB.count [slot]");
+    bad += spec_code((uintptr_t)fn_se_color_list_copy_data, "EESEUITerrainColorLB.copy_data");
+    bad += spec_slot(vt_eeseui_terrain_color_lb, slot_ui_control_copy_data, (uintptr_t)fn_se_color_list_copy_data, "EESEUITerrainColorLB.copy_data [slot]");
+    bad += spec_code((uintptr_t)fn_se_color_list_draw_polygons, "EESEUITerrainColorLB.draw_polygons");
+    bad += spec_slot(vt_eeseui_terrain_color_lb, slot_ui_control_draw_polygons, (uintptr_t)fn_se_color_list_draw_polygons, "EESEUITerrainColorLB.draw_polygons [slot]");
+    bad += spec_code((uintptr_t)fn_se_color_list_draw_text, "EESEUITerrainColorLB.draw_text");
+    bad += spec_slot(vt_eeseui_terrain_color_lb, slot_ui_control_draw_text, (uintptr_t)fn_se_color_list_draw_text, "EESEUITerrainColorLB.draw_text [slot]");
+    bad += spec_code((uintptr_t)fn_se_color_list_mouse_l_button_down, "EESEUITerrainColorLB.mouse_l_button_down");
+    bad += spec_slot(vt_eeseui_terrain_color_lb, slot_ui_control_mouse_l_button_down, (uintptr_t)fn_se_color_list_mouse_l_button_down, "EESEUITerrainColorLB.mouse_l_button_down [slot]");
+    bad += spec_code((uintptr_t)fn_se_color_list_mouse_l_button_up, "EESEUITerrainColorLB.mouse_l_button_up");
+    bad += spec_slot(vt_eeseui_terrain_color_lb, slot_ui_control_mouse_l_button_up, (uintptr_t)fn_se_color_list_mouse_l_button_up, "EESEUITerrainColorLB.mouse_l_button_up [slot]");
+    bad += spec_code((uintptr_t)fn_se_color_list_mouse_l_button_double_pressed, "EESEUITerrainColorLB.mouse_l_button_double_pressed");
+    bad += spec_slot(vt_eeseui_terrain_color_lb, slot_ui_control_mouse_l_button_double_pressed, (uintptr_t)fn_se_color_list_mouse_l_button_double_pressed, "EESEUITerrainColorLB.mouse_l_button_double_pressed [slot]");
+    bad += spec_code((uintptr_t)fn_se_color_list_mouse_move, "EESEUITerrainColorLB.mouse_move");
+    bad += spec_slot(vt_eeseui_terrain_color_lb, slot_ui_control_mouse_move, (uintptr_t)fn_se_color_list_mouse_move, "EESEUITerrainColorLB.mouse_move [slot]");
+    bad += spec_code((uintptr_t)fn_se_color_list_mouse_r_button_down, "EESEUITerrainColorLB.mouse_r_button_down");
+    bad += spec_slot(vt_eeseui_terrain_color_lb, slot_ui_control_mouse_r_button_down, (uintptr_t)fn_se_color_list_mouse_r_button_down, "EESEUITerrainColorLB.mouse_r_button_down [slot]");
+    bad += spec_code((uintptr_t)fn_se_color_list_mouse_r_button_up, "EESEUITerrainColorLB.mouse_r_button_up");
+    bad += spec_slot(vt_eeseui_terrain_color_lb, slot_ui_control_mouse_r_button_up, (uintptr_t)fn_se_color_list_mouse_r_button_up, "EESEUITerrainColorLB.mouse_r_button_up [slot]");
+    bad += spec_code((uintptr_t)fn_se_color_list_mouse_wheel_turned, "EESEUITerrainColorLB.mouse_wheel_turned");
+    bad += spec_slot(vt_eeseui_terrain_color_lb, slot_ui_control_mouse_wheel_turned, (uintptr_t)fn_se_color_list_mouse_wheel_turned, "EESEUITerrainColorLB.mouse_wheel_turned [slot]");
+    bad += spec_code((uintptr_t)fn_se_color_list_set_location, "EESEUITerrainColorLB.set_location");
+    bad += spec_slot(vt_eeseui_terrain_color_lb, slot_ui_control_set_location, (uintptr_t)fn_se_color_list_set_location, "EESEUITerrainColorLB.set_location [slot]");
+    bad += spec_code((uintptr_t)fn_se_color_list_tabbed_to, "EESEUITerrainColorLB.tabbed_to");
+    bad += spec_slot(vt_eeseui_terrain_color_lb, slot_ui_control_tabbed_to, (uintptr_t)fn_se_color_list_tabbed_to, "EESEUITerrainColorLB.tabbed_to [slot]");
+    bad += spec_code((uintptr_t)fn_se_color_list_tabbed_from, "EESEUITerrainColorLB.tabbed_from");
+    bad += spec_slot(vt_eeseui_terrain_color_lb, slot_ui_control_tabbed_from, (uintptr_t)fn_se_color_list_tabbed_from, "EESEUITerrainColorLB.tabbed_from [slot]");
+    bad += spec_code((uintptr_t)fn_se_color_list_update_keyboard, "EESEUITerrainColorLB.update_keyboard");
+    bad += spec_slot(vt_eeseui_terrain_color_lb, slot_ui_control_update_keyboard, (uintptr_t)fn_se_color_list_update_keyboard, "EESEUITerrainColorLB.update_keyboard [slot]");
     bad += spec_vtable(vt_eeseui_terrain_type_lb, ".?AVEESEUITerrainTypeLB@@", "EESEUITerrainTypeLB [vtable]");
     bad += spec_code((uintptr_t)fn_eeseui_terrain_type_lb_init, "EESEUITerrainTypeLB.init");
     bad += spec_code((uintptr_t)fn_eeseui_terrain_type_lb_copy_data, "EESEUITerrainTypeLB.copy_data");
@@ -3693,7 +3781,10 @@ internal int spec_editor_check(void) {
     bad += spec_vtable(vt_eeuifsetrb_paint_type, ".?AVEEUIFSETRBPaintType@@", "EEUIFSETRBPaintType [vtable]");
     bad += spec_code((uintptr_t)fn_eeuifsetrb_paint_type_init, "EEUIFSETRBPaintType.init");
     bad += spec_vtable(vt_eeuifse_terrain, ".?AVEEUIFSETerrain@@", "EEUIFSETerrain [vtable]");
-    bad += spec_code((uintptr_t)fn_eeuifse_terrain_init, "EEUIFSETerrain.init");
+    bad += spec_code((uintptr_t)fn_se_terrain_init, "EEUIFSETerrain.init");
+    bad += spec_call(call_se_terrain_init, (uintptr_t)fn_se_terrain_init, "EEUIFSETerrain.init [call_site se_terrain_init]");
+    bad += spec_code((uintptr_t)fn_eeuifse_terrain_destroy, "EEUIFSETerrain.destroy");
+    bad += spec_slot(vt_eeuifse_terrain, slot_se_terrain_destroy, (uintptr_t)fn_eeuifse_terrain_destroy, "EEUIFSETerrain.destroy [slot]");
     bad += spec_vtable(vt_eeuifse_terrain_paint, ".?AVEEUIFSETerrainPaint@@", "EEUIFSETerrainPaint [vtable]");
     bad += spec_vtable(vt_eeuifse_undo, ".?AVEEUIFSEUndo@@", "EEUIFSEUndo [vtable]");
     bad += spec_code((uintptr_t)fn_eeuifse_undo_init, "EEUIFSEUndo.init");
@@ -3714,5 +3805,6 @@ internal int spec_editor_check(void) {
     bad += spec_slot(vt_eeuif_scenario_editor, slot_ui_form_copy_data, (uintptr_t)fn_editor_form_copy_data, "EEUIFScenarioEditor.copy_data [slot]");
     bad += spec_code((uintptr_t)fn_editor_form_open, "EEUIFScenarioEditor.open");
     bad += spec_slot(vt_eeuif_scenario_editor, slot_ui_form_open, (uintptr_t)fn_editor_form_open, "EEUIFScenarioEditor.open [slot]");
+    bad += spec_code((uintptr_t)fn_ptr_vector_push, "editor_functions.ptr_vector_push");
     return bad;
 }

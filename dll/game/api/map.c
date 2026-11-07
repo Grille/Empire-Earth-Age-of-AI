@@ -86,6 +86,16 @@ internal inline uint32_t *color_set_slots(uint8_t *sets, unsigned i, unsigned *n
 }
 // the visible ground made anew at the next frame - with the table's colours now
 internal inline void terrain_refresh(void) { *(volatile uint8_t *)map_terrain_current_at() = 0; }
+// a colour type's record's size (map.color_types' records: a colour type of the mod's own in memory of its own)
+internal inline unsigned color_type_size(void) { return size_ee_color_type; }
+// a colour set more in the mesh, of n slots (RegisterColorSet copies them from an MSVC vector: its allocator, first,
+// end, capacity end); its index
+internal inline unsigned mesh_register_color_set(void *mesh, uint32_t *slots, unsigned n) {
+    void *v[4] = { NULL, slots, slots + n, slots + n };
+    unsigned long index = 0;
+    ((long (__thiscall *)(void *, void *, unsigned long *))*(void **)data_map_iat_register_color_set)(mesh, v, &index);
+    return (unsigned)index;
+}
 
 // FUNCTIONS
 // the map's area id at pt (kind 1 water, 2 land): one id per connected region

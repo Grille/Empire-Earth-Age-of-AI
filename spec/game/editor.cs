@@ -1248,10 +1248,32 @@ unsafe struct EESEUITechListBox
     extern int32 draw_polygons();
 }
 
-/// made in 0x59B710
+/// the terrain panel's colour list (EEUIFSETerrain.color_list, made in 0x59B710): an item a colour type, drawn as a
+/// strip of its colours - an item a vector of GEColor (0x10: the allocator, first +4, end +8, 3 floats each)
 [@base(typeof(UIControl)), size((ee)0x134, (aoc)0x134), vtable((ee)0x00830220, (aoc)0x00845B24)]
+[c_type("ee_se_color_list")]
 unsafe struct EESEUITerrainColorLB
 {
+    /// the selected item (0x59D123 reads it: valid while there are items and +0x133 is set)
+    [offset(0x120), found(c)]
+    int32 selected;
+
+    /// vf34: an item more at the end, copied from item (a vector of GEColor)
+    [slot(34), address((ee)0x0059CCC8, (aoc)0x005ACE34)]
+    extern void add(void* item);
+
+    /// vf36: the item selected - notify: the list's event (EEUIETerrainColorChange, 0x3EB) runs; scroll: into view
+    [slot(36), address((ee)0x0059CD3A, (aoc)0x0065BEB7)]
+    extern void select(uint32 index, uint8 notify, uint8 scroll);
+
+    /// vf39: the item at index taken out
+    [slot(39), address((ee)0x0059D083, (aoc)0x005AD12E)]
+    extern void remove(uint32 index);
+
+    /// vf42: the items
+    [slot(42), address((ee)0x0059D165, (aoc)0x005AD428)]
+    extern uint32 count();
+
     [address((ee)0x0059C1B1, (aoc)0x005AC31D), overrides(typeof(UIControl))]
     extern int32 copy_data();
 
@@ -1585,12 +1607,31 @@ unsafe struct EEUIFSETRBPaintType
     extern void* init(uint32 p1, uint32 p2, uint32 p3, uint32 p4, uint32 p5, uint32 p6, uint32 p7);
 }
 
+/// the editor's terrain panel (its main button 2): the textures' list, the colours' list, the paint
 [@base(typeof(EEUIFSEMainGroup)), size((ee)0x48, (aoc)0x48), vtable((ee)0x008302F8, (aoc)0x00845BFC)]
+[c_type("ee_se_terrain")]
 unsafe struct EEUIFSETerrain
 {
-    /// its constructor (5 arguments, not typed yet)
+    /// the colour types of the colour list, an item each in its order: a vector of ee_color_type pointers (MSVC: the
+    /// first at +4, the end at +8) - the constructor's of every type in_editor; the paint (EEUIFSETerrainPaint vf34)
+    /// passes the selected item's type's id
+    [offset(0x14), found(c)]
+    block color_types;
+
+    /// the colour list
+    [offset(0x3C), found(c)]
+    EESEUITerrainColorLB* color_list;
+
+    /// its constructor: the editor form's +0x234 and +0x244, the form's running control index (each control takes
+    /// one), the editor's form, the labels' font - the lists filled from the game data
     [address((ee)0x0059B710, (aoc)0x005AB87C)]
-    extern void* init(uint32 p1, uint32 p2, uint32 p3, uint32 p4, uint32 p5);
+    [call_site("se_terrain_init", (ee)0x0058EC4A, (aoc)0x0059F059)]
+    extern void* init(uint32 p1, uint32 p2, int32* index, UIForm* form, void* font);
+
+    /// vf0: deleted with the editor
+    [slot(0), address((ee)0x0059C445, (aoc)0x005AC5B1)]
+    [vtable_site("se_terrain_delete")]
+    extern void* destroy(uint8 flags);
 }
 
 /// made in 0x59B710
@@ -1648,4 +1689,14 @@ static unsafe class editor
     /// 0x58A70E): shown while the panel is
     [value(6)]
     static uint32 group_units;
+}
+
+/// the game's functions the editor's code wraps, by the names the C side gives them
+[c_prefix("")]
+static unsafe class editor_functions
+{
+    /// push_back on a vector of pointers (MSVC: the vector's allocator first, thiscall on it; the item by reference) -
+    /// the terrain panel's constructor's for its colour types (0x59B7D3)
+    [address((ee)0x0059C98E, (aoc)0x005ACAFA), thiscall]
+    static extern void ptr_vector_push(void* vec, void** item);
 }

@@ -101,6 +101,25 @@ internal inline void ui_form_add_control(ee_ui_form *form, ee_ui_control *c, uns
     ((void (__thiscall *)(ee_ui_form *, ee_ui_control *, unsigned long))*(void **)data_ui_imports_iat_form_add_control)(form, c, group);
 }
 internal inline void editor_units_add_control(ee_ui_form *form, ee_ui_control *c) { ui_form_add_control(form, c, value_editor_group_units); }
+// the terrain panel's colour types (EEUIFSETerrain.color_types: an MSVC vector of pointers, its allocator first), an
+// item of its colour list each: how many; one more at the end (the game's push_back); the last off (nothing to free)
+internal inline unsigned se_terrain_color_type_count(const ee_se_terrain *p) {
+    uint8_t *v = se_terrain_color_types_at(p);
+    ee_color_type **first = FIELD(v, 4, ee_color_type **), **end = FIELD(v, 8, ee_color_type **);
+    return first ? (unsigned)(end - first) : 0;
+}
+internal inline void se_terrain_color_type_push(ee_se_terrain *p, ee_color_type *t) {
+    void *item = t;
+    ptr_vector_push(se_terrain_color_types_at(p), &item);
+}
+internal inline void se_terrain_color_type_pop(ee_se_terrain *p) {
+    if (se_terrain_color_type_count(p)) FIELD(se_terrain_color_types_at(p), 8, ee_color_type **)--;
+}
+// an item more in the colour list: n colours (3 floats each) of the caller's, copied (an MSVC vector of GEColor)
+internal inline void se_color_list_add_colors(ee_se_color_list *list, float (*colors)[3], unsigned n) {
+    void *v[4] = { NULL, colors, colors + n, colors + n };
+    se_color_list_add(list, v);
+}
 // an edit box of the mod's own kind: UIEditBox's vtable with its RTTI pointer before it copied into vt (room entries:
 // ui.edit_box_slots + 1) - the box's vtable is then vt + 1; the copy's UpdateKeyboard slot (called for the box while
 // it has the keyboard) for the caller's hook, NULL: no room
