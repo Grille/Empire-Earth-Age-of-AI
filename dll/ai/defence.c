@@ -791,6 +791,53 @@ internal int militia_answer(struct cs_scan *s, ee_unit *t, int *nfree) {   // ci
     *nfree -= ordered;
     return ordered;
 }
+// RAIDS THE TOWN HOLDS ([ai_base] raid_held, default 150% since 2026-11-07; the player 2026-11-07: citizens keep working,
+// even under attack - "what i look at is if my towers and local soldiers can handle the raiders before they can kill
+// my citizens"; six knights riding through a town kept the AI's gathering 8-15 down for 10 minutes after they had
+// gone, tests/scenarios/riders.eeai): a site with raiders near is not dangerous while the AI's soldiers within 10
+// tiles of it and its towers covering it beat the enemy soldiers it sees within 12 tiles on the fight estimate
+// (st_ratio >= raid_held, 150% = clearly). Asked by the citizens' safety (attack.c citizens_safety, site_danger_res);
+// a cell of 4 x 4 tiles keeps its answer for 4 s (one safety tick). Raiders only remembered, not seen: no answer here
+// (the safety's own). Measured with hurt_seen_short (attack.c), 2026-11-07: riders.eeai, 30 seeds - in the games
+// without riders too (P2's own raids) citizens killed 6.1 -> 2.6, at 40 min citizens 96 -> 107, soldiers 37 -> 48;
+// against the cheating game AI, 40 long games a map (quit at 600 min) - Small Islands won 0 -> 2, lost 36 -> 29,
+// kills - vanilla's +6 -> +98, workers -116 -> -62; Large Islands won 11 -> 16, lost 24 -> 22; Continental 26 -> 27.
+internal float g_raid_held = 0;
+struct rh_scan { ee_player *pl; ivec2 p; };
+internal struct st_side g_rh_own, g_rh_foe;
+internal void rh_unit(ee_unit *u, void *ctx) {
+    struct rh_scan *s = ctx;
+    ee_unit_type *td = unit_get_type_data(u);
+    ee_player *o = unit_get_owner(u);
+    if (!td || !o || unit_get_hp(u) <= 0 || unit_get_x(u) < 0) return;
+    int d = abs(unit_get_x(u) - s->p.x) > abs(unit_get_y(u) - s->p.y) ? abs(unit_get_x(u) - s->p.x) : abs(unit_get_y(u) - s->p.y);
+    int fam = unit_type_get_class_id(td);
+    float rng, att;
+    if (o == s->pl) {
+        if ((fam == CLS_BUILDING || fam == CLS_FORTRESS) ? defence_stats(u, &rng, &att) && (float)d <= rng + 1.0f : is_soldier(td) && d <= 10)
+            st_side_add(&g_rh_own, u);
+    } else if (d <= 12 && (fam == CLS_LAND || fam == CLS_NAVAL) && unit_type_get_attack(td) > 0 && !is_citizen_type(unit_type_get_id(td)) &&
+               player_get_index(o) > 0 && is_enemy(s->pl, o) && seen_by(u, s->pl))
+        st_side_add(&g_rh_foe, u);
+}
+internal int raid_held(ee_player *pl, ivec2 p) {
+    if (g_raid_held <= 0 || !pl) return 0;
+    unsigned pi = (unsigned)player_get_index(pl) & 15;
+    static struct { int cx, cy; uint32_t t; uint8_t held; } cache[16][32];
+    uint32_t now = game_time();
+    int cx = p.x >> 2, cy = p.y >> 2;
+    typeof(&cache[0][0]) c = &cache[pi][(unsigned)(cx * 31 + cy) & 31];
+    if (c->t && c->cx == cx && c->cy == cy && now >= c->t && now - c->t < 4000) return c->held;
+    st_side_clear(&g_rh_own); st_side_clear(&g_rh_foe);
+    struct rh_scan s = { pl, iv2(cx * 4 + 2, cy * 4 + 2) };
+    ee_map *map = game_map();
+    ee_grid *grid = map ? map_get_grid(map) : NULL;
+    for (struct grid_it it = grid_it_box(s.p.x, s.p.y, 14, 1); grid && grid_it_next(&it); ) rh_unit(it.u, &s);
+    c->cx = cx; c->cy = cy; c->t = now ? now : 1;
+    c->held = (uint8_t)(g_rh_foe.n > 0 && st_ratio(&g_rh_own, &g_rh_foe) >= g_raid_held);
+    return c->held;
+}
+
 internal void militia(ee_player *pl, unsigned idx, struct cs_scan *s, uint32_t now) {
     if (!g_militia || !s->nc || !s->nu) return;
     int early = g_militia_est || current_epoch(pl) <= 3, nfree = s->nc, total = 0, targets = 0;
@@ -1462,6 +1509,7 @@ internal void defence_install(void) {
     g_csiege = g_set_ai[1].counter_siege;
     g_militia = g_set_ai[1].citizen_militia;
     g_militia_est = g_set_ai[1].militia_estimate;
+    g_raid_held = g_set_ai[1].raid_held;
     g_militia_share = g_set_ai[1].militia_caught_share;
     g_home_guard = g_set_ai[1].home_guard;
     g_home_share = g_set_ai[1].home_guard_share;

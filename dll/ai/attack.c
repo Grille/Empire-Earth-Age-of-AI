@@ -849,11 +849,21 @@ internal void flee_point(ee_player *pl, int x, int y, float rx, float ry, float 
 // Hunters' losses don't count (the animals). tests/scenarios/shelling.eeai, bombing.eeai (10 seeds, P3 off vs on): shelling
 // alive 5 vs 7 of 10, workers 7.1 vs 17.6, losses 14.3 vs 10.8, buildings lost 6.1 vs 3.9; bombing workers 42.9 vs
 // 54.7, losses 25.5 vs 21.0. Idle citizens rose (bombing 2.9 vs 6.3 on average): no safe site of their resource left.
+// SEEN HURTS ([ai_base] hurt_seen_short, default 1 with raid_held - defence.c; the player: citizens keep working, a few riders
+// passing through must not stop the economy for minutes): a spot where a citizen was hurt with an enemy soldier in
+// sight within 6 tiles (raiders_near) counts HURT_SEEN_MS - what hurt it was seen, and while it stays its own reach
+// keeps the site dangerous; what the AI can't see (artillery from the fog, aircraft) keeps the 2 minutes.
 #define HURT_N 64
-internal struct { unsigned at; struct { int x, y; uint32_t t; } h[HURT_N]; } g_hurt[16];
+#define HURT_SEEN_MS 20000
+internal int g_hurt_short = 0;
+internal struct { unsigned at; struct { int x, y; uint32_t t; uint8_t seen; } h[HURT_N]; } g_hurt[16];
 internal struct { ee_unit *u; int hp; } g_cit_hp[16][512];
 internal unsigned g_hurt_count[16];
-internal void hurt_note(unsigned pi, ee_unit *u, uint32_t now, int mark) {   // remembers u's hit points; a loss marks its spot
+internal int hurt_live(typeof(&g_hurt[0].h[0]) r, uint32_t now, uint32_t ms) {   // a spot still counting (ms: its full time)
+    return r->t && now >= r->t && now - r->t <= (r->seen && g_hurt_short ? HURT_SEEN_MS : ms);
+}
+internal int raiders_near(ee_player *pl, ivec2 p, int r0);
+internal void hurt_note(ee_player *pl, unsigned pi, ee_unit *u, uint32_t now, int mark) {   // remembers u's hit points; a loss marks its spot
     int hp = unit_get_hp(u);
     unsigned h = (unsigned)((uintptr_t)u >> 4) & 511;
     for (int k = 0; k < 512; k++) {
@@ -862,6 +872,7 @@ internal void hurt_note(unsigned pi, ee_unit *u, uint32_t now, int mark) {   // 
             if (hp < e->hp && mark) {
                 typeof(&g_hurt[0].h[0]) r = &g_hurt[pi].h[g_hurt[pi].at++ % HURT_N];
                 r->x = unit_get_x(u); r->y = unit_get_y(u); r->t = now ? now : 1;
+                r->seen = (uint8_t)(g_hurt_short && raiders_near(pl, iv2(r->x, r->y), 6));
                 g_hurt_count[pi]++;
             }
             e->hp = hp;
@@ -876,7 +887,7 @@ internal int hurt_near(unsigned pi, int x, int y) {   // citizens hurt within 6 
     int n = 0;
     for (int k = 0; k < HURT_N; k++) {
         typeof(&g_hurt[0].h[0]) r = &g_hurt[pi].h[k];
-        if (r->t && now >= r->t && now - r->t <= 120000 && abs(r->x - x) <= 6 && abs(r->y - y) <= 6) n++;
+        if (hurt_live(r, now, 120000) && abs(r->x - x) <= 6 && abs(r->y - y) <= 6) n++;
     }
     return n;
 }
@@ -884,11 +895,12 @@ internal int hurt_danger(ee_player *pl, int x, int y, int res) {   // res: 2 foo
     if (!g_cit_threats || !pl) return 0;
     return hurt_near((unsigned)player_get_index(pl) & 15, x, y) >= (res >= 4 ? 3 : 1);
 }
+internal int raid_held(ee_player *pl, ivec2 p);   // defence.c: its soldiers and towers there beat the raiders
 internal int site_danger_res(ee_player *pl, ee_unit *site, int food, int res) {   // from the nearest drop site
     if (!g_avoid_citizens || !pl || !site) return 0;
     int x = unit_get_x(site), y = unit_get_y(site);
-    if (raiders_near(pl, iv2(x, y), 6)) return 1;   // the searches refuse a raided site too (else: sent back, sent again)
-    if (hurt_danger(pl, x, y, res)) return 1;
+    // the searches refuse a raided site too (else: sent back, sent again) - not one the town holds
+    if ((raiders_near(pl, iv2(x, y), 6) || hurt_danger(pl, x, y, res)) && !raid_held(pl, iv2(x, y))) return 1;
     ivec2 d = iv2(-10000, 0);
     nearest_drop(pl, iv2(x, y), food, &d);
     return route_danger(pl, d.x, d.y, x, y);
@@ -929,7 +941,7 @@ internal void danger_refresh(ee_player *pl, uint32_t now) {
     cv_mem_threats(pl, pi);   // threat_memory: those it remembers
     for (int k = 0; k < HURT_N; k++) {
         typeof(&g_hurt[0].h[0]) r = &g_hurt[pi].h[k];
-        if (r->t && now >= r->t && now - r->t <= 120000) danger_disc(pi, DANGER_THREATS, (float)r->x + 0.5f, (float)r->y + 0.5f, 6.0f);
+        if (hurt_live(r, now, 120000)) danger_disc(pi, DANGER_THREATS, (float)r->x + 0.5f, (float)r->y + 0.5f, 6.0f);
     }
     static uint32_t logged[16];
     if (g_log && (!logged[pi] || now / 300000 != logged[pi] / 300000)) {   // the first, then every 5 minutes
@@ -943,7 +955,7 @@ internal void danger_refresh(ee_player *pl, uint32_t now) {
 internal ee_goal *goal_move(float x, float y);
 internal int unit_goal(ee_unit *u, ee_goal *goal, int append, unsigned state);
 internal int muster_rally(unsigned idx, float *x, float *y);   // defence.c: the rally point while the base is overrun
-internal struct { unsigned sent; } g_cit_stats[16];
+internal struct { unsigned sent, held; } g_cit_stats[16];   // held: kept at work by raid_held (safety ticks x citizens)
 internal unsigned g_repair_refused[16];   // repair orders refused at buildings under attack (hook_repair_goal)
 internal unsigned g_repair_walking[16], g_repair_unsafe[16];   // ... at buildings a citizen walks to already, by an unsafe way
 // STRAY CITIZENS: an attack that ends hands its units back to the resource manager's list 0 (not assigned) with the
@@ -973,7 +985,7 @@ internal void citizens_safety(ee_resource_mgr *rm) {   // before the citizen ass
     danger_refresh(pl, now);
     if (!g_avoid_citizens) return;
     threat_refresh(pl, now);
-    int sent = 0, fled = 0, aside = 0, stray = 0, kinds[4][2] = { { 0 } };   // site types sent back from (log)
+    int sent = 0, fled = 0, aside = 0, stray = 0, held = 0, kinds[4][2] = { { 0 } };   // site types sent back from (log)
     int doing[7][4] = { { 0 } };   // per list: gathering, building, walking, nothing (the minute's log)
     float rx, ry;
     int mus = muster_rally(idx, &rx, &ry), sheltered = 0;
@@ -991,7 +1003,7 @@ internal void citizens_safety(ee_resource_mgr *rm) {   // before the citizen ass
             }
             if (g_cit_threats) {   // not hunters: the animals hurt them (a farm is a building, CLS_BUILDING)
                 ee_unit *gs = goal && !strcmp(rtti_name(goal), "EEUGGather@@") ? goal_get_site(goal) : NULL;
-                hurt_note(idx, u, now, !(r == 2 && gs && unit_type_get_class_id(unit_get_type_data(gs)) != CLS_BUILDING));
+                hurt_note(pl, idx, u, now, !(r == 2 && gs && unit_type_get_class_id(unit_get_type_data(gs)) != CLS_BUILDING));
             }
             if (r == 0 && goal && goal_is_location(goal)) {   // a stray: an attack's leftover order
                 float gx = goal_get_dest_x(goal), gy = goal_get_dest_y(goal);
@@ -1037,10 +1049,14 @@ internal void citizens_safety(ee_resource_mgr *rm) {   // before the citizen ass
             ivec2 d;
             if (!site || !nearest_drop(pl, unit_get_tile(u), r == 2, &d)) continue;
             int raided = raiders_known(pl, unit_get_tile(site), build ? 8 : 6);
+            if (raided && raid_held(pl, unit_get_tile(site))) { held++; continue; }   // its soldiers and towers there win
             // builders near known towers only: only of fields (walls and towers at the front: the wall manager sends
             // them again and again)
             if (build && !raided && unit_type_get_id(unit_get_type_data(site)) != UT(B_FARM)) continue;
-            if (!build && !raided && hurt_danger(pl, unit_get_x(site), unit_get_y(site), r)) raided = 1;   // hurt there
+            if (!build && !raided && hurt_danger(pl, unit_get_x(site), unit_get_y(site), r)) {   // hurt there
+                if (raid_held(pl, unit_get_tile(site))) { held++; continue; }
+                raided = 1;
+            }
             if (!raided && (build || !site_danger_res(pl, site, r == 2, r))) continue;
             if (g_bunkers && bk_shelter(pl, u)) { sheltered++; continue; }   // under fire: into a fortress
             if (raided && abs(d.x - unit_get_x(site)) <= 3 && abs(d.y - unit_get_y(site)) <= 3) continue;   // at home already
@@ -1052,6 +1068,7 @@ internal void citizens_safety(ee_resource_mgr *rm) {   // before the citizen ass
         }
     }
     g_cit_stats[idx].sent += sent + fled;
+    g_cit_stats[idx].held += (unsigned)held;
     if (g_bunkers) bk_flush(pl, idx, now);
     if (g_bunkers || g_bk_res) { bk_build(pl, idx, now); bk_reserve_tick(pl, idx, now); shelf_tick(pl, idx, now); }
     (void)sheltered;
@@ -1097,9 +1114,9 @@ internal void citizens_safety(ee_resource_mgr *rm) {   // before the citizen ass
         logged[idx] = now;
         char ks[64] = "";
         for (int j = 0; j < 4 && kinds[j][1]; j++) { size_t l = strlen(ks); snprintf(ks + l, sizeof ks - l, " %dx%d", kinds[j][0], kinds[j][1]); }
-        fprintf(g_log, "# citizens: P%u at %.1f min: %d sent back from sites near enemy towers or raiders (site type x count:%s; %u in all, %u dangerous sites refused, %u repairs refused, %u hurt; repairs refused with a citizen on its way %u, by an unsafe way %u)\n",
+        fprintf(g_log, "# citizens: P%u at %.1f min: %d sent back from sites near enemy towers or raiders (site type x count:%s; %u in all, %u dangerous sites refused, %u repairs refused, %u hurt; repairs refused with a citizen on its way %u, by an unsafe way %u; kept at work, the town holds %u)\n",
                 idx, now / 60000.0, sent, ks, g_cit_stats[idx].sent, g_site_refused[idx], g_repair_refused[idx], g_hurt_count[idx],
-                g_repair_walking[idx], g_repair_unsafe[idx]);
+                g_repair_walking[idx], g_repair_unsafe[idx], g_cit_stats[idx].held);
     }
 }
 
@@ -1814,6 +1831,7 @@ internal void attack_install(void) {
     g_avoid_towers = g_set_ai[1].avoid_towers;
     g_avoid_citizens = g_set_ai[1].avoid_towers_citizens;
     g_cit_threats = g_set_ai[1].citizen_threats;
+    g_hurt_short = g_set_ai[1].hurt_seen_short;
     g_repair_one = g_set_ai[1].repair_one_walker;
     g_repair_way = g_set_ai[1].repair_safe_way;
     g_danger_routes = g_set_ai[1].danger_routes;

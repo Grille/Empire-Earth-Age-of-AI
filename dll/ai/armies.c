@@ -221,6 +221,8 @@
 #define AR_RAID_BAND 3             // a raid: this many enemy fighters seen within AR_RAID_R of the raider, or one of them attacking ours
 #endif
 internal int g_v_ar_judge = -1, g_v_ar_far_pct = -1;
+internal float g_ar_raid_answer = 1.0f;   // [ai_base] raid_answer: a raid answered when the force beats it by this
+internal int g_ar_leash = 0;               // [ai_base] raid_leash: tiles past a raid's spot a member is called home (0 off)
 internal int g_mod_armies = 0, g_v_mod_armies = -1, g_v_ar_raid_band = -1, g_v_ar_press = -1, g_v_ar_fort = -1, g_v_ar_assume = -1, g_v_ar_back_pct = -1, g_v_ar_back_fight = -1, g_v_ar_way = -1, g_v_ar_form = -1;   // [autotest] v_ar_way: AR_WAY, v_ar_form: AR_FORM; v_ar_raid_band, v_ar_press, v_ar_fort, v_ar_assume, v_ar_back_pct, v_ar_back_fight: the variant players' AR_RAID_BAND, AR_PRESS, AR_FORT, AR_ASSUME, AR_BACK_PCT, AR_BACK_FIGHT
 #define MOD_ARMIES(idx) PV(idx, g_v_mod_armies, g_mod_armies)
 internal struct armies_st {
@@ -234,6 +236,7 @@ internal struct armies_st {
     int weak, clear, stopped;              // judgements running under AR_BACK_PCT; raid checks running with no enemy seen; a push has ended (2: with its target down, not driven off)
     float ratio, out_hp, stop_hp;          // the last judgement; the force's hit points as it went out; the enemy's that ended the last push
     unsigned held_all, pushes, presses, legs, raids, backs, waits, orders, refused, forted;   // forted: home checks that found a defence to stand at
+    unsigned leashed;                      // members called home chasing past raid_leash
     int kills[AR_WIN + 1], losses[AR_WIN + 1], win_n;   // the game's own counts of units killed and lost, a sample a minute (the oldest first)
     uint32_t back_t; int back_n, back_kind; float back_hp;   // the last home order: when, how many went, from what (1 a push, 2 a raid), their hit points
     unsigned way_n, way_lost; float way_hp, way_hp_lost;     // the measure: soldiers sent home and lost on the way, their hit points and those lost
@@ -1148,6 +1151,21 @@ internal void ar_out(ee_player *pl, unsigned idx, struct armies_st *a, uint32_t 
         }
         return;
     }
+    // THE RAID'S LEASH ([ai_base] raid_leash, default 0 until measured; the player 2026-11-07: "i dont blindly run after
+    // leaving raiders, i even call the soldiers back that automatically followed"): the force attack-moves at a raid
+    // and the game's attack-move follows its target wherever it rides - on a raid a member raid_leash tiles past the
+    // raid's spot is no longer out: home (a plain move: it stops chasing), where it waits for the force.
+    if (a->out == 2 && g_ar_leash > 0) {
+        int lim = AR_DONE + g_ar_leash, called = 0;
+        for (int k = 0; k < a->n; k++) {
+            ee_unit *u = a->held[k].u;
+            if (!a->held[k].out || !cv_alive(u) || ivec2_dist2(unit_get_tile(u), a->dest) <= lim * lim) continue;
+            a->held[k].out = 0;
+            ar_order(a, k, ar_goal_at(a->home, k, 0), now);
+            called++;
+        }
+        if (called) { a->leashed += (unsigned)called; ar_log(idx, now, "the raid at %d,%d: %d chasing past %d tiles called home", a->dest.x, a->dest.y, called, lim); }
+    }
     // the leg done: the building down (or gone from the tile with a member there), the raid cleared
     int there = 0;
     for (int k = 0; k < a->n && !there; k++) there = a->held[k].out && cv_alive(a->held[k].u) && ivec2_dist2(unit_get_tile(a->held[k].u), a->dest) <= AR_DONE * AR_DONE;
@@ -1225,8 +1243,9 @@ internal void ar_at_home(ee_player *pl, unsigned idx, struct armies_st *a, uint3
         int again = raider && a->raid_c_t && now - a->raid_c_t <= 2 * AR_RAID_EVERY && ivec2_dist2(d, a->raid_c) <= AR_RAID_SAME * AR_RAID_SAME;   // seen there twice running
         a->raid_c = d; a->raid_c_t = raider ? (now ? now : 1) : 0;
         if (again) {
-            float r = ar_judge(pl, a, 0, d);
-            if (r * 100.0f >= (float)AR_BACK_PCT) {
+            float r = ar_judge(pl, a, 0, d), need = (float)AR_BACK_PCT / 100.0f;
+            if (g_ar_raid_answer > need) need = g_ar_raid_answer;   // raid_answer: only with soldiers to spare
+            if (r >= need) {
                 a->raids++;
                 ar_log(idx, now, "a raid of %d at %d,%d - the force of %d goes (%.2f: own %d, enemy %d)", band, d.x, d.y, n, r, g_ar_own.n, g_sgs_foe.n);
                 ar_go(pl, idx, a, 2, d, NULL, 0, now);
@@ -1361,6 +1380,8 @@ internal void armies_loaded(void) {
 }
 internal void armies_install(const char *autotest_ini) {
     g_mod_armies = g_set_ai[1].mod_armies;
+    g_ar_raid_answer = g_set_ai[1].raid_answer;
+    g_ar_leash = g_set_ai[1].raid_leash;
     if (autotest_ini) {
         g_v_mod_armies = ini_int("autotest", "v_mod_armies", -1, autotest_ini);
         g_v_ar_raid_band = ini_int("autotest", "v_ar_raid_band", -1, autotest_ini);

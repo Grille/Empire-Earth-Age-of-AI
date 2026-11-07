@@ -209,6 +209,17 @@ class ai_base
         /// citizens were hit in the last 2 minutes (artillery firing from the fog, aircraft where they strike) - food and wood
         /// are left after one hit nearby, stone, gold and iron (worth some risk) after three. 1 = on
         bool citizen_threats = true;
+        /// Raids the town holds (the player: citizens keep working even under attack - can my towers and soldiers there
+        /// beat the raiders before they kill my citizens?): a site with enemy soldiers near stays worked while the AI's
+        /// soldiers within 10 tiles and its towers covering it beat them by this much on the fight estimate (150% =
+        /// clearly, the default - with hurt_seen_short against the cheating game AI, 40 long games a map: Small Islands
+        /// won 0 -> 2, lost 36 -> 29, the worker gap -116 -> -62; Large Islands won 11 -> 16; Continental the same). 0 = off
+        [range(0, 5), commented]
+        share raid_held = 1.5;
+        /// A spot where a citizen was hurt with an enemy soldier in sight near it counts 20 s instead of 2 minutes (it
+        /// was seen - its own reach covers the rest); hurt by what it can't see (artillery from the fog, aircraft) still
+        /// 2 minutes. 1 = on (default, measured with raid_held)
+        bool hurt_seen_short = true;
         /// Danger routes: the AI keeps a map of where its enemies can reach (their defences it has seen, soldiers and warships
         /// it sees at their reach, where its citizens were hurt lately), and its units that can't fight - citizens, fishing
         /// boats, transports - take their way round those tiles where there is one, through only where there is none (with
@@ -574,6 +585,14 @@ class ai_base
         /// is losing; a raid near home is answered by the whole force. Measured against the commander on four setups
         /// (README): fewer losses, more razed, far fewer buildings lost. 0 = the game's commander
         bool mod_armies = true;
+        /// ... a raid is answered only when the force beats it by this much (the player: he follows raiders only with soldiers
+        /// to spare; 100% = an even fight, as before)
+        [range(1, 5), commented]
+        share raid_answer = 1;
+        /// ... on a raid, a member this many tiles past the raid's spot is called home instead of chasing raiders that ride
+        /// off (the player calls back the soldiers that followed on their own). 0 = off (default until measured)
+        [range(0, 60), commented]
+        int raid_leash = 0;
         /// The front army: between attacks the idle soldiers stand at the AI's heaviest front (and a second one weighing at
         /// least half of it), at its tower nearest the front, instead of idling at home; the attacks take them from there.
         /// 1 = on, being measured
