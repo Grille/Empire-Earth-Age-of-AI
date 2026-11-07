@@ -1,0 +1,41 @@
+// Bowmen and a wall that goes (lob_each_shot; the player 2026-11-07: they lob after a shot hits a wall and "don't
+// switch back, even if the obstacle is cleared" - the idea: look along the line before every shot). Continental seed
+// 101, epoch 5, as tests/probes/wall_archers.eeai: three P2 houses (28,48 28,50 28,52) in a closed box of P2 wall
+// (x 26-30, y 46-54), 6 P1 longbows west of it from 21,49. A minute with the box, then its west side (x 26, y 47-53)
+// removed and a minute more; the houses' hit points at each step, the lob counters (`lob`). The game's way: lobbing
+// (1.5 x the reload) the whole time; lob_each_shot: flat again once the side is gone - wall_archers' open rate.
+
+wait_until(0.1min)
+diplo(1, 2, 1)
+diplo(2, 1, 1)
+
+wait_until(0.2min)
+for x in 26..30 {
+    spawn(2, unit.b_wall_middle, x, 46, 1)
+    spawn(2, unit.b_wall_middle, x, 54, 1)
+}
+for y in 47..53 {
+    spawn(2, unit.b_wall_middle, 26, y, 1)
+    spawn(2, unit.b_wall_middle, 30, y, 1)
+}
+for y in [48, 50, 52] { spawn(2, unit.b_house, 28, y, 1) }
+spawn(1, unit.arch06_long_bow, 21, 49, 6)
+wait_until(0.3min)
+objs(2, unit.b_house)
+lob("reset")
+
+// a minute over the box
+wait_until(1.3min)
+objs(2, unit.b_house)
+lob()
+lob("reset")
+for u in player(2).units(unit.b_wall_middle) {
+    if u.pos.x < 27 and u.pos.y > 46 and u.pos.y < 54 { u.remove() }
+}
+objs(2, unit.b_wall_middle)
+
+// a minute with the west side open
+wait_until(2.3min)
+objs(2, unit.b_house)
+lob()
+objs(1, unit.arch06_long_bow)

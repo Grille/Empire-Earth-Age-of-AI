@@ -86,6 +86,7 @@ internal volatile int g_turbo;           // autotest turbo: the simulation loop 
 internal void cmd_scrolltest(char *out, const char *args);
 internal void cmd_camtrace(char *out, const char *args);
 internal void cmd_aim(char *out, const char *args);     // aim.c
+internal void cmd_lob(char *out, const char *args);     // lob.c
 internal void cmd_uinfo(char *out, const char *args);
 internal void cmd_move(char *out, const char *args);
 internal void cmd_fmove(char *out, const char *args);    // fleetmove.c
@@ -455,6 +456,7 @@ internal void execute(const char *cmd, char *out) {
     else if (!strcmp(verb, "scrolltest")) cmd_scrolltest(out, args);
     else if (!strcmp(verb, "camtrace")) cmd_camtrace(out, args);
     else if (!strcmp(verb, "aim")) cmd_aim(out, args);
+    else if (!strcmp(verb, "lob")) cmd_lob(out, args);
     else if (!strcmp(verb, "uinfo")) cmd_uinfo(out, args);
     else if (!strcmp(verb, "move")) cmd_move(out, args);
     else if (!strcmp(verb, "fmove")) cmd_fmove(out, args);

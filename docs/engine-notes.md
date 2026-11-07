@@ -181,6 +181,13 @@ A unit's tile changes through 0x616F9D (thiscall(unit, x, y, link), 10 calls; sp
   10, Cavalry Archer 11, Chariot Archer 12, Composite Bow 15, Long Bow 17, Pilum 96, Trebuchet 105, Slinger 207;
   high_arc - the 7 above; neither - the Crossbow 16, every ship and gun. Not yet tried: a wall inland of the
   shore, a target on the wall's own tile.
+  `lob_each_shot` (engine/lob.c, the player's idea: look before every shot): at the start of each attack
+  (EEUGAttackUnit::tick in state 2001, where the game picks animation 8 or 0 by alt_attack - AoC through 0x63C9D9,
+  the same test) a lob unit gets alt_attack from line_of_fire_game: a wall in the way (its 0x637C09 takes only
+  objects with is_wall, taller than the line from the launch height to the hit height) - lob, else flat. The byte
+  keeps a hold count too (2 our lob, 3.. lobs held after the game's 1); the game only tests it for 0. tests/probes/
+  wall_lob.eeai: over the box both ways the same (144 / 142 damage a minute, every shot lobbed - with the fix from
+  the first one); the box's near side removed: 104 of 107 shots flat, 216 damage against 144 (AoC 261 / 186).
 - Hit: on the target's footprint (tiles +0x1C/+0x20, size class +0x58C); EEUCProjectile vf55 0x6078F9 is
   mostly the miss path (it came down beside the target). Missiles (EEUCMissile 0x832E90, torpedoes 0x832CC0)
   steer on their own.

@@ -43,6 +43,12 @@ class general
         /// on their way will destroy it, a launcher takes another enemy of the same kind in range, or holds its shot.
         /// 1 = on, 0 = off (original)
         bool spread_missiles = true;
+        /// Bowmen look before every shot: archers, slingers, the pilum and the trebuchet shoot flat, and once a shot
+        /// hit a wall in the way they lobbed every shot after it (slower, at 1.5 x their reload) until given a new
+        /// order, even with the wall gone. Now they look along the line to the target before each shot: a wall in the
+        /// way - the high arc, else flat. In multiplayer every player needs the same setting. 1 = on, 0 = off
+        /// (original)
+        bool lob_each_shot = true;
     }
 
     class SelectionAndOrders

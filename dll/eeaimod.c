@@ -441,6 +441,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
 #include "engine/asg_queue.c"
 #include "engine/offmap.c"
 #include "engine/reload.c"
+#include "engine/lob.c"
 #include "engine/data_order.c"
 #include "engine/walls.c"
 #include "engine/editor_search.c"
@@ -669,6 +670,7 @@ internal void install(HMODULE self) {
     asg_queue_install();
     offmap_install();
     reload_install();
+    lob_install();
     data_order_install();
     walls_install();
     editor_search_install();

@@ -66,6 +66,12 @@ changes the simulation: in a lockstep game different values make the PCs' games 
 - `[general] spread_missiles=1` (default): AA towers and other missile launchers stop wasting missiles on an
   aircraft the missiles already on their way will destroy; they take another target in range or hold the shot.
   `lead_missiles=1` (off by default) makes homing missiles intercept instead of chase.
+- `[general] lob_each_shot=1` (default): archers, slingers, the pilum and the trebuchet shoot flat, and once a shot
+  hit a wall in the way they lobbed every later shot, at 1.5 x their reload, until given a new order, even after the
+  wall was gone. Now they look along the line to the target before each shot: a wall in the way gets the high arc,
+  otherwise they shoot flat. The first shot over a wall no longer hits the wall either. Measured with
+  tests/probes/wall_lob.eeai, 6 longbows against houses in a wall box: the same damage over the wall; after the
+  near side is removed, 216 damage a minute instead of 144 (AoC 261 / 186). `0` = the original.
 - `[patches] sight_counts=1` (default): every map tile counts how many of a player's units see it, but the game read
   only one byte of that count - a tile seen by more than 254 units took itself for unexplored, and in a big army
   random tiles with everything on them (units, trees) blinked out, then went to fog while units still stood there.
