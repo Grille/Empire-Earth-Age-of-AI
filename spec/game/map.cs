@@ -173,6 +173,12 @@ unsafe struct ee_corner
     /// its height (tiles): 0x517C10, a building's z (the wall pieces stand at their tile's corner x, y)
     [offset(0x0), found(c)]
     float32 height;
+
+    /// its colour: a slot of the mesh's colour table (map.of_mesh_color_table) - GETerrainMesh::SetColorSet picks it
+    /// from a colour set, SetColorFromColorTableIndex writes it, GetVertexColor reads it, Save writes it beside the
+    /// height (both builds' engines)
+    [offset(0x8), found(c)]
+    uint8 color;
 }
 
 /// a row of the map's per-tile view table (MAP_VIEW_ROWS): {first x, length, data}
@@ -244,6 +250,33 @@ static unsafe class map
     /// the map's areas (regions, continents)
     [address((ee)0x00917BC8, (aoc)0x00930BF0)]
     static EEAIContinentManager map_areas;
+
+    /// the ground's colours. The colour table is textures\ColorPalette.tga (16 x 16, a slot a pixel, the picture's top
+    /// row first; read at the start into GEColors, 0x4D50BB); the colour sets are db\dbterraintype.dat's 54 records
+    /// (0x80 bytes: a name, id, first and last slot, a language id ...; 0x4D5E16), a record's set the slots first to
+    /// last. A new map's setup (0x51371F, from EEMap's 0x5123B3) registers the sets with its mesh (RegisterColorSet:
+    /// the set's id into the record's +4) and then hands it the table: SetColorTable, its only call in both builds -
+    /// thiscall on the mesh, a vector of GEColor (3 floats, 0xC each; 256 at most, the rest white)
+    [import_slot("Low-Level Engine.dll", "?SetColorTable@GETerrainMesh@@QAEXAAV?$vector@VGEColor@@V?$allocator@VGEColor@@@std@@@std@@@Z")]
+    [address((ee)0x00823914, (aoc)0x008378F0)]
+    static block iat_color_table;
+
+    /// GETerrainMesh: its colour sets - a vector (MSVC: the first element at +4, the end at +8) of sets, 0x10 each, a
+    /// set a vector of uint32 slots (first at +4, end at +8). SetColorSet gives a corner the slot at (n - 1) x a noise
+    /// value of the corner's x & 63, y & 63 (+0x17B574's table; the 2017 update's engine 0x1003C3C2, AoC's 0x1002AE9B):
+    /// a set's slots needn't follow each other, nor the same slot at the same place come from the same set
+    [value((ee)0x50, (aoc)0x6C)]
+    static uint32 of_mesh_color_sets;
+
+    /// GETerrainMesh: its colour table, 256 GEColors (3 floats; SetColorTable copies them, GetVertexColor reads its corner's)
+    [value((ee)0x8C, (aoc)0xC8)]
+    static uint32 of_mesh_color_table;
+
+    /// byte: the visible ground is up to date - the ground's update (0x503A7F, AoC 0x50E8D1) runs
+    /// UpdateVisibleTerrain, which takes the corners' colours from the table, only while it is 0 and sets it after the
+    /// draw; a camera move, an edit of the ground clear it (10 writers). Cleared, a changed colour shows at the next frame
+    [address((ee)0x009128CB, (aoc)0x00929067)]
+    static block terrain_current;
 }
 
 /// the game's functions map.c wraps, by the names the C side gives them

@@ -17,13 +17,25 @@ internal inline uint16_t *viewrow_count_at(const void *row, unsigned x) {
     unsigned i = x - FIELD(row, of_view_row_start, unsigned);
     return i < FIELD(row, of_view_row_len, unsigned) ? (uint16_t *)(FIELD(row, of_view_row_data, uint8_t *) + i * 4) : NULL;
 }
-// the ground's height at corner x, y (tiles; a tile's corners are x, y .. x + 1, y + 1), NAN off the map: a row of
-// {first x, length, corners} per corner y, 0xC a corner - the map's diamond, short rows at its top and bottom
-internal inline float ground_corner(const ee_map *map, int x, int y) {
-    if (y < 0 || (unsigned)y > map_get_size(map)) return NAN;
-    const ee_corner_row *row = (const ee_corner_row *)((uint8_t *)map_get_corner_rows(map) + y * 0xC);
+// the ground's corner x, y (a tile's corners are x, y .. x + 1, y + 1), NULL off the map: a row of {first x, length,
+// corners} per corner y, 0xC a corner - the map's diamond, short rows at its top and bottom
+internal inline const ee_corner_row *map_corner_row(const ee_map *map, unsigned y) {
+    return (const ee_corner_row *)((uint8_t *)map_get_corner_rows(map) + y * 0xC);
+}
+// a row's i-th corner (i < its length)
+internal inline ee_corner *corner_row_at(const ee_corner_row *row, unsigned i) {
+    return (ee_corner *)((uint8_t *)corner_row_get_corners(row) + i * size_ee_corner);
+}
+internal inline ee_corner *map_corner(const ee_map *map, int x, int y) {
+    if (y < 0 || (unsigned)y > map_get_size(map)) return NULL;
+    const ee_corner_row *row = map_corner_row(map, (unsigned)y);
     unsigned i = (unsigned)(x - (int)corner_row_get_start(row));
-    return i < corner_row_get_len(row) ? corner_get_height((const ee_corner *)((uint8_t *)corner_row_get_corners(row) + i * size_ee_corner)) : NAN;
+    return i < corner_row_get_len(row) ? corner_row_at(row, i) : NULL;
+}
+// its height (tiles), NAN off the map
+internal inline float ground_corner(const ee_map *map, int x, int y) {
+    const ee_corner *c = map_corner(map, x, y);
+    return c ? corner_get_height(c) : NAN;
 }
 // the ground's height at a point (tiles), from its tile's four corners - exact on a tile's edges and corners, where a
 // wall piece's ends lie; NAN off the map
@@ -57,6 +69,24 @@ internal inline uint16_t sight_raw(unsigned count) {
     return (uint16_t)((d / 254u) << 8 | (2u + d % 254u));
 }
 
+// THE GROUND'S COLOURS (the map's mesh, map_get_mesh: Low-Level Engine.dll's GETerrainMesh): a corner's colour is a
+// slot of the mesh's table (corner_get_color), the table 256 slots of 3 floats, the colour sets each a list of slots
+internal inline float *mesh_color(void *mesh, unsigned slot) { return (float *)FIELD_AT(mesh, value_map_of_mesh_color_table) + slot * 3; }
+// the mesh's colour sets: the first (0x10 each) and their count
+internal inline uint8_t *mesh_color_sets(void *mesh, unsigned *n) {
+    uint8_t *first = FIELD(mesh, value_map_of_mesh_color_sets + 4, uint8_t *), *end = FIELD(mesh, value_map_of_mesh_color_sets + 8, uint8_t *);
+    *n = first ? (unsigned)(end - first) / 0x10 : 0;
+    return first;
+}
+// set i's slots and their count
+internal inline uint32_t *color_set_slots(uint8_t *sets, unsigned i, unsigned *n) {
+    uint32_t *first = FIELD(sets + i * 0x10, 4, uint32_t *), *end = FIELD(sets + i * 0x10, 8, uint32_t *);
+    *n = first ? (unsigned)(end - first) : 0;
+    return first;
+}
+// the visible ground made anew at the next frame - with the table's colours now
+internal inline void terrain_refresh(void) { *(volatile uint8_t *)map_terrain_current_at() = 0; }
+
 // FUNCTIONS
 // the map's area id at pt (kind 1 water, 2 land): one id per connected region
 internal inline unsigned short map_area(ivec2 p, int kind) {
@@ -79,6 +109,13 @@ internal inline int patch_minimap_tile(minimap_tile_hook h) { return patch_all_c
 // the view table's refill from the tiles' counts (player_view_sight_copy: a load, the viewed player changed) - their low byte
 typedef void (__thiscall *view_sight_copy_hook)(ee_player *pl);
 internal inline int patch_view_sight_copy(view_sight_copy_hook h) { return patch_all_calls((uintptr_t)fn_player_view_sight_copy, (void *)h); }
+// a new map's colour table handed to its mesh (data_map_iat_color_table: the exe's import of SetColorTable, its colour
+// sets registered just before) - the original into *orig
+typedef void (__thiscall *mesh_color_table_fn)(void *mesh, void *colors);
+internal inline int patch_mesh_color_table(mesh_color_table_fn h, mesh_color_table_fn *orig) {
+    return iat_hook(data_map_iat_color_table, "Low-Level Engine.dll",
+                    "?SetColorTable@GETerrainMesh@@QAEXAAV?$vector@VGEColor@@V?$allocator@VGEColor@@@std@@@std@@@Z", (void *)h, (void **)orig);
+}
 // a unit's place within the map's diamond (the square's corners outside it are no map: the game never puts a unit
 // there, and the minimap indexes its 64 x 64 tables with such a place unchecked - spawned units in a corner wrote
 // over its dot lists and the game crashed a minute later, 0x516079 / 0x516235)

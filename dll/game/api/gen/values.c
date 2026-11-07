@@ -946,6 +946,7 @@ internal uint32_t of_corner_row_len;
 internal uint32_t of_corner_row_corners;
 internal uint32_t size_ee_corner;
 internal uint32_t of_corner_height;
+internal uint32_t of_corner_color;
 internal uint32_t of_view_row_start;
 internal uint32_t of_view_row_len;
 internal uint32_t of_view_row_data;
@@ -955,6 +956,10 @@ internal uint32_t vt_ee_mini_map;
 internal uint32_t data_map_fn_tile_sight_add;
 internal uint32_t data_map_fn_tile_sight_sub;
 internal uint32_t data_map_map_areas;
+internal uint32_t data_map_iat_color_table;
+internal uint32_t value_map_of_mesh_color_sets;
+internal uint32_t value_map_of_mesh_color_table;
+internal uint32_t data_map_terrain_current;
 
 // messages.cs
 internal uint32_t vt_ee_message;

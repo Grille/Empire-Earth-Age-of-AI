@@ -52,6 +52,12 @@ changes the simulation: in a lockstep game different values make the PCs' games 
 - `[editor] editor_unit_search=1` (off by default until tried): a search box above the scenario editor's unit
   list. Type part of a name - as the list shows it, or the game's internal English name (`citizen` finds Bürger) -
   and the list keeps only the matching units of the category shown, as you type; several words must all match.
+- `[editor] terrain_palette=1` (off by default until tried; the first of three steps - a map's own terrain colours
+  in the editor, kept in the scenario file, come next): the ground's colours are slots of a 256-colour table
+  (`textures\ColorPalette.tga`), each terrain colour of the editor's list a run of them. The game's 54 colours hold
+  255 slots, but 14 are the very shades of another in a place of their own (nine grass and sand colours one ramp);
+  with this on they paint the first copy's slots - the ground looks exactly as before, in the original game too -
+  and 96 slots are left free for a map's own colours (Art of Conquest: 28 of its 68 share, 96 free).
 - `[camera] scroll`: `game` (default) the build's own camera scrolling, `aoc` The Art of Conquest's acceleration
   in either build, `ee` Empire Earth's constant speed in either build; `smooth=1` (default) moves the camera every
   frame by the frame's time instead of the game's fixed timer steps (jitter) - in both builds. While a text box

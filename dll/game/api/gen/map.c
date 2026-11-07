@@ -164,6 +164,12 @@ internal inline ee_corner **corner_row_corners_at(const ee_corner_row *o) { retu
 internal inline float corner_get_height(const ee_corner *o) { return *(float *)((uint8_t *)o + of_corner_height); }
 internal inline void corner_set_height(ee_corner *o, float v) { *(float *)((uint8_t *)o + of_corner_height) = v; }
 internal inline float *corner_height_at(const ee_corner *o) { return (float *)((uint8_t *)o + of_corner_height); }
+// its colour: a slot of the mesh's colour table (map.of_mesh_color_table) - GETerrainMesh::SetColorSet picks it
+// from a colour set, SetColorFromColorTableIndex writes it, GetVertexColor reads it, Save writes it beside the
+// height (both builds' engines)
+internal inline uint8_t corner_get_color(const ee_corner *o) { return *(uint8_t *)((uint8_t *)o + of_corner_color); }
+internal inline void corner_set_color(ee_corner *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_corner_color) = v; }
+internal inline uint8_t *corner_color_at(const ee_corner *o) { return (uint8_t *)((uint8_t *)o + of_corner_color); }
 
 // class ee_view_row (void)
 // a row of the map's per-tile view table (MAP_VIEW_ROWS): {first x, length, data}
@@ -221,6 +227,22 @@ internal inline uint8_t *map_fn_tile_sight_add_at(void) { return (uint8_t *)(uin
 internal inline uint8_t *map_fn_tile_sight_sub_at(void) { return (uint8_t *)(uintptr_t)data_map_fn_tile_sight_sub; }
 // the map's areas (regions, continents)
 internal inline ee_continent_mgr *map_map_areas_at(void) { return (ee_continent_mgr *)(uint8_t *)(uintptr_t)data_map_map_areas; }
+// the ground's colours. The colour table is textures\ColorPalette.tga (16 x 16, a slot a pixel, the picture's top
+// row first; read at the start into GEColors, 0x4D50BB); the colour sets are db\dbterraintype.dat's 54 records
+// (0x80 bytes: a name, id, first and last slot, a language id ...; 0x4D5E16), a record's set the slots first to
+// last. A new map's setup (0x51371F, from EEMap's 0x5123B3) registers the sets with its mesh (RegisterColorSet:
+// the set's id into the record's +4) and then hands it the table: SetColorTable, its only call in both builds -
+// thiscall on the mesh, a vector of GEColor (3 floats, 0xC each; 256 at most, the rest white)
+internal inline uint8_t *map_iat_color_table_at(void) { return (uint8_t *)(uintptr_t)data_map_iat_color_table; }
+// GETerrainMesh: its colour sets - a vector (MSVC: the first element at +4, the end at +8) of sets, 0x10 each, a
+// set a vector of uint32 slots (first at +4, end at +8). SetColorSet gives a corner the slot at (n - 1) x a noise
+// value of the corner's x & 63, y & 63 (+0x17B574's table; the 2017 update's engine 0x1003C3C2, AoC's 0x1002AE9B):
+// a set's slots needn't follow each other, nor the same slot at the same place come from the same set
+// GETerrainMesh: its colour table, 256 GEColors (3 floats; SetColorTable copies them, GetVertexColor reads its corner's)
+// byte: the visible ground is up to date - the ground's update (0x503A7F, AoC 0x50E8D1) runs
+// UpdateVisibleTerrain, which takes the corners' colours from the table, only while it is 0 and sets it after the
+// draw; a camera move, an edit of the ground clear it (10 writers). Cleared, a changed colour shows at the next frame
+internal inline uint8_t *map_terrain_current_at(void) { return (uint8_t *)(uintptr_t)data_map_terrain_current; }
 
 // static class map_functions
 // the game's functions map.c wraps, by the names the C side gives them
@@ -264,6 +286,7 @@ internal int spec_map_select(int build) {
         of_corner_row_corners = 0x8;
         size_ee_corner = 0xC;
         of_corner_height = 0x0;
+        of_corner_color = 0x8;
         of_view_row_start = 0x0;
         of_view_row_len = 0x4;
         of_view_row_data = 0x8;
@@ -279,6 +302,10 @@ internal int spec_map_select(int build) {
         data_map_fn_tile_sight_add = 0x00519F4F;
         data_map_fn_tile_sight_sub = 0x00519E26;
         data_map_map_areas = 0x00917BC8;
+        data_map_iat_color_table = 0x00823914;
+        value_map_of_mesh_color_sets = 80;
+        value_map_of_mesh_color_table = 140;
+        data_map_terrain_current = 0x009128CB;
         return 0;
     case 1:   // aoc
         of_grid_cells = 0x4;
@@ -316,6 +343,7 @@ internal int spec_map_select(int build) {
         of_corner_row_corners = 0x8;
         size_ee_corner = 0xC;
         of_corner_height = 0x0;
+        of_corner_color = 0x8;
         of_view_row_start = 0x0;
         of_view_row_len = 0x4;
         of_view_row_data = 0x8;
@@ -331,6 +359,10 @@ internal int spec_map_select(int build) {
         data_map_fn_tile_sight_add = 0x005247ED;
         data_map_fn_tile_sight_sub = 0x005246C4;
         data_map_map_areas = 0x00930BF0;
+        data_map_iat_color_table = 0x008378F0;
+        value_map_of_mesh_color_sets = 108;
+        value_map_of_mesh_color_table = 200;
+        data_map_terrain_current = 0x00929067;
         return 0;
     }
     return 0;
@@ -355,5 +387,7 @@ internal int spec_map_check(void) {
     bad += spec_code(data_map_fn_tile_sight_add, "map.fn_tile_sight_add");
     bad += spec_code(data_map_fn_tile_sight_sub, "map.fn_tile_sight_sub");
     bad += spec_data(data_map_map_areas, "map.map_areas");
+    bad += spec_data(data_map_iat_color_table, "map.iat_color_table");
+    bad += spec_data(data_map_terrain_current, "map.terrain_current");
     return bad;
 }
