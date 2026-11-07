@@ -449,6 +449,10 @@ internal inline uint32_t vertices_get_type(ee_vertices *vertices) { return ((ver
 internal inline ee_pick_entry *pick_list_get_entries(const ee_pick_list *o) { return *(ee_pick_entry **)((uint8_t *)o + of_pick_list_entries); }
 internal inline void pick_list_set_entries(ee_pick_list *o, ee_pick_entry *v) { *(ee_pick_entry **)((uint8_t *)o + of_pick_list_entries) = v; }
 internal inline ee_pick_entry **pick_list_entries_at(const ee_pick_list *o) { return (ee_pick_entry **)((uint8_t *)o + of_pick_list_entries); }
+// the entries' room (the constructor's 0x600; the add 0x50F6E2 drops an object past it - collect.c gives it more)
+internal inline uint32_t pick_list_get_room(const ee_pick_list *o) { return *(uint32_t *)((uint8_t *)o + of_pick_list_room); }
+internal inline void pick_list_set_room(ee_pick_list *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_pick_list_room) = v; }
+internal inline uint32_t *pick_list_room_at(const ee_pick_list *o) { return (uint32_t *)((uint8_t *)o + of_pick_list_room); }
 internal inline uint32_t pick_list_get_count(const ee_pick_list *o) { return *(uint32_t *)((uint8_t *)o + of_pick_list_count); }
 internal inline void pick_list_set_count(ee_pick_list *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_pick_list_count) = v; }
 internal inline uint32_t *pick_list_count_at(const ee_pick_list *o) { return (uint32_t *)((uint8_t *)o + of_pick_list_count); }
@@ -748,6 +752,7 @@ internal int spec_engine_display_select(int build) {
         of_vertices_count = 0x8;
         slot_vertices_get_type = 8;
         of_pick_list_entries = 0x2A0;
+        of_pick_list_room = 0x2A4;
         of_pick_list_count = 0x2A8;
         fn_pick_list_reset = (pick_list_reset_fn)0x0050F663;
         size_ee_pick_entry = 0x50;
@@ -948,6 +953,7 @@ internal int spec_engine_display_select(int build) {
         of_vertices_count = 0x8;
         slot_vertices_get_type = 8;
         of_pick_list_entries = 0x2A0;
+        of_pick_list_room = 0x2A4;
         of_pick_list_count = 0x2A8;
         fn_pick_list_reset = (pick_list_reset_fn)0x00519F7C;
         size_ee_pick_entry = 0x50;

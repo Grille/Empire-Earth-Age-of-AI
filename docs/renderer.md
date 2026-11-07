@@ -409,8 +409,22 @@ game at two places - the counts, the picker, the six sort maps' sizes and the ob
 the same with either walk; the trees' records too but their sway. The save's player sees the whole map (no
 doppelgangers anywhere in a sweep of it), so also as its player 2 (game.local_player poked): at two places with 14 and
 415 doppelgangers drawn, the same. Running a minute at speed 3 with the mod's walk.
-Found on the way: the picker held 1536 objects (0x600, the dword after its entries) with 7198 drawn - whether the rest
-can be clicked isn't checked yet.
+The picker's room (2026-11-07, the player: "the limited selection is a known limitation"): the list the mouse picks
+from (EEUnitPicker, engine_display.pick_list: the walk adds every object it draws) has room for 0x600 - its
+constructor's array, +0x2A4 its room, and its add (0x50F6E2) drops any more: in the 8000 save it held 1536 of 7198
+objects drawn, the rest couldn't be clicked or boxed. collect.c gives it room for all the draw lists hold (drawlist.c's
+limits, objects and trees: 65536 at draw_limit 16384) before the first walk: an array made as its constructor makes
+one (the game's new, the count before the entries for its destructor's delete[], each a GETransformation), swapped in
+once inside its lock with the list emptied (game/api pick_list_grow; the old array left - a reader may hold it). The
+log: `# collect: the picker's room 1536 -> N`; the 8000 save's picker then held 8342. A box (vdrag 200 150 2400 1150,
+`seltest -1`) over the save's crowd at 120 120 - 5291 objects, the player's own soldiers most of them: 0 selected
+before (the picker full of others), 109 after. That the box takes no more than 109 of them is a limit of its own, not
+looked into yet.
+
+Step 2, the fills (next): each of the game's fills in C as two halves - what it reads of the world into a compact
+record of the object (in step 3 the simulation's, at its step's end, for every object) and the draw record made of
+that (the frame's: the camera's parts - GetUnitOpacity fades what is near the camera, IsUnitDrawn tests the model
+against the view). Both halves in the frame first, each fill held against the game's by `drawcount hash`.
 
 `[display] gpu_animation` (default on; the pipe: `picture morph on | off`; render_morph.c), 2026-11-06. EE animates a
 model by morphing: every frame of its animation is a whole vertex array (spec GEModel.vertices, frames alike share

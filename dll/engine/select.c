@@ -47,6 +47,12 @@ internal unsigned __cdecl hook_sel_pack(uint8_t *list, uint32_t player_byte, uin
 // seltest T [x0 y0 x1 y1]: builds the double-click message for unit type T (the screen rectangle 0x8D2778, or the
 // given one) for the local player without sending it: units found, packed, unpacked. Tests.
 internal void cmd_seltest(char *out, const char *args) {
+    if (atoi(args) == -1) {   // seltest -1: how many the local player has selected (a vdrag's box; its first argument is a type's)
+        ee_player *pl = game_players()[local_player_index()];
+        int *grp = pl ? player_get_selected_group(pl) : NULL;
+        REPLY("selected %u\n", grp ? group_count(grp) : 0);
+        return;
+    }
     int type = 0;
     float r[4];
     if (sscanf(args, "%d %f %f %f %f", &type, &r[0], &r[1], &r[2], &r[3]) < 5) memcpy(r, select_rect(), sizeof r);

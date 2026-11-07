@@ -615,6 +615,7 @@ internal uint32_t of_vertices_data;
 internal uint32_t of_vertices_count;
 internal uint32_t slot_vertices_get_type;
 internal uint32_t of_pick_list_entries;
+internal uint32_t of_pick_list_room;
 internal uint32_t of_pick_list_count;
 internal uint32_t size_ee_pick_entry;
 internal uint32_t of_pick_entry_unit;

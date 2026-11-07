@@ -98,18 +98,48 @@ __attribute__((used)) void __cdecl collect_walk(uint8_t *f) {
     g_uc_walks++;
 }
 
-// at the update's mov ecx, [picker_lock] (a call now): the game's walk goes on with ecx as it was to be; ours instead
-// returns past it, to the update after the game's walk (the stack as the game's left it: the call's return dropped)
+// THE PICKER'S ROOM: the list the mouse picks from (EEUnitPicker at engine_display.pick_list; the walk adds every
+// object it draws, IsUnitDrawn) has room for 0x600 - its constructor's; its add drops any more, so with more objects on
+// the screen the rest couldn't be clicked (the 8000 save: 7198 drawn, 1536 in it; the player: "a known limitation").
+// It gets room for all the draw lists hold (objects and trees, drawlist.c's limits): an array of its own, swapped in
+// once inside its lock with the list emptied, before the first walk (game/api pick_list_grow).
+internal transform_ctor_fn g_uc_transform_ctor;
+internal int g_uc_grown;   // 1 grown, -1 not (once)
+internal void picker_grow(void) {
+    ee_pick_list *l = (ee_pick_list *)engine_display_pick_list_at();
+    uint32_t was = pick_list_get_room(l), room = draw_room() + draw_small_room();
+    void *lock = *(void **)engine_display_picker_lock_at();
+    g_uc_grown = -1;
+    if (room <= was || !lock || !g_uc_transform_ctor) return;
+    g_uc_enter(lock);
+    pick_list_reset(l);
+    if (pick_list_grow(l, room, g_uc_transform_ctor)) g_uc_grown = 1;
+    g_uc_leave(lock);
+    log_locked("# collect: the picker's room %u -> %u%s\n", was, room, g_uc_grown > 0 ? "" : " FAILED (no memory)");
+}
+
+// the thunk's C, on the render thread at the walk's start: 1 the walk done (ours), 0 the game's to do
+__attribute__((used)) int __cdecl collect_at(uint8_t *f) {
+    if (!g_uc_grown) picker_grow();
+    if (!g_uc_own) return 0;
+    collect_walk(f);
+    return 1;
+}
+
+// at the update's mov ecx, [picker_lock] (a call now; eax, ecx, edx free there): the game's walk goes on with ecx as it
+// was to be; after ours the update goes on past the game's walk (the stack as the game's left it: the call's return
+// dropped)
 __attribute__((naked, used)) void collect_thunk(void) {
-    __asm__("cmpl $0, _g_uc_own\n\t"
+    __asm__("pushl %ebp\n\t"
+            "call _collect_at\n\t"
+            "addl $4, %esp\n\t"
+            "testl %eax, %eax\n\t"
             "jne 1f\n\t"
             "movl _g_uc_lock_at, %ecx\n\t"
             "movl (%ecx), %ecx\n\t"
             "ret\n"
             "1:\n\t"
-            "pushl %ebp\n\t"
-            "call _collect_walk\n\t"
-            "addl $8, %esp\n\t"
+            "addl $4, %esp\n\t"
             "jmp *_g_uc_end");
 }
 
@@ -118,6 +148,7 @@ internal void collect_install(void) {
     HMODULE lle = GetModuleHandleA("Low-Level Engine.dll");
     g_uc_enter = lle ? (uc_lock_fn)(void *)GetProcAddress(lle, "?Enter@TSCriticalSection@@QAEXXZ") : NULL;
     g_uc_leave = lle ? (uc_lock_fn)(void *)GetProcAddress(lle, "?Leave@TSCriticalSection@@QAEXXZ") : NULL;
+    g_uc_transform_ctor = lle ? (transform_ctor_fn)(void *)GetProcAddress(lle, "??0GETransformation@@QAE@XZ") : NULL;
     g_uc_lock_at = (uintptr_t)engine_display_picker_lock_at();
     g_uc_end = (uintptr_t)engine_display_units_walk_end_at();
     uint8_t want[6] = { 0x8B, 0x0D };   // mov ecx, [picker_lock]

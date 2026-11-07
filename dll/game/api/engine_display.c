@@ -149,6 +149,26 @@ internal inline ee_pick_entry *pick_list_entry(ee_pick_list *l, uint32_t i) {
     return (ee_pick_entry *)((uint8_t *)pick_list_get_entries(l) + (size_t)i * size_ee_pick_entry);
 }
 internal inline void *graphics_lock(void) { return *(void **)engine_display_graphics_lock_at(); }
+// the list's entries an array of room of its own, made as its constructor makes them (0x50E45F: the game's new, the
+// count before them - its destructor's delete[] -, each a GETransformation (transform_ctor), +0x40 0, +0x44 1.0, +0x48
+// 0); only while it holds none. The old array is left (a reader may still have it). 1 done, 0 not empty or no memory
+typedef void (__thiscall *transform_ctor_fn)(void *t);
+internal inline int pick_list_grow(ee_pick_list *l, uint32_t room, transform_ctor_fn transform_ctor) {
+    if (pick_list_get_count(l)) return 0;
+    uint8_t *a = game_new(4 + (uintptr_t)room * size_ee_pick_entry);
+    if (!a) return 0;
+    *(uint32_t *)a = room;
+    for (uint32_t i = 0; i < room; i++) {
+        uint8_t *e = a + 4 + (size_t)i * size_ee_pick_entry;
+        transform_ctor(e);
+        *(uint32_t *)(e + 0x40) = 0;
+        *(float *)(e + 0x44) = 1.0f;
+        *(uint32_t *)(e + 0x48) = 0;
+    }
+    pick_list_set_entries(l, (ee_pick_entry *)(a + 4));
+    pick_list_set_room(l, room);
+    return 1;
+}
 // EEGraphicObject.acquire's start -> h, *orig the game's (push ebp; mov ebp, esp; sub esp, 0x1B0 in both builds)
 internal inline int patch_acquire(dmg_model_acquire_fn h, dmg_model_acquire_fn *orig) {
     static const uint8_t pro[9] = { 0x55, 0x8B, 0xEC, 0x81, 0xEC, 0xB0, 0x01, 0x00, 0x00 };

@@ -536,6 +536,10 @@ unsafe struct EEPickList
     [offset(0x2A0), found(c)]
     EEPickEntry* entries;
 
+    /// the entries' room (the constructor's 0x600; the add 0x50F6E2 drops an object past it - collect.c gives it more)
+    [offset(0x2A4), found(c)]
+    uint32 room;
+
     [offset(0x2A8), found(c)]
     uint32 count;
 
