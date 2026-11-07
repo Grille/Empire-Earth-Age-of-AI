@@ -388,6 +388,85 @@ internal int def_slot(struct def_plan *p, int i, int *x, int *y) {
 }
 
 // From the build manager's placement (econ.c hook_place): a position for a tower request without one.
+// TOWERS BY THE COAST'S WORK ([ai_base] coast_towers, default 0 until measured; the player 2026-11-07: "before walling
+// towers are the first priority, they can defend resources inland and sink ships on the coast"). On an island map
+// (navy_islands) the towers go first where the citizens work within a ship's reach of the sea: the sites of the
+// gatherers (resource lists 2-6) with ocean within CT_SEA tiles, in CT_CELL-tile cells; the cell with the most of them
+// that no own tower (or a tower ordered in the last 90 s) covers within CT_COVER gets one, CT_IN tiles in from the shore
+// on the way from the cell's centre to the nearest sea - it covers the workers and the water the ships come by. The
+// defence layout's slots after those. Ships alone sent most of the citizens back on the islands (docs/testing.md).
+#define CT_SEA 9
+#define CT_CELL 6
+#define CT_COVER 6
+#define CT_IN 2
+internal int g_coast_towers = 0;
+internal int navy_islands(unsigned idx);   // navy.c: the map known, every enemy across the water
+internal int coast_spot(ee_player *pl, unsigned idx, struct def_plan *p, struct def_scan *s, int type, uint32_t now, int *ox, int *oy) {
+    void *cm = player_get_civ_mgr(pl);
+    ee_resource_mgr *rm = cm ? civ_mgr_get_resource_mgr(cm) : NULL;
+    if (!rm) return 0;
+    static struct { int x, y, n; } c[64];
+    int nc = 0;
+    for (int r = 2; r < 7; r++) {
+        uint8_t *list = resource_mgr_list_at(rm, r);
+        for (unsigned k = 0, first = deque_front(list), cnt = deque_count(list); k < cnt && k < 1024; k++) {
+            ee_unit *u = deque_at(list, first + k);
+            ee_goal *goal = u && unit_get_hp(u) > 0 ? unit_get_goal(u) : NULL;
+            ee_unit *site = goal && !strcmp(rtti_name(goal), "EEUGGather@@") ? goal_get_site(goal) : NULL;
+            if (!site || unit_type_get_class_id(unit_get_type_data(u)) == CLS_NAVAL_CITIZEN) continue;   // not the fishing boats
+            int sx = unit_get_x(site), sy = unit_get_y(site), j = 0;
+            while (j < nc && (c[j].x / CT_CELL != sx / CT_CELL || c[j].y / CT_CELL != sy / CT_CELL)) j++;
+            if (j == nc) { if (nc == 64) continue; c[nc].x = sx; c[nc].y = sy; c[nc++].n = 0; }
+            c[j].n++;
+        }
+    }
+    int n_cov = 0, n_in = 0, n_place = 0, workers = 0;
+    for (int j = 0; j < nc; j++) workers += c[j].n;
+    for (;;) {
+        int best = -1;
+        for (int j = 0; j < nc; j++) if (c[j].n > 0 && (best < 0 || c[j].n > c[best].n)) best = j;
+        if (best < 0) {
+            static uint32_t logged[16];
+            if (g_log && (!logged[idx] || now - logged[idx] >= 120000)) {
+                logged[idx] = now ? now : 1;
+                fprintf(g_log, "# defence: P%u no coast tower spot: %d places of work (%d at work), %d covered, %d inland, %d without a free tile\n",
+                        idx, nc, workers, n_cov, n_in, n_place);
+            }
+            return 0;
+        }
+        int cx = c[best].x, cy = c[best].y, at = c[best].n;
+        c[best].n = 0;
+        int covered = 0;   // towers by it, standing or ordered in the last 90 s: coast_towers of them
+        for (int t = 0; t < s->towers; t++) covered += abs(s->tx[t] - cx) <= CT_COVER && abs(s->ty[t] - cy) <= CT_COVER;
+        for (int t = 0; t < 8; t++)
+            covered += p->pend[t].t && now - p->pend[t].t < 90000 && abs(p->pend[t].x - cx) <= CT_COVER && abs(p->pend[t].y - cy) <= CT_COVER;
+        if (covered >= g_coast_towers) { n_cov++; continue; }
+        int wx = 0, wy = 0, wd = 0x7FFFFFFF;   // the nearest sea
+        for (int dx = -CT_SEA; dx <= CT_SEA; dx++)
+            for (int dy = -CT_SEA; dy <= CT_SEA; dy++) {
+                int d = dx * dx + dy * dy;
+                if (d < wd && d <= CT_SEA * CT_SEA && map_area(iv2(cx + dx, cy + dy), 1)) { wd = d; wx = cx + dx; wy = cy + dy; }
+            }
+        if (wd == 0x7FFFFFFF) { n_in++; continue; }   // inland: no ship reaches it
+        float l = sqrtf((float)wd), f = l > (float)CT_IN ? (l - (float)CT_IN) / l : 0.0f;
+        int tx = cx + (int)lroundf((float)(wx - cx) * f), ty = cy + (int)lroundf((float)(wy - cy) * f);
+        for (int r = 0; r <= 2; r++)
+            for (int ax = -r; ax <= r; ax++)
+                for (int ay = -r; ay <= r; ay++) {
+                    if ((abs(ax) != r && abs(ay) != r) || raiders_near(pl, iv2(tx + ax, ty + ay), 10) ||
+                        !can_place(pl, type, iv2(tx + ax, ty + ay))) continue;
+                    *ox = tx + ax; *oy = ty + ay;
+                    int o = 0;
+                    for (int t = 1; t < 8; t++) if (p->pend[t].t < p->pend[o].t) o = t;
+                    p->pend[o].x = *ox; p->pend[o].y = *oy; p->pend[o].t = now ? now : 1;
+                    g_def_towers[idx]++;
+                    if (g_log) fprintf(g_log, "# defence: P%u coast tower %d at %d,%d (%d at work by %d,%d, the sea %d,%d)\n",
+                                       idx, type, *ox, *oy, at, cx, cy, wx, wy);
+                    return 1;
+                }
+        n_place++;
+    }
+}
 internal int defence_spot(ee_player *pl, int type, int *ox, int *oy) {
     if (!g_def || !pl || !is_tower_type(type)) return 0;
     unsigned idx = (unsigned)player_get_index(pl) & 15;
@@ -401,6 +480,7 @@ internal int defence_spot(ee_player *pl, int type, int *ox, int *oy) {
     if (g_encl) encl_plan(pl, idx, p, now);
     int x, y;
     threat_refresh(pl, now);   // slots inside known enemy defences would cost the builders (attack.c)
+    if (g_coast_towers && navy_islands(idx) && coast_spot(pl, idx, p, s, type, now, ox, oy)) return 1;
     for (int i = 0; def_slot(p, i, &x, &y); i++) {
         int taken = 0;
         for (int t = 0; t < s->towers && !taken; t++) taken = abs(s->tx[t] - x) <= 2 && abs(s->ty[t] - y) <= 2;
@@ -1554,6 +1634,7 @@ internal void defence_install(void) {
     g_def_walls = g_set_ai[1].defence_walls;
     g_def_more = g_set_ai[1].defence_towers;
     g_encl = g_set_ai[1].enclose;
+    g_coast_towers = g_set_ai[1].coast_towers;
     g_encl_from = g_set_ai[1].enclose_citizens;
     g_encl_runs = g_set_ai[1].enclose_runs;
     g_encl_flight = g_set_ai[1].enclose_in_flight;

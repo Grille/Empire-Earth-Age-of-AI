@@ -280,6 +280,7 @@ internal float navy_share(unsigned idx) {
 internal int navy_earmarked(unsigned idx) { return fleet_builds(idx) && g_nv_target[idx & 15] > 0; }
 // army.c: the map is known (navy_detect) and an enemy stands on this AI's continent (land or mixed)
 internal int navy_land(unsigned idx) { return g_nv_map[idx & 15].done && g_nv_map[idx & 15].kind != NV_ISLANDS; }
+internal int navy_islands(unsigned idx) { return g_nv_map[idx & 15].done && g_nv_map[idx & 15].kind == NV_ISLANDS; }
 internal void navy_income(unsigned idx, int type, int amount) {
     float sh = navy_share(idx);
     if (sh <= 0 || (type != 3 && type != 5 && type != 6)) return;

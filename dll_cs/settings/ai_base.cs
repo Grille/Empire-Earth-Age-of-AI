@@ -772,6 +772,12 @@ class ai_base
         /// its own a wall along the whole coast at the water's edge, so transports find nowhere to unload, and towers
         /// packed along it; else a closed ring around the town with a gate on each side and towers inside it. Open by
         /// the docks. 0 = off (default until measured)
+        /// Towers first where the citizens work by the sea (the player: towers defend the resources inland and sink ships
+        /// on the coast): on an island map each tower goes to the busiest place of work within a ship's reach of the sea
+        /// that has fewer than this many towers by it, near the shore; the usual tower line after those. 0 = off (default
+        /// until measured)
+        [range(0, 4)]
+        int coast_towers = 0;
         bool enclose = false;
         /// With enclose: the ring only once the AI has this many citizens, the usual towers and front walls before - the
         /// economy first (the ring from the start took most of the citizens off gathering: every Small Islands game lost)
