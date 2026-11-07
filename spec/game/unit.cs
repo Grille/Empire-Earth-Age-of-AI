@@ -501,10 +501,14 @@ unsafe struct EEComplexUnit
     [offset((ee)0x341, (aoc)0x34D), found(c)]
     uint8 ai_held;
 
-    /// set when its projectile hits a target of unit group 0x2A (0x61F6A4): with the stats' flag +0x15C it then attacks
-    /// with animation 8 for 0 and 1.5 x its reload (EEUGAttackUnit::vf16, fire 0x61E19F), its splash skipping victims;
-    /// a new goal clears it (assign_goal 0x5F05BD)
-    [offset((ee)0x342, (aoc)0x34E), found(c), guess]
+    /// set when its projectile hits a target of unit group 0x2A (0x61F6A4) - a wall in the way: with the stats' flag
+    /// +0x15C it then attacks with animation 8 for 0 and 1.5 x its reload (EEUGAttackUnit::vf16, fire 0x61E19F), its
+    /// splash skipping victims, and its shots take the high arc (unit_functions.ballistic_game 0x62CBB3: stats +0x15C,
+    /// this and animation 8); a new goal clears it (assign_goal 0x5F05BD), nothing else - the player 2026-11-07: "they
+    /// first try a shot in a flat arc, if that hits a wall they switch to a high arc for their next shots; they don't
+    /// switch back, even if the obstacle is cleared". tests/probes/wall_archers.eeai: longbows over a wall 272 damage in
+    /// 2 minutes, in the open 414 - 0.66, the 1.5 x reload
+    [offset((ee)0x342, (aoc)0x34E), found(c)]
     uint8 alt_attack;
 
     /// a building that is only a foundation yet: vf32 0x5F34EB sets it, vf22 0x5F3487 returns it; vf25 0x5ED737 shows

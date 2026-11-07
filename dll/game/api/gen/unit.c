@@ -485,10 +485,13 @@ internal inline uint8_t *unit_finished_at(const ee_unit *o) { return (uint8_t *)
 internal inline uint8_t unit_get_ai_held(const ee_unit *o) { return *(uint8_t *)((uint8_t *)o + of_unit_ai_held); }
 internal inline void unit_set_ai_held(ee_unit *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_unit_ai_held) = v; }
 internal inline uint8_t *unit_ai_held_at(const ee_unit *o) { return (uint8_t *)((uint8_t *)o + of_unit_ai_held); }
-// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
-// set when its projectile hits a target of unit group 0x2A (0x61F6A4): with the stats' flag +0x15C it then attacks
-// with animation 8 for 0 and 1.5 x its reload (EEUGAttackUnit::vf16, fire 0x61E19F), its splash skipping victims;
-// a new goal clears it (assign_goal 0x5F05BD)
+// set when its projectile hits a target of unit group 0x2A (0x61F6A4) - a wall in the way: with the stats' flag
+// +0x15C it then attacks with animation 8 for 0 and 1.5 x its reload (EEUGAttackUnit::vf16, fire 0x61E19F), its
+// splash skipping victims, and its shots take the high arc (unit_functions.ballistic_game 0x62CBB3: stats +0x15C,
+// this and animation 8); a new goal clears it (assign_goal 0x5F05BD), nothing else - the player 2026-11-07: "they
+// first try a shot in a flat arc, if that hits a wall they switch to a high arc for their next shots; they don't
+// switch back, even if the obstacle is cleared". tests/probes/wall_archers.eeai: longbows over a wall 272 damage in
+// 2 minutes, in the open 414 - 0.66, the 1.5 x reload
 internal inline uint8_t unit_get_alt_attack(const ee_unit *o) { return *(uint8_t *)((uint8_t *)o + of_unit_alt_attack); }
 internal inline void unit_set_alt_attack(ee_unit *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_unit_alt_attack) = v; }
 internal inline uint8_t *unit_alt_attack_at(const ee_unit *o) { return (uint8_t *)((uint8_t *)o + of_unit_alt_attack); }

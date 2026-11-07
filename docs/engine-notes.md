@@ -159,6 +159,12 @@ A unit's tile changes through 0x616F9D (thiscall(unit, x, y, link), 10 calls; sp
   (heading +0x188, pitch +0x18C, elapsed ms +0x28C) with no steering. The high solution (spec unit_type.high_arc,
   `stats types P` shows it): only 7 types in 1.04 - Catapult 104, Bombard 187, Artillery 143, Colossus Artillery
   101, Trench Mortar 152, Heavy Mortar 219, 88mm AA Gun 145; archers, trebuchets and the catapult ship aim low.
+  The other way to the high arc - a wall in the way (the player 2026-11-07: "they first try a shot in a flat arc, if
+  that hits a wall they switch to a high arc for their next shots; they don't switch back, even if the obstacle is
+  cleared"): a projectile that hits an object of unit group 0x2A (0x61F6A4) sets its shooter's alt_attack (unit
+  +0x342); with the stats' flag +0x15C the shooter then fires with animation 8, the high arc and 1.5 x its reload, its
+  splash skipping victims - until a new goal (assign_goal 0x5F05BD clears it), the wall gone or not. The longbows over
+  a wall below: 272 damage against 414 in the open, 0.66.
 - Walls and fire (the player 2026-11-07: archers and siege fire over a wall, ships don't - a wall at the water's edge
   protects the economy against ships). Measured, Continental 101 epoch 5, 2 minutes a phase: a galleon or a catapult
   ship 4 tiles off a coast walled on its last land tile never attacks the houses 2 tiles behind the wall (no attack
