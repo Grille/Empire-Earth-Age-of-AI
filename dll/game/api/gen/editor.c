@@ -2063,6 +2063,11 @@ internal inline float *editor_form_mouse_x_at(const ee_editor_form *o) { return 
 internal inline float editor_form_get_mouse_y(const ee_editor_form *o) { return *(float *)((uint8_t *)o + of_ui_form_mouse_y); }
 internal inline void editor_form_set_mouse_y(ee_editor_form *o, float v) { *(float *)((uint8_t *)o + of_ui_form_mouse_y) = v; }
 internal inline float *editor_form_mouse_y_at(const ee_editor_form *o) { return (float *)((uint8_t *)o + of_ui_form_mouse_y); }
+// its row in the UI database (dbuiforms.dat; the menus' forms are plain UIForms, told apart only by it):
+// GetFormID, both builds' engines
+internal inline enum ui_form_id editor_form_get_id(const ee_editor_form *o) { return *(enum ui_form_id *)((uint8_t *)o + of_ui_form_id); }
+internal inline void editor_form_set_id(ee_editor_form *o, enum ui_form_id v) { *(enum ui_form_id *)((uint8_t *)o + of_ui_form_id) = v; }
+internal inline enum ui_form_id *editor_form_id_at(const ee_editor_form *o) { return (enum ui_form_id *)((uint8_t *)o + of_ui_form_id); }
 // its constructor: the panels, the map, the screens
 typedef void *(__thiscall *editor_form_init_fn)(ee_editor_form *, void *);
 internal editor_form_init_fn fn_editor_form_init;

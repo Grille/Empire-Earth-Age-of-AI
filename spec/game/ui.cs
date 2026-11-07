@@ -427,6 +427,11 @@ unsafe struct UIForm
     [offset(0xE8), found(c)]
     float32 mouse_y;
 
+    /// its row in the UI database (dbuiforms.dat; the menus' forms are plain UIForms, told apart only by it):
+    /// GetFormID, both builds' engines
+    [offset(0x180), found(c)]
+    ui_form_id id;
+
     // VIRTUAL FUNCTIONS (slot 0 the destructor)
 
     [slot(1)]

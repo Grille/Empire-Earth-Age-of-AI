@@ -2166,6 +2166,16 @@ internal void cmd_topbar(char *out, const char *args) {
     REPLY("in-game form %p: top bar mode %d (0 age, 1 clock, 2 FPS)\n", (void *)form, main_form_get_top_bar(game));
 }
 
+// form: the UI manager's current form - its row in dbuiforms.dat (ui_form_id: the main menu 12, game tools 9, the
+// campaign editor 24 ...) and its class; the menus too (scripts/test/editor_headless.sh finds its way by it)
+internal void cmd_form(char *out, const char *args) {
+    (void)args;
+    void *uim = ui_manager();
+    ee_ui_form *form = uim ? ui_current_form(uim) : NULL;
+    if (form) REPLY("form %d %s\n", (int)ui_form_get_id(form), rtti_name(form));
+    else REPLY("form 0 none\n");
+}
+
 internal void cmd_ddinfo(char *out, const char *args) {
     ee_rasterizer *ras = rasterizer();
     int idx = screen_index();

@@ -95,6 +95,7 @@ internal void cmd_fmove(char *out, const char *args);    // fleetmove.c
 internal void aim_tick(void);
 internal void cmd_ddinfo(char *out, const char *args);
 internal void cmd_topbar(char *out, const char *args);
+internal void cmd_form(char *out, const char *args);
 internal void cmd_ddpoke(char *out, const char *args);
 internal void cmd_headless(const char *verb, const char *args, char *out);
 internal BOOL CALLBACK close_own_window(HWND w, LPARAM lp);
@@ -466,6 +467,7 @@ internal void execute(const char *cmd, char *out) {
     else if (!strcmp(verb, "fmove")) cmd_fmove(out, args);
     else if (!strcmp(verb, "ddinfo")) cmd_ddinfo(out, args);
     else if (!strcmp(verb, "topbar")) cmd_topbar(out, args);
+    else if (!strcmp(verb, "form")) cmd_form(out, args);
     else if (!strcmp(verb, "ddpoke")) cmd_ddpoke(out, args);
     else if (!strcmp(verb, "watch")) { unsigned a = 0; int l = 4; sscanf(args, "%x %d", &a, &l); watch_set(a, l); REPLY("ok: watching %08x len %d\n", a, l); }
     else if (!strcmp(verb, "speed")) {

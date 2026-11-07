@@ -1647,6 +1647,7 @@ internal uint32_t of_ui_form_controls;
 internal uint32_t of_ui_form_keyboard_captured;
 internal uint32_t of_ui_form_mouse_x;
 internal uint32_t of_ui_form_mouse_y;
+internal uint32_t of_ui_form_id;
 internal uint32_t slot_ui_form_activate;
 internal uint32_t slot_ui_form_add_ime_result_string;
 internal uint32_t slot_ui_form_change_ime_composition_string;

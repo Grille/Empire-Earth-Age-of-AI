@@ -438,6 +438,8 @@ task: a poll left running after its caller gave up keeps sending commands to wha
   renderer's minute line `# render: frames waiting 8 ms or more for the lock` counts the frames that waited on a step
   and names where the game took the lock for the long holds.
 - `topbar [0|1|2]`: what the game's top bar shows - the age, the game clock, or "FPS: n".
+- `form`: the current UI form - its dbuiforms.dat row (UIForm.id: main menu 12, game tools 9, campaign editor 24, the
+  scenario editor -1) and its class; answers in the menus too.
 
 Findings 2026-10-12 (user report: 25 fps in a long game, window mode): in the user's game the render thread was
 64% in GDI (gdi32full); in test games 11-18%, all GDI calls from DDrawCompat itself (its ddraw.dll +0x46CB6,
@@ -1139,8 +1141,12 @@ every start on 2026-10-19 from 21:42 on (now a copy does nothing).
 | `mapshot <name> [1024\|2048\|4096] [ai_base]` | the whole map as the game's Shift/Ctrl+F9 draw it, to `ageofai_dumps/<name>.bmp`: size x size/2 pixels (default 1024), as far as the local player has explored (a random map test reveals it); `all` sets the local player's explore all for the shot and puts it back after (the test save: 24 of 45 map objects explored, `all` showed every forest and both towns, explore all 0 again after), the game paused while it renders (0.6-0.7 s headless). The game writes its next free `EE###.bmp` in the game folder (created empty first, filled after the render); the command moves it. At 4096 single soldiers are told apart |
 
 `[SLOT=n] [EXTRA=k=v,...] sh scripts/test/editor_headless.sh [game|aoc|WxH]` starts headless (in slot n beside the player's game; EXTRA more test ini keys) and opens the scenario editor (main menu →
-game tools → scenario editor, retried until the log says `# editor: building`). `scripts/test/bmp2png.ps1` and
-`scripts/test/crop.ps1` turn shots into PNGs. Menu buttons (1024x768): game tools 512,472; scenario editor 512,370.
+game tools → scenario editor, until the log says `# editor: building`): each round asks the pipe's `form` which
+screen is up and presses its button - a click often only shows the button's tooltip, and the main menu's Game Tools
+lies under the Game Tools menu's Campaign Editor, which the click's release can press too (then its own Scenario
+Editor button, 256,727). Before 2026-11-07 it clicked blindly, and its "back" click (512,680) was Exit Game in the
+main menu: it failed most starts. `scripts/test/bmp2png.ps1` and `scripts/test/crop.ps1` turn shots into PNGs. Menu
+buttons (1024x768): game tools 512,472; scenario editor 512,370.
 Editor icons at 2560x1440: y 1420, x 14 map, 60 elevation, 103 terrain, 147 units, 193 triggers, 237 players,
 280 texts, 322 civilizations. The units panel opens after another panel has been open (from the map panel its icon
 only hovers); a click on a control new under the cursor often needs a second. The file buttons at the bottom right

@@ -311,6 +311,11 @@ internal inline float *ui_form_mouse_x_at(const ee_ui_form *o) { return (float *
 internal inline float ui_form_get_mouse_y(const ee_ui_form *o) { return *(float *)((uint8_t *)o + of_ui_form_mouse_y); }
 internal inline void ui_form_set_mouse_y(ee_ui_form *o, float v) { *(float *)((uint8_t *)o + of_ui_form_mouse_y) = v; }
 internal inline float *ui_form_mouse_y_at(const ee_ui_form *o) { return (float *)((uint8_t *)o + of_ui_form_mouse_y); }
+// its row in the UI database (dbuiforms.dat; the menus' forms are plain UIForms, told apart only by it):
+// GetFormID, both builds' engines
+internal inline enum ui_form_id ui_form_get_id(const ee_ui_form *o) { return *(enum ui_form_id *)((uint8_t *)o + of_ui_form_id); }
+internal inline void ui_form_set_id(ee_ui_form *o, enum ui_form_id v) { *(enum ui_form_id *)((uint8_t *)o + of_ui_form_id) = v; }
+internal inline enum ui_form_id *ui_form_id_at(const ee_ui_form *o) { return (enum ui_form_id *)((uint8_t *)o + of_ui_form_id); }
 typedef void (__thiscall *ui_form_activate_fn)(ee_ui_form *);
 internal inline void ui_form_activate(ee_ui_form *ui_form) { ((ui_form_activate_fn)(*(void ***)ui_form)[slot_ui_form_activate])(ui_form); }
 typedef void (__thiscall *ui_form_add_ime_result_string_fn)(ee_ui_form *, void *);
@@ -780,6 +785,7 @@ internal int spec_ui_select(int build) {
         of_ui_form_keyboard_captured = 0x108;
         of_ui_form_mouse_x = 0xE4;
         of_ui_form_mouse_y = 0xE8;
+        of_ui_form_id = 0x180;
         slot_ui_form_activate = 1;
         slot_ui_form_add_ime_result_string = 2;
         slot_ui_form_change_ime_composition_string = 3;
@@ -1011,6 +1017,7 @@ internal int spec_ui_select(int build) {
         of_ui_form_keyboard_captured = 0x108;
         of_ui_form_mouse_x = 0xE4;
         of_ui_form_mouse_y = 0xE8;
+        of_ui_form_id = 0x180;
         slot_ui_form_activate = 1;
         slot_ui_form_add_ime_result_string = 2;
         slot_ui_form_change_ime_composition_string = 3;

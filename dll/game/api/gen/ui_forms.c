@@ -881,6 +881,11 @@ internal inline float *eeuif_error_mouse_x_at(const eeuif_error *o) { return (fl
 internal inline float eeuif_error_get_mouse_y(const eeuif_error *o) { return *(float *)((uint8_t *)o + of_ui_form_mouse_y); }
 internal inline void eeuif_error_set_mouse_y(eeuif_error *o, float v) { *(float *)((uint8_t *)o + of_ui_form_mouse_y) = v; }
 internal inline float *eeuif_error_mouse_y_at(const eeuif_error *o) { return (float *)((uint8_t *)o + of_ui_form_mouse_y); }
+// its row in the UI database (dbuiforms.dat; the menus' forms are plain UIForms, told apart only by it):
+// GetFormID, both builds' engines
+internal inline enum ui_form_id eeuif_error_get_id(const eeuif_error *o) { return *(enum ui_form_id *)((uint8_t *)o + of_ui_form_id); }
+internal inline void eeuif_error_set_id(eeuif_error *o, enum ui_form_id v) { *(enum ui_form_id *)((uint8_t *)o + of_ui_form_id) = v; }
+internal inline enum ui_form_id *eeuif_error_id_at(const eeuif_error *o) { return (enum ui_form_id *)((uint8_t *)o + of_ui_form_id); }
 // its constructor (1 argument, not typed yet)
 typedef void *(__thiscall *eeuif_error_init_fn)(eeuif_error *, uint32_t);
 internal eeuif_error_init_fn fn_eeuif_error_init;
@@ -1147,6 +1152,11 @@ internal inline float *main_form_mouse_x_at(const ee_main_form *o) { return (flo
 internal inline float main_form_get_mouse_y(const ee_main_form *o) { return *(float *)((uint8_t *)o + of_ui_form_mouse_y); }
 internal inline void main_form_set_mouse_y(ee_main_form *o, float v) { *(float *)((uint8_t *)o + of_ui_form_mouse_y) = v; }
 internal inline float *main_form_mouse_y_at(const ee_main_form *o) { return (float *)((uint8_t *)o + of_ui_form_mouse_y); }
+// its row in the UI database (dbuiforms.dat; the menus' forms are plain UIForms, told apart only by it):
+// GetFormID, both builds' engines
+internal inline enum ui_form_id main_form_get_id(const ee_main_form *o) { return *(enum ui_form_id *)((uint8_t *)o + of_ui_form_id); }
+internal inline void main_form_set_id(ee_main_form *o, enum ui_form_id v) { *(enum ui_form_id *)((uint8_t *)o + of_ui_form_id) = v; }
+internal inline enum ui_form_id *main_form_id_at(const ee_main_form *o) { return (enum ui_form_id *)((uint8_t *)o + of_ui_form_id); }
 // the top bar's text: 0 the age, 1 the game clock, 2 "FPS: n" (votes 6/7)
 internal inline int main_form_get_top_bar(const ee_main_form *o) { return *(int *)((uint8_t *)o + of_main_form_top_bar); }
 internal inline void main_form_set_top_bar(ee_main_form *o, int v) { *(int *)((uint8_t *)o + of_main_form_top_bar) = v; }
