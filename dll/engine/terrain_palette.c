@@ -34,7 +34,7 @@ internal uint8_t g_tp_own[TP_SLOTS];     // 1: a colour of the map's own (a free
 internal uint8_t g_tp_rgb[TP_SLOTS][3];
 internal struct tp_type g_tp_type[TP_TYPES];   // the map's own colour types
 internal unsigned g_tp_types;
-internal uint8_t g_tp_rec[TP_TYPES][256];      // their records in the terrain panel (only the id read)
+internal uint8_t g_tp_rec[TP_TYPES + 1][256];  // their records in the terrain panel (only the id read), the "new" item's last
 internal void *g_tp_mesh;                      // the mesh their sets are registered with
 internal int g_tp_setup_in_load;               // its setup was a load's (the record taken already)
 internal ee_se_terrain *g_tp_panel;            // the editor's terrain panel, while it is
@@ -117,7 +117,18 @@ internal void tp_list_sync(void) {
         color_type_set_in_editor(t, 1);
         se_terrain_color_type_push(p, t);
     }
-    unsigned n = se_color_list_count(list);
+    float hue[12][3];   // the "new" item (terrain_dialog.c): the hues round
+    for (unsigned k = 0; k < 12; k++) {
+        float h = (float)k / 2.0f, f = h - (float)(int)h;
+        float rise[6][3] = { { 1, f, 0 }, { 1 - f, 1, 0 }, { 0, 1, f }, { 0, 1 - f, 1 }, { f, 0, 1 }, { 1, 0, 1 - f } };
+        memcpy(hue[k], rise[(int)h], sizeof hue[k]);
+    }
+    se_color_list_add_colors(list, hue, 12);
+    ee_color_type *t = (ee_color_type *)g_tp_rec[TP_TYPES];
+    color_type_set_id(t, TP_ID + TP_TYPES);
+    color_type_set_in_editor(t, 1);
+    se_terrain_color_type_push(p, t);
+    unsigned n = se_color_list_count(list) - 1;   // without the "new" item
     if (sel >= (int)g_tp_list_base && n) se_color_list_select(list, (unsigned)sel < n ? (unsigned)sel : n - 1, 0, 0);
 }
 
@@ -142,10 +153,14 @@ internal void *__thiscall hook_tp_panel_delete(ee_se_terrain *p, uint8_t flags) 
 
 // the editor's paint with a colour type: one of the map's own painted as a game's whose set is for the call the
 // type's (map_paint_colors reads only the set of the type it looks up)
+internal unsigned g_tp_paints[3];   // the paint's calls: with a game's type, one of the map's own, none (the pipe's status)
+internal int g_tp_paint_last = -1;
 internal void __thiscall hook_tp_paint_colors(ee_map *map, int x_lo, int x_hi, int y_hi, int y_lo, int type) {
     ee_color_type *t = type >= TP_ID ? color_type(0) : NULL;
-    if (type < TP_ID) { map_paint_colors(map, x_lo, x_hi, y_hi, y_lo, type); return; }
-    if (!t || (unsigned)(type - TP_ID) >= g_tp_types) return;   // a type gone meanwhile: no colour
+    g_tp_paint_last = type;
+    if (type < TP_ID) { g_tp_paints[0]++; map_paint_colors(map, x_lo, x_hi, y_hi, y_lo, type); return; }
+    g_tp_paints[!t || (unsigned)(type - TP_ID) >= g_tp_types ? 2 : 1]++;
+    if (!t || (unsigned)(type - TP_ID) >= g_tp_types) return;   // the "new" item, a type gone meanwhile: no colour
     uint32_t keep = color_type_get_set(t);
     color_type_set_set(t, g_tp_type[type - TP_ID].set);
     map_paint_colors(map, x_lo, x_hi, y_hi, y_lo, 0);
@@ -312,18 +327,21 @@ internal int tp_type_delete(unsigned i) {
     return 1;
 }
 
+internal int terrain_dialog_install(void);   // terrain_dialog.c
 internal void terrain_palette_install(void) {
     g_tp_on = g_set.terrain_palette;
     int n = 0;
     if (g_tp_on)
         n = patch_mesh_color_table(hook_tp_color_table, &g_tp_color_table) + patch_map_paint_colors(hook_tp_paint_colors) +
-            patch_se_terrain_init(hook_tp_panel_init) + patch_se_terrain_delete(hook_tp_panel_delete);
-    if (g_log) fprintf(g_log, "# editor: terrain_palette=%d%s\n", g_tp_on, !g_tp_on ? "" : n == 4 ? " (hooked)" : " (FAILED)");
+            patch_se_terrain_init(hook_tp_panel_init) + patch_se_terrain_delete(hook_tp_panel_delete) + terrain_dialog_install();
+    if (g_log) fprintf(g_log, "# editor: terrain_palette=%d%s\n", g_tp_on, !g_tp_on ? "" : n == 6 ? " (hooked)" : " (FAILED)");
 }
 
 // pipe: palette type add|set <i> flat <r g b> | ramp <n> <r g b> <r g b> | each <n> <r g b> x n - a colour type of the
 // map's own made (set: type i changed); palette type delete <i>; palette type select <i> (the editor's colour list's
-// item, as a click on it)
+// item, as a click on it; i the count of types: the "new" item - the dialog opens, the reply comes when it is closed);
+// palette type edit <i> (the dialog for type i, as a double click on its item opens it)
+internal void td_open(int i, int sel);   // terrain_dialog.c
 internal void tp_cmd_type(char *out, const char *args) {
     char op[16] = "", mode[16] = "";
     int i = -1, at = 0;
@@ -331,9 +349,15 @@ internal void tp_cmd_type(char *out, const char *args) {
     args += at;
     if (strcmp(op, "add") && sscanf(args, "%d%n", &i, &at) == 1) args += at;
     if (!strcmp(op, "delete")) { REPLY(tp_type_delete((unsigned)i) ? "ok: type %d deleted\n" : "error: no type %d\n", i); return; }
+    if (!strcmp(op, "edit")) {
+        if (!g_tp_panel || i < 0 || (unsigned)i >= g_tp_types) { REPLY("error: no editor or no type %d\n", i); return; }
+        td_open(i, (int)(g_tp_list_base + (unsigned)i));
+        REPLY("ok: the dialog closed, %u types\n", g_tp_types);
+        return;
+    }
     if (!strcmp(op, "select")) {
         ee_se_color_list *list = g_tp_panel ? se_terrain_get_color_list(g_tp_panel) : NULL;
-        if (!list || i < 0 || (unsigned)i >= g_tp_types) { REPLY("error: no editor or no type %d\n", i); return; }
+        if (!list || i < 0 || (unsigned)i > g_tp_types) { REPLY("error: no editor or no type %d\n", i); return; }
         se_color_list_select(list, g_tp_list_base + (unsigned)i, 1, 1);
         REPLY("ok: item %u of %u selected\n", g_tp_list_base + (unsigned)i, se_color_list_count(list));
         return;
@@ -410,6 +434,9 @@ internal void cmd_palette(char *out, const char *args) {
     if (g_tp_types) REPLY("; types:");
     for (unsigned i = 0; i < g_tp_types; i++)
         REPLY(" %u=%s/%u(set %u)", i, (const char *[]){ "flat", "ramp", "each" }[g_tp_type[i].mode], g_tp_type[i].n, g_tp_type[i].set);
-    if (g_tp_panel) REPLY("; editor list %u + %u", g_tp_list_base, se_color_list_count(se_terrain_get_color_list(g_tp_panel)) - g_tp_list_base);
+    if (g_tp_panel) REPLY("; editor list %u + %u, item %d selected", g_tp_list_base, se_color_list_count(se_terrain_get_color_list(g_tp_panel)) - g_tp_list_base,
+                          se_color_list_get_selected(se_terrain_get_color_list(g_tp_panel)));
+    if (g_tp_paints[0] + g_tp_paints[1] + g_tp_paints[2])
+        REPLY("; paints with a game's type %u, the map's own %u, none %u (the last's type %d)", g_tp_paints[0], g_tp_paints[1], g_tp_paints[2], g_tp_paint_last);
     REPLY("\n");
 }

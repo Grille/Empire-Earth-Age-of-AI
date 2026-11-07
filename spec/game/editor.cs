@@ -1289,7 +1289,9 @@ unsafe struct EESEUITerrainColorLB
     [address((ee)0x0059DA20, (aoc)0x0065C4C4), overrides(typeof(UIControl))]
     extern int32 mouse_l_button_up();
 
+    /// a double click: the item under the mouse selected (with notify), then its event 0x3EC (none listens)
     [address((ee)0x0059D17E, (aoc)0x005AD4DC), overrides(typeof(UIControl))]
+    [vtable_site("se_color_list_double_click")]
     extern int32 mouse_l_button_double_pressed();
 
     [address((ee)0x00649012, (aoc)0x005AD5A8), overrides(typeof(UIControl))]

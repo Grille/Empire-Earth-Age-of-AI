@@ -1444,9 +1444,11 @@ internal inline int se_color_list_mouse_l_button_down(ee_se_color_list *se_color
 typedef int (__thiscall *se_color_list_mouse_l_button_up_fn)(ee_se_color_list *);
 internal se_color_list_mouse_l_button_up_fn fn_se_color_list_mouse_l_button_up;
 internal inline int se_color_list_mouse_l_button_up(ee_se_color_list *se_color_list) { return fn_se_color_list_mouse_l_button_up(se_color_list); }
+// a double click: the item under the mouse selected (with notify), then its event 0x3EC (none listens)
 typedef int (__thiscall *se_color_list_mouse_l_button_double_pressed_fn)(ee_se_color_list *);
 internal se_color_list_mouse_l_button_double_pressed_fn fn_se_color_list_mouse_l_button_double_pressed;
 internal inline int se_color_list_mouse_l_button_double_pressed(ee_se_color_list *se_color_list) { return fn_se_color_list_mouse_l_button_double_pressed(se_color_list); }
+internal inline int patch_se_color_list_double_click(se_color_list_mouse_l_button_double_pressed_fn h) { return patch_vtable(vt_eeseui_terrain_color_lb, (int)slot_ui_control_mouse_l_button_double_pressed, (uintptr_t)fn_se_color_list_mouse_l_button_double_pressed, (void *)h); }
 typedef int (__thiscall *se_color_list_mouse_move_fn)(ee_se_color_list *, void *);
 internal se_color_list_mouse_move_fn fn_se_color_list_mouse_move;
 internal inline int se_color_list_mouse_move(ee_se_color_list *se_color_list, void *at) { return fn_se_color_list_mouse_move(se_color_list, at); }

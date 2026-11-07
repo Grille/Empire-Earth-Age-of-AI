@@ -1939,9 +1939,12 @@ internal inline uint32_t eeuie_select_closest_aircraft_execute(eeuie_select_clos
 // class EEUIETerrainColorChange (eeuie_terrain_color_change)
 // made in 0x59B710
 // UIEvent's, the base's
+// the terrain panel's colour list's event (0x3EB, run when an item is selected - a click, its select with
+// notify): the panel's preview square shows the selected item's colours
 typedef uint32_t (__thiscall *eeuie_terrain_color_change_execute_fn)(eeuie_terrain_color_change *, ee_ui_form *, uint32_t);
 internal eeuie_terrain_color_change_execute_fn fn_eeuie_terrain_color_change_execute;
 internal inline uint32_t eeuie_terrain_color_change_execute(eeuie_terrain_color_change *eeuie_terrain_color_change, ee_ui_form *form, uint32_t arg) { return fn_eeuie_terrain_color_change_execute(eeuie_terrain_color_change, form, arg); }
+internal inline int patch_terrain_color_change(eeuie_terrain_color_change_execute_fn h) { return patch_vtable(vt_eeuie_terrain_color_change, (int)slot_ui_event_execute, (uintptr_t)fn_eeuie_terrain_color_change_execute, (void *)h); }
 
 // class EEUIETerrainTypeChange (eeuie_terrain_type_change)
 // made in 0x59B710

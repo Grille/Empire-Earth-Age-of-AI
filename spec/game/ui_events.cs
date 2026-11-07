@@ -2227,7 +2227,10 @@ unsafe struct EEUIESelectClosestAircraft
 [@base(typeof(UIEvent)), size((ee)0xC, (aoc)0xC), vtable((ee)0x0083020C, (aoc)0x00845B10)]
 unsafe struct EEUIETerrainColorChange
 {
+    /// the terrain panel's colour list's event (0x3EB, run when an item is selected - a click, its select with
+    /// notify): the panel's preview square shows the selected item's colours
     [address((ee)0x0059B350, (aoc)0x005AB4BC), overrides(typeof(UIEvent))]
+    [vtable_site("terrain_color_change")]
     extern uint32 execute(UIForm* form, uint32 arg);
 }
 

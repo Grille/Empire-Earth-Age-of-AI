@@ -52,15 +52,16 @@ changes the simulation: in a lockstep game different values make the PCs' games 
 - `[editor] editor_unit_search=1` (off by default until tried): a search box above the scenario editor's unit
   list. Type part of a name - as the list shows it, or the game's internal English name (`citizen` finds Bürger) -
   and the list keeps only the matching units of the category shown, as you type; several words must all match.
-- `[editor] terrain_palette=1` (off by default until tried; the editor's colour picker is under way): the ground's
-  colours are slots of a 256-colour table (`textures\ColorPalette.tga`), each terrain colour of the editor's list a
-  run of them. The game's 54 colours hold 255 slots, but 14 are the very shades of another in a place of their own
-  (nine grass and sand colours one ramp); with this on they paint the first copy's slots - the ground looks exactly
-  as before, in the original game too - and 96 slots are left free for a map's own colours (Art of Conquest: 28 of
-  its 68 share, 96 free). A map's own colours travel in its file - a scenario, a saved game -, in a block after the
-  game's own data that the original game doesn't read: there the ground on them shows the game's colours of those
-  slots. The map's own colour types (flat, a ramp between two colours, or each slot set) follow the game's in the
-  editor's colour list and paint as they do.
+- `[editor] terrain_palette=1` (off by default until tried): the ground's colours are slots of a 256-colour table
+  (`textures\ColorPalette.tga`), each terrain colour of the editor's list a run of them. The game's 54 colours hold
+  255 slots, but 14 are the very shades of another in a place of their own (nine grass and sand colours one ramp);
+  with this on they paint the first copy's slots - the ground looks exactly as before, in the original game too -
+  and 96 slots are left free for a map's own colours (Art of Conquest: 28 of its 68 share, 96 free). A map's own
+  colours travel in its file - a scenario, a saved game -, in a block after the game's own data that the original
+  game doesn't read: there the ground on them shows the game's colours of those slots. The map's own colours come
+  from the editor: the colour list ends in a strip of all hues - a click on it makes a colour of the map's own (one
+  colour, a ramp between two, or each slot its own, 1 to 16 slots, the colours from Windows' colour dialog), which
+  follows the game's colours in the list and paints as they do; a double click on it changes or deletes it.
 - `[camera] scroll`: `game` (default) the build's own camera scrolling, `aoc` The Art of Conquest's acceleration
   in either build, `ee` Empire Earth's constant speed in either build; `smooth=1` (default) moves the camera every
   frame by the frame's time instead of the game's fixed timer steps (jitter) - in both builds. While a text box

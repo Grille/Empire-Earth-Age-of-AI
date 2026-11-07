@@ -108,6 +108,9 @@ internal inline unsigned se_terrain_color_type_count(const ee_se_terrain *p) {
     ee_color_type **first = FIELD(v, 4, ee_color_type **), **end = FIELD(v, 8, ee_color_type **);
     return first ? (unsigned)(end - first) : 0;
 }
+internal inline ee_color_type *se_terrain_color_type_at(const ee_se_terrain *p, unsigned i) {
+    return i < se_terrain_color_type_count(p) ? FIELD(se_terrain_color_types_at(p), 4, ee_color_type **)[i] : NULL;
+}
 internal inline void se_terrain_color_type_push(ee_se_terrain *p, ee_color_type *t) {
     void *item = t;
     ptr_vector_push(se_terrain_color_types_at(p), &item);

@@ -26,7 +26,10 @@ class editor
     /// the same shades in another place (nine grass and sand types each have their own copy of one ramp): with this
     /// on they share one place, which leaves 96 of the 256 free for a map's own colours, kept in its file (a scenario,
     /// a saved game; the original game shows its own colours there). Painted ground looks exactly as before, in the
-    /// original game too
+    /// original game too. In the terrain panel the colour list ends in a strip of all hues: click it for a colour of
+    /// the map's own - one colour, a ramp between two, or each slot its own colour, 1 to 16 slots, the colours picked
+    /// with Windows' colour dialog. It comes after the game's colours in the list and paints as they do; double-click
+    /// it to change or delete it
     [title("Terrain colours")]
     bool terrain_palette = false;
 }
