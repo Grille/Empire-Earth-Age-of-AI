@@ -92,6 +92,35 @@ internal inline float *unit_type_heading_offset_at(const ee_unit_type *o) { retu
 internal inline float unit_type_get_mark_size(const ee_unit_type *o) { return *(float *)((uint8_t *)o + of_unit_type_mark_size); }
 internal inline void unit_type_set_mark_size(ee_unit_type *o, float v) { *(float *)((uint8_t *)o + of_unit_type_mark_size) = v; }
 internal inline float *unit_type_mark_size_at(const ee_unit_type *o) { return (float *)((uint8_t *)o + of_unit_type_mark_size); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// two floats the units' fill (EEROUnits' FillUnit) gives a record with hit points (ee_draw_record.bar_x / bar_y)
+// [guess: the health bar's place]
+internal inline float unit_type_get_bar_x(const ee_unit_type *o) { return *(float *)((uint8_t *)o + of_unit_type_bar_x); }
+internal inline void unit_type_set_bar_x(ee_unit_type *o, float v) { *(float *)((uint8_t *)o + of_unit_type_bar_x) = v; }
+internal inline float *unit_type_bar_x_at(const ee_unit_type *o) { return (float *)((uint8_t *)o + of_unit_type_bar_x); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// the record's bar_y (beside bar_x): the fill copies it while the unit has hit points
+internal inline float unit_type_get_bar_y(const ee_unit_type *o) { return *(float *)((uint8_t *)o + of_unit_type_bar_y); }
+internal inline void unit_type_set_bar_y(ee_unit_type *o, float v) { *(float *)((uint8_t *)o + of_unit_type_bar_y) = v; }
+internal inline float *unit_type_bar_y_at(const ee_unit_type *o) { return (float *)((uint8_t *)o + of_unit_type_bar_y); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// the units' fill turns its record to the camera's yaw (an object without a complex unit), or its complex unit's
+// up tilted toward it [guess]
+internal inline uint8_t unit_type_get_faces_camera(const ee_unit_type *o) { return *(uint8_t *)((uint8_t *)o + of_unit_type_faces_camera); }
+internal inline void unit_type_set_faces_camera(ee_unit_type *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_unit_type_faces_camera) = v; }
+internal inline uint8_t *unit_type_faces_camera_at(const ee_unit_type *o) { return (uint8_t *)((uint8_t *)o + of_unit_type_faces_camera); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// another type whose stats' graphics the units' fill gives the record too (ee_draw_record.gfx_built) - a
+// building site's finished building [guess]
+internal inline ee_unit_type *unit_type_get_built_type(const ee_unit_type *o) { return *(ee_unit_type **)((uint8_t *)o + of_unit_type_built_type); }
+internal inline void unit_type_set_built_type(ee_unit_type *o, ee_unit_type *v) { *(ee_unit_type **)((uint8_t *)o + of_unit_type_built_type) = v; }
+internal inline ee_unit_type **unit_type_built_type_at(const ee_unit_type *o) { return (ee_unit_type **)((uint8_t *)o + of_unit_type_built_type); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// EE's: a power bar shown (the record's power_bar from the complex unit's power over its stats'); AoC tests the
+// stats' power itself
+internal inline int unit_type_get_has_power(const ee_unit_type *o) { return *(int *)((uint8_t *)o + of_unit_type_has_power); }
+internal inline void unit_type_set_has_power(ee_unit_type *o, int v) { *(int *)((uint8_t *)o + of_unit_type_has_power) = v; }
+internal inline int *unit_type_has_power_at(const ee_unit_type *o) { return (int *)((uint8_t *)o + of_unit_type_has_power); }
 // its room in a formation (dreadnought 4, cruiser 3; the data's column 0x200, the community editor's "Size in
 // formation", copied by the constructor 0x61C35B): the formations lay their slots out by the members' largest
 // (EEFCircle / EEFLine / EEFWedge::vf2 0x4D7235 / 0x4D79D9 / 0x4D8079, EECPAttackFormation::vf15 0x45257A); the
@@ -312,6 +341,10 @@ internal inline int unit_type_launch(ee_unit_type *unit_type, ee_unit *m, float 
 // the world's settle and the map's place (game/api/unit.c unit_create)
 typedef ee_unit *(__thiscall *unit_type_create_fn)(ee_unit_type *, int, int, int, int, int);
 internal inline ee_unit *unit_type_create(ee_unit_type *unit_type, int x, int y, int player, int p4, int p5) { return ((unit_type_create_fn)(*(void ***)unit_type)[slot_unit_type_create])(unit_type, x, y, player, p4, p5); }
+// vf1: thiscall(type, float pos[3]) - the units' fill moves an object without a complex unit's place by it (its
+// tile's middle and the ground's height in) [guess: what it changes]
+typedef void (__thiscall *unit_type_place_drawn_fn)(ee_unit_type *, float *);
+internal inline void unit_type_place_drawn(ee_unit_type *unit_type, float *pos) { ((unit_type_place_drawn_fn)(*(void ***)unit_type)[slot_unit_type_place_drawn])(unit_type, pos); }
 // vf21: a building on land (the AoC decompilation's IsLandBuilding) - the units' opacity (EEROUnits.opacity)
 // fades one that comes near the camera's front plane
 typedef uint8_t (__thiscall *unit_type_is_land_building_fn)(ee_unit_type *);
@@ -336,6 +369,8 @@ internal inline int patch_proj_down(unit_type_down_fn h) { return patch_vtable(v
 
 // class ee_unit_stats (ee_unit_stats)
 // a unit type's per-player values, a unit's +0x34 (range, attack ...)
+// its name (UWideString): the units' fill shows it under the unit under the mouse
+internal inline uint8_t *unit_stats_name_at(const ee_unit_stats *o) { return (uint8_t *)o + of_unit_stats_name; }
 // between fields read through a unit's +0x34, unchanged
 internal inline ee_unit_type *unit_stats_get_type_data(const ee_unit_stats *o) { return *(ee_unit_type **)((uint8_t *)o + of_unit_stats_type_data); }
 internal inline void unit_stats_set_type_data(ee_unit_stats *o, ee_unit_type *v) { *(ee_unit_type **)((uint8_t *)o + of_unit_stats_type_data) = v; }
@@ -461,6 +496,11 @@ internal int spec_unit_type_select(int build) {
         of_unit_type_bank_angle = 0x454;
         of_unit_type_heading_offset = 0x458;
         of_unit_type_mark_size = 0x464;
+        of_unit_type_bar_x = 0x468;
+        of_unit_type_bar_y = 0x46C;
+        of_unit_type_faces_camera = 0x5FA;
+        of_unit_type_built_type = 0x400;
+        of_unit_type_has_power = 0x57C;
         of_unit_type_formation_size = 0x470;
         of_unit_type_collider_size = 0x474;
         of_unit_type_class_id = 0x4B4;
@@ -510,12 +550,14 @@ internal int spec_unit_type_select(int build) {
         calls_fire[3] = 0x0060B33C;
         slot_unit_type_launch = 42;
         slot_unit_type_create = 12;
+        slot_unit_type_place_drawn = 1;
         slot_unit_type_is_land_building = 21;
         vt_eeuc_missile = 0x00832E90;
         fn_eeuc_missile_launch = (unit_type_launch_fn)0x00606109;
         vt_eeuc_projectile = 0x00833060;
         slot_unit_type_down = 55;
         fn_eeuc_projectile_down = (unit_type_down_fn)0x006078F9;
+        of_unit_stats_name = 0x4C;
         of_unit_stats_type_data = 0x60;
         of_unit_stats_gfx = 0x68;
         of_unit_stats_height = 0x98;
@@ -560,6 +602,11 @@ internal int spec_unit_type_select(int build) {
         of_unit_type_bank_angle = 0x158;
         of_unit_type_heading_offset = 0x15C;
         of_unit_type_mark_size = 0x168;
+        of_unit_type_bar_x = 0x16C;
+        of_unit_type_bar_y = 0x170;
+        of_unit_type_faces_camera = 0x2F6;
+        of_unit_type_built_type = 0xFC;
+        of_unit_type_has_power = NA;
         of_unit_type_formation_size = 0x174;
         of_unit_type_collider_size = 0x178;
         of_unit_type_class_id = 0x1B8;
@@ -609,12 +656,14 @@ internal int spec_unit_type_select(int build) {
         calls_fire[3] = 0x0061D997;
         slot_unit_type_launch = 43;
         slot_unit_type_create = 12;
+        slot_unit_type_place_drawn = 1;
         slot_unit_type_is_land_building = 21;
         vt_eeuc_missile = 0x00848CF8;
         fn_eeuc_missile_launch = (unit_type_launch_fn)0x0061799B;
         vt_eeuc_projectile = 0x00848ED0;
         slot_unit_type_down = 56;
         fn_eeuc_projectile_down = (unit_type_down_fn)0x00619143;
+        of_unit_stats_name = 0x4C;
         of_unit_stats_type_data = 0x60;
         of_unit_stats_gfx = 0x68;
         of_unit_stats_height = 0x98;
@@ -638,12 +687,12 @@ internal int spec_unit_type_select(int build) {
         data_unit_type_bonus_table = 0x009318E8;
         value_unit_type_slot_type_assign = 29;
         value_unit_type_slot_type_can_carry = 61;
-        return 0;
+        return 1;
     }
     return 0;
 }
 // the names a build hasn't got, by build
-internal const char *const k_spec_unit_type_missing[ADDR_BUILDS] = { "", "" };
+internal const char *const k_spec_unit_type_missing[ADDR_BUILDS] = { "", "EEUnitClass.has_power" };
 // the load-time check: what the spec says of the running build's exe (spec_check): the failures
 internal int spec_unit_type_check(void) {
     int bad = 0;

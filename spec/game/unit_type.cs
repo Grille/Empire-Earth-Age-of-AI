@@ -88,6 +88,30 @@ unsafe struct EEUnitClass
     [offset((ee)0x464, (aoc)0x168), found(c)]
     float32 mark_size;
 
+    /// two floats the units' fill (EEROUnits' FillUnit) gives a record with hit points (ee_draw_record.bar_x / bar_y)
+    /// [guess: the health bar's place]
+    [offset((ee)0x468, (aoc)0x16C), found(c), guess]
+    float32 bar_x;
+
+    [offset((ee)0x46C, (aoc)0x170), found(c), guess]
+    /// the record's bar_y (beside bar_x): the fill copies it while the unit has hit points
+    float32 bar_y;
+
+    /// the units' fill turns its record to the camera's yaw (an object without a complex unit), or its complex unit's
+    /// up tilted toward it [guess]
+    [offset((ee)0x5FA, (aoc)0x2F6), found(c), guess]
+    uint8 faces_camera;
+
+    /// another type whose stats' graphics the units' fill gives the record too (ee_draw_record.gfx_built) - a
+    /// building site's finished building [guess]
+    [offset((ee)0x400, (aoc)0xFC), found(c), guess]
+    EEUnitClass* built_type;
+
+    /// EE's: a power bar shown (the record's power_bar from the complex unit's power over its stats'); AoC tests the
+    /// stats' power itself
+    [offset((ee)0x57C, (aoc)none), found(c), guess]
+    int32 has_power;
+
     /// its room in a formation (dreadnought 4, cruiser 3; the data's column 0x200, the community editor's "Size in
     /// formation", copied by the constructor 0x61C35B): the formations lay their slots out by the members' largest
     /// (EEFCircle / EEFLine / EEFWedge::vf2 0x4D7235 / 0x4D79D9 / 0x4D8079, EECPAttackFormation::vf15 0x45257A); the
@@ -312,6 +336,11 @@ unsafe struct EEUnitClass
     [slot(12)]
     extern EEUnit* create(int32 x, int32 y, int32 player, int32 p4, int32 p5);
 
+    /// vf1: thiscall(type, float pos[3]) - the units' fill moves an object without a complex unit's place by it (its
+    /// tile's middle and the ground's height in) [guess: what it changes]
+    [slot(1)]
+    extern void place_drawn(float32* pos);
+
     /// vf21: a building on land (the AoC decompilation's IsLandBuilding) - the units' opacity (EEROUnits.opacity)
     /// fades one that comes near the camera's front plane
     [slot(21)]
@@ -342,6 +371,10 @@ unsafe struct EEUCProjectile
 /// a unit type's per-player values, a unit's +0x34 (range, attack ...)
 unsafe struct ee_unit_stats
 {
+    /// its name (UWideString): the units' fill shows it under the unit under the mouse
+    [offset(0x4C), found(c)]
+    wstring name;
+
     /// between fields read through a unit's +0x34, unchanged
     [offset(0x60), found(b)]
     EEUnitClass* type_data;

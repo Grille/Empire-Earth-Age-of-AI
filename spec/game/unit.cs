@@ -437,6 +437,52 @@ unsafe struct EEComplexUnit
     [offset((ee)0x339, (aoc)0x345), found(c)]
     uint8 cloakable;
 
+    /// THE FILL'S (EEROUnits' FillUnit, collect.c uc_fill): its record gets these. Drawn in a tint of its own (the
+    /// record's tinted; the tint the three floats at +0x1AC) [guess: what sets it]
+    [offset((ee)0x33D, (aoc)0x349), found(c), guess]
+    uint8 tint_on;
+
+    [offset(0x1AC), found(c), guess]
+    /// the tint: the fill copies the three floats into the record's tint while tint_on
+    vec3 tint;
+
+    /// a gate's opening (the record's gate_open)
+    [offset(0x228), found(c)]
+    float32 gate_open;
+
+    /// how far between anim_frame and next_frame (the AoC decompilation's physical model's fraction)
+    [offset(0x23C), found(c)]
+    float32 fraction;
+
+    /// a float per part of its graphics (EEGraphicObject's +4 vector) [guess]
+    [offset(0x204), found(c), guess]
+    float32* part_values;
+
+    /// two lists of pointers and their counts (the fill puts each element's +0xC and +4 into its record) [guess]
+    [offset(0x1B8), found(c), guess]
+    void** list_a;
+
+    [offset((ee)0x2EC, (aoc)0x2F0), found(c), guess]
+    /// list_a's count (the fill's loop)
+    uint32 list_a_n;
+
+    [offset(0x1BC), found(c), guess]
+    /// the second list (the fill puts each element's +0xC and +4 into the record's list_b_c / list_b_4)
+    void** list_b;
+
+    [offset((ee)0x2F0, (aoc)0x2F4), found(c), guess]
+    /// list_b's count (the fill's loop)
+    uint32 list_b_n;
+
+    /// a vector of its goals' handlers (the first at +0x100, the end +0x104; each one's +0x10 -> +0x20 its kind): the fill
+    /// asks the first of kind 5, 6 or 2 its vf6 [guess]
+    [offset(0x100), found(c), guess]
+    void** goals_first;
+
+    [offset(0x104), found(c), guess]
+    /// goals_first's end
+    void** goals_end;
+
     /// AoC's: it is cloaked now (mIsCloaked) - AoC's units' opacity (0x63CEE2) draws a unit already see-through
     /// (show hidden units) by its cloak only while cloakable and this are set
     [offset((ee)none, (aoc)0x346), found(c)]

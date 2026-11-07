@@ -458,6 +458,26 @@ AoC 3.8 million. Found on the way: the set's insert answers a pair (its node and
 walk of step 1 gave it room for the node alone - 4 bytes of collect_walk's stack overwritten for each remembered
 building on several tiles; now room for both.
 
+The fill ported (collect.c uc_fill, 2026-11-07; the pipe: `picture collect fill game | own`). FillUnit (EE 0x502622,
+AoC 0x50D3AD; 1246 instructions, AoC's 1289) makes an object's draw record (spec ee_draw_record, 0x148 bytes): its
+type's, owner's and complex unit's values; the health bars (its own hit points, then each unit inside's for its owner
+and allies) of a selected unit or one in the list of ids at 0x8D2A90 - and the record into the health bars' list -, a
+power bar, the selection circle by the circle mode; its graphics' parts and two lists of the complex unit into the
+record's vectors; the name under the mouse (and its owner's for another player's unit); its pose (the complex unit's
+transformation, frame, next frame and fraction, turned up to the camera for a type that faces it); one without a
+complex unit at its tile's middle turned to the camera's yaw, a path marker on its target (coloured by the target's
+id); a building site scaled up by its hit points with its finished building's graphics beside; the ground's height
+under it; then into the picker, the sort map by its graphics' key and, with a complex unit, the third map. The vectors'
+resize, clear and push, the strings' operator=, the picker's add, the maps' insert, the ambient sounds' turn are the
+game's own functions. AoC's code differs in four places, ported by build: a ground circle for its type 0x2F0 when
+selected, the circle's sight from GetLineOfSight, two kinds of building sites sunk into the ground, the tile's light
+byte tested by its low 7 bits. walls.c's hook of the fill's site calls collect_fill (the game's fill or ours), then
+shears its farms. No check mode - the fill changes the game's lists -: held against the game's in a paused game, the
+lists' print with either fill alike - the records' bytes and their vectors' and labels' contents, the picker, the sort
+maps, the health bars' list: the 8000 save at three places (7264, 5299, 344 objects; 3677 units selected, 4395 health
+bars), as its player 2 in the fog, an EE and an AoC Continental game with their start's units selected - each then
+30 s at speed 3 with the mod's fill.
+
 `[display] gpu_animation` (default on; the pipe: `picture morph on | off`; render_morph.c), 2026-11-06. EE animates a
 model by morphing: every frame of its animation is a whole vertex array (spec GEModel.vertices, frames alike share
 one), and the T&L DLL's DrawModelHierarchy draws each material by copying its run of the frame into the vertex buffer

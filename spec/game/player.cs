@@ -46,6 +46,11 @@ unsafe struct EEPlayer
     [offset(0x488), found(b)]
     wstring civ_name;
 
+    /// the units' fill names an enemy under the mouse by its name (+0x24) when this is set or it is human, else by its
+    /// civilization's (0x521B3B, AoC 0x52C72C: thiscall on +0x468, its +0x3D) [guess: what sets it]
+    [offset(0x4A5), found(c), guess]
+    uint8 shows_name;
+
     [offset(0x4A8), found(c)]
     EEPlayerStatistics stats;
 

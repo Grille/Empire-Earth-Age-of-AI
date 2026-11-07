@@ -82,11 +82,11 @@ internal inline int patch_draw_list(int limit, uint8_t **recs, int *ok_out, int 
     const struct { uint32_t at, want; int kind; } k[] = {
         { at[0], 0x200, 0 },                     // cmp [0x912538], 0x200 (0x5008B8: room for one more)
         { at[1], 0x200, 0 },                     // push 0x200 (0x5035AD: its sub-objects)
-        { at[2], data_hooks_draw_old + of_draw_record_0x58, 1 },       // mov esi, records +0x58 (init loop at game start)
-        { at[3], data_hooks_draw_old + DRAW_OLD_N * DRAW_REC + of_draw_record_0x58, 2 },   // cmp esi, its end
+        { at[2], data_hooks_draw_old + of_draw_record_hp_bars, 1 },       // mov esi, records +0x58 (init loop at game start)
+        { at[3], data_hooks_draw_old + DRAW_OLD_N * DRAW_REC + of_draw_record_hp_bars, 2 },   // cmp esi, its end
         { at[4], data_hooks_draw_old, 1 },              // push records (0x500D10: frame start)
         { at[5], data_hooks_draw_old, 1 },              // mov edi, records (collection)
-        { at[6], data_hooks_draw_old + of_draw_record_0xfc, 1 },       // add eax, records +0xFC
+        { at[6], data_hooks_draw_old + of_draw_record_opacity, 1 },       // add eax, records +0xFC
         { at[7], data_hooks_draw_old, 1 },              // push records (frame end)
         { at[8], data_hooks_draw_old, 1 },              // push records (0x50BD9D: drawing)
     };
@@ -145,7 +145,7 @@ internal inline uint32_t draw_small_room(void) { return *(uint32_t *)(uintptr_t)
 // the room the view test (EEROUnits.drawn) checks the counts against: its cmp's (the first of each list's sites)
 internal inline uint32_t drawn_room(void) { return *(uint32_t *)(uintptr_t)data_hooks_draw_sites[0]; }
 internal inline uint32_t drawn_small_room(void) { return *(uint32_t *)(uintptr_t)data_hooks_draw_small_sites[0]; }
-internal inline float *draw_record_opacity(uint8_t *rec) { return (float *)(rec + of_draw_record_0xfc); }
+internal inline float *draw_record_opacity(uint8_t *rec) { return (float *)(rec + of_draw_record_opacity); }
 internal inline float *draw_small_record_opacity(uint8_t *rec) { return (float *)(rec + 0x24); }
 internal inline uint32_t *draw_count_at(void) { return (uint32_t *)(uintptr_t)data_game_draw_n; }
 internal inline uint32_t *draw_small_count_at(void) { return (uint32_t *)(uintptr_t)data_game_draw_small_n; }
@@ -161,6 +161,7 @@ typedef struct {
     terrain_row_fn row;
     pick_listed_fn listed;
     draw_record_fill_fn fill;
+    int fill_hooked;   // its site calls a hook (walls.c's), not the game's fill
 } units_walk;
 internal inline units_walk units_walk_of(uint8_t *f) {
     units_walk w = {
@@ -170,6 +171,7 @@ internal inline units_walk units_walk_of(uint8_t *f) {
         (terrain_rows_fn)call_site_target(data_engine_display_call_units_rows),
         (terrain_row_fn)call_site_target(data_engine_display_call_units_row),
         (pick_listed_fn)call_site_target(call_pick_listed), (draw_record_fill_fn)call_site_target(call_draw_record_fill),
+        call_site_target(call_draw_record_fill) != (void *)fn_draw_record_fill,
     };
     return w;
 }

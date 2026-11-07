@@ -13,6 +13,16 @@ unsafe struct EEGraphicObject
     [offset((ee)0x234, (aoc)0x244), found(c)]
     block anim_model;
 
+    /// per animation (uint32 each): the key its record goes into the sort map by (the units' fill: FillUnit's insert)
+    /// - objects of one key are drawn together
+    [offset((ee)0x1FC, (aoc)0x20C), found(c)]
+    block anim_keys;
+
+    /// the key of its second insert, into the sort map engine_display.sort_maps + 0x18 (an object with a complex unit
+    /// not under construction)
+    [offset((ee)0x278, (aoc)0x288), found(c)]
+    uint32 shadow_key;
+
     /// per animation (int32 each): its first frame - the animation setter (0x5EFD6D, AoC 0x5FE02A) starts there
     [offset((ee)0x350, (aoc)0x360), found(c)]
     block anim_first;

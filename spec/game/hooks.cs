@@ -11,17 +11,154 @@ unsafe struct ee_draw_record
     [offset(0x4C), found(c), guess]
     vec3 tint;
 
-    /// the same in AoC: its draw list sites read hooks.draw_old + 0x58 and + 0xFC (0x50B2AD, 0x50EF07)
-    [offset(0x58), found(h, "the same in AoC: its draw list sites read hooks.draw_old + 0x58 and + 0xFC (0x50B2AD, 0x50EF07)")]
-    block _0x58;
-
-    /// the same in AoC: its draw list sites read hooks.draw_old + 0x58 and + 0xFC (0x50B2AD, 0x50EF07)
-    [offset(0xFC), found(h, "the same in AoC: its draw list sites read hooks.draw_old + 0x58 and + 0xFC (0x50B2AD, 0x50EF07)")]
-    block _0xfc;
+    /// its opacity (EEROUnits.opacity writes it before the fill; the same in AoC: its draw list sites read
+    /// hooks.draw_old + 0x58 and + 0xFC, 0x50B2AD, 0x50EF07)
+    [offset(0xFC), found(c)]
+    float32 opacity;
 
     /// a draw list record
     [address((ee)0x00506442, (aoc)0x005118E9)]
     extern void init();
+
+    // THE FIELDS ITS FILL WRITES (EEROUnits' FillUnit, EE 0x502622, AoC 0x50D3AD; collect.c's port uc_fill) - the
+    // same offsets in both builds
+
+    /// where it is drawn: a GETransformation (4 rows; the complex unit's +0x130 copied, else made at its tile)
+    [offset(0x0), found(c)]
+    fixed float32 transform[16];
+
+    /// vectors (MSVC: the first element at +4, the end at +8; the list's init loop starts at the first, hooks.draw_sites):
+    /// the health bars - [0] its own hit points over its
+    /// type's, then each unit inside's (for the owner and allies); the complex unit's graphics' per-part values
+    /// (+0x204) and their parts' models (+0x4C of each); the two lists of the complex unit's +0x1B8 and +0x1BC (each
+    /// element's +0xC and +4) [guess: what they are drawn as]
+    [offset(0x58), found(c)]
+    vector hp_bars;
+
+    [offset(0x68), found(c), guess]
+    /// the complex unit's part_values, one for each part of its graphics
+    vector part_values;
+
+    [offset(0x78), found(c), guess]
+    /// each part's model (the graphics' +4 vector, its elements' +0x4C), beside part_values
+    vector part_models;
+
+    [offset(0x88), found(c), guess]
+    /// the complex unit's list_a: each element's +0xC (list_a_4 its +4)
+    vector list_a_c;
+
+    [offset(0x98), found(c), guess]
+    /// the complex unit's list_a: each element's +4
+    vector list_a_4;
+
+    [offset(0xA8), found(c), guess]
+    /// the complex unit's list_b: each element's +0xC (list_b_4 its +4)
+    vector list_b_c;
+
+    [offset(0xB8), found(c), guess]
+    /// the complex unit's list_b: each element's +4
+    vector list_b_4;
+
+    /// the name shown under the unit under the mouse (UWideString: its stats' name; its characters at +4)
+    [offset(0xC8), found(c)]
+    wstring label;
+
+    [offset(0xDC), found(c)]
+    EEUnitClass* type;
+
+    /// its graphics (EEUnit.graphics) and a second one (its type's built_type's stats' gfx; 0: none)
+    [offset(0xE0), found(c)]
+    EEGraphicObject* gfx;
+
+    [offset(0xE4), found(c)]
+    EEGraphicObject* gfx_built;
+
+    /// its scale (the physical model's, or its stats' height)
+    [offset(0xE8), found(c)]
+    float32 scale;
+
+    /// the selection circle's size: its type's mark_size, or twice its sight or range (by engine_display.circle_mode)
+    [offset(0xEC), found(c)]
+    float32 circle;
+
+    /// its type's two floats +0x468 / +0x46C (AoC +0x16C / +0x170) while it has hit points, else 0 [guess: the health
+    /// bar's place]
+    [offset(0xF0), found(c), guess]
+    float32 bar_x;
+
+    [offset(0xF4), found(c), guess]
+    /// the type's +0x46C (AoC +0x170) while it has hit points, beside bar_x
+    float32 bar_y;
+
+    /// the ground's height under it (0 on a tile with its light byte set while it is above 0)
+    [offset(0xF8), found(c)]
+    float32 ground_z;
+
+    /// a power bar's fill (the complex unit's power over its stats'; 1 when its type has none)
+    [offset(0x100), found(c)]
+    float32 power_bar;
+
+    /// how far between frame and next_frame (the complex unit's +0x23C)
+    [offset(0x104), found(c)]
+    float32 fraction;
+
+    /// a gate's opening (the complex unit's +0x228), with gated set
+    [offset(0x108), found(c)]
+    float32 gate_open;
+
+    /// with tinted: the tint's fourth value (engine_display.tint_alpha)
+    [offset(0x10C), found(c)]
+    float32 tint_alpha;
+
+    [offset(0x110), found(c)]
+    int32 class_id;
+
+    [offset(0x114), found(c)]
+    int32 type_id;
+
+    [offset(0x118), found(c)]
+    int32 family;
+
+    /// its script state's id (0: none)
+    [offset(0x11C), found(c)]
+    uint32 state;
+
+    /// what it produces (EEComplexUnit.producing while produce_left > 0, else 100000)
+    [offset(0x120), found(c)]
+    int32 producing;
+
+    [offset(0x124), found(c)]
+    int32 anim;
+
+    [offset(0x128), found(c)]
+    int32 size;
+
+    [offset(0x12C), found(c)]
+    int32 frame;
+
+    [offset(0x130), found(c)]
+    int32 next_frame;
+
+    [offset(0x138), found(c)]
+    int32 serial;
+
+    [offset(0x13C), found(c)]
+    int32 player;
+
+    /// its first goal of kind 5, 6 or 2 asked for its vf6 (while it has hit points) [guess]
+    [offset(0x140), found(c), guess]
+    uint32 goal_value;
+
+    /// a gaia animal or bush with food the player hasn't in sight
+    [offset(0x145), found(c)]
+    uint8 fogged;
+
+    /// the complex unit's tint on (its +0x33D: the tint its +0x1AC)
+    [offset(0x146), found(c)]
+    uint8 tinted;
+
+    [offset(0x147), found(c)]
+    uint8 gated;
 }
 
 /// hooks's data of the game, places in its code and numbers

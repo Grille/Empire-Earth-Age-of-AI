@@ -175,6 +175,263 @@ internal int uc_drawn_of(ee_ro_units *ro, ee_unit *o, ee_unit_vis *v, void *met)
     return r;
 }
 
+// STEP 2: THE FILL (EEROUnits' FillUnit: EE 0x502622, AoC 0x50D3AD - the same code but for addresses and offsets and
+// four AoC blocks). An object's draw record from the world: its type's, owner's and complex unit's values, the health
+// bars (its own, then the units inside's for its owner and allies), its graphics' parts and two lists of the complex
+// unit, the name under the mouse, its pose (the complex unit's transformation, frame, next frame, fraction; one
+// without - a remembered building, a path marker on its target - at its tile turned to the camera), a building site
+// scaled up by its hit points, the ground's height under it; then into the picker and the sort map by its graphics'
+// key (one with a complex unit also into the third map). Its game calls - the vectors' resize, clear and push, the
+// strings' operator=, the picker's add, the maps' insert, the ambient sounds' turn - are the game's own. info: the
+// update's (the unit under the mouse +0, the camera's yaw +4, the fighting units +8, the ambient sounds' turn +0x10).
+typedef struct { ee_unit *picked; float yaw, fighting; uint32_t frame; uint8_t ambient; } uc_info;
+internal int uc_shows_bars(ee_unit *cu, ee_player *me) {
+    return unit_count_inside(cu) && (unit_get_owner(cu) == me || player_stance_to(unit_get_owner(cu), player_get_index(me)) == 0);
+}
+internal void uc_bars(uint8_t *rec, ee_unit *u, ee_unit *cu, ee_player *me) {
+    ee_unit_stats *st = unit_get_stats(u);
+    if (uc_shows_bars(cu, me)) {
+        vector_resize(draw_record_hp_bars_at(rec), (uint32_t)unit_count_inside(cu) + 1, 0);
+        for (uint32_t i = 0; i < (uint32_t)unit_count_inside(cu); i++) {
+            ee_unit *in = ((ee_unit **)vector_first(unit_inside_at(cu) - 4))[i];
+            float v = (float)((long double)unit_get_hp(in) / unit_stats_get_hp(unit_get_stats(in)));
+            ((float *)vector_first(draw_record_hp_bars_at(rec)))[i + 1] = v;
+        }
+    }
+    ((float *)vector_first(draw_record_hp_bars_at(rec)))[0] = (float)((long double)unit_get_hp(u) / unit_stats_get_hp(st));
+    int power = build_is("aoc") ? unit_stats_get_power(st) != 0 : unit_type_get_has_power(unit_get_type_data(u)) != 0;
+    draw_record_set_power_bar(rec, power ? (float)((long double)unit_get_power(cu) / unit_stats_get_power(st)) : fill_consts_now().bar_full);
+}
+internal int uc_in_bar_ids(ee_unit *u) {
+    const uint8_t *v = engine_display_bar_ids_at();
+    const uint32_t *p = vector_first(v), *e = *(const uint32_t *const *)(v + 8);
+    for (; p != e; p++) if (*p == (uint32_t)unit_get_serial(u)) return 1;
+    return 0;
+}
+internal void uc_fill(ee_ro_units *ro, ee_unit *u, uint8_t *rec, void *sort_map, uc_info *info) {
+    opacity_consts oc = opacity_consts_now();
+    fill_consts fc = fill_consts_now();
+    ee_map *map = game_map();
+    const void *mesh = map_mesh_at(map);
+    ee_tile *tile = (ee_tile *)unit_get_vis(u);
+    ee_unit *cu = unit_get_physics(u), *second = cu;   // second: the object of the third map's insert
+    ee_unit_stats *st = unit_get_stats(u);
+    ee_player *me = game_players()[local_player_index()], *owner = unit_get_owner(u);
+    ee_unit_type *ty = unit_get_type_data(u);
+    int ux = unit_get_x(u), uy = unit_get_y(u), free_cam = *game_free_camera_at() != 0;
+    float pos[3] = { 0, 0, 0 }, ground[3] = { 0, 0, 0 }, up[3] = { 0, 1, 0 }, tilt[3] = { 0, 0, 0 };
+    int food = unit_holds_food(u) && cu && unit_type_get_class_id(ty) != CLS_LAND_CITIZEN &&
+               unit_type_get_class_id(ty) != CLS_NAVAL_CITIZEN && player_get_index(owner) == 0;
+    if (cu) { if (info->ambient) ambient_add(engine_display_ambient_sounds_at(), cu); }
+    else if (info->ambient) ambient_add_object(engine_display_ambient_sounds_at(), u);
+    draw_record_set_type(rec, ty);
+    draw_record_set_size(rec, unit_type_get_size(ty));
+    memcpy(draw_record_color_at(rec), player_color_at(owner), 12);
+    draw_record_set_class_id(rec, unit_type_get_class_id(ty));
+    draw_record_set_type_id(rec, unit_type_get_id(ty));
+    draw_record_set_family(rec, unit_type_get_family(ty));
+    draw_record_set_bar_x(rec, unit_get_hp(u) > 0 ? unit_type_get_bar_x(ty) : 0.0f);
+    draw_record_set_bar_y(rec, unit_get_hp(u) > 0 ? unit_type_get_bar_y(ty) : 0.0f);
+    draw_record_set_circle(rec, unit_type_get_mark_size(ty));
+    draw_record_set_player(rec, player_get_index(owner));
+    draw_record_set_producing(rec, (int)producing_none());
+    draw_record_set_serial(rec, unit_get_serial(u));
+    draw_record_set_gfx_built(rec, NULL);
+    draw_record_set_tinted(rec, 0);
+    draw_record_set_gated(rec, 0);
+    uint8_t *label = draw_record_label_at(rec);   // the string emptied: its first character, its length and room
+    **(uint8_t **)(label + 4) = 0;
+    *(uint32_t *)(label + 0xC) = 0;
+    *(uint32_t *)(label + 8) = 0;
+    draw_record_set_goal_value(rec, 0);
+    draw_record_set_fogged(rec, !free_cam && food ? !unit_vis_seen_by((ee_unit_vis *)tile, me) : 0);
+    draw_record_set_gfx(rec, unit_graphics(u));
+    graphics_acquire(draw_record_get_gfx(rec));
+    if (cu) {
+        draw_record_set_scale(rec, unit_get_height(cu));
+        draw_record_set_tinted(rec, unit_get_tint_on(cu));
+        if (draw_record_get_tinted(rec)) {
+            memcpy(draw_record_tint_at(rec), unit_tint_at(cu), 12);
+            draw_record_set_tint_alpha(rec, fc.tint_alpha);
+        }
+        ee_unit_type *cty = unit_get_type_data(cu);
+        if (unit_type_get_class_id(cty) == CLS_GATE) {
+            void *gate = gate_class_of(cty);
+            if (unit_get_hp(cu) > 0 && ((!unit_get_chained(cu) && unit_get_chain(cu)) || gate_drawn_open(gate, cu))) {
+                draw_record_set_gate_open(rec, unit_get_gate_open(cu));
+                draw_record_set_gated(rec, 1);
+            }
+        }
+        ee_goal *g = unit_get_goal(cu);
+        if (*engine_display_music_counts_at() && unit_get_hp(cu) && g &&
+            (goal_get_state(g) == 2 || goal_get_state(g) == 3 || goal_get_state(g) == 0xB))
+            info->fighting = (float)((long double)info->fighting + oc.one);
+        if (build_is("aoc") && unit_type_get_id(cty) == 0x2F0 && unit_get_finished(cu) &&
+            group_contains(player_get_ui_group(me), cu))   // AoC's: its ground circle at its range
+            ground_circle(ro, unit_matrix_at(cu), unit_stats_get_range(st), 2);
+        if (!unit_is_foundation(cu)) {
+            uint8_t *gc = (uint8_t *)unit_graphics(cu);
+            uint32_t n = vector_size(gc + 4);
+            vector_resize(draw_record_part_values_at(rec), n, 0);
+            vector_resize(draw_record_part_models_at(rec), n, 0);
+            for (uint32_t i = 0; i < n; i++) {
+                ((float *)vector_first(draw_record_part_values_at(rec)))[i] = unit_get_part_values(cu)[i];
+                uint8_t *part = *type_stats_game((uint8_t *)draw_record_get_gfx(rec) + 4, (int)i);
+                ((uint32_t *)vector_first(draw_record_part_models_at(rec)))[i] = *(uint32_t *)(part + 0x4C);
+            }
+            uint32_t na = unit_get_list_a_n(cu);
+            vector_resize(draw_record_list_a_c_at(rec), na, 0);
+            vector_resize(draw_record_list_a_4_at(rec), na, 0);
+            for (uint32_t i = 0; i < na; i++) {
+                uint8_t *e = unit_get_list_a(cu)[i];
+                ((uint32_t *)vector_first(draw_record_list_a_c_at(rec)))[i] = *(uint32_t *)(e + 0xC);
+                ((uint32_t *)vector_first(draw_record_list_a_4_at(rec)))[i] = *(uint32_t *)(e + 4);
+            }
+            uint32_t nb = unit_get_list_b_n(cu);
+            vector_resize(draw_record_list_b_c_at(rec), nb, 0);
+            vector_resize(draw_record_list_b_4_at(rec), nb, 0);
+            for (uint32_t i = 0; i < nb; i++) {
+                uint8_t *e = unit_get_list_b(cu)[i];
+                ((uint32_t *)vector_first(draw_record_list_b_c_at(rec)))[i] = *(uint32_t *)(e + 0xC);
+                ((uint32_t *)vector_first(draw_record_list_b_4_at(rec)))[i] = *(uint32_t *)(e + 4);
+            }
+        }
+        int bars = !free_cam ? group_contains(player_get_ui_group(me), cu) || player_get_ui_unit(me) == u : unit_get_selected(u) != 0;
+        if (!bars) bars = uc_in_bar_ids(u);
+        if (bars) {
+            if (!unit_type_is_land_building(ty) || unit_get_hp(u)) {
+                int mode = *(const int *)engine_display_circle_mode_at();
+                if (mode == 0) draw_record_set_circle(rec, unit_type_get_mark_size(ty));
+                else if (mode == 1 || mode == 2) {
+                    float r = mode == 2 ? unit_stats_get_range(st) : build_is("aoc") ? line_of_sight(cu) : unit_stats_get_sight(st);
+                    draw_record_set_circle(rec, r + r);
+                }
+                uc_bars(rec, u, cu, me);
+                void *r = rec;
+                vector_push(engine_display_bar_records_at(), &r);
+            }
+        } else if (info->picked == u) {
+            wstring_assign(label, unit_stats_name_at(unit_get_stats(cu)));
+            uc_bars(rec, u, cu, me);
+            *(uint8_t **)engine_display_ui_record_at() = rec;
+            if (owner != game_players()[0] && owner != me) {
+                *(uint8_t **)engine_display_hover_record_at() = rec;
+                int named = player_is_human(owner) || player_get_shows_name(owner);
+                wstring_assign(engine_display_hover_name_at(), named ? (void *)player_name_at(owner) : (void *)player_civ_name_at(owner));
+            }
+        } else if (*(const uint32_t *)engine_display_show_labels_at())
+            wstring_assign(label, unit_stats_name_at(unit_get_stats(cu)));
+        if ((uint32_t)unit_get_producing(cu) != producing_none() && unit_get_produce_left(cu) > 0)
+            draw_record_set_producing(rec, unit_get_producing(cu));
+        if (!unit_is_foundation(cu)) {
+            draw_record_set_frame(rec, unit_get_anim_frame(cu));
+            draw_record_set_next_frame(rec, unit_get_next_frame(cu));
+            draw_record_set_fraction(rec, unit_get_fraction(cu));
+        } else {
+            draw_record_set_frame(rec, 0);
+            draw_record_set_next_frame(rec, 0);
+            draw_record_set_fraction(rec, 0.0f);
+        }
+        transform_assign(rec, unit_matrix_at(cu));
+        if (unit_type_get_faces_camera(cty)) {
+            transform_apply_vector(rec, up, tilt);
+            float pitch = (float)(arc_cos(-tilt[2]) - fc.tilt_offset);
+            transform_orient(rec, info->yaw, pitch, 0.0f);
+        }
+        ee_ai_state *s = unit_get_ai_state(cu);
+        draw_record_set_state(rec, s ? ai_state_get_id(s) : 0);
+        draw_record_set_anim(rec, unit_get_anim(cu));
+        for (void **p = unit_get_goals_first(cu); p != unit_get_goals_end(cu); p++) {
+            if (unit_get_hp(u) <= 0) continue;
+            uint8_t *h = *p;
+            int kind = *(int *)(*(uint8_t **)(h + 0x10) + 0x20);
+            if (kind == 5 || kind == 6 || kind == 2) {
+                draw_record_set_goal_value(rec, ((uint32_t (__thiscall *)(void *))(*(void ***)h)[6])(h));
+                break;
+            }
+        }
+        if (!unit_get_finished(cu) && !unit_is_foundation(cu)) {   // a building site: scaled up by its hit points
+            ee_unit_type *bt = unit_type_get_built_type(draw_record_get_type(rec));
+            if (bt) draw_record_set_gfx_built(rec, unit_stats_get_gfx(player_stats_of(game_players()[draw_record_get_player(rec)], unit_type_get_id(bt))));
+            if (draw_record_get_gfx_built(rec)) graphics_acquire(draw_record_get_gfx_built(rec));
+            float *t = draw_record_transform_at(rec);
+            float z = t[11];
+            t[11] = 0.0f;
+            transform_scale(rec, 1.0f, 1.0f, (float)((long double)unit_get_hp(u) / unit_stats_get_hp(st)));
+            t[11] = z;
+        } else if (build_is("aoc") && unit_is_foundation(cu)) {   // AoC's: two kinds' sites sunk
+            float *t = draw_record_transform_at(rec);
+            if (unit_type_get_id(cty) == 0x302) t[11] = (float)((long double)t[11] - fc.sink_302);
+            else if (unit_type_get_id(cty) == 0x31F) t[11] = (float)((long double)t[11] - fc.sink_31f);
+        }
+    } else {
+        draw_record_set_scale(rec, unit_stats_get_height(st));
+        int bars = u == player_get_ui_unit(me) || (free_cam && unit_get_selected(u));
+        if (!bars) bars = uc_in_bar_ids(u);
+        if (bars) {
+            draw_record_set_power_bar(rec, fc.bar_full);
+            vector_clear(draw_record_hp_bars_at(rec));
+            void *r = rec;
+            vector_push(engine_display_bar_records_at(), &r);
+        }
+        long double half = (long double)draw_record_get_size(rec) * oc.half;
+        pos[0] = (float)(half + unit_get_x(u));
+        pos[1] = (float)((long double)draw_record_get_size(rec) * oc.half + unit_get_y(u));
+        pos[2] = mesh_z(mesh, pos[0], pos[1]);
+        ee_unit *target, *tcu;
+        float *at;
+        if (unit_is_path_marker(u) && world_unit((uint32_t)unit_get_hp(u)) && (tcu = unit_get_physics(world_unit((uint32_t)unit_get_hp(u))))) {
+            second = tcu;
+            target = world_unit((uint32_t)unit_get_hp(u));
+            if (marker_place(unit_get_physics(target), ux, uy, &at)) {
+                pos[0] = at[0], pos[1] = at[1], pos[2] = at[2];
+                if (mesh_has_tile(mesh, (int)floorf(pos[0]), (int)floorf(pos[1]))) pos[2] = mesh_z(mesh, pos[0], pos[1]);
+                uint32_t id = (uint32_t)unit_get_serial(tcu) & 0xFFFFFF, k[3];
+                switch (id % 3) {
+                case 0: k[0] = id % 6, k[1] = id + 1, k[2] = id + 2; break;
+                case 1: k[0] = id + 1, k[1] = id % 6, k[2] = id + 2; break;
+                default: k[0] = id + 2, k[1] = id + 1, k[2] = id % 6; break;
+                }
+                float *tint = (float *)draw_record_tint_at(rec);
+                for (int i = 0; i < 3; i++) tint[i] = (float)((long double)k[i] * fc.marker_step);
+            }
+        }
+        unit_type_place_drawn(ty, pos);
+        if (unit_is_path_marker(u) && !(tile_get_height(tile) >= fc.marker_min_z)) pos[2] = fc.marker_min_z;
+        transform_orient(rec, unit_type_get_faces_camera(ty) ? info->yaw : 0.0f, 0.0f, 0.0f);
+        float *t = draw_record_transform_at(rec);
+        t[3] = pos[0], t[7] = pos[1], t[11] = pos[2];
+        draw_record_set_frame(rec, 0);
+        draw_record_set_next_frame(rec, 0);
+        draw_record_set_fraction(rec, 0.0f);
+        draw_record_set_state(rec, 0);
+        draw_record_set_anim(rec, 0);
+    }
+    float *t = draw_record_transform_at(rec);
+    if (map_tile_lit(map, ux, uy) && !(t[11] < oc.zero)) draw_record_set_ground_z(rec, 0.0f);
+    else {
+        float p[3] = { t[3], t[7], t[11] };
+        ground_point(map, p, ground);
+        draw_record_set_ground_z(rec, ground[2]);
+    }
+    pick_list_add(engine_display_pick_list_at(), u, rec, draw_record_get_opacity(rec));
+    void *found[2], *pair[2] = { (void *)(uintptr_t)graphics_anim_key(draw_record_get_gfx(rec), draw_record_get_anim(rec)), rec };
+    sort_map_insert(sort_map, found, pair);
+    if (second && !unit_is_foundation(second)) {
+        pair[0] = (void *)(uintptr_t)dmg_model_get_shadow_key(draw_record_get_gfx(rec));
+        pair[1] = rec;
+        sort_map_insert(engine_display_sort_maps_at() + 0x18, found, pair);
+    }
+}
+
+// the walk's fill: the game's or ours (the pipe: picture collect fill game | own) - also for walls.c's hook of its site,
+// which calls collect_fill for the fill and then shears its farms
+internal volatile int g_uc_fill;
+internal void __thiscall collect_fill(void *c, ee_unit *u, float *rec, void *p3, void *p4) {
+    if (g_uc_fill == 2) uc_fill((ee_ro_units *)c, u, (uint8_t *)rec, p3, (uc_info *)p4);
+    else draw_record_fill(c, u, rec, p3, p4);
+}
+
 // the walk's opacity: the game's, the game's held against ours (each object: both, the game's kept, the differences
 // counted and the first logged) or ours (the pipe: picture collect opacity game | check | own)
 internal volatile int g_uc_opacity;
@@ -234,7 +491,8 @@ __attribute__((used)) void __cdecl collect_walk(uint8_t *f) {
                             if (unit_get_physics(o)) *w.complex_n += 1.0f;
                             uint8_t *rec = recs + (size_t)*n * DRAW_REC;
                             int see = uc_opacity_of(ro, o, draw_record_opacity(rec));
-                            w.fill(ro, o, (float *)rec, maps + (see ? 0xC : 0), info);
+                            if (g_uc_fill == 2 && !w.fill_hooked) uc_fill(ro, o, rec, maps + (see ? 0xC : 0), (uc_info *)info);
+                            else w.fill(ro, o, (float *)rec, maps + (see ? 0xC : 0), info);
                             ++*n;
                         } else {
                             uint8_t *rec = small + (size_t)*sn * DRAW_SMALL_REC;
@@ -354,6 +612,13 @@ internal int collect_drawn(int how) {
     g_uc_drawn = how;
     return 0;
 }
+// picture collect fill game | own (0, 2): the fill the walk calls (no check: the fill changes the game's lists - the
+// lists' print in a paused game holds the two against each other)
+internal int collect_fill_mode(int how) {
+    if (!g_uc_installed) return -1;
+    g_uc_fill = how ? 2 : 0;
+    return 0;
+}
 
 // THE LISTS' PRINT (the pipe's drawcount hash): what the last update collected, to hold the mod's walk against the
 // game's in a paused game - the counts, the picker's, the sort maps' sizes and a hash of the records' contents but
@@ -378,6 +643,25 @@ internal void collect_print(void) {
     char cols[DRAW_SMALL_REC / 4 * 9 + 1];
     for (int k = 0; k < DRAW_SMALL_REC / 4; k++) snprintf(cols + k * 9, 10, " %08x", col[k]);
     log_locked("# collect: the trees' records by their dwords:%s\n", cols);
+    // the objects' records' vectors and label by their contents (their element counts too), the health bars' list
+    uint32_t hv = 2166136261u, nv = 0;
+    for (uint32_t i = 0; i < n; i++) {
+        uint8_t *r = (uint8_t *)recs + (size_t)i * DRAW_REC;
+        for (int k = 0; k < 7; k++) {
+            const uint8_t *v = draw_record_hp_bars_at(r) + k * 0x10;
+            const uint8_t *b = vector_first(v), *e = *(const uint8_t *const *)(v + 8);
+            uint32_t cnt = b ? (uint32_t)(e - b) / 4 : 0;
+            nv += cnt;
+            hv = (hv ^ cnt) * 16777619u;
+            for (const uint8_t *p = b; p && p < e; p++) hv = (hv ^ *p) * 16777619u;
+        }
+        const uint8_t *lb = draw_record_label_at(r);
+        const uint16_t *ch = *(const uint16_t *const *)(lb + 4);
+        for (uint32_t k = 0; ch && ch[k] && k < 256; k++) hv = (hv ^ ch[k]) * 16777619u;
+    }
+    const uint8_t *bv = engine_display_bar_records_at();
+    log_locked("# collect: the records' vectors and labels: hash %08x (%u elements); health bars' list %u\n", hv, nv,
+               (uint32_t)(*(const uint8_t *const *)(bv + 8) - *(const uint8_t *const *)(bv + 4)) / 4);
     const uint8_t *maps = engine_display_sort_maps_at();
     log_locked("# collect: the walk %s - objects %u (hash %08x), trees %u (hash %08x), picker %u, sort maps %u %u %u %u %u %u; doppelgangers %u (the mod's last walk)\n",
                g_uc_own ? "the mod's" : "the game's", n, h, sn, hs, pick_list_get_count((ee_pick_list *)engine_display_pick_list_at()),

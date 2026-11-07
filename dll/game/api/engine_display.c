@@ -237,6 +237,62 @@ internal inline void physical_model_set_scale(void *pm, float s) { *(float *)((u
 internal inline void transform_orient(void *t, float yaw, float pitch, float roll) { (*(pm_orient_fn *)data_engine_display_iat_set_orientation)(t, yaw, pitch, roll); }
 internal inline void transform_assign(void *t, const void *from) { (*(pm_assign_fn *)data_engine_display_iat_transform_assign)(t, from); }
 
+// THE UNITS' FILL's inputs (collect.c's port of FillUnit): its float constants, the mesh's rows (is a tile on it), a
+// tile's light byte as the build tests it (EE: not 0; AoC: its low 7 bits), the imports UWideString::operator=,
+// Apply of a vector, UMArcCos (its answer the FPU's, unrounded: an x87 long double in st0) and Scale, a gate type cast
+// to the gate's class, a graphics object acquired as the build does it (AoC through its vtable, slot 1), a player's
+// stats of a type, the sort keys
+typedef struct { float tint_alpha, bar_full, marker_step, tilt_offset, marker_min_z, sink_302, sink_31f; } fill_consts;
+internal inline fill_consts fill_consts_now(void) {
+    fill_consts c = { *(const float *)data_engine_display_tint_alpha, *(const float *)data_engine_display_bar_full,
+                      *(const float *)data_engine_display_marker_color_step, *(const float *)data_engine_display_tilt_offset,
+                      *(const float *)data_engine_display_marker_min_z,
+                      build_is("aoc") ? *(const float *)data_engine_display_sink_302 : 0.0f,
+                      build_is("aoc") ? *(const float *)data_engine_display_sink_31f : 0.0f };
+    return c;
+}
+internal inline uint32_t producing_none(void) { return value_engine_display_producing_none; }
+internal inline int mesh_has_tile(const void *mesh, int x, int y) {
+    const uint8_t *m = (const uint8_t *)mesh;
+    if ((uint32_t)y >= *(const uint32_t *)(m + value_engine_display_of_mesh_rows_n)) return 0;
+    const int32_t *row = (const int32_t *)(*(const uint8_t *const *)(m + value_engine_display_of_mesh_rows) + (size_t)(uint32_t)y * 0xC);
+    return (uint32_t)(x - row[0]) < (uint32_t)row[1];
+}
+internal inline int map_tile_lit(const ee_map *map, int x, int y) {
+    const uint8_t *row = *(const uint8_t *const *)((const uint8_t *)map + value_engine_display_of_map_light_rows) + (size_t)(uint32_t)y * 0xC;
+    uint8_t b = (*(const uint8_t *const *)(row + 8))[(size_t)(x - *(const int32_t *)row) * 4 + 3];
+    return build_is("aoc") ? (b & 0x7F) != 0 : b != 0;
+}
+typedef void (__thiscall *wstring_assign_fn)(void *to, const void *from);
+typedef void (__thiscall *transform_apply_vector_fn)(const void *t, const float *v, float *out);
+typedef long double (__cdecl *arc_cos_fn)(float x);
+typedef void (__thiscall *transform_scale_fn)(void *t, float x, float y, float z);
+internal inline void wstring_assign(void *to, const void *from) { (*(wstring_assign_fn *)data_engine_display_iat_wstring_assign)(to, from); }
+internal inline void transform_apply_vector(const void *t, const float *v, float *out) {
+    (*(transform_apply_vector_fn *)data_engine_display_iat_transform_apply_vector)(t, v, out);
+}
+internal inline long double arc_cos(float x) { return (*(arc_cos_fn *)data_engine_display_iat_arc_cos)(x); }
+internal inline void transform_scale(void *t, float x, float y, float z) { (*(transform_scale_fn *)data_engine_display_iat_transform_scale)(t, x, y, z); }
+internal inline void *gate_class_of(ee_unit_type *t) {
+    return rt_dynamic_cast(t, 0, (void *)(uintptr_t)data_engine_display_rtti_unit_class, (void *)(uintptr_t)data_engine_display_rtti_gate_class, 0);
+}
+internal inline void graphics_acquire(ee_dmg_model *g) {
+    if (build_is("aoc")) ((int (__thiscall *)(ee_dmg_model *))(*(void ***)g)[1])(g);
+    else dmg_model_acquire(g);
+}
+internal inline ee_unit_stats *player_stats_of(const ee_player *p, int type_id) {
+    return (*(ee_unit_stats ***)(player_type_stats_at(p) + 4))[type_id];
+}
+internal inline uint32_t graphics_anim_key(const ee_dmg_model *g, int anim) { return ((const uint32_t *)dmg_model_anim_keys_at(g))[anim]; }
+// the fill's lists: a vector's first element (MSVC: +4), its count (EEGraphicObject's +4 vector: player.vector_size)
+internal inline void *vector_first(const void *v) { return *(void *const *)((const uint8_t *)v + 4); }
+// a unit by its id as the world's lookup answers (the fill's: no check of its player first, unlike unit_by_id); whether
+// a group holds a unit (its vf3)
+internal inline ee_unit *world_unit(uint32_t id) { return world_unit_by_id((ee_world *)(uintptr_t)data_game_game_state, id); }
+internal inline int group_contains(void *grp, ee_unit *u) {
+    return ((uint8_t (__thiscall *)(void *, ee_unit *))(*(void ***)grp)[value_engine_display_slot_group_contains])(grp, u) != 0;
+}
+
 // EEGraphicObject.acquire's start -> h, *orig the game's (push ebp; mov ebp, esp; sub esp, 0x1B0 in both builds)
 internal inline int patch_acquire(dmg_model_acquire_fn h, dmg_model_acquire_fn *orig) {
     static const uint8_t pro[9] = { 0x55, 0x8B, 0xEC, 0x81, 0xEC, 0xB0, 0x01, 0x00, 0x00 };

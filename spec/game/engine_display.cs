@@ -987,6 +987,117 @@ static unsafe class engine_display
     [value((ee)0x48, (aoc)0x48)]
     static uint32 of_physical_model_frame;
 
+    /// THE UNITS' FILL (EEROUnits' FillUnit, EE 0x502622, AoC 0x50D3AD; collect.c's port uc_fill) reads and writes
+    /// these. The ambient sounds' (thiscall ambient_add / ambient_add_object on it, while the update's info asks: its
+    /// turn, +0x10)
+    [address((ee)0x009174E4, (aoc)0x0092F5D4)]
+    static block ambient_sounds;
+
+    /// a vector of unit ids (the first at +4, the end at +8): a unit in it gets its health bar drawn [guess: what
+    /// adds them]
+    [address((ee)0x008D2A90, (aoc)0x008E9230), guess]
+    static block bar_ids;
+
+    /// a vector of the records whose health bars are drawn (vector_push adds one)
+    [address((ee)0x008D2D10, (aoc)0x008E94B0)]
+    static block bar_records;
+
+    /// the record of the local player's unit under the mouse (ui_unit), and of another player's (its owner's name
+    /// in hover_name); show_labels: the stats' name into the record of the info's picked unit also when not the
+    /// player's [guess]
+    [address((ee)0x00912530, (aoc)0x00928CD0)]
+    static block ui_record;
+
+    [address((ee)0x009128A4, (aoc)0x00929044)]
+    static block hover_record;
+
+    [address((ee)0x00912890, (aoc)0x00929030)]
+    static block hover_name;
+
+    [address((ee)0x00912D60, (aoc)0x00929510), guess]
+    /// a flag: the fill copies the stats' name into the record of the info's picked unit while it is set and the unit is not the player's
+    static block show_labels;
+
+    /// the selection circles' size (int): 0 the type's mark_size, 1 twice the sight, 2 twice the range
+    [address((ee)0x009128D0, (aoc)0x0092906C)]
+    static block circle_mode;
+
+    /// byte: count the fighting units for the music (the update's info +8: one more for each unit whose goal's state
+    /// is 2, 3 or 11)
+    [address((ee)0x0091945F, (aoc)0x009308E0)]
+    static block music_counts;
+
+    /// float: a path marker is drawn at least this high
+    [address((ee)0x009125B0, (aoc)0x00928D50)]
+    static block marker_min_z;
+
+    /// float constants of the fill's code: the tint's fourth value, a full bar (1), a path marker's colour step (by
+    /// its target's id), the tilt's offset off the arc cosine
+    [address((ee)0x008257CC, (aoc)0x00839784)]
+    static block tint_alpha;
+
+    [address((ee)0x00827B3C, (aoc)0x0083C324)]
+    static block bar_full;
+
+    [address((ee)0x0082C370, (aoc)0x008413C8)]
+    static block marker_color_step;
+
+    [address((ee)0x00825984, (aoc)0x0083C008)]
+    static block tilt_offset;
+
+    /// AoC's: how far its building sites of two types (0x302, 0x31F) are drawn sunk
+    [address((ee)none, (aoc)0x008CC9FC)]
+    static block sink_302;
+
+    [address((ee)none, (aoc)0x008CCA00)]
+    static block sink_31f;
+
+    /// the gate's class the fill casts a gate's type to (__RTDynamicCast's type descriptors: from, to)
+    [address((ee)0x008A0A98, (aoc)0x008B6700)]
+    static block rtti_unit_class;
+
+    [address((ee)0x008A0AB8, (aoc)0x008B6720)]
+    static block rtti_gate_class;
+
+    /// GETerrainMesh (the map's +0x1C): the rows of tiles it has (a count, then a row's first x and its count, 0xC
+    /// each); EEMap: a row's tiles' light (0xC each: the first x, the data +8; 4 bytes a tile, the fill tests the
+    /// fourth)
+    [value((ee)0x17C6D0, (aoc)0x1905DC)]
+    static uint32 of_mesh_rows_n;
+
+    [value((ee)0x17B57C, (aoc)0x18F480)]
+    static uint32 of_mesh_rows;
+
+    [value((ee)0x17B598, (aoc)0x18F49C)]
+    static uint32 of_map_light_rows;
+
+    /// the player's selected group (EEPlayer.ui_group): its vf3, thiscall(group, unit) - whether the unit is in it (the
+    /// fill draws the health bars of one that is)
+    [value((ee)3, (aoc)3)]
+    static uint32 slot_group_contains;
+
+    /// EEComplexUnit.producing's nothing
+    [value((ee)100000, (aoc)100000)]
+    static uint32 producing_none;
+
+    /// the exe's import slots of UWideString::operator=, GETransformation::Apply (a GEVector), UMArcCos and
+    /// GETransformation::Scale (x, y, z)
+    [import_slot("Low-Level Engine.dll", "??4UWideString@@QAEAAV0@ABV0@@Z")]
+    [address((ee)0x008231D0, (aoc)0x008371CC)]
+    static block iat_wstring_assign;
+
+    [import_slot("Low-Level Engine.dll", "?Apply@GETransformation@@QBEXABVGEVector@@AAV2@@Z")]
+    [address((ee)0x008233FC, (aoc)0x00837394)]
+    static block iat_transform_apply_vector;
+
+    [import_slot("Low-Level Engine.dll", "?UMArcCos@@YAMM@Z")]
+    [address((ee)0x008237E4, (aoc)0x00837754)]
+    static block iat_arc_cos;
+
+    [import_slot("Low-Level Engine.dll", "?Scale@GETransformation@@QAEXMMM@Z")]
+    [address((ee)0x008237DC, (aoc)0x008377B4)]
+    static block iat_transform_scale;
+
     /// EEUnit.resource's food (kResourceFood): an animal or a bush of the gaia player with food left is drawn on a
     /// tile the player hasn't in sight (its fog) as long as it has a complex unit and isn't a citizen
     [value((ee)2, (aoc)2)]
@@ -1002,6 +1113,56 @@ static unsafe class engine_display_functions
     /// the view test (EEROUnits.drawn) keeps the objects met (walk_met) in one too, with the same two functions
     [address((ee)0x005050BD, (aoc)0x0042B588), thiscall]
     static extern void* doppelganger_set_find(void* set, void** found, EEDoppelganger** d);
+
+    /// the fill's helpers. thiscall(engine_display.ambient_sounds, a complex unit / an object): it into the ambient
+    /// sounds' turn
+    [address((ee)0x0051A4C5, (aoc)0x00524D63), thiscall]
+    static extern void ambient_add(void* sounds, EEUnit* cu);
+
+    [address((ee)0x00506249, (aoc)0x00524E80), thiscall]
+    static extern void ambient_add_object(void* sounds, EEUnit* u);
+
+    /// MSVC's vector: thiscall(v, n, value) resize (a 4-byte value); thiscall(v) clear; thiscall(v, &value) push_back
+    [address((ee)0x004D0945, (aoc)0x0041D79B), thiscall]
+    static extern void vector_resize(void* v, uint32 n, uint32 value);
+
+    [address((ee)0x00526AFF, (aoc)0x005B5772), thiscall]
+    static extern void vector_clear(void* v);
+
+    [address((ee)0x00504F0A, (aoc)0x0050FDA9), thiscall]
+    static extern void vector_push(void* v, void** value);
+
+    /// the sort maps' insert: thiscall(map, found: 8 bytes, a pair {key, record})
+    [address((ee)0x0044F431, (aoc)0x0051005E), thiscall]
+    static extern void sort_map_insert(void* map, void** found, void** pair);
+
+    /// thiscall(engine_display.pick_list, the unit, its record, its opacity): it into the list the mouse picks from
+    [address((ee)0x0050F6E2, (aoc)0x00519FFB), thiscall]
+    static extern void pick_list_add(void* list, EEUnit* u, void* record, float32 opacity);
+
+    /// thiscall(map, float pos[3], float out[3]): out the point on the ground under pos (its z when off the mesh)
+    [address((ee)0x004C0201, (aoc)0x004C0894), thiscall]
+    static extern void ground_point(void* map, float32* pos, float32* @out);
+
+    /// thiscall(a path marker's target's complex unit, x, y, float** at): where the marker at tile x, y is drawn on it
+    [address((ee)0x005EDB5E, (aoc)0x005FBC3B), thiscall]
+    static extern uint8 marker_place(EEUnit* target, int32 x, int32 y, float32** at);
+
+    /// MSVC's __RTDynamicCast(object, 0, from, to, 0) and the gate's class's test of a complex unit (thiscall on the
+    /// cast type) [guess: what it tests - drawn open]
+    [address((ee)0x00683720, (aoc)0x0069D180), cdecl]
+    static extern void* rt_dynamic_cast(void* o, int32 vf_delta, void* from, void* to, int32 is_ref);
+
+    [address((ee)0x00414C14, (aoc)0x0041076F), thiscall, guess]
+    static extern uint8 gate_drawn_open(void* gate_class, EEUnit* cu);
+
+    /// AoC's: EERenderObject::DrawGroundCircle (thiscall on the collection: a transformation, a radius, a mode) and
+    /// EEUnit::GetLineOfSight (thiscall: a float) - the AoC decompilation's names
+    [address((ee)none, (aoc)0x0050BBA4), thiscall]
+    static extern void ground_circle(void* collection, float32* at, float32 radius, int32 mode);
+
+    [address((ee)none, (aoc)0x005F9DCB), thiscall]
+    static extern float32 line_of_sight(EEUnit* cu);
 
     /// thiscall(the same set, found: 8 bytes - its node, then a byte: 1 inserted, 0 there before -, &the doppelganger):
     /// insert (ret 8; the pair std::set::insert returns, through the hidden pointer)

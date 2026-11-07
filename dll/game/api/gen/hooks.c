@@ -13,14 +13,145 @@ internal inline vec3 *draw_record_color_at(const void *o) { return (vec3 *)((uin
 internal inline vec3 draw_record_get_tint(const void *o) { return *(vec3 *)((uint8_t *)o + of_draw_record_tint); }
 internal inline void draw_record_set_tint(void *o, vec3 v) { *(vec3 *)((uint8_t *)o + of_draw_record_tint) = v; }
 internal inline vec3 *draw_record_tint_at(const void *o) { return (vec3 *)((uint8_t *)o + of_draw_record_tint); }
-// the same in AoC: its draw list sites read hooks.draw_old + 0x58 and + 0xFC (0x50B2AD, 0x50EF07)
-internal inline uint8_t *draw_record_0x58_at(const void *o) { return (uint8_t *)o + of_draw_record_0x58; }
-// the same in AoC: its draw list sites read hooks.draw_old + 0x58 and + 0xFC (0x50B2AD, 0x50EF07)
-internal inline uint8_t *draw_record_0xfc_at(const void *o) { return (uint8_t *)o + of_draw_record_0xfc; }
+// its opacity (EEROUnits.opacity writes it before the fill; the same in AoC: its draw list sites read
+// hooks.draw_old + 0x58 and + 0xFC, 0x50B2AD, 0x50EF07)
+internal inline float draw_record_get_opacity(const void *o) { return *(float *)((uint8_t *)o + of_draw_record_opacity); }
+internal inline void draw_record_set_opacity(void *o, float v) { *(float *)((uint8_t *)o + of_draw_record_opacity) = v; }
+internal inline float *draw_record_opacity_at(const void *o) { return (float *)((uint8_t *)o + of_draw_record_opacity); }
 // a draw list record
 typedef void (__thiscall *draw_record_init_fn)(void *);
 internal draw_record_init_fn fn_draw_record_init;
 internal inline void draw_record_init(void *draw_record) { fn_draw_record_init(draw_record); }
+// where it is drawn: a GETransformation (4 rows; the complex unit's +0x130 copied, else made at its tile)
+internal inline float draw_record_get_transform(const void *o, int i) { return ((float *)((uint8_t *)o + of_draw_record_transform))[i]; }
+internal inline void draw_record_set_transform(void *o, int i, float v) { ((float *)((uint8_t *)o + of_draw_record_transform))[i] = v; }
+internal inline float *draw_record_transform_at(const void *o) { return (float *)((uint8_t *)o + of_draw_record_transform); }
+// vectors (MSVC: the first element at +4, the end at +8; the list's init loop starts at the first, hooks.draw_sites):
+// the health bars - [0] its own hit points over its
+// type's, then each unit inside's (for the owner and allies); the complex unit's graphics' per-part values
+// (+0x204) and their parts' models (+0x4C of each); the two lists of the complex unit's +0x1B8 and +0x1BC (each
+// element's +0xC and +4) [guess: what they are drawn as]
+internal inline uint8_t *draw_record_hp_bars_at(const void *o) { return (uint8_t *)o + of_draw_record_hp_bars; }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// the complex unit's part_values, one for each part of its graphics
+internal inline uint8_t *draw_record_part_values_at(const void *o) { return (uint8_t *)o + of_draw_record_part_values; }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// each part's model (the graphics' +4 vector, its elements' +0x4C), beside part_values
+internal inline uint8_t *draw_record_part_models_at(const void *o) { return (uint8_t *)o + of_draw_record_part_models; }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// the complex unit's list_a: each element's +0xC (list_a_4 its +4)
+internal inline uint8_t *draw_record_list_a_c_at(const void *o) { return (uint8_t *)o + of_draw_record_list_a_c; }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// the complex unit's list_a: each element's +4
+internal inline uint8_t *draw_record_list_a_4_at(const void *o) { return (uint8_t *)o + of_draw_record_list_a_4; }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// the complex unit's list_b: each element's +0xC (list_b_4 its +4)
+internal inline uint8_t *draw_record_list_b_c_at(const void *o) { return (uint8_t *)o + of_draw_record_list_b_c; }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// the complex unit's list_b: each element's +4
+internal inline uint8_t *draw_record_list_b_4_at(const void *o) { return (uint8_t *)o + of_draw_record_list_b_4; }
+// the name shown under the unit under the mouse (UWideString: its stats' name; its characters at +4)
+internal inline uint8_t *draw_record_label_at(const void *o) { return (uint8_t *)o + of_draw_record_label; }
+internal inline ee_unit_type *draw_record_get_type(const void *o) { return *(ee_unit_type **)((uint8_t *)o + of_draw_record_type); }
+internal inline void draw_record_set_type(void *o, ee_unit_type *v) { *(ee_unit_type **)((uint8_t *)o + of_draw_record_type) = v; }
+internal inline ee_unit_type **draw_record_type_at(const void *o) { return (ee_unit_type **)((uint8_t *)o + of_draw_record_type); }
+// its graphics (EEUnit.graphics) and a second one (its type's built_type's stats' gfx; 0: none)
+internal inline ee_dmg_model *draw_record_get_gfx(const void *o) { return *(ee_dmg_model **)((uint8_t *)o + of_draw_record_gfx); }
+internal inline void draw_record_set_gfx(void *o, ee_dmg_model *v) { *(ee_dmg_model **)((uint8_t *)o + of_draw_record_gfx) = v; }
+internal inline ee_dmg_model **draw_record_gfx_at(const void *o) { return (ee_dmg_model **)((uint8_t *)o + of_draw_record_gfx); }
+internal inline ee_dmg_model *draw_record_get_gfx_built(const void *o) { return *(ee_dmg_model **)((uint8_t *)o + of_draw_record_gfx_built); }
+internal inline void draw_record_set_gfx_built(void *o, ee_dmg_model *v) { *(ee_dmg_model **)((uint8_t *)o + of_draw_record_gfx_built) = v; }
+internal inline ee_dmg_model **draw_record_gfx_built_at(const void *o) { return (ee_dmg_model **)((uint8_t *)o + of_draw_record_gfx_built); }
+// its scale (the physical model's, or its stats' height)
+internal inline float draw_record_get_scale(const void *o) { return *(float *)((uint8_t *)o + of_draw_record_scale); }
+internal inline void draw_record_set_scale(void *o, float v) { *(float *)((uint8_t *)o + of_draw_record_scale) = v; }
+internal inline float *draw_record_scale_at(const void *o) { return (float *)((uint8_t *)o + of_draw_record_scale); }
+// the selection circle's size: its type's mark_size, or twice its sight or range (by engine_display.circle_mode)
+internal inline float draw_record_get_circle(const void *o) { return *(float *)((uint8_t *)o + of_draw_record_circle); }
+internal inline void draw_record_set_circle(void *o, float v) { *(float *)((uint8_t *)o + of_draw_record_circle) = v; }
+internal inline float *draw_record_circle_at(const void *o) { return (float *)((uint8_t *)o + of_draw_record_circle); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// its type's two floats +0x468 / +0x46C (AoC +0x16C / +0x170) while it has hit points, else 0 [guess: the health
+// bar's place]
+internal inline float draw_record_get_bar_x(const void *o) { return *(float *)((uint8_t *)o + of_draw_record_bar_x); }
+internal inline void draw_record_set_bar_x(void *o, float v) { *(float *)((uint8_t *)o + of_draw_record_bar_x) = v; }
+internal inline float *draw_record_bar_x_at(const void *o) { return (float *)((uint8_t *)o + of_draw_record_bar_x); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// the type's +0x46C (AoC +0x170) while it has hit points, beside bar_x
+internal inline float draw_record_get_bar_y(const void *o) { return *(float *)((uint8_t *)o + of_draw_record_bar_y); }
+internal inline void draw_record_set_bar_y(void *o, float v) { *(float *)((uint8_t *)o + of_draw_record_bar_y) = v; }
+internal inline float *draw_record_bar_y_at(const void *o) { return (float *)((uint8_t *)o + of_draw_record_bar_y); }
+// the ground's height under it (0 on a tile with its light byte set while it is above 0)
+internal inline float draw_record_get_ground_z(const void *o) { return *(float *)((uint8_t *)o + of_draw_record_ground_z); }
+internal inline void draw_record_set_ground_z(void *o, float v) { *(float *)((uint8_t *)o + of_draw_record_ground_z) = v; }
+internal inline float *draw_record_ground_z_at(const void *o) { return (float *)((uint8_t *)o + of_draw_record_ground_z); }
+// a power bar's fill (the complex unit's power over its stats'; 1 when its type has none)
+internal inline float draw_record_get_power_bar(const void *o) { return *(float *)((uint8_t *)o + of_draw_record_power_bar); }
+internal inline void draw_record_set_power_bar(void *o, float v) { *(float *)((uint8_t *)o + of_draw_record_power_bar) = v; }
+internal inline float *draw_record_power_bar_at(const void *o) { return (float *)((uint8_t *)o + of_draw_record_power_bar); }
+// how far between frame and next_frame (the complex unit's +0x23C)
+internal inline float draw_record_get_fraction(const void *o) { return *(float *)((uint8_t *)o + of_draw_record_fraction); }
+internal inline void draw_record_set_fraction(void *o, float v) { *(float *)((uint8_t *)o + of_draw_record_fraction) = v; }
+internal inline float *draw_record_fraction_at(const void *o) { return (float *)((uint8_t *)o + of_draw_record_fraction); }
+// a gate's opening (the complex unit's +0x228), with gated set
+internal inline float draw_record_get_gate_open(const void *o) { return *(float *)((uint8_t *)o + of_draw_record_gate_open); }
+internal inline void draw_record_set_gate_open(void *o, float v) { *(float *)((uint8_t *)o + of_draw_record_gate_open) = v; }
+internal inline float *draw_record_gate_open_at(const void *o) { return (float *)((uint8_t *)o + of_draw_record_gate_open); }
+// with tinted: the tint's fourth value (engine_display.tint_alpha)
+internal inline float draw_record_get_tint_alpha(const void *o) { return *(float *)((uint8_t *)o + of_draw_record_tint_alpha); }
+internal inline void draw_record_set_tint_alpha(void *o, float v) { *(float *)((uint8_t *)o + of_draw_record_tint_alpha) = v; }
+internal inline float *draw_record_tint_alpha_at(const void *o) { return (float *)((uint8_t *)o + of_draw_record_tint_alpha); }
+internal inline int draw_record_get_class_id(const void *o) { return *(int *)((uint8_t *)o + of_draw_record_class_id); }
+internal inline void draw_record_set_class_id(void *o, int v) { *(int *)((uint8_t *)o + of_draw_record_class_id) = v; }
+internal inline int *draw_record_class_id_at(const void *o) { return (int *)((uint8_t *)o + of_draw_record_class_id); }
+internal inline int draw_record_get_type_id(const void *o) { return *(int *)((uint8_t *)o + of_draw_record_type_id); }
+internal inline void draw_record_set_type_id(void *o, int v) { *(int *)((uint8_t *)o + of_draw_record_type_id) = v; }
+internal inline int *draw_record_type_id_at(const void *o) { return (int *)((uint8_t *)o + of_draw_record_type_id); }
+internal inline int draw_record_get_family(const void *o) { return *(int *)((uint8_t *)o + of_draw_record_family); }
+internal inline void draw_record_set_family(void *o, int v) { *(int *)((uint8_t *)o + of_draw_record_family) = v; }
+internal inline int *draw_record_family_at(const void *o) { return (int *)((uint8_t *)o + of_draw_record_family); }
+// its script state's id (0: none)
+internal inline uint32_t draw_record_get_state(const void *o) { return *(uint32_t *)((uint8_t *)o + of_draw_record_state); }
+internal inline void draw_record_set_state(void *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_draw_record_state) = v; }
+internal inline uint32_t *draw_record_state_at(const void *o) { return (uint32_t *)((uint8_t *)o + of_draw_record_state); }
+// what it produces (EEComplexUnit.producing while produce_left > 0, else 100000)
+internal inline int draw_record_get_producing(const void *o) { return *(int *)((uint8_t *)o + of_draw_record_producing); }
+internal inline void draw_record_set_producing(void *o, int v) { *(int *)((uint8_t *)o + of_draw_record_producing) = v; }
+internal inline int *draw_record_producing_at(const void *o) { return (int *)((uint8_t *)o + of_draw_record_producing); }
+internal inline int draw_record_get_anim(const void *o) { return *(int *)((uint8_t *)o + of_draw_record_anim); }
+internal inline void draw_record_set_anim(void *o, int v) { *(int *)((uint8_t *)o + of_draw_record_anim) = v; }
+internal inline int *draw_record_anim_at(const void *o) { return (int *)((uint8_t *)o + of_draw_record_anim); }
+internal inline int draw_record_get_size(const void *o) { return *(int *)((uint8_t *)o + of_draw_record_size); }
+internal inline void draw_record_set_size(void *o, int v) { *(int *)((uint8_t *)o + of_draw_record_size) = v; }
+internal inline int *draw_record_size_at(const void *o) { return (int *)((uint8_t *)o + of_draw_record_size); }
+internal inline int draw_record_get_frame(const void *o) { return *(int *)((uint8_t *)o + of_draw_record_frame); }
+internal inline void draw_record_set_frame(void *o, int v) { *(int *)((uint8_t *)o + of_draw_record_frame) = v; }
+internal inline int *draw_record_frame_at(const void *o) { return (int *)((uint8_t *)o + of_draw_record_frame); }
+internal inline int draw_record_get_next_frame(const void *o) { return *(int *)((uint8_t *)o + of_draw_record_next_frame); }
+internal inline void draw_record_set_next_frame(void *o, int v) { *(int *)((uint8_t *)o + of_draw_record_next_frame) = v; }
+internal inline int *draw_record_next_frame_at(const void *o) { return (int *)((uint8_t *)o + of_draw_record_next_frame); }
+internal inline int draw_record_get_serial(const void *o) { return *(int *)((uint8_t *)o + of_draw_record_serial); }
+internal inline void draw_record_set_serial(void *o, int v) { *(int *)((uint8_t *)o + of_draw_record_serial) = v; }
+internal inline int *draw_record_serial_at(const void *o) { return (int *)((uint8_t *)o + of_draw_record_serial); }
+internal inline int draw_record_get_player(const void *o) { return *(int *)((uint8_t *)o + of_draw_record_player); }
+internal inline void draw_record_set_player(void *o, int v) { *(int *)((uint8_t *)o + of_draw_record_player) = v; }
+internal inline int *draw_record_player_at(const void *o) { return (int *)((uint8_t *)o + of_draw_record_player); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// its first goal of kind 5, 6 or 2 asked for its vf6 (while it has hit points) [guess]
+internal inline uint32_t draw_record_get_goal_value(const void *o) { return *(uint32_t *)((uint8_t *)o + of_draw_record_goal_value); }
+internal inline void draw_record_set_goal_value(void *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_draw_record_goal_value) = v; }
+internal inline uint32_t *draw_record_goal_value_at(const void *o) { return (uint32_t *)((uint8_t *)o + of_draw_record_goal_value); }
+// a gaia animal or bush with food the player hasn't in sight
+internal inline uint8_t draw_record_get_fogged(const void *o) { return *(uint8_t *)((uint8_t *)o + of_draw_record_fogged); }
+internal inline void draw_record_set_fogged(void *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_draw_record_fogged) = v; }
+internal inline uint8_t *draw_record_fogged_at(const void *o) { return (uint8_t *)((uint8_t *)o + of_draw_record_fogged); }
+// the complex unit's tint on (its +0x33D: the tint its +0x1AC)
+internal inline uint8_t draw_record_get_tinted(const void *o) { return *(uint8_t *)((uint8_t *)o + of_draw_record_tinted); }
+internal inline void draw_record_set_tinted(void *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_draw_record_tinted) = v; }
+internal inline uint8_t *draw_record_tinted_at(const void *o) { return (uint8_t *)((uint8_t *)o + of_draw_record_tinted); }
+internal inline uint8_t draw_record_get_gated(const void *o) { return *(uint8_t *)((uint8_t *)o + of_draw_record_gated); }
+internal inline void draw_record_set_gated(void *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_draw_record_gated) = v; }
+internal inline uint8_t *draw_record_gated_at(const void *o) { return (uint8_t *)((uint8_t *)o + of_draw_record_gated); }
 
 // static class hooks
 // hooks's data of the game, places in its code and numbers
@@ -107,9 +238,44 @@ internal int spec_hooks_select(int build) {
     case 0:   // ee
         of_draw_record_color = 0x40;
         of_draw_record_tint = 0x4C;
-        of_draw_record_0x58 = 0x58;
-        of_draw_record_0xfc = 0xFC;
+        of_draw_record_opacity = 0xFC;
         fn_draw_record_init = (draw_record_init_fn)0x00506442;
+        of_draw_record_transform = 0x0;
+        of_draw_record_hp_bars = 0x58;
+        of_draw_record_part_values = 0x68;
+        of_draw_record_part_models = 0x78;
+        of_draw_record_list_a_c = 0x88;
+        of_draw_record_list_a_4 = 0x98;
+        of_draw_record_list_b_c = 0xA8;
+        of_draw_record_list_b_4 = 0xB8;
+        of_draw_record_label = 0xC8;
+        of_draw_record_type = 0xDC;
+        of_draw_record_gfx = 0xE0;
+        of_draw_record_gfx_built = 0xE4;
+        of_draw_record_scale = 0xE8;
+        of_draw_record_circle = 0xEC;
+        of_draw_record_bar_x = 0xF0;
+        of_draw_record_bar_y = 0xF4;
+        of_draw_record_ground_z = 0xF8;
+        of_draw_record_power_bar = 0x100;
+        of_draw_record_fraction = 0x104;
+        of_draw_record_gate_open = 0x108;
+        of_draw_record_tint_alpha = 0x10C;
+        of_draw_record_class_id = 0x110;
+        of_draw_record_type_id = 0x114;
+        of_draw_record_family = 0x118;
+        of_draw_record_state = 0x11C;
+        of_draw_record_producing = 0x120;
+        of_draw_record_anim = 0x124;
+        of_draw_record_size = 0x128;
+        of_draw_record_frame = 0x12C;
+        of_draw_record_next_frame = 0x130;
+        of_draw_record_serial = 0x138;
+        of_draw_record_player = 0x13C;
+        of_draw_record_goal_value = 0x140;
+        of_draw_record_fogged = 0x145;
+        of_draw_record_tinted = 0x146;
+        of_draw_record_gated = 0x147;
         data_hooks_call_attack_alert = 0x006177CF;
         data_hooks_reload_tick_cmp[0] = 0x0060ABC0;
         data_hooks_reload_tick_cmp[1] = 0x0060B34C;
@@ -187,9 +353,44 @@ internal int spec_hooks_select(int build) {
     case 1:   // aoc
         of_draw_record_color = 0x40;
         of_draw_record_tint = 0x4C;
-        of_draw_record_0x58 = 0x58;
-        of_draw_record_0xfc = 0xFC;
+        of_draw_record_opacity = 0xFC;
         fn_draw_record_init = (draw_record_init_fn)0x005118E9;
+        of_draw_record_transform = 0x0;
+        of_draw_record_hp_bars = 0x58;
+        of_draw_record_part_values = 0x68;
+        of_draw_record_part_models = 0x78;
+        of_draw_record_list_a_c = 0x88;
+        of_draw_record_list_a_4 = 0x98;
+        of_draw_record_list_b_c = 0xA8;
+        of_draw_record_list_b_4 = 0xB8;
+        of_draw_record_label = 0xC8;
+        of_draw_record_type = 0xDC;
+        of_draw_record_gfx = 0xE0;
+        of_draw_record_gfx_built = 0xE4;
+        of_draw_record_scale = 0xE8;
+        of_draw_record_circle = 0xEC;
+        of_draw_record_bar_x = 0xF0;
+        of_draw_record_bar_y = 0xF4;
+        of_draw_record_ground_z = 0xF8;
+        of_draw_record_power_bar = 0x100;
+        of_draw_record_fraction = 0x104;
+        of_draw_record_gate_open = 0x108;
+        of_draw_record_tint_alpha = 0x10C;
+        of_draw_record_class_id = 0x110;
+        of_draw_record_type_id = 0x114;
+        of_draw_record_family = 0x118;
+        of_draw_record_state = 0x11C;
+        of_draw_record_producing = 0x120;
+        of_draw_record_anim = 0x124;
+        of_draw_record_size = 0x128;
+        of_draw_record_frame = 0x12C;
+        of_draw_record_next_frame = 0x130;
+        of_draw_record_serial = 0x138;
+        of_draw_record_player = 0x13C;
+        of_draw_record_goal_value = 0x140;
+        of_draw_record_fogged = 0x145;
+        of_draw_record_tinted = 0x146;
+        of_draw_record_gated = 0x147;
         data_hooks_call_attack_alert = 0x0062A366;
         data_hooks_reload_tick_cmp[0] = 0;
         data_hooks_reload_tick_cmp[1] = 0;

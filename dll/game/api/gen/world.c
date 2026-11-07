@@ -10,6 +10,14 @@ internal inline uint8_t *dmg_model_map_at(const ee_dmg_model *o) { return (uint8
 // (EEUnit.model); a wall's: 9 the straight piece, 10 the diagonal, 11 the post (a building site draws another
 // meanwhile)
 internal inline uint8_t *dmg_model_anim_model_at(const ee_dmg_model *o) { return (uint8_t *)o + of_dmg_model_anim_model; }
+// per animation (uint32 each): the key its record goes into the sort map by (the units' fill: FillUnit's insert)
+// - objects of one key are drawn together
+internal inline uint8_t *dmg_model_anim_keys_at(const ee_dmg_model *o) { return (uint8_t *)o + of_dmg_model_anim_keys; }
+// the key of its second insert, into the sort map engine_display.sort_maps + 0x18 (an object with a complex unit
+// not under construction)
+internal inline uint32_t dmg_model_get_shadow_key(const ee_dmg_model *o) { return *(uint32_t *)((uint8_t *)o + of_dmg_model_shadow_key); }
+internal inline void dmg_model_set_shadow_key(ee_dmg_model *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_dmg_model_shadow_key) = v; }
+internal inline uint32_t *dmg_model_shadow_key_at(const ee_dmg_model *o) { return (uint32_t *)((uint8_t *)o + of_dmg_model_shadow_key); }
 // per animation (int32 each): its first frame - the animation setter (0x5EFD6D, AoC 0x5FE02A) starts there
 internal inline uint8_t *dmg_model_anim_first_at(const ee_dmg_model *o) { return (uint8_t *)o + of_dmg_model_anim_first; }
 // per animation (int32 each): the frame its blow lands (a citizen's attack: 8 of 0..15) - the attack's tick
@@ -259,6 +267,8 @@ internal int spec_world_select(int build) {
     case 0:   // ee
         of_dmg_model_map = 0x14C;
         of_dmg_model_anim_model = 0x234;
+        of_dmg_model_anim_keys = 0x1FC;
+        of_dmg_model_shadow_key = 0x278;
         of_dmg_model_anim_first = 0x350;
         of_dmg_model_anim_strike = 0x3F8;
         fn_dmg_model_acquire = (dmg_model_acquire_fn)0x004D29BC;
@@ -319,6 +329,8 @@ internal int spec_world_select(int build) {
     case 1:   // aoc
         of_dmg_model_map = 0x14C;
         of_dmg_model_anim_model = 0x244;
+        of_dmg_model_anim_keys = 0x20C;
+        of_dmg_model_shadow_key = 0x288;
         of_dmg_model_anim_first = 0x360;
         of_dmg_model_anim_strike = 0x408;
         fn_dmg_model_acquire = (dmg_model_acquire_fn)0x004D85ED;

@@ -1006,7 +1006,7 @@ internal void bl_unbend(ee_vertices *a) {
 // resource site (no matrix of its own: the collection turns it by its heading at the ground's height, level) its model
 // noted, to be bent where it is drawn
 internal void __thiscall hook_draw_record_fill(void *c, ee_unit *u, float *rec, void *p3, void *p4) {
-    draw_record_fill(c, u, rec, p3, p4);
+    collect_fill(c, u, rec, p3, p4);   // the game's fill, or collect.c's port of it
     ee_unit_type *td = u ? unit_get_type_data(u) : NULL;
     ee_map *map = game_map();
     if (!td || !map || !rec || !bl_sheared(td)) return;

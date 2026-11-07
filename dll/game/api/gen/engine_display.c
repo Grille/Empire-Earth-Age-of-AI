@@ -669,6 +669,56 @@ internal inline uint8_t *engine_display_iat_transform_assign_at(void) { return (
 internal inline uint8_t *engine_display_iat_set_model_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_iat_set_model; }
 internal inline uint8_t *engine_display_iat_model_free_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_iat_model_free; }
 internal inline uint8_t *engine_display_iat_transform_new_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_iat_transform_new; }
+// THE UNITS' FILL (EEROUnits' FillUnit, EE 0x502622, AoC 0x50D3AD; collect.c's port uc_fill) reads and writes
+// these. The ambient sounds' (thiscall ambient_add / ambient_add_object on it, while the update's info asks: its
+// turn, +0x10)
+internal inline uint8_t *engine_display_ambient_sounds_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_ambient_sounds; }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// a vector of unit ids (the first at +4, the end at +8): a unit in it gets its health bar drawn [guess: what
+// adds them]
+internal inline uint8_t *engine_display_bar_ids_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_bar_ids; }
+// a vector of the records whose health bars are drawn (vector_push adds one)
+internal inline uint8_t *engine_display_bar_records_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_bar_records; }
+// the record of the local player's unit under the mouse (ui_unit), and of another player's (its owner's name
+// in hover_name); show_labels: the stats' name into the record of the info's picked unit also when not the
+// player's [guess]
+internal inline uint8_t *engine_display_ui_record_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_ui_record; }
+internal inline uint8_t *engine_display_hover_record_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_hover_record; }
+internal inline uint8_t *engine_display_hover_name_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_hover_name; }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// a flag: the fill copies the stats' name into the record of the info's picked unit while it is set and the unit is not the player's
+internal inline uint8_t *engine_display_show_labels_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_show_labels; }
+// the selection circles' size (int): 0 the type's mark_size, 1 twice the sight, 2 twice the range
+internal inline uint8_t *engine_display_circle_mode_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_circle_mode; }
+// byte: count the fighting units for the music (the update's info +8: one more for each unit whose goal's state
+// is 2, 3 or 11)
+internal inline uint8_t *engine_display_music_counts_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_music_counts; }
+// float: a path marker is drawn at least this high
+internal inline uint8_t *engine_display_marker_min_z_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_marker_min_z; }
+// float constants of the fill's code: the tint's fourth value, a full bar (1), a path marker's colour step (by
+// its target's id), the tilt's offset off the arc cosine
+internal inline uint8_t *engine_display_tint_alpha_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_tint_alpha; }
+internal inline uint8_t *engine_display_bar_full_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_bar_full; }
+internal inline uint8_t *engine_display_marker_color_step_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_marker_color_step; }
+internal inline uint8_t *engine_display_tilt_offset_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_tilt_offset; }
+// AoC's: how far its building sites of two types (0x302, 0x31F) are drawn sunk
+internal inline uint8_t *engine_display_sink_302_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_sink_302; }
+internal inline uint8_t *engine_display_sink_31f_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_sink_31f; }
+// the gate's class the fill casts a gate's type to (__RTDynamicCast's type descriptors: from, to)
+internal inline uint8_t *engine_display_rtti_unit_class_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_rtti_unit_class; }
+internal inline uint8_t *engine_display_rtti_gate_class_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_rtti_gate_class; }
+// GETerrainMesh (the map's +0x1C): the rows of tiles it has (a count, then a row's first x and its count, 0xC
+// each); EEMap: a row's tiles' light (0xC each: the first x, the data +8; 4 bytes a tile, the fill tests the
+// fourth)
+// the player's selected group (EEPlayer.ui_group): its vf3, thiscall(group, unit) - whether the unit is in it (the
+// fill draws the health bars of one that is)
+// EEComplexUnit.producing's nothing
+// the exe's import slots of UWideString::operator=, GETransformation::Apply (a GEVector), UMArcCos and
+// GETransformation::Scale (x, y, z)
+internal inline uint8_t *engine_display_iat_wstring_assign_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_iat_wstring_assign; }
+internal inline uint8_t *engine_display_iat_transform_apply_vector_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_iat_transform_apply_vector; }
+internal inline uint8_t *engine_display_iat_arc_cos_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_iat_arc_cos; }
+internal inline uint8_t *engine_display_iat_transform_scale_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_iat_transform_scale; }
 // EEUnit.resource's food (kResourceFood): an animal or a bush of the gaia player with food left is drawn on a
 // tile the player hasn't in sight (its fog) as long as it has a complex unit and isn't a citizen
 
@@ -680,6 +730,57 @@ internal inline uint8_t *engine_display_iat_transform_new_at(void) { return (uin
 typedef void *(__thiscall *doppelganger_set_find_fn)(void *, void **, ee_doppelganger **);
 internal doppelganger_set_find_fn fn_doppelganger_set_find;
 internal inline void *doppelganger_set_find(void *set, void **found, ee_doppelganger **d) { return fn_doppelganger_set_find(set, found, d); }
+// the fill's helpers. thiscall(engine_display.ambient_sounds, a complex unit / an object): it into the ambient
+// sounds' turn
+typedef void (__thiscall *ambient_add_fn)(void *, ee_unit *);
+internal ambient_add_fn fn_ambient_add;
+internal inline void ambient_add(void *sounds, ee_unit *cu) { fn_ambient_add(sounds, cu); }
+typedef void (__thiscall *ambient_add_object_fn)(void *, ee_unit *);
+internal ambient_add_object_fn fn_ambient_add_object;
+internal inline void ambient_add_object(void *sounds, ee_unit *u) { fn_ambient_add_object(sounds, u); }
+// MSVC's vector: thiscall(v, n, value) resize (a 4-byte value); thiscall(v) clear; thiscall(v, &value) push_back
+typedef void (__thiscall *vector_resize_fn)(void *, uint32_t, uint32_t);
+internal vector_resize_fn fn_vector_resize;
+internal inline void vector_resize(void *v, uint32_t n, uint32_t value) { fn_vector_resize(v, n, value); }
+typedef void (__thiscall *vector_clear_fn)(void *);
+internal vector_clear_fn fn_vector_clear;
+internal inline void vector_clear(void *v) { fn_vector_clear(v); }
+typedef void (__thiscall *vector_push_fn)(void *, void **);
+internal vector_push_fn fn_vector_push;
+internal inline void vector_push(void *v, void **value) { fn_vector_push(v, value); }
+// the sort maps' insert: thiscall(map, found: 8 bytes, a pair {key, record})
+typedef void (__thiscall *sort_map_insert_fn)(void *, void **, void **);
+internal sort_map_insert_fn fn_sort_map_insert;
+internal inline void sort_map_insert(void *map, void **found, void **pair) { fn_sort_map_insert(map, found, pair); }
+// thiscall(engine_display.pick_list, the unit, its record, its opacity): it into the list the mouse picks from
+typedef void (__thiscall *pick_list_add_fn)(void *, ee_unit *, void *, float);
+internal pick_list_add_fn fn_pick_list_add;
+internal inline void pick_list_add(void *list, ee_unit *u, void *record, float opacity) { fn_pick_list_add(list, u, record, opacity); }
+// thiscall(map, float pos[3], float out[3]): out the point on the ground under pos (its z when off the mesh)
+typedef void (__thiscall *ground_point_fn)(void *, float *, float *);
+internal ground_point_fn fn_ground_point;
+internal inline void ground_point(void *map, float *pos, float *out) { fn_ground_point(map, pos, out); }
+// thiscall(a path marker's target's complex unit, x, y, float** at): where the marker at tile x, y is drawn on it
+typedef uint8_t (__thiscall *marker_place_fn)(ee_unit *, int, int, float **);
+internal marker_place_fn fn_marker_place;
+internal inline uint8_t marker_place(ee_unit *target, int x, int y, float **at) { return fn_marker_place(target, x, y, at); }
+// MSVC's __RTDynamicCast(object, 0, from, to, 0) and the gate's class's test of a complex unit (thiscall on the
+// cast type) [guess: what it tests - drawn open]
+typedef void *(__cdecl *rt_dynamic_cast_fn)(void *, int, void *, void *, int);
+internal rt_dynamic_cast_fn fn_rt_dynamic_cast;
+internal inline void *rt_dynamic_cast(void *o, int vf_delta, void *from, void *to, int is_ref) { return fn_rt_dynamic_cast(o, vf_delta, from, to, is_ref); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+typedef uint8_t (__thiscall *gate_drawn_open_fn)(void *, ee_unit *);
+internal gate_drawn_open_fn fn_gate_drawn_open;
+internal inline uint8_t gate_drawn_open(void *gate_class, ee_unit *cu) { return fn_gate_drawn_open(gate_class, cu); }
+// AoC's: EERenderObject::DrawGroundCircle (thiscall on the collection: a transformation, a radius, a mode) and
+// EEUnit::GetLineOfSight (thiscall: a float) - the AoC decompilation's names
+typedef void (__thiscall *ground_circle_fn)(void *, float *, float, int);
+internal ground_circle_fn fn_ground_circle;
+internal inline void ground_circle(void *collection, float *at, float radius, int mode) { fn_ground_circle(collection, at, radius, mode); }
+typedef float (__thiscall *line_of_sight_fn)(ee_unit *);
+internal line_of_sight_fn fn_line_of_sight;
+internal inline float line_of_sight(ee_unit *cu) { return fn_line_of_sight(cu); }
 // thiscall(the same set, found: 8 bytes - its node, then a byte: 1 inserted, 0 there before -, &the doppelganger):
 // insert (ret 8; the pair std::set::insert returns, through the hidden pointer)
 typedef void *(__thiscall *doppelganger_set_insert_fn)(void *, void **, ee_doppelganger **);
@@ -916,10 +1017,50 @@ internal int spec_engine_display_select(int build) {
         value_engine_display_of_physical_model_model = 64;
         value_engine_display_of_physical_model_scale = 68;
         value_engine_display_of_physical_model_frame = 72;
+        data_engine_display_ambient_sounds = 0x009174E4;
+        data_engine_display_bar_ids = 0x008D2A90;
+        data_engine_display_bar_records = 0x008D2D10;
+        data_engine_display_ui_record = 0x00912530;
+        data_engine_display_hover_record = 0x009128A4;
+        data_engine_display_hover_name = 0x00912890;
+        data_engine_display_show_labels = 0x00912D60;
+        data_engine_display_circle_mode = 0x009128D0;
+        data_engine_display_music_counts = 0x0091945F;
+        data_engine_display_marker_min_z = 0x009125B0;
+        data_engine_display_tint_alpha = 0x008257CC;
+        data_engine_display_bar_full = 0x00827B3C;
+        data_engine_display_marker_color_step = 0x0082C370;
+        data_engine_display_tilt_offset = 0x00825984;
+        data_engine_display_sink_302 = 0;
+        data_engine_display_sink_31f = 0;
+        data_engine_display_rtti_unit_class = 0x008A0A98;
+        data_engine_display_rtti_gate_class = 0x008A0AB8;
+        value_engine_display_of_mesh_rows_n = 1558224;
+        value_engine_display_of_mesh_rows = 1553788;
+        value_engine_display_of_map_light_rows = 1553816;
+        value_engine_display_slot_group_contains = 3;
+        value_engine_display_producing_none = 100000;
+        data_engine_display_iat_wstring_assign = 0x008231D0;
+        data_engine_display_iat_transform_apply_vector = 0x008233FC;
+        data_engine_display_iat_arc_cos = 0x008237E4;
+        data_engine_display_iat_transform_scale = 0x008237DC;
         value_engine_display_resource_food = 2;
         fn_doppelganger_set_find = (doppelganger_set_find_fn)0x005050BD;
+        fn_ambient_add = (ambient_add_fn)0x0051A4C5;
+        fn_ambient_add_object = (ambient_add_object_fn)0x00506249;
+        fn_vector_resize = (vector_resize_fn)0x004D0945;
+        fn_vector_clear = (vector_clear_fn)0x00526AFF;
+        fn_vector_push = (vector_push_fn)0x00504F0A;
+        fn_sort_map_insert = (sort_map_insert_fn)0x0044F431;
+        fn_pick_list_add = (pick_list_add_fn)0x0050F6E2;
+        fn_ground_point = (ground_point_fn)0x004C0201;
+        fn_marker_place = (marker_place_fn)0x005EDB5E;
+        fn_rt_dynamic_cast = (rt_dynamic_cast_fn)0x00683720;
+        fn_gate_drawn_open = (gate_drawn_open_fn)0x00414C14;
+        fn_ground_circle = (ground_circle_fn)0;
+        fn_line_of_sight = (line_of_sight_fn)0;
         fn_doppelganger_set_insert = (doppelganger_set_insert_fn)0x00505007;
-        return 0;
+        return 4;
     case 1:   // aoc
         of_draw_state_device = 0x1C;
         of_font_hfont = 0x18;
@@ -1147,15 +1288,55 @@ internal int spec_engine_display_select(int build) {
         value_engine_display_of_physical_model_model = 64;
         value_engine_display_of_physical_model_scale = 68;
         value_engine_display_of_physical_model_frame = 72;
+        data_engine_display_ambient_sounds = 0x0092F5D4;
+        data_engine_display_bar_ids = 0x008E9230;
+        data_engine_display_bar_records = 0x008E94B0;
+        data_engine_display_ui_record = 0x00928CD0;
+        data_engine_display_hover_record = 0x00929044;
+        data_engine_display_hover_name = 0x00929030;
+        data_engine_display_show_labels = 0x00929510;
+        data_engine_display_circle_mode = 0x0092906C;
+        data_engine_display_music_counts = 0x009308E0;
+        data_engine_display_marker_min_z = 0x00928D50;
+        data_engine_display_tint_alpha = 0x00839784;
+        data_engine_display_bar_full = 0x0083C324;
+        data_engine_display_marker_color_step = 0x008413C8;
+        data_engine_display_tilt_offset = 0x0083C008;
+        data_engine_display_sink_302 = 0x008CC9FC;
+        data_engine_display_sink_31f = 0x008CCA00;
+        data_engine_display_rtti_unit_class = 0x008B6700;
+        data_engine_display_rtti_gate_class = 0x008B6720;
+        value_engine_display_of_mesh_rows_n = 1639900;
+        value_engine_display_of_mesh_rows = 1635456;
+        value_engine_display_of_map_light_rows = 1635484;
+        value_engine_display_slot_group_contains = 3;
+        value_engine_display_producing_none = 100000;
+        data_engine_display_iat_wstring_assign = 0x008371CC;
+        data_engine_display_iat_transform_apply_vector = 0x00837394;
+        data_engine_display_iat_arc_cos = 0x00837754;
+        data_engine_display_iat_transform_scale = 0x008377B4;
         value_engine_display_resource_food = 2;
         fn_doppelganger_set_find = (doppelganger_set_find_fn)0x0042B588;
+        fn_ambient_add = (ambient_add_fn)0x00524D63;
+        fn_ambient_add_object = (ambient_add_object_fn)0x00524E80;
+        fn_vector_resize = (vector_resize_fn)0x0041D79B;
+        fn_vector_clear = (vector_clear_fn)0x005B5772;
+        fn_vector_push = (vector_push_fn)0x0050FDA9;
+        fn_sort_map_insert = (sort_map_insert_fn)0x0051005E;
+        fn_pick_list_add = (pick_list_add_fn)0x00519FFB;
+        fn_ground_point = (ground_point_fn)0x004C0894;
+        fn_marker_place = (marker_place_fn)0x005FBC3B;
+        fn_rt_dynamic_cast = (rt_dynamic_cast_fn)0x0069D180;
+        fn_gate_drawn_open = (gate_drawn_open_fn)0x0041076F;
+        fn_ground_circle = (ground_circle_fn)0x0050BBA4;
+        fn_line_of_sight = (line_of_sight_fn)0x005F9DCB;
         fn_doppelganger_set_insert = (doppelganger_set_insert_fn)0x0050FED2;
         return 0;
     }
     return 0;
 }
 // the names a build hasn't got, by build
-internal const char *const k_spec_engine_display_missing[ADDR_BUILDS] = { "", "" };
+internal const char *const k_spec_engine_display_missing[ADDR_BUILDS] = { "engine_display.sink_302 engine_display.sink_31f engine_display_functions.ground_circle engine_display_functions.line_of_sight", "" };
 // the load-time check: what the spec says of the running build's exe (spec_check): the failures
 internal int spec_engine_display_check(void) {
     int bad = 0;
@@ -1255,7 +1436,42 @@ internal int spec_engine_display_check(void) {
     bad += spec_data(data_engine_display_iat_set_model, "engine_display.iat_set_model");
     bad += spec_data(data_engine_display_iat_model_free, "engine_display.iat_model_free");
     bad += spec_data(data_engine_display_iat_transform_new, "engine_display.iat_transform_new");
+    bad += spec_data(data_engine_display_ambient_sounds, "engine_display.ambient_sounds");
+    bad += spec_data(data_engine_display_bar_ids, "engine_display.bar_ids");
+    bad += spec_data(data_engine_display_bar_records, "engine_display.bar_records");
+    bad += spec_data(data_engine_display_ui_record, "engine_display.ui_record");
+    bad += spec_data(data_engine_display_hover_record, "engine_display.hover_record");
+    bad += spec_data(data_engine_display_hover_name, "engine_display.hover_name");
+    bad += spec_data(data_engine_display_show_labels, "engine_display.show_labels");
+    bad += spec_data(data_engine_display_circle_mode, "engine_display.circle_mode");
+    bad += spec_data(data_engine_display_music_counts, "engine_display.music_counts");
+    bad += spec_data(data_engine_display_marker_min_z, "engine_display.marker_min_z");
+    bad += spec_data(data_engine_display_tint_alpha, "engine_display.tint_alpha");
+    bad += spec_data(data_engine_display_bar_full, "engine_display.bar_full");
+    bad += spec_data(data_engine_display_marker_color_step, "engine_display.marker_color_step");
+    bad += spec_data(data_engine_display_tilt_offset, "engine_display.tilt_offset");
+    bad += spec_data(data_engine_display_sink_302, "engine_display.sink_302");
+    bad += spec_data(data_engine_display_sink_31f, "engine_display.sink_31f");
+    bad += spec_data(data_engine_display_rtti_unit_class, "engine_display.rtti_unit_class");
+    bad += spec_data(data_engine_display_rtti_gate_class, "engine_display.rtti_gate_class");
+    bad += spec_data(data_engine_display_iat_wstring_assign, "engine_display.iat_wstring_assign");
+    bad += spec_data(data_engine_display_iat_transform_apply_vector, "engine_display.iat_transform_apply_vector");
+    bad += spec_data(data_engine_display_iat_arc_cos, "engine_display.iat_arc_cos");
+    bad += spec_data(data_engine_display_iat_transform_scale, "engine_display.iat_transform_scale");
     bad += spec_code((uintptr_t)fn_doppelganger_set_find, "engine_display_functions.doppelganger_set_find");
+    bad += spec_code((uintptr_t)fn_ambient_add, "engine_display_functions.ambient_add");
+    bad += spec_code((uintptr_t)fn_ambient_add_object, "engine_display_functions.ambient_add_object");
+    bad += spec_code((uintptr_t)fn_vector_resize, "engine_display_functions.vector_resize");
+    bad += spec_code((uintptr_t)fn_vector_clear, "engine_display_functions.vector_clear");
+    bad += spec_code((uintptr_t)fn_vector_push, "engine_display_functions.vector_push");
+    bad += spec_code((uintptr_t)fn_sort_map_insert, "engine_display_functions.sort_map_insert");
+    bad += spec_code((uintptr_t)fn_pick_list_add, "engine_display_functions.pick_list_add");
+    bad += spec_code((uintptr_t)fn_ground_point, "engine_display_functions.ground_point");
+    bad += spec_code((uintptr_t)fn_marker_place, "engine_display_functions.marker_place");
+    bad += spec_code((uintptr_t)fn_rt_dynamic_cast, "engine_display_functions.rt_dynamic_cast");
+    bad += spec_code((uintptr_t)fn_gate_drawn_open, "engine_display_functions.gate_drawn_open");
+    bad += spec_code((uintptr_t)fn_ground_circle, "engine_display_functions.ground_circle");
+    bad += spec_code((uintptr_t)fn_line_of_sight, "engine_display_functions.line_of_sight");
     bad += spec_code((uintptr_t)fn_doppelganger_set_insert, "engine_display_functions.doppelganger_set_insert");
     return bad;
 }

@@ -413,6 +413,61 @@ internal inline float *unit_opacity_at(const ee_unit *o) { return (float *)((uin
 internal inline uint8_t unit_get_cloakable(const ee_unit *o) { return *(uint8_t *)((uint8_t *)o + of_unit_cloakable); }
 internal inline void unit_set_cloakable(ee_unit *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_unit_cloakable) = v; }
 internal inline uint8_t *unit_cloakable_at(const ee_unit *o) { return (uint8_t *)((uint8_t *)o + of_unit_cloakable); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// THE FILL'S (EEROUnits' FillUnit, collect.c uc_fill): its record gets these. Drawn in a tint of its own (the
+// record's tinted; the tint the three floats at +0x1AC) [guess: what sets it]
+internal inline uint8_t unit_get_tint_on(const ee_unit *o) { return *(uint8_t *)((uint8_t *)o + of_unit_tint_on); }
+internal inline void unit_set_tint_on(ee_unit *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_unit_tint_on) = v; }
+internal inline uint8_t *unit_tint_on_at(const ee_unit *o) { return (uint8_t *)((uint8_t *)o + of_unit_tint_on); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// the tint: the fill copies the three floats into the record's tint while tint_on
+internal inline vec3 unit_get_tint(const ee_unit *o) { return *(vec3 *)((uint8_t *)o + of_unit_tint); }
+internal inline void unit_set_tint(ee_unit *o, vec3 v) { *(vec3 *)((uint8_t *)o + of_unit_tint) = v; }
+internal inline vec3 *unit_tint_at(const ee_unit *o) { return (vec3 *)((uint8_t *)o + of_unit_tint); }
+// a gate's opening (the record's gate_open)
+internal inline float unit_get_gate_open(const ee_unit *o) { return *(float *)((uint8_t *)o + of_unit_gate_open); }
+internal inline void unit_set_gate_open(ee_unit *o, float v) { *(float *)((uint8_t *)o + of_unit_gate_open) = v; }
+internal inline float *unit_gate_open_at(const ee_unit *o) { return (float *)((uint8_t *)o + of_unit_gate_open); }
+// how far between anim_frame and next_frame (the AoC decompilation's physical model's fraction)
+internal inline float unit_get_fraction(const ee_unit *o) { return *(float *)((uint8_t *)o + of_unit_fraction); }
+internal inline void unit_set_fraction(ee_unit *o, float v) { *(float *)((uint8_t *)o + of_unit_fraction) = v; }
+internal inline float *unit_fraction_at(const ee_unit *o) { return (float *)((uint8_t *)o + of_unit_fraction); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// a float per part of its graphics (EEGraphicObject's +4 vector) [guess]
+internal inline float *unit_get_part_values(const ee_unit *o) { return *(float **)((uint8_t *)o + of_unit_part_values); }
+internal inline void unit_set_part_values(ee_unit *o, float *v) { *(float **)((uint8_t *)o + of_unit_part_values) = v; }
+internal inline float **unit_part_values_at(const ee_unit *o) { return (float **)((uint8_t *)o + of_unit_part_values); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// two lists of pointers and their counts (the fill puts each element's +0xC and +4 into its record) [guess]
+internal inline void **unit_get_list_a(const ee_unit *o) { return *(void ***)((uint8_t *)o + of_unit_list_a); }
+internal inline void unit_set_list_a(ee_unit *o, void **v) { *(void ***)((uint8_t *)o + of_unit_list_a) = v; }
+internal inline void ***unit_list_a_at(const ee_unit *o) { return (void ***)((uint8_t *)o + of_unit_list_a); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// list_a's count (the fill's loop)
+internal inline uint32_t unit_get_list_a_n(const ee_unit *o) { return *(uint32_t *)((uint8_t *)o + of_unit_list_a_n); }
+internal inline void unit_set_list_a_n(ee_unit *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_unit_list_a_n) = v; }
+internal inline uint32_t *unit_list_a_n_at(const ee_unit *o) { return (uint32_t *)((uint8_t *)o + of_unit_list_a_n); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// the second list (the fill puts each element's +0xC and +4 into the record's list_b_c / list_b_4)
+internal inline void **unit_get_list_b(const ee_unit *o) { return *(void ***)((uint8_t *)o + of_unit_list_b); }
+internal inline void unit_set_list_b(ee_unit *o, void **v) { *(void ***)((uint8_t *)o + of_unit_list_b) = v; }
+internal inline void ***unit_list_b_at(const ee_unit *o) { return (void ***)((uint8_t *)o + of_unit_list_b); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// list_b's count (the fill's loop)
+internal inline uint32_t unit_get_list_b_n(const ee_unit *o) { return *(uint32_t *)((uint8_t *)o + of_unit_list_b_n); }
+internal inline void unit_set_list_b_n(ee_unit *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_unit_list_b_n) = v; }
+internal inline uint32_t *unit_list_b_n_at(const ee_unit *o) { return (uint32_t *)((uint8_t *)o + of_unit_list_b_n); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// a vector of its goals' handlers (the first at +0x100, the end +0x104; each one's +0x10 -> +0x20 its kind): the fill
+// asks the first of kind 5, 6 or 2 its vf6 [guess]
+internal inline void **unit_get_goals_first(const ee_unit *o) { return *(void ***)((uint8_t *)o + of_unit_goals_first); }
+internal inline void unit_set_goals_first(ee_unit *o, void **v) { *(void ***)((uint8_t *)o + of_unit_goals_first) = v; }
+internal inline void ***unit_goals_first_at(const ee_unit *o) { return (void ***)((uint8_t *)o + of_unit_goals_first); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// goals_first's end
+internal inline void **unit_get_goals_end(const ee_unit *o) { return *(void ***)((uint8_t *)o + of_unit_goals_end); }
+internal inline void unit_set_goals_end(ee_unit *o, void **v) { *(void ***)((uint8_t *)o + of_unit_goals_end) = v; }
+internal inline void ***unit_goals_end_at(const ee_unit *o) { return (void ***)((uint8_t *)o + of_unit_goals_end); }
 // AoC's: it is cloaked now (mIsCloaked) - AoC's units' opacity (0x63CEE2) draws a unit already see-through
 // (show hidden units) by its cloak only while cloakable and this are set
 internal inline uint8_t unit_get_cloaked(const ee_unit *o) { return *(uint8_t *)((uint8_t *)o + of_unit_cloaked); }
@@ -955,6 +1010,17 @@ internal int spec_unit_select(int build) {
         of_unit_rot_ms = 0x2A8;
         of_unit_opacity = 0x218;
         of_unit_cloakable = 0x339;
+        of_unit_tint_on = 0x33D;
+        of_unit_tint = 0x1AC;
+        of_unit_gate_open = 0x228;
+        of_unit_fraction = 0x23C;
+        of_unit_part_values = 0x204;
+        of_unit_list_a = 0x1B8;
+        of_unit_list_a_n = 0x2EC;
+        of_unit_list_b = 0x1BC;
+        of_unit_list_b_n = 0x2F0;
+        of_unit_goals_first = 0x100;
+        of_unit_goals_end = 0x104;
         of_unit_cloaked = NA;
         of_unit_scan_ms = 0x2AC;
         of_unit_power = 0x2D0;
@@ -1171,6 +1237,17 @@ internal int spec_unit_select(int build) {
         of_unit_rot_ms = 0x2AC;
         of_unit_opacity = 0x218;
         of_unit_cloakable = 0x345;
+        of_unit_tint_on = 0x349;
+        of_unit_tint = 0x1AC;
+        of_unit_gate_open = 0x228;
+        of_unit_fraction = 0x23C;
+        of_unit_part_values = 0x204;
+        of_unit_list_a = 0x1B8;
+        of_unit_list_a_n = 0x2F0;
+        of_unit_list_b = 0x1BC;
+        of_unit_list_b_n = 0x2F4;
+        of_unit_goals_first = 0x100;
+        of_unit_goals_end = 0x104;
         of_unit_cloaked = 0x346;
         of_unit_scan_ms = 0x2B0;
         of_unit_power = 0x2D4;

@@ -42,6 +42,12 @@ internal inline uint8_t player_get_out(const ee_player *o) { return *(uint8_t *)
 internal inline void player_set_out(ee_player *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_player_out) = v; }
 internal inline uint8_t *player_out_at(const ee_player *o) { return (uint8_t *)((uint8_t *)o + of_player_out); }
 internal inline uint8_t *player_civ_name_at(const ee_player *o) { return (uint8_t *)o + of_player_civ_name; }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// the units' fill names an enemy under the mouse by its name (+0x24) when this is set or it is human, else by its
+// civilization's (0x521B3B, AoC 0x52C72C: thiscall on +0x468, its +0x3D) [guess: what sets it]
+internal inline uint8_t player_get_shows_name(const ee_player *o) { return *(uint8_t *)((uint8_t *)o + of_player_shows_name); }
+internal inline void player_set_shows_name(ee_player *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_player_shows_name) = v; }
+internal inline uint8_t *player_shows_name_at(const ee_player *o) { return (uint8_t *)((uint8_t *)o + of_player_shows_name); }
 internal inline ee_player_stats *player_stats_at(const ee_player *o) { return (ee_player_stats *)((uint8_t *)o + of_player_stats); }
 // its civilization by the database's name ("Carthage"; civ_name is the game language's: "Karthago") - both
 // builds' civilization lists read it
@@ -1179,6 +1185,7 @@ internal int spec_player_select(int build) {
         of_player_not_gaia = 0x466;
         of_player_out = 0x467;
         of_player_civ_name = 0x488;
+        of_player_shows_name = 0x4A5;
         of_player_stats = 0x4A8;
         of_player_civ_name_en = 0x7B0;
         of_player_type_stats = 0x874;
@@ -1468,6 +1475,7 @@ internal int spec_player_select(int build) {
         of_player_not_gaia = 0x466;
         of_player_out = 0x467;
         of_player_civ_name = 0x488;
+        of_player_shows_name = 0x4A5;
         of_player_stats = 0x4A8;
         of_player_civ_name_en = 0x7B0;
         of_player_type_stats = 0x884;
