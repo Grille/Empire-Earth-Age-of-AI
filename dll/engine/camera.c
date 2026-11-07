@@ -174,29 +174,40 @@ internal int scroll_arrows(void) {
 // the directions of k the player still holds by the input itself
 internal int scroll_input_agrees(int k) { return k & (scroll_edges() | scroll_arrows()); }
 
-// A step longer than CAM_HOLD_MS (a huge late game, the pipe's stepload - the player 2026-11-07: "i can only move the
-// camera for a short moment"): the game thread reports no direction till it ends, and the directions of before it
-// were kept only that long. While it runs the input alone decides - the cursor at an edge at the edge's speed, the
-// arrows at theirs (not while an edit box has the keyboard) - also a scroll begun during the step.
-internal LONGLONG rd_step_qpc(void);   // render_3d.c: how long the step under way has held the world (0: none; the own renderer)
-internal int long_step_frame(float ms) {   // 1: a long step, the camera moved by the input
-    if (!g_cam_freq.QuadPart || rd_step_qpc() * 1000 <= (LONGLONG)CAM_HOLD_MS * g_cam_freq.QuadPart) return 0;
+// With the own renderer the input alone scrolls, every frame (the player 2026-11-07: "why leave the camera at all to
+// the simthread now?" - a step held seconds, the pipe's stepload, stopped it after CAM_HOLD_MS). The own renderer
+// draws only windowed or borderless, so the Windows cursor is the game's (native fullscreen's DirectInput mouse isn't:
+// there, and with the game's renderers, the game thread's reports as above). The game's own conditions: a form with
+// the 3D view is the current one (not the options, the diplomacy, a menu), the game's mouse not frozen (the edge
+// check 0x4051A0 tests it first), the game's window in front; the arrows not while an edit box has the keyboard. The
+// cursor at an edge at the edge's speed, the arrows at theirs. The game thread's scroll events still come and move
+// nothing (hook_scroll_execute, hook_key_scroll_execute).
+internal void input_frame(float ms) {
+    void *uim = ui_manager();
+    ee_ui_form *f = uim ? ui_current_form(uim) : NULL;
+    ee_mouse *m = game_mouse();
+    if (!ui_form_has_view(f) || !m || mouse_get_frozen(m)) return;
+    HWND w = GetForegroundWindow();
+    DWORD pid = 0;
+    if (!w || !GetWindowThreadProcessId(w, &pid) || pid != GetCurrentProcessId()) return;
     scroll_move(ms, scroll_edges());
-    int a = keyboard_captured() ? 0 : scroll_arrows();
+    int a = ui_form_get_keyboard_captured(f) ? 0 : scroll_arrows();
     float step = (scroll_speed() + 0.5f) * (scroll_setting() + 0.5f) * 0.005f * ms;   // arrow_frame's speed
-    float dx = (a & 2 ? step : 0) - (a & 1 ? step : 0), dy = (a & 4 ? step : 0) - (a & 8 ? step : 0);   // as arrow_frame: up +y
+    float dx = (a & 2 ? step : 0) - (a & 1 ? step : 0), dy = (a & 4 ? step : 0) - (a & 8 ? step : 0);   // up +y, as arrow_frame
     if (dx != 0 || dy != 0) camera_pan(dx, dy);
-    return 1;
 }
 
-internal void camera_frame(void) {   // the render thread, every presented frame
+internal void camera_frame(int own) {   // the render thread, every presented frame; own: the own renderer draws
     if (!g_cam_smooth) return;
     LARGE_INTEGER now;
     if (!g_cam_freq.QuadPart) QueryPerformanceFrequency(&g_cam_freq);
     QueryPerformanceCounter(&now);
     double ms = g_cam_frame.QuadPart ? (double)(now.QuadPart - g_cam_frame.QuadPart) * 1000.0 / (double)g_cam_freq.QuadPart : 0;
     g_cam_frame = now;
-    if (game_camera() && long_step_frame(ms > 100.0 ? 100.0f : (float)ms)) return;
+    if (own) {
+        if (game_camera()) input_frame(ms > 100.0 ? 100.0f : (float)ms);
+        return;
+    }
     if (game_camera()) arrow_frame(ms > 100.0 ? 100.0f : (float)ms);
     int k = (int)g_cam_keys;
     if (!k || !game_camera()) return;

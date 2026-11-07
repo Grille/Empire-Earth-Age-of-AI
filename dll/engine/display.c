@@ -551,7 +551,7 @@ internal void frame_stats(ee_rasterizer *ras, unsigned screen) {
 internal int __thiscall hook_show_scene(void *ras, unsigned screen) {
     g_render_thread = GetCurrentThreadId();
     frame_watch();
-    camera_frame();
+    camera_frame(g_rd_on);
     camtrace_frame();
     // headless turbo: nobody watches, so only a few frames a second (CPU for the simulation); a shot still
     // gets the next frame

@@ -47,6 +47,10 @@ internal inline void ui_form_add_hotkey(void *form, unsigned long key, void *ev)
 // the mouse's position kept in its range, its update (the original of display.c's hook)
 // the UI manager's current form, an edit box's text, the settings saved to the registry (as the options screens do)
 internal inline ee_ui_form *ui_current_form(void *uim) { return ((ee_ui_form *(__thiscall *)(void *))*(void **)data_ui_iat_uim_form)(uim); }
+// a form with the 3D view to scroll: the game's screen (EEUIFMainGame) or the scenario editor's
+internal inline int ui_form_has_view(const ee_ui_form *f) {
+    return f && (*(const uintptr_t *)f == vt_eeuif_main_game || *(const uintptr_t *)f == vt_eeuif_scenario_editor);
+}
 internal inline const char *edit_text(void *edit) { return ((const char *(__thiscall *)(void *, unsigned long))*(void **)data_ui_iat_edit_get_text)(edit, 0); }
 // a text label's text (UITextLabel::SetText(const UWideString &, bool) - the game passes 1: the diplomacy screen)
 internal inline void label_set_text(void *label, void *wstr) {
