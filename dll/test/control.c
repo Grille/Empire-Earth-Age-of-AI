@@ -356,6 +356,7 @@ internal void cmd_units(char *out, const char *args) {
 
 // Runs on the game thread.
 internal double g_step_load_ms;   // the pipe's stepload (hook_phys_step)
+internal void __thiscall hook_phys_step(ee_physics *phys);
 internal void execute(const char *cmd, char *out) {
     char verb[32] = "";
     int n = 0;
@@ -472,6 +473,10 @@ internal void execute(const char *cmd, char *out) {
     }
     else if (!strcmp(verb, "stepload")) {
         if (*args) g_step_load_ms = atof(args);
+        // the step hook is a test run's (ctl_start): in a normal game (the console, control_pipe) put in now - a
+        // vtable slot, set between steps
+        if (g_step_load_ms > 0 && !phys_step_hooked_by(hook_phys_step) && !patch_phys_step(hook_phys_step))
+            REPLY("error: the step hook could not be put in - stepload does nothing\n");
         REPLY("stepload: each step at least %.1f ms (a heavy late game's steps for the renderer's tests; 0 off)\n", g_step_load_ms);
     }
     else if (!strcmp(verb, "pause") || !strcmp(verb, "resume")) {
@@ -686,7 +691,8 @@ internal DWORD WINAPI step_watch(void *arg) {
         LARGE_INTEGER now;
         QueryPerformanceCounter(&now);
         LONGLONG t0 = g_step_t0;
-        if (!g_in_step || !t0 || (now.QuadPart - t0) * 1000 < (LONGLONG)STEP_WATCH_MS * f.QuadPart || g_step_n >= STEP_SAMPLES) continue;
+        if (!g_in_step || !t0 || (now.QuadPart - t0) * 1000 < (LONGLONG)STEP_WATCH_MS * f.QuadPart || g_step_n >= STEP_SAMPLES
+            || g_step_load_ms > 0) continue;   // stepload's steps are slow by its wait
         if (h_id != g_step_thread) {
             if (h) CloseHandle(h);
             h_id = g_step_thread;
