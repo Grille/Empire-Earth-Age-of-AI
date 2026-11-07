@@ -179,7 +179,19 @@ picture has gone `[display] step_handoff_ms` (default 50; the pipe: `picture han
 update. The farm save at speed 2.5, two minutes: 720 hand-offs a minute -> 3-5, the game's pace the same (it kept up
 either way). The 8000 save at speed 4, its steps back to back and each longer than 50 ms: still a hand-off a step (510
 -> 528 a minute), 176 -> 191 game seconds in two minutes. What the simulation still waits for there is a frame's
-draw to end - the buffer of the units' records (no world for the frame to read) is what would take that away.
+draw to end.
+What the picture costs the simulation now (2026-11-07; the minute's line has the other threads' write locks and their
+wait for a frame's read or claim beside the hand-offs), a minute each: the farm save at speed 2.5 (it keeps up) - a
+hand-off once, 0 ms, 2625-2728 write locks waiting 285-292 ms for the frames' reads (0.5 %), the update's read hold
+about 0.6 ms; the 8000 save at speed 4 (behind) - 342-348 hand-offs, 4.9-5.4 s (about 15 ms each: the rest of the
+frame being drawn, then its update), the read waits 63-84 ms, a read hold 2-5 ms; the player's 450-unit game with the
+threshold (their log): 49-59 hand-offs, 0.5-0.6 s. A buffer of the units' records the simulation fills itself (the
+units' update, 0x503B83, moved to the end of its step, the frames drawing from the other half) is not the gain it
+seemed: the update chooses the units' poses (the animation's time - not the draw: 40 frames recorded inside steps,
+none updated, differ from each other in 2300-2900 pixels, 40 paused ones, each updated, in 87 000-150 000), so the
+units would animate at the steps' rate, and the simulation would do the update's work itself every step - about what
+it waits now where the game keeps up. Where it is behind, the hand-off's 15 ms against the update's 2-5 ms is the gain
+left.
 Two waits were left behind a step (2026-11-07, the player with the pipe's `stepload 1000`: "the mouse sidescroll lags
 for one second once the sim takes control again ... one mouse click and it freezes once the next simstep comes"). The
 pipe's `profile stacks` (now reading each stack page by page - one read past its end got nothing - and showing only

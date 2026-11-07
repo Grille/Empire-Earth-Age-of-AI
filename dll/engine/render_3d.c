@@ -820,6 +820,10 @@ internal LONGLONG g_rwl_handoff_qpc;   // the simulation's time waiting for them
 // during a step, or the writer waits for its read (a few ms; RWL_CLAIM_MS at most).
 #define RWL_CLAIM_MS 100
 internal int g_rwl_counted;   // the holder of the write lock counted itself (only the holder writes it)
+// what the other threads (the simulation, the main thread's input) wait for the world's write lock - a frame's read
+// in, its claim - the hand-off not: the minute's line (what the picture costs the simulation besides the hand-off)
+internal LONGLONG g_rwl_wwait_qpc;
+internal LONG g_rwl_wlocks;
 internal void __thiscall rd_hook_write_lock(void *lock) {
     int other = lock == g_rwl_world && GetCurrentThreadId() != g_rd_thread;
     if (other && g_rwl_want && g_rwl_taken) {
@@ -829,11 +833,13 @@ internal void __thiscall rd_hook_write_lock(void *lock) {
         g_rwl_handoffs++;
         g_rwl_handoff_qpc += rd_qpc() - t0;
     }
+    LONGLONG w0 = other ? rd_qpc() : 0;
     if (other) {
         InterlockedIncrement(&g_rwl_writers);
         for (DWORD t0 = GetTickCount(); g_rwl_claim && GetTickCount() - t0 < RWL_CLAIM_MS;) Sleep(0);
     }
     g_rwl_write(lock);
+    if (other) { g_rwl_wwait_qpc += rd_qpc() - w0; g_rwl_wlocks++; }   // the holder alone writes them
     if (lock == g_rwl_world) {
         g_rwl_counted = other;
         if (!other) g_rwl_claim = 0;   // the frame's own (update_objects' write mode)
@@ -1146,16 +1152,18 @@ internal void rd_frame_tick(void) {
     }
     log_locked("# render: frames waiting %d ms or more for the lock %ld (longest %.0f ms); its holds that long by where the"
                " game took it: %s\n", RWL_LONG_MS, (long)g_rwl_waits_long, (double)g_rwl_wait_max * ms, len ? sites : "none");
-    static LONG reads0, skips0, handoffs0, bare0;
-    static LONGLONG read0, handoff0;
+    static LONG reads0, skips0, handoffs0, bare0, wlocks0;
+    static LONGLONG read0, handoff0, wwait0;
     log_locked("# render: the frame's read holds of the world %.2f ms a frame (%.2f holds; the game took the last at %08x);"
                " frames drawn during a step %ld (draw_during_steps %s; %ld without the game's update - the interface's lock"
-               " held by a thread waiting to write), the simulation waiting for their update %ld times, %.0f ms\n",
+               " held by a thread waiting to write), the simulation waiting for their update %ld times, %.0f ms; the other"
+               " threads' write locks %ld, %.0f ms waiting for them\n",
                (double)(g_rwl_read_qpc - read0) * k, fr > 0 ? (double)(g_rwl_reads - reads0) / fr : 0,
                (unsigned)g_rwl_read_ret, (long)(g_rwl_skips - skips0), g_rwl_free ? "on" : "off", (long)(g_rwl_bare - bare0),
-               (long)(g_rwl_handoffs - handoffs0), (double)(g_rwl_handoff_qpc - handoff0) * ms);
+               (long)(g_rwl_handoffs - handoffs0), (double)(g_rwl_handoff_qpc - handoff0) * ms,
+               (long)(g_rwl_wlocks - wlocks0), (double)(g_rwl_wwait_qpc - wwait0) * ms);
     reads0 = g_rwl_reads; read0 = g_rwl_read_qpc; skips0 = g_rwl_skips; bare0 = g_rwl_bare;
-    handoffs0 = g_rwl_handoffs; handoff0 = g_rwl_handoff_qpc;
+    handoffs0 = g_rwl_handoffs; handoff0 = g_rwl_handoff_qpc; wlocks0 = g_rwl_wlocks; wwait0 = g_rwl_wwait_qpc;
     memset(g_rwl_long, 0, sizeof g_rwl_long);
     g_rwl_waits_long = 0;
     g_rwl_wait_max = 0;
