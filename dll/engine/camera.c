@@ -155,15 +155,21 @@ internal void arrow_frame(float ms) {
     if (dx != 0 || dy != 0) camera_pan(dx, dy);
 }
 
+// the game's own window in front - not another window of the program (the editor's terrain colour dialog: the player
+// 2026-11-08, "sidescrolling uses the new dialog window" - its edges scrolled the map while the game waited in it)
+internal HWND game_in_front(void) {
+    ee_window *gw = game_window();
+    HWND w = GetForegroundWindow();
+    return w && gw && w == window_get_hwnd(gw) ? w : NULL;
+}
+
 // the directions (bits as g_cam_keys: left, right, top, bottom) the input itself holds: the cursor at a window edge,
 // the arrow keys (up as the top: both move the camera +y)
 internal int scroll_edges(void) {
-    HWND w = GetForegroundWindow();
-    DWORD pid = 0;
+    HWND w = game_in_front();
     POINT p;
     RECT rc;
-    if (!w || !GetWindowThreadProcessId(w, &pid) || pid != GetCurrentProcessId() || !GetCursorPos(&p)
-        || !ScreenToClient(w, &p) || !GetClientRect(w, &rc))
+    if (!w || !GetCursorPos(&p) || !ScreenToClient(w, &p) || !GetClientRect(w, &rc))
         return 0;
     return (p.x <= rc.left + CAM_EDGE_PX) | (p.x >= rc.right - 1 - CAM_EDGE_PX) << 1
          | (p.y <= rc.top + CAM_EDGE_PX) << 2 | (p.y >= rc.bottom - 1 - CAM_EDGE_PX) << 3;
@@ -194,9 +200,7 @@ internal int g_cam_now_ok;
 internal float g_cam_blend_seen, g_cam_t;
 internal LRESULT CALLBACK wheel_hook(int code, WPARAM w, LPARAM l) {
     if (code == HC_ACTION && w == WM_MOUSEWHEEL) {
-        HWND f = GetForegroundWindow();
-        DWORD pid = 0;
-        if (f && GetWindowThreadProcessId(f, &pid) && pid == GetCurrentProcessId())
+        if (game_in_front())
             InterlockedExchangeAdd(&g_wheel, (short)HIWORD(((const MSLLHOOKSTRUCT *)l)->mouseData));
     }
     return CallNextHookEx(g_wheel_hook, code, w, l);
@@ -248,9 +252,8 @@ internal void grab_frame(const ee_ui_form *f, ee_mouse *m) {
     int down = GetAsyncKeyState(VK_MBUTTON) < 0, pressed = down && !g_grab_down;
     g_grab_down = down;
     if (!g_wheel_hook || !m) return;
-    HWND w = GetForegroundWindow();
-    DWORD pid = 0;
-    int ours = w && GetWindowThreadProcessId(w, &pid) && pid == GetCurrentProcessId() && ui_form_is_game(f);
+    HWND w = game_in_front();
+    int ours = w && ui_form_is_game(f);
     POINT p;
     if (!GetCursorPos(&p)) return;
     if (!g_grab) {
@@ -319,9 +322,7 @@ internal void minimap_frame(const ee_ui_form *f, ee_mouse *m) {
         g_mm_test = left - 1;
     } else g_mm_test = 0;
     if (!g_wheel_hook || !c || !m) return;
-    HWND w = GetForegroundWindow();
-    DWORD pid = 0;
-    int ours = w && GetWindowThreadProcessId(w, &pid) && pid == GetCurrentProcessId() && ui_form_is_game(f)
+    int ours = game_in_front() && ui_form_is_game(f)
             && ui_control_get_form((const ee_ui_control *)c) == f && !mouse_get_frozen(m) && mouse_get_mode(m) != 0x16;
     float x = mouse_get_x(m), y = mouse_get_y(m);
     if (!g_mm_drag) {
@@ -364,10 +365,7 @@ internal void input_frame(float ms) {
     ee_mouse *m = game_mouse();
     grab_frame(f, m);
     minimap_frame(f, m);
-    if (!ui_form_has_view(f) || !m || mouse_get_frozen(m)) return;
-    HWND w = GetForegroundWindow();
-    DWORD pid = 0;
-    if (!w || !GetWindowThreadProcessId(w, &pid) || pid != GetCurrentProcessId()) return;
+    if (!ui_form_has_view(f) || !m || mouse_get_frozen(m) || !game_in_front()) return;
     scroll_move(ms, scroll_edges());
     int a = ui_form_get_keyboard_captured(f) ? 0 : scroll_arrows();
     float step = (scroll_speed() + 0.5f) * (scroll_setting() + 0.5f) * 0.005f * ms;   // arrow_frame's speed

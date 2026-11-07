@@ -35,7 +35,6 @@ internal uint8_t g_tp_rgb[TP_SLOTS][3];
 internal struct tp_type g_tp_type[TP_TYPES];   // the map's own colour types
 internal unsigned g_tp_types;
 internal uint8_t g_tp_rec[TP_TYPES + 1][256];  // their records in the terrain panel (only the id read), the "new" item's last
-internal void *g_tp_mesh;                      // the mesh their sets are registered with
 internal int g_tp_setup_in_load;               // its setup was a load's (the record taken already)
 internal ee_se_terrain *g_tp_panel;            // the editor's terrain panel, while it is
 internal unsigned g_tp_list_base;              // the game's items in its colour list
@@ -68,7 +67,6 @@ internal unsigned tp_parse(const uint8_t *p, uint32_t len) {
 
 // the map's own colour types' sets into the mesh
 internal void tp_register(void *mesh) {
-    g_tp_mesh = mesh;
     for (unsigned i = 0; i < g_tp_types; i++) {
         uint32_t s[TP_TYPE_SLOTS];
         for (unsigned k = 0; k < g_tp_type[i].n; k++) s[k] = g_tp_type[i].slot[k];
@@ -103,13 +101,14 @@ internal int tp_same(void *mesh, const uint32_t *a, const uint32_t *b, unsigned 
 internal void tp_list_sync(void) {
     ee_se_terrain *p = g_tp_panel;
     ee_se_color_list *list = p ? se_terrain_get_color_list(p) : NULL;
-    if (!list || !g_tp_mesh) return;
+    if (!list) return;
     int sel = se_color_list_get_selected(list);
     while (se_terrain_color_type_count(p) > g_tp_list_base) se_terrain_color_type_pop(p);
     while (se_color_list_count(list) > g_tp_list_base) se_color_list_remove(list, se_color_list_count(list) - 1);
     for (unsigned i = 0; i < g_tp_types; i++) {
         float c[TP_TYPE_SLOTS][3];
-        for (unsigned k = 0; k < g_tp_type[i].n; k++) memcpy(c[k], mesh_color(g_tp_mesh, g_tp_type[i].slot[k]), sizeof c[k]);
+        for (unsigned k = 0; k < g_tp_type[i].n; k++)
+            for (int j = 0; j < 3; j++) c[k][j] = (float)g_tp_rgb[g_tp_type[i].slot[k]][j] / 255.0f;
         se_color_list_add_colors(list, c, g_tp_type[i].n);
         ee_color_type *t = (ee_color_type *)g_tp_rec[i];
         color_type_set_id(t, TP_ID + i);
@@ -153,6 +152,7 @@ internal void *__thiscall hook_tp_panel_delete(ee_se_terrain *p, uint8_t flags) 
 
 // the editor's paint with a colour type: one of the map's own painted as a game's whose set is for the call the
 // type's (map_paint_colors reads only the set of the type it looks up)
+internal void *tp_mesh(void);
 internal unsigned g_tp_paints[3];   // the paint's calls: with a game's type, one of the map's own, none (the pipe's status)
 internal int g_tp_paint_last = -1;
 internal void __thiscall hook_tp_paint_colors(ee_map *map, int x_lo, int x_hi, int y_hi, int y_lo, int type) {
@@ -160,7 +160,7 @@ internal void __thiscall hook_tp_paint_colors(ee_map *map, int x_lo, int x_hi, i
     g_tp_paint_last = type;
     if (type < TP_ID) { g_tp_paints[0]++; map_paint_colors(map, x_lo, x_hi, y_hi, y_lo, type); return; }
     g_tp_paints[!t || (unsigned)(type - TP_ID) >= g_tp_types ? 2 : 1]++;
-    if (!t || (unsigned)(type - TP_ID) >= g_tp_types) return;   // the "new" item, a type gone meanwhile: no colour
+    if (!t || (unsigned)(type - TP_ID) >= g_tp_types || !tp_mesh()) return;   // the "new" item, a type gone meanwhile: no colour
     uint32_t keep = color_type_get_set(t);
     color_type_set_set(t, g_tp_type[type - TP_ID].set);
     map_paint_colors(map, x_lo, x_hi, y_hi, y_lo, 0);
@@ -222,14 +222,37 @@ internal uint32_t tp_save(uint8_t *buf, uint32_t cap) {
     return (uint32_t)(e - buf);
 }
 
-// after a load from a file: the map's table and the visible ground - its record again when the load set up no map of
-// its own (else its setup took it already, the types' sets registered)
-internal void tp_load(const uint8_t *p, uint32_t len) {
+// the current map's mesh, the map's own types' sets on it - registered anew when one isn't (a map set up elsewhere
+// than where it ends: a load in the editor sets its map up in an object of its own, which is gone after it - the
+// player's game, 2026-11-08, read a mesh kept from there; a new map at a freed one's address); NULL: no map
+internal void *tp_mesh(void) {
     ee_map *map = game_map();
-    if (!g_tp_on || !map) return;
-    void *mesh = map_mesh_at(map);
-    if (mesh != g_tp_mesh || !g_tp_setup_in_load) tp_parse(p, len), tp_register(mesh);
+    void *mesh = map ? map_mesh_at(map) : NULL;
+    if (!mesh) return NULL;
+    unsigned n;
+    uint8_t *sets = mesh_color_sets(mesh, &n);
+    for (unsigned i = 0; i < g_tp_types; i++) {
+        unsigned ns = 0;
+        const uint32_t *s = g_tp_type[i].set < n ? color_set_slots(sets, g_tp_type[i].set, &ns) : NULL;
+        int same = s && ns == g_tp_type[i].n;
+        for (unsigned k = 0; same && k < ns; k++) same = s[k] == g_tp_type[i].slot[k];
+        if (same) continue;
+        tp_register(mesh);
+        tp_apply(mesh);
+        terrain_refresh();
+        if (g_log) log_locked("# terrain palette: the map's own types' sets registered again on its mesh\n");
+        break;
+    }
+    return mesh;
+}
+
+// after a load from a file: the map's table and the visible ground - its record again when the load set up no map of
+// its own (else its setup took it already)
+internal void tp_load(const uint8_t *p, uint32_t len) {
+    if (!g_tp_on || !game_map()) return;
+    if (!g_tp_setup_in_load) tp_parse(p, len);
     g_tp_setup_in_load = 0;
+    void *mesh = tp_mesh();
     tp_apply(mesh);
     terrain_refresh();
     tp_list_sync();
@@ -256,17 +279,17 @@ internal unsigned tp_remap(ee_map *map, int move, unsigned *on) {
 
 // slots given back (the map's own no more): the corners on them to the nearest colour (RGB) of a slot that stays
 // in a set - a game's or one of the map's own
-internal void tp_release(const uint8_t *slots, unsigned n) {
+internal void tp_release(void *mesh, const uint8_t *slots, unsigned n) {
     ee_map *map = game_map();
     uint8_t gone[TP_SLOTS] = { 0 }, to[TP_SLOTS];
     for (unsigned i = 0; i < n; i++) gone[slots[i]] = 1;
     for (unsigned s = 0; s < TP_SLOTS; s++) {
         to[s] = (uint8_t)s;
         if (!gone[s]) continue;
-        float best = 1e30f, *c = mesh_color(g_tp_mesh, s);
+        float best = 1e30f, *c = mesh_color(mesh, s);
         for (unsigned t = 0; t < TP_SLOTS; t++) {
             if (gone[t] || (g_tp_free[t] && !g_tp_own[t])) continue;
-            float *d = mesh_color(g_tp_mesh, t), e = 0;
+            float *d = mesh_color(mesh, t), e = 0;
             for (int k = 0; k < 3; k++) e += (c[k] - d[k]) * (c[k] - d[k]);
             if (e < best) best = e, to[s] = (uint8_t)t;
         }
@@ -285,14 +308,15 @@ internal void tp_release(const uint8_t *slots, unsigned n) {
 // a ramp rgb[0] to rgb[1], each slot: n colours; 0: not that many slots free (or no map, no room)
 internal int tp_type_put(unsigned i, int mode, unsigned n, const uint8_t (*rgb)[3]) {
     if (mode == TP_FLAT) n = 1;
-    if (!g_tp_on || !g_tp_mesh || mode < TP_FLAT || mode > TP_EACH || n < 1 + (mode == TP_RAMP) || n > TP_TYPE_SLOTS ||
+    void *mesh = tp_mesh();
+    if (!g_tp_on || !mesh || mode < TP_FLAT || mode > TP_EACH || n < 1 + (mode == TP_RAMP) || n > TP_TYPE_SLOTS ||
         i > g_tp_types || i >= TP_TYPES)
         return 0;
     struct tp_type t = i < g_tp_types ? g_tp_type[i] : (struct tp_type){ 0 };
     unsigned had = t.n, avail = 0;
     for (unsigned s = 0; s < TP_SLOTS; s++) avail += g_tp_free[s] && !g_tp_own[s];
     if (n > had && n - had > avail) return 0;
-    if (n < had) tp_release(t.slot + n, had - n);
+    if (n < had) tp_release(mesh, t.slot + n, had - n);
     for (unsigned s = 0; s < TP_SLOTS && t.n < n; s++)
         if (g_tp_free[s] && !g_tp_own[s]) t.slot[t.n++] = (uint8_t)s, g_tp_own[s] = 1;
     t.n = (uint8_t)n, t.mode = (uint8_t)mode;
@@ -305,11 +329,11 @@ internal int tp_type_put(unsigned i, int mode, unsigned n, const uint8_t (*rgb)[
     if (n != had) {   // a set of these slots (the old one stays in the mesh, painted with no more)
         uint32_t s[TP_TYPE_SLOTS];
         for (unsigned k = 0; k < n; k++) s[k] = t.slot[k];
-        t.set = mesh_register_color_set(g_tp_mesh, s, n);
+        t.set = mesh_register_color_set(mesh, s, n);
     }
     g_tp_type[i] = t;
     if (i == g_tp_types) g_tp_types++;
-    tp_apply(g_tp_mesh);
+    tp_apply(mesh);
     terrain_refresh();
     tp_list_sync();
     return 1;
@@ -317,11 +341,12 @@ internal int tp_type_put(unsigned i, int mode, unsigned n, const uint8_t (*rgb)[
 
 // colour type i of the map's own taken out: its corners to the nearest colours left, its slots free again
 internal int tp_type_delete(unsigned i) {
-    if (i >= g_tp_types) return 0;
-    tp_release(g_tp_type[i].slot, g_tp_type[i].n);
+    void *mesh = tp_mesh();
+    if (i >= g_tp_types || !mesh) return 0;
+    tp_release(mesh, g_tp_type[i].slot, g_tp_type[i].n);
     memmove(g_tp_type + i, g_tp_type + i + 1, (g_tp_types - i - 1) * sizeof *g_tp_type);
     g_tp_types--;
-    tp_apply(g_tp_mesh);
+    tp_apply(mesh);
     terrain_refresh();
     tp_list_sync();
     return 1;

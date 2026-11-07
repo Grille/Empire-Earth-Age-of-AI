@@ -174,7 +174,8 @@ internal WORD *td_item(WORD *p, DWORD style, short x, short y, short cx, short c
 // the dialog for type i (-1: a new one, its colours from the list's item sel); after it the type made, changed or
 // taken out, the list's selection on it
 internal void td_open(int i, int sel) {
-    if (!g_tp_mesh || !g_tp_panel) return;
+    void *mesh = tp_mesh();
+    if (!mesh || !g_tp_panel) return;
     memset(&g_td, 0, sizeof g_td);
     g_td.type = i;
     g_td.result = IDCANCEL;
@@ -192,7 +193,7 @@ internal void td_open(int i, int sel) {
         unsigned first = own ? g_tp_type[sel - g_tp_list_base].slot[0] : ct ? color_type_get_first(ct) : TP_SLOTS;
         unsigned last = own ? g_tp_type[sel - g_tp_list_base].slot[g_tp_type[sel - g_tp_list_base].n - 1] : ct ? color_type_get_last(ct) : TP_SLOTS;
         for (int j = 0; j < 3 && first < TP_SLOTS && last < TP_SLOTS; j++)
-            a[j] = (uint8_t)(mesh_color(g_tp_mesh, first)[j] * 255.0f + 0.5f), b[j] = (uint8_t)(mesh_color(g_tp_mesh, last)[j] * 255.0f + 0.5f);
+            a[j] = (uint8_t)(mesh_color(mesh, first)[j] * 255.0f + 0.5f), b[j] = (uint8_t)(mesh_color(mesh, last)[j] * 255.0f + 0.5f);
         memcpy(g_td.cell[0], a, 3), memcpy(g_td.cell[7], b, 3);
     }
     td_derive();
