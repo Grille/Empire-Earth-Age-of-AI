@@ -653,8 +653,8 @@ internal void install(HMODULE self) {
     diplo_install(g_autotest ? g_ini : NULL);
     persist_install();
     aim_install(g_autotest ? g_ini : NULL);
-    camera_install();
     display_install(g_autotest ? g_ini : NULL);
+    camera_install();   // after it: the own renderer or not (g_rd_on)
     sound_install();
     select_install();
     turns_install();   // before ship_turns: it finds the models by their slot 7, which ship_turns replaces

@@ -39,6 +39,7 @@ internal int g_cam_smooth = 1;
 internal volatile LONG g_cam_keys;     // the directions of the game's last step: bit k = SCROLL_KEYS + k (left, right, top, bottom)
 internal volatile DWORD g_cam_keys_at; // GetTickCount of that step
 internal LARGE_INTEGER g_cam_freq, g_cam_frame;
+internal int g_rd_on;   // display.c: the own renderer draws
 
 internal void scroll_axis(float *vel, int neg, int pos, float minv, float maxv, float step) {
     if (neg) {
@@ -231,7 +232,15 @@ internal void camera_install(void) {
         return;
     }
     ok += patch_scroll_execute(hook_scroll_execute);
-    ok += patch_scroll_timer(build_aoc ? 0x0A : 0x19, g_cam_smooth ? 0x01 : 0x0A);   // push 25 (AoC 10) -> 10 ms ticks like AoC, 1 ms fine
+    // push 25 (AoC 10) -> 10 ms ticks like AoC, 1 ms fine. With the own renderer (display_install before this) the
+    // input alone scrolls (input_frame) and the timer's actions only cost: the game's action loop (0x6608D7) runs them
+    // under the interface's lock and the world's write lock, and at 1 ms the cursor at an edge took both up to a
+    // thousand times a second - the frames went without the game's update or waited for the hand-off, the picture
+    // jerked in a normal game and not in a long step, where those writes waited for the step (the player 2026-11-07:
+    // "the edge scroll is smooth with high stepload, but shows lag in a normal running game"). There push -1: the
+    // period never comes round (TMPoll::Poll: the time gone / the period), the edge check (0x4051A0) queues one action
+    // as the cursor reaches the edge and starts the timer, then none till it comes back.
+    ok += patch_scroll_timer(build_aoc ? 0x0A : 0x19, g_cam_smooth && g_rd_on ? 0xFF : g_cam_smooth ? 0x01 : 0x0A);
     if (g_log) fprintf(g_log, "# camera: scroll=%s (%s), fine steps %d, patches %d/4\n", g_scroll_aoc ? "aoc" : "ee",
                        g_scroll_native ? "the game's own" : "the other build's", g_cam_smooth, ok);
 }
