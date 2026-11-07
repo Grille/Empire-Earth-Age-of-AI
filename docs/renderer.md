@@ -418,8 +418,9 @@ one (the game's new, the count before the entries for its destructor's delete[],
 once inside its lock with the list emptied (game/api pick_list_grow; the old array left - a reader may hold it). The
 log: `# collect: the picker's room 1536 -> N`; the 8000 save's picker then held 8342. A box (vdrag 200 150 2400 1150,
 `seltest -1`) over the save's crowd at 120 120 - 5291 objects, the player's own soldiers most of them: 0 selected
-before (the picker full of others), 109 after. That the box takes no more than 109 of them is a limit of its own, not
-looked into yet.
+before (the picker full of others), 109 after. The 109 were the selection message's limit (255 packed bytes): the
+rest now goes after it as messages that add to the selection (select.c; docs/engine-notes.md) - the same box 286 of
+286 found, in 3 messages.
 
 Step 2, the fills (next): each of the game's fills in C as two halves - what it reads of the world into a compact
 record of the object (in step 3 the simulation's, at its step's end, for every object) and the draw record made of

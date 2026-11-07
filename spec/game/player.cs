@@ -299,6 +299,17 @@ unsafe struct EEPlayer
     [address((ee)0x0055B3FB, (aoc)0x0056A658)]
     extern void select(void* selection);
 
+    /// EEMAddUnitsToSelectedGroup carried out on the player: thiscall(player, the message's ids +0x10) - the ids the
+    /// select would take added to the active group; the last one's selection sound (play_local) while the selection is
+    /// the local player's own (0x918E9E)
+    [address((ee)0x00554887, (aoc)0x00562A5D)]
+    extern void add_selected(void* selection);
+
+    /// EEMAddAndRemoveUnitsFromSelectedGroup's: each id add_selected would add added, every other one removed; the
+    /// sound as add_selected
+    [address((ee)0x00554640, (aoc)0x00562816)]
+    extern void toggle_selected(void* selection);
+
     /// thiscall(player): every tile's sight count (its low byte) into MAP_VIEW_ROWS - a load, the viewed player
     /// changed
     [address((ee)0x0055BC4E, (aoc)0x0056AEC0)]
@@ -1169,4 +1180,11 @@ static unsafe class player_functions
 
     [address((ee)0x004A670A, (aoc)0x0047C428), thiscall]
     static extern uint32 vector_size(void* p1);
+
+    /// cdecl(player, sound): the sound played when player is the local one (the sound manager's Play); -1 when not.
+    /// selection_sound: the last unit's of add_selected and toggle_selected
+    [address((ee)0x0053BB1D, (aoc)0x0054831C), cdecl]
+    [call_site("selection_sound", (ee)0x00554924, (aoc)0x00562AFA)]
+    [call_site("selection_sound", (ee)0x005546E7, (aoc)0x005628BD)]
+    static extern uint32 play_local(EEPlayer* pl, void* sound);
 }

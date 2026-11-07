@@ -54,6 +54,16 @@ internal inline void *msg_chat_alloc(void) { return game_new(value_messages_size
 internal inline void *msg_cheat_alloc(void) { return game_new(value_messages_size_cheat_msg); }
 // the selection: its unit ids packed into a message (the original of select.c's hook), a double-click's message built,
 // carried out on the player, the selected group's count (the group's vtable)
+// a selection message made as the lasso makes one (game_new, init with its kind, the derived kind's vtable): kind 0x4F
+// adds its ids to the sender's selection, 0x50 toggles them (select.c's messages after a big selection's first)
+internal inline ee_select_msg *select_msg_new(const float *rect, int type, int kind) {
+    ee_select_msg *m = (ee_select_msg *)game_new(size_eem_select_units);
+    if (!m) return NULL;
+    select_msg_init(m, (float *)rect, type, kind);
+    if (kind == 0x4F) *(uintptr_t *)m = vt_eem_add_units_to_selected_group;
+    else if (kind == 0x50) *(uintptr_t *)m = vt_eem_add_and_remove_units_from_selected_group;
+    return m;
+}
 
 // HOOKS
 // the selection's packing into a message (select.c)

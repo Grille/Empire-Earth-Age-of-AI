@@ -137,8 +137,9 @@ changes the simulation: in a lockstep game different values make the PCs' games 
 ## Selection, transports and building
 
 - `[general] big_selection=1` (default): double-clicking a unit (all of its kind on screen) or dragging a box selected
-  at most 63 units - with a large army only a part. Now up to about 240, as many as the game's selection message
-  can carry; the message keeps its format, so it should stay compatible in multiplayer.
+  at most 63 units - with a large army only a part. Now every unit found: one message carries about 240, the rest
+  goes after it as the messages a shift box sends (they add to the selection). The messages keep the game's own
+  format and kinds, so they should stay compatible in multiplayer.
 - `[general] transport_split=1` (default): units right-clicked onto a transport - a ship, a helicopter or a land
   transport (cargo truck, staff car, siege tower, Trojan Horse), mixed too, or a fortress. With transports of more
   than one type selected the game's command broke (it tried to load the clicked transport into another one, and

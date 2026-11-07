@@ -287,6 +287,17 @@ internal inline void player_resign(ee_player *player, int how) { fn_player_resig
 typedef void (__thiscall *player_select_fn)(ee_player *, void *);
 internal player_select_fn fn_player_select;
 internal inline void player_select(ee_player *player, void *selection) { fn_player_select(player, selection); }
+// EEMAddUnitsToSelectedGroup carried out on the player: thiscall(player, the message's ids +0x10) - the ids the
+// select would take added to the active group; the last one's selection sound (play_local) while the selection is
+// the local player's own (0x918E9E)
+typedef void (__thiscall *player_add_selected_fn)(ee_player *, void *);
+internal player_add_selected_fn fn_player_add_selected;
+internal inline void player_add_selected(ee_player *player, void *selection) { fn_player_add_selected(player, selection); }
+// EEMAddAndRemoveUnitsFromSelectedGroup's: each id add_selected would add added, every other one removed; the
+// sound as add_selected
+typedef void (__thiscall *player_toggle_selected_fn)(ee_player *, void *);
+internal player_toggle_selected_fn fn_player_toggle_selected;
+internal inline void player_toggle_selected(ee_player *player, void *selection) { fn_player_toggle_selected(player, selection); }
 // thiscall(player): every tile's sight count (its low byte) into MAP_VIEW_ROWS - a load, the viewed player
 // changed
 typedef void (__thiscall *player_view_sight_copy_fn)(ee_player *);
@@ -1145,6 +1156,12 @@ internal inline void flare_add(void *flares, int *tile, int kind, ee_player *pl,
 typedef uint32_t (__thiscall *vector_size_fn)(void *);
 internal vector_size_fn fn_vector_size;
 internal inline uint32_t vector_size(void *p1) { return fn_vector_size(p1); }
+// cdecl(player, sound): the sound played when player is the local one (the sound manager's Play); -1 when not.
+// selection_sound: the last unit's of add_selected and toggle_selected
+typedef uint32_t (__cdecl *play_local_fn)(ee_player *, void *);
+internal play_local_fn fn_play_local;
+internal inline uint32_t play_local(ee_player *pl, void *sound) { return fn_play_local(pl, sound); }
+internal inline int patch_selection_sound(play_local_fn h, int *of) { return patch_calls(calls_selection_sound, 2, (uintptr_t)fn_play_local, (void *)h, of); }
 
 // the running build's values (spec_select, with addr_select): how many it hasn't got
 internal int spec_player_select(int build) {
@@ -1225,6 +1242,8 @@ internal int spec_player_select(int build) {
         of_player_first_attack_done = 0xF05;
         fn_player_resign = (player_resign_fn)0x0055BCEA;
         fn_player_select = (player_select_fn)0x0055B3FB;
+        fn_player_add_selected = (player_add_selected_fn)0x00554887;
+        fn_player_toggle_selected = (player_toggle_selected_fn)0x00554640;
         fn_player_view_sight_copy = (player_view_sight_copy_fn)0x0055BC4E;
         fn_player_call_off_attacks = (player_call_off_attacks_fn)0x0043033E;
         slot_player_hold_unit = 19;
@@ -1432,6 +1451,9 @@ internal int spec_player_select(int build) {
         fn_type_stats_game = (type_stats_game_fn)0x00492969;
         fn_flare_add = (flare_add_fn)0x0055EDA6;
         fn_vector_size = (vector_size_fn)0x004A670A;
+        fn_play_local = (play_local_fn)0x0053BB1D;
+        calls_selection_sound[0] = 0x00554924;
+        calls_selection_sound[1] = 0x005546E7;
         return 2;
     case 1:   // aoc
         of_player_list_begin = 0x18;
@@ -1509,6 +1531,8 @@ internal int spec_player_select(int build) {
         of_player_first_attack_done = 0xF55;
         fn_player_resign = (player_resign_fn)0x0056AF5C;
         fn_player_select = (player_select_fn)0x0056A658;
+        fn_player_add_selected = (player_add_selected_fn)0x00562A5D;
+        fn_player_toggle_selected = (player_toggle_selected_fn)0x00562816;
         fn_player_view_sight_copy = (player_view_sight_copy_fn)0x0056AEC0;
         fn_player_call_off_attacks = (player_call_off_attacks_fn)0x0042DCA6;
         slot_player_hold_unit = 19;
@@ -1716,6 +1740,9 @@ internal int spec_player_select(int build) {
         fn_type_stats_game = (type_stats_game_fn)0x0051E2A5;
         fn_flare_add = (flare_add_fn)0x0056E702;
         fn_vector_size = (vector_size_fn)0x0047C428;
+        fn_play_local = (play_local_fn)0x0054831C;
+        calls_selection_sound[0] = 0x00562AFA;
+        calls_selection_sound[1] = 0x005628BD;
         return 0;
     }
     return 0;
@@ -1727,6 +1754,8 @@ internal int spec_player_check(void) {
     int bad = 0;
     bad += spec_code((uintptr_t)fn_player_resign, "EEPlayer.resign");
     bad += spec_code((uintptr_t)fn_player_select, "EEPlayer.select");
+    bad += spec_code((uintptr_t)fn_player_add_selected, "EEPlayer.add_selected");
+    bad += spec_code((uintptr_t)fn_player_toggle_selected, "EEPlayer.toggle_selected");
     bad += spec_code((uintptr_t)fn_player_view_sight_copy, "EEPlayer.view_sight_copy");
     bad += spec_code((uintptr_t)fn_player_call_off_attacks, "EEPlayer.call_off_attacks");
     bad += spec_code((uintptr_t)fn_ee_player_hold_unit, "EEPlayer.hold_unit");
@@ -1761,5 +1790,8 @@ internal int spec_player_check(void) {
     bad += spec_code((uintptr_t)fn_type_stats_game, "player_functions.type_stats_game");
     bad += spec_code((uintptr_t)fn_flare_add, "player_functions.flare_add");
     bad += spec_code((uintptr_t)fn_vector_size, "player_functions.vector_size");
+    bad += spec_code((uintptr_t)fn_play_local, "player_functions.play_local");
+    bad += spec_call(calls_selection_sound[0], (uintptr_t)fn_play_local, "player_functions.play_local [call_site selection_sound 0]");
+    bad += spec_call(calls_selection_sound[1], (uintptr_t)fn_play_local, "player_functions.play_local [call_site selection_sound 1]");
     return bad;
 }

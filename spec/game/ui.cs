@@ -271,6 +271,23 @@ unsafe struct EEAMiniMap
     extern void execute();
 }
 
+/// the selection box's and the double-click's action (EEALasso): its constructor's part 0x40337D (AoC 0x4028E5) makes
+/// the message by the modifiers - none EEMSelectUnits (0x4E), control EEMAddAndRemoveUnitsFromSelectedGroup (0x50),
+/// shift EEMAddUnitsToSelectedGroup (0x4F); a patrol group's (type 0xDF) another - and queues the action
+[c_type("ee_lasso"), vtable((ee)0x00824CA0, (aoc)0x00838C74)]
+unsafe struct EEALasso
+{
+    /// the message made, not yet sent (the destructor dereferences one left)
+    [offset(0xC), found(c)]
+    EEMSelectUnits* message;
+
+    /// sends message - [game.server]'s send (slot 6, to 0xFF) - and clears it; the slot's function is EEABuild's and
+    /// EEACalamity's too (one body)
+    [slot(1), address((ee)0x0040335C, (aoc)0x004028C4)]
+    [vtable_site("lasso_send")]
+    extern void send();
+}
+
 /// an arrow key's scrolling (EEUIEKeyboardScroll, 0x10 bytes: vtable, refcount, 0, direction): a hotkey's event of the
 /// game's form (0x64D0AB), run by the form's input poll on the game thread while the key is down
 [c_type("ee_key_scroll"), vtable((ee)0x008348FC, (aoc)0x0084A998)]

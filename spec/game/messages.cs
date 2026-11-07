@@ -125,8 +125,11 @@ unsafe struct EEMInGameChat
     extern void* init(void* wide_text);
 }
 
-/// the select message (EEMSelectUnits)
-[@base(typeof(EEMessage)), c_type("ee_select_msg")]
+/// the select message (EEMSelectUnits; 0x138 bytes: the lasso's game_new). Its derived messages (the lasso's
+/// constructor 0x40337D: this constructor with their kind, then their vtable) differ only in their Execute: kind 0x4E
+/// replaces the sender's selection with the ids (EEPlayer.select), 0x4F (shift) adds them (add_selected), 0x50
+/// (control) toggles each (toggle_selected) - all three take each id that is the player's, built and no path point
+[@base(typeof(EEMessage)), c_type("ee_select_msg"), size((ee)0x138, (aoc)0x138)]
 unsafe struct EEMSelectUnits
 {
     [offset(0x10), found(b)]
@@ -153,6 +156,20 @@ unsafe struct EEMSelectUnits
     /// EEMSelectUnits: thiscall(msg, rect, type, 0x4E)
     [address((ee)0x004BD072, (aoc)0x004C5D7F)]
     extern void init(float32* rect, int32 type, int32 flags);
+}
+
+/// the shift box's message (EEMAddUnitsToSelectedGroup, kind 0x4F): an EEMSelectUnits whose Execute (0x4B353E, AoC
+/// 0x4BB44B) adds the ids to the sender's selection
+[@base(typeof(EEMSelectUnits)), c_type("ee_add_select_msg"), vtable((ee)0x00824CB4, (aoc)0x00838C88)]
+unsafe struct EEMAddUnitsToSelectedGroup
+{
+}
+
+/// the control box's message (EEMAddAndRemoveUnitsFromSelectedGroup, kind 0x50): an EEMSelectUnits whose Execute
+/// (0x4B2EE6, AoC 0x4BADD0) toggles each id in the sender's selection
+[@base(typeof(EEMSelectUnits)), c_type("ee_toggle_select_msg"), vtable((ee)0x00824CE8, (aoc)0x00838CBC)]
+unsafe struct EEMAddAndRemoveUnitsFromSelectedGroup
+{
 }
 
 /// the load-into-a-transport message (EEMLoadTransport)

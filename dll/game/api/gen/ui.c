@@ -251,6 +251,22 @@ internal inline void minimap_action_execute(ee_minimap_action *minimap_action) {
 internal minimap_action_execute_fn fn_eea_mini_map_execute;
 internal inline void eea_mini_map_execute(ee_minimap_action *minimap_action) { fn_eea_mini_map_execute(minimap_action); }
 
+// class EEALasso (ee_lasso)
+// the selection box's and the double-click's action (EEALasso): its constructor's part 0x40337D (AoC 0x4028E5) makes
+// the message by the modifiers - none EEMSelectUnits (0x4E), control EEMAddAndRemoveUnitsFromSelectedGroup (0x50),
+// shift EEMAddUnitsToSelectedGroup (0x4F); a patrol group's (type 0xDF) another - and queues the action
+// the message made, not yet sent (the destructor dereferences one left)
+internal inline ee_select_msg *lasso_get_message(const ee_lasso *o) { return *(ee_select_msg **)((uint8_t *)o + of_lasso_message); }
+internal inline void lasso_set_message(ee_lasso *o, ee_select_msg *v) { *(ee_select_msg **)((uint8_t *)o + of_lasso_message) = v; }
+internal inline ee_select_msg **lasso_message_at(const ee_lasso *o) { return (ee_select_msg **)((uint8_t *)o + of_lasso_message); }
+// sends message - [game.server]'s send (slot 6, to 0xFF) - and clears it; the slot's function is EEABuild's and
+// EEACalamity's too (one body)
+typedef void (__thiscall *lasso_send_fn)(ee_lasso *);
+internal inline void lasso_send(ee_lasso *lasso) { ((lasso_send_fn)(*(void ***)lasso)[slot_lasso_send])(lasso); }
+internal lasso_send_fn fn_eea_lasso_send;
+internal inline void eea_lasso_send(ee_lasso *lasso) { fn_eea_lasso_send(lasso); }
+internal inline int patch_lasso_send(lasso_send_fn h) { return patch_vtable(vt_eea_lasso, (int)slot_lasso_send, (uintptr_t)fn_eea_lasso_send, (void *)h); }
+
 // class EEUIEKeyboardScroll (ee_key_scroll)
 // an arrow key's scrolling (EEUIEKeyboardScroll, 0x10 bytes: vtable, refcount, 0, direction): a hotkey's event of the
 // game's form (0x64D0AB), run by the form's input poll on the game thread while the key is down
@@ -752,6 +768,10 @@ internal int spec_ui_select(int build) {
         of_minimap_action_kind = 0x14;
         slot_minimap_action_execute = 1;
         fn_eea_mini_map_execute = (minimap_action_execute_fn)0x0040352C;
+        vt_eea_lasso = 0x00824CA0;
+        of_lasso_message = 0xC;
+        slot_lasso_send = 1;
+        fn_eea_lasso_send = (lasso_send_fn)0x0040335C;
         vt_eeuie_keyboard_scroll = 0x008348FC;
         of_key_scroll_direction = 0xC;
         slot_key_scroll_execute = 1;
@@ -979,6 +999,10 @@ internal int spec_ui_select(int build) {
         of_minimap_action_kind = 0x14;
         slot_minimap_action_execute = 1;
         fn_eea_mini_map_execute = (minimap_action_execute_fn)0x00402A94;
+        vt_eea_lasso = 0x00838C74;
+        of_lasso_message = 0xC;
+        slot_lasso_send = 1;
+        fn_eea_lasso_send = (lasso_send_fn)0x004028C4;
         vt_eeuie_keyboard_scroll = 0x0084A998;
         of_key_scroll_direction = 0xC;
         slot_key_scroll_execute = 1;
@@ -1170,6 +1194,9 @@ internal int spec_ui_check(void) {
     bad += spec_vtable(vt_eea_mini_map, ".?AVEEAMiniMap@@", "EEAMiniMap [vtable]");
     bad += spec_code((uintptr_t)fn_eea_mini_map_execute, "EEAMiniMap.execute");
     bad += spec_slot(vt_eea_mini_map, slot_minimap_action_execute, (uintptr_t)fn_eea_mini_map_execute, "EEAMiniMap.execute [slot]");
+    bad += spec_vtable(vt_eea_lasso, ".?AVEEALasso@@", "EEALasso [vtable]");
+    bad += spec_code((uintptr_t)fn_eea_lasso_send, "EEALasso.send");
+    bad += spec_slot(vt_eea_lasso, slot_lasso_send, (uintptr_t)fn_eea_lasso_send, "EEALasso.send [slot]");
     bad += spec_vtable(vt_eeuie_keyboard_scroll, ".?AVEEUIEKeyboardScroll@@", "EEUIEKeyboardScroll [vtable]");
     bad += spec_code((uintptr_t)fn_eeuie_keyboard_scroll_execute, "EEUIEKeyboardScroll.execute");
     bad += spec_slot(vt_eeuie_keyboard_scroll, slot_key_scroll_execute, (uintptr_t)fn_eeuie_keyboard_scroll_execute, "EEUIEKeyboardScroll.execute [slot]");

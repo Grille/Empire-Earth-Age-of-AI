@@ -913,7 +913,16 @@ conditions, 162 states with their ids) were dumped by a helper, not kept in the 
   vf10 0x4BD35E -> 0x55B3FB on the player adds them to the selected group (player +0x9BC, EEGroup: vf 0x18 count) -
   no limit there. The packer's budget was 63 units (0x3F). Format: byte 0 the ids' bits 24..31, then runs: header
   0x00|n, 0x40|n + bits 8..15, or 0x80|n + bits 8..23 (n <= 63), n bytes of bits 0..7; empty = 0xFF.
-  `[general] big_selection` packs the same format up to the 255 bytes (about 240 units; 236 tested).
+  `[general] big_selection` packs the same format up to the 255 bytes (about 240 units; 236 tested), and the rest
+  goes after it when the lasso (EEALasso, 0x40337D makes the message by the modifiers) sends it (its slot 1,
+  0x40335C: [game.server]'s send): messages of kind 0x4F, the shift box's EEMAddUnitsToSelectedGroup (vtable
+  0x824CB4, Execute 0x4B353E -> EEPlayer 0x554887: adds what select would take), or after a control box's 0x50
+  (EEMAddAndRemoveUnitsFromSelectedGroup 0x824CE8 -> 0x554640: toggles each) more 0x50 - each made by the same
+  constructor and vtable, so an unmodded game reads them. The local player's executes run inside the send (the client
+  and server both carry a selection out at once, then give it a new fast-selection number; a later command carries
+  the last one's), so the adds' selection sounds (0x53BB1D at 0x554924 / 0x5546E7) are left out while they are sent.
+  A plain list (EEMSelectTheseUnits 0x96, 4 bytes an id, no limit) exists too, but its Execute takes each id's unit
+  without a check - a unit dead by the time it is carried out on another PC would crash it.
 
 ## User interface (spec/game/ui.cs, ui_forms.cs, ui_events.cs, editor.cs, ui_imports.cs; 2026-11-01)
 
