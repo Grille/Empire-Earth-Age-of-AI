@@ -268,7 +268,6 @@ unsafe struct EEAMiniMap
     int32 kind;
 
     [slot(1), address((ee)0x0040352C, (aoc)0x00402A94)]
-    [vtable_site("minimap_action_execute")]
     extern void execute();
 }
 

@@ -282,7 +282,7 @@ internal void grab_frame(const ee_ui_form *f, ee_mouse *m) {
 // and while the button is held every new point is run at once through an action of its own (the same code: the
 // point onto the map, kept on it, the camera centred, its zoom, snap); let go, another form, the mouse frozen (the
 // middle button's drag) or a flare being placed (the mouse's mode 0x16: the game's) end it. The game's minimap
-// actions do nothing meanwhile (hook_minimap_action); the scenario editor's minimap stays the game's.
+// control queues none of its own meanwhile (hook_minimap_queue); the scenario editor's minimap stays the game's.
 internal eeui_mini_map *g_minimap;   // the minimap control of the form its copy_data ran for last
 internal int g_mm_drag, g_mm_down;
 internal float g_mm_at[2];
@@ -291,8 +291,11 @@ internal int __thiscall hook_minimap_copy_data(eeui_mini_map *c) {
     g_minimap = c;
     return eeui_mini_map_copy_data(c);
 }
-internal volatile LONG g_mm_test;   // the pipe's vmini: a click at g_mm_test_at (the form's pixels) waiting
-internal float g_mm_test_at[2];
+// the pipe's vmini: the frames of a drag left (1: a click), from g_mm_test_at[0..1] to [2..3] (the form's pixels) in
+// g_mm_test_n frames, a point a frame
+internal volatile LONG g_mm_test;
+internal LONG g_mm_test_n;
+internal float g_mm_test_at[4];
 internal LONG g_mm_runs;
 internal void minimap_run(eeui_mini_map *c, float x, float y) {
     float p[2];
@@ -300,18 +303,21 @@ internal void minimap_run(eeui_mini_map *c, float x, float y) {
     if (p[0] == g_mm_at[0] && p[1] == g_mm_at[1]) return;
     g_mm_at[0] = p[0];
     g_mm_at[1] = p[1];
-    minimap_action_execute(minimap_action_init(g_mm_action, p));
+    eea_mini_map_execute(minimap_action_init(g_mm_action, p));
     g_mm_runs++;
 }
 internal void minimap_frame(const ee_ui_form *f, ee_mouse *m) {
     int down = GetAsyncKeyState(VK_LBUTTON) < 0, pressed = down && !g_mm_down;
     g_mm_down = down;
     eeui_mini_map *c = g_minimap;
-    if (g_mm_test && c && ui_form_is_game(f) && ui_control_contains((const ee_ui_control *)c, g_mm_test_at[0], g_mm_test_at[1])) {
-        g_mm_at[0] = g_mm_at[1] = -1e9f;
-        minimap_run(c, g_mm_test_at[0], g_mm_test_at[1]);
-    }
-    g_mm_test = 0;
+    LONG left = g_mm_test;
+    if (left > 0 && c && ui_form_is_game(f)) {
+        float k = g_mm_test_n > 1 ? (float)(g_mm_test_n - left) / (float)(g_mm_test_n - 1) : 0;
+        float x = g_mm_test_at[0] + (g_mm_test_at[2] - g_mm_test_at[0]) * k, y = g_mm_test_at[1] + (g_mm_test_at[3] - g_mm_test_at[1]) * k;
+        if (left == g_mm_test_n) g_mm_at[0] = g_mm_at[1] = -1e9f;
+        if (ui_control_contains((const ee_ui_control *)c, x, y)) minimap_run(c, x, y);
+        g_mm_test = left - 1;
+    } else g_mm_test = 0;
     if (!g_wheel_hook || !c || !m) return;
     HWND w = GetForegroundWindow();
     DWORD pid = 0;
@@ -328,12 +334,14 @@ internal void minimap_frame(const ee_ui_form *f, ee_mouse *m) {
     }
     minimap_run(c, x, y);
 }
-internal void __thiscall hook_minimap_action(ee_minimap_action *a) {
+// The game's control queues nothing meanwhile: not its actions skipped as they come (the player 2026-11-07: "dragging
+// on the minimap still has weird effects, the fps drop sharply and numbers flicker in and out") - it queued one for
+// every mouse move while the button was held, and the action loop took the interface's lock and the world's write
+// lock for each, skipped or not, as the edge's timer had (camera_install).
+internal void __thiscall hook_minimap_queue(eeui_mini_map *c) {
     void *uim = ui_manager();
-    if (a != (ee_minimap_action *)g_mm_action && minimap_action_get_kind(a) == 0 && g_wheel_hook
-        && ui_form_is_game(uim ? ui_current_form(uim) : NULL))
-        return;
-    eea_mini_map_execute(a);
+    if (g_wheel_hook && ui_form_is_game(uim ? ui_current_form(uim) : NULL)) return;
+    eeui_mini_map_queue_point(c);
 }
 internal uint32_t __thiscall hook_grab_scroll(eeuie_grab_scroll *self, ee_ui_form *form, uint32_t arg) {
     void *uim = ui_manager();
@@ -411,7 +419,7 @@ internal void camera_install(void) {
     // as the cursor reaches the edge and starts the timer, then none till it comes back.
     ok += patch_scroll_timer(build_aoc ? 0x0A : 0x19, g_cam_smooth && g_rd_on ? 0xFF : g_cam_smooth ? 0x01 : 0x0A);
     if (g_cam_smooth && g_rd_on && patch_wheel_zoom_execute(hook_wheel_zoom) + patch_grab_scroll_execute(hook_grab_scroll)
-        + patch_minimap_copy_data(hook_minimap_copy_data) + patch_minimap_action_execute(hook_minimap_action) == 4 && !g_headless) {
+        + patch_minimap_copy_data(hook_minimap_copy_data) + patch_minimap_queue(hook_minimap_queue, NULL) == 5 && !g_headless) {
         HANDLE t = CreateThread(NULL, 0, wheel_thread, NULL, 0, NULL);
         if (t) CloseHandle(t);
     }

@@ -1265,6 +1265,12 @@ internal inline int eeui_mini_map_mouse_l_button_up(eeui_mini_map *eeui_mini_map
 typedef int (__thiscall *eeui_mini_map_mouse_move_fn)(eeui_mini_map *, void *);
 internal eeui_mini_map_mouse_move_fn fn_eeui_mini_map_mouse_move;
 internal inline int eeui_mini_map_mouse_move(eeui_mini_map *eeui_mini_map, void *at) { return fn_eeui_mini_map_mouse_move(eeui_mini_map, at); }
+// its action (+0xD8) set to the mouse's point (kind 0: the camera centred there) and queued (EEUserInterface's
+// queue_action) - by the left button's up and by every mouse move while it is held
+typedef void (__thiscall *eeui_mini_map_queue_point_fn)(eeui_mini_map *);
+internal eeui_mini_map_queue_point_fn fn_eeui_mini_map_queue_point;
+internal inline void eeui_mini_map_queue_point(eeui_mini_map *eeui_mini_map) { fn_eeui_mini_map_queue_point(eeui_mini_map); }
+internal inline int patch_minimap_queue(eeui_mini_map_queue_point_fn h, int *of) { return patch_calls(calls_minimap_queue, 2, (uintptr_t)fn_eeui_mini_map_queue_point, (void *)h, of); }
 typedef int (__thiscall *eeui_mini_map_mouse_r_button_down_fn)(eeui_mini_map *);
 internal eeui_mini_map_mouse_r_button_down_fn fn_eeui_mini_map_mouse_r_button_down;
 internal inline int eeui_mini_map_mouse_r_button_down(eeui_mini_map *eeui_mini_map) { return fn_eeui_mini_map_mouse_r_button_down(eeui_mini_map); }
@@ -1920,6 +1926,9 @@ internal int spec_ui_forms_select(int build) {
         fn_eeui_mini_map_mouse_l_button_down = (eeui_mini_map_mouse_l_button_down_fn)0x0065E84A;
         fn_eeui_mini_map_mouse_l_button_up = (eeui_mini_map_mouse_l_button_up_fn)0x0065E980;
         fn_eeui_mini_map_mouse_move = (eeui_mini_map_mouse_move_fn)0x0065EABD;
+        fn_eeui_mini_map_queue_point = (eeui_mini_map_queue_point_fn)0x0065EAFA;
+        calls_minimap_queue[0] = 0x0065E9BF;
+        calls_minimap_queue[1] = 0x0065EAE6;
         fn_eeui_mini_map_mouse_r_button_down = (eeui_mini_map_mouse_r_button_down_fn)0x0065E853;
         fn_eeui_mini_map_mouse_r_button_up = (eeui_mini_map_mouse_r_button_up_fn)0x0065EE50;
         fn_eeui_mini_map_set_location = (eeui_mini_map_set_location_fn)0x0065EC04;
@@ -2250,6 +2259,9 @@ internal int spec_ui_forms_select(int build) {
         fn_eeui_mini_map_mouse_l_button_down = (eeui_mini_map_mouse_l_button_down_fn)0x0065AE3B;
         fn_eeui_mini_map_mouse_l_button_up = (eeui_mini_map_mouse_l_button_up_fn)0x00675F72;
         fn_eeui_mini_map_mouse_move = (eeui_mini_map_mouse_move_fn)0x006760AF;
+        fn_eeui_mini_map_queue_point = (eeui_mini_map_queue_point_fn)0x006760EC;
+        calls_minimap_queue[0] = 0x00675FB1;
+        calls_minimap_queue[1] = 0x006760D8;
         fn_eeui_mini_map_mouse_r_button_down = (eeui_mini_map_mouse_r_button_down_fn)0x00675E45;
         fn_eeui_mini_map_mouse_r_button_up = (eeui_mini_map_mouse_r_button_up_fn)0x00675523;
         fn_eeui_mini_map_set_location = (eeui_mini_map_set_location_fn)0x006761F6;
@@ -2725,6 +2737,9 @@ internal int spec_ui_forms_check(void) {
     bad += spec_slot(vt_eeui_mini_map, slot_ui_control_mouse_l_button_up, (uintptr_t)fn_eeui_mini_map_mouse_l_button_up, "EEUIMiniMap.mouse_l_button_up [slot]");
     bad += spec_code((uintptr_t)fn_eeui_mini_map_mouse_move, "EEUIMiniMap.mouse_move");
     bad += spec_slot(vt_eeui_mini_map, slot_ui_control_mouse_move, (uintptr_t)fn_eeui_mini_map_mouse_move, "EEUIMiniMap.mouse_move [slot]");
+    bad += spec_code((uintptr_t)fn_eeui_mini_map_queue_point, "EEUIMiniMap.queue_point");
+    bad += spec_call(calls_minimap_queue[0], (uintptr_t)fn_eeui_mini_map_queue_point, "EEUIMiniMap.queue_point [call_site minimap_queue 0]");
+    bad += spec_call(calls_minimap_queue[1], (uintptr_t)fn_eeui_mini_map_queue_point, "EEUIMiniMap.queue_point [call_site minimap_queue 1]");
     bad += spec_code((uintptr_t)fn_eeui_mini_map_mouse_r_button_down, "EEUIMiniMap.mouse_r_button_down");
     bad += spec_slot(vt_eeui_mini_map, slot_ui_control_mouse_r_button_down, (uintptr_t)fn_eeui_mini_map_mouse_r_button_down, "EEUIMiniMap.mouse_r_button_down [slot]");
     bad += spec_code((uintptr_t)fn_eeui_mini_map_mouse_r_button_up, "EEUIMiniMap.mouse_r_button_up");

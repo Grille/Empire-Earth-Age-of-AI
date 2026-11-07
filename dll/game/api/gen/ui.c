@@ -250,7 +250,6 @@ typedef void (__thiscall *minimap_action_execute_fn)(ee_minimap_action *);
 internal inline void minimap_action_execute(ee_minimap_action *minimap_action) { ((minimap_action_execute_fn)(*(void ***)minimap_action)[slot_minimap_action_execute])(minimap_action); }
 internal minimap_action_execute_fn fn_eea_mini_map_execute;
 internal inline void eea_mini_map_execute(ee_minimap_action *minimap_action) { fn_eea_mini_map_execute(minimap_action); }
-internal inline int patch_minimap_action_execute(minimap_action_execute_fn h) { return patch_vtable(vt_eea_mini_map, (int)slot_minimap_action_execute, (uintptr_t)fn_eea_mini_map_execute, (void *)h); }
 
 // class EEUIEKeyboardScroll (ee_key_scroll)
 // an arrow key's scrolling (EEUIEKeyboardScroll, 0x10 bytes: vtable, refcount, 0, direction): a hotkey's event of the

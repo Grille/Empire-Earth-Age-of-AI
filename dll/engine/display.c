@@ -1944,16 +1944,24 @@ internal void cmd_headless(const char *verb, const char *args, char *out) {
               g_rd_on && g_cam_smooth ? "on" : "off - the own renderer's only", g_wheel_zooms);
         return;
     }
-    if (!strcmp(verb, "vmini")) {   // vmini X Y: a click on the minimap at the form's pixel X, Y, run by the render thread (camera.c)
-        float x, y;
-        if (sscanf(args, "%f %f", &x, &y) < 2) { REPLY("usage: vmini x y\n"); return; }
+    // vmini X Y [X2 Y2 N]: a click on the minimap at the form's pixel X, Y, run by the render thread (camera.c) - or a
+    // drag from there to X2, Y2 in N frames
+    if (!strcmp(verb, "vmini")) {
+        float x, y, x2, y2;
+        int n = 1, k = sscanf(args, "%f %f %f %f %d", &x, &y, &x2, &y2, &n);
+        if (k < 2 || (k > 2 && k < 5) || n < 1) { REPLY("usage: vmini x y [x2 y2 frames]\n"); return; }
+        if (k == 2) x2 = x, y2 = y, n = 1;
         LONG before = g_mm_runs;
         g_mm_test_at[0] = x;
         g_mm_test_at[1] = y;
-        g_mm_test = 1;
-        for (int i = 0; i < 100 && g_mm_test; i++) Sleep(10);
+        g_mm_test_at[2] = x2;
+        g_mm_test_at[3] = y2;
+        g_mm_test_n = n;
+        g_mm_test = n;
+        for (int i = 0; i < 100 + n * 10 && g_mm_test; i++) Sleep(10);
         if (!g_minimap) REPLY("error: no minimap control seen yet\n");
-        else REPLY("ok: minimap %s (its rectangle %.0f..%.0f x %.0f..%.0f, the point %.1f %.1f)\n", g_mm_runs != before ? "run" : "not run - outside it or not the game's screen",
+        else REPLY("ok: minimap %s, %ld points (its rectangle %.0f..%.0f x %.0f..%.0f, the point %.1f %.1f)\n",
+                   g_mm_runs != before ? "run" : "not run - outside it or not the game's screen", g_mm_runs - before,
                    (double)ui_control_get_left((const ee_ui_control *)g_minimap), (double)ui_control_get_right((const ee_ui_control *)g_minimap),
                    (double)ui_control_get_bottom((const ee_ui_control *)g_minimap), (double)ui_control_get_top((const ee_ui_control *)g_minimap),
                    (double)g_mm_at[0], (double)g_mm_at[1]);

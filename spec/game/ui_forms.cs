@@ -865,6 +865,13 @@ unsafe struct EEUIMiniMap
     [address((ee)0x0065EABD, (aoc)0x006760AF), overrides(typeof(UIControl))]
     extern int32 mouse_move(void* at);
 
+    /// its action (+0xD8) set to the mouse's point (kind 0: the camera centred there) and queued (EEUserInterface's
+    /// queue_action) - by the left button's up and by every mouse move while it is held
+    [address((ee)0x0065EAFA, (aoc)0x006760EC)]
+    [call_site("minimap_queue", (ee)0x0065E9BF, (aoc)0x00675FB1)]
+    [call_site("minimap_queue", (ee)0x0065EAE6, (aoc)0x006760D8)]
+    extern void queue_point();
+
     [address((ee)0x0065E853, (aoc)0x00675E45), overrides(typeof(UIControl))]
     extern int32 mouse_r_button_down();
 

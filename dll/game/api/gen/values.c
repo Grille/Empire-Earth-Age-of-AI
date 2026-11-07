@@ -2404,6 +2404,7 @@ internal uint32_t size_eeui_mini_map;
 internal uint32_t of_eeui_mini_map_origin_x;
 internal uint32_t of_eeui_mini_map_origin_y;
 internal uint32_t of_eeui_mini_map_action;
+internal uint32_t calls_minimap_queue[2];
 internal uint32_t vt_eeuipgs_line_graph;
 internal uint32_t size_eeuipgs_line_graph;
 internal uint32_t vt_eeuisci_form_manager;
