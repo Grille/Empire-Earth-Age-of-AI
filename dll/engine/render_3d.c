@@ -815,6 +815,10 @@ internal void __thiscall rd_hook_write_lock(void *lock) {
         g_sim_thread = GetCurrentThreadId();
     }
 }
+internal LONGLONG rd_step_qpc(void) {   // camera.c: how long the step under way has held the world (0: none)
+    LONGLONG at = g_rwl_write_at;
+    return at ? rd_qpc() - at : 0;
+}
 internal void __thiscall rd_hook_write_unlock(void *lock) {
     if (lock == g_rwl_world && g_rwl_write_at) {
         LONGLONG h = rd_qpc() - g_rwl_write_at;

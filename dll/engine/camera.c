@@ -4,8 +4,10 @@
 //
 // Scrolling (mouse at the screen edge / keys) is the action EEAScroll (data_ui_vt_scroll, slot 1 Execute scroll_execute),
 // queued by a timer (its ctor: `push 0x19` - 25 ms - at data_ui_site_scroll_timer; AoC's `push 0xA`, 10 ms). The fields are
-// the same in both: +0x40 elapsed timer ticks, +0x44 left, +0x45 right, +0x46 down, +0x47 up. EE moves the camera at a
-// constant speed:
+// the same in both: +0x40 elapsed timer ticks, +0x44 left, +0x45 right, +0x46 top, +0x47 bottom (the edge check 0x4051A0
+// sets +0x46 for a cursor y at or above its upper bound, +0x47 at or below its lower - the game's mouse y counts down
+// the screen, window_mouse_to; read the other way round until 2026-11-07). The top moves the camera +y, as the up
+// arrow does (EEUIEKeyboardScroll). EE moves the camera at a constant speed:
 //   step = (speed data_game_scroll_speed + 0.5) * (scroll setting data_game_scroll_setting + 0.5) * ticks * 0.25
 // AoC (EE-AOC.exe 0x40478E) keeps a velocity per axis (globals 0x8E5BE4 x, 0x8E5BE0 y) that starts at 10% and ramps
 // up to full speed (+1% of the maximum per elapsed tick; with its +0x48 byte clear - the ctor sets it - at once);
@@ -34,7 +36,7 @@ internal volatile LONG g_scroll_calls;   // scroll steps run (for camtrace)
 #define CAM_HOLD_MS 500    // a late step's directions kept this long while the input agrees
 #define CAM_EDGE_PX 8      // the cursor this near a window edge counts as at it
 internal int g_cam_smooth = 1;
-internal volatile LONG g_cam_keys;     // the directions of the game's last step: bit k = SCROLL_KEYS + k (left, right, down, up)
+internal volatile LONG g_cam_keys;     // the directions of the game's last step: bit k = SCROLL_KEYS + k (left, right, top, bottom)
 internal volatile DWORD g_cam_keys_at; // GetTickCount of that step
 internal LARGE_INTEGER g_cam_freq, g_cam_frame;
 
@@ -52,20 +54,20 @@ internal void scroll_axis(float *vel, int neg, int pos, float minv, float maxv, 
 
 // the camera moved by ms of scrolling in the directions k (bits as g_cam_keys)
 internal void scroll_move(float ms, int k) {
-    int l = k & 1, r = k >> 1 & 1, dn = k >> 2 & 1, up = k >> 3 & 1;
+    int l = k & 1, r = k >> 1 & 1, top = k >> 2 & 1, bottom = k >> 3 & 1;
     float speed = scroll_speed() + 0.5f, maxv = scroll_setting() + 0.5f;
     float dx = 0, dy = 0;
     if (!g_scroll_aoc) {   // EE: constant speed, as 0x4050FC
         float step = speed * maxv * ms * 0.01f;
         dx = r ? step : l ? -step : 0;
-        dy = dn ? step : up ? -step : 0;
+        dy = top ? step : bottom ? -step : 0;
     } else {               // AoC: velocity ramp
         DWORD t = GetTickCount();
         if (t - g_scroll_last > 100) g_vel_x = g_vel_y = 0;   // scrolling had stopped: start slow again
         g_scroll_last = t;
         float minv = maxv * 0.1f, scale = speed * ms * 0.01f, ramp = ms * 0.001f * maxv;
         if (l || r) { scroll_axis(&g_vel_x, l, r, minv, maxv, ramp); dx = g_vel_x * scale; }
-        if (up || dn) { scroll_axis(&g_vel_y, up, dn, minv, maxv, ramp); dy = g_vel_y * scale; }
+        if (top || bottom) { scroll_axis(&g_vel_y, bottom, top, minv, maxv, ramp); dy = g_vel_y * scale; }
     }
     if (dx != 0 || dy != 0) camera_pan(dx, dy);
 }
@@ -152,19 +154,39 @@ internal void arrow_frame(float ms) {
     if (dx != 0 || dy != 0) camera_pan(dx, dy);
 }
 
-// the directions of k the player still holds by the input itself: an arrow key, the cursor at a window edge
-internal int scroll_input_agrees(int k) {
-    int held = (GetAsyncKeyState(VK_LEFT) < 0) | (GetAsyncKeyState(VK_RIGHT) < 0) << 1
-             | (GetAsyncKeyState(VK_DOWN) < 0) << 2 | (GetAsyncKeyState(VK_UP) < 0) << 3;
+// the directions (bits as g_cam_keys: left, right, top, bottom) the input itself holds: the cursor at a window edge,
+// the arrow keys (up as the top: both move the camera +y)
+internal int scroll_edges(void) {
     HWND w = GetForegroundWindow();
     DWORD pid = 0;
     POINT p;
     RECT rc;
-    if (w && GetWindowThreadProcessId(w, &pid) && pid == GetCurrentProcessId() && GetCursorPos(&p)
-        && ScreenToClient(w, &p) && GetClientRect(w, &rc))
-        held |= (p.x <= rc.left + CAM_EDGE_PX) | (p.x >= rc.right - 1 - CAM_EDGE_PX) << 1
-              | (p.y >= rc.bottom - 1 - CAM_EDGE_PX) << 2 | (p.y <= rc.top + CAM_EDGE_PX) << 3;
-    return k & held;
+    if (!w || !GetWindowThreadProcessId(w, &pid) || pid != GetCurrentProcessId() || !GetCursorPos(&p)
+        || !ScreenToClient(w, &p) || !GetClientRect(w, &rc))
+        return 0;
+    return (p.x <= rc.left + CAM_EDGE_PX) | (p.x >= rc.right - 1 - CAM_EDGE_PX) << 1
+         | (p.y <= rc.top + CAM_EDGE_PX) << 2 | (p.y >= rc.bottom - 1 - CAM_EDGE_PX) << 3;
+}
+internal int scroll_arrows(void) {
+    return (GetAsyncKeyState(VK_LEFT) < 0) | (GetAsyncKeyState(VK_RIGHT) < 0) << 1
+         | (GetAsyncKeyState(VK_UP) < 0) << 2 | (GetAsyncKeyState(VK_DOWN) < 0) << 3;
+}
+// the directions of k the player still holds by the input itself
+internal int scroll_input_agrees(int k) { return k & (scroll_edges() | scroll_arrows()); }
+
+// A step longer than CAM_HOLD_MS (a huge late game, the pipe's stepload - the player 2026-11-07: "i can only move the
+// camera for a short moment"): the game thread reports no direction till it ends, and the directions of before it
+// were kept only that long. While it runs the input alone decides - the cursor at an edge at the edge's speed, the
+// arrows at theirs (not while an edit box has the keyboard) - also a scroll begun during the step.
+internal LONGLONG rd_step_qpc(void);   // render_3d.c: how long the step under way has held the world (0: none; the own renderer)
+internal int long_step_frame(float ms) {   // 1: a long step, the camera moved by the input
+    if (!g_cam_freq.QuadPart || rd_step_qpc() * 1000 <= (LONGLONG)CAM_HOLD_MS * g_cam_freq.QuadPart) return 0;
+    scroll_move(ms, scroll_edges());
+    int a = keyboard_captured() ? 0 : scroll_arrows();
+    float step = (scroll_speed() + 0.5f) * (scroll_setting() + 0.5f) * 0.005f * ms;   // arrow_frame's speed
+    float dx = (a & 2 ? step : 0) - (a & 1 ? step : 0), dy = (a & 4 ? step : 0) - (a & 8 ? step : 0);   // as arrow_frame: up +y
+    if (dx != 0 || dy != 0) camera_pan(dx, dy);
+    return 1;
 }
 
 internal void camera_frame(void) {   // the render thread, every presented frame
@@ -174,6 +196,7 @@ internal void camera_frame(void) {   // the render thread, every presented frame
     QueryPerformanceCounter(&now);
     double ms = g_cam_frame.QuadPart ? (double)(now.QuadPart - g_cam_frame.QuadPart) * 1000.0 / (double)g_cam_freq.QuadPart : 0;
     g_cam_frame = now;
+    if (game_camera() && long_step_frame(ms > 100.0 ? 100.0f : (float)ms)) return;
     if (game_camera()) arrow_frame(ms > 100.0 ? 100.0f : (float)ms);
     int k = (int)g_cam_keys;
     if (!k || !game_camera()) return;
