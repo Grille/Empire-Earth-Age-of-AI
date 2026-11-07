@@ -248,6 +248,7 @@ typedef struct ee_physics_model ee_physics_model;
 typedef struct ee_group ee_group;
 typedef struct ee_active_group ee_active_group;
 typedef struct ee_path_mgr ee_path_mgr;
+typedef struct ee_minimap_action ee_minimap_action;
 typedef struct ee_key_scroll ee_key_scroll;
 typedef struct ee_ui_background ee_ui_background;
 typedef struct ee_uim ee_uim;

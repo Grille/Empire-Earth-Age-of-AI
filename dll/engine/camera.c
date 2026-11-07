@@ -273,6 +273,68 @@ internal void grab_frame(const ee_ui_form *f, ee_mouse *m) {
     float k = (grab_setting() + 0.5f) * (scroll_speed() + 0.5f) * 0.07f;
     camera_pan(k * (float)dx, -k * (float)dy);
 }
+// The minimap the same way (the player 2026-11-07: "the last open point is moving the camera via clicking and dragging
+// on the minimap"): its control's mouse (EEUIMiniMap's button up and move, the game thread) queues its action
+// (EEAMiniMap: the camera centred on the minimap's point) for the action loop, which runs it under the world's write
+// lock - both wait for a step. With the mouse hook in place the render thread does it on the game's screen: a left
+// press (the physical button, as the game's DirectInput mouse) with the game's cursor - moved on this thread - over
+// the minimap control (its pointer from its copy_data, which the render objects' update runs every frame) starts it,
+// and while the button is held every new point is run at once through an action of its own (the same code: the
+// point onto the map, kept on it, the camera centred, its zoom, snap); let go, another form, the mouse frozen (the
+// middle button's drag) or a flare being placed (the mouse's mode 0x16: the game's) end it. The game's minimap
+// actions do nothing meanwhile (hook_minimap_action); the scenario editor's minimap stays the game's.
+internal eeui_mini_map *g_minimap;   // the minimap control of the form its copy_data ran for last
+internal int g_mm_drag, g_mm_down;
+internal float g_mm_at[2];
+internal uint32_t g_mm_action[8];    // the render thread's own EEAMiniMap (0x1C bytes)
+internal int __thiscall hook_minimap_copy_data(eeui_mini_map *c) {
+    g_minimap = c;
+    return eeui_mini_map_copy_data(c);
+}
+internal volatile LONG g_mm_test;   // the pipe's vmini: a click at g_mm_test_at (the form's pixels) waiting
+internal float g_mm_test_at[2];
+internal LONG g_mm_runs;
+internal void minimap_run(eeui_mini_map *c, float x, float y) {
+    float p[2];
+    minimap_point(c, x, y, p);
+    if (p[0] == g_mm_at[0] && p[1] == g_mm_at[1]) return;
+    g_mm_at[0] = p[0];
+    g_mm_at[1] = p[1];
+    minimap_action_execute(minimap_action_init(g_mm_action, p));
+    g_mm_runs++;
+}
+internal void minimap_frame(const ee_ui_form *f, ee_mouse *m) {
+    int down = GetAsyncKeyState(VK_LBUTTON) < 0, pressed = down && !g_mm_down;
+    g_mm_down = down;
+    eeui_mini_map *c = g_minimap;
+    if (g_mm_test && c && ui_form_is_game(f) && ui_control_contains((const ee_ui_control *)c, g_mm_test_at[0], g_mm_test_at[1])) {
+        g_mm_at[0] = g_mm_at[1] = -1e9f;
+        minimap_run(c, g_mm_test_at[0], g_mm_test_at[1]);
+    }
+    g_mm_test = 0;
+    if (!g_wheel_hook || !c || !m) return;
+    HWND w = GetForegroundWindow();
+    DWORD pid = 0;
+    int ours = w && GetWindowThreadProcessId(w, &pid) && pid == GetCurrentProcessId() && ui_form_is_game(f)
+            && ui_control_get_form((const ee_ui_control *)c) == f && !mouse_get_frozen(m) && mouse_get_mode(m) != 0x16;
+    float x = mouse_get_x(m), y = mouse_get_y(m);
+    if (!g_mm_drag) {
+        if (!pressed || !ours || !ui_control_contains((const ee_ui_control *)c, x, y)) return;
+        g_mm_drag = 1;
+        g_mm_at[0] = g_mm_at[1] = -1e9f;
+    } else if (!down || !ours) {
+        g_mm_drag = 0;
+        return;
+    }
+    minimap_run(c, x, y);
+}
+internal void __thiscall hook_minimap_action(ee_minimap_action *a) {
+    void *uim = ui_manager();
+    if (a != (ee_minimap_action *)g_mm_action && minimap_action_get_kind(a) == 0 && g_wheel_hook
+        && ui_form_is_game(uim ? ui_current_form(uim) : NULL))
+        return;
+    eea_mini_map_execute(a);
+}
 internal uint32_t __thiscall hook_grab_scroll(eeuie_grab_scroll *self, ee_ui_form *form, uint32_t arg) {
     void *uim = ui_manager();
     if (g_wheel_hook && ui_form_is_game(uim ? ui_current_form(uim) : NULL)) return 0;
@@ -293,6 +355,7 @@ internal void input_frame(float ms) {
     wheel_frame(f);   // a frozen mouse still zooms: the game's update then reads only the wheel
     ee_mouse *m = game_mouse();
     grab_frame(f, m);
+    minimap_frame(f, m);
     if (!ui_form_has_view(f) || !m || mouse_get_frozen(m)) return;
     HWND w = GetForegroundWindow();
     DWORD pid = 0;
@@ -347,8 +410,8 @@ internal void camera_install(void) {
     // period never comes round (TMPoll::Poll: the time gone / the period), the edge check (0x4051A0) queues one action
     // as the cursor reaches the edge and starts the timer, then none till it comes back.
     ok += patch_scroll_timer(build_aoc ? 0x0A : 0x19, g_cam_smooth && g_rd_on ? 0xFF : g_cam_smooth ? 0x01 : 0x0A);
-    if (g_cam_smooth && g_rd_on && patch_wheel_zoom_execute(hook_wheel_zoom) + patch_grab_scroll_execute(hook_grab_scroll) == 2
-        && !g_headless) {
+    if (g_cam_smooth && g_rd_on && patch_wheel_zoom_execute(hook_wheel_zoom) + patch_grab_scroll_execute(hook_grab_scroll)
+        + patch_minimap_copy_data(hook_minimap_copy_data) + patch_minimap_action_execute(hook_minimap_action) == 4 && !g_headless) {
         HANDLE t = CreateThread(NULL, 0, wheel_thread, NULL, 0, NULL);
         if (t) CloseHandle(t);
     }

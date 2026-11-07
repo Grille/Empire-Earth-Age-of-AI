@@ -181,6 +181,11 @@ unsafe struct RTSMouse
     [offset(0x94), found(c)]
     int32 wheel;
 
+    /// the cursor's mode: 0x16 while a minimap flare is being placed - the minimap's button up then drops the flare,
+    /// the camera stays (EEUIMiniMap's mouse functions, both builds)
+    [offset(0x98), found(c), guess]
+    int32 mode;
+
     [offset(0xA4), found(c)]
     uint8 frozen;
 
@@ -241,6 +246,29 @@ unsafe struct EEAScroll
     block keys;
 
     [address((ee)0x004050FC, (aoc)0x0040478E)]
+    extern void execute();
+}
+
+/// the minimap's action (EEAMiniMap, 0x1C bytes; EEUIMiniMap +0xD8 keeps one): queued by the minimap control's mouse
+/// (0x65EAFA, AoC 0x6760EC: the point in the minimap's 800 x 600 pixels, kept in game.minimap_bounds) and run by the
+/// game's action loop under the world's write lock
+[c_type("ee_minimap_action"), size((ee)0x1C, (aoc)0x1C), vtable((ee)0x008358B4, (aoc)0x0084B94C)]
+unsafe struct EEAMiniMap
+{
+    /// the point on the minimap
+    [offset(0xC), found(c)]
+    float32 x;
+
+    [offset(0x10), found(c)]
+    float32 y;
+
+    /// 0: the camera centred on the point (0x40373E: through the minimap's transformation onto the map, kept on it,
+    /// camera.center 0x51EC85, zoom_to the zoom, snap); 1: 0x403542 (not looked at)
+    [offset(0x14), found(c)]
+    int32 kind;
+
+    [slot(1), address((ee)0x0040352C, (aoc)0x00402A94)]
+    [vtable_site("minimap_action_execute")]
     extern void execute();
 }
 

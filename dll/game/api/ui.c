@@ -110,11 +110,39 @@ internal inline void **edit_box_vtable_copy(void **vt, int room) {
     memcpy(vt, (void **)(uintptr_t)vt_ui_edit_box - 1, (size_t)n * sizeof *vt);
     return &vt[1 + slot_ui_control_update_keyboard];
 }
-// the form's mouse within the control's rectangle (as UIForm::UpdateMouseLocation finds the control under it)
-internal inline int ui_control_under_mouse(const ee_ui_control *c, const ee_ui_form *f) {
-    float x = ui_form_get_mouse_x(f), y = ui_form_get_mouse_y(f);
+// the form's pixel x, y within the control's rectangle (GERectangle::Contains, as UIForm::UpdateMouseLocation finds
+// the control under the mouse)
+internal inline int ui_control_contains(const ee_ui_control *c, float x, float y) {
     float t = ui_control_get_top(c), b = ui_control_get_bottom(c);
     return x >= ui_control_get_left(c) && x <= ui_control_get_right(c) && y >= (t < b ? t : b) && y <= (t < b ? b : t);
+}
+internal inline int ui_control_under_mouse(const ee_ui_control *c, const ee_ui_form *f) {
+    return ui_control_contains(c, ui_form_get_mouse_x(f), ui_form_get_mouse_y(f));
+}
+// the minimap's point (its 800 x 600 pixels) under the form's pixel x, y, as its mouse finds it (0x65EAFA): by the
+// scale its code reads (hooks.minimap_fx_ops / fy_ops - the mod's own resolution's when display.c redirected them),
+// kept in game.minimap_bounds
+internal inline void minimap_point(const eeui_mini_map *c, float x, float y, float p[2]) {
+    ee_window *w = game_window();
+    float fx = *(const float *)(uintptr_t)*(const uint32_t *)data_hooks_minimap_fx_ops[0];
+    float fy = *(const float *)(uintptr_t)*(const uint32_t *)data_hooks_minimap_fy_ops[0];
+    const float *r = (const float *)game_minimap_bounds_at();   // bottom, left, right, top
+    p[0] = (x - eeui_mini_map_get_origin_x(c)) / ((float)(unsigned)window_get_width(w) * fx);
+    p[1] = (y - eeui_mini_map_get_origin_y(c)) / ((float)(unsigned)window_get_height(w) * fy);
+    if (p[0] < r[1]) p[0] = r[1];
+    if (p[0] > r[2]) p[0] = r[2];
+    if (p[1] < r[3]) p[1] = r[3];
+    if (p[1] > r[0]) p[1] = r[0];
+}
+// an EEAMiniMap of the caller's (0x1C bytes) that centres the camera on the minimap's point p when run
+internal inline ee_minimap_action *minimap_action_init(void *mem, const float p[2]) {
+    memset(mem, 0, size_eea_mini_map);
+    *(uint32_t *)mem = vt_eea_mini_map;
+    ((uint32_t *)mem)[1] = 1;   // its reference count
+    ee_minimap_action *a = mem;
+    minimap_action_set_x(a, p[0]);
+    minimap_action_set_y(a, p[1]);
+    return a;
 }
 // every edit box's UpdateKeyboard (the exe's import: its vtables reach it through it, the mod's copy too) - the
 // original into *orig

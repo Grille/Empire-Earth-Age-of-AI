@@ -832,11 +832,25 @@ unsafe struct EEUIFileComboBox
 [@base(typeof(UIControl)), size((ee)0xE4, (aoc)0xE4), vtable((ee)0x0083581C, (aoc)0x0084B8B4)]
 unsafe struct EEUIMiniMap
 {
+    /// the minimap's picture's top left in the form's pixels: a point on it is (the mouse - this) / (the window's size x
+    /// 1/800, 1/600) (0x65EAFA, AoC 0x6760EC; the scale's operands hooks.minimap_fx_ops / fy_ops)
+    [offset(0xA0), found(c)]
+    float32 origin_x;
+
+    [offset(0xA4), found(c)]
+    float32 origin_y;
+
+    /// its action, queued again for every click and drag
+    [offset(0xD8), found(c)]
+    EEAMiniMap* action;
+
     /// its constructor (5 arguments, not typed yet)
     [address((ee)0x0065DE66, (aoc)0x00675459)]
     extern void* init(uint32 p1, uint32 p2, uint32 p3, uint32 p4, uint32 p5);
 
+    /// run every frame by the render objects' update (UIManager::CopyData, the render thread)
     [address((ee)0x0065DF8A, (aoc)0x00675585), overrides(typeof(UIControl))]
+    [vtable_site("minimap_copy_data")]
     extern int32 copy_data();
 
     [address((ee)0x0065E5A6, (aoc)0x00675BA1), overrides(typeof(UIControl))]

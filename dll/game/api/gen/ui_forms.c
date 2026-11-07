@@ -1232,13 +1232,27 @@ internal inline float *eeui_mini_map_top_at(const eeui_mini_map *o) { return (fl
 internal inline ee_ui_form *eeui_mini_map_get_form(const eeui_mini_map *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 internal inline void eeui_mini_map_set_form(eeui_mini_map *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
 internal inline ee_ui_form **eeui_mini_map_form_at(const eeui_mini_map *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+// the minimap's picture's top left in the form's pixels: a point on it is (the mouse - this) / (the window's size x
+// 1/800, 1/600) (0x65EAFA, AoC 0x6760EC; the scale's operands hooks.minimap_fx_ops / fy_ops)
+internal inline float eeui_mini_map_get_origin_x(const eeui_mini_map *o) { return *(float *)((uint8_t *)o + of_eeui_mini_map_origin_x); }
+internal inline void eeui_mini_map_set_origin_x(eeui_mini_map *o, float v) { *(float *)((uint8_t *)o + of_eeui_mini_map_origin_x) = v; }
+internal inline float *eeui_mini_map_origin_x_at(const eeui_mini_map *o) { return (float *)((uint8_t *)o + of_eeui_mini_map_origin_x); }
+internal inline float eeui_mini_map_get_origin_y(const eeui_mini_map *o) { return *(float *)((uint8_t *)o + of_eeui_mini_map_origin_y); }
+internal inline void eeui_mini_map_set_origin_y(eeui_mini_map *o, float v) { *(float *)((uint8_t *)o + of_eeui_mini_map_origin_y) = v; }
+internal inline float *eeui_mini_map_origin_y_at(const eeui_mini_map *o) { return (float *)((uint8_t *)o + of_eeui_mini_map_origin_y); }
+// its action, queued again for every click and drag
+internal inline ee_minimap_action *eeui_mini_map_get_action(const eeui_mini_map *o) { return *(ee_minimap_action **)((uint8_t *)o + of_eeui_mini_map_action); }
+internal inline void eeui_mini_map_set_action(eeui_mini_map *o, ee_minimap_action *v) { *(ee_minimap_action **)((uint8_t *)o + of_eeui_mini_map_action) = v; }
+internal inline ee_minimap_action **eeui_mini_map_action_at(const eeui_mini_map *o) { return (ee_minimap_action **)((uint8_t *)o + of_eeui_mini_map_action); }
 // its constructor (5 arguments, not typed yet)
 typedef void *(__thiscall *eeui_mini_map_init_fn)(eeui_mini_map *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 internal eeui_mini_map_init_fn fn_eeui_mini_map_init;
 internal inline void *eeui_mini_map_init(eeui_mini_map *eeui_mini_map, uint32_t p1, uint32_t p2, uint32_t p3, uint32_t p4, uint32_t p5) { return fn_eeui_mini_map_init(eeui_mini_map, p1, p2, p3, p4, p5); }
+// run every frame by the render objects' update (UIManager::CopyData, the render thread)
 typedef int (__thiscall *eeui_mini_map_copy_data_fn)(eeui_mini_map *);
 internal eeui_mini_map_copy_data_fn fn_eeui_mini_map_copy_data;
 internal inline int eeui_mini_map_copy_data(eeui_mini_map *eeui_mini_map) { return fn_eeui_mini_map_copy_data(eeui_mini_map); }
+internal inline int patch_minimap_copy_data(eeui_mini_map_copy_data_fn h) { return patch_vtable(vt_eeui_mini_map, (int)slot_ui_control_copy_data, (uintptr_t)fn_eeui_mini_map_copy_data, (void *)h); }
 typedef int (__thiscall *eeui_mini_map_draw_polygons_fn)(eeui_mini_map *);
 internal eeui_mini_map_draw_polygons_fn fn_eeui_mini_map_draw_polygons;
 internal inline int eeui_mini_map_draw_polygons(eeui_mini_map *eeui_mini_map) { return fn_eeui_mini_map_draw_polygons(eeui_mini_map); }
@@ -1897,6 +1911,9 @@ internal int spec_ui_forms_select(int build) {
         fn_eeui_file_combo_box_init = (eeui_file_combo_box_init_fn)0x0064BF62;
         vt_eeui_mini_map = 0x0083581C;
         size_eeui_mini_map = 0xE4;
+        of_eeui_mini_map_origin_x = 0xA0;
+        of_eeui_mini_map_origin_y = 0xA4;
+        of_eeui_mini_map_action = 0xD8;
         fn_eeui_mini_map_init = (eeui_mini_map_init_fn)0x0065DE66;
         fn_eeui_mini_map_copy_data = (eeui_mini_map_copy_data_fn)0x0065DF8A;
         fn_eeui_mini_map_draw_polygons = (eeui_mini_map_draw_polygons_fn)0x0065E5A6;
@@ -2224,6 +2241,9 @@ internal int spec_ui_forms_select(int build) {
         fn_eeui_file_combo_box_init = (eeui_file_combo_box_init_fn)0x006624A6;
         vt_eeui_mini_map = 0x0084B8B4;
         size_eeui_mini_map = 0xE4;
+        of_eeui_mini_map_origin_x = 0xA0;
+        of_eeui_mini_map_origin_y = 0xA4;
+        of_eeui_mini_map_action = 0xD8;
         fn_eeui_mini_map_init = (eeui_mini_map_init_fn)0x00675459;
         fn_eeui_mini_map_copy_data = (eeui_mini_map_copy_data_fn)0x00675585;
         fn_eeui_mini_map_draw_polygons = (eeui_mini_map_draw_polygons_fn)0x00675BA1;

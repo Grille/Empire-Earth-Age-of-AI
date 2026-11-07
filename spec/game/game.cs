@@ -128,6 +128,11 @@ static unsafe class game
     [address((ee)0x009183BC, (aoc)0x00930DFC)]
     static block map;
 
+    /// GERectangle (bottom, left, right, top): the minimap's points in its 800 x 600 pixels - a click's point is kept in
+    /// it (0x65EAFA, AoC 0x6760EC)
+    [address((ee)0x009432D0, (aoc)0x00965318)]
+    static block minimap_bounds;
+
     /// EEMiniMap*: the minimap of this PC's player (rebuilt when its fog changes: the scenario's Visibility-On / Off)
     [address((ee)0x009428A8, (aoc)0x00964888)]
     static block minimap;

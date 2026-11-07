@@ -175,6 +175,12 @@ internal inline int *mouse_screen_w_at(const ee_mouse *o) { return (int *)((uint
 internal inline int mouse_get_wheel(const ee_mouse *o) { return *(int *)((uint8_t *)o + of_mouse_wheel); }
 internal inline void mouse_set_wheel(ee_mouse *o, int v) { *(int *)((uint8_t *)o + of_mouse_wheel) = v; }
 internal inline int *mouse_wheel_at(const ee_mouse *o) { return (int *)((uint8_t *)o + of_mouse_wheel); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// the cursor's mode: 0x16 while a minimap flare is being placed - the minimap's button up then drops the flare,
+// the camera stays (EEUIMiniMap's mouse functions, both builds)
+internal inline int mouse_get_mode(const ee_mouse *o) { return *(int *)((uint8_t *)o + of_mouse_mode); }
+internal inline void mouse_set_mode(ee_mouse *o, int v) { *(int *)((uint8_t *)o + of_mouse_mode) = v; }
+internal inline int *mouse_mode_at(const ee_mouse *o) { return (int *)((uint8_t *)o + of_mouse_mode); }
 internal inline uint8_t mouse_get_frozen(const ee_mouse *o) { return *(uint8_t *)((uint8_t *)o + of_mouse_frozen); }
 internal inline void mouse_set_frozen(ee_mouse *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_mouse_frozen) = v; }
 internal inline uint8_t *mouse_frozen_at(const ee_mouse *o) { return (uint8_t *)((uint8_t *)o + of_mouse_frozen); }
@@ -223,6 +229,28 @@ internal inline uint8_t *scroll_keys_at(const ee_scroll *o) { return (uint8_t *)
 typedef void (__thiscall *scroll_execute_fn)(ee_scroll *);
 internal scroll_execute_fn fn_scroll_execute;
 internal inline void scroll_execute(ee_scroll *scroll) { fn_scroll_execute(scroll); }
+
+// class EEAMiniMap (ee_minimap_action)
+// the minimap's action (EEAMiniMap, 0x1C bytes; EEUIMiniMap +0xD8 keeps one): queued by the minimap control's mouse
+// (0x65EAFA, AoC 0x6760EC: the point in the minimap's 800 x 600 pixels, kept in game.minimap_bounds) and run by the
+// game's action loop under the world's write lock
+// the point on the minimap
+internal inline float minimap_action_get_x(const ee_minimap_action *o) { return *(float *)((uint8_t *)o + of_minimap_action_x); }
+internal inline void minimap_action_set_x(ee_minimap_action *o, float v) { *(float *)((uint8_t *)o + of_minimap_action_x) = v; }
+internal inline float *minimap_action_x_at(const ee_minimap_action *o) { return (float *)((uint8_t *)o + of_minimap_action_x); }
+internal inline float minimap_action_get_y(const ee_minimap_action *o) { return *(float *)((uint8_t *)o + of_minimap_action_y); }
+internal inline void minimap_action_set_y(ee_minimap_action *o, float v) { *(float *)((uint8_t *)o + of_minimap_action_y) = v; }
+internal inline float *minimap_action_y_at(const ee_minimap_action *o) { return (float *)((uint8_t *)o + of_minimap_action_y); }
+// 0: the camera centred on the point (0x40373E: through the minimap's transformation onto the map, kept on it,
+// camera.center 0x51EC85, zoom_to the zoom, snap); 1: 0x403542 (not looked at)
+internal inline int minimap_action_get_kind(const ee_minimap_action *o) { return *(int *)((uint8_t *)o + of_minimap_action_kind); }
+internal inline void minimap_action_set_kind(ee_minimap_action *o, int v) { *(int *)((uint8_t *)o + of_minimap_action_kind) = v; }
+internal inline int *minimap_action_kind_at(const ee_minimap_action *o) { return (int *)((uint8_t *)o + of_minimap_action_kind); }
+typedef void (__thiscall *minimap_action_execute_fn)(ee_minimap_action *);
+internal inline void minimap_action_execute(ee_minimap_action *minimap_action) { ((minimap_action_execute_fn)(*(void ***)minimap_action)[slot_minimap_action_execute])(minimap_action); }
+internal minimap_action_execute_fn fn_eea_mini_map_execute;
+internal inline void eea_mini_map_execute(ee_minimap_action *minimap_action) { fn_eea_mini_map_execute(minimap_action); }
+internal inline int patch_minimap_action_execute(minimap_action_execute_fn h) { return patch_vtable(vt_eea_mini_map, (int)slot_minimap_action_execute, (uintptr_t)fn_eea_mini_map_execute, (void *)h); }
 
 // class EEUIEKeyboardScroll (ee_key_scroll)
 // an arrow key's scrolling (EEUIEKeyboardScroll, 0x10 bytes: vtable, refcount, 0, direction): a hotkey's event of the
@@ -697,6 +725,7 @@ internal int spec_ui_select(int build) {
         of_mouse_screen_h = 0x8C;
         of_mouse_screen_w = 0x90;
         of_mouse_wheel = 0x94;
+        of_mouse_mode = 0x98;
         of_mouse_frozen = 0xA4;
         fn_mouse_update = (mouse_update_fn)0x00510E5D;
         calls_mouse_update[0] = 0x004B8ABB;
@@ -717,6 +746,13 @@ internal int spec_ui_select(int build) {
         of_scroll_ticks = 0x40;
         of_scroll_keys = 0x44;
         fn_scroll_execute = (scroll_execute_fn)0x004050FC;
+        vt_eea_mini_map = 0x008358B4;
+        size_eea_mini_map = 0x1C;
+        of_minimap_action_x = 0xC;
+        of_minimap_action_y = 0x10;
+        of_minimap_action_kind = 0x14;
+        slot_minimap_action_execute = 1;
+        fn_eea_mini_map_execute = (minimap_action_execute_fn)0x0040352C;
         vt_eeuie_keyboard_scroll = 0x008348FC;
         of_key_scroll_direction = 0xC;
         slot_key_scroll_execute = 1;
@@ -916,6 +952,7 @@ internal int spec_ui_select(int build) {
         of_mouse_screen_h = 0x8C;
         of_mouse_screen_w = 0x90;
         of_mouse_wheel = 0x94;
+        of_mouse_mode = 0x98;
         of_mouse_frozen = 0xA4;
         fn_mouse_update = (mouse_update_fn)0x0051B3CC;
         calls_mouse_update[0] = 0x004C11FE;
@@ -936,6 +973,13 @@ internal int spec_ui_select(int build) {
         of_scroll_ticks = 0x40;
         of_scroll_keys = 0x44;
         fn_scroll_execute = (scroll_execute_fn)0x0040478E;
+        vt_eea_mini_map = 0x0084B94C;
+        size_eea_mini_map = 0x1C;
+        of_minimap_action_x = 0xC;
+        of_minimap_action_y = 0x10;
+        of_minimap_action_kind = 0x14;
+        slot_minimap_action_execute = 1;
+        fn_eea_mini_map_execute = (minimap_action_execute_fn)0x00402A94;
         vt_eeuie_keyboard_scroll = 0x0084A998;
         of_key_scroll_direction = 0xC;
         slot_key_scroll_execute = 1;
@@ -1124,6 +1168,9 @@ internal int spec_ui_check(void) {
     bad += spec_call(calls_native_chat[3], (uintptr_t)fn_native_chat_say, "ee_native_chat.say [call_site native_chat 3]");
     bad += spec_call(calls_native_chat[4], (uintptr_t)fn_native_chat_say, "ee_native_chat.say [call_site native_chat 4]");
     bad += spec_code((uintptr_t)fn_scroll_execute, "EEAScroll.execute");
+    bad += spec_vtable(vt_eea_mini_map, ".?AVEEAMiniMap@@", "EEAMiniMap [vtable]");
+    bad += spec_code((uintptr_t)fn_eea_mini_map_execute, "EEAMiniMap.execute");
+    bad += spec_slot(vt_eea_mini_map, slot_minimap_action_execute, (uintptr_t)fn_eea_mini_map_execute, "EEAMiniMap.execute [slot]");
     bad += spec_vtable(vt_eeuie_keyboard_scroll, ".?AVEEUIEKeyboardScroll@@", "EEUIEKeyboardScroll [vtable]");
     bad += spec_code((uintptr_t)fn_eeuie_keyboard_scroll_execute, "EEUIEKeyboardScroll.execute");
     bad += spec_slot(vt_eeuie_keyboard_scroll, slot_key_scroll_execute, (uintptr_t)fn_eeuie_keyboard_scroll_execute, "EEUIEKeyboardScroll.execute [slot]");

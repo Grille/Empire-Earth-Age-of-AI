@@ -1944,6 +1944,21 @@ internal void cmd_headless(const char *verb, const char *args, char *out) {
               g_rd_on && g_cam_smooth ? "on" : "off - the own renderer's only", g_wheel_zooms);
         return;
     }
+    if (!strcmp(verb, "vmini")) {   // vmini X Y: a click on the minimap at the form's pixel X, Y, run by the render thread (camera.c)
+        float x, y;
+        if (sscanf(args, "%f %f", &x, &y) < 2) { REPLY("usage: vmini x y\n"); return; }
+        LONG before = g_mm_runs;
+        g_mm_test_at[0] = x;
+        g_mm_test_at[1] = y;
+        g_mm_test = 1;
+        for (int i = 0; i < 100 && g_mm_test; i++) Sleep(10);
+        if (!g_minimap) REPLY("error: no minimap control seen yet\n");
+        else REPLY("ok: minimap %s (its rectangle %.0f..%.0f x %.0f..%.0f, the point %.1f %.1f)\n", g_mm_runs != before ? "run" : "not run - outside it or not the game's screen",
+                   (double)ui_control_get_left((const ee_ui_control *)g_minimap), (double)ui_control_get_right((const ee_ui_control *)g_minimap),
+                   (double)ui_control_get_bottom((const ee_ui_control *)g_minimap), (double)ui_control_get_top((const ee_ui_control *)g_minimap),
+                   (double)g_mm_at[0], (double)g_mm_at[1]);
+        return;
+    }
     if (!strncmp(args, "off", 3)) { g_vm_x = g_vm_y = -1; REPLY("ok: real mouse\n"); return; }
     if (!strcmp(verb, "wtype")) {   // wtype TEXT: the characters as WM_CHAR to the game window (edit boxes; tests)
         ee_window *win = game_window();
