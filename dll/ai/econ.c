@@ -109,6 +109,7 @@ internal int can_place(ee_player *pl, int type, ivec2 p);   // defence.c: the ga
 internal void defence_tick(ee_player *pl, unsigned idx, uint32_t now);
 internal int encl_stone(ee_player *pl);   // defence.c (enclose): the stone the open ring still needs
 internal void anti_air(ee_player *pl, unsigned idx, uint32_t now);   // defence.c
+internal void shore_guns(ee_player *pl, unsigned idx, uint32_t now);   // defence.c
 internal void bunker_reserve(ee_player *pl, int *reserve);   // bunker.c
 internal void prod_sync(ee_player *pl, unsigned idx, uint32_t now);   // below
 internal void hold_town(ee_player *pl, unsigned idx, uint32_t now);   // defence.c
@@ -952,6 +953,7 @@ internal void econ_tick(ee_player *pl, uint32_t now) {
     defence_tick(pl, ai, now);
     counter_siege(pl, ai, now);
     anti_air(pl, ai, now);
+    shore_guns(pl, ai, now);
     tech_log_tick(pl, ai, now);
     home_guard(pl, ai, now);
     muster(pl, ai, now);

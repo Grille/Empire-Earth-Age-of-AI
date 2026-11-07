@@ -784,6 +784,11 @@ class ai_base
         /// the side towards the town stays open. 0 = off (default until measured)
         [range(0, 6)]
         int site_forts = 0;
+        /// Siege weapons or artillery by each dock enemy warships came near (the player: "trebuchets or cannons near the docks,
+        /// they reach further than the towers and have a bonus against ships"): this many a dock, the longest reach it can
+        /// train, posted on the shore on the ships' side. 0 = off (default until measured)
+        [range(0, 4)]
+        int shore_guns = 0;
         bool enclose = false;
         /// With enclose: the ring only once the AI has this many citizens, the usual towers and front walls before - the
         /// economy first (the ring from the start took most of the citizens off gathering: every Small Islands game lost)

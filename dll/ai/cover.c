@@ -682,7 +682,7 @@ internal void cv_behave(ee_player *pl, unsigned idx, struct cv_pl *c, uint32_t n
     for (int i = 0; i < g_cv_nu; i++) {
         ee_unit *u = g_cv_units[i];
         ee_unit_type *td = unit_get_type_data(u);
-        if (cv_mil(td) != 1 || cv_held(c, u) || landing_has_unit(pl, u) || ou_sortie(pl, u) || stage_committed(pl, u)) continue;   // outdated units fight to the end (army.c), a push too (stage.c)
+        if (cv_mil(td) != 1 || cv_held(c, u) || landing_has_unit(pl, u) || ou_sortie(pl, u) || stage_committed(pl, u) || shore_gun(idx, u)) continue;   // outdated units fight to the end (army.c), a push too (stage.c), a shore gun at its post (defence.c)
         ivec2 p = unit_get_tile(u);
         int hp = unit_get_hp(u), mx = cv_hpmax(u);
         unsigned a = area_id(p, 2);

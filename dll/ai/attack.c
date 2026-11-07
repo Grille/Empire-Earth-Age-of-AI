@@ -1346,6 +1346,7 @@ internal void siege_train(ee_player *pl, unsigned pi, int have, uint32_t now) {
     g_siege_train[pi].failed++;
 }
 
+internal int shore_gun(unsigned idx, ee_unit *u);   // defence.c: a gun posted by a dock (shore_guns) - not the attack's
 internal void siege_tick(ee_player *pl, uint32_t now) {
     unsigned pi = (unsigned)player_get_index(pl) & 15;
     if (!g_siege || (now >= g_siege_st[pi].last && now - g_siege_st[pi].last < 2000)) return;
@@ -1359,7 +1360,7 @@ internal void siege_tick(ee_player *pl, uint32_t now) {
     for (struct grid_it it = grid_it_all(1); ns < MAXS && grid_it_next(&it); ) {
         ee_unit *u = it.u;
         ee_unit_type *td = it.td;
-        if (!td || unit_get_owner(u) != pl || !is_siege(unit_type_get_id(td)) || unit_get_hp(u) <= 0) continue;
+        if (!td || unit_get_owner(u) != pl || !is_siege(unit_type_get_id(td)) || unit_get_hp(u) <= 0 || shore_gun(pi, u)) continue;
         ee_unit_stats *st = unit_get_stats(u);
         float r = st ? unit_stats_get_range(st) : unit_type_get_range(td);
         if (r < srange) srange = r;

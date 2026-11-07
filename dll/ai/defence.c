@@ -754,7 +754,7 @@ internal void encl_walls(ee_player *pl, unsigned idx, struct def_plan *p, void *
 #define SF_R 4
 #define SF_MIN 2
 #define SF_EXPOSED 4
-internal int g_site_forts = 0;
+internal int g_site_forts = 0, g_shore_guns = 0;   // [ai_base] site_forts, shore_guns (SHORE GUNS below)
 internal struct sfort { int x, y, open, towers, tries; uint32_t t; } g_sf[16][SF_MAX];
 internal int g_sf_n[16];
 internal unsigned g_sf_towers[16], g_sf_runs[16];
@@ -1862,6 +1862,7 @@ internal void defence_install(void) {
     g_encl = g_set_ai[1].enclose;
     g_coast_towers = g_set_ai[1].coast_towers;
     g_site_forts = g_set_ai[1].site_forts;
+    g_shore_guns = g_set_ai[1].shore_guns;
     g_encl_from = g_set_ai[1].enclose_citizens;
     g_encl_runs = g_set_ai[1].enclose_runs;
     g_encl_flight = g_set_ai[1].enclose_in_flight;
@@ -2038,6 +2039,214 @@ internal void anti_air(ee_player *pl, unsigned idx, uint32_t now) {
         g_aa_st[idx].build_t = now ? now : 1;   // no room: try again in a minute
     }
 placed:;
+}
+
+// SHORE GUNS ([ai_base] shore_guns, guns per threatened dock, default 0 until measured; the player 2026-11-07:
+// "defences also mean trebuchets or cannons near the docks, they reach further than the towers and have a bonus against
+// ships"). The fishing boats die at the docks (# boat death, 12 Small Islands games against the cheating game AI: 166
+// of 249 within 3 tiles of their dock, sunk by frigates and galleys of range 7 - a tower reaches 5). Every SG_EVERY: a
+// dock is threatened while an enemy warship it sees was within SG_NEAR of it in the last SG_KEEP; each such dock wants
+// shore_guns siege weapons or artillery, the longest reach it can train (catapult 7, trebuchet 8, the cannons 8-10,
+// artillery 12) - ordered as the siege's are (attack.c siege_train: a Siege Factory queued when there is none), held
+// from the game's commander (player hold_unit) and posted on the shore by the dock, on the side the ships came from,
+// where they shoot what comes in range. A gun stays at its post (the ships come back); one away from it by more than
+// SG_STRAY (chasing) walks back; one whose dock is gone gets the next. "# shore guns:" at every order and once a game
+// minute (autotest).
+#define SG_EVERY 5000
+#define SG_NEAR 12
+#define SG_KEEP 600000
+#define SG_STRAY 4
+#define SG_MAX 12
+#define SG_DOCKS 8
+internal const enum ut_name k_sg_types[] = {
+    UT_GUN_ARTILLERY13_COLOSSUS, UT_GUN_SIEGE13_PALADIN_CANNON, UT_GUN_ARTILLERY10_ARTILLERY, UT_GUN_SIEGE10_HOWITZER_CANNON,
+    UT_GUN_SIEGE09_SERPENTINE_CANNON, UT_GUN_ARTILLERY08_BOMBARD, UT_GUN_SIEGE07_BASILISK_CANNON, UT_GUN_SIEGE06_TREBUCHET,
+    UT_GUN_SIEGE04_CATAPULT };
+internal int sg_gun_type(int t) {
+    for (size_t k = 0; k < sizeof k_sg_types / sizeof *k_sg_types; k++) if (t == g_ut[k_sg_types[k]]) return 1;
+    return 0;
+}
+struct sg_scan { ee_player *pl; int nd, ng, ns, factory; ivec2 d[16]; ee_unit *g[48]; ivec2 s[64]; };
+internal void sg_scan_unit(ee_unit *u, void *ctx) {   // own docks and guns, the enemy's warships it sees
+    struct sg_scan *a = ctx;
+    ee_unit_type *td = unit_get_type_data(u);
+    if (!td || unit_get_hp(u) <= 0 || unit_get_x(u) < 0) return;
+    int t = unit_type_get_id(td);
+    ee_player *o = unit_get_owner(u);
+    if (o == a->pl) {
+        if (t == UT(B_DOCK) && a->nd < 16) a->d[a->nd++] = unit_get_tile(u);
+        else if (t == UT(B_SIEGE_FACTORY)) a->factory = 1;
+        else if (sg_gun_type(t) && a->ng < 48) a->g[a->ng++] = u;
+        return;
+    }
+    if (unit_type_get_class_id(td) != CLS_NAVAL || !o || player_get_index(o) <= 0 || !is_enemy(a->pl, o) || !seen_by(u, a->pl)) return;
+    if (a->ns < 64) a->s[a->ns++] = unit_get_tile(u);
+}
+internal struct {
+    uint32_t last, train_t, fac_t, log_t;
+    int nd; struct { ivec2 p, from; uint32_t t; } d[SG_DOCKS];   // the threatened docks: where, the ships' side, when last
+    int ng; struct { int id; ivec2 post, bad; int dock, tries; } g[SG_MAX];   // the guns held: id, post, its dock (-1 none yet), a post it didn't reach
+    unsigned trained, orders, adopted, failed, stuck;
+} g_sg[16];
+internal int shore_gun(unsigned idx, ee_unit *u) {
+    if (!g_shore_guns || !u) return 0;
+    int id = unit_get_serial(u);
+    for (int k = 0; k < g_sg[idx & 15].ng; k++) if (g_sg[idx & 15].g[k].id == id) return 1;
+    return 0;
+}
+internal int goal_near(ee_unit *u, float x, float y, float r);   // forces.c
+internal int ld_tile_free(ivec2 p);                             // landing.c
+internal unsigned ocean_near(ivec2 p, int r, ivec2 *w);         // landing.c
+// a post by the dock: open land 1-4 tiles from it with the sea within 2, the gun's land and walk (the reach map: a tile
+// by a dock is often a spit of its own - in the first pilot 1000 orders and no gun at its post), nearest the ships'
+// side, 2 tiles from the others
+internal int sg_post(ee_player *pl, unsigned idx, int dock, ee_unit *u, ivec2 bad, ivec2 *out) {
+    ivec2 d = g_sg[idx].d[dock].p, f = g_sg[idx].d[dock].from, at = unit_get_tile(u);
+    int owner = player_get_index(pl), cont = (int)area_id(at, 2), reg = rm_region_of(owner, at.x, at.y);
+    int best = 0x7FFFFFFF;
+    for (int dx = -4; dx <= 4; dx++)
+        for (int dy = -4; dy <= 4; dy++) {
+            ivec2 q = iv2(d.x + dx, d.y + dy);
+            if ((abs(dx) < 2 && abs(dy) < 2) || (int)area_id(q, 2) != cont || area_id(q, 1) || (q.x == bad.x && q.y == bad.y) ||
+                !ocean_near(q, 2, NULL) || !ld_tile_free(q)) continue;
+            int r = reg >= 0 ? rm_region_of(owner, q.x, q.y) : -1;
+            if (r >= 0 && r != reg) continue;
+            int taken = 0;
+            for (int k = 0; k < g_sg[idx].ng && !taken; k++) taken = g_sg[idx].g[k].dock >= 0 && ivec2_dist2(g_sg[idx].g[k].post, q) < 4;
+            int sc = ivec2_dist2(q, f);
+            if (!taken && sc < best) { best = sc; *out = q; }
+        }
+    return best < 0x7FFFFFFF;
+}
+internal void shore_guns(ee_player *pl, unsigned idx, uint32_t now) {
+    if (!g_shore_guns || !pl) return;
+    if (now < g_sg[idx].last) memset(&g_sg[idx], 0, sizeof g_sg[idx]);   // a new game
+    if (g_sg[idx].last && now - g_sg[idx].last < SG_EVERY) return;
+    g_sg[idx].last = now ? now : 1;
+    struct sg_scan a = { 0 };
+    a.pl = pl;
+    grid_each(sg_scan_unit, &a);
+    // the threatened docks: kept by place while the dock stands, refreshed by the ships near it
+    int m = 0;
+    for (int k = 0; k < g_sg[idx].nd; k++) {
+        int stands = 0;
+        for (int j = 0; j < a.nd && !stands; j++) stands = a.d[j].x == g_sg[idx].d[k].p.x && a.d[j].y == g_sg[idx].d[k].p.y;
+        if (stands && now - g_sg[idx].d[k].t < SG_KEEP) g_sg[idx].d[m++] = g_sg[idx].d[k];
+    }
+    // one gone or quiet: the guns are posted anew (those without a threatened dock stay where they stand)
+    if (m != g_sg[idx].nd) for (int q = 0; q < g_sg[idx].ng; q++) g_sg[idx].g[q].dock = -1;
+    g_sg[idx].nd = m;
+    for (int j = 0; j < a.nd; j++) {
+        int close = -1, nd2 = SG_NEAR * SG_NEAR + 1;
+        for (int s = 0; s < a.ns; s++) { int d2 = ivec2_dist2(a.s[s], a.d[j]); if (d2 < nd2) { nd2 = d2; close = s; } }
+        if (close < 0) continue;
+        int k;
+        for (k = 0; k < g_sg[idx].nd && (g_sg[idx].d[k].p.x != a.d[j].x || g_sg[idx].d[k].p.y != a.d[j].y); k++) ;
+        if (k == g_sg[idx].nd) {
+            if (k >= SG_DOCKS) continue;
+            g_sg[idx].nd++;
+            g_sg[idx].d[k].p = a.d[j]; g_sg[idx].d[k].from = a.s[close];
+        }
+        g_sg[idx].d[k].t = now ? now : 1;
+    }
+    int want = g_shore_guns * g_sg[idx].nd;
+    if (want > SG_MAX) want = SG_MAX;
+    // the guns held: the dead out, then new ones (not held by another part, not in a landing) while short - after a
+    // load the held guns by a dock again (the list is not saved)
+    m = 0;
+    for (int k = 0; k < g_sg[idx].ng; k++) {
+        ee_unit *u = unit_by_id((unsigned)g_sg[idx].g[k].id);
+        if (u && unit_get_serial(u) == g_sg[idx].g[k].id && unit_get_hp(u) > 0 && unit_get_owner(u) == pl) g_sg[idx].g[m++] = g_sg[idx].g[k];
+    }
+    g_sg[idx].ng = m;
+    for (int i = 0; i < a.ng && g_sg[idx].ng < want; i++) {
+        ee_unit *u = a.g[i];
+        int id = unit_get_serial(u), have = 0;
+        for (int k = 0; k < g_sg[idx].ng && !have; k++) have = g_sg[idx].g[k].id == id;
+        if (have || landing_has_unit(pl, u)) continue;
+        if (unit_get_ai_held(u)) {
+            int by_dock = 0;
+            for (int j = 0; j < a.nd && !by_dock; j++) by_dock = ivec2_dist2(unit_get_tile(u), a.d[j]) <= 36;
+            if (!by_dock) continue;
+        } else player_hold_unit(pl, u);
+        g_sg[idx].g[g_sg[idx].ng].id = id; g_sg[idx].g[g_sg[idx].ng].dock = -1; g_sg[idx].g[g_sg[idx].ng].tries = 0;
+        g_sg[idx].g[g_sg[idx].ng].bad = iv2(-1, -1); g_sg[idx].g[g_sg[idx].ng++].post = iv2(-1, -1);
+        g_sg[idx].adopted++;
+    }
+    // training: the longest reach it can, 2 a minute at most; no Siege Factory - one queued (5 minutes apart)
+    void *cm = player_get_civ_mgr(pl), *um = cm ? civ_mgr_get_unit_mgr(cm) : NULL;
+    ee_build_mgr *bm = cm ? civ_mgr_get_build_mgr(cm) : NULL;
+    int e = current_epoch(pl);
+    if (g_sg[idx].ng < want && (!g_sg[idx].train_t || now - g_sg[idx].train_t >= 60000)) {
+        g_sg[idx].train_t = now ? now : 1;
+        if (!a.factory) {
+            if (bm && e >= 0 && e < 14 && ut_has(UT(B_SIEGE_FACTORY)) && !bq_has(bm, UT(B_SIEGE_FACTORY)) &&
+                (!g_sg[idx].fac_t || now - g_sg[idx].fac_t >= 300000)) {
+                g_sg[idx].fac_t = now ? now : 1;
+                int entry[3] = { UT(B_SIEGE_FACTORY), 0, 0 };
+                build_mgr_queue_add(bm, e, entry);
+                if (g_log) fprintf(g_log, "# shore guns: P%u at %.1f min queues a Siege Factory (guns %d of %d)\n", idx, now / 60000.0, g_sg[idx].ng, want);
+            }
+        } else if (um) {
+            unsigned trained0 = g_sg[idx].trained;
+            int order[sizeof k_sg_types / sizeof *k_sg_types], no = 0;   // by reach, the longest first
+            for (size_t k = 0; k < sizeof k_sg_types / sizeof *k_sg_types; k++) {
+                int t = g_ut[k_sg_types[k]];
+                ee_unit_type *td = ut_has(t) ? type_data(t) : NULL;
+                if (!td) continue;
+                int j = no++;
+                for (; j > 0 && unit_type_get_range(type_data(order[j - 1])) < unit_type_get_range(td); j--) order[j] = order[j - 1];
+                order[j] = t;
+            }
+            for (int k = 0; k < no; k++) {
+                int n = want - g_sg[idx].ng > 2 ? 2 : want - g_sg[idx].ng;
+                int req[4] = { order[k], n, 0, 0 };
+                unsigned got = 0;
+                g_priority_mil = 1;
+                hook_train_units(um, req, (uintptr_t)&got);
+                g_priority_mil = 0;
+                if (!got) continue;
+                g_sg[idx].trained += got;
+                if (g_log) fprintf(g_log, "# shore guns: P%u at %.1f min trains %u x type %d (range %.0f; guns %d of %d, docks threatened %d)\n",
+                                   idx, now / 60000.0, got, order[k], unit_type_get_range(type_data(order[k])), g_sg[idx].ng, want, g_sg[idx].nd);
+                break;
+            }
+            if (g_sg[idx].trained == trained0) g_sg[idx].failed++;   // the factory busy, the stock short, no type open
+        }
+    }
+    // posts: each gun without a dock to the threatened dock with the fewest; back to its post when away
+    int posted = 0;
+    for (int k = 0; k < g_sg[idx].ng; k++) {
+        ee_unit *u = unit_by_id((unsigned)g_sg[idx].g[k].id);
+        if (!u) continue;
+        if (g_sg[idx].g[k].dock < 0 && g_sg[idx].nd) {
+            int bd = -1, bn = 0x7FFFFFFF;
+            for (int d = 0; d < g_sg[idx].nd; d++) {
+                int n = 0;
+                for (int q = 0; q < g_sg[idx].ng; q++) n += g_sg[idx].g[q].dock == d;
+                if (n < bn) { bn = n; bd = d; }
+            }
+            ivec2 p;
+            if (bd >= 0 && sg_post(pl, idx, bd, u, g_sg[idx].g[k].bad, &p)) { g_sg[idx].g[k].dock = bd; g_sg[idx].g[k].post = p; g_sg[idx].g[k].tries = 0; }
+        }
+        if (g_sg[idx].g[k].dock < 0) continue;
+        ivec2 p = g_sg[idx].g[k].post;
+        if (ivec2_dist2(unit_get_tile(u), p) <= 4) { posted++; g_sg[idx].g[k].tries = 0; continue; }
+        if (ivec2_dist2(unit_get_tile(u), p) <= SG_STRAY * SG_STRAY && unit_get_goal(u)) { posted++; continue; }   // shooting near its post
+        if (goal_near(u, (float)p.x + 0.5f, (float)p.y + 0.5f, 1.5f)) continue;
+        if (++g_sg[idx].g[k].tries > 6) {   // ordered 6 times and not there: another post
+            if (g_log) fprintf(g_log, "# shore guns: P%u at %.1f min: gun at %d,%d doesn't reach its post %d,%d - another\n", idx, now / 60000.0,
+                               unit_get_x(u), unit_get_y(u), p.x, p.y);
+            g_sg[idx].stuck++; g_sg[idx].g[k].bad = p; g_sg[idx].g[k].dock = -1; continue;
+        }
+        g_sg[idx].orders += (unsigned)unit_goal(u, goal_move((float)p.x + 0.5f, (float)p.y + 0.5f), 0, 0x1F40);
+    }
+    if (g_autotest && g_log && (!g_sg[idx].log_t || now - g_sg[idx].log_t >= 60000)) {
+        g_sg[idx].log_t = now ? now : 1;
+        fprintf(g_log, "# shore guns: P%u at %.1f min: docks %d, threatened %d, enemy warships seen %d | guns %d of %d, at or by their posts %d | trained %u, adopted %u, orders %u, stuck %u, nothing trainable %u%s\n",
+                idx, now / 60000.0, a.nd, g_sg[idx].nd, a.ns, g_sg[idx].ng, want, posted, g_sg[idx].trained, g_sg[idx].adopted, g_sg[idx].orders,
+                g_sg[idx].stuck, g_sg[idx].failed, a.factory ? "" : ", no Siege Factory");
+    }
 }
 
 // UPGRADE STRAGGLERS: a researched line upgrade (effect kind 0x13, 0x5BA59D: e.g. 3051 guard tower 47 -> 461)
