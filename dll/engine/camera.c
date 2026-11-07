@@ -39,7 +39,7 @@ internal int g_cam_smooth = 1;
 internal volatile LONG g_cam_keys;     // the directions of the game's last step: bit k = SCROLL_KEYS + k (left, right, top, bottom)
 internal volatile DWORD g_cam_keys_at; // GetTickCount of that step
 internal LARGE_INTEGER g_cam_freq, g_cam_frame;
-internal int g_rd_on;   // display.c: the own renderer draws
+internal int g_rd_on, g_headless;   // display.c: the own renderer draws; a test run without a window in front
 
 internal void scroll_axis(float *vel, int neg, int pos, float minv, float maxv, float step) {
     if (neg) {
@@ -175,6 +175,65 @@ internal int scroll_arrows(void) {
 // the directions of k the player still holds by the input itself
 internal int scroll_input_agrees(int k) { return k & (scroll_edges() | scroll_arrows()); }
 
+// The wheel's zoom with the own renderer: the game's (EEUIEWheelZoom, the game's form's wheel event) runs in the form's
+// input on the game thread, which waits for the world's lock through a step - the zoom came with the step's end (the
+// player 2026-11-07: "mouse scroll/zoom is still bound to the lookstep"). So a low-level mouse hook on a thread of its
+// own counts the wheel while the game's window is in front (the game thread may be stuck, its messages with it) and
+// the render thread zooms by it as the event does: scroll_speed - 0.05 a notch, 0 .. 1, zoom_to - its ride then the
+// render thread's too (render_frame.c rf_camera_frame); the camera's transformation the ride starts from (0x51DDD7
+// copies +0x84, made only in the camera's step) set to the one drawn now first, else a second notch within a step
+// started back at the step's start; and the ride begun anew there (its blend is 0 already through a step - a second
+// notch was not seen as a new ride and jumped to its end). The game's event does nothing meanwhile (hook_wheel_zoom). The game's form only
+// (EEUIFMainGame): the scenario editor's lists take the wheel themselves - its zoom stays the game's. Not headless: a
+// low-level hook is called for every mouse event of the machine - the player's mouse through 30 test slots.
+internal volatile LONG g_wheel;   // the wheel's delta not zoomed yet (WHEEL_DELTA a notch: the axis' granularity)
+internal HHOOK g_wheel_hook;
+internal LONG g_wheel_zooms;
+internal float g_cam_now[16];   // render_frame.c: the camera's transformation this frame, its ride's
+internal int g_cam_now_ok;
+internal float g_cam_blend_seen, g_cam_t;
+internal LRESULT CALLBACK wheel_hook(int code, WPARAM w, LPARAM l) {
+    if (code == HC_ACTION && w == WM_MOUSEWHEEL) {
+        HWND f = GetForegroundWindow();
+        DWORD pid = 0;
+        if (f && GetWindowThreadProcessId(f, &pid) && pid == GetCurrentProcessId())
+            InterlockedExchangeAdd(&g_wheel, (short)HIWORD(((const MSLLHOOKSTRUCT *)l)->mouseData));
+    }
+    return CallNextHookEx(g_wheel_hook, code, w, l);
+}
+internal DWORD WINAPI wheel_thread(LPVOID unused) {
+    (void)unused;
+    g_wheel_hook = SetWindowsHookExA(WH_MOUSE_LL, wheel_hook, GetModuleHandleA(NULL), 0);
+    if (g_log) fprintf(g_log, "# camera: the wheel's zoom on the render thread%s\n", g_wheel_hook ? "" : " - no mouse hook (the game's own)");
+    MSG m;
+    while (g_wheel_hook && GetMessageA(&m, NULL, 0, 0) > 0) {}
+    return 0;
+}
+// the wheel is the render thread's now: the game's form, its zoom's own conditions (EEUIEWheelZoom)
+internal int wheel_ours(const ee_ui_form *f) {
+    return g_rd_on && ui_form_is_game(f) && wheel_zoom_free();
+}
+internal void wheel_frame(const ee_ui_form *f) {
+    LONG n = g_wheel / WHEEL_DELTA;   // whole notches, the rest kept (the game's axis drops it)
+    if (!n) return;
+    InterlockedExchangeAdd(&g_wheel, -n * WHEEL_DELTA);
+    ee_camera *cam = game_camera();
+    if (!cam || !wheel_ours(f)) return;
+    float z = scroll_speed() - (float)n * 0.05f;
+    if (z < 0) z = 0;
+    if (z > 1) z = 1;
+    if (g_cam_now_ok && g_cam_t > camera_get_blend(cam)) camera_set_blend(cam, g_cam_t);
+    camera_zoom_to(cam, z);
+    g_cam_t = 0;
+    g_cam_blend_seen = -1;   // the next frame takes the camera's blend as a ride's start
+    g_wheel_zooms++;
+}
+internal uint32_t __thiscall hook_wheel_zoom(eeuie_wheel_zoom *self, ee_ui_form *form, uint32_t arg) {
+    void *uim = ui_manager();
+    if (g_wheel_hook && wheel_ours(uim ? ui_current_form(uim) : NULL)) return 0;
+    return eeuie_wheel_zoom_execute(self, form, arg);
+}
+
 // With the own renderer the input alone scrolls, every frame (the player 2026-11-07: "why leave the camera at all to
 // the simthread now?" - a step held seconds, the pipe's stepload, stopped it after CAM_HOLD_MS). The own renderer
 // draws only windowed or borderless, so the Windows cursor is the game's (native fullscreen's DirectInput mouse isn't:
@@ -186,6 +245,7 @@ internal int scroll_input_agrees(int k) { return k & (scroll_edges() | scroll_ar
 internal void input_frame(float ms) {
     void *uim = ui_manager();
     ee_ui_form *f = uim ? ui_current_form(uim) : NULL;
+    wheel_frame(f);   // a frozen mouse still zooms: the game's update then reads only the wheel
     ee_mouse *m = game_mouse();
     if (!ui_form_has_view(f) || !m || mouse_get_frozen(m)) return;
     HWND w = GetForegroundWindow();
@@ -241,6 +301,10 @@ internal void camera_install(void) {
     // period never comes round (TMPoll::Poll: the time gone / the period), the edge check (0x4051A0) queues one action
     // as the cursor reaches the edge and starts the timer, then none till it comes back.
     ok += patch_scroll_timer(build_aoc ? 0x0A : 0x19, g_cam_smooth && g_rd_on ? 0xFF : g_cam_smooth ? 0x01 : 0x0A);
+    if (g_cam_smooth && g_rd_on && patch_wheel_zoom_execute(hook_wheel_zoom) && !g_headless) {
+        HANDLE t = CreateThread(NULL, 0, wheel_thread, NULL, 0, NULL);
+        if (t) CloseHandle(t);
+    }
     if (g_log) fprintf(g_log, "# camera: scroll=%s (%s), fine steps %d, patches %d/4\n", g_scroll_aoc ? "aoc" : "ee",
                        g_scroll_native ? "the game's own" : "the other build's", g_cam_smooth, ok);
 }

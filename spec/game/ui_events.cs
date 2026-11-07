@@ -2485,7 +2485,12 @@ unsafe struct EEUIEWNSSOpenScreen
 [@base(typeof(UIEvent)), size((ee)0xC, (aoc)0xC), vtable((ee)0x0082F78C, (aoc)0x00845058)]
 unsafe struct EEUIEWheelZoom
 {
+    /// the game's form's wheel event (form +0x150, UIForm::SetMouseWheelMoveEvent), run by the form's input on the
+    /// game thread: with screen_ready, and the camera's view not 3 or a cinematic on, zoom_to(scroll_speed - the mouse's
+    /// Z axis x 0.05) clamped to 0 .. 1 (both builds; the axis GetNormalizedValue, vtable slot 2: the wheel's delta /
+    /// its granularity - notches); else the camera put back
     [address((ee)0x005D9417, (aoc)0x005E9F40), overrides(typeof(UIEvent))]
+    [vtable_site("wheel_zoom_execute")]
     extern uint32 execute(UIForm* form, uint32 arg);
 }
 

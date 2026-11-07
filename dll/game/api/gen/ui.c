@@ -95,6 +95,13 @@ internal inline void camera_make_transformation(ee_camera *camera, void *m, floa
 internal inline float camera_get_zoom(const ee_camera *o) { return *(float *)((uint8_t *)o + of_camera_zoom); }
 internal inline void camera_set_zoom(ee_camera *o, float v) { *(float *)((uint8_t *)o + of_camera_zoom) = v; }
 internal inline float *camera_zoom_at(const ee_camera *o) { return (float *)((uint8_t *)o + of_camera_zoom); }
+// the view: set by 0x51EE01 (AoC 0x5299C0), which zooms to zoom again; the perspective key
+// (EEUIEMGTogglePerspective) goes 0 -> 1 -> 2 -> 0, 3 is EEACenterCamera's on a unit of type 0x167 and
+// 0x5B007C's - while it is 3 and no cinematic runs the wheel's zoom and the keys' put the view back to 0 at zoom 1
+// (both builds: EEUIEWheelZoom reads game.camera +0xF4 directly). A test game starts in 3
+internal inline int camera_get_view(const ee_camera *o) { return *(int *)((uint8_t *)o + of_camera_view); }
+internal inline void camera_set_view(ee_camera *o, int v) { *(int *)((uint8_t *)o + of_camera_view) = v; }
+internal inline int *camera_view_at(const ee_camera *o) { return (int *)((uint8_t *)o + of_camera_view); }
 // thiscall on game.camera (float dx, float dy)
 typedef void (__thiscall *camera_move_fn)(ee_camera *, float, float);
 internal camera_move_fn fn_camera_move;
@@ -672,6 +679,7 @@ internal int spec_ui_select(int build) {
         of_camera_snap = 0xFC;
         fn_camera_make_transformation = (camera_make_transformation_fn)0x0051D2F2;
         of_camera_zoom = 0xE0;
+        of_camera_view = 0xF4;
         fn_camera_move = (camera_move_fn)0x0051E2E6;
         fn_camera_zoom_to = (camera_zoom_to_fn)0x0051F2F3;
         of_gfx_owner = 0x20;
@@ -890,6 +898,7 @@ internal int spec_ui_select(int build) {
         of_camera_snap = 0xFC;
         fn_camera_make_transformation = (camera_make_transformation_fn)0x00527EB1;
         of_camera_zoom = 0xE0;
+        of_camera_view = 0xF4;
         fn_camera_move = (camera_move_fn)0x00528EA5;
         fn_camera_zoom_to = (camera_zoom_to_fn)0x00529EB2;
         of_gfx_owner = 0x20;

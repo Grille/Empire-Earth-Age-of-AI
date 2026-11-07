@@ -54,6 +54,10 @@ internal inline uint8_t **color_table(uint8_t ***end) { *end = *(uint8_t ***)dat
 internal inline ee_camera *game_camera(void) { return (ee_camera *)data_game_camera; }
 internal inline float scroll_speed(void) { return *(float *)data_game_scroll_speed; }
 internal inline float scroll_setting(void) { return *(float *)data_game_scroll_setting; }
+// the wheel's zoom would zoom (EEUIEWheelZoom's conditions; else it puts the camera back)
+internal inline int wheel_zoom_free(void) {
+    return *game_screen_ready_at() && !(!*game_cinematic_at() && camera_get_view(game_camera()) == 3);
+}
 internal inline ee_window *game_window(void) { return *(ee_window **)data_game_game_window; }
 internal inline ee_rasterizer *rasterizer(void) { return *(ee_rasterizer **)data_game_rasterizer; }
 internal inline int screen_index(void) { return *(int *)data_game_screen; }

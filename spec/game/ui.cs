@@ -98,6 +98,13 @@ unsafe struct EECameraControl
     [offset(0xE0), found(c)]
     float32 zoom;
 
+    /// the view: set by 0x51EE01 (AoC 0x5299C0), which zooms to zoom again; the perspective key
+    /// (EEUIEMGTogglePerspective) goes 0 -> 1 -> 2 -> 0, 3 is EEACenterCamera's on a unit of type 0x167 and
+    /// 0x5B007C's - while it is 3 and no cinematic runs the wheel's zoom and the keys' put the view back to 0 at zoom 1
+    /// (both builds: EEUIEWheelZoom reads game.camera +0xF4 directly). A test game starts in 3
+    [offset(0xF4), found(c)]
+    int32 view;
+
     /// thiscall on game.camera (float dx, float dy)
     [address((ee)0x0051E2E6, (aoc)0x00528EA5)]
     extern void move(float32 dx, float32 dy);

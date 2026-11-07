@@ -76,6 +76,8 @@ internal inline ee_ui_form *ui_current_form(void *uim) { return ((ee_ui_form *(_
 internal inline int ui_form_has_view(const ee_ui_form *f) {
     return f && (*(const uintptr_t *)f == vt_eeuif_main_game || *(const uintptr_t *)f == vt_eeuif_scenario_editor);
 }
+// the game's screen itself (EEUIFMainGame)
+internal inline int ui_form_is_game(const ee_ui_form *f) { return f && *(const uintptr_t *)f == vt_eeuif_main_game; }
 internal inline const char *edit_text(void *edit) { return ((const char *(__thiscall *)(void *, unsigned long))*(void **)data_ui_iat_edit_get_text)(edit, 0); }
 // a text label's text (UITextLabel::SetText(const UWideString &, bool) - the game passes 1: the diplomacy screen)
 internal inline void label_set_text(void *label, void *wstr) {

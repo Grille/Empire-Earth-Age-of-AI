@@ -13,6 +13,9 @@ internal inline ee_camera *game_camera_at(void) { return (ee_camera *)(uint8_t *
 // its blend (45 degrees, 40 up) while it is set - not seen set in play
 internal inline uint8_t *game_camera_fixed_at(void) { return (uint8_t *)(uintptr_t)data_game_camera_fixed; }
 internal inline uint8_t *game_cheats_on_at(void) { return (uint8_t *)(uintptr_t)data_game_cheats_on; }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// byte: a cinematic runs - set at its start (0x5A1CDA, which keeps scroll_speed), cleared at its end (0x5A1C33)
+internal inline uint8_t *game_cinematic_at(void) { return (uint8_t *)(uintptr_t)data_game_cinematic; }
 internal inline ee_cheat_codes *game_get_cheat_parser(void) { return *(ee_cheat_codes **)(uint8_t *)(uintptr_t)data_game_cheat_parser; }
 internal inline void game_set_cheat_parser(ee_cheat_codes *v) { *(ee_cheat_codes **)(uint8_t *)(uintptr_t)data_game_cheat_parser = v; }
 internal inline ee_cheat_codes **game_cheat_parser_at(void) { return (ee_cheat_codes **)(uint8_t *)(uintptr_t)data_game_cheat_parser; }
@@ -88,6 +91,10 @@ internal inline uint8_t *game_resources_at(void) { return (uint8_t *)(uintptr_t)
 internal inline uint8_t *game_scenario_flag_at(void) { return (uint8_t *)(uintptr_t)data_game_scenario_flag; }
 // the current screen index
 internal inline uint8_t *game_screen_at(void) { return (uint8_t *)(uintptr_t)data_game_screen; }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// byte: set 1 once the display is set up (0x5C76A2, beside game_res_w / game_res_h), never cleared; the
+// wheel's zoom and the keys' do nothing without it
+internal inline uint8_t *game_screen_ready_at(void) { return (uint8_t *)(uintptr_t)data_game_screen_ready; }
 // float, settings slider x 0.01
 internal inline uint8_t *game_scroll_setting_at(void) { return (uint8_t *)(uintptr_t)data_game_scroll_setting; }
 // float
@@ -216,6 +223,7 @@ internal int spec_game_select(int build) {
         data_game_camera = 0x00918CD0;
         data_game_camera_fixed = 0x00919461;
         data_game_cheats_on = 0x00918E9A;
+        data_game_cinematic = 0x00918EA0;
         data_game_cheat_parser = 0x00919858;
         data_game_colors_begin = 0x008CFA74;
         data_game_colors_end = 0x008CFA78;
@@ -255,6 +263,7 @@ internal int spec_game_select(int build) {
         data_game_resources = 0x00919770;
         data_game_scenario_flag = 0x00918819;
         data_game_screen = 0x00919428;
+        data_game_screen_ready = 0x0091944D;
         data_game_scroll_setting = 0x009193A8;
         data_game_scroll_speed = 0x00918DB0;
         data_game_select_rect = 0x008D2778;
@@ -313,6 +322,7 @@ internal int spec_game_select(int build) {
         data_game_camera = 0x00931710;
         data_game_camera_fixed = 0x009308E2;
         data_game_cheats_on = 0x009318DA;
+        data_game_cinematic = 0x009318E0;
         data_game_cheat_parser = 0x009319D4;
         data_game_colors_begin = 0x008E610C;
         data_game_colors_end = 0x008E6110;
@@ -352,6 +362,7 @@ internal int spec_game_select(int build) {
         data_game_resources = 0x009318EC;
         data_game_scenario_flag = 0x00931259;
         data_game_screen = 0x009308A8;
+        data_game_screen_ready = 0x009308CD;
         data_game_scroll_setting = 0x00930828;
         data_game_scroll_speed = 0x009317F0;
         data_game_select_rect = 0x008E8F18;
@@ -417,6 +428,7 @@ internal int spec_game_check(void) {
     bad += spec_data(data_game_camera, "game.camera");
     bad += spec_data(data_game_camera_fixed, "game.camera_fixed");
     bad += spec_data(data_game_cheats_on, "game.cheats_on");
+    bad += spec_data(data_game_cinematic, "game.cinematic");
     bad += spec_data(data_game_cheat_parser, "game.cheat_parser");
     bad += spec_data(data_game_colors_begin, "game.colors_begin");
     bad += spec_data(data_game_colors_end, "game.colors_end");
@@ -456,6 +468,7 @@ internal int spec_game_check(void) {
     bad += spec_data(data_game_resources, "game.resources");
     bad += spec_data(data_game_scenario_flag, "game.scenario_flag");
     bad += spec_data(data_game_screen, "game.screen");
+    bad += spec_data(data_game_screen_ready, "game.screen_ready");
     bad += spec_data(data_game_scroll_setting, "game.scroll_setting");
     bad += spec_data(data_game_scroll_speed, "game.scroll_speed");
     bad += spec_data(data_game_select_rect, "game.select_rect");

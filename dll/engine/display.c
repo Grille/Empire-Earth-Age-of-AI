@@ -1937,6 +1937,13 @@ internal void cmd_headless(const char *verb, const char *args, char *out) {
         else { g_shot_req = 0; REPLY("error: no frame presented within 3 s\n"); }
         return;
     }
+    if (!strcmp(verb, "vwheel")) {   // vwheel N: the wheel turned N notches as the mouse hook counts it (camera.c)
+        int n = atoi(args);
+        InterlockedExchangeAdd(&g_wheel, n * WHEEL_DELTA);
+        REPLY("ok: wheel %d (the render thread's zoom: %s, zooms so far %ld)\n", n,
+              g_rd_on && g_cam_smooth ? "on" : "off - the own renderer's only", g_wheel_zooms);
+        return;
+    }
     if (!strncmp(args, "off", 3)) { g_vm_x = g_vm_y = -1; REPLY("ok: real mouse\n"); return; }
     if (!strcmp(verb, "wtype")) {   // wtype TEXT: the characters as WM_CHAR to the game window (edit boxes; tests)
         ee_window *win = game_window();

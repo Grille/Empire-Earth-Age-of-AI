@@ -560,7 +560,7 @@ internal void console_run(void) {
     out[0] = 0;
     if (!strcmp(verb, "peek") || !strcmp(verb, "poke")) mem_command(verb, cmd + n, out);
     else if (!strcmp(verb, "profile") || !strcmp(verb, "uipost") || !strcmp(verb, "vmouse") || !strcmp(verb, "vclick")
-             || !strcmp(verb, "vdrag") || !strcmp(verb, "wclick") || !strcmp(verb, "wtype") || !strcmp(verb, "shot")
+             || !strcmp(verb, "vdrag") || !strcmp(verb, "vwheel") || !strcmp(verb, "wclick") || !strcmp(verb, "wtype") || !strcmp(verb, "shot")
              || !strcmp(verb, "mapshot"))
         REPLY("error: %s works through the pipe only (scripts/test/eectl.py)\n", verb);
     else execute(cmd, out);
@@ -907,7 +907,7 @@ internal DWORD WINAPI pipe_thread(LPVOID unused) {
             } else if (!strcmp(verb, "profile")) {
                 char *out = reply;
                 cmd_profile(cmd + n, out);
-            } else if (!strcmp(verb, "vmouse") || !strcmp(verb, "vclick") || !strcmp(verb, "vdrag") || !strcmp(verb, "wclick") || !strcmp(verb, "wtype") || !strcmp(verb, "shot") || !strcmp(verb, "mapshot")) {
+            } else if (!strcmp(verb, "vmouse") || !strcmp(verb, "vclick") || !strcmp(verb, "vdrag") || !strcmp(verb, "vwheel") || !strcmp(verb, "wclick") || !strcmp(verb, "wtype") || !strcmp(verb, "shot") || !strcmp(verb, "mapshot")) {
                 char *out = reply;
                 cmd_headless(verb, cmd + n, out);
             } else if (!strcmp(verb, "uipost")) {

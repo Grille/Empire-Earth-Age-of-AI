@@ -2163,9 +2163,14 @@ internal inline uint32_t eeuiewnss_open_screen_execute(eeuiewnss_open_screen *ee
 // class EEUIEWheelZoom (eeuie_wheel_zoom)
 // made in 0x58D3E1
 // UIEvent's, the base's
+// the game's form's wheel event (form +0x150, UIForm::SetMouseWheelMoveEvent), run by the form's input on the
+// game thread: with screen_ready, and the camera's view not 3 or a cinematic on, zoom_to(scroll_speed - the mouse's
+// Z axis x 0.05) clamped to 0 .. 1 (both builds; the axis GetNormalizedValue, vtable slot 2: the wheel's delta /
+// its granularity - notches); else the camera put back
 typedef uint32_t (__thiscall *eeuie_wheel_zoom_execute_fn)(eeuie_wheel_zoom *, ee_ui_form *, uint32_t);
 internal eeuie_wheel_zoom_execute_fn fn_eeuie_wheel_zoom_execute;
 internal inline uint32_t eeuie_wheel_zoom_execute(eeuie_wheel_zoom *eeuie_wheel_zoom, ee_ui_form *form, uint32_t arg) { return fn_eeuie_wheel_zoom_execute(eeuie_wheel_zoom, form, arg); }
+internal inline int patch_wheel_zoom_execute(eeuie_wheel_zoom_execute_fn h) { return patch_vtable(vt_eeuie_wheel_zoom, (int)slot_ui_event_execute, (uintptr_t)fn_eeuie_wheel_zoom_execute, (void *)h); }
 
 // class EEUIEndCinematicModeEvent (eeui_end_cinematic_mode_event)
 // made in 0x659A3B

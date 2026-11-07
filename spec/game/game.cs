@@ -20,6 +20,10 @@ static unsafe class game
     [address((ee)0x00918E9A, (aoc)0x009318DA)]
     static block cheats_on;
 
+    /// byte: a cinematic runs - set at its start (0x5A1CDA, which keeps scroll_speed), cleared at its end (0x5A1C33)
+    [address((ee)0x00918EA0, (aoc)0x009318E0), guess]
+    static block cinematic;
+
     [address((ee)0x00919858, (aoc)0x009319D4)]
     static EECheatCodes* cheat_parser;
 
@@ -170,6 +174,11 @@ static unsafe class game
     /// the current screen index
     [address((ee)0x00919428, (aoc)0x009308A8)]
     static block screen;
+
+    /// byte: set 1 once the display is set up (0x5C76A2, beside game_res_w / game_res_h), never cleared; the
+    /// wheel's zoom and the keys' do nothing without it
+    [address((ee)0x0091944D, (aoc)0x009308CD), guess]
+    static block screen_ready;
 
     /// float, settings slider x 0.01
     [address((ee)0x009193A8, (aoc)0x00930828)]

@@ -1124,6 +1124,7 @@ every start on 2026-10-19 from 21:42 on (now a copy does nothing).
 | Command | |
 |---|---|
 | `vmouse x y` | game cursor to x, y (game pixels); `vmouse off` = real mouse again |
+| `vwheel n` | the mouse wheel turned n notches (+ zooms in), as the own renderer's mouse hook counts it (engine/camera.c: the render thread's zoom, also during a step - the hook itself is not installed headless); the reply counts the zooms so far |
 | `vclick x y [right\|mid]` | move there and click (button held ~150 ms). Move there with `vmouse` first and wait a moment; screens ignore clicks while they load. A move counts as the mouse's input for one update (ISMouse +0x5C): while an edit box has the keyboard the forms see where the mouse is only then - move in a few steps before a click there |
 | `vdrag x0 y0 x1 y1` | left button down at x0,y0, the cursor carried to x1,y1 over 0.6 s, up there (the editor's walls, a selection box) |
 | `wclick x y` | click by posted window messages, for screens on the WONAPI UI (civ builder) that read Windows messages instead of the game cursor |
