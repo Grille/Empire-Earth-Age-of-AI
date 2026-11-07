@@ -1,0 +1,78 @@
+// Land units against a closed wall (the player 2026-11-07: some units fire over a wall; ships don't -
+// tests/probes/wall_ships.eeai). Continental seed 101, epoch 5 (start_epoch=5), 2 AIs: open land at x 21-30, y 46-54,
+// both AIs 20+ tiles off. P1 (idle) at war with P2; three P2 houses (28,48 28,50 28,52) inside a closed box of P2 wall
+// (x 26-30, y 46-54); P1's units west of it (longbows from 21,49 - 6 in a square 2 apart: x 21-25; catapults 23,50).
+// Four phases of 2 minutes, fresh houses each: 6 longbows (arch06, no high arc in the game data) with the box and
+// without; 3 catapults (gun_siege04, high arc) with and without. objs logs the houses', the walls' and the units' hit
+// points, places and goals. 2026-11-07 (game_seed 1): longbows over the box 272 damage, open 414; catapults over the
+// box 3 houses razed, open 3 - both fire over a wall.
+
+wait_until(0.1min)
+diplo(1, 2, 1)
+diplo(2, 1, 1)
+
+// A: longbows, boxed
+wait_until(0.2min)
+for x in 26..30 {
+    spawn(2, unit.b_wall_middle, x, 46, 1)
+    spawn(2, unit.b_wall_middle, x, 54, 1)
+}
+for y in 47..53 {
+    spawn(2, unit.b_wall_middle, 26, y, 1)
+    spawn(2, unit.b_wall_middle, 30, y, 1)
+}
+for y in [48, 50, 52] { spawn(2, unit.b_house, 28, y, 1) }
+spawn(1, unit.arch06_long_bow, 21, 49, 6)
+wait_until(0.3min)
+objs(2, unit.b_house)
+wait_until(2.2min)
+objs(2, unit.b_house)
+objs(2, unit.b_wall_middle)
+objs(1, unit.arch06_long_bow)
+for u in player(2).units(unit.b_house) { u.remove() }
+for u in player(2).units(unit.b_wall_middle) { u.remove() }
+for u in player(1).units(unit.arch06_long_bow) { u.remove() }
+
+// B: longbows, open
+wait_until(2.3min)
+for y in [48, 50, 52] { spawn(2, unit.b_house, 28, y, 1) }
+spawn(1, unit.arch06_long_bow, 21, 49, 6)
+wait_until(2.4min)
+objs(2, unit.b_house)
+wait_until(4.3min)
+objs(2, unit.b_house)
+objs(1, unit.arch06_long_bow)
+for u in player(2).units(unit.b_house) { u.remove() }
+for u in player(1).units(unit.arch06_long_bow) { u.remove() }
+
+// C: catapults, boxed
+wait_until(4.4min)
+for x in 26..30 {
+    spawn(2, unit.b_wall_middle, x, 46, 1)
+    spawn(2, unit.b_wall_middle, x, 54, 1)
+}
+for y in 47..53 {
+    spawn(2, unit.b_wall_middle, 26, y, 1)
+    spawn(2, unit.b_wall_middle, 30, y, 1)
+}
+for y in [48, 50, 52] { spawn(2, unit.b_house, 28, y, 1) }
+spawn(1, unit.gun_siege04_catapult, 23, 50, 3)
+wait_until(4.5min)
+objs(2, unit.b_house)
+wait_until(6.4min)
+objs(2, unit.b_house)
+objs(2, unit.b_wall_middle)
+objs(1, unit.gun_siege04_catapult)
+for u in player(2).units(unit.b_house) { u.remove() }
+for u in player(2).units(unit.b_wall_middle) { u.remove() }
+for u in player(1).units(unit.gun_siege04_catapult) { u.remove() }
+
+// D: catapults, open
+wait_until(6.5min)
+for y in [48, 50, 52] { spawn(2, unit.b_house, 28, y, 1) }
+spawn(1, unit.gun_siege04_catapult, 23, 50, 3)
+wait_until(6.6min)
+objs(2, unit.b_house)
+wait_until(8.5min)
+objs(2, unit.b_house)
+objs(1, unit.gun_siege04_catapult)

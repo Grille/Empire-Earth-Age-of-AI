@@ -1,0 +1,66 @@
+// Ships against a wall at the water's edge (the player 2026-11-07: "ships only fire in a straight line, not an arc that
+// can get over a wall - walls are a great way to protect the economy against ships"; archers and siege fire over).
+// Continental seed 101, epoch 5 (start_epoch=5), 2 AIs: the coast at x 21, y 46-52 - water west of it, both AIs 20+
+// tiles off. P1 (idle) at war with P2; three P2 houses 2 tiles inland (23,47 23,49 23,51); a P1 warship 4 tiles out
+// (17,49). Four phases of 2 minutes, fresh houses each: a galleon (s07) with P2's wall on the coast (x 21, y 44-54) and
+// without; a catapult ship (s06) with and without. objs logs the houses', the walls' and the ship's hit points at each
+// phase's start and end (unit_type high_arc: which of them the game aims high).
+
+wait_until(0.1min)
+diplo(1, 2, 1)
+diplo(2, 1, 1)
+
+// A: galleon, walled
+wait_until(0.2min)
+for y in 44..54 { spawn(2, unit.b_wall_middle, 21, y, 1) }
+for y in [47, 49, 51] { spawn(2, unit.b_house, 23, y, 1) }
+spawn(1, unit.s07_renaissance_battleship_galleon, 17, 49, 1)
+wait_until(0.3min)
+objs(2, unit.b_house)
+wait_until(2.2min)
+objs(2, unit.b_house)
+objs(2, unit.b_wall_middle)
+objs(1, unit.s07_renaissance_battleship_galleon)
+for u in player(2).units(unit.b_house) { u.remove() }
+for u in player(2).units(unit.b_wall_middle) { u.remove() }
+for u in player(1).units(unit.s07_renaissance_battleship_galleon) { u.remove() }
+
+// B: galleon, open
+wait_until(2.3min)
+for y in [47, 49, 51] { spawn(2, unit.b_house, 23, y, 1) }
+spawn(1, unit.s07_renaissance_battleship_galleon, 17, 49, 1)
+wait_until(2.4min)
+objs(2, unit.b_house)
+wait_until(4.3min)
+objs(2, unit.b_house)
+objs(1, unit.s07_renaissance_battleship_galleon)
+for u in player(2).units(unit.b_house) { u.remove() }
+for u in player(1).units(unit.s07_renaissance_battleship_galleon) { u.remove() }
+
+// C: catapult ship, walled
+wait_until(4.4min)
+for y in 44..54 { spawn(2, unit.b_wall_middle, 21, y, 1) }
+for y in [47, 49, 51] { spawn(2, unit.b_house, 23, y, 1) }
+spawn(1, unit.s06_middle_age_catapult_ship, 17, 49, 1)
+wait_until(4.5min)
+objs(2, unit.b_house)
+wait_until(6.4min)
+objs(2, unit.b_house)
+objs(2, unit.b_wall_middle)
+objs(1, unit.s06_middle_age_catapult_ship)
+for u in player(2).units(unit.b_house) { u.remove() }
+for u in player(2).units(unit.b_wall_middle) { u.remove() }
+for u in player(1).units(unit.s06_middle_age_catapult_ship) { u.remove() }
+
+// D: catapult ship, open
+wait_until(6.5min)
+for y in [47, 49, 51] { spawn(2, unit.b_house, 23, y, 1) }
+spawn(1, unit.s06_middle_age_catapult_ship, 17, 49, 1)
+wait_until(6.6min)
+objs(2, unit.b_house)
+wait_until(8.5min)
+objs(2, unit.b_house)
+objs(1, unit.s06_middle_age_catapult_ship)
+
+wait_until(8.6min)
+stats("types", 1)

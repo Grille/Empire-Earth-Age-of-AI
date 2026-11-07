@@ -156,7 +156,17 @@ A unit's tile changes through 0x616F9D (thiscall(unit, x, y, link), 10 calls; sp
 - Arc: 0x62CBB3 (cdecl: attacker, attacker type, from[3], to[3], &pitch) - speed type +0xC0, gravity
   [[type+0x60]+0x3FC]+0x438; low arc unless class +0x5E9 (or type +0x15C, unit +0x342, unit +0x260 == 8); returns 0
   out of reach, then 45 degrees. EEPMProjectile::vf1 0x550695 flies that arc from the launch point +0x10C..
-  (heading +0x188, pitch +0x18C, elapsed ms +0x28C) with no steering.
+  (heading +0x188, pitch +0x18C, elapsed ms +0x28C) with no steering. The high solution (spec unit_type.high_arc,
+  `stats types P` shows it): only 7 types in 1.04 - Catapult 104, Bombard 187, Artillery 143, Colossus Artillery
+  101, Trench Mortar 152, Heavy Mortar 219, 88mm AA Gun 145; archers, trebuchets and the catapult ship aim low.
+- Walls and fire (the player 2026-11-07: archers and siege fire over a wall, ships don't - a wall at the water's edge
+  protects the economy against ships). Measured, Continental 101 epoch 5, 2 minutes a phase: a galleon or a catapult
+  ship 4 tiles off a coast walled on its last land tile never attacks the houses 2 tiles behind the wall (no attack
+  goal at all; the wall untouched too) - without the wall they raze them (tests/probes/wall_ships.eeai). It is the
+  ship's target choice, not the flight: the catapult ship's arc would clear the wall. Land units outside a closed box
+  of wall hit the houses inside: longbows 272 damage (open 414), catapults all three razed (open the same;
+  tests/probes/wall_archers.eeai). Not yet known: why the ships pass the targets over - a wall inland of the shore,
+  guns, a target on the wall's own tile.
 - Hit: on the target's footprint (tiles +0x1C/+0x20, size class +0x58C); EEUCProjectile vf55 0x6078F9 is
   mostly the miss path (it came down beside the target). Missiles (EEUCMissile 0x832E90, torpedoes 0x832CC0)
   steer on their own.
