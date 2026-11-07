@@ -2035,7 +2035,10 @@ internal void train_budget(ee_player *pl, unsigned idx, const struct ai_cfg *cfg
     wood_reserve(pl, reserve);      // a far forest's Settlement (mines.c)
     if (military) upgrade_reserve(pl, reserve);   // pending line upgrades (upgrade_reserve)
     if (!ship && !req_unit && !g_priority_mil && !g_landing_order) navy_hold(pl, idx, reserve);   // the navy account: only warships spend it (navy.c)
-    if (military && !req_unit && !g_priority_mil && !g_landing_order) special_reserve(pl, reserve);   // a special order saving up
+    int sp[7] = { 0 };   // a special order saving up: held from warships too (they see the whole stock otherwise - an epoch 9
+                         // start: wood at 50-220 all game, the navy taking half the income, no artillery ever paid)
+    if (military && !req_unit && !g_priority_mil && !g_landing_order) special_reserve(pl, sp);
+    for (int r = 2; r < 7; r++) reserve[r] += sp[r];
     if (!g_bud[idx].init) {
         memset(&g_bud[idx], 0, sizeof g_bud[idx]);
         g_bud[idx].init = 1;
@@ -2067,7 +2070,7 @@ internal void train_budget(ee_player *pl, unsigned idx, const struct ai_cfg *cfg
                   !(EARLY(idx, early_soldiers) && g_hg_call);
     int recover = recovering(pl);
     for (int r = 2; r < 7; r++) {
-        int visible = req_unit || (ship && navy_earmarked(idx)) ? stock[r] : stock[r] - reserve[r];   // a requirement unit: the epoch waits for it
+        int visible = req_unit ? stock[r] : ship && navy_earmarked(idx) ? stock[r] - sp[r] : stock[r] - reserve[r];   // a requirement unit: the epoch waits for it
         // citizens before farms: they pay only food, and only what the food budget (stock + reachable wild
         // food) doesn't need for the epochs; a tiny workforce always grows
         if (cit && cmode == 1 && ep < FARM_EPOCH) {
