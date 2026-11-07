@@ -505,6 +505,15 @@ internal void rf_camera_axes(void) {
 internal void rf_shift(rd3_vcb *vc, int ro) {
     float now[16], inv[16], k[16], t[16];
     if (ro < RO_TERRAIN || ro > RO_WATER || !g_cam_now_ok) return;
+    // a draw in pixels (the 2D mode's view, the identity: the selected units' health bars, the building's footprint
+    // lines, placed with the camera now by rf_view_now) has no camera to correct - taken for the ground's (no place in
+    // its view) it was turned by the two cameras' rounding even with the camera still, its depth 0 then below the near
+    // plane on one side of a line: the bars there cut off (the player's game: 71 bars from x 628 to 1061, those left
+    // of 900 not drawn - "it changes with camera movement, when the camera is still the healthbars are stable")
+    static const float ident[16] = { 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1 };
+    int pixels = 1;
+    for (int i = 0; i < 16; i++) pixels &= vc->view[i] == ident[i];
+    if (pixels) return;
     memcpy(now, g_cam_view_now, sizeof now);
     if (vc->view[12] != 0 || vc->view[13] != 0 || vc->view[14] != 0) {
         rd3_rigid_inverse(inv, vc->view);
