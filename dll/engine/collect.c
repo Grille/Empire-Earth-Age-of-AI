@@ -94,6 +94,87 @@ internal int uc_opacity(ee_unit *u, float *out) {
     if (!(d >= *out)) *out = (float)d;
     return 1;
 }
+// STEP 2: THE VIEW TEST (EEROUnits.drawn, the AoC decompilation's IsUnitDrawn: EE 0x5008B8, AoC 0x50B3B3, the same
+// code but for addresses and offsets). Whether the walk lists an object: on a tile in the player's sight (or a gaia
+// animal or bush with food left, or the free camera), of a scale, room left in its list, not dead, met once when on
+// several tiles (the set met: the update's), and its model against the view - a complex unit's own physical model; one
+// without (a remembered building), or a tree (shifted off its tile's middle by its id), a physical model of its own
+// at the tile's middle turned to the camera's yaw. The view's three calls go to what their sites call now (the shadows'
+// casters off the screen). A path point is never drawn (the game asks a `return false`), a flare neither, a foundation
+// only for its owner. dry: the met set only looked in, not added to (the check: the game's call comes after).
+internal int uc_view_at(ee_unit *u, int call, float x, float y) {
+    __attribute__((aligned(8))) uint8_t pm[0x60];
+    __attribute__((aligned(8))) float t[16];
+    physical_model_new(pm);
+    float z = mesh_z(map_mesh_at(game_map()), x, y);
+    transform_orient(t, camera_yaw(), 0.0f, 0.0f);
+    t[3] = x, t[7] = y, t[11] = z;
+    t[12] = t[13] = t[14] = 0.0f, t[15] = 1.0f;
+    physical_model_set_model(pm, ((void **)dmg_model_anim_model_at(unit_graphics(u)))[0]);
+    physical_model_set_frame(pm, 0);
+    float scale = unit_stats_get_height(unit_get_stats(u));
+    transform_assign(pm, t);
+    physical_model_set_scale(pm, scale);
+    int r = units_view_call(call)(pm, opacity_viewport(), *game_camera_fixed_at()) != 0;
+    physical_model_free(pm);
+    return r;
+}
+internal int uc_drawn(ee_unit *u, ee_unit_vis *v, void *met, int dry) {
+    opacity_consts c = opacity_consts_now();
+    ee_unit *cu = unit_get_physics(u);
+    ee_unit_type *ty = unit_get_type_data(u);
+    ee_player *me = game_players()[local_player_index()];
+    int food = unit_holds_food(u) && cu && unit_type_get_class_id(ty) != CLS_LAND_CITIZEN &&
+               unit_type_get_class_id(ty) != CLS_NAVAL_CITIZEN && player_get_index(unit_get_owner(u)) == 0;
+    if (!unit_vis_seen_by(v, me) && !food && !*game_free_camera_at()) return 0;
+    float sc = unit_stats_get_height(unit_get_stats(u));
+    if (!(sc < c.zero || sc > c.zero)) return 0;   // fcomp, je: 0 or not a number
+    int size = unit_type_get_size(ty);
+    if (unit_type_get_is_tree(ty)) {
+        if (*draw_small_count_at() >= drawn_small_room()) return 0;
+        int id = unit_get_serial(u), jx = (id % 3 - 1) * size, jy = (id / 3 % 3 - 1) * size;
+        long double half = (long double)size * c.half;
+        float x = (float)((long double)jx * tree_shift() + unit_get_x(u) + half);
+        float y = (float)((long double)jy * tree_shift() + unit_get_y(u) + half);
+        return uc_view_at(u, 2, x, y);
+    }
+    if (type_is_path_point(ty) || *draw_count_at() >= drawn_room() || (cu && unit_dead(cu))) return 0;
+    if (size > 1) {
+        void *found[2], *key = u;
+        if (*(void **)doppelganger_set_find(met, found, (ee_doppelganger **)&key) != *(void **)((uint8_t *)met + 4)) return 0;
+        if (!dry) doppelganger_set_insert(met, found, (ee_doppelganger **)&key);
+    }
+    if (!cu) {
+        long double half = (long double)size * c.half;
+        if (!uc_view_at(u, 1, (float)((long double)unit_get_x(u) + half), (float)((long double)unit_get_y(u) + half))) return 0;
+        return !unit_is_path_marker(u) || unit_get_owner(u) == me;
+    }
+    ee_unit_type *cty = unit_get_type_data(cu);
+    if (unit_type_get_class_id(cty) != CLS_GATE && !units_view_call(0)(unit_matrix_at(cu), opacity_viewport(), *game_camera_fixed_at()))
+        return 0;
+    if (*game_free_camera_at()) return 1;
+    if (type_is_path_point(cty)) return unit_get_owner(u) == me && unit_path_point_shown(u);
+    if (unit_is_foundation(cu)) return unit_get_owner(u) == me;
+    return !unit_type_get_is_flare(cty);
+}
+// the walk's view test: the game's, the game's held against ours (ours first, its met set only looked in) or ours
+// (the pipe: picture collect drawn game | check | own)
+internal volatile int g_uc_drawn;
+internal uint32_t g_uc_dr_n, g_uc_dr_diff, g_uc_dr_yes;
+internal int uc_drawn_of(ee_ro_units *ro, ee_unit *o, ee_unit_vis *v, void *met) {
+    if (g_uc_drawn == 2) return uc_drawn(o, v, met, 0);
+    int mine = g_uc_drawn == 1 ? uc_drawn(o, v, met, 1) : 0;
+    int r = ro_units_drawn(ro, o, v, met) != 0;
+    if (g_uc_drawn == 1) {
+        g_uc_dr_n++;
+        g_uc_dr_yes += r;
+        if (mine != r && g_uc_dr_diff++ < 8)
+            log_locked("# collect: drawn differs: type %d at %d,%d: the game's %d, ours %d\n",
+                       unit_type_get_id(unit_get_type_data(o)), unit_get_x(o), unit_get_y(o), r, mine);
+    }
+    return r;
+}
+
 // the walk's opacity: the game's, the game's held against ours (each object: both, the game's kept, the differences
 // counted and the first logged) or ours (the pipe: picture collect opacity game | check | own)
 internal volatile int g_uc_opacity;
@@ -148,7 +229,7 @@ __attribute__((used)) void __cdecl collect_walk(uint8_t *f) {
                     while (unit_get_chain(o)) o = unit_get_chain(o);
                 }
                 do {
-                    if (ro_units_drawn(ro, o, v, w.met) && !w.listed(picker, o)) {
+                    if (uc_drawn_of(ro, o, v, w.met) && !w.listed(picker, o)) {
                         if (!unit_type_get_is_tree(unit_get_type_data(o))) {
                             if (unit_get_physics(o)) *w.complex_n += 1.0f;
                             uint8_t *rec = recs + (size_t)*n * DRAW_REC;
@@ -175,9 +256,9 @@ __attribute__((used)) void __cdecl collect_walk(uint8_t *f) {
                     continue;
                 ee_unit_type *ty = unit_get_type_data(u);
                 if (unit_type_get_size(ty) > 1) {   // on several tiles: once
-                    void *found;
-                    if (*(void **)doppelganger_set_find(dset, &found, &d) != dset_end) continue;
-                    doppelganger_set_insert(dset, &found, &d);
+                    void *found[2];   // the insert's answer is a pair: the node, and whether it was new
+                    if (*(void **)doppelganger_set_find(dset, found, &d) != dset_end) continue;
+                    doppelganger_set_insert(dset, found, &d);
                 }
                 dopp++;
                 if (!unit_type_get_is_tree(ty))
@@ -266,6 +347,13 @@ internal int collect_opacity(int how) {
     g_uc_opacity = how;
     return 0;
 }
+// picture collect drawn game | check | own: the view test the same way
+internal int collect_drawn(int how) {
+    if (!g_uc_installed) return -1;
+    g_uc_dr_n = g_uc_dr_diff = g_uc_dr_yes = 0;
+    g_uc_drawn = how;
+    return 0;
+}
 
 // THE LISTS' PRINT (the pipe's drawcount hash): what the last update collected, to hold the mod's walk against the
 // game's in a paused game - the counts, the picker's, the sort maps' sizes and a hash of the records' contents but
@@ -298,4 +386,6 @@ internal void collect_print(void) {
     if (g_uc_opacity == 1)
         log_locked("# collect: opacity held against the game's: %u objects, %u differ (land buildings tested by the camera's front plane %u, faded %u)\n",
                    g_uc_op_n, g_uc_op_diff, g_uc_op_land, g_uc_op_near);
+    if (g_uc_drawn == 1)
+        log_locked("# collect: view test held against the game's: %u objects (%u drawn), %u differ\n", g_uc_dr_n, g_uc_dr_yes, g_uc_dr_diff);
 }

@@ -702,6 +702,20 @@ internal uint32_t data_engine_display_iat_transform_apply;
 internal uint32_t data_engine_display_iat_mesh_z;
 internal uint32_t value_engine_display_state_rotting;
 internal uint32_t value_engine_display_hidden_moved;
+internal uint32_t data_engine_display_camera_yaw;
+internal uint32_t data_engine_display_tree_shift;
+internal uint32_t value_engine_display_state_dead;
+internal uint32_t value_engine_display_type_path_point;
+internal uint32_t data_engine_display_iat_set_orientation;
+internal uint32_t data_engine_display_iat_transform_assign;
+internal uint32_t data_engine_display_iat_set_model;
+internal uint32_t data_engine_display_iat_model_free;
+internal uint32_t data_engine_display_iat_transform_new;
+internal uint32_t value_engine_display_size_physical_model;
+internal uint32_t value_engine_display_of_physical_model_model;
+internal uint32_t value_engine_display_of_physical_model_scale;
+internal uint32_t value_engine_display_of_physical_model_frame;
+internal uint32_t value_engine_display_resource_food;
 
 // engine_sound.cs
 internal uint32_t of_se_mixer_spim;
@@ -3160,6 +3174,7 @@ internal uint32_t of_unit_type_is_wall;
 internal uint32_t of_unit_type_deletable;
 internal uint32_t of_unit_type_is_obstacle;
 internal uint32_t of_unit_type_is_tree;
+internal uint32_t of_unit_type_is_flare;
 internal uint32_t of_unit_type_melee;
 internal uint32_t of_unit_type_is_guard_tower;
 internal uint32_t of_unit_type_behaviours;

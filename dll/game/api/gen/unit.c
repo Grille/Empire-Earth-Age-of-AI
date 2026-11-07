@@ -106,6 +106,16 @@ internal inline void unit_destroy(ee_unit *unit, int die, int p3, int p4) { ((un
 // on the map only for its owner
 typedef uint8_t (__thiscall *unit_is_foundation_fn)(ee_unit *);
 internal inline uint8_t unit_is_foundation(ee_unit *unit) { return ((unit_is_foundation_fn)(*(void ***)unit)[slot_unit_is_foundation])(unit); }
+// a path marker: its type 0x104 or 0xDF (the AoC decompilation's IsPathMarker) - the units' view test draws a
+// remembered one only for its owner
+typedef uint8_t (__thiscall *unit_is_path_marker_fn)(ee_unit *);
+internal unit_is_path_marker_fn fn_unit_is_path_marker;
+internal inline uint8_t unit_is_path_marker(ee_unit *unit) { return fn_unit_is_path_marker(unit); }
+// what the units' view test asks a path point (type 0xDF) of its owner's: in both builds a shared `return false`
+// (EEAreaEffect::vf8, the AoC decompilation's Fn27C0B4) - so none is drawn
+typedef uint8_t (__thiscall *unit_path_point_shown_fn)(ee_unit *);
+internal unit_path_point_shown_fn fn_unit_path_point_shown;
+internal inline uint8_t unit_path_point_shown(ee_unit *unit) { return fn_unit_path_point_shown(unit); }
 // vf16 (the AoC decompilation's UpdateHidden; EEUnit's 0x61648E): hidden behind something - every 3 s checked
 // again, else hidden_flags' bit 5. The units' opacity (EEROUnits.opacity) draws an obstacle or a moved unit see-through
 // by it when "show hidden units" is 1
@@ -876,6 +886,8 @@ internal int spec_unit_select(int build) {
         slot_unit_damage = 28;
         slot_unit_destroy = 24;
         slot_unit_is_foundation = 22;
+        fn_unit_is_path_marker = (unit_is_path_marker_fn)0x0046EFCF;
+        fn_unit_path_point_shown = (unit_path_point_shown_fn)0x00651420;
         slot_unit_update_hidden = 16;
         slot_unit_graphics = 21;
         fn_ee_unit_release = (unit_release_fn)0x00616DBB;
@@ -1090,6 +1102,8 @@ internal int spec_unit_select(int build) {
         slot_unit_damage = 29;
         slot_unit_destroy = 24;
         slot_unit_is_foundation = 22;
+        fn_unit_is_path_marker = (unit_is_path_marker_fn)0x004708C9;
+        fn_unit_path_point_shown = (unit_path_point_shown_fn)0x0067C0B4;
         slot_unit_update_hidden = 16;
         slot_unit_graphics = 21;
         fn_ee_unit_release = (unit_release_fn)0x006298E1;
@@ -1287,6 +1301,8 @@ internal int spec_unit_check(void) {
     bad += spec_vtable(vt_ee_unit, ".?AVEEUnit@@", "EEUnit [vtable]");
     bad += spec_code((uintptr_t)fn_ee_unit_lets_pass, "EEUnit.lets_pass");
     bad += spec_slot(vt_ee_unit, slot_unit_lets_pass, (uintptr_t)fn_ee_unit_lets_pass, "EEUnit.lets_pass [slot]");
+    bad += spec_code((uintptr_t)fn_unit_is_path_marker, "EEUnit.is_path_marker");
+    bad += spec_code((uintptr_t)fn_unit_path_point_shown, "EEUnit.path_point_shown");
     bad += spec_code((uintptr_t)fn_ee_unit_release, "EEUnit.release");
     bad += spec_slot(vt_ee_unit, slot_unit_release, (uintptr_t)fn_ee_unit_release, "EEUnit.release [slot]");
     bad += spec_code((uintptr_t)fn_unit_pop_waypoint, "EEUnit.pop_waypoint");

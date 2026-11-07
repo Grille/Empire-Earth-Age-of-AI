@@ -142,6 +142,9 @@ internal inline uint8_t *draw_records(void) { return (uint8_t *)(uintptr_t)*(uin
 internal inline uint8_t *draw_small_records(void) { return (uint8_t *)(uintptr_t)*(uint32_t *)(uintptr_t)data_hooks_draw_small_sites[4]; }
 internal inline uint32_t draw_room(void) { return *(uint32_t *)(uintptr_t)data_hooks_draw_sites[1]; }
 internal inline uint32_t draw_small_room(void) { return *(uint32_t *)(uintptr_t)data_hooks_draw_small_sites[1]; }
+// the room the view test (EEROUnits.drawn) checks the counts against: its cmp's (the first of each list's sites)
+internal inline uint32_t drawn_room(void) { return *(uint32_t *)(uintptr_t)data_hooks_draw_sites[0]; }
+internal inline uint32_t drawn_small_room(void) { return *(uint32_t *)(uintptr_t)data_hooks_draw_small_sites[0]; }
 internal inline float *draw_record_opacity(uint8_t *rec) { return (float *)(rec + of_draw_record_0xfc); }
 internal inline float *draw_small_record_opacity(uint8_t *rec) { return (float *)(rec + 0x24); }
 internal inline uint32_t *draw_count_at(void) { return (uint32_t *)(uintptr_t)data_game_draw_n; }

@@ -272,6 +272,10 @@ unsafe struct EEUnitClass
     [offset((ee)0x619, (aoc)0x317), found(c)]
     uint8 is_tree;
 
+    /// a flare (the AoC decompilation's mIsFlare): the units' view test (EEROUnits.drawn) draws none
+    [offset((ee)0x626, (aoc)0x324), found(c)]
+    uint8 is_flare;
+
     /// the data's column 0x3B0 (the editor: "Melee attack"): EECPAttackSubGroupUnit::score 0x461854 picks its table 0
     /// by it (the AoC decompilation: mIsMelee)
     [offset((ee)0x61A, (aoc)0x318), found(c), guess]

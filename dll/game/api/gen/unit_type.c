@@ -277,6 +277,10 @@ internal inline uint8_t *unit_type_is_obstacle_at(const ee_unit_type *o) { retur
 internal inline uint8_t unit_type_get_is_tree(const ee_unit_type *o) { return *(uint8_t *)((uint8_t *)o + of_unit_type_is_tree); }
 internal inline void unit_type_set_is_tree(ee_unit_type *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_unit_type_is_tree) = v; }
 internal inline uint8_t *unit_type_is_tree_at(const ee_unit_type *o) { return (uint8_t *)((uint8_t *)o + of_unit_type_is_tree); }
+// a flare (the AoC decompilation's mIsFlare): the units' view test (EEROUnits.drawn) draws none
+internal inline uint8_t unit_type_get_is_flare(const ee_unit_type *o) { return *(uint8_t *)((uint8_t *)o + of_unit_type_is_flare); }
+internal inline void unit_type_set_is_flare(ee_unit_type *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_unit_type_is_flare) = v; }
+internal inline uint8_t *unit_type_is_flare_at(const ee_unit_type *o) { return (uint8_t *)((uint8_t *)o + of_unit_type_is_flare); }
 // A GUESS (the spec's [guess]): its name and type, from what the code does with it -
 // the data's column 0x3B0 (the editor: "Melee attack"): EECPAttackSubGroupUnit::score 0x461854 picks its table 0
 // by it (the AoC decompilation: mIsMelee)
@@ -495,6 +499,7 @@ internal int spec_unit_type_select(int build) {
         of_unit_type_deletable = 0x613;
         of_unit_type_is_obstacle = 0x618;
         of_unit_type_is_tree = 0x619;
+        of_unit_type_is_flare = 0x626;
         of_unit_type_melee = 0x61A;
         of_unit_type_is_guard_tower = 0x61E;
         of_unit_type_behaviours = 0x621;
@@ -593,6 +598,7 @@ internal int spec_unit_type_select(int build) {
         of_unit_type_deletable = 0x311;
         of_unit_type_is_obstacle = 0x316;
         of_unit_type_is_tree = 0x317;
+        of_unit_type_is_flare = 0x324;
         of_unit_type_melee = 0x318;
         of_unit_type_is_guard_tower = 0x31C;
         of_unit_type_behaviours = 0x31F;

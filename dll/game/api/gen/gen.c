@@ -706,6 +706,11 @@ internal int spec_imports(void) {
     bad += spec_import(&data_engine_display_iat_terrain_visible, "Low-Level Engine.dll", "?UpdateVisibleTerrain@GETerrainMesh@@QAEXABVGETransformation@@AAVGEViewport@@KKK_N@Z", "engine_display.iat_terrain_visible");
     bad += spec_import(&data_engine_display_iat_transform_apply, "Low-Level Engine.dll", "?Apply@GETransformation@@QBEXABVGE3DPoint@@AAV2@@Z", "engine_display.iat_transform_apply");
     bad += spec_import(&data_engine_display_iat_mesh_z, "Low-Level Engine.dll", "?GetMeshZ@GETerrainMesh@@QBEMMM@Z", "engine_display.iat_mesh_z");
+    bad += spec_import(&data_engine_display_iat_set_orientation, "Low-Level Engine.dll", "?SetOrientationYPR@GETransformation@@QAEXMMM@Z", "engine_display.iat_set_orientation");
+    bad += spec_import(&data_engine_display_iat_transform_assign, "Low-Level Engine.dll", "??4GETransformation@@QAEAAV0@ABV0@@Z", "engine_display.iat_transform_assign");
+    bad += spec_import(&data_engine_display_iat_set_model, "Low-Level Engine.dll", "?SetModel@GEPhysicalModel@@QAEXPAVGEModel@@@Z", "engine_display.iat_set_model");
+    bad += spec_import(&data_engine_display_iat_model_free, "Low-Level Engine.dll", "??1GEPhysicalModel@@QAE@XZ", "engine_display.iat_model_free");
+    bad += spec_import(&data_engine_display_iat_transform_new, "Low-Level Engine.dll", "??0GETransformation@@QAE@XZ", "engine_display.iat_transform_new");
     bad += spec_import(&data_engine_sound_iat_snd_play, "Low-Level Engine.dll", "?Play@SESoundManager@@QAEKKMMM_NPAD@Z", "engine_sound.iat_snd_play");
     bad += spec_import(&data_engine_sound_iat_snd_playref, "Low-Level Engine.dll", "?PlayAndReturnReferencedNode@SESoundManager@@QAEPAVSESMInstanceNode@@KMMM_NPAD@Z", "engine_sound.iat_snd_playref");
     bad += spec_import(&data_engine_sound_iat_snd_setmaxch, "Low-Level Engine.dll", "?SetMaxChannels@SESoundManager@@QAEJK@Z", "engine_sound.iat_snd_setmaxch");

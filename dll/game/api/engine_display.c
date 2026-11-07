@@ -201,6 +201,42 @@ internal inline int unit_moved(const ee_unit *u) { return (unit_get_hidden_flags
 // AoC decompilation's mEnemies)
 internal inline int32_t player_stance_to(const ee_player *p, int index) { return ((const int32_t *)player_stance_at(p))[index]; }
 
+// THE UNITS' VIEW TEST's inputs (collect.c's port of EEROUnits.drawn): the camera's yaw, a tree's shift, the dead
+// state, the path point's type, a unit with food; its three calls of GEPhysicalModel::Intersects as they stand now (the
+// object's own, the remembered one's, the tree's: render_shadows.c hooks them); a physical model of its own on the
+// stack, as the game's code makes one (GETransformation's constructor, the model 0, the scale 1, the frame 0) and its
+// transformation - SetOrientationYPR, operator=, SetModel, the destructor through the exe's imports
+internal inline float camera_yaw(void) { return *(const float *)data_engine_display_camera_yaw; }
+internal inline float tree_shift(void) { return *(const float *)data_engine_display_tree_shift; }
+internal inline int unit_dead(const ee_unit *u) {
+    ee_ai_state *s = unit_get_ai_state(u);
+    return (s ? ai_state_get_id(s) : 0) == value_engine_display_state_dead;
+}
+internal inline int type_is_path_point(const ee_unit_type *t) { return (uint32_t)unit_type_get_id(t) == value_engine_display_type_path_point; }
+internal inline int unit_holds_food(const ee_unit *u) {
+    return (uint32_t)unit_get_resource(u) == value_engine_display_resource_food && unit_get_amount(u) > 0;
+}
+internal inline model_intersects_fn units_view_call(int i) {
+    return (model_intersects_fn)call_site_target(data_engine_display_calls_units_view[i]);
+}
+typedef void (__thiscall *pm_this_fn)(void *o);
+typedef void (__thiscall *pm_orient_fn)(void *t, float yaw, float pitch, float roll);
+typedef void *(__thiscall *pm_assign_fn)(void *t, const void *from);
+typedef void (__thiscall *pm_set_model_fn)(void *pm, void *model);
+internal inline uint32_t physical_model_size(void) { return value_engine_display_size_physical_model; }
+internal inline void physical_model_new(void *pm) {
+    (*(pm_this_fn *)data_engine_display_iat_transform_new)(pm);
+    *(void **)((uint8_t *)pm + value_engine_display_of_physical_model_model) = NULL;
+    *(float *)((uint8_t *)pm + value_engine_display_of_physical_model_scale) = 1.0f;
+    *(uint32_t *)((uint8_t *)pm + value_engine_display_of_physical_model_frame) = 0;
+}
+internal inline void physical_model_free(void *pm) { (*(pm_this_fn *)data_engine_display_iat_model_free)(pm); }
+internal inline void physical_model_set_model(void *pm, void *model) { (*(pm_set_model_fn *)data_engine_display_iat_set_model)(pm, model); }
+internal inline void physical_model_set_frame(void *pm, uint32_t frame) { *(uint32_t *)((uint8_t *)pm + value_engine_display_of_physical_model_frame) = frame; }
+internal inline void physical_model_set_scale(void *pm, float s) { *(float *)((uint8_t *)pm + value_engine_display_of_physical_model_scale) = s; }
+internal inline void transform_orient(void *t, float yaw, float pitch, float roll) { (*(pm_orient_fn *)data_engine_display_iat_set_orientation)(t, yaw, pitch, roll); }
+internal inline void transform_assign(void *t, const void *from) { (*(pm_assign_fn *)data_engine_display_iat_transform_assign)(t, from); }
+
 // EEGraphicObject.acquire's start -> h, *orig the game's (push ebp; mov ebp, esp; sub esp, 0x1B0 in both builds)
 internal inline int patch_acquire(dmg_model_acquire_fn h, dmg_model_acquire_fn *orig) {
     static const uint8_t pro[9] = { 0x55, 0x8B, 0xEC, 0x81, 0xEC, 0xB0, 0x01, 0x00, 0x00 };

@@ -932,6 +932,65 @@ static unsafe class engine_display
     /// EEUnit.hidden_flags' moved bit (kHiddenFlagMoved)
     [value((ee)0x10, (aoc)0x10)]
     static uint32 hidden_moved;
+
+    /// THE UNITS' VIEW TEST (EEROUnits.drawn, the AoC decompilation's IsUnitDrawn; collect.c's port) reads these. The
+    /// camera's yaw (float; gRenderEnvironment.mCameraYaw): an object without a complex unit (a remembered one, a
+    /// tree) is tested turned to it
+    [address((ee)0x009125C4, (aoc)0x00928D64)]
+    static block camera_yaw;
+
+    /// float 0.125: a tree's shift off its tile's middle by its id (id % 3 - 1, id / 3 % 3 - 1, times its size and this)
+    [address((ee)0x0082B380, (aoc)0x0084014C)]
+    static block tree_shift;
+
+    /// a unit's script state once dead (EEUnitAction.id; kActionDead): not drawn
+    [value((ee)0x1773, (aoc)0x1773)]
+    static uint32 state_dead;
+
+    /// the type of a path point (kUnitTypePathPoint): not drawn but as a complex unit's
+    [value((ee)0xDF, (aoc)0xDF)]
+    static uint32 type_path_point;
+
+    /// the exe's import slots of Low-Level Engine.dll's GETransformation::SetOrientationYPR (thiscall: yaw, pitch, roll),
+    /// its operator= (thiscall: the other; returns this), GEPhysicalModel::SetModel (thiscall: a GEModel) and its
+    /// destructor - the view test's own physical model (0x4C bytes: a GETransformation, the model +0x40, the scale
+    /// +0x44, the frame +0x48) and transformation, on its stack
+    [import_slot("Low-Level Engine.dll", "?SetOrientationYPR@GETransformation@@QAEXMMM@Z")]
+    [address((ee)0x00823408, (aoc)0x0083739C)]
+    static block iat_set_orientation;
+
+    [import_slot("Low-Level Engine.dll", "??4GETransformation@@QAEAAV0@ABV0@@Z")]
+    [address((ee)0x008232F4, (aoc)0x0083738C)]
+    static block iat_transform_assign;
+
+    [import_slot("Low-Level Engine.dll", "?SetModel@GEPhysicalModel@@QAEXPAVGEModel@@@Z")]
+    [address((ee)0x00823848, (aoc)0x00837818)]
+    static block iat_set_model;
+
+    [import_slot("Low-Level Engine.dll", "??1GEPhysicalModel@@QAE@XZ")]
+    [address((ee)0x0082384C, (aoc)0x0083781C)]
+    static block iat_model_free;
+
+    [import_slot("Low-Level Engine.dll", "??0GETransformation@@QAE@XZ")]
+    [address((ee)0x00823254, (aoc)0x00837250)]
+    static block iat_transform_new;
+
+    [value((ee)0x4C, (aoc)0x4C)]
+    static uint32 size_physical_model;
+
+    [value((ee)0x40, (aoc)0x40)]
+    static uint32 of_physical_model_model;
+
+    [value((ee)0x44, (aoc)0x44)]
+    static uint32 of_physical_model_scale;
+
+    [value((ee)0x48, (aoc)0x48)]
+    static uint32 of_physical_model_frame;
+
+    /// EEUnit.resource's food (kResourceFood): an animal or a bush of the gaia player with food left is drawn on a
+    /// tile the player hasn't in sight (its fog) as long as it has a complex unit and isn't a citizen
+    [value((ee)2, (aoc)2)]
+    static uint32 resource_food;
 }
 
 /// the game's functions engine_display.c wraps, by the names the C side gives them
@@ -939,11 +998,13 @@ static unsafe class engine_display
 static unsafe class engine_display_functions
 {
     /// thiscall(the collection's set of the doppelgangers met (walk_doppelgangers), found: its node, &the doppelganger):
-    /// find - the set's head (+4) when not met (std::set; AoC's is a shared copy far off, 0x42B588)
+    /// find - the set's head (+4) when not met (std::set; AoC's is a shared copy far off, 0x42B588). A set of pointers:
+    /// the view test (EEROUnits.drawn) keeps the objects met (walk_met) in one too, with the same two functions
     [address((ee)0x005050BD, (aoc)0x0042B588), thiscall]
     static extern void* doppelganger_set_find(void* set, void** found, EEDoppelganger** d);
 
-    /// thiscall(the same set, found: its node, &the doppelganger): insert
+    /// thiscall(the same set, found: 8 bytes - its node, then a byte: 1 inserted, 0 there before -, &the doppelganger):
+    /// insert (ret 8; the pair std::set::insert returns, through the hidden pointer)
     [address((ee)0x00505007, (aoc)0x0050FED2), thiscall]
     static extern void* doppelganger_set_insert(void* set, void** found, EEDoppelganger** d);
 }

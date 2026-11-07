@@ -652,15 +652,36 @@ internal inline uint8_t *engine_display_iat_mesh_z_at(void) { return (uint8_t *)
 // a unit's script state while it dies and rots (EEUnitAction.id; the AoC decompilation's kActionUnitRotting): the
 // opacity is its rot_ms over its type's rot_time
 // EEUnit.hidden_flags' moved bit (kHiddenFlagMoved)
+// THE UNITS' VIEW TEST (EEROUnits.drawn, the AoC decompilation's IsUnitDrawn; collect.c's port) reads these. The
+// camera's yaw (float; gRenderEnvironment.mCameraYaw): an object without a complex unit (a remembered one, a
+// tree) is tested turned to it
+internal inline uint8_t *engine_display_camera_yaw_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_camera_yaw; }
+// float 0.125: a tree's shift off its tile's middle by its id (id % 3 - 1, id / 3 % 3 - 1, times its size and this)
+internal inline uint8_t *engine_display_tree_shift_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_tree_shift; }
+// a unit's script state once dead (EEUnitAction.id; kActionDead): not drawn
+// the type of a path point (kUnitTypePathPoint): not drawn but as a complex unit's
+// the exe's import slots of Low-Level Engine.dll's GETransformation::SetOrientationYPR (thiscall: yaw, pitch, roll),
+// its operator= (thiscall: the other; returns this), GEPhysicalModel::SetModel (thiscall: a GEModel) and its
+// destructor - the view test's own physical model (0x4C bytes: a GETransformation, the model +0x40, the scale
+// +0x44, the frame +0x48) and transformation, on its stack
+internal inline uint8_t *engine_display_iat_set_orientation_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_iat_set_orientation; }
+internal inline uint8_t *engine_display_iat_transform_assign_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_iat_transform_assign; }
+internal inline uint8_t *engine_display_iat_set_model_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_iat_set_model; }
+internal inline uint8_t *engine_display_iat_model_free_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_iat_model_free; }
+internal inline uint8_t *engine_display_iat_transform_new_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_iat_transform_new; }
+// EEUnit.resource's food (kResourceFood): an animal or a bush of the gaia player with food left is drawn on a
+// tile the player hasn't in sight (its fog) as long as it has a complex unit and isn't a citizen
 
 // static class engine_display_functions
 // the game's functions engine_display.c wraps, by the names the C side gives them
 // thiscall(the collection's set of the doppelgangers met (walk_doppelgangers), found: its node, &the doppelganger):
-// find - the set's head (+4) when not met (std::set; AoC's is a shared copy far off, 0x42B588)
+// find - the set's head (+4) when not met (std::set; AoC's is a shared copy far off, 0x42B588). A set of pointers:
+// the view test (EEROUnits.drawn) keeps the objects met (walk_met) in one too, with the same two functions
 typedef void *(__thiscall *doppelganger_set_find_fn)(void *, void **, ee_doppelganger **);
 internal doppelganger_set_find_fn fn_doppelganger_set_find;
 internal inline void *doppelganger_set_find(void *set, void **found, ee_doppelganger **d) { return fn_doppelganger_set_find(set, found, d); }
-// thiscall(the same set, found: its node, &the doppelganger): insert
+// thiscall(the same set, found: 8 bytes - its node, then a byte: 1 inserted, 0 there before -, &the doppelganger):
+// insert (ret 8; the pair std::set::insert returns, through the hidden pointer)
 typedef void *(__thiscall *doppelganger_set_insert_fn)(void *, void **, ee_doppelganger **);
 internal doppelganger_set_insert_fn fn_doppelganger_set_insert;
 internal inline void *doppelganger_set_insert(void *set, void **found, ee_doppelganger **d) { return fn_doppelganger_set_insert(set, found, d); }
@@ -882,6 +903,20 @@ internal int spec_engine_display_select(int build) {
         data_engine_display_iat_mesh_z = 0x0082327C;
         value_engine_display_state_rotting = 6002;
         value_engine_display_hidden_moved = 16;
+        data_engine_display_camera_yaw = 0x009125C4;
+        data_engine_display_tree_shift = 0x0082B380;
+        value_engine_display_state_dead = 6003;
+        value_engine_display_type_path_point = 223;
+        data_engine_display_iat_set_orientation = 0x00823408;
+        data_engine_display_iat_transform_assign = 0x008232F4;
+        data_engine_display_iat_set_model = 0x00823848;
+        data_engine_display_iat_model_free = 0x0082384C;
+        data_engine_display_iat_transform_new = 0x00823254;
+        value_engine_display_size_physical_model = 76;
+        value_engine_display_of_physical_model_model = 64;
+        value_engine_display_of_physical_model_scale = 68;
+        value_engine_display_of_physical_model_frame = 72;
+        value_engine_display_resource_food = 2;
         fn_doppelganger_set_find = (doppelganger_set_find_fn)0x005050BD;
         fn_doppelganger_set_insert = (doppelganger_set_insert_fn)0x00505007;
         return 0;
@@ -1099,6 +1134,20 @@ internal int spec_engine_display_select(int build) {
         data_engine_display_iat_mesh_z = 0x00837278;
         value_engine_display_state_rotting = 6002;
         value_engine_display_hidden_moved = 16;
+        data_engine_display_camera_yaw = 0x00928D64;
+        data_engine_display_tree_shift = 0x0084014C;
+        value_engine_display_state_dead = 6003;
+        value_engine_display_type_path_point = 223;
+        data_engine_display_iat_set_orientation = 0x0083739C;
+        data_engine_display_iat_transform_assign = 0x0083738C;
+        data_engine_display_iat_set_model = 0x00837818;
+        data_engine_display_iat_model_free = 0x0083781C;
+        data_engine_display_iat_transform_new = 0x00837250;
+        value_engine_display_size_physical_model = 76;
+        value_engine_display_of_physical_model_model = 64;
+        value_engine_display_of_physical_model_scale = 68;
+        value_engine_display_of_physical_model_frame = 72;
+        value_engine_display_resource_food = 2;
         fn_doppelganger_set_find = (doppelganger_set_find_fn)0x0042B588;
         fn_doppelganger_set_insert = (doppelganger_set_insert_fn)0x0050FED2;
         return 0;
@@ -1199,6 +1248,13 @@ internal int spec_engine_display_check(void) {
     bad += spec_data(data_engine_display_opacity_viewport, "engine_display.opacity_viewport");
     bad += spec_data(data_engine_display_iat_transform_apply, "engine_display.iat_transform_apply");
     bad += spec_data(data_engine_display_iat_mesh_z, "engine_display.iat_mesh_z");
+    bad += spec_data(data_engine_display_camera_yaw, "engine_display.camera_yaw");
+    bad += spec_data(data_engine_display_tree_shift, "engine_display.tree_shift");
+    bad += spec_data(data_engine_display_iat_set_orientation, "engine_display.iat_set_orientation");
+    bad += spec_data(data_engine_display_iat_transform_assign, "engine_display.iat_transform_assign");
+    bad += spec_data(data_engine_display_iat_set_model, "engine_display.iat_set_model");
+    bad += spec_data(data_engine_display_iat_model_free, "engine_display.iat_model_free");
+    bad += spec_data(data_engine_display_iat_transform_new, "engine_display.iat_transform_new");
     bad += spec_code((uintptr_t)fn_doppelganger_set_find, "engine_display_functions.doppelganger_set_find");
     bad += spec_code((uintptr_t)fn_doppelganger_set_insert, "engine_display_functions.doppelganger_set_insert");
     return bad;

@@ -124,6 +124,16 @@ unsafe struct EEUnit
     [slot(22), guess]
     extern uint8 is_foundation();
 
+    /// a path marker: its type 0x104 or 0xDF (the AoC decompilation's IsPathMarker) - the units' view test draws a
+    /// remembered one only for its owner
+    [address((ee)0x0046EFCF, (aoc)0x004708C9)]
+    extern uint8 is_path_marker();
+
+    /// what the units' view test asks a path point (type 0xDF) of its owner's: in both builds a shared `return false`
+    /// (EEAreaEffect::vf8, the AoC decompilation's Fn27C0B4) - so none is drawn
+    [address((ee)0x00651420, (aoc)0x0067C0B4)]
+    extern uint8 path_point_shown();
+
     /// vf16 (the AoC decompilation's UpdateHidden; EEUnit's 0x61648E): hidden behind something - every 3 s checked
     /// again, else hidden_flags' bit 5. The units' opacity (EEROUnits.opacity) draws an obstacle or a moved unit see-through
     /// by it when "show hidden units" is 1

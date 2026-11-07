@@ -440,7 +440,23 @@ the FPU's long doubles between the code's own float stores, so the result is the
 render thread's precision is: held against the game's, 0 of 8.4 million objects differed in the 8000 save (trees
 see-through by show-hidden among them) and 0 of 915 000 on an EE Continental map, 0 of 430 000 in AoC. The near fade
 never fires at the game's own constant (its window is half a unit before the plane, and objects behind the plane
-aren't drawn); with it poked to 2 .. 40, 3927 (EE) and 2990 (AoC) land buildings faded, all alike.
+aren't drawn); with it poked to 2 .. 40, 3927 (EE) and 2990 (AoC) land buildings faded, all alike. (On a Continental
+map at the closest zoom, 0, buildings do fade by the camera: 7967 in EE, 8158 in AoC, all alike too.)
+
+The view test ported (collect.c uc_drawn, 2026-11-07; the pipe: `picture collect drawn game | check | own`). IsUnitDrawn
+(EE 0x5008B8, AoC 0x50B3B3 - the same code but for addresses and offsets) decides whether the walk lists an object: on a
+tile in the player's sight, or a gaia animal or bush with food left (it shows in the fog), or the free camera; a scale
+not 0; room left in its list (its cmp's operand, drawlist.c's limit); not dead; met once when it stands on several
+tiles (the update's set); and its model against the view - a complex unit's own physical model, else a physical model
+made on the stack at the tile's middle turned to the camera's yaw (a remembered building; a tree shifted off its middle
+by its id). Its three calls of GEPhysicalModel::Intersects go to what their sites call now (render_shadows.c's casters
+off the screen). A path point is never drawn (the game asks a function that returns false in both builds), a flare
+neither, a foundation only for its owner. The check runs ours first with the met set only looked in, then the game's,
+which adds to it. Held against the game's, 0 differ: the 8000 save 3.0 million objects (2.99 million drawn), as its
+player 2 4.8 million (all in the fog: only the remembered ones drawn, 448 of them), an EE Continental game 4.8 million,
+AoC 3.8 million. Found on the way: the set's insert answers a pair (its node and whether it was new, 8 bytes), and the
+walk of step 1 gave it room for the node alone - 4 bytes of collect_walk's stack overwritten for each remembered
+building on several tiles; now room for both.
 
 `[display] gpu_animation` (default on; the pipe: `picture morph on | off`; render_morph.c), 2026-11-06. EE animates a
 model by morphing: every frame of its animation is a whole vertex array (spec GEModel.vertices, frames alike share
