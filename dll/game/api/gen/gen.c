@@ -726,6 +726,7 @@ internal int spec_imports(void) {
     bad += spec_import(&data_game_iat_wstring_reserve, "Low-Level Engine.dll", "??0UWideString@@QAE@K@Z", "game.iat_wstring_reserve");
     bad += spec_import(&data_game_imp_is_keyboard, "Low-Level Engine.dll", "?gISKeyboard@@3PAVISKeyboard@@A", "game.imp_is_keyboard");
     bad += spec_import(&data_game_imp_is_mouse, "Low-Level Engine.dll", "?gISMouse@@3PAVISMouse@@A", "game.imp_is_mouse");
+    bad += spec_import(&data_iat_memfile_load, "Low-Level Engine.dll", "?Load@FSMemoryFile@@QAEJAAVFSFile@@@Z", "game_functions.iat_memfile_load");
     bad += spec_import(&data_hooks_iat_srand, "msvcrt.dll", "srand", "hooks.iat_srand");
     bad += spec_import(&data_map_iat_color_table, "Low-Level Engine.dll", "?SetColorTable@GETerrainMesh@@QAEXAAV?$vector@VGEColor@@V?$allocator@VGEColor@@@std@@@std@@@Z", "map.iat_color_table");
     bad += spec_import(&data_messages_iat_constructors, "Low-Level Engine.dll", "?sConstructors@NEMessage@@2PAP6APAV1@PAE@ZA", "messages.iat_constructors");

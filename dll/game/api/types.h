@@ -71,6 +71,7 @@ typedef struct ee_surface ee_surface;           // E_SURF: a surface (DX7Surface
 typedef struct ee_draw_state ee_draw_state;     // E_DSTATE: the rasterizer's draw state
 typedef struct ee_window ee_window;             // E_WINDOW: the game window (GEWindow)
 typedef struct ee_input_mouse ee_input_mouse;   // E_MOUSE: the DirectInput mouse (ISMouse)
+typedef struct ee_fs_file ee_fs_file;           // E_FILE: a file (FSFile: FSFileSpec on disk, FSMemoryFile in memory)
 typedef struct ee_text ee_text;                 // E_TEXT: a text (GEText)
 typedef struct ee_font ee_font;                 // E_FONT: a font (GEFont)
 typedef struct ee_sound_mgr ee_sound_mgr;       // E_SOUNDMGR: the sound manager (SESoundManager)

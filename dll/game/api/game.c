@@ -191,3 +191,9 @@ internal inline int patch_phys_step(phys_step_hook h) { return patch_code32(data
 internal inline int phys_step_hooked_by(phys_step_hook h) { return *(uint32_t *)data_game_vtbl_phys_step == (uint32_t)(uintptr_t)h; }
 // a model's damage points (the guard: defence.c - a thunk)
 internal inline int patch_damage_points(thunk_fn thunk) { return patch_call(data_game_call_damage_points, (uintptr_t)fn_dmg_model_damage_points, (void *)thunk); }
+// the whole of a file read into an engine memory file (data_iat_memfile_load: the exe's import of FSMemoryFile::Load -
+// a game's load, the header's check before it, a single lump's read) - the original into *orig
+typedef int (__thiscall *memfile_load_fn)(ee_fs_file *mem, ee_fs_file *from);
+internal inline int patch_memfile_load(memfile_load_fn h, memfile_load_fn *orig) {
+    return iat_hook(data_iat_memfile_load, "Low-Level Engine.dll", "?Load@FSMemoryFile@@QAEJAAVFSFile@@@Z", (void *)h, (void **)orig);
+}

@@ -398,6 +398,30 @@ static unsafe class game_functions
     [address((ee)0x00540ACA, (aoc)0x0054D066), cdecl]
     static extern int32 save_game(void* file, int32 a, int32 b, ustring folder);
 
+    /// a scenario's or a save's contents written: the header (EEPSaveGameHeader, its table of lump types) into header,
+    /// then the lumps, an FSChunk each, into file - the same file at both calls; 0 = written. Its two calls: the save
+    /// to disk (0x540DA3, under save_game; the editor's Save too) and the editor's quicksave into memory (EEAQuickSaveLoad
+    /// 0x5952D3: the scenario its test play starts from)
+    [address((ee)0x0054086A, (aoc)0x0054CE06), cdecl]
+    [call_site("save_write", (ee)0x00540E9D, (aoc)0x0054D445)]
+    [call_site("save_write", (ee)0x00595491, (aoc)0x005A571A)]
+    static extern int32 save_write(void* objects, uint32 time, FSFile* header, FSFile* file);
+
+    /// a game loaded from a file - a scenario, a saved game, the editor's test play (EEGameState::start; 0x540F55, the
+    /// quickload's): thiscall(?, the file) -> 1 loaded. It reads the whole file into an FSMemoryFile (iat_memfile_load),
+    /// then the header and the lumps its table lists, and nothing after them (2026-10-22: a lump appended unlisted is
+    /// never read, the game plays as from the file without it)
+    [address((ee)0x0053DEE3, (aoc)0x0054A3EB), thiscall]
+    [call_site("load_file", (ee)0x00525DA6, (aoc)0x00530B19)]
+    [call_site("load_file", (ee)0x00540F69, (aoc)0x0054D511)]
+    static extern uint8 load_file(void* self, FSFile* file);
+
+    /// thiscall(memory file, FSFile *): the whole file into the memory file (its position then at the start) - the load's
+    /// (load_file), the header's check before it (0x54139E), a single lump's read (0x53E117)
+    [import_slot("Low-Level Engine.dll", "?Load@FSMemoryFile@@QAEJAAVFSFile@@@Z")]
+    [address((ee)0x00823B6C, (aoc)0x00837B54)]
+    static block iat_memfile_load;
+
     /// every setting into the registry: game.settings, a URegistry (an engine DLL's class, RTTI in a running game -
     /// the function the exe's own, not one of the class's)
     [address((ee)0x0052AA81, (aoc)0x00535943), thiscall]
@@ -412,4 +436,31 @@ static unsafe class game_functions
     [address((ee)0x0061ABEC, (aoc)0x006002C7), thiscall]
     static extern void vector_free(void* v);
 
+}
+
+/// Low-Level Engine.dll's file - FSFileSpec on disk, FSMemoryFile in memory ... -: its virtual functions, in the same
+/// slots in both builds' engines (scripts/re/dll_vtable.py on FSFile and FSMemoryFile); each returns 0 when done
+[c_type("ee_fs_file")]
+unsafe struct FSFile
+{
+    /// Read(unsigned char *, K, K &): n bytes into buf, the count read into *got
+    [slot(25)]
+    extern int32 read(uint8* buf, uint32 n, uint32* got);
+
+    /// Write(unsigned char const *, K, K &)
+    [slot(39)]
+    extern int32 write(uint8* buf, uint32 n, uint32* put);
+
+    /// GetLength(K &): its bytes
+    [slot(45)]
+    extern int32 get_length(uint32* n);
+
+    /// GetPosition(J &)
+    [slot(48)]
+    extern int32 get_position(int32* at);
+
+    /// SetPosition(J, K, bool): origin 0 offset bytes from the start, 1 back from the end, 2 on from here
+    /// (FSMemoryFile's 0x100237CD)
+    [slot(52)]
+    extern int32 set_position(int32 offset, uint32 origin, int8 p3);
 }

@@ -210,6 +210,25 @@ internal inline void resign_send(void) { fn_resign_send(); }
 typedef int (__cdecl *save_game_fn)(void *, int, int, struct ustring);
 internal save_game_fn fn_save_game;
 internal inline int save_game(void *file, int a, int b, struct ustring folder) { return fn_save_game(file, a, b, folder); }
+// a scenario's or a save's contents written: the header (EEPSaveGameHeader, its table of lump types) into header,
+// then the lumps, an FSChunk each, into file - the same file at both calls; 0 = written. Its two calls: the save
+// to disk (0x540DA3, under save_game; the editor's Save too) and the editor's quicksave into memory (EEAQuickSaveLoad
+// 0x5952D3: the scenario its test play starts from)
+typedef int (__cdecl *save_write_fn)(void *, uint32_t, ee_fs_file *, ee_fs_file *);
+internal save_write_fn fn_save_write;
+internal inline int save_write(void *objects, uint32_t time, ee_fs_file *header, ee_fs_file *file) { return fn_save_write(objects, time, header, file); }
+internal inline int patch_save_write(save_write_fn h, int *of) { return patch_calls(calls_save_write, 2, (uintptr_t)fn_save_write, (void *)h, of); }
+// a game loaded from a file - a scenario, a saved game, the editor's test play (EEGameState::start; 0x540F55, the
+// quickload's): thiscall(?, the file) -> 1 loaded. It reads the whole file into an FSMemoryFile (iat_memfile_load),
+// then the header and the lumps its table lists, and nothing after them (2026-10-22: a lump appended unlisted is
+// never read, the game plays as from the file without it)
+typedef uint8_t (__thiscall *load_file_fn)(void *, ee_fs_file *);
+internal load_file_fn fn_load_file;
+internal inline uint8_t load_file(void *self, ee_fs_file *file) { return fn_load_file(self, file); }
+internal inline int patch_load_file(load_file_fn h, int *of) { return patch_calls(calls_load_file, 2, (uintptr_t)fn_load_file, (void *)h, of); }
+// thiscall(memory file, FSFile *): the whole file into the memory file (its position then at the start) - the load's
+// (load_file), the header's check before it (0x54139E), a single lump's read (0x53E117)
+internal inline uint8_t *iat_memfile_load_at(void) { return (uint8_t *)(uintptr_t)data_iat_memfile_load; }
 // every setting into the registry: game.settings, a URegistry (an engine DLL's class, RTTI in a running game -
 // the function the exe's own, not one of the class's)
 typedef void (__thiscall *settings_save_game_fn)(void *);
@@ -224,6 +243,26 @@ internal inline void error_box(void *parent, void *text, int a, int b, void *on_
 typedef void (__thiscall *vector_free_fn)(void *);
 internal vector_free_fn fn_vector_free;
 internal inline void vector_free(void *v) { fn_vector_free(v); }
+
+// class FSFile (ee_fs_file)
+// Low-Level Engine.dll's file - FSFileSpec on disk, FSMemoryFile in memory ... -: its virtual functions, in the same
+// slots in both builds' engines (scripts/re/dll_vtable.py on FSFile and FSMemoryFile); each returns 0 when done
+// Read(unsigned char *, K, K &): n bytes into buf, the count read into *got
+typedef int (__thiscall *fs_file_read_fn)(ee_fs_file *, uint8_t *, uint32_t, uint32_t *);
+internal inline int fs_file_read(ee_fs_file *fs_file, uint8_t *buf, uint32_t n, uint32_t *got) { return ((fs_file_read_fn)(*(void ***)fs_file)[slot_fs_file_read])(fs_file, buf, n, got); }
+// Write(unsigned char const *, K, K &)
+typedef int (__thiscall *fs_file_write_fn)(ee_fs_file *, uint8_t *, uint32_t, uint32_t *);
+internal inline int fs_file_write(ee_fs_file *fs_file, uint8_t *buf, uint32_t n, uint32_t *put) { return ((fs_file_write_fn)(*(void ***)fs_file)[slot_fs_file_write])(fs_file, buf, n, put); }
+// GetLength(K &): its bytes
+typedef int (__thiscall *fs_file_get_length_fn)(ee_fs_file *, uint32_t *);
+internal inline int fs_file_get_length(ee_fs_file *fs_file, uint32_t *n) { return ((fs_file_get_length_fn)(*(void ***)fs_file)[slot_fs_file_get_length])(fs_file, n); }
+// GetPosition(J &)
+typedef int (__thiscall *fs_file_get_position_fn)(ee_fs_file *, int *);
+internal inline int fs_file_get_position(ee_fs_file *fs_file, int *at) { return ((fs_file_get_position_fn)(*(void ***)fs_file)[slot_fs_file_get_position])(fs_file, at); }
+// SetPosition(J, K, bool): origin 0 offset bytes from the start, 1 back from the end, 2 on from here
+// (FSMemoryFile's 0x100237CD)
+typedef int (__thiscall *fs_file_set_position_fn)(ee_fs_file *, int, uint32_t, int8_t);
+internal inline int fs_file_set_position(ee_fs_file *fs_file, int offset, uint32_t origin, int8_t p3) { return ((fs_file_set_position_fn)(*(void ***)fs_file)[slot_fs_file_set_position])(fs_file, offset, origin, p3); }
 
 // the running build's values (spec_select, with addr_select): how many it hasn't got
 internal int spec_game_select(int build) {
@@ -326,9 +365,21 @@ internal int spec_game_select(int build) {
         call_parse_cmdline = 0x00535EF2;
         fn_resign_send = (resign_send_fn)0x005D05CC;
         fn_save_game = (save_game_fn)0x00540ACA;
+        fn_save_write = (save_write_fn)0x0054086A;
+        calls_save_write[0] = 0x00540E9D;
+        calls_save_write[1] = 0x00595491;
+        fn_load_file = (load_file_fn)0x0053DEE3;
+        calls_load_file[0] = 0x00525DA6;
+        calls_load_file[1] = 0x00540F69;
+        data_iat_memfile_load = 0x00823B6C;
         fn_settings_save_game = (settings_save_game_fn)0x0052AA81;
         fn_error_box = (error_box_fn)0x0065C6A9;
         fn_vector_free = (vector_free_fn)0x0061ABEC;
+        slot_fs_file_read = 25;
+        slot_fs_file_write = 39;
+        slot_fs_file_get_length = 45;
+        slot_fs_file_get_position = 48;
+        slot_fs_file_set_position = 52;
         return 0;
     case 1:   // aoc
         data_game_call_damage_points = 0x0050232D;
@@ -428,9 +479,21 @@ internal int spec_game_select(int build) {
         call_parse_cmdline = 0x005410C8;
         fn_resign_send = (resign_send_fn)0x005E0E7F;
         fn_save_game = (save_game_fn)0x0054D066;
+        fn_save_write = (save_write_fn)0x0054CE06;
+        calls_save_write[0] = 0x0054D445;
+        calls_save_write[1] = 0x005A571A;
+        fn_load_file = (load_file_fn)0x0054A3EB;
+        calls_load_file[0] = 0x00530B19;
+        calls_load_file[1] = 0x0054D511;
+        data_iat_memfile_load = 0x00837B54;
         fn_settings_save_game = (settings_save_game_fn)0x00535943;
         fn_error_box = (error_box_fn)0x00674DB5;
         fn_vector_free = (vector_free_fn)0x006002C7;
+        slot_fs_file_read = 25;
+        slot_fs_file_write = 39;
+        slot_fs_file_get_length = 45;
+        slot_fs_file_get_position = 48;
+        slot_fs_file_set_position = 52;
         return 0;
     }
     return 0;
@@ -533,6 +596,13 @@ internal int spec_game_check(void) {
     bad += spec_call(call_parse_cmdline, (uintptr_t)fn_parse_cmdline, "game_functions.parse_cmdline [call_site parse_cmdline]");
     bad += spec_code((uintptr_t)fn_resign_send, "game_functions.resign_send");
     bad += spec_code((uintptr_t)fn_save_game, "game_functions.save_game");
+    bad += spec_code((uintptr_t)fn_save_write, "game_functions.save_write");
+    bad += spec_call(calls_save_write[0], (uintptr_t)fn_save_write, "game_functions.save_write [call_site save_write 0]");
+    bad += spec_call(calls_save_write[1], (uintptr_t)fn_save_write, "game_functions.save_write [call_site save_write 1]");
+    bad += spec_code((uintptr_t)fn_load_file, "game_functions.load_file");
+    bad += spec_call(calls_load_file[0], (uintptr_t)fn_load_file, "game_functions.load_file [call_site load_file 0]");
+    bad += spec_call(calls_load_file[1], (uintptr_t)fn_load_file, "game_functions.load_file [call_site load_file 1]");
+    bad += spec_data(data_iat_memfile_load, "game_functions.iat_memfile_load");
     bad += spec_code((uintptr_t)fn_settings_save_game, "game_functions.settings_save_game");
     bad += spec_code((uintptr_t)fn_error_box, "game_functions.error_box");
     bad += spec_code((uintptr_t)fn_vector_free, "game_functions.vector_free");

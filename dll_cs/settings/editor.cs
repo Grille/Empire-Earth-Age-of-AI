@@ -24,8 +24,9 @@ class editor
 
     /// Terrain colours of your own per map. The game's 54 terrain colours fill its 256-colour palette, but many are
     /// the same shades in another place (nine grass and sand types each have their own copy of one ramp): with this
-    /// on they share one place, which leaves 96 of the 256 free for a map's own colours. Painted ground looks exactly
-    /// as before, in the original game too
+    /// on they share one place, which leaves 96 of the 256 free for a map's own colours, kept in its file (a scenario,
+    /// a saved game; the original game shows its own colours there). Painted ground looks exactly as before, in the
+    /// original game too
     [title("Terrain colours")]
     bool terrain_palette = false;
 }

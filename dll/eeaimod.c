@@ -449,6 +449,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
 #include "engine/walls.c"
 #include "engine/editor_search.c"
 #include "engine/terrain_palette.c"
+#include "engine/map_file.c"
 #include "voice/llm.c"
 #include "test/testcmd.c"
 #include "test/testopp.c"
@@ -680,6 +681,7 @@ internal void install(HMODULE self) {
     walls_install();
     editor_search_install();
     terrain_palette_install();
+    map_file_install();
     llm_install();
     ctl_start(g_autotest || g_set.control_pipe);
     g_chat_console = chat_console;   // '>' lines of the chat: the pipe's commands (diplo.c -> test/control.c)

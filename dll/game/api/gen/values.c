@@ -809,6 +809,14 @@ internal uint32_t data_game_vtbl_phys_step;
 internal uint32_t data_game_vt_pause_action;
 internal uint32_t call_load_saved;
 internal uint32_t call_parse_cmdline;
+internal uint32_t calls_save_write[2];
+internal uint32_t calls_load_file[2];
+internal uint32_t data_iat_memfile_load;
+internal uint32_t slot_fs_file_read;
+internal uint32_t slot_fs_file_write;
+internal uint32_t slot_fs_file_get_length;
+internal uint32_t slot_fs_file_get_position;
+internal uint32_t slot_fs_file_set_position;
 
 // goal.cs
 internal uint32_t of_goal_state;

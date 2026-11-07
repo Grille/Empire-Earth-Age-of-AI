@@ -669,6 +669,10 @@ docs/testing.md "Multiplayer test games") does by hand, 2026-10-27:
   after the last one and not listed in the table is never read - the game plays exactly as from the unchanged copy,
   with or without the leading size updated, likewise 777 bytes of garbage appended; the same lump listed in the
   table crashes the load (read 0x0200001A at 0x4FCAD3): the loader walks the table and knows only its types.
+  In use since 2026-11-07 (engine/map_file.c): the mod's block after the last lump - records {tag, u32 length,
+  bytes}, then u32 the block's length and "AoAI" -, written by the lumps' writer 0x54086A (cdecl(objects, time,
+  header file, file); its calls: the save to disk 0x540DA3 and the editor's quicksave 0x5952D3) and read at a load
+  from a file (0x53DEE3, thiscall(?, FSFile *): the whole file into an FSMemoryFile first - its end holds the block).
 - `dbcpbehavior.dat` (AI settings): u32 count + 56-byte records [name string id, index, min1, max1, val1, min2,
   max2, val2, ?, minF, maxF, scaleF, fval, flag] -> global 0x8CFA80 + index*0x38, copied into player fields by
   0x431697. Record names = Language.dll string 28000 + name id. Cheat percentage: record 96 val1 (easy) / val2
