@@ -754,7 +754,7 @@ internal void encl_walls(ee_player *pl, unsigned idx, struct def_plan *p, void *
 #define SF_R 4
 #define SF_MIN 2
 #define SF_EXPOSED 4
-internal int g_site_forts = 0, g_shore_guns = 0;   // [ai_base] site_forts, shore_guns (SHORE GUNS below)
+internal int g_site_forts = 0, g_shore_guns = 0, g_shore_walls = 0;   // [ai_base] site_forts, shore_guns, shore_walls (SHORE GUNS below)
 internal struct sfort { int x, y, open, towers, tries; uint32_t t; } g_sf[16][SF_MAX];
 internal int g_sf_n[16];
 internal unsigned g_sf_towers[16], g_sf_runs[16];
@@ -1863,6 +1863,7 @@ internal void defence_install(void) {
     g_coast_towers = g_set_ai[1].coast_towers;
     g_site_forts = g_set_ai[1].site_forts;
     g_shore_guns = g_set_ai[1].shore_guns;
+    g_shore_walls = g_set_ai[1].shore_walls;
     g_encl_from = g_set_ai[1].enclose_citizens;
     g_encl_runs = g_set_ai[1].enclose_runs;
     g_encl_flight = g_set_ai[1].enclose_in_flight;
@@ -2059,6 +2060,12 @@ placed:;
 // 3-6 tiles from its dock with the sea within 4 (it heals every own land unit within ~4 tiles of its centre, 3 hit
 // points a second - docs/economy.md), queued one at a time; once it stands the guns' posts are within SG_HEAL of its
 // centre with the sea within 3.
+// MASSED (the player: "do you mass them? i put them on shore in groups of 5"): a battery wants all of shore_guns and
+// the batteries fill one at a time - the next only once the one before has its guns (2 a dock at every dock held 1.1).
+// THE WALL ([ai_base] shore_walls; the player: "maybe catapults and trebuchets work better behind a wall"): once
+// the Hospital stands, wall pieces on the coast's tiles within SG_WALL of its centre, one a tick, the coast within 3 of
+// a dock left open for its boats - a wall stops the ships' flat shots (frigates, galleys: line_of_fire_at_game) and a
+// landing; the guns fire over it (catapult, trebuchet: high arc). The posts may stand beside it.
 #define SG_EVERY 5000
 #define SG_NEAR 12
 #define SG_KEEP 600000
@@ -2067,6 +2074,7 @@ placed:;
 #define SG_DOCKS 8
 #define SG_GROUP 10
 #define SG_HEAL 3
+#define SG_WALL 5
 internal const enum ut_name k_sg_types[] = {
     UT_GUN_ARTILLERY13_COLOSSUS, UT_GUN_SIEGE13_PALADIN_CANNON, UT_GUN_ARTILLERY10_ARTILLERY, UT_GUN_SIEGE10_HOWITZER_CANNON,
     UT_GUN_SIEGE09_SERPENTINE_CANNON, UT_GUN_ARTILLERY08_BOMBARD, UT_GUN_SIEGE07_BASILISK_CANNON, UT_GUN_SIEGE06_TREBUCHET,
@@ -2097,7 +2105,7 @@ internal struct {
     int nd; struct { ivec2 p, from, hosp; uint32_t t; int has_h; } d[SG_DOCKS];   // the batteries: their dock, the ships' side, when last, its Hospital
     int ng; struct { int id; ivec2 post, bad; int dock, tries, healed; } g[SG_MAX];   // the guns held: id, post, its battery (-1 none yet), a post it didn't reach, posted by a Hospital
     uint32_t hq_t;   // a Hospital queued last
-    unsigned trained, orders, adopted, failed, stuck, hosp_queued;
+    unsigned trained, orders, adopted, failed, stuck, hosp_queued, walls;
 } g_sg[16];
 internal int shore_gun(unsigned idx, ee_unit *u) {
     if (!g_shore_guns || !u) return 0;
@@ -2108,6 +2116,7 @@ internal int shore_gun(unsigned idx, ee_unit *u) {
 internal int goal_near(ee_unit *u, float x, float y, float r);   // forces.c
 internal int ld_tile_free(ivec2 p);                             // landing.c
 internal int ld_type_avail(ee_player *pl, int t);               // landing.c
+internal int ld_tile_free_by_walls(ivec2 p);                    // landing.c
 internal unsigned ocean_near(ivec2 p, int r, ivec2 *w);         // landing.c
 // a post by the dock: open land 1-4 tiles from it with the sea within 2 - by its Hospital once it stands: within
 // SG_HEAL of its centre, the sea within 3 - on the gun's land and walk (the reach map: a tile by a dock is often a spit
@@ -2121,7 +2130,7 @@ internal int sg_post(ee_player *pl, unsigned idx, int dock, ee_unit *u, ivec2 ba
         for (int dy = -rr; dy <= rr; dy++) {
             ivec2 q = iv2(d.x + dx, d.y + dy);
             if ((abs(dx) < 2 && abs(dy) < 2) || (heal && dx * dx + dy * dy > SG_HEAL * SG_HEAL) || (int)area_id(q, 2) != cont ||
-                area_id(q, 1) || (q.x == bad.x && q.y == bad.y) || !ocean_near(q, heal ? 3 : 2, NULL) || !ld_tile_free(q)) continue;
+                area_id(q, 1) || (q.x == bad.x && q.y == bad.y) || !ocean_near(q, heal ? 3 : 2, NULL) || !ld_tile_free_by_walls(q) || encl_walled(q.x, q.y)) continue;
             int r = reg >= 0 ? rm_region_of(owner, q.x, q.y) : -1;
             if (r >= 0 && r != reg) continue;
             int taken = 0;
@@ -2162,7 +2171,13 @@ internal void shore_guns(ee_player *pl, unsigned idx, uint32_t now) {
         }
         g_sg[idx].d[k].t = now ? now : 1;
     }
-    int want = g_shore_guns * g_sg[idx].nd;
+    int full = 0;   // the batteries with all their guns: the next one's are wanted only then
+    for (int d = 0; d < g_sg[idx].nd; d++) {
+        int n = 0;
+        for (int q = 0; q < g_sg[idx].ng; q++) n += g_sg[idx].g[q].dock == d;
+        full += n >= g_shore_guns;
+    }
+    int want = g_shore_guns * (full + 1 < g_sg[idx].nd ? full + 1 : g_sg[idx].nd);
     if (want > SG_MAX) want = SG_MAX;
     void *cm = player_get_civ_mgr(pl), *um = cm ? civ_mgr_get_unit_mgr(cm) : NULL;
     ee_build_mgr *bm = cm ? civ_mgr_get_build_mgr(cm) : NULL;
@@ -2192,6 +2207,34 @@ internal void shore_guns(ee_player *pl, unsigned idx, uint32_t now) {
         g_sg[idx].hosp_queued++;
         if (g_log) fprintf(g_log, "# shore guns: P%u at %.1f min queues a Hospital at %d,%d for the battery at the dock %d,%d\n", idx, now / 60000.0,
                            best.x, best.y, d.x, d.y);
+    }
+    // the wall in front of a battery with its Hospital: one piece a tick, the coast tile nearest the Hospital
+    void *wm = cm ? civ_mgr_get_wall_mgr(cm) : NULL;
+    int wtype = 0, *stock = player_stock_at(pl);
+    static const enum ut_name wline[] = { UT_WALL_LINE };
+    for (int i = 5; g_shore_walls && wm && i >= 0 && !wtype; i--) if (ut_has(g_ut[wline[i]]) && can_build(pl, g_ut[wline[i]])) wtype = g_ut[wline[i]];
+    for (int k = 0; wtype && k < g_sg[idx].nd; k++) {
+        if (!g_sg[idx].d[k].has_h) continue;
+        int enough = 1;
+        for (int r = 2; r < 7; r++) enough &= stock[r] >= unit_cost(pl, wtype, r) + (r == 4 ? 50 : 0);
+        if (!enough) break;
+        ivec2 h = g_sg[idx].d[k].hosp, best = iv2(-1, -1);
+        int bs = 0x7FFFFFFF;
+        for (int dx = -SG_WALL; dx <= SG_WALL; dx++)
+            for (int dy = -SG_WALL; dy <= SG_WALL; dy++) {
+                ivec2 q = iv2(h.x + dx, h.y + dy);
+                int d2 = dx * dx + dy * dy, by_dock = 0;
+                if (d2 > SG_WALL * SG_WALL || d2 >= bs || !area_id(q, 2) || area_id(q, 1) || !encl_coast(q) || encl_walled(q.x, q.y)) continue;
+                for (int j = 0; j < a.nd && !by_dock; j++) by_dock = abs(a.d[j].x - q.x) <= 3 && abs(a.d[j].y - q.y) <= 3;
+                if (by_dock || !can_place(pl, wtype, q)) continue;
+                bs = d2; best = q;
+            }
+        if (best.x < 0) continue;
+        int pa[2] = { best.x, best.y };
+        build_wall(wm, pa, pa, wtype);
+        g_sg[idx].walls++;
+        if (g_log) fprintf(g_log, "# shore guns: P%u at %.1f min: wall %d at %d,%d in front of the battery at %d,%d\n", idx, now / 60000.0, wtype, best.x, best.y, h.x, h.y);
+        break;
     }
     // the guns held: the dead out, then new ones (not held by another part, not in a landing) while short - after a
     // load the held guns by a dock again (the list is not saved)
@@ -2274,11 +2317,11 @@ internal void shore_guns(ee_player *pl, unsigned idx, uint32_t now) {
         if (!u) continue;
         if (g_sg[idx].g[k].dock >= 0 && g_sg[idx].d[g_sg[idx].g[k].dock].has_h && !g_sg[idx].g[k].healed) g_sg[idx].g[k].dock = -1;
         if (g_sg[idx].g[k].dock < 0 && g_sg[idx].nd) {
-            int bd = -1, bn = 0x7FFFFFFF;
-            for (int d = 0; d < g_sg[idx].nd; d++) {
+            int bd = -1;   // the first battery short of its guns (massed: one filled before the next)
+            for (int d = 0; d < g_sg[idx].nd && bd < 0; d++) {
                 int n = 0;
                 for (int q = 0; q < g_sg[idx].ng; q++) n += g_sg[idx].g[q].dock == d;
-                if (n < bn) { bn = n; bd = d; }
+                if (n < g_shore_guns) bd = d;
             }
             ivec2 p;
             if (bd >= 0 && sg_post(pl, idx, bd, u, g_sg[idx].g[k].bad, &p)) {
@@ -2299,9 +2342,9 @@ internal void shore_guns(ee_player *pl, unsigned idx, uint32_t now) {
     }
     if (g_autotest && g_log && (!g_sg[idx].log_t || now - g_sg[idx].log_t >= 60000)) {
         g_sg[idx].log_t = now ? now : 1;
-        fprintf(g_log, "# shore guns: P%u at %.1f min: docks %d, batteries %d (a Hospital %d, %u queued), enemy warships seen %d | guns %d of %d, at or by their posts %d | trained %u, adopted %u, orders %u, stuck %u, nothing trainable %u%s\n",
+        fprintf(g_log, "# shore guns: P%u at %.1f min: docks %d, batteries %d (a Hospital %d, %u queued), enemy warships seen %d | guns %d of %d, at or by their posts %d | trained %u, adopted %u, orders %u, stuck %u, nothing trainable %u, wall pieces %u%s\n",
                 idx, now / 60000.0, a.nd, g_sg[idx].nd, nhosp, g_sg[idx].hosp_queued, a.ns, g_sg[idx].ng, want, posted, g_sg[idx].trained, g_sg[idx].adopted,
-                g_sg[idx].orders, g_sg[idx].stuck, g_sg[idx].failed, a.factory ? "" : ", no Siege Factory");
+                g_sg[idx].orders, g_sg[idx].stuck, g_sg[idx].failed, g_sg[idx].walls, a.factory ? "" : ", no Siege Factory");
     }
 }
 

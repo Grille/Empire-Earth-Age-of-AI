@@ -787,8 +787,12 @@ class ai_base
         /// Siege weapons or artillery by each dock enemy warships came near (the player: "trebuchets or cannons near the docks,
         /// they reach further than the towers and have a bonus against ships"): this many a dock, the longest reach it can
         /// train, posted on the shore on the ships' side. 0 = off (default until measured)
-        [range(0, 4)]
+        [range(0, 8)]
         int shore_guns = 0;
+        /// With shore_guns: wall pieces on the coast in front of each battery once its Hospital stands - they stop the
+        /// ships' flat shots and a landing, the catapults and trebuchets fire over them (the player: "maybe they work
+        /// better behind a wall"); the coast by a dock stays open. 0 = no wall (default until measured)
+        bool shore_walls = false;
         bool enclose = false;
         /// With enclose: the ring only once the AI has this many citizens, the usual towers and front walls before - the
         /// economy first (the ring from the start took most of the citizens off gathering: every Small Islands game lost)
