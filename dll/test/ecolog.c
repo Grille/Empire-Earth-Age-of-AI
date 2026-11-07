@@ -277,10 +277,44 @@ internal void ecolog_tick(ee_player *pl, uint32_t now) {
 }
 
 // a unit of v killed by k (diplo.c hook_kill_stat, n 3 = a unit): citizens only
+// "# boat death: P<v> ..." for every fishing boat sunk: what sank it, and how far the cover was - the owner's nearest
+// tower and dock, the nearest land, its warships and the killer's near (the player: "without navy or strong coastal
+// defences the fishing will be impossible")
+internal void eco_boat_death(ee_unit *dead, int k, int v) {
+    ee_player *pl = unit_get_owner(dead);
+    void *kp = player_at(k);
+    int x = unit_get_x(dead), y = unit_get_y(dead), tower = -1, dock = -1, land = -1, own = 0, foe = 0, best = 0x7FFFFFFF;
+    ee_unit *att = NULL;
+    for (struct grid_it it = grid_it_box(x, y, 15, 1); grid_it_next(&it); ) {
+        ee_unit *u = it.u;
+        ee_unit_type *t = it.td;
+        if (!t || unit_get_hp(u) <= 0 || unit_get_x(u) < 0) continue;
+        ee_player *o = unit_get_owner(u);
+        int ux = unit_get_x(u) - x, uy = unit_get_y(u) - y, d2 = ux * ux + uy * uy, d = (int)sqrtf((float)d2);
+        int fam = unit_type_get_class_id(t), id = unit_type_get_id(t);
+        if (o == pl && is_tower_type(id) && (tower < 0 || d < tower)) tower = d;
+        if (o == pl && id == UT(B_DOCK) && (dock < 0 || d < dock)) dock = d;
+        if (o == kp && d2 < best && d2 <= 225 && fam != CLS_NAVAL_CITIZEN && fam != CLS_LAND_CITIZEN && fam != CLS_AMBIENT && fam != CLS_RESOURCE) { best = d2; att = u; }
+        if (fam != CLS_NAVAL && fam != CLS_SUBMERGED_NAVAL) continue;
+        if (o == pl && d2 <= 100) own++;
+        else if (o == kp && d2 <= 64) foe++;
+    }
+    for (int r = 1; r <= 12 && land < 0; r++)
+        for (int dx = -r; dx <= r && land < 0; dx++)
+            for (int dy = -r; dy <= r && land < 0; dy += (abs(dx) == r ? 1 : 2 * r))
+                if (area_id(iv2(x + dx, y + dy), 2) && !area_id(iv2(x + dx, y + dy), 1)) land = r;
+    EnterCriticalSection(&g_lock);
+    fprintf(g_log, "# boat death: P%d at %.1f min at %d,%d by P%d (nearest: type %d class %d at %d tiles); own tower %d, dock %d, land %d tiles; "
+            "own warships within 10: %d, the killer's within 8: %d\n", v, game_time() / 60000.0, x, y, k,
+            att ? unit_type_get_id(unit_get_type_data(att)) : -1, att ? unit_type_get_class_id(unit_get_type_data(att)) : -1,
+            att ? (int)sqrtf((float)best) : -1, tower, dock, land, own, foe);
+    LeaveCriticalSection(&g_lock);
+}
 internal void eco_death(ee_unit *dead, int k, int v) {
     if (!g_autotest || !g_log || !dead) return;
     ee_unit_type *td = unit_get_type_data(dead);
     ee_player *pl = unit_get_owner(dead);
+    if (td && pl && is_fishing_boat(unit_type_get_id(td))) { eco_boat_death(dead, k, v); return; }
     if (!td || !pl || !is_citizen_type(unit_type_get_id(td))) return;
     int x = unit_get_x(dead), y = unit_get_y(dead), dist = -1;
     ivec2 dd;
