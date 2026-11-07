@@ -38,6 +38,16 @@ internal inline int display_lock_vb_room(HMODULE m, uint32_t room) {
 }
 
 // HOOKS
+// the units' draw's world into the camera (the map's viewport's, made at the camera's step - render_frame.c
+// rf_view_now): its operands in the draw -> t (a GETransformation as the viewport's: 16 floats), the number changed;
+// the viewport's own
+internal inline int patch_viewport_view(const float *t) {
+    int n = 0;
+    for (int i = 0; i < (int)(sizeof data_engine_display_viewport_view_ops / sizeof *data_engine_display_viewport_view_ops); i++)
+        n += patch_code32(data_engine_display_viewport_view_ops[i], data_engine_display_viewport_view, (uint32_t)(uintptr_t)t);
+    return n;
+}
+internal inline const float *viewport_view(void) { return (const float *)(uintptr_t)data_engine_display_viewport_view; }
 // the graphics thread's Sleep(1) after every pass of its loop (display.c frame_wait): that call -> hook, Sleep's own type
 typedef void (__stdcall *frame_sleep_fn)(DWORD ms);
 internal inline int patch_frame_sleep(frame_sleep_fn h) {

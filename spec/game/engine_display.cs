@@ -759,4 +759,20 @@ static unsafe class engine_display
     /// the engine's lock over the graphic objects' users (a TSCriticalSection*): EEGraphicObject.acquire takes it
     [address((ee)0x008D1D50, (aoc)0x008E8430)]
     static block graphics_lock;
+
+    /// the map's GEViewport (its rectangle is game.select_rect, +0x10) +0xF0: the world into the camera (a
+    /// GETransformation, 4 rows: the inverse of the camera's transformation at +0xB0 - GEViewport::SetCamera, at the
+    /// camera's step)
+    [address((ee)0x008D2858, (aoc)0x008E8FF8)]
+    static block viewport_view;
+
+    /// its operands (mov ecx, viewport_view) in the units' draw (EEROUnits.draw): a world point to the screen's pixels
+    /// (0x50DD81, AoC 0x518676: the selected units' health bars, the building's footprint lines, the goal markers, the
+    /// waypoints' lines), the depth range of the building being placed (0x50A4A1) and of the objects drawn over the
+    /// rest (0x50B9A4) by their depth in the camera. The fourth (0x53C193: a sound's pan and volume by its place on
+    /// the screen) isn't the draw's
+    [address((ee)0x0050DD99, (aoc)0x0051868E)]
+    [address((ee)0x0050A5F5, (aoc)0x00514E10)]
+    [address((ee)0x0050BA99, (aoc)0x0051638E)]
+    static code viewport_view_ops;
 }

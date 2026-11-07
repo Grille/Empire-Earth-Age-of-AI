@@ -1024,6 +1024,7 @@ internal void render_install(const char *autotest_ini) {
     g_om_margin = g_set.object_margin;
     tnl_pick_install();   // display.c: the T&L rasterizer, whatever the game's setting
     int pools = rf_ground_pools_install();   // before the ground's first update (render_frame.c)
+    rf_view_install();   // render_frame.c: the units' draw's own projections with the camera now
     int locks = rd_world_lock_install(), parts = rd_render_objects_install();   // the minute line's wait and parts
     if (g_log) fprintf(g_log, "# render: own renderer on (Direct3D 11) - the display DLLs' DirectDraw at their load%s; world lock hooks %d/10,"
                        " render object hooks %d/5, the ground's polygon pools %d/2; shadows %s\n", g_rd_trace > 0 ? ", calls traced" : "",

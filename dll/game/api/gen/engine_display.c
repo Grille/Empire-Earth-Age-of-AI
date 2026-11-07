@@ -554,6 +554,15 @@ internal inline uint8_t *engine_display_ro_ui_at(void) { return (uint8_t *)(uint
 internal inline uint8_t *engine_display_pick_list_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_pick_list; }
 // the engine's lock over the graphic objects' users (a TSCriticalSection*): EEGraphicObject.acquire takes it
 internal inline uint8_t *engine_display_graphics_lock_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_graphics_lock; }
+// the map's GEViewport (its rectangle is game.select_rect, +0x10) +0xF0: the world into the camera (a
+// GETransformation, 4 rows: the inverse of the camera's transformation at +0xB0 - GEViewport::SetCamera, at the
+// camera's step)
+internal inline uint8_t *engine_display_viewport_view_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_viewport_view; }
+// its operands (mov ecx, viewport_view) in the units' draw (EEROUnits.draw): a world point to the screen's pixels
+// (0x50DD81, AoC 0x518676: the selected units' health bars, the building's footprint lines, the goal markers, the
+// waypoints' lines), the depth range of the building being placed (0x50A4A1) and of the objects drawn over the
+// rest (0x50B9A4) by their depth in the camera. The fourth (0x53C193: a sound's pan and volume by its place on
+// the screen) isn't the draw's
 
 // the running build's values (spec_select, with addr_select): how many it hasn't got
 internal int spec_engine_display_select(int build) {
@@ -733,6 +742,10 @@ internal int spec_engine_display_select(int build) {
         data_engine_display_ro_ui = 0x00943304;
         data_engine_display_pick_list = 0x009125D8;
         data_engine_display_graphics_lock = 0x008D1D50;
+        data_engine_display_viewport_view = 0x008D2858;
+        data_engine_display_viewport_view_ops[0] = 0x0050DD99;
+        data_engine_display_viewport_view_ops[1] = 0x0050A5F5;
+        data_engine_display_viewport_view_ops[2] = 0x0050BA99;
         return 0;
     case 1:   // aoc
         of_draw_state_device = 0x1C;
@@ -909,6 +922,10 @@ internal int spec_engine_display_select(int build) {
         data_engine_display_ro_ui = 0x0096534C;
         data_engine_display_pick_list = 0x00928D78;
         data_engine_display_graphics_lock = 0x008E8430;
+        data_engine_display_viewport_view = 0x008E8FF8;
+        data_engine_display_viewport_view_ops[0] = 0x0051868E;
+        data_engine_display_viewport_view_ops[1] = 0x00514E10;
+        data_engine_display_viewport_view_ops[2] = 0x0051638E;
         return 0;
     }
     return 0;
@@ -982,5 +999,9 @@ internal int spec_engine_display_check(void) {
     bad += spec_data(data_engine_display_ro_ui, "engine_display.ro_ui");
     bad += spec_data(data_engine_display_pick_list, "engine_display.pick_list");
     bad += spec_data(data_engine_display_graphics_lock, "engine_display.graphics_lock");
+    bad += spec_data(data_engine_display_viewport_view, "engine_display.viewport_view");
+    bad += spec_code(data_engine_display_viewport_view_ops[0], "engine_display.viewport_view_ops 0");
+    bad += spec_code(data_engine_display_viewport_view_ops[1], "engine_display.viewport_view_ops 1");
+    bad += spec_code(data_engine_display_viewport_view_ops[2], "engine_display.viewport_view_ops 2");
     return bad;
 }

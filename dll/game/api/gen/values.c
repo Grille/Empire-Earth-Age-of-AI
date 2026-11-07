@@ -671,6 +671,8 @@ internal uint32_t data_engine_display_ro_water;
 internal uint32_t data_engine_display_ro_ui;
 internal uint32_t data_engine_display_pick_list;
 internal uint32_t data_engine_display_graphics_lock;
+internal uint32_t data_engine_display_viewport_view;
+internal uint32_t data_engine_display_viewport_view_ops[3];
 
 // engine_sound.cs
 internal uint32_t of_se_mixer_spim;

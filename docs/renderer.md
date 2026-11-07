@@ -227,6 +227,21 @@ hand-off (about 7 % less game time than frames that waited for a step every 100 
   Checked on a copy of the 8000 save: scrolling, the eye 0.035 a frame every frame; zoom 0.6, the eye down from 14.6 to
   6.2 in even frames (the game's own blend lagging behind); shots during a scroll under 60 ms steps, the trees and
   units on their ground.
+- What the units' draw places in pixels itself (2026-11-07, the player: "the healthbars of selected units dont draw
+  based on camera position"): the selected units' health bars are drawn in 2D mode (DX7Rasterizer::Set2DMode: view
+  identity, an orthographic projection, depth 0 - `rprobe` shows them as 45 x 3.75 quads at pixel places, the units'
+  render object), each at a point the game took to the screen itself (0x50DD81, AoC 0x518676: also the building's
+  footprint lines, the goal markers, the waypoints' lines) through the map's viewport's world into the camera
+  (GEViewport +0xF0, the inverse of the camera's transformation at +0xB0, made at the camera's step). No view to
+  correct, they stood while the units moved under them with the camera - a step's scrolling behind; without a depth
+  they can't be taken back into the world either. So that transformation's operands in the units' draw (spec
+  engine_display.viewport_view_ops: that function's, and the depth ranges of the building being placed and of the
+  objects drawn over the rest) point at the renderer's own (render_frame.c rf_view_now): each frame the inverse of the
+  camera's transformation now, the one the 3D draws are corrected to - the viewport's own while there is none. The sound's
+  place on the screen (0x53C193, the fourth) keeps the game's. Checked on the 8000 save, the army selected, 4 s steps
+  (`stepload`), a 1-tile pan landing in a step, both builds the same scene: the bars about 110 px to the right of their
+  units before, each over its ringed unit now; 4 s on, after the step, over their units in both; AoC: the three
+  places patched, the spec's checks hold.
 - Beyond the last update's ground a scroll or zoom out during a long step showed the sky blue (the player, the
   8000-unit save: "i can move the camera so far over the edge that half the screen is sky"). The ground's margin
   (`[display] ground_margin`, default 100%; the pipe: `picture margin <0..2>`, its reply the region's size, the size

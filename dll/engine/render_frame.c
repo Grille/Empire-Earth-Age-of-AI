@@ -126,6 +126,7 @@ internal void rf_keep_ground(void) {
 // the last one's drawn again - the units' view is that frame's update's; one frame older was one frame's camera move
 // off - the ground and the debris on it jumped against each other while scrolling, the player 2026-11-05)
 internal void rf_camera_frame(void);
+internal void rf_view_now(void);
 // The ground's margin ([display] ground_margin; the pipe: picture margin): the kept ground is the last update's visible
 // region, the screen's - a frame during a long step that had scrolled or zoomed out past it showed the sky (the
 // player's 8000-unit save: half the screen before the next update). The region is made by the ground's update through
@@ -333,6 +334,7 @@ internal void rd3_shadow_new_frame(void);   // render_shadows.c: the water's fad
 internal void rf_ground_frame(int skip) {
     g_kg_skip = skip;
     rf_camera_frame();
+    rf_view_now();
     if (skip) return;
     rd3_shadow_new_frame();
     ee_camera *cam = game_camera();
@@ -437,6 +439,29 @@ internal void rf_camera_frame(void) {
         camera_make_transformation(cam, g_cam_now, t);
     }
     g_cam_now_ok = rf_camera_view(g_cam_view_now, g_cam_now);
+}
+// The units' draw takes world points to the screen's pixels itself (0x50DD81: the selected units' health bars, the
+// building's footprint lines, the goal markers, the waypoints' lines) and the depth range of a few objects from their
+// depth in the camera - through the map's viewport's world into the camera, made at the camera's step. Drawn in pixels,
+// no view to correct (rf_shift), the bars stood while the units moved under them with the camera, up to a step's
+// scrolling behind (the player: "the healthbars of selected units dont draw based on camera position"). Those reads
+// take it from here (spec engine_display.viewport_view_ops): each frame the inverse of the camera's transformation now,
+// the viewport's own while there is none.
+internal float g_view_now[16];
+internal void rf_view_now(void) {
+    if (!g_cam_now_ok) { memcpy(g_view_now, viewport_view(), sizeof g_view_now); return; }
+    const float *m = g_cam_now;   // by rows, the eye in the fourth column: rotated back, the eye through it
+    for (int r = 0; r < 3; r++) {
+        for (int c = 0; c < 3; c++) g_view_now[r * 4 + c] = m[c * 4 + r];
+        g_view_now[r * 4 + 3] = -(m[r] * m[3] + m[4 + r] * m[7] + m[8 + r] * m[11]);
+    }
+    g_view_now[12] = g_view_now[13] = g_view_now[14] = 0;
+    g_view_now[15] = 1;
+}
+internal void rf_view_install(void) {
+    memcpy(g_view_now, viewport_view(), sizeof g_view_now);
+    int n = patch_viewport_view(g_view_now);
+    if (g_log) fprintf(g_log, "# render: the units' draw projects with the camera now (%d places)\n", n);
 }
 // a frame drawn with an update: the axes from its view where its eye is the transformation's - to 0.01 tile: the
 // view's eye made back from its rotation and place is a float's rounding off, more far out on the map (eyes 130 tiles
