@@ -1286,6 +1286,7 @@ internal int bq_has(ee_build_mgr *bm, int type) {
     return 0;
 }
 
+internal int ld_type_avail(ee_player *pl, int t);   // landing.c: its tech record allows the type now
 internal int siege_want(ee_player *pl, unsigned pi) {   // 2 + a quarter of the known enemy defences, at most 4; a breach: 2, the force's 4
     if (g_ar_breach[pi].on) return 4;
     int want = g_threat[pi].n ? 2 + g_threat[pi].n / 4 : 0;
@@ -1328,8 +1329,10 @@ internal void siege_train(ee_player *pl, unsigned pi, int have, uint32_t now) {
     void *cm = player_get_civ_mgr(pl), *um = cm ? civ_mgr_get_unit_mgr(cm) : NULL;
     if (!um) return;
     int epoch = current_epoch(pl) + 1;   // tech tree epoch 0 = Prehistoric; tech ids count from 1
+    int saving = 0;
     for (size_t k = 0; k < sizeof k_siege_types / sizeof *k_siege_types; k++) {
         if (k_siege_types[k].epoch > epoch || !ut_has(g_ut[k_siege_types[k].type])) continue;
+        if (!saving && ld_type_avail(pl, g_ut[k_siege_types[k].type])) { saving = 1; special_want(pi, SP_SIEGE, g_ut[k_siege_types[k].type], want - have); }   // econ.c SPECIAL ORDERS
         int req[4] = { g_ut[k_siege_types[k].type], want - have, 0, 0 };
         unsigned got = 0;
         g_priority_mil = 1;

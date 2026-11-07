@@ -1144,6 +1144,7 @@ internal uint32_t g_pull_t[16];
 internal unsigned g_pull_seen[16][7];
 internal unsigned mil_short(unsigned idx, int r);   // below: the army's orders refused for resource r (counter)
 internal void budget_reserve(ee_player *pl, int reserve[7]);
+internal void special_reserve(ee_player *pl, int reserve[7]);   // below: SPECIAL ORDERS
 internal void navy_mines(ee_player *pl, unsigned idx, ee_resource_mgr *rm, uint32_t *target, const int *stock, const int *reserve, const int *demand);
 // RECOVERY ([ai_base] recover_economy, default on; the player 2026-10-27 on the save "standing army": P7 with 2-3
 // citizens, 17 food and 16 finished fields without a farmer, its Town Centers idle for food; the food the player gave
@@ -1180,6 +1181,7 @@ internal void econ_targets(ee_resource_mgr *rm) {
     uint32_t *target = resource_mgr_target_at(rm);
     int reserve[7];
     budget_reserve(pl, reserve);
+    special_reserve(pl, reserve);   // gathered for too
     int total = 0, need[7] = { 0 }, sum = 0;
     for (int r = 2; r < 7; r++) total += (int)target[r];
     unsigned idx = (unsigned)player_get_index(pl) & 15;
@@ -1934,6 +1936,33 @@ internal int substitute_soldier(ee_player *pl, unsigned idx, const int *vis, int
 // +0x13C) even when the building queue 0x5E8908 then refuses it for lack of resources, and that counter is
 // subtracted from the population cap - after a while the AI could train nothing at all.)
 internal int g_priority_mil;   // set by the siege controller around its own requests
+// SPECIAL ORDERS ([ai_base] special_orders, default 0 until measured; the player 2026-11-07: "in the game you should
+// never have resources just laying around, but sometimes you have special orders that need saving up - right now
+// common soldiers and special requests like siege share the same budget, what can be afforded first gets built").
+// The special orders (shore guns, anti-air, the attack's siege) spend the stock above the reserve, but nothing was
+// held for them: the game's soldier orders come many a second, theirs once a minute or half, so the soldiers took
+// each coin as it came (shore guns against the cheating game AI: 1.4 held of 6-8 wanted, the stock at wood 0-110 and
+// iron 15-130 against a Bombard's 200 / 200). Now a part that wants one names it (special_want: the type, how many
+// short); while it asks (within SP_KEEP) the cost of one of it - the next, not all: nothing piles up - is held from
+// the ordinary orders (soldiers, warships) and counts in the gathering's reserve, so the stock grows to it; the special
+// order itself (g_priority_mil) spends it.
+#define SP_KEEP 120000
+enum { SP_SHORE, SP_AA, SP_SIEGE, SP_N };
+internal int g_special_orders = 0;
+internal struct { int type, n; uint32_t t; } g_sp_want[16][SP_N];
+internal void special_want(unsigned idx, int slot, int type, int n) {
+    uint32_t now = game_time();
+    g_sp_want[idx & 15][slot].type = type; g_sp_want[idx & 15][slot].n = type ? n : 0; g_sp_want[idx & 15][slot].t = now ? now : 1;
+}
+internal void special_reserve(ee_player *pl, int reserve[7]) {
+    if (!g_special_orders || !pl) return;
+    unsigned idx = (unsigned)player_get_index(pl) & 15;
+    uint32_t now = game_time();
+    for (int s = 0; s < SP_N; s++) {
+        if (g_sp_want[idx][s].n <= 0 || now < g_sp_want[idx][s].t || now - g_sp_want[idx][s].t > SP_KEEP) continue;   // none, a game before, or no longer asked
+        for (int r = 2; r < 7; r++) reserve[r] += unit_cost(pl, g_sp_want[idx][s].type, r);
+    }
+}
 internal int g_landing_order;   // set by the landing around its transport order (its reserve is not held from it)
 internal int g_expand_order;    // expand.c EARLY: the outpost's transport before every reserve (250 wood; the reserves held it 6 minutes)
 internal void landing_reserve(ee_player *pl, int reserve[7]);   // landing.c
@@ -2006,6 +2035,7 @@ internal void train_budget(ee_player *pl, unsigned idx, const struct ai_cfg *cfg
     wood_reserve(pl, reserve);      // a far forest's Settlement (mines.c)
     if (military) upgrade_reserve(pl, reserve);   // pending line upgrades (upgrade_reserve)
     if (!ship && !req_unit && !g_priority_mil && !g_landing_order) navy_hold(pl, idx, reserve);   // the navy account: only warships spend it (navy.c)
+    if (military && !req_unit && !g_priority_mil && !g_landing_order) special_reserve(pl, reserve);   // a special order saving up
     if (!g_bud[idx].init) {
         memset(&g_bud[idx], 0, sizeof g_bud[idx]);
         g_bud[idx].init = 1;
@@ -2300,6 +2330,7 @@ internal void econ_install(const char *autotest_ini) {
     g_early_requirements = g_set_ai[1].early_requirements;
     g_build_fix = g_set_ai[1].build_fix;
     g_train_room = g_set_ai[1].train_room;
+    g_special_orders = g_set_ai[1].special_orders;
     g_prod_sync = g_set_ai[1].production_sync;
     g_train_queue = g_set_ai[1].train_queue;
     if (autotest_ini) g_v_train_queue = ini_int("autotest", "v_train_queue", -1, autotest_ini);
