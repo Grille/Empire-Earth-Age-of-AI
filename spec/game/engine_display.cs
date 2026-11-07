@@ -715,6 +715,13 @@ static unsafe class engine_display
     [value((ee)0x25C, (aoc)0x25C)]
     static uint32 of_viewport_fov;
 
+    /// GEViewport: its camera's transformation (a GETransformation, 4 rows - the eye in the fourth column), what
+    /// GEViewport::SetCamera copies (2017 update 0x10005E48, AoC 0x1000E910 the same: then the look vector at +0x230, the
+    /// inverse at +0xF0, the projections made again) - the camera the display DLLs' TransformToCamera puts the ground
+    /// into its space with
+    [value((ee)0xB0, (aoc)0xB0)]
+    static uint32 of_viewport_camera;
+
     /// DX7HRTnLDisplay.dll: the caps of the vertex buffer each rasterizer state creates (D3DVERTEXBUFFERDESC.dwCaps, a
     /// mov [ebp-0xC], imm32: D3DVBCAPS_WRITEONLY - video memory; its other buffer and DX7HRDisplay.dll's add
     /// D3DVBCAPS_SYSTEMMEMORY)

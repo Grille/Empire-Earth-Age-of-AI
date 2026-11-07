@@ -534,6 +534,10 @@ internal inline uint8_t *engine_display_iat_terrain_visible_at(void) { return (u
 // GEViewport: its field of view (radians; ComputePlanes' left and right from half of it). The display DLLs'
 // TransformToCamera makes the top and bottom planes from it itself (atan(+0x268 x tan(it / 2) / (+0x26C - 1))),
 // not from the stored ones (2017 update DX7HRDisplay.dll 0x10007204)
+// GEViewport: its camera's transformation (a GETransformation, 4 rows - the eye in the fourth column), what
+// GEViewport::SetCamera copies (2017 update 0x10005E48, AoC 0x1000E910 the same: then the look vector at +0x230, the
+// inverse at +0xF0, the projections made again) - the camera the display DLLs' TransformToCamera puts the ground
+// into its space with
 // DX7HRTnLDisplay.dll: the caps of the vertex buffer each rasterizer state creates (D3DVERTEXBUFFERDESC.dwCaps, a
 // mov [ebp-0xC], imm32: D3DVBCAPS_WRITEONLY - video memory; its other buffer and DX7HRDisplay.dll's add
 // D3DVBCAPS_SYSTEMMEMORY)
@@ -731,6 +735,7 @@ internal int spec_engine_display_select(int build) {
         value_engine_display_of_viewport_far = 624;
         value_engine_display_of_viewport_side_normals = 92;
         value_engine_display_of_viewport_fov = 604;
+        value_engine_display_of_viewport_camera = 176;
         value_engine_display_rva_tnl_vb_caps = 62581;
         value_engine_display_vb_vertices = 2442;
         value_engine_display_of_lock_vb_room = 21;
@@ -911,6 +916,7 @@ internal int spec_engine_display_select(int build) {
         value_engine_display_of_viewport_far = 624;
         value_engine_display_of_viewport_side_normals = 92;
         value_engine_display_of_viewport_fov = 604;
+        value_engine_display_of_viewport_camera = 176;
         value_engine_display_rva_tnl_vb_caps = 66510;
         value_engine_display_vb_vertices = 2400;
         value_engine_display_of_lock_vb_room = 21;

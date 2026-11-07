@@ -104,6 +104,8 @@ internal LONG g_kg_drawn; // ground batches drawn again (the pipe's picture)
 internal float g_kg_eye[3];   // the camera's eye at the last update (the pipe's picture camtrace)
 internal float g_kg_view[16];    // the camera's view at the last update: the ground's camera space is made from it
 internal int g_kg_view_ok;
+internal float g_kg_view_ground[16];   // the camera's view the ground and the water were put into its space with
+internal int g_kg_view_ground_ok;
 internal void rf_ground_clear(rf_ground *g) {
     for (int k = 0; k < g->nb; k++) {
         D3D_RELEASE(g->b[k].c.srv);
@@ -229,11 +231,70 @@ internal void rf_scale_rect(float *r, const float *was, float k, float kb, float
     r[1] = cx + (was[1] - cx) * k; r[2] = cx + (was[2] - cx) * k;
     r[0] = cy + (was[0] - cy) * kb; r[3] = cy + (was[3] - cy) * kt;
 }
+// A zoom out under way (the player: "do you consider that the flat zoom out moves many tiles backward first before
+// gaining real height?"): the camera's ride from zoom 0.2 to 1 takes the eye about 24 tiles back over the ground
+// before it climbs, and the frames drawn during a step until the next update show the ground made for the eye of
+// that update - the screen's bottom third the sky in nearly every frame of the ride (the 8000-unit save under 300 ms
+// steps, a zoom out from 0.2). A region reaching further behind did nothing: TransformToCamera marks each vertex
+// against the view's planes, all through the eye, and leaves out a triangle wholly behind one of them - the ground
+// behind the eye is always below its bottom plane. So for the ground's update the viewport's camera is pulled back
+// over the ground to where the ride ends (the end made as the camera's step makes it, at blend 1), its turn and
+// height kept and its far plane longer by as much - the region, the marks and the ground's camera space all of that
+// camera - and set back after (GEViewport::SetCamera both times: its inverse and projections made again). The
+// ground's view to correct from is the camera TransformToCamera ran with (g_kg_view_ground, rf_to_camera).
+typedef void (__thiscall *gm_set_camera_fn)(void *viewport, const float *t);
+internal gm_set_camera_fn g_gm_set_camera;
+internal void *g_gm_viewport;           // the map's viewport, as the region's call gets it
+internal float g_gm_ride;               // how far the last update's camera was pulled back (the pipe's picture)
+internal float g_gm_pull[16], g_gm_was[16], g_gm_far_was;
+internal int g_gm_pulled;
+internal void rf_pull_begin(void) {
+    g_gm_pulled = 0;
+    g_gm_ride = 0;
+    if (!g_gm_viewport || g_gm_pools < 2 || !(g_gm_margin > 0)) return;
+    if (!g_gm_set_camera) {
+        HMODULE lle = GetModuleHandleA("Low-Level Engine.dll");
+        if (lle) g_gm_set_camera = (gm_set_camera_fn)(void *)GetProcAddress(lle, "?SetCamera@GEViewport@@QAEXABVGETransformation@@@Z");
+        if (!g_gm_set_camera) return;
+    }
+    ee_camera *cam = game_camera();
+    if (!cam || camera_fixed_view() || camera_get_snap(cam) || !(camera_get_blend(cam) < 1)) return;
+    const float *m = viewport_camera(g_gm_viewport), *at = camera_look_at(cam);
+    float end[16];
+    camera_make_transformation(cam, end, 1.0f);
+    float ex = end[3] - at[0], ey = end[7] - at[1], nx = m[3] - at[0], ny = m[7] - at[1];
+    if (ex * ex + ey * ey <= nx * nx + ny * ny) return;   // a zoom in: the eye comes nearer
+    float dx = end[3] - m[3], dy = end[7] - m[7];
+    g_gm_ride = sqrtf(dx * dx + dy * dy);
+    memcpy(g_gm_was, m, sizeof g_gm_was);
+    memcpy(g_gm_pull, m, sizeof g_gm_pull);
+    g_gm_pull[3] = end[3];
+    g_gm_pull[7] = end[7];
+    g_gm_set_camera(g_gm_viewport, g_gm_pull);
+    float *depth = viewport_far_at(g_gm_viewport);
+    g_gm_far_was = *depth;
+    *depth += g_gm_ride;
+    g_gm_pulled = 1;
+}
+internal void rf_pull_end(void) {
+    if (!g_gm_pulled) return;
+    *viewport_far_at(g_gm_viewport) = g_gm_far_was;
+    g_gm_set_camera(g_gm_viewport, g_gm_was);
+    g_gm_pulled = 0;
+}
 internal void __thiscall rf_hook_terrain_visible(void *mesh, const void *camera, void *viewport, unsigned long a, unsigned long b,
                                                  unsigned long c, uint8_t fixed) {
+    g_gm_viewport = viewport;
     if (!g_gm_denorm) {
         HMODULE lle = GetModuleHandleA("Low-Level Engine.dll");
         if (lle) g_gm_denorm = (gm_denorm_fn)(void *)GetProcAddress(lle, "?DenormalizePerspectivePoint@GEViewport@@QBEXABVGE3DPoint@@MAAV2@@Z");
+    }
+    // the camera pulled back (rf_pull_begin) for the region too - unless its region at the screen's own rectangle is
+    // beyond the mesh's arrays already: then as it was
+    if (g_gm_pulled) {
+        long n0 = rf_region_size(viewport, viewport_rect(viewport));
+        if (n0 >= 0 && n0 <= GM_TILES) camera = g_gm_pull;
+        else rf_pull_end();
     }
     float *r = viewport_rect(viewport), was[4];
     memcpy(was, r, sizeof was);
@@ -311,6 +372,7 @@ internal void rf_to_camera(int i, void *ras, void *mesh, void *viewport, float d
         if (i == 1 && g_gm_near != 0 && g_gm_near < near0) *nd = fmaxf(g_gm_near, 0.05f);
     }
     g_gm_to_camera[i](ras, mesh, viewport, dt, a, b);
+    g_kg_view_ground_ok = rf_camera_view(g_kg_view_ground, viewport_camera(viewport));   // its space (rf_pull_begin)
     if (kv > 1.0f) {
         memcpy(r, was, sizeof was);
         *fov = fov0;
@@ -519,9 +581,10 @@ internal void rf_shift(rd3_vcb *vc, int ro) {
         rd3_rigid_inverse(inv, vc->view);
         rd3_mul(k, now, inv);   // V_now V^-1
     } else {
-        if (!g_kg_view_ok) return;
+        int ground = (ro == RO_TERRAIN || ro == RO_WATER) && g_kg_view_ground_ok;
+        if (!ground && !g_kg_view_ok) return;
         float sinv[16], a[16];
-        rd3_rigid_inverse(inv, g_kg_view);
+        rd3_rigid_inverse(inv, ground ? g_kg_view_ground : g_kg_view);
         rd3_rigid_inverse(sinv, vc->view);
         rd3_mul(a, vc->view, inv);
         rd3_mul(t, a, now);

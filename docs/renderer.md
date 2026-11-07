@@ -311,6 +311,21 @@ drawn. AoC: the interface's lock at the same place (0x50989F), a short game norm
   build: a zoom out from 0.5 to 1 - the two triangles before, ground to every edge now; a pan of 0.03 tiles a frame
   toward the bottom - the ground there in both, to the map's edge; the region 84 / 89 tiles at zoom 1 / 0.5, the kept
   ground 17700 -> 21100 vertices, the ground's draw 0.11 -> 0.13 ms a frame.
+  A zoom out (2026-11-07, the player: "when zooming out the sky is still often visible - do you consider that the
+  flat zoom out moves many tiles backward first before gaining real height?"): the ride from zoom 0.2 to 1 takes the
+  eye about 24 tiles back over the ground before it climbs, and every frame drawn during a step showed the ground made
+  for the eye of the last update - the bottom third of the screen the sky (the 8000-unit save, 300 ms steps). A region
+  reaching further behind did nothing: TransformToCamera marks each vertex against the view's planes (projected: the
+  near depth, the rectangle's sides) and leaves out a triangle all of whose corners share a mark - all through the
+  eye, so the ground behind it is always left out. Now while a ride takes the eye away from the look-at, the ground's
+  update runs with the viewport's camera pulled back over the ground to where the ride ends (its turn and height
+  kept, the far plane longer by as much; GEViewport::SetCamera, set back after; spec engine_display.of_viewport_camera):
+  the region, the marks and the ground's camera space all of that camera, and the correction of the ground and the
+  water starts from the camera TransformToCamera ran with (render_frame.c rf_pull_begin, g_kg_view_ground) - unless
+  the pulled camera's region at the screen's own rectangle is beyond the mesh's arrays. The same save, 100 ms steps:
+  the sky at the bottom up to the first update after the zoom began, none after it (without: to frame 39 of 87);
+  without steps, the frames updated during the ride with the trees, units and shadows on their ground. A zoom begun
+  and ended within one step keeps the last ground until that step ends: nothing knew of the ride when it was made.
 - The objects' margin (`[display] object_margin`, default 10%; the pipe: `picture objects <0..0.5>`, its reply how
   many passed by it): the units, trees and buildings beyond the screen stayed away in a frame during a step after a
   scroll - the ground there bare (the player: "one extra tile before trees and units vanish would be good"). The game

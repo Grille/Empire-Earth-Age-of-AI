@@ -906,7 +906,12 @@ internal void __thiscall rd_hook_graphics_update(ee_graphics *g) {
     if (ui == 1) ui_lock_leave();
     if (!skip && g_rwl_taken) SetEvent(g_rwl_taken);
 }
-internal void __thiscall rd_hook_ro_terrain_update(ee_ro_terrain *o) { if (!g_rwl_pass) ro_terrain_update(o); }
+internal void __thiscall rd_hook_ro_terrain_update(ee_ro_terrain *o) {
+    if (g_rwl_pass) return;
+    rf_pull_begin();   // a zoom out under way: the ground made for the camera pulled back (render_frame.c)
+    ro_terrain_update(o);
+    rf_pull_end();
+}
 internal void __thiscall rd_hook_ro_units_update(ee_ro_units *o) { if (!g_rwl_pass) ro_units_update(o); }
 internal void __thiscall rd_hook_ro_shadows_update(ee_ro_shadows *o) { if (!g_rwl_pass) ro_shadows_update(o); }
 internal void __thiscall rd_hook_ro_effects_update(ee_ro_effects *o) { if (!g_rwl_pass) ro_effects_update(o); }
