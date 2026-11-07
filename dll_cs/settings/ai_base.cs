@@ -780,6 +780,13 @@ class ai_base
         /// With enclose: runs of wall (up to 12 pieces each) ordered every 20 s
         [range(1, 4)]
         int enclose_runs = 1;
+        /// With enclose: a new run of wall only while fewer than this many ordered stand unfinished - a few builders at a
+        /// time, so the ring can start early (0 = no limit)
+        [range(0, 8)]
+        int enclose_in_flight = 0;
+        /// With enclose, on an island: only enemy land units near keep the builders off a part of the coast wall, not ships
+        /// (the coast is where the ships are; a piece that stands stops their fire). 0 = ships too
+        bool enclose_under_ships = false;
         /// tiles from the base centre to the tower line
         [commented]
         int defence_distance = 10;

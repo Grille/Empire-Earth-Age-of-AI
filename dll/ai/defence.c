@@ -149,7 +149,7 @@ internal void def_refresh(ee_player *pl, unsigned idx, uint32_t now) {
 // ring's stone (up to 40 pieces), and the economy puts workers on stone for it (econ.c, encl_stone).
 #define ENCL_RING 2048
 #define ENCL_ISLAND 8000
-internal int g_encl = 0, g_encl_from = 40, g_encl_runs = 1;
+internal int g_encl = 0, g_encl_from = 40, g_encl_runs = 1, g_encl_flight = 0, g_encl_ships = 0;
 internal struct encl {
     ee_player *pl; uint32_t t, log_t; int island, r, tiles, walled;
     int nring; int16_t rx[ENCL_RING], ry[ENCL_RING];   // in build order
@@ -482,6 +482,31 @@ internal int encl_pending(struct encl *e, int x, int y, uint32_t now) {   // on 
     }
     return 0;
 }
+internal int encl_built(int x, int y) {   // a finished wall or gate piece on the tile
+    ee_map *map = game_map();
+    int n = map ? (int)map_get_size(map) : 0;
+    if (x < 0 || y < 0 || x >= n || y >= n) return 0;
+    ee_tile *tile = map_get_tiles(map)[y * n + x];
+    for (void *node = tile ? tile_get_objects(tile) : NULL; node; node = tilenode_get_next(node)) {
+        ee_unit *o = tilenode_get_object(node);
+        ee_unit_type *td = o ? unit_get_type_data(o) : NULL;
+        ee_unit *bs = o ? unit_get_physics(o) : NULL;
+        if (td && unit_type_get_is_wall(td) && unit_get_hp(o) > 0 && bs && unit_get_finished(bs)) return 1;
+    }
+    return 0;
+}
+// enclose_in_flight: the runs ordered in the last 4 minutes with a piece not standing finished yet
+internal int encl_in_flight(struct encl *e, uint32_t now) {
+    int n = 0;
+    for (int i = 0; i < 24; i++) {
+        if (!e->pend[i].t || now - e->pend[i].t >= 240000) continue;
+        int ax = e->pend[i].ax, ay = e->pend[i].ay, dx = e->pend[i].bx - ax, dy = e->pend[i].by - ay;
+        int len = abs(dx) > abs(dy) ? abs(dx) : abs(dy), sx = dx > 0 ? 1 : dx < 0 ? -1 : 0, sy = dy > 0 ? 1 : dy < 0 ? -1 : 0;
+        for (int j = 0; j <= len; j++) if (!encl_built(ax + sx * j, ay + sy * j)) { n++; break; }
+    }
+    return n;
+}
+internal int raiders_scan(ee_player *pl, ivec2 p, int r0, int *kinds);   // attack.c
 internal int encl_free(ee_player *pl, struct encl *e, int wtype, int x, int y, uint32_t now) {
     return encl_ring_has(e, x, y) && !encl_walled(x, y) && !encl_pending(e, x, y, now) && can_place(pl, wtype, iv2(x, y));
 }
@@ -523,6 +548,12 @@ internal void encl_walls(ee_player *pl, unsigned idx, struct def_plan *p, void *
         if (ut_has(g_ut[wline[i]]) && can_build(pl, g_ut[wline[i]])) wtype = g_ut[wline[i]];
     if (!wtype) return;
     threat_refresh(pl, now);
+    // MP's way (the player 2026-11-07: "the wall is the meta in mp games, and the only way to have peace on an own island
+    // from ships"): the coast ring never closed - at 30-50 min a third of a Small Islands ring still open, its runs
+    // skipped for the ships off the coast. enclose_in_flight: a new run only while fewer than that many stand unfinished
+    // (a few builders at a time, from the start); enclose_under_ships: on an island only enemy land units near stop a run
+    // (a piece that stands stops the ships' fire)
+    if (g_encl_flight > 0 && encl_in_flight(e, now) >= g_encl_flight) { e->skip_pend++; return; }
     for (int order = 0; order < g_encl_runs; order++) {
         int most = 12;   // the pieces the stock pays for
         for (int r = 2; r < 7; r++) {
@@ -535,7 +566,11 @@ internal void encl_walls(ee_player *pl, unsigned idx, struct def_plan *p, void *
             int x = e->rx[i], y = e->ry[i];
             if (!encl_free(pl, e, wtype, x, y, now)) { e->skip_pend += !encl_walled(x, y) && encl_pending(e, x, y, now); continue; }
             if (route_covered(pl, p->bx, p->by, x, y)) { e->skip_fire++; continue; }   // the builders would walk into enemy fire
-            if (raiders_near(pl, iv2(x, y), 10)) { e->skip_raid++; continue; }   // or an enemy army, ships off the coast
+            int foes = 0;
+            if (g_encl_ships && e->island ? (raiders_scan(pl, iv2(x, y), 10, &foes), foes & 1) : raiders_near(pl, iv2(x, y), 10)) {
+                e->skip_raid++;   // or an enemy army, ships off the coast (enclose_under_ships on an island: land units only)
+                continue;
+            }
             static const int axis[4][2] = { { 1, 0 }, { 0, 1 }, { 1, 1 }, { 1, -1 } };
             int best = 0;
             for (int a = 0; a < 4; a++) {
@@ -1521,6 +1556,8 @@ internal void defence_install(void) {
     g_encl = g_set_ai[1].enclose;
     g_encl_from = g_set_ai[1].enclose_citizens;
     g_encl_runs = g_set_ai[1].enclose_runs;
+    g_encl_flight = g_set_ai[1].enclose_in_flight;
+    g_encl_ships = g_set_ai[1].enclose_under_ships;
     g_csiege = g_set_ai[1].counter_siege;
     g_militia = g_set_ai[1].citizen_militia;
     g_militia_est = g_set_ai[1].militia_estimate;
