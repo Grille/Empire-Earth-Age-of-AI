@@ -16,7 +16,8 @@
 internal struct {
     volatile LONG left;      // frames still to record (the pipe thread waits for 0)
     int n, depth, taken, written;
-    int steps, flip;         // record steps: every second frame drawn as during a step (rec_step)
+    int steps, flip;         // record steps: every second frame drawn as during a step (rec_step; 2 bare: without the
+                             // game's update at all, as while the interface's lock is held - render_3d.c g_rwl_bare)
     ID3D11Texture2D *pic[REC_MAX], *dep[REC_MAX];   // the frames' copies, until written
     char base[MAX_PATH];     // the dump folder's path and the name: base_NNN.bmp
     float pan[2];
@@ -33,7 +34,7 @@ internal struct {
 internal int rec_step(void) {
     if (!g_rec.steps || g_rec.left <= 0) return 0;
     g_rec.flip ^= 1;
-    return g_rec.flip;
+    return g_rec.flip ? g_rec.steps : 0;
 }
 
 // a draw's role counted for the frame (rd3_shadow_classify)
@@ -134,7 +135,7 @@ internal void rec_frame(rd_surface *s) {
             rd3_mul(vp, to_now, g_rd3.scene_vp);
         }
         for (int a = 0; a < 16; a++) fprintf(c, ",%.9g", (double)vp[a]);
-        fprintf(c, ",%d,%ld", g_kg_skip, (long)(g_kg_drawn - g_rec.kept));
+        fprintf(c, ",%d,%ld", g_kg_skip + g_rwl_bare_now, (long)(g_kg_drawn - g_rec.kept));   // step: 1 during a step, 2 bare
         fprintf(c, ",%.4f,%d", (double)g_sh.shl[0], (int)g_sh.shl[2]);
         fprintf(c, ",%d,%ld,%d", g_sh.valid, (long)(g_sh.passes - g_rec.passes), g_sh.last_cast);
         for (int k = 0; k < 3; k++) fprintf(c, ",%.4f", (double)g_sh.last_lo[k]);
@@ -153,7 +154,7 @@ internal void rec_frame(rd_surface *s) {
     memset(g_rec.verts, 0, sizeof g_rec.verts);
 }
 
-// record <frames 3..120> [name] [pan <dx> <dy>] [steps] [nodepth]: the next frames into the dump folder (above), the
+// record <frames 3..120> [name] [pan <dx> <dy>] [steps | bare] [nodepth]: the next frames into the dump folder (above), the
 // reply once they are written
 internal void cmd_record(char *out, const char *args) {
     char copy[256], name[64] = "rec";
@@ -165,6 +166,7 @@ internal void cmd_record(char *out, const char *args) {
     while (t && (t = strtok(NULL, " "))) {
         if (!strcmp(t, "nodepth")) depth = 0;
         else if (!strcmp(t, "steps")) steps = 1;
+        else if (!strcmp(t, "bare")) steps = 2;
         else if (!strcmp(t, "pan")) {
             char *x = strtok(NULL, " "), *y = x ? strtok(NULL, " ") : NULL;
             char *ex = NULL, *ey = NULL;
@@ -172,7 +174,7 @@ internal void cmd_record(char *out, const char *args) {
             if (!y || *ex || *ey) { n = 0; break; }   // two numbers ("record 40 pan pan 0.05 0.05" took the name for one)
         } else lstrcpynA(name, t, sizeof name);
     }
-    if (n < 3 || n > REC_MAX) { REPLY("error: usage: record <frames 3..120> [name] [pan <dx> <dy>] [steps] [nodepth]\n"); return; }
+    if (n < 3 || n > REC_MAX) { REPLY("error: usage: record <frames 3..120> [name] [pan <dx> <dy>] [steps | bare] [nodepth]\n"); return; }
     if (!g_rd_on) { REPLY("error: the recording needs the own renderer ([display] renderer = own)\n"); return; }
     if (g_rec.left > 0) { REPLY("error: a recording is under way\n"); return; }
     CreateDirectoryA(g_dump_dir, NULL);

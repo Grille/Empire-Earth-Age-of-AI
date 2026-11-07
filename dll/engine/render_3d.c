@@ -269,6 +269,8 @@ internal struct {
     ID3D11DepthStencilView *dsv;
     void *blend, *depth, *raster, *samp;
     ID3D11ShaderResourceView *srv;
+    rd_surface *srv_of;   // the surface srv shows (its chain's top) and whether keyed: render_frame.c's kept interface
+    int srv_keyed;
     D3D11_VIEWPORT vport;
     rd3_cached blends[32], depths[32], rasters[8], samps[32];
     int n_blend, n_depth, n_raster, n_samp;
@@ -472,6 +474,8 @@ internal int rd3_prepare(rd_device *d, int clamp) {
     ID3D11ShaderResourceView *srv = tex ? rd_gpu_texture(tex, ckey) : NULL;
     if (tex) (tex->top ? tex->top : tex)->rf_used = g_rd_epoch;   // in the list: its pixels kept until it is drawn
     if (full || srv != g_rd3.srv) { rd3_flush(); g_rd3.srv = srv; }
+    g_rd3.srv_of = tex ? (tex->top ? tex->top : tex) : NULL;
+    g_rd3.srv_keyed = ckey;
     int bias = (int)(rd3_float(ts[D3DTSS_MIPMAPLODBIAS]) * 16.0f);
     uint32_t au = clamp ? D3DTADDRESS_CLAMP : ts[D3DTSS_ADDRESSU], av = clamp ? D3DTADDRESS_CLAMP : ts[D3DTSS_ADDRESSV];
     uint32_t sk = (au & 7) | (av & 7) << 3 | (ts[D3DTSS_MAGFILTER] & 3) << 6 |
@@ -875,11 +879,11 @@ internal void __thiscall rd_hook_write_unlock(void *lock) {
 // the step's end (the player: "one mouse click and it freezes once the next simstep comes"; the threads' stacks: the
 // frame in TSCriticalSection::Enter from EEGraphics.update_objects, the main thread in WriteLock). So the frame takes
 // it first without waiting: while another thread holds it and a writer is in or waiting, the frame goes without the
-// game's update at all (drawn as during a step; the interface as its last update left it - g_rwl_bare).
+// game's update at all (drawn as during a step, the interface's last updated draws again: render_frame.c g_ku - g_rwl_bare).
 internal int g_rwl_free = 1;
 internal LONG g_rwl_skips, g_rwl_updates, g_rwl_bare;
 internal ee_render_object *g_ro_obj[RO_N];   // the render objects, as their draws are called
-internal int rec_step(void);   // render_record.c: the pipe's record steps - every second frame drawn as during a step
+internal int rec_step(void);   // render_record.c: the pipe's record steps - every second frame drawn as during a step (1) or bare (2)
 internal void __thiscall rd_hook_graphics_update(ee_graphics *g) {
     int free = g_rwl_updates && g_rwl_free && g_rwl_world, ui = -1;
     if (free)
@@ -887,14 +891,15 @@ internal void __thiscall rd_hook_graphics_update(ee_graphics *g) {
     if (free && ui != 0) InterlockedExchange(&g_rwl_claim, 1);
     int held = free && (ui == 0 || g_rwl_writers > 0);
     if (held) g_rwl_claim = 0;
-    int skip = held || (g_rwl_updates && rec_step());
+    int rs = g_rwl_updates ? rec_step() : 0, skip = held || rs;
+    g_rwl_bare_now = ui == 0 || rs == 2;
     if (held && g_rwl_taken) { ResetEvent(g_rwl_taken); g_rwl_want = 1; }
     rf_ground_frame(skip);
     if (skip) g_rwl_skips++;
     else g_rwl_updates++;
     g_rwl_pass = skip;
     if (skip && g_rp_state == 3) g_rp_state = 2;   // the pipe's rprobe step
-    if (ui != 0) ee_graphics_update_objects(g);
+    if (!g_rwl_bare_now) ee_graphics_update_objects(g);
     else g_rwl_bare++;
     g_rwl_pass = 0;
     g_rwl_claim = 0;
@@ -948,7 +953,7 @@ internal void __thiscall rd_hook_ro_units(ee_ro_units *o) { RO_DRAW(RO_UNITS, ro
 internal void __thiscall rd_hook_ro_water(ee_ro_water *o) {
     RO_DRAW(RO_WATER, if (g_kg_skip && g_kw.nb) rf_ground_again(&g_kw); else ro_water_draw(o));
 }
-internal void __thiscall rd_hook_ro_ui(ee_ro_ui *o) { RO_DRAW(RO_UI, ro_ui_draw(o)); }
+internal void __thiscall rd_hook_ro_ui(ee_ro_ui *o) { RO_DRAW(RO_UI, if (g_rwl_bare_now && g_ku.nb) rf_ground_again(&g_ku); else ro_ui_draw(o)); }
 internal int rd_render_objects_install(void) {
     return patch_ro_terrain_draw(rd_hook_ro_terrain) + patch_ro_shadows_draw(rd_hook_ro_shadows) +
            patch_ro_units_draw(rd_hook_ro_units) + patch_ro_water_draw(rd_hook_ro_water) + patch_ro_ui_draw(rd_hook_ro_ui);

@@ -76,7 +76,9 @@ internal void rf_record(UINT at, UINT n, INT base) {
 // they are flushed - vertices, indices, world matrices, states, constants - and a frame during a step draws the last
 // frame's again in the ground's place. The camera moved since (scrolling goes on, on this thread: camera.c) is the
 // list's to show (rf_shift, below) - the vertices stay as they were placed, the shadows' maps with them.
-typedef struct { rf_cmd c; rd3_vcb vc; rd3_pcb pc; int v0, nv, i0, ni, w0, nw, morph; } rf_kept;
+// the interface's (g_ku) hold their surface too: drawn again, its pixels are uploaded if they changed since - a text
+// the game wrote anew after the last update (the population's count) was drawn empty in the frames without one
+typedef struct { rf_cmd c; rd3_vcb vc; rd3_pcb pc; int v0, nv, i0, ni, w0, nw, morph; rd_surface *src; int keyed; } rf_kept;
 typedef struct {
     rb_vertex *v;
     uint32_t *i;
@@ -90,19 +92,30 @@ internal rf_ground g_kw;   // its water (the same: rf_water_again)
 internal rf_ground g_ks;   // the game's shadows' decals, the farms' fields: the same (their draw, as the ground's, draws
                            // nothing during a step - every frame drawn during one showed the farms without their fields,
                            // the player 2026-11-06: "farms flicker in visibility", the pipe's record: fields 0 in those)
+// The interface's draws too, for the frames without the game's update at all (render_3d.c g_rwl_bare: the interface's
+// lock held by a thread waiting to write): each form's DrawPolygons draws the list its CopyData (the interface's update)
+// made for the frame and empties it - the command buttons, the cancel button while placing a building, parts of the
+// minimap were missing from every such frame (the player at stepload 1000: they flickered after a click; the pipe's
+// record bare: 26000 pixels a frame, the buttons). Recorded in every frame whose interface was updated, steps' too.
+internal rf_ground g_ku;
+internal int g_rwl_bare_now;   // this frame goes without the game's update (render_3d.c rd_hook_graphics_update)
 internal int g_kg_skip;   // this frame is drawn during a step: nothing recorded
 internal LONG g_kg_drawn; // ground batches drawn again (the pipe's picture)
 internal float g_kg_eye[3];   // the camera's eye at the last update (the pipe's picture camtrace)
 internal float g_kg_view[16];    // the camera's view at the last update: the ground's camera space is made from it
 internal int g_kg_view_ok;
 internal void rf_ground_clear(rf_ground *g) {
-    for (int k = 0; k < g->nb; k++) D3D_RELEASE(g->b[k].c.srv);
+    for (int k = 0; k < g->nb; k++) {
+        D3D_RELEASE(g->b[k].c.srv);
+        if (g->b[k].src) rd_sf_release(g->b[k].src);
+    }
     g->nv = g->ni = g->nw = g->nb = 0;
 }
 // the batch being flushed (rd3_flush, before its matrices' place is added), when it is the ground's
 internal void rf_keep_ground(void) {
-    if (g_kg_skip || (g_ro_cur != RO_TERRAIN && g_ro_cur != RO_WATER && g_ro_cur != RO_SHADOWS)) return;
-    rf_ground *g = g_ro_cur == RO_WATER ? &g_kw : g_ro_cur == RO_SHADOWS ? &g_ks : &g_kg;
+    if (g_ro_cur == RO_UI ? g_rwl_bare_now : g_kg_skip || (g_ro_cur != RO_TERRAIN && g_ro_cur != RO_WATER && g_ro_cur != RO_SHADOWS))
+        return;
+    rf_ground *g = g_ro_cur == RO_UI ? &g_ku : g_ro_cur == RO_WATER ? &g_kw : g_ro_cur == RO_SHADOWS ? &g_ks : &g_kg;
     if (!rf_grow((void **)&g->b, &g->cap_b, g->nb + 1, sizeof *g->b) || !rf_grow((void **)&g->v, &g->cap_v, g->nv + g_rb.nv, sizeof *g->v)
         || !rf_grow((void **)&g->i, &g->cap_i, g->ni + g_rb.ni, sizeof *g->i) || !rf_grow((void **)&g->w, &g->cap_w, g->nw + g_rb.nw, sizeof *g->w))
         return;
@@ -115,6 +128,9 @@ internal void rf_keep_ground(void) {
     b->c.vport = g_rd3.vport;
     b->c.topo = g_rb.topo;
     b->morph = g_rb.morph;
+    b->src = g == &g_ku && g_rd3.srv && g_rd3.srv_of && g_rd3.srv_of->kind != RK_TARGET ? g_rd3.srv_of : NULL;
+    b->keyed = g_rd3.srv_keyed;
+    if (b->src) rd_sf_addref(b->src);
     b->vc = g_rd3.vc; b->pc = g_rd3.pc;
     b->v0 = g->nv; b->nv = g_rb.nv; b->i0 = g->ni; b->ni = g_rb.ni; b->w0 = g->nw; b->nw = g_rb.nw;
     memcpy(g->v + g->nv, g_rb.v, (size_t)g_rb.nv * sizeof *g->v);
@@ -335,6 +351,7 @@ internal void rf_ground_frame(int skip) {
     g_kg_skip = skip;
     rf_camera_frame();
     rf_view_now();
+    if (!g_rwl_bare_now) rf_ground_clear(&g_ku);
     if (skip) return;
     rd3_shadow_new_frame();
     ee_camera *cam = game_camera();
@@ -355,6 +372,11 @@ internal void rf_ground_again(rf_ground *g) {
         g_rd3.rtv = b->c.rtv; g_rd3.dsv = b->c.dsv;
         g_rd3.blend = b->c.blend; g_rd3.depth = b->c.depth; g_rd3.raster = b->c.raster; g_rd3.samp = b->c.samp;
         g_rd3.srv = b->c.srv;
+        if (b->src) {
+            ID3D11ShaderResourceView *now = rd_gpu_texture(b->src, b->keyed);
+            if (now) g_rd3.srv = now;
+            b->src->rf_used = g_rd_epoch;
+        }
         g_rd3.vport = b->c.vport;
         g_rb.topo = b->c.topo;
         g_rb.morph = b->morph;

@@ -181,8 +181,14 @@ the threads with the game's or the mod's code) on the 8000 save, the mouse at th
   the world's write lock inside the same section for the player's input. During a step the main thread held it waiting
   for the step, the frame waited for the main thread. Now the frame takes it first without waiting (TryEnter on its
   CRITICAL_SECTION, the engine's own count kept: game/api ui.c ui_lock_try): while another thread holds it and a writer
-  is in or waiting, the frame goes without the game's update at all - drawn as during a step, the interface as its last
-  update left it (the minute's line: frames "without the game's update").
+  is in or waiting, the frame goes without the game's update at all - drawn as during a step, the interface's draws of
+  its last update drawn again (the minute's line: frames "without the game's update"). Drawing the interface as it
+  was made the command buttons flicker (the player): each form's DrawPolygons draws the list its CopyData (the
+  interface's update) made for the frame and empties it, so such a frame had the panels but not the buttons, the
+  cancel button while placing a building, parts of the minimap (the pipe's `record bare`: 26000 pixels a frame). Now
+  the interface's batches are kept as the ground's are (render_frame.c g_ku), recorded in every frame whose interface
+  was updated, each holding its surface: drawn again, its pixels go up to the card if they changed since (a text the
+  game wrote anew after the update was drawn empty).
 - The frame's decision. A frame read the world when no write was held at its start; a step's write lock taken between
   that and its read made the read wait for the whole step. Now a writer counts itself before it takes the lock (the
   frame's own not) and a frame claims its read before it looks: one of the two sees the other - the frame is drawn as
