@@ -210,6 +210,7 @@ typedef struct ee_render_object ee_render_object;
 typedef struct ee_ro_terrain ee_ro_terrain;
 typedef struct ee_ro_shadows ee_ro_shadows;
 typedef struct ee_ro_units ee_ro_units;
+typedef struct ee_doppelganger ee_doppelganger;
 typedef struct ee_ro_water ee_ro_water;
 typedef struct ee_ro_ui ee_ro_ui;
 typedef struct ee_ro_effects ee_ro_effects;

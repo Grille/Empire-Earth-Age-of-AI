@@ -928,7 +928,12 @@ internal void __thiscall rd_hook_ro_terrain_update(ee_ro_terrain *o) {
     ro_terrain_update(o);
     rf_pull_end();
 }
-internal void __thiscall rd_hook_ro_units_update(ee_ro_units *o) { if (!g_rwl_pass) ro_units_update(o); }
+internal void collect_print(void);   // collect.c: the pipe's drawcount hash
+internal void __thiscall rd_hook_ro_units_update(ee_ro_units *o) {
+    if (g_rwl_pass) return;
+    ro_units_update(o);
+    collect_print();
+}
 internal void __thiscall rd_hook_ro_shadows_update(ee_ro_shadows *o) { if (!g_rwl_pass) ro_shadows_update(o); }
 internal void __thiscall rd_hook_ro_effects_update(ee_ro_effects *o) { if (!g_rwl_pass) ro_effects_update(o); }
 internal int rd_world_lock_install(void) {

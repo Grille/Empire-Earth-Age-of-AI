@@ -106,8 +106,11 @@ internal void draw_many_install(void) {
 }
 
 // drawcount: objects collected for the last frame (units etc. / small objects). Tests.
+// drawcount hash: the last update's lists into the log (collect.c collect_print: the mod's walk against the game's)
+internal volatile LONG g_uc_print_ask;   // collect.c
 internal void cmd_drawcount(char *out, const char *args) {
-    (void)args;
+    while (*args == ' ') args++;
+    if (!strncmp(args, "hash", 4)) { g_uc_print_ask = 1; REPLY("ok: the next update's lists go to the log (# collect)\n"); return; }
     REPLY("objects %u of %d, small objects %u of %d\n", draw_count(),
           g_draw_recs ? g_draw_limit : DRAW_OLD_N, draw_small_count(), g_draw_small_recs ? g_draw_limit * 3 : DRAW_SMALL_OLD_N);
 }

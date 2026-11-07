@@ -216,6 +216,30 @@ internal inline int patch_ro_shadows_draw(ro_shadows_draw_fn h) { return patch_v
 // the units, buildings, trees and their effects (engine_display.ro_units): draw walks the objects in sight, finish
 // (0x50DC3A) the draw list's records (hooks.draw_old - the mod's larger list)
 // RTSRenderObject's, the base's
+// IsUnitDrawn: whether the collection draws the object - its model against the view (calls_units_view), and not
+// met on another tile before (met: a set of the update's own)
+typedef uint8_t (__thiscall *ro_units_drawn_fn)(ee_ro_units *, ee_unit *, ee_unit_vis *, void *);
+internal ro_units_drawn_fn fn_ro_units_drawn;
+internal inline uint8_t ro_units_drawn(ee_ro_units *ro_units, ee_unit *u, ee_unit_vis *tile, void *met) { return fn_ro_units_drawn(ro_units, u, tile, met); }
+// GetUnitOpacity: the object's opacity into *opacity (its record's: +0xFC, a tree's +0x24); whether it is drawn
+// see-through - the sort map it goes into (engine_display.sort_maps)
+typedef uint8_t (__thiscall *ro_units_opacity_fn)(ee_ro_units *, ee_unit *, float *);
+internal ro_units_opacity_fn fn_ro_units_opacity;
+internal inline uint8_t ro_units_opacity(ee_ro_units *ro_units, ee_unit *u, float *opacity) { return fn_ro_units_opacity(ro_units, u, opacity); }
+// FillObject: a tree's record (hooks.draw_small_old, 0x3C each) into the sort map; info: the update's
+// (walk_info)
+typedef void (__thiscall *ro_units_fill_object_fn)(ee_ro_units *, ee_unit *, void *, void *, void *);
+internal ro_units_fill_object_fn fn_ro_units_fill_object;
+internal inline void ro_units_fill_object(ee_ro_units *ro_units, ee_unit *u, void *record, void *sort_map, void *info) { fn_ro_units_fill_object(ro_units, u, record, sort_map, info); }
+// FillDoppelgangerUnit: a building as the player remembers it under the fog (the tile's doppelgangers) - its
+// records from record on, counted in *count up to room (the list's: the operand drawlist.c moves), the tile x, y
+typedef void (__thiscall *ro_units_fill_doppelganger_fn)(ee_ro_units *, ee_doppelganger *, void *, uint32_t *, void *, uint32_t, int, int, void *);
+internal ro_units_fill_doppelganger_fn fn_ro_units_fill_doppelganger;
+internal inline void ro_units_fill_doppelganger(ee_ro_units *ro_units, ee_doppelganger *d, void *record, uint32_t *count, void *sort_map, uint32_t room, int x, int y, void *info) { fn_ro_units_fill_doppelganger(ro_units, d, record, count, sort_map, room, x, y, info); }
+// FillDoppelgangerObject: the same for a remembered tree (the trees' list and room)
+typedef void (__thiscall *ro_units_fill_doppelganger_object_fn)(ee_ro_units *, ee_doppelganger *, void *, uint32_t *, void *, uint32_t, int, int, void *);
+internal ro_units_fill_doppelganger_object_fn fn_ro_units_fill_doppelganger_object;
+internal inline void ro_units_fill_doppelganger_object(ee_ro_units *ro_units, ee_doppelganger *d, void *record, uint32_t *count, void *sort_map, uint32_t room, int x, int y, void *info) { fn_ro_units_fill_doppelganger_object(ro_units, d, record, count, sort_map, room, x, y, info); }
 // the units' update (from the world's units)
 typedef void (__thiscall *ro_units_update_fn)(ee_ro_units *);
 internal ro_units_update_fn fn_ro_units_update;
@@ -428,6 +452,11 @@ internal inline ee_pick_entry **pick_list_entries_at(const ee_pick_list *o) { re
 internal inline uint32_t pick_list_get_count(const ee_pick_list *o) { return *(uint32_t *)((uint8_t *)o + of_pick_list_count); }
 internal inline void pick_list_set_count(ee_pick_list *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_pick_list_count) = v; }
 internal inline uint32_t *pick_list_count_at(const ee_pick_list *o) { return (uint32_t *)((uint8_t *)o + of_pick_list_count); }
+// Reset (the AoC decompilation's EEUnitPicker): emptied (0x50F5EF) and the map's viewport copied in - the
+// collection starts it over each update before it walks the tiles
+typedef void (__thiscall *pick_list_reset_fn)(ee_pick_list *);
+internal pick_list_reset_fn fn_pick_list_reset;
+internal inline void pick_list_reset(ee_pick_list *pick_list) { fn_pick_list_reset(pick_list); }
 
 // class EEPickEntry (ee_pick_entry)
 internal inline ee_unit *pick_entry_get_unit(const ee_pick_entry *o) { return *(ee_unit **)((uint8_t *)o + of_pick_entry_unit); }
@@ -556,6 +585,22 @@ internal inline uint8_t *engine_display_ro_water_at(void) { return (uint8_t *)(u
 internal inline uint8_t *engine_display_ro_ui_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_ro_ui; }
 // the units' collection's list of what it drew (EEPickList; its address the collection passes, 0x503F8D)
 internal inline uint8_t *engine_display_pick_list_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_pick_list; }
+// the collection's lock over pick_list (a TSCriticalSection*; the AoC decompilation's gUnitPickerLock): the
+// update walks the tiles inside it
+internal inline uint8_t *engine_display_picker_lock_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_picker_lock; }
+// the draw lists' sort maps (std::map heads, 12 bytes each): the objects' (+0), the objects' see-through (+0xC),
+// a third (+0x18, emptied with them), the trees' (+0x24), the trees' see-through (+0x30), a sixth (+0x3C) - the
+// collection's opacity (EEROUnits.opacity) chooses between the first two of each, the draw goes through them
+internal inline uint8_t *engine_display_sort_maps_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_sort_maps; }
+// the collection's walk over the visible tiles (the update 0x503B83 from the picker's lock to its Leave; the same
+// instructions in AoC): its first, mov ecx, [picker_lock] (6 bytes) - collect.c's patch -, and the update's next
+// after the walk
+internal inline uint8_t *engine_display_units_walk_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_units_walk; }
+internal inline uint8_t *engine_display_units_walk_end_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_units_walk_end; }
+// the update's frame (ebp less these) as the walk reads it, the same in AoC: the render object, the local player,
+// the map, the objects with a physics part counted (float, for the music), the info its fills get (the AoC
+// decompilation's: the unit under the mouse +0, the camera's yaw +4, the fighting units +8, the frame +0xC, the
+// ambient sound's turn +0x10), the doppelgangers met (a set: a building on several tiles), the objects met
 // the engine's lock over the graphic objects' users (a TSCriticalSection*): EEGraphicObject.acquire takes it
 internal inline uint8_t *engine_display_graphics_lock_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_graphics_lock; }
 // the map's GEViewport (its rectangle is game.select_rect, +0x10) +0xF0: the world into the camera (a
@@ -567,6 +612,18 @@ internal inline uint8_t *engine_display_viewport_view_at(void) { return (uint8_t
 // waypoints' lines), the depth range of the building being placed (0x50A4A1) and of the objects drawn over the
 // rest (0x50B9A4) by their depth in the camera. The fourth (0x53C193: a sound's pan and volume by its place on
 // the screen) isn't the draw's
+
+// static class engine_display_functions
+// the game's functions engine_display.c wraps, by the names the C side gives them
+// thiscall(the collection's set of the doppelgangers met (walk_doppelgangers), found: its node, &the doppelganger):
+// find - the set's head (+4) when not met (std::set; AoC's is a shared copy far off, 0x42B588)
+typedef void *(__thiscall *doppelganger_set_find_fn)(void *, void **, ee_doppelganger **);
+internal doppelganger_set_find_fn fn_doppelganger_set_find;
+internal inline void *doppelganger_set_find(void *set, void **found, ee_doppelganger **d) { return fn_doppelganger_set_find(set, found, d); }
+// thiscall(the same set, found: its node, &the doppelganger): insert
+typedef void *(__thiscall *doppelganger_set_insert_fn)(void *, void **, ee_doppelganger **);
+internal doppelganger_set_insert_fn fn_doppelganger_set_insert;
+internal inline void *doppelganger_set_insert(void *set, void **found, ee_doppelganger **d) { return fn_doppelganger_set_insert(set, found, d); }
 
 // the running build's values (spec_select, with addr_select): how many it hasn't got
 internal int spec_engine_display_select(int build) {
@@ -636,6 +693,11 @@ internal int spec_engine_display_select(int build) {
         fn_ro_shadows_draw = (ro_shadows_draw_fn)0x00506AD8;
         vt_eero_units = 0x0082C42C;
         size_eero_units = 0x4;
+        fn_ro_units_drawn = (ro_units_drawn_fn)0x005008B8;
+        fn_ro_units_opacity = (ro_units_opacity_fn)0x005044D7;
+        fn_ro_units_fill_object = (ro_units_fill_object_fn)0x00501DFF;
+        fn_ro_units_fill_doppelganger = (ro_units_fill_doppelganger_fn)0x005035AD;
+        fn_ro_units_fill_doppelganger_object = (ro_units_fill_doppelganger_object_fn)0x00502224;
         fn_ro_units_update = (ro_units_update_fn)0x00509D06;
         fn_ro_units_draw = (ro_units_draw_fn)0x0050D90E;
         vt_eero_water = 0x0082C480;
@@ -687,6 +749,7 @@ internal int spec_engine_display_select(int build) {
         slot_vertices_get_type = 8;
         of_pick_list_entries = 0x2A0;
         of_pick_list_count = 0x2A8;
+        fn_pick_list_reset = (pick_list_reset_fn)0x0050F663;
         size_ee_pick_entry = 0x50;
         of_pick_entry_unit = 0x4C;
         size_d3_dvertex = 0x20;
@@ -746,11 +809,24 @@ internal int spec_engine_display_select(int build) {
         data_engine_display_ro_water = 0x00943308;
         data_engine_display_ro_ui = 0x00943304;
         data_engine_display_pick_list = 0x009125D8;
+        data_engine_display_picker_lock = 0x00912874;
+        data_engine_display_sort_maps = 0x008D2CB8;
+        data_engine_display_units_walk = 0x00503E9F;
+        data_engine_display_units_walk_end = 0x005041F4;
+        value_engine_display_walk_this = 4;
+        value_engine_display_walk_player = 28;
+        value_engine_display_walk_map = 36;
+        value_engine_display_walk_complex = 40;
+        value_engine_display_walk_info = 60;
+        value_engine_display_walk_doppelgangers = 104;
+        value_engine_display_walk_met = 136;
         data_engine_display_graphics_lock = 0x008D1D50;
         data_engine_display_viewport_view = 0x008D2858;
         data_engine_display_viewport_view_ops[0] = 0x0050DD99;
         data_engine_display_viewport_view_ops[1] = 0x0050A5F5;
         data_engine_display_viewport_view_ops[2] = 0x0050BA99;
+        fn_doppelganger_set_find = (doppelganger_set_find_fn)0x005050BD;
+        fn_doppelganger_set_insert = (doppelganger_set_insert_fn)0x00505007;
         return 0;
     case 1:   // aoc
         of_draw_state_device = 0x1C;
@@ -817,6 +893,11 @@ internal int spec_engine_display_select(int build) {
         fn_ro_shadows_draw = (ro_shadows_draw_fn)0x0051207F;
         vt_eero_units = 0x00841BBC;
         size_eero_units = 0x4;
+        fn_ro_units_drawn = (ro_units_drawn_fn)0x0050B3B3;
+        fn_ro_units_opacity = (ro_units_opacity_fn)0x0050F412;
+        fn_ro_units_fill_object = (ro_units_fill_object_fn)0x0050CBA3;
+        fn_ro_units_fill_doppelganger = (ro_units_fill_doppelganger_fn)0x0050E3C8;
+        fn_ro_units_fill_doppelganger_object = (ro_units_fill_doppelganger_object_fn)0x0050CFBC;
         fn_ro_units_update = (ro_units_update_fn)0x00514521;
         fn_ro_units_draw = (ro_units_draw_fn)0x00518203;
         vt_eero_water = 0x00841C10;
@@ -868,6 +949,7 @@ internal int spec_engine_display_select(int build) {
         slot_vertices_get_type = 8;
         of_pick_list_entries = 0x2A0;
         of_pick_list_count = 0x2A8;
+        fn_pick_list_reset = (pick_list_reset_fn)0x00519F7C;
         size_ee_pick_entry = 0x50;
         of_pick_entry_unit = 0x4C;
         size_d3_dvertex = 0x20;
@@ -927,11 +1009,24 @@ internal int spec_engine_display_select(int build) {
         data_engine_display_ro_water = 0x00965350;
         data_engine_display_ro_ui = 0x0096534C;
         data_engine_display_pick_list = 0x00928D78;
+        data_engine_display_picker_lock = 0x00929014;
+        data_engine_display_sort_maps = 0x008E9458;
+        data_engine_display_units_walk = 0x0050EDDA;
+        data_engine_display_units_walk_end = 0x0050F12F;
+        value_engine_display_walk_this = 4;
+        value_engine_display_walk_player = 28;
+        value_engine_display_walk_map = 36;
+        value_engine_display_walk_complex = 40;
+        value_engine_display_walk_info = 60;
+        value_engine_display_walk_doppelgangers = 104;
+        value_engine_display_walk_met = 136;
         data_engine_display_graphics_lock = 0x008E8430;
         data_engine_display_viewport_view = 0x008E8FF8;
         data_engine_display_viewport_view_ops[0] = 0x0051868E;
         data_engine_display_viewport_view_ops[1] = 0x00514E10;
         data_engine_display_viewport_view_ops[2] = 0x0051638E;
+        fn_doppelganger_set_find = (doppelganger_set_find_fn)0x0042B588;
+        fn_doppelganger_set_insert = (doppelganger_set_insert_fn)0x0050FED2;
         return 0;
     }
     return 0;
@@ -969,6 +1064,11 @@ internal int spec_engine_display_check(void) {
     bad += spec_code((uintptr_t)fn_ro_shadows_draw, "EEROGroundShadows.draw");
     bad += spec_slot(vt_eero_ground_shadows, slot_render_object_draw, (uintptr_t)fn_ro_shadows_draw, "EEROGroundShadows.draw [slot]");
     bad += spec_vtable(vt_eero_units, ".?AVEEROUnits@@", "EEROUnits [vtable]");
+    bad += spec_code((uintptr_t)fn_ro_units_drawn, "EEROUnits.drawn");
+    bad += spec_code((uintptr_t)fn_ro_units_opacity, "EEROUnits.opacity");
+    bad += spec_code((uintptr_t)fn_ro_units_fill_object, "EEROUnits.fill_object");
+    bad += spec_code((uintptr_t)fn_ro_units_fill_doppelganger, "EEROUnits.fill_doppelganger");
+    bad += spec_code((uintptr_t)fn_ro_units_fill_doppelganger_object, "EEROUnits.fill_doppelganger_object");
     bad += spec_code((uintptr_t)fn_ro_units_update, "EEROUnits.update");
     bad += spec_slot(vt_eero_units, slot_render_object_update, (uintptr_t)fn_ro_units_update, "EEROUnits.update [slot]");
     bad += spec_code((uintptr_t)fn_ro_units_draw, "EEROUnits.draw");
@@ -982,6 +1082,7 @@ internal int spec_engine_display_check(void) {
     bad += spec_vtable(vt_eero_effects, ".?AVEEROEffects@@", "EEROEffects [vtable]");
     bad += spec_code((uintptr_t)fn_ro_effects_update, "EEROEffects.update");
     bad += spec_slot(vt_eero_effects, slot_render_object_update, (uintptr_t)fn_ro_effects_update, "EEROEffects.update [slot]");
+    bad += spec_code((uintptr_t)fn_pick_list_reset, "EEPickList.reset");
     bad += spec_code(data_engine_display_call_frame_sleep, "engine_display.call_frame_sleep");
     bad += spec_code(data_engine_display_call_frame_mouse, "engine_display.call_frame_mouse");
     bad += spec_data(data_engine_display_iat_sleep, "engine_display.iat_sleep");
@@ -1004,10 +1105,16 @@ internal int spec_engine_display_check(void) {
     bad += spec_data(data_engine_display_ro_water, "engine_display.ro_water");
     bad += spec_data(data_engine_display_ro_ui, "engine_display.ro_ui");
     bad += spec_data(data_engine_display_pick_list, "engine_display.pick_list");
+    bad += spec_data(data_engine_display_picker_lock, "engine_display.picker_lock");
+    bad += spec_data(data_engine_display_sort_maps, "engine_display.sort_maps");
+    bad += spec_code(data_engine_display_units_walk, "engine_display.units_walk");
+    bad += spec_code(data_engine_display_units_walk_end, "engine_display.units_walk_end");
     bad += spec_data(data_engine_display_graphics_lock, "engine_display.graphics_lock");
     bad += spec_data(data_engine_display_viewport_view, "engine_display.viewport_view");
     bad += spec_code(data_engine_display_viewport_view_ops[0], "engine_display.viewport_view_ops 0");
     bad += spec_code(data_engine_display_viewport_view_ops[1], "engine_display.viewport_view_ops 1");
     bad += spec_code(data_engine_display_viewport_view_ops[2], "engine_display.viewport_view_ops 2");
+    bad += spec_code((uintptr_t)fn_doppelganger_set_find, "engine_display_functions.doppelganger_set_find");
+    bad += spec_code((uintptr_t)fn_doppelganger_set_insert, "engine_display_functions.doppelganger_set_insert");
     return bad;
 }

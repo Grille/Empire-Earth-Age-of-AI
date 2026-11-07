@@ -668,7 +668,7 @@ unsafe struct UIManager
     /// across the render objects' update (0x4FED8C, AoC 0x50989F), the game's main thread over its input - the
     /// world's write lock taken inside it
     [offset(0x4), found(c)]
-    void* lock;
+    void* @lock;
 
     [slot(1)]
     extern int32 change_ime_candidate_window(void* list);

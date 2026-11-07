@@ -62,6 +62,15 @@ internal inline int patch_import_call(uintptr_t at, uintptr_t iat, void *hook) {
     return 1;
 }
 
+// the function a call instruction calls now: a call rel32 (E8) or one through an import slot (FF 15) - the game's, or
+// the hook a patch put there; NULL another instruction
+internal inline void *call_site_target(uintptr_t at) {
+    const uint8_t *p = (const uint8_t *)at;
+    if (p[0] == 0xE8) return (void *)(at + 5 + (uintptr_t)*(const int32_t *)(p + 1));
+    if (p[0] == 0xFF && p[1] == 0x15) return **(void *const *const *)(p + 2);
+    return NULL;
+}
+
 // WHICH CALL A HOOK CAME FROM: at = its return address - 5 (the call instruction); the index in the list, -1: none
 internal inline int site_index(const uint32_t *sites, size_t n, uintptr_t at) {
     for (size_t i = 0; i < n; i++)

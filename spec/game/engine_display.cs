@@ -264,6 +264,33 @@ unsafe struct EEROGroundShadows
 [vtable((ee)0x0082C42C, (aoc)0x00841BBC)]
 unsafe struct EEROUnits
 {
+    // FUNCTIONS (the update's - the collection, 0x503B83 - for each object it meets on the visible tiles; the AoC
+    // decompilation's names)
+
+    /// IsUnitDrawn: whether the collection draws the object - its model against the view (calls_units_view), and not
+    /// met on another tile before (met: a set of the update's own)
+    [address((ee)0x005008B8, (aoc)0x0050B3B3)]
+    extern uint8 drawn(EEUnit* u, ee_unit_vis* tile, void* met);
+
+    /// GetUnitOpacity: the object's opacity into *opacity (its record's: +0xFC, a tree's +0x24); whether it is drawn
+    /// see-through - the sort map it goes into (engine_display.sort_maps)
+    [address((ee)0x005044D7, (aoc)0x0050F412)]
+    extern uint8 opacity(EEUnit* u, float32* opacity);
+
+    /// FillObject: a tree's record (hooks.draw_small_old, 0x3C each) into the sort map; info: the update's
+    /// (walk_info)
+    [address((ee)0x00501DFF, (aoc)0x0050CBA3)]
+    extern void fill_object(EEUnit* u, void* record, void* sort_map, void* info);
+
+    /// FillDoppelgangerUnit: a building as the player remembers it under the fog (the tile's doppelgangers) - its
+    /// records from record on, counted in *count up to room (the list's: the operand drawlist.c moves), the tile x, y
+    [address((ee)0x005035AD, (aoc)0x0050E3C8)]
+    extern void fill_doppelganger(EEDoppelganger* d, void* record, uint32* count, void* sort_map, uint32 room, int32 x, int32 y, void* info);
+
+    /// FillDoppelgangerObject: the same for a remembered tree (the trees' list and room)
+    [address((ee)0x00502224, (aoc)0x0050CFBC)]
+    extern void fill_doppelganger_object(EEDoppelganger* d, void* record, uint32* count, void* sort_map, uint32 room, int32 x, int32 y, void* info);
+
     // VIRTUAL FUNCTIONS
 
     /// the units' update (from the world's units)
@@ -511,6 +538,11 @@ unsafe struct EEPickList
 
     [offset(0x2A8), found(c)]
     uint32 count;
+
+    /// Reset (the AoC decompilation's EEUnitPicker): emptied (0x50F5EF) and the map's viewport copied in - the
+    /// collection starts it over each update before it walks the tiles
+    [address((ee)0x0050F663, (aoc)0x00519F7C)]
+    extern void reset();
 }
 
 [c_type("ee_pick_entry"), size(0x50)]
@@ -763,6 +795,51 @@ static unsafe class engine_display
     [address((ee)0x009125D8, (aoc)0x00928D78)]
     static block pick_list;
 
+    /// the collection's lock over pick_list (a TSCriticalSection*; the AoC decompilation's gUnitPickerLock): the
+    /// update walks the tiles inside it
+    [address((ee)0x00912874, (aoc)0x00929014)]
+    static block picker_lock;
+
+    /// the draw lists' sort maps (std::map heads, 12 bytes each): the objects' (+0), the objects' see-through (+0xC),
+    /// a third (+0x18, emptied with them), the trees' (+0x24), the trees' see-through (+0x30), a sixth (+0x3C) - the
+    /// collection's opacity (EEROUnits.opacity) chooses between the first two of each, the draw goes through them
+    [address((ee)0x008D2CB8, (aoc)0x008E9458)]
+    static block sort_maps;
+
+    /// the collection's walk over the visible tiles (the update 0x503B83 from the picker's lock to its Leave; the same
+    /// instructions in AoC): its first, mov ecx, [picker_lock] (6 bytes) - collect.c's patch -, and the update's next
+    /// after the walk
+    [address((ee)0x00503E9F, (aoc)0x0050EDDA)]
+    static code units_walk;
+
+    [address((ee)0x005041F4, (aoc)0x0050F12F)]
+    static code units_walk_end;
+
+    /// the update's frame (ebp less these) as the walk reads it, the same in AoC: the render object, the local player,
+    /// the map, the objects with a physics part counted (float, for the music), the info its fills get (the AoC
+    /// decompilation's: the unit under the mouse +0, the camera's yaw +4, the fighting units +8, the frame +0xC, the
+    /// ambient sound's turn +0x10), the doppelgangers met (a set: a building on several tiles), the objects met
+    [value((ee)0x4, (aoc)0x4)]
+    static uint32 walk_this;
+
+    [value((ee)0x1C, (aoc)0x1C)]
+    static uint32 walk_player;
+
+    [value((ee)0x24, (aoc)0x24)]
+    static uint32 walk_map;
+
+    [value((ee)0x28, (aoc)0x28)]
+    static uint32 walk_complex;
+
+    [value((ee)0x3C, (aoc)0x3C)]
+    static uint32 walk_info;
+
+    [value((ee)0x68, (aoc)0x68)]
+    static uint32 walk_doppelgangers;
+
+    [value((ee)0x88, (aoc)0x88)]
+    static uint32 walk_met;
+
     /// the engine's lock over the graphic objects' users (a TSCriticalSection*): EEGraphicObject.acquire takes it
     [address((ee)0x008D1D50, (aoc)0x008E8430)]
     static block graphics_lock;
@@ -782,4 +859,18 @@ static unsafe class engine_display
     [address((ee)0x0050A5F5, (aoc)0x00514E10)]
     [address((ee)0x0050BA99, (aoc)0x0051638E)]
     static code viewport_view_ops;
+}
+
+/// the game's functions engine_display.c wraps, by the names the C side gives them
+[c_prefix("")]
+static unsafe class engine_display_functions
+{
+    /// thiscall(the collection's set of the doppelgangers met (walk_doppelgangers), found: its node, &the doppelganger):
+    /// find - the set's head (+4) when not met (std::set; AoC's is a shared copy far off, 0x42B588)
+    [address((ee)0x005050BD, (aoc)0x0042B588), thiscall]
+    static extern void* doppelganger_set_find(void* set, void** found, EEDoppelganger** d);
+
+    /// thiscall(the same set, found: its node, &the doppelganger): insert
+    [address((ee)0x00505007, (aoc)0x0050FED2), thiscall]
+    static extern void* doppelganger_set_insert(void* set, void** found, EEDoppelganger** d);
 }

@@ -29,6 +29,8 @@ internal inline ee_unit ***grid_cell_units_begin_at(const ee_grid_cell *o) { ret
 
 // class EEMap (ee_map)
 // the map, [game.map] (EEMap)
+// its GETerrainMesh (the units' update: lea ecx, [map + 0x1C] for the visible rows, both builds)
+internal inline uint8_t *map_mesh_at(const ee_map *o) { return (uint8_t *)o + of_map_mesh; }
 // the ground's corners: a row per corner y (0 .. size), 0xC each - 0x517C10 reads a tile's four, x, x + 1 of rows
 // y and y + 1; the wall's layout (0x636CDC) its slopes
 internal inline ee_corner_row *map_get_corner_rows(const ee_map *o) { return *(ee_corner_row **)((uint8_t *)o + of_map_corner_rows); }
@@ -87,6 +89,15 @@ internal inline uint16_t **unit_vis_seen_at(const ee_unit_vis *o) { return (uint
 typedef char (__thiscall *unit_vis_explored_fn)(ee_unit_vis *, ee_player *);
 internal unit_vis_explored_fn fn_unit_vis_explored;
 internal inline char unit_vis_explored(ee_unit_vis *unit_vis, ee_player *pl) { return fn_unit_vis_explored(unit_vis, pl); }
+// IsSeenBy (the AoC decompilation's): the player's sight count of the tile (ee_tile.sight) more than 1 - in its
+// sight now; the units' collection draws the tile's doppelgangers where not
+typedef char (__thiscall *unit_vis_seen_by_fn)(ee_unit_vis *, ee_player *);
+internal unit_vis_seen_by_fn fn_unit_vis_seen_by;
+internal inline char unit_vis_seen_by(ee_unit_vis *unit_vis, ee_player *pl) { return fn_unit_vis_seen_by(unit_vis, pl); }
+// GetNumDoppelgangers: (ee_tile.doppelgangers_end - doppelgangers) / 4, 0 without any
+typedef uint32_t (__thiscall *unit_vis_doppelganger_count_fn)(ee_unit_vis *);
+internal unit_vis_doppelganger_count_fn fn_unit_vis_doppelganger_count;
+internal inline uint32_t unit_vis_doppelganger_count(ee_unit_vis *unit_vis) { return fn_unit_vis_doppelganger_count(unit_vis); }
 
 // class ee_tile_node (void)
 // a node of a tile's object list (TILE_OBJECTS)
@@ -123,6 +134,14 @@ internal inline float *tile_height_at(const ee_tile *o) { return (float *)((uint
 internal inline int8_t tile_get_sea_class(const ee_tile *o) { return *(int8_t *)((uint8_t *)o + of_tile_sea_class); }
 internal inline void tile_set_sea_class(ee_tile *o, int8_t v) { *(int8_t *)((uint8_t *)o + of_tile_sea_class) = v; }
 internal inline int8_t *tile_sea_class_at(const ee_tile *o) { return (int8_t *)((uint8_t *)o + of_tile_sea_class); }
+// the buildings and trees the players remember on it under the fog (a vector: begin, end): the units' collection
+// draws a player's where the tile isn't in its sight (ee_unit_vis.seen_by; 0x404C70 counts them)
+internal inline ee_doppelganger **tile_get_doppelgangers(const ee_tile *o) { return *(ee_doppelganger ***)((uint8_t *)o + of_tile_doppelgangers); }
+internal inline void tile_set_doppelgangers(ee_tile *o, ee_doppelganger **v) { *(ee_doppelganger ***)((uint8_t *)o + of_tile_doppelgangers) = v; }
+internal inline ee_doppelganger ***tile_doppelgangers_at(const ee_tile *o) { return (ee_doppelganger ***)((uint8_t *)o + of_tile_doppelgangers); }
+internal inline ee_doppelganger **tile_get_doppelgangers_end(const ee_tile *o) { return *(ee_doppelganger ***)((uint8_t *)o + of_tile_doppelgangers_end); }
+internal inline void tile_set_doppelgangers_end(ee_tile *o, ee_doppelganger **v) { *(ee_doppelganger ***)((uint8_t *)o + of_tile_doppelgangers_end) = v; }
+internal inline ee_doppelganger ***tile_doppelgangers_end_at(const ee_tile *o) { return (ee_doppelganger ***)((uint8_t *)o + of_tile_doppelgangers_end); }
 
 // class ee_corner_row (ee_corner_row)
 // a row of the ground's corners (EEMap.corner_rows): {first x, length, the corners}
@@ -215,6 +234,7 @@ internal int spec_map_select(int build) {
         of_grid_nx = 0x10;
         of_grid_ny = 0x14;
         of_grid_cell_units_begin = 0x4;
+        of_map_mesh = 0x1C;
         of_map_corner_rows = 0x17B594;
         of_map_view_rows = 0x17B598;
         of_map_tiles = 0x1816D4;
@@ -228,6 +248,8 @@ internal int spec_map_select(int build) {
         of_unit_vis_flag = 0x4;
         of_unit_vis_seen = 0xC;
         fn_unit_vis_explored = (unit_vis_explored_fn)0x00404A8A;
+        fn_unit_vis_seen_by = (unit_vis_seen_by_fn)0x0044E46E;
+        fn_unit_vis_doppelganger_count = (unit_vis_doppelganger_count_fn)0x00404C70;
         of_tile_node_object = 0x4;
         of_tile_node_next = 0x8;
         of_tile_kind = 0x4;
@@ -235,6 +257,8 @@ internal int spec_map_select(int build) {
         of_tile_sight = 0xC;
         of_tile_height = 0x10;
         of_tile_sea_class = 0x14;
+        of_tile_doppelgangers = 0x1C;
+        of_tile_doppelgangers_end = 0x20;
         of_corner_row_start = 0x0;
         of_corner_row_len = 0x4;
         of_corner_row_corners = 0x8;
@@ -262,6 +286,7 @@ internal int spec_map_select(int build) {
         of_grid_nx = 0x10;
         of_grid_ny = 0x14;
         of_grid_cell_units_begin = 0x4;
+        of_map_mesh = 0x1C;
         of_map_corner_rows = 0x18F498;
         of_map_view_rows = 0x18F49C;
         of_map_tiles = 0x1955F0;
@@ -275,6 +300,8 @@ internal int spec_map_select(int build) {
         of_unit_vis_flag = 0x4;
         of_unit_vis_seen = 0xC;
         fn_unit_vis_explored = (unit_vis_explored_fn)0x004042E2;
+        fn_unit_vis_seen_by = (unit_vis_seen_by_fn)0x00449B21;
+        fn_unit_vis_doppelganger_count = (unit_vis_doppelganger_count_fn)0x0040431C;
         of_tile_node_object = 0x4;
         of_tile_node_next = 0x8;
         of_tile_kind = 0x4;
@@ -282,6 +309,8 @@ internal int spec_map_select(int build) {
         of_tile_sight = 0xC;
         of_tile_height = 0x10;
         of_tile_sea_class = 0x14;
+        of_tile_doppelgangers = 0x1C;
+        of_tile_doppelgangers_end = 0x20;
         of_corner_row_start = 0x0;
         of_corner_row_len = 0x4;
         of_corner_row_corners = 0x8;
@@ -312,6 +341,8 @@ internal const char *const k_spec_map_missing[ADDR_BUILDS] = { "", "" };
 internal int spec_map_check(void) {
     int bad = 0;
     bad += spec_code((uintptr_t)fn_unit_vis_explored, "ee_unit_vis.explored");
+    bad += spec_code((uintptr_t)fn_unit_vis_seen_by, "ee_unit_vis.seen_by");
+    bad += spec_code((uintptr_t)fn_unit_vis_doppelganger_count, "ee_unit_vis.doppelganger_count");
     bad += spec_vtable(vt_eeai_continent_manager, ".?AVEEAIContinentManager@@", "EEAIContinentManager [vtable]");
     bad += spec_code((uintptr_t)fn_continent_mgr_shore_to_unload, "EEAIContinentManager.shore_to_unload");
     bad += spec_call(call_shore_to_unload, (uintptr_t)fn_continent_mgr_shore_to_unload, "EEAIContinentManager.shore_to_unload [call_site shore_to_unload]");

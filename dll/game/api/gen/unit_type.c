@@ -267,6 +267,17 @@ internal inline uint8_t unit_type_get_deletable(const ee_unit_type *o) { return 
 internal inline void unit_type_set_deletable(ee_unit_type *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_unit_type_deletable) = v; }
 internal inline uint8_t *unit_type_deletable_at(const ee_unit_type *o) { return (uint8_t *)((uint8_t *)o + of_unit_type_deletable); }
 // A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// a remembered building with it goes into the see-through sort map (the units' collection's walk, 0x50414D; the
+// AoC decompilation: mIsObstacle)
+internal inline uint8_t unit_type_get_is_obstacle(const ee_unit_type *o) { return *(uint8_t *)((uint8_t *)o + of_unit_type_is_obstacle); }
+internal inline void unit_type_set_is_obstacle(ee_unit_type *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_unit_type_is_obstacle) = v; }
+internal inline uint8_t *unit_type_is_obstacle_at(const ee_unit_type *o) { return (uint8_t *)((uint8_t *)o + of_unit_type_is_obstacle); }
+// drawn as a tree: the units' collection gives it the small record (EEROUnits.fill_object, hooks.draw_small_old)
+// instead of the object's (the AoC decompilation: mIsTree)
+internal inline uint8_t unit_type_get_is_tree(const ee_unit_type *o) { return *(uint8_t *)((uint8_t *)o + of_unit_type_is_tree); }
+internal inline void unit_type_set_is_tree(ee_unit_type *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_unit_type_is_tree) = v; }
+internal inline uint8_t *unit_type_is_tree_at(const ee_unit_type *o) { return (uint8_t *)((uint8_t *)o + of_unit_type_is_tree); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
 // the data's column 0x3B0 (the editor: "Melee attack"): EECPAttackSubGroupUnit::score 0x461854 picks its table 0
 // by it (the AoC decompilation: mIsMelee)
 internal inline uint8_t unit_type_get_melee(const ee_unit_type *o) { return *(uint8_t *)((uint8_t *)o + of_unit_type_melee); }
@@ -478,6 +489,8 @@ internal int spec_unit_type_select(int build) {
         of_unit_type_world_ownable = 0x609;
         of_unit_type_is_wall = 0x612;
         of_unit_type_deletable = 0x613;
+        of_unit_type_is_obstacle = 0x618;
+        of_unit_type_is_tree = 0x619;
         of_unit_type_melee = 0x61A;
         of_unit_type_is_guard_tower = 0x61E;
         of_unit_type_behaviours = 0x621;
@@ -573,6 +586,8 @@ internal int spec_unit_type_select(int build) {
         of_unit_type_world_ownable = 0x306;
         of_unit_type_is_wall = 0x310;
         of_unit_type_deletable = 0x311;
+        of_unit_type_is_obstacle = 0x316;
+        of_unit_type_is_tree = 0x317;
         of_unit_type_melee = 0x318;
         of_unit_type_is_guard_tower = 0x31C;
         of_unit_type_behaviours = 0x31F;

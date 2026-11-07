@@ -65,6 +65,11 @@ static unsafe class game
     [address((ee)0x0093B1B8, (aoc)0x0095CF80)]
     static block epoch_techs;
 
+    /// a byte: the camera free of the fog - the scenario editor's (the AoC decompilation: gFreeCamera): the units'
+    /// collection draws unexplored tiles' objects and no doppelgangers with it, and the editor's selection
+    [address((ee)0x0091986C, (aoc)0x009319E8), guess]
+    static block free_camera;
+
     [address((ee)0x0091945A, (aoc)0x009308DB)]
     static block fullscreen;
 

@@ -136,6 +136,41 @@ internal inline int patch_draw_small(int limit, uint8_t **recs, int *ok_out, int
     return 1;
 }
 
+// the lists as the collection's walk reads them now (collect.c): its operands - the records (mov edi / add eax, moved
+// or not), the room of a doppelganger's fill (push) -, a record's opacity
+internal inline uint8_t *draw_records(void) { return (uint8_t *)(uintptr_t)*(uint32_t *)(uintptr_t)data_hooks_draw_sites[5]; }
+internal inline uint8_t *draw_small_records(void) { return (uint8_t *)(uintptr_t)*(uint32_t *)(uintptr_t)data_hooks_draw_small_sites[4]; }
+internal inline uint32_t draw_room(void) { return *(uint32_t *)(uintptr_t)data_hooks_draw_sites[1]; }
+internal inline uint32_t draw_small_room(void) { return *(uint32_t *)(uintptr_t)data_hooks_draw_small_sites[1]; }
+internal inline float *draw_record_opacity(uint8_t *rec) { return (float *)(rec + of_draw_record_0xfc); }
+internal inline float *draw_small_record_opacity(uint8_t *rec) { return (float *)(rec + 0x24); }
+internal inline uint32_t *draw_count_at(void) { return (uint32_t *)(uintptr_t)data_game_draw_n; }
+internal inline uint32_t *draw_small_count_at(void) { return (uint32_t *)(uintptr_t)data_game_draw_small_n; }
+// the update's locals in its frame f (its ebp; engine_display.walk_this ...) and the calls at the walk's sites as they
+// stand now (the game's functions, or the hooks put there)
+typedef struct {
+    ee_ro_units *ro;
+    ee_player *pl;
+    ee_map *map;
+    float *complex_n;
+    void *info, *met, *doppelgangers;
+    terrain_rows_fn rows;
+    terrain_row_fn row;
+    pick_listed_fn listed;
+    draw_record_fill_fn fill;
+} units_walk;
+internal inline units_walk units_walk_of(uint8_t *f) {
+    units_walk w = {
+        *(ee_ro_units **)(f - value_engine_display_walk_this), *(ee_player **)(f - value_engine_display_walk_player),
+        *(ee_map **)(f - value_engine_display_walk_map), (float *)(f - value_engine_display_walk_complex),
+        f - value_engine_display_walk_info, f - value_engine_display_walk_met, f - value_engine_display_walk_doppelgangers,
+        (terrain_rows_fn)call_site_target(data_engine_display_call_units_rows),
+        (terrain_row_fn)call_site_target(data_engine_display_call_units_row),
+        (pick_listed_fn)call_site_target(call_pick_listed), (draw_record_fill_fn)call_site_target(call_draw_record_fill),
+    };
+    return w;
+}
+
 // THE SIMULATION AND THE TESTS (test/control.c, autotest.c, trace.c)
 // the simulation thread's receive (each pass of its loop: the pipe's safe point) and its timer wait (turbo)
 typedef long (__thiscall *sim_receive_hook)(void *thread, void *a, void *b, void *c);

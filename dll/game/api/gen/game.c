@@ -37,6 +37,10 @@ internal inline uint8_t *game_effects_at(void) { return (uint8_t *)(uintptr_t)da
 internal inline uint8_t *game_end_epoch_at(void) { return (uint8_t *)(uintptr_t)data_game_end_epoch; }
 // per epoch 0x10: the tech lists
 internal inline uint8_t *game_epoch_techs_at(void) { return (uint8_t *)(uintptr_t)data_game_epoch_techs; }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// a byte: the camera free of the fog - the scenario editor's (the AoC decompilation: gFreeCamera): the units'
+// collection draws unexplored tiles' objects and no doppelgangers with it, and the editor's selection
+internal inline uint8_t *game_free_camera_at(void) { return (uint8_t *)(uintptr_t)data_game_free_camera; }
 internal inline uint8_t *game_fullscreen_at(void) { return (uint8_t *)(uintptr_t)data_game_fullscreen; }
 // game data loaded (unit limit +0x2EC, chat time +0x2CC)
 internal inline uint8_t *game_game_data_at(void) { return (uint8_t *)(uintptr_t)data_game_game_data; }
@@ -242,6 +246,7 @@ internal int spec_game_select(int build) {
         data_game_effects = 0x00919E70;
         data_game_end_epoch = 0x009187F4;
         data_game_epoch_techs = 0x0093B1B8;
+        data_game_free_camera = 0x0091986C;
         data_game_fullscreen = 0x0091945A;
         data_game_game_data = 0x00917BB8;
         data_game_file_path = 0x0091978C;
@@ -343,6 +348,7 @@ internal int spec_game_select(int build) {
         data_game_effects = 0x00931FF8;
         data_game_end_epoch = 0x00931234;
         data_game_epoch_techs = 0x0095CF80;
+        data_game_free_camera = 0x009319E8;
         data_game_fullscreen = 0x009308DB;
         data_game_game_data = 0x0092FCA8;
         data_game_file_path = 0x00931908;
@@ -451,6 +457,7 @@ internal int spec_game_check(void) {
     bad += spec_data(data_game_effects, "game.effects");
     bad += spec_data(data_game_end_epoch, "game.end_epoch");
     bad += spec_data(data_game_epoch_techs, "game.epoch_techs");
+    bad += spec_data(data_game_free_camera, "game.free_camera");
     bad += spec_data(data_game_fullscreen, "game.fullscreen");
     bad += spec_data(data_game_game_data, "game.game_data");
     bad += spec_data(data_game_file_path, "game.file_path");

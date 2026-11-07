@@ -378,7 +378,39 @@ the time since the timer's wait ended, so even 25 ms steps (the pipe's stepload,
 step a hold - 2275 holds a minute of 25 ms each, one frame let in in 10 minutes of the reference save. The holds the
 frames wait for are single steps. What came of it: the frame during a step (above).
 
-## The units' animation on the graphics card
+## The units' collection
+
+The aim (the player, 2026-11-07: "it means bringing a large chunk of the game under our own control again"): the
+units' draw lists made by the mod's own code from a copy of the world the simulation makes at each step's end, so the
+frame never reads the world and the simulation never waits for it - and with that the units drawn with each frame's
+camera (none missing at the screen's edges while it moves), their movement between two steps' places, no fixed limits,
+and the lists made the way the instancing wants them. In steps, each checked against the game's own lists.
+
+What the game does: the units' update (EEROUnits::vf0 0x503B83, AoC 0x50EABE; the AoC decompilation's names below)
+after its setup (the lists emptied, the selection's pick, the unit under the mouse, the camera's yaw, the frame's
+number) walks the terrain mesh's visible tile rows inside the picker's lock (gUnitPickerLock, 0x912874): on each
+explored tile every object and the parts it is made of (unit +0x30, its +0x1CC first, then +0x1D0), each the view's
+test lets through (IsUnitDrawn 0x5008B8) and the picker (the list the mouse picks from) hasn't got yet into a record -
+a tree (type +0x619, mIsTree) into the trees' list (FillObject 0x501DFF), anything else into the objects' (FillUnit
+0x502622), the sort map by its opacity (GetUnitOpacity 0x5044D7); then, on a tile out of the player's sight, the
+buildings and trees it remembers there (the tile's doppelgangers, +0x1C: FillDoppelgangerUnit 0x5035AD,
+FillDoppelgangerObject 0x502224; one on several tiles once). After it the records are finished (0x501C29) and the
+music's measure taken. A unit's pose is the simulation's (above, "The frame and the simulation's lock"); the trees'
+records hold their sway by the clock (+0x28).
+
+Step 1, the walk (collect.c, 2026-11-07; the pipe: `picture collect own | game`, the game's by default; `drawcount
+hash` prints the lists the next update made): the update's first instruction of the walk (mov ecx, [picker_lock],
+spec engine_display.units_walk) calls a thunk that runs the mod's walk and goes on after the game's (units_walk_end),
+the game's fills still making the records; the walk's locals are the update's (its frame), and its calls at the
+game's call sites go to what the sites call now (walls.c's record fill, drawlist.c's search of the picker, the
+shadows' rows). AoC's walk is the same instructions but for its addresses and three of the type's fields. Checked,
+paused (the lists the same every update): the 8000 save at two places, 7198 and 5210 objects, and an AoC Continental
+game at two places - the counts, the picker, the six sort maps' sizes and the objects' records (but their vectors)
+the same with either walk; the trees' records too but their sway. The save's player sees the whole map (no
+doppelgangers anywhere in a sweep of it), so also as its player 2 (game.local_player poked): at two places with 14 and
+415 doppelgangers drawn, the same. Running a minute at speed 3 with the mod's walk.
+Found on the way: the picker held 1536 objects (0x600, the dword after its entries) with 7198 drawn - whether the rest
+can be clicked isn't checked yet.
 
 `[display] gpu_animation` (default on; the pipe: `picture morph on | off`; render_morph.c), 2026-11-06. EE animates a
 model by morphing: every frame of its animation is a whole vertex array (spec GEModel.vertices, frames alike share

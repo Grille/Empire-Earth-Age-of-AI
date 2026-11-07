@@ -118,6 +118,12 @@ unsafe struct EEUnit
     [slot(24)]
     extern void destroy(int32 die, int32 p3, int32 p4);
 
+    /// vf22, a building under construction (the AoC decompilation's IsFoundation) [guess]: the units' collection takes
+    /// no animation frames from an object with it (0x502622: its record's frames 0) and draws a doppelganger of one
+    /// on the map only for its owner
+    [slot(22), guess]
+    extern uint8 is_foundation();
+
     /// freed: its slot 12 (+0x30), its references 0, then deleted
     [address((ee)0x00616DBB, (aoc)0x006298E1), overrides(typeof(RTSUnit))]
     extern void release();
@@ -676,6 +682,20 @@ unsafe struct EEComplexUnit
 /// caller's +0xE4 - callers 0x562D07, 0x64F72A (a tech's unit type) and the scenario's Move Unit effect
 /// (EESEAMoveUnit::vf1) - what for (a placement preview?) not established. Its destructor 0x5F3DE5 tells 0x4CEEF4
 /// (the player's index, the type id) unless +0x331 is set.
+/// a building or tree as a player remembers it under the fog (RTTI EEDoppelganger; EEComplexDoppelganger too): a
+/// tile's doppelgangers (ee_tile.doppelgangers) - the units' collection draws them (EEROUnits.fill_doppelganger)
+[c_type("ee_doppelganger")]
+unsafe struct EEDoppelganger
+{
+    /// the object it shows (the collection reads its type, its list node and its physics part)
+    [offset(0x8), found(c)]
+    EEUnit* unit;
+
+    /// the player who remembers it
+    [offset(0xC), found(c)]
+    EEPlayer* player;
+}
+
 [size(0x334)]
 [vtable((ee)0x00831588, (aoc)0x00846EF4)]
 unsafe struct EEGhostUnit

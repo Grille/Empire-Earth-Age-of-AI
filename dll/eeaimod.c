@@ -437,6 +437,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
 #include "engine/buildretry.c"
 #include "engine/unitsfirst.c"
 #include "engine/drawlist.c"
+#include "engine/collect.c"
 #include "engine/sight.c"
 #include "engine/asg_queue.c"
 #include "engine/offmap.c"
@@ -665,6 +666,7 @@ internal void install(HMODULE self) {
     shiproute_install(g_autotest ? g_ini : NULL);
     drawlist_install();
     draw_many_install();
+    collect_install();
     if (g_rd_on) shadow_reach_install();   // the own renderer's shadows: casters off the screen in the larger draw list
     sight_install();
     asg_queue_install();

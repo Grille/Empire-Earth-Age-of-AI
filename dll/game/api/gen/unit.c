@@ -100,6 +100,12 @@ internal inline void unit_damage(ee_unit *unit, ee_unit *attacker, int dmg, int 
 // (0, 0, 1)
 typedef void (__thiscall *unit_destroy_fn)(ee_unit *, int, int, int);
 internal inline void unit_destroy(ee_unit *unit, int die, int p3, int p4) { ((unit_destroy_fn)(*(void ***)unit)[slot_unit_destroy])(unit, die, p3, p4); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// vf22, a building under construction (the AoC decompilation's IsFoundation) [guess]: the units' collection takes
+// no animation frames from an object with it (0x502622: its record's frames 0) and draws a doppelganger of one
+// on the map only for its owner
+typedef uint8_t (__thiscall *unit_is_foundation_fn)(ee_unit *);
+internal inline uint8_t unit_is_foundation(ee_unit *unit) { return ((unit_is_foundation_fn)(*(void ***)unit)[slot_unit_is_foundation])(unit); }
 // freed: its slot 12 (+0x30), its references 0, then deleted
 internal unit_release_fn fn_ee_unit_release;
 internal inline void ee_unit_release(ee_unit *unit) { fn_ee_unit_release(unit); }
@@ -641,12 +647,24 @@ internal unit_release_fn fn_ee_complex_unit_release;
 internal inline void ee_complex_unit_release(ee_unit *unit) { fn_ee_complex_unit_release(unit); }
 internal inline int patch_unit_release(unit_release_fn h) { return patch_vtable(vt_ee_complex_unit, (int)slot_unit_release, (uintptr_t)fn_ee_complex_unit_release, (void *)h); }
 
-// class EEGhostUnit (ee_ghost_unit)
+// class EEDoppelganger (ee_doppelganger)
 // an image of a unit type for a player, no map object (its constructor calls neither RTSUnit's nor EEUnit's): made by
 // 0x5F4608 (new 0x334, its constructor 0x5F3D4C(type id, player, flag); type 66 three more) into a list at its
 // caller's +0xE4 - callers 0x562D07, 0x64F72A (a tech's unit type) and the scenario's Move Unit effect
 // (EESEAMoveUnit::vf1) - what for (a placement preview?) not established. Its destructor 0x5F3DE5 tells 0x4CEEF4
 // (the player's index, the type id) unless +0x331 is set.
+// a building or tree as a player remembers it under the fog (RTTI EEDoppelganger; EEComplexDoppelganger too): a
+// tile's doppelgangers (ee_tile.doppelgangers) - the units' collection draws them (EEROUnits.fill_doppelganger)
+// the object it shows (the collection reads its type, its list node and its physics part)
+internal inline ee_unit *doppelganger_get_unit(const ee_doppelganger *o) { return *(ee_unit **)((uint8_t *)o + of_doppelganger_unit); }
+internal inline void doppelganger_set_unit(ee_doppelganger *o, ee_unit *v) { *(ee_unit **)((uint8_t *)o + of_doppelganger_unit) = v; }
+internal inline ee_unit **doppelganger_unit_at(const ee_doppelganger *o) { return (ee_unit **)((uint8_t *)o + of_doppelganger_unit); }
+// the player who remembers it
+internal inline ee_player *doppelganger_get_player(const ee_doppelganger *o) { return *(ee_player **)((uint8_t *)o + of_doppelganger_player); }
+internal inline void doppelganger_set_player(ee_doppelganger *o, ee_player *v) { *(ee_player **)((uint8_t *)o + of_doppelganger_player) = v; }
+internal inline ee_player **doppelganger_player_at(const ee_doppelganger *o) { return (ee_player **)((uint8_t *)o + of_doppelganger_player); }
+
+// class EEGhostUnit (ee_ghost_unit)
 // the player it is for (its +0x45C, the index, read by the destructor)
 internal inline ee_player *ghost_unit_get_player(const ee_ghost_unit *o) { return *(ee_player **)((uint8_t *)o + of_ghost_unit_player); }
 internal inline void ghost_unit_set_player(ee_ghost_unit *o, ee_player *v) { *(ee_player **)((uint8_t *)o + of_ghost_unit_player) = v; }
@@ -834,6 +852,7 @@ internal int spec_unit_select(int build) {
         fn_ee_unit_lets_pass = (unit_lets_pass_fn)0x006167C7;
         slot_unit_damage = 28;
         slot_unit_destroy = 24;
+        slot_unit_is_foundation = 22;
         fn_ee_unit_release = (unit_release_fn)0x00616DBB;
         fn_unit_pop_waypoint = (unit_pop_waypoint_fn)0x005EDCF4;
         fn_unit_accel = (unit_accel_fn)0x0054A4CA;
@@ -969,6 +988,8 @@ internal int spec_unit_select(int build) {
         calls_reload_wait[2] = 0;
         calls_reload_wait[3] = 0;
         fn_ee_complex_unit_release = (unit_release_fn)0x005ED71E;
+        of_doppelganger_unit = 0x8;
+        of_doppelganger_player = 0xC;
         vt_ee_ghost_unit = 0x00831588;
         size_ee_ghost_unit = 0x334;
         of_ghost_unit_player = 0x294;
@@ -1040,6 +1061,7 @@ internal int spec_unit_select(int build) {
         fn_ee_unit_lets_pass = (unit_lets_pass_fn)0x006292C9;
         slot_unit_damage = 29;
         slot_unit_destroy = 24;
+        slot_unit_is_foundation = 22;
         fn_ee_unit_release = (unit_release_fn)0x006298E1;
         fn_unit_pop_waypoint = (unit_pop_waypoint_fn)0x005FBDD1;
         fn_unit_accel = (unit_accel_fn)0x00554C95;
@@ -1175,6 +1197,8 @@ internal int spec_unit_select(int build) {
         calls_reload_wait[2] = 0x00631395;
         calls_reload_wait[3] = 0x006313C7;
         fn_ee_complex_unit_release = (unit_release_fn)0x005FB7FB;
+        of_doppelganger_unit = 0x8;
+        of_doppelganger_player = 0xC;
         vt_ee_ghost_unit = 0x00846EF4;
         size_ee_ghost_unit = 0x334;
         of_ghost_unit_player = 0x294;

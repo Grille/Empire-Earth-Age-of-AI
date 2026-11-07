@@ -29,6 +29,10 @@ unsafe struct ee_grid_cell
 /// the map, [game.map] (EEMap)
 unsafe struct EEMap
 {
+    /// its GETerrainMesh (the units' update: lea ecx, [map + 0x1C] for the visible rows, both builds)
+    [offset(0x1C), found(c)]
+    block mesh;
+
     /// the ground's corners: a row per corner y (0 .. size), 0xC each - 0x517C10 reads a tile's four, x, x + 1 of rows
     /// y and y + 1; the wall's layout (0x636CDC) its slopes
     [offset((ee)0x17B594, (aoc)0x18F498), found(h, "0x517C10 and its pair AoC 0x5222ED read it in the same instruction")]
@@ -88,6 +92,15 @@ unsafe struct ee_unit_vis
     /// thiscall(site+0x14 object, player) -> bool
     [address((ee)0x00404A8A, (aoc)0x004042E2)]
     extern char8 explored(EEPlayer* pl);
+
+    /// IsSeenBy (the AoC decompilation's): the player's sight count of the tile (ee_tile.sight) more than 1 - in its
+    /// sight now; the units' collection draws the tile's doppelgangers where not
+    [address((ee)0x0044E46E, (aoc)0x00449B21)]
+    extern char8 seen_by(EEPlayer* pl);
+
+    /// GetNumDoppelgangers: (ee_tile.doppelgangers_end - doppelgangers) / 4, 0 without any
+    [address((ee)0x00404C70, (aoc)0x0040431C)]
+    extern uint32 doppelganger_count();
 }
 
 /// a node of a tile's object list (TILE_OBJECTS)
@@ -127,6 +140,14 @@ unsafe struct ee_tile
     /// EEPMNaval::vf21's step test (0x550300 / AoC the same read): a signed byte against UNIT_SEA_MODE
     [offset(0x14), found(c)]
     int8 sea_class;
+
+    /// the buildings and trees the players remember on it under the fog (a vector: begin, end): the units' collection
+    /// draws a player's where the tile isn't in its sight (ee_unit_vis.seen_by; 0x404C70 counts them)
+    [offset(0x1C), found(c)]
+    EEDoppelganger** doppelgangers;
+
+    [offset(0x20), found(c)]
+    EEDoppelganger** doppelgangers_end;
 }
 
 /// a row of the ground's corners (EEMap.corner_rows): {first x, length, the corners}

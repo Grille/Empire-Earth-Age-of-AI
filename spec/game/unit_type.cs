@@ -262,6 +262,16 @@ unsafe struct EEUnitClass
     [offset((ee)0x613, (aoc)0x311), found(c), guess]
     uint8 deletable;
 
+    /// a remembered building with it goes into the see-through sort map (the units' collection's walk, 0x50414D; the
+    /// AoC decompilation: mIsObstacle)
+    [offset((ee)0x618, (aoc)0x316), found(c), guess]
+    uint8 is_obstacle;
+
+    /// drawn as a tree: the units' collection gives it the small record (EEROUnits.fill_object, hooks.draw_small_old)
+    /// instead of the object's (the AoC decompilation: mIsTree)
+    [offset((ee)0x619, (aoc)0x317), found(c)]
+    uint8 is_tree;
+
     /// the data's column 0x3B0 (the editor: "Melee attack"): EECPAttackSubGroupUnit::score 0x461854 picks its table 0
     /// by it (the AoC decompilation: mIsMelee)
     [offset((ee)0x61A, (aoc)0x318), found(c), guess]
