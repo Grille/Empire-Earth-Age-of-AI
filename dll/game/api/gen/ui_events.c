@@ -736,9 +736,15 @@ internal inline uint32_t eeuiegse_video_tab_execute(eeuiegse_video_tab *eeuiegse
 
 // class EEUIEGrabScroll (eeuie_grab_scroll)
 // UIEvent's, the base's
+// the game's form's middle button (UIForm::SetMouseMiddleButtonPressedEvent and ...UnpressedEvent, both this one;
+// made in 0x64C8B0, the editor's in 0x58D3E1), run by the form's input on the game thread: pressed (the mouse's
+// entity 5) it freezes the game's mouse (+0xA4) and takes the form's mouse-move event away, held it moves the
+// camera by the X / Y axes' counts (GetValue) x (grab_setting + 0.5) x (scroll_speed + 0.5) x 0.07, y the other
+// way; let go both back (+0x10 grabbed, +0xC the move event kept)
 typedef uint32_t (__thiscall *eeuie_grab_scroll_execute_fn)(eeuie_grab_scroll *, ee_ui_form *, uint32_t);
 internal eeuie_grab_scroll_execute_fn fn_eeuie_grab_scroll_execute;
 internal inline uint32_t eeuie_grab_scroll_execute(eeuie_grab_scroll *eeuie_grab_scroll, ee_ui_form *form, uint32_t arg) { return fn_eeuie_grab_scroll_execute(eeuie_grab_scroll, form, arg); }
+internal inline int patch_grab_scroll_execute(eeuie_grab_scroll_execute_fn h) { return patch_vtable(vt_eeuie_grab_scroll, (int)slot_ui_event_execute, (uintptr_t)fn_eeuie_grab_scroll_execute, (void *)h); }
 
 // class EEUIEHKAddSelectionToGroup (eeuiehk_add_selection_to_group)
 // made in 0x64C8B0

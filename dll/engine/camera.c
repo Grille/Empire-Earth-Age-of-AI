@@ -187,7 +187,7 @@ internal int scroll_input_agrees(int k) { return k & (scroll_edges() | scroll_ar
 // (EEUIFMainGame): the scenario editor's lists take the wheel themselves - its zoom stays the game's. Not headless: a
 // low-level hook is called for every mouse event of the machine - the player's mouse through 30 test slots.
 internal volatile LONG g_wheel;   // the wheel's delta not zoomed yet (WHEEL_DELTA a notch: the axis' granularity)
-internal HHOOK g_wheel_hook;
+internal HHOOK g_wheel_hook;   // in place: the wheel and the middle button are the render thread's (grab_frame)
 internal LONG g_wheel_zooms;
 internal float g_cam_now[16];   // render_frame.c: the camera's transformation this frame, its ride's
 internal int g_cam_now_ok;
@@ -234,6 +234,51 @@ internal uint32_t __thiscall hook_wheel_zoom(eeuie_wheel_zoom *self, ee_ui_form 
     return eeuie_wheel_zoom_execute(self, form, arg);
 }
 
+// The middle button's drag the same way (the player 2026-11-07: "middle mouse scroll doesn't work yet"): the game's
+// (EEUIEGrabScroll, the form's middle-button event) freezes the game's mouse and moves the camera by the mouse's
+// counts in the form's input on the game thread - through a step not at all. With the mouse hook in place (the own
+// renderer, not headless) the render thread does it on the game's screen: a middle press in the game's window freezes
+// the game's mouse as the event does (its update, on this thread, leaves the cursor: display.c hook_mouse_update), the
+// Windows cursor is put back where the press was every frame and the camera moved by how far it went, at the event's
+// speed (a pixel for a count: (grab_setting + 0.5) x (scroll_speed + 0.5) x 0.07, y the other way); let go, the window
+// left or another form: the mouse free again. The game's event does nothing meanwhile (hook_grab_scroll).
+internal int g_grab, g_grab_down;   // the drag held; the middle button down at the last frame
+internal POINT g_grab_at;
+internal void grab_frame(const ee_ui_form *f, ee_mouse *m) {
+    int down = GetAsyncKeyState(VK_MBUTTON) < 0, pressed = down && !g_grab_down;
+    g_grab_down = down;
+    if (!g_wheel_hook || !m) return;
+    HWND w = GetForegroundWindow();
+    DWORD pid = 0;
+    int ours = w && GetWindowThreadProcessId(w, &pid) && pid == GetCurrentProcessId() && ui_form_is_game(f);
+    POINT p;
+    if (!GetCursorPos(&p)) return;
+    if (!g_grab) {
+        RECT rc;
+        POINT c = p;
+        if (!pressed || !ours || !ScreenToClient(w, &c) || !GetClientRect(w, &rc) || !PtInRect(&rc, c)) return;
+        g_grab = 1;
+        g_grab_at = p;
+        mouse_set_frozen(m, 1);
+        return;
+    }
+    if (!down || !ours) {
+        g_grab = 0;
+        mouse_set_frozen(m, 0);
+        return;
+    }
+    int dx = p.x - g_grab_at.x, dy = p.y - g_grab_at.y;
+    if (!dx && !dy) return;
+    SetCursorPos(g_grab_at.x, g_grab_at.y);
+    float k = (grab_setting() + 0.5f) * (scroll_speed() + 0.5f) * 0.07f;
+    camera_pan(k * (float)dx, -k * (float)dy);
+}
+internal uint32_t __thiscall hook_grab_scroll(eeuie_grab_scroll *self, ee_ui_form *form, uint32_t arg) {
+    void *uim = ui_manager();
+    if (g_wheel_hook && ui_form_is_game(uim ? ui_current_form(uim) : NULL)) return 0;
+    return eeuie_grab_scroll_execute(self, form, arg);
+}
+
 // With the own renderer the input alone scrolls, every frame (the player 2026-11-07: "why leave the camera at all to
 // the simthread now?" - a step held seconds, the pipe's stepload, stopped it after CAM_HOLD_MS). The own renderer
 // draws only windowed or borderless, so the Windows cursor is the game's (native fullscreen's DirectInput mouse isn't:
@@ -247,6 +292,7 @@ internal void input_frame(float ms) {
     ee_ui_form *f = uim ? ui_current_form(uim) : NULL;
     wheel_frame(f);   // a frozen mouse still zooms: the game's update then reads only the wheel
     ee_mouse *m = game_mouse();
+    grab_frame(f, m);
     if (!ui_form_has_view(f) || !m || mouse_get_frozen(m)) return;
     HWND w = GetForegroundWindow();
     DWORD pid = 0;
@@ -301,7 +347,8 @@ internal void camera_install(void) {
     // period never comes round (TMPoll::Poll: the time gone / the period), the edge check (0x4051A0) queues one action
     // as the cursor reaches the edge and starts the timer, then none till it comes back.
     ok += patch_scroll_timer(build_aoc ? 0x0A : 0x19, g_cam_smooth && g_rd_on ? 0xFF : g_cam_smooth ? 0x01 : 0x0A);
-    if (g_cam_smooth && g_rd_on && patch_wheel_zoom_execute(hook_wheel_zoom) && !g_headless) {
+    if (g_cam_smooth && g_rd_on && patch_wheel_zoom_execute(hook_wheel_zoom) + patch_grab_scroll_execute(hook_grab_scroll) == 2
+        && !g_headless) {
         HANDLE t = CreateThread(NULL, 0, wheel_thread, NULL, 0, NULL);
         if (t) CloseHandle(t);
     }

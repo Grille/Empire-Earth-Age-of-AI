@@ -188,6 +188,11 @@ static unsafe class game
     [address((ee)0x00918DB0, (aoc)0x009317F0)]
     static block scroll_speed;
 
+    /// float: the middle button's drag speed - EEUIEGrabScroll moves the camera by the mouse's counts x (it + 0.5) x
+    /// (scroll_speed + 0.5) x 0.07 (both builds), beside scroll_setting (+4) as the settings' next slider
+    [address((ee)0x009193AC, (aoc)0x0093082C), guess]
+    static block grab_setting;
+
     /// a default selection rectangle
     [address((ee)0x008D2778, (aoc)0x008E8F18)]
     static block select_rect;

@@ -848,7 +848,13 @@ unsafe struct EEUIEGSEVideoTab
 [@base(typeof(UIEvent)), size((ee)0x14, (aoc)0x14), vtable((ee)0x0082F898, (aoc)0x008450D8)]
 unsafe struct EEUIEGrabScroll
 {
+    /// the game's form's middle button (UIForm::SetMouseMiddleButtonPressedEvent and ...UnpressedEvent, both this one;
+    /// made in 0x64C8B0, the editor's in 0x58D3E1), run by the form's input on the game thread: pressed (the mouse's
+    /// entity 5) it freezes the game's mouse (+0xA4) and takes the form's mouse-move event away, held it moves the
+    /// camera by the X / Y axes' counts (GetValue) x (grab_setting + 0.5) x (scroll_speed + 0.5) x 0.07, y the other
+    /// way; let go both back (+0x10 grabbed, +0xC the move event kept)
     [address((ee)0x005C8F00, (aoc)0x005D99FF), overrides(typeof(UIEvent))]
+    [vtable_site("grab_scroll_execute")]
     extern uint32 execute(UIForm* form, uint32 arg);
 }
 

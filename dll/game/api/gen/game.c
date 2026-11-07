@@ -99,6 +99,10 @@ internal inline uint8_t *game_screen_ready_at(void) { return (uint8_t *)(uintptr
 internal inline uint8_t *game_scroll_setting_at(void) { return (uint8_t *)(uintptr_t)data_game_scroll_setting; }
 // float
 internal inline uint8_t *game_scroll_speed_at(void) { return (uint8_t *)(uintptr_t)data_game_scroll_speed; }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// float: the middle button's drag speed - EEUIEGrabScroll moves the camera by the mouse's counts x (it + 0.5) x
+// (scroll_speed + 0.5) x 0.07 (both builds), beside scroll_setting (+4) as the settings' next slider
+internal inline uint8_t *game_grab_setting_at(void) { return (uint8_t *)(uintptr_t)data_game_grab_setting; }
 // a default selection rectangle
 internal inline uint8_t *game_select_rect_at(void) { return (uint8_t *)(uintptr_t)data_game_select_rect; }
 // EEClient/EEServer (lockstep server, slot 6 takes a message); UI checks [+0x10] != 0 and vtable+0x10 before
@@ -266,6 +270,7 @@ internal int spec_game_select(int build) {
         data_game_screen_ready = 0x0091944D;
         data_game_scroll_setting = 0x009193A8;
         data_game_scroll_speed = 0x00918DB0;
+        data_game_grab_setting = 0x009193AC;
         data_game_select_rect = 0x008D2778;
         data_game_server = 0x0091984C;
         data_game_settings = 0x00918EA8;
@@ -365,6 +370,7 @@ internal int spec_game_select(int build) {
         data_game_screen_ready = 0x009308CD;
         data_game_scroll_setting = 0x00930828;
         data_game_scroll_speed = 0x009317F0;
+        data_game_grab_setting = 0x0093082C;
         data_game_select_rect = 0x008E8F18;
         data_game_server = 0x009319C8;
         data_game_settings = 0x00930308;
@@ -471,6 +477,7 @@ internal int spec_game_check(void) {
     bad += spec_data(data_game_screen_ready, "game.screen_ready");
     bad += spec_data(data_game_scroll_setting, "game.scroll_setting");
     bad += spec_data(data_game_scroll_speed, "game.scroll_speed");
+    bad += spec_data(data_game_grab_setting, "game.grab_setting");
     bad += spec_data(data_game_select_rect, "game.select_rect");
     bad += spec_data(data_game_server, "game.server");
     bad += spec_data(data_game_settings, "game.settings");

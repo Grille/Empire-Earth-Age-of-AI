@@ -754,6 +754,7 @@ internal uint32_t data_game_screen;
 internal uint32_t data_game_screen_ready;
 internal uint32_t data_game_scroll_setting;
 internal uint32_t data_game_scroll_speed;
+internal uint32_t data_game_grab_setting;
 internal uint32_t data_game_select_rect;
 internal uint32_t data_game_server;
 internal uint32_t data_game_settings;
