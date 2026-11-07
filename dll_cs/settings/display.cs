@@ -144,6 +144,13 @@ class display
         /// units, the camera and cursor moved, instead of waiting for the step (the picture stood, then jumped, in big
         /// games; the control pipe: picture steps on / off):
         bool draw_during_steps = true;
+        /// The own renderer only, with draw_during_steps: when frames come during the simulation's steps, the
+        /// simulation waits before its next step until a frame has shown the last one's result - only once the
+        /// picture has gone this long without one (ms; a simulation running its steps back to back would otherwise
+        /// starve the picture; 0 = after every step a frame came during, which cost the simulation 8-18% of its time
+        /// in a 450-unit game; the control pipe: picture handoff <ms>):
+        [range(0, 1000)]
+        int step_handoff_ms = 50;
         /// The own renderer only: the units' animation blended by the graphics card - each frame of a model kept there
         /// once, instead of the game blending two frames on the CPU and the renderer uploading the result at every
         /// draw (the control pipe: picture morph on / off):

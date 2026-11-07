@@ -802,6 +802,12 @@ internal void __thiscall rd_hook_read_lock(void *lock) {
 // simulation's next write lock waits for the update that reads the step's result (g_rwl_taken, set after it) - at
 // most RWL_HANDOFF_MS, once (a picture that stopped, minimized, holds nothing up)
 #define RWL_HANDOFF_MS 50
+// ... and only once the picture has gone g_rwl_handoff_after ms ([display] step_handoff_ms) without an update: asked
+// after every step a frame came during, it held the simulation 1000-1500 times a minute in the player's 450-unit
+// game (2026-11-07, their log: 4.5-10.8 s of every minute, 8-18% of its time - the frames come every few ms, nearly
+// every step had one) - the frames between the steps update by themselves unless the steps come back to back
+internal int g_rwl_handoff_after = 50;
+internal LONGLONG g_rwl_update_at;   // the last frame's update with the world (rd_hook_graphics_update)
 internal volatile LONG g_rwl_want;
 internal HANDLE g_rwl_taken;
 internal LONG g_rwl_handoffs;
@@ -893,7 +899,10 @@ internal void __thiscall rd_hook_graphics_update(ee_graphics *g) {
     if (held) g_rwl_claim = 0;
     int rs = g_rwl_updates ? rec_step() : 0, skip = held || rs;
     g_rwl_bare_now = ui == 0 || rs == 2;
-    if (held && g_rwl_taken) { ResetEvent(g_rwl_taken); g_rwl_want = 1; }
+    if (held && g_rwl_taken && rd_qpc() - g_rwl_update_at >= rd_qpc_ms(g_rwl_handoff_after)) {
+        ResetEvent(g_rwl_taken);
+        g_rwl_want = 1;
+    }
     rf_ground_frame(skip);
     if (skip) g_rwl_skips++;
     else g_rwl_updates++;
@@ -904,6 +913,7 @@ internal void __thiscall rd_hook_graphics_update(ee_graphics *g) {
     g_rwl_pass = 0;
     g_rwl_claim = 0;
     if (ui == 1) ui_lock_leave();
+    if (!skip) g_rwl_update_at = rd_qpc();
     if (!skip && g_rwl_taken) SetEvent(g_rwl_taken);
 }
 internal void __thiscall rd_hook_ro_terrain_update(ee_ro_terrain *o) {

@@ -172,6 +172,14 @@ in it, every frame was drawn during a step and the units stood for minutes (1084
 updated from the step's result (at most 50 ms; g_rwl_want, g_rwl_taken) - every step's result is drawn and no frame
 waits for a step. On the 8000 save at speed 4: 62 fps with 9 updates a second, the simulation waiting about 16 ms a
 hand-off (about 7 % less game time than frames that waited for a step every 100 ms).
+Asked after every step a frame came during, the hand-off held the simulation 1000-1500 times a minute in the player's
+450-unit WW1 game (2026-11-07, their log: 4.5-10.8 s of every minute) - the frames come every few ms, so nearly every
+step had one, while the frames between the steps would have updated by themselves. Now it is asked only once the
+picture has gone `[display] step_handoff_ms` (default 50; the pipe: `picture handoff <ms>`, 0 as before) without an
+update. The farm save at speed 2.5, two minutes: 720 hand-offs a minute -> 3-5, the game's pace the same (it kept up
+either way). The 8000 save at speed 4, its steps back to back and each longer than 50 ms: still a hand-off a step (510
+-> 528 a minute), 176 -> 191 game seconds in two minutes. What the simulation still waits for there is a frame's
+draw to end - the buffer of the units' records (no world for the frame to read) is what would take that away.
 Two waits were left behind a step (2026-11-07, the player with the pipe's `stepload 1000`: "the mouse sidescroll lags
 for one second once the sim takes control again ... one mouse click and it freezes once the next simstep comes"). The
 pipe's `profile stacks` (now reading each stack page by page - one read past its end got nothing - and showing only
