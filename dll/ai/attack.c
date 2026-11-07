@@ -782,6 +782,59 @@ internal int route_danger(ee_player *pl, int fx, int fy, int tx, int ty) {
 internal int g_cit_threats = 1;   // [ai_base] citizen_threats (below, DAMAGE MEMORY)
 internal int cv_mem_raider(ee_player *pl, ivec2 p, int r0, int rmax);   // cover.c threat_memory: a remembered one
 internal void cv_mem_threats(ee_player *pl, unsigned pi);
+// BEHIND THE WALLS ([ai_base] behind_walls, default 0 until measured; the player 2026-11-07: a few riders passing must
+// not stop the economy, and walls are what keeps them out - some units fire over one, ships don't). An enemy soldier
+// in reach of a place doesn't count when it can't get at it: it can't walk there - the reach map (game/reachmap.c:
+// walls, buildings, trees and water between, its own and its allies' gates open to it, an AI's shut) puts its tile and
+// the place in two of its walking regions; ships never walk - and it can't shoot there: it fights hand to hand, or it
+// can't fire over a wall (the type's high_arc, the stats' lob: docs/engine-notes.md "Walls and fire") and a wall
+// stands on its line of fire (line_of_fire_at_game, the game's own from a tile: only objects with is_wall block it).
+// A wall broken open joins the regions again (the reach map's scan, every tile within 2 s). No reach map (a map over
+// 1024 tiles) or a tile off walkable land: it counts as before.
+internal int g_behind_walls = 0;
+internal unsigned g_bw_out[16];   // enemies within reach taken for walled out (the # citizens log)
+internal int walled_out(ee_player *pl, ivec2 from, ee_unit_type *td, ee_unit_stats *st, int owner, ivec2 p) {
+    if (!g_behind_walls || !pl || !td || owner <= 0 || owner >= RM_PLAYERS) return 0;
+    if (unit_type_get_high_arc(td) || (st && unit_stats_get_lob(st))) return 0;   // fires over a wall
+    int fam = unit_type_get_class_id(td);
+    if (fam == CLS_LAND) {   // it walks: not to p
+        int a = rm_node_region_of(owner, rm_node_near(from.x, from.y)), b = rm_node_region_of(owner, rm_node_near(p.x, p.y));
+        if (a < 0 || b < 0 || a == b) return 0;
+    } else if (fam != CLS_NAVAL && fam != CLS_SUBMERGED_NAVAL) return 0;
+    float rng = st ? unit_stats_get_range(st) : unit_type_get_range(td);
+    ee_unit *w = NULL; uint32_t sx = 0, sy = 0;
+    if (rng >= 2.0f && !(line_of_fire_at_game((uint32_t)from.x, (uint32_t)from.y, (uint32_t)p.x, (uint32_t)p.y, &w, &sx, &sy) && w))
+        return 0;   // a shooter with a clear line
+    g_bw_out[player_get_index(pl) & 15]++;
+    return 1;
+}
+internal void *st_player(int i);   // stats.c
+// behind P x y [r]: the enemy soldiers P sees within r tiles of x y (default 20) - those that can't get at it, by why
+internal void cmd_behind(char *out, const char *args) {
+    int p = -1, x = -1, y = -1, r = 20;
+    sscanf(args, "%d %d %d %d", &p, &x, &y, &r);
+    ee_player *pl = p > 0 && p < 16 ? st_player(p) : NULL;
+    if (!pl || x < 0 || y < 0) { REPLY("error: behind P x y [r]\n"); return; }
+    int on = g_behind_walls, seen = 0, out_n = 0;
+    unsigned before = g_bw_out[p];
+    g_behind_walls = 1;
+    REPLY("behind_walls=%d P%d at %d,%d (region %d for P%d):", on, p, x, y, rm_node_region_of(p, rm_node_near(x, y)), p);
+    for (struct grid_it it = grid_it_box(x, y, r, 1); grid_it_next(&it); ) {
+        ee_unit *u = it.u; ee_unit_type *td = it.td; ee_player *o = unit_get_owner(u);
+        if (!td || unit_get_hp(u) <= 0 || unit_type_get_attack(td) <= 0 || is_citizen_type(unit_type_get_id(td))) continue;
+        if (!o || player_get_index(o) <= 0 || !is_enemy(pl, o) || !seen_by(u, pl)) continue;
+        if (abs(unit_get_x(u) - x) > r || abs(unit_get_y(u) - y) > r) continue;
+        seen++;
+        int oi = player_get_index(o), out1 = walled_out(pl, unit_get_tile(u), td, unit_get_stats(u), oi, iv2(x, y));
+        out_n += out1;
+        if (seen <= 16)
+            REPLY(" [type %d P%d at %d,%d region %d: %s]", unit_type_get_id(td), oi, unit_get_x(u), unit_get_y(u),
+                  rm_node_region_of(oi, rm_node_near(unit_get_x(u), unit_get_y(u))), out1 ? "walled out" : "counts");
+    }
+    g_behind_walls = on;
+    g_bw_out[p] = before;
+    REPLY(" - seen %d, walled out %d\n", seen, out_n);
+}
 internal int raiders_near(ee_player *pl, ivec2 p, int r0) {
     int rmax = g_cit_threats ? RAID_FAR : RAID_MAX;
     int r = r0 > rmax ? r0 : rmax;   // the search box; each unit then by its own reach
@@ -801,7 +854,7 @@ internal int raiders_near(ee_player *pl, ivec2 p, int r0) {
         if (reach < r0) reach = r0;
         if (abs(unit_get_x(u) - p.x) > reach || abs(unit_get_y(u) - p.y) > reach) continue;
         ee_player *o = unit_get_owner(u);   // not nature (player 0: wild animals)
-        if (o && player_get_index(o) > 0 && is_enemy(pl, o) && seen_by(u, pl)) return 1;
+        if (o && player_get_index(o) > 0 && is_enemy(pl, o) && seen_by(u, pl) && !walled_out(pl, unit_get_tile(u), td, st, player_get_index(o), p)) return 1;
     }
     return 0;
 }
@@ -1114,9 +1167,9 @@ internal void citizens_safety(ee_resource_mgr *rm) {   // before the citizen ass
         logged[idx] = now;
         char ks[64] = "";
         for (int j = 0; j < 4 && kinds[j][1]; j++) { size_t l = strlen(ks); snprintf(ks + l, sizeof ks - l, " %dx%d", kinds[j][0], kinds[j][1]); }
-        fprintf(g_log, "# citizens: P%u at %.1f min: %d sent back from sites near enemy towers or raiders (site type x count:%s; %u in all, %u dangerous sites refused, %u repairs refused, %u hurt; repairs refused with a citizen on its way %u, by an unsafe way %u; kept at work, the town holds %u)\n",
+        fprintf(g_log, "# citizens: P%u at %.1f min: %d sent back from sites near enemy towers or raiders (site type x count:%s; %u in all, %u dangerous sites refused, %u repairs refused, %u hurt; repairs refused with a citizen on its way %u, by an unsafe way %u; kept at work, the town holds %u; enemies walled out %u)\n",
                 idx, now / 60000.0, sent, ks, g_cit_stats[idx].sent, g_site_refused[idx], g_repair_refused[idx], g_hurt_count[idx],
-                g_repair_walking[idx], g_repair_unsafe[idx], g_cit_stats[idx].held);
+                g_repair_walking[idx], g_repair_unsafe[idx], g_cit_stats[idx].held, g_bw_out[idx]);
     }
 }
 
@@ -1832,6 +1885,7 @@ internal void attack_install(void) {
     g_avoid_citizens = g_set_ai[1].avoid_towers_citizens;
     g_cit_threats = g_set_ai[1].citizen_threats;
     g_hurt_short = g_set_ai[1].hurt_seen_short;
+    g_behind_walls = g_set_ai[1].behind_walls;
     g_repair_one = g_set_ai[1].repair_one_walker;
     g_repair_way = g_set_ai[1].repair_safe_way;
     g_danger_routes = g_set_ai[1].danger_routes;

@@ -220,6 +220,12 @@ class ai_base
         /// was seen - its own reach covers the rest); hurt by what it can't see (artillery from the fog, aircraft) still
         /// 2 minutes. 1 = on (default, measured with raid_held)
         bool hurt_seen_short = true;
+        /// Enemies behind its walls: where its own walls close off the land around its town (or its island's coast), an
+        /// enemy outside them no longer keeps the citizens inside from their work if it can't get at them - one that
+        /// fights hand to hand, or a shooter whose line of fire a wall blocks (crossbows, guns, ships). Bowmen, slingers,
+        /// trebuchets and catapults fire over a wall and still count; a wall broken open lets them all in again.
+        /// 0 = off (default until measured)
+        bool behind_walls = false;
         /// Danger routes: the AI keeps a map of where its enemies can reach (their defences it has seen, soldiers and warships
         /// it sees at their reach, where its citizens were hurt lately), and its units that can't fight - citizens, fishing
         /// boats, transports - take their way round those tiles where there is one, through only where there is none (with

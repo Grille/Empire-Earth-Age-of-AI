@@ -198,7 +198,7 @@ internal int cv_mem_raider(ee_player *pl, ivec2 p, int r0, int rmax) {
         int reach = rng > 0.0f && rng < 30.0f ? (int)(rng + 0.5f) + RAID_MARGIN : 0;
         if (reach > rmax) reach = rmax;
         if (reach < r0) reach = r0;
-        if (abs(e->x - p.x) <= reach && abs(e->y - p.y) <= reach) return 1;
+        if (abs(e->x - p.x) <= reach && abs(e->y - p.y) <= reach && !walled_out(pl, iv2(e->x, e->y), td, st, e->owner, p)) return 1;
     }
     return 0;
 }
