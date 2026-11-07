@@ -275,6 +275,14 @@ internal int ld_tile_free(ivec2 p) {
         if (abs(unit_get_x(it.u) - p.x) <= 1 && abs(unit_get_y(it.u) - p.y) <= 1) return 0;
     return 1;
 }
+internal int ld_tile_free_by_walls(ivec2 p) {   // the same, wall pieces beside it allowed (the boarding inside a walled coast)
+    ee_map *map = game_map();
+    ee_grid *grid = map ? map_get_grid(map) : NULL;
+    if (!grid || p.x < 1 || p.y < 1) return 0;
+    for (struct grid_it it = grid_it_box(p.x, p.y, 3, 1); grid_it_next(&it); )
+        if (abs(unit_get_x(it.u) - p.x) <= 1 && abs(unit_get_y(it.u) - p.y) <= 1 && !(it.td && unit_type_get_is_wall(it.td))) return 0;
+    return 1;
+}
 
 internal unsigned ocean_near(ivec2 p, int r, ivec2 *w) {   // an ocean id within r tiles (and that tile, w may be NULL)
     for (int d = 1; d <= r; d++)
@@ -1627,14 +1635,29 @@ internal int ld_phase_ships(ee_player *pl, unsigned pi, struct landing *l, ee_un
         for (int k = 0; k < l->npass; k++) { px += unit_get_x(l->pass[k]); py += unit_get_y(l->pass[k]); pn++; }
         int x0 = (int)(px / pn), y0 = (int)(py / pn), found = 0;
         unsigned cont = area_id(unit_get_tile(l->pass[0]), 2);
+        // not behind a wall (a walled coast, enclose): the step to the water crosses no wall piece, and the passengers
+        // can walk there (the reach map, the own gates open) - on a walled coast the dock pockets' shore, through their
+        // gates (a Small Islands coast walled: 450 of 534 boardings failed, the meeting point behind the wall)
+        int owner = player_get_index(pl), home = rm_region_of(owner, unit_get_x(l->pass[0]), unit_get_y(l->pass[0]));
+        int n_land = 0, n_free = 0, n_sea = 0, n_wall = 0, n_reg = 0;   // why none: the tiles each test turned away
         for (int d = 0; d <= 40 && !found; d++)
             for (int dx = -d; dx <= d && !found; dx++)
                 for (int dy = -d; dy <= d && !found; dy += (abs(dx) == d || !d ? 1 : 2 * d)) {
                     ivec2 q = iv2(x0 + dx, y0 + dy), w;
-                    if (area_id(q, 2) != cont || area_id(q, 1) || !ld_tile_free(q)) continue;
-                    if ((int)ocean_near(q, 2, &w) != l->ocean) continue;
+                    if (area_id(q, 2) != cont || area_id(q, 1)) { n_land++; continue; }
+                    if (!ld_tile_free_by_walls(q)) { n_free++; continue; }   // a coast wall beside it: the next test's
+                    if ((int)ocean_near(q, 2, &w) != l->ocean) { n_sea++; continue; }
+                    int walled = 0;
+                    for (int j = 0; j < 4 && !walled; j++) walled = encl_walled(q.x + (w.x - q.x) * j / 4, q.y + (w.y - q.y) * j / 4);
+                    if (walled) { n_wall++; continue; }
+                    int there = home >= 0 ? rm_region_of(owner, q.x, q.y) : -1;
+                    if (there >= 0 && there != home) { n_reg++; continue; }
                     l->board = q; l->board_w = w; found = 1;
                 }
+        if (!found && g_log)
+            fprintf(g_log, "# landing: P%u at %.1f min: no meeting point near %d,%d - turned away: other land or water %d, taken %d, not by the sea %d, "
+                           "a wall to the water %d, out of the passengers' reach %d (their region %d)\n",
+                    pi, now / 60000.0, x0, y0, n_land, n_free, n_sea, n_wall, n_reg, home);
         l->meet = found;
         if (!found) l->gathered = 1;   // none: board where they are
         // citizens for the bridgehead (the user: "a few citizens for a defended bridgehead"): the nearest to the

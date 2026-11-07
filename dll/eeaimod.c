@@ -111,6 +111,7 @@ internal void mt_new_game(void);   // metal.c
 internal void army_plan_tick(ee_player *pl, unsigned idx, uint32_t now);
 internal void ap_install(const char *autotest_ini);
 internal void early_new_game(void);   // early.c
+internal void site_forts_new_game(void);   // defence.c
 internal void landing_tick(ee_player *pl, uint32_t now);
 internal void navy_tick(ee_player *pl, uint32_t now);
 internal void intel_tick(ee_player *pl, uint32_t now);
@@ -347,6 +348,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
     navy_new_game();
     bunker_new_game();
     early_new_game();
+    site_forts_new_game();
     food_new_game();
     mines_new_game();
     cz_new_game();

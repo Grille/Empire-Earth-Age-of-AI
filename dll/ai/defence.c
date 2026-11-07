@@ -149,7 +149,17 @@ internal void def_refresh(ee_player *pl, unsigned idx, uint32_t now) {
 // ring's stone (up to 40 pieces), and the economy puts workers on stone for it (econ.c, encl_stone).
 #define ENCL_RING 2048
 #define ENCL_ISLAND 8000
-internal int g_encl = 0, g_encl_from = 40, g_encl_runs = 1, g_encl_flight = 0, g_encl_ships = 0;
+#define ENCL_SAFE 9
+internal int g_encl_safe = 0;
+internal int g_encl = 0, g_encl_from = 40, g_encl_runs = 1, g_encl_flight = 0, g_encl_ships = 0, g_encl_docks = 0;
+// DOCK POCKETS (enclose_dock_gates; the player 2026-11-07: "a small open section with a gate that has space for docks and
+// boarding, or several on larger islands"): the coast within 2 tiles of an own dock stays open for its builders and the
+// ships; with this the opening is ENCL_POCKET - 1 tiles each way - room beside the dock for the landings' boarding (the
+// dock filled the 2 tiles: on a walled Small Islands coast 28 of 56 boardings found no meeting point, every free tile by
+// the sea taken) - and the pocket gets a wall of its own on the land side - the land tiles ENCL_POCKET tiles round the
+// dock (a square, joining the coast's ring at both ends) - and a gate in the middle of its side towards the town once
+// that side stands: what lands in the pocket meets the gate.
+#define ENCL_POCKET 5
 internal struct encl {
     ee_player *pl; uint32_t t, log_t; int island, r, tiles, walled;
     int nring; int16_t rx[ENCL_RING], ry[ENCL_RING];   // in build order
@@ -159,6 +169,7 @@ internal struct encl {
     unsigned runs, pieces, gates;
     int stone;   // the open ring's walls (the wall it builds now)
     int ready;   // citizens enough for the walls (enclose_citizens), at the last tick
+    int safe, mines, safe_mines, sheltered;   // safe space: land and mines beyond ENCL_SAFE of the sea; enough of it
     unsigned skip_pend, skip_fire, skip_raid, skip_stone, skip_econ;   // DIAG: why the scans since the last log ordered nothing
 } g_encs[16];
 
@@ -246,12 +257,63 @@ internal void encl_plan(ee_player *pl, unsigned idx, struct def_plan *p, uint32_
             e->tiles = qn;
             e->island = !over;
         }
-        for (int h = 0; e->island && h < qn && nk < ENCL_RING; h++) {
+        // SAFE SPACE (enclose_safe_share; the player 2026-11-07: walling a large island is too much, there is safe space
+        // inland - "the question the AI has to ask is if it has enough safe space to build without walling in"): its land
+        // tiles beyond ENCL_SAFE tiles of the sea (no ship reaches them), by a walk inward from the coast, and the mines
+        // (stone, gold, iron) on them. With at least enclose_safe_tiles of them the coast isn't walled (2026-11-07: Small
+        // Islands 40 and 152 of 472 / 437, Large Islands 297 and 378 of 983 / 900)
+        e->safe = e->safe_mines = e->mines = 0;
+        uint8_t *dist = e->island && qn > 0 ? calloc((size_t)n * (size_t)n, 1) : NULL;
+        if (dist) {
+            static int16_t wx[ENCL_ISLAND], wy[ENCL_ISLAND];
+            int wn = 0;
+            for (int h = 0; h < qn; h++) dist[qy[h] * n + qx[h]] = 0xFF;   // the land, not reached yet
+            for (int h = 0; h < qn; h++)
+                if (encl_coast(iv2(qx[h], qy[h]))) { dist[qy[h] * n + qx[h]] = 1; wx[wn] = qx[h]; wy[wn++] = qy[h]; }
+            for (int h = 0; h < wn; h++)
+                for (int dx = -1; dx <= 1; dx++)
+                    for (int dy = -1; dy <= 1; dy++) {
+                        int x = wx[h] + dx, y = wy[h] + dy;
+                        if (x < 0 || y < 0 || x >= n || y >= n || dist[y * n + x] != 0xFF || wn >= ENCL_ISLAND) continue;
+                        dist[y * n + x] = (uint8_t)(dist[wy[h] * n + wx[h]] + 1 < 0xFE ? dist[wy[h] * n + wx[h]] + 1 : 0xFE);
+                        wx[wn] = (int16_t)x; wy[wn++] = (int16_t)y;
+                    }
+            for (int h = 0; h < qn; h++) e->safe += dist[qy[h] * n + qx[h]] > ENCL_SAFE;
+            ee_zone **zb = player_get_zones_begin(pl), **ze = player_get_zones_end(pl);   // the mines it knows
+            for (int z = 0; zb && zb + z < ze; z++)
+                for (int t = 4; zb[z] && t < 7; t++) {
+                    ee_unit *ms = zone_site(zb[z], t);
+                    int x = ms ? unit_get_x(ms) : -1, y = ms ? unit_get_y(ms) : -1;
+                    if (x < 0 || y < 0 || x >= n || y >= n || !dist[y * n + x]) continue;
+                    e->mines++;
+                    e->safe_mines += dist[y * n + x] > ENCL_SAFE;
+                }
+            free(dist);
+        }
+        e->sheltered = e->island && g_encl_safe > 0 && e->safe >= g_encl_safe;
+        if (e->sheltered) e->island = 0, nk = 0;   // no coast ring: enough room out of the ships' reach
+        for (int h = 0; e->island && h < qn && nk < ENCL_RING; h++) {   // the coast
             ivec2 q = iv2(qx[h], qy[h]);
             if (encl_land(q, hc, n) && encl_coast(q)) { k[nk].x = (int16_t)q.x; k[nk++].y = (int16_t)q.y; }
         }
+        for (int d = 0; e->island && g_encl_docks && d < s.nd && d < 4; d++) {   // the dock pockets' walls and gates
+            ivec2 o = s.d[d];
+            for (int dx = -ENCL_POCKET; dx <= ENCL_POCKET; dx++)
+                for (int dy = -ENCL_POCKET; dy <= ENCL_POCKET && nk < ENCL_RING; dy++) {
+                    if (abs(dx) != ENCL_POCKET && abs(dy) != ENCL_POCKET) continue;
+                    ivec2 q = iv2(o.x + dx, o.y + dy);
+                    int dup = 0;
+                    for (int j = 0; j < nk && !dup; j++) dup = k[j].x == q.x && k[j].y == q.y;
+                    if (!dup && encl_land(q, hc, n)) { k[nk].x = (int16_t)q.x; k[nk++].y = (int16_t)q.y; }
+                }
+            int gx = b.x - o.x, gy = b.y - o.y;   // the side towards the town; gate_fits' dir along it
+            ivec2 g = abs(gx) >= abs(gy) ? iv2(o.x + (gx > 0 ? ENCL_POCKET : -ENCL_POCKET), o.y) : iv2(o.x, o.y + (gy > 0 ? ENCL_POCKET : -ENCL_POCKET));
+            if (!encl_land(g, hc, n)) continue;
+            e->gate[e->ngate].x = (int16_t)g.x; e->gate[e->ngate].y = (int16_t)g.y;
+            e->gate[e->ngate].dir = (uint8_t)(abs(gx) >= abs(gy) ? 2 : 1); e->gate[e->ngate++].tries = 0;
+        }
     }
-    if (!e->island) {   // the octagon around the town
+    if (!e->island && !e->sheltered) {   // the octagon around the town (not on land with safe room enough)
         int reach = 0;
         for (int i = 0; i < s.nb; i++) {
             int dx = abs(s.b[i].x - b.x), dy = abs(s.b[i].y - b.y), d = dx > dy ? dx : dy;
@@ -284,7 +346,8 @@ internal void encl_plan(ee_player *pl, unsigned idx, struct def_plan *p, uint32_
     int m = 0;   // open at the docks; the rest by distance to the nearest own building
     for (int i = 0; i < nk; i++) {
         int open = 0, best = 0x7FFFFFFF;
-        for (int d = 0; d < s.nd && !open; d++) open = abs(s.d[d].x - k[i].x) <= 2 && abs(s.d[d].y - k[i].y) <= 2;
+        int wide = e->island && g_encl_docks ? ENCL_POCKET - 1 : 2;
+        for (int d = 0; d < s.nd && !open; d++) open = abs(s.d[d].x - k[i].x) <= wide && abs(s.d[d].y - k[i].y) <= wide;
         if (open) continue;
         for (int j = 0; j < s.nb; j++) {
             int d2 = ivec2_dist2(s.b[j], iv2(k[i].x, k[i].y));
@@ -361,9 +424,11 @@ internal void encl_plan(ee_player *pl, unsigned idx, struct def_plan *p, uint32_
             }
         fprintf(g_log, "# enclose diag: P%u open ring tiles: %d placeable, %d hold an object, %d bare but refused; the land's edges: %d ocean, %d no area, %d another land\n",
                 idx, place, obj, bare, nb_ocean, nb_none, nb_other);
-        fprintf(g_log, "# enclose: P%u at %.1f min: %s (continent %d tiles%s), ring %d tiles, %d walled, tower spots %d, gates %d, docks %d; runs %u, pieces %u, gates built %u; skipped: pending %u, tower fire %u, enemies near %u, no stone %u, few citizens %u\n",
-                idx, now / 60000.0, e->island ? "island" : "town ring", e->tiles, e->island ? "" : s.enemy ? ", an enemy on it" : " or more",
-                m, walled, e->nslot, e->ngate, s.nd, e->runs, e->pieces, e->gates, e->skip_pend, e->skip_fire, e->skip_raid, e->skip_stone, e->skip_econ);
+        fprintf(g_log, "# enclose: P%u at %.1f min: %s (continent %d tiles%s), ring %d tiles, %d walled, tower spots %d, gates %d, docks %d; runs %u, pieces %u, gates built %u; skipped: pending %u, tower fire %u, enemies near %u, no stone %u, few citizens %u; safe space %d of %d tiles, mines %d of %d%s\n",
+                idx, now / 60000.0, e->sheltered ? "island, safe room enough" : e->island ? "island" : "town ring", e->tiles,
+                e->island || e->sheltered ? "" : s.enemy ? ", an enemy on it" : " or more",
+                m, walled, e->nslot, e->ngate, s.nd, e->runs, e->pieces, e->gates, e->skip_pend, e->skip_fire, e->skip_raid, e->skip_stone, e->skip_econ,
+                e->safe, e->tiles, e->safe_mines, e->mines, e->sheltered ? " - no ring" : "");
         e->skip_pend = e->skip_fire = e->skip_raid = e->skip_stone = e->skip_econ = 0;
     }
 }
@@ -541,9 +606,10 @@ internal int gate_fits(ee_player *pl, int x, int y, int dir) {
 // econ.c: the stone the ring still needs - its open walls, and once there is a ring 200 for repairs (0: enclose off).
 // Without it nobody mined stone on a finished ring (the walls owed nothing, few towers asked) and the pieces the
 // enemy broke from minute 35 stayed open: its soldiers, stranded on the beach since minute 20, walked in.
-internal int encl_stone(ee_player *pl) {
+internal int sf_stone(ee_player *pl);   // site forts: the stone the fort being built still needs
+internal int encl_stone(ee_player *pl) {   // with the site forts' (econ.c staffs stone for it)
     struct encl *e = pl ? &g_encs[(unsigned)player_get_index(pl) & 15] : NULL;
-    return g_encl && e && e->pl == pl && e->nring && e->ready ? e->stone + 200 : 0;   // not before the walls start
+    return (g_encl && e && e->pl == pl && e->nring && e->ready ? e->stone + 200 : 0) + sf_stone(pl);   // the ring not before its walls start
 }
 internal int encl_owed(ee_player *pl) {   // the open walls' stone alone: the extra towers wait for it
     struct encl *e = pl ? &g_encs[(unsigned)player_get_index(pl) & 15] : NULL;
@@ -674,6 +740,165 @@ internal void encl_walls(ee_player *pl, unsigned idx, struct def_plan *p, void *
     }
 }
 
+// SITE FORTS ([ai_base] site_forts, forts per AI, default 0 until measured; the player 2026-11-07 with a picture: a mine
+// in a small square, a tower at each corner, walls between them, one side closed by a building with a gap - "walling
+// the whole island is hard ... could also be useful on land maps", decided by the place, not the map's kind). Every 20 s
+// (defence_tick): while it has fewer forts than site_forts and none is being built, the mine (stone, gold, iron) the
+// most of its citizens work - at least SF_MIN - gets one, sea within CT_SEA tiles (ships reach it) or citizens hurt by
+// it in the last 2 minutes counting SF_EXPOSED more; none within 2 x SF_R of another fort. Its square SF_R tiles round
+// the mine: the four corner towers first (one at a time through the build queue, as the own towers), then the walls of
+// the three sides away from the base point, run by run where a piece can stand; the side towards the base stays open
+// for the citizens, its corners' towers over it. Ships' fire stops at the walls (docs/engine-notes.md "Walls and
+// fire"), raiders come in only by the open side.
+#define SF_MAX 6
+#define SF_R 4
+#define SF_MIN 2
+#define SF_EXPOSED 4
+internal int g_site_forts = 0;
+internal struct sfort { int x, y, open, towers, tries; uint32_t t; } g_sf[16][SF_MAX];
+internal int g_sf_n[16];
+internal unsigned g_sf_towers[16], g_sf_runs[16];
+internal void sf_corner(const struct sfort *f, int k, int *x, int *y) {   // 0 (-,-), 1 (+,-), 2 (+,+), 3 (-,+)
+    *x = f->x + (k == 1 || k == 2 ? SF_R : -SF_R);
+    *y = f->y + (k >= 2 ? SF_R : -SF_R);
+}
+internal int sf_pick(ee_player *pl, unsigned idx, uint32_t now) {   // a new fort's mine: 1 found
+    void *cm = player_get_civ_mgr(pl);
+    ee_resource_mgr *rm = cm ? civ_mgr_get_resource_mgr(cm) : NULL;
+    void *bmv = cm ? civ_mgr_get_build_mgr(cm) : NULL;
+    ee_build_mgr *bm = bmv;
+    if (!rm || !bm || build_mgr_get_base_x(bm) == -10000) return 0;
+    static struct { ee_unit *s; int n; } c[64];
+    int nc = 0;
+    for (int r = 4; r < 7; r++) {
+        uint8_t *list = resource_mgr_list_at(rm, r);
+        for (unsigned k = 0, first = deque_front(list), cnt = deque_count(list); k < cnt && k < 1024; k++) {
+            ee_unit *u = deque_at(list, first + k);
+            ee_goal *goal = u && unit_get_hp(u) > 0 ? unit_get_goal(u) : NULL;
+            ee_unit *site = goal && !strcmp(rtti_name(goal), "EEUGGather@@") ? goal_get_site(goal) : NULL;
+            if (!site) continue;
+            int j = 0;
+            while (j < nc && c[j].s != site) j++;
+            if (j == nc) { if (nc == 64) continue; c[nc].s = site; c[nc++].n = 0; }
+            c[j].n++;
+        }
+    }
+    int best = -1, bscore = 0, bx = 0, by = 0, bsea = 0, bhurt = 0;
+    for (int j = 0; j < nc; j++) {
+        if (c[j].n < SF_MIN) continue;
+        ee_unit_type *td = unit_get_type_data(c[j].s);
+        int sz = td ? unit_type_get_size(td) : 0, x = unit_get_x(c[j].s) + (sz > 1 && sz < 8 ? sz / 2 : 0), y = unit_get_y(c[j].s) + (sz > 1 && sz < 8 ? sz / 2 : 0);
+        int taken = 0;
+        for (int f = 0; f < g_sf_n[idx] && !taken; f++) taken = abs(g_sf[idx][f].x - x) < 2 * SF_R && abs(g_sf[idx][f].y - y) < 2 * SF_R;
+        if (taken) continue;
+        int sea = 0;
+        for (int dx = -CT_SEA; dx <= CT_SEA && !sea; dx++)
+            for (int dy = -CT_SEA; dy <= CT_SEA && !sea; dy++) sea = dx * dx + dy * dy <= CT_SEA * CT_SEA && map_area(iv2(x + dx, y + dy), 1);
+        int hurt = hurt_near(idx, x, y) > 0, score = c[j].n + (sea || hurt ? SF_EXPOSED : 0);
+        if (score > bscore) { bscore = score; best = j; bx = x; by = y; bsea = sea; bhurt = hurt; }
+    }
+    if (best < 0) return 0;
+    struct sfort *f = &g_sf[idx][g_sf_n[idx]++];
+    memset(f, 0, sizeof *f);
+    f->x = bx; f->y = by; f->t = now ? now : 1;
+    int gx = build_mgr_get_base_x(bm) - bx, gy = build_mgr_get_base_y(bm) - by;   // the side towards the base: 0 -x, 1 +x, 2 -y, 3 +y
+    f->open = abs(gx) >= abs(gy) ? (gx < 0 ? 0 : 1) : (gy < 0 ? 2 : 3);
+    if (g_log) fprintf(g_log, "# fort: P%u at %.1f min: fort %d round the mine (type %d) at %d,%d - %d at work%s%s, open towards the base (side %d)\n",
+                       idx, now / 60000.0, g_sf_n[idx], unit_type_get_id(unit_get_type_data(c[best].s)), bx, by, c[best].n,
+                       bsea ? ", the sea in a ship's reach" : "", bhurt ? ", citizens hurt by it" : "", f->open);
+    return 1;
+}
+// the fort's towers and walls, one order a tick: 1 ordered or waiting
+internal int sf_build(ee_player *pl, unsigned idx, struct sfort *f, ee_build_mgr *bm, void *wm, const int *stock, uint32_t now) {
+    int ttype = tower_newest(pl), e = current_epoch(pl);
+    if (f->towers < 4) {   // the corner towers
+        if (!ttype || tower_queued(bm) || stock[4] < unit_cost(pl, ttype, 4) + 100 || e < 0 || e >= 14) {
+            static uint32_t logged[16];
+            if (g_log && (!logged[idx] || now - logged[idx] >= 120000)) {
+                logged[idx] = now ? now : 1;
+                fprintf(g_log, "# fort: P%u waits for its corner tower %d: tower type %d, %s, stone %d of %d\n", idx, f->towers, ttype,
+                        tower_queued(bm) ? "a tower queued" : "none queued", stock[4], ttype ? unit_cost(pl, ttype, 4) + 100 : 0);
+            }
+            return 1;
+        }
+        int cx, cy;
+        sf_corner(f, f->towers, &cx, &cy);
+        for (int r = 0; r <= 1; r++)
+            for (int ax = -r; ax <= r; ax++)
+                for (int ay = -r; ay <= r; ay++) {
+                    if ((abs(ax) != r && abs(ay) != r) || !can_place(pl, ttype, iv2(cx + ax, cy + ay))) continue;
+                    int entry[3] = { ttype, cx + ax, cy + ay };
+                    build_mgr_queue_add(bm, e, entry);
+                    g_sf_towers[idx]++;
+                    if (g_log) fprintf(g_log, "# fort: P%u tower %d at %d,%d (corner %d of the fort at %d,%d)\n", idx, ttype, cx + ax, cy + ay, f->towers, f->x, f->y);
+                    f->towers++;
+                    return 1;
+                }
+        f->towers++;   // no room at that corner: the next
+        return 1;
+    }
+    static const enum ut_name wline[] = { UT_WALL_LINE };
+    int wtype = 0;
+    for (int i = 5; i >= 0 && !wtype; i--) if (ut_has(g_ut[wline[i]]) && can_build(pl, g_ut[wline[i]])) wtype = g_ut[wline[i]];
+    if (!wtype || f->tries >= 12) return 0;
+    static const int sides[4][2] = { { 3, 0 }, { 1, 2 }, { 0, 1 }, { 2, 3 } };   // side 0 -x .. 3 +y: its corners
+    for (int sd = 0; sd < 4; sd++) {
+        if (sd == f->open) continue;
+        int ax, ay, bx, by;
+        sf_corner(f, sides[sd][0], &ax, &ay);
+        sf_corner(f, sides[sd][1], &bx, &by);
+        int dx = bx > ax ? 1 : bx < ax ? -1 : 0, dy = by > ay ? 1 : by < ay ? -1 : 0, len = abs(bx - ax) > abs(by - ay) ? abs(bx - ax) : abs(by - ay);
+        int rs = -1, best_s = -1, best_l = 0;   // the longest run of free tiles between the corners' towers
+        for (int j = 2; j <= len - 1; j++) {
+            int x = ax + dx * j, y = ay + dy * j, free_ = !encl_walled(x, y) && can_place(pl, wtype, iv2(x, y)) && j < len - 1;
+            if (free_ && rs < 0) rs = j;
+            if (!free_ && rs >= 0) { if (j - rs > best_l) { best_l = j - rs; best_s = rs; } rs = -1; }
+        }
+        if (best_l < 1) continue;
+        int most = 12;
+        for (int r = 2; r < 7; r++) {
+            int c = unit_cost(pl, wtype, r), have = stock[r] - (r == 4 ? 100 : 0);
+            if (c > 0 && have / c < most) most = have / c;
+        }
+        if (most < 1) return 1;
+        if (best_l > most) best_l = most;
+        int a[2] = { ax + dx * best_s, ay + dy * best_s }, b[2] = { ax + dx * (best_s + best_l - 1), ay + dy * (best_s + best_l - 1) };
+        build_wall(wm, a, b, wtype);
+        f->tries++;
+        g_sf_runs[idx]++;
+        if (g_log) fprintf(g_log, "# fort: P%u wall %d from %d,%d to %d,%d (side %d of the fort at %d,%d)\n", idx, wtype, a[0], a[1], b[0], b[1], sd, f->x, f->y);
+        return 1;
+    }
+    (void)now;
+    return 0;   // its walls stand (or can't)
+}
+internal void site_forts_tick(ee_player *pl, unsigned idx, ee_build_mgr *bm, void *wm, const int *stock, uint32_t now) {
+    if (!g_site_forts) return;
+    int busy = 0;
+    for (int f = 0; f < g_sf_n[idx] && !busy; f++)
+        if (now - g_sf[idx][f].t < 1800000) busy = sf_build(pl, idx, &g_sf[idx][f], bm, wm, stock, now);   // 30 minutes a fort
+    if (!busy && g_sf_n[idx] < g_site_forts && g_sf_n[idx] < SF_MAX) sf_pick(pl, idx, now);
+}
+internal void site_forts_new_game(void) { memset(g_sf_n, 0, sizeof g_sf_n); }
+internal int sf_busy(unsigned idx, uint32_t now) {   // a fort being built (its towers or walls not all ordered)
+    for (int f = 0; f < g_sf_n[idx & 15]; f++)
+        if (now - g_sf[idx & 15][f].t < 1800000 && (g_sf[idx & 15][f].towers < 4 || g_sf[idx & 15][f].tries < 3)) return 1;
+    return 0;
+}
+internal int sf_stone(ee_player *pl) {   // the towers still to order and three sides of walls, about
+    if (!g_site_forts || !pl) return 0;
+    unsigned idx = (unsigned)player_get_index(pl) & 15;
+    uint32_t now = game_time();
+    int ttype = tower_newest(pl), need = 0;
+    for (int f = 0; f < g_sf_n[idx]; f++) {
+        struct sfort *o = &g_sf[idx][f];
+        if (now - o->t >= 1800000) continue;
+        need += (4 - o->towers) * (ttype ? unit_cost(pl, ttype, 4) : 150);
+        if (o->tries < 3) need += 3 * (2 * SF_R - 3) * 10;   // a piece of wall about 10 stone
+    }
+    return need;
+}
+
 // Walls: per AI every 20 s (econ_tick). Best wall type the player can build now (0x555710: available, affordable).
 internal void defence_tick(ee_player *pl, unsigned idx, uint32_t now) {
     static uint32_t last[16];
@@ -691,7 +916,7 @@ internal void defence_tick(ee_player *pl, unsigned idx, uint32_t now) {
     // stone in stock - stone has hardly another use). While a slot of the plan is free and the stone allows (100 kept
     // back), one tower per minute goes into the build queue with its position; nothing while one is still queued.
     static uint32_t last_tower[16];
-    if (g_def_more && (!last_tower[idx] || now < last_tower[idx] || now - last_tower[idx] >= 60000)) {
+    if (g_def_more && !(g_site_forts && sf_busy(idx, now)) && (!last_tower[idx] || now < last_tower[idx] || now - last_tower[idx] >= 60000)) {   // a fort's towers first
         int queued = tower_queued(bm), ttype = tower_newest(pl);
         int x, y, e = current_epoch(pl);
         int owed = encl_owed(pl);   // enclose: the open ring's walls first
@@ -705,6 +930,7 @@ internal void defence_tick(ee_player *pl, unsigned idx, uint32_t now) {
             ai_say(pl, CHAT_TOWER, "[ai] extra tower (type %d) at %d,%d, stone %d", ttype, x, y, stock[4]);
         }
     }
+    site_forts_tick(pl, idx, bm, wm, stock, now);
     if (g_encl) encl_walls(pl, idx, p, wm, stock, now);
     if (g_encl && g_encs[idx].pl == pl && g_encs[idx].ready) return;   // the ring instead of the fronts' walls
     if (!g_def_walls) return;
@@ -1635,10 +1861,13 @@ internal void defence_install(void) {
     g_def_more = g_set_ai[1].defence_towers;
     g_encl = g_set_ai[1].enclose;
     g_coast_towers = g_set_ai[1].coast_towers;
+    g_site_forts = g_set_ai[1].site_forts;
     g_encl_from = g_set_ai[1].enclose_citizens;
     g_encl_runs = g_set_ai[1].enclose_runs;
     g_encl_flight = g_set_ai[1].enclose_in_flight;
     g_encl_ships = g_set_ai[1].enclose_under_ships;
+    g_encl_docks = g_set_ai[1].enclose_dock_gates;
+    g_encl_safe = g_set_ai[1].enclose_safe_tiles;
     g_csiege = g_set_ai[1].counter_siege;
     g_militia = g_set_ai[1].citizen_militia;
     g_militia_est = g_set_ai[1].militia_estimate;

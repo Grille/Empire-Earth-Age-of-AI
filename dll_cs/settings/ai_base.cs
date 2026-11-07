@@ -778,6 +778,12 @@ class ai_base
         /// until measured)
         [range(0, 4)]
         int coast_towers = 0;
+        /// Forts round the mines (the player's picture: a mine in a small square, a tower at each corner, walls between them,
+        /// one side open for the citizens): up to this many, the busiest mines first - those in a ship's reach of the sea or
+        /// where citizens were hurt before the others. Towers first, then the walls of the three sides away from the town;
+        /// the side towards the town stays open. 0 = off (default until measured)
+        [range(0, 6)]
+        int site_forts = 0;
         bool enclose = false;
         /// With enclose: the ring only once the AI has this many citizens, the usual towers and front walls before - the
         /// economy first (the ring from the start took most of the citizens off gathering: every Small Islands game lost)
@@ -793,6 +799,15 @@ class ai_base
         /// With enclose, on an island: only enemy land units near keep the builders off a part of the coast wall, not ships
         /// (the coast is where the ships are; a piece that stands stops their fire). 0 = ships too
         bool enclose_under_ships = false;
+        /// With enclose, on an island: the coast by each own dock is left open 4 tiles each way (the dock's ships and room to
+        /// board beside it) and gets a short wall of its own on the land side with a gate towards the town - a landing there
+        /// meets the gate. 0 = 2 tiles open, no wall
+        bool enclose_dock_gates = false;
+        /// With enclose, on its own land in the sea: no wall round the coast when at least this many of its tiles lie
+        /// beyond a ship's reach of the sea (9 tiles) - room enough to build and work safe without walling itself in
+        /// (the player: a small island needs the wall, a large one has safe space inland). 0 = the coast always
+        [range(0, 5000)]
+        int enclose_safe_tiles = 0;
         /// tiles from the base centre to the tower line
         [commented]
         int defence_distance = 10;
