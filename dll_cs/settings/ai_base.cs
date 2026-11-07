@@ -226,6 +226,11 @@ class ai_base
         /// trebuchets and catapults fire over a wall and still count; a wall broken open lets them all in again.
         /// 0 = off (default until measured)
         bool behind_walls = false;
+        /// Ships at their own reach: an enemy ship keeps citizens off their work only within its range and a tile, round -
+        /// not its range and 3 tiles in a square, which on a small island covered nearly all of it (most citizens sent
+        /// home on the island maps were sent for ships alone, while ships killed a quarter of the dead). 0 = off
+        /// (default until measured)
+        bool ship_reach_exact = false;
         /// Danger routes: the AI keeps a map of where its enemies can reach (their defences it has seen, soldiers and warships
         /// it sees at their reach, where its citizens were hurt lately), and its units that can't fight - citizens, fishing
         /// boats, transports - take their way round those tiles where there is one, through only where there is none (with

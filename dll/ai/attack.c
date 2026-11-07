@@ -779,6 +779,20 @@ internal int route_danger(ee_player *pl, int fx, int fy, int tx, int ty) {
 #define RAID_MARGIN 3
 #define RAID_MAX    15
 #define RAID_FAR    27   // citizen_threats: artillery (12-14), mortars (10-11), ships (24) at their own reach
+// SHIPS AT THEIR REACH ([ai_base] ship_reach_exact, default 0 until measured; the player 2026-11-07: on the islands the
+// citizens are surrounded by ships that reach deep into the island). A ship counted within its range + RAID_MARGIN in a
+// square - a frigate of range 7 up to 10 tiles off, 14 at a corner: on Small Islands 4615 of 8168 citizens sent back
+// in 40 long games were sent for ships alone (land units alone 1566) while ships killed a quarter of the dead
+// (2026-11-07, docs/testing.md). With it a ship (and a remembered one, and its disc on the danger map) counts within
+// its range + SHIP_SLACK, round; land units as before.
+#define SHIP_SLACK 1.0f
+internal int g_ship_exact = 0;
+internal int ship_out_of_reach(ee_unit_type *td, float rng, int dx, int dy) {   // ship_reach_exact: beyond a ship's own reach
+    int fam = td ? unit_type_get_class_id(td) : 0;
+    if (!g_ship_exact || (fam != CLS_NAVAL && fam != CLS_SUBMERGED_NAVAL)) return 0;
+    float r = rng + SHIP_SLACK;
+    return (float)(dx * dx + dy * dy) > r * r;
+}
 internal int g_cit_threats = 1;   // [ai_base] citizen_threats (below, DAMAGE MEMORY)
 internal int cv_mem_raider(ee_player *pl, ivec2 p, int r0, int rmax);   // cover.c threat_memory: a remembered one
 internal void cv_mem_threats(ee_player *pl, unsigned pi);
@@ -835,7 +849,9 @@ internal void cmd_behind(char *out, const char *args) {
     g_bw_out[p] = before;
     REPLY(" - seen %d, walled out %d\n", seen, out_n);
 }
-internal int raiders_near(ee_player *pl, ivec2 p, int r0) {
+// kinds: NULL - the first raider found answers; else every one looked at, *kinds bit 1 one on land, bit 2 a ship (the
+// # citizens log's reasons)
+internal int raiders_scan(ee_player *pl, ivec2 p, int r0, int *kinds) {
     int rmax = g_cit_threats ? RAID_FAR : RAID_MAX;
     int r = r0 > rmax ? r0 : rmax;   // the search box; each unit then by its own reach
     ee_map *map = game_map();
@@ -853,11 +869,16 @@ internal int raiders_near(ee_player *pl, ivec2 p, int r0) {
         if (reach > rmax) reach = rmax;
         if (reach < r0) reach = r0;
         if (abs(unit_get_x(u) - p.x) > reach || abs(unit_get_y(u) - p.y) > reach) continue;
+        if (ship_out_of_reach(td, rng, unit_get_x(u) - p.x, unit_get_y(u) - p.y)) continue;
         ee_player *o = unit_get_owner(u);   // not nature (player 0: wild animals)
-        if (o && player_get_index(o) > 0 && is_enemy(pl, o) && seen_by(u, pl) && !walled_out(pl, unit_get_tile(u), td, st, player_get_index(o), p)) return 1;
+        if (o && player_get_index(o) > 0 && is_enemy(pl, o) && seen_by(u, pl) && !walled_out(pl, unit_get_tile(u), td, st, player_get_index(o), p)) {
+            if (!kinds) return 1;
+            *kinds |= fam == CLS_LAND ? 1 : 2;
+        }
     }
-    return 0;
+    return kinds && *kinds;
 }
+internal int raiders_near(ee_player *pl, ivec2 p, int r0) { return raiders_scan(pl, p, r0, NULL); }
 // raiders_near or one it remembers there (threat_memory) - only where a citizen is sent: the builders' and gatherers'
 // sites, the builders' orders, the way (its first runs had it in every use - shelters, the sites of towers and drop
 // sites, the defence - and read worse head-to-head, unmirrored: docs/testing.md threat_memory)
@@ -988,6 +1009,7 @@ internal void danger_refresh(ee_player *pl, uint32_t now) {
         float rng = st ? unit_stats_get_range(st) : unit_type_get_range(td);
         float reach = rng > 0.0f && rng < 30.0f ? rng + RAID_MARGIN : RAID_MARGIN;
         if (reach > RAID_FAR) reach = RAID_FAR;
+        if (g_ship_exact && fam != CLS_LAND && rng > 0.0f && rng < 30.0f) reach = rng + SHIP_SLACK;
         vec3 q = unit_get_pos(u);
         danger_disc(pi, DANGER_THREATS, q.x, q.y, reach);
     }
@@ -1008,7 +1030,7 @@ internal void danger_refresh(ee_player *pl, uint32_t now) {
 internal ee_goal *goal_move(float x, float y);
 internal int unit_goal(ee_unit *u, ee_goal *goal, int append, unsigned state);
 internal int muster_rally(unsigned idx, float *x, float *y);   // defence.c: the rally point while the base is overrun
-internal struct { unsigned sent, held; } g_cit_stats[16];   // held: kept at work by raid_held (safety ticks x citizens)
+internal struct { unsigned sent, held, by_ship, by_land, by_both, by_other; } g_cit_stats[16];   // held: kept at work by raid_held (safety ticks x citizens); by_*: the sent back's raiders
 internal unsigned g_repair_refused[16];   // repair orders refused at buildings under attack (hook_repair_goal)
 internal unsigned g_repair_walking[16], g_repair_unsafe[16];   // ... at buildings a citizen walks to already, by an unsafe way
 // STRAY CITIZENS: an attack that ends hands its units back to the resource manager's list 0 (not assigned) with the
@@ -1115,6 +1137,14 @@ internal void citizens_safety(ee_resource_mgr *rm) {   // before the citizen ass
             if (raided && abs(d.x - unit_get_x(site)) <= 3 && abs(d.y - unit_get_y(site)) <= 3) continue;   // at home already
             if (!unit_goal(u, goal_move((float)d.x + 0.5f, (float)d.y + 0.5f), 0, 0x1F40)) continue;
             sent++;
+            {   // who it was sent back for: the raiders there now (else remembered ones or hurts)
+                int seen_kinds = 0;
+                raiders_scan(pl, unit_get_tile(site), build ? 8 : 6, &seen_kinds);
+                if (seen_kinds == 2) g_cit_stats[idx].by_ship++;
+                else if (seen_kinds == 1) g_cit_stats[idx].by_land++;
+                else if (seen_kinds == 3) g_cit_stats[idx].by_both++;
+                else g_cit_stats[idx].by_other++;
+            }
             int st = unit_type_get_id(unit_get_type_data(site)), j = 0;
             while (j < 4 && kinds[j][1] && kinds[j][0] != st) j++;
             if (j < 4) { kinds[j][0] = st; kinds[j][1]++; }
@@ -1167,9 +1197,10 @@ internal void citizens_safety(ee_resource_mgr *rm) {   // before the citizen ass
         logged[idx] = now;
         char ks[64] = "";
         for (int j = 0; j < 4 && kinds[j][1]; j++) { size_t l = strlen(ks); snprintf(ks + l, sizeof ks - l, " %dx%d", kinds[j][0], kinds[j][1]); }
-        fprintf(g_log, "# citizens: P%u at %.1f min: %d sent back from sites near enemy towers or raiders (site type x count:%s; %u in all, %u dangerous sites refused, %u repairs refused, %u hurt; repairs refused with a citizen on its way %u, by an unsafe way %u; kept at work, the town holds %u; enemies walled out %u)\n",
+        fprintf(g_log, "# citizens: P%u at %.1f min: %d sent back from sites near enemy towers or raiders (site type x count:%s; %u in all, %u dangerous sites refused, %u repairs refused, %u hurt; repairs refused with a citizen on its way %u, by an unsafe way %u; kept at work, the town holds %u; enemies walled out %u; sent back for ships only %u, land units only %u, both %u, neither in sight %u)\n",
                 idx, now / 60000.0, sent, ks, g_cit_stats[idx].sent, g_site_refused[idx], g_repair_refused[idx], g_hurt_count[idx],
-                g_repair_walking[idx], g_repair_unsafe[idx], g_cit_stats[idx].held, g_bw_out[idx]);
+                g_repair_walking[idx], g_repair_unsafe[idx], g_cit_stats[idx].held, g_bw_out[idx],
+                g_cit_stats[idx].by_ship, g_cit_stats[idx].by_land, g_cit_stats[idx].by_both, g_cit_stats[idx].by_other);
     }
 }
 
@@ -1886,6 +1917,7 @@ internal void attack_install(void) {
     g_cit_threats = g_set_ai[1].citizen_threats;
     g_hurt_short = g_set_ai[1].hurt_seen_short;
     g_behind_walls = g_set_ai[1].behind_walls;
+    g_ship_exact = g_set_ai[1].ship_reach_exact;
     g_repair_one = g_set_ai[1].repair_one_walker;
     g_repair_way = g_set_ai[1].repair_safe_way;
     g_danger_routes = g_set_ai[1].danger_routes;

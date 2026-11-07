@@ -198,7 +198,7 @@ internal int cv_mem_raider(ee_player *pl, ivec2 p, int r0, int rmax) {
         int reach = rng > 0.0f && rng < 30.0f ? (int)(rng + 0.5f) + RAID_MARGIN : 0;
         if (reach > rmax) reach = rmax;
         if (reach < r0) reach = r0;
-        if (abs(e->x - p.x) <= reach && abs(e->y - p.y) <= reach && !walled_out(pl, iv2(e->x, e->y), td, st, e->owner, p)) return 1;
+        if (abs(e->x - p.x) <= reach && abs(e->y - p.y) <= reach && !ship_out_of_reach(td, rng, e->x - p.x, e->y - p.y) && !walled_out(pl, iv2(e->x, e->y), td, st, e->owner, p)) return 1;
     }
     return 0;
 }
@@ -216,6 +216,7 @@ internal void cv_mem_threats(ee_player *pl, unsigned pi) {
         float rng = st ? unit_stats_get_range(st) : unit_type_get_range(td);
         float reach = rng > 0.0f && rng < 30.0f ? rng + RAID_MARGIN : RAID_MARGIN;
         if (reach > RAID_FAR) reach = RAID_FAR;
+        if (g_ship_exact && unit_type_get_class_id(td) != CLS_LAND && rng > 0.0f && rng < 30.0f) reach = rng + SHIP_SLACK;
         danger_disc(pi, DANGER_THREATS, (float)e->x + 0.5f, (float)e->y + 0.5f, reach);
     }
 }
