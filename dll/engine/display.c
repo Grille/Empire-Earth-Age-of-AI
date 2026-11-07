@@ -1713,8 +1713,8 @@ internal void cmd_profile_render(int dur, char *out, int sim) {
     }
 }
 
-// profile stacks: every thread once - where it is and the words on its stack that point into code outside Windows'
-// own modules (the likely return addresses), for a game that hangs with all its threads waiting
+// profile stacks: every thread with the game's or the mod's code on its stack once - where it is and the words on its
+// stack that point into that code (the likely return addresses), for a frame or a game that hangs waiting
 internal void cmd_profile_stacks(char *out) {
     HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
     THREADENTRY32 te = { .dwSize = sizeof te };
@@ -1731,24 +1731,32 @@ internal void cmd_profile_stacks(char *out) {
             CONTEXT c = { .ContextFlags = CONTEXT_CONTROL };
             SIZE_T got = 0;
             if (SuspendThread(h) != (DWORD)-1) {
-                if (GetThreadContext(h, &c)) ReadProcessMemory(GetCurrentProcess(), (void *)c.Esp, words, sizeof words, &got);
+                // up to the stack's end: page by page (one read past it gets nothing at all)
+                if (GetThreadContext(h, &c))
+                    for (SIZE_T n = 0, want; got < sizeof words; got += n) {
+                        want = 4096 - ((c.Esp + got) & 4095);
+                        if (want > sizeof words - got) want = sizeof words - got;
+                        if (!ReadProcessMemory(GetCurrentProcess(), (uint8_t *)(uintptr_t)c.Esp + got, (uint8_t *)words + got, want, &n) || !n) break;
+                    }
                 ResumeThread(h);
             }
             CloseHandle(h);
+            // only the game's and the mod's code (the drivers' threads, dozens, filled the reply before the game's)
+            char line[2048];
+            int len = 0, any = 0;
             crash_addr(at, sizeof at, c.Eip);
-            REPLY("thread %lu at %s:", (unsigned long)te.th32ThreadID, at);
-            for (size_t k = 0, shown = 0; k < got / sizeof *words && shown < 12; k++) {
-                HMODULE m;
+            len += snprintf(line + len, sizeof line - (size_t)len, "thread %lu at %s:", (unsigned long)te.th32ThreadID, at);
+            for (size_t k = 0, shown = 0; k < got / sizeof *words && shown < 24 && len < (int)sizeof line - 200; k++) {
                 MEMORY_BASIC_INFORMATION mbi;
                 if (words[k] < 0x10000 || !VirtualQuery((void *)words[k], &mbi, sizeof mbi) ||
                     !(mbi.Protect & (PAGE_EXECUTE_READ | PAGE_EXECUTE_READWRITE | PAGE_EXECUTE_WRITECOPY | PAGE_EXECUTE)) ||
-                    !GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
-                                        (LPCSTR)words[k], &m) || is_system_module(m)) continue;
+                    !(is_game_code(words[k]) || is_own_code(words[k]))) continue;
                 crash_addr(at, sizeof at, words[k]);
-                REPLY(" %s", at);
+                len += snprintf(line + len, sizeof line - (size_t)len, " %s", at);
                 shown++;
+                any = 1;
             }
-            REPLY("\n");
+            if (any || te.th32ThreadID == g_render_thread) REPLY("%s\n", line);
         } while (Thread32Next(snap, &te));
     if (snap != INVALID_HANDLE_VALUE) CloseHandle(snap);
 }

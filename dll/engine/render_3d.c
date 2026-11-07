@@ -771,6 +771,7 @@ internal uintptr_t g_rwl_read_ret;   // where the game took it
 internal int g_rwl_read_depth;
 internal rd_rwl_fn g_rwl_runlock;
 internal int g_rwl_pass;   // a frame during a step: the world's lock passed over (rd_hook_graphics_update)
+internal volatile LONG g_rwl_writers, g_rwl_claim;   // the frame's decision against the writers (rd_hook_write_lock)
 internal void __thiscall rd_hook_read_unlock(void *lock) {
     if (g_rwl_pass && lock == g_rwl_world && GetCurrentThreadId() == g_rd_thread) return;
     if (GetCurrentThreadId() == g_rd_thread && g_rwl_read_depth > 0 && --g_rwl_read_depth == 0)
@@ -782,6 +783,7 @@ internal void __thiscall rd_hook_read_lock(void *lock) {
     if (g_rwl_pass && lock == g_rwl_world) return;
     LONGLONG t0 = rd_qpc();
     g_rwl_read(lock);
+    if (lock == g_rwl_world) g_rwl_claim = 0;   // the frame's read is in (the writers' wait, below)
     g_rwl_read_ret = (uintptr_t)__builtin_return_address(0);
     LONGLONG t1 = rd_qpc();
     if (g_rwl_read_depth++ == 0) g_rwl_read_at = t1;
@@ -800,22 +802,41 @@ internal volatile LONG g_rwl_want;
 internal HANDLE g_rwl_taken;
 internal LONG g_rwl_handoffs;
 internal LONGLONG g_rwl_handoff_qpc;   // the simulation's time waiting for them
+// The frame's decision (rd_hook_graphics_update) against the writers: it chose to read the world when no write was held
+// - and the step's write lock came between that and its read, which then waited for the whole step (the player, a step
+// of 1 s: "the mouse sidescroll lags for one second once the sim takes control again"). Now a writer counts itself
+// before it takes the lock (g_rwl_writers: the threads in or waiting for it, the frame's own not) and a frame claims its
+// read before it looks (g_rwl_claim, till its read lock is in): one of the two sees the other - the frame is drawn as
+// during a step, or the writer waits for its read (a few ms; RWL_CLAIM_MS at most).
+#define RWL_CLAIM_MS 100
+internal int g_rwl_counted;   // the holder of the write lock counted itself (only the holder writes it)
 internal void __thiscall rd_hook_write_lock(void *lock) {
-    if (lock == g_rwl_world && g_rwl_want && g_rwl_taken && GetCurrentThreadId() != g_rd_thread) {
+    int other = lock == g_rwl_world && GetCurrentThreadId() != g_rd_thread;
+    if (other && g_rwl_want && g_rwl_taken) {
         LONGLONG t0 = rd_qpc();
         WaitForSingleObject(g_rwl_taken, RWL_HANDOFF_MS);
         g_rwl_want = 0;
         g_rwl_handoffs++;
         g_rwl_handoff_qpc += rd_qpc() - t0;
     }
+    if (other) {
+        InterlockedIncrement(&g_rwl_writers);
+        for (DWORD t0 = GetTickCount(); g_rwl_claim && GetTickCount() - t0 < RWL_CLAIM_MS;) Sleep(0);
+    }
     g_rwl_write(lock);
     if (lock == g_rwl_world) {
+        g_rwl_counted = other;
+        if (!other) g_rwl_claim = 0;   // the frame's own (update_objects' write mode)
         g_rwl_write_at = rd_qpc();
         g_rwl_write_ret = (uintptr_t)__builtin_return_address(0);
         g_sim_thread = GetCurrentThreadId();
     }
 }
 internal void __thiscall rd_hook_write_unlock(void *lock) {
+    if (lock == g_rwl_world && g_rwl_counted) {
+        g_rwl_counted = 0;
+        InterlockedDecrement(&g_rwl_writers);
+    }
     if (lock == g_rwl_world && g_rwl_write_at) {
         LONGLONG h = rd_qpc() - g_rwl_write_at;
         g_rwl_held_qpc += h;
@@ -848,12 +869,24 @@ internal void __thiscall rd_hook_write_unlock(void *lock) {
 // hit (10844 units at speed 2, the player 2026-11-06: "the 3d view doesnt change anymore" - every frame drawn during a
 // step, minutes long): a frame drawn during a step hands off (g_rwl_want above) - the simulation waits before its next
 // step until a frame has updated from this one's result, so every step's result is drawn and no frame waits for a step.
+// The interface's lock (UIManager.lock): the update holds it around the world's read lock, and the game's main thread
+// takes the world's write lock inside it for the player's input - a click, the mouse at the screen's edge - so during a
+// step the main thread held it waiting for the step, and the frame waited for the main thread: the picture stood till
+// the step's end (the player: "one mouse click and it freezes once the next simstep comes"; the threads' stacks: the
+// frame in TSCriticalSection::Enter from EEGraphics.update_objects, the main thread in WriteLock). So the frame takes
+// it first without waiting: while another thread holds it and a writer is in or waiting, the frame goes without the
+// game's update at all (drawn as during a step; the interface as its last update left it - g_rwl_bare).
 internal int g_rwl_free = 1;
-internal LONG g_rwl_skips, g_rwl_updates;
+internal LONG g_rwl_skips, g_rwl_updates, g_rwl_bare;
 internal ee_render_object *g_ro_obj[RO_N];   // the render objects, as their draws are called
 internal int rec_step(void);   // render_record.c: the pipe's record steps - every second frame drawn as during a step
 internal void __thiscall rd_hook_graphics_update(ee_graphics *g) {
-    int held = g_rwl_updates && g_rwl_free && g_rwl_world && g_rwl_write_at;
+    int free = g_rwl_updates && g_rwl_free && g_rwl_world, ui = -1;
+    if (free)
+        while ((ui = ui_lock_try()) == 0 && !g_rwl_writers) Sleep(0);   // its holder at the interface, not waiting
+    if (free && ui != 0) InterlockedExchange(&g_rwl_claim, 1);
+    int held = free && (ui == 0 || g_rwl_writers > 0);
+    if (held) g_rwl_claim = 0;
     int skip = held || (g_rwl_updates && rec_step());
     if (held && g_rwl_taken) { ResetEvent(g_rwl_taken); g_rwl_want = 1; }
     rf_ground_frame(skip);
@@ -861,8 +894,11 @@ internal void __thiscall rd_hook_graphics_update(ee_graphics *g) {
     else g_rwl_updates++;
     g_rwl_pass = skip;
     if (skip && g_rp_state == 3) g_rp_state = 2;   // the pipe's rprobe step
-    ee_graphics_update_objects(g);
+    if (ui != 0) ee_graphics_update_objects(g);
+    else g_rwl_bare++;
     g_rwl_pass = 0;
+    g_rwl_claim = 0;
+    if (ui == 1) ui_lock_leave();
     if (!skip && g_rwl_taken) SetEvent(g_rwl_taken);
 }
 internal void __thiscall rd_hook_ro_terrain_update(ee_ro_terrain *o) { if (!g_rwl_pass) ro_terrain_update(o); }
@@ -1090,14 +1126,15 @@ internal void rd_frame_tick(void) {
     }
     log_locked("# render: frames waiting %d ms or more for the lock %ld (longest %.0f ms); its holds that long by where the"
                " game took it: %s\n", RWL_LONG_MS, (long)g_rwl_waits_long, (double)g_rwl_wait_max * ms, len ? sites : "none");
-    static LONG reads0, skips0, handoffs0;
+    static LONG reads0, skips0, handoffs0, bare0;
     static LONGLONG read0, handoff0;
     log_locked("# render: the frame's read holds of the world %.2f ms a frame (%.2f holds; the game took the last at %08x);"
-               " frames drawn during a step %ld (draw_during_steps %s), the simulation waiting for their update %ld times,"
-               " %.0f ms\n", (double)(g_rwl_read_qpc - read0) * k,
-               fr > 0 ? (double)(g_rwl_reads - reads0) / fr : 0, (unsigned)g_rwl_read_ret, (long)(g_rwl_skips - skips0),
-               g_rwl_free ? "on" : "off", (long)(g_rwl_handoffs - handoffs0), (double)(g_rwl_handoff_qpc - handoff0) * ms);
-    reads0 = g_rwl_reads; read0 = g_rwl_read_qpc; skips0 = g_rwl_skips;
+               " frames drawn during a step %ld (draw_during_steps %s; %ld without the game's update - the interface's lock"
+               " held by a thread waiting to write), the simulation waiting for their update %ld times, %.0f ms\n",
+               (double)(g_rwl_read_qpc - read0) * k, fr > 0 ? (double)(g_rwl_reads - reads0) / fr : 0,
+               (unsigned)g_rwl_read_ret, (long)(g_rwl_skips - skips0), g_rwl_free ? "on" : "off", (long)(g_rwl_bare - bare0),
+               (long)(g_rwl_handoffs - handoffs0), (double)(g_rwl_handoff_qpc - handoff0) * ms);
+    reads0 = g_rwl_reads; read0 = g_rwl_read_qpc; skips0 = g_rwl_skips; bare0 = g_rwl_bare;
     handoffs0 = g_rwl_handoffs; handoff0 = g_rwl_handoff_qpc;
     memset(g_rwl_long, 0, sizeof g_rwl_long);
     g_rwl_waits_long = 0;

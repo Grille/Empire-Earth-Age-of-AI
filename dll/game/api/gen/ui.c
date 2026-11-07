@@ -460,6 +460,12 @@ internal inline int ui_event_uninitialize_event(ee_ui_event *ui_event) { return 
 // class UIManager (ee_uim)
 // the UI's manager, Low-Level Engine.dll's UIManager: the forms (by id: UIManager::GetFormByID, the stack of open
 // ones: Push / Pop / SwapForm - ui_imports.cs), the UI database. Its slots by the DLL's export names
+// the interface's lock (a TSCriticalSection*, its CRITICAL_SECTION at +0): EEGraphics.update_objects holds it
+// across the render objects' update (0x4FED8C, AoC 0x50989F), the game's main thread over its input - the
+// world's write lock taken inside it
+internal inline void *uim_get_lock(const ee_uim *o) { return *(void **)((uint8_t *)o + of_uim_lock); }
+internal inline void uim_set_lock(ee_uim *o, void *v) { *(void **)((uint8_t *)o + of_uim_lock) = v; }
+internal inline void **uim_lock_at(const ee_uim *o) { return (void **)((uint8_t *)o + of_uim_lock); }
 typedef int (__thiscall *uim_change_ime_candidate_window_fn)(ee_uim *, void *);
 internal inline int uim_change_ime_candidate_window(ee_uim *uim, void *list) { return ((uim_change_ime_candidate_window_fn)(*(void ***)uim)[slot_uim_change_ime_candidate_window])(uim, list); }
 typedef int (__thiscall *uim_change_ime_composition_string_fn)(ee_uim *, void *, void *, uint32_t);
@@ -493,6 +499,12 @@ internal inline int uim_update_mouse(ee_uim *uim, void *mouse) { return ((uim_up
 // the game's UI manager, [game.ui_manager] (an object there, not a pointer): the DLL's UIManager with the exe's
 // forms, controls and event creators
 // UIManager's, the base's
+// the interface's lock (a TSCriticalSection*, its CRITICAL_SECTION at +0): EEGraphics.update_objects holds it
+// across the render objects' update (0x4FED8C, AoC 0x50989F), the game's main thread over its input - the
+// world's write lock taken inside it
+internal inline void *eeui_manager_get_lock(const eeui_manager *o) { return *(void **)((uint8_t *)o + of_uim_lock); }
+internal inline void eeui_manager_set_lock(eeui_manager *o, void *v) { *(void **)((uint8_t *)o + of_uim_lock) = v; }
+internal inline void **eeui_manager_lock_at(const eeui_manager *o) { return (void **)((uint8_t *)o + of_uim_lock); }
 // the event creators (ui.event_creators), a list of cdecl(form, id) -> UIEvent* or 0: the constructor pushes
 // each (0x65DD92 onto +0x1C, both builds)
 internal inline uint8_t *eeui_manager_event_creators_at(const eeui_manager *o) { return (uint8_t *)o + of_eeui_manager_event_creators; }
@@ -772,6 +784,7 @@ internal int spec_ui_select(int build) {
         slot_ui_event_execute = 1;
         slot_ui_event_initialize_event = 2;
         slot_ui_event_uninitialize_event = 3;
+        of_uim_lock = 0x4;
         slot_uim_change_ime_candidate_window = 1;
         slot_uim_change_ime_composition_string = 2;
         slot_uim_close_ime_candidate_window = 3;
@@ -989,6 +1002,7 @@ internal int spec_ui_select(int build) {
         slot_ui_event_execute = 1;
         slot_ui_event_initialize_event = 2;
         slot_ui_event_uninitialize_event = 3;
+        of_uim_lock = 0x4;
         slot_uim_change_ime_candidate_window = 1;
         slot_uim_change_ime_composition_string = 2;
         slot_uim_close_ime_candidate_window = 3;

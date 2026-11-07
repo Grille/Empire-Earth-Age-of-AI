@@ -630,6 +630,12 @@ unsafe struct UIEvent
 [c_type("ee_uim")]
 unsafe struct UIManager
 {
+    /// the interface's lock (a TSCriticalSection*, its CRITICAL_SECTION at +0): EEGraphics.update_objects holds it
+    /// across the render objects' update (0x4FED8C, AoC 0x50989F), the game's main thread over its input - the
+    /// world's write lock taken inside it
+    [offset(0x4), found(c)]
+    void* lock;
+
     [slot(1)]
     extern int32 change_ime_candidate_window(void* list);
 

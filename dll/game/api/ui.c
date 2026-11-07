@@ -13,6 +13,31 @@ internal inline void scroll_set_key(ee_scroll *s, int k, uint8_t v) { FIELD(s, o
 // +0xA4 frozen: the update then only reads the wheel
 
 // FUNCTIONS
+// THE INTERFACE'S LOCK (UIManager.lock, a TSCriticalSection: its CRITICAL_SECTION at +0, the engine's Enter / Leave keep
+// a count and the owner beside it) taken without waiting: 1 held (left with ui_lock_leave), 0 another thread holds it,
+// -1 no interface yet
+typedef void (__thiscall *ts_cs_fn)(void *cs);
+internal inline ts_cs_fn ts_cs_import(const char *name) {
+    HMODULE lle = GetModuleHandleA("Low-Level Engine.dll");
+    return lle ? (ts_cs_fn)(void *)GetProcAddress(lle, name) : NULL;
+}
+internal inline int ui_lock_try(void) {
+    static ts_cs_fn enter;
+    ee_uim *m = (ee_uim *)ui_manager();
+    void *cs = m ? uim_get_lock(m) : NULL;
+    if (!enter) enter = ts_cs_import("?Enter@TSCriticalSection@@QAEXXZ");
+    if (!cs || !enter) return -1;
+    if (!TryEnterCriticalSection((CRITICAL_SECTION *)cs)) return 0;
+    enter(cs);   // its own count, at once (held already)
+    LeaveCriticalSection((CRITICAL_SECTION *)cs);
+    return 1;
+}
+internal inline void ui_lock_leave(void) {
+    static ts_cs_fn leave;
+    if (!leave) leave = ts_cs_import("?Leave@TSCriticalSection@@QAEXXZ");
+    ee_uim *m = (ee_uim *)ui_manager();
+    if (m && leave) leave(uim_get_lock(m));
+}
 // THE UI AND THE PLAYERS' LINES (voice/)
 // a chat or system line on ui: the sender's colour (rgb floats), name and the line (UWideStrings), shown ms
 internal inline void ui_show_line(void *ui, const void *rgb, void *name, void *line, int ms) { fn_ui_line(ui, (void *)rgb, name, line, ms, 0); }

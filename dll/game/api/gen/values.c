@@ -1673,6 +1673,7 @@ internal uint32_t size_ui_event;
 internal uint32_t slot_ui_event_execute;
 internal uint32_t slot_ui_event_initialize_event;
 internal uint32_t slot_ui_event_uninitialize_event;
+internal uint32_t of_uim_lock;
 internal uint32_t slot_uim_change_ime_candidate_window;
 internal uint32_t slot_uim_change_ime_composition_string;
 internal uint32_t slot_uim_close_ime_candidate_window;

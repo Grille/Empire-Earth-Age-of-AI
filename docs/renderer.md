@@ -172,6 +172,26 @@ in it, every frame was drawn during a step and the units stood for minutes (1084
 updated from the step's result (at most 50 ms; g_rwl_want, g_rwl_taken) - every step's result is drawn and no frame
 waits for a step. On the 8000 save at speed 4: 62 fps with 9 updates a second, the simulation waiting about 16 ms a
 hand-off (about 7 % less game time than frames that waited for a step every 100 ms).
+Two waits were left behind a step (2026-11-07, the player with the pipe's `stepload 1000`: "the mouse sidescroll lags
+for one second once the sim takes control again ... one mouse click and it freezes once the next simstep comes"). The
+pipe's `profile stacks` (now reading each stack page by page - one read past its end got nothing - and showing only
+the threads with the game's or the mod's code) on the 8000 save, the mouse at the screen's edge:
+- The interface's lock. EEGraphics.update_objects (0x4FED2D) enters the UI manager's critical section (UIManager +4,
+  spec UIManager.lock) and takes the world's read lock inside it; the game's main thread (its WinMain, 0x535CA7) takes
+  the world's write lock inside the same section for the player's input. During a step the main thread held it waiting
+  for the step, the frame waited for the main thread. Now the frame takes it first without waiting (TryEnter on its
+  CRITICAL_SECTION, the engine's own count kept: game/api ui.c ui_lock_try): while another thread holds it and a writer
+  is in or waiting, the frame goes without the game's update at all - drawn as during a step, the interface as its last
+  update left it (the minute's line: frames "without the game's update").
+- The frame's decision. A frame read the world when no write was held at its start; a step's write lock taken between
+  that and its read made the read wait for the whole step. Now a writer counts itself before it takes the lock (the
+  frame's own not) and a frame claims its read before it looks: one of the two sees the other - the frame is drawn as
+  during a step, or the writer waits for the frame's read to be in (a few ms, at most 100).
+Measured on the 8000 save, `stepload 1000`, two minutes of the mouse at the left and right edges and a left and a right
+click every few seconds, both builds at once: frames waiting 8 ms or more for the lock 10 and 9 a minute (the longest
+2000 ms), a frame 48 ms (35 of them waits) before; none, a frame 13 ms with it (2209 and 2607 frames of the minutes
+without the game's update). A shot 0.25 s after a right click in a step: the interface, the health bars and the minimap
+drawn. AoC: the interface's lock at the same place (0x50989F), a short game normal.
 - The ground's draw draws nothing without its update (the clear's sky blue where the ground was; units, trees and
   buildings were there). Its update alone took everything else with it - it makes the visible region the units' draw
   uses. So the ground batches of the last frame drawn with an update are kept on the CPU as they are flushed (vertices,
