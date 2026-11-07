@@ -379,7 +379,7 @@ internal inline ee_vertices ***model_vertices_at(const ee_model *o) { return (ee
 internal inline ee_material **model_get_materials(const ee_model *o) { return *(ee_material ***)((uint8_t *)o + of_model_materials); }
 internal inline void model_set_materials(ee_model *o, ee_material **v) { *(ee_material ***)((uint8_t *)o + of_model_materials) = v; }
 internal inline ee_material ***model_materials_at(const ee_model *o) { return (ee_material ***)((uint8_t *)o + of_model_materials); }
-// its frames, the boxes' count
+// its frames, the boxes' count (the trees' fill: a tree's model of more than one sways)
 internal inline uint32_t model_get_frames(const ee_model *o) { return *(uint32_t *)((uint8_t *)o + of_model_frames); }
 internal inline void model_set_frames(ee_model *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_model_frames) = v; }
 internal inline uint32_t *model_frames_at(const ee_model *o) { return (uint32_t *)((uint8_t *)o + of_model_frames); }
@@ -719,6 +719,15 @@ internal inline uint8_t *engine_display_iat_wstring_assign_at(void) { return (ui
 internal inline uint8_t *engine_display_iat_transform_apply_vector_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_iat_transform_apply_vector; }
 internal inline uint8_t *engine_display_iat_arc_cos_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_iat_arc_cos; }
 internal inline uint8_t *engine_display_iat_transform_scale_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_iat_transform_scale; }
+// THE TREES' FILL (EEROUnits' FillObject; collect.c uc_fill_tree): the trees' health bars' records (a vector,
+// vector_push_small adds one), the sway's clock (int), the scale's step by id, the sway's step
+internal inline uint8_t *engine_display_tree_bar_records_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_tree_bar_records; }
+internal inline uint8_t *engine_display_sway_clock_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_sway_clock; }
+internal inline uint8_t *engine_display_tree_scale_step_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_tree_scale_step; }
+internal inline uint8_t *engine_display_sway_step_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_sway_step; }
+// the exe's import slot of GETransformation::SetPosition (x, y, z); UMCos's is game.iat_cos
+internal inline uint8_t *engine_display_iat_set_position_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_iat_set_position; }
+// EEUnit.resource_type's wood (EE's trees' fill hands only a wood tree to the ambient sounds)
 // EEUnit.resource's food (kResourceFood): an animal or a bush of the gaia player with food left is drawn on a
 // tile the player hasn't in sight (its fog) as long as it has a complex unit and isn't a citizen
 
@@ -781,6 +790,18 @@ internal inline void ground_circle(void *collection, float *at, float radius, in
 typedef float (__thiscall *line_of_sight_fn)(ee_unit *);
 internal line_of_sight_fn fn_line_of_sight;
 internal inline float line_of_sight(ee_unit *cu) { return fn_line_of_sight(cu); }
+// the trees' fill's: thiscall(engine_display.ambient_sounds, a tree) into the ambient sounds' turn (AoC's the
+// object's, ambient_add_object); cdecl(tile): a tree on it (its objects' types' is_tree); push_back into
+// tree_bar_records' vector type
+typedef void (__thiscall *ambient_add_tree_fn)(void *, ee_unit *);
+internal ambient_add_tree_fn fn_ambient_add_tree;
+internal inline void ambient_add_tree(void *sounds, ee_unit *u) { fn_ambient_add_tree(sounds, u); }
+typedef uint8_t (__cdecl *tile_has_tree_fn)(ee_tile *);
+internal tile_has_tree_fn fn_tile_has_tree;
+internal inline uint8_t tile_has_tree(ee_tile *t) { return fn_tile_has_tree(t); }
+typedef void (__thiscall *vector_push_small_fn)(void *, void **);
+internal vector_push_small_fn fn_vector_push_small;
+internal inline void vector_push_small(void *v, void **value) { fn_vector_push_small(v, value); }
 // thiscall(the same set, found: 8 bytes - its node, then a byte: 1 inserted, 0 there before -, &the doppelganger):
 // insert (ret 8; the pair std::set::insert returns, through the hidden pointer)
 typedef void *(__thiscall *doppelganger_set_insert_fn)(void *, void **, ee_doppelganger **);
@@ -1044,6 +1065,12 @@ internal int spec_engine_display_select(int build) {
         data_engine_display_iat_transform_apply_vector = 0x008233FC;
         data_engine_display_iat_arc_cos = 0x008237E4;
         data_engine_display_iat_transform_scale = 0x008237DC;
+        data_engine_display_tree_bar_records = 0x008D2D20;
+        data_engine_display_sway_clock = 0x009128E8;
+        data_engine_display_tree_scale_step = 0x0082C2F4;
+        data_engine_display_sway_step = 0x0082C2E4;
+        data_engine_display_iat_set_position = 0x00823414;
+        value_engine_display_resource_wood = 3;
         value_engine_display_resource_food = 2;
         fn_doppelganger_set_find = (doppelganger_set_find_fn)0x005050BD;
         fn_ambient_add = (ambient_add_fn)0x0051A4C5;
@@ -1059,6 +1086,9 @@ internal int spec_engine_display_select(int build) {
         fn_gate_drawn_open = (gate_drawn_open_fn)0x00414C14;
         fn_ground_circle = (ground_circle_fn)0;
         fn_line_of_sight = (line_of_sight_fn)0;
+        fn_ambient_add_tree = (ambient_add_tree_fn)0x0051A5D5;
+        fn_tile_has_tree = (tile_has_tree_fn)0x00502200;
+        fn_vector_push_small = (vector_push_small_fn)0x00504F36;
         fn_doppelganger_set_insert = (doppelganger_set_insert_fn)0x00505007;
         return 4;
     case 1:   // aoc
@@ -1315,6 +1345,12 @@ internal int spec_engine_display_select(int build) {
         data_engine_display_iat_transform_apply_vector = 0x00837394;
         data_engine_display_iat_arc_cos = 0x00837754;
         data_engine_display_iat_transform_scale = 0x008377B4;
+        data_engine_display_tree_bar_records = 0x008E94C0;
+        data_engine_display_sway_clock = 0x00929084;
+        data_engine_display_tree_scale_step = 0x00841354;
+        data_engine_display_sway_step = 0x00841344;
+        data_engine_display_iat_set_position = 0x008373B0;
+        value_engine_display_resource_wood = 3;
         value_engine_display_resource_food = 2;
         fn_doppelganger_set_find = (doppelganger_set_find_fn)0x0042B588;
         fn_ambient_add = (ambient_add_fn)0x00524D63;
@@ -1330,6 +1366,9 @@ internal int spec_engine_display_select(int build) {
         fn_gate_drawn_open = (gate_drawn_open_fn)0x0041076F;
         fn_ground_circle = (ground_circle_fn)0x0050BBA4;
         fn_line_of_sight = (line_of_sight_fn)0x005F9DCB;
+        fn_ambient_add_tree = (ambient_add_tree_fn)0x00524E80;
+        fn_tile_has_tree = (tile_has_tree_fn)0x0050CF98;
+        fn_vector_push_small = (vector_push_small_fn)0x0050FDD5;
         fn_doppelganger_set_insert = (doppelganger_set_insert_fn)0x0050FED2;
         return 0;
     }
@@ -1458,6 +1497,11 @@ internal int spec_engine_display_check(void) {
     bad += spec_data(data_engine_display_iat_transform_apply_vector, "engine_display.iat_transform_apply_vector");
     bad += spec_data(data_engine_display_iat_arc_cos, "engine_display.iat_arc_cos");
     bad += spec_data(data_engine_display_iat_transform_scale, "engine_display.iat_transform_scale");
+    bad += spec_data(data_engine_display_tree_bar_records, "engine_display.tree_bar_records");
+    bad += spec_data(data_engine_display_sway_clock, "engine_display.sway_clock");
+    bad += spec_data(data_engine_display_tree_scale_step, "engine_display.tree_scale_step");
+    bad += spec_data(data_engine_display_sway_step, "engine_display.sway_step");
+    bad += spec_data(data_engine_display_iat_set_position, "engine_display.iat_set_position");
     bad += spec_code((uintptr_t)fn_doppelganger_set_find, "engine_display_functions.doppelganger_set_find");
     bad += spec_code((uintptr_t)fn_ambient_add, "engine_display_functions.ambient_add");
     bad += spec_code((uintptr_t)fn_ambient_add_object, "engine_display_functions.ambient_add_object");
@@ -1472,6 +1516,9 @@ internal int spec_engine_display_check(void) {
     bad += spec_code((uintptr_t)fn_gate_drawn_open, "engine_display_functions.gate_drawn_open");
     bad += spec_code((uintptr_t)fn_ground_circle, "engine_display_functions.ground_circle");
     bad += spec_code((uintptr_t)fn_line_of_sight, "engine_display_functions.line_of_sight");
+    bad += spec_code((uintptr_t)fn_ambient_add_tree, "engine_display_functions.ambient_add_tree");
+    bad += spec_code((uintptr_t)fn_tile_has_tree, "engine_display_functions.tile_has_tree");
+    bad += spec_code((uintptr_t)fn_vector_push_small, "engine_display_functions.vector_push_small");
     bad += spec_code((uintptr_t)fn_doppelganger_set_insert, "engine_display_functions.doppelganger_set_insert");
     return bad;
 }

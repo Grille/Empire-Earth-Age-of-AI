@@ -424,9 +424,96 @@ internal void uc_fill(ee_ro_units *ro, ee_unit *u, uint8_t *rec, void *sort_map,
     }
 }
 
+// THE TREES' FILL (EEROUnits' FillObject: EE 0x501DFF, AoC 0x50CBA3 - the same code but for addresses and offsets, and
+// EE hands only a wood tree to the ambient sounds). A tree's small record: at its tile's middle shifted by its id, the
+// ground's height there, turned to the camera's yaw; its hit points; its scale varied by its id; its type's two bar
+// values when a diagonal neighbour tile has no tree; its selection circle and the trees' health bars' list while it is
+// the player's selected unit; its sway in the wind by the clock and its id (a model of more than one frame); then into
+// the sort map by its graphics' key, the picker (its transformation) and the sixth sort map. (The game makes a physical
+// model on its stack it never uses: left out.)
+internal ee_tile *uc_tile(ee_map *map, int x, int y) {
+    uint32_t n = map_get_size(map);
+    return (uint32_t)x < n && (uint32_t)y < n ? map_get_tiles(map)[(uint32_t)y * n + (uint32_t)x] : NULL;
+}
+internal void uc_fill_tree(ee_unit *u, uint8_t *rec, void *sort_map, uc_info *info, int dry) {
+    opacity_consts oc = opacity_consts_now();
+    tree_consts tc = tree_consts_now();
+    fill_consts fc = fill_consts_now();
+    ee_player *me = game_players()[local_player_index()];
+    ee_map *map = game_map();
+    ee_unit_type *ty = unit_get_type_data(u);
+    ee_unit_stats *st = unit_get_stats(u);
+    int id = unit_get_serial(u), size = unit_type_get_size(ty);
+    float *pos = (float *)draw_small_record_pos_at(rec);
+    pos[0] = (float)((long double)((id % 3 - 1) * size) * tree_shift() + (long double)size * oc.half + unit_get_x(u));
+    pos[1] = (float)((long double)((id / 3 % 3 - 1) * size) * tree_shift() + (long double)unit_type_get_size(ty) * oc.half + unit_get_y(u));
+    pos[2] = mesh_z(map_mesh_at(map), pos[0], pos[1]);
+    __attribute__((aligned(8))) float t[16];
+    transform_orient(t, info->yaw, 0.0f, 0.0f);
+    transform_set_position(t, pos[0], pos[1], pos[2]);
+    t[12] = t[13] = t[14] = 0.0f, t[15] = 1.0f;
+    if (!dry && info->ambient && tree_has_ambient(ty)) ambient_add_tree(engine_display_ambient_sounds_at(), u);
+    draw_small_record_set_hp(rec, (float)((long double)unit_get_hp(u) / unit_stats_get_hp(st)));
+    draw_small_record_set_flag(rec, 0);
+    draw_small_record_set_gfx(rec, unit_graphics(u));
+    if (!dry) graphics_acquire(draw_small_record_get_gfx(rec));
+    draw_small_record_set_scale(rec, unit_stats_get_height(st));
+    draw_small_record_set_scale(rec, (float)(((long double)((uint32_t)id % 11) * tc.scale_step + oc.one) * draw_small_record_get_scale(rec)));
+    int x = unit_get_x(u), y = unit_get_y(u);
+    int open = !tile_has_tree(uc_tile(map, x - 1, y - 1)) || !tile_has_tree(uc_tile(map, x + 1, y + 1));
+    draw_small_record_set_bar_x(rec, open ? unit_type_get_bar_x(ty) : 0.0f);
+    draw_small_record_set_bar_y(rec, open ? unit_type_get_bar_y(ty) : 0.0f);
+    if (u == player_get_selected_unit(me) || (*game_free_camera_at() && (unit_get_selected(u) || uc_in_bar_ids(u)))) {
+        draw_small_record_set_circle(rec, unit_type_get_mark_size(ty));
+        void *r = rec;
+        if (!dry) vector_push_small(engine_display_tree_bar_records_at(), &r);
+    }
+    draw_small_record_set_anim(rec, 0);
+    ee_model *m = ((ee_model **)dmg_model_anim_model_at(draw_small_record_get_gfx(rec)))[draw_small_record_get_anim(rec)];
+    draw_small_record_set_frame(rec, 0);
+    draw_small_record_set_next_frame(rec, draw_small_record_get_frame(rec));
+    if (model_get_frames(m) > 1) {
+        draw_small_record_set_frame(rec, draw_small_record_get_frame(rec) + 1);
+        int a = (int)((tc.clock + (uint32_t)id * 8) % 360) - 180;
+        float arg = (float)((long double)fc.tilt_offset - (long double)a * tc.sway_step);
+        long double s = (game_cos_fpu(arg) + oc.one) * oc.half;
+        if (!(s >= oc.zero)) s = 0;
+        else if (s > oc.one) s = 1;
+        draw_small_record_set_sway(rec, (float)s);
+    } else draw_small_record_set_sway(rec, 0.0f);
+    if (dry) return;
+    void *found[2], *pair[2] = { (void *)(uintptr_t)graphics_anim_key(draw_small_record_get_gfx(rec), draw_small_record_get_anim(rec)), rec };
+    sort_map_insert(sort_map, found, pair);
+    pick_list_add(engine_display_pick_list_at(), u, t, draw_small_record_get_opacity(rec));
+    pair[0] = (void *)(uintptr_t)dmg_model_get_shadow_key(draw_small_record_get_gfx(rec));
+    pair[1] = rec;
+    sort_map_insert(engine_display_sort_maps_at() + 0x3C, found, pair);
+}
+
+// the walk's trees' fill: the game's, or the game's held against ours (fill check: the record as it was before the
+// game's fill, then ours into that copy without the calls that change the game's lists - the record's every byte
+// compared, the sway's clock the same)
+internal uint32_t g_uc_tr_n, g_uc_tr_diff;
+internal volatile int g_uc_fill;
+internal void uc_fill_tree_of(ee_ro_units *ro, ee_unit *o, uint8_t *rec, void *map, void *info) {
+    uint8_t was[DRAW_SMALL_REC];
+    if (g_uc_fill == 1) memcpy(was, rec, sizeof was);
+    ro_units_fill_object(ro, o, rec, map, info);
+    if (g_uc_fill != 1) return;
+    uc_fill_tree(o, was, map, (uc_info *)info, 1);
+    g_uc_tr_n++;
+    if (memcmp(was, rec, sizeof was)) {
+        int k = 0;
+        while (k < DRAW_SMALL_REC / 4 && !memcmp(was + k * 4, rec + k * 4, 4)) k++;
+        if (g_uc_tr_diff++ < 8)
+            log_locked("# collect: tree's record differs: type %d at %d,%d: from +0x%X, the game's %08x, ours %08x\n",
+                       unit_type_get_id(unit_get_type_data(o)), unit_get_x(o), unit_get_y(o), k * 4,
+                       *(uint32_t *)(rec + k * 4), *(uint32_t *)(was + k * 4));
+    }
+}
+
 // the walk's fill: the game's or ours (the pipe: picture collect fill game | own) - also for walls.c's hook of its site,
 // which calls collect_fill for the fill and then shears its farms
-internal volatile int g_uc_fill;
 internal void __thiscall collect_fill(void *c, ee_unit *u, float *rec, void *p3, void *p4) {
     if (g_uc_fill == 2) uc_fill((ee_ro_units *)c, u, (uint8_t *)rec, p3, (uc_info *)p4);
     else draw_record_fill(c, u, rec, p3, p4);
@@ -497,7 +584,8 @@ __attribute__((used)) void __cdecl collect_walk(uint8_t *f) {
                         } else {
                             uint8_t *rec = small + (size_t)*sn * DRAW_SMALL_REC;
                             int see = uc_opacity_of(ro, o, draw_small_record_opacity(rec));
-                            ro_units_fill_object(ro, o, rec, maps + (see ? 0x30 : 0x24), info);
+                            if (g_uc_fill == 2) uc_fill_tree(o, rec, maps + (see ? 0x30 : 0x24), (uc_info *)info, 0);
+                            else uc_fill_tree_of(ro, o, rec, maps + (see ? 0x30 : 0x24), info);
                             ++*sn;
                         }
                     }
@@ -616,7 +704,8 @@ internal int collect_drawn(int how) {
 // lists' print in a paused game holds the two against each other)
 internal int collect_fill_mode(int how) {
     if (!g_uc_installed) return -1;
-    g_uc_fill = how ? 2 : 0;
+    g_uc_tr_n = g_uc_tr_diff = 0;
+    g_uc_fill = how;
     return 0;
 }
 
@@ -670,6 +759,8 @@ internal void collect_print(void) {
     if (g_uc_opacity == 1)
         log_locked("# collect: opacity held against the game's: %u objects, %u differ (land buildings tested by the camera's front plane %u, faded %u)\n",
                    g_uc_op_n, g_uc_op_diff, g_uc_op_land, g_uc_op_near);
+    if (g_uc_fill == 1)
+        log_locked("# collect: trees' fill held against the game's: %u trees, %u differ\n", g_uc_tr_n, g_uc_tr_diff);
     if (g_uc_drawn == 1)
         log_locked("# collect: view test held against the game's: %u objects (%u drawn), %u differ\n", g_uc_dr_n, g_uc_dr_yes, g_uc_dr_diff);
 }

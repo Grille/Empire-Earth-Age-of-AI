@@ -153,6 +153,61 @@ internal inline uint8_t draw_record_get_gated(const void *o) { return *(uint8_t 
 internal inline void draw_record_set_gated(void *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_draw_record_gated) = v; }
 internal inline uint8_t *draw_record_gated_at(const void *o) { return (uint8_t *)((uint8_t *)o + of_draw_record_gated); }
 
+// class ee_draw_small_record (void)
+// the small objects' draw list's records, hooks.draw_small_old (0x3C each): a tree's, as its fill (EEROUnits' FillObject,
+// EE 0x501DFF, AoC 0x50CBA3; collect.c's port uc_fill_tree) makes it - the same offsets in both builds
+// where it is drawn: its tile's middle shifted by its id, the ground's height there
+internal inline vec3 draw_small_record_get_pos(const void *o) { return *(vec3 *)((uint8_t *)o + of_draw_small_record_pos); }
+internal inline void draw_small_record_set_pos(void *o, vec3 v) { *(vec3 *)((uint8_t *)o + of_draw_small_record_pos) = v; }
+internal inline vec3 *draw_small_record_pos_at(const void *o) { return (vec3 *)((uint8_t *)o + of_draw_small_record_pos); }
+internal inline ee_dmg_model *draw_small_record_get_gfx(const void *o) { return *(ee_dmg_model **)((uint8_t *)o + of_draw_small_record_gfx); }
+internal inline void draw_small_record_set_gfx(void *o, ee_dmg_model *v) { *(ee_dmg_model **)((uint8_t *)o + of_draw_small_record_gfx) = v; }
+internal inline ee_dmg_model **draw_small_record_gfx_at(const void *o) { return (ee_dmg_model **)((uint8_t *)o + of_draw_small_record_gfx); }
+// its stats' height times 1 + (its id % 11) x engine_display.tree_scale_step
+internal inline float draw_small_record_get_scale(const void *o) { return *(float *)((uint8_t *)o + of_draw_small_record_scale); }
+internal inline void draw_small_record_set_scale(void *o, float v) { *(float *)((uint8_t *)o + of_draw_small_record_scale) = v; }
+internal inline float *draw_small_record_scale_at(const void *o) { return (float *)((uint8_t *)o + of_draw_small_record_scale); }
+// the selection circle's size (its type's mark_size) while it is the player's selected unit
+internal inline float draw_small_record_get_circle(const void *o) { return *(float *)((uint8_t *)o + of_draw_small_record_circle); }
+internal inline void draw_small_record_set_circle(void *o, float v) { *(float *)((uint8_t *)o + of_draw_small_record_circle) = v; }
+internal inline float *draw_small_record_circle_at(const void *o) { return (float *)((uint8_t *)o + of_draw_small_record_circle); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// its type's bar_x / bar_y when a diagonal neighbour tile holds no tree, else 0 [guess: what they are for a tree]
+internal inline float draw_small_record_get_bar_x(const void *o) { return *(float *)((uint8_t *)o + of_draw_small_record_bar_x); }
+internal inline void draw_small_record_set_bar_x(void *o, float v) { *(float *)((uint8_t *)o + of_draw_small_record_bar_x) = v; }
+internal inline float *draw_small_record_bar_x_at(const void *o) { return (float *)((uint8_t *)o + of_draw_small_record_bar_x); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// the type's bar_y the same way (beside bar_x)
+internal inline float draw_small_record_get_bar_y(const void *o) { return *(float *)((uint8_t *)o + of_draw_small_record_bar_y); }
+internal inline void draw_small_record_set_bar_y(void *o, float v) { *(float *)((uint8_t *)o + of_draw_small_record_bar_y) = v; }
+internal inline float *draw_small_record_bar_y_at(const void *o) { return (float *)((uint8_t *)o + of_draw_small_record_bar_y); }
+// its hit points over its stats'
+internal inline float draw_small_record_get_hp(const void *o) { return *(float *)((uint8_t *)o + of_draw_small_record_hp); }
+internal inline void draw_small_record_set_hp(void *o, float v) { *(float *)((uint8_t *)o + of_draw_small_record_hp) = v; }
+internal inline float *draw_small_record_hp_at(const void *o) { return (float *)((uint8_t *)o + of_draw_small_record_hp); }
+// its opacity (EEROUnits.opacity writes it before the fill)
+internal inline float draw_small_record_get_opacity(const void *o) { return *(float *)((uint8_t *)o + of_draw_small_record_opacity); }
+internal inline void draw_small_record_set_opacity(void *o, float v) { *(float *)((uint8_t *)o + of_draw_small_record_opacity) = v; }
+internal inline float *draw_small_record_opacity_at(const void *o) { return (float *)((uint8_t *)o + of_draw_small_record_opacity); }
+// its sway in the wind: (1 + cos(tilt_offset - ((sway_clock + id x 8) % 360 - 180) x sway_step)) / 2, clamped
+// to 0 .. 1; 0 for a model of one frame
+internal inline float draw_small_record_get_sway(const void *o) { return *(float *)((uint8_t *)o + of_draw_small_record_sway); }
+internal inline void draw_small_record_set_sway(void *o, float v) { *(float *)((uint8_t *)o + of_draw_small_record_sway) = v; }
+internal inline float *draw_small_record_sway_at(const void *o) { return (float *)((uint8_t *)o + of_draw_small_record_sway); }
+internal inline int draw_small_record_get_anim(const void *o) { return *(int *)((uint8_t *)o + of_draw_small_record_anim); }
+internal inline void draw_small_record_set_anim(void *o, int v) { *(int *)((uint8_t *)o + of_draw_small_record_anim) = v; }
+internal inline int *draw_small_record_anim_at(const void *o) { return (int *)((uint8_t *)o + of_draw_small_record_anim); }
+// 1 for a model of more than one frame, else 0; next_frame 0
+internal inline int draw_small_record_get_frame(const void *o) { return *(int *)((uint8_t *)o + of_draw_small_record_frame); }
+internal inline void draw_small_record_set_frame(void *o, int v) { *(int *)((uint8_t *)o + of_draw_small_record_frame) = v; }
+internal inline int *draw_small_record_frame_at(const void *o) { return (int *)((uint8_t *)o + of_draw_small_record_frame); }
+internal inline int draw_small_record_get_next_frame(const void *o) { return *(int *)((uint8_t *)o + of_draw_small_record_next_frame); }
+internal inline void draw_small_record_set_next_frame(void *o, int v) { *(int *)((uint8_t *)o + of_draw_small_record_next_frame) = v; }
+internal inline int *draw_small_record_next_frame_at(const void *o) { return (int *)((uint8_t *)o + of_draw_small_record_next_frame); }
+internal inline uint8_t draw_small_record_get_flag(const void *o) { return *(uint8_t *)((uint8_t *)o + of_draw_small_record_flag); }
+internal inline void draw_small_record_set_flag(void *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_draw_small_record_flag) = v; }
+internal inline uint8_t *draw_small_record_flag_at(const void *o) { return (uint8_t *)((uint8_t *)o + of_draw_small_record_flag); }
+
 // static class hooks
 // hooks's data of the game, places in its code and numbers
 internal inline uint8_t *hooks_call_attack_alert_at(void) { return (uint8_t *)(uintptr_t)data_hooks_call_attack_alert; }
@@ -276,6 +331,19 @@ internal int spec_hooks_select(int build) {
         of_draw_record_fogged = 0x145;
         of_draw_record_tinted = 0x146;
         of_draw_record_gated = 0x147;
+        of_draw_small_record_pos = 0x0;
+        of_draw_small_record_gfx = 0xC;
+        of_draw_small_record_scale = 0x10;
+        of_draw_small_record_circle = 0x14;
+        of_draw_small_record_bar_x = 0x18;
+        of_draw_small_record_bar_y = 0x1C;
+        of_draw_small_record_hp = 0x20;
+        of_draw_small_record_opacity = 0x24;
+        of_draw_small_record_sway = 0x28;
+        of_draw_small_record_anim = 0x2C;
+        of_draw_small_record_frame = 0x30;
+        of_draw_small_record_next_frame = 0x34;
+        of_draw_small_record_flag = 0x38;
         data_hooks_call_attack_alert = 0x006177CF;
         data_hooks_reload_tick_cmp[0] = 0x0060ABC0;
         data_hooks_reload_tick_cmp[1] = 0x0060B34C;
@@ -391,6 +459,19 @@ internal int spec_hooks_select(int build) {
         of_draw_record_fogged = 0x145;
         of_draw_record_tinted = 0x146;
         of_draw_record_gated = 0x147;
+        of_draw_small_record_pos = 0x0;
+        of_draw_small_record_gfx = 0xC;
+        of_draw_small_record_scale = 0x10;
+        of_draw_small_record_circle = 0x14;
+        of_draw_small_record_bar_x = 0x18;
+        of_draw_small_record_bar_y = 0x1C;
+        of_draw_small_record_hp = 0x20;
+        of_draw_small_record_opacity = 0x24;
+        of_draw_small_record_sway = 0x28;
+        of_draw_small_record_anim = 0x2C;
+        of_draw_small_record_frame = 0x30;
+        of_draw_small_record_next_frame = 0x34;
+        of_draw_small_record_flag = 0x38;
         data_hooks_call_attack_alert = 0x0062A366;
         data_hooks_reload_tick_cmp[0] = 0;
         data_hooks_reload_tick_cmp[1] = 0;

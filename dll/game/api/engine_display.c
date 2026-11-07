@@ -293,6 +293,22 @@ internal inline int group_contains(void *grp, ee_unit *u) {
     return ((uint8_t (__thiscall *)(void *, ee_unit *))(*(void ***)grp)[value_engine_display_slot_group_contains])(grp, u) != 0;
 }
 
+// THE TREES' FILL's inputs (collect.c's port of FillObject): the scale's and the sway's steps, the sway's clock, UMCos
+// (its answer the FPU's, unrounded), GETransformation::SetPosition, whether EE hands a tree to the ambient sounds
+typedef struct { float scale_step, sway_step; uint32_t clock; } tree_consts;
+internal inline tree_consts tree_consts_now(void) {
+    tree_consts c = { *(const float *)data_engine_display_tree_scale_step, *(const float *)data_engine_display_sway_step,
+                      *(const uint32_t *)data_engine_display_sway_clock };
+    return c;
+}
+typedef long double (__cdecl *cos_fn)(float x);
+typedef void (__thiscall *set_position_fn)(void *t, float x, float y, float z);
+internal inline long double game_cos_fpu(float x) { return (*(cos_fn *)data_game_iat_cos)(x); }
+internal inline void transform_set_position(void *t, float x, float y, float z) { (*(set_position_fn *)data_engine_display_iat_set_position)(t, x, y, z); }
+internal inline int tree_has_ambient(const ee_unit_type *t) {
+    return build_is("aoc") || (uint32_t)unit_type_get_resource_type(t) == value_engine_display_resource_wood;
+}
+
 // EEGraphicObject.acquire's start -> h, *orig the game's (push ebp; mov ebp, esp; sub esp, 0x1B0 in both builds)
 internal inline int patch_acquire(dmg_model_acquire_fn h, dmg_model_acquire_fn *orig) {
     static const uint8_t pro[9] = { 0x55, 0x8B, 0xEC, 0x81, 0xEC, 0xB0, 0x01, 0x00, 0x00 };

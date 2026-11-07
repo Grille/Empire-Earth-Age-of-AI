@@ -478,6 +478,20 @@ maps, the health bars' list: the 8000 save at three places (7264, 5299, 344 obje
 bars), as its player 2 in the fog, an EE and an AoC Continental game with their start's units selected - each then
 30 s at speed 3 with the mod's fill.
 
+The trees' fill ported (collect.c uc_fill_tree, 2026-11-08; the same switch: `picture collect fill game | check | own`).
+FillObject (EE 0x501DFF, AoC 0x50CBA3: 352 instructions, the same but for addresses and offsets; EE hands only a wood
+tree to the ambient sounds) makes a tree's small record (spec ee_draw_small_record, 0x3C bytes): at its tile's middle
+shifted by its id (id % 3 - 1 and id / 3 % 3 - 1 times its size and 0.125), the ground's height there, turned to the
+camera's yaw; its hit points; its scale varied by its id (1 + id % 11 times a step); its type's two bar values when a
+diagonal neighbour tile has no tree (the forest's edge); its selection circle and the trees' health bars' list while it
+is the player's selected unit; its sway in the wind - (1 + cos(the tilt offset less ((the clock + id x 8) % 360 - 180)
+times a step)) / 2, for a model of more than one frame; then the sort map, the picker (its transformation) and the sixth
+sort map. The game also makes a physical model on its stack it never uses (left out). The sway follows a clock that
+runs while the game is paused, so the paused prints differ in it; fill check holds the trees against the game's as
+they are filled - the record as it was, the game's fill, ours into a copy without its calls that change the game's
+lists, every byte compared: 0 differ of 88 683 trees in the 8000 save, 132 736 on an EE Continental map, 51 832 in AoC;
+the paused prints alike in every other dword, the objects' as before.
+
 `[display] gpu_animation` (default on; the pipe: `picture morph on | off`; render_morph.c), 2026-11-06. EE animates a
 model by morphing: every frame of its animation is a whole vertex array (spec GEModel.vertices, frames alike share
 one), and the T&L DLL's DrawModelHierarchy draws each material by copying its run of the frame into the vertex buffer

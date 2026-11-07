@@ -457,7 +457,7 @@ unsafe struct GEModel
     [offset(0x108), found(c)]
     GEMaterial** materials;
 
-    /// its frames, the boxes' count
+    /// its frames, the boxes' count (the trees' fill: a tree's model of more than one sways)
     [offset(0x140), found(c)]
     uint32 frames;
 
@@ -1098,6 +1098,29 @@ static unsafe class engine_display
     [address((ee)0x008237DC, (aoc)0x008377B4)]
     static block iat_transform_scale;
 
+    /// THE TREES' FILL (EEROUnits' FillObject; collect.c uc_fill_tree): the trees' health bars' records (a vector,
+    /// vector_push_small adds one), the sway's clock (int), the scale's step by id, the sway's step
+    [address((ee)0x008D2D20, (aoc)0x008E94C0)]
+    static block tree_bar_records;
+
+    [address((ee)0x009128E8, (aoc)0x00929084)]
+    static block sway_clock;
+
+    [address((ee)0x0082C2F4, (aoc)0x00841354)]
+    static block tree_scale_step;
+
+    [address((ee)0x0082C2E4, (aoc)0x00841344)]
+    static block sway_step;
+
+    /// the exe's import slot of GETransformation::SetPosition (x, y, z); UMCos's is game.iat_cos
+    [import_slot("Low-Level Engine.dll", "?SetPosition@GETransformation@@QAEXMMM@Z")]
+    [address((ee)0x00823414, (aoc)0x008373B0)]
+    static block iat_set_position;
+
+    /// EEUnit.resource_type's wood (EE's trees' fill hands only a wood tree to the ambient sounds)
+    [value((ee)3, (aoc)3)]
+    static uint32 resource_wood;
+
     /// EEUnit.resource's food (kResourceFood): an animal or a bush of the gaia player with food left is drawn on a
     /// tile the player hasn't in sight (its fog) as long as it has a complex unit and isn't a citizen
     [value((ee)2, (aoc)2)]
@@ -1163,6 +1186,18 @@ static unsafe class engine_display_functions
 
     [address((ee)none, (aoc)0x005F9DCB), thiscall]
     static extern float32 line_of_sight(EEUnit* cu);
+
+    /// the trees' fill's: thiscall(engine_display.ambient_sounds, a tree) into the ambient sounds' turn (AoC's the
+    /// object's, ambient_add_object); cdecl(tile): a tree on it (its objects' types' is_tree); push_back into
+    /// tree_bar_records' vector type
+    [address((ee)0x0051A5D5, (aoc)0x00524E80), thiscall]
+    static extern void ambient_add_tree(void* sounds, EEUnit* u);
+
+    [address((ee)0x00502200, (aoc)0x0050CF98), cdecl]
+    static extern uint8 tile_has_tree(ee_tile* t);
+
+    [address((ee)0x00504F36, (aoc)0x0050FDD5), thiscall]
+    static extern void vector_push_small(void* v, void** value);
 
     /// thiscall(the same set, found: 8 bytes - its node, then a byte: 1 inserted, 0 there before -, &the doppelganger):
     /// insert (ret 8; the pair std::set::insert returns, through the hidden pointer)

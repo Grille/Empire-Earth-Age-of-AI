@@ -161,6 +161,61 @@ unsafe struct ee_draw_record
     uint8 gated;
 }
 
+/// the small objects' draw list's records, hooks.draw_small_old (0x3C each): a tree's, as its fill (EEROUnits' FillObject,
+/// EE 0x501DFF, AoC 0x50CBA3; collect.c's port uc_fill_tree) makes it - the same offsets in both builds
+[c_type("void")]
+unsafe struct ee_draw_small_record
+{
+    /// where it is drawn: its tile's middle shifted by its id, the ground's height there
+    [offset(0x0), found(c)]
+    vec3 pos;
+
+    [offset(0xC), found(c)]
+    EEGraphicObject* gfx;
+
+    /// its stats' height times 1 + (its id % 11) x engine_display.tree_scale_step
+    [offset(0x10), found(c)]
+    float32 scale;
+
+    /// the selection circle's size (its type's mark_size) while it is the player's selected unit
+    [offset(0x14), found(c)]
+    float32 circle;
+
+    /// its type's bar_x / bar_y when a diagonal neighbour tile holds no tree, else 0 [guess: what they are for a tree]
+    [offset(0x18), found(c), guess]
+    float32 bar_x;
+
+    /// the type's bar_y the same way (beside bar_x)
+    [offset(0x1C), found(c), guess]
+    float32 bar_y;
+
+    /// its hit points over its stats'
+    [offset(0x20), found(c)]
+    float32 hp;
+
+    /// its opacity (EEROUnits.opacity writes it before the fill)
+    [offset(0x24), found(c)]
+    float32 opacity;
+
+    /// its sway in the wind: (1 + cos(tilt_offset - ((sway_clock + id x 8) % 360 - 180) x sway_step)) / 2, clamped
+    /// to 0 .. 1; 0 for a model of one frame
+    [offset(0x28), found(c)]
+    float32 sway;
+
+    [offset(0x2C), found(c)]
+    int32 anim;
+
+    /// 1 for a model of more than one frame, else 0; next_frame 0
+    [offset(0x30), found(c)]
+    int32 frame;
+
+    [offset(0x34), found(c)]
+    int32 next_frame;
+
+    [offset(0x38), found(c)]
+    uint8 flag;
+}
+
 /// hooks's data of the game, places in its code and numbers
 static unsafe class hooks
 {
