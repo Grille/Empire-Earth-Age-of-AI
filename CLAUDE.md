@@ -48,7 +48,7 @@ and the runners, eectl, the MCP server), `results/` (log readers, scorers), `re/
   build until restarted), a failure tried again; log `local/work/install.log`. No manual install after a commit. Before
   telling the player a change is done: `sh scripts/build/install_wait.sh` (waits until HEAD is in the game folder, about
   a minute - he kept testing builds from before the fix, 2026-11-04), and say so if his game runs (restart it).
-- A task that needs the game folder to itself (an install, a slot-0 run): `sh scripts/test/reserve.sh "<what>" <command>`
+- A task that needs the game folder to itself: `sh scripts/test/reserve.sh "<what>" <command>`
   - test runs start no game meanwhile, the running ones (and the player's) are waited for; nobody has to pause.
 - `spec/` is the source of truth about the game (2026-10-25): every class, field, function, call site, number and place
   in its code the mod knows, build by build, as C# declarations that compile (`dotnet build` in spec/;
@@ -129,9 +129,12 @@ and the runners, eectl, the MCP server), `results/` (log readers, scorers), `re/
 
 ## Testing
 
-- `scripts/test/run_test.ps1` (and scen.sh, suite.sh, h2h.sh ... on top of it): always `headless=1`, always in a slot of
-  its own (`-Slot n` / `SLOT=n`, `JOBS=n` for the scripts) - slots 1..30 run beside the player's game and each
-  other; slot 0 shares the game folder and refuses while the player's game runs. `DLL=<path>` plays your own build
+- `scripts/test/run_test.ps1` (and scen.sh, suite.sh, h2h.sh ... on top of it): always `headless=1`. Runs are queued, first
+  come first served across all sessions, and play beside the player's game and each other; when and in which slot is
+  the runner's business (at most `EE_TEST_GAMES` games at a time, default half the logical processors; `ls local/work/queue`
+  shows the queue). `JOBS=n`: how many of a batch are in the queue at a time. `-Name x` / `RUN=x` names a run to reach
+  it: `RUN=x python scripts/test/eectl.py ...` (waits while it is queued; without RUN eectl is the player's game),
+  `eectl.py --folder` the folder of its files while it plays. `DLL=<path>` plays your own build
   without installing it. Tests use the shipped `config/ageofai.ini` and `config/personalities/`, never the user's own.
 - Setup scripts (`tests/scenarios/*.eeai`, `tests/probes/*.eeai`): docs/scripts.md. The control pipe: `scripts/test/eectl.py`.
 - A run's log is `local/work/autotest_*.csv.gz` (gzipped: `zgrep`, `zcat`; a script reads it through `scripts/results/logs.py`);

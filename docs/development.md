@@ -78,12 +78,12 @@ those are compared over several runs (`game_seed` makes one the same game every 
 
 ```sh
 # one 75-minute AI-vs-AI game on a random map, logs to local/work/autotest_<stamp>_<tag>.csv.gz
-powershell -ExecutionPolicy Bypass -File scripts/test/run_test.ps1 -Slot 1 -Save newgame.ees -Tag _try \
+powershell -ExecutionPolicy Bypass -File scripts/test/run_test.ps1 -Name try -Save newgame.ees -Tag _try \
     -IniExtra "random_map=Continental,ai_count=3,seed=101,avoid_towers=1"
-# the 4-map suite for several variants, scored per variant (4 games at a time, each in a test slot)
+# the 4-map suite for several variants, scored per variant (4 games at a time; runs are queued, beside your own game)
 JOBS=4 sh scripts/test/suite.sh 50 "base:" "smart:avoid_towers=1"
-# talk to the running game (SLOT=n for a test slot's)
-SLOT=1 local/venv/Scripts/python scripts/test/eectl.py status | army 2 | diplo | persona | say 2 Hello | quit
+# talk to the running game (RUN=<its -Name>; without RUN: the game you play yourself)
+RUN=try local/venv/Scripts/python scripts/test/eectl.py status | army 2 | diplo | persona | say 2 Hello | quit
 ```
 
 ## Project layout

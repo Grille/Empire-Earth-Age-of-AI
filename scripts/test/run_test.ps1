@@ -8,11 +8,12 @@
 # -Scenario <name> (without .scn) starts Data\Scenarios\<name>.scn through the game's real "play scenario"
 # path: the file is copied to Saved Games\<name>.ees for -loadgame, and the DLL (scenario_mode=1) switches
 # the game start over to Scenarios\<name>.scn.
-# -Slot n (1..30; env SLOT for the scripts that call this one): a test game that runs beside others. Its test ini,
-# log and dumps are in local\work\slot<n>\ (the DLL learns it from EEAIMOD_SLOT / EEAIMOD_SLOT_DIR), its control pipe is
-# \\.\pipe\eeaimod<n>, the DLL moves its network ports by 2n, and the game's single-instance check is patched at the
-# start (docs/testing.md, Parallel runs). Slot 0 (default) is the game folder as before. -Slots a-b (env SLOTS): the
-# first free slot of that range (scripts/test/jobs.sh: 1-30), waiting while all are taken.
+# Every run is queued and plays when its turn comes, beside the others and the player's game; where is this script's
+# business - a slot n of 1..30: test ini, log and dumps in local\work\slot<n>\ (the DLL learns it from EEAIMOD_SLOT /
+# EEAIMOD_SLOT_DIR), control pipe \\.\pipe\eeaimod<n>, network ports moved by 2n, the game's single-instance check
+# patched at the start (docs/testing.md, Parallel runs). -Name <letters, digits, _ and -> (env RUN): the name to reach the
+# running game by (RUN=<name> python scripts/test/eectl.py ...; eectl.py --folder: its files). At most EE_TEST_GAMES
+# games at a time, every session's together (default half the logical processors).
 # Multiplayer (dll/test/netgame.c, scripts/test/mp.sh): -IniExtra mp=host or mp=join (with mp_host=<the host's
 # slot>, mp_seat=<n>) starts the game at the main menu instead of the save; there the DLL hosts or joins, and the
 # host's DLL presses Start once mp_humans (2) humans are in its lobby.
@@ -23,8 +24,8 @@
 # from (Saved Games\aitest.ees - a random_map start replaces what it holds).
 param([string]$Save = "aitest.ees", [int]$TimeoutSec = 900, [string]$Tag = "", [bool]$Mute = $true,
       [string]$Scenario = "", [string[]]$IniExtra = @(), [string]$Exe = "",
-      [string]$Config = $env:CONFIG, [string]$AiDir = $env:AI_DIR, [int]$Slot = [int]$env:SLOT,
-      [string]$Settings = $env:SETTINGS, [string]$Dll = $env:DLL, [string]$Slots = $env:SLOTS)
+      [string]$Config = $env:CONFIG, [string]$AiDir = $env:AI_DIR,
+      [string]$Settings = $env:SETTINGS, [string]$Dll = $env:DLL, [string]$Name = $env:RUN)
 $repo = (Resolve-Path "$PSScriptRoot\..\..").Path
 $g = $env:EE_GAME_DIR
 if (-not $g -and (Test-Path "$repo\local\game_dir.txt")) { $g = (Get-Content "$repo\local\game_dir.txt" | Where-Object { $_.Trim() } | Select-Object -First 1).Trim() }
@@ -43,19 +44,14 @@ $build = if ($aoc) { @{ Key = 'HKCU:\Software\Mad Doc Software\EE-AOC'; Splash =
                    MultiBytes = [byte[]](0x0F, 0x84, 0xBE, 0x02, 0x00, 0x00) } }
 $exeName = [System.IO.Path]::GetFileNameWithoutExtension($Exe)   # its process
 $g = (Resolve-Path $g).Path.TrimEnd('\')
-if ($Slot -lt 0 -or $Slot -gt 30) { "slot must be 0..30"; exit 1 }
-$slotFrom = $Slot; $slotTo = $Slot
-if ($Slots) {
-    if ($Slots -notmatch '^\s*(\d+)\s*(?:-\s*(\d+))?\s*$') { "slots must be n or a-b"; exit 1 }
-    $slotFrom = [int]$Matches[1]; $slotTo = if ($Matches[2]) { [int]$Matches[2] } else { $slotFrom }
-    if ($slotFrom -lt 1 -or $slotTo -gt 30 -or $slotFrom -gt $slotTo) { "slots must lie in 1..30"; exit 1 }
-}
+if ($env:SLOT -or $env:SLOTS) { "SLOT / SLOTS are gone: runs are queued, RUN=<name> names one to reach it by (eectl.py too)"; exit 1 }
 # Who holds what is told by named objects of this Windows session, not by files: creating one is a single step that
 # either makes it or finds it there (two runs can't both get it), and it is gone once the last process holding a
 # handle ends, however it ended (no stale state, no PID reused by another process).
 #   eeaimod_slot<n>      the slot: its runner and (a handle given to it at the start) its game - a game that outlives a
 #                        killed runner still keeps its slot, so no second game plays into its test ini, log and pipe
 #   eeaimod_runner_<pid> a runner is going;  eeaimod_game_<pid> a test game (held by the game only)
+#   eeaimod_run_<name>   a run of that name is queued or playing
 #   eeaimod_reserved_<game folder>  scripts/test/reserve.sh holds the game folder
 function New-Named([string]$name) {   # the new object, or $null when it exists already
     $made = $false
@@ -69,24 +65,44 @@ function Test-Named([string]$name) {
     $e.Dispose(); $true
 }
 $runner = New-Named "eeaimod_runner_$PID"
-# One run per slot. -Slots a-b (env SLOTS, scripts/test/jobs.sh): the first free slot of the range, waiting while all are
-# taken. Nothing to release by hand: the handles close with this process.
+# THE QUEUE (the player, 2026-11-08: "tests can get queued, when and on what slot becomes an internal implementation
+# detail"): first come, first served, across every session - local\work\queue\ holds a file per run, wait.<time>.<name>
+# while it queues and run.<slot>.<name> while it plays (eectl.py finds a run's slot there; the folder's listing is the
+# queue). Named objects can't be listed, hence files; a file opened delete-on-close and shared with nobody goes with
+# its process however that ends, like a named object. Only a power cut leaves one, and a file nobody holds can be
+# deleted (one that is held can't): every arrival clears those first. The first in line takes the first free slot once
+# fewer than EE_TEST_GAMES slots are held (the games of other copies of the repository count: the slots are the
+# session's). Nothing to release by hand: the handles close with this process.
+if (-not $Name) { $Name = "run$PID" }
+if ($Name -notmatch '^[\w-]+$') { "-Name / RUN: letters, digits, _ and - only"; exit 1 }
+$nameHeld = New-Named "eeaimod_run_$($Name.ToLower())"
+if (-not $nameHeld) { "a run named $Name is queued or playing already"; exit 1 }
+function Hold-File([string]$path) {
+    [System.IO.FileStream]::new($path, [System.IO.FileMode]::CreateNew, [System.IO.FileAccess]::Write, [System.IO.FileShare]::None, 1, [System.IO.FileOptions]::DeleteOnClose)
+}
+$queue = "$repo\local\work\queue"
+New-Item -ItemType Directory -Force $queue | Out-Null
+Get-ChildItem $queue -File | Remove-Item -Confirm:$false -ErrorAction SilentlyContinue
+$mine = "wait.$([DateTime]::UtcNow.Ticks.ToString('D19')).$Name"
+$ticket = Hold-File "$queue\$mine"
+$games = if ($env:EE_TEST_GAMES) { [int]$env:EE_TEST_GAMES } else { [int][Math]::Floor([Environment]::ProcessorCount / 2) }
+$games = [Math]::Max(1, [Math]::Min(30, $games))
 $told = $false
 for (;;) {
-    for ($s = $slotFrom; $s -le $slotTo -and -not $slotHeld; $s++) {
-        $slotHeld = New-Named "eeaimod_slot$s"
-        # changeover (2026-10-22, remove once no run of the old run_test is left): its lock file with a live runner
-        $old = "$repo\local\work\run_test$(if ($s) { "_slot$s" }).lock"
-        $owner = if (Test-Path $old) { [int]((Get-Content $old -Raw -ErrorAction SilentlyContinue) -split ' ')[0] }
-        if ($slotHeld -and $owner -and (Get-Process -Id $owner -ErrorAction SilentlyContinue)) { $slotHeld.Dispose(); $slotHeld = $null }
-        if ($slotHeld) { $Slot = $s }
+    $line = @([System.IO.Directory]::GetFiles($queue, "wait.*") | ForEach-Object { [System.IO.Path]::GetFileName($_) } | Sort-Object)
+    if ($line[0] -eq $mine -and @(1..30 | Where-Object { Test-Named "eeaimod_slot$_" }).Count -lt $games) {
+        for ($s = 1; $s -le 30 -and -not $slotHeld; $s++) {
+            $slotHeld = New-Named "eeaimod_slot$s"
+            if ($slotHeld) { $Slot = $s }
+        }
+        if ($slotHeld) { break }
     }
-    if ($slotHeld) { break }
-    if ($slotFrom -eq $slotTo -and -not $Slots) { "another test run is active in slot $Slot - aborting"; exit 1 }
-    if (-not $told) { "waiting: slots $slotFrom..$slotTo are all taken"; $told = $true }
-    Start-Sleep -Seconds 2
+    if (-not $told) { "queued: $([Array]::IndexOf($line, $mine)) ahead (at most $games games at a time)"; $told = $true }
+    Start-Sleep -Milliseconds 500
 }
-$sdir = if ($Slot) { "$repo\local\work\slot$Slot" } else { "$g\ageofai" }   # this run's test ini, log and dumps
+$playing = Hold-File "$queue\run.$Slot.$Name"   # before the ticket goes: a run is always findable under one of the two
+$ticket.Dispose()
+$sdir = "$repo\local\work\slot$Slot"   # this run's test ini, log and dumps
 if ($Scenario) {
     # beside other slots the file may be open in another game: copy it only when it differs
     $src = "$g\Data\Scenarios\$Scenario.scn"; $dst = "$g\Data\Saved Games\$Scenario.ees"
@@ -147,10 +163,9 @@ try {
     Add-Type -Namespace EEAimod -Name Power -MemberDefinition '[DllImport("kernel32.dll")] public static extern uint SetThreadExecutionState(uint f);' -ErrorAction Stop
     [void][EEAimod.Power]::SetThreadExecutionState([uint32]"0x80000001")
 } catch { "keep-awake request failed: $_" }
-# a game that is no test slot's - the player's own - is never disturbed. A slot (1..30) has its own test ini, log,
-# dumps and pipe, and with the game's settings in a file its own settings: it runs beside the player's game. Slot 0
-# shares the game folder's (and with the settings in the registry every run mutes the sound there): not while the
-# player plays. The settings are in a file when ageofai.dll is an import of the engine (ageofai_config.exe
+# a game that is no test slot's - the player's own - is never disturbed. A slot has its own test ini, log, dumps and
+# pipe, and with the game's settings in a file its own settings: it runs beside the player's game. With the settings
+# in the registry every run mutes the sound there: not while the player plays. The settings are in a file when ageofai.dll is an import of the engine (ageofai_config.exe
 # --settings-file on: its function's name in Low-Level Engine.dll) - or with the mod's dinput.dll of before
 $proxy = ((Test-Path "$g\Low-Level Engine.dll") -and (Select-String -Path "$g\Low-Level Engine.dll" -Pattern 'ageofai_settings' -SimpleMatch -Quiet)) -or
          ((Test-Path "$g\dinput.dll") -and (Select-String -Path "$g\dinput.dll" -Pattern 'EEAimodSettings' -SimpleMatch -Quiet))
@@ -159,8 +174,8 @@ $others = Other-Runners
 $foreign = @(Get-Process -Name $exeName -ErrorAction SilentlyContinue | Where-Object { -not (Test-Named "eeaimod_game_$($_.Id)") } | Where-Object {
     $pp = (Get-CimInstance Win32_Process -Filter "ProcessId=$($_.Id)" -ErrorAction SilentlyContinue).ParentProcessId
     -not ($pp -and (Test-Named "eeaimod_runner_$pp")) })
-if ($foreign -and (-not $Slot -or ($Mute -and -not $proxy))) {
-    "game already running - aborting$(if (-not $Slot) { ' (slot 0 shares its folder: -Slot n runs beside it)' } else { ' (its settings in the registry: the run would mute it - ageofai_config.exe --settings-file on)' })"; exit 1
+if ($foreign -and $Mute -and -not $proxy) {
+    "game already running - aborting (its settings in the registry: the run would mute it - ageofai_config.exe --settings-file on)"; exit 1
 }
 if (-not $others) { Restore-Sound }   # leftover from an interrupted run (with other slots running: theirs)
 # The game's settings. With them in a file (dll/engine/game_settings.c) every run reads a copy of
@@ -232,19 +247,17 @@ $extra += "config=$Config", "ai_dir=$AiDir"
 $keys = $extra | ForEach-Object { ($_ -split '=', 2)[0].Trim() }
 $lines = Get-Content "$repo\tests\config\autotest.ini" | Where-Object { $keys -notcontains (($_ -split '=', 2)[0].Trim()) }
 Set-Content "$sdir\ageofai_autotest.ini" (@($lines) + $extra)
-# the game started from here sees the slot (and a slot-0 run none, whatever this shell has set)
-if ($Slot) { $env:EEAIMOD_SLOT = "$Slot"; $env:EEAIMOD_SLOT_DIR = $sdir }
-else { Remove-Item Env:EEAIMOD_SLOT, Env:EEAIMOD_SLOT_DIR -ErrorAction SilentlyContinue }
+# the game started from here sees the slot
+$env:EEAIMOD_SLOT = "$Slot"; $env:EEAIMOD_SLOT_DIR = $sdir
 $env:EEAIMOD_REPO = $repo   # the repository (texts corpus: its tests\text_engine_cases.txt)
 $env:EEAIMOD_UNREADY = "1"   # a known build that isn't ready yet plays here (game/api/exe.c) - never in normal play
 # headless: no window of the game takes the focus or a taskbar button - from the process start on when ageofai.dll is
 # loaded with the engine (dll/base/headless_win.c; else from the engine's DLL scan on)
 if ($extra -contains "headless=1") { $env:EEAIMOD_HEADLESS = "1" } else { Remove-Item Env:EEAIMOD_HEADLESS -ErrorAction SilentlyContinue }
 try {
-    # an existing log in the game folder is from normal play (tests archive theirs below): keep it, never delete it;
-    # in a slot's folder: a crashed run's
+    # a log still in the slot's folder is a crashed run's (tests archive theirs below): keep it, never delete it
     if (Test-Path "$sdir\ageofai_log.csv") {
-        $kept = "$repo\local\work\$(if ($Slot) { 'slot' + $Slot + '_left_' } else { 'play_' })$(Get-Date -Format yyyyMMdd_HHmmss).csv"
+        $kept = "$repo\local\work\slot${Slot}_left_$(Get-Date -Format yyyyMMdd_HHmmss).csv"
         Move-Item "$sdir\ageofai_log.csv" $kept -Force
         "kept the previous log: $kept"
     }
@@ -303,27 +316,19 @@ public static class SuspendedStart {
   }
 }
 "@
-    # headless or beside other games: start suspended and patch before the game runs (else a plain start)
-    if ($extra -contains "headless=1" -or $Slot -or $others) {
-        # headless: start suspended and switch off the loading splash before the game runs - it comes up before
-        # the engine loads our DLL, centred on screen, and takes the focus (its jne -> jmp, see display.c)
-        $headless = $extra -contains "headless=1"; $multi = [bool]($Slot -or $others)
-        $splashOk = $false; $multiOk = $false; $mutexOk = $false; $gamePid = 0
-        $given = [SuspendedStart]::Start("$g\$Exe", $gameArgs, $g, $headless, $build.Splash, $multi,
-                                         $build.Multi, $build.MultiBytes, $build.Mutex, $build.MutexName, $slotHeld,
-                                         [ref]$splashOk, [ref]$multiOk, [ref]$mutexOk, [ref]$gamePid)
-        $p = Get-Process -Id $gamePid
-        $null = $p.Handle   # keep a handle, else ExitCode is lost
-        if ($headless -and -not $splashOk) { "warning: loading splash not switched off (unexpected bytes at $('{0:X}' -f $build.Splash))" }
-        if ($multi -and -not $multiOk) { "warning: single-instance check not switched off (unexpected bytes at $('{0:X}' -f $build.Multi))" }
-        if ($multi -and -not $mutexOk) { "warning: mutex not renamed (unexpected bytes at $('{0:X}' -f $build.Mutex)) - the player's game won't start while this one runs" }
-    } else {
-        $psi = New-Object System.Diagnostics.ProcessStartInfo
-        $psi.FileName = "$g\$Exe";$psi.Arguments = $gameArgs
-        $psi.WorkingDirectory = $g; $psi.UseShellExecute = $false
-        $p = [System.Diagnostics.Process]::Start($psi)
-        $given = [SuspendedStart]::Mark($p.Handle, $p.Id, $slotHeld)   # it runs already: a runner's child meanwhile
-    }
+    # started suspended and patched before the game runs: the single-instance check (it plays beside others), and when
+    # headless the loading splash - it comes up before the engine loads our DLL, centred on screen, and takes the
+    # focus (its jne -> jmp, see display.c)
+    $headless = $extra -contains "headless=1"
+    $splashOk = $false; $multiOk = $false; $mutexOk = $false; $gamePid = 0
+    $given = [SuspendedStart]::Start("$g\$Exe", $gameArgs, $g, $headless, $build.Splash, $true,
+                                     $build.Multi, $build.MultiBytes, $build.Mutex, $build.MutexName, $slotHeld,
+                                     [ref]$splashOk, [ref]$multiOk, [ref]$mutexOk, [ref]$gamePid)
+    $p = Get-Process -Id $gamePid
+    $null = $p.Handle   # keep a handle, else ExitCode is lost
+    if ($headless -and -not $splashOk) { "warning: loading splash not switched off (unexpected bytes at $('{0:X}' -f $build.Splash))" }
+    if (-not $multiOk) { "warning: single-instance check not switched off (unexpected bytes at $('{0:X}' -f $build.Multi))" }
+    if (-not $mutexOk) { "warning: mutex not renamed (unexpected bytes at $('{0:X}' -f $build.Mutex)) - the player's game won't start while this one runs" }
     if (-not $given) { "warning: the game didn't get its slot handles - a killed runner would free its slot" }
     # safety: the DLL logs "# autotest:" at load when it found the test ini; without it the game would run at
     # normal speed with intros and (if the ini vanished) sound - kill it instead. The line comes with the log's first
@@ -350,12 +355,12 @@ public static class SuspendedStart {
 }
 # the game's DDrawCompat log (DDrawCompat-<exe>[n].log in the game folder, its name in the DLL's log: test/autotest.c)
 # into the slot's folder - the game folder keeps the player's. -LiteralPath: the brackets of [n] are no wildcard
-if ($Slot -and (Test-Path "$sdir\ageofai_log.csv")) {
+if (Test-Path "$sdir\ageofai_log.csv") {
     $dc = Select-String -Path "$sdir\ageofai_log.csv" -Pattern '^# slot: ddrawcompat log (.+)$' | Select-Object -First 1
     if ($dc) { Move-Item -LiteralPath $dc.Matches[0].Groups[1].Value "$sdir\ddrawcompat.log" -Force -ErrorAction SilentlyContinue }
 }
 $stamp = Get-Date -Format "yyyyMMdd_HHmmss"
-$dest = "$repo\local\work\autotest_${stamp}$(if ($Slot) { "_s$Slot" })${Tag}.csv"
+$dest = "$repo\local\work\autotest_${stamp}_s${Slot}${Tag}.csv"   # the slot: two runs may end in the same second
 if (Test-Path "$sdir\ageofai_log.csv") {
     Move-Item "$sdir\ageofai_log.csv" $dest
     # gzipped: ~7 times smaller (scripts/results/logs.py reads both; zgrep, zcat). Should it fail, the plain log stays
