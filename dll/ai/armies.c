@@ -791,6 +791,7 @@ internal void ar_rams(ee_player *pl, struct armies_st *a) {
 internal void ar_go(ee_player *pl, unsigned idx, struct armies_st *a, int kind, ivec2 d, ee_unit *target, int out_only, uint32_t now) {
     a->out = kind; a->dest = d; a->target = target; a->target_id = target ? unit_get_serial(target) : 0; g_ar_claim_t[(unsigned)(a - g_armies)] = 0;
     if (!out_only) g_ar_site_set[(unsigned)(a - g_armies)] = 0;
+    if (kind == 1 && !out_only && target && TN_TAKE(idx) && tn_mine_drop(pl, target, unit_get_type_data(target))) tn_crew_start(pl, idx, a->home, now);   // TAKE MINES: the citizens along
     if (kind != 1 || out_only) { a->nway = 0; a->breach = 0; }   // a push's way was laid by ar_route; a raid's or a next leg's goes straight
     g_ar_breach[idx].on = 0;
     a->out_t = now ? now : 1; a->judge_t = 0; a->weak = 0; a->clear = 0; a->stage = 0;
@@ -848,6 +849,7 @@ internal void ar_home_all(ee_player *pl, unsigned idx, struct armies_st *a, uint
     g_ar_breach[idx].on = 0; a->breach = 0; a->stage = 0;
     int fight = PV(idx, g_v_ar_back_fight, AR_BACK_FIGHT), group = PV(idx, g_v_ar_way, AR_WAY) & 4;
     a->back_t = now ? now : 1; a->back_n = 0; a->back_hp = 0.0f; a->back_kind = a->out;
+    if (TN_TAKE(idx)) tn_crew_release(pl, idx);
     a->out = 0; a->target = NULL; a->backs++;
     for (int k = 0; k < a->n; k++) {
         a->held[k].back = 0;
@@ -1187,6 +1189,7 @@ internal void ar_out(ee_player *pl, unsigned idx, struct armies_st *a, uint32_t 
         }
         if (called) { a->leashed += (unsigned)called; ar_log(idx, now, "the raid at %d,%d: %d chasing past %d tiles called home", a->dest.x, a->dest.y, called, lim); }
     }
+    if (a->out == 1 && TN_TAKE(idx)) tn_crew_follow(pl, idx, mid, a->home, now);
     // the leg done: the building down (or gone from the tile with a member there), the raid cleared
     int there = 0;
     for (int k = 0; k < a->n && !there; k++) there = a->held[k].out && cv_alive(a->held[k].u) && ivec2_dist2(unit_get_tile(a->held[k].u), a->dest) <= AR_DONE * AR_DONE;
@@ -1209,6 +1212,7 @@ internal void ar_out(ee_player *pl, unsigned idx, struct armies_st *a, uint32_t 
         }
         if (g_ar_site_set[idx] && !g_ar_claim_t[idx] && tn_claim(pl, idx, g_ar_site[idx], now)) { g_ar_claim_t[idx] = now ? now : 1; ar_log(idx, now, "%d,%d is down - the force of %d holds it for its town", g_ar_site[idx].x, g_ar_site[idx].y, n); }
         if (g_ar_claim_t[idx] && now - g_ar_claim_t[idx] < AR_CLAIM_MS && g_ar_site_set[idx] && tn_claim_going(idx, g_ar_site[idx])) return;
+        if (g_ar_claim_t[idx]) ar_log(idx, now, "%d,%d: the force leaves after %.1f min, its town %s", g_ar_site[idx].x, g_ar_site[idx].y, (now - g_ar_claim_t[idx]) / 60000.0, tn_claim_going(idx, g_ar_site[idx]) ? "not standing yet" : "standing");
         g_ar_site_set[idx] = 0; g_ar_claim_t[idx] = 0;
     }
     if (done) {

@@ -88,11 +88,16 @@
 //   (the force first clears what else stands within 22 tiles: armies.c ar_near_building)
 //   (claim: no houses, at least four towers on a square round the mine, walls, rebuilt as FORT's, no garrison: the soldiers of
 //   FORT were missed at the front), and the force stays until its drop site and two towers stand, AR_CLAIM_MS at most.
+//   THE CREW (the player: "yes" to the citizens travelling with the army; of the mines taken with citizens walking from home
+//   the town stood 8-15 minutes after the mine fell, the force holding 4): a push at a drop site by mines takes TN_CREW free
+//   citizens along, TN_CREW_BEHIND tiles behind the force's middle; they found the town, and go home when the force does.
 #define TN_MAX 128   // a table size, not a limit
 #define TN_SPREAD_WORKERS 15
 #define TN_SPREAD_BUILDING 50
 #define TN_PROJ 24
 #define TN_GARRISON 12
+#define TN_CREW 6
+#define TN_CREW_BEHIND 12
 enum { TK_DROP, TK_TOWER, TK_PROD, TK_HOUSE, TK_N };
 internal const char *const k_tk[TK_N] = { "drop site", "tower", "production building", "house" };
 struct tn_proj { ee_unit *b; int id, kind, type, want, state, tries, waits; ivec2 p; };   // want: a production building's type   // state 0 to come, 1 going up, 2 standing, 3 dropped
@@ -393,7 +398,9 @@ internal int tn_free_cit(ee_unit *u, unsigned hc) {
     if (!strcmp(gn, "EEUGGather@@")) { ee_unit *s = goal_get_site(g); int r = s ? unit_get_resource(s) : 0; if (r >= 4 && r <= 6) return 0; }
     return 1;
 }
+internal struct tn_crew { ee_unit *u[TN_CREW]; int id[TN_CREW], n; uint32_t t; } g_tn_crew[16];   // TAKE MINES: the citizens behind the push
 internal int tn_has_cit(unsigned idx, ee_unit *u) {
+    for (int j = 0; j < g_tn_crew[idx].n; j++) if (g_tn_crew[idx].u[j] == u) return 1;
     for (int k = 0; k < TN_MAX; k++) {
         struct tn_town *t = &g_tn[idx].town[k];
         if (t->state) for (int j = 0; j < t->ncit; j++) if (t->cit[j] == u) return 1;
@@ -557,6 +564,7 @@ internal int tn_mine_near(ee_player *pl, ivec2 c, int r) {
     return n;
 }
 internal int tn_mine_drop(ee_player *pl, ee_unit *u, ee_unit_type *td) { return tn_is_drop(unit_type_get_id(td)) && tn_mine_near(pl, unit_get_tile(u), 10) > 0; }
+internal void tn_crew_alive(ee_player *pl, unsigned idx);
 // TAKE MINES: a town where the force has just razed what stood at c; 1: founded
 internal int tn_claim(ee_player *pl, unsigned idx, ivec2 c, uint32_t now) {
     struct tn_st *s = &g_tn[idx];
@@ -576,6 +584,13 @@ internal int tn_claim(ee_player *pl, unsigned idx, ivec2 c, uint32_t now) {
     struct tn_town *t = tn_found(pl, idx, s, c, nm, &w, hc, now, 0);
     if (!t) return 0;
     t->claim = 1; s->plans++;
+    tn_crew_alive(pl, idx);
+    if (g_tn_crew[idx].n) {   // THE CREW: they are here already
+        t->ncit = 0;
+        for (int k = 0; k < g_tn_crew[idx].n; k++) { t->cit[t->ncit] = g_tn_crew[idx].u[k]; t->cid[t->ncit] = g_tn_crew[idx].id[k]; t->sent_mine[t->ncit++] = 0; }
+        g_tn_crew[idx].n = 0;
+        if (t->ncit < 3) tn_take_cits(pl, idx, t, g_tn_cits, hc);
+    }
     while (t->nproj && t->proj[t->nproj - 1].kind == TK_HOUSE) t->nproj--;
     int towers = 0;
     for (int j = 0; j < t->nproj; j++) towers += t->proj[j].kind == TK_TOWER;
@@ -621,6 +636,51 @@ internal int tn_garrison(unsigned idx, ee_unit *u) {
     return 0;
 }
 // the garrison back to the game (the force takes it up as any free soldier)
+internal void tn_crew_alive(ee_player *pl, unsigned idx) {
+    struct tn_crew *c = &g_tn_crew[idx];
+    int m = 0;
+    for (int k = 0; k < c->n; k++)
+        if (c->u[k] && unit_get_hp(c->u[k]) > 0 && unit_get_id(c->u[k]) == c->id[k] && unit_get_owner(c->u[k]) == pl) { c->u[m] = c->u[k]; c->id[m++] = c->id[k]; }
+    c->n = m;
+}
+// a push at a drop site by mines sets out: its citizens, the free ones nearest at
+internal void tn_crew_start(ee_player *pl, unsigned idx, ivec2 at, uint32_t now) {
+    struct tn_crew *c = &g_tn_crew[idx];
+    ee_build_mgr *bm = civ_mgr_get_build_mgr(player_get_civ_mgr(pl));
+    if (!TN_TAKE(idx) || c->n || !bm || build_mgr_get_base_x(bm) == -10000 || base_threatened(idx) || current_epoch(pl) < FARM_EPOCH || workforce(pl) < 20) return;
+    unsigned hc = (unsigned)area_id(build_mgr_get_base(bm), 2);
+    if (!hc) return;
+    static struct tn_town tmp;
+    memset(&tmp, 0, sizeof tmp);
+    tmp.c = at;
+    tn_take_cits(pl, idx, &tmp, TN_CREW, hc);
+    for (int k = 0; k < tmp.ncit && k < TN_CREW; k++) { c->u[k] = tmp.cit[k]; c->id[k] = tmp.cid[k]; c->n = k + 1; }
+    c->t = 0;
+    tn_say(idx, now, "%d citizens go with the push", c->n);
+}
+// they walk TN_CREW_BEHIND tiles behind the force's middle, on the side of home
+internal void tn_crew_follow(ee_player *pl, unsigned idx, ivec2 mid, ivec2 home, uint32_t now) {
+    struct tn_crew *c = &g_tn_crew[idx];
+    tn_crew_alive(pl, idx);
+    if (!c->n || (c->t && now - c->t < 8000)) return;
+    c->t = now ? now : 1;
+    float dx = (float)(home.x - mid.x), dy = (float)(home.y - mid.y), l = sqrtf(dx * dx + dy * dy);
+    ivec2 p = l > 1 ? iv2(mid.x + (int)lroundf(dx / l * TN_CREW_BEHIND), mid.y + (int)lroundf(dy / l * TN_CREW_BEHIND)) : mid;
+    for (int k = 0; k < c->n; k++)
+        if (ivec2_dist2(unit_get_tile(c->u[k]), p) > 5 * 5 && !goal_near(c->u[k], (float)p.x + 0.5f, (float)p.y + 0.5f, 3.0f))
+            unit_goal(c->u[k], goal_move((float)p.x + 0.5f, (float)p.y + 0.5f), 0, 0x1F40);
+}
+// the force goes home: its citizens too, back to the game's economy
+internal void tn_crew_release(ee_player *pl, unsigned idx) {
+    struct tn_crew *c = &g_tn_crew[idx];
+    tn_crew_alive(pl, idx);
+    ee_build_mgr *bm = civ_mgr_get_build_mgr(player_get_civ_mgr(pl));
+    for (int k = 0; bm && k < c->n; k++) {
+        ivec2 h = build_mgr_get_base(bm);
+        unit_goal(c->u[k], goal_move((float)h.x + 0.5f, (float)h.y + 0.5f), 0, 0x1F40);
+    }
+    c->n = 0;
+}
 internal void tn_gar_release(ee_player *pl, struct tn_town *t) {
     ee_combat_mgr *cm = player_get_combat_mgr(pl);
     for (int k = 0; k < t->ngar; k++) {
@@ -1213,7 +1273,7 @@ internal void towns_act(ee_player *pl, unsigned idx, uint32_t now) {
                n, held, s->plans, s->founded, s->held, s->lost, s->unpaid, s->laid, s->built, s->rebuilt, s->orders, s->assigned, s->sent, s->prods, s->walls, s->guards, s->scouts, s->scouts_back, s->grown, s->gaveup);
     }
 }
-internal void towns_new_game(void) { memset(g_tn, 0, sizeof g_tn); }
+internal void towns_new_game(void) { memset(g_tn, 0, sizeof g_tn); memset(g_tn_crew, 0, sizeof g_tn_crew); }
 // the towns key's fields (resource_towns, settlement, forward_production, forward_base, spread, scout, grow - its
 // struct's order) as the bits the code tests: 1, 2, 4, 8, 16, 32, 64
 internal void towns_install(const char *autotest_ini) {
