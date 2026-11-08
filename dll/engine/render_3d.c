@@ -178,6 +178,14 @@ internal const char k_rd3_shader[] =
     "  k += sm.Load(int3(a, 0)) < q.z - b ? 1 : 0; } return k / 4; }\n"
     "float fog_at(float z) { if (fog.x == 3) return (fog.z - z) / (fog.z - fog.y); if (fog.x == 1) return exp(-fog.w * z);"
     " if (fog.x == 2) return exp(-(fog.w * z) * (fog.w * z)); return 1; }\n"
+    // a normal through a world matrix that doesn't keep right angles (a 1:2 wall's piece is sheared across its length,
+    // walls.c: taken as a direction a face's normal followed the sheared side, and pieces of one run were lit as a
+    // straight piece or a diagonal one - the player, 2026-11-08, "why is the selected wall dark?"): the matrix's cofactors,
+    // the inverse's transpose but for the determinant, as Direct3D's fixed function does. Its length as before, for a
+    // draw without NORMALIZENORMALS; a flat matrix has none of its own. A rotation and a scale give the same direction
+    "float3 world_normal(float3 n, float3x3 w) { float3 a = cross(w[1], w[2]), o = mul(n, w);"
+    " float3 m = n.x * a + n.y * cross(w[2], w[0]) + n.z * cross(w[0], w[1]); float l = dot(m, m);"
+    " return l > 1e-12 ? m * sign(dot(w[0], a)) * sqrt(dot(o, o) / l) : o; }\n"
     "O vs(I i, uint id : SV_VertexID) { O o; morph(i, id); uint r = i.w * 8; float4 r0 = wt.Load(r); float b = r0.w; r0.w = 0;"   // _14: the draw's size (SH_TINT)
     " float4x4 world = float4x4(r0, wt.Load(r + 1), wt.Load(r + 2), wt.Load(r + 3));"
     " float4 p = mul(float4(i.p, 1), world); o.p = mul(p, vpm); o.q.xyz = mul(p, shm).xyz;"
@@ -192,7 +200,7 @@ internal const char k_rd3_shader[] =
     "  float3 lt = sha.rgb + shf.rgb * max(0, dot(normalize(i.n), -shs.xyz));"
     "  o.k = 1 - shk.w * (1 - saturate(sha.rgb / max(lt, 0.001))); }"
     " if (lit.x) { float4 d = src.x ? vc : wt.Load(r + 4), a = src.y ? vc : wt.Load(r + 5), e = src.z ? vc : wt.Load(r + 6);"
-    "  float3 n = mul(i.n, (float3x3)world); if (lit.z) n = normalize(n);"
+    "  float3 n = world_normal(i.n, (float3x3)world); if (lit.z) n = normalize(n);"
     "  float3 am = gamb.rgb, df = 0;"
     "  for (int k = 0; k < lit.y; k++) { am += lamb[k].rgb; df += ldiff[k].rgb * max(0, dot(n, -ldir[k].xyz)); }"
     "  if (shp.x == 3 && shp.z > 0) df *= 1 - shk.w * shade_at(mul(float4(world[3].xyz, 1), shm).xyz, b * shp.w);"
