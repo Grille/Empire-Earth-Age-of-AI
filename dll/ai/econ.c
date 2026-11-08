@@ -702,6 +702,7 @@ internal void __thiscall hook_add_resource(ee_player *pl, int type, int amount) 
     player_add_resource(pl, type, amount);
     unsigned idx = (unsigned)player_get_index(pl) & 15;
     mt_income(pl, type, amount);   // metal.c (every player)
+    if (amount > 0 && type >= 2 && type < 7 && is_vanilla(pl)) g_bud[idx].income[type] += amount;   // only for the log's "# spend:" (scripts/results/income.py: what the enemy earns)
     if (amount > 0 && type >= 2 && type < 7 && g_bud[idx].init && !is_vanilla(pl)) {
         g_bud[idx].income[type] += amount;
         // from the Copper Age (farms: food no longer runs out) a player turns most of his income into army

@@ -547,6 +547,36 @@ internal struct tn_town *tn_found(ee_player *pl, unsigned idx, struct tn_st *s, 
            (int)sqrtf((float)ivec2_dist2(c, build_mgr_get_base(civ_mgr_get_build_mgr(player_get_civ_mgr(pl))))), t->ncit);
     return t;
 }
+// THE SITES' MEMORY (the player 2026-11-08: "bad sites etc should be global memory for strategic decisions, so that the ai can
+// request the main army for defended resources, not taking them because its hard isnt an option, denying the enemy resources is one
+// of the most important aspects"): per player the enemy mines a detachment could not take. A detachment doesn't go back to one for
+// SITE_RETRY; the main army is asked for it (armies.c ar_site_asked: it goes when it beats what is there, without waiting for the
+// game's attack time, the sites asked for first). Forgotten when the mine is taken. Not saved: a load forgets it.
+#define SITE_MAX 64
+#define SITE_R 14
+#define SITE_RETRY 1200000
+internal struct site_rec { ivec2 p; uint32_t t; int tries, fails; float foe_hp; } g_sites[16][SITE_MAX];
+internal int g_nsites[16];
+internal struct site_rec *site_at(unsigned idx, ivec2 p, int add) {
+    for (int k = 0; k < g_nsites[idx]; k++) if (ivec2_dist2(g_sites[idx][k].p, p) <= SITE_R * SITE_R) return &g_sites[idx][k];
+    if (!add) return NULL;
+    int k = g_nsites[idx] < SITE_MAX ? g_nsites[idx]++ : 0;   // full: the first place taken
+    memset(&g_sites[idx][k], 0, sizeof g_sites[idx][k]);
+    g_sites[idx][k].p = p;
+    return &g_sites[idx][k];
+}
+internal void site_tried(unsigned idx, ivec2 p) { site_at(idx, p, 1)->tries++; }
+internal void site_failed(unsigned idx, ivec2 p, float foe_hp, uint32_t now) {
+    struct site_rec *r = site_at(idx, p, 1);
+    r->fails++; r->t = now ? now : 1; r->foe_hp = foe_hp;
+    tn_say(idx, now, "the mines at %d,%d held against a detachment (%d of %d tries, enemy hp %.0f) - the army is asked", r->p.x, r->p.y, r->fails, r->tries, foe_hp);
+}
+internal void site_taken(unsigned idx, ivec2 p) {
+    struct site_rec *r = site_at(idx, p, 0);
+    if (r) *r = g_sites[idx][--g_nsites[idx]];
+}
+internal int site_wants_army(unsigned idx, ivec2 p) { struct site_rec *r = site_at(idx, p, 0); return r && r->fails > 0; }
+internal int site_for_det(unsigned idx, ivec2 p, uint32_t now) { struct site_rec *r = site_at(idx, p, 0); return !r || !r->fails || now - r->t >= SITE_RETRY; }
 // TAKE MINES: the mines it has seen within r of c
 internal int tn_mine_near(ee_player *pl, ivec2 c, int r) {
     int n = 0;
@@ -597,6 +627,7 @@ internal int tn_claim(ee_player *pl, unsigned idx, ivec2 c, uint32_t now) {
     for (int j = 0; j < t->nproj; j++) towers += t->proj[j].kind == TK_TOWER;
     for (; towers < 4 && t->nproj < TN_PROJ; towers++) t->proj[t->nproj++].kind = TK_TOWER;
     tn_say(idx, now, "the mines at %d,%d taken (%d within 12 tiles) - its own town goes up, %d citizens", c.x, c.y, nm, t->ncit);
+    site_taken(idx, c);
     return 1;
 }
 // MINE RAIDS: the town at c - 1 secured (its drop site and every tower it still means to have standing, two at least), 0 not yet, -1 gone
@@ -1292,7 +1323,7 @@ internal void towns_act(ee_player *pl, unsigned idx, uint32_t now) {
                n, held, s->plans, s->founded, s->held, s->lost, s->unpaid, s->laid, s->built, s->rebuilt, s->orders, s->assigned, s->sent, s->prods, s->walls, s->guards, s->scouts, s->scouts_back, s->grown, s->gaveup);
     }
 }
-internal void towns_new_game(void) { memset(g_tn, 0, sizeof g_tn); memset(g_tn_crew, 0, sizeof g_tn_crew); }
+internal void towns_new_game(void) { memset(g_tn, 0, sizeof g_tn); memset(g_tn_crew, 0, sizeof g_tn_crew); memset(g_nsites, 0, sizeof g_nsites); }
 // the towns key's fields (resource_towns, settlement, forward_production, forward_base, spread, scout, grow - its
 // struct's order) as the bits the code tests: 1, 2, 4, 8, 16, 32, 64
 internal void towns_install(const char *autotest_ini) {
