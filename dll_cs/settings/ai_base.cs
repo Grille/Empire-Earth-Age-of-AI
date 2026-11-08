@@ -755,6 +755,11 @@ class ai_base
             /// (one soldier per three citizens, 3 at least, 8 with enemies seen there in the last 5 minutes, 12 at most, a quarter
             /// of its soldiers over all its towns)
             bool fort;
+            /// the force's pushes go for the enemy drop sites it knows beside mines first, and a drop site razed with no other enemy
+            /// building it knows near becomes its own town (the player: "attacking these mines and fortefing them after is an
+            /// important step, it gives more resouces and starves the enemy"): a drop site and four towers on the corners of a
+            /// square round the mine, walls, rebuilt as a fort's; the force stays until the drop site and two towers stand (4 minutes at most)
+            bool take_mines;
         }
         /// Towns on the home continent, a list of parts (apart by commas or '|'), not before the Copper Age, not with
         /// enemies in its base; empty = none:

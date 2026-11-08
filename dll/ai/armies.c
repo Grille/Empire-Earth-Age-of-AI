@@ -128,6 +128,7 @@
 #define AR_MIN_RAID 3
 #define AR_HELD 2048
 #define AR_HOME_R 10               // at home: within this of it
+#define AR_CLAIM_MS 240000         // TAKE MINES: the force holds a razed mine for its town at most this long
 #define AR_GO_PCT 130              // a push: the force beats the enemy at the target by this (army_stage_go's 130)
 #ifndef AR_BACK_PCT
 #define AR_BACK_PCT 100            // out: the force's fight under this twice running - home (70 bled: below)
@@ -258,6 +259,8 @@ internal struct armies_st {
 } g_armies[16];
 internal struct st_side g_ar_own;
 internal int g_ar_debug = 0, g_ar_foe_mid_n; internal float g_ar_foe_mid_hp;   // DEBUG
+internal uint32_t g_ar_claim_t[16];   // TAKE MINES: the force holds the razed mine since (towns.c tn_claim; not saved: a load only ends the hold)
+internal ivec2 g_ar_site[16]; internal int g_ar_site_set[16];   // TAKE MINES: the mine being taken (not saved either)
 internal int ar_on(ee_player *pl, unsigned idx) { return pl && !is_vanilla(pl) && MOD_ARMIES(idx) && navy_land(idx); }
 internal int ar_ptr_cmp(const void *x, const void *y) { ee_unit *a = *(ee_unit *const *)x, *b = *(ee_unit *const *)y; return a < b ? -1 : a > b; }
 internal int ou_members(ee_player *pl, ee_unit **out, int max);   // army.c: the units in pl's attack subgroups
@@ -595,10 +598,12 @@ internal int ar_route(ee_player *pl, unsigned idx, struct armies_st *a, ivec2 fr
     ee_unit *cand[AR_ROUTE_TARGETS];
     long cd[AR_ROUTE_TARGETS];
     int nc = 0;
+    for (int pass = TN_TAKE(idx) ? 0 : 1; pass < 2 && !nc; pass++)   // TAKE MINES: the drop sites by mines, the others when there is none
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
         ee_player *o = unit_get_owner(u);
         if (!o || player_get_index(o) <= 0 || !is_enemy(pl, o) || !cv_alive(u) || !fr_building(it.td) || is_wall(unit_type_get_id(it.td)) || !seen_by(u, pl)) continue;
+        if (!pass && !tn_mine_drop(pl, u, it.td)) continue;
         long d = ivec2_dist2(unit_get_tile(u), a->home);
         if (nc == AR_ROUTE_TARGETS && cd[nc - 1] <= d) continue;   // the list full of nearer ones
         int k = nc < AR_ROUTE_TARGETS ? nc++ : AR_ROUTE_TARGETS - 1;
@@ -684,12 +689,27 @@ internal float ar_judge(ee_player *pl, struct armies_st *a, int out, ivec2 d) {
 internal ee_unit *ar_target(ee_player *pl, ivec2 from) {
     ee_unit *best = NULL;
     long bd = 0;
+    for (int pass = TN_TAKE((unsigned)player_get_index(pl) & 15) ? 0 : 1; pass < 2 && !best; pass++)   // TAKE MINES: as ar_route
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
         ee_unit *u = it.u;
         ee_player *o = unit_get_owner(u);
         if (!o || player_get_index(o) <= 0 || !is_enemy(pl, o) || !cv_alive(u) || !fr_building(it.td) || is_wall(unit_type_get_id(it.td)) || !seen_by(u, pl)) continue;
+        if (!pass && !tn_mine_drop(pl, u, it.td)) continue;
         long d = ivec2_dist2(unit_get_tile(u), from);
         if (!best || d < bd) { best = u; bd = d; }
+    }
+    return best;
+}
+// TAKE MINES: the known enemy building nearest p within r of it - what still stands in the way of a town there
+internal ee_unit *ar_near_building(ee_player *pl, ivec2 p, int r) {
+    ee_unit *best = NULL;
+    int bd = r * r + 1;
+    for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
+        ee_unit *u = it.u;
+        ee_player *o = unit_get_owner(u);
+        if (!o || player_get_index(o) <= 0 || !is_enemy(pl, o) || !cv_alive(u) || !fr_building(it.td) || is_wall(unit_type_get_id(it.td)) || !seen_by(u, pl)) continue;
+        int d = ivec2_dist2(unit_get_tile(u), p);
+        if (d < bd) { bd = d; best = u; }
     }
     return best;
 }
@@ -769,7 +789,8 @@ internal void ar_rams(ee_player *pl, struct armies_st *a) {
     }
 }
 internal void ar_go(ee_player *pl, unsigned idx, struct armies_st *a, int kind, ivec2 d, ee_unit *target, int out_only, uint32_t now) {
-    a->out = kind; a->dest = d; a->target = target; a->target_id = target ? unit_get_serial(target) : 0;
+    a->out = kind; a->dest = d; a->target = target; a->target_id = target ? unit_get_serial(target) : 0; g_ar_claim_t[(unsigned)(a - g_armies)] = 0;
+    if (!out_only) g_ar_site_set[(unsigned)(a - g_armies)] = 0;
     if (kind != 1 || out_only) { a->nway = 0; a->breach = 0; }   // a push's way was laid by ar_route; a raid's or a next leg's goes straight
     g_ar_breach[idx].on = 0;
     a->out_t = now ? now : 1; a->judge_t = 0; a->weak = 0; a->clear = 0; a->stage = 0;
@@ -1172,6 +1193,24 @@ internal void ar_out(ee_player *pl, unsigned idx, struct armies_st *a, uint32_t 
     int done;
     if (a->out == 2) { a->clear = ar_enemy_near(pl, a->dest, SG_FOE, 0) ? 0 : a->clear + 1; done = a->clear >= 2; }
     else done = (a->target && (unit_get_serial(a->target) != a->target_id || !cv_alive(a->target))) || (there && !ar_enemy_near(pl, a->dest, 3, 1));
+    if (done && a->out == 1 && TN_TAKE(idx)) {   // TAKE MINES: the razed mine becomes its own, the force over it until it stands
+        if (!g_ar_site_set[idx] && tn_mine_near(pl, a->dest, 12)) { g_ar_site[idx] = a->dest; g_ar_site_set[idx] = 1; }
+        ee_unit *nb = g_ar_site_set[idx] && !g_ar_claim_t[idx] ? ar_near_building(pl, g_ar_site[idx], 22) : NULL;
+        if (nb) {   // what else stands there first
+            ivec2 nd = unit_get_tile(nb);
+            float nr = ar_judge(pl, a, 1, nd);
+            if (nr * 100.0f >= (float)AR_GO_PCT) {
+                a->legs++;
+                ar_log(idx, now, "%d,%d is down - clearing the mines at %d,%d: on to %d,%d (%.2f)", a->dest.x, a->dest.y, g_ar_site[idx].x, g_ar_site[idx].y, nd.x, nd.y, nr);
+                ar_go(pl, idx, a, 1, nd, nb, 1, now);
+                return;
+            }
+            g_ar_site_set[idx] = 0;   // too strong: the ordinary next leg below judges it
+        }
+        if (g_ar_site_set[idx] && !g_ar_claim_t[idx] && tn_claim(pl, idx, g_ar_site[idx], now)) { g_ar_claim_t[idx] = now ? now : 1; ar_log(idx, now, "%d,%d is down - the force of %d holds it for its town", g_ar_site[idx].x, g_ar_site[idx].y, n); }
+        if (g_ar_claim_t[idx] && now - g_ar_claim_t[idx] < AR_CLAIM_MS && g_ar_site_set[idx] && tn_claim_going(idx, g_ar_site[idx])) return;
+        g_ar_site_set[idx] = 0; g_ar_claim_t[idx] = 0;
+    }
     if (done) {
         if (a->out == 2) { ar_log(idx, now, "the raid at %d,%d is over - the force of %d home to %d,%d", a->dest.x, a->dest.y, n, a->home.x, a->home.y); ar_home_all(pl, idx, a, now); return; }
         ee_unit *t = ar_target(pl, mid);
