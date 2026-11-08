@@ -973,6 +973,31 @@ internal uint32_t vt_eeug_gather;
 internal uint32_t of_eeug_gather_gathering;
 internal uint32_t of_eeug_gather_waiting;
 
+// graph.cs
+internal uint32_t size_u2_d_point;
+internal uint32_t of_graph_point_x;
+internal uint32_t of_graph_point_y;
+internal uint32_t size_u_graph_series;
+internal uint32_t of_graph_series_points_begin;
+internal uint32_t of_graph_series_points_end;
+internal uint32_t of_graph_series_points_cap;
+internal uint32_t of_graph_series_min_x;
+internal uint32_t of_graph_series_max_x;
+internal uint32_t of_graph_series_min_y;
+internal uint32_t of_graph_series_max_y;
+internal uint32_t size_u_graph;
+internal uint32_t of_graph_series_begin;
+internal uint32_t of_graph_series_end;
+internal uint32_t of_graph_min_x;
+internal uint32_t of_graph_max_x;
+internal uint32_t of_graph_min_y;
+internal uint32_t of_graph_max_y;
+internal uint32_t data_graph_iat_add_point;
+internal uint32_t data_graph_iat_prune;
+internal uint32_t data_graph_iat_combine;
+internal uint32_t data_graph_iat_add_series;
+internal uint32_t data_graph_iat_series_ctor;
+
 // hooks.cs
 internal uint32_t of_draw_record_color;
 internal uint32_t of_draw_record_tint;

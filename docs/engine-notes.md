@@ -1653,6 +1653,10 @@ keeps the CPU path (StretchDIBits, or for `smooth=1` a multithreaded bilinear sc
 measurements: game ~10 ms per frame at 2560x1440, Direct3D present ~1.3 ms, GDI ~2.4 ms (ddinfo "present
 timing", ddpoke bench).
 
+## The statistics screen's graphs
+
+The way out of a game (UI message 0x412, 0x65FB7C, then 0x65FA2F) builds the statistics screen (EEUIEPGSEOpen::vf1 0x5D342A, 0x5D3D70: the graphs). Low-Level Engine's UGraphSeries::AddDataPoint sorts the whole line and goes over all of it for each point; UGraph::PruneGraph and CombineGraph look through whole lines for each point and add their results by AddDataPoint. On a 770-minute save that was 21 s of the frames standing (2026-11-08). dll/engine/stat_graphs.c does the three through the exe's imports in one pass per line. One oddity kept: the lookup CombineGraph uses (0x100625E6) gives, for an x from one point up to the next, the NEXT point's y, past the last the last's, 0 before the first.
+
 dreXmod.dll briefly hooks 0x534433 while the DLLs load (a JMP at the function start, restored later).
 Plain Windows ddraw.dll crashed EE at startup here; with dgVoodoo's ddraw.dll in the folder (even in
 pass-through) it starts.

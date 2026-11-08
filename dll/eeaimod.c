@@ -436,6 +436,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
 #include "engine/hold_profile.c"
 #include "engine/playername.c"
 #include "engine/sound.c"
+#include "engine/stat_graphs.c"
 #include "engine/select.c"
 #include "engine/shiproute.c"
 #include "engine/turns.c"
@@ -669,6 +670,7 @@ internal void install(HMODULE self) {
     hold_profile_install();   // after it: the own renderer or not (g_rd_on)
     camera_install();   // after it: the own renderer or not (g_rd_on)
     sound_install();
+    stat_graphs_install();
     select_install();
     turns_install();   // before ship_turns: it finds the models by their slot 7, which ship_turns replaces
     collide_install();

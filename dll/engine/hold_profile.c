@@ -10,6 +10,8 @@
 // While the thread is suspended nothing is called but GetThreadContext and ReadProcessMemory: it may hold the heap's
 // lock. Nothing happens below HP_START_MS but one read of the lock's time, so the game plays as it does without this.
 // EEAIMOD_LONG_HOLD_MS (test runs) sets HP_MIN_MS, a test game's loads being short.
+// A stop of the frames is told the same way ("# long hold: no frame for", the main thread sampled first): the way out of a
+// game to the menu (the player, 2026-11-08) holds the world's lock for 150 ms of it, the rest is the main thread's alone.
 enum { HP_START_MS = 500, HP_MIN_MS = 2000, HP_KEYS = 1024, HP_SHOW = 40, HP_TOPS = 16, HP_REPORTS = 8 };
 typedef struct { uintptr_t a; int n, first, last; } hp_key;
 typedef struct {
@@ -104,33 +106,39 @@ internal ULONGLONG hp_cpu(HANDLE h, ULONGLONG *kernel) {   // the thread's CPU t
 }
 internal DWORD WINAPI hold_profile_thread(void *unused) {
     (void)unused;
-    int reports = 0;
+    int reports[2] = { 0 };   // the world's lock, the frames'
     int start_ms = g_hp_min_ms / 2 < HP_START_MS ? g_hp_min_ms / 2 : HP_START_MS;
     for (;;) {
         Sleep(100);
         LONGLONG at = hp_lock_at();
-        if (!at || rd_qpc() - at < rd_qpc_ms(start_ms) || reports >= HP_REPORTS) continue;
+        DWORD shown = g_show_tick;
+        int hold = at && rd_qpc() - at >= rd_qpc_ms(start_ms);
+        int stall = !hold && shown && GetTickCount() - shown >= (DWORD)start_ms;
+        if ((!hold && !stall) || reports[stall] >= HP_REPORTS) continue;
         uintptr_t ret = g_rwl_write_ret;
         memset(g_hp, 0, sizeof g_hp);
-        g_hp[0].name = "holder", g_hp[0].tid = g_sim_thread;
-        g_hp[1].name = "render", g_hp[1].tid = g_render_thread != g_sim_thread ? g_render_thread : 0;
+        DWORD first = hold ? g_sim_thread : g_render_thread, other = hold ? g_render_thread : g_sim_thread;
+        g_hp[0].name = hold ? "holder" : "main", g_hp[0].tid = first;
+        g_hp[1].name = hold ? "render" : "simulation", g_hp[1].tid = other != first ? other : 0;
         for (int i = 0; i < 2; i++)
             g_hp[i].h = g_hp[i].tid ? OpenThread(THREAD_SUSPEND_RESUME | THREAD_GET_CONTEXT | THREAD_QUERY_INFORMATION, FALSE, g_hp[i].tid) : NULL;
         ULONGLONG k0, k1, cpu0 = hp_cpu(g_hp[0].h, &k0);
         IO_COUNTERS io0 = { 0 }, io1 = { 0 };
         GetProcessIoCounters(GetCurrentProcess(), &io0);
-        while (hp_lock_at() == at) {
-            int ms = (int)((rd_qpc() - at) / rd_qpc_ms(1));
-            for (int i = 0; i < 2; i++) hp_sample(&g_hp[i], ms);
+        int held = 0;
+        while (hold ? hp_lock_at() == at : g_show_tick == shown) {
+            held = hold ? (int)((rd_qpc() - at) / rd_qpc_ms(1)) : (int)(GetTickCount() - shown);
+            for (int i = 0; i < 2; i++) hp_sample(&g_hp[i], held);
             Sleep(10);
         }
-        int held = (int)((rd_qpc() - at) / rd_qpc_ms(1));
         ULONGLONG cpu1 = hp_cpu(g_hp[0].h, &k1);
         GetProcessIoCounters(GetCurrentProcess(), &io1);
         if (held >= g_hp_min_ms) {
-            reports++;
-            log_locked("# long hold: %08lx for %d ms at %.1f min: the holder's CPU %.1f s (kernel %.1f), read %.1f MB in %lu calls (sampled from %d ms on)\n",
-                       (unsigned long)ret, held, game_time() / 60000.0, (double)(cpu1 - cpu0) / 1e7, (double)(k1 - k0) / 1e7,
+            reports[stall]++;
+            char what[32];
+            if (hold) snprintf(what, sizeof what, "%08lx", (unsigned long)ret); else snprintf(what, sizeof what, "no frame");
+            log_locked("# long hold: %s for %d ms at %.1f min: the %s's CPU %.1f s (kernel %.1f), read %.1f MB in %lu calls (sampled from %d ms on)\n",
+                       what, held, game_time() / 60000.0, g_hp[0].name, (double)(cpu1 - cpu0) / 1e7, (double)(k1 - k0) / 1e7,
                        (double)(io1.ReadTransferCount - io0.ReadTransferCount) / 1e6, (unsigned long)(io1.ReadOperationCount - io0.ReadOperationCount), start_ms);
             for (int i = 0; i < 2; i++) if (g_hp[i].samples) hp_report(&g_hp[i]);
         }

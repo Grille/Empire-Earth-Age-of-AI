@@ -78,6 +78,9 @@ typedef struct ee_sound_mgr ee_sound_mgr;       // E_SOUNDMGR: the sound manager
 typedef struct ee_sound_cat ee_sound_cat;       // E_SNDCAT: its categories
 typedef struct ee_sound_node ee_sound_node;     // E_SNDNODE: a playing sound (SESMInstanceNode)
 typedef struct ee_sample ee_sample;             // E_SAMPLE: a sample (SESample)
+typedef struct ee_graph ee_graph;               // E_GRAPH: a statistics graph (UGraph)
+typedef struct ee_graph_series ee_graph_series; // E_GSERIES: a line of it (UGraphSeries)
+typedef struct ee_graph_point ee_graph_point;   // E_GPOINT: a point of a line (U2DPoint<long>)
 typedef struct ee_mixer ee_mixer;               // E_MIXER: the mixer plugin's functions (SEMixer)
 
 // the game's UString (passed by value to some of its functions), its UWideString (8-bit characters too)

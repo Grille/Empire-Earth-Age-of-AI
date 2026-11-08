@@ -52,5 +52,6 @@
 #include "game/api/ui.c"
 #include "game/api/engine_display.c"
 #include "game/api/engine_sound.c"
+#include "game/api/graph.c"
 #include "game/api/hooks.c"        // the game's code patched where no object is concerned
 #include "game/api/files.c"        // the data files' search (Low-Level Engine.dll's FSPath)

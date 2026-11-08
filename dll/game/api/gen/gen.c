@@ -639,6 +639,7 @@ typedef struct ee_game_state ee_game_state;
 #include "game/api/gen/formation.c"
 #include "game/api/gen/game.c"
 #include "game/api/gen/goal.c"
+#include "game/api/gen/graph.c"
 #include "game/api/gen/hooks.c"
 #include "game/api/gen/map.c"
 #include "game/api/gen/messages.c"
@@ -661,7 +662,7 @@ typedef struct ee_game_state ee_game_state;
 #include "game/api/gen/zone.c"
 
 // g_spec_missing: exe.c's (game_build sets it)
-internal int spec_select(int build) { return spec_ai_managers_select(build) + spec_api_select(build) + spec_attack_select(build) + spec_editor_select(build) + spec_engine_display_select(build) + spec_engine_sound_select(build) + spec_formation_select(build) + spec_game_select(build) + spec_goal_select(build) + spec_hooks_select(build) + spec_map_select(build) + spec_messages_select(build) + spec_movement_select(build) + spec_patching_select(build) + spec_path_select(build) + spec_player_select(build) + spec_scenario_select(build) + spec_scenario_lists_select(build) + spec_setup_select(build) + spec_stubs_select(build) + spec_tech_select(build) + spec_ui_select(build) + spec_ui_events_select(build) + spec_ui_forms_select(build) + spec_ui_imports_select(build) + spec_unit_select(build) + spec_unit_type_select(build) + spec_world_select(build) + spec_zone_select(build); }
+internal int spec_select(int build) { return spec_ai_managers_select(build) + spec_api_select(build) + spec_attack_select(build) + spec_editor_select(build) + spec_engine_display_select(build) + spec_engine_sound_select(build) + spec_formation_select(build) + spec_game_select(build) + spec_goal_select(build) + spec_graph_select(build) + spec_hooks_select(build) + spec_map_select(build) + spec_messages_select(build) + spec_movement_select(build) + spec_patching_select(build) + spec_path_select(build) + spec_player_select(build) + spec_scenario_select(build) + spec_scenario_lists_select(build) + spec_setup_select(build) + spec_stubs_select(build) + spec_tech_select(build) + spec_ui_select(build) + spec_ui_events_select(build) + spec_ui_forms_select(build) + spec_ui_imports_select(build) + spec_unit_select(build) + spec_unit_type_select(build) + spec_world_select(build) + spec_zone_select(build); }
 internal void spec_log(FILE *log) {
     if (!log || !g_spec_missing) return;
     fprintf(log, "# spec: build %d hasn't got %d:", g_exe_build, g_spec_missing);
@@ -674,6 +675,7 @@ internal void spec_log(FILE *log) {
     if (*k_spec_formation_missing[g_exe_build]) fprintf(log, " %s", k_spec_formation_missing[g_exe_build]);
     if (*k_spec_game_missing[g_exe_build]) fprintf(log, " %s", k_spec_game_missing[g_exe_build]);
     if (*k_spec_goal_missing[g_exe_build]) fprintf(log, " %s", k_spec_goal_missing[g_exe_build]);
+    if (*k_spec_graph_missing[g_exe_build]) fprintf(log, " %s", k_spec_graph_missing[g_exe_build]);
     if (*k_spec_hooks_missing[g_exe_build]) fprintf(log, " %s", k_spec_hooks_missing[g_exe_build]);
     if (*k_spec_map_missing[g_exe_build]) fprintf(log, " %s", k_spec_map_missing[g_exe_build]);
     if (*k_spec_messages_missing[g_exe_build]) fprintf(log, " %s", k_spec_messages_missing[g_exe_build]);
@@ -741,6 +743,11 @@ internal int spec_imports(void) {
     bad += spec_import(&data_game_imp_is_keyboard, "Low-Level Engine.dll", "?gISKeyboard@@3PAVISKeyboard@@A", "game.imp_is_keyboard");
     bad += spec_import(&data_game_imp_is_mouse, "Low-Level Engine.dll", "?gISMouse@@3PAVISMouse@@A", "game.imp_is_mouse");
     bad += spec_import(&data_iat_memfile_load, "Low-Level Engine.dll", "?Load@FSMemoryFile@@QAEJAAVFSFile@@@Z", "game_functions.iat_memfile_load");
+    bad += spec_import(&data_graph_iat_add_point, "Low-Level Engine.dll", "?AddDataPoint@UGraphSeries@@QAEXABV?$U2DPoint@J@@@Z", "graph.iat_add_point");
+    bad += spec_import(&data_graph_iat_prune, "Low-Level Engine.dll", "?PruneGraph@UGraph@@QAEXXZ", "graph.iat_prune");
+    bad += spec_import(&data_graph_iat_combine, "Low-Level Engine.dll", "?CombineGraph@UGraph@@QAEXABV1@AAV1@@Z", "graph.iat_combine");
+    bad += spec_import(&data_graph_iat_add_series, "Low-Level Engine.dll", "?AddSeries@UGraph@@QAEXABVUGraphSeries@@@Z", "graph.iat_add_series");
+    bad += spec_import(&data_graph_iat_series_ctor, "Low-Level Engine.dll", "??0UGraphSeries@@QAE@XZ", "graph.iat_series_ctor");
     bad += spec_import(&data_hooks_iat_srand, "msvcrt.dll", "srand", "hooks.iat_srand");
     bad += spec_import(&data_map_iat_color_table, "Low-Level Engine.dll", "?SetColorTable@GETerrainMesh@@QAEXAAV?$vector@VGEColor@@V?$allocator@VGEColor@@@std@@@std@@@Z", "map.iat_color_table");
     bad += spec_import(&data_map_iat_register_color_set, "Low-Level Engine.dll", "?RegisterColorSet@GETerrainMesh@@QAEJAAV?$vector@KV?$allocator@K@std@@@std@@AAK@Z", "map.iat_register_color_set");
@@ -1210,4 +1217,4 @@ internal int spec_imports(void) {
     return bad;
 }
 // g_spec_bad: exe.c's (game_build runs it before any patch, its helpers note the failures)
-internal int spec_check(void) { return spec_ai_managers_check() + spec_api_check() + spec_attack_check() + spec_editor_check() + spec_engine_display_check() + spec_engine_sound_check() + spec_formation_check() + spec_game_check() + spec_goal_check() + spec_hooks_check() + spec_map_check() + spec_messages_check() + spec_movement_check() + spec_patching_check() + spec_path_check() + spec_player_check() + spec_scenario_check() + spec_scenario_lists_check() + spec_setup_check() + spec_stubs_check() + spec_tech_check() + spec_ui_check() + spec_ui_events_check() + spec_ui_forms_check() + spec_ui_imports_check() + spec_unit_check() + spec_unit_type_check() + spec_world_check() + spec_zone_check(); }
+internal int spec_check(void) { return spec_ai_managers_check() + spec_api_check() + spec_attack_check() + spec_editor_check() + spec_engine_display_check() + spec_engine_sound_check() + spec_formation_check() + spec_game_check() + spec_goal_check() + spec_graph_check() + spec_hooks_check() + spec_map_check() + spec_messages_check() + spec_movement_check() + spec_patching_check() + spec_path_check() + spec_player_check() + spec_scenario_check() + spec_scenario_lists_check() + spec_setup_check() + spec_stubs_check() + spec_tech_check() + spec_ui_check() + spec_ui_events_check() + spec_ui_forms_check() + spec_ui_imports_check() + spec_unit_check() + spec_unit_type_check() + spec_world_check() + spec_zone_check(); }

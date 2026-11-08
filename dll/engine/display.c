@@ -116,6 +116,7 @@ internal void *__thiscall hook_editor_form(ee_editor_form *form, void *owner) {
 internal uint8_t g_fullscreen = 1;
 internal int g_present_every;   // autotest present_every (diagnostics)
 internal volatile DWORD g_render_thread;   // thread that calls ShowScene (profile render)
+internal volatile DWORD g_show_tick;      // GetTickCount of the last ShowScene (hold_profile.c: the frames have stopped)
 internal volatile DWORD g_sim_thread;      // thread that last took the world's write lock (profile sim; own renderer)
 internal int g_diag;   // diagnostic sampling (ageofai.ini [display] display_diag=1 or autotest diag_hooks=1)
 
@@ -582,6 +583,7 @@ internal void frame_stats(ee_rasterizer *ras, unsigned screen) {
 
 internal int __thiscall hook_show_scene(void *ras, unsigned screen) {
     g_render_thread = GetCurrentThreadId();
+    g_show_tick = GetTickCount();
     frame_watch();
     camera_frame(g_rd_on);
     camtrace_frame();
