@@ -115,7 +115,7 @@ internal DWORD WINAPI hold_profile_thread(void *unused) {
         LONGLONG at = hp_lock_at();
         DWORD shown = g_show_tick;
         int hold = at && rd_qpc() - at >= rd_qpc_ms(start_ms);
-        int stall = !hold && shown && GetTickCount() - shown >= (DWORD)start_ms;
+        int stall = !hold && shown && (!g_headless || g_hp_min_ms != HP_MIN_MS) && GetTickCount() - shown >= (DWORD)start_ms;   // a headless turbo test draws five frames a second on purpose: its frames only with EEAIMOD_LONG_HOLD_MS
         if ((!hold && !stall) || reports[stall] >= HP_REPORTS) continue;
         uintptr_t ret = g_rwl_write_ret;
         memset(g_hp, 0, sizeof g_hp);
