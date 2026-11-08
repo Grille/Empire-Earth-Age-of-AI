@@ -502,7 +502,7 @@ internal int g_ws_laid_n;
 #define WJ_HUB 3   // a tower or a gate: a wall ends into it
 #define WJ_JOG 4   // a piece of a jog (wj_jog): along neither the tiles nor their diagonal, it points at no tile
 struct wj_at { int kind, sx, sy; ee_unit *u; };
-struct wj_jog_fit { float ox, oy, fx, fy, ea, eb; };   // off its tile's middle, its facing, how far its ends reach on
+struct wj_jog_fit { float ox, oy, fx, fy, ax, ay, ea, eb; };   // off its tile's middle, its facing, across it, how far its ends reach on
 internal struct wj_at wj_at(const ee_map *map, int x, int y, const ee_player *pl);
 internal int wj_jog_place(const ee_map *map, int x, int y, const ee_player *pl, struct wj_jog_fit *j);
 internal int g_wj_on;
@@ -604,9 +604,10 @@ internal int ws_fit(ee_unit *u) {
     ee_player *pl = unit_get_owner(u);
     float ea = jog ? jf.ea : ws_post_at(map, tx - sx, ty - sy, pl) ? WS_INTO_POST : 0, eb = jog ? jf.eb : ws_post_at(map, tx + sx, ty + sy, pl) ? WS_INTO_POST : 0;
     float k = (2 * d + ea + eb) / (yhi - ylo), c = -d - ea - k * ylo, slope = (hb - ha) / (2 * d);   // its y -> k y + c along f
+    float wx = jog ? jf.ax : fy, wy = jog ? jf.ay : -fx;   // its local x axis: square to it, a jog's along its neighbour's end
     const float m[12] = {
-        fy * len * grow,  fx * k,    0, px + fx * c,
-        -fx * len * grow, fy * k,    0, py + fy * c,
+        wx * len * grow,  fx * k,    0, px + fx * c,
+        wy * len * grow,  fy * k,    0, py + fy * c,
         across * len * grow, slope * k, len * grow, (ha + hb) * 0.5f + slope * c,
     };
     for (int i = 0; i < 12; i++) unit_set_matrix(u, i, m[i]);
@@ -643,7 +644,10 @@ internal int ws_fit(ee_unit *u) {
 // 1:2 to the tiles, and a whole 1:2 wall is a single straight line through its links' middles. Which tiles do is told by
 // the tiles alone: a tile with two neighbours and a 45 degree bend between them, beside another such tile where the wall
 // bends back (a sideways step, its two bends opposite) or, over a diagonal link, bends on the same way (a corner of two
-// posts, drawn round). One bend alone is the wall's corner and keeps its post.
+// posts, drawn round). One bend alone is the wall's corner and keeps its post. A jog is sheared across its length: its
+// ends lie along the end of the plain piece it runs on from and meet it corner to corner - square to itself, it stuck
+// out past that piece on one side of the bend (the player, 2026-11-08: "can you smoothen that edge when it joins with
+// the normal wall again?").
 #define WJ_EV_MAX 64       // areas noted, waiting for the next step's end
 #define WJ_MARGIN 2         // tiles around what a layout or a gate touched
 #define WJ_ROUNDS 4         // looks: a post turned a piece makes the side it reaches a post at the next
@@ -729,15 +733,31 @@ internal void wj_chord(int *a, int *b, float *fx, float *fy) {
     *fx = (float)cx * l; *fy = (float)cy * l;
 }
 
-// how far a jog's end along link m goes on: into a post or a tower; past a neighbour it meets at an angle (the wall bends
-// there); not at all into a piece in line with it, whose faces would flicker
-internal float wj_jog_end(const ee_map *map, int x, int y, int m, const ee_player *pl, float fx, float fy) {
+// whether the tile along link m from x, y holds a plain piece running along that link
+internal int wj_along(const ee_map *map, int x, int y, int m, const ee_player *pl) {
+    struct wj_at nb = wj_at(map, x + k_wj_dir[m][0], y + k_wj_dir[m][1], pl);
+    return nb.kind == WJ_PIECE && ((nb.sx == k_wj_dir[m][0] && nb.sy == k_wj_dir[m][1]) || (nb.sx == -k_wj_dir[m][0] && nb.sy == -k_wj_dir[m][1]));
+}
+
+// which of a jog's links its ends lie square to: its diagonal one (odd) where a plain diagonal piece runs on from it,
+// else its straight one - a whole 1:2 wall the same way, so its pieces meet end to end
+internal int wj_jog_axis(const ee_map *map, int x, int y, const ee_player *pl, int a, int b) {
+    int diag = a & 1 ? a : b, straight = a & 1 ? b : a;
+    return wj_along(map, x, y, diag, pl) ? diag : straight;
+}
+
+// how far a jog's end along link m goes on: into a post or a tower; not at all where it meets its neighbour's end along
+// the same line (a plain piece its ends are square to, a piece of the same jog), whose faces would flicker; else past
+// the neighbour, the wall bends there
+internal float wj_jog_end(const ee_map *map, int x, int y, int m, const ee_player *pl, float fx, float fy, int axis) {
     int nx = x + k_wj_dir[m][0], ny = y + k_wj_dir[m][1], a, b;
     if (ws_post_at(map, nx, ny, pl)) return WS_INTO_POST;
+    if (wj_along(map, x, y, m, pl)) return m == axis ? 0 : WS_JOG_OVER;
     if (wj_jog(map, nx, ny, pl, &a, &b)) {
         float gx, gy;
+        int theirs = wj_jog_axis(map, nx, ny, pl, a, b);
         wj_chord(&a, &b, &gx, &gy);
-        if (fabsf(fx * gy - fy * gx) < 0.01f) return 0;
+        if (fabsf(fx * gy - fy * gx) < 0.01f && ((theirs ^ axis) & 3) == 0) return 0;
     }
     return WS_JOG_OVER;
 }
@@ -749,8 +769,13 @@ internal int wj_jog_place(const ee_map *map, int x, int y, const ee_player *pl, 
     wj_chord(&a, &b, &j->fx, &j->fy);
     j->ox = (float)(k_wj_dir[a][0] + k_wj_dir[b][0]) * 0.25f;
     j->oy = (float)(k_wj_dir[a][1] + k_wj_dir[b][1]) * 0.25f;
-    j->ea = wj_jog_end(map, x, y, b, pl, j->fx, j->fy);
-    j->eb = wj_jog_end(map, x, y, a, pl, j->fx, j->fy);
+    // across it: square to its axis link, the same way round as square to itself (its faces' winding)
+    int axis = wj_jog_axis(map, x, y, pl, a, b);
+    float dx = (float)k_wj_dir[axis][0], dy = (float)k_wj_dir[axis][1], l = 1.0f / sqrtf(dx * dx + dy * dy);
+    j->ax = dy * l; j->ay = -dx * l;
+    if (j->ax * j->fy - j->ay * j->fx < 0) { j->ax = -j->ax; j->ay = -j->ay; }
+    j->ea = wj_jog_end(map, x, y, b, pl, j->fx, j->fy, axis);
+    j->eb = wj_jog_end(map, x, y, a, pl, j->fx, j->fy, axis);
     return 1;
 }
 
