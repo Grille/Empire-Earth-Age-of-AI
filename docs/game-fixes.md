@@ -59,8 +59,8 @@ changes the simulation: in a lockstep game different values make the PCs' games 
   and 96 slots are left free for a map's own colours (Art of Conquest: 28 of its 68 share, 96 free). A map's own
   colours travel in its file - a scenario, a saved game -, in a block after the game's own data that the original
   game doesn't read: there the ground on them shows the game's colours of those slots. The map's own colours come
-  from the editor: the colour list ends in a strip of all hues - a click on it opens a dialog in the game's look (as
-  ageofai_config.exe's) that makes a colour of the map's own (one
+  from the editor: the colour list ends in a strip of all hues - a click on it opens a dialog in the editor's look (its
+  pages' parchment, yellow text) that makes a colour of the map's own (one
   colour, a ramp between two, or each slot its own, 1 to 16 slots, the colours from Windows' colour dialog), which
   follows the game's colours in the list and paints as they do; a double click on it changes or deletes it.
 - `[camera] scroll`: `game` (default) the build's own camera scrolling, `aoc` The Art of Conquest's acceleration

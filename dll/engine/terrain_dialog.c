@@ -6,8 +6,9 @@
 // nearer the click, the slots between follow) -, the slots free for it; OK makes the type (terrain_palette.c
 // tp_type_put), Delete takes it out. A modal Win32 dialog over the game's window, on the game's thread: the game
 // waits meanwhile; the same program's window, so no app switch reaches the game (it would minimize itself). In the
-// game's look (ui/theme.c, ageofai_config.exe's: the settings screen's painting under it, the game's radio buttons,
-// dropdown and buttons; plain dark without the game's pictures).
+// game's look (ui/theme.c, ageofai_config.exe's controls in the editor's style: the parchment of its pages under it,
+// yellow text on its darker boxes, the game's radio buttons, dropdown and buttons; plain dark without the game's
+// pictures).
 #define TD_FLAT 101
 #define TD_RAMP 102
 #define TD_EACH 103
@@ -250,7 +251,7 @@ internal void td_open(int i, int sel) {
         looked = 1;
         char ini[MAX_PATH + 32];
         snprintf(ini, sizeof ini, "%sageofai\\ageofai.ini", g_game_dir);   // its eesettings.ini beside it: the original's folder
-        theme_look(ini);
+        theme_look(ini, theme_style_editor());
         theme_app_mode(1);
     }
     ULONG_PTR cookie;

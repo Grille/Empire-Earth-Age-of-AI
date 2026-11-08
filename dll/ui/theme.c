@@ -28,8 +28,8 @@ internal struct palette g_pal;
 // as the game draws them, in pairs - row 0 checked, empty, a radio on; row 1 a radio off, the knot up, down; row 2
 // left, right, the scrollbar's ball; which of a pair the game shows unpressed measured against its setup screen (the
 // pixels the same): a check box's the left one, the dropdown knot's the right one; a radio's the left one, the brighter
-// as with the others. paint: the settings screen's painting (gamesettings, 1024x768); bg: it
-// at the window's size (theme_size), b_bg a brush of it; dim: it darkened to under half, b_dim its brush for a label
+// as with the others. paint: the style's picture (the settings screen's painting, gamesettings, 1024x768); bg: it
+// at the window's size (theme_size), b_bg a brush of it; dim: it darkened (the settings' to under half), b_dim its brush for a label
 // drawn transparent over it (the list and the panel cover the rest: the painting itself as bright as the game's)
 struct game_look { int on; HWND main; HDC ui_dc, paint_dc, bg_dc; HBITMAP ui, paint, bg, dim; HBRUSH b_bg, b_dim; int pw, ph; };
 internal struct game_look g_gl;
@@ -39,6 +39,22 @@ internal struct game_look g_gl;
 #define GL_CELL_RADIO_OFF 1, 0   // + 1 pressed
 #define GL_CELL_KNOT_DOWN 1, 5   // - 1 pressed
 #define GL_CELL 20
+
+// the look's style: the picture under the window (data.ssa's <picture>_<row>_<column> tiles, w x h of them shown), a
+// label's ground (the picture darkened to dim percent), the text, the keyboard's focus, a field and a control that is
+// off. The settings screen's for ageofai_config.exe; the scenario editor's pages' for the DLL's editor dialogs (their
+// parchment, Scenfull - in a 1920x1080 editor the parchment (242,218,176), its label and list boxes (135,121,96): 56
+// percent of it -, the text (254,247,32))
+struct theme_style { const char *picture; int rows, cols, w, h, dim; COLORREF text, focus, field, grey; };
+internal const struct theme_style *g_style;
+internal const struct theme_style *theme_style_settings(void) {
+    static const struct theme_style s = { "gamesettings", 3, 4, 1024, 768, 45, RGB(228, 228, 228), RGB(255, 210, 60), RGB(8, 8, 8), RGB(130, 130, 130) };
+    return &s;
+}
+internal const struct theme_style *theme_style_editor(void) {
+    static const struct theme_style s = { "scenfull", 3, 4, 800, 600, 56, RGB(255, 248, 32), RGB(255, 255, 255), RGB(135, 121, 96), RGB(72, 64, 50) };
+    return &s;
+}
 
 // the original game's folder (the 2017 update's): Art of Conquest's archive holds only the art it adds, the rest it
 // reads from there - found as AoC finds it, HKCU\Software\SSSI\Empire Earth's "Installed From Volume" and "Directory",
@@ -74,7 +90,8 @@ internal int theme_game_from(const char *dir) {   // both pictures from <dir>\Da
         uint32_t *px = art_texture("uicontrols", &w, &h);
         if (px && w == 128 && h == 128) g_gl.ui = art_bitmap(px, w, h);
         free(px);
-        if (g_gl.ui) g_gl.paint = art_picture("gamesettings", 3, 4, &g_gl.pw, &g_gl.ph);
+        if (g_gl.ui) g_gl.paint = art_picture(g_style->picture, g_style->rows, g_style->cols, &g_gl.pw, &g_gl.ph);
+        g_gl.pw = g_style->w, g_gl.ph = g_style->h;   // the part shown: the tiles' top left
         ok = g_gl.ui && g_gl.paint;
         if (!ok && g_gl.ui) { DeleteObject(g_gl.ui); g_gl.ui = NULL; }
     }
@@ -102,22 +119,23 @@ internal void theme_game_open(const char *ini_path) {
     g_gl.on = 1;
 }
 
-// the look: the game's pictures (else none) and the palette
-internal void theme_look(const char *ini_path) {
+// the look in a style: the game's pictures (else none) and the palette
+internal void theme_look(const char *ini_path, const struct theme_style *style) {
     struct palette *p = &g_pal;
+    g_style = style;
     theme_game_open(ini_path);
-    // black fields, light text
+    // the settings': black fields, light text
     p->back = RGB(32, 32, 32);
-    p->field = g_gl.on ? RGB(8, 8, 8) : RGB(18, 18, 18);
-    p->text = RGB(228, 228, 228);
-    p->grey = RGB(130, 130, 130);
+    p->field = g_gl.on ? style->field : RGB(18, 18, 18);
+    p->text = style->text;
+    p->grey = g_gl.on ? style->grey : RGB(130, 130, 130);
     p->game = RGB(110, 170, 255);
     p->game_grey = RGB(72, 108, 158);
     p->tint_warn = RGB(84, 66, 12);
     p->tint_mistake = RGB(98, 30, 30);
     p->text_warn = RGB(240, 190, 80);
     p->text_mistake = RGB(255, 115, 115);
-    p->focus = RGB(255, 210, 60);   // the control with the keyboard: its text gold, as the game's menus mark theirs
+    p->focus = style->focus;   // the control with the keyboard: the settings' text gold, as the game's menus mark theirs
     p->overruled = RGB(196, 140, 255);   // purple and teal, not red and green: told apart without red-green vision
     p->forced = RGB(70, 205, 185);
     p->b_back = CreateSolidBrush(p->back);
@@ -134,7 +152,7 @@ internal void theme_app_mode(int mode) {
 }
 
 internal void theme_init(const char *ini_path) {
-    theme_look(ini_path);
+    theme_look(ini_path, theme_style_settings());
     theme_app_mode(2);
 }
 
@@ -196,7 +214,7 @@ internal void theme_size(HWND w) {
     g_gl.dim = dm;
     g_gl.b_dim = NULL;
     if (!dm) return;
-    for (size_t i = 0; i < (size_t)cw * ch * 4; i++) dim[i] = (uint8_t)(bits[i] * 45 / 100);
+    for (size_t i = 0; i < (size_t)cw * ch * 4; i++) dim[i] = (uint8_t)(bits[i] * g_style->dim / 100);
     g_gl.b_dim = CreatePatternBrush(dm);
 }
 
