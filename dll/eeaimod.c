@@ -433,6 +433,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
 #include "engine/camera.c"
 #include "base/headless_win.c"
 #include "engine/display.c"
+#include "engine/hold_profile.c"
 #include "engine/playername.c"
 #include "engine/sound.c"
 #include "engine/select.c"
@@ -664,6 +665,7 @@ internal void install(HMODULE self) {
     persist_install();
     aim_install(g_autotest ? g_ini : NULL);
     display_install(g_autotest ? g_ini : NULL);
+    hold_profile_install();   // after it: the own renderer or not (g_rd_on)
     camera_install();   // after it: the own renderer or not (g_rd_on)
     sound_install();
     select_install();
