@@ -282,7 +282,8 @@ internal void theme_text(HDC dc, HWND c, RECT *r, const char *text, COLORREF col
 }
 
 // a push button as the game's menus draw theirs: the background darkened under it (less under the mouse), the bevel,
-// the text white; a check box or a radio button: the game's box or round, its text beside it. The keyboard's focus:
+// the text white; a check box or a radio button: the game's box or round (its pressed picture while pressed, not under
+// the mouse: the game's), its text beside it. The keyboard's focus:
 // the text gold (no dotted frame)
 internal void theme_paint_button(HWND c, HDC dc) {
     RECT r;
@@ -302,10 +303,10 @@ internal void theme_paint_button(HWND c, HDC dc) {
         int size = MulDiv(GL_CELL, GetDeviceCaps(dc, LOGPIXELSY), 96), y = (r.bottom - size) / 2;
         int on = SendMessageA(c, BM_GETCHECK, 0, 0) == BST_CHECKED;
         if (type == BS_AUTORADIOBUTTON) {
-            if (on) theme_cell(dc, 0, y, size, GL_CELL_RADIO_ON + (down || hot));
-            else theme_cell(dc, 0, y, size, GL_CELL_RADIO_OFF + (down || hot));
-        } else if (on) theme_cell(dc, 0, y, size, GL_CELL_CHECKED + (down || hot));
-        else theme_cell(dc, 0, y, size, GL_CELL_EMPTY + (down || hot));
+            if (on) theme_cell(dc, 0, y, size, GL_CELL_RADIO_ON + down);
+            else theme_cell(dc, 0, y, size, GL_CELL_RADIO_OFF + down);
+        } else if (on) theme_cell(dc, 0, y, size, GL_CELL_CHECKED + down);
+        else theme_cell(dc, 0, y, size, GL_CELL_EMPTY + down);
         RECT t = { size + size / 4, 0, r.right, r.bottom };
         theme_text(dc, c, &t, text, off ? g_pal.grey : focus ? g_pal.focus : g_pal.text, DT_LEFT);
         return;
