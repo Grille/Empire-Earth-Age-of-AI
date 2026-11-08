@@ -217,7 +217,11 @@ internal const char k_rd3_shader[] =
     " if ((g || rc) && (shd.z > 0 || shh.w > 0)) { float z = min(i.q.z, 0.9999), l = 9, b = g ? shd.w : sht.z, hl = 0;"
     "  if (shd.z > 0) { l = 0; for (int y = -1; y <= 1; y++) for (int u = -1; u <= 1; u++)"
     "   l += sm.SampleCmpLevelZero(sc, i.q.xy + float2(u, y) * shd.y, z - b); }"
-    "  if (shh.w > 0) hl = saturate((hm.SampleLevel(hs, i.w.xy * shh.x, 0) - i.w.z - shh.z) / shh.y);"
+    // its edge sharp on level ground, where a hill's shadow lands and a unit on top of the hill must meet it (the fade
+    // began at the true edge and ended 0.75 tiles inside it: the shadows stood apart, the player 2026-11-08), soft on a slope,
+    // where the map's texels and the ground's triangles part by more than a sharp edge hides
+    "  if (shh.w > 0) { float gs = saturate(2 * fwidth(i.w.z) / max(fwidth(i.w.x) + fwidth(i.w.y), 1e-4));"
+    "   hl = saturate((hm.SampleLevel(hs, i.w.xy * shh.x, 0) - i.w.z - shh.z) / lerp(min(0.1, shh.y), shh.y, gs)); }"
     "  c.rgb *= lerp(1, i.k, max(1 - l / 9, hl) * i.q.w * (shd.x == 6 ? sht.x : 1)); }"
     " if (misc.y > 0.5) c.rgb = lerp(fogc.rgb, c.rgb, saturate(i.f));"
     " return c; }\n";
