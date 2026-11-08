@@ -97,10 +97,32 @@ internal inline ee_ui_control *edit_box_new(unsigned id, const float rect[4], ee
     (*index)++;
     return box;
 }
+// a check box as the editor makes its own (text a UWideString), not added to its form yet
+internal inline ee_ui_control *check_box_new(unsigned id, const void *text, const float rect[4], ee_ui_form *form, int *index) {
+    ee_ui_control *box = game_new(size_ui_check_box);
+    if (!box) return NULL;
+    typedef void *(__thiscall *ctor_fn)(void *, unsigned long, const void *, void *, const float *, ee_ui_form *, unsigned long, unsigned long, char);
+    (*(ctor_fn *)data_ui_iat_check_box_ctor)(box, id, text, ui_get_font_label(), rect, form, (unsigned long)*index, 0, 0);
+    *(uint32_t *)box = vt_ui_check_box;
+    (*index)++;
+    return box;
+}
+internal inline void ui_check_box_check(ui_check_box *box, int on) {
+    ((void (__thiscall *)(ui_check_box *, char))*(void **)data_ui_imports_iat_check_box_set_checked)(box, (char)on);
+}
+// the yellow of the editor's own labels
+internal inline void ui_check_box_label_yellow(ui_check_box *box) {
+    ee_ui_label_text *t = ui_label_get_text(ui_check_box_get_label(box));
+    ui_label_text_set_r(t, 0.99607843f);
+    ui_label_text_set_g(t, 0.96862745f);
+    ui_label_text_set_b(t, 0.1254902f);
+    ui_label_text_set_colored(t, 1);
+}
 internal inline void ui_form_add_control(ee_ui_form *form, ee_ui_control *c, unsigned long group) {
     ((void (__thiscall *)(ee_ui_form *, ee_ui_control *, unsigned long))*(void **)data_ui_imports_iat_form_add_control)(form, c, group);
 }
 internal inline void editor_units_add_control(ee_ui_form *form, ee_ui_control *c) { ui_form_add_control(form, c, value_editor_group_units); }
+internal inline void editor_elevation_add_control(ee_ui_form *form, ee_ui_control *c) { ui_form_add_control(form, c, value_editor_group_elevation); }
 // the terrain panel's colour types (EEUIFSETerrain.color_types: an MSVC vector of pointers, its allocator first), an
 // item of its colour list each: how many; one more at the end (the game's push_back); the last off (nothing to free)
 internal inline unsigned se_terrain_color_type_count(const ee_se_terrain *p) {

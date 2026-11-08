@@ -70,6 +70,9 @@ changes the simulation: in a lockstep game different values make the PCs' games 
   follows the game's colours in the list and paints as they do; a double click on it changes or deletes it. A ramp's
   middle is blended in sRGB as the game's own ramps are (its sets in ColorPalette.tga fit that best), in linear light
   (brighter in the middle) or in OKLab (even steps of lightness, two hues without a dull middle).
+  A cliff is painted like any other ground, where the game's own pass took it back at once and at every load: the texture and the colours stay in the map's file, the tile
+  stays unwalkable (a steep tile is one by its heights, whatever its texture). The elevation panel has two check boxes for what the game does to the ground as it changes,
+  both ticked as the game's: `Cliff color` (cliff textures added on steep ground and taken off when it flattens) and `Water color` (a corner's colour when it goes under 0, and back when it rises).
 - `[camera] scroll`: `game` (default) the build's own camera scrolling, `aoc` The Art of Conquest's acceleration
   in either build, `ee` Empire Earth's constant speed in either build; `smooth=1` (default) moves the camera every
   frame by the frame's time instead of the game's fixed timer steps (jitter) - in both builds. While a text box

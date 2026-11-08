@@ -928,10 +928,39 @@ unsafe struct UIBitmap
 {
 }
 
+/// a check box's label (UICheckBox.label)
+[c_type("ee_ui_label")]
+unsafe struct ee_ui_label
+{
+    [offset(0x108), found(c)]
+    ee_ui_label_text* text;
+}
+
+[c_type("ee_ui_label_text")]
+unsafe struct ee_ui_label_text
+{
+    [offset(0x14), found(c)]
+    float32 r;
+    [offset(0x18), found(c)]
+    float32 g;
+    [offset(0x1C), found(c)]
+    float32 b;
+    /// 1: the colour is used
+    [offset(0x4C), found(c)]
+    uint8 colored;
+}
+
 /// made in 0x56575B, 0x5672AC, 0x569046, 0x56E14F, 0x571B93, 0x57ED81, 0x583705, 0x58D3E1
 [@base(typeof(UIButton)), size((ee)0x10C, (aoc)0x10C), vtable((ee)0x0082D948, (aoc)0x008431F8)]
 unsafe struct UICheckBox
 {
+    /// its label (the editor's own boxes: yellow, 0x56575B)
+    [offset(0x104), found(c)]
+    ee_ui_label* label;
+
+    /// GetIsChecked
+    [offset(0x108), found(c)]
+    uint8 checked_state;
 }
 
 /// made in 0x569046, 0x56D39A, 0x56EA99, 0x571B93, 0x572A2A, 0x57ED81, 0x583705, 0x58D3E1, 0x59198C

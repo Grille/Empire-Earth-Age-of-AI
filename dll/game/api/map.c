@@ -126,6 +126,25 @@ internal inline int patch_mesh_color_table(mesh_color_table_fn h, mesh_color_tab
     return iat_hook(data_map_iat_color_table, "Low-Level Engine.dll",
                     "?SetColorTable@GETerrainMesh@@QAEXAAV?$vector@VGEColor@@V?$allocator@VGEColor@@@std@@@std@@@Z", (void *)h, (void **)orig);
 }
+// the mesh's SetColorSet and SetWaterColorSet through the exe's imports
+typedef void (__thiscall *mesh_set_color_set_fn)(void *mesh, unsigned long x, unsigned long y, unsigned long set);
+typedef void (__thiscall *mesh_set_water_color_set_fn)(void *mesh, unsigned long x, unsigned long y);
+internal inline int patch_mesh_set_color_set(mesh_set_color_set_fn h, mesh_set_color_set_fn *orig) {
+    return iat_hook(data_map_iat_set_color_set, "Low-Level Engine.dll", "?SetColorSet@GETerrainMesh@@QAEXKKK@Z", (void *)h, (void **)orig);
+}
+internal inline int patch_mesh_set_water_color_set(mesh_set_water_color_set_fn h, mesh_set_water_color_set_fn *orig) {
+    return iat_hook(data_map_iat_set_water_color_set, "Low-Level Engine.dll", "?SetWaterColorSet@GETerrainMesh@@QAEXKK@Z", (void *)h, (void **)orig);
+}
+// a cliff's kind: a tile's, the one a texture gives its tiles
+internal inline int tile_is_cliff(const ee_tile *t) { return tile_get_kind(t) == (int)value_map_kind_cliff; }
+internal inline int terrain_is_cliff(const ee_terrain *t) { return terrain_get_kind(t) == (int)value_map_kind_cliff; }
+internal inline void tile_make_cliff(ee_tile *t, int *pos, void *map) { tile_change_kind(t, (int)value_map_kind_cliff, pos, map); }
+// a tile's texture (its byte 2 in the view table), -1 off the map
+internal inline int map_tile_texture(const ee_map *map, int x, int y) {
+    if (y < 0 || (unsigned)y >= map_get_size(map)) return -1;
+    const uint16_t *at = viewrow_count_at(map_view_row(map, (unsigned)y), (unsigned)x);
+    return at ? ((const uint8_t *)at)[2] : -1;
+}
 // a unit's place within the map's diamond (the square's corners outside it are no map: the game never puts a unit
 // there, and the minimap indexes its 64 x 64 tables with such a place unchecked - spawned units in a corner wrote
 // over its dot lists and the game crashed a minute later, 0x516079 / 0x516235)

@@ -864,6 +864,17 @@ static unsafe class ui
     [address((ee)0x00823C50, (aoc)0x00837C4C)]
     static block iat_edit_keyboard;
 
+    /// UICheckBox::UICheckBox(id, const UWideString &, GEFont *, const GERectangle &, UIForm *, the form's control
+    /// index, K, bool) - the editor's (0x56575B): (id, text, ui.font_label, rect, form, index, 0, 0) into 0x10C bytes,
+    /// then the exe's vtable (UICheckBox's)
+    [import_slot("Low-Level Engine.dll", "??0UICheckBox@@QAE@KABVUWideString@@PAVGEFont@@ABVGERectangle@@PAVUIForm@@KK_N@Z")]
+    [address((ee)0x00823E58, (aoc)0x00837E60)]
+    static block iat_check_box_ctor;
+
+    /// the font of the scenario editor's check boxes and radio buttons
+    [address((ee)0x009197B8, (aoc)0x00931934)]
+    static void* font_label;
+
     /// the font of the scenario editor's lists and edit boxes (the units list, the trigger screen's edit boxes)
     [address((ee)0x009197B4, (aoc)0x00931930)]
     static void* font_edit;

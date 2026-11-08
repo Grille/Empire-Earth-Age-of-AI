@@ -1471,12 +1471,22 @@ unsafe struct EEUIFSEESortUnitList
     extern uint32 execute(UIForm* form, uint32 arg);
 }
 
-[@base(typeof(EEUIFSEMainGroup)), size((ee)0x34, (aoc)0x34), vtable((ee)0x0082F914, (aoc)0x008451E4)]
+[@base(typeof(EEUIFSEMainGroup)), size((ee)0x34, (aoc)0x34), vtable((ee)0x0082F914, (aoc)0x008451E4), c_type("ee_se_elevation")]
 unsafe struct EEUIFSEElevation
 {
-    /// its constructor (5 arguments, not typed yet)
+    /// its radio buttons, the last under the others: the elevation mode's (ids 0x96, 0x97, 0xA0)
+    [offset(0xC), found(c)]
+    UIControl* smooth;
+
+    /// its constructor, as the terrain panel's: the editor's form's (0x58EC75), index its control index (taken and counted on)
     [address((ee)0x00590734, (aoc)0x005A098E)]
-    extern void* init(uint32 p1, uint32 p2, uint32 p3, uint32 p4, uint32 p5);
+    [call_site("se_elevation_init", (ee)0x0058EC75, (aoc)0x0059F084)]
+    extern void* init(uint32 p1, uint32 p2, int32* index, UIForm* form, void* font);
+
+    /// vf0: deleted with the editor
+    [slot(0), address((ee)0x00591003, (aoc)0x005A125D)]
+    [vtable_site("se_elevation_delete")]
+    extern void* destroy(uint8 flags);
 }
 
 [@base(typeof(UILBString)), size((ee)0x14C, (aoc)0x14C), vtable((ee)0x0082F32C, (aoc)0x00844BF0)]
@@ -1691,6 +1701,10 @@ static unsafe class editor
     /// 0x58A70E): shown while the panel is
     [value(6)]
     static uint32 group_units;
+
+    /// the elevation panel's (0x590734)
+    [value(2)]
+    static uint32 group_elevation;
 }
 
 /// the game's functions the editor's code wraps, by the names the C side gives them

@@ -1386,6 +1386,27 @@ internal inline ee_ui_form *ui_bitmap_get_form(const ui_bitmap *o) { return *(ee
 internal inline void ui_bitmap_set_form(ui_bitmap *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
 internal inline ee_ui_form **ui_bitmap_form_at(const ui_bitmap *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 
+// class ee_ui_label (ee_ui_label)
+// a check box's label (UICheckBox.label)
+internal inline ee_ui_label_text *ui_label_get_text(const ee_ui_label *o) { return *(ee_ui_label_text **)((uint8_t *)o + of_ui_label_text); }
+internal inline void ui_label_set_text(ee_ui_label *o, ee_ui_label_text *v) { *(ee_ui_label_text **)((uint8_t *)o + of_ui_label_text) = v; }
+internal inline ee_ui_label_text **ui_label_text_at(const ee_ui_label *o) { return (ee_ui_label_text **)((uint8_t *)o + of_ui_label_text); }
+
+// class ee_ui_label_text (ee_ui_label_text)
+internal inline float ui_label_text_get_r(const ee_ui_label_text *o) { return *(float *)((uint8_t *)o + of_ui_label_text_r); }
+internal inline void ui_label_text_set_r(ee_ui_label_text *o, float v) { *(float *)((uint8_t *)o + of_ui_label_text_r) = v; }
+internal inline float *ui_label_text_r_at(const ee_ui_label_text *o) { return (float *)((uint8_t *)o + of_ui_label_text_r); }
+internal inline float ui_label_text_get_g(const ee_ui_label_text *o) { return *(float *)((uint8_t *)o + of_ui_label_text_g); }
+internal inline void ui_label_text_set_g(ee_ui_label_text *o, float v) { *(float *)((uint8_t *)o + of_ui_label_text_g) = v; }
+internal inline float *ui_label_text_g_at(const ee_ui_label_text *o) { return (float *)((uint8_t *)o + of_ui_label_text_g); }
+internal inline float ui_label_text_get_b(const ee_ui_label_text *o) { return *(float *)((uint8_t *)o + of_ui_label_text_b); }
+internal inline void ui_label_text_set_b(ee_ui_label_text *o, float v) { *(float *)((uint8_t *)o + of_ui_label_text_b) = v; }
+internal inline float *ui_label_text_b_at(const ee_ui_label_text *o) { return (float *)((uint8_t *)o + of_ui_label_text_b); }
+// 1: the colour is used
+internal inline uint8_t ui_label_text_get_colored(const ee_ui_label_text *o) { return *(uint8_t *)((uint8_t *)o + of_ui_label_text_colored); }
+internal inline void ui_label_text_set_colored(ee_ui_label_text *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_ui_label_text_colored) = v; }
+internal inline uint8_t *ui_label_text_colored_at(const ee_ui_label_text *o) { return (uint8_t *)((uint8_t *)o + of_ui_label_text_colored); }
+
 // class UICheckBox (ui_check_box)
 // made in 0x56575B, 0x5672AC, 0x569046, 0x56E14F, 0x571B93, 0x57ED81, 0x583705, 0x58D3E1
 // UIButton's, the base's
@@ -1409,6 +1430,14 @@ internal inline float *ui_check_box_top_at(const ui_check_box *o) { return (floa
 internal inline ee_ui_form *ui_check_box_get_form(const ui_check_box *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 internal inline void ui_check_box_set_form(ui_check_box *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
 internal inline ee_ui_form **ui_check_box_form_at(const ui_check_box *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+// its label (the editor's own boxes: yellow, 0x56575B)
+internal inline ee_ui_label *ui_check_box_get_label(const ui_check_box *o) { return *(ee_ui_label **)((uint8_t *)o + of_ui_check_box_label); }
+internal inline void ui_check_box_set_label(ui_check_box *o, ee_ui_label *v) { *(ee_ui_label **)((uint8_t *)o + of_ui_check_box_label) = v; }
+internal inline ee_ui_label **ui_check_box_label_at(const ui_check_box *o) { return (ee_ui_label **)((uint8_t *)o + of_ui_check_box_label); }
+// GetIsChecked
+internal inline uint8_t ui_check_box_get_checked_state(const ui_check_box *o) { return *(uint8_t *)((uint8_t *)o + of_ui_check_box_checked_state); }
+internal inline void ui_check_box_set_checked_state(ui_check_box *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_ui_check_box_checked_state) = v; }
+internal inline uint8_t *ui_check_box_checked_state_at(const ui_check_box *o) { return (uint8_t *)((uint8_t *)o + of_ui_check_box_checked_state); }
 
 // class UIComboBox (ui_combo_box)
 // made in 0x569046, 0x56D39A, 0x56EA99, 0x571B93, 0x572A2A, 0x57ED81, 0x583705, 0x58D3E1, 0x59198C
@@ -1958,8 +1987,15 @@ internal int spec_ui_forms_select(int build) {
         fn_uib_map_button_up = (uib_map_button_up_fn)0x00591697;
         vt_ui_bitmap = 0x008300EC;
         size_ui_bitmap = 0xB0;
+        of_ui_label_text = 0x108;
+        of_ui_label_text_r = 0x14;
+        of_ui_label_text_g = 0x18;
+        of_ui_label_text_b = 0x1C;
+        of_ui_label_text_colored = 0x4C;
         vt_ui_check_box = 0x0082D948;
         size_ui_check_box = 0x10C;
+        of_ui_check_box_label = 0x104;
+        of_ui_check_box_checked_state = 0x108;
         vt_ui_combo_box = 0x0082DB74;
         size_ui_combo_box = 0xE0;
         vt_ui_edit_box = 0x0082D3E8;
@@ -2291,8 +2327,15 @@ internal int spec_ui_forms_select(int build) {
         fn_uib_map_button_up = (uib_map_button_up_fn)0x005A18F1;
         vt_ui_bitmap = 0x008459F0;
         size_ui_bitmap = 0xB0;
+        of_ui_label_text = 0x108;
+        of_ui_label_text_r = 0x14;
+        of_ui_label_text_g = 0x18;
+        of_ui_label_text_b = 0x1C;
+        of_ui_label_text_colored = 0x4C;
         vt_ui_check_box = 0x008431F8;
         size_ui_check_box = 0x10C;
+        of_ui_check_box_label = 0x104;
+        of_ui_check_box_checked_state = 0x108;
         vt_ui_combo_box = 0x00843424;
         size_ui_combo_box = 0xE0;
         vt_ui_edit_box = 0x00842C98;

@@ -42,6 +42,10 @@ unsafe struct EEMap
     [offset((ee)0x17B598, (aoc)0x18F49C), found(c)]
     void* view_rows;
 
+    /// a step of the ground's height, the same on every map (0.408, 1 / sqrt 6): 0x512FB0, its pair AoC 0x51D5E8
+    [offset((ee)0x1816D8, (aoc)0x1955F4), found(c)]
+    float32 height_step;
+
     /// [y * size + x]
     [offset((ee)0x1816D4, (aoc)0x1955F0), found(c)]
     ee_tile** tiles;
@@ -82,6 +86,42 @@ unsafe struct EEMap
     [address((ee)0x00512DFB, (aoc)0x0051D433)]
     [call_site("map_paint_colors", (ee)0x00512D09, (aoc)0x0051D341)]
     extern void paint_colors(int32 x_lo, int32 x_hi, int32 y_hi, int32 y_lo, int32 color_type);
+
+    /// the cliff pass over tiles x_lo .. x_hi - 1, y_lo .. y_hi - 1: a tile whose highest corner is one height step
+    /// up at least and whose corners differ by 1.5 steps gets kind 9, its 2 x 2 block (x - 1 .. x, y - 1 .. y) textures
+    /// of the map's cliff type, its corners that type's first texture's colours (map_paint_colors' own loop); a tile
+    /// not 9 with 3 of its block off the map or of those textures gets kind 9 too. The end of a map's load
+    /// (map_cliff_pass_load), the elevation and terrain paints' runs - around what they changed -, a new map, a change
+    /// of the cliff type
+    [address((ee)0x00512FB0, (aoc)0x0051D5E8)]
+    [call_site("map_cliff_pass_load", (ee)0x00512869, (aoc)0x0051CEA1)]
+    [call_site("map_cliff_pass_elevation", (ee)0x005982F8, (aoc)0x005A849D)]
+    [call_site("map_cliff_pass_paint", (ee)0x00598D4F, (aoc)0x005A8F13)]
+    extern void cliff_pass(uint32 x_lo, uint32 x_hi, int32 y_lo, int32 y_hi);
+
+    /// a tile's texture (set: its ee_terrain.set): release 1 lets go of the tile's old one, a load's 0 (nothing held
+    /// yet). Map_set_texture_load: a load's, of a tile whose saved texture is no use (none, or a cliff's: the pass lays
+    /// those anew); map_set_texture_cliff: the cliff pass's
+    [address((ee)0x00513941, (aoc)0x0051DFB7)]
+    [call_site("map_set_texture_load", (ee)0x00512535, (aoc)0x0051CB25)]
+    [call_site("map_set_texture_load", (ee)0x0051256A, (aoc)0x0051CB5A)]
+    [call_site("map_set_texture_load", (ee)0x00512705, (aoc)0x0051CD3D)]
+    [call_site("map_set_texture_load", (ee)0x00512751, (aoc)0x0051CD89)]
+    [call_site("map_set_texture_cliff", (ee)0x0051330A, (aoc)0x0051D942)]
+    extern void set_texture(int32 x, int32 y, int32 set, int8 release);
+
+    /// a tile back to a plain ground texture (its index), its colours and kind with it. The elevation paint's
+    /// clearing (0x51357B) of a tile of kind 9 that is no longer steep gives it the map's default ground
+    [address((ee)0x00512D13, (aoc)0x0051D34B)]
+    [call_site("map_cliff_remove", (ee)0x005136CE, (aoc)0x0051DD44)]
+    extern void reset_tile(uint32 x, uint32 y, uint32 texture);
+
+    /// the elevation paint's height change: where a corner goes below 0 or comes back the map's vf5 (0x51183B: the
+    /// tiles' kinds from their textures) gives it SetWaterColorSet below, SetColorSet with its tile's texture's colour
+    /// above. x_lo .. y_lo are read and written (the area it changed)
+    [address((ee)0x00518CB8, (aoc)0x00523389)]
+    [call_site("map_elevation_change", (ee)0x005982BC, (aoc)0x005A8461)]
+    extern void elevation_change(int32* x_lo, int32* x_hi, int32* y_hi, int32* y_lo, float32 p5, float32 p6, float32 p7, float32 p8, int8 p9);
 }
 
 /// a colour type of the ground, a record of db\dbterraintype.dat (map.color_types; 0x80 bytes: a name, its id, the
@@ -149,9 +189,26 @@ unsafe struct ee_tile_node
     void* next;
 }
 
+/// a texture of the ground, a record of db\dbterrain.dat (read at the start, 0x4D54A0)
+[size(0x8C), c_type("ee_terrain")]
+unsafe struct ee_terrain
+{
+    /// its set in the map's mesh: a tile's byte 2 in map.view_rows
+    [offset(0x40), found(c)]
+    uint32 set;
+
+    /// the tiles' kind it gives (ee_tile.kind): 9 a cliff's
+    [offset(0x5C), found(c)]
+    int32 kind;
+}
+
 /// a map tile
 unsafe struct ee_tile
 {
+    /// vf5 (EETile, 0x516E8C): its kind set, kept apart under the water (pos: the tile's x, y; map: EEMap)
+    [slot(5)]
+    extern void change_kind(int32 kind, int32* pos, void* map);
+
     /// +4 its terrain kind (unit_type_terrain_ok)
     /// the terrain kind (an index into TD_TERRAIN_OK; 0 land, 1 water - a guess)
     [offset(0x4), found(c)]
@@ -280,6 +337,10 @@ static unsafe class map
     [address((ee)0x00519E26, (aoc)0x005246C4)]
     static code fn_tile_sight_sub;
 
+    /// ee_tile.kind of a cliff (0x512FB0's; the textures Cliff_1 .. of db\dbterrain.dat have it)
+    [value(9)]
+    static uint32 kind_cliff;
+
     /// the map's areas (regions, continents)
     [address((ee)0x00917BC8, (aoc)0x00930BF0)]
     static EEAIContinentManager map_areas;
@@ -293,6 +354,17 @@ static unsafe class map
     [import_slot("Low-Level Engine.dll", "?SetColorTable@GETerrainMesh@@QAEXAAV?$vector@VGEColor@@V?$allocator@VGEColor@@@std@@@std@@@Z")]
     [address((ee)0x00823914, (aoc)0x008378F0)]
     static block iat_color_table;
+
+    /// GETerrainMesh::SetColorSet (thiscall on the mesh: a corner's x, y, a set from RegisterColorSet): the corner's
+    /// slot from the set by the noise of its place - what map_paint_colors, the cliff pass and the map's vf5 colour with
+    [import_slot("Low-Level Engine.dll", "?SetColorSet@GETerrainMesh@@QAEXKKK@Z")]
+    [address((ee)0x008238FC, (aoc)0x008378D8)]
+    static block iat_set_color_set;
+
+    /// GETerrainMesh::SetWaterColorSet (x, y): a corner under the water, from the water's set
+    [import_slot("Low-Level Engine.dll", "?SetWaterColorSet@GETerrainMesh@@QAEXKK@Z")]
+    [address((ee)0x00823900, (aoc)0x008378DC)]
+    static block iat_set_water_color_set;
 
     /// GETerrainMesh::RegisterColorSet (thiscall on the mesh: a vector of uint32 slots, its index out): a set more,
     /// the slots copied - the map's setup's for every colour type
@@ -330,4 +402,9 @@ static unsafe class map_functions
     /// a colour type by its id (map.color_types; NULL past the end)
     [address((ee)0x00513BE7, (aoc)0x0051E22B), cdecl]
     static extern ee_color_type* color_type(uint32 id);
+
+    /// a texture of the ground by its index, a tile's byte 2 in map.view_rows (NULL: none)
+    [address((ee)0x004D5D21, (aoc)0x004DBC39)]
+    [cdecl]
+    static extern ee_terrain* terrain_at(uint32 index);
 }

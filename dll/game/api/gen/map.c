@@ -40,6 +40,10 @@ internal inline ee_corner_row **map_corner_rows_at(const ee_map *o) { return (ee
 internal inline void *map_get_view_rows(const ee_map *o) { return *(void **)((uint8_t *)o + of_map_view_rows); }
 internal inline void map_set_view_rows(ee_map *o, void *v) { *(void **)((uint8_t *)o + of_map_view_rows) = v; }
 internal inline void **map_view_rows_at(const ee_map *o) { return (void **)((uint8_t *)o + of_map_view_rows); }
+// a step of the ground's height, the same on every map (0.408, 1 / sqrt 6): 0x512FB0, its pair AoC 0x51D5E8
+internal inline float map_get_height_step(const ee_map *o) { return *(float *)((uint8_t *)o + of_map_height_step); }
+internal inline void map_set_height_step(ee_map *o, float v) { *(float *)((uint8_t *)o + of_map_height_step) = v; }
+internal inline float *map_height_step_at(const ee_map *o) { return (float *)((uint8_t *)o + of_map_height_step); }
 // [y * size + x]
 internal inline ee_tile **map_get_tiles(const ee_map *o) { return *(ee_tile ***)((uint8_t *)o + of_map_tiles); }
 internal inline void map_set_tiles(ee_map *o, ee_tile **v) { *(ee_tile ***)((uint8_t *)o + of_map_tiles) = v; }
@@ -80,6 +84,39 @@ typedef void (__thiscall *map_paint_colors_fn)(ee_map *, int, int, int, int, int
 internal map_paint_colors_fn fn_map_paint_colors;
 internal inline void map_paint_colors(ee_map *map, int x_lo, int x_hi, int y_hi, int y_lo, int color_type) { fn_map_paint_colors(map, x_lo, x_hi, y_hi, y_lo, color_type); }
 internal inline int patch_map_paint_colors(map_paint_colors_fn h) { return patch_call(call_map_paint_colors, (uintptr_t)fn_map_paint_colors, (void *)h); }
+// the cliff pass over tiles x_lo .. x_hi - 1, y_lo .. y_hi - 1: a tile whose highest corner is one height step
+// up at least and whose corners differ by 1.5 steps gets kind 9, its 2 x 2 block (x - 1 .. x, y - 1 .. y) textures
+// of the map's cliff type, its corners that type's first texture's colours (map_paint_colors' own loop); a tile
+// not 9 with 3 of its block off the map or of those textures gets kind 9 too. The end of a map's load
+// (map_cliff_pass_load), the elevation and terrain paints' runs - around what they changed -, a new map, a change
+// of the cliff type
+typedef void (__thiscall *map_cliff_pass_fn)(ee_map *, uint32_t, uint32_t, int, int);
+internal map_cliff_pass_fn fn_map_cliff_pass;
+internal inline void map_cliff_pass(ee_map *map, uint32_t x_lo, uint32_t x_hi, int y_lo, int y_hi) { fn_map_cliff_pass(map, x_lo, x_hi, y_lo, y_hi); }
+internal inline int patch_map_cliff_pass_load(map_cliff_pass_fn h) { return patch_call(call_map_cliff_pass_load, (uintptr_t)fn_map_cliff_pass, (void *)h); }
+internal inline int patch_map_cliff_pass_elevation(map_cliff_pass_fn h) { return patch_call(call_map_cliff_pass_elevation, (uintptr_t)fn_map_cliff_pass, (void *)h); }
+internal inline int patch_map_cliff_pass_paint(map_cliff_pass_fn h) { return patch_call(call_map_cliff_pass_paint, (uintptr_t)fn_map_cliff_pass, (void *)h); }
+// a tile's texture (set: its ee_terrain.set): release 1 lets go of the tile's old one, a load's 0 (nothing held
+// yet). Map_set_texture_load: a load's, of a tile whose saved texture is no use (none, or a cliff's: the pass lays
+// those anew); map_set_texture_cliff: the cliff pass's
+typedef void (__thiscall *map_set_texture_fn)(ee_map *, int, int, int, int8_t);
+internal map_set_texture_fn fn_map_set_texture;
+internal inline void map_set_texture(ee_map *map, int x, int y, int set, int8_t release) { fn_map_set_texture(map, x, y, set, release); }
+internal inline int patch_map_set_texture_load(map_set_texture_fn h, int *of) { return patch_calls(calls_map_set_texture_load, 4, (uintptr_t)fn_map_set_texture, (void *)h, of); }
+internal inline int patch_map_set_texture_cliff(map_set_texture_fn h) { return patch_call(call_map_set_texture_cliff, (uintptr_t)fn_map_set_texture, (void *)h); }
+// a tile back to a plain ground texture (its index), its colours and kind with it. The elevation paint's
+// clearing (0x51357B) of a tile of kind 9 that is no longer steep gives it the map's default ground
+typedef void (__thiscall *map_reset_tile_fn)(ee_map *, uint32_t, uint32_t, uint32_t);
+internal map_reset_tile_fn fn_map_reset_tile;
+internal inline void map_reset_tile(ee_map *map, uint32_t x, uint32_t y, uint32_t texture) { fn_map_reset_tile(map, x, y, texture); }
+internal inline int patch_map_cliff_remove(map_reset_tile_fn h) { return patch_call(call_map_cliff_remove, (uintptr_t)fn_map_reset_tile, (void *)h); }
+// the elevation paint's height change: where a corner goes below 0 or comes back the map's vf5 (0x51183B: the
+// tiles' kinds from their textures) gives it SetWaterColorSet below, SetColorSet with its tile's texture's colour
+// above. x_lo .. y_lo are read and written (the area it changed)
+typedef void (__thiscall *map_elevation_change_fn)(ee_map *, int *, int *, int *, int *, float, float, float, float, int8_t);
+internal map_elevation_change_fn fn_map_elevation_change;
+internal inline void map_elevation_change(ee_map *map, int *x_lo, int *x_hi, int *y_hi, int *y_lo, float p5, float p6, float p7, float p8, int8_t p9) { fn_map_elevation_change(map, x_lo, x_hi, y_hi, y_lo, p5, p6, p7, p8, p9); }
+internal inline int patch_map_elevation_change(map_elevation_change_fn h) { return patch_call(call_map_elevation_change, (uintptr_t)fn_map_elevation_change, (void *)h); }
 
 // class ee_color_type (ee_color_type)
 // a colour type of the ground, a record of db\dbterraintype.dat (map.color_types; 0x80 bytes: a name, its id, the
@@ -141,8 +178,22 @@ internal inline void *tile_node_get_next(const void *o) { return *(void **)((uin
 internal inline void tile_node_set_next(void *o, void *v) { *(void **)((uint8_t *)o + of_tile_node_next) = v; }
 internal inline void **tile_node_next_at(const void *o) { return (void **)((uint8_t *)o + of_tile_node_next); }
 
+// class ee_terrain (ee_terrain)
+// a texture of the ground, a record of db\dbterrain.dat (0x4D5B??: read at the start)
+// its set in the map's mesh: a tile's byte 2 in map.view_rows
+internal inline uint32_t terrain_get_set(const ee_terrain *o) { return *(uint32_t *)((uint8_t *)o + of_terrain_set); }
+internal inline void terrain_set_set(ee_terrain *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_terrain_set) = v; }
+internal inline uint32_t *terrain_set_at(const ee_terrain *o) { return (uint32_t *)((uint8_t *)o + of_terrain_set); }
+// the tiles' kind it gives (ee_tile.kind): 9 a cliff's
+internal inline int terrain_get_kind(const ee_terrain *o) { return *(int *)((uint8_t *)o + of_terrain_kind); }
+internal inline void terrain_set_kind(ee_terrain *o, int v) { *(int *)((uint8_t *)o + of_terrain_kind) = v; }
+internal inline int *terrain_kind_at(const ee_terrain *o) { return (int *)((uint8_t *)o + of_terrain_kind); }
+
 // class ee_tile (ee_tile)
 // a map tile
+// vf5 (EETile, 0x516E8C): its kind set, kept apart under the water (pos: the tile's x, y; map: EEMap)
+typedef void (__thiscall *tile_change_kind_fn)(ee_tile *, int, int *, void *);
+internal inline void tile_change_kind(ee_tile *tile, int kind, int *pos, void *map) { ((tile_change_kind_fn)(*(void ***)tile)[slot_tile_change_kind])(tile, kind, pos, map); }
 // +4 its terrain kind (unit_type_terrain_ok)
 // the terrain kind (an index into TD_TERRAIN_OK; 0 land, 1 water - a guess)
 internal inline int tile_get_kind(const ee_tile *o) { return *(int *)((uint8_t *)o + of_tile_kind); }
@@ -256,6 +307,7 @@ internal inline void minimap_rebuild(ee_minimap *minimap) { fn_minimap_rebuild(m
 internal inline uint8_t *map_fn_tile_sight_add_at(void) { return (uint8_t *)(uintptr_t)data_map_fn_tile_sight_add; }
 // thiscall(tile, player), ret 4: a unit less sees it
 internal inline uint8_t *map_fn_tile_sight_sub_at(void) { return (uint8_t *)(uintptr_t)data_map_fn_tile_sight_sub; }
+// ee_tile.kind of a cliff (0x512FB0's; the textures Cliff_1 .. of db\dbterrain.dat have it)
 // the map's areas (regions, continents)
 internal inline ee_continent_mgr *map_map_areas_at(void) { return (ee_continent_mgr *)(uint8_t *)(uintptr_t)data_map_map_areas; }
 // the ground's colours. The colour table is textures\ColorPalette.tga (16 x 16, a slot a pixel, the picture's top
@@ -265,6 +317,11 @@ internal inline ee_continent_mgr *map_map_areas_at(void) { return (ee_continent_
 // the set's id into the record's +4) and then hands it the table: SetColorTable, its only call in both builds -
 // thiscall on the mesh, a vector of GEColor (3 floats, 0xC each; 256 at most, the rest white)
 internal inline uint8_t *map_iat_color_table_at(void) { return (uint8_t *)(uintptr_t)data_map_iat_color_table; }
+// GETerrainMesh::SetColorSet (thiscall on the mesh: a corner's x, y, a set from RegisterColorSet): the corner's
+// slot from the set by the noise of its place - what map_paint_colors, the cliff pass and the map's vf5 colour with
+internal inline uint8_t *map_iat_set_color_set_at(void) { return (uint8_t *)(uintptr_t)data_map_iat_set_color_set; }
+// GETerrainMesh::SetWaterColorSet (x, y): a corner under the water, from the water's set
+internal inline uint8_t *map_iat_set_water_color_set_at(void) { return (uint8_t *)(uintptr_t)data_map_iat_set_water_color_set; }
 // GETerrainMesh::RegisterColorSet (thiscall on the mesh: a vector of uint32 slots, its index out): a set more,
 // the slots copied - the map's setup's for every colour type
 internal inline uint8_t *map_iat_register_color_set_at(void) { return (uint8_t *)(uintptr_t)data_map_iat_register_color_set; }
@@ -287,6 +344,10 @@ internal inline uint8_t *map_terrain_current_at(void) { return (uint8_t *)(uintp
 typedef ee_color_type *(__cdecl *color_type_fn)(uint32_t);
 internal color_type_fn fn_color_type;
 internal inline ee_color_type *color_type(uint32_t id) { return fn_color_type(id); }
+// a texture of the ground by its index, a tile's byte 2 in map.view_rows (NULL: none)
+typedef ee_terrain *(__cdecl *terrain_at_fn)(uint32_t);
+internal terrain_at_fn fn_terrain_at;
+internal inline ee_terrain *terrain_at(uint32_t index) { return fn_terrain_at(index); }
 
 // the running build's values (spec_select, with addr_select): how many it hasn't got
 internal int spec_map_select(int build) {
@@ -300,6 +361,7 @@ internal int spec_map_select(int build) {
         of_map_mesh = 0x1C;
         of_map_corner_rows = 0x17B594;
         of_map_view_rows = 0x17B598;
+        of_map_height_step = 0x1816D8;
         of_map_tiles = 0x1816D4;
         of_map_edge_sum = 0x1816EC;
         of_map_edge_sum_2 = 0x1816F0;
@@ -310,6 +372,20 @@ internal int spec_map_select(int build) {
         slot_map_place = 8;
         fn_map_paint_colors = (map_paint_colors_fn)0x00512DFB;
         call_map_paint_colors = 0x00512D09;
+        fn_map_cliff_pass = (map_cliff_pass_fn)0x00512FB0;
+        call_map_cliff_pass_load = 0x00512869;
+        call_map_cliff_pass_elevation = 0x005982F8;
+        call_map_cliff_pass_paint = 0x00598D4F;
+        fn_map_set_texture = (map_set_texture_fn)0x00513941;
+        calls_map_set_texture_load[0] = 0x00512535;
+        calls_map_set_texture_load[1] = 0x0051256A;
+        calls_map_set_texture_load[2] = 0x00512705;
+        calls_map_set_texture_load[3] = 0x00512751;
+        call_map_set_texture_cliff = 0x0051330A;
+        fn_map_reset_tile = (map_reset_tile_fn)0x00512D13;
+        call_map_cliff_remove = 0x005136CE;
+        fn_map_elevation_change = (map_elevation_change_fn)0x00518CB8;
+        call_map_elevation_change = 0x005982BC;
         size_ee_color_type = 0x80;
         of_color_type_set = 0x4;
         of_color_type_id = 0x8;
@@ -323,6 +399,10 @@ internal int spec_map_select(int build) {
         fn_unit_vis_doppelganger_count = (unit_vis_doppelganger_count_fn)0x00404C70;
         of_tile_node_object = 0x4;
         of_tile_node_next = 0x8;
+        size_ee_terrain = 0x8C;
+        of_terrain_set = 0x40;
+        of_terrain_kind = 0x5C;
+        slot_tile_change_kind = 5;
         of_tile_kind = 0x4;
         of_tile_objects = 0x8;
         of_tile_sight = 0xC;
@@ -350,14 +430,18 @@ internal int spec_map_select(int build) {
         fn_minimap_rebuild = (minimap_rebuild_fn)0x005150F2;
         data_map_fn_tile_sight_add = 0x00519F4F;
         data_map_fn_tile_sight_sub = 0x00519E26;
+        value_map_kind_cliff = 9;
         data_map_map_areas = 0x00917BC8;
         data_map_iat_color_table = 0x00823914;
+        data_map_iat_set_color_set = 0x008238FC;
+        data_map_iat_set_water_color_set = 0x00823900;
         data_map_iat_register_color_set = 0x0082391C;
         data_map_color_types = 0x008D1FF8;
         value_map_of_mesh_color_sets = 80;
         value_map_of_mesh_color_table = 140;
         data_map_terrain_current = 0x009128CB;
         fn_color_type = (color_type_fn)0x00513BE7;
+        fn_terrain_at = (terrain_at_fn)0x004D5D21;
         return 0;
     case 1:   // aoc
         of_grid_cells = 0x4;
@@ -368,6 +452,7 @@ internal int spec_map_select(int build) {
         of_map_mesh = 0x1C;
         of_map_corner_rows = 0x18F498;
         of_map_view_rows = 0x18F49C;
+        of_map_height_step = 0x1955F4;
         of_map_tiles = 0x1955F0;
         of_map_edge_sum = 0x195608;
         of_map_edge_sum_2 = 0x19560C;
@@ -378,6 +463,20 @@ internal int spec_map_select(int build) {
         slot_map_place = 8;
         fn_map_paint_colors = (map_paint_colors_fn)0x0051D433;
         call_map_paint_colors = 0x0051D341;
+        fn_map_cliff_pass = (map_cliff_pass_fn)0x0051D5E8;
+        call_map_cliff_pass_load = 0x0051CEA1;
+        call_map_cliff_pass_elevation = 0x005A849D;
+        call_map_cliff_pass_paint = 0x005A8F13;
+        fn_map_set_texture = (map_set_texture_fn)0x0051DFB7;
+        calls_map_set_texture_load[0] = 0x0051CB25;
+        calls_map_set_texture_load[1] = 0x0051CB5A;
+        calls_map_set_texture_load[2] = 0x0051CD3D;
+        calls_map_set_texture_load[3] = 0x0051CD89;
+        call_map_set_texture_cliff = 0x0051D942;
+        fn_map_reset_tile = (map_reset_tile_fn)0x0051D34B;
+        call_map_cliff_remove = 0x0051DD44;
+        fn_map_elevation_change = (map_elevation_change_fn)0x00523389;
+        call_map_elevation_change = 0x005A8461;
         size_ee_color_type = 0x80;
         of_color_type_set = 0x4;
         of_color_type_id = 0x8;
@@ -391,6 +490,10 @@ internal int spec_map_select(int build) {
         fn_unit_vis_doppelganger_count = (unit_vis_doppelganger_count_fn)0x0040431C;
         of_tile_node_object = 0x4;
         of_tile_node_next = 0x8;
+        size_ee_terrain = 0x8C;
+        of_terrain_set = 0x40;
+        of_terrain_kind = 0x5C;
+        slot_tile_change_kind = 5;
         of_tile_kind = 0x4;
         of_tile_objects = 0x8;
         of_tile_sight = 0xC;
@@ -418,14 +521,18 @@ internal int spec_map_select(int build) {
         fn_minimap_rebuild = (minimap_rebuild_fn)0x0051F743;
         data_map_fn_tile_sight_add = 0x005247ED;
         data_map_fn_tile_sight_sub = 0x005246C4;
+        value_map_kind_cliff = 9;
         data_map_map_areas = 0x00930BF0;
         data_map_iat_color_table = 0x008378F0;
+        data_map_iat_set_color_set = 0x008378D8;
+        data_map_iat_set_water_color_set = 0x008378DC;
         data_map_iat_register_color_set = 0x008378F8;
         data_map_color_types = 0x008E86F8;
         value_map_of_mesh_color_sets = 108;
         value_map_of_mesh_color_table = 200;
         data_map_terrain_current = 0x00929067;
         fn_color_type = (color_type_fn)0x0051E22B;
+        fn_terrain_at = (terrain_at_fn)0x004DBC39;
         return 0;
     }
     return 0;
@@ -437,6 +544,20 @@ internal int spec_map_check(void) {
     int bad = 0;
     bad += spec_code((uintptr_t)fn_map_paint_colors, "EEMap.paint_colors");
     bad += spec_call(call_map_paint_colors, (uintptr_t)fn_map_paint_colors, "EEMap.paint_colors [call_site map_paint_colors]");
+    bad += spec_code((uintptr_t)fn_map_cliff_pass, "EEMap.cliff_pass");
+    bad += spec_call(call_map_cliff_pass_load, (uintptr_t)fn_map_cliff_pass, "EEMap.cliff_pass [call_site map_cliff_pass_load]");
+    bad += spec_call(call_map_cliff_pass_elevation, (uintptr_t)fn_map_cliff_pass, "EEMap.cliff_pass [call_site map_cliff_pass_elevation]");
+    bad += spec_call(call_map_cliff_pass_paint, (uintptr_t)fn_map_cliff_pass, "EEMap.cliff_pass [call_site map_cliff_pass_paint]");
+    bad += spec_code((uintptr_t)fn_map_set_texture, "EEMap.set_texture");
+    bad += spec_call(calls_map_set_texture_load[0], (uintptr_t)fn_map_set_texture, "EEMap.set_texture [call_site map_set_texture_load 0]");
+    bad += spec_call(calls_map_set_texture_load[1], (uintptr_t)fn_map_set_texture, "EEMap.set_texture [call_site map_set_texture_load 1]");
+    bad += spec_call(calls_map_set_texture_load[2], (uintptr_t)fn_map_set_texture, "EEMap.set_texture [call_site map_set_texture_load 2]");
+    bad += spec_call(calls_map_set_texture_load[3], (uintptr_t)fn_map_set_texture, "EEMap.set_texture [call_site map_set_texture_load 3]");
+    bad += spec_call(call_map_set_texture_cliff, (uintptr_t)fn_map_set_texture, "EEMap.set_texture [call_site map_set_texture_cliff]");
+    bad += spec_code((uintptr_t)fn_map_reset_tile, "EEMap.reset_tile");
+    bad += spec_call(call_map_cliff_remove, (uintptr_t)fn_map_reset_tile, "EEMap.reset_tile [call_site map_cliff_remove]");
+    bad += spec_code((uintptr_t)fn_map_elevation_change, "EEMap.elevation_change");
+    bad += spec_call(call_map_elevation_change, (uintptr_t)fn_map_elevation_change, "EEMap.elevation_change [call_site map_elevation_change]");
     bad += spec_code((uintptr_t)fn_unit_vis_explored, "ee_unit_vis.explored");
     bad += spec_code((uintptr_t)fn_unit_vis_seen_by, "ee_unit_vis.seen_by");
     bad += spec_code((uintptr_t)fn_unit_vis_doppelganger_count, "ee_unit_vis.doppelganger_count");
@@ -453,9 +574,12 @@ internal int spec_map_check(void) {
     bad += spec_code(data_map_fn_tile_sight_sub, "map.fn_tile_sight_sub");
     bad += spec_data(data_map_map_areas, "map.map_areas");
     bad += spec_data(data_map_iat_color_table, "map.iat_color_table");
+    bad += spec_data(data_map_iat_set_color_set, "map.iat_set_color_set");
+    bad += spec_data(data_map_iat_set_water_color_set, "map.iat_set_water_color_set");
     bad += spec_data(data_map_iat_register_color_set, "map.iat_register_color_set");
     bad += spec_data(data_map_color_types, "map.color_types");
     bad += spec_data(data_map_terrain_current, "map.terrain_current");
     bad += spec_code((uintptr_t)fn_color_type, "map_functions.color_type");
+    bad += spec_code((uintptr_t)fn_terrain_at, "map_functions.terrain_at");
     return bad;
 }

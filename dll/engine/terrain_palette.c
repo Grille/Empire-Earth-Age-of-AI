@@ -403,8 +403,9 @@ internal void terrain_palette_install(void) {
     int n = 0;
     if (g_tp_on)
         n = patch_mesh_color_table(hook_tp_color_table, &g_tp_color_table) + patch_map_paint_colors(hook_tp_paint_colors) +
-            patch_se_terrain_init(hook_tp_panel_init) + patch_se_terrain_delete(hook_tp_panel_delete) + terrain_dialog_install();
-    if (g_log) fprintf(g_log, "# editor: terrain_palette=%d%s\n", g_tp_on, !g_tp_on ? "" : n == 6 ? " (hooked)" : " (FAILED)");
+            patch_se_terrain_init(hook_tp_panel_init) + patch_se_terrain_delete(hook_tp_panel_delete) + terrain_dialog_install() +
+            terrain_cliffs_install();
+    if (g_log) fprintf(g_log, "# editor: terrain_palette=%d%s\n", g_tp_on, !g_tp_on ? "" : n == 6 + TC_HOOKS ? " (hooked)" : " (FAILED)");
 }
 
 // pipe: palette type add|set <i> flat <r g b> | ramp <n> [srgb|linear|oklab] <r g b> <r g b> | each <n> <r g b> x n - a
@@ -495,6 +496,7 @@ internal void cmd_palette(char *out, const char *args) {
     }
     if (!strcmp(mode, "remap")) { REPLY("ok: %u corners moved off free slots\n", tp_remap(map, 1, NULL)); return; }
     if (!strcmp(mode, "type")) { tp_cmd_type(out, args + strspn(args, " ") + 4); return; }
+    if (!strcmp(mode, "ground")) { tc_cmd_ground(out, args + strspn(args, " ") + 6); return; }
     if (mode[0]) { REPLY("error: usage: palette [get <slot> | set <slot> <r> <g> <b> | clear <slot> | remap | type ...]\n"); return; }
     unsigned on[TP_SLOTS] = { 0 }, left = tp_remap(map, 0, on);
     REPLY("on=%d sets=%u shared=%u free=%u own=%u, corners to move off them %u:", g_tp_on, g_tp_sets, g_tp_shared, g_tp_nfree,

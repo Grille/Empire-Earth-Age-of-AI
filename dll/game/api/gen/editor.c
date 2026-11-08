@@ -1112,6 +1112,14 @@ internal inline void *eesets_object_init(eesets_object *eesets_object, uint32_t 
 
 // class EESETSShowIDsCheckBox (eesets_show_i_ds_check_box)
 // UICheckBox's, the base's
+// its label (the editor's own boxes: yellow, 0x56575B)
+internal inline ee_ui_label *eesets_show_i_ds_check_box_get_label(const eesets_show_i_ds_check_box *o) { return *(ee_ui_label **)((uint8_t *)o + of_ui_check_box_label); }
+internal inline void eesets_show_i_ds_check_box_set_label(eesets_show_i_ds_check_box *o, ee_ui_label *v) { *(ee_ui_label **)((uint8_t *)o + of_ui_check_box_label) = v; }
+internal inline ee_ui_label **eesets_show_i_ds_check_box_label_at(const eesets_show_i_ds_check_box *o) { return (ee_ui_label **)((uint8_t *)o + of_ui_check_box_label); }
+// GetIsChecked
+internal inline uint8_t eesets_show_i_ds_check_box_get_checked_state(const eesets_show_i_ds_check_box *o) { return *(uint8_t *)((uint8_t *)o + of_ui_check_box_checked_state); }
+internal inline void eesets_show_i_ds_check_box_set_checked_state(eesets_show_i_ds_check_box *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_ui_check_box_checked_state) = v; }
+internal inline uint8_t *eesets_show_i_ds_check_box_checked_state_at(const eesets_show_i_ds_check_box *o) { return (uint8_t *)((uint8_t *)o + of_ui_check_box_checked_state); }
 // UIButton's, the base's
 // UIControl's, the base's
 // its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
@@ -1718,12 +1726,23 @@ typedef uint32_t (__thiscall *eeuifsee_sort_unit_list_execute_fn)(eeuifsee_sort_
 internal eeuifsee_sort_unit_list_execute_fn fn_eeuifsee_sort_unit_list_execute;
 internal inline uint32_t eeuifsee_sort_unit_list_execute(eeuifsee_sort_unit_list *eeuifsee_sort_unit_list, ee_ui_form *form, uint32_t arg) { return fn_eeuifsee_sort_unit_list_execute(eeuifsee_sort_unit_list, form, arg); }
 
-// class EEUIFSEElevation (eeuifse_elevation)
+// class EEUIFSEElevation (ee_se_elevation)
 // EEUIFSEMainGroup's, the base's
-// its constructor (5 arguments, not typed yet)
-typedef void *(__thiscall *eeuifse_elevation_init_fn)(eeuifse_elevation *, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
-internal eeuifse_elevation_init_fn fn_eeuifse_elevation_init;
-internal inline void *eeuifse_elevation_init(eeuifse_elevation *eeuifse_elevation, uint32_t p1, uint32_t p2, uint32_t p3, uint32_t p4, uint32_t p5) { return fn_eeuifse_elevation_init(eeuifse_elevation, p1, p2, p3, p4, p5); }
+// its radio buttons, the last under the others: the elevation mode's (ids 0x96, 0x97, 0xA0)
+internal inline ee_ui_control *se_elevation_get_smooth(const ee_se_elevation *o) { return *(ee_ui_control **)((uint8_t *)o + of_se_elevation_smooth); }
+internal inline void se_elevation_set_smooth(ee_se_elevation *o, ee_ui_control *v) { *(ee_ui_control **)((uint8_t *)o + of_se_elevation_smooth) = v; }
+internal inline ee_ui_control **se_elevation_smooth_at(const ee_se_elevation *o) { return (ee_ui_control **)((uint8_t *)o + of_se_elevation_smooth); }
+// its constructor, as the terrain panel's: the editor's form's (0x58EC75), index its control index (taken and counted on)
+typedef void *(__thiscall *se_elevation_init_fn)(ee_se_elevation *, uint32_t, uint32_t, int *, ee_ui_form *, void *);
+internal se_elevation_init_fn fn_se_elevation_init;
+internal inline void *se_elevation_init(ee_se_elevation *se_elevation, uint32_t p1, uint32_t p2, int *index, ee_ui_form *form, void *font) { return fn_se_elevation_init(se_elevation, p1, p2, index, form, font); }
+internal inline int patch_se_elevation_init(se_elevation_init_fn h) { return patch_call(call_se_elevation_init, (uintptr_t)fn_se_elevation_init, (void *)h); }
+// vf0: deleted with the editor
+typedef void *(__thiscall *se_elevation_destroy_fn)(ee_se_elevation *, uint8_t);
+internal inline void *se_elevation_destroy(ee_se_elevation *se_elevation, uint8_t flags) { return ((se_elevation_destroy_fn)(*(void ***)se_elevation)[slot_se_elevation_destroy])(se_elevation, flags); }
+internal se_elevation_destroy_fn fn_eeuifse_elevation_destroy;
+internal inline void *eeuifse_elevation_destroy(ee_se_elevation *se_elevation, uint8_t flags) { return fn_eeuifse_elevation_destroy(se_elevation, flags); }
+internal inline int patch_se_elevation_delete(se_elevation_destroy_fn h) { return patch_vtable(vt_eeuifse_elevation, (int)slot_se_elevation_destroy, (uintptr_t)fn_eeuifse_elevation_destroy, (void *)h); }
 
 // class EEUIFSELBCargoList (eeuifselb_cargo_list)
 // UILBString's, the base's
@@ -2141,6 +2160,7 @@ internal inline void editor_form_open(ee_editor_form *editor_form) { fn_editor_f
 // static class editor
 // the units panel's group of the editor's form (UIForm::AddControl's second argument for each of its controls,
 // 0x58A70E): shown while the panel is
+// the elevation panel's (0x590734)
 
 // static class editor_functions
 // the game's functions the editor's code wraps, by the names the C side gives them
@@ -2637,7 +2657,11 @@ internal int spec_editor_select(int build) {
         fn_eeuifsee_sort_unit_list_execute = (eeuifsee_sort_unit_list_execute_fn)0x0058B784;
         vt_eeuifse_elevation = 0x0082F914;
         size_eeuifse_elevation = 0x34;
-        fn_eeuifse_elevation_init = (eeuifse_elevation_init_fn)0x00590734;
+        of_se_elevation_smooth = 0xC;
+        fn_se_elevation_init = (se_elevation_init_fn)0x00590734;
+        call_se_elevation_init = 0x0058EC75;
+        slot_se_elevation_destroy = 0;
+        fn_eeuifse_elevation_destroy = (se_elevation_destroy_fn)0x00591003;
         vt_eeuifselb_cargo_list = 0x0082F32C;
         size_eeuifselb_cargo_list = 0x14C;
         fn_eeuifselb_cargo_list_init = (eeuifselb_cargo_list_init_fn)0x00589C83;
@@ -2706,6 +2730,7 @@ internal int spec_editor_select(int build) {
         fn_editor_form_copy_data = (editor_form_copy_data_fn)0x0058E30D;
         fn_editor_form_open = (editor_form_open_fn)0x0058F363;
         value_editor_group_units = 6;
+        value_editor_group_elevation = 2;
         fn_ptr_vector_push = (ptr_vector_push_fn)0x0059C98E;
         return 0;
     case 1:   // aoc
@@ -3192,7 +3217,11 @@ internal int spec_editor_select(int build) {
         fn_eeuifsee_sort_unit_list_execute = (eeuifsee_sort_unit_list_execute_fn)0x0059BADA;
         vt_eeuifse_elevation = 0x008451E4;
         size_eeuifse_elevation = 0x34;
-        fn_eeuifse_elevation_init = (eeuifse_elevation_init_fn)0x005A098E;
+        of_se_elevation_smooth = 0xC;
+        fn_se_elevation_init = (se_elevation_init_fn)0x005A098E;
+        call_se_elevation_init = 0x0059F084;
+        slot_se_elevation_destroy = 0;
+        fn_eeuifse_elevation_destroy = (se_elevation_destroy_fn)0x005A125D;
         vt_eeuifselb_cargo_list = 0x00844BF0;
         size_eeuifselb_cargo_list = 0x14C;
         fn_eeuifselb_cargo_list_init = (eeuifselb_cargo_list_init_fn)0x00599EB9;
@@ -3261,6 +3290,7 @@ internal int spec_editor_select(int build) {
         fn_editor_form_copy_data = (editor_form_copy_data_fn)0x0059E72C;
         fn_editor_form_open = (editor_form_open_fn)0x0059F794;
         value_editor_group_units = 6;
+        value_editor_group_elevation = 2;
         fn_ptr_vector_push = (ptr_vector_push_fn)0x005ACAFA;
         return 0;
     }
@@ -3730,7 +3760,10 @@ internal int spec_editor_check(void) {
     bad += spec_code((uintptr_t)fn_eeuifsee_sort_unit_list_execute, "EEUIFSEESortUnitList.execute");
     bad += spec_slot(vt_eeuifsee_sort_unit_list, slot_ui_event_execute, (uintptr_t)fn_eeuifsee_sort_unit_list_execute, "EEUIFSEESortUnitList.execute [slot]");
     bad += spec_vtable(vt_eeuifse_elevation, ".?AVEEUIFSEElevation@@", "EEUIFSEElevation [vtable]");
-    bad += spec_code((uintptr_t)fn_eeuifse_elevation_init, "EEUIFSEElevation.init");
+    bad += spec_code((uintptr_t)fn_se_elevation_init, "EEUIFSEElevation.init");
+    bad += spec_call(call_se_elevation_init, (uintptr_t)fn_se_elevation_init, "EEUIFSEElevation.init [call_site se_elevation_init]");
+    bad += spec_code((uintptr_t)fn_eeuifse_elevation_destroy, "EEUIFSEElevation.destroy");
+    bad += spec_slot(vt_eeuifse_elevation, slot_se_elevation_destroy, (uintptr_t)fn_eeuifse_elevation_destroy, "EEUIFSEElevation.destroy [slot]");
     bad += spec_vtable(vt_eeuifselb_cargo_list, ".?AVEEUIFSELBCargoList@@", "EEUIFSELBCargoList [vtable]");
     bad += spec_code((uintptr_t)fn_eeuifselb_cargo_list_init, "EEUIFSELBCargoList.init");
     bad += spec_vtable(vt_eeuifselb_unit_list, ".?AVEEUIFSELBUnitList@@", "EEUIFSELBUnitList [vtable]");
