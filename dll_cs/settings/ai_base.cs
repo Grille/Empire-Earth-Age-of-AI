@@ -763,7 +763,9 @@ class ai_base
             /// a detachment of up to 20 soldiers from those at home, apart from the force, goes for the enemy drop site by a mine
             /// it knows that it beats best and is nearest, six citizens behind it; it clears what else stands within 22 tiles, founds
             /// a town there as take_mines does and stays until its drop site and towers stand (the player: "small detachments that
-            /// stay until the mine is secured"), 15 minutes at most; one at a time, 3 minutes apart (not together with take_mines)
+            /// stay until the mine is secured"), 15 minutes at most; one at a time, 3 minutes apart (not together with take_mines).
+            /// Behind the enemy, or with too few at home or no mine it would beat: a hit and run instead, up to 12 of its fastest soldiers at
+            /// the least defended mine, no citizens along, they kill the citizens there and leave
             bool mine_raids;
         }
         /// Towns on the home continent, a list of parts (apart by commas or '|'), not before the Copper Age, not with

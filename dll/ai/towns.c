@@ -555,7 +555,7 @@ internal struct tn_town *tn_found(ee_player *pl, unsigned idx, struct tn_st *s, 
 #define SITE_MAX 64
 #define SITE_R 14
 #define SITE_RETRY 1200000
-internal struct site_rec { ivec2 p; uint32_t t; int tries, fails; float foe_hp; } g_sites[16][SITE_MAX];
+internal struct site_rec { ivec2 p; uint32_t t, hit_t; int tries, fails; float foe_hp; } g_sites[16][SITE_MAX];   // hit_t: the last hit and run there
 internal int g_nsites[16];
 internal struct site_rec *site_at(unsigned idx, ivec2 p, int add) {
     for (int k = 0; k < g_nsites[idx]; k++) if (ivec2_dist2(g_sites[idx][k].p, p) <= SITE_R * SITE_R) return &g_sites[idx][k];
@@ -575,6 +575,8 @@ internal void site_taken(unsigned idx, ivec2 p) {
     struct site_rec *r = site_at(idx, p, 0);
     if (r) *r = g_sites[idx][--g_nsites[idx]];
 }
+internal void site_hit(unsigned idx, ivec2 p, uint32_t now) { site_at(idx, p, 1)->hit_t = now ? now : 1; }
+internal int site_hit_ok(unsigned idx, ivec2 p, uint32_t now) { struct site_rec *r = site_at(idx, p, 0); return !r || !r->hit_t || now - r->hit_t >= 360000; }
 internal int site_wants_army(unsigned idx, ivec2 p) { struct site_rec *r = site_at(idx, p, 0); return r && r->fails > 0; }
 internal int site_for_det(unsigned idx, ivec2 p, uint32_t now) { struct site_rec *r = site_at(idx, p, 0); return !r || !r->fails || now - r->t >= SITE_RETRY; }
 // TAKE MINES: the mines it has seen within r of c
