@@ -1823,6 +1823,7 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmd, int show) {
     (void)prev;
     if (cmd && !strncmp(cmd, "--settings-file", 15)) return settings_cli(cmd);
     g_ini_eval = x_const_eval;
+    g_ini_eval_vec2 = x_const_vec2;
     g_shipped = shipped_text();
     // the file: the one named on the command line, else ageofai\ageofai.ini in this program's folder (the game folder)
     if (cmd && cmd[0]) {

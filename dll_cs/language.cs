@@ -5,9 +5,13 @@
 // see this file's names; a part's own attributes stay in its namespace (settings' [game] beside the language's game).
 // Nothing of it runs - scripts/build/lang_read.py and settings_read.py read the files.
 
+global using static ageofai.language_functions;
 using System;
 
 namespace ageofai;
+
+// what a setting's declaration writes as the language writes it (static readonly vec2 aoc = vec(1024, 768))
+static class language_functions { public static vec2 vec(double x, double y) => default; }
 
 // the language's own types (lang/language.cs "TYPES": what each is). int, float, bool and void are written with C#'s
 // words because the language has the same names (a script's x: int) - but they are the language's, not C#'s:

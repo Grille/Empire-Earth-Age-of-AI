@@ -5,29 +5,33 @@ namespace ageofai.settings;
 [section(40), title("Scenario editor")]
 class editor
 {
-    const string ee = "800x600";
-    const string aoc = "1024x768";
+    // the names the sizes below may use (game: the code's own, the resolution of Game Settings)
+    static readonly vec2 off = vec(0, 0);
+    static readonly vec2 ee = vec(800, 600);
+    static readonly vec2 aoc = vec(1024, 768);
+    static readonly vec2 game = vec(1024, 768);
 
     /// Resolution of the scenario editor:
     ///   ee   = 800x600 (original Empire Earth)
     ///   aoc  = 1024x768 with the editor layout of The Art of Conquest
     ///   game = the resolution you play games at (Game Settings), with the AoC layout extended to it: the map view
     ///          fills the screen, the panels sit at the bottom, minimap and file buttons at the bottom right
-    ///   or any WIDTHxHEIGHT above 800x600, e.g. 1920x1080 (same layout rules)
+    ///   or any size above 800x600, as an expression: 1920x1080, game * 150%, aoc * 1.5 (same layout rules)
     /// The background art is the original 800x600 one, stretched. Full-screen pages (players, texts) keep their
     /// controls at the top left, as in AoC.
-    [length(16), also("patches")]
-    string editor_resolution = ee;
+    [also("patches")]
+    vec2 editor_resolution = ee;
 
-    /// How large the editor's panels, buttons and texts are, the picture still drawn at editor_resolution (not with
-    /// editor_resolution = ee, and only with renderer = own):
-    ///   off = as that resolution makes them
+    /// The size the editor's panels, buttons and texts are laid out at, the picture still drawn at editor_resolution
+    /// (not with editor_resolution = ee, and only with renderer = own). A smaller size makes them larger; its height
+    /// counts, 600 at least:
+    ///   off = as editor_resolution makes them
     ///   ee  = as large as at 800x600
     ///   aoc = as large as at 1024x768
-    ///   or any WIDTHxHEIGHT (its height counts, 600 at least), or a percentage over 100, e.g. 150
-    /// The map, the shapes and the texts stay sharp. The map view shows what it shows at that smaller size.
-    [length(16), also("patches")]
-    string editor_uiscale = "off";
+    ///   or any size as an expression: 1280x720, aoc * 1.5 or aoc * 150% (1536x1152: smaller than aoc), game * 50%
+    /// The map, the shapes and the texts stay sharp. The map view shows what it shows at that size.
+    [also("patches")]
+    vec2 editor_uiscale = off;
 
     /// A search box above the unit list of the editor's units panel: type part of a unit's name - as the list shows
     /// it, or the game's internal (English) name - and the list shows only the units that match, at once as you type;

@@ -41,7 +41,7 @@ def default_of(sec, k):   # the default as the code's row has it and as the file
         on = settings_read.arg_text(k.attrs['on'][0]) if k.has('on') else ''
         return c_str(on), on
     if kind in ('STR', 'STR_P'):
-        s = d if d in sec.consts else cs_str(d)   # a name of the section's stays the name: the file and the tool show it
+        s = d if k.type == 'vec2' else cs_str(d)   # a vec2 key's: the expression as written (a name of the section's)
         return c_str(s), s
     if kind in ('SHARE', 'FACTOR'):
         v = settings_read.percent(d, k.where)
@@ -79,7 +79,7 @@ def row_of(sec, k):   # X(FLAG, general, enabled, 1, 0, 0) - D for a row of [ai_
         'LIMIT': tuple(arg(x) for x in a.get('range', [])[:2]),
         'SHARE': tuple(settings_read.percent(arg(x), k.where) for x in a.get('range', [])[:2]) or ('-1000000', '1000000'),   # no bound
         'CHOICE': (c_str(','.join(sec.enums.get(k.type, {}).values())), '0'),   # a name may hold a | (default | file)
-        'STR': (arg(a['length'][0]) if 'length' in a else '0', '0'),
+        'STR': ('48', '1') if k.type == 'vec2' else (arg(a['length'][0]) if 'length' in a else '0', '0'),   # a vec2 key: b 1
         'STR_P': (arg(a['length'][0]) if 'length' in a else '0', '0'),
         'FACTOR': tuple(settings_read.percent(arg(x), k.where) for x in a.get('range', [])[:2]) or ('-1000000', '1000000'),
         'FLAGS': ('%s_FIELDS' % k.name.upper(), '0'),
@@ -108,9 +108,6 @@ def rows_h(secs):   # the file below its header
     seen = {}
     for sec in secs:
         for cname, text in sec.consts.items():
-            for k in sec.keys:
-                if settings_read.kind_of(sec, k) == 'STR' and len(text) >= int(arg(k.attrs['length'][0])):
-                    raise SystemExit('%s: %s\'s text "%s" doesn\'t fit %s' % (k.where, cname, text, k.name))
             named.append('N(%s %s %s)' % ((sec.name + ',').ljust(10), (cname + ',').ljust(10), c_str(text)))
         for k in sec.keys if sec.kind != 'DIFF' else []:
             if k.name in seen:

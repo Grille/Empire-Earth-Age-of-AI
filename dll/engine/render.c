@@ -191,7 +191,7 @@ struct rd_surface {
     UINT tw, th;                    // a target's and depth buffer's real size (g_uis); else desc's
     float sx, sy;                   // ... over desc's
 };
-// THE INTERFACE LARGER THAN ITS RESOLUTION ([editor] editor_uiscale): the game is told a smaller size (lw x lh: its layout,
+// THE INTERFACE LARGER THAN ITS RESOLUTION ([editor] editor_uiscale): the game is told another size (lw x lh: its layout,
 // its mouse, its surfaces' coordinates) and the picture is drawn at rw x rh. The target and its depth buffer are made
 // that size and everything that draws on them - the viewports (rs_port, at the frame's replay), a blit's rectangle, the
 // text (display_text.c through a scaling transform of GDI's) - scales to it, so the shapes and the letters are sharp at
@@ -944,14 +944,14 @@ internal HRESULT __stdcall rd_dd_enum_modes(rd_dd *o, DWORD flags, DDSURFACEDESC
     }
     // the size editor_uiscale tells the game is no mode of the monitor's: the game quits at a switch to a size it wasn't offered
     int lw = 0, lh = 0, known = 0;
-    if (g_editor_ui_height || g_editor_ui_percent) editor_size(&lw, &lh);
+    if (g_editor_ui) editor_size(&lw, &lh);
     for (int k = 0; k < n; k++) known |= seen[k].w == (short)lw && seen[k].h == (short)lh;
     for (int bpp = 32; lw > 0 && !known && bpp >= 16; bpp -= 16) {
         DDSURFACEDESC2 d;
         rd_mode_desc(&d, lw, lh, bpp, 0);
         if (cb(&d, ctx) == DDENUMRET_CANCEL) return DD_OK;
     }
-    if (g_log && (g_editor_ui_height || g_editor_ui_percent)) log_locked("# editor: uiscale's mode %dx%d offered to the game (%s)\n", lw, lh, known ? "the monitor has it" : "added");
+    if (g_log && g_editor_ui) log_locked("# editor: uiscale's mode %dx%d offered to the game (%s)\n", lw, lh, known ? "the monitor has it" : "added");
     return DD_OK;
 }
 internal HRESULT __stdcall rd_dd_get_display_mode(rd_dd *o, DDSURFACEDESC2 *d) {

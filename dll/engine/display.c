@@ -1,10 +1,8 @@
 // Display: resolution of the scenario editor.
-// ageofai.ini [editor] editor_resolution = game | <width>x<height>   (800x600, the default: nothing is changed)
-//               editor_uiscale = off | <width>x<height> (its height counts) | <percent>: the panels larger, the picture
-//               still at editor_resolution
-//   game = the resolution chosen for games in the settings
-//   the names ee (800x600, original Empire Earth) and aoc (1024x768, what The Art of Conquest uses) are the settings'
-//   (dll_cs/settings/editor.cs): sizes by the time they are read here
+// ageofai.ini [editor] editor_resolution, editor_uiscale: sizes, the language's vec2 (a key's text worked out when it is
+// wanted, editor_key_size): 1920x1080, aoc * 150%, game * 50% - the names (off, ee 800x600, aoc 1024x768) dll_cs/settings/editor.cs's,
+// game the resolution chosen for games in the settings. editor_resolution 800x600 (ee, the default): nothing is changed.
+// editor_uiscale: the size the panels are laid out at, its height counts, the picture still at editor_resolution; off: not.
 //
 // The editor is entered from the main menu (0x6601D9) and on return from test play (0x65FD21, ScenDefault);
 // both switch the screen with SetResolution 0x65F314(width, height, force, flag) - stdcall (ret 0x10; ECX
@@ -16,23 +14,37 @@
 #define D3DCOLORVALUE_DEFINED
 
 
-internal int g_editor_w, g_editor_h, g_editor_game;   // 0 = leave
 internal int g_editor_layout;                         // a resolution set: the form's layout moved before it is built
-
-internal int g_editor_ui_height, g_editor_ui_percent;   // editor_uiscale: the height the game is told, or percent; 0 = off
+internal int g_editor_ui;                             // editor_uiscale is on
 internal void rd_scale_set(int lw, int lh, int rw, int rh);   // render.c
+internal void game_resolution(int *w, int *h);        // below
+
+// a size key's text worked out; game: Game Settings' resolution, the code's
+internal int editor_key_size(const char *text, int *w, int *h, const char **why) {
+    int gw = game_res_w(), gh = game_res_h();
+    if (gw <= 0 || gh <= 0) game_resolution(&gw, &gh);
+    char game[40];
+    snprintf(game, sizeof game, "vec(%d, %d)", gw, gh);
+    const char *const extra[2] = { "game", game };
+    double v[2];
+    if (!setting_vec2("editor", text, extra, 1, v, why)) return 0;
+    *w = (int)(v[0] + 0.5), *h = (int)(v[1] + 0.5);
+    return 1;
+}
 
 internal void editor_picture_size(int *w, int *h) {
-    int nw = g_editor_game ? game_res_w() : g_editor_w;
-    int nh = g_editor_game ? game_res_h() : g_editor_h;
-    if (nw >= 800 && nh >= 600) { *w = nw; *h = nh; }
+    int nw, nh;
+    const char *why;
+    if (editor_key_size(g_set.editor_resolution, &nw, &nh, &why) && nw >= 800 && nh >= 600) { *w = nw; *h = nh; }
 }
 
 // the size the game is told: the picture's, or smaller by editor_uiscale - its layout needs 800x600 at least
 internal void editor_size(int *w, int *h) {
     editor_picture_size(w, h);
-    if (!g_editor_ui_height && !g_editor_ui_percent) return;
-    float s = g_editor_ui_height ? (float)*h / (float)g_editor_ui_height : (float)g_editor_ui_percent / 100.0f;
+    int uw, uh;
+    const char *why;
+    if (!g_editor_ui || !editor_key_size(g_set.editor_uiscale, &uw, &uh, &why) || uh < 600) return;
+    float s = (float)*h / (float)uh;
     if ((float)*w / s < 800) s = (float)*w / 800.0f;
     if ((float)*h / s < 600) s = (float)*h / 600.0f;
     if (s <= 1) return;
@@ -1482,21 +1494,22 @@ internal void display_install(const char *autotest_ini) {
     const char *mode = g_set.editor_resolution;
     int ok = patch_editor_resolution(hook_editor_resolution);   // the players' reset (hook_editor_resolution), at any size
     if (g_log) fprintf(g_log, "# editor: resolution=%s hooks %d/2\n", mode, ok);
-    if (!lstrcmpiA(mode, "game")) g_editor_game = 1;
-    else if (sscanf(mode, "%dx%d", &g_editor_w, &g_editor_h) != 2 || g_editor_w < 800 || g_editor_h < 600) {
+    int ew, eh;
+    const char *why;
+    if (!editor_key_size(mode, &ew, &eh, &why) || ew < 800 || eh < 600) {
         if (g_log) fprintf(g_log, "# editor: bad resolution '%s' in ageofai.ini, left at 800x600\n", mode);
         return;
     }
-    else if (g_editor_w == 800 && g_editor_h == 600) return;   // the original's: nothing changed (in AoC: its own 1024x768)
+    if (ew == 800 && eh == 600) return;   // the original's: nothing changed (in AoC: its own 1024x768)
     g_editor_layout = 1;
     const char *ui = g_set.editor_uiscale;
-    if (lstrcmpiA(ui, "off")) {
-        int pct = atoi(ui), uw, uh;
-        if (!g_rd_on) { if (g_log) fprintf(g_log, "# editor: uiscale=%s needs [display] renderer = own - off\n", ui); }
-        else if (sscanf(ui, "%dx%d", &uw, &uh) == 2 && uh >= 600) g_editor_ui_height = uh;
-        else if (!strchr(ui, 'x') && pct > 100) g_editor_ui_percent = pct;
-        else if (g_log) fprintf(g_log, "# editor: bad uiscale '%s' in ageofai.ini (off, a size of at least 600 high or a percentage over 100) - off\n", ui);
-        if (g_log) fprintf(g_log, "# editor: uiscale=%s, the size told to the game %s\n", ui, g_editor_ui_height ? "by its height" : g_editor_ui_percent ? "by the percentage" : "as the picture's");
+    int uw, uh;
+    if (!editor_key_size(ui, &uw, &uh, &why)) { if (g_log) fprintf(g_log, "# editor: bad uiscale '%s' - off\n", ui); }
+    else if (uh && !g_rd_on) { if (g_log) fprintf(g_log, "# editor: uiscale=%s needs [display] renderer = own - off\n", ui); }
+    else if (uh && uh < 600) { if (g_log) fprintf(g_log, "# editor: uiscale=%s is %dx%d: the layout needs 600 high at least - off\n", ui, uw, uh); }
+    else if (uh) {
+        g_editor_ui = 1;
+        if (g_log) fprintf(g_log, "# editor: uiscale=%s, laid out at %dx%d (its height counts)\n", ui, uw, uh);
     }
     int other = patch_other_resolution(hook_other_resolution, NULL);
     int mm = redirect_minimap_scale();

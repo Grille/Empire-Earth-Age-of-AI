@@ -16,7 +16,7 @@ class Section:
     def __init__(self, name, attrs, before, path):
         self.name, self.attrs, self.before, self.path = name, dict((a[0], a[1]) for a in attrs), before, path
         self.keys, self.enums, self.structs, self.trailer = [], {}, {}, []
-        self.consts = {}   # the names its text keys may be given: {name: the text it stands for}
+        self.consts = {}   # the names its vec2 keys' expressions may use: {name: its expression}
         self.docs = {}   # an enum's or struct's {member or field: its /// lines} (written as a block: a line each)
 
     def has(self, attr):
@@ -94,6 +94,8 @@ def kind_of(sec, k):   # rows.h's kind of a key
         return 'FLAGS'
     if k.type == 'string':
         return 'STR_P' if k.has('per_player') else 'STR'
+    if k.type == 'vec2':   # kept as its text, an expression of the language (settings.c setting_vec2)
+        return 'STR'
     if k.type == 'share':
         return 'SHARE'
     if k.type == 'int':
@@ -215,11 +217,11 @@ def read_file(path):
                 cur.docs[MASTER_TYPE] = {v: [t] for v, (_, t) in MASTER_VALUES.items()}
                 master = k.name
             attr_text, doc = '', []
-        elif depth in (1, 2) and cur and re.match(r'^const\s+string\s', code):   # a name for its text keys' values
-            m = re.match(r'^const\s+string\s+@?(\w+)\s*=\s*"((?:[^"\\]|\\.)*)"\s*;$', code)
+        elif depth in (1, 2) and cur and re.match(r'^static\s', code):   # a name for its vec2 keys' expressions
+            m = re.match(r'^static\s+readonly\s+vec2\s+@?(\w+)\s*=\s*(.+);$', code)
             if not m:
-                raise SystemExit('%s: a name is const string name = "text";: %s' % (where, code))
-            cur.consts[m.group(1)] = re.sub(r'\\(.)', r'\1', m.group(2))
+                raise SystemExit('%s: a name is static readonly vec2 name = vec(x, y);: %s' % (where, code))
+            cur.consts[m.group(1)] = m.group(2)
             attr_text, doc = '', []
         elif depth in (1, 2) and cur and code.endswith(';'):
             m = re.match(r'^(\w+)\s+@?(\w+)\s*(?:=\s*(.+))?;$', code)

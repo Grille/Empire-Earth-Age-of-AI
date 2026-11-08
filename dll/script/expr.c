@@ -89,7 +89,8 @@ struct xctx {
                                             // working it out (x_fail, told); not an expression; too deep
     int nogame;                             // before the game (a personality's color): its values and players are mistakes
     int game;                               // a decision (decide): it changes the game - draws from the game's generator
-    int fixed;                              // an ini file's number (ini.c): no names, no draws, no lists - told quietly
+    int fixed;                              // an ini file's value (ini.c): no draws, no lists, told quietly - 1 no names, 2
+                                            // only the key's section's (vars[0], x_const_vec2)
     int missed;                             // x_missing from the game's values (diplo.c): the primary fails
     int script;                             // a script (scenarios): its functions (wait, wait_until, every, for ...) and commands
     int calls;                              // functions called inside each other now
@@ -837,15 +838,36 @@ internal void xps_primary(struct xps *p, struct xnode **out) {
         if (e > s && e[-1] == '.' && *e == '.') e--;   // 1..5: the number is 1, .. a range's
         int fl = 0;   // written as a float: 5.0, .72, 1e3 - or with a unit: 70% (0.7), 20s, 19.5min (seconds)
         for (const char *q = s; q < e && !(s[0] == '0' && (s[1] == 'x' || s[1] == 'X')); q++) fl |= *q == '.' || *q == 'e' || *q == 'E';
-        if (*e == '%') { n /= 100; e++; fl = 1; }   // 70% = 0.7
-        else if (*e == 's' && !isalnum((unsigned char)e[1]) && e[1] != '_') { e++; fl = 1; }   // 20s: seconds
-        else if (!strncmp(e, "min", 3) && !isalnum((unsigned char)e[3]) && e[3] != '_') { n *= 60; e += 3; fl = 1; }   // 19.5min
-        p->s = e;
-        o = xn_new(p, XN_NUM, s);
-        if (!o) return;
-        o->n = n;
-        o->op = (unsigned char)(fl ? 'f' : 'i');   // its type: a float or an int (the check's)
-        o = XOFF(p, o);
+        if (*e == 'x' && !fl && e[1] >= '0' && e[1] <= '9') {   // 1920x1080: a size, vec(1920, 1080)
+            char *f;
+            double m = strtod(e + 1, &f);
+            uintptr_t *it = NULL;
+            int na = 0, cap = 0;
+            for (int i = 0; i < 2; i++) {
+                struct xnode *x = xn_new(p, XN_NUM, i ? e + 1 : s);
+                if (!x) { free(it); return; }
+                x->n = i ? m : n;
+                x->op = 'i';
+                if (!xps_items_add(p, &it, &na, &cap, XOFF(p, x))) { free(it); return; }
+            }
+            p->s = f;
+            o = xn_new(p, XN_CALL, s);
+            if (!o) { free(it); return; }
+            o->s = _strdup("vec");
+            o->n_items = na;
+            o->items = (struct xnode **)it;
+            o = XOFF(p, o);
+        } else {
+            if (*e == '%') { n /= 100; e++; fl = 1; }   // 70% = 0.7
+            else if (*e == 's' && !isalnum((unsigned char)e[1]) && e[1] != '_') { e++; fl = 1; }   // 20s: seconds
+            else if (!strncmp(e, "min", 3) && !isalnum((unsigned char)e[3]) && e[3] != '_') { n *= 60; e += 3; fl = 1; }   // 19.5min
+            p->s = e;
+            o = xn_new(p, XN_NUM, s);
+            if (!o) return;
+            o->n = n;
+            o->op = (unsigned char)(fl ? 'f' : 'i');   // its type: a float or an int (the check's)
+            o = XOFF(p, o);
+        }
     } else if (isalpha((unsigned char)*s) || *s == '_') {
         char name[40];
         int n = 0;
@@ -2507,7 +2529,7 @@ internal int x_body(struct xe *e, const char *src, struct xval *v) {
 }
 internal void xe_ident(struct xe *e, const char *name, struct xval *v) {
     struct xctx *c = e->c;
-    if (c->fixed) { x_fail(e, "%s: a name - a setting is a number (35%%, 2 * 60, min(...))", name); xnothing(v); return; }
+    if (c->fixed == 1) { x_fail(e, "%s: a name - a setting is a number (35%%, 2 * 60, min(...))", name); xnothing(v); return; }
     const char *dot = strchr(name, '.');
     if (dot && dot - name < 40) {   // r.a.b, home.x: a member path - its head a parameter, variable or vars entry
         char head[40];
@@ -2564,6 +2586,7 @@ internal void xe_ident(struct xe *e, const char *name, struct xval *v) {
         return;
     }
     for (int k = 0; k < 3; k++) if (x_vars_group(e, c->vars[k], name, v)) return;   // a file's record whole
+    if (c->fixed) { x_fail(e, "an unknown name: %s", name); xnothing(v); return; }
     if (c->script && !strcmp(name, "stop")) { xnothing(v); v->w = 1; v->kind = XV_STOP; return; }   // for / every: no more
     if (c->script && !strcmp(name, "time")) { xnum(v, g_x_hooks.now ? g_x_hooks.now() : 0); return; }   // game seconds
     int k = g_x_host.constant(name, v);
@@ -3636,6 +3659,24 @@ internal int x_const_eval(const char *src, double *out, const char **why, int *i
     k.c = &c;
     k.script = 1;   // the literals' and operators' types
     *is_bool = u->ok && x_stype(&k, u->root, &sc) == XT_BOOL;
+    return 1;
+}
+// an ini file's vec2 (settings.c setting_vec2): a constant expression as x_const_eval's whose value is two numbers - and
+// names, n pairs (name, its expression; a later one over an earlier): aoc * 150%, 1280x720
+internal int x_const_vec2(const char *src, const char *const *names, int n, double out[2], const char **why) {
+    static struct xvars vars;
+    for (int i = 0; i < vars.n; i++) { free(vars.key[i]); free(vars.val[i]); }
+    memset(&vars, 0, sizeof vars);
+    for (int i = 0; i < n; i++) xvars_set(&vars, names[2 * i], names[2 * i + 1]);
+    struct xctx c;
+    memset(&c, 0, sizeof c);
+    c.found = 1; c.nogame = 1; c.fixed = 2;
+    c.vars[0] = &vars;
+    struct xval v;
+    g_x_last_fail[0] = 0;
+    if (!x_eval(src, &c, &v)) { *why = g_x_last_fail[0] ? g_x_last_fail : "not an expression"; return 0; }
+    if (v.kind != XV_VEC || v.vn != 2) { *why = "a size expected: 1024x768, vec(w, h), a name * a number"; return 0; }
+    out[0] = v.vc[0], out[1] = v.vc[1];
     return 1;
 }
 // the syntax of an expression, and the checks a file gets when read (x_check); nothing worked out (no game needed);

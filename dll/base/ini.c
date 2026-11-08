@@ -8,6 +8,7 @@
 // logged as a warning and used as it is. Missing or empty: the default. An
 // inline comment (; to the line's end) is cut off. Included by eeaimod.c before everything that reads a setting.
 internal int (*g_ini_eval)(const char *src, double *out, const char **why, int *is_bool);   // the text language's x_const_eval (eeaimod.c install)
+internal int (*g_ini_eval_vec2)(const char *src, const char *const *names, int n, double out[2], const char **why);   // its x_const_vec2
 
 internal char g_ini_pending[8][200];   // mistakes found before the log is open (load_autotest): written when it opens
 internal int g_ini_npending;
