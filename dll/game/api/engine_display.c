@@ -241,6 +241,18 @@ internal inline void transform_assign(void *t, const void *from) { (*(pm_assign_
 // maps; the map's table of effects by region; an effect's calls and its reference (at +4, plain: inside the lock only)
 #define EFFECT_QUEUES_SIZE 60
 internal inline uint8_t *effect_queues_at(void) { return (uint8_t *)data_engine_display_effect_queues; }
+// the light the units are drawn with, as the units' draw hands it to the device: its direction (the sun's or the moon's),
+// ambient colour x intensity, the light's colour x intensity, both faded with the picture; 0 when the units are drawn
+// without one
+internal inline int game_light(float dir[3], float amb[3], float diff[3]) {
+    if (!*(const uint8_t *)data_engine_display_light_on) return 0;
+    const float *d = (const float *)data_engine_display_light_direction, *a = (const float *)data_engine_display_light_ambient,
+                *c = (const float *)data_engine_display_light_color;
+    float fade = *(const float *)data_engine_display_light_fade, ai = *(const float *)data_engine_display_light_ambient_intensity * fade,
+          li = *(const float *)data_engine_display_light_intensity * fade;
+    for (int i = 0; i < 3; i++) dir[i] = d[i], amb[i] = a[i] * ai, diff[i] = c[i] * li;
+    return 1;
+}
 internal inline const uint8_t *map_effect_regions(const ee_map *m) { return *(const uint8_t *const *)((const uint8_t *)m + value_engine_display_of_map_effect_regions); }
 internal inline int effect_regions_size(const uint8_t *t) { return *(const int *)(t + 8); }
 internal inline uint32_t effect_regions_width(const uint8_t *t) { return *(const uint32_t *)(t + 0x10); }

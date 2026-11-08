@@ -418,8 +418,10 @@ internal int rf_ground_display_loaded(HMODULE m, const char *name) {
     return replace_rdata_ptr(m, f, i ? (void *)rf_hook_to_camera1 : (void *)rf_hook_to_camera0) > 0;
 }
 internal void rd3_shadow_new_frame(void);   // render_shadows.c: the water's fading for the new frame
+internal void shadow_light_read(void);     // render_shadows.c: the game's light for this frame
 internal void rf_ground_frame(int skip) {
     g_kg_skip = skip;
+    shadow_light_read();
     rf_camera_frame();
     rf_view_now();
     if (!g_rwl_bare_now) rf_ground_clear(&g_ku);

@@ -617,6 +617,22 @@ internal inline uint8_t *engine_display_iat_terrain_visible_at(void) { return (u
 // the render objects RTSGraphics draws (pointers; the game's start makes them, 0x504DAF adds them in this
 // order: effects, terrain, shadows, units, water, interface)
 internal inline uint8_t *engine_display_ro_effects_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_ro_effects; }
+// the frame's light, worked out by the frame's lighting (0x50130D) for the hour and handed to the device by the
+// units' draw (0x504BA4, AoC 0x50FA01): 3 floats, the direction the light travels - the world's sun or moon vector
+// (EEWorld +0x98C / +0x980) for the hour
+internal inline uint8_t *engine_display_light_direction_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_light_direction; }
+// its ambient colour (3 floats), times light_ambient_intensity and light_fade
+internal inline uint8_t *engine_display_light_ambient_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_light_ambient; }
+// float
+internal inline uint8_t *engine_display_light_ambient_intensity_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_light_ambient_intensity; }
+// the light's colour (3 floats), times light_intensity and light_fade
+internal inline uint8_t *engine_display_light_color_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_light_color; }
+// float
+internal inline uint8_t *engine_display_light_intensity_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_light_intensity; }
+// float, 0..1: the picture's fade in and out, over every light
+internal inline uint8_t *engine_display_light_fade_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_light_fade; }
+// byte: the units are drawn with that light; 0: an ambient colour alone
+internal inline uint8_t *engine_display_light_on_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_light_on; }
 internal inline uint8_t *engine_display_ro_terrain_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_ro_terrain; }
 internal inline uint8_t *engine_display_ro_shadows_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_ro_shadows; }
 internal inline uint8_t *engine_display_ro_units_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_ro_units; }
@@ -1076,6 +1092,13 @@ internal int spec_engine_display_select(int build) {
         value_engine_display_vb_vertices = 2442;
         value_engine_display_of_lock_vb_room = 21;
         data_engine_display_ro_effects = 0x00943318;
+        data_engine_display_light_direction = 0x008D2A70;
+        data_engine_display_light_ambient = 0x00912564;
+        data_engine_display_light_ambient_intensity = 0x009125A0;
+        data_engine_display_light_color = 0x00912570;
+        data_engine_display_light_intensity = 0x009125A4;
+        data_engine_display_light_fade = 0x008A7F68;
+        data_engine_display_light_on = 0x00919462;
         data_engine_display_ro_terrain = 0x00943314;
         data_engine_display_ro_shadows = 0x00943310;
         data_engine_display_ro_units = 0x0094330C;
@@ -1388,6 +1411,13 @@ internal int spec_engine_display_select(int build) {
         value_engine_display_vb_vertices = 2400;
         value_engine_display_of_lock_vb_room = 21;
         data_engine_display_ro_effects = 0x00965360;
+        data_engine_display_light_direction = 0x008E9210;
+        data_engine_display_light_ambient = 0x00928D04;
+        data_engine_display_light_ambient_intensity = 0x00928D40;
+        data_engine_display_light_color = 0x00928D10;
+        data_engine_display_light_intensity = 0x00928D44;
+        data_engine_display_light_fade = 0x008BE368;
+        data_engine_display_light_on = 0x009308E3;
         data_engine_display_ro_terrain = 0x0096535C;
         data_engine_display_ro_shadows = 0x00965358;
         data_engine_display_ro_units = 0x00965354;
@@ -1593,6 +1623,13 @@ internal int spec_engine_display_check(void) {
     bad += spec_code(data_engine_display_call_terrain_visible, "engine_display.call_terrain_visible");
     bad += spec_data(data_engine_display_iat_terrain_visible, "engine_display.iat_terrain_visible");
     bad += spec_data(data_engine_display_ro_effects, "engine_display.ro_effects");
+    bad += spec_data(data_engine_display_light_direction, "engine_display.light_direction");
+    bad += spec_data(data_engine_display_light_ambient, "engine_display.light_ambient");
+    bad += spec_data(data_engine_display_light_ambient_intensity, "engine_display.light_ambient_intensity");
+    bad += spec_data(data_engine_display_light_color, "engine_display.light_color");
+    bad += spec_data(data_engine_display_light_intensity, "engine_display.light_intensity");
+    bad += spec_data(data_engine_display_light_fade, "engine_display.light_fade");
+    bad += spec_data(data_engine_display_light_on, "engine_display.light_on");
     bad += spec_data(data_engine_display_ro_terrain, "engine_display.ro_terrain");
     bad += spec_data(data_engine_display_ro_shadows, "engine_display.ro_shadows");
     bad += spec_data(data_engine_display_ro_units, "engine_display.ro_units");

@@ -815,6 +815,36 @@ static unsafe class engine_display
     [address((ee)0x00943318, (aoc)0x00965360)]
     static block ro_effects;
 
+    /// the frame's light, worked out by the frame's lighting (0x50130D) for the hour and handed to the device by the
+    /// units' draw (0x504BA4, AoC 0x50FA01): 3 floats, the direction the light travels - the world's sun or moon vector
+    /// (EEWorld +0x98C / +0x980) for the hour
+    [address((ee)0x008D2A70, (aoc)0x008E9210)]
+    static block light_direction;
+
+    /// its ambient colour (3 floats), times light_ambient_intensity and light_fade
+    [address((ee)0x00912564, (aoc)0x00928D04)]
+    static block light_ambient;
+
+    /// float
+    [address((ee)0x009125A0, (aoc)0x00928D40)]
+    static block light_ambient_intensity;
+
+    /// the light's colour (3 floats), times light_intensity and light_fade
+    [address((ee)0x00912570, (aoc)0x00928D10)]
+    static block light_color;
+
+    /// float
+    [address((ee)0x009125A4, (aoc)0x00928D44)]
+    static block light_intensity;
+
+    /// float, 0..1: the picture's fade in and out, over every light
+    [address((ee)0x008A7F68, (aoc)0x008BE368)]
+    static block light_fade;
+
+    /// byte: the units are drawn with that light; 0: an ambient colour alone
+    [address((ee)0x00919462, (aoc)0x009308E3)]
+    static block light_on;
+
     [address((ee)0x00943314, (aoc)0x0096535C)]
     static block ro_terrain;
 

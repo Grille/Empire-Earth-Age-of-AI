@@ -180,6 +180,39 @@ internal void rd3_rigid_inverse(float *r, const float *m) {
 // consider disabling shadows for debris")
 internal int g_sh_decal;
 internal const float *g_mo_box;   // a blended draw's box, lo and hi (render_morph.c): its vertices aren't in the buffer
+// THE LIGHT, the game's own: the frame's lighting (0x50130D, AoC its pair) keeps the direction - the sun's or the moon's -
+// and the colours for the hour in its globals, and the units' draw (0x504BA4) only hands them to the device. Read there
+// each frame; copied from a unit's draw, as it was, the ground had no light until a unit had been drawn (the player,
+// 2026-11-08: "dont we get the lightsource (sun/moon) directly, getting it from a unit sounds hacky"). The trees' draw
+// takes the same light with its height times ten (nearly overhead), which isn't the sun's.
+// A light at the horizon (the sun set, the moon not yet up) is no sun: its height 0 fades the shadows out
+// (shadow_dusk), its direction kept
+internal void shadow_light_read(void) {
+    float s[3], amb[3], diff[3];
+    if (!g_sh.on || !game_light(s, amb, diff)) return;
+    float n = sqrtf(s[0] * s[0] + s[1] * s[1] + s[2] * s[2]);
+    if (!(n > 0)) return;
+    s[0] /= n, s[1] /= n, s[2] /= n;
+    if (s[2] >= -0.05f) { g_sh.sun_lit = fmaxf(0, -s[2]); return; }
+    float h = sqrtf(s[0] * s[0] + s[1] * s[1]), low = sinf(g_sh.sun_low * 3.14159265f / 180);
+    // the light turned by more than 20 degrees at once (the sun's light handed over to the moon's): out, then in
+    if (s[0] * g_sh.light[0] + s[1] * g_sh.light[1] + s[2] * g_sh.light[2] < 0.94f) g_sh.dusk = 0;
+    g_sh.sun_lit = -s[2];
+    memcpy(g_sh.light, s, sizeof g_sh.light);
+    if (g_sh.sun_set > 0) low = sinf(g_sh.sun_set * 3.14159265f / 180);
+    if (g_sh.sun_turn != 0) {
+        float a = g_sh.sun_turn * 3.14159265f / 180, x = s[0];
+        s[0] = x * cosf(a) - s[1] * sinf(a); s[1] = x * sinf(a) + s[1] * cosf(a);
+    }
+    // the hills' sun: the light's own height (their map covers the whole map: no reach to keep short), the pipe's
+    // height and turn as the casters'
+    memcpy(g_sh.hlight, s, sizeof s);
+    if ((-s[2] < low || g_sh.sun_set > 0) && h > 0) { float k = sqrtf(1 - low * low) / h; s[0] *= k; s[1] *= k; s[2] = -low; }
+    if (g_sh.sun_set > 0) memcpy(g_sh.hlight, s, sizeof s);
+    memcpy(g_sh.sun, s, sizeof s);
+    memcpy(g_sh.amb, amb, sizeof g_sh.amb);
+    memcpy(g_sh.diff, diff, sizeof g_sh.diff);
+}
 internal int rd3_shadow_role(rd_device *d, rd_vb *vb, DWORD start, DWORD nv) {
     if (!g_sh.on || vb->fvf != 0x152 || !d->rs[D3DRENDERSTATE_ZENABLE] || !rd3_shadow_init()) return SH_NONE;
     if (g_ro_cur == RO_TERRAIN) {
@@ -246,37 +279,6 @@ internal int rd3_shadow_role(rd_device *d, rd_vb *vb, DWORD start, DWORD nv) {
     memcpy(g_sh.view, &d->view._11, sizeof g_sh.view);
     int tree = d->rs[D3DRENDERSTATE_ALPHATESTENABLE] && (d->rs[D3DRENDERSTATE_ALPHAREF] & 255) >= 200;
     d->sh_card = tree && !g_sh.nocards;   // a tree casts its card (rd3_shadow_card) and is drawn without casting - off the screen not at all
-    const D3DLIGHT7 *l = &d->light[0];
-    float n = sqrtf(l->dvDirection.x * l->dvDirection.x + l->dvDirection.y * l->dvDirection.y + l->dvDirection.z * l->dvDirection.z);
-    // the units' sun: not the trees' light, nearly overhead (0.01, 0.11, -0.99) - other objects are lit by it too, and
-    // taken for the sun it laid every shadow under its caster (the player's shot, 2026-11-04)
-    // A light at the horizon (the sun set, the moon not yet up) is no sun: its height 0 fades the shadows out
-    // (shadow_dusk), its direction kept
-    if (!tree && d->light_on[0] && l->dltType == D3DLIGHT_DIRECTIONAL && n > 0 && l->dvDirection.z / n >= -0.05f)
-        g_sh.sun_lit = fmaxf(0, -l->dvDirection.z / n);
-    else if (!tree && d->light_on[0] && l->dltType == D3DLIGHT_DIRECTIONAL && n > 0 && l->dvDirection.z / n > -0.9f) {
-        float s[3] = { l->dvDirection.x / n, l->dvDirection.y / n, l->dvDirection.z / n };
-        float h = sqrtf(s[0] * s[0] + s[1] * s[1]), low = sinf(g_sh.sun_low * 3.14159265f / 180);
-        // the light turned by more than 20 degrees at once (the sun's light handed over to the moon's): out, then in
-        if (s[0] * g_sh.light[0] + s[1] * g_sh.light[1] + s[2] * g_sh.light[2] < 0.94f) g_sh.dusk = 0;
-        g_sh.sun_lit = -s[2];
-        memcpy(g_sh.light, s, sizeof g_sh.light);
-        if (g_sh.sun_set > 0) low = sinf(g_sh.sun_set * 3.14159265f / 180);
-        if (g_sh.sun_turn != 0) {
-            float a = g_sh.sun_turn * 3.14159265f / 180, x = s[0];
-            s[0] = x * cosf(a) - s[1] * sinf(a); s[1] = x * sinf(a) + s[1] * cosf(a);
-        }
-        // the hills' sun: the light's own height (their map covers the whole map: no reach to keep short), the pipe's
-        // height and turn as the casters'
-        memcpy(g_sh.hlight, s, sizeof s);
-        if ((-s[2] < low || g_sh.sun_set > 0) && h > 0) { float k = sqrtf(1 - low * low) / h; s[0] *= k; s[1] *= k; s[2] = -low; }
-        if (g_sh.sun_set > 0) memcpy(g_sh.hlight, s, sizeof s);
-        memcpy(g_sh.sun, s, sizeof s);
-        float ga[4];
-        rd3_color(ga, d->rs[D3DRENDERSTATE_AMBIENT]);
-        g_sh.amb[0] = ga[0] + l->dcvAmbient.r; g_sh.amb[1] = ga[1] + l->dcvAmbient.g; g_sh.amb[2] = ga[2] + l->dcvAmbient.b;
-        g_sh.diff[0] = l->dcvDiffuse.r; g_sh.diff[1] = l->dcvDiffuse.g; g_sh.diff[2] = l->dcvDiffuse.b;
-    }
     if (d->sh_card) return out ? SH_GONE : SH_TREE;
     return out ? SH_AWAY : !g_sh.tint ? SH_CAST : SH_TINT;
 }
@@ -601,6 +603,7 @@ internal void rd3_shadow_frame(void) {
     // the ground's place in the world (through the units' camera), the colour a shadow leaves - the ambient light over
     // the ambient and the sun on level ground, as much of it as the strength says (1: the sun all gone) -, the hills'
     if (ng) {
+        if (!nc && g_kg_view_ground_ok) memcpy(g_sh.view, g_kg_view_ground, sizeof g_sh.view);   // no unit drawn to tell the camera
         rd3_rigid_inverse(g_sh.gw, g_sh.view);
         float sun = fmaxf(0, g_sh.sun_lit), strength = g_sh.strength * shadow_dusk();
         for (int a = 0; a < 3; a++) {
