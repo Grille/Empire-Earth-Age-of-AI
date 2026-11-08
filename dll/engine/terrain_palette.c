@@ -134,7 +134,9 @@ internal void tp_list_sync(void) {
 }
 
 internal void *__thiscall hook_tp_panel_init(ee_se_terrain *p, uint32_t a, uint32_t b, int *index, ee_ui_form *form, void *font) {
+    tc_list_cliffs(1);
     void *r = se_terrain_init(p, a, b, index, form, font);
+    tc_list_cliffs(0);
     ee_se_color_list *list = se_terrain_get_color_list(p);
     unsigned types = se_terrain_color_type_count(p), items = list ? se_color_list_count(list) : 0;
     if (list && types == items && color_type_size() <= sizeof *g_tp_rec) {

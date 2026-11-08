@@ -10,6 +10,11 @@
 //   an elevation paint, with the panel's "Cliff color" ticked as it is by default, as the game does: cliffs laid and
 //   taken off. Unticked, TC_KEEP, and a tile no longer steep keeps its texture and colours (its kind is ground's).
 // Everything else (a new map, a random map, a change of the map's cliff type) is the game's.
+// The cliff textures are in the terrain panel's list of textures, where the game has them out (their records' in_editor;
+// the map panel's list of default grounds stays without them). A cliff's texture painted on ground that isn't steep is
+// only a texture: its tile can be walked on, as after a load (tc_flat) - what makes a cliff is its height. Three of them
+// have the wrong name in the data (Brick, Pavement twice): one has its own string in the language file, the rock
+// cliffs none (TC_NAME's own).
 // The panel's other box, "Water color": unticked, an elevation paint leaves a corner's colour alone when it goes below
 // 0 (SetWaterColorSet) or comes back (SetColorSet from its tile's texture's colour type).
 // The two boxes are the game's own check boxes, read when a paint runs; what they were left at holds until the game
@@ -19,6 +24,7 @@
 #define TC_WIDTH 140.0f
 #define TC_HEIGHT 20.0f
 #define TC_GAP 0.0f
+#define TC_NAME 0x7F00          // name_text of a rock cliff: strings of the mod's own, far above the language file's
 enum { TC_LAY, TC_KEEP, TC_LOAD };
 internal ee_se_elevation *g_tc_panel;       // the editor's elevation panel, while it is
 internal ee_ui_control *g_tc_cliff_box, *g_tc_water_box;
@@ -27,7 +33,33 @@ internal int g_tc_mode;                     // the cliff pass running now: how
 internal int g_tc_mute;                     // the mesh's corner colours are left alone for now
 internal mesh_set_color_set_fn g_tc_set_color;
 internal mesh_set_water_color_set_fn g_tc_set_water;
-internal unsigned g_tc_kept_load, g_tc_kept_paint, g_tc_filled;
+internal resource_string_fn g_tc_string;
+internal unsigned g_tc_kept_load, g_tc_kept_paint, g_tc_filled, g_tc_flat;
+
+// the terrain panel's list being filled: the cliffs are in it, under the right names
+internal const struct { const char *name; int text; } k_tc_names[] = {
+    { "Cliffwinter /", 22019 }, { "CliffRock \\", TC_NAME }, { "CliffRock /", TC_NAME + 1 },
+};
+internal const char *const k_tc_own[] = { "Cliff Rock 1", "Cliff Rock 2" };
+internal int __thiscall hook_tc_string(void *res, int id, void *s) {
+    if (id >= TC_NAME && id < TC_NAME + (int)(sizeof k_tc_own / sizeof *k_tc_own)) {
+        __attribute__((aligned(8))) uint8_t w[32];
+        wstring_init_text(w, k_tc_own[id - TC_NAME]);
+        wstring_copy(s, w);
+        wstring_free(w);
+        return 0;
+    }
+    return g_tc_string(res, id, s);
+}
+internal void tc_list_cliffs(int on) {
+    for (uint32_t i = 0; i < 256; i++) {
+        ee_terrain *t = terrain_at(i);
+        if (!t || !terrain_is_cliff(t)) continue;
+        terrain_set_in_editor(t, (uint8_t)on);
+        for (unsigned k = 0; on && k < sizeof k_tc_names / sizeof *k_tc_names; k++)
+            if (!strcmp((const char *)terrain_get_name(t), k_tc_names[k].name)) terrain_set_name_text(t, k_tc_names[k].text);
+    }
+}
 
 internal void __thiscall hook_tc_set_color(void *mesh, unsigned long x, unsigned long y, unsigned long set) {
     if (!g_tc_mute) g_tc_set_color(mesh, x, y, set);
@@ -91,6 +123,30 @@ internal void tc_fill(ee_map *map, int x_lo, int x_hi, int y_lo, int y_hi) {
         }
 }
 
+// a cliff's texture on tiles with nothing steep beside them (the block the pass colours is 2 x 2 round a steep tile):
+// the kind the texture and the pass's gap rule gave them made walkable again, the map's default ground's
+internal void tc_flat(ee_map *map, int x_lo, int x_hi, int y_lo, int y_hi) {
+    const ee_terrain *ground = terrain_at((uint32_t)map_get_default_terrain(map));
+    int size = (int)map_get_size(map);
+    if (!ground) return;
+    if (x_lo < 0) x_lo = 0;
+    if (y_lo < 0) y_lo = 0;
+    if (x_hi > size) x_hi = size;
+    if (y_hi > size) y_hi = size;
+    for (int y = y_lo; y < y_hi; y++)
+        for (int x = x_lo; x < x_hi; x++) {
+            ee_tile *tile = tc_tile(map, x, y);
+            if (!tile || !tile_is_cliff(tile) || !tc_texture_is_cliff(map, x, y)) continue;
+            int by = 0;
+            for (int dy = -1; dy <= 1 && !by; dy++)
+                for (int dx = -1; dx <= 1 && !by; dx++) by = tc_steep(map, x + dx, y + dy);
+            if (by) continue;
+            int pos[2] = { x, y };
+            tile_change_kind(tile, terrain_get_kind(ground), pos, map);
+            g_tc_flat++;
+        }
+}
+
 internal void tc_pass(ee_map *map, int mode, uint32_t x_lo, uint32_t x_hi, int32_t y_lo, int32_t y_hi) {
     g_tc_mode = mode;
     g_tc_mute = mode != TC_LAY;      // its corners' colours
@@ -98,6 +154,7 @@ internal void tc_pass(ee_map *map, int mode, uint32_t x_lo, uint32_t x_hi, int32
     g_tc_mute = 0;
     g_tc_mode = TC_LAY;
     tc_fill(map, (int)x_lo, (int)x_hi, y_lo, y_hi);
+    if (mode != TC_LAY) tc_flat(map, (int)x_lo, (int)x_hi, y_lo, y_hi);
 }
 internal void __thiscall hook_tc_pass_load(ee_map *map, uint32_t x_lo, uint32_t x_hi, int32_t y_lo, int32_t y_hi) {
     tc_pass(map, TC_LOAD, x_lo, x_hi, y_lo, y_hi);
@@ -202,14 +259,14 @@ internal void tc_cmd_ground(char *out, const char *args) {
         }
     if (snap) { g_tc_snap.size = size; REPLY("ok: ground kept\n"); return; }
     tc_read_boxes();
-    REPLY("ground: boxes cliff %d water %d; size %d tiles %u changed kinds %u textures %u colours %u; steep %u kind_cliff %u texture_cliff %u; corners under water %u; kept at load %u, by paints %u, filled %u; sum %08x\n",
-          g_tc_cliff, g_tc_water, size, tiles, kinds, textures, colors, steep, cliff_kind, cliff_texture, under, g_tc_kept_load, g_tc_kept_paint, g_tc_filled, sum);
+    REPLY("ground: boxes cliff %d water %d; size %d tiles %u changed kinds %u textures %u colours %u; steep %u kind_cliff %u texture_cliff %u; corners under water %u; kept at load %u, by paints %u, filled %u, flat %u; sum %08x\n",
+          g_tc_cliff, g_tc_water, size, tiles, kinds, textures, colors, steep, cliff_kind, cliff_texture, under, g_tc_kept_load, g_tc_kept_paint, g_tc_filled, g_tc_flat, sum);
 }
 
 // how many of its hooks went in, of TC_HOOKS
-#define TC_HOOKS 14
+#define TC_HOOKS 15
 internal int terrain_cliffs_install(void) {
-    return patch_mesh_set_color_set(hook_tc_set_color, &g_tc_set_color) + patch_mesh_set_water_color_set(hook_tc_set_water, &g_tc_set_water) +
+    return patch_resource_string(hook_tc_string, &g_tc_string) + patch_mesh_set_color_set(hook_tc_set_color, &g_tc_set_color) + patch_mesh_set_water_color_set(hook_tc_set_water, &g_tc_set_water) +
            patch_map_cliff_pass_load(hook_tc_pass_load) + patch_map_cliff_pass_paint(hook_tc_pass_paint) +
            patch_map_cliff_pass_elevation(hook_tc_pass_elevation) + patch_map_set_texture_load(hook_tc_load_texture, NULL) +
            patch_map_set_texture_cliff(hook_tc_cliff_texture) + patch_map_cliff_remove(hook_tc_remove) +

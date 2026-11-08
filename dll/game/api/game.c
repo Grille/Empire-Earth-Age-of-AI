@@ -122,6 +122,10 @@ internal inline void ustring_init(void *s) { ((void (__thiscall *)(void *))*(voi
 internal inline void *ustring_set(void *s, const char *text) { return ((void *(__thiscall *)(void *, const char *))*(void **)data_game_iat_ustring_assign)(s, text); }
 internal inline void ustring_free(void *s) { ((void (__thiscall *)(void *))*(void **)data_game_iat_ustring_dtor)(s); }
 // the language file's string id into s (a UWideString), res: the game's string resources
+typedef int (__thiscall *resource_string_fn)(void *res, int id, void *s);
+internal inline int patch_resource_string(resource_string_fn h, resource_string_fn *orig) {
+    return iat_hook(data_game_iat_resource_string, "Low-Level Engine.dll", "?GetString@UResourceFile@@QAEJJAAVUWideString@@@Z", (void *)h, (void **)orig);
+}
 internal inline int resource_string(void *res, int id, void *s) { return ((int (__thiscall *)(void *, int, void *))*(void **)data_game_iat_resource_string)(res, id, s); }
 
 // ACTIONS AND MESSAGES (test/, voice/, diplo.c): what the UI queues or sends - its memory (game_new of its size), then

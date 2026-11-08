@@ -42,6 +42,10 @@ unsafe struct EEMap
     [offset((ee)0x17B598, (aoc)0x18F49C), found(c)]
     void* view_rows;
 
+    /// the map's default ground: its ee_terrain's index, what a tile without a texture of its own gets (0x51357B, the load 0x51241D)
+    [offset((ee)0x181734, (aoc)0x195650), found(c)]
+    int32 default_terrain;
+
     /// a step of the ground's height, the same on every map (0.408, 1 / sqrt 6): 0x512FB0, its pair AoC 0x51D5E8
     [offset((ee)0x1816D8, (aoc)0x1955F4), found(c)]
     float32 height_step;
@@ -193,9 +197,21 @@ unsafe struct ee_tile_node
 [size(0x8C), c_type("ee_terrain")]
 unsafe struct ee_terrain
 {
+    /// its name in the data ("Cliff \\", "Grass"), the same in every language
+    [offset(0x8), found(c)]
+    uint8* name;
+
     /// its set in the map's mesh: a tile's byte 2 in map.view_rows
     [offset(0x40), found(c)]
     uint32 set;
+
+    /// the language file's string that names it in the editor's lists (GetString)
+    [offset(0x54), found(c)]
+    int32 name_text;
+
+    /// 1: in the editor's lists of textures - the terrain panel's (0x59B710) and the map panel's for its default ground (0x59198C)
+    [offset(0x85), found(c)]
+    uint8 in_editor;
 
     /// the tiles' kind it gives (ee_tile.kind): 9 a cliff's
     [offset(0x5C), found(c)]

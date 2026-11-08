@@ -40,6 +40,10 @@ internal inline ee_corner_row **map_corner_rows_at(const ee_map *o) { return (ee
 internal inline void *map_get_view_rows(const ee_map *o) { return *(void **)((uint8_t *)o + of_map_view_rows); }
 internal inline void map_set_view_rows(ee_map *o, void *v) { *(void **)((uint8_t *)o + of_map_view_rows) = v; }
 internal inline void **map_view_rows_at(const ee_map *o) { return (void **)((uint8_t *)o + of_map_view_rows); }
+// the map's default ground: its ee_terrain's index, what a tile without a texture of its own gets (0x51357B, the load 0x51241D)
+internal inline int map_get_default_terrain(const ee_map *o) { return *(int *)((uint8_t *)o + of_map_default_terrain); }
+internal inline void map_set_default_terrain(ee_map *o, int v) { *(int *)((uint8_t *)o + of_map_default_terrain) = v; }
+internal inline int *map_default_terrain_at(const ee_map *o) { return (int *)((uint8_t *)o + of_map_default_terrain); }
 // a step of the ground's height, the same on every map (0.408, 1 / sqrt 6): 0x512FB0, its pair AoC 0x51D5E8
 internal inline float map_get_height_step(const ee_map *o) { return *(float *)((uint8_t *)o + of_map_height_step); }
 internal inline void map_set_height_step(ee_map *o, float v) { *(float *)((uint8_t *)o + of_map_height_step) = v; }
@@ -180,10 +184,22 @@ internal inline void **tile_node_next_at(const void *o) { return (void **)((uint
 
 // class ee_terrain (ee_terrain)
 // a texture of the ground, a record of db\dbterrain.dat (read at the start, 0x4D54A0)
+// its name in the data ("Cliff \\", "Grass"), the same in every language
+internal inline uint8_t *terrain_get_name(const ee_terrain *o) { return *(uint8_t **)((uint8_t *)o + of_terrain_name); }
+internal inline void terrain_set_name(ee_terrain *o, uint8_t *v) { *(uint8_t **)((uint8_t *)o + of_terrain_name) = v; }
+internal inline uint8_t **terrain_name_at(const ee_terrain *o) { return (uint8_t **)((uint8_t *)o + of_terrain_name); }
 // its set in the map's mesh: a tile's byte 2 in map.view_rows
 internal inline uint32_t terrain_get_set(const ee_terrain *o) { return *(uint32_t *)((uint8_t *)o + of_terrain_set); }
 internal inline void terrain_set_set(ee_terrain *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_terrain_set) = v; }
 internal inline uint32_t *terrain_set_at(const ee_terrain *o) { return (uint32_t *)((uint8_t *)o + of_terrain_set); }
+// the language file's string that names it in the editor's lists (GetString)
+internal inline int terrain_get_name_text(const ee_terrain *o) { return *(int *)((uint8_t *)o + of_terrain_name_text); }
+internal inline void terrain_set_name_text(ee_terrain *o, int v) { *(int *)((uint8_t *)o + of_terrain_name_text) = v; }
+internal inline int *terrain_name_text_at(const ee_terrain *o) { return (int *)((uint8_t *)o + of_terrain_name_text); }
+// 1: in the editor's lists of textures - the terrain panel's (0x59B710) and the map panel's for its default ground (0x59198C)
+internal inline uint8_t terrain_get_in_editor(const ee_terrain *o) { return *(uint8_t *)((uint8_t *)o + of_terrain_in_editor); }
+internal inline void terrain_set_in_editor(ee_terrain *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_terrain_in_editor) = v; }
+internal inline uint8_t *terrain_in_editor_at(const ee_terrain *o) { return (uint8_t *)((uint8_t *)o + of_terrain_in_editor); }
 // the tiles' kind it gives (ee_tile.kind): 9 a cliff's
 internal inline int terrain_get_kind(const ee_terrain *o) { return *(int *)((uint8_t *)o + of_terrain_kind); }
 internal inline void terrain_set_kind(ee_terrain *o, int v) { *(int *)((uint8_t *)o + of_terrain_kind) = v; }
@@ -361,6 +377,7 @@ internal int spec_map_select(int build) {
         of_map_mesh = 0x1C;
         of_map_corner_rows = 0x17B594;
         of_map_view_rows = 0x17B598;
+        of_map_default_terrain = 0x181734;
         of_map_height_step = 0x1816D8;
         of_map_tiles = 0x1816D4;
         of_map_edge_sum = 0x1816EC;
@@ -400,7 +417,10 @@ internal int spec_map_select(int build) {
         of_tile_node_object = 0x4;
         of_tile_node_next = 0x8;
         size_ee_terrain = 0x8C;
+        of_terrain_name = 0x8;
         of_terrain_set = 0x40;
+        of_terrain_name_text = 0x54;
+        of_terrain_in_editor = 0x85;
         of_terrain_kind = 0x5C;
         slot_tile_change_kind = 5;
         of_tile_kind = 0x4;
@@ -452,6 +472,7 @@ internal int spec_map_select(int build) {
         of_map_mesh = 0x1C;
         of_map_corner_rows = 0x18F498;
         of_map_view_rows = 0x18F49C;
+        of_map_default_terrain = 0x195650;
         of_map_height_step = 0x1955F4;
         of_map_tiles = 0x1955F0;
         of_map_edge_sum = 0x195608;
@@ -491,7 +512,10 @@ internal int spec_map_select(int build) {
         of_tile_node_object = 0x4;
         of_tile_node_next = 0x8;
         size_ee_terrain = 0x8C;
+        of_terrain_name = 0x8;
         of_terrain_set = 0x40;
+        of_terrain_name_text = 0x54;
+        of_terrain_in_editor = 0x85;
         of_terrain_kind = 0x5C;
         slot_tile_change_kind = 5;
         of_tile_kind = 0x4;
