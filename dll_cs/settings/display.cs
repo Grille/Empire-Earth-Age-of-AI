@@ -157,8 +157,14 @@ class display
         /// control pipe: picture collect smooth on / off):
         bool units_smooth = false;
         /// The own renderer with dynamic shadows only: the water by its depth - the seabed loses its detail the deeper
-        /// it lies, the shallows clearer, the shore without a hard line (the control pipe: water on / off):
+        /// it lies, the shallows clearer, the shore without a hard line, the distance's fog on the sea as a whole instead
+        /// of on the seabed under it (the control pipe: water on / off):
         bool water_look = false;
+        /// With water_look: how long a way through the water is fully opaque, in the scenario editor's height numbers
+        /// (a depth of -20 there, about 4 tiles): the longer the line of sight runs in the water, the less of the seabed
+        /// shows, which a low camera sees most. 0 = the seabed shows at any distance (the control pipe: water opaque <n>):
+        [range(0, 200)]
+        int water_opaque_depth = 20;
         /// The own renderer with dynamic shadows only: units, buildings and trees mirrored in the water, drawn a second
         /// time at half the picture's size (the control pipe: water mirror on / off):
         bool water_reflections = false;

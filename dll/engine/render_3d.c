@@ -124,7 +124,7 @@ typedef struct {
     float shp[4];     // the draw's role, the map's size, on (a map drawn), 1 / the map's depth range
     float shx[4], shy[4];   // the draw's x and y in the world, as shz (the hills' map)
     float shz[4];     // the draw's height in the world: its placed vertex (camera space for the ground) dotted with it
-    float shl[4];     // the water's level, 1 / the depth a shadow fades out by under it, on (water seen this frame)
+    float shl[4];     // the water's level, 1 / the depth a shadow fades out by under it, on (water seen this frame), the camera's height (the fog under the water: render_water.c)
     float shs[4];     // the game's light in the draw's space, w on: the ground's shadow weighed by how much it faces it
     float sha[4], shf[4];   // the units' ambient and the sun's colour: a shadow leaves a face its ambient part
 } rd3_vcb;
@@ -137,7 +137,7 @@ typedef struct {
     float shd[4];
     float sht[4];    // the water's share of a shadow, shadows all on, a caster's bias
     float shh[4];    // the hills' map: the world's x, y -> u, v; the soft edge, the bias (tiles); on
-    float wat[4], sea[4];   // the water by its depth, the seabed's detail (render_water.c)
+    float wat[4], sea[4], wop[4];   // the water by its depth, the seabed's detail, 1 / the way through it that is opaque (render_water.c)
     float rfa[4], rfb[4];   // the reflections: strength, wobble, on, 1 / the depth of full strength; the picture's place on the target (render_water.c)
 } rd3_pcb;
 // a draw's entry in the batch's table (the shaders' wt, 8 rows): its world matrix (_14: a tinted caster's size -
@@ -161,7 +161,7 @@ internal const char k_rd3_shader[] =
     " float4 ldir[8]; float4 ldiff[8]; float4 lamb[8]; float4 gamb; int4 lit; int4 src; float4 fog;"
     " float4 vp; row_major float4x4 shm; float4 shk; float4 shp; float4 shx; float4 shy; float4 shz; float4 shl; float4 shs; float4 sha; float4 shf; };\n"
     "cbuffer p : register(b1) { int4 op; int4 aop; float4 fogc; float4 tf; float4 misc; float4 pshk; float4 shd; float4 sht;"
-    " float4 shh; float4 wat; float4 sea; float4 rfa; float4 rfb; };\n"
+    " float4 shh; float4 wat; float4 sea; float4 wop; float4 rfa; float4 rfb; };\n"
     "Buffer<float4> wt : register(t1);\n"   // the draws' entries, 8 rows each (rb_world)
     "Texture2D t : register(t0); SamplerState s : register(s0);\n"
     "Texture2D<float> sm : register(t2); SamplerComparisonState sc : register(s1);\n"   // the dynamic shadows' maps:
@@ -170,12 +170,14 @@ internal const char k_rd3_shader[] =
     "struct I { float3 p : POSITION; float3 n : NORMAL; float4 c : COLOR; float2 t : TEXCOORD; uint w : WORLD; };\n"
     RD3_MORPH_HLSL
     "struct O { float4 p : SV_Position; float4 c : COLOR; float2 t : TEXCOORD0; float f : FOG; float4 q : TEXCOORD1;"
-    " float3 k : TEXCOORD2; float3 w : TEXCOORD3; };\n"
+    " float3 k : TEXCOORD2; float3 w : TEXCOORD3; float r : TEXCOORD4; };\n"
     // a unit's tint: how many of four texels around its origin's place in the map are nearer the sun by more than b
     "float shade_at(float3 q, float b) { if (q.x < 0 || q.y < 0 || q.x > 1 || q.y > 1) return 0;"
     " int n = (int)shp.y; int2 c = int2(q.xy * shp.y); float k = 0;"
     " for (int j = 0; j < 4; j++) { int2 a = clamp(c + int2(j & 1, j >> 1) * 4 - 2, 0, n - 1);"
     "  k += sm.Load(int3(a, 0)) < q.z - b ? 1 : 0; } return k / 4; }\n"
+    "float fog_at(float z) { if (fog.x == 3) return (fog.z - z) / (fog.z - fog.y); if (fog.x == 1) return exp(-fog.w * z);"
+    " if (fog.x == 2) return exp(-(fog.w * z) * (fog.w * z)); return 1; }\n"
     "O vs(I i, uint id : SV_VertexID) { O o; morph(i, id); uint r = i.w * 8; float4 r0 = wt.Load(r); float b = r0.w; r0.w = 0;"   // _14: the draw's size (SH_TINT)
     " float4x4 world = float4x4(r0, wt.Load(r + 1), wt.Load(r + 2), wt.Load(r + 3));"
     " float4 p = mul(float4(i.p, 1), world); o.p = mul(p, vpm); o.q.xyz = mul(p, shm).xyz;"
@@ -198,9 +200,12 @@ internal const char k_rd3_shader[] =
     // a caster in a shadow (shadows all on): its colour without the lights' diffuse part, as much as the strength takes
     "  o.k = saturate(e.rgb + a.rgb * am + d.rgb * df * (1 - shk.w)) / max(c.rgb, 0.001); }"
     " o.c = c; o.t = i.t;"
-    " float3 q = mul(p, view).xyz; float z = vp.z > 0.5 ? length(q) : q.z, f = 1;"
-    " if (fog.x == 3) f = (fog.z - z) / (fog.z - fog.y); else if (fog.x == 1) f = exp(-fog.w * z);"
-    " else if (fog.x == 2) f = exp(-(fog.w * z) * (fog.w * z));"
+    " float3 q = mul(p, view).xyz; float z = vp.z > 0.5 ? length(q) : q.z, f = fog_at(z);"
+    // the way through the water per depth (render_water.c), and what lies under it takes the fog of the place the line
+    // of sight enters it - the game's own again toward the fog's end, where the ground's mesh stops
+    " o.r = shl.w > shl.x ? length(q) / (shl.w - shl.x) : 0;"
+    " if (shp.x > 0 && shl.w > shl.x && o.w.z < shl.x) { float e = fog_at(z * (shl.w - shl.x) / (shl.w - o.w.z));"
+    "  f = lerp(f, e, saturate(e / 0.35)); }"
     " o.f = f; return o; }\n"   // clamped per pixel, as the driver under a wrapper does (the picture compare)
     // D3DTA_: 0 diffuse, 1 current (the diffuse at stage 0), 2 texture, 3 texture factor; D3DTOP_ 1..8
     "float4 arg(int a, float4 x, float4 d) { a = a & 15; return a == 2 ? x : a == 3 ? tf : d; }\n"
@@ -223,7 +228,8 @@ internal const char k_rd3_shader[] =
     // ceiling less how far the ground lies under it) under the surface's own height
     " if (wat.x > 0 && shd.x == 6 && shh.w > 0) { float2 wh = hm.SampleLevel(hs, i.w.xy * shh.x, 0);"
     "  float wd = max(0, i.w.z - (wh.x - wh.y));"
-    "  c.a = saturate(c.a * lerp(wat.y, wat.z, 1 - exp(-wd * wat.x))) * saturate(wd * wat.w); }"
+    "  c.a = saturate(c.a * lerp(wat.y, wat.z, 1 - exp(-wd * wat.x))) * saturate(wd * wat.w);"
+    "  c.a = lerp(c.a, 1, smoothstep(0, 1, wd * i.r * wop.x)); }"
     " bool g = shd.x == 1 || shd.x == 4 || shd.x == 6, rc = sht.y > 0 && (shd.x == 2 || shd.x == 3 || shd.x == 9);"
     " if ((g || rc) && (shd.z > 0 || shh.w > 0)) { float z = min(i.q.z, 0.9999), l = 9, b = g ? shd.w : sht.z, hl = 0;"
     "  if (shd.z > 0) { l = 0; for (int y = -1; y <= 1; y++) for (int u = -1; u <= 1; u++)"

@@ -697,6 +697,7 @@ internal void rd3_shadow_new_frame(void) {
     g_sh.water_on = g_sh.water_frame;
     g_sh.water_frame = 0;
 }
+internal float rd3_water_camera(void);   // render_water.c
 // a batch's constants as the list draws it: this frame's map - the ground's place in it through the units' camera
 internal void rd3_shadow_vc(rd3_vcb *vc) {
     vc->shp[2] = g_sh.valid ? 1.0f : 0.0f;
@@ -721,6 +722,7 @@ internal void rd3_shadow_vc(rd3_vcb *vc) {
     memcpy(vc->sha, g_sh.amb, sizeof g_sh.amb);
     memcpy(vc->shf, g_sh.diff, sizeof g_sh.diff);
     memcpy(vc->shl, g_sh.shl, sizeof vc->shl);
+    vc->shl[3] = rd3_water_camera();
     memcpy(vc->shk, g_sh.shk, sizeof vc->shk);
     vc->shp[3] = g_sh.inv_depth;
 }
