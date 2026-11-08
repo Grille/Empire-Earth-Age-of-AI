@@ -507,6 +507,7 @@ struct wj_at { int kind, sx, sy; ee_unit *u; };
 struct wj_jog_fit { float ox, oy, fx, fy, ax, ay, ea, eb; };   // off its tile's middle, its facing, across it, how far its ends reach on
 internal struct wj_at wj_at(const ee_map *map, int x, int y, const ee_player *pl);
 internal int wj_jog_place(const ee_map *map, int x, int y, const ee_player *pl, struct wj_jog_fit *j);
+internal void wj_upright(const ee_map *map, ee_unit *u, float fx, float fy);
 internal int g_wj_on;
 internal volatile LONG g_ws_ed_seen;   // GetTickCount of the scenario editor's last frame, 0 none (below)
 internal int g_ws_ed_base;   // the editor's walls looked at since it was entered (below)
@@ -539,6 +540,12 @@ internal int ws_fit(ee_unit *u) {
     if (anim == WS_POST) {
         float mid = ground_at(map, px, py);
         if (mid != mid) { g_ws_skipped++; return 0; }
+        // a piece the game made a post (a wall laid onto its side) keeps what it stood with: a jog's place off its tile's
+        // middle and its stretch, and this fit only sets the height - a post drawn long and slanted (the player, 2026-11-08:
+        // "i have the stretched connector again")
+        float ly = sqrtf(unit_get_matrix(u, 1) * unit_get_matrix(u, 1) + unit_get_matrix(u, 5) * unit_get_matrix(u, 5));
+        float lx = sqrtf(unit_get_matrix(u, 0) * unit_get_matrix(u, 0) + unit_get_matrix(u, 4) * unit_get_matrix(u, 4));
+        if (fabsf(unit_get_matrix(u, 3) - px) > 0.001f || fabsf(unit_get_matrix(u, 7) - py) > 0.001f || fabsf(lx - ly) > 0.001f) wj_upright(map, u, 0, 1);
         // its scale from its turn (x, y), so fitting it again gives the same; its skirt down to its lower corners
         float s = sqrtf(unit_get_matrix(u, 0) * unit_get_matrix(u, 0) + unit_get_matrix(u, 4) * unit_get_matrix(u, 4));
         unit_set_matrix(u, 8, 0);
@@ -646,7 +653,9 @@ internal int ws_fit(ee_unit *u) {
 // 1:2 to the tiles, and a whole 1:2 wall is a single straight line through its links' middles. Which tiles do is told by
 // the tiles alone: a tile with two neighbours and a 45 degree bend between them, beside another such tile where the wall
 // bends back (a sideways step, its two bends opposite) or, over a diagonal link, bends on the same way (a corner of two
-// posts, drawn round). One bend alone is the wall's corner and keeps its post. A jog is sheared across its length: its
+// posts, drawn round), or beside a post that stays one over a diagonal link - a junction or a wall's end: the two posts
+// would touch with a gap, so the bend draws the piece into it (the player, 2026-11-08: "it's the touching connector pieces
+// again"). One bend alone is the wall's corner and keeps its post. A jog is sheared across its length: its
 // ends lie along the end of the plain piece it runs on from and meet it corner to corner - square to itself, it stuck
 // out past that piece on one side of the bend (the player, 2026-11-08: "can you smoothen that edge when it joins with
 // the normal wall again?").
@@ -719,7 +728,12 @@ internal int wj_jog(const ee_map *map, int x, int y, const ee_player *pl, int *a
     for (int side = 0; side < 2; side++) {
         int to = side ? *b : *a, from = side ? *a : *b, in = (from + 4) & 7;   // the wall comes along in, goes on along to
         int nx = x + k_wj_dir[to][0], ny = y + k_wj_dir[to][1], na = 0, nb = 0;
-        if (wj_at(map, nx, ny, pl).kind == WJ_HUB || wj_links(map, nx, ny, pl, &na, &nb) != 2) continue;
+        if (wj_at(map, nx, ny, pl).kind == WJ_HUB) continue;
+        int links = wj_links(map, nx, ny, pl, &na, &nb);
+        if (links != 2) {   // a junction or a wall's end, a post for good, touching over a diagonal link: this tile runs into it
+            if (to & 1) return 1;
+            continue;
+        }
         int out = na == ((to + 4) & 7) ? nb : na, turn = (to - in) & 7, next = (out - to) & 7;   // 1 or 7: 45 degrees
         if (next != 1 && next != 7) continue;
         if (next != turn || (to & 1)) return 1;
