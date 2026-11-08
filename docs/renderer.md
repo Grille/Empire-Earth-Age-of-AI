@@ -597,7 +597,7 @@ stamp of the walk in the copy (the picker's `listed` no more), the unit under th
 made). All the fills must be ours (the game's read the world); not with the free camera. Only beside the simulation's
 own step: every other writer (the interface's, a load, which may free the map) counts itself before it takes the lock
 and waits for such an update to end, and the update doesn't begin while one is counted (g_rwl_nonstep, g_uc_in_during:
-one of the two sees the other). The ground, the shadows' update and the effects still wait for a full update, so the
+one of the two sees the other). The ground and the shadows' update still wait for a full update, so the
 hand-off stays, only later: the picture goes 250 ms (the pipe's ms) without a full update first, not while the camera
 moves (the ground must follow it). Checked: with the steps held 150 ms (stepload), speed 1, AoC Continental, a moving
 unit in 25 s moved in 89 and 93 frames without it, in 16 164 and 18 955 with it; 41 551 such updates in AoC and 8435 in
@@ -607,6 +607,26 @@ does not buy: speed. The 8000 save at speed 4 alternating a minute each, the gam
 58.6 game seconds against 76.2 / 56.0 / 62.1 - the hand-offs' wait falls from 6-8 s a minute to 3.5-5 s, and the
 copy (4.3 ms a step of 11 000 objects there) costs what that saves. Its gain is the picture: units that keep moving
 through long steps.
+
+Step 4, the effects (collect_copy.c collect_fx_step, 2026-11-08; the pipe: `picture collect effects off | on | check`;
+`[display] units_smooth` turns it on). The frame draws the effects from five queues (engine_display.effect_queues) that
+EEROEffects' update remakes: every effect under the view's rows is asked its PrepareQueue and Queue, and Queue is the
+game's own buffer - it copies what the steps wrote (age, frame, transformation) into the fields the draw reads, and
+reads the unit the effect belongs to, which is why that update crashed when run beside a step (a step can clear the
+effect's unit). A frame during a step skipped it and the effects stood. Now the simulation makes the queues at a step's
+end, inside the world's lock, into queues of its own (the game's rows and order; Queue takes the queues as its
+argument), and a frame during a step takes them in place of the ones it drew. References are plain counts, so they
+are only taken and given back inside the lock: the queues a frame replaces are retired for the simulation to release
+at its next step's end; a full update finds them or the game's own in place and releases them under its read lock as
+ever. Queue's writes to the draw fields can meet a draw of the same effect (a torn number for a frame; no memory is
+moved). At the scene's release (EEReleaseScene, spec scene_release) what the simulation's queues hold is given back
+first, and queues of another map are never drawn or released. Checked (check: after a full update, when no other writer
+came and the camera is as when they were made, the simulation's queues against the game's, entry by entry): the 8000
+save 730 updates, 0 differ; EE Continental 25 475, 0 differ; AoC Continental 24 428, 1 differs (right after the test
+moved the camera: 4 effects against 0 - the camera was set and the rows not yet remade, it seems; not proven). Each
+then with the steps held 200 ms and at speed 5 for a minute, without a fault, 170-2900 queues made and taken by frames.
+It costs the simulation 0.05-0.13 ms a step (up to 600 effects). Not run: a load or an end to the menu with it on (the
+pipe's quit ends the process; nothing in the tests reaches the scene's release).
 
 `[display] gpu_animation` (default on; the pipe: `picture morph on | off`; render_morph.c), 2026-11-06. EE animates a
 model by morphing: every frame of its animation is a whole vertex array (spec GEModel.vertices, frames alike share

@@ -409,6 +409,148 @@ internal int cp_spare(void) {   // inside g_cp_cs
         if (i != g_cp_new && i != g_cp_read) return i;
     return -1;
 }
+// STEP 4, THE EFFECTS (the pipe: picture collect effects off | on | check; on with [display] units_smooth). The frame
+// draws the effects from five queues (the game's: engine_display.effect_queues) its full update remakes; a frame during
+// a step didn't, the effects stood: the update reads the units they belong to and its Queue copies each one's state
+// for the draw - it crashed when run beside a step. So the simulation makes them, at a step's end inside the world's
+// lock, as the game's update does (the view's rows, each effect's PrepareQueue and Queue), into queues of its own, and a
+// frame during a step takes them over. References are plain counts: only ever taken and given back inside the lock -
+// the queues a frame replaces are retired, for the simulation to release at its next step's end (or the game's own
+// release, when a full update finds them in its place: it holds the read lock).
+enum { FX_EMPTY, FX_BUILDING, FX_READY };
+internal uint8_t g_fx_p[EFFECT_QUEUES_SIZE], g_fx_r[EFFECT_QUEUES_SIZE];   // the next, the retired
+internal int g_fx_made;
+internal volatile int g_fx_on;                 // the pipe: 0 off, 1 on, 2 check
+internal volatile LONG g_fx_state, g_fx_retired;
+internal ee_map *g_fx_map;                     // the map g_fx_p is of
+internal float g_fx_cam[16];                   // the camera it was made for (the check's)
+internal long *g_fx_lo, *g_fx_hi;              // by region row: the first and last region under the view's rows
+internal uint32_t g_fx_rows;
+internal LONG g_fx_builds, g_fx_takes, g_fx_queued, g_fx_chk_n, g_fx_chk_diff;
+internal LONGLONG g_fx_qpc;
+internal int fx_release_one(void *ctx, int q, uint32_t key, void *e) { (void)ctx, (void)q, (void)key; object_release(e); return 1; }
+internal void fx_empty(uint8_t *q, int release) {
+    if (release) effect_queues_each(q, fx_release_one, NULL);
+    for (int i = 0; i < 5; i++) effect_queue_clear(q + i * 12);
+}
+// the effects the view shows into g_fx_p: the game's QueueEffects' rows and order
+internal void fx_build(ee_map *map) {
+    const uint8_t *tab = map_effect_regions(map);
+    int size = tab ? effect_regions_size(tab) : 0;
+    uint32_t h = tab ? effect_regions_height(tab) : 0;
+    if (size <= 0 || !h) return;
+    if (h > g_fx_rows) {
+        long *a = realloc(g_fx_lo, h * sizeof *a), *b = realloc(g_fx_hi, h * sizeof *b);
+        if (a) g_fx_lo = a;
+        if (b) g_fx_hi = b;
+        if (!a || !b) return;
+        g_fx_rows = h;
+    }
+    for (uint32_t i = 0; i < h; i++) g_fx_lo[i] = LONG_MAX, g_fx_hi[i] = LONG_MIN;
+    const void *mesh = map_mesh_at(map);
+    unsigned long n = terrain_rows(mesh);
+    for (unsigned long r = 0; r < n; r++) {
+        long y, x0, x1;
+        terrain_row(mesh, r, &y, &x0, &x1);
+        long key = y / size;
+        if (key < 0 || (uint32_t)key >= h) continue;
+        if (x0 / size < g_fx_lo[key]) g_fx_lo[key] = x0 / size;
+        if (x1 / size > g_fx_hi[key]) g_fx_hi[key] = x1 / size;
+    }
+    for (uint32_t y = 0; y < h; y++) {
+        if (g_fx_lo[y] > g_fx_hi[y]) continue;
+        for (long x = g_fx_lo[y]; x <= g_fx_hi[y]; x++) {
+            uint32_t k;
+            void **e = effect_region(tab, (uint32_t)x, y, &k);
+            for (uint32_t i = 0; i < k; i++) {
+                if (!effect_shown(e[i])) continue;
+                effect_prepare(e[i]);
+                if (!effect_queue(e[i], g_fx_p)) { effect_reference(e[i]); g_fx_queued++; }
+            }
+        }
+    }
+}
+// at a step's end, inside the lock (collect_copy_written): the retired queues released, the next made
+internal void collect_fx_step(ee_map *map) {
+    if (!g_fx_on) return;
+    if (!g_fx_made) {
+        memset(g_fx_p, 0, sizeof g_fx_p), memset(g_fx_r, 0, sizeof g_fx_r);
+        for (int i = 0; i < 5; i++) effect_queue_new(g_fx_p + i * 12), effect_queue_new(g_fx_r + i * 12);
+        g_fx_made = 1;
+    }
+    LONGLONG t0 = rd_qpc();
+    if (g_fx_retired) {
+        fx_empty(g_fx_r, g_fx_map == map);   // of another map: its effects are gone with it - the references stay unpaid
+        g_fx_retired = 0;
+    }
+    EnterCriticalSection(&g_cp_cs);
+    int had = g_fx_state == FX_READY;
+    g_fx_state = FX_BUILDING;
+    LeaveCriticalSection(&g_cp_cs);
+    if (had) fx_empty(g_fx_p, g_fx_map == map);
+    g_fx_map = map;
+    fx_build(map);
+    memcpy(g_fx_cam, camera_transformation_at(game_camera()), sizeof g_fx_cam);
+    g_fx_builds++;
+    g_fx_qpc += rd_qpc() - t0;
+    EnterCriticalSection(&g_cp_cs);
+    g_fx_state = FX_READY;
+    LeaveCriticalSection(&g_cp_cs);
+}
+// a frame during a step: the newest queues in place of those it drew, those retired (nothing else of them is read: the
+// frame's draws come after)
+internal void collect_fx_take(void) {
+    if (!g_fx_on || !g_fx_made) return;
+    uint8_t *g = effect_queues_at();
+    EnterCriticalSection(&g_cp_cs);
+    if (g_fx_state == FX_READY && !g_fx_retired && g_fx_map == game_map()) {
+        uint8_t t[EFFECT_QUEUES_SIZE];
+        memcpy(t, g_fx_r, sizeof t);
+        memcpy(g_fx_r, g, sizeof t);
+        memcpy(g, g_fx_p, sizeof t);
+        memcpy(g_fx_p, t, sizeof t);
+        g_fx_retired = 1;
+        g_fx_state = FX_EMPTY;
+        g_fx_takes++;
+    }
+    LeaveCriticalSection(&g_cp_cs);
+}
+// the check, after a full update made the game's queues (its read lock held: the simulation's aren't being made): the
+// same effects in the same order, when no other writer came since they were made and the camera is as it was
+// the game's scene released (a game's end, a load: render-thread hook of EEReleaseScene): what the simulation's queues
+// hold given back while the effects are there, inside the read lock as the game's own release
+internal void __cdecl fx_hook_scene_release(void) {
+    if (g_fx_made && g_rwl_world) {
+        g_rwl_read(g_rwl_world);
+        EnterCriticalSection(&g_cp_cs);
+        if (g_fx_retired) fx_empty(g_fx_r, 1), g_fx_retired = 0;
+        if (g_fx_state == FX_READY) fx_empty(g_fx_p, 1);
+        g_fx_state = FX_EMPTY;
+        g_fx_map = NULL;
+        LeaveCriticalSection(&g_cp_cs);
+        g_rwl_runlock(g_rwl_world);
+    }
+    scene_release();
+}
+typedef struct { uint32_t n, hash; } fx_sum;
+internal int fx_sum_one(void *ctx, int q, uint32_t key, void *e) {
+    fx_sum *s = ctx;
+    s->n++;
+    s->hash = (s->hash ^ (uint32_t)q ^ key * 31 ^ (uint32_t)(uintptr_t)e) * 16777619u;
+    return 1;
+}
+internal void collect_fx_check(void) {
+    if (g_fx_on != 2 || !g_fx_made || g_fx_state != FX_READY || g_cp_stale || g_fx_map != game_map() ||
+        memcmp(g_fx_cam, camera_transformation_at(game_camera()), sizeof g_fx_cam))
+        return;
+    fx_sum a = { 0, 2166136261u }, b = { 0, 2166136261u };
+    effect_queues_each(effect_queues_at(), fx_sum_one, &a);
+    effect_queues_each(g_fx_p, fx_sum_one, &b);
+    g_fx_chk_n++;
+    if ((a.n != b.n || a.hash != b.hash) && g_fx_chk_diff++ < 8)
+        log_locked("# collect: the effects' queues differ from the game's: %u effects, the simulation's %u\n", a.n, b.n);
+}
+
 // at the end of a write to the world (render_3d.c rd_hook_write_unlock, its holder still in; ret: where it took the
 // lock): the steps' copy of the frame's last view and UC_MARGIN round it, else the copy stale
 internal void collect_copy_written(uintptr_t ret) {
@@ -430,6 +572,7 @@ internal void collect_copy_written(uintptr_t ret) {
     g_cp[i].at = t1;
     g_cp[i].dt = g_cp_last_at && t1 - g_cp_last_at < rd_qpc_ms(UC_SMOOTH_MAX_MS) ? t1 - g_cp_last_at : 0;   // none after a pause
     g_cp_last_at = t1;
+    collect_fx_step(map);
     EnterCriticalSection(&g_cp_cs);
     if (ok) g_cp_new = i, g_cp_stale = 0, g_cp_by_step++, g_cp_objs = (LONG)g_cp[i].n_objs;
     else g_cp_stale = 1, g_cp_fails++;

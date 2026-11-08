@@ -1045,12 +1045,14 @@ internal void collect_install(void) {
     uint8_t want[6] = { 0x8B, 0x0D };   // mov ecx, [picker_lock]
     memcpy(want + 2, &g_uc_lock_at, 4);
     g_uc_installed = g_uc_enter && g_uc_leave && patch_insn6_call((uintptr_t)engine_display_units_walk_at(), want, collect_thunk);
-    int ghosts = g_uc_installed && patch_fill_ghosts(uc_hook_fill_ghosts);
+    int ghosts = g_uc_installed && patch_fill_ghosts(uc_hook_fill_ghosts), fx_of = 0;
+    if (g_uc_installed) patch_scene_release(fx_hook_scene_release, &fx_of);
     g_uc_during_ok = g_uc_installed && patch_units_ground_pass(uc_hook_ground_pass) && patch_units_pick_rect(uc_hook_pick_rect) &&
                      patch_units_pick_mouse(uc_hook_pick_mouse);
     if (g_uc_installed && g_set.units_smooth) {   // [display] units_smooth: the walk, its fills and the steps' copy the mod's, the moving on, and during the steps
         g_uc_own = 1, g_uc_opacity = 2, g_uc_drawn = 2, g_uc_fill = 2, g_cp_on = 1, g_cp_smooth = 1;
         if (g_uc_during_ok) g_uc_during_on = 1, g_rwl_during_handoff = 250;
+        g_fx_on = 1;
     }
     if (g_log) fprintf(g_log, "# collect: the units' walk %s (the game's until the pipe's picture collect own), the ghosts' fill %s\n",
                        g_uc_installed ? "hooked" : "NOT hooked (exe differs)", ghosts ? "hooked" : "NOT hooked");
@@ -1081,6 +1083,14 @@ internal int collect_copy_mode(int how) {
     g_cp_step_qpc = g_cp_frame_qpc = 0;
     g_cp_stale = 1;
     g_cp_on = how;
+    return 0;
+}
+// picture collect effects off | on | check (0, 1, 2): the effects' queues made by the simulation for the frames during its steps
+internal int collect_effects_mode(int how) {
+    if (!g_uc_installed) return -1;
+    g_fx_builds = g_fx_takes = g_fx_queued = g_fx_chk_n = g_fx_chk_diff = 0;
+    g_fx_qpc = 0;
+    g_fx_on = how;
     return 0;
 }
 // picture collect during off | on [ms] (ms: the hand-off's wait while such updates run, render_3d.c)
@@ -1181,6 +1191,10 @@ internal void collect_print(void) {
                (long)g_cp_objs, (long)frames, frames ? (double)g_cp_frame_qpc / rd_qpc_ms(1) / frames : 0.0, (long)g_cp_stales,
                (long)g_cp_used, (long)g_cp_chk_n, (long)g_cp_chk_objs, (long)g_cp_chk_diff);
     if (g_uc_during_on) log_locked("# collect: the units' update during a step: %ld so far\n", (long)g_uc_during_walks);
+    if (g_fx_on)
+        log_locked("# collect: the effects' queues (%s): %ld made by the steps (%.3f ms each, %.1f effects), %ld taken by frames during a step; checked %ld, %ld differ\n",
+                   g_fx_on == 2 ? "check" : "on", (long)g_fx_builds, g_fx_builds ? (double)g_fx_qpc / rd_qpc_ms(1) / g_fx_builds : 0.0,
+                   g_fx_builds ? (double)g_fx_queued / g_fx_builds : 0.0, (long)g_fx_takes, (long)g_fx_chk_n, (long)g_fx_chk_diff);
     if (g_cp_smooth)
         log_locked("# collect: the moving between steps (%s): %u frames of a moving object, its step on the screen %.4f tiles on average, rms %.4f (%.2f times the average: 1 is even), %u frames it did not move\n",
                    g_cp_smooth == 1 ? "on" : "probe", g_cs_n, g_cs_n ? g_cs_sum / g_cs_n : 0.0, g_cs_n ? sqrt(g_cs_sq / g_cs_n) : 0.0,

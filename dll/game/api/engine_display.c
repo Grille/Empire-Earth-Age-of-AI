@@ -237,6 +237,60 @@ internal inline void physical_model_set_scale(void *pm, float s) { *(float *)((u
 internal inline void transform_orient(void *t, float yaw, float pitch, float roll) { (*(pm_orient_fn *)data_engine_display_iat_set_orientation)(t, yaw, pitch, roll); }
 internal inline void transform_assign(void *t, const void *from) { (*(pm_assign_fn *)data_engine_display_iat_transform_assign)(t, from); }
 
+// THE EFFECTS' QUEUES (collect.c: made by the simulation at a step's end, inside the world's lock): the game's five
+// maps; the map's table of effects by region; an effect's calls and its reference (at +4, plain: inside the lock only)
+#define EFFECT_QUEUES_SIZE 60
+internal inline uint8_t *effect_queues_at(void) { return (uint8_t *)data_engine_display_effect_queues; }
+internal inline const uint8_t *map_effect_regions(const ee_map *m) { return *(const uint8_t *const *)((const uint8_t *)m + value_engine_display_of_map_effect_regions); }
+internal inline int effect_regions_size(const uint8_t *t) { return *(const int *)(t + 8); }
+internal inline uint32_t effect_regions_width(const uint8_t *t) { return *(const uint32_t *)(t + 0x10); }
+internal inline uint32_t effect_regions_height(const uint8_t *t) { return *(const uint32_t *)(t + 0x14); }
+// a region's effects (none out of the table): their first, *n of them
+internal inline void **effect_region(const uint8_t *t, uint32_t x, uint32_t y, uint32_t *n) {
+    *n = 0;
+    if (x >= effect_regions_width(t) || y >= effect_regions_height(t)) return NULL;
+    const uint8_t *r = *(const uint8_t *const *)(t + 4) + (size_t)(x * effect_regions_height(t) + y) * 0x10;
+    void **first = *(void **const *)(r + 4), **end = *(void **const *)(r + 8);
+    if (first) *n = (uint32_t)(end - first);
+    return first;
+}
+internal inline int effect_shown(const void *e) {
+    uint8_t l = ((const uint8_t *)e)[value_engine_display_of_effect_local_only];
+    return !l || (l == 1 && *(const int *)((const uint8_t *)e + value_engine_display_of_effect_player) == (int)local_player_index());
+}
+internal inline void effect_prepare(void *e) { ((void (__thiscall *)(void *))(*(void ***)e)[value_engine_display_slot_effect_prepare])(e); }
+internal inline int effect_queue(void *e, void *queues) { return ((int (__thiscall *)(void *, void *))(*(void ***)e)[value_engine_display_slot_effect_queue])(e, queues); }
+internal inline void effect_reference(void *e) { ++*(uint32_t *)((uint8_t *)e + 4); }
+// a queue's entries in their order (the tree's nodes: left +0, parent +4, right +8, the key +0xC, the deque +0x10, its
+// "is the head" byte +0x25; the deque: blocks +4, their count +8, front +0xC, size +0x10, 0x400 entries a block). Each
+// entry's call; 0 ends it
+typedef int (*effect_entry_fn)(void *ctx, int queue, uint32_t key, void *effect);
+internal inline int effect_queues_each(uint8_t *queues, effect_entry_fn f, void *ctx) {
+    for (int q = 0; q < 5; q++) {
+        uint8_t *head = *(uint8_t **)(queues + q * 12 + 4), *n = *(uint8_t **)head;
+        while (n != head) {
+            uint8_t *d = n + 0x10;
+            uint32_t front = *(uint32_t *)(d + 0xC), size = *(uint32_t *)(d + 0x10), blocks = *(uint32_t *)(d + 8);
+            void ***map = *(void ****)(d + 4);
+            for (uint32_t k = 0; k < size; k++) {
+                uint32_t at = front + k, b = at >> 10;
+                if (b >= blocks) b -= blocks;
+                if (!f(ctx, q, *(uint32_t *)(n + 0xC), map[b][at & 0x3FF])) return 0;
+            }
+            uint8_t *r = *(uint8_t **)(n + 8);
+            if (!r[0x25]) {
+                while (!(*(uint8_t **)r)[0x25]) r = *(uint8_t **)r;
+                n = r;
+            } else {
+                uint8_t *p = *(uint8_t **)(n + 4);
+                while (!p[0x25] && n == *(uint8_t **)(p + 8)) n = p, p = *(uint8_t **)(p + 4);
+                n = p;
+            }
+        }
+    }
+    return 1;
+}
+
 // THE UNITS' FILL's inputs (collect.c's port of FillUnit): its float constants, the mesh's rows (is a tile on it), a
 // tile's light byte as the build tests it (EE: not 0; AoC: its low 7 bits), the imports UWideString::operator=,
 // Apply of a vector, UMArcCos (its answer the FPU's, unrounded: an x87 long double in st0) and Scale, a gate type cast

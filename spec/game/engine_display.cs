@@ -834,6 +834,32 @@ static unsafe class engine_display
     [address((ee)0x009125D8, (aoc)0x00928D78)]
     static block pick_list;
 
+    /// THE EFFECTS' QUEUES (the AoC decompilation's gEffectQueues; EEROEffects' update, QueueEffects EE 0x5010A9, AoC
+    /// 0x50BDD2): five maps from a texture to the effects to draw with it, remade each full update - the old entries
+    /// released, then of every map region under the view's rows each effect shown to the player asked its PrepareQueue
+    /// (slot 11) and Queue(the queues) (slot 9: its view test, its draw state copied from what the steps wrote - mDrawAge ...
+    /// -, its entry; 0 = queued, and a reference is taken at +4)
+    [address((ee)0x008D2C78, (aoc)0x008E9418)]
+    static block effect_queues;
+
+    /// the map's table of effects by region (RTSRegionTable: +4 the regions, 0x10 bytes each with a vector of EEEffect*
+    /// at +4 .. +8; +8 a region's size in tiles; +0x10 its width, +0x14 its height - a region at x * height + y)
+    [value((ee)0x181720, (aoc)0x19563C)]
+    static uint32 of_map_effect_regions;
+
+    /// an effect's virtual Queue and PrepareQueue, its player (+0x20: whose alone it is when) its local-only byte (+0x2D) is 1
+    [value((ee)9, (aoc)9)]
+    static uint32 slot_effect_queue;
+
+    [value((ee)11, (aoc)11)]
+    static uint32 slot_effect_prepare;
+
+    [value((ee)0x20, (aoc)0x20)]
+    static uint32 of_effect_player;
+
+    [value((ee)0x2D, (aoc)0x2D)]
+    static uint32 of_effect_local_only;
+
     /// the collection's lock over pick_list (a TSCriticalSection*; the AoC decompilation's gUnitPickerLock): the
     /// update walks the tiles inside it
     [address((ee)0x00912874, (aoc)0x00929014)]
@@ -1232,6 +1258,26 @@ static unsafe class engine_display_functions
     /// the sort maps' insert: thiscall(map, found: 8 bytes, a pair {key, record})
     [address((ee)0x0044F431, (aoc)0x0051005E), thiscall]
     static extern void sort_map_insert(void* map, void** found, void** pair);
+
+    /// an effects' queue (std::map from a texture to a deque of EEEffect*, 12 bytes: engine_display.effect_queues): made,
+    /// emptied (the deques and nodes; the effects' references are the caller's)
+    [address((ee)0x00521704, (aoc)0x0056D077), thiscall]
+    static extern void effect_queue_new(void* queue);
+
+    [address((ee)0x00504FC8, (aoc)0x0050FE93), thiscall]
+    static extern void effect_queue_clear(void* queue);
+
+    /// an object's reference given back (RTSObject: the count at +4, its slot 13 at the last): plain, not interlocked -
+    /// inside the world's lock only
+    [address((ee)0x004FCAD3, (aoc)0x00401DB4), thiscall]
+    static extern void object_release(void* o);
+
+    /// EEReleaseScene: the frame's lists, the effects' queues and the picker emptied (a game's end, a load): the graphics
+    /// thread's two calls of it; collect_copy.c gives back what the simulation's effects' queues hold first
+    [address((ee)0x005042FE, (aoc)0x0050F239), cdecl]
+    [call_site("scene_release", (ee)0x004FED15, (aoc)0x00509828)]
+    [call_site("scene_release", (ee)0x004FEE3B, (aoc)0x0050994E)]
+    static extern void scene_release();
 
     /// thiscall(engine_display.pick_list, the unit, its record, its opacity): it into the list the mouse picks from
     [address((ee)0x0050F6E2, (aoc)0x00519FFB), thiscall]

@@ -624,6 +624,15 @@ internal inline uint8_t *engine_display_ro_water_at(void) { return (uint8_t *)(u
 internal inline uint8_t *engine_display_ro_ui_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_ro_ui; }
 // the units' collection's list of what it drew (EEPickList; its address the collection passes, 0x503F8D)
 internal inline uint8_t *engine_display_pick_list_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_pick_list; }
+// THE EFFECTS' QUEUES (the AoC decompilation's gEffectQueues; EEROEffects' update, QueueEffects EE 0x5010A9, AoC
+// 0x50BDD2): five maps from a texture to the effects to draw with it, remade each full update - the old entries
+// released, then of every map region under the view's rows each effect shown to the player asked its PrepareQueue
+// (slot 11) and Queue(the queues) (slot 9: its view test, its draw state copied from what the steps wrote - mDrawAge ...
+// -, its entry; 0 = queued, and a reference is taken at +4)
+internal inline uint8_t *engine_display_effect_queues_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_effect_queues; }
+// the map's table of effects by region (RTSRegionTable: +4 the regions, 0x10 bytes each with a vector of EEEffect*
+// at +4 .. +8; +8 a region's size in tiles; +0x10 its width, +0x14 its height - a region at x * height + y)
+// an effect's virtual Queue and PrepareQueue, its player (+0x20: whose alone it is when) its local-only byte (+0x2D) is 1
 // the collection's lock over pick_list (a TSCriticalSection*; the AoC decompilation's gUnitPickerLock): the
 // update walks the tiles inside it
 internal inline uint8_t *engine_display_picker_lock_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_picker_lock; }
@@ -808,6 +817,25 @@ internal inline void vector_push(void *v, void **value) { fn_vector_push(v, valu
 typedef void (__thiscall *sort_map_insert_fn)(void *, void **, void **);
 internal sort_map_insert_fn fn_sort_map_insert;
 internal inline void sort_map_insert(void *map, void **found, void **pair) { fn_sort_map_insert(map, found, pair); }
+// an effects' queue (std::map from a texture to a deque of EEEffect*, 12 bytes: engine_display.effect_queues): made,
+// emptied (the deques and nodes; the effects' references are the caller's)
+typedef void (__thiscall *effect_queue_new_fn)(void *);
+internal effect_queue_new_fn fn_effect_queue_new;
+internal inline void effect_queue_new(void *queue) { fn_effect_queue_new(queue); }
+typedef void (__thiscall *effect_queue_clear_fn)(void *);
+internal effect_queue_clear_fn fn_effect_queue_clear;
+internal inline void effect_queue_clear(void *queue) { fn_effect_queue_clear(queue); }
+// an object's reference given back (RTSObject: the count at +4, its slot 13 at the last): plain, not interlocked -
+// inside the world's lock only
+typedef void (__thiscall *object_release_fn)(void *);
+internal object_release_fn fn_object_release;
+internal inline void object_release(void *o) { fn_object_release(o); }
+// EEReleaseScene: the frame's lists, the effects' queues and the picker emptied (a game's end, a load): the graphics
+// thread's two calls of it; collect_copy.c gives back what the simulation's effects' queues hold first
+typedef void (__cdecl *scene_release_fn)(void);
+internal scene_release_fn fn_scene_release;
+internal inline void scene_release(void) { fn_scene_release(); }
+internal inline int patch_scene_release(scene_release_fn h, int *of) { return patch_calls(calls_scene_release, 2, (uintptr_t)fn_scene_release, (void *)h, of); }
 // thiscall(engine_display.pick_list, the unit, its record, its opacity): it into the list the mouse picks from
 typedef void (__thiscall *pick_list_add_fn)(void *, ee_unit *, void *, float);
 internal pick_list_add_fn fn_pick_list_add;
@@ -1054,6 +1082,12 @@ internal int spec_engine_display_select(int build) {
         data_engine_display_ro_water = 0x00943308;
         data_engine_display_ro_ui = 0x00943304;
         data_engine_display_pick_list = 0x009125D8;
+        data_engine_display_effect_queues = 0x008D2C78;
+        value_engine_display_of_map_effect_regions = 1578784;
+        value_engine_display_slot_effect_queue = 9;
+        value_engine_display_slot_effect_prepare = 11;
+        value_engine_display_of_effect_player = 32;
+        value_engine_display_of_effect_local_only = 45;
         data_engine_display_picker_lock = 0x00912874;
         data_engine_display_sort_maps = 0x008D2CB8;
         data_engine_display_units_walk = 0x00503E9F;
@@ -1149,6 +1183,12 @@ internal int spec_engine_display_select(int build) {
         fn_vector_clear = (vector_clear_fn)0x00526AFF;
         fn_vector_push = (vector_push_fn)0x00504F0A;
         fn_sort_map_insert = (sort_map_insert_fn)0x0044F431;
+        fn_effect_queue_new = (effect_queue_new_fn)0x00521704;
+        fn_effect_queue_clear = (effect_queue_clear_fn)0x00504FC8;
+        fn_object_release = (object_release_fn)0x004FCAD3;
+        fn_scene_release = (scene_release_fn)0x005042FE;
+        calls_scene_release[0] = 0x004FED15;
+        calls_scene_release[1] = 0x004FEE3B;
         fn_pick_list_add = (pick_list_add_fn)0x0050F6E2;
         fn_ground_point = (ground_point_fn)0x004C0201;
         fn_marker_place = (marker_place_fn)0x005EDB5E;
@@ -1354,6 +1394,12 @@ internal int spec_engine_display_select(int build) {
         data_engine_display_ro_water = 0x00965350;
         data_engine_display_ro_ui = 0x0096534C;
         data_engine_display_pick_list = 0x00928D78;
+        data_engine_display_effect_queues = 0x008E9418;
+        value_engine_display_of_map_effect_regions = 1660476;
+        value_engine_display_slot_effect_queue = 9;
+        value_engine_display_slot_effect_prepare = 11;
+        value_engine_display_of_effect_player = 32;
+        value_engine_display_of_effect_local_only = 45;
         data_engine_display_picker_lock = 0x00929014;
         data_engine_display_sort_maps = 0x008E9458;
         data_engine_display_units_walk = 0x0050EDDA;
@@ -1449,6 +1495,12 @@ internal int spec_engine_display_select(int build) {
         fn_vector_clear = (vector_clear_fn)0x005B5772;
         fn_vector_push = (vector_push_fn)0x0050FDA9;
         fn_sort_map_insert = (sort_map_insert_fn)0x0051005E;
+        fn_effect_queue_new = (effect_queue_new_fn)0x0056D077;
+        fn_effect_queue_clear = (effect_queue_clear_fn)0x0050FE93;
+        fn_object_release = (object_release_fn)0x00401DB4;
+        fn_scene_release = (scene_release_fn)0x0050F239;
+        calls_scene_release[0] = 0x00509828;
+        calls_scene_release[1] = 0x0050994E;
         fn_pick_list_add = (pick_list_add_fn)0x00519FFB;
         fn_ground_point = (ground_point_fn)0x004C0894;
         fn_marker_place = (marker_place_fn)0x005FBC3B;
@@ -1547,6 +1599,7 @@ internal int spec_engine_display_check(void) {
     bad += spec_data(data_engine_display_ro_water, "engine_display.ro_water");
     bad += spec_data(data_engine_display_ro_ui, "engine_display.ro_ui");
     bad += spec_data(data_engine_display_pick_list, "engine_display.pick_list");
+    bad += spec_data(data_engine_display_effect_queues, "engine_display.effect_queues");
     bad += spec_data(data_engine_display_picker_lock, "engine_display.picker_lock");
     bad += spec_data(data_engine_display_sort_maps, "engine_display.sort_maps");
     bad += spec_code(data_engine_display_units_walk, "engine_display.units_walk");
@@ -1615,6 +1668,12 @@ internal int spec_engine_display_check(void) {
     bad += spec_code((uintptr_t)fn_vector_clear, "engine_display_functions.vector_clear");
     bad += spec_code((uintptr_t)fn_vector_push, "engine_display_functions.vector_push");
     bad += spec_code((uintptr_t)fn_sort_map_insert, "engine_display_functions.sort_map_insert");
+    bad += spec_code((uintptr_t)fn_effect_queue_new, "engine_display_functions.effect_queue_new");
+    bad += spec_code((uintptr_t)fn_effect_queue_clear, "engine_display_functions.effect_queue_clear");
+    bad += spec_code((uintptr_t)fn_object_release, "engine_display_functions.object_release");
+    bad += spec_code((uintptr_t)fn_scene_release, "engine_display_functions.scene_release");
+    bad += spec_call(calls_scene_release[0], (uintptr_t)fn_scene_release, "engine_display_functions.scene_release [call_site scene_release 0]");
+    bad += spec_call(calls_scene_release[1], (uintptr_t)fn_scene_release, "engine_display_functions.scene_release [call_site scene_release 1]");
     bad += spec_code((uintptr_t)fn_pick_list_add, "engine_display_functions.pick_list_add");
     bad += spec_code((uintptr_t)fn_ground_point, "engine_display_functions.ground_point");
     bad += spec_code((uintptr_t)fn_marker_place, "engine_display_functions.marker_place");

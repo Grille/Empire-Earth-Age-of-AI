@@ -687,6 +687,12 @@ internal uint32_t data_engine_display_ro_units;
 internal uint32_t data_engine_display_ro_water;
 internal uint32_t data_engine_display_ro_ui;
 internal uint32_t data_engine_display_pick_list;
+internal uint32_t data_engine_display_effect_queues;
+internal uint32_t value_engine_display_of_map_effect_regions;
+internal uint32_t value_engine_display_slot_effect_queue;
+internal uint32_t value_engine_display_slot_effect_prepare;
+internal uint32_t value_engine_display_of_effect_player;
+internal uint32_t value_engine_display_of_effect_local_only;
 internal uint32_t data_engine_display_picker_lock;
 internal uint32_t data_engine_display_sort_maps;
 internal uint32_t data_engine_display_units_walk;
@@ -773,6 +779,7 @@ internal uint32_t value_engine_display_size_ghost_record;
 internal uint32_t value_engine_display_of_ghost_record_heights;
 internal uint32_t value_engine_display_of_ghost_record_cells;
 internal uint32_t value_engine_display_of_ghost_record_tile;
+internal uint32_t calls_scene_release[2];
 
 // engine_sound.cs
 internal uint32_t of_se_mixer_spim;
