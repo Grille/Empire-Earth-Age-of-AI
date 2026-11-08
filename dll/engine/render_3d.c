@@ -138,6 +138,7 @@ typedef struct {
     float sht[4];    // the water's share of a shadow, shadows all on, a caster's bias
     float shh[4];    // the hills' map: the world's x, y -> u, v; the soft edge, the bias (tiles); on
     float wat[4], sea[4];   // the water by its depth, the seabed's detail (render_water.c)
+    float rfa[4], rfb[4];   // the reflections: strength, wobble, on; the picture's place on the target (render_water.c)
 } rd3_pcb;
 // a draw's entry in the batch's table (the shaders' wt, 8 rows): its world matrix (_14: a tinted caster's size -
 // render_shadows.c), its material's diffuse, ambient and emissive, and a blended draw's runs (render_morph.c). The
@@ -160,10 +161,11 @@ internal const char k_rd3_shader[] =
     " float4 ldir[8]; float4 ldiff[8]; float4 lamb[8]; float4 gamb; int4 lit; int4 src; float4 fog;"
     " float4 vp; row_major float4x4 shm; float4 shk; float4 shp; float4 shx; float4 shy; float4 shz; float4 shl; float4 shs; float4 sha; float4 shf; };\n"
     "cbuffer p : register(b1) { int4 op; int4 aop; float4 fogc; float4 tf; float4 misc; float4 pshk; float4 shd; float4 sht;"
-    " float4 shh; float4 wat; float4 sea; };\n"
+    " float4 shh; float4 wat; float4 sea; float4 rfa; float4 rfb; };\n"
     "Buffer<float4> wt : register(t1);\n"   // the draws' entries, 8 rows each (rb_world)
     "Texture2D t : register(t0); SamplerState s : register(s0);\n"
     "Texture2D<float> sm : register(t2); SamplerComparisonState sc : register(s1);\n"   // the dynamic shadows' maps:
+    "Texture2D rfl : register(t6);\n"
     "Texture2D<float2> hm : register(t4); SamplerState hs : register(s2);\n"   // the casters', the hills' (render_shadows.c)
     "struct I { float3 p : POSITION; float3 n : NORMAL; float4 c : COLOR; float2 t : TEXCOORD; uint w : WORLD; };\n"
     RD3_MORPH_HLSL
@@ -234,6 +236,11 @@ internal const char k_rd3_shader[] =
     "  if (shh.w > 0) { float2 hh = hm.SampleLevel(hs, i.w.xy * shh.x, 0); bool og = shd.x == 1 || shd.x == 4;"
     "   hl = saturate(((og ? hh.y : hh.x - i.w.z) - (og ? 0.01 : shh.z)) / (og ? min(0.12, shh.y) : shh.y)); }"
     "  c.rgb *= lerp(1, i.k, max(1 - l / 9, hl) * i.q.w * (shd.x == 6 ? sht.x : 1)); }"
+    // the mirrored picture on the surface (render_water.c), moved a little by the water's own ripples; in that
+    // picture's own pass what lies under the level is left out
+    " if (rfa.z > 0 && shd.x == 6) { float2 ru = (i.p.xy - rfb.xy) * rfb.zw + (x.rg - 0.5) * rfa.y;"
+    "  float4 rc = rfl.SampleLevel(hs, ru, 0); c.rgb = lerp(c.rgb, rc.rgb, rc.a * rfa.x); c.a = lerp(c.a, 1, rc.a * rfa.x); }"
+    " if (sea.w > 0) { if (i.w.z < sea.z) discard; c.a = 1; }"
     " if (misc.y > 0.5) c.rgb = lerp(fogc.rgb, c.rgb, saturate(i.f));"
     " return c; }\n";
 
@@ -437,8 +444,8 @@ internal void rec_count(int role, DWORD nv);   // render_record.c: a draw's role
 internal ID3D11ShaderResourceView *g_mo_srv;   // the animation's pool (render_morph.c), bound with the list
 internal volatile LONG g_rp_state;   // the pipe's rprobe (below)
 #include "render_frame.c"     // the frame recorded and drawn at once
-#include "render_water.c"     // the water by its depth ([display] water_look)
 #include "render_shadows.c"   // the dynamic shadows ([display] shadows = dynamic)
+#include "render_water.c"     // the water by its depth, its reflections ([display] water_look, water_reflections)
 #include "render_morph.c"     // the units' animation blended on the graphics card ([display] gpu_animation)
 #include "render_fxaa.c"      // the picture's sharpness ([display] antialias, anisotropy)
 

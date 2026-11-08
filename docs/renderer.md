@@ -934,3 +934,11 @@ objects out of the picture). Probed 2026-11-04 in a Continental game at 8 min (e
 - No upright flat sprites: of 2882 unit draws 2429 are solid meshes; the flat ones lie on the ground (decals - 277
   unlit 128x128, 56 untextured, a few lit) - those must not cast. 3 nearly flat upright draws of 56 vertices (a
   0.12 x 0.04 x 0.06 part scaled 2x). Buildings under construction are drawn translucent (alpha test 7).
+
+## The water (2026-11-08)
+
+`[display] water_look` and `water_reflections` (dll/engine/render_water.c, the pipe's `water`; both need dynamic shadows, the first the hills too).
+The game draws the surface at one alpha over the seabed, and paints the depth into the seabed's vertices (turquoise shallows, dark deeps): that colour is the look, so it stays.
+- By the depth: the hills' map holds the ground (its ceiling less its second number), so the surface's shader knows the depth under a pixel. The surface is thinner in the shallows and thins out to nothing over the last 0.05 at the shore; the seabed's texture goes toward its last mip level with the depth.
+- Tried and dropped: the surface thicker with the depth (the sea went one flat blue with more white caps); the ground darkened at the waterline by its height (land on an island map lies within hundredths of the level: whole tiles went dark).
+- Reflections: the units, buildings and trees on the screen drawn again mirrored about the level into a picture of half the size before the list, the surface takes 35% of it (moved by its ripples). Tree cards (SH_AWAY) are left out: they are stand-ins for the shadow. The ground isn't mirrored.

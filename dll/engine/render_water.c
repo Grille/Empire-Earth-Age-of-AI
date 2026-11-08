@@ -16,7 +16,18 @@ internal struct {
     float edge;      // the depth (tiles) over which the surface thins out to nothing at the shore
     float sea;       // how much of the seabed's texture detail the deep takes away (0..1)
     float seadepth;  // the depth (tiles) by which 63% of that is gone
-} g_wa = { .on = -1, .fog = 0.35f, .shallow = 0.75f, .deep = 1.0f, .edge = 0.05f, .sea = 0.75f, .seadepth = 0.35f };
+    int mirror;      // the reflections, -1: as the ini says
+    float strength;  // how much of the surface a reflection takes
+    float wobble;    // how far the water's ripples move it (of the picture)
+    int failed, in_pass, drawn;   // its target could not be made; being drawn; one drawn
+    int w, h;        // the target's size
+    float rfb[4];    // the picture's place on the screen: its x, y; 1 / its width, height
+    ID3D11Texture2D *tex, *dtex;
+    ID3D11RenderTargetView *rtv;
+    ID3D11DepthStencilView *dsv;
+    ID3D11ShaderResourceView *srv;
+    ID3D11RasterizerState *raster;
+} g_wa = { .on = -1, .fog = 0.35f, .shallow = 0.75f, .deep = 1.0f, .edge = 0.05f, .sea = 0.75f, .seadepth = 0.35f, .mirror = -1, .strength = 0.35f, .wobble = 0.012f };
 
 internal void rd3_water_pc(rd3_pcb *pc, float level, int water_seen) {
     int on = (g_wa.on < 0 ? g_set.water_look : g_wa.on) && water_seen;
@@ -27,9 +38,108 @@ internal void rd3_water_pc(rd3_pcb *pc, float level, int water_seen) {
     pc->sea[0] = on ? g_wa.sea : 0;
     pc->sea[1] = 1 / g_wa.seadepth;
     pc->sea[2] = level;
+    pc->rfa[0] = g_wa.strength;
+    pc->rfa[1] = g_wa.wobble;
+    pc->rfa[2] = g_wa.drawn && water_seen ? 1.0f : 0.0f;
+    memcpy(pc->rfb, g_wa.rfb, sizeof pc->rfb);
+}
+
+// THE REFLECTIONS ([display] water_reflections): before the list is drawn, what stands in the world - the units,
+// buildings and trees on the screen - is drawn again mirrored about the water's level into a picture of half the size, and the surface takes a part of it where
+// something was drawn. The ground isn't: the land lies within hundredths of the level on most maps. A list without
+// casters leaves the last picture (a frame's list is drawn in parts).
+internal void rd3_water_bind(ID3D11DeviceContext *x) {
+    ID3D11ShaderResourceView *srv = g_wa.drawn && !g_wa.in_pass ? g_wa.srv : NULL;
+    ID3D11DeviceContext_PSSetShaderResources(x, 6, 1, &srv);
+}
+internal int rw_role(int role) { return role == SH_CAST || role == SH_TINT || role == SH_TREE; }   // not SH_AWAY: a tree's stand-in card among them
+internal int rw_target(int w, int h) {
+    if (g_wa.tex && g_wa.w == w && g_wa.h == h) return 1;
+    if (g_wa.failed) return 0;
+    D3D_RELEASE(g_wa.srv); D3D_RELEASE(g_wa.rtv); D3D_RELEASE(g_wa.dsv); D3D_RELEASE(g_wa.tex); D3D_RELEASE(g_wa.dtex);
+    ID3D11Device *dv = g_d3d.dev;
+    D3D11_TEXTURE2D_DESC td = { (UINT)w, (UINT)h, 1, 1, DXGI_FORMAT_R8G8B8A8_UNORM, { 1, 0 }, D3D11_USAGE_DEFAULT,
+                                D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE, 0, 0 };
+    D3D11_TEXTURE2D_DESC dd = td;
+    dd.Format = DXGI_FORMAT_D32_FLOAT; dd.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+    HRESULT hr = ID3D11Device_CreateTexture2D(dv, &td, NULL, &g_wa.tex);
+    if (SUCCEEDED(hr)) hr = ID3D11Device_CreateTexture2D(dv, &dd, NULL, &g_wa.dtex);
+    if (SUCCEEDED(hr)) hr = ID3D11Device_CreateRenderTargetView(dv, (ID3D11Resource *)g_wa.tex, NULL, &g_wa.rtv);
+    if (SUCCEEDED(hr)) hr = ID3D11Device_CreateDepthStencilView(dv, (ID3D11Resource *)g_wa.dtex, NULL, &g_wa.dsv);
+    if (SUCCEEDED(hr)) hr = ID3D11Device_CreateShaderResourceView(dv, (ID3D11Resource *)g_wa.tex, NULL, &g_wa.srv);
+    if (SUCCEEDED(hr) && !g_wa.raster) {
+        D3D11_RASTERIZER_DESC rs = { D3D11_FILL_SOLID, D3D11_CULL_NONE, FALSE, 0, 0, 0, TRUE, FALSE, FALSE, FALSE };   // mirrored: the faces turn
+        hr = ID3D11Device_CreateRasterizerState(dv, &rs, &g_wa.raster);
+    }
+    if (FAILED(hr)) { g_wa.failed = 1; g_wa.drawn = 0; rd_fail("the water's reflections", hr); return 0; }
+    g_wa.w = w; g_wa.h = h;
+    return 1;
+}
+internal void rd3_water_reflect(void) {
+    int on = g_wa.mirror < 0 ? g_set.water_reflections : g_wa.mirror;
+    if (!on || !g_sh.on || g_sh.ready <= 0 || !g_sh.water_on) { g_wa.drawn = 0; return; }
+    const rf_cmd *fc = NULL;
+    for (int i = 0; i < g_rf.n && !fc; i++)
+        if (rw_role(g_rf.cmd[i].role) && g_rf.cmd[i].topo == D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST) fc = &g_rf.cmd[i];
+    if (!fc) return;
+    D3D11_VIEWPORT port = rs_port(&fc->vport, fc->rtv);
+    int w = (int)port.Width / 2, h = (int)port.Height / 2;
+    if (w < 1 || h < 1 || !rw_target(w, h)) return;
+    g_wa.rfb[0] = port.TopLeftX; g_wa.rfb[1] = port.TopLeftY;
+    g_wa.rfb[2] = 1 / port.Width; g_wa.rfb[3] = 1 / port.Height;
+    ID3D11DeviceContext *x = g_d3d.ctx;
+    static const float clear[4] = { 0, 0, 0, 0 };
+    g_wa.in_pass = 1;
+    ID3D11DeviceContext_OMSetRenderTargets(x, 0, NULL, NULL);
+    rf_bind(x);
+    ID3D11DeviceContext_ClearRenderTargetView(x, g_wa.rtv, clear);
+    ID3D11DeviceContext_ClearDepthStencilView(x, g_wa.dsv, D3D11_CLEAR_DEPTH, 1, 0);
+    ID3D11DeviceContext_OMSetRenderTargets(x, 1, &g_wa.rtv, g_wa.dsv);
+    D3D11_VIEWPORT vp = { 0, 0, (FLOAT)w, (FLOAT)h, 0, 1 };
+    ID3D11DeviceContext_RSSetViewports(x, 1, &vp);
+    ID3D11DeviceContext_RSSetState(x, g_wa.raster);
+    ID3D11DeviceContext_OMSetBlendState(x, NULL, NULL, 0xFFFFFFFF);
+    ID3D11DeviceContext_IASetPrimitiveTopology(x, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    float mirror[16] = { 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, -1, 0, 0, 0, 2 * g_sh.level, 1 };
+    int lvc = -1, lpc = -1, lro = -1;
+    void *ld = NULL, *ls = NULL;
+    ID3D11ShaderResourceView *lt = (ID3D11ShaderResourceView *)1;
+    for (int i = 0; i < g_rf.n; i++) {
+        const rf_cmd *c = &g_rf.cmd[i];
+        if (!rw_role(c->role) || c->topo != D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST) continue;
+        if (c->depth != ld) { ld = c->depth; ID3D11DeviceContext_OMSetDepthStencilState(x, c->depth, 0); }
+        if (c->srv != lt) { lt = c->srv; ID3D11DeviceContext_PSSetShaderResources(x, 0, 1, &lt); }
+        if (c->samp != ls) { ls = c->samp; ID3D11DeviceContext_PSSetSamplers(x, 0, 1, (ID3D11SamplerState **)&c->samp); }
+        if (c->vc != lvc || c->ro != lro) {
+            float t[16];
+            rd3_vcb vc = g_rf.vcs[c->vc];
+            rd3_shadow_vc(&vc);
+            rf_shift(&vc, c->ro);
+            rd3_mul(t, mirror, vc.vpm);
+            memcpy(vc.vpm, t, sizeof t);
+            vc.shp[0] = 0;   // no shadows in it
+            ID3D11DeviceContext_UpdateSubresource(x, (ID3D11Resource *)g_rd3.vcb, 0, NULL, &vc, 0, 0);
+            lvc = c->vc; lro = c->ro;
+        }
+        if (c->pc != lpc) {
+            rd3_pcb pc = g_rf.pcs[c->pc];
+            rd3_shadow_pc(&pc);
+            pc.shd[0] = 0;
+            pc.misc[1] = 0;   // the fog comes with the surface
+            pc.rfa[2] = 0;
+            pc.sea[3] = 1;    // what lies under the level left out, alpha 1
+            ID3D11DeviceContext_UpdateSubresource(x, (ID3D11Resource *)g_rd3.pcb, 0, NULL, &pc, 0, 0);
+            lpc = c->pc;
+        }
+        ID3D11DeviceContext_DrawIndexed(x, c->n, c->at, c->base);
+    }
+    ID3D11DeviceContext_OMSetRenderTargets(x, 0, NULL, NULL);
+    g_wa.in_pass = 0;
+    g_wa.drawn = 1;
 }
 
 // the pipe: water [on | off] | fog <depth> | shallow <times> | deep <times> | edge <depth> | sea <0..1> | seadepth <depth>
+// | mirror on | off | strength <0..1> | wobble <of the picture>
 internal void cmd_water(char *out, const char *args) {
     char mode[32] = "";
     float v = 0;
@@ -42,8 +152,12 @@ internal void cmd_water(char *out, const char *args) {
     else if (n == 2 && !strcmp(mode, "edge") && v > 0) g_wa.edge = v;
     else if (n == 2 && !strcmp(mode, "sea") && v >= 0 && v <= 1) g_wa.sea = v;
     else if (n == 2 && !strcmp(mode, "seadepth") && v > 0) g_wa.seadepth = v;
-    else if (n >= 1) { REPLY("error: usage: water [on | off] | fog <depth> | shallow <times> | deep <times> | edge <depth> | sea <0..1> | seadepth <depth>\n"); return; }
-    REPLY("water: %s, fog %.2f, shallow %.2f, deep %.2f, edge %.2f, sea %.2f by %.2f\n",
+    else if (n == 2 && !strcmp(mode, "strength") && v >= 0 && v <= 1) g_wa.strength = v;
+    else if (n == 2 && !strcmp(mode, "wobble") && v >= 0) g_wa.wobble = v;
+    else if (!strcmp(mode, "mirror")) { char a[8] = ""; sscanf(args, "%*s %7s", a); if (!strcmp(a, "on")) g_wa.mirror = 1; else if (!strcmp(a, "off")) g_wa.mirror = 0; }
+    else if (n >= 1) { REPLY("error: usage: water [on | off] | fog <depth> | shallow <times> | deep <times> | edge <depth> | sea <0..1> | seadepth <depth> | mirror on | off | strength <0..1> | wobble <of the picture>\n"); return; }
+    REPLY("water: %s, fog %.2f, shallow %.2f, deep %.2f, edge %.2f, sea %.2f by %.2f; reflections %s, strength %.2f, wobble %.3f\n",
           (g_wa.on < 0 ? g_set.water_look : g_wa.on) ? "on" : "off", (double)g_wa.fog, (double)g_wa.shallow, (double)g_wa.deep,
-          (double)g_wa.edge, (double)g_wa.sea, (double)g_wa.seadepth);
+          (double)g_wa.edge, (double)g_wa.sea, (double)g_wa.seadepth,
+          (g_wa.mirror < 0 ? g_set.water_reflections : g_wa.mirror) ? (g_wa.drawn ? "on" : "on, nothing drawn") : "off", (double)g_wa.strength, (double)g_wa.wobble);
 }

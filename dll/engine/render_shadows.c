@@ -724,6 +724,8 @@ internal void rd3_shadow_vc(rd3_vcb *vc) {
     memcpy(vc->shk, g_sh.shk, sizeof vc->shk);
     vc->shp[3] = g_sh.inv_depth;
 }
+internal void rd3_water_pc(rd3_pcb *pc, float level, int water_seen);   // render_water.c
+internal void rd3_water_bind(ID3D11DeviceContext *x);
 internal void rd3_shadow_pc(rd3_pcb *pc) {
     pc->shd[2] = g_sh.valid ? 1.0f : 0.0f;
     memcpy(pc->shk, g_sh.shk, sizeof pc->shk);
@@ -748,6 +750,7 @@ internal void rd3_shadow_bind(ID3D11DeviceContext *x) {
         ID3D11DeviceContext_PSSetSamplers(x, 1, 1, &g_sh.cmp);
         ID3D11DeviceContext_PSSetSamplers(x, 2, 1, &g_sh.lin);
     }
+    rd3_water_bind(x);
 }
 // the shadows' part in the constants as the draw is recorded: its role (the map's matrix and colour come when the list
 // is drawn)

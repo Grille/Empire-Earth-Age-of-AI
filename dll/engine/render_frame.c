@@ -470,6 +470,7 @@ internal void rd3_shadow_frame(void);
 internal void rd3_shadow_vc(rd3_vcb *vc);
 internal void rd3_shadow_pc(rd3_pcb *pc);
 internal void rd3_shadow_bind(ID3D11DeviceContext *x);
+internal void rd3_water_reflect(void);   // render_water.c
 internal int rd3_shadow_only(int role);
 internal void rd3_fxaa(ID3D11RenderTargetView *rtv, const D3D11_VIEWPORT *vp);
 // The camera as it is now on every 3D draw (rf_shift, as the list is drawn): the camera's move and its zoom turn and
@@ -647,6 +648,7 @@ internal void rf_replay(void) {
     LONGLONG t0 = rd_qpc();
     ID3D11DeviceContext *x = g_d3d.ctx;
     rd3_shadow_frame();   // the maps from the list's casters and ground (nothing while the shadows are the game's)
+    rd3_water_reflect();  // the mirrored picture for the water's surface
     rf_bind(x);
     // what is bound, set again where a batch's differs
     rf_cmd b;

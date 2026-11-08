@@ -159,6 +159,9 @@ class display
         /// The own renderer with dynamic shadows only: the water by its depth - the seabed loses its detail the deeper
         /// it lies, the shallows clearer, the shore without a hard line (the control pipe: water on / off):
         bool water_look = false;
+        /// The own renderer with dynamic shadows only: units, buildings and trees mirrored in the water, drawn a second
+        /// time at half the picture's size (the control pipe: water mirror on / off):
+        bool water_reflections = false;
         /// The own renderer only: the units' animation blended by the graphics card - each frame of a model kept there
         /// once, instead of the game blending two frames on the CPU and the renderer uploading the result at every
         /// draw (the control pipe: picture morph on / off):
