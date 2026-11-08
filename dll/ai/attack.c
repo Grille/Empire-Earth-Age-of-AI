@@ -652,6 +652,7 @@ internal ee_unit *unit_at(int x, int y, int type) {
 // 0 = refused (dead, off the map, or +0x33B): the goal is deleted then (its vf0, as the game's callers do) - the
 // caller must not touch it any more (a load goal: no parts from it)
 internal int shore_gun(unsigned idx, ee_unit *u);   // defence.c: a gun posted by a dock (shore_guns)
+internal int tn_garrison(unsigned idx, ee_unit *u);   // towns.c: a soldier of a town's garrison (towns fort)
 internal int g_sg_order;   // set by the shore guns around their own orders (defence.c)
 internal int unit_goal(ee_unit *u, ee_goal *goal, int append, unsigned state) {
     if (!goal) return 0;
@@ -659,7 +660,7 @@ internal int unit_goal(ee_unit *u, ee_goal *goal, int append, unsigned state) {
     // a shore gun takes orders from the shore guns only (the player: "in a line beside a hospital in hold position mode,
     // they should not try to chase or get attack commands")
     if (unit_get_hp(u) <= 0 || unit_get_x(u) == -10000 || ((char)unit_get_frozen(u)) ||
-        (!g_sg_order && uo && shore_gun((unsigned)player_get_index(uo) & 15, u))) {
+        (!g_sg_order && uo && (shore_gun((unsigned)player_get_index(uo) & 15, u) || tn_garrison((unsigned)player_get_index(uo) & 15, u)))) {
         ((void (__thiscall *)(void *, int))(*(void ***)goal)[0])(goal, 1);
         return 0;
     }

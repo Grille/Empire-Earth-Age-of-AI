@@ -72,10 +72,20 @@
 //   that's ok"; towns_max doesn't apply): a new town needs TN_SPREAD_WORKERS workers for every town it would then
 //   hold. The safety checks (army outmatched, enemies in its base, one at a time) stay. With towns_care (on) the spot and
 //   its way must be safe (tn_safe; more parts measured, off: TN_CARE).
+// 128 FORT (the player 2026-11-08: "inland they also usefull, if an island/region (land maps) isnt fully claimed yet the ai
+//   should reinforce its outposts"; expand.c FORT on other islands): a resource town while its continent isn't fully claimed
+//   - an enemy building known on it, or an explored mine with no drop site within 18 tiles, decided from what is there, not by
+//   the map's kind: at least 4 towers, the first four on the corners of a square round the mine nearest its drop site (defence.c
+//   SITE FORTS' square), rebuilt up to 8 times and never dropped for want of money; walls on the three sides away from the drop
+//   site once two towers stand; a garrison on foot, held from the game's commander and the force (armies.c ar_take: only
+//   soldiers at home, never those out on a push), one soldier per three citizens, 3 at least, 8 with enemies seen there in
+//   the last 5 minutes, 12 at most, a quarter of its soldiers over all towns. It takes orders from here only and goes back to
+//   the game when the town is lost or the continent claimed.
 #define TN_MAX 128   // a table size, not a limit
 #define TN_SPREAD_WORKERS 15
 #define TN_SPREAD_BUILDING 50
 #define TN_PROJ 24
+#define TN_GARRISON 12
 enum { TK_DROP, TK_TOWER, TK_PROD, TK_HOUSE, TK_N };
 internal const char *const k_tk[TK_N] = { "drop site", "tower", "production building", "house" };
 struct tn_proj { ee_unit *b; int id, kind, type, want, state, tries, waits; ivec2 p; };   // want: a production building's type   // state 0 to come, 1 going up, 2 standing, 3 dropped
@@ -88,6 +98,9 @@ struct tn_town {
     ee_unit *cit[12]; int cid[12], ncit; uint8_t sent_mine[12];   // sent_mine: assigned to the town's mines once - the game's economy's from then on
     uint32_t t, plan_t;
     uint32_t hurt_t;                 // a building of it destroyed or a citizen of it killed (towns_care)
+    struct sfort fort; int fort_set; // FORT: its square (defence.c), walls ordered every fwall_t
+    uint32_t fwall_t, gar_t, foe_t;  // FORT: walls and garrison last looked at, enemies seen there last
+    ee_unit *gar[TN_GARRISON]; int gid[TN_GARRISON], ngar;   // FORT: its garrison
 };
 internal struct tn_st {
     uint32_t t, plan_t, log_t;
@@ -98,10 +111,13 @@ internal struct tn_st {
     uint32_t lost_t;   // its last town lost (towns_care: a pause)
     ee_unit *scout; int scout_id; uint32_t scout_t;   // SPREAD's scout
     uint32_t fsave;   // saving for a forward base since (0: not)
+    int open;         // FORT: its continent isn't fully claimed (tn_plan)
     const char *why;
 } g_tn[16];
 internal int g_towns = 0, g_v_towns = -1, g_tn_max = 3, g_tn_cits = 6, g_tn_towers = 2, g_tn_remove = 0;
 #define TOWNS(idx) PV(idx, g_v_towns, g_towns)
+#define TN_FORT(idx) (TOWNS(idx) & 128)
+#define TN_TRIES(idx, kind) (TN_FORT(idx) && (kind) == TK_TOWER ? 8 : 3)   // times a building is laid
 
 internal PRINTF_LIKE(3, 4) void tn_say(unsigned idx, uint32_t now, const char *fmt, ...) {
     if (!g_log) return;
@@ -503,6 +519,7 @@ internal void tn_found(ee_player *pl, unsigned idx, struct tn_st *s, ivec2 c, in
         // defence, up to 5 for the full bonus"): 2 towers and 1 more for every 4 mines of its group, and 5 houses
         int towers = (TOWNS(idx) & 16) ? 2 + nmines / 4 : g_tn_towers;
         if (towers < g_tn_towers) towers = g_tn_towers;
+        if (TN_FORT(idx) && towers < 4) towers = 4;
         for (int k = 0; k < towers && t->nproj < TN_PROJ - 5; k++) t->proj[t->nproj++].kind = TK_TOWER;
         for (int k = 0; (TOWNS(idx) & 16) && k < TN_HOUSES && t->nproj < TN_PROJ; k++) t->proj[t->nproj++].kind = TK_HOUSE;
     }
@@ -530,7 +547,119 @@ internal void tn_take_cits(ee_player *pl, unsigned idx, struct tn_town *t, int n
         cand[bj] = cand[--nc];
     }
 }
+internal int ar_take(ee_player *pl, ee_unit *u);   // armies.c
+internal int tn_garrison(unsigned idx, ee_unit *u) {
+    if (!u || !TN_FORT(idx)) return 0;
+    for (int k = 0; k < TN_MAX; k++)
+        for (int j = 0; g_tn[idx].town[k].state && j < g_tn[idx].town[k].ngar; j++) if (g_tn[idx].town[k].gar[j] == u) return 1;
+    return 0;
+}
+// the garrison back to the game (the force takes it up as any free soldier)
+internal void tn_gar_release(ee_player *pl, struct tn_town *t) {
+    ee_combat_mgr *cm = player_get_combat_mgr(pl);
+    for (int k = 0; k < t->ngar; k++) {
+        ee_unit *u = t->gar[k];
+        if (!u || unit_get_hp(u) <= 0 || unit_get_id(u) != t->gid[k] || unit_get_owner(u) != pl) continue;
+        unit_set_ai_held(u, 0);
+        if (cm) combat_mgr_register_unit(cm, u);
+    }
+    t->ngar = 0;
+}
+internal void tn_garrison_run(ee_player *pl, unsigned idx, struct tn_st *s, struct tn_town *t, unsigned hc, int drop_ok, uint32_t now) {
+    int m = 0;
+    for (int k = 0; k < t->ngar; k++) {
+        ee_unit *u = t->gar[k];
+        if (u && unit_get_hp(u) > 0 && unit_get_id(u) == t->gid[k] && unit_get_owner(u) == pl) { t->gar[m] = u; t->gid[m++] = t->gid[k]; }
+    }
+    t->ngar = m;
+    int foe = raiders_near(pl, t->c, 15);
+    if (foe) t->foe_t = now ? now : 1;
+    if (!s->open) { tn_gar_release(pl, t); return; }
+    if (!drop_ok) return;
+    int want = t->ncit / 3 > 3 ? t->ncit / 3 : 3;
+    if (t->foe_t && now - t->foe_t < 300000 && want < 8) want = 8;
+    if (want > TN_GARRISON) want = TN_GARRISON;
+    if (t->ngar < want && (!t->gar_t || now - t->gar_t >= 20000) && !base_threatened(idx)) {
+        t->gar_t = now ? now : 1;
+        float mine, theirs;
+        ee_combat_mgr *am = player_get_combat_mgr(pl);
+        struct { ee_unit *u; int d; } cand[64];
+        int nc = 0, all = 0, kept = 0;
+        for (int k = 0; k < TN_MAX; k++) if (s->town[k].state) kept += s->town[k].ngar;
+        for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
+            ee_unit *u = it.u;
+            int ty = unit_type_get_id(it.td);
+            if (unit_get_owner(u) != pl || unit_get_hp(u) <= 0 || unit_get_x(u) < 0 || unit_get_frozen(u) || !land_soldier(ty) || !is_soldier(it.td) || is_ship_or_air(it.td) ||
+                is_transport(ty) || is_siege(ty)) continue;
+            all++;
+            if ((unsigned)area_id(unit_get_tile(u), 2) != hc || unit_fighting(u) || landing_has_unit(pl, u) || tn_garrison(idx, u)) continue;
+            int d = ivec2_dist2(unit_get_tile(u), t->c);
+            if (nc < 64) { cand[nc].u = u; cand[nc++].d = d; }
+            else { int wj = 0; for (int j = 1; j < 64; j++) if (cand[j].d > cand[wj].d) wj = j; if (d < cand[wj].d) { cand[wj].u = u; cand[wj].d = d; } }
+        }
+        int room = all / 4 - kept, take = want - t->ngar > 4 ? 4 : want - t->ngar;
+        if (take > room) take = room;
+        if (take > 0 && !ex_outmatched(pl, &mine, &theirs)) {
+            while (take > 0 && nc > 0) {
+                int bj = 0;
+                for (int j = 1; j < nc; j++) if (cand[j].d < cand[bj].d) bj = j;
+                ee_unit *u = cand[bj].u;
+                cand[bj] = cand[--nc];
+                if (unit_get_ai_held(u) ? !ar_take(pl, u) : !am || !combat_mgr_unit_free(am, unit_get_physics(u))) continue;
+                if (!unit_get_ai_held(u)) player_hold_unit(pl, u);
+                t->gar[t->ngar] = u; t->gid[t->ngar++] = unit_get_id(u);
+                s->guards++; take--;
+            }
+        }
+    }
+    if (foe) return;   // they fight what comes; walked back once it's over
+    g_sg_order = 1;
+    for (int k = 0; k < t->ngar; k++) {
+        ee_unit *u = t->gar[k];
+        if (ivec2_dist2(unit_get_tile(u), t->c) > 8 * 8 && !unit_get_goal(u)) s->orders += unit_goal(u, goal_move((float)t->c.x + 0.5f, (float)t->c.y + 0.5f), 0, 0x1F40);
+    }
+    g_sg_order = 0;
+}
+// FORT: its square, round the mine nearest the drop site; the side towards the drop site stays open for the citizens
+internal void tn_fort_set(ee_player *pl, unsigned idx, struct tn_town *t, unsigned hc, uint32_t now) {
+    if (t->fort_set) return;
+    ivec2 mid = t->proj[0].p, c = mid;
+    int bd = 0x7FFFFFFF, half = 0;
+    ee_zone **zb = player_get_zones_begin(pl); ee_zone **ze = player_get_zones_end(pl);
+    for (int z = 0; zb && zb + z < ze && z < 256; z++) {
+        ee_zone *zone = zb[z];
+        void **sb = zone ? zone_get_sites_begin(zone) : NULL, **se = zone ? zone_get_sites_end(zone) : NULL;
+        for (int k = 0; sb && sb + k < se && k < 4096; k++) {
+            ee_unit *m = sb[k];
+            int r = m ? unit_get_resource(m) : 0;
+            if (r < 4 || r > 6 || unit_get_amount(m) <= 0) continue;
+            ivec2 sp = unit_get_tile(m);
+            int d = ivec2_dist2(sp, mid);
+            if (d >= bd || (unsigned)area_id(sp, 2) != hc) continue;
+            ee_unit_type *td = unit_get_type_data(m);
+            int sz = td ? unit_type_get_size(td) : 0;
+            bd = d; c = sp; half = sz > 1 && sz < 8 ? sz / 2 : 0;
+        }
+    }
+    c = iv2(c.x + half, c.y + half);
+    memset(&t->fort, 0, sizeof t->fort);
+    t->fort.x = c.x; t->fort.y = c.y; t->fort.t = now ? now : 1;
+    int gx = mid.x - c.x, gy = mid.y - c.y;
+    t->fort.open = abs(gx) >= abs(gy) ? (gx < 0 ? 0 : 1) : (gy < 0 ? 2 : 3);
+    t->fort_set = 1;
+    tn_say(idx, now, "a fort round the mine at %d,%d, open on side %d (its drop site at %d,%d)", c.x, c.y, t->fort.open, mid.x, mid.y);
+}
+// FORT: the walls, once two corners stand and no enemy is near
+internal void tn_fort_walls(ee_player *pl, unsigned idx, struct tn_town *t, uint32_t now) {
+    if (!t->fort_set || (t->fwall_t && now - t->fwall_t < 20000) || raiders_near(pl, t->c, 12)) return;
+    int up = 0;
+    for (int j = 0; j < t->nproj; j++) up += t->proj[j].kind == TK_TOWER && t->proj[j].state == 2;
+    void *wm = civ_mgr_get_wall_mgr(player_get_civ_mgr(pl));
+    if (up >= 2 && wm) { t->fwall_t = now ? now : 1; sf_walls(pl, idx, &t->fort, wm, player_stock_at(pl), now); }
+}
 internal void tn_lost(unsigned idx, struct tn_st *s, struct tn_town *t, uint32_t now) {
+    ee_unit *any_gar = t->ngar ? t->gar[0] : NULL;
+    if (any_gar && unit_get_owner(any_gar)) tn_gar_release(unit_get_owner(any_gar), t);
     int k;
     for (k = 0; k < s->nbad && ivec2_dist2(s->bad[k].c, t->c) >= 12 * 12; k++) ;
     if (k == s->nbad && s->nbad < 16) { s->bad[k].c = t->c; s->bad[k].losses = 0; s->nbad++; }
@@ -547,8 +676,8 @@ internal void tn_run(ee_player *pl, unsigned idx, struct tn_st *s, struct tn_tow
         struct tn_proj *p = &t->proj[j];
         if (p->state == 1 || p->state == 2) {
             if (!tn_alive(p)) {
-                tn_say(idx, now, "%s %d at %d,%d destroyed%s", k_tk[p->kind], p->type, p->p.x, p->p.y, p->tries < 3 ? " - laid again" : "");
-                p->b = NULL; p->state = p->tries < 3 ? 0 : 3;
+                tn_say(idx, now, "%s %d at %d,%d destroyed%s", k_tk[p->kind], p->type, p->p.x, p->p.y, p->tries < TN_TRIES(idx, p->kind) ? " - laid again" : "");
+                p->b = NULL; p->state = p->tries < TN_TRIES(idx, p->kind) ? 0 : 3;
                 t->hurt_t = now ? now : 1;
                 if (p->state == 0) s->rebuilt++;
                 continue;
@@ -601,7 +730,8 @@ internal void tn_run(ee_player *pl, unsigned idx, struct tn_st *s, struct tn_tow
         t->state = 0;
         return;
     }
-    tn_wall(pl, idx, t, now);
+    if (TN_FORT(idx) && !t->forward) { tn_fort_walls(pl, idx, t, now); tn_garrison_run(pl, idx, s, t, hc, drop_ok, now); }
+    else tn_wall(pl, idx, t, now);
     if (t->state == 1 && t->forward && standing + dropped == t->nproj) t->ncit = 0;   // its citizens back to the game
     if (t->state == 1 && drop_ok && standing + dropped == t->nproj) { t->state = 2; s->held++; tn_say(idx, now, "the town at %d,%d stands (%d buildings)", t->c.x, t->c.y, standing); }
     if (hot) return;
@@ -616,7 +746,7 @@ internal void tn_run(ee_player *pl, unsigned idx, struct tn_st *s, struct tn_tow
             if (p->kind != TK_DROP && !drop_ok && !t->proj[0].state) break;
             int ty = tn_kind_type(pl, p->kind, p->want);
             ivec2 at = iv2(0, 0), c = t->c;
-            if (!ty) { if (p->kind != TK_DROP && ++p->waits > 30) { p->state = 3; tn_say(idx, now, "no %s it can pay for 4 minutes - dropped", k_tk[p->kind]); } break; }
+            if (!ty) { if (p->kind != TK_DROP && !(TN_FORT(idx) && p->kind == TK_TOWER) && ++p->waits > 30) { p->state = 3; tn_say(idx, now, "no %s it can pay for 4 minutes - dropped", k_tk[p->kind]); } break; }
             if (p->kind == TK_PROD && !t->forward && t->proj[0].state) c = t->proj[0].p;
             if (p->kind == TK_PROD && t->forward) {   // behind the towers
                 float ax = (float)(t->toward.x - t->c.x), ay = (float)(t->toward.y - t->c.y), l = sqrtf(ax * ax + ay * ay);
@@ -630,6 +760,12 @@ internal void tn_run(ee_player *pl, unsigned idx, struct tn_st *s, struct tn_tow
                 for (int k = 0; k < j; k++) nth += t->proj[k].kind == TK_TOWER;
                 ang += (nth & 1 ? 1 : -1) * (0.6f + 0.6f * (float)(nth / 2)) * (l > 1 ? 1.0f : 2.6f);
                 c = iv2(d0.x + (int)lroundf(5 * cosf(ang)), d0.y + (int)lroundf(5 * sinf(ang)));
+            }
+            if (p->kind == TK_TOWER && TN_FORT(idx) && !t->forward && t->proj[0].state) {   // FORT: the first four on its corners
+                tn_fort_set(pl, idx, t, hc, now);
+                int nth = 0;
+                for (int k = 0; k < j; k++) nth += t->proj[k].kind == TK_TOWER;
+                if (nth < 4) sf_corner(&t->fort, nth, &c.x, &c.y);
             }
             if (tier_refuses(pl, ty)) break;   // spend_tiers: an outpost's turn first
             if (!tn_spot(pl, idx, t, ty, c, hc, &at)) { if (++p->waits > 30 && p->kind != TK_DROP) p->state = 3; break; }
@@ -901,6 +1037,26 @@ internal int tn_surplus(ee_player *pl) {
     for (int r = 2; r < 7 && stock; r++) if (stock[r] < 2 * unit_cost(pl, tc, r)) return 0;
     return stock != NULL;
 }
+// FORT: its continent isn't fully claimed - an enemy building it knows on it, or an explored mine no drop site is near
+internal int tn_open(ee_player *pl, unsigned hc, struct tn_world *w) {
+    for (int k = 0; k < w->nf; k++) if ((unsigned)area_id(w->foe[k], 2) == hc) return 1;
+    ee_zone **zb = player_get_zones_begin(pl); ee_zone **ze = player_get_zones_end(pl);
+    for (int z = 0; zb && zb + z < ze && z < 256; z++) {
+        ee_zone *zone = zb[z];
+        void **sb = zone ? zone_get_sites_begin(zone) : NULL, **se = zone ? zone_get_sites_end(zone) : NULL;
+        for (int k = 0; sb && sb + k < se && k < 4096; k++) {
+            ee_unit *m = sb[k];
+            int r = m ? unit_get_resource(m) : 0, claimed = 0;
+            if (r < 4 || r > 6 || unit_get_amount(m) <= 0) continue;
+            ivec2 sp = unit_get_tile(m);
+            if ((unsigned)area_id(sp, 2) != hc || intel_looked_ago(pl, sp.x, sp.y) == 0xFFFFFFFFu) continue;
+            for (int j = 0; j < w->nd && !claimed; j++) claimed = ivec2_dist2(sp, w->drop[j]) < 18 * 18;
+            for (int j = 0; j < w->no && !claimed; j++) claimed = ivec2_dist2(sp, w->own[j]) < 18 * 18;
+            if (!claimed) return 1;
+        }
+    }
+    return 0;
+}
 internal void tn_plan(ee_player *pl, unsigned idx, struct tn_st *s, unsigned hc, ivec2 base, uint32_t now) {
     float mine = 0, theirs = 0;
     int n = 0, going = 0, nf = 0, fgoing = 0;
@@ -916,6 +1072,7 @@ internal void tn_plan(ee_player *pl, unsigned idx, struct tn_st *s, unsigned hc,
     if (!why) {
         static struct tn_world w;
         tn_world(pl, idx, &w);
+        if (TN_FORT(idx)) s->open = tn_open(pl, hc, &w);
         ivec2 c, front;
         int nm = 0, done = 0;
         ex_outmatched(pl, &mine, &theirs);

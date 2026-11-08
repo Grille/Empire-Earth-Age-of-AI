@@ -1309,6 +1309,18 @@ internal void ar_found_again(struct armies_st *a) {
     a->n = m;
     a->target = a->target_id ? unit_by_id((unsigned)a->target_id) : NULL;
 }
+// a soldier of the force standing at home handed over (a town's garrison, towns.c): it stays held, out of the force
+internal int ar_take(ee_player *pl, ee_unit *u) {
+    struct armies_st *a = &g_armies[(unsigned)player_get_index(pl) & 15];
+    for (int k = 0; k < a->n; k++) {
+        if (a->held[k].u != u || a->held[k].id != unit_get_serial(u)) continue;
+        if (a->held[k].out || a->held[k].back) return 0;
+        memmove(&a->held[k], &a->held[k + 1], (size_t)(a->n - k - 1) * sizeof a->held[0]);
+        a->n--;
+        return 1;
+    }
+    return 0;
+}
 internal void ar_adopt(ee_player *pl, unsigned idx, struct armies_st *a, uint32_t now) {
     if (!ar_on(pl, idx)) return;
     int n = 0;
