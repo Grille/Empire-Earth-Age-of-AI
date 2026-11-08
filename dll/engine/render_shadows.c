@@ -410,7 +410,7 @@ internal DWORD WINAPI shadow_hills_thread(void *arg) {
                 if (h > *q) *q = h;
             }
         }
-        for (int k = 0; k < n * n; k++) g_sh.hpair[k * 2] = c[k], g_sh.hpair[k * 2 + 1] = c[k] - g_sh.hground[k];
+        for (int k = 0; k < n * n; k++) g_sh.hpair[k * 2] = c[k], g_sh.hpair[k * 2 + 1] = g_sh.hground[k] < -1e6f ? 0 : c[k] - g_sh.hground[k];   // off the map (its corners at -1e9): no ground to shade
         QueryPerformanceCounter(&t1);
         QueryPerformanceFrequency(&tf);
         g_sh.hill_ms = (float)(1000.0 * (double)(t1.QuadPart - t0.QuadPart) / (double)tf.QuadPart);
