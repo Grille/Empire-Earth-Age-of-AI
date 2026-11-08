@@ -1375,6 +1375,180 @@ internal void ar_adopt(ee_player *pl, unsigned idx, struct armies_st *a, uint32_
     }
     if (n || g_ar_load != 2) ar_log(idx, now, "after the load: %d members found again, %d other held soldiers taken in", a->n - n, n);
 }
+// MINE RAIDS ([ai_base] towns mine_raids; the player 2026-11-08: "small detachments that stay until the mine is secured"): the force
+// goes out 2-3.5 times a game, too rarely to take mines (0.3-0.7 taken a game with take_mines). Every AR_DET_LOOK, none out and
+// AR_DET_PAUSE after the last: AR_DET_SIZE soldiers (half of those at home at most, AR_DET_MIN at home needed) leave the force for
+// the enemy drop site by a mine it knows on its own land that they beat by AR_GO_PCT, the nearest such (stage_foe: only what it
+// has seen). Six citizens behind them (towns.c THE CREW). The site down: what else it sees within 22 tiles, then tn_claim; they
+// stand over the town until tn_claim_secured, AR_DET_HOLD at most, and go back to the force. They turn back as the force does
+// (AR_JUDGE: before contact only on a clear deficit, in contact when the fight itself goes badly - turned back on the estimate
+// alone, 99 of 120 went home after 2.8 minutes, 5 of 19 soldiers lost, nothing done). Their orders only from here (tn_garrison).
+#define AR_DET_SIZE 20
+#define AR_DET_MIN 30
+#define AR_DET_LOOK 15000
+#define AR_DET_PAUSE 180000
+#define AR_DET_HOLD 900000
+#define AR_DET_TARGETS 32
+internal struct ar_det {
+    int state;   // 0 none, 1 out, 2 holding its town
+    int n, id[AR_DET_SIZE]; ee_unit *u[AR_DET_SIZE];   // id: unit_get_serial (unit_by_id's key)
+    ivec2 dest, site; int site_set, target_id, weak;
+    int hp[AR_DET_SIZE], nfoe, trade_n; float dead_hp, out_hp, dealt[AR_TRADE_N], lost[AR_TRADE_N];   // the trade, as the force's (ar_trade)
+    struct { int id, hp; } foe[128];
+    uint32_t t, last, judge_t, order_t, claim_t;
+    unsigned sent, cleared, founded, secured, losing, no_town, timed_out;
+} g_ar_det[16];
+internal int ar_det_has(unsigned idx, ee_unit *u) {
+    struct ar_det *d = &g_ar_det[idx & 15];
+    for (int k = 0; d->state && k < d->n; k++) if (d->u[k] == u) return 1;
+    return 0;
+}
+internal void ar_det_order(struct ar_det *d, int idle_only, int fight) {
+    g_sg_order = 1;
+    for (int k = 0; k < d->n; k++) if (!idle_only || ar_idle(d->u[k])) unit_goal(d->u[k], ar_goal_at(d->dest, k, fight), 0, 0x1F40);
+    g_sg_order = 0;
+}
+// over: its soldiers back to the force (free again: the next tick holds them), the citizens not yet used home
+internal void ar_det_end(ee_player *pl, unsigned idx, struct ar_det *d, uint32_t now, const char *why) {
+    ee_combat_mgr *cm = player_get_combat_mgr(pl);
+    ar_log(idx, now, "the detachment at %d,%d (%d left) - %s", d->dest.x, d->dest.y, d->n, why);
+    for (int k = 0; k < d->n; k++) { unit_set_ai_held(d->u[k], 0); if (cm) combat_mgr_register_unit(cm, d->u[k]); }
+    tn_crew_release(pl, idx);
+    d->state = 0; d->n = 0; d->site_set = 0; d->last = now ? now : 1;
+}
+// the fight since the last judgement, as ar_trade: the hit points its members lost and those it took off the enemy seen round its middle; members fighting
+internal int ar_det_trade(ee_player *pl, struct ar_det *d, ivec2 mid, float *dealt, float *lost) {
+    int fighting = 0;
+    *dealt = 0.0f; *lost = d->dead_hp; d->dead_hp = 0.0f;
+    for (int k = 0; k < d->n; k++) {
+        int hp = unit_get_hp(d->u[k]);
+        if (d->hp[k] > hp) *lost += (float)(d->hp[k] - hp);
+        d->hp[k] = hp;
+        ee_goal *g = unit_get_goal(d->u[k]);
+        fighting += g && goal_is_attack(g);
+    }
+    for (int i = 0; i < d->nfoe; i++) {
+        ee_unit *u = unit_by_id((unsigned)d->foe[i].id);
+        int hp = u && unit_get_serial(u) == d->foe[i].id && cv_alive(u) ? unit_get_hp(u) : 0;
+        if (d->foe[i].hp > hp) *dealt += (float)(d->foe[i].hp - hp);
+    }
+    d->nfoe = 0;
+    for (struct grid_it it = grid_it_box(mid.x, mid.y, SG_FOE, 1); grid_it_next(&it) && d->nfoe < 128; ) {
+        ee_unit *u = it.u;
+        ee_player *o = unit_get_owner(u);
+        if (!o || player_get_index(o) <= 0 || !is_enemy(pl, o) || !cv_alive(u) || !seen_by(u, pl) || ivec2_dist2(unit_get_tile(u), mid) > SG_FOE * SG_FOE) continue;
+        if (!cv_mil(it.td) && !fr_building(it.td)) continue;
+        d->foe[d->nfoe].id = unit_get_serial(u); d->foe[d->nfoe].hp = unit_get_hp(u); d->nfoe++;
+    }
+    return fighting;
+}
+internal void ar_det_start(ee_player *pl, unsigned idx, struct armies_st *a, struct ar_det *d, uint32_t now) {
+    static ee_unit *home[AR_HELD];
+    int nh = 0;
+    for (int k = 0; k < a->n; k++) if (!a->held[k].out && !a->held[k].back && cv_alive(a->held[k].u)) home[nh++] = a->held[k].u;
+    if (nh < AR_DET_MIN || base_threatened(idx)) return;
+    int size = nh / 2 < AR_DET_SIZE ? nh / 2 : AR_DET_SIZE;
+    unsigned land = (unsigned)area_id(a->home, 2);
+    ee_unit *cand[AR_DET_TARGETS]; long cd[AR_DET_TARGETS];
+    int nc = 0;
+    for (struct grid_it it = grid_it_all(1); grid_it_next(&it); ) {
+        ee_unit *u = it.u;
+        ee_player *o = unit_get_owner(u);
+        if (!o || player_get_index(o) <= 0 || !is_enemy(pl, o) || !cv_alive(u) || !seen_by(u, pl) || (unsigned)area_id(unit_get_tile(u), 2) != land || !tn_mine_drop(pl, u, it.td)) continue;
+        long dist = ivec2_dist2(unit_get_tile(u), a->home);
+        if (nc == AR_DET_TARGETS && cd[nc - 1] <= dist) continue;
+        int k = nc < AR_DET_TARGETS ? nc++ : AR_DET_TARGETS - 1;
+        while (k > 0 && cd[k - 1] > dist) { cand[k] = cand[k - 1]; cd[k] = cd[k - 1]; k--; }
+        cand[k] = u; cd[k] = dist;
+    }
+    st_side_clear(&g_ar_own);
+    for (int k = 0; k < size; k++) st_side_add(&g_ar_own, home[k]);
+    ee_unit *t = NULL;
+    float r = 0.0f;
+    for (int i = 0; i < nc && !t; i++) {   // the nearest it beats
+        stage_foe(pl, unit_get_tile(cand[i]));
+        r = st_ratio(&g_ar_own, &g_sgs_foe);
+        if (r * 100.0f >= (float)AR_GO_PCT) t = cand[i];
+    }
+    if (!t) return;
+    d->n = 0;
+    d->out_hp = 0.0f; d->dead_hp = 0.0f; d->nfoe = 0; d->trade_n = 0;
+    for (int k = 0; k < size; k++) if (ar_take(pl, home[k])) { d->hp[d->n] = unit_get_hp(home[k]); d->out_hp += (float)d->hp[d->n]; d->u[d->n] = home[k]; d->id[d->n++] = unit_get_serial(home[k]); }
+    d->dest = unit_get_tile(t); d->target_id = unit_get_serial(t);
+    d->state = 1; d->weak = 0; d->site_set = 0; d->judge_t = d->order_t = 0; d->sent++;
+    tn_crew_start(pl, idx, a->home, now);
+    ar_det_order(d, 0, 1);
+    ar_log(idx, now, "a detachment of %d for the mines at %d,%d (%.2f; %d at home, %d candidates)", d->n, d->dest.x, d->dest.y, r, nh, nc);
+}
+internal void ar_det_tick(ee_player *pl, unsigned idx, struct armies_st *a, uint32_t now) {
+    struct ar_det *d = &g_ar_det[idx];
+    if (!TN_RAID(idx)) return;
+    if (!d->state) {
+        if ((d->last && now - d->last < AR_DET_PAUSE) || (d->t && now - d->t < AR_DET_LOOK)) return;
+        d->t = now ? now : 1;
+        ar_det_start(pl, idx, a, d, now);
+        return;
+    }
+    int m = 0;
+    long sx = 0, sy = 0;
+    st_side_clear(&g_ar_own);
+    for (int k = 0; k < d->n; k++) {
+        ee_unit *u = unit_by_id((unsigned)d->id[k]);
+        if (!u || unit_get_serial(u) != d->id[k] || unit_get_owner(u) != pl || !cv_alive(u)) { d->dead_hp += (float)d->hp[k]; continue; }
+        d->u[m] = u; d->hp[m] = d->hp[k]; d->id[m++] = d->id[k];
+        sx += unit_get_x(u); sy += unit_get_y(u);
+        st_side_add(&g_ar_own, u);
+    }
+    d->n = m;
+    if (m < 4) { d->losing++; ar_det_end(pl, idx, d, now, "too few left"); return; }
+    ivec2 mid = iv2((int)(sx / m), (int)(sy / m));
+    if (d->state == 1) tn_crew_follow(pl, idx, mid, a->home, now);
+    if (!d->judge_t || now - d->judge_t >= AR_JUDGE_EVERY) {
+        d->judge_t = now ? now : 1;
+        stage_foe(pl, mid);
+        float r = st_ratio(&g_ar_own, &g_sgs_foe);
+        stage_foe(pl, d->dest);
+        float rd = st_ratio(&g_ar_own, &g_sgs_foe);
+        if (rd < r) r = rd;
+        float dealt, lost, sd = 0.0f, sl = 0.0f;
+        int fighting = ar_det_trade(pl, d, mid, &dealt, &lost);
+        if (fighting >= AR_CONTACT_MIN && fighting * 10 >= m) {   // the fight judges
+            d->dealt[d->trade_n % AR_TRADE_N] = dealt; d->lost[d->trade_n % AR_TRADE_N] = lost; d->trade_n++;
+            int tn = d->trade_n < AR_TRADE_N ? d->trade_n : AR_TRADE_N;
+            for (int i = 0; i < tn; i++) { sd += d->dealt[i]; sl += d->lost[i]; }
+            d->weak = 0;
+            if (tn >= AR_TRADE_MIN && sl * 100.0f > sd * (float)AR_TRADE_BAD && sl * 100.0f >= d->out_hp * (float)AR_TRADE_FLOOR) { d->losing++; ar_det_end(pl, idx, d, now, "trading badly - back"); return; }
+        }
+        else if (r * 100.0f < (float)AR_FAR_PCT) { if (++d->weak >= 2) { d->losing++; ar_det_end(pl, idx, d, now, "far too weak before contact - back"); return; } }
+        else d->weak = 0;
+    }
+    if (d->state == 2) {
+        int sec = tn_claim_secured(idx, d->site);
+        if (sec) { d->secured += sec > 0; ar_det_end(pl, idx, d, now, sec > 0 ? "the mine is secured" : "its town is gone"); return; }
+        if (now - d->claim_t >= AR_DET_HOLD) { d->timed_out++; ar_det_end(pl, idx, d, now, "held 15 minutes - not secured"); return; }
+        if (!d->order_t || now - d->order_t >= 20000) { d->order_t = now ? now : 1; ar_det_order(d, 1, 1); }
+        return;
+    }
+    ee_unit *t = unit_by_id((unsigned)d->target_id);
+    if (t && unit_get_serial(t) == d->target_id && cv_alive(t)) {
+        if (!d->order_t || now - d->order_t >= 20000) { d->order_t = now ? now : 1; ar_det_order(d, 1, 1); }
+        return;
+    }
+    if (!d->site_set && tn_mine_near(pl, d->dest, 12)) { d->site = d->dest; d->site_set = 1; }
+    if (!d->site_set) { ar_det_end(pl, idx, d, now, "no mine there"); return; }
+    ee_unit *nb = ar_near_building(pl, d->site, 22);
+    if (nb) {
+        stage_foe(pl, unit_get_tile(nb));
+        float r = st_ratio(&g_ar_own, &g_sgs_foe);
+        if (r * 100.0f < (float)AR_GO_PCT) { d->no_town++; ar_det_end(pl, idx, d, now, "what is left there is too strong"); return; }
+        d->dest = unit_get_tile(nb); d->target_id = unit_get_serial(nb); d->cleared++; d->order_t = now ? now : 1;
+        ar_det_order(d, 0, 1);
+        return;
+    }
+    if (!tn_claim(pl, idx, d->site, now)) { d->no_town++; ar_det_end(pl, idx, d, now, "no town there"); return; }
+    d->state = 2; d->dest = d->site; d->claim_t = now ? now : 1; d->founded++; d->order_t = 0;
+    ar_log(idx, now, "the detachment of %d holds %d,%d for its town", d->n, d->site.x, d->site.y);
+}
 internal void armies_tick(ee_player *pl, uint32_t now) {
     unsigned idx = pl ? (unsigned)player_get_index(pl) & 15 : 0;
     struct armies_st *a = &g_armies[idx];
@@ -1411,6 +1585,7 @@ internal void armies_tick(ee_player *pl, uint32_t now) {
     }
     ar_window(pl, a, now);
     if (!ar_home(pl, idx, a, now)) return;
+    ar_det_tick(pl, idx, a, now);
     if (a->out) ar_out(pl, idx, a, now);
     ar_way_home(pl, idx, a, now);
     ar_at_home(pl, idx, a, now);
@@ -1421,7 +1596,7 @@ internal void armies_tick(ee_player *pl, uint32_t now) {
                a->ratio > 99.0f ? 99.0f : a->ratio, a->pushes, a->presses, a->legs, a->raids, a->backs, a->waits, a->orders, a->refused, a->forted, a->way_lost, a->way_n, a->way_hp_lost, a->way_hp, a->stands, a->group_moves, a->approaches, a->gathers, a->contacts, a->traded_home, a->routed, a->round_ways, a->breaches, a->breach_pushes, a->breach_homes, a->stand_backs, a->scouts, a->fires, player_get_next_attack(pl) / 60000.0);
     }
 }
-internal void armies_new_game(int from_save) { memset(g_armies, 0, sizeof g_armies); g_ar_load = from_save; g_ar_loaded = 0; }
+internal void armies_new_game(int from_save) { memset(g_armies, 0, sizeof g_armies); memset(g_ar_det, 0, sizeof g_ar_det); g_ar_load = from_save; g_ar_loaded = 0; }
 // persist.c, after a save's blocks were read: the force came with it - its pointers wait for the first tick
 internal void armies_loaded(void) {
     int any = 0;

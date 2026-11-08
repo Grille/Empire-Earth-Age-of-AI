@@ -760,6 +760,11 @@ class ai_base
             /// important step, it gives more resouces and starves the enemy"): a drop site and four towers on the corners of a
             /// square round the mine, walls, rebuilt as a fort's; the force stays until the drop site and two towers stand (4 minutes at most)
             bool take_mines;
+            /// a detachment of up to 20 soldiers from those at home, apart from the force, goes for the enemy drop site by a mine
+            /// it knows that it beats best and is nearest, six citizens behind it; it clears what else stands within 22 tiles, founds
+            /// a town there as take_mines does and stays until its drop site and towers stand (the player: "small detachments that
+            /// stay until the mine is secured"), 15 minutes at most; one at a time, 3 minutes apart (not together with take_mines)
+            bool mine_raids;
         }
         /// Towns on the home continent, a list of parts (apart by commas or '|'), not before the Copper Age, not with
         /// enemies in its base; empty = none:

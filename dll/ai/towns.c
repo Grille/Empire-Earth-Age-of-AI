@@ -131,6 +131,7 @@ internal int g_towns = 0, g_v_towns = -1, g_tn_max = 3, g_tn_cits = 6, g_tn_towe
 #define TOWNS(idx) PV(idx, g_v_towns, g_towns)
 #define TN_FORT(idx) (TOWNS(idx) & 128)
 #define TN_TAKE(idx) (TOWNS(idx) & 256)
+#define TN_RAID(idx) (TOWNS(idx) & 512)   // MINE RAIDS: armies.c ar_det_tick
 #define TN_FORTS(idx, t) (TN_FORT(idx) || (t)->claim)   // this town is built as a fort
 #define TN_TRIES(idx, t, kind) (TN_FORTS(idx, t) && (kind) == TK_TOWER ? 8 : 3)   // times a building is laid
 
@@ -569,7 +570,7 @@ internal void tn_crew_alive(ee_player *pl, unsigned idx);
 internal int tn_claim(ee_player *pl, unsigned idx, ivec2 c, uint32_t now) {
     struct tn_st *s = &g_tn[idx];
     ee_build_mgr *bm = civ_mgr_get_build_mgr(player_get_civ_mgr(pl));
-    if (!TN_TAKE(idx) || !bm || build_mgr_get_base_x(bm) == -10000 || base_threatened(idx) || current_epoch(pl) < FARM_EPOCH || workforce(pl) < 20) return 0;
+    if (!(TN_TAKE(idx) || TN_RAID(idx)) || !bm || build_mgr_get_base_x(bm) == -10000 || base_threatened(idx) || current_epoch(pl) < FARM_EPOCH || workforce(pl) < 20) return 0;
     unsigned hc = (unsigned)area_id(build_mgr_get_base(bm), 2);
     if (!hc || (unsigned)area_id(c, 2) != hc) return 0;
     for (int k = 0; k < TN_MAX; k++) if (s->town[k].state && ((s->town[k].claim && s->town[k].state == 1) || ivec2_dist2(s->town[k].c, c) < 18 * 18)) return 0;
@@ -597,6 +598,21 @@ internal int tn_claim(ee_player *pl, unsigned idx, ivec2 c, uint32_t now) {
     for (; towers < 4 && t->nproj < TN_PROJ; towers++) t->proj[t->nproj++].kind = TK_TOWER;
     tn_say(idx, now, "the mines at %d,%d taken (%d within 12 tiles) - its own town goes up, %d citizens", c.x, c.y, nm, t->ncit);
     return 1;
+}
+// MINE RAIDS: the town at c - 1 secured (its drop site and every tower it still means to have standing, two at least), 0 not yet, -1 gone
+internal int tn_claim_secured(unsigned idx, ivec2 c) {
+    for (int k = 0; k < TN_MAX; k++) {
+        struct tn_town *t = &g_tn[idx].town[k];
+        if (!t->state || !t->claim || ivec2_dist2(t->c, c) > 18 * 18) continue;
+        int up = 0, drop = 0, wait = 0;
+        for (int j = 0; j < t->nproj; j++) {
+            struct tn_proj *p = &t->proj[j];
+            if (p->kind == TK_DROP) drop += p->state == 2;
+            if (p->kind == TK_TOWER) { up += p->state == 2; wait += p->state < 2; }
+        }
+        return drop && up >= 2 && !wait;
+    }
+    return -1;
 }
 // TAKE MINES: the town at c still needs the force (its drop site or two towers not standing)
 internal int tn_claim_going(unsigned idx, ivec2 c) {
@@ -629,8 +645,11 @@ internal void tn_take_cits(ee_player *pl, unsigned idx, struct tn_town *t, int n
     }
 }
 internal int ar_take(ee_player *pl, ee_unit *u);   // armies.c
+internal int ar_det_has(unsigned idx, ee_unit *u);   // armies.c: a soldier of its detachment
 internal int tn_garrison(unsigned idx, ee_unit *u) {
-    if (!u || !TN_FORT(idx)) return 0;
+    if (!u) return 0;
+    if (TN_RAID(idx) && ar_det_has(idx, u)) return 1;
+    if (!TN_FORT(idx)) return 0;
     for (int k = 0; k < TN_MAX; k++)
         for (int j = 0; g_tn[idx].town[k].state && j < g_tn[idx].town[k].ngar; j++) if (g_tn[idx].town[k].gar[j] == u) return 1;
     return 0;
@@ -647,7 +666,7 @@ internal void tn_crew_alive(ee_player *pl, unsigned idx) {
 internal void tn_crew_start(ee_player *pl, unsigned idx, ivec2 at, uint32_t now) {
     struct tn_crew *c = &g_tn_crew[idx];
     ee_build_mgr *bm = civ_mgr_get_build_mgr(player_get_civ_mgr(pl));
-    if (!TN_TAKE(idx) || c->n || !bm || build_mgr_get_base_x(bm) == -10000 || base_threatened(idx) || current_epoch(pl) < FARM_EPOCH || workforce(pl) < 20) return;
+    if (!(TN_TAKE(idx) || TN_RAID(idx)) || c->n || !bm || build_mgr_get_base_x(bm) == -10000 || base_threatened(idx) || current_epoch(pl) < FARM_EPOCH || workforce(pl) < 20) return;
     unsigned hc = (unsigned)area_id(build_mgr_get_base(bm), 2);
     if (!hc) return;
     static struct tn_town tmp;
