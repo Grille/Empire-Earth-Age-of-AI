@@ -156,6 +156,9 @@ class display
         /// the next step and jumping there (the mod's own collection of the units takes over from the game's; the
         /// control pipe: picture collect smooth on / off):
         bool units_smooth = false;
+        /// The own renderer with dynamic shadows only: the water by its depth - the seabed loses its detail the deeper
+        /// it lies, the shallows clearer, the shore without a hard line (the control pipe: water on / off):
+        bool water_look = false;
         /// The own renderer only: the units' animation blended by the graphics card - each frame of a model kept there
         /// once, instead of the game blending two frames on the CPU and the renderer uploading the result at every
         /// draw (the control pipe: picture morph on / off):

@@ -137,6 +137,7 @@ typedef struct {
     float shd[4];
     float sht[4];    // the water's share of a shadow, shadows all on, a caster's bias
     float shh[4];    // the hills' map: the world's x, y -> u, v; the soft edge, the bias (tiles); on
+    float wat[4], sea[4];   // the water by its depth, the seabed's detail (render_water.c)
 } rd3_pcb;
 // a draw's entry in the batch's table (the shaders' wt, 8 rows): its world matrix (_14: a tinted caster's size -
 // render_shadows.c), its material's diffuse, ambient and emissive, and a blended draw's runs (render_morph.c). The
@@ -159,7 +160,7 @@ internal const char k_rd3_shader[] =
     " float4 ldir[8]; float4 ldiff[8]; float4 lamb[8]; float4 gamb; int4 lit; int4 src; float4 fog;"
     " float4 vp; row_major float4x4 shm; float4 shk; float4 shp; float4 shx; float4 shy; float4 shz; float4 shl; float4 shs; float4 sha; float4 shf; };\n"
     "cbuffer p : register(b1) { int4 op; int4 aop; float4 fogc; float4 tf; float4 misc; float4 pshk; float4 shd; float4 sht;"
-    " float4 shh; };\n"
+    " float4 shh; float4 wat; float4 sea; };\n"
     "Buffer<float4> wt : register(t1);\n"   // the draws' entries, 8 rows each (rb_world)
     "Texture2D t : register(t0); SamplerState s : register(s0);\n"
     "Texture2D<float> sm : register(t2); SamplerComparisonState sc : register(s1);\n"   // the dynamic shadows' maps:
@@ -205,6 +206,9 @@ internal const char k_rd3_shader[] =
     " : o == 6 ? saturate(a * b * 4) : o == 7 ? saturate(a + b) : o == 8 ? saturate(a + b - 0.5) : a * b; }\n"
     "float4 ps(O i) : SV_Target { float4 x = op.w ? t.Sample(s, i.t) : float4(1, 1, 1, 1), d = i.c, c = d;"
     " if (misc.z > 0.5 && x.a == 0) discard;"
+    // the seabed loses its texture's detail with the depth, keeping its colour: toward the texture's last mip level
+    " if (sea.x > 0 && shd.x == 1 && i.w.z < sea.z) x.rgb = lerp(x.rgb, t.SampleLevel(s, i.t, 8).rgb,"
+    "  sea.x * (1 - exp(-(sea.z - i.w.z) * sea.y)));"
     " if (op.x != 1) { c.rgb = top(op.x, arg(op.y, x, d), arg(op.z, x, d)).rgb;"
     "  if (aop.x != 1) c.a = top(aop.x, arg(aop.y, x, d), arg(aop.z, x, d)).a; }"
     " int A = (int)round(c.a * 255), R = (int)misc.x, f = aop.w;"
@@ -213,6 +217,11 @@ internal const char k_rd3_shader[] =
     // the ground, a decal or field on it, the water: 3x3 comparisons with the casters' map, its colour in a shadow as
     // the vertex shader worked it out; with shadows all on the units, buildings and trees too, their colour without
     // the sun's part. The hills' map: in their shadow below its height (a soft edge); the darker of the two shadows
+    // the water by its depth (render_water.c): the depth is the hills' map's ground (its
+    // ceiling less how far the ground lies under it) under the surface's own height
+    " if (wat.x > 0 && shd.x == 6 && shh.w > 0) { float2 wh = hm.SampleLevel(hs, i.w.xy * shh.x, 0);"
+    "  float wd = max(0, i.w.z - (wh.x - wh.y));"
+    "  c.a = saturate(c.a * lerp(wat.y, wat.z, 1 - exp(-wd * wat.x))) * saturate(wd * wat.w); }"
     " bool g = shd.x == 1 || shd.x == 4 || shd.x == 6, rc = sht.y > 0 && (shd.x == 2 || shd.x == 3 || shd.x == 9);"
     " if ((g || rc) && (shd.z > 0 || shh.w > 0)) { float z = min(i.q.z, 0.9999), l = 9, b = g ? shd.w : sht.z, hl = 0;"
     "  if (shd.z > 0) { l = 0; for (int y = -1; y <= 1; y++) for (int u = -1; u <= 1; u++)"
@@ -428,6 +437,7 @@ internal void rec_count(int role, DWORD nv);   // render_record.c: a draw's role
 internal ID3D11ShaderResourceView *g_mo_srv;   // the animation's pool (render_morph.c), bound with the list
 internal volatile LONG g_rp_state;   // the pipe's rprobe (below)
 #include "render_frame.c"     // the frame recorded and drawn at once
+#include "render_water.c"     // the water by its depth ([display] water_look)
 #include "render_shadows.c"   // the dynamic shadows ([display] shadows = dynamic)
 #include "render_morph.c"     // the units' animation blended on the graphics card ([display] gpu_animation)
 #include "render_fxaa.c"      // the picture's sharpness ([display] antialias, anisotropy)

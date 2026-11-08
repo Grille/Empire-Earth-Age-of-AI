@@ -736,6 +736,7 @@ internal void rd3_shadow_pc(rd3_pcb *pc) {
     pc->shh[1] = g_sh.hsoft;
     pc->shh[2] = 0.05f;
     pc->shh[3] = g_sh.hill_ok && !g_sh.nohills ? 1.0f : 0.0f;
+    rd3_water_pc(pc, g_sh.level, g_sh.water_on);
 }
 // the maps for the main pass (rf_replay binds them with the rest)
 internal void rd3_shadow_bind(ID3D11DeviceContext *x) {
