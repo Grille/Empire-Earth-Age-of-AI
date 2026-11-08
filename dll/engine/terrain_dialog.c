@@ -1,8 +1,8 @@
 // THE TERRAIN COLOUR DIALOG (`terrain_palette`, [editor]): a colour type of the map's own made or changed. The editor's
 // colour list ends in an item of the mod's own, a strip of the hues round: selected (a click), the dialog opens for a
 // new type, the list's selection back on the item before; a double click on one of the map's own types opens it for
-// that type. The dialog: its kind (one colour, a ramp between two, each slot its own), its slots (1 .. 16; a ramp 2
-// at least), its colours as a strip - a click on a slot picks its colour with Windows' colour dialog (a ramp: the end
+// that type. The dialog: its kind (one colour, a ramp between two, each slot its own; a ramp's blend: sRGB as the
+// game's own, linear light or OKLab - tp_ramp), its slots (1 .. 16; a ramp 2 at least), its colours as a strip - a click on a slot picks its colour with Windows' colour dialog (a ramp: the end
 // nearer the click, the slots between follow) -, the slots free for it; OK makes the type (terrain_palette.c
 // tp_type_put), Delete takes it out. A modal Win32 dialog over the game's window, on the game's thread: the game
 // waits meanwhile; the same program's window, so no app switch reaches the game (it would minimize itself). In the
@@ -17,9 +17,10 @@
 #define TD_FREE 106
 #define TD_DELETE 107
 #define TD_HINT 108
+#define TD_BLEND 109
 internal struct {
     int type;                          // the type changed, -1 a new one
-    int mode;
+    int mode, blend;
     unsigned n, avail;                 // its slots; the slots it may have (free ones and its own)
     uint8_t cell[TP_TYPE_SLOTS][3];    // the slots' colours as shown
     int result;                        // IDOK, IDCANCEL, TD_DELETE
@@ -32,11 +33,7 @@ internal int g_td_prev = -1;           // the colour list's selection before the
 internal void td_derive(void) {
     if (g_td.mode == TP_FLAT) g_td.n = 1;
     if (g_td.mode == TP_RAMP && g_td.n < 2) g_td.n = 2;
-    if (g_td.mode != TP_RAMP) return;
-    unsigned n = g_td.n;
-    for (unsigned k = 1; k + 1 < n; k++)
-        for (int j = 0; j < 3; j++)
-            g_td.cell[k][j] = (uint8_t)((g_td.cell[0][j] * (int)(n - 1 - k) + g_td.cell[n - 1][j] * (int)k + (int)(n - 1) / 2) / (int)(n - 1));
+    if (g_td.mode == TP_RAMP) tp_ramp(g_td.cell[0], g_td.cell[g_td.n - 1], g_td.n, g_td.blend, g_td.cell);
 }
 
 internal void td_update(HWND d) {
@@ -44,6 +41,8 @@ internal void td_update(HWND d) {
     CheckRadioButton(d, TD_FLAT, TD_EACH, TD_FLAT + g_td.mode);
     SendDlgItemMessageW(d, TD_COUNT, CB_SETCURSEL, g_td.n - 1, 0);
     EnableWindow(GetDlgItem(d, TD_COUNT), g_td.mode != TP_FLAT);
+    SendDlgItemMessageW(d, TD_BLEND, CB_SETCURSEL, (WPARAM)g_td.blend, 0);
+    EnableWindow(GetDlgItem(d, TD_BLEND), g_td.mode == TP_RAMP);
     wchar_t t[96];
     if (g_td.n <= g_td.avail) wsprintfW(t, L"%u of %u free slots taken", g_td.n, g_td.avail);
     else wsprintfW(t, L"only %u slots free", g_td.avail);
@@ -123,6 +122,8 @@ internal INT_PTR CALLBACK td_proc(HWND d, UINT msg, WPARAM w, LPARAM l) {
             wsprintfW(t, L"%u", k);
             SendDlgItemMessageW(d, TD_COUNT, CB_ADDSTRING, 0, (LPARAM)t);
         }
+        static const wchar_t *const blends[] = { L"sRGB (the game's)", L"linear light", L"OKLab (even)" };   // tp_blend's order
+        for (unsigned k = 0; k < sizeof blends / sizeof *blends; k++) SendDlgItemMessageW(d, TD_BLEND, CB_ADDSTRING, 0, (LPARAM)blends[k]);
         if (g_td.type < 0) ShowWindow(GetDlgItem(d, TD_DELETE), SW_HIDE);
         SetWindowTextW(d, g_td.type < 0 ? L"New terrain colour" : L"Terrain colour");
         HWND o = GetWindow(d, GW_OWNER);   // over the game's window (headless: off the screen with it)
@@ -135,6 +136,7 @@ internal INT_PTR CALLBACK td_proc(HWND d, UINT msg, WPARAM w, LPARAM l) {
         static const int buttons[] = { IDOK, IDCANCEL, TD_DELETE, TD_FLAT, TD_RAMP, TD_EACH };   // not the strip: drawn here
         for (unsigned k = 0; k < sizeof buttons / sizeof *buttons; k++) theme_control(GetDlgItem(d, buttons[k]), WC_BUTTONA);
         theme_control(GetDlgItem(d, TD_COUNT), WC_COMBOBOXA);
+        theme_control(GetDlgItem(d, TD_BLEND), WC_COMBOBOXA);
         td_update(d);
         SetFocus(GetDlgItem(d, IDOK));   // not the first radio button: an automatic one given the focus is clicked too
         return FALSE;
@@ -147,7 +149,7 @@ internal INT_PTR CALLBACK td_proc(HWND d, UINT msg, WPARAM w, LPARAM l) {
         return (INT_PTR)theme_ctlcolor(msg, w, l);   // a dialog procedure answers these with the brush itself
     case WM_DRAWITEM:
         if (w == TD_STRIP) { td_draw((const DRAWITEMSTRUCT *)l); return TRUE; }
-        if (theme_draw_item((const DRAWITEMSTRUCT *)l)) return TRUE;   // the slot dropdown's list
+        if (theme_draw_item((const DRAWITEMSTRUCT *)l)) return TRUE;   // the dropdowns' lists
         break;
     case WM_COMMAND:
         switch (LOWORD(w)) {
@@ -158,6 +160,12 @@ internal INT_PTR CALLBACK td_proc(HWND d, UINT msg, WPARAM w, LPARAM l) {
             if (HIWORD(w) == CBN_SELCHANGE) {
                 LRESULT i = SendDlgItemMessageW(d, TD_COUNT, CB_GETCURSEL, 0, 0);
                 if (i >= 0) td_count((unsigned)i + 1), td_update(d);
+            }
+            return TRUE;
+        case TD_BLEND:
+            if (HIWORD(w) == CBN_SELCHANGE) {
+                LRESULT i = SendDlgItemMessageW(d, TD_BLEND, CB_GETCURSEL, 0, 0);
+                if (i >= TP_SRGB && i <= TP_OKLAB) g_td.blend = (int)i, td_update(d);
             }
             return TRUE;
         case TD_STRIP:
@@ -202,7 +210,7 @@ internal void td_open(int i, int sel) {
     for (unsigned s = 0; s < TP_SLOTS; s++) avail += g_tp_free[s] && !g_tp_own[s];
     if (i >= 0) {
         const struct tp_type *t = &g_tp_type[i];
-        g_td.mode = t->mode, g_td.n = t->n, g_td.avail = avail + t->n;
+        g_td.mode = t->mode, g_td.blend = t->blend, g_td.n = t->n, g_td.avail = avail + t->n;
         for (unsigned k = 0; k < t->n; k++) memcpy(g_td.cell[k], g_tp_rgb[t->slot[k]], 3);
     } else {   // a ramp of 8 from the first and last colour of the item selected before
         g_td.mode = TP_RAMP, g_td.n = 8, g_td.avail = avail;
@@ -220,7 +228,7 @@ internal void td_open(int i, int sel) {
     static WORD tpl[1024];
     memset(tpl, 0, sizeof tpl);
     DLGTEMPLATE *dt = (DLGTEMPLATE *)tpl;
-    *dt = (DLGTEMPLATE){ .style = DS_MODALFRAME | DS_SETFONT | WS_POPUP | WS_CAPTION | WS_SYSMENU, .cdit = 11, .cx = 260, .cy = 142 };
+    *dt = (DLGTEMPLATE){ .style = DS_MODALFRAME | DS_SETFONT | WS_POPUP | WS_CAPTION | WS_SYSMENU, .cdit = 13, .cx = 260, .cy = 142 };
     WORD *p = (WORD *)(dt + 1);
     *p++ = 0, *p++ = 0;          // no menu, the dialog class
     p = td_str(p, L"");          // the title: set at its start
@@ -235,6 +243,8 @@ internal void td_open(int i, int sel) {
     p = td_item(p, BS_AUTORADIOBUTTON | WS_GROUP | WS_TABSTOP, 8, 6, 124, 12, TD_FLAT, 0x80, L"One colour");
     p = td_item(p, BS_AUTORADIOBUTTON, 8, 20, 124, 12, TD_RAMP, 0x80, L"A ramp between two colours");
     p = td_item(p, BS_AUTORADIOBUTTON, 8, 34, 124, 12, TD_EACH, 0x80, L"Each slot a colour of its own");
+    p = td_item(p, SS_LEFT, 140, 22, 30, 10, 0xFFFF, 0x82, L"Blend:");   // the ramp's, beside it
+    p = td_item(p, CBS_DROPDOWNLIST | CBS_OWNERDRAWFIXED | CBS_HASSTRINGS | WS_TABSTOP | WS_GROUP, 172, 20, 80, 80, TD_BLEND, 0x85, L"");
     p = td_item(p, SS_LEFT, 8, 56, 30, 10, 0xFFFF, 0x82, L"Slots:");
     p = td_item(p, CBS_DROPDOWNLIST | CBS_OWNERDRAWFIXED | CBS_HASSTRINGS | WS_VSCROLL | WS_TABSTOP | WS_GROUP, 40, 54, 36, 160,
                 TD_COUNT, 0x85, L"");
@@ -266,14 +276,15 @@ internal void td_open(int i, int sel) {
     if (g_log) log_locked("# terrain palette: the colour dialog for %s %d (%s, %s): %s%s\n", i < 0 ? "a new type, from item" : "type", i < 0 ? sel : i,
                           g_gl.on ? "the game's look" : "plain, no game pictures", ctx ? "common controls 6" : "the old controls",
                           r < 0 ? "FAILED to open" : g_td.result == IDOK ? "OK" : g_td.result == TD_DELETE ? "delete" : "cancel",
-                          g_td.result == IDOK ? (g_td.mode == TP_FLAT ? ", one colour" : g_td.mode == TP_RAMP ? ", a ramp" : ", each slot") : "");
+                          g_td.result != IDOK ? "" : g_td.mode == TP_FLAT ? ", one colour" : g_td.mode == TP_EACH ? ", each slot" :
+                          (const char *[]){ ", a ramp (sRGB)", ", a ramp (linear light)", ", a ramp (OKLab)" }[g_td.blend]);
     ee_se_color_list *list = se_terrain_get_color_list(g_tp_panel);
     if (g_td.result == IDOK) {
         unsigned k = i < 0 ? g_tp_types : (unsigned)i;
         uint8_t rgb[TP_TYPE_SLOTS][3];
         memcpy(rgb, g_td.cell, sizeof rgb);
         if (g_td.mode == TP_RAMP) memcpy(rgb[1], g_td.cell[g_td.n - 1], 3);   // tp_type_put's ramp: its two ends
-        if (tp_type_put(k, g_td.mode, g_td.n, (const uint8_t (*)[3])rgb)) se_color_list_select(list, g_tp_list_base + k, 1, 1);
+        if (tp_type_put(k, g_td.mode, g_td.blend, g_td.n, (const uint8_t (*)[3])rgb)) se_color_list_select(list, g_tp_list_base + k, 1, 1);
     } else if (g_td.result == TD_DELETE && i >= 0 && tp_type_delete((unsigned)i))
         se_color_list_select(list, sel >= 0 && (unsigned)sel < g_tp_list_base ? (unsigned)sel : 0, 1, 1);
 }

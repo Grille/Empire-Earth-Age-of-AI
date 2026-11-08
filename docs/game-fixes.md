@@ -62,7 +62,9 @@ changes the simulation: in a lockstep game different values make the PCs' games 
   from the editor: the colour list ends in a strip of all hues - a click on it opens a dialog in the editor's look (its
   pages' parchment, yellow text) that makes a colour of the map's own (one
   colour, a ramp between two, or each slot its own, 1 to 16 slots, the colours from Windows' colour dialog), which
-  follows the game's colours in the list and paints as they do; a double click on it changes or deletes it.
+  follows the game's colours in the list and paints as they do; a double click on it changes or deletes it. A ramp's
+  middle is blended in sRGB as the game's own ramps are (its sets in ColorPalette.tga fit that best), in linear light
+  (brighter in the middle) or in OKLab (even steps of lightness, two hues without a dull middle).
 - `[camera] scroll`: `game` (default) the build's own camera scrolling, `aoc` The Art of Conquest's acceleration
   in either build, `ee` Empire Earth's constant speed in either build; `smooth=1` (default) moves the camera every
   frame by the frame's time instead of the game's fixed timer steps (jitter) - in both builds. While a text box

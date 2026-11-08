@@ -14,7 +14,8 @@
 // whose set is for that call the map's own's. A type given fewer slots or taken out moves the corners on the slots it
 // gives back to the nearest colour of another set's.
 // The map's own colours are kept in its file (engine/map_file.c, record TPAL): version 1, u16 count, then per colour
-// its slot and r, g, b (0..255); then u8 the colour types, each its mode (tp_mode), u8 n and its n slots. A load sets
+// its slot and r, g, b (0..255); then u8 the colour types, each its mode (tp_mode; a ramp's blend in the high 4 bits,
+// tp_blend: 0 sRGB, so a record from before it reads the same), u8 n and its n slots. A load sets
 // the new map's table up inside it, the record already read (the file is in memory first): the colours go in there;
 // a map made otherwise (a random map, the editor's new map) has none.
 #define TP_SLOTS 256
@@ -23,7 +24,8 @@
 #define TP_TYPE_SLOTS 16     // a type's slots at most (the game's have 8)
 #define TP_ID 0x7000         // the map's own types' ids (the game's: their place in map.color_types)
 enum tp_mode { TP_FLAT, TP_RAMP, TP_EACH };
-struct tp_type { uint8_t mode, n, slot[TP_TYPE_SLOTS]; unsigned set; };
+enum tp_blend { TP_SRGB, TP_LINEAR, TP_OKLAB };   // how a ramp's middle is blended (tp_ramp)
+struct tp_type { uint8_t mode, blend, n, slot[TP_TYPE_SLOTS]; unsigned set; };
 internal int g_tp_on;
 internal mesh_color_table_fn g_tp_color_table;
 internal uint8_t g_tp_to[TP_SLOTS];      // a slot -> the slot of the same colour its set paints now (itself if kept)
@@ -56,8 +58,8 @@ internal unsigned tp_parse(const uint8_t *p, uint32_t len) {
     }
     unsigned types = p && o < len ? p[o++] : 0;
     for (unsigned i = 0; i < types && o + 2 <= len && o + 2 + p[o + 1] <= len; i++, o += 2 + p[o + 1]) {
-        struct tp_type t = { .mode = p[o], .n = p[o + 1] };
-        int ok = t.mode <= TP_EACH && t.n >= 1 && t.n <= TP_TYPE_SLOTS && g_tp_types < TP_TYPES;
+        struct tp_type t = { .mode = p[o] & 15, .blend = p[o] >> 4, .n = p[o + 1] };
+        int ok = t.mode <= TP_EACH && t.blend <= TP_OKLAB && t.n >= 1 && t.n <= TP_TYPE_SLOTS && g_tp_types < TP_TYPES;
         for (unsigned k = 0; ok && k < t.n; k++) ok = g_tp_own[t.slot[k] = p[o + 2 + k]];
         if (ok) g_tp_type[g_tp_types++] = t;
         else skipped++;
@@ -216,7 +218,7 @@ internal uint32_t tp_save(uint8_t *buf, uint32_t cap) {
         if (g_tp_own[s]) e[0] = (uint8_t)s, memcpy(e + 1, g_tp_rgb[s], 3), e += 4;
     *e++ = (uint8_t)g_tp_types;
     for (unsigned i = 0; i < g_tp_types; i++) {
-        *e++ = g_tp_type[i].mode, *e++ = g_tp_type[i].n;
+        *e++ = (uint8_t)(g_tp_type[i].mode | g_tp_type[i].blend << 4), *e++ = g_tp_type[i].n;
         memcpy(e, g_tp_type[i].slot, g_tp_type[i].n), e += g_tp_type[i].n;
     }
     return (uint32_t)(e - buf);
@@ -304,12 +306,58 @@ internal void tp_release(void *mesh, const uint8_t *slots, unsigned n) {
     for (unsigned i = 0; i < n; i++) g_tp_own[slots[i]] = 0;
 }
 
+// A RAMP's n colours from a to b, the ends a and b themselves; the middle blended in sRGB (the 0..255 values straight:
+// the game's own ramps are, db\dbterraintype.dat's sets in textures\ColorPalette.tga - 21 of its 34 distinct sets fit
+// it best, the clean ones within ~3 of 255, OKLab nearly as close, linear light worst in every one), in linear light
+// (the middle brighter: a dark-to-light ramp's steps crowd at the light end) or in OKLab (Bjorn Ottosson's, 2020: even
+// steps of lightness, a ramp between two hues without sRGB's duller middle)
+internal float tp_to_linear(float c) { c /= 255.0f; return c <= 0.04045f ? c / 12.92f : powf((c + 0.055f) / 1.055f, 2.4f); }
+internal uint8_t tp_to_srgb(float c) {
+    c = c < 0 ? 0 : c > 1 ? 1 : c;
+    return (uint8_t)(255.0f * (c <= 0.0031308f ? c * 12.92f : 1.055f * powf(c, 1 / 2.4f) - 0.055f) + 0.5f);
+}
+internal void tp_oklab(const uint8_t rgb[3], float lab[3]) {
+    float r = tp_to_linear(rgb[0]), g = tp_to_linear(rgb[1]), b = tp_to_linear(rgb[2]);
+    float l = cbrtf(0.4122214708f * r + 0.5363325363f * g + 0.0514459929f * b);
+    float m = cbrtf(0.2119034982f * r + 0.6806995451f * g + 0.1073969566f * b);
+    float s = cbrtf(0.0883024619f * r + 0.2817188376f * g + 0.6299787005f * b);
+    lab[0] = 0.2104542553f * l + 0.7936177850f * m - 0.0040720468f * s;
+    lab[1] = 1.9779984951f * l - 2.4285922050f * m + 0.4505937099f * s;
+    lab[2] = 0.0259040371f * l + 0.7827717662f * m - 0.8086757660f * s;
+}
+internal void tp_from_oklab(const float lab[3], uint8_t rgb[3]) {
+    float l = lab[0] + 0.3963377774f * lab[1] + 0.2158037573f * lab[2];
+    float m = lab[0] - 0.1055613458f * lab[1] - 0.0638541728f * lab[2];
+    float s = lab[0] - 0.0894841775f * lab[1] - 1.2914855480f * lab[2];
+    l = l * l * l, m = m * m * m, s = s * s * s;
+    rgb[0] = tp_to_srgb(4.0767416621f * l - 3.3077115913f * m + 0.2309699292f * s);
+    rgb[1] = tp_to_srgb(-1.2684380046f * l + 2.6097574011f * m - 0.3413193965f * s);
+    rgb[2] = tp_to_srgb(-0.0041960863f * l - 0.7034186147f * m + 1.7076147010f * s);
+}
+internal void tp_ramp(const uint8_t a[3], const uint8_t b[3], unsigned n, int blend, uint8_t (*out)[3]) {
+    uint8_t ea[3], eb[3];   // a copy: out may hold the ends
+    memcpy(ea, a, 3), memcpy(eb, b, 3);
+    float la[3], lb[3];
+    if (blend == TP_OKLAB) tp_oklab(ea, la), tp_oklab(eb, lb);
+    for (unsigned k = 0; k < n; k++) {
+        float f = n > 1 ? (float)k / (float)(n - 1) : 0;
+        if (k == 0 || k + 1 == n) memcpy(out[k], k ? eb : ea, 3);
+        else if (blend == TP_LINEAR)
+            for (int j = 0; j < 3; j++) out[k][j] = tp_to_srgb(tp_to_linear(ea[j]) + (tp_to_linear(eb[j]) - tp_to_linear(ea[j])) * f);
+        else if (blend == TP_OKLAB) {
+            float lab[3] = { la[0] + (lb[0] - la[0]) * f, la[1] + (lb[1] - la[1]) * f, la[2] + (lb[2] - la[2]) * f };
+            tp_from_oklab(lab, out[k]);
+        } else
+            for (int j = 0; j < 3; j++) out[k][j] = (uint8_t)((ea[j] * (int)(n - 1 - k) + eb[j] * (int)k + (int)(n - 1) / 2) / (int)(n - 1));
+    }
+}
+
 // colour type i of the map's own (g_tp_types: a new one) in mode with n slots coloured rgb - flat: rgb[0] (one slot),
-// a ramp rgb[0] to rgb[1], each slot: n colours; 0: not that many slots free (or no map, no room)
-internal int tp_type_put(unsigned i, int mode, unsigned n, const uint8_t (*rgb)[3]) {
+// a ramp rgb[0] to rgb[1] in blend (tp_ramp), each slot: n colours; 0: not that many slots free (or no map, no room)
+internal int tp_type_put(unsigned i, int mode, int blend, unsigned n, const uint8_t (*rgb)[3]) {
     if (mode == TP_FLAT) n = 1;
     void *mesh = tp_mesh();
-    if (!g_tp_on || !mesh || mode < TP_FLAT || mode > TP_EACH || n < 1 + (mode == TP_RAMP) || n > TP_TYPE_SLOTS ||
+    if (!g_tp_on || !mesh || mode < TP_FLAT || mode > TP_EACH || blend < TP_SRGB || blend > TP_OKLAB || n < 1 + (mode == TP_RAMP) || n > TP_TYPE_SLOTS ||
         i > g_tp_types || i >= TP_TYPES)
         return 0;
     struct tp_type t = i < g_tp_types ? g_tp_type[i] : (struct tp_type){ 0 };
@@ -319,13 +367,10 @@ internal int tp_type_put(unsigned i, int mode, unsigned n, const uint8_t (*rgb)[
     if (n < had) tp_release(mesh, t.slot + n, had - n);
     for (unsigned s = 0; s < TP_SLOTS && t.n < n; s++)
         if (g_tp_free[s] && !g_tp_own[s]) t.slot[t.n++] = (uint8_t)s, g_tp_own[s] = 1;
-    t.n = (uint8_t)n, t.mode = (uint8_t)mode;
-    for (unsigned k = 0; k < n; k++) {
-        uint8_t *c = g_tp_rgb[t.slot[k]];
-        if (mode == TP_EACH) memcpy(c, rgb[k], 3);
-        else if (mode == TP_FLAT) memcpy(c, rgb[0], 3);
-        else for (int j = 0; j < 3; j++) c[j] = (uint8_t)((rgb[0][j] * (int)(n - 1 - k) + rgb[1][j] * (int)k + (int)(n - 1) / 2) / (int)(n - 1));
-    }
+    t.n = (uint8_t)n, t.mode = (uint8_t)mode, t.blend = (uint8_t)(mode == TP_RAMP ? blend : TP_SRGB);
+    uint8_t ramp[TP_TYPE_SLOTS][3];
+    if (mode == TP_RAMP) tp_ramp(rgb[0], rgb[1], n, blend, ramp);
+    for (unsigned k = 0; k < n; k++) memcpy(g_tp_rgb[t.slot[k]], mode == TP_EACH ? rgb[k] : mode == TP_FLAT ? rgb[0] : ramp[k], 3);
     if (n != had) {   // a set of these slots (the old one stays in the mesh, painted with no more)
         uint32_t s[TP_TYPE_SLOTS];
         for (unsigned k = 0; k < n; k++) s[k] = t.slot[k];
@@ -362,8 +407,9 @@ internal void terrain_palette_install(void) {
     if (g_log) fprintf(g_log, "# editor: terrain_palette=%d%s\n", g_tp_on, !g_tp_on ? "" : n == 6 ? " (hooked)" : " (FAILED)");
 }
 
-// pipe: palette type add|set <i> flat <r g b> | ramp <n> <r g b> <r g b> | each <n> <r g b> x n - a colour type of the
-// map's own made (set: type i changed); palette type delete <i>; palette type select <i> (the editor's colour list's
+// pipe: palette type add|set <i> flat <r g b> | ramp <n> [srgb|linear|oklab] <r g b> <r g b> | each <n> <r g b> x n - a
+// colour type of the map's own made (set: type i changed; a ramp blended in sRGB unless named - tp_ramp), its colours
+// in the reply; palette type delete <i>; palette type select <i> (the editor's colour list's
 // item, as a click on it; i the count of types: the "new" item - the dialog opens, the reply comes when it is closed);
 // palette type edit <i> (the dialog for type i, as a double click on its item opens it)
 internal void td_open(int i, int sel);   // terrain_dialog.c
@@ -393,6 +439,11 @@ internal void tp_cmd_type(char *out, const char *args) {
     if (sscanf(args, "%15s%n", mode, &at) == 1) args += at;
     m = !strcmp(mode, "flat") ? TP_FLAT : !strcmp(mode, "ramp") ? TP_RAMP : !strcmp(mode, "each") ? TP_EACH : -1;
     if (m != TP_FLAT && sscanf(args, "%d%n", &n, &at) == 1) args += at;
+    int blend = -1;
+    char word[16];
+    if (m == TP_RAMP && sscanf(args, "%15s%n", word, &at) == 1 && (blend = !strcmp(word, "srgb") ? TP_SRGB :
+        !strcmp(word, "linear") ? TP_LINEAR : !strcmp(word, "oklab") ? TP_OKLAB : -1) >= 0) args += at;
+    if (blend < 0) blend = TP_SRGB;   // no word: the colours follow
     uint8_t rgb[TP_TYPE_SLOTS][3];
     int want = m == TP_FLAT ? 1 : m == TP_RAMP ? 2 : n, got = 0;
     for (; got < want && got < TP_TYPE_SLOTS; got++) {
@@ -401,11 +452,16 @@ internal void tp_cmd_type(char *out, const char *args) {
         args += at;
         rgb[got][0] = (uint8_t)r, rgb[got][1] = (uint8_t)g, rgb[got][2] = (uint8_t)b;
     }
-    if (m < 0 || i < 0 || n < 1 || got < want) { REPLY("error: usage: palette type add|set <i> flat <r g b> | ramp <n> <r g b> <r g b> | each <n> <r g b> x n\n"); return; }
-    if (!tp_type_put((unsigned)i, m, (unsigned)n, (const uint8_t (*)[3])rgb)) { REPLY("error: type %d not made (slots free too few, or no map)\n", i); return; }
+    if (m < 0 || i < 0 || n < 1 || got < want) { REPLY("error: usage: palette type add|set <i> flat <r g b> | ramp <n> [srgb|linear|oklab] <r g b> <r g b> | each <n> <r g b> x n\n"); return; }
+    if (!tp_type_put((unsigned)i, m, blend, (unsigned)n, (const uint8_t (*)[3])rgb)) { REPLY("error: type %d not made (slots free too few, or no map)\n", i); return; }
     REPLY("ok: type %d, %u slots:", i, g_tp_type[i].n);
     for (unsigned k = 0; k < g_tp_type[i].n; k++) REPLY(" %u", g_tp_type[i].slot[k]);
-    REPLY(", set %u\n", g_tp_type[i].set);
+    REPLY(", set %u, colours", g_tp_type[i].set);
+    for (unsigned k = 0; k < g_tp_type[i].n; k++) {
+        const uint8_t *c = g_tp_rgb[g_tp_type[i].slot[k]];
+        REPLY(" %02x%02x%02x", c[0], c[1], c[2]);
+    }
+    REPLY("\n");
 }
 
 // pipe: palette - the sets shared, the free slots and the corners on them, the map's own colours; palette
@@ -458,7 +514,8 @@ internal void cmd_palette(char *out, const char *args) {
         if (g_tp_own[a]) REPLY(" %u=%02x%02x%02x", a, g_tp_rgb[a][0], g_tp_rgb[a][1], g_tp_rgb[a][2]);
     if (g_tp_types) REPLY("; types:");
     for (unsigned i = 0; i < g_tp_types; i++)
-        REPLY(" %u=%s/%u(set %u)", i, (const char *[]){ "flat", "ramp", "each" }[g_tp_type[i].mode], g_tp_type[i].n, g_tp_type[i].set);
+        REPLY(" %u=%s%s/%u(set %u)", i, (const char *[]){ "flat", "ramp", "each" }[g_tp_type[i].mode],
+              g_tp_type[i].mode == TP_RAMP ? (const char *[]){ "", " linear", " oklab" }[g_tp_type[i].blend] : "", g_tp_type[i].n, g_tp_type[i].set);
     if (g_tp_panel) REPLY("; editor list %u + %u, item %d selected", g_tp_list_base, se_color_list_count(se_terrain_get_color_list(g_tp_panel)) - g_tp_list_base,
                           se_color_list_get_selected(se_terrain_get_color_list(g_tp_panel)));
     if (g_tp_paints[0] + g_tp_paints[1] + g_tp_paints[2])
