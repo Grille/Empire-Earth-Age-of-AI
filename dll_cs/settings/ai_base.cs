@@ -688,6 +688,12 @@ class ai_base
             /// and its army is 1.5 x the enemy's it knows, a guard of 4, four towers, the idle citizens board
             /// first (docs/economy.md "More metal")
             bool hold_sea;
+            /// the outpost keeps what it claims (the player: "the ai must invest in keeping what it claims"): a fort round its
+            /// nearest mine (a tower at each of the four corners, rebuilt when lost and never given up for want of money, walls
+            /// on the three sides away from its drop site), a garrison that grows with the citizens there (one soldier per
+            /// three, 8 at least with enemies seen in the last 5 minutes, 12 at most) brought by boats of soldiers only, and an
+            /// outpost lost is tried again after 15 minutes, once
+            bool fort;
         }
         /// Outposts on other islands (docs/economy.md "Other islands"), water maps only (needs landing=1); the parts from
         /// early on are for the large maps (docs/economy.md "Large island maps").

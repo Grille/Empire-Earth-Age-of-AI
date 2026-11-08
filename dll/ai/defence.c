@@ -809,6 +809,7 @@ internal int sf_pick(ee_player *pl, unsigned idx, uint32_t now) {   // a new for
     return 1;
 }
 // the fort's towers and walls, one order a tick: 1 ordered or waiting
+internal int sf_walls(ee_player *pl, unsigned idx, struct sfort *f, void *wm, const int *stock, uint32_t now);
 internal int sf_build(ee_player *pl, unsigned idx, struct sfort *f, ee_build_mgr *bm, void *wm, const int *stock, uint32_t now) {
     int ttype = tower_newest(pl), e = current_epoch(pl);
     if (f->towers < 4) {   // the corner towers
@@ -837,6 +838,10 @@ internal int sf_build(ee_player *pl, unsigned idx, struct sfort *f, ee_build_mgr
         f->towers++;   // no room at that corner: the next
         return 1;
     }
+    return sf_walls(pl, idx, f, wm, stock, now);
+}
+// the fort's walls, a run at a time (also an outpost's fort, expand.c): 1 ordered or waiting
+internal int sf_walls(ee_player *pl, unsigned idx, struct sfort *f, void *wm, const int *stock, uint32_t now) {
     static const enum ut_name wline[] = { UT_WALL_LINE };
     int wtype = 0;
     for (int i = 5; i >= 0 && !wtype; i--) if (ut_has(g_ut[wline[i]]) && can_build(pl, g_ut[wline[i]])) wtype = g_ut[wline[i]];
