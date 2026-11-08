@@ -147,6 +147,7 @@ internal INT_PTR CALLBACK td_proc(HWND d, UINT msg, WPARAM w, LPARAM l) {
         return (INT_PTR)theme_ctlcolor(msg, w, l);   // a dialog procedure answers these with the brush itself
     case WM_DRAWITEM:
         if (w == TD_STRIP) { td_draw((const DRAWITEMSTRUCT *)l); return TRUE; }
+        if (theme_draw_item((const DRAWITEMSTRUCT *)l)) return TRUE;   // the slot dropdown's list
         break;
     case WM_COMMAND:
         switch (LOWORD(w)) {
@@ -235,7 +236,8 @@ internal void td_open(int i, int sel) {
     p = td_item(p, BS_AUTORADIOBUTTON, 8, 20, 124, 12, TD_RAMP, 0x80, L"A ramp between two colours");
     p = td_item(p, BS_AUTORADIOBUTTON, 8, 34, 124, 12, TD_EACH, 0x80, L"Each slot a colour of its own");
     p = td_item(p, SS_LEFT, 8, 56, 30, 10, 0xFFFF, 0x82, L"Slots:");
-    p = td_item(p, CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP | WS_GROUP, 40, 54, 36, 160, TD_COUNT, 0x85, L"");
+    p = td_item(p, CBS_DROPDOWNLIST | CBS_OWNERDRAWFIXED | CBS_HASSTRINGS | WS_VSCROLL | WS_TABSTOP | WS_GROUP, 40, 54, 36, 160,
+                TD_COUNT, 0x85, L"");
     p = td_item(p, SS_LEFT, 86, 56, 166, 10, TD_FREE, 0x82, L"");
     p = td_item(p, BS_OWNERDRAW | WS_TABSTOP, 8, 72, 244, 24, TD_STRIP, 0x80, L"");
     p = td_item(p, SS_LEFT, 8, 101, 244, 10, TD_HINT, 0x82, L"");

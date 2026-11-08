@@ -340,6 +340,32 @@ internal void theme_paint_combo(HWND c, HDC dc) {
     theme_text(dc, c, &t, text, !IsWindowEnabled(c) ? g_pal.grey : focus ? g_pal.focus : color, DT_LEFT);
 }
 
+// a dropdown's list as the editor's lists draw theirs: the field's colour, the text, the item under the mouse framed in
+// the text's colour - Windows' own list marks it with a white bar the text can't be read on. For an owner-drawn
+// dropdown (CBS_OWNERDRAWFIXED | CBS_HASSTRINGS) whose parent hands its WM_DRAWITEM here: 1 drawn. Its selection field
+// is theme_paint_combo's alone (Windows asks for it when it draws the field itself: left as ours)
+internal int theme_draw_item(const DRAWITEMSTRUCT *di) {
+    if (di->CtlType != ODT_COMBOBOX) return 0;
+    if (di->itemState & ODS_COMBOBOXEDIT) return 1;
+    RECT r = di->rcItem;
+    FillRect(di->hDC, &r, g_pal.b_field);
+    char text[256] = "";
+    if ((int)di->itemID < 0 || SendMessageA(di->hwndItem, CB_GETLBTEXTLEN, di->itemID, 0) >= (LRESULT)sizeof text) return 1;
+    SendMessageA(di->hwndItem, CB_GETLBTEXT, di->itemID, (LPARAM)text);
+    if (di->itemState & ODS_SELECTED) {
+        HBRUSH b = CreateSolidBrush(g_pal.text);
+        FrameRect(di->hDC, &r, b);
+        DeleteObject(b);
+    }
+    RECT t = { r.left + 4, r.top, r.right - 2, r.bottom };
+    HFONT old = (HFONT)SelectObject(di->hDC, (HFONT)SendMessageA(di->hwndItem, WM_GETFONT, 0, 0));
+    SetBkMode(di->hDC, TRANSPARENT);
+    SetTextColor(di->hDC, g_pal.text);
+    DrawTextA(di->hDC, text, -1, &t, DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX);
+    SelectObject(di->hDC, old);
+    return 1;
+}
+
 // a field's frame (an edit, the list: their client edge, 2 pixels) the game's sunken bevel in place of Windows' line
 internal void theme_frame(HWND c) {
     HDC dc = GetWindowDC(c);
@@ -380,7 +406,8 @@ internal LRESULT CALLBACK theme_drawn_proc(HWND c, UINT msg, WPARAM wp, LPARAM l
     LRESULT before = theme_state(c, (int)combo);
     LRESULT res = DefSubclassProc(c, msg, wp, lp);
     if (theme_state(c, (int)combo) != before || msg == WM_SETTEXT || msg == WM_ENABLE || msg == WM_SETFOCUS ||
-        msg == WM_KILLFOCUS || msg == WM_MOUSELEAVE || msg == WM_LBUTTONUP || msg == WM_KEYUP) InvalidateRect(c, NULL, FALSE);
+        msg == WM_KILLFOCUS || msg == WM_MOUSELEAVE || msg == WM_LBUTTONUP || msg == WM_KEYUP ||
+        msg == CB_SETCURSEL || msg == CB_SELECTSTRING) InvalidateRect(c, NULL, FALSE);   // a choice set again: drawn though the same
     return res;
 }
 
@@ -877,6 +904,15 @@ internal void theme_control(HWND c, const char *cls) {   // a child: its dark th
     if (!g_gl.on) return;
     if (!lstrcmpA(cls, WC_BUTTONA)) SetWindowSubclass(c, theme_drawn_proc, 1, 0);
     else if (!lstrcmpA(cls, WC_COMBOBOXA)) {   // the height of the knot: it is drawn 1:1, a square of the whole height
+        // the dropdown itself without a theme: the themed one animates its states (the focus, the mouse) with frames it
+        // draws after ours - its own text 2 pixels lower and its field over the knot's edge (the player's picture,
+        // 2026-11-08); the classic one draws only inside its messages, ours after them. Its list keeps the dark theme
+        SetWindowTheme(c, L" ", L" ");
+        COMBOBOXINFO ci = { .cbSize = sizeof ci };
+        if (GetComboBoxInfo(c, &ci) && ci.hwndList) {
+            theme_allow_dark(ci.hwndList);
+            SetWindowTheme(ci.hwndList, L"DarkMode_CFD", NULL);   // its scrollbar; its items drawn here where owner-drawn
+        }
         SetWindowSubclass(c, theme_drawn_proc, 1, 1);
         HDC dc = GetDC(c);
         int want = MulDiv(GL_CELL, GetDeviceCaps(dc, LOGPIXELSY), 96);
@@ -886,6 +922,15 @@ internal void theme_control(HWND c, const char *cls) {   // a child: its dark th
             GetWindowRect(c, &r);
             int item = (int)SendMessageA(c, CB_GETITEMHEIGHT, (WPARAM)-1, 0) + want - (r.bottom - r.top);
             SendMessageA(c, CB_SETITEMHEIGHT, (WPARAM)-1, item > 1 ? item : 1);
+        }
+        if (GetWindowLongA(c, GWL_STYLE) & CBS_OWNERDRAWFIXED) {   // its list's items (theme_draw_item): the text's height and a margin
+            TEXTMETRICA tm;
+            dc = GetDC(c);
+            HFONT old = (HFONT)SelectObject(dc, (HFONT)SendMessageA(c, WM_GETFONT, 0, 0));
+            GetTextMetricsA(dc, &tm);
+            SelectObject(dc, old);
+            ReleaseDC(c, dc);
+            SendMessageA(c, CB_SETITEMHEIGHT, 0, tm.tmHeight + 4);
         }
     }
     else if (!lstrcmpA(cls, WC_EDITA) && (GetWindowLongA(c, GWL_EXSTYLE) & WS_EX_CLIENTEDGE)) {
