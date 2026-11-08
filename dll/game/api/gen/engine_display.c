@@ -617,6 +617,12 @@ internal inline uint8_t *engine_display_sort_maps_at(void) { return (uint8_t *)(
 // after the walk
 internal inline uint8_t *engine_display_units_walk_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_units_walk; }
 internal inline uint8_t *engine_display_units_walk_end_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_units_walk_end; }
+// the simulation's loop (RTSPhysics::Main, EE 0x5532FB) takes the world's write lock for its steps through
+// EEPhysics' vf5 (EE 0x546B0A, AoC 0x552F29: the lock in ecx, a jmp to TSReadWriteLock::WriteLock), its steps
+// (vf8) under it, and lets go through vf10: the return address the lock sees (after its call [eax+0x14], EE
+// 0x55340E, AoC 0x56151B) - the units' collection copies the world when the steps let go of it (collect.c's copy;
+// the other writers - the interface's, the lobby's, a load - only make it stale)
+internal inline uint8_t *engine_display_step_write_return_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_step_write_return; }
 // the update's frame (ebp less these) as the walk reads it, the same in AoC: the render object, the local player,
 // the map, the objects with a physics part counted (float, for the music), the info its fills get (the AoC
 // decompilation's: the unit under the mouse +0, the camera's yaw +4, the fighting units +8, the frame +0xC, the
@@ -1027,6 +1033,7 @@ internal int spec_engine_display_select(int build) {
         data_engine_display_sort_maps = 0x008D2CB8;
         data_engine_display_units_walk = 0x00503E9F;
         data_engine_display_units_walk_end = 0x005041F4;
+        data_engine_display_step_write_return = 0x00553411;
         value_engine_display_walk_this = 4;
         value_engine_display_walk_player = 28;
         value_engine_display_walk_map = 36;
@@ -1320,6 +1327,7 @@ internal int spec_engine_display_select(int build) {
         data_engine_display_sort_maps = 0x008E9458;
         data_engine_display_units_walk = 0x0050EDDA;
         data_engine_display_units_walk_end = 0x0050F12F;
+        data_engine_display_step_write_return = 0x00561522;
         value_engine_display_walk_this = 4;
         value_engine_display_walk_player = 28;
         value_engine_display_walk_map = 36;
@@ -1506,6 +1514,7 @@ internal int spec_engine_display_check(void) {
     bad += spec_data(data_engine_display_sort_maps, "engine_display.sort_maps");
     bad += spec_code(data_engine_display_units_walk, "engine_display.units_walk");
     bad += spec_code(data_engine_display_units_walk_end, "engine_display.units_walk_end");
+    bad += spec_code(data_engine_display_step_write_return, "engine_display.step_write_return");
     bad += spec_data(data_engine_display_graphics_lock, "engine_display.graphics_lock");
     bad += spec_data(data_engine_display_viewport_view, "engine_display.viewport_view");
     bad += spec_code(data_engine_display_viewport_view_ops[0], "engine_display.viewport_view_ops 0");

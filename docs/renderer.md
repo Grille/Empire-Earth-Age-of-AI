@@ -422,7 +422,7 @@ before (the picker full of others), 109 after. The 109 were the selection messag
 rest now goes after it as messages that add to the selection (select.c; docs/engine-notes.md) - the same box 286 of
 286 found, in 3 messages.
 
-Step 2, the fills (next): each of the game's fills in C as two halves - what it reads of the world into a compact
+Step 2, the fills (done, 2026-11-08): each of the game's fills in C as two halves - what it reads of the world into a compact
 record of the object (in step 3 the simulation's, at its step's end, for every object) and the draw record made of
 that (the frame's: the camera's parts - GetUnitOpacity fades what is near the camera, IsUnitDrawn tests the model
 against the view). Both halves in the frame first, each fill held against the game's by `drawcount hash`.
@@ -528,6 +528,39 @@ sets (uc_ghost_set). Checked with ghosts the pipe makes (`picture collect ghost 
 and preview, as the build menu and the mouse; -1 only moves them): a house, an airport, a granary and barracks at the
 camera, each moved four times, 0 differ - EE 136 132 records in 36 614 fills, AoC 123 361 in 32 758; the space types'
 lift not met.
+
+Step 3, the world's copy (collect_copy.c, 2026-11-08; the pipe: `picture collect copy off | on | check`, off by
+default). The fills read the world no more: what they read of it - per tile of a region its sight for the player, the
+objects on it in the walk's order (an object of parts from its first part on), the buildings and trees remembered there;
+per object its values, its complex unit's (its physical model byte for byte: pose, model, scale, frame - the view test
+asks Intersects of the copy), the units inside's bars, its part values and two lists, its goal's value, a path marker's
+target place; per doppelganger its virtual functions' answers - is copied into a copy of the region (uc_copy), and the
+walk and every fill read that, the rest the game's data (types, graphics, players' colours and names, the ground) or
+the frame's (the camera, the selection, the unit under the mouse, the interface's settings). The halves are the copy
+(cp_obj, cp_dopp: the extract) and the fills (the build). With the copy off the walk makes it of its view itself at
+its start, under the frame's read lock. With it on the simulation makes it when its loop lets go of the world's write
+lock after its steps (render_3d.c rd_hook_write_unlock, the lock's caller the loop's: spec engine_display.
+step_write_return) - of the frame's last view and 4 tiles round it -, and the walk takes it when it is for its view,
+player, free camera and show-hidden mode; any other writer (the interface's, the lobby's, a load: 70 places in the exe
+take the lock) only makes it stale, and the walk then copies the world itself (it holds the read lock). So whenever the
+walk reads a copy, the world is as it was copied: the objects' pointers in it are as good as the game's own walk's (the
+picker, the met sets, the ambient sounds, the selection's groups take them; the fills never read through them). Three
+copies: the newest, the one the walk reads, one being made. update_hidden ("show hidden units" 1) writes to the unit:
+the copy asks it, for an obstacle or a moved unit of the region, where the game asks it for those it draws (the
+simulation calls it itself when a unit moves; it reads only the game time and the map).
+Checked (copy check: at every walk the steps' copy against one made of the world then - every tile, object,
+doppelganger and list byte for byte, but update_hidden's state, which the copy's own call changes), 0 differ:
+the 8000 save 817 walks (4.2 million objects), as its player 2 917 (4.8 million), an EE Continental game as
+player 2 after 5 minutes 19 124 (14.4 million), AoC 20 412 (13.8 million). With the copy on the fills held against the game's beside it: the view test 0 differ of 1.8 million objects
+(the 8000 save), 9.3 million (EE Continental, player 2 after 5 minutes), 6.5 million (AoC); the trees', doppelgangers'
+(3.5 million, 2.3 million) and ghosts' fills 0 differ; the opacity 1, 6 and 8 differ of millions - update_hidden asked
+twice (the copy, then the game's call a step's time later in the check; ours alone asks it once). Paused, the prints of
+the game's walk and the mod's from the steps' copy alike in the objects' records, their vectors and labels, the picker
+and the sort maps (the 8000 save as players 1 and 2, EE and AoC Continental). Each game then 30 s at speed 3 with all
+of the mod's. The walk took the steps' copy at most walks; other writers made it stale 0-4 times in a game. What it
+costs the simulation: 3-8 ms a step in the 8000 save (3800-11 000 objects in the region), 0.6-0.8 ms on a Continental
+map (900) - off by default till it is measured against what it buys (step 4: the units drawn during the steps, moved
+between them).
 
 `[display] gpu_animation` (default on; the pipe: `picture morph on | off`; render_morph.c), 2026-11-06. EE animates a
 model by morphing: every frame of its animation is a whole vertex array (spec GEModel.vertices, frames alike share

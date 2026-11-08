@@ -112,9 +112,11 @@ internal void rd3_fxaa(ID3D11RenderTargetView *rtv, const D3D11_VIEWPORT *vp) {
 }
 
 internal int g_rwl_free, g_rwl_handoff_after; internal LONG g_rwl_skips;   // render_3d.c: the frame during a step (below its lock hooks)
-internal int collect_own(int on), collect_opacity(int how), collect_drawn(int how), collect_fill_mode(int how), collect_ghost(int type, float x, float y); internal LONG g_uc_walks;   // collect.c: the units' walk, its fills
+internal int collect_own(int on), collect_opacity(int how), collect_drawn(int how), collect_fill_mode(int how), collect_ghost(int type, float x, float y), collect_copy_mode(int how);
+internal LONG g_uc_walks;   // collect.c: the units' walk, its fills
+internal volatile int g_cp_on;   // collect_copy.c: the world's copy the walk reads
 extern volatile int g_uc_own; internal volatile int g_uc_opacity, g_uc_drawn, g_uc_fill;
-// the pipe: picture [aa on | off] [aniso <1..16>] [edge <0..1>] [steps on | off] [handoff <ms>] [morph on | off] [text on | off] [margin <0..2>] [objects <0..0.5>] [collect own | game | opacity | drawn game | check | own | fill game | check | own | ghost <type> <x> <y>]
+// the pipe: picture [aa on | off] [aniso <1..16>] [edge <0..1>] [steps on | off] [handoff <ms>] [morph on | off] [text on | off] [margin <0..2>] [objects <0..0.5>] [collect own | game | opacity | drawn game | check | own | fill game | check | own | ghost <type> <x> <y> | copy off | on | check]
 internal void cmd_picture(char *out, const char *args) {
     char mode[16] = "", arg[16] = "";
     sscanf(args, "%15s %15s", mode, arg);
@@ -161,6 +163,12 @@ internal void cmd_picture(char *out, const char *args) {
         float x = 0, y = 0;
         if (sscanf(args, "%*s %*s %d %f %f", &type, &x, &y) != 3 || type < -1) { REPLY("error: usage: picture collect ghost <type | -1> <x> <y>\n"); return; }
         if (collect_ghost(type, x, y) < 0) { REPLY("error: the units' walk isn't hooked (the log: # collect)\n"); return; }
+    } else if (!strcmp(mode, "collect") && !strcmp(arg, "copy")) {   // collect_copy.c: the world's copy the walk reads
+        char how[16] = "";
+        sscanf(args, "%*s %*s %15s", how);
+        int m = !strcmp(how, "off") ? 0 : !strcmp(how, "on") ? 1 : !strcmp(how, "check") ? 2 : -1;
+        if (m < 0) { REPLY("error: usage: picture collect copy off | on | check\n"); return; }
+        if (collect_copy_mode(m) < 0) { REPLY("error: the units' walk isn't hooked (the log: # collect)\n"); return; }
     } else if (!strcmp(mode, "collect")) {   // collect.c: the units' walk the mod's own or the game's
         char how[16] = "";
         sscanf(args, "%*s %*s %15s", how);
@@ -171,14 +179,15 @@ internal void cmd_picture(char *out, const char *args) {
         int m = how[0] == 'g' ? 0 : how[0] == 'c' ? 1 : 2;
         int r = !fill ? collect_own(arg[0] == 'o') : fill == 1 ? collect_opacity(m) : fill == 2 ? collect_drawn(m) : collect_fill_mode(m);
         if (r < 0) { REPLY("error: the units' walk isn't hooked (the log: # collect)\n"); return; }
-    } else if (mode[0]) { REPLY("error: usage: picture [aa on | off] [aniso <1..16>] [edge <0..1>] [steps on | off] [handoff <ms>] [morph on | off] [text on | off] [margin <0..2>] [objects <0..0.5>] [collect own | game | opacity | drawn game | check | own | fill game | check | own | ghost <type> <x> <y>]\n"); return; }
+    } else if (mode[0]) { REPLY("error: usage: picture [aa on | off] [aniso <1..16>] [edge <0..1>] [steps on | off] [handoff <ms>] [morph on | off] [text on | off] [margin <0..2>] [objects <0..0.5>] [collect own | game | opacity | drawn game | check | own | fill game | check | own | ghost <type> <x> <y> | copy off | on | check]\n"); return; }
     REPLY("picture: anti-aliasing %s (%s, %ld passes, an edge %.2f of its brightest), anisotropy %d; text on the target %s (frames %ld, text phases %ld, reads back %ld so far); frames drawn during a"
-          " step %s (%ld; the simulation waits for one after %d ms without); the ground's margin %.2f (the last region %ld x %ld tiles at %.2f, its top %.2f, its bottom %.2f, the depths %.2f .. %.2f, its near %.2f (its camera pulled back %.1f for a zoom out), worked out %ld, its polygons %lu and %lu on the water; the ground kept %d batches, %d vertices); the objects' margin %.2f (%ld passed by it); the units' walk %s (%ld walks of the mod's), its opacity %s, its view test %s, its fill %s\n", g_fx.on ? "on" : "off",
+          " step %s (%ld; the simulation waits for one after %d ms without); the ground's margin %.2f (the last region %ld x %ld tiles at %.2f, its top %.2f, its bottom %.2f, the depths %.2f .. %.2f, its near %.2f (its camera pulled back %.1f for a zoom out), worked out %ld, its polygons %lu and %lu on the water; the ground kept %d batches, %d vertices); the objects' margin %.2f (%ld passed by it); the units' walk %s (%ld walks of the mod's), its opacity %s, its view test %s, its fill %s, its copy of the world %s\n", g_fx.on ? "on" : "off",
           g_fx.ready > 0 ? "ready" : g_fx.ready < 0 ? "FAILED (the log says why)" : "not made yet",
           (long)g_fx.passes, (double)g_fx.edge, g_fx.aniso, g_text_layer ? "on the GPU" : "by locks", (long)g_rd_frames, (long)g_tdc_phases, (long)g_rd_reads, g_rwl_free ? "on" : "off", (long)g_rwl_skips, g_rwl_handoff_after,
           (double)g_gm_margin, g_gm_size[0] + 1, g_gm_size[1] + 1, (double)g_gm_k, (double)g_gm_kt, (double)g_gm_kb, (double)g_gm_depths[0], (double)g_gm_depths[1], (double)g_gm_near, (double)g_gm_ride, g_gm_pred + 1, g_gm_polys[0], g_gm_polys[1], g_kg.nb, g_kg.nv, (double)g_om_margin, (long)g_om_passed,
           g_uc_own ? "the mod's" : "the game's", (long)g_uc_walks,
           g_uc_opacity == 2 ? "the mod's" : g_uc_opacity == 1 ? "the game's, the mod's held against it" : "the game's",
           g_uc_drawn == 2 ? "the mod's" : g_uc_drawn == 1 ? "the game's, the mod's held against it" : "the game's",
-          g_uc_fill == 2 ? "the mod's" : g_uc_fill == 1 ? "the game's, the trees', doppelgangers' and ghosts' held against the mod's" : "the game's");
+          g_uc_fill == 2 ? "the mod's" : g_uc_fill == 1 ? "the game's, the trees', doppelgangers' and ghosts' held against the mod's" : "the game's",
+          g_cp_on == 2 ? "the simulation's, held against the frame's" : g_cp_on ? "the simulation's" : "the frame's own");
 }

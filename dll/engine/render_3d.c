@@ -848,7 +848,9 @@ internal void __thiscall rd_hook_write_lock(void *lock) {
         g_sim_thread = GetCurrentThreadId();
     }
 }
+internal void collect_copy_written(uintptr_t ret);   // collect_copy.c: the units' copy of the world at a write's end
 internal void __thiscall rd_hook_write_unlock(void *lock) {
+    if (lock == g_rwl_world && g_rwl_counted) collect_copy_written(g_rwl_write_ret);
     if (lock == g_rwl_world && g_rwl_counted) {
         g_rwl_counted = 0;
         InterlockedDecrement(&g_rwl_writers);

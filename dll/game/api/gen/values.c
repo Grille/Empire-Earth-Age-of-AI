@@ -688,6 +688,7 @@ internal uint32_t data_engine_display_picker_lock;
 internal uint32_t data_engine_display_sort_maps;
 internal uint32_t data_engine_display_units_walk;
 internal uint32_t data_engine_display_units_walk_end;
+internal uint32_t data_engine_display_step_write_return;
 internal uint32_t value_engine_display_walk_this;
 internal uint32_t value_engine_display_walk_player;
 internal uint32_t value_engine_display_walk_map;

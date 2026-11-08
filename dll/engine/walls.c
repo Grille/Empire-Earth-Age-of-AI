@@ -943,8 +943,7 @@ internal struct bl_model g_bl_models[BL_MODELS];
 internal void *g_bl_gfx[BL_GFX];
 internal float g_bl_z[BL_BEND_MAX];   // the bent vertices' own z, put back after the draw (the graphics thread's)
 
-internal void bl_mark(ee_unit *u, int decal) {
-    ee_unit_stats *st = unit_get_stats(u);
+internal void bl_mark(ee_unit_stats *st, int decal) {
     ee_dmg_model *gfx = st ? unit_stats_get_gfx(st) : NULL;
     if (!gfx) return;
     unsigned h = (unsigned)((uintptr_t)gfx >> 4) & (BL_GFX - 1);
@@ -1005,13 +1004,16 @@ internal void bl_unbend(ee_vertices *a) {
 // PC whatever this one draws): a farm's record (its unit's matrix, level as laid out) sheared; an ambient object or a
 // resource site (no matrix of its own: the collection turns it by its heading at the ground's height, level) its model
 // noted, to be bent where it is drawn
-internal void __thiscall hook_draw_record_fill(void *c, ee_unit *u, float *rec, void *p3, void *p4) {
-    collect_fill(c, u, rec, p3, p4);   // the game's fill, or collect.c's port of it
-    ee_unit_type *td = u ? unit_get_type_data(u) : NULL;
+// (after the fill: collect.c's walk of the world's copy calls it with the copy's type, complex unit and stats)
+internal void walls_after_fill(ee_unit_type *td, int has_physics, ee_unit_stats *st, float *rec) {
     ee_map *map = game_map();
     if (!td || !map || !rec || !bl_sheared(td)) return;
-    if (unit_get_physics(u)) bl_shear(map, rec, unit_type_get_size(td), unit_type_get_class_id(td) != CLS_BUILDING);
-    else bl_mark(u, UT_IN(unit_type_get_id(td), UT_AMB_DEBRIS_1X, UT_AMB_DEBRIS_2X, UT_AMB_DEBRIS_3X, UT_AMB_DEBRIS_4X));
+    if (has_physics) bl_shear(map, rec, unit_type_get_size(td), unit_type_get_class_id(td) != CLS_BUILDING);
+    else if (st) bl_mark(st, UT_IN(unit_type_get_id(td), UT_AMB_DEBRIS_1X, UT_AMB_DEBRIS_2X, UT_AMB_DEBRIS_3X, UT_AMB_DEBRIS_4X));
+}
+internal void __thiscall hook_draw_record_fill(void *c, ee_unit *u, float *rec, void *p3, void *p4) {
+    collect_fill(c, u, rec, p3, p4);   // the game's fill, or collect.c's port of it
+    if (u) walls_after_fill(unit_get_type_data(u), unit_get_physics(u) != NULL, unit_get_stats(u), rec);
 }
 internal ee_unit *__cdecl hook_place_building(ee_player *pl, int type, int x, int y) {
     ee_unit *b = place_foundation(pl, type, x, y);

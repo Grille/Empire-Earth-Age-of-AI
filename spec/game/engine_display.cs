@@ -835,6 +835,14 @@ static unsafe class engine_display
     [address((ee)0x005041F4, (aoc)0x0050F12F)]
     static code units_walk_end;
 
+    /// the simulation's loop (RTSPhysics::Main, EE 0x5532FB) takes the world's write lock for its steps through
+    /// EEPhysics' vf5 (EE 0x546B0A, AoC 0x552F29: the lock in ecx, a jmp to TSReadWriteLock::WriteLock), its steps
+    /// (vf8) under it, and lets go through vf10: the return address the lock sees (after its call [eax+0x14], EE
+    /// 0x55340E, AoC 0x56151B) - the units' collection copies the world when the steps let go of it (collect.c's copy;
+    /// the other writers - the interface's, the lobby's, a load - only make it stale)
+    [address((ee)0x00553411, (aoc)0x00561522)]
+    static code step_write_return;
+
     /// the update's frame (ebp less these) as the walk reads it, the same in AoC: the render object, the local player,
     /// the map, the objects with a physics part counted (float, for the music), the info its fills get (the AoC
     /// decompilation's: the unit under the mouse +0, the camera's yaw +4, the fighting units +8, the frame +0xC, the
