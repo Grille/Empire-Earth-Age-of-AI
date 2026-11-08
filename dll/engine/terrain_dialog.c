@@ -37,6 +37,7 @@
 #define TD_B_LABEL 123
 #define TD_HEX_LABEL 124
 #define TD_RECENTS 16
+#define TD_BAD_TEXT RGB(130, 0, 0)   // a dark red: a bright one has the brightness of the field's brown and can't be read on it
 #define TD_POINTS 9       // its font's size at the game's picture 1:1 (the dialog's parts follow the font) ...
 #define TD_PIXELS 500     // ... and about its height then, with the title bar
 internal struct {
@@ -50,6 +51,7 @@ internal struct {
     uint8_t was[3];                    // its colour when it was chosen
     int drag;                          // the mouse held on: TD_SQUARE, TD_HUE
     int edited, filling;               // changed since it was chosen; the fields being set from here (their EN_CHANGE ignored)
+    unsigned bad;                      // the fields whose text is no value (a bit each from TD_R on): shown in red
 } g_td;
 internal uint8_t g_td_recent[TD_RECENTS][3];   // the colours used last, the newest first
 internal unsigned g_td_recents;
@@ -97,16 +99,24 @@ internal void td_remember(void) {
     memcpy(g_td_recent[0], c, 3);
 }
 
+internal void td_mark(HWND d, int id, int bad) {
+    unsigned bit = 1u << (id - TD_R);
+    if (!(g_td.bad & bit) == !bad) return;
+    g_td.bad ^= bit;
+    InvalidateRect(GetDlgItem(d, id), NULL, TRUE);
+}
+
 // the fields from the chosen slot's colour, but the one being typed in
 internal void td_fields(HWND d, int skip) {
     const uint8_t *c = g_td.cell[g_td.sel];
     wchar_t t[8];
     g_td.filling = 1;
     for (int j = 0; j < 3; j++)
-        if (TD_R + j != skip) SetDlgItemInt(d, TD_R + j, c[j], FALSE);
+        if (TD_R + j != skip) SetDlgItemInt(d, TD_R + j, c[j], FALSE), td_mark(d, TD_R + j, 0);
     if (skip != TD_HEX) {
         wsprintfW(t, L"%02X%02X%02X", c[0], c[1], c[2]);
         SetDlgItemTextW(d, TD_HEX, t);
+        td_mark(d, TD_HEX, 0);
     }
     g_td.filling = 0;
 }
@@ -322,33 +332,37 @@ internal void td_click(HWND d, POINT p) {
     }
 }
 
-// a field typed in: its value the slot's colour once it is one (a part typed is left as it is)
+// a field's text as its value, 1 parsed: 0 .. 255, or six hex digits of either case after an optional #; spaces round it
+// count for nothing
+internal int td_parse(const wchar_t *t, int hex, unsigned *out) {
+    while (*t == L' ') t++;
+    if (hex && *t == L'#') t++;
+    unsigned v = 0, n = 0;
+    for (; *t && *t != L' '; t++, n++) {
+        unsigned x = *t >= L'0' && *t <= L'9' ? *t - L'0' : hex && (*t | 32) >= L'a' && (*t | 32) <= L'f' ? (*t | 32) - L'a' + 10u : 16;
+        if (x == 16) return 0;
+        v = v * (hex ? 16 : 10) + x;
+        if (!hex && v > 255) return 0;
+    }
+    while (*t == L' ') t++;
+    if (*t || (hex ? n != 6 : !n)) return 0;
+    *out = v;
+    return 1;
+}
+
+// a field typed in: anything may be typed; what is a value is the slot's colour at once, what is not is shown in red and
+// changes nothing
 internal void td_typed(HWND d, int id) {
+    wchar_t t[64];
+    unsigned v;
+    GetDlgItemTextW(d, id, t, 64);
+    int ok = td_parse(t, id == TD_HEX, &v);
+    td_mark(d, id, !ok);
+    if (!ok) return;
     uint8_t c[3];
     memcpy(c, g_td.cell[g_td.sel], 3);
-    if (id == TD_HEX) {
-        wchar_t t[8];
-        if (GetDlgItemTextW(d, id, t, 8) != 6) return;
-        unsigned v = 0;
-        for (int i = 0; i < 6; i++) {
-            unsigned x = t[i] >= L'0' && t[i] <= L'9' ? t[i] - L'0' : t[i] >= L'A' && t[i] <= L'F' ? t[i] - L'A' + 10u : 16;
-            if (x > 15) return;
-            v = v * 16 + x;
-        }
-        c[0] = (uint8_t)(v >> 16), c[1] = (uint8_t)(v >> 8), c[2] = (uint8_t)v;
-    } else {
-        BOOL ok;
-        UINT v = GetDlgItemInt(d, id, &ok, FALSE);
-        if (!ok) return;
-        if (v > 255) {
-            v = 255;
-            g_td.filling = 1;
-            SetDlgItemInt(d, id, v, FALSE);
-            SendDlgItemMessageW(d, id, EM_SETSEL, 3, 3);
-            g_td.filling = 0;
-        }
-        c[id - TD_R] = (uint8_t)v;
-    }
+    if (id == TD_HEX) c[0] = (uint8_t)(v >> 16), c[1] = (uint8_t)(v >> 8), c[2] = (uint8_t)v;
+    else c[id - TD_R] = (uint8_t)v;
     td_set(d, c, id);
 }
 
@@ -420,10 +434,7 @@ internal INT_PTR CALLBACK td_proc(HWND d, UINT msg, WPARAM w, LPARAM l) {
         for (unsigned k = 0; k < sizeof buttons / sizeof *buttons; k++) theme_control(GetDlgItem(d, buttons[k]), WC_BUTTONA);
         theme_control(GetDlgItem(d, TD_COUNT), WC_COMBOBOXA);
         theme_control(GetDlgItem(d, TD_BLEND), WC_COMBOBOXA);
-        for (int id = TD_R; id <= TD_HEX; id++) {
-            theme_control(GetDlgItem(d, id), WC_EDITA);
-            SendDlgItemMessageW(d, id, EM_LIMITTEXT, id == TD_HEX ? 6 : 3, 0);
-        }
+        for (int id = TD_R; id <= TD_HEX; id++) theme_control(GetDlgItem(d, id), WC_EDITA);
         td_rows(d);
         td_update(d);
         td_choose(d, 0);
@@ -434,8 +445,12 @@ internal INT_PTR CALLBACK td_proc(HWND d, UINT msg, WPARAM w, LPARAM l) {
         if (!theme_erase(d, (HDC)w)) break;
         SetWindowLongPtrW(d, DWLP_MSGRESULT, 1);
         return TRUE;
-    case WM_CTLCOLORSTATIC: case WM_CTLCOLOREDIT: case WM_CTLCOLORLISTBOX: case WM_CTLCOLORBTN: case WM_CTLCOLORDLG:
-        return (INT_PTR)theme_ctlcolor(msg, w, l);   // a dialog procedure answers these with the brush itself
+    case WM_CTLCOLORSTATIC: case WM_CTLCOLOREDIT: case WM_CTLCOLORLISTBOX: case WM_CTLCOLORBTN: case WM_CTLCOLORDLG: {
+        LRESULT brush = theme_ctlcolor(msg, w, l);   // a dialog procedure answers these with the brush itself
+        int id = GetDlgCtrlID((HWND)l);
+        if (msg == WM_CTLCOLOREDIT && id >= TD_R && id <= TD_HEX && g_td.bad >> (id - TD_R) & 1) SetTextColor((HDC)w, TD_BAD_TEXT);
+        return (INT_PTR)brush;
+    }
     case WM_DRAWITEM:
         if (w == TD_STRIP) { td_draw((const DRAWITEMSTRUCT *)l); return TRUE; }
         if (w == TD_SQUARE || w == TD_HUE) { td_gradient((const DRAWITEMSTRUCT *)l, w == TD_HUE); return TRUE; }
@@ -575,7 +590,7 @@ internal void td_open(int i, int sel) {
     static const wchar_t *const fields[] = { L" R:", L" G:", L" B:", L" Hex:" };
     for (int k = 0; k < 4; k++) {
         p = td_item(p, SS_LEFT | SS_CENTERIMAGE, 158, (short)(118 + 21 * k), 22, 12, (WORD)(TD_R_LABEL + k), 0x82, fields[k]);
-        p = td_item(p, WS_TABSTOP | ES_AUTOHSCROLL | (k < 3 ? ES_NUMBER : ES_UPPERCASE) | (k ? 0 : WS_GROUP), 182, (short)(118 + 21 * k), 32, 12, (WORD)(TD_R + k), 0x81, L"");
+        p = td_item(p, WS_TABSTOP | ES_AUTOHSCROLL | (k ? 0 : WS_GROUP), 182, (short)(118 + 21 * k), 32, 12, (WORD)(TD_R + k), 0x81, L"");
     }
     p = td_item(p, SS_LEFT | SS_CENTERIMAGE, 8, 198, 34, 12, TD_RECENT_LABEL, 0x82, L" Recent:");
     p = td_item(p, SS_OWNERDRAW, 44, 198, 208, 12, TD_RECENT, 0x82, L"");
