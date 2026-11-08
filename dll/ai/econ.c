@@ -215,6 +215,7 @@ internal char __thiscall hook_place(ee_build_mgr *bm, int type, int x, int y) {
         x = y = 0;
     }
     if (!x && !y) defence_spot(((void *)build_mgr_get_player(bm)), type, &x, &y);   // towers: where the defence plan wants them
+    if (!x && !y && PV(player_get_index(owner), g_v_tight_build, g_tight_build)) tb_spot(bm, owner, place_as, &x, &y);   // packed with its own (packing.c)
     char ok = build_mgr_place(bm, place_as, x, y);
     ee_player *pl = build_mgr_get_player(bm);
     unsigned idx = pl ? (unsigned)player_get_index(pl) & 15 : 0;
@@ -979,6 +980,7 @@ internal void econ_tick(ee_player *pl, uint32_t now) {
     spend_log(ai, now);
     gather_log(pl, ai, now);
     place_log(ai, now);
+    tb_layout(pl, ai, now);
     retry_dropped(pl, ai, now);
     prod_sync(pl, ai, now);
     catch_up_ais(pl, ai, now);
@@ -2393,9 +2395,11 @@ internal void econ_install(const char *autotest_ini) {
     g_train_room = g_set_ai[1].train_room;
     g_special_orders = g_set_ai[1].special_orders;
     g_spend_tiers = g_set_ai[1].spend_tiers;
+    g_tight_build = g_set_ai[1].tight_build;
     g_prod_sync = g_set_ai[1].production_sync;
     g_train_queue = g_set_ai[1].train_queue;
     if (autotest_ini) g_v_train_queue = ini_int("autotest", "v_train_queue", -1, autotest_ini);
+    if (autotest_ini) g_v_tight_build = ini_int("autotest", "v_tight_build", -1, autotest_ini);
     g_catch_ais = g_set_ai[1].catch_up_ais;
     if (autotest_ini) g_v_catch_ais = ini_int("autotest", "v_catch_up_ais", -1, autotest_ini);
     g_build_fields = g_set_ai[1].build_fields;

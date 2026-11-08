@@ -391,6 +391,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
 #include "voice/chat.c"
 #include "test/scen.c"
 #include "ai/sites.c"
+#include "ai/packing.c"
 #include "ai/econ.c"
 #include "ai/attack.c"
 #include "ai/stats.c"
