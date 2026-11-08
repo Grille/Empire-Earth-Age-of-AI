@@ -247,6 +247,8 @@ internal gm_set_camera_fn g_gm_set_camera;
 internal void *g_gm_viewport;           // the map's viewport, as the region's call gets it
 internal float g_gm_ride;               // how far the last update's camera was pulled back (the pipe's picture)
 internal float g_gm_pull[16], g_gm_was[16], g_gm_far_was;
+internal float g_gm_rest_zoom;          // the camera's zoom when its last ride ended
+#define GM_RIDE_MAX 30.0f               // tiles; the longest zoom out rides about 24 (above)
 internal int g_gm_pulled;
 internal void rf_pull_begin(void) {
     g_gm_pulled = 0;
@@ -258,13 +260,20 @@ internal void rf_pull_begin(void) {
         if (!g_gm_set_camera) return;
     }
     ee_camera *cam = game_camera();
-    if (!cam || camera_fixed_view() || camera_get_snap(cam) || !(camera_get_blend(cam) < 1)) return;
+    if (!cam || camera_fixed_view()) return;
+    // only a zoom out: its zoom above where the last ride ended. A pan's ride has the same zoom, and on a map made new
+    // in the editor its end lay 42 tiles from the eye - the ground made for that camera, the sky blue for as long as
+    // an arrow key was held (the player, 2026-11-08)
+    float zoom = camera_get_zoom(cam);
+    if (!(camera_get_blend(cam) < 1)) { g_gm_rest_zoom = zoom; return; }
+    if (camera_get_snap(cam) || !(zoom > g_gm_rest_zoom)) return;
     const float *m = viewport_camera(g_gm_viewport), *at = camera_look_at(cam);
     float end[16];
     camera_make_transformation(cam, end, 1.0f);
     float ex = end[3] - at[0], ey = end[7] - at[1], nx = m[3] - at[0], ny = m[7] - at[1];
     if (ex * ex + ey * ey <= nx * nx + ny * ny) return;   // a zoom in: the eye comes nearer
     float dx = end[3] - m[3], dy = end[7] - m[7];
+    if (dx * dx + dy * dy > GM_RIDE_MAX * GM_RIDE_MAX) return;
     g_gm_ride = sqrtf(dx * dx + dy * dy);
     memcpy(g_gm_was, m, sizeof g_gm_was);
     memcpy(g_gm_pull, m, sizeof g_gm_pull);
