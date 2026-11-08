@@ -575,6 +575,7 @@ internal void rf_camera_axes(void) {
     rd3_mul(g_cam_axes, mt, v);
     g_cam_axes_ok = 1;
 }
+#define RF_FIELD_BIAS 5e-6f   // of the depth buffer's 0..1: about 0.001 tiles at the usual zoom, the matrices' rounding about 0.0002
 internal void rf_shift(rd3_vcb *vc, int ro) {
     float now[16], inv[16], k[16], t[16];
     if (ro < RO_TERRAIN || ro > RO_WATER || !g_cam_now_ok) return;
@@ -608,6 +609,11 @@ internal void rf_shift(rd3_vcb *vc, int ro) {
     memcpy(vc->vpm, t, sizeof t);
     rd3_mul(t, k, vc->view);
     memcpy(vc->view, t, sizeof t);
+    // a farm's field lies in the ground's plane, its depth the ground's to the last bit while both come from the same
+    // camera; moved here they come by different matrices, their rounding parts them - the field and the ground fought
+    // while the camera moved, not while it stood (the player, 2026-11-08). So a field moved here is a hair nearer
+    if (ro == RO_SHADOWS)
+        for (int i = 0; i < 4; i++) vc->vpm[i * 4 + 2] -= RF_FIELD_BIAS * vc->vpm[i * 4 + 3];
 }
 // the list's shaders, buffers and maps bound (the batches' own states come with them)
 internal void rf_bind(ID3D11DeviceContext *x) {
