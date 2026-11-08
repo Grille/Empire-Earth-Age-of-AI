@@ -133,10 +133,13 @@ internal void tp_list_sync(void) {
     if (sel >= (int)g_tp_list_base && n) se_color_list_select(list, (unsigned)sel < n ? (unsigned)sel : n - 1, 0, 0);
 }
 
+internal void tf_panel_init(ee_se_terrain *p, ee_ui_form *form, int *index, void *font);   // terrain_filter.c
+internal void tf_panel_delete(ee_se_terrain *p);
 internal void *__thiscall hook_tp_panel_init(ee_se_terrain *p, uint32_t a, uint32_t b, int *index, ee_ui_form *form, void *font) {
     tc_list_cliffs(1);
     void *r = se_terrain_init(p, a, b, index, form, font);
     tc_list_cliffs(0);
+    tf_panel_init(p, form, index, font);
     ee_se_color_list *list = se_terrain_get_color_list(p);
     unsigned types = se_terrain_color_type_count(p), items = list ? se_color_list_count(list) : 0;
     if (list && types == items && color_type_size() <= sizeof *g_tp_rec) {
@@ -151,6 +154,7 @@ internal void *__thiscall hook_tp_panel_init(ee_se_terrain *p, uint32_t a, uint3
 
 internal void *__thiscall hook_tp_panel_delete(ee_se_terrain *p, uint8_t flags) {
     if (p == g_tp_panel) g_tp_panel = NULL;
+    tf_panel_delete(p);
     return eeuifse_terrain_destroy(p, flags);
 }
 
@@ -159,7 +163,9 @@ internal void *__thiscall hook_tp_panel_delete(ee_se_terrain *p, uint8_t flags) 
 internal void *tp_mesh(void);
 internal unsigned g_tp_paints[3];   // the paint's calls: with a game's type, one of the map's own, none (the pipe's status)
 internal int g_tp_paint_last = -1;
+internal int g_tf_mute;             // terrain_filter.c has coloured the corners itself
 internal void __thiscall hook_tp_paint_colors(ee_map *map, int x_lo, int x_hi, int y_hi, int y_lo, int type) {
+    if (g_tf_mute) return;
     ee_color_type *t = type >= TP_ID ? color_type(0) : NULL;
     g_tp_paint_last = type;
     if (type < TP_ID) { g_tp_paints[0]++; map_paint_colors(map, x_lo, x_hi, y_hi, y_lo, type); return; }
@@ -400,14 +406,16 @@ internal int tp_type_delete(unsigned i) {
 }
 
 internal int terrain_dialog_install(void);   // terrain_dialog.c
+internal int terrain_filter_install(void);   // terrain_filter.c
+#define TF_HOOKS 2
 internal void terrain_palette_install(void) {
     g_tp_on = g_set.terrain_palette;
     int n = 0;
     if (g_tp_on)
         n = patch_mesh_color_table(hook_tp_color_table, &g_tp_color_table) + patch_map_paint_colors(hook_tp_paint_colors) +
             patch_se_terrain_init(hook_tp_panel_init) + patch_se_terrain_delete(hook_tp_panel_delete) + terrain_dialog_install() +
-            terrain_cliffs_install();
-    if (g_log) fprintf(g_log, "# editor: terrain_palette=%d%s\n", g_tp_on, !g_tp_on ? "" : n == 6 + TC_HOOKS ? " (hooked)" : " (FAILED)");
+            terrain_cliffs_install() + terrain_filter_install();
+    if (g_log) fprintf(g_log, "# editor: terrain_palette=%d%s\n", g_tp_on, !g_tp_on ? "" : n == 6 + TC_HOOKS + TF_HOOKS ? " (hooked)" : " (FAILED)");
 }
 
 // pipe: palette type add|set <i> flat <r g b> | ramp <n> [srgb|linear|oklab] <r g b> <r g b> | each <n> <r g b> x n - a
@@ -416,6 +424,7 @@ internal void terrain_palette_install(void) {
 // item, as a click on it; i the count of types: the "new" item - the dialog opens, the reply comes when it is closed);
 // palette type edit <i> (the dialog for type i, as a double click on its item opens it)
 internal void td_open(int i, int sel);   // terrain_dialog.c
+internal void tf_cmd_limits(char *out, const char *args);   // terrain_filter.c
 internal void tp_cmd_type(char *out, const char *args) {
     char op[16] = "", mode[16] = "";
     int i = -1, at = 0;
@@ -499,6 +508,7 @@ internal void cmd_palette(char *out, const char *args) {
     if (!strcmp(mode, "remap")) { REPLY("ok: %u corners moved off free slots\n", tp_remap(map, 1, NULL)); return; }
     if (!strcmp(mode, "type")) { tp_cmd_type(out, args + strspn(args, " ") + 4); return; }
     if (!strcmp(mode, "ground")) { tc_cmd_ground(out, args + strspn(args, " ") + 6); return; }
+    if (!strcmp(mode, "limits")) { tf_cmd_limits(out, args + strspn(args, " ") + 6); return; }
     if (mode[0]) { REPLY("error: usage: palette [get <slot> | set <slot> <r> <g> <b> | clear <slot> | remap | type ...]\n"); return; }
     unsigned on[TP_SLOTS] = { 0 }, left = tp_remap(map, 0, on);
     REPLY("on=%d sets=%u shared=%u free=%u own=%u, corners to move off them %u:", g_tp_on, g_tp_sets, g_tp_shared, g_tp_nfree,

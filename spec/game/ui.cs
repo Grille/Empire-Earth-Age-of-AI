@@ -871,6 +871,19 @@ static unsafe class ui
     [address((ee)0x00823E58, (aoc)0x00837E60)]
     static block iat_check_box_ctor;
 
+    /// UITextLabel::UITextLabel(text, GEFont *, id, GERectangle &, UIForm *, K, the form's control index, K) - the
+    /// terrain panel's titles (0x59B710): (text, font, id, rect, form, 0, index, 0) into 0x124 bytes, then the exe's vtable
+    [import_slot("Low-Level Engine.dll", "??0UITextLabel@@QAE@ABVUWideString@@PAVGEFont@@KABVGERectangle@@PAVUIForm@@KKK@Z")]
+    [address((ee)0x00823D50, (aoc)0x008385C0)]
+    static block iat_text_label_ctor;
+
+    /// UIComboBox::UIComboBox(id, K, a vector of UWideString by value, GEFont *, GERectangle &, K, UIForm *, the form's
+    /// control index, K, K) - the map panel's (0x59198C): (id, 1, lines, font, rect, 300, form, index, 255, 0) into 0xE0
+    /// bytes, then the exe's vtable. 300: as far as its list opens
+    [import_slot("Low-Level Engine.dll", "??0UIComboBox@@QAE@KKV?$vector@VUWideString@@V?$allocator@VUWideString@@@std@@@std@@PAVGEFont@@ABVGERectangle@@KPAVUIForm@@KKK@Z")]
+    [address((ee)0x00823E14, (aoc)0x00837E1C)]
+    static block iat_combo_box_ctor;
+
     /// the font of the scenario editor's check boxes and radio buttons
     [address((ee)0x009197B8, (aoc)0x00931934)]
     static void* font_label;

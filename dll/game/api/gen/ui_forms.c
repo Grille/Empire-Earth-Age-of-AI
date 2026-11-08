@@ -1195,6 +1195,19 @@ internal inline void main_form_open(ee_main_form *main_form) { fn_main_form_open
 
 // class EEUIFileComboBox (eeui_file_combo_box)
 // UIComboBox's, the base's
+// the box its text is shown in (SetTextBoxBgOpacity: its vf24)
+internal inline ee_ui_control *eeui_file_combo_box_get_text_box(const eeui_file_combo_box *o) { return *(ee_ui_control **)((uint8_t *)o + of_ui_combo_box_text_box); }
+internal inline void eeui_file_combo_box_set_text_box(eeui_file_combo_box *o, ee_ui_control *v) { *(ee_ui_control **)((uint8_t *)o + of_ui_combo_box_text_box) = v; }
+internal inline ee_ui_control **eeui_file_combo_box_text_box_at(const eeui_file_combo_box *o) { return (ee_ui_control **)((uint8_t *)o + of_ui_combo_box_text_box); }
+// the line selected, 0xFFFFFFFF none (GetCurrentSelection)
+internal inline uint32_t eeui_file_combo_box_get_current_selection(const eeui_file_combo_box *o) { return *(uint32_t *)((uint8_t *)o + of_ui_combo_box_current_selection); }
+internal inline void eeui_file_combo_box_set_current_selection(eeui_file_combo_box *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_combo_box_current_selection) = v; }
+internal inline uint32_t *eeui_file_combo_box_current_selection_at(const eeui_file_combo_box *o) { return (uint32_t *)((uint8_t *)o + of_ui_combo_box_current_selection); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// the map panel sets it to 1 on its lists of fixed lines (0x59198C)
+internal inline uint8_t eeui_file_combo_box_get_fixed_lines(const eeui_file_combo_box *o) { return *(uint8_t *)((uint8_t *)o + of_ui_combo_box_fixed_lines); }
+internal inline void eeui_file_combo_box_set_fixed_lines(eeui_file_combo_box *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_ui_combo_box_fixed_lines) = v; }
+internal inline uint8_t *eeui_file_combo_box_fixed_lines_at(const eeui_file_combo_box *o) { return (uint8_t *)((uint8_t *)o + of_ui_combo_box_fixed_lines); }
 // UIControl's, the base's
 // its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
 // control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
@@ -1461,6 +1474,19 @@ internal inline float *ui_combo_box_top_at(const ui_combo_box *o) { return (floa
 internal inline ee_ui_form *ui_combo_box_get_form(const ui_combo_box *o) { return *(ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
 internal inline void ui_combo_box_set_form(ui_combo_box *o, ee_ui_form *v) { *(ee_ui_form **)((uint8_t *)o + of_ui_control_form) = v; }
 internal inline ee_ui_form **ui_combo_box_form_at(const ui_combo_box *o) { return (ee_ui_form **)((uint8_t *)o + of_ui_control_form); }
+// the box its text is shown in (SetTextBoxBgOpacity: its vf24)
+internal inline ee_ui_control *ui_combo_box_get_text_box(const ui_combo_box *o) { return *(ee_ui_control **)((uint8_t *)o + of_ui_combo_box_text_box); }
+internal inline void ui_combo_box_set_text_box(ui_combo_box *o, ee_ui_control *v) { *(ee_ui_control **)((uint8_t *)o + of_ui_combo_box_text_box) = v; }
+internal inline ee_ui_control **ui_combo_box_text_box_at(const ui_combo_box *o) { return (ee_ui_control **)((uint8_t *)o + of_ui_combo_box_text_box); }
+// the line selected, 0xFFFFFFFF none (GetCurrentSelection)
+internal inline uint32_t ui_combo_box_get_current_selection(const ui_combo_box *o) { return *(uint32_t *)((uint8_t *)o + of_ui_combo_box_current_selection); }
+internal inline void ui_combo_box_set_current_selection(ui_combo_box *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_combo_box_current_selection) = v; }
+internal inline uint32_t *ui_combo_box_current_selection_at(const ui_combo_box *o) { return (uint32_t *)((uint8_t *)o + of_ui_combo_box_current_selection); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// the map panel sets it to 1 on its lists of fixed lines (0x59198C)
+internal inline uint8_t ui_combo_box_get_fixed_lines(const ui_combo_box *o) { return *(uint8_t *)((uint8_t *)o + of_ui_combo_box_fixed_lines); }
+internal inline void ui_combo_box_set_fixed_lines(ui_combo_box *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_ui_combo_box_fixed_lines) = v; }
+internal inline uint8_t *ui_combo_box_fixed_lines_at(const ui_combo_box *o) { return (uint8_t *)((uint8_t *)o + of_ui_combo_box_fixed_lines); }
 
 // class UIEditBox (ui_edit_box)
 // made in 0x560EC7, 0x569046, 0x56B75E, 0x56E14F, 0x571B93, 0x583705, 0x59198C, 0x64AAB7
@@ -1998,6 +2024,9 @@ internal int spec_ui_forms_select(int build) {
         of_ui_check_box_checked_state = 0x108;
         vt_ui_combo_box = 0x0082DB74;
         size_ui_combo_box = 0xE0;
+        of_ui_combo_box_text_box = 0xC8;
+        of_ui_combo_box_current_selection = 0xD0;
+        of_ui_combo_box_fixed_lines = 0xDB;
         vt_ui_edit_box = 0x0082D3E8;
         size_ui_edit_box = 0x1E0;
         vt_ui_full_background = 0x0082F808;
@@ -2338,6 +2367,9 @@ internal int spec_ui_forms_select(int build) {
         of_ui_check_box_checked_state = 0x108;
         vt_ui_combo_box = 0x00843424;
         size_ui_combo_box = 0xE0;
+        of_ui_combo_box_text_box = 0xC8;
+        of_ui_combo_box_current_selection = 0xD0;
+        of_ui_combo_box_fixed_lines = 0xDB;
         vt_ui_edit_box = 0x00842C98;
         size_ui_edit_box = 0x1E0;
         vt_ui_full_background = 0x008450EC;

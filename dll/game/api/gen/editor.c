@@ -163,6 +163,19 @@ internal inline void eeseb_select_button_up(eeseb_select *eeseb_select) { fn_ees
 
 // class EESECBMaxPlayer (eesecb_max_player)
 // UIComboBox's, the base's
+// the box its text is shown in (SetTextBoxBgOpacity: its vf24)
+internal inline ee_ui_control *eesecb_max_player_get_text_box(const eesecb_max_player *o) { return *(ee_ui_control **)((uint8_t *)o + of_ui_combo_box_text_box); }
+internal inline void eesecb_max_player_set_text_box(eesecb_max_player *o, ee_ui_control *v) { *(ee_ui_control **)((uint8_t *)o + of_ui_combo_box_text_box) = v; }
+internal inline ee_ui_control **eesecb_max_player_text_box_at(const eesecb_max_player *o) { return (ee_ui_control **)((uint8_t *)o + of_ui_combo_box_text_box); }
+// the line selected, 0xFFFFFFFF none (GetCurrentSelection)
+internal inline uint32_t eesecb_max_player_get_current_selection(const eesecb_max_player *o) { return *(uint32_t *)((uint8_t *)o + of_ui_combo_box_current_selection); }
+internal inline void eesecb_max_player_set_current_selection(eesecb_max_player *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_combo_box_current_selection) = v; }
+internal inline uint32_t *eesecb_max_player_current_selection_at(const eesecb_max_player *o) { return (uint32_t *)((uint8_t *)o + of_ui_combo_box_current_selection); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// the map panel sets it to 1 on its lists of fixed lines (0x59198C)
+internal inline uint8_t eesecb_max_player_get_fixed_lines(const eesecb_max_player *o) { return *(uint8_t *)((uint8_t *)o + of_ui_combo_box_fixed_lines); }
+internal inline void eesecb_max_player_set_fixed_lines(eesecb_max_player *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_ui_combo_box_fixed_lines) = v; }
+internal inline uint8_t *eesecb_max_player_fixed_lines_at(const eesecb_max_player *o) { return (uint8_t *)((uint8_t *)o + of_ui_combo_box_fixed_lines); }
 // UIControl's, the base's
 // its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
 // control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
@@ -587,6 +600,19 @@ internal inline void *eeserb_unit_types_init(eeserb_unit_types *eeserb_unit_type
 
 // class EESETSAComboBox (eesetsa_combo_box)
 // UIComboBox's, the base's
+// the box its text is shown in (SetTextBoxBgOpacity: its vf24)
+internal inline ee_ui_control *eesetsa_combo_box_get_text_box(const eesetsa_combo_box *o) { return *(ee_ui_control **)((uint8_t *)o + of_ui_combo_box_text_box); }
+internal inline void eesetsa_combo_box_set_text_box(eesetsa_combo_box *o, ee_ui_control *v) { *(ee_ui_control **)((uint8_t *)o + of_ui_combo_box_text_box) = v; }
+internal inline ee_ui_control **eesetsa_combo_box_text_box_at(const eesetsa_combo_box *o) { return (ee_ui_control **)((uint8_t *)o + of_ui_combo_box_text_box); }
+// the line selected, 0xFFFFFFFF none (GetCurrentSelection)
+internal inline uint32_t eesetsa_combo_box_get_current_selection(const eesetsa_combo_box *o) { return *(uint32_t *)((uint8_t *)o + of_ui_combo_box_current_selection); }
+internal inline void eesetsa_combo_box_set_current_selection(eesetsa_combo_box *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_combo_box_current_selection) = v; }
+internal inline uint32_t *eesetsa_combo_box_current_selection_at(const eesetsa_combo_box *o) { return (uint32_t *)((uint8_t *)o + of_ui_combo_box_current_selection); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// the map panel sets it to 1 on its lists of fixed lines (0x59198C)
+internal inline uint8_t eesetsa_combo_box_get_fixed_lines(const eesetsa_combo_box *o) { return *(uint8_t *)((uint8_t *)o + of_ui_combo_box_fixed_lines); }
+internal inline void eesetsa_combo_box_set_fixed_lines(eesetsa_combo_box *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_ui_combo_box_fixed_lines) = v; }
+internal inline uint8_t *eesetsa_combo_box_fixed_lines_at(const eesetsa_combo_box *o) { return (uint8_t *)((uint8_t *)o + of_ui_combo_box_fixed_lines); }
 // UIControl's, the base's
 // its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
 // control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
@@ -655,6 +681,19 @@ internal inline void *eesets_area_init(eesets_area *eesets_area, uint32_t p1, ui
 
 // class EESETSCComboBox (eesetsc_combo_box)
 // UIComboBox's, the base's
+// the box its text is shown in (SetTextBoxBgOpacity: its vf24)
+internal inline ee_ui_control *eesetsc_combo_box_get_text_box(const eesetsc_combo_box *o) { return *(ee_ui_control **)((uint8_t *)o + of_ui_combo_box_text_box); }
+internal inline void eesetsc_combo_box_set_text_box(eesetsc_combo_box *o, ee_ui_control *v) { *(ee_ui_control **)((uint8_t *)o + of_ui_combo_box_text_box) = v; }
+internal inline ee_ui_control **eesetsc_combo_box_text_box_at(const eesetsc_combo_box *o) { return (ee_ui_control **)((uint8_t *)o + of_ui_combo_box_text_box); }
+// the line selected, 0xFFFFFFFF none (GetCurrentSelection)
+internal inline uint32_t eesetsc_combo_box_get_current_selection(const eesetsc_combo_box *o) { return *(uint32_t *)((uint8_t *)o + of_ui_combo_box_current_selection); }
+internal inline void eesetsc_combo_box_set_current_selection(eesetsc_combo_box *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_combo_box_current_selection) = v; }
+internal inline uint32_t *eesetsc_combo_box_current_selection_at(const eesetsc_combo_box *o) { return (uint32_t *)((uint8_t *)o + of_ui_combo_box_current_selection); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// the map panel sets it to 1 on its lists of fixed lines (0x59198C)
+internal inline uint8_t eesetsc_combo_box_get_fixed_lines(const eesetsc_combo_box *o) { return *(uint8_t *)((uint8_t *)o + of_ui_combo_box_fixed_lines); }
+internal inline void eesetsc_combo_box_set_fixed_lines(eesetsc_combo_box *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_ui_combo_box_fixed_lines) = v; }
+internal inline uint8_t *eesetsc_combo_box_fixed_lines_at(const eesetsc_combo_box *o) { return (uint8_t *)((uint8_t *)o + of_ui_combo_box_fixed_lines); }
 // UIControl's, the base's
 // its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
 // control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
@@ -734,6 +773,19 @@ internal inline void *eesets_condition_init(eesets_condition *eesets_condition, 
 
 // class EESETSEComboBox (eesetse_combo_box)
 // UIComboBox's, the base's
+// the box its text is shown in (SetTextBoxBgOpacity: its vf24)
+internal inline ee_ui_control *eesetse_combo_box_get_text_box(const eesetse_combo_box *o) { return *(ee_ui_control **)((uint8_t *)o + of_ui_combo_box_text_box); }
+internal inline void eesetse_combo_box_set_text_box(eesetse_combo_box *o, ee_ui_control *v) { *(ee_ui_control **)((uint8_t *)o + of_ui_combo_box_text_box) = v; }
+internal inline ee_ui_control **eesetse_combo_box_text_box_at(const eesetse_combo_box *o) { return (ee_ui_control **)((uint8_t *)o + of_ui_combo_box_text_box); }
+// the line selected, 0xFFFFFFFF none (GetCurrentSelection)
+internal inline uint32_t eesetse_combo_box_get_current_selection(const eesetse_combo_box *o) { return *(uint32_t *)((uint8_t *)o + of_ui_combo_box_current_selection); }
+internal inline void eesetse_combo_box_set_current_selection(eesetse_combo_box *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_combo_box_current_selection) = v; }
+internal inline uint32_t *eesetse_combo_box_current_selection_at(const eesetse_combo_box *o) { return (uint32_t *)((uint8_t *)o + of_ui_combo_box_current_selection); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// the map panel sets it to 1 on its lists of fixed lines (0x59198C)
+internal inline uint8_t eesetse_combo_box_get_fixed_lines(const eesetse_combo_box *o) { return *(uint8_t *)((uint8_t *)o + of_ui_combo_box_fixed_lines); }
+internal inline void eesetse_combo_box_set_fixed_lines(eesetse_combo_box *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_ui_combo_box_fixed_lines) = v; }
+internal inline uint8_t *eesetse_combo_box_fixed_lines_at(const eesetse_combo_box *o) { return (uint8_t *)((uint8_t *)o + of_ui_combo_box_fixed_lines); }
 // UIControl's, the base's
 // its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
 // control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
@@ -761,6 +813,19 @@ internal inline void *eesetse_combo_box_init(eesetse_combo_box *eesetse_combo_bo
 
 // class EESETSEScenarioComboBox (eesetse_scenario_combo_box)
 // UIComboBox's, the base's
+// the box its text is shown in (SetTextBoxBgOpacity: its vf24)
+internal inline ee_ui_control *eesetse_scenario_combo_box_get_text_box(const eesetse_scenario_combo_box *o) { return *(ee_ui_control **)((uint8_t *)o + of_ui_combo_box_text_box); }
+internal inline void eesetse_scenario_combo_box_set_text_box(eesetse_scenario_combo_box *o, ee_ui_control *v) { *(ee_ui_control **)((uint8_t *)o + of_ui_combo_box_text_box) = v; }
+internal inline ee_ui_control **eesetse_scenario_combo_box_text_box_at(const eesetse_scenario_combo_box *o) { return (ee_ui_control **)((uint8_t *)o + of_ui_combo_box_text_box); }
+// the line selected, 0xFFFFFFFF none (GetCurrentSelection)
+internal inline uint32_t eesetse_scenario_combo_box_get_current_selection(const eesetse_scenario_combo_box *o) { return *(uint32_t *)((uint8_t *)o + of_ui_combo_box_current_selection); }
+internal inline void eesetse_scenario_combo_box_set_current_selection(eesetse_scenario_combo_box *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_combo_box_current_selection) = v; }
+internal inline uint32_t *eesetse_scenario_combo_box_current_selection_at(const eesetse_scenario_combo_box *o) { return (uint32_t *)((uint8_t *)o + of_ui_combo_box_current_selection); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// the map panel sets it to 1 on its lists of fixed lines (0x59198C)
+internal inline uint8_t eesetse_scenario_combo_box_get_fixed_lines(const eesetse_scenario_combo_box *o) { return *(uint8_t *)((uint8_t *)o + of_ui_combo_box_fixed_lines); }
+internal inline void eesetse_scenario_combo_box_set_fixed_lines(eesetse_scenario_combo_box *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_ui_combo_box_fixed_lines) = v; }
+internal inline uint8_t *eesetse_scenario_combo_box_fixed_lines_at(const eesetse_scenario_combo_box *o) { return (uint8_t *)((uint8_t *)o + of_ui_combo_box_fixed_lines); }
 // UIControl's, the base's
 // its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
 // control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
@@ -1155,6 +1220,19 @@ internal inline void *eesets_trigger_init(eesets_trigger *eesets_trigger, uint32
 
 // class EESETSTriggerUIComboBox (eesets_trigger_ui_combo_box)
 // UIComboBox's, the base's
+// the box its text is shown in (SetTextBoxBgOpacity: its vf24)
+internal inline ee_ui_control *eesets_trigger_ui_combo_box_get_text_box(const eesets_trigger_ui_combo_box *o) { return *(ee_ui_control **)((uint8_t *)o + of_ui_combo_box_text_box); }
+internal inline void eesets_trigger_ui_combo_box_set_text_box(eesets_trigger_ui_combo_box *o, ee_ui_control *v) { *(ee_ui_control **)((uint8_t *)o + of_ui_combo_box_text_box) = v; }
+internal inline ee_ui_control **eesets_trigger_ui_combo_box_text_box_at(const eesets_trigger_ui_combo_box *o) { return (ee_ui_control **)((uint8_t *)o + of_ui_combo_box_text_box); }
+// the line selected, 0xFFFFFFFF none (GetCurrentSelection)
+internal inline uint32_t eesets_trigger_ui_combo_box_get_current_selection(const eesets_trigger_ui_combo_box *o) { return *(uint32_t *)((uint8_t *)o + of_ui_combo_box_current_selection); }
+internal inline void eesets_trigger_ui_combo_box_set_current_selection(eesets_trigger_ui_combo_box *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_combo_box_current_selection) = v; }
+internal inline uint32_t *eesets_trigger_ui_combo_box_current_selection_at(const eesets_trigger_ui_combo_box *o) { return (uint32_t *)((uint8_t *)o + of_ui_combo_box_current_selection); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// the map panel sets it to 1 on its lists of fixed lines (0x59198C)
+internal inline uint8_t eesets_trigger_ui_combo_box_get_fixed_lines(const eesets_trigger_ui_combo_box *o) { return *(uint8_t *)((uint8_t *)o + of_ui_combo_box_fixed_lines); }
+internal inline void eesets_trigger_ui_combo_box_set_fixed_lines(eesets_trigger_ui_combo_box *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_ui_combo_box_fixed_lines) = v; }
+internal inline uint8_t *eesets_trigger_ui_combo_box_fixed_lines_at(const eesets_trigger_ui_combo_box *o) { return (uint8_t *)((uint8_t *)o + of_ui_combo_box_fixed_lines); }
 // UIControl's, the base's
 // its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
 // control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
@@ -1185,6 +1263,19 @@ internal inline int eesets_trigger_ui_combo_box_mouse_r_button_up(eesets_trigger
 
 // class EESETSUICBPlayer (eesetsuicb_player)
 // UIComboBox's, the base's
+// the box its text is shown in (SetTextBoxBgOpacity: its vf24)
+internal inline ee_ui_control *eesetsuicb_player_get_text_box(const eesetsuicb_player *o) { return *(ee_ui_control **)((uint8_t *)o + of_ui_combo_box_text_box); }
+internal inline void eesetsuicb_player_set_text_box(eesetsuicb_player *o, ee_ui_control *v) { *(ee_ui_control **)((uint8_t *)o + of_ui_combo_box_text_box) = v; }
+internal inline ee_ui_control **eesetsuicb_player_text_box_at(const eesetsuicb_player *o) { return (ee_ui_control **)((uint8_t *)o + of_ui_combo_box_text_box); }
+// the line selected, 0xFFFFFFFF none (GetCurrentSelection)
+internal inline uint32_t eesetsuicb_player_get_current_selection(const eesetsuicb_player *o) { return *(uint32_t *)((uint8_t *)o + of_ui_combo_box_current_selection); }
+internal inline void eesetsuicb_player_set_current_selection(eesetsuicb_player *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_ui_combo_box_current_selection) = v; }
+internal inline uint32_t *eesetsuicb_player_current_selection_at(const eesetsuicb_player *o) { return (uint32_t *)((uint8_t *)o + of_ui_combo_box_current_selection); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// the map panel sets it to 1 on its lists of fixed lines (0x59198C)
+internal inline uint8_t eesetsuicb_player_get_fixed_lines(const eesetsuicb_player *o) { return *(uint8_t *)((uint8_t *)o + of_ui_combo_box_fixed_lines); }
+internal inline void eesetsuicb_player_set_fixed_lines(eesetsuicb_player *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_ui_combo_box_fixed_lines) = v; }
+internal inline uint8_t *eesetsuicb_player_fixed_lines_at(const eesetsuicb_player *o) { return (uint8_t *)((uint8_t *)o + of_ui_combo_box_fixed_lines); }
 // UIControl's, the base's
 // its place in the form, the GERectangle it was made with: bottom, left, right, top (the editor's panels put a
 // control's next one below its bottom and right of its right, 0x58A70E; the units list's made as {y + h - 1, x,
@@ -2030,10 +2121,18 @@ internal inline void *eeuifsetrb_paint_type_init(eeuifsetrb_paint_type *eeuifset
 // first at +4, the end at +8) - the constructor's of every type in_editor; the paint (EEUIFSETerrainPaint vf34)
 // passes the selected item's type's id
 internal inline uint8_t *se_terrain_color_types_at(const ee_se_terrain *o) { return (uint8_t *)o + of_se_terrain_color_types; }
+// the title over the colour list
+internal inline ee_ui_control *se_terrain_get_color_label(const ee_se_terrain *o) { return *(ee_ui_control **)((uint8_t *)o + of_se_terrain_color_label); }
+internal inline void se_terrain_set_color_label(ee_se_terrain *o, ee_ui_control *v) { *(ee_ui_control **)((uint8_t *)o + of_se_terrain_color_label) = v; }
+internal inline ee_ui_control **se_terrain_color_label_at(const ee_se_terrain *o) { return (ee_ui_control **)((uint8_t *)o + of_se_terrain_color_label); }
 // the colour list
 internal inline ee_se_color_list *se_terrain_get_color_list(const ee_se_terrain *o) { return *(ee_se_color_list **)((uint8_t *)o + of_se_terrain_color_list); }
 internal inline void se_terrain_set_color_list(ee_se_terrain *o, ee_se_color_list *v) { *(ee_se_color_list **)((uint8_t *)o + of_se_terrain_color_list) = v; }
 internal inline ee_se_color_list **se_terrain_color_list_at(const ee_se_terrain *o) { return (ee_se_color_list **)((uint8_t *)o + of_se_terrain_color_list); }
+// the picture of the selected texture, right of the colour list
+internal inline ee_ui_control *se_terrain_get_preview(const ee_se_terrain *o) { return *(ee_ui_control **)((uint8_t *)o + of_se_terrain_preview); }
+internal inline void se_terrain_set_preview(ee_se_terrain *o, ee_ui_control *v) { *(ee_ui_control **)((uint8_t *)o + of_se_terrain_preview) = v; }
+internal inline ee_ui_control **se_terrain_preview_at(const ee_se_terrain *o) { return (ee_ui_control **)((uint8_t *)o + of_se_terrain_preview); }
 // its constructor: the editor form's +0x234 and +0x244, the form's running control index (each control takes
 // one), the editor's form, the labels' font - the lists filled from the game data
 typedef void *(__thiscall *se_terrain_init_fn)(ee_se_terrain *, uint32_t, uint32_t, int *, ee_ui_form *, void *);
@@ -2161,6 +2260,7 @@ internal inline void editor_form_open(ee_editor_form *editor_form) { fn_editor_f
 // the units panel's group of the editor's form (UIForm::AddControl's second argument for each of its controls,
 // 0x58A70E): shown while the panel is
 // the elevation panel's (0x590734)
+// the terrain panel's (0x59B710)
 
 // static class editor_functions
 // the game's functions the editor's code wraps, by the names the C side gives them
@@ -2169,6 +2269,12 @@ internal inline void editor_form_open(ee_editor_form *editor_form) { fn_editor_f
 typedef void (__thiscall *ptr_vector_push_fn)(void *, void **);
 internal ptr_vector_push_fn fn_ptr_vector_push;
 internal inline void ptr_vector_push(void *vec, void **item) { fn_ptr_vector_push(vec, item); }
+// can a unit of the type stand on the tile: the terrain paint's objects (0x598B7A) ask it for each one it would
+// place (players: the game's player list, p5, p6 0 there)
+typedef int8_t (__cdecl *ambient_can_place_fn)(void *, int, int, int, int, int);
+internal ambient_can_place_fn fn_ambient_can_place;
+internal inline int8_t ambient_can_place(void *players, int type, int x, int y, int p5, int p6) { return fn_ambient_can_place(players, type, x, y, p5, p6); }
+internal inline int patch_ambient_can_place(ambient_can_place_fn h) { return patch_call(call_ambient_can_place, (uintptr_t)fn_ambient_can_place, (void *)h); }
 
 // the running build's values (spec_select, with addr_select): how many it hasn't got
 internal int spec_editor_select(int build) {
@@ -2708,7 +2814,9 @@ internal int spec_editor_select(int build) {
         vt_eeuifse_terrain = 0x008302F8;
         size_eeuifse_terrain = 0x48;
         of_se_terrain_color_types = 0x14;
+        of_se_terrain_color_label = 0x34;
         of_se_terrain_color_list = 0x3C;
+        of_se_terrain_preview = 0x40;
         fn_se_terrain_init = (se_terrain_init_fn)0x0059B710;
         call_se_terrain_init = 0x0058EC4A;
         slot_se_terrain_destroy = 0;
@@ -2731,7 +2839,10 @@ internal int spec_editor_select(int build) {
         fn_editor_form_open = (editor_form_open_fn)0x0058F363;
         value_editor_group_units = 6;
         value_editor_group_elevation = 2;
+        value_editor_group_terrain = 3;
         fn_ptr_vector_push = (ptr_vector_push_fn)0x0059C98E;
+        fn_ambient_can_place = (ambient_can_place_fn)0x00638D2A;
+        call_ambient_can_place = 0x00598C64;
         return 0;
     case 1:   // aoc
         vt_eesea_change_load_text = 0x00842E44;
@@ -3268,7 +3379,9 @@ internal int spec_editor_select(int build) {
         vt_eeuifse_terrain = 0x00845BFC;
         size_eeuifse_terrain = 0x48;
         of_se_terrain_color_types = 0x14;
+        of_se_terrain_color_label = 0x34;
         of_se_terrain_color_list = 0x3C;
+        of_se_terrain_preview = 0x40;
         fn_se_terrain_init = (se_terrain_init_fn)0x005AB87C;
         call_se_terrain_init = 0x0059F059;
         slot_se_terrain_destroy = 0;
@@ -3291,7 +3404,10 @@ internal int spec_editor_select(int build) {
         fn_editor_form_open = (editor_form_open_fn)0x0059F794;
         value_editor_group_units = 6;
         value_editor_group_elevation = 2;
+        value_editor_group_terrain = 3;
         fn_ptr_vector_push = (ptr_vector_push_fn)0x005ACAFA;
+        fn_ambient_can_place = (ambient_can_place_fn)0x0064F1F8;
+        call_ambient_can_place = 0x005A8E28;
         return 0;
     }
     return 0;
@@ -3841,5 +3957,7 @@ internal int spec_editor_check(void) {
     bad += spec_code((uintptr_t)fn_editor_form_open, "EEUIFScenarioEditor.open");
     bad += spec_slot(vt_eeuif_scenario_editor, slot_ui_form_open, (uintptr_t)fn_editor_form_open, "EEUIFScenarioEditor.open [slot]");
     bad += spec_code((uintptr_t)fn_ptr_vector_push, "editor_functions.ptr_vector_push");
+    bad += spec_code((uintptr_t)fn_ambient_can_place, "editor_functions.ambient_can_place");
+    bad += spec_call(call_ambient_can_place, (uintptr_t)fn_ambient_can_place, "editor_functions.ambient_can_place [call_site ambient_can_place]");
     return bad;
 }

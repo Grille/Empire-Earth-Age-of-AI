@@ -72,7 +72,7 @@ changes the simulation: in a lockstep game different values make the PCs' games 
   (brighter in the middle) or in OKLab (even steps of lightness, two hues without a dull middle).
   A cliff is painted like any other ground, where the game's own pass took it back at once and at every load: the texture and the colours stay in the map's file, the tile
   stays unwalkable (a steep tile is one by its heights, whatever its texture). The elevation panel has two check boxes for what the game does to the ground as it changes,
-  both ticked as the game's. The terrain panel's list of textures has the game's cliff textures in it too (six; on ground that isn't steep they are only a texture, it can be walked on): `Cliff color` (cliff textures added on steep ground and taken off when it flattens) and `Water color` (a corner's colour when it goes under 0, and back when it rises).
+  both ticked as the game's. The terrain panel has fields that limit a stroke to ground of a height and slope, a height where the water's colours begin and a list for cliffs (anything, no cliffs, only cliffs). Its list of textures has the game's cliff textures in it too (six; on ground that isn't steep they are only a texture, it can be walked on): `Cliff color` (cliff textures added on steep ground and taken off when it flattens) and `Water color` (a corner's colour when it goes under 0, and back when it rises).
 - `[camera] scroll`: `game` (default) the build's own camera scrolling, `aoc` The Art of Conquest's acceleration
   in either build, `ee` Empire Earth's constant speed in either build; `smooth=1` (default) moves the camera every
   frame by the frame's time instead of the game's fixed timer steps (jitter) - in both builds. While a text box

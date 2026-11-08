@@ -50,7 +50,9 @@ class editor
     /// map's file, and it still can't be walked. The terrain panel's list has the cliff textures in it too (on flat
     /// ground only a texture: units walk on it). The elevation panel gets two check boxes, both ticked: untick "Cliff
     /// color" for the game not to add or take off cliff textures, "Water color" not to colour the ground when it goes
-    /// under water or comes back
+    /// under water or comes back. The terrain panel gets fields that limit a stroke: min and max height, min and max
+    /// slope (in the editor's height numbers, a cliff is a slope of 3 and more; empty: no limit), the height where the
+    /// water's colours begin (-3, the game's), and a list: anything, no cliffs, only cliffs
     [title("Terrain colours")]
     bool terrain_palette = false;
 }

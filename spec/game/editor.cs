@@ -1630,9 +1630,17 @@ unsafe struct EEUIFSETerrain
     [offset(0x14), found(c)]
     block color_types;
 
+    /// the title over the colour list
+    [offset(0x34), found(c)]
+    UIControl* color_label;
+
     /// the colour list
     [offset(0x3C), found(c)]
     EESEUITerrainColorLB* color_list;
+
+    /// the picture of the selected texture, right of the colour list
+    [offset(0x40), found(c)]
+    UIControl* preview;
 
     /// its constructor: the editor form's +0x234 and +0x244, the form's running control index (each control takes
     /// one), the editor's form, the labels' font - the lists filled from the game data
@@ -1705,6 +1713,10 @@ static unsafe class editor
     /// the elevation panel's (0x590734)
     [value(2)]
     static uint32 group_elevation;
+
+    /// the terrain panel's (0x59B710)
+    [value(3)]
+    static uint32 group_terrain;
 }
 
 /// the game's functions the editor's code wraps, by the names the C side gives them
@@ -1715,4 +1727,10 @@ static unsafe class editor_functions
     /// the terrain panel's constructor's for its colour types (0x59B7D3)
     [address((ee)0x0059C98E, (aoc)0x005ACAFA), thiscall]
     static extern void ptr_vector_push(void* vec, void** item);
+
+    /// can a unit of the type stand on the tile: the terrain paint's objects (0x598B7A) ask it for each one it would
+    /// place (players: the game's player list, p5, p6 0 there)
+    [address((ee)0x00638D2A, (aoc)0x0064F1F8), cdecl]
+    [call_site("ambient_can_place", (ee)0x00598C64, (aoc)0x005A8E28)]
+    static extern int8 ambient_can_place(void* players, int32 type, int32 x, int32 y, int32 p5, int32 p6);
 }

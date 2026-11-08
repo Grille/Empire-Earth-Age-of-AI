@@ -665,6 +665,13 @@ internal inline uint8_t *ui_iat_edit_keyboard_at(void) { return (uint8_t *)(uint
 // index, K, bool) - the editor's (0x56575B): (id, text, ui.font_label, rect, form, index, 0, 0) into 0x10C bytes,
 // then the exe's vtable (UICheckBox's)
 internal inline uint8_t *ui_iat_check_box_ctor_at(void) { return (uint8_t *)(uintptr_t)data_ui_iat_check_box_ctor; }
+// UITextLabel::UITextLabel(text, GEFont *, id, GERectangle &, UIForm *, K, the form's control index, K) - the
+// terrain panel's titles (0x59B710): (text, font, id, rect, form, 0, index, 0) into 0x124 bytes, then the exe's vtable
+internal inline uint8_t *ui_iat_text_label_ctor_at(void) { return (uint8_t *)(uintptr_t)data_ui_iat_text_label_ctor; }
+// UIComboBox::UIComboBox(id, K, a vector of UWideString by value, GEFont *, GERectangle &, K, UIForm *, the form's
+// control index, K, K) - the map panel's (0x59198C): (id, 1, lines, font, rect, 300, form, index, 255, 0) into 0xE0
+// bytes, then the exe's vtable. 300: as far as its list opens
+internal inline uint8_t *ui_iat_combo_box_ctor_at(void) { return (uint8_t *)(uintptr_t)data_ui_iat_combo_box_ctor; }
 // the font of the scenario editor's check boxes and radio buttons
 internal inline void *ui_get_font_label(void) { return *(void **)(uint8_t *)(uintptr_t)data_ui_font_label; }
 internal inline void ui_set_font_label(void *v) { *(void **)(uint8_t *)(uintptr_t)data_ui_font_label = v; }
@@ -902,6 +909,8 @@ internal int spec_ui_select(int build) {
         data_ui_iat_edit_ctor = 0x00823D48;
         data_ui_iat_edit_keyboard = 0x00823C50;
         data_ui_iat_check_box_ctor = 0x00823E58;
+        data_ui_iat_text_label_ctor = 0x00823D50;
+        data_ui_iat_combo_box_ctor = 0x00823E14;
         data_ui_font_label = 0x009197B8;
         data_ui_font_edit = 0x009197B4;
         value_ui_edit_box_slots = 36;
@@ -1136,6 +1145,8 @@ internal int spec_ui_select(int build) {
         data_ui_iat_edit_ctor = 0x00837D4C;
         data_ui_iat_edit_keyboard = 0x00837C4C;
         data_ui_iat_check_box_ctor = 0x00837E60;
+        data_ui_iat_text_label_ctor = 0x008385C0;
+        data_ui_iat_combo_box_ctor = 0x00837E1C;
         data_ui_font_label = 0x00931934;
         data_ui_font_edit = 0x00931930;
         value_ui_edit_box_slots = 36;
@@ -1250,6 +1261,8 @@ internal int spec_ui_check(void) {
     bad += spec_data(data_ui_iat_edit_ctor, "ui.iat_edit_ctor");
     bad += spec_data(data_ui_iat_edit_keyboard, "ui.iat_edit_keyboard");
     bad += spec_data(data_ui_iat_check_box_ctor, "ui.iat_check_box_ctor");
+    bad += spec_data(data_ui_iat_text_label_ctor, "ui.iat_text_label_ctor");
+    bad += spec_data(data_ui_iat_combo_box_ctor, "ui.iat_combo_box_ctor");
     bad += spec_data(data_ui_font_label, "ui.font_label");
     bad += spec_data(data_ui_font_edit, "ui.font_edit");
     bad += spec_data(data_ui_iat_uiform_add_hotkey, "ui.iat_uiform_add_hotkey");

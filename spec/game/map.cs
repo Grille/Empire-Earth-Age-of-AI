@@ -83,6 +83,12 @@ unsafe struct EEMap
     [slot(8)]
     extern void place(EEUnit* u);
 
+    /// the terrain paint's stroke (EESEAPaintTerrain vf1): the tiles x_lo .. x_hi, y_hi down to y_lo given the texture
+    /// and kind of a terrain record (its index), then paint_colors with the colour list's type
+    [address((ee)0x00512C6A, (aoc)0x0051D2A2)]
+    [call_site("map_paint_terrain", (ee)0x00598D22, (aoc)0x005A8EE6)]
+    extern void paint_terrain(int32 x_lo, int32 x_hi, int32 y_hi, int32 y_lo, int32 terrain, int32 color_type);
+
     /// the corners of tiles x_lo .. x_hi, y_hi down to y_lo coloured from a colour type's set (color_type: its
     /// record's set) - SetColorSet on each corner above the water. The editor's terrain paint (0x512C6A, its
     /// EESEAPaintTerrain's run) calls it after the textures with the colour list's type, a tile's texture change

@@ -80,6 +80,12 @@ internal inline uint32_t *map_flags_at(const ee_map *o) { return (uint32_t *)((u
 // Create's last step (unit.c unit_create)
 typedef void (__thiscall *map_place_fn)(ee_map *, ee_unit *);
 internal inline void map_place(ee_map *map, ee_unit *u) { ((map_place_fn)(*(void ***)map)[slot_map_place])(map, u); }
+// the terrain paint's stroke (EESEAPaintTerrain vf1): the tiles x_lo .. x_hi, y_hi down to y_lo given the texture
+// and kind of a terrain record (its index), then paint_colors with the colour list's type
+typedef void (__thiscall *map_paint_terrain_fn)(ee_map *, int, int, int, int, int, int);
+internal map_paint_terrain_fn fn_map_paint_terrain;
+internal inline void map_paint_terrain(ee_map *map, int x_lo, int x_hi, int y_hi, int y_lo, int terrain, int color_type) { fn_map_paint_terrain(map, x_lo, x_hi, y_hi, y_lo, terrain, color_type); }
+internal inline int patch_map_paint_terrain(map_paint_terrain_fn h) { return patch_call(call_map_paint_terrain, (uintptr_t)fn_map_paint_terrain, (void *)h); }
 // the corners of tiles x_lo .. x_hi, y_hi down to y_lo coloured from a colour type's set (color_type: its
 // record's set) - SetColorSet on each corner above the water. The editor's terrain paint (0x512C6A, its
 // EESEAPaintTerrain's run) calls it after the textures with the colour list's type, a tile's texture change
@@ -387,6 +393,8 @@ internal int spec_map_select(int build) {
         of_map_grid = 0x181724;
         of_map_flags = 0x181730;
         slot_map_place = 8;
+        fn_map_paint_terrain = (map_paint_terrain_fn)0x00512C6A;
+        call_map_paint_terrain = 0x00598D22;
         fn_map_paint_colors = (map_paint_colors_fn)0x00512DFB;
         call_map_paint_colors = 0x00512D09;
         fn_map_cliff_pass = (map_cliff_pass_fn)0x00512FB0;
@@ -482,6 +490,8 @@ internal int spec_map_select(int build) {
         of_map_grid = 0x195640;
         of_map_flags = 0x19564C;
         slot_map_place = 8;
+        fn_map_paint_terrain = (map_paint_terrain_fn)0x0051D2A2;
+        call_map_paint_terrain = 0x005A8EE6;
         fn_map_paint_colors = (map_paint_colors_fn)0x0051D433;
         call_map_paint_colors = 0x0051D341;
         fn_map_cliff_pass = (map_cliff_pass_fn)0x0051D5E8;
@@ -566,6 +576,8 @@ internal const char *const k_spec_map_missing[ADDR_BUILDS] = { "", "" };
 // the load-time check: what the spec says of the running build's exe (spec_check): the failures
 internal int spec_map_check(void) {
     int bad = 0;
+    bad += spec_code((uintptr_t)fn_map_paint_terrain, "EEMap.paint_terrain");
+    bad += spec_call(call_map_paint_terrain, (uintptr_t)fn_map_paint_terrain, "EEMap.paint_terrain [call_site map_paint_terrain]");
     bad += spec_code((uintptr_t)fn_map_paint_colors, "EEMap.paint_colors");
     bad += spec_call(call_map_paint_colors, (uintptr_t)fn_map_paint_colors, "EEMap.paint_colors [call_site map_paint_colors]");
     bad += spec_code((uintptr_t)fn_map_cliff_pass, "EEMap.cliff_pass");

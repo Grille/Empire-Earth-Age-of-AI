@@ -107,6 +107,54 @@ internal inline ee_ui_control *check_box_new(unsigned id, const void *text, cons
     (*index)++;
     return box;
 }
+// a text label as the terrain panel makes its titles (text a UWideString), not added to its form yet; yellow
+internal inline ee_ui_control *text_label_new(unsigned id, const void *text, void *font, const float rect[4], ee_ui_form *form, int *index) {
+    ee_ui_control *label = game_new(size_ui_text_label);
+    if (!label) return NULL;
+    typedef void *(__thiscall *ctor_fn)(void *, const void *, void *, unsigned long, const float *, ee_ui_form *, unsigned long, unsigned long, unsigned long);
+    (*(ctor_fn *)data_ui_iat_text_label_ctor)(label, text, font, id, rect, form, 0, (unsigned long)*index, 0);
+    *(uint32_t *)label = vt_ui_text_label;
+    (*index)++;
+    ee_ui_label_text *t = ui_label_get_text((ee_ui_label *)label);
+    ui_label_text_set_r(t, 0.99607843f);
+    ui_label_text_set_g(t, 0.96862745f);
+    ui_label_text_set_b(t, 0.1254902f);
+    ui_label_text_set_colored(t, 1);
+    return label;
+}
+// a drop-down list as the map panel makes its own, without lines (combo_box_append): not added to its form yet. The
+// constructor takes the vector of lines by value and frees it: an empty one is all zeroes
+internal inline ee_ui_control *combo_box_new(unsigned id, void *font, const float rect[4], ee_ui_form *form, int *index) {
+    ui_combo_box *box = game_new(size_ui_combo_box);
+    if (!box) return NULL;
+    typedef struct { uint32_t allocator; void *first, *last, *end; } lines_t;
+    typedef void *(__thiscall *ctor_fn)(void *, unsigned long, unsigned long, lines_t, void *, const float *, unsigned long, ee_ui_form *, unsigned long, unsigned long, unsigned long);
+    lines_t none = { 0, NULL, NULL, NULL };
+    (*(ctor_fn *)data_ui_iat_combo_box_ctor)(box, id, 1, none, font, rect, 300, form, (unsigned long)*index, 255, 0);
+    *(uint32_t *)box = vt_ui_combo_box;
+    (*index)++;
+    ui_combo_box_set_fixed_lines(box, 1);
+    return (ee_ui_control *)box;
+}
+// the look of the map panel's lists: yellow text, blue for the line selected
+internal inline void combo_box_style(ui_combo_box *box) {
+    ee_ui_label_text *t = ((ee_ui_label_text *(__thiscall *)(ui_combo_box *))*(void **)data_ui_imports_iat_combo_box_get_ge_text)(box);
+    ui_label_text_set_r(t, 0.99607843f);
+    ui_label_text_set_g(t, 0.96862745f);
+    ui_label_text_set_b(t, 0.1254902f);
+    ui_label_text_set_colored(t, 1);
+    const float blue[4] = { 0.0f, 0.0f, 1.0f, 1.0f };
+    ((void (__thiscall *)(ui_combo_box *, const float *))*(void **)data_ui_imports_iat_combo_box_set_list_box_selected_bg_color)(box, blue);
+}
+internal inline void combo_box_append(ui_combo_box *box, void *wstr) {
+    ((void (__thiscall *)(ui_combo_box *, void *))*(void **)data_ui_imports_iat_combo_box_append_line)(box, wstr);
+}
+internal inline void combo_box_select(ui_combo_box *box, unsigned line) {
+    ((void (__thiscall *)(ui_combo_box *, unsigned long))*(void **)data_ui_imports_iat_combo_box_set_current_selection)(box, line);
+}
+internal inline void edit_box_set_text(ee_ui_control *box, const void *wstr) {
+    ((void (__thiscall *)(ee_ui_control *, const void *))*(void **)data_ui_imports_iat_edit_box_set_text)(box, wstr);
+}
 internal inline void ui_check_box_check(ui_check_box *box, int on) {
     ((void (__thiscall *)(ui_check_box *, char))*(void **)data_ui_imports_iat_check_box_set_checked)(box, (char)on);
 }
@@ -123,6 +171,7 @@ internal inline void ui_form_add_control(ee_ui_form *form, ee_ui_control *c, uns
 }
 internal inline void editor_units_add_control(ee_ui_form *form, ee_ui_control *c) { ui_form_add_control(form, c, value_editor_group_units); }
 internal inline void editor_elevation_add_control(ee_ui_form *form, ee_ui_control *c) { ui_form_add_control(form, c, value_editor_group_elevation); }
+internal inline void editor_terrain_add_control(ee_ui_form *form, ee_ui_control *c) { ui_form_add_control(form, c, value_editor_group_terrain); }
 // the terrain panel's colour types (EEUIFSETerrain.color_types: an MSVC vector of pointers, its allocator first), an
 // item of its colour list each: how many; one more at the end (the game's push_back); the last off (nothing to free)
 internal inline unsigned se_terrain_color_type_count(const ee_se_terrain *p) {

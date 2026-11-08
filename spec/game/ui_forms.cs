@@ -967,6 +967,17 @@ unsafe struct UICheckBox
 [@base(typeof(UIControl)), size((ee)0xE0, (aoc)0xE0), vtable((ee)0x0082DB74, (aoc)0x00843424)]
 unsafe struct UIComboBox
 {
+    /// the box its text is shown in (SetTextBoxBgOpacity: its vf24)
+    [offset(0xC8), found(c)]
+    UIControl* text_box;
+
+    /// the line selected, 0xFFFFFFFF none (GetCurrentSelection)
+    [offset(0xD0), found(c)]
+    uint32 current_selection;
+
+    /// the map panel sets it to 1 on its lists of fixed lines (0x59198C)
+    [offset(0xDB), found(c), guess]
+    uint8 fixed_lines;
 }
 
 /// made in 0x560EC7, 0x569046, 0x56B75E, 0x56E14F, 0x571B93, 0x583705, 0x59198C, 0x64AAB7
