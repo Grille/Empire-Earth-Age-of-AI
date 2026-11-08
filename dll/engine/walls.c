@@ -990,6 +990,18 @@ internal int __cdecl hook_gate_convert(ee_unit *u, int pi, ee_unit_type *td) {
     return r;
 }
 
+// a wall's line upgrade (the game's, the AI's for what it left behind: defence.c) makes each piece anew as the next era's,
+// which keeps the fit of the old one - the era's mesh is another length, and its skirt was only asked for by a fit (the
+// player, 2026-11-08: "after epoch wall upgrades the pieces misfit and the skirt don't appear"): looked at and fitted at
+// the next step's end, as a gate's pieces are
+internal void walls_converted(int type, int x, int y) { if (g_ws_on && is_wall(type)) wj_add(x, y, x, y); }
+internal int __cdecl hook_upgrade_convert(ee_unit *u, int pi, ee_unit_type *td) {
+    int x = u ? unit_get_x(u) : -1, y = u ? unit_get_y(u) : -1;
+    int r = unit_convert(u, pi, td);
+    if (x >= 0 && td) walls_converted(unit_type_get_id(td), x, y);
+    return r;
+}
+
 // a tower placed (place_foundation's calls place_building: the player's, the AI's build manager's): its tiles noted - a
 // wall's end post in line before it becomes a piece into it. A tower beside a straight wall leaves its pieces be: a
 // piece turns a post only where another piece points at it from aside, and a tower points at nothing (the game's
@@ -1293,6 +1305,9 @@ internal void walls_install(void) {
     g_bl_on = g_set.building_lean;
     int any = g_ws_on || g_bl_on;
     int more = (any ? patch_step_end(hook_step_end) : 0) + (g_ws_on ? patch_gate_convert(hook_gate_convert) : 0);
+    int upg = g_ws_on ? patch_upgrade_convert(hook_upgrade_convert) : 0;
+    if (g_ws_on) g_unit_converted = walls_converted;
+    if (g_ws_on && !upg && g_log) fprintf(g_log, "# walls: the upgrade's conversion NOT hooked\n");
     int pof = 0, pn = g_wj_on || g_bl_on ? patch_place_building(hook_place_building, &pof) : 0;
     int ed = patch_editor_frame(hook_editor_frame);   // whatever the walls say: the hills' shadows read it too (render_shadows.c)
     int df = g_bl_on ? patch_draw_record_fill(hook_draw_record_fill) : 0;

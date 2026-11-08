@@ -27,6 +27,32 @@ internal void cmd_epochup(char *out, const char *args) {
     tech_tree_epoch_next(tt);
     REPLY("P%d epoch %d -> %d\n", p, e, tech_tree_get_epoch(tt));
 }
+// lineup P T: player P's line upgrade of type T researched for nothing - what a research or an epoch's grant ends in: its
+// effect (kind 0x13) the game's own upgrade of every finished object of T (0x5BA59D)
+internal void cmd_lineup(char *out, const char *args) {
+    int p = 0, from = 0;
+    sscanf(args, "%d %d", &p, &from);
+    ee_player *pl = player_at(p);
+    ee_tech_tree *tt = pl ? player_get_tech_tree(pl) : NULL;
+    if (!tt) { REPLY("error: no player %d\n", p); return; }
+    for (int id = 1000; id < 15000; id++) {
+        ee_tech *t = tech_tree_lookup(tt, id);
+        ee_tech_data *d = t ? tech_get_data(t) : NULL;
+        int ei = d ? tech_data_get_effects(d) : -1;
+        if (ei < 0 || ei > 0x5DC) continue;
+        ee_epoch_techs *list = epoch_tech_list(ei);
+        unsigned count = epoch_techs_get_count(list), *ids = epoch_techs_get_ids(list);
+        for (unsigned k = 0; ids && k < count && k < 16; k++) {
+            if (ids[k] >= 2000) continue;
+            ee_effect *ef = tech_effect(ids[k]);
+            if (effect_get_kind(ef) != 0x13 || effect_get_type(ef) != from) continue;
+            int r = tech_grant(t);
+            REPLY("P%d tech %d: %d -> %d granted (%d)\n", p, id, from, effect_get_new_type(ef), r);
+            return;
+        }
+    }
+    REPLY("error: no line upgrade of type %d\n", from);
+}
 // tech P id...: the player's tech record (tech tree lookup 0x4019A1): first bytes and the data's cost
 internal void cmd_tech(char *out, const char *args) {
     int p = 0, n = 0, id;

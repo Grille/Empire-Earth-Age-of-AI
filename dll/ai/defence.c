@@ -2476,6 +2476,7 @@ internal void upgrade_stragglers(void) {   // the safe point (control.c hook_sim
             if (!ntd) continue;
             int from = unit_type_get_id(unit_get_type_data(g_upg.u[k])), x = unit_get_x(g_upg.u[k]), y = unit_get_y(g_upg.u[k]);
             unit_convert(g_upg.u[k], pi, ntd);
+            if (g_unit_converted) g_unit_converted(g_upg.to[k], x, y);
             g_upg_done[p & 15]++;
             if (g_log) fprintf(g_log, "# upgrades: P%d at %.1f min: %d at %d,%d left behind by its upgrade - now %d\n", p,
                                now / 60000.0, from, x, y, g_upg.to[k]);

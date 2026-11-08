@@ -337,6 +337,7 @@ task: a poll left running after its caller gave up keeps sending commands to wha
 | `canbuild P` | every type the game lets player P build or train now (available, affordable, a builder) |
 | `drops P` | drop sites of player P (Town Center, Capitol, Settlement; `g` = granary) |
 | `tech P id...` | tech records of player P: state bytes (+4 researched, +6 available), cost, effects |
+| `lineup P T` | player P's line upgrade of type T researched for nothing (the tech whose effect upgrades T; `grant`'s result beside it: 0 done, 2 already researched, 9 not available yet); its effect is the game's own upgrade of what stands then, a wall built later stays the old type (`upgrade_stragglers`) |
 | `epochup P` | player P (any - the idle human too) gets its next epoch at once: the epoch tech granted, unpaid. For `epoch_pacing=follow` (the human ahead at a set minute) |
 | `rlist P` | research manager: pool (list -1) and scheduled techs per epoch (`*` = researched) |
 | `basemap P [r]` | map of AI player P's base, 2 characters per tile: T tower, W wall, G gate, C town center/settlement, b building, c citizen, s soldier, m mine, o planned tower slot, digits = other players |

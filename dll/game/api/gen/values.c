@@ -3333,6 +3333,7 @@ internal uint32_t calls_goalset_ask[2];
 internal uint32_t of_target_search_player;
 internal uint32_t calls_target_ok[4];
 internal uint32_t call_gate_convert;
+internal uint32_t call_upgrade_convert;
 internal uint32_t calls_wall_piece[3];
 internal uint32_t calls_wall_joints[2];
 

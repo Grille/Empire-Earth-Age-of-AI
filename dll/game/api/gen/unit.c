@@ -997,11 +997,13 @@ internal inline char line_of_fire_at_game(uint32_t x, uint32_t y, uint32_t tx, u
 // cdecl(unit, player index, new type data): the unit made anew as that type (0x62F2E5) with its share of hit
 // points, the old one deleted - a line upgrade's (0x5BA59D), a wall piece's turn into a gate; no owner's change
 // (unit_give)
-// gate_convert: build_gate's (0x6022E3, AoC 0x61080D), each of its five pieces in turn
+// gate_convert: build_gate's (0x6022E3, AoC 0x61080D), each of its five pieces in turn; upgrade_convert: the line
+// upgrade's, each unit of the old type (0x5BA59D, AoC 0x5CACB4)
 typedef int (__cdecl *unit_convert_fn)(ee_unit *, int, ee_unit_type *);
 internal unit_convert_fn fn_unit_convert;
 internal inline int unit_convert(ee_unit *u, int pi, ee_unit_type *new_td) { return fn_unit_convert(u, pi, new_td); }
 internal inline int patch_gate_convert(unit_convert_fn h) { return patch_call(call_gate_convert, (uintptr_t)fn_unit_convert, (void *)h); }
+internal inline int patch_upgrade_convert(unit_convert_fn h) { return patch_call(call_upgrade_convert, (uintptr_t)fn_unit_convert, (void *)h); }
 // cdecl(piece, layout code, raised corners): a wall piece's model and turn by its place in the wall (0x63842B:
 // codes 1-2 straight, anim 9, along y or x; 3-4 diagonal, 10; 5-8 the straight piece with a slope built in, 6, its
 // uphill side by the turn; 9-12 the diagonal one, 3; else the round post, 11), then its matrix (0x5F043B). The
@@ -1297,6 +1299,7 @@ internal int spec_unit_select(int build) {
         fn_line_of_fire_at_game = (line_of_fire_at_game_fn)0x00637D65;
         fn_unit_convert = (unit_convert_fn)0x0062F192;
         call_gate_convert = 0x00602456;
+        call_upgrade_convert = 0x005BA65A;
         fn_wall_piece = (wall_piece_fn)0x00638628;
         calls_wall_piece[0] = 0x00629F9C;
         calls_wall_piece[1] = 0x0062A0F9;
@@ -1565,6 +1568,7 @@ internal int spec_unit_select(int build) {
         fn_line_of_fire_at_game = (line_of_fire_at_game_fn)0x0064DD2E;
         fn_unit_convert = (unit_convert_fn)0x00644E95;
         call_gate_convert = 0x006109F2;
+        call_upgrade_convert = 0x005CAE5D;
         fn_wall_piece = (wall_piece_fn)0x0064E647;
         calls_wall_piece[0] = 0x0063ED73;
         calls_wall_piece[1] = 0x0063EF01;
@@ -1703,6 +1707,7 @@ internal int spec_unit_check(void) {
     bad += spec_code((uintptr_t)fn_line_of_fire_at_game, "unit_functions.line_of_fire_at_game");
     bad += spec_code((uintptr_t)fn_unit_convert, "unit_functions.unit_convert");
     bad += spec_call(call_gate_convert, (uintptr_t)fn_unit_convert, "unit_functions.unit_convert [call_site gate_convert]");
+    bad += spec_call(call_upgrade_convert, (uintptr_t)fn_unit_convert, "unit_functions.unit_convert [call_site upgrade_convert]");
     bad += spec_code((uintptr_t)fn_wall_piece, "unit_functions.wall_piece");
     bad += spec_call(calls_wall_piece[0], (uintptr_t)fn_wall_piece, "unit_functions.wall_piece [call_site wall_piece 0]");
     bad += spec_call(calls_wall_piece[1], (uintptr_t)fn_wall_piece, "unit_functions.wall_piece [call_site wall_piece 1]");

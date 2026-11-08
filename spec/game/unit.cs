@@ -1046,9 +1046,11 @@ static unsafe class unit_functions
     /// cdecl(unit, player index, new type data): the unit made anew as that type (0x62F2E5) with its share of hit
     /// points, the old one deleted - a line upgrade's (0x5BA59D), a wall piece's turn into a gate; no owner's change
     /// (unit_give)
-    /// gate_convert: build_gate's (0x6022E3, AoC 0x61080D), each of its five pieces in turn
+    /// gate_convert: build_gate's (0x6022E3, AoC 0x61080D), each of its five pieces in turn; upgrade_convert: the line
+    /// upgrade's, each unit of the old type (0x5BA59D, AoC 0x5CACB4)
     [address((ee)0x0062F192, (aoc)0x00644E95), cdecl]
     [call_site("gate_convert", (ee)0x00602456, (aoc)0x006109F2)]
+    [call_site("upgrade_convert", (ee)0x005BA65A, (aoc)0x005CAE5D)]
     static extern int32 unit_convert(EEUnit* u, int32 pi, EEUnitClass* new_td);
 
     /// cdecl(piece, layout code, raised corners): a wall piece's model and turn by its place in the wall (0x63842B:

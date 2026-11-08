@@ -2,6 +2,10 @@
 // game's functions on it, its hooks. What spec/game/unit.cs describes is gen/unit.c's (unit_get_owner, unit_get_speed,
 // unit_max_speed, unit_assign_goal, patch_aim ...); here the code of our own on top.
 
+// told of a unit made anew as type at tile x, y by the mod's own conversions (walls.c: a wall's upgrade is fitted anew;
+// the game's own calls are its hook's)
+internal void (*g_unit_converted)(int type, int x, int y);
+
 // FIELDS
 internal inline ivec2 unit_get_tile(const ee_unit *u) { return iv2(unit_get_x(u), unit_get_y(u)); }
 // +0x24 its id: the player in bits 24..31 (a load message names its transport by it, unit_by_id finds it back) - the
