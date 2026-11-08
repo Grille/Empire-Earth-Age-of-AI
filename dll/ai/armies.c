@@ -1419,13 +1419,16 @@ internal void ar_adopt(ee_player *pl, unsigned idx, struct armies_st *a, uint32_
 #define AR_HIT_PAUSE 90000
 #define AR_HIT_TIME 90000
 #define AR_HIT_LOSS 40
-#define AR_HIT_NEAR 14
+#define AR_HIT_NEAR 6              // HIT AND RUN: at the mine itself (14 tiles short of the drop site 11 riders saw 1 citizen with 6 there, 5 of them gathering)
+#define AR_HIT_NEXT 8000           // nobody in sight this long: on to the next mine within 12 tiles of the first
+#define AR_HIT_MINES 4
 #define AR_HIT_R 16
 #define AR_DET_TRADE_FLOOR 50   // in contact it turns back on a bad trade only after losing this % of its hit points (the player: "the gold the ai gets and the enemy loses per minute is worth way more than a few unit loses")
 internal struct ar_det {
     int state;   // 0 none, 1 out, 2 holding its town
     int mode;    // 0 to take the mine, 1 a hit and run
-    uint32_t hit_t, nocit_t, since; int tgt[32], ntgt;   // HIT AND RUN: there since, citizens last seen, sent, the citizens attacked
+    ivec2 vis[AR_HIT_MINES]; int nvis;   // HIT AND RUN: the mines it has ridden to
+    uint32_t hit_t, nocit_t, since; int tgt[32], ntgt, seen_max;   // HIT AND RUN: there since, citizens last seen, sent, the citizens attacked, most in sight at once
     int n, id[AR_DET_SIZE]; ee_unit *u[AR_DET_SIZE];   // id: unit_get_serial (unit_by_id's key)
     ivec2 dest, site, origin; int site_set, target_id, weak;   // origin: the mine it was sent for (THE SITES' MEMORY)
     int hp[AR_DET_SIZE], nfoe, trade_n; float dead_hp, out_hp, dealt[AR_TRADE_N], lost[AR_TRADE_N];   // the trade, as the force's (ar_trade)
@@ -1502,7 +1505,28 @@ internal void ar_det_hit(ee_player *pl, unsigned idx, struct ar_det *d, ivec2 mi
         else { if (!d->order_t || now - d->order_t >= 20000) { d->order_t = now ? now : 1; ar_det_order(d, 1, 0); } return; }
     }
     else {
-        if (!d->hit_t) { d->hit_t = now ? now : 1; d->nocit_t = d->hit_t; }
+        if (!d->hit_t) {
+            d->hit_t = now ? now : 1; d->nocit_t = d->hit_t; d->seen_max = 0;
+            if (g_autotest && g_log) {   // DIAG: what a raid finds - the real count beside what it sees (the log only: no decision reads it)
+                int all = 0, gath = 0;
+                for (struct grid_it it = grid_it_box(d->dest.x, d->dest.y, AR_HIT_R, 1); grid_it_next(&it); ) {
+                    ee_player *o = unit_get_owner(it.u);
+                    if (!o || player_get_index(o) <= 0 || !is_enemy(pl, o) || !cv_alive(it.u) || !is_citizen_type(unit_type_get_id(it.td)) || ivec2_dist2(unit_get_tile(it.u), d->dest) > AR_HIT_R * AR_HIT_R) continue;
+                    ee_goal *g = unit_get_goal(it.u);
+                    all++; gath += g && !strcmp(rtti_name(g), "EEUGGather@@");
+                }
+                ar_log(idx, now, "hit and run: there, %d riders at %d,%d, mine %d,%d: %d citizens in sight (really %d within %d tiles of it, %d gathering), %d mines within 12, %d enemy fighters within 10", m, mid.x, mid.y, d->dest.x, d->dest.y, nc, all, AR_HIT_R, gath, tn_mine_near(pl, d->dest, 12), ar_enemy_band(pl, mid, 10));
+            }
+        }
+        if (nc > d->seen_max) d->seen_max = nc;
+        if (!nc && there && now - d->nocit_t >= AR_HIT_NEXT && d->nvis < AR_HIT_MINES) {   // on to the next mine
+            ivec2 nx;
+            if (tn_mine_next(pl, d->origin, 12, d->vis, d->nvis, &nx)) {
+                d->vis[d->nvis++] = nx; d->dest = nx; d->nocit_t = now ? now : 1; d->order_t = now ? now : 1;
+                ar_det_order(d, 0, 0);
+                return;
+            }
+        }
         if (nc) d->nocit_t = now ? now : 1;
         if (now - d->hit_t >= AR_HIT_TIME) why = "time is up";
         else if (now - d->nocit_t >= 20000) why = "nobody left to kill";
@@ -1514,6 +1538,7 @@ internal void ar_det_hit(ee_player *pl, unsigned idx, struct ar_det *d, ivec2 mi
         char msg[64];
         snprintf(msg, sizeof msg, "hit and run, %d citizens killed - %s", killed, why);
         d->killed += (unsigned)killed;
+        ar_log(idx, now, "hit and run over: %d citizens attacked, %d killed, %d in sight at most, %.0f s there", d->ntgt, killed, d->seen_max, d->hit_t ? (now - d->hit_t) / 1000.0 : 0.0);
         ar_det_end(pl, idx, d, now, msg, 0);
         return;
     }
@@ -1631,6 +1656,8 @@ internal void ar_det_start(ee_player *pl, unsigned idx, struct armies_st *a, str
     d->dest = d->origin = unit_get_tile(t); d->target_id = unit_get_serial(t);
     site_tried(idx, d->origin);
     d->state = 1; d->weak = 0; d->site_set = 0; d->judge_t = d->order_t = 0; d->sent++; d->hit_t = d->nocit_t = 0; d->ntgt = 0; d->since = now ? now : 1;
+    d->nvis = 0;
+    if (d->mode) { ivec2 nx; if (tn_mine_next(pl, d->origin, 12, d->vis, 0, &nx)) { d->vis[d->nvis++] = nx; d->dest = nx; } }   // HIT AND RUN: the mine itself
     if (!d->mode) tn_crew_start(pl, idx, a->home, now);
     ar_det_order(d, 0, !d->mode);
     ar_log(idx, now, "a detachment of %d for the mines at %d,%d (%s %.2f; %d at home, %d candidates)", d->n, d->dest.x, d->dest.y, d->mode ? "hit and run, enemy hp" : "to take it,", r, nh, nc);

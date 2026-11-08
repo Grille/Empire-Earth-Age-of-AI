@@ -603,6 +603,26 @@ internal int tn_mine_near(ee_player *pl, ivec2 c, int r) {
     }
     return n;
 }
+// HIT AND RUN: the nearest mine it has seen within r of c, none of the n in avoid within 3 tiles of it; 1: in *o
+internal int tn_mine_next(ee_player *pl, ivec2 c, int r, const ivec2 *avoid, int n, ivec2 *o) {
+    int bd = r * r + 1;
+    ee_zone **zb = player_get_zones_begin(pl); ee_zone **ze = player_get_zones_end(pl);
+    for (int z = 0; zb && zb + z < ze && z < 256; z++) {
+        ee_zone *zone = zb[z];
+        void **sb = zone ? zone_get_sites_begin(zone) : NULL, **se = zone ? zone_get_sites_end(zone) : NULL;
+        for (int k = 0; sb && sb + k < se && k < 4096; k++) {
+            ee_unit *m = sb[k];
+            int res = m ? unit_get_resource(m) : 0, skip = 0;
+            if (res < 4 || res > 6 || unit_get_amount(m) <= 0) continue;
+            ivec2 sp = unit_get_tile(m);
+            int d = ivec2_dist2(sp, c);
+            if (d >= bd || intel_looked_ago(pl, sp.x, sp.y) == 0xFFFFFFFFu) continue;
+            for (int j = 0; j < n && !skip; j++) skip = ivec2_dist2(sp, avoid[j]) <= 9;
+            if (!skip) { bd = d; *o = sp; }
+        }
+    }
+    return bd <= r * r;
+}
 internal int tn_mine_drop(ee_player *pl, ee_unit *u, ee_unit_type *td) { return tn_is_drop(unit_type_get_id(td)) && tn_mine_near(pl, unit_get_tile(u), 10) > 0; }
 internal void tn_crew_alive(ee_player *pl, unsigned idx);
 // TAKE MINES: a town where the force has just razed what stood at c; 1: founded
