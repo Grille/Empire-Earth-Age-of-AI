@@ -1113,9 +1113,9 @@ internal void tn_plan(ee_player *pl, unsigned idx, struct tn_st *s, unsigned hc,
             int fs = tn_free_slots(pl, hc, &w);
             if (fs >= 4 && !(TOWNS(idx) & 16)) { if (!why) why = "free places at its mines"; }   // SPREAD: not waiting for them
             else if (!((TOWNS(idx) & 16) ? tn_site_spread : tn_site)(pl, idx, base, hc, &w, &c, &nm)) {
-                why = "no free mines";
+                why = "nothing free to settle";
                 if ((TOWNS(idx) & 48) == 48) tn_scout(pl, idx, s, base, hc, &w, now);
-                if (g_autotest) tn_say(idx, now, "mines: %d on the home continent, %d unexplored, %d too near or far, %d by a drop site, %d by an enemy building, %d lost there or defended, %d unsafe way or too poor",
+                if (g_autotest) tn_say(idx, now, "%d resources on the home continent, %d unexplored; places turned down: %d too near or far, %d by a drop site, %d by an enemy building, %d lost there or defended, %d unsafe way or too poor",
                                        g_tn_why[0], g_tn_why[1], g_tn_why[2], g_tn_why[3], g_tn_why[4], g_tn_why[5], g_tn_why[6]);
             }
             else { s->plans++; tn_found(pl, idx, s, c, nm, &w, hc, now, 0); why = NULL; }
