@@ -11,8 +11,10 @@
 // byte for byte, but 147 of the checks are pairs the code must hold in itself (a call of the function at the spec's
 // address, a vtable's RTTI name and its slots), spread over the parts the mod uses: another compile fails hundreds.
 // (the builds, their hashes and the hash: builds.h)
-// the running build by its name ("ee", "aoc"): for code that differs by more than an address (AoC's rewrites)
-internal int build_is(const char *name) { return g_exe_build >= 0 && !lstrcmpA(k_build_names[g_exe_build], name); }
+// the running build by its name ("ee", "aoc"): for code that differs by more than an address (AoC's rewrites). strcmp,
+// not lstrcmpA: that one compares by the user's locale (CompareStringA, about 100 ns) and the units' copy and fills
+// ask several times an object - 4-6 of them were half the copy's time (2026-11-08, the 8000 save)
+internal int build_is(const char *name) { return g_exe_build >= 0 && !strcmp(k_build_names[g_exe_build], name); }
 // 1: the game in a build the mod knows and is ready for (its column selected: g_exe_build, the tables); 0: not the game (another
 // program loading the folder's DLLs) or a known build that isn't ready (the player's game runs without the mod); -1:
 // the game, another build (*hash its hash). A test run (run_test.ps1: EEAIMOD_UNREADY=1) plays a build that isn't
