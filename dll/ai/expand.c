@@ -357,10 +357,13 @@ internal int expand_has(ee_player *pl, ee_unit *u) {
 // and outposts were held up 5-10 minutes with "can't pay"
 internal void towns_reserve(ee_player *pl, int reserve[7]);   // towns.c: a town's drop site
 internal void expand_reserve(ee_player *pl, int reserve[7]) {
-    unsigned idx = (unsigned)player_get_index(pl) & 15;
     towns_reserve(pl, reserve);
+    if (!g_landing_order) expand_hold(pl, reserve);   // its own transport (and a landing's) spend it
+}
+internal void expand_hold(ee_player *pl, int reserve[7]) {
+    unsigned idx = (unsigned)player_get_index(pl) & 15;
     struct ex_st *x = &g_xs[idx];
-    if (!EXPAND(idx) || g_landing_order) return;   // its own transport (and a landing's) spend it
+    if (!EXPAND(idx)) return;
     if (x->fphase == 1) {   // the transport it waits for (as landing_reserve)
         int tt = ld_transport_type(pl);
         for (int r = 2; r < 7 && tt; r++) reserve[r] += unit_cost(pl, tt, r);
@@ -536,13 +539,13 @@ internal void ex_ferry_ship(ee_player *pl, unsigned idx, struct ex_st *x, uint32
             x->ftrain_t = now + 30000;
             int req[4] = { tt, 1, 0, 0 };
             unsigned got = 0;
-            g_priority_mil = 1; g_landing_order = 1; g_expand_order = (EXPAND(idx) & 8) != 0;
+            g_priority_mil = 1; g_landing_order = 1; g_expand_order = (EXPAND(idx) & 8) != 0 || g_spend_tiers;   // the top tier: the whole stock
             hook_train_units(um, req, (uintptr_t)&got);
             g_priority_mil = 0; g_landing_order = 0; g_expand_order = 0;
             if (got) { x->trained++; x->ftrain_t = now + 90000; x->ftrained_t = now ? now : 1; }
             // EARLY: tried again at every tick (2 s) while it can't pay - the wood for it (250) is spent by the buildings
             // within seconds of coming in (6 minutes of "can't train" at minute 15-21 with 150-257 wood passing through)
-            else if (EXPAND(idx) & 8) { x->ftrain_t = now + 2000; if (now - x->fsay_t < 30000) return; }
+            else if ((EXPAND(idx) & 8) || g_spend_tiers) { x->ftrain_t = now + 2000; if (now - x->fsay_t < 30000) return; }
             x->fsay_t = now;
             int *st = player_stock_at(pl);
             ex_say(idx, now, "%s a transport (type %d) - transports %d (landing's %d, loaded %d, other sea %d), landing phase %d, stock %d,%d,%d,%d,%d",

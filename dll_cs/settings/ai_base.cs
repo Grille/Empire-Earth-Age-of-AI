@@ -863,6 +863,11 @@ class ai_base
         /// player: "sometimes you have special orders that need saving up"). 0 = they take what is left over (default
         /// until measured)
         bool special_orders = false;
+        /// Spending tiers, step 1 (the player: "a lower tier only gets produced if the resources can pay for the higher
+        /// tiers"): what an outpost on another island waits for - its transport, its drop site and first tower - is the top
+        /// tier: its transport sees the whole stock, and no building and no warship with a target spends what it needs. Without
+        /// expand_islands nothing is held. 0 = buildings spend what comes in, first come first served (default until measured)
+        bool spend_tiers = false;
         /// The units in production the room for training leaves out are set to what the buildings really have queued: a loaded
         /// game starts that count at 0 (the save doesn't keep it) and the AI queued far more than its limit lets out. Off: on
         /// the player's save "standing army" its AIs lost more units with it (101 against 82 in 15 minutes). 1 = on

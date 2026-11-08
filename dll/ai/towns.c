@@ -631,6 +631,7 @@ internal void tn_run(ee_player *pl, unsigned idx, struct tn_st *s, struct tn_tow
                 ang += (nth & 1 ? 1 : -1) * (0.6f + 0.6f * (float)(nth / 2)) * (l > 1 ? 1.0f : 2.6f);
                 c = iv2(d0.x + (int)lroundf(5 * cosf(ang)), d0.y + (int)lroundf(5 * sinf(ang)));
             }
+            if (tier_refuses(pl, ty)) break;   // spend_tiers: an outpost's turn first
             if (!tn_spot(pl, idx, t, ty, c, hc, &at)) { if (++p->waits > 30 && p->kind != TK_DROP) p->state = 3; break; }
             ee_unit *b = place_foundation(pl, ty, at.x, at.y);
             if (!b) { if (++p->waits > 30 && p->kind != TK_DROP) p->state = 3; break; }

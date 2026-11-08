@@ -139,8 +139,43 @@ internal void retry_note(unsigned idx, int type, uint32_t now) {
     g_retry[idx][f].next = now + 120000;
     g_retry[idx][f].tries = 0;
 }
+// SPENDING TIERS ([ai_base] spend_tiers, default 0 until measured; the player 2026-11-08: "a lower tier only gets produced
+// if the resources can pay for the higher tiers"). The savings of train_budget only ever held back units - a building
+// is paid the moment the build manager's round (every 3 s) places it, so an outpost's transport (250 wood) waited 7-11
+// minutes for wood the buildings spent as it came in, with the whole stock open to it. Step 1: what an outpost waits for
+// (expand_hold) is the top tier, a building that would dip into it waits. A refusal is the game's own failed placement:
+// the round puts the entry at the back of its queue and ends, the next round tries the next one; the hold ends with
+// the outpost's wait (the transport given up after 6 minutes). Per resource: a tower of stone goes up while wood is held.
+internal int g_spend_tiers = 0;
+internal void expand_hold(ee_player *pl, int hold[7]);   // expand.c
+internal int unit_cost(ee_player *pl, int type, int r);  // below
+internal int tier_refuses(ee_player *pl, int type) {
+    static unsigned refused[16];
+    static uint32_t log_t[16];
+    if (!g_spend_tiers) return 0;
+    int hold[7] = { 0 }, *stock = player_stock_at(pl), held = -1;
+    expand_hold(pl, hold);
+    for (int r = 2; r < 7 && held < 0; r++) {
+        int c = unit_cost(pl, type, r);
+        if (c > 0 && hold[r] > 0 && stock[r] - c < hold[r]) held = r;
+    }
+    if (held < 0) return 0;
+    unsigned idx = (unsigned)player_get_index(pl) & 15;
+    uint32_t now = game_time();
+    if (now < log_t[idx]) { log_t[idx] = 0; refused[idx] = 0; }   // a new game
+    refused[idx]++;
+    if (g_log && now - log_t[idx] >= 60000) {
+        EnterCriticalSection(&g_lock);
+        fprintf(g_log, "# tiers: P%u at %.1f min: %u buildings held back so far, now type %d - resource %d: stock %d, held %d\n", idx, now / 60000.0,
+                refused[idx], type, held, stock[held], hold[held]);
+        LeaveCriticalSection(&g_lock);
+        log_t[idx] = now ? now : 1;
+    }
+    return 1;
+}
 internal char __thiscall hook_place(ee_build_mgr *bm, int type, int x, int y) {
     ee_player *owner = build_mgr_get_player(bm);
+    if (!is_vanilla(owner) && tier_refuses(owner, type)) return 0;
     // a field without foundation would crash (see there) - the guard alone for a vanilla player (nothing laid out)
     if (type == UT(B_FARM) && !field_place_ok(bm, x, y, !is_vanilla(owner))) return 1;
     if (is_vanilla(owner)) return build_mgr_place(bm, type, x, y);
@@ -914,7 +949,7 @@ internal void retry_dropped(ee_player *pl, unsigned idx, uint32_t now) {
         if (dq && deque_count(dq) > 0) { g_retry[idx][k].type = 0; continue; }   // it has one now
         int pay = 1;
         for (int r = 2; r < 7; r++) if (unit_cost(pl, type, r) > stock[r]) pay = 0;
-        if (!pay) { g_retry[idx][k].next = now + 30000; continue; }
+        if (!pay || tier_refuses(pl, type)) { g_retry[idx][k].next = now + 30000; continue; }
         char ok = build_mgr_place(bm, type, 0, 0);
         int give_up = !ok && ++g_retry[idx][k].tries >= 5;
         if (g_log) fprintf(g_log, "# place: P%u at %.1f min: dropped type %d tried again - %s\n", idx, now / 60000.0, type,
@@ -1468,7 +1503,7 @@ internal void fields_rebuild(ee_player *pl, unsigned idx, void *um, uint8_t *dq,
             granary = g && unit_get_hp(g) > 0 && abs(unit_get_x(g) - x) <= 4 && abs(unit_get_y(g) - y) <= 4;
         }
         if (!granary) continue;
-        if (raiders_near(pl, iv2(x, y), 8)) continue;   // raided: later (builders: 8 tiles, as citizens_safety)
+        if (raiders_near(pl, iv2(x, y), 8) || tier_refuses(pl, UT(B_FARM))) continue;   // raided: later (builders: 8 tiles, as citizens_safety)
         g_field_at[idx][j].queued = now;
         if (!ut_has(UT(B_FARM)) || !can_place(pl, UT(B_FARM), iv2(x, y))) continue;
         place_foundation(pl, UT(B_FARM), x, y);
@@ -1540,7 +1575,7 @@ internal void more_granaries(ee_player *pl, unsigned idx, ee_resource_mgr *rm, v
     static struct { uint32_t t; int n; } req[16];
     int x, y;
     if (now < req[idx].t) req[idx].t = 0;   // a new game
-    if (req[idx].t && granaries <= req[idx].n && now - req[idx].t >= 50000 && granary_spot(pl, um, &x, &y)) {
+    if (req[idx].t && granaries <= req[idx].n && now - req[idx].t >= 50000 && !tier_refuses(pl, UT(B_GRANARY)) && granary_spot(pl, um, &x, &y)) {
         char ok = build_mgr_place(bm, UT(B_GRANARY), x, y);
         if (g_log) fprintf(g_log, "# fields: P%u at %.1f min: the last granary request brought none - our spot %d,%d: %s\n",
                            idx, now / 60000.0, x, y, ok ? "placed" : "refused");
@@ -2046,6 +2081,8 @@ internal void train_budget(ee_player *pl, unsigned idx, const struct ai_cfg *cfg
                          // start: wood at 50-220 all game, the navy taking half the income, no artillery ever paid)
     if (military && !req_unit && !g_priority_mil && !g_landing_order) special_reserve(pl, sp);
     for (int r = 2; r < 7; r++) reserve[r] += sp[r];
+    int t3[7] = { 0 };   // spend_tiers: the top tier's, held from the warships that see the whole stock too
+    if (g_spend_tiers && !g_landing_order) expand_hold(pl, t3);
     if (!g_bud[idx].init) {
         memset(&g_bud[idx], 0, sizeof g_bud[idx]);
         g_bud[idx].init = 1;
@@ -2077,7 +2114,7 @@ internal void train_budget(ee_player *pl, unsigned idx, const struct ai_cfg *cfg
                   !(EARLY(idx, early_soldiers) && g_hg_call);
     int recover = recovering(pl);
     for (int r = 2; r < 7; r++) {
-        int visible = req_unit ? stock[r] : ship && navy_earmarked(idx) ? stock[r] - sp[r] : stock[r] - reserve[r];   // a requirement unit: the epoch waits for it
+        int visible = req_unit ? stock[r] : ship && navy_earmarked(idx) ? stock[r] - sp[r] - t3[r] : stock[r] - reserve[r];   // a requirement unit: the epoch waits for it
         // citizens before farms: they pay only food, and only what the food budget (stock + reachable wild
         // food) doesn't need for the epochs; a tiny workforce always grows
         if (cit && cmode == 1 && ep < FARM_EPOCH) {
@@ -2354,6 +2391,7 @@ internal void econ_install(const char *autotest_ini) {
     g_build_fix = g_set_ai[1].build_fix;
     g_train_room = g_set_ai[1].train_room;
     g_special_orders = g_set_ai[1].special_orders;
+    g_spend_tiers = g_set_ai[1].spend_tiers;
     g_prod_sync = g_set_ai[1].production_sync;
     g_train_queue = g_set_ai[1].train_queue;
     if (autotest_ini) g_v_train_queue = ini_int("autotest", "v_train_queue", -1, autotest_ini);
