@@ -151,6 +151,11 @@ class display
         /// in a 450-unit game; the control pipe: picture handoff <ms>):
         [range(0, 1000)]
         int step_handoff_ms = 50;
+        /// Experimental: units moved smoothly between the simulation's steps - drawn from the mod's own copy of the
+        /// world, a step behind the simulation, between where they were and where they are, instead of standing till
+        /// the next step and jumping there (the mod's own collection of the units takes over from the game's; the
+        /// control pipe: picture collect smooth on / off):
+        bool units_smooth = false;
         /// The own renderer only: the units' animation blended by the graphics card - each frame of a model kept there
         /// once, instead of the game blending two frames on the CPU and the renderer uploading the result at every
         /// draw (the control pipe: picture morph on / off):

@@ -30,7 +30,8 @@ typedef struct {
     float tint[3], at[3];
     uint8_t tree, has_cu, food, moved, hidden, rotting, cloakable, cloaked, cloak_friend, marker, pp_shown, dead,
             foundation, finished, tint_on, selected, gate, gate_shown, own_seen, lit, bars_friend, marker_ok, t_foundation,
-            open;
+            open, has_was;
+    float was[12];              // the moving between steps: its pose in the steps' copy before (has_was)
     __attribute__((aligned(8))) uint8_t pm[UC_PM];   // its complex unit's physical model (its pose, model, scale, frame)
 } uc_obj;
 typedef struct {
@@ -54,6 +55,7 @@ typedef struct {
     ee_map *map;
     ee_player *pl;
     int free_cam, hidden_mode, made_by;   // made_by: 1 the simulation, 2 the frame
+    LONGLONG at, dt;      // the simulation's copy: when it was made, and the time since the one before (0: none to move from)
     uc_ctile *tiles;
     uint32_t tiles_cap;
     uc_obj *objs;
@@ -128,6 +130,49 @@ internal ee_tile *uc_tile(ee_map *map, int x, int y) {
     return (uint32_t)x < n && (uint32_t)y < n ? map_get_tiles(map)[(uint32_t)y * n + (uint32_t)x] : NULL;
 }
 
+// STEP 4, THE MOVING BETWEEN STEPS (the pipe: picture collect smooth off | on | probe; off by default): the frame draws
+// a moving object between its pose in the steps' last copy but one and its last, by the time since that copy (collect.c
+// uc_smooth), a step behind the simulation. Each object's pose in the last copy is kept here by its pointer, the
+// simulation's alone (a frame's own copy of the world neither reads nor writes it). An entry not met in the last copy
+// is of an object no longer there, or a new one at its address: no pose to come from. probe: the poses kept and the
+// picture's steps counted, nothing moved.
+internal volatile int g_cp_smooth;
+typedef struct { ee_unit *u; uint32_t gen; float t[12]; } cp_pose_e;
+internal cp_pose_e *g_cp_pose;
+internal uint32_t g_cp_pose_cap, g_cp_pose_n, g_cp_pose_gen;
+// a new copy's turn: the table at most half full, those of older copies than the last dropped when it is rebuilt
+internal void cp_pose_turn(uint32_t want) {
+    g_cp_pose_gen++;
+    if (g_cp_pose_cap && want * 2 <= g_cp_pose_cap && g_cp_pose_n * 2 <= g_cp_pose_cap) return;
+    uint32_t cap = g_cp_pose_cap ? g_cp_pose_cap : 16384;
+    while (cap < want * 2) cap *= 2;
+    cp_pose_e *o = g_cp_pose, *q = calloc(cap, sizeof *q);
+    if (!q) return;
+    uint32_t old = g_cp_pose_cap, n = 0;
+    for (uint32_t i = 0; i < old; i++)
+        if (o[i].u && o[i].gen + 1 == g_cp_pose_gen) {
+            uint32_t h = ((uint32_t)(uintptr_t)o[i].u >> 3) * 2654435761u & (cap - 1);
+            while (q[h].u) h = (h + 1) & (cap - 1);
+            q[h] = o[i];
+            n++;
+        }
+    free(o);
+    g_cp_pose = q, g_cp_pose_cap = cap, g_cp_pose_n = n;
+}
+// the object's pose now in, its pose in the last copy out: 1 when it was in it
+internal int cp_pose_swap(ee_unit *u, const float *now, float *was) {
+    if (!g_cp_pose_cap || g_cp_pose_n * 4 >= g_cp_pose_cap * 3) return 0;
+    uint32_t h = ((uint32_t)(uintptr_t)u >> 3) * 2654435761u & (g_cp_pose_cap - 1);
+    while (g_cp_pose[h].u && g_cp_pose[h].u != u) h = (h + 1) & (g_cp_pose_cap - 1);
+    cp_pose_e *e = &g_cp_pose[h];
+    int had = e->u == u && e->gen + 1 == g_cp_pose_gen;
+    if (had) memcpy(was, e->t, sizeof e->t);
+    if (!e->u) e->u = u, g_cp_pose_n++;
+    e->gen = g_cp_pose_gen;
+    memcpy(e->t, now, sizeof e->t);
+    return had;
+}
+
 // an object's values as the fills read them (the expressions theirs, in their order where a call may write)
 internal void cp_obj(uc_copy *c, uc_obj *o, ee_unit *u, ee_player *me, ee_map *map, int mode) {
     memset(o, 0, sizeof *o);
@@ -180,6 +225,7 @@ internal void cp_obj(uc_copy *c, uc_obj *o, ee_unit *u, ee_player *me, ee_map *m
     o->cst = unit_get_stats(cu);
     o->cowner = unit_get_owner(cu);
     memcpy(o->pm, unit_matrix_at(cu), physical_model_size() < UC_PM ? physical_model_size() : UC_PM);
+    if (g_cp_smooth && c->made_by == 1) o->has_was = (uint8_t)cp_pose_swap(u, (const float *)o->pm, o->was);
     o->cu_hp = unit_get_hp(cu);
     o->cu_height = unit_get_height(cu);
     o->anim = unit_get_anim(cu);
@@ -286,6 +332,8 @@ internal int cp_make(uc_copy *c, ee_map *map, ee_player *pl, int x0, int y0, int
     int mode = show_hidden_mode(), free_cam = *game_free_camera_at() != 0;
     c->x0 = x0, c->y0 = y0, c->w = x1 - x0 + 1, c->h = y1 - y0 + 1;
     c->map = map, c->pl = pl, c->free_cam = free_cam, c->hidden_mode = mode, c->made_by = made_by;
+    c->at = c->dt = 0;
+    if (g_cp_smooth && made_by == 1) cp_pose_turn(c->objs_cap);
     c->n_objs = c->n_seq = c->n_dopps = c->n_pool = 0;
     c->ok = 1;
     uint32_t nt = (uint32_t)(c->w * c->h);
@@ -351,6 +399,8 @@ internal volatile LONG g_cp_view[5];     // the frame's last view x0, y0, x1, y1
 internal ee_map *volatile g_cp_view_map;
 internal LONG g_cp_by_step, g_cp_by_frame, g_cp_stales, g_cp_fails, g_cp_used, g_cp_objs;
 internal LONGLONG g_cp_step_qpc, g_cp_frame_qpc;   // the simulation's time and the frame's making them
+#define UC_SMOOTH_MAX_MS 1000   // steps further apart than this (a pause) aren't moved between
+internal LONGLONG g_cp_last_at;                    // when the simulation's last copy was made
 internal int cp_spare(void) {   // inside g_cp_cs
     for (int i = 0; i < UC_COPIES; i++)
         if (i != g_cp_new && i != g_cp_read) return i;
@@ -372,7 +422,11 @@ internal void collect_copy_written(uintptr_t ret) {
     LONGLONG t0 = rd_qpc();
     int ok = cp_make(&g_cp[i], map, game_players()[local_player_index()], g_cp_view[0] - UC_MARGIN, g_cp_view[1] - UC_MARGIN,
                      g_cp_view[2] + UC_MARGIN, g_cp_view[3] + UC_MARGIN, 1);
-    g_cp_step_qpc += rd_qpc() - t0;
+    LONGLONG t1 = rd_qpc();
+    g_cp_step_qpc += t1 - t0;
+    g_cp[i].at = t1;
+    g_cp[i].dt = g_cp_last_at && t1 - g_cp_last_at < rd_qpc_ms(UC_SMOOTH_MAX_MS) ? t1 - g_cp_last_at : 0;   // none after a pause
+    g_cp_last_at = t1;
     EnterCriticalSection(&g_cp_cs);
     if (ok) g_cp_new = i, g_cp_stale = 0, g_cp_by_step++, g_cp_objs = (LONG)g_cp[i].n_objs;
     else g_cp_stale = 1, g_cp_fails++;
@@ -427,6 +481,7 @@ internal void cp_check(const uc_copy *c) {
     for (uint32_t i = 0; !what && i < c->n_objs; i++) {
         uc_obj a = c->objs[i], b = f->objs[i];
         a.hidden = b.hidden, a.moved = b.moved;   // update_hidden's: the copy's call cleared its moved bit
+        a.has_was = b.has_was, memcpy(a.was, b.was, sizeof a.was);   // the pose before: only the simulation's copy has it
         if (memcmp(&a, &b, sizeof a)) {
             what = "object", at = i;
             while (off < sizeof a && !memcmp((uint8_t *)&a + off, (uint8_t *)&b + off, 1)) off++;

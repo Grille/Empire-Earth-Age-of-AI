@@ -560,7 +560,32 @@ and the sort maps (the 8000 save as players 1 and 2, EE and AoC Continental). Ea
 of the mod's. The walk took the steps' copy at most walks; other writers made it stale 0-4 times in a game. What it
 costs the simulation: 3-8 ms a step in the 8000 save (3800-11 000 objects in the region), 0.6-0.8 ms on a Continental
 map (900) - off by default till it is measured against what it buys (step 4: the units drawn during the steps, moved
-between them).
+between them). Since 2026-11-08 2.1-2.4 ms (the 8000 save, 6200 objects) and 0.24 ms (Continental, 775): cycle counts
+per part of the copy found the time in build_is, which compared the build's name with lstrcmpA (the user's locale,
+about 100 ns) 4-6 times an object - strcmp now. A raw copy (memcpy of each object and its complex unit, no fill's
+reading) measured beside it is no gain: of the view 1.6 ms, of the whole map 2.9 ms (the 8000 save: 7.4 MB, 12 000
+objects) against 2.2 ms, and it would leave out what the objects point to (goals, the two lists, the units inside, a
+tile's sight), which the frame couldn't follow while a step runs. The region is the bounding box of the view's rows:
+copying only the rows and their margin is the next saving (the box holds about twice the objects the rows do).
+
+Step 4, the moving between steps (collect.c uc_smooth, collect_copy.c cp_pose_swap, 2026-11-08; `[display] units_smooth`,
+default off, which turns the mod's walk, fills and the steps' copy on with it; the pipe: `picture collect smooth off |
+on | probe`). The frame draws a moving object a step behind the simulation, between its pose in the last copy but one
+and its last: alpha = the time since the last copy / the time between the two (none when they are more than a second
+apart, a pause), clamped to 1 - where it stands as the game has it. The poses of the last copy are kept by the object's
+pointer in a table of the simulation's (a frame's own copy neither reads nor writes it; an object not in the last copy
+has none to come from). The record's transformation is blended number by number where it differs (an unchanged -0
+stays -0: a still object byte for byte); not across a jump of more than 4 tiles (a unit set down, teleported), and a
+turn of more than about 25 degrees (the first column's dot product under 0.9) only moves, because blended matrices
+shrink on the way. The picker takes the blended pose - what is clicked is where it is drawn; the view test keeps the
+copy's. Animation frames stay the step's. probe keeps the poses and counts the steps on the screen of one moving
+object, nothing moved: the frames where it didn't move and how even its steps are (rms over mean, 1 is even). A moving
+unit's step per frame on Continental at speed 1 (about 8 frames a step), probe -> on: EE 88-93% of the frames without
+a move -> under 1%, unevenness 3.1-4.1 -> 1.3-1.7; AoC 87-90% -> 0, 3.1-3.6 -> 1.6-1.9. Paused (time up), the game's
+walk and the mod's alike in the objects' records with it off, probed and on. Not yet: a frame during a step still
+skips the units' update. It can't simply run: the update's setup asks the picker for the unit under the mouse and
+takes a reference on it, and the walk adds pointers to the picker, while a running step may free an object of the last
+copy - such a walk has to leave the picker alone, and the selection's group must come from the copy.
 
 `[display] gpu_animation` (default on; the pipe: `picture morph on | off`; render_morph.c), 2026-11-06. EE animates a
 model by morphing: every frame of its animation is a whole vertex array (spec GEModel.vertices, frames alike share

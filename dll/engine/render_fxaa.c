@@ -112,7 +112,7 @@ internal void rd3_fxaa(ID3D11RenderTargetView *rtv, const D3D11_VIEWPORT *vp) {
 }
 
 internal int g_rwl_free, g_rwl_handoff_after; internal LONG g_rwl_skips;   // render_3d.c: the frame during a step (below its lock hooks)
-internal int collect_own(int on), collect_opacity(int how), collect_drawn(int how), collect_fill_mode(int how), collect_ghost(int type, float x, float y), collect_copy_mode(int how);
+internal int collect_own(int on), collect_opacity(int how), collect_drawn(int how), collect_fill_mode(int how), collect_ghost(int type, float x, float y), collect_copy_mode(int how), collect_smooth_mode(int how);
 internal LONG g_uc_walks;   // collect.c: the units' walk, its fills
 internal volatile int g_cp_on;   // collect_copy.c: the world's copy the walk reads
 extern volatile int g_uc_own; internal volatile int g_uc_opacity, g_uc_drawn, g_uc_fill;
@@ -163,6 +163,12 @@ internal void cmd_picture(char *out, const char *args) {
         float x = 0, y = 0;
         if (sscanf(args, "%*s %*s %d %f %f", &type, &x, &y) != 3 || type < -1) { REPLY("error: usage: picture collect ghost <type | -1> <x> <y>\n"); return; }
         if (collect_ghost(type, x, y) < 0) { REPLY("error: the units' walk isn't hooked (the log: # collect)\n"); return; }
+    } else if (!strcmp(mode, "collect") && !strcmp(arg, "smooth")) {   // collect.c: the moving between steps
+        char how[16] = "";
+        sscanf(args, "%*s %*s %15s", how);
+        int m = !strcmp(how, "off") ? 0 : !strcmp(how, "on") ? 1 : !strcmp(how, "probe") ? 2 : -1;
+        if (m < 0) { REPLY("error: usage: picture collect smooth off | on | probe\n"); return; }
+        if (collect_smooth_mode(m) < 0) { REPLY("error: the units' walk isn't hooked (the log: # collect)\n"); return; }
     } else if (!strcmp(mode, "collect") && !strcmp(arg, "copy")) {   // collect_copy.c: the world's copy the walk reads
         char how[16] = "";
         sscanf(args, "%*s %*s %15s", how);

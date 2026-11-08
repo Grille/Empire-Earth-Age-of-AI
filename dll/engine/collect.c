@@ -21,6 +21,51 @@ internal transform_ctor_fn g_uc_transform_ctor;            // GETransformation's
 
 #include "collect_copy.c"   // step 3: the world's copy the walk reads
 
+// STEP 4: THE MOVING BETWEEN STEPS (the pipe: picture collect smooth; collect_copy.c cp_pose_swap has the poses). A
+// moving object's record drawn between its pose in the last copy but one and its last, g_uc_alpha of the way (the time
+// since the last copy over the time between the two) - a step behind the simulation, so that a frame always has both.
+// 1 (a pause, or the time up) is the object as the game has it. Not across a jump (a unit set down or teleported:
+// further than UC_SMOOTH_FAR tiles), and a turn of more than about 25 degrees only moved, not turned: the matrices are
+// blended by their numbers, and a big turn would shrink the model on the way.
+#define UC_SMOOTH_FAR 16.0f   // tiles, squared
+internal float g_uc_alpha = 1.0f;
+internal ee_unit *g_cs_u;     // the probe: the moving object it follows, its last drawn place
+internal float g_cs_x, g_cs_y, g_cs_now_x, g_cs_now_y;
+internal int g_cs_have, g_cs_seen, g_cs_moving, g_cs_still;
+internal uint32_t g_cs_n, g_cs_zero;
+internal double g_cs_sum, g_cs_sq;
+internal void uc_smooth(ee_unit *u, float *t, const uc_obj *o) {
+    int on = o->has_was && g_uc_alpha < 1.0f && g_cp_smooth == 1;
+    float dx = t[3] - o->was[3], dy = t[7] - o->was[7], dz = t[11] - o->was[11];
+    int moved = o->has_was && (dx != 0.0f || dy != 0.0f || dz != 0.0f);
+    if (on && dx * dx + dy * dy + dz * dz <= UC_SMOOTH_FAR) {
+        float a = g_uc_alpha;
+        float len = t[0] * t[0] + t[4] * t[4] + t[8] * t[8], dot = t[0] * o->was[0] + t[4] * o->was[4] + t[8] * o->was[8];
+        if (dot >= 0.9f * len)
+            for (int i = 0; i < 12; i++) { if (t[i] != o->was[i]) t[i] = o->was[i] + (t[i] - o->was[i]) * a; }   // (an unchanged -0 stays -0: a still unit byte for byte)
+        else
+            for (int i = 3; i < 12; i += 4) { if (t[i] != o->was[i]) t[i] = o->was[i] + (t[i] - o->was[i]) * a; }
+    }
+    if (!g_cp_smooth) return;
+    if (!g_cs_u && moved) g_cs_u = u, g_cs_have = 0, g_cs_still = 0;
+    if (u == g_cs_u) g_cs_seen = 1, g_cs_now_x = t[3], g_cs_now_y = t[7], g_cs_moving = moved;
+}
+// after the walk: the followed object's step on the screen, while it moves
+internal void uc_smooth_probe(void) {
+    if (!g_cp_smooth || !g_cs_u) return;
+    if (!g_cs_seen || (!g_cs_moving && ++g_cs_still > 120)) { g_cs_u = NULL; return; }
+    g_cs_seen = 0;
+    if (g_cs_moving) {
+        g_cs_still = 0;
+        if (g_cs_have) {
+            double dx = g_cs_now_x - g_cs_x, dy = g_cs_now_y - g_cs_y, d = sqrt(dx * dx + dy * dy);
+            g_cs_n++, g_cs_sum += d, g_cs_sq += d * d;
+            if (d == 0.0) g_cs_zero++;
+        }
+    }
+    g_cs_x = g_cs_now_x, g_cs_y = g_cs_now_y, g_cs_have = 1;
+}
+
 // STEP 2, THE FILLS OURS: THE OPACITY (EEROUnits.opacity, the AoC decompilation's GetUnitOpacity: EE 0x5044D7, AoC
 // 0x50F412 with its cloak part in a function of its own, 0x63CEE2). An object's opacity into *out, and whether it is
 // drawn see-through (its record into the see-through sort map): "show hidden units" (1: an obstacle or a moved unit
@@ -306,6 +351,7 @@ internal void uc_fill(ee_ro_units *ro, const uc_copy *c, uc_obj *o, uint8_t *rec
             draw_record_set_fraction(rec, 0.0f);
         }
         transform_assign(rec, o->pm);
+        uc_smooth(u, draw_record_transform_at(rec), o);
         if (unit_type_get_faces_camera(cty)) {
             transform_apply_vector(rec, up, tilt);
             float pitch = (float)(arc_cos(-tilt[2]) - fc.tilt_offset);
@@ -810,6 +856,11 @@ __attribute__((used)) void __cdecl collect_walk(uint8_t *f) {
     pick_list_reset(picker);
     uint32_t dopp = 0;
     uc_copy *c = by0 <= by1 ? cp_take(map, pl, (int)bx0, (int)by0, (int)bx1, (int)by1) : NULL;
+    g_uc_alpha = 1.0f;
+    if (c && g_cp_smooth == 1 && c->dt > 0) {
+        double a = (double)(rd_qpc() - c->at) / (double)c->dt;
+        g_uc_alpha = a < 1.0 ? (float)a : 1.0f;
+    }
     for (unsigned long r = 0; c && r < nrows; r++) {
         long y, x0, x1;
         w.row(mesh, r, &y, &x0, &x1);
@@ -857,6 +908,8 @@ __attribute__((used)) void __cdecl collect_walk(uint8_t *f) {
         }
     }
     if (c && g_cp_on == 2) cp_check(c);
+    uc_smooth_probe();
+    g_uc_alpha = 1.0f;
     cp_release();
     g_uc_leave(lock);
     g_uc_dopp = dopp;
@@ -921,6 +974,8 @@ internal void collect_install(void) {
     memcpy(want + 2, &g_uc_lock_at, 4);
     g_uc_installed = g_uc_enter && g_uc_leave && patch_insn6_call((uintptr_t)engine_display_units_walk_at(), want, collect_thunk);
     int ghosts = g_uc_installed && patch_fill_ghosts(uc_hook_fill_ghosts);
+    if (g_uc_installed && g_set.units_smooth)   // [display] units_smooth: the walk, its fills and the steps' copy the mod's, the moving on
+        g_uc_own = 1, g_uc_opacity = 2, g_uc_drawn = 2, g_uc_fill = 2, g_cp_on = 1, g_cp_smooth = 1;
     if (g_log) fprintf(g_log, "# collect: the units' walk %s (the game's until the pipe's picture collect own), the ghosts' fill %s\n",
                        g_uc_installed ? "hooked" : "NOT hooked (exe differs)", ghosts ? "hooked" : "NOT hooked");
 }
@@ -950,6 +1005,13 @@ internal int collect_copy_mode(int how) {
     g_cp_step_qpc = g_cp_frame_qpc = 0;
     g_cp_stale = 1;
     g_cp_on = how;
+    return 0;
+}
+// picture collect smooth off | on | probe (0, 1, 2): the moving between steps; the probe's counts begin again
+internal int collect_smooth_mode(int how) {
+    if (!g_uc_installed) return -1;
+    g_cs_u = NULL, g_cs_n = g_cs_zero = 0, g_cs_sum = g_cs_sq = 0;
+    g_cp_smooth = how;
     return 0;
 }
 // picture collect opacity game | check | own (0, 1, 2; the walk's - collect own): the counts begin again
@@ -1034,6 +1096,10 @@ internal void collect_print(void) {
                g_cp_on == 2 ? "check" : g_cp_on ? "on" : "off", (long)steps, steps ? (double)g_cp_step_qpc / rd_qpc_ms(1) / steps : 0.0,
                (long)g_cp_objs, (long)frames, frames ? (double)g_cp_frame_qpc / rd_qpc_ms(1) / frames : 0.0, (long)g_cp_stales,
                (long)g_cp_used, (long)g_cp_chk_n, (long)g_cp_chk_objs, (long)g_cp_chk_diff);
+    if (g_cp_smooth)
+        log_locked("# collect: the moving between steps (%s): %u frames of a moving object, its step on the screen %.4f tiles on average, rms %.4f (%.2f times the average: 1 is even), %u frames it did not move\n",
+                   g_cp_smooth == 1 ? "on" : "probe", g_cs_n, g_cs_n ? g_cs_sum / g_cs_n : 0.0, g_cs_n ? sqrt(g_cs_sq / g_cs_n) : 0.0,
+                   g_cs_sum > 0 ? sqrt(g_cs_sq / g_cs_n) / (g_cs_sum / g_cs_n) : 0.0, g_cs_zero);
     if (g_uc_drawn == 1)
         log_locked("# collect: view test held against the game's: %u objects (%u drawn), %u differ\n", g_uc_dr_n, g_uc_dr_yes, g_uc_dr_diff);
 }
