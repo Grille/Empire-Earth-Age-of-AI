@@ -238,7 +238,8 @@ __attribute__((naked, used)) void goalset_read_thunk(void) {
 internal unsigned g_ld_refused, g_ld_kept_goal;
 internal void ld_fu_given(ee_goal *g, int ok);   // below (the game's unload orders to landing transports)
 internal char __thiscall hook_asg_give_goal(ee_attack_subgroup *sg, ee_unit *u, ee_goal *goal, int a, int prio) {
-    if (!is_vanilla(attack_subgroup_get_player(sg)) && (landing_leads(sg) || fleet_refuses(sg, u) || mass_refuses(sg, u, goal) || expand_refuses(sg, u) || cover_refuses(sg, u))) {   // the fleet (fleet.c): its ships in any subgroup; mass.c; expand.c; cover.c
+    if (!is_vanilla(attack_subgroup_get_player(sg)) && (landing_leads(sg) || fleet_refuses(sg, u) || mass_refuses(sg, u, goal) || expand_refuses(sg, u) || cover_refuses(sg, u) ||
+                                                        shore_gun((unsigned)player_get_index(attack_subgroup_get_player(sg)) & 15, u))) {   // the fleet (fleet.c): its ships in any subgroup; mass.c; expand.c; cover.c; a shore gun at its post (defence.c)
         g_ld_refused++;
         if (from_land_handoff((uintptr_t)__builtin_return_address(0))) { g_ld_kept_goal++; return 1; }
         ld_fu_given(goal, 0);

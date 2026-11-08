@@ -2105,7 +2105,7 @@ internal struct {
     int nd; struct { ivec2 p, from, hosp; uint32_t t; int has_h; } d[SG_DOCKS];   // the batteries: their dock, the ships' side, when last, its Hospital
     int ng; struct { int id; ivec2 post, bad; int dock, tries, healed; } g[SG_MAX];   // the guns held: id, post, its battery (-1 none yet), a post it didn't reach, posted by a Hospital
     uint32_t hq_t;   // a Hospital queued last
-    unsigned trained, orders, adopted, failed, stuck, hosp_queued, walls;
+    unsigned trained, orders, adopted, failed, stuck, hosp_queued, walls, stances, no_post;
 } g_sg[16];
 internal int shore_gun(unsigned idx, ee_unit *u) {
     if (!g_shore_guns || !u) return 0;
@@ -2121,16 +2121,32 @@ internal unsigned ocean_near(ivec2 p, int r, ivec2 *w);         // landing.c
 // a post by the dock: open land 1-4 tiles from it with the sea within 2 - by its Hospital once it stands: within
 // SG_HEAL of its centre, the sea within 3 - on the gun's land and walk (the reach map: a tile by a dock is often a spit
 // of its own - in the first pilot 1000 orders and no gun at its post), nearest the ships' side, 2 tiles from the others
+// a post's tile: nothing on it but own soldiers, no building (a wall piece aside) or resource beside it - the 3x3 clear
+// of everything found no post for most guns on a crowded shore ("5 of 5, at their posts 0")
+internal int sg_tile_ok(ee_player *pl, ivec2 p) {
+    for (struct grid_it it = grid_it_box(p.x, p.y, 3, 1); grid_it_next(&it); ) {
+        ee_unit_type *t = it.td;
+        int dx = abs(unit_get_x(it.u) - p.x), dy = abs(unit_get_y(it.u) - p.y);
+        if (!t || dx > 1 || dy > 1 || unit_get_hp(it.u) <= 0) continue;
+        int fam = unit_type_get_class_id(t), on = !dx && !dy;
+        if (fam == CLS_AMBIENT) continue;
+        if (on && !(unit_get_owner(it.u) == pl && is_army_family(fam))) return 0;
+        if (!on && (fam == CLS_RESOURCE || ((fam == CLS_BUILDING || fam == CLS_FORTRESS) && !unit_type_get_is_wall(t)))) return 0;
+    }
+    return 1;
+}
 internal int sg_post(ee_player *pl, unsigned idx, int dock, ee_unit *u, ivec2 bad, ivec2 *out) {
-    int heal = g_sg[idx].d[dock].has_h, rr = heal ? SG_HEAL : 4;
+    // by the Hospital within its reach, else (no room there) by the dock as before its Hospital stood
+    for (int pass = g_sg[idx].d[dock].has_h ? 0 : 1; pass < 2; pass++) {
+    int heal = pass == 0, rr = heal ? SG_HEAL + 1 : 4;
     ivec2 d = heal ? g_sg[idx].d[dock].hosp : g_sg[idx].d[dock].p, f = g_sg[idx].d[dock].from, at = unit_get_tile(u);
     int owner = player_get_index(pl), cont = (int)area_id(at, 2), reg = rm_region_of(owner, at.x, at.y);
     int best = 0x7FFFFFFF;
     for (int dx = -rr; dx <= rr; dx++)
         for (int dy = -rr; dy <= rr; dy++) {
             ivec2 q = iv2(d.x + dx, d.y + dy);
-            if ((abs(dx) < 2 && abs(dy) < 2) || (heal && dx * dx + dy * dy > SG_HEAL * SG_HEAL) || (int)area_id(q, 2) != cont ||
-                area_id(q, 1) || (q.x == bad.x && q.y == bad.y) || !ocean_near(q, heal ? 3 : 2, NULL) || !ld_tile_free_by_walls(q) || encl_walled(q.x, q.y)) continue;
+            if ((abs(dx) < 2 && abs(dy) < 2) || (heal && dx * dx + dy * dy > (SG_HEAL + 1) * (SG_HEAL + 1)) || (int)area_id(q, 2) != cont ||
+                area_id(q, 1) || (q.x == bad.x && q.y == bad.y) || !ocean_near(q, heal ? 4 : 2, NULL) || !sg_tile_ok(pl, q) || encl_walled(q.x, q.y)) continue;
             int r = reg >= 0 ? rm_region_of(owner, q.x, q.y) : -1;
             if (r >= 0 && r != reg) continue;
             int taken = 0;
@@ -2138,7 +2154,10 @@ internal int sg_post(ee_player *pl, unsigned idx, int dock, ee_unit *u, ivec2 ba
             int sc = ivec2_dist2(q, f);
             if (!taken && sc < best) { best = sc; *out = q; }
         }
-    return best < 0x7FFFFFFF;
+    if (best < 0x7FFFFFFF) return 1;
+    }
+    g_sg[idx].no_post++;
+    return 0;
 }
 internal void shore_guns(ee_player *pl, unsigned idx, uint32_t now) {
     if (!g_shore_guns || !pl) return;
@@ -2311,7 +2330,7 @@ internal void shore_guns(ee_player *pl, unsigned idx, uint32_t now) {
         }
     }
     // posts: each gun without a dock to the threatened dock with the fewest; back to its post when away
-    int posted = 0;
+    int posted = 0, close_by = 0;
     for (int k = 0; k < g_sg[idx].ng; k++) {
         ee_unit *u = unit_by_id((unsigned)g_sg[idx].g[k].id);
         if (!u) continue;
@@ -2330,21 +2349,36 @@ internal void shore_guns(ee_player *pl, unsigned idx, uint32_t now) {
         }
         if (g_sg[idx].g[k].dock < 0) continue;
         ivec2 p = g_sg[idx].g[k].post;
+        // HOLD POSITION (the player: "in a line beside a hospital in hold position mode, they should not try to chase or get
+        // attack commands"): the game's stand-ground stance - it shoots what comes in range and doesn't move for it; no
+        // other part's order reaches it (attack.c unit_goal, landing.c hook_asg_give_goal)
+        g_sg[idx].stances += (unsigned)unit_set_stance(u, 1);
         if (ivec2_dist2(unit_get_tile(u), p) <= 4) { posted++; g_sg[idx].g[k].tries = 0; continue; }
-        if (ivec2_dist2(unit_get_tile(u), p) <= SG_STRAY * SG_STRAY && unit_get_goal(u)) { posted++; continue; }   // shooting near its post
+        if (ivec2_dist2(unit_get_tile(u), p) <= SG_STRAY * SG_STRAY && unit_get_goal(u)) { close_by++; continue; }   // shooting near its post
         if (goal_near(u, (float)p.x + 0.5f, (float)p.y + 0.5f, 1.5f)) continue;
         if (++g_sg[idx].g[k].tries > 6) {   // ordered 6 times and not there: another post
             if (g_log) fprintf(g_log, "# shore guns: P%u at %.1f min: gun at %d,%d doesn't reach its post %d,%d - another\n", idx, now / 60000.0,
                                unit_get_x(u), unit_get_y(u), p.x, p.y);
             g_sg[idx].stuck++; g_sg[idx].g[k].bad = p; g_sg[idx].g[k].dock = -1; continue;
         }
+        g_sg_order = 1;
         g_sg[idx].orders += (unsigned)unit_goal(u, goal_move((float)p.x + 0.5f, (float)p.y + 0.5f), 0, 0x1F40);
+        g_sg_order = 0;
     }
     if (g_autotest && g_log && (!g_sg[idx].log_t || now - g_sg[idx].log_t >= 60000)) {
         g_sg[idx].log_t = now ? now : 1;
-        fprintf(g_log, "# shore guns: P%u at %.1f min: docks %d, batteries %d (a Hospital %d, %u queued), enemy warships seen %d | guns %d of %d, at or by their posts %d | trained %u, adopted %u, orders %u, stuck %u, nothing trainable %u, wall pieces %u%s\n",
-                idx, now / 60000.0, a.nd, g_sg[idx].nd, nhosp, g_sg[idx].hosp_queued, a.ns, g_sg[idx].ng, want, posted, g_sg[idx].trained, g_sg[idx].adopted,
-                g_sg[idx].orders, g_sg[idx].stuck, g_sg[idx].failed, g_sg[idx].walls, a.factory ? "" : ", no Siege Factory");
+        ee_unit *g0 = g_sg[idx].ng ? unit_by_id((unsigned)g_sg[idx].g[0].id) : NULL;   // DIAG: a gun's stance
+        for (int k = 0; k < g_sg[idx].ng; k++) {   // DIAG: where the guns away from their posts are
+            ee_unit *u = unit_by_id((unsigned)g_sg[idx].g[k].id);
+            if (!u || g_sg[idx].g[k].dock < 0 || ivec2_dist2(unit_get_tile(u), g_sg[idx].g[k].post) <= 4) continue;
+            ee_goal *gg = unit_get_goal(u);
+            fprintf(g_log, "# shore guns: P%u gun %d at %d,%d, its post %d,%d (%.0f tiles), goal %s, tries %d\n", idx, k, unit_get_x(u), unit_get_y(u),
+                    g_sg[idx].g[k].post.x, g_sg[idx].g[k].post.y, sqrtf((float)ivec2_dist2(unit_get_tile(u), g_sg[idx].g[k].post)),
+                    !gg ? "none" : goal_is_location(gg) ? "move" : goal_is_attack(gg) ? "attack" : "other", g_sg[idx].g[k].tries);
+        }
+        fprintf(g_log, "# shore guns: P%u at %.1f min: docks %d, batteries %d (a Hospital %d, %u queued), enemy warships seen %d | guns %d of %d, at their posts %d, near them %d | trained %u, adopted %u, orders %u, stuck %u, nothing trainable %u, no post %u, wall pieces %u, stances set %u (a gun's stance %d, its type takes %d)%s\n",
+                idx, now / 60000.0, a.nd, g_sg[idx].nd, nhosp, g_sg[idx].hosp_queued, a.ns, g_sg[idx].ng, want, posted, close_by, g_sg[idx].trained, g_sg[idx].adopted,
+                g_sg[idx].orders, g_sg[idx].stuck, g_sg[idx].failed, g_sg[idx].no_post, g_sg[idx].walls, g_sg[idx].stances, g0 ? unit_stance(g0) : -2, g0 && unit_get_type_data(g0) ? (int)unit_type_get_behaviours(unit_get_type_data(g0)) : -2, a.factory ? "" : ", no Siege Factory");
     }
 }
 
