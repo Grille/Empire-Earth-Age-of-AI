@@ -1652,6 +1652,89 @@ internal void ar_group_tick(ee_player *pl, unsigned idx, struct armies_st *a, st
     }
     ar_det_train(pl, idx, d, g->n + (d->state && d->mode ? d->n : 0), now);
 }
+// HIT AND RUN: THE RIDERS' LOOK. A mine is only known if someone has seen it (the player: "no cheating"): of 6-19 enemy drop sites standing the AI had seen 1-3, and half to three quarters of its looks for
+// a target found none. A rider alone, the fastest cavalry at home, goes to the land not looked at for 10 minutes that lies nearest to the enemy buildings it knows (at first nearest to its own base); what it
+// sees goes into the memory as anything seen. Two out at a time, a new one a minute, while fewer than AR_LOOK_ENOUGH mines to raid are known. It doesn't run from anything: on to the next place, until killed
+// or its time is up - a horse for a look.
+#define AR_LOOK_N 2
+#define AR_LOOK_EVERY 60000
+#define AR_LOOK_STALE 600000u
+#define AR_LOOK_CELL 12
+#define AR_LOOK_ENOUGH 3
+#define AR_LOOK_LIFE 480000
+#define AR_LOOK_LEG 120000         // a leg it doesn't finish: the next place
+internal struct ar_look { ee_unit *u[AR_LOOK_N]; int id[AR_LOOK_N]; ivec2 to[AR_LOOK_N]; uint32_t t[AR_LOOK_N], leg[AR_LOOK_N], last; int known; unsigned sent, died, home; } g_ar_look[16];
+internal int ar_look_has(unsigned idx, ee_unit *u) { struct ar_look *l = &g_ar_look[idx & 15]; for (int k = 0; k < AR_LOOK_N; k++) if (l->u[k] == u) return 1; return 0; }
+internal int ar_look_cell(ee_player *pl, unsigned idx, struct ar_look *l, int self, ivec2 home, ivec2 *o) {
+    static ivec2 foe[32];
+    ee_map *map = game_map();
+    int nf = 0, size = map ? (int)map_get_size(map) : 0, best = 0x7FFFFFFF;
+    unsigned land = (unsigned)area_id(home, 2);
+    for (struct grid_it it = grid_it_all(1); grid_it_next(&it) && nf < 32; ) {
+        ee_player *ow = unit_get_owner(it.u);
+        int fam = unit_type_get_class_id(it.td);
+        if (ow && player_get_index(ow) > 0 && is_enemy(pl, ow) && (fam == CLS_BUILDING || fam == CLS_FORTRESS) && cv_alive(it.u) && seen_by(it.u, pl)) foe[nf++] = unit_get_tile(it.u);
+    }
+    for (int y = AR_LOOK_CELL / 2; y < size; y += AR_LOOK_CELL)
+        for (int x = AR_LOOK_CELL / 2; x < size; x += AR_LOOK_CELL) {
+            ivec2 p = iv2(x, y);
+            if (intel_looked_ago(pl, x, y) <= AR_LOOK_STALE || (unsigned)area_id(p, 2) != land || threat_at(idx, p) > 0) continue;
+            int skip = 0;
+            for (int k = 0; k < AR_LOOK_N && !skip; k++) skip = k != self && l->u[k] && ivec2_dist2(p, l->to[k]) < 16 * 16;
+            if (skip) continue;
+            int d = nf ? 0x7FFFFFFF : ivec2_dist2(p, home);
+            for (int f = 0; f < nf; f++) if (ivec2_dist2(p, foe[f]) < d) d = ivec2_dist2(p, foe[f]);
+            if (d < best) { best = d; *o = p; }
+        }
+    return best != 0x7FFFFFFF;
+}
+internal void ar_look_order(ee_unit *u, ivec2 to) {
+    g_sg_order = 1;
+    unit_goal(u, goal_move((float)to.x + 0.5f, (float)to.y + 0.5f), 0, 0x1F40);
+    g_sg_order = 0;
+}
+internal void ar_look_tick(ee_player *pl, unsigned idx, struct armies_st *a, uint32_t now) {
+    struct ar_look *l = &g_ar_look[idx];
+    if (now < l->last) memset(l, 0, sizeof *l);
+    ee_combat_mgr *cm = player_get_combat_mgr(pl);
+    int busy = 0;
+    for (int k = 0; k < AR_LOOK_N; k++) {
+        ee_unit *u = l->u[k];
+        if (!u) continue;
+        if (unit_get_serial(u) != l->id[k] || unit_get_owner(u) != pl || !cv_alive(u)) { l->u[k] = NULL; l->died++; continue; }
+        busy++;
+        if (ivec2_dist2(unit_get_tile(u), l->to[k]) > 16 && now - l->leg[k] < AR_LOOK_LEG) continue;
+        ivec2 nx;
+        if (now - l->t[k] < AR_LOOK_LIFE && ar_look_cell(pl, idx, l, k, a->home, &nx)) { l->to[k] = nx; l->leg[k] = now ? now : 1; ar_look_order(u, nx); continue; }
+        ar_look_order(u, a->home);   // its time is up: home, the force's again
+        unit_set_ai_held(u, 0);
+        if (cm) combat_mgr_register_unit(cm, u);
+        l->u[k] = NULL; l->home++; busy--;
+    }
+    if (l->known >= AR_LOOK_ENOUGH || busy >= AR_LOOK_N || (l->last && now - l->last < AR_LOOK_EVERY)) return;
+    ee_civ_mgr *cvm = player_get_civ_mgr(pl);
+    ee_unit_mgr *um = cvm ? civ_mgr_get_unit_mgr(cvm) : NULL;
+    if (!um || base_threatened(idx) || !ar_det_econ(pl, idx, um)) return;
+    l->last = now ? now : 1;
+    ee_unit *sc = NULL;
+    float fast = 0.0f;
+    for (int k = 0; k < a->n; k++) {
+        ee_unit *u = a->held[k].u;
+        if (a->held[k].out || a->held[k].back || !cv_alive(u) || !ar_fast(unit_get_type_data(u))) continue;
+        if (st_speed(u) > fast) { fast = st_speed(u); sc = u; }
+    }
+    for (int k = 0; k < g_ar_group[idx].n; k++) {   // the raiders are where the cavalry is
+        ee_unit *u = g_ar_group[idx].u[k];
+        if (cv_alive(u) && st_speed(u) > fast) { fast = st_speed(u); sc = u; }
+    }
+    int free_slot = 0;
+    while (free_slot < AR_LOOK_N && l->u[free_slot]) free_slot++;
+    ivec2 to;
+    if (!sc || free_slot == AR_LOOK_N || !ar_look_cell(pl, idx, l, free_slot, a->home, &to) || !ar_take(pl, sc)) return;
+    l->u[free_slot] = sc; l->id[free_slot] = unit_get_serial(sc); l->to[free_slot] = to; l->t[free_slot] = l->leg[free_slot] = now ? now : 1; l->sent++;
+    ar_look_order(sc, to);
+    ar_log(idx, now, "a rider looks at %d,%d (%d mines to raid known; %u sent, %u killed, %u home so far)", to.x, to.y, l->known, l->sent, l->died, l->home);
+}
 internal void ar_det_start(ee_player *pl, unsigned idx, struct armies_st *a, struct ar_det *d, uint32_t now) {
     static ee_unit *home[AR_HELD];
     int nh = 0, ncav = 0;
@@ -1674,6 +1757,7 @@ internal void ar_det_start(ee_player *pl, unsigned idx, struct armies_st *a, str
         while (k > 0 && cd[k - 1] > dist) { cand[k] = cand[k - 1]; cd[k] = cd[k - 1]; k--; }
         cand[k] = u; cd[k] = dist;
     }
+    g_ar_look[idx].known = nc;
     if (nh < AR_HIT_MIN) return;
     st_side_clear(&g_ar_own);
     for (int k = 0; k < size; k++) st_side_add(&g_ar_own, home[k]);
@@ -1726,6 +1810,7 @@ internal void ar_det_tick(ee_player *pl, unsigned idx, struct armies_st *a, uint
     struct ar_det *d = &g_ar_det[idx];
     if (!TN_RAID(idx)) return;
     ar_group_tick(pl, idx, a, d, now);
+    ar_look_tick(pl, idx, a, now);
     if (!d->state) {
         if ((d->last && now - d->last < (d->mode ? AR_HIT_PAUSE : AR_DET_PAUSE)) || (d->t && now - d->t < AR_DET_LOOK)) return;
         d->t = now ? now : 1;
@@ -1820,7 +1905,7 @@ internal void armies_tick(ee_player *pl, uint32_t now) {
     qsort(mem, (size_t)nm, sizeof *mem, ar_ptr_cmp);
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it) && a->n < AR_HELD; ) {
         ee_unit *u = it.u;
-        if (unit_get_owner(u) != pl || !ms_land_soldier(u, it.td) || ar_held(a, u) || unit_get_ai_held(u) || ar_group_has(idx, u) || ar_det_has(idx, u)) continue;   // the last two: the force took them in again though they are taken (the raiders marched off with it, in both lists)
+        if (unit_get_owner(u) != pl || !ms_land_soldier(u, it.td) || ar_held(a, u) || unit_get_ai_held(u) || ar_group_has(idx, u) || ar_det_has(idx, u) || ar_look_has(idx, u)) continue;   // the last two: the force took them in again though they are taken (the raiders marched off with it, in both lists)
         if (bsearch(&u, mem, (size_t)nm, sizeof *mem, ar_ptr_cmp)) continue;
         if (!combat_mgr_unit_free(cm, unit_get_physics(u)) || landing_has_unit(pl, u) || ou_sortie(pl, u)) continue;
         player_hold_unit(pl, u);
@@ -1840,7 +1925,7 @@ internal void armies_tick(ee_player *pl, uint32_t now) {
                a->ratio > 99.0f ? 99.0f : a->ratio, a->pushes, a->presses, a->legs, a->raids, a->backs, a->waits, a->orders, a->refused, a->forted, a->way_lost, a->way_n, a->way_hp_lost, a->way_hp, a->stands, a->group_moves, a->approaches, a->gathers, a->contacts, a->traded_home, a->routed, a->round_ways, a->breaches, a->breach_pushes, a->breach_homes, a->stand_backs, a->scouts, a->fires, player_get_next_attack(pl) / 60000.0);
     }
 }
-internal void armies_new_game(int from_save) { memset(g_armies, 0, sizeof g_armies); memset(g_ar_det, 0, sizeof g_ar_det); memset(g_ar_group, 0, sizeof g_ar_group); g_ar_load = from_save; g_ar_loaded = 0; }
+internal void armies_new_game(int from_save) { memset(g_armies, 0, sizeof g_armies); memset(g_ar_det, 0, sizeof g_ar_det); memset(g_ar_group, 0, sizeof g_ar_group); memset(g_ar_look, 0, sizeof g_ar_look); g_ar_load = from_save; g_ar_loaded = 0; }
 // persist.c, after a save's blocks were read: the force came with it - its pointers wait for the first tick
 internal void armies_loaded(void) {
     int any = 0;
