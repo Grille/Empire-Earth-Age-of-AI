@@ -471,6 +471,7 @@ internal void rd3_shadow_vc(rd3_vcb *vc);
 internal void rd3_shadow_pc(rd3_pcb *pc);
 internal void rd3_shadow_bind(ID3D11DeviceContext *x);
 internal void rd3_water_reflect(void);   // render_water.c
+internal void rd3_water_pass(ID3D11DeviceContext *x, const rf_cmd *c);
 internal int rd3_shadow_only(int role);
 internal void rd3_fxaa(ID3D11RenderTargetView *rtv, const D3D11_VIEWPORT *vp);
 // The camera as it is now on every 3D draw (rf_shift, as the list is drawn): the camera's move and its zoom turn and
@@ -691,6 +692,7 @@ internal void rf_replay(void) {
         }
         b = *c;
         first = 0;
+        rd3_water_pass(x, c);
         ID3D11DeviceContext_DrawIndexed(x, c->n, c->at, c->base);
         g_rb.batches++;
     }
