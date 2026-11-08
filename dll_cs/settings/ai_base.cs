@@ -363,6 +363,10 @@ class ai_base
         /// ships wait at a rally inside the reach of its towers (a tower is built by the dock if none covers the sea), fight
         /// there with the towers and strike as one force at 1.25 times the enemy's strength. 0 = stage 4 (shelter only)
         bool navy_fleet_mass = true;
+        /// The game's own transports (the crossings that take citizens to mines on other islands) are economy orders like the
+        /// fishing boats, not soldiers' - the soldiers' account kept the AI from ever taking another island. 0 = military
+        /// (default until measured)
+        bool transports_economy = false;
     }
 
     class WorkersAndResources

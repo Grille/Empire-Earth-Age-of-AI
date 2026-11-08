@@ -265,14 +265,14 @@ internal void ecolog_tick(ee_player *pl, uint32_t now) {
             "idle0=%d soldiers=%d pop=%d cap=%d inprod=%d cdead=%u cd_town=%u cd_near=%u cd_far=%u cd_army=%u cd_bld=%u "
             "cd_ship=%u cd_air=%u cd_unk=%u refused=%u tc=%u tcF=%u ts=%u tsF=%u tsX=%u mSn=%d mSslots=%d mSg=%d mSfar=%d "
             "mGn=%d mGslots=%d mGg=%d mGfar=%d mIn=%d mIslots=%d mIg=%d mIfar=%d mSnd=%d mGnd=%d mInd=%d "
-            "fo=%d fh=%d ff=%d fb=%d fx=%d hl=%d hlF=%d hl15=%d hl30=%d an=%d an30=%d anF30=%d anNew30=%d fsN=%d fsF=%d fsN20=%d fsF20=%d fish=%d fishF=%d fld=%d fldOK=%d\n",
+            "fo=%d fh=%d ff=%d fb=%d fx=%d hl=%d hlF=%d hl15=%d hl30=%d an=%d an30=%d anF30=%d anNew30=%d fsN=%d fsF=%d fsN20=%d fsF20=%d fish=%d fishF=%d fld=%d fldOK=%d refR=%u refH=%u refW=%u\n",
             idx, now / 60000, cit, gat[2], gat[3], gat[4], gat[5], gat[6], gat[0], build, walk, att, load, other, none, idle0,
             army_size(pl), player_population(pl, 1, 0),
             unit_limit(pl), ump ? unit_mgr_get_in_production(ump) : -1,
             d->n, d->town, d->near_, d->far_, d->army, d->bld, d->ship, d->air, d->unk, is_vanilla(pl) ? 0u : g_site_refused[idx],
             sp->tc, sp->tcF, sp->ts, sp->tsF, sp->tsX, mn.n[4], mn.slots[4], mn.g[4], mn.far_[4], mn.n[5], mn.slots[5], mn.g[5],
             mn.far_[5], mn.n[6], mn.slots[6], mn.g[6], mn.far_[6], mn.nd[4], mn.nd[5], mn.nd[6],
-            fd.fo, fd.fh, fd.ff, fd.fb, fd.fx, fd.hl, fd.hlF, fd.hl15, fd.hl30, fd.an, fd.an30, fd.anF30, fd.anNew30, fd.fsN, fd.fsF, fd.fsN20, fd.fsF20, fd.fish, fd.fishF, fd.fld, fd.fldOK);
+            fd.fo, fd.fh, fd.ff, fd.fb, fd.fx, fd.hl, fd.hlF, fd.hl15, fd.hl30, fd.an, fd.an30, fd.anF30, fd.anNew30, fd.fsN, fd.fsF, fd.fsN20, fd.fsF20, fd.fish, fd.fishF, fd.fld, fd.fldOK, g_site_why[idx][0], g_site_why[idx][1], g_site_why[idx][2]);
     LeaveCriticalSection(&g_lock);
 }
 

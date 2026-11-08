@@ -980,10 +980,14 @@ internal int site_danger_res(ee_player *pl, ee_unit *site, int food, int res) { 
     if (!g_avoid_citizens || !pl || !site) return 0;
     int x = unit_get_x(site), y = unit_get_y(site);
     // the searches refuse a raided site too (else: sent back, sent again) - not one the town holds
-    if ((raiders_near(pl, iv2(x, y), 6) || hurt_danger(pl, x, y, res)) && !raid_held(pl, iv2(x, y))) return 1;
+    unsigned pi = (unsigned)player_get_index(pl) & 15;
+    int raided = raiders_near(pl, iv2(x, y), 6), hurt = !raided && hurt_danger(pl, x, y, res);
+    if ((raided || hurt) && !raid_held(pl, iv2(x, y))) { g_site_why[pi][raided ? 0 : 1]++; return 1; }
     ivec2 d = iv2(-10000, 0);
     nearest_drop(pl, iv2(x, y), food, &d);
-    return route_danger(pl, d.x, d.y, x, y);
+    int way = route_danger(pl, d.x, d.y, x, y);
+    g_site_why[pi][2] += (unsigned)way;
+    return way;
 }
 internal int site_danger(ee_player *pl, ee_unit *site, int food) { return site_danger_res(pl, site, food, food ? 2 : -1); }
 // DANGER MAP ([ai_base] danger_routes; game/danger.c): this AI's map of enemy reach, every 4 s (citizens_safety's tick) -

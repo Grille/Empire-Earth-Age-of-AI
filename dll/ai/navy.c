@@ -298,9 +298,15 @@ internal int navy_pays(unsigned idx, int type) {
     return navy_share(idx) > 0 && (k == NV_WAR || k == NV_SUB || k == NV_CARRIER);
 }
 // an order paid as economy: fishing boats, the landing's transports
+// THE GAME'S CROSSINGS ([ai_base] transports_economy, default 0 until measured): the game's own transport orders - its
+// transport manager's, for the citizens it ships to mines on other islands - were military orders, paid from the
+// soldiers' account with the navy's held back: on Small Islands e5 the mod's AI had at most 1 transport until minute 40
+// and no other island until minute 70 while the game's AI held 1.5-2 by minute 40 with 2-10 transports and 40-80
+// citizens there (# isl). With it every transport order is economy, as the fishing boats' are.
+// g_tr_econ: econ.c (the budget reads it first)
 internal int navy_economy(unsigned idx, int type, int landing_order) {
     int k = navy_type_kind(type);
-    return PV(idx, g_v_navy, g_navy) && (k == NV_FISH || (landing_order && k == NV_TRANSPORT));
+    return (PV(idx, g_v_navy, g_navy) && (k == NV_FISH || (landing_order && k == NV_TRANSPORT))) || (g_tr_econ && k == NV_TRANSPORT);
 }
 // every other order: the account is not there - and once the account pays the warship the game last asked for (within
 // 2 minutes), that ship's whole cost: the army took the iron down to the reserve + 200 again and again while the
@@ -819,6 +825,7 @@ internal void navy_install(const char *autotest_ini) {
     int ok = g_fish_boat ? patch_fish_type(hook_fish_type, NULL) : 0;
     if (g_log) fprintf(g_log, "# fishing: boat choice %s (hooks %d/2)\n", g_fish_boat ? "newest available" : "the game's", ok);
     g_navy = g_set_ai[1].navy;
+    g_tr_econ = g_set_ai[1].transports_economy;
     g_navy_share = setting_pct(g_set_ai[1].navy_share);
     if (g_navy_share < 0) g_navy_share = 0;
     if (g_navy_share > 80) g_navy_share = 80;

@@ -1936,6 +1936,7 @@ internal int substitute_soldier(ee_player *pl, unsigned idx, const int *vis, int
 // +0x13C) even when the building queue 0x5E8908 then refuses it for lack of resources, and that counter is
 // subtracted from the population cap - after a while the AI could train nothing at all.)
 internal int g_priority_mil;   // set by the siege controller around its own requests
+internal int g_tr_econ = 0;    // [ai_base] transports_economy (navy.c THE GAME'S CROSSINGS)
 // SPECIAL ORDERS ([ai_base] special_orders, default 0 until measured; the player 2026-11-07: "in the game you should
 // never have resources just laying around, but sometimes you have special orders that need saving up - right now
 // common soldiers and special requests like siege share the same budget, what can be afforded first gets built").
@@ -2028,13 +2029,19 @@ internal void train_budget(ee_player *pl, unsigned idx, const struct ai_cfg *cfg
     if (now < g_bud[idx].last_t) g_bud[idx].init = 0;   // new game
     g_bud[idx].last_t = now;
     spend_reserve(pl, idx, reserve, NULL);
-    reserve[3] += field_wood(idx);   // the next fields' wood (build_fields)
-    landing_reserve(pl, reserve);   // transports a landing waits for
-    expand_reserve(pl, reserve);    // an outpost's drop site and tower (expand.c)
-    bunker_reserve(pl, reserve);    // a fortress's wood (bunker.c)
-    wood_reserve(pl, reserve);      // a far forest's Settlement (mines.c)
+    // transports_economy: the game's transport for its crossings sees the stock above the epoch's reserve only, as the
+    // outpost's transport does (g_expand_order) - the other savings held it back for good: a fortress's 350 wood, the
+    // landing's own transports' 250, the navy account's 130-600 (1530 of 1652 orders refused with 400+ wood in stock)
+    int tr_econ = g_tr_econ && !military && is_transport(req[0]);
+    if (!tr_econ) {
+        reserve[3] += field_wood(idx);   // the next fields' wood (build_fields)
+        landing_reserve(pl, reserve);   // transports a landing waits for
+        expand_reserve(pl, reserve);    // an outpost's drop site and tower (expand.c)
+        bunker_reserve(pl, reserve);    // a fortress's wood (bunker.c)
+        wood_reserve(pl, reserve);      // a far forest's Settlement (mines.c)
+    }
     if (military) upgrade_reserve(pl, reserve);   // pending line upgrades (upgrade_reserve)
-    if (!ship && !req_unit && !g_priority_mil && !g_landing_order) navy_hold(pl, idx, reserve);   // the navy account: only warships spend it (navy.c)
+    if (!ship && !req_unit && !g_priority_mil && !g_landing_order && !tr_econ) navy_hold(pl, idx, reserve);   // the navy account: only warships spend it (navy.c)
     int sp[7] = { 0 };   // a special order saving up: held from warships too (they see the whole stock otherwise - an epoch 9
                          // start: wood at 50-220 all game, the navy taking half the income, no artillery ever paid)
     if (military && !req_unit && !g_priority_mil && !g_landing_order) special_reserve(pl, sp);
@@ -2308,6 +2315,19 @@ __attribute__((noinline)) internal uintptr_t __thiscall hook_train_units(ee_unit
     if (!b) b = (uintptr_t)&got_local;   // train_call did the same; army.c reads the count
     int req0 = req[0], req1 = req[1];
     uintptr_t res = train_call(um, pl, idx, req, b, blocked, afford, sub_type, ra, military, ship);
+    if (g_autotest && g_log && pl && is_transport(req0)) {   // DIAG: the transport orders - who asks, what is paid
+        char at[96];
+        crash_addr(at, sizeof at, ra);
+        if (blocked) {   // DIAG: the reserve's parts in wood
+            int e[7] = { 0 }, l[7] = { 0 }, x[7] = { 0 }, k[7] = { 0 }, w[7] = { 0 }, n[7] = { 0 };
+            spend_reserve(pl, idx, e, NULL); landing_reserve(pl, l); expand_reserve(pl, x); bunker_reserve(pl, k); wood_reserve(pl, w); navy_hold(pl, idx, n);
+            log_locked("# transport reserve: P%u at %.1f min: epoch W%d fields W%d landing W%d outpost W%d fortress W%d forest W%d navy W%d\n",
+                       idx, game_time() / 60000.0, e[3], field_wood(idx), l[3], x[3], k[3], w[3], n[3]);
+        }
+        log_locked("# transport ask: P%u at %.1f min: type %d x%d from %s%s - military %d, blocked %d, afford %d, got %u (stock W%d G%d I%d, reserve W%d, visible W%d)\n",
+                   idx, game_time() / 60000.0, req0, req1, at, g_landing_order ? " (landing)" : g_expand_order ? " (outpost)" : "", military, blocked, afford,
+                   *(unsigned *)b, stock ? stock[3] : -1, stock ? stock[5] : -1, stock ? stock[6] : -1, reserve[3], visibles[3]);
+    }
     if (pl && military) { int q[2] = { req0, req1 }; am_train_note(pl, idx, q, blocked, sub_type, *(unsigned *)b, stock, visibles); }
     train_account(pl, idx, cfg, req, res, military, ship, sub_type, stock, before, reserve, visibles, ra);
     if (pick) { navy_pick_done(pl, idx, pick, asked, before, stock, blocked); req[0] = asked; }

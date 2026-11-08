@@ -13,6 +13,7 @@ internal int site_danger(ee_player *pl, ee_unit *site, int food);   // attack.c:
 internal int site_danger_res(ee_player *pl, ee_unit *site, int food, int res);   // attack.c: res 2 food .. 6 iron
 internal ee_unit *food_near_pick(ee_resource_mgr *rm, int near_base, ee_unit *unit);   // food.c (food_plan NEAR)
 internal unsigned g_site_refused[16];   // dangerous sites the searches refused (logged by attack.c)
+internal unsigned g_site_why[16][3];    // DIAG: why the danger test said so - raiders near, citizens hurt near, the way (ecolog.c)
 
 internal int route_safe(void *bm, ivec2 base, ivec2 to) {
     ivec2 d = ivec2_sub(to, base);
@@ -592,6 +593,7 @@ internal void sites_install(void) {
 internal void sites_new_game(void) {
     memset(g_drops, 0, sizeof g_drops);
     memset(g_site_refused, 0, sizeof g_site_refused);
+    memset(g_site_why, 0, sizeof g_site_why);
     memset(g_oversea, 0, sizeof g_oversea);
     memset(g_town, 0, sizeof g_town);
     memset(g_town_homes, 0, sizeof g_town_homes);
