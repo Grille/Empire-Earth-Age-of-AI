@@ -575,6 +575,13 @@ internal void site_taken(unsigned idx, ivec2 p) {
     struct site_rec *r = site_at(idx, p, 0);
     if (r) *r = g_sites[idx][--g_nsites[idx]];
 }
+// towers it knows cover the mine: not for a hit and run, the army is asked (once)
+internal void site_defended(unsigned idx, ivec2 p, uint32_t now) {
+    struct site_rec *r = site_at(idx, p, 1);
+    if (r->fails) return;
+    r->fails = 1; r->t = now ? now : 1;
+    tn_say(idx, now, "the mines at %d,%d are covered by towers - the army is asked", r->p.x, r->p.y);
+}
 internal void site_hit(unsigned idx, ivec2 p, uint32_t now) { site_at(idx, p, 1)->hit_t = now ? now : 1; }
 internal int site_hit_ok(unsigned idx, ivec2 p, uint32_t now) { struct site_rec *r = site_at(idx, p, 0); return !r || !r->hit_t || now - r->hit_t >= 360000; }
 internal int site_wants_army(unsigned idx, ivec2 p) { struct site_rec *r = site_at(idx, p, 0); return r && r->fails > 0; }

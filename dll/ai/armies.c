@@ -1404,8 +1404,10 @@ internal void ar_adopt(ee_player *pl, unsigned idx, struct armies_st *a, uint32_
 // alone, 99 of 120 went home after 2.8 minutes, 5 of 19 soldiers lost, nothing done). Their orders only from here (tn_garrison).
 // HIT AND RUN (the player 2026-11-08: "especially when behind raiding mines gets important, ideally taking them, but just going in
 // killing a few citizens and getting out again is worth much already"): when its army is outmatched, too few are at home for a
-// detachment or it would beat no mine: up to AR_HIT_SIZE of the fastest soldiers at home (AR_HIT_MIN at home needed) walk to the
-// least defended mine it knows, not hit in the last 6 minutes, no citizens along; there each attacks the nearest enemy citizen it
+// detachment or it would beat no mine: AR_HIT_MIN to AR_HIT_SIZE cavalry (the player: "cavalry archers specially, you need fast
+// units for this"; 6-8 soldiers of any kind killed 0.7 citizens a raid: ar_fast ranks them, ar_det_train keeps AR_HIT_SIZE at home) ride to
+// the least defended mine it knows that no tower it knows covers (a covered one is asked of the army: site_defended), not hit in the
+// last 6 minutes, no citizens along; there each attacks the nearest enemy citizen it
 // sees. They leave after AR_HIT_TIME, with nobody left to kill for 20 s, once AR_HIT_LOSS % of their hit points are gone or as many
 // enemy fighters as they are stand within 10 tiles.
 #define AR_DET_SIZE 20
@@ -1413,7 +1415,7 @@ internal void ar_adopt(ee_player *pl, unsigned idx, struct armies_st *a, uint32_
 #define AR_DET_HOLD 900000
 #define AR_DET_TARGETS 32
 #define AR_HIT_SIZE 12
-#define AR_HIT_MIN 8
+#define AR_HIT_MIN 10
 #define AR_HIT_PAUSE 90000
 #define AR_HIT_TIME 90000
 #define AR_HIT_LOSS 40
@@ -1429,7 +1431,8 @@ internal struct ar_det {
     int hp[AR_DET_SIZE], nfoe, trade_n; float dead_hp, out_hp, dealt[AR_TRADE_N], lost[AR_TRADE_N];   // the trade, as the force's (ar_trade)
     struct { int id, hp; } foe[128];
     uint32_t t, last, judge_t, order_t, claim_t;
-    unsigned sent, cleared, founded, secured, losing, no_town, timed_out, killed;
+    unsigned sent, cleared, founded, secured, losing, no_town, timed_out, killed, trained;
+    uint32_t train_t, stable_t;   // HIT AND RUN: cavalry last ordered, a Stable last queued
 } g_ar_det[16];
 internal int ar_det_has(unsigned idx, ee_unit *u) {
     struct ar_det *d = &g_ar_det[idx & 15];
@@ -1529,10 +1532,47 @@ internal void ar_det_hit(ee_player *pl, unsigned idx, struct ar_det *d, ivec2 mi
     }
     g_sg_order = 0;
 }
+// HIT AND RUN: how fit a type is for a raid - mounted archers 3, cavalry with guns 2, other cavalry 1, the rest 0
+internal int ar_fast(ee_unit_type *td) {
+    int f = td ? unit_type_get_family(td) : 0;
+    return f == KIND_CAVALRY_ARCHER || f == KIND_MOUNTED_ARCHER ? 3 : f == KIND_CURIASSIER ? 2 : f == KIND_LANCER || f == KIND_MOUNTED_SPEAR ? 1 : 0;
+}
+// HIT AND RUN: cavalry at home kept up: the best kind it can train, two every 30 s; nothing trains: a Stable queued (5 minutes apart)
+internal void ar_det_train(ee_player *pl, unsigned idx, struct ar_det *d, int have, uint32_t now) {
+    if (have >= AR_HIT_SIZE || (d->train_t && now - d->train_t < 30000)) return;
+    d->train_t = now ? now : 1;
+    ee_civ_mgr *cm = player_get_civ_mgr(pl);
+    ee_unit_mgr *um = cm ? civ_mgr_get_unit_mgr(cm) : NULL;
+    ee_build_mgr *bm = cm ? civ_mgr_get_build_mgr(cm) : NULL;
+    if (!um) return;
+    int n = AR_HIT_SIZE - have > 2 ? 2 : AR_HIT_SIZE - have;
+    for (int rank = 3; rank >= 1; rank--) {
+        int best = 0, bt = 0;
+        for (int t = 0; t < G_TYPES_N; t++) {
+            ee_unit_type *td = type_data(t);
+            if (!td || ar_fast(td) != rank || !ld_type_avail(pl, t)) continue;
+            if (unit_type_get_tech(td) > bt) { bt = unit_type_get_tech(td); best = t; }
+        }
+        if (!best) continue;
+        int req[4] = { best, n, 0, 0 };
+        unsigned got = 0;
+        g_priority_mil = 1;
+        hook_train_units(um, req, (uintptr_t)&got);
+        g_priority_mil = 0;
+        if (got) { d->trained += got; ar_log(idx, now, "hit and run: trains %u x type %d (%d cavalry at home)", got, best, have); return; }
+    }
+    int e = current_epoch(pl);
+    if (bm && e >= 0 && e < 14 && ut_has(UT(B_STABLE)) && can_build(pl, UT(B_STABLE)) && !bq_has(bm, UT(B_STABLE)) && (!d->stable_t || now - d->stable_t >= 300000)) {
+        d->stable_t = now ? now : 1;
+        int entry[3] = { UT(B_STABLE), 0, 0 };
+        build_mgr_queue_add(bm, e, entry);
+    }
+}
 internal void ar_det_start(ee_player *pl, unsigned idx, struct armies_st *a, struct ar_det *d, uint32_t now) {
     static ee_unit *home[AR_HELD];
-    int nh = 0;
-    for (int k = 0; k < a->n; k++) if (!a->held[k].out && !a->held[k].back && cv_alive(a->held[k].u)) home[nh++] = a->held[k].u;
+    int nh = 0, ncav = 0;
+    for (int k = 0; k < a->n; k++) if (!a->held[k].out && !a->held[k].back && cv_alive(a->held[k].u)) { home[nh++] = a->held[k].u; ncav += ar_fast(unit_get_type_data(a->held[k].u)) > 0; }
+    ar_det_train(pl, idx, d, ncav, now);
     if (nh < AR_HIT_MIN || base_threatened(idx)) return;
     int size = nh / 2 < AR_DET_SIZE ? nh / 2 : AR_DET_SIZE;
     float mine = 0.0f, theirs = 0.0f;
@@ -1561,18 +1601,27 @@ internal void ar_det_start(ee_player *pl, unsigned idx, struct armies_st *a, str
         if (r * 100.0f >= (float)AR_GO_PCT) t = cand[i];
     }
     d->mode = !t;
-    if (!t) {   // HIT AND RUN: the least defended of them, its fastest soldiers
+    if (!t) {   // HIT AND RUN: the least defended of those no tower it knows covers, its cavalry
         float least = 0.0f;
+        ee_unit *covered = NULL;
         for (int i = 0; i < nc; i++) {
-            if (!site_hit_ok(idx, unit_get_tile(cand[i]), now)) continue;
-            stage_foe(pl, unit_get_tile(cand[i]));
+            ivec2 p = unit_get_tile(cand[i]);
+            if (!site_hit_ok(idx, p, now)) continue;
+            if (route_covered(pl, -10000, 0, p.x, p.y)) { if (!covered) covered = cand[i]; continue; }
+            stage_foe(pl, p);
             if (!t || g_sgs_foe.hp < least) { t = cand[i]; least = g_sgs_foe.hp; r = least; }
         }
-        if (!t) return;
-        size = nh / 2 < AR_HIT_SIZE ? nh / 2 : AR_HIT_SIZE;
-        for (int k = 0; k < size; k++) {   // the fastest to the front
+        if (!t) { if (covered) site_defended(idx, unit_get_tile(covered), now); return; }
+        if (ncav < AR_HIT_MIN) return;
+        int nf = 0;   // the cavalry to the front, mounted archers first, then the fastest
+        for (int j = 0; j < nh; j++) if (ar_fast(unit_get_type_data(home[j]))) { ee_unit *sw = home[nf]; home[nf++] = home[j]; home[j] = sw; }
+        size = nf < AR_HIT_SIZE ? nf : AR_HIT_SIZE;
+        for (int k = 0; k < size; k++) {
             int b = k;
-            for (int j = k + 1; j < nh; j++) if (st_speed(home[j]) > st_speed(home[b])) b = j;
+            for (int j = k + 1; j < nf; j++) {
+                int rj = ar_fast(unit_get_type_data(home[j])), rb = ar_fast(unit_get_type_data(home[b]));
+                if (rj > rb || (rj == rb && st_speed(home[j]) > st_speed(home[b]))) b = j;
+            }
             ee_unit *sw = home[k]; home[k] = home[b]; home[b] = sw;
         }
     }
