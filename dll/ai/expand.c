@@ -272,6 +272,12 @@ internal int g_expand = 0, g_v_expand = -1, g_ex_cits = 8, g_ex_guard = 3, g_ex_
 #define EX_FORT(idx) (EXPAND(idx) & 256)
 #define EX_GARRISON 12
 #define EX_LOSSES(idx) (EX_FORT(idx) ? 2 : 3)   // an island's losses before it is given up
+// FORT'S GUNS (expand_islands fort_guns, with shore_guns): the warships killed 47% and 62% of the citizens lost at the forts
+// (fort + tiers, 10 games each against the plain and the cheating AI). The outpost's landing shore is one more dock to
+// SHORE GUNS (defence.c): a battery, its Hospital built by the citizens there; a gun trained at home waits, held, for a boat
+// of guns (ex_plan), and takes its post once ashore. A battery as soon as the drop site and two towers stand, without
+// waiting for the ships: ordered when the warships had come, 5 of 18 boats were called off for the sea they held.
+#define EX_GUNS(idx) (EXPAND(idx) & 512)
 enum { XK_TOWER, XK_DROP, XK_BARRACKS };
 internal const char *const k_xk[3] = { "tower", "drop site", "barracks" };
 struct ex_proj { ee_unit *b; int id, kind, type, state, tries; ivec2 p; int waits; };   // state 0 to come, 1 going up, 2 standing, 3 dropped
@@ -300,6 +306,7 @@ internal struct ex_st {
     uint32_t scout_at;                    // the scouting transport at the island's shore since
     struct sfort fort; int fort_set;      // FORT: its square (defence.c), walls ordered every wall_t
     int guard_only; uint32_t wall_t;      // FORT: this boat takes soldiers only
+    int gun_trip;                         // FORT'S GUNS: and the battery's guns first
 } g_xs[16];
 // STRANDED CITIZENS (below, rescue_citizens): the transport that fetches them and its passengers - kept from the
 // landing, the subgroups and the transport manager as the ferry's (expand_ship, expand_refuses, expand_leads, expand_has)
@@ -430,12 +437,15 @@ internal void ex_ferry_end(ee_player *pl, unsigned idx, struct ex_st *x, uint32_
     // those still walking to the transport first (its load goal alive): their part of it replaced by a stop where they
     // are - left as it was, the unload below deleted the load goal and the next order to them called the deleted
     // goal (_purecall, 2 of 80 island games)
+    int sg_was = g_sg_order;
+    g_sg_order = x->gun_trip;   // the guns among them take these orders too, or keep the part of the goal deleted below
     if (x->fphase == 2 && ex_alive(&x->ship, pl))
         for (int k = 0; k < x->npass; k++) {
             ee_unit *u = x->pass[k].u;
             if (!ex_alive(&x->pass[k], pl) || unit_get_x(u) < 0) continue;
             x->orders += unit_goal(u, goal_move((float)unit_get_x(u) + 0.5f, (float)unit_get_y(u) + 0.5f), 0, 0x1F40);
         }
+    g_sg_order = sg_was;
     if (x->fphase >= 2 && ex_alive(&x->ship, pl) && ex_cargo(x->ship.u) > 0) {
         ee_unit *sh = x->ship.u;
         ivec2 at = unit_get_tile(sh), t;
@@ -444,7 +454,7 @@ internal void ex_ferry_end(ee_player *pl, unsigned idx, struct ex_st *x, uint32_
             x->orders += unit_goal(sh, ld_unload(sh, t), 0, 0x1F40);
     }
     if (why) ex_say(idx, now, "%s", why);
-    x->guard_only = 0;
+    x->guard_only = 0; x->gun_trip = 0;
     x->fphase = 0; x->npass = 0; x->ship.u = NULL;
 }
 
@@ -532,6 +542,16 @@ internal int ex_guard_want(unsigned idx, const struct ex_st *x) {
     if (x->foe_t && game_time() - x->foe_t < 300000 && g < 8) g = 8;
     return g < EX_GARRISON ? g : EX_GARRISON;
 }
+internal int tw_size(ee_unit *u);   // transports.c
+// FORT'S GUNS: where the outpost's battery stands and on which island (SHORE GUNS asks); 0: none
+internal int ex_battery(unsigned idx, ivec2 *p, ivec2 *sea, unsigned *cont, int *ready) {
+    struct ex_st *x = &g_xs[idx & 15];
+    if (!EX_GUNS(idx) || !x->active || !x->ever_ashore || !x->ncit) return 0;
+    int towers = 0;
+    for (int j = 0; j < x->nproj; j++) towers += x->proj[j].kind == XK_TOWER && x->proj[j].state == 2;
+    *p = x->unload; *sea = x->unload_w; *cont = x->cont; *ready = x->drop_ok && towers >= 2;
+    return 1;
+}
 internal void ex_ferry_ship(ee_player *pl, unsigned idx, struct ex_st *x, uint32_t now) {
     void *cm = player_get_civ_mgr(pl);
     ee_unit_mgr *um = cm ? civ_mgr_get_unit_mgr(cm) : NULL;
@@ -595,6 +615,12 @@ internal void ex_ferry_ship(ee_player *pl, unsigned idx, struct ex_st *x, uint32
     int cap = ld_cap(unit_type_get_id(unit_get_type_data(best))), guard = x->guard_trip ? ex_guard_want(idx, x) - x->nsold : 0;
     if (guard < 0) guard = 0;
     if (guard > cap) guard = cap;
+    ee_unit *guns[16];
+    int ngun = x->gun_trip ? sg_ferry_guns(idx, x->cont, area_id(x->home, 2), guns, cap < 16 ? cap : 16) : 0;
+    int gun_slots = 0, ng2 = 0;   // a gun takes several of the boat's places (with 5 guns and 5 soldiers ordered, 6 fitted and the boarding timed out)
+    for (; ng2 < ngun && gun_slots + tw_size(guns[ng2]) <= cap; ng2++) gun_slots += tw_size(guns[ng2]);
+    ngun = ng2;
+    if (guard > cap - gun_slots) guard = cap - gun_slots;
     int cits = x->guard_only ? 0 : x->ever_ashore ? cap - guard : g_ex_cits;
     if (cits > cap - guard) cits = cap - guard;
     if (cits > g_ex_cits + 4) cits = g_ex_cits + 4;
@@ -610,6 +636,7 @@ internal void ex_ferry_ship(ee_player *pl, unsigned idx, struct ex_st *x, uint32
         x->pass[x->npass].u = p.c[b]; x->pass[x->npass++].id = unit_get_id(p.c[b]); p.c[b] = NULL;
     }
     int nc = x->npass;
+    for (int k = 0; k < ngun && x->npass < 16; k++) { x->pass[x->npass].u = guns[k]; x->pass[x->npass++].id = unit_get_id(guns[k]); }
     for (int k = 0; k < guard && x->npass < 16; k++) {
         int b = ex_take(p.s, p.sd, p.ns);
         if (b < 0) break;
@@ -620,8 +647,8 @@ internal void ex_ferry_ship(ee_player *pl, unsigned idx, struct ex_st *x, uint32
     }
     if (x->guard_only ? !x->npass : nc < 3) { ex_ferry_end(pl, idx, x, now, x->guard_only ? "no soldiers near the shore - later" : "fewer than 3 citizens near the shore - later"); x->next_try = now + 120000; if (!x->ever_ashore) x->active = 0; return; }
     x->fphase = 2; x->fsince = now; x->freissue = 0; x->load_t = 0; x->sea_t = 0;
-    ex_say(idx, now, "boarding %d citizens and %d soldiers at %d,%d for the island %u (mines by %d,%d, unload at %d,%d), transport at %d,%d",
-           nc, x->npass - nc, x->home.x, x->home.y, x->cont, x->mines.x, x->mines.y, x->unload.x, x->unload.y, unit_get_x(best), unit_get_y(best));
+    ex_say(idx, now, "boarding %d citizens and %d soldiers at %d,%d for the island %u (mines by %d,%d, unload at %d,%d), transport at %d,%d, %d of them guns",
+           nc, x->npass - nc, x->home.x, x->home.y, x->cont, x->mines.x, x->mines.y, x->unload.x, x->unload.y, unit_get_x(best), unit_get_y(best), ngun);
 }
 // the sea on the way: enemy ships, submarines and aircraft that hit the transport, against its warships (landing.c)
 internal float ex_sea_risk(ee_player *pl, struct ex_st *x, ee_unit_type *trtd, float hp) {
@@ -717,6 +744,7 @@ internal void ex_ferry_board(ee_player *pl, unsigned idx, struct ex_st *x, uint3
             ex_say(idx, now, "boarding: %d of %d aboard, the transport at %d,%d (goal %s), passengers%s", aboard, x->npass, unit_get_x(sh),
                    unit_get_y(sh), unit_get_goal(sh) ? rtti_name(unit_get_goal(sh)) : "none", gs);
         }
+        if (x->gun_trip) for (int k = 0; k < x->npass; k++) if (unit_get_x(x->pass[k].u) >= 0) sg_ferry_failed(idx, x->pass[k].u);
         ex_ferry_end(pl, idx, x, now, "boarding failed"); x->next_try = now + 300000; if (!x->ever_ashore) x->active = 0; return;
     }
     // the passengers to the shore first (as landing.c: loading straight away, units strewn 30-40 tiles off walked to
@@ -762,7 +790,7 @@ internal void ex_ferry_sail(ee_player *pl, unsigned idx, struct ex_st *x, uint32
         if (x->nproj && !x->base_t) x->base_t = now;
         x->orders += unit_goal(sh, goal_move((float)x->home_w.x + 0.5f, (float)x->home_w.y + 0.5f), 0, 0x1F40);
         x->last = x->ship;
-        x->fphase = 0; x->npass = 0; x->ship.u = NULL; x->trip_t = now ? now : 1; x->guard_only = 0;
+        x->fphase = 0; x->npass = 0; x->ship.u = NULL; x->trip_t = now ? now : 1; x->guard_only = 0; x->gun_trip = 0;
         ex_say(idx, now, "ashore on the island %u - %d landed", x->cont, ashore);
         return;
     }
@@ -1108,6 +1136,15 @@ internal void ex_plan(ee_player *pl, unsigned idx, struct ex_st *x, uint32_t now
     ee_civ_mgr *cm = player_get_civ_mgr(pl); ee_build_mgr *bm = cm ? civ_mgr_get_build_mgr(cm) : NULL;
     int bx = bm ? build_mgr_get_base_x(bm) : -10000, by = bm ? build_mgr_get_base_y(bm) : -10000;
     unsigned hc = (unsigned)ex_home(pl);
+    if (x->active && EX_GUNS(idx) && x->ever_ashore && x->ncit && (!x->trip_t || now - x->trip_t >= 120000) && sg_ferry_guns(idx, x->cont, area_id(x->home, 2), NULL, 16)) {   // FORT'S GUNS: a boat of guns
+        float mine, theirs;
+        if (!ex_outmatched(pl, &mine, &theirs) && !ex_follow_no(pl, idx, mine, theirs)) {
+            x->guard_trip = x->nsold < ex_guard_want(idx, x); x->guard_only = 1; x->gun_trip = 1;
+            x->fphase = 1; x->fsince = now; x->ftrain_t = 0;
+            ex_say(idx, now, "guns for the island %u (%d waiting at home)", x->cont, sg_ferry_guns(idx, x->cont, area_id(x->home, 2), NULL, 16));
+            return;
+        }
+    }
     if (x->active && EX_FORT(idx) && x->ever_ashore && x->ncit && x->nsold < ex_guard_want(idx, x) && (!x->trip_t || now - x->trip_t >= 120000)) {   // FORT: a boat of soldiers
         float mine, theirs;
         if (!ex_outmatched(pl, &mine, &theirs) && !ex_follow_no(pl, idx, mine, theirs)) {
@@ -1223,7 +1260,7 @@ internal void expand_act(ee_player *pl, unsigned idx, uint32_t now) {
     }
     if (x->active) ex_enemy_home(pl, idx, x, now);
     if (x->fphase == 1) ex_ferry_ship(pl, idx, x, now);
-    else if (x->fphase == 2) ex_ferry_board(pl, idx, x, now);
+    else if (x->fphase == 2) { g_sg_order = x->gun_trip; ex_ferry_board(pl, idx, x, now); g_sg_order = 0; }   // the guns are held: only these orders reach them
     else if (x->fphase == 3) ex_ferry_sail(pl, idx, x, now);
     else if (x->fphase == 4) ex_ferry_scout(pl, idx, x, now);
     if (x->active && x->ever_ashore) ex_outpost(pl, idx, x, now);

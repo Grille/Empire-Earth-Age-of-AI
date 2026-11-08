@@ -694,6 +694,10 @@ class ai_base
             /// three, 8 at least with enemies seen in the last 5 minutes, 12 at most) brought by boats of soldiers only, and an
             /// outpost lost is tried again after 15 minutes, once
             bool fort;
+            /// with shore_guns: enemy warships near an outpost make its landing shore a battery like a dock's - a Hospital by it
+            /// and the guns, trained at home and brought by a boat of their own (the warships killed half the citizens lost at the
+            /// outposts where the mod had no guns there)
+            bool fort_guns;
         }
         /// Outposts on other islands (docs/economy.md "Other islands"), water maps only (needs landing=1); the parts from
         /// early on are for the large maps (docs/economy.md "Large island maps").

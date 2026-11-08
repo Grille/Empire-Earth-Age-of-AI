@@ -2071,6 +2071,8 @@ placed:;
 // the Hospital stands, wall pieces on the coast's tiles within SG_WALL of its centre, one a tick, the coast within 3 of
 // a dock left open for its boats - a wall stops the ships' flat shots (frigates, galleys: line_of_fire_at_game) and a
 // landing; the guns fire over it (catapult, trebuchet: high arc). The posts may stand beside it.
+// AN OUTPOST'S (expand.c FORT'S GUNS): its landing shore counts as a dock; the guns of its battery wait for its boat
+// (sg_ferry_guns, no post yet) and are posted once ashore.
 #define SG_EVERY 5000
 #define SG_NEAR 12
 #define SG_KEEP 600000
@@ -2107,7 +2109,7 @@ internal void sg_scan_unit(ee_unit *u, void *ctx) {   // own docks and guns, the
 }
 internal struct {
     uint32_t last, train_t, fac_t, log_t;
-    int nd; struct { ivec2 p, from, hosp; uint32_t t; int has_h; } d[SG_DOCKS];   // the batteries: their dock, the ships' side, when last, its Hospital
+    int nd; struct { ivec2 p, from, hosp; uint32_t t; int has_h; unsigned isle; } d[SG_DOCKS];   // the batteries: their dock, the ships' side, when last, its Hospital, an outpost's island
     int ng; struct { int id; ivec2 post, bad; int dock, tries, healed; } g[SG_MAX];   // the guns held: id, post, its battery (-1 none yet), a post it didn't reach, posted by a Hospital
     uint32_t hq_t;   // a Hospital queued last
     unsigned trained, orders, adopted, failed, stuck, hosp_queued, walls, stances, no_post;
@@ -2164,6 +2166,23 @@ internal int sg_post(ee_player *pl, unsigned idx, int dock, ee_unit *u, ivec2 ba
     g_sg[idx].no_post++;
     return 0;
 }
+internal int ex_battery(unsigned idx, ivec2 *p, ivec2 *sea, unsigned *cont, int *ready);   // expand.c
+// an outpost's guns still on the land the boat leaves from (from), up to max (into out, when given): their number
+internal int sg_ferry_guns(unsigned idx, unsigned cont, unsigned from, ee_unit **out, int max) {
+    int n = 0;
+    for (int k = 0; k < g_sg[idx].ng && n < max; k++) {
+        int dk = g_sg[idx].g[k].dock;
+        ee_unit *u = dk >= 0 && dk < g_sg[idx].nd && g_sg[idx].d[dk].isle == cont ? unit_by_id((unsigned)g_sg[idx].g[k].id) : NULL;
+        if (!u || unit_get_x(u) < 0 || (unsigned)area_id(unit_get_tile(u), 2) != from || g_sg[idx].g[k].tries >= 2) continue;
+        if (out) out[n] = u;
+        n++;
+    }
+    return n;
+}
+// a gun that didn't get aboard: after two boats it stays (one gun at a spot no boat reached was fetched 49 times in a game)
+internal void sg_ferry_failed(unsigned idx, ee_unit *u) {
+    for (int k = 0; k < g_sg[idx].ng; k++) if (g_sg[idx].g[k].id == unit_get_serial(u)) g_sg[idx].g[k].tries++;
+}
 internal void shore_guns(ee_player *pl, unsigned idx, uint32_t now) {
     if (!g_shore_guns || !pl) return;
     if (now < g_sg[idx].last) memset(&g_sg[idx], 0, sizeof g_sg[idx]);   // a new game
@@ -2172,6 +2191,10 @@ internal void shore_guns(ee_player *pl, unsigned idx, uint32_t now) {
     struct sg_scan a = { 0 };
     a.pl = pl;
     grid_each(sg_scan_unit, &a);
+    ivec2 isle_p = iv2(0, 0), isle_w = iv2(0, 0);
+    unsigned isle = 0;
+    int isle_ready = 0;
+    if (ex_battery(idx, &isle_p, &isle_w, &isle, &isle_ready) && a.nd < 16) a.d[a.nd++] = isle_p; else isle = isle_ready = 0;   // an outpost's shore, one more dock
     // the threatened docks: kept by place while the dock stands, refreshed by the ships near it
     int m = 0;
     for (int k = 0; k < g_sg[idx].nd; k++) {
@@ -2185,16 +2208,18 @@ internal void shore_guns(ee_player *pl, unsigned idx, uint32_t now) {
     for (int j = 0; j < a.nd; j++) {
         int close = -1, nd2 = SG_NEAR * SG_NEAR + 1;
         for (int s = 0; s < a.ns; s++) { int d2 = ivec2_dist2(a.s[s], a.d[j]); if (d2 < nd2) { nd2 = d2; close = s; } }
-        if (close < 0) continue;
+        int ahead = isle_ready && j == a.nd - 1;   // an outpost's, ready: without waiting for the ships
+        if (close < 0 && !ahead) continue;
         int k;
         for (k = 0; k < g_sg[idx].nd && ivec2_dist2(g_sg[idx].d[k].p, a.d[j]) > SG_GROUP * SG_GROUP; k++) ;   // a battery near
         if (k == g_sg[idx].nd) {
             if (k >= SG_DOCKS) continue;
             g_sg[idx].nd++;
-            g_sg[idx].d[k].p = a.d[j]; g_sg[idx].d[k].from = a.s[close]; g_sg[idx].d[k].has_h = 0;
+            g_sg[idx].d[k].p = a.d[j]; g_sg[idx].d[k].from = close >= 0 ? a.s[close] : isle_w; g_sg[idx].d[k].has_h = 0;
         }
         g_sg[idx].d[k].t = now ? now : 1;
     }
+    for (int k = 0; k < g_sg[idx].nd; k++) g_sg[idx].d[k].isle = isle && ivec2_dist2(g_sg[idx].d[k].p, isle_p) <= SG_GROUP * SG_GROUP ? isle : 0;
     int full = 0;   // the batteries with all their guns: the next one's are wanted only then
     for (int d = 0; d < g_sg[idx].nd; d++) {
         int n = 0;
@@ -2221,7 +2246,8 @@ internal void shore_guns(ee_player *pl, unsigned idx, uint32_t now) {
             for (int dy = -6; dy <= 6; dy++) {
                 ivec2 q = iv2(d.x + dx, d.y + dy);
                 int d2 = dx * dx + dy * dy;
-                if (d2 < 9 || d2 > 36 || area_id(q, 1) || !ocean_near(q, 4, NULL) || !can_place(pl, UT(B_HOSPITAL), q) || raiders_near(pl, q, 8)) continue;
+                if (d2 < 9 || d2 > 36 || area_id(q, 1) || !ocean_near(q, 4, NULL) || (g_sg[idx].d[k].isle && (unsigned)area_id(q, 2) != g_sg[idx].d[k].isle) ||
+                    !can_place(pl, UT(B_HOSPITAL), q) || raiders_near(pl, q, 8)) continue;
                 if (d2 < bs) { bs = d2; best = q; }
             }
         g_sg[idx].hq_t = now ? now : 1;
@@ -2338,8 +2364,10 @@ internal void shore_guns(ee_player *pl, unsigned idx, uint32_t now) {
     int posted = 0, close_by = 0;
     for (int k = 0; k < g_sg[idx].ng; k++) {
         ee_unit *u = unit_by_id((unsigned)g_sg[idx].g[k].id);
-        if (!u) continue;
-        if (g_sg[idx].g[k].dock >= 0 && g_sg[idx].d[g_sg[idx].g[k].dock].has_h && !g_sg[idx].g[k].healed) g_sg[idx].g[k].dock = -1;
+        if (!u || unit_get_x(u) < 0) continue;   // (aboard an outpost's boat)
+        unsigned gc = (unsigned)area_id(unit_get_tile(u), 2);
+        if (g_sg[idx].g[k].dock >= 0 && g_sg[idx].g[k].post.x < 0 && g_sg[idx].d[g_sg[idx].g[k].dock].isle == gc) g_sg[idx].g[k].dock = -1;   // ashore: posted now
+        if (g_sg[idx].g[k].dock >= 0 && g_sg[idx].d[g_sg[idx].g[k].dock].has_h && !g_sg[idx].g[k].healed && g_sg[idx].g[k].post.x >= 0) g_sg[idx].g[k].dock = -1;
         if (g_sg[idx].g[k].dock < 0 && g_sg[idx].nd) {
             int bd = -1;   // the first battery short of its guns (massed: one filled before the next)
             for (int d = 0; d < g_sg[idx].nd && bd < 0; d++) {
@@ -2348,11 +2376,12 @@ internal void shore_guns(ee_player *pl, unsigned idx, uint32_t now) {
                 if (n < g_shore_guns) bd = d;
             }
             ivec2 p;
+            if (bd >= 0 && g_sg[idx].d[bd].isle && g_sg[idx].d[bd].isle != gc) { g_sg[idx].g[k].dock = bd; g_sg[idx].g[k].post = iv2(-1, -1); continue; }   // waits for the boat
             if (bd >= 0 && sg_post(pl, idx, bd, u, g_sg[idx].g[k].bad, &p)) {
                 g_sg[idx].g[k].dock = bd; g_sg[idx].g[k].post = p; g_sg[idx].g[k].tries = 0; g_sg[idx].g[k].healed = g_sg[idx].d[bd].has_h;
             }
         }
-        if (g_sg[idx].g[k].dock < 0) continue;
+        if (g_sg[idx].g[k].dock < 0 || g_sg[idx].g[k].post.x < 0) continue;
         ivec2 p = g_sg[idx].g[k].post;
         // HOLD POSITION (the player: "in a line beside a hospital in hold position mode, they should not try to chase or get
         // attack commands"): the game's stand-ground stance - it shoots what comes in range and doesn't move for it; no
