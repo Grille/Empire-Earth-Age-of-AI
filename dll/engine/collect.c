@@ -125,6 +125,20 @@ internal int uc_cloak(const uc_obj *o, int see, float *out, const opacity_consts
     return see;
 }
 internal uint32_t g_uc_op_land, g_uc_op_near;   // the check's: land buildings the near fade tested, faded
+// The model the near fade measures: its graphics' for the animation. It can be empty in the walk of a copy: the graphics'
+// last user gone (the release 0x4D343B frees the models and zeroes the table - the last wall piece of a type shot down)
+// while the copy from before still lists the object, which the game's own walk under the world's lock never meets (the
+// player's game 2026-11-09, units_smooth: read at 0 in the fade). The game's draw reads the same table: such a building
+// is not listed (uc_drawn), the first few logged.
+internal uint32_t g_uc_no_model;
+internal ee_model *uc_fade_model(const uc_obj *o, int anim) {
+    ee_model *m = ((ee_model **)dmg_model_anim_model_at(o->gfx))[anim];
+    if (!m && g_uc_no_model++ < 8)
+        log_locked("# collect: no model for the near fade: type %d at %d,%d, animation %d, graphics %p (users %d), complex unit %d, "
+                   "foundation %d, finished %d, dead %d\n", unit_type_get_id(o->ty), o->x, o->y, anim, (void *)o->gfx,
+                   dmg_model_get_users(o->gfx), o->has_cu, o->foundation, o->finished, o->dead);
+    return m;
+}
 internal int uc_opacity(uc_obj *o, float *out) {
     opacity_consts c = opacity_consts_now();
     ee_unit_type *ty = o->ty;
@@ -144,17 +158,17 @@ internal int uc_opacity(uc_obj *o, float *out) {
     ee_model *m;
     int frame;
     if (o->has_cu) {
-        m = ((ee_model **)dmg_model_anim_model_at(o->gfx))[o->anim];
+        if (!(m = uc_fade_model(o, o->anim))) return see;
         scale = o->cu_height;   // its physical model's scale (the AoC decompilation's GetScale)
         frame = o->anim_frame;
         transform_apply((float *)o->pm, (const float *)model_center_at(m), center);
     } else {   // on its tile's middle, the ground's height there
         __attribute__((aligned(8))) float t[16];
+        if (!(m = uc_fade_model(o, 0))) return see;
         g_uc_transform_ctor(t);
         t[3] = (float)((long double)o->x + c.half);
         t[7] = (float)((long double)o->y + c.half);
         t[11] = mesh_z(map_mesh_at(game_map()), t[3], t[7]);
-        m = ((ee_model **)dmg_model_anim_model_at(o->gfx))[0];
         scale = o->height;
         frame = 0;
         transform_apply(t, (const float *)model_center_at(m), center);
@@ -211,6 +225,7 @@ internal int uc_drawn(uc_obj *o, const uc_ctile *v, void *met, int dry) {
         return uc_view_at(o, 2, x, y);
     }
     if (type_is_path_point(ty) || *draw_count_at() >= drawn_room() || (o->has_cu && o->dead)) return 0;
+    if (unit_type_is_land_building(ty) && !uc_fade_model(o, o->has_cu ? o->anim : 0)) return 0;
     if (size > 1) {
         void *found[2], *key = o->u;
         if (*(void **)doppelganger_set_find(met, found, (ee_doppelganger **)&key) != *(void **)((uint8_t *)met + 4)) return 0;
