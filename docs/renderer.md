@@ -626,7 +626,16 @@ save 730 updates, 0 differ; EE Continental 25 475, 0 differ; AoC Continental 24 
 moved the camera: 4 effects against 0 - the camera was set and the rows not yet remade, it seems; not proven). Each
 then with the steps held 200 ms and at speed 5 for a minute, without a fault, 170-2900 queues made and taken by frames.
 It costs the simulation 0.05-0.13 ms a step (up to 600 effects). Not run: a load or an end to the menu with it on (the
-pipe's quit ends the process; nothing in the tests reaches the scene's release).
+pipe's quit ends the process; nothing in the tests reaches the scene's release; the player tried both: they work).
+A finished effect is the catch (the player's picture, 2026-11-08: muzzle flashes standing on their last frame for
+good). Its Step ends it and the manager gives back its two references, but it leaves its map region only when the last
+one goes. The game's update releases the old queues before it makes the new, so one only they held is gone by then;
+the simulation makes the new ones while the frame still holds the old, and queued such an effect again, for ever. It
+now passes over an effect nothing but the queues in use holds (its references against a set of those, the frame's and
+the retired). The check had not seen it: the simulation's own references kept the dead effects in the regions, so the
+game's update queued them too. The same EE Continental game, the old build against this: 488 effects queued a step at
+speed 5 against 12 (641 finished ones passed over); the check 36 901 updates, 2 differ (9 effects against 1, a test
+camera jump as above), the 8000 save 850, 0 differ.
 
 `[display] gpu_animation` (default on; the pipe: `picture morph on | off`; render_morph.c), 2026-11-06. EE animates a
 model by morphing: every frame of its animation is a whole vertex array (spec GEModel.vertices, frames alike share

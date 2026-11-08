@@ -261,6 +261,7 @@ internal inline int effect_shown(const void *e) {
 internal inline void effect_prepare(void *e) { ((void (__thiscall *)(void *))(*(void ***)e)[value_engine_display_slot_effect_prepare])(e); }
 internal inline int effect_queue(void *e, void *queues) { return ((int (__thiscall *)(void *, void *))(*(void ***)e)[value_engine_display_slot_effect_queue])(e, queues); }
 internal inline void effect_reference(void *e) { ++*(uint32_t *)((uint8_t *)e + 4); }
+internal inline uint32_t effect_references(const void *e) { return *(const uint32_t *)((const uint8_t *)e + 4); }
 // a queue's entries in their order (the tree's nodes: left +0, parent +4, right +8, the key +0xC, the deque +0x10, its
 // "is the head" byte +0x25; the deque: blocks +4, their count +8, front +0xC, size +0x10, 0x400 entries a block). Each
 // entry's call; 0 ends it

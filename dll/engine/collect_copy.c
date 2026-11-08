@@ -426,12 +426,58 @@ internal ee_map *g_fx_map;                     // the map g_fx_p is of
 internal float g_fx_cam[16];                   // the camera it was made for (the check's)
 internal long *g_fx_lo, *g_fx_hi;              // by region row: the first and last region under the view's rows
 internal uint32_t g_fx_rows;
-internal LONG g_fx_builds, g_fx_takes, g_fx_queued, g_fx_chk_n, g_fx_chk_diff;
+internal LONG g_fx_builds, g_fx_takes, g_fx_queued, g_fx_chk_n, g_fx_chk_diff, g_fx_dead;
 internal LONGLONG g_fx_qpc;
 internal int fx_release_one(void *ctx, int q, uint32_t key, void *e) { (void)ctx, (void)q, (void)key; object_release(e); return 1; }
 internal void fx_empty(uint8_t *q, int release) {
     if (release) effect_queues_each(q, fx_release_one, NULL);
     for (int i = 0; i < 5; i++) effect_queue_clear(q + i * 12);
+}
+// WHAT THE QUEUES IN USE HOLD. A finished effect (its Step says so: the manager gives back its two references) leaves
+// its map region only when its last reference goes. The game's update releases the old queues before it makes the new
+// ones, so one that only the queues held is gone by then; here the frame still draws the old ones while the new are
+// made, and such an effect, asked again and referenced again, never died - a muzzle flash stood on its last frame for
+// good (the player's picture, 2026-11-08). So an effect that nothing but the queues in use holds isn't queued: the
+// set of those (the frame's, the retired), a queue's entries counted once each - one reference however many queues.
+typedef struct { void *e; uint32_t gen; uint8_t in; } fx_hold_e;
+internal fx_hold_e *g_fx_hold;
+internal uint32_t g_fx_hold_cap, g_fx_hold_gen;
+internal fx_hold_e *fx_hold_at(const void *e) {
+    uint32_t h = ((uint32_t)(uintptr_t)e >> 3) * 2654435761u & (g_fx_hold_cap - 1);
+    while (g_fx_hold[h].gen == g_fx_hold_gen && g_fx_hold[h].e != e) h = (h + 1) & (g_fx_hold_cap - 1);
+    return &g_fx_hold[h];
+}
+internal int fx_count_one(void *ctx, int q, uint32_t key, void *e) { (void)q, (void)key, (void)e; ++*(uint32_t *)ctx; return 1; }
+internal int fx_hold_one(void *ctx, int q, uint32_t key, void *e) {
+    (void)q, (void)key;
+    fx_hold_e *h = fx_hold_at(e);
+    if (h->gen != g_fx_hold_gen) h->e = e, h->gen = g_fx_hold_gen, h->in = 0;
+    h->in |= (uint8_t)(uintptr_t)ctx;
+    return 1;
+}
+// a table of what the queues hold; 0 out of memory
+internal int fx_hold_make(uint8_t *a, uint8_t *b) {
+    uint32_t n = 0;
+    effect_queues_each(a, fx_count_one, &n);
+    if (b) effect_queues_each(b, fx_count_one, &n);
+    if ((n + 8) * 2 > g_fx_hold_cap) {
+        uint32_t cap = g_fx_hold_cap ? g_fx_hold_cap : 4096;
+        while (cap < (n + 8) * 2) cap *= 2;
+        fx_hold_e *q = calloc(cap, sizeof *q);
+        if (!q) return 0;
+        free(g_fx_hold);
+        g_fx_hold = q, g_fx_hold_cap = cap, g_fx_hold_gen = 0;
+    }
+    if (++g_fx_hold_gen == 0) { memset(g_fx_hold, 0, (size_t)g_fx_hold_cap * sizeof *g_fx_hold); g_fx_hold_gen = 1; }
+    effect_queues_each(a, fx_hold_one, (void *)1);
+    if (b) effect_queues_each(b, fx_hold_one, (void *)2);
+    return 1;
+}
+// whether something besides the queues in use holds the effect (the game's own queues would be gone by now)
+internal int fx_alive(const void *e) {
+    fx_hold_e *h = fx_hold_at(e);
+    uint32_t held = h->gen == g_fx_hold_gen ? (uint32_t)(h->in & 1) + (uint32_t)(h->in >> 1) : 0;
+    return effect_references(e) > held;
 }
 // the effects the view shows into g_fx_p: the game's QueueEffects' rows and order
 internal void fx_build(ee_map *map) {
@@ -464,6 +510,7 @@ internal void fx_build(ee_map *map) {
             void **e = effect_region(tab, (uint32_t)x, y, &k);
             for (uint32_t i = 0; i < k; i++) {
                 if (!effect_shown(e[i])) continue;
+                if (!fx_alive(e[i])) { g_fx_dead++; continue; }
                 effect_prepare(e[i]);
                 if (!effect_queue(e[i], g_fx_p)) { effect_reference(e[i]); g_fx_queued++; }
             }
@@ -489,7 +536,7 @@ internal void collect_fx_step(ee_map *map) {
     LeaveCriticalSection(&g_cp_cs);
     if (had) fx_empty(g_fx_p, g_fx_map == map);
     g_fx_map = map;
-    fx_build(map);
+    if (fx_hold_make(effect_queues_at(), g_fx_retired ? g_fx_r : NULL)) fx_build(map);   // (no take now: not ready)
     memcpy(g_fx_cam, camera_transformation_at(game_camera()), sizeof g_fx_cam);
     g_fx_builds++;
     g_fx_qpc += rd_qpc() - t0;
