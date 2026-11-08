@@ -12,7 +12,9 @@
 // EEAIMOD_LONG_HOLD_MS (test runs) sets HP_MIN_MS, a test game's loads being short.
 // A stop of the frames is told the same way ("# long hold: no frame for", the main thread sampled first): the way out of a
 // game to the menu (the player, 2026-11-08) holds the world's lock for 150 ms of it, the rest is the main thread's alone.
-enum { HP_START_MS = 500, HP_MIN_MS = 2000, HP_KEYS = 1024, HP_SHOW = 40, HP_TOPS = 16, HP_REPORTS = 8 };
+// From 400 ms on, the clock's time in the line, 40 of each kind a game: the hiccups of a playing game (the player, 2026-11-08:
+// "a 0.5 to 1 second hickup where noting moves"), which no test showed, the player's camera and clicks being his own.
+enum { HP_START_MS = 500, HP_MIN_MS = 400, HP_KEYS = 1024, HP_SHOW = 40, HP_TOPS = 16, HP_REPORTS = 40 };
 typedef struct { uintptr_t a; int n, first, last; } hp_key;
 typedef struct {
     const char *name;
@@ -137,8 +139,10 @@ internal DWORD WINAPI hold_profile_thread(void *unused) {
             reports[stall]++;
             char what[32];
             if (hold) snprintf(what, sizeof what, "%08lx", (unsigned long)ret); else snprintf(what, sizeof what, "no frame");
-            log_locked("# long hold: %s for %d ms at %.1f min: the %s's CPU %.1f s (kernel %.1f), read %.1f MB in %lu calls (sampled from %d ms on)\n",
-                       what, held, game_time() / 60000.0, g_hp[0].name, (double)(cpu1 - cpu0) / 1e7, (double)(k1 - k0) / 1e7,
+            SYSTEMTIME now;
+            GetLocalTime(&now);
+            log_locked("# long hold: %s for %d ms at %.1f min (%02d:%02d:%02d): the %s's CPU %.1f s (kernel %.1f), read %.1f MB in %lu calls (sampled from %d ms on)\n",
+                       what, held, game_time() / 60000.0, now.wHour, now.wMinute, now.wSecond, g_hp[0].name, (double)(cpu1 - cpu0) / 1e7, (double)(k1 - k0) / 1e7,
                        (double)(io1.ReadTransferCount - io0.ReadTransferCount) / 1e6, (unsigned long)(io1.ReadOperationCount - io0.ReadOperationCount), start_ms);
             for (int i = 0; i < 2; i++) if (g_hp[i].samples) hp_report(&g_hp[i]);
         }
