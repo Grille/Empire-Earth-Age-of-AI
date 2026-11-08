@@ -15,6 +15,7 @@
 #define TF_HEIGHT 18.0f
 #define TF_COLUMN 12.0f         // between the columns, and right of the picture of the texture
 #define TF_COMBO 120.0f
+#define TF_CHARS 6              // what a field takes: -123.5
 #define TF_WATER_GAME -3.0f
 #define TF_EPS 0.001f
 enum { TF_HEIGHT_MIN, TF_HEIGHT_MAX, TF_SLOPE_MIN, TF_SLOPE_MAX, TF_WATER, TF_FIELDS };
@@ -161,7 +162,7 @@ internal void tf_set_text(ee_ui_control *box, const char *text) {
 internal void tf_field(int i, float left, float top, ee_ui_form *form, int *index, void *font) {
     g_tf_label[i] = tf_label(TF_ID + 2 * (unsigned)i, k_tf_label[i], left, top, form, index, font);
     float rect[4] = { top + TF_HEIGHT, left + TF_LABEL, left + TF_LABEL + TF_EDIT, top };
-    g_tf_box[i] = edit_box_new(TF_ID + 2 * (unsigned)i + 1, rect, form, index);
+    g_tf_box[i] = edit_box_line_new(TF_ID + 2 * (unsigned)i + 1, TF_CHARS, rect, form, index);
     if (!g_tf_box[i]) return;
     ui_control_set_bg_opacity(g_tf_box[i], 0.4f);
     tf_set_text(g_tf_box[i], g_tf_text[i]);

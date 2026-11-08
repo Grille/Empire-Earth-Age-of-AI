@@ -87,16 +87,19 @@ internal inline void label_set_text(void *label, void *wstr) {
 // (0x57ED81: UIEditBox's constructor with the editor's font, then the exe's UIEditBox vtable) - rect a GERectangle
 // {bottom, left, right, top} in the form's coordinates, index the form's running control index (the box takes one);
 // NULL: no memory. A control into the form, shown with group's controls; into the editor's units panel (its group)
-internal inline ee_ui_control *edit_box_new(unsigned id, const float rect[4], ee_ui_form *form, int *index) {
+internal inline ee_ui_control *edit_box_make(unsigned id, unsigned long chars, char multi_line, const float rect[4], ee_ui_form *form, int *index) {
     ee_ui_control *box = game_new(size_ui_edit_box);
     if (!box) return NULL;
     typedef void *(__thiscall *ctor_fn)(void *, unsigned long, void *, unsigned long, char, const float *, ee_ui_form *,
                                         unsigned long, unsigned long, char, char);
-    (*(ctor_fn *)data_ui_iat_edit_ctor)(box, id, ui_get_font_edit(), 5, 0, rect, form, (unsigned long)*index, 2, 1, 0);
+    (*(ctor_fn *)data_ui_iat_edit_ctor)(box, id, ui_get_font_edit(), chars, 0, rect, form, (unsigned long)*index, 2, multi_line, 0);
     *(uint32_t *)box = vt_ui_edit_box;
     (*index)++;
     return box;
 }
+internal inline ee_ui_control *edit_box_new(unsigned id, const float rect[4], ee_ui_form *form, int *index) { return edit_box_make(id, 5, 1, rect, form, index); }
+// one line, of at most chars characters: Enter starts no new one
+internal inline ee_ui_control *edit_box_line_new(unsigned id, unsigned long chars, const float rect[4], ee_ui_form *form, int *index) { return edit_box_make(id, chars, 0, rect, form, index); }
 // a check box as the editor makes its own (text a UWideString), not added to its form yet
 internal inline ee_ui_control *check_box_new(unsigned id, const void *text, const float rect[4], ee_ui_form *form, int *index) {
     ee_ui_control *box = game_new(size_ui_check_box);

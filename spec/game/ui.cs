@@ -851,7 +851,9 @@ static unsafe class ui
     static block iat_edit_get_text;
 
     /// UIEditBox::UIEditBox(id, GEFont *, K, bool, const GERectangle &, UIForm *, the form's control index, K, bool,
-    /// bool) - the trigger screen's (0x57ED81): (id, ui.font_edit, 5, 0, rect, form, index, 2, 1, 0) into 0x1E0 bytes,
+    /// bool) - the first K the most characters of a single line, the first bool a filter of what is typed, the bool
+    /// after the second K multi-line (else Enter adds no line: the engine's +0x1D7, ProcessEnterKey) - the trigger
+    /// screen's (0x57ED81): (id, ui.font_edit, 5, 0, rect, form, index, 2, 1, 0) into 0x1E0 bytes,
     /// then the exe's vtable (UIEditBox's)
     [import_slot("Low-Level Engine.dll", "??0UIEditBox@@QAE@KPAVGEFont@@K_NABVGERectangle@@PAVUIForm@@KK11@Z")]
     [address((ee)0x00823D48, (aoc)0x00837D4C)]
