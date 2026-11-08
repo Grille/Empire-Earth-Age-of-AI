@@ -183,6 +183,7 @@ internal int d3d_window_ready(HWND hwnd, const RECT *cr) {
 
 // draws a frame of sw x sh (its texture's view) into the view rect of the window and presents
 internal LONGLONG g_d3d_present_qpc;   // time inside Present
+internal int g_present_no_wait;   // this frame doesn't wait for the screen, vsync or not (render.c render_present)
 internal int d3d_draw_srv(ID3D11ShaderResourceView *srv, int sw, int sh, const RECT *cr, const RECT *v) {
     ID3D11DeviceContext *c = g_d3d.ctx;
     if (v->left > 0 || v->top > 0 || v->right < cr->right || v->bottom < cr->bottom) {
@@ -207,7 +208,8 @@ internal int d3d_draw_srv(ID3D11ShaderResourceView *srv, int sw, int sh, const R
     ID3D11DeviceContext_PSSetShaderResources(c, 0, 1, &none);   // the frame may be a render target again next
     LARGE_INTEGER t0, t1;
     QueryPerformanceCounter(&t0);
-    HRESULT hr = IDXGISwapChain1_Present(g_d3d.sc, g_vsync ? 1 : 0, !g_vsync && g_d3d.tearing ? DXGI_PRESENT_ALLOW_TEARING : 0);
+    int sync = g_vsync && !g_present_no_wait;
+    HRESULT hr = IDXGISwapChain1_Present(g_d3d.sc, sync ? 1 : 0, !sync && g_d3d.tearing ? DXGI_PRESENT_ALLOW_TEARING : 0);
     QueryPerformanceCounter(&t1);
     g_d3d_present_qpc += t1.QuadPart - t0.QuadPart;   // the own renderer's minute line (render_3d.c): the wait for the GPU shows here
     if (FAILED(hr)) return d3d_fail("Present", hr);

@@ -21,6 +21,7 @@
 // g_rd_on: display.c (its present path asks it first)
 // g_rd_cs: display.c (its pipe command "profile stacks" names the owner)
 #define RD_LOCK() EnterCriticalSection(&g_rd_cs)
+internal volatile LONG g_rd_churn;   // surfaces made and freed so far: a frame after some doesn't wait for the screen (render_present)
 #define RD_UNLOCK() LeaveCriticalSection(&g_rd_cs)
 
 enum { RDI_DD, RDI_SURF, RDI_D3D, RDI_DEV, RDI_VB, RDI_N };
@@ -613,6 +614,7 @@ internal ULONG __stdcall rd_sf_release(rd_surface *s) {
     if (s != t) { InterlockedDecrement(&s->refs); return 1; }
     LONG n = InterlockedDecrement(&s->refs);
     if (n > 0) return (ULONG)n;
+    InterlockedIncrement(&g_rd_churn);
     RD_LOCK();
     for (rd_surface *l = s->next, *nx; l; l = nx) { nx = l->next; free(l->mem); free(l); }
     rd_surface_free(s);
@@ -908,6 +910,7 @@ internal ULONG __stdcall rd_dd_release(rd_dd *o) { LONG n = InterlockedDecrement
 internal HRESULT __stdcall rd_dd_create_surface(rd_dd *o, DDSURFACEDESC2 *d, rd_surface **out, IUnknown *outer) {
     (void)o; (void)outer;
     if (!d || !out) return DDERR_INVALIDPARAMS;
+    InterlockedIncrement(&g_rd_churn);
     RD_LOCK();
     HRESULT r = d3d_device() ? rd_create_surface(d, out) : DDERR_GENERIC;
     RD_UNLOCK();
@@ -1075,6 +1078,18 @@ internal int render_present(IDirectDrawSurface7 *back, HWND hwnd) {
     RECT cr;
     GetClientRect(hwnd, &cr);
     RECT v = view_rect(&cr, (int)s->desc.dwWidth, (int)s->desc.dwHeight);
+    // The present waits for the screen with vsync on, under this lock (the immediate context is the lock's): every other
+    // thread that wants the renderer waits with it, the loader for each of the thousands of textures it makes and fills -
+    // a save of 1.2 s of work took 8.8 s, once 50.7 s (the player, 2026-11-08, vsync=1; 1.5 s now). While the world's lock
+    // has been held for a while by anything but a simulation step - a load - and after a frame in which surfaces were
+    // made or freed - the way out of a game frees thousands, one a frame behind this wait, without the world's lock -
+    // the frames don't wait for the screen. Nothing of that happens in the frames of a game being played.
+    static LONG churn_seen;
+    LONG churn = g_rd_churn;
+    LONGLONG w = g_rwl_write_at;
+    g_present_no_wait = churn != churn_seen ||
+                        (w && g_rwl_write_ret != (uintptr_t)engine_display_step_write_return_at() && rd_qpc() - w > rd_qpc_ms(100));
+    churn_seen = churn;
     int ok = d3d_window_ready(hwnd, &cr) && d3d_draw_srv(s->srv, (int)s->tw, (int)s->th, &cr, &v);
     dpi_leave(dpi);
     if (cursor) rd_cursor_undo(s);
