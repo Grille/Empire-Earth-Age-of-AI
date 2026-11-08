@@ -112,9 +112,9 @@ internal void rd3_fxaa(ID3D11RenderTargetView *rtv, const D3D11_VIEWPORT *vp) {
 }
 
 internal int g_rwl_free, g_rwl_handoff_after; internal LONG g_rwl_skips;   // render_3d.c: the frame during a step (below its lock hooks)
-internal int collect_own(int on), collect_opacity(int how), collect_drawn(int how), collect_fill_mode(int how); internal LONG g_uc_walks;   // collect.c: the units' walk, its fills
+internal int collect_own(int on), collect_opacity(int how), collect_drawn(int how), collect_fill_mode(int how), collect_ghost(int type, float x, float y); internal LONG g_uc_walks;   // collect.c: the units' walk, its fills
 extern volatile int g_uc_own; internal volatile int g_uc_opacity, g_uc_drawn, g_uc_fill;
-// the pipe: picture [aa on | off] [aniso <1..16>] [edge <0..1>] [steps on | off] [handoff <ms>] [morph on | off] [text on | off] [margin <0..2>] [objects <0..0.5>] [collect own | game | opacity | drawn game | check | own | fill game | check | own]
+// the pipe: picture [aa on | off] [aniso <1..16>] [edge <0..1>] [steps on | off] [handoff <ms>] [morph on | off] [text on | off] [margin <0..2>] [objects <0..0.5>] [collect own | game | opacity | drawn game | check | own | fill game | check | own | ghost <type> <x> <y>]
 internal void cmd_picture(char *out, const char *args) {
     char mode[16] = "", arg[16] = "";
     sscanf(args, "%15s %15s", mode, arg);
@@ -156,6 +156,11 @@ internal void cmd_picture(char *out, const char *args) {
     } else if (!strcmp(mode, "steps")) {
         if (!strcmp(arg, "on") || !strcmp(arg, "off")) g_rwl_free = arg[1] == 'n';
         else { REPLY("error: usage: picture steps on | off\n"); return; }
+    } else if (!strcmp(mode, "collect") && !strcmp(arg, "ghost")) {   // collect.c: a placement ghost for the fill's check
+        int type = -2;
+        float x = 0, y = 0;
+        if (sscanf(args, "%*s %*s %d %f %f", &type, &x, &y) != 3 || type < -1) { REPLY("error: usage: picture collect ghost <type | -1> <x> <y>\n"); return; }
+        if (collect_ghost(type, x, y) < 0) { REPLY("error: the units' walk isn't hooked (the log: # collect)\n"); return; }
     } else if (!strcmp(mode, "collect")) {   // collect.c: the units' walk the mod's own or the game's
         char how[16] = "";
         sscanf(args, "%*s %*s %15s", how);
@@ -166,7 +171,7 @@ internal void cmd_picture(char *out, const char *args) {
         int m = how[0] == 'g' ? 0 : how[0] == 'c' ? 1 : 2;
         int r = !fill ? collect_own(arg[0] == 'o') : fill == 1 ? collect_opacity(m) : fill == 2 ? collect_drawn(m) : collect_fill_mode(m);
         if (r < 0) { REPLY("error: the units' walk isn't hooked (the log: # collect)\n"); return; }
-    } else if (mode[0]) { REPLY("error: usage: picture [aa on | off] [aniso <1..16>] [edge <0..1>] [steps on | off] [handoff <ms>] [morph on | off] [text on | off] [margin <0..2>] [objects <0..0.5>] [collect own | game | opacity | drawn game | check | own | fill game | check | own]\n"); return; }
+    } else if (mode[0]) { REPLY("error: usage: picture [aa on | off] [aniso <1..16>] [edge <0..1>] [steps on | off] [handoff <ms>] [morph on | off] [text on | off] [margin <0..2>] [objects <0..0.5>] [collect own | game | opacity | drawn game | check | own | fill game | check | own | ghost <type> <x> <y>]\n"); return; }
     REPLY("picture: anti-aliasing %s (%s, %ld passes, an edge %.2f of its brightest), anisotropy %d; text on the target %s (frames %ld, text phases %ld, reads back %ld so far); frames drawn during a"
           " step %s (%ld; the simulation waits for one after %d ms without); the ground's margin %.2f (the last region %ld x %ld tiles at %.2f, its top %.2f, its bottom %.2f, the depths %.2f .. %.2f, its near %.2f (its camera pulled back %.1f for a zoom out), worked out %ld, its polygons %lu and %lu on the water; the ground kept %d batches, %d vertices); the objects' margin %.2f (%ld passed by it); the units' walk %s (%ld walks of the mod's), its opacity %s, its view test %s, its fill %s\n", g_fx.on ? "on" : "off",
           g_fx.ready > 0 ? "ready" : g_fx.ready < 0 ? "FAILED (the log says why)" : "not made yet",
@@ -175,5 +180,5 @@ internal void cmd_picture(char *out, const char *args) {
           g_uc_own ? "the mod's" : "the game's", (long)g_uc_walks,
           g_uc_opacity == 2 ? "the mod's" : g_uc_opacity == 1 ? "the game's, the mod's held against it" : "the game's",
           g_uc_drawn == 2 ? "the mod's" : g_uc_drawn == 1 ? "the game's, the mod's held against it" : "the game's",
-          g_uc_fill == 2 ? "the mod's" : g_uc_fill == 1 ? "the game's, the trees' held against the mod's" : "the game's");
+          g_uc_fill == 2 ? "the mod's" : g_uc_fill == 1 ? "the game's, the trees', doppelgangers' and ghosts' held against the mod's" : "the game's");
 }

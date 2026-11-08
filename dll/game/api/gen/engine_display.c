@@ -240,6 +240,12 @@ internal inline void ro_units_fill_doppelganger(ee_ro_units *ro_units, ee_doppel
 typedef void (__thiscall *ro_units_fill_doppelganger_object_fn)(ee_ro_units *, ee_doppelganger *, void *, uint32_t *, void *, uint32_t, int, int, void *);
 internal ro_units_fill_doppelganger_object_fn fn_ro_units_fill_doppelganger_object;
 internal inline void ro_units_fill_doppelganger_object(ee_ro_units *ro_units, ee_doppelganger *d, void *record, uint32_t *count, void *sort_map, uint32_t room, int x, int y, void *info) { fn_ro_units_fill_doppelganger_object(ro_units, d, record, count, sort_map, room, x, y, info); }
+// FillGhostRecords: after the walk, a record (ghost_records' element) for each placement ghost (ghost_units),
+// when they changed (ghosts_changed), inside their lock (ghost_lock) - collect.c's hook of its call
+typedef void (__thiscall *ro_units_fill_ghosts_fn)(ee_ro_units *);
+internal ro_units_fill_ghosts_fn fn_ro_units_fill_ghosts;
+internal inline void ro_units_fill_ghosts(ee_ro_units *ro_units) { fn_ro_units_fill_ghosts(ro_units); }
+internal inline int patch_fill_ghosts(ro_units_fill_ghosts_fn h) { return patch_call(call_fill_ghosts, (uintptr_t)fn_ro_units_fill_ghosts, (void *)h); }
 // the units' update (from the world's units)
 typedef void (__thiscall *ro_units_update_fn)(ee_ro_units *);
 internal ro_units_update_fn fn_ro_units_update;
@@ -734,6 +740,18 @@ internal inline uint8_t *engine_display_iat_set_position_at(void) { return (uint
 // uc_fill_dopp_tree): the exe's import slot of GETransformation::MakeIdentity - a remembered building without a
 // pose of its own starts from it
 internal inline uint8_t *engine_display_iat_make_identity_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_iat_make_identity; }
+// THE GHOSTS' FILL (EEROUnits.fill_ghosts; collect.c uc_fill_ghosts): the placement ghosts - the world's vector of
+// EEGhostUnit* (EEGhostUnit::Create, ghost_unit.create, fills it: a building being placed, an airport's runways,
+// a granary's farms), their lock (a TSCriticalSection*), whether they changed since (a byte: the preview sets it,
+// the fill makes records only then), the frame's vector of their records (0x420 each: an ee_draw_record, then
+// float[12][12] the footprint's corner heights, uint8[12][12] its cells, the tile x, y; push_back
+// ghost_record_push), the lift over the ground every record gets (a float, 0.001)
+internal inline uint8_t *engine_display_ghost_units_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_ghost_units; }
+internal inline uint8_t *engine_display_ghost_lock_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_ghost_lock; }
+internal inline uint8_t *engine_display_ghosts_changed_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_ghosts_changed; }
+internal inline uint8_t *engine_display_ghost_records_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_ghost_records; }
+internal inline uint8_t *engine_display_ghost_lift_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_ghost_lift; }
+// a ghost record's size and its parts' offsets
 
 // static class engine_display_functions
 // the game's functions engine_display.c wraps, by the names the C side gives them
@@ -806,6 +824,10 @@ internal inline uint8_t tile_has_tree(ee_tile *t) { return fn_tile_has_tree(t); 
 typedef void (__thiscall *vector_push_small_fn)(void *, void **);
 internal vector_push_small_fn fn_vector_push_small;
 internal inline void vector_push_small(void *v, void **value) { fn_vector_push_small(v, value); }
+// thiscall(ghost_records, the record): push_back (a copy: its vectors and label copied)
+typedef void (__thiscall *ghost_record_push_fn)(void *, void *);
+internal ghost_record_push_fn fn_ghost_record_push;
+internal inline void ghost_record_push(void *v, void *record) { fn_ghost_record_push(v, record); }
 // thiscall(the same set, found: 8 bytes - its node, then a byte: 1 inserted, 0 there before -, &the doppelganger):
 // insert (ret 8; the pair std::set::insert returns, through the hidden pointer)
 typedef void *(__thiscall *doppelganger_set_insert_fn)(void *, void **, ee_doppelganger **);
@@ -885,6 +907,8 @@ internal int spec_engine_display_select(int build) {
         fn_ro_units_fill_object = (ro_units_fill_object_fn)0x00501DFF;
         fn_ro_units_fill_doppelganger = (ro_units_fill_doppelganger_fn)0x005035AD;
         fn_ro_units_fill_doppelganger_object = (ro_units_fill_doppelganger_object_fn)0x00502224;
+        fn_ro_units_fill_ghosts = (ro_units_fill_ghosts_fn)0x00501C29;
+        call_fill_ghosts = 0x005041F7;
         fn_ro_units_update = (ro_units_update_fn)0x00509D06;
         fn_ro_units_draw = (ro_units_draw_fn)0x0050D90E;
         vt_eero_water = 0x0082C480;
@@ -1077,6 +1101,15 @@ internal int spec_engine_display_select(int build) {
         value_engine_display_resource_wood = 3;
         value_engine_display_resource_food = 2;
         data_engine_display_iat_make_identity = 0x008232F0;
+        data_engine_display_ghost_units = 0x00918CC0;
+        data_engine_display_ghost_lock = 0x00918E18;
+        data_engine_display_ghosts_changed = 0x00941444;
+        data_engine_display_ghost_records = 0x008D2D00;
+        data_engine_display_ghost_lift = 0x00827AC4;
+        value_engine_display_size_ghost_record = 1056;
+        value_engine_display_of_ghost_record_heights = 328;
+        value_engine_display_of_ghost_record_cells = 904;
+        value_engine_display_of_ghost_record_tile = 1048;
         fn_doppelganger_set_find = (doppelganger_set_find_fn)0x005050BD;
         fn_ambient_add = (ambient_add_fn)0x0051A4C5;
         fn_ambient_add_object = (ambient_add_object_fn)0x00506249;
@@ -1094,6 +1127,7 @@ internal int spec_engine_display_select(int build) {
         fn_ambient_add_tree = (ambient_add_tree_fn)0x0051A5D5;
         fn_tile_has_tree = (tile_has_tree_fn)0x00502200;
         fn_vector_push_small = (vector_push_small_fn)0x00504F36;
+        fn_ghost_record_push = (ghost_record_push_fn)0x00504EAA;
         fn_doppelganger_set_insert = (doppelganger_set_insert_fn)0x00505007;
         return 4;
     case 1:   // aoc
@@ -1166,6 +1200,8 @@ internal int spec_engine_display_select(int build) {
         fn_ro_units_fill_object = (ro_units_fill_object_fn)0x0050CBA3;
         fn_ro_units_fill_doppelganger = (ro_units_fill_doppelganger_fn)0x0050E3C8;
         fn_ro_units_fill_doppelganger_object = (ro_units_fill_doppelganger_object_fn)0x0050CFBC;
+        fn_ro_units_fill_ghosts = (ro_units_fill_ghosts_fn)0x0050C952;
+        call_fill_ghosts = 0x0050F132;
         fn_ro_units_update = (ro_units_update_fn)0x00514521;
         fn_ro_units_draw = (ro_units_draw_fn)0x00518203;
         vt_eero_water = 0x00841C10;
@@ -1358,6 +1394,15 @@ internal int spec_engine_display_select(int build) {
         value_engine_display_resource_wood = 3;
         value_engine_display_resource_food = 2;
         data_engine_display_iat_make_identity = 0x0083772C;
+        data_engine_display_ghost_units = 0x00931700;
+        data_engine_display_ghost_lock = 0x00931858;
+        data_engine_display_ghosts_changed = 0x00963240;
+        data_engine_display_ghost_records = 0x008E94A0;
+        data_engine_display_ghost_lift = 0x0083C2A4;
+        value_engine_display_size_ghost_record = 1056;
+        value_engine_display_of_ghost_record_heights = 328;
+        value_engine_display_of_ghost_record_cells = 904;
+        value_engine_display_of_ghost_record_tile = 1048;
         fn_doppelganger_set_find = (doppelganger_set_find_fn)0x0042B588;
         fn_ambient_add = (ambient_add_fn)0x00524D63;
         fn_ambient_add_object = (ambient_add_object_fn)0x00524E80;
@@ -1375,6 +1420,7 @@ internal int spec_engine_display_select(int build) {
         fn_ambient_add_tree = (ambient_add_tree_fn)0x00524E80;
         fn_tile_has_tree = (tile_has_tree_fn)0x0050CF98;
         fn_vector_push_small = (vector_push_small_fn)0x0050FDD5;
+        fn_ghost_record_push = (ghost_record_push_fn)0x0050FD49;
         fn_doppelganger_set_insert = (doppelganger_set_insert_fn)0x0050FED2;
         return 0;
     }
@@ -1418,6 +1464,8 @@ internal int spec_engine_display_check(void) {
     bad += spec_code((uintptr_t)fn_ro_units_fill_object, "EEROUnits.fill_object");
     bad += spec_code((uintptr_t)fn_ro_units_fill_doppelganger, "EEROUnits.fill_doppelganger");
     bad += spec_code((uintptr_t)fn_ro_units_fill_doppelganger_object, "EEROUnits.fill_doppelganger_object");
+    bad += spec_code((uintptr_t)fn_ro_units_fill_ghosts, "EEROUnits.fill_ghosts");
+    bad += spec_call(call_fill_ghosts, (uintptr_t)fn_ro_units_fill_ghosts, "EEROUnits.fill_ghosts [call_site fill_ghosts]");
     bad += spec_code((uintptr_t)fn_ro_units_update, "EEROUnits.update");
     bad += spec_slot(vt_eero_units, slot_render_object_update, (uintptr_t)fn_ro_units_update, "EEROUnits.update [slot]");
     bad += spec_code((uintptr_t)fn_ro_units_draw, "EEROUnits.draw");
@@ -1509,6 +1557,11 @@ internal int spec_engine_display_check(void) {
     bad += spec_data(data_engine_display_sway_step, "engine_display.sway_step");
     bad += spec_data(data_engine_display_iat_set_position, "engine_display.iat_set_position");
     bad += spec_data(data_engine_display_iat_make_identity, "engine_display.iat_make_identity");
+    bad += spec_data(data_engine_display_ghost_units, "engine_display.ghost_units");
+    bad += spec_data(data_engine_display_ghost_lock, "engine_display.ghost_lock");
+    bad += spec_data(data_engine_display_ghosts_changed, "engine_display.ghosts_changed");
+    bad += spec_data(data_engine_display_ghost_records, "engine_display.ghost_records");
+    bad += spec_data(data_engine_display_ghost_lift, "engine_display.ghost_lift");
     bad += spec_code((uintptr_t)fn_doppelganger_set_find, "engine_display_functions.doppelganger_set_find");
     bad += spec_code((uintptr_t)fn_ambient_add, "engine_display_functions.ambient_add");
     bad += spec_code((uintptr_t)fn_ambient_add_object, "engine_display_functions.ambient_add_object");
@@ -1526,6 +1579,7 @@ internal int spec_engine_display_check(void) {
     bad += spec_code((uintptr_t)fn_ambient_add_tree, "engine_display_functions.ambient_add_tree");
     bad += spec_code((uintptr_t)fn_tile_has_tree, "engine_display_functions.tile_has_tree");
     bad += spec_code((uintptr_t)fn_vector_push_small, "engine_display_functions.vector_push_small");
+    bad += spec_code((uintptr_t)fn_ghost_record_push, "engine_display_functions.ghost_record_push");
     bad += spec_code((uintptr_t)fn_doppelganger_set_insert, "engine_display_functions.doppelganger_set_insert");
     return bad;
 }

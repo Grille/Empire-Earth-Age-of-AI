@@ -758,11 +758,6 @@ unsafe struct EEComplexUnit
     extern void release();
 }
 
-/// an image of a unit type for a player, no map object (its constructor calls neither RTSUnit's nor EEUnit's): made by
-/// 0x5F4608 (new 0x334, its constructor 0x5F3D4C(type id, player, flag); type 66 three more) into a list at its
-/// caller's +0xE4 - callers 0x562D07, 0x64F72A (a tech's unit type) and the scenario's Move Unit effect
-/// (EESEAMoveUnit::vf1) - what for (a placement preview?) not established. Its destructor 0x5F3DE5 tells 0x4CEEF4
-/// (the player's index, the type id) unless +0x331 is set.
 /// a building or tree as a player remembers it under the fog (RTTI EEDoppelganger; EEComplexDoppelganger too): a
 /// tile's doppelgangers (ee_tile.doppelgangers) - the units' collection draws them (EEROUnits.fill_doppelganger)
 /// - this class one of an object without a complex unit (its virtual functions answer from the object's type and
@@ -852,6 +847,13 @@ unsafe struct EEComplexDoppelganger
     extern int32 hp();
 }
 
+/// a placement ghost: the building the player is placing as it is drawn under the mouse, green or red (the AoC
+/// decompilation's EEGhostUnit), no map object (its constructor calls neither RTSUnit's nor EEUnit's) - made by
+/// EEGhostUnit::Create (ghost_unit.create, 0x5F4608: new 0x334, its constructor 0x5F3D4C(type id, player, flag); an
+/// airport's three runways and a granary's farms with it) into the world's engine_display.ghost_units, moved by the
+/// preview (ghost_unit.preview), drawn from the records EEROUnits.fill_ghosts makes of them. Create's callers: 0x562D07,
+/// 0x64F72A (the build menu's), 0x64F9C3 and the scenario's Move Unit (EESEAMoveUnit::vf1). Its destructor 0x5F3DE5
+/// tells 0x4CEEF4 (the player's index, the type id) unless +0x331 is set.
 [size(0x334)]
 [vtable((ee)0x00831588, (aoc)0x00846EF4)]
 unsafe struct EEGhostUnit
@@ -865,6 +867,62 @@ unsafe struct EEGhostUnit
     /// set: the destructor doesn't tell 0x4CEEF4
     [offset(0x331), found(c)]
     uint8 untold;
+
+    // a placement ghost (the world's engine_display.ghost_units): what the ghosts' fill (EEROUnits.fill_ghosts) copies
+    // into its record - the same offsets in both builds (names the AoC decompilation's)
+
+    /// where it is drawn (a GETransformation)
+    [offset(0x4), found(c)]
+    fixed float32 transform[16];
+
+    /// its footprint's corner heights, float[12][12]
+    [offset(0x44), found(c)]
+    fixed float32 heights[144];
+
+    /// the tile it is at
+    [offset(0x284), found(c)]
+    int32 tile_x;
+
+    [offset(0x288), found(c)]
+    int32 tile_y;
+
+    /// its animation's frame, its animation
+    [offset(0x28C), found(c)]
+    int32 frame;
+
+    [offset(0x290), found(c)]
+    int32 anim;
+
+    /// its footprint's cells, uint8[12][12] (0: the cell's edges drawn)
+    [offset(0x2A0), found(c)]
+    fixed uint8 cells[144];
+
+    /// whether it can be placed there (the preview's; drawn green, else red)
+    [offset(0x330), found(c)]
+    uint8 can_place;
+
+    /// GetModel: its player's stats of its type's graphics
+    [address((ee)0x00506208, (aoc)0x0050CB62)]
+    extern EEGraphicObject* model();
+
+    /// GetScale: its player's stats of its type's height (an x87 float in st0)
+    [address((ee)0x00506227, (aoc)0x0050CB81)]
+    extern float32 scale();
+}
+
+/// the placement ghosts' functions (EEGhostUnit's statics in the AoC decompilation)
+static unsafe class ghost_unit
+{
+    /// Create: the ghosts replaced by one of type for pl at loc (2 floats) turned by rotation (0 for a type that
+    /// doesn't turn), an airport's three runways and a granary's farms (not when moving) with it; inside the ghosts'
+    /// lock. Callers: the main game's build menu, the scenario editor's unit list and Move Unit
+    [address((ee)0x005F4608, (aoc)0x00604278), cdecl]
+    static extern void create(float32* loc, int32 type, EEPlayer* pl, float32 rotation, uint8 is_move);
+
+    /// EEPreviewPlacement: the ghosts moved to loc (2 floats) - their tiles, footprints, heights, whether they can be
+    /// placed - and engine_display.ghosts_changed set; the main game's and the editor's mouse moves call it
+    [address((ee)0x005F4DDA, (aoc)0x00604ABA), cdecl]
+    static extern void preview(float32* loc);
 }
 
 /// the game's functions on units that belong to no class: the unit an ordinary argument, all on the stack

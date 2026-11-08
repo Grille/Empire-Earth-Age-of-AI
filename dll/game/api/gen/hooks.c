@@ -22,6 +22,10 @@ internal inline float *draw_record_opacity_at(const void *o) { return (float *)(
 typedef void (__thiscall *draw_record_init_fn)(void *);
 internal draw_record_init_fn fn_draw_record_init;
 internal inline void draw_record_init(void *draw_record) { fn_draw_record_init(draw_record); }
+// its destructor: its label and vectors freed (the ghosts' fill's record on its stack)
+typedef void (__thiscall *draw_record_destroy_fn)(void *);
+internal draw_record_destroy_fn fn_draw_record_destroy;
+internal inline void draw_record_destroy(void *draw_record) { fn_draw_record_destroy(draw_record); }
 // where it is drawn: a GETransformation (4 rows; the complex unit's +0x130 copied, else made at its tile)
 internal inline float draw_record_get_transform(const void *o, int i) { return ((float *)((uint8_t *)o + of_draw_record_transform))[i]; }
 internal inline void draw_record_set_transform(void *o, int i, float v) { ((float *)((uint8_t *)o + of_draw_record_transform))[i] = v; }
@@ -141,7 +145,11 @@ internal inline int *draw_record_player_at(const void *o) { return (int *)((uint
 internal inline uint32_t draw_record_get_goal_value(const void *o) { return *(uint32_t *)((uint8_t *)o + of_draw_record_goal_value); }
 internal inline void draw_record_set_goal_value(void *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_draw_record_goal_value) = v; }
 internal inline uint32_t *draw_record_goal_value_at(const void *o) { return (uint32_t *)((uint8_t *)o + of_draw_record_goal_value); }
-// a gaia animal or bush with food the player hasn't in sight
+// a placement ghost's record (EEROUnits.fill_ghosts): whether it can be placed there (its ghost's can_place)
+internal inline uint8_t draw_record_get_can_place(const void *o) { return *(uint8_t *)((uint8_t *)o + of_draw_record_can_place); }
+internal inline void draw_record_set_can_place(void *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_draw_record_can_place) = v; }
+internal inline uint8_t *draw_record_can_place_at(const void *o) { return (uint8_t *)((uint8_t *)o + of_draw_record_can_place); }
+// a gaia animal or bush with food the player hasn't in sight (a doppelganger's always; a ghost's never)
 internal inline uint8_t draw_record_get_fogged(const void *o) { return *(uint8_t *)((uint8_t *)o + of_draw_record_fogged); }
 internal inline void draw_record_set_fogged(void *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_draw_record_fogged) = v; }
 internal inline uint8_t *draw_record_fogged_at(const void *o) { return (uint8_t *)((uint8_t *)o + of_draw_record_fogged); }
@@ -295,6 +303,7 @@ internal int spec_hooks_select(int build) {
         of_draw_record_tint = 0x4C;
         of_draw_record_opacity = 0xFC;
         fn_draw_record_init = (draw_record_init_fn)0x00506442;
+        fn_draw_record_destroy = (draw_record_destroy_fn)0x005064F0;
         of_draw_record_transform = 0x0;
         of_draw_record_hp_bars = 0x58;
         of_draw_record_part_values = 0x68;
@@ -328,6 +337,7 @@ internal int spec_hooks_select(int build) {
         of_draw_record_serial = 0x138;
         of_draw_record_player = 0x13C;
         of_draw_record_goal_value = 0x140;
+        of_draw_record_can_place = 0x144;
         of_draw_record_fogged = 0x145;
         of_draw_record_tinted = 0x146;
         of_draw_record_gated = 0x147;
@@ -423,6 +433,7 @@ internal int spec_hooks_select(int build) {
         of_draw_record_tint = 0x4C;
         of_draw_record_opacity = 0xFC;
         fn_draw_record_init = (draw_record_init_fn)0x005118E9;
+        fn_draw_record_destroy = (draw_record_destroy_fn)0x00511997;
         of_draw_record_transform = 0x0;
         of_draw_record_hp_bars = 0x58;
         of_draw_record_part_values = 0x68;
@@ -456,6 +467,7 @@ internal int spec_hooks_select(int build) {
         of_draw_record_serial = 0x138;
         of_draw_record_player = 0x13C;
         of_draw_record_goal_value = 0x140;
+        of_draw_record_can_place = 0x144;
         of_draw_record_fogged = 0x145;
         of_draw_record_tinted = 0x146;
         of_draw_record_gated = 0x147;
@@ -555,6 +567,7 @@ internal const char *const k_spec_hooks_missing[ADDR_BUILDS] = { "", "hooks.relo
 internal int spec_hooks_check(void) {
     int bad = 0;
     bad += spec_code((uintptr_t)fn_draw_record_init, "ee_draw_record.init");
+    bad += spec_code((uintptr_t)fn_draw_record_destroy, "ee_draw_record.destroy");
     bad += spec_code(data_hooks_call_attack_alert, "hooks.call_attack_alert");
     bad += spec_code(data_hooks_reload_tick_cmp[0], "hooks.reload_tick_cmp 0");
     bad += spec_code(data_hooks_reload_tick_cmp[1], "hooks.reload_tick_cmp 1");

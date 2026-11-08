@@ -308,6 +308,18 @@ internal inline void transform_set_position(void *t, float x, float y, float z) 
 // the doppelgangers' fills' (collect.c uc_fill_dopp): GETransformation::MakeIdentity
 typedef void (__thiscall *make_identity_fn)(void *t);
 internal inline void transform_identity(void *t) { (*(make_identity_fn *)data_engine_display_iat_make_identity)(t); }
+
+// the ghosts' fill's (collect.c uc_fill_ghosts): the placement ghosts, their lock, whether they changed, their records'
+// vector, a record's size and parts (after its ee_draw_record: the footprint's heights and cells, the tile), the lift
+internal inline void *ghost_units(void) { return (void *)(uintptr_t)data_engine_display_ghost_units; }
+internal inline void *ghost_lock(void) { return *(void *const *)data_engine_display_ghost_lock; }
+internal inline int ghosts_changed(void) { return *(const uint8_t *)data_engine_display_ghosts_changed != 0; }
+internal inline void *ghost_records(void) { return (void *)(uintptr_t)data_engine_display_ghost_records; }
+internal inline float ghost_lift(void) { return *(const float *)data_engine_display_ghost_lift; }
+internal inline uint32_t ghost_record_size(void) { return value_engine_display_size_ghost_record; }
+internal inline uint8_t *ghost_record_heights(uint8_t *r) { return r + value_engine_display_of_ghost_record_heights; }
+internal inline uint8_t *ghost_record_cells(uint8_t *r) { return r + value_engine_display_of_ghost_record_cells; }
+internal inline int32_t *ghost_record_tile(uint8_t *r) { return (int32_t *)(r + value_engine_display_of_ghost_record_tile); }
 internal inline int tree_has_ambient(const ee_unit_type *t) {
     return build_is("aoc") || (uint32_t)unit_type_get_resource_type(t) == value_engine_display_resource_wood;
 }

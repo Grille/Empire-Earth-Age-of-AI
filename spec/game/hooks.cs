@@ -20,6 +20,10 @@ unsafe struct ee_draw_record
     [address((ee)0x00506442, (aoc)0x005118E9)]
     extern void init();
 
+    /// its destructor: its label and vectors freed (the ghosts' fill's record on its stack)
+    [address((ee)0x005064F0, (aoc)0x00511997)]
+    extern void destroy();
+
     // THE FIELDS ITS FILL WRITES (EEROUnits' FillUnit, EE 0x502622, AoC 0x50D3AD; collect.c's port uc_fill) - the
     // same offsets in both builds
 
@@ -149,7 +153,11 @@ unsafe struct ee_draw_record
     [offset(0x140), found(c), guess]
     uint32 goal_value;
 
-    /// a gaia animal or bush with food the player hasn't in sight
+    /// a placement ghost's record (EEROUnits.fill_ghosts): whether it can be placed there (its ghost's can_place)
+    [offset(0x144), found(c)]
+    uint8 can_place;
+
+    /// a gaia animal or bush with food the player hasn't in sight (a doppelganger's always; a ghost's never)
     [offset(0x145), found(c)]
     uint8 fogged;
 

@@ -512,6 +512,23 @@ after 5 minutes 2 589 482 (1 439 430 drawn), AoC's 3 025 463 (1 559 686 drawn): 
 with the game's fills and ours (a first run as player 2 found the ground's height on a lit tile wrong: the light's
 tile had been read with x and y swapped - ours, not the game's).
 
+The ghosts' fill ported (collect.c uc_fill_ghosts, 2026-11-08; the same switch; hooked at its call in the update, EE
+0x5041F7, AoC 0x50F132, so with either walk). What the plan called the records' finish (0x501C29) is the AoC
+decompilation's FillGhostRecords (AoC 0x50C952): the placement ghosts - the building the player is placing under the
+mouse, green or red, an airport's three runways and a granary's farms with it (spec EEGhostUnit, the world's
+engine_display.ghost_units, made by EEGhostUnit::Create and moved by the preview) - get a record each (0x420: an
+ee_draw_record, then the footprint's 12 x 12 corner heights and cells, the tile) when they changed, inside their lock,
+pushed into a vector the frame draws them from (EEROUnits::DrawPlacement). Its model, scale (its player's stats of its
+type), frame, animation, can_place, its type's and player's values, the footprint, the pose lifted 0.001 over the
+ground (AoC: the types 0x302 and 0x31F by their heights more - the same heights its fill sinks their building sites
+by). One record on the game's stack serves them all and the record's constructor leaves the circle, the bars, the
+ground's height, the opacity, state, serial and player as the stack had them - in the game's fill too; DrawPlacement
+sets the opacity itself and reads none of the rest, so fill check compares the dwords the constructor or the fill
+sets (uc_ghost_set). Checked with ghosts the pipe makes (`picture collect ghost <type> <x> <y>`: the game's Create
+and preview, as the build menu and the mouse; -1 only moves them): a house, an airport, a granary and barracks at the
+camera, each moved four times, 0 differ - EE 136 132 records in 36 614 fills, AoC 123 361 in 32 758; the space types'
+lift not met.
+
 `[display] gpu_animation` (default on; the pipe: `picture morph on | off`; render_morph.c), 2026-11-06. EE animates a
 model by morphing: every frame of its animation is a whole vertex array (spec GEModel.vertices, frames alike share
 one), and the T&L DLL's DrawModelHierarchy draws each material by copying its run of the frame into the vertex buffer

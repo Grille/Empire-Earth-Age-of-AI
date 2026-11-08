@@ -736,11 +736,6 @@ internal inline void ee_complex_unit_release(ee_unit *unit) { fn_ee_complex_unit
 internal inline int patch_unit_release(unit_release_fn h) { return patch_vtable(vt_ee_complex_unit, (int)slot_unit_release, (uintptr_t)fn_ee_complex_unit_release, (void *)h); }
 
 // class EEDoppelganger (ee_doppelganger)
-// an image of a unit type for a player, no map object (its constructor calls neither RTSUnit's nor EEUnit's): made by
-// 0x5F4608 (new 0x334, its constructor 0x5F3D4C(type id, player, flag); type 66 three more) into a list at its
-// caller's +0xE4 - callers 0x562D07, 0x64F72A (a tech's unit type) and the scenario's Move Unit effect
-// (EESEAMoveUnit::vf1) - what for (a placement preview?) not established. Its destructor 0x5F3DE5 tells 0x4CEEF4
-// (the player's index, the type id) unless +0x331 is set.
 // a building or tree as a player remembers it under the fog (RTTI EEDoppelganger; EEComplexDoppelganger too): a
 // tile's doppelgangers (ee_tile.doppelgangers) - the units' collection draws them (EEROUnits.fill_doppelganger)
 // - this class one of an object without a complex unit (its virtual functions answer from the object's type and
@@ -826,6 +821,13 @@ internal doppelganger_hp_fn fn_ee_complex_doppelganger_hp;
 internal inline int ee_complex_doppelganger_hp(ee_doppelganger *doppelganger) { return fn_ee_complex_doppelganger_hp(doppelganger); }
 
 // class EEGhostUnit (ee_ghost_unit)
+// a placement ghost: the building the player is placing as it is drawn under the mouse, green or red (the AoC
+// decompilation's EEGhostUnit), no map object (its constructor calls neither RTSUnit's nor EEUnit's) - made by
+// EEGhostUnit::Create (ghost_unit.create, 0x5F4608: new 0x334, its constructor 0x5F3D4C(type id, player, flag); an
+// airport's three runways and a granary's farms with it) into the world's engine_display.ghost_units, moved by the
+// preview (ghost_unit.preview), drawn from the records EEROUnits.fill_ghosts makes of them. Create's callers: 0x562D07,
+// 0x64F72A (the build menu's), 0x64F9C3 and the scenario's Move Unit (EESEAMoveUnit::vf1). Its destructor 0x5F3DE5
+// tells 0x4CEEF4 (the player's index, the type id) unless +0x331 is set.
 // the player it is for (its +0x45C, the index, read by the destructor)
 internal inline ee_player *ghost_unit_get_player(const ee_ghost_unit *o) { return *(ee_player **)((uint8_t *)o + of_ghost_unit_player); }
 internal inline void ghost_unit_set_player(ee_ghost_unit *o, ee_player *v) { *(ee_player **)((uint8_t *)o + of_ghost_unit_player) = v; }
@@ -838,6 +840,58 @@ internal inline ee_unit_type **ghost_unit_type_data_at(const ee_ghost_unit *o) {
 internal inline uint8_t ghost_unit_get_untold(const ee_ghost_unit *o) { return *(uint8_t *)((uint8_t *)o + of_ghost_unit_untold); }
 internal inline void ghost_unit_set_untold(ee_ghost_unit *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_ghost_unit_untold) = v; }
 internal inline uint8_t *ghost_unit_untold_at(const ee_ghost_unit *o) { return (uint8_t *)((uint8_t *)o + of_ghost_unit_untold); }
+// where it is drawn (a GETransformation)
+internal inline float ghost_unit_get_transform(const ee_ghost_unit *o, int i) { return ((float *)((uint8_t *)o + of_ghost_unit_transform))[i]; }
+internal inline void ghost_unit_set_transform(ee_ghost_unit *o, int i, float v) { ((float *)((uint8_t *)o + of_ghost_unit_transform))[i] = v; }
+internal inline float *ghost_unit_transform_at(const ee_ghost_unit *o) { return (float *)((uint8_t *)o + of_ghost_unit_transform); }
+// its footprint's corner heights, float[12][12]
+internal inline float ghost_unit_get_heights(const ee_ghost_unit *o, int i) { return ((float *)((uint8_t *)o + of_ghost_unit_heights))[i]; }
+internal inline void ghost_unit_set_heights(ee_ghost_unit *o, int i, float v) { ((float *)((uint8_t *)o + of_ghost_unit_heights))[i] = v; }
+internal inline float *ghost_unit_heights_at(const ee_ghost_unit *o) { return (float *)((uint8_t *)o + of_ghost_unit_heights); }
+// the tile it is at
+internal inline int ghost_unit_get_tile_x(const ee_ghost_unit *o) { return *(int *)((uint8_t *)o + of_ghost_unit_tile_x); }
+internal inline void ghost_unit_set_tile_x(ee_ghost_unit *o, int v) { *(int *)((uint8_t *)o + of_ghost_unit_tile_x) = v; }
+internal inline int *ghost_unit_tile_x_at(const ee_ghost_unit *o) { return (int *)((uint8_t *)o + of_ghost_unit_tile_x); }
+internal inline int ghost_unit_get_tile_y(const ee_ghost_unit *o) { return *(int *)((uint8_t *)o + of_ghost_unit_tile_y); }
+internal inline void ghost_unit_set_tile_y(ee_ghost_unit *o, int v) { *(int *)((uint8_t *)o + of_ghost_unit_tile_y) = v; }
+internal inline int *ghost_unit_tile_y_at(const ee_ghost_unit *o) { return (int *)((uint8_t *)o + of_ghost_unit_tile_y); }
+// its animation's frame, its animation
+internal inline int ghost_unit_get_frame(const ee_ghost_unit *o) { return *(int *)((uint8_t *)o + of_ghost_unit_frame); }
+internal inline void ghost_unit_set_frame(ee_ghost_unit *o, int v) { *(int *)((uint8_t *)o + of_ghost_unit_frame) = v; }
+internal inline int *ghost_unit_frame_at(const ee_ghost_unit *o) { return (int *)((uint8_t *)o + of_ghost_unit_frame); }
+internal inline int ghost_unit_get_anim(const ee_ghost_unit *o) { return *(int *)((uint8_t *)o + of_ghost_unit_anim); }
+internal inline void ghost_unit_set_anim(ee_ghost_unit *o, int v) { *(int *)((uint8_t *)o + of_ghost_unit_anim) = v; }
+internal inline int *ghost_unit_anim_at(const ee_ghost_unit *o) { return (int *)((uint8_t *)o + of_ghost_unit_anim); }
+// its footprint's cells, uint8[12][12] (0: the cell's edges drawn)
+internal inline uint8_t ghost_unit_get_cells(const ee_ghost_unit *o, int i) { return ((uint8_t *)((uint8_t *)o + of_ghost_unit_cells))[i]; }
+internal inline void ghost_unit_set_cells(ee_ghost_unit *o, int i, uint8_t v) { ((uint8_t *)((uint8_t *)o + of_ghost_unit_cells))[i] = v; }
+internal inline uint8_t *ghost_unit_cells_at(const ee_ghost_unit *o) { return (uint8_t *)((uint8_t *)o + of_ghost_unit_cells); }
+// whether it can be placed there (the preview's; drawn green, else red)
+internal inline uint8_t ghost_unit_get_can_place(const ee_ghost_unit *o) { return *(uint8_t *)((uint8_t *)o + of_ghost_unit_can_place); }
+internal inline void ghost_unit_set_can_place(ee_ghost_unit *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_ghost_unit_can_place) = v; }
+internal inline uint8_t *ghost_unit_can_place_at(const ee_ghost_unit *o) { return (uint8_t *)((uint8_t *)o + of_ghost_unit_can_place); }
+// GetModel: its player's stats of its type's graphics
+typedef ee_dmg_model *(__thiscall *ghost_unit_model_fn)(ee_ghost_unit *);
+internal ghost_unit_model_fn fn_ghost_unit_model;
+internal inline ee_dmg_model *ghost_unit_model(ee_ghost_unit *ghost_unit) { return fn_ghost_unit_model(ghost_unit); }
+// GetScale: its player's stats of its type's height (an x87 float in st0)
+typedef float (__thiscall *ghost_unit_scale_fn)(ee_ghost_unit *);
+internal ghost_unit_scale_fn fn_ghost_unit_scale;
+internal inline float ghost_unit_scale(ee_ghost_unit *ghost_unit) { return fn_ghost_unit_scale(ghost_unit); }
+
+// static class ghost_unit
+// the placement ghosts' functions (EEGhostUnit's statics in the AoC decompilation)
+// Create: the ghosts replaced by one of type for pl at loc (2 floats) turned by rotation (0 for a type that
+// doesn't turn), an airport's three runways and a granary's farms (not when moving) with it; inside the ghosts'
+// lock. Callers: the main game's build menu, the scenario editor's unit list and Move Unit
+typedef void (__cdecl *ghost_unit_create_fn)(float *, int, ee_player *, float, uint8_t);
+internal ghost_unit_create_fn fn_ghost_unit_create;
+internal inline void ghost_unit_create(float *loc, int type, ee_player *pl, float rotation, uint8_t is_move) { fn_ghost_unit_create(loc, type, pl, rotation, is_move); }
+// EEPreviewPlacement: the ghosts moved to loc (2 floats) - their tiles, footprints, heights, whether they can be
+// placed - and engine_display.ghosts_changed set; the main game's and the editor's mouse moves call it
+typedef void (__cdecl *ghost_unit_preview_fn)(float *);
+internal ghost_unit_preview_fn fn_ghost_unit_preview;
+internal inline void ghost_unit_preview(float *loc) { fn_ghost_unit_preview(loc); }
 
 // static class unit
 // the game's functions on units that belong to no class: the unit an ordinary argument, all on the stack
@@ -1203,6 +1257,18 @@ internal int spec_unit_select(int build) {
         of_ghost_unit_player = 0x294;
         of_ghost_unit_type_data = 0x298;
         of_ghost_unit_untold = 0x331;
+        of_ghost_unit_transform = 0x4;
+        of_ghost_unit_heights = 0x44;
+        of_ghost_unit_tile_x = 0x284;
+        of_ghost_unit_tile_y = 0x288;
+        of_ghost_unit_frame = 0x28C;
+        of_ghost_unit_anim = 0x290;
+        of_ghost_unit_cells = 0x2A0;
+        of_ghost_unit_can_place = 0x330;
+        fn_ghost_unit_model = (ghost_unit_model_fn)0x00506208;
+        fn_ghost_unit_scale = (ghost_unit_scale_fn)0x00506227;
+        fn_ghost_unit_create = (ghost_unit_create_fn)0x005F4608;
+        fn_ghost_unit_preview = (ghost_unit_preview_fn)0x005F4DDA;
         data_unit_call_node_del_1 = 0x00628BE7;
         data_unit_call_node_del_2 = 0x00628B7F;
         data_unit_fn_op_delete = 0x006836F0;
@@ -1459,6 +1525,18 @@ internal int spec_unit_select(int build) {
         of_ghost_unit_player = 0x294;
         of_ghost_unit_type_data = 0x298;
         of_ghost_unit_untold = 0x331;
+        of_ghost_unit_transform = 0x4;
+        of_ghost_unit_heights = 0x44;
+        of_ghost_unit_tile_x = 0x284;
+        of_ghost_unit_tile_y = 0x288;
+        of_ghost_unit_frame = 0x28C;
+        of_ghost_unit_anim = 0x290;
+        of_ghost_unit_cells = 0x2A0;
+        of_ghost_unit_can_place = 0x330;
+        fn_ghost_unit_model = (ghost_unit_model_fn)0x0050CB62;
+        fn_ghost_unit_scale = (ghost_unit_scale_fn)0x0050CB81;
+        fn_ghost_unit_create = (ghost_unit_create_fn)0x00604278;
+        fn_ghost_unit_preview = (ghost_unit_preview_fn)0x00604ABA;
         data_unit_call_node_del_1 = 0x0063D998;
         data_unit_call_node_del_2 = 0x0063D930;
         data_unit_fn_op_delete = 0x0069D150;
@@ -1598,6 +1676,10 @@ internal int spec_unit_check(void) {
     bad += spec_code((uintptr_t)fn_ee_complex_doppelganger_hp, "EEComplexDoppelganger.hp");
     bad += spec_slot(vt_ee_complex_doppelganger, slot_doppelganger_hp, (uintptr_t)fn_ee_complex_doppelganger_hp, "EEComplexDoppelganger.hp [slot]");
     bad += spec_vtable(vt_ee_ghost_unit, ".?AVEEGhostUnit@@", "EEGhostUnit [vtable]");
+    bad += spec_code((uintptr_t)fn_ghost_unit_model, "EEGhostUnit.model");
+    bad += spec_code((uintptr_t)fn_ghost_unit_scale, "EEGhostUnit.scale");
+    bad += spec_code((uintptr_t)fn_ghost_unit_create, "ghost_unit.create");
+    bad += spec_code((uintptr_t)fn_ghost_unit_preview, "ghost_unit.preview");
     bad += spec_code(data_unit_call_node_del_1, "unit.call_node_del_1");
     bad += spec_code(data_unit_call_node_del_2, "unit.call_node_del_2");
     bad += spec_code(data_unit_fn_op_delete, "unit.fn_op_delete");

@@ -291,6 +291,12 @@ unsafe struct EEROUnits
     [address((ee)0x00502224, (aoc)0x0050CFBC)]
     extern void fill_doppelganger_object(EEDoppelganger* d, void* record, uint32* count, void* sort_map, uint32 room, int32 x, int32 y, void* info);
 
+    /// FillGhostRecords: after the walk, a record (ghost_records' element) for each placement ghost (ghost_units),
+    /// when they changed (ghosts_changed), inside their lock (ghost_lock) - collect.c's hook of its call
+    [address((ee)0x00501C29, (aoc)0x0050C952)]
+    [call_site("fill_ghosts", (ee)0x005041F7, (aoc)0x0050F132)]
+    extern void fill_ghosts();
+
     // VIRTUAL FUNCTIONS
 
     /// the units' update (from the world's units)
@@ -1132,6 +1138,40 @@ static unsafe class engine_display
     [import_slot("Low-Level Engine.dll", "?MakeIdentity@GETransformation@@QAEXXZ")]
     [address((ee)0x008232F0, (aoc)0x0083772C)]
     static block iat_make_identity;
+
+    /// THE GHOSTS' FILL (EEROUnits.fill_ghosts; collect.c uc_fill_ghosts): the placement ghosts - the world's vector of
+    /// EEGhostUnit* (EEGhostUnit::Create, ghost_unit.create, fills it: a building being placed, an airport's runways,
+    /// a granary's farms), their lock (a TSCriticalSection*), whether they changed since (a byte: the preview sets it,
+    /// the fill makes records only then), the frame's vector of their records (0x420 each: an ee_draw_record, then
+    /// float[12][12] the footprint's corner heights, uint8[12][12] its cells, the tile x, y; push_back
+    /// ghost_record_push), the lift over the ground every record gets (a float, 0.001)
+    [address((ee)0x00918CC0, (aoc)0x00931700)]
+    static block ghost_units;
+
+    [address((ee)0x00918E18, (aoc)0x00931858)]
+    static block ghost_lock;
+
+    [address((ee)0x00941444, (aoc)0x00963240)]
+    static block ghosts_changed;
+
+    [address((ee)0x008D2D00, (aoc)0x008E94A0)]
+    static block ghost_records;
+
+    [address((ee)0x00827AC4, (aoc)0x0083C2A4)]
+    static block ghost_lift;
+
+    /// a ghost record's size and its parts' offsets
+    [value((ee)0x420, (aoc)0x420)]
+    static uint32 size_ghost_record;
+
+    [value((ee)0x148, (aoc)0x148)]
+    static uint32 of_ghost_record_heights;
+
+    [value((ee)0x388, (aoc)0x388)]
+    static uint32 of_ghost_record_cells;
+
+    [value((ee)0x418, (aoc)0x418)]
+    static uint32 of_ghost_record_tile;
 }
 
 /// the game's functions engine_display.c wraps, by the names the C side gives them
@@ -1205,6 +1245,10 @@ static unsafe class engine_display_functions
 
     [address((ee)0x00504F36, (aoc)0x0050FDD5), thiscall]
     static extern void vector_push_small(void* v, void** value);
+
+    /// thiscall(ghost_records, the record): push_back (a copy: its vectors and label copied)
+    [address((ee)0x00504EAA, (aoc)0x0050FD49), thiscall]
+    static extern void ghost_record_push(void* v, void* record);
 
     /// thiscall(the same set, found: 8 bytes - its node, then a byte: 1 inserted, 0 there before -, &the doppelganger):
     /// insert (ret 8; the pair std::set::insert returns, through the hidden pointer)

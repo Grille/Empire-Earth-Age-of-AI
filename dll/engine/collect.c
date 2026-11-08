@@ -713,6 +713,92 @@ internal void uc_fill_dopp_of(ee_ro_units *ro, ee_doppelganger *d, uint8_t *rec,
     }
 }
 
+// THE GHOSTS' FILL (EEROUnits.fill_ghosts, the AoC decompilation's FillGhostRecords: EE 0x501C29, AoC 0x50C952 - the
+// same code but for addresses and offsets, AoC's graphics acquired through their vtable and its types 0x302 and 0x31F
+// lifted by their heights). After the walk, when the placement ghosts changed (the preview moved them), a record for
+// each - the building being placed under the mouse, an airport's runways, a granary's farms: its model and scale (its
+// player's stats of its type), frame, animation, whether it can be placed, its type's and player's values, its tile,
+// its footprint's cells and corner heights, its transformation lifted a little over the ground - into the ghost
+// records' vector (the game's push_back copies it), all of it inside the ghosts' lock. One record on the stack for them
+// all, as the game has it (a field one ghost doesn't set keeps the one before's). dry: no push and no acquire - each
+// record held against the game's (want: its records of this call, n of them) in the dwords the record's constructor
+// or the fill sets (uc_ghost_set), the differences counted.
+internal uint32_t g_uc_gh_n, g_uc_gh_diff, g_uc_gh_calls;
+// a ghost record's dword the record's constructor or the fill sets (the check's: the rest - its circle, bars, ground's
+// height, opacity, state, serial, player ... - is the stack's as it was, in the game's fill too; the placement's
+// drawing sets the opacity and reads none of the rest; the vectors and label are allocations of the copy)
+internal int uc_ghost_set(uint32_t o) {
+    return o < 0x58 || (o >= 0xDC && o < 0xEC) || o == 0x104 || o == 0x110 || (o >= 0x124 && o < 0x134) || o >= 0x144;
+}
+internal void uc_fill_ghosts(int dry, uint8_t *want, uint32_t n) {
+    __attribute__((aligned(8))) uint8_t rec[0x440];
+    fill_consts fc = fill_consts_now();
+    uint32_t size = ghost_record_size(), k = 0;
+    if (size > sizeof rec) return;
+    draw_record_init(rec);
+    g_uc_enter(ghost_lock());
+    if (ghosts_changed()) {
+        void *v = ghost_units();
+        for (uint32_t i = 0; i < vector_size(v); i++) {
+            ee_ghost_unit *g = *(ee_ghost_unit **)type_stats_game(v, (int)i);
+            draw_record_set_gfx(rec, ghost_unit_model(g));
+            if (!dry) graphics_acquire(draw_record_get_gfx(rec));
+            draw_record_set_fraction(rec, 0.0f);
+            draw_record_set_frame(rec, ghost_unit_get_frame(g));
+            draw_record_set_next_frame(rec, ghost_unit_get_frame(g));
+            draw_record_set_anim(rec, ghost_unit_get_anim(g));
+            draw_record_set_gfx_built(rec, NULL);
+            draw_record_set_fogged(rec, 0);
+            draw_record_set_scale(rec, ghost_unit_scale(g));
+            draw_record_set_can_place(rec, ghost_unit_get_can_place(g));
+            ee_unit_type *ty = ghost_unit_get_type_data(g);
+            draw_record_set_class_id(rec, unit_type_get_class_id(ty));
+            draw_record_set_size(rec, unit_type_get_size(ty));
+            memcpy(draw_record_color_at(rec), player_color_at(ghost_unit_get_player(g)), 12);
+            draw_record_set_type(rec, ty);
+            draw_record_set_tinted(rec, 0);
+            draw_record_set_gated(rec, 0);
+            ghost_record_tile(rec)[0] = ghost_unit_get_tile_x(g);
+            ghost_record_tile(rec)[1] = ghost_unit_get_tile_y(g);
+            memcpy(ghost_record_cells(rec), ghost_unit_cells_at(g), 0x90);
+            memcpy(ghost_record_heights(rec), ghost_unit_heights_at(g), 0x240);
+            transform_assign(rec, ghost_unit_transform_at(g));
+            float *t = draw_record_transform_at(rec);
+            t[11] = (float)((long double)t[11] + ghost_lift());
+            if (build_is("aoc") && unit_type_get_id(ty) == 0x302) t[11] = (float)((long double)t[11] + fc.sink_302);
+            else if (build_is("aoc") && unit_type_get_id(ty) == 0x31F) t[11] = (float)((long double)t[11] + fc.sink_31f);
+            if (!dry) ghost_record_push(ghost_records(), rec);
+            else {
+                g_uc_gh_n++;
+                const uint8_t *w = k < n ? want + (size_t)k * size : NULL;
+                k++;
+                uint32_t j = 0;
+                while (w && j < size / 4 && (!uc_ghost_set(j * 4) || !memcmp(rec + j * 4, w + j * 4, 4))) j++;
+                if (!w || j < size / 4) {
+                    if (g_uc_gh_diff++ < 8)
+                        log_locked("# collect: ghost's record differs: type %d, the game's %u records: from +0x%X, the game's %08x, ours %08x\n",
+                                   unit_type_get_id(ty), n, j * 4, w && j < size / 4 ? *(const uint32_t *)(w + j * 4) : 0,
+                                   j < size / 4 ? *(const uint32_t *)(rec + j * 4) : 0);
+                }
+            }
+        }
+    }
+    g_uc_leave(ghost_lock());
+    if (dry && k != n && g_uc_gh_diff++ < 8) log_locked("# collect: ghosts' records: the game's %u, ours %u\n", n, k);
+    draw_record_destroy(rec);
+}
+// at the update's call of the ghosts' fill: the game's, the game's held against ours (fill check: its records of this
+// call, then ours dry) or ours
+internal void __thiscall uc_hook_fill_ghosts(ee_ro_units *ro) {
+    if (g_uc_fill == 2) { uc_fill_ghosts(0, NULL, 0); return; }
+    uint8_t *v = ghost_records();
+    uint32_t size = ghost_record_size(), n0 = (uint32_t)(*(uint8_t **)(v + 8) - *(uint8_t **)(v + 4)) / size;
+    ro_units_fill_ghosts(ro);
+    if (g_uc_fill != 1) return;
+    uint32_t n1 = (uint32_t)(*(uint8_t **)(v + 8) - *(uint8_t **)(v + 4)) / size;
+    g_uc_gh_calls++;
+    uc_fill_ghosts(1, *(uint8_t **)(v + 4) + (size_t)n0 * size, n1 - n0);
+}
 // the walk's fill: the game's or ours (the pipe: picture collect fill game | own) - also for walls.c's hook of its site,
 // which calls collect_fill for the fill and then shears its farms
 internal void __thiscall collect_fill(void *c, ee_unit *u, float *rec, void *p3, void *p4) {
@@ -876,14 +962,25 @@ internal void collect_install(void) {
     uint8_t want[6] = { 0x8B, 0x0D };   // mov ecx, [picker_lock]
     memcpy(want + 2, &g_uc_lock_at, 4);
     g_uc_installed = g_uc_enter && g_uc_leave && patch_insn6_call((uintptr_t)engine_display_units_walk_at(), want, collect_thunk);
-    if (g_log) fprintf(g_log, "# collect: the units' walk %s (the game's until the pipe's picture collect own)\n",
-                       g_uc_installed ? "hooked" : "NOT hooked (exe differs)");
+    int ghosts = g_uc_installed && patch_fill_ghosts(uc_hook_fill_ghosts);
+    if (g_log) fprintf(g_log, "# collect: the units' walk %s (the game's until the pipe's picture collect own), the ghosts' fill %s\n",
+                       g_uc_installed ? "hooked" : "NOT hooked (exe differs)", ghosts ? "hooked" : "NOT hooked");
 }
 
 // the pipe's picture collect own | game: 0 done, -1 not installed
 internal int collect_own(int on) {
     if (!g_uc_installed) return -1;
     g_uc_own = on;
+    return 0;
+}
+// the pipe's picture collect ghost <type> <x> <y>: a placement ghost of the type for the local player at the tile, as
+// the build menu makes one and the mouse moves it (the game's Create and preview) - for the fill's check in a game
+// nobody plays (type -1: only moved there)
+internal int collect_ghost(int type, float x, float y) {
+    if (!g_uc_installed) return -1;
+    float loc[2] = { x, y };
+    if (type >= 0) ghost_unit_create(loc, type, game_players()[local_player_index()], 0.0f, 0);
+    ghost_unit_preview(loc);
     return 0;
 }
 // picture collect opacity game | check | own (0, 1, 2; the walk's - collect own): the counts begin again
@@ -905,7 +1002,7 @@ internal int collect_drawn(int how) {
 // its record is done: the lists' print in a paused game holds the two against each other)
 internal int collect_fill_mode(int how) {
     if (!g_uc_installed) return -1;
-    g_uc_tr_n = g_uc_tr_diff = g_uc_dp_n = g_uc_dp_diff = g_uc_dp_yes = 0;
+    g_uc_tr_n = g_uc_tr_diff = g_uc_dp_n = g_uc_dp_diff = g_uc_dp_yes = g_uc_gh_n = g_uc_gh_diff = g_uc_gh_calls = 0;
     g_uc_fill = how;
     return 0;
 }
@@ -961,8 +1058,8 @@ internal void collect_print(void) {
         log_locked("# collect: opacity held against the game's: %u objects, %u differ (land buildings tested by the camera's front plane %u, faded %u)\n",
                    g_uc_op_n, g_uc_op_diff, g_uc_op_land, g_uc_op_near);
     if (g_uc_fill == 1)
-        log_locked("# collect: trees' fill held against the game's: %u trees, %u differ; doppelgangers' %u (%u drawn), %u differ\n", g_uc_tr_n, g_uc_tr_diff,
-                   g_uc_dp_n, g_uc_dp_yes, g_uc_dp_diff);
+        log_locked("# collect: trees' fill held against the game's: %u trees, %u differ; doppelgangers' %u (%u drawn), %u differ; ghosts' %u (%u fills), %u differ\n", g_uc_tr_n, g_uc_tr_diff,
+                   g_uc_dp_n, g_uc_dp_yes, g_uc_dp_diff, g_uc_gh_n, g_uc_gh_calls, g_uc_gh_diff);
     if (g_uc_drawn == 1)
         log_locked("# collect: view test held against the game's: %u objects (%u drawn), %u differ\n", g_uc_dr_n, g_uc_dr_yes, g_uc_dr_diff);
 }
