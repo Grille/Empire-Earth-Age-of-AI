@@ -3335,6 +3335,7 @@ internal uint32_t calls_target_ok[4];
 internal uint32_t call_gate_convert;
 internal uint32_t call_upgrade_convert;
 internal uint32_t calls_wall_piece[3];
+internal uint32_t call_wall_ghosts;
 internal uint32_t calls_wall_joints[2];
 
 // unit_type.cs

@@ -52,9 +52,7 @@ internal void ws_acquire(ee_dmg_model *gfx) {
 // saw: a wall's are often not there yet when its first pieces are laid out (none in the first game minutes). The
 // matrix is the game's state (the unit's position, its points), so the fit takes a user of its own, the same step on
 // every PC, and has the same model everywhere
-internal ee_model *ws_model(ee_unit *u, int anim) {
-    ee_unit_stats *st = unit_get_stats(u);
-    ee_dmg_model *gfx = st ? unit_stats_get_gfx(st) : NULL;
+internal ee_model *ws_model(ee_dmg_model *gfx, int anim) {
     int ma = anim == WS_SLOPE ? WS_STRAIGHT : anim == WS_SLOPE_DIAG ? WS_DIAG : anim;
     ee_model *mdl = gfx ? ((ee_model **)dmg_model_anim_model_at(gfx))[ma] : NULL;
     if (gfx && !mdl) {
@@ -99,10 +97,8 @@ internal int g_ws_draw_hooks;
 
 // the tower of a wall's era (UT_WALL_LINE's i-th is UT_TOWER_LINE's i+1-th: the towers start in the Stone Age), from
 // the wall's owner's graphics of it - loaded for the fit as the wall's are; NULL for barbed wire and any wall of no line
-internal ee_model *ws_tower_model(ee_unit *u) {
+internal ee_model *ws_tower_model(int t, ee_player *pl) {
     static const enum ut_name walls[] = { UT_WALL_LINE }, towers[] = { UT_TOWER_LINE };
-    int t = unit_type_get_id(unit_get_type_data(u));
-    ee_player *pl = unit_get_owner(u);
     for (int i = 0; i < (int)(sizeof walls / sizeof *walls); i++) {
         if (g_ut[walls[i]] != t) continue;
         int tt = g_ut[towers[i + 1]];
@@ -508,8 +504,18 @@ struct wj_at { int kind, sx, sy; ee_unit *u; };
 struct wj_jog_fit { float ox, oy, fx, fy, ax, ay, ea, eb; int diag; };   // off its tile's middle, its facing, across it, how far its ends reach on, its ends along a diagonal piece's
 internal struct wj_at wj_at(const ee_map *map, int x, int y, const ee_player *pl);
 internal int wj_jog_place(const ee_map *map, int x, int y, const ee_player *pl, struct wj_jog_fit *j);
-internal void wj_upright(const ee_map *map, ee_unit *u, float fx, float fy);
+internal void wj_upright_m(const ee_map *map, float *m, int tx, int ty, float fx, float fy);
 internal int g_wj_on;
+// a wall's placement preview on the tiles (THE PREVIEW below), which wj_at reads before the map - only while the thread
+// that makes the preview is at it: the walls' state is the simulation's, the same on every PC, and never sees this
+#define WJ_PV_MAX 1024
+#define WJ_PV_SLOTS 4096    // the tiles' hash (a power of two)
+struct wj_pv { int x, y; struct wj_at at; ee_ghost_unit *g; };
+internal struct wj_pv g_wj_pv[WJ_PV_MAX];
+internal int16_t g_wj_pv_slot[WJ_PV_SLOTS];   // an entry's index + 1, 0 none
+internal int g_wj_pv_n;
+internal DWORD g_wj_pv_thread;
+internal const ee_player *g_wj_pv_pl;
 internal volatile LONG g_ws_ed_seen;   // GetTickCount of the scenario editor's last frame, 0 none (below)
 internal int g_ws_ed_base;   // the editor's walls looked at since it was entered (below)
 
@@ -525,34 +531,34 @@ internal int ws_post_at(const ee_map *map, int x, int y, const ee_player *pl) {
     return k == WJ_POST || (g_wj_on && k == WJ_HUB);
 }
 
-// one piece onto the ground; 0 when it isn't a piece of the layout's or its ground is off the map
-internal int ws_fit(ee_unit *u) {
+// what the fit needs of a piece: a unit's on the map, a placement ghost's (THE PREVIEW below)
+struct ws_piece { int tx, ty, anim, type; float scale; ee_player *pl; ee_dmg_model *gfx; };
+internal int ws_plain_anim(int anim) { return anim == WS_SLOPE ? WS_STRAIGHT : anim == WS_SLOPE_DIAG ? WS_DIAG : anim; }
+
+// one piece (anim a plain one's) onto the ground: its matrix m (3 x 4, by row); 0 when its ground is off the map
+internal int ws_fit_piece(const struct ws_piece *p, float *m) {
     ee_map *map = game_map();
-    if (!map || !u) return 0;
-    int anim = unit_get_anim(u);
-    if (anim == WS_SLOPE) { unit_start_anim(u, WS_STRAIGHT, -1, 0); g_ws_unsloped++; }
-    else if (anim == WS_SLOPE_DIAG) { unit_start_anim(u, WS_DIAG, -1, 0); g_ws_unsloped++; }
-    else if (anim != WS_STRAIGHT && anim != WS_DIAG && anim != WS_POST) return 0;
+    if (!map) return 0;
+    int anim = p->anim, tx = p->tx, ty = p->ty;
     // the middle of its tile, not the matrix's: a piece's matrix is moved below, a fit again gives the same
-    int tx = unit_get_x(u), ty = unit_get_y(u);
     float px = (float)tx + 0.5f, py = (float)ty + 0.5f;
-    ee_model *mdl = ws_model(u, anim);
-    ws_skirt_want(mdl, ws_tower_model(u));
+    ee_model *mdl = ws_model(p->gfx, anim);
+    ws_skirt_want(mdl, ws_tower_model(p->type, p->pl));
     if (anim == WS_POST) {
         float mid = ground_at(map, px, py);
         if (mid != mid) { g_ws_skipped++; return 0; }
         // a piece the game made a post (a wall laid onto its side) keeps what it stood with: a jog's place off its tile's
         // middle and its stretch, and this fit only sets the height - a post drawn long and slanted (the player, 2026-11-08:
         // "i have the stretched connector again")
-        float ly = sqrtf(unit_get_matrix(u, 1) * unit_get_matrix(u, 1) + unit_get_matrix(u, 5) * unit_get_matrix(u, 5));
-        float lx = sqrtf(unit_get_matrix(u, 0) * unit_get_matrix(u, 0) + unit_get_matrix(u, 4) * unit_get_matrix(u, 4));
-        if (fabsf(unit_get_matrix(u, 3) - px) > 0.001f || fabsf(unit_get_matrix(u, 7) - py) > 0.001f || fabsf(lx - ly) > 0.001f) wj_upright(map, u, 0, 1);
+        float ly = sqrtf(m[1] * m[1] + m[5] * m[5]);
+        float lx = sqrtf(m[0] * m[0] + m[4] * m[4]);
+        if (fabsf(m[3] - px) > 0.001f || fabsf(m[7] - py) > 0.001f || fabsf(lx - ly) > 0.001f) wj_upright_m(map, m, tx, ty, 0, 1);
         // its scale from its turn (x, y), so fitting it again gives the same; its skirt down to its lower corners
-        float s = sqrtf(unit_get_matrix(u, 0) * unit_get_matrix(u, 0) + unit_get_matrix(u, 4) * unit_get_matrix(u, 4));
-        unit_set_matrix(u, 8, 0);
-        unit_set_matrix(u, 9, 0);
-        unit_set_matrix(u, 10, s);
-        unit_set_matrix(u, 11, mid);
+        float s = sqrtf(m[0] * m[0] + m[4] * m[4]);
+        m[8] = 0;
+        m[9] = 0;
+        m[10] = s;
+        m[11] = mid;
         g_ws_posts++;
         return 1;
     }
@@ -562,15 +568,15 @@ internal int ws_fit(ee_unit *u) {
     // fit grew a Copper or barbed wire piece by it again - a wall laid on beside it fitted it once more, and it rose
     // into a tower of stone (the player, 2026-11-05: "wall grows infinitely when i continue to place a wall segment
     // into or beside it")
-    float fx = unit_get_matrix(u, 1), fy = unit_get_matrix(u, 5), f = sqrtf(fx * fx + fy * fy);
-    float len = unit_get_scale(u);
-    if (!(len > 0.01f && len < 100)) len = sqrtf(unit_get_matrix(u, 0) * unit_get_matrix(u, 0) + unit_get_matrix(u, 4) * unit_get_matrix(u, 4));
+    float fx = m[1], fy = m[5], f = sqrtf(fx * fx + fy * fy);
+    float len = p->scale;
+    if (!(len > 0.01f && len < 100)) len = sqrtf(m[0] * m[0] + m[4] * m[4]);
     if (f < 0.01f || len < 0.01f) { g_ws_skipped++; return 0; }
     fx /= f; fy /= f;
     // a straight piece of a jog from the middle of one link to the middle of the next, off its tile's middle; one that
     // no longer is (its neighbours not on the map yet, wall_joins off) back along the tiles
     struct wj_jog_fit jf;
-    int straight = anim == WS_STRAIGHT || anim == WS_SLOPE, jog = g_wj_on && straight && wj_jog_place(map, tx, ty, unit_get_owner(u), &jf);
+    int straight = anim == WS_STRAIGHT, jog = g_wj_on && straight && wj_jog_place(map, tx, ty, p->pl, &jf);
     if (jog) { px += jf.ox; py += jf.oy; fx = jf.fx; fy = jf.fy; }
     else if (straight && fabsf(fx) > 0.3f && fabsf(fy) > 0.3f) {
         if (fabsf(fx) > fabsf(fy)) { fx = fx > 0 ? 1.0f : -1.0f; fy = 0; }
@@ -596,7 +602,7 @@ internal int ws_fit(ee_unit *u) {
     // along the run (by its tile across the run's direction) WS_OVERLAP thicker and taller, its faces off its
     // neighbours'
     float grow = 1, across = 0;
-    int type = unit_type_get_id(unit_get_type_data(u));
+    int type = p->type;
     if (UT_IN(type, UT_B_WALL_COPPER, UT_B_BARBED_WIRE)) {
         float mid = (ylo + yhi) * 0.5f, own = jog ? 0.5f : d;   // a jog's the plain piece's, drawn longer: no seam
         ylo = mid - own; yhi = mid + own;
@@ -611,7 +617,7 @@ internal int ws_fit(ee_unit *u) {
         if (hl == hl && hr == hr) across = (hl - hr) / (2 * WS_ACROSS);
     }
     int sx = fx > 0.3f ? 1 : fx < -0.3f ? -1 : 0, sy = fy > 0.3f ? 1 : fy < -0.3f ? -1 : 0;
-    ee_player *pl = unit_get_owner(u);
+    ee_player *pl = p->pl;
     float ea = jog ? jf.ea : ws_post_at(map, tx - sx, ty - sy, pl) ? WS_INTO_POST : 0, eb = jog ? jf.eb : ws_post_at(map, tx + sx, ty + sy, pl) ? WS_INTO_POST : 0;
     float k = (2 * d + ea + eb) / (yhi - ylo), c = -d - ea - k * ylo, slope = (hb - ha) / (2 * d);   // its y -> k y + c along f
     float wx = jog ? jf.ax : fy, wy = jog ? jf.ay : -fx;   // its local x axis: square to it, a jog's along its neighbour's end
@@ -620,18 +626,33 @@ internal int ws_fit(ee_unit *u) {
     // wall is a bit too narrow and too high")
     float wide = jog ? WS_JOG_WIDE : 1, tall = 1;
     if (jog && jf.diag && box) {
-        ee_model *dm = ws_model(u, WS_DIAG);
+        ee_model *dm = ws_model(p->gfx, WS_DIAG);
         ee_box *db = dm && model_get_frames(dm) ? model_get_boxes(dm) : NULL;
         float sw = box_get_max(box).x - box_get_min(box).x, sz = box_get_max(box).z;
         if (db && sw > 0.01f && sz > 0.01f) { wide = (box_get_max(db).x - box_get_min(db).x) / sw; tall = box_get_max(db).z / sz; }
     }
-    const float m[12] = {
+    const float fit[12] = {
         wx * len * grow * wide,  fx * k,    0, px + fx * c,
         wy * len * grow * wide,  fy * k,    0, py + fy * c,
         across * len * grow, slope * k, len * grow * tall, (ha + hb) * 0.5f + slope * c,
     };
-    for (int i = 0; i < 12; i++) unit_set_matrix(u, i, m[i]);
+    memcpy(m, fit, sizeof fit);
     g_ws_pieces++;
+    return 1;
+}
+
+// one piece of the map onto the ground; 0 when it isn't a piece of the layout's or its ground is off the map
+internal int ws_fit(ee_unit *u) {
+    if (!game_map() || !u) return 0;
+    int anim = unit_get_anim(u), plain = ws_plain_anim(anim);
+    if (plain != anim) { unit_start_anim(u, plain, -1, 0); g_ws_unsloped++; }
+    else if (anim != WS_STRAIGHT && anim != WS_DIAG && anim != WS_POST) return 0;
+    ee_unit_stats *st = unit_get_stats(u);
+    const struct ws_piece p = { unit_get_x(u), unit_get_y(u), plain, unit_type_get_id(unit_get_type_data(u)), unit_get_scale(u), unit_get_owner(u), st ? unit_stats_get_gfx(st) : NULL };
+    float m[12];
+    for (int i = 0; i < 12; i++) m[i] = unit_get_matrix(u, i);
+    if (!ws_fit_piece(&p, m)) return 0;
+    for (int i = 0; i < 12; i++) unit_set_matrix(u, i, m[i]);
     return 1;
 }
 
@@ -691,16 +712,30 @@ internal int wj_alive(ee_unit *o) {   // a site laid out has no hit points yet; 
 internal int wj_piece_anim(int anim) { return anim == WS_STRAIGHT || anim == WS_DIAG || anim == WS_SLOPE || anim == WS_SLOPE_DIAG; }
 
 // a piece's axis, a step between tiles: its facing (the local y axis), straight along x or y, diagonal both
-internal void wj_axis(const ee_unit *u, int *sx, int *sy) {
-    float fx = unit_get_matrix(u, 1), fy = unit_get_matrix(u, 5), f = sqrtf(fx * fx + fy * fy);
+internal void wj_axis_of(float fx, float fy, int *sx, int *sy) {
+    float f = sqrtf(fx * fx + fy * fy);
     if (f > 0.01f) { fx /= f; fy /= f; }
     *sx = fx > 0.3f ? 1 : fx < -0.3f ? -1 : 0;
     *sy = fy > 0.3f ? 1 : fy < -0.3f ? -1 : 0;
+}
+internal void wj_axis(const ee_unit *u, int *sx, int *sy) { wj_axis_of(unit_get_matrix(u, 1), unit_get_matrix(u, 5), sx, sy); }
+
+// the preview's entry for tile x, y, NULL none
+internal struct wj_pv *wj_pv_find(int x, int y) {
+    for (unsigned h = ((unsigned)x * 73u + (unsigned)y * 179u) & (WJ_PV_SLOTS - 1); g_wj_pv_slot[h]; h = (h + 1) & (WJ_PV_SLOTS - 1)) {
+        struct wj_pv *p = &g_wj_pv[g_wj_pv_slot[h] - 1];
+        if (p->x == x && p->y == y) return p;
+    }
+    return NULL;
 }
 
 // the tile's objects (a building on every tile it covers), pl's: its wall's piece or post, else its tower or gate
 internal struct wj_at wj_at(const ee_map *map, int x, int y, const ee_player *pl) {
     struct wj_at a = { WJ_NONE, 0, 0, NULL };
+    if (g_wj_pv_n && pl == g_wj_pv_pl && GetCurrentThreadId() == g_wj_pv_thread) {
+        const struct wj_pv *p = wj_pv_find(x, y);
+        if (p) return p->at;
+    }
     int n = map ? (int)map_get_size(map) : 0;
     ee_tile *tile = x >= 0 && y >= 0 && x < n && y < n ? map_get_tiles(map)[y * n + x] : NULL;
     for (void *node = tile ? tile_get_objects(tile) : NULL; node; node = tilenode_get_next(node)) {
@@ -866,23 +901,35 @@ internal struct wj_at wj_want(const ee_map *map, int x, int y, struct wj_at self
     return w;
 }
 
-// u upright on its tile as the layout leaves a piece: facing fx, fy (a unit vector), on its tile's corner x, y
-internal void wj_upright(const ee_map *map, ee_unit *u, float fx, float fy) {
-    int tx = unit_get_x(u), ty = unit_get_y(u);
+// a matrix upright on tile tx, ty as the layout leaves a piece: facing fx, fy (a unit vector), on its tile's corner x, y
+internal void wj_upright_m(const ee_map *map, float *m, int tx, int ty, float fx, float fy) {
     float z = ground_corner(map, tx, ty);
-    const float m[12] = { fy, fx, 0, (float)tx + 0.5f,  -fx, fy, 0, (float)ty + 0.5f,  0, 0, 1, z == z ? z : unit_get_matrix(u, 11) };
+    const float up[12] = { fy, fx, 0, (float)tx + 0.5f,  -fx, fy, 0, (float)ty + 0.5f,  0, 0, 1, z == z ? z : m[11] };
+    memcpy(m, up, sizeof up);
+}
+internal void wj_upright(const ee_map *map, ee_unit *u, float fx, float fy) {
+    float m[12];
+    for (int i = 0; i < 12; i++) m[i] = unit_get_matrix(u, i);
+    wj_upright_m(map, m, unit_get_x(u), unit_get_y(u), fx, fy);
     for (int i = 0; i < 12; i++) unit_set_matrix(u, i, m[i]);
 }
 
-// u turned into a piece along sx, sy or a post (the fit after puts it onto the ground)
-internal void wj_turn(const ee_map *map, ee_unit *u, struct wj_at w) {
+// the piece on tile x, y turned into w: a piece along sx, sy, a post or a jog - matrix m upright (the fit after puts it
+// onto the ground), its animation returned
+internal int wj_turned(const ee_map *map, int x, int y, const ee_player *pl, struct wj_at w, float *m) {
     float l = w.sx && w.sy ? sqrtf(0.5f) : 1.0f;
-    unit_start_anim(u, w.kind == WJ_POST ? WS_POST : w.sx && w.sy ? WS_DIAG : WS_STRAIGHT, -1, 0);
     int a, b;
     float jx = 0, jy = 1;
-    if (w.kind == WJ_JOG && wj_jog(map, unit_get_x(u), unit_get_y(u), unit_get_owner(u), &a, &b)) wj_chord(&a, &b, &jx, &jy);
-    if (w.kind == WJ_PIECE) wj_upright(map, u, (float)w.sx * l, (float)w.sy * l);
-    else wj_upright(map, u, jx, jy);
+    if (w.kind == WJ_JOG && wj_jog(map, x, y, pl, &a, &b)) wj_chord(&a, &b, &jx, &jy);
+    if (w.kind == WJ_PIECE) wj_upright_m(map, m, x, y, (float)w.sx * l, (float)w.sy * l);
+    else wj_upright_m(map, m, x, y, jx, jy);
+    return w.kind == WJ_POST ? WS_POST : w.sx && w.sy ? WS_DIAG : WS_STRAIGHT;
+}
+internal void wj_turn(const ee_map *map, ee_unit *u, struct wj_at w) {
+    float m[12];
+    for (int i = 0; i < 12; i++) m[i] = unit_get_matrix(u, i);
+    unit_start_anim(u, wj_turned(map, unit_get_x(u), unit_get_y(u), unit_get_owner(u), w, m), -1, 0);
+    for (int i = 0; i < 12; i++) unit_set_matrix(u, i, m[i]);
     if (w.kind == WJ_POST) g_wj_to_post++; else g_wj_to_piece++;
 }
 
@@ -988,6 +1035,57 @@ internal void __cdecl hook_wall_joints(ee_unit_vec *pieces, void *tiles, ee_play
         }
     g_ws_laid_n = 0;
     if (x1 >= 0) wj_note(x0, y0, x1, y1);
+}
+
+// THE PREVIEW: while a wall is dragged out the game makes a placement ghost per tile (wall_ghosts), each the piece the
+// layout gives its tile, flat at the ground under its tile's middle and at its model's own length - posts at every step of
+// a slanted wall, none of the joins or the fit a built wall gets (the player, 2026-11-08: "can you make the building
+// preview display our actual wall"). So the ghosts go through the same two: their tiles laid over the map for wj_at, wj_want
+// looks at them as it does at a new wall's pieces, ws_fit_piece puts each on the ground. Only the picture: a ghost is no
+// map object, and an older wall beside it stays as it is until the wall is built. The game's calls hold the ghosts' lock
+// around this, so the drawing never sees a ghost half done. A tile under a tower or a gate gets no piece, as in the layout
+// - its ghost left as the game made it; a tile that can't be built on (a red ghost) counts, the line drawn whole
+internal void __cdecl hook_wall_ghosts(void *tiles, void *codes, uint32_t tech, ee_player *pl, float rotation) {
+    wall_ghosts(tiles, codes, tech, pl, rotation);
+    ee_map *map = game_map();
+    if (!g_ws_on || !map) return;
+    void *v = ghost_units();
+    int n = 0;
+    memset(g_wj_pv_slot, 0, sizeof g_wj_pv_slot);
+    for (uint32_t i = 0; i < vector_size(v) && n < WJ_PV_MAX; i++) {
+        ee_ghost_unit *g = *(ee_ghost_unit **)type_stats_game(v, (int)i);
+        int x = ghost_unit_get_tile_x(g), y = ghost_unit_get_tile_y(g), anim = ws_plain_anim(ghost_unit_get_anim(g));
+        unsigned h = ((unsigned)x * 73u + (unsigned)y * 179u) & (WJ_PV_SLOTS - 1);
+        if ((anim != WS_STRAIGHT && anim != WS_DIAG && anim != WS_POST) || wj_pv_find(x, y) || wj_at(map, x, y, pl).kind == WJ_HUB) continue;
+        if (anim != ghost_unit_get_anim(g)) ghost_unit_start_anim(g, anim);
+        struct wj_pv *p = &g_wj_pv[n];
+        *p = (struct wj_pv){ x, y, { anim == WS_POST ? WJ_POST : WJ_PIECE, 0, 0, NULL }, g };
+        if (anim != WS_POST) wj_axis_of(ghost_unit_get_transform(g, 1), ghost_unit_get_transform(g, 5), &p->at.sx, &p->at.sy);
+        while (g_wj_pv_slot[h]) h = (h + 1) & (WJ_PV_SLOTS - 1);
+        g_wj_pv_slot[h] = (int16_t)++n;
+    }
+    g_wj_pv_pl = pl;
+    g_wj_pv_thread = GetCurrentThreadId();
+    g_wj_pv_n = n;
+    for (int r = 0; g_wj_on && r < WJ_ROUNDS; r++) {
+        static struct wj_at want[WJ_PV_MAX];
+        int turned = 0;
+        for (int i = 0; i < n; i++) want[i] = wj_want(map, g_wj_pv[i].x, g_wj_pv[i].y, g_wj_pv[i].at, pl);
+        for (int i = 0; i < n; i++) {
+            struct wj_pv *p = &g_wj_pv[i];
+            if (want[i].kind == p->at.kind && want[i].sx == p->at.sx && want[i].sy == p->at.sy) continue;
+            p->at = want[i];
+            ghost_unit_start_anim(p->g, wj_turned(map, p->x, p->y, pl, want[i], ghost_unit_transform_at(p->g)));
+            turned++;
+        }
+        if (!turned) break;
+    }
+    for (int i = 0; i < n; i++) {
+        ee_ghost_unit *g = g_wj_pv[i].g;
+        const struct ws_piece p = { g_wj_pv[i].x, g_wj_pv[i].y, ghost_unit_get_anim(g), unit_type_get_id(ghost_unit_get_type_data(g)), ghost_unit_scale(g), pl, ghost_unit_model(g) };
+        ws_fit_piece(&p, ghost_unit_transform_at(g));
+    }
+    g_wj_pv_n = 0;
 }
 
 // a gate laid into a wall (build_gate 0x6022E3: the gate button's, the AI's) makes each of its five pieces anew as the
@@ -1320,6 +1418,7 @@ internal void walls_install(void) {
     int upg = g_ws_on ? patch_upgrade_convert(hook_upgrade_convert) : 0;
     if (g_ws_on) g_unit_converted = walls_converted;
     if (g_ws_on && !upg && g_log) fprintf(g_log, "# walls: the upgrade's conversion NOT hooked\n");
+    if (g_ws_on && !patch_wall_ghosts(hook_wall_ghosts) && g_log) fprintf(g_log, "# walls: the placement preview NOT hooked\n");
     int pof = 0, pn = g_wj_on || g_bl_on ? patch_place_building(hook_place_building, &pof) : 0;
     int ed = patch_editor_frame(hook_editor_frame);   // whatever the walls say: the hills' shadows read it too (render_shadows.c)
     int df = g_bl_on ? patch_draw_record_fill(hook_draw_record_fill) : 0;

@@ -908,6 +908,11 @@ unsafe struct EEGhostUnit
     /// GetScale: its player's stats of its type's height (an x87 float in st0)
     [address((ee)0x00506227, (aoc)0x0050CB81)]
     extern float32 scale();
+
+    /// its animation and that animation's first frame (its graphics' table, +0x350 in the 2017 update, +0x360 in AoC)
+    /// - a wall's ghost gets its piece's so (0x6383E9)
+    [address((ee)0x005F4DB7, (aoc)0x00604A97)]
+    extern void start_anim(int32 anim);
 }
 
 /// the placement ghosts' functions (EEGhostUnit's statics in the AoC decompilation)
@@ -1065,6 +1070,19 @@ static unsafe class unit_functions
     [call_site("wall_piece", (ee)0x0062A0F9, (aoc)0x0063EF01)]
     [call_site("wall_piece", (ee)0x0066CBF6, (aoc)0x00685CF3)]
     static extern void wall_piece(EEUnit* u, int32 code, int32 raised);
+
+    /// cdecl(tiles, layout codes, the wall's tech, player, its turn): the ghosts replaced by one per tile (8 bytes each:
+    /// x, y), each the piece of its layout code (0x6383E9: as wall_piece picks it), at the ground under its tile's
+    /// middle, flat; the vectors are the runtime library's (begin +4, end +8) - inside the ghosts' lock. Its one caller
+    /// is wall_preview
+    [address((ee)0x005F4A1C, (aoc)0x006046FC), cdecl]
+    [call_site("wall_ghosts", (ee)0x00629DC7, (aoc)0x0063EB9E)]
+    static extern void wall_ghosts(void* tiles, void* codes, uint32 tech, EEPlayer* pl, float32 rotation);
+
+    /// cdecl(tiles, the wall's tech, player index): a dragged wall's preview - the tiles' repeats taken out, the rest
+    /// laid out (0x636CDC) and made ghosts (wall_ghosts). The interface's mouse moves call it, the ghosts' lock held
+    [address((ee)0x00629D75, (aoc)0x0063EB4C), cdecl]
+    static extern void wall_preview(void* tiles, uint32 tech, int32 pi);
 
     /// cdecl(pieces, the layout's tiles, player, map): after a wall's layout (0x629DDB, the editor's 0x66CB35) each of its
     /// pieces with more than two of the player's built walls-family objects within a tile becomes a post (anim 11),

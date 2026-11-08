@@ -515,6 +515,45 @@ internal void cmd_wallfit(char *out, const char *args) {
     REPLY("ok: the walls from %d,%d to %d,%d fitted again\n", x0, y0, x1, y1);
 }
 
+// wallghost P T x0 y0 x1 y1: the placement preview of player P's wall of type T dragged from x0, y0 to x1, y1, as the
+// interface's mouse moves make it (the game's wall_preview, a tile a step along the line); the ghosts it made printed
+internal void cmd_wallghost(char *out, const char *args) {
+    int p, t, x0, y0, x1, y1, tech = 0;
+    if (sscanf(args, "%d %d %d %d %d %d", &p, &t, &x0, &y0, &x1, &y1) < 6) { REPLY("error: usage: wallghost P T x0 y0 x1 y1\n"); return; }
+    ee_player *pl = player_at(p);
+    ee_tech_tree *tt = pl ? player_get_tech_tree(pl) : NULL;
+    ee_map *map = game_map();
+    if (!tt || !map) { REPLY("error: no player %d or no map\n", p); return; }
+    int size = (int)map_get_size(map);   // the layout reads every tile, and the square's corners have none: the mouse never gets there
+    if (x0 < 0 || y0 < 0 || x1 < 0 || y1 < 0 || x0 >= size || y0 >= size || x1 >= size || y1 >= size || !map_get_tiles(map)[y0 * size + x0] || !map_get_tiles(map)[y1 * size + x1]) {
+        REPLY("error: an end off the map (%d tiles)\n", size);
+        return;
+    }
+    for (int id = 1; id < 15000 && !tech; id++) {
+        ee_tech *e = tech_tree_lookup(tt, id);
+        ee_tech_data *d = e ? tech_get_data(e) : NULL;
+        if (d && tech_data_get_unit_type(d) == t) tech = id;
+    }
+    if (!tech) { REPLY("error: no tech builds type %d\n", t); return; }
+    int dx = x1 - x0, dy = y1 - y0, n = (abs(dx) > abs(dy) ? abs(dx) : abs(dy)) + 1;
+    int *xy = game_new((uintptr_t)n * 8);
+    for (int i = 0; i < n; i++) {
+        float f = n > 1 ? (float)i / (float)(n - 1) : 0;
+        xy[i * 2] = (int)floorf((float)x0 + 0.5f + f * (float)dx);
+        xy[i * 2 + 1] = (int)floorf((float)y0 + 0.5f + f * (float)dy);
+    }
+    void *v[4] = { NULL, xy, xy + n * 2, xy + n * 2 };   // the runtime library's vector: begin, end, its capacity's end
+    wall_preview(v, (uint32_t)tech, p);
+    vector_free(v);
+    void *gv = ghost_units();
+    REPLY("ok: tech %d, %u ghosts\n", tech, vector_size(gv));
+    for (uint32_t i = 0; i < vector_size(gv) && i < 64; i++) {
+        ee_ghost_unit *g = *(ee_ghost_unit **)type_stats_game(gv, (int)i);
+        REPLY("%d,%d anim %d can %d m %.3f %.3f %.3f | %.3f %.3f %.3f | up %.3f z %.3f\n", ghost_unit_get_tile_x(g), ghost_unit_get_tile_y(g), ghost_unit_get_anim(g), ghost_unit_get_can_place(g),
+              ghost_unit_get_transform(g, 0), ghost_unit_get_transform(g, 1), ghost_unit_get_transform(g, 3), ghost_unit_get_transform(g, 4), ghost_unit_get_transform(g, 5), ghost_unit_get_transform(g, 7), ghost_unit_get_transform(g, 10), ghost_unit_get_transform(g, 11));
+    }
+}
+
 // gate P T x y dir: player P's gate of type T laid over the five finished wall pieces centred on x, y along dir (1 x,
 // 2 y, 3 x+1,y-1, 4 x+1,y+1) - as the gate button and the AI lay one (build_gate), only where gate_fits says it can
 internal void cmd_gate(char *out, const char *args) {

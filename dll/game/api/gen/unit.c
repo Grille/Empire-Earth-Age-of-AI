@@ -878,6 +878,11 @@ internal inline ee_dmg_model *ghost_unit_model(ee_ghost_unit *ghost_unit) { retu
 typedef float (__thiscall *ghost_unit_scale_fn)(ee_ghost_unit *);
 internal ghost_unit_scale_fn fn_ghost_unit_scale;
 internal inline float ghost_unit_scale(ee_ghost_unit *ghost_unit) { return fn_ghost_unit_scale(ghost_unit); }
+// its animation and that animation's first frame (its graphics' table, +0x350 in the 2017 update, +0x360 in AoC)
+// - a wall's ghost gets its piece's so (0x6383E9)
+typedef void (__thiscall *ghost_unit_start_anim_fn)(ee_ghost_unit *, int);
+internal ghost_unit_start_anim_fn fn_ghost_unit_start_anim;
+internal inline void ghost_unit_start_anim(ee_ghost_unit *ghost_unit, int anim) { fn_ghost_unit_start_anim(ghost_unit, anim); }
 
 // static class ghost_unit
 // the placement ghosts' functions (EEGhostUnit's statics in the AoC decompilation)
@@ -1015,6 +1020,19 @@ typedef void (__cdecl *wall_piece_fn)(ee_unit *, int, int);
 internal wall_piece_fn fn_wall_piece;
 internal inline void wall_piece(ee_unit *u, int code, int raised) { fn_wall_piece(u, code, raised); }
 internal inline int patch_wall_piece(wall_piece_fn h, int *of) { return patch_calls(calls_wall_piece, 3, (uintptr_t)fn_wall_piece, (void *)h, of); }
+// cdecl(tiles, layout codes, the wall's tech, player, its turn): the ghosts replaced by one per tile (8 bytes each:
+// x, y), each the piece of its layout code (0x6383E9: as wall_piece picks it), at the ground under its tile's
+// middle, flat; the vectors are the runtime library's (begin +4, end +8) - inside the ghosts' lock. Its one caller
+// is wall_preview
+typedef void (__cdecl *wall_ghosts_fn)(void *, void *, uint32_t, ee_player *, float);
+internal wall_ghosts_fn fn_wall_ghosts;
+internal inline void wall_ghosts(void *tiles, void *codes, uint32_t tech, ee_player *pl, float rotation) { fn_wall_ghosts(tiles, codes, tech, pl, rotation); }
+internal inline int patch_wall_ghosts(wall_ghosts_fn h) { return patch_call(call_wall_ghosts, (uintptr_t)fn_wall_ghosts, (void *)h); }
+// cdecl(tiles, the wall's tech, player index): a dragged wall's preview - the tiles' repeats taken out, the rest
+// laid out (0x636CDC) and made ghosts (wall_ghosts). The interface's mouse moves call it, the ghosts' lock held
+typedef void (__cdecl *wall_preview_fn)(void *, uint32_t, int);
+internal wall_preview_fn fn_wall_preview;
+internal inline void wall_preview(void *tiles, uint32_t tech, int pi) { fn_wall_preview(tiles, tech, pi); }
 // cdecl(pieces, the layout's tiles, player, map): after a wall's layout (0x629DDB, the editor's 0x66CB35) each of its
 // pieces with more than two of the player's built walls-family objects within a tile becomes a post (anim 11),
 // turned back to yaw 0, its matrix made anew from its own (0x5F043B) - where walls meet or cross
@@ -1269,6 +1287,7 @@ internal int spec_unit_select(int build) {
         of_ghost_unit_can_place = 0x330;
         fn_ghost_unit_model = (ghost_unit_model_fn)0x00506208;
         fn_ghost_unit_scale = (ghost_unit_scale_fn)0x00506227;
+        fn_ghost_unit_start_anim = (ghost_unit_start_anim_fn)0x005F4DB7;
         fn_ghost_unit_create = (ghost_unit_create_fn)0x005F4608;
         fn_ghost_unit_preview = (ghost_unit_preview_fn)0x005F4DDA;
         data_unit_call_node_del_1 = 0x00628BE7;
@@ -1304,6 +1323,9 @@ internal int spec_unit_select(int build) {
         calls_wall_piece[0] = 0x00629F9C;
         calls_wall_piece[1] = 0x0062A0F9;
         calls_wall_piece[2] = 0x0066CBF6;
+        fn_wall_ghosts = (wall_ghosts_fn)0x005F4A1C;
+        call_wall_ghosts = 0x00629DC7;
+        fn_wall_preview = (wall_preview_fn)0x00629D75;
         fn_wall_joints = (wall_joints_fn)0x0062E73B;
         calls_wall_joints[0] = 0x0062A159;
         calls_wall_joints[1] = 0x0066CC55;
@@ -1538,6 +1560,7 @@ internal int spec_unit_select(int build) {
         of_ghost_unit_can_place = 0x330;
         fn_ghost_unit_model = (ghost_unit_model_fn)0x0050CB62;
         fn_ghost_unit_scale = (ghost_unit_scale_fn)0x0050CB81;
+        fn_ghost_unit_start_anim = (ghost_unit_start_anim_fn)0x00604A97;
         fn_ghost_unit_create = (ghost_unit_create_fn)0x00604278;
         fn_ghost_unit_preview = (ghost_unit_preview_fn)0x00604ABA;
         data_unit_call_node_del_1 = 0x0063D998;
@@ -1573,6 +1596,9 @@ internal int spec_unit_select(int build) {
         calls_wall_piece[0] = 0x0063ED73;
         calls_wall_piece[1] = 0x0063EF01;
         calls_wall_piece[2] = 0x00685CF3;
+        fn_wall_ghosts = (wall_ghosts_fn)0x006046FC;
+        call_wall_ghosts = 0x0063EB9E;
+        fn_wall_preview = (wall_preview_fn)0x0063EB4C;
         fn_wall_joints = (wall_joints_fn)0x00643AE1;
         calls_wall_joints[0] = 0x0063EF61;
         calls_wall_joints[1] = 0x00685D52;
@@ -1682,6 +1708,7 @@ internal int spec_unit_check(void) {
     bad += spec_vtable(vt_ee_ghost_unit, ".?AVEEGhostUnit@@", "EEGhostUnit [vtable]");
     bad += spec_code((uintptr_t)fn_ghost_unit_model, "EEGhostUnit.model");
     bad += spec_code((uintptr_t)fn_ghost_unit_scale, "EEGhostUnit.scale");
+    bad += spec_code((uintptr_t)fn_ghost_unit_start_anim, "EEGhostUnit.start_anim");
     bad += spec_code((uintptr_t)fn_ghost_unit_create, "ghost_unit.create");
     bad += spec_code((uintptr_t)fn_ghost_unit_preview, "ghost_unit.preview");
     bad += spec_code(data_unit_call_node_del_1, "unit.call_node_del_1");
@@ -1712,6 +1739,9 @@ internal int spec_unit_check(void) {
     bad += spec_call(calls_wall_piece[0], (uintptr_t)fn_wall_piece, "unit_functions.wall_piece [call_site wall_piece 0]");
     bad += spec_call(calls_wall_piece[1], (uintptr_t)fn_wall_piece, "unit_functions.wall_piece [call_site wall_piece 1]");
     bad += spec_call(calls_wall_piece[2], (uintptr_t)fn_wall_piece, "unit_functions.wall_piece [call_site wall_piece 2]");
+    bad += spec_code((uintptr_t)fn_wall_ghosts, "unit_functions.wall_ghosts");
+    bad += spec_call(call_wall_ghosts, (uintptr_t)fn_wall_ghosts, "unit_functions.wall_ghosts [call_site wall_ghosts]");
+    bad += spec_code((uintptr_t)fn_wall_preview, "unit_functions.wall_preview");
     bad += spec_code((uintptr_t)fn_wall_joints, "unit_functions.wall_joints");
     bad += spec_call(calls_wall_joints[0], (uintptr_t)fn_wall_joints, "unit_functions.wall_joints [call_site wall_joints 0]");
     bad += spec_call(calls_wall_joints[1], (uintptr_t)fn_wall_joints, "unit_functions.wall_joints [call_site wall_joints 1]");
