@@ -41,7 +41,7 @@ def default_of(sec, k):   # the default as the code's row has it and as the file
         on = settings_read.arg_text(k.attrs['on'][0]) if k.has('on') else ''
         return c_str(on), on
     if kind in ('STR', 'STR_P'):
-        s = cs_str(d)
+        s = d if d in sec.consts else cs_str(d)   # a name of the section's stays the name: the file and the tool show it
         return c_str(s), s
     if kind in ('SHARE', 'FACTOR'):
         v = settings_read.percent(d, k.where)
@@ -103,10 +103,15 @@ def table(name, args, lines):
 
 
 def rows_h(secs):   # the file below its header
-    fields, rows, groups, game, members, also, titles, easy, target = [], [], [], [], [], [], [], [], []
+    fields, rows, groups, game, members, also, titles, easy, target, named = [], [], [], [], [], [], [], [], [], []
     arg = settings_read.arg_text
     seen = {}
     for sec in secs:
+        for cname, text in sec.consts.items():
+            for k in sec.keys:
+                if settings_read.kind_of(sec, k) == 'STR' and len(text) >= int(arg(k.attrs['length'][0])):
+                    raise SystemExit('%s: %s\'s text "%s" doesn\'t fit %s' % (k.where, cname, text, k.name))
+            named.append('N(%s %s %s)' % ((sec.name + ',').ljust(10), (cname + ',').ljust(10), c_str(text)))
         for k in sec.keys if sec.kind != 'DIFF' else []:
             if k.name in seen:
                 raise SystemExit("%s: key %s is [%s]'s already (%s) - a key's name is its own across the file" % (k.where, k.name, seen[k.name][0], seen[k.name][1]))
@@ -155,6 +160,7 @@ def rows_h(secs):   # the file below its header
     out += table('SETTING_ALSO', 'A', also)
     out += table('SETTING_TARGET', 'B', target)
     out += table('SETTING_TITLES', 'K', titles)
+    out += table('SETTING_NAMED', 'N', named)
     return '\n'.join(out).rstrip('\n') + '\n'
 
 

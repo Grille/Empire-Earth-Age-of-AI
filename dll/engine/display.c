@@ -1,9 +1,10 @@
 // Display: resolution of the scenario editor.
-// ageofai.ini [editor] editor_resolution = ee | aoc | game | <width>x<height>   (default ee: nothing is changed)
-//               editor_uiscale = off | ee | aoc | <percent>: the panels larger, the picture still at editor_resolution
-//   ee   = 800 x 600 (original Empire Earth)
-//   aoc  = 1024 x 768 (what The Art of Conquest uses)
+// ageofai.ini [editor] editor_resolution = game | <width>x<height>   (800x600, the default: nothing is changed)
+//               editor_uiscale = off | <width>x<height> (its height counts) | <percent>: the panels larger, the picture
+//               still at editor_resolution
 //   game = the resolution chosen for games in the settings
+//   the names ee (800x600, original Empire Earth) and aoc (1024x768, what The Art of Conquest uses) are the settings'
+//   (dll_cs/settings/editor.cs): sizes by the time they are read here
 //
 // The editor is entered from the main menu (0x6601D9) and on return from test play (0x65FD21, ScenDefault);
 // both switch the screen with SetResolution 0x65F314(width, height, force, flag) - stdcall (ret 0x10; ECX
@@ -1481,22 +1482,20 @@ internal void display_install(const char *autotest_ini) {
     const char *mode = g_set.editor_resolution;
     int ok = patch_editor_resolution(hook_editor_resolution);   // the players' reset (hook_editor_resolution), at any size
     if (g_log) fprintf(g_log, "# editor: resolution=%s hooks %d/2\n", mode, ok);
-    if (!lstrcmpiA(mode, "ee")) return;   // (in AoC: its own 1024x768)
-    if (!lstrcmpiA(mode, "aoc")) { g_editor_w = 1024; g_editor_h = 768; }
-    else if (!lstrcmpiA(mode, "game")) g_editor_game = 1;
+    if (!lstrcmpiA(mode, "game")) g_editor_game = 1;
     else if (sscanf(mode, "%dx%d", &g_editor_w, &g_editor_h) != 2 || g_editor_w < 800 || g_editor_h < 600) {
         if (g_log) fprintf(g_log, "# editor: bad resolution '%s' in ageofai.ini, left at 800x600\n", mode);
         return;
     }
+    else if (g_editor_w == 800 && g_editor_h == 600) return;   // the original's: nothing changed (in AoC: its own 1024x768)
     g_editor_layout = 1;
     const char *ui = g_set.editor_uiscale;
     if (lstrcmpiA(ui, "off")) {
-        int pct = atoi(ui);
+        int pct = atoi(ui), uw, uh;
         if (!g_rd_on) { if (g_log) fprintf(g_log, "# editor: uiscale=%s needs [display] renderer = own - off\n", ui); }
-        else if (!lstrcmpiA(ui, "ee")) g_editor_ui_height = 600;
-        else if (!lstrcmpiA(ui, "aoc")) g_editor_ui_height = 768;
-        else if (pct > 100) g_editor_ui_percent = pct;
-        else if (g_log) fprintf(g_log, "# editor: bad uiscale '%s' in ageofai.ini (off, ee, aoc or a percentage over 100) - off\n", ui);
+        else if (sscanf(ui, "%dx%d", &uw, &uh) == 2 && uh >= 600) g_editor_ui_height = uh;
+        else if (!strchr(ui, 'x') && pct > 100) g_editor_ui_percent = pct;
+        else if (g_log) fprintf(g_log, "# editor: bad uiscale '%s' in ageofai.ini (off, a size of at least 600 high or a percentage over 100) - off\n", ui);
         if (g_log) fprintf(g_log, "# editor: uiscale=%s, the size told to the game %s\n", ui, g_editor_ui_height ? "by its height" : g_editor_ui_percent ? "by the percentage" : "as the picture's");
     }
     int other = patch_other_resolution(hook_other_resolution, NULL);

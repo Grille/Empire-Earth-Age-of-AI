@@ -229,10 +229,25 @@ internal const char *setting_flags(const struct setting_row *r, const char *v, i
     return NULL;
 }
 
+// a text value that is a name of its section's (a const string in its class: [editor] aoc) becomes the text it stands
+// for: the code reads the text, the file and ageofai_config.exe keep the name
+#define SET_NAMED(sec, name, text) { #sec, #name, text },
+internal const struct { const char *sec, *name, *text; } k_setting_named[] = { SETTING_NAMED(SET_NAMED) { NULL, NULL, NULL } };
+internal void setting_named(const struct setting_row *r, char *at) {
+    for (int i = 0; k_setting_named[i].sec; i++)
+        if (!lstrcmpiA(k_setting_named[i].sec, r->sec) && !lstrcmpiA(k_setting_named[i].name, at)) {
+            lstrcpynA(at, k_setting_named[i].text, r->a);
+            return;
+        }
+}
+
 // row r's default into at
 internal void setting_default(const struct setting_row *r, void *at) {
     char why[96];
-    if (r->kind == SETK_STR || r->kind == SETK_STR_P) lstrcpynA((char *)at, r->def_s, r->a);
+    if (r->kind == SETK_STR || r->kind == SETK_STR_P) {
+        lstrcpynA((char *)at, r->def_s, r->a);
+        setting_named(r, (char *)at);
+    }
     else if (r->kind == SETK_FLAGS) setting_flags(r, r->def_s, (int *)at, why, sizeof why);
     else if (r->kind == SETK_CHOICE) *(int *)at = setting_choice(r->choices, r->def_s);
     else if (r->kind == SETK_SHARE || r->kind == SETK_FACTOR) *(float *)at = (float)(r->def / 100.0);
@@ -254,6 +269,7 @@ internal int setting_value(const struct setting_row *r, const char *f, const cha
             return 0;
         }
         lstrcpyA((char *)at, v);
+        setting_named(r, (char *)at);
         return 1;
     }
     if (r->kind == SETK_FLAGS) {

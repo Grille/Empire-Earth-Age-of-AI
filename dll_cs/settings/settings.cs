@@ -60,6 +60,10 @@
 //         ...
 // Every member of such a block has its text; one written on one line ({ a, b }) has none - its key tells them.
 //
+// A NAME FOR A VALUE: const string aoc = "1024x768"; in a section's class - a text key of that section may be set to the
+// name, or have it as its default (string k = aoc;), and the code reads the text (settings.c setting_named, rows.h
+// SETTING_NAMED): the file and ageofai_config.exe show the name. It has to fit every text key of the section.
+//
 // MORE ABOUT A KEY: [game("what", "original", keep)] it sets one of the game's own values (SETTING_GAME: the tool shows its key blue);
 // [also("section")] the tool
 // lists it on that section's page too (SETTING_ALSO) - the key itself stays in its own section, once in the file.

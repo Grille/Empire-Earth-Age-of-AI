@@ -16,6 +16,7 @@ class Section:
     def __init__(self, name, attrs, before, path):
         self.name, self.attrs, self.before, self.path = name, dict((a[0], a[1]) for a in attrs), before, path
         self.keys, self.enums, self.structs, self.trailer = [], {}, {}, []
+        self.consts = {}   # the names its text keys may be given: {name: the text it stands for}
         self.docs = {}   # an enum's or struct's {member or field: its /// lines} (written as a block: a line each)
 
     def has(self, attr):
@@ -213,6 +214,12 @@ def read_file(path):
                 cur.enums[MASTER_TYPE] = {v: n for v, (n, _) in MASTER_VALUES.items()}
                 cur.docs[MASTER_TYPE] = {v: [t] for v, (_, t) in MASTER_VALUES.items()}
                 master = k.name
+            attr_text, doc = '', []
+        elif depth in (1, 2) and cur and re.match(r'^const\s+string\s', code):   # a name for its text keys' values
+            m = re.match(r'^const\s+string\s+@?(\w+)\s*=\s*"((?:[^"\\]|\\.)*)"\s*;$', code)
+            if not m:
+                raise SystemExit('%s: a name is const string name = "text";: %s' % (where, code))
+            cur.consts[m.group(1)] = re.sub(r'\\(.)', r'\1', m.group(2))
             attr_text, doc = '', []
         elif depth in (1, 2) and cur and code.endswith(';'):
             m = re.match(r'^(\w+)\s+@?(\w+)\s*(?:=\s*(.+))?;$', code)

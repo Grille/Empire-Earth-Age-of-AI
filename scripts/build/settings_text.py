@@ -51,6 +51,9 @@ TEXT = {
         "Keys with a title of their own ([title(\"t\")]): ageofai_config.exe lists them by it, the key beside it on the",
         "setting's own line; a key without one is listed by its name.",
     ],
+    'SETTING_NAMED': [
+        "Names for a text key's value (a const string in the section's class): set to the name, the code reads its text.",
+    ],
     'top': [
         "THE SETTINGS: the keys of ageofai.ini (and the test ini's own), one row each - its kind, section, key, default and",
         "the kind's limits - in the shipped file's order. settings.c makes the rows g_set (g_set.lead_targets: the value in",
