@@ -21,17 +21,18 @@ DLL = os.path.join(ROOT, 'dll')
 MAY_USE = {
     'base':   [],                                          # the DLL's own helpers: no game, no part
     'settings': ['base'],                                  # ageofai.ini's keys as rows, read into g_set: knows no game
+    'ui':     ['base'],                                    # Win32 controls in the game's look (its own Data art): the config program's, the DLL's dialogs
     'game/api': ['base'],                                  # the game's code and objects, one module (api.c)
     'game':   ['base', 'game/api'],                        # what the mod knows of the game beyond its code
-    'engine': ['base', 'settings', 'game/api', 'game'],                # fixes and features of the game
+    'engine': ['base', 'settings', 'ui', 'game/api', 'game'],          # fixes and features of the game
     'ai':     ['base', 'settings', 'game/api', 'game', 'voice/say.h'],   # the computer players - they speak through say.h only
     'script': ['base'],                                    # the language: knows no game (script/host.h asks it)
     'game_script': ['base', 'settings', 'game/api', 'game', 'ai', 'script', 'voice'],   # the game in the language: constants, values, relations
     'voice':  ['base', 'settings', 'game/api', 'game', 'ai', 'script'],   # what the AI says: reads the AI, speaks the language
-    'tool':   ['base', 'settings', 'script', 'game/api/builds.h'],   # ageofai_config.exe, a program of its own: no game, only which exe it is
-    'test':   ['base', 'settings', 'game/api', 'game', 'engine', 'ai', 'script', 'game_script', 'voice', 'dll'],
-    'dll':    ['base', 'settings', 'game/api', 'game', 'engine', 'ai', 'script', 'game_script', 'voice', 'test'],
-    'check':  ['base', 'settings', 'game/api', 'game', 'engine', 'ai', 'script', 'game_script', 'voice', 'test', 'dll'],   # ageofai_check.exe: the DLL's code without the game
+    'tool':   ['base', 'settings', 'ui', 'script', 'game/api/builds.h'],   # ageofai_config.exe, a program of its own: no game, only which exe it is
+    'test':   ['base', 'settings', 'ui', 'game/api', 'game', 'engine', 'ai', 'script', 'game_script', 'voice', 'dll'],
+    'dll':    ['base', 'settings', 'ui', 'game/api', 'game', 'engine', 'ai', 'script', 'game_script', 'voice', 'test'],
+    'check':  ['base', 'settings', 'ui', 'game/api', 'game', 'engine', 'ai', 'script', 'game_script', 'voice', 'test', 'dll'],   # ageofai_check.exe: the DLL's code without the game
 }
 
 # A FILE OF A FOLDER as the rule names it (voice/say.h): only what that file declares - its prototypes, types and
@@ -225,7 +226,7 @@ def excepted(u, d, n):
 def main():
     files, code, edges = analyse()
     if '--map' in sys.argv:
-        order = ['dll', 'base', 'settings', 'tool', 'game/api', 'game', 'engine', 'ai', 'script', 'game_script', 'voice', 'test', 'check']
+        order = ['dll', 'base', 'settings', 'ui', 'tool', 'game/api', 'game', 'engine', 'ai', 'script', 'game_script', 'voice', 'test', 'check']
         m = collections.defaultdict(collections.Counter)
         for u, ds in edges.items():
             for d, ns in ds.items():

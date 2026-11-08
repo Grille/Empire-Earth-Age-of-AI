@@ -28,7 +28,7 @@
 #include "settings/settings.c"
 #include "game/api/builds.h"   // the exe builds the mod knows, and how a file is known as one
 #include "tool/engine_import.c"   // the game's settings in a file: ageofai.dll an import of the engine
-#include "tool/theme.c"   // the game's look, else plain dark: g_pal, the colours drawn with
+#include "ui/theme.c"   // the game's look, else plain dark: g_pal, the colours drawn with
 
 #define TITLE "Empire Earth: Age of AI - settings"
 enum { ID_FILTER = 100, ID_LIST, ID_HELP, ID_FILE, ID_SAVE, ID_CLOSE, ID_UNKNOWN, ID_REMOVE, ID_GAME, ID_GAME_TEXT,

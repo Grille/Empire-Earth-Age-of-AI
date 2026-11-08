@@ -31,7 +31,8 @@ and the runners, eectl, the MCP server), `results/` (log readers, scorers), `re/
   base (nothing) <- game/api (the game's code and objects, one module: nothing of its gen/ values or editor_layout.h outside it) <- game <- engine, ai (and voice/say.h: what the AI says goes through it); script (base only: the
   language knows no game - script/host.h asks the program); voice (base, game, ai, script); game_script (the game in
   the language: all of those); settings (base only: ageofai.ini's keys as rows, read once into `g_set` - used by
-  engine, ai, voice, game_script, test and the wiring); tool (base, settings, script: ageofai_config.exe, a program of
+  engine, ai, voice, game_script, test and the wiring); ui (base only: Win32 controls in the game's look, from the
+  player's Data\data.ssa - ageofai_config.exe's window and the DLL's dialogs); tool (base, settings, ui, script: ageofai_config.exe, a program of
   its own - a name there must not be one of the DLL's too: layers.py reads the tree as one namespace);
   test, check/ and the wiring (`eeaimod.c`, `persist.c`) everything. A new crossing fails the build - put the code where it
   belongs (a shared helper down into base/ or game/) instead of adding an exception. `--why <folder>` lists the uses.

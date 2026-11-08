@@ -27,9 +27,9 @@ internal void art_close(void) {   // the archive closed, its directory forgotten
 }
 
 // the archive <game>\Data\data.ssa opened and its directory read: 1, else 0 (art_close after either)
-internal int art_open(const char *game_dir) {
+internal int art_open(const char *folder) {
     char path[MAX_PATH];
-    snprintf(path, sizeof path, "%s\\Data\\data.ssa", game_dir);
+    snprintf(path, sizeof path, "%s\\Data\\data.ssa", folder);
     g_art_file = CreateFileA(path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
     if (g_art_file == INVALID_HANDLE_VALUE) return 0;
     uint8_t head[16];

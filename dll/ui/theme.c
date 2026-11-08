@@ -11,7 +11,7 @@
 // left out where the Windows has none.
 #include <uxtheme.h>
 #include <dwmapi.h>
-#include "tool/game_art.c"
+#include "ui/game_art.c"
 
 struct palette {
     COLORREF back, field, text, grey, game, game_grey, tint_warn, tint_mistake, text_warn, text_mistake, focus,
@@ -796,8 +796,8 @@ internal void theme_control(HWND c, const char *cls) {   // a child: its dark th
         ListView_SetTextColor(c, g_pal.text);
         return;
     }
-    int check = !lstrcmpA(cls, WC_BUTTONA) && (GetWindowLongA(c, GWL_STYLE) & BS_TYPEMASK) == BS_AUTOCHECKBOX;
-    if (check && !g_gl.on) {
+    int box = !lstrcmpA(cls, WC_BUTTONA) && (GetWindowLongA(c, GWL_STYLE) & BS_TYPEMASK) == BS_AUTOCHECKBOX;
+    if (box && !g_gl.on) {
         SetWindowTheme(c, L" ", L" ");   // classic: its text in WM_CTLCOLORSTATIC's colour
         return;
     }

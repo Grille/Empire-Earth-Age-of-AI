@@ -127,7 +127,10 @@ dll/              the mod (C), one translation unit: eeaimod.c includes every pa
   settings/         rows.h (generated from dll_cs/settings/*.cs) every ageofai.ini key as a row (kind, section, default, limits), every section (order, kind,
                     title) and the topics in them (ageofai_config.exe's tree), settings.c reads them once into
                     g_set / g_set_ai (a value per AI difficulty) - the parts read those, never the file
-  tool/             ageofai_config.c: ageofai_config.exe, the settings in a window (from base/, script/ and settings/ only:
+  ui/               theme.c Win32 controls drawn in the game's look (buttons, check boxes, dropdowns, fields, scrollbars,
+                    the settings screen's painting under them), game_art.c its pictures read from the player's
+                    Data\data.ssa - ageofai_config.exe's window and the DLL's dialogs (base/ only)
+  tool/             ageofai_config.c: ageofai_config.exe, the settings in a window (from base/, ui/, script/ and settings/ only:
                     the DLL's own rows and checks; the shipped ageofai.ini built in as the help)
   check/            ageofai_check.c: ageofai_check.exe, the .eeai files checked without the game (the DLL's code
                     compiled into a program: the checks the game runs at its start; the build runs it too)
