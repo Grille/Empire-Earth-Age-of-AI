@@ -29,6 +29,7 @@
 #define WS_ACROSS 0.4f      // barbed wire's lean across: the ground this far to either side of its middle
 #define WS_JOG_HALF 0.559017f   // half a jog's length (below, wj_jog): from the middle of one link to the next, sqrt(5) / 4
 #define WS_JOG_OVER 0.12f   // a jog's end past a neighbour it meets at an angle: closes the wedge on the outside of the bend
+#define WS_JOG_WIDE 1.06f   // a jog's width along the straight pieces it runs on from: sheared it is 0.89 of theirs across itself, wider by this it still meets them with no step to see
 
 internal int g_ws_on, g_ws_start, g_ws_fitted_game;
 internal unsigned g_ws_pieces, g_ws_posts, g_ws_unsloped, g_ws_skipped, g_ws_no_model;
@@ -504,7 +505,7 @@ internal int g_ws_laid_n;
 #define WJ_HUB 3   // a tower or a gate: a wall ends into it
 #define WJ_JOG 4   // a piece of a jog (wj_jog): along neither the tiles nor their diagonal, it points at no tile
 struct wj_at { int kind, sx, sy; ee_unit *u; };
-struct wj_jog_fit { float ox, oy, fx, fy, ax, ay, ea, eb; };   // off its tile's middle, its facing, across it, how far its ends reach on
+struct wj_jog_fit { float ox, oy, fx, fy, ax, ay, ea, eb; int diag; };   // off its tile's middle, its facing, across it, how far its ends reach on, its ends along a diagonal piece's
 internal struct wj_at wj_at(const ee_map *map, int x, int y, const ee_player *pl);
 internal int wj_jog_place(const ee_map *map, int x, int y, const ee_player *pl, struct wj_jog_fit *j);
 internal void wj_upright(const ee_map *map, ee_unit *u, float fx, float fy);
@@ -614,10 +615,20 @@ internal int ws_fit(ee_unit *u) {
     float ea = jog ? jf.ea : ws_post_at(map, tx - sx, ty - sy, pl) ? WS_INTO_POST : 0, eb = jog ? jf.eb : ws_post_at(map, tx + sx, ty + sy, pl) ? WS_INTO_POST : 0;
     float k = (2 * d + ea + eb) / (yhi - ylo), c = -d - ea - k * ylo, slope = (hb - ha) / (2 * d);   // its y -> k y + c along f
     float wx = jog ? jf.ax : fy, wy = jog ? jf.ay : -fx;   // its local x axis: square to it, a jog's along its neighbour's end
+    // a jog is the straight model; beside a diagonal piece as wide and as high as that one's model, another size (concrete:
+    // straight 0.44 wide and 1.05 high, diagonal 0.48 and 1.02), they stepped at the join (the player, 2026-11-08: "the 1:2
+    // wall is a bit too narrow and too high")
+    float wide = jog ? WS_JOG_WIDE : 1, tall = 1;
+    if (jog && jf.diag && box) {
+        ee_model *dm = ws_model(u, WS_DIAG);
+        ee_box *db = dm && model_get_frames(dm) ? model_get_boxes(dm) : NULL;
+        float sw = box_get_max(box).x - box_get_min(box).x, sz = box_get_max(box).z;
+        if (db && sw > 0.01f && sz > 0.01f) { wide = (box_get_max(db).x - box_get_min(db).x) / sw; tall = box_get_max(db).z / sz; }
+    }
     const float m[12] = {
-        wx * len * grow,  fx * k,    0, px + fx * c,
-        wy * len * grow,  fy * k,    0, py + fy * c,
-        across * len * grow, slope * k, len * grow, (ha + hb) * 0.5f + slope * c,
+        wx * len * grow * wide,  fx * k,    0, px + fx * c,
+        wy * len * grow * wide,  fy * k,    0, py + fy * c,
+        across * len * grow, slope * k, len * grow * tall, (ha + hb) * 0.5f + slope * c,
     };
     for (int i = 0; i < 12; i++) unit_set_matrix(u, i, m[i]);
     g_ws_pieces++;
@@ -789,6 +800,7 @@ internal int wj_jog_place(const ee_map *map, int x, int y, const ee_player *pl, 
     int axis = wj_jog_axis(map, x, y, pl, a, b);
     float dx = (float)k_wj_dir[axis][0], dy = (float)k_wj_dir[axis][1], l = 1.0f / sqrtf(dx * dx + dy * dy);
     j->ax = dy * l; j->ay = -dx * l;
+    j->diag = axis & 1;
     if (j->ax * j->fy - j->ay * j->fx < 0) { j->ax = -j->ax; j->ay = -j->ay; }
     j->ea = wj_jog_end(map, x, y, b, pl, j->fx, j->fy, axis);
     j->eb = wj_jog_end(map, x, y, a, pl, j->fx, j->fy, axis);
