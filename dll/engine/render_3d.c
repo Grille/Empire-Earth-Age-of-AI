@@ -237,12 +237,13 @@ internal const char k_rd3_shader[] =
     "   hl = saturate(((og ? hh.y : hh.x - i.w.z) - (og ? 0.01 : shh.z)) / (og ? min(0.12, shh.y) : shh.y)); }"
     "  c.rgb *= lerp(1, i.k, max(1 - l / 9, hl) * i.q.w * (shd.x == 6 ? sht.x : 1)); }"
     // the mirrored picture on the surface (render_water.c), moved a little by the water's own ripples, none of it at
-    // the shore, all from the depth of full strength on; in that picture's own pass what lies under the level is left out
+    // the shore, all from the depth of full strength on; in that picture's own pass what lies under the level is left out and what
+    // the fog has taken goes with it (its alpha the object's own fog)
     " if (rfa.z > 0 && shd.x == 6) { float2 ru = (i.p.xy - rfb.xy) * rfb.zw + (x.rg - 0.5) * rfa.y;"
     "  float rk = rfa.x; if (shh.w > 0) { float2 rh = hm.SampleLevel(hs, i.w.xy * shh.x, 0);"
     "   rk *= smoothstep(0, 1, (i.w.z - (rh.x - rh.y)) * rfa.w); }"
     "  float4 rc = rfl.SampleLevel(hs, ru, 0); c.rgb = lerp(c.rgb, rc.rgb, rc.a * rk); c.a = lerp(c.a, 1, rc.a * rk); }"
-    " if (sea.w > 0) { if (i.w.z < sea.z) discard; c.a = 1; }"
+    " if (sea.w > 0) { if (i.w.z < sea.z) discard; c.a = misc.y > 0.5 ? saturate(i.f) : 1; }"
     " if (misc.y > 0.5) c.rgb = lerp(fogc.rgb, c.rgb, saturate(i.f));"
     " return c; }\n";
 

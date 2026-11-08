@@ -49,7 +49,9 @@ internal void rd3_water_pc(rd3_pcb *pc, float level, int water_seen) {
 // THE REFLECTIONS ([display] water_reflections): before the list is drawn, what stands in the world - the units,
 // buildings and trees on the screen - is drawn again mirrored about the water's level into a picture of half the size, and the surface takes a part of it where
 // something was drawn, less the shallower the water (the player, 2026-11-08, a tower's image lying on the sand under
-// the shallows: none at the shore). The ground isn't: the land lies within hundredths of the level on most maps. A list without
+// the shallows: none at the shore), each thing with the fog it is seen through itself - the surface's own fog is the
+// nearer water's, and a palm on the horizon that the fog had all but hidden popped in and out in full colour (the player,
+// 2026-11-08). The ground isn't: the land lies within hundredths of the level on most maps. A list without
 // casters leaves the last picture (a frame's list is drawn in parts).
 internal void rd3_water_bind(ID3D11DeviceContext *x) {
     ID3D11ShaderResourceView *srv = g_wa.drawn && !g_wa.in_pass ? g_wa.srv : NULL;
@@ -128,7 +130,6 @@ internal void rd3_water_reflect(void) {
             rd3_pcb pc = g_rf.pcs[c->pc];
             rd3_shadow_pc(&pc);
             pc.shd[0] = 0;
-            pc.misc[1] = 0;   // the fog comes with the surface
             pc.rfa[2] = 0;
             pc.sea[3] = 1;    // what lies under the level left out, alpha 1
             ID3D11DeviceContext_UpdateSubresource(x, (ID3D11Resource *)g_rd3.pcb, 0, NULL, &pc, 0, 0);
