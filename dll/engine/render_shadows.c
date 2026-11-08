@@ -55,6 +55,7 @@ internal struct {
     ID3D11Texture2D *hill;
     ID3D11ShaderResourceView *hsrv;
     float *hceil, *hground;
+    float *hpair;            // what goes up: a texel's ceiling and how far its ground is under it (the shader's hm)
     int hn, hr, cw, hill_ok, nohills;
     int hdirty;              // the editor changed the ground under the map (shadow_hills_editor): to be made again
     const void *hmap;
@@ -409,6 +410,7 @@ internal DWORD WINAPI shadow_hills_thread(void *arg) {
                 if (h > *q) *q = h;
             }
         }
+        for (int k = 0; k < n * n; k++) g_sh.hpair[k * 2] = c[k], g_sh.hpair[k * 2 + 1] = c[k] - g_sh.hground[k];
         QueryPerformanceCounter(&t1);
         QueryPerformanceFrequency(&tf);
         g_sh.hill_ms = (float)(1000.0 * (double)(t1.QuadPart - t0.QuadPart) / (double)tf.QuadPart);
@@ -426,7 +428,7 @@ internal void shadow_hills(void) {
     if (map != g_sh.hmap || (int)w + 1 != g_sh.cw) {
         if (g_sh.hjob == 1) return;
         InterlockedExchange(&g_sh.hjob, 0);
-        free(g_sh.hground); free(g_sh.hceil);
+        free(g_sh.hground); free(g_sh.hceil); free(g_sh.hpair);
         int cw = (int)w + 1, hr = SH_HILL_TEXELS / (int)w;
         if (hr > 4) hr = 4;
         if (hr < 1) hr = 1;
@@ -434,10 +436,11 @@ internal void shadow_hills(void) {
         float *corner = malloc((size_t)cw * cw * sizeof(float));
         g_sh.hground = malloc((size_t)n * n * sizeof(float));
         g_sh.hceil = malloc((size_t)n * n * sizeof(float));
+        g_sh.hpair = malloc((size_t)n * n * 2 * sizeof(float));
         g_sh.hmap = map; g_sh.cw = cw; g_sh.hr = hr; g_sh.hn = n; g_sh.hill_ok = 0;
         D3D_RELEASE(g_sh.hsrv);
         D3D_RELEASE(g_sh.hill);
-        if (!corner || !g_sh.hground || !g_sh.hceil) { free(corner); rd_fail("the hills' shadows' memory", E_OUTOFMEMORY); g_sh.hfail = 1; return; }
+        if (!corner || !g_sh.hground || !g_sh.hceil || !g_sh.hpair) { free(corner); rd_fail("the hills' shadows' memory", E_OUTOFMEMORY); g_sh.hfail = 1; return; }
         // and the ground's highest and lowest in blocks of SH_BLOCK tiles (the reach off the screen: shr_hook_rows)
         int bw = ((int)w + SH_BLOCK - 1) / SH_BLOCK;
         free(g_sh.bmax);
@@ -465,7 +468,7 @@ internal void shadow_hills(void) {
                 g_sh.hground[j * n + i] = (k[0] * (1 - fx) + k[1] * fx) * (1 - fy) + (k[cw] * (1 - fx) + k[cw + 1] * fx) * fy;
             }
         free(corner);
-        D3D11_TEXTURE2D_DESC td = { (UINT)g_sh.hn, (UINT)g_sh.hn, 1, 1, DXGI_FORMAT_R32_FLOAT, { 1, 0 }, D3D11_USAGE_DEFAULT,
+        D3D11_TEXTURE2D_DESC td = { (UINT)g_sh.hn, (UINT)g_sh.hn, 1, 1, DXGI_FORMAT_R32G32_FLOAT, { 1, 0 }, D3D11_USAGE_DEFAULT,
                                     D3D11_BIND_SHADER_RESOURCE, 0, 0 };
         HRESULT hr2 = ID3D11Device_CreateTexture2D(g_d3d.dev, &td, NULL, &g_sh.hill);
         if (SUCCEEDED(hr2)) hr2 = ID3D11Device_CreateShaderResourceView(g_d3d.dev, (ID3D11Resource *)g_sh.hill, NULL, &g_sh.hsrv);
@@ -473,8 +476,8 @@ internal void shadow_hills(void) {
     }
     // a map made: into the texture (its sun the one it was made for)
     if (g_sh.hjob == 2) {
-        ID3D11DeviceContext_UpdateSubresource(g_d3d.ctx, (ID3D11Resource *)g_sh.hill, 0, NULL, g_sh.hceil,
-                                              (UINT)g_sh.hn * sizeof(float), 0);
+        ID3D11DeviceContext_UpdateSubresource(g_d3d.ctx, (ID3D11Resource *)g_sh.hill, 0, NULL, g_sh.hpair,
+                                              (UINT)g_sh.hn * 2 * sizeof(float), 0);
         g_sh.hill_ok = 1;
         g_sh.hill_made++;
         InterlockedExchange(&g_sh.hjob, 0);

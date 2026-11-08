@@ -163,7 +163,7 @@ internal const char k_rd3_shader[] =
     "Buffer<float4> wt : register(t1);\n"   // the draws' entries, 8 rows each (rb_world)
     "Texture2D t : register(t0); SamplerState s : register(s0);\n"
     "Texture2D<float> sm : register(t2); SamplerComparisonState sc : register(s1);\n"   // the dynamic shadows' maps:
-    "Texture2D<float> hm : register(t4); SamplerState hs : register(s2);\n"   // the casters', the hills' (render_shadows.c)
+    "Texture2D<float2> hm : register(t4); SamplerState hs : register(s2);\n"   // the casters', the hills' (render_shadows.c)
     "struct I { float3 p : POSITION; float3 n : NORMAL; float4 c : COLOR; float2 t : TEXCOORD; uint w : WORLD; };\n"
     RD3_MORPH_HLSL
     "struct O { float4 p : SV_Position; float4 c : COLOR; float2 t : TEXCOORD0; float f : FOG; float4 q : TEXCOORD1;"
@@ -217,11 +217,13 @@ internal const char k_rd3_shader[] =
     " if ((g || rc) && (shd.z > 0 || shh.w > 0)) { float z = min(i.q.z, 0.9999), l = 9, b = g ? shd.w : sht.z, hl = 0;"
     "  if (shd.z > 0) { l = 0; for (int y = -1; y <= 1; y++) for (int u = -1; u <= 1; u++)"
     "   l += sm.SampleCmpLevelZero(sc, i.q.xy + float2(u, y) * shd.y, z - b); }"
-    // its edge sharp on level ground, where a hill's shadow lands and a unit on top of the hill must meet it (the fade
-    // began at the true edge and ended 0.75 tiles inside it: the shadows stood apart, the player 2026-11-08), soft on a slope,
-    // where the map's texels and the ground's triangles part by more than a sharp edge hides
-    "  if (shh.w > 0) { float gs = saturate(2 * fwidth(i.w.z) / max(fwidth(i.w.x) + fwidth(i.w.y), 1e-4));"
-    "   hl = saturate((hm.SampleLevel(hs, i.w.xy * shh.x, 0) - i.w.z - shh.z) / lerp(min(0.1, shh.y), shh.y, gs)); }"
+    // The ground and what lies on it read how far the map's own ground is under the ceiling (its second number, 0 where
+    // the sun reaches): no comparison of the map's texels with the ground's triangles, which part on a slope, so the edge
+    // can be sharp everywhere - where a hill's shadow lands and a unit on top of the hill must meet it (a fade from the
+    // true edge to 0.75 tiles inside it left the two apart, the player 2026-11-08). A unit or the water stands above the
+    // ground: its own height against the ceiling, as soft as ever
+    "  if (shh.w > 0) { float2 hh = hm.SampleLevel(hs, i.w.xy * shh.x, 0); bool og = shd.x == 1 || shd.x == 4;"
+    "   hl = saturate(((og ? hh.y : hh.x - i.w.z) - (og ? 0.01 : shh.z)) / (og ? min(0.12, shh.y) : shh.y)); }"
     "  c.rgb *= lerp(1, i.k, max(1 - l / 9, hl) * i.q.w * (shd.x == 6 ? sht.x : 1)); }"
     " if (misc.y > 0.5) c.rgb = lerp(fogc.rgb, c.rgb, saturate(i.f));"
     " return c; }\n";
