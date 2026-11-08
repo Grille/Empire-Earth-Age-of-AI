@@ -16,11 +16,14 @@
 // comes out as one fog over both. Tried first: no fog on what lies under the level and a surface more opaque in the fog
 // - a hard line where the water's far end meets the haze and orange streaks on beaches, wherever ground under the level
 // has no surface over it.
-// The way through: the water is thicker the longer the line of sight runs in it (the depth times the way per depth, the
-// camera's distance over its height above the water), opaque after [display] water_opaque_depth - the player, 2026-11-08:
-// "customicable by tile height, what the editor calls -20 is a good depth/distance to be fully opaque". The editor's
-// number is the height over half a height step (EEUIFSEPaintElevation: 0.204 tiles). From the usual camera the sea's
-// depths are far from that, the look stays; a low camera looks along the water and no longer through to its ridges.
+// The way through: a face under the water (the seabed, a fish, a hull: each pixel knows its place in the world) goes toward
+// the water's own colour by how far the line of sight runs in the water to it, wholly after [display] water_opaque_depth -
+// the player, 2026-11-08: "taking into acount the distance one is curently looking trough the water to the face they are
+// seeing", "what the editor calls -20 is a good depth/distance to be fully opaque". The surface stays as it is (made more
+// opaque by that way it washed out the sea, "i didnt mean to make the water surface opaque"). The editor's number is the
+// height over half a height step (EEUIFSEPaintElevation: 0.204 tiles). The colour is the water texture's mean times its
+// vertices' colour, so the map's water and the time of day come with it, the mean squared - light that has gone through
+// water has lost its red, and the plain mean was a grey beside the deep blue the game paints into its seabed.
 internal struct {
     int on;          // -1: as the ini says
     float fog;       // the depth (tiles) by which 63% of the way from the shallows' alpha to the deep's is done
@@ -30,7 +33,10 @@ internal struct {
     float sea;       // how much of the seabed's texture detail the deep takes away (0..1)
     float seadepth;  // the depth (tiles) by which 63% of that is gone
     int haze;        // what lies under the water fogged from where the line of sight enters it
-    float opaque;    // the way through the water that is opaque (the editor's height units; 0 none, -1 as the ini says)
+    float opaque;    // the way through the water that hides all (the editor's height units; 0 none, -1 as the ini says)
+    float tint;      // the water's colour squared times this is the colour under it
+    rd_surface *seen;    // the water's texture its mean was taken of
+    float mean[3], col[3];   // that mean, its vertices' colour
     int mirror;      // the reflections, -1: as the ini says
     float strength;  // how much of the surface a reflection takes
     float wobble;    // how far the water's ripples move it (of the picture)
@@ -43,10 +49,31 @@ internal struct {
     ID3D11DepthStencilView *dsv;
     ID3D11ShaderResourceView *srv;
     ID3D11RasterizerState *raster;
-} g_wa = { .on = -1, .fog = 0.35f, .shallow = 0.75f, .deep = 1.0f, .edge = 0.05f, .sea = 0.75f, .seadepth = 0.35f, .haze = 1, .opaque = -1, .mirror = -1, .strength = 0.35f, .wobble = 0.012f, .full = 0.4f };
+} g_wa = { .on = -1, .fog = 0.35f, .shallow = 0.75f, .deep = 1.0f, .edge = 0.05f, .sea = 0.75f, .seadepth = 0.35f, .haze = 1, .opaque = -1, .tint = 1.8f, .mean = { 0.35f, 0.6f, 0.8f }, .col = { 1, 1, 1 }, .mirror = -1, .strength = 0.35f, .wobble = 0.012f, .full = 0.4f };
 
-// the camera's height for the vertex shader's fog under the water and way through it (the ground's camera space's origin
-// in the world); so low it is off
+// a water draw recorded: its first vertex's colour, and the mean of its texture when it is another one (the animation's
+// frames, 64 x 64): by the format's own masks, a format without them leaves the mean as it was
+internal void rd3_water_seen(rd_surface *t, DWORD col) {
+    g_wa.col[0] = ((col >> 16) & 255) / 255.0f; g_wa.col[1] = ((col >> 8) & 255) / 255.0f; g_wa.col[2] = (col & 255) / 255.0f;
+    if (!t || t == g_wa.seen || !t->mem) return;
+    g_wa.seen = t;
+    const DDPIXELFORMAT *pf = &t->desc.ddpfPixelFormat;
+    DWORD mask[3] = { pf->dwRBitMask, pf->dwGBitMask, pf->dwBBitMask };
+    int bytes = (int)pf->dwRGBBitCount / 8;
+    if ((bytes != 2 && bytes != 4) || !mask[0] || !mask[1] || !mask[2]) return;
+    double sum[3] = { 0, 0, 0 };
+    for (DWORD y = 0; y < t->desc.dwHeight; y++) {
+        const uint8_t *row = t->mem + (size_t)y * t->desc.lPitch;
+        for (DWORD x = 0; x < t->desc.dwWidth; x++) {
+            DWORD v = bytes == 2 ? *(const uint16_t *)(row + x * 2) : *(const uint32_t *)(row + x * 4);
+            for (int a = 0; a < 3; a++) sum[a] += (double)(v & mask[a]) / mask[a];
+        }
+    }
+    double n = (double)t->desc.dwWidth * t->desc.dwHeight;
+    if (n > 0) for (int a = 0; a < 3; a++) g_wa.mean[a] = (float)(sum[a] / n);
+}
+// the camera's height for the vertex shader's fog under the water (the ground's camera space's origin in the world); so low
+// it is off
 internal float rd3_water_camera(void) {
     int on = (g_wa.on < 0 ? g_set.water_look : g_wa.on) && g_wa.haze && g_sh.water_on;
     return on ? g_sh.gw[14] : -1e9f;
@@ -64,7 +91,9 @@ internal void rd3_water_pc(rd3_pcb *pc, float level, int water_seen) {
     {
         ee_map *m = game_map();
         float units = g_wa.opaque < 0 ? (float)g_set.water_opaque_depth : g_wa.opaque;
-        pc->wop[0] = on && m && units > 0 ? 1 / (units * map_get_height_step(m) * 0.5f) : 0;
+        memcpy(pc->wop, g_sh.gw + 12, 12);
+        pc->wop[3] = on && m && units > 0 ? 1 / (units * map_get_height_step(m) * 0.5f) : 0;
+        for (int a = 0; a < 3; a++) pc->wfc[a] = g_wa.mean[a] * g_wa.mean[a] * g_wa.col[a] * g_wa.tint;
     }
     pc->rfa[0] = g_wa.strength;
     pc->rfa[1] = g_wa.wobble;
@@ -170,7 +199,7 @@ internal void rd3_water_reflect(void) {
 }
 
 // the pipe: water [on | off] | fog <depth> | shallow <times> | deep <times> | edge <depth> | sea <0..1> | seadepth <depth>
-// | haze on | off | opaque <the editor's height units, 0 none> | mirror on | off | strength <0..1> | wobble <of the picture> | full <depth>
+// | haze on | off | opaque <the editor's height units, 0 none> | tint <times the water's colour> | mirror on | off | strength <0..1> | wobble <of the picture> | full <depth>
 internal void cmd_water(char *out, const char *args) {
     char mode[32] = "";
     float v = 0;
@@ -187,11 +216,13 @@ internal void cmd_water(char *out, const char *args) {
     else if (n == 2 && !strcmp(mode, "wobble") && v >= 0) g_wa.wobble = v;
     else if (n == 2 && !strcmp(mode, "full") && v > 0) g_wa.full = v;
     else if (n == 2 && !strcmp(mode, "opaque") && v >= 0) g_wa.opaque = v;
+    else if (n == 2 && !strcmp(mode, "tint") && v >= 0) g_wa.tint = v;
     else if (!strcmp(mode, "haze")) { char a[8] = ""; sscanf(args, "%*s %7s", a); if (!strcmp(a, "on")) g_wa.haze = 1; else if (!strcmp(a, "off")) g_wa.haze = 0; }
     else if (!strcmp(mode, "mirror")) { char a[8] = ""; sscanf(args, "%*s %7s", a); if (!strcmp(a, "on")) g_wa.mirror = 1; else if (!strcmp(a, "off")) g_wa.mirror = 0; }
-    else if (n >= 1) { REPLY("error: usage: water [on | off] | fog <depth> | shallow <times> | deep <times> | edge <depth> | sea <0..1> | seadepth <depth> | haze on | off | opaque <editor units> | mirror on | off | strength <0..1> | wobble <of the picture> | full <depth>\n"); return; }
-    REPLY("water: camera %.2f over the level %.2f, the ground down to %.2f; %s, fog %.2f, shallow %.2f, deep %.2f, edge %.2f, sea %.2f by %.2f, fog over the water %s, opaque after %.0f; reflections %s, strength %.2f, wobble %.3f, full from %.2f\n",
+    else if (n >= 1) { REPLY("error: usage: water [on | off] | fog <depth> | shallow <times> | deep <times> | edge <depth> | sea <0..1> | seadepth <depth> | haze on | off | opaque <editor units> | tint <times> | mirror on | off | strength <0..1> | wobble <of the picture> | full <depth>\n"); return; }
+    REPLY("water: camera %.2f over the level %.2f, the ground down to %.2f; %s, fog %.2f, shallow %.2f, deep %.2f, edge %.2f, sea %.2f by %.2f, fog over the water %s, opaque after %.0f, colour %.2f %.2f %.2f; reflections %s, strength %.2f, wobble %.3f, full from %.2f\n",
           (double)(g_sh.gw[14] - g_sh.level), (double)g_sh.level, (double)g_sh.glow, (g_wa.on < 0 ? g_set.water_look : g_wa.on) ? "on" : "off", (double)g_wa.fog, (double)g_wa.shallow, (double)g_wa.deep,
           (double)g_wa.edge, (double)g_wa.sea, (double)g_wa.seadepth, g_wa.haze ? "on" : "off", (double)(g_wa.opaque < 0 ? (float)g_set.water_opaque_depth : g_wa.opaque),
+          (double)(g_wa.mean[0] * g_wa.mean[0] * g_wa.col[0] * g_wa.tint), (double)(g_wa.mean[1] * g_wa.mean[1] * g_wa.col[1] * g_wa.tint), (double)(g_wa.mean[2] * g_wa.mean[2] * g_wa.col[2] * g_wa.tint),
           (g_wa.mirror < 0 ? g_set.water_reflections : g_wa.mirror) ? (g_wa.drawn ? "on" : "on, nothing drawn") : "off", (double)g_wa.strength, (double)g_wa.wobble, (double)g_wa.full);
 }

@@ -169,6 +169,7 @@ internal void rd3_rigid_inverse(float *r, const float *m) {
     r[15] = 1;
 }
 
+internal void rd3_water_seen(rd_surface *t, DWORD col);   // render_water.c
 // A draw's role (SH_), from the render object drawing it and its vertices - the probe's findings (docs/renderer.md):
 // the terrain's draws receive (not the sky drawn with them: its view leaves the origin); the game's blob shadows aren't
 // drawn, its fields receive; in the units' render object the lit draws that don't lie flat (their vertices' height over 1% of their width
@@ -240,6 +241,7 @@ internal int rd3_shadow_role(rd_device *d, rd_vb *vb, DWORD start, DWORD nv) {
             g_sh.water_z += p[0] * m[2] + p[1] * m[6] + p[2] * m[10] + m[14];
         }
         g_sh.water_n += (int)nv;
+        if (nv) rd3_water_seen(d->tex[0], *(const DWORD *)(vb->mem + (size_t)start * vb->stride + 24));
         return SH_WATER;
     }
     if (g_ro_cur != RO_UNITS) return SH_NONE;
