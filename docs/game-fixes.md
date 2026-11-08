@@ -117,7 +117,11 @@ changes the simulation: in a lockstep game different values make the PCs' games 
   posts side by side, walls crossing or meeting three or four in a cluster, and a post stood between a wall and the
   tower or gate it ran into. Now a post stands only where a wall ends, turns or branches: a wall runs on
   through, and into a tower or a gate. It is decided when a wall or a gate is built, as the game decides its posts;
-  a destroyed wall's gap stays open. Both work in the scenario editor too: there the walls are fitted and joined
+  a destroyed wall's gap stays open. A wall that steps sideways (any line that is neither along the tiles nor exactly
+  diagonal) no longer has two round posts touching at each step, with a gap between them: both tiles draw a wall piece
+  slanted across the step, and a wall at 1:2, which was nothing but posts in two rows, is one straight line. Two posts
+  touching at a corner over a diagonal link join the same way, rounding the corner; a corner of one bend keeps its post.
+  Only the picture: the tiles the wall stands on are the same. Both work in the scenario editor too: there the walls are fitted and joined
   as soon as they change - placed, deleted, moved, the ground under them painted. In multiplayer every player needs
   the same setting. `0` = the original.
 - `[patches] wall_start_fit=1` (default; with `wall_slopes=1`): the walls a game starts with - a scenario's, made
