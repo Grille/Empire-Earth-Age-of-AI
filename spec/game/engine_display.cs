@@ -741,6 +741,15 @@ static unsafe class engine_display
     [value((ee)5000, (aoc)5000)]
     static uint32 mesh_water_polygons;
 
+    /// GETerrainMesh: the index of the water's colour set among its colour sets (SetWaterColorSet: a corner under the water
+    /// takes the slot height * of_mesh_water_scale * (slots - 1) of it, past the last the last)
+    [value((ee)0x17C6C4, (aoc)0x1905D0)]
+    static uint32 of_mesh_water_set;
+
+    /// GETerrainMesh: float, that scale (SetWaterColorSet's flds)
+    [value((ee)0x17B580, (aoc)0x18F488)]
+    static uint32 of_mesh_water_scale;
+
     [value((ee)0x30, (aoc)0x30)]
     static uint32 size_mesh_polygon;
 

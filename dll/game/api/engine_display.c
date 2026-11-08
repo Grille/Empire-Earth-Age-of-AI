@@ -249,6 +249,9 @@ internal inline uint8_t *effect_queues_at(void) { return (uint8_t *)data_engine_
 // the light the units are drawn with, as the units' draw hands it to the device: its direction (the sun's or the moon's),
 // ambient colour x intensity, the light's colour x intensity, both faded with the picture; 0 when the units are drawn
 // without one
+// the mesh's water colour set: its index among the colour sets, and the scale from a height to 0 .. 1 over its slots
+internal inline unsigned mesh_water_set(void *mesh) { return FIELD(mesh, value_engine_display_of_mesh_water_set, unsigned); }
+internal inline float mesh_water_scale(void *mesh) { return FIELD(mesh, value_engine_display_of_mesh_water_scale, float); }
 internal inline int game_light(float dir[3], float amb[3], float diff[3]) {
     if (!*(const uint8_t *)data_engine_display_light_on) return 0;
     const float *d = (const float *)data_engine_display_light_direction, *a = (const float *)data_engine_display_light_ambient,

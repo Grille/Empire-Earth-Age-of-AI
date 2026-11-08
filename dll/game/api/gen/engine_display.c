@@ -594,6 +594,9 @@ internal inline uint8_t *engine_display_iat_terrain_visible_at(void) { return (u
 // neighbours' textures blended over it, four for a map edge's skirt) and the water's (5000 - a water tile's two).
 // Each pool is followed by its vertex grid (101 x 101), so a region with more runs into the grid: the grid then
 // overwrites the polygons (the 2017 update's constructor 0x100066A8, AoC's 0x100273C9)
+// GETerrainMesh: the index of the water's colour set among its colour sets (SetWaterColorSet: a corner under the water
+// takes the slot height * of_mesh_water_scale * (slots - 1) of it, past the last the last)
+// GETerrainMesh: float, that scale (SetWaterColorSet's flds)
 // UpdateVisibleTerrain (exported by name): its lea eax, [mesh + of_mesh_ground_polygons] (6 bytes: 8D, a modrm
 // [reg + disp32] into eax, the offset) that starts the ground's pool - the 2017 update's with edi, AoC's with esi
 // and its lea eax, [mesh + of_mesh_water_polygons], the water's
@@ -1090,6 +1093,8 @@ internal int spec_engine_display_select(int build) {
         value_engine_display_of_mesh_water_polygons = 946544;
         value_engine_display_mesh_ground_polygons = 12000;
         value_engine_display_mesh_water_polygons = 5000;
+        value_engine_display_of_mesh_water_set = 1558212;
+        value_engine_display_of_mesh_water_scale = 1553792;
         value_engine_display_size_mesh_polygon = 48;
         value_engine_display_of_visible_ground_pool = 929;
         value_engine_display_of_visible_water_pool = 938;
@@ -1412,6 +1417,8 @@ internal int spec_engine_display_select(int build) {
         value_engine_display_of_mesh_water_polygons = 987408;
         value_engine_display_mesh_ground_polygons = 12000;
         value_engine_display_mesh_water_polygons = 5000;
+        value_engine_display_of_mesh_water_set = 1639888;
+        value_engine_display_of_mesh_water_scale = 1635464;
         value_engine_display_size_mesh_polygon = 48;
         value_engine_display_of_visible_ground_pool = 932;
         value_engine_display_of_visible_water_pool = 941;

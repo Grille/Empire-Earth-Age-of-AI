@@ -137,7 +137,7 @@ typedef struct {
     float shd[4];
     float sht[4];    // the water's share of a shadow, shadows all on, a caster's bias
     float shh[4];    // the hills' map: the world's x, y -> u, v; the soft edge, the bias (tiles); on
-    float wat[4], sea[4], wop[4], wfc[4];   // the water by its depth, the seabed's detail, the camera and 1 / the way through it that hides all, the colour (render_water.c)
+    float wat[4], sea[4], wop[4], wfc[4], wtc[4];   // the water by its depth, the seabed's detail, the camera and 1 / the way through it that hides all, the light on the table's colours, the way to the table's u (render_water.c)
     float rfa[4], rfb[4];   // the reflections: strength, wobble, on, 1 / the depth of full strength; the picture's place on the target (render_water.c)
 } rd3_pcb;
 // a draw's entry in the batch's table (the shaders' wt, 8 rows): its world matrix (_14: a tinted caster's size -
@@ -161,11 +161,11 @@ internal const char k_rd3_shader[] =
     " float4 ldir[8]; float4 ldiff[8]; float4 lamb[8]; float4 gamb; int4 lit; int4 src; float4 fog;"
     " float4 vp; row_major float4x4 shm; float4 shk; float4 shp; float4 shx; float4 shy; float4 shz; float4 shl; float4 shs; float4 sha; float4 shf; };\n"
     "cbuffer p : register(b1) { int4 op; int4 aop; float4 fogc; float4 tf; float4 misc; float4 pshk; float4 shd; float4 sht;"
-    " float4 shh; float4 wat; float4 sea; float4 wop; float4 wfc; float4 rfa; float4 rfb; };\n"
+    " float4 shh; float4 wat; float4 sea; float4 wop; float4 wfc; float4 wtc; float4 rfa; float4 rfb; };\n"
     "Buffer<float4> wt : register(t1);\n"   // the draws' entries, 8 rows each (rb_world)
     "Texture2D t : register(t0); SamplerState s : register(s0);\n"
     "Texture2D<float> sm : register(t2); SamplerComparisonState sc : register(s1);\n"   // the dynamic shadows' maps:
-    "Texture2D rfl : register(t6);\n"
+    "Texture2D rfl : register(t6); Texture2D wtb : register(t7);\n"
     "Texture2D<float2> hm : register(t4); SamplerState hs : register(s2);\n"   // the casters', the hills' (render_shadows.c)
     "struct I { float3 p : POSITION; float3 n : NORMAL; float4 c : COLOR; float2 t : TEXCOORD; uint w : WORLD; };\n"
     RD3_MORPH_HLSL
@@ -204,7 +204,7 @@ internal const char k_rd3_shader[] =
     // what lies under the water takes the fog of the place the line of sight enters it (render_water.c) - the game's
     // own again toward the fog's end, where the ground's mesh stops
     " if (shp.x > 0 && shl.w > shl.x && o.w.z < shl.x) { float e = fog_at(z * (shl.w - shl.x) / (shl.w - o.w.z));"
-    "  f = lerp(f, e, saturate(e / 0.35)); }"
+    "  f = lerp(f, e, saturate(e / 0.7)); }"
     " o.f = f; return o; }\n"   // clamped per pixel, as the driver under a wrapper does (the picture compare)
     // D3DTA_: 0 diffuse, 1 current (the diffuse at stage 0), 2 texture, 3 texture factor; D3DTOP_ 1..8
     "float4 arg(int a, float4 x, float4 d) { a = a & 15; return a == 2 ? x : a == 3 ? tf : d; }\n"
@@ -248,10 +248,14 @@ internal const char k_rd3_shader[] =
     "   rk *= smoothstep(0, 1, (i.w.z - (rh.x - rh.y)) * rfa.w); }"
     "  float4 rc = rfl.SampleLevel(hs, ru, 0); c.rgb = lerp(c.rgb, rc.rgb, rc.a * rk); c.a = lerp(c.a, 1, rc.a * rk); }"
     " if (sea.w > 0) { if (i.w.z < sea.z) discard; c.a = misc.y > 0.5 ? saturate(i.f) : 1; }"
-    // a face under the water: toward the water's colour by the way the line of sight runs in the water to it (render_water.c)
+    // a face under the water: toward the game's own colour for that depth by the way the line of sight runs in the water to
+    // it, as its own texture would show that colour (render_water.c);
+    // ground the game has left black (the map's skirt, what is unexplored) stays so
     " if (wop.w > 0 && i.w.z < sea.z && (shd.x == 1 || shd.x == 2 || shd.x == 3 || shd.x == 4 || shd.x == 9)) {"
-    "  float wp = saturate(length(i.w - wop.xyz) * (sea.z - i.w.z) / max(wop.z - i.w.z, 0.01) * wop.w);"
-    "  c.rgb = lerp(c.rgb, wfc.rgb, wp * wp * (3 - 2 * wp)); }"
+    "  float wl = length(i.w - wop.xyz) * (sea.z - i.w.z) / max(wop.z - i.w.z, 0.01), wp = saturate(wl * wop.w);"
+    "  float4 wc = float4(wtb.SampleLevel(hs, float2(wl * wtc.x + wtc.y, 0.5), 0).rgb * wfc.rgb, 1);"
+    "  if (shd.x == 1 && op.w && op.x != 1) { float4 xm = t.SampleLevel(s, i.t, 8); wc.rgb = top(op.x, arg(op.y, xm, wc), arg(op.z, xm, wc)).rgb; }"
+    "  c.rgb = lerp(c.rgb, wc.rgb, (shd.x == 1 ? saturate(i.c.b / 0.25) : 1) * wp * wp * (3 - 2 * wp)); }"
     " if (misc.y > 0.5) c.rgb = lerp(fogc.rgb, c.rgb, saturate(i.f));"
     " return c; }\n";
 
