@@ -2,7 +2,7 @@
 # usage: powershell -File scripts/test/keep_awake.ps1 [-Owner <pid>]
 # Without -Owner it walks up its own parent processes to the first claude.exe - the session that started it - and
 # holds ES_CONTINUOUS | ES_SYSTEM_REQUIRED until that process ends (Windows drops the request when this script exits).
-# run_test.ps1 does the same for a single test run; this covers the time between runs (analysis, builds).
+# The test server (testd.py) does the same for a test run; this covers the time between runs (analysis, builds).
 param([int]$Owner = 0)
 if (-not $Owner) {
     $p = Get-CimInstance Win32_Process -Filter "ProcessId=$PID"

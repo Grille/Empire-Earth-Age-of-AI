@@ -1,4 +1,4 @@
-"""The game folder, as run_test.ps1 and scripts/game_dir.sh find it: env EE_GAME_DIR, else the line in the
+"""The game folder, as scripts/game_dir.sh finds it too: env EE_GAME_DIR, else the line in the
 repository's local/game_dir.txt (git-ignored), else the folder the repository sits in (<game>/_aimod)."""
 import os
 

@@ -1,6 +1,6 @@
 #!/bin/sh
 # Reserves the game folder for a task that needs it to itself (installing the DLL): no test run starts a
-# game while it holds the reservation (run_test.ps1 waits before its start), and the task begins once the folder's
+# game while it holds the reservation (the test server waits before its start), and the task begins once the folder's
 # game (Empire Earth.exe or EE-AOC.exe) runs no more - the tests' games end by themselves, the player's game is waited for. So a task can be
 # queued without asking anyone to pause. The reservation is a named object of the Windows session, by the game
 # folder's name (every copy of the repository shares it), held by scripts/test/hold.ps1 for as long as this shell keeps

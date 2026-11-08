@@ -20,7 +20,7 @@ MAP=${MAP:-random_map=Continental,map_size=0,ai_count=2,seed=101}
 # again on a rerun, so its details have to be in the trace that shows it
 base="$MAP,quit_minutes=$MIN,game_seed=${GAME_SEED:-777},sync_trace=$STEPS,sync_dump=${DUMP:-1-1000},mp_humans=$HUMANS"
 [ -n "$KEYS" ] && base="$base,$KEYS"
-run() { powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test/run_test.ps1 -TimeoutSec $((MIN * 12 + 240)) "$@" | tail -1; }
+run() { local/venv/Scripts/python.exe scripts/test/run_test.py -Quiet -TimeoutSec $((MIN * 12 + 240)) "$@"; }
 # a PC's run by its number; its folder once it plays (eectl.py waits while it is queued): empty when the run has ended
 name() { echo "mp${STAMP}_$1"; }
 folder() { RUN=$(name "$1") local/venv/Scripts/python.exe scripts/test/eectl.py --folder 2>/dev/null; }

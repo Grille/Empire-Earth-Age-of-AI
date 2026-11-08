@@ -1,4 +1,4 @@
-"""The test logs: run_test.ps1 stores them gzipped (local/work/autotest_*.csv.gz, since 2026-10-23: a log is ~7 times
+"""The test logs: the test server stores them gzipped (local/work/autotest_*.csv.gz, since 2026-10-23: a log is ~7 times
 smaller so), the player's own (play_*.csv) and a game's running log stay plain - the scripts read both through these."""
 import glob, gzip, os
 

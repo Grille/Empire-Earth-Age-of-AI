@@ -19,10 +19,10 @@ if ($Keys) { $ini = "$ini,$Keys" }
 $runs = @(@("wrapper", "renderer=wrapper,wrapper_dll=$wpath"), @("own", "renderer=own"))
 if ($OwnOnly) { $runs = @(,$runs[1]) }
 foreach ($r in $runs) {
-    $pargs = @("-NoProfile", "-File", "`"$repo\scripts\test\run_test.ps1`"", "-Name", "rc$($stamp)_$($r[0])",
+    $pargs = @("`"$repo\scripts\test\run_test.py`"", "-Name", "rc$($stamp)_$($r[0])",
               "-Save", "newgame.ees", "-TimeoutSec", "1500", "-Tag", "_rc$($stamp)_$($r[0])", "-IniExtra", "`"$ini,$($r[1])`"")
     if ($Dll) { $pargs += @("-Dll", "`"$Dll`"") }
-    Start-Process -WindowStyle Hidden powershell -ArgumentList $pargs `
+    Start-Process -WindowStyle Hidden "$repo\local\venv\Scripts\python.exe" -ArgumentList $pargs `
         -RedirectStandardOutput "local\work\rc_$stamp\run_$($r[0]).txt" -RedirectStandardError "local\work\rc_$stamp\run_$($r[0])_err.txt"
 }
 "started: sh scripts/test/render_compare.sh $stamp"

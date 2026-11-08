@@ -78,7 +78,7 @@ those are compared over several runs (`game_seed` makes one the same game every 
 
 ```sh
 # one 75-minute AI-vs-AI game on a random map, logs to local/work/autotest_<stamp>_<tag>.csv.gz
-powershell -ExecutionPolicy Bypass -File scripts/test/run_test.ps1 -Name try -Save newgame.ees -Tag _try \
+local/venv/Scripts/python scripts/test/run_test.py -Name try -Save newgame.ees -Tag _try \
     -IniExtra "random_map=Continental,ai_count=3,seed=101,avoid_towers=1"
 # the 4-map suite for several variants, scored per variant (4 games at a time; runs are queued, beside your own game)
 JOBS=4 sh scripts/test/suite.sh 50 "base:" "smart:avoid_towers=1"
@@ -142,7 +142,7 @@ scripts/          game_dir.py / .sh: where the game is (every script's)
   build/          the build's checks and generators (layers.py, style.py, spec_check.py, gen_api.py, persist_layout.py,
                   gen_cmd_verbs.py, gen_settings.py, gen_lang.py, gen_*.py for the docs and the grammar),
                   code_same.py, install.sh / install_latest.sh / install_wait.sh, pack_release.py
-  test/           run_test.ps1 and the runners on top of it (suite.sh, scen.sh, h2h.sh, vanilla.sh, jobs.sh),
+  test/           testd.py (the test server), run_test.py and the runners on top of it (suite.sh, scen.sh, h2h.sh, vanilla.sh, jobs.sh),
                   reserve.sh, eectl.py the control client, ee_mcp.py the MCP server, work_prune.ps1
   results/        the log readers and scorers (score.py, h2h.py, vanilla.py ...; logs.py opens the gzipped logs)
   re/             reverse engineering: the exe and dump helpers, port_*.py for Art of Conquest, gen_units.py +

@@ -2,7 +2,7 @@
 
 An AI and tuning mod for Empire Earth 1.04 (32-bit, German retail + DSML), injected as `ageofai.dll`. The game
 folder: env `EE_GAME_DIR`, else `local/game_dir.txt` in the repo (git-ignored), else the repo's parent (`<game>\_aimod`,
-the setup here) - scripts find it through `scripts/game_dir.sh` / `game_dir.py` / run_test.ps1; paths in the repo
+the setup here) - scripts find it through `scripts/game_dir.sh` / `game_dir.py`; paths in the repo
 (`setup=tests/scenarios/x.eeai`, `CONFIG=...`) are relative to the repo. What the mod does: README.md; how it is tested:
 docs/testing.md.
 Several sessions may work in this tree at the same time - see Git below.
@@ -129,11 +129,12 @@ and the runners, eectl, the MCP server), `results/` (log readers, scorers), `re/
 
 ## Testing
 
-- `scripts/test/run_test.ps1` (and scen.sh, suite.sh, h2h.sh ... on top of it): always `headless=1`. Runs are queued, first
-  come first served across all sessions, and play beside the player's game and each other; when and in which slot is
-  the runner's business (at most `EE_TEST_GAMES` games at a time, default half the logical processors; `ls local/work/queue`
-  shows the queue). `JOBS=n`: how many of a batch are in the queue at a time. `-Name x` / `RUN=x` names a run to reach
-  it: `RUN=x python scripts/test/eectl.py ...` (waits while it is queued; without RUN eectl is the player's game),
+- `scripts/test/run_test.py` (and scen.sh, suite.sh, h2h.sh ... on top of it): always `headless=1`. Runs go to the test
+  server (`scripts/test/testd.py`, started by the first client, runs on, one process for all games; docs/testing.md) and
+  play beside the player's game and each other; when and in which slot is the server's business. Sessions take turns
+  (the fewest games playing goes first, then the oldest), at most `EE_TEST_GAMES` games at a time (default half the
+  logical processors) and memory left free; `run_test.py --status` shows what plays and waits. `JOBS=n` only bounds a
+  batch's waiting clients (default 12). `-Name x` / `RUN=x` names a run to reach it: `RUN=x python scripts/test/eectl.py ...` (waits while it is queued; without RUN eectl is the player's game),
   `eectl.py --folder` the folder of its files while it plays. `DLL=<path>` plays your own build
   without installing it. Tests use the shipped `config/ageofai.ini` and `config/personalities/`, never the user's own.
 - Setup scripts (`tests/scenarios/*.eeai`, `tests/probes/*.eeai`): docs/scripts.md. The control pipe: `scripts/test/eectl.py`.

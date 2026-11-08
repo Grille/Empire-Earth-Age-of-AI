@@ -1,4 +1,4 @@
-# Keeps the test output in the repository's local\work\ from growing without end: run_test.ps1 calls it after archiving a
+# Keeps the test output in the repository's local\work\ from growing without end: the test server calls it after archiving a
 # log (at most once an hour, -Quiet), by hand: powershell -File scripts/test/work_prune.ps1 [-WhatIf]. Parallel A/B runs
 # wrote 30 GB of logs a day (2026-10-23: 54,000 logs, 77 GB, none ever deleted).
 #   the test logs (autotest_*.csv.gz - older ones plain -, slot<n>_left_*.csv): older than -Days (env

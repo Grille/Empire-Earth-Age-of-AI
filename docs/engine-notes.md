@@ -1180,7 +1180,7 @@ patching.c's scans; and display.c's patch_iat on the exe finds a slot by the fun
 are the slots. Checked: 15-minute test games, GOG and NeoEE side by side (Continental seed 101, game_seed 1) - all
 598 checks hold on both, every hook the same, the economy at 15 minutes within a few citizens (NeoEE's dbworld.dat
 differs). AoC's NeoEE exe is a row too, not ready yet (AoC itself is since 2026-11-05). Test runs there: EE_GAME_DIR=<NeoEE's game folder>
-(its single-instance check is NeoEE's own nop, run_test.ps1 warns that it found no je to nop), the mod's
+(its single-instance check is NeoEE's own nop, run_test.py warns that it found no je to nop), the mod's
 ageofai.dll in that folder, and newgame.ees in its Saved Games.
 
 **An exe of no known file (since 2026-10-27):** NeoEE showed that the 1.04 code is one compile in every wrapper - the

@@ -7,8 +7,8 @@
 cd "$(dirname "$0")/../.." || exit 1
 res=${1:-game}
 py=local/venv/Scripts/python
-export RUN=${RUN:-editor_$$}   # run_test.ps1 and eectl.py take it from the environment
-(powershell -ExecutionPolicy Bypass -File scripts/test/run_test.ps1 -Save nosuch.ees -TimeoutSec 3600 -Tag _editor \
+export RUN=${RUN:-editor_$$}   # run_test.py and eectl.py take it from the environment
+(local/venv/Scripts/python.exe scripts/test/run_test.py -Save nosuch.ees -TimeoutSec 3600 -Tag _editor \
     -IniExtra "headless=1,editor_resolution=$res${EXTRA:+,$EXTRA}" > local/work/editor_headless_$RUN.txt 2>&1 &)
 # its folder once it plays (eectl.py waits while it is queued; before the runner has queued it there is no such run yet)
 for i in $(seq 1 30); do dir=$($py scripts/test/eectl.py --folder 2>/dev/null) && break; sleep 1; done

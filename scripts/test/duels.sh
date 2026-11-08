@@ -32,6 +32,6 @@ for d in "$@"; do
         } > local/work/zz_duel_engage.eeai
         setup="local/work/zz_duel_engage.eeai;$setup"
     fi
-    powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test/run_test.ps1 -Save newgame.ees -TimeoutSec 300 -IniExtra "random_map=Continental,map_size=0,ai_count=2,seed=101,teams=ffa,start_epoch=${EPOCH:-3},ai_cheat=0,ai_ignore=1,save_state=0,quit_minutes=3,setup=$setup" -Tag "_duel_$1x$2_$3x$4${5:+_gap$5}${6:+_c$6}" | tail -1
+    local/venv/Scripts/python.exe scripts/test/run_test.py -Save newgame.ees -TimeoutSec 300 -IniExtra "random_map=Continental,map_size=0,ai_count=2,seed=101,teams=ffa,start_epoch=${EPOCH:-3},ai_cheat=0,ai_ignore=1,save_state=0,quit_minutes=3,setup=$setup" -Tag "_duel_$1x$2_$3x$4${5:+_gap$5}${6:+_c$6}" | tail -1
 done
 rm -f local/work/zz_duel.eeai local/work/zz_duel_engage.eeai
