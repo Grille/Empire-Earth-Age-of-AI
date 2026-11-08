@@ -28,7 +28,7 @@ class editor
     /// a saved game; the original game shows its own colours there). Painted ground looks exactly as before, in the
     /// original game too. In the terrain panel the colour list ends in a strip of all hues: click it for a colour of
     /// the map's own - one colour, a ramp between two, or each slot its own colour, 1 to 16 slots, the colours picked
-    /// with Windows' colour dialog. It comes after the game's colours in the list and paints as they do; double-click
+    /// in the dialog. It comes after the game's colours in the list and paints as they do; double-click
     /// it to change or delete it
     [title("Terrain colours")]
     bool terrain_palette = false;

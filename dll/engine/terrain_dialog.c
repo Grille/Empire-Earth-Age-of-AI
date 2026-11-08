@@ -2,8 +2,10 @@
 // colour list ends in an item of the mod's own, a strip of the hues round: selected (a click), the dialog opens for a
 // new type, the list's selection back on the item before; a double click on one of the map's own types opens it for
 // that type. The dialog: its kind (one colour, a ramp between two, each slot its own; a ramp's blend: sRGB as the
-// game's own, linear light or OKLab - tp_ramp), its slots (1 .. 16; a ramp 2 at least), its colours as a strip - a click on a slot picks its colour with Windows' colour dialog (a ramp: the end
-// nearer the click, the slots between follow) -, the slots free for it; OK makes the type (terrain_palette.c
+// game's own, linear light or OKLab - tp_ramp), its slots (1 .. 16; a ramp 2 at least), its colours as a strip - a click on a slot chooses it for the picker under the strip (a ramp: the end
+// nearer the click, the slots between follow) -, the slots free for it. The picker is part of the dialog, not a window of its own (the
+// theme has one background at a time), and the strip follows it as the mouse moves: a square of saturation and value, a bar of
+// the hues, the colour as numbers, what it was (a click there brings it back), the colours used last, kept while the game runs; OK makes the type (terrain_palette.c
 // tp_type_put), Delete takes it out. A modal Win32 dialog over the game's window, on the game's thread: the game
 // waits meanwhile; the same program's window, so no app switch reaches the game (it would minimize itself). In the
 // game's look (ui/theme.c, ageofai_config.exe's controls in the editor's style: the parchment of its pages under it,
@@ -20,15 +22,34 @@
 #define TD_BLEND 109
 #define TD_BLEND_LABEL 110
 #define TD_SLOTS_LABEL 111
+#define TD_SQUARE 112
+#define TD_HUE 113
+#define TD_SWATCH 114
+#define TD_RECENT 115
+#define TD_RECENT_LABEL 116
+#define TD_R 117          // TD_G, TD_B after it, then TD_HEX; their labels in that order
+#define TD_G 118
+#define TD_B 119
+#define TD_HEX 120
+#define TD_R_LABEL 121
+#define TD_G_LABEL 122
+#define TD_B_LABEL 123
+#define TD_HEX_LABEL 124
+#define TD_RECENTS 16
 internal struct {
     int type;                          // the type changed, -1 a new one
     int mode, blend;
     unsigned n, avail;                 // its slots; the slots it may have (free ones and its own)
     uint8_t cell[TP_TYPE_SLOTS][3];    // the slots' colours as shown
     int result;                        // IDOK, IDCANCEL, TD_DELETE
+    unsigned sel;                      // the slot the picker works on
+    float hue, sat, val;               // its place in the picker (0 .. 1): the colour's, with what a grey or black doesn't tell
+    uint8_t was[3];                    // its colour when it was chosen
+    int drag;                          // the mouse held on: TD_SQUARE, TD_HUE
+    int edited, filling;               // changed since it was chosen; the fields being set from here (their EN_CHANGE ignored)
 } g_td;
-internal COLORREF g_td_custom[16];    // Windows' colour dialog's custom colours, kept between its opens
-internal BOOL (WINAPI *g_td_choose)(CHOOSECOLORW *);
+internal uint8_t g_td_recent[TD_RECENTS][3];   // the colours used last, the newest first
+internal unsigned g_td_recents;
 internal int g_td_prev = -1;           // the colour list's selection before the "new" item's
 
 // a ramp's slots between its ends anew, a single colour's one
@@ -38,8 +59,89 @@ internal void td_derive(void) {
     if (g_td.mode == TP_RAMP) tp_ramp(g_td.cell[0], g_td.cell[g_td.n - 1], g_td.n, g_td.blend, g_td.cell);
 }
 
+// hue 0 .. 1 round, saturation and value 0 .. 1
+internal void td_hsv_rgb(float h, float s, float v, uint8_t out[3]) {
+    float f = h * 6.0f;
+    int i = (int)f;
+    f -= (float)i;
+    float p = v * (1 - s), q = v * (1 - s * f), t = v * (1 - s * (1 - f));
+    const float c[6][3] = { { v, t, p }, { q, v, p }, { p, v, t }, { p, q, v }, { t, p, v }, { v, p, q } };
+    for (int j = 0; j < 3; j++) out[j] = (uint8_t)(c[i % 6][j] * 255.0f + 0.5f);
+}
+
+// the picker's place from a colour: a grey keeps the hue it had, black its saturation too (the marks stay where they were)
+internal void td_rgb_hsv(const uint8_t c[3]) {
+    float r = c[0] / 255.0f, g = c[1] / 255.0f, b = c[2] / 255.0f;
+    float top = r > g ? (r > b ? r : b) : (g > b ? g : b), low = r < g ? (r < b ? r : b) : (g < b ? g : b), d = top - low;
+    g_td.val = top;
+    if (top > 0) g_td.sat = d / top;
+    if (d <= 0) return;
+    float h = top == r ? (g - b) / d : top == g ? 2 + (b - r) / d : 4 + (r - g) / d;
+    g_td.hue = (h < 0 ? h + 6 : h) / 6;
+}
+
+// the slot's colour into the recent colours' front, if it was changed since it was chosen
+internal void td_remember(void) {
+    if (!g_td.edited) return;
+    g_td.edited = 0;
+    uint8_t c[3];
+    memcpy(c, g_td.cell[g_td.sel], 3);
+    unsigned at = 0;
+    while (at < g_td_recents && memcmp(g_td_recent[at], c, 3)) at++;
+    if (at == g_td_recents && g_td_recents < TD_RECENTS) g_td_recents++;
+    if (at == g_td_recents) at--;
+    memmove(g_td_recent[1], g_td_recent[0], at * 3);
+    memcpy(g_td_recent[0], c, 3);
+}
+
+// the fields from the chosen slot's colour, but the one being typed in
+internal void td_fields(HWND d, int skip) {
+    const uint8_t *c = g_td.cell[g_td.sel];
+    wchar_t t[8];
+    g_td.filling = 1;
+    for (int j = 0; j < 3; j++)
+        if (TD_R + j != skip) SetDlgItemInt(d, TD_R + j, c[j], FALSE);
+    if (skip != TD_HEX) {
+        wsprintfW(t, L"%02X%02X%02X", c[0], c[1], c[2]);
+        SetDlgItemTextW(d, TD_HEX, t);
+    }
+    g_td.filling = 0;
+}
+
+internal void td_redraw(HWND d) {
+    static const int drawn[] = { TD_STRIP, TD_SQUARE, TD_HUE, TD_SWATCH, TD_RECENT };
+    for (unsigned k = 0; k < sizeof drawn / sizeof *drawn; k++) InvalidateRect(GetDlgItem(d, drawn[k]), NULL, FALSE);
+}
+
+// the slot the picker works on
+internal void td_choose(HWND d, unsigned k) {
+    td_remember();
+    g_td.sel = k;
+    memcpy(g_td.was, g_td.cell[k], 3);
+    td_rgb_hsv(g_td.cell[k]);
+    td_fields(d, 0);
+    td_redraw(d);
+}
+
+// the chosen slot's colour changed (skip: the field it was typed in)
+internal void td_changed(HWND d, int skip) {
+    g_td.edited = 1;
+    td_derive();
+    td_fields(d, skip);
+    td_redraw(d);
+}
+
+// a colour for the chosen slot (the "was" half, a recent one, the fields)
+internal void td_set(HWND d, const uint8_t c[3], int skip) {
+    memmove(g_td.cell[g_td.sel], c, 3);
+    td_rgb_hsv(c);
+    td_changed(d, skip);
+}
+
 internal void td_update(HWND d) {
     td_derive();
+    unsigned k = g_td.mode == TP_FLAT ? 0 : g_td.mode == TP_RAMP ? (g_td.sel * 2 < g_td.n ? 0 : g_td.n - 1) : g_td.sel < g_td.n ? g_td.sel : g_td.n - 1;
+    if (k != g_td.sel) td_choose(d, k);
     CheckRadioButton(d, TD_FLAT, TD_EACH, TD_FLAT + g_td.mode);
     SendDlgItemMessageW(d, TD_COUNT, CB_SETCURSEL, g_td.n - 1, 0);
     EnableWindow(GetDlgItem(d, TD_COUNT), g_td.mode != TP_FLAT);
@@ -49,10 +151,10 @@ internal void td_update(HWND d) {
     if (g_td.n <= g_td.avail) wsprintfW(t, L" %u of %u free slots taken", g_td.n, g_td.avail);
     else wsprintfW(t, L" only %u slots free", g_td.avail);
     SetDlgItemTextW(d, TD_FREE, t);
-    SetDlgItemTextW(d, TD_HINT, g_td.mode == TP_RAMP ? L" Click near an end of the strip to pick that end's colour." :
-                                g_td.mode == TP_EACH ? L" Click a slot to pick its colour." : L" Click the strip to pick the colour.");
+    SetDlgItemTextW(d, TD_HINT, g_td.mode == TP_RAMP ? L" Click near an end of the strip to choose which end to change." :
+                                g_td.mode == TP_EACH ? L" Click a slot to choose which to change." : L" Its colour: choose it below.");
     EnableWindow(GetDlgItem(d, IDOK), g_td.n <= g_td.avail);
-    InvalidateRect(GetDlgItem(d, TD_STRIP), NULL, TRUE);
+    td_redraw(d);
 }
 
 // the count changed: new slots like the last one (a ramp keeps its last end)
@@ -62,7 +164,10 @@ internal void td_count(unsigned n) {
     memcpy(last, g_td.cell[had - 1], 3);
     for (unsigned k = had; k < n; k++) memcpy(g_td.cell[k], last, 3);
     g_td.n = n;
-    if (g_td.mode == TP_RAMP) memcpy(g_td.cell[n - 1], last, 3);
+    if (g_td.mode == TP_RAMP) {
+        memcpy(g_td.cell[n - 1], last, 3);
+        if (g_td.sel) g_td.sel = n - 1;   // the picker stays on the last end
+    }
 }
 
 // the mode changed: a ramp from the first and last colour, one colour the first
@@ -72,55 +177,181 @@ internal void td_mode(int mode) {
     g_td.mode = mode;
 }
 
-internal void td_pick(HWND d) {
-    HWND s = GetDlgItem(d, TD_STRIP);
-    POINT p;
-    RECT r;
-    GetCursorPos(&p);
-    ScreenToClient(s, &p);
-    GetClientRect(s, &r);
-    unsigned k = r.right > 0 && p.x > 0 ? (unsigned)(p.x * (LONG)g_td.n / r.right) : 0;
-    if (k >= g_td.n) k = g_td.n - 1;
-    if (g_td.mode == TP_FLAT) k = 0;
-    if (g_td.mode == TP_RAMP) k = k * 2 < g_td.n ? 0 : g_td.n - 1;
-    if (!g_td_choose) {
-        HMODULE m = LoadLibraryA("comdlg32.dll");
-        g_td_choose = m ? (BOOL (WINAPI *)(CHOOSECOLORW *))(void *)GetProcAddress(m, "ChooseColorW") : NULL;
-        if (!g_td_choose) return;
-    }
-    uint8_t *c = g_td.cell[k];
-    CHOOSECOLORW cc = { .lStructSize = sizeof cc, .hwndOwner = d, .rgbResult = RGB(c[0], c[1], c[2]),
-                        .lpCustColors = g_td_custom, .Flags = CC_FULLOPEN | CC_RGBINIT };
-    if (!g_td_choose(&cc)) return;
-    c[0] = GetRValue(cc.rgbResult), c[1] = GetGValue(cc.rgbResult), c[2] = GetBValue(cc.rgbResult);
-    td_update(d);
+internal void td_fill(HDC dc, const RECT *r, const uint8_t c[3]) {
+    HBRUSH b = CreateSolidBrush(RGB(c[0], c[1], c[2]));
+    FillRect(dc, r, b);
+    DeleteObject(b);
+}
+
+// a drawn control's inside: its bevel round it, as a field's (none in the plain look, its place kept: the mouse maps to it)
+internal RECT td_sunken(const DRAWITEMSTRUCT *di) {
+    RECT r = di->rcItem;
+    if (g_gl.on) theme_bevel(di->hDC, &r, 1);
+    InflateRect(&r, -2, -2);
+    return r;
 }
 
 internal void td_draw(const DRAWITEMSTRUCT *di) {
-    RECT r = di->rcItem;
-    if (g_gl.on) {   // in a field's sunken bevel
-        theme_bevel(di->hDC, &r, 1);
-        InflateRect(&r, -2, -2);
-    }
+    RECT r = td_sunken(di);
     LONG w = r.right - r.left;
+    HBRUSH black = (HBRUSH)GetStockObject(BLACK_BRUSH), white = (HBRUSH)GetStockObject(WHITE_BRUSH), mark = CreateSolidBrush(RGB(254, 247, 32));
     for (unsigned k = 0; k < g_td.n; k++) {
         RECT c = { r.left + (LONG)k * w / (LONG)g_td.n, r.top, r.left + (LONG)(k + 1) * w / (LONG)g_td.n, r.bottom };
-        HBRUSH b = CreateSolidBrush(RGB(g_td.cell[k][0], g_td.cell[k][1], g_td.cell[k][2]));
-        FillRect(di->hDC, &c, b);
-        DeleteObject(b);
-        if (g_td.mode != TP_RAMP || k == 0 || k + 1 == g_td.n) {   // what a click picks: framed
-            FrameRect(di->hDC, &c, (HBRUSH)GetStockObject(BLACK_BRUSH));
+        td_fill(di->hDC, &c, g_td.cell[k]);
+        if (g_td.mode != TP_RAMP || k == 0 || k + 1 == g_td.n) {   // what a click chooses: framed, the chosen one in the look's yellow
+            FrameRect(di->hDC, &c, black);
             InflateRect(&c, -1, -1);
-            FrameRect(di->hDC, &c, (HBRUSH)GetStockObject(WHITE_BRUSH));
+            FrameRect(di->hDC, &c, k == g_td.sel ? mark : white);
+            if (k == g_td.sel) {
+                InflateRect(&c, -1, -1);
+                FrameRect(di->hDC, &c, mark);
+                InflateRect(&c, -1, -1);
+                FrameRect(di->hDC, &c, black);
+            }
         }
     }
+    DeleteObject(mark);
+}
+
+// the picker's square (across saturation, up value, of the hue chosen) or its bar of the hues, and the mark on it
+internal void td_gradient(const DRAWITEMSTRUCT *di, int bar) {
+    RECT r = td_sunken(di);
+    int w = r.right - r.left, h = r.bottom - r.top;
+    if (w < 2 || h < 2) return;
+    BITMAPINFO bi = { .bmiHeader = { .biSize = sizeof bi.bmiHeader, .biWidth = w, .biHeight = -h, .biPlanes = 1, .biBitCount = 32 } };
+    uint8_t *bits;
+    HBITMAP bm = CreateDIBSection(NULL, &bi, DIB_RGB_COLORS, (void **)&bits, NULL, 0);
+    if (!bm) return;
+    uint8_t *o = bits, c[3];
+    for (int y = 0; y < h; y++)
+        for (int x = 0; x < w; x++, o += 4) {
+            if (bar) td_hsv_rgb((float)y / (float)(h - 1), 1, 1, c);
+            else td_hsv_rgb(g_td.hue, (float)x / (float)(w - 1), 1 - (float)y / (float)(h - 1), c);
+            o[0] = c[2], o[1] = c[1], o[2] = c[0];
+        }
+    GdiFlush();
+    HDC mem = CreateCompatibleDC(di->hDC);
+    HGDIOBJ old = SelectObject(mem, bm);
+    BitBlt(di->hDC, r.left, r.top, w, h, mem, 0, 0, SRCCOPY);
+    SelectObject(mem, old);
+    DeleteDC(mem);
+    DeleteObject(bm);
+    int saved = SaveDC(di->hDC);
+    IntersectClipRect(di->hDC, r.left, r.top, r.right, r.bottom);
+    int mx = r.left + (int)(g_td.sat * (float)(w - 1) + 0.5f), my = r.top + (int)((1 - g_td.val) * (float)(h - 1) + 0.5f);
+    RECT m = { mx - 5, my - 5, mx + 6, my + 6 };
+    if (bar) {
+        my = r.top + (int)(g_td.hue * (float)(h - 1) + 0.5f);
+        m = (RECT){ r.left, my - 3, r.right, my + 4 };
+    }
+    FrameRect(di->hDC, &m, (HBRUSH)GetStockObject(BLACK_BRUSH));
+    InflateRect(&m, -1, -1);
+    FrameRect(di->hDC, &m, (HBRUSH)GetStockObject(WHITE_BRUSH));
+    RestoreDC(di->hDC, saved);
+}
+
+// the chosen slot's colour over what it was when it was chosen (a click on that half brings it back)
+internal void td_swatch(const DRAWITEMSTRUCT *di) {
+    RECT r = td_sunken(di), a = r, b = r;
+    a.bottom = b.top = (r.top + r.bottom) / 2;
+    td_fill(di->hDC, &a, g_td.cell[g_td.sel]);
+    td_fill(di->hDC, &b, g_td.was);
+}
+
+internal void td_recents(const DRAWITEMSTRUCT *di) {
+    RECT r = td_sunken(di);
+    LONG w = r.right - r.left;
+    for (unsigned k = 0; k < TD_RECENTS; k++) {
+        RECT c = { r.left + (LONG)k * w / TD_RECENTS, r.top, r.left + (LONG)(k + 1) * w / TD_RECENTS, r.bottom };
+        if (k < g_td_recents) td_fill(di->hDC, &c, g_td_recent[k]);
+        else FillRect(di->hDC, &c, g_pal.b_field);
+        FrameRect(di->hDC, &c, (HBRUSH)GetStockObject(BLACK_BRUSH));
+    }
+}
+
+// a control's rectangles in the dialog: whole (returned: the point on it), inside its bevel
+internal int td_hit(HWND d, int id, POINT p, RECT *in) {
+    GetWindowRect(GetDlgItem(d, id), in);
+    MapWindowPoints(NULL, d, (POINT *)in, 2);
+    int on = PtInRect(in, p);
+    InflateRect(in, -2, -2);
+    return on;
+}
+
+// the mouse on the square or the bar: its place is the colour, kept on it outside
+internal void td_drag(HWND d, POINT p) {
+    RECT r;
+    td_hit(d, g_td.drag, p, &r);
+    float x = (float)(p.x - r.left) / (float)(r.right - r.left - 1), y = (float)(p.y - r.top) / (float)(r.bottom - r.top - 1);
+    x = x < 0 ? 0 : x > 1 ? 1 : x, y = y < 0 ? 0 : y > 1 ? 1 : y;
+    if (g_td.drag == TD_HUE) g_td.hue = y;
+    else g_td.sat = x, g_td.val = 1 - y;
+    td_hsv_rgb(g_td.hue, g_td.sat, g_td.val, g_td.cell[g_td.sel]);
+    td_changed(d, 0);
+}
+
+internal void td_click(HWND d, POINT p) {
+    RECT r;
+    if (td_hit(d, TD_SQUARE, p, &r) || td_hit(d, TD_HUE, p, &r)) {
+        g_td.drag = td_hit(d, TD_HUE, p, &r) ? TD_HUE : TD_SQUARE;
+        SetCapture(d);
+        td_drag(d, p);
+    } else if (td_hit(d, TD_STRIP, p, &r)) {   // a slot to work on (a ramp: the end nearer the click)
+        LONG w = r.right - r.left;
+        unsigned k = w > 0 && p.x > r.left ? (unsigned)((p.x - r.left) * (LONG)g_td.n / w) : 0;
+        if (k >= g_td.n) k = g_td.n - 1;
+        if (g_td.mode == TP_FLAT) k = 0;
+        if (g_td.mode == TP_RAMP) k = k * 2 < g_td.n ? 0 : g_td.n - 1;
+        td_choose(d, k);
+    } else if (td_hit(d, TD_SWATCH, p, &r)) {
+        if (p.y >= (r.top + r.bottom) / 2) td_set(d, g_td.was, 0);
+    } else if (td_hit(d, TD_RECENT, p, &r) && r.right > r.left && p.x >= r.left) {
+        unsigned k = (unsigned)((p.x - r.left) * TD_RECENTS / (r.right - r.left));
+        if (k < g_td_recents) {
+            uint8_t c[3];
+            memcpy(c, g_td_recent[k], 3);
+            td_set(d, c, 0);
+        }
+    }
+}
+
+// a field typed in: its value the slot's colour once it is one (a part typed is left as it is)
+internal void td_typed(HWND d, int id) {
+    uint8_t c[3];
+    memcpy(c, g_td.cell[g_td.sel], 3);
+    if (id == TD_HEX) {
+        wchar_t t[8];
+        if (GetDlgItemTextW(d, id, t, 8) != 6) return;
+        unsigned v = 0;
+        for (int i = 0; i < 6; i++) {
+            unsigned x = t[i] >= L'0' && t[i] <= L'9' ? t[i] - L'0' : t[i] >= L'A' && t[i] <= L'F' ? t[i] - L'A' + 10u : 16;
+            if (x > 15) return;
+            v = v * 16 + x;
+        }
+        c[0] = (uint8_t)(v >> 16), c[1] = (uint8_t)(v >> 8), c[2] = (uint8_t)v;
+    } else {
+        BOOL ok;
+        UINT v = GetDlgItemInt(d, id, &ok, FALSE);
+        if (!ok) return;
+        if (v > 255) {
+            v = 255;
+            g_td.filling = 1;
+            SetDlgItemInt(d, id, v, FALSE);
+            SendDlgItemMessageW(d, id, EM_SETSEL, 3, 3);
+            g_td.filling = 0;
+        }
+        c[id - TD_R] = (uint8_t)v;
+    }
+    td_set(d, c, id);
 }
 
 // the labels and radio buttons the dropdowns' height (a cell of the game's in its look, theme_control), on a
 // dropdown's row those beside it, the others round their middle: their boxes and texts in line with the fields'
 internal void td_rows(HWND d) {
     static const int rows[][2] = { { TD_FLAT, 0 }, { TD_RAMP, TD_BLEND }, { TD_EACH, 0 }, { TD_BLEND_LABEL, TD_BLEND },
-                                   { TD_SLOTS_LABEL, TD_COUNT }, { TD_FREE, TD_COUNT }, { TD_HINT, 0 } };
+                                   { TD_SLOTS_LABEL, TD_COUNT }, { TD_FREE, TD_COUNT }, { TD_HINT, 0 },
+                                   { TD_R, 0 }, { TD_G, 0 }, { TD_B, 0 }, { TD_HEX, 0 }, { TD_R_LABEL, TD_R }, { TD_G_LABEL, TD_G },
+                                   { TD_B_LABEL, TD_B }, { TD_HEX_LABEL, TD_HEX }, { TD_RECENT_LABEL, 0 }, { TD_RECENT, TD_RECENT_LABEL } };
     RECT f;
     GetWindowRect(GetDlgItem(d, TD_BLEND), &f);
     int h = f.bottom - f.top;
@@ -133,6 +364,19 @@ internal void td_rows(HWND d) {
         MapWindowPoints(NULL, d, (POINT *)&f, 2);
         int top = rows[k][1] ? f.top : (f.top + f.bottom - h) / 2;
         SetWindowPos(c, NULL, r.left, top, r.right - r.left, h, SWP_NOZORDER | SWP_NOACTIVATE);
+    }
+    RECT a, b;   // the picker's square, bar and swatch from the first field's top to the last's bottom
+    GetWindowRect(GetDlgItem(d, TD_R), &a);
+    GetWindowRect(GetDlgItem(d, TD_HEX), &b);
+    MapWindowPoints(NULL, d, (POINT *)&a, 2);
+    MapWindowPoints(NULL, d, (POINT *)&b, 2);
+    static const int tall[] = { TD_SQUARE, TD_HUE, TD_SWATCH };
+    for (unsigned k = 0; k < sizeof tall / sizeof *tall; k++) {
+        HWND c = GetDlgItem(d, tall[k]);
+        RECT r;
+        GetWindowRect(c, &r);
+        MapWindowPoints(NULL, d, (POINT *)&r, 2);
+        SetWindowPos(c, NULL, r.left, a.top, r.right - r.left, b.bottom - a.top, SWP_NOZORDER | SWP_NOACTIVATE);
     }
 }
 
@@ -159,8 +403,13 @@ internal INT_PTR CALLBACK td_proc(HWND d, UINT msg, WPARAM w, LPARAM l) {
         for (unsigned k = 0; k < sizeof buttons / sizeof *buttons; k++) theme_control(GetDlgItem(d, buttons[k]), WC_BUTTONA);
         theme_control(GetDlgItem(d, TD_COUNT), WC_COMBOBOXA);
         theme_control(GetDlgItem(d, TD_BLEND), WC_COMBOBOXA);
+        for (int id = TD_R; id <= TD_HEX; id++) {
+            theme_control(GetDlgItem(d, id), WC_EDITA);
+            SendDlgItemMessageW(d, id, EM_LIMITTEXT, id == TD_HEX ? 6 : 3, 0);
+        }
         td_rows(d);
         td_update(d);
+        td_choose(d, 0);
         SetFocus(GetDlgItem(d, IDOK));   // not the first radio button: an automatic one given the focus is clicked too
         return FALSE;
     }
@@ -172,8 +421,23 @@ internal INT_PTR CALLBACK td_proc(HWND d, UINT msg, WPARAM w, LPARAM l) {
         return (INT_PTR)theme_ctlcolor(msg, w, l);   // a dialog procedure answers these with the brush itself
     case WM_DRAWITEM:
         if (w == TD_STRIP) { td_draw((const DRAWITEMSTRUCT *)l); return TRUE; }
+        if (w == TD_SQUARE || w == TD_HUE) { td_gradient((const DRAWITEMSTRUCT *)l, w == TD_HUE); return TRUE; }
+        if (w == TD_SWATCH) { td_swatch((const DRAWITEMSTRUCT *)l); return TRUE; }
+        if (w == TD_RECENT) { td_recents((const DRAWITEMSTRUCT *)l); return TRUE; }
         if (theme_draw_item((const DRAWITEMSTRUCT *)l)) return TRUE;   // the dropdowns' lists
         break;
+    case WM_LBUTTONDOWN:   // the drawn controls are statics: the mouse goes through them to here
+        td_click(d, (POINT){ (short)LOWORD(l), (short)HIWORD(l) });
+        return TRUE;
+    case WM_MOUSEMOVE:
+        if (g_td.drag) td_drag(d, (POINT){ (short)LOWORD(l), (short)HIWORD(l) });
+        return TRUE;
+    case WM_LBUTTONUP:
+        if (g_td.drag) g_td.drag = 0, ReleaseCapture();
+        return TRUE;
+    case WM_CAPTURECHANGED:
+        g_td.drag = 0;
+        return TRUE;
     case WM_COMMAND:
         switch (LOWORD(w)) {
         case TD_FLAT: case TD_RAMP: case TD_EACH:
@@ -191,10 +455,11 @@ internal INT_PTR CALLBACK td_proc(HWND d, UINT msg, WPARAM w, LPARAM l) {
                 if (i >= TP_SRGB && i <= TP_OKLAB) g_td.blend = (int)i, td_update(d);
             }
             return TRUE;
-        case TD_STRIP:
-            if (HIWORD(w) == BN_CLICKED) td_pick(d);
+        case TD_R: case TD_G: case TD_B: case TD_HEX:
+            if (HIWORD(w) == EN_CHANGE && !g_td.filling) td_typed(d, LOWORD(w));
             return TRUE;
         case IDOK: case IDCANCEL: case TD_DELETE:
+            if (LOWORD(w) == IDOK) td_remember();
             g_td.result = LOWORD(w);
             EndDialog(d, 0);
             return TRUE;
@@ -213,9 +478,10 @@ internal WORD *td_str(WORD *p, const wchar_t *s) {
 internal WORD *td_item(WORD *p, DWORD style, short x, short y, short cx, short cy, WORD id, WORD cls, const wchar_t *text) {
     p = td_align(p);
     DLGITEMTEMPLATE *it = (DLGITEMTEMPLATE *)p;
-    *it = (DLGITEMTEMPLATE){ .style = style | WS_CHILD | WS_VISIBLE, .x = x, .y = y, .cx = cx, .cy = cy, .id = id };
+    *it = (DLGITEMTEMPLATE){ .style = style | WS_CHILD | WS_VISIBLE, .dwExtendedStyle = cls == 0x81 ? WS_EX_CLIENTEDGE : 0,   // an edit: the theme draws that frame
+                             .x = x, .y = y, .cx = cx, .cy = cy, .id = id };
     p = (WORD *)(it + 1);
-    *p++ = 0xFFFF, *p++ = cls;   // a class by its atom: 0x80 button, 0x82 static, 0x85 combo box
+    *p++ = 0xFFFF, *p++ = cls;   // a class by its atom: 0x80 button, 0x81 edit, 0x82 static, 0x85 combo box
     p = td_str(p, text);
     *p++ = 0;                    // no creation data
     return p;
@@ -247,11 +513,10 @@ internal void td_open(int i, int sel) {
         memcpy(g_td.cell[0], a, 3), memcpy(g_td.cell[7], b, 3);
     }
     td_derive();
-    for (unsigned k = 0; k < 16 && k < g_td.n; k++) g_td_custom[k] = RGB(g_td.cell[k][0], g_td.cell[k][1], g_td.cell[k][2]);
     static WORD tpl[1024];
     memset(tpl, 0, sizeof tpl);
     DLGTEMPLATE *dt = (DLGTEMPLATE *)tpl;
-    *dt = (DLGTEMPLATE){ .style = DS_MODALFRAME | DS_SETFONT | WS_POPUP | WS_CAPTION | WS_SYSMENU, .cdit = 13, .cx = 260, .cy = 142 };
+    *dt = (DLGTEMPLATE){ .style = DS_MODALFRAME | DS_SETFONT | WS_POPUP | WS_CAPTION | WS_SYSMENU, .cdit = 26, .cx = 260, .cy = 241 };
     WORD *p = (WORD *)(dt + 1);
     *p++ = 0, *p++ = 0;          // no menu, the dialog class
     p = td_str(p, L"");          // the title: set at its start
@@ -260,9 +525,9 @@ internal void td_open(int i, int sel) {
     // the buttons first: the dialog gives its first tab stop the focus when it is activated, and an automatic radio
     // button given the focus is clicked (the kind was one colour whenever the dialog opened). A radio button as tall
     // as the game's picture of one (20 pixels)
-    p = td_item(p, BS_DEFPUSHBUTTON | WS_TABSTOP | WS_GROUP, 146, 120, 50, 15, IDOK, 0x80, L"OK");
-    p = td_item(p, BS_PUSHBUTTON | WS_TABSTOP, 202, 120, 50, 15, IDCANCEL, 0x80, L"Cancel");
-    p = td_item(p, BS_PUSHBUTTON | WS_TABSTOP, 8, 120, 50, 15, TD_DELETE, 0x80, L"Delete");
+    p = td_item(p, BS_DEFPUSHBUTTON | WS_TABSTOP | WS_GROUP, 146, 218, 50, 15, IDOK, 0x80, L"OK");
+    p = td_item(p, BS_PUSHBUTTON | WS_TABSTOP, 202, 218, 50, 15, IDCANCEL, 0x80, L"Cancel");
+    p = td_item(p, BS_PUSHBUTTON | WS_TABSTOP, 8, 218, 50, 15, TD_DELETE, 0x80, L"Delete");
     p = td_item(p, BS_AUTORADIOBUTTON | WS_GROUP | WS_TABSTOP, 8, 6, 124, 12, TD_FLAT, 0x80, L"One colour");
     p = td_item(p, BS_AUTORADIOBUTTON, 8, 20, 124, 12, TD_RAMP, 0x80, L"A ramp between two colours");
     p = td_item(p, BS_AUTORADIOBUTTON, 8, 34, 124, 12, TD_EACH, 0x80, L"Each slot a colour of its own");
@@ -272,8 +537,18 @@ internal void td_open(int i, int sel) {
     p = td_item(p, CBS_DROPDOWNLIST | CBS_OWNERDRAWFIXED | CBS_HASSTRINGS | WS_VSCROLL | WS_TABSTOP | WS_GROUP, 40, 54, 36, 160,
                 TD_COUNT, 0x85, L"");
     p = td_item(p, SS_LEFT | SS_CENTERIMAGE, 86, 54, 166, 12, TD_FREE, 0x82, L"");
-    p = td_item(p, BS_OWNERDRAW | WS_TABSTOP, 8, 72, 244, 24, TD_STRIP, 0x80, L"");
+    p = td_item(p, SS_OWNERDRAW, 8, 72, 244, 24, TD_STRIP, 0x82, L"");
     p = td_item(p, SS_LEFT | SS_CENTERIMAGE, 8, 101, 244, 12, TD_HINT, 0x82, L"");
+    p = td_item(p, SS_OWNERDRAW, 8, 118, 128, 75, TD_SQUARE, 0x82, L"");   // the picker (td_rows: these three as tall as the fields)
+    p = td_item(p, SS_OWNERDRAW, 140, 118, 14, 75, TD_HUE, 0x82, L"");
+    p = td_item(p, SS_OWNERDRAW, 218, 118, 34, 75, TD_SWATCH, 0x82, L"");
+    static const wchar_t *const fields[] = { L" R:", L" G:", L" B:", L" Hex:" };
+    for (int k = 0; k < 4; k++) {
+        p = td_item(p, SS_LEFT | SS_CENTERIMAGE, 158, (short)(118 + 21 * k), 22, 12, (WORD)(TD_R_LABEL + k), 0x82, fields[k]);
+        p = td_item(p, WS_TABSTOP | ES_AUTOHSCROLL | (k < 3 ? ES_NUMBER : ES_UPPERCASE) | (k ? 0 : WS_GROUP), 182, (short)(118 + 21 * k), 32, 12, (WORD)(TD_R + k), 0x81, L"");
+    }
+    p = td_item(p, SS_LEFT | SS_CENTERIMAGE, 8, 198, 34, 12, TD_RECENT_LABEL, 0x82, L" Recent:");
+    p = td_item(p, SS_OWNERDRAW, 44, 198, 208, 12, TD_RECENT, 0x82, L"");
     ee_window *gw = game_window();
     HWND owner = gw ? window_get_hwnd(gw) : NULL;
     RECT clip;
