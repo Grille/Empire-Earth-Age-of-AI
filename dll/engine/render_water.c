@@ -19,6 +19,7 @@ internal struct {
     int mirror;      // the reflections, -1: as the ini says
     float strength;  // how much of the surface a reflection takes
     float wobble;    // how far the water's ripples move it (of the picture)
+    float full;      // the depth (tiles) from which it has its whole strength; toward the shore it fades to none
     int failed, in_pass, drawn;   // its target could not be made; being drawn; one drawn
     int w, h;        // the target's size
     float rfb[4];    // the picture's place on the screen: its x, y; 1 / its width, height
@@ -27,7 +28,7 @@ internal struct {
     ID3D11DepthStencilView *dsv;
     ID3D11ShaderResourceView *srv;
     ID3D11RasterizerState *raster;
-} g_wa = { .on = -1, .fog = 0.35f, .shallow = 0.75f, .deep = 1.0f, .edge = 0.05f, .sea = 0.75f, .seadepth = 0.35f, .mirror = -1, .strength = 0.35f, .wobble = 0.012f };
+} g_wa = { .on = -1, .fog = 0.35f, .shallow = 0.75f, .deep = 1.0f, .edge = 0.05f, .sea = 0.75f, .seadepth = 0.35f, .mirror = -1, .strength = 0.35f, .wobble = 0.012f, .full = 0.4f };
 
 internal void rd3_water_pc(rd3_pcb *pc, float level, int water_seen) {
     int on = (g_wa.on < 0 ? g_set.water_look : g_wa.on) && water_seen;
@@ -41,12 +42,14 @@ internal void rd3_water_pc(rd3_pcb *pc, float level, int water_seen) {
     pc->rfa[0] = g_wa.strength;
     pc->rfa[1] = g_wa.wobble;
     pc->rfa[2] = g_wa.drawn && water_seen ? 1.0f : 0.0f;
+    pc->rfa[3] = 1 / g_wa.full;
     memcpy(pc->rfb, g_wa.rfb, sizeof pc->rfb);
 }
 
 // THE REFLECTIONS ([display] water_reflections): before the list is drawn, what stands in the world - the units,
 // buildings and trees on the screen - is drawn again mirrored about the water's level into a picture of half the size, and the surface takes a part of it where
-// something was drawn. The ground isn't: the land lies within hundredths of the level on most maps. A list without
+// something was drawn, less the shallower the water (the player, 2026-11-08, a tower's image lying on the sand under
+// the shallows: none at the shore). The ground isn't: the land lies within hundredths of the level on most maps. A list without
 // casters leaves the last picture (a frame's list is drawn in parts).
 internal void rd3_water_bind(ID3D11DeviceContext *x) {
     ID3D11ShaderResourceView *srv = g_wa.drawn && !g_wa.in_pass ? g_wa.srv : NULL;
@@ -139,7 +142,7 @@ internal void rd3_water_reflect(void) {
 }
 
 // the pipe: water [on | off] | fog <depth> | shallow <times> | deep <times> | edge <depth> | sea <0..1> | seadepth <depth>
-// | mirror on | off | strength <0..1> | wobble <of the picture>
+// | mirror on | off | strength <0..1> | wobble <of the picture> | full <depth>
 internal void cmd_water(char *out, const char *args) {
     char mode[32] = "";
     float v = 0;
@@ -154,10 +157,11 @@ internal void cmd_water(char *out, const char *args) {
     else if (n == 2 && !strcmp(mode, "seadepth") && v > 0) g_wa.seadepth = v;
     else if (n == 2 && !strcmp(mode, "strength") && v >= 0 && v <= 1) g_wa.strength = v;
     else if (n == 2 && !strcmp(mode, "wobble") && v >= 0) g_wa.wobble = v;
+    else if (n == 2 && !strcmp(mode, "full") && v > 0) g_wa.full = v;
     else if (!strcmp(mode, "mirror")) { char a[8] = ""; sscanf(args, "%*s %7s", a); if (!strcmp(a, "on")) g_wa.mirror = 1; else if (!strcmp(a, "off")) g_wa.mirror = 0; }
-    else if (n >= 1) { REPLY("error: usage: water [on | off] | fog <depth> | shallow <times> | deep <times> | edge <depth> | sea <0..1> | seadepth <depth> | mirror on | off | strength <0..1> | wobble <of the picture>\n"); return; }
-    REPLY("water: %s, fog %.2f, shallow %.2f, deep %.2f, edge %.2f, sea %.2f by %.2f; reflections %s, strength %.2f, wobble %.3f\n",
+    else if (n >= 1) { REPLY("error: usage: water [on | off] | fog <depth> | shallow <times> | deep <times> | edge <depth> | sea <0..1> | seadepth <depth> | mirror on | off | strength <0..1> | wobble <of the picture> | full <depth>\n"); return; }
+    REPLY("water: %s, fog %.2f, shallow %.2f, deep %.2f, edge %.2f, sea %.2f by %.2f; reflections %s, strength %.2f, wobble %.3f, full from %.2f\n",
           (g_wa.on < 0 ? g_set.water_look : g_wa.on) ? "on" : "off", (double)g_wa.fog, (double)g_wa.shallow, (double)g_wa.deep,
           (double)g_wa.edge, (double)g_wa.sea, (double)g_wa.seadepth,
-          (g_wa.mirror < 0 ? g_set.water_reflections : g_wa.mirror) ? (g_wa.drawn ? "on" : "on, nothing drawn") : "off", (double)g_wa.strength, (double)g_wa.wobble);
+          (g_wa.mirror < 0 ? g_set.water_reflections : g_wa.mirror) ? (g_wa.drawn ? "on" : "on, nothing drawn") : "off", (double)g_wa.strength, (double)g_wa.wobble, (double)g_wa.full);
 }

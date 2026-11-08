@@ -138,7 +138,7 @@ typedef struct {
     float sht[4];    // the water's share of a shadow, shadows all on, a caster's bias
     float shh[4];    // the hills' map: the world's x, y -> u, v; the soft edge, the bias (tiles); on
     float wat[4], sea[4];   // the water by its depth, the seabed's detail (render_water.c)
-    float rfa[4], rfb[4];   // the reflections: strength, wobble, on; the picture's place on the target (render_water.c)
+    float rfa[4], rfb[4];   // the reflections: strength, wobble, on, 1 / the depth of full strength; the picture's place on the target (render_water.c)
 } rd3_pcb;
 // a draw's entry in the batch's table (the shaders' wt, 8 rows): its world matrix (_14: a tinted caster's size -
 // render_shadows.c), its material's diffuse, ambient and emissive, and a blended draw's runs (render_morph.c). The
@@ -236,10 +236,12 @@ internal const char k_rd3_shader[] =
     "  if (shh.w > 0) { float2 hh = hm.SampleLevel(hs, i.w.xy * shh.x, 0); bool og = shd.x == 1 || shd.x == 4;"
     "   hl = saturate(((og ? hh.y : hh.x - i.w.z) - (og ? 0.01 : shh.z)) / (og ? min(0.12, shh.y) : shh.y)); }"
     "  c.rgb *= lerp(1, i.k, max(1 - l / 9, hl) * i.q.w * (shd.x == 6 ? sht.x : 1)); }"
-    // the mirrored picture on the surface (render_water.c), moved a little by the water's own ripples; in that
-    // picture's own pass what lies under the level is left out
+    // the mirrored picture on the surface (render_water.c), moved a little by the water's own ripples, none of it at
+    // the shore, all from the depth of full strength on; in that picture's own pass what lies under the level is left out
     " if (rfa.z > 0 && shd.x == 6) { float2 ru = (i.p.xy - rfb.xy) * rfb.zw + (x.rg - 0.5) * rfa.y;"
-    "  float4 rc = rfl.SampleLevel(hs, ru, 0); c.rgb = lerp(c.rgb, rc.rgb, rc.a * rfa.x); c.a = lerp(c.a, 1, rc.a * rfa.x); }"
+    "  float rk = rfa.x; if (shh.w > 0) { float2 rh = hm.SampleLevel(hs, i.w.xy * shh.x, 0);"
+    "   rk *= smoothstep(0, 1, (i.w.z - (rh.x - rh.y)) * rfa.w); }"
+    "  float4 rc = rfl.SampleLevel(hs, ru, 0); c.rgb = lerp(c.rgb, rc.rgb, rc.a * rk); c.a = lerp(c.a, 1, rc.a * rk); }"
     " if (sea.w > 0) { if (i.w.z < sea.z) discard; c.a = 1; }"
     " if (misc.y > 0.5) c.rgb = lerp(fogc.rgb, c.rgb, saturate(i.f));"
     " return c; }\n";
