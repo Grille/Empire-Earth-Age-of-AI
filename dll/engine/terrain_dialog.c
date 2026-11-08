@@ -18,6 +18,8 @@
 #define TD_DELETE 107
 #define TD_HINT 108
 #define TD_BLEND 109
+#define TD_BLEND_LABEL 110
+#define TD_SLOTS_LABEL 111
 internal struct {
     int type;                          // the type changed, -1 a new one
     int mode, blend;
@@ -44,11 +46,11 @@ internal void td_update(HWND d) {
     SendDlgItemMessageW(d, TD_BLEND, CB_SETCURSEL, (WPARAM)g_td.blend, 0);
     EnableWindow(GetDlgItem(d, TD_BLEND), g_td.mode == TP_RAMP);
     wchar_t t[96];
-    if (g_td.n <= g_td.avail) wsprintfW(t, L"%u of %u free slots taken", g_td.n, g_td.avail);
-    else wsprintfW(t, L"only %u slots free", g_td.avail);
+    if (g_td.n <= g_td.avail) wsprintfW(t, L" %u of %u free slots taken", g_td.n, g_td.avail);
+    else wsprintfW(t, L" only %u slots free", g_td.avail);
     SetDlgItemTextW(d, TD_FREE, t);
-    SetDlgItemTextW(d, TD_HINT, g_td.mode == TP_RAMP ? L"Click near an end of the strip to pick that end's colour." :
-                                g_td.mode == TP_EACH ? L"Click a slot to pick its colour." : L"Click the strip to pick the colour.");
+    SetDlgItemTextW(d, TD_HINT, g_td.mode == TP_RAMP ? L" Click near an end of the strip to pick that end's colour." :
+                                g_td.mode == TP_EACH ? L" Click a slot to pick its colour." : L" Click the strip to pick the colour.");
     EnableWindow(GetDlgItem(d, IDOK), g_td.n <= g_td.avail);
     InvalidateRect(GetDlgItem(d, TD_STRIP), NULL, TRUE);
 }
@@ -114,6 +116,26 @@ internal void td_draw(const DRAWITEMSTRUCT *di) {
     }
 }
 
+// the labels and radio buttons the dropdowns' height (a cell of the game's in its look, theme_control), on a
+// dropdown's row those beside it, the others round their middle: their boxes and texts in line with the fields'
+internal void td_rows(HWND d) {
+    static const int rows[][2] = { { TD_FLAT, 0 }, { TD_RAMP, TD_BLEND }, { TD_EACH, 0 }, { TD_BLEND_LABEL, TD_BLEND },
+                                   { TD_SLOTS_LABEL, TD_COUNT }, { TD_FREE, TD_COUNT }, { TD_HINT, 0 } };
+    RECT f;
+    GetWindowRect(GetDlgItem(d, TD_BLEND), &f);
+    int h = f.bottom - f.top;
+    for (unsigned k = 0; k < sizeof rows / sizeof *rows; k++) {
+        HWND c = GetDlgItem(d, rows[k][0]);
+        RECT r;
+        GetWindowRect(rows[k][1] ? GetDlgItem(d, rows[k][1]) : c, &f);
+        GetWindowRect(c, &r);
+        MapWindowPoints(NULL, d, (POINT *)&r, 2);
+        MapWindowPoints(NULL, d, (POINT *)&f, 2);
+        int top = rows[k][1] ? f.top : (f.top + f.bottom - h) / 2;
+        SetWindowPos(c, NULL, r.left, top, r.right - r.left, h, SWP_NOZORDER | SWP_NOACTIVATE);
+    }
+}
+
 internal INT_PTR CALLBACK td_proc(HWND d, UINT msg, WPARAM w, LPARAM l) {
     switch (msg) {
     case WM_INITDIALOG: {
@@ -137,6 +159,7 @@ internal INT_PTR CALLBACK td_proc(HWND d, UINT msg, WPARAM w, LPARAM l) {
         for (unsigned k = 0; k < sizeof buttons / sizeof *buttons; k++) theme_control(GetDlgItem(d, buttons[k]), WC_BUTTONA);
         theme_control(GetDlgItem(d, TD_COUNT), WC_COMBOBOXA);
         theme_control(GetDlgItem(d, TD_BLEND), WC_COMBOBOXA);
+        td_rows(d);
         td_update(d);
         SetFocus(GetDlgItem(d, IDOK));   // not the first radio button: an automatic one given the focus is clicked too
         return FALSE;
@@ -243,14 +266,14 @@ internal void td_open(int i, int sel) {
     p = td_item(p, BS_AUTORADIOBUTTON | WS_GROUP | WS_TABSTOP, 8, 6, 124, 12, TD_FLAT, 0x80, L"One colour");
     p = td_item(p, BS_AUTORADIOBUTTON, 8, 20, 124, 12, TD_RAMP, 0x80, L"A ramp between two colours");
     p = td_item(p, BS_AUTORADIOBUTTON, 8, 34, 124, 12, TD_EACH, 0x80, L"Each slot a colour of its own");
-    p = td_item(p, SS_LEFT, 140, 22, 30, 10, 0xFFFF, 0x82, L"Blend:");   // the ramp's, beside it
+    p = td_item(p, SS_LEFT | SS_CENTERIMAGE, 140, 20, 30, 12, TD_BLEND_LABEL, 0x82, L" Blend:");   // the ramp's, beside it; the labels' texts a space in: off their boxes' edge, as a radio button's
     p = td_item(p, CBS_DROPDOWNLIST | CBS_OWNERDRAWFIXED | CBS_HASSTRINGS | WS_TABSTOP | WS_GROUP, 172, 20, 80, 80, TD_BLEND, 0x85, L"");
-    p = td_item(p, SS_LEFT, 8, 56, 30, 10, 0xFFFF, 0x82, L"Slots:");
+    p = td_item(p, SS_LEFT | SS_CENTERIMAGE, 8, 54, 30, 12, TD_SLOTS_LABEL, 0x82, L" Slots:");
     p = td_item(p, CBS_DROPDOWNLIST | CBS_OWNERDRAWFIXED | CBS_HASSTRINGS | WS_VSCROLL | WS_TABSTOP | WS_GROUP, 40, 54, 36, 160,
                 TD_COUNT, 0x85, L"");
-    p = td_item(p, SS_LEFT, 86, 56, 166, 10, TD_FREE, 0x82, L"");
+    p = td_item(p, SS_LEFT | SS_CENTERIMAGE, 86, 54, 166, 12, TD_FREE, 0x82, L"");
     p = td_item(p, BS_OWNERDRAW | WS_TABSTOP, 8, 72, 244, 24, TD_STRIP, 0x80, L"");
-    p = td_item(p, SS_LEFT, 8, 101, 244, 10, TD_HINT, 0x82, L"");
+    p = td_item(p, SS_LEFT | SS_CENTERIMAGE, 8, 101, 244, 12, TD_HINT, 0x82, L"");
     ee_window *gw = game_window();
     HWND owner = gw ? window_get_hwnd(gw) : NULL;
     RECT clip;

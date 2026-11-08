@@ -295,12 +295,13 @@ internal void theme_paint_button(HWND c, HDC dc) {
     theme_under(dc, c, &r);
     LONG type = GetWindowLongA(c, GWL_STYLE) & BS_TYPEMASK;
     if (type == BS_AUTOCHECKBOX || type == BS_AUTORADIOBUTTON) {
-        if (g_gl.on && g_gl.b_dim && GetParent(c) == g_gl.main) {   // a label: on the painting's darkened copy
+        int size = MulDiv(GL_CELL, GetDeviceCaps(dc, LOGPIXELSY), 96), y = (r.bottom - size) / 2;
+        if (g_gl.on && g_gl.b_dim && GetParent(c) == g_gl.main) {   // its text a label's: on the painting's darkened copy, the box or round on the painting itself (the game's)
+            RECT l = { size + size / 8, 0, r.right, r.bottom };
             POINT pt = theme_at(c);
             SetBrushOrgEx(dc, -pt.x, -pt.y, NULL);
-            FillRect(dc, &r, g_gl.b_dim);
+            FillRect(dc, &l, g_gl.b_dim);
         }
-        int size = MulDiv(GL_CELL, GetDeviceCaps(dc, LOGPIXELSY), 96), y = (r.bottom - size) / 2;
         int on = SendMessageA(c, BM_GETCHECK, 0, 0) == BST_CHECKED;
         if (type == BS_AUTORADIOBUTTON) {
             if (on) theme_cell(dc, 0, y, size, GL_CELL_RADIO_ON + down);
