@@ -188,15 +188,31 @@ struct rd_surface {
     ID3D11ShaderResourceView *srv;
     ID3D11RenderTargetView *rtv;
     ID3D11DepthStencilView *dsv;
+    UINT tw, th;                    // a target's and depth buffer's real size (g_uis); else desc's
+    float sx, sy;                   // ... over desc's
 };
+// THE INTERFACE LARGER THAN ITS RESOLUTION ([editor] editor_uiscale): the game is told a smaller size (lw x lh: its layout,
+// its mouse, its surfaces' coordinates) and the picture is drawn at rw x rh. The target and its depth buffer are made
+// that size and everything that draws on them - the viewports (rs_port, at the frame's replay), a blit's rectangle, the
+// text (display_text.c through a scaling transform of GDI's) - scales to it, so the shapes and the letters are sharp at
+// the picture's size, the game's art as sharp as the art is.
+internal struct { int on, lw, lh, rw, rh; float sx, sy; ID3D11RenderTargetView *rtv; } g_uis;
+internal void rd_scale_set(int lw, int lh, int rw, int rh) {
+    g_uis.on = lw > 0 && (lw != rw || lh != rh);
+    g_uis.lw = lw, g_uis.lh = lh, g_uis.rw = rw, g_uis.rh = rh;
+    g_uis.sx = lw > 0 ? (float)rw / (float)lw : 1, g_uis.sy = lh > 0 ? (float)rh / (float)lh : 1;
+}
 internal int rd_is_surface(const void *p) { return p && *(void *const *)p == (void *)g_rd_vt[RDI_SURF]; }
 
 internal ULONG __stdcall rd_sf_release(rd_surface *s);
 internal void rd3_flush(void);
 internal void rd3_submit(void);   // render_frame.c: the 3D draws recorded so far, drawn before anything else uses the context
 internal LONG g_rd_epoch;         // the frame's lists drawn: a surface whose rf_used is this one is in the list
+internal void (*g_cur_forget)(rd_surface *s);   // the mouse cursor's notes of a surface going (below)
 internal void rd_surface_free(rd_surface *s) {
     rd3_submit();   // the list may draw with it
+    if (s->rtv && g_uis.rtv == s->rtv) g_uis.rtv = NULL;
+    if (g_cur_forget) g_cur_forget(s);
     D3D_RELEASE(s->srv); D3D_RELEASE(s->rtv); D3D_RELEASE(s->dsv); D3D_RELEASE(s->tex);
     free(s->mem);
     if (s->zbuf) rd_sf_release(s->zbuf);
@@ -218,7 +234,7 @@ internal HRESULT rd_fail(const char *what, HRESULT hr) {
 // the GPU side of a target / depth buffer (made with the surface)
 internal HRESULT rd_gpu_target(rd_surface *s) {
     D3D11_TEXTURE2D_DESC td = { 0 };
-    td.Width = s->desc.dwWidth; td.Height = s->desc.dwHeight; td.MipLevels = 1; td.ArraySize = 1;
+    td.Width = s->tw; td.Height = s->th; td.MipLevels = 1; td.ArraySize = 1;
     td.SampleDesc.Count = 1; td.Usage = D3D11_USAGE_DEFAULT;
     HRESULT hr;
     if (s->kind == RK_ZBUF) {
@@ -235,6 +251,7 @@ internal HRESULT rd_gpu_target(rd_surface *s) {
     if (SUCCEEDED(hr)) {
         static const float black[4] = { 0, 0, 0, 1 };
         ID3D11DeviceContext_ClearRenderTargetView(g_d3d.ctx, s->rtv, black);
+        if (s->tw != s->desc.dwWidth || s->th != s->desc.dwHeight) g_uis.rtv = s->rtv;
     }
     return SUCCEEDED(hr) ? hr : rd_fail("render target", hr);
 }
@@ -276,13 +293,52 @@ internal ID3D11ShaderResourceView *rd_gpu_texture(rd_surface *s, int keyed) {
 // for the GPU to finish what it was given: the minute's line (render_3d.c)
 internal LONG g_rd_reads;
 internal LONGLONG g_rd_read_qpc;
-// the render target's pixels in r into its memory (a staging copy of that rect)
+// r of the game's coordinates in a target's real pixels, inside it
+internal RECT rd_real_rect(const rd_surface *s, const RECT *r) {
+    RECT q = { (LONG)((float)r->left * s->sx), (LONG)((float)r->top * s->sy), (LONG)ceilf((float)r->right * s->sx), (LONG)ceilf((float)r->bottom * s->sy) };
+    if (q.left < 0) q.left = 0;
+    if (q.top < 0) q.top = 0;
+    if (q.right > (LONG)s->tw) q.right = (LONG)s->tw;
+    if (q.bottom > (LONG)s->th) q.bottom = (LONG)s->th;
+    return q;
+}
+// the render target's pixels in r into its memory (a staging copy of that rect); a larger target's each pixel the one at
+// its middle
 internal int rd_read_target(rd_surface *s, const RECT *r) {
     LARGE_INTEGER t0, t1;
     QueryPerformanceCounter(&t0);
     rd3_submit();
     uint8_t *m = rd_mem(s);
     if (!m || !s->tex) return 0;
+    if (s->tw != s->desc.dwWidth || s->th != s->desc.dwHeight) {
+        RECT q = rd_real_rect(s, r);
+        D3D11_TEXTURE2D_DESC sd = { (UINT)(q.right - q.left), (UINT)(q.bottom - q.top), 1, 1, DXGI_FORMAT_B8G8R8A8_UNORM, { 1, 0 }, D3D11_USAGE_STAGING, 0, D3D11_CPU_ACCESS_READ, 0 };
+        ID3D11Texture2D *big = NULL;
+        if (q.right <= q.left || q.bottom <= q.top || FAILED(ID3D11Device_CreateTexture2D(g_d3d.dev, &sd, NULL, &big))) return 0;
+        D3D11_BOX bb = { (UINT)q.left, (UINT)q.top, 0, (UINT)q.right, (UINT)q.bottom, 1 };
+        ID3D11DeviceContext_CopySubresourceRegion(g_d3d.ctx, (ID3D11Resource *)big, 0, 0, 0, 0, (ID3D11Resource *)s->tex, 0, &bb);
+        D3D11_MAPPED_SUBRESOURCE bm;
+        int done = SUCCEEDED(ID3D11DeviceContext_Map(g_d3d.ctx, (ID3D11Resource *)big, 0, D3D11_MAP_READ, 0, &bm));
+        if (done) {
+            int bytes = rf_bytes(s->fmt);
+            for (LONG y = r->top; y < r->bottom; y++) {
+                LONG ry = (LONG)(((float)y + 0.5f) * s->sy) - q.top;
+                ry = ry < 0 ? 0 : ry >= q.bottom - q.top ? q.bottom - q.top - 1 : ry;
+                const uint32_t *row = (const uint32_t *)((uint8_t *)bm.pData + (size_t)ry * bm.RowPitch);
+                for (LONG x = r->left; x < r->right; x++) {
+                    LONG rx = (LONG)(((float)x + 0.5f) * s->sx) - q.left;
+                    rx = rx < 0 ? 0 : rx >= q.right - q.left ? q.right - q.left - 1 : rx;
+                    rf_from_bgra(s->fmt, &row[rx], m + (size_t)y * s->desc.lPitch + (size_t)x * bytes, 1);
+                }
+            }
+            ID3D11DeviceContext_Unmap(g_d3d.ctx, (ID3D11Resource *)big, 0);
+        }
+        big->lpVtbl->Release(big);
+        QueryPerformanceCounter(&t1);
+        g_rd_reads++;
+        g_rd_read_qpc += t1.QuadPart - t0.QuadPart;
+        return done;
+    }
     D3D11_TEXTURE2D_DESC td = { 0 };
     td.Width = (UINT)(r->right - r->left); td.Height = (UINT)(r->bottom - r->top); td.MipLevels = 1; td.ArraySize = 1;
     td.SampleDesc.Count = 1; td.Format = DXGI_FORMAT_B8G8R8A8_UNORM; td.Usage = D3D11_USAGE_STAGING;
@@ -337,6 +393,25 @@ internal void rd_write_target(rd_surface *s, const RECT *r) {
     int w = r->right - r->left, h = r->bottom - r->top;
     if (w <= 0 || h <= 0 || !s->tex || !s->mem) return;
     rd3_submit();
+    if (s->tw != s->desc.dwWidth || s->th != s->desc.dwHeight) {   // a larger target: each of its pixels the one over it
+        RECT q = rd_real_rect(s, r);
+        int qw = q.right - q.left, qh = q.bottom - q.top, bytes = rf_bytes(s->fmt);
+        uint32_t *big = qw > 0 && qh > 0 ? malloc((size_t)qw * qh * 4) : NULL;
+        if (!big) return;
+        for (int y = 0; y < qh; y++) {
+            LONG ly = (LONG)(((float)(q.top + y) + 0.5f) / s->sy);
+            ly = ly < r->top ? r->top : ly >= r->bottom ? r->bottom - 1 : ly;
+            for (int x = 0; x < qw; x++) {
+                LONG lx = (LONG)(((float)(q.left + x) + 0.5f) / s->sx);
+                lx = lx < r->left ? r->left : lx >= r->right ? r->right - 1 : lx;
+                rf_to_bgra(s->fmt, s->mem + (size_t)ly * s->desc.lPitch + (size_t)lx * bytes, big + (size_t)y * qw + x, 1, 0, 0);
+            }
+        }
+        D3D11_BOX bb = { (UINT)q.left, (UINT)q.top, 0, (UINT)q.right, (UINT)q.bottom, 1 };
+        ID3D11DeviceContext_UpdateSubresource(g_d3d.ctx, (ID3D11Resource *)s->tex, 0, &bb, big, (UINT)qw * 4, 0);
+        free(big);
+        return;
+    }
     uint32_t *buf = malloc((size_t)w * h * 4);
     if (!buf) return;
     int bpp = rf_bytes(s->fmt);
@@ -357,6 +432,7 @@ internal struct {
     ID3D11BlendState *no_colour;            // a depth rect writes depth only
     ID3D11DepthStencilState *no_depth, *depth_set;
     ID3D11RasterizerState *raster;
+    int smooth;                             // this draw's source filtered: enlarged to a larger target (rd_sf_blt)
 } g_rd2;
 internal const char k_rd2_shader[] =
     "cbuffer c : register(b0) { float4 dst; float4 uv; float4 col; float4 mode; };\n"   // dst: x0 y0 x1 y1 in NDC
@@ -440,6 +516,13 @@ internal const char k_rtl_shader[] =
 internal int rd_text_target(const void *p) {   // a surface the text goes onto the GPU for: the own renderer's target
     return rd_is_surface(p) && ((const rd_surface *)p)->kind == RK_TARGET && ((const rd_surface *)p)->rtv;
 }
+// a target larger than the game's coordinates: 1 and how much; its text drawn at its real size (display_text.c)
+internal int rd_text_scale(const void *p, float *sx, float *sy) {
+    const rd_surface *s = p;
+    if (!rd_is_surface(p) || s->kind != RK_TARGET || (s->tw == s->desc.dwWidth && s->th == s->desc.dwHeight)) return 0;
+    *sx = s->sx, *sy = s->sy;
+    return 1;
+}
 internal int rtl_init(void) {
     if (g_rtl.ready) return g_rtl.ready > 0;
     g_rtl.ready = -1;
@@ -478,7 +561,7 @@ internal int rd_text_layer(void *p, const RECT *r, const uint8_t *b, const uint8
         ID3D11DeviceContext_UpdateSubresource(g_d3d.ctx, (ID3D11Resource *)g_rtl.tex, 0, &bx, b, (UINT)pitch, 0);
         bx.top = (UINT)bh; bx.bottom = (UINT)bh * 2;
         ID3D11DeviceContext_UpdateSubresource(g_d3d.ctx, (ID3D11Resource *)g_rtl.tex, 0, &bx, w, (UINT)pitch, 0);
-        float W = (float)d->desc.dwWidth, H = (float)d->desc.dwHeight;
+        float W = (float)d->tw, H = (float)d->th;   // r in the target's real pixels
         rd2_consts c = { { r->left / W * 2 - 1, 1 - r->top / H * 2, r->right / W * 2 - 1, 1 - r->bottom / H * 2 },
                          { 0, 0, 1, 1 }, { (float)r->left, (float)r->top, (float)bh, 0 }, { 0, 0, 0, 0 } };
         rd2_draw_with(d, &c, g_rtl.srv, 0, g_rtl.ps, g_rtl.blend);
@@ -488,7 +571,7 @@ internal int rd_text_layer(void *p, const RECT *r, const uint8_t *b, const uint8
 }
 internal void rd2_draw_with(rd_surface *dst, const rd2_consts *c, ID3D11ShaderResourceView *src, int depth,
                             ID3D11PixelShader *ps, ID3D11BlendState *blend) {
-    float W = (float)dst->desc.dwWidth, H = (float)dst->desc.dwHeight;
+    float W = (float)dst->tw, H = (float)dst->th;
     ID3D11DeviceContext *x = g_d3d.ctx;
     rd3_submit();
     ID3D11DeviceContext_UpdateSubresource(x, (ID3D11Resource *)g_rd2.cb, 0, NULL, c, 0, 0);
@@ -507,7 +590,7 @@ internal void rd2_draw_with(rd_surface *dst, const rd2_consts *c, ID3D11ShaderRe
     ID3D11DeviceContext_PSSetShader(x, ps, NULL, 0);
     ID3D11DeviceContext_PSSetConstantBuffers(x, 0, 1, &g_rd2.cb);
     ID3D11DeviceContext_PSSetShaderResources(x, 0, 1, &src);
-    ID3D11DeviceContext_PSSetSamplers(x, 0, 1, &g_d3d.point);
+    ID3D11DeviceContext_PSSetSamplers(x, 0, 1, g_rd2.smooth ? &g_d3d.linear : &g_d3d.point);
     ID3D11DeviceContext_Draw(x, 4, 0);
     ID3D11ShaderResourceView *none = NULL;
     ID3D11DeviceContext_PSSetShaderResources(x, 0, 1, &none);
@@ -611,6 +694,41 @@ internal float rd_unit(uint32_t v, uint32_t mask) {
     unsigned shift = (unsigned)__builtin_ctz(mask);
     return (float)((v & mask) >> shift) / (float)(mask >> shift);
 }
+// THE MOUSE CURSOR ON A LARGER TARGET: each frame the game saves the 32 x 32 pixels under it (0x51078A), draws it (a colour
+// keyed blit) and after the present puts them back (0x5108EE) - the panels aren't redrawn every frame. On a target larger
+// than the game's coordinates the three are only noted and the cursor drawn at the present (rd_cursor_draw), the target's
+// own pixels under it copied away and back around that present: nothing of a saved copy's size or place can stay behind
+// on the panels.
+internal struct { rd_surface *save, *sprite; RECT at, dr, sr, q; int pending; ID3D11Texture2D *tex; UINT w, h; } g_cur;
+internal void rd_cursor_forget(rd_surface *s) {
+    if (g_cur.save == s) g_cur.save = NULL;
+    if (g_cur.sprite == s) g_cur.sprite = NULL, g_cur.pending = 0;
+}
+internal int rd_larger(const rd_surface *s) { return s->tw != s->desc.dwWidth || s->th != s->desc.dwHeight; }
+internal int rd_cursor_draw(rd_surface *s) {
+    if (!g_cur.pending || !g_cur.sprite || !rd_larger(s) || !s->tex) return 0;
+    RECT q = rd_real_rect(s, &g_cur.dr);
+    UINT w = (UINT)(q.right - q.left), h = (UINT)(q.bottom - q.top);
+    if (q.right <= q.left || q.bottom <= q.top) return 0;
+    if (!g_cur.tex || g_cur.w < w || g_cur.h < h) {
+        D3D_RELEASE(g_cur.tex);
+        D3D11_TEXTURE2D_DESC td = { w, h, 1, 1, DXGI_FORMAT_B8G8R8A8_UNORM, { 1, 0 }, D3D11_USAGE_DEFAULT, D3D11_BIND_SHADER_RESOURCE, 0, 0 };
+        if (FAILED(ID3D11Device_CreateTexture2D(g_d3d.dev, &td, NULL, &g_cur.tex))) { g_cur.tex = NULL; return 0; }
+        g_cur.w = w, g_cur.h = h;
+    }
+    ID3D11ShaderResourceView *v = rd_gpu_texture(g_cur.sprite, 1);
+    if (!v) return 0;
+    rd3_submit();
+    D3D11_BOX box = { (UINT)q.left, (UINT)q.top, 0, (UINT)q.right, (UINT)q.bottom, 1 };
+    ID3D11DeviceContext_CopySubresourceRegion(g_d3d.ctx, (ID3D11Resource *)g_cur.tex, 0, 0, 0, 0, (ID3D11Resource *)s->tex, 0, &box);
+    rd2_rect(s, &g_cur.dr, v, (int)g_cur.sprite->desc.dwWidth, (int)g_cur.sprite->desc.dwHeight, &g_cur.sr, NULL, 1);
+    g_cur.q = q;
+    return 1;
+}
+internal void rd_cursor_undo(rd_surface *s) {
+    D3D11_BOX box = { 0, 0, 0, (UINT)(g_cur.q.right - g_cur.q.left), (UINT)(g_cur.q.bottom - g_cur.q.top), 1 };
+    ID3D11DeviceContext_CopySubresourceRegion(g_d3d.ctx, (ID3D11Resource *)s->tex, 0, (UINT)g_cur.q.left, (UINT)g_cur.q.top, 0, (ID3D11Resource *)g_cur.tex, 0, &box);
+}
 // a colour fill or a copy (stretched, keyed) - CPU to CPU in memory, anything into a target on the GPU
 internal HRESULT __stdcall rd_sf_blt(rd_surface *d, RECT *dr0, rd_surface *s, RECT *sr0, DWORD flags, DDBLTFX *fx) {
     RECT dr = dr0 ? *dr0 : (RECT){ 0, 0, (LONG)d->desc.dwWidth, (LONG)d->desc.dwHeight };
@@ -640,10 +758,25 @@ internal HRESULT __stdcall rd_sf_blt(rd_surface *d, RECT *dr0, rd_surface *s, RE
     RECT sr = sr0 ? *sr0 : (RECT){ 0, 0, (LONG)s->desc.dwWidth, (LONG)s->desc.dwHeight };
     int keyed = (flags & DDBLT_KEYSRC) != 0;
     if (d->kind == RK_TARGET) {
+        if (rd_larger(d) && s->kind != RK_TARGET) {   // the mouse cursor's drawing and its pixels put back (g_cur)
+            if (keyed && g_cur.save && dr.left == g_cur.at.left && dr.top == g_cur.at.top && dr.right == g_cur.at.right && dr.bottom == g_cur.at.bottom) {
+                g_cur.sprite = s, g_cur.dr = dr, g_cur.sr = sr, g_cur.pending = 1;
+                g_cur_forget = rd_cursor_forget;
+                RD_UNLOCK();
+                return DD_OK;
+            }
+            if (!keyed && s == g_cur.save) { g_cur.pending = 0; RD_UNLOCK(); return DD_OK; }
+        }
         ID3D11ShaderResourceView *v = rd_gpu_texture(s, keyed);
+        // enlarged to a larger target: filtered, but a colour-keyed sprite (its key's colour would bleed into its edge)
+        g_rd2.smooth = !keyed && s->kind != RK_TARGET && rd_larger(d);
         if (v) rd2_rect(d, &dr, v, (int)s->desc.dwWidth, (int)s->desc.dwHeight, &sr, NULL, keyed);
+        g_rd2.smooth = 0;
+    } else if (d->kind == RK_PLAIN && s->kind == RK_TARGET && !keyed && rd_larger(s) && d->desc.dwWidth == 32 && d->desc.dwHeight == 32) {
+        g_cur.save = d, g_cur.at = sr;   // the mouse cursor's save (g_cur)
+        g_cur_forget = rd_cursor_forget;
     } else if (d->kind != RK_ZBUF && d->kind != RK_PRIMARY && s->kind == RK_TARGET && !keyed && !d->top && !d->next &&
-               dr.right - dr.left == sr.right - sr.left && dr.bottom - dr.top == sr.bottom - sr.top && dr.left >= 0 &&
+               s->tw == s->desc.dwWidth && s->th == s->desc.dwHeight && dr.right - dr.left == sr.right - sr.left && dr.bottom - dr.top == sr.bottom - sr.top && dr.left >= 0 &&
                dr.top >= 0 && dr.right <= (LONG)d->desc.dwWidth && dr.bottom <= (LONG)d->desc.dwHeight && sr.left >= 0 &&
                sr.top >= 0 && sr.right <= (LONG)s->desc.dwWidth && sr.bottom <= (LONG)s->desc.dwHeight && s->tex &&
                rd_gpu_texture(d, 0) && d->tex) {
@@ -705,6 +838,7 @@ internal rd_surface *rd_surface_new(const DDSURFACEDESC2 *d, int fmt, int kind, 
     s->desc.dwFlags |= DDSD_WIDTH | DDSD_HEIGHT | DDSD_PITCH | DDSD_PIXELFORMAT | DDSD_CAPS;
     s->desc.dwWidth = (DWORD)w;
     s->desc.dwHeight = (DWORD)h;
+    s->tw = (UINT)w, s->th = (UINT)h, s->sx = s->sy = 1;
     s->desc.lPitch = (LONG)((w * rf_bytes(fmt) + 3) & ~3);
     rf_pixel_format(fmt, &s->desc.ddpfPixelFormat);
     s->desc.lpSurface = NULL;
@@ -730,6 +864,8 @@ internal HRESULT rd_create_surface(DDSURFACEDESC2 *d, rd_surface **out) {
     rd_surface *s = rd_surface_new(d, fmt, kind, w, h);
     if (!s) return DDERR_OUTOFMEMORY;
     if (d->dwFlags & DDSD_CKSRCBLT) { s->has_key = 1; s->key = d->ddckCKSrcBlt; }
+    if ((kind == RK_TARGET || kind == RK_ZBUF) && g_uis.on && w == g_uis.lw && h == g_uis.lh)
+        s->tw = (UINT)g_uis.rw, s->th = (UINT)g_uis.rh, s->sx = g_uis.sx, s->sy = g_uis.sy;
     if ((kind == RK_TARGET || kind == RK_ZBUF) && FAILED(rd_gpu_target(s))) { rd_surface_free(s); return DDERR_GENERIC; }
     if (kind == RK_TEXTURE && (caps & DDSCAPS_MIPMAP)) {
         int n = d->dwFlags & DDSD_MIPMAPCOUNT ? (int)d->dwMipMapCount : 1;
@@ -806,6 +942,16 @@ internal HRESULT __stdcall rd_dd_enum_modes(rd_dd *o, DWORD flags, DDSURFACEDESC
             if (cb(&d, ctx) == DDENUMRET_CANCEL) return DD_OK;
         }
     }
+    // the size editor_uiscale tells the game is no mode of the monitor's: the game quits at a switch to a size it wasn't offered
+    int lw = 0, lh = 0, known = 0;
+    if (g_editor_ui_height || g_editor_ui_percent) editor_size(&lw, &lh);
+    for (int k = 0; k < n; k++) known |= seen[k].w == (short)lw && seen[k].h == (short)lh;
+    for (int bpp = 32; lw > 0 && !known && bpp >= 16; bpp -= 16) {
+        DDSURFACEDESC2 d;
+        rd_mode_desc(&d, lw, lh, bpp, 0);
+        if (cb(&d, ctx) == DDENUMRET_CANCEL) return DD_OK;
+    }
+    if (g_log && (g_editor_ui_height || g_editor_ui_percent)) log_locked("# editor: uiscale's mode %dx%d offered to the game (%s)\n", lw, lh, known ? "the monitor has it" : "added");
     return DD_OK;
 }
 internal HRESULT __stdcall rd_dd_get_display_mode(rd_dd *o, DDSURFACEDESC2 *d) {
@@ -893,6 +1039,26 @@ internal int render_present(IDirectDrawSurface7 *back, HWND hwnd) {
     if (!rd_is_surface(s) || !s->srv) return 0;
     RD_LOCK();
     rd3_submit();
+    int cursor = rd_cursor_draw(s);
+    if (cursor) rd3_submit();
+    if (g_shot_req && (s->tw != s->desc.dwWidth || s->th != s->desc.dwHeight)) {   // a larger target: the picture as it is drawn
+        D3D11_TEXTURE2D_DESC td = { s->tw, s->th, 1, 1, DXGI_FORMAT_B8G8R8A8_UNORM, { 1, 0 }, D3D11_USAGE_STAGING, 0, D3D11_CPU_ACCESS_READ, 0 };
+        ID3D11Texture2D *st = NULL;
+        if (SUCCEEDED(ID3D11Device_CreateTexture2D(g_d3d.dev, &td, NULL, &st))) {
+            ID3D11DeviceContext_CopyResource(g_d3d.ctx, (ID3D11Resource *)st, (ID3D11Resource *)s->tex);
+            D3D11_MAPPED_SUBRESOURCE ms;
+            if (SUCCEEDED(ID3D11DeviceContext_Map(g_d3d.ctx, (ID3D11Resource *)st, 0, D3D11_MAP_READ, 0, &ms))) {
+                DDSURFACEDESC2 d = s->desc;
+                d.dwWidth = s->tw, d.dwHeight = s->th, d.lPitch = (LONG)ms.RowPitch, d.lpSurface = ms.pData;
+                rf_pixel_format(RF_XRGB8888, &d.ddpfPixelFormat);
+                write_desc_bmp(&d, g_shot_path);
+                ID3D11DeviceContext_Unmap(g_d3d.ctx, (ID3D11Resource *)st, 0);
+            }
+            st->lpVtbl->Release(st);
+        }
+        g_shot_req = 0;
+        InterlockedIncrement(&g_shot_done);
+    }
     if (g_shot_req) {
         RECT all = { 0, 0, (LONG)s->desc.dwWidth, (LONG)s->desc.dwHeight };
         if (rd_read_target(s, &all)) {
@@ -909,8 +1075,9 @@ internal int render_present(IDirectDrawSurface7 *back, HWND hwnd) {
     RECT cr;
     GetClientRect(hwnd, &cr);
     RECT v = view_rect(&cr, (int)s->desc.dwWidth, (int)s->desc.dwHeight);
-    int ok = d3d_window_ready(hwnd, &cr) && d3d_draw_srv(s->srv, (int)s->desc.dwWidth, (int)s->desc.dwHeight, &cr, &v);
+    int ok = d3d_window_ready(hwnd, &cr) && d3d_draw_srv(s->srv, (int)s->tw, (int)s->th, &cr, &v);
     dpi_leave(dpi);
+    if (cursor) rd_cursor_undo(s);
     RD_UNLOCK();
     if (ok) {
         ValidateRect(hwnd, NULL);

@@ -1,5 +1,6 @@
 // Display: resolution of the scenario editor.
 // ageofai.ini [editor] editor_resolution = ee | aoc | game | <width>x<height>   (default ee: nothing is changed)
+//               editor_uiscale = off | ee | aoc | <percent>: the panels larger, the picture still at editor_resolution
 //   ee   = 800 x 600 (original Empire Earth)
 //   aoc  = 1024 x 768 (what The Art of Conquest uses)
 //   game = the resolution chosen for games in the settings
@@ -17,10 +18,24 @@
 internal int g_editor_w, g_editor_h, g_editor_game;   // 0 = leave
 internal int g_editor_layout;                         // a resolution set: the form's layout moved before it is built
 
-internal void editor_size(int *w, int *h) {
+internal int g_editor_ui_height, g_editor_ui_percent;   // editor_uiscale: the height the game is told, or percent; 0 = off
+internal void rd_scale_set(int lw, int lh, int rw, int rh);   // render.c
+
+internal void editor_picture_size(int *w, int *h) {
     int nw = g_editor_game ? game_res_w() : g_editor_w;
     int nh = g_editor_game ? game_res_h() : g_editor_h;
     if (nw >= 800 && nh >= 600) { *w = nw; *h = nh; }
+}
+
+// the size the game is told: the picture's, or smaller by editor_uiscale - its layout needs 800x600 at least
+internal void editor_size(int *w, int *h) {
+    editor_picture_size(w, h);
+    if (!g_editor_ui_height && !g_editor_ui_percent) return;
+    float s = g_editor_ui_height ? (float)*h / (float)g_editor_ui_height : (float)g_editor_ui_percent / 100.0f;
+    if ((float)*w / s < 800) s = (float)*w / 800.0f;
+    if ((float)*h / s < 600) s = (float)*h / 600.0f;
+    if (s <= 1) return;
+    *w = (int)((float)*w / s + 0.5f), *h = (int)((float)*h / s + 0.5f);
 }
 
 // Minimap picture: EEUIMiniMap (0x65DF30..) sizes it as screen width * 1/800 and height * 1/600 (constants
@@ -37,11 +52,14 @@ internal int redirect_minimap_scale(void) { return patch_minimap_scale(&g_mm_fx,
 internal void __stdcall hook_editor_resolution(int w, int h, int force, int flag) {
     memset(g_players, 0, sizeof g_players);   // into the editor (also back from a test run): the game's players are gone
     if (!g_editor_layout) { set_resolution(w, h, force, flag); return; }   // the build's own size
+    int pw = w, ph = h;
+    editor_picture_size(&pw, &ph);
     editor_size(&w, &h);
     int lay = apply_editor_layout(w, h);
     g_mm_fx = 1.28f / (float)w;
     g_mm_fy = 1.28f / (float)h;
-    if (g_log) { log_locked("# editor: resolution %dx%d, layout patches %d/%d\n", w, h, lay, (int)N_LAYOUT + 6); }
+    if (g_log) { log_locked("# editor: resolution %dx%d, the picture %dx%d, layout patches %d/%d\n", w, h, pw, ph, lay, (int)N_LAYOUT + 6); }
+    rd_scale_set(w, h, pw, ph);   // before the switch makes the surfaces
     set_resolution(w, h, force, flag);
 }
 
@@ -49,6 +67,7 @@ internal void __stdcall hook_editor_resolution(int w, int h, int force, int flag
 internal void __stdcall hook_other_resolution(int w, int h, int force, int flag) {
     g_mm_fx = 1.0f / 800.0f;
     g_mm_fy = 1.0f / 600.0f;
+    rd_scale_set(0, 0, 0, 0);
     set_resolution(w, h, force, flag);
 }
 
@@ -1470,6 +1489,16 @@ internal void display_install(const char *autotest_ini) {
         return;
     }
     g_editor_layout = 1;
+    const char *ui = g_set.editor_uiscale;
+    if (lstrcmpiA(ui, "off")) {
+        int pct = atoi(ui);
+        if (!g_rd_on) { if (g_log) fprintf(g_log, "# editor: uiscale=%s needs [display] renderer = own - off\n", ui); }
+        else if (!lstrcmpiA(ui, "ee")) g_editor_ui_height = 600;
+        else if (!lstrcmpiA(ui, "aoc")) g_editor_ui_height = 768;
+        else if (pct > 100) g_editor_ui_percent = pct;
+        else if (g_log) fprintf(g_log, "# editor: bad uiscale '%s' in ageofai.ini (off, ee, aoc or a percentage over 100) - off\n", ui);
+        if (g_log) fprintf(g_log, "# editor: uiscale=%s, the size told to the game %s\n", ui, g_editor_ui_height ? "by its height" : g_editor_ui_percent ? "by the percentage" : "as the picture's");
+    }
     int other = patch_other_resolution(hook_other_resolution, NULL);
     int mm = redirect_minimap_scale();
     if (g_log) fprintf(g_log, "# editor: minimap scale operands %d/6, other resolution switches %d/7\n", mm, other);

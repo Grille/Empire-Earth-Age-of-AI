@@ -128,13 +128,14 @@ internal void rd3_overlay(rd_device *d) {
     ID3D11DeviceContext_Unmap(x, (ID3D11Resource *)g_ro.vb, 0);
     struct { float vp[16], px[4]; } c;
     memcpy(c.vp, g_rd3.scene_vp, sizeof c.vp);
-    c.px[0] = g_rd3.scene_port.Width > 0 ? 1.0f / g_rd3.scene_port.Width : 0;   // Direct3D 7's pixel centres, as the map's
-    c.px[1] = g_rd3.scene_port.Height > 0 ? -1.0f / g_rd3.scene_port.Height : 0;
+    D3D11_VIEWPORT port = rs_port(&g_rd3.scene_port, d->target->rtv);
+    c.px[0] = port.Width > 0 ? 1.0f / port.Width : 0;   // Direct3D 7's pixel centres, as the map's
+    c.px[1] = port.Height > 0 ? -1.0f / port.Height : 0;
     c.px[2] = c.px[3] = 0;
     ID3D11DeviceContext_UpdateSubresource(x, (ID3D11Resource *)g_ro.cb, 0, NULL, &c, 0, 0);
     ID3D11DepthStencilView *dsv = d->target->zbuf ? d->target->zbuf->dsv : NULL;
     ID3D11DeviceContext_OMSetRenderTargets(x, 1, &d->target->rtv, dsv);
-    ID3D11DeviceContext_RSSetViewports(x, 1, &g_rd3.scene_port);
+    ID3D11DeviceContext_RSSetViewports(x, 1, &port);
     // alpha blended (SRCALPHA / INVSRCALPHA), depth tested LESSEQUAL and not written, no culling
     ID3D11DeviceContext_OMSetBlendState(x, rd3_cache(g_rd3.blends, &g_rd3.n_blend, 32, 1 | D3DBLEND_SRCALPHA << 1 | D3DBLEND_INVSRCALPHA << 5, rd3_mk_blend), NULL, 0xFFFFFFFF);
     ID3D11DeviceContext_OMSetDepthStencilState(x, rd3_cache(g_rd3.depths, &g_rd3.n_depth, 32, 1 | D3DCMP_LESSEQUAL << 2, rd3_mk_depth), 0);

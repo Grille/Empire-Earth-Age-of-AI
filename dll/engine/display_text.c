@@ -63,6 +63,7 @@ internal int g_fbm_n, g_fbm_logged;
 internal volatile int g_fbm_making;
 internal int g_atlas_dump;   // autotest atlas_dump=1: each new bitmap font's last atlas -> ageofai_dumps/atlas<n>.bmp
 internal void atlas_dump(int n);   // inside our GEFontBitmap constructor call (the atlas is drawn)
+internal int rd_text_scale(const void *p, float *sx, float *sy);   // render.c
 internal void *(__thiscall *g_fbm_ctor)(void *, void *, void *, unsigned);
 internal void *text_bitmap_for(void *ras, void *text, void *surf) {
     if (!g_text_bitmap || !g_fbm_ctor || !text) return NULL;
@@ -80,7 +81,8 @@ internal void *text_bitmap_for(void *ras, void *text, void *surf) {
         g_fbm_n = 0;
         IDirectDrawSurface7 *dds = surface_get_dds(surf);
         DDSURFACEDESC2 d = { .dwSize = sizeof d };
-        back_ok = dds && dds->lpVtbl->GetSurfaceDesc(dds, &d) == DD_OK && d.dwWidth > 1024;
+        float fx, fy;   // a target larger than the game's coordinates: GDI's text at its real size is sharper than the characters enlarged
+        back_ok = dds && dds->lpVtbl->GetSurfaceDesc(dds, &d) == DD_OK && d.dwWidth > 1024 && !rd_text_scale(dds, &fx, &fy);
         if (g_log) log_locked("# text bitmap: back buffer %p %lux%lu - %s\n", surf, d.dwWidth, d.dwHeight,
                            back_ok ? "text as textures" : "GDI text (menus)");
     }
@@ -232,9 +234,10 @@ internal int g_text_dc = 1;
 // ultrawide windows got the game's own GDI text and its leak).
 internal struct {
     int w, h, bpp; DWORD masks[3]; HDC dc; HBITMAP bmp; void *bits; int pitch; unsigned used;
+    int scaled;   // its DCs draw through a scaling transform (tdc_scale)
     HDC wdc; HBITMAP wbmp; void *wbits;   // the same over white (text on the own renderer's target, below)
 } g_tdc[6];
-internal struct { void *surf; int slot; DDSURFACEDESC2 d; int layer; } g_tdc_active[8];
+internal struct { void *surf; int slot; DDSURFACEDESC2 d; int layer; float sx, sy; } g_tdc_active[8];
 // TEXT ON THE OWN RENDERER'S TARGET (picture text on | off, the pipe; on by default): no lock of the target at all -
 // a lock reads its rectangle back from the graphics card, waiting for the frame so far; at 8 a frame (four text phases
 // of the interface's, each loading and storing its tiles) the 8000-unit save's frame took 32-37 ms against 20, in
@@ -425,6 +428,28 @@ internal void tdc_store(int a) {   // the loaded tiles back into the surface
     }
     g_tdc_any = 0;
 }
+// A target larger than the game's coordinates ([editor] editor_uiscale): the slot's DIBs are the target's real size and its DCs
+// draw through a scaling transform - the game's text calls and its coordinates stay as they are, the letters are drawn at
+// the larger size, not enlarged; the tiles are the DIB's, in real pixels (tdc_box_real)
+internal void tdc_scale(int slot, float sx, float sy) {
+    int on = sx != 1 || sy != 1;
+    if (!on && !g_tdc[slot].scaled) return;
+    g_tdc[slot].scaled = on;
+    XFORM x = { sx, 0, 0, sy, 0, 0 };
+    HDC dcs[2] = { g_tdc[slot].dc, g_tdc[slot].wdc };
+    for (int i = 0; i < 2; i++) {
+        if (!dcs[i]) continue;
+        SetGraphicsMode(dcs[i], GM_ADVANCED);
+        SetWorldTransform(dcs[i], &x);
+        if (!on) SetGraphicsMode(dcs[i], GM_COMPATIBLE);
+    }
+}
+internal void tdc_box_real(int a, RECT *b) {
+    float sx = g_tdc_active[a].sx, sy = g_tdc_active[a].sy;
+    if (sx == 1 && sy == 1) return;
+    b->left = (LONG)((float)b->left * sx), b->top = (LONG)((float)b->top * sy);
+    b->right = (LONG)((float)b->right * sx) + 1, b->bottom = (LONG)((float)b->bottom * sy) + 1;
+}
 // the white DC drawn on as the game's: its font, colours, alignment, origin, position and clipping
 internal void tdc_sync(HDC from, HDC to) {
     static HRGN clip;
@@ -563,6 +588,7 @@ internal BOOL WINAPI hook_ext_text_out(HDC dc, int x, int y, UINT opts, const RE
         else GetTextExtentPoint32A(dc, str ? str : "", (int)n, &sz);
         RECT box;
         tdc_text_box(dc, x, y, sz, opts, rc, &box);
+        tdc_box_real(a, &box);
         tdc_load(a, box.left, box.top, box.right, box.bottom);
         if (g_fbm_making && !rc && n == 1 && str &&
             (GetTextAlign(dc) & (TA_CENTER | TA_BOTTOM | TA_BASELINE | TA_UPDATECP)) == 0 && atlas_glyph(a, dc, x, y, str[0], sz))
@@ -587,6 +613,7 @@ internal BOOL WINAPI hook_text_out_w(HDC dc, int x, int y, LPCWSTR str, int n) {
         GetTextExtentPoint32W(dc, str ? str : L"", n, &sz);
         RECT box;
         tdc_text_box(dc, x, y, sz, 0, NULL, &box);
+        tdc_box_real(a, &box);
         tdc_load(a, box.left, box.top, box.right, box.bottom);
         if (g_tdc_active[a].layer) {
             HDC wdc = g_tdc[g_tdc_active[a].slot].wdc;
@@ -612,8 +639,18 @@ internal long __thiscall hook_text_lock(ee_surface *surf) {
             log_locked("# text dc: surface %lux%lu over %dx%d - the game's own text DC for it\n", d->dwWidth, d->dwHeight, TDC_MAX, TDC_MAX);
         return text_dc_fallback(surf, 0);
     }
-    int slot = text_dc_slot(d);
+    // on a target larger than its coordinates the text goes onto the GPU at the real size, or (no layer: a lock) as before
+    float sx = 1, sy = 1;
+    DDSURFACEDESC2 real = *d;
+    int can_layer = g_text_layer && d->ddpfPixelFormat.dwRGBBitCount == 32 && d->ddpfPixelFormat.dwRBitMask == 0xFF0000 &&
+                    d->ddpfPixelFormat.dwGBitMask == 0xFF00 && d->ddpfPixelFormat.dwBBitMask == 0xFF && rd_text_target(dds);
+    if (can_layer && rd_text_scale(dds, &sx, &sy)) {
+        real.dwWidth = (DWORD)((float)d->dwWidth * sx + 0.5f), real.dwHeight = (DWORD)((float)d->dwHeight * sy + 0.5f);
+        if ((int)real.dwWidth > TDC_MAX || (int)real.dwHeight > TDC_MAX) sx = sy = 1, real = *d;
+    }
+    int slot = text_dc_slot(&real);
     if (slot < 0) return text_dc_fallback(surf, 0);
+    if ((sx != 1 || sy != 1) && !tdc_white(slot)) sx = sy = 1;
     if (g_tdc_logged < 4 && g_log) {
         g_tdc_logged++;
         DDSCAPS2 caps = { 0 };
@@ -628,6 +665,12 @@ internal long __thiscall hook_text_lock(ee_surface *surf) {
     g_tdc_active[a].slot = slot;
     g_tdc_active[a].layer = g_text_layer && g_tdc[slot].bpp == 32 && g_tdc[slot].masks[0] == 0xFF0000 &&
                             g_tdc[slot].masks[1] == 0xFF00 && g_tdc[slot].masks[2] == 0xFF && rd_text_target(dds) && tdc_white(slot);
+    if (g_tdc[slot].w != (int)d->dwWidth && sx == 1) {   // the DIB was for the real size and the white one failed: the game's own DC
+        g_tdc_active[a].surf = NULL;
+        return text_dc_fallback(surf, 0);
+    }
+    g_tdc_active[a].sx = sx, g_tdc_active[a].sy = sy;
+    tdc_scale(slot, sx, sy);
     surface_set_dc(surf, g_tdc[slot].dc);
     surface_set_dc_out(surf, 1);
     return 0;
