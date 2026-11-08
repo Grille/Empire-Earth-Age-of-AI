@@ -125,6 +125,15 @@ unsafe struct EEMInGameChat
     extern void* init(void* wide_text);
 }
 
+/// the game speed message (EEMGameSpeed): the + and - keys' event (EEUIEMGChangeGameSpeed) is its only sender; 0x14 bytes,
+/// the new speed at +0x10
+[@base(typeof(EEMessage)), c_type("ee_speed_msg")]
+unsafe struct EEMGameSpeed
+{
+    [address((ee)0x004B6BD4, (aoc)0x004BEFB9)]
+    extern void execute();
+}
+
 /// the select message (EEMSelectUnits; 0x138 bytes: the lasso's game_new). Its derived messages (the lasso's
 /// constructor 0x40337D: this constructor with their kind, then their vtable) differ only in their Execute: kind 0x4E
 /// replaces the sender's selection with the ids (EEPlayer.select), 0x4F (shift) adds them (add_selected), 0x50
@@ -384,7 +393,7 @@ static unsafe class messages
     [value(36)]
     static uint32 size_msg_chat;
 
-    /// messages.vt_pay_tribute, messages.vt_ingame_chat, messages.vt_resign, messages.vt_msg_load, messages.vt_msg_unload: the message's Execute
+    /// messages.vt_pay_tribute, messages.vt_ingame_chat, messages.vt_game_speed, messages.vt_resign, messages.vt_msg_load, messages.vt_msg_unload: the message's Execute
     [value(10)]
     static uint32 slot_msg_execute;
 
@@ -397,6 +406,9 @@ static unsafe class messages
 
     [address((ee)0x0082936C, (aoc)0x0083E0BC)]
     static vftable vt_ingame_chat;
+
+    [address((ee)0x00828D9C, (aoc)0x0083DB00)]
+    static vftable vt_game_speed;
 
     /// EEMLoadTransport
     [address((ee)0x00824E00, (aoc)0x00838DDC)]

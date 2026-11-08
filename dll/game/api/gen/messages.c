@@ -187,6 +187,51 @@ typedef void *(__thiscall *chat_msg_init_fn)(ee_chat_msg *, void *);
 internal chat_msg_init_fn fn_chat_msg_init;
 internal inline void *chat_msg_init(ee_chat_msg *chat_msg, void *wide_text) { return fn_chat_msg_init(chat_msg, wide_text); }
 
+// class EEMGameSpeed (ee_speed_msg)
+// the game speed message (EEMGameSpeed): the + and - keys' event (EEUIEMGChangeGameSpeed) is its only sender; 0x14 bytes,
+// the new speed at +0x10
+// EEMessage's, the base's
+// NEMessage's (Low-Level Engine.dll, the base of EEMessage): every constructor sets 1 (the DLL's 0x1000848C, EE's
+// copy 0x404B58), holding it again adds one (NESynchronousServer::SendToAllAndWait, EEServer::vf27 0x4C3839)
+internal inline uint32_t speed_msg_get_ref_count(const ee_speed_msg *o) { return *(uint32_t *)((uint8_t *)o + of_msg_ref_count); }
+internal inline void speed_msg_set_ref_count(ee_speed_msg *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_msg_ref_count) = v; }
+internal inline uint32_t *speed_msg_ref_count_at(const ee_speed_msg *o) { return (uint32_t *)((uint8_t *)o + of_msg_ref_count); }
+// the message's type id (0x4E select, 0x67 load ...)
+internal inline uint8_t speed_msg_get_kind(const ee_speed_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_kind); }
+internal inline void speed_msg_set_kind(ee_speed_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_kind) = v; }
+internal inline uint8_t *speed_msg_kind_at(const ee_speed_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_kind); }
+// NEMessage's: the slot it is for, 0xFF all (the DLL's GetForSpecificSlot / SetForSpecificSlot 0x100084C3 /
+// 0x100084CB; EEServer::vf27 also tests 0xFE); every EE message is built with 0xFF
+internal inline uint8_t speed_msg_get_for_slot(const ee_speed_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_for_slot); }
+internal inline void speed_msg_set_for_slot(ee_speed_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_for_slot) = v; }
+internal inline uint8_t *speed_msg_for_slot_at(const ee_speed_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_for_slot); }
+// NEMessage's originating slot (GetOriginatingSlot / SetOriginatingSlot): the sender's - every constructor sets
+// 0xFF, the network the sending PC's slot (a message can't name another sender: the chat shows the player of it)
+internal inline int8_t speed_msg_get_from(const ee_speed_msg *o) { return *(int8_t *)((uint8_t *)o + of_msg_from); }
+internal inline void speed_msg_set_from(ee_speed_msg *o, int8_t v) { *(int8_t *)((uint8_t *)o + of_msg_from) = v; }
+internal inline int8_t *speed_msg_from_at(const ee_speed_msg *o) { return (int8_t *)((uint8_t *)o + of_msg_from); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// NEMessage's constructor's fourth byte, the first of the 4-byte wire header (ExportHeader 0x1004D025: +0xB, +8,
+// +9, +0xA); every EE message passes 0 and nothing reads it
+internal inline uint8_t speed_msg_get_header_flags(const ee_speed_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_header_flags); }
+internal inline void speed_msg_set_header_flags(ee_speed_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_header_flags) = v; }
+internal inline uint8_t *speed_msg_header_flags_at(const ee_speed_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_header_flags); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// the first payload byte after the header: every message's export and import move it (EEMCheatCode 0x4B4E9E /
+// 0x4B4F35, EEMSelectUnits 0x4BD386 ...) but no constructor sets it and no execute reads it - an uninitialized
+// byte on the wire
+internal inline uint8_t speed_msg_get_spare(const ee_speed_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_spare); }
+internal inline void speed_msg_set_spare(ee_speed_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_spare) = v; }
+internal inline uint8_t *speed_msg_spare_at(const ee_speed_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_spare); }
+// EEMessage(type, flag)'s flag (0x404B58), not serialized: EEMessage::vf1 0x401A2E (NEMessage's
+// GetIsAvailableToSend) sends it while the local player is in the game or this is set (chat, selections: 1)
+internal inline uint8_t speed_msg_get_sendable_when_out(const ee_speed_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_sendable_when_out); }
+internal inline void speed_msg_set_sendable_when_out(ee_speed_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_sendable_when_out) = v; }
+internal inline uint8_t *speed_msg_sendable_when_out_at(const ee_speed_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_sendable_when_out); }
+typedef void (__thiscall *speed_msg_execute_fn)(ee_speed_msg *);
+internal speed_msg_execute_fn fn_speed_msg_execute;
+internal inline void speed_msg_execute(ee_speed_msg *speed_msg) { fn_speed_msg_execute(speed_msg); }
+
 // class EEMSelectUnits (ee_select_msg)
 // the select message (EEMSelectUnits; 0x138 bytes: the lasso's game_new). Its derived messages (the lasso's
 // constructor 0x40337D: this constructor with their kind, then their vtable) differ only in their Execute: kind 0x4E
@@ -823,12 +868,13 @@ internal inline uint8_t *messages_vt_server_at(void) { return (uint8_t *)(uintpt
 internal inline uint8_t *messages_vt_client_at(void) { return (uint8_t *)(uintptr_t)data_messages_vt_client; }
 // msg_cheat_init
 // msg_chat_init
-// messages.vt_pay_tribute, messages.vt_ingame_chat, messages.vt_resign, messages.vt_msg_load, messages.vt_msg_unload: the message's Execute
+// messages.vt_pay_tribute, messages.vt_ingame_chat, messages.vt_game_speed, messages.vt_resign, messages.vt_msg_load, messages.vt_msg_unload: the message's Execute
 // [game.server] (EEServer, EEClient): thiscall(net, message, 0xFF)
 internal inline void *messages_get_start_vtbl_exec(void) { return *(void **)(uint8_t *)(uintptr_t)data_messages_start_vtbl_exec; }
 internal inline void messages_set_start_vtbl_exec(void *v) { *(void **)(uint8_t *)(uintptr_t)data_messages_start_vtbl_exec = v; }
 internal inline void **messages_start_vtbl_exec_at(void) { return (void **)(uint8_t *)(uintptr_t)data_messages_start_vtbl_exec; }
 internal inline uint8_t *messages_vt_ingame_chat_at(void) { return (uint8_t *)(uintptr_t)data_messages_vt_ingame_chat; }
+internal inline uint8_t *messages_vt_game_speed_at(void) { return (uint8_t *)(uintptr_t)data_messages_vt_game_speed; }
 // EEMLoadTransport
 internal inline uint8_t *messages_vt_msg_load_at(void) { return (uint8_t *)(uintptr_t)data_messages_vt_msg_load; }
 // EEMUnloadTransport
@@ -891,6 +937,7 @@ internal int spec_messages_select(int build) {
         of_chat_msg_text = 0x10;
         fn_chat_msg_execute = (chat_msg_execute_fn)0x004B78C7;
         fn_chat_msg_init = (chat_msg_init_fn)0x005C2A2F;
+        fn_speed_msg_execute = (speed_msg_execute_fn)0x004B6BD4;
         size_eem_select_units = 0x138;
         of_select_msg_selection = 0x10;
         of_select_msg_ids_begin = 0x14;
@@ -951,6 +998,7 @@ internal int spec_messages_select(int build) {
         value_messages_slot_server_send = 6;
         data_messages_start_vtbl_exec = 0x008285D8;
         data_messages_vt_ingame_chat = 0x0082936C;
+        data_messages_vt_game_speed = 0x00828D9C;
         data_messages_vt_msg_load = 0x00824E00;
         data_messages_vt_msg_unload = 0x00828AC4;
         data_messages_vt_pay_tribute = 0x008289C0;
@@ -991,6 +1039,7 @@ internal int spec_messages_select(int build) {
         of_chat_msg_text = 0x10;
         fn_chat_msg_execute = (chat_msg_execute_fn)0x004BFDD2;
         fn_chat_msg_init = (chat_msg_init_fn)0x005D3196;
+        fn_speed_msg_execute = (speed_msg_execute_fn)0x004BEFB9;
         size_eem_select_units = 0x138;
         of_select_msg_selection = 0x10;
         of_select_msg_ids_begin = 0x14;
@@ -1051,6 +1100,7 @@ internal int spec_messages_select(int build) {
         value_messages_slot_server_send = 6;
         data_messages_start_vtbl_exec = 0x0083D2A0;
         data_messages_vt_ingame_chat = 0x0083E0BC;
+        data_messages_vt_game_speed = 0x0083DB00;
         data_messages_vt_msg_load = 0x00838DDC;
         data_messages_vt_msg_unload = 0x0083D78C;
         data_messages_vt_pay_tribute = 0x0083D688;
@@ -1078,6 +1128,7 @@ internal int spec_messages_check(void) {
     bad += spec_code((uintptr_t)fn_resign_msg_execute, "EEMResign.execute");
     bad += spec_code((uintptr_t)fn_chat_msg_execute, "EEMInGameChat.execute");
     bad += spec_code((uintptr_t)fn_chat_msg_init, "EEMInGameChat.init");
+    bad += spec_code((uintptr_t)fn_speed_msg_execute, "EEMGameSpeed.execute");
     bad += spec_code((uintptr_t)fn_select_msg_init, "EEMSelectUnits.init");
     bad += spec_vtable(vt_eem_add_units_to_selected_group, ".?AVEEMAddUnitsToSelectedGroup@@", "EEMAddUnitsToSelectedGroup [vtable]");
     bad += spec_vtable(vt_eem_add_and_remove_units_from_selected_group, ".?AVEEMAddAndRemoveUnitsFromSelectedGroup@@", "EEMAddAndRemoveUnitsFromSelectedGroup [vtable]");
@@ -1096,6 +1147,7 @@ internal int spec_messages_check(void) {
     bad += spec_data(data_messages_vt_client, "messages.vt_client");
     bad += spec_data(data_messages_start_vtbl_exec, "messages.start_vtbl_exec");
     bad += spec_data(data_messages_vt_ingame_chat, "messages.vt_ingame_chat");
+    bad += spec_data(data_messages_vt_game_speed, "messages.vt_game_speed");
     bad += spec_data(data_messages_vt_msg_load, "messages.vt_msg_load");
     bad += spec_data(data_messages_vt_msg_unload, "messages.vt_msg_unload");
     bad += spec_data(data_messages_vt_pay_tribute, "messages.vt_pay_tribute");

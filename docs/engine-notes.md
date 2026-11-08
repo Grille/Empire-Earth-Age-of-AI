@@ -15,7 +15,7 @@ hooks them as `__thiscall` too (clang allows it on a C function).
 |---|---|
 | 0x918374 | player pointers [16], count at 0x9183CC, local player index 0x918E84 |
 | 0x9183BC | map: +0x1816FC size (tiles), +0x181724 unit grid (3 tiles), +0x181720 grid (10 tiles) |
-| 0x9183C0 | game speed (float, normal 2.5); notify vtable slot 11 of 0x918300 |
+| 0x9183C0 | game speed (float, 0.5 to 2.5 in steps of 0.5 by the + and - keys, a new game 1.5); notify vtable slot 11 of 0x918300 |
 | [0x91977C]+0xD0 | game time (ms) |
 | 0x918410 | game settings: +0x3E0/+0x3E4 start/end epoch, +0x3F0 unit limit, +0x409 scenario flag (= byte 0x918819) |
 | 0x918BF4 | game type: 0 random map, 1 scenario, 2 saved game |

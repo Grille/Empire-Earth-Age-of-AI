@@ -1260,6 +1260,7 @@ internal uint32_t value_messages_slot_msg_execute;
 internal uint32_t value_messages_slot_server_send;
 internal uint32_t data_messages_start_vtbl_exec;
 internal uint32_t data_messages_vt_ingame_chat;
+internal uint32_t data_messages_vt_game_speed;
 internal uint32_t data_messages_vt_msg_load;
 internal uint32_t data_messages_vt_msg_unload;
 internal uint32_t data_messages_vt_pay_tribute;

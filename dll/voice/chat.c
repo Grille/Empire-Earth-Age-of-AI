@@ -174,8 +174,19 @@ internal void cmd_chatme(char *out, const char *args) {
     REPLY("ok: sent \"%s\" (cheats %s, cheat code %d)\n", args, cheats ? "on" : "off", code);
 }
 
+// The game speed told when the + and - keys change it (the player, 2026-11-09): the game's own number, 0.5 to 2.5 in steps
+// of 0.5; the message comes back on every PC, also at the end of the range, where the speed stays.
+#define SPEED_LINE_MS 3000
+internal void __thiscall hook_speed_msg(ee_speed_msg *msg) {
+    speed_msg_execute(msg);
+    char line[16];
+    snprintf(line, sizeof line, "x%.1f", *game_speed_var());
+    system_line(line, SPEED_LINE_MS);
+}
+
 internal void chat_install(void) {
     g_chat = g_set.chat;
     g_chat_ms = g_set.chat_seconds * 1000;
     if (g_log) fprintf(g_log, "# chat: level %d, %d s per line\n", g_chat, g_chat_ms / 1000);
+    if (!patch_msg_game_speed(hook_speed_msg) && g_log) fprintf(g_log, "# chat: the game speed message's hook FAILED\n");
 }

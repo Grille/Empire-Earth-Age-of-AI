@@ -241,6 +241,7 @@ typedef struct ee_continent_mgr ee_continent_mgr;
 typedef struct ee_minimap ee_minimap;
 typedef struct ee_resign_msg ee_resign_msg;
 typedef struct ee_chat_msg ee_chat_msg;
+typedef struct ee_speed_msg ee_speed_msg;
 typedef struct ee_select_msg ee_select_msg;
 typedef struct ee_add_select_msg ee_add_select_msg;
 typedef struct ee_toggle_select_msg ee_toggle_select_msg;
