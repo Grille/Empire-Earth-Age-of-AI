@@ -472,6 +472,8 @@ internal void rd3_shadow_pc(rd3_pcb *pc);
 internal void rd3_shadow_bind(ID3D11DeviceContext *x);
 internal void rd3_water_reflect(void);   // render_water.c
 internal void rd3_water_pass(ID3D11DeviceContext *x, const rf_cmd *c);
+internal int rd3_water_last(void);
+internal int rd3_water_late(const rf_cmd *c);
 internal int rd3_shadow_only(int role);
 internal void rd3_fxaa(ID3D11RenderTargetView *rtv, const D3D11_VIEWPORT *vp);
 // The camera as it is now on every 3D draw (rf_shift, as the list is drawn): the camera's move and its zoom turn and
@@ -640,6 +642,45 @@ internal D3D11_VIEWPORT rs_port(const D3D11_VIEWPORT *v, ID3D11RenderTargetView 
     }
     return r;
 }
+// a batch of the list drawn, its states set where they differ from the batch before (b); first: all of them
+internal void rf_draw(ID3D11DeviceContext *x, const rf_cmd *c, rf_cmd *b, int *first) {
+    if (rd3_shadow_only(c->role)) return;   // a caster off the screen: in the map only
+    if (!*first && b->ro >= RO_TERRAIN && b->ro <= RO_WATER && (c->ro < RO_TERRAIN || c->ro > RO_WATER)) {
+        D3D11_VIEWPORT port = rs_port(&b->vport, b->rtv);
+        rd3_fxaa(b->rtv, &port);
+        rf_bind(x);
+        *first = 1;
+        b->topo = D3D11_PRIMITIVE_TOPOLOGY_UNDEFINED;
+    }
+    if (*first || c->rtv != b->rtv || c->dsv != b->dsv) ID3D11DeviceContext_OMSetRenderTargets(x, 1, &c->rtv, c->dsv);
+    if (*first || memcmp(&c->vport, &b->vport, sizeof b->vport)) {
+        D3D11_VIEWPORT port = rs_port(&c->vport, c->rtv);
+        ID3D11DeviceContext_RSSetViewports(x, 1, &port);
+    }
+    if (*first || c->blend != b->blend) ID3D11DeviceContext_OMSetBlendState(x, c->blend, NULL, 0xFFFFFFFF);
+    if (*first || c->depth != b->depth) ID3D11DeviceContext_OMSetDepthStencilState(x, c->depth, 0);
+    if (*first || c->raster != b->raster) ID3D11DeviceContext_RSSetState(x, c->raster);
+    if (*first || c->srv != b->srv) ID3D11DeviceContext_PSSetShaderResources(x, 0, 1, &c->srv);
+    if (*first || c->samp != b->samp) ID3D11DeviceContext_PSSetSamplers(x, 0, 1, (ID3D11SamplerState **)&c->samp);
+    if (c->topo != b->topo) ID3D11DeviceContext_IASetPrimitiveTopology(x, c->topo);
+    if (c->vc != b->vc || c->ro != b->ro) {
+        rd3_vcb vc = g_rf.vcs[c->vc];
+        rd3_shadow_vc(&vc);   // this frame's map
+        rf_shift(&vc, c->ro);
+        if (g_uis.rtv && c->rtv == g_uis.rtv) vc.vp[0] /= g_uis.sx, vc.vp[1] /= g_uis.sy;   // half a pixel of the picture's
+        ID3D11DeviceContext_UpdateSubresource(x, (ID3D11Resource *)g_rd3.vcb, 0, NULL, &vc, 0, 0);
+    }
+    if (c->pc != b->pc) {
+        rd3_pcb pc = g_rf.pcs[c->pc];
+        rd3_shadow_pc(&pc);
+        ID3D11DeviceContext_UpdateSubresource(x, (ID3D11Resource *)g_rd3.pcb, 0, NULL, &pc, 0, 0);
+    }
+    *b = *c;
+    *first = 0;
+    rd3_water_pass(x, c);
+    ID3D11DeviceContext_DrawIndexed(x, c->n, c->at, c->base);
+    g_rb.batches++;
+}
 // the list drawn, in its order (the shadows' maps first), and emptied - all its states bound, whoever used the context
 // before (the 2D path, the present, the overlay set their own). At the first of the interface's draws after the 3D
 // scene the scene is smoothed (render_fxaa.c), and everything bound again.
@@ -656,45 +697,13 @@ internal void rf_replay(void) {
     memset(&b, 0, sizeof b);
     b.vc = b.pc = -1;
     b.topo = D3D11_PRIMITIVE_TOPOLOGY_UNDEFINED;
-    int first = 1;
+    int first = 1, lastw = rd3_water_last();
     for (int i = 0; i < g_rf.n; i++) {
         const rf_cmd *c = &g_rf.cmd[i];
-        if (rd3_shadow_only(c->role)) continue;   // a caster off the screen: in the map only
-        if (!first && b.ro >= RO_TERRAIN && b.ro <= RO_WATER && (c->ro < RO_TERRAIN || c->ro > RO_WATER)) {
-            D3D11_VIEWPORT port = rs_port(&b.vport, b.rtv);
-            rd3_fxaa(b.rtv, &port);
-            rf_bind(x);
-            first = 1;
-            b.topo = D3D11_PRIMITIVE_TOPOLOGY_UNDEFINED;
-        }
-        if (first || c->rtv != b.rtv || c->dsv != b.dsv) ID3D11DeviceContext_OMSetRenderTargets(x, 1, &c->rtv, c->dsv);
-        if (first || memcmp(&c->vport, &b.vport, sizeof b.vport)) {
-            D3D11_VIEWPORT port = rs_port(&c->vport, c->rtv);
-            ID3D11DeviceContext_RSSetViewports(x, 1, &port);
-        }
-        if (first || c->blend != b.blend) ID3D11DeviceContext_OMSetBlendState(x, c->blend, NULL, 0xFFFFFFFF);
-        if (first || c->depth != b.depth) ID3D11DeviceContext_OMSetDepthStencilState(x, c->depth, 0);
-        if (first || c->raster != b.raster) ID3D11DeviceContext_RSSetState(x, c->raster);
-        if (first || c->srv != b.srv) ID3D11DeviceContext_PSSetShaderResources(x, 0, 1, &c->srv);
-        if (first || c->samp != b.samp) ID3D11DeviceContext_PSSetSamplers(x, 0, 1, (ID3D11SamplerState **)&c->samp);
-        if (c->topo != b.topo) ID3D11DeviceContext_IASetPrimitiveTopology(x, c->topo);
-        if (c->vc != b.vc || c->ro != b.ro) {
-            rd3_vcb vc = g_rf.vcs[c->vc];
-            rd3_shadow_vc(&vc);   // this frame's map
-            rf_shift(&vc, c->ro);
-            if (g_uis.rtv && c->rtv == g_uis.rtv) vc.vp[0] /= g_uis.sx, vc.vp[1] /= g_uis.sy;   // half a pixel of the picture's
-            ID3D11DeviceContext_UpdateSubresource(x, (ID3D11Resource *)g_rd3.vcb, 0, NULL, &vc, 0, 0);
-        }
-        if (c->pc != b.pc) {
-            rd3_pcb pc = g_rf.pcs[c->pc];
-            rd3_shadow_pc(&pc);
-            ID3D11DeviceContext_UpdateSubresource(x, (ID3D11Resource *)g_rd3.pcb, 0, NULL, &pc, 0, 0);
-        }
-        b = *c;
-        first = 0;
-        rd3_water_pass(x, c);
-        ID3D11DeviceContext_DrawIndexed(x, c->n, c->at, c->base);
-        g_rb.batches++;
+        if (i < lastw && rd3_water_late(c)) continue;
+        rf_draw(x, c, &b, &first);
+        if (i == lastw)
+            for (int j = 0; j < lastw; j++) if (rd3_water_late(&g_rf.cmd[j])) rf_draw(x, &g_rf.cmd[j], &b, &first);
     }
     g_rf.n = g_rf.nvc = g_rf.npc = 0;
     g_rf.vc_new = g_rf.pc_new = 1;   // the next batch's constants a snapshot of their own
