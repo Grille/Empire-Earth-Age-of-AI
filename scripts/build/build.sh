@@ -29,18 +29,21 @@ PY=${PY:-../local/venv/Scripts/python.exe}   # install.sh: the repository's, for
 # them changed by hand stops the build)
 if [ -n "$PY" ]; then "$PY" ../scripts/build/persist_layout.py && "$PY" ../scripts/build/gen_cmd_verbs.py && "$PY" ../scripts/build/gen_api.py && "$PY" ../scripts/build/gen_lang.py && "$PY" ../scripts/build/gen_settings.py && "$PY" ../scripts/build/layers.py --quiet && "$PY" ../scripts/build/settings_check.py && "$PY" ../scripts/build/spec_check.py && "$PY" ../scripts/build/style.py && "$PY" ../scripts/build/gen_editor_context.py || exit 1
 else echo "no Python: persist_layout.h and cmd_verbs.h left as they are, the folders' rules unchecked (scripts/build/persist_layout.py after changing a saved variable, gen_cmd_verbs.py after a new pipe command)"; fi
-"$CC" -O2 -mstackrealign -fno-strict-aliasing -Wall -Wextra -Wformat=2 -Wstrict-prototypes -Wimplicit-fallthrough -Wvla -Wshadow -shared -static -I. -o ageofai.dll eeaimod.c -lgdi32 -ldxguid -lwinmm -lwinhttp -Wl,--image-base,0x6E000000 -Wl,--exclude-all-symbols || exit 1
-# ageofai_config.exe: the settings in a window (tool/ageofai_config.c), a program of its own from base/, script/ and
-# settings/ - the DLL's rows and checks; its resources the shipped config/ageofai.ini (the help) and a manifest.
-# -Wno-unused-function: it takes those files whole and calls only part of them
+# its resources: the manifest of its dialogs (ageofai.rc); comctl32, uxtheme, dwmapi and msimg32 for them (ui/theme.c)
 WINDRES=${WINDRES:-${CC%clang}windres}
+"$WINDRES" -I. ageofai.rc -O coff -o ageofai_res.o || exit 1
+"$CC" -O2 -mstackrealign -fno-strict-aliasing -Wall -Wextra -Wformat=2 -Wstrict-prototypes -Wimplicit-fallthrough -Wvla -Wshadow -shared -static -I. -o ageofai.dll eeaimod.c ageofai_res.o -lgdi32 -ldxguid -lwinmm -lwinhttp -lcomctl32 -luxtheme -ldwmapi -lmsimg32 -Wl,--image-base,0x6E000000 -Wl,--exclude-all-symbols || { rm -f ageofai_res.o; exit 1; }
+rm -f ageofai_res.o
+# ageofai_config.exe: the settings in a window (tool/ageofai_config.c), a program of its own from base/, ui/, script/
+# and settings/ - the DLL's rows and checks; its resources the shipped config/ageofai.ini (the help) and a manifest.
+# -Wno-unused-function: it takes those files whole and calls only part of them
 "$WINDRES" -I. tool/ageofai_config.rc -O coff -o ageofai_config_res.o || exit 1
 "$CC" -O2 -Wall -Wextra -Wformat=2 -Wstrict-prototypes -Wimplicit-fallthrough -Wvla -Wshadow -Wno-unused-function -mwindows -static -I. -o ageofai_config.exe tool/ageofai_config.c ageofai_config_res.o -lcomctl32 -lgdi32 -limagehlp -luxtheme -ldwmapi -lmsimg32 || { rm -f ageofai_config_res.o; exit 1; }
 rm -f ageofai_config_res.o
 # ageofai_check.exe: the DLL's code as a program that checks .eeai files without the game (check/ageofai_check.c) - its
 # image above the game's addresses, fixed (no ASLR): a stray read of the game's memory fails instead of reading its own.
 # Then the shipped personalities and every test script through it: a mistake in them stops the build
-"$CC" -O2 -mstackrealign -fno-strict-aliasing -Wall -Wextra -Wformat=2 -Wstrict-prototypes -Wimplicit-fallthrough -Wvla -Wshadow -static -I. -o ageofai_check.exe check/ageofai_check.c -lgdi32 -ldxguid -lwinmm -lwinhttp -Wl,--image-base,0x10000000 -Wl,--disable-dynamicbase || exit 1
+"$CC" -O2 -mstackrealign -fno-strict-aliasing -Wall -Wextra -Wformat=2 -Wstrict-prototypes -Wimplicit-fallthrough -Wvla -Wshadow -static -I. -o ageofai_check.exe check/ageofai_check.c -lgdi32 -ldxguid -lwinmm -lwinhttp -lcomctl32 -luxtheme -ldwmapi -lmsimg32 -Wl,--image-base,0x10000000 -Wl,--disable-dynamicbase || exit 1
 ./ageofai_check.exe ../config/personalities ../tests/scenarios ../tests/probes > ageofai_check.log || { grep -v "^ageofai_check: [0-9]* unit" ageofai_check.log; exit 1; }
 rm -f ageofai_check.log
 if [ "$1" = install ]; then   # the working tree's build (scripts/build/install.sh: the committed one) into the game folder

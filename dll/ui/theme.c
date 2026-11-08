@@ -9,6 +9,10 @@
 // game's pictures a check box is drawn classic, the one control whose themed text Windows keeps black. The calls that
 // switch the app's menus and scrollbars to dark (uxtheme's ordinals 133 and 135) have no names: looked up by number,
 // left out where the Windows has none.
+// ageofai_config.exe's window, and the DLL's dialogs (the terrain colour dialog): in the game's process the windows
+// are made in the DLL's activation context (theme_context_enter: common controls 6, which the game's exe doesn't ask
+// for) and only they are dark (theme_app_mode 1).
+#include <commctrl.h>
 #include <uxtheme.h>
 #include <dwmapi.h>
 #include "ui/game_art.c"
@@ -23,13 +27,16 @@ internal struct palette g_pal;
 // the game's look: on when both pictures were read. ui: uicontrols.sst, 20x20 cells drawn whole and 1:1 (at 96 dpi)
 // as the game draws them, in pairs - row 0 checked, empty, a radio on; row 1 a radio off, the knot up, down; row 2
 // left, right, the scrollbar's ball; which of a pair the game shows unpressed measured against its setup screen (the
-// pixels the same): a check box's the left one, the dropdown knot's the right one. paint: the settings screen's painting (gamesettings, 1024x768); bg: it
+// pixels the same): a check box's the left one, the dropdown knot's the right one; a radio's the left one, the brighter
+// as with the others. paint: the settings screen's painting (gamesettings, 1024x768); bg: it
 // at the window's size (theme_size), b_bg a brush of it; dim: it darkened to under half, b_dim its brush for a label
 // drawn transparent over it (the list and the panel cover the rest: the painting itself as bright as the game's)
 struct game_look { int on; HWND main; HDC ui_dc, paint_dc, bg_dc; HBITMAP ui, paint, bg, dim; HBRUSH b_bg, b_dim; int pw, ph; };
 internal struct game_look g_gl;
 #define GL_CELL_CHECKED 0, 0   // + 1 pressed
 #define GL_CELL_EMPTY 0, 2   // + 1 pressed
+#define GL_CELL_RADIO_ON 0, 4   // + 1 pressed
+#define GL_CELL_RADIO_OFF 1, 0   // + 1 pressed
 #define GL_CELL_KNOT_DOWN 1, 5   // - 1 pressed
 #define GL_CELL 20
 
@@ -95,7 +102,8 @@ internal void theme_game_open(const char *ini_path) {
     g_gl.on = 1;
 }
 
-internal void theme_init(const char *ini_path) {
+// the look: the game's pictures (else none) and the palette
+internal void theme_look(const char *ini_path) {
     struct palette *p = &g_pal;
     theme_game_open(ini_path);
     // black fields, light text
@@ -112,13 +120,46 @@ internal void theme_init(const char *ini_path) {
     p->focus = RGB(255, 210, 60);   // the control with the keyboard: its text gold, as the game's menus mark theirs
     p->overruled = RGB(196, 140, 255);   // purple and teal, not red and green: told apart without red-green vision
     p->forced = RGB(70, 205, 185);
-    HMODULE ux = LoadLibraryA("uxtheme.dll");
-    typedef int (WINAPI *app_mode_fn)(int);   // SetPreferredAppMode: 2 always dark
-    app_mode_fn mode = ux ? (app_mode_fn)(void *)GetProcAddress(ux, MAKEINTRESOURCEA(135)) : NULL;
-    if (mode) mode(2);
     p->b_back = CreateSolidBrush(p->back);
     p->b_field = CreateSolidBrush(p->field);
 }
+
+// the program's dark mode (SetPreferredAppMode): 2 always dark (ageofai_config.exe), 1 dark where a window asks for it
+// (theme_allow_dark: in the game's process the DLL's own windows only)
+internal void theme_app_mode(int mode) {
+    HMODULE ux = LoadLibraryA("uxtheme.dll");
+    typedef int (WINAPI *app_mode_fn)(int);
+    app_mode_fn set = ux ? (app_mode_fn)(void *)GetProcAddress(ux, MAKEINTRESOURCEA(135)) : NULL;
+    if (set) set(mode);
+}
+
+internal void theme_init(const char *ini_path) {
+    theme_look(ini_path);
+    theme_app_mode(2);
+}
+
+// THE DLL'S WINDOWS: the game's exe has no manifest asking for common controls 6, so a window made in its process
+// gets Windows' old controls (no themes, no hot state). The DLL's manifest (resource 3, ageofai.rc: the loader binds
+// its imports without it - 2 would bring common controls 6 into every start) made into an activation context, active
+// while a window is made and lives: enter 1 (*cookie for the leave), else 0 and the old controls
+internal int theme_context_enter(ULONG_PTR *cookie) {
+    static HANDLE ctx = INVALID_HANDLE_VALUE;
+    static int made;
+    if (!made) {
+        made = 1;
+        HMODULE m;
+        char path[MAX_PATH];
+        if (GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                               (LPCSTR)(void *)theme_context_enter, &m) && GetModuleFileNameA(m, path, sizeof path)) {
+            ACTCTXA a = { .cbSize = sizeof a, .dwFlags = ACTCTX_FLAG_HMODULE_VALID | ACTCTX_FLAG_RESOURCE_NAME_VALID,
+                          .lpSource = path, .lpResourceName = MAKEINTRESOURCEA(3), .hModule = m };
+            ctx = CreateActCtxA(&a);
+        }
+    }
+    return ctx != INVALID_HANDLE_VALUE && ActivateActCtx(ctx, cookie);
+}
+
+internal void theme_context_leave(ULONG_PTR cookie) { DeactivateActCtx(0, cookie); }
 
 // the window's background at its size (WM_SIZE): the painting over the whole of it, cut to its shape (no stretch
 // out of proportion), and a copy of it darkened to under half, under the labels that lie on it
@@ -223,7 +264,8 @@ internal void theme_text(HDC dc, HWND c, RECT *r, const char *text, COLORREF col
 }
 
 // a push button as the game's menus draw theirs: the background darkened under it (less under the mouse), the bevel,
-// the text white; a check box: the game's box, its text beside it. The keyboard's focus: the text gold (no dotted frame)
+// the text white; a check box or a radio button: the game's box or round, its text beside it. The keyboard's focus:
+// the text gold (no dotted frame)
 internal void theme_paint_button(HWND c, HDC dc) {
     RECT r;
     char text[128];
@@ -232,10 +274,19 @@ internal void theme_paint_button(HWND c, HDC dc) {
     LRESULT st = SendMessageA(c, BM_GETSTATE, 0, 0);
     int down = (st & BST_PUSHED) != 0, hot = (st & BST_HOT) != 0, off = !IsWindowEnabled(c), focus = GetFocus() == c;
     theme_under(dc, c, &r);
-    if ((GetWindowLongA(c, GWL_STYLE) & BS_TYPEMASK) == BS_AUTOCHECKBOX) {
+    LONG type = GetWindowLongA(c, GWL_STYLE) & BS_TYPEMASK;
+    if (type == BS_AUTOCHECKBOX || type == BS_AUTORADIOBUTTON) {
+        if (g_gl.on && g_gl.b_dim && GetParent(c) == g_gl.main) {   // a label: on the painting's darkened copy
+            POINT pt = theme_at(c);
+            SetBrushOrgEx(dc, -pt.x, -pt.y, NULL);
+            FillRect(dc, &r, g_gl.b_dim);
+        }
         int size = MulDiv(GL_CELL, GetDeviceCaps(dc, LOGPIXELSY), 96), y = (r.bottom - size) / 2;
         int on = SendMessageA(c, BM_GETCHECK, 0, 0) == BST_CHECKED;
-        if (on) theme_cell(dc, 0, y, size, GL_CELL_CHECKED + (down || hot));
+        if (type == BS_AUTORADIOBUTTON) {
+            if (on) theme_cell(dc, 0, y, size, GL_CELL_RADIO_ON + (down || hot));
+            else theme_cell(dc, 0, y, size, GL_CELL_RADIO_OFF + (down || hot));
+        } else if (on) theme_cell(dc, 0, y, size, GL_CELL_CHECKED + (down || hot));
         else theme_cell(dc, 0, y, size, GL_CELL_EMPTY + (down || hot));
         RECT t = { size + size / 4, 0, r.right, r.bottom };
         theme_text(dc, c, &t, text, off ? g_pal.grey : focus ? g_pal.focus : g_pal.text, DT_LEFT);
@@ -796,7 +847,8 @@ internal void theme_control(HWND c, const char *cls) {   // a child: its dark th
         ListView_SetTextColor(c, g_pal.text);
         return;
     }
-    int box = !lstrcmpA(cls, WC_BUTTONA) && (GetWindowLongA(c, GWL_STYLE) & BS_TYPEMASK) == BS_AUTOCHECKBOX;
+    LONG type = GetWindowLongA(c, GWL_STYLE) & BS_TYPEMASK;
+    int box = !lstrcmpA(cls, WC_BUTTONA) && (type == BS_AUTOCHECKBOX || type == BS_AUTORADIOBUTTON);
     if (box && !g_gl.on) {
         SetWindowTheme(c, L" ", L" ");   // classic: its text in WM_CTLCOLORSTATIC's colour
         return;

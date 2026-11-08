@@ -5,7 +5,9 @@
 // at least), its colours as a strip - a click on a slot picks its colour with Windows' colour dialog (a ramp: the end
 // nearer the click, the slots between follow) -, the slots free for it; OK makes the type (terrain_palette.c
 // tp_type_put), Delete takes it out. A modal Win32 dialog over the game's window, on the game's thread: the game
-// waits meanwhile; the same program's window, so no app switch reaches the game (it would minimize itself).
+// waits meanwhile; the same program's window, so no app switch reaches the game (it would minimize itself). In the
+// game's look (ui/theme.c, ageofai_config.exe's: the settings screen's painting under it, the game's radio buttons,
+// dropdown and buttons; plain dark without the game's pictures).
 #define TD_FLAT 101
 #define TD_RAMP 102
 #define TD_EACH 103
@@ -94,6 +96,10 @@ internal void td_pick(HWND d) {
 
 internal void td_draw(const DRAWITEMSTRUCT *di) {
     RECT r = di->rcItem;
+    if (g_gl.on) {   // in a field's sunken bevel
+        theme_bevel(di->hDC, &r, 1);
+        InflateRect(&r, -2, -2);
+    }
     LONG w = r.right - r.left;
     for (unsigned k = 0; k < g_td.n; k++) {
         RECT c = { r.left + (LONG)k * w / (LONG)g_td.n, r.top, r.left + (LONG)(k + 1) * w / (LONG)g_td.n, r.bottom };
@@ -123,10 +129,21 @@ internal INT_PTR CALLBACK td_proc(HWND d, UINT msg, WPARAM w, LPARAM l) {
         if (o && GetWindowRect(o, &ro) && GetWindowRect(d, &rd))
             SetWindowPos(d, HWND_TOP, (ro.left + ro.right - (rd.right - rd.left)) / 2, (ro.top + ro.bottom - (rd.bottom - rd.top)) / 2,
                          0, 0, SWP_NOSIZE);
+        theme_window(d);
+        theme_size(d);   // the painting under it (the labels on its darkened copy)
+        static const int buttons[] = { IDOK, IDCANCEL, TD_DELETE, TD_FLAT, TD_RAMP, TD_EACH };   // not the strip: drawn here
+        for (unsigned k = 0; k < sizeof buttons / sizeof *buttons; k++) theme_control(GetDlgItem(d, buttons[k]), WC_BUTTONA);
+        theme_control(GetDlgItem(d, TD_COUNT), WC_COMBOBOXA);
         td_update(d);
         SetFocus(GetDlgItem(d, IDOK));   // not the first radio button: an automatic one given the focus is clicked too
         return FALSE;
     }
+    case WM_ERASEBKGND:
+        if (!theme_erase(d, (HDC)w)) break;
+        SetWindowLongPtrW(d, DWLP_MSGRESULT, 1);
+        return TRUE;
+    case WM_CTLCOLORSTATIC: case WM_CTLCOLOREDIT: case WM_CTLCOLORLISTBOX: case WM_CTLCOLORBTN: case WM_CTLCOLORDLG:
+        return (INT_PTR)theme_ctlcolor(msg, w, l);   // a dialog procedure answers these with the brush itself
     case WM_DRAWITEM:
         if (w == TD_STRIP) { td_draw((const DRAWITEMSTRUCT *)l); return TRUE; }
         break;
@@ -201,27 +218,26 @@ internal void td_open(int i, int sel) {
     static WORD tpl[1024];
     memset(tpl, 0, sizeof tpl);
     DLGTEMPLATE *dt = (DLGTEMPLATE *)tpl;
-    *dt = (DLGTEMPLATE){ .style = DS_MODALFRAME | DS_SETFONT | WS_POPUP | WS_CAPTION | WS_SYSMENU, .cdit = 13, .cx = 260, .cy = 142 };
+    *dt = (DLGTEMPLATE){ .style = DS_MODALFRAME | DS_SETFONT | WS_POPUP | WS_CAPTION | WS_SYSMENU, .cdit = 11, .cx = 260, .cy = 142 };
     WORD *p = (WORD *)(dt + 1);
     *p++ = 0, *p++ = 0;          // no menu, the dialog class
     p = td_str(p, L"");          // the title: set at its start
     *p++ = 9;
-    p = td_str(p, L"MS Shell Dlg");
+    p = td_str(p, L"Segoe UI");  // ageofai_config.exe's (Windows' message font)
     // the buttons first: the dialog gives its first tab stop the focus when it is activated, and an automatic radio
-    // button given the focus is clicked (the kind was one colour whenever the dialog opened)
-    p = td_item(p, BS_DEFPUSHBUTTON | WS_TABSTOP | WS_GROUP, 146, 123, 50, 14, IDOK, 0x80, L"OK");
-    p = td_item(p, BS_PUSHBUTTON | WS_TABSTOP, 202, 123, 50, 14, IDCANCEL, 0x80, L"Cancel");
-    p = td_item(p, BS_PUSHBUTTON | WS_TABSTOP, 8, 123, 50, 14, TD_DELETE, 0x80, L"Delete");
-    p = td_item(p, BS_GROUPBOX | WS_GROUP, 6, 4, 248, 52, 0xFFFF, 0x80, L"Kind");
-    p = td_item(p, BS_AUTORADIOBUTTON | WS_GROUP | WS_TABSTOP, 14, 16, 230, 10, TD_FLAT, 0x80, L"One colour");
-    p = td_item(p, BS_AUTORADIOBUTTON, 14, 28, 230, 10, TD_RAMP, 0x80, L"A ramp between two colours");
-    p = td_item(p, BS_AUTORADIOBUTTON, 14, 40, 230, 10, TD_EACH, 0x80, L"Each slot a colour of its own");
-    p = td_item(p, SS_LEFT, 8, 64, 30, 10, 0xFFFF, 0x82, L"Slots:");
-    p = td_item(p, CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP | WS_GROUP, 40, 62, 36, 160, TD_COUNT, 0x85, L"");
-    p = td_item(p, SS_LEFT, 86, 64, 168, 10, TD_FREE, 0x82, L"");
-    p = td_item(p, BS_OWNERDRAW | WS_TABSTOP, 8, 80, 244, 22, TD_STRIP, 0x80, L"");
-    p = td_item(p, SS_LEFT, 8, 105, 244, 10, TD_HINT, 0x82, L"");
-    p = td_item(p, SS_ETCHEDHORZ, 6, 118, 248, 1, 0xFFFF, 0x82, L"");
+    // button given the focus is clicked (the kind was one colour whenever the dialog opened). A radio button as tall
+    // as the game's picture of one (20 pixels)
+    p = td_item(p, BS_DEFPUSHBUTTON | WS_TABSTOP | WS_GROUP, 146, 120, 50, 15, IDOK, 0x80, L"OK");
+    p = td_item(p, BS_PUSHBUTTON | WS_TABSTOP, 202, 120, 50, 15, IDCANCEL, 0x80, L"Cancel");
+    p = td_item(p, BS_PUSHBUTTON | WS_TABSTOP, 8, 120, 50, 15, TD_DELETE, 0x80, L"Delete");
+    p = td_item(p, BS_AUTORADIOBUTTON | WS_GROUP | WS_TABSTOP, 8, 6, 124, 12, TD_FLAT, 0x80, L"One colour");
+    p = td_item(p, BS_AUTORADIOBUTTON, 8, 20, 124, 12, TD_RAMP, 0x80, L"A ramp between two colours");
+    p = td_item(p, BS_AUTORADIOBUTTON, 8, 34, 124, 12, TD_EACH, 0x80, L"Each slot a colour of its own");
+    p = td_item(p, SS_LEFT, 8, 56, 30, 10, 0xFFFF, 0x82, L"Slots:");
+    p = td_item(p, CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP | WS_GROUP, 40, 54, 36, 160, TD_COUNT, 0x85, L"");
+    p = td_item(p, SS_LEFT, 86, 56, 166, 10, TD_FREE, 0x82, L"");
+    p = td_item(p, BS_OWNERDRAW | WS_TABSTOP, 8, 72, 244, 24, TD_STRIP, 0x80, L"");
+    p = td_item(p, SS_LEFT, 8, 101, 244, 10, TD_HINT, 0x82, L"");
     ee_window *gw = game_window();
     HWND owner = gw ? window_get_hwnd(gw) : NULL;
     RECT clip;
@@ -229,11 +245,23 @@ internal void td_open(int i, int sel) {
     ClipCursor(NULL);
     int before = ShowCursor(TRUE) - 1, shown = before + 1;   // Windows' cursor over the dialog, its count as it was after
     while (shown < 0) shown = ShowCursor(TRUE);
+    static int looked;
+    if (!looked) {   // the game's pictures read at the first open (from the game's folder, else the original game's: AoC)
+        looked = 1;
+        char ini[MAX_PATH + 32];
+        snprintf(ini, sizeof ini, "%sageofai\\ageofai.ini", g_game_dir);   // its eesettings.ini beside it: the original's folder
+        theme_look(ini);
+        theme_app_mode(1);
+    }
+    ULONG_PTR cookie;
+    int ctx = theme_context_enter(&cookie);
     INT_PTR r = DialogBoxIndirectParamW(GetModuleHandleW(NULL), dt, owner, td_proc, 0);
+    if (ctx) theme_context_leave(cookie);
     while (shown > before) shown = ShowCursor(FALSE);
     if (clipped) ClipCursor(&clip);
     if (owner) SetForegroundWindow(owner);
-    if (g_log) log_locked("# terrain palette: the colour dialog for %s %d: %s%s\n", i < 0 ? "a new type, from item" : "type", i < 0 ? sel : i,
+    if (g_log) log_locked("# terrain palette: the colour dialog for %s %d (%s, %s): %s%s\n", i < 0 ? "a new type, from item" : "type", i < 0 ? sel : i,
+                          g_gl.on ? "the game's look" : "plain, no game pictures", ctx ? "common controls 6" : "the old controls",
                           r < 0 ? "FAILED to open" : g_td.result == IDOK ? "OK" : g_td.result == TD_DELETE ? "delete" : "cancel",
                           g_td.result == IDOK ? (g_td.mode == TP_FLAT ? ", one colour" : g_td.mode == TP_RAMP ? ", a ramp" : ", each slot") : "");
     ee_se_color_list *list = se_terrain_get_color_list(g_tp_panel);

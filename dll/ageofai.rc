@@ -1,0 +1,4 @@
+// ageofai.dll's resources: the manifest of its dialogs (common controls 6 - the current look, the game's exe doesn't ask
+// for it), resource 3: an activation context made of it while they are open (ui/theme.c theme_context_enter); the
+// loader binds the DLL's imports without it (2 would). Paths relative to dll/, where build.sh runs.
+3 24 "ageofai.manifest"
