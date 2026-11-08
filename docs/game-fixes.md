@@ -60,7 +60,7 @@ changes the simulation: in a lockstep game different values make the PCs' games 
   colours travel in its file - a scenario, a saved game -, in a block after the game's own data that the original
   game doesn't read: there the ground on them shows the game's colours of those slots. The map's own colours come
   from the editor: the colour list ends in a strip of all hues - a click on it opens a dialog in the editor's look (its
-  pages' parchment, yellow text) that makes a colour of the map's own (one
+  pages' parchment, yellow text; as much enlarged as the game's picture) that makes a colour of the map's own (one
   colour, a ramp between two, or each slot its own, 1 to 16 slots, the colours from a picker in the dialog: a square of saturation and value, a bar of hues, numbers, the colours used last), which
   follows the game's colours in the list and paints as they do; a double click on it changes or deletes it. A ramp's
   middle is blended in sRGB as the game's own ramps are (its sets in ColorPalette.tga fit that best), in linear light

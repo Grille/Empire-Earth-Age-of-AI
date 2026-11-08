@@ -250,12 +250,18 @@ internal void theme_shade(HDC dc, const RECT *r, int alpha) {   // black over r,
     AlphaBlend(dc, r->left, r->top, r->right - r->left, r->bottom - r->top, black, 0, 0, 1, 1, bf);
 }
 
+// the DLL's dialogs at the scale of the game's picture (percent, terrain_dialog.c): what is drawn in pixels here grows
+// with their font
+internal int g_theme_zoom = 100;
+internal int theme_px(int n) { return MulDiv(n, g_theme_zoom, 100); }
+internal int theme_cell_px(HDC dc) { return MulDiv(GL_CELL, GetDeviceCaps(dc, LOGPIXELSY) * g_theme_zoom, 9600); }
+
 // the game's bevel, 2 pixels round r (measured in its 1024x768 menus): light (176,194,193) at the top and left, dark
 // (89,101,100) at the bottom and right - a button raised so; in: the other way round, a field and a button pressed
-internal void theme_bevel(HDC dc, const RECT *r, int in) {
+internal void theme_bevel_w(HDC dc, const RECT *r, int in, int t) {
     HBRUSH hi = CreateSolidBrush(RGB(176, 194, 193)), lo = CreateSolidBrush(RGB(89, 101, 100)), a = in ? lo : hi, b = in ? hi : lo;
-    RECT top = { r->left, r->top, r->right, r->top + 2 }, left = { r->left, r->top, r->left + 2, r->bottom };
-    RECT bottom = { r->left + 1, r->bottom - 2, r->right, r->bottom }, right = { r->right - 2, r->top + 1, r->right, r->bottom };
+    RECT top = { r->left, r->top, r->right, r->top + t }, left = { r->left, r->top, r->left + t, r->bottom };
+    RECT bottom = { r->left + t / 2, r->bottom - t, r->right, r->bottom }, right = { r->right - t, r->top + t / 2, r->right, r->bottom };
     FillRect(dc, &top, a);
     FillRect(dc, &left, a);
     FillRect(dc, &bottom, b);
@@ -263,6 +269,8 @@ internal void theme_bevel(HDC dc, const RECT *r, int in) {
     DeleteObject(hi);
     DeleteObject(lo);
 }
+
+internal void theme_bevel(HDC dc, const RECT *r, int in) { theme_bevel_w(dc, r, in, theme_px(2)); }
 
 // a field's own colours (a dropdown drawn here, an edit): the program's, 1 when it sets them - ageofai_config's
 // controls over a line of its list take the line's look; else the palette's
@@ -295,7 +303,7 @@ internal void theme_paint_button(HWND c, HDC dc) {
     theme_under(dc, c, &r);
     LONG type = GetWindowLongA(c, GWL_STYLE) & BS_TYPEMASK;
     if (type == BS_AUTOCHECKBOX || type == BS_AUTORADIOBUTTON) {
-        int size = MulDiv(GL_CELL, GetDeviceCaps(dc, LOGPIXELSY), 96), y = (r.bottom - size) / 2;
+        int size = theme_cell_px(dc), y = (r.bottom - size) / 2;
         if (g_gl.on && g_gl.b_dim && GetParent(c) == g_gl.main) {   // its text a label's: on the painting's darkened copy, the box or round on the painting itself (the game's)
             RECT l = { size + size / 8, 0, r.right, r.bottom };
             POINT pt = theme_at(c);
@@ -336,7 +344,7 @@ internal void theme_paint_combo(HWND c, HDC dc) {
     DeleteObject(b);
     theme_bevel(dc, &f, 1);
     theme_cell(dc, r.right - size, 0, size, GL_CELL_KNOT_DOWN - (SendMessageA(c, CB_GETDROPPEDSTATE, 0, 0) != 0));
-    RECT t = { f.left + 4, f.top + 2, f.right - 2, f.bottom - 2 };   // ageofai_config's draw_field draws its faces' text here too
+    RECT t = { f.left + theme_px(4), f.top + theme_px(2), f.right - theme_px(2), f.bottom - theme_px(2) };   // ageofai_config's draw_field draws its faces' text here too
     int focus = GetFocus() == c && !SendMessageA(c, CB_GETDROPPEDSTATE, 0, 0);
     theme_text(dc, c, &t, text, !IsWindowEnabled(c) ? g_pal.grey : focus ? g_pal.focus : color, DT_LEFT);
 }
@@ -358,7 +366,7 @@ internal int theme_draw_item(const DRAWITEMSTRUCT *di) {
         FrameRect(di->hDC, &r, b);
         DeleteObject(b);
     }
-    RECT t = { r.left + 4, r.top, r.right - 2, r.bottom };
+    RECT t = { r.left + theme_px(4), r.top, r.right - theme_px(2), r.bottom };
     HFONT old = (HFONT)SelectObject(di->hDC, (HFONT)SendMessageA(di->hwndItem, WM_GETFONT, 0, 0));
     SetBkMode(di->hDC, TRANSPARENT);
     SetTextColor(di->hDC, g_pal.text);
@@ -373,7 +381,7 @@ internal void theme_frame(HWND c) {
     RECT r;
     GetWindowRect(c, &r);
     OffsetRect(&r, -r.left, -r.top);
-    theme_bevel(dc, &r, 1);
+    theme_bevel_w(dc, &r, 1, 2);   // Windows' frame of 2 pixels, at any zoom: the field's text starts inside it
     ReleaseDC(c, dc);
 }
 
@@ -428,7 +436,7 @@ internal int g_sb_part;   // the part the mouse holds (of the bar that has the c
 
 internal int theme_sb_width(HWND c) {
     HDC dc = GetDC(c);
-    int w = MulDiv(GL_CELL, GetDeviceCaps(dc, LOGPIXELSY), 96);
+    int w = theme_cell_px(dc);
     ReleaseDC(c, dc);
     return w;
 }
@@ -916,7 +924,7 @@ internal void theme_control(HWND c, const char *cls) {   // a child: its dark th
         }
         SetWindowSubclass(c, theme_drawn_proc, 1, 1);
         HDC dc = GetDC(c);
-        int want = MulDiv(GL_CELL, GetDeviceCaps(dc, LOGPIXELSY), 96);
+        int want = theme_cell_px(dc);
         ReleaseDC(c, dc);
         for (int i = 0; i < 2; i++) {   // the selection field's height sets the whole: the rest found by measuring
             RECT r;
@@ -931,7 +939,7 @@ internal void theme_control(HWND c, const char *cls) {   // a child: its dark th
             GetTextMetricsA(dc, &tm);
             SelectObject(dc, old);
             ReleaseDC(c, dc);
-            SendMessageA(c, CB_SETITEMHEIGHT, 0, tm.tmHeight + 4);
+            SendMessageA(c, CB_SETITEMHEIGHT, 0, tm.tmHeight + theme_px(4));
         }
     }
     else if (!lstrcmpA(cls, WC_EDITA) && (GetWindowLongA(c, GWL_EXSTYLE) & WS_EX_CLIENTEDGE)) {

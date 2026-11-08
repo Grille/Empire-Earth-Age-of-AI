@@ -10,7 +10,8 @@
 // waits meanwhile; the same program's window, so no app switch reaches the game (it would minimize itself). In the
 // game's look (ui/theme.c, ageofai_config.exe's controls in the editor's style: the parchment of its pages under it,
 // yellow text on its darker boxes, the game's radio buttons, dropdown and buttons; plain dark without the game's
-// pictures).
+// pictures), and at the scale the game's picture is shown at (td_open): at a lower resolution, enlarged to the window, it
+// is as much larger as the game's own controls.
 #define TD_FLAT 101
 #define TD_RAMP 102
 #define TD_EACH 103
@@ -36,6 +37,8 @@
 #define TD_B_LABEL 123
 #define TD_HEX_LABEL 124
 #define TD_RECENTS 16
+#define TD_POINTS 9       // its font's size at the game's picture 1:1 (the dialog's parts follow the font) ...
+#define TD_PIXELS 500     // ... and about its height then, with the title bar
 internal struct {
     int type;                          // the type changed, -1 a new one
     int mode, blend;
@@ -187,27 +190,30 @@ internal void td_fill(HDC dc, const RECT *r, const uint8_t c[3]) {
 internal RECT td_sunken(const DRAWITEMSTRUCT *di) {
     RECT r = di->rcItem;
     if (g_gl.on) theme_bevel(di->hDC, &r, 1);
-    InflateRect(&r, -2, -2);
+    InflateRect(&r, -theme_px(2), -theme_px(2));
     return r;
+}
+
+// a frame t pixels thick just inside c, c then inside it
+internal void td_frame(HDC dc, RECT *c, HBRUSH b, int t) {
+    for (int i = 0; i < t; i++) {
+        FrameRect(dc, c, b);
+        InflateRect(c, -1, -1);
+    }
 }
 
 internal void td_draw(const DRAWITEMSTRUCT *di) {
     RECT r = td_sunken(di);
     LONG w = r.right - r.left;
+    int t = theme_px(1);
     HBRUSH black = (HBRUSH)GetStockObject(BLACK_BRUSH), white = (HBRUSH)GetStockObject(WHITE_BRUSH), mark = CreateSolidBrush(RGB(254, 247, 32));
     for (unsigned k = 0; k < g_td.n; k++) {
         RECT c = { r.left + (LONG)k * w / (LONG)g_td.n, r.top, r.left + (LONG)(k + 1) * w / (LONG)g_td.n, r.bottom };
         td_fill(di->hDC, &c, g_td.cell[k]);
         if (g_td.mode != TP_RAMP || k == 0 || k + 1 == g_td.n) {   // what a click chooses: framed, the chosen one in the look's yellow
-            FrameRect(di->hDC, &c, black);
-            InflateRect(&c, -1, -1);
-            FrameRect(di->hDC, &c, k == g_td.sel ? mark : white);
-            if (k == g_td.sel) {
-                InflateRect(&c, -1, -1);
-                FrameRect(di->hDC, &c, mark);
-                InflateRect(&c, -1, -1);
-                FrameRect(di->hDC, &c, black);
-            }
+            td_frame(di->hDC, &c, black, t);
+            td_frame(di->hDC, &c, k == g_td.sel ? mark : white, k == g_td.sel ? 2 * t : t);
+            if (k == g_td.sel) td_frame(di->hDC, &c, black, t);
         }
     }
     DeleteObject(mark);
@@ -239,14 +245,15 @@ internal void td_gradient(const DRAWITEMSTRUCT *di, int bar) {
     int saved = SaveDC(di->hDC);
     IntersectClipRect(di->hDC, r.left, r.top, r.right, r.bottom);
     int mx = r.left + (int)(g_td.sat * (float)(w - 1) + 0.5f), my = r.top + (int)((1 - g_td.val) * (float)(h - 1) + 0.5f);
-    RECT m = { mx - 5, my - 5, mx + 6, my + 6 };
+    int a = theme_px(5), t = theme_px(1);
+    RECT m = { mx - a, my - a, mx + a + 1, my + a + 1 };
     if (bar) {
         my = r.top + (int)(g_td.hue * (float)(h - 1) + 0.5f);
-        m = (RECT){ r.left, my - 3, r.right, my + 4 };
+        a = theme_px(3);
+        m = (RECT){ r.left, my - a, r.right, my + a + 1 };
     }
-    FrameRect(di->hDC, &m, (HBRUSH)GetStockObject(BLACK_BRUSH));
-    InflateRect(&m, -1, -1);
-    FrameRect(di->hDC, &m, (HBRUSH)GetStockObject(WHITE_BRUSH));
+    td_frame(di->hDC, &m, (HBRUSH)GetStockObject(BLACK_BRUSH), t);
+    td_frame(di->hDC, &m, (HBRUSH)GetStockObject(WHITE_BRUSH), t);
     RestoreDC(di->hDC, saved);
 }
 
@@ -265,7 +272,7 @@ internal void td_recents(const DRAWITEMSTRUCT *di) {
         RECT c = { r.left + (LONG)k * w / TD_RECENTS, r.top, r.left + (LONG)(k + 1) * w / TD_RECENTS, r.bottom };
         if (k < g_td_recents) td_fill(di->hDC, &c, g_td_recent[k]);
         else FillRect(di->hDC, &c, g_pal.b_field);
-        FrameRect(di->hDC, &c, (HBRUSH)GetStockObject(BLACK_BRUSH));
+        td_frame(di->hDC, &c, (HBRUSH)GetStockObject(BLACK_BRUSH), theme_px(1));
     }
 }
 
@@ -274,7 +281,7 @@ internal int td_hit(HWND d, int id, POINT p, RECT *in) {
     GetWindowRect(GetDlgItem(d, id), in);
     MapWindowPoints(NULL, d, (POINT *)in, 2);
     int on = PtInRect(in, p);
-    InflateRect(in, -2, -2);
+    InflateRect(in, -theme_px(2), -theme_px(2));
     return on;
 }
 
@@ -355,6 +362,16 @@ internal void td_rows(HWND d) {
     RECT f;
     GetWindowRect(GetDlgItem(d, TD_BLEND), &f);
     int h = f.bottom - f.top;
+    static const int fields[][2] = { { TD_BLEND, TD_RAMP }, { TD_COUNT, TD_FREE } };   // each dropdown centred on its row: taller than it at a large font
+    for (unsigned k = 0; k < sizeof fields / sizeof *fields; k++) {
+        RECT r;
+        HWND c = GetDlgItem(d, fields[k][0]);
+        GetWindowRect(c, &r);
+        GetWindowRect(GetDlgItem(d, fields[k][1]), &f);
+        MapWindowPoints(NULL, d, (POINT *)&r, 2);
+        MapWindowPoints(NULL, d, (POINT *)&f, 2);
+        SetWindowPos(c, NULL, r.left, (f.top + f.bottom - h) / 2, r.right - r.left, r.bottom - r.top, SWP_NOZORDER | SWP_NOACTIVATE);
+    }
     for (unsigned k = 0; k < sizeof rows / sizeof *rows; k++) {
         HWND c = GetDlgItem(d, rows[k][0]);
         RECT r;
@@ -513,6 +530,19 @@ internal void td_open(int i, int sel) {
         memcpy(g_td.cell[0], a, 3), memcpy(g_td.cell[7], b, 3);
     }
     td_derive();
+    ee_window *gw = game_window();
+    HWND owner = gw ? window_get_hwnd(gw) : NULL;
+    // the scale the game's picture is shown at (windowed or borderless it is enlarged to the window, the bars left out),
+    // as the font's size - the dialog units follow it, what is drawn in pixels g_theme_zoom; it must fit in the window
+    int points = TD_POINTS;
+    RECT cr;
+    if (owner && GetClientRect(owner, &cr) && window_get_height(gw) > 0) {
+        RECT v = view_rect(&cr, window_get_width(gw), window_get_height(gw));
+        points = (TD_POINTS * (int)(v.bottom - v.top) + window_get_height(gw) / 2) / window_get_height(gw);
+        if (points > TD_POINTS * cr.bottom / TD_PIXELS) points = TD_POINTS * cr.bottom / TD_PIXELS;
+        if (points < 7) points = 7;
+    }
+    g_theme_zoom = points * 100 / TD_POINTS;
     static WORD tpl[1024];
     memset(tpl, 0, sizeof tpl);
     DLGTEMPLATE *dt = (DLGTEMPLATE *)tpl;
@@ -520,7 +550,7 @@ internal void td_open(int i, int sel) {
     WORD *p = (WORD *)(dt + 1);
     *p++ = 0, *p++ = 0;          // no menu, the dialog class
     p = td_str(p, L"");          // the title: set at its start
-    *p++ = 9;
+    *p++ = (WORD)points;
     p = td_str(p, L"Segoe UI");  // ageofai_config.exe's (Windows' message font)
     // the buttons first: the dialog gives its first tab stop the focus when it is activated, and an automatic radio
     // button given the focus is clicked (the kind was one colour whenever the dialog opened). A radio button as tall
@@ -549,8 +579,6 @@ internal void td_open(int i, int sel) {
     }
     p = td_item(p, SS_LEFT | SS_CENTERIMAGE, 8, 198, 34, 12, TD_RECENT_LABEL, 0x82, L" Recent:");
     p = td_item(p, SS_OWNERDRAW, 44, 198, 208, 12, TD_RECENT, 0x82, L"");
-    ee_window *gw = game_window();
-    HWND owner = gw ? window_get_hwnd(gw) : NULL;
     RECT clip;
     int clipped = GetClipCursor(&clip);
     ClipCursor(NULL);
@@ -571,8 +599,8 @@ internal void td_open(int i, int sel) {
     while (shown > before) shown = ShowCursor(FALSE);
     if (clipped) ClipCursor(&clip);
     if (owner) SetForegroundWindow(owner);
-    if (g_log) log_locked("# terrain palette: the colour dialog for %s %d (%s, %s): %s%s\n", i < 0 ? "a new type, from item" : "type", i < 0 ? sel : i,
-                          g_gl.on ? "the game's look" : "plain, no game pictures", ctx ? "common controls 6" : "the old controls",
+    if (g_log) log_locked("# terrain palette: the colour dialog for %s %d (%s, %s, %d points): %s%s\n", i < 0 ? "a new type, from item" : "type", i < 0 ? sel : i,
+                          g_gl.on ? "the game's look" : "plain, no game pictures", ctx ? "common controls 6" : "the old controls", points,
                           r < 0 ? "FAILED to open" : g_td.result == IDOK ? "OK" : g_td.result == TD_DELETE ? "delete" : "cancel",
                           g_td.result != IDOK ? "" : g_td.mode == TP_FLAT ? ", one colour" : g_td.mode == TP_EACH ? ", each slot" :
                           (const char *[]){ ", a ramp (sRGB)", ", a ramp (linear light)", ", a ramp (OKLab)" }[g_td.blend]);
