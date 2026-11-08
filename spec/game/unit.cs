@@ -972,6 +972,16 @@ unsafe struct ee_unit_vec
     EEUnit** end;
 }
 
+/// a vector of tiles the wall's code hands on (x, y: two ints each) - the runtime library's
+unsafe struct ee_tile_vec
+{
+    [offset(0x4), found(c)]
+    int32* begin;
+
+    [offset(0x8), found(c)]
+    int32* end;
+}
+
 /// a unit's script state, its +0x1E8 (EEUnitAction: a state of its .tai, engine-notes.md "Unit AI scripts"; its RTTI
 /// in a running game, every unit's)
 [c_type("ee_ai_state")]
@@ -1077,12 +1087,32 @@ static unsafe class unit_functions
     /// is wall_preview
     [address((ee)0x005F4A1C, (aoc)0x006046FC), cdecl]
     [call_site("wall_ghosts", (ee)0x00629DC7, (aoc)0x0063EB9E)]
-    static extern void wall_ghosts(void* tiles, void* codes, uint32 tech, EEPlayer* pl, float32 rotation);
+    static extern void wall_ghosts(ee_tile_vec* tiles, void* codes, uint32 tech, EEPlayer* pl, float32 rotation);
 
     /// cdecl(tiles, the wall's tech, player index): a dragged wall's preview - the tiles' repeats taken out, the rest
     /// laid out (0x636CDC) and made ghosts (wall_ghosts). The interface's mouse moves call it, the ghosts' lock held
     [address((ee)0x00629D75, (aoc)0x0063EB4C), cdecl]
-    static extern void wall_preview(void* tiles, uint32 tech, int32 pi);
+    static extern void wall_preview(ee_tile_vec* tiles, uint32 tech, int32 pi);
+
+    /// cdecl(from, to (2 floats each), the tiles): the line a wall is laid along, from tile to tile (0x63379D) - the
+    /// wall's placing's first step (0x629DDB). Not the preview's: that samples the mouse's line a tile a step
+    [address((ee)0x006357BF, (aoc)0x0064B747), cdecl]
+    static extern void wall_line(float32* from, float32* to, ee_tile_vec* tiles);
+
+    /// cdecl(from x, y, to x, y, the wall's type, player, cost it, p6, a vector of tiles): a wall laid - wall_line,
+    /// wall_extend, wall_layout, a piece per tile (wall_piece), wall_joints. cost 0: finished at once, nothing paid. p6
+    /// goes to the placement test; the vector is the caller's, unread here
+    [address((ee)0x00629DDB, (aoc)0x0063EBB2), cdecl]
+    static extern void wall_place(float32 x0, float32 y0, float32 x1, float32 y1, EEUnitClass* td, EEPlayer* pl, char8 cost, int32 p6, ee_tile_vec* unused);
+
+    /// cdecl(the line's tiles, player, the wall's type, the tiles to lay): the line with each end carried on along it
+    /// through pl's wall of that type it meets (0x635753), a single tile by what stands around it. Reads the map only
+    [address((ee)0x00631D51, (aoc)0x00647BEF), cdecl]
+    static extern int32 wall_extend(ee_tile_vec* line, EEPlayer* pl, EEUnitClass* td, ee_tile_vec* tiles);
+
+    /// cdecl(tiles, layout codes, map): each tile's code - straight, diagonal, sloped, post (wall_piece's)
+    [address((ee)0x00636CDC, (aoc)0x0064CCA5), cdecl]
+    static extern void wall_layout(ee_tile_vec* tiles, void* codes, EEMap* map);
 
     /// cdecl(pieces, the layout's tiles, player, map): after a wall's layout (0x629DDB, the editor's 0x66CB35) each of its
     /// pieces with more than two of the player's built walls-family objects within a tile becomes a post (anim 11),

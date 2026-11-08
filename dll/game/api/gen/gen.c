@@ -630,6 +630,7 @@ typedef struct ui_text_label ui_text_label;
 typedef struct ui_tri_state_check_box ui_tri_state_check_box;
 typedef struct ee_ghost_unit ee_ghost_unit;
 typedef struct ee_unit_vec ee_unit_vec;
+typedef struct ee_tile_vec ee_tile_vec;
 typedef struct ee_target_search ee_target_search;
 typedef struct ee_to_hit_table ee_to_hit_table;
 typedef struct ee_game_state ee_game_state;

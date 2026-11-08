@@ -10,6 +10,6 @@ internal const char *const k_cmd_verbs[] = {
     "say", "script", "scrolltest", "seaop", "seltest", "shadows", "sightcount", "sitecheck", "sites", "sndchan",
     "sndstate", "spawn", "spawnline", "speed", "stats", "status", "stepload", "targets", "tech", "techs", "terrain",
     "textlog", "texts", "textstate", "threat", "tinfo", "topbar", "train", "transports", "trig", "turbo", "uinfo",
-    "units", "vis", "vistrack", "wall", "wallfit", "wallghost", "watch", "watchtech", "watchtype", "water", "wave",
-    "wmclose",
+    "units", "vis", "vistrack", "wall", "wallfit", "wallghost", "wallplace", "watch", "watchtech", "watchtype",
+    "water", "wave", "wmclose",
 };

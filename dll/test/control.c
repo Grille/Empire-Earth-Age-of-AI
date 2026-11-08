@@ -59,6 +59,7 @@ internal void cmd_found(char *out, const char *args);
 internal void cmd_wall(char *out, const char *args);
 internal void cmd_wallfit(char *out, const char *args);
 internal void cmd_wallghost(char *out, const char *args);
+internal void cmd_wallplace(char *out, const char *args);
 internal void cmd_gate(char *out, const char *args);
 internal void cmd_bqadd(char *out, const char *args);
 internal void cmd_plan(char *out, const char *args);
@@ -436,6 +437,7 @@ internal void execute(const char *cmd, char *out) {
     else if (!strcmp(verb, "wall")) cmd_wall(out, args);
     else if (!strcmp(verb, "wallfit")) cmd_wallfit(out, args);
     else if (!strcmp(verb, "wallghost")) cmd_wallghost(out, args);
+    else if (!strcmp(verb, "wallplace")) cmd_wallplace(out, args);
     else if (!strcmp(verb, "gate")) cmd_gate(out, args);
     else if (!strcmp(verb, "bqadd")) cmd_bqadd(out, args);
     else if (!strcmp(verb, "plan")) cmd_plan(out, args);

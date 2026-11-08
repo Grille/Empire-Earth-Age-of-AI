@@ -932,6 +932,15 @@ internal inline ee_unit **unit_vec_get_end(const ee_unit_vec *o) { return *(ee_u
 internal inline void unit_vec_set_end(ee_unit_vec *o, ee_unit **v) { *(ee_unit ***)((uint8_t *)o + of_unit_vec_end) = v; }
 internal inline ee_unit ***unit_vec_end_at(const ee_unit_vec *o) { return (ee_unit ***)((uint8_t *)o + of_unit_vec_end); }
 
+// class ee_tile_vec (ee_tile_vec)
+// a vector of tiles the wall's code hands on (x, y: two ints each) - the runtime library's
+internal inline int *tile_vec_get_begin(const ee_tile_vec *o) { return *(int **)((uint8_t *)o + of_tile_vec_begin); }
+internal inline void tile_vec_set_begin(ee_tile_vec *o, int *v) { *(int **)((uint8_t *)o + of_tile_vec_begin) = v; }
+internal inline int **tile_vec_begin_at(const ee_tile_vec *o) { return (int **)((uint8_t *)o + of_tile_vec_begin); }
+internal inline int *tile_vec_get_end(const ee_tile_vec *o) { return *(int **)((uint8_t *)o + of_tile_vec_end); }
+internal inline void tile_vec_set_end(ee_tile_vec *o, int *v) { *(int **)((uint8_t *)o + of_tile_vec_end) = v; }
+internal inline int **tile_vec_end_at(const ee_tile_vec *o) { return (int **)((uint8_t *)o + of_tile_vec_end); }
+
 // class EEUnitAction (ee_ai_state)
 // a unit's script state, its +0x1E8 (EEUnitAction: a state of its .tai, engine-notes.md "Unit AI scripts"; its RTTI
 // in a running game, every unit's)
@@ -1024,15 +1033,35 @@ internal inline int patch_wall_piece(wall_piece_fn h, int *of) { return patch_ca
 // x, y), each the piece of its layout code (0x6383E9: as wall_piece picks it), at the ground under its tile's
 // middle, flat; the vectors are the runtime library's (begin +4, end +8) - inside the ghosts' lock. Its one caller
 // is wall_preview
-typedef void (__cdecl *wall_ghosts_fn)(void *, void *, uint32_t, ee_player *, float);
+typedef void (__cdecl *wall_ghosts_fn)(ee_tile_vec *, void *, uint32_t, ee_player *, float);
 internal wall_ghosts_fn fn_wall_ghosts;
-internal inline void wall_ghosts(void *tiles, void *codes, uint32_t tech, ee_player *pl, float rotation) { fn_wall_ghosts(tiles, codes, tech, pl, rotation); }
+internal inline void wall_ghosts(ee_tile_vec *tiles, void *codes, uint32_t tech, ee_player *pl, float rotation) { fn_wall_ghosts(tiles, codes, tech, pl, rotation); }
 internal inline int patch_wall_ghosts(wall_ghosts_fn h) { return patch_call(call_wall_ghosts, (uintptr_t)fn_wall_ghosts, (void *)h); }
 // cdecl(tiles, the wall's tech, player index): a dragged wall's preview - the tiles' repeats taken out, the rest
 // laid out (0x636CDC) and made ghosts (wall_ghosts). The interface's mouse moves call it, the ghosts' lock held
-typedef void (__cdecl *wall_preview_fn)(void *, uint32_t, int);
+typedef void (__cdecl *wall_preview_fn)(ee_tile_vec *, uint32_t, int);
 internal wall_preview_fn fn_wall_preview;
-internal inline void wall_preview(void *tiles, uint32_t tech, int pi) { fn_wall_preview(tiles, tech, pi); }
+internal inline void wall_preview(ee_tile_vec *tiles, uint32_t tech, int pi) { fn_wall_preview(tiles, tech, pi); }
+// cdecl(from, to (2 floats each), the tiles): the line a wall is laid along, from tile to tile (0x63379D) - the
+// wall's placing's first step (0x629DDB). Not the preview's: that samples the mouse's line a tile a step
+typedef void (__cdecl *wall_line_fn)(float *, float *, ee_tile_vec *);
+internal wall_line_fn fn_wall_line;
+internal inline void wall_line(float *from, float *to, ee_tile_vec *tiles) { fn_wall_line(from, to, tiles); }
+// cdecl(from x, y, to x, y, the wall's type, player, cost it, p6, a vector of tiles): a wall laid - wall_line,
+// wall_extend, wall_layout, a piece per tile (wall_piece), wall_joints. cost 0: finished at once, nothing paid. p6
+// goes to the placement test; the vector is the caller's, unread here
+typedef void (__cdecl *wall_place_fn)(float, float, float, float, ee_unit_type *, ee_player *, char, int, ee_tile_vec *);
+internal wall_place_fn fn_wall_place;
+internal inline void wall_place(float x0, float y0, float x1, float y1, ee_unit_type *td, ee_player *pl, char cost, int p6, ee_tile_vec *unused) { fn_wall_place(x0, y0, x1, y1, td, pl, cost, p6, unused); }
+// cdecl(the line's tiles, player, the wall's type, the tiles to lay): the line with each end carried on along it
+// through pl's wall of that type it meets (0x635753), a single tile by what stands around it. Reads the map only
+typedef int (__cdecl *wall_extend_fn)(ee_tile_vec *, ee_player *, ee_unit_type *, ee_tile_vec *);
+internal wall_extend_fn fn_wall_extend;
+internal inline int wall_extend(ee_tile_vec *line, ee_player *pl, ee_unit_type *td, ee_tile_vec *tiles) { return fn_wall_extend(line, pl, td, tiles); }
+// cdecl(tiles, layout codes, map): each tile's code - straight, diagonal, sloped, post (wall_piece's)
+typedef void (__cdecl *wall_layout_fn)(ee_tile_vec *, void *, ee_map *);
+internal wall_layout_fn fn_wall_layout;
+internal inline void wall_layout(ee_tile_vec *tiles, void *codes, ee_map *map) { fn_wall_layout(tiles, codes, map); }
 // cdecl(pieces, the layout's tiles, player, map): after a wall's layout (0x629DDB, the editor's 0x66CB35) each of its
 // pieces with more than two of the player's built walls-family objects within a tile becomes a post (anim 11),
 // turned back to yaw 0, its matrix made anew from its own (0x5F043B) - where walls meet or cross
@@ -1300,6 +1329,8 @@ internal int spec_unit_select(int build) {
         fn_unit_attack_anim = (unit_attack_anim_fn)0;
         of_unit_vec_begin = 0x4;
         of_unit_vec_end = 0x8;
+        of_tile_vec_begin = 0x4;
+        of_tile_vec_end = 0x8;
         of_ai_state_handlers = 0x8;
         of_ai_state_id = 0x24;
         fn_ai_state_ask = (ai_state_ask_fn)0x00619FF5;
@@ -1326,6 +1357,10 @@ internal int spec_unit_select(int build) {
         fn_wall_ghosts = (wall_ghosts_fn)0x005F4A1C;
         call_wall_ghosts = 0x00629DC7;
         fn_wall_preview = (wall_preview_fn)0x00629D75;
+        fn_wall_line = (wall_line_fn)0x006357BF;
+        fn_wall_place = (wall_place_fn)0x00629DDB;
+        fn_wall_extend = (wall_extend_fn)0x00631D51;
+        fn_wall_layout = (wall_layout_fn)0x00636CDC;
         fn_wall_joints = (wall_joints_fn)0x0062E73B;
         calls_wall_joints[0] = 0x0062A159;
         calls_wall_joints[1] = 0x0066CC55;
@@ -1573,6 +1608,8 @@ internal int spec_unit_select(int build) {
         fn_unit_attack_anim = (unit_attack_anim_fn)0x0063C9D9;
         of_unit_vec_begin = 0x4;
         of_unit_vec_end = 0x8;
+        of_tile_vec_begin = 0x4;
+        of_tile_vec_end = 0x8;
         of_ai_state_handlers = 0x8;
         of_ai_state_id = 0x24;
         fn_ai_state_ask = (ai_state_ask_fn)0x0062CD8B;
@@ -1599,6 +1636,10 @@ internal int spec_unit_select(int build) {
         fn_wall_ghosts = (wall_ghosts_fn)0x006046FC;
         call_wall_ghosts = 0x0063EB9E;
         fn_wall_preview = (wall_preview_fn)0x0063EB4C;
+        fn_wall_line = (wall_line_fn)0x0064B747;
+        fn_wall_place = (wall_place_fn)0x0063EBB2;
+        fn_wall_extend = (wall_extend_fn)0x00647BEF;
+        fn_wall_layout = (wall_layout_fn)0x0064CCA5;
         fn_wall_joints = (wall_joints_fn)0x00643AE1;
         calls_wall_joints[0] = 0x0063EF61;
         calls_wall_joints[1] = 0x00685D52;
@@ -1742,6 +1783,10 @@ internal int spec_unit_check(void) {
     bad += spec_code((uintptr_t)fn_wall_ghosts, "unit_functions.wall_ghosts");
     bad += spec_call(call_wall_ghosts, (uintptr_t)fn_wall_ghosts, "unit_functions.wall_ghosts [call_site wall_ghosts]");
     bad += spec_code((uintptr_t)fn_wall_preview, "unit_functions.wall_preview");
+    bad += spec_code((uintptr_t)fn_wall_line, "unit_functions.wall_line");
+    bad += spec_code((uintptr_t)fn_wall_place, "unit_functions.wall_place");
+    bad += spec_code((uintptr_t)fn_wall_extend, "unit_functions.wall_extend");
+    bad += spec_code((uintptr_t)fn_wall_layout, "unit_functions.wall_layout");
     bad += spec_code((uintptr_t)fn_wall_joints, "unit_functions.wall_joints");
     bad += spec_call(calls_wall_joints[0], (uintptr_t)fn_wall_joints, "unit_functions.wall_joints [call_site wall_joints 0]");
     bad += spec_call(calls_wall_joints[1], (uintptr_t)fn_wall_joints, "unit_functions.wall_joints [call_site wall_joints 1]");

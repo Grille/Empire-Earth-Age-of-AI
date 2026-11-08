@@ -543,7 +543,7 @@ internal void cmd_wallghost(char *out, const char *args) {
         xy[i * 2 + 1] = (int)floorf((float)y0 + 0.5f + f * (float)dy);
     }
     void *v[4] = { NULL, xy, xy + n * 2, xy + n * 2 };   // the runtime library's vector: begin, end, its capacity's end
-    wall_preview(v, (uint32_t)tech, p);
+    wall_preview((ee_tile_vec *)v, (uint32_t)tech, p);
     vector_free(v);
     void *gv = ghost_units();
     REPLY("ok: tech %d, %u ghosts\n", tech, vector_size(gv));
@@ -552,6 +552,18 @@ internal void cmd_wallghost(char *out, const char *args) {
         REPLY("%d,%d anim %d can %d m %.3f %.3f %.3f | %.3f %.3f %.3f | up %.3f z %.3f\n", ghost_unit_get_tile_x(g), ghost_unit_get_tile_y(g), ghost_unit_get_anim(g), ghost_unit_get_can_place(g),
               ghost_unit_get_transform(g, 0), ghost_unit_get_transform(g, 1), ghost_unit_get_transform(g, 3), ghost_unit_get_transform(g, 4), ghost_unit_get_transform(g, 5), ghost_unit_get_transform(g, 7), ghost_unit_get_transform(g, 10), ghost_unit_get_transform(g, 11));
     }
+}
+
+// wallplace P T x0 y0 x1 y1: player P's wall of type T laid from x0, y0 to x1, y1 by the game's own placing, finished and
+// free (the tiles the player's wall takes: tests hold the preview against them)
+internal void cmd_wallplace(char *out, const char *args) {
+    int p, t, x0, y0, x1, y1;
+    if (sscanf(args, "%d %d %d %d %d %d", &p, &t, &x0, &y0, &x1, &y1) < 6) { REPLY("error: usage: wallplace P T x0 y0 x1 y1\n"); return; }
+    ee_player *pl = player_at(p);
+    if (!pl || t < 0 || t >= 724 || !type_data(t) || !game_map()) { REPLY("error: no player %d, type %d or map\n", p, t); return; }
+    void *unused[4] = { NULL };
+    wall_place((float)x0 + 0.5f, (float)y0 + 0.5f, (float)x1 + 0.5f, (float)y1 + 0.5f, type_data(t), pl, 0, 0, (ee_tile_vec *)unused);
+    REPLY("ok: P%d wall %d laid from %d,%d to %d,%d\n", p, t, x0, y0, x1, y1);
 }
 
 // gate P T x y dir: player P's gate of type T laid over the five finished wall pieces centred on x, y along dir (1 x,

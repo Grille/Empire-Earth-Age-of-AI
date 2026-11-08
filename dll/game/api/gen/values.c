@@ -3327,6 +3327,8 @@ internal uint32_t call_aim;
 internal uint32_t call_missile_aim;
 internal uint32_t of_unit_vec_begin;
 internal uint32_t of_unit_vec_end;
+internal uint32_t of_tile_vec_begin;
+internal uint32_t of_tile_vec_end;
 internal uint32_t of_ai_state_handlers;
 internal uint32_t of_ai_state_id;
 internal uint32_t calls_goalset_ask[2];

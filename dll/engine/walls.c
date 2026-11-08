@@ -1044,11 +1044,14 @@ internal void __cdecl hook_wall_joints(ee_unit_vec *pieces, void *tiles, ee_play
 // looks at them as it does at a new wall's pieces, ws_fit_piece puts each on the ground. Only the picture: a ghost is no
 // map object, and an older wall beside it stays as it is until the wall is built. The game's calls hold the ghosts' lock
 // around this, so the drawing never sees a ghost half done. A tile under a tower or a gate gets no piece, as in the layout
-// - its ghost left as the game made it; a tile that can't be built on (a red ghost) counts, the line drawn whole
-internal void __cdecl hook_wall_ghosts(void *tiles, void *codes, uint32_t tech, ee_player *pl, float rotation) {
-    wall_ghosts(tiles, codes, tech, pl, rotation);
-    ee_map *map = game_map();
-    if (!g_ws_on || !map) return;
+// - its ghost left as the game made it; a tile that can't be built on (a red ghost) counts, the line drawn whole.
+// Its tiles were the game's own mistake: the mouse's line is sampled a tile a step (GE2DPoint::InterpolateTo), the wall
+// is laid by another line (wall_line) with its ends carried on into the same type of wall they meet (wall_extend) - a
+// slanted wall was built on other tiles than it was previewed on (the player, 2026-11-08: "the line that gets previewed
+// and the one that's built aren't the same"). So the ghosts are made of the built wall's tiles, from the sampled line's
+// ends (the sampling ends on the mouse's own tile); those functions only read the map. The scenario editor lays the sampled
+// line itself: its preview was right
+internal void wj_ghosts_fit(ee_map *map, ee_player *pl) {
     void *v = ghost_units();
     int n = 0;
     memset(g_wj_pv_slot, 0, sizeof g_wj_pv_slot);
@@ -1086,6 +1089,25 @@ internal void __cdecl hook_wall_ghosts(void *tiles, void *codes, uint32_t tech, 
         ws_fit_piece(&p, ghost_unit_transform_at(g));
     }
     g_wj_pv_n = 0;
+}
+internal void __cdecl hook_wall_ghosts(ee_tile_vec *tiles, void *codes, uint32_t tech, ee_player *pl, float rotation) {
+    ee_map *map = game_map();
+    const int *tb = tile_vec_get_begin(tiles), *te = tile_vec_get_end(tiles);
+    ee_tech *t = pl ? tech_tree_lookup(player_get_tech_tree(pl), (int)tech) : NULL;
+    ee_unit_type *td = t ? type_data(tech_data_get_unit_type(tech_get_data(t))) : NULL;
+    if (!g_ws_on || !map || g_ws_ed_seen || !td || !tb || te <= tb) wall_ghosts(tiles, codes, tech, pl, rotation);
+    else {
+        float from[2] = { (float)tb[0] + 0.5f, (float)tb[1] + 0.5f }, to[2] = { (float)te[-2] + 0.5f, (float)te[-1] + 0.5f };
+        void *line[4] = { NULL }, *built[4] = { NULL }, *laid[4] = { NULL };   // the runtime library's vectors, empty
+        wall_line(from, to, (ee_tile_vec *)line);
+        wall_extend((ee_tile_vec *)line, pl, td, (ee_tile_vec *)built);
+        wall_layout((ee_tile_vec *)built, laid, map);
+        wall_ghosts((ee_tile_vec *)built, laid, tech, pl, rotation);
+        vector_free(line);
+        vector_free(built);
+        vector_free(laid);
+    }
+    if (g_ws_on && map) wj_ghosts_fit(map, pl);
 }
 
 // a gate laid into a wall (build_gate 0x6022E3: the gate button's, the AI's) makes each of its five pieces anew as the
