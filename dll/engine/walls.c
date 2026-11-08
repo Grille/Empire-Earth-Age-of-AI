@@ -90,7 +90,8 @@ internal ee_model *ws_model(ee_unit *u, int anim) {
 #define WS_SKIRT_MODELS 64
 #define WS_TOWER_ANIMS 16        // a tower's graphics: its first model among these animations (its idle ones)
 #define WS_UV_MARGIN 0.008f      // a bottom edge's texture coordinates at least this far inside the sheet (2 texels of 256)
-struct ws_skirt { ee_model *m, *tower; ee_vertices *va; volatile LONG state; };   // state 0 asked, 1 made, 2 can't be
+#define WS_SKIRT_WAIT 5000  // ms a skirt waits for the tower's textures before it makes do without them
+struct ws_skirt { ee_model *m, *tower; ee_vertices *va; volatile LONG state; DWORD wait; };   // state 0 asked, 1 made, 2 can't be; wait: GetTickCount | 1 of the first draw without the textures
 internal struct ws_skirt g_ws_sk[WS_SKIRT_MODELS];
 internal volatile LONG g_ws_sk_n, g_ws_sk_asked;
 internal rasterizer_draw_model_hierarchy_fn g_ws_draw[2];
@@ -129,6 +130,7 @@ internal void ws_skirt_want(ee_model *m, ee_model *tower) {
         // a model loaded anew where one was (the graphics freed and loaded again): not the arrays it was given
         if (s->state && model_get_frames(m) && model_get_vertices(m) && model_get_vertices(m)[0] != s->va) {
             s->tower = tower;
+            s->wait = 0;
             s->state = 0;
             InterlockedIncrement(&g_ws_sk_asked);
         }
@@ -435,12 +437,32 @@ internal int ws_skirt_make(ee_rasterizer *ras, ee_model *m, ee_model *tower, uin
     return r;
 }
 
-// a model drawn: its skirt first if the fit asked for it
+// whether every material of m has its texture on this screen
+internal int ws_textures_in(ee_model *m, uint32_t screen) {
+    if (!m || !ws_model_ok(m)) return 0;
+    ee_material **mat = model_get_materials(m);
+    for (uint32_t k = 0; k < model_get_material_count(m); k++) {
+        void **tex = mat[k] ? material_get_textures(mat[k]) : NULL;
+        if (!tex || !tex[screen]) return 0;
+    }
+    return 1;
+}
+
+// a model drawn: its skirt first if the fit asked for it. Not before the tower's textures are there: the fit loads the
+// tower's graphics for the skirt, its textures come a little later, and a wall's first draw is often before them - with
+// no texture to tell the wall's material by, the skirt was its own bottom row drawn down, for the whole game (the player,
+// 2026-11-08: "the skirts are broken, they are pure extrude without proper uv mapping"; of one wall's models the
+// first drawn got that and the next the tower's foundation)
 internal void ws_skirt_drawn(ee_rasterizer *ras, ee_model *m, uint32_t screen) {
     LONG n = g_ws_sk_n;
     for (LONG i = 0; i < n; i++) {
         struct ws_skirt *s = &g_ws_sk[i];
         if (s->m != m || s->state) continue;
+        if (!ws_textures_in(s->tower, screen) || !ws_textures_in(m, screen)) {
+            DWORD now = GetTickCount();
+            if (!s->wait) s->wait = now | 1;
+            if (now - s->wait < WS_SKIRT_WAIT) return;
+        }
         unsigned edges = 0;
         int r = ws_skirt_make(ras, m, s->tower, screen, &edges);
         s->va = model_get_frames(m) && model_get_vertices(m) ? model_get_vertices(m)[0] : NULL;
