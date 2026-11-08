@@ -946,6 +946,7 @@ internal void __thiscall rd_hook_graphics_update(ee_graphics *g) {
 }
 internal void __thiscall rd_hook_ro_terrain_update(ee_ro_terrain *o) {
     if (g_rwl_pass) return;
+    shadow_hills_editor();   // render_shadows.c: here, under the read lock - a new map's writer frees what it reads
     rf_pull_begin();   // a zoom out under way: the ground made for the camera pulled back (render_frame.c)
     ro_terrain_update(o);
     rf_pull_end();

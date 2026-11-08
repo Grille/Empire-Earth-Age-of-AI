@@ -1159,7 +1159,7 @@ internal void walls_install(void) {
     int any = g_ws_on || g_bl_on;
     int more = (any ? patch_step_end(hook_step_end) : 0) + (g_ws_on ? patch_gate_convert(hook_gate_convert) : 0);
     int pof = 0, pn = g_wj_on || g_bl_on ? patch_place_building(hook_place_building, &pof) : 0;
-    int ed = any ? patch_editor_frame(hook_editor_frame) : 0;
+    int ed = patch_editor_frame(hook_editor_frame);   // whatever the walls say: the hills' shadows read it too (render_shadows.c)
     int df = g_bl_on ? patch_draw_record_fill(hook_draw_record_fill) : 0;
     if ((g_ws_on || g_bl_on) && (!on_module_load("DX7HRDisplay.dll", ws_display_loaded0) || !on_module_load("DX7HRTnLDisplay.dll", ws_display_loaded1)) && g_log)
         fprintf(g_log, "# walls: skirts - the display DLLs' loads not watchable\n");

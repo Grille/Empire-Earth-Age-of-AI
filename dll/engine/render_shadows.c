@@ -56,6 +56,7 @@ internal struct {
     ID3D11ShaderResourceView *hsrv;
     float *hceil, *hground;
     int hn, hr, cw, hill_ok, nohills;
+    int hdirty;              // the editor changed the ground under the map (shadow_hills_editor): to be made again
     const void *hmap;
     float hsun[3];
     volatile LONG hjob;      // its making on the thread: 0 none, 1 under way (hceil the thread's), 2 made (to upload)
@@ -476,15 +477,78 @@ internal void shadow_hills(void) {
         g_sh.hill_made++;
         InterlockedExchange(&g_sh.hjob, 0);
     }
-    if (g_sh.hjob || (g_sh.hill_ok && f[0] * g_sh.hsun[0] + f[1] * g_sh.hsun[1] + f[2] * g_sh.hsun[2] > 0.99998f)) return;
+    if (g_sh.hjob || (g_sh.hill_ok && !g_sh.hdirty && f[0] * g_sh.hsun[0] + f[1] * g_sh.hsun[1] + f[2] * g_sh.hsun[2] > 0.99998f)) return;
     if (!g_sh.hthread) {
         g_sh.hgo = CreateEventA(NULL, FALSE, FALSE, NULL);
         g_sh.hthread = g_sh.hgo ? CreateThread(NULL, 0, shadow_hills_thread, NULL, 0, NULL) : NULL;
         if (!g_sh.hthread) { rd_fail("the hills' shadows' thread", E_FAIL); g_sh.hfail = 1; return; }
     }
     memcpy(g_sh.hsun, f, sizeof g_sh.hsun);
+    g_sh.hdirty = 0;
     InterlockedExchange(&g_sh.hjob, 1);
     SetEvent(g_sh.hgo);
+}
+
+// THE HILLS IN THE EDITOR: a map's ground is read once above, but the editor changes it (the player, 2026-11-08: "terrain
+// still cast no shadows"). While its frames come the ground's texels are compared with the map's every SH_ED_EVERY ms,
+// around the camera, where the brush is, and a band of the whole map's rows in turn (an elevation file, a new map at the
+// old one's address); a change makes the map again. Only here, under the frame's read lock.
+#define SH_ED_EVERY 100
+#define SH_ED_VIEW 64   // tiles each way round the camera's look-at
+#define SH_ED_ROWS 64
+#define SH_ED_GONE 1000 // ms without the editor's frame: it was left
+internal volatile LONG g_ws_ed_seen;   // walls.c: GetTickCount of the editor's last frame
+internal void shadow_hills_patch(const ee_map *map, int x0, int y0, int x1, int y1) {
+    static float *corner;
+    static int room;
+    int w = g_sh.cw - 1, hr = g_sh.hr, n = g_sh.hn, bw = g_sh.bw;
+    x0 = x0 < 0 ? 0 : x0, y0 = y0 < 0 ? 0 : y0, x1 = x1 > w ? w : x1, y1 = y1 > w ? w : y1;
+    if (x0 >= x1 || y0 >= y1) return;
+    int cw = x1 - x0 + 1, ch = y1 - y0 + 1;
+    if (cw * ch > room) {
+        float *q = realloc(corner, (size_t)cw * ch * sizeof(float));
+        if (!q) return;
+        corner = q, room = cw * ch;
+    }
+    for (int y = 0; y < ch; y++)
+        for (int x = 0; x < cw; x++) {
+            float h = ground_corner(map, x0 + x, y0 + y);
+            corner[y * cw + x] = isnan(h) ? -1e9f : h;
+            if (isnan(h)) continue;
+            g_sh.glow = fminf(g_sh.glow, h);
+            if (!g_sh.bmax) continue;
+            int bx = (x0 + x) / SH_BLOCK, by = (y0 + y) / SH_BLOCK, b = (by < bw ? by : bw - 1) * bw + (bx < bw ? bx : bw - 1);
+            g_sh.bmax[b] = fmaxf(g_sh.bmax[b], h);
+            g_sh.bmax[bw * bw + b] = fminf(g_sh.bmax[bw * bw + b], h);
+        }
+    for (int ty = 0; ty < ch - 1; ty++)
+        for (int tx = 0; tx < cw - 1; tx++) {
+            const float *k = corner + ty * cw + tx;
+            for (int j = 0; j < hr; j++)
+                for (int i = 0; i < hr; i++) {
+                    float fx = (i + 0.5f) / hr, fy = (j + 0.5f) / hr;
+                    float v = (k[0] * (1 - fx) + k[1] * fx) * (1 - fy) + (k[cw] * (1 - fx) + k[cw + 1] * fx) * fy;
+                    float *g = &g_sh.hground[((y0 + ty) * hr + j) * n + (x0 + tx) * hr + i];
+                    if (fabsf(*g - v) > 0.001f) *g = v, g_sh.hdirty = 1;
+                }
+        }
+}
+internal void shadow_hills_editor(void) {
+    static DWORD last;
+    static int row;
+    LONG seen = g_ws_ed_seen;
+    if (!g_sh.on || !seen || g_sh.hfail || !g_sh.hground) return;   // a job under way: a change marked now makes the next
+    DWORD now = GetTickCount();
+    if ((LONG)(now - (DWORD)seen) > SH_ED_GONE || now - last < SH_ED_EVERY) return;
+    ee_map *map = game_map();
+    ee_camera *cam = game_camera();
+    if (!map || !cam || map != g_sh.hmap || (int)map_get_size(map) + 1 != g_sh.cw) return;
+    last = now;
+    const float *at = camera_look_at(cam);
+    int cx = (int)at[0], cy = (int)at[1], w = g_sh.cw - 1;
+    shadow_hills_patch(map, cx - SH_ED_VIEW, cy - SH_ED_VIEW, cx + SH_ED_VIEW, cy + SH_ED_VIEW);
+    shadow_hills_patch(map, 0, row, w, row + SH_ED_ROWS);
+    row = row + SH_ED_ROWS >= w ? 0 : row + SH_ED_ROWS;
 }
 
 // the shadows' share now: from none with the light 2 degrees over the horizon to all at 12 (a smooth step), reached
