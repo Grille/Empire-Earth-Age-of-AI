@@ -392,6 +392,12 @@ internal inline ee_vertices ***model_vertices_at(const ee_model *o) { return (ee
 internal inline ee_material **model_get_materials(const ee_model *o) { return *(ee_material ***)((uint8_t *)o + of_model_materials); }
 internal inline void model_set_materials(ee_model *o, ee_material **v) { *(ee_material ***)((uint8_t *)o + of_model_materials) = v; }
 internal inline ee_material ***model_materials_at(const ee_model *o) { return (ee_material ***)((uint8_t *)o + of_model_materials); }
+// each material's texture file name (material_count of them, in the materials' order): LoadTexturesForScreen
+// loads each by it, one texture a file. A model can have its names before its textures (a tower of a scenario with
+// none on the map, read in a running game: its names there, its materials' textures 0)
+internal inline ee_ustring *model_get_texture_names(const ee_model *o) { return *(ee_ustring **)((uint8_t *)o + of_model_texture_names); }
+internal inline void model_set_texture_names(ee_model *o, ee_ustring *v) { *(ee_ustring **)((uint8_t *)o + of_model_texture_names) = v; }
+internal inline ee_ustring **model_texture_names_at(const ee_model *o) { return (ee_ustring **)((uint8_t *)o + of_model_texture_names); }
 // its frames, the boxes' count (the trees' fill: a tree's model of more than one sways)
 internal inline uint32_t model_get_frames(const ee_model *o) { return *(uint32_t *)((uint8_t *)o + of_model_frames); }
 internal inline void model_set_frames(ee_model *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_model_frames) = v; }
@@ -516,6 +522,13 @@ internal inline float *vertex_u_at(const ee_vertex *o) { return (float *)((uint8
 internal inline float vertex_get_v(const ee_vertex *o) { return *(float *)((uint8_t *)o + of_vertex_v); }
 internal inline void vertex_set_v(ee_vertex *o, float v) { *(float *)((uint8_t *)o + of_vertex_v) = v; }
 internal inline float *vertex_v_at(const ee_vertex *o) { return (float *)((uint8_t *)o + of_vertex_v); }
+
+// class UString (ee_ustring)
+// the engine's narrow string (0x10 each in GEModel.texture_names: LoadTexturesForScreen's step; its length at +8)
+// its characters, 0 at the end
+internal inline char *ustring_get_text(const ee_ustring *o) { return *(char **)((uint8_t *)o + of_ustring_text); }
+internal inline void ustring_set_text(ee_ustring *o, char *v) { *(char **)((uint8_t *)o + of_ustring_text) = v; }
+internal inline char **ustring_text_at(const ee_ustring *o) { return (char **)((uint8_t *)o + of_ustring_text); }
 
 // class GEBoundingBox (ee_box)
 // the engine's box (GEBoundingBox::Define: the corners, then ComputeDimensions its size)
@@ -1015,6 +1028,7 @@ internal int spec_engine_display_select(int build) {
         of_model_polygons = 0x100;
         of_model_vertices = 0x104;
         of_model_materials = 0x108;
+        of_model_texture_names = 0x11C;
         of_model_frames = 0x140;
         of_model_material_count = 0x144;
         of_model_polygon_count = 0x148;
@@ -1046,6 +1060,8 @@ internal int spec_engine_display_select(int build) {
         of_vertex_normal = 0xC;
         of_vertex_u = 0x18;
         of_vertex_v = 0x1C;
+        size_u_string = 0x10;
+        of_ustring_text = 0x4;
         size_ge_bounding_box = 0x24;
         of_box_min = 0x0;
         of_box_max = 0xC;
@@ -1334,6 +1350,7 @@ internal int spec_engine_display_select(int build) {
         of_model_polygons = 0x100;
         of_model_vertices = 0x104;
         of_model_materials = 0x108;
+        of_model_texture_names = 0x11C;
         of_model_frames = 0x140;
         of_model_material_count = 0x144;
         of_model_polygon_count = 0x148;
@@ -1365,6 +1382,8 @@ internal int spec_engine_display_select(int build) {
         of_vertex_normal = 0xC;
         of_vertex_u = 0x18;
         of_vertex_v = 0x1C;
+        size_u_string = 0x10;
+        of_ustring_text = 0x4;
         size_ge_bounding_box = 0x24;
         of_box_min = 0x0;
         of_box_max = 0xC;

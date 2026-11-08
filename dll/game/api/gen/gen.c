@@ -218,6 +218,7 @@ typedef struct ee_ro_effects ee_ro_effects;
 typedef struct ee_model ee_model;
 typedef struct ee_box ee_box;
 typedef struct ee_material ee_material;
+typedef struct ee_ustring ee_ustring;
 typedef struct ee_vertex ee_vertex;
 typedef struct ee_pick_list ee_pick_list;
 typedef struct ee_pick_entry ee_pick_entry;

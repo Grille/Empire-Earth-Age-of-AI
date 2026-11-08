@@ -179,7 +179,7 @@ internal inline void tile_node_set_next(void *o, void *v) { *(void **)((uint8_t 
 internal inline void **tile_node_next_at(const void *o) { return (void **)((uint8_t *)o + of_tile_node_next); }
 
 // class ee_terrain (ee_terrain)
-// a texture of the ground, a record of db\dbterrain.dat (0x4D5B??: read at the start)
+// a texture of the ground, a record of db\dbterrain.dat (read at the start, 0x4D54A0)
 // its set in the map's mesh: a tile's byte 2 in map.view_rows
 internal inline uint32_t terrain_get_set(const ee_terrain *o) { return *(uint32_t *)((uint8_t *)o + of_terrain_set); }
 internal inline void terrain_set_set(ee_terrain *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_terrain_set) = v; }

@@ -30,6 +30,11 @@ internal inline HFONT font_get_hfont(const ee_font *f) { return FIELD(f, of_font
 // for one material
 internal inline ee_vertex *vertex_at(ee_vertex *data, uint32_t i) { return (ee_vertex *)((uint8_t *)data + (size_t)i * size_d3_dvertex); }
 internal inline uint32_t vertex_size(void) { return size_d3_dvertex; }
+// the file name of a model's k-th material's texture ("" none)
+internal inline const char *model_texture_name(const ee_model *m, uint32_t k) {
+    const char *s = ustring_get_text((const ee_ustring *)((const uint8_t *)model_get_texture_names(m) + (size_t)k * size_u_string));
+    return s ? s : "";
+}
 internal inline uint32_t display_vb_vertices(void) { return value_engine_display_vb_vertices; }
 // a display DLL's LockVB started anew at `room` vertices instead of display_vb_vertices: 1 done, 0 other code
 internal inline int display_lock_vb_room(HMODULE m, uint32_t room) {

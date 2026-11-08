@@ -470,6 +470,12 @@ unsafe struct GEModel
     [offset(0x108), found(c)]
     GEMaterial** materials;
 
+    /// each material's texture file name (material_count of them, in the materials' order): LoadTexturesForScreen
+    /// loads each by it, one texture a file. A model can have its names before its textures (a tower of a scenario with
+    /// none on the map, read in a running game: its names there, its materials' textures 0)
+    [offset(0x11C), found(c)]
+    UString* texture_names;
+
     /// its frames, the boxes' count (the trees' fill: a tree's model of more than one sways)
     [offset(0x140), found(c)]
     uint32 frames;
@@ -606,6 +612,15 @@ unsafe struct D3DVERTEX
 
     [offset(0x1C), found(c)]
     float32 v;
+}
+
+/// the engine's narrow string (0x10 each in GEModel.texture_names: LoadTexturesForScreen's step; its length at +8)
+[c_type("ee_ustring"), size(0x10)]
+unsafe struct UString
+{
+    /// its characters, 0 at the end
+    [offset(0x4), found(c)]
+    char8* text;
 }
 
 /// the engine's box (GEBoundingBox::Define: the corners, then ComputeDimensions its size)

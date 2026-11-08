@@ -90,8 +90,7 @@ internal ee_model *ws_model(ee_unit *u, int anim) {
 #define WS_SKIRT_MODELS 64
 #define WS_TOWER_ANIMS 16        // a tower's graphics: its first model among these animations (its idle ones)
 #define WS_UV_MARGIN 0.008f      // a bottom edge's texture coordinates at least this far inside the sheet (2 texels of 256)
-#define WS_SKIRT_WAIT 5000  // ms a skirt waits for the tower's textures before it makes do without them
-struct ws_skirt { ee_model *m, *tower; ee_vertices *va; volatile LONG state; DWORD wait; };   // state 0 asked, 1 made, 2 can't be; wait: GetTickCount | 1 of the first draw without the textures
+struct ws_skirt { ee_model *m, *tower; ee_vertices *va; volatile LONG state; };   // state 0 asked, 1 made, 2 can't be
 internal struct ws_skirt g_ws_sk[WS_SKIRT_MODELS];
 internal volatile LONG g_ws_sk_n, g_ws_sk_asked;
 internal rasterizer_draw_model_hierarchy_fn g_ws_draw[2];
@@ -130,7 +129,6 @@ internal void ws_skirt_want(ee_model *m, ee_model *tower) {
         // a model loaded anew where one was (the graphics freed and loaded again): not the arrays it was given
         if (s->state && model_get_frames(m) && model_get_vertices(m) && model_get_vertices(m)[0] != s->va) {
             s->tower = tower;
-            s->wait = 0;
             s->state = 0;
             InterlockedIncrement(&g_ws_sk_asked);
         }
@@ -175,8 +173,8 @@ internal float ws_lowest(ee_model *m) {
 // a tower's foundation: the face of the largest triangle below its base reaching its lowest point - its material and
 // texture, its width along (w) and height down (h), the texture coordinates of its top corner (u0, v0) and their step
 // across the face along (su, sv) and down it (tu, tv)
-struct ws_found { int mat; void *tex; float w, h, u0, v0, su, sv, tu, tv; };
-internal int ws_found_of(ee_model *t, uint32_t screen, struct ws_found *f) {
+struct ws_found { int mat; float w, h, u0, v0, su, sv, tu, tv; };
+internal int ws_found_of(ee_model *t, struct ws_found *f) {
     if (!ws_model_ok(t)) return 0;
     ee_vertex *v0 = vertices_get_data(model_get_vertices(t)[0]);
     ee_material **mat = model_get_materials(t);
@@ -210,14 +208,13 @@ internal int ws_found_of(ee_model *t, uint32_t screen, struct ws_found *f) {
             float db = (pc3.x - pb.x) * (pc3.x - pb.x) + (pc3.y - pb.y) * (pc3.y - pb.y);
             ee_vertex *q = da <= db ? p[a] : p[b], *r = da <= db ? p[b] : p[a], *top = p[c], *bot = q;
             if (pc3.z < pa.z) { top = q; bot = p[c]; }   // the pair on top
-            void **tex = material_get_textures(mat[k]);
             best = w * h;
-            *f = (struct ws_found){ (int)k, tex ? tex[screen] : NULL, w, h, vertex_get_u(top), vertex_get_v(top),
+            *f = (struct ws_found){ (int)k, w, h, vertex_get_u(top), vertex_get_v(top),
                                     vertex_get_u(r) - vertex_get_u(q), vertex_get_v(r) - vertex_get_v(q),
                                     vertex_get_u(bot) - vertex_get_u(top), vertex_get_v(bot) - vertex_get_v(top) };
         }
     }
-    return best > 0 && f->tex;
+    return best > 0;
 }
 
 // a vertex of the skirt: at s of the way from old vertex a to b (their normals too), d below; its texture coordinates
@@ -237,7 +234,7 @@ internal int ws_grow(void **p, uint32_t *cap, size_t size) {
 // the skirt of m (the graphics thread, before its draw): 2 made with the tower's foundation, 1 made with its own
 // bottom row, 0 none (no bottom edge), -1 a model it can't take (another vertex kind, materials not in runs one after
 // another, a material beyond the vertex buffer) - left as it is
-internal int ws_skirt_make(ee_rasterizer *ras, ee_model *m, ee_model *tower, uint32_t screen, unsigned *edges_out) {
+internal int ws_skirt_make(ee_rasterizer *ras, ee_model *m, ee_model *tower, unsigned *edges_out) {
     if (!ws_model_ok(m)) return -1;
     uint32_t nf = model_get_frames(m), nl = model_get_lods(m), nm = model_get_material_count(m), nv = model_get_vertex_count(m);
     ee_vertices **va = model_get_vertices(m);
@@ -264,13 +261,16 @@ internal int ws_skirt_make(ee_rasterizer *ras, ee_model *m, ee_model *tower, uin
         if (pa[l] && pat > polygons_get_count(pa[l])) return -1;
     }
     // the tower's foundation, and the material here with its texture (the tower's own index first: the plain and the
-    // player's colour share one sheet)
+    // player's colour share one sheet) - told by the texture's file name: a tower none of which is on the map has its
+    // names but no textures, and the skirt was the wall's own bottom row drawn down for the whole game (the player,
+    // 2026-11-08: "the skirts are broken, they are pure extrude without proper uv mapping")
     struct ws_found fd = { 0 };
     int kt = -1;
-    if (tower && ws_found_of(tower, screen, &fd)) {
-        if ((uint32_t)fd.mat < nm && material_get_textures(mat[fd.mat]) && material_get_textures(mat[fd.mat])[screen] == fd.tex) kt = fd.mat;
+    const char *fname = tower && ws_found_of(tower, &fd) ? model_texture_name(tower, (uint32_t)fd.mat) : "";
+    if (*fname) {
+        if ((uint32_t)fd.mat < nm && !_stricmp(model_texture_name(m, (uint32_t)fd.mat), fname)) kt = fd.mat;
         for (uint32_t k = 0; kt < 0 && k < nm; k++)
-            if (material_get_textures(mat[k]) && material_get_textures(mat[k])[screen] == fd.tex) kt = (int)k;
+            if (!_stricmp(model_texture_name(m, k), fname)) kt = (int)k;
     }
     if (kt >= 0)
         for (uint32_t k = 0; k < nm; k++) if (ord[k] == mat[kt]) { kt = (int)k; break; }   // its place in ord
@@ -437,34 +437,14 @@ internal int ws_skirt_make(ee_rasterizer *ras, ee_model *m, ee_model *tower, uin
     return r;
 }
 
-// whether every material of m has its texture on this screen
-internal int ws_textures_in(ee_model *m, uint32_t screen) {
-    if (!m || !ws_model_ok(m)) return 0;
-    ee_material **mat = model_get_materials(m);
-    for (uint32_t k = 0; k < model_get_material_count(m); k++) {
-        void **tex = mat[k] ? material_get_textures(mat[k]) : NULL;
-        if (!tex || !tex[screen]) return 0;
-    }
-    return 1;
-}
-
-// a model drawn: its skirt first if the fit asked for it. Not before the tower's textures are there: the fit loads the
-// tower's graphics for the skirt, its textures come a little later, and a wall's first draw is often before them - with
-// no texture to tell the wall's material by, the skirt was its own bottom row drawn down, for the whole game (the player,
-// 2026-11-08: "the skirts are broken, they are pure extrude without proper uv mapping"; of one wall's models the
-// first drawn got that and the next the tower's foundation)
-internal void ws_skirt_drawn(ee_rasterizer *ras, ee_model *m, uint32_t screen) {
+// a model drawn: its skirt first if the fit asked for it
+internal void ws_skirt_drawn(ee_rasterizer *ras, ee_model *m) {
     LONG n = g_ws_sk_n;
     for (LONG i = 0; i < n; i++) {
         struct ws_skirt *s = &g_ws_sk[i];
         if (s->m != m || s->state) continue;
-        if (!ws_textures_in(s->tower, screen) || !ws_textures_in(m, screen)) {
-            DWORD now = GetTickCount();
-            if (!s->wait) s->wait = now | 1;
-            if (now - s->wait < WS_SKIRT_WAIT) return;
-        }
         unsigned edges = 0;
-        int r = ws_skirt_make(ras, m, s->tower, screen, &edges);
+        int r = ws_skirt_make(ras, m, s->tower, &edges);
         s->va = model_get_frames(m) && model_get_vertices(m) ? model_get_vertices(m)[0] : NULL;
         s->state = r >= 0 ? 1 : 2;
         InterlockedDecrement(&g_ws_sk_asked);
@@ -480,7 +460,7 @@ internal volatile LONG g_bl_n;
 internal ee_vertices *bl_bend(ee_model *m, int *decal);
 internal void bl_unbend(ee_vertices *a);
 internal int __thiscall ws_hook_draw0(ee_rasterizer *ras, void *m, uint32_t screen, float p3, int8_t p4) {
-    if (g_ws_sk_asked > 0) ws_skirt_drawn(ras, m, screen);
+    if (g_ws_sk_asked > 0) ws_skirt_drawn(ras, m);
     int decal = 0;
     ee_vertices *b = g_bl_n ? bl_bend(m, &decal) : NULL;
     g_sh_decal = decal;
@@ -490,7 +470,7 @@ internal int __thiscall ws_hook_draw0(ee_rasterizer *ras, void *m, uint32_t scre
     return r;
 }
 internal int __thiscall ws_hook_draw1(ee_rasterizer *ras, void *m, uint32_t screen, float p3, int8_t p4) {
-    if (g_ws_sk_asked > 0) ws_skirt_drawn(ras, m, screen);
+    if (g_ws_sk_asked > 0) ws_skirt_drawn(ras, m);
     int decal = 0;
     ee_vertices *b = g_bl_n ? bl_bend(m, &decal) : NULL;
     g_sh_decal = decal;
