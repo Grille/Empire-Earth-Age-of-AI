@@ -758,6 +758,7 @@ internal uint32_t data_engine_display_sway_step;
 internal uint32_t data_engine_display_iat_set_position;
 internal uint32_t value_engine_display_resource_wood;
 internal uint32_t value_engine_display_resource_food;
+internal uint32_t data_engine_display_iat_make_identity;
 
 // engine_sound.cs
 internal uint32_t of_se_mixer_spim;
@@ -3204,8 +3205,19 @@ internal uint32_t call_repair_goal;
 internal uint32_t calls_train_citizen_at[2];
 internal uint32_t calls_set_tile[11];
 internal uint32_t calls_reload_wait[4];
+internal uint32_t vt_ee_doppelganger;
 internal uint32_t of_doppelganger_unit;
 internal uint32_t of_doppelganger_player;
+internal uint32_t slot_doppelganger_anim;
+internal uint32_t slot_doppelganger_finished;
+internal uint32_t slot_doppelganger_frame;
+internal uint32_t slot_doppelganger_graphics;
+internal uint32_t slot_doppelganger_dead;
+internal uint32_t slot_doppelganger_has_transform;
+internal uint32_t slot_doppelganger_transform;
+internal uint32_t slot_doppelganger_scale;
+internal uint32_t slot_doppelganger_hp;
+internal uint32_t vt_ee_complex_doppelganger;
 internal uint32_t vt_ee_ghost_unit;
 internal uint32_t size_ee_ghost_unit;
 internal uint32_t of_ghost_unit_player;

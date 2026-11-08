@@ -305,6 +305,9 @@ typedef long double (__cdecl *cos_fn)(float x);
 typedef void (__thiscall *set_position_fn)(void *t, float x, float y, float z);
 internal inline long double game_cos_fpu(float x) { return (*(cos_fn *)data_game_iat_cos)(x); }
 internal inline void transform_set_position(void *t, float x, float y, float z) { (*(set_position_fn *)data_engine_display_iat_set_position)(t, x, y, z); }
+// the doppelgangers' fills' (collect.c uc_fill_dopp): GETransformation::MakeIdentity
+typedef void (__thiscall *make_identity_fn)(void *t);
+internal inline void transform_identity(void *t) { (*(make_identity_fn *)data_engine_display_iat_make_identity)(t); }
 internal inline int tree_has_ambient(const ee_unit_type *t) {
     return build_is("aoc") || (uint32_t)unit_type_get_resource_type(t) == value_engine_display_resource_wood;
 }

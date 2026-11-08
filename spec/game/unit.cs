@@ -765,7 +765,10 @@ unsafe struct EEComplexUnit
 /// (the player's index, the type id) unless +0x331 is set.
 /// a building or tree as a player remembers it under the fog (RTTI EEDoppelganger; EEComplexDoppelganger too): a
 /// tile's doppelgangers (ee_tile.doppelgangers) - the units' collection draws them (EEROUnits.fill_doppelganger)
-[c_type("ee_doppelganger")]
+/// - this class one of an object without a complex unit (its virtual functions answer from the object's type and
+/// owner: no pose, no animation, finished), EEComplexDoppelganger one with (what it was when last seen). The
+/// collection's fills of them (EEROUnits.fill_doppelganger, fill_doppelganger_object) ask only these functions.
+[c_type("ee_doppelganger"), vtable((ee)0x00831530, (aoc)0x00846E7C)]
 unsafe struct EEDoppelganger
 {
     /// the object it shows (the collection reads its type, its list node and its physics part)
@@ -775,6 +778,78 @@ unsafe struct EEDoppelganger
     /// the player who remembers it
     [offset(0xC), found(c)]
     EEPlayer* player;
+
+    /// vf6: its animation (0 here) - its graphics' model of it is the one drawn
+    [slot(6), address((ee)0x004D84A2, (aoc)0x005AD67E)]
+    extern int32 anim();
+
+    /// vf8: finished (1 here) - the fill draws one not as a building site (its finished building's graphics, its
+    /// height scaled by hp() over its type's full hit points) [guess: the name; the fill's use of it]
+    [slot(8), address((ee)0x004B129C, (aoc)0x00418AA9)]
+    extern uint8 finished();
+
+    /// vf9: its animation's frame (0 here)
+    [slot(9), address((ee)0x004D84A2, (aoc)0x005AD67E)]
+    extern int32 frame();
+
+    /// vf10: its graphics - here its owner's stats of the object's type's (unit_stats.gfx)
+    [slot(10), address((ee)0x005F3D15, (aoc)0x00601D97)]
+    extern EEGraphicObject* graphics();
+
+    /// vf11: dead (0 here) - the fill gives one no health bar's place (bar_x 0) [guess: the name; the fill's use of
+    /// it, as FillUnit gives an object of no hit points none]
+    [slot(11), address((ee)0x004B129F, (aoc)0x004AC9F3)]
+    extern uint8 dead();
+
+    /// vf12: whether it has a pose of its own (transform(); 0 here: the fill puts it at its tile's middle)
+    [slot(12), address((ee)0x004B129F, (aoc)0x004AC9F3)]
+    extern uint8 has_transform();
+
+    /// vf13: its pose into *out (a GETransformation; nothing here)
+    [slot(13), address((ee)0x006048AB, (aoc)0x00557269)]
+    extern void transform(void* @out);
+
+    /// vf14: its scale - here its type's unknown_42c (an x87 float in st0)
+    [slot(14), address((ee)0x005F3D35, (aoc)0x00601DB7)]
+    extern float32 scale();
+
+    /// vf15: its hit points (-1 here)
+    [slot(15), address((ee)0x005F3D42, (aoc)0x00601DC4)]
+    extern int32 hp();
+}
+
+/// a doppelganger of an object with a complex unit: what it was when the player last saw it (its pose +0x10, its
+/// graphics +0x50, animation +0x54, scale +0x58, hit points +0x5C's low 31 bits and finished its top bit, frame +0x68,
+/// dead +0x6C - the virtual functions' reads)
+[@base(typeof(EEDoppelganger)), c_type("ee_doppelganger"), vtable((ee)0x00825164, (aoc)0x00846D5C)]
+unsafe struct EEComplexDoppelganger
+{
+    [address((ee)0x00406A76, (aoc)0x005F1F3F), overrides(typeof(EEDoppelganger))]
+    extern int32 anim();
+
+    [address((ee)0x00406A7D, (aoc)0x005F1F46), overrides(typeof(EEDoppelganger))]
+    extern uint8 finished();
+
+    [address((ee)0x00406A8E, (aoc)0x005F1F57), overrides(typeof(EEDoppelganger))]
+    extern int32 frame();
+
+    [address((ee)0x00406A92, (aoc)0x005F1F5B), overrides(typeof(EEDoppelganger))]
+    extern EEGraphicObject* graphics();
+
+    [address((ee)0x00406A96, (aoc)0x005F1F5F), overrides(typeof(EEDoppelganger))]
+    extern uint8 dead();
+
+    [address((ee)0x004B129C, (aoc)0x00418AA9), overrides(typeof(EEDoppelganger))]
+    extern uint8 has_transform();
+
+    [address((ee)0x00406A9A, (aoc)0x005F1F63), overrides(typeof(EEDoppelganger))]
+    extern void transform(void* @out);
+
+    [address((ee)0x00406AAB, (aoc)0x005F1F74), overrides(typeof(EEDoppelganger))]
+    extern float32 scale();
+
+    [address((ee)0x00406AAF, (aoc)0x005F1F78), overrides(typeof(EEDoppelganger))]
+    extern int32 hp();
 }
 
 [size(0x334)]

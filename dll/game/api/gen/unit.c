@@ -743,6 +743,9 @@ internal inline int patch_unit_release(unit_release_fn h) { return patch_vtable(
 // (the player's index, the type id) unless +0x331 is set.
 // a building or tree as a player remembers it under the fog (RTTI EEDoppelganger; EEComplexDoppelganger too): a
 // tile's doppelgangers (ee_tile.doppelgangers) - the units' collection draws them (EEROUnits.fill_doppelganger)
+// - this class one of an object without a complex unit (its virtual functions answer from the object's type and
+// owner: no pose, no animation, finished), EEComplexDoppelganger one with (what it was when last seen). The
+// collection's fills of them (EEROUnits.fill_doppelganger, fill_doppelganger_object) ask only these functions.
 // the object it shows (the collection reads its type, its list node and its physics part)
 internal inline ee_unit *doppelganger_get_unit(const ee_doppelganger *o) { return *(ee_unit **)((uint8_t *)o + of_doppelganger_unit); }
 internal inline void doppelganger_set_unit(ee_doppelganger *o, ee_unit *v) { *(ee_unit **)((uint8_t *)o + of_doppelganger_unit) = v; }
@@ -751,6 +754,76 @@ internal inline ee_unit **doppelganger_unit_at(const ee_doppelganger *o) { retur
 internal inline ee_player *doppelganger_get_player(const ee_doppelganger *o) { return *(ee_player **)((uint8_t *)o + of_doppelganger_player); }
 internal inline void doppelganger_set_player(ee_doppelganger *o, ee_player *v) { *(ee_player **)((uint8_t *)o + of_doppelganger_player) = v; }
 internal inline ee_player **doppelganger_player_at(const ee_doppelganger *o) { return (ee_player **)((uint8_t *)o + of_doppelganger_player); }
+// vf6: its animation (0 here) - its graphics' model of it is the one drawn
+typedef int (__thiscall *doppelganger_anim_fn)(ee_doppelganger *);
+internal inline int doppelganger_anim(ee_doppelganger *doppelganger) { return ((doppelganger_anim_fn)(*(void ***)doppelganger)[slot_doppelganger_anim])(doppelganger); }
+internal doppelganger_anim_fn fn_ee_doppelganger_anim;
+internal inline int ee_doppelganger_anim(ee_doppelganger *doppelganger) { return fn_ee_doppelganger_anim(doppelganger); }
+// vf8: finished (1 here) - the fill draws one not as a building site (its finished building's graphics, its
+// height scaled by hp() over its type's full hit points) [guess: the name; the fill's use of it]
+typedef uint8_t (__thiscall *doppelganger_finished_fn)(ee_doppelganger *);
+internal inline uint8_t doppelganger_finished(ee_doppelganger *doppelganger) { return ((doppelganger_finished_fn)(*(void ***)doppelganger)[slot_doppelganger_finished])(doppelganger); }
+internal doppelganger_finished_fn fn_ee_doppelganger_finished;
+internal inline uint8_t ee_doppelganger_finished(ee_doppelganger *doppelganger) { return fn_ee_doppelganger_finished(doppelganger); }
+// vf9: its animation's frame (0 here)
+typedef int (__thiscall *doppelganger_frame_fn)(ee_doppelganger *);
+internal inline int doppelganger_frame(ee_doppelganger *doppelganger) { return ((doppelganger_frame_fn)(*(void ***)doppelganger)[slot_doppelganger_frame])(doppelganger); }
+internal doppelganger_frame_fn fn_ee_doppelganger_frame;
+internal inline int ee_doppelganger_frame(ee_doppelganger *doppelganger) { return fn_ee_doppelganger_frame(doppelganger); }
+// vf10: its graphics - here its owner's stats of the object's type's (unit_stats.gfx)
+typedef ee_dmg_model *(__thiscall *doppelganger_graphics_fn)(ee_doppelganger *);
+internal inline ee_dmg_model *doppelganger_graphics(ee_doppelganger *doppelganger) { return ((doppelganger_graphics_fn)(*(void ***)doppelganger)[slot_doppelganger_graphics])(doppelganger); }
+internal doppelganger_graphics_fn fn_ee_doppelganger_graphics;
+internal inline ee_dmg_model *ee_doppelganger_graphics(ee_doppelganger *doppelganger) { return fn_ee_doppelganger_graphics(doppelganger); }
+// vf11: dead (0 here) - the fill gives one no health bar's place (bar_x 0) [guess: the name; the fill's use of
+// it, as FillUnit gives an object of no hit points none]
+typedef uint8_t (__thiscall *doppelganger_dead_fn)(ee_doppelganger *);
+internal inline uint8_t doppelganger_dead(ee_doppelganger *doppelganger) { return ((doppelganger_dead_fn)(*(void ***)doppelganger)[slot_doppelganger_dead])(doppelganger); }
+internal doppelganger_dead_fn fn_ee_doppelganger_dead;
+internal inline uint8_t ee_doppelganger_dead(ee_doppelganger *doppelganger) { return fn_ee_doppelganger_dead(doppelganger); }
+// vf12: whether it has a pose of its own (transform(); 0 here: the fill puts it at its tile's middle)
+typedef uint8_t (__thiscall *doppelganger_has_transform_fn)(ee_doppelganger *);
+internal inline uint8_t doppelganger_has_transform(ee_doppelganger *doppelganger) { return ((doppelganger_has_transform_fn)(*(void ***)doppelganger)[slot_doppelganger_has_transform])(doppelganger); }
+internal doppelganger_has_transform_fn fn_ee_doppelganger_has_transform;
+internal inline uint8_t ee_doppelganger_has_transform(ee_doppelganger *doppelganger) { return fn_ee_doppelganger_has_transform(doppelganger); }
+// vf13: its pose into *out (a GETransformation; nothing here)
+typedef void (__thiscall *doppelganger_transform_fn)(ee_doppelganger *, void *);
+internal inline void doppelganger_transform(ee_doppelganger *doppelganger, void *out) { ((doppelganger_transform_fn)(*(void ***)doppelganger)[slot_doppelganger_transform])(doppelganger, out); }
+internal doppelganger_transform_fn fn_ee_doppelganger_transform;
+internal inline void ee_doppelganger_transform(ee_doppelganger *doppelganger, void *out) { fn_ee_doppelganger_transform(doppelganger, out); }
+// vf14: its scale - here its type's unknown_42c (an x87 float in st0)
+typedef float (__thiscall *doppelganger_scale_fn)(ee_doppelganger *);
+internal inline float doppelganger_scale(ee_doppelganger *doppelganger) { return ((doppelganger_scale_fn)(*(void ***)doppelganger)[slot_doppelganger_scale])(doppelganger); }
+internal doppelganger_scale_fn fn_ee_doppelganger_scale;
+internal inline float ee_doppelganger_scale(ee_doppelganger *doppelganger) { return fn_ee_doppelganger_scale(doppelganger); }
+// vf15: its hit points (-1 here)
+typedef int (__thiscall *doppelganger_hp_fn)(ee_doppelganger *);
+internal inline int doppelganger_hp(ee_doppelganger *doppelganger) { return ((doppelganger_hp_fn)(*(void ***)doppelganger)[slot_doppelganger_hp])(doppelganger); }
+internal doppelganger_hp_fn fn_ee_doppelganger_hp;
+internal inline int ee_doppelganger_hp(ee_doppelganger *doppelganger) { return fn_ee_doppelganger_hp(doppelganger); }
+
+// class EEComplexDoppelganger (ee_doppelganger)
+// a doppelganger of an object with a complex unit: what it was when the player last saw it (its pose +0x10, its
+// graphics +0x50, animation +0x54, scale +0x58, hit points +0x5C's low 31 bits and finished its top bit, frame +0x68,
+// dead +0x6C - the virtual functions' reads)
+internal doppelganger_anim_fn fn_ee_complex_doppelganger_anim;
+internal inline int ee_complex_doppelganger_anim(ee_doppelganger *doppelganger) { return fn_ee_complex_doppelganger_anim(doppelganger); }
+internal doppelganger_finished_fn fn_ee_complex_doppelganger_finished;
+internal inline uint8_t ee_complex_doppelganger_finished(ee_doppelganger *doppelganger) { return fn_ee_complex_doppelganger_finished(doppelganger); }
+internal doppelganger_frame_fn fn_ee_complex_doppelganger_frame;
+internal inline int ee_complex_doppelganger_frame(ee_doppelganger *doppelganger) { return fn_ee_complex_doppelganger_frame(doppelganger); }
+internal doppelganger_graphics_fn fn_ee_complex_doppelganger_graphics;
+internal inline ee_dmg_model *ee_complex_doppelganger_graphics(ee_doppelganger *doppelganger) { return fn_ee_complex_doppelganger_graphics(doppelganger); }
+internal doppelganger_dead_fn fn_ee_complex_doppelganger_dead;
+internal inline uint8_t ee_complex_doppelganger_dead(ee_doppelganger *doppelganger) { return fn_ee_complex_doppelganger_dead(doppelganger); }
+internal doppelganger_has_transform_fn fn_ee_complex_doppelganger_has_transform;
+internal inline uint8_t ee_complex_doppelganger_has_transform(ee_doppelganger *doppelganger) { return fn_ee_complex_doppelganger_has_transform(doppelganger); }
+internal doppelganger_transform_fn fn_ee_complex_doppelganger_transform;
+internal inline void ee_complex_doppelganger_transform(ee_doppelganger *doppelganger, void *out) { fn_ee_complex_doppelganger_transform(doppelganger, out); }
+internal doppelganger_scale_fn fn_ee_complex_doppelganger_scale;
+internal inline float ee_complex_doppelganger_scale(ee_doppelganger *doppelganger) { return fn_ee_complex_doppelganger_scale(doppelganger); }
+internal doppelganger_hp_fn fn_ee_complex_doppelganger_hp;
+internal inline int ee_complex_doppelganger_hp(ee_doppelganger *doppelganger) { return fn_ee_complex_doppelganger_hp(doppelganger); }
 
 // class EEGhostUnit (ee_ghost_unit)
 // the player it is for (its +0x45C, the index, read by the destructor)
@@ -1094,8 +1167,37 @@ internal int spec_unit_select(int build) {
         calls_reload_wait[2] = 0;
         calls_reload_wait[3] = 0;
         fn_ee_complex_unit_release = (unit_release_fn)0x005ED71E;
+        vt_ee_doppelganger = 0x00831530;
         of_doppelganger_unit = 0x8;
         of_doppelganger_player = 0xC;
+        slot_doppelganger_anim = 6;
+        fn_ee_doppelganger_anim = (doppelganger_anim_fn)0x004D84A2;
+        slot_doppelganger_finished = 8;
+        fn_ee_doppelganger_finished = (doppelganger_finished_fn)0x004B129C;
+        slot_doppelganger_frame = 9;
+        fn_ee_doppelganger_frame = (doppelganger_frame_fn)0x004D84A2;
+        slot_doppelganger_graphics = 10;
+        fn_ee_doppelganger_graphics = (doppelganger_graphics_fn)0x005F3D15;
+        slot_doppelganger_dead = 11;
+        fn_ee_doppelganger_dead = (doppelganger_dead_fn)0x004B129F;
+        slot_doppelganger_has_transform = 12;
+        fn_ee_doppelganger_has_transform = (doppelganger_has_transform_fn)0x004B129F;
+        slot_doppelganger_transform = 13;
+        fn_ee_doppelganger_transform = (doppelganger_transform_fn)0x006048AB;
+        slot_doppelganger_scale = 14;
+        fn_ee_doppelganger_scale = (doppelganger_scale_fn)0x005F3D35;
+        slot_doppelganger_hp = 15;
+        fn_ee_doppelganger_hp = (doppelganger_hp_fn)0x005F3D42;
+        vt_ee_complex_doppelganger = 0x00825164;
+        fn_ee_complex_doppelganger_anim = (doppelganger_anim_fn)0x00406A76;
+        fn_ee_complex_doppelganger_finished = (doppelganger_finished_fn)0x00406A7D;
+        fn_ee_complex_doppelganger_frame = (doppelganger_frame_fn)0x00406A8E;
+        fn_ee_complex_doppelganger_graphics = (doppelganger_graphics_fn)0x00406A92;
+        fn_ee_complex_doppelganger_dead = (doppelganger_dead_fn)0x00406A96;
+        fn_ee_complex_doppelganger_has_transform = (doppelganger_has_transform_fn)0x004B129C;
+        fn_ee_complex_doppelganger_transform = (doppelganger_transform_fn)0x00406A9A;
+        fn_ee_complex_doppelganger_scale = (doppelganger_scale_fn)0x00406AAB;
+        fn_ee_complex_doppelganger_hp = (doppelganger_hp_fn)0x00406AAF;
         vt_ee_ghost_unit = 0x00831588;
         size_ee_ghost_unit = 0x334;
         of_ghost_unit_player = 0x294;
@@ -1321,8 +1423,37 @@ internal int spec_unit_select(int build) {
         calls_reload_wait[2] = 0x00631395;
         calls_reload_wait[3] = 0x006313C7;
         fn_ee_complex_unit_release = (unit_release_fn)0x005FB7FB;
+        vt_ee_doppelganger = 0x00846E7C;
         of_doppelganger_unit = 0x8;
         of_doppelganger_player = 0xC;
+        slot_doppelganger_anim = 6;
+        fn_ee_doppelganger_anim = (doppelganger_anim_fn)0x005AD67E;
+        slot_doppelganger_finished = 8;
+        fn_ee_doppelganger_finished = (doppelganger_finished_fn)0x00418AA9;
+        slot_doppelganger_frame = 9;
+        fn_ee_doppelganger_frame = (doppelganger_frame_fn)0x005AD67E;
+        slot_doppelganger_graphics = 10;
+        fn_ee_doppelganger_graphics = (doppelganger_graphics_fn)0x00601D97;
+        slot_doppelganger_dead = 11;
+        fn_ee_doppelganger_dead = (doppelganger_dead_fn)0x004AC9F3;
+        slot_doppelganger_has_transform = 12;
+        fn_ee_doppelganger_has_transform = (doppelganger_has_transform_fn)0x004AC9F3;
+        slot_doppelganger_transform = 13;
+        fn_ee_doppelganger_transform = (doppelganger_transform_fn)0x00557269;
+        slot_doppelganger_scale = 14;
+        fn_ee_doppelganger_scale = (doppelganger_scale_fn)0x00601DB7;
+        slot_doppelganger_hp = 15;
+        fn_ee_doppelganger_hp = (doppelganger_hp_fn)0x00601DC4;
+        vt_ee_complex_doppelganger = 0x00846D5C;
+        fn_ee_complex_doppelganger_anim = (doppelganger_anim_fn)0x005F1F3F;
+        fn_ee_complex_doppelganger_finished = (doppelganger_finished_fn)0x005F1F46;
+        fn_ee_complex_doppelganger_frame = (doppelganger_frame_fn)0x005F1F57;
+        fn_ee_complex_doppelganger_graphics = (doppelganger_graphics_fn)0x005F1F5B;
+        fn_ee_complex_doppelganger_dead = (doppelganger_dead_fn)0x005F1F5F;
+        fn_ee_complex_doppelganger_has_transform = (doppelganger_has_transform_fn)0x00418AA9;
+        fn_ee_complex_doppelganger_transform = (doppelganger_transform_fn)0x005F1F63;
+        fn_ee_complex_doppelganger_scale = (doppelganger_scale_fn)0x005F1F74;
+        fn_ee_complex_doppelganger_hp = (doppelganger_hp_fn)0x005F1F78;
         vt_ee_ghost_unit = 0x00846EF4;
         size_ee_ghost_unit = 0x334;
         of_ghost_unit_player = 0x294;
@@ -1428,6 +1559,44 @@ internal int spec_unit_check(void) {
     bad += spec_call(calls_reload_wait[3], (uintptr_t)fn_unit_reload_wait, "EEComplexUnit.reload_wait [call_site reload_wait 3]");
     bad += spec_code((uintptr_t)fn_ee_complex_unit_release, "EEComplexUnit.release");
     bad += spec_slot(vt_ee_complex_unit, slot_unit_release, (uintptr_t)fn_ee_complex_unit_release, "EEComplexUnit.release [slot]");
+    bad += spec_vtable(vt_ee_doppelganger, ".?AVEEDoppelganger@@", "EEDoppelganger [vtable]");
+    bad += spec_code((uintptr_t)fn_ee_doppelganger_anim, "EEDoppelganger.anim");
+    bad += spec_slot(vt_ee_doppelganger, slot_doppelganger_anim, (uintptr_t)fn_ee_doppelganger_anim, "EEDoppelganger.anim [slot]");
+    bad += spec_code((uintptr_t)fn_ee_doppelganger_finished, "EEDoppelganger.finished");
+    bad += spec_slot(vt_ee_doppelganger, slot_doppelganger_finished, (uintptr_t)fn_ee_doppelganger_finished, "EEDoppelganger.finished [slot]");
+    bad += spec_code((uintptr_t)fn_ee_doppelganger_frame, "EEDoppelganger.frame");
+    bad += spec_slot(vt_ee_doppelganger, slot_doppelganger_frame, (uintptr_t)fn_ee_doppelganger_frame, "EEDoppelganger.frame [slot]");
+    bad += spec_code((uintptr_t)fn_ee_doppelganger_graphics, "EEDoppelganger.graphics");
+    bad += spec_slot(vt_ee_doppelganger, slot_doppelganger_graphics, (uintptr_t)fn_ee_doppelganger_graphics, "EEDoppelganger.graphics [slot]");
+    bad += spec_code((uintptr_t)fn_ee_doppelganger_dead, "EEDoppelganger.dead");
+    bad += spec_slot(vt_ee_doppelganger, slot_doppelganger_dead, (uintptr_t)fn_ee_doppelganger_dead, "EEDoppelganger.dead [slot]");
+    bad += spec_code((uintptr_t)fn_ee_doppelganger_has_transform, "EEDoppelganger.has_transform");
+    bad += spec_slot(vt_ee_doppelganger, slot_doppelganger_has_transform, (uintptr_t)fn_ee_doppelganger_has_transform, "EEDoppelganger.has_transform [slot]");
+    bad += spec_code((uintptr_t)fn_ee_doppelganger_transform, "EEDoppelganger.transform");
+    bad += spec_slot(vt_ee_doppelganger, slot_doppelganger_transform, (uintptr_t)fn_ee_doppelganger_transform, "EEDoppelganger.transform [slot]");
+    bad += spec_code((uintptr_t)fn_ee_doppelganger_scale, "EEDoppelganger.scale");
+    bad += spec_slot(vt_ee_doppelganger, slot_doppelganger_scale, (uintptr_t)fn_ee_doppelganger_scale, "EEDoppelganger.scale [slot]");
+    bad += spec_code((uintptr_t)fn_ee_doppelganger_hp, "EEDoppelganger.hp");
+    bad += spec_slot(vt_ee_doppelganger, slot_doppelganger_hp, (uintptr_t)fn_ee_doppelganger_hp, "EEDoppelganger.hp [slot]");
+    bad += spec_vtable(vt_ee_complex_doppelganger, ".?AVEEComplexDoppelganger@@", "EEComplexDoppelganger [vtable]");
+    bad += spec_code((uintptr_t)fn_ee_complex_doppelganger_anim, "EEComplexDoppelganger.anim");
+    bad += spec_slot(vt_ee_complex_doppelganger, slot_doppelganger_anim, (uintptr_t)fn_ee_complex_doppelganger_anim, "EEComplexDoppelganger.anim [slot]");
+    bad += spec_code((uintptr_t)fn_ee_complex_doppelganger_finished, "EEComplexDoppelganger.finished");
+    bad += spec_slot(vt_ee_complex_doppelganger, slot_doppelganger_finished, (uintptr_t)fn_ee_complex_doppelganger_finished, "EEComplexDoppelganger.finished [slot]");
+    bad += spec_code((uintptr_t)fn_ee_complex_doppelganger_frame, "EEComplexDoppelganger.frame");
+    bad += spec_slot(vt_ee_complex_doppelganger, slot_doppelganger_frame, (uintptr_t)fn_ee_complex_doppelganger_frame, "EEComplexDoppelganger.frame [slot]");
+    bad += spec_code((uintptr_t)fn_ee_complex_doppelganger_graphics, "EEComplexDoppelganger.graphics");
+    bad += spec_slot(vt_ee_complex_doppelganger, slot_doppelganger_graphics, (uintptr_t)fn_ee_complex_doppelganger_graphics, "EEComplexDoppelganger.graphics [slot]");
+    bad += spec_code((uintptr_t)fn_ee_complex_doppelganger_dead, "EEComplexDoppelganger.dead");
+    bad += spec_slot(vt_ee_complex_doppelganger, slot_doppelganger_dead, (uintptr_t)fn_ee_complex_doppelganger_dead, "EEComplexDoppelganger.dead [slot]");
+    bad += spec_code((uintptr_t)fn_ee_complex_doppelganger_has_transform, "EEComplexDoppelganger.has_transform");
+    bad += spec_slot(vt_ee_complex_doppelganger, slot_doppelganger_has_transform, (uintptr_t)fn_ee_complex_doppelganger_has_transform, "EEComplexDoppelganger.has_transform [slot]");
+    bad += spec_code((uintptr_t)fn_ee_complex_doppelganger_transform, "EEComplexDoppelganger.transform");
+    bad += spec_slot(vt_ee_complex_doppelganger, slot_doppelganger_transform, (uintptr_t)fn_ee_complex_doppelganger_transform, "EEComplexDoppelganger.transform [slot]");
+    bad += spec_code((uintptr_t)fn_ee_complex_doppelganger_scale, "EEComplexDoppelganger.scale");
+    bad += spec_slot(vt_ee_complex_doppelganger, slot_doppelganger_scale, (uintptr_t)fn_ee_complex_doppelganger_scale, "EEComplexDoppelganger.scale [slot]");
+    bad += spec_code((uintptr_t)fn_ee_complex_doppelganger_hp, "EEComplexDoppelganger.hp");
+    bad += spec_slot(vt_ee_complex_doppelganger, slot_doppelganger_hp, (uintptr_t)fn_ee_complex_doppelganger_hp, "EEComplexDoppelganger.hp [slot]");
     bad += spec_vtable(vt_ee_ghost_unit, ".?AVEEGhostUnit@@", "EEGhostUnit [vtable]");
     bad += spec_code(data_unit_call_node_del_1, "unit.call_node_del_1");
     bad += spec_code(data_unit_call_node_del_2, "unit.call_node_del_2");

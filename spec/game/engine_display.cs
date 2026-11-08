@@ -1125,6 +1125,13 @@ static unsafe class engine_display
     /// tile the player hasn't in sight (its fog) as long as it has a complex unit and isn't a citizen
     [value((ee)2, (aoc)2)]
     static uint32 resource_food;
+
+    /// THE DOPPELGANGERS' FILLS (EEROUnits.fill_doppelganger, fill_doppelganger_object; collect.c uc_fill_dopp,
+    /// uc_fill_dopp_tree): the exe's import slot of GETransformation::MakeIdentity - a remembered building without a
+    /// pose of its own starts from it
+    [import_slot("Low-Level Engine.dll", "?MakeIdentity@GETransformation@@QAEXXZ")]
+    [address((ee)0x008232F0, (aoc)0x0083772C)]
+    static block iat_make_identity;
 }
 
 /// the game's functions engine_display.c wraps, by the names the C side gives them

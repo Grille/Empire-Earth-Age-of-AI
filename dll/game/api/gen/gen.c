@@ -717,6 +717,7 @@ internal int spec_imports(void) {
     bad += spec_import(&data_engine_display_iat_arc_cos, "Low-Level Engine.dll", "?UMArcCos@@YAMM@Z", "engine_display.iat_arc_cos");
     bad += spec_import(&data_engine_display_iat_transform_scale, "Low-Level Engine.dll", "?Scale@GETransformation@@QAEXMMM@Z", "engine_display.iat_transform_scale");
     bad += spec_import(&data_engine_display_iat_set_position, "Low-Level Engine.dll", "?SetPosition@GETransformation@@QAEXMMM@Z", "engine_display.iat_set_position");
+    bad += spec_import(&data_engine_display_iat_make_identity, "Low-Level Engine.dll", "?MakeIdentity@GETransformation@@QAEXXZ", "engine_display.iat_make_identity");
     bad += spec_import(&data_engine_sound_iat_snd_play, "Low-Level Engine.dll", "?Play@SESoundManager@@QAEKKMMM_NPAD@Z", "engine_sound.iat_snd_play");
     bad += spec_import(&data_engine_sound_iat_snd_playref, "Low-Level Engine.dll", "?PlayAndReturnReferencedNode@SESoundManager@@QAEPAVSESMInstanceNode@@KMMM_NPAD@Z", "engine_sound.iat_snd_playref");
     bad += spec_import(&data_engine_sound_iat_snd_setmaxch, "Low-Level Engine.dll", "?SetMaxChannels@SESoundManager@@QAEJK@Z", "engine_sound.iat_snd_setmaxch");

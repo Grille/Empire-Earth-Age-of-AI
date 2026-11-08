@@ -730,6 +730,10 @@ internal inline uint8_t *engine_display_iat_set_position_at(void) { return (uint
 // EEUnit.resource_type's wood (EE's trees' fill hands only a wood tree to the ambient sounds)
 // EEUnit.resource's food (kResourceFood): an animal or a bush of the gaia player with food left is drawn on a
 // tile the player hasn't in sight (its fog) as long as it has a complex unit and isn't a citizen
+// THE DOPPELGANGERS' FILLS (EEROUnits.fill_doppelganger, fill_doppelganger_object; collect.c uc_fill_dopp,
+// uc_fill_dopp_tree): the exe's import slot of GETransformation::MakeIdentity - a remembered building without a
+// pose of its own starts from it
+internal inline uint8_t *engine_display_iat_make_identity_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_iat_make_identity; }
 
 // static class engine_display_functions
 // the game's functions engine_display.c wraps, by the names the C side gives them
@@ -1072,6 +1076,7 @@ internal int spec_engine_display_select(int build) {
         data_engine_display_iat_set_position = 0x00823414;
         value_engine_display_resource_wood = 3;
         value_engine_display_resource_food = 2;
+        data_engine_display_iat_make_identity = 0x008232F0;
         fn_doppelganger_set_find = (doppelganger_set_find_fn)0x005050BD;
         fn_ambient_add = (ambient_add_fn)0x0051A4C5;
         fn_ambient_add_object = (ambient_add_object_fn)0x00506249;
@@ -1352,6 +1357,7 @@ internal int spec_engine_display_select(int build) {
         data_engine_display_iat_set_position = 0x008373B0;
         value_engine_display_resource_wood = 3;
         value_engine_display_resource_food = 2;
+        data_engine_display_iat_make_identity = 0x0083772C;
         fn_doppelganger_set_find = (doppelganger_set_find_fn)0x0042B588;
         fn_ambient_add = (ambient_add_fn)0x00524D63;
         fn_ambient_add_object = (ambient_add_object_fn)0x00524E80;
@@ -1502,6 +1508,7 @@ internal int spec_engine_display_check(void) {
     bad += spec_data(data_engine_display_tree_scale_step, "engine_display.tree_scale_step");
     bad += spec_data(data_engine_display_sway_step, "engine_display.sway_step");
     bad += spec_data(data_engine_display_iat_set_position, "engine_display.iat_set_position");
+    bad += spec_data(data_engine_display_iat_make_identity, "engine_display.iat_make_identity");
     bad += spec_code((uintptr_t)fn_doppelganger_set_find, "engine_display_functions.doppelganger_set_find");
     bad += spec_code((uintptr_t)fn_ambient_add, "engine_display_functions.ambient_add");
     bad += spec_code((uintptr_t)fn_ambient_add_object, "engine_display_functions.ambient_add_object");

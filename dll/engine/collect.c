@@ -512,6 +512,207 @@ internal void uc_fill_tree_of(ee_ro_units *ro, ee_unit *o, uint8_t *rec, void *m
     }
 }
 
+// THE DOPPELGANGERS' FILLS (EEROUnits' FillDoppelgangerUnit: EE 0x5035AD, AoC 0x50E3C8; FillDoppelgangerObject: EE
+// 0x502224, AoC 0x50CFBC - the same code but for addresses and offsets, AoC's graphics acquired through their vtable,
+// its tile's light byte by 7 bits, every remembered tree handed to the ambient sounds). A building or tree as the player
+// remembers it on a tile out of sight, from what the doppelganger answers (its virtual functions: a plain one from the
+// object's type and owner, a complex one what it was when last seen), its record at *count when it is in the view
+// and room is left (counted then): a building at its own pose or its tile's middle (turned to the camera's yaw by a
+// type that faces it), see-through never, fogged; a building site scaled up by its hit points with its finished
+// building's graphics from the record's player as it was (the fill doesn't set it: the last record there's); the
+// ground's height under it (0 on a lit tile at or above it); then the picker, the
+// sort map by its graphics' first key (not its animation's) and the third map. A tree as FillObject makes it, but at
+// the walk's tile x, y and by the type's unknown_42c for its scale, its hit points the doppelganger's; the remembered
+// tree's own transformation (the picker's) never its record's. dry: only the record (the check), no game call that
+// changes the game's lists.
+internal int uc_dopp_view(ee_doppelganger *d, void *pm, void *t, float scale, int call) {
+    physical_model_set_model(pm, ((void **)dmg_model_anim_model_at(doppelganger_graphics(d)))[doppelganger_anim(d)]);
+    physical_model_set_frame(pm, 0);
+    transform_assign(pm, t);
+    physical_model_set_scale(pm, scale);
+    return units_view_call(call)(pm, opacity_viewport(), *game_camera_fixed_at()) != 0;
+}
+internal int uc_fill_dopp(ee_doppelganger *d, uint8_t *rec, uint32_t *count, void *sort_map, uint32_t room, int x, int y,
+                           uc_info *info, int dry) {
+    opacity_consts oc = opacity_consts_now();
+    ee_map *map = game_map();
+    ee_unit *u = doppelganger_get_unit(d);
+    __attribute__((aligned(8))) uint8_t pm[0x60];
+    __attribute__((aligned(8))) float t[16];
+    float pos[3] = { 0, 0, 0 }, ground[3] = { 0, 0, 0 };
+    physical_model_new(pm);
+    float scale = doppelganger_scale(d);
+    if (doppelganger_has_transform(d) == 1) doppelganger_transform(d, t);
+    else {
+        transform_identity(t);
+        ee_unit_type *ty = unit_get_type_data(u);
+        pos[0] = (float)((long double)unit_type_get_size(ty) * oc.half + x);
+        pos[1] = (float)((long double)unit_type_get_size(ty) * oc.half + y);
+        pos[2] = mesh_z(map_mesh_at(map), pos[0], pos[1]);
+        transform_set_position(t, pos[0], pos[1], pos[2]);
+    }
+    // (the game turns it twice)
+    if (unit_type_get_faces_camera(unit_get_type_data(u)) == 1) transform_orient(t, info->yaw, 0.0f, 0.0f);
+    if (unit_type_get_faces_camera(unit_get_type_data(u)) == 1) transform_orient(t, info->yaw, 0.0f, 0.0f);
+    int drawn = *count < room && uc_dopp_view(d, pm, t, scale, 4);
+    if (drawn) {
+        ee_unit_type *ty = unit_get_type_data(u);
+        draw_record_set_type(rec, ty);
+        draw_record_set_class_id(rec, unit_type_get_class_id(ty));
+        draw_record_set_type_id(rec, unit_type_get_id(ty));
+        draw_record_set_family(rec, unit_type_get_family(ty));
+        draw_record_set_bar_x(rec, doppelganger_dead(d) ? 0.0f : unit_type_get_bar_x(ty));
+        draw_record_set_bar_y(rec, unit_type_get_bar_y(ty));
+        uint8_t *label = draw_record_label_at(rec);   // the string emptied: its first character, its length and room
+        **(uint8_t **)(label + 4) = 0;
+        *(uint32_t *)(label + 0xC) = 0;
+        *(uint32_t *)(label + 8) = 0;
+        draw_record_set_gfx_built(rec, NULL);
+        memcpy(draw_record_color_at(rec), player_color_at(unit_get_owner(u)), 12);
+        draw_record_set_goal_value(rec, 0);
+        draw_record_set_scale(rec, scale);
+        draw_record_set_opacity(rec, 1.0f);
+        draw_record_set_size(rec, unit_type_get_size(ty));
+        draw_record_set_fogged(rec, 1);
+        draw_record_set_tinted(rec, 0);
+        draw_record_set_gated(rec, 0);
+        draw_record_set_gfx(rec, doppelganger_graphics(d));
+        if (!doppelganger_finished(d) && doppelganger_hp(d) > 1) {
+            ee_unit_type *bt = unit_type_get_built_type(draw_record_get_type(rec));
+            if (bt) draw_record_set_gfx_built(rec, unit_stats_get_gfx(player_stats_of(game_players()[draw_record_get_player(rec)], unit_type_get_id(bt))));
+            if (draw_record_get_gfx_built(rec) && !dry) graphics_acquire(draw_record_get_gfx_built(rec));
+        }
+        if (!dry) graphics_acquire(draw_record_get_gfx(rec));
+        transform_assign(rec, t);
+        float *rt = draw_record_transform_at(rec);
+        if (map_tile_lit(map, (int)floorf(t[3]), (int)floorf(t[7])) && rt[11] >= oc.zero) draw_record_set_ground_z(rec, 0.0f);
+        else {
+            pos[0] = rt[3], pos[1] = rt[7], pos[2] = rt[11];
+            ground_point(map, pos, ground);
+            draw_record_set_ground_z(rec, ground[2]);
+        }
+        if (!doppelganger_finished(d) && doppelganger_hp(d) != 1) {   // a building site: scaled up by its hit points
+            int full = unit_stats_get_hp(player_stats_of(unit_get_owner(u), unit_type_get_id(unit_get_type_data(u))));
+            transform_scale(rec, 1.0f, 1.0f, (float)((long double)doppelganger_hp(d) / full));
+        }
+        draw_record_set_frame(rec, doppelganger_frame(d));
+        draw_record_set_next_frame(rec, doppelganger_frame(d));
+        draw_record_set_fraction(rec, 0.0f);
+        draw_record_set_anim(rec, doppelganger_anim(d));
+        draw_record_set_state(rec, 0);
+        if (!dry) {
+            pick_list_add(engine_display_pick_list_at(), u, rec, draw_record_get_opacity(rec));
+            void *found[2], *pair[2] = { (void *)(uintptr_t)graphics_anim_key(draw_record_get_gfx(rec), 0), rec };
+            sort_map_insert(sort_map, found, pair);
+            pair[0] = (void *)(uintptr_t)dmg_model_get_shadow_key(draw_record_get_gfx(rec));
+            pair[1] = rec;
+            sort_map_insert(engine_display_sort_maps_at() + 0x18, found, pair);
+            ++*count;
+        }
+    }
+    physical_model_free(pm);
+    return drawn;
+}
+internal int uc_fill_dopp_tree(ee_doppelganger *d, uint8_t *rec, uint32_t *count, void *sort_map, uint32_t room, int x,
+                                int y, uc_info *info, int dry) {
+    opacity_consts oc = opacity_consts_now();
+    tree_consts tc = tree_consts_now();
+    fill_consts fc = fill_consts_now();
+    ee_map *map = game_map();
+    ee_unit *u = doppelganger_get_unit(d);
+    ee_unit_type *ty = unit_get_type_data(u);
+    __attribute__((aligned(8))) uint8_t pm[0x60];
+    __attribute__((aligned(8))) float t[16];
+    physical_model_new(pm);
+    float h = unit_type_get_unknown_42c(ty);
+    int id = unit_get_serial(u), size = unit_type_get_size(ty);
+    float *pos = (float *)draw_small_record_pos_at(rec);
+    pos[0] = (float)((long double)((id % 3 - 1) * size) * tree_shift() + (long double)size * oc.half + x);
+    pos[1] = (float)((long double)((id / 3 % 3 - 1) * size) * tree_shift() + (long double)unit_type_get_size(ty) * oc.half + y);
+    pos[2] = mesh_z(map_mesh_at(map), pos[0], pos[1]);
+    transform_orient(t, info->yaw, 0.0f, 0.0f);
+    t[3] = pos[0], t[7] = pos[1], t[11] = pos[2];
+    t[12] = t[13] = t[14] = 0.0f, t[15] = 1.0f;
+    int drawn = *count < room && uc_dopp_view(d, pm, t, h, 3);
+    if (drawn) {
+        int full = unit_stats_get_hp(player_stats_of(unit_get_owner(u), unit_type_get_id(ty)));
+        int hp = doppelganger_hp(d);
+        draw_small_record_set_scale(rec, h);
+        draw_small_record_set_flag(rec, 1);
+        draw_small_record_set_hp(rec, (float)((long double)hp / full));
+        draw_small_record_set_opacity(rec, 1.0f);
+        draw_small_record_set_scale(rec, (float)(((long double)((uint32_t)unit_get_serial(u) % 11) * tc.scale_step + oc.one) * h));
+        draw_small_record_set_gfx(rec, doppelganger_graphics(d));
+        if (!dry) graphics_acquire(draw_small_record_get_gfx(rec));
+        int open = !tile_has_tree(uc_tile(map, x - 1, y - 1)) || !tile_has_tree(uc_tile(map, x + 1, y + 1));
+        draw_small_record_set_bar_x(rec, open ? unit_type_get_bar_x(ty) : 0.0f);
+        draw_small_record_set_bar_y(rec, open ? unit_type_get_bar_y(ty) : 0.0f);
+        draw_small_record_set_anim(rec, doppelganger_anim(d));
+        int f = doppelganger_frame(d);
+        draw_small_record_set_frame(rec, f);
+        draw_small_record_set_next_frame(rec, f);
+        ee_model *m = ((ee_model **)dmg_model_anim_model_at(draw_small_record_get_gfx(rec)))[draw_small_record_get_anim(rec)];
+        if ((uint32_t)(f + 1) < (uint32_t)model_get_frames(m)) {
+            draw_small_record_set_frame(rec, f + 1);
+            int a = (int)((tc.clock + (uint32_t)unit_get_serial(u) * 8) % 360) - 180;
+            float arg = (float)((long double)fc.tilt_offset - (long double)a * tc.sway_step);
+            long double s = (game_cos_fpu(arg) + oc.one) * oc.half;
+            if (!(s >= oc.zero)) s = 0;
+            else if (s > oc.one) s = 1;
+            draw_small_record_set_sway(rec, (float)s);
+        } else draw_small_record_set_sway(rec, 0.0f);
+        if (!dry) {
+            if (info->ambient && tree_has_ambient(ty)) ambient_add_tree(engine_display_ambient_sounds_at(), u);
+            void *found[2], *pair[2] = { (void *)(uintptr_t)graphics_anim_key(draw_small_record_get_gfx(rec), 0), rec };
+            sort_map_insert(sort_map, found, pair);
+            pick_list_add(engine_display_pick_list_at(), u, t, draw_small_record_get_opacity(rec));
+            pair[0] = (void *)(uintptr_t)dmg_model_get_shadow_key(draw_small_record_get_gfx(rec));
+            pair[1] = rec;
+            sort_map_insert(engine_display_sort_maps_at() + 0x3C, found, pair);
+            ++*count;
+        }
+    }
+    physical_model_free(pm);
+    return drawn;
+}
+
+// the walk's doppelgangers' fills: the game's, or the game's held against ours (fill check: the record as it was before
+// the game's fill, then ours dry into that copy - every byte compared, and whether both counted it) or ours
+internal uint32_t g_uc_dp_n, g_uc_dp_diff, g_uc_dp_yes;
+internal void uc_fill_dopp_of(ee_ro_units *ro, ee_doppelganger *d, uint8_t *rec, uint32_t *count, void *map, uint32_t room,
+                              int x, int y, void *info, int tree) {
+    if (g_uc_fill == 2) {
+        if (tree) uc_fill_dopp_tree(d, rec, count, map, room, x, y, (uc_info *)info, 0);
+        else uc_fill_dopp(d, rec, count, map, room, x, y, (uc_info *)info, 0);
+        return;
+    }
+    uint8_t was[DRAW_REC];
+    size_t sz = tree ? DRAW_SMALL_REC : DRAW_REC;
+    uint32_t n0 = *count;
+    if (g_uc_fill == 1) memcpy(was, rec, sz);
+    if (tree) ro_units_fill_doppelganger_object(ro, d, rec, count, map, room, x, y, info);
+    else ro_units_fill_doppelganger(ro, d, rec, count, map, room, x, y, info);
+    if (g_uc_fill != 1) return;
+    // ours as the game's saw it: the count before, its record's room the copy
+    uint32_t n1 = n0;
+    int ours = tree ? uc_fill_dopp_tree(d, was, &n1, map, room, x, y, (uc_info *)info, 1)
+                    : uc_fill_dopp(d, was, &n1, map, room, x, y, (uc_info *)info, 1);
+    g_uc_dp_n++;
+    int game_drew = *count != n0;
+    g_uc_dp_yes += (uint32_t)game_drew;
+    // (a record left as it was can match by chance - the same doppelganger in the same place the frame before -, so
+    // whether each drew it is compared too)
+    if (ours != game_drew || memcmp(was, rec, sz)) {
+        int k = 0;
+        while (k < (int)sz / 4 && !memcmp(was + k * 4, rec + k * 4, 4)) k++;
+        if (k == (int)sz / 4) k = 0;
+        if (g_uc_dp_diff++ < 8)
+            log_locked("# collect: doppelganger's record differs: %s type %d at %d,%d (drawn: the game's %d, ours %d): from +0x%X, the game's %08x, ours %08x\n",
+                       tree ? "tree" : "building", unit_type_get_id(unit_get_type_data(doppelganger_get_unit(d))), x, y,
+                       game_drew, ours, k * 4, *(uint32_t *)(rec + k * 4), *(uint32_t *)(was + k * 4));
+    }
+}
+
 // the walk's fill: the game's or ours (the pipe: picture collect fill game | own) - also for walls.c's hook of its site,
 // which calls collect_fill for the fill and then shears its farms
 internal void __thiscall collect_fill(void *c, ee_unit *u, float *rec, void *p3, void *p4) {
@@ -608,11 +809,10 @@ __attribute__((used)) void __cdecl collect_walk(uint8_t *f) {
                 }
                 dopp++;
                 if (!unit_type_get_is_tree(ty))
-                    ro_units_fill_doppelganger(ro, d, recs + (size_t)*n * DRAW_REC, n,
-                                               maps + (unit_type_get_is_obstacle(ty) ? 0xC : 0), room, (int)x, (int)y, info);
+                    uc_fill_dopp_of(ro, d, recs + (size_t)*n * DRAW_REC, n, maps + (unit_type_get_is_obstacle(ty) ? 0xC : 0), room,
+                                    (int)x, (int)y, info, 0);
                 else
-                    ro_units_fill_doppelganger_object(ro, d, small + (size_t)*sn * DRAW_SMALL_REC, sn, maps + 0x24, small_room,
-                                                      (int)x, (int)y, info);
+                    uc_fill_dopp_of(ro, d, small + (size_t)*sn * DRAW_SMALL_REC, sn, maps + 0x24, small_room, (int)x, (int)y, info, 1);
             }
         }
     }
@@ -700,11 +900,12 @@ internal int collect_drawn(int how) {
     g_uc_drawn = how;
     return 0;
 }
-// picture collect fill game | own (0, 2): the fill the walk calls (no check: the fill changes the game's lists - the
-// lists' print in a paused game holds the two against each other)
+// picture collect fill game | check | own (0, 1, 2): the fills the walk calls - check holds the trees' and the
+// doppelgangers' against the game's as they are filled; the objects' fill has none (it changes the game's lists before
+// its record is done: the lists' print in a paused game holds the two against each other)
 internal int collect_fill_mode(int how) {
     if (!g_uc_installed) return -1;
-    g_uc_tr_n = g_uc_tr_diff = 0;
+    g_uc_tr_n = g_uc_tr_diff = g_uc_dp_n = g_uc_dp_diff = g_uc_dp_yes = 0;
     g_uc_fill = how;
     return 0;
 }
@@ -760,7 +961,8 @@ internal void collect_print(void) {
         log_locked("# collect: opacity held against the game's: %u objects, %u differ (land buildings tested by the camera's front plane %u, faded %u)\n",
                    g_uc_op_n, g_uc_op_diff, g_uc_op_land, g_uc_op_near);
     if (g_uc_fill == 1)
-        log_locked("# collect: trees' fill held against the game's: %u trees, %u differ\n", g_uc_tr_n, g_uc_tr_diff);
+        log_locked("# collect: trees' fill held against the game's: %u trees, %u differ; doppelgangers' %u (%u drawn), %u differ\n", g_uc_tr_n, g_uc_tr_diff,
+                   g_uc_dp_n, g_uc_dp_yes, g_uc_dp_diff);
     if (g_uc_drawn == 1)
         log_locked("# collect: view test held against the game's: %u objects (%u drawn), %u differ\n", g_uc_dr_n, g_uc_dr_yes, g_uc_dr_diff);
 }

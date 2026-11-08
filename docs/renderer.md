@@ -492,6 +492,26 @@ they are filled - the record as it was, the game's fill, ours into a copy withou
 lists, every byte compared: 0 differ of 88 683 trees in the 8000 save, 132 736 on an EE Continental map, 51 832 in AoC;
 the paused prints alike in every other dword, the objects' as before.
 
+The doppelgangers' fills ported (collect.c uc_fill_dopp, uc_fill_dopp_tree, 2026-11-08; the same switch). A building or
+tree the player remembers on a tile out of sight is a doppelganger (spec EEDoppelganger: one of an object without a
+complex unit, EEComplexDoppelganger one with - what it was when last seen); the fills ask it only its virtual
+functions (anim, finished, frame, graphics, dead, has_transform, transform, scale, hp: vf6, 8-15). FillDoppelgangerUnit
+(EE 0x5035AD, AoC 0x50E3C8) puts a building at its own pose or its tile's middle (turned to the camera's yaw - twice -
+by a type that faces it), tests it against the view (calls_units_view's fifth site) and with room left makes its
+record: its type's values, opaque, fogged, a building site with its finished building's graphics and its height scaled
+by its hit points, the ground's height under it; then the picker and the sort maps by its graphics' first key (not its
+animation's). A quirk kept: the finished building's graphics come from the record's player as the record had it
+(the fill never sets it - the last record in that place). FillDoppelgangerObject (EE 0x502224, AoC 0x50CFBC) is FillObject for a remembered tree, at
+the walk's tile and the type's unknown_42c for its scale, its hit points the doppelganger's; the next frame for its sway
+when its model has one more. Both builds the same code but for addresses and offsets and the three differences the
+other fills have (the graphics acquired through their vtable, the light byte's 7 bits, every tree to the ambient
+sounds). fill check holds them against the game's: the record as it was, the game's fill, ours dry into the copy,
+every byte and whether each drew it compared (a record left as it was could match by chance): the 8000 save as its
+player 2 (all its 1237 remembered in the fog) 1 081 608 at seven places, an EE Continental game as its player 2
+after 5 minutes 2 589 482 (1 439 430 drawn), AoC's 3 025 463 (1 559 686 drawn): 0 differ; the paused prints alike
+with the game's fills and ours (a first run as player 2 found the ground's height on a lit tile wrong: the light's
+tile had been read with x and y swapped - ours, not the game's).
+
 `[display] gpu_animation` (default on; the pipe: `picture morph on | off`; render_morph.c), 2026-11-06. EE animates a
 model by morphing: every frame of its animation is a whole vertex array (spec GEModel.vertices, frames alike share
 one), and the T&L DLL's DrawModelHierarchy draws each material by copying its run of the frame into the vertex buffer
