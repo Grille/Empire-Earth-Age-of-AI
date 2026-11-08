@@ -37,7 +37,7 @@
 #define TD_B_LABEL 123
 #define TD_HEX_LABEL 124
 #define TD_RECENTS 16
-#define TD_BAD_TEXT RGB(130, 0, 0)   // a dark red: a bright one has the brightness of the field's brown and can't be read on it
+#define TD_BAD_TEXT RGB(255, 0, 0)
 #define TD_POINTS 9       // its font's size at the game's picture 1:1 (the dialog's parts follow the font) ...
 #define TD_PIXELS 500     // ... and about its height then, with the title bar
 internal struct {
