@@ -1416,6 +1416,7 @@ internal void ar_adopt(ee_player *pl, unsigned idx, struct armies_st *a, uint32_
 #define AR_DET_TARGETS 32
 #define AR_HIT_SIZE 12
 #define AR_HIT_MIN 10
+#define AR_HIT_ECON 50             // HIT AND RUN: the share of the citizens planned (%) before the first horse, unless the AI is outmatched
 #define AR_HIT_PAUSE 90000
 #define AR_HIT_TIME 90000
 #define AR_HIT_LOSS 40
@@ -1562,14 +1563,26 @@ internal int ar_fast(ee_unit_type *td) {
     int f = td ? unit_type_get_family(td) : 0;
     return f == KIND_CAVALRY_ARCHER || f == KIND_MOUNTED_ARCHER ? 3 : f == KIND_CURIASSIER ? 2 : f == KIND_LANCER || f == KIND_MOUNTED_SPEAR ? 1 : 0;
 }
-// HIT AND RUN: cavalry at home kept up: the best kind it can train, two every 30 s; nothing trains: a Stable queued (5 minutes apart)
+// HIT AND RUN: the economy first (the player 2026-11-08: "like always, the ai getting its economy on track is most important, until i have atleast 2 farms i dont
+// build more than one of the prodcution building"). As a priority order from minute 3 the horses took a quarter of the income to minute 20 and all of its gold, 10 of them
+// standing at home until the first raid at minute 22, and the fields and with them the citizens fell behind (46.9 -> 43.5 at minute 20, 103.7 -> 90.8 at 40).
+// Two farms, none of it while the economy recovers; then the citizens on track, or the AI outmatched, when raids matter most (the player: "espacialy when behind").
+internal int ar_det_econ(ee_player *pl, unsigned idx, ee_unit_mgr *um) {
+    void *fq = type_list(um, UT(B_FARM));
+    if ((fq ? deque_count(fq) : 0) < 2 || recovering(pl)) return 0;
+    int goal = g_czp[idx].goal ? g_czp[idx].goal : unit_mgr_citizens_wanted(um);
+    if (unit_mgr_citizens(um) * 100 >= goal * AR_HIT_ECON) return 1;
+    float mine = 0.0f, theirs = 0.0f;
+    return ex_outmatched(pl, &mine, &theirs);
+}
+// HIT AND RUN: cavalry at home kept up, once the economy allows it: the best kind it can train, two every 30 s, out of the army's account like any soldier; nothing trains: a Stable queued (5 minutes apart)
 internal void ar_det_train(ee_player *pl, unsigned idx, struct ar_det *d, int have, uint32_t now) {
     if (have >= AR_HIT_SIZE || (d->train_t && now - d->train_t < 30000)) return;
     d->train_t = now ? now : 1;
     ee_civ_mgr *cm = player_get_civ_mgr(pl);
     ee_unit_mgr *um = cm ? civ_mgr_get_unit_mgr(cm) : NULL;
     ee_build_mgr *bm = cm ? civ_mgr_get_build_mgr(cm) : NULL;
-    if (!um) return;
+    if (!um || !ar_det_econ(pl, idx, um)) return;
     int n = AR_HIT_SIZE - have > 2 ? 2 : AR_HIT_SIZE - have;
     for (int rank = 3; rank >= 1; rank--) {
         int best = 0, bt = 0;
@@ -1579,6 +1592,8 @@ internal void ar_det_train(ee_player *pl, unsigned idx, struct ar_det *d, int ha
             if (unit_type_get_tech(td) > bt) { bt = unit_type_get_tech(td); best = t; }
         }
         if (!best) continue;
+        for (int r = 2; r < 7; r++) { int c = unit_cost(pl, best, r); if (c > 0 && (int)g_bud[idx].mil[r] / c < n) n = (int)g_bud[idx].mil[r] / c; }
+        if (n <= 0) return;   // the account can't pay: it waits, not a worse kind
         int req[4] = { best, n, 0, 0 };
         unsigned got = 0;
         g_priority_mil = 1;
@@ -1597,8 +1612,7 @@ internal void ar_det_start(ee_player *pl, unsigned idx, struct armies_st *a, str
     static ee_unit *home[AR_HELD];
     int nh = 0, ncav = 0;
     for (int k = 0; k < a->n; k++) if (!a->held[k].out && !a->held[k].back && cv_alive(a->held[k].u)) { home[nh++] = a->held[k].u; ncav += ar_fast(unit_get_type_data(a->held[k].u)) > 0; }
-    ar_det_train(pl, idx, d, ncav, now);
-    if (nh < AR_HIT_MIN || base_threatened(idx)) return;
+    if (base_threatened(idx)) return;
     int size = nh / 2 < AR_DET_SIZE ? nh / 2 : AR_DET_SIZE;
     float mine = 0.0f, theirs = 0.0f;
     int behind = ex_outmatched(pl, &mine, &theirs) || nh < AR_DET_MIN;
@@ -1615,6 +1629,8 @@ internal void ar_det_start(ee_player *pl, unsigned idx, struct armies_st *a, str
         while (k > 0 && cd[k - 1] > dist) { cand[k] = cand[k - 1]; cd[k] = cd[k - 1]; k--; }
         cand[k] = u; cd[k] = dist;
     }
+    if (nc) ar_det_train(pl, idx, d, ncav, now);   // only with a mine to raid: horses standing at home earn nothing
+    if (nh < AR_HIT_MIN) return;
     st_side_clear(&g_ar_own);
     for (int k = 0; k < size; k++) st_side_add(&g_ar_own, home[k]);
     ee_unit *t = NULL;
