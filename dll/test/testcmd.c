@@ -554,15 +554,16 @@ internal void cmd_wallghost(char *out, const char *args) {
     }
 }
 
-// wallplace P T x0 y0 x1 y1: player P's wall of type T laid from x0, y0 to x1, y1 by the game's own placing, finished and
-// free (the tiles the player's wall takes: tests hold the preview against them)
+// wallplace P T x0 y0 x1 y1 [editor]: player P's wall of type T laid from x0, y0 to x1, y1 by the game's own placing,
+// finished and free (the tiles the player's wall takes: tests hold the preview against them); editor 1: with the
+// placement test's flag the scenario editor's EESEAPlaceWall gives it
 internal void cmd_wallplace(char *out, const char *args) {
-    int p, t, x0, y0, x1, y1;
-    if (sscanf(args, "%d %d %d %d %d %d", &p, &t, &x0, &y0, &x1, &y1) < 6) { REPLY("error: usage: wallplace P T x0 y0 x1 y1\n"); return; }
+    int p, t, x0, y0, x1, y1, editor = 0;
+    if (sscanf(args, "%d %d %d %d %d %d %d", &p, &t, &x0, &y0, &x1, &y1, &editor) < 6) { REPLY("error: usage: wallplace P T x0 y0 x1 y1 [editor]\n"); return; }
     ee_player *pl = player_at(p);
     if (!pl || t < 0 || t >= 724 || !type_data(t) || !game_map()) { REPLY("error: no player %d, type %d or map\n", p, t); return; }
     void *unused[4] = { NULL };
-    wall_place((float)x0 + 0.5f, (float)y0 + 0.5f, (float)x1 + 0.5f, (float)y1 + 0.5f, type_data(t), pl, 0, 0, (ee_tile_vec *)unused);
+    wall_place((float)x0 + 0.5f, (float)y0 + 0.5f, (float)x1 + 0.5f, (float)y1 + 0.5f, type_data(t), pl, 0, editor, (ee_tile_vec *)unused);
     REPLY("ok: P%d wall %d laid from %d,%d to %d,%d\n", p, t, x0, y0, x1, y1);
 }
 
