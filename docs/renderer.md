@@ -582,10 +582,31 @@ copy's. Animation frames stay the step's. probe keeps the poses and counts the s
 object, nothing moved: the frames where it didn't move and how even its steps are (rms over mean, 1 is even). A moving
 unit's step per frame on Continental at speed 1 (about 8 frames a step), probe -> on: EE 88-93% of the frames without
 a move -> under 1%, unevenness 3.1-4.1 -> 1.3-1.7; AoC 87-90% -> 0, 3.1-3.6 -> 1.6-1.9. Paused (time up), the game's
-walk and the mod's alike in the objects' records with it off, probed and on. Not yet: a frame during a step still
-skips the units' update. It can't simply run: the update's setup asks the picker for the unit under the mouse and
-takes a reference on it, and the walk adds pointers to the picker, while a running step may free an object of the last
-copy - such a walk has to leave the picker alone, and the selection's group must come from the copy.
+walk and the mod's alike in the objects' records with it off, probed and on.
+
+Step 4, the units' update during a step (collect.c collect_during_begin, render_3d.c rd_hook_ro_units_update,
+2026-11-08; the pipe: `picture collect during off | on [hand-off ms]`; `[display] units_smooth` turns it on, hand-off
+250). A frame during a step ran no units' update: the units stood till the step's end. It now runs from the steps'
+newest copy, which needs nothing of the world - the game's update with what would read the live world left out: the
+ground's pass (the region stays the last one's: the ground isn't updated either), the two picks (they read through the
+picker's objects, and the mouse's takes a reference on one; spec: units_ground_pass, units_pick_rect, units_pick_mouse),
+the picker's reset and adds (a running step may free an object of the copy, and the add would reference it: the
+picker stays the last full update's, so a click picks from that), the ambient sounds; an object is drawn once by a
+stamp of the walk in the copy (the picker's `listed` no more), the unit under the mouse is the last full update's
+(only compared), the selection's group the copy's (uc_obj.in_group, asked for the player's own units when the copy is
+made). All the fills must be ours (the game's read the world); not with the free camera. Only beside the simulation's
+own step: every other writer (the interface's, a load, which may free the map) counts itself before it takes the lock
+and waits for such an update to end, and the update doesn't begin while one is counted (g_rwl_nonstep, g_uc_in_during:
+one of the two sees the other). The ground, the shadows' update and the effects still wait for a full update, so the
+hand-off stays, only later: the picture goes 250 ms (the pipe's ms) without a full update first, not while the camera
+moves (the ground must follow it). Checked: with the steps held 150 ms (stepload), speed 1, AoC Continental, a moving
+unit in 25 s moved in 89 and 93 frames without it, in 16 164 and 18 955 with it; 41 551 such updates in AoC and 8435 in
+the 8000 save at stepload 200 under selection boxes, clicks, orders and the mouse over units without a fault; the
+picture of such a frame (11 000 units; a selection's bars and panel) as the game's own when paused beside it. What it
+does not buy: speed. The 8000 save at speed 4 alternating a minute each, the game's walk against this: 79.2 / 60.0 /
+58.6 game seconds against 76.2 / 56.0 / 62.1 - the hand-offs' wait falls from 6-8 s a minute to 3.5-5 s, and the
+copy (4.3 ms a step of 11 000 objects there) costs what that saves. Its gain is the picture: units that keep moving
+through long steps.
 
 `[display] gpu_animation` (default on; the pipe: `picture morph on | off`; render_morph.c), 2026-11-06. EE animates a
 model by morphing: every frame of its animation is a whole vertex array (spec GEModel.vertices, frames alike share

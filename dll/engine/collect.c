@@ -34,6 +34,37 @@ internal float g_cs_x, g_cs_y, g_cs_now_x, g_cs_now_y;
 internal int g_cs_have, g_cs_seen, g_cs_moving, g_cs_still;
 internal uint32_t g_cs_n, g_cs_zero;
 internal double g_cs_sum, g_cs_sq;
+// STEP 4: THE UNITS' UPDATE DURING A STEP (the pipe: picture collect during on | off). A frame that comes while the
+// simulation runs a step ran no units' update (render_3d.c rd_hook_ro_units_update, g_rwl_pass): the units stood. With
+// this on it runs from the steps' newest copy: the game's update with what reads the live world left out - the
+// ground's pass (the region is the last one's, the ground isn't updated either) and the two picks (uc_hook_pick_*: they read
+// through the picker's objects and the mouse's takes a reference), the walk without the picker (a running step may free an object of
+// the copy, whose pointer the picker's add would reference: the picker stays the last full update's, what a click picks
+// from), an object drawn once by its own stamp in the copy, no ambient sounds, the unit under the mouse the last full
+// update's (only compared), the selection's group the copy's. It needs all the fills ours (the game's read the world).
+// Only beside the simulation's own step: any other writer (the interface's, a load, which may free the map) counts
+// itself before it takes the lock and waits for such an update to end, and the update doesn't start while one is
+// counted (g_rwl_nonstep, g_uc_in_during: one of the two sees the other).
+internal int g_uc_during;                  // this update is one
+internal uc_copy *g_uc_during_c;           // ... of this copy
+internal LONGLONG g_uc_walked_at;          // the copy of the last walk, its alpha: nothing to do if the same and at rest
+internal float g_uc_walked_alpha = 1.0f;
+internal ee_unit *g_uc_last_picked;        // the unit under the mouse of the last full update (only compared)
+internal uint32_t g_uc_walk_gen;
+internal LONG g_uc_during_walks;
+internal inline int uc_in_group(const uc_obj *o, ee_player *me, ee_unit *cu) {
+    return g_uc_during ? o->in_group : group_contains(player_get_ui_group(me), cu);
+}
+internal inline void uc_pick_add(ee_unit *u, void *t, float opacity) {
+    if (!g_uc_during) pick_list_add(engine_display_pick_list_at(), u, t, opacity);
+}
+internal void __thiscall uc_hook_ground_pass(ee_ro_units *ro) { if (!g_uc_during) ro_units_ground_pass(ro); }
+internal void __thiscall uc_hook_pick_rect(ee_pick_list *l, void *rect, ee_player *pl, int32_t type, void *into) {
+    if (!g_uc_during) pick_list_pick_units(l, rect, pl, type, into);
+}
+internal ee_unit *__thiscall uc_hook_pick_mouse(ee_pick_list *l, void *point, int32_t prefer) {
+    return g_uc_during ? NULL : pick_list_pick_unit(l, point, prefer);
+}
 internal void uc_smooth(ee_unit *u, float *t, const uc_obj *o) {
     int on = o->has_was && g_uc_alpha < 1.0f && g_cp_smooth == 1;
     float dx = t[3] - o->was[3], dy = t[7] - o->was[7], dz = t[11] - o->was[11];
@@ -291,7 +322,7 @@ internal void uc_fill(ee_ro_units *ro, const uc_copy *c, uc_obj *o, uint8_t *rec
         if (*engine_display_music_counts_at() && o->cu_hp && (o->goal_state == 2 || o->goal_state == 3 || o->goal_state == 0xB))
             info->fighting = (float)((long double)info->fighting + oc.one);
         if (build_is("aoc") && unit_type_get_id(cty) == 0x2F0 && o->finished &&
-            group_contains(player_get_ui_group(me), cu))   // AoC's: its ground circle at its range
+            uc_in_group(o, me, cu))   // AoC's: its ground circle at its range
             ground_circle(ro, (float *)o->pm, o->range, 2);
         if (!o->foundation) {
             uint32_t n = o->n_parts;
@@ -315,7 +346,7 @@ internal void uc_fill(ee_ro_units *ro, const uc_copy *c, uc_obj *o, uint8_t *rec
                 ((uint32_t *)vector_first(draw_record_list_b_4_at(rec)))[i] = c->pool[o->b_at + 2 * i + 1];
             }
         }
-        int bars = !free_cam ? group_contains(player_get_ui_group(me), cu) || player_get_ui_unit(me) == u : o->selected;
+        int bars = !free_cam ? uc_in_group(o, me, cu) || player_get_ui_unit(me) == u : o->selected;
         if (!bars) bars = uc_in_bar_ids(o->serial);
         if (bars) {
             if (!unit_type_is_land_building(ty) || o->hp) {
@@ -422,7 +453,7 @@ internal void uc_fill(ee_ro_units *ro, const uc_copy *c, uc_obj *o, uint8_t *rec
         ground_point(map, p, ground);
         draw_record_set_ground_z(rec, ground[2]);
     }
-    pick_list_add(engine_display_pick_list_at(), u, rec, draw_record_get_opacity(rec));
+    uc_pick_add(u, rec, draw_record_get_opacity(rec));
     void *found[2], *pair[2] = { (void *)(uintptr_t)graphics_anim_key(draw_record_get_gfx(rec), draw_record_get_anim(rec)), rec };
     sort_map_insert(sort_map, found, pair);
     if (second && !second_foundation) {
@@ -485,7 +516,7 @@ internal void uc_fill_tree(uc_obj *o, uint8_t *rec, void *sort_map, uc_info *inf
     if (dry) return;
     void *found[2], *pair[2] = { (void *)(uintptr_t)graphics_anim_key(draw_small_record_get_gfx(rec), draw_small_record_get_anim(rec)), rec };
     sort_map_insert(sort_map, found, pair);
-    pick_list_add(engine_display_pick_list_at(), o->u, t, draw_small_record_get_opacity(rec));
+    uc_pick_add(o->u, t, draw_small_record_get_opacity(rec));
     pair[0] = (void *)(uintptr_t)dmg_model_get_shadow_key(draw_small_record_get_gfx(rec));
     pair[1] = rec;
     sort_map_insert(engine_display_sort_maps_at() + 0x3C, found, pair);
@@ -596,7 +627,7 @@ internal int uc_fill_dopp(const uc_dopp *p, uint8_t *rec, uint32_t *count, void 
         draw_record_set_anim(rec, p->anim);
         draw_record_set_state(rec, 0);
         if (!dry) {
-            pick_list_add(engine_display_pick_list_at(), p->u, rec, draw_record_get_opacity(rec));
+            uc_pick_add(p->u, rec, draw_record_get_opacity(rec));
             void *found[2], *pair[2] = { (void *)(uintptr_t)graphics_anim_key(draw_record_get_gfx(rec), 0), rec };
             sort_map_insert(sort_map, found, pair);
             pair[0] = (void *)(uintptr_t)dmg_model_get_shadow_key(draw_record_get_gfx(rec));
@@ -656,7 +687,7 @@ internal int uc_fill_dopp_tree(const uc_dopp *p, uint8_t *rec, uint32_t *count, 
             if (info->ambient && tree_has_ambient(ty)) ambient_add_tree(engine_display_ambient_sounds_at(), p->u);
             void *found[2], *pair[2] = { (void *)(uintptr_t)graphics_anim_key(draw_small_record_get_gfx(rec), 0), rec };
             sort_map_insert(sort_map, found, pair);
-            pick_list_add(engine_display_pick_list_at(), p->u, t, draw_small_record_get_opacity(rec));
+            uc_pick_add(p->u, t, draw_small_record_get_opacity(rec));
             pair[0] = (void *)(uintptr_t)dmg_model_get_shadow_key(draw_small_record_get_gfx(rec));
             pair[1] = rec;
             sort_map_insert(engine_display_sort_maps_at() + 0x3C, found, pair);
@@ -852,10 +883,19 @@ __attribute__((used)) void __cdecl collect_walk(uint8_t *f) {
         if (x0 < bx0) bx0 = x0;
         if (x1 > bx1) bx1 = x1;
     }
-    g_uc_enter(lock);
-    pick_list_reset(picker);
+    int during = g_uc_during;
+    if (during) {
+        ((uc_info *)info)->ambient = 0;
+        ((uc_info *)info)->picked = g_uc_last_picked;
+        g_uc_walk_gen++;
+    } else {
+        g_uc_last_picked = ((uc_info *)info)->picked;
+        g_uc_enter(lock);
+        pick_list_reset(picker);
+    }
     uint32_t dopp = 0;
-    uc_copy *c = by0 <= by1 ? cp_take(map, pl, (int)bx0, (int)by0, (int)bx1, (int)by1) : NULL;
+    uc_copy *c = during ? (by0 <= by1 && cp_fits(g_uc_during_c, map, pl, (int)bx0, (int)by0, (int)bx1, (int)by1) ? g_uc_during_c : NULL)
+                        : by0 <= by1 ? cp_take(map, pl, (int)bx0, (int)by0, (int)bx1, (int)by1) : NULL;
     g_uc_alpha = 1.0f;
     if (c && g_cp_smooth == 1 && c->dt > 0) {
         double a = (double)(rd_qpc() - c->at) / (double)c->dt;
@@ -869,7 +909,8 @@ __attribute__((used)) void __cdecl collect_walk(uint8_t *f) {
             if (!ct->t || (!ct->explored && !free_cam)) continue;
             for (uint32_t k = 0; k < ct->n_obj; k++) {
                 uc_obj *o = &c->objs[c->seq[ct->obj_at + k]];
-                if (uc_drawn_of(ro, o, ct, w.met) && !w.listed(picker, o->u)) {
+                if (uc_drawn_of(ro, o, ct, w.met) && (during ? o->walked != g_uc_walk_gen : !w.listed(picker, o->u))) {
+                    o->walked = g_uc_walk_gen;
                     if (!o->tree) {
                         if (o->has_cu) *w.complex_n += 1.0f;
                         uint8_t *rec = recs + (size_t)*n * DRAW_REC;
@@ -907,11 +948,15 @@ __attribute__((used)) void __cdecl collect_walk(uint8_t *f) {
             }
         }
     }
-    if (c && g_cp_on == 2) cp_check(c);
+    if (c && g_cp_on == 2 && !during) cp_check(c);
     uc_smooth_probe();
+    g_uc_walked_at = c ? c->at : 0, g_uc_walked_alpha = g_uc_alpha;
     g_uc_alpha = 1.0f;
-    cp_release();
-    g_uc_leave(lock);
+    if (during) ((uc_info *)info)->picked = NULL;   // (the update's end would release the reference a pick took)
+    else {
+        cp_release();
+        g_uc_leave(lock);
+    }
     g_uc_dopp = dopp;
     g_uc_walks++;
 }
@@ -933,6 +978,33 @@ internal void picker_grow(void) {
     if (pick_list_grow(l, room, g_uc_transform_ctor)) g_uc_grown = 1;
     g_uc_leave(lock);
     log_locked("# collect: the picker's room %u -> %u%s\n", was, room, g_uc_grown > 0 ? "" : " FAILED (no memory)");
+}
+
+// a frame during a step (render_3d.c): 1 the units' update is to run, from the steps' newest copy (held till the end)
+internal int collect_during_begin(void) {
+    if (!g_uc_during_on || !g_uc_own || g_uc_fill != 2 || g_uc_drawn != 2 || g_uc_opacity != 2 || !g_cp_on || !g_cp_view[4] ||
+        *game_free_camera_at())
+        return 0;
+    InterlockedExchange(&g_uc_in_during, 1);
+    if (g_rwl_nonstep > 0) { g_uc_in_during = 0; return 0; }
+    ee_map *map = game_map();
+    ee_player *pl = map ? game_players()[local_player_index()] : NULL;
+    uc_copy *c = NULL;
+    EnterCriticalSection(&g_cp_cs);
+    if (map && g_cp_new >= 0 && cp_fits(&g_cp[g_cp_new], map, pl, g_cp_view[0], g_cp_view[1], g_cp_view[2], g_cp_view[3]) &&
+        (g_cp[g_cp_new].at != g_uc_walked_at || (g_cp_smooth == 1 && g_uc_walked_alpha < 1.0f)))
+        c = &g_cp[g_cp_read = g_cp_new];
+    LeaveCriticalSection(&g_cp_cs);
+    if (!c) { g_uc_in_during = 0; return 0; }
+    g_uc_during_c = c;
+    g_uc_during = 1;
+    return 1;
+}
+internal void collect_during_end(void) {
+    g_uc_during = 0;
+    cp_release();
+    g_uc_during_walks++;
+    g_uc_in_during = 0;
 }
 
 // the thunk's C, on the render thread at the walk's start: 1 the walk done (ours), 0 the game's to do
@@ -960,7 +1032,7 @@ __attribute__((naked, used)) void collect_thunk(void) {
             "jmp *_g_uc_end");
 }
 
-internal int g_uc_installed;
+internal int g_uc_installed, g_uc_during_ok;
 internal void collect_install(void) {
     HMODULE lle = GetModuleHandleA("Low-Level Engine.dll");
     g_uc_enter = lle ? (uc_lock_fn)(void *)GetProcAddress(lle, "?Enter@TSCriticalSection@@QAEXXZ") : NULL;
@@ -974,8 +1046,12 @@ internal void collect_install(void) {
     memcpy(want + 2, &g_uc_lock_at, 4);
     g_uc_installed = g_uc_enter && g_uc_leave && patch_insn6_call((uintptr_t)engine_display_units_walk_at(), want, collect_thunk);
     int ghosts = g_uc_installed && patch_fill_ghosts(uc_hook_fill_ghosts);
-    if (g_uc_installed && g_set.units_smooth)   // [display] units_smooth: the walk, its fills and the steps' copy the mod's, the moving on
+    g_uc_during_ok = g_uc_installed && patch_units_ground_pass(uc_hook_ground_pass) && patch_units_pick_rect(uc_hook_pick_rect) &&
+                     patch_units_pick_mouse(uc_hook_pick_mouse);
+    if (g_uc_installed && g_set.units_smooth) {   // [display] units_smooth: the walk, its fills and the steps' copy the mod's, the moving on, and during the steps
         g_uc_own = 1, g_uc_opacity = 2, g_uc_drawn = 2, g_uc_fill = 2, g_cp_on = 1, g_cp_smooth = 1;
+        if (g_uc_during_ok) g_uc_during_on = 1, g_rwl_during_handoff = 250;
+    }
     if (g_log) fprintf(g_log, "# collect: the units' walk %s (the game's until the pipe's picture collect own), the ghosts' fill %s\n",
                        g_uc_installed ? "hooked" : "NOT hooked (exe differs)", ghosts ? "hooked" : "NOT hooked");
 }
@@ -1005,6 +1081,14 @@ internal int collect_copy_mode(int how) {
     g_cp_step_qpc = g_cp_frame_qpc = 0;
     g_cp_stale = 1;
     g_cp_on = how;
+    return 0;
+}
+// picture collect during off | on [ms] (ms: the hand-off's wait while such updates run, render_3d.c)
+internal int collect_during_mode(int on, int ms) {
+    if (!g_uc_installed || !g_uc_during_ok) return -1;
+    g_uc_during_walks = 0;
+    g_uc_during_on = on;
+    g_rwl_during_handoff = on ? ms : 0;
     return 0;
 }
 // picture collect smooth off | on | probe (0, 1, 2): the moving between steps; the probe's counts begin again
@@ -1096,6 +1180,7 @@ internal void collect_print(void) {
                g_cp_on == 2 ? "check" : g_cp_on ? "on" : "off", (long)steps, steps ? (double)g_cp_step_qpc / rd_qpc_ms(1) / steps : 0.0,
                (long)g_cp_objs, (long)frames, frames ? (double)g_cp_frame_qpc / rd_qpc_ms(1) / frames : 0.0, (long)g_cp_stales,
                (long)g_cp_used, (long)g_cp_chk_n, (long)g_cp_chk_objs, (long)g_cp_chk_diff);
+    if (g_uc_during_on) log_locked("# collect: the units' update during a step: %ld so far\n", (long)g_uc_during_walks);
     if (g_cp_smooth)
         log_locked("# collect: the moving between steps (%s): %u frames of a moving object, its step on the screen %.4f tiles on average, rms %.4f (%.2f times the average: 1 is even), %u frames it did not move\n",
                    g_cp_smooth == 1 ? "on" : "probe", g_cs_n, g_cs_n ? g_cs_sum / g_cs_n : 0.0, g_cs_n ? sqrt(g_cs_sq / g_cs_n) : 0.0,

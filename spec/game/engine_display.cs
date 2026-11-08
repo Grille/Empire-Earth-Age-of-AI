@@ -291,6 +291,13 @@ unsafe struct EEROUnits
     [address((ee)0x00502224, (aoc)0x0050CFBC)]
     extern void fill_doppelganger_object(EEDoppelganger* d, void* record, uint32* count, void* sort_map, uint32 room, int32 x, int32 y, void* info);
 
+    /// the ground's update (the AoC decompilation's Fn10E8D1: the visible region of the ground for the camera, its
+    /// light, the camera's transformation) as the units' update calls it at its start - collect.c leaves it out of an
+    /// update run during a step (the region stays the last one's, as the ground's own update is skipped then)
+    [address((ee)0x00503A7F, (aoc)0x0050E8D1)]
+    [call_site("units_ground_pass", (ee)0x00503C4F, (aoc)0x0050EB8A)]
+    extern void ground_pass();
+
     /// FillGhostRecords: after the walk, a record (ghost_records' element) for each placement ghost (ghost_units),
     /// when they changed (ghosts_changed), inside their lock (ghost_lock) - collect.c's hook of its call
     [address((ee)0x00501C29, (aoc)0x0050C952)]
@@ -563,6 +570,18 @@ unsafe struct EEPickList
     /// collection starts it over each update before it walks the tiles
     [address((ee)0x0050F663, (aoc)0x00519F7C)]
     extern void reset();
+
+    /// PickUnits: the player's objects in the rectangle (the selection box being drawn) into a list - it reads through
+    /// the entries' objects; the units' update's call, which collect.c leaves out of an update run during a step
+    [address((ee)0x0050F589, (aoc)0x00519EA2)]
+    [call_site("units_pick_rect", (ee)0x00503D44, (aoc)0x0050EC7F)]
+    extern void pick_units(void* rectangle, EEPlayer* player, int32 type, void* into);
+
+    /// PickUnit: the object under a screen point, a reference taken on it for the caller; the units' update's call for
+    /// the unit under the mouse, which collect.c leaves out of an update run during a step (answer: none)
+    [address((ee)0x0050EC37, (aoc)0x00519540)]
+    [call_site("units_pick_mouse", (ee)0x00503E7E, (aoc)0x0050EDB9)]
+    extern EEUnit* pick_unit(void* point, int32 prefer_resources);
 }
 
 [c_type("ee_pick_entry"), size(0x50)]

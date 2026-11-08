@@ -808,6 +808,7 @@ internal void __thiscall rd_hook_read_lock(void *lock) {
 // every step had one) - the frames between the steps update by themselves unless the steps come back to back
 internal int g_rwl_handoff_after = 50;
 internal LONGLONG g_rwl_update_at;   // the last frame's update with the world (rd_hook_graphics_update)
+internal float g_rwl_update_cam[16];   // ... its camera
 internal volatile LONG g_rwl_want;
 internal HANDLE g_rwl_taken;
 internal LONG g_rwl_handoffs;
@@ -824,8 +825,19 @@ internal int g_rwl_counted;   // the holder of the write lock counted itself (on
 // in, its claim - the hand-off not: the minute's line (what the picture costs the simulation besides the hand-off)
 internal LONGLONG g_rwl_wwait_qpc;
 internal LONG g_rwl_wlocks;
+// The units' update during a step (collect.c collect_during_begin) reads the map and the game's data beside the
+// simulation's step: every other writer - which may free them, a load - counts itself here and waits for such an update
+// to end, and the update doesn't begin while one is counted (from before its wait to its unlock)
+internal volatile LONG g_rwl_nonstep, g_uc_in_during;
+internal int g_rwl_nonstep_held;   // the holder of the write lock is one (only the holder writes it)
+internal int g_rwl_during_handoff; // while such updates run: the picture goes this long (ms) without a full update before a hand-off (0: they don't run)
 internal void __thiscall rd_hook_write_lock(void *lock) {
     int other = lock == g_rwl_world && GetCurrentThreadId() != g_rd_thread;
+    int nonstep = other && (uintptr_t)__builtin_return_address(0) != (uintptr_t)engine_display_step_write_return_at();
+    if (nonstep) {
+        InterlockedIncrement(&g_rwl_nonstep);
+        for (DWORD t0 = GetTickCount(); g_uc_in_during && GetTickCount() - t0 < RWL_CLAIM_MS;) Sleep(0);
+    }
     if (other && g_rwl_want && g_rwl_taken) {
         LONGLONG t0 = rd_qpc();
         WaitForSingleObject(g_rwl_taken, RWL_HANDOFF_MS);
@@ -842,6 +854,7 @@ internal void __thiscall rd_hook_write_lock(void *lock) {
     if (other) { g_rwl_wwait_qpc += rd_qpc() - w0; g_rwl_wlocks++; }   // the holder alone writes them
     if (lock == g_rwl_world) {
         g_rwl_counted = other;
+        g_rwl_nonstep_held = nonstep;
         if (!other) g_rwl_claim = 0;   // the frame's own (update_objects' write mode)
         g_rwl_write_at = rd_qpc();
         g_rwl_write_ret = (uintptr_t)__builtin_return_address(0);
@@ -854,6 +867,7 @@ internal void __thiscall rd_hook_write_unlock(void *lock) {
     if (lock == g_rwl_world && g_rwl_counted) {
         g_rwl_counted = 0;
         InterlockedDecrement(&g_rwl_writers);
+        if (g_rwl_nonstep_held) { g_rwl_nonstep_held = 0; InterlockedDecrement(&g_rwl_nonstep); }
     }
     if (lock == g_rwl_world && g_rwl_write_at) {
         LONGLONG h = rd_qpc() - g_rwl_write_at;
@@ -907,7 +921,10 @@ internal void __thiscall rd_hook_graphics_update(ee_graphics *g) {
     if (held) g_rwl_claim = 0;
     int rs = g_rwl_updates ? rec_step() : 0, skip = held || rs;
     g_rwl_bare_now = ui == 0 || rs == 2;
-    if (held && g_rwl_taken && rd_qpc() - g_rwl_update_at >= rd_qpc_ms(g_rwl_handoff_after)) {
+    int after = g_rwl_handoff_after;
+    if (held && g_rwl_during_handoff > after && !memcmp(g_rwl_update_cam, camera_transformation_at(game_camera()), sizeof g_rwl_update_cam))
+        after = g_rwl_during_handoff;   // the units come from the copy: only the ground, shadows and effects wait - not while the camera moves
+    if (held && g_rwl_taken && rd_qpc() - g_rwl_update_at >= rd_qpc_ms(after)) {
         ResetEvent(g_rwl_taken);
         g_rwl_want = 1;
     }
@@ -921,7 +938,10 @@ internal void __thiscall rd_hook_graphics_update(ee_graphics *g) {
     g_rwl_pass = 0;
     g_rwl_claim = 0;
     if (ui == 1) ui_lock_leave();
-    if (!skip) g_rwl_update_at = rd_qpc();
+    if (!skip) {
+        g_rwl_update_at = rd_qpc();
+        memcpy(g_rwl_update_cam, camera_transformation_at(game_camera()), sizeof g_rwl_update_cam);
+    }
     if (!skip && g_rwl_taken) SetEvent(g_rwl_taken);
 }
 internal void __thiscall rd_hook_ro_terrain_update(ee_ro_terrain *o) {
@@ -931,8 +951,16 @@ internal void __thiscall rd_hook_ro_terrain_update(ee_ro_terrain *o) {
     rf_pull_end();
 }
 internal void collect_print(void);   // collect.c: the pipe's drawcount hash
+internal int collect_during_begin(void);   // collect.c: a frame during a step's units' update from the steps' copy
+internal void collect_during_end(void);
 internal void __thiscall rd_hook_ro_units_update(ee_ro_units *o) {
-    if (g_rwl_pass) return;
+    if (g_rwl_pass) {
+        if (collect_during_begin()) {
+            ro_units_update(o);
+            collect_during_end();
+        }
+        return;
+    }
     ro_units_update(o);
     collect_print();
 }

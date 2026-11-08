@@ -30,7 +30,8 @@ typedef struct {
     float tint[3], at[3];
     uint8_t tree, has_cu, food, moved, hidden, rotting, cloakable, cloaked, cloak_friend, marker, pp_shown, dead,
             foundation, finished, tint_on, selected, gate, gate_shown, own_seen, lit, bars_friend, marker_ok, t_foundation,
-            open, has_was;
+            open, has_was, in_group;   // in_group: only for an update during a step (uc_in_group)
+    uint32_t walked;            // the frame's: the walk during a step that drew it last
     float was[12];              // the moving between steps: its pose in the steps' copy before (has_was)
     __attribute__((aligned(8))) uint8_t pm[UC_PM];   // its complex unit's physical model (its pose, model, scale, frame)
 } uc_obj;
@@ -137,6 +138,7 @@ internal ee_tile *uc_tile(ee_map *map, int x, int y) {
 // is of an object no longer there, or a new one at its address: no pose to come from. probe: the poses kept and the
 // picture's steps counted, nothing moved.
 internal volatile int g_cp_smooth;
+internal volatile int g_uc_during_on;   // the pipe's picture collect during: the units' update run during a step (collect.c)
 typedef struct { ee_unit *u; uint32_t gen; float t[12]; } cp_pose_e;
 internal cp_pose_e *g_cp_pose;
 internal uint32_t g_cp_pose_cap, g_cp_pose_n, g_cp_pose_gen;
@@ -244,6 +246,7 @@ internal void cp_obj(uc_copy *c, uc_obj *o, ee_unit *u, ee_player *me, ee_map *m
     o->cloakable = unit_get_cloakable(cu) != 0;
     o->cloaked = build_is("aoc") ? unit_get_cloaked(cu) != 0 : 0;
     o->cu_opacity = unit_get_opacity(cu);
+    if (g_uc_during_on && o->cowner == me) o->in_group = group_contains(player_get_ui_group(me), cu) != 0;   // a linear search: the player's own
     o->cloak_friend = me == o->cowner || player_stance_to(o->cowner, player_get_index(me)) == 0 || player_get_out(me);
     o->tint_on = unit_get_tint_on(cu) != 0;
     memcpy(o->tint, unit_tint_at(cu), 12);
@@ -482,6 +485,7 @@ internal void cp_check(const uc_copy *c) {
         uc_obj a = c->objs[i], b = f->objs[i];
         a.hidden = b.hidden, a.moved = b.moved;   // update_hidden's: the copy's call cleared its moved bit
         a.has_was = b.has_was, memcpy(a.was, b.was, sizeof a.was);   // the pose before: only the simulation's copy has it
+        a.walked = b.walked;   // the frame's
         if (memcmp(&a, &b, sizeof a)) {
             what = "object", at = i;
             while (off < sizeof a && !memcmp((uint8_t *)&a + off, (uint8_t *)&b + off, 1)) off++;

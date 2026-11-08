@@ -240,6 +240,13 @@ internal inline void ro_units_fill_doppelganger(ee_ro_units *ro_units, ee_doppel
 typedef void (__thiscall *ro_units_fill_doppelganger_object_fn)(ee_ro_units *, ee_doppelganger *, void *, uint32_t *, void *, uint32_t, int, int, void *);
 internal ro_units_fill_doppelganger_object_fn fn_ro_units_fill_doppelganger_object;
 internal inline void ro_units_fill_doppelganger_object(ee_ro_units *ro_units, ee_doppelganger *d, void *record, uint32_t *count, void *sort_map, uint32_t room, int x, int y, void *info) { fn_ro_units_fill_doppelganger_object(ro_units, d, record, count, sort_map, room, x, y, info); }
+// the ground's update (the AoC decompilation's Fn10E8D1: the visible region of the ground for the camera, its
+// light, the camera's transformation) as the units' update calls it at its start - collect.c leaves it out of an
+// update run during a step (the region stays the last one's, as the ground's own update is skipped then)
+typedef void (__thiscall *ro_units_ground_pass_fn)(ee_ro_units *);
+internal ro_units_ground_pass_fn fn_ro_units_ground_pass;
+internal inline void ro_units_ground_pass(ee_ro_units *ro_units) { fn_ro_units_ground_pass(ro_units); }
+internal inline int patch_units_ground_pass(ro_units_ground_pass_fn h) { return patch_call(call_units_ground_pass, (uintptr_t)fn_ro_units_ground_pass, (void *)h); }
 // FillGhostRecords: after the walk, a record (ghost_records' element) for each placement ghost (ghost_units),
 // when they changed (ghosts_changed), inside their lock (ghost_lock) - collect.c's hook of its call
 typedef void (__thiscall *ro_units_fill_ghosts_fn)(ee_ro_units *);
@@ -477,6 +484,18 @@ internal inline uint32_t *pick_list_count_at(const ee_pick_list *o) { return (ui
 typedef void (__thiscall *pick_list_reset_fn)(ee_pick_list *);
 internal pick_list_reset_fn fn_pick_list_reset;
 internal inline void pick_list_reset(ee_pick_list *pick_list) { fn_pick_list_reset(pick_list); }
+// PickUnits: the player's objects in the rectangle (the selection box being drawn) into a list - it reads through
+// the entries' objects; the units' update's call, which collect.c leaves out of an update run during a step
+typedef void (__thiscall *pick_list_pick_units_fn)(ee_pick_list *, void *, ee_player *, int, void *);
+internal pick_list_pick_units_fn fn_pick_list_pick_units;
+internal inline void pick_list_pick_units(ee_pick_list *pick_list, void *rectangle, ee_player *player, int type, void *into) { fn_pick_list_pick_units(pick_list, rectangle, player, type, into); }
+internal inline int patch_units_pick_rect(pick_list_pick_units_fn h) { return patch_call(call_units_pick_rect, (uintptr_t)fn_pick_list_pick_units, (void *)h); }
+// PickUnit: the object under a screen point, a reference taken on it for the caller; the units' update's call for
+// the unit under the mouse, which collect.c leaves out of an update run during a step (answer: none)
+typedef ee_unit *(__thiscall *pick_list_pick_unit_fn)(ee_pick_list *, void *, int);
+internal pick_list_pick_unit_fn fn_pick_list_pick_unit;
+internal inline ee_unit *pick_list_pick_unit(ee_pick_list *pick_list, void *point, int prefer_resources) { return fn_pick_list_pick_unit(pick_list, point, prefer_resources); }
+internal inline int patch_units_pick_mouse(pick_list_pick_unit_fn h) { return patch_call(call_units_pick_mouse, (uintptr_t)fn_pick_list_pick_unit, (void *)h); }
 
 // class EEPickEntry (ee_pick_entry)
 internal inline ee_unit *pick_entry_get_unit(const ee_pick_entry *o) { return *(ee_unit **)((uint8_t *)o + of_pick_entry_unit); }
@@ -913,6 +932,8 @@ internal int spec_engine_display_select(int build) {
         fn_ro_units_fill_object = (ro_units_fill_object_fn)0x00501DFF;
         fn_ro_units_fill_doppelganger = (ro_units_fill_doppelganger_fn)0x005035AD;
         fn_ro_units_fill_doppelganger_object = (ro_units_fill_doppelganger_object_fn)0x00502224;
+        fn_ro_units_ground_pass = (ro_units_ground_pass_fn)0x00503A7F;
+        call_units_ground_pass = 0x00503C4F;
         fn_ro_units_fill_ghosts = (ro_units_fill_ghosts_fn)0x00501C29;
         call_fill_ghosts = 0x005041F7;
         fn_ro_units_update = (ro_units_update_fn)0x00509D06;
@@ -970,6 +991,10 @@ internal int spec_engine_display_select(int build) {
         of_pick_list_room = 0x2A4;
         of_pick_list_count = 0x2A8;
         fn_pick_list_reset = (pick_list_reset_fn)0x0050F663;
+        fn_pick_list_pick_units = (pick_list_pick_units_fn)0x0050F589;
+        call_units_pick_rect = 0x00503D44;
+        fn_pick_list_pick_unit = (pick_list_pick_unit_fn)0x0050EC37;
+        call_units_pick_mouse = 0x00503E7E;
         size_ee_pick_entry = 0x50;
         of_pick_entry_unit = 0x4C;
         size_d3_dvertex = 0x20;
@@ -1207,6 +1232,8 @@ internal int spec_engine_display_select(int build) {
         fn_ro_units_fill_object = (ro_units_fill_object_fn)0x0050CBA3;
         fn_ro_units_fill_doppelganger = (ro_units_fill_doppelganger_fn)0x0050E3C8;
         fn_ro_units_fill_doppelganger_object = (ro_units_fill_doppelganger_object_fn)0x0050CFBC;
+        fn_ro_units_ground_pass = (ro_units_ground_pass_fn)0x0050E8D1;
+        call_units_ground_pass = 0x0050EB8A;
         fn_ro_units_fill_ghosts = (ro_units_fill_ghosts_fn)0x0050C952;
         call_fill_ghosts = 0x0050F132;
         fn_ro_units_update = (ro_units_update_fn)0x00514521;
@@ -1264,6 +1291,10 @@ internal int spec_engine_display_select(int build) {
         of_pick_list_room = 0x2A4;
         of_pick_list_count = 0x2A8;
         fn_pick_list_reset = (pick_list_reset_fn)0x00519F7C;
+        fn_pick_list_pick_units = (pick_list_pick_units_fn)0x00519EA2;
+        call_units_pick_rect = 0x0050EC7F;
+        fn_pick_list_pick_unit = (pick_list_pick_unit_fn)0x00519540;
+        call_units_pick_mouse = 0x0050EDB9;
         size_ee_pick_entry = 0x50;
         of_pick_entry_unit = 0x4C;
         size_d3_dvertex = 0x20;
@@ -1472,6 +1503,8 @@ internal int spec_engine_display_check(void) {
     bad += spec_code((uintptr_t)fn_ro_units_fill_object, "EEROUnits.fill_object");
     bad += spec_code((uintptr_t)fn_ro_units_fill_doppelganger, "EEROUnits.fill_doppelganger");
     bad += spec_code((uintptr_t)fn_ro_units_fill_doppelganger_object, "EEROUnits.fill_doppelganger_object");
+    bad += spec_code((uintptr_t)fn_ro_units_ground_pass, "EEROUnits.ground_pass");
+    bad += spec_call(call_units_ground_pass, (uintptr_t)fn_ro_units_ground_pass, "EEROUnits.ground_pass [call_site units_ground_pass]");
     bad += spec_code((uintptr_t)fn_ro_units_fill_ghosts, "EEROUnits.fill_ghosts");
     bad += spec_call(call_fill_ghosts, (uintptr_t)fn_ro_units_fill_ghosts, "EEROUnits.fill_ghosts [call_site fill_ghosts]");
     bad += spec_code((uintptr_t)fn_ro_units_update, "EEROUnits.update");
@@ -1488,6 +1521,10 @@ internal int spec_engine_display_check(void) {
     bad += spec_code((uintptr_t)fn_ro_effects_update, "EEROEffects.update");
     bad += spec_slot(vt_eero_effects, slot_render_object_update, (uintptr_t)fn_ro_effects_update, "EEROEffects.update [slot]");
     bad += spec_code((uintptr_t)fn_pick_list_reset, "EEPickList.reset");
+    bad += spec_code((uintptr_t)fn_pick_list_pick_units, "EEPickList.pick_units");
+    bad += spec_call(call_units_pick_rect, (uintptr_t)fn_pick_list_pick_units, "EEPickList.pick_units [call_site units_pick_rect]");
+    bad += spec_code((uintptr_t)fn_pick_list_pick_unit, "EEPickList.pick_unit");
+    bad += spec_call(call_units_pick_mouse, (uintptr_t)fn_pick_list_pick_unit, "EEPickList.pick_unit [call_site units_pick_mouse]");
     bad += spec_code(data_engine_display_call_frame_sleep, "engine_display.call_frame_sleep");
     bad += spec_code(data_engine_display_call_frame_mouse, "engine_display.call_frame_mouse");
     bad += spec_data(data_engine_display_iat_sleep, "engine_display.iat_sleep");
