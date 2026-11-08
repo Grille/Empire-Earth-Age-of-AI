@@ -239,9 +239,9 @@ internal int rd3_shadow_role(rd_device *d, rd_vb *vb, DWORD start, DWORD nv) {
         for (DWORD k = 0; k < nv; k++) {
             const float *p = (const float *)(vb->mem + (size_t)(start + k) * vb->stride);
             g_sh.water_z += p[0] * m[2] + p[1] * m[6] + p[2] * m[10] + m[14];
+            rd3_water_seen(((const DWORD *)p)[6]);
         }
         g_sh.water_n += (int)nv;
-        if (nv) rd3_water_seen(*(const DWORD *)(vb->mem + (size_t)start * vb->stride + 24));
         return SH_WATER;
     }
     if (g_ro_cur != RO_UNITS) return SH_NONE;

@@ -36,7 +36,9 @@ internal struct {
     int haze;        // what lies under the water fogged from where the line of sight enters it
     float opaque;    // the way through the water that hides all (the editor's height units; 0 none, -1 as the ini says)
     float tint;      // the light on the table's colours times this
-    float col[3], lum;   // the light on the water (its vertices' colour), how bright that is (held: rd3_water_seen)
+    float col[3];    // the light on the water (its vertices' colour: rw_light)
+    unsigned best, bestcol;   // the brightest vertex of the list so far: its brightness, its colour
+    int lit;         // col has been set
     ee_map *tmap;        // the map the depths' colours are of (rw_table)
     ID3D11Texture2D *ttex;
     ID3D11ShaderResourceView *tsrv;
@@ -57,16 +59,23 @@ internal struct {
     ID3D11RasterizerState *raster;
 } g_wa = { .on = -1, .fog = 0.35f, .shallow = 0.75f, .deep = 1.0f, .edge = 0.05f, .sea = 0.75f, .seadepth = 0.35f, .haze = 1, .opaque = -1, .tint = 1, .col = { 1, 1, 1 }, .mirror = -1, .strength = 0.35f, .wobble = 0.012f, .full = 0.4f };
 
-// a water draw recorded: its first vertex's colour, the light on the water now. A draw can have a black first vertex, and
-// the colour of the last draw went from blue to black and back, all the sea under the water with it (the player, 2026-11-08:
-// "it flicker on and off"). So the brightest vertex holds, sinking slowly for the time of day.
+// a water vertex recorded: the light on the water is the brightest one's of the list. The game fades the water's vertices to
+// black at the edge of what is explored; one vertex a draw, the sea under the water went dark and bright with where those
+// fell (the player, 2026-11-08: "it flicker on and off", "on the border betwen explored terrain and the back undiscoverd
+// one"; measured at that edge: 0.25 and 1.0 of the light as the camera moved).
 internal void rd3_water_seen(DWORD col) {
-    float l = (float)(((col >> 16) & 255) + ((col >> 8) & 255) + (col & 255));
-    g_wa.lum *= 0.999f;
-    if (l >= g_wa.lum && l > 30) {
-        g_wa.lum = l;
-        g_wa.col[0] = ((col >> 16) & 255) / 255.0f; g_wa.col[1] = ((col >> 8) & 255) / 255.0f; g_wa.col[2] = (col & 255) / 255.0f;
+    unsigned l = ((col >> 16) & 255) + ((col >> 8) & 255) + (col & 255);
+    if (l > g_wa.best) { g_wa.best = l; g_wa.bestcol = col; }
+}
+// the list's brightest into the light, a little a list: the time of day moves slowly, and a view of nothing but that fade
+// doesn't jump. Water all black says nothing.
+internal void rw_light(void) {
+    if (g_wa.best > 30) {
+        float k = g_wa.lit ? 0.03f : 1;
+        for (int a = 0; a < 3; a++) g_wa.col[a] += (((g_wa.bestcol >> (16 - a * 8)) & 255) / 255.0f - g_wa.col[a]) * k;
+        g_wa.lit = 1;
     }
+    g_wa.best = 0;
 }
 // the game's colours for the depths into a texture, once a map: the mesh's water colour set, a list of slots of its colour
 // table, first the shallowest (GETerrainMesh::SetWaterColorSet: slot = height * the mesh's scale * (slots - 1), past the
@@ -166,6 +175,7 @@ internal int rw_target(int w, int h) {
     return 1;
 }
 internal void rd3_water_reflect(void) {
+    rw_light();
     rw_table();
     int on = g_wa.mirror < 0 ? g_set.water_reflections : g_wa.mirror;
     if (!on || !g_sh.on || g_sh.ready <= 0 || !g_sh.water_on) { g_wa.drawn = 0; return; }

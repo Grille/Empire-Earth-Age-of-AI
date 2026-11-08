@@ -250,12 +250,14 @@ internal const char k_rd3_shader[] =
     " if (sea.w > 0) { if (i.w.z < sea.z) discard; c.a = misc.y > 0.5 ? saturate(i.f) : 1; }"
     // a face under the water: toward the game's own colour for that depth by the way the line of sight runs in the water to
     // it, as its own texture would show that colour (render_water.c);
-    // ground the game has left black (the map's skirt, what is unexplored) stays so
+    // the ground's vertices against the table at its own depth tell how far the game has faded it to black (the map's skirt,
+    // the edge of what is explored): the colour goes as dark with it
     " if (wop.w > 0 && i.w.z < sea.z && (shd.x == 1 || shd.x == 2 || shd.x == 3 || shd.x == 4 || shd.x == 9)) {"
     "  float wl = length(i.w - wop.xyz) * (sea.z - i.w.z) / max(wop.z - i.w.z, 0.01), wp = saturate(wl * wop.w);"
-    "  float4 wc = float4(wtb.SampleLevel(hs, float2(wl * wtc.x + wtc.y, 0.5), 0).rgb * wfc.rgb, 1);"
+    "  float wv = shd.x == 1 ? saturate(i.c.b / max(wtb.SampleLevel(hs, float2((sea.z - i.w.z) * wtc.x + wtc.y, 0.5), 0).b * wfc.b, 0.01)) : 1;"
+    "  float4 wc = float4(wtb.SampleLevel(hs, float2(wl * wtc.x + wtc.y, 0.5), 0).rgb * wfc.rgb * wv, 1);"
     "  if (shd.x == 1 && op.w && op.x != 1) { float4 xm = t.SampleLevel(s, i.t, 8); wc.rgb = top(op.x, arg(op.y, xm, wc), arg(op.z, xm, wc)).rgb; }"
-    "  c.rgb = lerp(c.rgb, wc.rgb, (shd.x == 1 ? saturate(i.c.b / 0.25) : 1) * wp * wp * (3 - 2 * wp)); }"
+    "  c.rgb = lerp(c.rgb, wc.rgb, wp * wp * (3 - 2 * wp)); }"
     " if (misc.y > 0.5) c.rgb = lerp(fogc.rgb, c.rgb, saturate(i.f));"
     " return c; }\n";
 
