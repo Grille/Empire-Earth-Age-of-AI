@@ -182,6 +182,13 @@ class display
         /// The own renderer, with units_smooth: buildings stay whole, and units behind one are seen through it as a shape
         /// in their player's colour, lit as they are (the control pipe: picture sil on / off):
         bool unit_silhouettes = false;
+        /// With unit_silhouettes: a silhouette is at full strength up to this many tiles behind the building or tree it
+        /// appears on (the control pipe: picture silfade <start> <end>):
+        [range(0, 1000)]
+        int silhouette_fade_start = 3;
+        /// With unit_silhouettes: and gone at this many tiles behind it (not more than silhouette_fade_start: no fading):
+        [range(0, 1000)]
+        int silhouette_fade_end = 12;
         /// The own renderer: units and buildings drawn by GPU instancing, past the display DLL's part by part work
         /// (the control pipe: picture inst on / off). The same picture for less of the CPU's time in big armies:
         bool unit_instancing = false;

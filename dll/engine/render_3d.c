@@ -283,11 +283,13 @@ internal const char k_rd3_shader[] =
     "O vsil(I i, uint id : SV_VertexID) { uint r = id >= 0x80000000 ? (id >> 12) & 0x7FFFF : (uint)i.w; if (r == 0x7FFFF) r = i.inst; r *= 8; O o = vs(i, id);"
     " uint q = (uint)wt.Load(r + 7).w; o.k = float3((q >> 16) & 255, (q >> 8) & 255, q & 255) / 255; return o; }\n"
     "Texture2D<float> slb : register(t10); Texture2D<float> slz : register(t11);\n"
+    "cbuffer sf : register(b4) { float4 slf; };\n"   // the depth's terms a, b (depth = a + b / the view's distance in tiles); the tiles behind the face at which the fade starts and ends
     "float4 psil(O i) : SV_Target { int3 a = int3(i.p.xy, 0); float bz = slb.Load(a);"
     " if (i.p.z <= bz + 1e-6 || slz.Load(a) + 2e-6 < bz) discard;"
+    " float fd = 1; if (slf.w > slf.z) { fd = 1 - saturate((slf.y / (i.p.z - slf.x) - slf.y / (bz - slf.x) - slf.z) / (slf.w - slf.z)); if (fd <= 0) discard; }"
     " float e = 1; if (op.w) { e = t.Sample(s, i.t).a; if (e < 0.5) discard; }"
     " float3 c = i.k * max(i.c.r, max(i.c.g, i.c.b)); if (misc.y > 0.5) c = lerp(fogc.rgb, c, saturate(i.f));"
-    " return float4(c, e); }\n"
+    " return float4(c, e * fd); }\n"
     // the silhouettes' finished picture over the scene, see-through as one
     "Texture2D slc : register(t12);\n"
     "float4 pslc(float4 p : SV_Position, float2 uv : TEXCOORD0) : SV_Target { float4 c = slc.Load(int3(p.xy, 0)); if (c.a == 0) discard;"

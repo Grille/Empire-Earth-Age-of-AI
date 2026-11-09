@@ -8,6 +8,9 @@
 // The units go into a picture of their own, solid and with a depth, and that over the scene see-through as one (the player,
 // 2026-11-09: "rendering the silluetes transparent makes the shape hard to read since depth gets thrown out"): an arm before
 // the body stays before it, instead of every layer of the model blending in the order of its triangles.
+// They fade with the distance behind the face they appear on (the player, 2026-11-10: "is it possible to fade silluetes outt
+// with distance to the face they apear on?"; [display] silhouette_fade_start, silhouette_fade_end, the pipe: picture silfade):
+// the depths of the unit's pixel and of the building's there, turned back into distances along the view.
 // The fill knows a record's kind (sil_tag), the draw only the record: the game's draw of a record is hooked to say whose
 // draws follow, and a batch holds one kind (sil_batch); its player's colour is per draw, the entry's free number. A cloaked
 // unit is a kind of its own: no silhouette and no shadow (render_shadows.c), either would show where it is.
@@ -19,6 +22,8 @@ internal uint32_t g_sil_gen;
 internal struct {
     int force, fail, tag, in;   // the pipe's (-1: the ini's); the record being drawn
     float col;                  // its player's colour, 0xRRGGBB as a whole number
+    float fs, fe;               // the pipe's fade: the tiles behind the face it starts and ends (-1: the ini's)
+    ID3D11Buffer *cb;           // the fade's constants for the shader
     ID3D11VertexShader *vs;
     ID3D11PixelShader *ps, *over;   // the units' into their picture, that picture over the scene
     void *blend, *solid;
@@ -28,7 +33,7 @@ internal struct {
     ID3D11DepthStencilView *bd, *ud;
     ID3D11RenderTargetView *cr;
     UINT w, h;
-} g_sl = { .force = -1 };
+} g_sl = { .force = -1, .fs = -1, .fe = -1 };
 internal int sil_on(void) { return g_sl.force < 0 ? g_set.unit_silhouettes : g_sl.force; }
 internal uint32_t sil_hash(const void *rec) { return ((uint32_t)(uintptr_t)rec >> 3) * 2654435761u & (SIL_TABLE - 1); }
 // the fill: this walk's record is of this kind (0: of neither)
@@ -96,6 +101,8 @@ internal int sil_ready(ID3D11DeviceContext *x, ID3D11DepthStencilView *dsv) {
         D3D_RELEASE(code);
         D3D11_DEPTH_STENCIL_DESC ds = { .DepthEnable = TRUE, .DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL, .DepthFunc = D3D11_COMPARISON_LESS_EQUAL };
         if (SUCCEEDED(hr)) hr = ID3D11Device_CreateDepthStencilState(dv, &ds, &g_sl.depth);
+        D3D11_BUFFER_DESC fb = { 16, D3D11_USAGE_DEFAULT, D3D11_BIND_CONSTANT_BUFFER, 0, 0, 0 };
+        if (SUCCEEDED(hr)) hr = ID3D11Device_CreateBuffer(dv, &fb, NULL, &g_sl.cb);
         g_sl.blend = rd3_cache(g_rd3.blends, &g_rd3.n_blend, 32, 1 | D3DBLEND_SRCALPHA << 1 | D3DBLEND_INVSRCALPHA << 5, rd3_mk_blend);
         g_sl.solid = rd3_cache(g_rd3.blends, &g_rd3.n_blend, 32, 0, rd3_mk_blend);
     }
@@ -156,6 +163,16 @@ internal void rd3_silhouettes(ID3D11DeviceContext *x, rf_cmd *b, int *first) {
     ID3D11DeviceContext_ClearDepthStencilView(x, g_sl.ud, D3D11_CLEAR_DEPTH, 1.0f, 0);
     ID3D11DeviceContext_OMSetRenderTargets(x, 1, &g_sl.cr, g_sl.ud);
     b->rtv = g_sl.cr; b->dsv = g_sl.ud;
+    // the depth as the view's distance: depth = a + b / w, w a multiple of the distance along the view (the third column of
+    // the view x projection against the fourth; the camera's place, which the frame moves, falls out of b)
+    const float *m = g_rf.vcs[u->vc].vpm;
+    int ka = 0;
+    for (int j = 1; j < 3; j++) if (fabsf(m[j * 4 + 3]) > fabsf(m[ka * 4 + 3])) ka = j;
+    float wl = sqrtf(m[3] * m[3] + m[7] * m[7] + m[11] * m[11]), za = fabsf(m[ka * 4 + 3]) > 1e-6f ? m[ka * 4 + 2] / m[ka * 4 + 3] : 0;
+    float fs = g_sl.fs >= 0 ? g_sl.fs : (float)g_set.silhouette_fade_start, fe = g_sl.fe >= 0 ? g_sl.fe : (float)g_set.silhouette_fade_end;
+    float fade[4] = { za, wl > 1e-6f ? (m[14] - za * m[15]) / wl : 0, fs, wl > 1e-6f ? fe : 0 };   // (no perspective: no fade)
+    ID3D11DeviceContext_UpdateSubresource(x, (ID3D11Resource *)g_sl.cb, 0, NULL, fade, 0, 0);
+    ID3D11DeviceContext_PSSetConstantBuffers(x, 4, 1, &g_sl.cb);
     ID3D11ShaderResourceView *srv[3] = { g_sl.bs, g_sl.zs, NULL };
     ID3D11DeviceContext_PSSetShaderResources(x, 10, 2, srv);
     ID3D11DeviceContext_VSSetShader(x, g_sl.vs, NULL, 0);

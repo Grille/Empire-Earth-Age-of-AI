@@ -247,6 +247,12 @@ internal void cmd_picture(char *out, const char *args) {
     } else if (!strcmp(mode, "sil")) {   // render_silhouette.c
         if (!strcmp(arg, "on") || !strcmp(arg, "off")) g_sl.force = arg[1] == 'n';
         else { REPLY("error: usage: picture sil on | off\n"); return; }
+    } else if (!strcmp(mode, "silfade")) {   // render_silhouette.c: picture silfade <tiles behind the face it starts> <where it is gone>; gone <= start: no fade
+        float a = -1, b = -1;
+        if (sscanf(args, "%*s %f %f", &a, &b) != 2 || a < 0 || b < 0) { REPLY("error: usage: picture silfade <tiles it starts> <tiles it is gone>\n"); return; }
+        g_sl.fs = a; g_sl.fe = b;
+        REPLY("the silhouettes fade from %.1f to %.1f tiles behind the face\n", (double)a, (double)b);
+        return;
     } else if (!strcmp(mode, "aadepth")) {
         if (!strcmp(arg, "on") || !strcmp(arg, "off")) g_fx.depth = arg[1] == 'n';
         else { REPLY("error: usage: picture aadepth on | off\n"); return; }
