@@ -225,6 +225,14 @@ internal float camera_zoom_now(void) {
     float z = scroll_speed();
     return z < 1.0f ? z : g_cam_v;
 }
+// The game's ride goes 50 tiles a second, a ride of a few tiles in its shortest time, 0.12 s (0x51E79C): a notch far out is
+// a hundred tiles, seconds of it (the player 2026-11-09: "the camera still zooms with the old speed, only when moving it snaps
+// to the real zoom" - a move ends the ride). Every zoom a ride of that shortest time.
+#define CAM_ZOOM_RATE (2.5f / 0.3f)
+internal void camera_zoom_ride(ee_camera *cam, float zoom) {
+    camera_zoom_to(cam, zoom);
+    if (camera_get_blend_rate(cam) < CAM_ZOOM_RATE) camera_set_blend_rate(cam, CAM_ZOOM_RATE);
+}
 internal void camera_zoom_set(float z) {
     ee_camera *cam = game_camera();
     float top = camera_zoom_max();
@@ -232,7 +240,7 @@ internal void camera_zoom_set(float z) {
     if (z > top) z = top;
     g_cam_v = z > 1.0f ? z : 1.0f;
     camera_shape_write(g_cam_v);
-    if (cam) camera_zoom_to(cam, z > 1.0f ? 1.0f : z);
+    if (cam) camera_zoom_ride(cam, z > 1.0f ? 1.0f : z);
 }
 // The wheel's zoom after n notches in (out: below 0): the game's 0.05 a notch up to its 1, and from there a step that grows
 // with the distance, the same 0.05 at 1 and towards a tenth of the distance far out (the player 2026-11-09: "zooming in and
@@ -247,6 +255,58 @@ internal float camera_zoom_notches(int n) {
         else z = z > 1.0f ? 0.5f + (z - 0.5f) / CAM_NOTCH_FAR : z - CAM_NOTCH;
     }
     return z;
+}
+// The wheel's zoom keeps the ground under the mouse where it is ([camera] camera_zoom_at_mouse; the player 2026-11-09: "the
+// mouse alsways remains on the same world position"). The point under the cursor in the picture drawn now, then the look-at
+// that puts it under the cursor at the zoom's end. The camera's ride goes in a straight line from eye to eye, and with the
+// pitch unchanged (past the game's zoom 1) those two eyes and the point lie on one ray, so the point stays put all the way;
+// below 1 the pitch turns too and it holds at the ride's ends. The look-at moves through the game's own move, which keeps it
+// on the map and on the ground: move starts from where the ride is now, not from the look-at, so it is asked again till it
+// lands, and it ends the ride, so the zoom is started once more behind it. No point under the cursor (above the horizon): as before.
+#define CAM_RAY_STEP 0.5f     // tiles along the ray
+#define CAM_RAY_MOST 20000
+internal int rf_screen_ray(const float *m, float x, float y, float *eye, float *d);
+internal int camera_ground_point(const float *eye, const float *d, float low, float *at) {
+    float len = sqrtf(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);
+    if (!(d[2] < 0) || !(len > 0)) return 0;
+    float p[3] = { eye[0], eye[1], eye[2] }, k = CAM_RAY_STEP / len;
+    for (int i = 0; i < CAM_RAY_MOST; i++) {
+        float h;
+        ivec2 t = { (int)floorf(p[0]), (int)floorf(p[1]) };
+        if (tile_height(t, &h) ? p[2] <= h : p[2] <= low) { memcpy(at, p, sizeof p); return 1; }
+        for (int a = 0; a < 3; a++) p[a] += d[a] * k;
+    }
+    return 0;
+}
+internal float g_cam_now[16];   // render_frame.c: the camera's transformation this frame, its ride's
+internal int g_cam_now_ok;
+internal void camera_zoom_at_mouse(float z) {
+    ee_camera *cam = game_camera();
+    ee_mouse *m = game_mouse();
+    ee_window *w = game_window();
+    float eye[3], d[3], at[3], end[16];
+    int ok = g_set.camera_zoom_at_mouse && g_cam_now_ok && cam && m && w && game_map() && !mouse_get_frozen(m);
+    float sx = ok ? mouse_get_x(m) / (float)window_get_width(w) : 0, sy = ok ? mouse_get_y(m) / (float)window_get_height(w) : 0;
+    ok = ok && rf_screen_ray(g_cam_now, sx, sy, eye, d) && camera_ground_point(eye, d, camera_look_at(cam)[2], at);
+    camera_zoom_set(z);
+    if (!ok) return;
+    camera_make_transformation(cam, end, 1.0f);
+    if (!rf_screen_ray(end, sx, sy, eye, d) || !(d[2] < 0)) return;
+    float k = (at[2] - eye[2]) / d[2], *look = camera_look_at(cam);
+    float want[2] = { look[0] + at[0] - (eye[0] + d[0] * k), look[1] + at[1] - (eye[1] + d[1] * k) };
+    float dx = want[0] - look[0], dy = want[1] - look[1], det = end[0] * end[5] - end[1] * end[4];
+    if (det == 0 || dx * dx + dy * dy < 1e-6f) return;
+    for (int i = 0; i < 3; i++) {
+        // move's (x, y) are along the camera's own axes, the result's length that of (x, y): the direction solved in those axes
+        float px = (dx * end[5] - dy * end[1]) / det, py = (end[0] * dy - end[4] * dx) / det, n = sqrtf(px * px + py * py);
+        float scale = n > 0 ? sqrtf(dx * dx + dy * dy) / n : 0;
+        camera_pan(px * scale, py * scale);
+        float ex = want[0] - look[0], ey = want[1] - look[1];
+        if (ex * ex + ey * ey < 1e-4f) break;
+        dx += ex;
+        dy += ey;
+    }
+    camera_zoom_ride(cam, camera_get_zoom(cam));
 }
 // every frame, the render thread: a float the game's step reads; a zoom past 1 ends with a new map or a zoom the game made
 internal void camera_shape_frame(void) {
@@ -290,8 +350,6 @@ internal void camera_shape_install(void) {
 internal volatile LONG g_wheel;   // the wheel's delta not zoomed yet (WHEEL_DELTA a notch: the axis' granularity)
 internal HHOOK g_wheel_hook;   // in place: the wheel and the middle button are the render thread's (grab_frame)
 internal LONG g_wheel_zooms;
-internal float g_cam_now[16];   // render_frame.c: the camera's transformation this frame, its ride's
-internal int g_cam_now_ok;
 internal float g_cam_blend_seen, g_cam_t;
 internal LRESULT CALLBACK wheel_hook(int code, WPARAM w, LPARAM l) {
     if (code == HC_ACTION && w == WM_MOUSEWHEEL) {
@@ -320,7 +378,7 @@ internal void wheel_frame(const ee_ui_form *f) {
     if (!cam || !wheel_ours(f)) return;
     float z = camera_zoom_notches((int)n);
     if (g_cam_now_ok && g_cam_t > camera_get_blend(cam)) camera_set_blend(cam, g_cam_t);
-    camera_zoom_set(z);
+    camera_zoom_at_mouse(z);
     g_cam_t = 0;
     g_cam_blend_seen = -1;   // the next frame takes the camera's blend as a ride's start
     g_wheel_zooms++;
@@ -345,7 +403,7 @@ internal uint32_t __thiscall hook_wheel_zoom(eeuie_wheel_zoom *self, ee_ui_form 
     // the editor's wheel (its lists keep theirs): on past the game's 1, as the game's form's
     if (editor_is_on() && camera_zoom_max() > 1.0f && wheel_zoom_free()) {
         int n = mouse_wheel_notches();
-        if (n) camera_zoom_set(camera_zoom_notches(n));
+        if (n) camera_zoom_at_mouse(camera_zoom_notches(n));
         return 0;
     }
     return eeuie_wheel_zoom_execute(self, form, arg);

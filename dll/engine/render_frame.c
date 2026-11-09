@@ -632,6 +632,21 @@ internal int rf_camera_view(float *v, const float *m) {
     rd3_mul(v, inv, g_cam_axes);
     return 1;
 }
+// The ray through a point of the screen (x, y from 0 to 1, y down) for the camera's transformation m, its eye and direction in
+// the world (camera.c camera_zoom_at_mouse): the view from m as a frame makes it, the lens the last drawn frame's.
+internal int rf_screen_ray(const float *m, float x, float y, float *eye, float *d) {
+    float v[16], inv[16], p[16];
+    if (g_rd3.scene_view[15] != 1.0f || !rf_camera_view(v, m)) return 0;
+    rd3_rigid_inverse(inv, g_rd3.scene_view);
+    rd3_mul(p, inv, g_rd3.scene_vp);
+    if (p[0] == 0 || p[5] == 0) return 0;
+    float xv = (2.0f * x - 1.0f) / p[0], yv = (1.0f - 2.0f * y) / p[5], zv = p[11] < 0 ? -1.0f : 1.0f;
+    for (int a = 0; a < 3; a++) {
+        d[a] = xv * v[a * 4] + yv * v[a * 4 + 1] + zv * v[a * 4 + 2];
+        eye[a] = m[a * 4 + 3];
+    }
+    return 1;
+}
 // The camera's transformation itself is made only in the camera's step (0x51EE75), which runs in the simulation
 // thread's loop between its steps: the move (scrolling, on this thread: camera.c) sets where it goes, the step makes
 // the transformation and the device's view from it. In a light game the step comes every few ms; in the player's
