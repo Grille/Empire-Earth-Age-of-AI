@@ -816,6 +816,7 @@ internal ULONG __stdcall rd_dev_release(rd_device *d) {
     LONG n = InterlockedDecrement(&d->refs);
     if (n > 0) return (ULONG)n;
     if (d->target) rd_sf_release(d->target);
+    if (g_rd3.prep_dev == d) g_rd3.prep_dev = NULL;   // the ground from the map draws on it (a new display: the editor's test play)
     free(d);
     return 0;
 }
