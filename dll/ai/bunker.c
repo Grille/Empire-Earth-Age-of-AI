@@ -300,7 +300,7 @@ internal void bk_build(ee_player *pl, unsigned pi, uint32_t now) {
         if (!p->food && !held_near && dd < bd) { bd = dd; d = p->p; }
     }
     if (guard_at.x >= 0) { d = guard_at; bd = 0; }   // the town guard's fortress at its station
-    if (bd == 0x7FFFFFFF || tier_refuses(pl, FORTRESS_TYPE)) return;
+    if (bd == 0x7FFFFFFF || prio_refuses(pl, FORTRESS_TYPE)) return;
     for (int r = 4; r <= 9; r++)
         for (int ax = -r; ax <= r; ax++)
             for (int ay = -r; ay <= r; ay++) {

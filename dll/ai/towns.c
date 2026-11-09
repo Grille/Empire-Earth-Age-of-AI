@@ -972,7 +972,7 @@ internal void tn_run(ee_player *pl, unsigned idx, struct tn_st *s, struct tn_tow
                 for (int k = 0; k < j; k++) nth += t->proj[k].kind == TK_TOWER;
                 if (nth < 4) sf_corner(&t->fort, nth, &c.x, &c.y);
             }
-            if (tier_refuses(pl, ty)) break;   // spend_tiers: an outpost's turn first
+            if (prio_refuses(pl, ty)) break;   // spend_tiers: an outpost's turn first
             if (!tn_spot(pl, idx, t, ty, c, hc, &at)) { if (++p->waits > 30 && p->kind != TK_DROP) p->state = 3; break; }
             ee_unit *b = place_foundation(pl, ty, at.x, at.y);
             if (!b) { if (++p->waits > 30 && p->kind != TK_DROP) p->state = 3; break; }

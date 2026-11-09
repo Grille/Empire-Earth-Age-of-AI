@@ -139,43 +139,9 @@ internal void retry_note(unsigned idx, int type, uint32_t now) {
     g_retry[idx][f].next = now + 120000;
     g_retry[idx][f].tries = 0;
 }
-// SPENDING TIERS ([ai_base] spend_tiers, default 0 until measured; the player 2026-11-08: "a lower tier only gets produced
-// if the resources can pay for the higher tiers"). The savings of train_budget only ever held back units - a building
-// is paid the moment the build manager's round (every 3 s) places it, so an outpost's transport (250 wood) waited 7-11
-// minutes for wood the buildings spent as it came in, with the whole stock open to it. Step 1: what an outpost waits for
-// (expand_hold) is the top tier, a building that would dip into it waits. A refusal is the game's own failed placement:
-// the round puts the entry at the back of its queue and ends, the next round tries the next one; the hold ends with
-// the outpost's wait (the transport given up after 6 minutes). Per resource: a tower of stone goes up while wood is held.
-internal int g_spend_tiers = 0;
-internal void expand_hold(ee_player *pl, int hold[7]);   // expand.c
-internal int unit_cost(ee_player *pl, int type, int r);  // below
-internal int tier_refuses(ee_player *pl, int type) {
-    static unsigned refused[16];
-    static uint32_t log_t[16];
-    if (!g_spend_tiers) return 0;
-    int hold[7] = { 0 }, *stock = player_stock_at(pl), held = -1;
-    expand_hold(pl, hold);
-    for (int r = 2; r < 7 && held < 0; r++) {
-        int c = unit_cost(pl, type, r);
-        if (c > 0 && hold[r] > 0 && stock[r] - c < hold[r]) held = r;
-    }
-    if (held < 0) return 0;
-    unsigned idx = (unsigned)player_get_index(pl) & 15;
-    uint32_t now = game_time();
-    if (now < log_t[idx]) { log_t[idx] = 0; refused[idx] = 0; }   // a new game
-    refused[idx]++;
-    if (g_log && now - log_t[idx] >= 60000) {
-        EnterCriticalSection(&g_lock);
-        fprintf(g_log, "# tiers: P%u at %.1f min: %u buildings held back so far, now type %d - resource %d: stock %d, held %d\n", idx, now / 60000.0,
-                refused[idx], type, held, stock[held], hold[held]);
-        LeaveCriticalSection(&g_lock);
-        log_t[idx] = now ? now : 1;
-    }
-    return 1;
-}
 internal char __thiscall hook_place(ee_build_mgr *bm, int type, int x, int y) {
     ee_player *owner = build_mgr_get_player(bm);
-    if (!is_vanilla(owner) && tier_refuses(owner, type)) return 0;
+    if (!is_vanilla(owner) && prio_refuses(owner, type)) return 0;
     // a field without foundation would crash (see there) - the guard alone for a vanilla player (nothing laid out)
     if (type == UT(B_FARM) && !field_place_ok(bm, x, y, !is_vanilla(owner))) return 1;
     if (is_vanilla(owner)) return build_mgr_place(bm, type, x, y);
@@ -951,7 +917,7 @@ internal void retry_dropped(ee_player *pl, unsigned idx, uint32_t now) {
         if (dq && deque_count(dq) > 0) { g_retry[idx][k].type = 0; continue; }   // it has one now
         int pay = 1;
         for (int r = 2; r < 7; r++) if (unit_cost(pl, type, r) > stock[r]) pay = 0;
-        if (!pay || tier_refuses(pl, type)) { g_retry[idx][k].next = now + 30000; continue; }
+        if (!pay || prio_refuses(pl, type)) { g_retry[idx][k].next = now + 30000; continue; }
         char ok = build_mgr_place(bm, type, 0, 0);
         int give_up = !ok && ++g_retry[idx][k].tries >= 5;
         if (g_log) fprintf(g_log, "# place: P%u at %.1f min: dropped type %d tried again - %s\n", idx, now / 60000.0, type,
@@ -1426,7 +1392,10 @@ internal ee_unit *movable_gatherer(ee_resource_mgr *rm, int t) {
 // every citizen the passes sent to rebuild or farm it, one by one.
 internal int g_build_fields = 1;
 internal int g_fields_open[16];   // unfinished fields per player (econ_fields), for the wood reserve
-internal int field_wood(unsigned idx) { return g_build_fields ? 50 * (g_fields_open[idx] < 2 ? g_fields_open[idx] : 2) : 0; }
+internal int field_wood(unsigned idx) {
+    int w = g_build_fields ? 50 * (g_fields_open[idx] < 2 ? g_fields_open[idx] : 2) : 0;
+    return g_farm_hold[idx] > w ? g_farm_hold[idx] : w;
+}
 internal ee_unit *field_site(ee_unit *f) {   // what a BuildRepair goal holds (+0x3C) for this field (0x60BAD0)
     ee_unit *p = unit_get_physics(f), *last = f;
     while (p) { last = p; p = unit_get_chain(p); }
@@ -1506,7 +1475,7 @@ internal void fields_rebuild(ee_player *pl, unsigned idx, void *um, uint8_t *dq,
             granary = g && unit_get_hp(g) > 0 && abs(unit_get_x(g) - x) <= 4 && abs(unit_get_y(g) - y) <= 4;
         }
         if (!granary) continue;
-        if (raiders_near(pl, iv2(x, y), 8) || tier_refuses(pl, UT(B_FARM))) continue;   // raided: later (builders: 8 tiles, as citizens_safety)
+        if (raiders_near(pl, iv2(x, y), 8) || prio_refuses(pl, UT(B_FARM))) continue;   // raided: later (builders: 8 tiles, as citizens_safety)
         g_field_at[idx][j].queued = now;
         if (!ut_has(UT(B_FARM)) || !can_place(pl, UT(B_FARM), iv2(x, y))) continue;
         place_foundation(pl, UT(B_FARM), x, y);
@@ -1554,6 +1523,51 @@ internal int granary_spot(ee_player *pl, void *um, int *ox, int *oy) {
     return 0;
 }
 internal int g_more_granaries = 1;
+// THE SILOS' ROW of the priority list ([ai_base] farm_first, default 0 until measured; the player 2026-11-09: "the second
+// copper age starts researching the silo with its 525 wood should be put in the priorethy list and good is", "a second
+// should follow soon after"). 525 wood: a Granary's 125 and 8 fields of 50. Due from the moment the game orders the Copper
+// Age's research (AttemptEpochAdvance sets the civilization manager's +0x78 when it schedules the epoch's tech), one silo
+// at a time, the second when the first's fields are built and worked, whatever the food target says. What is still due
+// stays held; a field under raiders isn't counted (econ_fields' list). No progress for 6 minutes (no room for a silo, no
+// builders): nothing held until there is some. Both silos' fields done: over for the game.
+#define FARM_HOLD_MS 360000
+internal int g_farm_first = 0, g_v_farm_first = -1;
+internal int farm_first_on(ee_player *pl, unsigned idx) { return !is_vanilla(pl) && PV(idx, g_v_farm_first, g_farm_first); }
+internal void farm_plan(ee_player *pl, unsigned idx, void *um, uint8_t *dq, int open_safe, uint32_t now) {
+    static struct { int key, over; uint32_t t; } st[16];
+    if (now < st[idx].t) memset(&st[idx], 0, sizeof st[idx]);   // a new game
+    int types[2] = { UT(B_GRANARY), UT(B_GRANARY_IMPROVED) }, silos = 0, done = 0, open = 0;
+    for (int i = 0; i < 2; i++) {
+        uint8_t *q = type_list(um, types[i]);
+        for (unsigned k = 0, f = q ? deque_front(q) : 0, c = q ? deque_count(q) : 0; k < c; k++) {
+            ee_unit *g = deque_at(q, f + k);
+            if (g && unit_get_hp(g) > 0) silos++;
+        }
+    }
+    for (unsigned k = 0, f = dq ? deque_front(dq) : 0, c = dq ? deque_count(dq) : 0; k < c; k++) {
+        ee_unit *u = deque_at(dq, f + k), *s = u ? unit_get_physics(u) : NULL;
+        if (s && unit_get_hp(u) > 0) { if (unit_get_finished(s)) done++; else open++; }
+    }
+    int key = silos << 16 | done << 8 | open, hold = 0, ep = current_epoch(pl);
+    ee_civ_mgr *cm = player_get_civ_mgr(pl);
+    int due = farm_first_on(pl, idx) && !st[idx].over && (ep >= FARM_EPOCH || (ep == FARM_EPOCH - 1 && cm && civ_mgr_get_unknown_78(cm)));
+    if (due) {
+        int cg = unit_cost(pl, UT(B_GRANARY), 3), cf = unit_cost(pl, UT(B_FARM), 3);
+        int n = silos < 2 ? silos : 2, unlaid = 8 * n - done - open;   // a silo's fields come as foundations when it stands
+        if (unlaid < 0) unlaid = 0;
+        hold = cf * (unlaid + open_safe);
+        if (silos < 2 && !open && !unlaid) hold += cg + 8 * cf;
+        if (hold > cg + 8 * cf) hold = cg + 8 * cf;
+        if (silos >= 2 && done >= 16) { st[idx].over = 1; hold = 0; }
+    }
+    if (!due || (key >> 8) != (st[idx].key >> 8) || !st[idx].t) st[idx].t = now ? now : 1;   // the wait starts when due; progress: a silo or a finished field
+    if (hold && now - st[idx].t > FARM_HOLD_MS) hold = 0;
+    if (key != st[idx].key && silos <= 3 && g_log)
+        log_locked("# farms: P%u at %.1f min: %d silos, %d fields finished, %d open, wood %d, held %d\n", idx, now / 60000.0,
+                   silos, done, open, player_get_stock(pl, 3), hold);
+    st[idx].key = key;
+    g_farm_hold[idx] = hold;
+}
 internal void more_granaries(ee_player *pl, unsigned idx, ee_resource_mgr *rm, void *cm, void *um, int open_fields, uint32_t now) {
     static uint32_t next[16];
     if (!g_more_granaries || open_fields || current_epoch(pl) < FARM_EPOCH) return;
@@ -1572,13 +1586,15 @@ internal void more_granaries(ee_player *pl, unsigned idx, ee_resource_mgr *rm, v
     // the first granary as soon as food lacks 2 citizens (farms are the food base, fish only a bonus - the
     // playtester: "fish is very useful but a limited resource; the boats have to go further and further out"): on
     // water maps (+0xEFA) the game's build list and plan bring none (0x46CD18 counts the fields as wanted there)
-    if (want < have + (granaries ? 6 : 2)) return;
+    int farm2 = farm_first_on(pl, idx) && granaries < 2;   // farm_first: the first two by the plan, not by the food target
+    if (!farm2 && want < have + (granaries ? 6 : 2)) return;
     int cap = 1 + want / 8;
+    if (farm2 && cap < 2) cap = 2;
     if (!bm || !ut_has(UT(B_GRANARY)) || granaries >= (cap < 8 ? cap : 8) || build_mgr_queued(bm, UT(B_GRANARY))) return;
     static struct { uint32_t t; int n; } req[16];
     int x, y;
     if (now < req[idx].t) req[idx].t = 0;   // a new game
-    if (req[idx].t && granaries <= req[idx].n && now - req[idx].t >= 50000 && !tier_refuses(pl, UT(B_GRANARY)) && granary_spot(pl, um, &x, &y)) {
+    if (req[idx].t && granaries <= req[idx].n && now - req[idx].t >= 50000 && !prio_refuses(pl, UT(B_GRANARY)) && granary_spot(pl, um, &x, &y)) {
         char ok = build_mgr_place(bm, UT(B_GRANARY), x, y);
         if (g_log) fprintf(g_log, "# fields: P%u at %.1f min: the last granary request brought none - our spot %d,%d: %s\n",
                            idx, now / 60000.0, x, y, ok ? "placed" : "refused");
@@ -1627,6 +1643,7 @@ internal void econ_fields(ee_resource_mgr *rm) {   // before the citizen assignm
     if (um) fields_rebuild(pl, idx, um, dq, now);
     if (!dq) {   // no field yet (no list of fields): only the granary pass - it brings the first one (water maps)
         g_fields_open[idx] = 0;
+        if (um) farm_plan(pl, idx, um, NULL, 0, now);
         if (um && cm) more_granaries(pl, idx, rm, cm, um, 0, now);
         return;
     }
@@ -1646,6 +1663,7 @@ internal void econ_fields(ee_resource_mgr *rm) {   // before the citizen assignm
         else if (nd < 16 && !field_worked(rm, f)) done[nd++] = f;
     }
     g_fields_open[idx] = nt;
+    farm_plan(pl, idx, um, dq, nt, now);
     more_granaries(pl, idx, rm, cm, um, nt + nd, now);
     int wood = player_get_stock(pl, 3);
     int wild = nt && food_fields_wait(pl, rm);   // food.c (food_plan WILD): wild food first
@@ -2066,23 +2084,14 @@ internal void train_budget(ee_player *pl, unsigned idx, const struct ai_cfg *cfg
     uint32_t now = game_time();
     if (now < g_bud[idx].last_t) g_bud[idx].init = 0;   // new game
     g_bud[idx].last_t = now;
-    spend_reserve(pl, idx, reserve, NULL);
     // transports_economy: the game's transport for its crossings sees the stock above the epoch's reserve only, as the
     // outpost's transport does (g_expand_order) - the other savings held it back for good: a fortress's 350 wood, the
     // landing's own transports' 250, the navy account's 130-600 (1530 of 1652 orders refused with 400+ wood in stock)
     int tr_econ = g_tr_econ && !military && is_transport(req[0]);
-    if (!tr_econ) {
-        reserve[3] += field_wood(idx);   // the next fields' wood (build_fields)
-        landing_reserve(pl, reserve);   // transports a landing waits for
-        expand_reserve(pl, reserve);    // an outpost's drop site and tower (expand.c)
-        bunker_reserve(pl, reserve);    // a fortress's wood (bunker.c)
-        wood_reserve(pl, reserve);      // a far forest's Settlement (mines.c)
-    }
-    if (military) upgrade_reserve(pl, reserve);   // pending line upgrades (upgrade_reserve)
-    if (!ship && !req_unit && !g_priority_mil && !g_landing_order && !tr_econ) navy_hold(pl, idx, reserve);   // the navy account: only warships spend it (navy.c)
     int sp[7] = { 0 };   // a special order saving up: held from warships too (they see the whole stock otherwise - an epoch 9
                          // start: wood at 50-220 all game, the navy taking half the income, no artillery ever paid)
-    if (military && !req_unit && !g_priority_mil && !g_landing_order) special_reserve(pl, sp);
+    prio_hold(pl, (military ? S_MIL : 0) | (ship ? S_SHIP : 0) | (req_unit ? S_REQ : 0) | (g_priority_mil || g_landing_order ? S_ORDER : 0) |
+                  (tr_econ ? S_TR_ECON : 0), reserve, sp);   // what's above this order (priority.c)
     for (int r = 2; r < 7; r++) reserve[r] += sp[r];
     int t3[7] = { 0 };   // spend_tiers: the top tier's, held from the warships that see the whole stock too
     if (g_spend_tiers && !g_landing_order) expand_hold(pl, t3);
@@ -2396,10 +2405,12 @@ internal void econ_install(const char *autotest_ini) {
     g_special_orders = g_set_ai[1].special_orders;
     g_spend_tiers = g_set_ai[1].spend_tiers;
     g_tight_build = g_set_ai[1].tight_build;
+    g_farm_first = g_set_ai[1].farm_first;
     g_prod_sync = g_set_ai[1].production_sync;
     g_train_queue = g_set_ai[1].train_queue;
     if (autotest_ini) g_v_train_queue = ini_int("autotest", "v_train_queue", -1, autotest_ini);
     if (autotest_ini) g_v_tight_build = ini_int("autotest", "v_tight_build", -1, autotest_ini);
+    if (autotest_ini) g_v_farm_first = ini_int("autotest", "v_farm_first", -1, autotest_ini);
     g_catch_ais = g_set_ai[1].catch_up_ais;
     if (autotest_ini) g_v_catch_ais = ini_int("autotest", "v_catch_up_ais", -1, autotest_ini);
     g_build_fields = g_set_ai[1].build_fields;
@@ -2488,6 +2499,7 @@ internal void econ_new_game(void) {
     memset(g_pull_seen, 0, sizeof g_pull_seen);
     memset(g_moved, 0, sizeof g_moved);
     memset(g_fields_open, 0, sizeof g_fields_open);
+    memset(g_farm_hold, 0, sizeof g_farm_hold);
     memset(g_field_at, 0, sizeof g_field_at);
     memset(g_field_n, 0, sizeof g_field_n);
     memset(g_mil, 0, sizeof g_mil);

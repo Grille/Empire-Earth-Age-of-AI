@@ -85,12 +85,8 @@ internal int am_wishes(ee_unit_mgr *um) {
 // what a land soldier's request sees held back (econ.c train_budget): the epoch, the fields' wood, a landing's
 // transports, a fortress's wood, the navy account
 internal void am_reserve(ee_player *pl, unsigned idx, int reserve[7]) {
-    spend_reserve(pl, idx, reserve, NULL);
-    reserve[3] += field_wood(idx);
-    landing_reserve(pl, reserve);
-    bunker_reserve(pl, reserve);
-    upgrade_reserve(pl, reserve);
-    navy_hold(pl, idx, reserve);
+    (void)idx;
+    prio_hold(pl, S_PLAN, reserve, NULL);
 }
 // ---- army_plan ([ai_base], bits; [autotest] v_army_plan for the variant players; docs/economy.md "Economy into army") ----
 // From the Copper Age (farms: food no longer runs out), what the economy brings in and nobody spends becomes army:
