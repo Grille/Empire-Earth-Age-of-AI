@@ -166,6 +166,11 @@ class display
         /// control pipe: water opaque <n>):
         [range(0, 200)]
         int water_opaque_depth = 20;
+        /// With water_look: the colour of that fading, as three whole numbers from 0 to 255: red green blue (50 101 187 is
+        /// a blue like the game's deep water). It is lit as the water is. Empty = the deepest of the map's own underwater
+        /// colours (the control pipe: water color <red green blue> / water color map):
+        [length(32)]
+        string water_fog_color = "";
         /// The own renderer with dynamic shadows only: units, buildings and trees mirrored in the water, drawn a second
         /// time at half the picture's size (the control pipe: water mirror on / off):
         bool water_reflections = false;

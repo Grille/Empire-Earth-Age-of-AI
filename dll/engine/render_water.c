@@ -40,6 +40,8 @@ internal struct {
     float opaque;    // the way through the water that hides all (the editor's height units; 0 none, -1 as the ini says)
     float tint;      // the colour under the water times this
     float fc[3];     // the deepest of the game's colours for the ground under the water (rw_table)
+    float own[3];    // [display] water_fog_color, the colour under the water instead of that
+    int owned;       // 1: own is in use, 0: fc, -1: the ini not read yet (rw_colour)
     ee_map *tmap;    // the map those are of
     unsigned tn, tfirst, tlast;   // how many steps, the first's and the last's colour
     float za;        // the projection's depth term (rw_depth)
@@ -63,7 +65,7 @@ internal struct {
     ID3D11DepthStencilView *dsv;
     ID3D11ShaderResourceView *srv;
     ID3D11RasterizerState *raster;
-} g_wa = { .on = -1, .fog = 0.35f, .shallow = 0.75f, .deep = 1.0f, .edge = 0.05f, .sea = 0.75f, .seadepth = 0.35f, .haze = 1, .opaque = -1, .tint = 1, .late = 1, .mirror = -1, .strength = 0.35f, .wobble = 0.012f, .full = 0.4f };
+} g_wa = { .on = -1, .fog = 0.35f, .shallow = 0.75f, .deep = 1.0f, .edge = 0.05f, .sea = 0.75f, .seadepth = 0.35f, .haze = 1, .opaque = -1, .tint = 1, .owned = -1, .late = 1, .mirror = -1, .strength = 0.35f, .wobble = 0.012f, .full = 0.4f };
 
 // the game's colours for the depths, once a map: the mesh's water colour set, a list of slots of its colour table, first the
 // shallowest (GETerrainMesh::SetWaterColorSet) - the last one's the colour under the water
@@ -94,6 +96,23 @@ internal float rd3_water_camera(void) {
     int on = (g_wa.on < 0 ? g_set.water_look : g_wa.on) && g_wa.haze && g_sh.water_on;
     return on ? g_sh.gw[14] : -1e9f;
 }
+internal int rw_own_colour(int r, int g, int b) {
+    if (r < 0 || g < 0 || b < 0 || r > 255 || g > 255 || b > 255) return 0;
+    g_wa.own[0] = (float)r / 255; g_wa.own[1] = (float)g / 255; g_wa.own[2] = (float)b / 255;
+    g_wa.owned = 1;
+    return 1;
+}
+// the colour under the water: the player's ([display] water_fog_color, read once, a mistake told), else the map's deepest
+internal const float *rw_colour(void) {
+    if (g_wa.owned < 0) {
+        int r, g, b;
+        char more;
+        g_wa.owned = 0;
+        if (g_set.water_fog_color[0] && (sscanf(g_set.water_fog_color, "%d %d %d %c", &r, &g, &b, &more) != 3 || !rw_own_colour(r, g, b)))
+            log_locked("# ageofai.ini: water_fog_color=%s is no colour (three whole numbers from 0 to 255: red green blue): the map's own instead\n", g_set.water_fog_color);
+    }
+    return g_wa.owned ? g_wa.own : g_wa.fc;
+}
 // 1 / the way through the water that hides all, 0: no such step now
 internal float rw_opaque(void) {
     ee_map *m = game_map();
@@ -115,7 +134,7 @@ internal void rd3_water_pc(rd3_pcb *pc, float level, int water_seen) {
     {
         memcpy(pc->wop, g_sh.gw + 12, 12);
         pc->wop[3] = rw_opaque();
-        for (int a = 0; a < 3; a++) pc->wfc[a] = g_wa.fc[a] * g_wa.tint;
+        for (int a = 0; a < 3; a++) pc->wfc[a] = rw_colour()[a] * g_wa.tint;
         pc->wfc[3] = g_wa.za;
     }
     pc->rfa[0] = g_wa.strength;
@@ -332,7 +351,7 @@ internal void rd3_water_reflect(void) {
 }
 
 // the pipe: water [on | off] | fog <depth> | shallow <times> | deep <times> | edge <depth> | sea <0..1> | seadepth <depth>
-// | haze on | off | late on | off | opaque <the editor's height units, 0 none> | tint <times the colour under the water> | mirror on | off | strength <0..1> | wobble <of the picture> | full <depth>
+// | haze on | off | late on | off | color <r g b> | map | opaque <the editor's height units, 0 none> | tint <times the colour under the water> | mirror on | off | strength <0..1> | wobble <of the picture> | full <depth>
 internal void cmd_water(char *out, const char *args) {
     char mode[32] = "";
     float v = 0;
@@ -351,12 +370,20 @@ internal void cmd_water(char *out, const char *args) {
     else if (n == 2 && !strcmp(mode, "opaque") && v >= 0) g_wa.opaque = v;
     else if (n == 2 && !strcmp(mode, "tint") && v >= 0) g_wa.tint = v;
     else if (!strcmp(mode, "haze")) { char a[8] = ""; sscanf(args, "%*s %7s", a); if (!strcmp(a, "on")) g_wa.haze = 1; else if (!strcmp(a, "off")) g_wa.haze = 0; }
+    else if (!strcmp(mode, "color")) {
+        int r, g, b;
+        char a[8] = "";
+        if (sscanf(args, "%*s %d %d %d", &r, &g, &b) == 3) { if (!rw_own_colour(r, g, b)) { REPLY("error: a colour's numbers are 0 .. 255\n"); return; } }
+        else if (sscanf(args, "%*s %7s", a) == 1 && !strcmp(a, "map")) { rw_colour(); g_wa.owned = 0; }
+        else { REPLY("error: usage: water color <red green blue> | map\n"); return; }
+    }
     else if (!strcmp(mode, "late")) { char a[8] = ""; sscanf(args, "%*s %7s", a); if (!strcmp(a, "on")) g_wa.late = 1; else if (!strcmp(a, "off")) g_wa.late = 0; }
     else if (!strcmp(mode, "mirror")) { char a[8] = ""; sscanf(args, "%*s %7s", a); if (!strcmp(a, "on")) g_wa.mirror = 1; else if (!strcmp(a, "off")) g_wa.mirror = 0; }
-    else if (n >= 1) { REPLY("error: usage: water [on | off] | fog <depth> | shallow <times> | deep <times> | edge <depth> | sea <0..1> | seadepth <depth> | haze on | off | late on | off | opaque <editor units> | tint <times> | mirror on | off | strength <0..1> | wobble <of the picture> | full <depth>\n"); return; }
-    REPLY("water: camera %.2f over the level %.2f, the ground down to %.2f; %s, fog %.2f, shallow %.2f, deep %.2f, edge %.2f, sea %.2f by %.2f, fog over the water %s, opaque after %.0f, %u depth colours %06x .. %06x (the last under the water), the step %s, depth term %.4f; reflections %s, strength %.2f, wobble %.3f, full from %.2f\n",
+    else if (n >= 1) { REPLY("error: usage: water [on | off] | fog <depth> | shallow <times> | deep <times> | edge <depth> | sea <0..1> | seadepth <depth> | haze on | off | late on | off | color <r g b> | map | opaque <editor units> | tint <times> | mirror on | off | strength <0..1> | wobble <of the picture> | full <depth>\n"); return; }
+    const float *wc = rw_colour();
+    REPLY("water: camera %.2f over the level %.2f, the ground down to %.2f; %s, fog %.2f, shallow %.2f, deep %.2f, edge %.2f, sea %.2f by %.2f, fog over the water %s, opaque after %.0f, %u depth colours %06x .. %06x, under the water %.0f %.0f %.0f (%s), the step %s, depth term %.4f; reflections %s, strength %.2f, wobble %.3f, full from %.2f\n",
           (double)(g_sh.gw[14] - g_sh.level), (double)g_sh.level, (double)g_sh.glow, (g_wa.on < 0 ? g_set.water_look : g_wa.on) ? "on" : "off", (double)g_wa.fog, (double)g_wa.shallow, (double)g_wa.deep,
           (double)g_wa.edge, (double)g_wa.sea, (double)g_wa.seadepth, g_wa.haze ? "on" : "off", (double)(g_wa.opaque < 0 ? (float)g_set.water_opaque_depth : g_wa.opaque),
-          g_wa.tn, g_wa.tfirst & 0xFFFFFF, g_wa.tlast & 0xFFFFFF, g_wa.ffail ? "failed" : g_wa.have ? "drawn" : "not drawn", (double)g_wa.za,
+          g_wa.tn, g_wa.tfirst & 0xFFFFFF, g_wa.tlast & 0xFFFFFF, (double)(wc[0] * 255), (double)(wc[1] * 255), (double)(wc[2] * 255), g_wa.owned ? "the setting" : "the map's deepest", g_wa.ffail ? "failed" : g_wa.have ? "drawn" : "not drawn", (double)g_wa.za,
           (g_wa.mirror < 0 ? g_set.water_reflections : g_wa.mirror) ? (g_wa.drawn ? "on" : "on, nothing drawn") : "off", (double)g_wa.strength, (double)g_wa.wobble, (double)g_wa.full);
 }
