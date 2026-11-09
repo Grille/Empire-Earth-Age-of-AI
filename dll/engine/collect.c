@@ -931,10 +931,10 @@ __attribute__((used)) void __cdecl collect_walk(uint8_t *f) {
         if (x1 > bx1) bx1 = x1;
     }
     int during = g_uc_during;
+    g_uc_walk_gen++;   // every walk: the records are filled anew, and what they were tagged in the last one is over (sil_tag)
     if (during) {
         ((uc_info *)info)->ambient = 0;
         ((uc_info *)info)->picked = g_uc_last_picked;
-        g_uc_walk_gen++;
     } else {
         g_uc_last_picked = ((uc_info *)info)->picked;
         g_uc_enter(lock);

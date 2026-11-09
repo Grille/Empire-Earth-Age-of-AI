@@ -753,7 +753,6 @@ internal void rf_replay(void) {
     LONGLONG t0 = rd_qpc();
     ID3D11DeviceContext *x = g_d3d.ctx;
     int edges = rf_edges(x), laste = -1, lastu = -1;
-    for (int i = g_rf.n - 1; i >= 0 && lastu < 0; i--) if (g_rf.cmd[i].ro == RO_UNITS) lastu = i;
     if (edges) for (int i = g_rf.n - 1; i >= 0 && laste < 0; i--) if (g_rf.cmd[i].soft) laste = i;
     rd3_shadow_frame();   // the maps from the list's casters and ground (nothing while the shadows are the game's)
     rd3_water_reflect();  // the mirrored picture for the water's surface
@@ -764,6 +763,8 @@ internal void rf_replay(void) {
     b.vc = b.pc = -1;
     b.topo = D3D11_PRIMITIVE_TOPOLOGY_UNDEFINED;
     int first = 1, lastw = rd3_water_last();
+    // the silhouettes after the units' last batch drawn in its place: one held back for after the water is passed over below
+    for (int i = g_rf.n - 1; i >= 0 && lastu < 0; i--) if (g_rf.cmd[i].ro == RO_UNITS && !(i < lastw && rd3_water_late(&g_rf.cmd[i]))) lastu = i;
     for (int i = 0; i < g_rf.n; i++) {
         const rf_cmd *c = &g_rf.cmd[i];
         if (i < lastw && rd3_water_late(c)) continue;
