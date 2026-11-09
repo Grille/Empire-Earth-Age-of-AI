@@ -24,7 +24,7 @@ mod_dir_move "$G" || exit 1   # ageofai.ini, eesettings.ini, the log and the dum
 # in - the name is missing only between two renames - and the old one deleted (also while loaded). A failure puts
 # the old one back.
 replace() {
-    t="$G/ageofai/$2.new"; o="$G/ageofai/$2.old"
+    b=$(basename "$2"); t="$G/ageofai/$b.new"; o="$G/ageofai/$b.old"   # (beside the mod's folder whatever the target's path)
     rm -f "$t" "$o" 2>/dev/null
     [ -e "$o" ] && o="$o.$$"   # a .old of before that can't go
     cp "$1" "$t" || return 1
