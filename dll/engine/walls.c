@@ -1351,6 +1351,11 @@ internal int g_ws_ed_n[2], g_ws_ed_cur;   // the last look's (by unit)
 
 internal int __thiscall hook_editor_frame(ee_editor_form *f, void *rect) {
     g_ws_ed_seen = (LONG)(GetTickCount() | 1);
+    // The minimap's top rows hang over the 3D view, which is drawn every frame, and a control is drawn only when it is
+    // dirty: they were there for the frame after a change of its picture and gone again (the player, 2026-11-09: "the
+    // tope of the minimap that hangs over the 3d view in the editor flickers"). Dirty every frame, they stay.
+    eeui_mini_map *mm = editor_form_get_minimap(f);
+    if (mm) ui_control_set_dirty((ee_ui_control *)mm, 1);
     return editor_form_draw_background(f, rect);
 }
 

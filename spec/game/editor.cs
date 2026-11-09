@@ -1692,6 +1692,10 @@ unsafe struct EEUIFScenarioEditor
     [call_site("editor_form", (ee)0x0065BA13, (aoc)0x00673E9B)]
     extern void* init(void* owner);
 
+    /// its minimap (0x58D3E1 makes it; the form's copy_data marks it dirty when its picture has changed)
+    [offset(0x238), found(c)]
+    EEUIMiniMap* minimap;
+
     /// every frame the editor is on screen (walls.c: the editor's walls watched while it is)
     [address((ee)0x0058F0D0, (aoc)0x0059F501), overrides(typeof(UIForm))]
     [vtable_site("editor_frame")]

@@ -2382,6 +2382,10 @@ typedef void *(__thiscall *editor_form_init_fn)(ee_editor_form *, void *);
 internal editor_form_init_fn fn_editor_form_init;
 internal inline void *editor_form_init(ee_editor_form *editor_form, void *owner) { return fn_editor_form_init(editor_form, owner); }
 internal inline int patch_editor_form(editor_form_init_fn h) { return patch_call(call_editor_form, (uintptr_t)fn_editor_form_init, (void *)h); }
+// its minimap (0x58D3E1 makes it; the form's copy_data marks it dirty when its picture has changed)
+internal inline eeui_mini_map *editor_form_get_minimap(const ee_editor_form *o) { return *(eeui_mini_map **)((uint8_t *)o + of_editor_form_minimap); }
+internal inline void editor_form_set_minimap(ee_editor_form *o, eeui_mini_map *v) { *(eeui_mini_map **)((uint8_t *)o + of_editor_form_minimap) = v; }
+internal inline eeui_mini_map **editor_form_minimap_at(const ee_editor_form *o) { return (eeui_mini_map **)((uint8_t *)o + of_editor_form_minimap); }
 // every frame the editor is on screen (walls.c: the editor's walls watched while it is)
 typedef int (__thiscall *editor_form_draw_background_fn)(ee_editor_form *, void *);
 internal editor_form_draw_background_fn fn_editor_form_draw_background;
@@ -2981,6 +2985,7 @@ internal int spec_editor_select(int build) {
         size_eeuif_scenario_editor = 0x2B8;
         fn_editor_form_init = (editor_form_init_fn)0x0058D3E1;
         call_editor_form = 0x0065BA13;
+        of_editor_form_minimap = 0x238;
         fn_editor_form_draw_background = (editor_form_draw_background_fn)0x0058F0D0;
         fn_editor_form_update_keyboard = (editor_form_update_keyboard_fn)0x0058F997;
         fn_editor_form_update_mouse = (editor_form_update_mouse_fn)0x0058FC52;
@@ -3549,6 +3554,7 @@ internal int spec_editor_select(int build) {
         size_eeuif_scenario_editor = 0x2B8;
         fn_editor_form_init = (editor_form_init_fn)0x0059D615;
         call_editor_form = 0x00673E9B;
+        of_editor_form_minimap = 0x238;
         fn_editor_form_draw_background = (editor_form_draw_background_fn)0x0059F501;
         fn_editor_form_update_keyboard = (editor_form_update_keyboard_fn)0x0059FDC8;
         fn_editor_form_update_mouse = (editor_form_update_mouse_fn)0x005A0083;

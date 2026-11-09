@@ -530,6 +530,7 @@ internal uint32_t size_eeuifse_undo;
 internal uint32_t vt_eeuif_scenario_editor;
 internal uint32_t size_eeuif_scenario_editor;
 internal uint32_t call_editor_form;
+internal uint32_t of_editor_form_minimap;
 internal uint32_t value_editor_group_units;
 internal uint32_t value_editor_group_elevation;
 internal uint32_t value_editor_group_terrain;
