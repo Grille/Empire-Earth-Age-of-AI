@@ -1066,6 +1066,10 @@ internal inline uint32_t eeuiemg_cancel_update_state_execute(eeuiemg_cancel_upda
 // class EEUIEMGChangeGameSpeed (eeuiemg_change_game_speed)
 // made in 0x64C8B0
 // UIEvent's, the base's
+// 1 the + key, 0 the - key (execute)
+internal inline uint8_t eeuiemg_change_game_speed_get_up(const eeuiemg_change_game_speed *o) { return *(uint8_t *)((uint8_t *)o + of_eeuiemg_change_game_speed_up); }
+internal inline void eeuiemg_change_game_speed_set_up(eeuiemg_change_game_speed *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_eeuiemg_change_game_speed_up) = v; }
+internal inline uint8_t *eeuiemg_change_game_speed_up_at(const eeuiemg_change_game_speed *o) { return (uint8_t *)((uint8_t *)o + of_eeuiemg_change_game_speed_up); }
 typedef uint32_t (__thiscall *eeuiemg_change_game_speed_execute_fn)(eeuiemg_change_game_speed *, ee_ui_form *, uint32_t);
 internal eeuiemg_change_game_speed_execute_fn fn_eeuiemg_change_game_speed_execute;
 internal inline uint32_t eeuiemg_change_game_speed_execute(eeuiemg_change_game_speed *eeuiemg_change_game_speed, ee_ui_form *form, uint32_t arg) { return fn_eeuiemg_change_game_speed_execute(eeuiemg_change_game_speed, form, arg); }
@@ -2645,6 +2649,7 @@ internal int spec_ui_events_select(int build) {
         fn_eeuiemg_cancel_update_state_execute = (eeuiemg_cancel_update_state_execute_fn)0x00649FEE;
         vt_eeuiemg_change_game_speed = 0x008348AC;
         size_eeuiemg_change_game_speed = 0x10;
+        of_eeuiemg_change_game_speed_up = 0xC;
         fn_eeuiemg_change_game_speed_execute = (eeuiemg_change_game_speed_execute_fn)0x0064A2A3;
         vt_eeuiemg_display_chat = 0x00834884;
         size_eeuiemg_display_chat = 0xC;
@@ -3561,6 +3566,7 @@ internal int spec_ui_events_select(int build) {
         fn_eeuiemg_cancel_update_state_execute = (eeuiemg_cancel_update_state_execute_fn)0x006605BA;
         vt_eeuiemg_change_game_speed = 0x0084A948;
         size_eeuiemg_change_game_speed = 0x10;
+        of_eeuiemg_change_game_speed_up = 0xC;
         fn_eeuiemg_change_game_speed_execute = (eeuiemg_change_game_speed_execute_fn)0x006608F4;
         vt_eeuiemg_display_chat = 0x0084A920;
         size_eeuiemg_display_chat = 0xC;

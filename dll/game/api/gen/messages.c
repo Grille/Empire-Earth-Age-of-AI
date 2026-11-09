@@ -228,6 +228,10 @@ internal inline uint8_t *speed_msg_spare_at(const ee_speed_msg *o) { return (uin
 internal inline uint8_t speed_msg_get_sendable_when_out(const ee_speed_msg *o) { return *(uint8_t *)((uint8_t *)o + of_msg_sendable_when_out); }
 internal inline void speed_msg_set_sendable_when_out(ee_speed_msg *o, uint8_t v) { *(uint8_t *)((uint8_t *)o + of_msg_sendable_when_out) = v; }
 internal inline uint8_t *speed_msg_sendable_when_out_at(const ee_speed_msg *o) { return (uint8_t *)((uint8_t *)o + of_msg_sendable_when_out); }
+// its constructor 0x64A631, its execute
+internal inline float speed_msg_get_speed(const ee_speed_msg *o) { return *(float *)((uint8_t *)o + of_speed_msg_speed); }
+internal inline void speed_msg_set_speed(ee_speed_msg *o, float v) { *(float *)((uint8_t *)o + of_speed_msg_speed) = v; }
+internal inline float *speed_msg_speed_at(const ee_speed_msg *o) { return (float *)((uint8_t *)o + of_speed_msg_speed); }
 typedef void (__thiscall *speed_msg_execute_fn)(ee_speed_msg *);
 internal speed_msg_execute_fn fn_speed_msg_execute;
 internal inline void speed_msg_execute(ee_speed_msg *speed_msg) { fn_speed_msg_execute(speed_msg); }
@@ -937,6 +941,7 @@ internal int spec_messages_select(int build) {
         of_chat_msg_text = 0x10;
         fn_chat_msg_execute = (chat_msg_execute_fn)0x004B78C7;
         fn_chat_msg_init = (chat_msg_init_fn)0x005C2A2F;
+        of_speed_msg_speed = 0x10;
         fn_speed_msg_execute = (speed_msg_execute_fn)0x004B6BD4;
         size_eem_select_units = 0x138;
         of_select_msg_selection = 0x10;
@@ -1039,6 +1044,7 @@ internal int spec_messages_select(int build) {
         of_chat_msg_text = 0x10;
         fn_chat_msg_execute = (chat_msg_execute_fn)0x004BFDD2;
         fn_chat_msg_init = (chat_msg_init_fn)0x005D3196;
+        of_speed_msg_speed = 0x10;
         fn_speed_msg_execute = (speed_msg_execute_fn)0x004BEFB9;
         size_eem_select_units = 0x138;
         of_select_msg_selection = 0x10;

@@ -108,7 +108,10 @@ internal int home_soldiers_now(ee_player *pl);
 internal int current_epoch(ee_player *pl);
 internal int g_chat_epoch[16] = { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 };
 internal uint32_t g_chat_status[16];
+internal volatile int g_speed_steps = 1;   // the + and - keys above the game's own speeds: so many times the steps a second (hook_speed_msg)
+internal volatile int g_speed_fast;        // that was used in this game: hook_speed_send
 internal void chat_new_game(void) {
+    g_speed_steps = 1, g_speed_fast = 0;
     for (int i = 0; i < 16; i++) { g_chat_epoch[i] = -1; g_chat_status[i] = g_chat_last[i] = 0; }
     memset(g_chat_kind_last, 0, sizeof g_chat_kind_last);
     memset(g_chat_lines, 0, sizeof g_chat_lines);
@@ -174,19 +177,73 @@ internal void cmd_chatme(char *out, const char *args) {
     REPLY("ok: sent \"%s\" (cheats %s, cheat code %d)\n", args, cheats ? "on" : "off", code);
 }
 
-// The game speed told when the + and - keys change it (the player, 2026-11-09): the game's own number, 0.5 to 2.5 in steps
-// of 0.5; the message comes back on every PC, also at the end of the range, where the speed stays.
+// The game speed told when the + and - keys change it (the player, 2026-11-09). Up to 2.5 the game's own speed: longer steps.
+// Above it the same steps as at 2.5, more of them a second (the player: "the last delta scaled value from the game is 2.5
+// evrething after should be handled by steps"; "that they might not be reached is a given"): the game plays what it plays
+// at 2.5, only faster. The message says the speed wanted and comes back on every PC, also at the end of the range.
 #define SPEED_LINE_MS 3000
+#define SPEED_STEP_TOP 2.5f
+internal float speed_shown(void) { return g_speed_steps > 1 ? SPEED_STEP_TOP * (float)g_speed_steps : *game_speed_var(); }
 internal void __thiscall hook_speed_msg(ee_speed_msg *msg) {
+    float want = speed_msg_get_speed(msg);
+    g_speed_steps = want > SPEED_STEP_TOP + 0.01f ? (int)(want / SPEED_STEP_TOP + 0.5f) : 1;
+    if (g_speed_steps > 1) g_speed_fast = 1, speed_msg_set_speed(msg, SPEED_STEP_TOP);
     speed_msg_execute(msg);
     char line[16];
-    snprintf(line, sizeof line, "x%.1f", *game_speed_var());
+    float speed = speed_shown();
+    snprintf(line, sizeof line, speed < 0.5f ? "x%.2f" : speed < 10.0f ? "x%.1f" : "x%.0f", speed);
     system_line(line, SPEED_LINE_MS);
+}
+
+// The speeds of the + and - keys (the player, 2026-11-09; the game's own: 0.5 to 2.5 by 0.5). The event stays the game's, its
+// checks and its message: for the one press the game data's limits and step are those that make its sum the next speed.
+internal const float k_speed_steps[] = { 0.25f, 0.5f, 1.0f, 1.5f, 2.0f, SPEED_STEP_TOP, 5.0f, 10.0f, 20.0f, 40.0f };
+internal uint32_t __thiscall hook_speed_key(eeuiemg_change_game_speed *ev, ee_ui_form *form, uint32_t arg) {
+    ee_game_data *opt = game_data();
+    if (!opt) return eeuiemg_change_game_speed_execute(ev, form, arg);
+    int n = (int)(sizeof k_speed_steps / sizeof *k_speed_steps);
+    float cur = speed_shown(), now = *game_speed_var(), to = cur;
+    int up = eeuiemg_change_game_speed_get_up(ev);
+    if (up) {
+        for (int i = n - 1; i >= 0 && k_speed_steps[i] > cur + 0.01f; i--) to = k_speed_steps[i];
+    } else {
+        for (int i = 0; i < n && k_speed_steps[i] < cur - 0.01f; i++) to = k_speed_steps[i];
+    }
+    float lo = game_data_get_speed_min(opt), hi = game_data_get_speed_max(opt), step = game_data_get_speed_step(opt);
+    game_data_set_speed_min(opt, 0.0f), game_data_set_speed_max(opt, to + 1.0f), game_data_set_speed_step(opt, up ? to - now : now - to);
+    uint32_t done = eeuiemg_change_game_speed_execute(ev, form, arg);
+    game_data_set_speed_min(opt, lo), game_data_set_speed_max(opt, hi), game_data_set_speed_step(opt, step);
+    return done;
+}
+
+// The simulation's wait before its steps (period 22 ms, up to 2 steps a pass): so many times shorter, by the clock so that
+// the time of the steps themselves doesn't slow the pace; with no step granted yet a short wait, as turbo's.
+internal long __thiscall hook_speed_wait(void *ev, unsigned long ms) {
+    int k = g_speed_steps;
+    ee_physics *phys = game_physics();
+    if (k <= 1 || !phys) return ts_wait(ev, ms);
+    if (!physics_get_steps_granted(phys)) return ts_wait(ev, 1);
+    static LONGLONG next;
+    LARGE_INTEGER now, f;
+    QueryPerformanceCounter(&now), QueryPerformanceFrequency(&f);
+    LONGLONG period = f.QuadPart * physics_get_tick_ms(phys) / (1000 * k);
+    if (now.QuadPart < next) Sleep((DWORD)((next - now.QuadPart) * 1000 / f.QuadPart));
+    next = (now.QuadPart > next + period * 4 ? now.QuadPart : next) + period;
+    return 0;
+}
+// The server's wait for its next tick of 15 steps: so many times shorter. Its time is reckoned from when the tick was due, which
+// the shorter waits leave far ahead: once fast, never longer than a tick, or it would stand for as long after coming back.
+#define SPEED_TICK_MS 350u
+internal DWORD WINAPI hook_speed_send(DWORD n, const HANDLE *h, BOOL all, DWORD ms) {
+    DWORD most = SPEED_TICK_MS / (DWORD)g_speed_steps;
+    if (ms != INFINITE && g_speed_fast && ms > most) ms = most;
+    return WaitForMultipleObjects(n, h, all, ms);
 }
 
 internal void chat_install(void) {
     g_chat = g_set.chat;
     g_chat_ms = g_set.chat_seconds * 1000;
     if (g_log) fprintf(g_log, "# chat: level %d, %d s per line\n", g_chat, g_chat_ms / 1000);
-    if (!patch_msg_game_speed(hook_speed_msg) && g_log) fprintf(g_log, "# chat: the game speed message's hook FAILED\n");
+    if ((!patch_msg_game_speed(hook_speed_msg) || !patch_speed_key(hook_speed_key)) && g_log) fprintf(g_log, "# chat: the game speed keys' hooks FAILED\n");
+    if (!g_autotest && (!patch_sim_wait(hook_speed_wait) || !patch_send_wait(hook_speed_send)) && g_log) fprintf(g_log, "# chat: the fast speeds' hooks FAILED\n");   // a test has its own at both places (turbo)
 }

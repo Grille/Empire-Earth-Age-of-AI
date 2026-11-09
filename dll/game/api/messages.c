@@ -83,6 +83,7 @@ internal inline server_send_fn patch_server_send(ee_server *net, server_send_fn 
 // MESSAGES AND THE MENU (diplo.c)
 internal inline int patch_msg_pay_tribute(tribute_msg_execute_fn h) { return patch_vtable(data_messages_vt_pay_tribute, value_messages_slot_msg_execute, (uintptr_t)fn_tribute_msg_execute, (void *)h); }
 internal inline int patch_msg_ingame_chat(chat_msg_execute_fn h) { return patch_vtable(data_messages_vt_ingame_chat, value_messages_slot_msg_execute, (uintptr_t)fn_chat_msg_execute, (void *)h); }
+internal inline int patch_speed_key(eeuiemg_change_game_speed_execute_fn h) { return patch_vtable(vt_eeuiemg_change_game_speed, slot_ui_event_execute, (uintptr_t)fn_eeuiemg_change_game_speed_execute, (void *)h); }
 internal inline int patch_msg_game_speed(speed_msg_execute_fn h) { return patch_vtable(data_messages_vt_game_speed, value_messages_slot_msg_execute, (uintptr_t)fn_speed_msg_execute, (void *)h); }
 internal inline int patch_msg_resign(resign_msg_execute_fn h) { return patch_vtable(data_messages_vt_resign, value_messages_slot_msg_execute, (uintptr_t)fn_resign_msg_execute, (void *)h); }
 // the load and unload commands (transports.c)

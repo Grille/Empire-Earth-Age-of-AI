@@ -59,6 +59,17 @@ internal inline int *game_data_unit_limit_at(const ee_game_data *o) { return (in
 internal inline int game_data_get_unit_limit_max(const ee_game_data *o) { return *(int *)((uint8_t *)o + of_game_data_unit_limit_max); }
 internal inline void game_data_set_unit_limit_max(ee_game_data *o, int v) { *(int *)((uint8_t *)o + of_game_data_unit_limit_max) = v; }
 internal inline int *game_data_unit_limit_max_at(const ee_game_data *o) { return (int *)((uint8_t *)o + of_game_data_unit_limit_max); }
+// the lowest and highest game speed, and the step of the + and - keys (EEUIEMGChangeGameSpeed::execute, their only
+// reader; 0.5, 2.5 and 0.5 from the game's data)
+internal inline float game_data_get_speed_min(const ee_game_data *o) { return *(float *)((uint8_t *)o + of_game_data_speed_min); }
+internal inline void game_data_set_speed_min(ee_game_data *o, float v) { *(float *)((uint8_t *)o + of_game_data_speed_min) = v; }
+internal inline float *game_data_speed_min_at(const ee_game_data *o) { return (float *)((uint8_t *)o + of_game_data_speed_min); }
+internal inline float game_data_get_speed_max(const ee_game_data *o) { return *(float *)((uint8_t *)o + of_game_data_speed_max); }
+internal inline void game_data_set_speed_max(ee_game_data *o, float v) { *(float *)((uint8_t *)o + of_game_data_speed_max) = v; }
+internal inline float *game_data_speed_max_at(const ee_game_data *o) { return (float *)((uint8_t *)o + of_game_data_speed_max); }
+internal inline float game_data_get_speed_step(const ee_game_data *o) { return *(float *)((uint8_t *)o + of_game_data_speed_step); }
+internal inline void game_data_set_speed_step(ee_game_data *o, float v) { *(float *)((uint8_t *)o + of_game_data_speed_step) = v; }
+internal inline float *game_data_speed_step_at(const ee_game_data *o) { return (float *)((uint8_t *)o + of_game_data_speed_step); }
 
 // class EEPhysics (ee_physics)
 // the simulation, [api.world_clock] (EEPhysics)
@@ -278,6 +289,9 @@ internal int spec_world_select(int build) {
         of_game_data_line_ms = 0x2CC;
         of_game_data_unit_limit = 0x2E8;
         of_game_data_unit_limit_max = 0x2EC;
+        of_game_data_speed_min = 0x4B4;
+        of_game_data_speed_max = 0x4B8;
+        of_game_data_speed_step = 0x4D0;
         of_physics_seed = 0x18;
         of_physics_tick_s = 0x50;
         of_physics_tick_ms = 0x54;
@@ -340,6 +354,9 @@ internal int spec_world_select(int build) {
         of_game_data_line_ms = 0x2CC;
         of_game_data_unit_limit = 0x2E8;
         of_game_data_unit_limit_max = 0x2EC;
+        of_game_data_speed_min = 0x4B4;
+        of_game_data_speed_max = 0x4B8;
+        of_game_data_speed_step = 0x4D0;
         of_physics_seed = 0x18;
         of_physics_tick_s = 0x50;
         of_physics_tick_ms = 0x54;

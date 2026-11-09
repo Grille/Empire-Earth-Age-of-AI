@@ -68,6 +68,17 @@ unsafe struct ee_game_data
     /// the code reading [game.game_data] (the setup copy 0x524B8F)
     [offset(0x2EC), found(c)]
     int32 unit_limit_max;
+
+    /// the lowest and highest game speed, and the step of the + and - keys (EEUIEMGChangeGameSpeed::execute, their only
+    /// reader; 0.5, 2.5 and 0.5 from the game's data)
+    [offset(0x4B4), found(c)]
+    float32 speed_min;
+
+    [offset(0x4B8), found(c)]
+    float32 speed_max;
+
+    [offset(0x4D0), found(c)]
+    float32 speed_step;
 }
 
 /// the simulation, [api.world_clock] (EEPhysics)

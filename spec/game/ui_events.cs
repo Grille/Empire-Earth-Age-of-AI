@@ -1226,6 +1226,10 @@ unsafe struct EEUIEMGCancelUpdateState
 [@base(typeof(UIEvent)), size((ee)0x10, (aoc)0x10), vtable((ee)0x008348AC, (aoc)0x0084A948)]
 unsafe struct EEUIEMGChangeGameSpeed
 {
+    /// 1 the + key, 0 the - key (execute)
+    [offset(0xC), found(c)]
+    uint8 up;
+
     [address((ee)0x0064A2A3, (aoc)0x006608F4), overrides(typeof(UIEvent))]
     extern uint32 execute(UIForm* form, uint32 arg);
 }

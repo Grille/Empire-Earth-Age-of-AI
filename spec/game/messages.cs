@@ -130,6 +130,10 @@ unsafe struct EEMInGameChat
 [@base(typeof(EEMessage)), c_type("ee_speed_msg")]
 unsafe struct EEMGameSpeed
 {
+    /// its constructor 0x64A631, its execute
+    [offset(0x10), found(c)]
+    float32 speed;
+
     [address((ee)0x004B6BD4, (aoc)0x004BEFB9)]
     extern void execute();
 }
