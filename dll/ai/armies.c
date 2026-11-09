@@ -1903,14 +1903,27 @@ internal void armies_tick(ee_player *pl, uint32_t now) {
     static ee_unit *mem[4096];
     int nm = ou_members(pl, mem, 4096);
     qsort(mem, (size_t)nm, sizeof *mem, ar_ptr_cmp);
+    int kept_group = 0, kept_landing = 0, kept_sortie = 0;
     for (struct grid_it it = grid_it_all(1); grid_it_next(&it) && a->n < AR_HELD; ) {
         ee_unit *u = it.u;
         if (unit_get_owner(u) != pl || !ms_land_soldier(u, it.td) || ar_held(a, u) || unit_get_ai_held(u) || ar_group_has(idx, u) || ar_det_has(idx, u) || ar_look_has(idx, u)) continue;   // the last two: the force took them in again though they are taken (the raiders marched off with it, in both lists)
-        if (bsearch(&u, mem, (size_t)nm, sizeof *mem, ar_ptr_cmp)) continue;
-        if (!combat_mgr_unit_free(cm, unit_get_physics(u)) || landing_has_unit(pl, u) || ou_sortie(pl, u)) continue;
+        int is_free = combat_mgr_unit_free(cm, unit_get_physics(u)) != 0;
+        if (bsearch(&u, mem, (size_t)nm, sizeof *mem, ar_ptr_cmp)) { kept_group += is_free; continue; }
+        if (!is_free) continue;
+        if (landing_has_unit(pl, u)) { kept_landing++; continue; }
+        if (ou_sortie(pl, u)) { kept_sortie++; continue; }
         player_hold_unit(pl, u);
         a->held[a->n].u = u; a->held[a->n].id = unit_get_serial(u); a->held[a->n].order_t = 0; a->held[a->n].out = 0; a->held[a->n].back = 0; a->held[a->n].pick = 0; a->held[a->n].hp = -1; a->n++;
         a->held_all++;
+    }
+    // many free soldiers the force doesn't take (the player's game of 2026-11-09: P8's 233 stood idle in no one's army for
+    // half an hour, a load freed them, the cause not known): what keeps them out, once a minute
+    static uint32_t kept_t[16];
+    if (now < kept_t[idx]) kept_t[idx] = 0;
+    if (kept_group + kept_landing + kept_sortie >= 20 && now - kept_t[idx] >= 60000) {
+        kept_t[idx] = now ? now : 1;
+        ar_log(idx, now, "%d free soldiers kept out of the force: %d in the game's attack groups, %d on a landing, %d on an outdated units' sortie",
+               kept_group + kept_landing + kept_sortie, kept_group, kept_landing, kept_sortie);
     }
     ar_window(pl, a, now);
     if (!ar_home(pl, idx, a, now)) return;
