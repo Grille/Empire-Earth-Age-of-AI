@@ -56,6 +56,9 @@ internal void chk_folder(const char *dir) {   // the personality folder dir as t
     lstrcpyA(g_chk_dir, d);
     lstrcpyA(g_ai_dir, d);
     lstrcpyA(g_lang, "en");
+    char lang[MAX_PATH];   // the folder above the personalities', as ageofai.ini's
+    snprintf(lang, sizeof lang, "%s\\..\\language.eeai", dir);
+    words_read_file(lang, "language.eeai");
     personas_load();
     texts_load();
     if (g_texts_missing) chk_told("mod\\computer.eeai, mod\\prompt.eeai, mod\\units.eeai: not all there - not a personality folder");
@@ -143,6 +146,7 @@ int main(int argc, char **argv) {
             continue;
         }
         if (!lstrcmpiA((strrchr(full, '\\') ? strrchr(full, '\\') + 1 : full), "texfix.eeai")) { texfix_read_file(full, "texfix.eeai"); continue; }
+        if (!lstrcmpiA((strrchr(full, '\\') ? strrchr(full, '\\') + 1 : full), "language.eeai")) { words_read_file(full, "language.eeai"); continue; }
         lstrcpyA(dir, full);
         char *slash = strrchr(dir, '\\');
         if (slash) *slash = 0;

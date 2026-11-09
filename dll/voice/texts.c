@@ -139,7 +139,53 @@ internal const char *x_code_has(const char *file, const char *sec, const char *k
     (void)file;
     if (!lstrcmpiA(sec, "system") && (!lstrcmpiA(key, "vassal_ask_lord") || !lstrcmpiA(key, "diplo_vassal"))) return " lord ";
     if (!lstrcmpiA(sec, "prompt") && !lstrcmpiA(key, "terms_vassal")) return " lord ";
+    if (!lstrcmpiA(file, "language.eeai") && !lstrcmpiA(sec, "vassal_of")) return " lord ";   // used in diplo_vassal only
     return NULL;
+}
+// LANGUAGE.EEAI (base/words.c): a record per word, its entries the languages. The game's language's text or, while that
+// isn't there, the English goes to word() and to the system lines' and personalities' names, word.vassal (those take
+// expressions, so "Vassal of {lord}" is filled where such a name is used; {1} {2} are word_fill_w's).
+internal uint8_t g_word_own[N_WORDS], g_word_en[N_WORDS];
+internal void words_key(void *arg, const char *sec, const char *key, struct tval *v, struct tlex *l) {
+    (void)arg;
+    if (!*sec || strchr(sec, '.')) { tl_error(l, "this file has records: a_word = { en = \"...\", de = \"...\" }"); return; }
+    int i = word_index(sec);
+    if (i < 0) { tl_error(l, "a word the mod doesn't use"); return; }
+    if (v->kind != TV_STRING) { tl_error(l, "a string expected (\"...\")"); return; }
+    char tag[16];   // pt_br in the file (a name has no -): the game's pt-br
+    lstrcpynA(tag, key, sizeof tag);
+    for (char *s = tag; *s; s++) if (*s == '_') *s = '-';
+    size_t r = 0, n = sizeof k_lang_alias / sizeof *k_lang_alias;
+    while (r < n && lstrcmpiA(tag, k_lang_alias[r][0])) r++;
+    if (r == n) { tl_error(l, "no language of the game: de en fr es it pl pt_br ru ko zh_cn zh_tw"); return; }
+    int en = !lstrcmpiA(tag, "en"), own = lang_matches(tag);
+    g_word_en[i] |= (uint8_t)en;
+    if (own || (en && !g_word_own[i])) {
+        char name[64];
+        snprintf(name, sizeof name, "word.%s", k_words[i]);
+        word_set(i, v->text);
+        xvars_set(&g_vars_sys, name, v->src);
+        g_word_own[i] = (uint8_t)own;
+    }
+}
+internal void words_read_file(const char *path, const char *shown) {
+    char *text = read_text_acp(path);
+    if (!text) { x_error("%s: no such file - the mod's words on the game's screens are their keys", shown); return; }
+    tfile_parse(shown, text, words_key, NULL);
+    free(text);
+    int own = 0;
+    for (int i = 0; i < N_WORDS; i++) {
+        if (!g_word_en[i]) x_error("%s: no English (en) for %s", shown, k_words[i]);
+        own += g_word_own[i];
+    }
+    if (g_log) fprintf(g_log, "# language: %s %d words, %d in language '%s', the rest English\n", shown, N_WORDS, own, g_lang);
+}
+internal void words_read(void) {   // beside ageofai.ini (a test's: the shipped config\'s)
+    char path[MAX_PATH];
+    lstrcpynA(path, g_aimod_ini, sizeof path - 16);
+    char *slash = strrchr(path, '\\');
+    lstrcpyA(slash ? slash + 1 : path, "language.eeai");
+    words_read_file(path, "language.eeai");
 }
 internal void texts_load(void) {
     if (g_texts_loaded) return;

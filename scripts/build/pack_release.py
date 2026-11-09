@@ -36,6 +36,7 @@ with zipfile.ZipFile(out, 'w', zipfile.ZIP_DEFLATED) as z:
         z.write(os.path.join(build, 'dll', f), f)
     z.write(os.path.join(build, 'config', 'ageofai.ini'), 'ageofai/ageofai.ini')
     z.write(os.path.join(build, 'config', 'texfix.eeai'), 'ageofai/texfix.eeai')
+    z.write(os.path.join(build, 'config', 'language.eeai'), 'ageofai/language.eeai')
     pers = os.path.join(build, 'config', 'personalities')
     for d, _, files in os.walk(pers):
         for f in sorted(files):

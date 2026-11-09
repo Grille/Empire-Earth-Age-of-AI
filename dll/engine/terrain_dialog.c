@@ -107,6 +107,13 @@ internal void td_mark(HWND d, int id, int bad) {
 }
 
 // the fields from the chosen slot's colour, but the one being typed in
+// a label's word, a space in: off its box's edge (the caller copies it before the next)
+internal const wchar_t *td_lead(const char *key) {
+    static wchar_t t[120];
+    t[0] = L' ';
+    lstrcpynW(t + 1, word_w(key), 119);
+    return t;
+}
 internal void td_fields(HWND d, int skip) {
     const uint8_t *c = g_td.cell[g_td.sel];
     wchar_t t[8];
@@ -161,11 +168,11 @@ internal void td_update(HWND d) {
     SendDlgItemMessageW(d, TD_BLEND, CB_SETCURSEL, (WPARAM)g_td.blend, 0);
     EnableWindow(GetDlgItem(d, TD_BLEND), g_td.mode == TP_RAMP);
     wchar_t t[96];
-    if (g_td.n <= g_td.avail) wsprintfW(t, L" %u of %u free slots taken", g_td.n, g_td.avail);
-    else wsprintfW(t, L" only %u slots free", g_td.avail);
+    t[0] = L' ';
+    if (g_td.n <= g_td.avail) word_fill_w(t + 1, 95, "slots_taken", g_td.n, g_td.avail);
+    else word_fill_w(t + 1, 95, "slots_short", g_td.avail, 0);
     SetDlgItemTextW(d, TD_FREE, t);
-    SetDlgItemTextW(d, TD_HINT, g_td.mode == TP_RAMP ? L" Click near an end of the strip to choose which end to change." :
-                                g_td.mode == TP_EACH ? L" Click a slot to choose which to change." : L" Its colour: choose it below.");
+    SetDlgItemTextW(d, TD_HINT, td_lead(g_td.mode == TP_RAMP ? "hint_ramp" : g_td.mode == TP_EACH ? "hint_each" : "hint_flat"));
     EnableWindow(GetDlgItem(d, IDOK), g_td.n <= g_td.avail);
     td_redraw(d);
 }
@@ -419,10 +426,10 @@ internal INT_PTR CALLBACK td_proc(HWND d, UINT msg, WPARAM w, LPARAM l) {
             wsprintfW(t, L"%u", k);
             SendDlgItemMessageW(d, TD_COUNT, CB_ADDSTRING, 0, (LPARAM)t);
         }
-        static const wchar_t *const blends[] = { L"sRGB (the game's)", L"linear light", L"OKLab (even)" };   // tp_blend's order
-        for (unsigned k = 0; k < sizeof blends / sizeof *blends; k++) SendDlgItemMessageW(d, TD_BLEND, CB_ADDSTRING, 0, (LPARAM)blends[k]);
+        static const char *const blends[] = { "blend_srgb", "blend_linear", "blend_oklab" };   // tp_blend's order
+        for (unsigned k = 0; k < sizeof blends / sizeof *blends; k++) SendDlgItemMessageW(d, TD_BLEND, CB_ADDSTRING, 0, (LPARAM)word_w(blends[k]));
         if (g_td.type < 0) ShowWindow(GetDlgItem(d, TD_DELETE), SW_HIDE);
-        SetWindowTextW(d, g_td.type < 0 ? L"New terrain colour" : L"Terrain colour");
+        SetWindowTextW(d, word_w(g_td.type < 0 ? "colour_new" : "colour_edit"));
         HWND o = GetWindow(d, GW_OWNER);   // over the game's window (headless: off the screen with it)
         RECT ro, rd;
         if (o && GetWindowRect(o, &ro) && GetWindowRect(d, &rd))
@@ -504,7 +511,8 @@ internal INT_PTR CALLBACK td_proc(HWND d, UINT msg, WPARAM w, LPARAM l) {
 // an in-memory dialog template: the dialog, then its items (dialog units)
 internal WORD *td_align(WORD *p) { return (WORD *)(((uintptr_t)p + 3) & ~(uintptr_t)3); }
 internal WORD *td_str(WORD *p, const wchar_t *s) {
-    do *p++ = *s; while (*s++);
+    for (int n = 0; *s && n < 60; n++) *p++ = *s++;   // the words are the player's to change, tpl's size isn't
+    *p++ = 0;
     return p;
 }
 internal WORD *td_item(WORD *p, DWORD style, short x, short y, short cx, short cy, WORD id, WORD cls, const wchar_t *text) {
@@ -570,15 +578,15 @@ internal void td_open(int i, int sel) {
     // the buttons first: the dialog gives its first tab stop the focus when it is activated, and an automatic radio
     // button given the focus is clicked (the kind was one colour whenever the dialog opened). A radio button as tall
     // as the game's picture of one (20 pixels)
-    p = td_item(p, BS_DEFPUSHBUTTON | WS_TABSTOP | WS_GROUP, 146, 218, 50, 15, IDOK, 0x80, L"OK");
-    p = td_item(p, BS_PUSHBUTTON | WS_TABSTOP, 202, 218, 50, 15, IDCANCEL, 0x80, L"Cancel");
-    p = td_item(p, BS_PUSHBUTTON | WS_TABSTOP, 8, 218, 50, 15, TD_DELETE, 0x80, L"Delete");
-    p = td_item(p, BS_AUTORADIOBUTTON | WS_GROUP | WS_TABSTOP, 8, 6, 124, 12, TD_FLAT, 0x80, L"One colour");
-    p = td_item(p, BS_AUTORADIOBUTTON, 8, 20, 124, 12, TD_RAMP, 0x80, L"A ramp between two colours");
-    p = td_item(p, BS_AUTORADIOBUTTON, 8, 34, 124, 12, TD_EACH, 0x80, L"Each slot a colour of its own");
-    p = td_item(p, SS_LEFT | SS_CENTERIMAGE, 140, 20, 30, 12, TD_BLEND_LABEL, 0x82, L" Blend:");   // the ramp's, beside it; the labels' texts a space in: off their boxes' edge, as a radio button's
+    p = td_item(p, BS_DEFPUSHBUTTON | WS_TABSTOP | WS_GROUP, 146, 218, 50, 15, IDOK, 0x80, word_w("ok"));
+    p = td_item(p, BS_PUSHBUTTON | WS_TABSTOP, 202, 218, 50, 15, IDCANCEL, 0x80, word_w("cancel"));
+    p = td_item(p, BS_PUSHBUTTON | WS_TABSTOP, 8, 218, 50, 15, TD_DELETE, 0x80, word_w("delete"));
+    p = td_item(p, BS_AUTORADIOBUTTON | WS_GROUP | WS_TABSTOP, 8, 6, 124, 12, TD_FLAT, 0x80, word_w("colour_flat"));
+    p = td_item(p, BS_AUTORADIOBUTTON, 8, 20, 124, 12, TD_RAMP, 0x80, word_w("colour_ramp"));
+    p = td_item(p, BS_AUTORADIOBUTTON, 8, 34, 124, 12, TD_EACH, 0x80, word_w("colour_each"));
+    p = td_item(p, SS_LEFT | SS_CENTERIMAGE, 140, 20, 30, 12, TD_BLEND_LABEL, 0x82, td_lead("blend"));   // the ramp's, beside it; the labels' texts a space in: off their boxes' edge, as a radio button's
     p = td_item(p, CBS_DROPDOWNLIST | CBS_OWNERDRAWFIXED | CBS_HASSTRINGS | WS_TABSTOP | WS_GROUP, 172, 20, 80, 80, TD_BLEND, 0x85, L"");
-    p = td_item(p, SS_LEFT | SS_CENTERIMAGE, 8, 54, 30, 12, TD_SLOTS_LABEL, 0x82, L" Slots:");
+    p = td_item(p, SS_LEFT | SS_CENTERIMAGE, 8, 54, 30, 12, TD_SLOTS_LABEL, 0x82, td_lead("slots"));
     p = td_item(p, CBS_DROPDOWNLIST | CBS_OWNERDRAWFIXED | CBS_HASSTRINGS | WS_VSCROLL | WS_TABSTOP | WS_GROUP, 40, 54, 36, 160,
                 TD_COUNT, 0x85, L"");
     p = td_item(p, SS_LEFT | SS_CENTERIMAGE, 86, 54, 166, 12, TD_FREE, 0x82, L"");
@@ -592,7 +600,7 @@ internal void td_open(int i, int sel) {
         p = td_item(p, SS_LEFT | SS_CENTERIMAGE, 158, (short)(118 + 21 * k), 22, 12, (WORD)(TD_R_LABEL + k), 0x82, fields[k]);
         p = td_item(p, WS_TABSTOP | ES_AUTOHSCROLL | (k ? 0 : WS_GROUP), 182, (short)(118 + 21 * k), 32, 12, (WORD)(TD_R + k), 0x81, L"");
     }
-    p = td_item(p, SS_LEFT | SS_CENTERIMAGE, 8, 198, 34, 12, TD_RECENT_LABEL, 0x82, L" Recent:");
+    p = td_item(p, SS_LEFT | SS_CENTERIMAGE, 8, 198, 34, 12, TD_RECENT_LABEL, 0x82, td_lead("recent"));
     p = td_item(p, SS_OWNERDRAW, 44, 198, 208, 12, TD_RECENT, 0x82, L"");
     RECT clip;
     int clipped = GetClipCursor(&clip);

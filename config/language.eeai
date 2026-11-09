@@ -1,0 +1,153 @@
+// The words Empire Earth: Age of AI writes on the game's screens, in the game's language ([general] language in
+// ageofai.ini, else the game's own). A record per word, en = "..." a must; a language left out shows the English:
+// de fr es it pl pt_br ru ko zh_cn zh_tw. The file comes with the mod and every update replaces it.
+// {1} {2}: the numbers the mod fills in. {lord}: an expression, as in the personalities' lines.
+// Save as UTF-8.
+
+// THE DIPLOMACY SCREEN: a vassal's row
+vassal = {
+    en = "Vassal",
+    de = "Vasall",
+}
+vassal_of = {
+    en = "Vassal of {lord}",
+    de = "Vasall von {lord}",
+}
+
+// THE SCENARIO EDITOR: placing units
+sanity_check = {
+    en = "Sanity check",
+    de = "Platzierung prüfen",
+}
+
+// THE SCENARIO EDITOR: terrain
+cliff_rock_1 = {
+    en = "Cliff Rock 1",
+    de = "Klippenfels 1",
+}
+cliff_rock_2 = {
+    en = "Cliff Rock 2",
+    de = "Klippenfels 2",
+}
+cliff_color = {
+    en = "Cliff color",
+    de = "Klippenfarbe",
+}
+water_color = {
+    en = "Water color",
+    de = "Wasserfarbe",
+}
+min_height = {
+    en = "Min height",
+    de = "Min. Höhe",
+}
+max_height = {
+    en = "Max height",
+    de = "Max. Höhe",
+}
+min_slope = {
+    en = "Min slope",
+    de = "Min. Neigung",
+}
+max_slope = {
+    en = "Max slope",
+    de = "Max. Neigung",
+}
+water_at = {
+    en = "Water at",
+    de = "Wasser ab",
+}
+cliffs = {
+    en = "Cliffs",
+    de = "Klippen",
+}
+cliffs_any = {
+    en = "Anything",
+    de = "Alles",
+}
+cliffs_none = {
+    en = "No cliffs",
+    de = "Keine Klippen",
+}
+cliffs_only = {
+    en = "Only cliffs",
+    de = "Nur Klippen",
+}
+
+// THE SCENARIO EDITOR: the terrain colour dialog
+ok = {
+    en = "OK",
+    de = "OK",
+}
+cancel = {
+    en = "Cancel",
+    de = "Abbrechen",
+}
+delete = {
+    en = "Delete",
+    de = "Löschen",
+}
+colour_new = {
+    en = "New terrain colour",
+    de = "Neue Terrain-Farbe",
+}
+colour_edit = {
+    en = "Terrain colour",
+    de = "Terrain-Farbe",
+}
+colour_flat = {
+    en = "One colour",
+    de = "Eine Farbe",
+}
+colour_ramp = {
+    en = "A ramp between two colours",
+    de = "Verlauf zwischen zwei Farben",
+}
+colour_each = {
+    en = "Each slot a colour of its own",
+    de = "Jedes Feld eine eigene Farbe",
+}
+blend = {
+    en = "Blend:",
+    de = "Mischen:",
+}
+blend_srgb = {
+    en = "sRGB (the game's)",
+    de = "sRGB (wie im Spiel)",
+}
+blend_linear = {
+    en = "linear light",
+    de = "lineares Licht",
+}
+blend_oklab = {
+    en = "OKLab (even)",
+    de = "OKLab (gleichmäßig)",
+}
+slots = {
+    en = "Slots:",
+    de = "Felder:",
+}
+recent = {
+    en = "Recent:",
+    de = "Zuletzt:",
+}
+slots_taken = {
+    en = "{1} of {2} free slots taken",
+    de = "{1} von {2} freien Feldern belegt",
+}
+slots_short = {
+    en = "only {1} slots free",
+    de = "nur {1} Felder frei",
+}
+hint_ramp = {
+    en = "Click near an end of the strip to choose which end to change.",
+    de = "Klicken Sie nahe einem Ende des Streifens, um dieses Ende zu ändern.",
+}
+hint_each = {
+    en = "Click a slot to choose which to change.",
+    de = "Klicken Sie auf ein Feld, um es zu ändern.",
+}
+hint_flat = {
+    en = "Its colour: choose it below.",
+    de = "Die Farbe: unten wählen.",
+}

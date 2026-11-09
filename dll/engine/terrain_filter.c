@@ -20,8 +20,9 @@
 #define TF_EPS 0.001f
 enum { TF_HEIGHT_MIN, TF_HEIGHT_MAX, TF_SLOPE_MIN, TF_SLOPE_MAX, TF_WATER, TF_FIELDS };
 enum { TF_ANYTHING, TF_NO_CLIFFS, TF_ONLY_CLIFFS, TF_CLIFF_MODES };
-internal const char *const k_tf_label[TF_FIELDS] = { "Min height", "Max height", "Min slope", "Max slope", "Water at" };
-internal const char *const k_tf_cliffs[TF_CLIFF_MODES] = { "Anything", "No cliffs", "Only cliffs" };
+internal const char *const k_tf_label[TF_FIELDS] = { "min_height", "max_height", "min_slope", "max_slope", "water_at" };   // the words (language.eeai)
+internal const char *const k_tf_cliffs[TF_CLIFF_MODES] = { "Anything", "No cliffs", "Only cliffs" };   // for the log
+internal const char *const k_tf_cliffs_word[TF_CLIFF_MODES] = { "cliffs_any", "cliffs_none", "cliffs_only" };
 internal ee_se_terrain *g_tf_panel;                 // the editor's terrain panel, while it is
 internal ee_ui_control *g_tf_label[TF_FIELDS + 1], *g_tf_box[TF_FIELDS], *g_tf_combo;
 internal char g_tf_text[TF_FIELDS][16] = { "", "", "", "", "-3" };   // the fields as they were last read
@@ -160,7 +161,7 @@ internal void tf_set_text(ee_ui_control *box, const char *text) {
 }
 // a field, a label with its box
 internal void tf_field(int i, float left, float top, ee_ui_form *form, int *index, void *font) {
-    g_tf_label[i] = tf_label(TF_ID + 2 * (unsigned)i, k_tf_label[i], left, top, form, index, font);
+    g_tf_label[i] = tf_label(TF_ID + 2 * (unsigned)i, word(k_tf_label[i]), left, top, form, index, font);
     float rect[4] = { top + TF_HEIGHT, left + TF_LABEL, left + TF_LABEL + TF_EDIT, top };
     g_tf_box[i] = edit_box_line_new(TF_ID + 2 * (unsigned)i + 1, TF_CHARS, rect, form, index);
     if (!g_tf_box[i]) return;
@@ -170,14 +171,14 @@ internal void tf_field(int i, float left, float top, ee_ui_form *form, int *inde
 }
 internal void tf_list(float left, float top, ee_ui_form *form, int *index, void *font) {
     unsigned id = TF_ID + 2 * TF_FIELDS;
-    g_tf_label[TF_FIELDS] = tf_label(id, "Cliffs", left, top, form, index, font);
+    g_tf_label[TF_FIELDS] = tf_label(id, word("cliffs"), left, top, form, index, font);
     float rect[4] = { top + TF_HEIGHT, left + TF_LABEL, left + TF_LABEL + TF_COMBO, top };
     g_tf_combo = combo_box_new(id + 1, font, rect, form, index);
     if (!g_tf_combo) return;
     ui_combo_box *box = (ui_combo_box *)g_tf_combo;
     for (int i = 0; i < TF_CLIFF_MODES; i++) {
         __attribute__((aligned(8))) uint8_t w[32];
-        wstring_init_text(w, k_tf_cliffs[i]);
+        wstring_init_text(w, word(k_tf_cliffs_word[i]));
         combo_box_append(box, w);
         wstring_free(w);
     }

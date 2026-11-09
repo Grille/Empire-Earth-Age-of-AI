@@ -40,11 +40,11 @@ internal unsigned g_tc_kept_load, g_tc_kept_paint, g_tc_filled, g_tc_flat;
 internal const struct { const char *name; int text; } k_tc_names[] = {
     { "Cliffwinter /", 22019 }, { "CliffRock \\", TC_NAME }, { "CliffRock /", TC_NAME + 1 },
 };
-internal const char *const k_tc_own[] = { "Cliff Rock 1", "Cliff Rock 2" };
+internal const char *const k_tc_own[] = { "cliff_rock_1", "cliff_rock_2" };   // the words (language.eeai)
 internal int __thiscall hook_tc_string(void *res, int id, void *s) {
     if (id >= TC_NAME && id < TC_NAME + (int)(sizeof k_tc_own / sizeof *k_tc_own)) {
         __attribute__((aligned(8))) uint8_t w[32];
-        wstring_init_text(w, k_tc_own[id - TC_NAME]);
+        wstring_init_text(w, word(k_tc_own[id - TC_NAME]));
         wstring_copy(s, w);
         wstring_free(w);
         return 0;
@@ -211,8 +211,8 @@ internal void *__thiscall hook_tc_panel_init(ee_se_elevation *p, uint32_t a, uin
     const ee_ui_control *last = (const ee_ui_control *)se_elevation_get_smooth(p);
     if (!last) return r;
     float left = ui_control_get_left(last), top = ui_control_get_bottom(last) + TC_GAP;
-    g_tc_cliff_box = tc_box(TC_CLIFF_ID, "Cliff color", left, top, g_tc_cliff, form, index);
-    g_tc_water_box = tc_box(TC_WATER_ID, "Water color", left, top + TC_HEIGHT + TC_GAP, g_tc_water, form, index);
+    g_tc_cliff_box = tc_box(TC_CLIFF_ID, word("cliff_color"), left, top, g_tc_cliff, form, index);
+    g_tc_water_box = tc_box(TC_WATER_ID, word("water_color"), left, top + TC_HEIGHT + TC_GAP, g_tc_water, form, index);
     g_tc_panel = p;
     if (g_log) log_locked("# editor: elevation panel's boxes at %.0f,%.0f\n", left, top);
     return r;

@@ -43,7 +43,7 @@ internal void ep_panel_init(ee_se_unit *p, ee_ui_control *list, ee_ui_form *form
     float top = ui_control_get_bottom(list) + EP_GAP, left = ui_control_get_left(list) + 6.0f;
     float rect[4] = { top + EP_HEIGHT, left, left + EP_WIDTH, top };   // bottom, left, right, top
     __attribute__((aligned(8))) uint8_t w[32];
-    wstring_init_text(w, "Sanity check");
+    wstring_init_text(w, word("sanity_check"));
     ee_ui_control *box = check_box_new(EP_ID, w, rect, form, index);
     wstring_free(w);
     if (!box) return;

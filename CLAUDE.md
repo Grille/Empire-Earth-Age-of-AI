@@ -161,7 +161,7 @@ Python: `local/venv/Scripts/python.exe`.
 
 One language for personalities, system texts, prompts and test scripts (dll/script/expr.c, docs/scripts.md,
 config/personalities/README.md). Strict and explicit: a mistake is told with file and line, nothing is guessed, no
-compatibility shims before the release. English only until the release. Its own language, not C# (the player
+compatibility shims before the release. English only until the release, but for the words the mod writes on the game's screens: `config/language.eeai` (2026-11-09: a record per word, `vassal = { en = "Vassal", de = "Vasall" }`; a new one also goes into dll/base/words.c k_words, the code asks `word("vassal")`, `word_w` for Win32, the system lines `{word.vassal}`). Its own language, not C# (the player
 2026-10-25: C#'s quirks would put modders off) - but its objects (player, game, slot, a text's names: members, types,
 arguments, docs) are declared once in `dll_cs/lang/` as C# (dll_cs/lang/language.cs: the format; `dotnet build` in dll_cs/ checks them and the settings, one project: dll_cs/language.cs the types and attributes both share - an ini value is the language's too),
 and the C tables, the README's tables and the editor's names are made of them (gen_lang.py, lang_read.py).

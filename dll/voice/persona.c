@@ -561,6 +561,7 @@ internal void x_fn_scan_folder(const char *dir) {
 internal void x_fn_scan_dir(void) {
     char dir[MAX_PATH];
     g_xfn_n = g_xvn_n = g_xfld_n = 0;
+    x_var_add("word", 4, 1);   // language.eeai's: word.vassal (the folder above these)
     ai_folder("", dir);   // <game>\ageofai\personalities\, [general] ai_dir or [autotest] ai_dir - through its links
     x_fn_scan_folder(dir);
     ai_folder("mod\\", dir);
@@ -1075,6 +1076,7 @@ internal int line_heard(ee_player *pl, enum line_kind k, ee_player *other) {
 // answered, callers don't fall back to another line)
 // {tribute}: the amounts by resource in the game's language, e.g. "200 Gold, 800 Eisen" (only what is paid)
 internal const char *sys_text(const char *key);   // texts.c: a system text in the game's language
+internal void words_read(void);                    // texts.c: language.eeai
 internal void tribute_text(const int *amount, char *buf, int cap) {
     static const char *const key[7] = { "", "", "food", "wood", "stone", "gold", "iron" };
     int o = 0;
@@ -1543,6 +1545,7 @@ internal void persona_install(const char *test_ini) {
     if (!g_rnd) g_rnd = 1;
     lstrcpynA(g_lang, g_set.language, sizeof g_lang);
     if (!g_lang[0]) lang_detect();
+    words_read();   // first: word.x are names of the files read next
     personas_load();
     texts_load();   // mod/system.eeai now: its mistakes come up with the personalities'
     if (g_texts_missing) {   // nobody speaks: diplo_install and llm_install switch off what needs the texts

@@ -39,6 +39,7 @@ replace "$B/dll/ageofai_config.exe" ageofai_config.exe || { echo "ageofai_config
 # the .eeai checker (the player 2026-11-02: in the game folder - for modders, not in the release zip: a download of its own)
 replace "$B/dll/ageofai_check.exe" ageofai_check.exe || { echo "ageofai_check.exe NOT replaced" >&2; exit 1; }
 [ -e "$G/ageofai/texfix.eeai" ] || cp "$B/config/texfix.eeai" "$G/ageofai/texfix.eeai"   # once: the player's own list stays
+replace "$B/config/language.eeai" ageofai/language.eeai || { echo "language.eeai NOT replaced" >&2; exit 1; }   # every time: a new word comes with the DLL that asks for it
 reserve_end
 (cd "$A" && git rev-parse HEAD) > "$A/local/work/installed.txt"   # install_wait.sh reads it
 echo "installed $REV"
