@@ -973,7 +973,20 @@ internal void sr_step_timed(double ms) {
     memset(&g_sr_step, 0, sizeof g_sr_step);
 }
 
+// A ship whose goal is gone (the unit's goal_object empty, as the unit's removal leaves it): the game's step reads through it
+// and dies (the player's game of 2026-11-09, 0x54EF1D, a game of 153 minutes). It stands for that step instead.
+internal void __thiscall hook_naval_step(ee_physics_model *model, ee_unit *u) {
+    static int told;
+    if (unit_get_goal_object(u)) { physics_model_naval_step(model, u); return; }
+    if (g_log && told < 5) {
+        told++;
+        fprintf(g_log, "# ship: P%d type %d at %.1f min has no goal in its step: left standing\n", unit_get_owner(u) ? player_get_index(unit_get_owner(u)) : -1,
+                unit_get_type_data(u) ? unit_type_get_id(unit_get_type_data(u)) : -1, game_time() / 60000.0);
+    }
+}
+
 internal void shiproute_install(const char *autotest_ini) {
+    if (!patch_naval_step(hook_naval_step) && g_log) fprintf(g_log, "# ship: the step's guard FAILED\n");
     g_st_on = g_set.ship_turns;
     g_lt_on = g_set.land_turns;
     int lt = g_lt_on || (g_set.formations && g_set.formation_follow) ? patch_land_turn_towards(hook_ship_turn_towards) : 0;   // formation_follow steers there too

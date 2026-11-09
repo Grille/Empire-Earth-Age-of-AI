@@ -1281,6 +1281,7 @@ internal uint32_t value_movement_slot_pm_speed_decide;
 internal uint32_t value_movement_slot_pm_speed_step;
 internal uint32_t value_movement_slot_pm_turn_decide;
 internal uint32_t value_movement_slot_pm_turn_towards;
+internal uint32_t value_movement_slot_pm_naval_step;
 internal uint32_t data_movement_vt_pm_hover;
 internal uint32_t data_movement_vt_pm_land;
 internal uint32_t data_movement_vt_pm_naval;

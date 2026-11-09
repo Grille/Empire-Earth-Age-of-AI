@@ -7,6 +7,11 @@ unsafe struct EEPhysicsModel
     [address((ee)0x00548645, (aoc)0x00554CB2)]
     extern int32 speed_decide(EEUnit* u, float32 dist, float32 angle);
 
+    /// EEPMNaval's slot 4, thiscall(model, ship): a step of the ship towards its goal - reads through the unit's goal_object
+    /// with no test where neither of its two casts fits, a crash when the goal is gone (the player's game of 2026-11-09)
+    [address((ee)0x0054EE13, (aoc)0x0055B786)]
+    extern void naval_step(EEUnit* u);
+
     /// EEPhysicsModel::vf8 thiscall(model, unit, distance to the waypoint, angle off the bow): the new speed from
     /// model_speed_decide (given the same) - on the last waypoint faster no further than the distance
     [address((ee)0x0054858E, (aoc)0x00554BDE)]
@@ -54,6 +59,10 @@ static unsafe class movement
     /// EEPhysicsModel: turn_towards (the tick's +0x1C)
     [value(7)]
     static uint32 slot_pm_turn_towards;
+
+    /// EEPMNaval: naval_step
+    [value(4)]
+    static uint32 slot_pm_naval_step;
 
     /// EEPMHovercraft
     [address((ee)0x0082CE8C, (aoc)0x008426B8)]

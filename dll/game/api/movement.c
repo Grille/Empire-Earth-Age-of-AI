@@ -21,6 +21,10 @@ internal inline int patch_ship_speed_decide(speed_decide_hook h) {
 // physics_model_turn_towards (slot 7: ships, submarines and 7 others - land units turn at a fixed rate in their own tick, without
 // it), slot 11 - not where some models hold it in slot 10 too (another axis's turn, 0x5480A2, which AoC kept): their count
 typedef int (__thiscall *turn_decide_hook)(void *model, ee_unit *u, float rate, float left);
+internal inline int patch_naval_step(physics_model_naval_step_fn h) {
+    return patch_vtable(data_movement_vt_pm_naval, value_movement_slot_pm_naval_step, (uintptr_t)fn_physics_model_naval_step, (void *)h)
+         + patch_vtable(data_movement_vt_pm_submerged, value_movement_slot_pm_naval_step, (uintptr_t)fn_physics_model_naval_step, (void *)h);
+}
 internal inline int patch_turn_decide(turn_decide_hook h) { return build_is("aoc") ? 0 : patch_vtables_with((uintptr_t)fn_physics_model_turn_towards, value_movement_slot_pm_turn_towards, value_movement_slot_pm_turn_decide, (uintptr_t)fn_physics_model_turn_decide, (void *)h); }
 // the tick's turn towards a point (slot 7: the front waypoint, from EEPMNaval::vf1, which measures the arrival to
 // the waypoint itself): its outputs the angle left (the speed decision's angle), the turn rate and the new heading

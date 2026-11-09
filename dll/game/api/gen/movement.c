@@ -8,6 +8,11 @@
 typedef int (__thiscall *physics_model_speed_decide_fn)(ee_physics_model *, ee_unit *, float, float);
 internal physics_model_speed_decide_fn fn_physics_model_speed_decide;
 internal inline int physics_model_speed_decide(ee_physics_model *physics_model, ee_unit *u, float dist, float angle) { return fn_physics_model_speed_decide(physics_model, u, dist, angle); }
+// EEPMNaval's slot 4, thiscall(model, ship): a step of the ship towards its goal - reads through the unit's goal_object
+// with no test where neither of its two casts fits, a crash when the goal is gone (the player's game of 2026-11-09)
+typedef void (__thiscall *physics_model_naval_step_fn)(ee_physics_model *, ee_unit *);
+internal physics_model_naval_step_fn fn_physics_model_naval_step;
+internal inline void physics_model_naval_step(ee_physics_model *physics_model, ee_unit *u) { fn_physics_model_naval_step(physics_model, u); }
 // EEPhysicsModel::vf8 thiscall(model, unit, distance to the waypoint, angle off the bow): the new speed from
 // model_speed_decide (given the same) - on the last waypoint faster no further than the distance
 typedef float (__thiscall *physics_model_speed_step_fn)(ee_physics_model *, ee_unit *, float, float);
@@ -41,6 +46,7 @@ internal inline void ee_physics_model_collide(ee_physics_model *physics_model, e
 // EEPhysicsModel: model_speed_step (the tick's +0x20)
 // EEPhysicsModel: model_turn_decide (called from the turn step 0x548266 / AoC 0x554738: +0x2C / +0x30)
 // EEPhysicsModel: turn_towards (the tick's +0x1C)
+// EEPMNaval: naval_step
 // EEPMHovercraft
 internal inline uint8_t *movement_vt_pm_hover_at(void) { return (uint8_t *)(uintptr_t)data_movement_vt_pm_hover; }
 // EEPMLand, the land units' movement
@@ -64,6 +70,7 @@ internal int spec_movement_select(int build) {
     case 0:   // ee
         vt_ee_physics_model = 0x0082D010;
         fn_physics_model_speed_decide = (physics_model_speed_decide_fn)0x00548645;
+        fn_physics_model_naval_step = (physics_model_naval_step_fn)0x0054EE13;
         fn_physics_model_speed_step = (physics_model_speed_step_fn)0x0054858E;
         fn_physics_model_turn_decide = (physics_model_turn_decide_fn)0x0054880E;
         fn_physics_model_turn_towards = (physics_model_turn_towards_fn)0x005484D9;
@@ -74,6 +81,7 @@ internal int spec_movement_select(int build) {
         value_movement_slot_pm_speed_step = 8;
         value_movement_slot_pm_turn_decide = 11;
         value_movement_slot_pm_turn_towards = 7;
+        value_movement_slot_pm_naval_step = 4;
         data_movement_vt_pm_hover = 0x0082CE8C;
         data_movement_vt_pm_land = 0x0082CFB0;
         data_movement_vt_pm_naval = 0x0082CE30;
@@ -83,6 +91,7 @@ internal int spec_movement_select(int build) {
     case 1:   // aoc
         vt_ee_physics_model = 0x00842848;
         fn_physics_model_speed_decide = (physics_model_speed_decide_fn)0x00554CB2;
+        fn_physics_model_naval_step = (physics_model_naval_step_fn)0x0055B786;
         fn_physics_model_speed_step = (physics_model_speed_step_fn)0x00554BDE;
         fn_physics_model_turn_decide = (physics_model_turn_decide_fn)0x00554F56;
         fn_physics_model_turn_towards = (physics_model_turn_towards_fn)0x00554A25;
@@ -93,6 +102,7 @@ internal int spec_movement_select(int build) {
         value_movement_slot_pm_speed_step = 9;
         value_movement_slot_pm_turn_decide = 12;
         value_movement_slot_pm_turn_towards = 7;
+        value_movement_slot_pm_naval_step = 4;
         data_movement_vt_pm_hover = 0x008426B8;
         data_movement_vt_pm_land = 0x008427E8;
         data_movement_vt_pm_naval = 0x00842658;
@@ -109,6 +119,7 @@ internal int spec_movement_check(void) {
     int bad = 0;
     bad += spec_vtable(vt_ee_physics_model, ".?AVEEPhysicsModel@@", "EEPhysicsModel [vtable]");
     bad += spec_code((uintptr_t)fn_physics_model_speed_decide, "EEPhysicsModel.speed_decide");
+    bad += spec_code((uintptr_t)fn_physics_model_naval_step, "EEPhysicsModel.naval_step");
     bad += spec_code((uintptr_t)fn_physics_model_speed_step, "EEPhysicsModel.speed_step");
     bad += spec_code((uintptr_t)fn_physics_model_turn_decide, "EEPhysicsModel.turn_decide");
     bad += spec_code((uintptr_t)fn_physics_model_turn_towards, "EEPhysicsModel.turn_towards");
