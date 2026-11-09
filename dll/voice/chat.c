@@ -60,6 +60,21 @@ internal void system_line(const char *text, int ms) {
     wstring_free(name);
 }
 
+// the same with no sender at all: a line that is only its text
+internal void bare_line(const char *text, int ms) {
+    void *ui = game_get_ui();
+    if (!ui || !*text) return;
+    float white[3] = { 1.0f, 1.0f, 1.0f };
+    __attribute__((aligned(8))) uint8_t name[32], line[32];
+    wstring_init(name);
+    wstring_init(line);
+    wstring_set(name, "");
+    wstring_set(line, text);
+    ui_show_line(ui, white, name, line, ms);
+    wstring_free(line);
+    wstring_free(name);
+}
+
 internal void chat_stance_line(ee_player *pl, int stance) {
     void *res = string_resources(), *ui = game_get_ui();
     ee_game_data *opt = game_data();
@@ -192,7 +207,7 @@ internal void __thiscall hook_speed_msg(ee_speed_msg *msg) {
     char line[16];
     float speed = speed_shown();
     snprintf(line, sizeof line, speed < 0.5f ? "x%.2f" : speed < 10.0f ? "x%.1f" : "x%.0f", speed);
-    system_line(line, SPEED_LINE_MS);
+    bare_line(line, SPEED_LINE_MS);
 }
 
 // The speeds of the + and - keys (the player, 2026-11-09; the game's own: 0.5 to 2.5 by 0.5). The event stays the game's, its
