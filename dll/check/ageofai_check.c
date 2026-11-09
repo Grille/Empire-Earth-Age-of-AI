@@ -142,6 +142,7 @@ int main(int argc, char **argv) {
             FindClose(h);
             continue;
         }
+        if (!lstrcmpiA((strrchr(full, '\\') ? strrchr(full, '\\') + 1 : full), "texfix.eeai")) { texfix_read_file(full, "texfix.eeai"); continue; }
         lstrcpyA(dir, full);
         char *slash = strrchr(dir, '\\');
         if (slash) *slash = 0;

@@ -1,0 +1,4 @@
+// Textures of the game whose art is wrong, repaired as they are loaded (the game's files stay as they are).
+// fixalpha: painted a little see-through all over by mistake: they are made solid. The names are those of the files in
+// textures\ of Data\data.ssa, without .sst.
+fixalpha = ["bld_temple_04t"]

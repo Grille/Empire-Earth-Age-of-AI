@@ -22,6 +22,7 @@ struct ustring;
 #include "base/patch.c"
 #include "base/reply.c"
 #include "base/paths.c"
+#include "base/texfix.c"          // the textures texfix.eeai lists
 #include "base/mistakes.c"
 #include "base/math.c"
 #include "base/vec.h"             // vec2, vec3, ivec2: positions and tiles as one value
@@ -414,6 +415,7 @@ internal char __thiscall hook_game_start(ee_game_state *state, ee_setup *setup, 
 #include "ai/diplo.c"
 #include "game_script/relations.c"
 #include "game_script/units.c"
+#include "game_script/texfix.c"   // texfix.eeai
 #include "test/scripts.c"
 #include "ai/navy.c"
 #include "ai/fleet.c"
@@ -602,6 +604,7 @@ internal void install(HMODULE self) {
         settings_log(g_log);
         api_log(g_log);
         fprintf(g_log, "# config: %s (personalities: %s%s%s)\n", g_aimod_ini, g_ai_dir, g_ai_dir_why[0] ? " - " : "", g_ai_dir_why);
+        texfix_read();
         char me[MAX_PATH];
         if (GetEnvironmentVariableA("EEAIMOD_DLL", me, sizeof me) && GetModuleFileNameA(self, me, sizeof me))
             fprintf(g_log, "# dll: %s (the test run's own, built %s %s)\n", me, __DATE__, __TIME__);

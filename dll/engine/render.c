@@ -183,6 +183,7 @@ struct rd_surface {
     int keyed;                      // the GPU copy has alpha 0 where the colour key matches
     DDCOLORKEY key;
     int has_key;
+    int fix_alpha;                  // a texture of texfix.eeai's list (tf_hook_load): its alpha scaled to reach 255 at its upload
     int locked, lock_ro;
     RECT lock_rect;
     ID3D11Texture2D *tex;
@@ -257,21 +258,40 @@ internal HRESULT rd_gpu_target(rd_surface *s) {
     return SUCCEEDED(hr) ? hr : rd_fail("render target", hr);
 }
 
-// A texture whose solid part isn't: the dark age's temple (bld_temple_04t, the one this rule takes of the game's 2235 images;
-// of Art of Conquest's 45 it takes amb_carbon_3t) was painted at alpha 238 and never reaches 255. Drawn in two parts (rf_edges) all of it counted as soft edge, wrote no
-// depth, and the temple's floor came out over its roof (the player, 2026-11-09). The highest alpha of what is meant to be
-// see-through - smoke, shadows, splashes - isn't where most of its texels are. Returns that alpha, or 0: the texture is right.
-internal uint32_t rd_alpha_body(const uint32_t *px, size_t n) {
+// THE TEXTURES WHOSE ALPHA IS WRONG (texfix.eeai: base/texfix.c's list): the dark age's temple (bld_temple_04t) was painted at
+// alpha 238 and never reaches solid. Drawn in two parts (rf_edges) all of it counted as soft edge, wrote no depth, and its
+// floor came out over its roof (the player, 2026-11-09). By name, not by what the pixels look like: Art of Conquest's
+// amb_carbon_3t looks the same and may be meant to be see-through (the player, 2026-11-09). The name is only known in the
+// engine's GETextureManager::LoadTexture, so the surfaces made inside that call, on its thread, are the listed texture's.
+typedef void *(__thiscall *tf_load_fn)(void *mgr, const ee_ustring *name, const void *desc);
+internal tf_load_fn g_tf_load;
+internal DWORD g_tf_thread;
+internal void *__thiscall tf_hook_load(void *mgr, const ee_ustring *name, const void *desc) {
+    if (!texfix_listed(ustring_get_text(name))) return g_tf_load(mgr, name, desc);
+    DWORD was = g_tf_thread;
+    g_tf_thread = GetCurrentThreadId();
+    void *r = g_tf_load(mgr, name, desc);
+    g_tf_thread = was;
+    return r;
+}
+// the engine DLL's function hooked, once and only with a list: 1 hooked, 0 not (nothing listed, or another engine's code)
+internal int tf_install(void) {
+    static int done;
+    if (done || !g_tf_n) return done;
+    static const uint8_t ee[8] = { 0x55, 0x8B, 0xEC, 0x83, 0xEC, 0x38, 0x53, 0x57 };   // push ebp; mov ebp, esp; sub esp, 0x38; push ebx; push edi
+    static const uint8_t aoc[6] = { 0x55, 0x8B, 0xEC, 0x83, 0xEC, 0x70 };              // push ebp; mov ebp, esp; sub esp, 0x70
+    HMODULE m = GetModuleHandleA("Low-Level Engine.dll");
+    uintptr_t f = m ? (uintptr_t)GetProcAddress(m, "?LoadTexture@GETextureManager@@QAEPAVGETexture@@ABVUString@@ABUGETextureDescription@@@Z") : 0;
+    void *o = NULL;
+    if (!patch_entry(f, ee, 8, (void *)tf_hook_load, &o) && !patch_entry(f, aoc, 6, (void *)tf_hook_load, &o)) return 0;
+    g_tf_load = (tf_load_fn)o;
+    return done = 1;
+}
+// the highest alpha of a texture's pixels
+internal uint32_t rd_alpha_top(const uint32_t *px, size_t n) {
     uint32_t top = 0;
-    for (size_t i = 0; i < n; i++) {
-        uint32_t a = px[i] >> 24;
-        if (a >= 250) return 0;
-        if (a > top) top = a;
-    }
-    if (top < 200) return 0;
-    size_t at = 0;
-    for (size_t i = 0; i < n; i++) at += px[i] >> 24 == top;
-    return at * 2 >= n ? top : 0;
+    for (size_t i = 0; i < n; i++) if (px[i] >> 24 > top) top = px[i] >> 24;
+    return top;
 }
 // a CPU surface's (a chain's) GPU texture, uploaded when its pixels changed; keyed: alpha 0 at the colour key
 internal ID3D11ShaderResourceView *rd_gpu_texture(rd_surface *s, int keyed) {
@@ -300,7 +320,11 @@ internal ID3D11ShaderResourceView *rd_gpu_texture(rd_surface *s, int keyed) {
         uint8_t *m = rd_mem(l);
         for (int y = 0; y < h; y++)
             rf_to_bgra(l->fmt, m + (size_t)y * l->desc.lPitch, row + (size_t)y * w, w, keyed, t->key.dwColorSpaceLowValue);
-        if (l == t && g_set.unit_soft_edges) body = rd_alpha_body(row, need);
+        if (l == t && t->fix_alpha) {
+            body = rd_alpha_top(row, need);
+            log_locked("# texfix: a listed texture %dx%d: its highest alpha %lu%s\n", w, h, (unsigned long)body, body && body < 255 ? ", raised to 255" : "");
+            if (body >= 255) body = 0;
+        }
         if (body) for (size_t i = 0; i < need; i++) {
             uint32_t a = (row[i] >> 24) * 255 / body;
             row[i] = (row[i] & 0xFFFFFF) | (a > 255 ? 255 : a) << 24;
@@ -888,6 +912,7 @@ internal HRESULT rd_create_surface(DDSURFACEDESC2 *d, rd_surface **out) {
     rd_surface *s = rd_surface_new(d, fmt, kind, w, h);
     if (!s) return DDERR_OUTOFMEMORY;
     if (d->dwFlags & DDSD_CKSRCBLT) { s->has_key = 1; s->key = d->ddckCKSrcBlt; }
+    s->fix_alpha = kind == RK_TEXTURE && g_tf_thread && g_tf_thread == GetCurrentThreadId();
     if ((kind == RK_TARGET || kind == RK_ZBUF) && g_uis.on && w == g_uis.lw && h == g_uis.lh)
         s->tw = (UINT)g_uis.rw, s->th = (UINT)g_uis.rh, s->sx = g_uis.sx, s->sy = g_uis.sy;
     if ((kind == RK_TARGET || kind == RK_ZBUF) && FAILED(rd_gpu_target(s))) { rd_surface_free(s); return DDERR_GENERIC; }
@@ -1138,6 +1163,7 @@ internal void render_display_loaded(HMODULE m, const char *name) {
                " copies %d/2 (the GPU blends them)\n", name, n, shadow_reach_display(m), rf_ground_display_loaded(m, name),
                display_lock_vb_room(m, RD_VB_ROOM), mo_display_loaded(m, name));
     log_locked("# render: %s's ground from the map %d/1\n", name, rg_display_loaded(m, name));
+    log_locked("# texfix: %d textures listed, the engine's loading %s\n", g_tf_n, tf_install() ? "hooked" : "not hooked");
 }
 // autotest render_trace=N: the first N calls of the renderer's methods logged ("# render call", caller and thread) - a
 // stub in front of each slot, as the probe's
