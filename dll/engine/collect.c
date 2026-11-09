@@ -170,6 +170,7 @@ internal int uc_opacity(uc_obj *o, float *out) {
     opacity_consts c = opacity_consts_now();
     ee_unit_type *ty = o->ty;
     int see = 0, mode = show_hidden_mode();
+    if (mode == 1 && sil_on() && unit_type_is_land_building(ty)) mode = 0;   // what lies behind a building is seen through it, the building stays whole (render_silhouette.c); a tree fades as ever
     *out = 1.0f;
     if ((mode == 1 && (unit_type_get_is_obstacle(ty) || o->moved) && o->hidden) ||
         (mode == 2 && unit_type_get_is_obstacle(ty))) {
@@ -313,6 +314,7 @@ internal int uc_in_bar_ids(int32_t serial) {
     return 0;
 }
 internal void uc_fill(ee_ro_units *ro, const uc_copy *c, uc_obj *o, uint8_t *rec, void *sort_map, uc_info *info) {
+    sil_tag(rec, g_uc_walk_gen, unit_type_is_land_building(o->ty) ? SIL_BUILDING : o->has_cu && !o->tree && o->owner_index ? SIL_UNIT : 0);
     opacity_consts oc = opacity_consts_now();
     fill_consts fc = fill_consts_now();
     ee_map *map = game_map();

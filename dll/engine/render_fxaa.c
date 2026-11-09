@@ -195,6 +195,9 @@ internal void cmd_picture(char *out, const char *args) {
     if (!strcmp(mode, "aa")) {
         if (!strcmp(arg, "on") || !strcmp(arg, "off")) g_fx.on = arg[1] == 'n';
         else { REPLY("error: usage: picture aa on | off\n"); return; }
+    } else if (!strcmp(mode, "sil")) {   // render_silhouette.c
+        if (!strcmp(arg, "on") || !strcmp(arg, "off")) g_sl.force = arg[1] == 'n';
+        else { REPLY("error: usage: picture sil on | off\n"); return; }
     } else if (!strcmp(mode, "aadepth")) {
         if (!strcmp(arg, "on") || !strcmp(arg, "off")) g_fx.depth = arg[1] == 'n';
         else { REPLY("error: usage: picture aadepth on | off\n"); return; }

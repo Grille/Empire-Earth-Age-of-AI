@@ -304,6 +304,14 @@ unsafe struct EEROUnits
     [call_site("fill_ghosts", (ee)0x005041F7, (aoc)0x0050F132)]
     extern void fill_ghosts();
 
+    /// one record of the draw list drawn: its model, its parts - render_silhouette.c's hook of its calls, which tells the
+    /// renderer whose draws follow
+    [address((ee)0x0050B4AC, (aoc)0x00515CC7)]
+    [call_site("units_draw_record", (ee)0x0050A578, (aoc)0x00514D93)]
+    [call_site("units_draw_record", (ee)0x0050A67A, (aoc)0x00514E95)]
+    [call_site("units_draw_record", (ee)0x0050BB78, (aoc)0x0051646D)]
+    extern void draw_record(void* record);
+
     // VIRTUAL FUNCTIONS
 
     /// the units' update (from the world's units)

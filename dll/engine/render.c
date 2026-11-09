@@ -1163,6 +1163,7 @@ internal void render_display_loaded(HMODULE m, const char *name) {
                " copies %d/2 (the GPU blends them)\n", name, n, shadow_reach_display(m), rf_ground_display_loaded(m, name),
                display_lock_vb_room(m, RD_VB_ROOM), mo_display_loaded(m, name));
     log_locked("# render: %s's ground from the map %d/1\n", name, rg_display_loaded(m, name));
+    log_locked("# silhouettes: the units' draw hooked %d/3\n", sil_install());
     log_locked("# texfix: %d textures listed, the engine's loading %s\n", g_tf_n, tf_install() ? "hooked" : "not hooked");
 }
 // autotest render_trace=N: the first N calls of the renderer's methods logged ("# render call", caller and thread) - a

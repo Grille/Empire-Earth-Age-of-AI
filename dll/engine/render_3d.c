@@ -276,7 +276,18 @@ internal const char k_rd3_shader[] =
     "float4 wfog(O i) : SV_Target { int3 a = int3(i.p.xy, 0); float d = wsd.Load(a), wp = 1;"
     " if (d < 0.99999) wp = saturate(length(i.w - wop.xyz) * max((i.p.z - wfc.w) / (d - wfc.w) - 1, 0) * wop.w);"
     " float3 fc = wfc.rgb * i.c.rgb; if (misc.y > 0.5) fc = lerp(fogc.rgb, fc, saturate(i.f));"
-    " return float4(lerp(wsc.Load(a).rgb, fc, wp * wp * (3 - 2 * wp)), 1); }\n";
+    " return float4(lerp(wsc.Load(a).rgb, fc, wp * wp * (3 - 2 * wp)), 1); }\n"
+    // a unit seen through a building (render_silhouette.c): vs's own, its entry's fourth number the player's colour; the
+    // colour lit as the unit is - the brightest channel of its vertex colour, which is the light on a white part and on a
+    // part in the player's colour alike - where a building's surface is what the pixel shows and the unit lies behind it
+    "O vsil(I i, uint id : SV_VertexID) { uint r = (id >= 0x80000000 ? (id >> 12) & 0x7FFFF : (uint)i.w) * 8; O o = vs(i, id);"
+    " uint q = (uint)wt.Load(r + 7).w; o.k = float3((q >> 16) & 255, (q >> 8) & 255, q & 255) / 255; return o; }\n"
+    "Texture2D<float> slb : register(t10); Texture2D<float> slz : register(t11);\n"
+    "float4 psil(O i) : SV_Target { int3 a = int3(i.p.xy, 0); float bz = slb.Load(a);"
+    " if (i.p.z <= bz + 1e-6 || slz.Load(a) + 2e-6 < bz) discard;"
+    " if (op.w && t.Sample(s, i.t).a < 0.5) discard;"
+    " float3 c = i.k * max(i.c.r, max(i.c.g, i.c.b)); if (misc.y > 0.5) c = lerp(fogc.rgb, c, saturate(i.f));"
+    " return float4(c, 0.55); }\n";
 
 // The upload buffers, rings the frame's list draws from (render_frame.c): a busy base's frame about 4 MB of vertices.
 // A ring full while the list still holds draws draws the list first (rd3_upload) - the frame then in parts, and a
@@ -325,6 +336,7 @@ internal struct {
     ID3D11DepthStencilView *dsv;
     void *blend, *depth, *raster, *samp;
     void *depth_soft;   // the depth state as it is without writing (rf_edges); NULL: it writes none anyway
+    int sil;            // the batch's part in the silhouettes (render_silhouette.c SIL_)
     int blended;
     ID3D11ShaderResourceView *srv;
     rd_surface *srv_of;   // the surface srv shows (its chain's top) and whether keyed: render_frame.c's kept interface
@@ -481,6 +493,7 @@ internal ID3D11ShaderResourceView *g_mo_srv;   // the animation's pool (render_m
 internal volatile LONG g_rp_state;   // the pipe's rprobe (below)
 #include "render_frame.c"     // the frame recorded and drawn at once
 #include "render_shadows.c"   // the dynamic shadows ([display] shadows = dynamic)
+#include "render_silhouette.c"   // units seen through the buildings in front of them ([display] unit_silhouettes)
 #include "render_water.c"     // the water by its depth, its reflections ([display] water_look, water_reflections)
 #include "render_morph.c"     // the units' animation blended on the graphics card ([display] gpu_animation)
 #include "render_ground.c"    // the ground from the map itself, on the GPU (the own renderer's only ground)
@@ -690,6 +703,7 @@ internal void rd3_entry(const rd_device *d, rb_world *e) {
     rd3_value(e->diff, &d->material.diffuse);
     rd3_value(e->amb, &d->material.ambient);
     rd3_value(e->emi, &d->material.emissive);
+    e->mo[3] = sil_colour();
 }
 // a draw into the batch (rd3_prepare bound its states): nv vertices from start, ni indices (NULL: 0..nv-1) of type
 internal void rd3_append(rd_device *d, D3DPRIMITIVETYPE type, rd_vb *vb, DWORD start, DWORD nv, const WORD *idx, DWORD ni) {
@@ -699,6 +713,7 @@ internal void rd3_append(rd_device *d, D3DPRIMITIVETYPE type, rd_vb *vb, DWORD s
     DWORD n = idx ? ni : nv;   // the primitives' vertices as given
     DWORD out = !strip ? n : line ? (n >= 2 ? (n - 1) * 2 : 0) : (n >= 3 ? (n - 2) * 3 : 0);
     if (!out || nv > RB_VERTS || out > RB_INDICES) return;
+    sil_batch();
     if (g_rb.ni && (g_rb.morph || g_rb.topo != topo || g_rb.nv + (int)nv > RB_VERTS || g_rb.ni + (int)out > RB_INDICES || g_rb.nw >= RB_WORLDS))
         rd3_flush();
     g_rb.morph = 0;
@@ -774,6 +789,7 @@ internal void rd3_append_ui_lines(rd_device *d, rd_vb *vb, DWORD start, DWORD nv
 // a blended draw into the batch (render_morph.c): its entry - with the runs' places and the fraction - and its
 // triangles' indices to the entry and the vertex in the run
 internal void rd3_append_morph(rd_device *d, const mo_run *a, const mo_run *b, float f, const WORD *idx, DWORD ni) {
+    sil_batch();
     if (g_rb.ni && (!g_rb.morph || g_rb.ni + (int)ni > RB_INDICES || g_rb.nw >= RB_WORLDS)) rd3_flush();
     uint32_t s = (uint32_t)g_rb.nw++;
     rb_world *e = &g_rb.w[s];

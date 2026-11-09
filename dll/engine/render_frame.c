@@ -20,6 +20,7 @@ typedef struct {
     D3D11_PRIMITIVE_TOPOLOGY topo;
     int vc, pc;      // the constants' snapshots (g_rf.vcs, pcs)
     void *soft;      // its soft edges are drawn apart, with this depth state (rf_edges); NULL: drawn whole
+    int sil;         // its part in the silhouettes (render_silhouette.c SIL_), of a batch that writes the depth
     int role, ro;    // the shadows' role (render_shadows.c SH_), the render object drawing it
     UINT at, n;      // the indices in the upload buffer
     INT base;        // the vertices' (in vertices)
@@ -71,6 +72,7 @@ internal void rf_record(UINT at, UINT n, INT base) {
     c->role = (int)g_rd3.vc.shp[0];
     c->ro = g_ro_cur;
     c->soft = g_ro_cur == RO_UNITS && g_rd3.blended && g_rd3.pc.aop[3] && g_rd3.pc.misc[0] < RF_EDGES_REF ? g_rd3.depth_soft : NULL;
+    c->sil = g_ro_cur == RO_UNITS && g_rd3.depth_soft ? g_rd3.sil : 0;
     c->at = at; c->n = n; c->base = base;
     c->gvb = NULL;
 }
@@ -502,6 +504,9 @@ internal void rd3_water_pass(ID3D11DeviceContext *x, const rf_cmd *c);
 internal int rd3_water_last(void);
 internal int rd3_water_late(const rf_cmd *c);
 internal int rd3_shadow_only(int role);
+internal void rd3_silhouettes(ID3D11DeviceContext *x, rf_cmd *b, int *first);   // render_silhouette.c
+internal void rf_draw(ID3D11DeviceContext *x, const rf_cmd *c, rf_cmd *b, int *first);
+internal void rf_edges_part(ID3D11DeviceContext *x, int part);
 internal void rd3_fxaa(ID3D11RenderTargetView *rtv, const D3D11_VIEWPORT *vp, ID3D11DepthStencilView *dsv, const float *vpm);
 // The camera as it is now on every 3D draw (rf_shift, as the list is drawn): the camera's move and its zoom turn and
 // move it (its transformation as rf_camera_frame makes it each frame), but the view the game's draws are made with
@@ -747,7 +752,8 @@ internal void rf_replay(void) {
     g_rf.in_submit = 1;
     LONGLONG t0 = rd_qpc();
     ID3D11DeviceContext *x = g_d3d.ctx;
-    int edges = rf_edges(x), laste = -1;
+    int edges = rf_edges(x), laste = -1, lastu = -1;
+    for (int i = g_rf.n - 1; i >= 0 && lastu < 0; i--) if (g_rf.cmd[i].ro == RO_UNITS) lastu = i;
     if (edges) for (int i = g_rf.n - 1; i >= 0 && laste < 0; i--) if (g_rf.cmd[i].soft) laste = i;
     rd3_shadow_frame();   // the maps from the list's casters and ground (nothing while the shadows are the game's)
     rd3_water_reflect();  // the mirrored picture for the water's surface
@@ -768,6 +774,7 @@ internal void rf_replay(void) {
             for (int j = 0; j <= laste; j++) if (g_rf.cmd[j].soft) { rf_cmd e = g_rf.cmd[j]; e.depth = e.soft; rf_draw(x, &e, &b, &first); }
             rf_edges_part(x, 0);
         }
+        if (i == lastu) rd3_silhouettes(x, &b, &first);
         if (i == lastw)
             for (int j = 0; j < lastw; j++) if (rd3_water_late(&g_rf.cmd[j])) rf_draw(x, &g_rf.cmd[j], &b, &first);
     }
