@@ -708,6 +708,55 @@ internal void rd3_append(rd_device *d, D3DPRIMITIVETYPE type, rd_vb *vb, DWORD s
     #undef RB_AT
     g_rb.ni += (int)out;
 }
+// The interface's lines on a larger target ([editor] editor_uiscale). The engine draws a border N of its pixels wide as
+// N lines one of its pixels apart (UIControl::DrawBorder), a line is one pixel of the picture thick whatever the scale,
+// so the rows of the picture between them stayed open. Such a line is drawn as what it covers at the game's own size,
+// a strip one of its pixels wide, stopping short of its end as a line does. The strip starts at the picture's pixel its
+// start falls in, where a colour fill's edge is rounded down to (this path puts an edge half a pixel later, and the
+// fill would show outside the border). Only for a picture larger than the game's size: smaller, the strips could fall
+// between its rows.
+#define RD3_UI_LINES 64
+// the coordinate whose edge falls on the start of the picture's pixel v falls in (a little over: v is the engine's)
+internal float rd3_ui_snap(float v, float s) { return (floorf(v * s + 0.01f) - 0.5f) / s; }
+internal int rd3_ui_line(const rd_device *d, D3DPRIMITIVETYPE type, const rd_vb *vb) {
+    const rd_surface *t = d->target;
+    return type == D3DPT_LINELIST && t && t->sx > 1 && t->sy > 1 && vb->stride == 36
+        && fabsf(d->proj._11 * (float)t->desc.dwWidth - 2) < 0.001f && fabsf(d->proj._22 * (float)t->desc.dwHeight + 2) < 0.001f;
+}
+internal void rd3_append_ui_lines(rd_device *d, rd_vb *vb, DWORD start, DWORD nv) {
+    static uint8_t v[RD3_UI_LINES * 4 * 36];   // under the renderer's lock
+    static WORD idx[RD3_UI_LINES * 6];
+    DWORD cull = d->rs[D3DRENDERSTATE_CULLMODE];
+    float scale[2] = { d->target->sx, d->target->sy };
+    for (DWORD at = 0; at + 2 <= nv; ) {
+        DWORD lines = (nv - at) / 2 < RD3_UI_LINES ? (nv - at) / 2 : RD3_UI_LINES;
+        for (DWORD k = 0; k < lines; k++) {
+            const uint8_t *a = vb->mem + (size_t)(start + at + k * 2) * 36;
+            uint8_t *q = v + (size_t)k * 4 * 36;
+            memcpy(q, a, 36); memcpy(q + 36, a + 36, 36); memcpy(q + 72, a, 36); memcpy(q + 108, a + 36, 36);
+            float *p0 = (float *)q, *p1 = (float *)(q + 36), *p2 = (float *)(q + 72), *p3 = (float *)(q + 108);
+            p0[0] -= 0.001f, p0[1] -= 0.001f, p1[0] -= 0.001f, p1[1] -= 0.001f;   // the engine's nudge into the pixel
+            p2[0] = p0[0], p2[1] = p0[1], p3[0] = p1[0], p3[1] = p1[1];
+            float dx = p1[0] - p0[0], dy = p1[1] - p0[1];
+            int wide = fabsf(dx) >= fabsf(dy), along = wide ? 0 : 1, across = 1 - along;
+            p2[across] += 1, p3[across] += 1;
+            p0[across] = rd3_ui_snap(p0[across], scale[across]), p1[across] = rd3_ui_snap(p1[across], scale[across]);
+            if (dx != 0 || dy != 0) {
+                float *back = p0[along] <= p1[along] ? p0 : p1, *back2 = back == p0 ? p2 : p3;
+                back[along] = back2[along] = rd3_ui_snap(back[along], scale[along]);
+            }
+            // the screen's y goes down: positive is clockwise, the side Direct3D's default keeps
+            float turn = wide ? dx : -dy;
+            int flip = cull == D3DCULL_CW ? turn > 0 : turn < 0;
+            WORD b = (WORD)(k * 4), *o = idx + k * 6;
+            o[0] = b; o[1] = (WORD)(b + (flip ? 2 : 1)); o[2] = (WORD)(b + (flip ? 1 : 2));
+            o[3] = (WORD)(b + 2); o[4] = (WORD)(b + (flip ? 3 : 1)); o[5] = (WORD)(b + (flip ? 1 : 3));
+        }
+        rd_vb quads = { NULL, 0, vb->caps, vb->fvf, lines * 4, 36, lines * 4, v };
+        rd3_append(d, D3DPT_TRIANGLELIST, &quads, 0, lines * 4, idx, lines * 6);
+        at += lines * 2;
+    }
+}
 // a blended draw into the batch (render_morph.c): its entry - with the runs' places and the fraction - and its
 // triangles' indices to the entry and the vertex in the run
 internal void rd3_append_morph(rd_device *d, const mo_run *a, const mo_run *b, float f, const WORD *idx, DWORD ni) {
@@ -1406,7 +1455,10 @@ internal HRESULT __stdcall rd_dev_draw_vb(rd_device *d, D3DPRIMITIVETYPE type, r
     rd3_overlay_before(d);
     rd3_probe(d, type, vb, start, n, NULL, 0);
     rd3_shadow_classify(d, vb, start, n);
-    if (d->sh_role != SH_BLOB && rd3_prepare(d, rd3_flat_picture(d, vb, start, n))) rd3_append(d, type, vb, start, n, NULL, 0);
+    if (d->sh_role != SH_BLOB && rd3_prepare(d, rd3_flat_picture(d, vb, start, n))) {
+        if (rd3_ui_line(d, type, vb)) rd3_append_ui_lines(d, vb, start, n);
+        else rd3_append(d, type, vb, start, n, NULL, 0);
+    }
     if (d->sh_card) rd3_shadow_card(d, type, vb, start, n, NULL, 0);
     g_rd_draw_qpc += rd_qpc() - t0;
     RD_UNLOCK();
