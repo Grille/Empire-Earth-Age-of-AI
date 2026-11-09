@@ -109,7 +109,7 @@ internal struct {
 internal const char k_sh_shader[] =
     "cbuffer s : register(b2) { row_major float4x4 shm; float4 sa; };\n"
     "Buffer<float4> wt : register(t1);\n"
-    "struct I { float3 p : POSITION; float3 n : NORMAL; float4 c : COLOR; float2 t : TEXCOORD; uint w : WORLD; };\n"
+    "struct I { float3 p : POSITION; float3 n : NORMAL; float4 c : COLOR; float2 t : TEXCOORD; uint w : WORLD; uint inst : INST; };\n"
     RD3_MORPH_HLSL
     "Texture2D t : register(t0); SamplerState s : register(s0);\n"
     "struct O { float4 p : SV_Position; float2 t : TEXCOORD0; };\n"
@@ -675,6 +675,8 @@ internal void rd3_shadow_frame(void) {
     UINT stride = sizeof(rb_vertex), off = 0;
     ID3D11DeviceContext_IASetVertexBuffers(x, 0, 1, &g_rd3.vb, &stride, &off);
     ID3D11DeviceContext_IASetIndexBuffer(x, g_rd3.ib, DXGI_FORMAT_R32_UINT, 0);
+    g_in_pool = 0;
+    rf_bind_ids(x);
     ID3D11DeviceContext_IASetPrimitiveTopology(x, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     ID3D11DeviceContext_VSSetShader(x, g_sh.vs, NULL, 0);
     ID3D11DeviceContext_PSSetShader(x, g_sh.ps, NULL, 0);
@@ -699,7 +701,7 @@ internal void rd3_shadow_frame(void) {
             ID3D11DeviceContext_UpdateSubresource(x, (ID3D11Resource *)g_sh.cb, 0, NULL, cb, 0, 0);
         }
         if (c->srv != srv) { srv = c->srv; ID3D11DeviceContext_PSSetShaderResources(x, 0, 1, &srv); }
-        ID3D11DeviceContext_DrawIndexed(x, c->n, c->at, c->base);
+        rf_call(x, c);
     }
     ID3D11DeviceContext_OMSetRenderTargets(x, 0, NULL, NULL);   // else Direct3D refuses the map as a texture
     rd3_mul(g_sh.gm, g_sh.gw, m);   // the ground (camera space) into the map

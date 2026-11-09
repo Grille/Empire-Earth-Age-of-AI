@@ -392,6 +392,15 @@ unsafe struct DX7Screen
 
 unsafe struct ee_screen_state
 {
+    /// what DrawModelHierarchy takes the view's width from, for the detail by a model's size on screen (800 / (right -
+    /// left)); [guess]: named from that use
+    [offset(0x14), found(c), guess]
+    float32 view_left;
+
+    /// the other end of that width (DrawModelHierarchy: +0x18 - +0x14) [guess]: named from that use
+    [offset(0x18), found(c), guess]
+    float32 view_right;
+
     [offset(0x2A8), found(c)]
     DX7Screen* screen;
 
@@ -451,6 +460,21 @@ unsafe struct GEModel
     /// hierarchy's stack's top when one is pushed - so a model drawn for several objects is set to each one's before
     [offset(0x88), found(c)]
     fixed float32 transform[12];
+
+    /// what hangs on it (child_count), each drawn after it under its transformation (DrawModelHierarchy)
+    [offset(0xFC), found(c)]
+    GEModel** children;
+
+    [offset(0x13C), found(c)]
+    uint32 child_count;
+
+    /// its size: what DrawModelHierarchy gives the view's test, times its parent's for what hangs on something
+    [offset(0x128), found(c)]
+    float32 scale;
+
+    /// its opacity (the exe's unit draw sets it): the material's alpha times this is the draw's
+    [offset(0x12C), found(c)]
+    float32 alpha;
 
     /// the frame drawn: CopyStdVertices copies vertices[frame]
     [offset(0x134), found(c)]
@@ -522,6 +546,14 @@ unsafe struct GEMaterial
     /// LoadTexturesForScreen, SetTexture counts its users)
     [offset(0x24), found(c)]
     void** textures;
+
+    /// its colour, the draw's diffuse and ambient (DrawModelHierarchy)
+    [offset(0x18), found(c)]
+    vec3 colour;
+
+    /// the draw's alpha, times the model's
+    [offset(0x44), found(c)]
+    float32 alpha;
 
     /// per lod: its first triangle in the model's polygons[lod]
     [offset(0x2C), found(c)]

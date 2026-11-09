@@ -59,7 +59,7 @@ internal void __thiscall sil_hook_draw(ee_ro_units *ro, void *rec) {
 }
 internal int sil_install(void) {
     static int done;
-    if (done || !g_set.unit_silhouettes) return done;
+    if (done || (!g_set.unit_silhouettes && !g_set.unit_instancing)) return done;   // (render_instance.c: a unit's record)
     return done = patch_units_draw_record(sil_hook_draw, NULL);
 }
 // a draw's batch holds one kind: the batch so far ended when the kind changes

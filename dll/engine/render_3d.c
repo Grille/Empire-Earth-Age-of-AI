@@ -151,7 +151,7 @@ typedef struct { float m[16], diff[4], amb[4], emi[4], mo[4]; } rb_world;
 // buffer gives zeros)
 #define RD3_MORPH_HLSL \
     "Buffer<float4> mp : register(t5);\n" \
-    "void morph(inout I i, uint id) { if (id < 0x80000000) return; uint s = (id >> 12) & 0x7FFFF, k = id & 0xFFF;" \
+    "void morph(inout I i, uint id) { if (id < 0x80000000) return; uint s = (id >> 12) & 0x7FFFF, k = id & 0xFFF; if (s == 0x7FFFF) s = i.inst;" \
     " float4 m = wt.Load(s * 8 + 7); uint a = ((uint)m.x + k) * 2, b = ((uint)m.y + k) * 2;" \
     " float4 a0 = mp.Load(a), a1 = mp.Load(a + 1), b0 = mp.Load(b), b1 = mp.Load(b + 1);" \
     " i.p = lerp(a0.xyz, b0.xyz, m.z); i.n = lerp(float3(a0.w, a1.xy), float3(b0.w, b1.xy), m.z); i.t = a1.zw;" \
@@ -170,7 +170,7 @@ internal const char k_rd3_shader[] =
     "Texture2D<float> sm : register(t2); SamplerComparisonState sc : register(s1);\n"   // the dynamic shadows' maps:
     "Texture2D rfl : register(t6); Texture2D wsc : register(t8); Texture2D<float> wsd : register(t9);\n"
     "Texture2D<float2> hm : register(t4); SamplerState hs : register(s2);\n"   // the casters', the hills' (render_shadows.c)
-    "struct I { float3 p : POSITION; float3 n : NORMAL; float4 c : COLOR; float2 t : TEXCOORD; uint w : WORLD; };\n"
+    "struct I { float3 p : POSITION; float3 n : NORMAL; float4 c : COLOR; float2 t : TEXCOORD; uint w : WORLD; uint inst : INST; };\n"
     RD3_MORPH_HLSL
     "struct O { float4 p : SV_Position; float4 c : COLOR; float2 t : TEXCOORD0; float f : FOG; float4 q : TEXCOORD1;"
     " float3 k : TEXCOORD2; float3 w : TEXCOORD3; };\n"
@@ -280,7 +280,7 @@ internal const char k_rd3_shader[] =
     // a unit seen through a building (render_silhouette.c): vs's own, its entry's fourth number the player's colour; the
     // colour lit as the unit is - the brightest channel of its vertex colour, which is the light on a white part and on a
     // part in the player's colour alike - where a building's surface is what the pixel shows and the unit lies behind it
-    "O vsil(I i, uint id : SV_VertexID) { uint r = (id >= 0x80000000 ? (id >> 12) & 0x7FFFF : (uint)i.w) * 8; O o = vs(i, id);"
+    "O vsil(I i, uint id : SV_VertexID) { uint r = id >= 0x80000000 ? (id >> 12) & 0x7FFFF : (uint)i.w; if (r == 0x7FFFF) r = i.inst; r *= 8; O o = vs(i, id);"
     " uint q = (uint)wt.Load(r + 7).w; o.k = float3((q >> 16) & 255, (q >> 8) & 255, q & 255) / 255; return o; }\n"
     "Texture2D<float> slb : register(t10); Texture2D<float> slz : register(t11);\n"
     "float4 psil(O i) : SV_Target { int3 a = int3(i.p.xy, 0); float bz = slb.Load(a);"
@@ -320,7 +320,7 @@ internal struct {
     rb_world *w;
     int nv, ni, nw;
     D3D11_PRIMITIVE_TOPOLOGY topo;
-    int morph;      // the batch's draws are blended ones (render_morph.c): indices only, no vertices
+    int morph;      // the batch's draws are blended ones (render_morph.c): indices only, no vertices; 2: instances (render_instance.c)
     LONG batches;   // draw calls made (the minute's line)
 } g_rb;
 typedef struct { uint32_t key; void *obj; } rd3_cached;
@@ -386,8 +386,9 @@ internal int rd3_init(void) {
         { "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 },
         { "COLOR", 0, DXGI_FORMAT_R8G8B8A8_UNORM, 0, 24, D3D11_INPUT_PER_VERTEX_DATA, 0 },
         { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 28, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-        { "WORLD", 0, DXGI_FORMAT_R32_UINT, 0, 36, D3D11_INPUT_PER_VERTEX_DATA, 0 } };   // rb_vertex
-    if (SUCCEEDED(hr)) hr = ID3D11Device_CreateInputLayout(g_d3d.dev, el, 5, ID3D10Blob_GetBufferPointer(code), ID3D10Blob_GetBufferSize(code), &g_rd3.inputs);
+        { "WORLD", 0, DXGI_FORMAT_R32_UINT, 0, 36, D3D11_INPUT_PER_VERTEX_DATA, 0 },     // rb_vertex
+        { "INST", 0, DXGI_FORMAT_R32_UINT, 1, 0, D3D11_INPUT_PER_INSTANCE_DATA, 1 } };   // render_instance.c
+    if (SUCCEEDED(hr)) hr = ID3D11Device_CreateInputLayout(g_d3d.dev, el, 6, ID3D10Blob_GetBufferPointer(code), ID3D10Blob_GetBufferSize(code), &g_rd3.inputs);
     D3D_RELEASE(code);
     code = SUCCEEDED(hr) ? d3d_compile(k_rd3_shader, sizeof k_rd3_shader - 1, "ps", "ps_4_0") : NULL;
     hr = code ? ID3D11Device_CreatePixelShader(g_d3d.dev, ID3D10Blob_GetBufferPointer(code), ID3D10Blob_GetBufferSize(code), NULL, &g_rd3.ps) : E_FAIL;
@@ -493,6 +494,10 @@ internal float rd3_float(DWORD v) { float f; memcpy(&f, &v, 4); return f; }
 
 internal volatile LONG g_rp_state;   // the probe (below)
 internal void rec_count(int role, DWORD nv);   // render_record.c: a draw's role counted for the frame
+internal ID3D11Buffer *g_in_ib, *g_in_ids;   // the units' instances (render_instance.c): the triangles' pool, the instance stream
+internal int g_in_pool, g_in_force = -1;      // the pool is the index buffer bound now; the pipe's (-1: the ini's)
+internal LONG g_in_parts, g_in_fell;          // the pipe's: parts drawn that way, models left to the display DLL
+internal void in_flush(void);
 internal ID3D11ShaderResourceView *g_mo_srv;   // the animation's pool (render_morph.c), bound with the list
 internal volatile LONG g_rp_state;   // the pipe's rprobe (below)
 #include "render_frame.c"     // the frame recorded and drawn at once
@@ -682,6 +687,7 @@ internal int rd3_drawable(rd_vb *vb, D3DPRIMITIVETYPE type) {
 // the batch into the upload buffers and the frame's list (render_frame.c), with the states it was collected under
 internal void rd3_flush(void) {
     if (!g_rb.ni) return;
+    if (g_rb.morph == 2) { in_flush(); return; }
     rf_keep_ground();
     long wa = rd3_upload(&g_rd3.wb, &g_rd3.wb_cap, D3D11_BIND_SHADER_RESOURCE, &g_rd3.wb_pos, g_rb.w, (UINT)g_rb.nw * sizeof *g_rb.w, sizeof *g_rb.w);
     if (wa >= 0 && g_rb.morph) {   // indices only: their entries' slots moved to the matrices' place
@@ -794,7 +800,7 @@ internal void rd3_append_ui_lines(rd_device *d, rd_vb *vb, DWORD start, DWORD nv
 // triangles' indices to the entry and the vertex in the run
 internal void rd3_append_morph(rd_device *d, const mo_run *a, const mo_run *b, float f, const WORD *idx, DWORD ni) {
     sil_batch();
-    if (g_rb.ni && (!g_rb.morph || g_rb.ni + (int)ni > RB_INDICES || g_rb.nw >= RB_WORLDS)) rd3_flush();
+    if (g_rb.ni && (g_rb.morph != 1 || g_rb.ni + (int)ni > RB_INDICES || g_rb.nw >= RB_WORLDS)) rd3_flush();
     uint32_t s = (uint32_t)g_rb.nw++;
     rb_world *e = &g_rb.w[s];
     rd3_entry(d, e);
@@ -807,6 +813,7 @@ internal void rd3_append_morph(rd_device *d, const mo_run *a, const mo_run *b, f
     g_mo.draws++;
 }
 
+#include "render_instance.c"  // the units drawn as instances ([display] unit_instancing)
 #include "render_overlay.c"   // the debug overlay: the AI's plans on the map
 #include "render_record.c"    // the pipe's record: frames one after another, to find a flicker
 

@@ -195,6 +195,9 @@ internal void cmd_picture(char *out, const char *args) {
     if (!strcmp(mode, "aa")) {
         if (!strcmp(arg, "on") || !strcmp(arg, "off")) g_fx.on = arg[1] == 'n';
         else { REPLY("error: usage: picture aa on | off\n"); return; }
+    } else if (!strcmp(mode, "inst")) {   // render_instance.c
+        if (!strcmp(arg, "on") || !strcmp(arg, "off")) g_in_force = arg[1] == 'n';
+        else { REPLY("instances: %s, parts drawn so %ld, models left to the display DLL %ld\n", (g_in_force < 0 ? g_set.unit_instancing : g_in_force) ? "on" : "off", (long)g_in_parts, (long)g_in_fell); return; }
     } else if (!strcmp(mode, "sil")) {   // render_silhouette.c
         if (!strcmp(arg, "on") || !strcmp(arg, "off")) g_sl.force = arg[1] == 'n';
         else { REPLY("error: usage: picture sil on | off\n"); return; }

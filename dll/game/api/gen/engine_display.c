@@ -319,6 +319,17 @@ internal inline void screen_set_fullscreen(ee_screen *o, uint8_t v) { *(uint8_t 
 internal inline uint8_t *screen_fullscreen_at(const ee_screen *o) { return (uint8_t *)((uint8_t *)o + of_screen_fullscreen); }
 
 // class ee_screen_state (ee_screen_state)
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// what DrawModelHierarchy takes the view's width from, for the detail by a model's size on screen (800 / (right -
+// left)); [guess]: named from that use
+internal inline float screen_state_get_view_left(const ee_screen_state *o) { return *(float *)((uint8_t *)o + of_screen_state_view_left); }
+internal inline void screen_state_set_view_left(ee_screen_state *o, float v) { *(float *)((uint8_t *)o + of_screen_state_view_left) = v; }
+internal inline float *screen_state_view_left_at(const ee_screen_state *o) { return (float *)((uint8_t *)o + of_screen_state_view_left); }
+// A GUESS (the spec's [guess]): its name and type, from what the code does with it -
+// the other end of that width (DrawModelHierarchy: +0x18 - +0x14) [guess]: named from that use
+internal inline float screen_state_get_view_right(const ee_screen_state *o) { return *(float *)((uint8_t *)o + of_screen_state_view_right); }
+internal inline void screen_state_set_view_right(ee_screen_state *o, float v) { *(float *)((uint8_t *)o + of_screen_state_view_right) = v; }
+internal inline float *screen_state_view_right_at(const ee_screen_state *o) { return (float *)((uint8_t *)o + of_screen_state_view_right); }
 internal inline ee_screen *screen_state_get_screen(const ee_screen_state *o) { return *(ee_screen **)((uint8_t *)o + of_screen_state_screen); }
 internal inline void screen_state_set_screen(ee_screen_state *o, ee_screen *v) { *(ee_screen **)((uint8_t *)o + of_screen_state_screen) = v; }
 internal inline ee_screen **screen_state_screen_at(const ee_screen_state *o) { return (ee_screen **)((uint8_t *)o + of_screen_state_screen); }
@@ -369,6 +380,21 @@ internal inline float **model_radii_at(const ee_model *o) { return (float **)((u
 internal inline float model_get_transform(const ee_model *o, int i) { return ((float *)((uint8_t *)o + of_model_transform))[i]; }
 internal inline void model_set_transform(ee_model *o, int i, float v) { ((float *)((uint8_t *)o + of_model_transform))[i] = v; }
 internal inline float *model_transform_at(const ee_model *o) { return (float *)((uint8_t *)o + of_model_transform); }
+// what hangs on it (child_count), each drawn after it under its transformation (DrawModelHierarchy)
+internal inline ee_model **model_get_children(const ee_model *o) { return *(ee_model ***)((uint8_t *)o + of_model_children); }
+internal inline void model_set_children(ee_model *o, ee_model **v) { *(ee_model ***)((uint8_t *)o + of_model_children) = v; }
+internal inline ee_model ***model_children_at(const ee_model *o) { return (ee_model ***)((uint8_t *)o + of_model_children); }
+internal inline uint32_t model_get_child_count(const ee_model *o) { return *(uint32_t *)((uint8_t *)o + of_model_child_count); }
+internal inline void model_set_child_count(ee_model *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_model_child_count) = v; }
+internal inline uint32_t *model_child_count_at(const ee_model *o) { return (uint32_t *)((uint8_t *)o + of_model_child_count); }
+// its size: what DrawModelHierarchy gives the view's test, times its parent's for what hangs on something
+internal inline float model_get_scale(const ee_model *o) { return *(float *)((uint8_t *)o + of_model_scale); }
+internal inline void model_set_scale(ee_model *o, float v) { *(float *)((uint8_t *)o + of_model_scale) = v; }
+internal inline float *model_scale_at(const ee_model *o) { return (float *)((uint8_t *)o + of_model_scale); }
+// its opacity (the exe's unit draw sets it): the material's alpha times this is the draw's
+internal inline float model_get_alpha(const ee_model *o) { return *(float *)((uint8_t *)o + of_model_alpha); }
+internal inline void model_set_alpha(ee_model *o, float v) { *(float *)((uint8_t *)o + of_model_alpha) = v; }
+internal inline float *model_alpha_at(const ee_model *o) { return (float *)((uint8_t *)o + of_model_alpha); }
 // the frame drawn: CopyStdVertices copies vertices[frame]
 internal inline uint32_t model_get_frame(const ee_model *o) { return *(uint32_t *)((uint8_t *)o + of_model_frame); }
 internal inline void model_set_frame(ee_model *o, uint32_t v) { *(uint32_t *)((uint8_t *)o + of_model_frame) = v; }
@@ -438,6 +464,14 @@ internal inline uint32_t *model_lods_at(const ee_model *o) { return (uint32_t *)
 internal inline void **material_get_textures(const ee_material *o) { return *(void ***)((uint8_t *)o + of_material_textures); }
 internal inline void material_set_textures(ee_material *o, void **v) { *(void ***)((uint8_t *)o + of_material_textures) = v; }
 internal inline void ***material_textures_at(const ee_material *o) { return (void ***)((uint8_t *)o + of_material_textures); }
+// its colour, the draw's diffuse and ambient (DrawModelHierarchy)
+internal inline vec3 material_get_colour(const ee_material *o) { return *(vec3 *)((uint8_t *)o + of_material_colour); }
+internal inline void material_set_colour(ee_material *o, vec3 v) { *(vec3 *)((uint8_t *)o + of_material_colour) = v; }
+internal inline vec3 *material_colour_at(const ee_material *o) { return (vec3 *)((uint8_t *)o + of_material_colour); }
+// the draw's alpha, times the model's
+internal inline float material_get_alpha(const ee_material *o) { return *(float *)((uint8_t *)o + of_material_alpha); }
+internal inline void material_set_alpha(ee_material *o, float v) { *(float *)((uint8_t *)o + of_material_alpha) = v; }
+internal inline float *material_alpha_at(const ee_material *o) { return (float *)((uint8_t *)o + of_material_alpha); }
 // per lod: its first triangle in the model's polygons[lod]
 internal inline uint32_t *material_get_polygon_first(const ee_material *o) { return *(uint32_t **)((uint8_t *)o + of_material_polygon_first); }
 internal inline void material_set_polygon_first(ee_material *o, uint32_t *v) { *(uint32_t **)((uint8_t *)o + of_material_polygon_first) = v; }
@@ -1030,6 +1064,8 @@ internal int spec_engine_display_select(int build) {
         of_screen_mode = 0x38;
         of_screen_desktop = 0x3C;
         of_screen_fullscreen = 0x3D;
+        of_screen_state_view_left = 0x14;
+        of_screen_state_view_right = 0x18;
         of_screen_state_screen = 0x2A8;
         of_screen_state_front = 0x2AC;
         of_screen_state_back = 0x2B0;
@@ -1043,6 +1079,10 @@ internal int spec_engine_display_select(int build) {
         of_model_center = 0xC8;
         of_model_radii = 0x124;
         of_model_transform = 0x88;
+        of_model_children = 0xFC;
+        of_model_child_count = 0x13C;
+        of_model_scale = 0x128;
+        of_model_alpha = 0x12C;
         of_model_frame = 0x134;
         of_model_next_frame = 0x138;
         of_model_fraction = 0x130;
@@ -1057,6 +1097,8 @@ internal int spec_engine_display_select(int build) {
         of_model_vertex_count = 0x14C;
         of_model_lods = 0x154;
         of_material_textures = 0x24;
+        of_material_colour = 0x18;
+        of_material_alpha = 0x44;
         of_material_polygon_first = 0x2C;
         of_material_polygon_count = 0x30;
         of_material_vertex_first = 0x34;
@@ -1361,6 +1403,8 @@ internal int spec_engine_display_select(int build) {
         of_screen_mode = 0x38;
         of_screen_desktop = 0x3C;
         of_screen_fullscreen = 0x3D;
+        of_screen_state_view_left = 0x14;
+        of_screen_state_view_right = 0x18;
         of_screen_state_screen = 0x2A8;
         of_screen_state_front = 0x2AC;
         of_screen_state_back = 0x2B0;
@@ -1374,6 +1418,10 @@ internal int spec_engine_display_select(int build) {
         of_model_center = 0xC8;
         of_model_radii = 0x124;
         of_model_transform = 0x88;
+        of_model_children = 0xFC;
+        of_model_child_count = 0x13C;
+        of_model_scale = 0x128;
+        of_model_alpha = 0x12C;
         of_model_frame = 0x134;
         of_model_next_frame = 0x138;
         of_model_fraction = 0x130;
@@ -1388,6 +1436,8 @@ internal int spec_engine_display_select(int build) {
         of_model_vertex_count = 0x14C;
         of_model_lods = 0x154;
         of_material_textures = 0x24;
+        of_material_colour = 0x18;
+        of_material_alpha = 0x44;
         of_material_polygon_first = 0x2C;
         of_material_polygon_count = 0x30;
         of_material_vertex_first = 0x34;

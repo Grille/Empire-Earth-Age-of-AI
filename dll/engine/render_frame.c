@@ -24,6 +24,7 @@ typedef struct {
     int role, ro;    // the shadows' role (render_shadows.c SH_), the render object drawing it
     UINT at, n;      // the indices in the upload buffer
     INT base;        // the vertices' (in vertices)
+    UINT inst, inst_at;  // instances of one list (render_instance.c): how many, where their entries start; 0: a plain draw
     ID3D11Buffer *gvb;   // the ground's own vertices (render_ground.c): drawn from them, no indices
 } rf_cmd;
 internal struct {
@@ -75,6 +76,28 @@ internal void rf_record(UINT at, UINT n, INT base) {
     c->sil = g_ro_cur == RO_UNITS && g_rd3.depth_soft ? g_rd3.sil : 0;
     c->at = at; c->n = n; c->base = base;
     c->gvb = NULL;
+    c->inst = c->inst_at = 0;
+}
+// a list's draws of one triangles' list (render_instance.c): at, n its place in the pool, inst_at where its entries start
+internal void rf_record_inst(UINT at, UINT n, UINT inst, UINT inst_at) {
+    int k = g_rf.n;
+    rf_record(at, n, 0);
+    if (g_rf.n > k) { g_rf.cmd[k].inst = inst; g_rf.cmd[k].inst_at = inst_at; }
+}
+// the batch's draw call (its index buffer the ring's, or the instances' pool)
+internal void rf_call(ID3D11DeviceContext *x, const rf_cmd *c) {
+    if (c->inst) {
+        if (!g_in_pool) { ID3D11DeviceContext_IASetIndexBuffer(x, g_in_ib, DXGI_FORMAT_R32_UINT, 0); g_in_pool = 1; }
+        ID3D11DeviceContext_DrawIndexedInstanced(x, c->n, c->inst, c->at, 0, c->inst_at);
+        return;
+    }
+    if (g_in_pool) { ID3D11DeviceContext_IASetIndexBuffer(x, g_rd3.ib, DXGI_FORMAT_R32_UINT, 0); g_in_pool = 0; }
+    ID3D11DeviceContext_DrawIndexed(x, c->n, c->at, c->base);
+}
+// the instance stream, slot 1
+internal void rf_bind_ids(ID3D11DeviceContext *x) {
+    UINT stride = 4, off = 0;
+    ID3D11DeviceContext_IASetVertexBuffers(x, 1, 1, &g_in_ids, &stride, &off);
 }
 
 // THE GROUND KEPT (render_3d.c "the frame during a step"): a frame drawn while the simulation runs a step skips the
@@ -737,6 +760,8 @@ internal void rf_bind(ID3D11DeviceContext *x) {
     UINT stride = sizeof(rb_vertex), off = 0;
     ID3D11DeviceContext_IASetVertexBuffers(x, 0, 1, &g_rd3.vb, &stride, &off);
     ID3D11DeviceContext_IASetIndexBuffer(x, g_rd3.ib, DXGI_FORMAT_R32_UINT, 0);
+    g_in_pool = 0;
+    rf_bind_ids(x);
     rd3_shadow_bind(x);
 }
 // a viewport of the game's coordinates on the target as drawn (a larger target: render.c g_uis); NULL rtv: the larger one
@@ -818,7 +843,7 @@ internal void rf_draw(ID3D11DeviceContext *x, const rf_cmd *c, rf_cmd *b, int *f
     *first = 0;
     rd3_water_pass(x, c);
     if (c->gvb) rg_replay(x, c);
-    else ID3D11DeviceContext_DrawIndexed(x, c->n, c->at, c->base);
+    else rf_call(x, c);
     g_rb.batches++;
 }
 // the list drawn, in its order (the shadows' maps first), and emptied - all its states bound, whoever used the context

@@ -182,6 +182,9 @@ class display
         /// The own renderer, with units_smooth: buildings stay whole, and units behind one are seen through it as a shape
         /// in their player's colour, lit as they are (the control pipe: picture sil on / off):
         bool unit_silhouettes = false;
+        /// The own renderer: units and buildings drawn by GPU instancing, past the display DLL's part by part work
+        /// (the control pipe: picture inst on / off). The same picture for less of the CPU's time in big armies:
+        bool unit_instancing = false;
         /// The own renderer with dynamic shadows only: units, buildings and trees mirrored in the water, drawn a second
         /// time at half the picture's size (the control pipe: water mirror on / off):
         bool water_reflections = false;
