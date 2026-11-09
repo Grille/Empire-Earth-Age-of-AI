@@ -1171,6 +1171,19 @@ the call goes through dreXmod as the game's own do). `Low-Level Engine.dll` in m
 dreXmod's FixTnLVertexBuffer does what [display] vertex_sysmem does (the caps operand is no longer the original
 when the mod looks: "NOT patched", the buffer in system memory all the same).
 
+**dreXmod's camera** (the 2021 build beside the 2017 update, dreXmod.config's `<Camera>`; 2026-11-09: the same save in a copy of
+the game folder with it on and off, and the player's running game). What it changes in the normal view (the camera's view,
++0xF4, 0): the eye's distance at full zoom out (.rdata 0x82C700) -20.5 -> -24.75, the far depth (0x82C704) 35 -> 49.5, the map
+viewport's field of view (GEViewport 0x919470, +0x25C) 0.5236 -> 0.8415 - each 0.99 x its setting (MaxZ 25, Fog 50, FOV 0.85).
+Pitch 35 is the game's own (0x9183C8 -0.6109 with the camera off too). One operand of the code: 0x51568B, in 0x515611, a fixed
+-30 degrees (0x82C5C4) -> the camera's pitch (0x9183C8; what that function draws not looked at). Two jumps more into dreXmod
+with the camera on, both in the scenario editor's form (0x58E271, 0x58F4E7, not looked at). Where it writes the field of view
+is not known: no other code of the exe, the engine or the display DLLs differs. Its Style 3 starts a game in the game's own view
+3: the eye 42 back at full zoom out (0x82C708), the far depth 58 (0x82C70C), the camera's lowest height 0.1 instead of 0.4
+(0x82C6D0 / 0x82C6D4). The first turn of the wheel puts the view back to 0 (EEUIEWheelZoom), the pipe's `camera zoom` does not:
+a test game stays in view 3 with eye 42 and far 58, while the player's plays in view 0 with 24.75 and 49.5 - the renderer's
+measurements through the pipe are of a camera the player leaves at the first turn of the wheel.
+
 **The mod on NeoEE (since 2026-10-27):** the `ee` column (builds.h: an exe row names its column), its import slots
 found by name in the exe file ([import_slot] - the file: NeoEE's name thunks are the slots themselves, so in memory
 they hold the functions); the start's log says `# build: NeoEE (ee's code)` and `# spec: 30 import slots elsewhere
