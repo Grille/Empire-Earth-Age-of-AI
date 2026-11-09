@@ -1187,7 +1187,8 @@ measurements through the pipe are of a camera the player leaves at the first tur
 The mod does this itself since 2026-11-09 ([camera] camera_distance, camera_distance_max, camera_view_distance, camera_fov;
 engine/camera.c; dreXmod's camera off in the player's dreXmod.config). The field of view is a global after all: 0x91328C
 (AoC 0x929A34), what the camera's step gives SetFieldOfView each time. Past the game's zoom 1 the game's zoom stays at 1,
-so the pitch does (0x51DA2D goes NaN above 1), and the eye's distance at 1 and the far depth grow. The fog follows by itself:
+so the pitch does (0x51DA2D goes NaN above 1), and the eye's distance at 1 and the far depth grow; the eye rides there and the
+far depth doesn't, so going in it waits for the ride's end (else the ground is cut off behind the eye). The fog follows by itself:
 its range is the far depth less 8 to the far depth (41.5 .. 49.5, at the furthest 56.9 .. 64.9; `ddinfo` with diag_hooks=1). At
 42 tiles back the 8000-unit save's region is 85 x 85 tiles (of the mesh's 101) with the sides' margin 1.49, the top's none.
 

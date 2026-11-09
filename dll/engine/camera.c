@@ -203,10 +203,18 @@ internal float g_cam_v = 1.0f;   // the zoom past the game's 1 (1: none)
 internal int g_cam_shape;
 internal ee_map *g_cam_v_map;
 internal int g_rd_on;   // display.c: the own renderer draws
+// The eye gets to a new distance by the camera's ride, over a second or more, and the far depth takes effect at once: going
+// in it would cut the ground off behind the eye still far out (the sky's colour over the picture while the wheel turned fast;
+// out it only sees further than yet needed), so going in it waits for the ride's end (camera_shape_frame). g_cam_far_v: the zoom it is made for.
+internal float g_cam_far_v = 1.0f;
+internal void camera_far_write(void) {
+    *camera_far_at() = g_cam_view + g_cam_dist * (g_cam_far_v - 1.0f) * (g_rd_on ? CAM_FAR_PER_TILE_OWN : CAM_FAR_PER_TILE);
+}
 internal void camera_shape_write(float v) {
     if (!g_cam_shape) return;
     *camera_eye_far_at() = -g_cam_dist * v;
-    *camera_far_at() = g_cam_view + g_cam_dist * (v - 1.0f) * (g_rd_on ? CAM_FAR_PER_TILE_OWN : CAM_FAR_PER_TILE);
+    if (v > g_cam_far_v) g_cam_far_v = v;
+    camera_far_write();
 }
 internal float camera_zoom_max(void) {
     if (!g_cam_shape) return 1.0f;
@@ -226,6 +234,20 @@ internal void camera_zoom_set(float z) {
     camera_shape_write(g_cam_v);
     if (cam) camera_zoom_to(cam, z > 1.0f ? 1.0f : z);
 }
+// The wheel's zoom after n notches in (out: below 0): the game's 0.05 a notch up to its 1, and from there a step that grows
+// with the distance, the same 0.05 at 1 and towards a tenth of the distance far out (the player 2026-11-09: "zooming in and
+// out should be stronger the further the camera is"; 0.05 all the way was 780 notches to 1000 tiles back). A factor on
+// z - 0.5, so a notch in undoes a notch out.
+#define CAM_NOTCH 0.05f
+#define CAM_NOTCH_FAR 1.1f
+internal float camera_zoom_notches(int n) {
+    float z = camera_zoom_now();
+    for (int i = n < 0 ? -n : n; i > 0; i--) {
+        if (n < 0) z = z >= 1.0f ? 0.5f + (z - 0.5f) * CAM_NOTCH_FAR : z + CAM_NOTCH;
+        else z = z > 1.0f ? 0.5f + (z - 0.5f) / CAM_NOTCH_FAR : z - CAM_NOTCH;
+    }
+    return z;
+}
 // every frame, the render thread: a float the game's step reads; a zoom past 1 ends with a new map or a zoom the game made
 internal void camera_shape_frame(void) {
     if (!g_cam_shape) return;
@@ -234,6 +256,10 @@ internal void camera_shape_frame(void) {
     if (g_cam_v != 1.0f && game_camera() && (map != g_cam_v_map || scroll_speed() < 1.0f)) {
         g_cam_v = 1.0f;
         camera_shape_write(1.0f);
+    }
+    if (g_cam_far_v > g_cam_v && (map != g_cam_v_map || !game_camera() || !(camera_get_blend(game_camera()) < 1))) {
+        g_cam_far_v = g_cam_v;
+        camera_far_write();
     }
     g_cam_v_map = map;
 }
@@ -292,19 +318,24 @@ internal void wheel_frame(const ee_ui_form *f) {
     InterlockedExchangeAdd(&g_wheel, -n * WHEEL_DELTA);
     ee_camera *cam = game_camera();
     if (!cam || !wheel_ours(f)) return;
-    float z = camera_zoom_now() - (float)n * 0.05f;
+    float z = camera_zoom_notches((int)n);
     if (g_cam_now_ok && g_cam_t > camera_get_blend(cam)) camera_set_blend(cam, g_cam_t);
     camera_zoom_set(z);
     g_cam_t = 0;
     g_cam_blend_seen = -1;   // the next frame takes the camera's blend as a ride's start
     g_wheel_zooms++;
 }
-// The zoom keys: the game's own up to its 1, and from there on ours (a step of the game's 0.0035 .. 0.01 by its curve)
+// The zoom keys: the game's own up to its 1, and from there on ours (a step of the game's 0.0035 .. 0.01 by its curve,
+// growing with the distance as the wheel's: the factor is the wheel's step at g_cam_v over its 0.05 at 1)
 #define CAM_KEY_STEP 0.0065f
 internal uint32_t __thiscall hook_hot_key_zoom(eeuie_hot_key_zoom *self, ee_ui_form *form, uint32_t arg) {
     if (scroll_speed() >= 1.0f && camera_zoom_max() > 1.0f && wheel_zoom_free()) {
         int out = eeuie_hot_key_zoom_get_zooms_out(self) != 0;
-        if (out || g_cam_v > 1.0f) { camera_zoom_set(g_cam_v + (out ? CAM_KEY_STEP : -CAM_KEY_STEP)); return 0; }
+        if (out || g_cam_v > 1.0f) {
+            float step = CAM_KEY_STEP * (2.0f * g_cam_v - 1.0f);
+            camera_zoom_set(g_cam_v + (out ? step : -step));
+            return 0;
+        }
     }
     return eeuie_hot_key_zoom_execute(self, form, arg);
 }
@@ -314,7 +345,7 @@ internal uint32_t __thiscall hook_wheel_zoom(eeuie_wheel_zoom *self, ee_ui_form 
     // the editor's wheel (its lists keep theirs): on past the game's 1, as the game's form's
     if (editor_is_on() && camera_zoom_max() > 1.0f && wheel_zoom_free()) {
         int n = mouse_wheel_notches();
-        if (n) camera_zoom_set(camera_zoom_now() - (float)n * 0.05f);
+        if (n) camera_zoom_set(camera_zoom_notches(n));
         return 0;
     }
     return eeuie_wheel_zoom_execute(self, form, arg);
