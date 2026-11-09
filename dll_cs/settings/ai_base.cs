@@ -904,8 +904,7 @@ class ai_base
         /// The first two Granaries and the 8 fields of each are an entry of the priority list, one at a time: from the start of the
         /// Copper Age's research their wood is held back from soldiers and from the buildings that aren't food, houses, towns
         /// or docks, and the second follows when the first's fields are built and worked. 0 = they get what the others leave
-        /// (default until measured)
-        bool farm_first = false;
+        bool farm_first = true;
         /// The units in production the room for training leaves out are set to what the buildings really have queued: a loaded
         /// game starts that count at 0 (the save doesn't keep it) and the AI queued far more than its limit lets out. Off: on
         /// the player's save "standing army" its AIs lost more units with it (101 against 82 in 15 minutes). 1 = on
