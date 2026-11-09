@@ -276,6 +276,7 @@ drawn. AoC: the interface's lock at the same place (0x50989F), a short game norm
   Checked on a copy of the 8000 save: scrolling, the eye 0.035 a frame every frame; zoom 0.6, the eye down from 14.6 to
   6.2 in even frames (the game's own blend lagging behind); shots during a scroll under 60 ms steps, the trees and
   units on their ground.
+- The lines from an airport to its targets (EEE3DMarchingLine, 2026-11-09) are effects of the third queue, which the ground's pass draws, in pixels. Kept with the ground, a frame during a step showed them where the last update's camera had put them, the ground moving on under them. They aren't kept now: such a frame draws them itself, from the queues (`rf_ground_lines`).
 - What the units' draw places in pixels itself (2026-11-07, the player: "the healthbars of selected units dont draw
   based on camera position"): the selected units' health bars are drawn in 2D mode (DX7Rasterizer::Set2DMode: view
   identity, an orthographic projection, depth 0 - `rprobe` shows them as 45 x 3.75 quads at pixel places, the units'

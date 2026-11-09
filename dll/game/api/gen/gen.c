@@ -215,6 +215,7 @@ typedef struct ee_doppelganger ee_doppelganger;
 typedef struct ee_ro_water ee_ro_water;
 typedef struct ee_ro_ui ee_ro_ui;
 typedef struct ee_ro_effects ee_ro_effects;
+typedef struct eee3_d_marching_line eee3_d_marching_line;
 typedef struct ee_model ee_model;
 typedef struct ee_box ee_box;
 typedef struct ee_material ee_material;

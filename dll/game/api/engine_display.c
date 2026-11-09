@@ -280,6 +280,8 @@ internal inline int effect_shown(const void *e) {
 }
 internal inline void effect_prepare(void *e) { ((void (__thiscall *)(void *))(*(void ***)e)[value_engine_display_slot_effect_prepare])(e); }
 internal inline int effect_queue(void *e, void *queues) { return ((int (__thiscall *)(void *, void *))(*(void ***)e)[value_engine_display_slot_effect_queue])(e, queues); }
+internal inline int effect_is_marching_line(const void *e) { return *(const uint32_t *)e == vt_eee3_d_marching_line; }
+internal inline void effect_draw(void *e) { ((int (__thiscall *)(void *))(*(void ***)e)[value_engine_display_slot_effect_draw])(e); }
 internal inline void effect_reference(void *e) { ++*(uint32_t *)((uint8_t *)e + 4); }
 internal inline uint32_t effect_references(const void *e) { return *(const uint32_t *)((const uint8_t *)e + 4); }
 // a queue's entries in their order (the tree's nodes: left +0, parent +4, right +8, the key +0xC, the deque +0x10, its

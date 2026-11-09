@@ -1099,7 +1099,7 @@ internal int g_rp_skip;       // bit per render object: its draw skipped (the pi
 // again (rprobe step: the same 73 draws) - the ground twice, its see-through layers twice as strong (render_frame.c
 // rf_ground_again)
 internal void __thiscall rd_hook_ro_terrain(ee_ro_terrain *o) {
-    RO_DRAW(RO_TERRAIN, if (g_kg_skip && g_kg.nb) rf_ground_again(&g_kg); else ro_terrain_draw(o));
+    RO_DRAW(RO_TERRAIN, if (g_kg_skip && g_kg.nb) { rf_ground_again(&g_kg); rf_ground_lines(); } else ro_terrain_draw(o));
 }
 // during a step the last real frame's fields (the game's blob shadows aren't drawn: render_shadows.c SH_BLOB)
 internal void __thiscall rd_hook_ro_shadows(ee_ro_shadows *o) {

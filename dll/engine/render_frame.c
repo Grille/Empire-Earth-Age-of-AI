@@ -113,8 +113,18 @@ internal void rf_ground_clear(rf_ground *g) {
     }
     g->nv = g->ni = g->nw = g->nb = 0;
 }
-// the batch being flushed (rd3_flush, before its matrices' place is added), when it is the ground's
+// a view that is the identity: a draw in pixels (the 2D mode's)
+internal int rf_pixels(const float *view) {
+    static const float ident[16] = { 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1 };
+    int same = 1;
+    for (int i = 0; i < 16; i++) same &= view[i] == ident[i];
+    return same;
+}
+// the batch being flushed (rd3_flush, before its matrices' place is added), when it is the ground's - not what the ground's
+// pass draws in pixels: an airport's lines to its targets (rf_ground_lines), which kept stood where the last update's camera
+// had put them
 internal void rf_keep_ground(void) {
+    if (g_ro_cur == RO_TERRAIN && rf_pixels(g_rd3.vc.view)) return;
     if (g_ro_cur == RO_UI ? g_rwl_bare_now : g_kg_skip || (g_ro_cur != RO_TERRAIN && g_ro_cur != RO_WATER && g_ro_cur != RO_SHADOWS))
         return;
     rf_ground *g = g_ro_cur == RO_UI ? &g_ku : g_ro_cur == RO_WATER ? &g_kw : g_ro_cur == RO_SHADOWS ? &g_ks : &g_kg;
@@ -437,6 +447,17 @@ internal void rf_ground_frame(int skip) {
     rf_ground_clear(&g_ks);
 }
 // a frame during a step: the last frame's ground into the list
+// The ground's pass also draws the effects of the third queue, the lines from an airport to its targets (EEE3DMarchingLine)
+// among them: in pixels, at points the draw takes to the screen with the camera now (rf_view_now). Kept with the ground,
+// a frame during a step showed them where the last update's camera had put them while the ground under them moved on (the
+// player, 2026-11-09: "they propably dont get their transforms form the render thread yet", "look like the jittering terrain
+// problem we had"). So such a frame draws them itself, from the queues it took over.
+internal int rf_ground_line(void *ctx, int q, uint32_t key, void *e) {
+    (void)ctx, (void)key;
+    if (q == 2 && effect_is_marching_line(e)) effect_draw(e);
+    return 1;
+}
+internal void rf_ground_lines(void) { effect_queues_each(effect_queues_at(), rf_ground_line, NULL); }
 internal void rf_ground_again(rf_ground *g) {
     if (!g_kg_skip || !g->nb) return;
     rd3_flush();
@@ -588,10 +609,7 @@ internal void rf_shift(rd3_vcb *vc, int ro) {
     // its view) it was turned by the two cameras' rounding even with the camera still, its depth 0 then below the near
     // plane on one side of a line: the bars there cut off (the player's game: 71 bars from x 628 to 1061, those left
     // of 900 not drawn - "it changes with camera movement, when the camera is still the healthbars are stable")
-    static const float ident[16] = { 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1 };
-    int pixels = 1;
-    for (int i = 0; i < 16; i++) pixels &= vc->view[i] == ident[i];
-    if (pixels) return;
+    if (rf_pixels(vc->view)) return;
     memcpy(now, g_cam_view_now, sizeof now);
     if (vc->view[12] != 0 || vc->view[13] != 0 || vc->view[14] != 0) {
         rd3_rigid_inverse(inv, vc->view);

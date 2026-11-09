@@ -355,6 +355,13 @@ unsafe struct EEROEffects
     extern void update();
 }
 
+/// a line from an airport to its target (the graphical goal manager's kind 0): an effect of the third queue, drawn in pixels
+/// from world points (0x50DD81, AoC 0x518676)
+[vtable((ee)0x0082B9D4, (aoc)0x0084099C)]
+unsafe struct EEE3DMarchingLine
+{
+}
+
 [c_type("ee_screen")]
 unsafe struct DX7Screen
 {
@@ -907,6 +914,10 @@ static unsafe class engine_display
 
     [value((ee)11, (aoc)11)]
     static uint32 slot_effect_prepare;
+
+    /// an effect's virtual Draw (EEROTerrain's draw calls it on the third queue's: EE 0x508390, AoC 0x5131A4)
+    [value((ee)4, (aoc)4)]
+    static uint32 slot_effect_draw;
 
     [value((ee)0x20, (aoc)0x20)]
     static uint32 of_effect_player;

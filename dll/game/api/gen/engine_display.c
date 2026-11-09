@@ -290,6 +290,10 @@ internal ro_effects_update_fn fn_ro_effects_update;
 internal inline void ro_effects_update(ee_ro_effects *ro_effects) { fn_ro_effects_update(ro_effects); }
 internal inline int patch_ro_effects_update(ro_effects_update_fn h) { return patch_vtable(vt_eero_effects, (int)slot_render_object_update, (uintptr_t)fn_ro_effects_update, (void *)h); }
 
+// class EEE3DMarchingLine (eee3_d_marching_line)
+// a line from an airport to its target (the graphical goal manager's kind 0): an effect of the third queue, drawn in pixels
+// from world points (0x50DD81, AoC 0x518676)
+
 // class DX7Screen (ee_screen)
 internal inline uint8_t *screen_get_modes_begin(const ee_screen *o) { return *(uint8_t **)((uint8_t *)o + of_screen_modes_begin); }
 internal inline void screen_set_modes_begin(ee_screen *o, uint8_t *v) { *(uint8_t **)((uint8_t *)o + of_screen_modes_begin) = v; }
@@ -665,6 +669,7 @@ internal inline uint8_t *engine_display_effect_queues_at(void) { return (uint8_t
 // the map's table of effects by region (RTSRegionTable: +4 the regions, 0x10 bytes each with a vector of EEEffect*
 // at +4 .. +8; +8 a region's size in tiles; +0x10 its width, +0x14 its height - a region at x * height + y)
 // an effect's virtual Queue and PrepareQueue, its player (+0x20: whose alone it is when) its local-only byte (+0x2D) is 1
+// an effect's virtual Draw (EEROTerrain's draw calls it on the third queue's: EE 0x508390, AoC 0x5131A4)
 // the collection's lock over pick_list (a TSCriticalSection*; the AoC decompilation's gUnitPickerLock): the
 // update walks the tiles inside it
 internal inline uint8_t *engine_display_picker_lock_at(void) { return (uint8_t *)(uintptr_t)data_engine_display_picker_lock; }
@@ -1006,6 +1011,7 @@ internal int spec_engine_display_select(int build) {
         vt_eero_effects = 0x0082C378;
         size_eero_effects = 0x4;
         fn_ro_effects_update = (ro_effects_update_fn)0x005067CF;
+        vt_eee3_d_marching_line = 0x0082B9D4;
         of_screen_modes_begin = 0x10;
         of_screen_ddraw = 0x30;
         of_screen_mode = 0x38;
@@ -1130,6 +1136,7 @@ internal int spec_engine_display_select(int build) {
         value_engine_display_of_map_effect_regions = 1578784;
         value_engine_display_slot_effect_queue = 9;
         value_engine_display_slot_effect_prepare = 11;
+        value_engine_display_slot_effect_draw = 4;
         value_engine_display_of_effect_player = 32;
         value_engine_display_of_effect_local_only = 45;
         data_engine_display_picker_lock = 0x00912874;
@@ -1330,6 +1337,7 @@ internal int spec_engine_display_select(int build) {
         vt_eero_effects = 0x008413D0;
         size_eero_effects = 0x4;
         fn_ro_effects_update = (ro_effects_update_fn)0x00511D76;
+        vt_eee3_d_marching_line = 0x0084099C;
         of_screen_modes_begin = 0x10;
         of_screen_ddraw = 0x30;
         of_screen_mode = 0x38;
@@ -1454,6 +1462,7 @@ internal int spec_engine_display_select(int build) {
         value_engine_display_of_map_effect_regions = 1660476;
         value_engine_display_slot_effect_queue = 9;
         value_engine_display_slot_effect_prepare = 11;
+        value_engine_display_slot_effect_draw = 4;
         value_engine_display_of_effect_player = 32;
         value_engine_display_of_effect_local_only = 45;
         data_engine_display_picker_lock = 0x00929014;
@@ -1628,6 +1637,7 @@ internal int spec_engine_display_check(void) {
     bad += spec_vtable(vt_eero_effects, ".?AVEEROEffects@@", "EEROEffects [vtable]");
     bad += spec_code((uintptr_t)fn_ro_effects_update, "EEROEffects.update");
     bad += spec_slot(vt_eero_effects, slot_render_object_update, (uintptr_t)fn_ro_effects_update, "EEROEffects.update [slot]");
+    bad += spec_vtable(vt_eee3_d_marching_line, ".?AVEEE3DMarchingLine@@", "EEE3DMarchingLine [vtable]");
     bad += spec_code((uintptr_t)fn_pick_list_reset, "EEPickList.reset");
     bad += spec_code((uintptr_t)fn_pick_list_pick_units, "EEPickList.pick_units");
     bad += spec_call(call_units_pick_rect, (uintptr_t)fn_pick_list_pick_units, "EEPickList.pick_units [call_site units_pick_rect]");
